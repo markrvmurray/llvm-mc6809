@@ -145,6 +145,7 @@ INITIALIZE_PASS(BranchRelaxationLegacy, DEBUG_TYPE, BRANCH_RELAX_NAME, false,
 /// verify - check BBOffsets, BBSizes, alignment of islands
 void BranchRelaxation::verify() {
 #ifndef NDEBUG
+  LLVM_DEBUG(dbgs() << "Verify Branch Relaxation.\nMF is :\n"; MF->dump(););
   unsigned PrevNum = MF->begin()->getNumber();
   for (MachineBasicBlock &MBB : *MF) {
     const unsigned Num = MBB.getNumber();
