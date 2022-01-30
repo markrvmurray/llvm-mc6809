@@ -33,6 +33,7 @@
 #include "ToolChains/Hurd.h"
 #include "ToolChains/Lanai.h"
 #include "ToolChains/Linux.h"
+#include "ToolChains/MC6809.h"
 #include "ToolChains/MOS.h"
 #include "ToolChains/MSP430.h"
 #include "ToolChains/MSVC.h"
@@ -6162,6 +6163,9 @@ const ToolChain &Driver::getToolChain(const ArgList &Args,
       case llvm::Triple::spirv32:
       case llvm::Triple::spirv64:
         TC = std::make_unique<toolchains::SPIRVToolChain>(*this, Target, Args);
+        break;
+      case llvm::Triple::mc6809:
+        TC = std::make_unique<toolchains::MC6809>(*this, Target, Args);
         break;
       case llvm::Triple::mos:
         TC = std::make_unique<toolchains::MOS>(*this, Target, Args);

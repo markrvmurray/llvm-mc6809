@@ -12,6 +12,7 @@
 #include "Arch/ARM.h"
 #include "Arch/M68k.h"
 #include "Arch/Mips.h"
+#include "Arch/MC6809.h"
 #include "Arch/MOS.h"
 #include "Arch/PPC.h"
 #include "Arch/Sparc.h"
@@ -390,6 +391,9 @@ std::string tools::getCPUName(const Driver &D, const ArgList &Args,
     mips::getMipsCPUAndABI(Args, T, CPUName, ABIName);
     return std::string(CPUName);
   }
+
+  case llvm::Triple::mc6809:
+    return mc6809::getMC6809TargetCPU(Args);
 
   case llvm::Triple::mos:
     return mos::getMOSTargetCPU(Args);
@@ -1682,6 +1686,43 @@ void tools::addX86AlignBranchArgs(const Driver &D, const ArgList &Args,
       addArg("-x86-pad-max-prefix-size=" + Twine(PrefixSize));
     }
   }
+}
+
+void tools::addMC6809CodeGenArgs(llvm::opt::ArgStringList &CmdArgs) {
+  // Give machine block placement an accurate cost assessment of branches and
+  // fallthroughs. (By default, it considers unconditional branches cheaper than
+  // taken conditional branches.)
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-force-precise-rotation-cost");
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-jump-inst-cost=6");
+  // Keeping all the blocks of a loop contiguous doesn't matter as much on the
+  // 6502, since there's no instruction cache. It still matters a bit; near
+  // branches are faster.
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-force-loop-cold-block");
+
+  // Never fold control flow into selects; control flow is already the most
+  // efficient way to implement select.
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-phi-node-folding-threshold=0");
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-two-entry-phi-node-folding-threshold=0");
+
+  // The 6502 has no alignment requirements, so this simplifies the ASM backend
+  // and saves space.
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-align-large-globals=false");
+
+  // Spill hoisting can turn a spill that requires no additional virtual
+  // register (say of a GPR), into a spill that does (say of an Imag8). This
+  // would be fine if spill hoisting didn't occur at the absolute very end of
+  // register allocation, leaving no chance to assign the register. Global spill
+  // hoisting doesn't seem like an absolutely essential optimization for now.
+  // When we revisit, we can notify MC6809InstrInfo that it's not allowed to
+  // generate vregs here, then use the register scavenger.
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-disable-spill-hoist");
 }
 
 void tools::addMOSCodeGenArgs(llvm::opt::ArgStringList &CmdArgs) {

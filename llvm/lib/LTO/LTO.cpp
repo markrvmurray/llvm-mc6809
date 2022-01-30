@@ -1152,7 +1152,7 @@ static const char *libcallRoutineNames[] = {
 #define HANDLE_LIBCALL(code, name) name,
 #include "llvm/IR/RuntimeLibcalls.def"
 #undef HANDLE_LIBCALL
-  // Needed by MOS target.
+  // Needed by MOS, MC6809 targets.
   "__memset",
   "__udivmodqi4",
   "__udivmodhi4",

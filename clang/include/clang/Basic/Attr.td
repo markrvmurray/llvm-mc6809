@@ -395,6 +395,7 @@ def TargetMips32 : TargetArch<["mips", "mipsel"]>;
 def TargetAnyMips : TargetArch<["mips", "mipsel", "mips64", "mips64el"]>;
 def TargetMSP430 : TargetArch<["msp430"]>;
 def TargetM68k : TargetArch<["m68k"]>;
+def TargetMC6809 : TargetArch<["mc6809"]>;
 def TargetMOS : TargetArch<["mos"]>;
 def TargetRISCV : TargetArch<["riscv32", "riscv64"]>;
 def TargetX86 : TargetArch<["x86"]>;
@@ -1687,6 +1688,25 @@ def M68kInterrupt : InheritableAttr, TargetSpecificAttr<TargetM68k> {
   let Args = [UnsignedArgument<"Number">];
   let ParseKind = "Interrupt";
   let HasCustomParsing = 1;
+  let Documentation = [Undocumented];
+}
+
+def MC6809Interrupt : InheritableAttr, TargetSpecificAttr<TargetMC6809> {
+  let Spellings = [GCC<"m6809_interrupt">];
+  let Subjects = SubjectList<[Function]>;
+  let ParseKind = "Interrupt";
+  let Documentation = [Undocumented];
+}
+
+def MC6809InterruptNorecurse : InheritableAttr, TargetSpecificAttr<TargetMC6809> {
+  let Spellings = [GCC<"m6809_interrupt_norecurse">];
+  let Subjects = SubjectList<[Function]>;
+  let Documentation = [Undocumented];
+}
+
+def MC6809NoISR : InheritableAttr, TargetSpecificAttr<TargetMC6809> {
+  let Spellings = [GCC<"m6809_no_isr">];
+  let Subjects = SubjectList<[Function]>;
   let Documentation = [Undocumented];
 }
 

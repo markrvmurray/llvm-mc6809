@@ -1807,6 +1807,10 @@ void Clang::RenderTargetOptions(const llvm::Triple &EffectiveTriple,
     AddMIPSTargetArgs(Args, CmdArgs);
     break;
 
+  case llvm::Triple::mc6809:
+    AddMC6809TargetArgs(Args, CmdArgs);
+    break;
+
   case llvm::Triple::mos:
     AddMOSTargetArgs(Args, CmdArgs);
     break;
@@ -2089,6 +2093,11 @@ void Clang::AddMIPSTargetArgs(const ArgList &Args,
       CmdArgs.push_back("-mips-jalr-reloc=0");
     }
   }
+}
+
+void Clang::AddMC6809TargetArgs(const ArgList &Args,
+                                 ArgStringList &CmdArgs) const {
+  addMC6809CodeGenArgs(CmdArgs);
 }
 
 void Clang::AddMOSTargetArgs(const ArgList &Args,

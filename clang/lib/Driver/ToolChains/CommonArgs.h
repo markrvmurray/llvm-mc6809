@@ -191,6 +191,8 @@ void addMultilibFlag(bool Enabled, const char *const Flag,
 void addX86AlignBranchArgs(const Driver &D, const llvm::opt::ArgList &Args,
                            llvm::opt::ArgStringList &CmdArgs, bool IsLTO);
 
+void addMC6809CodeGenArgs(llvm::opt::ArgStringList &CmdArgs);
+
 void addMOSCodeGenArgs(llvm::opt::ArgStringList &CmdArgs);
 
 void checkAMDGPUCodeObjectVersion(const Driver &D,

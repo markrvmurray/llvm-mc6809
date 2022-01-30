@@ -321,6 +321,7 @@ enum {
   EM_CSKY = 252,          // C-SKY 32-bit processor
   EM_LOONGARCH = 258,     // LoongArch
   EM_MOS = 6502,          // MOS Technologies 65xx
+  EM_MC6809 = 6809        // Motorola MC6809
 };
 
 // Object file classes.
@@ -497,6 +498,16 @@ enum : unsigned {
 
   EF_AVR_LINKRELAX_PREPARED = 0x80, // The file is prepared for linker
                                     // relaxation to be applied
+};
+
+// ELF relocation types for MC6809
+enum {
+#include "ELFRelocs/MC6809.def"
+};
+
+enum : unsigned {
+  EF_MC6809_ARCH_6809 = 0x00000001, // Core Motorola 6809
+  EF_MC6809_ARCH_6309 = 0x00000002  // Hitachi extended 6309
 };
 
 // ELF relocation types for MOS
@@ -1173,6 +1184,9 @@ enum : unsigned {
 
   // Make code section unreadable when in execute-only mode
   SHF_ARM_PURECODE = 0x20000000,
+
+  // 8-bit addressable section
+  SHF_MC6809_DIRECTPAGE = 0x10000000,
 
   // 8-bit addressable section
   SHF_MOS_ZEROPAGE = 0x10000000

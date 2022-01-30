@@ -31,6 +31,7 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/BinaryFormat/AMDGPUMetadataVerifier.h"
 #include "llvm/BinaryFormat/ELF.h"
+#include "llvm/BinaryFormat/MC6809Flags.h"
 #include "llvm/BinaryFormat/MOSFlags.h"
 #include "llvm/BinaryFormat/MsgPackDocument.h"
 #include "llvm/Demangle/Demangle.h"
@@ -1206,7 +1207,8 @@ const EnumEntry<unsigned> ElfMachineType[] = {
   ENUM_ENT(EM_BPF,           "EM_BPF"),
   ENUM_ENT(EM_VE,            "NEC SX-Aurora Vector Engine"),
   ENUM_ENT(EM_LOONGARCH,     "LoongArch"),
-  ENUM_ENT(EM_MOS,           "MOS Technologies"),
+  ENUM_ENT(EM_MC6809,        "Motorola and Hitachi"),
+  ENUM_ENT(EM_MOS,           "MOS Technologies")
 };
 
 const EnumEntry<unsigned> ElfSymbolBindings[] = {
@@ -1279,6 +1281,10 @@ const EnumEntry<unsigned> ElfMipsSectionFlags[] = {
   ENUM_ENT(SHF_MIPS_STRING,  "")
 };
 
+const EnumEntry<unsigned> ElfMC6809SectionFlags[] = {
+  ENUM_ENT(SHF_MC6809_DIRECTPAGE, "Z")
+};
+
 const EnumEntry<unsigned> ElfMOSSectionFlags[] = {
   ENUM_ENT(SHF_MOS_ZEROPAGE, "z")
 };
@@ -1321,6 +1327,10 @@ getSectionFlagsForTarget(unsigned EOSAbi, unsigned EMachine) {
   case EM_XCORE:
     Ret.insert(Ret.end(), std::begin(ElfXCoreSectionFlags),
                std::end(ElfXCoreSectionFlags));
+    break;
+  case EM_MC6809:
+    Ret.insert(Ret.end(), std::begin(ElfMC6809SectionFlags),
+               std::end(ElfMC6809SectionFlags));
     break;
   case EM_MOS:
     Ret.insert(Ret.end(), std::begin(ElfMOSSectionFlags),
@@ -3373,6 +3383,8 @@ template <class ELFT> void GNUELFDumper<ELFT>::printFileHeaders() {
                    unsigned(ELF::EF_MIPS_MACH));
   else if (e.e_machine == EM_RISCV)
     ElfFlags = printFlags(e.e_flags, makeArrayRef(ElfHeaderRISCVFlags));
+  else if (e.e_machine == EM_MC6809)
+    ElfFlags = printFlags(e.e_flags, MC6809::ElfHeaderMC6809Flags);
   else if (e.e_machine == EM_MOS)
     ElfFlags = printFlags(e.e_flags, MOS::ElfHeaderMOSFlags);
   else if (e.e_machine == EM_AVR)
@@ -3700,6 +3712,8 @@ static void printSectionDescription(formatted_raw_ostream &OS,
     OS << ", l (large)";
   else if (EMachine == EM_ARM)
     OS << ", y (purecode)";
+  else if (EMachine == EM_MC6809)
+    OS << ", Z (directpage)";
   else if (EMachine == EM_MOS)
     OS << ", z (zeropage)";
 
@@ -6530,6 +6544,8 @@ template <class ELFT> void LLVMELFDumper<ELFT>::printFileHeaders() {
       }
     } else if (E.e_machine == EM_RISCV)
       W.printFlags("Flags", E.e_flags, makeArrayRef(ElfHeaderRISCVFlags));
+    else if (E.e_machine == EM_MC6809)
+      W.printFlags("Flags", E.e_flags, MC6809::ElfHeaderMC6809Flags);
     else if (E.e_machine == EM_MOS)
       W.printFlags("Flags", E.e_flags, MOS::ElfHeaderMOSFlags);
     else if (E.e_machine == EM_AVR)

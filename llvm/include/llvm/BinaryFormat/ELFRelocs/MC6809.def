@@ -1,0 +1,45 @@
+
+#ifndef ELF_RELOC
+#error "ELF_RELOC must be defined"
+#endif
+
+// The following are relocation types defined for the MC6809 series of processors.
+// Other ELF readers and writers are welcome to use this information to 
+// further understand MC6809-compatible ELF files.
+// See also:
+// https://github.com/johnwbyrd/llvm-mos/wiki/ELF-format-for-MOS-compatible-processors
+
+// No relocation type.  Should not be emitted by the writer.  Readers should
+// recognize this as an error in the ELF file.
+ELF_RELOC(R_MC6809_NONE,           0)
+
+// An 8-bit immediate value.
+ELF_RELOC(R_MC6809_IMM_8,          1)
+
+// A 5-bit index offset
+ELF_RELOC(R_MC6809_OFFSET_5,       2)
+
+// An 8-bit index offset
+ELF_RELOC(R_MC6809_OFFSET_8,       3)
+
+// A 16-bit index offset
+ELF_RELOC(R_MC6809_OFFSET_16,      4)
+
+// An 8-bit direct page address
+ELF_RELOC(R_MC6809_ADDR_8,         5)
+
+// A 16-bit address
+ELF_RELOC(R_MC6809_ADDR_16,        6)
+
+// A 8-bit PC-relative value
+ELF_RELOC(R_MC6809_PCREL_8,        7)
+
+// A 16-bit PC-relative value
+ELF_RELOC(R_MC6809_PCREL_16,       8)
+
+// A 16-bit PC-relative value
+ELF_RELOC(R_MC6809_ADDR_ASCIZ,     9)
+
+// Relocations for DWARF.
+ELF_RELOC(R_MC6809_FK_DATA_4,     10)
+ELF_RELOC(R_MC6809_FK_DATA_8,     11)

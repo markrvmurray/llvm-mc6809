@@ -357,6 +357,9 @@ public:
     VK_TPREL,
     VK_DTPREL,
 
+    VK_MC6809_ADDR_8,           // mc6809_8()
+    VK_MC6809_ADDR_16,          // mc6809_16()
+
     VK_MOS_ADDR8,               // mos8()
     VK_MOS_ADDR16_LO,           // mos16lo()
     VK_MOS_ADDR16_HI,           // mos16hi()

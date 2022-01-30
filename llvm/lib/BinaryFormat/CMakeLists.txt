@@ -6,6 +6,7 @@ add_llvm_component_library(LLVMBinaryFormat
   MachO.cpp
   Magic.cpp
   Minidump.cpp
+  MC6809Flags.cpp
   MOSFlags.cpp
   MsgPackDocument.cpp
   MsgPackDocumentYAML.cpp

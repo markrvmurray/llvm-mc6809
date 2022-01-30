@@ -158,8 +158,8 @@ static void initialize(TargetLibraryInfoImpl &TLI, const Triple &T,
   // isn't true for a target those defaults should be overridden below.
   TLI.setIntSize(T.isArch16Bit() ? 16 : 32);
 
-  if (T.getArch() == Triple::mos) {
-    // The MOS target doesn't come with a standard library yet.
+  if (T.getArch() == Triple::mos || T.getArch() == Triple::mc6809) {
+    // The MOS and MC6809 targets don't come with a standard library yet.
     TLI.disableAllFunctions();
     // Freestanding functions are available.
     TLI.setAvailable(LibFunc_memcpy);

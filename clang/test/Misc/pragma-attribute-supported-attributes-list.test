@@ -81,6 +81,8 @@
 // CHECK-NEXT: Leaf (SubjectMatchRule_function)
 // CHECK-NEXT: LoaderUninitialized (SubjectMatchRule_variable_is_global)
 // CHECK-NEXT: Lockable (SubjectMatchRule_record)
+// CHECK-NEXT: MC6809InterruptNorecurse (SubjectMatchRule_function)
+// CHECK-NEXT: MC6809NoISR (SubjectMatchRule_function)
 // CHECK-NEXT: MIGServerRoutine (SubjectMatchRule_function, SubjectMatchRule_objc_method, SubjectMatchRule_block)
 // CHECK-NEXT: MOSInterruptNorecurse (SubjectMatchRule_function)
 // CHECK-NEXT: MOSNoISR (SubjectMatchRule_function)

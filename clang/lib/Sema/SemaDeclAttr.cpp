@@ -7163,6 +7163,19 @@ static void handleM68kInterruptAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   D->addAttr(UsedAttr::CreateImplicit(S.Context));
 }
 
+static void handleMC6809InterruptAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  if (!isFunctionOrMethod(D)) {
+    S.Diag(D->getLocation(), diag::warn_attribute_wrong_decl_type)
+        << "'interrupt'" << ExpectedFunction;
+    return;
+  }
+
+  if (!AL.checkExactlyNumArgs(S, 0))
+    return;
+
+  handleSimpleAttribute<MC6809InterruptAttr>(S, D, AL);
+}
+
 static void handleMOSInterruptAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (!isFunctionOrMethod(D)) {
     S.Diag(D->getLocation(), diag::warn_attribute_wrong_decl_type)
@@ -7307,6 +7320,32 @@ BTFDeclTagAttr *Sema::mergeBTFDeclTagAttr(Decl *D, const BTFDeclTagAttr &AL) {
   if (hasBTFDeclTagAttr(D, AL.getBTFDeclTag()))
     return nullptr;
   return ::new (Context) BTFDeclTagAttr(Context, AL, AL.getBTFDeclTag());
+}
+
+static void handleMC6809InterruptNorecurseAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  if (!isFunctionOrMethod(D)) {
+    S.Diag(D->getLocation(), diag::warn_attribute_wrong_decl_type)
+        << "'mc6809_interrupt_norecurse'" << ExpectedFunction;
+    return;
+  }
+
+  if (!AL.checkExactlyNumArgs(S, 0))
+    return;
+
+  handleSimpleAttribute<MC6809InterruptNorecurseAttr>(S, D, AL);
+}
+
+static void handleMC6809InterruptNoISRAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  if (!isFunctionOrMethod(D)) {
+    S.Diag(D->getLocation(), diag::warn_attribute_wrong_decl_type)
+        << "'mc6809_no_isr'" << ExpectedFunction;
+    return;
+  }
+
+  if (!AL.checkExactlyNumArgs(S, 0))
+    return;
+
+  handleSimpleAttribute<MC6809NoISRAttr>(S, D, AL);
 }
 
 static void handleMOSInterruptNorecurseAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
@@ -7500,6 +7539,9 @@ static void handleInterruptAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     break;
   case llvm::Triple::m68k:
     handleM68kInterruptAttr(S, D, AL);
+    break;
+  case llvm::Triple::mc6809:
+    handleMC6809InterruptAttr(S, D, AL);
     break;
   case llvm::Triple::mos:
     handleMOSInterruptAttr(S, D, AL);
@@ -8527,6 +8569,12 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
     break;
   case ParsedAttr::AT_BTFDeclTag:
     handleBTFDeclTagAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_MC6809InterruptNorecurse:
+    handleMC6809InterruptNorecurseAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_MC6809NoISR:
+    handleMC6809InterruptNoISRAttr(S, D, AL);
     break;
   case ParsedAttr::AT_MOSInterruptNorecurse:
     handleMOSInterruptNorecurseAttr(S, D, AL);

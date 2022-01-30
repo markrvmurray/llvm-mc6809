@@ -123,6 +123,9 @@ void MCSectionELF::printSwitchToSection(const MCAsmInfo &MAI, const Triple &T,
   } else if (Arch == Triple::hexagon) {
     if (Flags & ELF::SHF_HEX_GPREL)
       OS << 's';
+  } else if (Arch == Triple::mc6809) {
+    if (Flags & ELF::SHF_MC6809_DIRECTPAGE)
+      OS << 'Z';
   } else if (Arch == Triple::mos) {
     if (Flags & ELF::SHF_MOS_ZEROPAGE)
       OS << 'z';

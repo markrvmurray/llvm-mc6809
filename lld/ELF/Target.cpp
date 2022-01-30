@@ -87,6 +87,8 @@ TargetInfo *elf::getTarget() {
     return getSPARCV9TargetInfo();
   case EM_X86_64:
     return getX86_64TargetInfo();
+  case EM_MC6809:
+    return getMC6809TargetInfo();
   case EM_MOS:
     return getMOSTargetInfo();
   }

@@ -351,6 +351,7 @@ void ScalarEnumerationTraits<ELFYAML::ELF_EM>::enumeration(
   ECase(EM_VE);
   ECase(EM_CSKY);
   ECase(EM_LOONGARCH);
+  ECase(EM_MC6809);
   ECase(EM_MOS);
 #undef ECase
   IO.enumFallback<Hex16>(Value);
@@ -758,6 +759,9 @@ void ScalarBitSetTraits<ELFYAML::ELF_SHF>::bitset(IO &IO,
   case ELF::EM_X86_64:
     BCase(SHF_X86_64_LARGE);
     break;
+  case ELF::EM_MC6809:
+    BCase(SHF_MC6809_DIRECTPAGE);
+    break;
   case ELF::EM_MOS:
     BCase(SHF_MOS_ZEROPAGE);
     break;
@@ -896,6 +900,9 @@ void ScalarEnumerationTraits<ELFYAML::ELF_REL>::enumeration(
     break;
   case ELF::EM_LOONGARCH:
 #include "llvm/BinaryFormat/ELFRelocs/LoongArch.def"
+    break;
+  case ELF::EM_MC6809:
+#include "llvm/BinaryFormat/ELFRelocs/MC6809.def"
     break;
   case ELF::EM_MOS:
 #include "llvm/BinaryFormat/ELFRelocs/MOS.def"
