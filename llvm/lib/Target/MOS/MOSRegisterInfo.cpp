@@ -541,7 +541,7 @@ Register MOSRegisterInfo::getFrameRegister(const MachineFunction &MF) const {
   return TFI->hasFP(MF) ? MOS::RS15 : MOS::RS0;
 }
 
-bool referencedByShiftRotate(Register Reg, const MachineRegisterInfo &MRI) {
+static bool referencedByShiftRotate(Register Reg, const MachineRegisterInfo &MRI) {
   for (MachineInstr &MI : MRI.reg_nodbg_instructions(Reg)) {
     switch (MI.getOpcode()) {
     default:
@@ -556,7 +556,7 @@ bool referencedByShiftRotate(Register Reg, const MachineRegisterInfo &MRI) {
   return false;
 }
 
-bool referencedByIncDec(Register Reg, const MachineRegisterInfo &MRI) {
+static bool referencedByIncDec(Register Reg, const MachineRegisterInfo &MRI) {
   for (MachineInstr &MI : MRI.reg_nodbg_instructions(Reg)) {
     switch (MI.getOpcode()) {
     default:
@@ -592,7 +592,7 @@ bool referencedByIncDecMB(Register Reg, const MachineRegisterInfo &MRI) {
 // references are to the poorer regclass. In that case, it's better to do the
 // operation in the poorer regclass then to copy into a better one then copy
 // back out.
-bool isRmwPattern(Register Reg, const MachineRegisterInfo &MRI) {
+static bool isRmwPattern(Register Reg, const MachineRegisterInfo &MRI) {
   SmallVector<const MachineInstr *> RMW;
   const MachineInstr *Rmw = nullptr;
   for (MachineInstr &MI : MRI.reg_nodbg_instructions(Reg)) {
