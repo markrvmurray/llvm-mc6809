@@ -55,7 +55,7 @@ bool StringMatcher::EmitStringMatcherForChar(
   // matching code.
   if (CharNo == Matches[0]->first.size()) {
     if (Matches.size() > 1 && !IgnoreDuplicates)
-      report_fatal_error("Had duplicate keys to match on");
+      report_fatal_error("Had duplicate keys to match on: \"" + Matches[0]->first + "\"");
 
     // If the to-execute code has \n's in it, indent each subsequent line.
     StringRef Code = Matches[0]->second;
