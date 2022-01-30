@@ -6116,6 +6116,9 @@ static void handleInterruptAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   case llvm::Triple::m68k:
     S.M68k().handleInterruptAttr(D, AL);
     break;
+  case llvm::Triple::mc6809:
+    handleMC6809InterruptAttr(S, D, AL);
+    break;
   case llvm::Triple::mos:
     S.MOS().handleInterruptAttr(D, AL);
     break;
@@ -7028,6 +7031,12 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
     break;
   case ParsedAttr::AT_BTFDeclTag:
     handleBTFDeclTagAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_MC6809InterruptNorecurse:
+    handleMC6809InterruptNorecurseAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_MC6809NoISR:
+    handleMC6809InterruptNoISRAttr(S, D, AL);
     break;
   case ParsedAttr::AT_MOSInterruptNorecurse:
     S.MOS().handleInterruptNorecurseAttr(D, AL);

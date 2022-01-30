@@ -325,6 +325,7 @@ enum {
   EM_CSKY = 252,          // C-SKY 32-bit processor
   EM_LOONGARCH = 258,     // LoongArch
   EM_MOS = 6502,          // MOS Technologies 65xx
+  EM_MC6809 = 6809        // Motorola MC6809
 };
 
 // Object file classes.
@@ -518,6 +519,8 @@ enum {
 };
 
 // https://llvm-mos.org/wiki/ELF_specification
+
+// https://github.com/johnwbyrd/llvm-mos/wiki/ELF-format-for-MOS-compatible-processors
 enum : unsigned {
   EF_MOS_ARCH_6502 = 0x00000001, // Core NMOS 6502 instruction set, no BCD
   EF_MOS_ARCH_6502_BCD = 0x00000002, // BCD support, including CLD and SED
@@ -534,6 +537,16 @@ enum : unsigned {
   EF_MOS_ARCH_45GS02 = 0x0004000, // 45GS02 instructions
   EF_MOS_ARCH_SWEET16 = 0x00010000,   // SWEET16 instructions
   EF_MOS_ARCH_SPC700 = 0x00020000   // SPC700 instructions
+};
+
+// ELF relocation types for MC6809
+enum {
+#include "ELFRelocs/MC6809.def"
+};
+
+enum : unsigned {
+  EF_MC6809_ARCH_6809 = 0x00000001, // Core Motorola 6809
+  EF_MC6809_ARCH_6309 = 0x00000002  // Hitachi extended 6309
 };
 
 // ELF Relocation types for AVR
@@ -1336,6 +1349,9 @@ enum : unsigned {
 
   // Section contains only program instructions and no program data.
   SHF_AARCH64_PURECODE = 0x20000000,
+
+  // 8-bit addressable section
+  SHF_MC6809_DIRECTPAGE = 0x10000000,
 
   // 8-bit addressable section
   SHF_MOS_ZEROPAGE = 0x10000000

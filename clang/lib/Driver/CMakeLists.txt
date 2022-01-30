@@ -37,6 +37,7 @@ add_clang_library(clangDriver
   ToolChains/Arch/LoongArch.cpp
   ToolChains/Arch/M68k.cpp
   ToolChains/Arch/Mips.cpp
+  ToolChains/Arch/MC6809.cpp
   ToolChains/Arch/MOS.cpp
   ToolChains/Arch/PPC.cpp
   ToolChains/Arch/RISCV.cpp
@@ -70,6 +71,7 @@ add_clang_library(clangDriver
   ToolChains/Linux.cpp
   ToolChains/MipsLinux.cpp
   ToolChains/MinGW.cpp
+  ToolChains/MC6809Toolchain.cpp
   ToolChains/MOSToolchain.cpp
   ToolChains/MSP430.cpp
   ToolChains/MSVC.cpp

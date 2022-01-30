@@ -1,0 +1,152 @@
+//===-- MC6809InstrInfo.h - MC6809 Instruction Information ------------*- C++ -*-===//
+//
+// Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+//
+// This file contains the MC6809 implementation of the TargetInstrInfo class.
+//
+//===----------------------------------------------------------------------===//
+
+#ifndef LLVM_LIB_TARGET_MC6809_MC6809INSTRINFO_H
+#define LLVM_LIB_TARGET_MC6809_MC6809INSTRINFO_H
+
+#include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
+#include "llvm/CodeGen/TargetInstrInfo.h"
+
+#define GET_INSTRINFO_HEADER
+#include "MC6809GenInstrInfo.inc"
+
+namespace llvm {
+
+class MC6809InstrInfo : public MC6809GenInstrInfo {
+public:
+  MC6809InstrInfo();
+
+  bool isReallyTriviallyReMaterializable(const MachineInstr &MI,
+                                         AAResults *AA) const override;
+
+  unsigned isLoadFromStackSlot(const MachineInstr &MI,
+                               int &FrameIndex) const override;
+
+  unsigned isStoreToStackSlot(const MachineInstr &MI,
+                              int &FrameIndex) const override;
+
+  void reMaterialize(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
+                     Register DestReg, unsigned SubIdx,
+                     const MachineInstr &Orig,
+                     const TargetRegisterInfo &TRI) const override;
+
+  MachineInstr *commuteInstructionImpl(MachineInstr &MI, bool NewMI,
+                                       unsigned OpIdx1,
+                                       unsigned OpIdx2) const override;
+
+  unsigned getInstSizeInBytes(const MachineInstr &MI) const override;
+
+  bool findCommutedOpIndices(const MachineInstr &MI, unsigned &SrcOpIdx1,
+                             unsigned &SrcOpIdx2) const override;
+
+  bool isBranchOffsetInRange(unsigned BranchOpc,
+                             int64_t BrOffset) const override;
+
+  MachineBasicBlock *getBranchDestBlock(const MachineInstr &MI) const override;
+
+  bool analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock *&TBB,
+                     MachineBasicBlock *&FBB,
+                     SmallVectorImpl<MachineOperand> &Cond,
+                     bool AllowModify = false) const override;
+
+  unsigned removeBranch(MachineBasicBlock &MBB,
+                        int *BytesRemoved = nullptr) const override;
+
+  unsigned insertBranch(MachineBasicBlock &MBB, MachineBasicBlock *TBB,
+                        MachineBasicBlock *FBB, ArrayRef<MachineOperand> Cond,
+                        const DebugLoc &DL,
+                        int *BytesAdded = nullptr) const override;
+
+  void insertIndirectBranch(MachineBasicBlock &MBB,
+                            MachineBasicBlock &NewDestBB,
+                            MachineBasicBlock &RestoreBB, const DebugLoc &DL,
+                            int64_t BrOffset = 0,
+                            RegScavenger *RS = nullptr) const override;
+
+  void copyPhysReg(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
+                   const DebugLoc &DL, MCRegister DestReg, MCRegister SrcReg,
+                   bool KillSrc) const override;
+
+  void storeRegToStackSlot(MachineBasicBlock &MBB,
+                           MachineBasicBlock::iterator MI, Register SrcReg,
+                           bool isKill, int FrameIndex,
+                           const TargetRegisterClass *RC,
+                           const TargetRegisterInfo *TRI) const override;
+
+  const TargetRegisterClass *canFoldCopy(const MachineInstr &MI,
+                                         unsigned FoldIdx) const override;
+
+  void loadRegFromStackSlot(MachineBasicBlock &MBB,
+                            MachineBasicBlock::iterator MI, Register DestReg,
+                            int FrameIndex, const TargetRegisterClass *RC,
+                            const TargetRegisterInfo *TRI) const override;
+
+  void loadStoreRegStackSlot(MachineBasicBlock &MBB,
+                             MachineBasicBlock::iterator MI, Register Reg,
+                             bool IsKill, int FrameIndex,
+                             const TargetRegisterClass *RC,
+                             const TargetRegisterInfo *TRI, bool IsLoad) const;
+
+  bool expandPostRAPseudo(MachineInstr &MI) const override;
+
+  bool
+  reverseBranchCondition(SmallVectorImpl<MachineOperand> &Cond) const override;
+
+  std::pair<unsigned, unsigned>
+  decomposeMachineOperandsTargetFlags(unsigned TF) const override;
+
+  ArrayRef<std::pair<int, const char *>>
+  getSerializableTargetIndices() const override;
+
+  ArrayRef<std::pair<unsigned, const char *>>
+  getSerializableDirectMachineOperandTargetFlags() const override;
+
+  bool shouldOverlapInterval(const MachineInstr &MI) const override;
+
+private:
+  void copyPhysRegImpl(MachineIRBuilder &Builder, Register DestReg,
+                       Register SrcReg) const;
+
+  // Post RA pseudos
+  void expandLDIdx(MachineIRBuilder &Builder) const;
+  void expandLDImm1(MachineIRBuilder &Builder) const;
+  void expandLDImm16(MachineIRBuilder &Builder) const;
+  void expandLDImm16Remat(MachineIRBuilder &Builder) const;
+  void expandLDZ(MachineIRBuilder &Builder) const;
+  void expandIncDec(MachineIRBuilder &Builder) const;
+
+  // NZ pseudos
+  void expandNZ(MachineIRBuilder &Builder) const;
+  void expandCMPTerm(MachineIRBuilder &Builder) const;
+
+  // Control flow pseudos
+  void expandGBR(MachineIRBuilder &Builder) const;
+};
+
+namespace MC6809 {
+
+enum TargetIndex {
+  TI_STATIC_STACK,
+};
+
+enum TOF {
+  MO_NO_FLAGS = 0,
+  MO_LO,
+  MO_HI,
+  MO_HI_JT,
+};
+
+} // namespace MC6809
+
+} // namespace llvm
+
+#endif // not LLVM_LIB_TARGET_MC6809_MC6809INSTRINFO_H

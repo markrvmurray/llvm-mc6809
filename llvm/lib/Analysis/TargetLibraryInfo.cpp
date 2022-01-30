@@ -197,8 +197,8 @@ static void initializeLibCalls(TargetLibraryInfoImpl &TLI, const Triple &T,
   TLI.setUnavailable(LibFunc_fputs_unlocked);
   TLI.setUnavailable(LibFunc_fgets_unlocked);
 
-  if (T.getArch() == Triple::mos) {
-    // The MOS target doesn't come with a standard library yet.
+  if (T.getArch() == Triple::mos || T.getArch() == Triple::mc6809) {
+    // The MOS and MC6809 targets don't come with a standard library yet.
     TLI.disableAllFunctions();
     // Freestanding functions are available.
     TLI.setAvailable(LibFunc_memcpy);

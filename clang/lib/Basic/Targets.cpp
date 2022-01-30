@@ -26,6 +26,7 @@
 #include "Targets/Lanai.h"
 #include "Targets/LoongArch.h"
 #include "Targets/M68k.h"
+#include "Targets/MC6809.h"
 #include "Targets/MOS.h"
 #include "Targets/MSP430.h"
 #include "Targets/Mips.h"
@@ -270,6 +271,9 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
   case llvm::Triple::bpfeb:
   case llvm::Triple::bpfel:
     return std::make_unique<BPFTargetInfo>(Triple, Opts);
+
+  case llvm::Triple::mc6809:
+    return new MC6809TargetInfo(Triple, Opts);
 
   case llvm::Triple::mos:
     return std::make_unique<MOSTargetInfo>(Triple, Opts);
