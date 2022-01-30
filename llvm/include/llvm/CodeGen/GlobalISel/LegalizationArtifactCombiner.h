@@ -187,7 +187,7 @@ public:
       LLT DstTy = MRI.getType(DstReg);
       if (isInstUnsupported({TargetOpcode::G_SEXT_INREG, {DstTy}}))
         return false;
-      LLVM_DEBUG(dbgs() << ".. Combine MI: " << MI;);
+      LLVM_DEBUG(dbgs() << ".. sext(trunc x) - > (sext_inreg (aext/copy/trunc x), c) : Combine MI: " << MI;);
       LLT SrcTy = MRI.getType(SrcReg);
       uint64_t SizeInBits = SrcTy.getScalarSizeInBits();
       if (DstTy != MRI.getType(TruncSrc))
@@ -204,7 +204,7 @@ public:
     if (mi_match(SrcReg, MRI,
                  m_all_of(m_MInstr(ExtMI), m_any_of(m_GZExt(m_Reg(ExtSrc)),
                                                     m_GSExt(m_Reg(ExtSrc)))))) {
-      LLVM_DEBUG(dbgs() << ".. Combine MI: " << MI);
+      LLVM_DEBUG(dbgs() << ".. sext(zext x) -> (zext x)  or  sext(sext x) -> (sext x) : Combine MI: " << MI);
       Builder.buildInstr(ExtMI->getOpcode(), {DstReg}, {ExtSrc});
       UpdatedDefs.push_back(DstReg);
       markInstAndDefDead(MI, *MRI.getVRegDef(SrcReg), DeadInsts);
