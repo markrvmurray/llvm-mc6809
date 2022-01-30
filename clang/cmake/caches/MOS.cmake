@@ -5,7 +5,7 @@
 
 set(LLVM_TARGETS_TO_BUILD ""
     CACHE STRING "LLVM targets to build")
-set(LLVM_EXPERIMENTAL_TARGETS_TO_BUILD "MOS"
+set(LLVM_EXPERIMENTAL_TARGETS_TO_BUILD "M68k;MOS;MC6809"
     CACHE STRING "LLVM experimental targets to build")
 set(LLVM_ENABLE_PROJECTS clang;clang-tools-extra;lld
     CACHE STRING "LLVM projects to enable")
