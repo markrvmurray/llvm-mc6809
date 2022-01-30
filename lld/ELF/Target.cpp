@@ -69,6 +69,8 @@ void elf::setTarget(Ctx &ctx) {
     return setLoongArchTargetInfo(ctx);
   case EM_MIPS:
     return setMipsTargetInfo(ctx);
+  case EM_MC6809:
+    return getMC6809TargetInfo();
   case EM_MOS:
     return setMOSTargetInfo(ctx);
   case EM_MSP430:

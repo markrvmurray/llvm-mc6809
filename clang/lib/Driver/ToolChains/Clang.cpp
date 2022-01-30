@@ -14,6 +14,7 @@
 #include "Arch/CSKY.h"
 #include "Arch/LoongArch.h"
 #include "Arch/M68k.h"
+#include "Arch/MC6809.h"
 #include "Arch/MOS.h"
 #include "Arch/Mips.h"
 #include "Arch/PPC.h"
@@ -1748,6 +1749,10 @@ void Clang::RenderTargetOptions(const llvm::Triple &EffectiveTriple,
     AddMIPSTargetArgs(Args, CmdArgs);
     break;
 
+  case llvm::Triple::mc6809:
+    AddMC6809TargetArgs(Args, CmdArgs);
+    break;
+
   case llvm::Triple::mos:
     AddMOSTargetArgs(Args, CmdArgs);
     break;
@@ -2089,6 +2094,11 @@ void Clang::AddMIPSTargetArgs(const ArgList &Args,
       CmdArgs.push_back("-mips-jalr-reloc=0");
     }
   }
+}
+
+void Clang::AddMC6809TargetArgs(const ArgList &Args,
+                                 ArgStringList &CmdArgs) const {
+  addMC6809CodeGenArgs(CmdArgs);
 }
 
 void Clang::AddMOSTargetArgs(const ArgList &Args,
