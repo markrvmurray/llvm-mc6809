@@ -64,7 +64,7 @@ extern "C" void LLVM_EXTERNAL_VISIBILITY LLVMInitializeMOSDisassembler() {
 
 #include "MOSGenDisassemblerTables.inc"
 
-const uint8_t *getDecoderTable(size_t Size) {
+static const uint8_t *getDecoderTable(size_t Size) {
   switch (Size) {
   case 1:
     return DecoderTableMOS8;

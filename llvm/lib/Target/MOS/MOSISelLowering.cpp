@@ -141,7 +141,7 @@ MOSTargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
   return TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
 }
 
-bool is8BitIndex(Type *Ty) {
+static bool is8BitIndex(Type *Ty) {
   if (!Ty)
     return false;
   return Ty == Type::getInt8Ty(Ty->getContext());
