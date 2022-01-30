@@ -134,7 +134,7 @@ CGIOperandList::CGIOperandList(const Record *R) : TheDef(R) {
       PrintFatalError(R->getLoc(),
                       "In instruction '" + R->getName() + "', operand #" +
                           Twine(i) +
-                          " has the same name as a previous operand!");
+                          " has the same name '" + ArgName + "' as a previous operand!");
 
     OperandInfo &OpInfo = OperandList.emplace_back(
         Rec, std::string(ArgName), std::string(std::move(PrintMethod)),
