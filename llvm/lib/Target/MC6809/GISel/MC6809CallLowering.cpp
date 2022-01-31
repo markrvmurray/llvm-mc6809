@@ -18,6 +18,7 @@
 #include "MC6809FrameLowering.h"
 #include "MC6809MachineFunctionInfo.h"
 #include "MC6809RegisterInfo.h"
+#include "MC6809TargetTransformInfo.h"
 
 #include "llvm/CodeGen/Analysis.h"
 #include "llvm/CodeGen/CallingConvLower.h"
@@ -41,414 +42,410 @@ using namespace llvm;
 
 namespace {
 
-struct MC6809ValueAssigner : CallLowering::ValueAssigner {
-  MC6809ValueAssigner(bool IsIncoming, MachineRegisterInfo &MRI,
-                   const MachineFunction &MF)
-      : CallLowering::ValueAssigner(IsIncoming, CC_MC6809, CC_MC6809_VarArgs) {
-  }
+// ===========================================================================
+// ---------------------------------------------------------------------------
+/// Helper class for values coming in through an ABI boundary (used for handling
+/// formal arguments and call return values).
+struct MC6809IncomingValueHandler : public CallLowering::IncomingValueHandler {
 
-  bool assignArg(unsigned ValNo, EVT OrigVT, MVT ValVT, MVT LocVT,
-                 CCValAssign::LocInfo LocInfo,
-                 const CallLowering::ArgInfo &Info, ISD::ArgFlagsTy Flags,
-                 CCState &State) override {
-    if (getAssignFn(!Info.IsFixed)(ValNo, ValVT, LocVT, LocInfo, Flags, State))
-      return true;
-    StackOffset = State.getNextStackOffset();
-    return false;
-  }
-};
-
-/// Handler to pass values outward to calls and return statements.
-struct MC6809OutgoingValueHandler : CallLowering::OutgoingValueHandler {
-  /// The instruction causing control flow to leave the current function. This
-  /// instruction will be annotated with implicit use operands to record
-  /// registers used to pass arguments.
-  MachineInstrBuilder &MIB;
-
-  MC6809OutgoingValueHandler(MachineIRBuilder &MIRBuilder,
-                          MachineInstrBuilder &MIB, MachineRegisterInfo &MRI)
-      : OutgoingValueHandler(MIRBuilder, MRI), MIB(MIB) {}
-
-  void assignValueToReg(Register ValVReg, Register PhysReg,
-                        CCValAssign VA) override {
-    switch (VA.getLocVT().getSizeInBits()) {
-    default:
-      report_fatal_error("Not yet implemented.");
-    case 8:
-    case 16:
-      break;
-    }
-
-    // Ensure that the physical remains alive until control flow leaves the
-    // current function.
-    MIB.addUse(PhysReg, RegState::Implicit);
-
-    MIRBuilder.buildCopy(PhysReg, ValVReg);
-  }
-
-  void assignValueToAddress(Register ValVReg, Register Addr, LLT MemTy,
-                            MachinePointerInfo &MPO, CCValAssign &VA) override {
-    MachineFunction &MF = MIRBuilder.getMF();
-    auto *MMO = MF.getMachineMemOperand(MPO, MachineMemOperand::MOStore, MemTy,
-                                        inferAlignFromPtrInfo(MF, MPO));
-    MIRBuilder.buildStore(ValVReg, Addr, *MMO);
-  }
-};
-
-struct MC6809OutgoingArgsHandler : MC6809OutgoingValueHandler {
-  /// A VReg containing the value of the stack pointer right before control flow
-  /// leaves the current function. The VReg is cached to avoid generating it
-  /// more than once.
-  Register SPReg = 0;
-
-  MC6809OutgoingArgsHandler(MachineIRBuilder &MIRBuilder, MachineInstrBuilder &MIB,
-                         MachineRegisterInfo &MRI)
-      : MC6809OutgoingValueHandler(MIRBuilder, MIB, MRI) {}
-
-  Register getStackAddress(uint64_t Size, int64_t Offset,
-                           MachinePointerInfo &MPO,
-                           ISD::ArgFlagsTy Flags) override {
-    MPO = MachinePointerInfo::getStack(MIRBuilder.getMF(), Offset);
-
-    LLT P = LLT::pointer(0, 16);
-
-    // Cache the SP virtual register to avoid generating it more than once.
-    if (!SPReg)
-      SPReg = MIRBuilder.buildCopy(P, Register(MC6809::SS)).getReg(0);
-
-    auto OffsetReg =
-        MIRBuilder.buildConstant(LLT::scalar(16), Offset).getReg(0);
-    return MIRBuilder.buildPtrAdd(P, SPReg, OffsetReg).getReg(0);
-  }
-};
-
-struct MC6809OutgoingReturnHandler : MC6809OutgoingValueHandler {
-  MC6809OutgoingReturnHandler(MachineIRBuilder &MIRBuilder,
-                           MachineInstrBuilder &MIB, MachineRegisterInfo &MRI)
-      : MC6809OutgoingValueHandler(MIRBuilder, MIB, MRI) {}
-
-  Register getStackAddress(uint64_t Size, int64_t Offset,
-                           MachinePointerInfo &MPO,
-                           ISD::ArgFlagsTy Flags) override {
-    auto &MFI = MIRBuilder.getMF().getFrameInfo();
-
-    bool FoundFI = false;
-    int FI;
-    for (FI = MFI.getObjectIndexBegin(); FI; ++FI) {
-      assert(MFI.getObjectSize(FI) == 1);
-      if (MFI.getObjectOffset(FI) == Offset) {
-        MFI.setIsImmutableObjectIndex(FI, false);
-        FoundFI = true;
-        break;
-      }
-    }
-    if (!FoundFI)
-      FI = MFI.CreateFixedObject(Size, Offset, false);
-
-    MPO = MachinePointerInfo::getFixedStack(MIRBuilder.getMF(), FI);
-    auto AddrReg = MIRBuilder.buildFrameIndex(LLT::pointer(0, 16), FI);
-    return AddrReg.getReg(0);
-  }
-};
-
-/// Handler to receive values from formal arguments and call returns.
-struct MC6809IncomingValueHandler : CallLowering::IncomingValueHandler {
   MC6809IncomingValueHandler(MachineIRBuilder &MIRBuilder,
                           MachineRegisterInfo &MRI)
       : IncomingValueHandler(MIRBuilder, MRI) {}
 
-  void assignValueToReg(Register ValVReg, Register PhysReg,
-                        CCValAssign VA) override {
-    switch (VA.getLocVT().getSizeInBits()) {
-    default:
-      report_fatal_error("Not yet implemented.");
-    case 8:
-    case 16:
-      break;
-    }
-
-    // Ensure that the physical register is considerd live at the point control
-    // flow (re)enters to the current function.
-    makeLive(PhysReg);
-
-    MIRBuilder.buildCopy(ValVReg, PhysReg);
-  }
-
-  /// Mark the given register as live-in. These will be function-level live-ins
-  /// or implicit defs for formal arguments or call statements, respectively.
-  virtual void makeLive(Register PhysReg) = 0;
-};
-
-struct MC6809IncomingArgsHandler : public MC6809IncomingValueHandler {
-  MC6809IncomingArgsHandler(MachineIRBuilder &MIRBuilder, MachineRegisterInfo &MRI)
-      : MC6809IncomingValueHandler(MIRBuilder, MRI) {}
-
   Register getStackAddress(uint64_t Size, int64_t Offset,
                            MachinePointerInfo &MPO,
                            ISD::ArgFlagsTy Flags) override {
+    assert((Size == 1 || Size == 2 || Size == 4) && "Unsupported size");
+
     auto &MFI = MIRBuilder.getMF().getFrameInfo();
-    int FI = MFI.CreateFixedObject(Size, Offset, true);
+
+    // Byval is assumed to be writable memory, but other stack passed arguments
+    // are not.
+    const bool IsImmutable = !Flags.isByVal();
+
+    int FI = MFI.CreateFixedObject(Size, Offset, IsImmutable);
     MPO = MachinePointerInfo::getFixedStack(MIRBuilder.getMF(), FI);
-    auto AddrReg = MIRBuilder.buildFrameIndex(LLT::pointer(0, 16), FI);
-    return AddrReg.getReg(0);
+
+    return MIRBuilder.buildFrameIndex(LLT::pointer(MPO.getAddrSpace(), 16), FI).getReg(0);
   }
 
   void assignValueToAddress(Register ValVReg, Register Addr, LLT MemTy,
                             MachinePointerInfo &MPO, CCValAssign &VA) override {
-    MachineFunction &MF = MIRBuilder.getMF();
-    // All such loads are invariant: if the values are later spilled, they'll be
-    // spilled to spill slots, not the original incoming argument slots.
-    auto *MMO = MF.getMachineMemOperand(
-        MPO, MachineMemOperand::MOLoad | MachineMemOperand::MOInvariant, MemTy,
-        inferAlignFromPtrInfo(MF, MPO));
-    MIRBuilder.buildLoad(ValVReg, Addr, *MMO);
+    if (VA.getLocInfo() == CCValAssign::SExt ||
+        VA.getLocInfo() == CCValAssign::ZExt) {
+      // XXXX: FIXME: MarkM: Fix for HD6309 case with AQ register
+      // If the value is zero- or sign-extended, its size becomes 2 bytes, so
+      // that's what we should load.
+      MemTy = LLT::scalar(16);
+      assert(MRI.getType(ValVReg).isScalar() && "Only scalars supported atm");
+
+      auto LoadVReg = buildLoad(LLT::scalar(16), Addr, MemTy, MPO);
+      MIRBuilder.buildTrunc(ValVReg, LoadVReg);
+    } else {
+      // If the value is not extended, a simple load will suffice.
+      buildLoad(ValVReg, Addr, MemTy, MPO);
+    }
   }
 
-  void makeLive(Register PhysReg) override {
+  MachineInstrBuilder buildLoad(const DstOp &Res, Register Addr, LLT MemTy,
+                                MachinePointerInfo &MPO) {
+    MachineFunction &MF = MIRBuilder.getMF();
+
+    auto MMO = MF.getMachineMemOperand(MPO, MachineMemOperand::MOLoad, MemTy,
+                                       inferAlignFromPtrInfo(MF, MPO));
+    return MIRBuilder.buildLoad(Res, Addr, *MMO);
+  }
+
+  void assignValueToReg(Register ValVReg, Register PhysReg,
+                        CCValAssign VA) override {
+    assert(VA.isRegLoc() && "Value shouldn't be assigned to reg");
+    assert(VA.getLocReg() == PhysReg && "Assigning to the wrong reg?");
+
+    uint64_t ValSize = VA.getValVT().getFixedSizeInBits();
+    uint64_t LocSize = VA.getLocVT().getFixedSizeInBits();
+
+    assert(ValSize <= 32 && "Unsupported value size");
+    assert(LocSize <= 32 && "Unsupported location size");
+
+    markPhysRegUsed(PhysReg);
+    if (ValSize == LocSize) {
+      MIRBuilder.buildCopy(ValVReg, PhysReg);
+    } else {
+      assert(ValSize < LocSize && "Extensions not supported");
+
+      // We cannot create a truncating copy, nor a trunc of a physical register.
+      // Therefore, we need to copy the content of the physical register into a
+      // virtual one and then truncate that.
+      auto PhysRegToVReg = MIRBuilder.buildCopy(LLT::scalar(LocSize), PhysReg);
+      MIRBuilder.buildTrunc(ValVReg, PhysRegToVReg);
+    }
+  }
+
+  /// Marking a physical register as used is different between formal
+  /// parameters, where it's a basic block live-in, and call returns, where it's
+  /// an implicit-def of the call instruction.
+  virtual void markPhysRegUsed(unsigned PhysReg) = 0;
+};
+
+// ---------------------------------------------------------------------------
+struct MC6809FormalArgHandler : public MC6809IncomingValueHandler {
+  MC6809FormalArgHandler(MachineIRBuilder &MIRBuilder, MachineRegisterInfo &MRI)
+      : MC6809IncomingValueHandler(MIRBuilder, MRI) {}
+
+  void markPhysRegUsed(unsigned PhysReg) override {
+    MIRBuilder.getMRI()->addLiveIn(PhysReg);
     MIRBuilder.getMBB().addLiveIn(PhysReg);
   }
 };
 
-struct MC6809IncomingReturnHandler : public MC6809IncomingValueHandler {
-  MachineInstrBuilder &Call;
+// ---------------------------------------------------------------------------
+struct MC6809CallReturnHandler : public MC6809IncomingValueHandler {
+  MC6809CallReturnHandler(MachineIRBuilder &MIRBuilder, MachineRegisterInfo &MRI,
+                    MachineInstrBuilder MIB)
+      : MC6809IncomingValueHandler(MIRBuilder, MRI), MIB(MIB) {}
 
-  /// A VReg containing the value of the stack pointer right after control flow
-  /// returned to the current function. The VReg is cached to avoid generating
-  /// it more than once.
-  Register SPReg = 0;
+  void markPhysRegUsed(unsigned PhysReg) override {
+    MIB.addDef(PhysReg, RegState::Implicit);
+  }
 
-  MC6809IncomingReturnHandler(MachineIRBuilder &MIRBuilder,
-                           MachineRegisterInfo &MRI, MachineInstrBuilder &Call)
-      : MC6809IncomingValueHandler(MIRBuilder, MRI), Call(Call) {}
+  MachineInstrBuilder MIB;
+};
+
+// ===========================================================================
+// ---------------------------------------------------------------------------
+/// Helper class for values going out through an ABI boundary (used for handling
+/// function return values and call parameters).
+struct MC6809OutgoingValueHandler : public CallLowering::OutgoingValueHandler {
+  MC6809OutgoingValueHandler(MachineIRBuilder &MIRBuilder,
+                          MachineRegisterInfo &MRI, MachineInstrBuilder &MIB)
+      : OutgoingValueHandler(MIRBuilder, MRI), MIB(MIB) {}
 
   Register getStackAddress(uint64_t Size, int64_t Offset,
                            MachinePointerInfo &MPO,
                            ISD::ArgFlagsTy Flags) override {
+    assert((Size == 1 || Size == 2 || Size == 4) && "Unsupported size");
+
+    LLT p0 = LLT::pointer(0, 16);
+    LLT s16 = LLT::scalar(16);
+    auto SPReg = MIRBuilder.buildCopy(p0, Register(MC6809::SS));
+
+    auto OffsetReg = MIRBuilder.buildConstant(s16, Offset);
+
+    auto AddrReg = MIRBuilder.buildPtrAdd(p0, SPReg, OffsetReg);
+
     MPO = MachinePointerInfo::getStack(MIRBuilder.getMF(), Offset);
+    return AddrReg.getReg(0);
+  }
 
-    LLT P = LLT::pointer(0, 16);
+  void assignValueToReg(Register ValVReg, Register PhysReg,
+                        CCValAssign VA) override {
+    assert(VA.isRegLoc() && "Value shouldn't be assigned to reg");
+    assert(VA.getLocReg() == PhysReg && "Assigning to the wrong reg?");
 
-    // Cache the SP virtual register to avoid generating it more than once.
-    if (!SPReg)
-      SPReg = MIRBuilder.buildCopy(P, Register(MC6809::SS)).getReg(0);
+    assert(VA.getValVT().getSizeInBits() <= 32 && "Unsupported value size");
+    assert(VA.getLocVT().getSizeInBits() <= 32 && "Unsupported location size");
 
-    auto OffsetReg =
-        MIRBuilder.buildConstant(LLT::scalar(16), Offset).getReg(0);
-    return MIRBuilder.buildPtrAdd(P, SPReg, OffsetReg).getReg(0);
+    Register ExtReg = extendRegister(ValVReg, VA);
+    MIRBuilder.buildCopy(PhysReg, ExtReg);
+    MIB.addUse(PhysReg, RegState::Implicit);
   }
 
   void assignValueToAddress(Register ValVReg, Register Addr, LLT MemTy,
                             MachinePointerInfo &MPO, CCValAssign &VA) override {
-    MachineFunction &MF = MIRBuilder.getMF();
-    // Such loads are not invariant; the same stack region may be reused for
-    // many different calls.
-    auto *MMO = MF.getMachineMemOperand(MPO, MachineMemOperand::MOLoad, MemTy,
-                                        inferAlignFromPtrInfo(MF, MPO));
-    MIRBuilder.buildLoad(ValVReg, Addr, *MMO);
+    Register ExtReg = extendRegister(ValVReg, VA);
+    auto MMO = MIRBuilder.getMF().getMachineMemOperand(
+        MPO, MachineMemOperand::MOStore, MemTy, Align(1));
+    MIRBuilder.buildStore(ExtReg, Addr, *MMO);
   }
 
-  void makeLive(Register PhysReg) override {
-    Call.addDef(PhysReg, RegState::Implicit);
-  }
+  MachineInstrBuilder MIB;
 };
 
-// Add missing pointer information from the LLT to the argument flags for the
-// corresponding MVT. The MVT doesn't contain pointer information, so this would
-// otherwise be unavailable for use by the calling convention (i.e., CCIfPtr).
-void adjustArgFlags(CallLowering::ArgInfo &Arg, LLT Ty) {
-  if (!Ty.isPointer())
-    return;
+} // end anonymous namespace
 
-  auto &Flags = Arg.Flags[0];
-  Flags.setPointer();
-  Flags.setPointerAddrSpace(Ty.getAddressSpace());
+// FIXME: This should move to the MC6809Subtarget when it supports all the opcodes.
+static inline unsigned getCallOpcode(bool isDirect) {
+  if (isDirect)
+    return MC6809::CallRelative;
+  return MC6809::CallIndir;
 }
 
-} // namespace
+// FIXME: This should move to the MC6809Subtarget when it supports all the opcodes.
+static inline unsigned getReturnOpcode() {
+  return MC6809::ReturnImplicit;
+}
+
+// =========================================================================================
+// ==== IMPORTANT -- lowerReturn
+// =========================================================================================
+/// Lower the return value for the already existing \p Ret. This assumes that
+/// \p MIRBuilder's insertion point is correct.
+bool MC6809CallLowering::lowerReturnVal(MachineIRBuilder &MIRBuilder,
+                                     const Value *Val, ArrayRef<Register> VRegs,
+                                     MachineInstrBuilder &Ret) const {
+  if (!Val)
+    // Nothing to do here.
+    return true;
+
+  auto &MF = MIRBuilder.getMF();
+  const auto &F = MF.getFunction();
+
+  const auto &DL = MF.getDataLayout();
+  auto &TLI = *getTLI<MC6809TargetLowering>();
+
+  ArgInfo OrigRetInfo(VRegs, Val->getType(), 0);
+  setArgFlags(OrigRetInfo, AttributeList::ReturnIndex, DL, F);
+
+  SmallVector<ArgInfo, 4> SplitRetInfos;
+  splitToValueTypes(OrigRetInfo, SplitRetInfos, DL, F.getCallingConv());
+
+  CCAssignFn *AssignFn =
+      TLI.CCAssignFnForReturn(F.getCallingConv(), F.isVarArg());
+
+  OutgoingValueAssigner RetAssigner(AssignFn);
+  MC6809OutgoingValueHandler RetHandler(MIRBuilder, MF.getRegInfo(), Ret);
+  return determineAndHandleAssignments(RetHandler, RetAssigner, SplitRetInfos,
+                                       MIRBuilder, F.getCallingConv(),
+                                       F.isVarArg());
+}
 
 bool MC6809CallLowering::lowerReturn(MachineIRBuilder &MIRBuilder,
                                   const Value *Val, ArrayRef<Register> VRegs,
                                   FunctionLoweringInfo &FLI) const {
-  MachineFunction &MF = MIRBuilder.getMF();
-  const auto &TFI = static_cast<const MC6809FrameLowering &>(
-      *MF.getSubtarget().getFrameLowering());
-  const Function &F = MF.getFunction();
+  assert(!Val == VRegs.empty() && "Return value without a vreg");
 
-  auto Return =
-      MIRBuilder.buildInstrNoInsert(TFI.isISR(MF) ? MC6809::RTI : MC6809::RTS);
+  unsigned Opcode = getReturnOpcode();
+  auto Ret = MIRBuilder.buildInstrNoInsert(Opcode);
 
-  if (Val) {
-    MachineRegisterInfo &MRI = MF.getRegInfo();
-    const TargetLowering &TLI = *getTLI();
-    const DataLayout &DL = MF.getDataLayout();
-    LLVMContext &Ctx = Val->getContext();
-
-    SmallVector<EVT> ValueVTs;
-    ComputeValueVTs(TLI, DL, Val->getType(), ValueVTs);
-
-    // The LLTs here are mostly redundant, except they contain information
-    // missing from the VTs about whether or not the argument is a pointer. This
-    // information is added to the arg flags via adjustArgFlags below.
-    SmallVector<LLT> ValueLLTs;
-    computeValueLLTs(DL, *Val->getType(), ValueLLTs);
-    assert(ValueVTs.size() == VRegs.size() && "Need one MVT for each VReg.");
-    assert(ValueLLTs.size() == VRegs.size() && "Need one LLT for each VReg.");
-
-    // Copy flags from the instruction definition over to the return value
-    // description for TableGen compatibility layer.
-    SmallVector<ArgInfo> Args;
-    // TODO: C++17 structured bindings
-    for (const auto &I : zip(VRegs, ValueVTs, ValueLLTs)) {
-      Args.emplace_back(std::get<0>(I), std::get<1>(I).getTypeForEVT(Ctx), 0);
-      setArgFlags(Args.back(), AttributeList::ReturnIndex, DL, F);
-      adjustArgFlags(Args.back(), std::get<2>(I));
-    }
-
-    // Invoke TableGen compatibility layer. This will generate copies and stores
-    // from the return value virtual register to physical and stack locations.
-    MC6809OutgoingReturnHandler Handler(MIRBuilder, Return, MRI);
-    MC6809ValueAssigner Assigner(/*IsIncoming=*/false, MRI, MF);
-    if (!determineAndHandleAssignments(Handler, Assigner, Args, MIRBuilder,
-                                       F.getCallingConv(), F.isVarArg()))
-      return false;
-  }
-
-  // Insert the final return once the return values are in place.
-  MIRBuilder.insertInstr(Return);
-  return true;
-}
-
-bool MC6809CallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder,
-                                           const Function &F,
-                                           ArrayRef<ArrayRef<Register>> VRegs,
-                                           FunctionLoweringInfo &FLI) const {
-  MachineFunction &MF = MIRBuilder.getMF();
-  const DataLayout &DL = MF.getDataLayout();
-  MachineRegisterInfo &MRI = MF.getRegInfo();
-  const auto &TFI = static_cast<const MC6809FrameLowering &>(
-      *MF.getSubtarget().getFrameLowering());
-
-  SmallVector<ArgInfo> SplitArgs;
-  unsigned Idx = 0;
-  for (auto &Arg : F.args()) {
-    if (DL.getTypeStoreSize(Arg.getType()).isZero())
-      continue;
-
-    // Copy flag information over from the function to the argument descriptors.
-    ArgInfo OrigArg{VRegs[Idx], Arg.getType(), Idx};
-    setArgFlags(OrigArg, Idx + AttributeList::FirstArgIndex, DL, F);
-    splitToValueTypes(OrigArg, SplitArgs, DL);
-    ++Idx;
-  }
-
-  MC6809IncomingArgsHandler Handler(MIRBuilder, MRI);
-  MC6809ValueAssigner Assigner(/*IsIncoming=*/true, MRI, MF);
-  // Invoke TableGen compatibility layer to create loads and copies from the
-  // formal argument physical and stack locations to virtual registers.
-  if (!determineAndHandleAssignments(Handler, Assigner, SplitArgs, MIRBuilder,
-                                     F.getCallingConv(), F.isVarArg()))
+  if (!lowerReturnVal(MIRBuilder, Val, VRegs, Ret))
     return false;
 
-  // Record the beginning of the varargs region of the stack by creating a fake
-  // stack argument a4 that location. The varargs instructions are lowered by
-  // walking a pointer forward from that memory location.
-  if (F.isVarArg()) {
-    auto *FuncInfo = MF.getInfo<MC6809FunctionInfo>();
-    FuncInfo->setVarArgsStackIndex(MF.getFrameInfo().CreateFixedObject(
-        /*Size=*/1, Assigner.StackOffset, /*IsImmutable=*/true));
-  }
-
+  MIRBuilder.insertInstr(Ret);
   return true;
 }
 
-bool MC6809CallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
-                                CallLoweringInfo &Info) const {
-  if (Info.IsMustTailCall)
-    report_fatal_error("Musttail calls not supported.");
-
+#if 0
+bool MC6809CallLowering::lowerReturn(MachineIRBuilder &MIRBuilder,
+                                     const Value *Val, ArrayRef<Register> VRegs,
+                                     FunctionLoweringInfo &FLI) const {
   MachineFunction &MF = MIRBuilder.getMF();
-  MachineRegisterInfo &MRI = MF.getRegInfo();
   const DataLayout &DL = MF.getDataLayout();
-  const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
+  auto Ret = MIRBuilder.buildInstrNoInsert(MC6809::RTSImplicit);
+  bool success = true;
+  if (!VRegs.empty()) {
+    auto &TLI = *getTLI<MC6809TargetLowering>();
+    const auto &F = MF.getFunction();
+    ArgInfo OrigRetInfo(VRegs, Val->getType(), 0);
+    setArgFlags(OrigRetInfo, AttributeList::ReturnIndex, DL, F);
+    SmallVector<ArgInfo, 4> SplitRetInfos;
+    splitToValueTypes(OrigRetInfo, SplitRetInfos, DL, F.getCallingConv());
+    auto RetAssignFn = TLI.CCAssignFnForReturn(F.getCallingConv(), F.isVarArg());
+    OutgoingValueAssigner Assigner(RetAssignFn);
+    MC6809OutgoingValueHandler Handler(MIRBuilder, MF.getRegInfo(), Ret);
+    success = determineAndHandleAssignments(Handler, Assigner, SplitRetInfos,
+                                            MIRBuilder, F.getCallingConv(),
+                                            F.isVarArg());
+  }
+  MIRBuilder.insertInstr(Ret);
+  return success;
+}
 
-  bool IsIndirect = Info.Callee.isReg();
-  if (IsIndirect) {
-    // Store the callee in RS9 (used by the libcall).
-    // Doing this before argument lowering gives additional freedom to
-    // instruction scheduling. This just needs to happen some time before the
-    // call, and no specific arguments or stack pointer state are required.
-    MIRBuilder.buildCopy(MC6809::SU, Info.Callee);
+void MC6809OutgoingValueHandler::assignValueToReg(Register ValVReg, Register PhysReg,
+                                                  CCValAssign VA) {
+  MIB.addUse(PhysReg, RegState::Implicit);
+  Register ExtReg = extendRegister(ValVReg, VA);
+  MIRBuilder.buildCopy(PhysReg, ExtReg);
+}
 
-    // Call __call_indir to execute the indirect call.
-    Info.Callee.ChangeToES("__call_indir");
+void MC6809OutgoingValueHandler::assignValueToAddress(Register ValVReg, Register Addr, LLT MemTy,
+                                                      MachinePointerInfo &MPO, CCValAssign &VA) {
+}
+
+Register MC6809OutgoingValueHandler::getStackAddress(uint64_t Size, int64_t Offset,
+                                                     MachinePointerInfo &MPO,
+                                                     ISD::ArgFlagsTy Flags) {
+  Register SS = MC6809::SS;
+  return SS;
+}
+#endif
+
+// =========================================================================================
+// ==== IMPORTANT -- lowerFormalArguments
+// =========================================================================================
+bool MC6809CallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder,
+                                              const Function &F,
+                                              ArrayRef<ArrayRef<Register>> VRegs,
+                                              FunctionLoweringInfo &FLI) const {
+  auto &TLI = *getTLI<MC6809TargetLowering>();
+
+  // Quick exit if there aren't any args
+  if (F.arg_empty())
+    return true;
+
+  if (F.isVarArg())
+    return false;
+
+  auto &MF = MIRBuilder.getMF();
+  auto &MBB = MIRBuilder.getMBB();
+  const auto &DL = MF.getDataLayout();
+
+  CCAssignFn *AssignFn =
+      TLI.CCAssignFnForCall(F.getCallingConv(), F.isVarArg());
+
+  OutgoingValueAssigner ArgAssigner(AssignFn);
+  MC6809FormalArgHandler ArgHandler(MIRBuilder, MIRBuilder.getMF().getRegInfo());
+
+  SmallVector<ArgInfo, 8> SplitArgInfos;
+  unsigned Idx = 0;
+  for (auto &Arg : F.args()) {
+    ArgInfo OrigArgInfo(VRegs[Idx], Arg.getType(), Idx);
+
+    setArgFlags(OrigArgInfo, Idx + AttributeList::FirstArgIndex, DL, F);
+    splitToValueTypes(OrigArgInfo, SplitArgInfos, DL, F.getCallingConv());
+
+    Idx++;
   }
 
-  // Generate the setup call frame pseudo instruction. This will record the size
-  // of the outgoing stack frame once it's known. Usually, all such pseudos can
-  // be folded into the prolog/epilog of the function without emitting any
-  // additional code.
+  if (!MBB.empty())
+    MIRBuilder.setInstr(*MBB.begin());
+
+  if (!determineAndHandleAssignments(ArgHandler, ArgAssigner, SplitArgInfos,
+                                     MIRBuilder, F.getCallingConv(),
+                                     F.isVarArg()))
+    return false;
+
+  // Move back to the end of the basic block.
+  MIRBuilder.setMBB(MBB);
+  return true;
+}
+
+#if 0
+void MC6809IncomingValueHandler::assignValueToReg(Register ValVReg, Register PhysReg,
+                                                  CCValAssign VA) {
+  MIRBuilder.getMRI()->addLiveIn(PhysReg);
+  MIRBuilder.getMBB().addLiveIn(PhysReg);
+  IncomingValueHandler::assignValueToReg(ValVReg, PhysReg, VA);
+}
+
+void MC6809IncomingValueHandler::assignValueToAddress(Register ValVReg, Register Addr, LLT MemTy,
+                                                      MachinePointerInfo &MPO, CCValAssign &VA) {
+}
+
+Register MC6809IncomingValueHandler::getStackAddress(uint64_t Size, int64_t Offset,
+                                                     MachinePointerInfo &MPO,
+                                                     ISD::ArgFlagsTy Flags) {
+  Register SS = MC6809::SS;
+  return SS;
+}
+#endif
+
+// =========================================================================================
+// ==== IMPORTANT -- lowerCall
+// =========================================================================================
+bool MC6809CallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
+                                   CallLoweringInfo &Info) const {
+  MachineFunction &MF = MIRBuilder.getMF();
+  const auto &TLI = *getTLI<MC6809TargetLowering>();
+  const auto &DL = MF.getDataLayout();
+  const auto &STI = MF.getSubtarget<MC6809Subtarget>();
+  const TargetRegisterInfo *TRI = STI.getRegisterInfo();
+  MachineRegisterInfo &MRI = MF.getRegInfo();
+
   auto CallSeqStart = MIRBuilder.buildInstr(MC6809::ADJCALLSTACKDOWN);
 
-  auto Call = MIRBuilder.buildInstrNoInsert(MC6809::JSR)
-                  .add(Info.Callee)
-                  .addRegMask(TRI.getCallPreservedMask(MF, Info.CallConv));
+  // Create the call instruction so we can add the implicit uses of arg
+  // registers, but don't insert it yet.
+  bool IsDirect = !Info.Callee.isReg();
+  auto CallOpcode = getCallOpcode(IsDirect);
+  auto MIB = MIRBuilder.buildInstrNoInsert(CallOpcode);
 
-  // Indirect calls store the callee in RS9.
-  if (IsIndirect)
-    Call.addUse(MC6809::SU, RegState::Implicit);
-
-  SmallVector<ArgInfo, 8> OutArgs;
-  for (auto &OrigArg : Info.OrigArgs) {
-    splitToValueTypes(OrigArg, OutArgs, DL);
+  MIB.add(Info.Callee);
+  if (!IsDirect) {
+    auto CalleeReg = Info.Callee.getReg();
+    if (CalleeReg && !Register::isPhysicalRegister(CalleeReg)) {
+      MIB->getOperand(0).setReg(constrainOperandRegClass(
+          MF, *TRI, MRI, *STI.getInstrInfo(), *STI.getRegBankInfo(),
+          *MIB.getInstr(), MIB->getDesc(), Info.Callee, 0));
+    }
   }
 
-  SmallVector<ArgInfo, 8> InArgs;
-  if (!Info.OrigRet.Ty->isVoidTy())
-    splitToValueTypes(Info.OrigRet, InArgs, DL);
+  MIB.addRegMask(TRI->getCallPreservedMask(MF, Info.CallConv));
 
-  // Copy arguments from virtual registers to their real physical locations.
-  MC6809OutgoingArgsHandler ArgsHandler(MIRBuilder, Call, MRI);
-  MC6809ValueAssigner ArgsAssigner(/*IsIncoming=*/false, MRI, MF);
-  if (!determineAndHandleAssignments(ArgsHandler, ArgsAssigner, OutArgs,
+  SmallVector<ArgInfo, 8> ArgInfos;
+  for (auto Arg : Info.OrigArgs) {
+    if (Arg.Flags[0].isByVal())
+      return false;
+
+    splitToValueTypes(Arg, ArgInfos, DL, Info.CallConv);
+  }
+
+  auto ArgAssignFn = TLI.CCAssignFnForCall(Info.CallConv, Info.IsVarArg);
+  OutgoingValueAssigner ArgAssigner(ArgAssignFn);
+  MC6809OutgoingValueHandler ArgHandler(MIRBuilder, MRI, MIB);
+  if (!determineAndHandleAssignments(ArgHandler, ArgAssigner, ArgInfos,
                                      MIRBuilder, Info.CallConv, Info.IsVarArg))
     return false;
 
-  // Insert the call once the outgoing arguments are in place.
-  MIRBuilder.insertInstr(Call);
-
-  uint64_t StackSize = ArgsAssigner.StackOffset;
+  // Now we can add the actual call instruction to the correct basic block.
+  MIRBuilder.insertInstr(MIB);
 
   if (!Info.OrigRet.Ty->isVoidTy()) {
-    // Copy the return value from its physical location into a virtual register.
-    MC6809IncomingReturnHandler RetHandler(MIRBuilder, MRI, Call);
-    MC6809ValueAssigner RetAssigner(/*IsIncoming=*/true, MRI, MF);
-    if (!determineAndHandleAssignments(RetHandler, RetAssigner, InArgs,
+    ArgInfos.clear();
+    splitToValueTypes(Info.OrigRet, ArgInfos, DL, Info.CallConv);
+    auto RetAssignFn = TLI.CCAssignFnForReturn(Info.CallConv, Info.IsVarArg);
+    OutgoingValueAssigner Assigner(RetAssignFn);
+    MC6809CallReturnHandler RetHandler(MIRBuilder, MRI, MIB);
+    if (!determineAndHandleAssignments(RetHandler, Assigner, ArgInfos,
                                        MIRBuilder, Info.CallConv,
                                        Info.IsVarArg))
       return false;
-    StackSize = std::max(StackSize, RetAssigner.StackOffset);
   }
 
-  // Now that the size of the argument stack region is known, the setup call
-  // frame pseudo can be given its arguments.
-  CallSeqStart.addImm(StackSize).addImm(0);
+  // We now know the size of the stack - update the ADJCALLSTACKDOWN
+  // accordingly.
+  CallSeqStart.addImm(ArgAssigner.StackOffset).addImm(0);
 
-  // Generate the call frame destroy pseudo with the correct sizes.
-  MIRBuilder.buildInstr(MC6809::ADJCALLSTACKUP).addImm(StackSize).addImm(0);
+  MIRBuilder.buildInstr(MC6809::ADJCALLSTACKUP).addImm(ArgAssigner.StackOffset).addImm(-1ULL);
+
   return true;
-}
-
-void MC6809CallLowering::splitToValueTypes(const ArgInfo &OrigArg,
-                                        SmallVectorImpl<ArgInfo> &SplitArgs,
-                                        const DataLayout &DL) const {
-  size_t OldSize = SplitArgs.size();
-  CallLowering::splitToValueTypes(OrigArg, SplitArgs, DL, CallingConv::C);
-  auto NewArgs = make_range(SplitArgs.begin() + OldSize, SplitArgs.end());
-
-  // Transfer is-pointer information from LLTs to argument flags.
-  SmallVector<LLT> SplitLLTs;
-  computeValueLLTs(DL, *OrigArg.Ty, SplitLLTs);
-  assert((size_t)size(NewArgs) == SplitLLTs.size());
-  for (const auto &I : zip(NewArgs, SplitLLTs))
-    apply_tuple(adjustArgFlags, I);
 }

@@ -17,12 +17,12 @@
 
 namespace llvm {
 
-class MC6809FunctionInfo : public MachineFunctionInfo {
+class MC6809MachineFunctionInfo : public MachineFunctionInfo {
   int VarArgsStackIndex = -1;
   const GlobalVariable *StaticStackVariable = nullptr;
 
 public:
-  MC6809FunctionInfo(MachineFunction& MF) {}
+  MC6809MachineFunctionInfo(MachineFunction& MF) {}
 
   /// Returns the fake frame index indicating the start of the varargs region of
   /// the incoming call stack.

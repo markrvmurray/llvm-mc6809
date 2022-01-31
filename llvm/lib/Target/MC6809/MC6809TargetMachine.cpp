@@ -32,7 +32,6 @@
 #include "MC6809.h"
 #include "GISel/MC6809Combiner.h"
 #include "MC6809IndexIV.h"
-#include "MC6809InsertCopies.h"
 #include "MC6809LowerSelect.h"
 #include "MC6809MachineScheduler.h"
 #include "MC6809NoRecurse.h"
@@ -40,6 +39,8 @@
 #include "MC6809StaticStackAlloc.h"
 #include "MC6809TargetObjectFile.h"
 #include "MC6809TargetTransformInfo.h"
+
+#define DEBUG_TYPE "mc6809-targetmachine"
 
 using namespace llvm;
 
@@ -50,7 +51,6 @@ extern "C" void LLVM_EXTERNAL_VISIBILITY LLVMInitializeMC6809Target() {
   PassRegistry &PR = *PassRegistry::getPassRegistry();
   initializeGlobalISel(PR);
   initializeMC6809CombinerPass(PR);
-  initializeMC6809InsertCopiesPass(PR);
   initializeMC6809LowerSelectPass(PR);
   initializeMC6809NoRecursePass(PR);
   initializeMC6809PostRAScavengingPass(PR);
@@ -58,7 +58,7 @@ extern "C" void LLVM_EXTERNAL_VISIBILITY LLVMInitializeMC6809Target() {
 }
 
 static const char *MC6809DataLayout =
-    "e-m:e-p:16:8-i16:8-i32:8-i64:8-f32:8-f64:8-a:8-Fi8-n8";
+    "e-p:16:8-S8-m:e-i1:8:8-i8:8:8-i16:8:8-i32:8:8-i64:8:8-f16:8:8-f32:8:8-f64:8:8-f128:8:8-a:0:8-n8:16";
 
 /// Processes a CPU name.
 static StringRef getCPU(StringRef CPU) {
@@ -113,9 +113,11 @@ MC6809TargetMachine::getTargetTransformInfo(const Function &F) {
 }
 
 void MC6809TargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Entry : registerPassBuilderCallbacks : 01\n";);
   PB.registerPipelineParsingCallback(
       [](StringRef Name, LoopPassManager &PM,
          ArrayRef<PassBuilder::PipelineElement>) {
+        LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Entry : registerPassBuilderCallbacks : A1\n";);
         if (Name == "mc6809-indexiv") {
           // Rewrite pointer artithmetic in loops to use 8-bit IV offsets.
           PM.addPass(MC6809IndexIV());
@@ -126,6 +128,7 @@ void MC6809TargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
 
   PB.registerLateLoopOptimizationsEPCallback(
       [](LoopPassManager &PM, OptimizationLevel Level) {
+        LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Entry : registerPassBuilderCallbacks : B1\n";);
         if (Level != OptimizationLevel::O0) {
           PM.addPass(MC6809IndexIV());
 
@@ -231,7 +234,6 @@ bool MC6809PassConfig::addGlobalInstructionSelect() {
 
 void MC6809PassConfig::addMachineSSAOptimization() {
   TargetPassConfig::addMachineSSAOptimization();
-  addPass(createMC6809InsertCopiesPass());
 }
 
 void MC6809PassConfig::addOptimizedRegAlloc() {
@@ -268,7 +270,6 @@ bool MC6809CSEConfigFull::shouldCSEOpc(unsigned Opc) {
   switch (Opc) {
   default:
     return CSEConfigFull::shouldCSEOpc(Opc);
-  case MC6809::G_SBC:
   case MC6809::G_SHLE:
   case MC6809::G_LSHRE:
     return true;

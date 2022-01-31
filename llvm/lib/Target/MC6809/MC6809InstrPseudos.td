@@ -44,7 +44,7 @@ def LDAbsIdx : MC6809Pseudo {
   dag OutOperandList = (outs ACC8:$dst);
   dag InOperandList = (ins INDEX16:$idx, i16imm:$offset);
 
-  let isReMaterializable = true;
+//let isReMaterializable = true;
   let mayLoad = true;
 }
 
@@ -55,7 +55,7 @@ def LDImm1 : MC6809Pseudo {
 
   let isAsCheapAsAMove = true;
   let isMoveImm = true;
-  let isReMaterializable = true;
+//let isReMaterializable = true;
 }
 
 // Loads a 16-bit value into an imaginary pointer pair. This is generally more
@@ -66,14 +66,14 @@ def LDImm1 : MC6809Pseudo {
 // of basic blocks, which maximizes the chance that they'll be live across
 // calls. Without rematerialization, all these loads would be placed in CSRs,
 // for massive spill/reload overhead.
-def LDImm16 : MC6809Pseudo {
-  dag OutOperandList = (outs ACC16:$dst);
-  dag InOperandList = (ins i16imm:$val);
-
-  let isAsCheapAsAMove = true;
-  let isMoveImm = true;
-  let isReMaterializable = true;
-}
+//def LDImm16 : MC6809Pseudo {
+//  dag OutOperandList = (outs ACC16:$dst);
+//  dag InOperandList = (ins i16imm:$val);
+//
+//  let isAsCheapAsAMove = true;
+//  let isMoveImm = true;
+//  let isReMaterializable = true;
+//}
 
 // Version of LDImm16 that doesn't use a scratch register, to satisfy the
 // requirements for rematerialization. Instead, the register scavenger locates a
@@ -84,17 +84,17 @@ def LDImm16Remat : MC6809Pseudo {
 
   let isAsCheapAsAMove = true;
   let isMoveImm = true;
-  let isReMaterializable = true;
+//let isReMaterializable = true;
 }
 
-// Expands to LDImm 0 for ACC8 or STZImag8 for Imag8.
+// Expands to LDImm8 0 for ACC8 or STZImag8 for Imag8.
 def LDZ : MC6809Pseudo {
   dag OutOperandList = (outs ACC8:$dst);
   let Pattern = [(set ACC8:$dst, 0)];
 
   let isAsCheapAsAMove = true;
   let isMoveImm = true;
-  let isReMaterializable = true;
+//let isReMaterializable = true;
 }
 
 def INC : MC6809Pseudo {
@@ -156,30 +156,6 @@ def AddrHistk : MC6809Pseudo {
   dag InOperandList = (ins ACC16:$base, i16imm:$offset, Cc:$carry);
 
   let isReMaterializable = true;
-}
-
-// LDStk and STStk require an additional pointer register; if the stack access
-// is far, this is used to materialize the necessary pointer. This "wastes" a
-// register in common cases, but it's better to use register allocator
-// mechanisms to keep a pointer register free than to scramble at the last
-// second to scavenge one up.
-
-// Loads a value (1, 8, or 16 bits) from the soft stack. Eliminated once the
-// offset from the frame register is known.
-def LDStk : MC6809Pseudo {
-  dag OutOperandList = (outs unknown:$dst);
-  dag InOperandList = (ins ACC16:$base, i16imm:$offset);
-
-  let mayLoad = true;
-}
-
-// Stores a value (1, 8, or 16 bits) to the soft stack. Eliminated once the
-// offset from the frame register is known.
-def STStk : MC6809Pseudo {
-  dag OutOperandList = (outs);
-  dag InOperandList = (ins unknown:$src, ACC16:$base, i16imm:$fi);
-
-  let mayStore = true;
 }
 
 //===---------------------------------------------------------------------===//
