@@ -1,6 +1,6 @@
-//===-- MC6809FrameLowering.cpp - MC6809 Frame Information ----------------------===//
+//===-- MC6809FrameLowering.cpp - MC6809 Frame Information ------------------===//
 //
-// Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -37,293 +37,201 @@
 
 using namespace llvm;
 
-MC6809FrameLowering::MC6809FrameLowering()
-    : TargetFrameLowering(StackGrowsDown, /*StackAlignment=*/Align(1),
-                          /*LocalAreaOffset=*/0) {}
+static cl::opt<bool>
+DisableLeafProc("disable-mc6809-leaf-proc",
+                cl::init(false),
+                cl::desc("Disable MC6809 leaf procedure optimization."),
+                cl::Hidden);
 
-bool MC6809FrameLowering::assignCalleeSavedSpillSlots(
-    MachineFunction &MF, const TargetRegisterInfo *TRI,
-    std::vector<CalleeSavedInfo> &CSI) const {
+MC6809FrameLowering::MC6809FrameLowering(const MC6809Subtarget &ST)
+    : TargetFrameLowering(TargetFrameLowering::StackGrowsDown, Align(8), 0, Align(8)) {}
+
+void MC6809FrameLowering::emitSPAdjustment(MachineFunction &MF,
+                                          MachineBasicBlock &MBB,
+                                          MachineBasicBlock::iterator MBBI,
+                                          int NumBytes) const {
+
+  DebugLoc dl;
+  const MC6809InstrInfo &TII =
+      *static_cast<const MC6809InstrInfo *>(MF.getSubtarget().getInstrInfo());
+
+  BuildMI(MBB, MBBI, dl, TII.get(MC6809::LEASi_o16), MC6809::SS)
+    .addReg(MC6809::SS).addImm(NumBytes);
+  return;
+}
+
+void MC6809FrameLowering::emitPrologue(MachineFunction &MF,
+                                      MachineBasicBlock &MBB) const {
+  MC6809MachineFunctionInfo *FuncInfo = MF.getInfo<MC6809MachineFunctionInfo>();
+
+  assert(&MF.front() == &MBB && "Shrink-wrapping not yet supported");
+  MachineFrameInfo &MFI = MF.getFrameInfo();
+  const MC6809Subtarget &Subtarget = MF.getSubtarget<MC6809Subtarget>();
+  const MC6809InstrInfo &TII =
+      *static_cast<const MC6809InstrInfo *>(Subtarget.getInstrInfo());
+  const MC6809RegisterInfo &RegInfo =
+      *static_cast<const MC6809RegisterInfo *>(Subtarget.getRegisterInfo());
+  MachineBasicBlock::iterator MBBI = MBB.begin();
+  // Debug location must be unknown since the first debug location is used
+  // to determine the end of the prologue.
+  DebugLoc dl;
+
+#if 0
+  // Get the number of bytes to allocate from the FrameInfo
+  int NumBytes = (int) MFI.getStackSize();
+
+  // The MC6809 ABI is a bit odd in that it requires a reserved 92-byte
+  // (128 in v9) area in the user's stack, starting at %sp. Thus, the
+  // first part of the stack that can actually be used is located at
+  // %sp + 92.
+  //
+  // We therefore need to add that offset to the total stack size
+  // after all the stack objects are placed by
+  // PrologEpilogInserter calculateFrameObjectOffsets. However, since the stack needs to be
+  // aligned *after* the extra size is added, we need to disable
+  // calculateFrameObjectOffsets's built-in stack alignment, by having
+  // targetHandlesStackFrameRounding return true.
+
+
+  // Add the extra call frame stack size, if needed. (This is the same
+  // code as in PrologEpilogInserter, but also gets disabled by
+  // targetHandlesStackFrameRounding)
+  if (MFI.adjustsStack() && hasReservedCallFrame(MF))
+    NumBytes += MFI.getMaxCallFrameSize();
+
+  // Adds the MC6809 subtarget-specific spill area to the stack
+  // size. Also ensures target-required alignment.
+  NumBytes = Subtarget.getAdjustedFrameSize(NumBytes);
+
+  // Finally, ensure that the size is sufficiently aligned for the
+  // data on the stack.
+  NumBytes = alignTo(NumBytes, MFI.getMaxAlign());
+
+  // Update stack size with corrected value.
+  MFI.setStackSize(NumBytes);
+
+  emitSPAdjustment(MF, MBB, MBBI, -NumBytes);
+
+  unsigned regFP = RegInfo.getDwarfRegNum(MC6809::I6, true);
+
+  // Emit ".cfi_def_cfa_register 30".
+  unsigned CFIIndex =
+      MF.addFrameInst(MCCFIInstruction::createDefCfaRegister(nullptr, regFP));
+  BuildMI(MBB, MBBI, dl, TII.get(TargetOpcode::CFI_INSTRUCTION))
+      .addCFIIndex(CFIIndex);
+
+  // Emit ".cfi_window_save".
+  CFIIndex = MF.addFrameInst(MCCFIInstruction::createWindowSave(nullptr));
+  BuildMI(MBB, MBBI, dl, TII.get(TargetOpcode::CFI_INSTRUCTION))
+      .addCFIIndex(CFIIndex);
+
+  unsigned regInRA = RegInfo.getDwarfRegNum(MC6809::I7, true);
+  unsigned regOutRA = RegInfo.getDwarfRegNum(MC6809::O7, true);
+  // Emit ".cfi_register 15, 31".
+  CFIIndex = MF.addFrameInst(
+      MCCFIInstruction::createRegister(nullptr, regOutRA, regInRA));
+  BuildMI(MBB, MBBI, dl, TII.get(TargetOpcode::CFI_INSTRUCTION))
+      .addCFIIndex(CFIIndex);
+#endif
+}
+
+MachineBasicBlock::iterator MC6809FrameLowering::
+eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB,
+                              MachineBasicBlock::iterator I) const {
+  if (!hasReservedCallFrame(MF)) {
+    MachineInstr &MI = *I;
+    int Size = MI.getOperand(0).getImm();
+    if (MI.getOpcode() == MC6809::ADJCALLSTACKDOWN)
+      Size = -Size;
+
+    if (Size)
+      emitSPAdjustment(MF, MBB, I, Size);
+  }
+  return MBB.erase(I);
+}
+
+
+void MC6809FrameLowering::emitEpilogue(MachineFunction &MF,
+                                  MachineBasicBlock &MBB) const {
+  MC6809MachineFunctionInfo *FuncInfo = MF.getInfo<MC6809MachineFunctionInfo>();
+  MachineBasicBlock::iterator MBBI = MBB.getLastNonDebugInstr();
+  const MC6809InstrInfo &TII =
+      *static_cast<const MC6809InstrInfo *>(MF.getSubtarget().getInstrInfo());
+  DebugLoc dl = MBBI->getDebugLoc();
+  // assert(MBBI->getOpcode() == MC6809::RTSr && "Can only put epilog before 'rts' instruction!");
   MachineFrameInfo &MFI = MF.getFrameInfo();
 
-  for (const auto &Info : enumerate(CSI)) {
-    // We place the first four CSRs on the hard stack, which we don't explicitly
-    // model in PEI.
-    if (Info.index() < 4)
-      Info.value().setTargetSpilled();
-    else
-      Info.value().setFrameIdx(MFI.CreateSpillStackObject(1, Align()));
-  }
-
-  return true;
-}
-
-bool MC6809FrameLowering::enableShrinkWrapping(const MachineFunction &MF) const {
-  // Prologues and epilogues are pretty expensive on the 6502: 16-bit additions,
-  // saving/restoring CSRs, the works. Accordingly, it's usually a good idea to
-  // do shrink wrapping, as this can make prolog/epilogue execution conditional,
-  // with no downside.
-  //
-  // If we're in an interrupt handler, we'll need to save a number of temporary
-  // locations, but the uses of those locations haven't been generated by the
-  // time shrink wrapping occurs.  Since there's no way for shrink wrapping to
-  // determine which blocks will eventually use those locations, we can't use it
-  // in that case.
-  return !isISR(MF);
-}
-
-bool MC6809FrameLowering::spillCalleeSavedRegisters(
-    MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
-    ArrayRef<CalleeSavedInfo> CSI, const TargetRegisterInfo *TRI) const {
-  MachineIRBuilder Builder(MBB, MI);
-  MachineInstrSpan MIS(MI, &MBB);
-  const MC6809Subtarget &STI = MBB.getParent()->getSubtarget<MC6809Subtarget>();
-  const TargetInstrInfo &TII = *STI.getInstrInfo();
-  const TargetRegisterClass &StackRegClass = MC6809::ACCRegClass;
-
-  // There are intentionally very few CSRs, few enough to place on the hard
-  // stack without much risk of overflow. This is the only across-calls way
-  // the compiler uses the hard stack, since the free CSRs can then be used
-  // with impunity. This is slightly more expensive than saving/resting values
-  // directly on the hard stack, but it's significantly simpler.
-  for (const CalleeSavedInfo &CI : CSI) {
-    Register Reg = CI.getReg();
-    if (!CI.isTargetSpilled())
-      continue;
-    if (!StackRegClass.contains(Reg))
-      Reg = Builder.buildCopy(&StackRegClass, Reg).getReg(0);
-    Builder.buildInstr(MC6809::PH, {}, {Reg});
-  }
-
-  // Record that the frame pointer is killed by these instructions.
-  for (auto &MI : make_range(MIS.begin(), MIS.getInitial()))
-    MI.setFlag(MachineInstr::FrameSetup);
-
-  // The frame pointer will be generated after the last frame setup instruction.
-
-  // Save registers to the soft stack afterwards, since this may require the
-  // frame pointer.
-  for (const CalleeSavedInfo &CI : CSI) {
-    Register Reg = CI.getReg();
-    if (CI.isTargetSpilled())
-      continue;
-    assert(!CI.isSpilledToReg());
-    const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
-    TII.storeRegToStackSlot(MBB, Builder.getInsertPt(), Reg, true,
-                            CI.getFrameIdx(), RC, TRI);
-  }
-
-  return true;
-}
-
-template <typename F, typename VisitSet>
-static void visitReturnBlocks(MachineBasicBlock *MBB, const F &Func,
-                              VisitSet &VisitedBBs) {
-  if (!VisitedBBs.insert(MBB).second)
+  int NumBytes = (int) MFI.getStackSize();
+  if (NumBytes == 0)
     return;
-  if (MBB->isReturnBlock())
-    Func(*MBB);
 
-  // Follow branches in BB and look for returns
-  for (MachineBasicBlock *Succ : MBB->successors())
-    visitReturnBlocks(Succ, Func, VisitedBBs);
+  emitSPAdjustment(MF, MBB, MBBI, NumBytes);
 }
 
-template <typename F>
-static void visitReturnBlocks(MachineBasicBlock *MBB, const F &Func) {
-  SmallSet<MachineBasicBlock *, 32> VisitedBBs;
-  visitReturnBlocks(MBB, Func, VisitedBBs);
+bool MC6809FrameLowering::hasReservedCallFrame(const MachineFunction &MF) const {
+  // Reserve call frame if there are no variable sized objects on the stack.
+  return !MF.getFrameInfo().hasVarSizedObjects();
 }
 
-bool MC6809FrameLowering::restoreCalleeSavedRegisters(
-    MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
-    MutableArrayRef<CalleeSavedInfo> CSI, const TargetRegisterInfo *TRI) const {
-  MachineIRBuilder Builder(MBB, MI);
-  const MC6809Subtarget &STI = MBB.getParent()->getSubtarget<MC6809Subtarget>();
-  const TargetInstrInfo &TII = *STI.getInstrInfo();
-  const TargetRegisterClass &StackRegClass = MC6809::ACCRegClass;
+// hasFP - Return true if the specified function should have a dedicated frame
+// pointer register.  This is true if the function has variable sized allocas or
+// if frame pointer elimination is disabled.
+bool MC6809FrameLowering::hasFP(const MachineFunction &MF) const {
+  const TargetRegisterInfo *RegInfo = MF.getSubtarget().getRegisterInfo();
 
-  for (const CalleeSavedInfo &CI : reverse(CSI)) {
-    Register Reg = CI.getReg();
-    if (CI.isTargetSpilled())
-      continue;
-    assert(!CI.isSpilledToReg());
-    const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
-    TII.loadRegFromStackSlot(MBB, Builder.getInsertPt(), Reg, CI.getFrameIdx(),
-                             RC, TRI);
+  const MachineFrameInfo &MFI = MF.getFrameInfo();
+  return MF.getTarget().Options.DisableFramePointerElim(MF) ||
+         RegInfo->hasStackRealignment(MF) || MFI.hasVarSizedObjects() ||
+         MFI.isFrameAddressTaken();
+}
+
+StackOffset
+MC6809FrameLowering::getFrameIndexReference(const MachineFunction &MF, int FI,
+                                           Register &FrameReg) const {
+  const MC6809Subtarget &Subtarget = MF.getSubtarget<MC6809Subtarget>();
+  const MachineFrameInfo &MFI = MF.getFrameInfo();
+  const MC6809RegisterInfo *RegInfo = Subtarget.getRegisterInfo();
+  const MC6809MachineFunctionInfo *FuncInfo = MF.getInfo<MC6809MachineFunctionInfo>();
+  bool isFixed = MFI.isFixedObjectIndex(FI);
+
+  // Addressable stack objects are accessed using neg. offsets from
+  // %fp, or positive offsets from %sp.
+  bool UseFP;
+
+  // MC6809 uses FP-based references in general, even when "hasFP" is
+  // false. That function is rather a misnomer, because %fp is
+  // actually always available
+  if (isFixed) {
+    // Otherwise, argument access should always use %fp.
+    UseFP = true;
+  } else if (RegInfo->hasStackRealignment(MF)) {
+    // If there is dynamic stack realignment, all local object
+    // references need to be via %sp, to take account of the
+    // re-alignment.
+    UseFP = false;
+  } else {
+    // Finally, default to using %fp.
+    UseFP = true;
   }
 
-  // Begin tracking the frame pointer exclusion region only after all soft stack
-  // CSR restores are emitted.
-  MachineInstrSpan MIS(MI, &MBB);
+  int64_t FrameOffset = MF.getFrameInfo().getObjectOffset(FI);
 
-  for (const CalleeSavedInfo &CI : reverse(CSI)) {
-    Register Reg = CI.getReg();
-    if (!CI.isTargetSpilled())
-      continue;
-    if (!StackRegClass.contains(Reg))
-      Reg = Builder.getMRI()->createVirtualRegister(&StackRegClass);
-    Builder.buildInstr(MC6809::PL, {Reg}, {});
-    if (Reg != CI.getReg())
-      Builder.buildCopy(CI.getReg(), Reg);
+  if (UseFP) {
+    FrameReg = RegInfo->getFrameRegister(MF);
+    return StackOffset::getFixed(FrameOffset);
+  } else {
+    FrameReg = MC6809::SS; // %sp
+    return StackOffset::getFixed(FrameOffset + MF.getFrameInfo().getStackSize());
   }
+}
 
-  // Mark the CSRs as used by the return to ensure Machine Copy Propagation
-  // doesn't remove the copies that set them.
-  visitReturnBlocks(&MBB, [&CSI](MachineBasicBlock &MBB) {
-    assert(MBB.rbegin()->isReturn());
-    for (const CalleeSavedInfo &CI : CSI) {
-      MBB.rbegin()->addOperand(MachineOperand::CreateReg(
-          CI.getReg(), /*isDef=*/false, /*isImp=*/true));
-    }
-  });
-
-  // Record that the frame pointer is killed by these instructions.
-  for (auto &MI : make_range(MIS.begin(), MIS.getInitial()))
-    MI.setFlag(MachineInstr::FrameDestroy);
-
+static bool LLVM_ATTRIBUTE_UNUSED verifyLeafProcRegUse(MachineRegisterInfo *MRI)
+{
   return true;
 }
 
 void MC6809FrameLowering::determineCalleeSaves(MachineFunction &MF,
-                                            BitVector &SavedRegs,
-                                            RegScavenger *RS) const {
+                                              BitVector &SavedRegs,
+                                              RegScavenger *RS) const {
   TargetFrameLowering::determineCalleeSaves(MF, SavedRegs, RS);
-
-  // If we have a frame pointer, the frame register RS15 needs to be saved as
-  // well, since the code that uses it hasn't yet been emitted.
-  if (hasFP(MF))
-    SavedRegs.set(MC6809::SU);
-}
-
-void MC6809FrameLowering::processFunctionBeforeFrameFinalized(
-    MachineFunction &MF, RegScavenger *RS) const {
-  MachineFrameInfo &MFI = MF.getFrameInfo();
-
-  // Assign all locals to static stack in non-recursive functions.
-  if (MF.getFunction().doesNotRecurse()) {
-    int64_t Offset = 0;
-    for (int Idx : seq(0, MFI.getObjectIndexEnd())) {
-      if (MFI.isDeadObjectIndex(Idx) || MFI.isVariableSizedObjectIndex(Idx))
-        continue;
-
-      MFI.setStackID(Idx, TargetStackID::NoAlloc);
-      MFI.setObjectOffset(Idx, Offset);
-      Offset += MFI.getObjectSize(Idx); // Static stack grows up.
-    }
-    return;
-  }
-}
-
-MachineBasicBlock::iterator MC6809FrameLowering::eliminateCallFramePseudoInstr(
-    MachineFunction &MF, MachineBasicBlock &MBB,
-    MachineBasicBlock::iterator MI) const {
-  int64_t Offset = MI->getOperand(0).getImm();
-
-  // If we've already reserved the outgoing call frame in the prolog/epilog, the
-  // pseudo can be summarily removed.
-  if (hasReservedCallFrame(MF) || !Offset)
-    return MBB.erase(MI);
-
-  // Increment/decrement the stack pointer to reserve space for the call frame.
-  MachineIRBuilder Builder(MBB, MI);
-  if (MI->getOpcode() ==
-      MF.getSubtarget().getInstrInfo()->getCallFrameSetupOpcode())
-    Offset = -Offset;
-  offsetSP(Builder, Offset);
-  return MBB.erase(MI);
-}
-
-void MC6809FrameLowering::emitPrologue(MachineFunction &MF,
-                                    MachineBasicBlock &MBB) const {
-  const MachineFrameInfo &MFI = MF.getFrameInfo();
-  const TargetRegisterInfo &TRI = *MF.getRegInfo().getTargetRegisterInfo();
-  MachineIRBuilder Builder(MBB, MBB.begin());
-
-  int64_t StackSize = MFI.getStackSize();
-  // If the interrupted routine is in the middle of decrementing its stack
-  // pointer, this routine may observe a stack pointer up to 255 bytes higher
-  // than its atomic value.  Accordingly, summarily decrement the SP by a page.
-  // Interrupts are rarer than the the routines they interrupt, so they pay the
-  // cost of dealing with this atomicity problem.
-  if (isISR(MF))
-    StackSize += 256;
-
-  if (StackSize)
-    offsetSP(Builder, -StackSize);
-
-  if (!hasFP(MF))
-    return;
-
-  // Skip the callee-saved push instructions.
-  auto MBBI = std::find_if_not(Builder.getInsertPt(), MBB.end(),
-                               [](const MachineInstr &MI) {
-                                 return MI.getFlag(MachineInstr::FrameSetup);
-                               });
-
-  // Set the frame pointer to the stack pointer.
-  Builder.setInsertPt(MBB, MBBI);
-  Builder.buildCopy(TRI.getFrameRegister(MF), Register(MC6809::SS));
-}
-
-void MC6809FrameLowering::emitEpilogue(MachineFunction &MF,
-                                    MachineBasicBlock &MBB) const {
-  const MachineFrameInfo &MFI = MF.getFrameInfo();
-  const TargetRegisterInfo &TRI = *MF.getRegInfo().getTargetRegisterInfo();
-  MachineIRBuilder Builder(MBB, MBB.getFirstTerminator());
-
-  // Restore the stack pointer from the frame pointer.
-  if (hasFP(MF)) {
-    // Skip the callee-saved push instructions.
-    auto MBBI = find_if_not(mbb_reverse(MBB.begin(), Builder.getInsertPt()),
-                            [](const MachineInstr &MI) {
-                              return MI.getFlag(MachineInstr::FrameDestroy);
-                            });
-    Builder.setInsertPt(MBB, MachineBasicBlock::iterator(MBBI));
-
-    // Set the stack pointer to the frame pointer.
-    Builder.buildCopy(MC6809::SS, TRI.getFrameRegister(MF));
-    Builder.setInsertPt(MBB, MBB.getFirstTerminator());
-  }
-
-  int64_t StackSize = MFI.getStackSize();
-
-  if (isISR(MF))
-    StackSize += 256;
-
-  // If soft stack is used, increase the soft stack pointer SP.
-  if (StackSize)
-    offsetSP(Builder, StackSize);
-}
-
-bool MC6809FrameLowering::hasFP(const MachineFunction &MF) const {
-  const MachineFrameInfo &MFI = MF.getFrameInfo();
-  return MFI.isFrameAddressTaken() || MFI.hasVarSizedObjects();
-}
-
-uint64_t MC6809FrameLowering::staticSize(const MachineFrameInfo &MFI) const {
-  uint64_t Size = 0;
-  for (int Idx : seq(0, MFI.getObjectIndexEnd()))
-    if (MFI.getStackID(Idx) == TargetStackID::NoAlloc)
-      Size += MFI.getObjectSize(Idx);
-  return Size;
-}
-
-void MC6809FrameLowering::offsetSP(MachineIRBuilder &Builder,
-                                int64_t Offset) const {
-  assert(Offset);
-  assert(-32768 <= Offset && Offset < 32768);
-
-  Register A = Builder.getMRI()->createVirtualRegister(&MC6809::ACC16RegClass);
-  Builder.buildCopy(A, Register(MC6809::SS));
-  auto Add = Builder.buildInstr(MC6809::ADCImm, {A}, {Offset});
-  Builder.buildCopy(MC6809::SS, A);
-}
-
-bool MC6809FrameLowering::isISR(const MachineFunction &MF) const {
-  const Function &F = MF.getFunction();
-  if (F.hasFnAttribute("no-isr"))
-    return false;
-  return F.hasFnAttribute("interrupt") ||
-         F.hasFnAttribute("interrupt-norecurse");
 }

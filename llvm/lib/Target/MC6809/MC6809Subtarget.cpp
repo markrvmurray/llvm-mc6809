@@ -37,7 +37,7 @@ using namespace llvm;
 MC6809Subtarget::MC6809Subtarget(const Triple &TT, const std::string &CPU,
                            const std::string &FS, const MC6809TargetMachine &TM)
     : MC6809GenSubtargetInfo(TT, CPU, /* TuneCPU */ CPU, FS), InstrInfo(),
-      RegInfo(), FrameLowering(),
+      RegInfo(), FrameLowering(*this),
       TLInfo(TM, initializeSubtargetDependencies(CPU, FS, TM)),
       CallLoweringInfo(&TLInfo), Legalizer(*this),
       InstSelector(createMC6809InstructionSelector(TM, *this, RegBankInfo)),

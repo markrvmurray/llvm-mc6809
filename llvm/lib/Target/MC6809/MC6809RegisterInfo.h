@@ -61,16 +61,7 @@ public:
                            unsigned FIOperandNum,
                            RegScavenger *RS = nullptr) const override;
 
-  void expandAddrLostk(MachineBasicBlock::iterator MI) const;
-  void expandAddrHistk(MachineBasicBlock::iterator MI) const;
-  void expandLDSTStk(MachineBasicBlock::iterator MI) const;
-
   Register getFrameRegister(const MachineFunction &MF) const override;
-
-  bool shouldCoalesce(MachineInstr *MI, const TargetRegisterClass *SrcRC,
-                      unsigned SubReg, const TargetRegisterClass *DstRC,
-                      unsigned DstSubReg, const TargetRegisterClass *NewRC,
-                      LiveIntervals &LIS) const override;
 
   bool
   getRegAllocationHints(Register VirtReg, ArrayRef<MCPhysReg> Order,

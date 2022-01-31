@@ -22,8 +22,8 @@ namespace llvm {
 
 InstructionSelector *
 createMC6809InstructionSelector(const MC6809TargetMachine &TM,
-                                 MC6809Subtarget &STI,
-                                 MC6809RegisterBankInfo &RBI);
+                                MC6809Subtarget &STI,
+                                MC6809RegisterBankInfo &RBI);
 
 } // namespace llvm
 

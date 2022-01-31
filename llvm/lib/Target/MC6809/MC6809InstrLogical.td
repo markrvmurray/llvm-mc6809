@@ -16,20 +16,20 @@
 // which register is loaded.
 //
 // The logical instruction set merges these instructions together into a single
-// logical LDImm #imm instruction. The logical instruction takes a "ACC"
+// logical LDImm8 #imm instruction. The logical instruction takes a "ACC"
 // register class as an argument. When the logical instructions are lowered to
 // real instructions in AsmPrinter, the register operand is examined to
 // determine which real instruction is emitted. This scheme comes with some
 // considerable advantages.
 //
-// First, selecting a LDImm instruction doesn't constrain where the destination
-// can be placed other than that it needs to be one of A, X, or Y. This allows
+// First, selecting a LDImm8 instruction doesn't constrain where the destination
+// can be placed other than that it needs to be one of A, B, E or F. This allows
 // earlier passes that cannot effectively make such decisions to defer them to
-// the register allocator.
+// the register allocator. Similarly, LDImm16 loads any of D, W, X, Y, U or S.
 //
-// Second, the description of the side effects and characteristics of LDImm only
+// Second, the description of the side effects and characteristics of LDImm8 only
 // need to be specified once. Any switch() statements need to have only one
-// entry for LDImm, not three for LDAImm, LDXImm, and LDYImm. This considerably
+// entry for LDImm8, not three for LDAImm, LDXImm, and LDYImm. This considerably
 // reduces the amount of code needed to cover the 6502 instruction set.
 //
 // Third, exposing these regularities to LLVM passes make the 6502 more like a
@@ -64,84 +64,124 @@ class MC6809LogicalInstr : Instruction {
   let mayStore = false;
   let isPseudo = true;
   let isCodeGenOnly = true;
-  let isReMaterializable = true;
+//let isReMaterializable = true;
+}
+
+//===---------------------------------------------------------------------===//
+// Addressing modes
+//===---------------------------------------------------------------------===//
+
+class MC6809ArithmeticBaseCarry<RegisterClass dst, dag operand> : MC6809LogicalInstr {
+  dag OutOperandList = (outs dst:$dst, NZc:$nz, Vc:$vout, Cc:$carryout);
+  dag InOperandList = !con((ins dst:$l, Cc:$carryin), operand);
+  let Constraints = "$dst = $l, $carryout = $carryin";
+}
+
+multiclass MC6809ArithmeticCarry<string size> {
+  def Imm : MC6809ArithmeticBaseCarry<!cast<RegisterClass>(!strconcat("ACC", size)), (ins !cast<DAGOperand>(!strconcat("i", size, "imm")):$imm)>;
+  def Reg : MC6809ArithmeticBaseCarry<!cast<RegisterClass>(!strconcat("ACC", size)), (ins !cast<RegisterClass>(!strconcat("ACC", size)):$src)>;
+  let mayLoad = true in {
+    def Abs : MC6809ArithmeticBaseCarry<!cast<RegisterClass>(!strconcat("ACC", size)), (ins addr16:$addr)>;
+    def IdxZero : MC6809ArithmeticBaseCarry<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx)>;
+    def IdxImm : MC6809ArithmeticBaseCarry<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx, i16imm:$offset)>;
+    def IndirIdxImm : MC6809ArithmeticBaseCarry<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx, i16imm:$offset)>;
+    def IdxReg8 : MC6809ArithmeticBaseCarry<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx, ACC8:$offset)>;
+    def IdxReg16 : MC6809ArithmeticBaseCarry<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx, ACC16:$offset)>;
+    def IndirIdxReg8 : MC6809ArithmeticBaseCarry<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx, ACC8:$offset)>;
+    def IndirIdxReg16 : MC6809ArithmeticBaseCarry<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx, ACC16:$offset)>;
+  }
+}
+
+class MC6809ArithmeticBase<RegisterClass dst, dag operand> : MC6809LogicalInstr {
+  dag OutOperandList = (outs dst:$dst, NZc:$nz, Vc:$vout, Cc:$carryout);
+  dag InOperandList = !con((ins dst:$l), operand);
+  let Constraints = "$dst = $l";
+}
+
+multiclass MC6809Arithmetic<string size> {
+  def Imm : MC6809ArithmeticBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins !cast<DAGOperand>(!strconcat("i", size, "imm")):$imm)>;
+  def Reg : MC6809ArithmeticBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins !cast<RegisterClass>(!strconcat("ACC", size)):$src)>;
+  let mayLoad = true in {
+    def Abs : MC6809ArithmeticBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins addr16:$addr)>;
+    def IdxZero : MC6809ArithmeticBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx)>;
+    def IdxImm : MC6809ArithmeticBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx, i16imm:$offset)>;
+    def IndirIdxImm : MC6809ArithmeticBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx, i16imm:$offset)>;
+    def IdxReg8 : MC6809ArithmeticBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx, ACC8:$offset)>;
+    def IdxReg16 : MC6809ArithmeticBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx, ACC16:$offset)>;
+    def IndirIdxReg8 : MC6809ArithmeticBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx, ACC8:$offset)>;
+    def IndirIdxReg16 : MC6809ArithmeticBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx, ACC16:$offset)>;
+  }
+}
+
+class MC6809LoadBase<RegisterClass dst, dag operand> : MC6809LogicalInstr {
+  dag OutOperandList = (outs dst:$dst, NZc:$nz, Vc:$vout, Cc:$carryout);
+  dag InOperandList = operand;
+}
+
+multiclass MC6809Load<string size> {
+  let mayLoad = true in {
+    def Imm : MC6809LoadBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins !cast<DAGOperand>(!strconcat("i", size, "imm")):$imm)>;
+    def Reg : MC6809LoadBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins !cast<RegisterClass>(!strconcat("ACC", size)):$src)>;
+    def Abs : MC6809LoadBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins addr16:$addr)>;
+    def IdxZero : MC6809LoadBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx)>;
+    def IdxImm : MC6809LoadBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx, i16imm:$offset)>;
+    def IndirIdxImm : MC6809LoadBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx, i16imm:$offset)>;
+    def IdxReg8 : MC6809LoadBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx, ACC8:$offset)>;
+    def IdxReg16 : MC6809LoadBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx, ACC16:$offset)>;
+    def IndirIdxReg8 : MC6809LoadBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx, ACC8:$offset)>;
+    def IndirIdxReg16 : MC6809LoadBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx, ACC16:$offset)>;
+  }
+}
+
+class MC6809StoreBase<RegisterClass src, dag operand> : MC6809LogicalInstr {
+  dag OutOperandList = !con(operand, (outs NZc:$nz, Vc:$vout, Cc:$carryout));
+  dag InOperandList = (ins src:$src);
+}
+
+multiclass MC6809Store<string size> {
+  def Reg : MC6809StoreBase<!cast<RegisterClass>(!strconcat("ACC", size)), (outs !cast<RegisterClass>(!strconcat("ACC", size)):$src)>;
+  def Abs : MC6809StoreBase<!cast<RegisterClass>(!strconcat("ACC", size)), (outs addr16:$addr)>;
+  def IdxZero : MC6809StoreBase<!cast<RegisterClass>(!strconcat("ACC", size)), (outs INDEX16:$idx)>;
+  def IdxImm : MC6809StoreBase<!cast<RegisterClass>(!strconcat("ACC", size)), (outs INDEX16:$idx, i16imm:$offset)>;
+  def IndirIdxImm : MC6809StoreBase<!cast<RegisterClass>(!strconcat("ACC", size)), (outs INDEX16:$idx, i16imm:$offset)>;
+  def IdxReg8 : MC6809StoreBase<!cast<RegisterClass>(!strconcat("ACC", size)), (outs INDEX16:$idx, ACC8:$offset)>;
+  def IdxReg16 : MC6809StoreBase<!cast<RegisterClass>(!strconcat("ACC", size)), (outs INDEX16:$idx, ACC16:$offset)>;
+  def IndirIdxReg8 : MC6809StoreBase<!cast<RegisterClass>(!strconcat("ACC", size)), (outs INDEX16:$idx, ACC8:$offset)>;
+  def IndirIdxReg16 : MC6809StoreBase<!cast<RegisterClass>(!strconcat("ACC", size)), (outs INDEX16:$idx, ACC16:$offset)>;
 }
 
 //===---------------------------------------------------------------------===//
 // Addition/Subtraction Instructions
 //===---------------------------------------------------------------------===//
 
-class MC6809AddSub : MC6809LogicalInstr {
-  dag OutOperandList = (outs ACC8:$dst, Cc:$carryout, Vc:$vout);
-  let Constraints = "$dst = $l, $carryout = $carryin";
+let isAdd = true in {
+  defm AddCarry8 : MC6809ArithmeticCarry<"8">;
+  defm AddCarry16 : MC6809ArithmeticCarry<"16">;
+  defm AddCarry32 : MC6809ArithmeticCarry<"32">;
 }
-class MC6809AddSubOp<Operand op> : MC6809AddSub {
-  dag InOperandList = (ins ACC8:$l, op:$r, Cc:$carryin);
-}
-class MC6809AddSubRC<RegisterClass rc> : MC6809AddSub {
-  dag InOperandList = (ins ACC8:$l, rc:$r, Cc:$carryin);
-}
+defm SubBorrow8 : MC6809ArithmeticCarry<"8">;
+defm SubBorrow16 : MC6809ArithmeticCarry<"16">;
+defm SubBorrow32 : MC6809ArithmeticCarry<"32">;
 
 let isAdd = true in {
-  def ADCImm : MC6809AddSubOp<i8imm>;
-  let mayLoad = true in {
-    def ADCAbs :
-      MC6809AddSubOp<i16imm>;
-    def ADCAbsIdx : MC6809AddSub {
-      dag InOperandList = (ins ACC8:$l, addr16:$addr, INDEX16:$idx, Cc:$carryin);
-    }
-    def ADCIndirIdx : MC6809AddSub {
-      dag InOperandList = (ins ACC8:$l, ACC16:$addr, INDEX16:$idx, Cc:$carryin);
-    }
-  }
+  defm Add8 : MC6809Arithmetic<"8">;
+  defm Add16 : MC6809Arithmetic<"16">;
+  defm Add32 : MC6809Arithmetic<"32">;
 }
-
-def SBCImm : MC6809AddSubOp<i8imm>;
-let mayLoad = true in {
-  def SBCAbs : MC6809AddSubOp<i16imm>;
-  def SBCAbsIdx : MC6809AddSub {
-    dag InOperandList = (ins ACC8:$l, addr16:$addr, INDEX16:$idx, Cc:$carryin);
-  }
-  def SBCIndirIdx : MC6809AddSub {
-    dag InOperandList = (ins ACC8:$l, ACC16:$addr, INDEX16:$idx, Cc:$carryin);
-  }
-}
+defm Sub8 : MC6809Arithmetic<"8">;
+defm Sub16 : MC6809Arithmetic<"16">;
+defm Sub32 : MC6809Arithmetic<"32">;
 
 //===---------------------------------------------------------------------===//
 // Bitwise instructions
 //===---------------------------------------------------------------------===//
 
-class MC6809BitwiseBase : MC6809LogicalInstr {
-  let OutOperandList = (outs ACC8:$dst);
-  let Constraints = "$dst = $l";
-}
-
-multiclass MC6809BitwiseInstr<SDNode node> {
-  def Imm : MC6809BitwiseBase {
-    let OutOperandList = (outs ACC8:$dst);
-    let InOperandList = (ins ACC8:$l, i8imm:$r);
-
-    let Pattern = [(set ACC8:$dst, (node ACC8:$l, imm:$r))];
-  }
-
-  let mayLoad = true in {
-    def Abs : MC6809BitwiseBase {
-      let InOperandList = (ins ACC8:$l, addr16:$r);
-    }
-
-    def AbsIdx : MC6809BitwiseBase {
-      let InOperandList = (ins ACC8:$l, addr16:$addr, INDEX16:$idx);
-    }
-
-    def IndirIdx : MC6809BitwiseBase {
-      let InOperandList = (ins ACC8:$l, ACC16:$addr, INDEX16:$idx);
-    }
-  }
-}
-
-defm AND : MC6809BitwiseInstr<and>;
-defm EOR : MC6809BitwiseInstr<xor>;
-defm ORA : MC6809BitwiseInstr<or>;
+defm AND8 : MC6809Arithmetic<"8">;
+defm AND16 : MC6809Arithmetic<"16">;
+defm OR8 : MC6809Arithmetic<"8">;
+defm OR16 : MC6809Arithmetic<"16">;
+defm XOR8 : MC6809Arithmetic<"8">;
+defm XOR16 : MC6809Arithmetic<"16">;
 
 //===---------------------------------------------------------------------===//
 // Shift/Rotate Instructions
@@ -221,11 +261,14 @@ def BITAbs : MC6809LogicalInstr {
 
 class MC6809Branch : MC6809LogicalInstr {
   let isBranch = true;
-  let isTerminator = true;
+  let isTerminator = false;
+  let isBarrier = false;
 }
 
 // Covers all branch instructions. Branches to $tgt if $flag = $val.
-def BR : MC6809Branch {
+class MC6809ConditionalBranch : MC6809Branch;
+
+def IfJumpRelative : MC6809ConditionalBranch {
   dag InOperandList = (ins label:$tgt, CCFlag:$flag, i1imm:$val);
 }
 
@@ -233,24 +276,24 @@ class MC6809UnconditionalBranch : MC6809Branch {
   let isBarrier = true;
 }
 
-def BRA : MC6809UnconditionalBranch {
+def JumpRelative : MC6809UnconditionalBranch {
   let InOperandList = (ins label:$tgt);
-  let Pattern = [(br bb:$tgt)];
 }
-def JMP : MC6809UnconditionalBranch {
-  let InOperandList = (ins label:$tgt);
-  let Pattern = [(br bb:$tgt)];
-}
-
-def JMPIndir : MC6809UnconditionalBranch {
-  let InOperandList = (ins ACC16:$tgt);
+def JumpIndir : MC6809UnconditionalBranch {
+  let InOperandList = (ins INDEX16:$tgt);
   let isIndirectBranch = true;
 }
 
-def JSR : MC6809LogicalInstr {
-  dag InOperandList = (ins label:$tgt);
-
+class MC6809UnconditionalCall : MC6809Branch {
   let isCall = true;
+}
+
+def CallRelative : MC6809UnconditionalCall {
+  dag InOperandList = (ins label:$tgt);
+}
+def CallIndir : MC6809UnconditionalCall {
+  let InOperandList = (ins INDEX16:$tgt);
+  let isIndirectBranch = true;
 }
 
 class MC6809Return : MC6809LogicalInstr {
@@ -259,29 +302,31 @@ class MC6809Return : MC6809LogicalInstr {
   let isTerminator = true;
 }
 
-def RTS : MC6809Return;
-def RTI : MC6809Return;
+def ReturnImplicit : MC6809Return;
+def ReturnIRQImplicit : MC6809Return;
 
 //===---------------------------------------------------------------------===//
 // Immediate Load Instructions
 //===---------------------------------------------------------------------===//
 
-class MC6809ImmediateLoad<RegisterClass dst, Operand val> : MC6809LogicalInstr {
-  dag OutOperandList = (outs dst:$dst);
-  dag InOperandList = (ins val:$val);
-
-  let isAsCheapAsAMove = true;
-  let isMoveImm = true;
-}
+//class MC6809ImmediateLoad<RegisterClass dst, Operand val> : MC6809LogicalInstr {
+//  dag OutOperandList = (outs dst:$dst);
+//  dag InOperandList = (ins val:$val);
+//
+//  let isAsCheapAsAMove = true;
+//  let isMoveImm = true;
+//}
 
 // Set and clear CC bits
-def LDNImm : MC6809ImmediateLoad<Nc, i1imm>;
-def LDZImm : MC6809ImmediateLoad<Zc, i1imm>;
-def LDVImm : MC6809ImmediateLoad<Vc, i1imm>;
-def LDCImm : MC6809ImmediateLoad<Cc, i1imm>;
+//def LDNImm : MC6809ImmediateLoad<Nc, i1imm>;
+//def LDZImm : MC6809ImmediateLoad<Zc, i1imm>;
+//def LDVImm : MC6809ImmediateLoad<Vc, i1imm>;
+//def LDCImm : MC6809ImmediateLoad<Cc, i1imm>;
 
-// LDA imm, LDX imm, LDY imm
-def LDImm : MC6809ImmediateLoad<ACC8, i8imm>;
+// All the loads
+defm Load8 : MC6809Load<"8">;
+defm Load16 : MC6809Load<"16">;
+defm Load32 : MC6809Load<"32">;
 
 //===---------------------------------------------------------------------===//
 // Comparison Instructions
@@ -337,48 +382,81 @@ let isAdd = true in {
 
 // PHA, PHP
 def PH : MC6809LogicalInstr {
-  dag InOperandList = (ins ACC:$src);
+  dag InOperandList = (ins ACC8:$src);
 
   let mayStore = true;
 }
 
 // PLA, PLP
 def PL : MC6809LogicalInstr {
-  dag OutOperandList = (outs ACC:$dst);
+  dag OutOperandList = (outs ACC8:$dst);
 
   let mayLoad = true;
 }
+
+//===---------------------------------------------------------------------===//
+// Pointer add instructions
+//===---------------------------------------------------------------------===//
+
+class MC6809PtrAdd<RegisterClass idx> : MC6809LogicalInstr {
+  dag OutOperandList = (outs idx:$dst);
+  let isAdd = true;
+  let Constraints = "$dst = $src";
+}
+
+class MC6809PtrAddImm<RegisterClass idx, Operand val> : MC6809PtrAdd<idx> {
+  dag InOperandList = (ins idx:$src, val:$val);
+}
+
+class MC6809PtrAddReg<RegisterClass idx, RegisterClass val> : MC6809PtrAdd<idx> {
+  dag InOperandList = (ins idx:$src, val:$val);
+}
+
+// LEAr n,r or LEAr a,r
+def LEAPtrAddImm : MC6809PtrAddImm<INDEX16, i16imm>;
+def LEAPtrAddReg8 : MC6809PtrAddReg<INDEX16, ACC8>;
+def LEAPtrAddReg16 : MC6809PtrAddReg<INDEX16, ACC16>;
 
 //===---------------------------------------------------------------------===//
 // Load/Store Instructions
 //===---------------------------------------------------------------------===//
 
-class MC6809Load : MC6809LogicalInstr {
+class MC6809Load<RegisterClass dst> : MC6809LogicalInstr {
+  dag OutOperandList = (outs dst:$dst);
+  dag InOperandList = (ins i16imm:$addr);
   let mayLoad = true;
 }
 
-// LDA abs, LDX abs, LDY abs
-def LDAbs : MC6809Load {
-  dag OutOperandList = (outs ACC8:$dst);
-  dag InOperandList = (ins i16imm:$src);
-}
+// LDr abs
+def  LD8Abs : MC6809Load<ACC8>;
+def  LD16Abs : MC6809Load<ACC16>;
 
-class MC6809LoadIndexed<RegisterClass dst, RegisterClass idx> : MC6809Load {
+class MC6809LoadIndexedNoOffset<RegisterClass dst, RegisterClass idx> : MC6809Load<dst> {
   dag OutOperandList = (outs dst:$dst);
-  dag InOperandList = (ins i16imm:$addr, idx:$idx);
+  dag InOperandList = (ins idx:$idx);
 }
-// LDA abs,x; LDA abs,y
-def LDAAbsIdx : MC6809LoadIndexed<ACC8, INDEX16>;
-// LDX abs,y
-def LDXAbsIdx : MC6809LoadIndexed<INDEX16, INDEX16>;
-// LDY abs,x
-def LDYAbsIdx : MC6809LoadIndexed<INDEX16, INDEX16>;
 
-// LDA (zp),y
-def LDIndirIdx : MC6809Load {
-  dag OutOperandList = (outs ACC8:$dst);
-  dag InOperandList = (ins ACC16:$addr, INDEX16:$offset);
-}
+// LDr offset,x ; LDr 0,x LDr ,x
+def LD8Idx : MC6809LoadIndexedNoOffset<ACC8, INDEX16>;
+def LD16Idx : MC6809LoadIndexedNoOffset<REG16, INDEX16>;
+def LD32Idx : MC6809LoadIndexedNoOffset<ACC32, INDEX16>;
+
+////class MC6809LoadIndexed<RegisterClass dst, RegisterClass idx> : MC6809Load<dst> {
+//  dag OutOperandList = (outs dst:$dst);
+//  dag InOperandList = (ins i16imm:$addr, idx:$idx);
+//}
+//// LDA abs,x; LDA abs,y
+//def LDAAbsIdx : MC6809LoadIndexed<ACC8, INDEX16>;
+//// LDX abs,y
+//def LDXAbsIdx : MC6809LoadIndexed<INDEX16, INDEX16>;
+//// LDY abs,x
+//def LDYAbsIdx : MC6809LoadIndexed<INDEX16, INDEX16>;
+
+//// LDA (zp),y
+//def LDIndirIdx : MC6809Load<dst> {
+//  dag OutOperandList = (outs ACC8:$dst);
+//  dag InOperandList = (ins ACC16:$addr, INDEX16:$offset);
+//}
 
 class MC6809Store : MC6809LogicalInstr {
   let mayStore = true;
@@ -409,26 +487,54 @@ def STZAbsIdx : MC6809Store {
 // Addition/Subtraction Patterns
 //===---------------------------------------------------------------------===//
 
-def : Pat<(add ACC8:$l, (i8 imm:$imm)), (ADCImm ACC8:$l, imm:$imm, (LDCImm 0))>;
-def : Pat<(sub ACC8:$l, (i8 imm:$imm)), (SBCImm ACC8:$l, imm:$imm, (LDCImm -1))>;
+//def : Pat<(add ACC:$l, (i8 imm:$imm)), (ADCImm ACC:$l, imm:$imm, (LDCImm 0))>;
+//def : Pat<(sub ACC:$l, (i8 imm:$imm)), (SBCImm ACC:$l, imm:$imm, (LDCImm -1))>;
 
 //===---------------------------------------------------------------------===//
 // Integer Extension/Truncation Patterns
 //===---------------------------------------------------------------------===//
 
-def : Pat<(i8 (anyext BIT1:$s)), (INSERT_SUBREG (IMPLICIT_DEF), BIT1:$s, sub_lsb)>;
-def : Pat<(i16 (anyext ACC8:$s)), (INSERT_SUBREG (IMPLICIT_DEF), ACC8:$s, sub_lo_byte)>;
-def : Pat<(i16 (anyext BIT1:$s)),
-          (INSERT_SUBREG (IMPLICIT_DEF),
-                         (INSERT_SUBREG (i8 (IMPLICIT_DEF)), BIT1:$s, sub_lsb),
-                         sub_lo_byte)>;
+def SEX8Implicit : MC6809LogicalInstr {
+  dag OutOperandList = (outs ACC8:$dst);
+  dag InOperandList = (ins BIT1:$lsb);
+}
 
-def : Pat<(i1 (trunc ACC8:$s)), (EXTRACT_SUBREG (ANDImm ACC8:$s, 1), sub_lsb)>;
-def : Pat<(i8 (trunc ACC16:$s)), (EXTRACT_SUBREG ACC16:$s, sub_lo_byte)>;
+def SEX16Implicit : MC6809LogicalInstr {
+  dag OutOperandList = (outs ADc:$ad);
+  dag InOperandList = (ins ABc:$ab);
+}
+
+def SEX32Implicit : MC6809LogicalInstr {
+  dag OutOperandList = (outs AQc:$aq);
+  dag InOperandList = (ins AWc:$aw);
+}
+def ZEX8Implicit : MC6809LogicalInstr {
+  dag OutOperandList = (outs ACC8:$dst);
+  dag InOperandList = (ins BIT1:$lsb);
+}
+
+def ZEX16Implicit : MC6809LogicalInstr {
+  dag OutOperandList = (outs ADc:$ad);
+  dag InOperandList = (ins ABc:$ab);
+}
+
+def ZEX32Implicit : MC6809LogicalInstr {
+  dag OutOperandList = (outs AQc:$aq);
+  dag InOperandList = (ins AWc:$aw);
+}
+
+// def : Pat<(i8 (anyext BIT1:$s)), (INSERT_SUBREG (IMPLICIT_DEF), BIT1:$s, sub_lsb)>;
+// def : Pat<(i16 (anyext ACC8:$s)), (INSERT_SUBREG (IMPLICIT_DEF), ACC8:$s, sub_lo_byte)>;
+// def : Pat<(i16 (anyext BIT1:$s)), (INSERT_SUBREG (IMPLICIT_DEF), (INSERT_SUBREG (i8 (IMPLICIT_DEF)), BIT1:$s, sub_lsb), sub_lo_byte)>;
+
+// def : Pat<(i1 (trunc ACC8:$s)), (EXTRACT_SUBREG (ANDImm ACC8:$s, 1), sub_lsb)>;
+// def : Pat<(i8 (trunc ACC16:$s)), (EXTRACT_SUBREG ACC16:$s, sub_lo_byte)>;
+// def : Pat<(i1 (trunc ACC16:$s)), (EXTRACT_SUBREG (ANDImm (EXTRACT_SUBREG ACC16:$s, sub_lo_byte), 1), sub_lsb)>;
 
 //===---------------------------------------------------------------------===//
 // Constant Patterns
 //===---------------------------------------------------------------------===//
 
-def : Pat<(i1 imm:$s), (LDImm1 imm:$s)>;
-def : Pat<(i8 imm:$s), (LDImm imm:$s)>;
+// def : Pat<(i1 imm:$s), (LDImm1 imm:$s)>;
+// def : Pat<(i8 imm:$s), (LDImm8 imm:$s)>;
+// def : Pat<(i16 imm:$s), (LDImm16 imm:$s)>;

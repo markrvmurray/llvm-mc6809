@@ -18,18 +18,15 @@
 #include "llvm/Support/MachineValueType.h"
 
 namespace llvm {
-
-/// Regular calling convention.
+bool RetCC_MC6809(unsigned ValNo, MVT ValVT, MVT LocVT,
+                  CCValAssign::LocInfo LocInfo, ISD::ArgFlagsTy ArgFlags,
+                  CCState &State);
 bool CC_MC6809(unsigned ValNo, MVT ValVT, MVT LocVT,
-                CCValAssign::LocInfo LocInfo, ISD::ArgFlagsTy ArgFlags,
-                CCState &State);
-
-/// Calling convention used for the dynamic portion of varargs calls. Just puts
-/// everything on the stack.
+               CCValAssign::LocInfo LocInfo, ISD::ArgFlagsTy ArgFlags,
+               CCState &State);
 bool CC_MC6809_VarArgs(unsigned ValNo, MVT ValVT, MVT LocVT,
-                        CCValAssign::LocInfo LocInfo, ISD::ArgFlagsTy ArgFlags,
-                        CCState &State);
-
+                       CCValAssign::LocInfo LocInfo,
+                       ISD::ArgFlagsTy ArgFlags, CCState &State);
 } // namespace llvm
 
-#endif // not LLVM_LIB_TARGET_MC6809_MC6809CALLINGCONV_H
+#endif // LLVM_LIB_TARGET_MC6809_MC6809CALLINGCONV_H

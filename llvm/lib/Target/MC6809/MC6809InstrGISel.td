@@ -28,83 +28,53 @@ class MC6809GenericInstruction : GenericInstruction {
   let hasSideEffects = false;
 }
 
-// Version of G_BRCOND that takes an immediate argument for which boolean value
-// triggers the branch. This could be done in the instruction selector, but that
-// would require making 1-bit G_XORs legal. However, they are only legal when
-// used in this way, so the legalizer handles this instead, that way the
-// remaining unhandled G_XORs can be widened to 8 bits.
-def G_BRCOND_IMM : MC6809GenericInstruction {
-  let OutOperandList = (outs);
-  let InOperandList = (ins type0:$tst, unknown:$truebb, i1imm:$tstval);
-
-  let isBranch = true;
-  let isTerminator = true;
-}
-
-// Generalized 8-bit subtraction and comparison operation. Subsumes SBC, CMP,
-// CPX, and CPY. Depending on the outputs and inputs are used, this will select
-// to one or more of these instructions.
-def G_SBC : MC6809GenericInstruction {
-  let OutOperandList = (outs type0:$a, type1:$cout, type1:$n, type1:$v, type1:$z);
-  let InOperandList = (ins type0:$l, type0:$r, type1:$cin);
-}
-
-// Generalized 8-bit load using the absolute addressing mode. The address
-// argument isn't a pointer; it's either a global value or a 16-bit immediate.
-// Additionally expects a MachineMemOperand.
-def G_LOAD_ABS : MC6809GenericInstruction {
-  let OutOperandList = (outs type0:$dst);
-  let InOperandList = (ins unknown:$addr);
-  let mayLoad = true;
-}
-
 // Generalized 8-bit load using the absolute indexed addressing mode. The base
 // argument isn't a pointer; it's either a global value or a 16-bit immediate.
 // The index argument is an 8-bit scalar. Additionally expects a
 // MachineMemOperand.
-def G_LOAD_ABS_IDX : MC6809GenericInstruction {
-  let OutOperandList = (outs type0:$dst);
-  let InOperandList = (ins unknown:$base, type1:$index);
-  let mayLoad = true;
-}
+//def G_LOAD_ABS_IDX : MC6809GenericInstruction {
+//  let OutOperandList = (outs type0:$dst);
+//  let InOperandList = (ins unknown:$base, type1:$index);
+//  let mayLoad = true;
+//}
 
 // Generalized 8-bit load using the indirect indexed addressing mode. The index
 // argument is an 8-bit scalar. Additionally expects a MachineMemOperand.
-def G_LOAD_INDIR_IDX : MC6809GenericInstruction {
-  let OutOperandList = (outs type0:$dst);
-  let InOperandList = (ins ptype1:$base, type1:$index);
-  let mayLoad = true;
-}
+//def G_LOAD_INDIR_IDX : MC6809GenericInstruction {
+//  let OutOperandList = (outs type0:$dst);
+//  let InOperandList = (ins ptype1:$base, type1:$index);
+//  let mayLoad = true;
+//}
 
 // Generalized 8-bit store using the absolute addressing mode. The address
 // argument isn't a pointer; it's either a global value or a 16-bit immediate.
 // Additionally expects a MachineMemOperand.
-def G_STORE_ABS : MC6809GenericInstruction {
-  let OutOperandList = (outs);
-  let InOperandList = (ins type0:$src, unknown:$addr);
-  let hasSideEffects = false;
-  let mayStore = true;
-}
+//def G_STORE_ABS : MC6809GenericInstruction {
+//  let OutOperandList = (outs);
+//  let InOperandList = (ins type0:$src, unknown:$addr);
+//  let hasSideEffects = false;
+//  let mayStore = true;
+//}
 
 // Generalized 8-bit store using the absolute indexed addressing mode. The base
 // argument isn't a pointer; it's either a global value or a 16-bit immediate.
 // The index argument is an 8-bit scalar. Additionally expects a
 // MachineMemOperand.
-def G_STORE_ABS_IDX : MC6809GenericInstruction {
-  let OutOperandList = (outs);
-  let InOperandList = (ins type0:$src, unknown:$base, type1:$index);
-  let hasSideEffects = false;
-  let mayStore = true;
-}
+//def G_STORE_ABS_IDX : MC6809GenericInstruction {
+//  let OutOperandList = (outs);
+//  let InOperandList = (ins type0:$src, unknown:$base, type1:$index);
+//  let hasSideEffects = false;
+//  let mayStore = true;
+//}
 
 // Generalized 8-bit store using the indirect indexed addressing mode. The index
 // argument is an 8-bit scalar. Additionally expects a MachineMemOperand.
-def G_STORE_INDIR_IDX : MC6809GenericInstruction {
-  let OutOperandList = (outs);
-  let InOperandList = (ins type0:$src, ptype1:$base, type1:$index);
-  let hasSideEffects = false;
-  let mayStore = true;
-}
+//def G_STORE_INDIR_IDX : MC6809GenericInstruction {
+//  let OutOperandList = (outs);
+//  let InOperandList = (ins type0:$src, ptype1:$base, type1:$index);
+//  let hasSideEffects = false;
+//  let mayStore = true;
+//}
 
 // Shift an 8-bit value left one bit, placing $carry_in in the LSB and placing
 // the previous MSB bit into $carry_out. This "even" version can be chained to
