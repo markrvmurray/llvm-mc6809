@@ -295,11 +295,11 @@ for instr_ in RawInstructions:
 			instr["lets"]["mayLoad"] = "true";
 			instr["defs"] = ["NZVC"]
 			if reg in "ABDEFWQ":
-				instr["defs"] += ["A" + reg]
+				instr["outs"] = ["A" + reg + "c:$reg"]
 			elif reg in "XY":
-				instr["defs"] += ["I" + reg]
+				instr["outs"] = ["I" + reg + "c:$reg"]
 			elif reg in "SU":
-				instr["defs"] += ["S" + reg]
+				instr["outs"] = ["S" + reg + "c:$reg"]
 			else:
 				print("Load register not handled:", instr)
 		if instr["mnemonic"][:-1] == "CLR":
@@ -307,11 +307,11 @@ for instr_ in RawInstructions:
 			instr["defs"] = ["NZVC"]
 			instr["lets"]["mayLoad"] = "true";
 			if reg in "ABDEFWQ":
-				instr["defs"] += ["A" + reg]
+				instr["outs"] = ["A" + reg + "c:$reg"]
 			elif reg in "XY":
-				instr["defs"] += ["I" + reg]
+				instr["outs"] = ["I" + reg + "c:$reg"]
 			elif reg in "SU":
-				instr["defs"] += ["S" + reg]
+				instr["outs"] = ["S" + reg + "c:$reg"]
 			else:
 				print("Load register not handled:", instr)
 	elif instr["function"] == "s":
@@ -320,11 +320,11 @@ for instr_ in RawInstructions:
 			instr["defs"] = ["NZVC"]
 			instr["lets"]["mayStore"] = "true";
 			if reg in "ABDEFWQ":
-				instr["uses"] += ["A" + reg]
+				instr["ins"] = ["A" + reg + "c:$reg"]
 			elif reg in "XY":
-				instr["uses"] += ["I" + reg]
+				instr["ins"] = ["I" + reg + "c:$reg"]
 			elif reg in "SU":
-				instr["uses"] += ["S" + reg]
+				instr["ins"] = ["S" + reg + "c:$reg"]
 			else:
 				print("Store register not handled:", instr)
 		elif instr["mnemonic"] == "CLR":

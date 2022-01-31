@@ -44,30 +44,39 @@ def sub_lsb : MC6809SubRegIndex<1>;
 //  Real registers
 //===----------------------------------------------------------------------===//
 
-// All MC6809 registers have the prefix llvm_mc6809_ added to them, to avoid conflicts
-// with legacy assembly code that depends on the register names as variables.
-// (The MC6809 instructions generally don't name the target register as a
-// parameter. The target registers are implied by the opcode and included
-// in the mnemonic.)
 class MC6809Reg<bits<16> num, string name>
-  : Register<!strconcat("llvm_mc6809_", name)>, DwarfRegNum<[num]> {
+  : Register<name>, DwarfRegNum<[num]> {
   field bits<16> Num = num;
   let HWEncoding = num;
   let Namespace = "MC6809";
   let AltNames = [name];
 }
 
-class MC6809Reg8<bits<16> num, string name> : MC6809Reg<num, name>;
+//class MC6809Reg8<bits<16> num, string name> : MC6809Reg<num, name>;
 
 // An 8-bit value register (GPR or imaginary). Contains a 1-bit LSB subregister
 // to allow them to store boolean values.
-multiclass MC6809Reg8<bits<16> num, string name> {
-  def _LSB : MC6809Reg<!add(num, 128), name#"_LSB">;
+//multiclass MC6809Reg8<bits<16> num, string name> {
+//  def _LSB : MC6809Reg<!add(num, 128), name#"_LSB">;
+//
+//  def NAME : MC6809Reg<num, name> {
+//    let SubRegs = [!cast<Register>(NAME#_LSB)];
+//    let SubRegIndices = [sub_lsb];
+//  }
+//}
 
-  def NAME : MC6809Reg<num, name> {
-    let SubRegs = [!cast<Register>(NAME#_LSB)];
-    let SubRegIndices = [sub_lsb];
-  }
+class MC6809Reg1<bits<16> num, string name>
+  : MC6809Reg<num, name> {
+    let SubRegs = [];
+    let SubRegIndices = [];
+    let CoveredBySubRegs = true;
+}
+
+class MC6809Reg8<bits<16> num, string name, list<Register> subregs = [], list<SubRegIndex> subregindices = []>
+  : MC6809Reg<num, name> {
+    let SubRegs = subregs;
+    let SubRegIndices = subregindices;
+    let CoveredBySubRegs = false;
 }
 
 class MC6809Reg16<bits<16> num, string name, list<Register> subregs = [], list<SubRegIndex> subregindices = []>
@@ -84,14 +93,14 @@ class MC6809Reg32<bits<16> num, string name, list<Register> subregs = [], list<S
     let CoveredBySubRegs = true;
 }
 
-def E : MC6809Reg<48, "E">;
-def F : MC6809Reg<49, "F">;
-def H : MC6809Reg<50, "H">;
-def I : MC6809Reg<51, "I">;
-def N : MC6809Reg<52, "N">;
-def Z : MC6809Reg<53, "Z">;
-def V : MC6809Reg<54, "V">;
-def C : MC6809Reg<55, "C">;
+def E : MC6809Reg1<48, "E">;
+def F : MC6809Reg1<49, "F">;
+def H : MC6809Reg1<50, "H">;
+def I : MC6809Reg1<51, "I">;
+def N : MC6809Reg1<52, "N">;
+def Z : MC6809Reg1<53, "Z">;
+def V : MC6809Reg1<54, "V">;
+def C : MC6809Reg1<55, "C">;
 
 def NZVC : MC6809Reg<65, "NZVC"> {
   let SubRegs = [N, Z, V, C];
@@ -99,31 +108,32 @@ def NZVC : MC6809Reg<65, "NZVC"> {
   let CoveredBySubRegs = true;
 }
 
-def CC : MC6809Reg8<10, "cc"> {
-  let SubRegs = [E, F, H, I, NZVC];
-  let SubRegIndices = [sub_entire, sub_firq, sub_half, sub_irq, sub_nzvc];
-  let CoveredBySubRegs = true;
-}
+def CC : MC6809Reg8<10, "cc", [E, F, H, I, NZVC], [sub_entire, sub_firq, sub_half, sub_irq, sub_nzvc]>;
 
-def  IX : MC6809Reg<1,    "x" >;
-def  IY : MC6809Reg<2,    "y" >;
-def  SU : MC6809Reg<3,    "u" >;
-def  SS : MC6809Reg<4,    "s" >;
-def  PC : MC6809Reg<5,    "pc">;
-def  AV : MC6809Reg<7,    "v" >;
-defm AA : MC6809Reg8<8,   "a" >;
-defm AB : MC6809Reg8<9,   "b" >;
-def  DP : MC6809Reg<11,   "dp">;
-def  A0 : MC6809Reg<12,   "0" >;
-defm AE : MC6809Reg8<14,  "e" >;
-defm AF : MC6809Reg8<15,  "f" >;
+def AA_LSB : MC6809Reg1<66, "a_lsb">;
+def AB_LSB : MC6809Reg1<67, "b_lsb">;
+def AE_LSB : MC6809Reg1<68, "e_lsb">;
+def AF_LSB : MC6809Reg1<69, "f_lsb">;
 
-def  AD : MC6809Reg16<0,  "d", [AA, AB], [sub_hi_byte, sub_lo_byte]>;
-def  AW : MC6809Reg16<6,  "w", [AE, AF], [sub_hi_byte, sub_lo_byte]>;
+def IX : MC6809Reg16<1,  "x" >;
+def IY : MC6809Reg16<2,  "y" >;
+def SU : MC6809Reg16<3,  "u" >;
+def SS : MC6809Reg16<4,  "s" >;
+def PC : MC6809Reg16<5,  "pc">;
+def AV : MC6809Reg16<7,  "v" >;
+def AA : MC6809Reg8<8,   "a", [AA_LSB], [sub_lsb]>;
+def AB : MC6809Reg8<9,   "b", [AB_LSB], [sub_lsb]>;
+def DP : MC6809Reg8<11,  "dp">;
+def A0 : MC6809Reg16<12, "0" >;
+def AE : MC6809Reg8<14,  "e", [AE_LSB], [sub_lsb]>;
+def AF : MC6809Reg8<15,  "f", [AF_LSB], [sub_lsb]>;
 
-def  AQ : MC6809Reg32<16, "q", [AD, AW], [sub_hi_word, sub_lo_word]>;
+def AD : MC6809Reg16<0,  "d", [AA, AB], [sub_hi_byte, sub_lo_byte]>;
+def AW : MC6809Reg16<6,  "w", [AE, AF], [sub_hi_byte, sub_lo_byte]>;
 
-def  MD : MC6809Reg<17,   "md">;
+def AQ : MC6809Reg32<16, "q", [AD, AW], [sub_hi_word, sub_lo_word]>;
+
+def MD : MC6809Reg8<17,  "md">;
 
 //===----------------------------------------------------------------------===//
 //  Register classes
@@ -136,7 +146,6 @@ class MC6809Reg1Class<dag RegList>: MC6809RegClass<[i1], 8, RegList> {
   // The register is 1-bit wide, but takes 8 bits to spill.
   let RegInfos = RegInfoByHwMode<[DefaultMode], [RegInfo<1, 8, 8>]>;
 }
-class MC6809Reg4Class<dag RegList>: MC6809RegClass<[i8], 8, RegList>;
 class MC6809Reg8Class<dag RegList>: MC6809RegClass<[i8], 8, RegList>;
 class MC6809Reg16Class<dag RegList>: MC6809RegClass<[i16], 8, RegList>;
 class MC6809Reg32Class<dag RegList>: MC6809RegClass<[i32], 8, RegList>;
@@ -149,12 +158,13 @@ def ACC8 : MC6809Reg8Class<(add AA, AB, AE, AF)>;
 def BIT8 : MC6809Reg8Class<(add AA, AB, CC)>;
 def ACC16 : MC6809Reg16Class<(add AD, AW)>;
 def INDEX16 : MC6809Reg16Class<(add IX, IY, SU, SS)>;
+def REG16 : MC6809Reg16Class<(add AD, AW, IX, IY, SU, SS)>;
 def ACC32 : MC6809Reg32Class<(add AQ)>;
 
 def PTR16 : MC6809Reg16Class<(add IX, IY, SU, SS)>;
 
 def ANY1 : MC6809Reg1Class<(add BIT1, N, Z, V, C)>;
-def ACC : MC6809RegAnyClass<(add AA, AB, AD, AE, AF, AW, AQ)>;
+//def ACC : MC6809RegAnyClass<(add AA, AB, AD, AE, AF, AW, AQ)>;
 
 let isAllocatable = false in {
   def CCFlag : MC6809Reg1Class<(add E, F, H, I, N, Z, V, C)>;
@@ -168,14 +178,16 @@ let isAllocatable = false in {
 let isPressureFineGrained = true in {
   def AAc : MC6809Reg8Class<(add AA)>;
   def ABc : MC6809Reg8Class<(add AB)>;
-  def ADc : MC6809Reg8Class<(add AD)>;
+  def ADc : MC6809Reg16Class<(add AD)>;
   def AEc : MC6809Reg8Class<(add AE)>;
   def AFc : MC6809Reg8Class<(add AF)>;
-  def AWc : MC6809Reg8Class<(add AW)>;
-  def IXc : MC6809Reg8Class<(add IX)>;
-  def IYc : MC6809Reg8Class<(add IY)>;
-  def SUc : MC6809Reg8Class<(add SU)>;
-  def SSc : MC6809Reg8Class<(add SS)>;
+  def AWc : MC6809Reg16Class<(add AW)>;
+  def AQc : MC6809Reg16Class<(add AQ)>;
+  def IXc : MC6809Reg16Class<(add IX)>;
+  def IYc : MC6809Reg16Class<(add IY)>;
+  def SUc : MC6809Reg16Class<(add SU)>;
+  def SSc : MC6809Reg16Class<(add SS)>;
+  def PCc : MC6809Reg16Class<(add PC)>;
   def CCc : MC6809Reg8Class<(add CC)>;
   def NZVCc : MC6809Reg8Class<(add NZVC)>;
   def Nc : MC6809Reg1Class<(add N)>;
@@ -186,8 +198,8 @@ let isPressureFineGrained = true in {
 
 // MC6809 assembly mnemonics may only have the following registers as parameters
 // following the comma in a mnemonic, e.g. lda hello, x
-def MC6809AsmParamRegClass : MC6809Reg8Class<(add AA, AB, AD, AE, AF, AW, IX, IY, SU, SS, PC)>;
+//def MC6809AsmParamRegClass : MC6809RegClass<[i16, i8], 8, (add AA, AB, AD, AE, AF, AW, IX, IY, SU, SS, PC)>;
 
 // While not directly used, unless this is present, the TableGen-erated intersection
 // register class between BIT1 and CC flags will not be allocatable.
-def AllocatableFlags : MC6809Reg1Class<(add N, Z, V, C)>;
+//def AllocatableFlags : MC6809Reg1Class<(add N, Z, V, C)>;

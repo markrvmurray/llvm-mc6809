@@ -14,6 +14,7 @@
 #ifndef LLVM_LIB_TARGET_MC6809_MC6809ISELLOWERING_H
 #define LLVM_LIB_TARGET_MC6809_MC6809ISELLOWERING_H
 
+#include "llvm/CodeGen/CallingConvLower.h"
 #include "llvm/CodeGen/TargetLowering.h"
 
 #include "llvm/Target/TargetMachine.h"
@@ -31,37 +32,14 @@ public:
     return false;
   }
 
-  // While integer division isn't "cheap", long division is not all that much
-  // slower than long multiplication, and the division->multiplication
-  // optimization this disables performs multiplciation at double the width,
-  // which is extraordinarily more expensive.
-  bool isIntDivCheap(EVT VT, AttributeList Attr) const override { return true; }
-
-  bool areJTsAllowed(const Function *Fn) const override {
-    return !Fn->getFnAttribute("no-jump-tables").getValueAsBool();
-  }
-
   unsigned getNumRegistersForInlineAsm(LLVMContext &Context,
                                        EVT VT) const override;
 
   ConstraintType getConstraintType(StringRef Constraint) const override;
 
-  MVT getRegisterTypeForCallingConv(
-      LLVMContext &Context, CallingConv::ID CC, EVT VT,
-      const ISD::ArgFlagsTy &Flags) const override;
-
-  unsigned
-  getNumRegistersForCallingConv(LLVMContext &Context, CallingConv::ID CC,
-                                EVT VT,
-                                const ISD::ArgFlagsTy &Flags) const override;
-
   std::pair<unsigned, const TargetRegisterClass *>
   getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
                                StringRef Constraint, MVT VT) const override;
-
-  bool isLegalAddressingMode(const DataLayout &DL, const AddrMode &AM, Type *Ty,
-                             unsigned AddrSpace,
-                             Instruction *I = nullptr) const override;
 
   bool isTruncateFree(Type *SrcTy, Type *DstTy) const override;
 

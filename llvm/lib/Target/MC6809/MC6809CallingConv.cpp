@@ -11,9 +11,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "MC6809CallingConv.h"
+#include "MC6809.h"
+#include "MC6809InstrInfo.h"
 #include "MC6809Subtarget.h"
+#include "llvm/CodeGen/CallingConvLower.h"
+#include "llvm/CodeGen/TargetInstrInfo.h"
+#include "llvm/IR/CallingConv.h"
 
-#include "llvm/CodeGen/MachineFunction.h"
-#include "llvm/IR/DataLayout.h"
+using namespace llvm;
 
 #include "MC6809GenCallingConv.inc"

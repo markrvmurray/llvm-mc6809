@@ -17,7 +17,7 @@ using namespace clang::targets;
 MC6809TargetInfo::MC6809TargetInfo(const llvm::Triple &Triple, const TargetOptions &)
     : TargetInfo(Triple) {
   static const char Layout[] =
-      "e-m:e-p:16:8-i16:8-i32:8-i64:8-f32:8-f64:8-a:8-Fi8-n8";
+    "e-p:16:8-S8-m:e-i1:8:8-i8:8:8-i16:8:8-i32:8:8-i64:8:8-f16:8:8-f32:8:8-f64:8:8-f128:8:8-a:0:8-n8:16";
   resetDataLayout(Layout);
 
   PointerWidth = 16;

@@ -66,6 +66,7 @@ bool MC6809StaticStackAlloc::runOnModule(Module &M) {
   MachineModuleInfo &MMI = getAnalysis<MachineModuleInfoWrapperPass>().getMMI();
 
   bool Changed = false;
+#if 0
   for (Function &F : M) {
     MachineFunction *MF = MMI.getMachineFunction(F);
     if (!MF)
@@ -88,7 +89,7 @@ bool MC6809StaticStackAlloc::runOnModule(Module &M) {
     LLVM_DEBUG(dbgs() << "Allocated: " << *Stack << "\n");
     Changed = true;
 
-    MC6809FunctionInfo &MFI = *MF->getInfo<MC6809FunctionInfo>();
+    MC6809MachineFunctionInfo &MFI = *MF->getInfo<MC6809MachineFunctionInfo>();
     MFI.setStaticStackVariable(Stack);
 
     for (MachineBasicBlock &MBB : *MF) {
@@ -101,6 +102,7 @@ bool MC6809StaticStackAlloc::runOnModule(Module &M) {
       }
     }
   }
+#endif
   return Changed;
 }
 

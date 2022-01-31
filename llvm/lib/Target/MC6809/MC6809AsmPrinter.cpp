@@ -87,6 +87,7 @@ void MC6809AsmPrinter::emitInstruction(const MachineInstr *MI) {
     return;
 
   MCInst Inst;
+  // XXXX: FIXME: MarkM - the below does a lot of final lowering. Isn't this way too late?
   InstLowering.lower(MI, Inst);
   EmitToStreamer(*OutStreamer, Inst);
 }
@@ -205,7 +206,7 @@ void MC6809AsmPrinter::emitJumpTableInfo() {
 
 const MCSymbol *MC6809AsmPrinter::getFunctionFrameSymbol(int FI) const {
   if (MF->getFrameInfo().getStackID(FI) == TargetStackID::NoAlloc) {
-    MC6809FunctionInfo &MFI = *MF->getInfo<MC6809FunctionInfo>();
+    MC6809MachineFunctionInfo &MFI = *MF->getInfo<MC6809MachineFunctionInfo>();
     return getSymbol(MFI.getStaticStackVariable());
   }
   return AsmPrinter::getFunctionFrameSymbol(FI);

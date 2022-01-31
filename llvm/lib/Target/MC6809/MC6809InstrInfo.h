@@ -25,8 +25,10 @@ class MC6809InstrInfo : public MC6809GenInstrInfo {
 public:
   MC6809InstrInfo();
 
+#if 0
   bool isReallyTriviallyReMaterializable(const MachineInstr &MI,
                                          AAResults *AA) const override;
+#endif
 
   unsigned isLoadFromStackSlot(const MachineInstr &MI,
                                int &FrameIndex) const override;
@@ -119,8 +121,8 @@ private:
   // Post RA pseudos
   void expandLDIdx(MachineIRBuilder &Builder) const;
   void expandLDImm1(MachineIRBuilder &Builder) const;
-  void expandLDImm16(MachineIRBuilder &Builder) const;
-  void expandLDImm16Remat(MachineIRBuilder &Builder) const;
+  void expandLDImm(MachineIRBuilder &Builder) const;
+  void expandLDImmRemat(MachineIRBuilder &Builder) const;
   void expandLDZ(MachineIRBuilder &Builder) const;
   void expandIncDec(MachineIRBuilder &Builder) const;
 

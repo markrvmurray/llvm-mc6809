@@ -76,7 +76,6 @@ MC6809RegisterBankInfo::getRegBankFromRegClass(const TargetRegisterClass &RC,
   case MC6809::MDCondRegClassID:
   case MC6809::NZVCcRegClassID:
   case MC6809::CCFlagRegClassID:
-  case MC6809::AllocatableFlagsRegClassID:
   case MC6809::CCcRegClassID:
   case MC6809::CCondRegClassID:
     return getRegBank(MC6809::CCRegBankID);
@@ -88,19 +87,10 @@ MC6809RegisterBankInfo::getRegBankFromRegClass(const TargetRegisterClass &RC,
   case MC6809::AEcRegClassID:
   case MC6809::AFcRegClassID:
   case MC6809::AWcRegClassID:
-  case MC6809::ACCRegClassID:
   case MC6809::ACC8RegClassID:
   case MC6809::ACC16RegClassID:
   case MC6809::ACC32RegClassID:
-  case MC6809::ACC_and_AAcRegClassID:
-  case MC6809::ACC_and_ABcRegClassID:
-  case MC6809::ACC_and_ADcRegClassID:
-  case MC6809::ACC_and_AEcRegClassID:
-  case MC6809::ACC_and_AFcRegClassID:
-  case MC6809::ACC_and_AWcRegClassID:
   case MC6809::ACC8_and_BIT8RegClassID:
-  case MC6809::ACC_and_ACC8RegClassID:
-  case MC6809::ACC_and_BIT8RegClassID:
     return getRegBank(MC6809::ACCRegBankID);
 
   case MC6809::IXcRegClassID:
@@ -110,10 +100,7 @@ MC6809RegisterBankInfo::getRegBankFromRegClass(const TargetRegisterClass &RC,
   case MC6809::INDEX16RegClassID:
   case MC6809::STACK16RegClassID:
   case MC6809::PTR16RegClassID:
-  case MC6809::INDEX16_and_IXcRegClassID:
-  case MC6809::INDEX16_and_IYcRegClassID:
-  case MC6809::INDEX16_and_SScRegClassID:
-  case MC6809::INDEX16_and_SUcRegClassID:
+  case MC6809::REG16RegClassID:
     return getRegBank(MC6809::INDEXRegBankID);
 
   case MC6809::DtPageRegClassID:

@@ -153,7 +153,7 @@ MC6809LowerSelect::lowerSelect(MachineInstr &MI) {
   //   %TrueValue = ...
   //   %FalseValue = ...
   //   ...
-  //   G_BRCOND_IMM %Tst, %TrueMBB, 1
+  //   G_BRCOND %Tst, %TrueMBB, 1 !! XXXX: FIXME: MarkM - this G_BRCOND needs attention!
   //   G_BR --> %FalseMBB
   MachineBasicBlock *TrueMBB = MF.CreateMachineBasicBlock(LLVM_BB);
   MachineBasicBlock *FalseMBB = MF.CreateMachineBasicBlock(LLVM_BB);
@@ -170,7 +170,7 @@ MC6809LowerSelect::lowerSelect(MachineInstr &MI) {
   // Next, add the True and False blocks as its successors.
   MBB.addSuccessor(TrueMBB);
   MBB.addSuccessor(FalseMBB);
-  Builder.buildInstr(MC6809::G_BRCOND_IMM, {}, {Tst}).addMBB(TrueMBB).addImm(1);
+  Builder.buildInstr(MC6809::G_BRCOND, {}, {Tst}).addMBB(TrueMBB).addImm(1);
   Builder.buildInstr(MC6809::G_BR).addMBB(FalseMBB);
 
   // Sink the True and False values if only used in the conditional part of the
@@ -249,7 +249,7 @@ MC6809LowerSelect::lowerSelect(MachineInstr &MI) {
   if (Dsts.size() == 1 && MRI.hasOneNonDBGUse(Dst)) {
     MachineInstr &UseMI = *MRI.use_instr_nodbg_begin(Dst);
     if (UseMI.getIterator() == SinkMBB->begin() &&
-        UseMI.getOpcode() == MC6809::G_BRCOND_IMM) {
+        UseMI.getOpcode() == MC6809::G_BRCOND) {
       LLVM_DEBUG(dbgs() << "Folding use MI: " << UseMI);
       MachineBasicBlock *Tgt = UseMI.getOperand(1).getMBB();
 
@@ -402,7 +402,7 @@ void MC6809LowerSelect::sinkSelectsToBranchUses(MachineFunction &MF) {
       if (!MRI.hasOneNonDBGUse(Dst))
         continue;
       auto &UseMI = *MRI.use_instr_nodbg_begin(Dst);
-      if (UseMI.getOpcode() != MC6809::G_BRCOND_IMM)
+      if (UseMI.getOpcode() != MC6809::G_BRCOND)
         continue;
       if (UseMI.getParent() != &MBB)
         continue;

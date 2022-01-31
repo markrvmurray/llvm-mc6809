@@ -675,20 +675,13 @@ public:
 #include "MC6809GenAsmMatcher.inc"
 
 // Parse only registers that can be considered parameters to real MC6809
-// instructions.  The instruction parser considers x, y, and s to be
-// strings, not registers, so make a point of filtering those cases out
-// of what's acceptable.
+// instructions.
 OperandMatchResultTy
 MC6809AsmParser::tryParseAsmParamRegClass(OperandVector &Operands) {
   unsigned RegNo = 0;
   SMLoc S = getLexer().getLoc();
   SMLoc E = getLexer().getTok().getEndLoc();
   if (tryParseRegister(RegNo, S, E) == MatchOperand_Success) {
-    auto AsmParamReg = MC6809Operand::createReg(RegNo, S, E);
-    // If it's x, y, or s, then drop it
-    if (validateOperandClass(*AsmParamReg, MCK_MC6809AsmParamRegClass) ==
-        MCTargetAsmParser::Match_Success)
-      return MatchOperand_NoMatch;
     Operands.push_back(MC6809Operand::createReg(RegNo, S, E));
     return MatchOperand_Success;
   }

@@ -548,7 +548,7 @@ def TSTAa : MC6809Accumulator_P1<(outs), "tsta", Opcode<0x4D,1>, [NZVC], [AA]> {
   let isCompare = true;
 }
 
-def CLRAa : MC6809Accumulator_P1<(outs), "clra", Opcode<0x4F,1>, [NZVC,AA], []> {
+def CLRAa : MC6809Accumulator_P1<(outs AAc:$reg), "clra", Opcode<0x4F,1>, [NZVC], []> {
   let mayLoad = true;
 }
 
@@ -574,7 +574,7 @@ def TSTBa : MC6809Accumulator_P1<(outs), "tstb", Opcode<0x5D,1>, [NZVC], [AB]> {
   let isCompare = true;
 }
 
-def CLRBa : MC6809Accumulator_P1<(outs), "clrb", Opcode<0x5F,1>, [NZVC,AB], []> {
+def CLRBa : MC6809Accumulator_P1<(outs ABc:$reg), "clrb", Opcode<0x5F,1>, [NZVC], []> {
   let mayLoad = true;
 }
 
@@ -747,7 +747,7 @@ def BITAi8 : MC6809Immediate8Bit_P1<(outs), "bita", Opcode<0x85,1>, [NZVC,AA], [
   let mayLoad = true;
 }
 
-def LDAi8 : MC6809Immediate8Bit_P1<(outs), "lda", Opcode<0x86,1>, [NZVC,AA], []> {
+def LDAi8 : MC6809Immediate8Bit_P1<(outs AAc:$reg), "lda", Opcode<0x86,1>, [NZVC], []> {
   let mayLoad = true;
 }
 
@@ -777,7 +777,7 @@ def BSRb : MC6809ShortBranch_P1<(outs), "bsr", Opcode<0x8D,1>, [SU], [SS]> {
   let isCall = true;
 }
 
-def LDXi16 : MC6809Immediate16Bit_P1<(outs), "ldx", Opcode<0x8E,1>, [NZVC,IX], []> {
+def LDXi16 : MC6809Immediate16Bit_P1<(outs IXc:$reg), "ldx", Opcode<0x8E,1>, [NZVC], []> {
   let mayLoad = true;
 }
 
@@ -805,11 +805,11 @@ def BITAd : MC6809Direct_P1<(outs), "bita", Opcode<0x95,1>, [NZVC,AA], [NZVC,AA]
   let mayLoad = true;
 }
 
-def LDAd : MC6809Direct_P1<(outs), "lda", Opcode<0x96,1>, [NZVC,AA], []> {
+def LDAd : MC6809Direct_P1<(outs AAc:$reg), "lda", Opcode<0x96,1>, [NZVC], []> {
   let mayLoad = true;
 }
 
-def STAd : MC6809Direct_P1<(outs), "sta", Opcode<0x97,1>, [NZVC], [AA]> {
+def STAd : MC6809Direct_P1<(outs), "sta", Opcode<0x97,1>, [NZVC], []> {
   let mayStore = true;
 }
 
@@ -837,11 +837,11 @@ def JSRd : MC6809Direct_P1<(outs), "jsr", Opcode<0x9D,1>, [], []> {
   let isCall = true;
 }
 
-def LDXd : MC6809Direct_P1<(outs), "ldx", Opcode<0x9E,1>, [NZVC,IX], []> {
+def LDXd : MC6809Direct_P1<(outs IXc:$reg), "ldx", Opcode<0x9E,1>, [NZVC], []> {
   let mayLoad = true;
 }
 
-def STXd : MC6809Direct_P1<(outs), "stx", Opcode<0x9F,1>, [NZVC], [IX]> {
+def STXd : MC6809Direct_P1<(outs), "stx", Opcode<0x9F,1>, [NZVC], []> {
   let mayStore = true;
 }
 
@@ -870,11 +870,11 @@ let mayLoad = true in {
 }
 
 let mayLoad = true in {
-  defm LDAi : MC6809Indexed_P1<"lda", Opcode<0xA6, 1>, (outs), [NZVC,AA], []>;
+  defm LDAi : MC6809Indexed_P1<"lda", Opcode<0xA6, 1>, (outs AAc:$reg), [NZVC], []>;
 }
 
 let mayStore = true in {
-  defm STAi : MC6809Indexed_P1<"sta", Opcode<0xA7, 1>, (outs), [NZVC], [AA]>;
+  defm STAi : MC6809Indexed_P1<"sta", Opcode<0xA7, 1>, (outs), [NZVC], []>;
 }
 
 let mayLoad = true in {
@@ -902,11 +902,11 @@ let isCall = true in {
 }
 
 let mayLoad = true in {
-  defm LDXi : MC6809Indexed_P1<"ldx", Opcode<0xAE, 1>, (outs), [NZVC,IX], []>;
+  defm LDXi : MC6809Indexed_P1<"ldx", Opcode<0xAE, 1>, (outs IXc:$reg), [NZVC], []>;
 }
 
 let mayStore = true in {
-  defm STXi : MC6809Indexed_P1<"stx", Opcode<0xAF, 1>, (outs), [NZVC], [IX]>;
+  defm STXi : MC6809Indexed_P1<"stx", Opcode<0xAF, 1>, (outs), [NZVC], []>;
 }
 
 def SUBAe : MC6809Extended_P1<(outs), "suba", Opcode<0xB0,1>, [NZVC,AA], [NZVC,AA]> {
@@ -933,11 +933,11 @@ def BITAe : MC6809Extended_P1<(outs), "bita", Opcode<0xB5,1>, [NZVC,AA], [NZVC,A
   let mayLoad = true;
 }
 
-def LDAe : MC6809Extended_P1<(outs), "lda", Opcode<0xB6,1>, [NZVC,AA], []> {
+def LDAe : MC6809Extended_P1<(outs AAc:$reg), "lda", Opcode<0xB6,1>, [NZVC], []> {
   let mayLoad = true;
 }
 
-def STAe : MC6809Extended_P1<(outs), "sta", Opcode<0xB7,1>, [NZVC], [AA]> {
+def STAe : MC6809Extended_P1<(outs), "sta", Opcode<0xB7,1>, [NZVC], []> {
   let mayStore = true;
 }
 
@@ -965,11 +965,11 @@ def JSRe : MC6809Extended_P1<(outs), "jsr", Opcode<0xBD,1>, [], []> {
   let isCall = true;
 }
 
-def LDXe : MC6809Extended_P1<(outs), "ldx", Opcode<0xBE,1>, [NZVC,IX], []> {
+def LDXe : MC6809Extended_P1<(outs IXc:$reg), "ldx", Opcode<0xBE,1>, [NZVC], []> {
   let mayLoad = true;
 }
 
-def STXe : MC6809Extended_P1<(outs), "stx", Opcode<0xBF,1>, [NZVC], [IX]> {
+def STXe : MC6809Extended_P1<(outs), "stx", Opcode<0xBF,1>, [NZVC], []> {
   let mayStore = true;
 }
 
@@ -997,7 +997,7 @@ def BITBi8 : MC6809Immediate8Bit_P1<(outs), "bitb", Opcode<0xC5,1>, [NZVC,AB], [
   let mayLoad = true;
 }
 
-def LDBi8 : MC6809Immediate8Bit_P1<(outs), "ldb", Opcode<0xC6,1>, [NZVC,AB], []> {
+def LDBi8 : MC6809Immediate8Bit_P1<(outs ABc:$reg), "ldb", Opcode<0xC6,1>, [NZVC], []> {
   let mayLoad = true;
 }
 
@@ -1017,16 +1017,16 @@ def ADDBi8 : MC6809Immediate8Bit_P1<(outs), "addb", Opcode<0xCB,1>, [NZVC,AB], [
   let mayLoad = true;
 }
 
-def LDDi16 : MC6809Immediate16Bit_P1<(outs), "ldd", Opcode<0xCC,1>, [NZVC,AD], []> {
+def LDDi16 : MC6809Immediate16Bit_P1<(outs ADc:$reg), "ldd", Opcode<0xCC,1>, [NZVC], []> {
   let mayLoad = true;
 }
 
-def LDQi32 : MC6809Immediate32Bit_P1<(outs), "ldq", Opcode<0xCD,1>, [NZVC,AQ], []> {
+def LDQi32 : MC6809Immediate32Bit_P1<(outs AQc:$reg), "ldq", Opcode<0xCD,1>, [NZVC], []> {
   let Predicates = [IsHD6309];
   let mayLoad = true;
 }
 
-def LDUi16 : MC6809Immediate16Bit_P1<(outs), "ldu", Opcode<0xCE,1>, [NZVC,SU], []> {
+def LDUi16 : MC6809Immediate16Bit_P1<(outs SUc:$reg), "ldu", Opcode<0xCE,1>, [NZVC], []> {
   let mayLoad = true;
 }
 
@@ -1054,11 +1054,11 @@ def BITBd : MC6809Direct_P1<(outs), "bitb", Opcode<0xD5,1>, [NZVC,AB], [NZVC,AB]
   let mayLoad = true;
 }
 
-def LDBd : MC6809Direct_P1<(outs), "ldb", Opcode<0xD6,1>, [NZVC,AB], []> {
+def LDBd : MC6809Direct_P1<(outs ABc:$reg), "ldb", Opcode<0xD6,1>, [NZVC], []> {
   let mayLoad = true;
 }
 
-def STBd : MC6809Direct_P1<(outs), "stb", Opcode<0xD7,1>, [NZVC], [AB]> {
+def STBd : MC6809Direct_P1<(outs), "stb", Opcode<0xD7,1>, [NZVC], []> {
   let mayStore = true;
 }
 
@@ -1078,19 +1078,19 @@ def ADDBd : MC6809Direct_P1<(outs), "addb", Opcode<0xDB,1>, [NZVC,AB], [NZVC,AB]
   let mayLoad = true;
 }
 
-def LDDd : MC6809Direct_P1<(outs), "ldd", Opcode<0xDC,1>, [NZVC,AD], []> {
+def LDDd : MC6809Direct_P1<(outs ADc:$reg), "ldd", Opcode<0xDC,1>, [NZVC], []> {
   let mayLoad = true;
 }
 
-def STDd : MC6809Direct_P1<(outs), "std", Opcode<0xDD,1>, [NZVC], [AD]> {
+def STDd : MC6809Direct_P1<(outs), "std", Opcode<0xDD,1>, [NZVC], []> {
   let mayStore = true;
 }
 
-def LDUd : MC6809Direct_P1<(outs), "ldu", Opcode<0xDE,1>, [NZVC,SU], []> {
+def LDUd : MC6809Direct_P1<(outs SUc:$reg), "ldu", Opcode<0xDE,1>, [NZVC], []> {
   let mayLoad = true;
 }
 
-def STUd : MC6809Direct_P1<(outs), "stu", Opcode<0xDF,1>, [NZVC], [SU]> {
+def STUd : MC6809Direct_P1<(outs), "stu", Opcode<0xDF,1>, [NZVC], []> {
   let mayStore = true;
 }
 
@@ -1119,11 +1119,11 @@ let mayLoad = true in {
 }
 
 let mayLoad = true in {
-  defm LDBi : MC6809Indexed_P1<"ldb", Opcode<0xE6, 1>, (outs), [NZVC,AB], []>;
+  defm LDBi : MC6809Indexed_P1<"ldb", Opcode<0xE6, 1>, (outs ABc:$reg), [NZVC], []>;
 }
 
 let mayStore = true in {
-  defm STBi : MC6809Indexed_P1<"stb", Opcode<0xE7, 1>, (outs), [NZVC], [AB]>;
+  defm STBi : MC6809Indexed_P1<"stb", Opcode<0xE7, 1>, (outs), [NZVC], []>;
 }
 
 let mayLoad = true in {
@@ -1143,19 +1143,19 @@ let mayLoad = true in {
 }
 
 let mayLoad = true in {
-  defm LDDi : MC6809Indexed_P1<"ldd", Opcode<0xEC, 1>, (outs), [NZVC,AD], []>;
+  defm LDDi : MC6809Indexed_P1<"ldd", Opcode<0xEC, 1>, (outs ADc:$reg), [NZVC], []>;
 }
 
 let mayStore = true in {
-  defm STDi : MC6809Indexed_P1<"std", Opcode<0xED, 1>, (outs), [NZVC], [AD]>;
+  defm STDi : MC6809Indexed_P1<"std", Opcode<0xED, 1>, (outs), [NZVC], []>;
 }
 
 let mayLoad = true in {
-  defm LDUi : MC6809Indexed_P1<"ldu", Opcode<0xEE, 1>, (outs), [NZVC,SU], []>;
+  defm LDUi : MC6809Indexed_P1<"ldu", Opcode<0xEE, 1>, (outs SUc:$reg), [NZVC], []>;
 }
 
 let mayStore = true in {
-  defm STUi : MC6809Indexed_P1<"stu", Opcode<0xEF, 1>, (outs), [NZVC], [SU]>;
+  defm STUi : MC6809Indexed_P1<"stu", Opcode<0xEF, 1>, (outs), [NZVC], []>;
 }
 
 def SUBBe : MC6809Extended_P1<(outs), "subb", Opcode<0xF0,1>, [NZVC,AB], [NZVC,AB]> {
@@ -1182,11 +1182,11 @@ def BITBe : MC6809Extended_P1<(outs), "bitb", Opcode<0xF5,1>, [NZVC,AB], [NZVC,A
   let mayLoad = true;
 }
 
-def LDBe : MC6809Extended_P1<(outs), "ldb", Opcode<0xF6,1>, [NZVC,AB], []> {
+def LDBe : MC6809Extended_P1<(outs ABc:$reg), "ldb", Opcode<0xF6,1>, [NZVC], []> {
   let mayLoad = true;
 }
 
-def STBe : MC6809Extended_P1<(outs), "stb", Opcode<0xF7,1>, [NZVC], [AB]> {
+def STBe : MC6809Extended_P1<(outs), "stb", Opcode<0xF7,1>, [NZVC], []> {
   let mayStore = true;
 }
 
@@ -1206,19 +1206,19 @@ def ADDBe : MC6809Extended_P1<(outs), "addb", Opcode<0xFB,1>, [NZVC,AB], [NZVC,A
   let mayLoad = true;
 }
 
-def LDDe : MC6809Extended_P1<(outs), "ldd", Opcode<0xFC,1>, [NZVC,AD], []> {
+def LDDe : MC6809Extended_P1<(outs ADc:$reg), "ldd", Opcode<0xFC,1>, [NZVC], []> {
   let mayLoad = true;
 }
 
-def STDe : MC6809Extended_P1<(outs), "std", Opcode<0xFD,1>, [NZVC], [AD]> {
+def STDe : MC6809Extended_P1<(outs), "std", Opcode<0xFD,1>, [NZVC], []> {
   let mayStore = true;
 }
 
-def LDUe : MC6809Extended_P1<(outs), "ldu", Opcode<0xFE,1>, [NZVC,SU], []> {
+def LDUe : MC6809Extended_P1<(outs SUc:$reg), "ldu", Opcode<0xFE,1>, [NZVC], []> {
   let mayLoad = true;
 }
 
-def STUe : MC6809Extended_P1<(outs), "stu", Opcode<0xFF,1>, [NZVC], [SU]> {
+def STUe : MC6809Extended_P1<(outs), "stu", Opcode<0xFF,1>, [NZVC], []> {
   let mayStore = true;
 }
 
@@ -1335,7 +1335,7 @@ def TSTDa : MC6809Accumulator_P2<(outs), "tstd", Opcode<0x4D,2>, [NZVC], [AD]> {
   let isCompare = true;
 }
 
-def CLRDa : MC6809Accumulator_P2<(outs), "clrd", Opcode<0x4F,2>, [NZVC,AD], []> {
+def CLRDa : MC6809Accumulator_P2<(outs ADc:$reg), "clrd", Opcode<0x4F,2>, [NZVC], []> {
   let Predicates = [IsHD6309];
   let mayLoad = true;
 }
@@ -1369,7 +1369,7 @@ def TSTWa : MC6809Accumulator_P2<(outs), "tstw", Opcode<0x5D,2>, [NZVC], [AW]> {
   let isCompare = true;
 }
 
-def CLRWa : MC6809Accumulator_P2<(outs), "clrw", Opcode<0x5F,2>, [NZVC,AW], []> {
+def CLRWa : MC6809Accumulator_P2<(outs AWc:$reg), "clrw", Opcode<0x5F,2>, [NZVC], []> {
   let Predicates = [IsHD6309];
   let mayLoad = true;
 }
@@ -1402,7 +1402,7 @@ def BITDi16 : MC6809Immediate16Bit_P2<(outs), "bitd", Opcode<0x85,2>, [NZVC,AD],
   let mayLoad = true;
 }
 
-def LDWi16 : MC6809Immediate16Bit_P2<(outs), "ldw", Opcode<0x86,2>, [NZVC,AW], []> {
+def LDWi16 : MC6809Immediate16Bit_P2<(outs AWc:$reg), "ldw", Opcode<0x86,2>, [NZVC], []> {
   let Predicates = [IsHD6309];
   let mayLoad = true;
 }
@@ -1431,7 +1431,7 @@ def CMPYi16 : MC6809Immediate16Bit_P2<(outs), "cmpy", Opcode<0x8C,2>, [NZVC], [I
   let isCompare = true;
 }
 
-def LDYi16 : MC6809Immediate16Bit_P2<(outs), "ldy", Opcode<0x8E,2>, [NZVC,IY], []> {
+def LDYi16 : MC6809Immediate16Bit_P2<(outs IYc:$reg), "ldy", Opcode<0x8E,2>, [NZVC], []> {
   let mayLoad = true;
 }
 
@@ -1463,12 +1463,12 @@ def BITDd : MC6809Direct_P2<(outs), "bitd", Opcode<0x95,2>, [NZVC,AD], [NZVC,AD]
   let mayLoad = true;
 }
 
-def LDWd : MC6809Direct_P2<(outs), "ldw", Opcode<0x96,2>, [NZVC,AW], []> {
+def LDWd : MC6809Direct_P2<(outs AWc:$reg), "ldw", Opcode<0x96,2>, [NZVC], []> {
   let Predicates = [IsHD6309];
   let mayLoad = true;
 }
 
-def STWd : MC6809Direct_P2<(outs), "stw", Opcode<0x97,2>, [NZVC], [AW]> {
+def STWd : MC6809Direct_P2<(outs), "stw", Opcode<0x97,2>, [NZVC], []> {
   let Predicates = [IsHD6309];
   let mayStore = true;
 }
@@ -1497,11 +1497,11 @@ def CMPYd : MC6809Direct_P2<(outs), "cmpy", Opcode<0x9C,2>, [NZVC], [IY]> {
   let isCompare = true;
 }
 
-def LDYd : MC6809Direct_P2<(outs), "ldy", Opcode<0x9E,2>, [NZVC,IY], []> {
+def LDYd : MC6809Direct_P2<(outs IYc:$reg), "ldy", Opcode<0x9E,2>, [NZVC], []> {
   let mayLoad = true;
 }
 
-def STYd : MC6809Direct_P2<(outs), "sty", Opcode<0x9F,2>, [NZVC], [IY]> {
+def STYd : MC6809Direct_P2<(outs), "sty", Opcode<0x9F,2>, [NZVC], []> {
   let mayStore = true;
 }
 
@@ -1530,11 +1530,11 @@ let mayLoad = true in {
 }
 
 let Predicates = [IsHD6309], mayLoad = true in {
-  defm LDWi : MC6809Indexed_P2<"ldw", Opcode<0xA6, 2>, (outs), [NZVC,AW], []>;
+  defm LDWi : MC6809Indexed_P2<"ldw", Opcode<0xA6, 2>, (outs AWc:$reg), [NZVC], []>;
 }
 
 let Predicates = [IsHD6309], mayStore = true in {
-  defm STWi : MC6809Indexed_P2<"stw", Opcode<0xA7, 2>, (outs), [NZVC], [AW]>;
+  defm STWi : MC6809Indexed_P2<"stw", Opcode<0xA7, 2>, (outs), [NZVC], []>;
 }
 
 let Predicates = [IsHD6309], mayLoad = true in {
@@ -1558,11 +1558,11 @@ let isCompare = true in {
 }
 
 let mayLoad = true in {
-  defm LDYi : MC6809Indexed_P2<"ldy", Opcode<0xAE, 2>, (outs), [NZVC,IY], []>;
+  defm LDYi : MC6809Indexed_P2<"ldy", Opcode<0xAE, 2>, (outs IYc:$reg), [NZVC], []>;
 }
 
 let mayStore = true in {
-  defm STYi : MC6809Indexed_P2<"sty", Opcode<0xAF, 2>, (outs), [NZVC], [IY]>;
+  defm STYi : MC6809Indexed_P2<"sty", Opcode<0xAF, 2>, (outs), [NZVC], []>;
 }
 
 def SUBWe : MC6809Extended_P2<(outs), "subw", Opcode<0xB0,2>, [NZVC,AW], [NZVC,AW]> {
@@ -1593,12 +1593,12 @@ def BITDe : MC6809Extended_P2<(outs), "bitd", Opcode<0xB5,2>, [NZVC,AD], [NZVC,A
   let mayLoad = true;
 }
 
-def LDWe : MC6809Extended_P2<(outs), "ldw", Opcode<0xB6,2>, [NZVC,AW], []> {
+def LDWe : MC6809Extended_P2<(outs AWc:$reg), "ldw", Opcode<0xB6,2>, [NZVC], []> {
   let Predicates = [IsHD6309];
   let mayLoad = true;
 }
 
-def STWe : MC6809Extended_P2<(outs), "stw", Opcode<0xB7,2>, [NZVC], [AW]> {
+def STWe : MC6809Extended_P2<(outs), "stw", Opcode<0xB7,2>, [NZVC], []> {
   let Predicates = [IsHD6309];
   let mayStore = true;
 }
@@ -1627,67 +1627,67 @@ def CMPYe : MC6809Extended_P2<(outs), "cmpy", Opcode<0xBC,2>, [NZVC], [IY]> {
   let isCompare = true;
 }
 
-def LDYe : MC6809Extended_P2<(outs), "ldy", Opcode<0xBE,2>, [NZVC,IY], []> {
+def LDYe : MC6809Extended_P2<(outs IYc:$reg), "ldy", Opcode<0xBE,2>, [NZVC], []> {
   let mayLoad = true;
 }
 
-def STYe : MC6809Extended_P2<(outs), "sty", Opcode<0xBF,2>, [NZVC], [IY]> {
+def STYe : MC6809Extended_P2<(outs), "sty", Opcode<0xBF,2>, [NZVC], []> {
   let mayStore = true;
 }
 
-def LDSi16 : MC6809Immediate16Bit_P2<(outs), "lds", Opcode<0xCE,2>, [NZVC,SS], []> {
+def LDSi16 : MC6809Immediate16Bit_P2<(outs SSc:$reg), "lds", Opcode<0xCE,2>, [NZVC], []> {
   let mayLoad = true;
 }
 
-def LDQd : MC6809Direct_P2<(outs), "ldq", Opcode<0xDC,2>, [NZVC,AQ], []> {
+def LDQd : MC6809Direct_P2<(outs AQc:$reg), "ldq", Opcode<0xDC,2>, [NZVC], []> {
   let Predicates = [IsHD6309];
   let mayLoad = true;
 }
 
-def STQd : MC6809Direct_P2<(outs), "stq", Opcode<0xDD,2>, [NZVC], [AQ]> {
+def STQd : MC6809Direct_P2<(outs), "stq", Opcode<0xDD,2>, [NZVC], []> {
   let Predicates = [IsHD6309];
   let mayStore = true;
 }
 
-def LDSd : MC6809Direct_P2<(outs), "lds", Opcode<0xDE,2>, [NZVC,SS], []> {
+def LDSd : MC6809Direct_P2<(outs SSc:$reg), "lds", Opcode<0xDE,2>, [NZVC], []> {
   let mayLoad = true;
 }
 
-def STSd : MC6809Direct_P2<(outs), "sts", Opcode<0xDF,2>, [NZVC], [SS]> {
+def STSd : MC6809Direct_P2<(outs), "sts", Opcode<0xDF,2>, [NZVC], []> {
   let mayStore = true;
 }
 
 let Predicates = [IsHD6309], mayLoad = true in {
-  defm LDQi : MC6809Indexed_P2<"ldq", Opcode<0xEC, 2>, (outs), [NZVC,AQ], []>;
+  defm LDQi : MC6809Indexed_P2<"ldq", Opcode<0xEC, 2>, (outs AQc:$reg), [NZVC], []>;
 }
 
 let Predicates = [IsHD6309], mayStore = true in {
-  defm STQi : MC6809Indexed_P2<"stq", Opcode<0xED, 2>, (outs), [NZVC], [AQ]>;
+  defm STQi : MC6809Indexed_P2<"stq", Opcode<0xED, 2>, (outs), [NZVC], []>;
 }
 
 let mayLoad = true in {
-  defm LDSi : MC6809Indexed_P2<"lds", Opcode<0xEE, 2>, (outs), [NZVC,SS], []>;
+  defm LDSi : MC6809Indexed_P2<"lds", Opcode<0xEE, 2>, (outs SSc:$reg), [NZVC], []>;
 }
 
 let mayStore = true in {
-  defm STSi : MC6809Indexed_P2<"sts", Opcode<0xEF, 2>, (outs), [NZVC], [SS]>;
+  defm STSi : MC6809Indexed_P2<"sts", Opcode<0xEF, 2>, (outs), [NZVC], []>;
 }
 
-def LDQe : MC6809Extended_P2<(outs), "ldq", Opcode<0xFC,2>, [NZVC,AQ], []> {
+def LDQe : MC6809Extended_P2<(outs AQc:$reg), "ldq", Opcode<0xFC,2>, [NZVC], []> {
   let Predicates = [IsHD6309];
   let mayLoad = true;
 }
 
-def STQe : MC6809Extended_P2<(outs), "stq", Opcode<0xFD,2>, [NZVC], [AQ]> {
+def STQe : MC6809Extended_P2<(outs), "stq", Opcode<0xFD,2>, [NZVC], []> {
   let Predicates = [IsHD6309];
   let mayStore = true;
 }
 
-def LDSe : MC6809Extended_P2<(outs), "lds", Opcode<0xFE,2>, [NZVC,SS], []> {
+def LDSe : MC6809Extended_P2<(outs SSc:$reg), "lds", Opcode<0xFE,2>, [NZVC], []> {
   let mayLoad = true;
 }
 
-def STSe : MC6809Extended_P2<(outs), "sts", Opcode<0xFF,2>, [NZVC], [SS]> {
+def STSe : MC6809Extended_P2<(outs), "sts", Opcode<0xFF,2>, [NZVC], []> {
   let mayStore = true;
 }
 
@@ -1774,7 +1774,7 @@ def TSTEa : MC6809Accumulator_P3<(outs), "tste", Opcode<0x4D,3>, [NZVC], [AE]> {
   let isCompare = true;
 }
 
-def CLREa : MC6809Accumulator_P3<(outs), "clre", Opcode<0x4F,3>, [NZVC,AE], []> {
+def CLREa : MC6809Accumulator_P3<(outs AEc:$reg), "clre", Opcode<0x4F,3>, [NZVC], []> {
   let Predicates = [IsHD6309];
   let mayLoad = true;
 }
@@ -1796,7 +1796,7 @@ def TSTFa : MC6809Accumulator_P3<(outs), "tstf", Opcode<0x5D,3>, [NZVC], [AF]> {
   let isCompare = true;
 }
 
-def CLRFa : MC6809Accumulator_P3<(outs), "clrf", Opcode<0x5F,3>, [NZVC,AF], []> {
+def CLRFa : MC6809Accumulator_P3<(outs AFc:$reg), "clrf", Opcode<0x5F,3>, [NZVC], []> {
   let Predicates = [IsHD6309];
   let mayLoad = true;
 }
@@ -1815,7 +1815,7 @@ def CMPUi16 : MC6809Immediate16Bit_P3<(outs), "cmpu", Opcode<0x83,3>, [NZVC], [S
   let isCompare = true;
 }
 
-def LDEi8 : MC6809Immediate8Bit_P3<(outs), "lde", Opcode<0x86,3>, [NZVC,AE], []> {
+def LDEi8 : MC6809Immediate8Bit_P3<(outs AEc:$reg), "lde", Opcode<0x86,3>, [NZVC], []> {
   let Predicates = [IsHD6309];
   let mayLoad = true;
 }
@@ -1855,12 +1855,12 @@ def CMPUd : MC6809Direct_P3<(outs), "cmpu", Opcode<0x93,3>, [NZVC], [SU]> {
   let isCompare = true;
 }
 
-def LDEd : MC6809Direct_P3<(outs), "lde", Opcode<0x96,3>, [NZVC,AE], []> {
+def LDEd : MC6809Direct_P3<(outs AEc:$reg), "lde", Opcode<0x96,3>, [NZVC], []> {
   let Predicates = [IsHD6309];
   let mayLoad = true;
 }
 
-def STEd : MC6809Direct_P3<(outs), "ste", Opcode<0x97,3>, [NZVC], [AE]> {
+def STEd : MC6809Direct_P3<(outs), "ste", Opcode<0x97,3>, [NZVC], []> {
   let Predicates = [IsHD6309];
   let mayStore = true;
 }
@@ -1899,11 +1899,11 @@ let isCompare = true in {
 }
 
 let Predicates = [IsHD6309], mayLoad = true in {
-  defm LDEi : MC6809Indexed_P3<"lde", Opcode<0xA6, 3>, (outs), [NZVC,AE], []>;
+  defm LDEi : MC6809Indexed_P3<"lde", Opcode<0xA6, 3>, (outs AEc:$reg), [NZVC], []>;
 }
 
 let Predicates = [IsHD6309], mayStore = true in {
-  defm STEi : MC6809Indexed_P3<"ste", Opcode<0xA7, 3>, (outs), [NZVC], [AE]>;
+  defm STEi : MC6809Indexed_P3<"ste", Opcode<0xA7, 3>, (outs), [NZVC], []>;
 }
 
 let Predicates = [IsHD6309], mayLoad = true in {
@@ -1940,12 +1940,12 @@ def CMPUe : MC6809Extended_P3<(outs), "cmpu", Opcode<0xB3,3>, [NZVC], [SU]> {
   let isCompare = true;
 }
 
-def LDEe : MC6809Extended_P3<(outs), "lde", Opcode<0xB6,3>, [NZVC,AE], []> {
+def LDEe : MC6809Extended_P3<(outs AEc:$reg), "lde", Opcode<0xB6,3>, [NZVC], []> {
   let Predicates = [IsHD6309];
   let mayLoad = true;
 }
 
-def STEe : MC6809Extended_P3<(outs), "ste", Opcode<0xB7,3>, [NZVC], [AE]> {
+def STEe : MC6809Extended_P3<(outs), "ste", Opcode<0xB7,3>, [NZVC], []> {
   let Predicates = [IsHD6309];
   let mayStore = true;
 }
@@ -1981,7 +1981,7 @@ def CMPFi8 : MC6809Immediate8Bit_P3<(outs), "cmpf", Opcode<0xC1,3>, [NZVC], [AF]
   let isCompare = true;
 }
 
-def LDFi8 : MC6809Immediate8Bit_P3<(outs), "ldf", Opcode<0xC6,3>, [NZVC,AF], []> {
+def LDFi8 : MC6809Immediate8Bit_P3<(outs AFc:$reg), "ldf", Opcode<0xC6,3>, [NZVC], []> {
   let Predicates = [IsHD6309];
   let mayLoad = true;
 }
@@ -2001,12 +2001,12 @@ def CMPFd : MC6809Direct_P3<(outs), "cmpf", Opcode<0xD1,3>, [NZVC], [AF]> {
   let isCompare = true;
 }
 
-def LDFd : MC6809Direct_P3<(outs), "ldf", Opcode<0xD6,3>, [NZVC,AF], []> {
+def LDFd : MC6809Direct_P3<(outs AFc:$reg), "ldf", Opcode<0xD6,3>, [NZVC], []> {
   let Predicates = [IsHD6309];
   let mayLoad = true;
 }
 
-def STFd : MC6809Direct_P3<(outs), "stf", Opcode<0xD7,3>, [NZVC], [AF]> {
+def STFd : MC6809Direct_P3<(outs), "stf", Opcode<0xD7,3>, [NZVC], []> {
   let Predicates = [IsHD6309];
   let mayStore = true;
 }
@@ -2025,11 +2025,11 @@ let Predicates = [IsHD6309], isCompare = true in {
 }
 
 let Predicates = [IsHD6309], mayLoad = true in {
-  defm LDFi : MC6809Indexed_P3<"ldf", Opcode<0xE6, 3>, (outs), [NZVC,AF], []>;
+  defm LDFi : MC6809Indexed_P3<"ldf", Opcode<0xE6, 3>, (outs AFc:$reg), [NZVC], []>;
 }
 
 let Predicates = [IsHD6309], mayStore = true in {
-  defm STFi : MC6809Indexed_P3<"stf", Opcode<0xE7, 3>, (outs), [NZVC], [AF]>;
+  defm STFi : MC6809Indexed_P3<"stf", Opcode<0xE7, 3>, (outs), [NZVC], []>;
 }
 
 let Predicates = [IsHD6309], mayLoad = true in {
@@ -2046,12 +2046,12 @@ def CMPFe : MC6809Extended_P3<(outs), "cmpf", Opcode<0xF1,3>, [NZVC], [AF]> {
   let isCompare = true;
 }
 
-def LDFe : MC6809Extended_P3<(outs), "ldf", Opcode<0xF6,3>, [NZVC,AF], []> {
+def LDFe : MC6809Extended_P3<(outs AFc:$reg), "ldf", Opcode<0xF6,3>, [NZVC], []> {
   let Predicates = [IsHD6309];
   let mayLoad = true;
 }
 
-def STFe : MC6809Extended_P3<(outs), "stf", Opcode<0xF7,3>, [NZVC], [AF]> {
+def STFe : MC6809Extended_P3<(outs), "stf", Opcode<0xF7,3>, [NZVC], []> {
   let Predicates = [IsHD6309];
   let mayStore = true;
 }

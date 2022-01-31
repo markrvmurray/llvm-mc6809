@@ -28,6 +28,7 @@
 #include "MC6809RegisterInfo.h"
 #include "MC6809Subtarget.h"
 #include "MC6809TargetMachine.h"
+#include "MC6809CallingConv.h"
 
 using namespace llvm;
 
@@ -37,7 +38,11 @@ MC6809TargetLowering::MC6809TargetLowering(const MC6809TargetMachine &TM,
   // This is only used for CallLowering to determine how to split large
   // primitive types for the calling convention. All need to be split to 8 bits,
   // so that's all that we report here. The register class is irrelevant.
+  addRegisterClass(MVT::i8, &MC6809::ACC8RegClass);
   addRegisterClass(MVT::i16, &MC6809::ACC16RegClass);
+  if (STI.isHD6309())
+    addRegisterClass(MVT::i32, &MC6809::ACC32RegClass);
+
   computeRegisterProperties(STI.getRegisterInfo());
 
   // The memset intrinsic takes a char, while the C memset takes an int. These
@@ -57,24 +62,6 @@ MC6809TargetLowering::MC6809TargetLowering(const MC6809TargetMachine &TM,
 
   // Used in legalizer (etc.) to refer to the stack pointer.
   setStackPointerRegisterToSaveRestore(MC6809::SS);
-
-  setMaximumJumpTableSize(std::min(256u, getMaximumJumpTableSize()));
-}
-
-MVT MC6809TargetLowering::getRegisterTypeForCallingConv(
-    LLVMContext &Context, CallingConv::ID CC, EVT VT,
-    const ISD::ArgFlagsTy &Flags) const {
-  if (Flags.isPointer())
-    return MVT::i16;
-  return TargetLowering::getRegisterTypeForCallingConv(Context, CC, VT, Flags);
-}
-
-unsigned MC6809TargetLowering::getNumRegistersForCallingConv(
-    LLVMContext &Context, CallingConv::ID CC, EVT VT,
-    const ISD::ArgFlagsTy &Flags) const {
-  if (Flags.isPointer())
-    return 1;
-  return TargetLowering::getNumRegistersForCallingConv(Context, CC, VT, Flags);
 }
 
 unsigned MC6809TargetLowering::getNumRegistersForInlineAsm(LLVMContext &Context,
@@ -130,51 +117,6 @@ MC6809TargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI
     return std::make_pair(MC6809::CC, &MC6809::CCondRegClass);
 
   return TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
-}
-
-static bool is8BitIndex(Type *Ty) {
-  if (!Ty)
-    return false;
-  return Ty == Type::getInt8Ty(Ty->getContext());
-}
-
-bool MC6809TargetLowering::isLegalAddressingMode(const DataLayout &DL,
-                                              const AddrMode &AM, Type *Ty,
-                                              unsigned AddrSpace,
-                                              Instruction *I) const {
-  if (AM.Scale > 1 || AM.Scale < 0)
-    return false;
-
-  if (AM.Scale) {
-    assert(AM.Scale == 1);
-    if (!AM.HasBaseReg) {
-      // Indexed addressing mode.
-      if (is8BitIndex(AM.ScaleType))
-        return true;
-
-      // Consider a reg + 8-bit offset selectable via the indirect indexed
-      // addressing mode.
-      return !AM.BaseGV && 0 <= AM.BaseOffs && AM.BaseOffs < 256;
-    }
-
-    // Indirect indexed addressing mode: 16-bit register + 8-bit index register.
-    // Doesn't matter which is 8-bit and which is 16-bit.
-    return !AM.BaseGV && !AM.BaseOffs &&
-           (is8BitIndex(AM.BaseType) || is8BitIndex(AM.ScaleType));
-  }
-
-  if (AM.HasBaseReg) {
-    // Indexed addressing mode.
-    if (is8BitIndex(AM.BaseType))
-      return true;
-
-    // Consider an reg + 8-bit offset selectable via the indirect indexed
-    // addressing mode.
-    return !AM.BaseGV && 0 <= AM.BaseOffs && AM.BaseOffs < 256;
-  }
-
-  // Any other combination of GV and BaseOffset are just global offsets.
-  return true;
 }
 
 bool MC6809TargetLowering::isTruncateFree(Type *SrcTy, Type *DstTy) const {
@@ -265,7 +207,7 @@ MC6809TargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
     Builder.setInsertPt(*HeadMBB, MI.getIterator());
   }
 
-  const auto LDImm = [&Builder, &Dst](int64_t Val) {
+  const auto LDImm8 = [&Builder, &Dst](int64_t Val) {
     assert(MC6809::ACC8RegClass.contains(Dst));
     Builder.buildInstr(MC6809::LDAi8, {Dst}, {Val});
   };
@@ -278,10 +220,10 @@ MC6809TargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
 
     Builder.setInsertPt(*IfTrueMBB, IfTrueMBB->begin());
     // Load true value.
-    LDImm(TrueValue);
+    LDImm8(TrueValue);
   } else {
     // Load true value.
-    LDImm(TrueValue);
+    LDImm8(TrueValue);
 
     // Insert branch.
     // XXXX: FIXME: MarkM - Must make rthe below branch unconditional
@@ -291,7 +233,7 @@ MC6809TargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
 
   // Insert false load.
   Builder.setInsertPt(*IfFalseMBB, IfFalseMBB->begin());
-  LDImm(FalseValue);
+  LDImm8(FalseValue);
 
   MI.eraseFromParent();
 

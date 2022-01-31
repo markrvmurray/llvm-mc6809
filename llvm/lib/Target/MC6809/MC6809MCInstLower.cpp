@@ -27,10 +27,101 @@ using namespace llvm;
 #define DEBUG_TYPE "mc6809-mcinstlower"
 
 void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : MI = "; MI->dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : OutMI = "; OutMI.dump(););
   switch (MI->getOpcode()) {
   default:
     OutMI.setOpcode(MI->getOpcode());
     break;
+  case MC6809::RTSImplicit: {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : RTSImplicit\n";);
+    OutMI.setOpcode(MC6809::RTSr);
+    return;
+  }
+  case MC6809::RTIImplicit: {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : RTSImplicit\n";);
+    OutMI.setOpcode(MC6809::RTIr);
+    return;
+  }
+  case MC6809::SEX16Implicit: {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : SEX16Implicit\n";);
+    OutMI.setOpcode(MC6809::SEXx);
+    return;
+  }
+  case MC6809::SEX32Implicit: {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : SEX32Implicit\n";);
+    OutMI.setOpcode(MC6809::SEXWx);
+    return;
+  }
+  case MC6809::LDImm8: {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : LDImm8\n";);
+    switch (MI->getOperand(0).getReg()) {
+    default:
+      llvm_unreachable("Unexpected register for LDImm8.");
+    case MC6809::AA:
+      OutMI.setOpcode(MC6809::LDAi8);
+      break;
+    case MC6809::AB:
+      OutMI.setOpcode(MC6809::LDBi8);
+      break;
+    case MC6809::AE:
+      OutMI.setOpcode(MC6809::LDEi8);
+      break;
+    case MC6809::AF:
+      OutMI.setOpcode(MC6809::LDFi8);
+      break;
+    }
+    MCOperand Val;
+    if (!lowerOperand(MI->getOperand(1), Val))
+      llvm_unreachable("Failed to lower operand");
+    OutMI.addOperand(Val);
+    return;
+  }
+  case MC6809::LDImm16: {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : LDImm16\n";);
+    switch (MI->getOperand(0).getReg()) {
+    default:
+      llvm_unreachable("Unexpected register for LDImm16.");
+    case MC6809::AD:
+      OutMI.setOpcode(MC6809::LDDi16);
+      break;
+    case MC6809::AW:
+      OutMI.setOpcode(MC6809::LDWi16);
+      break;
+    case MC6809::IX:
+      OutMI.setOpcode(MC6809::LDXi16);
+      break;
+    case MC6809::IY:
+      OutMI.setOpcode(MC6809::LDYi16);
+      break;
+    case MC6809::SU:
+      OutMI.setOpcode(MC6809::LDUi16);
+      break;
+    case MC6809::SS:
+      OutMI.setOpcode(MC6809::LDSi16);
+      break;
+    }
+    MCOperand Val;
+    if (!lowerOperand(MI->getOperand(1), Val))
+      llvm_unreachable("Failed to lower operand");
+    OutMI.addOperand(Val);
+    return;
+  }
+  case MC6809::LDImm32: {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : LDImm32\n";);
+    switch (MI->getOperand(0).getReg()) {
+    default:
+      llvm_unreachable("Unexpected register for LDImm32.");
+    case MC6809::AQ:
+      OutMI.setOpcode(MC6809::LDQi32);
+      break;
+    }
+    MCOperand Val;
+    if (!lowerOperand(MI->getOperand(1), Val))
+      llvm_unreachable("Failed to lower operand");
+    OutMI.addOperand(Val);
+    return;
+  }
 #if 0
   case MC6809::ADCAbsIdx:
   case MC6809::SBCAbsIdx: {
@@ -238,7 +329,7 @@ void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
     OutMI.addOperand(Val);
     return;
   }
-  case MC6809::LDImm:
+  case MC6809::LDImm8:
   case MC6809::LDAbs:
   case MC6809::LDImag8:
   case MC6809::STAbs: {
@@ -247,7 +338,7 @@ void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
       llvm_unreachable("Unexpected register.");
     case MC6809::A:
       switch (MI->getOpcode()) {
-      case MC6809::LDImm:
+      case MC6809::LDImm8:
         OutMI.setOpcode(MC6809::LDA_Immediate);
         break;
       case MC6809::LDAbs:
@@ -261,7 +352,7 @@ void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
       break;
     case MC6809::X:
       switch (MI->getOpcode()) {
-      case MC6809::LDImm:
+      case MC6809::LDImm8:
         OutMI.setOpcode(MC6809::LDX_Immediate);
         break;
       case MC6809::LDAbs:
@@ -275,7 +366,7 @@ void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
       break;
     case MC6809::Y:
       switch (MI->getOpcode()) {
-      case MC6809::LDImm:
+      case MC6809::LDImm8:
         OutMI.setOpcode(MC6809::LDY_Immediate);
         break;
       case MC6809::LDAbs:
@@ -432,6 +523,7 @@ void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
     }
 #endif
   }
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : OutMI = "; OutMI.dump(););
 
   // Handle any real instructions that weren't generated from a pseudo.
 #ifndef NDEBUG
@@ -441,10 +533,12 @@ void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
   }
 #endif
   for (const MachineOperand &MO : MI->operands()) {
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : MO = "; MO.dump(););
     MCOperand MCOp;
     if (lowerOperand(MO, MCOp))
       OutMI.addOperand(MCOp);
   }
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : OutMI = "; OutMI.dump(););
 }
 
 bool MC6809MCInstLower::lowerOperand(const MachineOperand &MO, MCOperand &MCOp) {
@@ -453,7 +547,6 @@ bool MC6809MCInstLower::lowerOperand(const MachineOperand &MO, MCOperand &MCOp) 
 
   switch (MO.getType()) {
   default:
-    LLVM_DEBUG(dbgs() << "Operand: " << MO << "\n");
     report_fatal_error("Operand type not implemented.");
   case MachineOperand::MO_RegisterMask:
     return false;
