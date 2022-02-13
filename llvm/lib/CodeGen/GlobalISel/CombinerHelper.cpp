@@ -544,6 +544,14 @@ bool CombinerHelper::matchCombineExtendingLoads(MachineInstr &MI,
         if (LI->getAction({LoadMI->getOpcode(), {UseTy, SrcTy}, {MMDesc}})
                 .Action != LegalizeActions::Legal)
           continue;
+        if (UseMI.getOpcode() == TargetOpcode::G_SEXT)
+          if (LI->getAction({TargetOpcode::G_SEXTLOAD, {UseTy, SrcTy}, {MMDesc}})
+                  .Action != LegalizeActions::Legal)
+            continue;
+        if (UseMI.getOpcode() == TargetOpcode::G_ZEXT)
+          if (LI->getAction({TargetOpcode::G_ZEXTLOAD, {UseTy, SrcTy}, {MMDesc}})
+                  .Action != LegalizeActions::Legal)
+            continue;
       }
       Preferred = ChoosePreferredUse(Preferred,
                                      MRI.getType(UseMI.getOperand(0).getReg()),
