@@ -190,6 +190,7 @@ bool llvm::constrainSelectedInstRegOperands(MachineInstr &I,
       if (DefIdx != -1 && !I.isRegTiedToUseOperand(DefIdx))
         I.tieOperands(DefIdx, OpI);
     }
+    LLVM_DEBUG(dbgs() << "Converted operand: " << MO << '\n');
   }
   return true;
 }
