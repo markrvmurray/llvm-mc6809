@@ -164,9 +164,7 @@ unsigned MC6809MCCodeEmitter::encodeCondCodeOpValue(const MCInst &MI, unsigned O
   return MI.getOperand(Op).getImm();
 }
 
-MCCodeEmitter *createMC6809MCCodeEmitter(const MCInstrInfo &MCII,
-                                      const MCRegisterInfo &MRI,
-                                      MCContext &Ctx) {
+MCCodeEmitter *createMC6809MCCodeEmitter(const MCInstrInfo &MCII, MCContext &Ctx) {
   return new MC6809MCCodeEmitter(MCII, Ctx);
 }
 

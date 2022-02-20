@@ -39,9 +39,7 @@ Target &getTheMC6809Target();
 MCInstrInfo *createMC6809MCInstrInfo();
 
 /// Creates a machine code emitter for MC6809.
-MCCodeEmitter *createMC6809MCCodeEmitter(const MCInstrInfo &MCII,
-                                      const MCRegisterInfo &MRI,
-                                      MCContext &Ctx);
+MCCodeEmitter *createMC6809MCCodeEmitter(const MCInstrInfo &MCII, MCContext &Ctx);
 
 /// Creates an assembly backend for MC6809.
 MCAsmBackend *createMC6809AsmBackend(const Target &T, const MCSubtargetInfo &STI,
