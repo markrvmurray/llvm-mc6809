@@ -221,11 +221,14 @@ def BITAbs : MC6809LogicalInstr {
 
 class MC6809Branch : MC6809LogicalInstr {
   let isBranch = true;
-  let isTerminator = true;
+  let isTerminator = false;
+  let isBarrier = false;
 }
 
 // Covers all branch instructions. Branches to $tgt if $flag = $val.
-def BR : MC6809Branch {
+class MC6809ConditionalBranch : MC6809Branch;
+
+def IfJumpRelative : MC6809ConditionalBranch {
   dag InOperandList = (ins label:$tgt, CCFlag:$flag, i1imm:$val);
 }
 
@@ -233,34 +236,34 @@ class MC6809UnconditionalBranch : MC6809Branch {
   let isBarrier = true;
 }
 
-def BRA : MC6809UnconditionalBranch {
+def JumpRelative : MC6809UnconditionalBranch {
   let InOperandList = (ins label:$tgt);
-  let Pattern = [(br bb:$tgt)];
 }
-def JMP : MC6809UnconditionalBranch {
-  let InOperandList = (ins label:$tgt);
-  let Pattern = [(br bb:$tgt)];
-}
-
-def JMPIndir : MC6809UnconditionalBranch {
-  let InOperandList = (ins ACC16:$tgt);
+def JumpIndir : MC6809UnconditionalBranch {
+  let InOperandList = (ins INDEX16:$tgt);
   let isIndirectBranch = true;
 }
 
-def JSR : MC6809LogicalInstr {
-  dag InOperandList = (ins label:$tgt);
-
+class MC6809UnconditionalCall : MC6809Branch {
   let isCall = true;
 }
 
-class MC6809Return<Instruction Opcode> : MC6809LogicalInstr, PseudoInstExpansion<(Opcode)> {
+def CallRelative : MC6809UnconditionalCall {
+  dag InOperandList = (ins label:$tgt);
+}
+def CallIndir : MC6809UnconditionalCall {
+  let InOperandList = (ins INDEX16:$tgt);
+  let isIndirectBranch = true;
+}
+
+class MC6809Return : MC6809LogicalInstr {
   let isBarrier = true;
   let isReturn = true;
   let isTerminator = true;
 }
 
-def RTSImplicit : MC6809Return<RTSr>;
-def RTIImplicit : MC6809Return<RTIr>;
+def ReturnImplicit : MC6809Return;
+def ReturnIRQImplicit : MC6809Return;
 
 //===---------------------------------------------------------------------===//
 // Immediate Load Instructions
@@ -350,6 +353,29 @@ def PL : MC6809LogicalInstr {
 
   let mayLoad = true;
 }
+
+//===---------------------------------------------------------------------===//
+// Pointer add instructions
+//===---------------------------------------------------------------------===//
+
+class MC6809PtrAdd<RegisterClass idx> : MC6809LogicalInstr {
+  dag OutOperandList = (outs idx:$dst);
+  let isAdd = true;
+  let Constraints = "$dst = $src";
+}
+
+class MC6809PtrAddImm<RegisterClass idx, Operand val> : MC6809PtrAdd<idx> {
+  dag InOperandList = (ins idx:$src, val:$val);
+}
+
+class MC6809PtrAddReg<RegisterClass idx, RegisterClass val> : MC6809PtrAdd<idx> {
+  dag InOperandList = (ins idx:$src, val:$val);
+}
+
+// LEAr n,r or LEAr a,r
+def LEAPtrAddImm : MC6809PtrAddImm<INDEX16, i16imm>;
+def LEAPtrAddReg8 : MC6809PtrAddReg<INDEX16, ACC8>;
+def LEAPtrAddReg16 : MC6809PtrAddReg<INDEX16, ACC16>;
 
 //===---------------------------------------------------------------------===//
 // Load/Store Instructions

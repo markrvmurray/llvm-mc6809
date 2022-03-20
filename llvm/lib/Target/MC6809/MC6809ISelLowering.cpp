@@ -32,6 +32,21 @@
 
 using namespace llvm;
 
+//===----------------------------------------------------------------------===//
+//                      Calling Convention Implementation
+//===----------------------------------------------------------------------===//
+
+/// Selects the correct CCAssignFn for a given CallingConvention value.
+CCAssignFn *MC6809TargetLowering::CCAssignFnForCall(CallingConv::ID CC,
+                                                    bool IsVarArg) const {
+  return IsVarArg ? CC_MC6809_VarArgs : CC_MC6809;
+}
+
+CCAssignFn *MC6809TargetLowering::CCAssignFnForReturn(CallingConv::ID CC,
+                                                       bool IsVarArg) const {
+  return IsVarArg ? CC_MC6809_VarArgs : RetCC_MC6809;
+}
+
 MC6809TargetLowering::MC6809TargetLowering(const MC6809TargetMachine &TM,
                                      const MC6809Subtarget &STI)
     : TargetLowering(TM) {

@@ -216,33 +216,14 @@ bool MC6809InstrInfo::findCommutedOpIndices(const MachineInstr &MI,
   return false;
 }
 
-bool MC6809InstrInfo::isBranchOffsetInRange(unsigned BranchOpc,
-                                         int64_t BrOffset) const {
-  switch (BranchOpc) {
-  default:
-    llvm_unreachable("Bad branch opcode");
-  case MC6809::GBR:
-  case MC6809::BR:
-  case MC6809::BRA:
-    // BR range is [-128,127] starting from the PC location after the
-    // instruction, which is two bytes after the start of the instruction.
-    return -126 <= BrOffset && BrOffset <= 129;
-  case MC6809::JMP:
-    return true;
-  }
-}
-
 MachineBasicBlock *
 MC6809InstrInfo::getBranchDestBlock(const MachineInstr &MI) const {
   switch (MI.getOpcode()) {
   default:
     llvm_unreachable("Bad branch opcode");
-  case MC6809::GBR:
-  case MC6809::BR:
-  case MC6809::BRA:
-  case MC6809::JMP:
+  case MC6809::JumpRelative:
     return MI.getOperand(0).getMBB();
-  case MC6809::JMPIndir:
+  case MC6809::JumpIndir:
     return nullptr;
   }
 }
@@ -350,17 +331,14 @@ unsigned MC6809InstrInfo::insertBranch(MachineBasicBlock &MBB,
   // Conditional branch.
   if (!Cond.empty()) {
     assert(TBB);
-    // The condition stores the arguments for the BR instruction.
+    // The condition stores the arguments for the Bcc and LBcc instructionis.
     assert(Cond.size() == 2);
 
     // The unconditional branch will be to the false branch (if any).
     UBB = FBB;
 
     // Add conditional branch.
-    Register Reg = Cond[0].getReg();
-    unsigned Opcode = Reg.isVirtual() || !MC6809::CCFlagRegClass.contains(Reg)
-                          ? MC6809::GBR
-                          : MC6809::BR;
+    unsigned Opcode = MC6809::Bbc;
     auto BR = Builder.buildInstr(Opcode).addMBB(TBB);
     for (const MachineOperand &Op : Cond)
       BR.add(Op);
@@ -373,7 +351,8 @@ unsigned MC6809InstrInfo::insertBranch(MachineBasicBlock &MBB,
   if (UBB) {
     // For 6809, assume BRA and relax into LBRA in insertIndirectBranch if
     // necessary.
-    auto JMP = Builder.buildInstr(MC6809::BRA).addMBB(UBB);
+    // XXXX: FIXME: MarkM - ensure this is unconditional
+    auto JMP = Builder.buildInstr(MC6809::Bbc).addMBB(UBB);
     ++NumAdded;
     if (BytesAdded)
       *BytesAdded += getInstSizeInBytes(*JMP);
@@ -392,11 +371,13 @@ void MC6809InstrInfo::insertIndirectBranch(MachineBasicBlock &MBB,
   // insertBranch or some hypothetical "insertDirectBranch".
   // See lib/CodeGen/BranchRelaxation.cpp for details.
   // We end up here when a jump is too long for a BRA instruction.
+  // XXXX: FIXME: MarkM - this process is a crock; LBRA should alway work.
 
   MachineIRBuilder Builder(MBB, MBB.end());
   Builder.setDebugLoc(DL);
 
-  Builder.buildInstr(MC6809::JMP).addMBB(&NewDestBB);
+  // XXXX: FIXME: MarkM - ensure this is unconditional
+  Builder.buildInstr(MC6809::Bbc).addMBB(&NewDestBB);
 }
 
 void MC6809InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
@@ -1157,7 +1138,8 @@ void MC6809InstrInfo::expandCMPTerm(MachineIRBuilder &Builder) const {
 void MC6809InstrInfo::expandGBR(MachineIRBuilder &Builder) const {
   MachineInstr &MI = *Builder.getInsertPt();
 
-  MI.setDesc(Builder.getTII().get(MC6809::BR));
+  // XXXX: FIXME: MarkM - ensure this is (un)conditional
+  MI.setDesc(Builder.getTII().get(MC6809::Bbc));
 
   Register Tst = MI.getOperand(1).getReg();
   switch (Tst) {

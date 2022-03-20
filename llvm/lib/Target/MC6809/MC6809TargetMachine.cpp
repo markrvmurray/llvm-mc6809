@@ -41,6 +41,8 @@
 #include "MC6809TargetObjectFile.h"
 #include "MC6809TargetTransformInfo.h"
 
+#define DEBUG_TYPE "mc6809-targetmachine"
+
 using namespace llvm;
 
 extern "C" void LLVM_EXTERNAL_VISIBILITY LLVMInitializeMC6809Target() {
@@ -113,9 +115,11 @@ MC6809TargetMachine::getTargetTransformInfo(const Function &F) {
 }
 
 void MC6809TargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Entry : registerPassBuilderCallbacks : 01\n";);
   PB.registerPipelineParsingCallback(
       [](StringRef Name, LoopPassManager &PM,
          ArrayRef<PassBuilder::PipelineElement>) {
+        LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Entry : registerPassBuilderCallbacks : A1\n";);
         if (Name == "mc6809-indexiv") {
           // Rewrite pointer artithmetic in loops to use 8-bit IV offsets.
           PM.addPass(MC6809IndexIV());
@@ -126,6 +130,7 @@ void MC6809TargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
 
   PB.registerLateLoopOptimizationsEPCallback(
       [](LoopPassManager &PM, OptimizationLevel Level) {
+        LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Entry : registerPassBuilderCallbacks : B1\n";);
         if (Level != OptimizationLevel::O0) {
           PM.addPass(MC6809IndexIV());
 
@@ -268,7 +273,6 @@ bool MC6809CSEConfigFull::shouldCSEOpc(unsigned Opc) {
   switch (Opc) {
   default:
     return CSEConfigFull::shouldCSEOpc(Opc);
-//case MC6809::G_SBC:
   case MC6809::G_SHLE:
   case MC6809::G_LSHRE:
     return true;

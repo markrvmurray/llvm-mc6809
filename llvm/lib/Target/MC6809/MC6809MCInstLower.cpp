@@ -33,13 +33,13 @@ void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
   default:
     OutMI.setOpcode(MI->getOpcode());
     break;
-  case MC6809::RTSImplicit: {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : RTSImplicit\n";);
+  case MC6809::ReturnImplicit: {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : ReturnImplicit\n";);
     OutMI.setOpcode(MC6809::RTSr);
     return;
   }
-  case MC6809::RTIImplicit: {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : RTSImplicit\n";);
+  case MC6809::ReturnIRQImplicit: {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : ReturnIRQImplicit\n";);
     OutMI.setOpcode(MC6809::RTIr);
     return;
   }

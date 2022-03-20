@@ -50,8 +50,10 @@ public:
   bool findCommutedOpIndices(const MachineInstr &MI, unsigned &SrcOpIdx1,
                              unsigned &SrcOpIdx2) const override;
 
+#if 0
   bool isBranchOffsetInRange(unsigned BranchOpc,
                              int64_t BrOffset) const override;
+#endif
 
   MachineBasicBlock *getBranchDestBlock(const MachineInstr &MI) const override;
 

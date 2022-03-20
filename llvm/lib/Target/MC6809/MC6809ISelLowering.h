@@ -48,6 +48,13 @@ public:
   MachineBasicBlock *
   EmitInstrWithCustomInserter(MachineInstr &MI,
                               MachineBasicBlock *MBB) const override;
+
+  /// Selects the correct CCAssignFn for a given CallingConvention value.
+  CCAssignFn *CCAssignFnForCall(CallingConv::ID CC, bool IsVarArg) const;
+
+  /// Selects the correct CCAssignFn for a given CallingConvention value.
+  CCAssignFn *CCAssignFnForReturn(CallingConv::ID CC, bool IsVarArg) const;
+
 };
 
 } // namespace llvm

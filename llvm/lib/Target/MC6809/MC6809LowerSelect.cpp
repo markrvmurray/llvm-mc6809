@@ -48,7 +48,7 @@ public:
 
   bool runOnMachineFunction(MachineFunction &MF) override;
   void sinkSelectsToBranchUses(MachineFunction &MF);
-  MachineFunction::reverse_iterator lowerSelect(MachineInstr &MI);
+  MachineFunction::iterator lowerSelect(MachineInstr &MI);
   void moveAwayFromCalls(MachineFunction &MF);
 };
 
@@ -59,11 +59,11 @@ bool MC6809LowerSelect::runOnMachineFunction(MachineFunction &MF) {
 
   bool Changed = false;
   for (auto I = MF.rbegin(), E = MF.rend(); I != E; ++I) {
-    for (MachineInstr &MBBI : mbb_reverse(*I)) {
+    for (MachineInstr &MBBI : *I) {
       if (MBBI.getOpcode() == MC6809::G_SELECT) {
         LLVM_DEBUG(dbgs() << "Lowering: " << MBBI);
-        Changed = true;
-        I = lowerSelect(MBBI);
+        //Changed = true;
+        //I = lowerSelect(MBBI);
         break;
       }
     }
@@ -99,7 +99,7 @@ void removePredecessorFromPhis(MachineBasicBlock *MBB,
         Idx += 2;
 }
 
-MachineFunction::reverse_iterator
+MachineFunction::iterator
 MC6809LowerSelect::lowerSelect(MachineInstr &MI) {
   assert(MI.getOpcode() == MC6809::G_SELECT);
   Register Dst = MI.getOperand(0).getReg();
@@ -112,6 +112,7 @@ MC6809LowerSelect::lowerSelect(MachineInstr &MI) {
   MachineFunction &MF = Builder.getMF();
   const MachineRegisterInfo &MRI = *Builder.getMRI();
 
+#if 0
   SmallVector<Register> Dsts = {Dst};
   SmallVector<Register> TrueValues = {TrueValue};
   SmallVector<Register> FalseValues = {FalseValue};
@@ -123,14 +124,12 @@ MC6809LowerSelect::lowerSelect(MachineInstr &MI) {
   for (const MachineOperand &MO : MI.operands())
     if (MO.isReg() && MO.isUse())
       UsedRegs.insert(MO.getReg());
-  for (MachineInstr &MBBI : mbb_reverse(MBB.begin(), MI)) {
+  for (MachineInstr &MBBI = MBBI.begin(); MBBI != MI + 1; MBBI++) {
     for (const MachineOperand &MO : MBBI.operands())
       if (MO.isReg() && MO.isUse())
         UsedRegs.insert(MO.getReg());
 
-    if (MBBI.getOpcode() == MC6809::G_SELECT &&
-        MBBI.getOperand(1).getReg() == Tst &&
-        !UsedRegs.contains(MBBI.getOperand(0).getReg())) {
+    if (MBBI.getOpcode() == MC6809::G_SELECT && MBBI.getOperand(1).getReg() == Tst && !UsedRegs.contains(MBBI.getOperand(0).getReg())) {
       LLVM_DEBUG(dbgs() << "Absorbing select with same test: " << MBBI);
       Dsts.push_back(MBBI.getOperand(0).getReg());
       TrueValues.push_back(MBBI.getOperand(2).getReg());
@@ -140,7 +139,6 @@ MC6809LowerSelect::lowerSelect(MachineInstr &MI) {
   }
   assert(Dsts.size() == TrueValues.size());
   assert(TrueValues.size() == FalseValues.size());
-
   // To lower a G_SELECT instruction, we actually have to insert the diamond
   // control-flow pattern. The incoming instruction knows the destination
   // vreg to set, the condition to branch on, and the true/false values to
@@ -330,6 +328,9 @@ MC6809LowerSelect::lowerSelect(MachineInstr &MI) {
   for (const auto Select : SelectsToRemove)
     Select->eraseFromParent();
   return MachineFunction::reverse_iterator(*SinkMBB);
+#else
+  return MachineFunction::iterator(MBB);
+#endif
 }
 
 // Before lowering selects, they and all attached instructions need to be
@@ -339,7 +340,7 @@ MC6809LowerSelect::lowerSelect(MachineInstr &MI) {
 void MC6809LowerSelect::moveAwayFromCalls(MachineFunction &MF) {
   for (MachineBasicBlock &MBB : MF) {
     for (auto I = MBB.begin(), E = MBB.end(); I != E; ++I) {
-      if (I->getOpcode() != MC6809::JSR)
+      if (I->getOpcode() != MC6809::CallRelative)
         continue;
 
       SmallVector<MachineInstr *> PushedMIs;
@@ -395,7 +396,7 @@ void MC6809LowerSelect::moveAwayFromCalls(MachineFunction &MF) {
 void MC6809LowerSelect::sinkSelectsToBranchUses(MachineFunction &MF) {
   const auto &MRI = MF.getRegInfo();
   for (MachineBasicBlock &MBB : MF) {
-    for (MachineInstr &MI : make_early_inc_range(mbb_reverse(MBB))) {
+    for (MachineInstr &MI : MBB) {
       if (MI.getOpcode() != MC6809::G_SELECT)
         continue;
       Register Dst = MI.getOperand(0).getReg();

@@ -81,6 +81,7 @@ private:
   bool selectFrameIndex(MachineInstr &MI);
   bool selectAddr(MachineInstr &MI);
   bool selectStore(MachineInstr &MI);
+  bool selectPtrAdd(MachineInstr &MI);
   bool selectLshrShlE(MachineInstr &MI);
   bool selectMergeValues(MachineInstr &MI);
   bool selectConstant(MachineInstr &MI);
@@ -91,9 +92,6 @@ private:
 
   // Select instructions that correspond 1:1 to a target instruction.
   bool selectGeneric(MachineInstr &MI);
-
-  void composePtr(MachineIRBuilder &Builder, Register Dst, Register Lo,
-                  Register Hi);
 
   void constrainGenericOp(MachineInstr &MI);
 
@@ -248,6 +246,8 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     return selectLoad(MI);
   case MC6809::G_STORE:
     return selectStore(MI);
+  case MC6809::G_PTR_ADD:
+    return selectPtrAdd(MI);
 
   case MC6809::G_BRINDIRECT:
   case MC6809::G_IMPLICIT_DEF:
@@ -806,8 +806,8 @@ bool MC6809InstructionSelector::selectStore(MachineInstr &MI) {
 }
 
 bool MC6809InstructionSelector::selectMergeValues(MachineInstr &MI) {
-  MachineIRBuilder Builder(MI);
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : MI = "; MI.dump(););
+  MachineIRBuilder Builder(MI);
   const MachineRegisterInfo &MRI = *Builder.getMRI();
 
   Register Dst = MI.getOperand(0).getReg();
@@ -826,10 +826,48 @@ bool MC6809InstructionSelector::selectMergeValues(MachineInstr &MI) {
     MI.eraseFromParent();
     return true;
   }
-
-  composePtr(Builder, Dst, Lo, Hi);
+  auto RegSeq = Builder.buildInstr(MC6809::REG_SEQUENCE)
+                    .addDef(Dst)
+                    .addUse(Lo)
+                    .addImm(MC6809::sub_lo_byte)
+                    .addUse(Hi)
+                    .addImm(MC6809::sub_hi_byte);
+  constrainGenericOp(*RegSeq);
   MI.eraseFromParent();
   return true;
+}
+
+bool MC6809InstructionSelector::selectPtrAdd(MachineInstr &MI) {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : MI = "; MI.dump(););
+  MachineIRBuilder Builder(MI);
+  const MachineRegisterInfo &MRI = *Builder.getMRI();
+  LLT S8 = LLT::scalar(8);
+  LLT S16 = LLT::scalar(16);
+  LLT P = LLT::pointer(0, 16);
+
+  Register Dst = MI.getOperand(0).getReg();
+  LLT DstTy = Builder.getMRI()->getType(Dst);
+  Register Ptr = MI.getOperand(1).getReg();
+  LLT PtrTy = Builder.getMRI()->getType(Ptr);
+  Register Offset = MI.getOperand(2).getReg();
+  LLT OffsetTy = Builder.getMRI()->getType(Offset);
+  assert(DstTy == P && PtrTy == P && "Destination and source must both be pointer types.");
+
+  unsigned Opcode;
+  if (MI.getOperand(2).isCImm()) {
+    uint64_t Val = MI.getOperand(2).getCImm()->getSExtValue();
+    MI.getOperand(2).ChangeToImmediate(Val);
+    Opcode = MC6809::LEAPtrAddImm;
+  } else {
+    if (OffsetTy == S8) {
+      Opcode = MC6809::LEAPtrAddReg8;
+    } else if (OffsetTy == S16) {
+      Opcode = MC6809::LEAPtrAddReg16;
+    } else
+      llvm_unreachable("Must be adding an 8- or 16-bit register quantity to the pointer.");
+  }
+  MI.setDesc(TII.get(Opcode));
+  return constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
 }
 
 bool MC6809InstructionSelector::selectConstant(MachineInstr &MI) {
@@ -1043,7 +1081,7 @@ bool MC6809InstructionSelector::selectGeneric(MachineInstr &MI) {
     Opcode = MC6809::SEX16Implicit;
     break;
   case MC6809::G_BRINDIRECT:
-    Opcode = MC6809::JMPIndir;
+    Opcode = MC6809::JumpIndir;
     break;
   case MC6809::G_IMPLICIT_DEF:
     Opcode = MC6809::IMPLICIT_DEF;
@@ -1060,18 +1098,6 @@ bool MC6809InstructionSelector::selectGeneric(MachineInstr &MI) {
   // Make sure that the outputs have register classes.
   constrainGenericOp(MI);
   return true;
-}
-
-// Produce a pointer vreg from a low and high vreg pair.
-void MC6809InstructionSelector::composePtr(MachineIRBuilder &Builder, Register Dst,
-                                        Register Lo, Register Hi) {
-  auto RegSeq = Builder.buildInstr(MC6809::REG_SEQUENCE)
-                    .addDef(Dst)
-                    .addUse(Lo)
-                    .addImm(MC6809::sub_lo_byte)
-                    .addUse(Hi)
-                    .addImm(MC6809::sub_hi_byte);
-  constrainGenericOp(*RegSeq);
 }
 
 // Ensures that any virtual registers defined by this operation are given a
@@ -1107,7 +1133,7 @@ bool MC6809InstructionSelector::selectAll(MachineInstrSpan MIS) {
 
   // Ensure that all new generic virtual registers have a register bank.
   for (MachineInstr &MI : MIS) {
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Loop : MI = "; MI.dump(););
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Loop Start 'Ensure that all new generic virtual registers have a register bank' : MI = "; MI.dump(););
     for (MachineOperand &MO : MI.operands()) {
       if (!MO.isReg())
         continue;
@@ -1119,19 +1145,14 @@ bool MC6809InstructionSelector::selectAll(MachineInstrSpan MIS) {
       auto *RC = MRI.getRegClassOrNull(MO.getReg());
       MRI.setRegBank(Reg, RBI.getRegBankFromRegClass(*RC, LLT()));
     }
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Loop End 'Ensure that all new generic virtual registers have a register bank' : MI = "; MI.dump(););
   }
 
-  // Select instructions in reverse block order.
-  for (MachineInstr &MI : make_early_inc_range(mbb_reverse(MIS))) {
-    // We could have folded this instruction away already, making it dead.
-    // If so, erase it.
-    if (isTriviallyDead(MI, MRI)) {
-      MI.eraseFromParent();
-      continue;
-    }
-
+  for (MachineInstr &MI : MIS) {
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Loop Start 'select(MI)' : MI = "; MI.dump(););
     if (!select(MI))
       return false;
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Loop end 'select(MI)' : MI = "; MI.dump(););
   }
   return true;
 }
