@@ -80,37 +80,36 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) {
   // Integer Extension and Truncation
 
   if (STI.isHD6309()) {
-    getActionDefinitionsBuilder(G_ANYEXT)
-      .legalFor({{S8, S1}, {S16, S1}, {S32, S1}, {S16, S8}, {S32, S8}, {S32, S16}});
     getActionDefinitionsBuilder(G_TRUNC)
       .legalFor({{S1, S8}, {S1, S16}, {S1, S32}, {S8, S16}, {S8, S32}, {S16, S32}});
-    getActionDefinitionsBuilder(G_SEXT)
-      .legalFor({{S16, S8}, {S32, S16}});
-  } else {
     getActionDefinitionsBuilder(G_ANYEXT)
-      .legalFor({{S8, S1}, {S16, S1}, {S16, S8}});
+      .legalFor({{S8, S1}, {S16, S8}, {S32, S16}});
+    getActionDefinitionsBuilder(G_SEXT)
+      .legalFor({{S8, S1}, {S16, S8}, {S32, S16}});
+    getActionDefinitionsBuilder(G_ZEXT)
+      .legalFor({{S8, S1}, {S16, S8}, {S32, S16}});
+  } else {
     getActionDefinitionsBuilder(G_TRUNC)
       .legalFor({{S1, S8}, {S1, S16}, {S8, S16}});
+    getActionDefinitionsBuilder(G_ANYEXT)
+      .legalFor({{S8, S1}, {S16, S8}});
     getActionDefinitionsBuilder(G_SEXT)
+      .legalFor({{S8, S1}, {S16, S8}});
+    getActionDefinitionsBuilder(G_ZEXT)
       .legalFor({{S8, S1}, {S16, S8}});
   }
 
   getActionDefinitionsBuilder(G_SEXT_INREG)
       .lower();
 
-  getActionDefinitionsBuilder(G_ZEXT)
-      .unsupported();
-
   // Type Conversions
 
   getActionDefinitionsBuilder(G_INTTOPTR)
-      .legalFor({{P, S16}})
       .clampScalar(1, S16, S16)
-      .unsupported();
+      .legalFor({{P, S16}});
   getActionDefinitionsBuilder(G_PTRTOINT)
-      .legalFor({{S16, P}})
       .clampScalar(0, S16, S16)
-      .unsupported();
+      .legalFor({{S16, P}});
 
   // Scalar Operations
 
@@ -164,8 +163,7 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) {
       .widenScalarToNextMultipleOf(0, 8);
 
   getActionDefinitionsBuilder(G_PTR_ADD)
-      .legalFor({{P, S16}, {P, S8}, {P, S1}})
-      .unsupported();
+      .legalFor({{P, S16}, {P, S8}, {P, S1}});
 
   getActionDefinitionsBuilder({G_SMIN, G_SMAX, G_UMIN, G_UMAX})
       .lower();
@@ -240,20 +238,16 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) {
       .widenScalarToNextMultipleOf(0, 8);
 
   getActionDefinitionsBuilder(G_BRCOND)
-      .legalFor({S1})
-      .unsupported();
+      .legalFor({S1});
 
   getActionDefinitionsBuilder(G_BRINDIRECT)
-      .legalFor({P})
-      .unsupported();
+      .legalFor({P});
 
   getActionDefinitionsBuilder(G_BRJT)
-      .legalFor({{P, S8}, {P, S16}})
-      .unsupported();
+      .legalFor({{P, S8}, {P, S16}});
 
   getActionDefinitionsBuilder(G_JUMP_TABLE)
-      .legalFor({{P}, {S16}})
-      .unsupported();
+      .legalFor({{P}, {S16}});
 
   // Variadic Arguments
 

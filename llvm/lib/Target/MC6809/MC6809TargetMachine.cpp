@@ -32,7 +32,6 @@
 #include "MC6809.h"
 #include "GISel/MC6809Combiner.h"
 #include "MC6809IndexIV.h"
-#include "MC6809InsertCopies.h"
 #include "MC6809LowerSelect.h"
 #include "MC6809MachineScheduler.h"
 #include "MC6809NoRecurse.h"
@@ -52,7 +51,6 @@ extern "C" void LLVM_EXTERNAL_VISIBILITY LLVMInitializeMC6809Target() {
   PassRegistry &PR = *PassRegistry::getPassRegistry();
   initializeGlobalISel(PR);
   initializeMC6809CombinerPass(PR);
-  initializeMC6809InsertCopiesPass(PR);
   initializeMC6809LowerSelectPass(PR);
   initializeMC6809NoRecursePass(PR);
   initializeMC6809PostRAScavengingPass(PR);
@@ -236,7 +234,6 @@ bool MC6809PassConfig::addGlobalInstructionSelect() {
 
 void MC6809PassConfig::addMachineSSAOptimization() {
   TargetPassConfig::addMachineSSAOptimization();
-  addPass(createMC6809InsertCopiesPass());
 }
 
 void MC6809PassConfig::addOptimizedRegAlloc() {

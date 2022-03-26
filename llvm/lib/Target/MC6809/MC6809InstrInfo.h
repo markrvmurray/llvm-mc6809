@@ -121,19 +121,22 @@ private:
                        Register SrcReg) const;
 
   // Post RA pseudos
-  void expandLDIdx(MachineIRBuilder &Builder) const;
-  void expandLDImm1(MachineIRBuilder &Builder) const;
-  void expandLDImm(MachineIRBuilder &Builder) const;
-  void expandLDImmRemat(MachineIRBuilder &Builder) const;
-  void expandLDZ(MachineIRBuilder &Builder) const;
-  void expandIncDec(MachineIRBuilder &Builder) const;
+  void expandLoadIdxZero(MachineIRBuilder &Builder) const;
+  void expandLoadIdxImm(MachineIRBuilder &Builder) const;
+  void expandLoadIdxReg8(MachineIRBuilder &Builder) const;
+  void expandLoadIdxReg16(MachineIRBuilder &Builder) const;
+  // void expandLoadImm1(MachineIRBuilder &Builder) const;
+  void expandLoadImm(MachineIRBuilder &Builder) const;
+  //void expandLDImmRemat(MachineIRBuilder &Builder) const;
+  //void expandLDZ(MachineIRBuilder &Builder) const;
+  //void expandIncDec(MachineIRBuilder &Builder) const;
 
   // NZ pseudos
-  void expandNZ(MachineIRBuilder &Builder) const;
-  void expandCMPTerm(MachineIRBuilder &Builder) const;
+  //void expandNZ(MachineIRBuilder &Builder) const;
+  //void expandCMPTerm(MachineIRBuilder &Builder) const;
 
   // Control flow pseudos
-  void expandGBR(MachineIRBuilder &Builder) const;
+  //void expandGBR(MachineIRBuilder &Builder) const;
 };
 
 namespace MC6809 {

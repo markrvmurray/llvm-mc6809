@@ -68,80 +68,120 @@ class MC6809LogicalInstr : Instruction {
 }
 
 //===---------------------------------------------------------------------===//
+// Addressing modes
+//===---------------------------------------------------------------------===//
+
+class MC6809ArithmeticBaseCarry<RegisterClass dst, dag operand> : MC6809LogicalInstr {
+  dag OutOperandList = (outs dst:$dst, NZc:$nz, Vc:$vout, Cc:$carryout);
+  dag InOperandList = !con((ins dst:$l, Cc:$carryin), operand);
+  let Constraints = "$dst = $l, $carryout = $carryin";
+}
+
+multiclass MC6809ArithmeticCarry<string size> {
+  def Imm : MC6809ArithmeticBaseCarry<!cast<RegisterClass>(!strconcat("ACC", size)), (ins !cast<DAGOperand>(!strconcat("i", size, "imm")):$imm)>;
+  def Reg : MC6809ArithmeticBaseCarry<!cast<RegisterClass>(!strconcat("ACC", size)), (ins !cast<RegisterClass>(!strconcat("ACC", size)):$src)>;
+  let mayLoad = true in {
+    def Abs : MC6809ArithmeticBaseCarry<!cast<RegisterClass>(!strconcat("ACC", size)), (ins addr16:$addr)>;
+    def IdxZero : MC6809ArithmeticBaseCarry<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx)>;
+    def IdxImm : MC6809ArithmeticBaseCarry<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx, i16imm:$offset)>;
+    def IndirIdxImm : MC6809ArithmeticBaseCarry<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx, i16imm:$offset)>;
+    def IdxReg8 : MC6809ArithmeticBaseCarry<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx, ACC8:$offset)>;
+    def IdxReg16 : MC6809ArithmeticBaseCarry<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx, ACC16:$offset)>;
+    def IndirIdxReg8 : MC6809ArithmeticBaseCarry<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx, ACC8:$offset)>;
+    def IndirIdxReg16 : MC6809ArithmeticBaseCarry<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx, ACC16:$offset)>;
+  }
+}
+
+class MC6809ArithmeticBase<RegisterClass dst, dag operand> : MC6809LogicalInstr {
+  dag OutOperandList = (outs dst:$dst, NZc:$nz, Vc:$vout, Cc:$carryout);
+  dag InOperandList = !con((ins dst:$l), operand);
+  let Constraints = "$dst = $l";
+}
+
+multiclass MC6809Arithmetic<string size> {
+  def Imm : MC6809ArithmeticBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins !cast<DAGOperand>(!strconcat("i", size, "imm")):$imm)>;
+  def Reg : MC6809ArithmeticBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins !cast<RegisterClass>(!strconcat("ACC", size)):$src)>;
+  let mayLoad = true in {
+    def Abs : MC6809ArithmeticBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins addr16:$addr)>;
+    def IdxZero : MC6809ArithmeticBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx)>;
+    def IdxImm : MC6809ArithmeticBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx, i16imm:$offset)>;
+    def IndirIdxImm : MC6809ArithmeticBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx, i16imm:$offset)>;
+    def IdxReg8 : MC6809ArithmeticBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx, ACC8:$offset)>;
+    def IdxReg16 : MC6809ArithmeticBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx, ACC16:$offset)>;
+    def IndirIdxReg8 : MC6809ArithmeticBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx, ACC8:$offset)>;
+    def IndirIdxReg16 : MC6809ArithmeticBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx, ACC16:$offset)>;
+  }
+}
+
+class MC6809LoadBase<RegisterClass dst, dag operand> : MC6809LogicalInstr {
+  dag OutOperandList = (outs dst:$dst, NZc:$nz, Vc:$vout, Cc:$carryout);
+  dag InOperandList = operand;
+}
+
+multiclass MC6809Load<string size> {
+  let mayLoad = true in {
+    def Imm : MC6809LoadBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins !cast<DAGOperand>(!strconcat("i", size, "imm")):$imm)>;
+    def Reg : MC6809LoadBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins !cast<RegisterClass>(!strconcat("ACC", size)):$src)>;
+    def Abs : MC6809LoadBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins addr16:$addr)>;
+    def IdxZero : MC6809LoadBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx)>;
+    def IdxImm : MC6809LoadBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx, i16imm:$offset)>;
+    def IndirIdxImm : MC6809LoadBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx, i16imm:$offset)>;
+    def IdxReg8 : MC6809LoadBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx, ACC8:$offset)>;
+    def IdxReg16 : MC6809LoadBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx, ACC16:$offset)>;
+    def IndirIdxReg8 : MC6809LoadBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx, ACC8:$offset)>;
+    def IndirIdxReg16 : MC6809LoadBase<!cast<RegisterClass>(!strconcat("ACC", size)), (ins INDEX16:$idx, ACC16:$offset)>;
+  }
+}
+
+class MC6809StoreBase<RegisterClass src, dag operand> : MC6809LogicalInstr {
+  dag OutOperandList = !con(operand, (outs NZc:$nz, Vc:$vout, Cc:$carryout));
+  dag InOperandList = (ins src:$src);
+}
+
+multiclass MC6809Store<string size> {
+  def Reg : MC6809StoreBase<!cast<RegisterClass>(!strconcat("ACC", size)), (outs !cast<RegisterClass>(!strconcat("ACC", size)):$src)>;
+  def Abs : MC6809StoreBase<!cast<RegisterClass>(!strconcat("ACC", size)), (outs addr16:$addr)>;
+  def IdxZero : MC6809StoreBase<!cast<RegisterClass>(!strconcat("ACC", size)), (outs INDEX16:$idx)>;
+  def IdxImm : MC6809StoreBase<!cast<RegisterClass>(!strconcat("ACC", size)), (outs INDEX16:$idx, i16imm:$offset)>;
+  def IndirIdxImm : MC6809StoreBase<!cast<RegisterClass>(!strconcat("ACC", size)), (outs INDEX16:$idx, i16imm:$offset)>;
+  def IdxReg8 : MC6809StoreBase<!cast<RegisterClass>(!strconcat("ACC", size)), (outs INDEX16:$idx, ACC8:$offset)>;
+  def IdxReg16 : MC6809StoreBase<!cast<RegisterClass>(!strconcat("ACC", size)), (outs INDEX16:$idx, ACC16:$offset)>;
+  def IndirIdxReg8 : MC6809StoreBase<!cast<RegisterClass>(!strconcat("ACC", size)), (outs INDEX16:$idx, ACC8:$offset)>;
+  def IndirIdxReg16 : MC6809StoreBase<!cast<RegisterClass>(!strconcat("ACC", size)), (outs INDEX16:$idx, ACC16:$offset)>;
+}
+
+//===---------------------------------------------------------------------===//
 // Addition/Subtraction Instructions
 //===---------------------------------------------------------------------===//
 
-class MC6809AddSub : MC6809LogicalInstr {
-  dag OutOperandList = (outs ACC8:$dst, Cc:$carryout, Vc:$vout);
-  let Constraints = "$dst = $l, $carryout = $carryin";
+let isAdd = true in {
+  defm AddCarry8 : MC6809ArithmeticCarry<"8">;
+  defm AddCarry16 : MC6809ArithmeticCarry<"16">;
+  defm AddCarry32 : MC6809ArithmeticCarry<"32">;
 }
-class MC6809AddSubOp<Operand op> : MC6809AddSub {
-  dag InOperandList = (ins ACC8:$l, op:$r, Cc:$carryin);
-}
-class MC6809AddSubRC<RegisterClass rc> : MC6809AddSub {
-  dag InOperandList = (ins ACC8:$l, rc:$r, Cc:$carryin);
-}
+defm SubBorrow8 : MC6809ArithmeticCarry<"8">;
+defm SubBorrow16 : MC6809ArithmeticCarry<"16">;
+defm SubBorrow32 : MC6809ArithmeticCarry<"32">;
 
 let isAdd = true in {
-  def ADCImm : MC6809AddSubOp<i8imm>;
-  let mayLoad = true in {
-    def ADCAbs :
-      MC6809AddSubOp<i16imm>;
-    def ADCAbsIdx : MC6809AddSub {
-      dag InOperandList = (ins ACC8:$l, addr16:$addr, INDEX16:$idx, Cc:$carryin);
-    }
-    def ADCIndirIdx : MC6809AddSub {
-      dag InOperandList = (ins ACC8:$l, ACC16:$addr, INDEX16:$idx, Cc:$carryin);
-    }
-  }
+  defm Add8 : MC6809Arithmetic<"8">;
+  defm Add16 : MC6809Arithmetic<"16">;
+  defm Add32 : MC6809Arithmetic<"32">;
 }
-
-def SBCImm : MC6809AddSubOp<i8imm>;
-let mayLoad = true in {
-  def SBCAbs : MC6809AddSubOp<i16imm>;
-  def SBCAbsIdx : MC6809AddSub {
-    dag InOperandList = (ins ACC8:$l, addr16:$addr, INDEX16:$idx, Cc:$carryin);
-  }
-  def SBCIndirIdx : MC6809AddSub {
-    dag InOperandList = (ins ACC8:$l, ACC16:$addr, INDEX16:$idx, Cc:$carryin);
-  }
-}
+defm Sub8 : MC6809Arithmetic<"8">;
+defm Sub16 : MC6809Arithmetic<"16">;
+defm Sub32 : MC6809Arithmetic<"32">;
 
 //===---------------------------------------------------------------------===//
 // Bitwise instructions
 //===---------------------------------------------------------------------===//
 
-class MC6809BitwiseBase : MC6809LogicalInstr {
-  let OutOperandList = (outs ACC8:$dst);
-  let Constraints = "$dst = $l";
-}
-
-multiclass MC6809BitwiseInstr<SDNode node> {
-  def Imm : MC6809BitwiseBase {
-    let OutOperandList = (outs ACC8:$dst);
-    let InOperandList = (ins ACC8:$l, i8imm:$r);
-
-    let Pattern = [(set ACC8:$dst, (node ACC8:$l, imm:$r))];
-  }
-
-  let mayLoad = true in {
-    def Abs : MC6809BitwiseBase {
-      let InOperandList = (ins ACC8:$l, addr16:$r);
-    }
-
-    def AbsIdx : MC6809BitwiseBase {
-      let InOperandList = (ins ACC8:$l, addr16:$addr, INDEX16:$idx);
-    }
-
-    def IndirIdx : MC6809BitwiseBase {
-      let InOperandList = (ins ACC8:$l, ACC16:$addr, INDEX16:$idx);
-    }
-  }
-}
-
-defm AND : MC6809BitwiseInstr<and>;
-defm EOR : MC6809BitwiseInstr<xor>;
-defm ORA : MC6809BitwiseInstr<or>;
+defm AND8 : MC6809Arithmetic<"8">;
+defm AND16 : MC6809Arithmetic<"16">;
+defm OR8 : MC6809Arithmetic<"8">;
+defm OR16 : MC6809Arithmetic<"16">;
+defm XOR8 : MC6809Arithmetic<"8">;
+defm XOR16 : MC6809Arithmetic<"16">;
 
 //===---------------------------------------------------------------------===//
 // Shift/Rotate Instructions
@@ -269,24 +309,24 @@ def ReturnIRQImplicit : MC6809Return;
 // Immediate Load Instructions
 //===---------------------------------------------------------------------===//
 
-class MC6809ImmediateLoad<RegisterClass dst, Operand val> : MC6809LogicalInstr {
-  dag OutOperandList = (outs dst:$dst);
-  dag InOperandList = (ins val:$val);
-
-  let isAsCheapAsAMove = true;
-  let isMoveImm = true;
-}
+//class MC6809ImmediateLoad<RegisterClass dst, Operand val> : MC6809LogicalInstr {
+//  dag OutOperandList = (outs dst:$dst);
+//  dag InOperandList = (ins val:$val);
+//
+//  let isAsCheapAsAMove = true;
+//  let isMoveImm = true;
+//}
 
 // Set and clear CC bits
-def LDNImm : MC6809ImmediateLoad<Nc, i1imm>;
-def LDZImm : MC6809ImmediateLoad<Zc, i1imm>;
-def LDVImm : MC6809ImmediateLoad<Vc, i1imm>;
-def LDCImm : MC6809ImmediateLoad<Cc, i1imm>;
+//def LDNImm : MC6809ImmediateLoad<Nc, i1imm>;
+//def LDZImm : MC6809ImmediateLoad<Zc, i1imm>;
+//def LDVImm : MC6809ImmediateLoad<Vc, i1imm>;
+//def LDCImm : MC6809ImmediateLoad<Cc, i1imm>;
 
-// LDr #imm
-def LDImm8 : MC6809ImmediateLoad<ACC8, i8imm>;
-def LDImm16 : MC6809ImmediateLoad<REG16, i16imm>;
-def LDImm32 : MC6809ImmediateLoad<ACC32, i32imm>;
+// All the loads
+defm Load8 : MC6809Load<"8">;
+defm Load16 : MC6809Load<"16">;
+defm Load32 : MC6809Load<"32">;
 
 //===---------------------------------------------------------------------===//
 // Comparison Instructions
@@ -454,6 +494,11 @@ def STZAbsIdx : MC6809Store {
 // Integer Extension/Truncation Patterns
 //===---------------------------------------------------------------------===//
 
+def SEX8Implicit : MC6809LogicalInstr {
+  dag OutOperandList = (outs ACC8:$dst);
+  dag InOperandList = (ins BIT1:$lsb);
+}
+
 def SEX16Implicit : MC6809LogicalInstr {
   dag OutOperandList = (outs ADc:$ad);
   dag InOperandList = (ins ABc:$ab);
@@ -463,19 +508,33 @@ def SEX32Implicit : MC6809LogicalInstr {
   dag OutOperandList = (outs AQc:$aq);
   dag InOperandList = (ins AWc:$aw);
 }
+def ZEX8Implicit : MC6809LogicalInstr {
+  dag OutOperandList = (outs ACC8:$dst);
+  dag InOperandList = (ins BIT1:$lsb);
+}
 
-def : Pat<(i8 (anyext BIT1:$s)), (INSERT_SUBREG (IMPLICIT_DEF), BIT1:$s, sub_lsb)>;
-def : Pat<(i16 (anyext ACC8:$s)), (INSERT_SUBREG (IMPLICIT_DEF), ACC8:$s, sub_lo_byte)>;
-def : Pat<(i16 (anyext BIT1:$s)), (INSERT_SUBREG (IMPLICIT_DEF), (INSERT_SUBREG (i8 (IMPLICIT_DEF)), BIT1:$s, sub_lsb), sub_lo_byte)>;
+def ZEX16Implicit : MC6809LogicalInstr {
+  dag OutOperandList = (outs ADc:$ad);
+  dag InOperandList = (ins ABc:$ab);
+}
 
-def : Pat<(i1 (trunc ACC8:$s)), (EXTRACT_SUBREG (ANDImm ACC8:$s, 1), sub_lsb)>;
-def : Pat<(i8 (trunc ACC16:$s)), (EXTRACT_SUBREG ACC16:$s, sub_lo_byte)>;
-def : Pat<(i1 (trunc ACC16:$s)), (EXTRACT_SUBREG (ANDImm (EXTRACT_SUBREG ACC16:$s, sub_lo_byte), 1), sub_lsb)>;
+def ZEX32Implicit : MC6809LogicalInstr {
+  dag OutOperandList = (outs AQc:$aq);
+  dag InOperandList = (ins AWc:$aw);
+}
+
+// def : Pat<(i8 (anyext BIT1:$s)), (INSERT_SUBREG (IMPLICIT_DEF), BIT1:$s, sub_lsb)>;
+// def : Pat<(i16 (anyext ACC8:$s)), (INSERT_SUBREG (IMPLICIT_DEF), ACC8:$s, sub_lo_byte)>;
+// def : Pat<(i16 (anyext BIT1:$s)), (INSERT_SUBREG (IMPLICIT_DEF), (INSERT_SUBREG (i8 (IMPLICIT_DEF)), BIT1:$s, sub_lsb), sub_lo_byte)>;
+
+// def : Pat<(i1 (trunc ACC8:$s)), (EXTRACT_SUBREG (ANDImm ACC8:$s, 1), sub_lsb)>;
+// def : Pat<(i8 (trunc ACC16:$s)), (EXTRACT_SUBREG ACC16:$s, sub_lo_byte)>;
+// def : Pat<(i1 (trunc ACC16:$s)), (EXTRACT_SUBREG (ANDImm (EXTRACT_SUBREG ACC16:$s, sub_lo_byte), 1), sub_lsb)>;
 
 //===---------------------------------------------------------------------===//
 // Constant Patterns
 //===---------------------------------------------------------------------===//
 
-def : Pat<(i1 imm:$s), (LDImm1 imm:$s)>;
-def : Pat<(i8 imm:$s), (LDImm8 imm:$s)>;
-def : Pat<(i16 imm:$s), (LDImm16 imm:$s)>;
+// def : Pat<(i1 imm:$s), (LDImm1 imm:$s)>;
+// def : Pat<(i8 imm:$s), (LDImm8 imm:$s)>;
+// def : Pat<(i16 imm:$s), (LDImm16 imm:$s)>;

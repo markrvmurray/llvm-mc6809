@@ -53,7 +53,7 @@ void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
     OutMI.setOpcode(MC6809::SEXWx);
     return;
   }
-  case MC6809::LDImm8: {
+  case MC6809::Load8Imm: {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : LDImm8\n";);
     switch (MI->getOperand(0).getReg()) {
     default:
@@ -77,7 +77,7 @@ void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
     OutMI.addOperand(Val);
     return;
   }
-  case MC6809::LDImm16: {
+  case MC6809::Load16Imm: {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : LDImm16\n";);
     switch (MI->getOperand(0).getReg()) {
     default:
@@ -107,7 +107,7 @@ void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
     OutMI.addOperand(Val);
     return;
   }
-  case MC6809::LDImm32: {
+  case MC6809::Load32Imm: {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : LDImm32\n";);
     switch (MI->getOperand(0).getReg()) {
     default:

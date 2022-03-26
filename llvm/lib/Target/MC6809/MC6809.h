@@ -21,7 +21,6 @@ namespace llvm {
 
 void initializeMC6809CombinerPass(PassRegistry &);
 void initializeMC6809IndexIVPass(PassRegistry &);
-void initializeMC6809InsertCopiesPass(PassRegistry &);
 void initializeMC6809LateOptimizationPass(PassRegistry &);
 void initializeMC6809LowerSelectPass(PassRegistry &);
 void initializeMC6809NoRecursePass(PassRegistry &);

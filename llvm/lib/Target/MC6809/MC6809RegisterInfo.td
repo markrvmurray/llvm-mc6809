@@ -27,10 +27,13 @@ def sub_entire : MC6809SubRegIndex<1, 7>;
 def sub_firq : MC6809SubRegIndex<1, 6>;
 def sub_half : MC6809SubRegIndex<1, 5>;
 def sub_irq : MC6809SubRegIndex<1, 4>;
-def sub_negative : MC6809SubRegIndex<1, 3>;
-def sub_zero : MC6809SubRegIndex<1, 2>;
+def sub_negzero : MC6809SubRegIndex<2, 2>;
 def sub_overflow : MC6809SubRegIndex<1, 1>;
 def sub_carry : MC6809SubRegIndex<1, 0>;
+
+// 2-bit NZ subregister
+def sub_negative : MC6809SubRegIndex<1, 1>;
+def sub_zero : MC6809SubRegIndex<1, 0>;
 
 // Bits of the 8-bit processor status register set by most instructions.
 def sub_nzvc : MC6809SubRegIndex<4, 0>;
@@ -102,9 +105,15 @@ def Z : MC6809Reg1<53, "Z">;
 def V : MC6809Reg1<54, "V">;
 def C : MC6809Reg1<55, "C">;
 
-def NZVC : MC6809Reg<65, "NZVC"> {
-  let SubRegs = [N, Z, V, C];
-  let SubRegIndices = [sub_negative, sub_zero, sub_overflow, sub_carry];
+def NZ : MC6809Reg<65, "NZ"> {
+  let SubRegs = [N, Z];
+  let SubRegIndices = [sub_negative, sub_zero];
+  let CoveredBySubRegs = true;
+}
+
+def NZVC : MC6809Reg<66, "NZVC"> {
+  let SubRegs = [NZ, V, C];
+  let SubRegIndices = [sub_negzero, sub_overflow, sub_carry];
   let CoveredBySubRegs = true;
 }
 
@@ -190,6 +199,7 @@ let isPressureFineGrained = true in {
   def PCc : MC6809Reg16Class<(add PC)>;
   def CCc : MC6809Reg8Class<(add CC)>;
   def NZVCc : MC6809Reg8Class<(add NZVC)>;
+  def NZc : MC6809Reg8Class<(add NZ)>;
   def Nc : MC6809Reg1Class<(add N)>;
   def Zc : MC6809Reg1Class<(add Z)>;
   def Vc : MC6809Reg1Class<(add V)>;

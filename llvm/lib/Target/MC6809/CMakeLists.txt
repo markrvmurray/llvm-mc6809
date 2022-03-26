@@ -30,7 +30,6 @@ add_llvm_target(MC6809CodeGen
   MC6809FrameLowering.cpp
   MC6809ISelLowering.cpp
   MC6809IndexIV.cpp
-  MC6809InsertCopies.cpp
   MC6809InstrInfo.cpp
   MC6809LowerSelect.cpp
   MC6809MCInstLower.cpp
