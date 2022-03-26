@@ -1,4 +1,5 @@
-//===-- MC6809LegalizerInfo.h - MC6809 Legalizer ----------------------*- C++ -*-===//
+//===-- MC6809LegalizerInfo.h - MC6809 Legalizer ----------------------*- C++
+//-*-===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -28,7 +29,6 @@ public:
                          MachineInstr &MI) const override;
 
   bool legalizeCustom(LegalizerHelper &Helper, MachineInstr &MI) const override;
-
 };
 
 } // namespace llvm

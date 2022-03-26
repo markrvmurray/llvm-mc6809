@@ -1,4 +1,5 @@
-//===-- MC6809MachineFuctionInfo.h - MC6809 machine function info -----*- C++ -*-===//
+//===-- MC6809MachineFuctionInfo.h - MC6809 machine function info -----*- C++
+//-*-===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.

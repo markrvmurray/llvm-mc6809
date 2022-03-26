@@ -1,4 +1,5 @@
-//===-- MC6809Combiner.cpp - MC6809 GlobalIsel Combiner -------------------------===//
+//===-- MC6809Combiner.cpp - MC6809 GlobalIsel Combiner
+//-------------------------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -15,10 +16,10 @@
 
 #include "MC6809Combiner.h"
 
-#include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "MC6809.h"
 #include "MC6809LegalizerInfo.h"
 #include "MC6809Subtarget.h"
+#include "MCTargetDesc/MC6809MCTargetDesc.h"
 
 #include "llvm/CodeGen/GlobalISel/Combiner.h"
 #include "llvm/CodeGen/GlobalISel/CombinerHelper.h"
@@ -120,7 +121,7 @@ class MC6809CombinerInfo : public CombinerInfo {
 
 public:
   MC6809CombinerInfo(bool EnableOpt, bool OptSize, bool MinSize,
-                  GISelKnownBits *KB, MachineDominatorTree *MDT)
+                     GISelKnownBits *KB, MachineDominatorTree *MDT)
       : CombinerInfo(/*AllowIllegalOps*/ true,
                      /*ShouldLegalizeIllegal*/ false,
                      /*LegalizerInfo*/ nullptr, EnableOpt, OptSize, MinSize),
@@ -133,8 +134,8 @@ public:
                        MachineIRBuilder &B) const override;
 };
 
-bool MC6809CombinerInfo::combine(GISelChangeObserver &Observer, MachineInstr &MI,
-                              MachineIRBuilder &B) const {
+bool MC6809CombinerInfo::combine(GISelChangeObserver &Observer,
+                                 MachineInstr &MI, MachineIRBuilder &B) const {
   const LegalizerInfo *LI = MI.getMF()->getSubtarget().getLegalizerInfo();
   CombinerHelper Helper(Observer, B, KB, MDT, LI);
   MC6809GenCombinerHelper Generated(GeneratedRuleCfg, Helper);
@@ -202,8 +203,8 @@ bool MC6809Combiner::runOnMachineFunction(MachineFunction &MF) {
 }
 
 char MC6809Combiner::ID = 0;
-INITIALIZE_PASS_BEGIN(MC6809Combiner, DEBUG_TYPE, "Combine MC6809 machine instrs",
-                      false, false)
+INITIALIZE_PASS_BEGIN(MC6809Combiner, DEBUG_TYPE,
+                      "Combine MC6809 machine instrs", false, false)
 INITIALIZE_PASS_DEPENDENCY(TargetPassConfig)
 INITIALIZE_PASS_DEPENDENCY(GISelKnownBitsAnalysis)
 INITIALIZE_PASS_END(MC6809Combiner, DEBUG_TYPE, "Combine MC6809 machine instrs",

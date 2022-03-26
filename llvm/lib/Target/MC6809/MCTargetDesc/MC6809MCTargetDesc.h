@@ -1,4 +1,5 @@
-//===-- MC6809MCTargetDesc.h - MC6809 Target Descriptions -------------*- C++ -*-===//
+//===-- MC6809MCTargetDesc.h - MC6809 Target Descriptions -------------*- C++
+//-*-===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -39,15 +40,18 @@ Target &getTheMC6809Target();
 MCInstrInfo *createMC6809MCInstrInfo();
 
 /// Creates a machine code emitter for MC6809.
-MCCodeEmitter *createMC6809MCCodeEmitter(const MCInstrInfo &MCII, MCContext &Ctx);
+MCCodeEmitter *createMC6809MCCodeEmitter(const MCInstrInfo &MCII,
+                                         MCContext &Ctx);
 
 /// Creates an assembly backend for MC6809.
-MCAsmBackend *createMC6809AsmBackend(const Target &T, const MCSubtargetInfo &STI,
-                                  const MCRegisterInfo &MRI,
-                                  const llvm::MCTargetOptions &TO);
+MCAsmBackend *createMC6809AsmBackend(const Target &T,
+                                     const MCSubtargetInfo &STI,
+                                     const MCRegisterInfo &MRI,
+                                     const llvm::MCTargetOptions &TO);
 
 /// Creates an ELF object writer for MC6809.
-std::unique_ptr<MCObjectTargetWriter> createMC6809ELFObjectWriter(uint8_t OSABI);
+std::unique_ptr<MCObjectTargetWriter>
+createMC6809ELFObjectWriter(uint8_t OSABI);
 
 namespace MC6809_MC {
 /// Makes an e_flags value based on subtarget features.

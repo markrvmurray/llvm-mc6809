@@ -1,4 +1,5 @@
-//===-- MC6809FixupKinds.h - MC6809 Specific Fixup Entries ------------*- C++ -*-===//
+//===-- MC6809FixupKinds.h - MC6809 Specific Fixup Entries ------------*- C++
+//-*-===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -44,8 +45,8 @@ namespace fixups {} // end of namespace fixups
 
 class MC6809FixupKinds {
 public:
-  const static MCFixupKindInfo &getFixupKindInfo(const MC6809::Fixups Kind,
-                                                 const MCAsmBackend *Alternative);
+  const static MCFixupKindInfo &
+  getFixupKindInfo(const MC6809::Fixups Kind, const MCAsmBackend *Alternative);
 };
 } // namespace llvm
 

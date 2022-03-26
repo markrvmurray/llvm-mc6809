@@ -1,4 +1,5 @@
-//===-- MC6809IndexIV.h - MC6809 Index IV Pass ------------------------*- C++ -*-===//
+//===-- MC6809IndexIV.h - MC6809 Index IV Pass ------------------------*- C++
+//-*-===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -20,8 +21,7 @@ namespace llvm {
 
 struct MC6809IndexIV : public PassInfoMixin<MC6809IndexIV> {
   PreservedAnalyses run(Loop &L, LoopAnalysisManager &AM,
-                        LoopStandardAnalysisResults &AR,
-                        LPMUpdater &U);
+                        LoopStandardAnalysisResults &AR, LPMUpdater &U);
 };
 
 } // end namespace llvm

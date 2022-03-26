@@ -1,4 +1,5 @@
-//===-- MC6809FixupKinds.cpp - MC6809 fixup kinds  ------------------------------===//
+//===-- MC6809FixupKinds.cpp - MC6809 fixup kinds
+//------------------------------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -17,15 +18,15 @@
 namespace llvm {
 const MCFixupKindInfo &
 MC6809FixupKinds::getFixupKindInfo(const MC6809::Fixups Kind,
-                                const MCAsmBackend *Alternative) {
+                                   const MCAsmBackend *Alternative) {
   const static MCFixupKindInfo Infos[MC6809::NumTargetFixupKinds] = {
       // This table *must* be in same the order of fixup_* kinds in
       // MC6809FixupKinds.h.
       //
       // name, offset, bits, flags
-      {"Imm8", 0, 8, 0},            // An 8 bit immediate value.
-      {"Addr8", 0, 8, 0},           // An 8 bit direct page address.
-      {"Addr16", 0, 16, 0},         // A 16-bit address.
+      {"Imm8", 0, 8, 0},    // An 8 bit immediate value.
+      {"Addr8", 0, 8, 0},   // An 8 bit direct page address.
+      {"Addr16", 0, 16, 0}, // A 16-bit address.
       // PCRel8 is pc-relative and requires target specific handling
       {"PCRel8", 0, 8,
        MCFixupKindInfo::FKF_IsPCRel | MCFixupKindInfo::FKF_IsTarget}};

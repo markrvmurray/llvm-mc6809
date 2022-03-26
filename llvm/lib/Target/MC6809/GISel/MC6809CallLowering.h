@@ -1,4 +1,5 @@
-//===-- MC6809CallLowering.h - Call lowering -----------------------*- C++ -*-===//
+//===-- MC6809CallLowering.h - Call lowering -----------------------*- C++
+//-*-===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -28,8 +29,8 @@ public:
   MC6809CallLowering(const llvm::TargetLowering *TL) : CallLowering(TL) {}
 
   bool lowerReturn(MachineIRBuilder &MIRBuilder, const Value *Val,
-                   ArrayRef<Register> VRegs, FunctionLoweringInfo &FLI)
-                     const override;
+                   ArrayRef<Register> VRegs,
+                   FunctionLoweringInfo &FLI) const override;
 
   bool lowerFormalArguments(MachineIRBuilder &MIRBuilder, const Function &F,
                             ArrayRef<ArrayRef<Register>> VRegs,
@@ -40,8 +41,7 @@ public:
 
 private:
   bool lowerReturnVal(MachineIRBuilder &MIRBuilder, const Value *Val,
-                      ArrayRef<Register> VRegs,
-                      MachineInstrBuilder &Ret) const;
+                      ArrayRef<Register> VRegs, MachineInstrBuilder &Ret) const;
 };
 
 } // namespace llvm

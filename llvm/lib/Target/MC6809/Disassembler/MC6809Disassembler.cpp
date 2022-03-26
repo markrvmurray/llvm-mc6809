@@ -1,4 +1,5 @@
-//===- MC6809Disassembler.cpp - Disassembler for MC6809 ---------------*- C++ -*-===//
+//===- MC6809Disassembler.cpp - Disassembler for MC6809 ---------------*- C++
+//-*-===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,10 +11,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "MC6809.h"
 #include "MC6809RegisterInfo.h"
 #include "MC6809Subtarget.h"
+#include "MCTargetDesc/MC6809MCTargetDesc.h"
 
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCContext.h"
@@ -40,10 +41,12 @@ static DecodeStatus DecodeRegOperand(MCInst &MI, uint64_t Bits,
                                      uint64_t Address, const void *Decoder);
 
 static DecodeStatus DecodeINDEX16RegisterClass(MCInst &MI, uint64_t RegNo,
-                                               uint64_t Address, const void *Decoder);
+                                               uint64_t Address,
+                                               const void *Decoder);
 
 static DecodeStatus DecodeBIT8RegisterClass(MCInst &MI, uint64_t RegNo,
-                                            uint64_t Address, const void *Decoder);
+                                            uint64_t Address,
+                                            const void *Decoder);
 
 #include "MC6809GenDisassemblerTables.inc"
 
@@ -57,7 +60,7 @@ public:
                               ArrayRef<uint8_t> Bytes, uint64_t Address,
                               raw_ostream &CStream) const override;
 
-// clang-format off
+  // clang-format off
 // MRVM START MARKER
   unsigned DecoderTableSize = 13;
   struct DecoderTableList {
@@ -79,13 +82,13 @@ public:
     { DecoderTable_Page_3_Size_40, 5 },
   };
 // MRVM END MARKER
-// clang-format on
+  // clang-format on
 };
 } // namespace
 
 MCDisassembler *createMC6809Disassembler(const Target &T,
-                                      const MCSubtargetInfo &STI,
-                                      MCContext &Ctx) {
+                                         const MCSubtargetInfo &STI,
+                                         MCContext &Ctx) {
   return new MC6809Disassembler(STI, Ctx);
 }
 
@@ -157,9 +160,9 @@ static DecodeStatus DecodeBIT8RegisterClass(MCInst &MI, uint64_t RegNo,
 }
 
 DecodeStatus MC6809Disassembler::getInstruction(MCInst &Instr, uint64_t &Size,
-                                             ArrayRef<uint8_t> Bytes,
-                                             uint64_t Address,
-                                             raw_ostream &CStream) const {
+                                                ArrayRef<uint8_t> Bytes,
+                                                uint64_t Address,
+                                                raw_ostream &CStream) const {
   uint64_t Insn;
   DecodeStatus retVal, attempt;
 
@@ -169,7 +172,8 @@ DecodeStatus MC6809Disassembler::getInstruction(MCInst &Instr, uint64_t &Size,
   }
 
   retVal = MCDisassembler::Fail;
-  for (size_t InsnSize = 1; InsnSize <= (unsigned)std::min(5ul, Bytes.size()); InsnSize++) {
+  for (size_t InsnSize = 1; InsnSize <= (unsigned)std::min(5ul, Bytes.size());
+       InsnSize++) {
     Insn = 0;
     for (unsigned i = 0; i < InsnSize; i++)
       Insn |= Bytes[i] << (8 * i);
