@@ -1,4 +1,5 @@
-//===-- MC6809TargetMachine.h - Define TargetMachine for MC6809 -------*- C++ -*-===//
+//===-- MC6809TargetMachine.h - Define TargetMachine for MC6809 -------*- C++
+//-*-===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -27,9 +28,9 @@ namespace llvm {
 class MC6809TargetMachine : public LLVMTargetMachine {
 public:
   MC6809TargetMachine(const Target &T, const Triple &TT, StringRef CPU,
-                   StringRef FS, const TargetOptions &Options,
-                   Optional<Reloc::Model> RM, Optional<CodeModel::Model> CM,
-                   CodeGenOpt::Level OL, bool JIT);
+                      StringRef FS, const TargetOptions &Options,
+                      Optional<Reloc::Model> RM, Optional<CodeModel::Model> CM,
+                      CodeGenOpt::Level OL, bool JIT);
 
   const MC6809Subtarget *getSubtargetImpl() const { return &SubTarget; }
   const MC6809Subtarget *getSubtargetImpl(const Function &F) const override;

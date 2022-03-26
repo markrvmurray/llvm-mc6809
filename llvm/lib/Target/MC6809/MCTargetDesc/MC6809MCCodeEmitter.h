@@ -1,4 +1,5 @@
-//===-- MC6809MCCodeEmitter.h - Convert MC6809 Code to Machine Code -------------===//
+//===-- MC6809MCCodeEmitter.h - Convert MC6809 Code to Machine Code
+//-------------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -70,7 +71,8 @@ private:
                                  const MCSubtargetInfo &STI) const;
 
   unsigned getExprOpValue(const MCExpr *Expr, SmallVectorImpl<MCFixup> &Fixups,
-                          const MCSubtargetInfo &STI, unsigned int Offset ) const;
+                          const MCSubtargetInfo &STI,
+                          unsigned int Offset) const;
 
   /// Returns the binary encoding of operand.
   ///

@@ -1,4 +1,5 @@
-//===-- MC6809ISelLowering.h - MC6809 DAG Lowering Interface ----------*- C++ -*-===//
+//===-- MC6809ISelLowering.h - MC6809 DAG Lowering Interface ----------*- C++
+//-*-===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -26,7 +27,8 @@ class MC6809TargetMachine;
 
 class MC6809TargetLowering : public TargetLowering {
 public:
-  MC6809TargetLowering(const MC6809TargetMachine &TM, const MC6809Subtarget &STI);
+  MC6809TargetLowering(const MC6809TargetMachine &TM,
+                       const MC6809Subtarget &STI);
 
   bool isSelectSupported(SelectSupportKind /*kind*/) const override {
     return false;
@@ -54,7 +56,6 @@ public:
 
   /// Selects the correct CCAssignFn for a given CallingConvention value.
   CCAssignFn *CCAssignFnForReturn(CallingConv::ID CC, bool IsVarArg) const;
-
 };
 
 } // namespace llvm

@@ -1,4 +1,5 @@
-//===-- MC6809CallingConv.h - MC6809 Calling Convention-----------------*- C++ -*-===//
+//===-- MC6809CallingConv.h - MC6809 Calling Convention-----------------*- C++
+//-*-===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -25,8 +26,8 @@ bool CC_MC6809(unsigned ValNo, MVT ValVT, MVT LocVT,
                CCValAssign::LocInfo LocInfo, ISD::ArgFlagsTy ArgFlags,
                CCState &State);
 bool CC_MC6809_VarArgs(unsigned ValNo, MVT ValVT, MVT LocVT,
-                       CCValAssign::LocInfo LocInfo,
-                       ISD::ArgFlagsTy ArgFlags, CCState &State);
+                       CCValAssign::LocInfo LocInfo, ISD::ArgFlagsTy ArgFlags,
+                       CCState &State);
 } // namespace llvm
 
 #endif // LLVM_LIB_TARGET_MC6809_MC6809CALLINGCONV_H

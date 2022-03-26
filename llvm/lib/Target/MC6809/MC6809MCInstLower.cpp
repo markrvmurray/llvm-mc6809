@@ -1,4 +1,5 @@
-//===-- MC6809MCInstLower.cpp - Convert MC6809 MachineInstr to an MCInst --------===//
+//===-- MC6809MCInstLower.cpp - Convert MC6809 MachineInstr to an MCInst
+//--------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,12 +12,12 @@
 //
 //===----------------------------------------------------------------------===//
 #include "MC6809MCInstLower.h"
-#include "MCTargetDesc/MC6809AsmBackend.h"
-#include "MCTargetDesc/MC6809MCExpr.h"
-#include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "MC6809InstrInfo.h"
 #include "MC6809RegisterInfo.h"
 #include "MC6809Subtarget.h"
+#include "MCTargetDesc/MC6809AsmBackend.h"
+#include "MCTargetDesc/MC6809MCExpr.h"
+#include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "llvm/CodeGen/MachineJumpTableInfo.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/MC/MCExpr.h"
@@ -28,33 +29,35 @@ using namespace llvm;
 
 void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : MI = "; MI->dump(););
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : OutMI = "; OutMI.dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : OutMI = ";
+             OutMI.dump(););
   switch (MI->getOpcode()) {
   default:
     OutMI.setOpcode(MI->getOpcode());
     break;
   case MC6809::ReturnImplicit: {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : ReturnImplicit\n";);
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : ReturnImplicit\n";);
     OutMI.setOpcode(MC6809::RTSr);
     return;
   }
   case MC6809::ReturnIRQImplicit: {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : ReturnIRQImplicit\n";);
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__
+                      << " : ReturnIRQImplicit\n";);
     OutMI.setOpcode(MC6809::RTIr);
     return;
   }
   case MC6809::SEX16Implicit: {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : SEX16Implicit\n";);
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : SEX16Implicit\n";);
     OutMI.setOpcode(MC6809::SEXx);
     return;
   }
   case MC6809::SEX32Implicit: {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : SEX32Implicit\n";);
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : SEX32Implicit\n";);
     OutMI.setOpcode(MC6809::SEXWx);
     return;
   }
   case MC6809::Load8Imm: {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : LDImm8\n";);
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : LDImm8\n";);
     switch (MI->getOperand(0).getReg()) {
     default:
       llvm_unreachable("Unexpected register for LDImm8.");
@@ -78,7 +81,7 @@ void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
     return;
   }
   case MC6809::Load16Imm: {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : LDImm16\n";);
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : LDImm16\n";);
     switch (MI->getOperand(0).getReg()) {
     default:
       llvm_unreachable("Unexpected register for LDImm16.");
@@ -108,7 +111,7 @@ void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
     return;
   }
   case MC6809::Load32Imm: {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : LDImm32\n";);
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : LDImm32\n";);
     switch (MI->getOperand(0).getReg()) {
     default:
       llvm_unreachable("Unexpected register for LDImm32.");
@@ -523,7 +526,8 @@ void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
     }
 #endif
   }
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : OutMI = "; OutMI.dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : OutMI = ";
+             OutMI.dump(););
 
   // Handle any real instructions that weren't generated from a pseudo.
 #ifndef NDEBUG
@@ -538,12 +542,16 @@ void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
     if (lowerOperand(MO, MCOp))
       OutMI.addOperand(MCOp);
   }
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : OutMI = "; OutMI.dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : OutMI = ";
+             OutMI.dump(););
 }
 
-bool MC6809MCInstLower::lowerOperand(const MachineOperand &MO, MCOperand &MCOp) {
-  const MC6809RegisterInfo &TRI =
-      *MO.getParent()->getMF()->getSubtarget<MC6809Subtarget>().getRegisterInfo();
+bool MC6809MCInstLower::lowerOperand(const MachineOperand &MO,
+                                     MCOperand &MCOp) {
+  const MC6809RegisterInfo &TRI = *MO.getParent()
+                                       ->getMF()
+                                       ->getSubtarget<MC6809Subtarget>()
+                                       .getRegisterInfo();
 
   switch (MO.getType()) {
   default:
@@ -567,7 +575,7 @@ bool MC6809MCInstLower::lowerOperand(const MachineOperand &MO, MCOperand &MCOp) 
     if (MC6809AsmBackend::isBranchSectionName(GV->getSection())) {
       const MC6809MCExpr *Expr =
           MC6809MCExpr::create(MC6809MCExpr::VK_MC6809_ADDR_8, MCOp.getExpr(),
-                            /*isNegated=*/false, Ctx);
+                               /*isNegated=*/false, Ctx);
       MCOp = MCOperand::createExpr(Expr);
     }
     break;
@@ -594,7 +602,7 @@ bool MC6809MCInstLower::lowerOperand(const MachineOperand &MO, MCOperand &MCOp) 
 }
 
 MCOperand MC6809MCInstLower::lowerSymbolOperand(const MachineOperand &MO,
-                                             const MCSymbol *Sym) {
+                                                const MCSymbol *Sym) {
   const MCExpr *Expr = MCSymbolRefExpr::create(Sym, Ctx);
   if (!MO.isJTI() && MO.getOffset() != 0)
     Expr = MCBinaryExpr::createAdd(
@@ -606,11 +614,11 @@ MCOperand MC6809MCInstLower::lowerSymbolOperand(const MachineOperand &MO,
     break;
   case MC6809::MO_LO:
     Expr = MC6809MCExpr::create(MC6809MCExpr::VK_MC6809_ADDR_16, Expr,
-                             /*isNegated=*/false, Ctx);
+                                /*isNegated=*/false, Ctx);
     break;
   case MC6809::MO_HI:
     Expr = MC6809MCExpr::create(MC6809MCExpr::VK_MC6809_ADDR_16, Expr,
-                             /*isNegated=*/false, Ctx);
+                                /*isNegated=*/false, Ctx);
     break;
   case MC6809::MO_HI_JT: {
     // Jump tables are partitioned in two arrays: first all the low bytes,

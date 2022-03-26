@@ -1,4 +1,5 @@
-//===-- MC6809ELFObjectWriter.cpp - MC6809 ELF Writer ---------------------------===//
+//===-- MC6809ELFObjectWriter.cpp - MC6809 ELF Writer
+//---------------------------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -24,11 +25,8 @@ class MC6809ELFObjectWriter : public MCELFObjectTargetWriter {
 public:
   explicit MC6809ELFObjectWriter(uint8_t OSABI);
   virtual ~MC6809ELFObjectWriter();
-  unsigned getRelocType(MCContext &Ctx,
-                        const MCValue &Target,
-                        const MCFixup &Fixup,
-                        bool IsPCRel) const override;
+  unsigned getRelocType(MCContext &Ctx, const MCValue &Target,
+                        const MCFixup &Fixup, bool IsPCRel) const override;
 };
 
 } // end of namespace llvm
-

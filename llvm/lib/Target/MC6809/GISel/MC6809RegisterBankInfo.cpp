@@ -1,4 +1,5 @@
-//===- MC6809RegisterBankInfo.cpp --------------------------------------------===//
+//===- MC6809RegisterBankInfo.cpp
+//--------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -52,7 +53,8 @@ MC6809RegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
       break;
     }
     LLT Ty = MRI.getType(Operand.getReg());
-    ValMappings[Idx] = &getValueMapping(0, Ty.getSizeInBits(), MC6809::ACCRegBank);
+    ValMappings[Idx] =
+        &getValueMapping(0, Ty.getSizeInBits(), MC6809::ACCRegBank);
   }
   return getInstructionMapping(/*ID=*/1, /*Cost=*/1,
                                getOperandsMapping(ValMappings), NumOperands);
@@ -65,7 +67,7 @@ void MC6809RegisterBankInfo::applyMappingImpl(
 
 const RegisterBank &
 MC6809RegisterBankInfo::getRegBankFromRegClass(const TargetRegisterClass &RC,
-                                            LLT) const {
+                                               LLT) const {
   switch (RC.getID()) {
   case MC6809::CcRegClassID:
   case MC6809::NcRegClassID:
@@ -107,7 +109,8 @@ MC6809RegisterBankInfo::getRegBankFromRegClass(const TargetRegisterClass &RC,
     return getRegBank(MC6809::DPRegBankID);
 
   default:
-    LLVM_DEBUG(dbgs() << "Not handling register class ID : " << RC.getID() << "\n";);
+    LLVM_DEBUG(dbgs() << "Not handling register class ID : " << RC.getID()
+                      << "\n";);
     llvm_unreachable("Register class not supported");
   }
 }

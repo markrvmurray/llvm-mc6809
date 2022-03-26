@@ -1,4 +1,5 @@
-//===-- MC6809AsmBackend.cpp - MC6809 Asm Backend  ------------------------------===//
+//===-- MC6809AsmBackend.cpp - MC6809 Asm Backend
+//------------------------------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -56,15 +57,16 @@ struct BranchInstructionRelaxationEntry {
 #include "MC6809GenSearchableTables.inc"
 } // namespace MC6809
 
-MCAsmBackend *createMC6809AsmBackend(const Target &T, const MCSubtargetInfo &STI,
-                                  const MCRegisterInfo &MRI,
-                                  const llvm::MCTargetOptions &TO) {
+MCAsmBackend *createMC6809AsmBackend(const Target &T,
+                                     const MCSubtargetInfo &STI,
+                                     const MCRegisterInfo &MRI,
+                                     const llvm::MCTargetOptions &TO) {
   return new MC6809AsmBackend(STI.getTargetTriple().getOS());
 }
 
 void MC6809AsmBackend::adjustFixupValue(const MCFixup &Fixup,
-                                     const MCValue &Target, uint64_t &Value,
-                                     MCContext *Ctx) const {
+                                        const MCValue &Target, uint64_t &Value,
+                                        MCContext *Ctx) const {
   unsigned Kind = Fixup.getKind();
 
   // Parsed LLVM-generated temporary labels are already
@@ -89,15 +91,15 @@ void MC6809AsmBackend::adjustFixupValue(const MCFixup &Fixup,
 
   switch (Kind) {
   case MC6809::PCRel8:
-    /* MC6809 pc-relative instructions are counted from the end of the instruction,
-     * not the middle of it.
+    /* MC6809 pc-relative instructions are counted from the end of the
+     * instruction, not the middle of it.
      */
     Value = (Value - 1) & 0xff;
     break;
 
   case MC6809::PCRel16:
-    /* MC6809 pc-relative instructions are counted from the end of the instruction,
-     * not the middle of it.
+    /* MC6809 pc-relative instructions are counted from the end of the
+     * instruction, not the middle of it.
      */
     Value = (Value - 1) & 0xffff;
     break;
@@ -116,10 +118,10 @@ void MC6809AsmBackend::adjustFixupValue(const MCFixup &Fixup,
 }
 
 void MC6809AsmBackend::applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
-                               const MCValue &Target,
-                               MutableArrayRef<char> Data, uint64_t Value,
-                               bool IsResolved,
-                               const MCSubtargetInfo *STI) const {
+                                  const MCValue &Target,
+                                  MutableArrayRef<char> Data, uint64_t Value,
+                                  bool IsResolved,
+                                  const MCSubtargetInfo *STI) const {
   unsigned int Kind = Fixup.getKind();
   uint32_t Offset = Fixup.getOffset();
 
@@ -158,18 +160,19 @@ void MC6809AsmBackend::applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
   }
 }
 
-bool MC6809AsmBackend::fixupNeedsRelaxation(const MCFixup &Fixup, uint64_t Value,
-                                         const MCRelaxableFragment *DF,
-                                         const MCAsmLayout &Layout) const {
+bool MC6809AsmBackend::fixupNeedsRelaxation(const MCFixup &Fixup,
+                                            uint64_t Value,
+                                            const MCRelaxableFragment *DF,
+                                            const MCAsmLayout &Layout) const {
   return false;
 }
 
 bool MC6809AsmBackend::evaluateTargetFixup(const MCAssembler &Asm,
-                                        const MCAsmLayout &Layout,
-                                        const MCFixup &Fixup,
-                                        const MCFragment *DF,
-                                        const MCValue &Target, uint64_t &Value,
-                                        bool &WasForced) {
+                                           const MCAsmLayout &Layout,
+                                           const MCFixup &Fixup,
+                                           const MCFragment *DF,
+                                           const MCValue &Target,
+                                           uint64_t &Value, bool &WasForced) {
   assert(Fixup.getKind() == (MCFixupKind)MC6809::PCRel8 &&
          "unexpected target fixup kind");
   Value = Target.getConstant();
@@ -193,11 +196,10 @@ bool MC6809AsmBackend::evaluateTargetFixup(const MCAssembler &Asm,
   return (INT8_MIN <= SignedValue && SignedValue <= INT8_MAX);
 }
 
-bool MC6809AsmBackend::fixupNeedsRelaxationAdvanced(const MCFixup &Fixup,
-                                                 bool Resolved, uint64_t Value,
-                                                 const MCRelaxableFragment *DF,
-                                                 const MCAsmLayout &Layout,
-                                                 const bool WasForced) const {
+bool MC6809AsmBackend::fixupNeedsRelaxationAdvanced(
+    const MCFixup &Fixup, bool Resolved, uint64_t Value,
+    const MCRelaxableFragment *DF, const MCAsmLayout &Layout,
+    const bool WasForced) const {
 #if 0
   auto Info = getFixupKindInfo(Fixup.getKind());
   const auto *MME = dyn_cast<MC6809MCExpr>(Fixup.getValue());
@@ -276,12 +278,14 @@ bool MC6809AsmBackend::isBranchSectionName(StringRef Name) {
   return is_contained(MC6809::MC6809BranchSectionTable, Name);
 }
 
-MCFixupKindInfo const &MC6809AsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
+MCFixupKindInfo const &
+MC6809AsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
   if (Kind < FirstTargetFixupKind) {
     return MCAsmBackend::getFixupKindInfo(Kind);
   }
 
-  return MC6809FixupKinds::getFixupKindInfo(static_cast<MC6809::Fixups>(Kind), this);
+  return MC6809FixupKinds::getFixupKindInfo(static_cast<MC6809::Fixups>(Kind),
+                                            this);
 }
 
 unsigned MC6809AsmBackend::getNumFixupKinds() const {
@@ -328,7 +332,7 @@ void MC6809AsmBackend::relaxForImmediate(MCInst &Inst) {
 }
 
 bool MC6809AsmBackend::mayNeedRelaxation(const MCInst &Inst,
-                                      const MCSubtargetInfo &STI) const {
+                                         const MCSubtargetInfo &STI) const {
   return visitRelaxableOperand(Inst,
                                [](const MCOperand &Operand, unsigned RelaxTo) {
                                  if (!Operand.isExpr()) {
@@ -343,7 +347,7 @@ bool MC6809AsmBackend::mayNeedRelaxation(const MCInst &Inst,
 }
 
 void MC6809AsmBackend::relaxInstruction(MCInst &Inst,
-                                     const MCSubtargetInfo &STI) const {
+                                        const MCSubtargetInfo &STI) const {
   unsigned Opcode = relaxInstructionTo(Inst);
   if (Opcode != 0) {
     Inst.setOpcode(Opcode);
@@ -351,7 +355,7 @@ void MC6809AsmBackend::relaxInstruction(MCInst &Inst,
 }
 
 bool MC6809AsmBackend::writeNopData(raw_ostream &OS, uint64_t Count,
-                                 const MCSubtargetInfo *STI) const {
+                                    const MCSubtargetInfo *STI) const {
   // todo: fix for virtual targets
   while ((Count--) > 0) {
     OS << 0xEA; // Sports. It's in the game.  Knowing the 6502 hexadecimal

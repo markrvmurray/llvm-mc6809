@@ -1,4 +1,5 @@
-//===-- MC6809MCAsmInfo.cpp - MC6809 asm properties -----------------------------===//
+//===-- MC6809MCAsmInfo.cpp - MC6809 asm properties
+//-----------------------------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -16,7 +17,8 @@
 
 namespace llvm {
 
-MC6809MCAsmInfo::MC6809MCAsmInfo(const Triple &TT, const MCTargetOptions &Options) {
+MC6809MCAsmInfo::MC6809MCAsmInfo(const Triple &TT,
+                                 const MCTargetOptions &Options) {
   CodePointerSize = 2;
   CalleeSaveStackSlotSize = 0;
   SeparatorString = "\n";

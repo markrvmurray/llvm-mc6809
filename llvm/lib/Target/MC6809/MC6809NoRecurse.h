@@ -1,4 +1,5 @@
-//===-- MC6809NoRecurse.h - MC6809 NoRecurse Pass ---------------------*- C++ -*-===//
+//===-- MC6809NoRecurse.h - MC6809 NoRecurse Pass ---------------------*- C++
+//-*-===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.

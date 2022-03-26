@@ -1,4 +1,5 @@
-//===-- MC6809IndexIV.cpp - MC6809 Index IV Pass --------------------------------===//
+//===-- MC6809IndexIV.cpp - MC6809 Index IV Pass
+//--------------------------------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -28,8 +29,8 @@
 using namespace llvm;
 
 PreservedAnalyses MC6809IndexIV::run(Loop &L, LoopAnalysisManager &AM,
-                                  LoopStandardAnalysisResults &AR,
-                                  LPMUpdater &) {
+                                     LoopStandardAnalysisResults &AR,
+                                     LPMUpdater &) {
   LLVM_DEBUG(dbgs() << "***************************** MC6809 INDEX IV PASS "
                        "*****************************\n");
 

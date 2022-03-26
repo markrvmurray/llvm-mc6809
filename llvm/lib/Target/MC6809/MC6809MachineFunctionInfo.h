@@ -1,4 +1,5 @@
-//===-- MC6809MachineFuctionInfo.h - MC6809 machine function info -----*- C++ -*-===//
+//===-- MC6809MachineFuctionInfo.h - MC6809 machine function info -----*- C++
+//-*-===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -22,14 +23,14 @@ class MC6809MachineFunctionInfo : public MachineFunctionInfo {
   const GlobalVariable *StaticStackVariable = nullptr;
 
 public:
-  MC6809MachineFunctionInfo(MachineFunction& MF) {}
+  MC6809MachineFunctionInfo(MachineFunction &MF) {}
 
   /// Returns the fake frame index indicating the start of the varargs region of
   /// the incoming call stack.
   int getVarArgsStackIndex() const { return VarArgsStackIndex; }
 
-  /// Sets the fake frame index indicating the start of the varargs region of the
-  /// incoming call stack.
+  /// Sets the fake frame index indicating the start of the varargs region of
+  /// the incoming call stack.
   void setVarArgsStackIndex(int Index) { VarArgsStackIndex = Index; }
 
   /// Returns the static stack variable allocated for this function.

@@ -1,4 +1,5 @@
-//===-- MC6809PostRAScavenging.h - MC6809 Post RA Register Scavenging -*- C++ -*-===//
+//===-- MC6809PostRAScavenging.h - MC6809 Post RA Register Scavenging -*- C++
+//-*-===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file declares the MC6809 post-register-allocation register scavenging pass.
+// This file declares the MC6809 post-register-allocation register scavenging
+// pass.
 //
 //===----------------------------------------------------------------------===//
 

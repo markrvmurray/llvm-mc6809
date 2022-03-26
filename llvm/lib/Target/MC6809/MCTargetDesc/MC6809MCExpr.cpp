@@ -1,4 +1,5 @@
-//===-- MC6809MCExpr.cpp - MC6809 specific MC expression classes ----------------===//
+//===-- MC6809MCExpr.cpp - MC6809 specific MC expression classes
+//----------------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -30,7 +31,7 @@ const struct ModifierEntry {
 } // end of anonymous namespace
 
 const MC6809MCExpr *MC6809MCExpr::create(VariantKind Kind, const MCExpr *Expr,
-                                   bool Negated, MCContext &Ctx) {
+                                         bool Negated, MCContext &Ctx) {
   return new (Ctx) MC6809MCExpr(Kind, Expr, Negated);
 }
 
@@ -65,8 +66,8 @@ bool MC6809MCExpr::evaluateAsConstant(int64_t &Result) const {
 }
 
 bool MC6809MCExpr::evaluateAsRelocatableImpl(MCValue &Result,
-                                          const MCAsmLayout *Layout,
-                                          const MCFixup *Fixup) const {
+                                             const MCAsmLayout *Layout,
+                                             const MCFixup *Fixup) const {
   MCValue Value;
   bool IsRelocatable = SubExpr->evaluateAsRelocatable(Value, Layout, Fixup);
 

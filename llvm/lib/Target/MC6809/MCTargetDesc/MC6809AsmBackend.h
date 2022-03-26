@@ -1,4 +1,5 @@
-//===-- MC6809AsmBackend.h - MC6809 Asm Backend  --------------------------------===//
+//===-- MC6809AsmBackend.h - MC6809 Asm Backend
+//--------------------------------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -118,8 +119,8 @@ public:
   static unsigned relaxInstructionTo(const MCInst &Inst);
 
   /// If the provided instruction contains an out-of-range immediate in a
-  /// relaxable opcode, perform the relaxation now. MC6809AsmPrinter calls this at
-  /// the end of lowering so it does not have to deal with the relaxation
+  /// relaxable opcode, perform the relaxation now. MC6809AsmPrinter calls this
+  /// at the end of lowering so it does not have to deal with the relaxation
   /// itself.
   static void relaxForImmediate(MCInst &Inst);
 

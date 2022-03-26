@@ -1,4 +1,5 @@
-//===-- MC6809MachineScheduler.cpp - MC6809 Instruction Scheduler ---------------===//
+//===-- MC6809MachineScheduler.cpp - MC6809 Instruction Scheduler
+//---------------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -28,8 +29,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "MC6809MachineScheduler.h"
-#include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "MC6809RegisterInfo.h"
+#include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineScheduler.h"
@@ -40,8 +41,8 @@ MC6809SchedStrategy::MC6809SchedStrategy(const MachineSchedContext *C)
     : GenericScheduler(C) {}
 
 bool MC6809SchedStrategy::tryCandidate(SchedCandidate &Cand,
-                                    SchedCandidate &TryCand,
-                                    SchedBoundary *Zone) const {
+                                       SchedCandidate &TryCand,
+                                       SchedBoundary *Zone) const {
 
   // Initialize the candidate if needed.
   if (!Cand.isValid()) {
@@ -50,15 +51,17 @@ bool MC6809SchedStrategy::tryCandidate(SchedCandidate &Cand,
   }
 
   if (tryLess(
-          registerClassPressureDiff(MC6809::ACC8RegClass, TryCand.SU, TryCand.AtTop),
+          registerClassPressureDiff(MC6809::ACC8RegClass, TryCand.SU,
+                                    TryCand.AtTop),
           registerClassPressureDiff(MC6809::ACC8RegClass, Cand.SU, Cand.AtTop),
           TryCand, Cand, PhysReg))
     return TryCand.Reason != NoCand;
 
-  if (tryLess(
-          registerClassPressureDiff(MC6809::INDEX16RegClass, TryCand.SU, TryCand.AtTop),
-          registerClassPressureDiff(MC6809::INDEX16RegClass, Cand.SU, Cand.AtTop),
-          TryCand, Cand, PhysReg))
+  if (tryLess(registerClassPressureDiff(MC6809::INDEX16RegClass, TryCand.SU,
+                                        TryCand.AtTop),
+              registerClassPressureDiff(MC6809::INDEX16RegClass, Cand.SU,
+                                        Cand.AtTop),
+              TryCand, Cand, PhysReg))
     return TryCand.Reason != NoCand;
 
   // Avoid exceeding the target's limit.
@@ -98,9 +101,8 @@ bool MC6809SchedStrategy::tryCandidate(SchedCandidate &Cand,
 }
 
 // Returns the change in pressure in a SU for a physical register.
-int MC6809SchedStrategy::registerClassPressureDiff(const TargetRegisterClass &RC,
-                                                const SUnit *SU,
-                                                bool IsTop) const {
+int MC6809SchedStrategy::registerClassPressureDiff(
+    const TargetRegisterClass &RC, const SUnit *SU, bool IsTop) const {
   const MachineInstr *MI = SU->getInstr();
 
   int PressureDiff = 0;

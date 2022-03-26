@@ -1,4 +1,5 @@
-//===-- MC6809ELFObjectWriter.cpp - MC6809 ELF Writer ---------------------------===//
+//===-- MC6809ELFObjectWriter.cpp - MC6809 ELF Writer
+//---------------------------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -33,9 +34,10 @@ public:
 MC6809ELFObjectWriter::MC6809ELFObjectWriter(uint8_t OSABI)
     : MCELFObjectTargetWriter(false, OSABI, ELF::EM_MC6809, true) {}
 
-unsigned MC6809ELFObjectWriter::getRelocType(MCContext &Ctx, const MCValue &Target,
-                                          const MCFixup &Fixup,
-                                          bool IsPCRel) const {
+unsigned MC6809ELFObjectWriter::getRelocType(MCContext &Ctx,
+                                             const MCValue &Target,
+                                             const MCFixup &Fixup,
+                                             bool IsPCRel) const {
   MCSymbolRefExpr::VariantKind Modifier = Target.getAccessVariant();
   switch ((unsigned)Fixup.getKind()) {
   case FK_Data_1:
@@ -73,7 +75,8 @@ unsigned MC6809ELFObjectWriter::getRelocType(MCContext &Ctx, const MCValue &Targ
   }
 }
 
-std::unique_ptr<MCObjectTargetWriter> createMC6809ELFObjectWriter(uint8_t OSABI) {
+std::unique_ptr<MCObjectTargetWriter>
+createMC6809ELFObjectWriter(uint8_t OSABI) {
   return std::make_unique<MC6809ELFObjectWriter>(OSABI);
 }
 

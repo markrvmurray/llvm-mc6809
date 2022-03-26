@@ -1,4 +1,5 @@
-//===-- MC6809CallLowering.cpp - MC6809 Call lowering -----------------*- C++ -*-===//
+//===-- MC6809CallLowering.cpp - MC6809 Call lowering -----------------*- C++
+//-*-===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -13,12 +14,12 @@
 
 #include "MC6809CallLowering.h"
 
-#include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "MC6809CallingConv.h"
 #include "MC6809FrameLowering.h"
 #include "MC6809MachineFunctionInfo.h"
 #include "MC6809RegisterInfo.h"
 #include "MC6809TargetTransformInfo.h"
+#include "MCTargetDesc/MC6809MCTargetDesc.h"
 
 #include "llvm/CodeGen/Analysis.h"
 #include "llvm/CodeGen/CallingConvLower.h"
@@ -49,7 +50,7 @@ namespace {
 struct MC6809IncomingValueHandler : public CallLowering::IncomingValueHandler {
 
   MC6809IncomingValueHandler(MachineIRBuilder &MIRBuilder,
-                          MachineRegisterInfo &MRI)
+                             MachineRegisterInfo &MRI)
       : IncomingValueHandler(MIRBuilder, MRI) {}
 
   Register getStackAddress(uint64_t Size, int64_t Offset,
@@ -66,7 +67,8 @@ struct MC6809IncomingValueHandler : public CallLowering::IncomingValueHandler {
     int FI = MFI.CreateFixedObject(Size, Offset, IsImmutable);
     MPO = MachinePointerInfo::getFixedStack(MIRBuilder.getMF(), FI);
 
-    return MIRBuilder.buildFrameIndex(LLT::pointer(MPO.getAddrSpace(), 16), FI).getReg(0);
+    return MIRBuilder.buildFrameIndex(LLT::pointer(MPO.getAddrSpace(), 16), FI)
+        .getReg(0);
   }
 
   void assignValueToAddress(Register ValVReg, Register Addr, LLT MemTy,
@@ -140,8 +142,8 @@ struct MC6809FormalArgHandler : public MC6809IncomingValueHandler {
 
 // ---------------------------------------------------------------------------
 struct MC6809CallReturnHandler : public MC6809IncomingValueHandler {
-  MC6809CallReturnHandler(MachineIRBuilder &MIRBuilder, MachineRegisterInfo &MRI,
-                    MachineInstrBuilder MIB)
+  MC6809CallReturnHandler(MachineIRBuilder &MIRBuilder,
+                          MachineRegisterInfo &MRI, MachineInstrBuilder MIB)
       : MC6809IncomingValueHandler(MIRBuilder, MRI), MIB(MIB) {}
 
   void markPhysRegUsed(unsigned PhysReg) override {
@@ -157,7 +159,7 @@ struct MC6809CallReturnHandler : public MC6809IncomingValueHandler {
 /// function return values and call parameters).
 struct MC6809OutgoingValueHandler : public CallLowering::OutgoingValueHandler {
   MC6809OutgoingValueHandler(MachineIRBuilder &MIRBuilder,
-                          MachineRegisterInfo &MRI, MachineInstrBuilder &MIB)
+                             MachineRegisterInfo &MRI, MachineInstrBuilder &MIB)
       : OutgoingValueHandler(MIRBuilder, MRI), MIB(MIB) {}
 
   Register getStackAddress(uint64_t Size, int64_t Offset,
@@ -203,17 +205,17 @@ struct MC6809OutgoingValueHandler : public CallLowering::OutgoingValueHandler {
 
 } // end anonymous namespace
 
-// FIXME: This should move to the MC6809Subtarget when it supports all the opcodes.
+// FIXME: This should move to the MC6809Subtarget when it supports all the
+// opcodes.
 static inline unsigned getCallOpcode(bool isDirect) {
   if (isDirect)
     return MC6809::CallRelative;
   return MC6809::CallIndir;
 }
 
-// FIXME: This should move to the MC6809Subtarget when it supports all the opcodes.
-static inline unsigned getReturnOpcode() {
-  return MC6809::ReturnImplicit;
-}
+// FIXME: This should move to the MC6809Subtarget when it supports all the
+// opcodes.
+static inline unsigned getReturnOpcode() { return MC6809::ReturnImplicit; }
 
 // =========================================================================================
 // ==== IMPORTANT -- lowerReturn
@@ -221,8 +223,9 @@ static inline unsigned getReturnOpcode() {
 /// Lower the return value for the already existing \p Ret. This assumes that
 /// \p MIRBuilder's insertion point is correct.
 bool MC6809CallLowering::lowerReturnVal(MachineIRBuilder &MIRBuilder,
-                                     const Value *Val, ArrayRef<Register> VRegs,
-                                     MachineInstrBuilder &Ret) const {
+                                        const Value *Val,
+                                        ArrayRef<Register> VRegs,
+                                        MachineInstrBuilder &Ret) const {
   if (!Val)
     // Nothing to do here.
     return true;
@@ -250,8 +253,8 @@ bool MC6809CallLowering::lowerReturnVal(MachineIRBuilder &MIRBuilder,
 }
 
 bool MC6809CallLowering::lowerReturn(MachineIRBuilder &MIRBuilder,
-                                  const Value *Val, ArrayRef<Register> VRegs,
-                                  FunctionLoweringInfo &FLI) const {
+                                     const Value *Val, ArrayRef<Register> VRegs,
+                                     FunctionLoweringInfo &FLI) const {
   assert(!Val == VRegs.empty() && "Return value without a vreg");
 
   unsigned Opcode = getReturnOpcode();
@@ -312,10 +315,9 @@ Register MC6809OutgoingValueHandler::getStackAddress(uint64_t Size, int64_t Offs
 // =========================================================================================
 // ==== IMPORTANT -- lowerFormalArguments
 // =========================================================================================
-bool MC6809CallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder,
-                                              const Function &F,
-                                              ArrayRef<ArrayRef<Register>> VRegs,
-                                              FunctionLoweringInfo &FLI) const {
+bool MC6809CallLowering::lowerFormalArguments(
+    MachineIRBuilder &MIRBuilder, const Function &F,
+    ArrayRef<ArrayRef<Register>> VRegs, FunctionLoweringInfo &FLI) const {
   auto &TLI = *getTLI<MC6809TargetLowering>();
 
   // Quick exit if there aren't any args
@@ -333,7 +335,8 @@ bool MC6809CallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder,
       TLI.CCAssignFnForCall(F.getCallingConv(), F.isVarArg());
 
   OutgoingValueAssigner ArgAssigner(AssignFn);
-  MC6809FormalArgHandler ArgHandler(MIRBuilder, MIRBuilder.getMF().getRegInfo());
+  MC6809FormalArgHandler ArgHandler(MIRBuilder,
+                                    MIRBuilder.getMF().getRegInfo());
 
   SmallVector<ArgInfo, 8> SplitArgInfos;
   unsigned Idx = 0;
@@ -445,7 +448,9 @@ bool MC6809CallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
   // accordingly.
   CallSeqStart.addImm(ArgAssigner.StackOffset).addImm(0);
 
-  MIRBuilder.buildInstr(MC6809::ADJCALLSTACKUP).addImm(ArgAssigner.StackOffset).addImm(-1ULL);
+  MIRBuilder.buildInstr(MC6809::ADJCALLSTACKUP)
+      .addImm(ArgAssigner.StackOffset)
+      .addImm(-1ULL);
 
   return true;
 }

@@ -1,4 +1,5 @@
-//===-- MC6809InstPrinter.cpp - Convert MC6809 MCInst to assembly syntax --------===//
+//===-- MC6809InstPrinter.cpp - Convert MC6809 MCInst to assembly syntax
+//--------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -33,9 +34,10 @@
 namespace llvm {
 
 void MC6809InstPrinter::printInst(const MCInst *MI, uint64_t Address,
-                               StringRef Annot, const MCSubtargetInfo &STI,
-                               raw_ostream &OS) {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI->dump(););
+                                  StringRef Annot, const MCSubtargetInfo &STI,
+                                  raw_ostream &OS) {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = ";
+             MI->dump(););
   std::string AiryOperands;
   raw_string_ostream AiryOperandStream(AiryOperands);
   auto MnemonicInfo = getMnemonic(MI);
@@ -57,7 +59,7 @@ void MC6809InstPrinter::printInst(const MCInst *MI, uint64_t Address,
 }
 
 void MC6809InstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
-                                  raw_ostream &O) {
+                                     raw_ostream &O) {
   const MCOperand &Op = MI->getOperand(OpNo);
 
   if (Op.isReg()) {

@@ -1,4 +1,5 @@
-//===-- MC6809TargetMachine.cpp - Define TargetMachine for MC6809 ---------------===//
+//===-- MC6809TargetMachine.cpp - Define TargetMachine for MC6809
+//---------------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -28,9 +29,8 @@
 #include "llvm/Transforms/Scalar/IndVarSimplify.h"
 #include "llvm/Transforms/Utils.h"
 
-#include "MCTargetDesc/MC6809MCTargetDesc.h"
-#include "MC6809.h"
 #include "GISel/MC6809Combiner.h"
+#include "MC6809.h"
 #include "MC6809IndexIV.h"
 #include "MC6809LowerSelect.h"
 #include "MC6809MachineScheduler.h"
@@ -39,6 +39,7 @@
 #include "MC6809StaticStackAlloc.h"
 #include "MC6809TargetObjectFile.h"
 #include "MC6809TargetTransformInfo.h"
+#include "MCTargetDesc/MC6809MCTargetDesc.h"
 
 #define DEBUG_TYPE "mc6809-targetmachine"
 
@@ -58,7 +59,8 @@ extern "C" void LLVM_EXTERNAL_VISIBILITY LLVMInitializeMC6809Target() {
 }
 
 static const char *MC6809DataLayout =
-    "e-p:16:8-S8-m:e-i1:8:8-i8:8:8-i16:8:8-i32:8:8-i64:8:8-f16:8:8-f32:8:8-f64:8:8-f128:8:8-a:0:8-n8:16";
+    "e-p:16:8-S8-m:e-i1:8:8-i8:8:8-i16:8:8-i32:8:8-i64:8:8-f16:8:8-f32:8:8-f64:"
+    "8:8-f128:8:8-a:0:8-n8:16";
 
 /// Processes a CPU name.
 static StringRef getCPU(StringRef CPU) {
@@ -70,11 +72,11 @@ static Reloc::Model getEffectiveRelocModel(Optional<Reloc::Model> RM) {
 }
 
 MC6809TargetMachine::MC6809TargetMachine(const Target &T, const Triple &TT,
-                                   StringRef CPU, StringRef FS,
-                                   const TargetOptions &Options,
-                                   Optional<Reloc::Model> RM,
-                                   Optional<CodeModel::Model> CM,
-                                   CodeGenOpt::Level OL, bool JIT)
+                                         StringRef CPU, StringRef FS,
+                                         const TargetOptions &Options,
+                                         Optional<Reloc::Model> RM,
+                                         Optional<CodeModel::Model> CM,
+                                         CodeGenOpt::Level OL, bool JIT)
     : LLVMTargetMachine(T, MC6809DataLayout, TT, getCPU(CPU), FS, Options,
                         getEffectiveRelocModel(RM),
                         getEffectiveCodeModel(CM, CodeModel::Small), OL),
@@ -113,11 +115,13 @@ MC6809TargetMachine::getTargetTransformInfo(const Function &F) {
 }
 
 void MC6809TargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Entry : registerPassBuilderCallbacks : 01\n";);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__
+                    << " : Entry : registerPassBuilderCallbacks : 01\n";);
   PB.registerPipelineParsingCallback(
       [](StringRef Name, LoopPassManager &PM,
          ArrayRef<PassBuilder::PipelineElement>) {
-        LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Entry : registerPassBuilderCallbacks : A1\n";);
+        LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__
+                          << " : Entry : registerPassBuilderCallbacks : A1\n";);
         if (Name == "mc6809-indexiv") {
           // Rewrite pointer artithmetic in loops to use 8-bit IV offsets.
           PM.addPass(MC6809IndexIV());
@@ -128,7 +132,8 @@ void MC6809TargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
 
   PB.registerLateLoopOptimizationsEPCallback(
       [](LoopPassManager &PM, OptimizationLevel Level) {
-        LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Entry : registerPassBuilderCallbacks : B1\n";);
+        LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__
+                          << " : Entry : registerPassBuilderCallbacks : B1\n";);
         if (Level != OptimizationLevel::O0) {
           PM.addPass(MC6809IndexIV());
 
@@ -194,16 +199,16 @@ void MC6809PassConfig::addIRPasses() {
   TargetPassConfig::addIRPasses();
 }
 
-bool MC6809PassConfig::addPreISel() {
-  return false;
-}
+bool MC6809PassConfig::addPreISel() { return false; }
 
 bool MC6809PassConfig::addIRTranslator() {
   addPass(new IRTranslator(getOptLevel()));
   return false;
 }
 
-void MC6809PassConfig::addPreLegalizeMachineIR() { addPass(createMC6809Combiner()); }
+void MC6809PassConfig::addPreLegalizeMachineIR() {
+  addPass(createMC6809Combiner());
+}
 
 bool MC6809PassConfig::addLegalizeMachineIR() {
   addPass(new Legalizer());
@@ -237,7 +242,8 @@ void MC6809PassConfig::addMachineSSAOptimization() {
 }
 
 void MC6809PassConfig::addOptimizedRegAlloc() {
-  // Run the coalescer twice to coalesce RMW patterns revealed by the first coalesce.
+  // Run the coalescer twice to coalesce RMW patterns revealed by the first
+  // coalesce.
   insertPass(&llvm::TwoAddressInstructionPassID, &llvm::RegisterCoalescerID);
   TargetPassConfig::addOptimizedRegAlloc();
 }
