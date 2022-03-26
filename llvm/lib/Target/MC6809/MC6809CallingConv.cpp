@@ -1,4 +1,5 @@
-//===-- MC6809CallingConv.cpp - MC6809 Calling Convention ------------------------===//
+//===-- MC6809CallingConv.cpp - MC6809 Calling Convention
+//------------------------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.

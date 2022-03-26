@@ -1,4 +1,5 @@
-//===-- MC6809PostRAScavenging.cpp - MC6809 Post RA Scavenging ------------------===//
+//===-- MC6809PostRAScavenging.cpp - MC6809 Post RA Scavenging
+//------------------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file defines the MC6809 post-register-allocation register scavenging pass.
+// This file defines the MC6809 post-register-allocation register scavenging
+// pass.
 //
 // This pass runs immediately after post-RA pseudo expansion. These pseudos
 // (including COPY) often require temporary registers on MC6809; moreso than on
@@ -23,8 +25,8 @@
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/RegisterScavenging.h"
 
-#include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "MC6809.h"
+#include "MCTargetDesc/MC6809MCTargetDesc.h"
 
 #define DEBUG_TYPE "mc6809-scavenging"
 
@@ -37,7 +39,8 @@ public:
   static char ID;
 
   MC6809PostRAScavenging() : MachineFunctionPass(ID) {
-    llvm::initializeMC6809PostRAScavengingPass(*PassRegistry::getPassRegistry());
+    llvm::initializeMC6809PostRAScavengingPass(
+        *PassRegistry::getPassRegistry());
   }
 
   bool runOnMachineFunction(MachineFunction &MF) override;
@@ -59,7 +62,8 @@ bool MC6809PostRAScavenging::runOnMachineFunction(MachineFunction &MF) {
         if (Succ != MBB.end() && Succ->readsRegister(MC6809::NZVC, &TRI)) {
           MI.bundleWithSucc();
           for (MachineOperand &MO : Succ->operands())
-            if (MO.isReg() && (MO.getReg() == MC6809::N || MO.getReg() == MC6809::Z))
+            if (MO.isReg() &&
+                (MO.getReg() == MC6809::N || MO.getReg() == MC6809::Z))
               MO.setIsInternalRead();
         }
       }

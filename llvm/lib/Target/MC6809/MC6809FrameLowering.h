@@ -1,4 +1,5 @@
-//===-- MC6809FrameLowering.h - Define frame lowering for MC6809 --*- C++ -*-===//
+//===-- MC6809FrameLowering.h - Define frame lowering for MC6809 --*- C++
+//-*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -30,8 +31,7 @@ public:
   void emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
 
   MachineBasicBlock::iterator
-  eliminateCallFramePseudoInstr(MachineFunction &MF,
-                                MachineBasicBlock &MBB,
+  eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB,
                                 MachineBasicBlock::iterator I) const override;
 
   bool hasReservedCallFrame(const MachineFunction &MF) const override;
@@ -54,15 +54,11 @@ private:
   // Returns true if MF is a leaf procedure.
   bool isLeafProc(MachineFunction &MF) const;
 
-
   // Emits code for adjusting SP in function prologue/epilogue.
-  void emitSPAdjustment(MachineFunction &MF,
-                        MachineBasicBlock &MBB,
-                        MachineBasicBlock::iterator MBBI,
-                        int NumBytes) const;
-
+  void emitSPAdjustment(MachineFunction &MF, MachineBasicBlock &MBB,
+                        MachineBasicBlock::iterator MBBI, int NumBytes) const;
 };
 
-} // End llvm namespace
+} // namespace llvm
 
 #endif

@@ -1,4 +1,5 @@
-//===-- MC6809RegisterInfo.cpp - MC6809 Register Information --------------------===//
+//===-- MC6809RegisterInfo.cpp - MC6809 Register Information
+//--------------------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,11 +12,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "MC6809RegisterInfo.h"
-#include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "MC6809.h"
 #include "MC6809FrameLowering.h"
 #include "MC6809InstrInfo.h"
 #include "MC6809Subtarget.h"
+#include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
@@ -37,11 +38,9 @@ using namespace llvm;
 
 MC6809RegisterInfo::MC6809RegisterInfo()
     : MC6809GenRegisterInfo(/*RA=*/0, /*DwarfFlavor=*/0, /*EHFlavor=*/0,
-                         /*PC=*/0, /*HwMode=*/0) {
-}
+                            /*PC=*/0, /*HwMode=*/0) {}
 
-BitVector
- MC6809RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
+BitVector MC6809RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   BitVector Reserved(getNumRegs());
   const MC6809FrameLowering *TFI = getFrameLowering(MF);
 
@@ -67,13 +66,13 @@ MC6809RegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
 
 const uint32_t *
 MC6809RegisterInfo::getCallPreservedMask(const MachineFunction &MF,
-                                      CallingConv::ID CallingConv) const {
+                                         CallingConv::ID CallingConv) const {
   return MC6809_CSR_RegMask;
 }
 
 const TargetRegisterClass *
 MC6809RegisterInfo::getLargestLegalSuperClass(const TargetRegisterClass *RC,
-                                           const MachineFunction &) const {
+                                              const MachineFunction &) const {
   if (RC->hasSuperClass(&MC6809::BIT1RegClass))
     return &MC6809::ACC16RegClass;
   if (RC->hasSuperClass(&MC6809::BIT8RegClass))
@@ -95,20 +94,20 @@ MC6809RegisterInfo::getCrossCopyRegClass(const TargetRegisterClass *RC) const {
 // up.  Unfortunately, the way the register allocator actually uses this is very
 // heuristic, and if tuning these params doesn't suffice, we'll need to build a
 // more sophisticated analysis into the register allocator.
-unsigned MC6809RegisterInfo::getCSRFirstUseCost(const MachineFunction &MF) const {
+unsigned
+MC6809RegisterInfo::getCSRFirstUseCost(const MachineFunction &MF) const {
   if (MF.getFunction().doesNotRecurse()) {
     return 15 * 16384 / 10;
   }
   return 5 * 16384 / 10;
 }
 
-bool MC6809RegisterInfo::saveScavengerRegister(MachineBasicBlock &MBB,
-                                            MachineBasicBlock::iterator I,
-                                            MachineBasicBlock::iterator &UseMI,
-                                            const TargetRegisterClass *RC,
-                                            Register Reg) const {
-  // Note: NZVC cannot be live at this point, since it's only live in terminators,
-  // and virtual registers are never inserted into terminators.
+bool MC6809RegisterInfo::saveScavengerRegister(
+    MachineBasicBlock &MBB, MachineBasicBlock::iterator I,
+    MachineBasicBlock::iterator &UseMI, const TargetRegisterClass *RC,
+    Register Reg) const {
+  // Note: NZVC cannot be live at this point, since it's only live in
+  // terminators, and virtual registers are never inserted into terminators.
 
   // Consider the regions in a basic block where a physical register is live.
   // The register scavenger will select one of these regions to spill and mark
@@ -147,8 +146,8 @@ bool MC6809RegisterInfo::canSaveScavengerRegister(Register Reg) const {
 }
 
 void MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
-                                          int SPAdj, unsigned FIOperandNum,
-                                          RegScavenger *RS) const {
+                                             int SPAdj, unsigned FIOperandNum,
+                                             RegScavenger *RS) const {
   MachineFunction &MF = *MI->getMF();
   const MachineFrameInfo &MFI = MF.getFrameInfo();
 
@@ -247,8 +246,8 @@ int copyCost(Register DestReg, Register SrcReg, const MC6809Subtarget &STI) {
   } else if (AreClasses(MC6809::BIT1RegClass, MC6809::BIT1RegClass)) {
     Register SrcReg8 =
         TRI.getMatchingSuperReg(SrcReg, MC6809::sub_lsb, &MC6809::ACC8RegClass);
-    Register DestReg8 =
-        TRI.getMatchingSuperReg(DestReg, MC6809::sub_lsb, &MC6809::ACC8RegClass);
+    Register DestReg8 = TRI.getMatchingSuperReg(DestReg, MC6809::sub_lsb,
+                                                &MC6809::ACC8RegClass);
     int Cost;
 
     // XXXX: FIXME: MarkM - handle all the CC bits; the below is broken
@@ -270,7 +269,7 @@ int copyCost(Register DestReg, Register SrcReg, const MC6809Subtarget &STI) {
       Register Tmp = DestReg;
       if (!MC6809::ACC8RegClass.contains(Tmp))
         Tmp = MC6809::AA;
-      // TFR, AND, 
+      // TFR, AND,
       Cost = 13;
       if (Tmp != DestReg)
         Cost += copyCost(DestReg, Tmp, STI);
@@ -281,12 +280,10 @@ int copyCost(Register DestReg, Register SrcReg, const MC6809Subtarget &STI) {
   llvm_unreachable("Unexpected physical register copy.");
 }
 
-bool MC6809RegisterInfo::getRegAllocationHints(Register VirtReg,
-                                            ArrayRef<MCPhysReg> Order,
-                                            SmallVectorImpl<MCPhysReg> &Hints,
-                                            const MachineFunction &MF,
-                                            const VirtRegMap *VRM,
-                                            const LiveRegMatrix *Matrix) const {
+bool MC6809RegisterInfo::getRegAllocationHints(
+    Register VirtReg, ArrayRef<MCPhysReg> Order,
+    SmallVectorImpl<MCPhysReg> &Hints, const MachineFunction &MF,
+    const VirtRegMap *VRM, const LiveRegMatrix *Matrix) const {
   const MC6809Subtarget &STI = MF.getSubtarget<MC6809Subtarget>();
   const auto &TRI = *STI.getRegisterInfo();
   const MachineRegisterInfo &MRI = MF.getRegInfo();

@@ -1,4 +1,5 @@
-//===-- MC6809TargetStreamer.cpp - MC6809 Target Streamer Methods ---------------===//
+//===-- MC6809TargetStreamer.cpp - MC6809 Target Streamer Methods
+//---------------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -22,7 +23,8 @@
 
 namespace llvm {
 
-MC6809TargetStreamer::MC6809TargetStreamer(MCStreamer &S) : MCTargetStreamer(S) {}
+MC6809TargetStreamer::MC6809TargetStreamer(MCStreamer &S)
+    : MCTargetStreamer(S) {}
 
 void MC6809TargetStreamer::finish() {
   MCStreamer &OS = getStreamer();
@@ -48,9 +50,9 @@ void MC6809TargetStreamer::finish() {
 MC6809TargetAsmStreamer::MC6809TargetAsmStreamer(MCStreamer &S)
     : MC6809TargetStreamer(S) {}
 void MC6809TargetAsmStreamer::changeSection(const MCSection *CurSection,
-                                         MCSection *Section,
-                                         const MCExpr *SubSection,
-                                         raw_ostream &OS) {
+                                            MCSection *Section,
+                                            const MCExpr *SubSection,
+                                            raw_ostream &OS) {
   MCTargetStreamer::changeSection(CurSection, Section, SubSection, OS);
   HasInitArray |= Section->getName().startswith(".init_array");
   HasFiniArray |= Section->getName().startswith(".fini_array");
@@ -61,7 +63,7 @@ void MC6809TargetAsmStreamer::stronglyReference(MCSymbol *Sym) {
 }
 
 MC6809TargetELFStreamer::MC6809TargetELFStreamer(MCStreamer &S,
-                                           const MCSubtargetInfo &STI)
+                                                 const MCSubtargetInfo &STI)
     : MC6809TargetStreamer(S) {}
 
 bool MC6809TargetELFStreamer::hasInitArray() {

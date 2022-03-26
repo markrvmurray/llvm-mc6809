@@ -1,4 +1,5 @@
-//===---- MC6809AsmParser.cpp - Parse MC6809 assembly to MCInst instructions ----===//
+//===---- MC6809AsmParser.cpp - Parse MC6809 assembly to MCInst instructions
+//----===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,12 +7,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "MC6809.h"
+#include "MC6809RegisterInfo.h"
 #include "MCTargetDesc/MC6809FixupKinds.h"
 #include "MCTargetDesc/MC6809MCELFStreamer.h"
 #include "MCTargetDesc/MC6809MCExpr.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
-#include "MC6809.h"
-#include "MC6809RegisterInfo.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/MC/MCAssembler.h"
@@ -222,12 +223,12 @@ public:
   }
 
   static std::unique_ptr<MC6809Operand> createImm(const MCExpr *Val, SMLoc S,
-                                               SMLoc E) {
+                                                  SMLoc E) {
     return std::make_unique<MC6809Operand>(Val, S, E);
   }
 
   static std::unique_ptr<MC6809Operand> createReg(unsigned RegNum, SMLoc S,
-                                               SMLoc E) {
+                                                  SMLoc E) {
     return std::make_unique<MC6809Operand>(RegNum, S, E);
   }
 
@@ -279,7 +280,7 @@ public:
   };
 
   MC6809AsmParser(const MCSubtargetInfo &STI, MCAsmParser &Parser,
-               const MCInstrInfo &MII, const MCTargetOptions &Options)
+                  const MCInstrInfo &MII, const MCTargetOptions &Options)
       : MCTargetAsmParser(Options, STI, MII), STI(STI), Parser(Parser) {
     MCAsmParserExtension::Initialize(Parser);
     MRI = getContext().getRegisterInfo();
@@ -419,8 +420,8 @@ public:
   }
 
   void eatThatToken(OperandVector &Operands) {
-    Operands.push_back(MC6809Operand::createToken(getLexer().getTok().getString(),
-                                               getLexer().getLoc()));
+    Operands.push_back(MC6809Operand::createToken(
+        getLexer().getTok().getString(), getLexer().getLoc()));
     Lex();
   }
 
@@ -521,8 +522,8 @@ public:
       Parser.Lex(); // Eat closing parenthesis
     }
 
-    MCExpr const *Expression = MC6809MCExpr::create(ModifierKind, InnerExpression,
-                                                 IsNegated, getContext());
+    MCExpr const *Expression = MC6809MCExpr::create(
+        ModifierKind, InnerExpression, IsNegated, getContext());
 
     SMLoc E = SMLoc::getFromPointer(Parser.getTok().getLoc().getPointer() - 1);
     Operands.push_back(MC6809Operand::createImm(Expression, S, E));
@@ -576,8 +577,8 @@ public:
     return MatchOperand_NoMatch;
   }
 
-  // This depends on some stuff in MC6809GenAsmMatcher.inc, so we can't define it
-  // inline like everything else in this file.  See below.
+  // This depends on some stuff in MC6809GenAsmMatcher.inc, so we can't define
+  // it inline like everything else in this file.  See below.
   OperandMatchResultTy tryParseAsmParamRegClass(OperandVector &Operands);
 
   bool ParseInstruction(ParseInstructionInfo & /*Info*/, StringRef Mnemonic,

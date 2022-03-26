@@ -1,4 +1,5 @@
-//===-- MC6809MCTargetDesc.cpp - MC6809 Target Descriptions ---------------------===//
+//===-- MC6809MCTargetDesc.cpp - MC6809 Target Descriptions
+//---------------------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -63,8 +64,8 @@ static MCRegisterInfo *createMC6809MCRegisterInfo(const Triple &TT) {
   return X;
 }
 
-static MCSubtargetInfo *createMC6809MCSubtargetInfo(const Triple &TT,
-                                                 StringRef CPU, StringRef FS) {
+static MCSubtargetInfo *
+createMC6809MCSubtargetInfo(const Triple &TT, StringRef CPU, StringRef FS) {
   // If we've received no advice on which CPU to use, let's use our own default.
   if (CPU.empty()) {
     CPU = "mc6809";
@@ -73,10 +74,10 @@ static MCSubtargetInfo *createMC6809MCSubtargetInfo(const Triple &TT,
 }
 
 static MCInstPrinter *createMC6809MCInstPrinter(const Triple &T,
-                                             unsigned /* SyntaxVariant */,
-                                             const MCAsmInfo &MAI,
-                                             const MCInstrInfo &MII,
-                                             const MCRegisterInfo &MRI) {
+                                                unsigned /* SyntaxVariant */,
+                                                const MCAsmInfo &MAI,
+                                                const MCInstrInfo &MII,
+                                                const MCRegisterInfo &MRI) {
   return new MC6809InstPrinter(MAI, MII, MRI);
 }
 
@@ -97,10 +98,12 @@ extern "C" void LLVM_EXTERNAL_VISIBILITY LLVMInitializeMC6809TargetMC() {
   RegisterMCAsmInfo<MC6809MCAsmInfo> X(getTheMC6809Target());
 
   // Register the MC instruction info.
-  TargetRegistry::RegisterMCInstrInfo(getTheMC6809Target(), createMC6809MCInstrInfo);
+  TargetRegistry::RegisterMCInstrInfo(getTheMC6809Target(),
+                                      createMC6809MCInstrInfo);
 
   // Register the MC register info.
-  TargetRegistry::RegisterMCRegInfo(getTheMC6809Target(), createMC6809MCRegisterInfo);
+  TargetRegistry::RegisterMCRegInfo(getTheMC6809Target(),
+                                    createMC6809MCRegisterInfo);
 
   // Register the MC subtarget info.
   TargetRegistry::RegisterMCSubtargetInfo(getTheMC6809Target(),
@@ -119,13 +122,14 @@ extern "C" void LLVM_EXTERNAL_VISIBILITY LLVMInitializeMC6809TargetMC() {
                                       createMC6809MCELFStreamer);
 
   // Register the obj target streamer.
-  TargetRegistry::RegisterObjectTargetStreamer(getTheMC6809Target(),
-                                               createMC6809ObjectTargetStreamer);
+  TargetRegistry::RegisterObjectTargetStreamer(
+      getTheMC6809Target(), createMC6809ObjectTargetStreamer);
 
   // Register the asm target streamer.
   TargetRegistry::RegisterAsmTargetStreamer(getTheMC6809Target(),
                                             createMCAsmTargetStreamer);
 
   // Register the asm backend (as little endian).
-  TargetRegistry::RegisterMCAsmBackend(getTheMC6809Target(), createMC6809AsmBackend);
+  TargetRegistry::RegisterMCAsmBackend(getTheMC6809Target(),
+                                       createMC6809AsmBackend);
 }

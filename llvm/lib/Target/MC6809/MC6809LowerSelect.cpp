@@ -1,4 +1,5 @@
-//===-- MC6809LowerSelect.cpp - MC6809 Select Lowering --------------------------===//
+//===-- MC6809LowerSelect.cpp - MC6809 Select Lowering
+//--------------------------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,8 +13,8 @@
 
 #include "MC6809LowerSelect.h"
 
-#include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "MC6809.h"
+#include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
 #include "llvm/CodeGen/GlobalISel/Utils.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
@@ -62,8 +63,8 @@ bool MC6809LowerSelect::runOnMachineFunction(MachineFunction &MF) {
     for (MachineInstr &MBBI : *I) {
       if (MBBI.getOpcode() == MC6809::G_SELECT) {
         LLVM_DEBUG(dbgs() << "Lowering: " << MBBI);
-        //Changed = true;
-        //I = lowerSelect(MBBI);
+        // Changed = true;
+        // I = lowerSelect(MBBI);
         break;
       }
     }
@@ -99,8 +100,7 @@ void removePredecessorFromPhis(MachineBasicBlock *MBB,
         Idx += 2;
 }
 
-MachineFunction::iterator
-MC6809LowerSelect::lowerSelect(MachineInstr &MI) {
+MachineFunction::iterator MC6809LowerSelect::lowerSelect(MachineInstr &MI) {
   assert(MI.getOpcode() == MC6809::G_SELECT);
   Register Dst = MI.getOperand(0).getReg();
   Register Tst = MI.getOperand(1).getReg();

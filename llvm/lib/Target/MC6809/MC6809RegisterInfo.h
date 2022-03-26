@@ -1,4 +1,5 @@
-//===-- MC6809RegisterInfo.h - MC6809 Register Information Impl -------*- C++ -*-===//
+//===-- MC6809RegisterInfo.h - MC6809 Register Information Impl -------*- C++
+//-*-===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.

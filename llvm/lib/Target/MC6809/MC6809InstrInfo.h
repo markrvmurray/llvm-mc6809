@@ -1,4 +1,5 @@
-//===-- MC6809InstrInfo.h - MC6809 Instruction Information ------------*- C++ -*-===//
+//===-- MC6809InstrInfo.h - MC6809 Instruction Information ------------*- C++
+//-*-===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -127,16 +128,16 @@ private:
   void expandLoadIdxReg16(MachineIRBuilder &Builder) const;
   // void expandLoadImm1(MachineIRBuilder &Builder) const;
   void expandLoadImm(MachineIRBuilder &Builder) const;
-  //void expandLDImmRemat(MachineIRBuilder &Builder) const;
-  //void expandLDZ(MachineIRBuilder &Builder) const;
-  //void expandIncDec(MachineIRBuilder &Builder) const;
+  // void expandLDImmRemat(MachineIRBuilder &Builder) const;
+  // void expandLDZ(MachineIRBuilder &Builder) const;
+  // void expandIncDec(MachineIRBuilder &Builder) const;
 
   // NZ pseudos
-  //void expandNZ(MachineIRBuilder &Builder) const;
-  //void expandCMPTerm(MachineIRBuilder &Builder) const;
+  // void expandNZ(MachineIRBuilder &Builder) const;
+  // void expandCMPTerm(MachineIRBuilder &Builder) const;
 
   // Control flow pseudos
-  //void expandGBR(MachineIRBuilder &Builder) const;
+  // void expandGBR(MachineIRBuilder &Builder) const;
 };
 
 namespace MC6809 {

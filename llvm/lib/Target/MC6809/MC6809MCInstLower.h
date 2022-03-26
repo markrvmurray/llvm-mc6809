@@ -1,4 +1,5 @@
-//===-- MC6809MCInstLower.h - Lower MachineInstr to MCInst ---------*- C++ -*-===//
+//===-- MC6809MCInstLower.h - Lower MachineInstr to MCInst ---------*- C++
+//-*-===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.

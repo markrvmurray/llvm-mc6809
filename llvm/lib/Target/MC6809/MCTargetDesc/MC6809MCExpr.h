@@ -1,4 +1,5 @@
-//===-- MC6809MCExpr.h - MC6809 specific MC expression classes --------*- C++ -*-===//
+//===-- MC6809MCExpr.h - MC6809 specific MC expression classes --------*- C++
+//-*-===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,8 +10,8 @@
 #ifndef LLVM_MC6809_MCEXPR_H
 #define LLVM_MC6809_MCEXPR_H
 
-#include "llvm/MC/MCExpr.h"
 #include "MCTargetDesc/MC6809FixupKinds.h"
+#include "llvm/MC/MCExpr.h"
 
 namespace llvm {
 
@@ -18,16 +19,11 @@ namespace llvm {
 class MC6809MCExpr : public MCTargetExpr {
 public:
   /// Specifies the type of an expression.
-  enum VariantKind {
-    VK_MC6809_NONE,
-    VK_MC6809_ADDR_8,
-    VK_MC6809_ADDR_16
-  };
-
+  enum VariantKind { VK_MC6809_NONE, VK_MC6809_ADDR_8, VK_MC6809_ADDR_16 };
 
   /// Creates an MC6809 machine code expression.
   static const MC6809MCExpr *create(VariantKind Kind, const MCExpr *Expr,
-                                 bool isNegated, MCContext &Ctx);
+                                    bool isNegated, MCContext &Ctx);
 
   /// Gets the type of the expression.
   VariantKind getKind() const { return Kind; }

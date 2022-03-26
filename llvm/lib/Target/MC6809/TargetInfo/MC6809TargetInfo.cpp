@@ -1,4 +1,5 @@
-//===-- MC6809TargetInfo.cpp - MC6809 Target Implementation ---------------------===//
+//===-- MC6809TargetInfo.cpp - MC6809 Target Implementation
+//---------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -16,8 +17,9 @@ Target &getTheMC6809Target() {
 }
 } // namespace llvm
 
-extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMC6809TargetInfo() { // NOLINT
-  llvm::RegisterTarget<llvm::Triple::mc6809> X(llvm::getTheMC6809Target(), "mc6809",
-                                            "Motorola MC6809 and variants", "MC6809");
+extern "C" LLVM_EXTERNAL_VISIBILITY void
+LLVMInitializeMC6809TargetInfo() { // NOLINT
+  llvm::RegisterTarget<llvm::Triple::mc6809> X(
+      llvm::getTheMC6809Target(), "mc6809", "Motorola MC6809 and variants",
+      "MC6809");
 }
-

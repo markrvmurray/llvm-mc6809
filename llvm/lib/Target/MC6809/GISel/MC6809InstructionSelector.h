@@ -1,4 +1,5 @@
-//===-- MC6809InstructionSelector.h - MC6809 Instruction Selector -----*- C++ -*-===//
+//===-- MC6809InstructionSelector.h - MC6809 Instruction Selector -----*- C++
+//-*-===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -13,9 +14,9 @@
 #ifndef LLVM_LIB_TARGET_MC6809_MC6809INSTRUCTIONSELECTOR_H
 #define LLVM_LIB_TARGET_MC6809_MC6809INSTRUCTIONSELECTOR_H
 
-#include "MC6809TargetMachine.h"
 #include "MC6809RegisterBankInfo.h"
 #include "MC6809Subtarget.h"
+#include "MC6809TargetMachine.h"
 #include "llvm/CodeGen/GlobalISel/InstructionSelector.h"
 
 namespace llvm {

@@ -1,4 +1,5 @@
-//===-- MC6809InstrInfo.cpp - MC6809 Instruction Information --------------------===//
+//===-- MC6809InstrInfo.cpp - MC6809 Instruction Information
+//--------------------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,8 +13,8 @@
 
 #include "MC6809InstrInfo.h"
 
-#include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "MC6809RegisterInfo.h"
+#include "MCTargetDesc/MC6809MCTargetDesc.h"
 
 #include "MC6809Subtarget.h"
 #include "llvm/ADT/BitVector.h"
@@ -43,7 +44,7 @@ using namespace llvm;
 
 MC6809InstrInfo::MC6809InstrInfo()
     : MC6809GenInstrInfo(/*CFSetupOpcode=*/MC6809::ADJCALLSTACKDOWN,
-                      /*CFDestroyOpcode=*/MC6809::ADJCALLSTACKUP) {}
+                         /*CFDestroyOpcode=*/MC6809::ADJCALLSTACKUP) {}
 
 #if 0
 bool MC6809InstrInfo::isReallyTriviallyReMaterializable(const MachineInstr &MI,
@@ -58,7 +59,7 @@ bool MC6809InstrInfo::isReallyTriviallyReMaterializable(const MachineInstr &MI,
 #endif
 
 unsigned MC6809InstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
-                                           int &FrameIndex) const {
+                                              int &FrameIndex) const {
   switch (MI.getOpcode()) {
   default:
     return 0;
@@ -72,7 +73,7 @@ unsigned MC6809InstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
 }
 
 unsigned MC6809InstrInfo::isStoreToStackSlot(const MachineInstr &MI,
-                                          int &FrameIndex) const {
+                                             int &FrameIndex) const {
   switch (MI.getOpcode()) {
   default:
     return 0;
@@ -85,10 +86,10 @@ unsigned MC6809InstrInfo::isStoreToStackSlot(const MachineInstr &MI,
 }
 
 void MC6809InstrInfo::reMaterialize(MachineBasicBlock &MBB,
-                                 MachineBasicBlock::iterator I,
-                                 Register DestReg, unsigned SubIdx,
-                                 const MachineInstr &Orig,
-                                 const TargetRegisterInfo &TRI) const {
+                                    MachineBasicBlock::iterator I,
+                                    Register DestReg, unsigned SubIdx,
+                                    const MachineInstr &Orig,
+                                    const TargetRegisterInfo &TRI) const {
   if (Orig.getOpcode() == MC6809::Load16Imm) {
     MachineInstr *MI = MBB.getParent()->CloneMachineInstr(&Orig);
     MI->RemoveOperand(1);
@@ -104,9 +105,9 @@ void MC6809InstrInfo::reMaterialize(MachineBasicBlock &MBB,
 // classes aren't symmetric. This routine determines whether or not the operands
 // of an instruction can be commuted anyway, potentially rewriting the register
 // classes of virtual registers to do so.
-MachineInstr *MC6809InstrInfo::commuteInstructionImpl(MachineInstr &MI, bool NewMI,
-                                                   unsigned Idx1,
-                                                   unsigned Idx2) const {
+MachineInstr *MC6809InstrInfo::commuteInstructionImpl(MachineInstr &MI,
+                                                      bool NewMI, unsigned Idx1,
+                                                      unsigned Idx2) const {
   // NOTE: This doesn't seem to actually be used anywhere.
   if (NewMI)
     report_fatal_error("NewMI is not supported");
@@ -207,8 +208,8 @@ unsigned MC6809InstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
 // 6809 instructions aren't as regular as most commutable instructions, so this
 // routine determines the commutable operands manually.
 bool MC6809InstrInfo::findCommutedOpIndices(const MachineInstr &MI,
-                                         unsigned &SrcOpIdx1,
-                                         unsigned &SrcOpIdx2) const {
+                                            unsigned &SrcOpIdx1,
+                                            unsigned &SrcOpIdx2) const {
   assert(!MI.isBundle() &&
          "MC6809InstrInfo::findCommutedOpIndices() can't handle bundles");
 
@@ -229,10 +230,10 @@ MC6809InstrInfo::getBranchDestBlock(const MachineInstr &MI) const {
 }
 
 bool MC6809InstrInfo::analyzeBranch(MachineBasicBlock &MBB,
-                                 MachineBasicBlock *&TBB,
-                                 MachineBasicBlock *&FBB,
-                                 SmallVectorImpl<MachineOperand> &Cond,
-                                 bool AllowModify) const {
+                                    MachineBasicBlock *&TBB,
+                                    MachineBasicBlock *&FBB,
+                                    SmallVectorImpl<MachineOperand> &Cond,
+                                    bool AllowModify) const {
   auto I = MBB.getFirstTerminator();
 
   // Advance past any comparison terminators.
@@ -288,7 +289,7 @@ bool MC6809InstrInfo::analyzeBranch(MachineBasicBlock &MBB,
 }
 
 unsigned MC6809InstrInfo::removeBranch(MachineBasicBlock &MBB,
-                                    int *BytesRemoved) const {
+                                       int *BytesRemoved) const {
   // Since analyzeBranch succeeded, we know that the only terminators are
   // comparisons and branches.
 
@@ -310,11 +311,9 @@ unsigned MC6809InstrInfo::removeBranch(MachineBasicBlock &MBB,
   return NumRemoved;
 }
 
-unsigned MC6809InstrInfo::insertBranch(MachineBasicBlock &MBB,
-                                    MachineBasicBlock *TBB,
-                                    MachineBasicBlock *FBB,
-                                    ArrayRef<MachineOperand> Cond,
-                                    const DebugLoc &DL, int *BytesAdded) const {
+unsigned MC6809InstrInfo::insertBranch(
+    MachineBasicBlock &MBB, MachineBasicBlock *TBB, MachineBasicBlock *FBB,
+    ArrayRef<MachineOperand> Cond, const DebugLoc &DL, int *BytesAdded) const {
   // Since analyzeBranch succeeded and any existing branches were removed, the
   // only remaining terminators are comparisons.
 
@@ -362,10 +361,10 @@ unsigned MC6809InstrInfo::insertBranch(MachineBasicBlock &MBB,
 }
 
 void MC6809InstrInfo::insertIndirectBranch(MachineBasicBlock &MBB,
-                                        MachineBasicBlock &NewDestBB,
-                                        MachineBasicBlock &RestoreBB,
-                                        const DebugLoc &DL, int64_t BrOffset,
-                                        RegScavenger *RS) const {
+                                           MachineBasicBlock &NewDestBB,
+                                           MachineBasicBlock &RestoreBB,
+                                           const DebugLoc &DL, int64_t BrOffset,
+                                           RegScavenger *RS) const {
   // This method inserts a *direct* branch (JMP), despite its name.
   // LLVM calls this method to fixup unconditional branches; it never calls
   // insertBranch or some hypothetical "insertDirectBranch".
@@ -381,16 +380,17 @@ void MC6809InstrInfo::insertIndirectBranch(MachineBasicBlock &MBB,
 }
 
 void MC6809InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
-                               MachineBasicBlock::iterator MI,
-                               const DebugLoc &DL, MCRegister DestReg,
-                               MCRegister SrcReg, bool KillSrc) const {
+                                  MachineBasicBlock::iterator MI,
+                                  const DebugLoc &DL, MCRegister DestReg,
+                                  MCRegister SrcReg, bool KillSrc) const {
   MachineIRBuilder Builder(MBB, MI);
   copyPhysRegImpl(Builder, DestReg, SrcReg);
 }
 
 static Register createVReg(MachineIRBuilder &Builder,
                            const TargetRegisterClass &RC) {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Resetting NoVRegs\n";);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__
+                    << " : Enter : Resetting NoVRegs\n";);
   Builder.getMF().getProperties().reset(
       MachineFunctionProperties::Property::NoVRegs);
   return Builder.getMRI()->createVirtualRegister(&RC);
@@ -400,15 +400,17 @@ bool MC6809InstrInfo::shouldOverlapInterval(const MachineInstr &MI) const {
   return MI.getOpcode() != MC6809::CMPTermZ;
 }
 
-void MC6809InstrInfo::copyPhysRegImpl(MachineIRBuilder &Builder, Register DestReg,
-                                   Register SrcReg) const {
+void MC6809InstrInfo::copyPhysRegImpl(MachineIRBuilder &Builder,
+                                      Register DestReg, Register SrcReg) const {
   if (DestReg == SrcReg)
     return;
 
   const MC6809Subtarget &STI = Builder.getMF().getSubtarget<MC6809Subtarget>();
   const TargetRegisterInfo &TRI = *STI.getRegisterInfo();
 
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Src = " << TRI.getRegAsmName(SrcReg) << " : Dest = " << TRI.getRegAsmName(DestReg) << "\n";);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__
+                    << " : Enter : Src = " << TRI.getRegAsmName(SrcReg)
+                    << " : Dest = " << TRI.getRegAsmName(DestReg) << "\n";);
   const auto &IsClass = [&](Register Reg, const TargetRegisterClass &RC) {
     if (Reg.isPhysical() && !RC.contains(Reg))
       return false;
@@ -444,8 +446,8 @@ void MC6809InstrInfo::copyPhysRegImpl(MachineIRBuilder &Builder, Register DestRe
     assert(SrcReg.isPhysical() && DestReg.isPhysical());
     Register SrcReg8 =
         TRI.getMatchingSuperReg(SrcReg, MC6809::sub_lsb, &MC6809::ACC8RegClass);
-    Register DestReg8 =
-        TRI.getMatchingSuperReg(DestReg, MC6809::sub_lsb, &MC6809::ACC8RegClass);
+    Register DestReg8 = TRI.getMatchingSuperReg(DestReg, MC6809::sub_lsb,
+                                                &MC6809::ACC8RegClass);
 
     if (SrcReg8) {
       SrcReg = SrcReg8;
@@ -508,8 +510,8 @@ void MC6809InstrInfo::copyPhysRegImpl(MachineIRBuilder &Builder, Register DestRe
     llvm_unreachable("Unexpected physical register copy.");
 }
 
-const TargetRegisterClass *MC6809InstrInfo::canFoldCopy(const MachineInstr &MI,
-                                                     unsigned FoldIdx) const {
+const TargetRegisterClass *
+MC6809InstrInfo::canFoldCopy(const MachineInstr &MI, unsigned FoldIdx) const {
   if (!MI.getMF()->getFunction().doesNotRecurse())
     return TargetInstrInfo::canFoldCopy(MI, FoldIdx);
 
@@ -526,20 +528,19 @@ const TargetRegisterClass *MC6809InstrInfo::canFoldCopy(const MachineInstr &MI,
 }
 
 void MC6809InstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
-                                       MachineBasicBlock::iterator MI,
-                                       Register SrcReg, bool isKill,
-                                       int FrameIndex,
-                                       const TargetRegisterClass *RC,
-                                       const TargetRegisterInfo *TRI) const {
+                                          MachineBasicBlock::iterator MI,
+                                          Register SrcReg, bool isKill,
+                                          int FrameIndex,
+                                          const TargetRegisterClass *RC,
+                                          const TargetRegisterInfo *TRI) const {
   loadStoreRegStackSlot(MBB, MI, SrcReg, isKill, FrameIndex, RC, TRI,
                         /*IsLoad=*/false);
 }
 
-void MC6809InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
-                                        MachineBasicBlock::iterator MI,
-                                        Register DestReg, int FrameIndex,
-                                        const TargetRegisterClass *RC,
-                                        const TargetRegisterInfo *TRI) const {
+void MC6809InstrInfo::loadRegFromStackSlot(
+    MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, Register DestReg,
+    int FrameIndex, const TargetRegisterClass *RC,
+    const TargetRegisterInfo *TRI) const {
   loadStoreRegStackSlot(MBB, MI, DestReg, false, FrameIndex, RC, TRI,
                         /*IsLoad=*/true);
 }
@@ -549,7 +550,8 @@ static void loadStoreByteStaticStackSlot(MachineIRBuilder &Builder,
                                          MachineOperand MO, int FrameIndex,
                                          int64_t Offset,
                                          MachineMemOperand *MMO) {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MO = " << MO << "\n";);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MO = " << MO
+                    << "\n";);
 #if 0
   const MachineRegisterInfo &MRI = *Builder.getMRI();
   const TargetRegisterInfo &TRI =
@@ -610,16 +612,16 @@ static void loadStoreByteStaticStackSlot(MachineIRBuilder &Builder,
     Builder.buildInstr(MC6809::COPY).add(MO).add(TmpUse);
   }
 #endif
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MO = " << MO << "\n";);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MO = " << MO
+                    << "\n";);
 }
-
 
 // Load or store one register from/to a location on the stack.
 static void loadStoreStaticStackSlot(MachineIRBuilder &Builder,
-                                         MachineOperand MO, int FrameIndex,
-                                         int64_t Offset,
-                                         MachineMemOperand *MMO) {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MO = " << MO << "\n";);
+                                     MachineOperand MO, int FrameIndex,
+                                     int64_t Offset, MachineMemOperand *MMO) {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MO = " << MO
+                    << "\n";);
 #if 0
   const MachineRegisterInfo &MRI = *Builder.getMRI();
   const TargetRegisterInfo &TRI =
@@ -680,7 +682,8 @@ static void loadStoreStaticStackSlot(MachineIRBuilder &Builder,
     Builder.buildInstr(MC6809::COPY).add(MO).add(TmpUse);
   }
 #endif
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MO = " << MO << "\n";);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MO = " << MO
+                    << "\n";);
 }
 
 void MC6809InstrInfo::loadStoreRegStackSlot(
@@ -722,11 +725,13 @@ void MC6809InstrInfo::loadStoreRegStackSlot(
       // the virtual register that is actually alive.
       Builder.buildInstr(MC6809::KILL, {Tmp}, {Tmp});
     }
-    loadStoreStaticStackSlot(Builder, MachineOperand::CreateReg(Tmp, IsLoad), FrameIndex, 0, MMO);
+    loadStoreStaticStackSlot(Builder, MachineOperand::CreateReg(Tmp, IsLoad),
+                             FrameIndex, 0, MMO);
     if (IsLoad && Tmp != Reg)
       Builder.buildCopy(Reg, Tmp);
   } else {
-    loadStoreStaticStackSlot(Builder, MachineOperand::CreateReg(Reg, IsLoad), FrameIndex, 0, MMO);
+    loadStoreStaticStackSlot(Builder, MachineOperand::CreateReg(Reg, IsLoad),
+                             FrameIndex, 0, MMO);
   }
 
   LLVM_DEBUG({
@@ -822,7 +827,8 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
 
 void MC6809InstrInfo::expandLoadIdxZero(MachineIRBuilder &Builder) const {
   auto &MI = *Builder.getInsertPt();
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = ";
+             MI.dump(););
 
   unsigned Opcode;
   switch (MI.getOperand(0).getReg()) {
@@ -863,12 +869,14 @@ void MC6809InstrInfo::expandLoadIdxZero(MachineIRBuilder &Builder) const {
   MI.RemoveOperand(3);
   MI.RemoveOperand(2);
   MI.RemoveOperand(1);
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = ";
+             MI.dump(););
 }
 
 void MC6809InstrInfo::expandLoadIdxImm(MachineIRBuilder &Builder) const {
   auto &MI = *Builder.getInsertPt();
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = ";
+             MI.dump(););
 
   unsigned Opcode;
   switch (MI.getOperand(0).getReg()) {
@@ -909,12 +917,14 @@ void MC6809InstrInfo::expandLoadIdxImm(MachineIRBuilder &Builder) const {
   MI.RemoveOperand(3);
   MI.RemoveOperand(2);
   MI.RemoveOperand(1);
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = ";
+             MI.dump(););
 }
 
 void MC6809InstrInfo::expandLoadIdxReg8(MachineIRBuilder &Builder) const {
   auto &MI = *Builder.getInsertPt();
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = ";
+             MI.dump(););
 
   auto Offset = MI.getOperand(2).getReg();
   // XXXX: FixMe: MarkM - Assert that the above offset is one of AA, AB, AE, AF.
@@ -1087,12 +1097,14 @@ void MC6809InstrInfo::expandLoadIdxReg8(MachineIRBuilder &Builder) const {
   MI.RemoveOperand(3);
   MI.RemoveOperand(2);
   MI.RemoveOperand(1);
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = ";
+             MI.dump(););
 }
 
 void MC6809InstrInfo::expandLoadIdxReg16(MachineIRBuilder &Builder) const {
   auto &MI = *Builder.getInsertPt();
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = ";
+             MI.dump(););
 
   auto Offset = MI.getOperand(2).getReg();
   // XXXX: FixMe: MarkM - Assert that the above offset is one of AD, AW.
@@ -1205,7 +1217,8 @@ void MC6809InstrInfo::expandLoadIdxReg16(MachineIRBuilder &Builder) const {
   MI.RemoveOperand(3);
   MI.RemoveOperand(2);
   MI.RemoveOperand(1);
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = ";
+             MI.dump(););
 }
 
 #if 0
@@ -1247,7 +1260,8 @@ void MC6809InstrInfo::expandLDImm1(MachineIRBuilder &Builder) const {
 
 void MC6809InstrInfo::expandLoadImm(MachineIRBuilder &Builder) const {
   auto &MI = *Builder.getInsertPt();
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = ";
+             MI.dump(););
 
   unsigned Opcode;
   switch (MI.getOperand(0).getReg()) {
@@ -1288,7 +1302,8 @@ void MC6809InstrInfo::expandLoadImm(MachineIRBuilder &Builder) const {
     break;
   }
   MI.setDesc(Builder.getTII().get(Opcode));
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = ";
+             MI.dump(););
 }
 
 #if 0
@@ -1577,6 +1592,8 @@ MC6809InstrInfo::getSerializableTargetIndices() const {
 ArrayRef<std::pair<unsigned, const char *>>
 MC6809InstrInfo::getSerializableDirectMachineOperandTargetFlags() const {
   static const std::pair<unsigned, const char *> Flags[] = {
-      {MC6809::MO_LO, "lo"}, {MC6809::MO_HI, "hi"}, {MC6809::MO_HI_JT, "hi-jt"}};
+      {MC6809::MO_LO, "lo"},
+      {MC6809::MO_HI, "hi"},
+      {MC6809::MO_HI_JT, "hi-jt"}};
   return Flags;
 }

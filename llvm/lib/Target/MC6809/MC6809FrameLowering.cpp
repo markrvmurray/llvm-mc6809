@@ -1,4 +1,5 @@
-//===-- MC6809FrameLowering.cpp - MC6809 Frame Information ------------------===//
+//===-- MC6809FrameLowering.cpp - MC6809 Frame Information
+//------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,11 +13,11 @@
 
 #include "MC6809FrameLowering.h"
 
-#include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "MC6809.h"
 #include "MC6809MachineFunctionInfo.h"
 #include "MC6809RegisterInfo.h"
 #include "MC6809Subtarget.h"
+#include "MCTargetDesc/MC6809MCTargetDesc.h"
 
 #include "llvm/CodeGen/GlobalISel/CallLowering.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
@@ -38,30 +39,31 @@
 using namespace llvm;
 
 static cl::opt<bool>
-DisableLeafProc("disable-mc6809-leaf-proc",
-                cl::init(false),
-                cl::desc("Disable MC6809 leaf procedure optimization."),
-                cl::Hidden);
+    DisableLeafProc("disable-mc6809-leaf-proc", cl::init(false),
+                    cl::desc("Disable MC6809 leaf procedure optimization."),
+                    cl::Hidden);
 
 MC6809FrameLowering::MC6809FrameLowering(const MC6809Subtarget &ST)
-    : TargetFrameLowering(TargetFrameLowering::StackGrowsDown, Align(8), 0, Align(8)) {}
+    : TargetFrameLowering(TargetFrameLowering::StackGrowsDown, Align(8), 0,
+                          Align(8)) {}
 
 void MC6809FrameLowering::emitSPAdjustment(MachineFunction &MF,
-                                          MachineBasicBlock &MBB,
-                                          MachineBasicBlock::iterator MBBI,
-                                          int NumBytes) const {
+                                           MachineBasicBlock &MBB,
+                                           MachineBasicBlock::iterator MBBI,
+                                           int NumBytes) const {
 
   DebugLoc dl;
   const MC6809InstrInfo &TII =
       *static_cast<const MC6809InstrInfo *>(MF.getSubtarget().getInstrInfo());
 
   BuildMI(MBB, MBBI, dl, TII.get(MC6809::LEASi_o16), MC6809::SS)
-    .addReg(MC6809::SS).addImm(NumBytes);
+      .addReg(MC6809::SS)
+      .addImm(NumBytes);
   return;
 }
 
 void MC6809FrameLowering::emitPrologue(MachineFunction &MF,
-                                      MachineBasicBlock &MBB) const {
+                                       MachineBasicBlock &MBB) const {
   MC6809MachineFunctionInfo *FuncInfo = MF.getInfo<MC6809MachineFunctionInfo>();
 
   assert(&MF.front() == &MBB && "Shrink-wrapping not yet supported");
@@ -135,9 +137,9 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF,
 #endif
 }
 
-MachineBasicBlock::iterator MC6809FrameLowering::
-eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB,
-                              MachineBasicBlock::iterator I) const {
+MachineBasicBlock::iterator MC6809FrameLowering::eliminateCallFramePseudoInstr(
+    MachineFunction &MF, MachineBasicBlock &MBB,
+    MachineBasicBlock::iterator I) const {
   if (!hasReservedCallFrame(MF)) {
     MachineInstr &MI = *I;
     int Size = MI.getOperand(0).getImm();
@@ -150,25 +152,26 @@ eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB,
   return MBB.erase(I);
 }
 
-
 void MC6809FrameLowering::emitEpilogue(MachineFunction &MF,
-                                  MachineBasicBlock &MBB) const {
+                                       MachineBasicBlock &MBB) const {
   MC6809MachineFunctionInfo *FuncInfo = MF.getInfo<MC6809MachineFunctionInfo>();
   MachineBasicBlock::iterator MBBI = MBB.getLastNonDebugInstr();
   const MC6809InstrInfo &TII =
       *static_cast<const MC6809InstrInfo *>(MF.getSubtarget().getInstrInfo());
   DebugLoc dl = MBBI->getDebugLoc();
-  // assert(MBBI->getOpcode() == MC6809::RTSr && "Can only put epilog before 'rts' instruction!");
+  // assert(MBBI->getOpcode() == MC6809::RTSr && "Can only put epilog before
+  // 'rts' instruction!");
   MachineFrameInfo &MFI = MF.getFrameInfo();
 
-  int NumBytes = (int) MFI.getStackSize();
+  int NumBytes = (int)MFI.getStackSize();
   if (NumBytes == 0)
     return;
 
   emitSPAdjustment(MF, MBB, MBBI, NumBytes);
 }
 
-bool MC6809FrameLowering::hasReservedCallFrame(const MachineFunction &MF) const {
+bool MC6809FrameLowering::hasReservedCallFrame(
+    const MachineFunction &MF) const {
   // Reserve call frame if there are no variable sized objects on the stack.
   return !MF.getFrameInfo().hasVarSizedObjects();
 }
@@ -187,11 +190,12 @@ bool MC6809FrameLowering::hasFP(const MachineFunction &MF) const {
 
 StackOffset
 MC6809FrameLowering::getFrameIndexReference(const MachineFunction &MF, int FI,
-                                           Register &FrameReg) const {
+                                            Register &FrameReg) const {
   const MC6809Subtarget &Subtarget = MF.getSubtarget<MC6809Subtarget>();
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   const MC6809RegisterInfo *RegInfo = Subtarget.getRegisterInfo();
-  const MC6809MachineFunctionInfo *FuncInfo = MF.getInfo<MC6809MachineFunctionInfo>();
+  const MC6809MachineFunctionInfo *FuncInfo =
+      MF.getInfo<MC6809MachineFunctionInfo>();
   bool isFixed = MFI.isFixedObjectIndex(FI);
 
   // Addressable stack objects are accessed using neg. offsets from
@@ -221,17 +225,18 @@ MC6809FrameLowering::getFrameIndexReference(const MachineFunction &MF, int FI,
     return StackOffset::getFixed(FrameOffset);
   } else {
     FrameReg = MC6809::SS; // %sp
-    return StackOffset::getFixed(FrameOffset + MF.getFrameInfo().getStackSize());
+    return StackOffset::getFixed(FrameOffset +
+                                 MF.getFrameInfo().getStackSize());
   }
 }
 
-static bool LLVM_ATTRIBUTE_UNUSED verifyLeafProcRegUse(MachineRegisterInfo *MRI)
-{
+static bool LLVM_ATTRIBUTE_UNUSED
+verifyLeafProcRegUse(MachineRegisterInfo *MRI) {
   return true;
 }
 
 void MC6809FrameLowering::determineCalleeSaves(MachineFunction &MF,
-                                              BitVector &SavedRegs,
-                                              RegScavenger *RS) const {
+                                               BitVector &SavedRegs,
+                                               RegScavenger *RS) const {
   TargetFrameLowering::determineCalleeSaves(MF, SavedRegs, RS);
 }

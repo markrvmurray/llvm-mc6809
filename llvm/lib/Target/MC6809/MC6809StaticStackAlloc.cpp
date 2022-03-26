@@ -1,4 +1,5 @@
-//===-- MC6809StaticStackAlloc.cpp - MC6809 Static Stack Allocation -------------===//
+//===-- MC6809StaticStackAlloc.cpp - MC6809 Static Stack Allocation
+//-------------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -50,7 +51,8 @@ public:
   static char ID;
 
   MC6809StaticStackAlloc() : ModulePass(ID) {
-    llvm::initializeMC6809StaticStackAllocPass(*PassRegistry::getPassRegistry());
+    llvm::initializeMC6809StaticStackAllocPass(
+        *PassRegistry::getPassRegistry());
   }
 
   bool runOnModule(Module &M) override;
