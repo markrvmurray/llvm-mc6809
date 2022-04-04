@@ -1,5 +1,4 @@
-//===-- MC6809PostRAScavenging.cpp - MC6809 Post RA Scavenging
-//------------------===//
+//===-- MC6809PostRAScavenging.cpp - MC6809 Post RA Scavenging ------------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.

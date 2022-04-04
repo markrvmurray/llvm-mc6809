@@ -1,5 +1,4 @@
-//===-- MC6809LowerSelect.cpp - MC6809 Select Lowering
-//--------------------------===//
+//===-- MC6809LowerSelect.cpp - MC6809 Select Lowering --------------------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -94,8 +93,8 @@ void removePredecessorFromPhis(MachineBasicBlock *MBB,
   for (MachineInstr &Phi : MBB->phis())
     for (unsigned Idx = 1; Idx < Phi.getNumOperands();)
       if (Phi.getOperand(Idx + 1).getMBB() == PredMBB) {
-        Phi.RemoveOperand(Idx);
-        Phi.RemoveOperand(Idx);
+        Phi.removeOperand(Idx);
+        Phi.removeOperand(Idx);
       } else
         Idx += 2;
 }

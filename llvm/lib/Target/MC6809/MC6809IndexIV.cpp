@@ -1,5 +1,4 @@
-//===-- MC6809IndexIV.cpp - MC6809 Index IV Pass
-//--------------------------------===//
+//===-- MC6809IndexIV.cpp - MC6809 Index IV Pass --------------------------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -28,11 +27,8 @@
 
 using namespace llvm;
 
-PreservedAnalyses MC6809IndexIV::run(Loop &L, LoopAnalysisManager &AM,
-                                     LoopStandardAnalysisResults &AR,
-                                     LPMUpdater &) {
-  LLVM_DEBUG(dbgs() << "***************************** MC6809 INDEX IV PASS "
-                       "*****************************\n");
+PreservedAnalyses MC6809IndexIV::run(Loop &L, LoopAnalysisManager &AM, LoopStandardAnalysisResults &AR, LPMUpdater &) {
+  LLVM_DEBUG(dbgs() << "***************************** MC6809 INDEX IV PASS *****************************\n");
 
   auto &SE = AR.SE;
   const DataLayout &DL = L.getHeader()->getModule()->getDataLayout();
@@ -40,9 +36,7 @@ PreservedAnalyses MC6809IndexIV::run(Loop &L, LoopAnalysisManager &AM,
   // InRange returns whether the given range can be contained within an
   // unsigned 8-bit index.
   const auto InRange = [](const ConstantRange &Range) {
-    return Range.isAllNonNegative() &&
-           Range.getUpper().ule(
-               APInt::getMaxValue(8).zext(Range.getBitWidth()));
+    return Range.isAllNonNegative() && Range.getUpper().ule(APInt::getMaxValue(8).zext(Range.getBitWidth()));
   };
 
   Type *i8 = Type::getInt8Ty(SE.getContext());
@@ -77,9 +71,7 @@ PreservedAnalyses MC6809IndexIV::run(Loop &L, LoopAnalysisManager &AM,
       }
 
       // The index must itself fit into 8 bits.
-      const auto *Index =
-          SE.getAddRecExpr(/*Start=*/SE.getConstant(R->getType(), 0), Step, &L,
-                           R->getNoWrapFlags());
+      const auto *Index = SE.getAddRecExpr(/*Start=*/SE.getConstant(R->getType(), 0), Step, &L, R->getNoWrapFlags());
       const auto IndexRange = SE.getSignedRange(Index);
       if (!InRange(IndexRange)) {
         LLVM_DEBUG(dbgs() << "Index range does not fit in 8 bits\n");
@@ -111,9 +103,7 @@ PreservedAnalyses MC6809IndexIV::run(Loop &L, LoopAnalysisManager &AM,
       // some aliasing information.
       IRBuilder<> Builder(B, I);
       Value *V = Builder.CreateBitCast(BaseVal, i8Ptr);
-      V = Builder.CreateGEP(
-          i8, V, Builder.CreateZExt(IndexVal, DL.getIndexType(i8Ptr)),
-          "uglygep");
+      V = Builder.CreateGEP(i8, V, Builder.CreateZExt(IndexVal, DL.getIndexType(i8Ptr)), "uglygep");
       V = Builder.CreateBitCast(V, GEP->getType());
 
       auto Inst = I;
@@ -122,8 +112,7 @@ PreservedAnalyses MC6809IndexIV::run(Loop &L, LoopAnalysisManager &AM,
     }
   }
 
-  LLVM_DEBUG(dbgs() << "*****************************************************"
-                       "***************************\n");
+  LLVM_DEBUG(dbgs() << "********************************************************************************\n");
   if (!Changed)
     return PreservedAnalyses::all();
   auto PA = getLoopPassPreservedAnalyses();

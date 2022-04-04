@@ -35,19 +35,22 @@
 
 using namespace llvm;
 
-MC6809Subtarget::MC6809Subtarget(const Triple &TT, const std::string &CPU,
-                                 const std::string &FS,
-                                 const MC6809TargetMachine &TM)
-    : MC6809GenSubtargetInfo(TT, CPU, /* TuneCPU */ CPU, FS), InstrInfo(),
-      RegInfo(), FrameLowering(*this),
-      TLInfo(TM, initializeSubtargetDependencies(CPU, FS, TM)),
-      CallLoweringInfo(&TLInfo), Legalizer(*this),
-      InstSelector(createMC6809InstructionSelector(TM, *this, RegBankInfo)),
-      InlineAsmLoweringInfo(&TLInfo) {}
+MC6809Subtarget::MC6809Subtarget(const Triple &TT, const std::string &CPU, const std::string &FS, const MC6809TargetMachine &TM)
+    : MC6809GenSubtargetInfo(TT, CPU, /* TuneCPU */ CPU, FS), InstrInfo(*this), RegInfo(), FrameLowering(),
+    TLInfo(TM, initializeSubtargetDependencies(CPU, FS, TM)) {
+  CallLoweringInfo.reset(new MC6809CallLowering(&TLInfo));
+  InlineAsmLoweringInfo.reset(new InlineAsmLowering(getTargetLowering()));
+  Legalizer.reset(new MC6809LegalizerInfo(*this));
 
-MC6809Subtarget &
-MC6809Subtarget::initializeSubtargetDependencies(StringRef CPU, StringRef FS,
-                                                 const TargetMachine &TM) {
+  auto *RBI = new MC6809RegisterBankInfo(*getRegisterInfo());
+  // FIXME: At this point, we can't rely on Subtarget having RBI.
+  // It's awkward to mix passing RBI and the Subtarget; should we pass
+  // TII/TRI as well?
+  InstSelector.reset(createMC6809InstructionSelector(*static_cast<const MC6809TargetMachine *>(&TM), *this, *RBI));
+  RegBankInfo.reset(RBI);
+}
+
+MC6809Subtarget &MC6809Subtarget::initializeSubtargetDependencies(StringRef CPU, StringRef FS, const TargetMachine &TM) {
   // Parse features string.
   ParseSubtargetFeatures(CPU, /* TuneCPU */ CPU, FS);
 
@@ -57,8 +60,7 @@ MC6809Subtarget::initializeSubtargetDependencies(StringRef CPU, StringRef FS,
   return *this;
 }
 
-void MC6809Subtarget::overrideSchedPolicy(MachineSchedPolicy &Policy,
-                                          unsigned NumRegionInstrs) const {
+void MC6809Subtarget::overrideSchedPolicy(MachineSchedPolicy &Policy, unsigned NumRegionInstrs) const {
   // Force register pressure tracking; by default it's disabled for small
   // regions, but it's the only 6502 scheduling concern.
   Policy.ShouldTrackPressure = true;
