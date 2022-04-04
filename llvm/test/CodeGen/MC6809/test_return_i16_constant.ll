@@ -11,7 +11,7 @@ define i16 @foo() {
 ;
 ; CHECK-HD6309-LABEL: foo:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
-; CHECK-HD6309-NEXT:    ldw #1234
+; CHECK-HD6309-NEXT:    ldd #1234
 ; CHECK-HD6309-NEXT:    rts
 entry:
   ret i16 1234

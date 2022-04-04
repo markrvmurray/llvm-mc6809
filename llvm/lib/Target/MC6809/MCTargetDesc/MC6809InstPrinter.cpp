@@ -11,6 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "MC6809.h"
 #include "MC6809InstPrinter.h"
 
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
@@ -33,11 +34,7 @@
 
 namespace llvm {
 
-void MC6809InstPrinter::printInst(const MCInst *MI, uint64_t Address,
-                                  StringRef Annot, const MCSubtargetInfo &STI,
-                                  raw_ostream &OS) {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = ";
-             MI->dump(););
+void MC6809InstPrinter::printInst(const MCInst *MI, uint64_t Address, StringRef Annot, const MCSubtargetInfo &STI, raw_ostream &OS) {
   std::string AiryOperands;
   raw_string_ostream AiryOperandStream(AiryOperands);
   auto MnemonicInfo = getMnemonic(MI);
@@ -58,8 +55,7 @@ void MC6809InstPrinter::printInst(const MCInst *MI, uint64_t Address,
   OS << CorrectOperands;
 }
 
-void MC6809InstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
-                                     raw_ostream &O) {
+void MC6809InstPrinter::printOperand(const MCInst *MI, unsigned OpNo, raw_ostream &O) {
   const MCOperand &Op = MI->getOperand(OpNo);
 
   if (Op.isReg()) {
@@ -72,8 +68,41 @@ void MC6809InstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
   }
 }
 
+static const char *RegNameForSU[8] = {"cc", "a", "b", "dp", "x", "y", "s", "pc"};
+static const char *RegNameForSS[8] = {"cc", "a", "b", "dp", "x", "y", "u", "pc"};
+void MC6809InstPrinter::printRegisterList(const MCInst *MI, unsigned OpNo, raw_ostream &O) {
+  unsigned Opcode = MI->getOpcode();
+  const MCOperand &Op = MI->getOperand(OpNo);
+  unsigned RegList = Op.getImm() & 0xFF;
+  const char **RegName;
+  bool DoneOne = false;
+
+  if (Opcode == MC6809::PSHSs || Opcode == MC6809::PULSs)
+    RegName = RegNameForSS;
+  else if (Opcode == MC6809::PSHUs || Opcode == MC6809::PULUs)
+    RegName = RegNameForSU;
+  else
+    llvm_unreachable("Unknown opcode for reglist operand");
+  do {
+    if (RegList & 1) {
+      if (DoneOne)
+        O << ",";
+      O << *RegName;
+      DoneOne = true;
+    }
+    RegName++;
+    RegList >>= 1;
+  } while (RegList);
+}
+
 void MC6809InstPrinter::printRegName(raw_ostream &O, unsigned RegNo) const {
   O << getRegisterName(RegNo);
+}
+
+void MC6809InstPrinter::printCondCode(const MCInst *MI, unsigned OpNo, raw_ostream &O) {
+  const MCOperand &Op = MI->getOperand(OpNo);
+  enum MC6809CC::CondCode CC = (enum MC6809CC::CondCode)(Op.getImm() & 0xF);
+  O << MC6809CC::getCCString(CC);
 }
 
 format_object<int64_t> MC6809InstPrinter::formatHex(int64_t Value) const {

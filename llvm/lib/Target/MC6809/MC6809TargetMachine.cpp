@@ -1,5 +1,4 @@
-//===-- MC6809TargetMachine.cpp - Define TargetMachine for MC6809
-//---------------===//
+//===-- MC6809TargetMachine.cpp - Define TargetMachine for MC6809 ---------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -36,7 +35,6 @@
 #include "MC6809MachineScheduler.h"
 #include "MC6809NoRecurse.h"
 #include "MC6809PostRAScavenging.h"
-#include "MC6809StaticStackAlloc.h"
 #include "MC6809TargetObjectFile.h"
 #include "MC6809TargetTransformInfo.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
@@ -55,12 +53,10 @@ extern "C" void LLVM_EXTERNAL_VISIBILITY LLVMInitializeMC6809Target() {
   initializeMC6809LowerSelectPass(PR);
   initializeMC6809NoRecursePass(PR);
   initializeMC6809PostRAScavengingPass(PR);
-  initializeMC6809StaticStackAllocPass(PR);
 }
 
 static const char *MC6809DataLayout =
-    "e-p:16:8-S8-m:e-i1:8:8-i8:8:8-i16:8:8-i32:8:8-i64:8:8-f16:8:8-f32:8:8-f64:"
-    "8:8-f128:8:8-a:0:8-n8:16";
+    "e-p:16:8-S8-m:e-i1:8-i8:8-i16:8-i32:8-i64:8-f16:8-f32:8-f64:8-a:0-n8:16";
 
 /// Processes a CPU name.
 static StringRef getCPU(StringRef CPU) {
@@ -110,18 +106,14 @@ MC6809TargetMachine::getSubtargetImpl(const Function &F) const {
 }
 
 TargetTransformInfo
-MC6809TargetMachine::getTargetTransformInfo(const Function &F) {
+MC6809TargetMachine::getTargetTransformInfo(const Function &F) const {
   return TargetTransformInfo(MC6809TTIImpl(this, F));
 }
 
 void MC6809TargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__
-                    << " : Entry : registerPassBuilderCallbacks : 01\n";);
   PB.registerPipelineParsingCallback(
       [](StringRef Name, LoopPassManager &PM,
          ArrayRef<PassBuilder::PipelineElement>) {
-        LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__
-                          << " : Entry : registerPassBuilderCallbacks : A1\n";);
         if (Name == "mc6809-indexiv") {
           // Rewrite pointer artithmetic in loops to use 8-bit IV offsets.
           PM.addPass(MC6809IndexIV());
@@ -132,8 +124,6 @@ void MC6809TargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
 
   PB.registerLateLoopOptimizationsEPCallback(
       [](LoopPassManager &PM, OptimizationLevel Level) {
-        LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__
-                          << " : Entry : registerPassBuilderCallbacks : B1\n";);
         if (Level != OptimizationLevel::O0) {
           PM.addPass(MC6809IndexIV());
 
@@ -185,7 +175,9 @@ public:
   ScheduleDAGInstrs *
   createMachineScheduler(MachineSchedContext *C) const override;
 
+#if 0
   std::unique_ptr<CSEConfigBase> getCSEConfig() const override;
+#endif /* 0 */
 };
 } // namespace
 
@@ -254,7 +246,6 @@ void MC6809PassConfig::addPreSched2() {
   addPass(&FinalizeISelID);
   // Lower pseudos produced by control flow pseudos.
   addPass(&ExpandPostRAPseudosID);
-  addPass(createMC6809StaticStackAllocPass());
 }
 
 void MC6809PassConfig::addPreEmitPass() { addPass(&BranchRelaxationPassID); }
@@ -266,12 +257,15 @@ MC6809PassConfig::createMachineScheduler(MachineSchedContext *C) const {
 
 namespace {
 
+#if 0
 class MC6809CSEConfigFull : public CSEConfigFull {
 public:
   virtual ~MC6809CSEConfigFull() = default;
   virtual bool shouldCSEOpc(unsigned Opc) override;
 };
+#endif /* 0 */
 
+#if 0
 bool MC6809CSEConfigFull::shouldCSEOpc(unsigned Opc) {
   switch (Opc) {
   default:
@@ -281,11 +275,14 @@ bool MC6809CSEConfigFull::shouldCSEOpc(unsigned Opc) {
     return true;
   }
 }
+#endif /* 0 */
 
 } // namespace
 
+#if 0
 std::unique_ptr<CSEConfigBase> MC6809PassConfig::getCSEConfig() const {
   if (TM->getOptLevel() == CodeGenOpt::None)
     return std::make_unique<CSEConfigConstantOnly>();
   return std::make_unique<MC6809CSEConfigFull>();
 }
+#endif /* 0 */

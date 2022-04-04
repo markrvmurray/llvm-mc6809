@@ -40,13 +40,11 @@ class MC6809TargetMachine;
 /// A specific MC6809 target MCU.
 class MC6809Subtarget : public MC6809GenSubtargetInfo {
 public:
-  MC6809Subtarget(const Triple &TT, const std::string &CPU,
-                  const std::string &FS, const MC6809TargetMachine &TM);
+  MC6809Subtarget(const Triple &TT, const std::string &CPU, const std::string &FS, const MC6809TargetMachine &TM);
 
   /// Gets the e_flags value of an ELF object file.
   unsigned getEFlags() const {
-    assert(EFlags != 0 &&
-           "every MC6809 subtarget must set at least one architecture feature");
+    assert(EFlags != 0 && "every MC6809 subtarget must set at least one architecture feature");
     return EFlags;
   }
 
@@ -54,7 +52,7 @@ public:
     return &FrameLowering;
   }
 
-  const MC6809InstrInfo *getInstrInfo() const override { return &InstrInfo; }
+  const MC6809InstrInfo *getInstrInfo() const override { return  &InstrInfo; }
 
   const MC6809RegisterInfo *getRegisterInfo() const override {
     return &RegInfo;
@@ -65,13 +63,15 @@ public:
   }
 
   const CallLowering *getCallLowering() const override {
-    return &CallLoweringInfo;
+    return CallLoweringInfo.get();
   }
 
-  const LegalizerInfo *getLegalizerInfo() const override { return &Legalizer; }
+  const LegalizerInfo *getLegalizerInfo() const override {
+    return Legalizer.get();
+  }
 
   const RegisterBankInfo *getRegBankInfo() const override {
-    return &RegBankInfo;
+    return RegBankInfo.get();
   }
 
   InstructionSelector *getInstructionSelector() const override {
@@ -79,7 +79,7 @@ public:
   }
 
   const InlineAsmLowering *getInlineAsmLowering() const override {
-    return &InlineAsmLoweringInfo;
+    return InlineAsmLoweringInfo.get();
   }
 
   bool enableMachineScheduler() const override { return true; }
@@ -121,11 +121,18 @@ private:
   MC6809RegisterInfo RegInfo;
   MC6809FrameLowering FrameLowering;
   MC6809TargetLowering TLInfo;
-  MC6809CallLowering CallLoweringInfo;
-  MC6809LegalizerInfo Legalizer;
-  MC6809RegisterBankInfo RegBankInfo;
+  //MC6809CallLowering CallLoweringInfo;
+  //MC6809LegalizerInfo Legalizer;
+  //MC6809RegisterBankInfo RegBankInfo;
+  //std::unique_ptr<InstructionSelector> InstSelector;
+  //InlineAsmLowering InlineAsmLoweringInfo;
+
+  /// GlobalISel related APIs.
+  std::unique_ptr<CallLowering> CallLoweringInfo;
+  std::unique_ptr<InlineAsmLowering> InlineAsmLoweringInfo;
   std::unique_ptr<InstructionSelector> InstSelector;
-  InlineAsmLowering InlineAsmLoweringInfo;
+  std::unique_ptr<LegalizerInfo> Legalizer;
+  std::unique_ptr<RegisterBankInfo> RegBankInfo;
 };
 
 } // end namespace llvm

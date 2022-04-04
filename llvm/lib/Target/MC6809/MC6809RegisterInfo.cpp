@@ -1,5 +1,4 @@
-//===-- MC6809RegisterInfo.cpp - MC6809 Register Information
-//--------------------===//
+//===-- MC6809RegisterInfo.cpp - MC6809 Register Information --------------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,14 +11,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "MC6809RegisterInfo.h"
-#include "MC6809.h"
 #include "MC6809FrameLowering.h"
-#include "MC6809InstrInfo.h"
 #include "MC6809Subtarget.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
-#include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/TargetFrameLowering.h"
@@ -37,8 +34,7 @@
 using namespace llvm;
 
 MC6809RegisterInfo::MC6809RegisterInfo()
-    : MC6809GenRegisterInfo(/*RA=*/0, /*DwarfFlavor=*/0, /*EHFlavor=*/0,
-                            /*PC=*/0, /*HwMode=*/0) {}
+    : MC6809GenRegisterInfo(/*RA=*/0, /*DwarfFlavor=*/0, /*EHFlavor=*/0, /*PC=*/0, /*HwMode=*/0) {}
 
 BitVector MC6809RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   BitVector Reserved(getNumRegs());
@@ -50,6 +46,8 @@ BitVector MC6809RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   Reserved.set(MC6809::DP);
   Reserved.set(MC6809::CC);
   Reserved.set(MC6809::A0);
+  Reserved.set(MC6809::AV);
+  Reserved.set(MC6809::MD);
 
   // Mark frame pointer as reserved if needed.
   if (TFI->hasFP(MF))
@@ -65,14 +63,13 @@ MC6809RegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
 }
 
 const uint32_t *
-MC6809RegisterInfo::getCallPreservedMask(const MachineFunction &MF,
-                                         CallingConv::ID CallingConv) const {
+MC6809RegisterInfo::getCallPreservedMask(const MachineFunction &MF, CallingConv::ID CallingConv) const {
   return MC6809_CSR_RegMask;
 }
 
+#if 0
 const TargetRegisterClass *
-MC6809RegisterInfo::getLargestLegalSuperClass(const TargetRegisterClass *RC,
-                                              const MachineFunction &) const {
+MC6809RegisterInfo::getLargestLegalSuperClass(const TargetRegisterClass *RC, const MachineFunction &) const {
   if (RC->hasSuperClass(&MC6809::BIT1RegClass))
     return &MC6809::ACC16RegClass;
   if (RC->hasSuperClass(&MC6809::BIT8RegClass))
@@ -81,14 +78,18 @@ MC6809RegisterInfo::getLargestLegalSuperClass(const TargetRegisterClass *RC,
     return &MC6809::ACC16RegClass;
   return RC;
 }
+#endif /* 0 */
 
 const TargetRegisterClass *
 MC6809RegisterInfo::getCrossCopyRegClass(const TargetRegisterClass *RC) const {
   if (RC == &MC6809::INDEX16RegClass)
     return &MC6809::ACC16RegClass;
+  else if (RC == &MC6809::CCFlagRegClass)
+    return &MC6809::ACC8RegClass;
   return RC;
 }
 
+#if 0
 // These values were chosen empirically based on the desired behavior of llc
 // test cases. These values will likely need to be retuned as more examples come
 // up.  Unfortunately, the way the register allocator actually uses this is very
@@ -101,57 +102,13 @@ MC6809RegisterInfo::getCSRFirstUseCost(const MachineFunction &MF) const {
   }
   return 5 * 16384 / 10;
 }
+#endif /* 0 */
 
-bool MC6809RegisterInfo::saveScavengerRegister(
-    MachineBasicBlock &MBB, MachineBasicBlock::iterator I,
-    MachineBasicBlock::iterator &UseMI, const TargetRegisterClass *RC,
-    Register Reg) const {
-  // Note: NZVC cannot be live at this point, since it's only live in
-  // terminators, and virtual registers are never inserted into terminators.
-
-  // Consider the regions in a basic block where a physical register is live.
-  // The register scavenger will select one of these regions to spill and mark
-  // the physical register as available within that region. Such a region cannot
-  // contain any calls, since the physical registers are clobbered by calls.
-  // This means that a save/restore pair for that physical register cannot
-  // overlap with any other save/restore pair for the same physical register.
-
-  MachineIRBuilder Builder(MBB, I);
-  const MC6809Subtarget &STI = Builder.getMF().getSubtarget<MC6809Subtarget>();
-  const TargetRegisterInfo &TRI = *STI.getRegisterInfo();
-
-  switch (Reg) {
-  default:
-    errs() << "Register: " << getName(Reg) << "\n";
-    report_fatal_error("Scavenger spill for register not yet implemented.");
-  case MC6809::CC:
-  case MC6809::AA:
-  case MC6809::AB:
-  case MC6809::AD:
-  case MC6809::IX:
-  case MC6809::IY:
-  case MC6809::SU: {
-    Builder.buildInstr(MC6809::PH, {}, {Reg});
-    Builder.setInsertPt(MBB, UseMI);
-    Builder.buildInstr(MC6809::PL, {Reg}, {});
-    break;
-  }
-  }
-
-  return true;
-}
-
-bool MC6809RegisterInfo::canSaveScavengerRegister(Register Reg) const {
-  return true;
-}
-
-void MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
-                                             int SPAdj, unsigned FIOperandNum,
-                                             RegScavenger *RS) const {
+void MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI, int SPAdj, unsigned FIOperandNum, RegScavenger *RS) const {
   MachineFunction &MF = *MI->getMF();
   const MachineFrameInfo &MFI = MF.getFrameInfo();
 
-  assert(!SPAdj);
+  assert(SPAdj == 0 && "SPAdj is unexpectedly non-zero");
 
   int Idx = MI->getOperand(FIOperandNum).getIndex();
   int64_t Offset = MFI.getObjectOffset(Idx);
@@ -181,27 +138,23 @@ void MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
     Offset += MFI.getStackSize();
   }
 
-  switch (MI->getOpcode()) {
-  default:
-    MI->getOperand(FIOperandNum)
-        .ChangeToTargetIndex(MC6809::TI_STATIC_STACK, Offset,
-                             MI->getOperand(FIOperandNum).getTargetFlags());
-    break;
-  }
+  MI->getOperand(FIOperandNum).ChangeToRegister(getFrameRegister(MF), /*isDef=*/false);
+  MI->getOperand(FIOperandNum + 1).setImm(Offset);
 }
 
-Register MC6809RegisterInfo::getFrameRegister(const MachineFunction &MF) const {
+Register
+MC6809RegisterInfo::getFrameRegister(const MachineFunction &MF) const {
   const TargetFrameLowering *TFI = getFrameLowering(MF);
   return TFI->hasFP(MF) ? MC6809::SU : MC6809::SS;
 }
 
-int copyCost(Register DestReg, Register SrcReg, const MC6809Subtarget &STI) {
+int
+copyCost(Register DestReg, Register SrcReg, const MC6809Subtarget &STI) {
   const auto &TRI = *STI.getRegisterInfo();
   if (DestReg == SrcReg)
     return 0;
 
-  const auto &AreClasses = [&](const TargetRegisterClass &Dest,
-                               const TargetRegisterClass &Src) {
+  const auto &AreClasses = [&](const TargetRegisterClass &Dest, const TargetRegisterClass &Src) {
     return Dest.contains(DestReg) && Src.contains(SrcReg);
   };
 
@@ -244,10 +197,8 @@ int copyCost(Register DestReg, Register SrcReg, const MC6809Subtarget &STI) {
       return 0;
     return 1;
   } else if (AreClasses(MC6809::BIT1RegClass, MC6809::BIT1RegClass)) {
-    Register SrcReg8 =
-        TRI.getMatchingSuperReg(SrcReg, MC6809::sub_lsb, &MC6809::ACC8RegClass);
-    Register DestReg8 = TRI.getMatchingSuperReg(DestReg, MC6809::sub_lsb,
-                                                &MC6809::ACC8RegClass);
+    Register SrcReg8 = TRI.getMatchingSuperReg(SrcReg, MC6809::sub_lsb, &MC6809::ACC8RegClass);
+    Register DestReg8 = TRI.getMatchingSuperReg(DestReg, MC6809::sub_lsb, &MC6809::ACC8RegClass);
     int Cost;
 
     // XXXX: FIXME: MarkM - handle all the CC bits; the below is broken
@@ -280,10 +231,7 @@ int copyCost(Register DestReg, Register SrcReg, const MC6809Subtarget &STI) {
   llvm_unreachable("Unexpected physical register copy.");
 }
 
-bool MC6809RegisterInfo::getRegAllocationHints(
-    Register VirtReg, ArrayRef<MCPhysReg> Order,
-    SmallVectorImpl<MCPhysReg> &Hints, const MachineFunction &MF,
-    const VirtRegMap *VRM, const LiveRegMatrix *Matrix) const {
+bool MC6809RegisterInfo::getRegAllocationHints(Register VirtReg, ArrayRef<MCPhysReg> Order, SmallVectorImpl<MCPhysReg> &Hints, const MachineFunction &MF, const VirtRegMap *VRM, const LiveRegMatrix *Matrix) const {
   const MC6809Subtarget &STI = MF.getSubtarget<MC6809Subtarget>();
   const auto &TRI = *STI.getRegisterInfo();
   const MachineRegisterInfo &MRI = MF.getRegInfo();
@@ -301,12 +249,8 @@ bool MC6809RegisterInfo::getRegAllocationHints(
     default:
       continue;
     case MC6809::COPY: {
-      const MachineOperand &Self = MI.getOperand(0).getReg() == VirtReg
-                                       ? MI.getOperand(0)
-                                       : MI.getOperand(1);
-      const MachineOperand &Other = MI.getOperand(0).getReg() == VirtReg
-                                        ? MI.getOperand(1)
-                                        : MI.getOperand(0);
+      const MachineOperand &Self = MI.getOperand(0).getReg() == VirtReg ? MI.getOperand(0) : MI.getOperand(1);
+      const MachineOperand &Other = MI.getOperand(0).getReg() == VirtReg ? MI.getOperand(1) : MI.getOperand(0);
       Register OtherReg = Other.getReg();
       if (OtherReg.isVirtual()) {
         if (!VRM->hasPhys(OtherReg))
@@ -335,10 +279,8 @@ bool MC6809RegisterInfo::getRegAllocationHints(
     }
   }
 
-  SmallVector<std::pair<Register, int>> RegsAndScores(RegScores.begin(),
-                                                      RegScores.end());
-  sort(RegsAndScores, [&](const std::pair<Register, int> &A,
-                          const std::pair<Register, int> &B) {
+  SmallVector<std::pair<Register, int>> RegsAndScores(RegScores.begin(), RegScores.end());
+  sort(RegsAndScores, [&](const std::pair<Register, int> &A, const std::pair<Register, int> &B) {
     if (A.second > B.second)
       return true;
     if (A.second < B.second)

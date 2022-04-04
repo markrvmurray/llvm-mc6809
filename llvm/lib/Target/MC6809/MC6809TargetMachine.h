@@ -39,7 +39,7 @@ public:
     return this->TLOF.get();
   }
 
-  TargetTransformInfo getTargetTransformInfo(const Function &F) override;
+  TargetTransformInfo getTargetTransformInfo(const Function &F) const override;
 
   void registerPassBuilderCallbacks(PassBuilder &) override;
 
