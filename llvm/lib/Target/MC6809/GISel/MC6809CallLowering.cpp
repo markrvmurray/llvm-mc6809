@@ -158,7 +158,7 @@ struct MC6809CallReturnHandler : public MC6809IncomingValueHandler {
 /// Helper class for values going out through an ABI boundary (used for handling
 /// function return values and call parameters).
 struct MC6809OutgoingValueHandler : public CallLowering::OutgoingValueHandler {
-  MC6809OutgoingValueHandler(MachineIRBuilder &MIRBuilder,
+ MC6809OutgoingValueHandler(MachineIRBuilder &MIRBuilder,
                              MachineRegisterInfo &MRI, MachineInstrBuilder &MIB)
       : OutgoingValueHandler(MIRBuilder, MRI), MIB(MIB) {}
 

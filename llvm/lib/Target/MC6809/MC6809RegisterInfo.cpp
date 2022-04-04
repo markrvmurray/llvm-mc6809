@@ -50,6 +50,8 @@ BitVector MC6809RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   Reserved.set(MC6809::DP);
   Reserved.set(MC6809::CC);
   Reserved.set(MC6809::A0);
+  Reserved.set(MC6809::AV);
+  Reserved.set(MC6809::MD);
 
   // Mark frame pointer as reserved if needed.
   if (TFI->hasFP(MF))
@@ -100,49 +102,6 @@ MC6809RegisterInfo::getCSRFirstUseCost(const MachineFunction &MF) const {
     return 15 * 16384 / 10;
   }
   return 5 * 16384 / 10;
-}
-
-bool MC6809RegisterInfo::saveScavengerRegister(
-    MachineBasicBlock &MBB, MachineBasicBlock::iterator I,
-    MachineBasicBlock::iterator &UseMI, const TargetRegisterClass *RC,
-    Register Reg) const {
-  // Note: NZVC cannot be live at this point, since it's only live in
-  // terminators, and virtual registers are never inserted into terminators.
-
-  // Consider the regions in a basic block where a physical register is live.
-  // The register scavenger will select one of these regions to spill and mark
-  // the physical register as available within that region. Such a region cannot
-  // contain any calls, since the physical registers are clobbered by calls.
-  // This means that a save/restore pair for that physical register cannot
-  // overlap with any other save/restore pair for the same physical register.
-
-  MachineIRBuilder Builder(MBB, I);
-  const MC6809Subtarget &STI = Builder.getMF().getSubtarget<MC6809Subtarget>();
-  const TargetRegisterInfo &TRI = *STI.getRegisterInfo();
-
-  switch (Reg) {
-  default:
-    errs() << "Register: " << getName(Reg) << "\n";
-    report_fatal_error("Scavenger spill for register not yet implemented.");
-  case MC6809::CC:
-  case MC6809::AA:
-  case MC6809::AB:
-  case MC6809::AD:
-  case MC6809::IX:
-  case MC6809::IY:
-  case MC6809::SU: {
-    Builder.buildInstr(MC6809::PH, {}, {Reg});
-    Builder.setInsertPt(MBB, UseMI);
-    Builder.buildInstr(MC6809::PL, {Reg}, {});
-    break;
-  }
-  }
-
-  return true;
-}
-
-bool MC6809RegisterInfo::canSaveScavengerRegister(Register Reg) const {
-  return true;
 }
 
 void MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,

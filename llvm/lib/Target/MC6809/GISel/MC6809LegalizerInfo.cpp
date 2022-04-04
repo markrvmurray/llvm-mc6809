@@ -201,9 +201,10 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) {
 
   // Memory Operations
 
-  getActionDefinitionsBuilder(G_SEXTLOAD).unsupported();
-
-  getActionDefinitionsBuilder(G_ZEXTLOAD).unsupported();
+  getActionDefinitionsBuilder({G_SEXTLOAD, G_ZEXTLOAD})
+      .unsupported();
+  getActionDefinitionsBuilder({G_INDEXED_SEXTLOAD, G_INDEXED_ZEXTLOAD})
+    .unsupported();
 
   getActionDefinitionsBuilder({G_LOAD, G_STORE})
       .legalForTypesWithMemDesc({{S8, P, S8, 8},
@@ -212,6 +213,9 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) {
                                  {S16, P, S16, 8},
                                  {P, P, S8, 8},
                                  {P, P, S16, 8}});
+
+  getActionDefinitionsBuilder({G_INDEXED_LOAD, G_INDEXED_STORE})
+      .unsupported();
 
   getActionDefinitionsBuilder({G_MEMCPY, G_MEMMOVE, G_MEMSET}).libcall();
 

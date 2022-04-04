@@ -29,11 +29,9 @@ using namespace llvm;
 
 void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : MI = "; MI->dump(););
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : OutMI = ";
-             OutMI.dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : OutMI = "; OutMI.dump(););
   switch (MI->getOpcode()) {
-  default:
-    OutMI.setOpcode(MI->getOpcode());
+  default:OutMI.setOpcode(MI->getOpcode());
     break;
   case MC6809::ReturnImplicit: {
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : ReturnImplicit\n";);
@@ -41,8 +39,7 @@ void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
     return;
   }
   case MC6809::ReturnIRQImplicit: {
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__
-                      << " : ReturnIRQImplicit\n";);
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : ReturnIRQImplicit\n";);
     OutMI.setOpcode(MC6809::RTIr);
     return;
   }
@@ -59,19 +56,14 @@ void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
   case MC6809::Load8Imm: {
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : LDImm8\n";);
     switch (MI->getOperand(0).getReg()) {
-    default:
-      llvm_unreachable("Unexpected register for LDImm8.");
-    case MC6809::AA:
-      OutMI.setOpcode(MC6809::LDAi8);
+    default:llvm_unreachable("Unexpected register for LDImm8.");
+    case MC6809::AA:OutMI.setOpcode(MC6809::LDAi8);
       break;
-    case MC6809::AB:
-      OutMI.setOpcode(MC6809::LDBi8);
+    case MC6809::AB:OutMI.setOpcode(MC6809::LDBi8);
       break;
-    case MC6809::AE:
-      OutMI.setOpcode(MC6809::LDEi8);
+    case MC6809::AE:OutMI.setOpcode(MC6809::LDEi8);
       break;
-    case MC6809::AF:
-      OutMI.setOpcode(MC6809::LDFi8);
+    case MC6809::AF:OutMI.setOpcode(MC6809::LDFi8);
       break;
     }
     MCOperand Val;
@@ -83,25 +75,18 @@ void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
   case MC6809::Load16Imm: {
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : LDImm16\n";);
     switch (MI->getOperand(0).getReg()) {
-    default:
-      llvm_unreachable("Unexpected register for LDImm16.");
-    case MC6809::AD:
-      OutMI.setOpcode(MC6809::LDDi16);
+    default:llvm_unreachable("Unexpected register for LDImm16.");
+    case MC6809::AD:OutMI.setOpcode(MC6809::LDDi16);
       break;
-    case MC6809::AW:
-      OutMI.setOpcode(MC6809::LDWi16);
+    case MC6809::AW:OutMI.setOpcode(MC6809::LDWi16);
       break;
-    case MC6809::IX:
-      OutMI.setOpcode(MC6809::LDXi16);
+    case MC6809::IX:OutMI.setOpcode(MC6809::LDXi16);
       break;
-    case MC6809::IY:
-      OutMI.setOpcode(MC6809::LDYi16);
+    case MC6809::IY:OutMI.setOpcode(MC6809::LDYi16);
       break;
-    case MC6809::SU:
-      OutMI.setOpcode(MC6809::LDUi16);
+    case MC6809::SU:OutMI.setOpcode(MC6809::LDUi16);
       break;
-    case MC6809::SS:
-      OutMI.setOpcode(MC6809::LDSi16);
+    case MC6809::SS:OutMI.setOpcode(MC6809::LDSi16);
       break;
     }
     MCOperand Val;
@@ -115,8 +100,7 @@ void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
     switch (MI->getOperand(0).getReg()) {
     default:
       llvm_unreachable("Unexpected register for LDImm32.");
-    case MC6809::AQ:
-      OutMI.setOpcode(MC6809::LDQi32);
+    case MC6809::AQ:OutMI.setOpcode(MC6809::LDQi32);
       break;
     }
     MCOperand Val;
@@ -125,409 +109,195 @@ void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
     OutMI.addOperand(Val);
     return;
   }
-#if 0
-  case MC6809::ADCAbsIdx:
-  case MC6809::SBCAbsIdx: {
-    switch (MI->getOpcode()) {
-    case MC6809::ADCAbsIdx:
-      switch (MI->getOperand(5).getReg()) {
-      default:
-        llvm_unreachable("Unexpected register.");
-      case MC6809::X:
-        OutMI.setOpcode(MC6809::ADC_DirectPageX);
-        break;
-      case MC6809::Y:
-        OutMI.setOpcode(MC6809::ADC_AbsoluteY);
+  case MC6809::LEAPtrAddReg8: {
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : LEAPtrAddReg8\n";);
+    Register IndexReg = MI->getOperand(0).getReg();
+    Register IndexOperand = MI->getOperand(1).getReg();
+    Register OffsetReg = MI->getOperand(2).getReg();
+    assert(IndexOperand == IndexReg && "Source and result index registers must be equal");
+    switch (IndexReg) {
+    case MC6809::IX:
+      switch (OffsetReg) {
+      case MC6809::AA: {
+        OutMI.setOpcode(MC6809::LEAXi_oA);
         break;
       }
-      break;
-    case MC6809::SBCAbsIdx:
-      switch (MI->getOperand(5).getReg()) {
-      default:
-        llvm_unreachable("Unexpected register.");
-      case MC6809::X:
-        OutMI.setOpcode(MC6809::SBC_DirectPageX);
-        break;
-      case MC6809::Y:
-        OutMI.setOpcode(MC6809::SBC_AbsoluteY);
+      case MC6809::AB: {
+        OutMI.setOpcode(MC6809::LEAXi_oB);
         break;
       }
+      case MC6809::AE: {
+        OutMI.setOpcode(MC6809::LEAXi_oE);
+        break;
+      }
+      case MC6809::AF: {
+        OutMI.setOpcode(MC6809::LEAXi_oF);
+        break;
+      }
+      default:
+        llvm_unreachable("Illegal 8-bit offset register in LEAPtrAddReg8 (X)");
+      }
       break;
+    case MC6809::IY:
+      switch (OffsetReg) {
+      case MC6809::AA: {
+        OutMI.setOpcode(MC6809::LEAYi_oA);
+        break;
+      }
+      case MC6809::AB: {
+        OutMI.setOpcode(MC6809::LEAYi_oB);
+        break;
+      }
+      case MC6809::AE: {
+        OutMI.setOpcode(MC6809::LEAYi_oE);
+        break;
+      }
+      case MC6809::AF: {
+        OutMI.setOpcode(MC6809::LEAYi_oF);
+        break;
+      }
+      default:
+        llvm_unreachable("Illegal 8-bit offset register in LEAPtrAddReg8 (Y)");
+      }
+      break;
+    case MC6809::SU:
+      switch (OffsetReg) {
+      case MC6809::AA: {
+        OutMI.setOpcode(MC6809::LEAUi_oA);
+        break;
+      }
+      case MC6809::AB: {
+        OutMI.setOpcode(MC6809::LEAUi_oB);
+        break;
+      }
+      case MC6809::AE: {
+        OutMI.setOpcode(MC6809::LEAUi_oE);
+        break;
+      }
+      case MC6809::AF: {
+        OutMI.setOpcode(MC6809::LEAUi_oF);
+        break;
+      }
+      default:
+        llvm_unreachable("Illegal 8-bit offset register in LEAPtrAddReg8 (U)");
+      }
+      break;
+    case MC6809::SS:
+      switch (OffsetReg) {
+      case MC6809::AA: {
+        OutMI.setOpcode(MC6809::LEASi_oA);
+        break;
+      }
+      case MC6809::AB: {
+        OutMI.setOpcode(MC6809::LEASi_oB);
+        break;
+      }
+      case MC6809::AE: {
+        OutMI.setOpcode(MC6809::LEASi_oE);
+        break;
+      }
+      case MC6809::AF: {
+        OutMI.setOpcode(MC6809::LEASi_oF);
+        break;
+      }
+      default:
+        llvm_unreachable("Illegal 8-bit offset register in LEAPtrAddReg8 (S)");
+      }
+      break;
+    default:
+       llvm_unreachable("Unknown pointer register in LEA");
     }
-    MCOperand Addr;
-    if (!lowerOperand(MI->getOperand(4), Addr))
-      llvm_unreachable("Failed to lower operand");
-    OutMI.addOperand(Addr);
+    MCOperand IndexDst, IndexSrc;
+    if (!lowerOperand(MI->getOperand(0), IndexDst))
+      llvm_unreachable("Failed to lower index destination");
+    OutMI.addOperand(IndexDst);
+    if (!lowerOperand(MI->getOperand(1), IndexSrc))
+      llvm_unreachable("Failed to lower index source");
+    OutMI.addOperand(IndexSrc);
     return;
   }
-  case MC6809::ANDAbsIdx:
-  case MC6809::EORAbsIdx:
-  case MC6809::ORAAbsIdx: {
-    switch (MI->getOpcode()) {
-    case MC6809::ANDAbsIdx:
-      switch (MI->getOperand(3).getReg()) {
-      default:
-        llvm_unreachable("Unexpected register.");
-      case MC6809::X:
-        OutMI.setOpcode(MC6809::AND_DirectPageX);
-        break;
-      case MC6809::Y:
-        OutMI.setOpcode(MC6809::AND_AbsoluteY);
+  case MC6809::LEAPtrAddReg16: {
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : LEAPtrAddReg16\n";);
+    Register IndexReg = MI->getOperand(0).getReg();
+    Register IndexOperand = MI->getOperand(1).getReg();
+    Register OffsetReg = MI->getOperand(2).getReg();
+    assert(IndexOperand == IndexReg && "Source and result index registers must be equal");
+    switch (IndexReg) {
+    case MC6809::IX:
+      switch (OffsetReg) {
+      case MC6809::AD: {
+        OutMI.setOpcode(MC6809::LEAXi_oD);
         break;
       }
-      break;
-    case MC6809::EORAbsIdx:
-      switch (MI->getOperand(3).getReg()) {
-      default:
-        llvm_unreachable("Unexpected register.");
-      case MC6809::X:
-        OutMI.setOpcode(MC6809::EOR_DirectPageX);
-        break;
-      case MC6809::Y:
-        OutMI.setOpcode(MC6809::EOR_AbsoluteY);
+      case MC6809::AW: {
+        OutMI.setOpcode(MC6809::LEAXi_oW);
         break;
       }
-      break;
-    case MC6809::ORAAbsIdx:
-      switch (MI->getOperand(3).getReg()) {
       default:
-        llvm_unreachable("Unexpected register.");
-      case MC6809::X:
-        OutMI.setOpcode(MC6809::ORA_DirectPageX);
-        break;
-      case MC6809::Y:
-        OutMI.setOpcode(MC6809::ORA_AbsoluteY);
-        break;
+        llvm_unreachable("Illegal 16-bit offset register in LEAPtrAddReg16 (X)");
       }
       break;
+    case MC6809::IY:
+      switch (OffsetReg) {
+      case MC6809::AD: {
+        OutMI.setOpcode(MC6809::LEAYi_oD);
+        break;
+      }
+      case MC6809::AW: {
+        OutMI.setOpcode(MC6809::LEAYi_oW);
+        break;
+      }
+      default:
+        llvm_unreachable("Illegal 16-bit offset register in LEAPtrAddReg16 (Y)");
+      }
+      break;
+    case MC6809::SU:
+      switch (OffsetReg) {
+      case MC6809::AD: {
+        OutMI.setOpcode(MC6809::LEAUi_oD);
+        break;
+      }
+      case MC6809::AW: {
+        OutMI.setOpcode(MC6809::LEAUi_oW);
+        break;
+      }
+      default:
+        llvm_unreachable("Illegal 16-bit offset register in LEAPtrAddReg16 (U)");
+      }
+      break;
+    case MC6809::SS:
+      switch (OffsetReg) {
+      case MC6809::AD: {
+        OutMI.setOpcode(MC6809::LEASi_oD);
+        break;
+      }
+      case MC6809::AW: {
+        OutMI.setOpcode(MC6809::LEASi_oW);
+        break;
+      }
+      default:
+        llvm_unreachable("Illegal 16-bit offset register in LEAPtrAddReg16 (S)");
+      }
+      break;
+    default:
+      llvm_unreachable("Unknown pointer register in LEA");
     }
-    MCOperand Addr;
-    if (!lowerOperand(MI->getOperand(2), Addr))
-      llvm_unreachable("Failed to lower operand");
-    OutMI.addOperand(Addr);
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 0 OutMI = "; OutMI.dump(););
+    MCOperand IndexDst, Offset, IndexSrc;
+    if (!lowerOperand(MI->getOperand(0), IndexDst))
+      llvm_unreachable("Failed to lower index destination");
+    OutMI.addOperand(IndexDst);
+    if (!lowerOperand(MI->getOperand(1), Offset))
+      llvm_unreachable("Failed to lower offset");
+    OutMI.addOperand(Offset);
+    if (!lowerOperand(MI->getOperand(2), IndexSrc))
+      llvm_unreachable("Failed to lower index source");
+    OutMI.addOperand(IndexSrc);
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 1 OutMI = "; OutMI.dump(););
     return;
   }
-  case MC6809::ASL:
-  case MC6809::LSR:
-  case MC6809::ROL:
-  case MC6809::ROR:
-    switch (MI->getOperand(0).getReg()) {
-    default: {
-      assert(MC6809::Imag8RegClass.contains(MI->getOperand(0).getReg()));
-      switch (MI->getOpcode()) {
-      case MC6809::ASL:
-        OutMI.setOpcode(MC6809::ASL_DirectPage);
-        break;
-      case MC6809::LSR:
-        OutMI.setOpcode(MC6809::LSR_DirectPage);
-        break;
-      case MC6809::ROL:
-        OutMI.setOpcode(MC6809::ROL_DirectPage);
-        break;
-      case MC6809::ROR:
-        OutMI.setOpcode(MC6809::ROR_DirectPage);
-        break;
-      }
-      MCOperand Addr;
-      if (!lowerOperand(MI->getOperand(0), Addr))
-        llvm_unreachable("Failed to lower operand");
-      OutMI.addOperand(Addr);
-      return;
-    }
-    case MC6809::A:
-      switch (MI->getOpcode()) {
-      default:
-        llvm_unreachable("Inconsistent opcode.");
-      case MC6809::ASL:
-        OutMI.setOpcode(MC6809::ASL_Accumulator);
-        return;
-      case MC6809::LSR:
-        OutMI.setOpcode(MC6809::LSR_Accumulator);
-        return;
-      case MC6809::ROL:
-        OutMI.setOpcode(MC6809::ROL_Accumulator);
-        return;
-      case MC6809::ROR:
-        OutMI.setOpcode(MC6809::ROR_Accumulator);
-        return;
-      }
-    }
-  case MC6809::BR: {
-    Register Flag = MI->getOperand(1).getReg();
-    int64_t Val = MI->getOperand(2).getImm();
-    switch (Flag) {
-    default:
-      llvm_unreachable("Unexpected register.");
-    case MC6809::C:
-      OutMI.setOpcode(Val ? MC6809::BCS_Relative : MC6809::BCC_Relative);
-      break;
-    case MC6809::N:
-      OutMI.setOpcode(Val ? MC6809::BMI_Relative : MC6809::BPL_Relative);
-      break;
-    case MC6809::V:
-      OutMI.setOpcode(Val ? MC6809::BVS_Relative : MC6809::BVC_Relative);
-      break;
-    case MC6809::Z:
-      OutMI.setOpcode(Val ? MC6809::BEQ_Relative : MC6809::BNE_Relative);
-      break;
-    }
-    MCOperand Tgt;
-    if (!lowerOperand(MI->getOperand(0), Tgt))
-      llvm_unreachable("Failed to lower operand");
-    OutMI.addOperand(Tgt);
-    return;
   }
-  case MC6809::CMPImm:
-  case MC6809::CMPImag8:
-  case MC6809::CMPAbs:
-  case MC6809::CMPAbsIdx: {
-    switch (MI->getOpcode()) {
-    case MC6809::CMPImm:
-      switch (MI->getOperand(1).getReg()) {
-      default:
-        llvm_unreachable("Unexpected register.");
-      case MC6809::A:
-        OutMI.setOpcode(MC6809::CMP_Immediate);
-        break;
-      case MC6809::X:
-        OutMI.setOpcode(MC6809::CPX_Immediate);
-        break;
-      case MC6809::Y:
-        OutMI.setOpcode(MC6809::CPY_Immediate);
-        break;
-      }
-      break;
-    case MC6809::CMPImag8:
-    case MC6809::CMPAbs:
-      switch (MI->getOperand(1).getReg()) {
-      default:
-        llvm_unreachable("Unexpected register.");
-      case MC6809::A:
-        OutMI.setOpcode(MC6809::CMP_DirectPage);
-        break;
-      case MC6809::X:
-        OutMI.setOpcode(MC6809::CPX_DirectPage);
-        break;
-      case MC6809::Y:
-        OutMI.setOpcode(MC6809::CPY_DirectPage);
-        break;
-      }
-      break;
-    case MC6809::CMPAbsIdx:
-      switch (MI->getOperand(3).getReg()) {
-      default:
-        llvm_unreachable("Unexpected register.");
-      case MC6809::X:
-        OutMI.setOpcode(MC6809::CMP_DirectPageX);
-        break;
-      case MC6809::Y:
-        OutMI.setOpcode(MC6809::CMP_AbsoluteY);
-        break;
-      }
-      break;
-    }
-    MCOperand Val;
-    if (!lowerOperand(MI->getOperand(2), Val))
-      llvm_unreachable("Failed to lower operand");
-    OutMI.addOperand(Val);
-    return;
-  }
-  case MC6809::LDImm8:
-  case MC6809::LDAbs:
-  case MC6809::LDImag8:
-  case MC6809::STAbs: {
-    switch (MI->getOperand(0).getReg()) {
-    default:
-      llvm_unreachable("Unexpected register.");
-    case MC6809::A:
-      switch (MI->getOpcode()) {
-      case MC6809::LDImm8:
-        OutMI.setOpcode(MC6809::LDA_Immediate);
-        break;
-      case MC6809::LDAbs:
-      case MC6809::LDImag8:
-        OutMI.setOpcode(MC6809::LDA_DirectPage);
-        break;
-      case MC6809::STAbs:
-        OutMI.setOpcode(MC6809::STA_DirectPage);
-        break;
-      }
-      break;
-    case MC6809::X:
-      switch (MI->getOpcode()) {
-      case MC6809::LDImm8:
-        OutMI.setOpcode(MC6809::LDX_Immediate);
-        break;
-      case MC6809::LDAbs:
-      case MC6809::LDImag8:
-        OutMI.setOpcode(MC6809::LDX_DirectPage);
-        break;
-      case MC6809::STAbs:
-        OutMI.setOpcode(MC6809::STX_DirectPage);
-        break;
-      }
-      break;
-    case MC6809::Y:
-      switch (MI->getOpcode()) {
-      case MC6809::LDImm8:
-        OutMI.setOpcode(MC6809::LDY_Immediate);
-        break;
-      case MC6809::LDAbs:
-      case MC6809::LDImag8:
-        OutMI.setOpcode(MC6809::LDY_DirectPage);
-        break;
-      case MC6809::STAbs:
-        OutMI.setOpcode(MC6809::STY_DirectPage);
-        break;
-      }
-      break;
-    }
-    int64_t ImmIdx = MI->getOpcode() == MC6809::CMPImm ? 2 : 1;
-    MCOperand Val;
-    if (!lowerOperand(MI->getOperand(ImmIdx), Val))
-      llvm_unreachable("Failed to lower operand");
-    OutMI.addOperand(Val);
-    return;
-  }
-  case MC6809::LDAAbsIdx: {
-    switch (MI->getOperand(2).getReg()) {
-    default:
-      llvm_unreachable("Unexpected LDAAbsIdx register.");
-    case MC6809::X:
-      OutMI.setOpcode(MC6809::LDA_DirectPageX);
-      break;
-    case MC6809::Y:
-      OutMI.setOpcode(MC6809::LDA_AbsoluteY);
-      break;
-    }
-    MCOperand Val;
-    if (!lowerOperand(MI->getOperand(1), Val))
-      llvm_unreachable("Failed to lower operand");
-    OutMI.addOperand(Val);
-    return;
-  }
-  case MC6809::LDCImm: {
-    switch (MI->getOperand(1).getImm()) {
-    default:
-      llvm_unreachable("Unexpected LDCImm immediate.");
-    case 0:
-      OutMI.setOpcode(MC6809::CLC_Implied);
-      return;
-    case -1:
-      OutMI.setOpcode(MC6809::SEC_Implied);
-      return;
-    }
-  }
-  case MC6809::DE:
-  case MC6809::IN:
-  case MC6809::TA:
-    switch (MI->getOperand(0).getReg()) {
-    default:
-      llvm_unreachable("Unexpected register.");
-    case MC6809::X:
-      switch (MI->getOpcode()) {
-      default:
-        llvm_unreachable("Inconsistent opcode.");
-      case MC6809::DE:
-        OutMI.setOpcode(MC6809::DEX_Implied);
-        return;
-      case MC6809::IN:
-        OutMI.setOpcode(MC6809::INX_Implied);
-        return;
-      case MC6809::TA:
-        OutMI.setOpcode(MC6809::TAX_Implied);
-        return;
-      }
-    case MC6809::Y:
-      switch (MI->getOpcode()) {
-      default:
-        llvm_unreachable("Inconsistent opcode.");
-      case MC6809::DE:
-        OutMI.setOpcode(MC6809::DEY_Implied);
-        return;
-      case MC6809::IN:
-        OutMI.setOpcode(MC6809::INY_Implied);
-        return;
-      case MC6809::TA:
-        OutMI.setOpcode(MC6809::TAY_Implied);
-        return;
-      }
-    }
-  case MC6809::PH:
-  case MC6809::PL: {
-    switch (MI->getOperand(0).getReg()) {
-    default:
-      llvm_unreachable("Unexpected register.");
-    case MC6809::A:
-      OutMI.setOpcode(MI->getOpcode() == MC6809::PH ? MC6809::PHA_Implied
-                                                 : MC6809::PLA_Implied);
-      return;
-    case MC6809::X:
-      OutMI.setOpcode(MI->getOpcode() == MC6809::PH ? MC6809::PHX_Implied
-                                                 : MC6809::PLX_Implied);
-      return;
-    case MC6809::Y:
-      OutMI.setOpcode(MI->getOpcode() == MC6809::PH ? MC6809::PHY_Implied
-                                                 : MC6809::PLY_Implied);
-      return;
-    case MC6809::P:
-      OutMI.setOpcode(MI->getOpcode() == MC6809::PH ? MC6809::PHP_Implied
-                                                 : MC6809::PLP_Implied);
-      return;
-    }
-  }
-  case MC6809::STAbsIdx: {
-    switch (MI->getOperand(2).getReg()) {
-    default:
-      llvm_unreachable("Unexpected register.");
-    case MC6809::X:
-      OutMI.setOpcode(MC6809::STA_DirectPageX);
-      break;
-    case MC6809::Y:
-      OutMI.setOpcode(MC6809::STA_AbsoluteY);
-      break;
-    }
-    MCOperand Val;
-    if (!lowerOperand(MI->getOperand(1), Val))
-      llvm_unreachable("Failed to lower operand");
-    OutMI.addOperand(Val);
-    return;
-  }
-  case MC6809::STImag8: {
-    switch (MI->getOperand(1).getReg()) {
-    default:
-      llvm_unreachable("Unexpected register.");
-    case MC6809::A:
-      OutMI.setOpcode(MC6809::STA_DirectPage);
-      break;
-    case MC6809::X:
-      OutMI.setOpcode(MC6809::STX_DirectPage);
-      break;
-    case MC6809::Y:
-      OutMI.setOpcode(MC6809::STY_DirectPage);
-      break;
-    }
-    MCOperand Val;
-    if (!lowerOperand(MI->getOperand(0), Val))
-      llvm_unreachable("Failed to lower operand");
-    OutMI.addOperand(Val);
-    return;
-  }
-  case MC6809::T_A:
-    switch (MI->getOperand(1).getReg()) {
-    default:
-      llvm_unreachable("Unexpected register.");
-    case MC6809::X:
-      OutMI.setOpcode(MC6809::TXA_Implied);
-      return;
-    case MC6809::Y:
-      OutMI.setOpcode(MC6809::TYA_Implied);
-      return;
-    }
-#endif
-  }
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : OutMI = ";
-             OutMI.dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 2 OutMI = "; OutMI.dump(););
 
   // Handle any real instructions that weren't generated from a pseudo.
 #ifndef NDEBUG
@@ -542,8 +312,7 @@ void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
     if (lowerOperand(MO, MCOp))
       OutMI.addOperand(MCOp);
   }
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : OutMI = ";
-             OutMI.dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 3 OutMI = "; OutMI.dump(););
 }
 
 bool MC6809MCInstLower::lowerOperand(const MachineOperand &MO,

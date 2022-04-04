@@ -15,6 +15,7 @@
 #ifndef LLVM_LIB_TARGET_MC6809_MC6809_H
 #define LLVM_LIB_TARGET_MC6809_MC6809_H
 
+#include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/Pass.h"
 

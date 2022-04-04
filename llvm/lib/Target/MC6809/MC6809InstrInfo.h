@@ -17,6 +17,8 @@
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 
+#include "MC6809RegisterInfo.h"
+
 #define GET_INSTRINFO_HEADER
 #include "MC6809GenInstrInfo.inc"
 
@@ -47,6 +49,8 @@ public:
                                        unsigned OpIdx2) const override;
 
   unsigned getInstSizeInBytes(const MachineInstr &MI) const override;
+
+  unsigned getInstBundleLength(const MachineInstr &MI) const;
 
   bool findCommutedOpIndices(const MachineInstr &MI, unsigned &SrcOpIdx1,
                              unsigned &SrcOpIdx2) const override;
@@ -114,8 +118,6 @@ public:
 
   ArrayRef<std::pair<unsigned, const char *>>
   getSerializableDirectMachineOperandTargetFlags() const override;
-
-  bool shouldOverlapInterval(const MachineInstr &MI) const override;
 
 private:
   void copyPhysRegImpl(MachineIRBuilder &Builder, Register DestReg,

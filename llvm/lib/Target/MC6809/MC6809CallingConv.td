@@ -28,23 +28,22 @@ def RetCC_MC6809 : CallingConv<[
   CCIfPtr<CCAssignToReg<[IX, IY]>>,
   CCIfType<[i1], CCPromoteToType<i8>>,
   CCIfType<[i8], CCIfNotSubtarget<"isHD6309()", CCAssignToReg<[AB, AA]>>>,
-  CCIfType<[i8], CCIfSubtarget<"isHD6309()", CCAssignToReg<[AF, AE, AB, AA]>>>,
+  CCIfType<[i8], CCIfSubtarget<"isHD6309()", CCAssignToReg<[AB, AA, AF, AE]>>>,
   CCIfType<[i16], CCIfNotSubtarget<"isHD6309()", CCAssignToReg<[AD, IX, IY]>>>,
-  CCIfType<[i16], CCIfSubtarget<"isHD6309()", CCAssignToReg<[AW, AD, IX, IY]>>>,
+  CCIfType<[i16], CCIfSubtarget<"isHD6309()", CCAssignToReg<[AD, AW, IX, IY]>>>,
   CCIfType<[i32], CCIfSubtarget<"isHD6309()", CCAssignToReg<[AQ]>>>,
   CCAssignToStack<0, 1>,
 ]>;
 
 // Simple calling convention for MC6809 ELF
-// Only handle ints for now.
 let Entry = 1 in
 def CC_MC6809 : CallingConv<[
   CCIfPtr<CCAssignToReg<[IX, IY]>>,
   CCIfType<[i1],  CCPromoteToType<i8>>,
   CCIfType<[i8], CCIfNotSubtarget<"isHD6309()", CCAssignToReg<[AB, AA]>>>,
-  CCIfType<[i8], CCIfSubtarget<"isHD6309()", CCAssignToReg<[AF, AE, AB, AA]>>>,
+  CCIfType<[i8], CCIfSubtarget<"isHD6309()", CCAssignToReg<[AB, AA, AF, AE]>>>,
   CCIfType<[i16], CCIfNotSubtarget<"isHD6309()", CCAssignToReg<[AD, IX, IY]>>>,
-  CCIfType<[i16], CCIfSubtarget<"isHD6309()", CCAssignToReg<[AW, AD, IX, IY]>>>,
+  CCIfType<[i16], CCIfSubtarget<"isHD6309()", CCAssignToReg<[AD, AW, IX, IY]>>>,
   CCIfType<[i32], CCIfSubtarget<"isHD6309()", CCAssignToReg<[AQ]>>>,
   CCAssignToStack<0, 1>,
 ]>;

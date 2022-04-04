@@ -55,19 +55,6 @@ class MC6809Reg<bits<16> num, string name>
   let AltNames = [name];
 }
 
-//class MC6809Reg8<bits<16> num, string name> : MC6809Reg<num, name>;
-
-// An 8-bit value register (GPR or imaginary). Contains a 1-bit LSB subregister
-// to allow them to store boolean values.
-//multiclass MC6809Reg8<bits<16> num, string name> {
-//  def _LSB : MC6809Reg<!add(num, 128), name#"_LSB">;
-//
-//  def NAME : MC6809Reg<num, name> {
-//    let SubRegs = [!cast<Register>(NAME#_LSB)];
-//    let SubRegIndices = [sub_lsb];
-//  }
-//}
-
 class MC6809Reg1<bits<16> num, string name>
   : MC6809Reg<num, name> {
     let SubRegs = [];
@@ -149,7 +136,9 @@ def MD : MC6809Reg8<17,  "md">;
 //===----------------------------------------------------------------------===//
 
 class MC6809RegClass<list<ValueType> regTypes, int alignment, dag regList>
-     : RegisterClass<"MC6809", regTypes, alignment, regList>;
+    : RegisterClass<"MC6809", regTypes, alignment, regList> {
+        let Namespace = "MC6809";
+}
 
 class MC6809Reg1Class<dag RegList>: MC6809RegClass<[i1], 8, RegList> {
   // The register is 1-bit wide, but takes 8 bits to spill.
@@ -159,28 +148,28 @@ class MC6809Reg8Class<dag RegList>: MC6809RegClass<[i8], 8, RegList>;
 class MC6809Reg16Class<dag RegList>: MC6809RegClass<[i16], 8, RegList>;
 class MC6809Reg32Class<dag RegList>: MC6809RegClass<[i32], 8, RegList>;
 
-class MC6809RegAnyClass<dag RegList>: MC6809RegClass<[i32, i16, i8], 8, RegList>;
-
-// "General purpose" register classes.
+// General purpose register classes.
 def BIT1 : MC6809Reg1Class<(add AA_LSB, AB_LSB, AE_LSB, AF_LSB)>;
 def ACC8 : MC6809Reg8Class<(add AA, AB, AE, AF)>;
 def BIT8 : MC6809Reg8Class<(add AA, AB, CC)>;
 def ACC16 : MC6809Reg16Class<(add AD, AW)>;
-def INDEX16 : MC6809Reg16Class<(add IX, IY, SU, SS)>;
-def REG16 : MC6809Reg16Class<(add AD, AW, IX, IY, SU, SS)>;
 def ACC32 : MC6809Reg32Class<(add AQ)>;
 
-def PTR16 : MC6809Reg16Class<(add IX, IY, SU, SS)>;
+// Pointer and stack registers
+def INDEX16 : MC6809Reg16Class<(add IX, IY, SU, SS)>;
 
-def ANY1 : MC6809Reg1Class<(add BIT1, N, Z, V, C)>;
-//def ACC : MC6809RegAnyClass<(add AA, AB, AD, AE, AF, AW, AQ)>;
+// All 16-bit registers. Useful for load/store.
+def ALL16 : MC6809Reg16Class<(add ACC16, INDEX16)> {
+  let AltOrders = [(add AD, IX, IY), (add AD, AW, IX, IY)];
+  let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().isHD6309();}];
+  let DiagnosticString = "operand must be a 16-bit register";
+}
 
 let isAllocatable = false in {
   def CCFlag : MC6809Reg1Class<(add E, F, H, I, N, Z, V, C)>;
   def CCond : MC6809Reg8Class<(add CC)>;
   def MDCond : MC6809Reg8Class<(add MD)>;
   def DtPage : MC6809Reg8Class<(add DP)>;
-  def STACK16 : MC6809Reg16Class<(add SU, SS)>;
 }
 
 // Single register classes.
@@ -205,11 +194,3 @@ let isPressureFineGrained = true in {
   def Vc : MC6809Reg1Class<(add V)>;
   def Cc : MC6809Reg1Class<(add C)>;
 }
-
-// MC6809 assembly mnemonics may only have the following registers as parameters
-// following the comma in a mnemonic, e.g. lda hello, x
-//def MC6809AsmParamRegClass : MC6809RegClass<[i16, i8], 8, (add AA, AB, AD, AE, AF, AW, IX, IY, SU, SS, PC)>;
-
-// While not directly used, unless this is present, the TableGen-erated intersection
-// register class between BIT1 and CC flags will not be allocatable.
-//def AllocatableFlags : MC6809Reg1Class<(add N, Z, V, C)>;

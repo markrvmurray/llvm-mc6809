@@ -65,13 +65,15 @@ public:
   }
 
   const CallLowering *getCallLowering() const override {
-    return &CallLoweringInfo;
+    return CallLoweringInfo.get();
   }
 
-  const LegalizerInfo *getLegalizerInfo() const override { return &Legalizer; }
+  const LegalizerInfo *getLegalizerInfo() const override {
+    return Legalizer.get();
+  }
 
   const RegisterBankInfo *getRegBankInfo() const override {
-    return &RegBankInfo;
+    return RegBankInfo.get();
   }
 
   InstructionSelector *getInstructionSelector() const override {
@@ -79,7 +81,7 @@ public:
   }
 
   const InlineAsmLowering *getInlineAsmLowering() const override {
-    return &InlineAsmLoweringInfo;
+    return InlineAsmLoweringInfo.get();
   }
 
   bool enableMachineScheduler() const override { return true; }
@@ -121,11 +123,18 @@ private:
   MC6809RegisterInfo RegInfo;
   MC6809FrameLowering FrameLowering;
   MC6809TargetLowering TLInfo;
-  MC6809CallLowering CallLoweringInfo;
-  MC6809LegalizerInfo Legalizer;
-  MC6809RegisterBankInfo RegBankInfo;
+  //MC6809CallLowering CallLoweringInfo;
+  //MC6809LegalizerInfo Legalizer;
+  //MC6809RegisterBankInfo RegBankInfo;
+  //std::unique_ptr<InstructionSelector> InstSelector;
+  //InlineAsmLowering InlineAsmLoweringInfo;
+
+  /// GlobalISel related APIs.
+  std::unique_ptr<CallLowering> CallLoweringInfo;
+  std::unique_ptr<InlineAsmLowering> InlineAsmLoweringInfo;
   std::unique_ptr<InstructionSelector> InstSelector;
-  InlineAsmLowering InlineAsmLoweringInfo;
+  std::unique_ptr<LegalizerInfo> Legalizer;
+  std::unique_ptr<RegisterBankInfo> RegBankInfo;
 };
 
 } // end namespace llvm

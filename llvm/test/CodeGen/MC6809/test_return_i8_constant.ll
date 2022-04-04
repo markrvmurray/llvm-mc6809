@@ -11,7 +11,7 @@ define i8 @foo() #0 {
 ;
 ; CHECK-HD6309-LABEL: foo:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
-; CHECK-HD6309-NEXT:    ldf #85
+; CHECK-HD6309-NEXT:    ldb #85
 ; CHECK-HD6309-NEXT:    rts
 entry:
   ret i8 85

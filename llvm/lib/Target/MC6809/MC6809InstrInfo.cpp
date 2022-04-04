@@ -46,43 +46,71 @@ MC6809InstrInfo::MC6809InstrInfo()
     : MC6809GenInstrInfo(/*CFSetupOpcode=*/MC6809::ADJCALLSTACKDOWN,
                          /*CFDestroyOpcode=*/MC6809::ADJCALLSTACKUP) {}
 
-#if 0
-bool MC6809InstrInfo::isReallyTriviallyReMaterializable(const MachineInstr &MI,
-                                                     AAResults *AA) const {
-  switch (MI.getOpcode()) {
-  default:
-    return false;
-  case MC6809::LDImm16:
-    return true;
-  }
-}
-#endif
-
 unsigned MC6809InstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
                                               int &FrameIndex) const {
   switch (MI.getOpcode()) {
   default:
-    return 0;
-  case MC6809::LD8Abs:
-  case MC6809::LD16Abs:
-    if (!MI.getOperand(0).isFI())
-      return 0;
-    FrameIndex = MI.getOperand(1).getIndex();
-    return MI.getOperand(0).getReg();
+    break;
+  case MC6809::LDAi_o8:
+  case MC6809::LDBi_o8:
+  case MC6809::LDDi_o8:
+  case MC6809::LDEi_o8:
+  case MC6809::LDFi_o8:
+  case MC6809::LDWi_o8:
+  case MC6809::LDQi_o8:
+  case MC6809::LDXi_o8:
+  case MC6809::LDYi_o8:
+  case MC6809::LDAi_o16:
+  case MC6809::LDBi_o16:
+  case MC6809::LDDi_o16:
+  case MC6809::LDEi_o16:
+  case MC6809::LDFi_o16:
+  case MC6809::LDWi_o16:
+  case MC6809::LDQi_o16:
+  case MC6809::LDXi_o16:
+  case MC6809::LDYi_o16:
+    if (MI.getOperand(0).getSubReg() == 0 && MI.getOperand(1).isFI() &&
+        MI.getOperand(2).isImm() && MI.getOperand(2).getImm() == 0) {
+      FrameIndex = MI.getOperand(1).getIndex();
+      return MI.getOperand(0).getReg();
+    }
+    break;
   }
+
+  return 0;
 }
 
 unsigned MC6809InstrInfo::isStoreToStackSlot(const MachineInstr &MI,
                                              int &FrameIndex) const {
   switch (MI.getOpcode()) {
   default:
-    return 0;
-  case MC6809::STAbs:
-    if (!MI.getOperand(0).isFI())
-      return 0;
-    FrameIndex = MI.getOperand(1).getIndex();
-    return MI.getOperand(0).getReg();
+    break;
+  case MC6809::STAi_o8:
+  case MC6809::STBi_o8:
+  case MC6809::STDi_o8:
+  case MC6809::STEi_o8:
+  case MC6809::STFi_o8:
+  case MC6809::STWi_o8:
+  case MC6809::STQi_o8:
+  case MC6809::STXi_o8:
+  case MC6809::STYi_o8:
+  case MC6809::STAi_o16:
+  case MC6809::STBi_o16:
+  case MC6809::STDi_o16:
+  case MC6809::STEi_o16:
+  case MC6809::STFi_o16:
+  case MC6809::STWi_o16:
+  case MC6809::STQi_o16:
+  case MC6809::STXi_o16:
+  case MC6809::STYi_o16:
+    if (MI.getOperand(0).getSubReg() == 0 && MI.getOperand(1).isFI() &&
+        MI.getOperand(2).isImm() && MI.getOperand(2).getImm() == 0) {
+      FrameIndex = MI.getOperand(1).getIndex();
+      return MI.getOperand(0).getReg();
+    }
+    break;
   }
+  return 0;
 }
 
 void MC6809InstrInfo::reMaterialize(MachineBasicBlock &MBB,
@@ -94,7 +122,7 @@ void MC6809InstrInfo::reMaterialize(MachineBasicBlock &MBB,
     MachineInstr *MI = MBB.getParent()->CloneMachineInstr(&Orig);
     MI->RemoveOperand(1);
     MI->substituteRegister(MI->getOperand(0).getReg(), DestReg, SubIdx, TRI);
-    MI->setDesc(get(MC6809::LDImm16Remat));
+    MI->setDesc(get(MC6809::Load16Imm));
     MBB.insert(I, MI);
   } else {
     TargetInstrInfo::reMaterialize(MBB, I, DestReg, SubIdx, Orig, TRI);
@@ -200,9 +228,36 @@ MachineInstr *MC6809InstrInfo::commuteInstructionImpl(MachineInstr &MI,
 }
 
 unsigned MC6809InstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
-  // Overestimate the size of each instruction to guarantee that any necessary
-  // branches are relaxed.
-  return 3;
+  const MachineBasicBlock &MBB = *MI.getParent();
+  const MachineFunction *MF = MBB.getParent();
+  const MCAsmInfo *MAI = MF->getTarget().getMCAsmInfo();
+
+  const MCInstrDesc &MCID = MI.getDesc();
+
+  switch (MI.getOpcode()) {
+  default:
+    // Return the size specified in .td file. If there's none, return 0, as we
+    // can't define a default size.
+    return MCID.getSize();
+  case TargetOpcode::BUNDLE:
+    return getInstBundleLength(MI);
+  case MC6809::INLINEASM:
+  case MC6809::INLINEASM_BR: {
+    // If this machine instr is an inline asm, measure it.
+    return getInlineAsmLength(MI.getOperand(0).getSymbolName(), *MAI);
+  }
+  }
+}
+
+unsigned MC6809InstrInfo::getInstBundleLength(const MachineInstr &MI) const {
+  unsigned Size = 0;
+  MachineBasicBlock::const_instr_iterator I = MI.getIterator();
+  MachineBasicBlock::const_instr_iterator E = MI.getParent()->instr_end();
+  while (++I != E && I->isInsideBundle()) {
+    assert(!I->isBundle() && "No nested bundle!");
+    Size += getInstSizeInBytes(*I);
+  }
+  return Size;
 }
 
 // 6809 instructions aren't as regular as most commutable instructions, so this
@@ -210,8 +265,7 @@ unsigned MC6809InstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
 bool MC6809InstrInfo::findCommutedOpIndices(const MachineInstr &MI,
                                             unsigned &SrcOpIdx1,
                                             unsigned &SrcOpIdx2) const {
-  assert(!MI.isBundle() &&
-         "MC6809InstrInfo::findCommutedOpIndices() can't handle bundles");
+  assert(!MI.isBundle() && "MC6809InstrInfo::findCommutedOpIndices() can't handle bundles");
 
   // XXXX: FIXME: MarkM - Find and commute the 6809 instructions
   return false;
@@ -389,15 +443,9 @@ void MC6809InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
 
 static Register createVReg(MachineIRBuilder &Builder,
                            const TargetRegisterClass &RC) {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__
-                    << " : Enter : Resetting NoVRegs\n";);
-  Builder.getMF().getProperties().reset(
-      MachineFunctionProperties::Property::NoVRegs);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Resetting NoVRegs\n";);
+  Builder.getMF().getProperties().reset(MachineFunctionProperties::Property::NoVRegs);
   return Builder.getMRI()->createVirtualRegister(&RC);
-}
-
-bool MC6809InstrInfo::shouldOverlapInterval(const MachineInstr &MI) const {
-  return MI.getOpcode() != MC6809::CMPTermZ;
 }
 
 void MC6809InstrInfo::copyPhysRegImpl(MachineIRBuilder &Builder,
@@ -408,9 +456,7 @@ void MC6809InstrInfo::copyPhysRegImpl(MachineIRBuilder &Builder,
   const MC6809Subtarget &STI = Builder.getMF().getSubtarget<MC6809Subtarget>();
   const TargetRegisterInfo &TRI = *STI.getRegisterInfo();
 
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__
-                    << " : Enter : Src = " << TRI.getRegAsmName(SrcReg)
-                    << " : Dest = " << TRI.getRegAsmName(DestReg) << "\n";);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Src = " << TRI.getRegAsmName(SrcReg) << " : Dest = " << TRI.getRegAsmName(DestReg) << "\n";);
   const auto &IsClass = [&](Register Reg, const TargetRegisterClass &RC) {
     if (Reg.isPhysical() && !RC.contains(Reg))
       return false;
@@ -444,68 +490,15 @@ void MC6809InstrInfo::copyPhysRegImpl(MachineIRBuilder &Builder,
     Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(SrcReg);
   } else if (AreClasses(MC6809::BIT1RegClass, MC6809::BIT1RegClass)) {
     assert(SrcReg.isPhysical() && DestReg.isPhysical());
-    Register SrcReg8 =
-        TRI.getMatchingSuperReg(SrcReg, MC6809::sub_lsb, &MC6809::ACC8RegClass);
-    Register DestReg8 = TRI.getMatchingSuperReg(DestReg, MC6809::sub_lsb,
-                                                &MC6809::ACC8RegClass);
+    Register SrcReg8 = TRI.getMatchingSuperReg(SrcReg, MC6809::sub_lsb, &MC6809::ACC8RegClass);
+    Register DestReg8 = TRI.getMatchingSuperReg(DestReg, MC6809::sub_lsb, &MC6809::ACC8RegClass);
+    assert(SrcReg8 && DestReg8 && "Single-bit Src and Dst must both be LSB of 8-bit registers"); 
 
-    if (SrcReg8) {
-      SrcReg = SrcReg8;
-      if (DestReg8) {
-        DestReg = DestReg8;
-        const MachineInstr &MI = *Builder.getInsertPt();
-        // MC6809 defines LSB writes to write the whole 8-bit register, not just
-        // part of it.
-        assert(!MI.readsRegister(DestReg));
-
-        copyPhysRegImpl(Builder, DestReg, SrcReg);
-      } else {
-        if (DestReg == MC6809::C) {
-          if (!MC6809::ACC8RegClass.contains(SrcReg)) {
-            Register Tmp = createVReg(Builder, MC6809::ACC8RegClass);
-            copyPhysRegImpl(Builder, Tmp, SrcReg);
-            SrcReg = Tmp;
-          }
-          // C = SrcReg >= 1
-          Builder.buildInstr(MC6809::CMPImm, {MC6809::C}, {SrcReg, INT64_C(1)});
-        } else {
-          assert(DestReg == MC6809::V);
-          const TargetRegisterClass &StackRegClass = MC6809::ACC8RegClass;
-
-          if (StackRegClass.contains(SrcReg)) {
-            Builder.buildInstr(MC6809::PH, {}, {SrcReg});
-            Builder.buildInstr(MC6809::PL, {SrcReg}, {})
-                .addDef(MC6809::NZVC, RegState::Implicit);
-            Builder.buildInstr(MC6809::SelectImm, {MC6809::V},
-                               {Register(MC6809::Z), INT64_C(0), INT64_C(-1)});
-          } else {
-            Register Tmp = createVReg(Builder, StackRegClass);
-            copyPhysRegImpl(Builder, Tmp, SrcReg);
-            std::prev(Builder.getInsertPt())
-                ->addOperand(MachineOperand::CreateReg(MC6809::NZVC,
-                                                       /*isDef=*/true,
-                                                       /*isImp=*/true));
-            Builder.buildInstr(MC6809::SelectImm, {MC6809::V},
-                               {Register(MC6809::Z), INT64_C(0), INT64_C(-1)});
-          }
-        }
-      }
-    } else {
-      if (DestReg8) {
-        DestReg = DestReg8;
-
-        Register Tmp = DestReg;
-        if (!MC6809::ACC8RegClass.contains(Tmp))
-          Tmp = createVReg(Builder, MC6809::ACC8RegClass);
-        Builder.buildInstr(MC6809::SelectImm, {Tmp},
-                           {SrcReg, INT64_C(1), INT64_C(0)});
-        if (Tmp != DestReg)
-          copyPhysRegImpl(Builder, DestReg, Tmp);
-      } else {
-        Builder.buildInstr(MC6809::SelectImm, {DestReg},
-                           {SrcReg, INT64_C(-1), INT64_C(0)});
-      }
-    }
+    const MachineInstr &MI = *Builder.getInsertPt();
+    // MC6809 defines LSB writes to write the whole 8-bit register, not just
+    // part of it.
+    assert(!MI.readsRegister(DestReg8));
+    copyPhysRegImpl(Builder, DestReg8, SrcReg8);
   } else
     llvm_unreachable("Unexpected physical register copy.");
 }
@@ -516,8 +509,7 @@ MC6809InstrInfo::canFoldCopy(const MachineInstr &MI, unsigned FoldIdx) const {
     return TargetInstrInfo::canFoldCopy(MI, FoldIdx);
 
   Register FoldReg = MI.getOperand(FoldIdx).getReg();
-  if (MC6809::ACC8RegClass.contains(FoldReg) ||
-      MC6809::BIT1RegClass.contains(FoldReg))
+  if (MC6809::ACC8RegClass.contains(FoldReg) || MC6809::BIT1RegClass.contains(FoldReg))
     return TargetInstrInfo::canFoldCopy(MI, FoldIdx);
   if (FoldReg.isVirtual()) {
     const auto *RC = MI.getMF()->getRegInfo().getRegClass(FoldReg);
@@ -533,16 +525,18 @@ void MC6809InstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
                                           int FrameIndex,
                                           const TargetRegisterClass *RC,
                                           const TargetRegisterInfo *TRI) const {
-  loadStoreRegStackSlot(MBB, MI, SrcReg, isKill, FrameIndex, RC, TRI,
-                        /*IsLoad=*/false);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI->dump(););
+  loadStoreRegStackSlot(MBB, MI, SrcReg, isKill, FrameIndex, RC, TRI, /*IsLoad=*/false);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI->dump(););
 }
 
 void MC6809InstrInfo::loadRegFromStackSlot(
     MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, Register DestReg,
     int FrameIndex, const TargetRegisterClass *RC,
     const TargetRegisterInfo *TRI) const {
-  loadStoreRegStackSlot(MBB, MI, DestReg, false, FrameIndex, RC, TRI,
-                        /*IsLoad=*/true);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI->dump(););
+  loadStoreRegStackSlot(MBB, MI, DestReg, false, FrameIndex, RC, TRI, /*IsLoad=*/true);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI->dump(););
 }
 
 // Load or store one byte from/to a location on the static stack.
@@ -550,8 +544,7 @@ static void loadStoreByteStaticStackSlot(MachineIRBuilder &Builder,
                                          MachineOperand MO, int FrameIndex,
                                          int64_t Offset,
                                          MachineMemOperand *MMO) {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MO = " << MO
-                    << "\n";);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MO = " << MO << "\n";);
 #if 0
   const MachineRegisterInfo &MRI = *Builder.getMRI();
   const TargetRegisterInfo &TRI =
@@ -612,8 +605,7 @@ static void loadStoreByteStaticStackSlot(MachineIRBuilder &Builder,
     Builder.buildInstr(MC6809::COPY).add(MO).add(TmpUse);
   }
 #endif
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MO = " << MO
-                    << "\n";);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MO = " << MO << "\n";);
 }
 
 // Load or store one register from/to a location on the stack.
@@ -757,6 +749,11 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     expandIncDec(Builder);
     break;
 #endif
+  case MC6809::Load8Imm:
+  case MC6809::Load16Imm:
+  case MC6809::Load32Imm:
+    expandLoadImm(Builder);
+    break;
   case MC6809::Load8IdxImm:
   case MC6809::Load16IdxImm:
   case MC6809::Load32IdxImm:
@@ -781,13 +778,6 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::LDImm1:
     expandLDImm1(Builder);
     break;
-#endif
-  case MC6809::Load8Imm:
-  case MC6809::Load16Imm:
-  case MC6809::Load32Imm:
-    expandLoadImm(Builder);
-    break;
-#if 0
   case MC6809::LDImm16Remat:
     expandLDImmRemat(Builder);
     break;
@@ -866,9 +856,6 @@ void MC6809InstrInfo::expandLoadIdxZero(MachineIRBuilder &Builder) const {
     break;
   }
   MI.setDesc(Builder.getTII().get(Opcode));
-  MI.RemoveOperand(3);
-  MI.RemoveOperand(2);
-  MI.RemoveOperand(1);
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = ";
              MI.dump(););
 }
@@ -914,9 +901,6 @@ void MC6809InstrInfo::expandLoadIdxImm(MachineIRBuilder &Builder) const {
     break;
   }
   MI.setDesc(Builder.getTII().get(Opcode));
-  MI.RemoveOperand(3);
-  MI.RemoveOperand(2);
-  MI.RemoveOperand(1);
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = ";
              MI.dump(););
 }
@@ -1094,17 +1078,13 @@ void MC6809InstrInfo::expandLoadIdxReg8(MachineIRBuilder &Builder) const {
     break;
   }
   MI.setDesc(Builder.getTII().get(Opcode));
-  MI.RemoveOperand(3);
-  MI.RemoveOperand(2);
-  MI.RemoveOperand(1);
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = ";
              MI.dump(););
 }
 
 void MC6809InstrInfo::expandLoadIdxReg16(MachineIRBuilder &Builder) const {
   auto &MI = *Builder.getInsertPt();
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = ";
-             MI.dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
 
   auto Offset = MI.getOperand(2).getReg();
   // XXXX: FixMe: MarkM - Assert that the above offset is one of AD, AW.
@@ -1214,11 +1194,7 @@ void MC6809InstrInfo::expandLoadIdxReg16(MachineIRBuilder &Builder) const {
     break;
   }
   MI.setDesc(Builder.getTII().get(Opcode));
-  MI.RemoveOperand(3);
-  MI.RemoveOperand(2);
-  MI.RemoveOperand(1);
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = ";
-             MI.dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
 }
 
 #if 0
@@ -1260,8 +1236,7 @@ void MC6809InstrInfo::expandLDImm1(MachineIRBuilder &Builder) const {
 
 void MC6809InstrInfo::expandLoadImm(MachineIRBuilder &Builder) const {
   auto &MI = *Builder.getInsertPt();
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = ";
-             MI.dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
 
   unsigned Opcode;
   switch (MI.getOperand(0).getReg()) {
@@ -1302,8 +1277,7 @@ void MC6809InstrInfo::expandLoadImm(MachineIRBuilder &Builder) const {
     break;
   }
   MI.setDesc(Builder.getTII().get(Opcode));
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = ";
-             MI.dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
 }
 
 #if 0

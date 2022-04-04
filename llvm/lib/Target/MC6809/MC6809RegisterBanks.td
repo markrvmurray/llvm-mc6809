@@ -11,13 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 /// General Purpose Registers: AA, AD, etc
-def ACCRegBank : RegisterBank<"GPR", [ACC32]>;
+def ACCUMRegBank : RegisterBank<"ACC", [ACC32]>;
 
 /// Index Registers: IX, IY, SU, SS
 def INDEXRegBank : RegisterBank<"INDEX", [INDEX16]>;
 
-/// Conditional register: CC
-def CCRegBank : RegisterBank<"FLAGS", [CCond]>;
-
-/// Direct page: DP
-def DPRegBank : RegisterBank<"DP", [DtPage]>;
+/// Conditional register: CC and sub-bits
+def CCRegBank : RegisterBank<"FLAG", [CCond]>;

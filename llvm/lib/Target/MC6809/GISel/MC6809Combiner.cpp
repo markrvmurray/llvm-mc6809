@@ -57,13 +57,24 @@ public:
   bool matchFoldGlobalOffset(
       MachineInstr &MI, MachineRegisterInfo &MRI,
       std::pair<const MachineOperand *, int64_t> &MatchInfo) const;
-  // G_PTR_ADD (GLOBAL_VALUE @x + y_const), z_const =>
-  // GLOBAL_VALUE @x + (y_const + z_const)
   bool applyFoldGlobalOffset(
-      MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &B,
+      MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB,
       GISelChangeObserver &Observer,
       std::pair<const MachineOperand *, int64_t> &MatchInfo) const;
+
+//  %2:_(s16) = G_SEXT %1:_(s8)
+//  %3:_(p0) = G_PTR_ADD %0:_, %2:_(s16)
+//   =>
+//  %3:_(s8) = G_PTR_ADD %0:_, %1:_(s8)
+  bool matchFoldPointerSExtOffset(
+      MachineInstr &MI, MachineRegisterInfo &MRI,
+      std::tuple<MachineInstr *> &MatchInfo) const;
+  bool applyFoldPointerSExtOffset(
+      MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB,
+      GISelChangeObserver &Observer,
+      std::tuple<MachineInstr *> &MatchInfo) const;
 };
+// ======================================================================
 
 // G_PTR_ADD (GLOBAL_VALUE @x + y_const), z_const =>
 // GLOBAL_VALUE @x + (y_const + z_const)
@@ -87,8 +98,6 @@ bool MC6809CombinerHelperState::matchFoldGlobalOffset(
   return true;
 }
 
-// G_PTR_ADD (GLOBAL_VALUE @x + y_const), z_const =>
-// GLOBAL_VALUE @x + (y_const + z_const)
 bool MC6809CombinerHelperState::applyFoldGlobalOffset(
     MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &B,
     GISelChangeObserver &Observer,
@@ -102,6 +111,42 @@ bool MC6809CombinerHelperState::applyFoldGlobalOffset(
                               MatchInfo.first->getTargetFlags());
   MI.RemoveOperand(2);
   Observer.changedInstr(MI);
+  return true;
+}
+
+//  %2:_(s16) = G_SEXT %1:_(s8)
+//  %3:_(p0) = G_PTR_ADD %0:_, %2:_(s16)
+//   =>
+//  %3:_(s8) = G_PTR_ADD %0:_, %1:_(s8)
+bool MC6809CombinerHelperState::matchFoldPointerSExtOffset(MachineInstr &MI, MachineRegisterInfo &MRI,
+                                                           std::tuple<MachineInstr *> &MatchInfo) const {
+  using namespace TargetOpcode;
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
+  assert(MI.getOpcode() == G_PTR_ADD);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Matched PtrAdd\n";);
+  Register Offset = MI.getOperand(2).getReg();
+  MachineInstr *SExt = getOpcodeDef (G_SEXT, Offset, MRI);
+  if (!SExt)
+    return false;
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Matched SExt\n";);
+  std::get<0>(MatchInfo) = SExt;
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit with match\n";);
+  return true;
+}
+
+bool MC6809CombinerHelperState::applyFoldPointerSExtOffset(MachineInstr &MI, MachineRegisterInfo &MRI,
+                                                           MachineIRBuilder &MIB, GISelChangeObserver &Observer,
+                                                           std::tuple<MachineInstr *> &MatchInfo) const {
+  using namespace TargetOpcode;
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
+  MachineInstr *SExt = std::get<0>(MatchInfo);
+  assert(MI.getOpcode() == G_PTR_ADD);
+  const TargetInstrInfo &TII = MIB.getTII();
+  Observer.changingInstr(MI);
+  MI.getOperand(2).ChangeToRegister(SExt->getOperand(1).getReg(), /* isDef */ false);
+  SExt->eraseFromParent();
+  Observer.changedInstr(MI);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit\n";);
   return true;
 }
 

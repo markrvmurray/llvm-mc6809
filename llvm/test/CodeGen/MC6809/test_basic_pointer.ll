@@ -11,7 +11,7 @@ define i8 @foo(i8* %a) {
 ;
 ; CHECK-HD6309-LABEL: foo:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
-; CHECK-HD6309-NEXT:    ldf ,x
+; CHECK-HD6309-NEXT:    ldb ,x
 ; CHECK-HD6309-NEXT:    rts
 entry:
   %0 = load i8, i8* %a, align 1
