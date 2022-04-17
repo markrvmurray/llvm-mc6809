@@ -55,4 +55,6 @@ def CC_MC6809_VarArgs : CallingConv<[
   CCAssignToStack<0, 1>,
 ]>;
 
-def MC6809_CSR : CalleeSavedRegs<(add SU)>;
+def MC6809_CSR : CalleeSavedRegs<(add)>;
+//def MC6809_CSR : CalleeSavedRegs<(add SU)>;
+//def MC6809_CSR : CalleeSavedRegs<(add AD, AW, IX, IY)>;

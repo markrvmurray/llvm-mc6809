@@ -105,9 +105,13 @@ def anyregister : Operand<i8> {
   let ParserMatchClass = RegAsmOperand<"Any">;
 }
 
+// A list of registers separated by comma. Used by load/store multiple.
+def RegListAsmOperand : MC6809AsmOperand<"RegList">;
 def reglist : Operand<i8> {
   let EncoderMethod = "encodeRegListOpValue";
-  let ParserMatchClass = RegAsmOperand<"List">;
+  let ParserMatchClass = RegListAsmOperand;
+  let PrintMethod = "printRegisterList";
+  let DecoderMethod = "DecodeRegListOperand";
 }
 
 class CondCodeAsmOperand<string name> : MC6809AsmOperand<name> {
@@ -1470,7 +1474,7 @@ class Stack<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opcode> {
   let Mode = "s";
   let OperandSize = 1;
   let Size = !add(OperandSize, OpcodeSize);
-  let InOperandList = (ins reglist:$regs);
+  let InOperandList = (ins reglist:$regs, variable_ops);
   let AsmString = !strconcat(mnemonic, " $regs");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }

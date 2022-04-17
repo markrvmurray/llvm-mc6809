@@ -37,8 +37,7 @@
 using namespace llvm;
 
 MC6809RegisterInfo::MC6809RegisterInfo()
-    : MC6809GenRegisterInfo(/*RA=*/0, /*DwarfFlavor=*/0, /*EHFlavor=*/0,
-                            /*PC=*/0, /*HwMode=*/0) {}
+    : MC6809GenRegisterInfo(/*RA=*/0, /*DwarfFlavor=*/0, /*EHFlavor=*/0, /*PC=*/0, /*HwMode=*/0) {}
 
 BitVector MC6809RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   BitVector Reserved(getNumRegs());
@@ -104,14 +103,15 @@ MC6809RegisterInfo::getCSRFirstUseCost(const MachineFunction &MF) const {
   return 5 * 16384 / 10;
 }
 
-void MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
-                                             int SPAdj, unsigned FIOperandNum,
-                                             RegScavenger *RS) const {
+void MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI, int SPAdj, unsigned FIOperandNum, RegScavenger *RS) const {
   MachineFunction &MF = *MI->getMF();
   const MachineFrameInfo &MFI = MF.getFrameInfo();
 
-  assert(!SPAdj);
+  assert(SPAdj == 0 && "SPAdj is unexpectedly non-zero");
 
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MF = "; MF.dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI->dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI->getNumOperands() = " << MI->getNumOperands() << "\n";);
   int Idx = MI->getOperand(FIOperandNum).getIndex();
   int64_t Offset = MFI.getObjectOffset(Idx);
   if (FIOperandNum + 1 < MI->getNumOperands() &&
@@ -140,27 +140,25 @@ void MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
     Offset += MFI.getStackSize();
   }
 
-  switch (MI->getOpcode()) {
-  default:
-    MI->getOperand(FIOperandNum)
-        .ChangeToTargetIndex(MC6809::TI_STATIC_STACK, Offset,
-                             MI->getOperand(FIOperandNum).getTargetFlags());
-    break;
-  }
+  MI->getOperand(FIOperandNum).ChangeToRegister(getFrameRegister(MF), /*isDef=*/false);
+  MI->getOperand(FIOperandNum + 1).setImm(Offset);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI->dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MF = "; MF.dump(););
 }
 
-Register MC6809RegisterInfo::getFrameRegister(const MachineFunction &MF) const {
+Register
+MC6809RegisterInfo::getFrameRegister(const MachineFunction &MF) const {
   const TargetFrameLowering *TFI = getFrameLowering(MF);
   return TFI->hasFP(MF) ? MC6809::SU : MC6809::SS;
 }
 
-int copyCost(Register DestReg, Register SrcReg, const MC6809Subtarget &STI) {
+int
+copyCost(Register DestReg, Register SrcReg, const MC6809Subtarget &STI) {
   const auto &TRI = *STI.getRegisterInfo();
   if (DestReg == SrcReg)
     return 0;
 
-  const auto &AreClasses = [&](const TargetRegisterClass &Dest,
-                               const TargetRegisterClass &Src) {
+  const auto &AreClasses = [&](const TargetRegisterClass &Dest, const TargetRegisterClass &Src) {
     return Dest.contains(DestReg) && Src.contains(SrcReg);
   };
 
@@ -203,10 +201,8 @@ int copyCost(Register DestReg, Register SrcReg, const MC6809Subtarget &STI) {
       return 0;
     return 1;
   } else if (AreClasses(MC6809::BIT1RegClass, MC6809::BIT1RegClass)) {
-    Register SrcReg8 =
-        TRI.getMatchingSuperReg(SrcReg, MC6809::sub_lsb, &MC6809::ACC8RegClass);
-    Register DestReg8 = TRI.getMatchingSuperReg(DestReg, MC6809::sub_lsb,
-                                                &MC6809::ACC8RegClass);
+    Register SrcReg8 = TRI.getMatchingSuperReg(SrcReg, MC6809::sub_lsb, &MC6809::ACC8RegClass);
+    Register DestReg8 = TRI.getMatchingSuperReg(DestReg, MC6809::sub_lsb, &MC6809::ACC8RegClass);
     int Cost;
 
     // XXXX: FIXME: MarkM - handle all the CC bits; the below is broken
@@ -239,10 +235,7 @@ int copyCost(Register DestReg, Register SrcReg, const MC6809Subtarget &STI) {
   llvm_unreachable("Unexpected physical register copy.");
 }
 
-bool MC6809RegisterInfo::getRegAllocationHints(
-    Register VirtReg, ArrayRef<MCPhysReg> Order,
-    SmallVectorImpl<MCPhysReg> &Hints, const MachineFunction &MF,
-    const VirtRegMap *VRM, const LiveRegMatrix *Matrix) const {
+bool MC6809RegisterInfo::getRegAllocationHints(Register VirtReg, ArrayRef<MCPhysReg> Order, SmallVectorImpl<MCPhysReg> &Hints, const MachineFunction &MF, const VirtRegMap *VRM, const LiveRegMatrix *Matrix) const {
   const MC6809Subtarget &STI = MF.getSubtarget<MC6809Subtarget>();
   const auto &TRI = *STI.getRegisterInfo();
   const MachineRegisterInfo &MRI = MF.getRegInfo();
@@ -260,12 +253,8 @@ bool MC6809RegisterInfo::getRegAllocationHints(
     default:
       continue;
     case MC6809::COPY: {
-      const MachineOperand &Self = MI.getOperand(0).getReg() == VirtReg
-                                       ? MI.getOperand(0)
-                                       : MI.getOperand(1);
-      const MachineOperand &Other = MI.getOperand(0).getReg() == VirtReg
-                                        ? MI.getOperand(1)
-                                        : MI.getOperand(0);
+      const MachineOperand &Self = MI.getOperand(0).getReg() == VirtReg ? MI.getOperand(0) : MI.getOperand(1);
+      const MachineOperand &Other = MI.getOperand(0).getReg() == VirtReg ? MI.getOperand(1) : MI.getOperand(0);
       Register OtherReg = Other.getReg();
       if (OtherReg.isVirtual()) {
         if (!VRM->hasPhys(OtherReg))
@@ -294,10 +283,8 @@ bool MC6809RegisterInfo::getRegAllocationHints(
     }
   }
 
-  SmallVector<std::pair<Register, int>> RegsAndScores(RegScores.begin(),
-                                                      RegScores.end());
-  sort(RegsAndScores, [&](const std::pair<Register, int> &A,
-                          const std::pair<Register, int> &B) {
+  SmallVector<std::pair<Register, int>> RegsAndScores(RegScores.begin(), RegScores.end());
+  sort(RegsAndScores, [&](const std::pair<Register, int> &A, const std::pair<Register, int> &B) {
     if (A.second > B.second)
       return true;
     if (A.second < B.second)

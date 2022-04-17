@@ -38,7 +38,6 @@ add_llvm_target(MC6809CodeGen
   MC6809NoRecurse.cpp
   MC6809PostRAScavenging.cpp
   MC6809RegisterInfo.cpp
-  MC6809StaticStackAlloc.cpp
   MC6809Subtarget.cpp
   MC6809TargetMachine.cpp
   MC6809TargetObjectFile.cpp

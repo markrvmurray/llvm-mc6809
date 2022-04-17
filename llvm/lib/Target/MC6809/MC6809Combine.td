@@ -19,22 +19,22 @@ def fold_global_offset : GICombineRule<
   (apply [{ return applyFoldGlobalOffset(*${root}, MRI, B, Observer, ${matchinfo});}])
 >;
 
-//  %2:_(s16) = G_SEXT %1:_(s8)
+//  %2:_(s16) = G_[SZ]SEXT %1:_(s8)
 //  %3:_(p0) = G_PTR_ADD %0:_, %2:_(s16)
 //   =>
 //  %3:_(s8) = G_PTR_ADD %0:_, %1:_(s8)
-def fold_pointer_sext_offset_matchdata : GIDefMatchData<"std::tuple<MachineInstr *>">;
-def fold_pointer_sext_offset : GICombineRule<
-  (defs root:$root, fold_pointer_sext_offset_matchdata:$matchinfo),
-  (match (wip_match_opcode G_PTR_ADD):$root, [{ return matchFoldPointerSExtOffset(*${root}, MRI, ${matchinfo}); }]),
-  (apply [{ return applyFoldPointerSExtOffset(*${root}, MRI, B, Observer, ${matchinfo});}])
+def fold_pointer_ext_offset_matchdata : GIDefMatchData<"std::pair<MachineInstr *, MachineInstr *>">;
+def fold_pointer_ext_offset : GICombineRule<
+  (defs root:$root, fold_pointer_ext_offset_matchdata:$matchinfo),
+  (match (wip_match_opcode G_PTR_ADD):$root, [{ return matchFoldPointerExtOffset(*${root}, MRI, ${matchinfo}); }]),
+  (apply [{ return applyFoldPointerExtOffset(*${root}, MRI, B, Observer, ${matchinfo});}])
 >;
 
 // ============================================================================
 def MC6809CombinerHelper: GICombinerHelper<"MC6809GenCombinerHelper",
                                            [all_combines,
                                             fold_global_offset,
-                                            fold_pointer_sext_offset
+                                            fold_pointer_ext_offset
                                             ]> {
   let DisableRuleOption = "mc6809combiner-disable-rule";
   let StateClass = "MC6809CombinerHelperState";

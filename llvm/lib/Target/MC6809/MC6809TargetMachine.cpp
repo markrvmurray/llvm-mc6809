@@ -36,7 +36,6 @@
 #include "MC6809MachineScheduler.h"
 #include "MC6809NoRecurse.h"
 #include "MC6809PostRAScavenging.h"
-#include "MC6809StaticStackAlloc.h"
 #include "MC6809TargetObjectFile.h"
 #include "MC6809TargetTransformInfo.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
@@ -55,7 +54,6 @@ extern "C" void LLVM_EXTERNAL_VISIBILITY LLVMInitializeMC6809Target() {
   initializeMC6809LowerSelectPass(PR);
   initializeMC6809NoRecursePass(PR);
   initializeMC6809PostRAScavengingPass(PR);
-  initializeMC6809StaticStackAllocPass(PR);
 }
 
 static const char *MC6809DataLayout =
@@ -185,7 +183,9 @@ public:
   ScheduleDAGInstrs *
   createMachineScheduler(MachineSchedContext *C) const override;
 
+#if 0
   std::unique_ptr<CSEConfigBase> getCSEConfig() const override;
+#endif /* 0 */
 };
 } // namespace
 
@@ -254,7 +254,6 @@ void MC6809PassConfig::addPreSched2() {
   addPass(&FinalizeISelID);
   // Lower pseudos produced by control flow pseudos.
   addPass(&ExpandPostRAPseudosID);
-  addPass(createMC6809StaticStackAllocPass());
 }
 
 void MC6809PassConfig::addPreEmitPass() { addPass(&BranchRelaxationPassID); }
@@ -266,12 +265,15 @@ MC6809PassConfig::createMachineScheduler(MachineSchedContext *C) const {
 
 namespace {
 
+#if 0
 class MC6809CSEConfigFull : public CSEConfigFull {
 public:
   virtual ~MC6809CSEConfigFull() = default;
   virtual bool shouldCSEOpc(unsigned Opc) override;
 };
+#endif /* 0 */
 
+#if 0
 bool MC6809CSEConfigFull::shouldCSEOpc(unsigned Opc) {
   switch (Opc) {
   default:
@@ -281,11 +283,14 @@ bool MC6809CSEConfigFull::shouldCSEOpc(unsigned Opc) {
     return true;
   }
 }
+#endif /* 0 */
 
 } // namespace
 
+#if 0
 std::unique_ptr<CSEConfigBase> MC6809PassConfig::getCSEConfig() const {
   if (TM->getOptLevel() == CodeGenOpt::None)
     return std::make_unique<CSEConfigConstantOnly>();
   return std::make_unique<MC6809CSEConfigFull>();
 }
+#endif /* 0 */

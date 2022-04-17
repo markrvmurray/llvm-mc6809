@@ -484,21 +484,21 @@ def Bbc : MC6809ShortConditionalBranch_P1<(outs), "b$cond", Opcode<0x02,1>, [], 
   let isTerminator = true;
 }
 
-defm LEAXi : MC6809Indexed_P1<"leax", Opcode<0x30, 1>, (outs), [IX], []>;
+defm LEAXi : MC6809Indexed_P1<"leax", Opcode<0x30, 1>, (outs IXc:$reg), [], []>;
 
-defm LEAYi : MC6809Indexed_P1<"leay", Opcode<0x31, 1>, (outs), [IY], []>;
+defm LEAYi : MC6809Indexed_P1<"leay", Opcode<0x31, 1>, (outs IYc:$reg), [], []>;
 
-defm LEASi : MC6809Indexed_P1<"leas", Opcode<0x32, 1>, (outs), [SS], []>;
+defm LEASi : MC6809Indexed_P1<"leas", Opcode<0x32, 1>, (outs SSc:$reg), [], []>;
 
-defm LEAUi : MC6809Indexed_P1<"leau", Opcode<0x33, 1>, (outs), [SU], []>;
+defm LEAUi : MC6809Indexed_P1<"leau", Opcode<0x33, 1>, (outs SUc:$reg), [], []>;
 
-def PSHSs : MC6809Stack_P1<(outs), "pshs", Opcode<0x34,1>, [], []>;
+def PSHSs : MC6809Stack_P1<(outs), "pshs", Opcode<0x34,1>, [SS], [SS]>;
 
-def PULSs : MC6809Stack_P1<(outs), "puls", Opcode<0x35,1>, [], []>;
+def PULSs : MC6809Stack_P1<(outs), "puls", Opcode<0x35,1>, [SS], [SS]>;
 
-def PSHUs : MC6809Stack_P1<(outs), "pshu", Opcode<0x36,1>, [], []>;
+def PSHUs : MC6809Stack_P1<(outs), "pshu", Opcode<0x36,1>, [SU], [SU]>;
 
-def PULUs : MC6809Stack_P1<(outs), "pulu", Opcode<0x37,1>, [], []>;
+def PULUs : MC6809Stack_P1<(outs), "pulu", Opcode<0x37,1>, [SU], [SU]>;
 
 def RTSr : MC6809Return_P1<(outs), "rts", Opcode<0x39,1>, [], []> {
   let mayLoad = false;
@@ -1276,19 +1276,19 @@ def CMPRp : MC6809RegisterPair_P2<(outs anyregister:$dst), "cmpr", Opcode<0x37,2
   let isCompare = true;
 }
 
-def PSHSWx : MC6809Inherent_P2<(outs), "pshsw", Opcode<0x38,2>, [], []> {
+def PSHSWx : MC6809Inherent_P2<(outs), "pshsw", Opcode<0x38,2>, [SS], [SS]> {
   let Predicates = [IsHD6309];
 }
 
-def PULSWx : MC6809Inherent_P2<(outs), "pulsw", Opcode<0x39,2>, [], []> {
+def PULSWx : MC6809Inherent_P2<(outs), "pulsw", Opcode<0x39,2>, [SS], [SS]> {
   let Predicates = [IsHD6309];
 }
 
-def PSHUWx : MC6809Inherent_P2<(outs), "pshuw", Opcode<0x3A,2>, [], []> {
+def PSHUWx : MC6809Inherent_P2<(outs), "pshuw", Opcode<0x3A,2>, [SU], [SU]> {
   let Predicates = [IsHD6309];
 }
 
-def PULUWx : MC6809Inherent_P2<(outs), "puluw", Opcode<0x3B,2>, [], []> {
+def PULUWx : MC6809Inherent_P2<(outs), "puluw", Opcode<0x3B,2>, [SU], [SU]> {
   let Predicates = [IsHD6309];
 }
 

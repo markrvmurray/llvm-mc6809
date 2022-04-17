@@ -62,17 +62,17 @@ public:
       GISelChangeObserver &Observer,
       std::pair<const MachineOperand *, int64_t> &MatchInfo) const;
 
-//  %2:_(s16) = G_SEXT %1:_(s8)
+//  %2:_(s16) = G_[SZ]EXT %1:_(s8)
 //  %3:_(p0) = G_PTR_ADD %0:_, %2:_(s16)
 //   =>
 //  %3:_(s8) = G_PTR_ADD %0:_, %1:_(s8)
-  bool matchFoldPointerSExtOffset(
+  bool matchFoldPointerExtOffset(
       MachineInstr &MI, MachineRegisterInfo &MRI,
-      std::tuple<MachineInstr *> &MatchInfo) const;
-  bool applyFoldPointerSExtOffset(
+      std::pair<MachineInstr *, MachineInstr *>&MatchInfo) const;
+  bool applyFoldPointerExtOffset(
       MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB,
       GISelChangeObserver &Observer,
-      std::tuple<MachineInstr *> &MatchInfo) const;
+      std::pair<MachineInstr *, MachineInstr *>&MatchInfo) const;
 };
 // ======================================================================
 
@@ -114,37 +114,42 @@ bool MC6809CombinerHelperState::applyFoldGlobalOffset(
   return true;
 }
 
-//  %2:_(s16) = G_SEXT %1:_(s8)
+//  %2:_(s16) = G_[SZ]EXT %1:_(s8)
 //  %3:_(p0) = G_PTR_ADD %0:_, %2:_(s16)
 //   =>
 //  %3:_(s8) = G_PTR_ADD %0:_, %1:_(s8)
-bool MC6809CombinerHelperState::matchFoldPointerSExtOffset(MachineInstr &MI, MachineRegisterInfo &MRI,
-                                                           std::tuple<MachineInstr *> &MatchInfo) const {
+bool MC6809CombinerHelperState::matchFoldPointerExtOffset(MachineInstr &MI, MachineRegisterInfo &MRI,
+                                                           std::pair<MachineInstr *, MachineInstr *>&MatchInfo) const {
   using namespace TargetOpcode;
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
   assert(MI.getOpcode() == G_PTR_ADD);
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Matched PtrAdd\n";);
-  Register Offset = MI.getOperand(2).getReg();
-  MachineInstr *SExt = getOpcodeDef (G_SEXT, Offset, MRI);
-  if (!SExt)
+  if (!MI.getOperand(2).isReg())
     return false;
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Matched SExt\n";);
-  std::get<0>(MatchInfo) = SExt;
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Matched offset as register\n";);
+  Register Offset = MI.getOperand(2).getReg();
+  MachineInstr *Ext = getOpcodeDef (G_SEXT, Offset, MRI);
+  if (!Ext) {
+    Ext = getOpcodeDef(G_ZEXT, Offset, MRI);
+    if (!Ext)
+      return false;
+  }
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Matched [SZ]Ext\n";);
+  MatchInfo = {&MI, Ext};
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Ext = "; Ext->dump(););
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit with match\n";);
   return true;
 }
 
-bool MC6809CombinerHelperState::applyFoldPointerSExtOffset(MachineInstr &MI, MachineRegisterInfo &MRI,
+bool MC6809CombinerHelperState::applyFoldPointerExtOffset(MachineInstr &MI, MachineRegisterInfo &MRI,
                                                            MachineIRBuilder &MIB, GISelChangeObserver &Observer,
-                                                           std::tuple<MachineInstr *> &MatchInfo) const {
+                                                           std::pair<MachineInstr *, MachineInstr *>&MatchInfo) const {
   using namespace TargetOpcode;
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
-  MachineInstr *SExt = std::get<0>(MatchInfo);
   assert(MI.getOpcode() == G_PTR_ADD);
-  const TargetInstrInfo &TII = MIB.getTII();
   Observer.changingInstr(MI);
-  MI.getOperand(2).ChangeToRegister(SExt->getOperand(1).getReg(), /* isDef */ false);
-  SExt->eraseFromParent();
+  MI.getOperand(2).ChangeToRegister(MatchInfo.second->getOperand(1).getReg(), /* isDef */ false);
+  MatchInfo.second->eraseFromParent();
   Observer.changedInstr(MI);
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit\n";);
   return true;

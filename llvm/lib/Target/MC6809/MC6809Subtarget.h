@@ -40,13 +40,11 @@ class MC6809TargetMachine;
 /// A specific MC6809 target MCU.
 class MC6809Subtarget : public MC6809GenSubtargetInfo {
 public:
-  MC6809Subtarget(const Triple &TT, const std::string &CPU,
-                  const std::string &FS, const MC6809TargetMachine &TM);
+  MC6809Subtarget(const Triple &TT, const std::string &CPU, const std::string &FS, const MC6809TargetMachine &TM);
 
   /// Gets the e_flags value of an ELF object file.
   unsigned getEFlags() const {
-    assert(EFlags != 0 &&
-           "every MC6809 subtarget must set at least one architecture feature");
+    assert(EFlags != 0 && "every MC6809 subtarget must set at least one architecture feature");
     return EFlags;
   }
 
@@ -54,7 +52,7 @@ public:
     return &FrameLowering;
   }
 
-  const MC6809InstrInfo *getInstrInfo() const override { return &InstrInfo; }
+  const MC6809InstrInfo *getInstrInfo() const override { return  &InstrInfo; }
 
   const MC6809RegisterInfo *getRegisterInfo() const override {
     return &RegInfo;

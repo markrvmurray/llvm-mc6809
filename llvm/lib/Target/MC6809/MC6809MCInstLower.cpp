@@ -53,6 +53,7 @@ void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
     OutMI.setOpcode(MC6809::SEXWx);
     return;
   }
+#if 0
   case MC6809::Load8Imm: {
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : LDImm8\n";);
     switch (MI->getOperand(0).getReg()) {
@@ -109,15 +110,131 @@ void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
     OutMI.addOperand(Val);
     return;
   }
+  case MC6809::LEAPtrAddImm: {
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : LEAPtrAddImm\n";);
+    MachineOperand IndexReg = MI->getOperand(0);
+    MachineOperand IndexOperand = MI->getOperand(1);
+    MachineOperand ValOp = MI->getOperand(2);
+    uint64_t Val = ValOp.getImm();
+    int ValSize = Val == 0 ? 0
+        : Val < 32 ? 5
+        : Val < 256 ? 8
+        : Val < 65536 ? 16
+        : -1;
+    switch (IndexReg.getReg()) {
+    case MC6809::IX:
+      switch (ValSize) {
+      case 0: {
+        OutMI.setOpcode(MC6809::LEAXi_o0);
+        break;
+      }
+      case 5: {
+        OutMI.setOpcode(MC6809::LEAXi_o5);
+        break;
+      }
+      case 8: {
+        OutMI.setOpcode(MC6809::LEAXi_o8);
+        break;
+      }
+      case 16: {
+        OutMI.setOpcode(MC6809::LEAXi_o16);
+        break;
+      }
+      default:
+        llvm_unreachable("Illegal offset in LEAPtrAddImm (X)");
+      }
+      break;
+    case MC6809::IY:
+      switch (ValSize) {
+      case 0: {
+        OutMI.setOpcode(MC6809::LEAYi_o0);
+        break;
+      }
+      case 5: {
+        OutMI.setOpcode(MC6809::LEAYi_o5);
+        break;
+      }
+      case 8: {
+        OutMI.setOpcode(MC6809::LEAYi_o8);
+        break;
+      }
+      case 16: {
+        OutMI.setOpcode(MC6809::LEAYi_o16);
+        break;
+      }
+      default:
+        llvm_unreachable("Illegal offset in LEAPtrAddImm (Y)");
+      }
+      break;
+    case MC6809::SU:
+      switch (ValSize) {
+      case 0: {
+        OutMI.setOpcode(MC6809::LEAUi_o0);
+        break;
+      }
+      case 5: {
+        OutMI.setOpcode(MC6809::LEAUi_o5);
+        break;
+      }
+      case 8: {
+        OutMI.setOpcode(MC6809::LEAUi_o8);
+        break;
+      }
+      case 16: {
+        OutMI.setOpcode(MC6809::LEAUi_o16);
+        break;
+      }
+      default:
+        llvm_unreachable("Illegal offset in LEAPtrAddImm (U)");
+      }
+      break;
+    case MC6809::SS:
+      switch (ValSize) {
+      case 0: {
+        OutMI.setOpcode(MC6809::LEASi_o0);
+        break;
+      }
+      case 5: {
+        OutMI.setOpcode(MC6809::LEASi_o5);
+        break;
+      }
+      case 8: {
+        OutMI.setOpcode(MC6809::LEASi_o8);
+        break;
+      }
+      case 16: {
+        OutMI.setOpcode(MC6809::LEASi_o16);
+        break;
+      }
+      default:
+        llvm_unreachable("Illegal offset in LEAPtrAddImm (S)");
+      }
+      break;
+    default:
+      llvm_unreachable("Unknown pointer register in LEA");
+    }
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 0 OutMI = "; OutMI.dump(););
+    MCOperand IndexDst, Offset, IndexSrc;
+    if (!lowerOperand(IndexReg, IndexDst))
+      llvm_unreachable("Failed to lower index destination");
+    OutMI.addOperand(IndexDst);
+    if (!lowerOperand(ValOp, Offset))
+      llvm_unreachable("Failed to lower offset");
+    OutMI.addOperand(Offset);
+    if (!lowerOperand(IndexOperand, IndexSrc))
+      llvm_unreachable("Failed to lower index source");
+    OutMI.addOperand(IndexSrc);
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 1 OutMI = "; OutMI.dump(););
+    return;
+  }
   case MC6809::LEAPtrAddReg8: {
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : LEAPtrAddReg8\n";);
-    Register IndexReg = MI->getOperand(0).getReg();
-    Register IndexOperand = MI->getOperand(1).getReg();
-    Register OffsetReg = MI->getOperand(2).getReg();
-    assert(IndexOperand == IndexReg && "Source and result index registers must be equal");
-    switch (IndexReg) {
+    MachineOperand IndexReg = MI->getOperand(0);
+    MachineOperand IndexOperand = MI->getOperand(1);
+    MachineOperand OffsetReg = MI->getOperand(2);
+    switch (IndexReg.getReg()) {
     case MC6809::IX:
-      switch (OffsetReg) {
+      switch (OffsetReg.getReg()) {
       case MC6809::AA: {
         OutMI.setOpcode(MC6809::LEAXi_oA);
         break;
@@ -139,7 +256,7 @@ void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
       }
       break;
     case MC6809::IY:
-      switch (OffsetReg) {
+      switch (OffsetReg.getReg()) {
       case MC6809::AA: {
         OutMI.setOpcode(MC6809::LEAYi_oA);
         break;
@@ -161,7 +278,7 @@ void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
       }
       break;
     case MC6809::SU:
-      switch (OffsetReg) {
+      switch (OffsetReg.getReg()) {
       case MC6809::AA: {
         OutMI.setOpcode(MC6809::LEAUi_oA);
         break;
@@ -183,7 +300,7 @@ void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
       }
       break;
     case MC6809::SS:
-      switch (OffsetReg) {
+      switch (OffsetReg.getReg()) {
       case MC6809::AA: {
         OutMI.setOpcode(MC6809::LEASi_oA);
         break;
@@ -207,24 +324,28 @@ void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
     default:
        llvm_unreachable("Unknown pointer register in LEA");
     }
-    MCOperand IndexDst, IndexSrc;
-    if (!lowerOperand(MI->getOperand(0), IndexDst))
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 0 OutMI = "; OutMI.dump(););
+    MCOperand IndexDst, OffsetSrc, IndexSrc;
+    if (!lowerOperand(IndexReg, IndexDst))
       llvm_unreachable("Failed to lower index destination");
     OutMI.addOperand(IndexDst);
-    if (!lowerOperand(MI->getOperand(1), IndexSrc))
+    if (!lowerOperand(OffsetReg, OffsetSrc))
+      llvm_unreachable("Failed to lower offset source");
+    OutMI.addOperand(OffsetSrc);
+    if (!lowerOperand(IndexOperand, IndexSrc))
       llvm_unreachable("Failed to lower index source");
     OutMI.addOperand(IndexSrc);
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 1 OutMI = "; OutMI.dump(););
     return;
   }
   case MC6809::LEAPtrAddReg16: {
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : LEAPtrAddReg16\n";);
-    Register IndexReg = MI->getOperand(0).getReg();
-    Register IndexOperand = MI->getOperand(1).getReg();
-    Register OffsetReg = MI->getOperand(2).getReg();
-    assert(IndexOperand == IndexReg && "Source and result index registers must be equal");
-    switch (IndexReg) {
+    MachineOperand IndexReg = MI->getOperand(0);
+    MachineOperand IndexOperand = MI->getOperand(1);
+    MachineOperand OffsetReg = MI->getOperand(2);
+    switch (IndexReg.getReg()) {
     case MC6809::IX:
-      switch (OffsetReg) {
+      switch (OffsetReg.getReg()) {
       case MC6809::AD: {
         OutMI.setOpcode(MC6809::LEAXi_oD);
         break;
@@ -238,7 +359,7 @@ void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
       }
       break;
     case MC6809::IY:
-      switch (OffsetReg) {
+      switch (OffsetReg.getReg()) {
       case MC6809::AD: {
         OutMI.setOpcode(MC6809::LEAYi_oD);
         break;
@@ -252,7 +373,7 @@ void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
       }
       break;
     case MC6809::SU:
-      switch (OffsetReg) {
+      switch (OffsetReg.getReg()) {
       case MC6809::AD: {
         OutMI.setOpcode(MC6809::LEAUi_oD);
         break;
@@ -266,7 +387,7 @@ void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
       }
       break;
     case MC6809::SS:
-      switch (OffsetReg) {
+      switch (OffsetReg.getReg()) {
       case MC6809::AD: {
         OutMI.setOpcode(MC6809::LEASi_oD);
         break;
@@ -283,19 +404,20 @@ void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
       llvm_unreachable("Unknown pointer register in LEA");
     }
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 0 OutMI = "; OutMI.dump(););
-    MCOperand IndexDst, Offset, IndexSrc;
-    if (!lowerOperand(MI->getOperand(0), IndexDst))
+    MCOperand IndexDst, OffsetSrc, IndexSrc;
+    if (!lowerOperand(IndexReg, IndexDst))
       llvm_unreachable("Failed to lower index destination");
     OutMI.addOperand(IndexDst);
-    if (!lowerOperand(MI->getOperand(1), Offset))
-      llvm_unreachable("Failed to lower offset");
-    OutMI.addOperand(Offset);
-    if (!lowerOperand(MI->getOperand(2), IndexSrc))
+    if (!lowerOperand(OffsetReg, OffsetSrc))
+      llvm_unreachable("Failed to lower offset source");
+    OutMI.addOperand(OffsetSrc);
+    if (!lowerOperand(IndexOperand, IndexSrc))
       llvm_unreachable("Failed to lower index source");
     OutMI.addOperand(IndexSrc);
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 1 OutMI = "; OutMI.dump(););
     return;
   }
+#endif /* 0 */
   }
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 2 OutMI = "; OutMI.dump(););
 

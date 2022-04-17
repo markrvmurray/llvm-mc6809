@@ -3,33 +3,60 @@
 ; RUN: llc -O0 -global-isel -global-isel-abort=1 -verify-machineinstrs -mcpu hd6309 %s -o - | FileCheck %s --check-prefixes=CHECK-HD6309
 target triple = "mc6809"
 
-; Function Attrs: mustprogress nofree norecurse nosync nounwind readonly willreturn
-define i8 @foo(i8* nocapture noundef readonly %a, i8 noundef signext %b) #0 {
-; CHECK-MC6809-LABEL: foo:
+define i8 @foo0(i8* nocapture noundef readonly %a, i8 noundef zeroext %b) #0 {
+; CHECK-MC6809-LABEL: foo0:
 ; CHECK-MC6809:       ; %bb.0: ; %entry
 ; CHECK-MC6809-NEXT:    leax b,x
 ; CHECK-MC6809-NEXT:    ldb ,x
 ; CHECK-MC6809-NEXT:    rts
 ;
-; CHECK-HD6309-LABEL: foo:
+; CHECK-HD6309-LABEL: foo0:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
 ; CHECK-HD6309-NEXT:    leax b,x
 ; CHECK-HD6309-NEXT:    ldb ,x
 ; CHECK-HD6309-NEXT:    rts
 entry:
-  %arrayidx = getelementptr inbounds i8, i8* %a, i8 %b
-  %0 = load i8, i8* %arrayidx, align 1, !tbaa !3
+  %idxprom = zext i8 %b to i16
+  %arrayidx = getelementptr inbounds i8, i8* %a, i16 %idxprom
+  %0 = load i8, i8* %arrayidx, align 1
   ret i8 %0
 }
 
-attributes #0 = { mustprogress nofree norecurse nosync nounwind readonly willreturn "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
+define i8 @foo1(i8* nocapture noundef readonly %a, i8 noundef signext %b) #0 {
+; CHECK-MC6809-LABEL: foo1:
+; CHECK-MC6809:       ; %bb.0: ; %entry
+; CHECK-MC6809-NEXT:    leax b,x
+; CHECK-MC6809-NEXT:    ldb ,x
+; CHECK-MC6809-NEXT:    rts
+;
+; CHECK-HD6309-LABEL: foo1:
+; CHECK-HD6309:       ; %bb.0: ; %entry
+; CHECK-HD6309-NEXT:    leax b,x
+; CHECK-HD6309-NEXT:    ldb ,x
+; CHECK-HD6309-NEXT:    rts
+entry:
+  %idxprom = sext i8 %b to i16
+  %arrayidx = getelementptr inbounds i8, i8* %a, i16 %idxprom
+  %0 = load i8, i8* %arrayidx, align 1
+  ret i8 %0
+}
 
-!llvm.module.flags = !{!0, !1}
-!llvm.ident = !{!2}
-
-!0 = !{i32 1, !"wchar_size", i32 4}
-!1 = !{i32 7, !"frame-pointer", i32 2}
-!2 = !{!"clang version 15.0.0 (https://github.com/llvm-mos/llvm-mos.git 53eca6c20776f15590dd1e3843071012d5b3812d)"}
-!3 = !{!4, !4, i64 0}
-!4 = !{!"omnipotent char", !5, i64 0}
-!5 = !{!"Simple C/C++ TBAA"}
+define i8 @foo2(i8* nocapture noundef readonly %a) #0 {
+; CHECK-MC6809-LABEL: foo2:
+; CHECK-MC6809:       ; %bb.0: ; %entry
+; CHECK-MC6809-NEXT:    ldd #59
+; CHECK-MC6809-NEXT:    leax d,x
+; CHECK-MC6809-NEXT:    ldb ,x
+; CHECK-MC6809-NEXT:    rts
+;
+; CHECK-HD6309-LABEL: foo2:
+; CHECK-HD6309:       ; %bb.0: ; %entry
+; CHECK-HD6309-NEXT:    ldd #59
+; CHECK-HD6309-NEXT:    leax d,x
+; CHECK-HD6309-NEXT:    ldb ,x
+; CHECK-HD6309-NEXT:    rts
+entry:
+  %arrayidx = getelementptr inbounds i8, i8* %a, i16 59
+  %0 = load i8, i8* %arrayidx, align 1
+  ret i8 %0
+}

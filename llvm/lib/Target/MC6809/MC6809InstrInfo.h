@@ -19,45 +19,81 @@
 
 #include "MC6809RegisterInfo.h"
 
+using namespace llvm;
+
 #define GET_INSTRINFO_HEADER
 #include "MC6809GenInstrInfo.inc"
 
 namespace llvm {
+struct RegPlusOffsetLen {
+  Register Reg;
+  int OffsetLen;
+  bool operator==(const RegPlusOffsetLen &Other) const {
+    return Reg == Other.Reg && OffsetLen == Other.OffsetLen;
+  }
+};
+
+template <> struct DenseMapInfo<RegPlusOffsetLen> {
+  static inline RegPlusOffsetLen getEmptyKey() { return {((unsigned)(-1)), -1}; }
+  static inline RegPlusOffsetLen getTombstoneKey() { return {((unsigned)(-1))-1, -2}; }
+  static unsigned getHashValue(const RegPlusOffsetLen &V) {
+    return hash_combine(DenseMapInfo<int>::getHashValue(V.Reg), DenseMapInfo<int>::getHashValue(V.OffsetLen));
+  }
+  static bool isEqual(const RegPlusOffsetLen &A, const RegPlusOffsetLen &B) {
+    return A == B;
+  }
+};
+struct RegPlusReg {
+  Register DestReg;
+  Register OffsetReg;
+  bool operator==(const RegPlusReg &Other) const {
+    return DestReg == Other.DestReg && OffsetReg == Other.OffsetReg;
+  }
+};
+
+template <> struct DenseMapInfo<RegPlusReg> {
+  static inline RegPlusReg getEmptyKey() { return {((unsigned)(-1)), ((unsigned)(-1))}; }
+  static inline RegPlusReg getTombstoneKey() { return {((unsigned)(-1))-1,((unsigned)(-1))-1}; }
+  static unsigned getHashValue(const RegPlusReg &V) {
+    return hash_combine(DenseMapInfo<int>::getHashValue(V.DestReg), DenseMapInfo<int>::getHashValue(V.OffsetReg));
+  }
+  static bool isEqual(const RegPlusReg &A, const RegPlusReg &B) {
+    return A == B;
+  }
+};
+}
+
+namespace llvm {
+
+class MC6809Subtarget;
+class MC6809RegisterBankInfo;
 
 class MC6809InstrInfo : public MC6809GenInstrInfo {
 public:
-  MC6809InstrInfo();
+  MC6809InstrInfo(const MC6809Subtarget &STI);
 
 #if 0
-  bool isReallyTriviallyReMaterializable(const MachineInstr &MI,
-                                         AAResults *AA) const override;
+  bool isReallyTriviallyReMaterializable(const MachineInstr &MI, AAResults *AA) const override;
 #endif
+  unsigned isLoadFromStackSlot(const MachineInstr &MI, int &FrameIndex) const override;
 
-  unsigned isLoadFromStackSlot(const MachineInstr &MI,
-                               int &FrameIndex) const override;
-
-  unsigned isStoreToStackSlot(const MachineInstr &MI,
-                              int &FrameIndex) const override;
+  unsigned isStoreToStackSlot(const MachineInstr &MI, int &FrameIndex) const override;
 
   void reMaterialize(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
                      Register DestReg, unsigned SubIdx,
                      const MachineInstr &Orig,
                      const TargetRegisterInfo &TRI) const override;
 
-  MachineInstr *commuteInstructionImpl(MachineInstr &MI, bool NewMI,
-                                       unsigned OpIdx1,
-                                       unsigned OpIdx2) const override;
+  MachineInstr *commuteInstructionImpl(MachineInstr &MI, bool NewMI, unsigned OpIdx1, unsigned OpIdx2) const override;
 
   unsigned getInstSizeInBytes(const MachineInstr &MI) const override;
 
   unsigned getInstBundleLength(const MachineInstr &MI) const;
 
-  bool findCommutedOpIndices(const MachineInstr &MI, unsigned &SrcOpIdx1,
-                             unsigned &SrcOpIdx2) const override;
+  bool findCommutedOpIndices(const MachineInstr &MI, unsigned &SrcOpIdx1, unsigned &SrcOpIdx2) const override;
 
 #if 0
-  bool isBranchOffsetInRange(unsigned BranchOpc,
-                             int64_t BrOffset) const override;
+  bool isBranchOffsetInRange(unsigned BranchOpc, int64_t BrOffset) const override;
 #endif
 
   MachineBasicBlock *getBranchDestBlock(const MachineInstr &MI) const override;
@@ -67,8 +103,7 @@ public:
                      SmallVectorImpl<MachineOperand> &Cond,
                      bool AllowModify = false) const override;
 
-  unsigned removeBranch(MachineBasicBlock &MBB,
-                        int *BytesRemoved = nullptr) const override;
+  unsigned removeBranch(MachineBasicBlock &MBB, int *BytesRemoved = nullptr) const override;
 
   unsigned insertBranch(MachineBasicBlock &MBB, MachineBasicBlock *TBB,
                         MachineBasicBlock *FBB, ArrayRef<MachineOperand> Cond,
@@ -91,8 +126,7 @@ public:
                            const TargetRegisterClass *RC,
                            const TargetRegisterInfo *TRI) const override;
 
-  const TargetRegisterClass *canFoldCopy(const MachineInstr &MI,
-                                         unsigned FoldIdx) const override;
+  const TargetRegisterClass *canFoldCopy(const MachineInstr &MI, unsigned FoldIdx) const override;
 
   void loadRegFromStackSlot(MachineBasicBlock &MBB,
                             MachineBasicBlock::iterator MI, Register DestReg,
@@ -113,26 +147,34 @@ public:
   std::pair<unsigned, unsigned>
   decomposeMachineOperandsTargetFlags(unsigned TF) const override;
 
-  ArrayRef<std::pair<int, const char *>>
-  getSerializableTargetIndices() const override;
-
   ArrayRef<std::pair<unsigned, const char *>>
   getSerializableDirectMachineOperandTargetFlags() const override;
 
+  int64_t getFramePoppedByCallee(const MachineInstr &MI) const {
+    assert(isFrameInstr(MI) && "Not a frame instruction");
+    assert(MI.getOperand(1).getImm() >= 0 && "Size must not be negative");
+    return MI.getOperand(1).getImm();
+  }
+
+
 private:
-  void copyPhysRegImpl(MachineIRBuilder &Builder, Register DestReg,
-                       Register SrcReg) const;
+  const MC6809Subtarget &STI;
+  // const MC6809RegisterBankInfo &RBI;
+
+  void copyPhysRegImpl(MachineIRBuilder &Builder, Register DestReg, Register SrcReg) const;
 
   // Post RA pseudos
-  void expandLoadIdxZero(MachineIRBuilder &Builder) const;
-  void expandLoadIdxImm(MachineIRBuilder &Builder) const;
-  void expandLoadIdxReg8(MachineIRBuilder &Builder) const;
-  void expandLoadIdxReg16(MachineIRBuilder &Builder) const;
+  void expandLEAPtrAddImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandLEAPtrAddReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandLoadIdxZero(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandLoadIdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandLoadIdxReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   // void expandLoadImm1(MachineIRBuilder &Builder) const;
-  void expandLoadImm(MachineIRBuilder &Builder) const;
+  void expandLoadImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   // void expandLDImmRemat(MachineIRBuilder &Builder) const;
   // void expandLDZ(MachineIRBuilder &Builder) const;
   // void expandIncDec(MachineIRBuilder &Builder) const;
+  void expandStoreIdxZero(MachineIRBuilder &Builder, MachineInstr &MI) const;
 
   // NZ pseudos
   // void expandNZ(MachineIRBuilder &Builder) const;
@@ -140,13 +182,15 @@ private:
 
   // Control flow pseudos
   // void expandGBR(MachineIRBuilder &Builder) const;
+
+  DenseMap<RegPlusOffsetLen, unsigned> LEAPtrAddImmOpcode;
+  DenseMap<RegPlusReg, unsigned> LEAPtrAddRegOpcode;
+  DenseMap<Register, unsigned> LoadImmediateOpcode;
+  DenseMap<RegPlusOffsetLen, unsigned> LoadIdxImmOpcode;
+  DenseMap<RegPlusReg, unsigned> LoadIdxRegOpcode;
 };
 
 namespace MC6809 {
-
-enum TargetIndex {
-  TI_STATIC_STACK,
-};
 
 enum TOF {
   MO_NO_FLAGS = 0,
@@ -156,6 +200,16 @@ enum TOF {
 };
 
 } // namespace MC6809
+
+/// emitFrameOffset - Emit instructions as needed to set DestReg to SrcReg
+/// plus Offset.  This is intended to be used from within the prolog/epilog
+/// insertion (PEI) pass, where a virtual scratch register may be allocated
+/// if necessary, to be replaced by the scavenger at the end of PEI.
+void emitFrameOffset(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
+                     const DebugLoc &DL, unsigned DestReg, unsigned SrcReg,
+                     StackOffset Offset, const TargetInstrInfo *TII,
+                     MachineInstr::MIFlag = MachineInstr::NoFlags);
+
 
 } // namespace llvm
 

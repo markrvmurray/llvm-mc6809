@@ -30,7 +30,8 @@ public:
 
   bool lowerReturn(MachineIRBuilder &MIRBuilder, const Value *Val,
                    ArrayRef<Register> VRegs,
-                   FunctionLoweringInfo &FLI) const override;
+                   FunctionLoweringInfo &FLI,
+                   Register SwiftErrorVReg) const override;
 
   bool lowerFormalArguments(MachineIRBuilder &MIRBuilder, const Function &F,
                             ArrayRef<ArrayRef<Register>> VRegs,
@@ -40,8 +41,14 @@ public:
                  CallLoweringInfo &Info) const override;
 
 private:
-  bool lowerReturnVal(MachineIRBuilder &MIRBuilder, const Value *Val,
-                      ArrayRef<Register> VRegs, MachineInstrBuilder &Ret) const;
+  bool doCallerAndCalleePassArgsTheSameWay(CallLoweringInfo &Info, MachineFunction &MF,
+                                           SmallVectorImpl<ArgInfo> &InArgs) const;
+  bool areCalleeOutgoingArgsTailCallable(CallLoweringInfo &Info, MachineFunction &MF,
+                                         SmallVectorImpl<ArgInfo> &OutArgs) const;
+  bool lowerTailCall(MachineIRBuilder &MIRBuilder, CallLoweringInfo &Info,
+                     SmallVectorImpl<ArgInfo> &OutArgs) const;
+  bool isEligibleForTailCallOptimization(MachineIRBuilder &MIRBuilder, CallLoweringInfo &Info,
+                                         SmallVectorImpl<ArgInfo> &InArgs, SmallVectorImpl<ArgInfo> &OutArgs) const;
 };
 
 } // namespace llvm

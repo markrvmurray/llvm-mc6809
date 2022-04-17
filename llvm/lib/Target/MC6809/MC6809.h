@@ -27,7 +27,6 @@ void initializeMC6809LateOptimizationPass(PassRegistry &);
 void initializeMC6809LowerSelectPass(PassRegistry &);
 void initializeMC6809NoRecursePass(PassRegistry &);
 void initializeMC6809PostRAScavengingPass(PassRegistry &);
-void initializeMC6809StaticStackAllocPass(PassRegistry &);
 
 #if 0
 // The behind-by-one property of the std::reverse_iterator adaptor applied by

@@ -1,5 +1,4 @@
-//===-- MC6809FrameLowering.h - Define frame lowering for MC6809 --*- C++
-//-*-===//
+//==- MC6809FrameLowering.h - Define frame lowering for MC6809 --*- C++ -*--==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -16,14 +15,14 @@
 
 #include "MC6809.h"
 #include "llvm/CodeGen/TargetFrameLowering.h"
-#include "llvm/Support/TypeSize.h"
 
 namespace llvm {
-
-class MC6809Subtarget;
 class MC6809FrameLowering : public TargetFrameLowering {
+protected:
+
 public:
-  explicit MC6809FrameLowering(const MC6809Subtarget &ST);
+  explicit MC6809FrameLowering()
+      : TargetFrameLowering(TargetFrameLowering::StackGrowsDown, Align(2), -2, Align(2)) {}
 
   /// emitProlog/emitEpilog - These methods insert prolog and epilog code into
   /// the function.
@@ -34,31 +33,22 @@ public:
   eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB,
                                 MachineBasicBlock::iterator I) const override;
 
-  bool hasReservedCallFrame(const MachineFunction &MF) const override;
+  bool spillCalleeSavedRegisters(MachineBasicBlock &MBB,
+                                 MachineBasicBlock::iterator MI,
+                                 ArrayRef<CalleeSavedInfo> CSI,
+                                 const TargetRegisterInfo *TRI) const override;
+  bool
+  restoreCalleeSavedRegisters(MachineBasicBlock &MBB,
+                              MachineBasicBlock::iterator MI,
+                              MutableArrayRef<CalleeSavedInfo> CSI,
+                              const TargetRegisterInfo *TRI) const override;
+
   bool hasFP(const MachineFunction &MF) const override;
-  void determineCalleeSaves(MachineFunction &MF, BitVector &SavedRegs,
-                            RegScavenger *RS = nullptr) const override;
-
-  StackOffset getFrameIndexReference(const MachineFunction &MF, int FI,
-                                     Register &FrameReg) const override;
-
-  /// targetHandlesStackFrameRounding - Returns true if the target is
-  /// responsible for rounding up the stack frame (probably at emitPrologue
-  /// time).
-  bool targetHandlesStackFrameRounding() const override { return true; }
-
-private:
-  // Remap input registers to output registers for leaf procedure.
-  void remapRegsForLeafProc(MachineFunction &MF) const;
-
-  // Returns true if MF is a leaf procedure.
-  bool isLeafProc(MachineFunction &MF) const;
-
-  // Emits code for adjusting SP in function prologue/epilogue.
-  void emitSPAdjustment(MachineFunction &MF, MachineBasicBlock &MBB,
-                        MachineBasicBlock::iterator MBBI, int NumBytes) const;
+  bool hasReservedCallFrame(const MachineFunction &MF) const override;
+  void processFunctionBeforeFrameFinalized(MachineFunction &MF,
+                                     RegScavenger *RS = nullptr) const override;
 };
 
-} // namespace llvm
+} // End llvm namespace
 
 #endif

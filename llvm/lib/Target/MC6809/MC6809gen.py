@@ -376,7 +376,14 @@ for instr_ in RawInstructions:
 			else:
 				print("Arithmetic instruction not handled:", instr)
 	elif instr["function"] == "ss":
-		pass
+		if instr["mnemonic"][0:4] in ["PSHS", "PULS"]:
+			instr["uses"] += ["SS"]
+			instr["defs"] += ["SS"]
+		elif instr["mnemonic"][0:4] in ["PSHU", "PULU"]:
+			instr["uses"] += ["SU"]
+			instr["defs"] += ["SU"]
+		else:
+			print("Stack operation not handled", instr)
 	elif instr["function"] == "m":
 		pass
 	elif instr["function"] == "x":
@@ -389,9 +396,9 @@ for instr_ in RawInstructions:
 	if instr["mnemonic"][:-1] == "LEA":
 		reg = instr["mnemonic"][-1:]
 		if reg in "XY":
-			instr["defs"] += ["I" + reg]
-		elif reg in "US":
-			instr["defs"] += ["S" + reg]
+			instr["outs"] = ["I" + reg + "c:$reg"]
+		elif reg in "SU":
+			instr["outs"] = ["S" + reg + "c:$reg"]
 		else:
 			print("Strange LEAr instruction:", instr)
 
@@ -437,7 +444,7 @@ for instr_ in RawInstructions:
 		insert_instruction(instr)
 	elif instr["mode"] == "s":
 		instr["addressmode"] = "Stack"
-		instr["ins"] += ["reglist:$regs"]
+		instr["ins"] += ["reglist:$regs", "variable_ops"]
 		instr["params"] = [ ((15, 8), "regs"), ((7, 0), "Opc") ]
 		insert_instruction(instr)
 	elif instr["mode"] == "p":
