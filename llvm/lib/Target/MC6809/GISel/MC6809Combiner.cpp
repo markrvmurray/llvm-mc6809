@@ -21,6 +21,7 @@
 #include "MC6809Subtarget.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
 
+#include "llvm/CodeGen/GlobalISel/CSEInfo.h"
 #include "llvm/CodeGen/GlobalISel/Combiner.h"
 #include "llvm/CodeGen/GlobalISel/CombinerHelper.h"
 #include "llvm/CodeGen/GlobalISel/CombinerInfo.h"
@@ -109,7 +110,7 @@ bool MC6809CombinerHelperState::applyFoldGlobalOffset(
   MI.setDesc(TII.get(TargetOpcode::G_GLOBAL_VALUE));
   MI.getOperand(1).ChangeToGA(MatchInfo.first->getGlobal(), MatchInfo.second,
                               MatchInfo.first->getTargetFlags());
-  MI.RemoveOperand(2);
+  MI.removeOperand(2);
   Observer.changedInstr(MI);
   return true;
 }

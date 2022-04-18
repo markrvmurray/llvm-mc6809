@@ -6,14 +6,12 @@ target triple = "mc6809"
 define i8 @foo0(i8* nocapture noundef readonly %a, i8 noundef zeroext %b) #0 {
 ; CHECK-MC6809-LABEL: foo0:
 ; CHECK-MC6809:       ; %bb.0: ; %entry
-; CHECK-MC6809-NEXT:    leax b,x
-; CHECK-MC6809-NEXT:    ldb ,x
+; CHECK-MC6809-NEXT:    ldb b,x
 ; CHECK-MC6809-NEXT:    rts
 ;
 ; CHECK-HD6309-LABEL: foo0:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
-; CHECK-HD6309-NEXT:    leax b,x
-; CHECK-HD6309-NEXT:    ldb ,x
+; CHECK-HD6309-NEXT:    ldb b,x
 ; CHECK-HD6309-NEXT:    rts
 entry:
   %idxprom = zext i8 %b to i16
@@ -25,14 +23,12 @@ entry:
 define i8 @foo1(i8* nocapture noundef readonly %a, i8 noundef signext %b) #0 {
 ; CHECK-MC6809-LABEL: foo1:
 ; CHECK-MC6809:       ; %bb.0: ; %entry
-; CHECK-MC6809-NEXT:    leax b,x
-; CHECK-MC6809-NEXT:    ldb ,x
+; CHECK-MC6809-NEXT:    ldb b,x
 ; CHECK-MC6809-NEXT:    rts
 ;
 ; CHECK-HD6309-LABEL: foo1:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
-; CHECK-HD6309-NEXT:    leax b,x
-; CHECK-HD6309-NEXT:    ldb ,x
+; CHECK-HD6309-NEXT:    ldb b,x
 ; CHECK-HD6309-NEXT:    rts
 entry:
   %idxprom = sext i8 %b to i16
@@ -44,19 +40,15 @@ entry:
 define i8 @foo2(i8* nocapture noundef readonly %a) #0 {
 ; CHECK-MC6809-LABEL: foo2:
 ; CHECK-MC6809:       ; %bb.0: ; %entry
-; CHECK-MC6809-NEXT:    ldd #59
-; CHECK-MC6809-NEXT:    leax d,x
-; CHECK-MC6809-NEXT:    ldb ,x
+; CHECK-MC6809-NEXT:    ldb -5,x
 ; CHECK-MC6809-NEXT:    rts
 ;
 ; CHECK-HD6309-LABEL: foo2:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
-; CHECK-HD6309-NEXT:    ldd #59
-; CHECK-HD6309-NEXT:    leax d,x
-; CHECK-HD6309-NEXT:    ldb ,x
+; CHECK-HD6309-NEXT:    ldb -5,x
 ; CHECK-HD6309-NEXT:    rts
 entry:
-  %arrayidx = getelementptr inbounds i8, i8* %a, i16 59
+  %arrayidx = getelementptr inbounds i8, i8* %a, i16 -5
   %0 = load i8, i8* %arrayidx, align 1
   ret i8 %0
 }

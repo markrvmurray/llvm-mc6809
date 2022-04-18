@@ -52,7 +52,7 @@ void llvm::emitFrameOffset(MachineBasicBlock &MBB, MachineBasicBlock::iterator M
 MC6809InstrInfo::MC6809InstrInfo(const MC6809Subtarget &STI)
     : MC6809GenInstrInfo(/*CFSetupOpcode=*/MC6809::ADJCALLSTACKDOWN, /*CFDestroyOpcode=*/MC6809::ADJCALLSTACKUP), STI(STI) {
   LEAPtrAddImmOpcode = {
-      {{MC6809::IX, -1}, MC6809::LEAXi_o16}, {{MC6809::IX, 0}, MC6809::LEAXi_o5}, {{MC6809::IX, 5}, MC6809::LEAXi_o5}, {{MC6809::IX, 8}, MC6809::LEAXi_o8}, {{MC6809::IX, 16}, MC6809::LEAXi_o16},
+      {{MC6809::IX, -1}, MC6809::LEAXi_o16}, {{MC6809::IX, 0}, MC6809::LEAXi_o0}, {{MC6809::IX, 5}, MC6809::LEAXi_o5}, {{MC6809::IX, 8}, MC6809::LEAXi_o8}, {{MC6809::IX, 16}, MC6809::LEAXi_o16},
       {{MC6809::IY, -1}, MC6809::LEAYi_o16}, {{MC6809::IY, 0}, MC6809::LEAYi_o0}, {{MC6809::IY, 5}, MC6809::LEAYi_o5}, {{MC6809::IY, 8}, MC6809::LEAYi_o8}, {{MC6809::IY, 16}, MC6809::LEAYi_o16},
       {{MC6809::SU, -1}, MC6809::LEAUi_o16}, {{MC6809::SU, 0}, MC6809::LEAUi_o0}, {{MC6809::SU, 5}, MC6809::LEAUi_o5}, {{MC6809::SU, 8}, MC6809::LEAUi_o8}, {{MC6809::SU, 16}, MC6809::LEAUi_o16},
       {{MC6809::SS, -1}, MC6809::LEASi_o16}, {{MC6809::SS, 0}, MC6809::LEASi_o0}, {{MC6809::SS, 5}, MC6809::LEASi_o5}, {{MC6809::SS, 8}, MC6809::LEASi_o8}, {{MC6809::SS, 16}, MC6809::LEASi_o16},
@@ -96,6 +96,32 @@ MC6809InstrInfo::MC6809InstrInfo(const MC6809Subtarget &STI)
       {{MC6809::IY, MC6809::AA}, MC6809::LDYi_oA}, {{MC6809::IY, MC6809::AB}, MC6809::LDYi_oB}, {{MC6809::IY, MC6809::AD}, MC6809::LDYi_oD}, {{MC6809::IY, MC6809::AE}, MC6809::LDYi_oE}, {{MC6809::IY, MC6809::AF}, MC6809::LDYi_oF}, {{MC6809::IY, MC6809::AW}, MC6809::LDYi_oW},
       {{MC6809::SU, MC6809::AA}, MC6809::LDUi_oA}, {{MC6809::SU, MC6809::AB}, MC6809::LDUi_oB}, {{MC6809::SU, MC6809::AD}, MC6809::LDUi_oD}, {{MC6809::SU, MC6809::AE}, MC6809::LDUi_oE}, {{MC6809::SU, MC6809::AF}, MC6809::LDUi_oF}, {{MC6809::SU, MC6809::AW}, MC6809::LDUi_oW},
       {{MC6809::SS, MC6809::AA}, MC6809::LDSi_oA}, {{MC6809::SS, MC6809::AB}, MC6809::LDSi_oB}, {{MC6809::SS, MC6809::AD}, MC6809::LDSi_oD}, {{MC6809::SS, MC6809::AE}, MC6809::LDSi_oE}, {{MC6809::SS, MC6809::AF}, MC6809::LDSi_oF}, {{MC6809::SS, MC6809::AW}, MC6809::LDSi_oW},
+  };
+  StoreIdxImmOpcode = {
+      {{MC6809::AA, -1}, MC6809::STAi_o16}, {{MC6809::AA, 0}, MC6809::STAi_o0}, {{MC6809::AA, 5}, MC6809::STAi_o5}, {{MC6809::AA, 8}, MC6809::STAi_o8}, {{MC6809::AA, 16}, MC6809::STAi_o16},
+      {{MC6809::AB, -1}, MC6809::STBi_o16}, {{MC6809::AB, 0}, MC6809::STBi_o0}, {{MC6809::AB, 5}, MC6809::STBi_o5}, {{MC6809::AB, 8}, MC6809::STBi_o8}, {{MC6809::AB, 16}, MC6809::STBi_o16},
+      {{MC6809::AD, -1}, MC6809::STDi_o16}, {{MC6809::AD, 0}, MC6809::STDi_o0}, {{MC6809::AD, 5}, MC6809::STDi_o5}, {{MC6809::AD, 8}, MC6809::STDi_o8}, {{MC6809::AD, 16}, MC6809::STDi_o16},
+      {{MC6809::AE, -1}, MC6809::STEi_o16}, {{MC6809::AE, 0}, MC6809::STEi_o0}, {{MC6809::AE, 5}, MC6809::STEi_o5}, {{MC6809::AE, 8}, MC6809::STEi_o8}, {{MC6809::AE, 16}, MC6809::STEi_o16},
+      {{MC6809::AF, -1}, MC6809::STFi_o16}, {{MC6809::AF, 0}, MC6809::STFi_o0}, {{MC6809::AF, 5}, MC6809::STFi_o5}, {{MC6809::AF, 8}, MC6809::STFi_o8}, {{MC6809::AF, 16}, MC6809::STFi_o16},
+      {{MC6809::AW, -1}, MC6809::STWi_o16}, {{MC6809::AW, 0}, MC6809::STWi_o0}, {{MC6809::AW, 5}, MC6809::STWi_o5}, {{MC6809::AW, 8}, MC6809::STWi_o8}, {{MC6809::AW, 16}, MC6809::STWi_o16},
+      {{MC6809::AQ, -1}, MC6809::STQi_o16}, {{MC6809::AQ, 0}, MC6809::STQi_o0}, {{MC6809::AQ, 5}, MC6809::STQi_o5}, {{MC6809::AQ, 8}, MC6809::STQi_o8}, {{MC6809::AQ, 16}, MC6809::STQi_o16},
+      {{MC6809::IX, -1}, MC6809::STXi_o16}, {{MC6809::IX, 0}, MC6809::STXi_o0}, {{MC6809::IX, 5}, MC6809::STXi_o5}, {{MC6809::IX, 8}, MC6809::STXi_o8}, {{MC6809::IX, 16}, MC6809::STXi_o16},
+      {{MC6809::IY, -1}, MC6809::STYi_o16}, {{MC6809::IY, 0}, MC6809::STYi_o0}, {{MC6809::IY, 5}, MC6809::STYi_o5}, {{MC6809::IY, 8}, MC6809::STYi_o8}, {{MC6809::IY, 16}, MC6809::STYi_o16},
+      {{MC6809::SU, -1}, MC6809::STUi_o16}, {{MC6809::SU, 0}, MC6809::STUi_o0}, {{MC6809::SU, 5}, MC6809::STUi_o5}, {{MC6809::SU, 8}, MC6809::STUi_o8}, {{MC6809::SU, 16}, MC6809::STUi_o16},
+      {{MC6809::SS, -1}, MC6809::STSi_o16}, {{MC6809::SS, 0}, MC6809::STSi_o0}, {{MC6809::SS, 5}, MC6809::STSi_o5}, {{MC6809::SS, 8}, MC6809::STSi_o8}, {{MC6809::SS, 16}, MC6809::STSi_o16},
+  };
+  StoreIdxRegOpcode = {
+      {{MC6809::AA, MC6809::AA}, MC6809::STAi_oA}, {{MC6809::AA, MC6809::AB}, MC6809::STAi_oB}, {{MC6809::AA, MC6809::AD}, MC6809::STAi_oD}, {{MC6809::AA, MC6809::AE}, MC6809::STAi_oE}, {{MC6809::AA, MC6809::AF}, MC6809::STAi_oF}, {{MC6809::AA, MC6809::AW}, MC6809::STAi_oW},
+      {{MC6809::AB, MC6809::AA}, MC6809::STBi_oA}, {{MC6809::AB, MC6809::AB}, MC6809::STBi_oB}, {{MC6809::AB, MC6809::AD}, MC6809::STBi_oD}, {{MC6809::AB, MC6809::AE}, MC6809::STBi_oE}, {{MC6809::AB, MC6809::AF}, MC6809::STBi_oF}, {{MC6809::AB, MC6809::AW}, MC6809::STBi_oW},
+      {{MC6809::AD, MC6809::AA}, MC6809::STDi_oA}, {{MC6809::AD, MC6809::AB}, MC6809::STDi_oB}, {{MC6809::AD, MC6809::AD}, MC6809::STDi_oD}, {{MC6809::AD, MC6809::AE}, MC6809::STDi_oE}, {{MC6809::AD, MC6809::AF}, MC6809::STDi_oF}, {{MC6809::AD, MC6809::AW}, MC6809::STDi_oW},
+      {{MC6809::AE, MC6809::AA}, MC6809::STEi_oA}, {{MC6809::AE, MC6809::AB}, MC6809::STEi_oB}, {{MC6809::AE, MC6809::AD}, MC6809::STEi_oD}, {{MC6809::AE, MC6809::AE}, MC6809::STEi_oE}, {{MC6809::AE, MC6809::AF}, MC6809::STEi_oF}, {{MC6809::AE, MC6809::AW}, MC6809::STEi_oW},
+      {{MC6809::AF, MC6809::AA}, MC6809::STFi_oA}, {{MC6809::AF, MC6809::AB}, MC6809::STFi_oB}, {{MC6809::AF, MC6809::AD}, MC6809::STFi_oD}, {{MC6809::AF, MC6809::AE}, MC6809::STFi_oE}, {{MC6809::AF, MC6809::AF}, MC6809::STFi_oF}, {{MC6809::AF, MC6809::AW}, MC6809::STFi_oW},
+      {{MC6809::AW, MC6809::AA}, MC6809::STWi_oA}, {{MC6809::AW, MC6809::AB}, MC6809::STWi_oB}, {{MC6809::AW, MC6809::AD}, MC6809::STWi_oD}, {{MC6809::AW, MC6809::AE}, MC6809::STWi_oE}, {{MC6809::AW, MC6809::AF}, MC6809::STWi_oF}, {{MC6809::AW, MC6809::AW}, MC6809::STWi_oW},
+      {{MC6809::AQ, MC6809::AA}, MC6809::STQi_oA}, {{MC6809::AQ, MC6809::AB}, MC6809::STQi_oB}, {{MC6809::AQ, MC6809::AD}, MC6809::STQi_oD}, {{MC6809::AQ, MC6809::AE}, MC6809::STQi_oE}, {{MC6809::AQ, MC6809::AF}, MC6809::STQi_oF}, {{MC6809::AQ, MC6809::AW}, MC6809::STQi_oW},
+      {{MC6809::IX, MC6809::AA}, MC6809::STXi_oA}, {{MC6809::IX, MC6809::AB}, MC6809::STXi_oB}, {{MC6809::IX, MC6809::AD}, MC6809::STXi_oD}, {{MC6809::IX, MC6809::AE}, MC6809::STXi_oE}, {{MC6809::IX, MC6809::AF}, MC6809::STXi_oF}, {{MC6809::IX, MC6809::AW}, MC6809::STXi_oW},
+      {{MC6809::IY, MC6809::AA}, MC6809::STYi_oA}, {{MC6809::IY, MC6809::AB}, MC6809::STYi_oB}, {{MC6809::IY, MC6809::AD}, MC6809::STYi_oD}, {{MC6809::IY, MC6809::AE}, MC6809::STYi_oE}, {{MC6809::IY, MC6809::AF}, MC6809::STYi_oF}, {{MC6809::IY, MC6809::AW}, MC6809::STYi_oW},
+      {{MC6809::SU, MC6809::AA}, MC6809::STUi_oA}, {{MC6809::SU, MC6809::AB}, MC6809::STUi_oB}, {{MC6809::SU, MC6809::AD}, MC6809::STUi_oD}, {{MC6809::SU, MC6809::AE}, MC6809::STUi_oE}, {{MC6809::SU, MC6809::AF}, MC6809::STUi_oF}, {{MC6809::SU, MC6809::AW}, MC6809::STUi_oW},
+      {{MC6809::SS, MC6809::AA}, MC6809::STSi_oA}, {{MC6809::SS, MC6809::AB}, MC6809::STSi_oB}, {{MC6809::SS, MC6809::AD}, MC6809::STSi_oD}, {{MC6809::SS, MC6809::AE}, MC6809::STSi_oE}, {{MC6809::SS, MC6809::AF}, MC6809::STSi_oF}, {{MC6809::SS, MC6809::AW}, MC6809::STSi_oW},
   };
 }
 
@@ -170,7 +196,7 @@ void MC6809InstrInfo::reMaterialize(MachineBasicBlock &MBB,
                                     const TargetRegisterInfo &TRI) const {
   if (Orig.getOpcode() == MC6809::Load16Imm) {
     MachineInstr *MI = MBB.getParent()->CloneMachineInstr(&Orig);
-    MI->RemoveOperand(1);
+    MI->removeOperand(1);
     MI->substituteRegister(MI->getOperand(0).getReg(), DestReg, SubIdx, TRI);
     MI->setDesc(get(MC6809::Load16Imm));
     MBB.insert(I, MI);
@@ -610,6 +636,9 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     expandIncDec(Builder);
     break;
 #endif
+  case MC6809::CallRelative:
+    expandCallRelative(Builder, MI);
+    break;
   case MC6809::LEAPtrAddImm:
     expandLEAPtrAddImm(Builder, MI);
     break;
@@ -621,6 +650,11 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::Load16Imm:
   case MC6809::Load32Imm:
     expandLoadImm(Builder, MI);
+    break;
+  case MC6809::Load8IdxZero:
+  case MC6809::Load16IdxZero:
+  case MC6809::Load32IdxZero:
+    expandLoadIdxZero(Builder, MI);
     break;
   case MC6809::Load8IdxImm:
   case MC6809::Load16IdxImm:
@@ -635,15 +669,23 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::Load32IdxReg16:
     expandLoadIdxReg(Builder, MI);
     break;
-  case MC6809::Load8IdxZero:
-  case MC6809::Load16IdxZero:
-  case MC6809::Load32IdxZero:
-    expandLoadIdxZero(Builder, MI);
-    break;
   case MC6809::Store8IdxZero:
   case MC6809::Store16IdxZero:
   case MC6809::Store32IdxZero:
     expandStoreIdxZero(Builder, MI);
+    break;
+  case MC6809::Store8IdxImm:
+  case MC6809::Store16IdxImm:
+  case MC6809::Store32IdxImm:
+    expandStoreIdxImm(Builder, MI);
+    break;
+  case MC6809::Store8IdxReg8:
+  case MC6809::Store16IdxReg8:
+  case MC6809::Store32IdxReg8:
+  case MC6809::Store8IdxReg16:
+  case MC6809::Store16IdxReg16:
+  case MC6809::Store32IdxReg16:
+    expandStoreIdxReg(Builder, MI);
     break;
   case MC6809::Push8:
   case MC6809::Push16: {
@@ -678,7 +720,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
       regList |= 128;
       break;
     }
-    MI.RemoveOperand(0);
+    MI.removeOperand(0);
     MI.addOperand(MachineOperand::CreateImm(regList));
     break;
   }
@@ -715,7 +757,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
       regList |= 128;
       break;
     }
-    MI.RemoveOperand(0);
+    MI.removeOperand(0);
     MI.addOperand(MachineOperand::CreateImm(regList));
     break;
   }
@@ -841,10 +883,15 @@ void MC6809InstrInfo::expandStoreIdxZero(MachineIRBuilder &Builder, MachineInstr
     break;
   }
   MI.setDesc(Builder.getTII().get(Opcode));
-  MI.RemoveOperand(0);
+  MI.removeOperand(0);
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
 }
 
+void MC6809InstrInfo::expandCallRelative(MachineIRBuilder &Builder, MachineInstr &MI) const {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
+  MI.setDesc(Builder.getTII().get(MC6809::JSRi_o16PC));
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
+}
 void MC6809InstrInfo::expandLEAPtrAddImm(MachineIRBuilder &Builder, MachineInstr &MI) const {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
 
@@ -853,16 +900,18 @@ void MC6809InstrInfo::expandLEAPtrAddImm(MachineIRBuilder &Builder, MachineInstr
   MachineOperand OffsetOp = MI.getOperand(2);
   uint64_t Offset = OffsetOp.getImm();
   int OffsetSize = Offset == 0 ? 0
-                 : Offset < 32 ? 5
-                 : Offset < 256 ? 8
-                 : Offset < 65536 ? 16
-                 : -1;
+                   : Offset < 32 ? 5
+                   : Offset < 256 ? 8
+                   : Offset < 65536 ? 16
+                                    : -1;
   RegPlusOffsetLen Lookup{IndexReg.getReg(), OffsetSize};
   auto OpcodePair = LEAPtrAddImmOpcode.find(Lookup);
   if (OpcodePair == LEAPtrAddImmOpcode.end())
     llvm_unreachable("Unexpected operand(s).");
   MI.setDesc(Builder.getTII().get(OpcodePair->getSecond()));
-  MI.RemoveOperand(1);
+  MI.removeOperand(1);
+  if (OffsetSize == 0)
+    MI.removeOperand(1);
   MI.addOperand(IndexOp);
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
 }
@@ -878,7 +927,7 @@ void MC6809InstrInfo::expandLEAPtrAddReg(MachineIRBuilder &Builder, MachineInstr
   if (OpcodePair == LEAPtrAddRegOpcode.end())
     llvm_unreachable("Unexpected operand(s).");
   MI.setDesc(Builder.getTII().get(OpcodePair->getSecond()));
-  MI.RemoveOperand(1);
+  MI.removeOperand(1);
   MI.addOperand(IndexOp);
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
 }
@@ -901,17 +950,39 @@ void MC6809InstrInfo::expandLoadIdxImm(MachineIRBuilder &Builder, MachineInstr &
   MachineOperand OffsetOp = MI.getOperand(2);
   uint64_t Offset = OffsetOp.getImm();
   int OffsetSize = Offset == 0 ? 0
-                 : Offset < 32 ? 5
-                 : Offset < 256 ? 8
-                 : Offset < 65536 ? 16
-                 : -1;
+                   : Offset < 32 ? 5
+                   : Offset < 256 ? 8
+                   : Offset < 65536 ? 16
+                                    : -1;
   RegPlusOffsetLen Lookup{DestReg.getReg(), OffsetSize};
   auto OpcodePair = LoadIdxImmOpcode.find(Lookup);
   if (OpcodePair == LoadIdxImmOpcode.end())
     llvm_unreachable("Unexpected operand(s).");
   MI.setDesc(Builder.getTII().get(OpcodePair->getSecond()));
-  MI.RemoveOperand(0);
-  MI.RemoveOperand(0);
+  MI.removeOperand(1);
+  MI.addOperand(IndexOp);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
+}
+
+void MC6809InstrInfo::expandStoreIdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
+
+  MachineOperand DestReg = MI.getOperand(0);
+  MachineOperand IndexOp = MI.getOperand(1);
+  MachineOperand OffsetOp = MI.getOperand(2);
+  uint64_t Offset = OffsetOp.getImm();
+  int OffsetSize = Offset == 0 ? 0
+                   : Offset < 32 ? 5
+                   : Offset < 256 ? 8
+                   : Offset < 65536 ? 16
+                                    : -1;
+  RegPlusOffsetLen Lookup{DestReg.getReg(), OffsetSize};
+  auto OpcodePair = StoreIdxImmOpcode.find(Lookup);
+  if (OpcodePair == StoreIdxImmOpcode.end())
+    llvm_unreachable("Unexpected operand(s).");
+  MI.setDesc(Builder.getTII().get(OpcodePair->getSecond()));
+  MI.removeOperand(1);
+  MI.removeOperand(0);
   MI.addOperand(IndexOp);
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
 }
@@ -927,7 +998,23 @@ void MC6809InstrInfo::expandLoadIdxReg(MachineIRBuilder &Builder, MachineInstr &
   if (OpcodePair == LoadIdxRegOpcode.end())
     llvm_unreachable("Unexpected operand(s).");
   MI.setDesc(Builder.getTII().get(OpcodePair->getSecond()));
-  MI.RemoveOperand(1);
+  MI.removeOperand(1);
+  MI.addOperand(IndexOp);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
+}
+
+void MC6809InstrInfo::expandStoreIdxReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
+
+  MachineOperand DestReg = MI.getOperand(0);
+  MachineOperand IndexOp = MI.getOperand(1);
+  MachineOperand OffsetOp = MI.getOperand(2);
+  RegPlusReg Lookup{DestReg.getReg(), OffsetOp.getReg()};
+  auto OpcodePair = StoreIdxRegOpcode.find(Lookup);
+  if (OpcodePair == StoreIdxRegOpcode.end())
+    llvm_unreachable("Unexpected operand(s).");
+  MI.setDesc(Builder.getTII().get(OpcodePair->getSecond()));
+  MI.removeOperand(1);
   MI.addOperand(IndexOp);
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
 }

@@ -13,9 +13,9 @@
 #include "GISel/MC6809RegisterBankInfo.h"
 #include "MC6809InstrInfo.h" // For the register classes
 #include "MC6809Subtarget.h"
-#include "llvm/CodeGen/GlobalISel/RegisterBank.h"
-#include "llvm/CodeGen/GlobalISel/RegisterBankInfo.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/RegisterBank.h"
+#include "llvm/CodeGen/RegisterBankInfo.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 
 #define GET_TARGET_REGBANK_IMPL
@@ -384,6 +384,7 @@ MC6809RegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     }
     break;
   }
+  case G_IMPLICIT_DEF:
   case G_CONSTANT:
   case G_FRAME_INDEX:
   case G_GLOBAL_VALUE: {

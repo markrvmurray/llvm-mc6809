@@ -263,7 +263,7 @@ for instr_ in RawInstructions:
 			print("Jump instruction not handled:", instr)
 	elif instr["function"] == "c":
 		instr["lets"]["isCompare"] = "true";
-		instr["defs"] = ["NZVC"]
+		instr["defs"] = ["NZ","V","C"]
 		if instr["mode"] == "a":
 			if instr["mnemonic"][:-1] == "TST":
 				reg = instr["mnemonic"][-1:]
@@ -293,7 +293,7 @@ for instr_ in RawInstructions:
 		if instr["mnemonic"][:-1] == "LD":
 			reg = instr["mnemonic"][-1:]
 			instr["lets"]["mayLoad"] = "true";
-			instr["defs"] = ["NZVC"]
+			instr["defs"] = ["NZ","V"]
 			if reg in "ABDEFWQ":
 				instr["outs"] = ["A" + reg + "c:$reg"]
 			elif reg in "XY":
@@ -304,7 +304,7 @@ for instr_ in RawInstructions:
 				print("Load register not handled:", instr)
 		if instr["mnemonic"][:-1] == "CLR":
 			reg = instr["mnemonic"][-1:]
-			instr["defs"] = ["NZVC"]
+			instr["defs"] = ["NZ","V"]
 			instr["lets"]["mayLoad"] = "true";
 			if reg in "ABDEFWQ":
 				instr["outs"] = ["A" + reg + "c:$reg"]
@@ -317,7 +317,7 @@ for instr_ in RawInstructions:
 	elif instr["function"] == "s":
 		if instr["mnemonic"][:-1] == "ST":
 			reg = instr["mnemonic"][-1:]
-			instr["defs"] = ["NZVC"]
+			instr["defs"] = ["NZ","V"]
 			instr["lets"]["mayStore"] = "true";
 			if reg in "ABDEFWQ":
 				instr["ins"] = ["A" + reg + "c:$reg"]
@@ -328,11 +328,14 @@ for instr_ in RawInstructions:
 			else:
 				print("Store register not handled:", instr)
 		elif instr["mnemonic"] == "CLR":
-			instr["defs"] = ["NZVC"]
+			instr["defs"] = ["NZ","V"]
 			instr["lets"]["mayStore"] = "true";
 	elif instr["function"] == "a":
-		instr["uses"] += ["NZVC"]
-		instr["defs"] += ["NZVC"]
+		instr["defs"] += ["NZ","V"]
+		if instr["mnemonic"][:3] in ["ADC", "SBC"]:
+			instr["uses"] += ["C"]
+		if instr["mnemonic"][:3] in ["ADD", "ADC", "SUB", "SBC"]:
+			instr["defs"] += ["C"]
 		if instr["mode"] == "a":
 			if instr["mnemonic"][:-1] in ["ASL", "ASR", "COM", "DEC", "INC", "LSR", "NEG", "ROL", "ROR"]:
 				reg = instr["mnemonic"][-1:]
@@ -352,15 +355,16 @@ for instr_ in RawInstructions:
 				instr["lets"]["mayStore"] = "true";
 			elif instr["mnemonic"][:-1] in ["ADD", "ADC", "SUB", "SBC", "AND", "OR", "EOR", "BIT"]:
 				reg = instr["mnemonic"][-1:]
-				instr["lets"]["mayLoad"] = "true";
 				if reg != "R":
+					instr["lets"]["mayLoad"] = "true";
 					if reg in "ABEFDW":
 						instr["defs"] += ["A" + reg]
 						instr["uses"] += ["A" + reg]
 					else:
 						print("Arithmetic operation not handled:", instr)
 				else:
-					instr["lets"]["Constraints"] += ["$dst = $reg2"]
+					# instr["lets"]["Constraints"] += ["$dst = $reg2"]
+					pass
 			elif instr["mnemonic"] == "DIVD":
 				instr["defs"] += ["AA","AB"]
 				instr["uses"] += ["AD"]
@@ -449,8 +453,28 @@ for instr_ in RawInstructions:
 		insert_instruction(instr)
 	elif instr["mode"] == "p":
 		instr["addressmode"] = "RegisterPair"
-		instr["ins"] += ["anyregister:$reg1","anyregister:$reg2"]
-		instr["outs"] += ["anyregister:$dst"]
+		if instr["mnemonic"] == "TFR":
+			instr["addressmode"] += "Copy"
+			instr["ins"] += ["anyregister:$reg1"]
+			instr["outs"] += ["anyregister:$reg2"]
+		elif instr["mnemonic"] == "EXG":
+			instr["addressmode"] += "Swap"
+			instr["ins"] += ["anyregister:$reg1","anyregister:$reg2"]
+			instr["outs"] += ["anyregister:$dst2","anyregister:$dst1"]
+			instr["lets"]["Constraints"] += ["$dst2 = $reg1","$dst1 = $reg2"]
+		elif instr["mnemonic"] == "CMPR":
+			instr["addressmode"] += "Compare"
+			instr["ins"] += ["anyregister:$reg1","anyregister:$reg2"]
+			instr["outs"] += []
+			instr["lets"]["isCompare"] = "true";
+		elif instr["mnemonic"][-1] == "R":
+			instr["addressmode"] += "Arithmetic"
+			instr["ins"] += ["anyregister:$reg1","anyregister:$reg2"]
+			instr["outs"] += ["anyregister:$dst"]
+			instr["lets"]["Constraints"] += ["$dst = $reg2"]
+		else:
+			print("Unknown register pair instruction ", instr)
+			sys.exit(0)
 		instr["params"] = [ ((15, 12), "reg1"), ((11, 8), "reg2"), ((7, 0), "Opc") ]
 		insert_instruction(instr)
 	elif instr["mode"] == "pp":

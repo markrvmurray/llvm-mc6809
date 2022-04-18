@@ -108,7 +108,7 @@ MC6809TargetMachine::getSubtargetImpl(const Function &F) const {
 }
 
 TargetTransformInfo
-MC6809TargetMachine::getTargetTransformInfo(const Function &F) {
+MC6809TargetMachine::getTargetTransformInfo(const Function &F) const {
   return TargetTransformInfo(MC6809TTIImpl(this, F));
 }
 

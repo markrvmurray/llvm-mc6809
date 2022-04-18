@@ -22,6 +22,7 @@
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/FormatVariadic.h"
 
 using namespace llvm;
 
@@ -53,371 +54,6 @@ void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
     OutMI.setOpcode(MC6809::SEXWx);
     return;
   }
-#if 0
-  case MC6809::Load8Imm: {
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : LDImm8\n";);
-    switch (MI->getOperand(0).getReg()) {
-    default:llvm_unreachable("Unexpected register for LDImm8.");
-    case MC6809::AA:OutMI.setOpcode(MC6809::LDAi8);
-      break;
-    case MC6809::AB:OutMI.setOpcode(MC6809::LDBi8);
-      break;
-    case MC6809::AE:OutMI.setOpcode(MC6809::LDEi8);
-      break;
-    case MC6809::AF:OutMI.setOpcode(MC6809::LDFi8);
-      break;
-    }
-    MCOperand Val;
-    if (!lowerOperand(MI->getOperand(1), Val))
-      llvm_unreachable("Failed to lower operand");
-    OutMI.addOperand(Val);
-    return;
-  }
-  case MC6809::Load16Imm: {
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : LDImm16\n";);
-    switch (MI->getOperand(0).getReg()) {
-    default:llvm_unreachable("Unexpected register for LDImm16.");
-    case MC6809::AD:OutMI.setOpcode(MC6809::LDDi16);
-      break;
-    case MC6809::AW:OutMI.setOpcode(MC6809::LDWi16);
-      break;
-    case MC6809::IX:OutMI.setOpcode(MC6809::LDXi16);
-      break;
-    case MC6809::IY:OutMI.setOpcode(MC6809::LDYi16);
-      break;
-    case MC6809::SU:OutMI.setOpcode(MC6809::LDUi16);
-      break;
-    case MC6809::SS:OutMI.setOpcode(MC6809::LDSi16);
-      break;
-    }
-    MCOperand Val;
-    if (!lowerOperand(MI->getOperand(1), Val))
-      llvm_unreachable("Failed to lower operand");
-    OutMI.addOperand(Val);
-    return;
-  }
-  case MC6809::Load32Imm: {
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : LDImm32\n";);
-    switch (MI->getOperand(0).getReg()) {
-    default:
-      llvm_unreachable("Unexpected register for LDImm32.");
-    case MC6809::AQ:OutMI.setOpcode(MC6809::LDQi32);
-      break;
-    }
-    MCOperand Val;
-    if (!lowerOperand(MI->getOperand(1), Val))
-      llvm_unreachable("Failed to lower operand");
-    OutMI.addOperand(Val);
-    return;
-  }
-  case MC6809::LEAPtrAddImm: {
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : LEAPtrAddImm\n";);
-    MachineOperand IndexReg = MI->getOperand(0);
-    MachineOperand IndexOperand = MI->getOperand(1);
-    MachineOperand ValOp = MI->getOperand(2);
-    uint64_t Val = ValOp.getImm();
-    int ValSize = Val == 0 ? 0
-        : Val < 32 ? 5
-        : Val < 256 ? 8
-        : Val < 65536 ? 16
-        : -1;
-    switch (IndexReg.getReg()) {
-    case MC6809::IX:
-      switch (ValSize) {
-      case 0: {
-        OutMI.setOpcode(MC6809::LEAXi_o0);
-        break;
-      }
-      case 5: {
-        OutMI.setOpcode(MC6809::LEAXi_o5);
-        break;
-      }
-      case 8: {
-        OutMI.setOpcode(MC6809::LEAXi_o8);
-        break;
-      }
-      case 16: {
-        OutMI.setOpcode(MC6809::LEAXi_o16);
-        break;
-      }
-      default:
-        llvm_unreachable("Illegal offset in LEAPtrAddImm (X)");
-      }
-      break;
-    case MC6809::IY:
-      switch (ValSize) {
-      case 0: {
-        OutMI.setOpcode(MC6809::LEAYi_o0);
-        break;
-      }
-      case 5: {
-        OutMI.setOpcode(MC6809::LEAYi_o5);
-        break;
-      }
-      case 8: {
-        OutMI.setOpcode(MC6809::LEAYi_o8);
-        break;
-      }
-      case 16: {
-        OutMI.setOpcode(MC6809::LEAYi_o16);
-        break;
-      }
-      default:
-        llvm_unreachable("Illegal offset in LEAPtrAddImm (Y)");
-      }
-      break;
-    case MC6809::SU:
-      switch (ValSize) {
-      case 0: {
-        OutMI.setOpcode(MC6809::LEAUi_o0);
-        break;
-      }
-      case 5: {
-        OutMI.setOpcode(MC6809::LEAUi_o5);
-        break;
-      }
-      case 8: {
-        OutMI.setOpcode(MC6809::LEAUi_o8);
-        break;
-      }
-      case 16: {
-        OutMI.setOpcode(MC6809::LEAUi_o16);
-        break;
-      }
-      default:
-        llvm_unreachable("Illegal offset in LEAPtrAddImm (U)");
-      }
-      break;
-    case MC6809::SS:
-      switch (ValSize) {
-      case 0: {
-        OutMI.setOpcode(MC6809::LEASi_o0);
-        break;
-      }
-      case 5: {
-        OutMI.setOpcode(MC6809::LEASi_o5);
-        break;
-      }
-      case 8: {
-        OutMI.setOpcode(MC6809::LEASi_o8);
-        break;
-      }
-      case 16: {
-        OutMI.setOpcode(MC6809::LEASi_o16);
-        break;
-      }
-      default:
-        llvm_unreachable("Illegal offset in LEAPtrAddImm (S)");
-      }
-      break;
-    default:
-      llvm_unreachable("Unknown pointer register in LEA");
-    }
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 0 OutMI = "; OutMI.dump(););
-    MCOperand IndexDst, Offset, IndexSrc;
-    if (!lowerOperand(IndexReg, IndexDst))
-      llvm_unreachable("Failed to lower index destination");
-    OutMI.addOperand(IndexDst);
-    if (!lowerOperand(ValOp, Offset))
-      llvm_unreachable("Failed to lower offset");
-    OutMI.addOperand(Offset);
-    if (!lowerOperand(IndexOperand, IndexSrc))
-      llvm_unreachable("Failed to lower index source");
-    OutMI.addOperand(IndexSrc);
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 1 OutMI = "; OutMI.dump(););
-    return;
-  }
-  case MC6809::LEAPtrAddReg8: {
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : LEAPtrAddReg8\n";);
-    MachineOperand IndexReg = MI->getOperand(0);
-    MachineOperand IndexOperand = MI->getOperand(1);
-    MachineOperand OffsetReg = MI->getOperand(2);
-    switch (IndexReg.getReg()) {
-    case MC6809::IX:
-      switch (OffsetReg.getReg()) {
-      case MC6809::AA: {
-        OutMI.setOpcode(MC6809::LEAXi_oA);
-        break;
-      }
-      case MC6809::AB: {
-        OutMI.setOpcode(MC6809::LEAXi_oB);
-        break;
-      }
-      case MC6809::AE: {
-        OutMI.setOpcode(MC6809::LEAXi_oE);
-        break;
-      }
-      case MC6809::AF: {
-        OutMI.setOpcode(MC6809::LEAXi_oF);
-        break;
-      }
-      default:
-        llvm_unreachable("Illegal 8-bit offset register in LEAPtrAddReg8 (X)");
-      }
-      break;
-    case MC6809::IY:
-      switch (OffsetReg.getReg()) {
-      case MC6809::AA: {
-        OutMI.setOpcode(MC6809::LEAYi_oA);
-        break;
-      }
-      case MC6809::AB: {
-        OutMI.setOpcode(MC6809::LEAYi_oB);
-        break;
-      }
-      case MC6809::AE: {
-        OutMI.setOpcode(MC6809::LEAYi_oE);
-        break;
-      }
-      case MC6809::AF: {
-        OutMI.setOpcode(MC6809::LEAYi_oF);
-        break;
-      }
-      default:
-        llvm_unreachable("Illegal 8-bit offset register in LEAPtrAddReg8 (Y)");
-      }
-      break;
-    case MC6809::SU:
-      switch (OffsetReg.getReg()) {
-      case MC6809::AA: {
-        OutMI.setOpcode(MC6809::LEAUi_oA);
-        break;
-      }
-      case MC6809::AB: {
-        OutMI.setOpcode(MC6809::LEAUi_oB);
-        break;
-      }
-      case MC6809::AE: {
-        OutMI.setOpcode(MC6809::LEAUi_oE);
-        break;
-      }
-      case MC6809::AF: {
-        OutMI.setOpcode(MC6809::LEAUi_oF);
-        break;
-      }
-      default:
-        llvm_unreachable("Illegal 8-bit offset register in LEAPtrAddReg8 (U)");
-      }
-      break;
-    case MC6809::SS:
-      switch (OffsetReg.getReg()) {
-      case MC6809::AA: {
-        OutMI.setOpcode(MC6809::LEASi_oA);
-        break;
-      }
-      case MC6809::AB: {
-        OutMI.setOpcode(MC6809::LEASi_oB);
-        break;
-      }
-      case MC6809::AE: {
-        OutMI.setOpcode(MC6809::LEASi_oE);
-        break;
-      }
-      case MC6809::AF: {
-        OutMI.setOpcode(MC6809::LEASi_oF);
-        break;
-      }
-      default:
-        llvm_unreachable("Illegal 8-bit offset register in LEAPtrAddReg8 (S)");
-      }
-      break;
-    default:
-       llvm_unreachable("Unknown pointer register in LEA");
-    }
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 0 OutMI = "; OutMI.dump(););
-    MCOperand IndexDst, OffsetSrc, IndexSrc;
-    if (!lowerOperand(IndexReg, IndexDst))
-      llvm_unreachable("Failed to lower index destination");
-    OutMI.addOperand(IndexDst);
-    if (!lowerOperand(OffsetReg, OffsetSrc))
-      llvm_unreachable("Failed to lower offset source");
-    OutMI.addOperand(OffsetSrc);
-    if (!lowerOperand(IndexOperand, IndexSrc))
-      llvm_unreachable("Failed to lower index source");
-    OutMI.addOperand(IndexSrc);
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 1 OutMI = "; OutMI.dump(););
-    return;
-  }
-  case MC6809::LEAPtrAddReg16: {
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : LEAPtrAddReg16\n";);
-    MachineOperand IndexReg = MI->getOperand(0);
-    MachineOperand IndexOperand = MI->getOperand(1);
-    MachineOperand OffsetReg = MI->getOperand(2);
-    switch (IndexReg.getReg()) {
-    case MC6809::IX:
-      switch (OffsetReg.getReg()) {
-      case MC6809::AD: {
-        OutMI.setOpcode(MC6809::LEAXi_oD);
-        break;
-      }
-      case MC6809::AW: {
-        OutMI.setOpcode(MC6809::LEAXi_oW);
-        break;
-      }
-      default:
-        llvm_unreachable("Illegal 16-bit offset register in LEAPtrAddReg16 (X)");
-      }
-      break;
-    case MC6809::IY:
-      switch (OffsetReg.getReg()) {
-      case MC6809::AD: {
-        OutMI.setOpcode(MC6809::LEAYi_oD);
-        break;
-      }
-      case MC6809::AW: {
-        OutMI.setOpcode(MC6809::LEAYi_oW);
-        break;
-      }
-      default:
-        llvm_unreachable("Illegal 16-bit offset register in LEAPtrAddReg16 (Y)");
-      }
-      break;
-    case MC6809::SU:
-      switch (OffsetReg.getReg()) {
-      case MC6809::AD: {
-        OutMI.setOpcode(MC6809::LEAUi_oD);
-        break;
-      }
-      case MC6809::AW: {
-        OutMI.setOpcode(MC6809::LEAUi_oW);
-        break;
-      }
-      default:
-        llvm_unreachable("Illegal 16-bit offset register in LEAPtrAddReg16 (U)");
-      }
-      break;
-    case MC6809::SS:
-      switch (OffsetReg.getReg()) {
-      case MC6809::AD: {
-        OutMI.setOpcode(MC6809::LEASi_oD);
-        break;
-      }
-      case MC6809::AW: {
-        OutMI.setOpcode(MC6809::LEASi_oW);
-        break;
-      }
-      default:
-        llvm_unreachable("Illegal 16-bit offset register in LEAPtrAddReg16 (S)");
-      }
-      break;
-    default:
-      llvm_unreachable("Unknown pointer register in LEA");
-    }
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 0 OutMI = "; OutMI.dump(););
-    MCOperand IndexDst, OffsetSrc, IndexSrc;
-    if (!lowerOperand(IndexReg, IndexDst))
-      llvm_unreachable("Failed to lower index destination");
-    OutMI.addOperand(IndexDst);
-    if (!lowerOperand(OffsetReg, OffsetSrc))
-      llvm_unreachable("Failed to lower offset source");
-    OutMI.addOperand(OffsetSrc);
-    if (!lowerOperand(IndexOperand, IndexSrc))
-      llvm_unreachable("Failed to lower index source");
-    OutMI.addOperand(IndexSrc);
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 1 OutMI = "; OutMI.dump(););
-    return;
-  }
-#endif /* 0 */
   }
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 2 OutMI = "; OutMI.dump(););
 
@@ -437,25 +73,21 @@ void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 3 OutMI = "; OutMI.dump(););
 }
 
-bool MC6809MCInstLower::lowerOperand(const MachineOperand &MO,
-                                     MCOperand &MCOp) {
-  const MC6809RegisterInfo &TRI = *MO.getParent()
-                                       ->getMF()
-                                       ->getSubtarget<MC6809Subtarget>()
-                                       .getRegisterInfo();
+bool MC6809MCInstLower::lowerOperand(const MachineOperand &MO, MCOperand &MCOp) {
+  const MC6809RegisterInfo &TRI = *MO.getParent()->getMF()->getSubtarget<MC6809Subtarget>().getRegisterInfo();
 
   switch (MO.getType()) {
   default:
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : MO.getType() = " << (int)(MO.getType()) << "\n";);
     report_fatal_error("Operand type not implemented.");
   case MachineOperand::MO_RegisterMask:
+    LLVM_DEBUG(dbgs() << "Operand MachineOperand::MO_RegisterMask not implemented\n";);
     return false;
   case MachineOperand::MO_BlockAddress:
-    MCOp =
-        lowerSymbolOperand(MO, AP.GetBlockAddressSymbol(MO.getBlockAddress()));
+    MCOp = lowerSymbolOperand(MO, AP.GetBlockAddressSymbol(MO.getBlockAddress()));
     break;
   case MachineOperand::MO_ExternalSymbol:
-    MCOp =
-        lowerSymbolOperand(MO, AP.GetExternalSymbolSymbol(MO.getSymbolName()));
+    MCOp = lowerSymbolOperand(MO, AP.GetExternalSymbolSymbol(MO.getSymbolName()));
     break;
   case MachineOperand::MO_GlobalAddress: {
     const GlobalValue *GV = MO.getGlobal();
@@ -464,9 +96,7 @@ bool MC6809MCInstLower::lowerOperand(const MachineOperand &MO,
     // section. It is the user's responsibility to ensure the linker will
     // locate the symbol completely within the direct-page.
     if (MC6809AsmBackend::isBranchSectionName(GV->getSection())) {
-      const MC6809MCExpr *Expr =
-          MC6809MCExpr::create(MC6809MCExpr::VK_MC6809_ADDR_8, MCOp.getExpr(),
-                               /*isNegated=*/false, Ctx);
+      const MC6809MCExpr *Expr = MC6809MCExpr::create(MC6809MCExpr::VK_MC6809_ADDR_8, MCOp.getExpr(), /*isNegated=*/false, Ctx);
       MCOp = MCOperand::createExpr(Expr);
     }
     break;
@@ -475,12 +105,14 @@ bool MC6809MCInstLower::lowerOperand(const MachineOperand &MO,
     MCOp = lowerSymbolOperand(MO, AP.GetJTISymbol(MO.getIndex()));
     break;
   }
+  case MachineOperand::MO_CImmediate:
+    MCOp = MCOperand::createImm(MO.getCImm()->getLimitedValue());
+    break;
   case MachineOperand::MO_Immediate:
     MCOp = MCOperand::createImm(MO.getImm());
     break;
   case MachineOperand::MO_MachineBasicBlock:
-    MCOp = MCOperand::createExpr(
-        MCSymbolRefExpr::create(MO.getMBB()->getSymbol(), Ctx));
+    MCOp = MCOperand::createExpr(MCSymbolRefExpr::create(MO.getMBB()->getSymbol(), Ctx));
     break;
   case MachineOperand::MO_Register:
     // Ignore all implicit register operands.
@@ -492,36 +124,30 @@ bool MC6809MCInstLower::lowerOperand(const MachineOperand &MO,
   return true;
 }
 
-MCOperand MC6809MCInstLower::lowerSymbolOperand(const MachineOperand &MO,
-                                                const MCSymbol *Sym) {
+MCOperand MC6809MCInstLower::lowerSymbolOperand(const MachineOperand &MO, const MCSymbol *Sym) {
   const MCExpr *Expr = MCSymbolRefExpr::create(Sym, Ctx);
   if (!MO.isJTI() && MO.getOffset() != 0)
-    Expr = MCBinaryExpr::createAdd(
-        Expr, MCConstantExpr::create(MO.getOffset(), Ctx), Ctx);
+    Expr = MCBinaryExpr::createAdd(Expr, MCConstantExpr::create(MO.getOffset(), Ctx), Ctx);
   switch (MO.getTargetFlags()) {
   default:
     llvm_unreachable("Invalid target operand flags.");
   case MC6809::MO_NO_FLAGS:
     break;
   case MC6809::MO_LO:
-    Expr = MC6809MCExpr::create(MC6809MCExpr::VK_MC6809_ADDR_16, Expr,
-                                /*isNegated=*/false, Ctx);
+    Expr = MC6809MCExpr::create(MC6809MCExpr::VK_MC6809_ADDR_16, Expr, /*isNegated=*/false, Ctx);
     break;
   case MC6809::MO_HI:
-    Expr = MC6809MCExpr::create(MC6809MCExpr::VK_MC6809_ADDR_16, Expr,
-                                /*isNegated=*/false, Ctx);
+    Expr = MC6809MCExpr::create(MC6809MCExpr::VK_MC6809_ADDR_16, Expr, /*isNegated=*/false, Ctx);
     break;
   case MC6809::MO_HI_JT: {
     // Jump tables are partitioned in two arrays: first all the low bytes,
     // then all the high bytes. This index referes to the high byte array, so
     // offset the appropriate amount into the overall array.
     assert(MO.isJTI());
-    const MachineJumpTableInfo *JTI =
-        MO.getParent()->getMF()->getJumpTableInfo();
+    const MachineJumpTableInfo *JTI = MO.getParent()->getMF()->getJumpTableInfo();
     const auto &Table = JTI->getJumpTables()[MO.getIndex()];
     assert(Table.MBBs.size() < 256);
-    Expr = MCBinaryExpr::createAdd(
-        Expr, MCConstantExpr::create(Table.MBBs.size(), Ctx), Ctx);
+    Expr = MCBinaryExpr::createAdd(Expr, MCConstantExpr::create(Table.MBBs.size(), Ctx), Ctx);
     break;
   }
   }

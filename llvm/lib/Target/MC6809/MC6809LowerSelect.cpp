@@ -94,8 +94,8 @@ void removePredecessorFromPhis(MachineBasicBlock *MBB,
   for (MachineInstr &Phi : MBB->phis())
     for (unsigned Idx = 1; Idx < Phi.getNumOperands();)
       if (Phi.getOperand(Idx + 1).getMBB() == PredMBB) {
-        Phi.RemoveOperand(Idx);
-        Phi.RemoveOperand(Idx);
+        Phi.removeOperand(Idx);
+        Phi.removeOperand(Idx);
       } else
         Idx += 2;
 }

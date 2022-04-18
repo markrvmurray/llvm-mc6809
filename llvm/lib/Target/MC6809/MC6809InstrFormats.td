@@ -1413,7 +1413,49 @@ class LongConditionalBranch<string mnemonic, Opcode opcode> : MC6809Inst<mnemoni
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
-class RegisterPair<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opcode> {
+class RegisterPairArithmetic<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opcode> {
+  bits<4> reg1;
+  bits<4> reg2;
+  let P1Inst{15-12} = reg1; let P1Inst{11-8} = reg2; let P1Inst{7-0} = Opc;
+  let P23Inst{23-20} = reg1; let P23Inst{19-16} = reg2; let P23Inst{15-8} = Opc; let P23Inst{7-0} = Pre{7-0};
+  let DecoderNamespace = "_Page_" # Page # "_Size_";
+  let Mode = "p";
+  let OperandSize = 1;
+  let Size = !add(OperandSize, OpcodeSize);
+  let InOperandList = (ins anyregister:$reg1, anyregister:$reg2);
+  let AsmString = !strconcat(mnemonic, " $reg1 , $reg2");
+  let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
+}
+
+class RegisterPairCompare<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opcode> {
+  bits<4> reg1;
+  bits<4> reg2;
+  let P1Inst{15-12} = reg1; let P1Inst{11-8} = reg2; let P1Inst{7-0} = Opc;
+  let P23Inst{23-20} = reg1; let P23Inst{19-16} = reg2; let P23Inst{15-8} = Opc; let P23Inst{7-0} = Pre{7-0};
+  let DecoderNamespace = "_Page_" # Page # "_Size_";
+  let Mode = "p";
+  let OperandSize = 1;
+  let Size = !add(OperandSize, OpcodeSize);
+  let InOperandList = (ins anyregister:$reg1, anyregister:$reg2);
+  let AsmString = !strconcat(mnemonic, " $reg1 , $reg2");
+  let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
+}
+
+class RegisterPairCopy<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opcode> {
+  bits<4> reg1;
+  bits<4> reg2;
+  let P1Inst{15-12} = reg1; let P1Inst{11-8} = reg2; let P1Inst{7-0} = Opc;
+  let P23Inst{23-20} = reg1; let P23Inst{19-16} = reg2; let P23Inst{15-8} = Opc; let P23Inst{7-0} = Pre{7-0};
+  let DecoderNamespace = "_Page_" # Page # "_Size_";
+  let Mode = "p";
+  let OperandSize = 1;
+  let Size = !add(OperandSize, OpcodeSize);
+  let InOperandList = (ins anyregister:$reg1);
+  let AsmString = !strconcat(mnemonic, " $reg1 , $reg2");
+  let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
+}
+
+class RegisterPairSwap<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opcode> {
   bits<4> reg1;
   bits<4> reg2;
   let P1Inst{15-12} = reg1; let P1Inst{11-8} = reg2; let P1Inst{7-0} = Opc;
@@ -2737,15 +2779,29 @@ class MC6809LongConditionalBranch_P2<dag outs, string mnemonic, Opcode opc, list
     let OutOperandList = outs;
 }
 
-class MC6809RegisterPair_P1<dag outs, string mnemonic, Opcode opc, list<Register> defs, list<Register> uses>
-  : RegisterPair<mnemonic, opc> {
+class MC6809RegisterPairArithmetic_P2<dag outs, string mnemonic, Opcode opc, list<Register> defs, list<Register> uses>
+  : RegisterPairArithmetic<mnemonic, opc> {
     let Defs = defs;
     let Uses = uses;
     let OutOperandList = outs;
 }
 
-class MC6809RegisterPair_P2<dag outs, string mnemonic, Opcode opc, list<Register> defs, list<Register> uses>
-  : RegisterPair<mnemonic, opc> {
+class MC6809RegisterPairCompare_P2<dag outs, string mnemonic, Opcode opc, list<Register> defs, list<Register> uses>
+  : RegisterPairCompare<mnemonic, opc> {
+    let Defs = defs;
+    let Uses = uses;
+    let OutOperandList = outs;
+}
+
+class MC6809RegisterPairCopy_P1<dag outs, string mnemonic, Opcode opc, list<Register> defs, list<Register> uses>
+  : RegisterPairCopy<mnemonic, opc> {
+    let Defs = defs;
+    let Uses = uses;
+    let OutOperandList = outs;
+}
+
+class MC6809RegisterPairSwap_P1<dag outs, string mnemonic, Opcode opc, list<Register> defs, list<Register> uses>
+  : RegisterPairSwap<mnemonic, opc> {
     let Defs = defs;
     let Uses = uses;
     let OutOperandList = outs;

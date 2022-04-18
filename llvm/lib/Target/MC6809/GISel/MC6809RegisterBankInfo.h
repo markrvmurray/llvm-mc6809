@@ -13,7 +13,7 @@
 #ifndef LLVM_LIB_TARGET_MC6809_MC6809REGISTERBANKINFO_H
 #define LLVM_LIB_TARGET_MC6809_MC6809REGISTERBANKINFO_H
 
-#include "llvm/CodeGen/GlobalISel/RegisterBankInfo.h"
+#include "llvm/CodeGen/RegisterBankInfo.h"
 
 #define GET_REGBANK_DECLARATIONS
 #include "MC6809GenRegisterBank.inc"

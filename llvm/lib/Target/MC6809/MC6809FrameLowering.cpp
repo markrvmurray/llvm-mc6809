@@ -90,9 +90,7 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &M
     // instruction, merge the two instructions.
     // mergeSPUpdatesDown(MBB, MBBI, &NumBytes);
 
-    MachineInstr *MI = BuildMI(MBB, MBBI, DL, TII.get(MC6809::LEAPtrAddImm), MC6809::SS).addReg(MC6809::SS).addImm(NumBytes);
-    // The SRW implicit def is dead.
-    MI->getOperand(3).setIsDead();
+    BuildMI(MBB, MBBI, DL, TII.get(MC6809::LEAPtrAddImm), MC6809::SS).addReg(MC6809::SS).addImm(-NumBytes);
   }
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MF = "; MF.dump(););
 }
@@ -147,16 +145,12 @@ void MC6809FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &M
   if (MFI.hasVarSizedObjects()) {
     BuildMI(MBB, MBBI, DL, TII.get(MC6809::TFRp), MC6809::SS).addReg(MC6809::SU);
     if (CSSize) {
-      MachineInstr *MI = BuildMI(MBB, MBBI, DL, TII.get(MC6809::LEAPtrAddImm), MC6809::SS).addReg(MC6809::SS).addImm(-CSSize);
-      // The SRW implicit def is dead.
-      MI->getOperand(3).setIsDead();
+      BuildMI(MBB, MBBI, DL, TII.get(MC6809::LEAPtrAddImm), MC6809::SS).addReg(MC6809::SS).addImm(-CSSize);
     }
   } else {
     // adjust stack pointer back: SP += numbytes
     if (NumBytes) {
-      MachineInstr *MI = BuildMI(MBB, MBBI, DL, TII.get(MC6809::LEAPtrAddImm), MC6809::SS).addReg(MC6809::SS).addImm(NumBytes);
-      // The SRW implicit def is dead.
-      MI->getOperand(3).setIsDead();
+      BuildMI(MBB, MBBI, DL, TII.get(MC6809::LEAPtrAddImm), MC6809::SS).addReg(MC6809::SS).addImm(NumBytes);
     }
   }
 }

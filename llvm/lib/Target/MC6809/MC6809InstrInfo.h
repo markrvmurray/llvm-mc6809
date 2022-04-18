@@ -164,6 +164,7 @@ private:
   void copyPhysRegImpl(MachineIRBuilder &Builder, Register DestReg, Register SrcReg) const;
 
   // Post RA pseudos
+  void expandCallRelative(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandLEAPtrAddImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandLEAPtrAddReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandLoadIdxZero(MachineIRBuilder &Builder, MachineInstr &MI) const;
@@ -175,6 +176,8 @@ private:
   // void expandLDZ(MachineIRBuilder &Builder) const;
   // void expandIncDec(MachineIRBuilder &Builder) const;
   void expandStoreIdxZero(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandStoreIdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandStoreIdxReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
 
   // NZ pseudos
   // void expandNZ(MachineIRBuilder &Builder) const;
@@ -188,6 +191,8 @@ private:
   DenseMap<Register, unsigned> LoadImmediateOpcode;
   DenseMap<RegPlusOffsetLen, unsigned> LoadIdxImmOpcode;
   DenseMap<RegPlusReg, unsigned> LoadIdxRegOpcode;
+  DenseMap<RegPlusOffsetLen, unsigned> StoreIdxImmOpcode;
+  DenseMap<RegPlusReg, unsigned> StoreIdxRegOpcode;
 };
 
 namespace MC6809 {
