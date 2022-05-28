@@ -34,7 +34,6 @@
 namespace llvm {
 
 void MC6809InstPrinter::printInst(const MCInst *MI, uint64_t Address, StringRef Annot, const MCSubtargetInfo &STI, raw_ostream &OS) {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI->dump(););
   std::string AiryOperands;
   raw_string_ostream AiryOperandStream(AiryOperands);
   auto MnemonicInfo = getMnemonic(MI);

@@ -43,6 +43,7 @@ template <> struct DenseMapInfo<RegPlusOffsetLen> {
     return A == B;
   }
 };
+
 struct RegPlusReg {
   Register DestReg;
   Register OffsetReg;
@@ -133,12 +134,6 @@ public:
                             int FrameIndex, const TargetRegisterClass *RC,
                             const TargetRegisterInfo *TRI) const override;
 
-  void loadStoreRegStackSlot(MachineBasicBlock &MBB,
-                             MachineBasicBlock::iterator MI, Register Reg,
-                             bool IsKill, int FrameIndex,
-                             const TargetRegisterClass *RC,
-                             const TargetRegisterInfo *TRI, bool IsLoad) const;
-
   bool expandPostRAPseudo(MachineInstr &MI) const override;
 
   bool
@@ -156,7 +151,6 @@ public:
     return MI.getOperand(1).getImm();
   }
 
-
 private:
   const MC6809Subtarget &STI;
   // const MC6809RegisterBankInfo &RBI;
@@ -165,19 +159,22 @@ private:
 
   // Post RA pseudos
   void expandCallRelative(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandLEAPtrAddImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandLEAPtrAddReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandLoadIdxZero(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandLoadIdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandLoadIdxReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  // void expandLoadImm1(MachineIRBuilder &Builder) const;
+  void expandLEAPtrAdd(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandLoadImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   // void expandLDImmRemat(MachineIRBuilder &Builder) const;
   // void expandLDZ(MachineIRBuilder &Builder) const;
   // void expandIncDec(MachineIRBuilder &Builder) const;
-  void expandStoreIdxZero(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandStoreIdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandStoreIdxReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI) const;
+
+  void expandAddReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandAddImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandAddIdx(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandAddCarryImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandAddCarryIdx(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandSubImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandSubPop(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandSubIdx(MachineIRBuilder &Builder, MachineInstr &MI) const;
 
   // NZ pseudos
   // void expandNZ(MachineIRBuilder &Builder) const;
@@ -193,6 +190,15 @@ private:
   DenseMap<RegPlusReg, unsigned> LoadIdxRegOpcode;
   DenseMap<RegPlusOffsetLen, unsigned> StoreIdxImmOpcode;
   DenseMap<RegPlusReg, unsigned> StoreIdxRegOpcode;
+  DenseMap<Register, unsigned> AddImmediateOpcode;
+  DenseMap<Register, unsigned> SubImmediateOpcode;
+  DenseMap<Register, unsigned> SubPopOpcode;
+  DenseMap<RegPlusOffsetLen, unsigned> AddIdxImmOpcode;
+  DenseMap<RegPlusReg, unsigned> AddIdxRegOpcode;
+  DenseMap<RegPlusOffsetLen, unsigned> AddCarryIdxImmOpcode;
+  DenseMap<RegPlusReg, unsigned> AddCarryIdxRegOpcode;
+  DenseMap<RegPlusOffsetLen, unsigned> SubIdxImmOpcode;
+  DenseMap<RegPlusReg, unsigned> SubIdxRegOpcode;
 };
 
 namespace MC6809 {

@@ -1,5 +1,4 @@
-//===-- MC6809TargetMachine.cpp - Define TargetMachine for MC6809
-//---------------===//
+//===-- MC6809TargetMachine.cpp - Define TargetMachine for MC6809 ---------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -113,13 +112,9 @@ MC6809TargetMachine::getTargetTransformInfo(const Function &F) const {
 }
 
 void MC6809TargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__
-                    << " : Entry : registerPassBuilderCallbacks : 01\n";);
   PB.registerPipelineParsingCallback(
       [](StringRef Name, LoopPassManager &PM,
          ArrayRef<PassBuilder::PipelineElement>) {
-        LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__
-                          << " : Entry : registerPassBuilderCallbacks : A1\n";);
         if (Name == "mc6809-indexiv") {
           // Rewrite pointer artithmetic in loops to use 8-bit IV offsets.
           PM.addPass(MC6809IndexIV());
@@ -130,8 +125,6 @@ void MC6809TargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
 
   PB.registerLateLoopOptimizationsEPCallback(
       [](LoopPassManager &PM, OptimizationLevel Level) {
-        LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__
-                          << " : Entry : registerPassBuilderCallbacks : B1\n";);
         if (Level != OptimizationLevel::O0) {
           PM.addPass(MC6809IndexIV());
 

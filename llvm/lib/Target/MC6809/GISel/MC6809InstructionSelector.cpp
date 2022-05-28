@@ -1,5 +1,4 @@
-//===-- MC6809InstructionSelector.cpp - MC6809 Instruction Selector
-//-------------===//
+//===-- MC6809InstructionSelector.cpp - MC6809 Instruction Selector -------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,7 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file defines the MC6809 instruction selector.
+// This file defines the MC6809 instruction selector. Instructions selected here
+// are abstract pseudo-instructions which will allow register allocation to be
+// applied later.
 //
 //===----------------------------------------------------------------------===//
 
@@ -16,7 +17,6 @@
 
 #include <set>
 
-#include "MC6809.h"
 #include "MC6809RegisterInfo.h"
 #include "MC6809Subtarget.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
@@ -31,16 +31,11 @@
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineInstr.h"
-#include "llvm/CodeGen/MachineMemOperand.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/RegisterBankInfo.h"
-#include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
-#include "llvm/CodeGen/TargetSubtargetInfo.h"
-#include "llvm/IR/Constants.h"
 #include "llvm/IR/InstrTypes.h"
-#include "llvm/IR/Instruction.h"
 #include "llvm/ObjectYAML/MachOYAML.h"
 #include "llvm/Support/ErrorHandling.h"
 
@@ -84,6 +79,12 @@ private:
 
   bool selectUnMergeValues(MachineInstr &MI);
   bool selectExt(MachineInstr &MI);
+  bool selectAdd(MachineInstr &MI);
+  bool selectAddE(MachineInstr &MI);
+  bool selectAddO(MachineInstr &MI);
+  bool selectSub(MachineInstr &MI);
+  bool selectSubE(MachineInstr &MI);
+  bool selectSubO(MachineInstr &MI);
 
   // Select instructions that correspond 1:1 to a target instruction.
   bool selectGeneric(MachineInstr &MI);
@@ -101,7 +102,13 @@ private:
   bool selectImpl(MachineInstr &MI, CodeGenCoverage &CoverageInfo) const;
 
   const TargetRegisterClass &getRegClassForType(Register Reg) const;
-  const TargetRegisterClass *guessRegClass(unsigned Reg) const;
+
+  LLT S1 = LLT::scalar(1);
+  LLT S2 = LLT::scalar(2);
+  LLT S8 = LLT::scalar(8);
+  LLT S16 = LLT::scalar(16);
+  LLT S32 = LLT::scalar(32);
+  LLT P = LLT::pointer(0, 16);
 
 #define GET_GLOBALISEL_PREDICATES_DECL
 #include "MC6809GenGlobalISel.inc"
@@ -128,29 +135,6 @@ MC6809InstructionSelector::MC6809InstructionSelector(const MC6809TargetMachine &
 #include "MC6809GenGlobalISel.inc"
 #undef GET_GLOBALISEL_TEMPORARIES_INIT
 {
-}
-
-const TargetRegisterClass *MC6809InstructionSelector::guessRegClass(unsigned Reg) const {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter\n";);
-  const RegisterBank *RegBank = RBI.getRegBank(Reg, *MRI, TRI);
-  assert(RegBank && "Can't get register bank for virtual register");
-
-  const unsigned Size = MRI->getType(Reg).getSizeInBits();
-  assert((RegBank->getID() == MC6809::ACCUMRegBankID || RegBank->getID() == MC6809::INDEXRegBankID) && "Unsupported register bank");
-
-  if (RegBank->getID() == MC6809::ACCUMRegBankID) {
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : MC6809::ACCRegBankID : Size = " << Size << "\n";);
-    if (Size == 8)
-      return &MC6809::ACC8RegClass;
-    else if (Size == 16)
-      return &MC6809::ACC16RegClass;
-    else if (Size == 32)
-      return &MC6809::ACC32RegClass;
-    else
-      llvm_unreachable("Unsupported destination size");
-  }
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Return &MC6809::INDEX16RegClass\n";);
-  return &MC6809::INDEX16RegClass;
 }
 
 const TargetRegisterClass &MC6809InstructionSelector::getRegClassForType(Register Reg) const {
@@ -194,16 +178,17 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
   MRI = &MF->getRegInfo();
 
   if (!MI.isPreISelOpcode()) {
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 10 : !MI.isPreISelOpcode() : MI = ";MI.dump(););
     // Ensure that target-independent pseudos like COPY have register classes.
     constrainGenericOp(MI);
     return true;
   }
 
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 20 : MI = "; MI.dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 20 : before selectImpl() : MI = "; MI.dump(););
   if (selectImpl(MI, *CoverageInfo))
     return true;
 
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 30 : MI = "; MI.dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 30 : before switch(MI.getOpcode()) : MI = "; MI.dump(););
   switch (MI.getOpcode()) {
   default:
     return false;
@@ -237,18 +222,30 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
   case MC6809::G_ZEXT:
   case MC6809::G_ANYEXT:
     return selectExt(MI);
+
+  case MC6809::G_ADD:
+    return selectAdd(MI);
+  case MC6809::G_SUB:
+    return selectSub(MI);
+  case MC6809::G_UADDE:
+  case MC6809::G_SADDE:
+    return selectAdd(MI);
+  case MC6809::G_USUBE:
+  case MC6809::G_SSUBE:
+    return selectSubE(MI);
+  case MC6809::G_UADDO:
+  case MC6809::G_SADDO:
+    return selectAdd(MI);
+  case MC6809::G_USUBO:
+  case MC6809::G_SSUBO:
+    return selectSubO(MI);
   }
   return false;
 }
 
 bool MC6809InstructionSelector::selectExt(MachineInstr &MI) {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 20 : MI = ";MI.dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = ";MI.dump(););
   MachineIRBuilder Builder(MI);
-  LLT S1 = LLT::scalar(1);
-  LLT S2 = LLT::scalar(2);
-  LLT S8 = LLT::scalar(8);
-  LLT S16 = LLT::scalar(16);
-  LLT S32 = LLT::scalar(32);
   Register Dst = MI.getOperand(0).getReg();
   LLT DstTy = MRI->getType(Dst);
   Register Src = MI.getOperand(1).getReg();
@@ -289,8 +286,7 @@ bool MC6809InstructionSelector::selectExt(MachineInstr &MI) {
     }
     if (DstTy == S16) {
       assert(SrcTy == S8 && "G_SEXT Src must be S8 for Dst S16");
-      auto Instr =
-          Builder.buildInstr(MC6809::SEX16Implicit).addDef(Dst).addUse(Src);
+      auto Instr = Builder.buildInstr(MC6809::SEX16Implicit).addDef(Dst).addUse(Src);
       if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
         llvm_unreachable("Could not constrain sext s8 -> s16 instruction.");
       MI.eraseFromParent();
@@ -298,8 +294,7 @@ bool MC6809InstructionSelector::selectExt(MachineInstr &MI) {
     }
     if (DstTy == S32) {
       assert(SrcTy == S8 && "G_SEXT Src must be S16 for Dst S32");
-      auto Instr =
-          Builder.buildInstr(MC6809::SEX32Implicit).addDef(Dst).addUse(Src);
+      auto Instr = Builder.buildInstr(MC6809::SEX32Implicit).addDef(Dst).addUse(Src);
       if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
         llvm_unreachable("Could not constrain sext s16 -> s32 instruction.");
       MI.eraseFromParent();
@@ -324,8 +319,7 @@ bool MC6809InstructionSelector::selectExt(MachineInstr &MI) {
     }
     if (DstTy == S16) {
       assert(SrcTy == S8 && "G_ZEXT Src must be S8 for Dst S16");
-      auto Instr =
-          Builder.buildInstr(MC6809::ZEX16Implicit).addDef(Dst).addUse(Src);
+      auto Instr = Builder.buildInstr(MC6809::ZEX16Implicit).addDef(Dst).addUse(Src);
       if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
         llvm_unreachable("Could not constrain sext s8 -> s16 instruction.");
       MI.eraseFromParent();
@@ -333,8 +327,7 @@ bool MC6809InstructionSelector::selectExt(MachineInstr &MI) {
     }
     if (DstTy == S32) {
       assert(SrcTy == S8 && "G_ZEXT Src must be S16 for Dst S32");
-      auto Instr =
-          Builder.buildInstr(MC6809::ZEX32Implicit).addDef(Dst).addUse(Src);
+      auto Instr = Builder.buildInstr(MC6809::ZEX32Implicit).addDef(Dst).addUse(Src);
       if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
         llvm_unreachable("Could not constrain sext s16 -> s32 instruction.");
       MI.eraseFromParent();
@@ -348,109 +341,19 @@ bool MC6809InstructionSelector::selectExt(MachineInstr &MI) {
 
 bool MC6809InstructionSelector::selectFrameIndex(MachineInstr &MI) {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = ";MI.dump(););
-  MI.setDesc(TII.get(MC6809::LEAPtrAddImm));
+  MI.setDesc(TII.get(MC6809::LEAPtrAdd));
   MI.addOperand(MachineOperand::CreateImm(0));
-  return constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
+  bool Success = constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
+  return Success;
 }
 
 bool MC6809InstructionSelector::selectAddr(MachineInstr &MI) {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
-  MI.setDesc(TII.get(MC6809::Load16Imm));
-  return constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
-}
-
-bool MC6809InstructionSelector::selectStore(MachineInstr &MI) {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
-  MachineIRBuilder Builder(MI);
-  Register Dst = MI.getOperand(0).getReg();
-  Register Idx = MI.getOperand(1).getReg();
-  LLT DstTy = MRI->getType(Dst);
-  const auto DstSize = DstTy.getSizeInBits();
-
-  MachineInstr *PtrAdd = nullptr;
-  Register IndReg;
-  Register OffsReg;
-  Optional<ValueAndVReg> OffsCst;
-  if (mi_match(Idx, *MRI, m_GPtrAdd(m_Reg(IndReg), m_GCst(OffsCst)))) {
-    dbgs() << "OINQUE DEBUG " << __func__ << " : DEBUG MATCH CONSTANT\n";
-  }
-  unsigned Opcode;
-  if (mi_match(Idx, *MRI, m_GPtrAdd(m_Reg(IndReg), m_GCst(OffsCst))))  {
-    APInt OffsVal = OffsCst->Value;
-    assert(((*(OffsVal.getRawData()) & 0xFFFFFFFFFFFF0000ULL) == 0 || (*(OffsVal.getRawData()) & 0xFFFFFFFFFFFF0000ULL) == 0xFFFFFFFFFFFF0000ULL) && "Offset out of range");
-    int16_t offset = (uint16_t)(*(OffsVal.getRawData()));
-    PtrAdd = getOpcodeDef(MC6809::G_PTR_ADD, Idx, *MRI);
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : MATCH : PtrAdd = "; PtrAdd->dump(););
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : MATCH : OffsCst->Value.dump() = "; OffsCst->Value.dump(););
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : MATCH : OffsCst->VReg = " << OffsCst->VReg << "\n";);
-    switch (DstSize) {
-    default:
-      llvm_unreachable(formatv("Cannot store register of size = {}", DstSize).str().c_str());
-    case 1:
-    case 8:
-      Opcode = MC6809::Store8IdxImm;
-      break;
-    case 16:
-      Opcode = MC6809::Store16IdxImm;
-      break;
-    case 32:
-      Opcode = MC6809::Store32IdxImm;
-      break;
-    }
-    MI.setDesc(TII.get(Opcode));
-    MI.removeOperand(1);
-    MI.addOperand(PtrAdd->getOperand(1));
-    MI.addOperand(MachineOperand::CreateImm(offset));
-    MI.cloneMemRefs(*MF, *PtrAdd);
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : MATCH COMPLETE\n";);
-    return constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
-  } else if (mi_match(Idx, *MRI, m_GPtrAdd(m_Reg(IndReg), m_Reg(OffsReg)))) {
-    PtrAdd = getOpcodeDef(MC6809::G_PTR_ADD, Idx, *MRI);
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : MATCH : PtrAdd = "; PtrAdd->dump(););
-    LLT OffsRegTy = MRI->getType(OffsReg);
-    const auto OffsRegSize = OffsRegTy.getSizeInBits();
-    assert((OffsRegSize == 8 || OffsRegSize == 16) && "Illegal offset register size");
-    switch (DstSize) {
-    default:
-      llvm_unreachable(formatv("Cannot store register of size = {}", DstSize).str().c_str());
-    case 1:
-    case 8:
-      Opcode = OffsRegSize == 8 ? MC6809::Store8IdxReg8 : MC6809::Store8IdxReg16;
-      break;
-    case 16:
-      Opcode = OffsRegSize == 8 ? MC6809::Store16IdxReg8 : MC6809::Store16IdxReg16;
-      break;
-    case 32:
-      Opcode = OffsRegSize == 8 ? MC6809::Store32IdxReg8 : MC6809::Store32IdxReg16;
-      break;
-    }
-    MI.setDesc(TII.get(Opcode));
-    MI.removeOperand(1);
-    MI.addOperand(PtrAdd->getOperand(1));
-    MI.addOperand(PtrAdd->getOperand(2));
-    MI.cloneMemRefs(*MF, *PtrAdd);
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : MATCH COMPLETE\n";);
-    return constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
-  } else {
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : NO MATCH\n";);
-    switch (DstSize) {
-    default:
-      llvm_unreachable(formatv("Cannot store register of size = {}", DstSize).str().c_str());
-    case 1:
-    case 8:
-      Opcode = MC6809::Store8IdxZero;
-      break;
-    case 16:
-      Opcode = MC6809::Store16IdxZero;
-      break;
-    case 32:
-      Opcode = MC6809::Store32IdxZero;
-      break;
-    }
-    MI.setDesc(TII.get(Opcode));
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : NO MATCH COMPLETE\n";);
-    return constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
-  }
+  MI.setDesc(TII.get(MC6809::LoadPtrImm));
+  bool Success = constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
+  return Success;
 }
 
 bool MC6809InstructionSelector::selectMergeValues(MachineInstr &MI) {
@@ -477,7 +380,6 @@ bool MC6809InstructionSelector::selectMergeValues(MachineInstr &MI) {
         return false;
     }
     MI.eraseFromParent();
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit Const : MI = "; MI.dump(););
     return true;
   }
   auto RegSeq = Builder.buildInstr(MC6809::REG_SEQUENCE).addDef(Dst);
@@ -493,64 +395,774 @@ bool MC6809InstructionSelector::selectMergeValues(MachineInstr &MI) {
 
 bool MC6809InstructionSelector::selectPtrAdd(MachineInstr &MI) {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
-  MachineIRBuilder Builder(MI);
-  LLT S8 = LLT::scalar(8);
-  LLT S16 = LLT::scalar(16);
-  LLT P = LLT::pointer(0, 16);
-  Register Dst = MI.getOperand(0).getReg();
-  LLT DstTy = MRI->getType(Dst);
-  Register Ptr = MI.getOperand(1).getReg();
-  LLT PtrTy = MRI->getType(Ptr);
-  Register Offset = MI.getOperand(2).getReg();
-  LLT OffsetTy = MRI->getType(Offset);
-  assert(DstTy == P && PtrTy == P && "Destination and source must both be pointer types.");
 
   unsigned Opcode;
   if (MI.getOperand(2).isCImm()) {
     uint64_t Val = MI.getOperand(2).getCImm()->getSExtValue();
     MI.getOperand(2).ChangeToImmediate(Val);
-    Opcode = MC6809::LEAPtrAddImm;
-  } else {
-    if (OffsetTy == S8) {
-      Opcode = MC6809::LEAPtrAddReg8;
-    } else if (OffsetTy == S16) {
-      Opcode = MC6809::LEAPtrAddReg16;
-    } else
-      llvm_unreachable("Must be adding an 8- or 16-bit register quantity to the pointer.");
   }
+  Opcode = MC6809::LEAPtrAdd;
   MI.setDesc(TII.get(Opcode));
   bool Success = constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
   return Success;
 }
 
-bool MC6809InstructionSelector::selectConstant(MachineInstr &MI) {
+static bool shouldFoldMemAccess(const MachineInstr &Dst, const MachineInstr &Src, AAResults *AA) {
+  assert(Src.mayLoadOrStore());
+
+  // For now, don't attempt to fold across basic block boundaries.
+  if (Dst.getParent() != Src.getParent())
+    return false;
+
+  if ((*Src.memoperands_begin())->isVolatile())
+    return false;
+
+  // Does it pay off to fold the access? Depends on the number of users.
+  const auto &MRI = Dst.getMF()->getRegInfo();
+  const auto Users = MRI.use_nodbg_instructions(Src.getOperand(0).getReg());
+  const auto NumUsers = std::distance(Users.begin(), Users.end());
+
+  // Looking at this pessimistically, if we don't fold the access, all
+  // references may refer to an Imag8 reg that needs to be copied to/from a GPR.
+  // This costs 2 bytes and 3 cycles. We also need to do the actual load/store.
+  // If we do fold the access, then we get rid of both that and the load/store.
+  // This makes the first reference free; as it's not any more expensive than
+  // the load/store. However, for each reference past the first, we pay an
+  // overhead for using the addressing over the imaginary addressing mode. This
+  // cost is: Absolute: 1 byte, 1 cycle Absolute Indexed: 1 byte, 1.5 cycles
+  // Indirect Indexed: 2.5 cycles
+  // So, it pays off to fold k references of each addressing mode if:
+  // Absolute: k*(1+1) < (2+3) = 5; 2k < 5; k < 2.5; k <= 2
+  // Absolute Indexed: k*(1+1.5) < 5; 2.5k < 5; k <= 1
+  // Indirect Indexed: k*(0+2.5) < 5; 2.5k < 5; k <= 1
+  int MaxNumUsers;
+  switch (Src.getOpcode()) {
+  default:
+    MaxNumUsers = 1;
+    break;
+  case MC6809::G_LOAD_ABS:
+    MaxNumUsers = 2;
+  }
+  if (NumUsers > MaxNumUsers)
+    return false;
+
+  // Look for intervening instructions that cannot be folded across.
+  for (const MachineInstr &I :
+       make_range(std::next(MachineBasicBlock::const_iterator(Src)), MachineBasicBlock::const_iterator(Dst))) {
+    if (I.isCall() || I.hasUnmodeledSideEffects())
+      return false;
+    if (I.mayLoadOrStore()) {
+      if (Src.hasOrderedMemoryRef() || I.hasOrderedMemoryRef())
+        return false;
+      if (I.mayAlias(AA, Src, /*UseTBAA=*/true))
+        return false;
+      // Note: Dst may be a store, indicating that the whole sequence is a RMW
+      // operation.
+      if (I.mayAlias(AA, Dst, /*UseTBAA=*/true))
+        return false;
+    }
+  }
+
+  return true;
+}
+
+struct FoldedLdAbs_match {
+  const MachineInstr &Tgt;
+  MachineOperand &Addr;
+  AAResults *AA;
+
+  bool match(const MachineRegisterInfo &MRI, Register Reg) {
+    const MachineInstr *LdAbs = getOpcodeDef(MC6809::G_LOAD_ABS, Reg, MRI);
+    if (!LdAbs || !shouldFoldMemAccess(Tgt, *LdAbs, AA))
+      return false;
+    Addr = LdAbs->getOperand(1);
+    return true;
+  }
+};
+inline FoldedLdAbs_match m_FoldedLdAbs(const MachineInstr &Tgt, MachineOperand &Addr, AAResults *AA) {
+  return {Tgt, Addr, AA};
+}
+
+struct FoldedLdIdxOffs_match {
+  const MachineInstr &Tgt;
+  MachineOperand &Index;
+  MachineOperand &Offset;
+  AAResults *AA;
+
+  bool match(const MachineRegisterInfo &MRI, Register Reg) {
+    const MachineInstr *LDIdxOffs = getOpcodeDef(MC6809::G_LOAD_INDEX_OFFSET, Reg, MRI);
+    if (!LDIdxOffs || !shouldFoldMemAccess(Tgt, *LDIdxOffs, AA))
+      return false;
+    Index = LDIdxOffs->getOperand(1);
+    Offset = LDIdxOffs->getOperand(2);
+    return true;
+  }
+};
+
+inline FoldedLdIdxOffs_match m_FoldedLdIdxOffs(const MachineInstr &Tgt, MachineOperand &Index, MachineOperand &Offset, AAResults *AA) {
+  return {Tgt, Index, Offset, AA};
+}
+
+struct FoldedLdIndirIdxOffs_match {
+  const MachineInstr &Tgt;
+  MachineOperand &Index;
+  MachineOperand &Offset;
+  AAResults *AA;
+
+  bool match(const MachineRegisterInfo &MRI, Register Reg) {
+    const MachineInstr *LdIndirIdxOffs = getOpcodeDef(MC6809::G_LOAD_INDIR_INDEX_OFFSET, Reg, MRI);
+    if (!LdIndirIdxOffs || !shouldFoldMemAccess(Tgt, *LdIndirIdxOffs, AA))
+      return false;
+    Index = LdIndirIdxOffs->getOperand(1);
+    Offset = LdIndirIdxOffs->getOperand(2);
+    return true;
+  }
+};
+
+inline FoldedLdIndirIdxOffs_match m_FoldedLdIndirIdxOffs(const MachineInstr &Tgt, MachineOperand &Index, MachineOperand &Offset, AAResults *AA) {
+  return {Tgt, Index, Offset, AA};
+}
+
+bool MC6809InstructionSelector::selectAdd(MachineInstr &MI) {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
+  assert(MI.getOpcode() == MC6809::G_ADD ||
+         MI.getOpcode() == MC6809::G_SADDO || MI.getOpcode() == MC6809::G_UADDO ||
+         MI.getOpcode() == MC6809::G_SADDE || MI.getOpcode() == MC6809::G_UADDE);
+
+  MachineIRBuilder Builder(MI);
+  Register Dst = MI.getOperand(0).getReg();
+  Register CarryIn, CarryOut;
+  LLT DstTy = MRI->getType(Dst);
+  const auto DstSize = DstTy.getSizeInBits();
+  bool Signed = MI.getOpcode() == MC6809::G_SADDO || MI.getOpcode() == MC6809::G_SADDE;
+  bool WithCarry = MI.getOpcode() == MC6809::G_SADDE || MI.getOpcode() == MC6809::G_UADDE;
+  bool ExtraBits = MI.getOpcode() != MC6809::G_ADD;
+  bool Success;
+  MachineInstrBuilder Instr;
+  MachineInstr *Load;
+  Register Reg;
+  unsigned Opcode = 0;
+
+  if (ExtraBits) {
+    CarryOut = MI.getOperand(1).getReg();
+    if (WithCarry)
+      CarryIn = MI.getOperand(4).getReg();
+    else
+      CarryIn = MRI->createGenericVirtualRegister(S1);
+  } else {
+    CarryOut = MRI->createGenericVirtualRegister(S1);
+    CarryIn = MRI->createGenericVirtualRegister(S1);
+  }
+
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Trying immediate mode\n";);
+  Optional<ValueAndVReg> ValReg;
+  int64_t Value;
+  if (ExtraBits)
+    Success = mi_match(Dst, *MRI, m_GSAddO(m_Reg(Reg), m_GCst(ValReg))) ||
+              mi_match(Dst, *MRI, m_GUAddO(m_Reg(Reg), m_GCst(ValReg)));
+  else
+    Success = mi_match(Dst, *MRI, m_GAdd(m_Reg(Reg), m_GCst(ValReg)));
+  if (Success) {
+    Value = ValReg->Value.getSExtValue();
+    if (WithCarry) {
+      Opcode = (DstSize == 8) ? MC6809::AddCarry8Imm : MC6809::AddCarry16Imm;
+      Instr = Builder.buildInstr(Opcode)
+                       .addDef(Dst)
+                       .addDef(CarryOut)
+                       .addDef(MRI->createGenericVirtualRegister(S1)) // Overflow
+                       .addUse(Reg)
+                       .addUse(CarryIn)
+                       .addImm(Value);
+    } else {
+      Opcode = (DstSize == 8) ? MC6809::Add8Imm : MC6809::Add16Imm;
+      Instr = Builder.buildInstr(Opcode)
+                       .addDef(Dst)
+                       .addDef(CarryOut)
+                       .addDef(MRI->createGenericVirtualRegister(S1)) // Overflow
+                       .addUse(Reg)
+                       .addImm(Value);
+    }
+    if (Signed) {
+      // Swap the output C and V bits
+      Register Tmp = Instr.getReg(1);
+      Instr->getOperand(1).setReg(Instr.getReg(2));
+      Instr->getOperand(2).setReg(Tmp);
+    }
+    if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
+      llvm_unreachable("Could not constrain immediate instruction.");
+    MI.eraseFromParent();
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Immediate : return true : MI = "; MI.dump(););
+    return true;
+  }
+
+  MachineOperand Addr = MachineOperand::CreateReg(0, false);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Looking for load (for addressing mode)\n";);
+  if (ExtraBits)
+    Success = mi_match(Dst, *MRI, m_GSAddO(m_Reg(Reg), m_MInstr(Load))) ||
+              mi_match(Dst, *MRI, m_GUAddO(m_Reg(Reg), m_MInstr(Load))) ||
+              mi_match(Dst, *MRI, m_GSAddE(m_Reg(Reg), m_MInstr(Load), m_Reg(CarryIn))) ||
+              mi_match(Dst, *MRI, m_GUAddE(m_Reg(Reg), m_MInstr(Load), m_Reg(CarryIn)));
+  else
+    Success = mi_match(Dst, *MRI, m_GAdd(m_Reg(Reg), m_MInstr(Load)));
+  if (Success) {
+    if (Load->getOpcode() == MC6809::G_LOAD) {
+      LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Proceeding with G_LOAD\n";);
+      if (WithCarry) {
+        Opcode = (DstSize == 8) ? MC6809::AddCarry8Idx : MC6809::AddCarry16Idx;
+        Instr = Builder.buildInstr(Opcode)
+                         .addDef(Dst)
+                         .addDef(CarryOut)
+                         .addDef(MRI->createGenericVirtualRegister(S1)) // Overflow
+                         .addUse(Reg)                                   // LHS
+                         .addUse(CarryIn)
+                         .add(Load->getOperand(1))
+                         .addImm(0)
+                         .cloneMemRefs(*Load);
+      } else {
+        Opcode = (DstSize == 8) ? MC6809::Add8Idx : MC6809::Add16Idx;
+        Instr = Builder.buildInstr(Opcode)
+                         .addDef(Dst)
+                         .addDef(CarryOut)
+                         .addDef(MRI->createGenericVirtualRegister(S1)) // Overflow
+                         .addUse(Reg)                                   // LHS
+                         .add(Load->getOperand(1))
+                         .addImm(0)
+                         .cloneMemRefs(*Load);
+      }
+      if (Signed) {
+        // Swap the output C and V bits
+        Register Tmp = Instr.getReg(1);
+        Instr->getOperand(1).setReg(Instr.getReg(2));
+        Instr->getOperand(2).setReg(Tmp);
+      }
+      if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
+        llvm_unreachable("Could not constrain indexed add instruction.");
+      MI.eraseFromParent();
+      Load->eraseFromParent();
+      LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Add with Load found : return true : MI = "; MI.dump(););
+      return true;
+    }
+  }
+
+  if (STI.isHD6309()) {
+    Register LHS, RHS;
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Trying register/register mode\n";);
+    if (ExtraBits)
+      Success = mi_match(Dst, *MRI, m_GSAddO(m_Reg(LHS), m_Reg(RHS))) ||
+                mi_match(Dst, *MRI, m_GUAddO(m_Reg(LHS), m_Reg(RHS))) ||
+                mi_match(Dst, *MRI, m_GSAddE(m_Reg(LHS), m_Reg(RHS), m_Reg(CarryIn))) ||
+                mi_match(Dst, *MRI, m_GUAddE(m_Reg(LHS), m_Reg(RHS), m_Reg(CarryIn)));
+    else
+        Success = mi_match(Dst, *MRI, m_GAdd(m_Reg(LHS), m_Reg(RHS)));
+    if (Success) {
+      if (WithCarry) {
+        Opcode = (DstSize == 8) ? MC6809::AddCarry8Reg : MC6809::AddCarry16Reg;
+        Instr = Builder.buildInstr(Opcode)
+                    .addDef(Dst)
+                    .addDef(CarryOut)
+                    .addDef(MRI->createGenericVirtualRegister(S1)) // Overflow
+                    .addUse(LHS)
+                    .addUse(CarryIn)
+                    .addUse(RHS);
+      } else {
+        Opcode = (DstSize == 8) ? MC6809::Add8Reg : MC6809::Add16Reg;
+        Instr = Builder.buildInstr(Opcode)
+                    .addDef(Dst)
+                    .addDef(CarryOut)
+                    .addDef(MRI->createGenericVirtualRegister(S1)) // Overflow
+                    .addUse(LHS)
+                    .addUse(RHS);
+      }
+    }
+    if (Signed) {
+      // Swap the output C and V bits
+      Register Tmp = Instr.getReg(1);
+      Instr->getOperand(1).setReg(Instr.getReg(2));
+      Instr->getOperand(2).setReg(Tmp);
+    }
+    if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
+      llvm_unreachable("Could not constrain register/register add instruction.");
+    MI.eraseFromParent();
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : register/register add found : return true : MI = "; MI.dump(););
+    return true;
+  }
+
+#if 0
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Trying absolute mode\n";);
+  MachineOperand Addr = MachineOperand::CreateReg(0, false);
+  Success = mi_match(Dst, *MRI, m_GAdd(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdAbs(MI, Addr, AA))));
+  Opcode = (DstSize == 8) ? MC6809::Add8Abs : MC6809::Add16Abs;
+  if (Success) {
+    auto Instr = Builder.buildInstr(Opcode)
+                     .addDef(Dst)
+                     .addDef(MRI->createGenericVirtualRegister(S1)) // CarryOut
+                     .addDef(MRI->createGenericVirtualRegister(S1)) // Overflow
+                     .addUse(Reg)
+                     .add(Addr)
+                     .cloneMemRefs(*Load);
+    if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
+      llvm_unreachable("Could not constrain absolute instruction.");
+    MI.eraseFromParent();
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Absolute : return true : MI = "; MI.dump(););
+    return true;
+  }
+
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Trying indexed mode\n";);
+  MachineOperand Idx = MachineOperand::CreateReg(0, false);
+  MachineOperand Offset = MachineOperand::CreateReg(0, false);
+  Success = mi_match(Dst, *MRI, m_GAdd(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdxOffs(MI, Idx, Offset, AA))));
+  Opcode = (DstSize == 8) ? MC6809::Add8Idx : MC6809::Add16Idx;
+  if (Success) {
+    auto Instr = Builder.buildInstr(Opcode)
+                     .addDef(Dst)
+                     .addDef(MRI->createGenericVirtualRegister(S1)) // CarryOut
+                     .addDef(MRI->createGenericVirtualRegister(S1)) // Overflow
+                     .addUse(Reg)
+                     .addUse(Idx.getReg())
+                     .add(Offset)
+                     .cloneMemRefs(*Load);
+    if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
+      llvm_unreachable("Could not constrain absolute indexed instruction.");
+    MI.eraseFromParent();
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Indexed : return true : MI = "; MI.dump(););
+    return true;
+  }
+
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Trying indirect indexed mode\n";);
+  Success = mi_match(Dst, *MRI, m_GAdd(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIndirIdxOffs(MI, Idx, Offset, AA))));
+  Opcode = (DstSize == 8) ? MC6809::Add8Indir : MC6809::Add16Indir;
+  if (Success) {
+    auto Instr = Builder.buildInstr(Opcode)
+                     .addDef(Dst)
+                     .addDef(MRI->createGenericVirtualRegister(S1)) // CarryOut
+                     .addDef(MRI->createGenericVirtualRegister(S1)) // Overflow
+                     .addUse(Reg)
+                     .addUse(Idx.getReg())
+                     .add(Offset)
+                     .cloneMemRefs(*Load);
+    if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
+      llvm_unreachable("Could not constrain indirect indexed instruction.");
+    MI.eraseFromParent();
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Indirect Indexed : return true : MI = "; MI.dump(););
+    return true;
+  }
+#endif
+
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : return false : MI = "; MI.dump(););
+  return false;
+}
+
+#if 0
+bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
+  Register Result = MI.getOperand(0).getReg();
+  Register CarryOut = MI.getOperand(1).getReg();
+  Register L = MI.getOperand(2).getReg();
+  Register R = MI.getOperand(3).getReg();
+  Register CarryIn = MI.getOperand(4).getReg();
+  LLT ResultTy = MRI->getType(Result);
+  const auto ResultSize = ResultTy.getSizeInBits();
+
+  MachineIRBuilder Builder(MI);
+  auto &MRI = *Builder.getMRI();
+
+  MachineInstrBuilder Instr = [&]() {
+    if (auto RConst = getIConstantVRegValWithLookThrough(R, MRI)) {
+      unsigned Opcode = (ResultSize == 8) ? MC6809::AddCarry8Imm : MC6809::AddCarry16Imm;
+      return Builder.buildInstr(Opcode, {Result, CarryOut, MRI.createGenericVirtualRegister(S1)}, {L, CarryIn, RConst->Value.getZExtValue()});
+    }
+    MachineOperand Addr = MachineOperand::CreateReg(0, false);
+    if (mi_match(L, MRI, m_FoldedLdAbs(MI, Addr, AA)))
+      std::swap(L, R);
+    if (mi_match(R, MRI, m_FoldedLdAbs(MI, Addr, AA))) {
+      unsigned Opcode = (ResultSize == 8) ? MC6809::AddCarry8Abs : MC6809::AddCarry16Abs;
+      return Builder.buildInstr(Opcode)
+          .addDef(Result)
+          .addDef(CarryOut)
+          .addDef(MRI.createGenericVirtualRegister(S1))
+          .addUse(L)
+          .addUse(CarryIn)
+          .add(Addr);
+    }
+    MachineOperand Idx = MachineOperand::CreateReg(0, false);
+    MachineOperand Offset = MachineOperand::CreateReg(0, false);
+    if (mi_match(L, MRI, m_FoldedLdIdxOffs(MI, Idx, Offset, AA)))
+      std::swap(L, R);
+    if (mi_match(R, MRI, m_FoldedLdIdxOffs(MI, Idx, Offset, AA))) {
+      unsigned Opcode = (ResultSize == 8) ? MC6809::AddCarry8Idx : MC6809::AddCarry16Idx;
+      return Builder.buildInstr(Opcode)
+          .addDef(Result)
+          .addDef(CarryOut)
+          .addDef(MRI.createGenericVirtualRegister(S1))
+          .addUse(L)
+          .addUse(CarryIn)
+          .add(Idx)
+          .add(Offset);
+    }
+    if (mi_match(L, MRI, m_FoldedLdIndirIdxOffs(MI,  Idx, Offset, AA)))
+      std::swap(L, R);
+    if (mi_match(R, MRI, m_FoldedLdIndirIdxOffs(MI, Idx, Offset, AA))) {
+      unsigned Opcode = (ResultSize == 8) ? MC6809::AddCarry8Indir : MC6809::AddCarry16Indir;
+      return Builder.buildInstr(Opcode)
+          .addDef(Result)
+          .addDef(CarryOut)
+          .addDef(MRI.createGenericVirtualRegister(S1))
+          .addUse(L)
+          .addUse(CarryIn)
+          .add(Idx)
+          .add(Offset);
+    }
+    llvm_unreachable("Unable to match add instruction");
+  }();
+  if (MI.getOpcode() == MC6809::G_SADDE) {
+    // Swap C and V
+    Register Tmp = Instr.getReg(1);
+    Instr->getOperand(1).setReg(Instr.getReg(2));
+    Instr->getOperand(2).setReg(Tmp);
+  }
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Constraining : MI = "; MI.dump(););
+  if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
+    return false;
+
+  MI.eraseFromParent();
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
+  return true;
+}
+
+bool MC6809InstructionSelector::selectAddO(MachineInstr &MI) {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
+  Register Result = MI.getOperand(0).getReg();
+  Register CarryOut = MI.getOperand(1).getReg();
+  Register L = MI.getOperand(2).getReg();
+  Register R = MI.getOperand(3).getReg();
+  LLT ResultTy = MRI->getType(Result);
+  const auto ResultSize = ResultTy.getSizeInBits();
+
+  MachineIRBuilder Builder(MI);
+  auto &MRI = *Builder.getMRI();
+
+  MachineInstrBuilder Instr = [&]() {
+    if (auto RConst = getIConstantVRegValWithLookThrough(R, MRI)) {
+      unsigned Opcode = (ResultSize == 8) ? MC6809::Add8Imm : MC6809::Add16Imm;
+      return Builder.buildInstr(Opcode, {Result, CarryOut, MRI.createGenericVirtualRegister(S1)}, {L, RConst->Value.getZExtValue()});
+    }
+    MachineOperand Addr = MachineOperand::CreateReg(0, false);
+    if (mi_match(L, MRI, m_FoldedLdAbs(MI, Addr, AA)))
+      std::swap(L, R);
+    if (mi_match(R, MRI, m_FoldedLdAbs(MI, Addr, AA))) {
+      unsigned Opcode = (ResultSize == 8) ? MC6809::Add8Abs : MC6809::Add16Abs;
+      return Builder.buildInstr(Opcode)
+          .addDef(Result)
+          .addDef(CarryOut)
+          .addDef(MRI.createGenericVirtualRegister(S1))
+          .addUse(L)
+          .add(Addr);
+    }
+    MachineOperand Idx = MachineOperand::CreateReg(0, false);
+    MachineOperand Offset = MachineOperand::CreateReg(0, false);
+    if (mi_match(L, MRI, m_FoldedLdIdxOffs(MI, Idx, Offset, AA)))
+      std::swap(L, R);
+    if (mi_match(R, MRI, m_FoldedLdIdxOffs(MI, Idx, Offset, AA))) {
+      unsigned Opcode = (ResultSize == 8) ? MC6809::Add8Idx : MC6809::Add16Idx;
+      return Builder.buildInstr(Opcode)
+          .addDef(Result)
+          .addDef(CarryOut)
+          .addDef(MRI.createGenericVirtualRegister(S1))
+          .addUse(L)
+          .add(Idx)
+          .add(Offset);
+    }
+
+    if (mi_match(L, MRI, m_FoldedLdIndirIdxOffs(MI,  Idx, Offset, AA)))
+      std::swap(L, R);
+    if (mi_match(R, MRI, m_FoldedLdIndirIdxOffs(MI, Idx, Offset, AA))) {
+      unsigned Opcode = (ResultSize == 8) ? MC6809::Add8Indir: MC6809::Add16Indir;
+      return Builder.buildInstr(Opcode)
+          .addDef(Result)
+          .addDef(CarryOut)
+          .addDef(MRI.createGenericVirtualRegister(S1))
+          .addUse(L)
+          .add(Idx)
+          .add(Offset);
+    }
+    llvm_unreachable("Unable to match add instruction");
+  }();
+  if (MI.getOpcode() == MC6809::G_SADDO) {
+    // Swap C and V
+    Register Tmp = Instr.getReg(1);
+    Instr->getOperand(1).setReg(Instr.getReg(2));
+    Instr->getOperand(2).setReg(Tmp);
+  }
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Constraining : MI = "; MI.dump(););
+  if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
+    return false;
+
+  MI.eraseFromParent();
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
+  return true;
+}
+#endif /* 0 */
+
+bool MC6809InstructionSelector::selectSub(MachineInstr &MI) {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
+  assert(MI.getOpcode() == MC6809::G_SUB);
+
   MachineIRBuilder Builder(MI);
   Register Dst = MI.getOperand(0).getReg();
   LLT DstTy = MRI->getType(Dst);
   const auto DstSize = DstTy.getSizeInBits();
-
-  Optional<ValueAndVReg> OffsCst;
-  if (mi_match(Dst, *MRI, m_GCst(OffsCst)))  {
-    dbgs() << "OINQUE DEBUG " << __func__ << " : MATCH : OffsCst->Value = "; OffsCst->Value.dump();
-    dbgs() << "OINQUE DEBUG " << __func__ << " : MATCH : OffsCst->VReg = " << OffsCst->VReg << "\n";
-  }
+  Optional<ValueAndVReg> ValReg;
+  bool Success;
+  MachineInstr *Load;
+  Register Reg;
   unsigned Opcode;
-  switch  (DstSize) {
-  default:
-    llvm_unreachable(formatv("Cannot load register of size = {}", DstSize).str().c_str());
-  case 1:
-  case 8:
-    Opcode = MC6809::Load8Imm;
-    break;
-  case 16:
-    Opcode = MC6809::Load16Imm;
-    break;
-  case 32:
-    Opcode = MC6809::Load32Imm;
-    break;
+
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Checking for subtraction <const> - <reg>\n";);
+  Success = mi_match(Dst, *MRI, m_GSub(m_GCst(ValReg), m_Reg(Reg)));
+  if (Success) {
+    unsigned Opcode;
+    Opcode = (DstSize == 8) ? MC6809::PushOp8 : MC6809::PushOp16;
+    auto tmp = MRI->createGenericVirtualRegister(DstTy);
+    Builder.buildInstr(Opcode)
+        .addDef(tmp)
+        .addReg(Reg, RegState::Kill);
+    Opcode = (DstSize == 8) ? MC6809::Sub8Pop : MC6809::Sub16Pop;
+    auto Instr = Builder.buildInstr(Opcode)
+                     .addDef(Dst)
+                     .addDef(MRI->createGenericVirtualRegister(S1))
+                     .addDef(MRI->createGenericVirtualRegister(S1))
+                     .addUse(tmp)
+                     .addUse(MI.getOperand(1).getReg());
+    if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
+      llvm_unreachable("Could not constrain immediate instruction.");
+    MI.eraseFromParent();
+    return true;
   }
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Trying immediate mode\n";);
+  int64_t Value;
+  Success = mi_match(Dst, *MRI, m_GSub(m_Reg(Reg), m_GCst(ValReg)));
+  if (Success) {
+    Opcode = (DstSize == 8) ? MC6809::Sub8Imm : MC6809::Sub16Imm;
+    Value = ValReg->Value.getSExtValue();
+    auto Instr = Builder.buildInstr(Opcode)
+                     .addDef(Dst)
+                     .addDef(MRI->createGenericVirtualRegister(S1))
+                     .addDef(MRI->createGenericVirtualRegister(S1))
+                     .addUse(Reg)
+                     .addImm(Value);
+    if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
+      llvm_unreachable("Could not constrain immediate instruction.");
+    MI.eraseFromParent();
+    return true;
+  }
+
+#if 0
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Trying absolute mode\n";);
+  MachineOperand Addr = MachineOperand::CreateReg(0, false);
+  Success = mi_match(Dst, *MRI, m_GSub(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdAbs(MI, Addr, AA))));
+  if (Success) {
+    Opcode = (DstSize == 8) ? MC6809::Sub8Abs : MC6809::Sub16Abs;
+    auto Instr = Builder.buildInstr(Opcode)
+                     .addDef(Dst)
+                     .addDef(MRI->createGenericVirtualRegister(S1))
+                     .addDef(MRI->createGenericVirtualRegister(S1))
+                     .addUse(Reg)
+                     .add(Addr)
+                     .cloneMemRefs(*Load);
+    if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
+      llvm_unreachable("Could not constrain absolute instruction.");
+    MI.eraseFromParent();
+    return true;
+  }
+
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Trying indexed mode\n";);
+  MachineOperand Idx = MachineOperand::CreateReg(0, false);
+  MachineOperand Offset = MachineOperand::CreateReg(0, false);
+  Success = mi_match(Dst, *MRI, m_GSub(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdxOffs(MI, Idx, Offset, AA))));
+  if (Success) {
+    Opcode = (DstSize == 8) ? MC6809::Sub8Idx : MC6809::Sub16Idx;
+    auto Instr = Builder.buildInstr(Opcode)
+                     .addDef(Dst)
+                     .addDef(MRI->createGenericVirtualRegister(S1))
+                     .addDef(MRI->createGenericVirtualRegister(S1))
+                     .addUse(Reg)
+                     .add(Idx)
+                     .add(Offset)
+                     .cloneMemRefs(*Load);
+    if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
+      llvm_unreachable("Could not constrain absolute indexed instruction.");
+    MI.eraseFromParent();
+    return true;
+  }
+
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Trying indirect indexed mode\n";);
+  Success = mi_match(Dst, *MRI, m_GSub(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIndirIdxOffs(MI, Idx, Offset, AA))));
+  if (Success) {
+    Opcode = (DstSize == 8) ? MC6809::Sub8Indir : MC6809::Sub16Indir;
+    auto Instr = Builder.buildInstr(Opcode)
+                     .addDef(Dst)
+                     .addDef(MRI->createGenericVirtualRegister(S1))
+                     .addDef(MRI->createGenericVirtualRegister(S1))
+                     .addUse(Reg)
+                     .add(Idx)
+                     .add(Offset)
+                     .cloneMemRefs(*Load);
+    if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
+      llvm_unreachable("Could not constrain indirect indexed instruction.");
+    MI.eraseFromParent();
+    return true;
+  }
+#endif /* 0 */
+  return false;
+}
+
+bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
+  Register Result = MI.getOperand(0).getReg();
+  Register CarryOut = MI.getOperand(1).getReg();
+  Register L = MI.getOperand(2).getReg();
+  Register R = MI.getOperand(3).getReg();
+  Register CarryIn = MI.getOperand(4).getReg();
+  LLT ResultTy = MRI->getType(Result);
+  const auto ResultSize = ResultTy.getSizeInBits();
+
+  MachineIRBuilder Builder(MI);
+  auto &MRI = *Builder.getMRI();
+
+  MachineInstrBuilder Instr = [&]() {
+    if (auto RConst = getIConstantVRegValWithLookThrough(R, MRI)) {
+      unsigned Opcode = (ResultSize == 8) ? MC6809::SubBorrow8Imm : MC6809::SubBorrow16Imm;
+      return Builder.buildInstr(Opcode, {Result, CarryOut, MRI.createGenericVirtualRegister(S1)}, {L, CarryIn, RConst->Value.getZExtValue()});
+    }
+    MachineOperand Addr = MachineOperand::CreateReg(0, false);
+    if (mi_match(R, MRI, m_FoldedLdAbs(MI, Addr, AA))) {
+      unsigned Opcode = (ResultSize == 8) ? MC6809::SubBorrow8Abs : MC6809::SubBorrow16Abs;
+      return Builder.buildInstr(Opcode)
+          .addDef(Result)
+          .addDef(CarryOut)
+          .addDef(MRI.createGenericVirtualRegister(S1))
+          .addUse(L)
+          .addUse(CarryIn)
+          .add(Addr);
+    }
+    MachineOperand Idx = MachineOperand::CreateReg(0, false);
+    MachineOperand Offset = MachineOperand::CreateReg(0, false);
+    if (mi_match(R, MRI, m_FoldedLdIdxOffs(MI, Idx, Offset, AA))) {
+      unsigned Opcode = (ResultSize == 8) ? MC6809::SubBorrow8Idx : MC6809::SubBorrow16Idx;
+      return Builder.buildInstr(Opcode)
+          .addDef(Result)
+          .addDef(CarryOut)
+          .addDef(MRI.createGenericVirtualRegister(S1))
+          .addUse(L)
+          .addUse(CarryIn)
+          .add(Idx)
+          .add(Offset);
+    }
+
+    if (mi_match(R, MRI, m_FoldedLdIndirIdxOffs(MI, Idx, Offset, AA))) {
+      unsigned Opcode = (ResultSize == 8) ? MC6809::SubBorrow8Indir : MC6809::SubBorrow16Indir;
+      return Builder.buildInstr(Opcode)
+          .addDef(Result)
+          .addDef(CarryOut)
+          .addDef(MRI.createGenericVirtualRegister(S1))
+          .addUse(L)
+          .addUse(CarryIn)
+          .add(Idx)
+          .add(Offset);
+    }
+    llvm_unreachable("Unable to match subtract instruction");
+  }();
+  if (MI.getOpcode() == MC6809::G_SSUBE) {
+    // Swap C and V
+    Register Tmp = Instr.getReg(1);
+    Instr->getOperand(1).setReg(Instr.getReg(2));
+    Instr->getOperand(2).setReg(Tmp);
+  }
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Constraining : MI = "; MI.dump(););
+  if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
+    return false;
+
+  MI.eraseFromParent();
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
+  return true;
+}
+
+bool MC6809InstructionSelector::selectSubO(MachineInstr &MI) {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
+  Register Result = MI.getOperand(0).getReg();
+  Register CarryOut = MI.getOperand(1).getReg();
+  Register L = MI.getOperand(2).getReg();
+  Register R = MI.getOperand(3).getReg();
+  LLT ResultTy = MRI->getType(Result);
+  const auto ResultSize = ResultTy.getSizeInBits();
+
+  MachineIRBuilder Builder(MI);
+  auto &MRI = *Builder.getMRI();
+
+  MachineInstrBuilder Instr = [&]() {
+    if (auto RConst = getIConstantVRegValWithLookThrough(R, MRI)) {
+      unsigned Opcode = (ResultSize == 8) ? MC6809::Sub8Imm : MC6809::Sub16Imm;
+      return Builder.buildInstr(Opcode, {Result, CarryOut, MRI.createGenericVirtualRegister(S1)}, {L, RConst->Value.getZExtValue()});
+    }
+    MachineOperand Addr = MachineOperand::CreateReg(0, false);
+    if (mi_match(R, MRI, m_FoldedLdAbs(MI, Addr, AA))) {
+      unsigned Opcode = (ResultSize == 8) ? MC6809::Sub8Abs : MC6809::Sub16Abs;
+      return Builder.buildInstr(Opcode)
+          .addDef(Result)
+          .addDef(CarryOut)
+          .addDef(MRI.createGenericVirtualRegister(S1))
+          .addUse(L)
+          .add(Addr);
+    }
+    MachineOperand Idx = MachineOperand::CreateReg(0, false);
+    MachineOperand Offset = MachineOperand::CreateReg(0, false);
+    if (mi_match(R, MRI, m_FoldedLdIdxOffs(MI, Idx, Offset, AA))) {
+      unsigned Opcode = (ResultSize == 8) ? MC6809::Sub8Idx : MC6809::Sub16Idx;
+      return Builder.buildInstr(Opcode)
+          .addDef(Result)
+          .addDef(CarryOut)
+          .addDef(MRI.createGenericVirtualRegister(S1))
+          .addUse(L)
+          .add(Idx)
+          .add(Offset);
+    }
+
+    if (mi_match(R, MRI, m_FoldedLdIndirIdxOffs(MI, Idx, Offset, AA))) {
+      unsigned Opcode = (ResultSize == 8) ? MC6809::Sub8Indir : MC6809::Sub16Indir;
+      return Builder.buildInstr(Opcode)
+          .addDef(Result)
+          .addDef(CarryOut)
+          .addDef(MRI.createGenericVirtualRegister(S1))
+          .addUse(L)
+          .add(Idx)
+          .add(Offset);
+    }
+    llvm_unreachable("Unable to match subtract instruction");
+  }();
+  if (MI.getOpcode() == MC6809::G_SSUBO) {
+    // Swap C and V
+    Register Tmp = Instr.getReg(1);
+    Instr->getOperand(1).setReg(Instr.getReg(2));
+    Instr->getOperand(2).setReg(Tmp);
+  }
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Constraining : MI = "; MI.dump(););
+  if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
+    return false;
+
+  MI.eraseFromParent();
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
+  return true;
+}
+
+bool MC6809InstructionSelector::selectConstant(MachineInstr &MI) {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
+//  MachineIRBuilder Builder(MI);
+  Register Dst = MI.getOperand(0).getReg();
+  LLT DstTy = MRI->getType(Dst);
+  const auto DstSize = DstTy.getSizeInBits();
+
+  unsigned Opcode = (DstSize == 8) ? MC6809::Load8Imm : (DstSize == 16) ? MC6809::Load16Imm : MC6809::Load32Imm;
   MI.setDesc(TII.get(Opcode));
   bool Success = constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
@@ -561,102 +1173,62 @@ bool MC6809InstructionSelector::selectLoad(MachineInstr &MI) {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
   MachineIRBuilder Builder(MI);
   Register Dst = MI.getOperand(0).getReg();
-  Register Idx = MI.getOperand(1).getReg();
+  Register Index = MI.getOperand(1).getReg();
   LLT DstTy = MRI->getType(Dst);
   const auto DstSize = DstTy.getSizeInBits();
+  MachineInstr *Pointer;
+  bool Success;
 
-  MachineInstr *PtrAdd = nullptr;
-  Register IndReg;
-  Register OffsReg;
-  Optional<ValueAndVReg> OffsCst;
-  if (mi_match(Idx, *MRI, m_GPtrAdd(m_Reg(IndReg), m_GCst(OffsCst)))) {
-    dbgs() << "OINQUE DEBUG " << __func__ << " : DEBUG MATCH CONSTANT\n";
-  }
-  unsigned Opcode;
-  if (mi_match(Idx, *MRI, m_GPtrAdd(m_Reg(IndReg), m_GCst(OffsCst))))  {
-    APInt OffsVal = OffsCst->Value;
-    assert(((*(OffsVal.getRawData()) & 0xFFFFFFFFFFFF0000ULL) == 0 || (*(OffsVal.getRawData()) & 0xFFFFFFFFFFFF0000ULL) == 0xFFFFFFFFFFFF0000ULL) && "Offset out of range");
-    int16_t offset = (uint16_t)(*(OffsVal.getRawData()));
-    PtrAdd = getOpcodeDef(MC6809::G_PTR_ADD, Idx, *MRI);
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : MATCH : PtrAdd = "; PtrAdd->dump(););
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : MATCH : OffsCst->Value.dump() = "; OffsCst->Value.dump(););
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : MATCH : OffsCst->VReg = " << OffsCst->VReg << "\n";);
-    switch (DstSize) {
-    default:
-      llvm_unreachable(formatv("Cannot load register of size = {}", DstSize).str().c_str());
-    case 1:
-    case 8:
-      Opcode = MC6809::Load8IdxImm;
-      break;
-    case 16:
-      Opcode = MC6809::Load16IdxImm;
-      break;
-    case 32:
-      Opcode = MC6809::Load32IdxImm;
-      break;
-    }
-    MI.setDesc(TII.get(Opcode));
-    MI.removeOperand(1);
-    MI.addOperand(PtrAdd->getOperand(1));
-    MI.addOperand(MachineOperand::CreateImm(offset));
-    MI.cloneMemRefs(*MF, *PtrAdd);
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : MATCH COMPLETE\n";);
-    return constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
-  } else if (mi_match(Idx, *MRI, m_GPtrAdd(m_Reg(IndReg), m_Reg(OffsReg)))) {
-    PtrAdd = getOpcodeDef(MC6809::G_PTR_ADD, Idx, *MRI);
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : MATCH : PtrAdd = "; PtrAdd->dump(););
-    LLT OffsRegTy = MRI->getType(OffsReg);
-    const auto OffsRegSize = OffsRegTy.getSizeInBits();
-    assert((OffsRegSize == 8 || OffsRegSize == 16) && "Illegal offset register size");
-    switch (DstSize) {
-    default:
-      llvm_unreachable(formatv("Cannot load register of size = {}", DstSize).str().c_str());
-    case 1:
-    case 8:
-      Opcode = OffsRegSize == 8 ? MC6809::Load8IdxReg8 : MC6809::Load8IdxReg16;
-      break;
-    case 16:
-      Opcode = OffsRegSize == 8 ? MC6809::Load16IdxReg8 : MC6809::Load16IdxReg16;
-      break;
-    case 32:
-      Opcode = OffsRegSize == 8 ? MC6809::Load32IdxReg8 : MC6809::Load32IdxReg16;
-      break;
-    }
-    MI.setDesc(TII.get(Opcode));
-    MI.removeOperand(1);
-    MI.addOperand(PtrAdd->getOperand(1));
-    MI.addOperand(PtrAdd->getOperand(2));
-    MI.cloneMemRefs(*MF, *PtrAdd);
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : MATCH COMPLETE\n";);
-    return constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
+  unsigned Opcode = (DstSize == 8) ? MC6809::Load8Idx : (DstSize == 16) ? MC6809::Load16Idx : MC6809::Load32Idx;
+  Success = mi_match(Index, *MRI,m_MInstr(Pointer));
+  if (Success) {
+    auto Instr = Builder.buildInstr(Opcode)
+      .addDef(Dst)
+      .add(Pointer->getOperand(1))
+      .addImm(0)
+      .cloneMemRefs(MI);
+    if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
+      llvm_unreachable("Could not constrain indexed Load instruction.");
+    MI.eraseFromParent();
+    return true;
   } else {
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : NO MATCH\n";);
-    switch (DstSize) {
-    default:
-      llvm_unreachable(formatv("Cannot load register of size = {}", DstSize).str().c_str());
-    case 1:
-    case 8:
-      Opcode = MC6809::Load8IdxZero;
-      break;
-    case 16:
-      Opcode = MC6809::Load16IdxZero;
-      break;
-    case 32:
-      Opcode = MC6809::Load32IdxZero;
-      break;
-    }
     MI.setDesc(TII.get(Opcode));
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : NO MATCH COMPLETE\n";);
+    MI.addOperand(MachineOperand::CreateImm(0));
+    return constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
+  }
+}
+
+bool MC6809InstructionSelector::selectStore(MachineInstr &MI) {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
+  MachineIRBuilder Builder(MI);
+  Register Src = MI.getOperand(0).getReg();
+  Register Index = MI.getOperand(1).getReg();
+  LLT SrcTy = MRI->getType(Src);
+  const auto SrcSize = SrcTy.getSizeInBits();
+  MachineInstr *Pointer;
+  bool Success;
+
+  unsigned Opcode = (SrcSize == 8) ? MC6809::Store8Idx : (SrcSize == 16) ? MC6809::Store16Idx : MC6809::Store32Idx;
+  Success = mi_match(Index, *MRI,m_MInstr(Pointer));
+  if (Success) {
+    auto Instr = Builder.buildInstr(Opcode)
+                     .addUse(Src)
+                     .add(Pointer->getOperand(1))
+                     .addImm(0)
+                     .cloneMemRefs(MI);
+    if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
+      llvm_unreachable("Could not constrain indexed Load instruction.");
+    MI.eraseFromParent();
+    return true;
+  } else {
+    MI.setDesc(TII.get(Opcode));
+    MI.addOperand(MachineOperand::CreateImm(0));
     return constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
   }
 }
 
 bool MC6809InstructionSelector::selectTrunc(MachineInstr &MI) {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
-  LLT S1 = LLT::scalar(1);
-  LLT S8 = LLT::scalar(8);
-  LLT S16 = LLT::scalar(16);
-  LLT S32 = LLT::scalar(32);
   MachineOperand &DstOp = MI.getOperand(0);
   LLT DstType = MRI->getType(DstOp.getReg());
   MachineOperand &SrcOp = MI.getOperand(1);
@@ -664,25 +1236,24 @@ bool MC6809InstructionSelector::selectTrunc(MachineInstr &MI) {
 
   if (DstType == S1) {
     assert((SrcType == S16 || SrcType == S8) && "Illegal source type for s1 destination");
-    unsigned Opcode = SrcType == S8 ? MC6809::AND8Imm : MC6809::AND16Imm;
-    MI.setDesc(TII.get(Opcode));
-    MI.addOperand(MachineOperand::CreateImm(1));
-    bool success =  constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit 0 : MI = "; MI.dump(););
-    return success;
+    MI.setDesc(TII.get(MC6809::COPY));
+    MI.getOperand(1).setSubReg(MC6809::sub_lsb);
+    constrainGenericOp(MI);
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit S1 : MI = "; MI.dump(););
+    return true;
   } else if (DstType == S8) {
     assert((SrcType == S16) && "Illegal source type for s8 destination");
     MI.setDesc(TII.get(MC6809::COPY));
     MI.getOperand(1).setSubReg(MC6809::sub_lo_byte);
     constrainGenericOp(MI);
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit 1 : MI = "; MI.dump(););
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit S8 : MI = "; MI.dump(););
     return true;
   } else if (DstType == S16) {
     assert((SrcType == S32) && "Illegal source type for s8 destination");
     MI.setDesc(TII.get(MC6809::COPY));
     MI.getOperand(1).setSubReg(MC6809::sub_lo_word);
     constrainGenericOp(MI);
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit 2 : MI = "; MI.dump(););
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit S16 : MI = "; MI.dump(););
     return true;
   }
   else
@@ -716,8 +1287,7 @@ bool MC6809InstructionSelector::selectGeneric(MachineInstr &MI) {
   unsigned Opcode;
   switch (MI.getOpcode()) {
   default:
-    // LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : MI = ";
-    // MI.dump(););
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : MI = "; MI.dump(););
     llvm_unreachable("Select Generic - Unexpected opcode.");
   case MC6809::G_IMPLICIT_DEF:
     Opcode = MC6809::IMPLICIT_DEF;
@@ -747,10 +1317,11 @@ bool MC6809InstructionSelector::selectGeneric(MachineInstr &MI) {
 void MC6809InstructionSelector::constrainGenericOp(MachineInstr &MI) {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
   for (MachineOperand &Op : MI.operands()) {
-    if (!Op.isReg() || !Op.isDef() || Op.getReg().isPhysical() ||
-        MRI->getRegClassOrNull(Op.getReg()))
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Looping : Op = "; Op.dump(););
+    if (!Op.isReg() || !Op.isDef() || Op.getReg().isPhysical() || MRI->getRegClassOrNull(Op.getReg()))
       continue;
     constrainOperandRegClass(Op, getRegClassForType(Op.getReg()));
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Constrained : Op = "; Op.dump(););
   }
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
 }

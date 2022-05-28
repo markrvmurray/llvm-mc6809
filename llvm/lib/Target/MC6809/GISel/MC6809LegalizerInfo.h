@@ -25,10 +25,23 @@ class MC6809LegalizerInfo : public LegalizerInfo {
 public:
   MC6809LegalizerInfo(const MC6809Subtarget &STI);
 
-  bool legalizeIntrinsic(LegalizerHelper &Helper,
-                         MachineInstr &MI) const override;
+  bool legalizeIntrinsic(LegalizerHelper &Helper, MachineInstr &MI) const override;
 
   bool legalizeCustom(LegalizerHelper &Helper, MachineInstr &MI) const override;
+
+private:
+  // Memory Operations
+  bool legalizeLoadStore(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI) const;
+  bool legalizePtrAdd(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI) const;
+  bool selectAddressingMode(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI) const;
+  bool tryAbsoluteAddressing(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI) const;
+  bool tryIndexedAddressing(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI) const;
+  bool selectIndirectIndexedAddressing(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI) const;
+
+  // Memory Operations
+  //bool legalizeAddSub(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI) const;
+
+  const MC6809Subtarget &STI;
 };
 
 } // namespace llvm

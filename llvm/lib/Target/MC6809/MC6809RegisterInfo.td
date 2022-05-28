@@ -147,13 +147,31 @@ class MC6809Reg1Class<dag RegList>: MC6809RegClass<[i1], 8, RegList> {
 class MC6809Reg8Class<dag RegList>: MC6809RegClass<[i8], 8, RegList>;
 class MC6809Reg16Class<dag RegList>: MC6809RegClass<[i16], 8, RegList>;
 class MC6809Reg32Class<dag RegList>: MC6809RegClass<[i32], 8, RegList>;
+// class MC6809_8_16_Class<dag RegList>: MC6809RegClass<[i16, i8], 8, RegList>;
+// class MC6809_8_16_32_Class<dag RegList>: MC6809RegClass<[i32, i16, i8], 8, RegList>;
 
-// General purpose register classes.
-def BIT1 : MC6809Reg1Class<(add AA_LSB, AB_LSB, AE_LSB, AF_LSB)>;
-def ACC8 : MC6809Reg8Class<(add AA, AB, AE, AF)>;
-def BIT8 : MC6809Reg8Class<(add AA, AB, CC)>;
-def ACC16 : MC6809Reg16Class<(add AD, AW)>;
-def ACC32 : MC6809Reg32Class<(add AQ)>;
+// Register grouping classes.
+def BIT1 : MC6809Reg1Class<(add AA_LSB, AB_LSB, AE_LSB, AF_LSB, E, F, H, I, N, Z, V, C)>;
+def ACC8 : MC6809Reg8Class<(add AB, AA, AF, AE)> {
+  let AltOrders = [(add AB, AA)];
+  let AltOrderSelect = [{return !MF.getSubtarget<MC6809Subtarget>().isHD6309();}];
+  let DiagnosticString = "operand must be an 8-bit accumulator";
+}
+def BIT8 : MC6809Reg8Class<(add AA, AB, CC)>; // Valid registers for BAND, BEOR, BOR, BIAND, BIEOR, BIOR, LDBT, STBT
+def ACC16 : MC6809Reg16Class<(add AD, AW)> {
+  let AltOrders = [(add AD)];
+  let AltOrderSelect = [{return !MF.getSubtarget<MC6809Subtarget>().isHD6309();}];
+  let DiagnosticString = "operand must be a 16-bit accumulator";
+}
+def ACC32 : MC6809Reg32Class<(add AQ)> {
+  let AltOrders = [(add)];
+  let AltOrderSelect = [{return !MF.getSubtarget<MC6809Subtarget>().isHD6309();}];
+  let DiagnosticString = "operand must be a 32-bit accumulator";
+}
+def REGLIST8 : MC6809Reg8Class<(add CC, AA, AB, DP)>; // Registers which can be pushed/popped
+def REGLIST16 : MC6809Reg16Class<(add AD, AW, IX, IY, SU, SS, PC)>; // Registers which can be pushed/popped
+def REGPAIR8 : MC6809Reg8Class<(add AA, AB, CC, DP, A0, AE, AF)>; // Registers for EXG, TFR
+def REGPAIR16 : MC6809Reg16Class<(add AD, IX, IY, SU, SS, PC, AW, AV)>; // Registers for EXG, TFR
 
 // Pointer and stack registers
 def INDEX16 : MC6809Reg16Class<(add IX, IY, SU, SS)>;

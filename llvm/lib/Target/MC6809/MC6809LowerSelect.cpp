@@ -1,5 +1,4 @@
-//===-- MC6809LowerSelect.cpp - MC6809 Select Lowering
-//--------------------------===//
+//===-- MC6809LowerSelect.cpp - MC6809 Select Lowering --------------------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.

@@ -29,33 +29,26 @@ using namespace llvm;
 #define DEBUG_TYPE "mc6809-mcinstlower"
 
 void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : MI = "; MI->dump(););
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : OutMI = "; OutMI.dump(););
   switch (MI->getOpcode()) {
   default:OutMI.setOpcode(MI->getOpcode());
     break;
   case MC6809::ReturnImplicit: {
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : ReturnImplicit\n";);
     OutMI.setOpcode(MC6809::RTSr);
     return;
   }
   case MC6809::ReturnIRQImplicit: {
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : ReturnIRQImplicit\n";);
     OutMI.setOpcode(MC6809::RTIr);
     return;
   }
   case MC6809::SEX16Implicit: {
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : SEX16Implicit\n";);
     OutMI.setOpcode(MC6809::SEXx);
     return;
   }
   case MC6809::SEX32Implicit: {
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : SEX32Implicit\n";);
     OutMI.setOpcode(MC6809::SEXWx);
     return;
   }
   }
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 2 OutMI = "; OutMI.dump(););
 
   // Handle any real instructions that weren't generated from a pseudo.
 #ifndef NDEBUG
@@ -65,12 +58,10 @@ void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
   }
 #endif
   for (const MachineOperand &MO : MI->operands()) {
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : MO = "; MO.dump(););
     MCOperand MCOp;
     if (lowerOperand(MO, MCOp))
       OutMI.addOperand(MCOp);
   }
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 3 OutMI = "; OutMI.dump(););
 }
 
 bool MC6809MCInstLower::lowerOperand(const MachineOperand &MO, MCOperand &MCOp) {
@@ -78,7 +69,6 @@ bool MC6809MCInstLower::lowerOperand(const MachineOperand &MO, MCOperand &MCOp) 
 
   switch (MO.getType()) {
   default:
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : MO.getType() = " << (int)(MO.getType()) << "\n";);
     report_fatal_error("Operand type not implemented.");
   case MachineOperand::MO_RegisterMask:
     LLVM_DEBUG(dbgs() << "Operand MachineOperand::MO_RegisterMask not implemented\n";);

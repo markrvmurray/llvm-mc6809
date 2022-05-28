@@ -29,8 +29,13 @@
 using namespace llvm;
 
 bool MC6809FrameLowering::hasFP(const MachineFunction &MF) const {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MF = "; MF.dump(););
   const MachineFrameInfo &MFI = MF.getFrameInfo();
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MFI = "; MFI.dump(MF); dbgs() << "\n";);
 
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : MF.getTarget().Options.DisableFramePointerElim(MF) = " << MF.getTarget().Options.DisableFramePointerElim(MF) << "\n";);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : MF.getFrameInfo().hasVarSizedObjects() = " << MF.getFrameInfo().hasVarSizedObjects() << "\n";);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : MFI.isFrameAddressTaken() = " << MFI.isFrameAddressTaken() << "\n";);
   return (MF.getTarget().Options.DisableFramePointerElim(MF) || MF.getFrameInfo().hasVarSizedObjects() || MFI.isFrameAddressTaken());
 }
 
@@ -39,7 +44,6 @@ bool MC6809FrameLowering::hasReservedCallFrame(const MachineFunction &MF) const 
 }
 
 void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) const {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MF = "; MF.dump(););
   assert(&MF.front() == &MBB && "Shrink-wrapping not yet supported");
   MachineFrameInfo &MFI = MF.getFrameInfo();
   MC6809MachineFunctionInfo *MC6809FI = MF.getInfo<MC6809MachineFunctionInfo>();
@@ -63,10 +67,10 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &M
     MFI.setOffsetAdjustment(-NumBytes);
 
     // Save FP into the appropriate stack slot...
-    BuildMI(MBB, MBBI, DL, TII.get(MC6809::Push16)).addReg(MC6809::SU, RegState::Kill);
+    BuildMI(MBB, MBBI, DL, TII.get(MC6809::PushPtr)).addReg(MC6809::SU, RegState::Kill);
 
     // Update FP with the new base value...
-    BuildMI(MBB, MBBI, DL, TII.get(MC6809::TFRp), MC6809::SU).addReg(MC6809::SS);
+    BuildMI(MBB, MBBI, DL, TII.get(MC6809::Copy16), MC6809::SU).addReg(MC6809::SS);
 
     // Mark the FramePtr as live-in in every block except the entry.
     for (MachineBasicBlock &MBBJ : llvm::drop_begin(MF))
@@ -76,7 +80,7 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &M
     NumBytes = StackSize - MC6809FI->getCalleeSavedFrameSize();
 
   // Skip the callee-saved push instructions.
-  while (MBBI != MBB.end() && (MBBI->getOpcode() == MC6809::Push8 || MBBI->getOpcode() == MC6809::Push16))
+  while (MBBI != MBB.end() && (MBBI->getOpcode() == MC6809::Push8 || MBBI->getOpcode() == MC6809::Push16 || MBBI->getOpcode() == MC6809::PushPtr))
     ++MBBI;
 
   if (MBBI != MBB.end())
@@ -90,9 +94,8 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &M
     // instruction, merge the two instructions.
     // mergeSPUpdatesDown(MBB, MBBI, &NumBytes);
 
-    BuildMI(MBB, MBBI, DL, TII.get(MC6809::LEAPtrAddImm), MC6809::SS).addReg(MC6809::SS).addImm(-NumBytes);
+    BuildMI(MBB, MBBI, DL, TII.get(MC6809::LEAPtrAdd), MC6809::SS).addReg(MC6809::SS).addImm(-NumBytes);
   }
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MF = "; MF.dump(););
 }
 
 void MC6809FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const {
@@ -122,7 +125,7 @@ void MC6809FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &M
     NumBytes = FrameSize - CSSize;
 
     // pop FP.
-    BuildMI(MBB, MBBI, DL, TII.get(MC6809::Pull16), MC6809::SU);
+    BuildMI(MBB, MBBI, DL, TII.get(MC6809::PullPtr), MC6809::SU);
   } else
     NumBytes = StackSize - CSSize;
 
@@ -130,7 +133,7 @@ void MC6809FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &M
   while (MBBI != MBB.begin()) {
     MachineBasicBlock::iterator PI = std::prev(MBBI);
     unsigned Opc = PI->getOpcode();
-    if (Opc != MC6809::Pull8 && Opc != MC6809::Pull16 && !PI->isTerminator())
+    if (Opc != MC6809::Pull8 && Opc != MC6809::Pull16 && Opc != MC6809::PullPtr && !PI->isTerminator())
       break;
     --MBBI;
   }
@@ -143,14 +146,14 @@ void MC6809FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &M
   //  mergeSPUpdatesUp(MBB, MBBI, StackPtr, &NumBytes);
 
   if (MFI.hasVarSizedObjects()) {
-    BuildMI(MBB, MBBI, DL, TII.get(MC6809::TFRp), MC6809::SS).addReg(MC6809::SU);
+    BuildMI(MBB, MBBI, DL, TII.get(MC6809::Copy16), MC6809::SS).addReg(MC6809::SU);
     if (CSSize) {
-      BuildMI(MBB, MBBI, DL, TII.get(MC6809::LEAPtrAddImm), MC6809::SS).addReg(MC6809::SS).addImm(-CSSize);
+      BuildMI(MBB, MBBI, DL, TII.get(MC6809::LEAPtrAdd), MC6809::SS).addReg(MC6809::SS).addImm(-CSSize);
     }
   } else {
     // adjust stack pointer back: SP += numbytes
     if (NumBytes) {
-      BuildMI(MBB, MBBI, DL, TII.get(MC6809::LEAPtrAddImm), MC6809::SS).addReg(MC6809::SS).addImm(NumBytes);
+      BuildMI(MBB, MBBI, DL, TII.get(MC6809::LEAPtrAdd), MC6809::SS).addReg(MC6809::SS).addImm(NumBytes);
     }
   }
 }
@@ -176,15 +179,18 @@ bool MC6809FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB, Mach
     switch (I.getReg()) {
     case MC6809::AA:
     case MC6809::AB:
-    case MC6809::AE:
-    case MC6809::AF:
+    case MC6809::CC:
+    case MC6809::DP:
       Opcode = MC6809::Push8;
       break;
     case MC6809::AD:
+    case MC6809::AW:
+      Opcode = MC6809::Push16;
+      break;
     case MC6809::IX:
     case MC6809::IY:
     case MC6809::SU:
-      Opcode = MC6809::Push16;
+      Opcode = MC6809::PushPtr;
       break;
     default:
       llvm_unreachable("Unknown push register type");
@@ -209,18 +215,21 @@ bool MC6809FrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB, Ma
     switch (I.getReg()) {
     case MC6809::AA:
     case MC6809::AB:
-    case MC6809::AE:
-    case MC6809::AF:
+    case MC6809::CC:
+    case MC6809::DP:
       Opcode = MC6809::Pull8;
       break;
     case MC6809::AD:
+    case MC6809::AW:
+      Opcode = MC6809::Pull16;
+      break;
     case MC6809::IX:
     case MC6809::IY:
     case MC6809::SU:
-      Opcode = MC6809::Pull16;
+      Opcode = MC6809::PullPtr;
       break;
     default:
-      llvm_unreachable("Unknown pull register type");
+      llvm_unreachable("Unknown stack pull register");
     }
     BuildMI(MBB, MI, DL, TII.get(Opcode)).addDef(I.getReg());
   }
@@ -245,13 +254,13 @@ MachineBasicBlock::iterator MC6809FrameLowering::eliminateCallFramePseudoInstr(M
 
       MachineInstr *New = nullptr;
       if (Old.getOpcode() == TII.getCallFrameSetupOpcode()) {
-        New = BuildMI(MF, Old.getDebugLoc(), TII.get(MC6809::LEAPtrAddImm), MC6809::SS).addReg(MC6809::SS).addImm(-Amount);
+        New = BuildMI(MF, Old.getDebugLoc(), TII.get(MC6809::LEAPtrAdd), MC6809::SS).addReg(MC6809::SS).addImm(-Amount);
       } else {
         assert(Old.getOpcode() == TII.getCallFrameDestroyOpcode());
         // factor out the amount the callee already popped.
         Amount -= TII.getFramePoppedByCallee(Old);
         if (Amount)
-          New = BuildMI(MF, Old.getDebugLoc(), TII.get(MC6809::LEAPtrAddImm), MC6809::SS).addReg(MC6809::SS).addImm(Amount);
+          New = BuildMI(MF, Old.getDebugLoc(), TII.get(MC6809::LEAPtrAdd), MC6809::SS).addReg(MC6809::SS).addImm(Amount);
       }
 
       if (New) {
@@ -267,7 +276,7 @@ MachineBasicBlock::iterator MC6809FrameLowering::eliminateCallFramePseudoInstr(M
     // something off the stack pointer, add it back.
     if (uint64_t CalleeAmt = TII.getFramePoppedByCallee(*I)) {
       MachineInstr &Old = *I;
-      MachineInstr *New = BuildMI(MF, Old.getDebugLoc(), TII.get(MC6809::LEAPtrAddImm), MC6809::SS).addReg(MC6809::SS).addImm(-CalleeAmt);
+      MachineInstr *New = BuildMI(MF, Old.getDebugLoc(), TII.get(MC6809::LEAPtrAdd), MC6809::SS).addReg(MC6809::SS).addImm(-CalleeAmt);
       // The SRW implicit def is dead.
       New->getOperand(3).setIsDead();
 

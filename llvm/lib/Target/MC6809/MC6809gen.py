@@ -141,8 +141,11 @@ def insert_indexmode(indexmode):
 
 for instr_ in RawInstructions:
 	instr = copy.deepcopy(instr_)
+	truncmode = instr["mode"]
+	if truncmode[0] == "1":
+		truncmode = truncmode[1]
 	instr["lcmnemonic"] = instr["mnemonic"].lower()
-	instr["name"] = instr["mnemonic"] + instr["mode"]
+	instr["name"] = instr["mnemonic"] + truncmode
 	if not instr.get("defs", None):
 		instr["defs"] = []
 	if not instr.get("uses", None):
@@ -156,143 +159,375 @@ for instr_ in RawInstructions:
 	if instr["hd6309"]:
 		instr["lets"]["Predicates"] += ["IsHD6309"]
 
-	assert instr["mnemonic"] != "", instr
-	assert instr["page"] >= 1 and instr["page"] <= 3, instr
-	if (len(instr["mnemonic"]) == 3 and instr["mnemonic"][:2] == "LD") or (len(instr["mnemonic"]) == 4 and instr["mnemonic"][:3] == "CLR"):
-		assert instr["function"] == "l", instr
-		dstreg = instr["mnemonic"][-1]
-		assert dstreg in "ABDEFWQXYUS", instr
-	if instr["mnemonic"][:3] == "LEA":
-		assert instr["function"] == "l", instr
-		destreg = instr["mnemonic"][-1]
-		assert destreg in "XYUS", instr
-	if len(instr["mnemonic"]) == 3 and instr["mnemonic"][:2] == "ST":
-		assert instr["function"] == "s", instr
-		srcreg = instr["mnemonic"][-1]
-		assert srcreg in "ABDEFWQXYUS", instr
-	if instr["function"] == "l":
-		assert (len(instr["mnemonic"]) == 3 and instr["mnemonic"][:2] == "LD") or (len(instr["mnemonic"]) == 4 and instr["mnemonic"][:3] == "CLR") or (len(instr["mnemonic"]) == 4 and instr["mnemonic"][:3] == "LEA") or instr["mnemonic"] == "LDBT" or instr["mnemonic"] == "LDMD", instr
-	if instr["function"] == "s":
-		assert (len(instr["mnemonic"]) == 3 and instr["mnemonic"][:2] == "ST") or instr["mnemonic"] == "CLR" or instr["mnemonic"] == "STBT", instr
-	if instr["function"] == "a":
-			pass
-	if instr["mnemonic"] == "CMP" or instr["mnemonic"][:3] == "CMP" or instr["mnemonic"] == "TST" or instr["mnemonic"][:3] == "TST":
-		assert instr["function"] == "c", instr
-	if instr["function"] == "c":
-		assert instr["mnemonic"] == "CMP" or instr["mnemonic"][:3] == "CMP" or instr["mnemonic"] == "TST" or instr["mnemonic"][:3] == "TST", instr
-	if instr["mode"] == "a":
-		assert instr["operand"] == "", instr
-	if instr["mode"] == "s":
-		assert instr["function"] == "ss", instr
-		assert instr["operand"] == "$regs", instr
-	if instr["mode"] == "d":
-		assert instr["operand"] == "< $addr", instr
-	if instr["mode"] == "bd":
-		assert instr["operand"] == "$dst , $srcbit , $dstbit , < $addr", instr
-	if instr["mode"] == "id":
-		assert instr["operand"] == "# $val ; < $addr", instr
-	if instr["mode"] == "ie":
-		assert instr["operand"] == "# $val ; $addr", instr
-	if instr["mode"] == "i8":
-		assert instr["operand"] == "# $val", instr
-	if instr["mode"] == "i16":
-		assert instr["operand"] == "# $val", instr
-	if instr["mode"] == "i32":
-		assert instr["operand"] == "# $val", instr
-	if instr["mode"] == "d":
-		assert instr["operand"] == "< $addr", instr
-	if instr["mode"] == "e":
-		assert instr["operand"] == "$addr", instr
-	if instr["mode"] == "p":
-		assert instr["mnemonic"] == "EXG" or instr["mnemonic"] == "TFR" or instr["mnemonic"][-1] == 'R', instr
-		assert instr["operand"] == "$reg1 , $reg2", instr
-	if instr["mode"] == "pp":
-		assert instr["mnemonic"] == "TFM", instr
-		assert instr["operand"] == "$reg1 + , $reg2 +" or instr["operand"] == "$reg1 - , $reg2 -" or instr["operand"] == "$reg1 + , $reg2" or instr["operand"] == "$reg1 , $reg2 +", instr
-	for i in instr["ins"]:
-		assert len(i) == 0, instr
-	for o in instr["outs"]:
-		assert len(o) == 0, instr
+	# The available functions/modes are:
+	# "function":"a", Arithmetic - ADD, SUB, XOR, etc
+	#  "mode":"1a",    Accumulator Implicit
+	#  "mode":"d",     Direct
+	#  "mode":"e",     Extended
+	#  "mode":"i",     Indexed
+	#  "mode":"i8",    Immediate 8-bit
+	#  "mode":"i16",   Immediate 16-bit
+	#  "mode":"id",    Immediate Direct
+	#  "mode":"ie",    Immediate Extended
+	#  "mode":"ii",    Immediate Indirect
+	#  "mode":"p",     2-Register Postbyte
+	# "function":"b", Bit instructions like BIAND
+	#  "mode":"bd",   Bit Direct
+	# "function":"c", Compares and tests.
+	#  "mode":"1a",   Single operand Accumulator or Memory TST
+	#  "mode":"a",    Accumulator
+	#  "mode":"d",    Direct
+	#  "mode":"e",    Extended
+	#  "mode":"i",    Indexed
+	#  "mode":"i8",   Immediate 8-bit
+	#  "mode":"i16",  Immediate 16-bit
+	#  "mode":"p",    2-Register Postbyte
+	# "function":"j", JMP and JSR
+	#  "mode":"d",   Direct
+	#  "mode":"e",   Extended
+	#  "mode":"i",   Indexed
+	# "function":"l", Loads
+	#  "mode":"a",   Accumulator
+	#  "mode":"d",   Direct
+	#  "mode":"e",   Extended
+	#  "mode":"i",   Indexed
+	#  "mode":"i8",  Immediate 8-bit
+	#  "mode":"i16", Immediate 16-bit
+	#  "mode":"i32", Immediate 32-bit
+	# "function":"m", EXG, TFR and TFM
+	#  "mode":"p",   2-Register Postbyte
+	#  "mode":"pp",  2-Register Postbyte block copies
+	# "function":"r", Branches
+	#  "mode":"b",   Branch
+	#  "mode":"bc",  Branch Conditional
+	#  "mode":"lb",  LongBranch
+	#  "mode":"lbc", LongBranch Conditional
+	#  "mode":"r",   Return
+	# "function":"s", Stores
+	#  "mode":"d",   Direct
+	#  "mode":"e",   Extended
+	#  "mode":"i",   Indexed
+	# "function":"ss", Push and Pull
+	#  "mode":"s",   Stack Postbyte
+	#  "mode":"a",   Accumulator W Inherent
+	# "function":"x", System instructions, NOP, SWI, SYNC, etc
+	#  "mode":"i8",  System Immediate
+	#  "mode":"x",   System Special
 
-	if instr["function"] == "r":
-		instr["lets"]["mayLoad"] = "false";
-		instr["lets"]["mayStore"] = "false";
+	if instr["function"] == "a":
+		if instr["mode"] == "1a":
+			if instr["mnemonic"][0:3] in ["ASL", "ASR", "CLR", "COM", "DEC", "INC", "LSR", "NEG", "ROL", "ROR"]:
+				mnemonic = instr["mnemonic"][0:3]
+				reg = instr["mnemonic"][-1:]
+				if reg in "ABDEFW":
+					if mnemonic == "ASL":
+						instr["uses"] = ["A" + reg]
+						instr["defs"] = ["A" + reg, "NZ", "V", "C"]
+					if mnemonic == "ASR":
+						instr["uses"] = ["A" + reg, "C"]
+						instr["defs"] = ["A" + reg, "NZ", "C"]
+					if mnemonic == "CLR":
+						instr["defs"] = ["A" + reg, "NZ", "V", "C"]
+					if mnemonic == "COM":
+						instr["uses"] = ["A" + reg]
+						instr["defs"] = ["A" + reg, "NZ", "V", "C"]
+					if mnemonic == "DEC":
+						instr["uses"] = ["A" + reg]
+						instr["defs"] = ["A" + reg, "NZ", "V"]
+					if mnemonic == "INC":
+						instr["uses"] = ["A" + reg]
+						instr["defs"] = ["A" + reg, "NZ", "V"]
+					if mnemonic == "LSR":
+						instr["uses"] = ["A" + reg]
+						instr["defs"] = ["A" + reg, "NZ", "C"]
+					if mnemonic == "NEG":
+						instr["uses"] = ["A" + reg]
+						instr["defs"] = ["A" + reg, "NZ", "V", "C"]
+					if mnemonic == "ROL":
+						instr["uses"] = ["A" + reg, "C"]
+						instr["defs"] = ["A" + reg, "NZ", "V", "C"]
+					if mnemonic == "ROR":
+						instr["uses"] = ["A" + reg, "C"]
+						instr["defs"] = ["A" + reg, "NZ", "C"]
+				else:
+					print("Arithmetic sole accumulator register not handled:", instr)
+					sys.exit(1)
+			else:
+				print("Arithmetic accumulator explicit instruction not handled:", instr)
+				sys.exit(1)
+			instr["mode"] = instr["mode"][-1]
+		elif instr["mode"] in ["1d", "1e", "1i"]:
+			if instr["mnemonic"] in ["ASL", "ASR", "CLR", "COM", "DEC", "INC", "LSR", "NEG", "ROL", "ROR"]:
+				mnemonic = instr["mnemonic"]
+				if mnemonic == "ASL":
+					instr["defs"] = ["NZ", "V", "C"]
+					instr["lets"]["mayLoad"] = "true"
+					instr["lets"]["mayStore"] = "true"
+				if mnemonic == "ASR":
+					instr["uses"] = ["C"]
+					instr["defs"] = ["NZ", "C"]
+					instr["lets"]["mayLoad"] = "true"
+					instr["lets"]["mayStore"] = "true"
+				if mnemonic == "CLR":
+					instr["defs"] = ["NZ", "V", "C"]
+					instr["lets"]["mayStore"] = "true"
+				if mnemonic == "COM":
+					instr["defs"] = ["NZ", "V", "C"]
+					instr["lets"]["mayLoad"] = "true"
+					instr["lets"]["mayStore"] = "true"
+				if mnemonic == "DEC":
+					instr["defs"] = ["NZ", "V"]
+					instr["lets"]["mayLoad"] = "true"
+					instr["lets"]["mayStore"] = "true"
+				if mnemonic == "INC":
+					instr["defs"] = ["NZ", "V"]
+					instr["lets"]["mayLoad"] = "true"
+					instr["lets"]["mayStore"] = "true"
+				if mnemonic == "LSR":
+					instr["defs"] = ["NZ", "C"]
+					instr["lets"]["mayLoad"] = "true"
+					instr["lets"]["mayStore"] = "true"
+				if mnemonic == "NEG":
+					instr["defs"] = ["NZ", "V", "C"]
+					instr["lets"]["mayLoad"] = "true"
+					instr["lets"]["mayStore"] = "true"
+				if mnemonic == "ROL":
+					instr["uses"] = ["C"]
+					instr["defs"] = ["NZ", "V", "C"]
+					instr["lets"]["mayLoad"] = "true"
+					instr["lets"]["mayStore"] = "true"
+				if mnemonic == "ROR":
+					instr["uses"] = ["C"]
+					instr["defs"] = ["NZ", "C"]
+					instr["lets"]["mayLoad"] = "true"
+					instr["lets"]["mayStore"] = "true"
+			else:
+				print("Arithmetic RMW not handled:", instr)
+				sys.exit(1)
+			instr["mode"] = instr["mode"][-1]
+		elif instr["mode"] in ["d", "e", "i", "i8", "i16"]:
+			if (instr["mnemonic"][0:3] in ["ADD", "ADC", "SUB", "SBC", "AND", "EOR"] or instr["mnemonic"][0:2] in ["OR"]) and instr["mnemonic"][-2:] != "CC":
+				mnemonic = instr["mnemonic"][0:3] if instr["mnemonic"][0:2] not in ["OR"] else instr["mnemonic"][0:2]
+				reg = instr["mnemonic"][-1:]
+				if reg in "ABDEFW":
+					if mnemonic == "ADD":
+						instr["uses"] += ["A" + reg]
+						instr["defs"] += ["A" + reg, "NZ", "V", "C"]
+						instr["lets"]["mayLoad"] = "true"
+						instr["lets"]["isAdd"] = "true"
+					if mnemonic == "ADC":
+						instr["uses"] += ["A" + reg, "C"]
+						instr["defs"] += ["A" + reg, "NZ", "V", "C"]
+						instr["lets"]["mayLoad"] = "true"
+						instr["lets"]["isAdd"] = "true"
+					if mnemonic == "SUB":
+						instr["uses"] += ["A" + reg]
+						instr["defs"] += ["A" + reg, "NZ", "V", "C"]
+						instr["lets"]["mayLoad"] = "true"
+					if mnemonic == "SBC":
+						instr["uses"] += ["A" + reg, "C"]
+						instr["defs"] += ["A" + reg, "NZ", "V", "C"]
+						instr["lets"]["mayLoad"] = "true"
+					if mnemonic == "AND":
+						instr["uses"] += ["A" + reg]
+						instr["defs"] += ["A" + reg, "NZ", "V"]
+						instr["lets"]["mayLoad"] = "true"
+					if mnemonic == "OR":
+						instr["uses"] += ["A" + reg]
+						instr["defs"] += ["A" + reg, "NZ", "V"]
+						instr["lets"]["mayLoad"] = "true"
+					if mnemonic == "EOR":
+						instr["uses"] += ["A" + reg]
+						instr["defs"] += ["A" + reg, "NZ", "V"]
+						instr["lets"]["mayLoad"] = "true"
+				else:
+					print("Arithmetic accumulator register not handled:", instr)
+					sys.exit(1)
+			elif instr["mnemonic"] in ["DIVD", "DIVQ", "MULD"]:
+				if instr["mnemonic"] == "DIVD":
+					instr["uses"] = ["AD"]
+					instr["defs"] = ["AA", "AB", "NZ", "V", "C"]
+					instr["lets"]["mayLoad"] = "true"
+				if instr["mnemonic"] == "DIVQ":
+					instr["uses"] = ["AQ"]
+					instr["defs"] = ["AW", "AD", "NZ", "V", "C"]
+					instr["lets"]["mayLoad"] = "true"
+				if instr["mnemonic"] == "MULD":
+					instr["uses"] = ["AD"]
+					instr["defs"] = ["AQ", "NZ"]
+					instr["lets"]["mayLoad"] = "true"
+			elif instr["mnemonic"] in ["ANDCC", "ORCC"]:
+				instr["uses"] += ["NZ", "V", "C"]
+				instr["defs"] += ["NZ", "V", "C"]
+			else:
+				print("Arithmetic accumulator instruction not handled:", instr)
+				sys.exit(1)
+		elif instr["mode"] in ["id", "ie", "ii"]:
+			if instr["mnemonic"] in ["AIM", "OIM", "EIM"]:
+				instr["defs"] += ["NZ", "V"]
+				instr["lets"]["mayLoad"] = "true"
+				instr["lets"]["mayStore"] = "true"
+			else:
+				print("Arithmetic immidiate/memory instruction not handled:", instr)
+				sys.exit(1)
+		elif instr["mode"] in ["p"]:
+			if instr["mnemonic"] in ["ADDR", "ADCR", "SUBR", "SBCR", "ANDR", "ORR", "EORR"]:
+				mnemonic = instr["mnemonic"]
+				if mnemonic == "ADDR":
+					instr["defs"] += ["NZ", "V", "C"]
+					instr["lets"]["isAdd"] = "true"
+				if mnemonic == "ADCR":
+					instr["uses"] += ["C"]
+					instr["defs"] += ["NZ", "V", "C"]
+					instr["lets"]["isAdd"] = "true"
+				if mnemonic == "SUBR":
+					instr["defs"] += ["NZ", "V", "C"]
+				if mnemonic == "SBCR":
+					instr["uses"] += ["C"]
+					instr["defs"] += ["NZ", "V", "C"]
+				if mnemonic == "ANDR":
+					instr["defs"] += ["NZ", "V"]
+				if mnemonic == "ORR":
+					instr["defs"] += ["NZ", "V"]
+				if mnemonic == "EORR":
+					instr["defs"] += ["NZ", "V"]
+				instr["lets"]["Constraints"] += ["$dst = $reg2"]
+			else:
+				print("Arithmetic/Logical postbyte instruction not handled:", instr)
+		elif instr["mode"] == "x":
+			if instr["mnemonic"] == "DAA":
+				instr["uses"] = ["AA"]
+				instr["defs"] = ["AA", "NZ", "C"]
+			elif instr["mnemonic"] == "MUL":
+				instr["uses"] = ["AA", "AB"]
+				instr["defs"] = ["AD", "Z", "C"]
+			elif instr["mnemonic"] == "SEX":
+				instr["uses"] = ["AB"]
+				instr["defs"] = ["AD", "NZ"]
+			elif instr["mnemonic"] == "SEXW":
+				instr["uses"] = ["AD"]
+				instr["defs"] = ["AQ", "NZ"]
+			else:
+				print("Arithmetic inherent instruction not handled:", instr)
+				sys.exit(1)
+		else:
+			print("Arithmetic instruction mode not handled:", instr)
+			sys.exit(1)
+	elif instr["function"] == "c":
+		instr["lets"]["isCompare"] = "true"
+		if instr["mode"] == "1a":
+			if instr["mnemonic"][0:3] in ["TST"]:
+				mnemonic = instr["mnemonic"][0:3]
+				reg = instr["mnemonic"][-1:]
+				if reg in "ABDEFW":
+					instr["uses"] = ["A" + reg]
+					instr["defs"] = ["NZ", "V"]
+				else:
+					print("Test accumulator register not handled:", instr)
+					sys.exit(1)
+			else:
+				print("Test accumulator instruction not handled:", instr)
+				sys.exit(1)
+			instr["mode"] = instr["mode"][-1]
+		elif instr["mode"] in ["1d", "1e", "1i"]:
+			if instr["mnemonic"] in ["TST"]:
+				instr["defs"] = ["NZ", "V"]
+			else:
+				print("Test memory not handled:", instr)
+				sys.exit(1)
+			instr["mode"] = instr["mode"][-1]
+		elif instr["mode"] in ["d", "e", "i", "i8", "i16"]:
+			if instr["mnemonic"][0:3] in ["BIT", "CMP"]:
+				mnemonic = instr["mnemonic"][0:3]
+				reg = instr["mnemonic"][-1:]
+				if reg in "ABDEFWXYSU":
+					if reg in "ABDEFW":
+						regclass = "A"
+					if reg in "XY":
+						regclass = "I"
+					if reg in "SU":
+						regclass = "S"
+					if mnemonic == "BIT":
+						instr["uses"] += [regclass + reg]
+						instr["defs"] += ["NZ", "V"]
+						instr["lets"]["mayLoad"] = "true"
+					if mnemonic == "CMP":
+						instr["uses"] += [regclass + reg]
+						instr["defs"] += ["NZ", "V", "C"]
+						instr["lets"]["mayLoad"] = "true"
+				else:
+					print("Compare accumulator register not handled:", instr)
+					sys.exit(1)
+			elif instr["mnemonic"] in ["BITMD"]:
+				instr["defs"] += ["NZ"]
+			else:
+				print("Compare accumulator instruction not handled:", instr)
+				sys.exit(1)
+		elif instr["mode"] in ["id", "ie", "ii"]:
+			if instr["mnemonic"] in ["TIM"]:
+				instr["defs"] += ["NZ", "V"]
+				instr["lets"]["mayLoad"] = "true"
+			else:
+				print("Compare immediate/memory instruction not handled:", instr)
+				sys.exit(1)
+		elif instr["mode"] in ["p"]:
+			if instr["mnemonic"] in ["CMPR"]:
+				mnemonic = instr["mnemonic"]
+				instr["defs"] += ["NZ", "V"]
+			else:
+				print("Compare postbyte instruction not handled:", instr)
+		else:
+			print("Compare instruction mode not handled:", instr)
+			sys.exit(1)
+	elif instr["function"] == "r":
+		instr["lets"]["mayLoad"] = "false"
+		instr["lets"]["mayStore"] = "false"
 		if instr["mnemonic"] == "LBRA":
 			instr["ins"] = ["label:$tgt"]
-			instr["lets"]["isBranch"] = "true";
-			instr["lets"]["isTerminator"] = "true";
-			instr["lets"]["isBarrier"] = "true";
+			instr["lets"]["isBranch"] = "true"
+			instr["lets"]["isTerminator"] = "true"
+			instr["lets"]["isBarrier"] = "true"
 		elif instr["mnemonic"] == "B$COND":
 			instr["mnemonic"] = "B"
 			instr["name"] = instr["mnemonic"] + instr["mode"]
 			instr["ins"] = ["condcode:$cond","label:$tgt"]
-			instr["lets"]["isBranch"] = "true";
-			instr["lets"]["isTerminator"] = "true";
+			instr["lets"]["isBranch"] = "true"
+			instr["lets"]["isTerminator"] = "true"
 		elif instr["mnemonic"] == "LB$COND":
 			instr["mnemonic"] = "LB"
 			instr["name"] = instr["mnemonic"] + instr["mode"]
 			instr["ins"] = ["condcode:$cond","label:$tgt"]
-			instr["lets"]["isBranch"] = "true";
-			instr["lets"]["isTerminator"] = "true";
+			instr["lets"]["isBranch"] = "true"
+			instr["lets"]["isTerminator"] = "true"
 		elif instr["mnemonic"] == "BSR":
 			instr["ins"] = ["label:$tgt"]
-			instr["lets"]["isCall"] = "true";
-			instr["defs"] = ["SU"]
+			instr["lets"]["isCall"] = "true"
 			instr["uses"] = ["SS"]
 		elif instr["mnemonic"] == "LBSR":
 			instr["ins"] = ["label:$tgt"]
-			instr["lets"]["isCall"] = "true";
-			instr["defs"] = ["SU"]
+			instr["lets"]["isCall"] = "true"
 			instr["uses"] = ["SS"]
 		elif instr["mode"] == "r":
-			instr["lets"]["isReturn"] = "true";
-			instr["lets"]["isTerminator"] = "true";
-			instr["lets"]["isBarrier"] = "true";
+			instr["lets"]["isReturn"] = "true"
+			instr["lets"]["isTerminator"] = "true"
+			instr["lets"]["isBarrier"] = "true"
 		else:
 			print("Branch instruction not handled:", instr)
 	elif instr["function"] == "j":
 		if instr["mnemonic"] == "JMP":
-			instr["lets"]["isBranch"] = "true";
+			instr["lets"]["isBranch"] = "true"
 		elif instr["mnemonic"] == "JSR":
-			instr["lets"]["isCall"] = "true";
+			instr["lets"]["isCall"] = "true"
 		elif instr["mnemonic"] == "RTS" or instr["mnemonic"] == "RTI":
-			instr["lets"]["isReturn"] = "true";
-			instr["lets"]["isBarrier"] = "true";
-			instr["lets"]["isTerminator"] = "true";
+			instr["lets"]["isReturn"] = "true"
+			instr["lets"]["isBarrier"] = "true"
+			instr["lets"]["isTerminator"] = "true"
 		else:
 			print("Jump instruction not handled:", instr)
-	elif instr["function"] == "c":
-		instr["lets"]["isCompare"] = "true";
-		instr["defs"] = ["NZ","V","C"]
-		if instr["mode"] == "a":
-			if instr["mnemonic"][:-1] == "TST":
-				reg = instr["mnemonic"][-1:]
-				if reg in "ABDEFW":
-					instr["uses"] += ["A" + reg]
-				else:
-					print("Test register not handled:", instr)
-			else:
-				print("Test mode not handled", instr)
-		else:
-			if instr["mnemonic"][:-1] in ["TST", "CMP"]:
-				reg = instr["mnemonic"][-1:]
-				if reg in "ABDEFW":
-					instr["uses"] += ["A" + reg]
-				elif reg in "XY":
-					instr["uses"] += ["I" + reg]
-				elif reg in "SU":
-					instr["uses"] += ["S" + reg]
-				else:
-					print("Compare register not handled:", instr)
-			elif instr["mnemonic"] == "CMPR":
-				# instr["ins"] += ["anyregister:$reg1","anyregister:$reg2"]
-				pass
-			else:
-				print("Compare mnemonic not handled:", instr)
 	elif instr["function"] == "l":
 		if instr["mnemonic"][:-1] == "LD":
 			reg = instr["mnemonic"][-1:]
-			instr["lets"]["mayLoad"] = "true";
+			instr["lets"]["mayLoad"] = "true"
 			instr["defs"] = ["NZ","V"]
 			if reg in "ABDEFWQ":
 				instr["outs"] = ["A" + reg + "c:$reg"]
@@ -305,7 +540,7 @@ for instr_ in RawInstructions:
 		if instr["mnemonic"][:-1] == "CLR":
 			reg = instr["mnemonic"][-1:]
 			instr["defs"] = ["NZ","V"]
-			instr["lets"]["mayLoad"] = "true";
+			instr["lets"]["mayLoad"] = "true"
 			if reg in "ABDEFWQ":
 				instr["outs"] = ["A" + reg + "c:$reg"]
 			elif reg in "XY":
@@ -318,7 +553,7 @@ for instr_ in RawInstructions:
 		if instr["mnemonic"][:-1] == "ST":
 			reg = instr["mnemonic"][-1:]
 			instr["defs"] = ["NZ","V"]
-			instr["lets"]["mayStore"] = "true";
+			instr["lets"]["mayStore"] = "true"
 			if reg in "ABDEFWQ":
 				instr["ins"] = ["A" + reg + "c:$reg"]
 			elif reg in "XY":
@@ -329,56 +564,7 @@ for instr_ in RawInstructions:
 				print("Store register not handled:", instr)
 		elif instr["mnemonic"] == "CLR":
 			instr["defs"] = ["NZ","V"]
-			instr["lets"]["mayStore"] = "true";
-	elif instr["function"] == "a":
-		instr["defs"] += ["NZ","V"]
-		if instr["mnemonic"][:3] in ["ADC", "SBC"]:
-			instr["uses"] += ["C"]
-		if instr["mnemonic"][:3] in ["ADD", "ADC", "SUB", "SBC"]:
-			instr["defs"] += ["C"]
-		if instr["mode"] == "a":
-			if instr["mnemonic"][:-1] in ["ASL", "ASR", "COM", "DEC", "INC", "LSR", "NEG", "ROL", "ROR"]:
-				reg = instr["mnemonic"][-1:]
-				if reg in "ABDEFWQ":
-					instr["uses"] += ["A" + reg]
-					instr["defs"] += ["A" + reg]
-				else:
-					print("Arithmetic/Logical accumulator register not handled:", instr)
-			else:
-				print("Arithmetic accumulator instruction not handled:", instr)
-		else:
-			if instr["mnemonic"] in ["AIM", "OIM", "EIM", "TIM"]:
-				instr["lets"]["mayLoad"] = "true";
-				instr["lets"]["mayStore"] = "true";
-			elif instr["mnemonic"] in ["ASL", "ASR", "COM", "DEC", "INC", "LSR", "NEG", "ROL", "ROR"]:
-				instr["lets"]["mayLoad"] = "true";
-				instr["lets"]["mayStore"] = "true";
-			elif instr["mnemonic"][:-1] in ["ADD", "ADC", "SUB", "SBC", "AND", "OR", "EOR", "BIT"]:
-				reg = instr["mnemonic"][-1:]
-				if reg != "R":
-					instr["lets"]["mayLoad"] = "true";
-					if reg in "ABEFDW":
-						instr["defs"] += ["A" + reg]
-						instr["uses"] += ["A" + reg]
-					else:
-						print("Arithmetic operation not handled:", instr)
-				else:
-					# instr["lets"]["Constraints"] += ["$dst = $reg2"]
-					pass
-			elif instr["mnemonic"] == "DIVD":
-				instr["defs"] += ["AA","AB"]
-				instr["uses"] += ["AD"]
-			elif instr["mnemonic"] == "SEX":
-				instr["defs"] += ["AD"]
-				instr["uses"] += ["AB"]
-			elif instr["mnemonic"] == "SEXW":
-				instr["defs"] += ["AF"]
-				instr["uses"] += ["AW"]
-			elif instr["mnemonic"] == "ORCC" or instr["mnemonic"] == "ANDCC" or instr["mnemonic"] == "BITMD":
-				# instr["ins"] += ["i8imm:$val"]
-				pass
-			else:
-				print("Arithmetic instruction not handled:", instr)
+			instr["lets"]["mayStore"] = "true"
 	elif instr["function"] == "ss":
 		if instr["mnemonic"][0:4] in ["PSHS", "PULS"]:
 			instr["uses"] += ["SS"]
@@ -466,12 +652,11 @@ for instr_ in RawInstructions:
 			instr["addressmode"] += "Compare"
 			instr["ins"] += ["anyregister:$reg1","anyregister:$reg2"]
 			instr["outs"] += []
-			instr["lets"]["isCompare"] = "true";
+			instr["lets"]["isCompare"] = "true"
 		elif instr["mnemonic"][-1] == "R":
 			instr["addressmode"] += "Arithmetic"
 			instr["ins"] += ["anyregister:$reg1","anyregister:$reg2"]
 			instr["outs"] += ["anyregister:$dst"]
-			instr["lets"]["Constraints"] += ["$dst = $reg2"]
 		else:
 			print("Unknown register pair instruction ", instr)
 			sys.exit(0)
@@ -544,8 +729,12 @@ for instr_ in RawInstructions:
 		instr["addressmode"] = "Indexed"
 		insert_instruction(instr)
 	else:
-		print("Unknown instruction mode '{}'".format(instr["mode"]))
+		print("Unknown instruction mode '{}'".format(instr["mode"]), instr)
 		sys.exit(0)
+
+if False:
+	print("OINQUE! Early termination! No files written!")
+	sys.exit(0)
 
 for page in range(1):
 	# Immediate Indexed
@@ -690,7 +879,7 @@ with Generate("MC6809InstrFormats.td", marker_start="// MRVM START MARKER 2", ma
 		fi.write('  : {addressmode}<mnemonic, opc> {{\n'.format(**v))
 		fi.write('    let Defs = defs;\n')
 		fi.write('    let Uses = uses;\n')
-		fi.write('    let OutOperandList = outs;\n');
+		fi.write('    let OutOperandList = outs;\n')
 		fi.write('}\n\n')
 
 DecoderTables = sorted(list(DecoderTables))

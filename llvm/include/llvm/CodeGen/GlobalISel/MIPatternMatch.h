@@ -507,6 +507,80 @@ m_GSMin(const LHS &L, const RHS &R) {
   return BinaryOp_match<LHS, RHS, TargetOpcode::G_SMIN, false>(L, R);
 }
 
+// General helper for all the binary generic MI such as G_UADDO
+template <typename LHS_P, typename RHS_P, unsigned Opcode,
+          bool Commutable = false>
+struct Binary2Op_match {
+  LHS_P L;
+  RHS_P R;
+
+  Binary2Op_match(const LHS_P &LHS, const RHS_P &RHS) : L(LHS), R(RHS) {}
+  template <typename OpTy>
+  bool match(const MachineRegisterInfo &MRI, OpTy &&Op) {
+    MachineInstr *TmpMI;
+    if (mi_match(Op, MRI, m_MInstr(TmpMI))) {
+      if (TmpMI->getOpcode() == Opcode && TmpMI->getNumOperands() == 4) {
+        return (L.match(MRI, TmpMI->getOperand(2).getReg()) &&
+                R.match(MRI, TmpMI->getOperand(3).getReg())) ||
+               (Commutable && (R.match(MRI, TmpMI->getOperand(2).getReg()) &&
+                               L.match(MRI, TmpMI->getOperand(3).getReg())));
+      }
+    }
+    return false;
+  }
+};
+
+template <typename LHS, typename RHS>
+inline Binary2Op_match<LHS, RHS, TargetOpcode::G_UADDO, true>
+m_GUAddO(const LHS &L, const RHS &R) {
+  return Binary2Op_match<LHS, RHS, TargetOpcode::G_UADDO, true>(L, R);
+}
+
+template <typename LHS, typename RHS>
+inline Binary2Op_match<LHS, RHS, TargetOpcode::G_SADDO, true>
+m_GSAddO(const LHS &L, const RHS &R) {
+  return Binary2Op_match<LHS, RHS, TargetOpcode::G_SADDO, true>(L, R);
+}
+
+// General helper for all the binary generic MI such as G_UADDE
+template <typename LHS_P, typename RHS_P, typename CARRY_P, unsigned Opcode,
+          bool Commutable = false>
+struct Ternary2Op_match {
+  LHS_P L;
+  RHS_P R;
+  CARRY_P C;
+
+  Ternary2Op_match(const LHS_P &LHS, const RHS_P &RHS, const CARRY_P &CARRY)
+    : L(LHS), R(RHS), C(CARRY) {}
+  template <typename OpTy>
+  bool match(const MachineRegisterInfo &MRI, OpTy &&Op) {
+    MachineInstr *TmpMI;
+    if (mi_match(Op, MRI, m_MInstr(TmpMI))) {
+      if (TmpMI->getOpcode() == Opcode && TmpMI->getNumOperands() == 5) {
+        return (L.match(MRI, TmpMI->getOperand(2).getReg()) &&
+                R.match(MRI, TmpMI->getOperand(3).getReg()) &&
+                C.match(MRI, TmpMI->getOperand(4).getReg())) ||
+               (Commutable && (R.match(MRI, TmpMI->getOperand(2).getReg()) &&
+                               L.match(MRI, TmpMI->getOperand(3).getReg()) &&
+                               C.match(MRI, TmpMI->getOperand(4).getReg())));
+      }
+    }
+    return false;
+  }
+};
+
+template <typename LHS, typename RHS, typename CARRY>
+inline Ternary2Op_match<LHS, RHS, CARRY, TargetOpcode::G_UADDE, true>
+m_GUAddE(const LHS &L, const RHS &R, const CARRY &C) {
+  return Ternary2Op_match<LHS, RHS, CARRY, TargetOpcode::G_UADDE, true>(L, R, C);
+}
+
+template <typename LHS, typename RHS, typename CARRY>
+inline Ternary2Op_match<LHS, RHS, CARRY, TargetOpcode::G_SADDE, true>
+m_GSAddE(const LHS &L, const RHS &R, const CARRY &C) {
+  return Ternary2Op_match<LHS, RHS, CARRY, TargetOpcode::G_SADDE, true>(L, R, C);
+}
+
 // Helper for unary instructions (G_[ZSA]EXT/G_TRUNC) etc
 template <typename SrcTy, unsigned Opcode> struct UnaryOp_match {
   SrcTy L;

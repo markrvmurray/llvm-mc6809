@@ -482,22 +482,13 @@ bool MC6809CallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder, cons
   uint64_t StackOffset = Assigner.StackOffset;
   if (F.isVarArg()) {
     StackOffset = alignTo(Assigner.StackOffset, 1);
-
     auto &MFI = MIRBuilder.getMF().getFrameInfo();
     FuncInfo->setVarArgsFrameIndex(MFI.CreateFixedObject(4, StackOffset, true));
   }
 
   if (doesCalleeRestoreStack(F.getCallingConv(), MF.getTarget().Options.GuaranteedTailCallOpt)) {
-    // We have a non-standard ABI, so why not make full use of the stack that
-    // we're going to pop? It must be aligned to 16 B in any case.
-    StackOffset = alignTo(StackOffset, 16);
-
-    // If we're expected to restore the stack (e.g. fastcc), then we'll be
-    // adding a multiple of 16.
+    StackOffset = alignTo(StackOffset, 1);
     FuncInfo->setArgumentStackToRestore(StackOffset);
-
-    // Our own callers will guarantee that the space is free by giving an
-    // aligned value to CALLSEQ_START.
   }
 
   // When we tail call, we need to check if the callee's arguments
@@ -795,10 +786,7 @@ bool MC6809CallLowering::lowerTailCall(MachineIRBuilder &MIRBuilder, CallLowerin
     MC6809OutgoingValueAssigner CalleeAssigner(AssignFnFixed, AssignFnVarArg, Subtarget, /*IsReturn*/ false);
     if (!determineAssignments(CalleeAssigner, OutArgs, OutInfo))
       return false;
-
-    // The callee will pop the argument stack as a tail call. Thus, we must
-    // keep it 16-byte aligned.
-    NumBytes = alignTo(OutInfo.getNextStackOffset(), 16);
+    NumBytes = alignTo(OutInfo.getNextStackOffset(), 1);
 
     // FPDiff will be negative if this tail call requires more space than we
     // would automatically have in our incoming argument space. Positive if we
@@ -809,13 +797,6 @@ bool MC6809CallLowering::lowerTailCall(MachineIRBuilder &MIRBuilder, CallLowerin
     // most argument stack space.
     if (FPDiff < 0 && FuncInfo->getTailCallReservedStack() < (unsigned)-FPDiff)
       FuncInfo->setTailCallReservedStack(-FPDiff);
-
-    // The stack pointer must be 16-byte aligned at all times it's used for a
-    // memory operation, which in practice means at *all* times and in
-    // particular across call boundaries. Therefore our own arguments started at
-    // a 16-byte aligned SP and the delta applied for the tail call should
-    // satisfy the same constraint.
-    assert(FPDiff % 16 == 0 && "unaligned stack on tail call");
   }
 
   MC6809OutgoingValueAssigner Assigner(AssignFnFixed, AssignFnVarArg, Subtarget, /*IsReturn*/ false);
@@ -950,9 +931,7 @@ bool MC6809CallLowering::lowerCall(MachineIRBuilder &MIRBuilder, CallLoweringInf
       return false;
   }
 
-  uint64_t CalleePopBytes = doesCalleeRestoreStack(Info.CallConv, MF.getTarget().Options.GuaranteedTailCallOpt)
-      ? alignTo(Assigner.StackOffset, 16)
-      : 0;
+  uint64_t CalleePopBytes = doesCalleeRestoreStack(Info.CallConv, MF.getTarget().Options.GuaranteedTailCallOpt) ? alignTo(Assigner.StackOffset, 1) : 0;
 
   CallSeqStart.addImm(Assigner.StackOffset).addImm(0);
   MIRBuilder.buildInstr(MC6809::ADJCALLSTACKUP).addImm(Assigner.StackOffset).addImm(CalleePopBytes);

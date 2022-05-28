@@ -31,14 +31,18 @@ public:
   const uint32_t *getCallPreservedMask(const MachineFunction &MF,
                                        CallingConv::ID) const override;
 
+#if 0
   const TargetRegisterClass *
   getLargestLegalSuperClass(const TargetRegisterClass *RC,
                             const MachineFunction &) const override;
+#endif /* 0 */
 
   const TargetRegisterClass *
   getCrossCopyRegClass(const TargetRegisterClass *RC) const override;
 
+#if 0
   unsigned getCSRFirstUseCost(const MachineFunction &MF) const override;
+#endif /* 0 */
 
   bool requiresRegisterScavenging(const MachineFunction &MF) const override {
     // Saving/restoring to stack may require temporary registers.

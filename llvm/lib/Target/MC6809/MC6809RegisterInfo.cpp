@@ -1,5 +1,4 @@
-//===-- MC6809RegisterInfo.cpp - MC6809 Register Information
-//--------------------===//
+//===-- MC6809RegisterInfo.cpp - MC6809 Register Information --------------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,15 +11,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "MC6809RegisterInfo.h"
-#include "MC6809.h"
 #include "MC6809FrameLowering.h"
-#include "MC6809InstrInfo.h"
 #include "MC6809Subtarget.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
-#include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/TargetFrameLowering.h"
@@ -67,14 +63,13 @@ MC6809RegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
 }
 
 const uint32_t *
-MC6809RegisterInfo::getCallPreservedMask(const MachineFunction &MF,
-                                         CallingConv::ID CallingConv) const {
+MC6809RegisterInfo::getCallPreservedMask(const MachineFunction &MF, CallingConv::ID CallingConv) const {
   return MC6809_CSR_RegMask;
 }
 
+#if 0
 const TargetRegisterClass *
-MC6809RegisterInfo::getLargestLegalSuperClass(const TargetRegisterClass *RC,
-                                              const MachineFunction &) const {
+MC6809RegisterInfo::getLargestLegalSuperClass(const TargetRegisterClass *RC, const MachineFunction &) const {
   if (RC->hasSuperClass(&MC6809::BIT1RegClass))
     return &MC6809::ACC16RegClass;
   if (RC->hasSuperClass(&MC6809::BIT8RegClass))
@@ -83,14 +78,18 @@ MC6809RegisterInfo::getLargestLegalSuperClass(const TargetRegisterClass *RC,
     return &MC6809::ACC16RegClass;
   return RC;
 }
+#endif /* 0 */
 
 const TargetRegisterClass *
 MC6809RegisterInfo::getCrossCopyRegClass(const TargetRegisterClass *RC) const {
   if (RC == &MC6809::INDEX16RegClass)
     return &MC6809::ACC16RegClass;
+  else if (RC == &MC6809::CCFlagRegClass)
+    return &MC6809::ACC8RegClass;
   return RC;
 }
 
+#if 0
 // These values were chosen empirically based on the desired behavior of llc
 // test cases. These values will likely need to be retuned as more examples come
 // up.  Unfortunately, the way the register allocator actually uses this is very
@@ -103,6 +102,7 @@ MC6809RegisterInfo::getCSRFirstUseCost(const MachineFunction &MF) const {
   }
   return 5 * 16384 / 10;
 }
+#endif /* 0 */
 
 void MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI, int SPAdj, unsigned FIOperandNum, RegScavenger *RS) const {
   MachineFunction &MF = *MI->getMF();
@@ -110,9 +110,6 @@ void MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI, int
 
   assert(SPAdj == 0 && "SPAdj is unexpectedly non-zero");
 
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MF = "; MF.dump(););
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI->dump(););
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI->getNumOperands() = " << MI->getNumOperands() << "\n";);
   int Idx = MI->getOperand(FIOperandNum).getIndex();
   int64_t Offset = MFI.getObjectOffset(Idx);
   if (FIOperandNum + 1 < MI->getNumOperands() &&
@@ -143,8 +140,6 @@ void MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI, int
 
   MI->getOperand(FIOperandNum).ChangeToRegister(getFrameRegister(MF), /*isDef=*/false);
   MI->getOperand(FIOperandNum + 1).setImm(Offset);
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI->dump(););
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MF = "; MF.dump(););
 }
 
 Register

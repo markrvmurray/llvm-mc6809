@@ -1,4 +1,4 @@
-//===-- MC6809CallingConv.td - Calling Conventions MC6809 --------*- tablegen -*-===//
+//===-- MC6809CallingConv.td - Calling Conventions MC6809 --*- tablegen -*-===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -27,10 +27,10 @@ let Entry = 1 in
 def RetCC_MC6809 : CallingConv<[
   CCIfPtr<CCAssignToReg<[IX, IY]>>,
   CCIfType<[i1], CCPromoteToType<i8>>,
-  CCIfType<[i8], CCIfNotSubtarget<"isHD6309()", CCAssignToReg<[AB, AA]>>>,
-  CCIfType<[i8], CCIfSubtarget<"isHD6309()", CCAssignToReg<[AB, AA, AF, AE]>>>,
-  CCIfType<[i16], CCIfNotSubtarget<"isHD6309()", CCAssignToReg<[AD, IX, IY]>>>,
-  CCIfType<[i16], CCIfSubtarget<"isHD6309()", CCAssignToReg<[AD, AW, IX, IY]>>>,
+  CCIfType<[i8], CCIfNotSubtarget<"isHD6309()", CCAssignToReg<[AB]>>>,
+  CCIfType<[i8], CCIfSubtarget<"isHD6309()", CCAssignToReg<[AB, AF]>>>,
+  CCIfType<[i16], CCIfNotSubtarget<"isHD6309()", CCAssignToReg<[AD]>>>,
+  CCIfType<[i16], CCIfSubtarget<"isHD6309()", CCAssignToReg<[AD, AW]>>>,
   CCIfType<[i32], CCIfSubtarget<"isHD6309()", CCAssignToReg<[AQ]>>>,
   CCAssignToStack<0, 1>,
 ]>;
@@ -40,10 +40,10 @@ let Entry = 1 in
 def CC_MC6809 : CallingConv<[
   CCIfPtr<CCAssignToReg<[IX, IY]>>,
   CCIfType<[i1],  CCPromoteToType<i8>>,
-  CCIfType<[i8], CCIfNotSubtarget<"isHD6309()", CCAssignToReg<[AB, AA]>>>,
-  CCIfType<[i8], CCIfSubtarget<"isHD6309()", CCAssignToReg<[AB, AA, AF, AE]>>>,
-  CCIfType<[i16], CCIfNotSubtarget<"isHD6309()", CCAssignToReg<[AD, IX, IY]>>>,
-  CCIfType<[i16], CCIfSubtarget<"isHD6309()", CCAssignToReg<[AD, AW, IX, IY]>>>,
+  CCIfType<[i8], CCIfNotSubtarget<"isHD6309()", CCAssignToReg<[AB]>>>,
+  CCIfType<[i8], CCIfSubtarget<"isHD6309()", CCAssignToReg<[AB, AF]>>>,
+  CCIfType<[i16], CCIfNotSubtarget<"isHD6309()", CCAssignToReg<[AD]>>>,
+  CCIfType<[i16], CCIfSubtarget<"isHD6309()", CCAssignToReg<[AD, AW]>>>,
   CCIfType<[i32], CCIfSubtarget<"isHD6309()", CCAssignToReg<[AQ]>>>,
   CCAssignToStack<0, 1>,
 ]>;
