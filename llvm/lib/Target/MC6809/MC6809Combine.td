@@ -66,13 +66,31 @@ def swap_physreg_to_lhs : GICombineRule<
   (apply [{ return applySwapPhysregToLhs(*${root}, MRI, B, Observer, ${matchinfo});}])
 >;
 
+//  %0:accum(s8) = COPY $ab
+//  :
+//  %11:accum(s8) = G_ADD %10:accum, %4:accum
+//  %12:accum(s8) = G_SUB %0:accum, %11:accum
+//   =>
+//  %0:accum(s8) = COPY $ab
+//  :
+//  %12:accum(s8) = G_SUB %0:accum, %4:accum
+//  %13:accum(s8) = G_SUB %12:accum, %10:accum
+def switch_add_to_subtract_matchdata : GIDefMatchData<"MachineInstr *">;
+def switch_add_to_subtract : GICombineRule<
+  (defs root:$root, swap_physreg_to_lhs_matchdata:$matchinfo),
+  (match (wip_match_opcode G_SUB):$root,
+    [{ return matchSwitchAddToSubtract(*${root}, MRI, ${matchinfo}); }]),
+  (apply [{ return applySwitchAddToSubtract(*${root}, MRI, B, Observer, ${matchinfo});}])
+>;
+
 // ============================================================================
 def MC6809CombinerHelper: GICombinerHelper<"MC6809GenCombinerHelper",
                                            [all_combines,
                                             fold_global_offset,
                                             // fold_global_copy,
                                             fold_pointer_ext_offset,
-                                            swap_physreg_to_lhs
+                                            // swap_physreg_to_lhs,
+                                            switch_add_to_subtract,
                                             ]> {
   let DisableRuleOption = "mc6809combiner-disable-rule";
   let StateClass = "MC6809CombinerHelperState";

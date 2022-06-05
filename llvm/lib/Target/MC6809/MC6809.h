@@ -28,22 +28,6 @@ void initializeMC6809LowerSelectPass(PassRegistry &);
 void initializeMC6809NoRecursePass(PassRegistry &);
 void initializeMC6809PostRAScavengingPass(PassRegistry &);
 
-#if 0
-// The behind-by-one property of the std::reverse_iterator adaptor applied by
-// reverse() does not properly handle instruction erasures. This range construct
-// converts the forward iterators to native reverse iterators that are not
-// behind-by-one and therefore handle erasures correctly when combined with
-// make_early_inc_range().
-inline auto mbb_reverse(MachineBasicBlock::iterator Begin,
-                        MachineBasicBlock::iterator End) {
-  return make_range(MachineBasicBlock::reverse_iterator(End),
-                    MachineBasicBlock::reverse_iterator(Begin));
-}
-template <typename ContainerTy> inline auto mbb_reverse(ContainerTy &&C) {
-  return mbb_reverse(C.begin(), C.end());
-}
-#endif
-
 // Enums corresponding to MC6809 condition codes
 namespace MC6809CC {
 // The CondCode constants map directly to the 4-bit encoding of the
@@ -66,6 +50,43 @@ enum CondCode { // Meaning
   GT,           // Greater than
   LE,           // Less than or equal
 };
+
+inline static const char *getCCString(CondCode CC) {
+  switch (CC) {
+  case RA:
+    return "ra";
+  case RN:
+    return "rn";
+  case HI:
+    return "hi";
+  case LS:
+    return "ls";
+  case HS:
+    return "hs";
+  case LO:
+    return "lo";
+  case NE:
+    return "ne";
+  case EQ:
+    return "eq";
+  case VC:
+    return "vc";
+  case VS:
+    return "vs";
+  case PL:
+    return "pl";
+  case MI:
+    return "mi";
+  case GE:
+    return "ge";
+  case LT:
+    return "lt";
+  case GT:
+    return "gt";
+  case LE:
+    return "le";
+  }
+}
 
 inline static CondCode getOppositeCondition(CondCode CC) {
   switch (CC) {

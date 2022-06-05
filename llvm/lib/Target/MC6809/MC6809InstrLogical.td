@@ -101,10 +101,9 @@ multiclass MC6809ArithmeticCarry<RegisterClass dst> {
     def Abs : MC6809ArithmeticBaseCarry<dst, (ins addr16:$addr)>;
     def Idx : MC6809ArithmeticBaseCarry<dst, (ins INDEX16:$idx, unknown:$offset)>;
     def Indir : MC6809ArithmeticBaseCarry<dst, (ins INDEX16:$idx, unknown:$offset)>;
-    def Pop : MC6809ArithmeticBaseCarry<dst, (ins dst:$tmp)> {
+    def Pop : MC6809ArithmeticBaseCarry<dst, (ins)> {
       let Defs = [SS, NZ];
       let Uses = [SS];
-      let Constraints = "$dst = $tmp";
     }
   }
 }
@@ -123,10 +122,9 @@ multiclass MC6809Arithmetic<RegisterClass dst> {
     def Abs : MC6809ArithmeticBase<dst, (ins addr16:$addr)>;
     def Idx : MC6809ArithmeticBase<dst, (ins INDEX16:$idx, unknown:$offset)>;
     def Indir : MC6809ArithmeticBase<dst, (ins INDEX16:$idx, unknown:$offset)>;
-    def Pop : MC6809ArithmeticBase<dst, (ins dst:$tmp)> {
+    def Pop : MC6809ArithmeticBase<dst, (ins)> {
       let Defs = [SS, NZ];
       let Uses = [SS];
-      let Constraints = "$dst = $tmp";
     }
   }
 }
@@ -138,16 +136,23 @@ multiclass MC6809Arithmetic<RegisterClass dst> {
 let isAdd = true in {
   defm AddCarry8 : MC6809ArithmeticCarry<ACC8>;
   defm AddCarry16 : MC6809ArithmeticCarry<ACC16>;
+  defm AddCarry32 : MC6809ArithmeticCarry<ACC32>;
 }
 defm SubBorrow8 : MC6809ArithmeticCarry<ACC8>;
 defm SubBorrow16 : MC6809ArithmeticCarry<ACC16>;
+defm SubBorrow32 : MC6809ArithmeticCarry<ACC32>;
 
 let isAdd = true in {
   defm Add8 : MC6809Arithmetic<ACC8>;
   defm Add16 : MC6809Arithmetic<ACC16>;
+  defm Add32 : MC6809Arithmetic<ACC32>;
 }
 defm Sub8 : MC6809Arithmetic<ACC8>;
 defm Sub16 : MC6809Arithmetic<ACC16>;
+defm Sub32 : MC6809Arithmetic<ACC32>;
+
+defm Test8 : MC6809Arithmetic<ACC8>;
+defm Test16 : MC6809Arithmetic<ACC16>;
 
 //===---------------------------------------------------------------------===//
 // Bitwise instructions
@@ -166,10 +171,9 @@ multiclass MC6809Bitwise<RegisterClass dst> {
     def Abs : MC6809BitwiseBase<dst, (ins addr16:$addr)>;
     def Idx : MC6809BitwiseBase<dst, (ins INDEX16:$idx, unknown:$offset)>;
     def Indir : MC6809BitwiseBase<dst, (ins INDEX16:$idx, unknown:$offset)>;
-    def Pop : MC6809ArithmeticBase<dst, (ins dst:$tmp)> {
+    def Pop : MC6809BitwiseBase<dst, (ins)> {
       let Defs = [SS, NZ, V];
       let Uses = [SS];
-      let Constraints = "$dst = $tmp";
     }
   }
 }
@@ -180,6 +184,58 @@ defm OR8 : MC6809Bitwise<ACC8>;
 defm OR16 : MC6809Bitwise<ACC16>;
 defm XOR8 : MC6809Bitwise<ACC8>;
 defm XOR16 : MC6809Bitwise<ACC16>;
+defm BIT8 : MC6809Bitwise<ACC8>;
+
+//===---------------------------------------------------------------------===//
+// Comparison Instructions
+//===---------------------------------------------------------------------===//
+class MC6809CompareBase<RegisterClass reg, dag operand> : MC6809LogicalInstr {
+  let isCompare = true;
+  let Defs = [NZ, V, C];
+  dag OutOperandList = (outs);
+  dag InOperandList = !con((ins reg:$reg), operand);
+}
+
+multiclass MC6809Compare<RegisterClass dst> {
+  def Imm : MC6809CompareBase<dst, (ins i16imm:$imm)>;
+  def Reg : MC6809CompareBase<dst, (ins dst:$src)>;
+  let mayLoad = true in {
+    def Abs : MC6809CompareBase<dst, (ins addr16:$addr)>;
+    def Idx : MC6809CompareBase<dst, (ins INDEX16:$idx, unknown:$offset)>;
+    def Indir : MC6809CompareBase<dst, (ins INDEX16:$idx, unknown:$offset)>;
+    def Pop : MC6809CompareBase<dst, (ins)> {
+      let Defs = [SS, NZ, V, C];
+      let Uses = [SS];
+    }
+  }
+}
+
+defm Compare8 : MC6809Compare<ACC8>;
+defm Compare16 : MC6809Compare<ACC16>;
+defm ComparePtr : MC6809Compare<INDEX16>;
+
+class MC6809BitBase<RegisterClass reg, dag operand> : MC6809LogicalInstr {
+  let isCompare = true;
+  let Defs = [NZ, V];
+  dag OutOperandList = (outs);
+  dag InOperandList = !con((ins reg:$reg), operand);
+}
+
+multiclass MC6809Bit<RegisterClass dst> {
+  def Imm : MC6809BitBase<dst, (ins i16imm:$imm)>;
+  def Reg : MC6809BitBase<dst, (ins dst:$src)>;
+  let mayLoad = true in {
+    def Abs : MC6809BitBase<dst, (ins addr16:$addr)>;
+    def Idx : MC6809BitBase<dst, (ins INDEX16:$idx, unknown:$offset)>;
+    def Indir : MC6809BitBase<dst, (ins INDEX16:$idx, unknown:$offset)>;
+    def Pop : MC6809BitBase<dst, (ins)> {
+      let Defs = [SS, NZ, V];
+      let Uses = [SS];
+    }
+  }
+}
+
+defm Bit8 : MC6809Bit<ACC8>;
 
 //===---------------------------------------------------------------------===//
 // Control Flow Instructions
@@ -187,45 +243,45 @@ defm XOR16 : MC6809Bitwise<ACC16>;
 
 class MC6809Branch : MC6809LogicalInstr {
   let isBranch = true;
-  let isTerminator = false;
+  let isTerminator = true;
   let isBarrier = false;
-}
-
-// Covers all branch instructions. Branches to $tgt if $flag = $val.
-class MC6809ConditionalBranch : MC6809Branch;
-
-def IfJumpRelative : MC6809ConditionalBranch {
-  dag InOperandList = (ins label:$tgt, CCFlag:$flag, i1imm:$val);
-}
-
-class MC6809UnconditionalBranch : MC6809Branch {
-  let isBarrier = true;
-}
-
-def JumpRelative : MC6809UnconditionalBranch {
+  let Uses = [];
   let InOperandList = (ins label:$tgt);
 }
-def JumpIndir : MC6809UnconditionalBranch {
+
+def JumpConditionalRelative : MC6809Branch {
+  let Uses = [NZ, V, C];
+  dag InOperandList = (ins unknown:$cond, label:$tgt);
+}
+
+def JumpRelative : MC6809Branch {
+  let isBarrier = true;
+  let Pattern = [(br bb:$tgt)];
+}
+
+def JumpIndir : MC6809Branch {
+  let isBarrier = true;
   let InOperandList = (ins INDEX16:$tgt);
   let isIndirectBranch = true;
 }
 
-class MC6809UnconditionalCall : MC6809Branch {
+def CallRelative : MC6809Branch {
   let isCall = true;
-}
-
-def CallRelative : MC6809UnconditionalCall {
   dag InOperandList = (ins label:$tgt);
 }
-def CallIndir : MC6809UnconditionalCall {
-  let InOperandList = (ins INDEX16:$tgt);
+
+def CallIndir : MC6809Branch {
+  let isCall = true;
   let isIndirectBranch = true;
+  let InOperandList = (ins INDEX16:$tgt);
 }
 
-class MC6809Return : MC6809LogicalInstr {
+class MC6809Return : MC6809Branch {
   let isBarrier = true;
   let isReturn = true;
   let isTerminator = true;
+  let isBranch = false;
+  let InOperandList = (ins);
 }
 
 def ReturnImplicit : MC6809Return;
@@ -266,21 +322,23 @@ class MC6809StackPull<RegisterClass reg> : MC6809LogicalInstr {
 
 def Push8 : MC6809StackPush<ACC8>;
 def Push16 : MC6809StackPush<ACC16>;
+def Push32 : MC6809StackPush<ACC32>;
 def PushPtr : MC6809StackPush<INDEX16>;
 def Pull8 : MC6809StackPull<ACC8>;
 def Pull16 : MC6809StackPull<ACC16>;
+def Pull32 : MC6809StackPull<ACC32>;
 def PullPtr : MC6809StackPull<INDEX16>;
 
-// The "Op" variants are intended to couple with <Instr>Pop instructions. The $tmp operand is solely for use as
-// a virtual register placeholder; it will be thrown away when MCInts are selected.
+// The "Op" variants are intended to couple with <Instr>Pop instructions.
 class MC6809StackPushOp<RegisterClass reg> : MC6809LogicalInstr {
-  dag OutOperandList = (outs reg:$tmp);
+  dag OutOperandList = (outs);
   dag InOperandList = (ins reg:$reg);
   let mayStore = true;
 }
 
 def PushOp8 : MC6809StackPushOp<ACC8>;
 def PushOp16 : MC6809StackPushOp<ACC16>;
+def PushOp32 : MC6809StackPushOp<ACC32>;
 def PushOpPtr : MC6809StackPushOp<INDEX16>;
 
 //===---------------------------------------------------------------------===//

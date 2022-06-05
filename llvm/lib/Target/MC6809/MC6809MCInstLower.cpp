@@ -48,6 +48,14 @@ void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
     OutMI.setOpcode(MC6809::SEXWx);
     return;
   }
+  case MC6809::ZEX16Implicit: {
+    OutMI.setOpcode(MC6809::CLRAa);
+    return;
+  }
+  case MC6809::ZEX32Implicit: {
+    OutMI.setOpcode(MC6809::CLRDa);
+    return;
+  }
   }
 
   // Handle any real instructions that weren't generated from a pseudo.

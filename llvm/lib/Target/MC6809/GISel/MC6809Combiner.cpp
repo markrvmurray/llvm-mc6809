@@ -72,8 +72,27 @@ public:
   bool matchFoldPointerExtOffset(MachineInstr &MI, MachineRegisterInfo &MRI, std::pair<MachineInstr *, MachineInstr *>&MatchInfo) const;
   bool applyFoldPointerExtOffset(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, std::pair<MachineInstr *, MachineInstr *>&MatchInfo) const;
 
+  //  ( %1:_(s8) = COPY $af // Antipattern )
+  //  %1:_(s8) = G_LOAD %5:_(p0) :: (invariant load (s8) from %fixed-stack.3, align 2)
+  //  %3:_(s8) = G_ADD %1:_, %0:_ ; The known physical register is on the wrong side
+  //   =>
+  //  :
+  //  %3:_(s8) = G_ADD %0:_, %1:_ ; Can make use of addressing modes
   bool matchSwapPhysregToLhs(MachineInstr &MI, MachineRegisterInfo &MRI, MachineInstr *&MatchInfo) const;
   bool applySwapPhysregToLhs(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, MachineInstr *&MatchInfo) const;
+
+  //  %5:_(p0) = G_FRAME_INDEX %fixed-stack.3
+  //  %1:_(s8) = G_LOAD %5:_(p0) :: (invariant load (s8) from %fixed-stack.3, align 2)
+  //  %9:_(s8) = G_ADD %0:_, %1:_
+  //   =>
+  //  :
+  //  %1:_(s8) = G_LOAD %fixed-stack.3 :: (invariant load (s8) from %fixed-stack.3, align 2)
+  //  %9:_(s8) = G_ADD %0:_, %1:_
+  bool matchMergeLoadAndFrameIndex(MachineInstr &MI, MachineRegisterInfo &MRI, MachineInstr *&MatchInfo) const;
+  bool applyMergeLoadAndFrameIndex(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, MachineInstr *&MatchInfo) const;
+
+  bool matchSwitchAddToSubtract(MachineInstr &MI, MachineRegisterInfo &MRI, MachineInstr *&MatchInfo) const;
+  bool applySwitchAddToSubtract(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, MachineInstr *&MatchInfo) const;
 };
 // ======================================================================
 
@@ -97,10 +116,10 @@ bool MC6809CombinerHelperState::matchFoldGlobalOffset(MachineInstr &MI, MachineR
   return true;
 }
 
-bool MC6809CombinerHelperState::applyFoldGlobalOffset(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &B, GISelChangeObserver &Observer, std::pair<const MachineOperand *, int64_t> &MatchInfo) const {
+bool MC6809CombinerHelperState::applyFoldGlobalOffset(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, std::pair<const MachineOperand *, int64_t> &MatchInfo) const {
   using namespace TargetOpcode;
   assert(MI.getOpcode() == G_PTR_ADD);
-  const TargetInstrInfo &TII = B.getTII();
+  const TargetInstrInfo &TII = MIB.getTII();
   Observer.changingInstr(MI);
   MI.setDesc(TII.get(TargetOpcode::G_GLOBAL_VALUE));
   MI.getOperand(1).ChangeToGA(MatchInfo.first->getGlobal(), MatchInfo.second, MatchInfo.first->getTargetFlags());
@@ -127,10 +146,10 @@ bool MC6809CombinerHelperState::matchFoldGlobalCopy(MachineInstr &MI, MachineReg
   return true;
 }
 
-bool MC6809CombinerHelperState::applyFoldGlobalCopy(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &B, GISelChangeObserver &Observer, std::pair<const MachineOperand *, MachineInstr *> &MatchInfo) const {
+bool MC6809CombinerHelperState::applyFoldGlobalCopy(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, std::pair<const MachineOperand *, MachineInstr *> &MatchInfo) const {
   using namespace TargetOpcode;
   assert(MI.getOpcode() == COPY);
-  const TargetInstrInfo &TII = B.getTII();
+  const TargetInstrInfo &TII = MIB.getTII();
   Observer.changingInstr(*(MatchInfo.second));
   MatchInfo.second->getOperand(0).setReg(MatchInfo.first->getReg());
   Observer.changedInstr(*(MatchInfo.second));
@@ -168,6 +187,13 @@ bool MC6809CombinerHelperState::applyFoldPointerExtOffset(MachineInstr &MI, Mach
   return true;
 }
 
+// ============================================================================
+//  ( %1:_(s8) = COPY $af // Antipattern )
+//  %1:_(s8) = G_LOAD %5:_(p0) :: (invariant load (s8) from %fixed-stack.3, align 2)
+//  %3:_(s8) = G_ADD %1:_, %0:_ ; The known physical register is on the wrong side
+//   =>
+//  :
+//  %3:_(s8) = G_ADD %0:_, %1:_ ; Can make use of addressing modes
 bool MC6809CombinerHelperState::matchSwapPhysregToLhs(MachineInstr &MI, MachineRegisterInfo &MRI, MachineInstr *&MatchInfo) const {
   using namespace TargetOpcode;
   const MC6809Subtarget &STI = static_cast<const MC6809Subtarget &>(MI.getMF()->getSubtarget());
@@ -214,6 +240,42 @@ bool MC6809CombinerHelperState::applySwapPhysregToLhs(MachineInstr &MI, MachineR
   return true;
 }
 
+//  %0:accum(s8) = COPY $ab
+//  :
+//  %11:accum(s8) = G_ADD %10:accum, %4:accum
+//  %12:accum(s8) = G_SUB %0:accum, %11:accum
+//   =>
+//  %0:accum(s8) = COPY $ab
+//  :
+//  %11:accum(s8) = G_SUB %0:accum, %4:accum
+//  %12:accum(s8) = G_SUB %11:accum, %10:accum
+bool MC6809CombinerHelperState::matchSwitchAddToSubtract(MachineInstr &MI, MachineRegisterInfo &MRI, MachineInstr *&MatchInfo) const {
+  using namespace TargetOpcode;
+  assert(MI.getOpcode() == G_SUB);
+
+  MachineOperand *Subtrahend = &MI.getOperand(2);
+  MachineInstr *GAdd = getOpcodeDef(G_ADD, Subtrahend->getReg(), MRI);
+
+  if (!GAdd)
+    return false;
+  MatchInfo = GAdd;
+  return true;
+}
+
+bool MC6809CombinerHelperState::applySwitchAddToSubtract(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, MachineInstr *&MatchInfo) const {
+  using namespace TargetOpcode;
+  assert(MI.getOpcode() == G_SUB);
+  assert(MatchInfo->getOpcode() == G_ADD);
+  MachineIRBuilder Builder(MI);
+  Observer.changingInstr(MI);
+  Builder.buildSub(MatchInfo->getOperand(0).getReg(), MI.getOperand(1).getReg(), MatchInfo->getOperand(2).getReg());
+  Builder.buildSub(MI.getOperand(0).getReg(), MI.getOperand(2).getReg(), MatchInfo->getOperand(1).getReg());
+  MatchInfo->eraseFromParent();
+  Observer.changedInstr(MI);
+  MI.eraseFromParent();
+  return true;
+}
+
 #define MC6809COMBINERHELPER_GENCOMBINERHELPER_DEPS
 #include "MC6809GenGICombiner.inc"
 #undef MC6809COMBINERHELPER_GENCOMBINERHELPER_DEPS
@@ -236,14 +298,14 @@ public:
       report_fatal_error("Invalid rule identifier");
   }
 
-  virtual bool combine(GISelChangeObserver &Observer, MachineInstr &MI, MachineIRBuilder &B) const override;
+  virtual bool combine(GISelChangeObserver &Observer, MachineInstr &MI, MachineIRBuilder &MIB) const override;
 };
 
-bool MC6809CombinerInfo::combine(GISelChangeObserver &Observer, MachineInstr &MI, MachineIRBuilder &B) const {
+bool MC6809CombinerInfo::combine(GISelChangeObserver &Observer, MachineInstr &MI, MachineIRBuilder &MIB) const {
   const LegalizerInfo *LI = MI.getMF()->getSubtarget().getLegalizerInfo();
-  CombinerHelper Helper(Observer, B, KB, MDT, LI);
+  CombinerHelper Helper(Observer, MIB, KB, MDT, LI);
   MC6809GenCombinerHelper Generated(GeneratedRuleCfg, Helper);
-  return Generated.tryCombineAll(Observer, MI, B);
+  return Generated.tryCombineAll(Observer, MI, MIB);
 }
 
 #define MC6809COMBINERHELPER_GENCOMBINERHELPER_CPP

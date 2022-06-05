@@ -1,4 +1,4 @@
-//===--- MC6809.cpp - Implement MC6809 target feature support -----------------===//
+//===--- MC6809.cpp - Implement MC6809 target feature support -------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -17,7 +17,7 @@ using namespace clang::targets;
 MC6809TargetInfo::MC6809TargetInfo(const llvm::Triple &Triple, const TargetOptions &)
     : TargetInfo(Triple) {
   static const char Layout[] =
-    "e-p:16:8-S8-m:e-i1:8:8-i8:8:8-i16:8:8-i32:8:8-i64:8:8-f16:8:8-f32:8:8-f64:8:8-f128:8:8-a:0:8-n8:16";
+    "e-p:16:8-S8-m:e-i1:8-i8:8-i16:8-i32:8-i64:8-f16:8-f32:8-f64:8-a:0-n8:16";
   resetDataLayout(Layout);
 
   PointerWidth = 16;
@@ -26,9 +26,11 @@ MC6809TargetInfo::MC6809TargetInfo(const llvm::Triple &Triple, const TargetOptio
   IntAlign = 8;
   LongAlign = 8;
   LongLongAlign = 8;
+  ShortAccumWidth = 8;
   ShortAccumAlign = 8;
-  AccumWidth = 16;
+  AccumWidth = 8;
   AccumAlign = 8;
+  LongAccumWidth = 16;
   LongAccumAlign = 8;
   FractWidth = FractAlign = 8;
   LongFractAlign = 8;
@@ -49,12 +51,10 @@ bool MC6809TargetInfo::validateAsmConstraint(
   switch (*Name) {
   default:
     return false;
-  // The A, X, or Y registers.
+  // The Accumulators
   case 'a':
+  // The Index registers.
   case 'x':
-  case 'y':
-  // The index (X or Y) registers.
-  case 'd':
     Info.setAllowsRegister();
     return true;
   }
@@ -84,9 +84,7 @@ bool MC6809TargetInfo::validateOperandSize(const llvm::StringMap<bool> &FeatureM
     return true;
   case 'a':
   case 'x':
-  case 'y':
-  case 'd':
-    return Size <= 8;
+    return Size <= 16;
   }
 }
 

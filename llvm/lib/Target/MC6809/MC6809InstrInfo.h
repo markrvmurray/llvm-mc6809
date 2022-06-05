@@ -117,6 +117,8 @@ public:
                             int64_t BrOffset = 0,
                             RegScavenger *RS = nullptr) const override;
 
+  bool isBranchOffsetInRange(unsigned BranchOpc, int64_t BrOffset) const override;
+
   void copyPhysReg(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
                    const DebugLoc &DL, MCRegister DestReg, MCRegister SrcReg,
                    bool KillSrc) const override;
@@ -170,11 +172,30 @@ private:
   void expandAddReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandAddImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandAddIdx(MachineIRBuilder &Builder, MachineInstr &MI) const;
+
   void expandAddCarryImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandAddCarryIdx(MachineIRBuilder &Builder, MachineInstr &MI) const;
+
+  void expandAdd32Imm(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandAdd32Idx(MachineIRBuilder &Builder, MachineInstr &MI) const;
+
+  void expandSubReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandSubImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandSubPop(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandSubIdx(MachineIRBuilder &Builder, MachineInstr &MI) const;
+
+  void expandSubBorrowImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandSubBorrowIdx(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandSubBorrowPop(MachineIRBuilder &Builder, MachineInstr &MI) const;
+
+  void expandSub32Imm(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandSub32Idx(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandSub32Pop(MachineIRBuilder &Builder, MachineInstr &MI) const;
+
+  void expandCompareReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandCompareImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandComparePop(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandCompareIdx(MachineIRBuilder &Builder, MachineInstr &MI) const;
 
   // NZ pseudos
   // void expandNZ(MachineIRBuilder &Builder) const;
@@ -185,20 +206,38 @@ private:
 
   DenseMap<RegPlusOffsetLen, unsigned> LEAPtrAddImmOpcode;
   DenseMap<RegPlusReg, unsigned> LEAPtrAddRegOpcode;
+
   DenseMap<Register, unsigned> LoadImmediateOpcode;
   DenseMap<RegPlusOffsetLen, unsigned> LoadIdxImmOpcode;
   DenseMap<RegPlusReg, unsigned> LoadIdxRegOpcode;
+
   DenseMap<RegPlusOffsetLen, unsigned> StoreIdxImmOpcode;
   DenseMap<RegPlusReg, unsigned> StoreIdxRegOpcode;
+
   DenseMap<Register, unsigned> AddImmediateOpcode;
-  DenseMap<Register, unsigned> SubImmediateOpcode;
-  DenseMap<Register, unsigned> SubPopOpcode;
   DenseMap<RegPlusOffsetLen, unsigned> AddIdxImmOpcode;
   DenseMap<RegPlusReg, unsigned> AddIdxRegOpcode;
+
+  DenseMap<Register, unsigned> AddCarryImmediateOpcode;
   DenseMap<RegPlusOffsetLen, unsigned> AddCarryIdxImmOpcode;
   DenseMap<RegPlusReg, unsigned> AddCarryIdxRegOpcode;
+
+  DenseMap<Register, unsigned> SubImmediateOpcode;
   DenseMap<RegPlusOffsetLen, unsigned> SubIdxImmOpcode;
   DenseMap<RegPlusReg, unsigned> SubIdxRegOpcode;
+  DenseMap<Register, unsigned> SubPopOpcode;
+
+  DenseMap<Register, unsigned> SubBorrowImmediateOpcode;
+  DenseMap<RegPlusOffsetLen, unsigned> SubBorrowIdxImmOpcode;
+  DenseMap<RegPlusReg, unsigned> SubBorrowIdxRegOpcode;
+  DenseMap<Register, unsigned> SubBorrowPopOpcode;
+
+  DenseMap<Register, unsigned> CompareImmediateOpcode;
+  DenseMap<RegPlusOffsetLen, unsigned> CompareIdxImmOpcode;
+  DenseMap<RegPlusReg, unsigned> CompareIdxRegOpcode;
+  DenseMap<Register, unsigned> ComparePopOpcode;
+
+  static int offsetSizeInBits(MachineOperand &OffsetOp);
 };
 
 namespace MC6809 {

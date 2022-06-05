@@ -1,5 +1,4 @@
-//===-- MC6809ISelLowering.cpp - MC6809 DAG Lowering Implementation
-//-------------===//
+//===-- MC6809ISelLowering.cpp - MC6809 DAG Lowering Implementation -------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -38,18 +37,15 @@ using namespace llvm;
 //===----------------------------------------------------------------------===//
 
 /// Selects the correct CCAssignFn for a given CallingConvention value.
-CCAssignFn *MC6809TargetLowering::CCAssignFnForCall(CallingConv::ID CC,
-                                                    bool IsVarArg) const {
+CCAssignFn *MC6809TargetLowering::CCAssignFnForCall(CallingConv::ID CC, bool IsVarArg) const {
   return IsVarArg ? CC_MC6809_VarArgs : CC_MC6809;
 }
 
-CCAssignFn *MC6809TargetLowering::CCAssignFnForReturn(CallingConv::ID CC,
-                                                      bool IsVarArg) const {
+CCAssignFn *MC6809TargetLowering::CCAssignFnForReturn(CallingConv::ID CC, bool IsVarArg) const {
   return IsVarArg ? CC_MC6809_VarArgs : RetCC_MC6809;
 }
 
-MC6809TargetLowering::MC6809TargetLowering(const MC6809TargetMachine &TM,
-                                           const MC6809Subtarget &STI)
+MC6809TargetLowering::MC6809TargetLowering(const MC6809TargetMachine &TM, const MC6809Subtarget &STI)
     : TargetLowering(TM) {
   // This is only used for CallLowering to determine how to split large
   // primitive types for the calling convention. All need to be split to 8 bits,
@@ -80,8 +76,7 @@ MC6809TargetLowering::MC6809TargetLowering(const MC6809TargetMachine &TM,
   setStackPointerRegisterToSaveRestore(MC6809::SS);
 }
 
-unsigned MC6809TargetLowering::getNumRegistersForInlineAsm(LLVMContext &Context,
-                                                           EVT VT) const {
+unsigned MC6809TargetLowering::getNumRegistersForInlineAsm(LLVMContext &Context, EVT VT) const {
   if (VT == MVT::i16)
     return 1;
   return TargetLowering::getNumRegistersForInlineAsm(Context, VT);
@@ -106,8 +101,7 @@ MC6809TargetLowering::getConstraintType(StringRef Constraint) const {
 }
 
 std::pair<unsigned, const TargetRegisterClass *>
-MC6809TargetLowering::getRegForInlineAsmConstraint(
-    const TargetRegisterInfo *TRI, StringRef Constraint, MVT VT) const {
+MC6809TargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI, StringRef Constraint, MVT VT) const {
   if (Constraint.size() == 1) {
     switch (Constraint[0]) {
     default:
@@ -213,7 +207,7 @@ MachineBasicBlock *MC6809TargetLowering::EmitInstrWithCustomInserter(
 
     // Add the unconditional branch from IfFalseMBB to TailMBB.
     Builder.setInsertPt(*IfFalseMBB, IfFalseMBB->begin());
-    // XXXX: FIXME: MarkM - Must make rthe below branch unconditional
+    // XXXX: FIXME: MarkM - Must make the below branch unconditional
     Builder.buildInstr(MC6809::Bbc).addMBB(TailMBB);
     for (const auto &LiveIn : IfFalseMBB->liveins())
       IfTrueMBB->addLiveIn(LiveIn);
@@ -228,7 +222,7 @@ MachineBasicBlock *MC6809TargetLowering::EmitInstrWithCustomInserter(
 
   if (IfTrueMBB) {
     // Insert branch.
-    // XXXX: FIXME: MarkM - Must make rthe below branch unconditional
+    // XXXX: FIXME: MarkM - Must make the below branch unconditional
     Builder.buildInstr(MC6809::Bbc).addMBB(IfTrueMBB).addUse(Flag).addImm(1);
     HeadMBB->addSuccessor(IfTrueMBB);
 
@@ -240,7 +234,7 @@ MachineBasicBlock *MC6809TargetLowering::EmitInstrWithCustomInserter(
     LDImm8(TrueValue);
 
     // Insert branch.
-    // XXXX: FIXME: MarkM - Must make rthe below branch unconditional
+    // XXXX: FIXME: MarkM - Must make the below branch unconditional
     Builder.buildInstr(MC6809::Bbc).addMBB(TailMBB).addUse(Flag).addImm(1);
     HeadMBB->addSuccessor(TailMBB);
   }

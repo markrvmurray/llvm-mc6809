@@ -123,6 +123,7 @@ class CondCodeAsmOperand<string name> : MC6809AsmOperand<name> {
 def condcode : Operand<i8> {
   let EncoderMethod = "encodeCondCodeOpValue";
   let ParserMatchClass = CondCodeAsmOperand<"CondCode">;
+  let PrintMethod = "printCondCode";
 }
 
 /// All non-virtual MC6809 opcodes are 8 or 16 bits long.

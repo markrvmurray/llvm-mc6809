@@ -11,6 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "MC6809.h"
 #include "MC6809InstPrinter.h"
 
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
@@ -96,6 +97,12 @@ void MC6809InstPrinter::printRegisterList(const MCInst *MI, unsigned OpNo, raw_o
 
 void MC6809InstPrinter::printRegName(raw_ostream &O, unsigned RegNo) const {
   O << getRegisterName(RegNo);
+}
+
+void MC6809InstPrinter::printCondCode(const MCInst *MI, unsigned OpNo, raw_ostream &O) {
+  const MCOperand &Op = MI->getOperand(OpNo);
+  enum MC6809CC::CondCode CC = (enum MC6809CC::CondCode)(Op.getImm() & 0xF);
+  O << MC6809CC::getCCString(CC);
 }
 
 format_object<int64_t> MC6809InstPrinter::formatHex(int64_t Value) const {

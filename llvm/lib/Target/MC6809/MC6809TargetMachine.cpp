@@ -56,8 +56,7 @@ extern "C" void LLVM_EXTERNAL_VISIBILITY LLVMInitializeMC6809Target() {
 }
 
 static const char *MC6809DataLayout =
-    "e-p:16:8-S8-m:e-i1:8:8-i8:8:8-i16:8:8-i32:8:8-i64:8:8-f16:8:8-f32:8:8-f64:"
-    "8:8-f128:8:8-a:0:8-n8:16";
+    "e-p:16:8-S8-m:e-i1:8-i8:8-i16:8-i32:8-i64:8-f16:8-f32:8-f64:8-a:0-n8:16";
 
 /// Processes a CPU name.
 static StringRef getCPU(StringRef CPU) {

@@ -28,7 +28,7 @@ class MC6809GenericInstruction : GenericInstruction {
   let hasSideEffects = false;
 }
 
-// Generalized load using the abssolute addressing mode. The address
+// Generalized load using the absolute addressing mode. The address
 // argument isn't a pointer; it's either a global value or a 16-bit immediate.
 // Additionally expects a MachineMemOperand.
 def G_LOAD_ABS : MC6809GenericInstruction {
@@ -41,7 +41,7 @@ def G_LOAD_ABS : MC6809GenericInstruction {
 // The offset argument is a scalar. Additionally expects a MachineMemOperand.
 def G_LOAD_INDEX_OFFSET : MC6809GenericInstruction {
   let OutOperandList = (outs type0:$dst);
-  let InOperandList = (ins type1:$offset, ptype1:$index);
+  let InOperandList = (ins ptype1:$index, type1:$offset);
   let mayLoad = true;
 }
 
@@ -49,7 +49,7 @@ def G_LOAD_INDEX_OFFSET : MC6809GenericInstruction {
 // The offset argument is a scalar. Additionally expects a MachineMemOperand.
 def G_LOAD_INDIR_INDEX_OFFSET : MC6809GenericInstruction {
   let OutOperandList = (outs type0:$dst);
-  let InOperandList = (ins type1:$offset, ptype1:$index);
+  let InOperandList = (ins ptype1:$index, type1:$offset);
   let mayLoad = true;
 }
 
@@ -67,7 +67,7 @@ def G_STORE_ABS : MC6809GenericInstruction {
 // The offset argument is a scalar. Additionally expects a MachineMemOperand.
 def G_STORE_INDEX_OFFSET : MC6809GenericInstruction {
   let OutOperandList = (outs);
-  let InOperandList = (ins type0:$src, type1:$offset, ptype1:$index);
+  let InOperandList = (ins type0:$src, ptype1:$index, type1:$offset);
   let hasSideEffects = false;
   let mayStore = true;
 }
@@ -76,7 +76,7 @@ def G_STORE_INDEX_OFFSET : MC6809GenericInstruction {
 // The offset argument is a scalar. Additionally expects a MachineMemOperand.
 def G_STORE_INDIR_INDEX_OFFSET : MC6809GenericInstruction {
   let OutOperandList = (outs);
-  let InOperandList = (ins type0:$src, type1:$offset, ptype1:$index);
+  let InOperandList = (ins type0:$src, ptype1:$index, type1:$offset);
   let hasSideEffects = false;
   let mayStore = true;
 }

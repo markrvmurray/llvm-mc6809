@@ -32,16 +32,15 @@ public:
 private:
   // Memory Operations
   bool legalizeLoadStore(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI) const;
-  bool legalizePtrAdd(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI) const;
+  // bool legalizePtrAdd(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI) const;
   bool selectAddressingMode(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI) const;
   bool tryAbsoluteAddressing(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI) const;
   bool tryIndexedAddressing(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI) const;
-  bool selectIndirectIndexedAddressing(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI) const;
+  bool tryIndirectIndexedAddressing(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI) const;
+  bool selectNoAddressing(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI) const;
 
   // Memory Operations
-  //bool legalizeAddSub(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI) const;
-
-  const MC6809Subtarget &STI;
+  bool legalizeAddSub(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI) const;
 };
 
 } // namespace llvm
