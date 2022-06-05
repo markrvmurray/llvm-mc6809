@@ -542,6 +542,18 @@ m_GSAddO(const LHS &L, const RHS &R) {
   return Binary2Op_match<LHS, RHS, TargetOpcode::G_SADDO, true>(L, R);
 }
 
+template <typename LHS, typename RHS>
+inline Binary2Op_match<LHS, RHS, TargetOpcode::G_USUBO>
+m_GUSubO(const LHS &L, const RHS &R) {
+  return Binary2Op_match<LHS, RHS, TargetOpcode::G_USUBO>(L, R);
+}
+
+template <typename LHS, typename RHS>
+inline Binary2Op_match<LHS, RHS, TargetOpcode::G_SSUBO>
+m_GSSubO(const LHS &L, const RHS &R) {
+  return Binary2Op_match<LHS, RHS, TargetOpcode::G_SSUBO>(L, R);
+}
+
 // General helper for all the binary generic MI such as G_UADDE
 template <typename LHS_P, typename RHS_P, typename CARRY_P, unsigned Opcode,
           bool Commutable = false>
@@ -579,6 +591,18 @@ template <typename LHS, typename RHS, typename CARRY>
 inline Ternary2Op_match<LHS, RHS, CARRY, TargetOpcode::G_SADDE, true>
 m_GSAddE(const LHS &L, const RHS &R, const CARRY &C) {
   return Ternary2Op_match<LHS, RHS, CARRY, TargetOpcode::G_SADDE, true>(L, R, C);
+}
+
+template <typename LHS, typename RHS, typename CARRY>
+inline Ternary2Op_match<LHS, RHS, CARRY, TargetOpcode::G_USUBE>
+m_GUSubE(const LHS &L, const RHS &R, const CARRY &C) {
+  return Ternary2Op_match<LHS, RHS, CARRY, TargetOpcode::G_USUBE>(L, R, C);
+}
+
+template <typename LHS, typename RHS, typename CARRY>
+inline Ternary2Op_match<LHS, RHS, CARRY, TargetOpcode::G_SSUBE>
+m_GSSubE(const LHS &L, const RHS &R, const CARRY &C) {
+  return Ternary2Op_match<LHS, RHS, CARRY, TargetOpcode::G_SSUBE>(L, R, C);
 }
 
 // Helper for unary instructions (G_[ZSA]EXT/G_TRUNC) etc
