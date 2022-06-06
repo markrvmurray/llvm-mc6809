@@ -118,19 +118,24 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) {
   // Integer Operations
   if (STI.isHD6309()) {
     getActionDefinitionsBuilder({G_ADD, G_SUB})
-        .customFor({S32})
-        .legalFor({S8, S16})
+        .legalFor({S8, S16, S32})
         .clampScalar(0, S8, S32);
   } else {
     getActionDefinitionsBuilder({G_ADD, G_SUB})
-        // .lowerFor({S32})
+        .lowerFor({S32})
         .legalFor({S8, S16})
         .clampScalar(0, S8, S16);
   }
 
-  getActionDefinitionsBuilder({G_AND, G_OR, G_XOR})
-      .legalFor({S8})
-      .widenScalarToNextPow2(0);
+  if (STI.isHD6309()) {
+    getActionDefinitionsBuilder({G_AND, G_OR, G_XOR})
+        .legalFor({S8, S16})
+        .widenScalarToNextPow2(0);
+  } else {
+    getActionDefinitionsBuilder({G_AND, G_OR, G_XOR})
+        .legalFor({S8})
+        .widenScalarToNextPow2(0);
+  }
 
   getActionDefinitionsBuilder(G_MUL)
       .legalFor({S8})
@@ -280,12 +285,12 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
 #if 0
   case G_PTR_ADD:
     return legalizePtrAdd(Helper, MRI, MI);
-#endif /* 0 */
   // Integer Operations
   case G_ADD:
   case G_SUB:
     return legalizeAddSub(Helper, MRI, MI);
   }
+#endif /* 0 */
 }
 
 static bool willBeStaticallyAllocated(const MachineOperand &MO) {
@@ -457,6 +462,7 @@ bool MC6809LegalizerInfo::tryIndexedAddressing(LegalizerHelper &Helper, MachineR
   }
 }
 
+#if 0
 bool MC6809LegalizerInfo::tryIndirectIndexedAddressing(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI) const {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
   MachineIRBuilder &Builder = Helper.MIRBuilder;
@@ -508,6 +514,7 @@ bool MC6809LegalizerInfo::tryIndirectIndexedAddressing(LegalizerHelper &Helper, 
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : return (true)\n";);
   return true;
 }
+#endif /* 0 */
 
 bool MC6809LegalizerInfo::selectNoAddressing(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI) const {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
@@ -531,21 +538,110 @@ bool MC6809LegalizerInfo::legalizeLoadStore(LegalizerHelper &Helper, MachineRegi
   return selectAddressingMode(Helper, MRI, MI);
 }
 
+#if 0
 bool MC6809LegalizerInfo::legalizeAddSub(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI) const {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
   const MC6809Subtarget &STI = static_cast<const MC6809Subtarget &>(MI.getMF()->getSubtarget());
+  LLT S1 = LLT::scalar(1);
+  LLT S8 = LLT::scalar(8);
+  LLT S16 = LLT::scalar(16);
 
   auto &Builder = Helper.MIRBuilder;
-  LLT NarrowTy;
-  if (STI.isHD6309())
-    NarrowTy = LLT::scalar(16);
-  else
-    NarrowTy = LLT::scalar(8);
-
-  bool Success = Helper.narrowScalarAddSub(MI, 0, NarrowTy) != LegalizerHelper::UnableToLegalize;
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Success = " << Success << " : MI = "; MI.dump(););
-  return Success;
+  if (STI.isHD6309()) {
+    auto Carry = MRI.createGenericVirtualRegister(S1);
+    auto Dummy = MRI.createGenericVirtualRegister(S1);
+    auto LHSLoWord = MRI.createGenericVirtualRegister(S16);
+    auto LHSHiWord = MRI.createGenericVirtualRegister(S16);
+    auto RHSLoWord = MRI.createGenericVirtualRegister(S16);
+    auto RHSHiWord = MRI.createGenericVirtualRegister(S16);
+    auto DestLoWord = MRI.createGenericVirtualRegister(S16);
+    auto DestHiWord = MRI.createGenericVirtualRegister(S16);
+    Builder.buildInstr(G_UNMERGE_VALUES)
+        .addDef(LHSLoWord)
+        .addDef(LHSHiWord)
+        .addUse(MI.getOperand(1).getReg());
+    Builder.buildInstr(G_UNMERGE_VALUES)
+        .addDef(RHSLoWord)
+        .addDef(RHSHiWord)
+        .addUse(MI.getOperand(2).getReg());
+    Builder.buildInstr(G_UADDO)
+        .addDef(DestLoWord)
+        .addDef(Carry)
+        .addUse(LHSLoWord)
+        .addUse(RHSLoWord);
+    Builder.buildInstr(G_UADDE)
+        .addDef(DestHiWord)
+        .addDef(Dummy)
+        .addUse(LHSHiWord)
+        .addUse(RHSHiWord)
+        .addUse(Carry);
+    Builder.buildInstr(G_MERGE_VALUES)
+        .addDef(MI.getOperand(0).getReg())
+        .addUse(DestLoWord)
+        .addUse(DestHiWord);
+  } else {
+    auto LoCarry = MRI.createGenericVirtualRegister(S1);
+    auto HiCarry = MRI.createGenericVirtualRegister(S1);
+    auto Dummy = MRI.createGenericVirtualRegister(S1);
+    auto LHSLoWord = MRI.createGenericVirtualRegister(S16);
+    auto LHSHiWord = MRI.createGenericVirtualRegister(S16);
+    auto LHSMidByte = MRI.createGenericVirtualRegister(S8);
+    auto LHSHiByte = MRI.createGenericVirtualRegister(S8);
+    auto RHSLoWord = MRI.createGenericVirtualRegister(S16);
+    auto RHSHiWord = MRI.createGenericVirtualRegister(S16);
+    auto RHSMidByte = MRI.createGenericVirtualRegister(S8);
+    auto RHSHiByte = MRI.createGenericVirtualRegister(S8);
+    auto DestLoWord = MRI.createGenericVirtualRegister(S16);
+    auto DestHiWord = MRI.createGenericVirtualRegister(S16);
+    auto DestMidByte = MRI.createGenericVirtualRegister(S8);
+    auto DestHiByte = MRI.createGenericVirtualRegister(S8);
+    Builder.buildInstr(G_UNMERGE_VALUES)
+        .addDef(LHSLoWord)
+        .addDef(LHSHiWord)
+        .addUse(MI.getOperand(1).getReg());
+    Builder.buildInstr(G_UNMERGE_VALUES)
+        .addDef(LHSMidByte)
+        .addDef(LHSHiByte)
+        .addUse(LHSHiWord);
+    Builder.buildInstr(G_UNMERGE_VALUES)
+        .addDef(RHSLoWord)
+        .addDef(RHSHiWord)
+        .addUse(MI.getOperand(2).getReg());
+    Builder.buildInstr(G_UNMERGE_VALUES)
+        .addDef(RHSMidByte)
+        .addDef(RHSHiByte)
+        .addUse(RHSHiWord);
+    Builder.buildInstr(G_UADDO)
+        .addDef(DestLoWord)
+        .addDef(LoCarry)
+        .addUse(LHSLoWord)
+        .addUse(RHSLoWord);
+    Builder.buildInstr(G_UADDE)
+        .addDef(DestMidByte)
+        .addDef(HiCarry)
+        .addUse(LHSMidByte)
+        .addUse(RHSMidByte)
+        .addUse(LoCarry);
+    Builder.buildInstr(G_UADDE)
+        .addDef(DestHiByte)
+        .addDef(Dummy)
+        .addUse(LHSHiByte)
+        .addUse(RHSHiByte)
+        .addUse(HiCarry);
+    Builder.buildInstr(G_MERGE_VALUES)
+        .addDef(DestHiWord)
+        .addUse(DestMidByte)
+        .addUse(DestHiByte);
+    Builder.buildInstr(G_MERGE_VALUES)
+        .addDef(MI.getOperand(0).getReg())
+        .addUse(DestLoWord)
+        .addUse(DestHiWord);
+  }
+  MI.eraseFromParent();
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Returning true\n";);
+  return true;
 }
+#endif /* 0 */
 
 #if 0
 bool MC6809LegalizerInfo::legalizePtrAdd(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI) const {

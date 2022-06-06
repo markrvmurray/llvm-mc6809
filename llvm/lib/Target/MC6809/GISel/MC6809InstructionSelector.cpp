@@ -547,15 +547,15 @@ inline FoldedLdIndirIdxOffs_match m_FoldedLdIndirIdxOffs(const MachineInstr &Tgt
 
 bool MC6809InstructionSelector::selectAdd(MachineInstr &MI) {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
-  assert(MI.getOpcode() == MC6809::G_ADD || MI.getOpcode() == MC6809::G_SADDO || MI.getOpcode() == MC6809::G_UADDO || MI.getOpcode() == MC6809::G_SADDE ||
-         MI.getOpcode() == MC6809::G_UADDE);
+  assert(MI.getOpcode() == MC6809::G_ADD ||
+         MI.getOpcode() == MC6809::G_SADDO || MI.getOpcode() == MC6809::G_UADDO ||
+         MI.getOpcode() == MC6809::G_SADDE || MI.getOpcode() == MC6809::G_UADDE);
 
   MachineIRBuilder Builder(MI);
   Register Dst = MI.getOperand(0).getReg();
   Register CarryOut;
   LLT DstTy = MRI->getType(Dst);
   const auto DstSize = DstTy.getSizeInBits();
-  bool Signed = MI.getOpcode() == MC6809::G_SADDO || MI.getOpcode() == MC6809::G_SADDE;
   bool SetCarry = MI.getOpcode() != MC6809::G_ADD;
   bool UseCarry = MI.getOpcode() == MC6809::G_UADDE || MI.getOpcode() == MC6809::G_SADDE;
   bool Success;
@@ -644,12 +644,6 @@ bool MC6809InstructionSelector::selectAdd(MachineInstr &MI) {
                        .addUse(Reg)
                        .addImm(Value);
     }
-    if (Signed) {
-      // Swap the output C and V bits
-      Register Tmp = Instr.getReg(1);
-      Instr->getOperand(1).setReg(Instr.getReg(2));
-      Instr->getOperand(2).setReg(Tmp);
-    }
     if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
       llvm_unreachable("Could not constrain immediate instruction.");
     MI.eraseFromParent();
@@ -698,12 +692,6 @@ bool MC6809InstructionSelector::selectAdd(MachineInstr &MI) {
                          .addImm(0)
                          .cloneMemRefs(*Load);
       }
-      if (Signed) {
-        // Swap the output C and V bits
-        Register Tmp = Instr.getReg(1);
-        Instr->getOperand(1).setReg(Instr.getReg(2));
-        Instr->getOperand(2).setReg(Tmp);
-      }
       if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
         llvm_unreachable("Could not constrain indexed add instruction.");
       MI.eraseFromParent();
@@ -725,7 +713,7 @@ bool MC6809InstructionSelector::selectAdd(MachineInstr &MI) {
     } else
         Success = mi_match(Dst, *MRI, m_GAdd(m_Reg(LHS), m_Reg(RHS)));
     if (Success) {
-      if (UseCarry) { 
+      if (UseCarry) {
         Opcode = (DstSize == 8) ? MC6809::AddCarry8Reg : MC6809::AddCarry16Reg;
         Instr = Builder.buildInstr(Opcode)
                     .addDef(Dst)
@@ -743,12 +731,6 @@ bool MC6809InstructionSelector::selectAdd(MachineInstr &MI) {
                     .addUse(LHS)
                     .addUse(RHS);
       }
-    }
-    if (Signed) {
-      // Swap the output C and V bits
-      Register Tmp = Instr.getReg(1);
-      Instr->getOperand(1).setReg(Instr.getReg(2));
-      Instr->getOperand(2).setReg(Tmp);
     }
     if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
       llvm_unreachable("Could not constrain register/register add instruction.");
@@ -807,7 +789,6 @@ bool MC6809InstructionSelector::selectSub(MachineInstr &MI) {
   Register BorrowOut;
   LLT DstTy = MRI->getType(Dst);
   const auto DstSize = DstTy.getSizeInBits();
-  bool Signed = MI.getOpcode() == MC6809::G_SSUBO || MI.getOpcode() == MC6809::G_SSUBE;
   bool SetBorrow = MI.getOpcode() != MC6809::G_SUB;
   bool UseBorrow = MI.getOpcode() == MC6809::G_USUBE || MI.getOpcode() == MC6809::G_SSUBE;
   bool Success;
@@ -881,12 +862,6 @@ bool MC6809InstructionSelector::selectSub(MachineInstr &MI) {
                   .addUse(Reg)
                   .addImm(Value);
     }
-    if (Signed) {
-      // Swap the output C and V bits
-      Register Tmp = Instr.getReg(1);
-      Instr->getOperand(1).setReg(Instr.getReg(2));
-      Instr->getOperand(2).setReg(Tmp);
-    }
     if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
       llvm_unreachable("Could not constrain immediate instruction.");
     MI.eraseFromParent();
@@ -927,12 +902,6 @@ bool MC6809InstructionSelector::selectSub(MachineInstr &MI) {
                     .addImm(0)
                     .cloneMemRefs(*Load);
       }
-      if (Signed) {
-        // Swap the output C and V bits
-        Register Tmp = Instr.getReg(1);
-        Instr->getOperand(1).setReg(Instr.getReg(2));
-        Instr->getOperand(2).setReg(Tmp);
-      }
       if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
         llvm_unreachable("Could not constrain indexed subtract instruction.");
       MI.eraseFromParent();
@@ -970,12 +939,6 @@ bool MC6809InstructionSelector::selectSub(MachineInstr &MI) {
                     .addUse(LHS)
                     .addUse(RHS);
       }
-    }
-    if (Signed) {
-      // Swap the output C and V bits
-      Register Tmp = Instr.getReg(1);
-      Instr->getOperand(1).setReg(Instr.getReg(2));
-      Instr->getOperand(2).setReg(Tmp);
     }
     if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
       llvm_unreachable("Could not constrain register/register subtract instruction.");
@@ -1391,7 +1354,6 @@ MachineInstr *MC6809InstructionSelector::emitIntegerCompare(MachineOperand &LHS,
   MachineInstr *Load;
   Register Reg, Reg1;
   unsigned Opcode = 0;
-  int LHSOp, RHSOp;
 
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Checking for possible physical register in inconvenient location for G_ICMP\n";);
   if (RHS.isReg()) {
