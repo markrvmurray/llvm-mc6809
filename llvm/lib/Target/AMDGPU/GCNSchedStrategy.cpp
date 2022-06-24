@@ -1263,8 +1263,8 @@ bool PreRARematStage::sinkTriviallyRematInsts(const GCNSubtarget &ST,
 }
 
 // Copied from MachineLICM
-bool PreRARematStage::isTriviallyReMaterializable(const MachineInstr &MI) {
-  if (!DAG.TII->isTriviallyReMaterializable(MI))
+bool GCNScheduleDAGMILive::isTriviallyReMaterializable(const MachineInstr &MI) {
+  if (!TII->isTriviallyReMaterializable(MI))
     return false;
 
   for (const MachineOperand &MO : MI.operands())
