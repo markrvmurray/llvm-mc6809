@@ -31,7 +31,7 @@ An integer constant.
 
 .. code-block:: none
 
-  %0:_(s32) = G_CONSTANT i32 1
+  %0:_(s32) = G_CONSTANT i32 42
 
 G_FCONSTANT
 ^^^^^^^^^^^
@@ -40,12 +40,12 @@ A floating point constant.
 
 .. code-block:: none
 
-  %0:_(s32) = G_FCONSTANT float 1.0
+  %0:_(s32) = G_FCONSTANT float 3.141592654
 
 G_FRAME_INDEX
 ^^^^^^^^^^^^^
 
-The address of an object in the stack frame.
+The address of an object in the stack frame, internally represented as a MachineMemoryOperand.
 
 .. code-block:: none
 
