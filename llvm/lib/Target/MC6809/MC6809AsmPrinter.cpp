@@ -165,7 +165,7 @@ void MC6809AsmPrinter::emitJumpTableInfo() {
   if (JTInDiffSection) {
     // Drop it in the readonly section.
     MCSection *ReadOnlySection = TLOF.getSectionForJumpTable(F, TM);
-    OutStreamer->SwitchSection(ReadOnlySection);
+    OutStreamer->switchSection(ReadOnlySection);
   }
 
   emitAlignment(Align(MJTI->getEntryAlignment(DL)));
