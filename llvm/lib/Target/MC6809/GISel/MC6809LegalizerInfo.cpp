@@ -122,7 +122,6 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) {
         .clampScalar(0, S8, S32);
   } else {
     getActionDefinitionsBuilder({G_ADD, G_SUB})
-        .lowerFor({S32})
         .legalFor({S8, S16})
         .clampScalar(0, S8, S16);
   }
@@ -289,8 +288,8 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
   case G_ADD:
   case G_SUB:
     return legalizeAddSub(Helper, MRI, MI);
-  }
 #endif /* 0 */
+  }
 }
 
 static bool willBeStaticallyAllocated(const MachineOperand &MO) {
