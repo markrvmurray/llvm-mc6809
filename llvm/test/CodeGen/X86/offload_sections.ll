@@ -4,7 +4,5 @@
 @llvm.embedded.object = private constant [1 x i8] c"\00", section ".llvm.offloading", align 8, !exclude !0
 @llvm.compiler.used = appending global [1 x ptr] [ptr @llvm.embedded.object], section "llvm.metadata"
 
-!0 = !{}
-
 ; CHECK-ELF: .section	.llvm.offloading,"e",@llvm_offloading
-; CHECK-COFF: .section	.llvm.offloading,"ynD"
+; CHECK-COFF: .section	.llvm.offloading,"dr"
