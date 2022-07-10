@@ -41,7 +41,7 @@ def sub_nzvc : MC6809SubRegIndex<4, 0>;
 // Least-significant bit of an 8-bit register. Writes to this are considered to
 // write zeroes to the other bits (for now), so we can reduce LSB writes to
 // zero-extension.
-def sub_lsb : MC6809SubRegIndex<1>;
+//def sub_lsb : MC6809SubRegIndex<1>;
 
 //===----------------------------------------------------------------------===//
 //  Real registers
@@ -117,12 +117,12 @@ def SU : MC6809Reg16<3,  "u" >;
 def SS : MC6809Reg16<4,  "s" >;
 def PC : MC6809Reg16<5,  "pc">;
 def AV : MC6809Reg16<7,  "v" >;
-def AA : MC6809Reg8<8,   "a", [AA_LSB], [sub_lsb]>;
-def AB : MC6809Reg8<9,   "b", [AB_LSB], [sub_lsb]>;
+def AA : MC6809Reg8<8,   "a"/*, [AA_LSB], [sub_lsb]*/>;
+def AB : MC6809Reg8<9,   "b"/*, [AB_LSB], [sub_lsb]*/>;
 def DP : MC6809Reg8<11,  "dp">;
 def A0 : MC6809Reg16<12, "0" >;
-def AE : MC6809Reg8<14,  "e", [AE_LSB], [sub_lsb]>;
-def AF : MC6809Reg8<15,  "f", [AF_LSB], [sub_lsb]>;
+def AE : MC6809Reg8<14,  "e"/*, [AE_LSB], [sub_lsb]*/>;
+def AF : MC6809Reg8<15,  "f"/*, [AF_LSB], [sub_lsb]*/>;
 
 def AD : MC6809Reg16<0,  "d", [AA, AB], [sub_hi_byte, sub_lo_byte]>;
 def AW : MC6809Reg16<6,  "w", [AE, AF], [sub_hi_byte, sub_lo_byte]>;
