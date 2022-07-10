@@ -275,6 +275,7 @@ bool MC6809InstructionSelector::selectExt(MachineInstr &MI) {
                         .addDef(MRI->createGenericVirtualRegister(S1))
                         .addImm(1)
                         .addUse(Src);
+      Instr1->addImplicitDefUseOperands(*MF);
       Register Reg1 = Instr1.getReg(0);
       auto Instr2 = Builder.buildInstr(MC6809::Load8Imm)
                         .addDef(MRI->createGenericVirtualRegister(S8))
@@ -282,6 +283,7 @@ bool MC6809InstructionSelector::selectExt(MachineInstr &MI) {
                         .addDef(MRI->createGenericVirtualRegister(S1))
                         .addDef(MRI->createGenericVirtualRegister(S1))
                         .addImm(0);
+      Instr2->addImplicitDefUseOperands(*MF);
       Register Reg2 = Instr2.getReg(0);
       auto Instr3 = Builder.buildInstr(MC6809::Sub8Reg)
                         .addDef(Dst)
@@ -290,6 +292,7 @@ bool MC6809InstructionSelector::selectExt(MachineInstr &MI) {
                         .addDef(MRI->createGenericVirtualRegister(S1))
                         .addUse(Reg2)
                         .addUse(Reg1);
+      Instr3->addImplicitDefUseOperands(*MF);
       if (!constrainSelectedInstRegOperands(*Instr3, TII, TRI, RBI))
         llvm_unreachable("Could not constrain sext s1 -> s8 instructions.");
       MI.eraseFromParent();
@@ -298,6 +301,7 @@ bool MC6809InstructionSelector::selectExt(MachineInstr &MI) {
     if (DstTy == S16) {
       assert(SrcTy == S8 && "G_SEXT Src must be S8 for Dst S16");
       auto Instr = Builder.buildInstr(MC6809::SEX16Implicit).addDef(Dst).addUse(Src);
+      Instr->addImplicitDefUseOperands(*MF);
       if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
         llvm_unreachable("Could not constrain sext s8 -> s16 instruction.");
       MI.eraseFromParent();
@@ -306,6 +310,7 @@ bool MC6809InstructionSelector::selectExt(MachineInstr &MI) {
     if (DstTy == S32) {
       assert(SrcTy == S8 && "G_SEXT Src must be S16 for Dst S32");
       auto Instr = Builder.buildInstr(MC6809::SEX32Implicit).addDef(Dst).addUse(Src);
+      Instr->addImplicitDefUseOperands(*MF);
       if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
         llvm_unreachable("Could not constrain sext s16 -> s32 instruction.");
       MI.eraseFromParent();
@@ -323,6 +328,7 @@ bool MC6809InstructionSelector::selectExt(MachineInstr &MI) {
                        .addDef(MRI->createGenericVirtualRegister(S1))
                        .addImm(1)
                        .addUse(Src);
+      Instr->addImplicitDefUseOperands(*MF);
       if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
         llvm_unreachable("Could not constrain sext s1 -> s8 instructions.");
       MI.eraseFromParent();
@@ -331,6 +337,7 @@ bool MC6809InstructionSelector::selectExt(MachineInstr &MI) {
     if (DstTy == S16) {
       assert(SrcTy == S8 && "G_ZEXT Src must be S8 for Dst S16");
       auto Instr = Builder.buildInstr(MC6809::ZEX16Implicit).addDef(Dst).addUse(Src);
+      Instr->addImplicitDefUseOperands(*MF);
       if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
         llvm_unreachable("Could not constrain sext s8 -> s16 instruction.");
       MI.eraseFromParent();
@@ -339,6 +346,7 @@ bool MC6809InstructionSelector::selectExt(MachineInstr &MI) {
     if (DstTy == S32) {
       assert(SrcTy == S8 && "G_ZEXT Src must be S16 for Dst S32");
       auto Instr = Builder.buildInstr(MC6809::ZEX32Implicit).addDef(Dst).addUse(Src);
+      Instr->addImplicitDefUseOperands(*MF);
       if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
         llvm_unreachable("Could not constrain sext s16 -> s32 instruction.");
       MI.eraseFromParent();
@@ -354,6 +362,7 @@ bool MC6809InstructionSelector::selectFrameIndex(MachineInstr &MI) {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = ";MI.dump(););
   MI.setDesc(TII.get(MC6809::LEAPtrAdd));
   MI.addOperand(MachineOperand::CreateImm(0));
+  MI.addImplicitDefUseOperands(*MF);
   bool Success = constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
   return Success;
@@ -362,6 +371,7 @@ bool MC6809InstructionSelector::selectFrameIndex(MachineInstr &MI) {
 bool MC6809InstructionSelector::selectAddr(MachineInstr &MI) {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
   MI.setDesc(TII.get(MC6809::LoadPtrImm));
+  MI.addImplicitDefUseOperands(*MF);
   bool Success = constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
   return Success;
@@ -382,12 +392,14 @@ bool MC6809InstructionSelector::selectMergeValues(MachineInstr &MI) {
     if (Size == 16) {
       uint64_t Val = HiConst->Value.getZExtValue() << 8 | LoConst->Value.getZExtValue();
       auto Instr = Builder.buildInstr(MC6809::Load16Imm, {Dst, &MC6809::ACC16RegClass}, {Val});
+      Instr->addImplicitDefUseOperands(*MF);
       if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
         return false;
       LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Instr = "; Instr->dump(););
     } else if (Size == 32) {
       uint64_t Val = HiConst->Value.getZExtValue() << 16 | LoConst->Value.getZExtValue();
       auto Instr = Builder.buildInstr(MC6809::Load32Imm, {Dst, &MC6809::ACC32RegClass}, {Val});
+      Instr->addImplicitDefUseOperands(*MF);
       if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
         return false;
       LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Instr = "; Instr->dump(););
@@ -400,6 +412,7 @@ bool MC6809InstructionSelector::selectMergeValues(MachineInstr &MI) {
     RegSeq.addUse(Lo).addImm(MC6809::sub_lo_byte).addUse(Hi).addImm(MC6809::sub_hi_byte);
   else
     RegSeq.addUse(Lo).addImm(MC6809::sub_lo_word).addUse(Hi).addImm(MC6809::sub_hi_word);
+  RegSeq->addImplicitDefUseOperands(*MF);
   constrainGenericOp(*RegSeq);
   MI.eraseFromParent();
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit Merged : RegSeq = "; RegSeq->dump(););
@@ -424,6 +437,7 @@ bool MC6809InstructionSelector::selectPtrAdd(MachineInstr &MI) {
   }
   Opcode = MC6809::LEAPtrAdd;
   MI.setDesc(TII.get(Opcode));
+  MI.addImplicitDefUseOperands(*MF);
   bool Success = constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
   return Success;
@@ -644,6 +658,7 @@ bool MC6809InstructionSelector::selectAdd(MachineInstr &MI) {
                        .addUse(Reg)
                        .addImm(Value);
     }
+    Instr->addImplicitDefUseOperands(*MF);
     if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
       llvm_unreachable("Could not constrain immediate instruction.");
     MI.eraseFromParent();
@@ -692,6 +707,7 @@ bool MC6809InstructionSelector::selectAdd(MachineInstr &MI) {
                          .addImm(0)
                          .cloneMemRefs(*Load);
       }
+      Instr->addImplicitDefUseOperands(*MF);
       if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
         llvm_unreachable("Could not constrain indexed add instruction.");
       MI.eraseFromParent();
@@ -731,6 +747,7 @@ bool MC6809InstructionSelector::selectAdd(MachineInstr &MI) {
                     .addUse(LHS)
                     .addUse(RHS);
       }
+      Instr->addImplicitDefUseOperands(*MF);
     }
     if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
       llvm_unreachable("Could not constrain register/register add instruction.");
@@ -807,6 +824,7 @@ bool MC6809InstructionSelector::selectSub(MachineInstr &MI) {
     RHSOp = 2;
   }
 
+#if 1
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Checking for possible physical register in inconvenient location for G_SUB\n";);
   if (MI.getOperand(RHSOp).isReg()) {
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Found register on RHS operand of G_SUB\n";);
@@ -814,26 +832,77 @@ bool MC6809InstructionSelector::selectSub(MachineInstr &MI) {
       LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Found COPY of register on RHS operand of G_SUB\n";);
       if (Reg1.isPhysical()) {
         LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Found COPY of physical register on RHS operand of G_SUB\n";);
+#if 1
         auto Instr1 = Builder.buildInstr(DstSize == 8 ? MC6809::PushOp8 : (DstSize == 16 ? MC6809::PushOp16 : MC6809::PushOp32))
-                          .addReg(Reg1, RegState::Kill);
-        auto Instr2 = Builder.buildInstr(DstSize == 8 ? MC6809::Sub8Pop : (DstSize == 16 ? MC6809::Sub16Pop : MC6809::Sub32Pop))
+                          .addReg(Reg1);
+        Opcode = DstSize == 8 ? MC6809::Sub8Pop : (DstSize == 16 ? MC6809::Sub16Pop : MC6809::Sub32Pop);
+        auto Instr2 = Builder.buildInstr(Opcode)
                           .addDef(Dst)
                           .addDef(BorrowOut)
                           .addDef(MRI->createGenericVirtualRegister(S1))
                           .addUse(MI.getOperand(LHSOp).getReg());
+        Instr1->addImplicitDefUseOperands(*MF);
+        Instr2->addImplicitDefUseOperands(*MF);
         if (!constrainSelectedInstRegOperands(*Instr2, TII, TRI, RBI))
           llvm_unreachable("Could not constrain evicted subtract instruction.");
         MI.eraseFromParent();
         LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Evict RHS for Sub(8|16|32)Pop : Instr1 = "; Instr1->dump(););
         LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Evict RHS for Sub(8|16|32)Pop : Instr2 = "; Instr2->dump(););
+#else
+        auto Instr = Builder.buildInstr(DstSize == 8 ? MC6809::Sub8Reg : (DstSize == 16 ? MC6809::Sub16Reg : MC6809::Sub32Reg))
+                          .addDef(Dst)
+                          .addDef(BorrowOut)
+                          .addDef(MRI->createGenericVirtualRegister(S1))
+                          .addUse(MI.getOperand(LHSOp).getReg())
+                          .addUse(MI.getOperand(RHSOp).getReg());
+        if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
+          llvm_unreachable("Could not constrain reg/reg subtract instruction.");
+        MI.eraseFromParent();
+        LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Evict RHS for Sub(8|16|32)Reg : Instr1 = "; Instr->dump(););
+#endif
         return true;
       }
     }
   }
+#endif /* 1 */
+
+  Optional<ValueAndVReg> ValReg;
+#if 1
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Checking for constant in LHS for G_SUB\n";);
+  if (mi_match(MI.getOperand(LHSOp).getReg(), *MRI, m_GCst(ValReg))) {
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Found G_CONSTANT in LHS operand of G_SUB\n";);
+#if 0
+    auto Instr1 = Builder.buildInstr(DstSize == 8 ? MC6809::PushOp8 : (DstSize == 16 ? MC6809::PushOp16 : MC6809::PushOp32))
+                      .addReg(MI.getOperand(RHSOp).getReg());
+    auto Instr2 = Builder.buildInstr(DstSize == 8 ? MC6809::Sub8Pop : (DstSize == 16 ? MC6809::Sub16Pop : MC6809::Sub32Pop))
+                      .addDef(Dst)
+                      .addDef(BorrowOut)
+                      .addDef(MRI->createGenericVirtualRegister(S1))
+                      .addUse(MI.getOperand(LHSOp).getReg());
+    if (!constrainSelectedInstRegOperands(*Instr2, TII, TRI, RBI))
+      llvm_unreachable("Could not constrain evicted subtract instruction.");
+    MI.eraseFromParent();
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Evict RHS for Sub(8|16|32)Pop : Instr1 = "; Instr1->dump(););
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Evict RHS for Sub(8|16|32)Pop : Instr2 = "; Instr2->dump(););
+#else
+    assert(ValReg->Value.getSExtValue() == 0 && "Cannot subtract from constant value");
+    auto Instr = Builder.buildInstr(DstSize == 8 ? MC6809::Neg8 : (DstSize == 16 ? MC6809::Neg16 : MC6809::Neg32))
+                      .addDef(Dst)
+                      .addDef(BorrowOut)
+                      .addDef(MRI->createGenericVirtualRegister(S1))
+                      .addUse(MI.getOperand(RHSOp).getReg());
+    Instr->addImplicitDefUseOperands(*MF);
+    if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
+      llvm_unreachable("Could not constrain const/reg subtract instruction.");
+    MI.eraseFromParent();
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Negate register : Instr1 = "; Instr->dump(););
+#endif
+    return true;
+  }
+#endif /* 1 */
 
   MachineInstrBuilder Instr;
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Trying immediate mode\n";);
-  Optional<ValueAndVReg> ValReg;
   int64_t Value;
   if (SetBorrow) {
     Success = mi_match(Dst, *MRI, m_GSSubE(m_Reg(Reg), m_GCst(ValReg), m_Reg(BorrowIn))) ||
@@ -862,6 +931,7 @@ bool MC6809InstructionSelector::selectSub(MachineInstr &MI) {
                   .addUse(Reg)
                   .addImm(Value);
     }
+    Instr->addImplicitDefUseOperands(*MF);
     if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
       llvm_unreachable("Could not constrain immediate instruction.");
     MI.eraseFromParent();
@@ -902,6 +972,7 @@ bool MC6809InstructionSelector::selectSub(MachineInstr &MI) {
                     .addImm(0)
                     .cloneMemRefs(*Load);
       }
+      Instr->addImplicitDefUseOperands(*MF);
       if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
         llvm_unreachable("Could not constrain indexed subtract instruction.");
       MI.eraseFromParent();
@@ -940,6 +1011,7 @@ bool MC6809InstructionSelector::selectSub(MachineInstr &MI) {
                     .addUse(RHS);
       }
     }
+    Instr->addImplicitDefUseOperands(*MF);
     if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
       llvm_unreachable("Could not constrain register/register subtract instruction.");
     MI.eraseFromParent();
@@ -959,6 +1031,7 @@ bool MC6809InstructionSelector::selectConstant(MachineInstr &MI) {
 
   unsigned Opcode = (DstSize == 8) ? MC6809::Load8Imm : (DstSize == 16) ? MC6809::Load16Imm : MC6809::Load32Imm;
   MI.setDesc(TII.get(Opcode));
+  MI.addImplicitDefUseOperands(*MF);
   bool Success = constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
   return Success;
@@ -983,6 +1056,7 @@ bool MC6809InstructionSelector::selectLoad(MachineInstr &MI) {
       .add(Pointer->getOperand(1))
       .addImm(0)
       .cloneMemRefs(MI);
+    Instr->addImplicitDefUseOperands(*MF);
     if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
       llvm_unreachable("Could not constrain registered indexed Load instruction.");
     MI.eraseFromParent();
@@ -990,7 +1064,7 @@ bool MC6809InstructionSelector::selectLoad(MachineInstr &MI) {
     return true;
   } else {
     MI.setDesc(TII.get(Opcode));
-    // MI.addOperand(MachineOperand::CreateImm(0));
+    MI.addImplicitDefUseOperands(*MF);
     if (!constrainSelectedInstRegOperands(MI, TII, TRI, RBI))
       llvm_unreachable("Could not constrain MemOp indexed Load instruction.");
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
@@ -1017,6 +1091,7 @@ bool MC6809InstructionSelector::selectStore(MachineInstr &MI) {
                      .add(Pointer->getOperand(1))
                      .addImm(0)
                      .cloneMemRefs(MI);
+    Instr->addImplicitDefUseOperands(*MF);
     if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
       llvm_unreachable("Could not constrain register indexed Store instruction.");
     MI.eraseFromParent();
@@ -1024,7 +1099,7 @@ bool MC6809InstructionSelector::selectStore(MachineInstr &MI) {
     return true;
   } else {
     MI.setDesc(TII.get(Opcode));
-    // MI.addOperand(MachineOperand::CreateImm(0));
+    MI.addImplicitDefUseOperands(*MF);
     if (!constrainSelectedInstRegOperands(MI, TII, TRI, RBI))
       llvm_unreachable("Could not constrain MemOp indexed Store instruction.");
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
@@ -1039,17 +1114,18 @@ bool MC6809InstructionSelector::selectTrunc(MachineInstr &MI) {
   MachineOperand &SrcOp = MI.getOperand(1);
   LLT SrcType = MRI->getType(SrcOp.getReg());
 
-  if (DstType == S1) {
+  /* if (DstType == S1) {
     assert((SrcType == S16 || SrcType == S8) && "Illegal source type for s1 destination");
     MI.setDesc(TII.get(MC6809::COPY));
     MI.getOperand(1).setSubReg(MC6809::sub_lsb);
     constrainGenericOp(MI);
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit S1 : MI = "; MI.dump(););
     return true;
-  } else if (DstType == S8) {
+  } else */ if (DstType == S8) {
     assert((SrcType == S16) && "Illegal source type for s8 destination");
     MI.setDesc(TII.get(MC6809::COPY));
     MI.getOperand(1).setSubReg(MC6809::sub_lo_byte);
+    MI.addImplicitDefUseOperands(*MF);
     constrainGenericOp(MI);
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit S8 : MI = "; MI.dump(););
     return true;
@@ -1057,6 +1133,7 @@ bool MC6809InstructionSelector::selectTrunc(MachineInstr &MI) {
     assert((SrcType == S32) && "Illegal source type for s8 destination");
     MI.setDesc(TII.get(MC6809::COPY));
     MI.getOperand(1).setSubReg(MC6809::sub_lo_word);
+    MI.addImplicitDefUseOperands(*MF);
     constrainGenericOp(MI);
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit S16 : MI = "; MI.dump(););
     return true;
@@ -1136,223 +1213,14 @@ bool MC6809InstructionSelector::selectBranch(MachineInstr &MI) {
 #endif /* 0 */
 }
 
-#if 0
-MachineInstr *
-MC6809InstructionSelector::emitCMN(MachineOperand &LHS, MachineOperand &RHS, MachineIRBuilder &MIRBuilder) const {
-  MachineRegisterInfo &MRI = MIRBuilder.getMF().getRegInfo();
-  bool Is32Bit = (MRI.getType(LHS.getReg()).getSizeInBits() == 32);
-  uint64_t CmpSize = MRI.getType(LHS).getSizeInBits();
-  unsigned Opcode = CmpSize == 8 ? MC6809::Compare8Idx : MC6809::Compare16Idx;
-  return MIRBuilder.buildInstr(Opcode, {}, {CondReg}).addImm(1);
-  return emitADDS(MRI.createVirtualRegister(RC), LHS, RHS, MIRBuilder);
-}
-
-MachineInstr *MC6809InstructionSelector::tryFoldIntegerCompare(MachineOperand &LHS, MachineOperand &RHS, MachineOperand &Predicate, MachineIRBuilder &MIRBuilder) const {
-  assert(LHS.isReg() && RHS.isReg() && Predicate.isPredicate() && "Unexpected MachineOperand");
-  MachineRegisterInfo &MRI = *MIRBuilder.getMRI();
-  // We want to find this sort of thing:
-  // x = G_SUB 0, y
-  // G_ICMP z, x
-  //
-  // In this case, we can fold the G_SUB into the G_ICMP using a CMN instead.
-  // e.g:
-  //
-  // cmn z, y
-
-  // Check if the RHS or LHS of the G_ICMP is defined by a SUB
-  MachineInstr *LHSDef = getDefIgnoringCopies(LHS.getReg(), MRI);
-  MachineInstr *RHSDef = getDefIgnoringCopies(RHS.getReg(), MRI);
-  auto P = static_cast<CmpInst::Predicate>(Predicate.getPredicate());
-  // Given this:
-  //
-  // x = G_SUB 0, y
-  // G_ICMP x, z
-  //
-  // Produce this:
-  //
-  // cmn y, z
-  if (isCMN(LHSDef, P, MRI))
-    return emitCMN(LHSDef->getOperand(2), RHS, MIRBuilder);
-
-  // Same idea here, but with the RHS of the compare instead:
-  //
-  // Given this:
-  //
-  // x = G_SUB 0, y
-  // G_ICMP z, x
-  //
-  // Produce this:
-  //
-  // cmn z, y
-  if (isCMN(RHSDef, P, MRI))
-    return emitCMN(LHS, RHSDef->getOperand(2), MIRBuilder);
-
-  // Given this:
-  //
-  // z = G_AND x, y
-  // G_ICMP z, 0
-  //
-  // Produce this if the compare is signed:
-  //
-  // tst x, y
-  if (!CmpInst::isUnsigned(P) && LHSDef &&
-      LHSDef->getOpcode() == TargetOpcode::G_AND) {
-    // Make sure that the RHS is 0.
-    auto ValAndVReg = getIConstantVRegValWithLookThrough(RHS.getReg(), MRI);
-    if (!ValAndVReg || ValAndVReg->Value != 0)
-      return nullptr;
-
-    return emitTST(LHSDef->getOperand(1),
-                   LHSDef->getOperand(2), MIRBuilder);
-  }
-
-  return nullptr;
-}
-
-bool MC6809InstructionSelector::tryOptAndIntoCompareBranch(MachineInstr &AndInst, bool Invert, MachineBasicBlock *DstMBB, MachineIRBuilder &MIB) const {
-  assert(AndInst.getOpcode() == TargetOpcode::G_AND && "Expected G_AND only?");
-  // Given something like this:
-  //
-  //  %x = ...Something...
-  //  %one = G_CONSTANT i64 1
-  //  %zero = G_CONSTANT i64 0
-  //  %and = G_AND %x, %one
-  //  %cmp = G_ICMP intpred(ne), %and, %zero
-  //  %cmp_trunc = G_TRUNC %cmp
-  //  G_BRCOND %cmp_trunc, %bb.3
-  //
-  // We want to try and fold the AND into the G_BRCOND and produce either a
-  // TBNZ (when we have intpred(ne)) or a TBZ (when we have intpred(eq)).
-  //
-  // In this case, we'd get
-  //
-  // TBNZ %x %bb.3
-  //
-
-  // Check if the AND has a constant on its RHS which we can use as a mask.
-  // If it's a power of 2, then it's the same as checking a specific bit.
-  // (e.g, ANDing with 8 == ANDing with 000...100 == testing if bit 3 is set)
-  auto MaybeBit = getIConstantVRegValWithLookThrough(
-      AndInst.getOperand(2).getReg(), *MIB.getMRI());
-  if (!MaybeBit)
-    return false;
-
-  int32_t Bit = MaybeBit->Value.exactLogBase2();
-  if (Bit < 0)
-    return false;
-
-  Register TestReg = AndInst.getOperand(1).getReg();
-
-  // Emit a TB(N)Z.
-  emitTestBit(TestReg, Bit, Invert, DstMBB, MIB);
-  return true;
-}
-
-bool MC6809InstructionSelector::tryOptCompareBranchFedByICmp(MachineInstr &MI, MachineInstr &ICmp, MachineIRBuilder &MIB) const {
-  assert(ICmp.getOpcode() == TargetOpcode::G_ICMP);
-  assert(MI.getOpcode() == TargetOpcode::G_BRCOND);
-  MachineRegisterInfo &MRI = *MIB.getMRI();
-  MachineBasicBlock *DestMBB = MI.getOperand(1).getMBB();
-  auto Pred = static_cast<CmpInst::Predicate>(ICmp.getOperand(1).getPredicate());
-  Register LHS = ICmp.getOperand(2).getReg();
-  Register RHS = ICmp.getOperand(3).getReg();
-
-  // We're allowed to emit a TB(N)Z/CB(N)Z. Try to do that.
-  auto VRegAndVal = getIConstantVRegValWithLookThrough(RHS, MRI);
-  MachineInstr *AndInst = getOpcodeDef(TargetOpcode::G_AND, LHS, MRI);
-
-  // When we can emit a TB(N)Z, prefer that.
-  //
-  // Handle non-commutative condition codes first.
-  // Note that we don't want to do this when we have a G_AND because it can
-  // become a tst. The tst will make the test bit in the TB(N)Z redundant.
-  if (VRegAndVal && !AndInst) {
-    int64_t C = VRegAndVal->Value.getSExtValue();
-
-    // When we have a greater-than comparison, we can just test if the msb is
-    // zero.
-    if (C == -1 && Pred == CmpInst::ICMP_SGT) {
-      uint64_t Bit = MRI.getType(LHS).getSizeInBits() - 1;
-      emitTestBit(LHS, Bit, /*IsNegative = */ false, DestMBB, MIB);
-      MI.eraseFromParent();
-      return true;
-    }
-
-    // When we have a less than comparison, we can just test if the msb is not
-    // zero.
-    if (C == 0 && Pred == CmpInst::ICMP_SLT) {
-      uint64_t Bit = MRI.getType(LHS).getSizeInBits() - 1;
-      emitTestBit(LHS, Bit, /*IsNegative = */ true, DestMBB, MIB);
-      MI.eraseFromParent();
-      return true;
-    }
-  }
-
-  // Attempt to handle commutative condition codes. Right now, that's only
-  // eq/ne.
-  if (ICmpInst::isEquality(Pred)) {
-    if (!VRegAndVal) {
-      std::swap(RHS, LHS);
-      VRegAndVal = getIConstantVRegValWithLookThrough(RHS, MRI);
-      AndInst = getOpcodeDef(TargetOpcode::G_AND, LHS, MRI);
-    }
-
-    if (VRegAndVal && VRegAndVal->Value == 0) {
-      // If there's a G_AND feeding into this branch, try to fold it away by
-      // emitting a TB(N)Z instead.
-      //
-      // Note: If we have LT, then it *is* possible to fold, but it wouldn't be
-      // beneficial. When we have an AND and LT, we need a TST/ANDS, so folding
-      // would be redundant.
-      if (AndInst &&
-          tryOptAndIntoCompareBranch( *AndInst, /*Invert = */ Pred == CmpInst::ICMP_NE, DestMBB, MIB)) {
-        MI.eraseFromParent();
-        return true;
-      }
-
-      // Otherwise, try to emit a CB(N)Z instead.
-      auto LHSTy = MRI.getType(LHS);
-      if (!LHSTy.isVector() && LHSTy.getSizeInBits() <= 64) {
-        emitCBZ(LHS, /*IsNegative = */ Pred == CmpInst::ICMP_NE, DestMBB, MIB);
-        MI.eraseFromParent();
-        return true;
-      }
-    }
-  }
-
-  return false;
-}
-#endif /* 0 */
-
-#if 0
-MachineInstr *MC6809InstructionSelector::emitIntegerCompare(MachineOperand &LHS, MachineOperand &RHS, MachineOperand &Predicate, MachineIRBuilder &MIB) const {
-  assert(LHS.isReg() && RHS.isReg() && "Expected LHS and RHS to be registers!");
-  assert(Predicate.isPredicate() && "Expected predicate?");
-  MachineRegisterInfo &MRI = MIB.getMF().getRegInfo();
-  LLT CmpTy = MRI.getType(LHS.getReg());
-  unsigned Size = CmpTy.getSizeInBits();
-  (void)Size;
-  assert((Size == 8 || Size == 16) && "Expected a 8-bit or 16-bit LHS/RHS?");
-  // Fold the compare into a cmn or tst if possible.
-  if (auto FoldCmp = tryFoldIntegerCompare(LHS, RHS, Predicate, MIRBuilder))
-    return FoldCmp;
-       unsigned Opcode = Size == 8 ? MC6809::Compare8
-  MIB.buildInstr(MC6809::J, {}, {}).addImm(CC).addMBB(DestMBB);
-  auto Dst = MRI.cloneVirtualRegister(LHS.getReg());
-  return emitSUBS(Dst, LHS, RHS, MIB);
-}
-#endif /* 0 */
-
 MachineInstr *MC6809InstructionSelector::emitIntegerCompare(MachineOperand &LHS, MachineOperand &RHS, MachineOperand &Predicate, MachineIRBuilder &Builder) const {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : LHS = "; LHS.dump(););
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : RHS = "; RHS.dump(););
 
   LLT CMPTy = MRI->getType(LHS.getReg());
   const auto CMPSize = CMPTy.getSizeInBits();
-  bool Invert, Success;
-  MachineInstrBuilder Instr;
   MachineInstr *Load;
-  Register Reg, Reg1;
+  Register Reg1;
   unsigned Opcode = 0;
 
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Checking for possible physical register in inconvenient location for G_ICMP\n";);
@@ -1380,6 +1248,7 @@ MachineInstr *MC6809InstructionSelector::emitIntegerCompare(MachineOperand &LHS,
     auto Instr = Builder.buildInstr(Opcode)
                 .addUse(LHS.getReg())
                 .addImm(Value);
+    Instr->addImplicitDefUseOperands(*MF);
     return Instr;
   }
 
@@ -1393,6 +1262,7 @@ MachineInstr *MC6809InstructionSelector::emitIntegerCompare(MachineOperand &LHS,
                        .add(Load->getOperand(1)) // Index
                        .add(Load->getOperand(2)) // Offset
                        .cloneMemRefs(*Load);
+      Instr->addImplicitDefUseOperands(*MF);
       return Instr;
     }
     if (Load->getOpcode() == MC6809::G_LOAD) {
@@ -1401,6 +1271,7 @@ MachineInstr *MC6809InstructionSelector::emitIntegerCompare(MachineOperand &LHS,
                        .add(Load->getOperand(1)) // Index
                        .addImm(0) // Offset
                        .cloneMemRefs(*Load);
+      Instr->addImplicitDefUseOperands(*MF);
       return Instr;
     }
   }
@@ -1438,11 +1309,6 @@ bool MC6809InstructionSelector::selectCompareBranchFedByICmp(MachineInstr &MI, M
   assert(ICmp.getOpcode() == TargetOpcode::G_ICMP);
   assert(MI.getOpcode() == TargetOpcode::G_BRCOND);
 
-#if 0
-  if (tryOptCompareBranchFedByICmp(MI, ICmp, MIB))
-    return true;
-#endif
-
   // Couldn't optimize. Emit a compare + a Bcc.
   MachineBasicBlock *DestMBB = MI.getOperand(1).getMBB();
   auto PredOp = ICmp.getOperand(1);
@@ -1450,7 +1316,8 @@ bool MC6809InstructionSelector::selectCompareBranchFedByICmp(MachineInstr &MI, M
   if (!CMP || !constrainSelectedInstRegOperands(*CMP, TII, TRI, RBI))
     llvm_unreachable("Could not constrain conditional branch instruction.");
   const MC6809CC::CondCode CC = changeICMPPredToMC6809CC(static_cast<CmpInst::Predicate>(PredOp.getPredicate()));
-  MIB.buildInstr(MC6809::JumpConditionalRelative, {}, {}).addImm(CC).addMBB(DestMBB);
+  auto Jump = MIB.buildInstr(MC6809::JumpConditionalRelative, {}, {}).addImm(CC).addMBB(DestMBB);
+  Jump->addImplicitDefUseOperands(*MF);
   MI.eraseFromParent();
   return true;
 }
@@ -1479,6 +1346,7 @@ bool MC6809InstructionSelector::selectConditionalBranch(MachineInstr &MI, Machin
   auto Bcc = Builder.buildInstr(MC6809::JumpConditionalRelative)
                  .addImm(MC6809CC::NE) // Not Equal to zero == one
                  .addMBB(MI.getOperand(1).getMBB());
+  Bcc->addImplicitDefUseOperands(MF);
   MI.eraseFromParent();
   if (!constrainSelectedInstRegOperands(*Bcc, TII, TRI, RBI))
     llvm_unreachable("Could not constrain conditional branch instruction.");

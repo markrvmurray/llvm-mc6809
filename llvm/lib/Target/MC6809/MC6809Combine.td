@@ -77,7 +77,7 @@ def swap_physreg_to_lhs : GICombineRule<
 //  %13:accum(s8) = G_SUB %12:accum, %10:accum
 def switch_add_to_subtract_matchdata : GIDefMatchData<"MachineInstr *">;
 def switch_add_to_subtract : GICombineRule<
-  (defs root:$root, swap_physreg_to_lhs_matchdata:$matchinfo),
+  (defs root:$root, switch_add_to_subtract_matchdata:$matchinfo),
   (match (wip_match_opcode G_SUB):$root,
     [{ return matchSwitchAddToSubtract(*${root}, MRI, ${matchinfo}); }]),
   (apply [{ return applySwitchAddToSubtract(*${root}, MRI, B, Observer, ${matchinfo});}])

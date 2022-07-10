@@ -688,7 +688,7 @@ void MC6809InstrInfo::copyPhysRegImpl(MachineIRBuilder &Builder, Register DestRe
   } else if (AreClasses(MC6809::ACC16RegClass, MC6809::ACC16RegClass) || AreClasses(MC6809::ACC16RegClass, MC6809::INDEX16RegClass) ||
              AreClasses(MC6809::INDEX16RegClass, MC6809::ACC16RegClass) || AreClasses(MC6809::INDEX16RegClass, MC6809::INDEX16RegClass)) {
     Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(SrcReg);
-  } else if (AreClasses(MC6809::BIT1RegClass, MC6809::BIT1RegClass)) {
+  } /* else if (AreClasses(MC6809::BIT1RegClass, MC6809::BIT1RegClass)) {
     assert(SrcReg.isPhysical() && DestReg.isPhysical());
     const MC6809RegisterInfo *TRI = STI.getRegisterInfo();
     Register SrcReg8 = TRI->getMatchingSuperReg(SrcReg, MC6809::sub_lsb, &MC6809::ACC8RegClass);
@@ -700,7 +700,7 @@ void MC6809InstrInfo::copyPhysRegImpl(MachineIRBuilder &Builder, Register DestRe
     // part of it.
     assert(!MI.readsRegister(DestReg8));
     copyPhysRegImpl(Builder, DestReg8, SrcReg8);
-  } else
+  } */ else
     llvm_unreachable("Unexpected physical register copy.");
 }
 
@@ -804,6 +804,11 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   switch (MI.getOpcode()) {
   default:
     Changed = false;
+    break;
+  case MC6809::Neg8:
+  case MC6809::Neg16:
+  case MC6809::Neg32:
+    expandNegate(Builder, MI);
     break;
   case MC6809::CallRelative:
     expandCallRelative(Builder, MI);
@@ -1013,7 +1018,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     break;
   }
   }
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Changed = " << Changed << "\n";);
   return Changed;
 }
 
@@ -1069,6 +1074,63 @@ void MC6809InstrInfo::expandLEAPtrAdd(MachineIRBuilder &Builder, MachineInstr &M
     llvm_unreachable("Unknown offset type for LEAPtrAdd");
   MI.removeOperand(1);
   MI.addOperand(IndexOp);
+  MI.addImplicitDefUseOperands(*MI.getMF());
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
+}
+
+
+void MC6809InstrInfo::expandNegate(MachineIRBuilder &Builder, MachineInstr &MI) const {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
+  switch (MI.getOperand(0).getReg()) {
+  default:
+    llvm_unreachable("Illegal register for Neg(1|16|32)");
+  case MC6809::AA:
+    MI.setDesc(Builder.getTII().get(MC6809::NEGAa));
+    MI.removeOperand(3);
+    MI.removeOperand(2);
+    MI.removeOperand(1);
+    MI.removeOperand(0);
+    MI.addImplicitDefUseOperands(*MI.getMF());
+    break;
+  case MC6809::AB:
+    MI.setDesc(Builder.getTII().get(MC6809::NEGBa));
+    MI.removeOperand(3);
+    MI.removeOperand(2);
+    MI.removeOperand(1);
+    MI.removeOperand(0);
+    MI.addImplicitDefUseOperands(*MI.getMF());
+    break;
+  case MC6809::AD:
+    MI.setDesc(Builder.getTII().get(MC6809::NEGDa));
+    MI.removeOperand(3);
+    MI.removeOperand(2);
+    MI.removeOperand(1);
+    MI.removeOperand(0);
+    MI.addImplicitDefUseOperands(*MI.getMF());
+    break;
+  case MC6809::AE:
+    Builder.buildInstr(MC6809::COMEa)->addImplicitDefUseOperands(*MI.getMF());
+    Builder.buildInstr(MC6809::ADCRp).addDef(MC6809::AE).addUse(MC6809::A0).addUse(MC6809::AE)->addImplicitDefUseOperands(*MI.getMF());
+    MI.eraseFromParent();
+    break;
+  case MC6809::AF:
+    Builder.buildInstr(MC6809::COMFa)->addImplicitDefUseOperands(*MI.getMF());
+    Builder.buildInstr(MC6809::ADCRp).addDef(MC6809::AF).addUse(MC6809::A0).addUse(MC6809::AF)->addImplicitDefUseOperands(*MI.getMF());
+    MI.eraseFromParent();
+    break;
+  case MC6809::AW:
+    Builder.buildInstr(MC6809::COMWa)->addImplicitDefUseOperands(*MI.getMF());
+    Builder.buildInstr(MC6809::ADCRp).addDef(MC6809::AW).addUse(MC6809::A0).addUse(MC6809::AW)->addImplicitDefUseOperands(*MI.getMF());
+    MI.eraseFromParent();
+    break;
+  case MC6809::AQ:
+    Builder.buildInstr(MC6809::COMDa)->addImplicitDefUseOperands(*MI.getMF());
+    Builder.buildInstr(MC6809::COMWa)->addImplicitDefUseOperands(*MI.getMF());
+    Builder.buildInstr(MC6809::ADCRp).addDef(MC6809::AW).addUse(MC6809::A0).addUse(MC6809::AW)->addImplicitDefUseOperands(*MI.getMF());
+    Builder.buildInstr(MC6809::ADCRp).addDef(MC6809::AD).addUse(MC6809::A0).addUse(MC6809::AD)->addImplicitDefUseOperands(*MI.getMF());
+    MI.eraseFromParent();
+    break;
+  }
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
 }
 
@@ -1079,6 +1141,7 @@ void MC6809InstrInfo::expandLoadImm(MachineIRBuilder &Builder, MachineInstr &MI)
   if (OpcodePair == LoadImmediateOpcode.end())
     llvm_unreachable("Unexpected LoadImm register.");
   MI.setDesc(Builder.getTII().get(OpcodePair->getSecond()));
+  MI.addImplicitDefUseOperands(*MI.getMF());
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
 }
 
@@ -1160,6 +1223,7 @@ void MC6809InstrInfo::expandAddImm(MachineIRBuilder &Builder, MachineInstr &MI) 
   MI.removeOperand(2);
   MI.removeOperand(1);
   MI.removeOperand(0);
+  MI.addImplicitDefUseOperands(*MI.getMF());
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
 }
 
@@ -1175,6 +1239,7 @@ void MC6809InstrInfo::expandAddCarryImm(MachineIRBuilder &Builder, MachineInstr 
   MI.removeOperand(2);
   MI.removeOperand(1);
   MI.removeOperand(0);
+  MI.addImplicitDefUseOperands(*MI.getMF());
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
 }
 
@@ -1207,7 +1272,7 @@ void MC6809InstrInfo::expandSubReg(MachineIRBuilder &Builder, MachineInstr &MI) 
   MachineOperand DstOp = MI.getOperand(3);
   MachineOperand SrcOp = MI.getOperand(WithCarry ? 5 : 4);
 
-  Opcode = WithCarry ? MC6809::ADCRp : MC6809::ADDRp;
+  Opcode = WithCarry ? MC6809::SBCRp : MC6809::SUBRp;
   MI.setDesc(Builder.getTII().get(Opcode));
   MI.removeOperand(5);
   if (WithCarry)
@@ -1506,6 +1571,9 @@ void MC6809InstrInfo::expandSub32Pop(MachineIRBuilder &Builder, MachineInstr &MI
                    .addDef(MC6809::SS)
                    .addImm(4)
                    .addUse(MC6809::SS);
+  SubLo->addImplicitDefUseOperands(*MI.getMF());
+  SubHi->addImplicitDefUseOperands(*MI.getMF());
+  Pop->addImplicitDefUseOperands(*MI.getMF());
   MI.eraseFromParent();
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : SubLo = "; SubLo->dump(););
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : SubHi = "; SubHi->dump(););
@@ -1557,6 +1625,7 @@ void MC6809InstrInfo::expandSubIdx(MachineIRBuilder &Builder, MachineInstr &MI) 
   MI.removeOperand(1);
   MI.removeOperand(0);
   MI.addOperand(IndexOp);
+  MI.addImplicitDefUseOperands(*MI.getMF());
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
 }
 
@@ -1589,6 +1658,7 @@ void MC6809InstrInfo::expandSubBorrowIdx(MachineIRBuilder &Builder, MachineInstr
   MI.removeOperand(1);
   MI.removeOperand(0);
   MI.addOperand(IndexOp);
+  MI.addImplicitDefUseOperands(*MI.getMF());
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
 }
 
@@ -1629,6 +1699,7 @@ void MC6809InstrInfo::expandCompareIdx(MachineIRBuilder &Builder, MachineInstr &
     llvm_unreachable("Unknown offset type for CompareIdx");
   MI.removeOperand(0);
   MI.addOperand(IndexOp);
+  MI.addImplicitDefUseOperands(*MI.getMF());
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
 }
 

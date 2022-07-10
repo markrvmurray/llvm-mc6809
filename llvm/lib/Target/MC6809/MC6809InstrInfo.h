@@ -169,6 +169,8 @@ private:
   // void expandIncDec(MachineIRBuilder &Builder) const;
   void expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI) const;
 
+  void expandNegate(MachineIRBuilder &Builder, MachineInstr &MI) const;
+
   void expandAddReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandAddImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandAddIdx(MachineIRBuilder &Builder, MachineInstr &MI) const;

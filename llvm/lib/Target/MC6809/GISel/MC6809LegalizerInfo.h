@@ -41,6 +41,8 @@ private:
 
   // Memory Operations
   bool legalizeAddSub(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI) const;
+  bool legalizeSubO(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI) const;
+  bool legalizeSubE(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI) const;
 };
 
 } // namespace llvm
