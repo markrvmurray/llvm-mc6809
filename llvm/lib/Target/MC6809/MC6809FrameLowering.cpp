@@ -160,6 +160,7 @@ void MC6809FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &M
 
 // FIXME: Can we eleminate these in favour of generic code?
 bool MC6809FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, ArrayRef<CalleeSavedInfo> CSI, const TargetRegisterInfo *TRI) const {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter\n";);
   if (CSI.empty())
     return false;
 
@@ -197,6 +198,7 @@ bool MC6809FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB, Mach
     }
     BuildMI(MBB, MI, DL, TII.get(Opcode)).addUse(Reg, RegState::Kill);
   }
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit\n";);
   return true;
 }
 

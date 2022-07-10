@@ -196,7 +196,7 @@ copyCost(Register DestReg, Register SrcReg, const MC6809Subtarget &STI) {
     if (AreClasses(MC6809::AWcRegClass, MC6809::AQcRegClass))
       return 0;
     return 1;
-  } else if (AreClasses(MC6809::BIT1RegClass, MC6809::BIT1RegClass)) {
+  } /* else if (AreClasses(MC6809::BIT1RegClass, MC6809::BIT1RegClass)) {
     Register SrcReg8 = TRI.getMatchingSuperReg(SrcReg, MC6809::sub_lsb, &MC6809::ACC8RegClass);
     Register DestReg8 = TRI.getMatchingSuperReg(DestReg, MC6809::sub_lsb, &MC6809::ACC8RegClass);
     int Cost;
@@ -226,7 +226,7 @@ copyCost(Register DestReg, Register SrcReg, const MC6809Subtarget &STI) {
         Cost += copyCost(DestReg, Tmp, STI);
     }
     return Cost;
-  }
+  } */
 
   llvm_unreachable("Unexpected physical register copy.");
 }

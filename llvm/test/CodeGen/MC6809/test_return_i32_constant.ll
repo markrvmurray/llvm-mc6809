@@ -6,8 +6,9 @@ target triple = "mc6809"
 define i32 @foo() {
 ; CHECK-LABEL: foo:
 ; CHECK:       ; %bb.0: ; %entry
+; CHECK-NEXT:    ldd #188
+; CHECK-NEXT:    std ,s
 ; CHECK-NEXT:    ldd #24910
-; CHECK-NEXT:    ldx #188
 ; CHECK-NEXT:    rts
 ;
 ; CHECK-HD6309-LABEL: foo:

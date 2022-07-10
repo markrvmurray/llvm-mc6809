@@ -31,7 +31,9 @@ class MC6809LoadBase<RegisterClass dst, dag operand> : MC6809LogicalInstr {
 }
 
 multiclass MC6809Load<RegisterClass dst> {
-  def Imm : MC6809LoadBase<dst, (ins i16imm:$imm)>;
+  let isAsCheapAsAMove = true, isMoveImm = true, isReMaterializable = true in {
+    def Imm : MC6809LoadBase<dst, (ins i16imm:$imm)>;
+  }
   def Abs : MC6809LoadBase<dst, (ins addr16:$addr)>;
   def Idx : MC6809LoadBase<dst, (ins INDEX16:$idx, unknown:$offset)>;
   def Indir : MC6809LoadBase<dst, (ins INDEX16:$idx, unknown:$offset)>;
@@ -82,6 +84,22 @@ class MC6809Exchange<RegisterClass reg> : MC6809LogicalInstr {
 
 def Exchange8 : MC6809Exchange<REGPAIR8>;
 def Exchange16 : MC6809Exchange<REGPAIR16>;
+
+//===---------------------------------------------------------------------===//
+// In-register operations without operands
+//===---------------------------------------------------------------------===//
+class MC6809RegisterOp<RegisterClass reg> : MC6809LogicalInstr {
+  dag OutOperandList = (outs reg:$dst);
+  dag InOperandList = (ins reg:$src);
+}
+
+def Complement8 : MC6809RegisterOp<ACC8>;
+def Complement16 : MC6809RegisterOp<ACC16>;
+def Complement32 : MC6809RegisterOp<ACC32>;
+
+def Negate8 : MC6809RegisterOp<ACC8>;
+def Negate16 : MC6809RegisterOp<ACC16>;
+def Negate32 : MC6809RegisterOp<ACC32>;
 
 //===---------------------------------------------------------------------===//
 // Arithmetic base classes
@@ -238,6 +256,19 @@ multiclass MC6809Bit<RegisterClass dst> {
 defm Bit8 : MC6809Bit<ACC8>;
 
 //===---------------------------------------------------------------------===//
+// Operandless Accumulator Instructions
+//===---------------------------------------------------------------------===//
+class MC6809Accumulator<RegisterClass reg> : MC6809LogicalInstr {
+  let Defs = [NZ];
+  dag OutOperandList = (outs reg:$dst, Cc:$carryout, Vc:$overflow);
+  dag InOperandList = (ins reg:$src);
+}
+
+def Neg8 : MC6809Accumulator<ACC8>;
+def Neg16 : MC6809Accumulator<ACC16>;
+def Neg32 : MC6809Accumulator<ACC32>;
+
+//===---------------------------------------------------------------------===//
 // Control Flow Instructions
 //===---------------------------------------------------------------------===//
 
@@ -267,11 +298,13 @@ def JumpIndir : MC6809Branch {
 
 def CallRelative : MC6809Branch {
   let isCall = true;
+  let isTerminator = false;
   dag InOperandList = (ins label:$tgt);
 }
 
 def CallIndir : MC6809Branch {
   let isCall = true;
+  let isTerminator = false;
   let isIndirectBranch = true;
   let InOperandList = (ins INDEX16:$tgt);
 }

@@ -46,10 +46,10 @@ public:
 };
 
 bool MC6809PostRAScavenging::runOnMachineFunction(MachineFunction &MF) {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MC6809PostRAScavenging : MF = "; MF.dump(););
   const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
 
-  if (MF.getProperties().hasProperty(
-          MachineFunctionProperties::Property::NoVRegs))
+  if (MF.getProperties().hasProperty(MachineFunctionProperties::Property::NoVRegs))
     return false;
 
   // Protect NZ from the scavenger by bundling.
@@ -81,6 +81,7 @@ bool MC6809PostRAScavenging::runOnMachineFunction(MachineFunction &MF) {
             MO.setIsInternalRead(false);
       }
 
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MC6809PostRAScavenging : MF = "; MF.dump(););
   return true;
 }
 

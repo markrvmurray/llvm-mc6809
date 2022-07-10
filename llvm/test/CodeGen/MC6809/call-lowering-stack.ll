@@ -6,40 +6,43 @@ target triple = "mc6809"
 define i8 @args_i8(i8 %x0, i8 %x1, i8 %x2, i8 %x3,
   ; CHECK-MC6809-LABEL: name: args_i8
   ; CHECK-MC6809: bb.1 (%ir-block.0):
-  ; CHECK-MC6809-NEXT:   liveins: $aa, $ab
+  ; CHECK-MC6809-NEXT:   liveins: $ab
   ; CHECK-MC6809-NEXT: {{  $}}
   ; CHECK-MC6809-NEXT:   [[COPY:%[0-9]+]]:_(s8) = COPY $ab
-  ; CHECK-MC6809-NEXT:   [[COPY1:%[0-9]+]]:_(s8) = COPY $aa
-  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.5
-  ; CHECK-MC6809-NEXT:   [[LOAD:%[0-9]+]]:_(s8) = G_LOAD [[FRAME_INDEX]](p0) :: (invariant load (s8) from %fixed-stack.5, align 2)
-  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX1:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.4
-  ; CHECK-MC6809-NEXT:   [[LOAD1:%[0-9]+]]:_(s8) = G_LOAD [[FRAME_INDEX1]](p0) :: (invariant load (s8) from %fixed-stack.4)
-  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX2:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.3
-  ; CHECK-MC6809-NEXT:   [[LOAD2:%[0-9]+]]:_(s8) = G_LOAD [[FRAME_INDEX2]](p0) :: (invariant load (s8) from %fixed-stack.3, align 2)
-  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX3:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.2
-  ; CHECK-MC6809-NEXT:   [[LOAD3:%[0-9]+]]:_(s8) = G_LOAD [[FRAME_INDEX3]](p0) :: (invariant load (s8) from %fixed-stack.2)
-  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX4:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.1
-  ; CHECK-MC6809-NEXT:   [[LOAD4:%[0-9]+]]:_(s8) = G_LOAD [[FRAME_INDEX4]](p0) :: (invariant load (s8) from %fixed-stack.1, align 2)
-  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX5:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.0
-  ; CHECK-MC6809-NEXT:   [[LOAD5:%[0-9]+]]:_(s8) = G_LOAD [[FRAME_INDEX5]](p0) :: (invariant load (s8) from %fixed-stack.0)
+  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.6
+  ; CHECK-MC6809-NEXT:   [[LOAD:%[0-9]+]]:_(s8) = G_LOAD [[FRAME_INDEX]](p0) :: (invariant load (s8) from %fixed-stack.6, align 2)
+  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX1:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.5
+  ; CHECK-MC6809-NEXT:   [[LOAD1:%[0-9]+]]:_(s8) = G_LOAD [[FRAME_INDEX1]](p0) :: (invariant load (s8) from %fixed-stack.5)
+  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX2:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.4
+  ; CHECK-MC6809-NEXT:   [[LOAD2:%[0-9]+]]:_(s8) = G_LOAD [[FRAME_INDEX2]](p0) :: (invariant load (s8) from %fixed-stack.4, align 2)
+  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX3:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.3
+  ; CHECK-MC6809-NEXT:   [[LOAD3:%[0-9]+]]:_(s8) = G_LOAD [[FRAME_INDEX3]](p0) :: (invariant load (s8) from %fixed-stack.3)
+  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX4:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.2
+  ; CHECK-MC6809-NEXT:   [[LOAD4:%[0-9]+]]:_(s8) = G_LOAD [[FRAME_INDEX4]](p0) :: (invariant load (s8) from %fixed-stack.2, align 2)
+  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX5:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.1
+  ; CHECK-MC6809-NEXT:   [[LOAD5:%[0-9]+]]:_(s8) = G_LOAD [[FRAME_INDEX5]](p0) :: (invariant load (s8) from %fixed-stack.1)
+  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX6:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.0
+  ; CHECK-MC6809-NEXT:   [[LOAD6:%[0-9]+]]:_(s8) = G_LOAD [[FRAME_INDEX6]](p0) :: (invariant load (s8) from %fixed-stack.0, align 2)
   ; CHECK-MC6809-NEXT:   $ab = COPY [[COPY]](s8)
   ; CHECK-MC6809-NEXT:   ReturnImplicit implicit $ab
   ; CHECK-HD6309-LABEL: name: args_i8
   ; CHECK-HD6309: bb.1 (%ir-block.0):
-  ; CHECK-HD6309-NEXT:   liveins: $aa, $ab, $ae, $af
+  ; CHECK-HD6309-NEXT:   liveins: $ab, $af
   ; CHECK-HD6309-NEXT: {{  $}}
   ; CHECK-HD6309-NEXT:   [[COPY:%[0-9]+]]:_(s8) = COPY $ab
-  ; CHECK-HD6309-NEXT:   [[COPY1:%[0-9]+]]:_(s8) = COPY $aa
-  ; CHECK-HD6309-NEXT:   [[COPY2:%[0-9]+]]:_(s8) = COPY $af
-  ; CHECK-HD6309-NEXT:   [[COPY3:%[0-9]+]]:_(s8) = COPY $ae
-  ; CHECK-HD6309-NEXT:   [[FRAME_INDEX:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.3
-  ; CHECK-HD6309-NEXT:   [[LOAD:%[0-9]+]]:_(s8) = G_LOAD [[FRAME_INDEX]](p0) :: (invariant load (s8) from %fixed-stack.3, align 2)
-  ; CHECK-HD6309-NEXT:   [[FRAME_INDEX1:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.2
-  ; CHECK-HD6309-NEXT:   [[LOAD1:%[0-9]+]]:_(s8) = G_LOAD [[FRAME_INDEX1]](p0) :: (invariant load (s8) from %fixed-stack.2)
-  ; CHECK-HD6309-NEXT:   [[FRAME_INDEX2:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.1
-  ; CHECK-HD6309-NEXT:   [[LOAD2:%[0-9]+]]:_(s8) = G_LOAD [[FRAME_INDEX2]](p0) :: (invariant load (s8) from %fixed-stack.1, align 2)
-  ; CHECK-HD6309-NEXT:   [[FRAME_INDEX3:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.0
-  ; CHECK-HD6309-NEXT:   [[LOAD3:%[0-9]+]]:_(s8) = G_LOAD [[FRAME_INDEX3]](p0) :: (invariant load (s8) from %fixed-stack.0)
+  ; CHECK-HD6309-NEXT:   [[COPY1:%[0-9]+]]:_(s8) = COPY $af
+  ; CHECK-HD6309-NEXT:   [[FRAME_INDEX:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.5
+  ; CHECK-HD6309-NEXT:   [[LOAD:%[0-9]+]]:_(s8) = G_LOAD [[FRAME_INDEX]](p0) :: (invariant load (s8) from %fixed-stack.5, align 2)
+  ; CHECK-HD6309-NEXT:   [[FRAME_INDEX1:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.4
+  ; CHECK-HD6309-NEXT:   [[LOAD1:%[0-9]+]]:_(s8) = G_LOAD [[FRAME_INDEX1]](p0) :: (invariant load (s8) from %fixed-stack.4)
+  ; CHECK-HD6309-NEXT:   [[FRAME_INDEX2:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.3
+  ; CHECK-HD6309-NEXT:   [[LOAD2:%[0-9]+]]:_(s8) = G_LOAD [[FRAME_INDEX2]](p0) :: (invariant load (s8) from %fixed-stack.3, align 2)
+  ; CHECK-HD6309-NEXT:   [[FRAME_INDEX3:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.2
+  ; CHECK-HD6309-NEXT:   [[LOAD3:%[0-9]+]]:_(s8) = G_LOAD [[FRAME_INDEX3]](p0) :: (invariant load (s8) from %fixed-stack.2)
+  ; CHECK-HD6309-NEXT:   [[FRAME_INDEX4:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.1
+  ; CHECK-HD6309-NEXT:   [[LOAD4:%[0-9]+]]:_(s8) = G_LOAD [[FRAME_INDEX4]](p0) :: (invariant load (s8) from %fixed-stack.1, align 2)
+  ; CHECK-HD6309-NEXT:   [[FRAME_INDEX5:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.0
+  ; CHECK-HD6309-NEXT:   [[LOAD5:%[0-9]+]]:_(s8) = G_LOAD [[FRAME_INDEX5]](p0) :: (invariant load (s8) from %fixed-stack.0)
   ; CHECK-HD6309-NEXT:   $ab = COPY [[COPY]](s8)
   ; CHECK-HD6309-NEXT:   ReturnImplicit implicit $ab
                      i8 %x4, i8 %x5, i8 %x6, i8 %x7) {
@@ -49,39 +52,43 @@ define i8 @args_i8(i8 %x0, i8 %x1, i8 %x2, i8 %x3,
 define i16 @args_i16(i16 %w0, i16 %w1, i16 %w2, i16 %w3,
   ; CHECK-MC6809-LABEL: name: args_i16
   ; CHECK-MC6809: bb.1 (%ir-block.0):
-  ; CHECK-MC6809-NEXT:   liveins: $ad, $ix, $iy
+  ; CHECK-MC6809-NEXT:   liveins: $ad
   ; CHECK-MC6809-NEXT: {{  $}}
   ; CHECK-MC6809-NEXT:   [[COPY:%[0-9]+]]:_(s16) = COPY $ad
-  ; CHECK-MC6809-NEXT:   [[COPY1:%[0-9]+]]:_(s16) = COPY $ix
-  ; CHECK-MC6809-NEXT:   [[COPY2:%[0-9]+]]:_(s16) = COPY $iy
-  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.4
-  ; CHECK-MC6809-NEXT:   [[LOAD:%[0-9]+]]:_(s16) = G_LOAD [[FRAME_INDEX]](p0) :: (invariant load (s16) from %fixed-stack.4)
-  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX1:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.3
-  ; CHECK-MC6809-NEXT:   [[LOAD1:%[0-9]+]]:_(s16) = G_LOAD [[FRAME_INDEX1]](p0) :: (invariant load (s16) from %fixed-stack.3)
-  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX2:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.2
-  ; CHECK-MC6809-NEXT:   [[LOAD2:%[0-9]+]]:_(s16) = G_LOAD [[FRAME_INDEX2]](p0) :: (invariant load (s16) from %fixed-stack.2)
-  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX3:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.1
-  ; CHECK-MC6809-NEXT:   [[LOAD3:%[0-9]+]]:_(s16) = G_LOAD [[FRAME_INDEX3]](p0) :: (invariant load (s16) from %fixed-stack.1)
-  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX4:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.0
-  ; CHECK-MC6809-NEXT:   [[LOAD4:%[0-9]+]]:_(s16) = G_LOAD [[FRAME_INDEX4]](p0) :: (invariant load (s16) from %fixed-stack.0)
+  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.6
+  ; CHECK-MC6809-NEXT:   [[LOAD:%[0-9]+]]:_(s16) = G_LOAD [[FRAME_INDEX]](p0) :: (invariant load (s16) from %fixed-stack.6)
+  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX1:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.5
+  ; CHECK-MC6809-NEXT:   [[LOAD1:%[0-9]+]]:_(s16) = G_LOAD [[FRAME_INDEX1]](p0) :: (invariant load (s16) from %fixed-stack.5)
+  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX2:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.4
+  ; CHECK-MC6809-NEXT:   [[LOAD2:%[0-9]+]]:_(s16) = G_LOAD [[FRAME_INDEX2]](p0) :: (invariant load (s16) from %fixed-stack.4)
+  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX3:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.3
+  ; CHECK-MC6809-NEXT:   [[LOAD3:%[0-9]+]]:_(s16) = G_LOAD [[FRAME_INDEX3]](p0) :: (invariant load (s16) from %fixed-stack.3)
+  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX4:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.2
+  ; CHECK-MC6809-NEXT:   [[LOAD4:%[0-9]+]]:_(s16) = G_LOAD [[FRAME_INDEX4]](p0) :: (invariant load (s16) from %fixed-stack.2)
+  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX5:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.1
+  ; CHECK-MC6809-NEXT:   [[LOAD5:%[0-9]+]]:_(s16) = G_LOAD [[FRAME_INDEX5]](p0) :: (invariant load (s16) from %fixed-stack.1)
+  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX6:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.0
+  ; CHECK-MC6809-NEXT:   [[LOAD6:%[0-9]+]]:_(s16) = G_LOAD [[FRAME_INDEX6]](p0) :: (invariant load (s16) from %fixed-stack.0)
   ; CHECK-MC6809-NEXT:   $ad = COPY [[COPY]](s16)
   ; CHECK-MC6809-NEXT:   ReturnImplicit implicit $ad
   ; CHECK-HD6309-LABEL: name: args_i16
   ; CHECK-HD6309: bb.1 (%ir-block.0):
-  ; CHECK-HD6309-NEXT:   liveins: $ad, $aw, $ix, $iy
+  ; CHECK-HD6309-NEXT:   liveins: $ad, $aw
   ; CHECK-HD6309-NEXT: {{  $}}
   ; CHECK-HD6309-NEXT:   [[COPY:%[0-9]+]]:_(s16) = COPY $ad
   ; CHECK-HD6309-NEXT:   [[COPY1:%[0-9]+]]:_(s16) = COPY $aw
-  ; CHECK-HD6309-NEXT:   [[COPY2:%[0-9]+]]:_(s16) = COPY $ix
-  ; CHECK-HD6309-NEXT:   [[COPY3:%[0-9]+]]:_(s16) = COPY $iy
-  ; CHECK-HD6309-NEXT:   [[FRAME_INDEX:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.3
-  ; CHECK-HD6309-NEXT:   [[LOAD:%[0-9]+]]:_(s16) = G_LOAD [[FRAME_INDEX]](p0) :: (invariant load (s16) from %fixed-stack.3)
-  ; CHECK-HD6309-NEXT:   [[FRAME_INDEX1:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.2
-  ; CHECK-HD6309-NEXT:   [[LOAD1:%[0-9]+]]:_(s16) = G_LOAD [[FRAME_INDEX1]](p0) :: (invariant load (s16) from %fixed-stack.2)
-  ; CHECK-HD6309-NEXT:   [[FRAME_INDEX2:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.1
-  ; CHECK-HD6309-NEXT:   [[LOAD2:%[0-9]+]]:_(s16) = G_LOAD [[FRAME_INDEX2]](p0) :: (invariant load (s16) from %fixed-stack.1)
-  ; CHECK-HD6309-NEXT:   [[FRAME_INDEX3:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.0
-  ; CHECK-HD6309-NEXT:   [[LOAD3:%[0-9]+]]:_(s16) = G_LOAD [[FRAME_INDEX3]](p0) :: (invariant load (s16) from %fixed-stack.0)
+  ; CHECK-HD6309-NEXT:   [[FRAME_INDEX:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.5
+  ; CHECK-HD6309-NEXT:   [[LOAD:%[0-9]+]]:_(s16) = G_LOAD [[FRAME_INDEX]](p0) :: (invariant load (s16) from %fixed-stack.5)
+  ; CHECK-HD6309-NEXT:   [[FRAME_INDEX1:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.4
+  ; CHECK-HD6309-NEXT:   [[LOAD1:%[0-9]+]]:_(s16) = G_LOAD [[FRAME_INDEX1]](p0) :: (invariant load (s16) from %fixed-stack.4)
+  ; CHECK-HD6309-NEXT:   [[FRAME_INDEX2:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.3
+  ; CHECK-HD6309-NEXT:   [[LOAD2:%[0-9]+]]:_(s16) = G_LOAD [[FRAME_INDEX2]](p0) :: (invariant load (s16) from %fixed-stack.3)
+  ; CHECK-HD6309-NEXT:   [[FRAME_INDEX3:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.2
+  ; CHECK-HD6309-NEXT:   [[LOAD3:%[0-9]+]]:_(s16) = G_LOAD [[FRAME_INDEX3]](p0) :: (invariant load (s16) from %fixed-stack.2)
+  ; CHECK-HD6309-NEXT:   [[FRAME_INDEX4:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.1
+  ; CHECK-HD6309-NEXT:   [[LOAD4:%[0-9]+]]:_(s16) = G_LOAD [[FRAME_INDEX4]](p0) :: (invariant load (s16) from %fixed-stack.1)
+  ; CHECK-HD6309-NEXT:   [[FRAME_INDEX5:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.0
+  ; CHECK-HD6309-NEXT:   [[LOAD5:%[0-9]+]]:_(s16) = G_LOAD [[FRAME_INDEX5]](p0) :: (invariant load (s16) from %fixed-stack.0)
   ; CHECK-HD6309-NEXT:   $ad = COPY [[COPY]](s16)
   ; CHECK-HD6309-NEXT:   ReturnImplicit implicit $ad
                      i16 %w4, i16 %w5, i16 %w6, i16 %w7) {
@@ -133,23 +140,29 @@ define i8* @args_ptrs(i8* %x0, i16* %x1, <2 x i8>* %x2, {i8, i16, i16}* %x3,
 define [1 x double] @args_arr([1 x double] %d0) {
   ; CHECK-MC6809-LABEL: name: args_arr
   ; CHECK-MC6809: bb.1 (%ir-block.0):
-  ; CHECK-MC6809-NEXT:   liveins: $ad, $ix, $iy
+  ; CHECK-MC6809-NEXT:   liveins: $ad
   ; CHECK-MC6809-NEXT: {{  $}}
   ; CHECK-MC6809-NEXT:   [[COPY:%[0-9]+]]:_(s16) = COPY $ad
-  ; CHECK-MC6809-NEXT:   [[COPY1:%[0-9]+]]:_(s16) = COPY $ix
-  ; CHECK-MC6809-NEXT:   [[COPY2:%[0-9]+]]:_(s16) = COPY $iy
-  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.0
-  ; CHECK-MC6809-NEXT:   [[LOAD:%[0-9]+]]:_(s16) = G_LOAD [[FRAME_INDEX]](p0) :: (invariant load (s16) from %fixed-stack.0)
-  ; CHECK-MC6809-NEXT:   [[MV:%[0-9]+]]:_(s64) = G_MERGE_VALUES [[COPY]](s16), [[COPY1]](s16), [[COPY2]](s16), [[LOAD]](s16)
+  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.2
+  ; CHECK-MC6809-NEXT:   [[LOAD:%[0-9]+]]:_(s16) = G_LOAD [[FRAME_INDEX]](p0) :: (invariant load (s16) from %fixed-stack.2)
+  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX1:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.1
+  ; CHECK-MC6809-NEXT:   [[LOAD1:%[0-9]+]]:_(s16) = G_LOAD [[FRAME_INDEX1]](p0) :: (invariant load (s16) from %fixed-stack.1)
+  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX2:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.0
+  ; CHECK-MC6809-NEXT:   [[LOAD2:%[0-9]+]]:_(s16) = G_LOAD [[FRAME_INDEX2]](p0) :: (invariant load (s16) from %fixed-stack.0)
+  ; CHECK-MC6809-NEXT:   [[MV:%[0-9]+]]:_(s64) = G_MERGE_VALUES [[COPY]](s16), [[LOAD]](s16), [[LOAD1]](s16), [[LOAD2]](s16)
   ; CHECK-MC6809-NEXT:   [[UV:%[0-9]+]]:_(s16), [[UV1:%[0-9]+]]:_(s16), [[UV2:%[0-9]+]]:_(s16), [[UV3:%[0-9]+]]:_(s16) = G_UNMERGE_VALUES [[MV]](s64)
-  ; CHECK-MC6809-NEXT:   [[COPY3:%[0-9]+]]:_(p0) = COPY $ss
+  ; CHECK-MC6809-NEXT:   [[COPY1:%[0-9]+]]:_(p0) = COPY $ss
   ; CHECK-MC6809-NEXT:   [[C:%[0-9]+]]:_(s16) = G_CONSTANT i16 0
-  ; CHECK-MC6809-NEXT:   [[PTR_ADD:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY3]], [[C]](s16)
-  ; CHECK-MC6809-NEXT:   G_STORE [[UV3]](s16), [[PTR_ADD]](p0) :: (store (s16) into stack, align 1)
+  ; CHECK-MC6809-NEXT:   [[PTR_ADD:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY1]], [[C]](s16)
+  ; CHECK-MC6809-NEXT:   G_STORE [[UV1]](s16), [[PTR_ADD]](p0) :: (store (s16) into stack, align 1)
+  ; CHECK-MC6809-NEXT:   [[C1:%[0-9]+]]:_(s16) = G_CONSTANT i16 2
+  ; CHECK-MC6809-NEXT:   [[PTR_ADD1:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY1]], [[C1]](s16)
+  ; CHECK-MC6809-NEXT:   G_STORE [[UV2]](s16), [[PTR_ADD1]](p0) :: (store (s16) into stack + 2, align 1)
+  ; CHECK-MC6809-NEXT:   [[C2:%[0-9]+]]:_(s16) = G_CONSTANT i16 4
+  ; CHECK-MC6809-NEXT:   [[PTR_ADD2:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY1]], [[C2]](s16)
+  ; CHECK-MC6809-NEXT:   G_STORE [[UV3]](s16), [[PTR_ADD2]](p0) :: (store (s16) into stack + 4, align 1)
   ; CHECK-MC6809-NEXT:   $ad = COPY [[UV]](s16)
-  ; CHECK-MC6809-NEXT:   $ix = COPY [[UV1]](s16)
-  ; CHECK-MC6809-NEXT:   $iy = COPY [[UV2]](s16)
-  ; CHECK-MC6809-NEXT:   ReturnImplicit implicit $ad, implicit $ix, implicit $iy
+  ; CHECK-MC6809-NEXT:   ReturnImplicit implicit $ad
   ; CHECK-HD6309-LABEL: name: args_arr
   ; CHECK-HD6309: bb.1 (%ir-block.0):
   ; CHECK-HD6309-NEXT:   liveins: $aq
@@ -180,52 +193,56 @@ define void @test_varargs() {
   ; CHECK-MC6809-NEXT:   [[C5:%[0-9]+]]:_(s16) = G_CONSTANT i16 4
   ; CHECK-MC6809-NEXT:   [[C6:%[0-9]+]]:_(s32) = G_FCONSTANT float 1.000000e+00
   ; CHECK-MC6809-NEXT:   [[C7:%[0-9]+]]:_(s64) = G_FCONSTANT double 2.000000e+00
-  ; CHECK-MC6809-NEXT:   ADJCALLSTACKDOWN 22, 0, implicit-def $ss, implicit $ss
+  ; CHECK-MC6809-NEXT:   ADJCALLSTACKDOWN 26, 0, implicit-def $ss, implicit $ss
   ; CHECK-MC6809-NEXT:   [[UV:%[0-9]+]]:_(s16), [[UV1:%[0-9]+]]:_(s16), [[UV2:%[0-9]+]]:_(s16), [[UV3:%[0-9]+]]:_(s16) = G_UNMERGE_VALUES [[C1]](s64)
   ; CHECK-MC6809-NEXT:   [[COPY:%[0-9]+]]:_(p0) = COPY $ss
   ; CHECK-MC6809-NEXT:   [[C8:%[0-9]+]]:_(s16) = G_CONSTANT i16 0
   ; CHECK-MC6809-NEXT:   [[PTR_ADD:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C8]](s16)
-  ; CHECK-MC6809-NEXT:   G_STORE [[UV2]](s16), [[PTR_ADD]](p0) :: (store (s16) into stack, align 1)
+  ; CHECK-MC6809-NEXT:   G_STORE [[UV]](s16), [[PTR_ADD]](p0) :: (store (s16) into stack, align 1)
   ; CHECK-MC6809-NEXT:   [[C9:%[0-9]+]]:_(s16) = G_CONSTANT i16 2
   ; CHECK-MC6809-NEXT:   [[PTR_ADD1:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C9]](s16)
-  ; CHECK-MC6809-NEXT:   G_STORE [[UV3]](s16), [[PTR_ADD1]](p0) :: (store (s16) into stack + 2, align 1)
+  ; CHECK-MC6809-NEXT:   G_STORE [[UV1]](s16), [[PTR_ADD1]](p0) :: (store (s16) into stack + 2, align 1)
   ; CHECK-MC6809-NEXT:   [[C10:%[0-9]+]]:_(s16) = G_CONSTANT i16 4
   ; CHECK-MC6809-NEXT:   [[PTR_ADD2:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C10]](s16)
-  ; CHECK-MC6809-NEXT:   G_STORE [[C2]](s8), [[PTR_ADD2]](p0) :: (store (s8) into stack + 4)
-  ; CHECK-MC6809-NEXT:   [[C11:%[0-9]+]]:_(s16) = G_CONSTANT i16 5
+  ; CHECK-MC6809-NEXT:   G_STORE [[UV2]](s16), [[PTR_ADD2]](p0) :: (store (s16) into stack + 4, align 1)
+  ; CHECK-MC6809-NEXT:   [[C11:%[0-9]+]]:_(s16) = G_CONSTANT i16 6
   ; CHECK-MC6809-NEXT:   [[PTR_ADD3:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C11]](s16)
-  ; CHECK-MC6809-NEXT:   G_STORE [[C3]](s8), [[PTR_ADD3]](p0) :: (store (s8) into stack + 5)
-  ; CHECK-MC6809-NEXT:   [[C12:%[0-9]+]]:_(s16) = G_CONSTANT i16 6
+  ; CHECK-MC6809-NEXT:   G_STORE [[UV3]](s16), [[PTR_ADD3]](p0) :: (store (s16) into stack + 6, align 1)
+  ; CHECK-MC6809-NEXT:   [[C12:%[0-9]+]]:_(s16) = G_CONSTANT i16 8
   ; CHECK-MC6809-NEXT:   [[PTR_ADD4:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C12]](s16)
-  ; CHECK-MC6809-NEXT:   G_STORE [[C4]](s16), [[PTR_ADD4]](p0) :: (store (s16) into stack + 6, align 1)
-  ; CHECK-MC6809-NEXT:   [[C13:%[0-9]+]]:_(s16) = G_CONSTANT i16 8
+  ; CHECK-MC6809-NEXT:   G_STORE [[C2]](s8), [[PTR_ADD4]](p0) :: (store (s8) into stack + 8)
+  ; CHECK-MC6809-NEXT:   [[C13:%[0-9]+]]:_(s16) = G_CONSTANT i16 9
   ; CHECK-MC6809-NEXT:   [[PTR_ADD5:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C13]](s16)
-  ; CHECK-MC6809-NEXT:   G_STORE [[C5]](s16), [[PTR_ADD5]](p0) :: (store (s16) into stack + 8, align 1)
-  ; CHECK-MC6809-NEXT:   [[UV4:%[0-9]+]]:_(s16), [[UV5:%[0-9]+]]:_(s16) = G_UNMERGE_VALUES [[C6]](s32)
+  ; CHECK-MC6809-NEXT:   G_STORE [[C3]](s8), [[PTR_ADD5]](p0) :: (store (s8) into stack + 9)
   ; CHECK-MC6809-NEXT:   [[C14:%[0-9]+]]:_(s16) = G_CONSTANT i16 10
   ; CHECK-MC6809-NEXT:   [[PTR_ADD6:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C14]](s16)
-  ; CHECK-MC6809-NEXT:   G_STORE [[UV4]](s16), [[PTR_ADD6]](p0) :: (store (s16) into stack + 10, align 1)
+  ; CHECK-MC6809-NEXT:   G_STORE [[C4]](s16), [[PTR_ADD6]](p0) :: (store (s16) into stack + 10, align 1)
   ; CHECK-MC6809-NEXT:   [[C15:%[0-9]+]]:_(s16) = G_CONSTANT i16 12
   ; CHECK-MC6809-NEXT:   [[PTR_ADD7:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C15]](s16)
-  ; CHECK-MC6809-NEXT:   G_STORE [[UV5]](s16), [[PTR_ADD7]](p0) :: (store (s16) into stack + 12, align 1)
-  ; CHECK-MC6809-NEXT:   [[UV6:%[0-9]+]]:_(s16), [[UV7:%[0-9]+]]:_(s16), [[UV8:%[0-9]+]]:_(s16), [[UV9:%[0-9]+]]:_(s16) = G_UNMERGE_VALUES [[C7]](s64)
+  ; CHECK-MC6809-NEXT:   G_STORE [[C5]](s16), [[PTR_ADD7]](p0) :: (store (s16) into stack + 12, align 1)
+  ; CHECK-MC6809-NEXT:   [[UV4:%[0-9]+]]:_(s16), [[UV5:%[0-9]+]]:_(s16) = G_UNMERGE_VALUES [[C6]](s32)
   ; CHECK-MC6809-NEXT:   [[C16:%[0-9]+]]:_(s16) = G_CONSTANT i16 14
   ; CHECK-MC6809-NEXT:   [[PTR_ADD8:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C16]](s16)
-  ; CHECK-MC6809-NEXT:   G_STORE [[UV6]](s16), [[PTR_ADD8]](p0) :: (store (s16) into stack + 14, align 1)
+  ; CHECK-MC6809-NEXT:   G_STORE [[UV4]](s16), [[PTR_ADD8]](p0) :: (store (s16) into stack + 14, align 1)
   ; CHECK-MC6809-NEXT:   [[C17:%[0-9]+]]:_(s16) = G_CONSTANT i16 16
   ; CHECK-MC6809-NEXT:   [[PTR_ADD9:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C17]](s16)
-  ; CHECK-MC6809-NEXT:   G_STORE [[UV7]](s16), [[PTR_ADD9]](p0) :: (store (s16) into stack + 16, align 1)
+  ; CHECK-MC6809-NEXT:   G_STORE [[UV5]](s16), [[PTR_ADD9]](p0) :: (store (s16) into stack + 16, align 1)
+  ; CHECK-MC6809-NEXT:   [[UV6:%[0-9]+]]:_(s16), [[UV7:%[0-9]+]]:_(s16), [[UV8:%[0-9]+]]:_(s16), [[UV9:%[0-9]+]]:_(s16) = G_UNMERGE_VALUES [[C7]](s64)
   ; CHECK-MC6809-NEXT:   [[C18:%[0-9]+]]:_(s16) = G_CONSTANT i16 18
   ; CHECK-MC6809-NEXT:   [[PTR_ADD10:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C18]](s16)
-  ; CHECK-MC6809-NEXT:   G_STORE [[UV8]](s16), [[PTR_ADD10]](p0) :: (store (s16) into stack + 18, align 1)
+  ; CHECK-MC6809-NEXT:   G_STORE [[UV6]](s16), [[PTR_ADD10]](p0) :: (store (s16) into stack + 18, align 1)
   ; CHECK-MC6809-NEXT:   [[C19:%[0-9]+]]:_(s16) = G_CONSTANT i16 20
   ; CHECK-MC6809-NEXT:   [[PTR_ADD11:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C19]](s16)
-  ; CHECK-MC6809-NEXT:   G_STORE [[UV9]](s16), [[PTR_ADD11]](p0) :: (store (s16) into stack + 20, align 1)
+  ; CHECK-MC6809-NEXT:   G_STORE [[UV7]](s16), [[PTR_ADD11]](p0) :: (store (s16) into stack + 20, align 1)
+  ; CHECK-MC6809-NEXT:   [[C20:%[0-9]+]]:_(s16) = G_CONSTANT i16 22
+  ; CHECK-MC6809-NEXT:   [[PTR_ADD12:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C20]](s16)
+  ; CHECK-MC6809-NEXT:   G_STORE [[UV8]](s16), [[PTR_ADD12]](p0) :: (store (s16) into stack + 22, align 1)
+  ; CHECK-MC6809-NEXT:   [[C21:%[0-9]+]]:_(s16) = G_CONSTANT i16 24
+  ; CHECK-MC6809-NEXT:   [[PTR_ADD13:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C21]](s16)
+  ; CHECK-MC6809-NEXT:   G_STORE [[UV9]](s16), [[PTR_ADD13]](p0) :: (store (s16) into stack + 24, align 1)
   ; CHECK-MC6809-NEXT:   $ad = COPY [[C]](s16)
-  ; CHECK-MC6809-NEXT:   $ix = COPY [[UV]](s16)
-  ; CHECK-MC6809-NEXT:   $iy = COPY [[UV1]](s16)
-  ; CHECK-MC6809-NEXT:   CallRelative @varargs, mc6809_csr, implicit $ad, implicit $ix, implicit $iy
-  ; CHECK-MC6809-NEXT:   ADJCALLSTACKUP 22, 0, implicit-def $ss, implicit $ss
+  ; CHECK-MC6809-NEXT:   CallRelative @varargs, mc6809_csr, implicit $ad
+  ; CHECK-MC6809-NEXT:   ADJCALLSTACKUP 26, 0, implicit-def $ss, implicit $ss
   ; CHECK-MC6809-NEXT:   ReturnImplicit
   ; CHECK-HD6309-LABEL: name: test_varargs
   ; CHECK-HD6309: bb.1 (%ir-block.0):
@@ -284,7 +301,7 @@ define void @test_stack_ext_needed() {
   ; CHECK-MC6809: bb.1 (%ir-block.0):
   ; CHECK-MC6809-NEXT:   [[DEF:%[0-9]+]]:_(s8) = G_IMPLICIT_DEF
   ; CHECK-MC6809-NEXT:   [[C:%[0-9]+]]:_(s8) = G_CONSTANT i8 42
-  ; CHECK-MC6809-NEXT:   ADJCALLSTACKDOWN 7, 0, implicit-def $ss, implicit $ss
+  ; CHECK-MC6809-NEXT:   ADJCALLSTACKDOWN 8, 0, implicit-def $ss, implicit $ss
   ; CHECK-MC6809-NEXT:   [[COPY:%[0-9]+]]:_(p0) = COPY $ss
   ; CHECK-MC6809-NEXT:   [[C1:%[0-9]+]]:_(s16) = G_CONSTANT i16 0
   ; CHECK-MC6809-NEXT:   [[PTR_ADD:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C1]](s16)
@@ -306,17 +323,19 @@ define void @test_stack_ext_needed() {
   ; CHECK-MC6809-NEXT:   G_STORE [[DEF]](s8), [[PTR_ADD5]](p0) :: (store (s8) into stack + 5)
   ; CHECK-MC6809-NEXT:   [[C7:%[0-9]+]]:_(s16) = G_CONSTANT i16 6
   ; CHECK-MC6809-NEXT:   [[PTR_ADD6:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C7]](s16)
-  ; CHECK-MC6809-NEXT:   G_STORE [[C]](s8), [[PTR_ADD6]](p0) :: (store (s8) into stack + 6)
+  ; CHECK-MC6809-NEXT:   G_STORE [[DEF]](s8), [[PTR_ADD6]](p0) :: (store (s8) into stack + 6)
+  ; CHECK-MC6809-NEXT:   [[C8:%[0-9]+]]:_(s16) = G_CONSTANT i16 7
+  ; CHECK-MC6809-NEXT:   [[PTR_ADD7:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C8]](s16)
+  ; CHECK-MC6809-NEXT:   G_STORE [[C]](s8), [[PTR_ADD7]](p0) :: (store (s8) into stack + 7)
   ; CHECK-MC6809-NEXT:   $ab = COPY [[DEF]](s8)
-  ; CHECK-MC6809-NEXT:   $aa = COPY [[DEF]](s8)
-  ; CHECK-MC6809-NEXT:   CallRelative @stack_ext_needed, mc6809_csr, implicit $ab, implicit $aa
-  ; CHECK-MC6809-NEXT:   ADJCALLSTACKUP 7, 0, implicit-def $ss, implicit $ss
+  ; CHECK-MC6809-NEXT:   CallRelative @stack_ext_needed, mc6809_csr, implicit $ab
+  ; CHECK-MC6809-NEXT:   ADJCALLSTACKUP 8, 0, implicit-def $ss, implicit $ss
   ; CHECK-MC6809-NEXT:   ReturnImplicit
   ; CHECK-HD6309-LABEL: name: test_stack_ext_needed
   ; CHECK-HD6309: bb.1 (%ir-block.0):
   ; CHECK-HD6309-NEXT:   [[DEF:%[0-9]+]]:_(s8) = G_IMPLICIT_DEF
   ; CHECK-HD6309-NEXT:   [[C:%[0-9]+]]:_(s8) = G_CONSTANT i8 42
-  ; CHECK-HD6309-NEXT:   ADJCALLSTACKDOWN 5, 0, implicit-def $ss, implicit $ss
+  ; CHECK-HD6309-NEXT:   ADJCALLSTACKDOWN 7, 0, implicit-def $ss, implicit $ss
   ; CHECK-HD6309-NEXT:   [[COPY:%[0-9]+]]:_(p0) = COPY $ss
   ; CHECK-HD6309-NEXT:   [[C1:%[0-9]+]]:_(s16) = G_CONSTANT i16 0
   ; CHECK-HD6309-NEXT:   [[PTR_ADD:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C1]](s16)
@@ -332,13 +351,17 @@ define void @test_stack_ext_needed() {
   ; CHECK-HD6309-NEXT:   G_STORE [[DEF]](s8), [[PTR_ADD3]](p0) :: (store (s8) into stack + 3)
   ; CHECK-HD6309-NEXT:   [[C5:%[0-9]+]]:_(s16) = G_CONSTANT i16 4
   ; CHECK-HD6309-NEXT:   [[PTR_ADD4:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C5]](s16)
-  ; CHECK-HD6309-NEXT:   G_STORE [[C]](s8), [[PTR_ADD4]](p0) :: (store (s8) into stack + 4)
+  ; CHECK-HD6309-NEXT:   G_STORE [[DEF]](s8), [[PTR_ADD4]](p0) :: (store (s8) into stack + 4)
+  ; CHECK-HD6309-NEXT:   [[C6:%[0-9]+]]:_(s16) = G_CONSTANT i16 5
+  ; CHECK-HD6309-NEXT:   [[PTR_ADD5:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C6]](s16)
+  ; CHECK-HD6309-NEXT:   G_STORE [[DEF]](s8), [[PTR_ADD5]](p0) :: (store (s8) into stack + 5)
+  ; CHECK-HD6309-NEXT:   [[C7:%[0-9]+]]:_(s16) = G_CONSTANT i16 6
+  ; CHECK-HD6309-NEXT:   [[PTR_ADD6:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C7]](s16)
+  ; CHECK-HD6309-NEXT:   G_STORE [[C]](s8), [[PTR_ADD6]](p0) :: (store (s8) into stack + 6)
   ; CHECK-HD6309-NEXT:   $ab = COPY [[DEF]](s8)
-  ; CHECK-HD6309-NEXT:   $aa = COPY [[DEF]](s8)
   ; CHECK-HD6309-NEXT:   $af = COPY [[DEF]](s8)
-  ; CHECK-HD6309-NEXT:   $ae = COPY [[DEF]](s8)
-  ; CHECK-HD6309-NEXT:   CallRelative @stack_ext_needed, mc6809_csr, implicit $ab, implicit $aa, implicit $af, implicit $ae
-  ; CHECK-HD6309-NEXT:   ADJCALLSTACKUP 5, 0, implicit-def $ss, implicit $ss
+  ; CHECK-HD6309-NEXT:   CallRelative @stack_ext_needed, mc6809_csr, implicit $ab, implicit $af
+  ; CHECK-HD6309-NEXT:   ADJCALLSTACKUP 7, 0, implicit-def $ss, implicit $ss
   ; CHECK-HD6309-NEXT:   ReturnImplicit
   call void @stack_ext_needed([8 x i8] undef, i8 signext 42)
   ret void
@@ -361,39 +384,45 @@ define i8 @i8i16caller() nounwind readnone {
   ; CHECK-MC6809-NEXT:   [[C9:%[0-9]+]]:_(s16) = G_CONSTANT i16 98
   ; CHECK-MC6809-NEXT:   [[C10:%[0-9]+]]:_(s8) = G_CONSTANT i8 99
   ; CHECK-MC6809-NEXT:   [[C11:%[0-9]+]]:_(s8) = G_CONSTANT i8 100
-  ; CHECK-MC6809-NEXT:   ADJCALLSTACKDOWN 8, 0, implicit-def $ss, implicit $ss
+  ; CHECK-MC6809-NEXT:   ADJCALLSTACKDOWN 13, 0, implicit-def $ss, implicit $ss
   ; CHECK-MC6809-NEXT:   [[COPY:%[0-9]+]]:_(p0) = COPY $ss
   ; CHECK-MC6809-NEXT:   [[C12:%[0-9]+]]:_(s16) = G_CONSTANT i16 0
   ; CHECK-MC6809-NEXT:   [[PTR_ADD:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C12]](s16)
-  ; CHECK-MC6809-NEXT:   G_STORE [[C2]](s8), [[PTR_ADD]](p0) :: (store (s8) into stack)
+  ; CHECK-MC6809-NEXT:   G_STORE [[C1]](s8), [[PTR_ADD]](p0) :: (store (s8) into stack)
   ; CHECK-MC6809-NEXT:   [[C13:%[0-9]+]]:_(s16) = G_CONSTANT i16 1
   ; CHECK-MC6809-NEXT:   [[PTR_ADD1:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C13]](s16)
-  ; CHECK-MC6809-NEXT:   G_STORE [[C3]](s8), [[PTR_ADD1]](p0) :: (store (s8) into stack + 1)
+  ; CHECK-MC6809-NEXT:   G_STORE [[C2]](s8), [[PTR_ADD1]](p0) :: (store (s8) into stack + 1)
   ; CHECK-MC6809-NEXT:   [[C14:%[0-9]+]]:_(s16) = G_CONSTANT i16 2
   ; CHECK-MC6809-NEXT:   [[PTR_ADD2:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C14]](s16)
-  ; CHECK-MC6809-NEXT:   G_STORE [[C5]](s8), [[PTR_ADD2]](p0) :: (store (s8) into stack + 2)
+  ; CHECK-MC6809-NEXT:   G_STORE [[C3]](s8), [[PTR_ADD2]](p0) :: (store (s8) into stack + 2)
   ; CHECK-MC6809-NEXT:   [[C15:%[0-9]+]]:_(s16) = G_CONSTANT i16 3
   ; CHECK-MC6809-NEXT:   [[PTR_ADD3:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C15]](s16)
-  ; CHECK-MC6809-NEXT:   G_STORE [[C6]](s8), [[PTR_ADD3]](p0) :: (store (s8) into stack + 3)
-  ; CHECK-MC6809-NEXT:   [[C16:%[0-9]+]]:_(s16) = G_CONSTANT i16 4
+  ; CHECK-MC6809-NEXT:   G_STORE [[C4]](s16), [[PTR_ADD3]](p0) :: (store (s16) into stack + 3, align 1)
+  ; CHECK-MC6809-NEXT:   [[C16:%[0-9]+]]:_(s16) = G_CONSTANT i16 5
   ; CHECK-MC6809-NEXT:   [[PTR_ADD4:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C16]](s16)
-  ; CHECK-MC6809-NEXT:   G_STORE [[C7]](s8), [[PTR_ADD4]](p0) :: (store (s8) into stack + 4)
-  ; CHECK-MC6809-NEXT:   [[C17:%[0-9]+]]:_(s16) = G_CONSTANT i16 5
+  ; CHECK-MC6809-NEXT:   G_STORE [[C5]](s8), [[PTR_ADD4]](p0) :: (store (s8) into stack + 5)
+  ; CHECK-MC6809-NEXT:   [[C17:%[0-9]+]]:_(s16) = G_CONSTANT i16 6
   ; CHECK-MC6809-NEXT:   [[PTR_ADD5:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C17]](s16)
-  ; CHECK-MC6809-NEXT:   G_STORE [[C8]](s8), [[PTR_ADD5]](p0) :: (store (s8) into stack + 5)
-  ; CHECK-MC6809-NEXT:   [[C18:%[0-9]+]]:_(s16) = G_CONSTANT i16 6
+  ; CHECK-MC6809-NEXT:   G_STORE [[C6]](s8), [[PTR_ADD5]](p0) :: (store (s8) into stack + 6)
+  ; CHECK-MC6809-NEXT:   [[C18:%[0-9]+]]:_(s16) = G_CONSTANT i16 7
   ; CHECK-MC6809-NEXT:   [[PTR_ADD6:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C18]](s16)
-  ; CHECK-MC6809-NEXT:   G_STORE [[C10]](s8), [[PTR_ADD6]](p0) :: (store (s8) into stack + 6)
-  ; CHECK-MC6809-NEXT:   [[C19:%[0-9]+]]:_(s16) = G_CONSTANT i16 7
+  ; CHECK-MC6809-NEXT:   G_STORE [[C7]](s8), [[PTR_ADD6]](p0) :: (store (s8) into stack + 7)
+  ; CHECK-MC6809-NEXT:   [[C19:%[0-9]+]]:_(s16) = G_CONSTANT i16 8
   ; CHECK-MC6809-NEXT:   [[PTR_ADD7:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C19]](s16)
-  ; CHECK-MC6809-NEXT:   G_STORE [[C11]](s8), [[PTR_ADD7]](p0) :: (store (s8) into stack + 7)
+  ; CHECK-MC6809-NEXT:   G_STORE [[C8]](s8), [[PTR_ADD7]](p0) :: (store (s8) into stack + 8)
+  ; CHECK-MC6809-NEXT:   [[C20:%[0-9]+]]:_(s16) = G_CONSTANT i16 9
+  ; CHECK-MC6809-NEXT:   [[PTR_ADD8:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C20]](s16)
+  ; CHECK-MC6809-NEXT:   G_STORE [[C9]](s16), [[PTR_ADD8]](p0) :: (store (s16) into stack + 9, align 1)
+  ; CHECK-MC6809-NEXT:   [[C21:%[0-9]+]]:_(s16) = G_CONSTANT i16 11
+  ; CHECK-MC6809-NEXT:   [[PTR_ADD9:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C21]](s16)
+  ; CHECK-MC6809-NEXT:   G_STORE [[C10]](s8), [[PTR_ADD9]](p0) :: (store (s8) into stack + 11)
+  ; CHECK-MC6809-NEXT:   [[C22:%[0-9]+]]:_(s16) = G_CONSTANT i16 12
+  ; CHECK-MC6809-NEXT:   [[PTR_ADD10:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C22]](s16)
+  ; CHECK-MC6809-NEXT:   G_STORE [[C11]](s8), [[PTR_ADD10]](p0) :: (store (s8) into stack + 12)
   ; CHECK-MC6809-NEXT:   $ab = COPY [[C]](s8)
-  ; CHECK-MC6809-NEXT:   $aa = COPY [[C1]](s8)
-  ; CHECK-MC6809-NEXT:   $ix = COPY [[C4]](s16)
-  ; CHECK-MC6809-NEXT:   $iy = COPY [[C9]](s16)
-  ; CHECK-MC6809-NEXT:   CallRelative @i8i16callee, mc6809_csr, implicit $ab, implicit $aa, implicit $ix, implicit $iy, implicit-def $ad
+  ; CHECK-MC6809-NEXT:   CallRelative @i8i16callee, mc6809_csr, implicit $ab, implicit-def $ad
   ; CHECK-MC6809-NEXT:   [[COPY1:%[0-9]+]]:_(s16) = COPY $ad
-  ; CHECK-MC6809-NEXT:   ADJCALLSTACKUP 8, 0, implicit-def $ss, implicit $ss
+  ; CHECK-MC6809-NEXT:   ADJCALLSTACKUP 13, 0, implicit-def $ss, implicit $ss
   ; CHECK-MC6809-NEXT:   [[TRUNC:%[0-9]+]]:_(s8) = G_TRUNC [[COPY1]](s16)
   ; CHECK-MC6809-NEXT:   $ab = COPY [[TRUNC]](s8)
   ; CHECK-MC6809-NEXT:   ReturnImplicit implicit $ab
@@ -411,35 +440,43 @@ define i8 @i8i16caller() nounwind readnone {
   ; CHECK-HD6309-NEXT:   [[C9:%[0-9]+]]:_(s16) = G_CONSTANT i16 98
   ; CHECK-HD6309-NEXT:   [[C10:%[0-9]+]]:_(s8) = G_CONSTANT i8 99
   ; CHECK-HD6309-NEXT:   [[C11:%[0-9]+]]:_(s8) = G_CONSTANT i8 100
-  ; CHECK-HD6309-NEXT:   ADJCALLSTACKDOWN 6, 0, implicit-def $ss, implicit $ss
+  ; CHECK-HD6309-NEXT:   ADJCALLSTACKDOWN 12, 0, implicit-def $ss, implicit $ss
   ; CHECK-HD6309-NEXT:   [[COPY:%[0-9]+]]:_(p0) = COPY $ss
   ; CHECK-HD6309-NEXT:   [[C12:%[0-9]+]]:_(s16) = G_CONSTANT i16 0
   ; CHECK-HD6309-NEXT:   [[PTR_ADD:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C12]](s16)
-  ; CHECK-HD6309-NEXT:   G_STORE [[C5]](s8), [[PTR_ADD]](p0) :: (store (s8) into stack)
+  ; CHECK-HD6309-NEXT:   G_STORE [[C2]](s8), [[PTR_ADD]](p0) :: (store (s8) into stack)
   ; CHECK-HD6309-NEXT:   [[C13:%[0-9]+]]:_(s16) = G_CONSTANT i16 1
   ; CHECK-HD6309-NEXT:   [[PTR_ADD1:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C13]](s16)
-  ; CHECK-HD6309-NEXT:   G_STORE [[C6]](s8), [[PTR_ADD1]](p0) :: (store (s8) into stack + 1)
+  ; CHECK-HD6309-NEXT:   G_STORE [[C3]](s8), [[PTR_ADD1]](p0) :: (store (s8) into stack + 1)
   ; CHECK-HD6309-NEXT:   [[C14:%[0-9]+]]:_(s16) = G_CONSTANT i16 2
   ; CHECK-HD6309-NEXT:   [[PTR_ADD2:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C14]](s16)
-  ; CHECK-HD6309-NEXT:   G_STORE [[C7]](s8), [[PTR_ADD2]](p0) :: (store (s8) into stack + 2)
-  ; CHECK-HD6309-NEXT:   [[C15:%[0-9]+]]:_(s16) = G_CONSTANT i16 3
+  ; CHECK-HD6309-NEXT:   G_STORE [[C4]](s16), [[PTR_ADD2]](p0) :: (store (s16) into stack + 2, align 1)
+  ; CHECK-HD6309-NEXT:   [[C15:%[0-9]+]]:_(s16) = G_CONSTANT i16 4
   ; CHECK-HD6309-NEXT:   [[PTR_ADD3:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C15]](s16)
-  ; CHECK-HD6309-NEXT:   G_STORE [[C8]](s8), [[PTR_ADD3]](p0) :: (store (s8) into stack + 3)
-  ; CHECK-HD6309-NEXT:   [[C16:%[0-9]+]]:_(s16) = G_CONSTANT i16 4
+  ; CHECK-HD6309-NEXT:   G_STORE [[C5]](s8), [[PTR_ADD3]](p0) :: (store (s8) into stack + 4)
+  ; CHECK-HD6309-NEXT:   [[C16:%[0-9]+]]:_(s16) = G_CONSTANT i16 5
   ; CHECK-HD6309-NEXT:   [[PTR_ADD4:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C16]](s16)
-  ; CHECK-HD6309-NEXT:   G_STORE [[C10]](s8), [[PTR_ADD4]](p0) :: (store (s8) into stack + 4)
-  ; CHECK-HD6309-NEXT:   [[C17:%[0-9]+]]:_(s16) = G_CONSTANT i16 5
+  ; CHECK-HD6309-NEXT:   G_STORE [[C6]](s8), [[PTR_ADD4]](p0) :: (store (s8) into stack + 5)
+  ; CHECK-HD6309-NEXT:   [[C17:%[0-9]+]]:_(s16) = G_CONSTANT i16 6
   ; CHECK-HD6309-NEXT:   [[PTR_ADD5:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C17]](s16)
-  ; CHECK-HD6309-NEXT:   G_STORE [[C11]](s8), [[PTR_ADD5]](p0) :: (store (s8) into stack + 5)
+  ; CHECK-HD6309-NEXT:   G_STORE [[C7]](s8), [[PTR_ADD5]](p0) :: (store (s8) into stack + 6)
+  ; CHECK-HD6309-NEXT:   [[C18:%[0-9]+]]:_(s16) = G_CONSTANT i16 7
+  ; CHECK-HD6309-NEXT:   [[PTR_ADD6:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C18]](s16)
+  ; CHECK-HD6309-NEXT:   G_STORE [[C8]](s8), [[PTR_ADD6]](p0) :: (store (s8) into stack + 7)
+  ; CHECK-HD6309-NEXT:   [[C19:%[0-9]+]]:_(s16) = G_CONSTANT i16 8
+  ; CHECK-HD6309-NEXT:   [[PTR_ADD7:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C19]](s16)
+  ; CHECK-HD6309-NEXT:   G_STORE [[C9]](s16), [[PTR_ADD7]](p0) :: (store (s16) into stack + 8, align 1)
+  ; CHECK-HD6309-NEXT:   [[C20:%[0-9]+]]:_(s16) = G_CONSTANT i16 10
+  ; CHECK-HD6309-NEXT:   [[PTR_ADD8:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C20]](s16)
+  ; CHECK-HD6309-NEXT:   G_STORE [[C10]](s8), [[PTR_ADD8]](p0) :: (store (s8) into stack + 10)
+  ; CHECK-HD6309-NEXT:   [[C21:%[0-9]+]]:_(s16) = G_CONSTANT i16 11
+  ; CHECK-HD6309-NEXT:   [[PTR_ADD9:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C21]](s16)
+  ; CHECK-HD6309-NEXT:   G_STORE [[C11]](s8), [[PTR_ADD9]](p0) :: (store (s8) into stack + 11)
   ; CHECK-HD6309-NEXT:   $ab = COPY [[C]](s8)
-  ; CHECK-HD6309-NEXT:   $aa = COPY [[C1]](s8)
-  ; CHECK-HD6309-NEXT:   $af = COPY [[C2]](s8)
-  ; CHECK-HD6309-NEXT:   $ae = COPY [[C3]](s8)
-  ; CHECK-HD6309-NEXT:   $ix = COPY [[C4]](s16)
-  ; CHECK-HD6309-NEXT:   $iy = COPY [[C9]](s16)
-  ; CHECK-HD6309-NEXT:   CallRelative @i8i16callee, mc6809_csr, implicit $ab, implicit $aa, implicit $af, implicit $ae, implicit $ix, implicit $iy, implicit-def $ad
+  ; CHECK-HD6309-NEXT:   $af = COPY [[C1]](s8)
+  ; CHECK-HD6309-NEXT:   CallRelative @i8i16callee, mc6809_csr, implicit $ab, implicit $af, implicit-def $ad
   ; CHECK-HD6309-NEXT:   [[COPY1:%[0-9]+]]:_(s16) = COPY $ad
-  ; CHECK-HD6309-NEXT:   ADJCALLSTACKUP 6, 0, implicit-def $ss, implicit $ss
+  ; CHECK-HD6309-NEXT:   ADJCALLSTACKUP 12, 0, implicit-def $ss, implicit $ss
   ; CHECK-HD6309-NEXT:   [[TRUNC:%[0-9]+]]:_(s8) = G_TRUNC [[COPY1]](s16)
   ; CHECK-HD6309-NEXT:   $ab = COPY [[TRUNC]](s8)
   ; CHECK-HD6309-NEXT:   ReturnImplicit implicit $ab

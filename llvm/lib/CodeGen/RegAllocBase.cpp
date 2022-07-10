@@ -131,11 +131,12 @@ void RegAllocBase::allocatePhysRegs() {
       else if (MI && MI->isInlineAsm()) {
         MI->emitError("inline assembly requires more registers than available");
       } else if (MI) {
+        LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Out of registers in MI = "; MI->dump(););
         LLVMContext &Context =
             MI->getParent()->getParent()->getMMI().getModule()->getContext();
-        Context.emitError("ran out of registers during register allocation");
+        Context.emitError("ran out of registers during register allocation (2)");
       } else {
-        report_fatal_error("ran out of registers during register allocation");
+        report_fatal_error("ran out of registers during register allocation (3)");
       }
 
       // Keep going after reporting the error.

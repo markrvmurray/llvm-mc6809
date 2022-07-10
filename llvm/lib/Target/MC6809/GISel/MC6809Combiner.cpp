@@ -65,10 +65,10 @@ public:
   bool matchFoldGlobalCopy(MachineInstr &MI, MachineRegisterInfo &MRI, std::pair<const MachineOperand *, MachineInstr *> &MatchInfo) const;
   bool applyFoldGlobalCopy(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, std::pair<const MachineOperand *, MachineInstr *> &MatchInfo) const;
 
-//  %2:_(s16) = G_[SZ]EXT %1:_(s8)
-//  %3:_(p0) = G_PTR_ADD %0:_, %2:_(s16)
-//   =>
-//  %3:_(s8) = G_PTR_ADD %0:_, %1:_(s8)
+  //  %2:_(s16) = G_[SZ]EXT %1:_(s8)
+  //  %3:_(p0) = G_PTR_ADD %0:_, %2:_(s16)
+  //   =>
+  //  %3:_(s8) = G_PTR_ADD %0:_, %1:_(s8)
   bool matchFoldPointerExtOffset(MachineInstr &MI, MachineRegisterInfo &MRI, std::pair<MachineInstr *, MachineInstr *>&MatchInfo) const;
   bool applyFoldPointerExtOffset(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, std::pair<MachineInstr *, MachineInstr *>&MatchInfo) const;
 
@@ -81,18 +81,18 @@ public:
   bool matchSwapPhysregToLhs(MachineInstr &MI, MachineRegisterInfo &MRI, MachineInstr *&MatchInfo) const;
   bool applySwapPhysregToLhs(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, MachineInstr *&MatchInfo) const;
 
-  //  %5:_(p0) = G_FRAME_INDEX %fixed-stack.3
-  //  %1:_(s8) = G_LOAD %5:_(p0) :: (invariant load (s8) from %fixed-stack.3, align 2)
-  //  %9:_(s8) = G_ADD %0:_, %1:_
-  //   =>
+  //  %0:accum(s8) = COPY $ab
   //  :
-  //  %1:_(s8) = G_LOAD %fixed-stack.3 :: (invariant load (s8) from %fixed-stack.3, align 2)
-  //  %9:_(s8) = G_ADD %0:_, %1:_
-  bool matchMergeLoadAndFrameIndex(MachineInstr &MI, MachineRegisterInfo &MRI, MachineInstr *&MatchInfo) const;
-  bool applyMergeLoadAndFrameIndex(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, MachineInstr *&MatchInfo) const;
-
+  //  %11:accum(s8) = G_ADD %10:accum, %4:accum
+  //  %12:accum(s8) = G_SUB %0:accum, %11:accum
+  //   =>
+  //  %0:accum(s8) = COPY $ab
+  //  :
+  //  %12:accum(s8) = G_SUB %0:accum, %4:accum
+  //  %13:accum(s8) = G_SUB %12:accum, %10:accum
   bool matchSwitchAddToSubtract(MachineInstr &MI, MachineRegisterInfo &MRI, MachineInstr *&MatchInfo) const;
   bool applySwitchAddToSubtract(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, MachineInstr *&MatchInfo) const;
+
 };
 // ======================================================================
 
@@ -100,12 +100,12 @@ public:
 // GLOBAL_VALUE @x + (y_const + z_const)
 bool MC6809CombinerHelperState::matchFoldGlobalOffset(MachineInstr &MI, MachineRegisterInfo &MRI, std::pair<const MachineOperand *, int64_t> &MatchInfo) const {
   using namespace TargetOpcode;
-  assert(MI.getOpcode() == G_PTR_ADD);
+  assert(MI.getOpcode() == MC6809::G_PTR_ADD);
 
   Register Base = MI.getOperand(1).getReg();
   Register Offset = MI.getOperand(2).getReg();
 
-  MachineInstr *GlobalBase = getOpcodeDef(G_GLOBAL_VALUE, Base, MRI);
+  MachineInstr *GlobalBase = getOpcodeDef(MC6809::G_GLOBAL_VALUE, Base, MRI);
   auto ConstOffset = getIConstantVRegValWithLookThrough(Offset, MRI);
 
   if (!GlobalBase || !ConstOffset)
@@ -118,10 +118,10 @@ bool MC6809CombinerHelperState::matchFoldGlobalOffset(MachineInstr &MI, MachineR
 
 bool MC6809CombinerHelperState::applyFoldGlobalOffset(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, std::pair<const MachineOperand *, int64_t> &MatchInfo) const {
   using namespace TargetOpcode;
-  assert(MI.getOpcode() == G_PTR_ADD);
+  assert(MI.getOpcode() == MC6809::G_PTR_ADD);
   const TargetInstrInfo &TII = MIB.getTII();
   Observer.changingInstr(MI);
-  MI.setDesc(TII.get(TargetOpcode::G_GLOBAL_VALUE));
+  MI.setDesc(TII.get(MC6809::G_GLOBAL_VALUE));
   MI.getOperand(1).ChangeToGA(MatchInfo.first->getGlobal(), MatchInfo.second, MatchInfo.first->getTargetFlags());
   MI.removeOperand(2);
   Observer.changedInstr(MI);
@@ -138,7 +138,7 @@ bool MC6809CombinerHelperState::matchFoldGlobalCopy(MachineInstr &MI, MachineReg
 
   MachineOperand *CopyDest = &MI.getOperand(0);
   MachineOperand *CopySource = &MI.getOperand(1);
-  MachineInstr *GlobalBase = getOpcodeDef(G_GLOBAL_VALUE, CopySource->getReg(), MRI);
+  MachineInstr *GlobalBase = getOpcodeDef(MC6809::G_GLOBAL_VALUE, CopySource->getReg(), MRI);
 
   if (!GlobalBase)
     return false;
@@ -163,13 +163,13 @@ bool MC6809CombinerHelperState::applyFoldGlobalCopy(MachineInstr &MI, MachineReg
 //  %3:_(s8) = G_PTR_ADD %0:_, %1:_(s8)
 bool MC6809CombinerHelperState::matchFoldPointerExtOffset(MachineInstr &MI, MachineRegisterInfo &MRI, std::pair<MachineInstr *, MachineInstr *>&MatchInfo) const {
   using namespace TargetOpcode;
-  assert(MI.getOpcode() == G_PTR_ADD);
+  assert(MI.getOpcode() == MC6809::G_PTR_ADD);
   if (!MI.getOperand(2).isReg())
     return false;
   Register Offset = MI.getOperand(2).getReg();
-  MachineInstr *Ext = getOpcodeDef (G_SEXT, Offset, MRI);
+  MachineInstr *Ext = getOpcodeDef (MC6809::G_SEXT, Offset, MRI);
   if (!Ext) {
-    Ext = getOpcodeDef(G_ZEXT, Offset, MRI);
+    Ext = getOpcodeDef(MC6809::G_ZEXT, Offset, MRI);
     if (!Ext)
       return false;
   }
@@ -179,7 +179,7 @@ bool MC6809CombinerHelperState::matchFoldPointerExtOffset(MachineInstr &MI, Mach
 
 bool MC6809CombinerHelperState::applyFoldPointerExtOffset(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, std::pair<MachineInstr *, MachineInstr *>&MatchInfo) const {
   using namespace TargetOpcode;
-  assert(MI.getOpcode() == G_PTR_ADD);
+  assert(MI.getOpcode() == MC6809::G_PTR_ADD);
   Observer.changingInstr(MI);
   MI.getOperand(2).ChangeToRegister(MatchInfo.second->getOperand(1).getReg(), /* isDef */ false);
   MatchInfo.second->eraseFromParent();
@@ -198,9 +198,9 @@ bool MC6809CombinerHelperState::matchSwapPhysregToLhs(MachineInstr &MI, MachineR
   using namespace TargetOpcode;
   const MC6809Subtarget &STI = static_cast<const MC6809Subtarget &>(MI.getMF()->getSubtarget());
   if (!STI.isHD6309()) {
-    assert(MI.getOpcode() == G_ADD || MI.getOpcode() == G_SADDO || MI.getOpcode() == G_UADDO || MI.getOpcode() == G_SADDE || MI.getOpcode() == G_UADDE);
+    assert(MI.getOpcode() == MC6809::G_ADD || MI.getOpcode() == MC6809::G_SADDO || MI.getOpcode() == MC6809::G_UADDO || MI.getOpcode() == MC6809::G_SADDE || MI.getOpcode() == MC6809::G_UADDE);
     int ArgA, ArgB;
-    if (MI.getOpcode() == G_ADD) {
+    if (MI.getOpcode() == MC6809::G_ADD) {
       ArgA = 1;
       ArgB = 2;
     } else {
@@ -224,8 +224,8 @@ bool MC6809CombinerHelperState::matchSwapPhysregToLhs(MachineInstr &MI, MachineR
 bool MC6809CombinerHelperState::applySwapPhysregToLhs(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, MachineInstr *&MatchInfo) const {
   using namespace TargetOpcode;
   int ArgA, ArgB;
-  assert(MI.getOpcode() == G_ADD || MI.getOpcode() == G_SADDO || MI.getOpcode() == G_UADDO || MI.getOpcode() == G_SADDE || MI.getOpcode() == G_UADDE);
-  if (MI.getOpcode() == G_ADD) {
+  assert(MI.getOpcode() == MC6809::G_ADD || MI.getOpcode() == MC6809::G_SADDO || MI.getOpcode() == MC6809::G_UADDO || MI.getOpcode() == MC6809::G_SADDE || MI.getOpcode() == MC6809::G_UADDE);
+  if (MI.getOpcode() == MC6809::G_ADD) {
     ArgA = 1;
     ArgB = 2;
   } else {
@@ -264,8 +264,8 @@ bool MC6809CombinerHelperState::matchSwitchAddToSubtract(MachineInstr &MI, Machi
 
 bool MC6809CombinerHelperState::applySwitchAddToSubtract(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, MachineInstr *&MatchInfo) const {
   using namespace TargetOpcode;
-  assert(MI.getOpcode() == G_SUB);
-  assert(MatchInfo->getOpcode() == G_ADD);
+  assert(MI.getOpcode() == MC6809::G_SUB);
+  assert(MatchInfo->getOpcode() == MC6809::G_ADD);
   MachineIRBuilder Builder(MI);
   Observer.changingInstr(MI);
   Builder.buildSub(MatchInfo->getOperand(0).getReg(), MI.getOperand(1).getReg(), MatchInfo->getOperand(2).getReg());
