@@ -683,6 +683,9 @@ def warn_drv_sarif_format_unstable : Warning<
   "diagnostic formatting in SARIF mode is currently unstable">,
   InGroup<DiagGroup<"sarif-format-unstable">>;
 
+def err_drv_riscv_unsupported_with_linker_relaxation : Error<
+  "%0 is unsupported with RISC-V linker relaxation (-mrelax)">;
+
 def err_drv_invalid_zp : Error<
   "invalid zero page amount : %0\n"
   "Zero page amounts must be unsigned integers.">;
