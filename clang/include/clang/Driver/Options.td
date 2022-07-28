@@ -3985,7 +3985,7 @@ def module_file_info : Flag<["-"], "module-file-info">, Flags<[NoXarchOption,CC1
   HelpText<"Provide information about a particular module file">;
 def mthumb : Flag<["-"], "mthumb">, Group<m_Group>;
 def mtune_EQ : Joined<["-"], "mtune=">, Group<m_Group>,
-  HelpText<"Only supported on X86, RISC-V and SystemZ. Otherwise accepted for compatibility with GCC.">;
+  HelpText<"Only supported on AArch64, PowerPC, RISC-V, SystemZ, and X86">;
 def mlto_zp_EQ : Joined<["-"], "mlto-zp=">, Group<m_Group>,
   HelpText<"Allocate a number of bytes of zero page for use by the compiler in LTO.">;
 def mreserve_zp_EQ : Joined<["-"], "mreserve-zp=">, Group<m_Group>,
