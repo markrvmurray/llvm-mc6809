@@ -243,9 +243,19 @@ MC6809InstrInfo::MC6809InstrInfo(const MC6809Subtarget &STI)
 }
 
 unsigned MC6809InstrInfo::isLoadFromStackSlot(const MachineInstr &MI, int &FrameIndex) const {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
   switch (MI.getOpcode()) {
   default:
     break;
+  case MC6809::LDAi_o0:
+  case MC6809::LDBi_o0:
+  case MC6809::LDDi_o0:
+  case MC6809::LDEi_o0:
+  case MC6809::LDFi_o0:
+  case MC6809::LDWi_o0:
+  case MC6809::LDQi_o0:
+  case MC6809::LDXi_o0:
+  case MC6809::LDYi_o0:
   case MC6809::LDAi_o8:
   case MC6809::LDBi_o8:
   case MC6809::LDDi_o8:
@@ -275,9 +285,19 @@ unsigned MC6809InstrInfo::isLoadFromStackSlot(const MachineInstr &MI, int &Frame
 }
 
 unsigned MC6809InstrInfo::isStoreToStackSlot(const MachineInstr &MI, int &FrameIndex) const {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
   switch (MI.getOpcode()) {
   default:
     break;
+  case MC6809::STAi_o0:
+  case MC6809::STBi_o0:
+  case MC6809::STDi_o0:
+  case MC6809::STEi_o0:
+  case MC6809::STFi_o0:
+  case MC6809::STWi_o0:
+  case MC6809::STQi_o0:
+  case MC6809::STXi_o0:
+  case MC6809::STYi_o0:
   case MC6809::STAi_o8:
   case MC6809::STBi_o8:
   case MC6809::STDi_o8:
@@ -810,6 +830,9 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::Neg32:
     expandNegate(Builder, MI);
     break;
+  case MC6809::Mul8:
+    expandMul8(Builder, MI);
+    break;
   case MC6809::CallRelative:
     expandCallRelative(Builder, MI);
     break;
@@ -1131,6 +1154,36 @@ void MC6809InstrInfo::expandNegate(MachineIRBuilder &Builder, MachineInstr &MI) 
     MI.eraseFromParent();
     break;
   }
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
+}
+
+void MC6809InstrInfo::expandMul8(MachineIRBuilder &Builder, MachineInstr &MI) const {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
+  assert((MI.getOperand(0).getReg() == MC6809::AA || MI.getOperand(0).getReg() == MC6809::AB) &&
+         (MI.getOperand(1).getReg() == MC6809::AA || MI.getOperand(1).getReg() == MC6809::AB) &&
+         (MI.getOperand(0).getReg() != MI.getOperand(1).getReg()) && "Arguments must be AA and AB");
+  MI.setDesc(Builder.getTII().get(MC6809::MULx));
+  MI.removeOperand(4);
+  MI.removeOperand(3);
+  MI.removeOperand(2);
+  MI.removeOperand(1);
+  MI.removeOperand(0);
+  MI.addImplicitDefUseOperands(*MI.getMF());
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
+}
+
+void MC6809InstrInfo::expandMul16Idx(MachineIRBuilder &Builder, MachineInstr &MI) const {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
+  assert((MI.getOperand(0).getReg() == MC6809::AA || MI.getOperand(0).getReg() == MC6809::AB) &&
+         (MI.getOperand(1).getReg() == MC6809::AA || MI.getOperand(1).getReg() == MC6809::AB) &&
+         (MI.getOperand(0).getReg() != MI.getOperand(1).getReg()) && "Arguments must be AA and AB");
+  MI.setDesc(Builder.getTII().get(MC6809::MULx));
+  MI.removeOperand(4);
+  MI.removeOperand(3);
+  MI.removeOperand(2);
+  MI.removeOperand(1);
+  MI.removeOperand(0);
+  MI.addImplicitDefUseOperands(*MI.getMF());
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
 }
 

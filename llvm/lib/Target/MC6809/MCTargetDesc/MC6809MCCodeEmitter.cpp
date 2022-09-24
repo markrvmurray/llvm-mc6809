@@ -1,5 +1,4 @@
-//===-- MC6809MCCodeEmitter.cpp - Convert MC6809 Code to Machine Code
-//-----------===//
+//===-- MC6809MCCodeEmitter.cpp - Convert MC6809 Code to Machine Code -----===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -50,8 +49,6 @@ void MC6809MCCodeEmitter::emitInstruction(uint64_t Val, unsigned Size,
 void MC6809MCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
                                             SmallVectorImpl<MCFixup> &Fixups,
                                             const MCSubtargetInfo &STI) const {
-  verifyInstructionPredicates(MI,
-                              computeAvailableFeatures(STI.getFeatureBits()));
 
   const MCInstrDesc &Desc = MCII.get(MI.getOpcode());
   // Get byte count of instruction

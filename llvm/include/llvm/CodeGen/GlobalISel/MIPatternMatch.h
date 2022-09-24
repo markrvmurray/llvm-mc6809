@@ -554,6 +554,30 @@ m_GSSubO(const LHS &L, const RHS &R) {
   return Binary2Op_match<LHS, RHS, TargetOpcode::G_SSUBO>(L, R);
 }
 
+template <typename LHS, typename RHS>
+inline Binary2Op_match<LHS, RHS, TargetOpcode::G_UMULO, true>
+m_GUMulO(const LHS &L, const RHS &R) {
+  return Binary2Op_match<LHS, RHS, TargetOpcode::G_UMULO, true>(L, R);
+}
+
+template <typename LHS, typename RHS>
+inline Binary2Op_match<LHS, RHS, TargetOpcode::G_SMULO, true>
+m_GSMulO(const LHS &L, const RHS &R) {
+  return Binary2Op_match<LHS, RHS, TargetOpcode::G_SMULO, true>(L, R);
+}
+
+template <typename LHS, typename RHS>
+inline Binary2Op_match<LHS, RHS, TargetOpcode::G_UMULH, true>
+m_GUMulH(const LHS &L, const RHS &R) {
+  return Binary2Op_match<LHS, RHS, TargetOpcode::G_UMULH, true>(L, R);
+}
+
+template <typename LHS, typename RHS>
+inline Binary2Op_match<LHS, RHS, TargetOpcode::G_SMULH, true>
+m_GSMulH(const LHS &L, const RHS &R) {
+  return Binary2Op_match<LHS, RHS, TargetOpcode::G_SMULH, true>(L, R);
+}
+
 // General helper for all the binary generic MI such as G_UADDE
 template <typename LHS_P, typename RHS_P, typename CARRY_P, unsigned Opcode,
           bool Commutable = false>
@@ -652,6 +676,12 @@ template <typename SrcTy>
 inline UnaryOp_match<SrcTy, TargetOpcode::G_BITCAST>
 m_GBitcast(const SrcTy &Src) {
   return UnaryOp_match<SrcTy, TargetOpcode::G_BITCAST>(Src);
+}
+
+template <typename SrcTy>
+inline UnaryOp_match<SrcTy, TargetOpcode::G_LOAD>
+m_GLoad(const SrcTy &Src) {
+  return UnaryOp_match<SrcTy, TargetOpcode::G_LOAD>(Src);
 }
 
 template <typename SrcTy>

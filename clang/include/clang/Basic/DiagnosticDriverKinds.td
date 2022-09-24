@@ -692,11 +692,4 @@ def err_drv_invalid_zp : Error<
 def err_drv_too_much_zp_reserved : Error<
   "reserved more zp than available: %0 \n"
   "Cannot reserve more bytes of zero page than allocated to the compiler.">;
-
-def warn_drv_sarif_format_unstable : Warning<
-  "diagnostic formatting in SARIF mode is currently unstable">,
-  InGroup<DiagGroup<"sarif-format-unstable">>;
-
-def err_drv_riscv_unsupported_with_linker_relaxation : Error<
-  "%0 is unsupported with RISC-V linker relaxation (-mrelax)">;
 }
