@@ -170,6 +170,10 @@ private:
   void expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI) const;
 
   void expandNegate(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandMul8(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandMul16Imm(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandMul16Idx(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandMul16Pop(MachineIRBuilder &Builder, MachineInstr &MI) const;
 
   void expandAddReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandAddImm(MachineIRBuilder &Builder, MachineInstr &MI) const;

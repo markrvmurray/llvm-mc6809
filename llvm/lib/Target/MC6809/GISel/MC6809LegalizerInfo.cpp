@@ -117,19 +117,11 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) {
 
   // Integer Operations
   if (STI.isHD6309()) {
-    getActionDefinitionsBuilder(G_ADD)
-        .legalFor({S8, S16, S32})
-        .clampScalar(0, S8, S32);
-    getActionDefinitionsBuilder(G_SUB)
-        .customFor({S8, S16, S32})
-        .clampScalar(0, S8, S32);
+    getActionDefinitionsBuilder({G_ADD, G_SUB})
+        .legalFor({S8, S16, S32});
   } else {
-    getActionDefinitionsBuilder(G_ADD)
-        .legalFor({S8, S16})
-        .clampScalar(0, S8, S16);
-    getActionDefinitionsBuilder(G_SUB)
-        .customFor({S8, S16})
-        .clampScalar(0, S8, S16);
+    getActionDefinitionsBuilder({G_ADD, G_SUB})
+        .legalFor({S8, S16});
   }
 
   if (STI.isHD6309()) {
@@ -142,25 +134,29 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) {
         .widenScalarToNextPow2(0);
   }
 
-  getActionDefinitionsBuilder(G_MUL)
-      .legalFor({S8})
-      .widenScalarToNextPow2(0);
+  if (STI.isHD6309()) {
+    getActionDefinitionsBuilder(G_MUL)
+        .legalFor({S8, S16})
+        .libcall();
+  } else {
+    getActionDefinitionsBuilder(G_MUL)
+        .legalFor({S8})
+        .libcall();
+  }
 
-  getActionDefinitionsBuilder({G_SDIV, G_SREM, G_UDIV, G_UREM}).libcall();
+  getActionDefinitionsBuilder({G_SDIV, G_SREM, G_UDIV, G_UREM, G_SDIVREM, G_UDIVREM})
+      .libcall();
 
-  getActionDefinitionsBuilder({G_SDIVREM, G_UDIVREM}).unsupported();
+  getActionDefinitionsBuilder({G_SADDSAT, G_UADDSAT, G_SSUBSAT, G_USUBSAT, G_SSHLSAT, G_USHLSAT})
+      .libcall();
 
-  getActionDefinitionsBuilder(
-      {G_SADDSAT, G_UADDSAT, G_SSUBSAT, G_USUBSAT, G_SSHLSAT, G_USHLSAT})
-      .lower();
-
-  getActionDefinitionsBuilder({G_SHL, G_LSHR, G_ASHR})
-      .legalFor({{S8, S1}})
-      .widenScalarToNextPow2(0);
-
-  getActionDefinitionsBuilder({G_ROTL, G_ROTR})
-      .legalFor({{S8, S8}})
-      .widenScalarToNextPow2(0);
+  if (STI.isHD6309()) {
+    getActionDefinitionsBuilder({G_SHL, G_LSHR, G_ASHR, G_ROTL, G_ROTR})
+        .legalFor({{S16, S1}, {S8, S1}});
+  } else {
+    getActionDefinitionsBuilder({G_SHL, G_LSHR, G_ASHR, G_ROTL, G_ROTR})
+        .legalFor({{S8, S1}});
+  }
 
   getActionDefinitionsBuilder(G_ICMP)
       .legalForCartesianProduct({S1}, {S8, S16, P})
@@ -171,40 +167,65 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) {
       .widenScalarToNextPow2(0);
 
   getActionDefinitionsBuilder(G_PTR_ADD)
-      .legalFor({{P, S16}, {P, S8}, {P, S1}})
-      .unsupported();
+      .legalFor({{P, S16}, {P, S8}, {P, S1}});
 
-  getActionDefinitionsBuilder({G_SMIN, G_SMAX, G_UMIN, G_UMAX}).lower();
+  getActionDefinitionsBuilder({G_SMIN, G_SMAX, G_UMIN, G_UMAX})
+      .lower();
 
-  getActionDefinitionsBuilder(G_ABS).unsupported();
+  getActionDefinitionsBuilder(G_ABS)
+      .lower();
 
   // Odd operations produce a carry
   // Even operations produce and consume a carry
+  if (STI.isHD6309()) {
     getActionDefinitionsBuilder({G_USUBO, G_SSUBO, G_USUBE, G_SSUBE})
-        .customFor({{S8, S1}, {S16, S1}})
+        .legalFor({{S8, S1}, {S16, S1}})
         .widenScalarToNextPow2(0);
     getActionDefinitionsBuilder({G_UADDO, G_SADDO, G_UADDE, G_SADDE})
         .legalFor({{S8, S1}, {S16, S1}})
         .widenScalarToNextPow2(0);
+  } else {
+    getActionDefinitionsBuilder({G_USUBO, G_SSUBO, G_USUBE, G_SSUBE})
+        .legalFor({{S8, S1}})
+        .widenScalarToNextPow2(0);
+    getActionDefinitionsBuilder({G_UADDO, G_SADDO, G_UADDE, G_SADDE})
+        .legalFor({{S8, S1}})
+        .widenScalarToNextPow2(0);
+  }
 
-  getActionDefinitionsBuilder({G_SMULO, G_UMULO})
-      .widenScalarToNextPow2(0)
-      .clampScalar(0, S8, S8)
-      .lowerIf(typeIs(1, S1));
-
-  getActionDefinitionsBuilder({G_UMULH, G_SMULH}).legalFor({S16}).lower();
+#if 0
+  if (STI.isHD6309()) {
+    getActionDefinitionsBuilder({G_SMULO, G_UMULO})
+        .legalFor({S8, S16})
+        .widenScalarToNextPow2(0)
+        .lower();
+    getActionDefinitionsBuilder({G_UMULH, G_SMULH})
+        .legalFor({S8, S16})
+        .widenScalarToNextPow2(0)
+        .lower();
+  } else {
+    getActionDefinitionsBuilder({G_SMULO, G_UMULO})
+        .legalFor({S8})
+        .widenScalarToNextPow2(0)
+        .lower();
+    getActionDefinitionsBuilder({G_UMULH, G_SMULH})
+        .legalFor({S8})
+        .widenScalarToNextPow2(0)
+        .lower();
+  }
+#endif
 
   // WARNING: The default lowering of funnel shifts is terrible. Luckily, they
   // appear to mostly be rotations, which are combined away and handled
   // separately.
-  getActionDefinitionsBuilder({G_FSHL, G_FSHR}).lower();
+  getActionDefinitionsBuilder({G_FSHL, G_FSHR})
+      .lower();
 
   getActionDefinitionsBuilder(
       {G_CTLZ, G_CTTZ, G_CTPOP, G_CTLZ_ZERO_UNDEF, G_CTTZ_ZERO_UNDEF})
       .lower();
 
   // Floating Point Operations
-
   getActionDefinitionsBuilder({G_FADD,       G_FSUB,
                                G_FMUL,       G_FDIV,
                                G_FMA,        G_FPOW,
@@ -219,20 +240,22 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) {
                                G_FPEXT,      G_FPTRUNC,
                                G_FPTOSI,     G_FPTOUI,
                                G_SITOFP,     G_UITOFP})
-      .unsupported();
+      .libcall();
 
   // Memory Operations
 
+#if 0
   getActionDefinitionsBuilder({G_SEXTLOAD, G_ZEXTLOAD})
       .unsupported();
+#endif
 
   if (STI.isHD6309()) {
     getActionDefinitionsBuilder({G_LOAD, G_STORE})
-        .customFor({{S8, P}, {S16, P}, {S32, P}, {P, P}})
+        .legalFor({{S8, P}, {S16, P}, {S32, P}, {P, P}})
         .widenScalarToNextPow2(0);
   } else {
     getActionDefinitionsBuilder({G_LOAD, G_STORE})
-        .customFor({{S8, P}, {S16, P}, {P, P}})
+        .legalFor({{S8, P}, {S16, P}, {P, P}})
         .widenScalarToNextPow2(0);
   }
 
@@ -244,23 +267,28 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) {
       .legalFor({P, S1, S8, S16})
       .widenScalarToNextPow2(0);
 
-  getActionDefinitionsBuilder(G_BRCOND).legalFor({S1});
+  getActionDefinitionsBuilder(G_BRCOND)
+      .legalFor({S1});
 
-  getActionDefinitionsBuilder(G_BRINDIRECT).legalFor({P});
+  getActionDefinitionsBuilder(G_BRINDIRECT)
+      .legalFor({P});
 
-  getActionDefinitionsBuilder(G_BRJT).legalFor({{P, S8}, {P, S16}});
+  getActionDefinitionsBuilder(G_BRJT)
+      .legalFor({{P, S8}, {P, S16}});
 
-  getActionDefinitionsBuilder(G_JUMP_TABLE).legalFor({{P}, {S16}});
+  getActionDefinitionsBuilder(G_JUMP_TABLE)
+      .legalFor({{P}, {S16}});
 
   // Variadic Arguments
-
-  getActionDefinitionsBuilder({G_VASTART, G_VAARG}).unsupported();
+  getActionDefinitionsBuilder({G_VASTART, G_VAARG})
+      .unsupported();
 
   // Other Operations
+  getActionDefinitionsBuilder(G_DYN_STACKALLOC)
+      .unsupported();
 
-  getActionDefinitionsBuilder(G_DYN_STACKALLOC).unsupported();
-
-  getActionDefinitionsBuilder(G_FREEZE).unsupported();
+  getActionDefinitionsBuilder(G_FREEZE)
+      .unsupported();
 
   getLegacyLegalizerInfo().computeTables();
   verify(*STI.getInstrInfo());
@@ -278,13 +306,12 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
   switch (MI.getOpcode()) {
   default:
     llvm_unreachable("Invalid opcode for custom legalization.");
+#if 0
   case G_LOAD:
   case G_STORE:
     return legalizeLoadStore(Helper, MRI, MI);
-#if 0
   case G_PTR_ADD:
     return legalizePtrAdd(Helper, MRI, MI);
-#endif /* 0 */
   // Integer Operations
   case G_ADD:
   case G_SUB:
@@ -295,9 +322,11 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
   case G_USUBE:
   case G_SSUBE:
     return legalizeSubE(Helper, MRI, MI);
+#endif /* 0 */
   }
 }
 
+#if 0
 static bool willBeStaticallyAllocated(const MachineOperand &MO) {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MO = "; MO.dump(););
   assert(MO.isFI());
@@ -515,7 +544,6 @@ bool MC6809LegalizerInfo::legalizeSubO(LegalizerHelper &Helper, MachineRegisterI
   MachineIRBuilder &Builder = Helper.MIRBuilder;
   // const MC6809Subtarget &STI = static_cast<const MC6809Subtarget &>(MI.getMF()->getSubtarget());
 
-  MachineInstr *GConst;
   auto DstTy = MRI.getType(MI.getOperand(0).getReg());
   auto CarryTy = MRI.getType(MI.getOperand(1).getReg());
   if (auto GConst = getOpcodeDef(G_CONSTANT, MI.getOperand(2).getReg(), MRI)) {
@@ -542,7 +570,6 @@ bool MC6809LegalizerInfo::legalizeSubE(LegalizerHelper &Helper, MachineRegisterI
   MachineIRBuilder &Builder = Helper.MIRBuilder;
   // const MC6809Subtarget &STI = static_cast<const MC6809Subtarget &>(MI.getMF()->getSubtarget());
 
-  MachineInstr *GConst;
   auto DstTy = MRI.getType(MI.getOperand(0).getReg());
   auto CarryTy = MRI.getType(MI.getOperand(1).getReg());
   if (auto GConst = getOpcodeDef(G_CONSTANT, MI.getOperand(2).getReg(), MRI)) {
@@ -564,3 +591,4 @@ bool MC6809LegalizerInfo::legalizeSubE(LegalizerHelper &Helper, MachineRegisterI
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Returning true\n";);
   return true;
 }
+#endif /* 0 */

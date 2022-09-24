@@ -21,10 +21,10 @@ add_public_tablegen_target(MC6809CommonTableGen)
 
 add_llvm_target(MC6809CodeGen
   GISel/MC6809CallLowering.cpp
+  GISel/MC6809Combiner.cpp
   GISel/MC6809InstructionSelector.cpp
   GISel/MC6809LegalizerInfo.cpp
   GISel/MC6809RegisterBankInfo.cpp
-  GISel/MC6809Combiner.cpp
   MC6809AsmPrinter.cpp
   MC6809CallingConv.cpp
   MC6809FrameLowering.cpp
@@ -46,17 +46,24 @@ add_llvm_target(MC6809CodeGen
   intrinsics_gen
 
   LINK_COMPONENTS
+  Analysis
   AsmPrinter
+  BinaryFormat
   CodeGen
   Core
   GlobalISel
-  MC
   IPO
+  InstCombine
   LTO
+  MC
+  MC6809Desc
+  MC6809Info
   Passes
+  Scalar
   SelectionDAG
   Support
   Target
+  TransformUtils
 
   ADD_TO_COMPONENT
   MC6809

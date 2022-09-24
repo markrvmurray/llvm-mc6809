@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "MC6809.h"
-#include "clang/Driver/Options.h"
+#include "clang/Driver/Driver.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSwitch.h"
 
@@ -27,4 +27,22 @@ std::string mc6809::getMC6809TargetCPU(const ArgList &Args) {
   }
 
   return "";
+}
+
+void mc6809::getMC6809TargetFeatures(const Driver &D, const ArgList &Args,
+                               std::vector<StringRef> &Features) {
+  if (Args.hasArg(clang::driver::options::OPT_mcpu_EQ) &&
+      getMC6809TargetCPU(Args).empty()) {
+    D.Diag(diag::err_drv_clang_unsupported)
+        << Args.getLastArg(clang::driver::options::OPT_mcpu_EQ)
+               ->getAsString(Args);
+  }
+
+  if (Arg *A = Args.getLastArg(options::OPT_fstatic_stack,
+                               options::OPT_fno_static_stack)) {
+    if (A->getOption().matches(options::OPT_fstatic_stack))
+      Features.push_back("+static-stack");
+    else
+      Features.push_back("-static-stack");
+  }
 }

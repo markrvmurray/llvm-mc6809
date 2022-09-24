@@ -14,10 +14,16 @@
 
 namespace clang {
 namespace driver {
+
+class Driver;
+
 namespace tools {
 namespace mc6809 {
 
 std::string getMC6809TargetCPU(const llvm::opt::ArgList &Args);
+
+void getMC6809TargetFeatures(const Driver &D, const llvm::opt::ArgList &Args,
+                          std::vector<llvm::StringRef> &Features);
 
 } // end namespace mc6809
 } // end namespace tools

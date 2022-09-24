@@ -303,7 +303,8 @@ public:
 
 bool MC6809CombinerInfo::combine(GISelChangeObserver &Observer, MachineInstr &MI, MachineIRBuilder &MIB) const {
   const LegalizerInfo *LI = MI.getMF()->getSubtarget().getLegalizerInfo();
-  CombinerHelper Helper(Observer, MIB, KB, MDT, LI);
+  bool IsPreLegalize = !MI.getMF()->getProperties().hasProperty(MachineFunctionProperties::Property::Legalized);
+  CombinerHelper Helper(Observer, MIB, IsPreLegalize, KB, MDT, LI);
   MC6809GenCombinerHelper Generated(GeneratedRuleCfg, Helper);
   return Generated.tryCombineAll(Observer, MI, MIB);
 }

@@ -64,7 +64,7 @@ static StringRef getCPU(StringRef CPU) {
 }
 
 static Reloc::Model getEffectiveRelocModel(Optional<Reloc::Model> RM) {
-  return RM.hasValue() ? *RM : Reloc::Static;
+  return RM.has_value() ? *RM : Reloc::Static;
 }
 
 MC6809TargetMachine::MC6809TargetMachine(const Target &T, const Triple &TT,
