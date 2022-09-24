@@ -67,19 +67,6 @@ MC6809RegisterInfo::getCallPreservedMask(const MachineFunction &MF, CallingConv:
   return MC6809_CSR_RegMask;
 }
 
-#if 0
-const TargetRegisterClass *
-MC6809RegisterInfo::getLargestLegalSuperClass(const TargetRegisterClass *RC, const MachineFunction &) const {
-  if (RC->hasSuperClass(&MC6809::BIT1RegClass))
-    return &MC6809::ACC16RegClass;
-  if (RC->hasSuperClass(&MC6809::BIT8RegClass))
-    return &MC6809::ACC16RegClass;
-  if (RC->hasSuperClass(&MC6809::ACC8RegClass))
-    return &MC6809::ACC16RegClass;
-  return RC;
-}
-#endif /* 0 */
-
 const TargetRegisterClass *
 MC6809RegisterInfo::getCrossCopyRegClass(const TargetRegisterClass *RC) const {
   if (RC == &MC6809::INDEX16RegClass)
@@ -89,57 +76,31 @@ MC6809RegisterInfo::getCrossCopyRegClass(const TargetRegisterClass *RC) const {
   return RC;
 }
 
-#if 0
-// These values were chosen empirically based on the desired behavior of llc
-// test cases. These values will likely need to be retuned as more examples come
-// up.  Unfortunately, the way the register allocator actually uses this is very
-// heuristic, and if tuning these params doesn't suffice, we'll need to build a
-// more sophisticated analysis into the register allocator.
-unsigned
-MC6809RegisterInfo::getCSRFirstUseCost(const MachineFunction &MF) const {
-  if (MF.getFunction().doesNotRecurse()) {
-    return 15 * 16384 / 10;
-  }
-  return 5 * 16384 / 10;
-}
-#endif /* 0 */
+bool
+MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int SPAdj, unsigned FIOperandNum, RegScavenger *RS) const {
+  assert(SPAdj == 0 && "Unexpected non-zero SPAdj");
 
-void MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI, int SPAdj, unsigned FIOperandNum, RegScavenger *RS) const {
-  MachineFunction &MF = *MI->getMF();
-  const MachineFrameInfo &MFI = MF.getFrameInfo();
+  MachineInstr &MI = *II;
+  MachineBasicBlock &MBB = *MI.getParent();
+  MachineFunction &MF = *MBB.getParent();
+  const MC6809FrameLowering *TFI = getFrameLowering(MF);
+  DebugLoc dl = MI.getDebugLoc();
+  int FrameIndex = MI.getOperand(FIOperandNum).getIndex();
+  unsigned BasePtr = (TFI->hasFP(MF) ? MC6809::SU : MC6809::SS);
+  int Offset = MF.getFrameInfo().getObjectOffset(FrameIndex);
 
-  assert(SPAdj == 0 && "SPAdj is unexpectedly non-zero");
+  Offset += 2; // Skip the saved PC
 
-  int Idx = MI->getOperand(FIOperandNum).getIndex();
-  int64_t Offset = MFI.getObjectOffset(Idx);
-  if (FIOperandNum + 1 < MI->getNumOperands() &&
-      MI->getOperand(FIOperandNum + 1).isImm())
-    Offset += MI->getOperand(FIOperandNum + 1).getImm();
+  if (!TFI->hasFP(MF))
+    Offset += MF.getFrameInfo().getStackSize();
   else
-    Offset += MI->getOperand(FIOperandNum).getOffset();
+    Offset += 2; // Skip the saved FP
 
-  if (MFI.getStackID(Idx) == TargetStackID::Default) {
-    // All offsets are relative to the incoming SP
-    // 1) Addr = Offset_SP + SP
-    //
-    // However, the incoming SP isn't available throughout the function; only
-    // the frame pointer is. So we need to obtain the FP relative offset such
-    // that:
-    // 2) Addr = Offset_FP + FP
-    //
-    // Susbtituting (2) into (1) gives:
-    // 3) Offset_FP = Offset_SP + SP - FP
-    //
-    // The frame pointer is:
-    // 4) FP = SP - Stack_Size
-    //
-    // Substituting (4) into (3) gives:
-    // 5) Offset_FP = Offset_SP + Stack_Size
-    Offset += MFI.getStackSize();
-  }
-
-  MI->getOperand(FIOperandNum).ChangeToRegister(getFrameRegister(MF), /*isDef=*/false);
-  MI->getOperand(FIOperandNum + 1).setImm(Offset);
+  // Fold imm into offset
+  Offset += MI.getOperand(FIOperandNum + 1).getImm();
+  MI.getOperand(FIOperandNum).ChangeToRegister(BasePtr, false);
+  MI.getOperand(FIOperandNum + 1).ChangeToImmediate(Offset);
+  return false;
 }
 
 Register
@@ -196,38 +157,7 @@ copyCost(Register DestReg, Register SrcReg, const MC6809Subtarget &STI) {
     if (AreClasses(MC6809::AWcRegClass, MC6809::AQcRegClass))
       return 0;
     return 1;
-  } /* else if (AreClasses(MC6809::BIT1RegClass, MC6809::BIT1RegClass)) {
-    Register SrcReg8 = TRI.getMatchingSuperReg(SrcReg, MC6809::sub_lsb, &MC6809::ACC8RegClass);
-    Register DestReg8 = TRI.getMatchingSuperReg(DestReg, MC6809::sub_lsb, &MC6809::ACC8RegClass);
-    int Cost;
-
-    // XXXX: FIXME: MarkM - handle all the CC bits; the below is broken
-    if (SrcReg8) {
-      SrcReg = SrcReg8;
-      if (DestReg8) {
-        DestReg = DestReg8;
-        return copyCost(DestReg, SrcReg, STI);
-      }
-      if (DestReg == MC6809::C) {
-        // Cmp #1
-        Cost = 4;
-        if (!MC6809::ACC8RegClass.contains(SrcReg))
-          Cost += copyCost(MC6809::AA, SrcReg, STI);
-      }
-    }
-    if (DestReg8) {
-      DestReg = DestReg8;
-      Register Tmp = DestReg;
-      if (!MC6809::ACC8RegClass.contains(Tmp))
-        Tmp = MC6809::AA;
-      // TFR, AND,
-      Cost = 13;
-      if (Tmp != DestReg)
-        Cost += copyCost(DestReg, Tmp, STI);
-    }
-    return Cost;
-  } */
-
+  }
   llvm_unreachable("Unexpected physical register copy.");
 }
 

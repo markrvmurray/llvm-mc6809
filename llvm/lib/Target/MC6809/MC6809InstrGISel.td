@@ -31,55 +31,55 @@ class MC6809GenericInstruction : GenericInstruction {
 // Generalized load using the absolute addressing mode. The address
 // argument isn't a pointer; it's either a global value or a 16-bit immediate.
 // Additionally expects a MachineMemOperand.
-def G_LOAD_ABS : MC6809GenericInstruction {
-  let OutOperandList = (outs type0:$dst);
-  let InOperandList = (ins unknown:$addr);
-  let mayLoad = true;
-}
+//def G_LOAD_ABS : MC6809GenericInstruction {
+//  let OutOperandList = (outs type0:$dst);
+//  let InOperandList = (ins unknown:$addr);
+//  let mayLoad = true;
+//}
 
 // Generalized load using the indexed addressing mode. The index argument is a pointer.
 // The offset argument is a scalar. Additionally expects a MachineMemOperand.
-def G_LOAD_INDEX_OFFSET : MC6809GenericInstruction {
-  let OutOperandList = (outs type0:$dst);
-  let InOperandList = (ins ptype1:$index, type1:$offset);
-  let mayLoad = true;
-}
+//def G_LOAD_INDEX_OFFSET : MC6809GenericInstruction {
+//  let OutOperandList = (outs type0:$dst);
+//  let InOperandList = (ins ptype1:$index, type1:$offset);
+//  let mayLoad = true;
+//}
 
 // Generalized load using the indirect indexed addressing mode. The index argument is a pointer.
 // The offset argument is a scalar. Additionally expects a MachineMemOperand.
-def G_LOAD_INDIR_INDEX_OFFSET : MC6809GenericInstruction {
-  let OutOperandList = (outs type0:$dst);
-  let InOperandList = (ins ptype1:$index, type1:$offset);
-  let mayLoad = true;
-}
+//def G_LOAD_INDIR_INDEX_OFFSET : MC6809GenericInstruction {
+//  let OutOperandList = (outs type0:$dst);
+//  let InOperandList = (ins ptype1:$index, type1:$offset);
+//  let mayLoad = true;
+//}
 
 // Generalized store using the absolute addressing mode. The address
 // argument isn't a pointer; it's either a global value or a 16-bit immediate.
 // Additionally expects a MachineMemOperand.
-def G_STORE_ABS : MC6809GenericInstruction {
-  let OutOperandList = (outs);
-  let InOperandList = (ins type0:$src, unknown:$addr);
-  let hasSideEffects = false;
-  let mayStore = true;
-}
+//def G_STORE_ABS : MC6809GenericInstruction {
+//  let OutOperandList = (outs);
+//  let InOperandList = (ins type0:$src, unknown:$addr);
+//  let hasSideEffects = false;
+//  let mayStore = true;
+//}
 
 // Generalized store using the indexed addressing mode. The index argument is a pointer.
 // The offset argument is a scalar. Additionally expects a MachineMemOperand.
-def G_STORE_INDEX_OFFSET : MC6809GenericInstruction {
-  let OutOperandList = (outs);
-  let InOperandList = (ins type0:$src, ptype1:$index, type1:$offset);
-  let hasSideEffects = false;
-  let mayStore = true;
-}
+//def G_STORE_INDEX_OFFSET : MC6809GenericInstruction {
+//  let OutOperandList = (outs);
+//  let InOperandList = (ins type0:$src, ptype1:$index, type1:$offset);
+//  let hasSideEffects = false;
+//  let mayStore = true;
+//}
 
 // Generalized store using the indirect indexed addressing mode. The index argument is a pointer.
 // The offset argument is a scalar. Additionally expects a MachineMemOperand.
-def G_STORE_INDIR_INDEX_OFFSET : MC6809GenericInstruction {
-  let OutOperandList = (outs);
-  let InOperandList = (ins type0:$src, ptype1:$index, type1:$offset);
-  let hasSideEffects = false;
-  let mayStore = true;
-}
+//def G_STORE_INDIR_INDEX_OFFSET : MC6809GenericInstruction {
+//  let OutOperandList = (outs);
+//  let InOperandList = (ins type0:$src, ptype1:$index, type1:$offset);
+//  let hasSideEffects = false;
+//  let mayStore = true;
+//}
 
 // Shift an 8-bit value left one bit, placing $carry_in in the LSB and placing
 // the previous MSB bit into $carry_out. This "even" version can be chained to

@@ -25,7 +25,7 @@ class CCIfNotSubtarget<string F, CCAction A>
 
 let Entry = 1 in
 def RetCC_MC6809 : CallingConv<[
-  CCIfPtr<CCAssignToReg<[IX, IY]>>,
+  CCIfPtr<CCAssignToReg<[IX]>>,
   CCIfType<[i1], CCPromoteToType<i8>>,
   CCIfType<[i8], CCIfNotSubtarget<"isHD6309()", CCAssignToReg<[AB]>>>,
   CCIfType<[i8], CCIfSubtarget<"isHD6309()", CCAssignToReg<[AB, AF]>>>,
@@ -38,7 +38,7 @@ def RetCC_MC6809 : CallingConv<[
 // Simple calling convention for MC6809 ELF
 let Entry = 1 in
 def CC_MC6809 : CallingConv<[
-  CCIfPtr<CCAssignToReg<[IX, IY]>>,
+  CCIfPtr<CCAssignToReg<[IX]>>,
   CCIfType<[i1],  CCPromoteToType<i8>>,
   CCIfType<[i8], CCIfNotSubtarget<"isHD6309()", CCAssignToReg<[AB]>>>,
   CCIfType<[i8], CCIfSubtarget<"isHD6309()", CCAssignToReg<[AB, AF]>>>,
@@ -55,6 +55,6 @@ def CC_MC6809_VarArgs : CallingConv<[
   CCAssignToStack<0, 1>,
 ]>;
 
-def MC6809_CSR : CalleeSavedRegs<(add)>;
+def MC6809_CSR : CalleeSavedRegs<(add IY)>;
 //def MC6809_CSR : CalleeSavedRegs<(add SU)>;
 //def MC6809_CSR : CalleeSavedRegs<(add AD, AW, IX, IY)>;

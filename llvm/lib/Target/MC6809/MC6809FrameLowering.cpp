@@ -44,10 +44,17 @@ bool MC6809FrameLowering::hasReservedCallFrame(const MachineFunction &MF) const 
 }
 
 void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) const {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MF = "; MF.dump(););
   assert(&MF.front() == &MBB && "Shrink-wrapping not yet supported");
   MachineFrameInfo &MFI = MF.getFrameInfo();
   MC6809MachineFunctionInfo *MC6809FI = MF.getInfo<MC6809MachineFunctionInfo>();
   const MC6809InstrInfo &TII = *static_cast<const MC6809InstrInfo *>(MF.getSubtarget().getInstrInfo());
+
+  const Function &F = MF.getFunction();
+  if (F.hasFnAttribute("frame-pointer")) {
+    StringRef FP = F.getFnAttribute("frame-pointer").getValueAsString();
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Target has the \"frame-pointer\" attribute == \"" << FP << "\"\n";);
+  }
 
   MachineBasicBlock::iterator MBBI = MBB.begin();
   DebugLoc DL = MBBI != MBB.end() ? MBBI->getDebugLoc() : DebugLoc();
@@ -61,7 +68,7 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &M
     uint64_t FrameSize = StackSize - 2;
     NumBytes = FrameSize - MC6809FI->getCalleeSavedFrameSize();
 
-    // Get the offset of the stack slot for the EBP register... which is
+    // Get the offset of the stack slot for the  register... which is
     // guaranteed to be the last slot by processFunctionBeforeFrameFinalized.
     // Update the frame offset adjustment.
     MFI.setOffsetAdjustment(-NumBytes);
@@ -80,7 +87,10 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &M
     NumBytes = StackSize - MC6809FI->getCalleeSavedFrameSize();
 
   // Skip the callee-saved push instructions.
-  while (MBBI != MBB.end() && (MBBI->getOpcode() == MC6809::Push8 || MBBI->getOpcode() == MC6809::Push16 || MBBI->getOpcode() == MC6809::PushPtr))
+  while (MBBI != MBB.end() && (MBBI->getOpcode() == MC6809::Push8 ||
+                               MBBI->getOpcode() == MC6809::Push16 ||
+                               MBBI->getOpcode() == MC6809::Push32 ||
+                               MBBI->getOpcode() == MC6809::PushPtr))
     ++MBBI;
 
   if (MBBI != MBB.end())
@@ -180,6 +190,8 @@ bool MC6809FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB, Mach
     switch (I.getReg()) {
     case MC6809::AA:
     case MC6809::AB:
+    case MC6809::AE:
+    case MC6809::AF:
     case MC6809::CC:
     case MC6809::DP:
       Opcode = MC6809::Push8;
@@ -187,6 +199,9 @@ bool MC6809FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB, Mach
     case MC6809::AD:
     case MC6809::AW:
       Opcode = MC6809::Push16;
+      break;
+    case MC6809::AQ:
+      Opcode = MC6809::Push32;
       break;
     case MC6809::IX:
     case MC6809::IY:
@@ -217,6 +232,8 @@ bool MC6809FrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB, Ma
     switch (I.getReg()) {
     case MC6809::AA:
     case MC6809::AB:
+    case MC6809::AE:
+    case MC6809::AF:
     case MC6809::CC:
     case MC6809::DP:
       Opcode = MC6809::Pull8;
@@ -224,6 +241,9 @@ bool MC6809FrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB, Ma
     case MC6809::AD:
     case MC6809::AW:
       Opcode = MC6809::Pull16;
+      break;
+    case MC6809::AQ:
+      Opcode = MC6809::Pull32;
       break;
     case MC6809::IX:
     case MC6809::IY:
