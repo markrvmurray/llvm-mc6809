@@ -106,25 +106,28 @@ def NZVC : MC6809Reg<66, "NZVC"> {
 
 def CC : MC6809Reg8<10, "cc", [E, F, H, I, NZVC], [sub_entire, sub_firq, sub_half, sub_irq, sub_nzvc]>;
 
-def AA_LSB : MC6809Reg1<66, "a_lsb">;
-def AB_LSB : MC6809Reg1<67, "b_lsb">;
-def AE_LSB : MC6809Reg1<68, "e_lsb">;
-def AF_LSB : MC6809Reg1<69, "f_lsb">;
 
 def IX : MC6809Reg16<1,  "x" >;
 def IY : MC6809Reg16<2,  "y" >;
 def SU : MC6809Reg16<3,  "u" >;
 def SS : MC6809Reg16<4,  "s" >;
+
 def PC : MC6809Reg16<5,  "pc">;
+
 def AV : MC6809Reg16<7,  "v" >;
-def AA : MC6809Reg8<8,   "a"/*, [AA_LSB], [sub_lsb]*/>;
-def AB : MC6809Reg8<9,   "b"/*, [AB_LSB], [sub_lsb]*/>;
-def DP : MC6809Reg8<11,  "dp">;
-def A0 : MC6809Reg16<12, "0" >;
-def AE : MC6809Reg8<14,  "e"/*, [AE_LSB], [sub_lsb]*/>;
-def AF : MC6809Reg8<15,  "f"/*, [AF_LSB], [sub_lsb]*/>;
+
+def AA : MC6809Reg8<8,   "a">;
+def AB : MC6809Reg8<9,   "b">;
 
 def AD : MC6809Reg16<0,  "d", [AA, AB], [sub_hi_byte, sub_lo_byte]>;
+
+def DP : MC6809Reg8<11,  "dp">;
+
+def A0 : MC6809Reg16<12, "0" >;
+
+def AE : MC6809Reg8<14,  "e">;
+def AF : MC6809Reg8<15,  "f">;
+
 def AW : MC6809Reg16<6,  "w", [AE, AF], [sub_hi_byte, sub_lo_byte]>;
 
 def AQ : MC6809Reg32<16, "q", [AD, AW], [sub_hi_word, sub_lo_word]>;
@@ -147,11 +150,9 @@ class MC6809Reg1Class<dag RegList>: MC6809RegClass<[i1], 8, RegList> {
 class MC6809Reg8Class<dag RegList>: MC6809RegClass<[i8], 8, RegList>;
 class MC6809Reg16Class<dag RegList>: MC6809RegClass<[i16], 8, RegList>;
 class MC6809Reg32Class<dag RegList>: MC6809RegClass<[i32], 8, RegList>;
-// class MC6809_8_16_Class<dag RegList>: MC6809RegClass<[i16, i8], 8, RegList>;
-// class MC6809_8_16_32_Class<dag RegList>: MC6809RegClass<[i32, i16, i8], 8, RegList>;
 
 // Register grouping classes.
-def BIT1 : MC6809Reg1Class<(add AA_LSB, AB_LSB, AE_LSB, AF_LSB, E, F, H, I, N, Z, V, C)>;
+def BIT1 : MC6809Reg1Class<(add E, F, H, I, N, Z, V, C)>;
 def ACC8 : MC6809Reg8Class<(add AB, AA, AF, AE)> {
   let AltOrders = [(add AB, AA)];
   let AltOrderSelect = [{return !MF.getSubtarget<MC6809Subtarget>().isHD6309();}];
@@ -191,24 +192,22 @@ let isAllocatable = false in {
 }
 
 // Single register classes.
-let isPressureFineGrained = true in {
-  def AAc : MC6809Reg8Class<(add AA)>;
-  def ABc : MC6809Reg8Class<(add AB)>;
-  def ADc : MC6809Reg16Class<(add AD)>;
-  def AEc : MC6809Reg8Class<(add AE)>;
-  def AFc : MC6809Reg8Class<(add AF)>;
-  def AWc : MC6809Reg16Class<(add AW)>;
-  def AQc : MC6809Reg16Class<(add AQ)>;
-  def IXc : MC6809Reg16Class<(add IX)>;
-  def IYc : MC6809Reg16Class<(add IY)>;
-  def SUc : MC6809Reg16Class<(add SU)>;
-  def SSc : MC6809Reg16Class<(add SS)>;
-  def PCc : MC6809Reg16Class<(add PC)>;
-  def CCc : MC6809Reg8Class<(add CC)>;
-  def NZVCc : MC6809Reg8Class<(add NZVC)>;
-  def NZc : MC6809Reg8Class<(add NZ)>;
-  def Nc : MC6809Reg1Class<(add N)>;
-  def Zc : MC6809Reg1Class<(add Z)>;
-  def Vc : MC6809Reg1Class<(add V)>;
-  def Cc : MC6809Reg1Class<(add C)>;
-}
+def AAc : MC6809Reg8Class<(add AA)>;
+def ABc : MC6809Reg8Class<(add AB)>;
+def ADc : MC6809Reg16Class<(add AD)>;
+def AEc : MC6809Reg8Class<(add AE)>;
+def AFc : MC6809Reg8Class<(add AF)>;
+def AWc : MC6809Reg16Class<(add AW)>;
+def AQc : MC6809Reg16Class<(add AQ)>;
+def IXc : MC6809Reg16Class<(add IX)>;
+def IYc : MC6809Reg16Class<(add IY)>;
+def SUc : MC6809Reg16Class<(add SU)>;
+def SSc : MC6809Reg16Class<(add SS)>;
+def PCc : MC6809Reg16Class<(add PC)>;
+def CCc : MC6809Reg8Class<(add CC)>;
+def NZVCc : MC6809Reg8Class<(add NZVC)>;
+def NZc : MC6809Reg8Class<(add NZ)>;
+def Nc : MC6809Reg1Class<(add N)>;
+def Zc : MC6809Reg1Class<(add Z)>;
+def Vc : MC6809Reg1Class<(add V)>;
+def Cc : MC6809Reg1Class<(add C)>;

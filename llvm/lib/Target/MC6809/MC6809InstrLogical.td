@@ -269,6 +269,37 @@ def Neg16 : MC6809Accumulator<ACC16>;
 def Neg32 : MC6809Accumulator<ACC32>;
 
 //===---------------------------------------------------------------------===//
+// Funnies
+//===---------------------------------------------------------------------===//
+class MC6809MultiplyAccumulators<RegisterClass reg> : MC6809LogicalInstr {
+  let Defs = [Z];
+  dag OutOperandList = (outs reg:$dst1, reg:$dst2, Cc:$halfcarryout);
+  dag InOperandList = (ins reg:$src1, reg:$src2);
+  let Constraints = "$dst1 = $src1, $dst2 = $src2";
+}
+
+def Mul8 : MC6809MultiplyAccumulators<ACC8>;
+
+class MC6809MultiplyBase<RegisterClass reg, dag operand> : MC6809LogicalInstr {
+  let Defs = [NZ];
+  dag OutOperandList = (outs reg:$dst2, reg:$dst1);
+  dag InOperandList = !con((ins reg:$src), operand);
+  let Constraints = "$dst1 = $src";
+}
+
+multiclass MC6809Multiply<RegisterClass reg> {
+  def Imm : MC6809MultiplyBase<reg, (ins i16imm:$imm)>;
+  def Reg : MC6809MultiplyBase<reg, (ins reg:$src0)>;
+  let mayLoad = true in {
+    def Abs : MC6809MultiplyBase<reg, (ins addr16:$addr)>;
+    def Idx : MC6809MultiplyBase<reg, (ins INDEX16:$idx, unknown:$offset)>;
+    def Indir : MC6809MultiplyBase<reg, (ins INDEX16:$idx, unknown:$offset)>;
+  }
+}
+
+defm Mul16 : MC6809Multiply<ACC16>;
+
+//===---------------------------------------------------------------------===//
 // Control Flow Instructions
 //===---------------------------------------------------------------------===//
 

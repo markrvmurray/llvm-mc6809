@@ -47,7 +47,7 @@ static uint32_t getEFlags(InputFile *file) {
 uint32_t MC6809::calcEFlags() const {
   uint32_t outputFlags = 0;
 
-  for (InputFile *f : objectFiles) {
+  for (InputFile *f : ctx->objectFiles) {
     const uint32_t flags = getEFlags(f);
     outputFlags |= flags;
   }
