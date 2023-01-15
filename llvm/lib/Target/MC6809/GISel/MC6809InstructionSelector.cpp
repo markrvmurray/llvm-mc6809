@@ -70,21 +70,19 @@ private:
   // Post-tablegen selection functions. If these return false, it is an error.
   bool selectFrameIndex(MachineInstr &MI);
   bool selectAddr(MachineInstr &MI);
-  bool selectStore(MachineInstr &MI);
   bool selectPtrAdd(MachineInstr &MI);
   bool selectMergeValues(MachineInstr &MI);
+  bool selectUnMergeValues(MachineInstr &MI);
   bool selectConstant(MachineInstr &MI);
+  bool selectStore(MachineInstr &MI);
   bool selectLoad(MachineInstr &MI);
   bool selectTrunc(MachineInstr &MI);
 
-  bool selectUnMergeValues(MachineInstr &MI);
   bool selectExt(MachineInstr &MI);
   bool selectAdd(MachineInstr &MI);
   bool selectSub(MachineInstr &MI);
   bool selectMul(MachineInstr &MI);
-#if 0
   bool selectMulH(MachineInstr &MI);
-#endif
 
   bool selectBranch(MachineInstr &MI);
   bool selectConditionalBranch(MachineInstr &MI, MachineFunction &MF, MachineRegisterInfo &MRI);
@@ -100,7 +98,7 @@ private:
   // instruction sequence by reducing it to a more easily selectable sequence.
   bool selectAll(MachineInstrSpan MIS);
 
-  /// tblgen-erated 'select' implementation, used as the initial selector for
+  /// tblgenerated 'select' implementation, used as the initial selector for
   /// the patterns that don't require complex C++.
   bool selectImpl(MachineInstr &MI, CodeGenCoverage &CoverageInfo) const;
 
@@ -119,6 +117,11 @@ private:
   LLT S16 = LLT::scalar(16);
   LLT S32 = LLT::scalar(32);
   LLT P = LLT::pointer(0, 16);
+
+  ComplexRendererFns selectLSIndexedImmOffset(MachineOperand &Root) const;
+
+  ComplexRendererFns selectAMImmediate(MachineOperand &Root) const;
+  ComplexRendererFns selectAMIndexedImmOffset(MachineOperand &Root) const;
 
 #define GET_GLOBALISEL_PREDICATES_DECL
 #include "MC6809GenGlobalISel.inc"
@@ -145,6 +148,104 @@ MC6809InstructionSelector::MC6809InstructionSelector(const MC6809TargetMachine &
 #include "MC6809GenGlobalISel.inc"
 #undef GET_GLOBALISEL_TEMPORARIES_INIT
 {
+}
+
+/// Select a "register plus signed immediate offset" address.
+InstructionSelector::ComplexRendererFns
+MC6809InstructionSelector::selectAMImmediate(MachineOperand &Root) const {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Root = ";Root.dump(););
+  MachineRegisterInfo &MRI = Root.getParent()->getParent()->getParent()->getRegInfo();
+
+  if (!Root.isReg())
+    return None;
+
+  MachineInstr *RootDef = MRI.getVRegDef(Root.getReg());
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Looking for G_CONSTANT in ";RootDef->dump(););
+  if (RootDef->getOpcode() == TargetOpcode::G_CONSTANT) {
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Found G_CONSTANT\n";);
+    return {{
+        [=](MachineInstrBuilder &MIB) { MIB.add(RootDef->getOperand(1)); },
+    }};
+  }
+
+  return None;
+}
+
+/// Select a "register plus signed immediate offset" address.
+InstructionSelector::ComplexRendererFns
+MC6809InstructionSelector::selectAMIndexedImmOffset(MachineOperand &Root) const {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Root = ";Root.dump(););
+  MachineRegisterInfo &MRI = Root.getParent()->getParent()->getParent()->getRegInfo();
+
+  if (!Root.isReg())
+    return None;
+
+  MachineInstr *RootDef = MRI.getVRegDef(Root.getReg());
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Looking for G_LOAD or G_STORE using G_FRAME_INDEX\n";);
+  if (RootDef->getOpcode() == TargetOpcode::G_LOAD || RootDef->getOpcode() == TargetOpcode::G_STORE) {
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Found G_LOAD/G_STORE, Looking for G_FRAME_INDEX\n";);
+    MachineInstr *FrameDef = MRI.getVRegDef(RootDef->getOperand(1).getReg());
+    if (FrameDef->getOpcode() == TargetOpcode::G_FRAME_INDEX) {
+      LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Found G_FRAME_INDEX\n";);
+      return {{
+          [=](MachineInstrBuilder &MIB) { MIB.add(FrameDef->getOperand(1)); },
+          [=](MachineInstrBuilder &MIB) { MIB.addImm(0); },
+      }};
+    }
+  }
+
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Looking for isBaseWithConstantOffset()\n";);
+  if (!isBaseWithConstantOffset(Root, MRI))
+    return None;
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Handle isBaseWithConstantOffset() case here!!\n";);
+
+  return None;
+}
+
+/// Select a "register plus signed immediate offset" address for a target load/store instruction
+InstructionSelector::ComplexRendererFns
+MC6809InstructionSelector::selectLSIndexedImmOffset(MachineOperand &Root) const {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Root = ";Root.dump(););
+  MachineRegisterInfo &MRI = Root.getParent()->getParent()->getParent()->getRegInfo();
+
+  if (!Root.isReg())
+    return None;
+
+  auto RootDef = MRI.getVRegDef(Root.getReg());
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : RootDef = "; RootDef->dump(););
+
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Looking for G_FRAME_INDEX : = "; RootDef->dump(););
+  if (RootDef->getOpcode() == TargetOpcode::G_FRAME_INDEX) {
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Found G_FRAME_INDEX\n";);
+    return {{
+        [=](MachineInstrBuilder &MIB) { MIB.add(RootDef->getOperand(1)); },
+        [=](MachineInstrBuilder &MIB) { MIB.addImm(0); },
+    }};
+  }
+
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Looking for G_PTR_ADD\n";);
+  if (RootDef->getOpcode() == TargetOpcode::G_PTR_ADD) {
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Found G_PTR_ADD : = "; RootDef->dump(););
+    auto OffsetDef = MRI.getVRegDef(RootDef->getOperand(2).getReg());
+    if (OffsetDef->getOpcode() == TargetOpcode::G_CONSTANT) {
+      LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Found G_PTR_ADD with G_CONSTANT offset : = "; OffsetDef->dump(););
+      return {{
+          [=](MachineInstrBuilder &MIB) { MIB.add(RootDef->getOperand(1)); },
+          [=](MachineInstrBuilder &MIB) { MIB.add(OffsetDef->getOperand(1)); },
+      }};
+    }
+  }
+
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Looking for COPY\n";);
+  if (RootDef->getOpcode() == TargetOpcode::COPY) {
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Found COPY\n";);
+    return {{
+        [=](MachineInstrBuilder &MIB) { MIB.add(RootDef->getOperand(1)); },
+        [=](MachineInstrBuilder &MIB) { MIB.addImm(0); },
+    }};
+  }
+
+  return None;
 }
 
 const TargetRegisterClass &MC6809InstructionSelector::getRegClassForType(Register Reg) const {
@@ -187,22 +288,36 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
   MF = MBB->getParent();
   MRI = &MF->getRegInfo();
 
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : ===================================== !MI.isPreISelOpcode() ====================================\n";);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : If !MI.isPreISelOpcode() : MI = "; MI.dump(););
   // isPreISelOpcode is stolen from llvm-mos. Methinks it means "not a GlobalISel opcode".
   if (!MI.isPreISelOpcode()) {
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 10 : !MI.isPreISelOpcode() : MI = ";MI.dump(););
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : If !MI.isPreISelOpcode() == TRUE: MI = ";MI.dump(););
     // Ensure that target-independent pseudos like COPY have register classes.
     constrainGenericOp(MI);
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : When !MI.isPreISelOpcode() opcode constrained becomes : MI = "; MI.dump(););
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : ===================================== !MI.isPreISelOpcode() ====================================\n\n";);
     return true;
   }
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : EndIf !MI.isPreISelOpcode() == FALSE : MI = "; MI.dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : ===================================== !MI.isPreISelOpcode() ====================================\n\n";);
 
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 20 : before selectImpl() : MI = "; MI.dump(););
-  if (selectImpl(MI, *CoverageInfo))
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : ===================================== selectImpl() ====================================\n\n";);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Calling selectImpl() : MI = "; MI.dump(););
+  if (selectImpl(MI, *CoverageInfo)) {
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : selectImpl() returned TRUE\n";);
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : ===================================== selectImpl() ====================================\n\n";);
     return true;
+  }
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : selectImpl() returned FALSE : MI = "; MI.dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : ===================================== selectImpl() ====================================\n\n";);
 
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 30 : before switch(MI.getOpcode()) : MI = "; MI.dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Performing manual switch(MI.getOpcode()) : MI = "; MI.dump(););
   switch (MI.getOpcode()) {
   default:
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Opcode not found in switch(MI.getOpcode()) : MI = "; MI.dump(););
     return false;
+#if 0
   case MC6809::G_FRAME_INDEX:
     return selectFrameIndex(MI);
   case MC6809::G_BLOCK_ADDR:
@@ -214,7 +329,9 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     return selectTrunc(MI);
   case MC6809::G_UNMERGE_VALUES:
     return selectUnMergeValues(MI);
+#endif
 
+#if 0
   case MC6809::G_LOAD:
     return selectLoad(MI);
   case MC6809::G_STORE:
@@ -223,6 +340,7 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     return selectPtrAdd(MI);
   case MC6809::G_CONSTANT:
     return selectConstant(MI);
+#endif
 
   case MC6809::G_BR:
     return selectBranch(MI);
@@ -235,6 +353,7 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
   case MC6809::G_PHI:
     return selectGeneric(MI);
 
+#if 0
   case MC6809::G_SEXT:
   case MC6809::G_ZEXT:
   case MC6809::G_ANYEXT:
@@ -246,19 +365,18 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
   case MC6809::G_UADDE:
   case MC6809::G_UADDO:
     return selectAdd(MI);
+#endif
+#if 0
   case MC6809::G_SUB:
   case MC6809::G_USUBE:
   case MC6809::G_SSUBE:
   case MC6809::G_USUBO:
   case MC6809::G_SSUBO:
     return selectSub(MI);
-
+#endif
+#if 0
   case MC6809::G_MUL:
     return selectMul(MI);
-#if 0
-  case MC6809::G_SMULH:
-  case MC6809::G_UMULH:
-    return selectMulH(MI);
 #endif
   }
   return false;
@@ -453,6 +571,7 @@ bool MC6809InstructionSelector::selectPtrAdd(MachineInstr &MI) {
   return Success;
 }
 
+#if 0
 bool MC6809InstructionSelector::selectAdd(MachineInstr &MI) {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
   assert(MI.getOpcode() == MC6809::G_ADD ||
@@ -593,7 +712,7 @@ bool MC6809InstructionSelector::selectAdd(MachineInstr &MI) {
                          .addImm(0)
                          .cloneMemRefs(*Load);
       } else {
-        Opcode = DstSize == 8 ? MC6809::Add8Idx : (DstSize == 16 ? MC6809::Add16Idx : MC6809::Add32Idx);
+        Opcode = DstSize == 8 ? MC6809::Add8IdxImm : (DstSize == 16 ? MC6809::Add16IdxImm : MC6809::Add32IdxImm);
         Instr = Builder.buildInstr(Opcode)
                          .addDef(Dst)
                          .addDef(CarryOut)
@@ -789,7 +908,7 @@ bool MC6809InstructionSelector::selectSub(MachineInstr &MI) {
                     .addImm(0)
                     .cloneMemRefs(*Load);
       } else {
-        Opcode = DstSize == 8 ? MC6809::Sub8Idx : (DstSize == 16 ? MC6809::Sub16Idx : MC6809::Sub32Idx);
+        Opcode = DstSize == 8 ? MC6809::Sub8IdxImm : (DstSize == 16 ? MC6809::Sub16IdxImm : MC6809::Sub32IdxImm);
         Instr = Builder.buildInstr(Opcode)
                     .addDef(Dst)
                     .addDef(BorrowOut)
@@ -849,15 +968,15 @@ bool MC6809InstructionSelector::selectSub(MachineInstr &MI) {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : return false : MI = "; MI.dump(););
   return false;
 }
+#endif
 
+#if 0
 bool MC6809InstructionSelector::selectMul(MachineInstr &MI) {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
   assert(MI.getOpcode() == MC6809::G_MUL);
 
   MachineIRBuilder Builder(MI);
   Register Dst = MI.getOperand(0).getReg();
-  Register Dst32 = Dst;
-  // Register Dst32 = MRI->createGenericVirtualRegister(S32);
   LLT DstTy = MRI->getType(Dst);
   const auto DstSize = DstTy.getSizeInBits();
   bool Success;
@@ -871,6 +990,7 @@ bool MC6809InstructionSelector::selectMul(MachineInstr &MI) {
     Reg2 = MI.getOperand(2).getReg();
     Instr = Builder.buildInstr(MC6809::Mul8)
                 .addDef(Dst)
+                //.addDef(MRI->createGenericVirtualRegister(S8))
                 .addUse(Reg)
                 .addUse(Reg2);
     Instr->addImplicitDefUseOperands(*MF);
@@ -888,7 +1008,8 @@ bool MC6809InstructionSelector::selectMul(MachineInstr &MI) {
         LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Found immediate mode\n";);
         Value = ValReg->Value.getSExtValue();
         Instr = Builder.buildInstr(MC6809::Mul16Imm)
-                    .addDef(Dst32)
+                    .addDef(Dst)
+                    //.addDef(MRI->createGenericVirtualRegister(S16))
                     .addUse(Reg)
                     .addImm(Value);
         break;
@@ -899,7 +1020,8 @@ bool MC6809InstructionSelector::selectMul(MachineInstr &MI) {
       if (Success && Load->getOpcode() == MC6809::G_LOAD) {
         LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Found indexed mode\n";);
         Instr = Builder.buildInstr(MC6809::Mul16Idx)
-                    .addDef(Dst32)
+                    .addDef(Dst)
+                    //.addDef(MRI->createGenericVirtualRegister(S16))
                     .addUse(Reg)
                     .add(Load->getOperand(1))
                     .addImm(0)
@@ -914,9 +1036,10 @@ bool MC6809InstructionSelector::selectMul(MachineInstr &MI) {
         auto Push = Builder.buildInstr(MC6809::PushOp16)
                         .addReg(Reg2);
         Push->addImplicitDefUseOperands(*MF);
-        LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : reg/reg : Push = "; Push->dump(););
+        LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Push = "; Push->dump(););
         Instr = Builder.buildInstr(MC6809::Mul16Pop)
-                    .addDef(Dst32)
+                    .addDef(Dst)
+                    //.addDef(MRI->createGenericVirtualRegister(S16))
                     .addUse(Reg);
         break;
       }
@@ -925,12 +1048,6 @@ bool MC6809InstructionSelector::selectMul(MachineInstr &MI) {
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Instr = "; Instr->dump(););
     if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
       llvm_unreachable("Could not constrain 16-bit multiply instruction.");
-#if 0
-    auto LoCopy = Builder.buildCopy(MI.getOperand(0), Instr->getOperand(0));
-    LoCopy->getOperand(1).setSubReg(MC6809::sub_lo_word);
-    constrainGenericOp(*LoCopy);
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : LoCopy = "; LoCopy->dump(););
-#endif
   }
 
   MI.eraseFromParent();
@@ -951,6 +1068,7 @@ bool MC6809InstructionSelector::selectConstant(MachineInstr &MI) {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
   return Success;
 }
+#endif
 
 bool MC6809InstructionSelector::selectLoad(MachineInstr &MI) {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
@@ -1212,6 +1330,7 @@ static MC6809CC::CondCode changeICMPPredToMC6809CC(CmpInst::Predicate P) {
 }
 
 bool MC6809InstructionSelector::selectCompareBranchFedByICmp(MachineInstr &MI, MachineInstr &ICmp, MachineIRBuilder &MIB) const {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
   assert(ICmp.getOpcode() == TargetOpcode::G_ICMP);
   assert(MI.getOpcode() == TargetOpcode::G_BRCOND);
 
@@ -1219,12 +1338,15 @@ bool MC6809InstructionSelector::selectCompareBranchFedByICmp(MachineInstr &MI, M
   MachineBasicBlock *DestMBB = MI.getOperand(1).getMBB();
   auto PredOp = ICmp.getOperand(1);
   auto CMP = emitIntegerCompare(ICmp.getOperand(2), ICmp.getOperand(3), PredOp, MIB);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Before constraints : CMP = "; CMP->dump(););
   if (!CMP || !constrainSelectedInstRegOperands(*CMP, TII, TRI, RBI))
     llvm_unreachable("Could not constrain conditional branch instruction.");
   const MC6809CC::CondCode CC = changeICMPPredToMC6809CC(static_cast<CmpInst::Predicate>(PredOp.getPredicate()));
-  auto Jump = MIB.buildInstr(MC6809::JumpConditionalRelative, {}, {}).addImm(CC).addMBB(DestMBB);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : After constraints : CMP = "; CMP->dump(););
+  auto Jump = MIB.buildInstr(MC6809::ConditionalBranchRelative, {}, {}).addImm(CC).addMBB(DestMBB);
   Jump->addImplicitDefUseOperands(*MF);
   MI.eraseFromParent();
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Jump = "; Jump->dump(););
   return true;
 }
 
@@ -1242,14 +1364,16 @@ bool MC6809InstructionSelector::selectConditionalBranch(MachineInstr &MI, Machin
   // Try to select the G_BRCOND using whatever is feeding the condition if
   // possible.
   unsigned CCMIOpc = CCMI->getOpcode();
-  if (CCMIOpc == TargetOpcode::G_ICMP)
+  if (CCMIOpc == TargetOpcode::G_ICMP) {
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Found G_ICMP\n";);
     return selectCompareBranchFedByICmp(MI, *CCMI, Builder);
+  }
 
   // Not a G_ICMP - emit a direct LSB test instead
-  auto TstMI = Builder.buildInstr(MC6809::BIT8Imm, {}, {CondReg}).addImm(1);
+  auto TstMI = Builder.buildInstr(MC6809::Bit8Imm, {}, {CondReg}).addImm(1);
   if (!constrainSelectedInstRegOperands(*TstMI, TII, TRI, RBI))
     llvm_unreachable("Could not constrain test bit instruction.");
-  auto Bcc = Builder.buildInstr(MC6809::JumpConditionalRelative)
+  auto Bcc = Builder.buildInstr(MC6809::ConditionalBranchRelative)
                  .addImm(MC6809CC::NE) // Not Equal to zero == one
                  .addMBB(MI.getOperand(1).getMBB());
   Bcc->addImplicitDefUseOperands(MF);

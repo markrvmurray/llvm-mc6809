@@ -29,11 +29,11 @@ def fold_global_offset : GICombineRule<
 //  %3:_(s16) = COPY %2:_(p0)
 //   =>
 //  %3:_(s16) = G_GLOBAL_VALUE @fold_global_copy
-def fold_global_copy_matchdata : GIDefMatchData<"std::pair<const MachineOperand *, MachineInstr *>">;
-def fold_global_copy : GICombineRule<
-  (defs root:$root, fold_global_copy_matchdata:$matchinfo),
-  (match (wip_match_opcode COPY):$root, [{ return matchFoldGlobalCopy(*${root}, MRI, ${matchinfo}); }]),
-  (apply [{ return applyFoldGlobalCopy(*${root}, MRI, B, Observer, ${matchinfo});}])
+def fold_copy_matchdata : GIDefMatchData<"std::pair<const MachineOperand *, MachineInstr *>">;
+def fold_copy : GICombineRule<
+  (defs root:$root, fold_copy_matchdata:$matchinfo),
+  (match (wip_match_opcode COPY):$root, [{ return matchFoldCopy(*${root}, MRI, ${matchinfo}); }]),
+  (apply [{ return applyFoldCopy(*${root}, MRI, B, Observer, ${matchinfo});}])
 >;
 
 // ============================================================================
@@ -86,11 +86,11 @@ def switch_add_to_subtract : GICombineRule<
 // ============================================================================
 def MC6809CombinerHelper: GICombinerHelper<"MC6809GenCombinerHelper",
                                            [all_combines,
-                                            fold_global_offset,
-                                            // fold_global_copy,
-                                            fold_pointer_ext_offset,
+                                            // fold_global_offset,
+                                            // fold_copy,
+                                            // fold_pointer_ext_offset,
                                             // swap_physreg_to_lhs,
-                                            switch_add_to_subtract,
+                                            // switch_add_to_subtract,
                                             ]> {
   let DisableRuleOption = "mc6809combiner-disable-rule";
   let StateClass = "MC6809CombinerHelperState";

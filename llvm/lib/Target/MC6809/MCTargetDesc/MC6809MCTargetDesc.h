@@ -1,7 +1,6 @@
-//===-- MC6809MCTargetDesc.h - MC6809 Target Descriptions -------------*- C++
-//-*-===//
+//===-- MC6809MCTargetDesc.h - MC6809 Target Descriptions -------------*- C++ -*-===//
 //
-// Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
+// Part of LLVM-MOS, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -15,6 +14,7 @@
 #define LLVM_MC6809_MCTARGET_DESC_H
 
 #include "llvm/ADT/Sequence.h"
+#include "llvm/MC/MCInstrDesc.h"
 #include "llvm/Support/DataTypes.h"
 
 #include <memory>
@@ -37,21 +37,18 @@ class raw_pwrite_stream;
 
 Target &getTheMC6809Target();
 
-MCInstrInfo *createMC6809MCInstrInfo();
+// MCInstrInfo *createMC6809MCInstrInfo();
 
 /// Creates a machine code emitter for MC6809.
-MCCodeEmitter *createMC6809MCCodeEmitter(const MCInstrInfo &MCII,
-                                         MCContext &Ctx);
+MCCodeEmitter *createMC6809MCCodeEmitter(const MCInstrInfo &MCII, MCContext &Ctx);
 
 /// Creates an assembly backend for MC6809.
-MCAsmBackend *createMC6809AsmBackend(const Target &T,
-                                     const MCSubtargetInfo &STI,
-                                     const MCRegisterInfo &MRI,
-                                     const llvm::MCTargetOptions &TO);
+MCAsmBackend *createMC6809AsmBackend(const Target &T, const MCSubtargetInfo &STI,
+                                  const MCRegisterInfo &MRI,
+                                  const llvm::MCTargetOptions &TO);
 
 /// Creates an ELF object writer for MC6809.
-std::unique_ptr<MCObjectTargetWriter>
-createMC6809ELFObjectWriter(uint8_t OSABI);
+std::unique_ptr<MCObjectTargetWriter> createMC6809ELFObjectWriter(uint8_t OSABI);
 
 namespace MC6809_MC {
 /// Makes an e_flags value based on subtarget features.
@@ -73,6 +70,17 @@ namespace llvm {
 template <> struct enum_iteration_traits<decltype(MC6809::NoRegister)> {
   static constexpr bool is_iterable = true;
 };
+
+namespace MC6809Op {
+
+enum OperandType : unsigned {
+  OPERAND_IMM8 = MCOI::OPERAND_FIRST_TARGET,
+  OPERAND_ADDR8,
+  OPERAND_ADDR16,
+};
+
+} // namespace MC6809Op
+
 } // namespace llvm
 
 #endif // LLVM_MC6809_MCTARGET_DESC_H

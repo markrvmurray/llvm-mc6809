@@ -41,7 +41,7 @@ def sub_nzvc : MC6809SubRegIndex<4, 0>;
 // Least-significant bit of an 8-bit register. Writes to this are considered to
 // write zeroes to the other bits (for now), so we can reduce LSB writes to
 // zero-extension.
-//def sub_lsb : MC6809SubRegIndex<1>;
+def sub_lsb : MC6809SubRegIndex<1>;
 
 //===----------------------------------------------------------------------===//
 //  Real registers
@@ -67,6 +67,13 @@ class MC6809Reg8<bits<16> num, string name, list<Register> subregs = [], list<Su
     let SubRegs = subregs;
     let SubRegIndices = subregindices;
     let CoveredBySubRegs = false;
+}
+
+// An 8-bit value register (GPR or imaginary). Contains a 1-bit LSB subregister
+// to allow them to store boolean values.
+multiclass MC6809Reg8<bits<16> num, string name> {
+  def LSB : MC6809Reg1<!add(num, 128), name#"LSB">;
+  def NAME : MC6809Reg8<num, name, [!cast<Register>(NAME#LSB)], [sub_lsb]>;
 }
 
 class MC6809Reg16<bits<16> num, string name, list<Register> subregs = [], list<SubRegIndex> subregindices = []>
@@ -116,8 +123,8 @@ def PC : MC6809Reg16<5,  "pc">;
 
 def AV : MC6809Reg16<7,  "v" >;
 
-def AA : MC6809Reg8<8,   "a">;
-def AB : MC6809Reg8<9,   "b">;
+defm AA : MC6809Reg8<8,   "a">;
+defm AB : MC6809Reg8<9,   "b">;
 
 def AD : MC6809Reg16<0,  "d", [AA, AB], [sub_hi_byte, sub_lo_byte]>;
 
@@ -125,8 +132,8 @@ def DP : MC6809Reg8<11,  "dp">;
 
 def A0 : MC6809Reg16<12, "0" >;
 
-def AE : MC6809Reg8<14,  "e">;
-def AF : MC6809Reg8<15,  "f">;
+defm AE : MC6809Reg8<14,  "e">;
+defm AF : MC6809Reg8<15,  "f">;
 
 def AW : MC6809Reg16<6,  "w", [AE, AF], [sub_hi_byte, sub_lo_byte]>;
 
@@ -152,39 +159,45 @@ class MC6809Reg16Class<dag RegList>: MC6809RegClass<[i16], 8, RegList>;
 class MC6809Reg32Class<dag RegList>: MC6809RegClass<[i32], 8, RegList>;
 
 // Register grouping classes.
-def BIT1 : MC6809Reg1Class<(add E, F, H, I, N, Z, V, C)>;
-def ACC8 : MC6809Reg8Class<(add AB, AA, AF, AE)> {
-  let AltOrders = [(add AB, AA), (add AB, AA, AF, AE)];
-  let AltOrderSelect = [{return !!MF.getSubtarget<MC6809Subtarget>().isHD6309();}];
-  let DiagnosticString = "operand must be an 8-bit accumulator";
-}
-def ACC8_AB : MC6809Reg8Class<(add AB, AA)>; // MUL
-def BIT8 : MC6809Reg8Class<(add AA, AB, CC)>; // Valid registers for BAND, BEOR, BOR, BIAND, BIEOR, BIOR, LDBT, STBT
-def ACC16 : MC6809Reg16Class<(add AD, AW)> {
-  let AltOrders = [(add AD), (add AD, AW)];
-  let AltOrderSelect = [{return !!MF.getSubtarget<MC6809Subtarget>().isHD6309();}];
-  let DiagnosticString = "operand must be a 16-bit accumulator";
-}
-def ACC16_D : MC6809Reg16Class<(add AD)>; // MULD
-def ACC16_W : MC6809Reg16Class<(add AW)>; // MULD
-def ACC32 : MC6809Reg32Class<(add AQ)> {
-  let AltOrders = [(add), (add AQ)];
-  let AltOrderSelect = [{return !!MF.getSubtarget<MC6809Subtarget>().isHD6309();}];
-  let DiagnosticString = "operand must be a 32-bit accumulator";
-}
-def REGLIST8 : MC6809Reg8Class<(add CC, AA, AB, DP)>; // Registers which can be pushed/popped
-def REGLIST16 : MC6809Reg16Class<(add AD, AW, IX, IY, SU, SS, PC)>; // Registers which can be pushed/popped
-def REGPAIR8 : MC6809Reg8Class<(add AA, AB, CC, DP, A0, AE, AF)>; // Registers for EXG, TFR
-def REGPAIR16 : MC6809Reg16Class<(add AD, IX, IY, SU, SS, PC, AW, AV)>; // Registers for EXG, TFR
+let isPressureFineGrained = true in {
+  def ACC_LSB : MC6809Reg1Class<(add AALSB, ABLSB, AELSB, AFLSB)>;
+  def NZVC_ACC_LSB : MC6809Reg1Class<(add N, Z, V, C, ACC_LSB)>;
+  def BIT1 : MC6809Reg1Class<(add E, F, H, I, N, Z, V, C)>;
+  def ACC8 : MC6809Reg8Class<(add AB, AA, AF, AE)> {
+    let AltOrders = [(add AB, AA)];
+    let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().isHD6309() ? 0 : 1;}];
+    let DiagnosticString = "operand must be an 8-bit accumulator";
+  }
+  def ACC8_A : MC6809Reg8Class<(add AA)>; // MUL
+  def ACC8_B : MC6809Reg8Class<(add AB)>; // MUL
+  def ACC8_AB : MC6809Reg8Class<(add AB, AA)>; // MUL
+  def BIT8 : MC6809Reg8Class<(add AA, AB, CC)>; // Valid registers for BAND, BEOR, BOR, BIAND, BIEOR, BIOR, LDBT, STBT
+  def ACC16 : MC6809Reg16Class<(add AD, AW)> {
+    let AltOrders = [(add AD)];
+    let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().isHD6309() ? 0 : 1;}];
+    let DiagnosticString = "operand must be a 16-bit accumulator";
+  }
+  def ACC16_D : MC6809Reg16Class<(add AD)>; // MULD
+  def ACC16_W : MC6809Reg16Class<(add AW)>; // MULD
+  def ACC32 : MC6809Reg32Class<(add AQ)> {
+    let AltOrders = [(add)];
+    let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().isHD6309() ? 0 : 1;}];
+    let DiagnosticString = "operand must be a 32-bit accumulator";
+  }
+  def REGLIST8 : MC6809Reg8Class<(add CC, AA, AB, DP)>; // Registers which can be pushed/popped
+  def REGLIST16 : MC6809Reg16Class<(add AD, AW, IX, IY, SU, SS, PC)>; // Registers which can be pushed/popped
+  def REGPAIR8 : MC6809Reg8Class<(add AA, AB, CC, DP, A0, AE, AF)>; // Registers for EXG, TFR
+  def REGPAIR16 : MC6809Reg16Class<(add AD, IX, IY, SU, SS, PC, AW, AV)>; // Registers for EXG, TFR
 
-// Pointer and stack registers
-def INDEX16 : MC6809Reg16Class<(add IX, IY, SU, SS)>;
+  // Pointer and stack registers
+  def INDEX16 : MC6809Reg16Class<(add IX, IY, SU, SS)>;
 
-// All 16-bit registers. Useful for load/store.
-def ALL16 : MC6809Reg16Class<(add AD, AW, IX, IY)> {
-  let AltOrders = [(add AD, IX, IY), (add AD, AW, IX, IY)];
-  let AltOrderSelect = [{return !!MF.getSubtarget<MC6809Subtarget>().isHD6309();}];
-  let DiagnosticString = "operand must be a 16-bit register";
+  // All 16-bit registers. Useful for load/store.
+  def ALL16 : MC6809Reg16Class<(add AD, AW, IX, IY)> {
+    let AltOrders = [(add AD, IX, IY)];
+    let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().isHD6309() ? 0 : 1;}];
+    let DiagnosticString = "operand must be a 16-bit register";
+  }
 }
 
 let isAllocatable = false in {
@@ -195,22 +208,24 @@ let isAllocatable = false in {
 }
 
 // Single register classes.
-def AAc : MC6809Reg8Class<(add AA)>;
-def ABc : MC6809Reg8Class<(add AB)>;
-def ADc : MC6809Reg16Class<(add AD)>;
-def AEc : MC6809Reg8Class<(add AE)>;
-def AFc : MC6809Reg8Class<(add AF)>;
-def AWc : MC6809Reg16Class<(add AW)>;
-def AQc : MC6809Reg16Class<(add AQ)>;
-def IXc : MC6809Reg16Class<(add IX)>;
-def IYc : MC6809Reg16Class<(add IY)>;
-def SUc : MC6809Reg16Class<(add SU)>;
-def SSc : MC6809Reg16Class<(add SS)>;
-def PCc : MC6809Reg16Class<(add PC)>;
-def CCc : MC6809Reg8Class<(add CC)>;
-def NZVCc : MC6809Reg8Class<(add NZVC)>;
-def NZc : MC6809Reg8Class<(add NZ)>;
-def Nc : MC6809Reg1Class<(add N)>;
-def Zc : MC6809Reg1Class<(add Z)>;
-def Vc : MC6809Reg1Class<(add V)>;
-def Cc : MC6809Reg1Class<(add C)>;
+let isPressureFineGrained = true in {
+    def AAc : MC6809Reg8Class<(add AA)>;
+    def ABc : MC6809Reg8Class<(add AB)>;
+    def ADc : MC6809Reg16Class<(add AD)>;
+    def AEc : MC6809Reg8Class<(add AE)>;
+    def AFc : MC6809Reg8Class<(add AF)>;
+    def AWc : MC6809Reg16Class<(add AW)>;
+    def AQc : MC6809Reg32Class<(add AQ)>;
+    def IXc : MC6809Reg16Class<(add IX)>;
+    def IYc : MC6809Reg16Class<(add IY)>;
+    def SUc : MC6809Reg16Class<(add SU)>;
+    def SSc : MC6809Reg16Class<(add SS)>;
+    def PCc : MC6809Reg16Class<(add PC)>;
+    def CCc : MC6809Reg8Class<(add CC)>;
+    def NZVCc : MC6809Reg8Class<(add NZVC)>;
+    def NZc : MC6809Reg8Class<(add NZ)>;
+    def Nc : MC6809Reg1Class<(add N)>;
+    def Zc : MC6809Reg1Class<(add Z)>;
+    def Vc : MC6809Reg1Class<(add V)>;
+    def Cc : MC6809Reg1Class<(add C)>;
+}

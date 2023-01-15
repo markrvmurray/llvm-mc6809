@@ -483,28 +483,28 @@ for instr_ in RawInstructions:
 		instr["lets"]["mayLoad"] = "false"
 		instr["lets"]["mayStore"] = "false"
 		if instr["mnemonic"] == "LBRA":
-			instr["ins"] = ["label:$tgt"]
+			instr["ins"] = ["pcrel16:$tgt"]
 			instr["lets"]["isBranch"] = "true"
 			instr["lets"]["isTerminator"] = "true"
 			instr["lets"]["isBarrier"] = "true"
 		elif instr["mnemonic"] == "B$COND":
 			instr["mnemonic"] = "B"
 			instr["name"] = instr["mnemonic"] + instr["mode"]
-			instr["ins"] = ["condcode:$cond","label:$tgt"]
+			instr["ins"] = ["condcode:$cond","pcrel8:$tgt"]
 			instr["lets"]["isBranch"] = "true"
 			instr["lets"]["isTerminator"] = "true"
 		elif instr["mnemonic"] == "LB$COND":
 			instr["mnemonic"] = "LB"
 			instr["name"] = instr["mnemonic"] + instr["mode"]
-			instr["ins"] = ["condcode:$cond","label:$tgt"]
+			instr["ins"] = ["condcode:$cond","pcrel16:$tgt"]
 			instr["lets"]["isBranch"] = "true"
 			instr["lets"]["isTerminator"] = "true"
 		elif instr["mnemonic"] == "BSR":
-			instr["ins"] = ["label:$tgt"]
+			instr["ins"] = ["pcrel8:$tgt"]
 			instr["lets"]["isCall"] = "true"
 			instr["uses"] = ["SS"]
 		elif instr["mnemonic"] == "LBSR":
-			instr["ins"] = ["label:$tgt"]
+			instr["ins"] = ["pcrel16:$tgt"]
 			instr["lets"]["isCall"] = "true"
 			instr["uses"] = ["SS"]
 		elif instr["mode"] == "r":
@@ -836,7 +836,7 @@ with Generate("MC6809InstrFormats.td", marker_start="// MRVM START MARKER 1", ma
 	for k in sorted(AddressMode):
 		v = AddressMode[k]
 		fi.write("class {addressmode}<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opcode> {{\n".format(**v))
-		if  "label:$tgt" in v["insformatted"]:
+		if  "pcrel8:$tgt" in v["insformatted"] or "pcrel16:$tgt" in v["insformatted"]:
 			fi.write('  bits<16> tgt;\n')
 		if "condcode:$cond" in v["insformatted"]:
 			fi.write('  bits<4> cond;\n')

@@ -20,6 +20,8 @@
 // GlobalISel matcher.
 class LLT;
 
+def s8 : LLT;
+def s16 : LLT;
 def s32 : LLT;
 def s64 : LLT;
 def v2s32 : LLT;

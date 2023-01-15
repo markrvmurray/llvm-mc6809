@@ -28,10 +28,10 @@ def RetCC_MC6809 : CallingConv<[
   CCIfPtr<CCAssignToReg<[IX]>>,
   CCIfType<[i1], CCPromoteToType<i8>>,
   CCIfType<[i8], CCIfNotSubtarget<"isHD6309()", CCAssignToReg<[AB]>>>,
-  CCIfType<[i8], CCIfSubtarget<"isHD6309()", CCAssignToReg<[AB, AF]>>>,
+  CCIfType<[i8], CCIfSubtarget<"isHD6309()", CCAssignToReg<[AB]>>>,
   CCIfType<[i16], CCIfNotSubtarget<"isHD6309()", CCAssignToReg<[AD]>>>,
-  CCIfType<[i16], CCIfSubtarget<"isHD6309()", CCAssignToReg<[AD, AW]>>>,
-  CCIfType<[i32], CCIfSubtarget<"isHD6309()", CCAssignToReg<[AQ]>>>,
+  CCIfType<[i16], CCIfSubtarget<"isHD6309()", CCAssignToReg<[AD]>>>,
+  // CCIfType<[i32], CCIfSubtarget<"isHD6309()", CCAssignToReg<[AQ]>>>,
   CCAssignToStack<0, 1>,
 ]>;
 
@@ -41,9 +41,9 @@ def CC_MC6809 : CallingConv<[
   CCIfPtr<CCAssignToReg<[IX]>>,
   CCIfType<[i1],  CCPromoteToType<i8>>,
   CCIfType<[i8], CCIfNotSubtarget<"isHD6309()", CCAssignToReg<[AB]>>>,
-  CCIfType<[i8], CCIfSubtarget<"isHD6309()", CCAssignToReg<[AB, AF]>>>,
+  CCIfType<[i8], CCIfSubtarget<"isHD6309()", CCAssignToReg<[AB]>>>,
   CCIfType<[i16], CCIfNotSubtarget<"isHD6309()", CCAssignToReg<[AD]>>>,
-  CCIfType<[i16], CCIfSubtarget<"isHD6309()", CCAssignToReg<[AD, AW]>>>,
+  CCIfType<[i16], CCIfSubtarget<"isHD6309()", CCAssignToReg<[AD]>>>,
   CCIfType<[i32], CCIfSubtarget<"isHD6309()", CCAssignToReg<[AQ]>>>,
   CCAssignToStack<0, 1>,
 ]>;

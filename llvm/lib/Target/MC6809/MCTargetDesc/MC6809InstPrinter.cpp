@@ -105,6 +105,14 @@ void MC6809InstPrinter::printCondCode(const MCInst *MI, unsigned OpNo, raw_ostre
   O << MC6809CC::getCCString(CC);
 }
 
+void MC6809InstPrinter::printBranchOperand(const MCInst *MI, uint64_t Address, unsigned OpNo, raw_ostream &O) {
+  const MCOperand &Op = MI->getOperand(OpNo);
+  if (!Op.isImm())
+    return printOperand(MI, OpNo, O);
+  uint64_t Target = Op.getImm();
+  O << formatImm(PrintBranchImmAsAddress ? (int8_t)Target + Address + 2: Target);
+}
+
 format_object<int64_t> MC6809InstPrinter::formatHex(int64_t Value) const {
   switch (PrintHexStyle) {
   case HexStyle::C:

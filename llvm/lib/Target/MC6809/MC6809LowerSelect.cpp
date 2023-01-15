@@ -339,7 +339,7 @@ MachineFunction::iterator MC6809LowerSelect::lowerSelect(MachineInstr &MI) {
 void MC6809LowerSelect::moveAwayFromCalls(MachineFunction &MF) {
   for (MachineBasicBlock &MBB : MF) {
     for (auto I = MBB.begin(), E = MBB.end(); I != E; ++I) {
-      if (I->getOpcode() != MC6809::CallRelative)
+      if (I->getOpcode() != MC6809::BranchSubroutine)
         continue;
 
       SmallVector<MachineInstr *> PushedMIs;
