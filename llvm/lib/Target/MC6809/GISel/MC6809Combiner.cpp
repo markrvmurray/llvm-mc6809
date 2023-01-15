@@ -62,8 +62,8 @@ public:
   // %2 = COPY %1
   // =>
   // %2 = G_GLOBAL_VALUE @foo + bar
-  bool matchFoldGlobalCopy(MachineInstr &MI, MachineRegisterInfo &MRI, std::pair<const MachineOperand *, MachineInstr *> &MatchInfo) const;
-  bool applyFoldGlobalCopy(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, std::pair<const MachineOperand *, MachineInstr *> &MatchInfo) const;
+  bool matchFoldCopy(MachineInstr &MI, MachineRegisterInfo &MRI, std::pair<const MachineOperand *, MachineInstr *> &MatchInfo) const;
+  bool applyFoldCopy(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, std::pair<const MachineOperand *, MachineInstr *> &MatchInfo) const;
 
   //  %2:_(s16) = G_[SZ]EXT %1:_(s8)
   //  %3:_(p0) = G_PTR_ADD %0:_, %2:_(s16)
@@ -129,25 +129,39 @@ bool MC6809CombinerHelperState::applyFoldGlobalOffset(MachineInstr &MI, MachineR
 }
 
 // %1 = G_GLOBAL_VALUE @foo + bar
-// %2 = COPY %1
+// $aq = COPY %1
 // =>
-// %2 = G_GLOBAL_VALUE @foo + bar
-bool MC6809CombinerHelperState::matchFoldGlobalCopy(MachineInstr &MI, MachineRegisterInfo &MRI, std::pair<const MachineOperand *, MachineInstr *> &MatchInfo) const {
+// $aq = G_GLOBAL_VALUE @foo + bar
+bool MC6809CombinerHelperState::matchFoldCopy(MachineInstr &MI, MachineRegisterInfo &MRI, std::pair<const MachineOperand *, MachineInstr *> &MatchInfo) const {
   using namespace TargetOpcode;
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Matching COPY : MI = "; MI.dump(););
   assert(MI.getOpcode() == COPY);
 
   MachineOperand *CopyDest = &MI.getOperand(0);
   MachineOperand *CopySource = &MI.getOperand(1);
-  MachineInstr *GlobalBase = getOpcodeDef(MC6809::G_GLOBAL_VALUE, CopySource->getReg(), MRI);
-
-  if (!GlobalBase)
+  if (CopySource->isReg() && CopySource->getReg().isPhysical())
     return false;
-  MatchInfo = {CopyDest, GlobalBase};
+  MachineInstr *Base = getDefIgnoringCopies(CopySource->getReg(), MRI);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Matching COPY : *CopyDest = "; CopyDest->dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Matching COPY : *CopySource = "; CopySource->dump(););
+  LLVM_DEBUG(if (Base) {
+    dbgs() << "OINQUE DEBUG " << __func__ << " : Matching COPY : *Base = ";
+    Base->dump();
+  } else {
+        dbgs() << "OINQUE DEBUG " << __func__ << " : Matching COPY : *Base = NULL\n";
+  });
+
+  if (!Base)
+    return false;
+  if (!(CopyDest->isReg() && CopyDest->getReg().isPhysical()))
+    return false;
+  MatchInfo = {CopyDest, Base};
   return true;
 }
 
-bool MC6809CombinerHelperState::applyFoldGlobalCopy(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, std::pair<const MachineOperand *, MachineInstr *> &MatchInfo) const {
+bool MC6809CombinerHelperState::applyFoldCopy(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, std::pair<const MachineOperand *, MachineInstr *> &MatchInfo) const {
   using namespace TargetOpcode;
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Matching COPY : MI = "; MI.dump(););
   assert(MI.getOpcode() == COPY);
   const TargetInstrInfo &TII = MIB.getTII();
   Observer.changingInstr(*(MatchInfo.second));
@@ -197,7 +211,8 @@ bool MC6809CombinerHelperState::applyFoldPointerExtOffset(MachineInstr &MI, Mach
 bool MC6809CombinerHelperState::matchSwapPhysregToLhs(MachineInstr &MI, MachineRegisterInfo &MRI, MachineInstr *&MatchInfo) const {
   using namespace TargetOpcode;
   const MC6809Subtarget &STI = static_cast<const MC6809Subtarget &>(MI.getMF()->getSubtarget());
-  if (!STI.isHD6309()) {
+//  if (!STI.isHD6309()) {
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Matching G_ADD\n");
     assert(MI.getOpcode() == MC6809::G_ADD || MI.getOpcode() == MC6809::G_SADDO || MI.getOpcode() == MC6809::G_UADDO || MI.getOpcode() == MC6809::G_SADDE || MI.getOpcode() == MC6809::G_UADDE);
     int ArgA, ArgB;
     if (MI.getOpcode() == MC6809::G_ADD) {
@@ -208,16 +223,24 @@ bool MC6809CombinerHelperState::matchSwapPhysregToLhs(MachineInstr &MI, MachineR
       ArgB = 3;
     }
     Register LHS = MI.getOperand(ArgA).getReg();
-    auto CopyL = getOpcodeDef(COPY, LHS, MRI);
-    if (CopyL && CopyL->getOperand(1).isReg() && CopyL->getOperand(1).getReg().isPhysical())
+    auto CopyL = getOpcodeDef(G_LOAD, LHS, MRI);
+    if (CopyL && CopyL->getOperand(1).isReg() && CopyL->getOperand(1).getReg().isPhysical()) {
+      LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Matching G_ADD : LHS is a G_LOAD : return FALSE\n");
       return false;
+    }
     Register RHS = MI.getOperand(ArgB).getReg();
     auto CopyR = getOpcodeDef(COPY, RHS, MRI);
     if (CopyR && CopyR->getOperand(1).isReg() && CopyR->getOperand(1).getReg().isPhysical()) {
+      CopyL = getOpcodeDef(COPY, LHS, MRI);
+      if (CopyL && CopyL->getOperand(1).isReg() && CopyL->getOperand(1).getReg().isPhysical()) {
+        LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Matching G_ADD : LHS and RHS are COPY : return FALSE\n");
+        return false;
+      }
+      LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Matching G_ADD : RHS is a COPY : return TRUE\n");
       MatchInfo = CopyR;
       return true;
     }
-  }
+//  }
   return false;
 }
 
@@ -303,8 +326,8 @@ public:
 
 bool MC6809CombinerInfo::combine(GISelChangeObserver &Observer, MachineInstr &MI, MachineIRBuilder &MIB) const {
   const LegalizerInfo *LI = MI.getMF()->getSubtarget().getLegalizerInfo();
-  bool IsPreLegalize = !MI.getMF()->getProperties().hasProperty(MachineFunctionProperties::Property::Legalized);
-  CombinerHelper Helper(Observer, MIB, IsPreLegalize, KB, MDT, LI);
+  // bool IsPreLegalize = !MI.getMF()->getProperties().hasProperty(MachineFunctionProperties::Property::Legalized);
+  CombinerHelper Helper(Observer, MIB, /* IsPreLegalize */ false, KB, MDT, LI);
   MC6809GenCombinerHelper Generated(GeneratedRuleCfg, Helper);
   return Generated.tryCombineAll(Observer, MI, MIB);
 }

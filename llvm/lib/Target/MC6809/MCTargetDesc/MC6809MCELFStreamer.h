@@ -1,5 +1,4 @@
-//===--------- MC6809MCELFStreamer.h - MC6809 subclass of MCELFStreamer
-//---------===//
+//===--- MC6809MCELFStreamer.h - MC6809 subclass of MCELFStreamer ---------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -21,15 +20,15 @@
 namespace llvm {
 
 class MC6809MCELFStreamer : public MCELFStreamer {
-  std::unique_ptr<MCInstrInfo> MCII;
+  // std::unique_ptr<MCInstrInfo> MCII;
 
 public:
   MC6809MCELFStreamer(MCContext &Context, std::unique_ptr<MCAsmBackend> TAB,
                       std::unique_ptr<MCObjectWriter> OW,
                       std::unique_ptr<MCCodeEmitter> Emitter)
       : MCELFStreamer(Context, std::move(TAB), std::move(OW),
-                      std::move(Emitter)),
-        MCII(createMC6809MCInstrInfo()) {}
+                      std::move(Emitter)) // ,
+        /* MCII(createMC6809MCInstrInfo()) */ {}
 
   void initSections(bool NoExecStack, const MCSubtargetInfo &STI) override;
   void changeSection(MCSection *Section, const MCExpr *Subsection) override;

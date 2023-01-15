@@ -162,12 +162,14 @@ struct IncomingArgHandler : public CallLowering::IncomingValueHandler {
     auto MMO = MF.getMachineMemOperand(MPO, MachineMemOperand::MOLoad | MachineMemOperand::MOInvariant, LocTy, inferAlignFromPtrInfo(MF, MPO));
 
     switch (VA.getLocInfo()) {
+#if 0
     case CCValAssign::LocInfo::ZExt:
       MIRBuilder.buildLoadInstr(TargetOpcode::G_ZEXTLOAD, ValVReg, Addr, *MMO);
       return;
     case CCValAssign::LocInfo::SExt:
       MIRBuilder.buildLoadInstr(TargetOpcode::G_SEXTLOAD, ValVReg, Addr, *MMO);
       return;
+#endif
     default:
       MIRBuilder.buildLoad(ValVReg, Addr, *MMO);
       return;
@@ -713,7 +715,7 @@ bool MC6809CallLowering::isEligibleForTailCallOptimization(MachineIRBuilder &MIR
 
 static unsigned getCallOpcode(const MachineFunction &CallerF, bool IsIndirect, bool IsTailCall) {
   if (!IsTailCall)
-    return IsIndirect ? MC6809::CallIndir : MC6809::CallRelative;
+    return IsIndirect ? MC6809::IndirectJumpSubroutine : MC6809::JumpSubroutine;
 
   if (!IsIndirect)
     return MC6809::ReturnImplicit;

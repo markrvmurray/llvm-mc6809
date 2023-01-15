@@ -164,6 +164,7 @@ private:
   void expandLEAPtrAdd(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandLoadImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandLoad1Imm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   // void expandLDImmRemat(MachineIRBuilder &Builder) const;
   // void expandLDZ(MachineIRBuilder &Builder) const;
   // void expandIncDec(MachineIRBuilder &Builder) const;
@@ -172,30 +173,33 @@ private:
   void expandNegate(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandMul8(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandMul16Imm(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandMul16Idx(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandMul16IdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandMul16IdxReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandMul16Pop(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandMul16Reg(MachineIRBuilder &Builder, MachineInstr &MI) const;
 
-  void expandAddReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandAddImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandAddIdx(MachineIRBuilder &Builder, MachineInstr &MI) const;
-
-  void expandAddCarryImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandAddCarryIdx(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandAddIdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandAddIdxReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandAddReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
 
   void expandAdd32Imm(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandAdd32Idx(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandAdd32IdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandAdd32IdxReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandAdd32Reg(MachineIRBuilder &Builder, MachineInstr &MI) const;
 
-  void expandSubReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandSubImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandSubImmRev(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandSubIdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandSubIdxReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandSubReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandSubPop(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandSubIdx(MachineIRBuilder &Builder, MachineInstr &MI) const;
-
-  void expandSubBorrowImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandSubBorrowIdx(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandSubBorrowPop(MachineIRBuilder &Builder, MachineInstr &MI) const;
 
   void expandSub32Imm(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandSub32Idx(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandSub32ImmRev(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandSub32IdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandSub32IdxReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandSub32Reg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandSub32Pop(MachineIRBuilder &Builder, MachineInstr &MI) const;
 
   void expandCompareReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
@@ -243,7 +247,16 @@ private:
   DenseMap<RegPlusReg, unsigned> CompareIdxRegOpcode;
   DenseMap<Register, unsigned> ComparePopOpcode;
 
+//  DenseMap<Register, unsigned> NegRegOpcode;
+
   static int offsetSizeInBits(MachineOperand &OffsetOp);
+
+  bool isJumpTableBranch(const MachineBasicBlock::instr_iterator &I) const;
+  bool isIndirBranch(const MachineBasicBlock::instr_iterator &I) const;
+  bool isCondBranch(const MachineBasicBlock::instr_iterator &I) const;
+  bool isUnCondBranch(const MachineBasicBlock::instr_iterator &I) const;
+  MachineBasicBlock *getBB(const MachineBasicBlock::instr_iterator &I) const;
+
 };
 
 namespace MC6809 {
@@ -255,7 +268,6 @@ enum TOF {
   MO_HI_JT,
 };
 
-} // namespace MC6809
 
 /// emitFrameOffset - Emit instructions as needed to set DestReg to SrcReg
 /// plus Offset.  This is intended to be used from within the prolog/epilog
@@ -267,6 +279,8 @@ void emitFrameOffset(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
                      MachineInstr::MIFlag = MachineInstr::NoFlags);
 
 
+
+} // namespace MC6809
 } // namespace llvm
 
 #endif // not LLVM_LIB_TARGET_MC6809_MC6809INSTRINFO_H

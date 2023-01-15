@@ -21,8 +21,6 @@
 #include "MC6809Subtarget.h"
 
 #include "llvm/CodeGen/GlobalISel/LegalizerHelper.h"
-#include "llvm/CodeGen/GlobalISel/LegalizerInfo.h"
-#include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
 #include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
 #include "llvm/CodeGen/RegisterBankInfo.h"
 #include "llvm/CodeGen/GlobalISel/Utils.h"
@@ -73,23 +71,67 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) {
   // Integer Extension and Truncation
 
   if (STI.isHD6309()) {
-    getActionDefinitionsBuilder(G_TRUNC).legalFor(
-        {{S1, S8}, {S1, S16}, {S1, S32}, {S8, S16}, {S8, S32}, {S16, S32}});
-    getActionDefinitionsBuilder(G_ANYEXT).legalFor(
-        {{S8, S1}, {S16, S8}, {S32, S16}});
-    getActionDefinitionsBuilder(G_SEXT).legalFor(
-        {{S8, S1}, {S16, S8}, {S32, S16}});
-    getActionDefinitionsBuilder(G_ZEXT).legalFor(
-        {{S8, S1}, {S16, S8}, {S32, S16}});
+    getActionDefinitionsBuilder(G_TRUNC)
+        .legalFor({{S1, S8},
+                   {S1, S16},
+                   {S1, S32},
+                   {S8, S16},
+                   {S8, S32},
+                   {S16, S32}});
+    getActionDefinitionsBuilder(G_ANYEXT)
+        .legalFor({{S8, S1},
+                   {S16, S8},
+                   {S32, S16}});
+    getActionDefinitionsBuilder(G_SEXT)
+        .legalFor({{S8, S1}, {S16, S8}, {S32, S16}});
+    getActionDefinitionsBuilder(G_ZEXT)
+        .legalFor({{S8, S1}, {S16, S8}, {S32, S16}});
   } else {
     getActionDefinitionsBuilder(G_TRUNC).legalFor(
         {{S1, S8}, {S1, S16}, {S8, S16}});
-    getActionDefinitionsBuilder(G_ANYEXT).legalFor({{S8, S1}, {S16, S8}});
-    getActionDefinitionsBuilder(G_SEXT).legalFor({{S8, S1}, {S16, S8}});
-    getActionDefinitionsBuilder(G_ZEXT).legalFor({{S8, S1}, {S16, S8}});
+    getActionDefinitionsBuilder(G_ANYEXT)
+        .legalFor({{S8, S1}, {S16, S8}});
+    getActionDefinitionsBuilder(G_SEXT)
+        .legalFor({{S8, S1}, {S16, S8}});
+    getActionDefinitionsBuilder(G_ZEXT)
+        .legalFor({{S8, S1}, {S16, S8}});
   }
 
-  getActionDefinitionsBuilder(G_SEXT_INREG).lower();
+#if 0
+  if (STI.isHD6309()) {
+    getActionDefinitionsBuilder({G_SEXTLOAD, G_ZEXTLOAD})
+        .legalForTypesWithMemDesc({{S8, P, S8, 1},
+                                   {S8, P, S16, 1},
+                                   {S16, P, S8, 1},
+                                   {S16, P, S16, 1},
+                                   {S32, P, S8, 1},
+                                   {S32, P, S16, 1},
+                                   {P, P, S8, 1},
+                                   {P, P, S16, 1}})
+        .widenScalarToNextPow2(0)
+        .unsupportedIfMemSizeNotPow2()
+        .lower();
+  } else {
+    getActionDefinitionsBuilder({G_SEXTLOAD, G_ZEXTLOAD})
+        .legalForTypesWithMemDesc({{S8, P, S8, 1},
+                                   {S8, P, S16, 1},
+                                   {S16, P, S8, 1},
+                                   {S16, P, S16, 1},
+                                   {P, P, S8, 1},
+                                   {P, P, S16, 1}})
+        .widenScalarToNextPow2(0)
+        .unsupportedIfMemSizeNotPow2()
+        .lower();
+  }
+#else
+  if (STI.isHD6309()) {
+    getActionDefinitionsBuilder({G_SEXTLOAD, G_ZEXTLOAD})
+        .unsupported();
+  } else {
+    getActionDefinitionsBuilder({G_SEXTLOAD, G_ZEXTLOAD})
+        .unsupported();
+  }
+#endif
 
   // Type Conversions
 
@@ -102,7 +144,7 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) {
 
   // Scalar Operations
 
-  getActionDefinitionsBuilder({G_EXTRACT, G_INSERT}).lower();
+  // getActionDefinitionsBuilder({G_EXTRACT, G_INSERT}).lower();
 
   getActionDefinitionsBuilder(G_MERGE_VALUES)
       .legalFor({{S32, S16}, {S16, S8}, {P, S8}})
@@ -111,51 +153,55 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) {
       .legalFor({{S8, S16}, {S8, P}, {S16, S32}})
       .unsupported();
 
-  getActionDefinitionsBuilder(G_BSWAP).unsupported();
-
-  getActionDefinitionsBuilder(G_BITREVERSE).lower();
-
   // Integer Operations
   if (STI.isHD6309()) {
     getActionDefinitionsBuilder({G_ADD, G_SUB})
-        .legalFor({S8, S16, S32});
+        .legalFor({S8, S16, S32})
+        .widenScalarToNextPow2(0);
   } else {
     getActionDefinitionsBuilder({G_ADD, G_SUB})
-        .legalFor({S8, S16});
+        .legalFor({S8, S16})
+        .libcallFor({S32})
+        .widenScalarToNextPow2(0);
   }
 
   if (STI.isHD6309()) {
     getActionDefinitionsBuilder({G_AND, G_OR, G_XOR})
         .legalFor({S8, S16})
-        .widenScalarToNextPow2(0);
+        .widenScalarToNextPow2(0)
+        .libcall();
   } else {
     getActionDefinitionsBuilder({G_AND, G_OR, G_XOR})
         .legalFor({S8})
-        .widenScalarToNextPow2(0);
+        .widenScalarToNextPow2(0)
+        .libcall();
   }
 
   if (STI.isHD6309()) {
     getActionDefinitionsBuilder(G_MUL)
         .legalFor({S8, S16})
-        .libcall();
+        .libcallFor({S32})
+        .widenScalarToNextPow2(0);
   } else {
     getActionDefinitionsBuilder(G_MUL)
         .legalFor({S8})
-        .libcall();
+        .libcallFor({S16, S32})
+        .widenScalarToNextPow2(0);
   }
 
   getActionDefinitionsBuilder({G_SDIV, G_SREM, G_UDIV, G_UREM, G_SDIVREM, G_UDIVREM})
       .libcall();
 
-  getActionDefinitionsBuilder({G_SADDSAT, G_UADDSAT, G_SSUBSAT, G_USUBSAT, G_SSHLSAT, G_USHLSAT})
-      .libcall();
-
   if (STI.isHD6309()) {
     getActionDefinitionsBuilder({G_SHL, G_LSHR, G_ASHR, G_ROTL, G_ROTR})
-        .legalFor({{S16, S1}, {S8, S1}});
+        .legalFor({{S16, S1}, {S8, S1}})
+        .widenScalarToNextPow2(0)
+        .libcall();
   } else {
     getActionDefinitionsBuilder({G_SHL, G_LSHR, G_ASHR, G_ROTL, G_ROTR})
-        .legalFor({{S8, S1}});
+        .legalFor({{S8, S1}})
+        .widenScalarToNextPow2(0)
+        .libcall();
   }
 
   getActionDefinitionsBuilder(G_ICMP)
@@ -169,12 +215,7 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) {
   getActionDefinitionsBuilder(G_PTR_ADD)
       .legalFor({{P, S16}, {P, S8}, {P, S1}});
 
-  getActionDefinitionsBuilder({G_SMIN, G_SMAX, G_UMIN, G_UMAX})
-      .lower();
-
-  getActionDefinitionsBuilder(G_ABS)
-      .lower();
-
+#if 0
   // Odd operations produce a carry
   // Even operations produce and consume a carry
   if (STI.isHD6309()) {
@@ -193,7 +234,6 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) {
         .widenScalarToNextPow2(0);
   }
 
-#if 0
   if (STI.isHD6309()) {
     getActionDefinitionsBuilder({G_SMULO, G_UMULO})
         .legalFor({S8, S16})
@@ -213,7 +253,6 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) {
         .widenScalarToNextPow2(0)
         .lower();
   }
-#endif
 
   // WARNING: The default lowering of funnel shifts is terrible. Luckily, they
   // appear to mostly be rotations, which are combined away and handled
@@ -241,13 +280,9 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) {
                                G_FPTOSI,     G_FPTOUI,
                                G_SITOFP,     G_UITOFP})
       .libcall();
+#endif
 
   // Memory Operations
-
-#if 0
-  getActionDefinitionsBuilder({G_SEXTLOAD, G_ZEXTLOAD})
-      .unsupported();
-#endif
 
   if (STI.isHD6309()) {
     getActionDefinitionsBuilder({G_LOAD, G_STORE})
@@ -258,10 +293,6 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) {
         .legalFor({{S8, P}, {S16, P}, {P, P}})
         .widenScalarToNextPow2(0);
   }
-
-  getActionDefinitionsBuilder({G_MEMCPY, G_MEMMOVE, G_MEMSET}).libcall();
-
-  // Control Flow
 
   getActionDefinitionsBuilder(G_PHI)
       .legalFor({P, S1, S8, S16})
@@ -279,6 +310,7 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) {
   getActionDefinitionsBuilder(G_JUMP_TABLE)
       .legalFor({{P}, {S16}});
 
+#if 0
   // Variadic Arguments
   getActionDefinitionsBuilder({G_VASTART, G_VAARG})
       .unsupported();
@@ -289,6 +321,7 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) {
 
   getActionDefinitionsBuilder(G_FREEZE)
       .unsupported();
+#endif
 
   getLegacyLegalizerInfo().computeTables();
   verify(*STI.getInstrInfo());

@@ -420,6 +420,10 @@ RTLIB::Libcall llvm::getRTLibDesc(unsigned Opcode, unsigned Size) {
     RTLIBCASE(LROUND_F);
   case TargetOpcode::G_LLROUND:
     RTLIBCASE(LLROUND_F);
+  case TargetOpcode::G_ADD:
+    RTLIBCASE_INT(ADD_I);
+  case TargetOpcode::G_SUB:
+    RTLIBCASE_INT(SUB_I);
   case TargetOpcode::G_MUL:
     RTLIBCASE_INT(MUL_I);
   case TargetOpcode::G_SDIV:
@@ -1232,7 +1236,10 @@ LegalizerHelper::libcall(MachineInstr &MI, LostDebugLocObserver &LocObserver) {
 
   switch (MI.getOpcode()) {
   default:
+    LLVM_DEBUG(dbgs() << " .. This is not legalisable as a libcall";);
     return UnableToLegalize;
+  case TargetOpcode::G_ADD:
+  case TargetOpcode::G_SUB:
   case TargetOpcode::G_MUL:
   case TargetOpcode::G_SDIV:
   case TargetOpcode::G_UDIV:

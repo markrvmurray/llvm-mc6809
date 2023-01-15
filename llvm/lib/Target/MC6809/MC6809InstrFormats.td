@@ -55,11 +55,15 @@ def imm16 : Operand<i32> {
 def pcrel8 : Operand<i32> {
   let ParserMatchClass = PCRelativeOperand<"PCRel8">;
   let EncoderMethod = "encodeImm<MC6809::PCRel8, 1>";
+  let PrintMethod = "printBranchOperand";
+  let OperandType = "OPERAND_PCREL";
 }
 
 def pcrel16 : Operand<i32> {
   let ParserMatchClass = PCRelativeOperand<"PCRel16">;
   let EncoderMethod = "encodeImm<MC6809::PCRel16, 1>";
+  let PrintMethod = "printBranchOperand";
+  let OperandType = "OPERAND_PCREL";
 }
 
 def offset5 : Operand<i32> {
@@ -80,11 +84,17 @@ def offset16 : Operand<i32> {
 def addr8 : Operand<i32> {
   let ParserMatchClass = Addr8Operand<"Addr8">;
   let EncoderMethod = "encodeImm<MC6809::Addr8, 1>";
+  let OperandType = "OPERAND_ADDR8";
+  let OperandNamespace = "MC6809Op";
+  let Type = i8;
 }
 
 def addr16 : Operand<i32> {
   let ParserMatchClass = Addr16Operand<"Addr16">;
   let EncoderMethod = "encodeImm<MC6809::Addr16, 1>";
+  let OperandType = "OPERAND_ADDR16";
+  let OperandNamespace = "MC6809Op";
+  let Type = i16;
 }
 
 def imm8to16 : Operand<i32> {
@@ -135,6 +145,22 @@ class Opcode<bits<8> opcode = 0x00, int page = 0> {
   int PrefixOffset = !if(!eq(page, 1), 0, 8);
 }
 def DefaultOpcode : Opcode<0, 0>;
+
+// Pointer register with signed immediate offset for use in instruction address
+// modes for load/store instructions.
+// index + offset [-32768, 32767].
+def am_ls_indexed_imm_offset : ComplexPattern<iPTR, 2, "SelectLSIndexedImmOffset", []>;
+def gi_am_ls_indexed_imm_offset : GIComplexOperandMatcher<s16, "selectLSIndexedImmOffset">, GIComplexPatternEquiv<am_ls_indexed_imm_offset>;
+
+// Pointer register with signed immediate offset for use in instruction address
+// modes for instructions other than load/store.
+// index + offset [-32768, 32767].
+def am_am_indexed_imm_offset : ComplexPattern<iPTR, 2, "SelectAMIndexedImmOffset", []>;
+def gi_am_am_indexed_imm_offset : GIComplexOperandMatcher<s16, "selectAMIndexedImmOffset">, GIComplexPatternEquiv<am_am_indexed_imm_offset>;
+
+// Immediate constant
+def am_am_immediate : ComplexPattern<iAny, 2, "SelectAMImmediate", []>;
+def gi_am_am_immediate : GIComplexOperandMatcher<s32, "selectAMImmediate">, GIComplexPatternEquiv<am_am_immediate>;
 
 /// Addressing modes
 /// ----------------
@@ -1395,7 +1421,7 @@ class LongBranch<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opcode> 
   let Mode = "lb";
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
-  let InOperandList = (ins label:$tgt);
+  let InOperandList = (ins pcrel16:$tgt);
   let AsmString = !strconcat(mnemonic, " $tgt");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
@@ -1409,7 +1435,7 @@ class LongConditionalBranch<string mnemonic, Opcode opcode> : MC6809Inst<mnemoni
   let Mode = "lbc";
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
-  let InOperandList = (ins condcode:$cond, label:$tgt);
+  let InOperandList = (ins condcode:$cond, pcrel16:$tgt);
   let AsmString = !strconcat(mnemonic, " $tgt");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
@@ -1490,7 +1516,7 @@ class ShortBranch<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opcode>
   let Mode = "b";
   let OperandSize = 1;
   let Size = !add(OperandSize, OpcodeSize);
-  let InOperandList = (ins label:$tgt);
+  let InOperandList = (ins pcrel8:$tgt);
   let AsmString = !strconcat(mnemonic, " $tgt");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
@@ -1504,7 +1530,7 @@ class ShortConditionalBranch<string mnemonic, Opcode opcode> : MC6809Inst<mnemon
   let Mode = "bc";
   let OperandSize = 1;
   let Size = !add(OperandSize, OpcodeSize);
-  let InOperandList = (ins condcode:$cond, label:$tgt);
+  let InOperandList = (ins condcode:$cond, pcrel8:$tgt);
   let AsmString = !strconcat(mnemonic, " $tgt");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
