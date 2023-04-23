@@ -18,7 +18,7 @@
 #include "MC6809Subtarget.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/Analysis/ObjCARCUtil.h"
+//#include "llvm/Analysis/ObjCARCUtil.h"
 #include "llvm/CodeGen/Analysis.h"
 #include "llvm/CodeGen/CallingConvLower.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
@@ -31,7 +31,7 @@
 #include "llvm/CodeGen/MachineMemOperand.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
-#include "llvm/CodeGen/TargetRegisterInfo.h"
+//#include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/CodeGen/ValueTypes.h"
 #include "llvm/IR/Argument.h"
@@ -39,8 +39,8 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
-#include "llvm/Support/MachineValueType.h"
-#include <algorithm>
+//#include "llvm/Support/MachineValueType.h"
+//#include <algorithm>
 #include <cassert>
 #include <cstdint>
 #include <iterator>
@@ -369,7 +369,7 @@ bool MC6809CallLowering::lowerReturn(MachineIRBuilder &MIRBuilder, const Value *
                 }
                 auto Undef = MIRBuilder.buildUndef({OldLLT});
                 CurVReg =
-                    MIRBuilder.buildMerge({NewLLT}, {CurVReg, Undef}).getReg(0);
+                    MIRBuilder.buildMergeLikeInstr({NewLLT}, {CurVReg, Undef}).getReg(0);
               } else {
                 // Just do a vector extend.
                 CurVReg = MIRBuilder.buildInstr(ExtendOp, {NewLLT}, {CurVReg})
@@ -715,7 +715,7 @@ bool MC6809CallLowering::isEligibleForTailCallOptimization(MachineIRBuilder &MIR
 
 static unsigned getCallOpcode(const MachineFunction &CallerF, bool IsIndirect, bool IsTailCall) {
   if (!IsTailCall)
-    return IsIndirect ? MC6809::IndirectJumpSubroutine : MC6809::JumpSubroutine;
+    return IsIndirect ? MC6809::IndirectJumpSubroutine : MC6809::BranchSubroutine;
 
   if (!IsIndirect)
     return MC6809::ReturnImplicit;
@@ -929,7 +929,7 @@ bool MC6809CallLowering::lowerCall(MachineIRBuilder &MIRBuilder, CallLoweringInf
 
     MC6809OutgoingValueAssigner Assigner(RetAssignFn, RetAssignFn, Subtarget, /*IsReturn*/ false);
     ReturnedArgCallReturnHandler ReturnedArgHandler(MIRBuilder, MRI, MIB);
-    if (!determineAndHandleAssignments(UsingReturnedArg ? ReturnedArgHandler : Handler, Assigner, InArgs, MIRBuilder, Info.CallConv, Info.IsVarArg, UsingReturnedArg ? makeArrayRef(OutArgs[0].Regs) : None))
+    if (!determineAndHandleAssignments(UsingReturnedArg ? ReturnedArgHandler : Handler, Assigner, InArgs, MIRBuilder, Info.CallConv, Info.IsVarArg, UsingReturnedArg ? ArrayRef(OutArgs[0].Regs) : std::nullopt))
       return false;
   }
 
@@ -939,4 +939,25 @@ bool MC6809CallLowering::lowerCall(MachineIRBuilder &MIRBuilder, CallLoweringInf
   MIRBuilder.buildInstr(MC6809::ADJCALLSTACKUP).addImm(Assigner.StackOffset).addImm(CalleePopBytes);
 
   return true;
+}
+
+MachineInstrBuilder
+MC6809CallLowering::buildCMP(MachineIRBuilder &MIRBuilder, RTLIB::Libcall Libcall) const {
+  MachineFunction &MF = MIRBuilder.getMF();
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MF = "; MF.dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : XXXX FixMe MarkM\n";);
+  const auto &STI = MF.getSubtarget<MC6809Subtarget>();
+  const auto &TLI = *getTLI<MC6809TargetLowering>();
+  const MC6809RegisterInfo &TRI = *STI.getRegisterInfo();
+  auto Instr = MIRBuilder.buildInstr(MC6809::BranchSubroutine)
+      .addExternalSymbol(TLI.getLibcallName(Libcall))
+#if 0
+      .addImm(MC6809CC::CS)
+#endif
+      .addReg(MC6809::CC, RegState::ImplicitDefine)
+      .addReg(MC6809::CC, RegState::ImplicitKill)
+      .addRegMask(TRI.getCallPreservedMask(MF, TLI.getLibcallCallingConv(Libcall)));
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Instr = "; Instr->dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MF = "; MF.dump(););
+  return Instr;
 }

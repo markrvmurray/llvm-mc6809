@@ -95,8 +95,8 @@ void MC6809InstPrinter::printRegisterList(const MCInst *MI, unsigned OpNo, raw_o
   } while (RegList);
 }
 
-void MC6809InstPrinter::printRegName(raw_ostream &O, unsigned RegNo) const {
-  O << getRegisterName(RegNo);
+void MC6809InstPrinter::printRegName(raw_ostream &O, MCRegister Reg) const {
+  O << getRegisterName(Reg);
 }
 
 void MC6809InstPrinter::printCondCode(const MCInst *MI, unsigned OpNo, raw_ostream &O) {

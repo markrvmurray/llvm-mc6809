@@ -17,9 +17,15 @@
 
 namespace llvm {
 
+class MC6809Subtarget;
+
 /// MC6809MachineFunctionInfo - This class is derived from MachineFunction and
 /// contains private MC6809 target-specific information for each MachineFunction.
 class MC6809MachineFunctionInfo : public MachineFunctionInfo {
+public:
+  enum AltFPMode { AFPM_None = 0, AFPM_Partial, AFPM_Full };
+
+private:
   virtual void anchor();
 
   /// CalleeSavedFrameSize - Size of the callee-saved register portion of the
@@ -59,11 +65,13 @@ class MC6809MachineFunctionInfo : public MachineFunctionInfo {
   /// what's already available by reusing space of incoming arguments.
   unsigned TailCallReservedStack = 0;
 
+  /// UsesAltFP - We use an alternate frame pointer as an optimization.
+  AltFPMode UsesAltFP = AFPM_None;
+
 public:
   MC6809MachineFunctionInfo() = default;
 
-  explicit MC6809MachineFunctionInfo(MachineFunction &MF)
-    : CalleeSavedFrameSize(0), ReturnAddrIndex(0), SRetReturnReg(0) {}
+  MC6809MachineFunctionInfo(const Function &F, const MC6809Subtarget *STI) {}
 
   unsigned getCalleeSavedFrameSize() const { return CalleeSavedFrameSize; }
   void setCalleeSavedFrameSize(unsigned bytes) { CalleeSavedFrameSize = bytes; }
@@ -89,6 +97,9 @@ public:
   void setTailCallReservedStack(unsigned bytes) {
     TailCallReservedStack = bytes;
   }
+
+  AltFPMode getUsesAltFP() const { return UsesAltFP; }
+  void setUsesAltFP(AltFPMode V) { UsesAltFP = V; }
 
 };
 

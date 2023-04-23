@@ -1169,6 +1169,8 @@ Error GlobalISelEmitter::importChildMatcher(
     if (ChildRec->getName() == "srcvalue")
       return Error::success();
 
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG : " << __func__ << " : ChildRec = "; ChildRec->dump(););
+
     const bool ImmAllOnesV = ChildRec->getName() == "immAllOnesV";
     if (ImmAllOnesV || ChildRec->getName() == "immAllZerosV") {
       auto MaybeInsnOperand = OM.addPredicate<InstructionOperandMatcher>(

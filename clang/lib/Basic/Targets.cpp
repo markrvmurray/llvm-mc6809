@@ -273,7 +273,7 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
     return std::make_unique<BPFTargetInfo>(Triple, Opts);
 
   case llvm::Triple::mc6809:
-    return new MC6809TargetInfo(Triple, Opts);
+    return std::make_unique<MC6809TargetInfo>(Triple, Opts);
 
   case llvm::Triple::mos:
     return std::make_unique<MOSTargetInfo>(Triple, Opts);

@@ -64,6 +64,9 @@ MC6809RegisterBankInfo::getRegBankFromRegClass(const TargetRegisterClass &RC, LL
   } else if (MC6809::CCondRegClass.hasSubClassEq(&RC)) {
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : CC\n";);
     return getRegBank(MC6809::CCRegBankID);
+  } else if (MC6809::BIT1RegClass.hasSubClassEq(&RC)) {
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : CC(BIT1)\n";);
+    return getRegBank(MC6809::CCRegBankID);
   }
   llvm_unreachable("Unsupported register kind.");
 }
@@ -136,7 +139,6 @@ MC6809RegisterBankInfo::getSameOperandsMapping(const MachineInstr &MI) const {
   if (NumOperands != 3 || (Ty != MRI.getType(MI.getOperand(1).getReg())) || (Ty != MRI.getType(MI.getOperand(2).getReg())))
     llvm_unreachable("Unsupported operand mapping.");
 
-  // XXXX: FixMe: MarkM - this will often be incorrect on 6809 - assumes all 3 operands are the same types
   auto Mapping = getValueMapping(getPartialMappingIdx(Ty), 3);
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Calling final getInstructionMapping() : MI = "; MI.dump(););
   return getInstructionMapping(DefaultMappingID, 1, Mapping, NumOperands);
@@ -166,18 +168,21 @@ MC6809RegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Not yet doing G_FRAME_INDEX\n";);
     llvm_unreachable("OINQUE DEBUG Does this have to be here?");
 #endif /* 0 */
+  case TargetOpcode::G_MUL:
   case TargetOpcode::G_ADD:
   case TargetOpcode::G_SUB:
-  case TargetOpcode::G_MUL:
+  case TargetOpcode::G_AND:
+  case TargetOpcode::G_OR:
+  case TargetOpcode::G_XOR:
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Doing getSameOperandsMapping()\n";);
     return getSameOperandsMapping(MI);
   case TargetOpcode::G_SHL:
   case TargetOpcode::G_LSHR:
   case TargetOpcode::G_ASHR: {
     LLT Ty = MRI.getType(MI.getOperand(0).getReg());
-    auto Mapping = getValueMapping(getPartialMappingIdx(Ty), 3);
+    auto Mapping = getValueMapping(getPartialMappingIdx(Ty), NumOperands);
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 20 : Mapping = "; Mapping->dump(););
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 20 : Doing getInstructionMapping() 3 operands\n";);
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 20 : Doing getInstructionMapping() " << NumOperands << " operands\n";);
     return getInstructionMapping(DefaultMappingID, 1, Mapping, NumOperands);
   }
   default:

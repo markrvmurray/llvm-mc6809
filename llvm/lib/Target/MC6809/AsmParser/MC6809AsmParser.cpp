@@ -1,11 +1,10 @@
-//===---- MC6809AsmParser.cpp - Parse MC6809 assembly to MCInst instructions
-//----===//
+//===-- MC6809AsmParser.cpp - Parse MC6809 assembly to MCInst instructions --===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===----------------------------------------------------------------------===//
+//===------------------------------------------------------------------------===//
 
 #include "MC6809.h"
 #include "MC6809RegisterInfo.h"
@@ -547,10 +546,8 @@ public:
     return false;
   }
 
-  OperandMatchResultTy tryParseRegister(unsigned &RegNo, SMLoc &StartLoc,
-                                        SMLoc &EndLoc) override {
-    std::string AnyCase(StartLoc.getPointer(),
-                        EndLoc.getPointer() - StartLoc.getPointer());
+  OperandMatchResultTy tryParseRegister(MCRegister &RegNo, SMLoc &StartLoc, SMLoc &EndLoc) override {
+    std::string AnyCase(StartLoc.getPointer(), EndLoc.getPointer() - StartLoc.getPointer());
     std::transform(AnyCase.begin(), AnyCase.end(), AnyCase.begin(),
                    [](unsigned char C) { return std::tolower(C); });
     StringRef RegisterName(AnyCase.c_str(), AnyCase.size());
@@ -558,8 +555,7 @@ public:
     if (RegNo == 0) {
       // If the user has requested to ignore short register names, then ignore
       // them
-      if (getSTI().getFeatureBits()[MC6809::FeatureAltRegisterNamesOnly] ==
-          false) {
+      if (getSTI().getFeatureBits()[MC6809::FeatureAltRegisterNamesOnly] == false) {
         RegNo = MatchRegisterAltName(RegisterName);
       }
     }
@@ -567,7 +563,7 @@ public:
   }
 
   OperandMatchResultTy tryParseRegister(OperandVector &Operands) {
-    unsigned RegNo = 0;
+    MCRegister RegNo = 0;
     SMLoc S = getLexer().getLoc();
     SMLoc E = getLexer().getTok().getEndLoc();
     if (tryParseRegister(RegNo, S, E) == MatchOperand_Success) {
@@ -664,8 +660,7 @@ public:
     return false;
   }
 
-  bool ParseRegister(unsigned &RegNo, SMLoc &StartLoc, SMLoc &EndLoc) override {
-
+  bool parseRegister(MCRegister &RegNo, SMLoc &StartLoc, SMLoc &EndLoc) override {
     auto Result = tryParseRegister(RegNo, StartLoc, EndLoc);
     return (Result != MatchOperand_Success);
   }
@@ -679,7 +674,7 @@ public:
 // instructions.
 OperandMatchResultTy
 MC6809AsmParser::tryParseAsmParamRegClass(OperandVector &Operands) {
-  unsigned RegNo = 0;
+  MCRegister RegNo = 0;
   SMLoc S = getLexer().getLoc();
   SMLoc E = getLexer().getTok().getEndLoc();
   if (tryParseRegister(RegNo, S, E) == MatchOperand_Success) {
@@ -693,5 +688,4 @@ extern "C" void LLVM_EXTERNAL_VISIBILITY
 LLVMInitializeMC6809AsmParser() { // NOLINT
   RegisterMCAsmParser<MC6809AsmParser> X(getTheMC6809Target());
 }
-
 } // namespace llvm

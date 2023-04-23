@@ -130,11 +130,13 @@ class CondCodeAsmOperand<string name> : MC6809AsmOperand<name> {
   let DiagnosticType = "InvalidCondCode";
 }
 
-def condcode : Operand<i8> {
+def condcode : Operand<i4> {
   let EncoderMethod = "encodeCondCodeOpValue";
   let ParserMatchClass = CondCodeAsmOperand<"CondCode">;
   let PrintMethod = "printCondCode";
 }
+
+def CCode : Operand<OtherVT>;
 
 /// All non-virtual MC6809 opcodes are 8 or 16 bits long.
 class Opcode<bits<8> opcode = 0x00, int page = 0> {

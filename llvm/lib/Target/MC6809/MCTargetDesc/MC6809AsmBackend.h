@@ -17,7 +17,6 @@
 
 #include "MCTargetDesc/MC6809FixupKinds.h"
 
-#include "llvm/ADT/Triple.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/MC/MCAsmBackend.h"
 #include "llvm/MC/MCELFObjectWriter.h"

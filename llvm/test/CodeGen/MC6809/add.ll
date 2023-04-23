@@ -7,27 +7,21 @@
 define dso_local signext i8 @add_s_i8(i8 noundef signext %a, i8 noundef signext %b, i8 noundef signext %c, i8 noundef signext %d, i8 noundef signext %e) local_unnamed_addr #0 {
 ; CHECK-LABEL: add_s_i8:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    addb 2,u
-; CHECK-NEXT:    addb 3,u
-; CHECK-NEXT:    addb 4,u
-; CHECK-NEXT:    addb 5,u
-; CHECK-NEXT:    puls u
+; CHECK-NEXT:    addb 2,s
+; CHECK-NEXT:    addb 3,s
+; CHECK-NEXT:    addb 4,s
+; CHECK-NEXT:    addb 5,s
 ; CHECK-NEXT:    rts
 ;
 ; CHECK-HD6309-LABEL: add_s_i8:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
-; CHECK-HD6309-NEXT:    pshs u
-; CHECK-HD6309-NEXT:    tfr s,u
-; CHECK-HD6309-NEXT:    addr f,b
-; CHECK-HD6309-NEXT:    addb 2,u
-; CHECK-HD6309-NEXT:    addb 3,u
-; CHECK-HD6309-NEXT:    addb 4,u
-; CHECK-HD6309-NEXT:    puls u
+; CHECK-HD6309-NEXT:    addb 2,s
+; CHECK-HD6309-NEXT:    addb 3,s
+; CHECK-HD6309-NEXT:    addb 4,s
+; CHECK-HD6309-NEXT:    addb 5,s
 ; CHECK-HD6309-NEXT:    rts
 entry:
-  %add = add i8 %b, %a
+  %add = add i8 %a, %b
   %add3 = add i8 %add, %c
   %add5 = add i8 %add3, %d
   %add7 = add i8 %add5, %e
@@ -38,28 +32,20 @@ entry:
 define dso_local signext i8 @add_s_i8_consts(i8 noundef signext %a, i8 noundef signext %b, i8 noundef signext %c, i8 noundef signext %d, i8 noundef signext %e) local_unnamed_addr #0 {
 ; CHECK-LABEL: add_s_i8_consts:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    tfr s,u
 ; CHECK-NEXT:    addb #5
-; CHECK-NEXT:    addb 2,u
-; CHECK-NEXT:    addb 3,u
-; CHECK-NEXT:    addb 4,u
-; CHECK-NEXT:    addb 5,u
-; CHECK-NEXT:    puls u
+; CHECK-NEXT:    addb 2,s
+; CHECK-NEXT:    addb 3,s
+; CHECK-NEXT:    addb 4,s
+; CHECK-NEXT:    addb 5,s
 ; CHECK-NEXT:    rts
 ;
 ; CHECK-HD6309-LABEL: add_s_i8_consts:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
-; CHECK-HD6309-NEXT:    pshs u
-; CHECK-HD6309-NEXT:    tfr s,u
-; CHECK-HD6309-NEXT:    tfr b,a
-; CHECK-HD6309-NEXT:    tfr f,b
-; CHECK-HD6309-NEXT:    adda #5
-; CHECK-HD6309-NEXT:    addr a,b
-; CHECK-HD6309-NEXT:    addb 2,u
-; CHECK-HD6309-NEXT:    addb 3,u
-; CHECK-HD6309-NEXT:    addb 4,u
-; CHECK-HD6309-NEXT:    puls u
+; CHECK-HD6309-NEXT:    addb #5
+; CHECK-HD6309-NEXT:    addb 2,s
+; CHECK-HD6309-NEXT:    addb 3,s
+; CHECK-HD6309-NEXT:    addb 4,s
+; CHECK-HD6309-NEXT:    addb 5,s
 ; CHECK-HD6309-NEXT:    rts
 entry:
   %add4 = add i8 %a, 5
@@ -74,27 +60,21 @@ entry:
 define dso_local zeroext i8 @add_u_i8(i8 noundef zeroext %a, i8 noundef zeroext %b, i8 noundef zeroext %c, i8 noundef zeroext %d, i8 noundef zeroext %e) local_unnamed_addr #0 {
 ; CHECK-LABEL: add_u_i8:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    addb 2,u
-; CHECK-NEXT:    addb 3,u
-; CHECK-NEXT:    addb 4,u
-; CHECK-NEXT:    addb 5,u
-; CHECK-NEXT:    puls u
+; CHECK-NEXT:    addb 2,s
+; CHECK-NEXT:    addb 3,s
+; CHECK-NEXT:    addb 4,s
+; CHECK-NEXT:    addb 5,s
 ; CHECK-NEXT:    rts
 ;
 ; CHECK-HD6309-LABEL: add_u_i8:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
-; CHECK-HD6309-NEXT:    pshs u
-; CHECK-HD6309-NEXT:    tfr s,u
-; CHECK-HD6309-NEXT:    addr f,b
-; CHECK-HD6309-NEXT:    addb 2,u
-; CHECK-HD6309-NEXT:    addb 3,u
-; CHECK-HD6309-NEXT:    addb 4,u
-; CHECK-HD6309-NEXT:    puls u
+; CHECK-HD6309-NEXT:    addb 2,s
+; CHECK-HD6309-NEXT:    addb 3,s
+; CHECK-HD6309-NEXT:    addb 4,s
+; CHECK-HD6309-NEXT:    addb 5,s
 ; CHECK-HD6309-NEXT:    rts
 entry:
-  %add = add i8 %b, %a
+  %add = add i8 %a, %b
   %add3 = add i8 %add, %c
   %add5 = add i8 %add3, %d
   %add7 = add i8 %add5, %e
@@ -105,28 +85,20 @@ entry:
 define dso_local zeroext i8 @add_u_i8_consts(i8 noundef zeroext %a, i8 noundef zeroext %b, i8 noundef zeroext %c, i8 noundef zeroext %d, i8 noundef zeroext %e) local_unnamed_addr #0 {
 ; CHECK-LABEL: add_u_i8_consts:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    tfr s,u
 ; CHECK-NEXT:    addb #45
-; CHECK-NEXT:    addb 2,u
-; CHECK-NEXT:    addb 3,u
-; CHECK-NEXT:    addb 4,u
-; CHECK-NEXT:    addb 5,u
-; CHECK-NEXT:    puls u
+; CHECK-NEXT:    addb 2,s
+; CHECK-NEXT:    addb 3,s
+; CHECK-NEXT:    addb 4,s
+; CHECK-NEXT:    addb 5,s
 ; CHECK-NEXT:    rts
 ;
 ; CHECK-HD6309-LABEL: add_u_i8_consts:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
-; CHECK-HD6309-NEXT:    pshs u
-; CHECK-HD6309-NEXT:    tfr s,u
-; CHECK-HD6309-NEXT:    tfr b,a
-; CHECK-HD6309-NEXT:    tfr f,b
-; CHECK-HD6309-NEXT:    adda #45
-; CHECK-HD6309-NEXT:    addr a,b
-; CHECK-HD6309-NEXT:    addb 2,u
-; CHECK-HD6309-NEXT:    addb 3,u
-; CHECK-HD6309-NEXT:    addb 4,u
-; CHECK-HD6309-NEXT:    puls u
+; CHECK-HD6309-NEXT:    addb #45
+; CHECK-HD6309-NEXT:    addb 2,s
+; CHECK-HD6309-NEXT:    addb 3,s
+; CHECK-HD6309-NEXT:    addb 4,s
+; CHECK-HD6309-NEXT:    addb 5,s
 ; CHECK-HD6309-NEXT:    rts
 entry:
   %add4 = add i8 %a, 45
@@ -141,27 +113,21 @@ entry:
 define dso_local i16 @add_s_i16(i16 noundef %a, i16 noundef %b, i16 noundef %c, i16 noundef %d, i16 noundef %e) local_unnamed_addr #0 {
 ; CHECK-LABEL: add_s_i16:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    addd 2,u
-; CHECK-NEXT:    addd 4,u
-; CHECK-NEXT:    addd 6,u
-; CHECK-NEXT:    addd 8,u
-; CHECK-NEXT:    puls u
+; CHECK-NEXT:    addd 2,s
+; CHECK-NEXT:    addd 4,s
+; CHECK-NEXT:    addd 6,s
+; CHECK-NEXT:    addd 8,s
 ; CHECK-NEXT:    rts
 ;
 ; CHECK-HD6309-LABEL: add_s_i16:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
-; CHECK-HD6309-NEXT:    pshs u
-; CHECK-HD6309-NEXT:    tfr s,u
-; CHECK-HD6309-NEXT:    addr w,d
-; CHECK-HD6309-NEXT:    addd 2,u
-; CHECK-HD6309-NEXT:    addd 4,u
-; CHECK-HD6309-NEXT:    addd 6,u
-; CHECK-HD6309-NEXT:    puls u
+; CHECK-HD6309-NEXT:    addd 2,s
+; CHECK-HD6309-NEXT:    addd 4,s
+; CHECK-HD6309-NEXT:    addd 6,s
+; CHECK-HD6309-NEXT:    addd 8,s
 ; CHECK-HD6309-NEXT:    rts
 entry:
-  %add = add nsw i16 %b, %a
+  %add = add nsw i16 %a, %b
   %add1 = add nsw i16 %add, %c
   %add2 = add nsw i16 %add1, %d
   %add3 = add nsw i16 %add2, %e
@@ -172,31 +138,20 @@ entry:
 define dso_local i16 @add_s_i16_consts(i16 noundef %a, i16 noundef %b, i16 noundef %c, i16 noundef %d, i16 noundef %e) local_unnamed_addr #0 {
 ; CHECK-LABEL: add_s_i16_consts:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    tfr s,u
 ; CHECK-NEXT:    addd #3149
-; CHECK-NEXT:    addd 2,u
-; CHECK-NEXT:    addd 4,u
-; CHECK-NEXT:    addd 6,u
-; CHECK-NEXT:    addd 8,u
-; CHECK-NEXT:    puls u
+; CHECK-NEXT:    addd 2,s
+; CHECK-NEXT:    addd 4,s
+; CHECK-NEXT:    addd 6,s
+; CHECK-NEXT:    addd 8,s
 ; CHECK-NEXT:    rts
 ;
 ; CHECK-HD6309-LABEL: add_s_i16_consts:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
-; CHECK-HD6309-NEXT:    pshs u
-; CHECK-HD6309-NEXT:    tfr s,u
-; CHECK-HD6309-NEXT:    leas -2,s
-; CHECK-HD6309-NEXT:    std -2,u ; 2-byte Folded Spill
-; CHECK-HD6309-NEXT:    tfr w,d
-; CHECK-HD6309-NEXT:    ldw -2,u ; 2-byte Folded Reload
-; CHECK-HD6309-NEXT:    addw #3149
-; CHECK-HD6309-NEXT:    addr w,d
-; CHECK-HD6309-NEXT:    addd 4,u
-; CHECK-HD6309-NEXT:    addd 6,u
-; CHECK-HD6309-NEXT:    addd 8,u
-; CHECK-HD6309-NEXT:    leas 2,s
-; CHECK-HD6309-NEXT:    puls u
+; CHECK-HD6309-NEXT:    addd #3149
+; CHECK-HD6309-NEXT:    addd 2,s
+; CHECK-HD6309-NEXT:    addd 4,s
+; CHECK-HD6309-NEXT:    addd 6,s
+; CHECK-HD6309-NEXT:    addd 8,s
 ; CHECK-HD6309-NEXT:    rts
 entry:
   %add2 = add i16 %a, 3149
@@ -211,27 +166,21 @@ entry:
 define dso_local i16 @add_u_i16(i16 noundef %a, i16 noundef %b, i16 noundef %c, i16 noundef %d, i16 noundef %e) local_unnamed_addr #0 {
 ; CHECK-LABEL: add_u_i16:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    addd 2,u
-; CHECK-NEXT:    addd 4,u
-; CHECK-NEXT:    addd 6,u
-; CHECK-NEXT:    addd 8,u
-; CHECK-NEXT:    puls u
+; CHECK-NEXT:    addd 2,s
+; CHECK-NEXT:    addd 4,s
+; CHECK-NEXT:    addd 6,s
+; CHECK-NEXT:    addd 8,s
 ; CHECK-NEXT:    rts
 ;
 ; CHECK-HD6309-LABEL: add_u_i16:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
-; CHECK-HD6309-NEXT:    pshs u
-; CHECK-HD6309-NEXT:    tfr s,u
-; CHECK-HD6309-NEXT:    addr w,d
-; CHECK-HD6309-NEXT:    addd 2,u
-; CHECK-HD6309-NEXT:    addd 4,u
-; CHECK-HD6309-NEXT:    addd 6,u
-; CHECK-HD6309-NEXT:    puls u
+; CHECK-HD6309-NEXT:    addd 2,s
+; CHECK-HD6309-NEXT:    addd 4,s
+; CHECK-HD6309-NEXT:    addd 6,s
+; CHECK-HD6309-NEXT:    addd 8,s
 ; CHECK-HD6309-NEXT:    rts
 entry:
-  %add = add i16 %b, %a
+  %add = add i16 %a, %b
   %add1 = add i16 %add, %c
   %add2 = add i16 %add1, %d
   %add3 = add i16 %add2, %e
@@ -242,31 +191,20 @@ entry:
 define dso_local i16 @add_u_i16_consts(i16 noundef %a, i16 noundef %b, i16 noundef %c, i16 noundef %d, i16 noundef %e) local_unnamed_addr #0 {
 ; CHECK-LABEL: add_u_i16_consts:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    tfr s,u
 ; CHECK-NEXT:    addd #8447
-; CHECK-NEXT:    addd 2,u
-; CHECK-NEXT:    addd 4,u
-; CHECK-NEXT:    addd 6,u
-; CHECK-NEXT:    addd 8,u
-; CHECK-NEXT:    puls u
+; CHECK-NEXT:    addd 2,s
+; CHECK-NEXT:    addd 4,s
+; CHECK-NEXT:    addd 6,s
+; CHECK-NEXT:    addd 8,s
 ; CHECK-NEXT:    rts
 ;
 ; CHECK-HD6309-LABEL: add_u_i16_consts:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
-; CHECK-HD6309-NEXT:    pshs u
-; CHECK-HD6309-NEXT:    tfr s,u
-; CHECK-HD6309-NEXT:    leas -2,s
-; CHECK-HD6309-NEXT:    std -2,u ; 2-byte Folded Spill
-; CHECK-HD6309-NEXT:    tfr w,d
-; CHECK-HD6309-NEXT:    ldw -2,u ; 2-byte Folded Reload
-; CHECK-HD6309-NEXT:    addw #8447
-; CHECK-HD6309-NEXT:    addr w,d
-; CHECK-HD6309-NEXT:    addd 4,u
-; CHECK-HD6309-NEXT:    addd 6,u
-; CHECK-HD6309-NEXT:    addd 8,u
-; CHECK-HD6309-NEXT:    leas 2,s
-; CHECK-HD6309-NEXT:    puls u
+; CHECK-HD6309-NEXT:    addd #8447
+; CHECK-HD6309-NEXT:    addd 2,s
+; CHECK-HD6309-NEXT:    addd 4,s
+; CHECK-HD6309-NEXT:    addd 6,s
+; CHECK-HD6309-NEXT:    addd 8,s
 ; CHECK-HD6309-NEXT:    rts
 entry:
   %add2 = add i16 %a, 8447
@@ -281,53 +219,82 @@ entry:
 define dso_local i32 @add_s_i32(i32 noundef %a, i32 noundef %b, i32 noundef %c, i32 noundef %d, i32 noundef %e) local_unnamed_addr #0 {
 ; CHECK-LABEL: add_s_i32:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    leas -4,s
-; CHECK-NEXT:    addd 8,u
-; CHECK-NEXT:    std ,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd 10,u
-; CHECK-NEXT:    adcd 6,u
-; CHECK-NEXT:    std -2,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd ,u ; 2-byte Folded Reload
-; CHECK-NEXT:    addd 12,u
-; CHECK-NEXT:    std ,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd -2,u ; 2-byte Folded Reload
-; CHECK-NEXT:    adcd 14,u
-; CHECK-NEXT:    std -2,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd ,u ; 2-byte Folded Reload
-; CHECK-NEXT:    addd 16,u
-; CHECK-NEXT:    std ,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd -2,u ; 2-byte Folded Reload
-; CHECK-NEXT:    adcd 18,u
-; CHECK-NEXT:    std -2,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd ,u ; 2-byte Folded Reload
-; CHECK-NEXT:    addd 20,u
-; CHECK-NEXT:    std ,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd -2,u ; 2-byte Folded Reload
-; CHECK-NEXT:    adcd 22,u
+; CHECK-NEXT:    leas -26,s
+; CHECK-NEXT:    std 12,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 28,s
+; CHECK-NEXT:    std 10,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 30,s
+; CHECK-NEXT:    std 8,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 32,s
+; CHECK-NEXT:    std 6,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 34,s
+; CHECK-NEXT:    std 16,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 36,s
+; CHECK-NEXT:    std 14,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 38,s
+; CHECK-NEXT:    std 20,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 40,s
+; CHECK-NEXT:    std 18,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 42,s
+; CHECK-NEXT:    std 24,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 44,s
+; CHECK-NEXT:    std 22,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 10,s ; 2-byte Folded Reload
 ; CHECK-NEXT:    std ,s
-; CHECK-NEXT:    ldd ,u ; 2-byte Folded Reload
-; CHECK-NEXT:    leas 4,s
-; CHECK-NEXT:    puls u
+; CHECK-NEXT:    ldd 8,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 2,s
+; CHECK-NEXT:    ldd 6,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    ldd 12,s ; 2-byte Folded Reload
+; CHECK-NEXT:    jsr __addsi3,pc
+; CHECK-NEXT:    std 12,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 28,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    ldd 16,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 2,s
+; CHECK-NEXT:    ldd 14,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    ldd 12,s ; 2-byte Folded Reload
+; CHECK-NEXT:    jsr __addsi3,pc
+; CHECK-NEXT:    std 16,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 28,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    ldd 20,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 2,s
+; CHECK-NEXT:    ldd 18,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    ldd 16,s ; 2-byte Folded Reload
+; CHECK-NEXT:    jsr __addsi3,pc
+; CHECK-NEXT:    std 20,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 28,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    ldd 24,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 2,s
+; CHECK-NEXT:    ldd 22,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    ldd 20,s ; 2-byte Folded Reload
+; CHECK-NEXT:    jsr __addsi3,pc
+; CHECK-NEXT:    std 24,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 28,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    ldd 24,s ; 2-byte Folded Reload
+; CHECK-NEXT:    leas 26,s
 ; CHECK-NEXT:    rts
 ;
 ; CHECK-HD6309-LABEL: add_s_i32:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
-; CHECK-HD6309-NEXT:    pshs u
-; CHECK-HD6309-NEXT:    tfr s,u
-; CHECK-HD6309-NEXT:    addw 4,u
-; CHECK-HD6309-NEXT:    adcd 2,u
-; CHECK-HD6309-NEXT:    addw 8,u
-; CHECK-HD6309-NEXT:    adcd 6,u
-; CHECK-HD6309-NEXT:    addw 12,u
-; CHECK-HD6309-NEXT:    adcd 10,u
-; CHECK-HD6309-NEXT:    addw 16,u
-; CHECK-HD6309-NEXT:    adcd 14,u
-; CHECK-HD6309-NEXT:    puls u
+; CHECK-HD6309-NEXT:    addw 4,s
+; CHECK-HD6309-NEXT:    adcd 2,s
+; CHECK-HD6309-NEXT:    addw 8,s
+; CHECK-HD6309-NEXT:    adcd 6,s
+; CHECK-HD6309-NEXT:    addw 12,s
+; CHECK-HD6309-NEXT:    adcd 10,s
+; CHECK-HD6309-NEXT:    addw 16,s
+; CHECK-HD6309-NEXT:    adcd 14,s
+; CHECK-HD6309-NEXT:    stq ,s
 ; CHECK-HD6309-NEXT:    rts
 entry:
-  %add = add nsw i32 %b, %a
+  %add = add nsw i32 %a, %b
   %add1 = add nsw i32 %add, %c
   %add2 = add nsw i32 %add1, %d
   %add3 = add nsw i32 %add2, %e
@@ -338,58 +305,90 @@ entry:
 define dso_local i32 @add_s_i32_consts(i32 noundef %a, i32 noundef %b, i32 noundef %c, i32 noundef %d, i32 noundef %e) local_unnamed_addr #0 {
 ; CHECK-LABEL: add_s_i32_consts:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    leas -4,s
-; CHECK-NEXT:    addd #-21923
-; CHECK-NEXT:    std ,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd 6,u
-; CHECK-NEXT:    adcd #8
-; CHECK-NEXT:    std -2,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd ,u ; 2-byte Folded Reload
-; CHECK-NEXT:    addd 8,u
-; CHECK-NEXT:    std ,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd -2,u ; 2-byte Folded Reload
-; CHECK-NEXT:    adcd 10,u
-; CHECK-NEXT:    std -2,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd ,u ; 2-byte Folded Reload
-; CHECK-NEXT:    addd 12,u
-; CHECK-NEXT:    std ,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd -2,u ; 2-byte Folded Reload
-; CHECK-NEXT:    adcd 14,u
-; CHECK-NEXT:    std -2,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd ,u ; 2-byte Folded Reload
-; CHECK-NEXT:    addd 16,u
-; CHECK-NEXT:    std ,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd -2,u ; 2-byte Folded Reload
-; CHECK-NEXT:    adcd 18,u
-; CHECK-NEXT:    std -2,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd ,u ; 2-byte Folded Reload
-; CHECK-NEXT:    addd 20,u
-; CHECK-NEXT:    std ,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd -2,u ; 2-byte Folded Reload
-; CHECK-NEXT:    adcd 22,u
+; CHECK-NEXT:    leas -26,s
+; CHECK-NEXT:    std 8,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 28,s
+; CHECK-NEXT:    std 6,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 30,s
+; CHECK-NEXT:    std 12,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 32,s
+; CHECK-NEXT:    std 10,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 34,s
+; CHECK-NEXT:    std 16,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 36,s
+; CHECK-NEXT:    std 14,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 38,s
+; CHECK-NEXT:    std 20,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 40,s
+; CHECK-NEXT:    std 18,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 42,s
+; CHECK-NEXT:    std 24,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 44,s
+; CHECK-NEXT:    std 22,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 6,s ; 2-byte Folded Reload
 ; CHECK-NEXT:    std ,s
-; CHECK-NEXT:    ldd ,u ; 2-byte Folded Reload
-; CHECK-NEXT:    leas 4,s
-; CHECK-NEXT:    puls u
+; CHECK-NEXT:    ldd #-21923
+; CHECK-NEXT:    std 2,s
+; CHECK-NEXT:    ldd #8
+; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    ldd 8,s ; 2-byte Folded Reload
+; CHECK-NEXT:    jsr __addsi3,pc
+; CHECK-NEXT:    std 8,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 28,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    ldd 12,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 2,s
+; CHECK-NEXT:    ldd 10,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    ldd 8,s ; 2-byte Folded Reload
+; CHECK-NEXT:    jsr __addsi3,pc
+; CHECK-NEXT:    std 12,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 28,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    ldd 16,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 2,s
+; CHECK-NEXT:    ldd 14,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    ldd 12,s ; 2-byte Folded Reload
+; CHECK-NEXT:    jsr __addsi3,pc
+; CHECK-NEXT:    std 16,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 28,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    ldd 20,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 2,s
+; CHECK-NEXT:    ldd 18,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    ldd 16,s ; 2-byte Folded Reload
+; CHECK-NEXT:    jsr __addsi3,pc
+; CHECK-NEXT:    std 20,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 28,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    ldd 24,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 2,s
+; CHECK-NEXT:    ldd 22,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    ldd 20,s ; 2-byte Folded Reload
+; CHECK-NEXT:    jsr __addsi3,pc
+; CHECK-NEXT:    std 24,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 28,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    ldd 24,s ; 2-byte Folded Reload
+; CHECK-NEXT:    leas 26,s
 ; CHECK-NEXT:    rts
 ;
 ; CHECK-HD6309-LABEL: add_s_i32_consts:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
-; CHECK-HD6309-NEXT:    pshs u
-; CHECK-HD6309-NEXT:    tfr s,u
 ; CHECK-HD6309-NEXT:    addw #43613
 ; CHECK-HD6309-NEXT:    adcd #8
-; CHECK-HD6309-NEXT:    addw 4,u
-; CHECK-HD6309-NEXT:    adcd 2,u
-; CHECK-HD6309-NEXT:    addw 8,u
-; CHECK-HD6309-NEXT:    adcd 6,u
-; CHECK-HD6309-NEXT:    addw 12,u
-; CHECK-HD6309-NEXT:    adcd 10,u
-; CHECK-HD6309-NEXT:    addw 16,u
-; CHECK-HD6309-NEXT:    adcd 14,u
-; CHECK-HD6309-NEXT:    puls u
+; CHECK-HD6309-NEXT:    addw 4,s
+; CHECK-HD6309-NEXT:    adcd 2,s
+; CHECK-HD6309-NEXT:    addw 8,s
+; CHECK-HD6309-NEXT:    adcd 6,s
+; CHECK-HD6309-NEXT:    addw 12,s
+; CHECK-HD6309-NEXT:    adcd 10,s
+; CHECK-HD6309-NEXT:    addw 16,s
+; CHECK-HD6309-NEXT:    adcd 14,s
+; CHECK-HD6309-NEXT:    stq ,s
 ; CHECK-HD6309-NEXT:    rts
 entry:
   %add2 = add i32 %a, 567901
@@ -404,53 +403,82 @@ entry:
 define dso_local i32 @add_u_i32(i32 noundef %a, i32 noundef %b, i32 noundef %c, i32 noundef %d, i32 noundef %e) local_unnamed_addr #0 {
 ; CHECK-LABEL: add_u_i32:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    leas -4,s
-; CHECK-NEXT:    addd 8,u
-; CHECK-NEXT:    std ,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd 10,u
-; CHECK-NEXT:    adcd 6,u
-; CHECK-NEXT:    std -2,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd ,u ; 2-byte Folded Reload
-; CHECK-NEXT:    addd 12,u
-; CHECK-NEXT:    std ,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd -2,u ; 2-byte Folded Reload
-; CHECK-NEXT:    adcd 14,u
-; CHECK-NEXT:    std -2,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd ,u ; 2-byte Folded Reload
-; CHECK-NEXT:    addd 16,u
-; CHECK-NEXT:    std ,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd -2,u ; 2-byte Folded Reload
-; CHECK-NEXT:    adcd 18,u
-; CHECK-NEXT:    std -2,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd ,u ; 2-byte Folded Reload
-; CHECK-NEXT:    addd 20,u
-; CHECK-NEXT:    std ,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd -2,u ; 2-byte Folded Reload
-; CHECK-NEXT:    adcd 22,u
+; CHECK-NEXT:    leas -26,s
+; CHECK-NEXT:    std 12,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 28,s
+; CHECK-NEXT:    std 10,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 30,s
+; CHECK-NEXT:    std 8,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 32,s
+; CHECK-NEXT:    std 6,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 34,s
+; CHECK-NEXT:    std 16,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 36,s
+; CHECK-NEXT:    std 14,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 38,s
+; CHECK-NEXT:    std 20,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 40,s
+; CHECK-NEXT:    std 18,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 42,s
+; CHECK-NEXT:    std 24,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 44,s
+; CHECK-NEXT:    std 22,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 10,s ; 2-byte Folded Reload
 ; CHECK-NEXT:    std ,s
-; CHECK-NEXT:    ldd ,u ; 2-byte Folded Reload
-; CHECK-NEXT:    leas 4,s
-; CHECK-NEXT:    puls u
+; CHECK-NEXT:    ldd 8,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 2,s
+; CHECK-NEXT:    ldd 6,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    ldd 12,s ; 2-byte Folded Reload
+; CHECK-NEXT:    jsr __addsi3,pc
+; CHECK-NEXT:    std 12,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 28,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    ldd 16,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 2,s
+; CHECK-NEXT:    ldd 14,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    ldd 12,s ; 2-byte Folded Reload
+; CHECK-NEXT:    jsr __addsi3,pc
+; CHECK-NEXT:    std 16,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 28,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    ldd 20,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 2,s
+; CHECK-NEXT:    ldd 18,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    ldd 16,s ; 2-byte Folded Reload
+; CHECK-NEXT:    jsr __addsi3,pc
+; CHECK-NEXT:    std 20,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 28,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    ldd 24,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 2,s
+; CHECK-NEXT:    ldd 22,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    ldd 20,s ; 2-byte Folded Reload
+; CHECK-NEXT:    jsr __addsi3,pc
+; CHECK-NEXT:    std 24,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 28,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    ldd 24,s ; 2-byte Folded Reload
+; CHECK-NEXT:    leas 26,s
 ; CHECK-NEXT:    rts
 ;
 ; CHECK-HD6309-LABEL: add_u_i32:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
-; CHECK-HD6309-NEXT:    pshs u
-; CHECK-HD6309-NEXT:    tfr s,u
-; CHECK-HD6309-NEXT:    addw 4,u
-; CHECK-HD6309-NEXT:    adcd 2,u
-; CHECK-HD6309-NEXT:    addw 8,u
-; CHECK-HD6309-NEXT:    adcd 6,u
-; CHECK-HD6309-NEXT:    addw 12,u
-; CHECK-HD6309-NEXT:    adcd 10,u
-; CHECK-HD6309-NEXT:    addw 16,u
-; CHECK-HD6309-NEXT:    adcd 14,u
-; CHECK-HD6309-NEXT:    puls u
+; CHECK-HD6309-NEXT:    addw 4,s
+; CHECK-HD6309-NEXT:    adcd 2,s
+; CHECK-HD6309-NEXT:    addw 8,s
+; CHECK-HD6309-NEXT:    adcd 6,s
+; CHECK-HD6309-NEXT:    addw 12,s
+; CHECK-HD6309-NEXT:    adcd 10,s
+; CHECK-HD6309-NEXT:    addw 16,s
+; CHECK-HD6309-NEXT:    adcd 14,s
+; CHECK-HD6309-NEXT:    stq ,s
 ; CHECK-HD6309-NEXT:    rts
 entry:
-  %add = add i32 %b, %a
+  %add = add i32 %a, %b
   %add1 = add i32 %add, %c
   %add2 = add i32 %add1, %d
   %add3 = add i32 %add2, %e
@@ -461,73 +489,96 @@ entry:
 define dso_local i32 @add_u_i32_consts(i32 noundef %a, i32 noundef %b, i32 noundef %c, i32 noundef %d, i32 noundef %e) local_unnamed_addr #0 {
 ; CHECK-LABEL: add_u_i32_consts:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    leas -4,s
-; CHECK-NEXT:    addd #-2081
-; CHECK-NEXT:    std ,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd 6,u
-; CHECK-NEXT:    adcd #126
-; CHECK-NEXT:    std -2,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd ,u ; 2-byte Folded Reload
-; CHECK-NEXT:    addd 8,u
-; CHECK-NEXT:    std ,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd -2,u ; 2-byte Folded Reload
-; CHECK-NEXT:    adcd 10,u
-; CHECK-NEXT:    std -2,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd ,u ; 2-byte Folded Reload
-; CHECK-NEXT:    addd 12,u
-; CHECK-NEXT:    std ,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd -2,u ; 2-byte Folded Reload
-; CHECK-NEXT:    adcd 14,u
-; CHECK-NEXT:    std -2,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd ,u ; 2-byte Folded Reload
-; CHECK-NEXT:    addd 16,u
-; CHECK-NEXT:    std ,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd -2,u ; 2-byte Folded Reload
-; CHECK-NEXT:    adcd 18,u
-; CHECK-NEXT:    std -2,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd ,u ; 2-byte Folded Reload
-; CHECK-NEXT:    addd 20,u
-; CHECK-NEXT:    std ,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd -2,u ; 2-byte Folded Reload
-; CHECK-NEXT:    adcd 22,u
+; CHECK-NEXT:    leas -26,s
+; CHECK-NEXT:    std 8,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 28,s
+; CHECK-NEXT:    std 6,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 30,s
+; CHECK-NEXT:    std 12,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 32,s
+; CHECK-NEXT:    std 10,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 34,s
+; CHECK-NEXT:    std 16,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 36,s
+; CHECK-NEXT:    std 14,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 38,s
+; CHECK-NEXT:    std 20,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 40,s
+; CHECK-NEXT:    std 18,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 42,s
+; CHECK-NEXT:    std 24,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 44,s
+; CHECK-NEXT:    std 22,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd #126
 ; CHECK-NEXT:    std ,s
-; CHECK-NEXT:    ldd ,u ; 2-byte Folded Reload
-; CHECK-NEXT:    leas 4,s
-; CHECK-NEXT:    puls u
+; CHECK-NEXT:    ldd 8,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 2,s
+; CHECK-NEXT:    ldd 6,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    ldd #-2081
+; CHECK-NEXT:    jsr __addsi3,pc
+; CHECK-NEXT:    std 8,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 28,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    ldd 12,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 2,s
+; CHECK-NEXT:    ldd 10,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    ldd 8,s ; 2-byte Folded Reload
+; CHECK-NEXT:    jsr __addsi3,pc
+; CHECK-NEXT:    std 12,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 28,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    ldd 16,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 2,s
+; CHECK-NEXT:    ldd 14,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    ldd 12,s ; 2-byte Folded Reload
+; CHECK-NEXT:    jsr __addsi3,pc
+; CHECK-NEXT:    std 16,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 28,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    ldd 20,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 2,s
+; CHECK-NEXT:    ldd 18,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    ldd 16,s ; 2-byte Folded Reload
+; CHECK-NEXT:    jsr __addsi3,pc
+; CHECK-NEXT:    std 20,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 28,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    ldd 24,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 2,s
+; CHECK-NEXT:    ldd 22,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    ldd 20,s ; 2-byte Folded Reload
+; CHECK-NEXT:    jsr __addsi3,pc
+; CHECK-NEXT:    std 24,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 28,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    ldd 24,s ; 2-byte Folded Reload
+; CHECK-NEXT:    leas 26,s
 ; CHECK-NEXT:    rts
 ;
 ; CHECK-HD6309-LABEL: add_u_i32_consts:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
-; CHECK-HD6309-NEXT:    pshs u
-; CHECK-HD6309-NEXT:    tfr s,u
 ; CHECK-HD6309-NEXT:    addw #63455
 ; CHECK-HD6309-NEXT:    adcd #126
-; CHECK-HD6309-NEXT:    addw 4,u
-; CHECK-HD6309-NEXT:    adcd 2,u
-; CHECK-HD6309-NEXT:    addw 8,u
-; CHECK-HD6309-NEXT:    adcd 6,u
-; CHECK-HD6309-NEXT:    addw 12,u
-; CHECK-HD6309-NEXT:    adcd 10,u
-; CHECK-HD6309-NEXT:    addw 16,u
-; CHECK-HD6309-NEXT:    adcd 14,u
-; CHECK-HD6309-NEXT:    puls u
+; CHECK-HD6309-NEXT:    addw 4,s
+; CHECK-HD6309-NEXT:    adcd 2,s
+; CHECK-HD6309-NEXT:    addw 8,s
+; CHECK-HD6309-NEXT:    adcd 6,s
+; CHECK-HD6309-NEXT:    addw 12,s
+; CHECK-HD6309-NEXT:    adcd 10,s
+; CHECK-HD6309-NEXT:    addw 16,s
+; CHECK-HD6309-NEXT:    adcd 14,s
+; CHECK-HD6309-NEXT:    stq ,s
 ; CHECK-HD6309-NEXT:    rts
 entry:
-  %add2 = add i32 %a, 8320991
+  %add2 = add i32 8320991, %a
   %add3 = add i32 %add2, %b
   %add4 = add i32 %add3, %c
   %add5 = add i32 %add4, %d
   %add6 = add i32 %add5, %e
   ret i32 %add6
 }
-
-attributes #0 = { mustprogress nofree norecurse nosync nounwind readnone willreturn "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
-
-!llvm.module.flags = !{!0, !1}
-!llvm.ident = !{!2}
-
-!0 = !{i32 1, !"wchar_size", i32 4}
-!1 = !{i32 7, !"frame-pointer", i32 2}
-!2 = !{!"clang version 15.0.0 (https://github.com/markrvmurray/llvm-mc6809.git 3fe96cc89c1380c464065b93a4a93c7ed9052f94)"}

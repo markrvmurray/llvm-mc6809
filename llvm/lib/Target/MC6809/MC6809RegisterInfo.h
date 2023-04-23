@@ -21,15 +21,17 @@
 
 namespace llvm {
 
+class Triple;
+
 class MC6809RegisterInfo : public MC6809GenRegisterInfo {
 
 public:
   MC6809RegisterInfo();
+  MC6809RegisterInfo(const Triple &TT);
 
   const MCPhysReg *getCalleeSavedRegs(const MachineFunction *MF) const override;
 
-  const uint32_t *getCallPreservedMask(const MachineFunction &MF,
-                                       CallingConv::ID) const override;
+  const uint32_t *getCallPreservedMask(const MachineFunction &MF, CallingConv::ID) const override;
 
 #if 0
   const TargetRegisterClass *

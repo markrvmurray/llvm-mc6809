@@ -161,8 +161,8 @@ class MC6809Reg32Class<dag RegList>: MC6809RegClass<[i32], 8, RegList>;
 // Register grouping classes.
 let isPressureFineGrained = true in {
   def ACC_LSB : MC6809Reg1Class<(add AALSB, ABLSB, AELSB, AFLSB)>;
-  def NZVC_ACC_LSB : MC6809Reg1Class<(add N, Z, V, C, ACC_LSB)>;
-  def BIT1 : MC6809Reg1Class<(add E, F, H, I, N, Z, V, C)>;
+  // def NZVC_ACC_LSB : MC6809Reg1Class<(add N, Z, V, C, ACC_LSB)>;
+  def BIT1 : MC6809Reg1Class<(add E, F, H, I, N, Z, V, C, ACC_LSB)>;
   def ACC8 : MC6809Reg8Class<(add AB, AA, AF, AE)> {
     let AltOrders = [(add AB, AA)];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().isHD6309() ? 0 : 1;}];
@@ -200,9 +200,10 @@ let isPressureFineGrained = true in {
   }
 }
 
+def CCond : MC6809Reg8Class<(add CC)>;
+
 let isAllocatable = false in {
   def CCFlag : MC6809Reg1Class<(add E, F, H, I, N, Z, V, C)>;
-  def CCond : MC6809Reg8Class<(add CC)>;
   def MDCond : MC6809Reg8Class<(add MD)>;
   def DtPage : MC6809Reg8Class<(add DP)>;
 }

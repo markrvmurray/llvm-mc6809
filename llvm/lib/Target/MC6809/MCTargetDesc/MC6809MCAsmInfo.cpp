@@ -13,8 +13,6 @@
 
 #include "MC6809MCAsmInfo.h"
 
-#include "llvm/ADT/Triple.h"
-
 namespace llvm {
 
 MC6809MCAsmInfo::MC6809MCAsmInfo(const Triple &TT,

@@ -27,11 +27,9 @@ let Entry = 1 in
 def RetCC_MC6809 : CallingConv<[
   CCIfPtr<CCAssignToReg<[IX]>>,
   CCIfType<[i1], CCPromoteToType<i8>>,
-  CCIfType<[i8], CCIfNotSubtarget<"isHD6309()", CCAssignToReg<[AB]>>>,
-  CCIfType<[i8], CCIfSubtarget<"isHD6309()", CCAssignToReg<[AB]>>>,
-  CCIfType<[i16], CCIfNotSubtarget<"isHD6309()", CCAssignToReg<[AD]>>>,
-  CCIfType<[i16], CCIfSubtarget<"isHD6309()", CCAssignToReg<[AD]>>>,
-  // CCIfType<[i32], CCIfSubtarget<"isHD6309()", CCAssignToReg<[AQ]>>>,
+  CCIfType<[i8], CCAssignToReg<[AB]>>,
+  CCIfType<[i16], CCAssignToReg<[AD]>>,
+  CCIfType<[i32], CCIfSubtarget<"isHD6309()", CCAssignToReg<[AQ]>>>,
   CCAssignToStack<0, 1>,
 ]>;
 
