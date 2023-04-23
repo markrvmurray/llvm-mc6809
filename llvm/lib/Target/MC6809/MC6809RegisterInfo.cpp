@@ -36,6 +36,9 @@ using namespace llvm;
 MC6809RegisterInfo::MC6809RegisterInfo()
     : MC6809GenRegisterInfo(/*RA=*/0, /*DwarfFlavor=*/0, /*EHFlavor=*/0, /*PC=*/0, /*HwMode=*/0) {}
 
+MC6809RegisterInfo::MC6809RegisterInfo(const Triple &TT)
+    : MC6809GenRegisterInfo(/*RA=*/0, /*DwarfFlavor=*/0, /*EHFlavor=*/0, /*PC=*/0, /*HwMode=*/0) {}
+
 BitVector MC6809RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   BitVector Reserved(getNumRegs());
   const MC6809FrameLowering *TFI = getFrameLowering(MF);
@@ -157,8 +160,12 @@ copyCost(Register DestReg, Register SrcReg, const MC6809Subtarget &STI) {
     if (AreClasses(MC6809::AWcRegClass, MC6809::AQcRegClass))
       return 0;
     return 1;
+  } else if (AreClasses(MC6809::CCondRegClass, MC6809::ACC8RegClass)) {
+    return 2;
+  } else if (AreClasses(MC6809::ACC8RegClass, MC6809::CCondRegClass)) {
+    return 2;
   }
-  llvm_unreachable("Unexpected physical register copy.");
+  llvm_unreachable("Unexpected physical register copy cost.");
 }
 
 bool MC6809RegisterInfo::getRegAllocationHints(Register VirtReg, ArrayRef<MCPhysReg> Order, SmallVectorImpl<MCPhysReg> &Hints, const MachineFunction &MF, const VirtRegMap *VRM, const LiveRegMatrix *Matrix) const {

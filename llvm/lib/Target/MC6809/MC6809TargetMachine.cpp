@@ -30,8 +30,10 @@
 
 #include "GISel/MC6809Combiner.h"
 #include "MC6809.h"
+#include "MC6809ConditionalBranch.h"
 #include "MC6809IndexIV.h"
 #include "MC6809LowerSelect.h"
+#include "MC6809MachineFunctionInfo.h"
 #include "MC6809MachineScheduler.h"
 #include "MC6809NoRecurse.h"
 #include "MC6809PostRAScavenging.h"
@@ -50,33 +52,33 @@ extern "C" void LLVM_EXTERNAL_VISIBILITY LLVMInitializeMC6809Target() {
   PassRegistry &PR = *PassRegistry::getPassRegistry();
   initializeGlobalISel(PR);
   initializeMC6809CombinerPass(PR);
+  initializeMC6809ConditionalBranchPass(PR);
   initializeMC6809LowerSelectPass(PR);
   initializeMC6809NoRecursePass(PR);
   initializeMC6809PostRAScavengingPass(PR);
 }
 
-static const char *MC6809DataLayout =
-    "e-p:16:8-S8-m:e-i1:8-i8:8-i16:8-i32:8-i64:8-f16:8-f32:8-f64:8-a:0-n8:16";
+static const char *MC6809DataLayout = "e-p:16:8-S8-m:e-i1:8-i8:8-i16:8-i32:8-i64:8-f32:8-f64:8-a:0-n8:16";
 
 /// Processes a CPU name.
 static StringRef getCPU(StringRef CPU) {
   return (CPU.empty() || CPU == "generic") ? "mc6809" : CPU;
 }
 
-static Reloc::Model getEffectiveRelocModel(Optional<Reloc::Model> RM) {
+static Reloc::Model getEffectiveRelocModel(std::optional<Reloc::Model> RM) {
   return RM.has_value() ? *RM : Reloc::Static;
 }
 
 MC6809TargetMachine::MC6809TargetMachine(const Target &T, const Triple &TT,
                                          StringRef CPU, StringRef FS,
                                          const TargetOptions &Options,
-                                         Optional<Reloc::Model> RM,
-                                         Optional<CodeModel::Model> CM,
+                                         std::optional<Reloc::Model> RM,
+                                         std::optional<CodeModel::Model> CM,
                                          CodeGenOpt::Level OL, bool JIT)
     : LLVMTargetMachine(T, MC6809DataLayout, TT, getCPU(CPU), FS, Options,
                         getEffectiveRelocModel(RM),
                         getEffectiveCodeModel(CM, CodeModel::Small), OL),
-      SubTarget(TT, getCPU(CPU).str(), FS.str(), *this) {
+      SubTarget(TT, getCPU(CPU).str(), FS.str(), FS.str(), *this) {
   this->TLOF = std::make_unique<MC6809TargetObjectFile>();
 
   initAsmInfo();
@@ -100,7 +102,7 @@ MC6809TargetMachine::getSubtargetImpl(const Function &F) const {
     // creation will depend on the TM and the code generation flags on the
     // function that reside in TargetOptions.
     resetTargetOptions(F);
-    I = std::make_unique<MC6809Subtarget>(TargetTriple, CPU, FS, *this);
+    I = std::make_unique<MC6809Subtarget>(TargetTriple, CPU, CPU, FS, *this);
   }
   return I.get();
 }
@@ -131,6 +133,10 @@ void MC6809TargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
           PM.addPass(IndVarSimplifyPass());
         }
       });
+}
+
+MachineFunctionInfo *MC6809TargetMachine::createMachineFunctionInfo(BumpPtrAllocator &Allocator, const Function &F, const TargetSubtargetInfo *STI) const {
+  return MC6809MachineFunctionInfo::create<MC6809MachineFunctionInfo>(Allocator, F, static_cast<const MC6809Subtarget *>(STI));
 }
 
 //===----------------------------------------------------------------------===//
@@ -200,6 +206,7 @@ bool MC6809PassConfig::addIRTranslator() {
 
 void MC6809PassConfig::addPreLegalizeMachineIR() {
   addPass(createMC6809Combiner());
+  addPass(createMC6809ConditionalBranchPass());
 }
 
 bool MC6809PassConfig::addLegalizeMachineIR() {
@@ -270,8 +277,8 @@ bool MC6809CSEConfigFull::shouldCSEOpc(unsigned Opc) {
   switch (Opc) {
   default:
     return CSEConfigFull::shouldCSEOpc(Opc);
-  case MC6809::G_SHLE:
-  case MC6809::G_LSHRE:
+  case TargetOpcode::G_SHLE:
+  case TargetOpcode::G_LSHRE:
     return true;
   }
 }

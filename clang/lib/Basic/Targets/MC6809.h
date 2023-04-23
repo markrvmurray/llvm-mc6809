@@ -15,7 +15,6 @@
 
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TargetOptions.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/Support/Compiler.h"
 
@@ -29,7 +28,7 @@ public:
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override {}
 
-  ArrayRef<Builtin::Info> getTargetBuiltins() const override { return None; }
+  ArrayRef<Builtin::Info> getTargetBuiltins() const override { return std::nullopt; }
 
   BuiltinVaListKind getBuiltinVaListKind() const override {
     return TargetInfo::VoidPtrBuiltinVaList;
@@ -45,11 +44,11 @@ public:
   bool validateOperandSize(const llvm::StringMap<bool> &FeatureMap,
                            StringRef Constraint, unsigned Size) const;
 
-  const char *getClobbers() const override { return ""; }
+  std::string_view getClobbers() const override { return ""; }
 
   ArrayRef<const char *> getGCCRegNames() const override;
   ArrayRef<TargetInfo::GCCRegAlias> getGCCRegAliases() const override {
-    return None;
+    return std::nullopt;
   }
   unsigned getRegisterWidth() const override { return 8; }
 

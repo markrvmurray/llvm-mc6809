@@ -21,6 +21,7 @@
 #include "llvm/CodeGen/SelectionDAG.h"
 #include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
 #include "llvm/IR/Function.h"
+#include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 
 #include "MC6809.h"
@@ -29,6 +30,8 @@
 #include "MC6809Subtarget.h"
 #include "MC6809TargetMachine.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
+
+#define DEBUG_TYPE "mc6809-isel-lowering"
 
 using namespace llvm;
 
@@ -47,6 +50,7 @@ CCAssignFn *MC6809TargetLowering::CCAssignFnForReturn(CallingConv::ID CC, bool I
 
 MC6809TargetLowering::MC6809TargetLowering(const MC6809TargetMachine &TM, const MC6809Subtarget &STI)
     : TargetLowering(TM) {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG : " << __func__ << " : Enter\n";);
   // This is only used for CallLowering to determine how to split large
   // primitive types for the calling convention. All need to be split to 8 bits,
   // so that's all that we report here. The register class is irrelevant.
@@ -74,6 +78,12 @@ MC6809TargetLowering::MC6809TargetLowering(const MC6809TargetMachine &TM, const 
 
   // Used in legalizer (etc.) to refer to the stack pointer.
   setStackPointerRegisterToSaveRestore(MC6809::SS);
+
+  setOperationAction(ISD::BR_CC, MVT::i8, Expand);
+  setOperationAction(ISD::BR_CC, MVT::i16, Expand);
+  setOperationAction(ISD::BR_CC, MVT::i32, Expand);
+
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG : " << __func__ << " : Exit\n";);
 }
 
 unsigned MC6809TargetLowering::getNumRegistersForInlineAsm(LLVMContext &Context, EVT VT) const {

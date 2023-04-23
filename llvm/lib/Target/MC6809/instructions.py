@@ -29,6 +29,8 @@ RawInstructions = [
 {"page":1, "size":2, "mnemonic":"EXG", "function":"m", "mode":"p", "outs":[], "ins":[], "operand":"$reg1 , $reg2", "opcode":0x1E, "hd6309":0},
 {"page":1, "size":2, "mnemonic":"TFR", "function":"m", "mode":"p", "outs":[], "ins":[], "operand":"$reg1 , $reg2", "opcode":0x1F, "hd6309":0},
 
+{"page":1, "size":2, "mnemonic":"BRA", "function":"r", "mode":"b", "outs":[], "ins":[], "operand":"$tgt", "opcode":0x20, "hd6309":0},
+{"page":1, "size":2, "mnemonic":"BRN", "function":"r", "mode":"b", "outs":[], "ins":[], "operand":"$tgt", "opcode":0x21, "hd6309":0},
 {"page":1, "size":2, "mnemonic":"B$COND", "function":"r", "mode":"bc", "outs":[], "ins":[], "operand":"$tgt", "opcode":0x02, "hd6309":0},
 
 {"page":1, "size":-1, "mnemonic":"LEAX", "function":"l", "mode":"i", "outs":[], "ins":[], "operand":"", "opcode":0x30, "hd6309":0},

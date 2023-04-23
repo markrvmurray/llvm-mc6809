@@ -108,7 +108,7 @@ PreservedAnalyses MC6809IndexIV::run(Loop &L, LoopAnalysisManager &AM, LoopStand
 
       auto Inst = I;
       --I;
-      ReplaceInstWithValue(I->getParent()->getInstList(), Inst, V);
+      ReplaceInstWithValue(Inst, V);
     }
   }
 

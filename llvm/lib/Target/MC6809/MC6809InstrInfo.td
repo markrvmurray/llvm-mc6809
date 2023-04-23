@@ -435,6 +435,8 @@ def TSTd : MC6809Direct_P1<(outs), "tst", Opcode<0x0D,1>, [NZ,V], []> {
 
 def JMPd : MC6809Direct_P1<(outs), "jmp", Opcode<0x0E,1>, [], []> {
   let isBranch = true;
+  let isBarrier = true;
+  let isTerminator = true;
 }
 
 def CLRd : MC6809Direct_P1<(outs), "clr", Opcode<0x0F,1>, [NZ,V,C], []> {
@@ -478,6 +480,21 @@ def EXGp : MC6809RegisterPairSwap_P1<(outs anyregister:$dst2, anyregister:$dst1)
 }
 
 def TFRp : MC6809RegisterPairCopy_P1<(outs anyregister:$reg2), "tfr", Opcode<0x1F,1>, [], []>;
+
+def BRAb : MC6809ShortBranch_P1<(outs), "bra", Opcode<0x20,1>, [], []> {
+  let mayLoad = false;
+  let mayStore = false;
+  let isBranch = true;
+  let isTerminator = true;
+  let isBarrier = true;
+}
+
+def BRNb : MC6809ShortBranch_P1<(outs), "brn", Opcode<0x21,1>, [], []> {
+  let mayLoad = false;
+  let mayStore = false;
+  let isBranch = true;
+  let isTerminator = true;
+}
 
 def Bbc : MC6809ShortConditionalBranch_P1<(outs), "b$cond", Opcode<0x02,1>, [], []> {
   let mayLoad = false;
@@ -632,7 +649,7 @@ let isCompare = true in {
   defm TSTi : MC6809Indexed_P1<"tst", Opcode<0x6D, 1>, (outs), [NZ,V], []>;
 }
 
-let isBranch = true in {
+let isBarrier = true, isBranch = true, isTerminator = true in {
   defm JMPi : MC6809Indexed_P1<"jmp", Opcode<0x6E, 1>, (outs), [], []>;
 }
 
@@ -715,6 +732,8 @@ def TSTe : MC6809Extended_P1<(outs), "tst", Opcode<0x7D,1>, [NZ,V], []> {
 
 def JMPe : MC6809Extended_P1<(outs), "jmp", Opcode<0x7E,1>, [], []> {
   let isBranch = true;
+  let isBarrier = true;
+  let isTerminator = true;
 }
 
 def CLRe : MC6809Extended_P1<(outs), "clr", Opcode<0x7F,1>, [NZ,V,C], []> {
@@ -2131,6 +2150,5 @@ def ADDFe : MC6809Extended_P3<(outs), "addf", Opcode<0xFB,3>, [AF,NZ,V,C], [AF]>
 // clang-format on
 
 include "MC6809InstrInfoTables.td"
-include "MC6809InstrPseudos.td"
 include "MC6809InstrLogical.td"
 include "MC6809InstrGISel.td"

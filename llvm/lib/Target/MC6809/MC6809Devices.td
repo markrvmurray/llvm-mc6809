@@ -8,7 +8,7 @@
 // MC6809 Device Definitions
 //===---------------------------------------------------------------------===//
 
-def Feature6309 : SubtargetFeature<"mc6809-insns-6309", "Has6309Insns", "true",
+def Feature6309 : SubtargetFeature<"mc6809-insns-6309", "Has6309Ops", "true",
                        "The new instructions and registers on the Hitachi HD6309">;
 
 // A feature set aggregates features, grouping them. We don't want to create a

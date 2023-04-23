@@ -153,8 +153,8 @@ LegalizerHelper::legalizeInstrStep(MachineInstr &MI,
     return moreElementsVector(MI, Step.TypeIdx, Step.NewType);
   case Custom:
     LLVM_DEBUG(dbgs() << ".. Custom legalization\n");
-    return LI.legalizeCustom(*this, MI, LocObserver) ? Legalized
-                                                     : UnableToLegalize;
+    // return LI.legalizeCustomMaybeLegal(*this, MI, LocObserver); // Z80 does this
+    return LI.legalizeCustom(*this, MI) ? Legalized : UnableToLegalize;
   default:
     LLVM_DEBUG(dbgs() << ".. Unable to legalize\n");
     return UnableToLegalize;
@@ -450,6 +450,12 @@ RTLIB::Libcall llvm::getRTLibDesc(unsigned Opcode, unsigned Size) {
     RTLIBCASE_INT(ROTL_I);
   case TargetOpcode::G_ROTR:
     RTLIBCASE_INT(ROTR_I);
+  case TargetOpcode::G_AND:
+    RTLIBCASE_INT(AND_I);
+  case TargetOpcode::G_OR:
+    RTLIBCASE_INT(OR_I);
+  case TargetOpcode::G_XOR:
+    RTLIBCASE_INT(XOR_I);
    case TargetOpcode::G_BSWAP:
     RTLIBCASE_INT(BSWAP_I);
   case TargetOpcode::G_FADD:
@@ -1240,12 +1246,17 @@ LegalizerHelper::libcall(MachineInstr &MI, LostDebugLocObserver &LocObserver) {
     return UnableToLegalize;
   case TargetOpcode::G_ADD:
   case TargetOpcode::G_SUB:
+  case TargetOpcode::G_AND:
+  case TargetOpcode::G_OR:
+  case TargetOpcode::G_XOR:
   case TargetOpcode::G_MUL:
   case TargetOpcode::G_SDIV:
   case TargetOpcode::G_UDIV:
   case TargetOpcode::G_SREM:
   case TargetOpcode::G_UREM:
   case TargetOpcode::G_BSWAP:
+  case TargetOpcode::G_ASHR:
+  case TargetOpcode::G_LSHR:
   case TargetOpcode::G_CTLZ_ZERO_UNDEF: {
     LLT LLTy = MRI.getType(MI.getOperand(0).getReg());
     unsigned Size = LLTy.getSizeInBits();

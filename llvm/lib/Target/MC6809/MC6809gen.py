@@ -482,11 +482,15 @@ for instr_ in RawInstructions:
 	elif instr["function"] == "r":
 		instr["lets"]["mayLoad"] = "false"
 		instr["lets"]["mayStore"] = "false"
-		if instr["mnemonic"] == "LBRA":
+		if instr["mnemonic"] == "BRA" or instr["mnemonic"] == "LBRA":
 			instr["ins"] = ["pcrel16:$tgt"]
 			instr["lets"]["isBranch"] = "true"
 			instr["lets"]["isTerminator"] = "true"
 			instr["lets"]["isBarrier"] = "true"
+		elif instr["mnemonic"] == "BRN":
+			instr["ins"] = ["pcrel16:$tgt"]
+			instr["lets"]["isBranch"] = "true"
+			instr["lets"]["isTerminator"] = "true"
 		elif instr["mnemonic"] == "B$COND":
 			instr["mnemonic"] = "B"
 			instr["name"] = instr["mnemonic"] + instr["mode"]
@@ -516,6 +520,8 @@ for instr_ in RawInstructions:
 	elif instr["function"] == "j":
 		if instr["mnemonic"] == "JMP":
 			instr["lets"]["isBranch"] = "true"
+			instr["lets"]["isBarrier"] = "true"
+			instr["lets"]["isTerminator"] = "true"
 		elif instr["mnemonic"] == "JSR":
 			instr["lets"]["isCall"] = "true"
 		elif instr["mnemonic"] == "RTS" or instr["mnemonic"] == "RTI":
@@ -701,7 +707,7 @@ for instr_ in RawInstructions:
 			instr["addressmode"] = "ShortBranch"
 		else:
 			instr["addressmode"] = "LongBranch"
-		if instr["mnemonic"] == "BSR":
+		if instr["mnemonic"] == "BRA" or instr["mnemonic"] == "BRN" or instr["mnemonic"] == "BSR":
 			assert instr["size"] == 2, instr
 			instr["params"] = [ ((15, 8), "tgt{7-0}"), ((7, 0), "Opc") ]
 		else:

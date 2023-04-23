@@ -15,6 +15,7 @@
 #define LLVM_LIB_TARGET_MC6809_MC6809CALLLOWERING_H
 
 #include "llvm/CodeGen/FunctionLoweringInfo.h"
+#include "llvm/CodeGen/RuntimeLibcalls.h"
 #include "llvm/CodeGen/GlobalISel/CallLowering.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
 
@@ -37,8 +38,9 @@ public:
                             ArrayRef<ArrayRef<Register>> VRegs,
                             FunctionLoweringInfo &FLI) const override;
 
-  bool lowerCall(MachineIRBuilder &MIRBuilder,
-                 CallLoweringInfo &Info) const override;
+  bool lowerCall(MachineIRBuilder &MIRBuilder, CallLoweringInfo &Info) const override;
+
+  MachineInstrBuilder buildCMP(MachineIRBuilder &MIRBuilder, RTLIB::Libcall Libcall) const;
 
 private:
   bool doCallerAndCalleePassArgsTheSameWay(CallLoweringInfo &Info, MachineFunction &MF,

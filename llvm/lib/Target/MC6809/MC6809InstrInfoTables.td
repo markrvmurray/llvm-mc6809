@@ -13,11 +13,10 @@
 include "llvm/TableGen/SearchableTable.td"
 
 /// ---------------------------------------------------------------------------
-/// A MC6809 zero page instruction relaxation entry.  Used to relax 8 bit
-/// instructions that access zero page, to 16 bit equivalents, if the 
-/// target addresses do not necessarily reside in 8 bit memory.
-class BranchInstructionRelaxationEntry< MC6809Inst from, 
-                                        MC6809Inst to> {
+/// A MC6809 Branch/LongBranch relaxation entry.  Used to relax 8 bit
+/// branch instructions that cannot reach their targets, to long branch
+/// equivalents.
+class BranchInstructionRelaxationEntry< MC6809Inst from, MC6809Inst to> {
   MC6809Inst From = from;
   MC6809Inst To = to;
 }
@@ -28,7 +27,7 @@ class BRIRE< MC6809Inst from, MC6809Inst to> :
 def : BRIRE< Bbc, LBlbc >;
 
 /// ---------------------------------------------------------------------------
-/// The MC6809 zero page instruction lowering table.
+/// The MC6809 branch instruction lowering table.
 def MC6809BranchInstructionRelaxationTable : GenericTable {
   let FilterClass = "BranchInstructionRelaxationEntry";
   let Fields = ["From", "To"];
@@ -38,7 +37,7 @@ def MC6809BranchInstructionRelaxationTable : GenericTable {
 }
 
 /// Direct page section entry.  If a symbol exists in one of these sections,
-/// it belongs in zero page.
+/// it belongs in direct page.
 class MC6809BranchSectionEntry< string name > {
   string Name = name;
 }

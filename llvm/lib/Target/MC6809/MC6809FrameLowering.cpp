@@ -28,6 +28,10 @@
 
 using namespace llvm;
 
+MC6809FrameLowering::MC6809FrameLowering(const MC6809Subtarget &STI)
+    : TargetFrameLowering(StackGrowsDown, Align(), -2),
+      STI(STI), TII(*STI.getInstrInfo()), TRI(STI.getRegisterInfo()), SlotSize(2) {}
+
 bool MC6809FrameLowering::hasFP(const MachineFunction &MF) const {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MF = "; MF.dump(););
   const MachineFrameInfo &MFI = MF.getFrameInfo();
@@ -39,8 +43,16 @@ bool MC6809FrameLowering::hasFP(const MachineFunction &MF) const {
   return (MF.getTarget().Options.DisableFramePointerElim(MF) || MF.getFrameInfo().hasVarSizedObjects() || MFI.isFrameAddressTaken());
 }
 
+bool MC6809FrameLowering::isFPSaved(const MachineFunction &MF) const {
+  return hasFP(MF) && MF.getInfo<MC6809MachineFunctionInfo>()->getUsesAltFP() == MC6809MachineFunctionInfo::AFPM_None;
+}
+
 bool MC6809FrameLowering::hasReservedCallFrame(const MachineFunction &MF) const {
   return !MF.getFrameInfo().hasVarSizedObjects();
+}
+
+bool MC6809FrameLowering::needsFrameIndexResolution(const MachineFunction &MF) const {
+  return TargetFrameLowering::needsFrameIndexResolution(MF) || !hasReservedCallFrame(MF);
 }
 
 void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) const {
@@ -104,7 +116,7 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &M
     // instruction, merge the two instructions.
     // mergeSPUpdatesDown(MBB, MBBI, &NumBytes);
 
-    BuildMI(MBB, MBBI, DL, TII.get(MC6809::LEAPtrAdd), MC6809::SS).addReg(MC6809::SS).addImm(-NumBytes);
+    BuildMI(MBB, MBBI, DL, TII.get(MC6809::LEAPtrAdd_Imm), MC6809::SS).addReg(MC6809::SS).addImm(-NumBytes);
   }
 }
 
@@ -158,14 +170,64 @@ void MC6809FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &M
   if (MFI.hasVarSizedObjects()) {
     BuildMI(MBB, MBBI, DL, TII.get(MC6809::Copy16), MC6809::SS).addReg(MC6809::SU);
     if (CSSize) {
-      BuildMI(MBB, MBBI, DL, TII.get(MC6809::LEAPtrAdd), MC6809::SS).addReg(MC6809::SS).addImm(-CSSize);
+      BuildMI(MBB, MBBI, DL, TII.get(MC6809::LEAPtrAdd_Imm), MC6809::SS).addReg(MC6809::SS).addImm(-CSSize);
     }
   } else {
     // adjust stack pointer back: SP += numbytes
     if (NumBytes) {
-      BuildMI(MBB, MBBI, DL, TII.get(MC6809::LEAPtrAdd), MC6809::SS).addReg(MC6809::SS).addImm(NumBytes);
+      BuildMI(MBB, MBBI, DL, TII.get(MC6809::LEAPtrAdd_Imm), MC6809::SS).addReg(MC6809::SS).addImm(NumBytes);
     }
   }
+}
+
+// Only non-nested non-nmi interrupts can use shadow registers.
+static bool shouldUseShadow(const MachineFunction &MF) {
+  const Function &F = MF.getFunction();
+  return F.getFnAttribute("interrupt").getValueAsString() == "Generic";
+}
+
+static MC6809MachineFunctionInfo::AltFPMode
+shouldUseAltFP(MachineFunction &MF, MCRegister AltFPReg, const TargetRegisterInfo *TRI) {
+  if (MF.getFunction().hasOptSize() || MF.getFrameInfo().hasVarSizedObjects() ||
+      MF.getTarget().Options.DisableFramePointerElim(MF))
+    return MC6809MachineFunctionInfo::AFPM_None;
+  if (!MF.getRegInfo().isPhysRegUsed(MC6809::SU))
+    return MC6809MachineFunctionInfo::AFPM_Full;
+  MachineBasicBlock::iterator LastFrameIdx;
+  bool AltFPModified = false;
+  for (const MachineBasicBlock &MBB : MF) {
+    for (const MachineInstr &MI : MBB) {
+      if (AltFPModified) {
+        for (const MachineOperand &MO : MI.operands())
+          if (MO.isFI() || (MO.isRegMask() && MO.clobbersPhysReg(AltFPReg)))
+            return MC6809MachineFunctionInfo::AFPM_None;
+      } else if (MI.modifiesRegister(AltFPReg, TRI))
+        AltFPModified = true;
+    }
+    AltFPModified = true;
+  }
+  return MC6809MachineFunctionInfo::AFPM_Partial;
+}
+
+bool MC6809FrameLowering::assignCalleeSavedSpillSlots(MachineFunction &MF, const TargetRegisterInfo *TRI, std::vector<CalleeSavedInfo> &CSI) const {
+  auto &FuncInfo = *MF.getInfo<MC6809MachineFunctionInfo>();
+  FuncInfo.setUsesAltFP(shouldUseAltFP(MF, MC6809::SU, TRI));
+  MF.getRegInfo().freezeReservedRegs(MF);
+  
+  bool UseShadow = shouldUseShadow(MF);
+  unsigned CalleeSavedFrameSize = isFPSaved(MF) ? SlotSize : 0;
+  for (unsigned i = CSI.size(); i != 0; --i) {
+    unsigned Reg = CSI[i - 1].getReg();
+
+    // Non-index registers can be spilled to shadow registers.
+    if (UseShadow && !MC6809::ACC16RegClass.contains(Reg))
+      continue;
+
+    CalleeSavedFrameSize += SlotSize;
+  }
+  FuncInfo.setCalleeSavedFrameSize(CalleeSavedFrameSize);
+
+  return true;
 }
 
 // FIXME: Can we eleminate these in favour of generic code?
@@ -276,13 +338,13 @@ MachineBasicBlock::iterator MC6809FrameLowering::eliminateCallFramePseudoInstr(M
 
       MachineInstr *New = nullptr;
       if (Old.getOpcode() == TII.getCallFrameSetupOpcode()) {
-        New = BuildMI(MF, Old.getDebugLoc(), TII.get(MC6809::LEAPtrAdd), MC6809::SS).addReg(MC6809::SS).addImm(-Amount);
+        New = BuildMI(MF, Old.getDebugLoc(), TII.get(MC6809::LEAPtrAdd_Imm), MC6809::SS).addReg(MC6809::SS).addImm(-Amount);
       } else {
         assert(Old.getOpcode() == TII.getCallFrameDestroyOpcode());
         // factor out the amount the callee already popped.
         Amount -= TII.getFramePoppedByCallee(Old);
         if (Amount)
-          New = BuildMI(MF, Old.getDebugLoc(), TII.get(MC6809::LEAPtrAdd), MC6809::SS).addReg(MC6809::SS).addImm(Amount);
+          New = BuildMI(MF, Old.getDebugLoc(), TII.get(MC6809::LEAPtrAdd_Imm), MC6809::SS).addReg(MC6809::SS).addImm(Amount);
       }
 
       if (New) {
@@ -298,7 +360,7 @@ MachineBasicBlock::iterator MC6809FrameLowering::eliminateCallFramePseudoInstr(M
     // something off the stack pointer, add it back.
     if (uint64_t CalleeAmt = TII.getFramePoppedByCallee(*I)) {
       MachineInstr &Old = *I;
-      MachineInstr *New = BuildMI(MF, Old.getDebugLoc(), TII.get(MC6809::LEAPtrAdd), MC6809::SS).addReg(MC6809::SS).addImm(-CalleeAmt);
+      MachineInstr *New = BuildMI(MF, Old.getDebugLoc(), TII.get(MC6809::LEAPtrAdd_Imm), MC6809::SS).addReg(MC6809::SS).addImm(-CalleeAmt);
       // The SRW implicit def is dead.
       New->getOperand(3).setIsDead();
 

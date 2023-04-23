@@ -100,12 +100,12 @@ public:
 // GLOBAL_VALUE @x + (y_const + z_const)
 bool MC6809CombinerHelperState::matchFoldGlobalOffset(MachineInstr &MI, MachineRegisterInfo &MRI, std::pair<const MachineOperand *, int64_t> &MatchInfo) const {
   using namespace TargetOpcode;
-  assert(MI.getOpcode() == MC6809::G_PTR_ADD);
+  assert(MI.getOpcode() == TargetOpcode::G_PTR_ADD);
 
   Register Base = MI.getOperand(1).getReg();
   Register Offset = MI.getOperand(2).getReg();
 
-  MachineInstr *GlobalBase = getOpcodeDef(MC6809::G_GLOBAL_VALUE, Base, MRI);
+  MachineInstr *GlobalBase = getOpcodeDef(TargetOpcode::G_GLOBAL_VALUE, Base, MRI);
   auto ConstOffset = getIConstantVRegValWithLookThrough(Offset, MRI);
 
   if (!GlobalBase || !ConstOffset)
@@ -118,10 +118,10 @@ bool MC6809CombinerHelperState::matchFoldGlobalOffset(MachineInstr &MI, MachineR
 
 bool MC6809CombinerHelperState::applyFoldGlobalOffset(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, std::pair<const MachineOperand *, int64_t> &MatchInfo) const {
   using namespace TargetOpcode;
-  assert(MI.getOpcode() == MC6809::G_PTR_ADD);
+  assert(MI.getOpcode() == TargetOpcode::G_PTR_ADD);
   const TargetInstrInfo &TII = MIB.getTII();
   Observer.changingInstr(MI);
-  MI.setDesc(TII.get(MC6809::G_GLOBAL_VALUE));
+  MI.setDesc(TII.get(TargetOpcode::G_GLOBAL_VALUE));
   MI.getOperand(1).ChangeToGA(MatchInfo.first->getGlobal(), MatchInfo.second, MatchInfo.first->getTargetFlags());
   MI.removeOperand(2);
   Observer.changedInstr(MI);
@@ -177,13 +177,13 @@ bool MC6809CombinerHelperState::applyFoldCopy(MachineInstr &MI, MachineRegisterI
 //  %3:_(s8) = G_PTR_ADD %0:_, %1:_(s8)
 bool MC6809CombinerHelperState::matchFoldPointerExtOffset(MachineInstr &MI, MachineRegisterInfo &MRI, std::pair<MachineInstr *, MachineInstr *>&MatchInfo) const {
   using namespace TargetOpcode;
-  assert(MI.getOpcode() == MC6809::G_PTR_ADD);
+  assert(MI.getOpcode() == TargetOpcode::G_PTR_ADD);
   if (!MI.getOperand(2).isReg())
     return false;
   Register Offset = MI.getOperand(2).getReg();
-  MachineInstr *Ext = getOpcodeDef (MC6809::G_SEXT, Offset, MRI);
+  MachineInstr *Ext = getOpcodeDef (TargetOpcode::G_SEXT, Offset, MRI);
   if (!Ext) {
-    Ext = getOpcodeDef(MC6809::G_ZEXT, Offset, MRI);
+    Ext = getOpcodeDef(TargetOpcode::G_ZEXT, Offset, MRI);
     if (!Ext)
       return false;
   }
@@ -193,7 +193,7 @@ bool MC6809CombinerHelperState::matchFoldPointerExtOffset(MachineInstr &MI, Mach
 
 bool MC6809CombinerHelperState::applyFoldPointerExtOffset(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, std::pair<MachineInstr *, MachineInstr *>&MatchInfo) const {
   using namespace TargetOpcode;
-  assert(MI.getOpcode() == MC6809::G_PTR_ADD);
+  assert(MI.getOpcode() == TargetOpcode::G_PTR_ADD);
   Observer.changingInstr(MI);
   MI.getOperand(2).ChangeToRegister(MatchInfo.second->getOperand(1).getReg(), /* isDef */ false);
   MatchInfo.second->eraseFromParent();
@@ -213,9 +213,9 @@ bool MC6809CombinerHelperState::matchSwapPhysregToLhs(MachineInstr &MI, MachineR
   const MC6809Subtarget &STI = static_cast<const MC6809Subtarget &>(MI.getMF()->getSubtarget());
 //  if (!STI.isHD6309()) {
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Matching G_ADD\n");
-    assert(MI.getOpcode() == MC6809::G_ADD || MI.getOpcode() == MC6809::G_SADDO || MI.getOpcode() == MC6809::G_UADDO || MI.getOpcode() == MC6809::G_SADDE || MI.getOpcode() == MC6809::G_UADDE);
+    assert(MI.getOpcode() == TargetOpcode::G_ADD || MI.getOpcode() == TargetOpcode::G_SADDO || MI.getOpcode() == TargetOpcode::G_UADDO || MI.getOpcode() == TargetOpcode::G_SADDE || MI.getOpcode() == TargetOpcode::G_UADDE);
     int ArgA, ArgB;
-    if (MI.getOpcode() == MC6809::G_ADD) {
+    if (MI.getOpcode() == TargetOpcode::G_ADD) {
       ArgA = 1;
       ArgB = 2;
     } else {
@@ -247,8 +247,8 @@ bool MC6809CombinerHelperState::matchSwapPhysregToLhs(MachineInstr &MI, MachineR
 bool MC6809CombinerHelperState::applySwapPhysregToLhs(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, MachineInstr *&MatchInfo) const {
   using namespace TargetOpcode;
   int ArgA, ArgB;
-  assert(MI.getOpcode() == MC6809::G_ADD || MI.getOpcode() == MC6809::G_SADDO || MI.getOpcode() == MC6809::G_UADDO || MI.getOpcode() == MC6809::G_SADDE || MI.getOpcode() == MC6809::G_UADDE);
-  if (MI.getOpcode() == MC6809::G_ADD) {
+  assert(MI.getOpcode() == TargetOpcode::G_ADD || MI.getOpcode() == TargetOpcode::G_SADDO || MI.getOpcode() == TargetOpcode::G_UADDO || MI.getOpcode() == TargetOpcode::G_SADDE || MI.getOpcode() == TargetOpcode::G_UADDE);
+  if (MI.getOpcode() == TargetOpcode::G_ADD) {
     ArgA = 1;
     ArgB = 2;
   } else {
@@ -287,8 +287,8 @@ bool MC6809CombinerHelperState::matchSwitchAddToSubtract(MachineInstr &MI, Machi
 
 bool MC6809CombinerHelperState::applySwitchAddToSubtract(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, MachineInstr *&MatchInfo) const {
   using namespace TargetOpcode;
-  assert(MI.getOpcode() == MC6809::G_SUB);
-  assert(MatchInfo->getOpcode() == MC6809::G_ADD);
+  assert(MI.getOpcode() == TargetOpcode::G_SUB);
+  assert(MatchInfo->getOpcode() == TargetOpcode::G_ADD);
   MachineIRBuilder Builder(MI);
   Observer.changingInstr(MI);
   Builder.buildSub(MatchInfo->getOperand(0).getReg(), MI.getOperand(1).getReg(), MatchInfo->getOperand(2).getReg());

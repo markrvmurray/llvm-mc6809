@@ -21,7 +21,19 @@
 
 namespace llvm {
 
+class FunctionPass;
+class InstructionSelector;
+class PassRegistry;
+class MC6809RegisterBankInfo;
+class MC6809Subtarget;
+class MC6809TargetMachine;
+
+InstructionSelector *createMC6809InstructionSelector(const MC6809TargetMachine &TM,
+                                                     MC6809Subtarget &,
+                                                     MC6809RegisterBankInfo &);
+
 void initializeMC6809CombinerPass(PassRegistry &);
+void initializeMC6809ConditionalBranchPass(PassRegistry &);
 void initializeMC6809IndexIVPass(PassRegistry &);
 void initializeMC6809LateOptimizationPass(PassRegistry &);
 void initializeMC6809LowerSelectPass(PassRegistry &);
@@ -33,22 +45,25 @@ namespace MC6809CC {
 // The CondCode constants map directly to the 4-bit encoding of the
 // condition field for branch instructions.
 enum CondCode { // Meaning
-  RA,           // Always (unconditional)
-  RN,           // Never (unconditional)
-  HI,           // Unsigned higher
-  LS,           // Unsigned lower or same
-  HS,           // Carry set
-  LO,           // Carry clear
-  NE,           // Not equal
-  EQ,           // Equal
-  VC,           // No overflow
-  VS,           // Overflow
-  PL,           // Plus, positive or zero
-  MI,           // Minus, negative
-  GE,           // Greater than or equal
-  LT,           // Less than
-  GT,           // Greater than
-  LE,           // Less than or equal
+  RA,           // 0 Always (unconditional)
+  INVALID,
+  RN = INVALID, // 1 Never (unconditional)
+  HI,           // 2 Unsigned higher
+  LS,           // 3 Unsigned lower or same
+  CS,           // 4 Carry set
+  HS = CS,      // 4 Unsigned higher or same
+  CC,           // 5 Carry Clear
+  LO = CC,      // 5 Unsigned lower
+  NE,           // 6 Not equal
+  EQ,           // 7 Equal
+  VC,           // 8 No overflow
+  VS,           // 9 Overflow
+  PL,           // 10 Plus, positive or zero
+  MI,           // 11 Minus, negative
+  GE,           // 12 Greater than or equal
+  LT,           // 13 Less than
+  GT,           // 14 Greater than
+  LE,           // 15 Less than or equal
 };
 
 inline static const char *getCCString(CondCode CC) {

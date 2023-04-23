@@ -22,6 +22,7 @@
 using namespace llvm;
 
 #define GET_INSTRINFO_HEADER
+#include "MC6809.h"
 #include "MC6809GenInstrInfo.inc"
 
 namespace llvm {
@@ -62,6 +63,7 @@ template <> struct DenseMapInfo<RegPlusReg> {
     return A == B;
   }
 };
+
 }
 
 namespace llvm {
@@ -69,9 +71,17 @@ namespace llvm {
 class MC6809Subtarget;
 class MC6809RegisterBankInfo;
 
-class MC6809InstrInfo : public MC6809GenInstrInfo {
+class MC6809InstrInfo final : public MC6809GenInstrInfo {
+  const MC6809Subtarget &STI;
+  const MC6809RegisterInfo RI;
 public:
-  MC6809InstrInfo(const MC6809Subtarget &STI);
+  explicit MC6809InstrInfo(const MC6809Subtarget &STI);
+
+  /// getRegisterInfo - TargetInstrInfo is a superset of MRegister info.  As
+  /// such, whenever a client has an instance of instruction info, it should
+  /// always be able to get register info as well (through this method).
+  ///
+  const MC6809RegisterInfo &getRegisterInfo() const { return RI; }
 
 #if 0
   bool isReallyTriviallyReMaterializable(const MachineInstr &MI, AAResults *AA) const override;
@@ -127,14 +137,15 @@ public:
                            MachineBasicBlock::iterator MI, Register SrcReg,
                            bool isKill, int FrameIndex,
                            const TargetRegisterClass *RC,
-                           const TargetRegisterInfo *TRI) const override;
+                           const TargetRegisterInfo *TRI, Register VReg) const override;
 
   const TargetRegisterClass *canFoldCopy(const MachineInstr &MI, unsigned FoldIdx) const override;
 
   void loadRegFromStackSlot(MachineBasicBlock &MBB,
-                            MachineBasicBlock::iterator MI, Register DestReg,
+                            MachineBasicBlock::iterator MBBI, Register DestReg,
                             int FrameIndex, const TargetRegisterClass *RC,
-                            const TargetRegisterInfo *TRI) const override;
+                            const TargetRegisterInfo *TRI,
+                            Register VReg) const override;
 
   bool expandPostRAPseudo(MachineInstr &MI) const override;
 
@@ -154,7 +165,6 @@ public:
   }
 
 private:
-  const MC6809Subtarget &STI;
   // const MC6809RegisterBankInfo &RBI;
 
   void copyPhysRegImpl(MachineIRBuilder &Builder, Register DestReg, Register SrcReg) const;
@@ -178,34 +188,30 @@ private:
   void expandMul16Pop(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandMul16Reg(MachineIRBuilder &Builder, MachineInstr &MI) const;
 
-  void expandAddImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandAddIdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandAddIdxReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandAddReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandANDReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandORReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandXORReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
 
-  void expandAdd32Imm(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandAddReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandAdd32IdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandAdd32IdxReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandAdd32Reg(MachineIRBuilder &Builder, MachineInstr &MI) const;
 
-  void expandSubImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandSubImmRev(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandSubIdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandSubIdxReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandSubReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandSubPop(MachineIRBuilder &Builder, MachineInstr &MI) const;
-
-  void expandSub32Imm(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandSub32ImmRev(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandSub32IdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandSub32IdxReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandSub32Reg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandSub32Pop(MachineIRBuilder &Builder, MachineInstr &MI) const;
 
-  void expandCompareReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  // void expandCompareReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandCompareImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandCompare32Imm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandComparePop(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandCompareIdx(MachineIRBuilder &Builder, MachineInstr &MI) const;
+
+  void expandAdd32Imm(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandSub32Imm(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandSub32ImmRev(MachineIRBuilder &Builder, MachineInstr &MI) const;
 
   // NZ pseudos
   // void expandNZ(MachineIRBuilder &Builder) const;
@@ -247,6 +253,53 @@ private:
   DenseMap<RegPlusReg, unsigned> CompareIdxRegOpcode;
   DenseMap<Register, unsigned> ComparePopOpcode;
 
+  DenseMap<Register, unsigned> ANDImmediateOpcode;
+  DenseMap<RegPlusOffsetLen, unsigned> ANDIdxImmOpcode;
+  DenseMap<RegPlusReg, unsigned> ANDIdxRegOpcode;
+  DenseMap<Register, unsigned> ORImmediateOpcode;
+  DenseMap<RegPlusOffsetLen, unsigned> ORIdxImmOpcode;
+  DenseMap<RegPlusReg, unsigned> ORIdxRegOpcode;
+  DenseMap<Register, unsigned> XORImmediateOpcode;
+  DenseMap<RegPlusOffsetLen, unsigned> XORIdxImmOpcode;
+  DenseMap<RegPlusReg, unsigned> XORIdxRegOpcode;
+
+  struct ContextImmediate {
+    DenseMap<Register, unsigned> *Opcode;
+    int IdentityValue;
+  };
+
+  ContextImmediate AddImm = { &AddImmediateOpcode, 0 };
+  ContextImmediate SubImm = { &SubImmediateOpcode, 0 };
+  ContextImmediate ANDImm = { &ANDImmediateOpcode, -1 };
+  ContextImmediate ORImm = { &ORImmediateOpcode, 0 };
+  ContextImmediate XORImm = { &XORImmediateOpcode, 0 };
+
+  void expandImm(ContextImmediate Context, MachineIRBuilder &Builder, MachineInstr &MI) const;
+
+  struct ContextIndexImmediate {
+    DenseMap<RegPlusOffsetLen, unsigned> *Opcode;
+  };
+
+  ContextIndexImmediate AddIdxImm = { &AddIdxImmOpcode };
+  ContextIndexImmediate SubIdxImm = { &SubIdxImmOpcode };
+  ContextIndexImmediate ANDIdxImm = { &ANDIdxImmOpcode };
+  ContextIndexImmediate ORIdxImm = { &ORIdxImmOpcode };
+  ContextIndexImmediate XORIdxImm = { &XORIdxImmOpcode };
+
+  void expandIdxImm(ContextIndexImmediate Context, MachineIRBuilder &Builder, MachineInstr &MI) const;
+
+  struct ContextIndexRegister {
+    DenseMap<RegPlusReg, unsigned> *Opcode;
+  };
+
+  ContextIndexRegister AddIdxReg = { &AddIdxRegOpcode };
+  ContextIndexRegister SubIdxReg = { &SubIdxRegOpcode };
+  ContextIndexRegister ANDIdxReg = { &ANDIdxRegOpcode };
+  ContextIndexRegister ORIdxReg = { &ORIdxRegOpcode };
+  ContextIndexRegister XORIdxReg = { &XORIdxRegOpcode };
+
+  void expandIdxReg(ContextIndexRegister Context, MachineIRBuilder &Builder, MachineInstr &MI) const;
+
 //  DenseMap<Register, unsigned> NegRegOpcode;
 
   static int offsetSizeInBits(MachineOperand &OffsetOp);
@@ -261,13 +314,14 @@ private:
 
 namespace MC6809 {
 
+MC6809CC::CondCode GetBranchConditionForPredicate(CmpInst::Predicate Pred, bool &IsSigned);
+
 enum TOF {
   MO_NO_FLAGS = 0,
   MO_LO,
   MO_HI,
   MO_HI_JT,
 };
-
 
 /// emitFrameOffset - Emit instructions as needed to set DestReg to SrcReg
 /// plus Offset.  This is intended to be used from within the prolog/epilog
@@ -279,8 +333,8 @@ void emitFrameOffset(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
                      MachineInstr::MIFlag = MachineInstr::NoFlags);
 
 
-
 } // namespace MC6809
+
 } // namespace llvm
 
 #endif // not LLVM_LIB_TARGET_MC6809_MC6809INSTRINFO_H

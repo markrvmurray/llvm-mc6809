@@ -811,7 +811,9 @@ bool CombinerHelper::matchCombineExtendingLoads(
       if (MMO.isAtomic())
         continue;
       // Check for legality.
+      LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Is this !isPreLegalize()? : MI = "; MI.dump(););
       if (!isPreLegalize()) {
+        LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Yes, !isPreLegalize() : MI = "; MI.dump(););
         LegalityQuery::MemDesc MMDesc(MMO);
         unsigned CandidateLoadOpc = getExtLoadOpcForExtend(UseMI.getOpcode());
         LLT UseTy = MRI.getType(UseMI.getOperand(0).getReg());
@@ -819,6 +821,7 @@ bool CombinerHelper::matchCombineExtendingLoads(
         if (LI->getAction({CandidateLoadOpc, {UseTy, SrcTy}, {MMDesc}})
                 .Action != LegalizeActions::Legal)
           continue;
+#if 0
         if (UseMI.getOpcode() == TargetOpcode::G_SEXT)
           if (LI->getAction({TargetOpcode::G_SEXTLOAD, {UseTy, SrcTy}, {MMDesc}})
                   .Action != LegalizeActions::Legal)
@@ -827,6 +830,7 @@ bool CombinerHelper::matchCombineExtendingLoads(
           if (LI->getAction({TargetOpcode::G_ZEXTLOAD, {UseTy, SrcTy}, {MMDesc}})
                   .Action != LegalizeActions::Legal)
             continue;
+#endif
       }
       Preferred = ChoosePreferredUse(MI, Preferred,
                                      MRI.getType(UseMI.getOperand(0).getReg()),
