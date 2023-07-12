@@ -93,6 +93,14 @@ public:
   bool matchSwitchAddToSubtract(MachineInstr &MI, MachineRegisterInfo &MRI, MachineInstr *&MatchInfo) const;
   bool applySwitchAddToSubtract(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, MachineInstr *&MatchInfo) const;
 
+  //  %3:accum(s16) = G_(ANY|S|Z)EXT %0:accum(s8)
+  //  %4:accum(s16) = G_(ANY|S|Z)EXT %1:accum(s8)
+  //  %10:accum(s8) = G_MUL %3:accum, %4:accum
+  //   =>
+  //  %10:accum(s8), %11:accum(s8) = G_EXPAND_MUL %0:accum(s8), %1:accum(s8)
+  bool matchNaturalMultiply(MachineInstr &MI, MachineRegisterInfo &MRI, std::pair<MachineInstr *, MachineInstr *>&MatchInfo) const;
+  bool applyNaturalMultiply(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, std::pair<MachineInstr *, MachineInstr *>&MatchInfo) const;
+
 };
 // ======================================================================
 
@@ -163,7 +171,6 @@ bool MC6809CombinerHelperState::applyFoldCopy(MachineInstr &MI, MachineRegisterI
   using namespace TargetOpcode;
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Matching COPY : MI = "; MI.dump(););
   assert(MI.getOpcode() == COPY);
-  const TargetInstrInfo &TII = MIB.getTII();
   Observer.changingInstr(*(MatchInfo.second));
   MatchInfo.second->getOperand(0).setReg(MatchInfo.first->getReg());
   Observer.changedInstr(*(MatchInfo.second));
@@ -210,37 +217,34 @@ bool MC6809CombinerHelperState::applyFoldPointerExtOffset(MachineInstr &MI, Mach
 //  %3:_(s8) = G_ADD %0:_, %1:_ ; Can make use of addressing modes
 bool MC6809CombinerHelperState::matchSwapPhysregToLhs(MachineInstr &MI, MachineRegisterInfo &MRI, MachineInstr *&MatchInfo) const {
   using namespace TargetOpcode;
-  const MC6809Subtarget &STI = static_cast<const MC6809Subtarget &>(MI.getMF()->getSubtarget());
-//  if (!STI.isHD6309()) {
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Matching G_ADD\n");
-    assert(MI.getOpcode() == TargetOpcode::G_ADD || MI.getOpcode() == TargetOpcode::G_SADDO || MI.getOpcode() == TargetOpcode::G_UADDO || MI.getOpcode() == TargetOpcode::G_SADDE || MI.getOpcode() == TargetOpcode::G_UADDE);
-    int ArgA, ArgB;
-    if (MI.getOpcode() == TargetOpcode::G_ADD) {
-      ArgA = 1;
-      ArgB = 2;
-    } else {
-      ArgA = 2;
-      ArgB = 3;
-    }
-    Register LHS = MI.getOperand(ArgA).getReg();
-    auto CopyL = getOpcodeDef(G_LOAD, LHS, MRI);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Matching G_ADD\n");
+  assert(MI.getOpcode() == TargetOpcode::G_ADD || MI.getOpcode() == TargetOpcode::G_SADDO || MI.getOpcode() == TargetOpcode::G_UADDO || MI.getOpcode() == TargetOpcode::G_SADDE || MI.getOpcode() == TargetOpcode::G_UADDE);
+  int ArgA, ArgB;
+  if (MI.getOpcode() == TargetOpcode::G_ADD) {
+    ArgA = 1;
+    ArgB = 2;
+  } else {
+    ArgA = 2;
+    ArgB = 3;
+  }
+  Register LHS = MI.getOperand(ArgA).getReg();
+  auto CopyL = getOpcodeDef(G_LOAD, LHS, MRI);
+  if (CopyL && CopyL->getOperand(1).isReg() && CopyL->getOperand(1).getReg().isPhysical()) {
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Matching G_ADD : LHS is a G_LOAD : return FALSE\n");
+    return false;
+  }
+  Register RHS = MI.getOperand(ArgB).getReg();
+  auto CopyR = getOpcodeDef(COPY, RHS, MRI);
+  if (CopyR && CopyR->getOperand(1).isReg() && CopyR->getOperand(1).getReg().isPhysical()) {
+    CopyL = getOpcodeDef(COPY, LHS, MRI);
     if (CopyL && CopyL->getOperand(1).isReg() && CopyL->getOperand(1).getReg().isPhysical()) {
-      LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Matching G_ADD : LHS is a G_LOAD : return FALSE\n");
+      LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Matching G_ADD : LHS and RHS are COPY : return FALSE\n");
       return false;
     }
-    Register RHS = MI.getOperand(ArgB).getReg();
-    auto CopyR = getOpcodeDef(COPY, RHS, MRI);
-    if (CopyR && CopyR->getOperand(1).isReg() && CopyR->getOperand(1).getReg().isPhysical()) {
-      CopyL = getOpcodeDef(COPY, LHS, MRI);
-      if (CopyL && CopyL->getOperand(1).isReg() && CopyL->getOperand(1).getReg().isPhysical()) {
-        LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Matching G_ADD : LHS and RHS are COPY : return FALSE\n");
-        return false;
-      }
-      LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Matching G_ADD : RHS is a COPY : return TRUE\n");
-      MatchInfo = CopyR;
-      return true;
-    }
-//  }
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Matching G_ADD : RHS is a COPY : return TRUE\n");
+    MatchInfo = CopyR;
+    return true;
+  }
   return false;
 }
 
@@ -296,6 +300,59 @@ bool MC6809CombinerHelperState::applySwitchAddToSubtract(MachineInstr &MI, Machi
   MatchInfo->eraseFromParent();
   Observer.changedInstr(MI);
   MI.eraseFromParent();
+  return true;
+}
+
+//  %3:accum(s16) = G_(ANY|S|Z)EXT %0:accum(s8)
+//  %4:accum(s16) = G_(ANY|S|Z)EXT %1:accum(s8)
+//  %10:accum(s8) = G_MUL %3:accum, %4:accum
+//   =>
+//  %10:accum(s8), %11:accum(s8) = G_EXPAND_MUL %0:accum(s8), %1:accum(s8)
+bool MC6809CombinerHelperState::matchNaturalMultiply(MachineInstr &MI, MachineRegisterInfo &MRI, std::pair<MachineInstr *, MachineInstr *>&MatchInfo) const {
+  using namespace TargetOpcode;
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Matching G_MUL\n");
+  assert(MI.getOpcode() == TargetOpcode::G_MUL);
+  Register src1 = MI.getOperand(1).getReg();
+  auto ext1 = getOpcodeDef(G_SEXT, src1, MRI);
+  if (!ext1) {
+    ext1 = getOpcodeDef(G_ZEXT, src1, MRI);
+    if (!ext1) {
+      ext1 = getOpcodeDef(G_ANYEXT, src1, MRI);
+      if (!ext1) {
+        LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Matching G_MUL : src1 is not G_SEXT, G_ZEXT or G_ANYEXT : return FALSE\n");
+        return false;
+      }
+    }
+  }
+  Register src2 = MI.getOperand(2).getReg();
+  auto ext2 = getOpcodeDef(G_SEXT, src2, MRI);
+  if (!ext2) {
+    ext2 = getOpcodeDef(G_ZEXT, src2, MRI);
+    if (!ext2) {
+      ext2 = getOpcodeDef(G_ANYEXT, src2, MRI);
+      if (!ext2) {
+        LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Matching G_MUL : src2 is not G_SEXT, G_ZEXT or G_ANYEXT : return FALSE\n");
+        return false;
+      }
+    }
+  }
+  MatchInfo = {ext1, ext2};
+  return true;
+}
+
+bool MC6809CombinerHelperState::applyNaturalMultiply(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, std::pair<MachineInstr *, MachineInstr *>&MatchInfo) const {
+  using namespace TargetOpcode;
+  assert(MI.getOpcode() == TargetOpcode::G_MUL);
+  MachineIRBuilder Builder(MI);
+  Observer.changingAllUsesOfReg(MRI, MatchInfo.first->getOperand(1).getReg());
+  Observer.changingAllUsesOfReg(MRI, MatchInfo.second->getOperand(1).getReg());
+  auto NaturalMultiply= Builder.buildInstr(MC6809::G_EXPAND_MUL, {MI.getOperand(0)},
+                                            {MatchInfo.first->getOperand(1), MatchInfo.second->getOperand(1)});
+  Builder.setInstrAndDebugLoc(*NaturalMultiply);
+  //MatchInfo.first->eraseFromParent();
+  //MatchInfo.second->eraseFromParent();
+  MI.eraseFromParent();
+  Observer.finishedChangingAllUsesOfReg();
   return true;
 }
 

@@ -28,6 +28,19 @@ class MC6809GenericInstruction : GenericInstruction {
   let hasSideEffects = false;
 }
 
+// Version of G_BRCOND that takes an immediate argument for which boolean value
+// triggers the branch. This could be done in the instruction selector, but that
+// would require making 1-bit G_XORs legal. However, they are only legal when
+// used in this way, so the legalizer handles this instead, that way the
+// remaining unhandled G_XORs can be widened to 8 bits.
+def G_BRCOND_IMM : MC6809GenericInstruction {
+  let OutOperandList = (outs);
+  let InOperandList = (ins type0:$tst, unknown:$truebb, i1imm:$tstval);
+
+  let isBranch = true;
+  let isTerminator = true;
+}
+
 // Generalized load using the absolute addressing mode. The address
 // argument isn't a pointer; it's either a global value or a 16-bit immediate.
 // Additionally expects a MachineMemOperand.
@@ -96,3 +109,10 @@ class MC6809GenericInstruction : GenericInstruction {
 //  let OutOperandList = (outs type0:$dst, type1:$carry_out);
 //  let InOperandList = (ins type0:$src, type1:$carry_in);
 //}
+
+// Multiply two values, giving a result twice the size of the original values,
+// Thus becoming the same as combined G_MUL and G_[SU]MULH
+def G_EXPAND_MUL : MC6809GenericInstruction {
+  let OutOperandList = (outs type0:$dst);
+  let InOperandList = (ins type1:$src1, type1:$src2);
+}

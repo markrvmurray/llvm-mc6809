@@ -16,5 +16,5 @@ def ACCUMRegBank : RegisterBank<"ACCUM", [ACC32]>;
 /// Index Registers: IX, IY, SU, SS
 def INDEXRegBank : RegisterBank<"INDEX", [INDEX16]>;
 
-/// Conditional register: CC and sub-bits
+/// Conditional register: CC bits
 def CCRegBank : RegisterBank<"FLAGS", [CCond]>;

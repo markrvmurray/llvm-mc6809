@@ -556,6 +556,7 @@ bool RegisterBankInfo::ValueMapping::verify(const RegisterBankInfo &RBI,
   assert(NumBreakDowns && "Value mapped nowhere?!");
   unsigned OrigValueBitWidth = 0;
   for (const RegisterBankInfo::PartialMapping &PartMap : *this) {
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " PartMap = "; PartMap.dump(););
     // Check that each register bank is big enough to hold the partial value:
     // this check is done by PartialMapping::verify
     assert(PartMap.verify(RBI) && "Partial mapping is invalid");

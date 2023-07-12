@@ -35,11 +35,13 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI, const MC680
 
   LLT p = LLT::pointer(0, 16);
   LLT s1 = LLT::scalar(1);
+  LLT s3 = LLT::scalar(3);
   LLT s8 = LLT::scalar(8);
   LLT s16 = LLT::scalar(16);
   LLT s32 = LLT::scalar(32);
   LLT s64 = LLT::scalar(64);
   LLT sMax = IsHD6309 ? s32 : s16;
+  LLT sMaxArith = IsHD6309 ? s16 : s8;
   LLT sOther = IsHD6309 ? s16 : s32;
 
   auto LegalTypes32 = {p, s8, s16, s32};
@@ -48,7 +50,7 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI, const MC680
   auto LegalAccumulators8 = {s8};
   auto LegalAccumulators = IsHD6309 ? LegalAccumulators16 : LegalAccumulators8;
   auto LegalTypes = IsHD6309 ? LegalTypes32 : LegalTypes16;
-  auto LegalTypesOther = IsHD6309 ? LegalTypes16 : LegalTypes32;
+  auto LegalTypesOther = IsHD6309 ? LegalTypes32 : LegalTypes16;
   auto LegalTypesWithOne32 = {p, s1, s8, s16, s32};
   auto LegalTypesWithOne16 = {p, s1, s8, s16};
   auto LegalTypesWithOne = IsHD6309 ? LegalTypesWithOne32 : LegalTypesWithOne16;
@@ -95,14 +97,18 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI, const MC680
       .legalFor(LegalTypesWithOne);
 
   getActionDefinitionsBuilder(G_MERGE_VALUES)
-      .legalForCartesianProduct(NotMin, NotMax)
-      .clampScalar(0, *NotMin.begin(), *std::prev(NotMin.end()))
-      .clampScalar(1, *NotMax.begin(), *std::prev(NotMax.end()));
+      .legalForCartesianProduct(NotMin, NotMax);
+      //.clampScalar(0, *NotMin.begin(), *std::prev(NotMin.end()))
+      //.clampScalar(1, *NotMax.begin(), *std::prev(NotMax.end()))
+      //.lower();
+      //.unsupported();
 
   getActionDefinitionsBuilder(G_UNMERGE_VALUES)
-      .legalForCartesianProduct(NotMax, NotMin)
-      .clampScalar(1, *NotMin.begin(), *std::prev(NotMin.end()))
-      .clampScalar(0, *NotMax.begin(), *std::prev(NotMax.end()));
+      .legalForCartesianProduct(NotMax, NotMin);
+      //.clampScalar(0, *NotMax.begin(), *std::prev(NotMax.end()))
+      //.clampScalar(1, *NotMin.begin(), *std::prev(NotMin.end()))
+      //.lower();
+      //.unsupported();
 
   getActionDefinitionsBuilder({G_EXTRACT, G_INSERT})
       .customForCartesianProduct(LegalTypes, LegalTypes)
@@ -122,7 +128,7 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI, const MC680
       .clampScalar(0, *NotMaxWithOne.begin(), *std::prev(NotMaxWithOne.end()));
 
   getActionDefinitionsBuilder({G_FREEZE, G_PHI, G_CONSTANT})
-      .legalFor(LegalTypes)
+      .legalFor(LegalTypesWithOne)
       .clampScalar(0, s8, sMax);
 
   getActionDefinitionsBuilder(G_FCONSTANT)
@@ -154,38 +160,35 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI, const MC680
                       ChangeToSameSizeScalar(1, 0));
 
   getActionDefinitionsBuilder({G_ADD, G_SUB})
-      .legalFor(LegalScalars)
-      .libcallFor(LegalLibcallScalars32)
-      .clampScalar(0, s8, sMax);
+      .legalFor(LegalTypes)
+      .libcall();
+      //.libcallFor({s32});
+      //.clampScalar(0, s8, sMaxArith);
 
   getActionDefinitionsBuilder({G_UADDO, G_UADDE, G_USUBO, G_USUBE,
                                G_SADDO, G_SADDE, G_SSUBO, G_SSUBE})
       .legalForCartesianProduct(LegalScalars, {s1})
-      .clampScalar(0, s8, sMax);
+      .clampScalar(0, s8, sMaxArith);
 
   getActionDefinitionsBuilder({G_MUL, G_UMULH, G_SMULH})
-      .legalFor({s8, s16})
-      //.minScalarSameAs(1, 0)
-      .clampScalar(0, s8, s16)
-      //.libcallFor(LegalLibcallScalars)
-      .lower();
+      .legalFor(LegalAccumulators)
+      .libcall();
+      //.clampScalar(0, s8, sMaxArith);
 
   getActionDefinitionsBuilder({G_SDIV, G_UDIV, G_SREM, G_UREM})
       .libcallFor(LegalLibcallScalars)
       .clampScalar(0, s8, s32);
 
   getActionDefinitionsBuilder({G_AND, G_OR, G_XOR})
-      .legalFor(LegalAccumulators)
-      //.lowerFor({s16})
-      //.libcallFor(LegalLibcallScalars)
-      .clampScalar(0, s8, IsHD6309 ? s16 : s8)
-      .lower();
+      .legalFor({s8, s16})
+      .libcall();
+      //.clampScalar(0, s8, s16);
 
   getActionDefinitionsBuilder({G_SHL, G_LSHR, G_ASHR})
-      .legalForCartesianProduct(LegalScalars, {s1})
-      //.libcallForCartesianProduct(LegalLibcallScalars, {s1, s8})
-      .clampScalar(0, s8, s16)
-      .clampScalar(1, s1, s1);
+      .legalForCartesianProduct(LegalScalars, {s1, s8})
+      .clampScalar(0, s8, sMaxArith)
+      .clampScalar(1, s1, s3)
+      .lower();
 
   getActionDefinitionsBuilder({G_FSHL, G_FSHR, G_ROTR, G_ROTL, G_UMULO,
                                G_UMULFIX, G_SMULFIX, G_SMULFIXSAT, G_UMULFIXSAT,
@@ -244,16 +247,7 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI, const MC680
   getActionDefinitionsBuilder(G_FCOPYSIGN).libcallFor({{s32, s32}, {s64, s64}});
 
   getActionDefinitionsBuilder({G_LOAD, G_STORE})
-      .legalForCartesianProduct(LegalTypes, {p})
-      .legalForCartesianProduct(LegalTypesOther, {p})
-      .legalForCartesianProduct({s8}, {p})
-      .minScalar(0, s8)
-      .maxScalarIf(IsSpecificType(1, p), 0, sMax)
-      .maxScalarIf(IsSpecificType(1, p), 0, sOther)
-      .maxScalar(0, s8);
-  for (unsigned MemOp : {G_LOAD, G_STORE})
-    getLegacyLegalizerInfo().setLegalizeScalarToDifferentSizeStrategy(
-        MemOp, 0, LegacyLegalizerInfo::narrowToSmallerAndWidenToSmallest);
+      .legalForCartesianProduct(LegalTypes, {p});
 
   getActionDefinitionsBuilder(
       {G_FRAME_INDEX, G_GLOBAL_VALUE, G_BRINDIRECT, G_JUMP_TABLE})
@@ -263,10 +257,8 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI, const MC680
       .customFor({p});
 
   getActionDefinitionsBuilder(G_ICMP)
-      .legalForCartesianProduct({s1}, LegalScalars)
-      .widenScalarToNextPow2(1)
-      .libcallForCartesianProduct({s1}, LegalLibcallScalars)
-      .clampScalar(1, s8, s64);
+      .legalForCartesianProduct({s1},LegalTypes)
+      .clampScalar(1, s8, sMax);
 
   getActionDefinitionsBuilder(G_FCMP)
       .legalForCartesianProduct({s1}, {s32, s64});
@@ -280,7 +272,7 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI, const MC680
       .clampScalar(1, s8, sMax);
 
   getActionDefinitionsBuilder(G_SELECT)
-      .legalForCartesianProduct(LegalTypes, {s1})
+      .legalForCartesianProduct(LegalTypesWithOne, {s1})
       .clampScalar(0, s8, sMax);
 
   getActionDefinitionsBuilder(

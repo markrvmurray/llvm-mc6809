@@ -171,6 +171,20 @@ inline static MC6809CC::CondCode getSwappedCondition(MC6809CC::CondCode CC) {
 }
 } // end namespace MC6809CC
 
+// The behind-by-one property of the std::reverse_iterator adaptor applied by
+// reverse() does not properly handle instruction erasures. This range construct
+// converts the forward iterators to native reverse iterators that are not
+// behind-by-one and therefore handle erasures correctly when combined with
+// make_early_inc_range().
+inline auto mbb_reverse(MachineBasicBlock::iterator Begin,
+                        MachineBasicBlock::iterator End) {
+  return make_range(MachineBasicBlock::reverse_iterator(End),
+                    MachineBasicBlock::reverse_iterator(Begin));
+}
+template <typename ContainerTy> inline auto mbb_reverse(ContainerTy &&C) {
+  return mbb_reverse(C.begin(), C.end());
+}
+
 } // namespace llvm
 
 #endif // not LLVM_LIB_TARGET_MC6809_MC6809_H

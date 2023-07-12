@@ -83,9 +83,23 @@ def switch_add_to_subtract : GICombineRule<
   (apply [{ return applySwitchAddToSubtract(*${root}, MRI, B, Observer, ${matchinfo});}])
 >;
 
+//  %3:accum(s16) = G_(ANY|S|Z)EXT %0:accum(s8)
+//  %4:accum(s16) = G_(ANY|S|Z)EXT %1:accum(s8)
+//  %10:accum(s8) = G_MUL %3:accum, %4:accum
+//   =>
+//  %10:accum(s8), %11:accum(s8) = G_EXPAND_MUL %0:accum(s8), %1:accum(s8)
+def natural_multiply_matchdata : GIDefMatchData<"std::pair<MachineInstr *, MachineInstr *>">;
+def natural_multiply : GICombineRule<
+  (defs root:$root, natural_multiply_matchdata:$matchinfo),
+  (match (wip_match_opcode G_MUL):$root,
+    [{ return matchNaturalMultiply(*${root}, MRI, ${matchinfo}); }]),
+  (apply [{ return applyNaturalMultiply(*${root}, MRI, B, Observer, ${matchinfo});}])
+>;
+
 // ============================================================================
 def MC6809CombinerHelper: GICombinerHelper<"MC6809GenCombinerHelper",
                                            [all_combines,
+                                            natural_multiply,
                                             // fold_global_offset,
                                             // fold_copy,
                                             // fold_pointer_ext_offset,

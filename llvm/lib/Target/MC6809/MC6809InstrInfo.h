@@ -167,7 +167,7 @@ public:
 private:
   // const MC6809RegisterBankInfo &RBI;
 
-  void copyPhysRegImpl(MachineIRBuilder &Builder, Register DestReg, Register SrcReg) const;
+  //void copyPhysRegImpl(MachineBasicBlock &MBB, MachineIRBuilder &Builder, Register DestReg, Register SrcReg) const;
 
   // Post RA pseudos
   void expandCallRelative(MachineIRBuilder &Builder, MachineInstr &MI) const;
@@ -181,11 +181,13 @@ private:
   void expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI) const;
 
   void expandNegate(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandMul8(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandShiftLeft(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandMul8_8(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandMul8_16(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandMul16Imm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandMul16IdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandMul16IdxReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandMul16Pop(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  //void expandMul16Pop(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandMul16Reg(MachineIRBuilder &Builder, MachineInstr &MI) const;
 
   void expandANDReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
@@ -196,18 +198,23 @@ private:
   void expandAdd32IdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandAdd32IdxReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
 
+  void expandAddSetCarryReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
+
   void expandSubImmRev(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandSubReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandSubPop(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  //void expandSubPop(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandSub32IdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandSub32IdxReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandSub32Pop(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  //void expandSub32Pop(MachineIRBuilder &Builder, MachineInstr &MI) const;
 
   // void expandCompareReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandCompareImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandCompare32Imm(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandComparePop(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  //void expandComparePop(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandCompareIdx(MachineIRBuilder &Builder, MachineInstr &MI) const;
+
+  void expandTestReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandTestReg32(MachineIRBuilder &Builder, MachineInstr &MI) const;
 
   void expandAdd32Imm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandSub32Imm(MachineIRBuilder &Builder, MachineInstr &MI) const;
@@ -246,12 +253,14 @@ private:
   DenseMap<Register, unsigned> SubBorrowImmediateOpcode;
   DenseMap<RegPlusOffsetLen, unsigned> SubBorrowIdxImmOpcode;
   DenseMap<RegPlusReg, unsigned> SubBorrowIdxRegOpcode;
-  DenseMap<Register, unsigned> SubBorrowPopOpcode;
+  //DenseMap<Register, unsigned> SubBorrowPopOpcode;
 
   DenseMap<Register, unsigned> CompareImmediateOpcode;
   DenseMap<RegPlusOffsetLen, unsigned> CompareIdxImmOpcode;
   DenseMap<RegPlusReg, unsigned> CompareIdxRegOpcode;
-  DenseMap<Register, unsigned> ComparePopOpcode;
+  //DenseMap<Register, unsigned> ComparePopOpcode;
+
+  DenseMap<Register, unsigned> TestRegOpcode;
 
   DenseMap<Register, unsigned> ANDImmediateOpcode;
   DenseMap<RegPlusOffsetLen, unsigned> ANDIdxImmOpcode;

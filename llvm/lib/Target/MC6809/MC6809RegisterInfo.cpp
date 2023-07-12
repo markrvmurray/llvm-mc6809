@@ -160,10 +160,26 @@ copyCost(Register DestReg, Register SrcReg, const MC6809Subtarget &STI) {
     if (AreClasses(MC6809::AWcRegClass, MC6809::AQcRegClass))
       return 0;
     return 1;
+  } else if (AreClasses(MC6809::BIT1RegClass, MC6809::ACC8RegClass)) {
+    return 0;
+  } else if (AreClasses(MC6809::ACC8RegClass, MC6809::BIT1RegClass)) {
+    return 0;
   } else if (AreClasses(MC6809::CCondRegClass, MC6809::ACC8RegClass)) {
-    return 2;
+    return 1;
   } else if (AreClasses(MC6809::ACC8RegClass, MC6809::CCondRegClass)) {
-    return 2;
+    return 1;
+  } else if (AreClasses(MC6809::BIT1RegClass, MC6809::CCFlagRegClass) || AreClasses(MC6809::BIT1RegClass, MC6809::CARRYRegClass)) {
+    return 16;
+  } else if (AreClasses(MC6809::CCFlagRegClass, MC6809::BIT1RegClass) || AreClasses(MC6809::CARRYRegClass, MC6809::BIT1RegClass)) {
+    return 16;
+  } else if (AreClasses(MC6809::ACC8RegClass, MC6809::AllArithFlagRegClass)) {
+    return 4;
+  } else if (AreClasses(MC6809::AllArithFlagRegClass, MC6809::ACC8RegClass)) {
+    return 4;
+  } else if (AreClasses(MC6809::ACC8RegClass, MC6809::ArithFlagRegClass)) {
+    return 8;
+  } else if (AreClasses(MC6809::ArithFlagRegClass, MC6809::ACC8RegClass)) {
+    return 8;
   }
   llvm_unreachable("Unexpected physical register copy cost.");
 }
