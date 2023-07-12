@@ -52,7 +52,8 @@ MC6809RegisterBankInfo::MC6809RegisterBankInfo(const TargetRegisterInfo &TRI) {
 
 const RegisterBank &
 MC6809RegisterBankInfo::getRegBankFromRegClass(const TargetRegisterClass &RC, LLT) const {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter\n";);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : RC.getID() = " << RC.getID() << "\n";);
+#if 0
   if (MC6809::ACC8RegClass.hasSubClassEq(&RC) ||
       MC6809::ACC16RegClass.hasSubClassEq(&RC) ||
       MC6809::ACC32RegClass.hasSubClassEq(&RC)) {
@@ -61,12 +62,49 @@ MC6809RegisterBankInfo::getRegBankFromRegClass(const TargetRegisterClass &RC, LL
   } else if (MC6809::INDEX16RegClass.hasSubClassEq(&RC)) {
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : INDEX\n";);
     return getRegBank(MC6809::INDEXRegBankID);
-  } else if (MC6809::CCondRegClass.hasSubClassEq(&RC)) {
+  } else if (MC6809::CCondRegClass.hasSubClassEq(&RC) ||
+             MC6809::AllArithFlagRegClass.hasSubClassEq(&RC) ||
+             MC6809::ArithFlagRegClass.hasSubClassEq(&RC) ||
+             MC6809::CCFlagRegClass.hasSubClassEq(&RC)) {
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : CC\n";);
     return getRegBank(MC6809::CCRegBankID);
-  } else if (MC6809::BIT1RegClass.hasSubClassEq(&RC)) {
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : CC(BIT1)\n";);
+  }
+#endif
+  switch (RC.getID()) {
+  case MC6809::CCondRegClassID:
+  case MC6809::CCcRegClassID:
+  case MC6809::CCFlagRegClassID:
+  case MC6809::CcRegClassID:
+  case MC6809::NcRegClassID:
+  case MC6809::VcRegClassID:
+  case MC6809::ZcRegClassID:
+  case MC6809::AllArithFlagRegClassID:
+  case MC6809::ArithFlagRegClassID:
+  case MC6809::NZVCcRegClassID:
+  case MC6809::NZcRegClassID:
     return getRegBank(MC6809::CCRegBankID);
+  case MC6809::BIT1RegClassID:
+  case MC6809::BIT8RegClassID:
+  case MC6809::AAcRegClassID:
+  case MC6809::ABcRegClassID:
+  case MC6809::AEcRegClassID:
+  case MC6809::AFcRegClassID:
+  case MC6809::ACC8_ABRegClassID:
+  case MC6809::ACC8RegClassID:
+  case MC6809::ADcRegClassID:
+  case MC6809::AWcRegClassID:
+  case MC6809::ACC16RegClassID:
+  case MC6809::AQcRegClassID:
+  case MC6809::ACC32RegClassID:
+    return getRegBank(MC6809::ACCUMRegBankID);
+  case MC6809::INDEX16RegClassID:
+  case MC6809::IXcRegClassID:
+  case MC6809::IYcRegClassID:
+  case MC6809::SUcRegClassID:
+  case MC6809::SScRegClassID:
+    return getRegBank(MC6809::INDEXRegBankID);
+  default:
+    break;
   }
   llvm_unreachable("Unsupported register kind.");
 }

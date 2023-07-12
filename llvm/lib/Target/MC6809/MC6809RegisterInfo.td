@@ -27,13 +27,14 @@ def sub_entire : MC6809SubRegIndex<1, 7>;
 def sub_firq : MC6809SubRegIndex<1, 6>;
 def sub_half : MC6809SubRegIndex<1, 5>;
 def sub_irq : MC6809SubRegIndex<1, 4>;
-def sub_negzero : MC6809SubRegIndex<2, 2>;
+def sub_negative : MC6809SubRegIndex<2, 2>;
+def sub_zero : MC6809SubRegIndex<1, 3>;
 def sub_overflow : MC6809SubRegIndex<1, 1>;
 def sub_carry : MC6809SubRegIndex<1, 0>;
 
 // 2-bit NZ subregister
-def sub_negative : MC6809SubRegIndex<1, 1>;
-def sub_zero : MC6809SubRegIndex<1, 0>;
+def sub_nz_negative : MC6809SubRegIndex<1, 1>;
+def sub_nz_zero : MC6809SubRegIndex<1, 0>;
 
 // Bits of the 8-bit processor status register set by most instructions.
 def sub_nzvc : MC6809SubRegIndex<4, 0>;
@@ -101,17 +102,21 @@ def C : MC6809Reg1<55, "C">;
 
 def NZ : MC6809Reg<65, "NZ"> {
   let SubRegs = [N, Z];
-  let SubRegIndices = [sub_negative, sub_zero];
+  let SubRegIndices = [sub_nz_negative, sub_nz_zero];
   let CoveredBySubRegs = true;
 }
 
 def NZVC : MC6809Reg<66, "NZVC"> {
-  let SubRegs = [NZ, V, C];
-  let SubRegIndices = [sub_negzero, sub_overflow, sub_carry];
+  let SubRegs = [N, Z, V, C];
+  let SubRegIndices = [sub_negative, sub_zero, sub_overflow, sub_carry];
   let CoveredBySubRegs = true;
 }
 
-def CC : MC6809Reg8<10, "cc", [E, F, H, I, NZVC], [sub_entire, sub_firq, sub_half, sub_irq, sub_nzvc]>;
+def CC : MC6809Reg<10, "cc"> {
+  let SubRegs = [E, F, H, I, N, Z, V, C];
+  let SubRegIndices = [sub_entire, sub_firq, sub_half, sub_irq, sub_negative, sub_zero, sub_overflow, sub_carry];
+  let CoveredBySubRegs = true;
+}
 
 
 def IX : MC6809Reg16<1,  "x" >;
@@ -126,7 +131,7 @@ def AV : MC6809Reg16<7,  "v" >;
 defm AA : MC6809Reg8<8,   "a">;
 defm AB : MC6809Reg8<9,   "b">;
 
-def AD : MC6809Reg16<0,  "d", [AA, AB], [sub_hi_byte, sub_lo_byte]>;
+def AD : MC6809Reg16<0,  "d", [AB, AA], [sub_lo_byte, sub_hi_byte]>;
 
 def DP : MC6809Reg8<11,  "dp">;
 
@@ -135,9 +140,9 @@ def A0 : MC6809Reg16<12, "0" >;
 defm AE : MC6809Reg8<14,  "e">;
 defm AF : MC6809Reg8<15,  "f">;
 
-def AW : MC6809Reg16<6,  "w", [AE, AF], [sub_hi_byte, sub_lo_byte]>;
+def AW : MC6809Reg16<6,  "w", [AF, AE], [sub_lo_byte, sub_hi_byte]>;
 
-def AQ : MC6809Reg32<16, "q", [AD, AW], [sub_hi_word, sub_lo_word]>;
+def AQ : MC6809Reg32<16, "q", [AW, AD], [sub_lo_word, sub_hi_word]>;
 
 def MD : MC6809Reg8<17,  "md">;
 
@@ -150,35 +155,35 @@ class MC6809RegClass<list<ValueType> regTypes, int alignment, dag regList>
         let Namespace = "MC6809";
 }
 
-class MC6809Reg1Class<dag RegList>: MC6809RegClass<[i1], 8, RegList> {
+class MC6809Reg1Class<dag RegList>: MC6809RegClass<[i1], 1, RegList>;/* {
   // The register is 1-bit wide, but takes 8 bits to spill.
-  let RegInfos = RegInfoByHwMode<[DefaultMode], [RegInfo<1, 8, 8>]>;
-}
-class MC6809Reg8Class<dag RegList>: MC6809RegClass<[i8], 8, RegList>;
-class MC6809Reg16Class<dag RegList>: MC6809RegClass<[i16], 8, RegList>;
-class MC6809Reg32Class<dag RegList>: MC6809RegClass<[i32], 8, RegList>;
+  //let RegInfos = RegInfoByHwMode<[DefaultMode], [RegInfo<1, 8, 8>]>;
+}*/
+class MC6809Reg2Class<dag RegList>  : MC6809RegClass<[i2], 8, RegList>;
+class MC6809Reg4Class<dag RegList>  : MC6809RegClass<[i4], 8, RegList>;
+class MC6809Reg8Class<dag RegList>  : MC6809RegClass<[i8], 8, RegList>;
+class MC6809Reg16Class<dag RegList> : MC6809RegClass<[i16], 8, RegList>;
+class MC6809Reg32Class<dag RegList> : MC6809RegClass<[i32], 8, RegList>;
 
 // Register grouping classes.
 let isPressureFineGrained = true in {
-  def ACC_LSB : MC6809Reg1Class<(add AALSB, ABLSB, AELSB, AFLSB)>;
-  // def NZVC_ACC_LSB : MC6809Reg1Class<(add N, Z, V, C, ACC_LSB)>;
-  def BIT1 : MC6809Reg1Class<(add E, F, H, I, N, Z, V, C, ACC_LSB)>;
+  //def BIT1 : MC6809Reg1Class<(add AALSB, ABLSB, AELSB, AFLSB)>;
+  def BIT1 : MC6809Reg1Class<(add AALSB, ABLSB)>;
+  // def NZVC_ACC_LSB : MC6809Reg1Class<(add N, Z, V, C, BIT1)>;
+  // def BIT1 : MC6809Reg1Class<(add ACC_LSB)>;
+  def CARRY : MC6809Reg1Class<(add C)>;
   def ACC8 : MC6809Reg8Class<(add AB, AA, AF, AE)> {
     let AltOrders = [(add AB, AA)];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().isHD6309() ? 0 : 1;}];
     let DiagnosticString = "operand must be an 8-bit accumulator";
   }
-  def ACC8_A : MC6809Reg8Class<(add AA)>; // MUL
-  def ACC8_B : MC6809Reg8Class<(add AB)>; // MUL
-  def ACC8_AB : MC6809Reg8Class<(add AB, AA)>; // MUL
+  def ACC8_AB : MC6809Reg8Class<(add AB, AA)>;
   def BIT8 : MC6809Reg8Class<(add AA, AB, CC)>; // Valid registers for BAND, BEOR, BOR, BIAND, BIEOR, BIOR, LDBT, STBT
   def ACC16 : MC6809Reg16Class<(add AD, AW)> {
     let AltOrders = [(add AD)];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().isHD6309() ? 0 : 1;}];
     let DiagnosticString = "operand must be a 16-bit accumulator";
   }
-  def ACC16_D : MC6809Reg16Class<(add AD)>; // MULD
-  def ACC16_W : MC6809Reg16Class<(add AW)>; // MULD
   def ACC32 : MC6809Reg32Class<(add AQ)> {
     let AltOrders = [(add)];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().isHD6309() ? 0 : 1;}];
@@ -198,12 +203,15 @@ let isPressureFineGrained = true in {
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().isHD6309() ? 0 : 1;}];
     let DiagnosticString = "operand must be a 16-bit register";
   }
+
+  def CCond : MC6809Reg8Class<(add CC)>;
 }
 
-def CCond : MC6809Reg8Class<(add CC)>;
 
-let isAllocatable = false in {
   def CCFlag : MC6809Reg1Class<(add E, F, H, I, N, Z, V, C)>;
+  def ArithFlag : MC6809Reg2Class<(add NZ)>;
+  def AllArithFlag : MC6809Reg2Class<(add NZVC)>;
+let isAllocatable = false in {
   def MDCond : MC6809Reg8Class<(add MD)>;
   def DtPage : MC6809Reg8Class<(add DP)>;
 }

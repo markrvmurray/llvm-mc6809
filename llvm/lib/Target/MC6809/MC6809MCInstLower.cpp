@@ -29,42 +29,12 @@ using namespace llvm;
 #define DEBUG_TYPE "mc6809-mcinstlower"
 
 void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
-  switch (MI->getOpcode()) {
-  default:OutMI.setOpcode(MI->getOpcode());
-    break;
-  case MC6809::ReturnImplicit: {
-    OutMI.setOpcode(MC6809::RTSr);
-    return;
-  }
-  case MC6809::ReturnIRQImplicit: {
-    OutMI.setOpcode(MC6809::RTIr);
-    return;
-  }
-  case MC6809::SEX16Implicit: {
-    OutMI.setOpcode(MC6809::SEXx);
-    return;
-  }
-  case MC6809::SEX32Implicit: {
-    OutMI.setOpcode(MC6809::SEXWx);
-    return;
-  }
-  case MC6809::ZEX16Implicit: {
-    OutMI.setOpcode(MC6809::CLRAa);
-    return;
-  }
-  case MC6809::ZEX32Implicit: {
-    OutMI.setOpcode(MC6809::CLRDa);
-    return;
-  }
-  }
-
   // Handle any real instructions that weren't generated from a pseudo.
-#ifndef NDEBUG
   if (MI->isPseudo()) {
-    dbgs() << *MI;
+    LLVM_DEBUG(dbgs() << "Pseudoinstruction was never lowered : "; MI->dump(););
     llvm_unreachable("Pseudoinstruction was never lowered.");
   }
-#endif
+  OutMI.setOpcode(MI->getOpcode());
   for (const MachineOperand &MO : MI->operands()) {
     MCOperand MCOp;
     if (lowerOperand(MO, MCOp))
@@ -73,8 +43,6 @@ void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
 }
 
 bool MC6809MCInstLower::lowerOperand(const MachineOperand &MO, MCOperand &MCOp) {
-  const MC6809RegisterInfo &TRI = *MO.getParent()->getMF()->getSubtarget<MC6809Subtarget>().getRegisterInfo();
-
   switch (MO.getType()) {
   default:
     report_fatal_error("Operand type not implemented.");

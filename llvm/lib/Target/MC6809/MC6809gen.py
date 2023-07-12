@@ -6,6 +6,23 @@ import copy
 from instructions import RawInstructions
 from indexmodes import IndexModes
 
+def defs(reg):
+	if reg in "AB":
+		return ["AD", "AQ"]
+	if reg == "D":
+		return ["AA", "AB", "AQ"]
+	if reg in "EF":
+		return ["AW", "AQ"]
+	if reg == "W":
+		return ["AE", "AF", "AQ"]
+	if reg == "Q":
+		return ["AA", "AB", "AD", "AE", "AF", "AW"]
+	if reg in "XY":
+		return ["I" + reg]
+	if reg in "SU":
+		return ["S" + reg]
+	raise Exception("OINQUE! Illegal register value '{}'".format(reg))
+
 class Generate:
 	def __init__(self, filename, marker_start="// MRVM START MARKER", marker_finish="// MRVM END MARKER"):
 		self.filename = filename
@@ -222,33 +239,33 @@ for instr_ in RawInstructions:
 				if reg in "ABDEFW":
 					if mnemonic == "ASL":
 						instr["uses"] = ["A" + reg]
-						instr["defs"] = ["A" + reg, "NZ", "V", "C"]
+						instr["defs"] = ["A" + reg, "NZ", "N", "Z", "V", "C"] + defs(reg)
 					if mnemonic == "ASR":
 						instr["uses"] = ["A" + reg, "C"]
-						instr["defs"] = ["A" + reg, "NZ", "C"]
+						instr["defs"] = ["A" + reg, "NZ", "N", "Z", "C"] + defs(reg)
 					if mnemonic == "CLR":
-						instr["defs"] = ["A" + reg, "NZ", "V", "C"]
+						instr["defs"] = ["A" + reg, "NZ", "N", "Z", "V", "C"] + defs(reg)
 					if mnemonic == "COM":
 						instr["uses"] = ["A" + reg]
-						instr["defs"] = ["A" + reg, "NZ", "V", "C"]
+						instr["defs"] = ["A" + reg, "NZ", "N", "Z", "V", "C"] + defs(reg)
 					if mnemonic == "DEC":
 						instr["uses"] = ["A" + reg]
-						instr["defs"] = ["A" + reg, "NZ", "V"]
+						instr["defs"] = ["A" + reg, "NZ", "N", "Z", "V"] + defs(reg)
 					if mnemonic == "INC":
 						instr["uses"] = ["A" + reg]
-						instr["defs"] = ["A" + reg, "NZ", "V"]
+						instr["defs"] = ["A" + reg, "NZ", "N", "Z", "V"] + defs(reg)
 					if mnemonic == "LSR":
 						instr["uses"] = ["A" + reg]
-						instr["defs"] = ["A" + reg, "NZ", "C"]
+						instr["defs"] = ["A" + reg, "NZ", "N", "Z", "C"] + defs(reg)
 					if mnemonic == "NEG":
 						instr["uses"] = ["A" + reg]
-						instr["defs"] = ["A" + reg, "NZ", "V", "C"]
+						instr["defs"] = ["A" + reg, "NZ", "N", "Z", "V", "C"] + defs(reg)
 					if mnemonic == "ROL":
 						instr["uses"] = ["A" + reg, "C"]
-						instr["defs"] = ["A" + reg, "NZ", "V", "C"]
+						instr["defs"] = ["A" + reg, "NZ", "N", "Z", "V", "C"] + defs(reg)
 					if mnemonic == "ROR":
 						instr["uses"] = ["A" + reg, "C"]
-						instr["defs"] = ["A" + reg, "NZ", "C"]
+						instr["defs"] = ["A" + reg, "NZ", "N", "Z", "C"] + defs(reg)
 				else:
 					print("Arithmetic sole accumulator register not handled:", instr)
 					sys.exit(1)
@@ -260,45 +277,45 @@ for instr_ in RawInstructions:
 			if instr["mnemonic"] in ["ASL", "ASR", "CLR", "COM", "DEC", "INC", "LSR", "NEG", "ROL", "ROR"]:
 				mnemonic = instr["mnemonic"]
 				if mnemonic == "ASL":
-					instr["defs"] = ["NZ", "V", "C"]
+					instr["defs"] = ["NZ", "N", "Z", "V", "C"]
 					instr["lets"]["mayLoad"] = "true"
 					instr["lets"]["mayStore"] = "true"
 				if mnemonic == "ASR":
 					instr["uses"] = ["C"]
-					instr["defs"] = ["NZ", "C"]
+					instr["defs"] = ["NZ", "N", "Z", "C"]
 					instr["lets"]["mayLoad"] = "true"
 					instr["lets"]["mayStore"] = "true"
 				if mnemonic == "CLR":
-					instr["defs"] = ["NZ", "V", "C"]
+					instr["defs"] = ["NZ", "N", "Z", "V", "C"]
 					instr["lets"]["mayStore"] = "true"
 				if mnemonic == "COM":
-					instr["defs"] = ["NZ", "V", "C"]
+					instr["defs"] = ["NZ", "N", "Z", "V", "C"]
 					instr["lets"]["mayLoad"] = "true"
 					instr["lets"]["mayStore"] = "true"
 				if mnemonic == "DEC":
-					instr["defs"] = ["NZ", "V"]
+					instr["defs"] = ["NZ", "N", "Z", "V"]
 					instr["lets"]["mayLoad"] = "true"
 					instr["lets"]["mayStore"] = "true"
 				if mnemonic == "INC":
-					instr["defs"] = ["NZ", "V"]
+					instr["defs"] = ["NZ", "N", "Z", "V"]
 					instr["lets"]["mayLoad"] = "true"
 					instr["lets"]["mayStore"] = "true"
 				if mnemonic == "LSR":
-					instr["defs"] = ["NZ", "C"]
+					instr["defs"] = ["NZ", "N", "Z", "C"]
 					instr["lets"]["mayLoad"] = "true"
 					instr["lets"]["mayStore"] = "true"
 				if mnemonic == "NEG":
-					instr["defs"] = ["NZ", "V", "C"]
+					instr["defs"] = ["NZ", "N", "Z", "V", "C"]
 					instr["lets"]["mayLoad"] = "true"
 					instr["lets"]["mayStore"] = "true"
 				if mnemonic == "ROL":
 					instr["uses"] = ["C"]
-					instr["defs"] = ["NZ", "V", "C"]
+					instr["defs"] = ["NZ", "N", "Z", "V", "C"]
 					instr["lets"]["mayLoad"] = "true"
 					instr["lets"]["mayStore"] = "true"
 				if mnemonic == "ROR":
 					instr["uses"] = ["C"]
-					instr["defs"] = ["NZ", "C"]
+					instr["defs"] = ["NZ", "N", "Z", "C"]
 					instr["lets"]["mayLoad"] = "true"
 					instr["lets"]["mayStore"] = "true"
 			else:
@@ -312,33 +329,33 @@ for instr_ in RawInstructions:
 				if reg in "ABDEFW":
 					if mnemonic == "ADD":
 						instr["uses"] += ["A" + reg]
-						instr["defs"] += ["A" + reg, "NZ", "V", "C"]
+						instr["defs"] += ["A" + reg, "NZ", "N", "Z", "V", "C"] + defs(reg)
 						instr["lets"]["mayLoad"] = "true"
 						instr["lets"]["isAdd"] = "true"
 					if mnemonic == "ADC":
 						instr["uses"] += ["A" + reg, "C"]
-						instr["defs"] += ["A" + reg, "NZ", "V", "C"]
+						instr["defs"] += ["A" + reg, "NZ", "N", "Z", "V", "C"] + defs(reg)
 						instr["lets"]["mayLoad"] = "true"
 						instr["lets"]["isAdd"] = "true"
 					if mnemonic == "SUB":
 						instr["uses"] += ["A" + reg]
-						instr["defs"] += ["A" + reg, "NZ", "V", "C"]
+						instr["defs"] += ["A" + reg, "NZ", "N", "Z", "V", "C"] + defs(reg)
 						instr["lets"]["mayLoad"] = "true"
 					if mnemonic == "SBC":
 						instr["uses"] += ["A" + reg, "C"]
-						instr["defs"] += ["A" + reg, "NZ", "V", "C"]
+						instr["defs"] += ["A" + reg, "NZ", "N", "Z", "V", "C"] + defs(reg)
 						instr["lets"]["mayLoad"] = "true"
 					if mnemonic == "AND":
 						instr["uses"] += ["A" + reg]
-						instr["defs"] += ["A" + reg, "NZ", "V"]
+						instr["defs"] += ["A" + reg, "NZ", "N", "Z", "V"] + defs(reg)
 						instr["lets"]["mayLoad"] = "true"
 					if mnemonic == "OR":
 						instr["uses"] += ["A" + reg]
-						instr["defs"] += ["A" + reg, "NZ", "V"]
+						instr["defs"] += ["A" + reg, "NZ", "N", "Z", "V"] + defs(reg)
 						instr["lets"]["mayLoad"] = "true"
 					if mnemonic == "EOR":
 						instr["uses"] += ["A" + reg]
-						instr["defs"] += ["A" + reg, "NZ", "V"]
+						instr["defs"] += ["A" + reg, "NZ", "N", "Z", "V"] + defs(reg)
 						instr["lets"]["mayLoad"] = "true"
 				else:
 					print("Arithmetic accumulator register not handled:", instr)
@@ -346,25 +363,25 @@ for instr_ in RawInstructions:
 			elif instr["mnemonic"] in ["DIVD", "DIVQ", "MULD"]:
 				if instr["mnemonic"] == "DIVD":
 					instr["uses"] = ["AD"]
-					instr["defs"] = ["AA", "AB", "NZ", "V", "C"]
+					instr["defs"] = ["NZ", "N", "Z", "V", "C"] + defs("D")
 					instr["lets"]["mayLoad"] = "true"
 				if instr["mnemonic"] == "DIVQ":
 					instr["uses"] = ["AQ"]
-					instr["defs"] = ["AW", "AD", "NZ", "V", "C"]
+					instr["defs"] = ["NZ", "N", "Z", "V", "C"] + defs("Q")
 					instr["lets"]["mayLoad"] = "true"
 				if instr["mnemonic"] == "MULD":
 					instr["uses"] = ["AD"]
-					instr["defs"] = ["AQ", "NZ"]
+					instr["defs"] = ["AQ", "NZ", "N", "Z"] + defs("Q")
 					instr["lets"]["mayLoad"] = "true"
 			elif instr["mnemonic"] in ["ANDCC", "ORCC"]:
-				instr["uses"] += ["NZ", "V", "C"]
-				instr["defs"] += ["NZ", "V", "C"]
+				instr["uses"] += ["NZ", "N", "Z", "V", "C"]
+				instr["defs"] += ["NZ", "N", "Z", "V", "C"]
 			else:
 				print("Arithmetic accumulator instruction not handled:", instr)
 				sys.exit(1)
 		elif instr["mode"] in ["id", "ie", "ii"]:
 			if instr["mnemonic"] in ["AIM", "OIM", "EIM"]:
-				instr["defs"] += ["NZ", "V"]
+				instr["defs"] += ["NZ", "N", "Z", "V"]
 				instr["lets"]["mayLoad"] = "true"
 				instr["lets"]["mayStore"] = "true"
 			else:
@@ -374,39 +391,53 @@ for instr_ in RawInstructions:
 			if instr["mnemonic"] in ["ADDR", "ADCR", "SUBR", "SBCR", "ANDR", "ORR", "EORR"]:
 				mnemonic = instr["mnemonic"]
 				if mnemonic == "ADDR":
-					instr["defs"] += ["NZ", "V", "C"]
+					instr["defs"] += ["NZ", "N", "Z", "V", "C"]
+					instr["ins"] += ["anyregister:$reg1","anyregister:$reg2"]
+					instr["outs"] += ["anyregister:$dst"]
 					instr["lets"]["isAdd"] = "true"
 				if mnemonic == "ADCR":
 					instr["uses"] += ["C"]
-					instr["defs"] += ["NZ", "V", "C"]
+					instr["defs"] += ["NZ", "N", "Z", "V", "C"]
+					instr["ins"] += ["anyregister:$reg1","anyregister:$reg2"]
+					instr["outs"] += ["anyregister:$dst"]
 					instr["lets"]["isAdd"] = "true"
 				if mnemonic == "SUBR":
-					instr["defs"] += ["NZ", "V", "C"]
+					instr["defs"] += ["NZ", "N", "Z", "V", "C"]
+					instr["ins"] += ["anyregister:$reg1","anyregister:$reg2"]
+					instr["outs"] += ["anyregister:$dst"]
 				if mnemonic == "SBCR":
 					instr["uses"] += ["C"]
-					instr["defs"] += ["NZ", "V", "C"]
+					instr["defs"] += ["NZ", "N", "Z", "V", "C"]
+					instr["ins"] += ["anyregister:$reg1","anyregister:$reg2"]
+					instr["outs"] += ["anyregister:$dst"]
 				if mnemonic == "ANDR":
-					instr["defs"] += ["NZ", "V"]
+					instr["defs"] += ["NZ", "N", "Z", "V"]
+					instr["ins"] += ["anyregister:$reg1","anyregister:$reg2"]
+					instr["outs"] += ["anyregister:$dst"]
 				if mnemonic == "ORR":
-					instr["defs"] += ["NZ", "V"]
+					instr["defs"] += ["NZ", "N", "Z", "V"]
+					instr["ins"] += ["anyregister:$reg1","anyregister:$reg2"]
+					instr["outs"] += ["anyregister:$dst"]
 				if mnemonic == "EORR":
-					instr["defs"] += ["NZ", "V"]
+					instr["defs"] += ["NZ", "N", "Z", "V"]
+					instr["ins"] += ["anyregister:$reg1","anyregister:$reg2"]
+					instr["outs"] += ["anyregister:$dst"]
 				instr["lets"]["Constraints"] += ["$dst = $reg2"]
 			else:
 				print("Arithmetic/Logical postbyte instruction not handled:", instr)
 		elif instr["mode"] == "x":
 			if instr["mnemonic"] == "DAA":
 				instr["uses"] = ["AA"]
-				instr["defs"] = ["AA", "NZ", "C"]
+				instr["defs"] = ["AA", "NZ", "N", "Z", "C"] + defs("A")
 			elif instr["mnemonic"] == "MUL":
 				instr["uses"] = ["AA", "AB"]
-				instr["defs"] = ["AD", "Z", "C"]
+				instr["defs"] = ["Z", "C"] + defs("D")
 			elif instr["mnemonic"] == "SEX":
 				instr["uses"] = ["AB"]
-				instr["defs"] = ["AD", "NZ"]
+				instr["defs"] = ["NZ", "N", "Z"] + defs("D")
 			elif instr["mnemonic"] == "SEXW":
 				instr["uses"] = ["AD"]
-				instr["defs"] = ["AQ", "NZ"]
+				instr["defs"] = ["NZ", "N", "Z"] + defs("Q")
 			else:
 				print("Arithmetic inherent instruction not handled:", instr)
 				sys.exit(1)
@@ -421,7 +452,7 @@ for instr_ in RawInstructions:
 				reg = instr["mnemonic"][-1:]
 				if reg in "ABDEFW":
 					instr["uses"] = ["A" + reg]
-					instr["defs"] = ["NZ", "V"]
+					instr["defs"] = ["NZ", "N", "Z", "V"]
 				else:
 					print("Test accumulator register not handled:", instr)
 					sys.exit(1)
@@ -431,7 +462,7 @@ for instr_ in RawInstructions:
 			instr["mode"] = instr["mode"][-1]
 		elif instr["mode"] in ["1d", "1e", "1i"]:
 			if instr["mnemonic"] in ["TST"]:
-				instr["defs"] = ["NZ", "V"]
+				instr["defs"] = ["NZ", "N", "Z", "V"]
 			else:
 				print("Test memory not handled:", instr)
 				sys.exit(1)
@@ -449,23 +480,23 @@ for instr_ in RawInstructions:
 						regclass = "S"
 					if mnemonic == "BIT":
 						instr["uses"] += [regclass + reg]
-						instr["defs"] += ["NZ", "V"]
+						instr["defs"] += ["NZ", "N", "Z", "V"]
 						instr["lets"]["mayLoad"] = "true"
 					if mnemonic == "CMP":
 						instr["uses"] += [regclass + reg]
-						instr["defs"] += ["NZ", "V", "C"]
+						instr["defs"] += ["NZ", "N", "Z", "V", "C"]
 						instr["lets"]["mayLoad"] = "true"
 				else:
 					print("Compare accumulator register not handled:", instr)
 					sys.exit(1)
 			elif instr["mnemonic"] in ["BITMD"]:
-				instr["defs"] += ["NZ"]
+				instr["defs"] += ["Z"]
 			else:
 				print("Compare accumulator instruction not handled:", instr)
 				sys.exit(1)
 		elif instr["mode"] in ["id", "ie", "ii"]:
 			if instr["mnemonic"] in ["TIM"]:
-				instr["defs"] += ["NZ", "V"]
+				instr["defs"] += ["NZ", "N", "Z", "V"]
 				instr["lets"]["mayLoad"] = "true"
 			else:
 				print("Compare immediate/memory instruction not handled:", instr)
@@ -473,7 +504,7 @@ for instr_ in RawInstructions:
 		elif instr["mode"] in ["p"]:
 			if instr["mnemonic"] in ["CMPR"]:
 				mnemonic = instr["mnemonic"]
-				instr["defs"] += ["NZ", "V"]
+				instr["defs"] += ["NZ", "N", "Z", "V"]
 			else:
 				print("Compare postbyte instruction not handled:", instr)
 		else:
@@ -534,7 +565,7 @@ for instr_ in RawInstructions:
 		if instr["mnemonic"][:-1] == "LD":
 			reg = instr["mnemonic"][-1:]
 			instr["lets"]["mayLoad"] = "true"
-			instr["defs"] = ["NZ","V"]
+			instr["defs"] = ["NZ", "N", "Z", "V"] + defs(reg)
 			if reg in "ABDEFWQ":
 				instr["outs"] = ["A" + reg + "c:$reg"]
 			elif reg in "XY":
@@ -545,20 +576,14 @@ for instr_ in RawInstructions:
 				print("Load register not handled:", instr)
 		if instr["mnemonic"][:-1] == "CLR":
 			reg = instr["mnemonic"][-1:]
-			instr["defs"] = ["NZ","V"]
-			instr["lets"]["mayLoad"] = "true"
 			if reg in "ABDEFWQ":
-				instr["outs"] = ["A" + reg + "c:$reg"]
-			elif reg in "XY":
-				instr["outs"] = ["I" + reg + "c:$reg"]
-			elif reg in "SU":
-				instr["outs"] = ["S" + reg + "c:$reg"]
+				instr["defs"] = ["NZ", "N", "Z", "V"] + defs(reg)
 			else:
-				print("Load register not handled:", instr)
+				print("Clear register not handled:", instr)
 	elif instr["function"] == "s":
 		if instr["mnemonic"][:-1] == "ST":
 			reg = instr["mnemonic"][-1:]
-			instr["defs"] = ["NZ","V"]
+			instr["defs"] = ["NZ", "N", "Z", "V"]
 			instr["lets"]["mayStore"] = "true"
 			if reg in "ABDEFWQ":
 				instr["ins"] = ["A" + reg + "c:$reg"]
@@ -569,7 +594,7 @@ for instr_ in RawInstructions:
 			else:
 				print("Store register not handled:", instr)
 		elif instr["mnemonic"] == "CLR":
-			instr["defs"] = ["NZ","V"]
+			instr["defs"] = ["NZ", "N", "Z", "V"]
 			instr["lets"]["mayStore"] = "true"
 	elif instr["function"] == "ss":
 		if instr["mnemonic"][0:4] in ["PSHS", "PULS"]:
@@ -661,8 +686,6 @@ for instr_ in RawInstructions:
 			instr["lets"]["isCompare"] = "true"
 		elif instr["mnemonic"][-1] == "R":
 			instr["addressmode"] += "Arithmetic"
-			instr["ins"] += ["anyregister:$reg1","anyregister:$reg2"]
-			instr["outs"] += ["anyregister:$dst"]
 		else:
 			print("Unknown register pair instruction ", instr)
 			sys.exit(0)
