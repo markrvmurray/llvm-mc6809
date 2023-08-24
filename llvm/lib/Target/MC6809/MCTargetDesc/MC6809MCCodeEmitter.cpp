@@ -46,10 +46,18 @@ void MC6809MCCodeEmitter::emitInstruction(uint64_t Val, unsigned Size,
   }
 }
 
-void MC6809MCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
-                                            SmallVectorImpl<MCFixup> &Fixups,
-                                            const MCSubtargetInfo &STI) const {
+static void emitLittleEndian(uint64_t Val, unsigned Size,
+                             SmallVectorImpl<char> &CB) {
+  for (int64_t I = 0; I < Size; ++I) {
+    CB.push_back((char)(Val & 0xff));
+    Val = Val >> 8;
+  }
+}
 
+void MC6809MCCodeEmitter::encodeInstruction(const MCInst &MI,
+                                         SmallVectorImpl<char> &CB,
+                                         SmallVectorImpl<MCFixup> &Fixups,
+                                         const MCSubtargetInfo &STI) const {
   const MCInstrDesc &Desc = MCII.get(MI.getOpcode());
   // Get byte count of instruction
   unsigned Size = Desc.getSize();
@@ -57,7 +65,7 @@ void MC6809MCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
   assert(Size > 0 && "Instruction size cannot be zero");
 
   uint64_t BinaryOpCode = getBinaryCodeForInstr(MI, Fixups, STI);
-  emitInstruction(BinaryOpCode, Size, STI, OS);
+  emitLittleEndian(BinaryOpCode, Size, CB);
 }
 
 template <MC6809::Fixups Fixup, unsigned Offset>

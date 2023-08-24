@@ -168,7 +168,7 @@ class MC6809Reg32Class<dag RegList> : MC6809RegClass<[i32], 8, RegList>;
 // Register grouping classes.
 let isPressureFineGrained = true in {
   //def BIT1 : MC6809Reg1Class<(add AALSB, ABLSB, AELSB, AFLSB)>;
-  def BIT1 : MC6809Reg1Class<(add AALSB, ABLSB)>;
+  def BIT1 : MC6809Reg1Class<(add AALSB, ABLSB, C)>;
   // def NZVC_ACC_LSB : MC6809Reg1Class<(add N, Z, V, C, BIT1)>;
   // def BIT1 : MC6809Reg1Class<(add ACC_LSB)>;
   def CARRY : MC6809Reg1Class<(add C)>;
@@ -184,6 +184,7 @@ let isPressureFineGrained = true in {
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().isHD6309() ? 0 : 1;}];
     let DiagnosticString = "operand must be a 16-bit accumulator";
   }
+  def ACC16_D : MC6809Reg8Class<(add AD)>;
   def ACC32 : MC6809Reg32Class<(add AQ)> {
     let AltOrders = [(add)];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().isHD6309() ? 0 : 1;}];

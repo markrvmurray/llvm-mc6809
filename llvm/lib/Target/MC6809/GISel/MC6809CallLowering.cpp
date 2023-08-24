@@ -108,7 +108,7 @@ struct MC6809OutgoingValueAssigner
     else
       Res = AssignFnVarArg(ValNo, ValVT, LocVT, LocInfo, Flags, State);
 
-    StackOffset = State.getNextStackOffset();
+    StackSize = State.getStackSize();
     return Res;
   }
 };
@@ -481,23 +481,23 @@ bool MC6809CallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder, cons
   }
 
   MC6809MachineFunctionInfo *FuncInfo = MF.getInfo<MC6809MachineFunctionInfo>();
-  uint64_t StackOffset = Assigner.StackOffset;
+  uint64_t StackSize = Assigner.StackSize;
   if (F.isVarArg()) {
-    StackOffset = alignTo(Assigner.StackOffset, 1);
+    StackSize = alignTo(Assigner.StackSize, 1);
     auto &MFI = MIRBuilder.getMF().getFrameInfo();
-    FuncInfo->setVarArgsFrameIndex(MFI.CreateFixedObject(4, StackOffset, true));
+    FuncInfo->setVarArgsFrameIndex(MFI.CreateFixedObject(4, StackSize, true));
   }
 
   if (doesCalleeRestoreStack(F.getCallingConv(), MF.getTarget().Options.GuaranteedTailCallOpt)) {
-    StackOffset = alignTo(StackOffset, 1);
-    FuncInfo->setArgumentStackToRestore(StackOffset);
+    StackSize = alignTo(StackSize, 1);
+    FuncInfo->setArgumentStackToRestore(StackSize);
   }
 
   // When we tail call, we need to check if the callee's arguments
   // will fit on the caller's stack. So, whenever we lower formal arguments,
   // we should keep track of this information, since we might lower a tail call
   // in this function later.
-  FuncInfo->setBytesInStackArgArea(StackOffset);
+  FuncInfo->setBytesInStackArgArea(StackSize);
 
   // Move back to the end of the basic block.
   MIRBuilder.setMBB(MBB);
@@ -592,7 +592,7 @@ bool MC6809CallLowering::areCalleeOutgoingArgsTailCallable(CallLoweringInfo &Inf
 
   // Make sure that they can fit on the caller's stack.
   const MC6809MachineFunctionInfo *FuncInfo = MF.getInfo<MC6809MachineFunctionInfo>();
-  if (OutInfo.getNextStackOffset() > FuncInfo->getBytesInStackArgArea()) {
+  if (OutInfo.getStackSize() > FuncInfo->getBytesInStackArgArea()) {
     LLVM_DEBUG(dbgs() << "... Cannot fit call operands on caller's stack.\n");
     return false;
   }
@@ -788,7 +788,7 @@ bool MC6809CallLowering::lowerTailCall(MachineIRBuilder &MIRBuilder, CallLowerin
     MC6809OutgoingValueAssigner CalleeAssigner(AssignFnFixed, AssignFnVarArg, Subtarget, /*IsReturn*/ false);
     if (!determineAssignments(CalleeAssigner, OutArgs, OutInfo))
       return false;
-    NumBytes = alignTo(OutInfo.getNextStackOffset(), 1);
+    NumBytes = alignTo(OutInfo.getStackSize(), 1);
 
     // FPDiff will be negative if this tail call requires more space than we
     // would automatically have in our incoming argument space. Positive if we
@@ -933,10 +933,10 @@ bool MC6809CallLowering::lowerCall(MachineIRBuilder &MIRBuilder, CallLoweringInf
       return false;
   }
 
-  uint64_t CalleePopBytes = doesCalleeRestoreStack(Info.CallConv, MF.getTarget().Options.GuaranteedTailCallOpt) ? alignTo(Assigner.StackOffset, 1) : 0;
+  uint64_t CalleePopBytes = doesCalleeRestoreStack(Info.CallConv, MF.getTarget().Options.GuaranteedTailCallOpt) ? alignTo(Assigner.StackSize, 1) : 0;
 
-  CallSeqStart.addImm(Assigner.StackOffset).addImm(0);
-  MIRBuilder.buildInstr(MC6809::ADJCALLSTACKUP).addImm(Assigner.StackOffset).addImm(CalleePopBytes);
+  CallSeqStart.addImm(Assigner.StackSize).addImm(0);
+  MIRBuilder.buildInstr(MC6809::ADJCALLSTACKUP).addImm(Assigner.StackSize).addImm(CalleePopBytes);
 
   return true;
 }

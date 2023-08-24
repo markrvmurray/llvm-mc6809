@@ -15,6 +15,7 @@
 #include "MC6809MachineFunctionInfo.h"
 #include "MC6809Subtarget.h"
 #include "MC6809TargetMachine.h"
+#include "llvm/CodeGen/GlobalISel/GenericMachineInstrs.h"
 #include "llvm/CodeGen/GlobalISel/LegalizerHelper.h"
 #include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
@@ -257,8 +258,8 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI, const MC680
       .customFor({p});
 
   getActionDefinitionsBuilder(G_ICMP)
-      .legalForCartesianProduct({s1},LegalTypes)
-      .clampScalar(1, s8, sMax);
+      .legalForCartesianProduct({s1}, LegalTypes16)
+      .clampScalar(1, s1, s16);
 
   getActionDefinitionsBuilder(G_FCMP)
       .legalForCartesianProduct({s1}, {s32, s64});
@@ -1059,27 +1060,26 @@ MC6809LegalizerInfo::legalizeMemIntrinsic(LegalizerHelper &Helper, MachineInstr 
 }
 #endif
 
-bool
-MC6809LegalizerInfo::legalizeIntrinsic(LegalizerHelper &Helper, MachineInstr &MI) const {
-  MachineIRBuilder &MIRBuilder = Helper.MIRBuilder;
-  MachineFunction &MF = MIRBuilder.getMF();
-  auto &Ctx = MF.getFunction().getContext();
-  auto &CLI = *MF.getSubtarget().getCallLowering();
-
-  switch (MI.getIntrinsicID()) {
+bool MC6809LegalizerInfo::legalizeIntrinsic(LegalizerHelper &Helper, MachineInstr &MI) const {
+  LLT P = LLT::pointer(0, 16);
+  MachineIRBuilder &Builder = Helper.MIRBuilder;
+  switch (cast<GIntrinsic>(MI).getIntrinsicID()) {
   case Intrinsic::trap: {
-    CallLowering::CallLoweringInfo Info;
-    Info.CallConv = CallingConv::C;
-    Info.Callee = MachineOperand::CreateES("abort");
-    Info.OrigRet = CallLowering::ArgInfo{std::nullopt, Type::getVoidTy(Ctx), 0};
-    if (!CLI.lowerCall(MIRBuilder, Info))
+    auto &Ctx = MI.getMF()->getFunction().getContext();
+    auto *RetTy = Type::getVoidTy(Ctx);
+    if (!createLibcall(Builder, "abort", {{}, RetTy, 0}, {}, CallingConv::C)) {
       return false;
-    break;
+    }
+    MI.eraseFromParent();
+    return true;
   }
-  default:
-    return false;
+  case Intrinsic::vacopy: {
+    MachinePointerInfo MPO;
+    auto Tmp = Builder.buildLoad(P, MI.getOperand(2),*MI.getMF()->getMachineMemOperand(MPO, MachineMemOperand::MOLoad, 2, Align()));
+    Builder.buildStore(Tmp, MI.getOperand(1), *MI.getMF()->getMachineMemOperand(MPO, MachineMemOperand::MOStore, 2, Align()));
+    MI.eraseFromParent();
+    return true;
   }
-
-  MI.eraseFromParent();
-  return true;
+  }
+  return false;
 }

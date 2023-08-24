@@ -14,6 +14,7 @@
 #include "MC6809FrameLowering.h"
 #include "MC6809Subtarget.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
+#include "llvm/ADT/SmallSet.h"                                      
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -47,7 +48,7 @@ BitVector MC6809RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   Reserved.set(MC6809::PC);
   Reserved.set(MC6809::SS);
   Reserved.set(MC6809::DP);
-  Reserved.set(MC6809::CC);
+  // Reserved.set(MC6809::CC);
   Reserved.set(MC6809::A0);
   Reserved.set(MC6809::AV);
   Reserved.set(MC6809::MD);

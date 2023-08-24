@@ -20,6 +20,7 @@
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
+#include "llvm/ADT/SmallSet.h"
 
 #define DEBUG_TYPE "mc6809-lower-select"
 
@@ -43,8 +44,8 @@ public:
   }
 
   MachineFunctionProperties getClearedProperties() const override {
-    return MachineFunctionProperties().set(
-        MachineFunctionProperties::Property::NoPHIs);
+    return MachineFunctionProperties()
+        .set(MachineFunctionProperties::Property::NoPHIs);
   }
 
   bool runOnMachineFunction(MachineFunction &MF) override;
@@ -80,8 +81,7 @@ Register getPhiValue(const MachineInstr &Phi, const MachineBasicBlock *MBB) {
   llvm_unreachable("Could not find MBB in G_PHI.");
 }
 
-bool referencesSuccessor(const MachineBasicBlock &MBB,
-                         const MachineBasicBlock *Tgt) {
+bool referencesSuccessor(const MachineBasicBlock &MBB, const MachineBasicBlock *Tgt) {
   for (const MachineInstr &MI : MBB.terminators())
     for (const MachineOperand &MO : MI.operands())
       if (MO.isMBB() && MO.getMBB() == Tgt)
@@ -89,8 +89,7 @@ bool referencesSuccessor(const MachineBasicBlock &MBB,
   return false;
 }
 
-void removePredecessorFromPhis(MachineBasicBlock *MBB,
-                               const MachineBasicBlock *PredMBB) {
+void removePredecessorFromPhis(MachineBasicBlock *MBB, const MachineBasicBlock *PredMBB) {
   for (MachineInstr &Phi : MBB->phis())
     for (unsigned Idx = 1; Idx < Phi.getNumOperands();)
       if (Phi.getOperand(Idx + 1).getMBB() == PredMBB) {
@@ -100,8 +99,7 @@ void removePredecessorFromPhis(MachineBasicBlock *MBB,
         Idx += 2;
 }
 
-MachineFunction::reverse_iterator
-MC6809LowerSelect::lowerSelect(MachineInstr &MI) {
+MachineFunction::reverse_iterator MC6809LowerSelect::lowerSelect(MachineInstr &MI) {
   assert(MI.getOpcode() == G_SELECT);
   Register Dst = MI.getOperand(0).getReg();
   Register Tst = MI.getOperand(1).getReg();
@@ -129,9 +127,7 @@ MC6809LowerSelect::lowerSelect(MachineInstr &MI) {
       if (MO.isReg() && MO.isUse())
         UsedRegs.insert(MO.getReg());
 
-    if (MBBI.getOpcode() == G_SELECT &&
-        MBBI.getOperand(1).getReg() == Tst &&
-        !UsedRegs.contains(MBBI.getOperand(0).getReg())) {
+    if (MBBI.getOpcode() == G_SELECT && MBBI.getOperand(1).getReg() == Tst && !UsedRegs.contains(MBBI.getOperand(0).getReg())) {
       LLVM_DEBUG(dbgs() << "Absorbing select with same test: " << MBBI);
       Dsts.push_back(MBBI.getOperand(0).getReg());
       TrueValues.push_back(MBBI.getOperand(2).getReg());
@@ -164,8 +160,7 @@ MC6809LowerSelect::lowerSelect(MachineInstr &MI) {
   MF.insert(It, SinkMBB);
 
   // Transfer the remainder of MBB and its successor edges to SinkMBB.
-  SinkMBB->splice(SinkMBB->begin(), &MBB, std::next(MI.getIterator()),
-                  MBB.end());
+  SinkMBB->splice(SinkMBB->begin(), &MBB, std::next(MI.getIterator()), MBB.end());
   SinkMBB->transferSuccessorsAndUpdatePHIs(&MBB);
 
   // Next, add the True and False blocks as its successors.
@@ -221,8 +216,7 @@ MC6809LowerSelect::lowerSelect(MachineInstr &MI) {
             return false;
           if (!MO.isDef())
             continue;
-          for (const MachineInstr &UseMI :
-               MRI.use_nodbg_instructions(MO.getReg()))
+          for (const MachineInstr &UseMI : MRI.use_nodbg_instructions(MO.getReg()))
             if (UseMI.getParent() != MBB)
               return false;
         }
@@ -290,14 +284,12 @@ MC6809LowerSelect::lowerSelect(MachineInstr &MI) {
   }
 
   // The True and False blocks both jump through to the Sink block.
-  if (TrueMBB->empty() ||
-      !TrueMBB->getLastNonDebugInstr()->isUnconditionalBranch()) {
+  if (TrueMBB->empty() || !TrueMBB->getLastNonDebugInstr()->isUnconditionalBranch()) {
     TrueMBB->addSuccessor(SinkMBB);
     Builder.setInsertPt(*TrueMBB, TrueMBB->end());
     Builder.buildInstr(G_BR).addMBB(SinkMBB);
   }
-  if (FalseMBB->empty() ||
-      !FalseMBB->getLastNonDebugInstr()->isUnconditionalBranch()) {
+  if (FalseMBB->empty() || !FalseMBB->getLastNonDebugInstr()->isUnconditionalBranch()) {
     FalseMBB->addSuccessor(SinkMBB);
     Builder.setInsertPt(*FalseMBB, FalseMBB->end());
     Builder.buildInstr(G_BR).addMBB(SinkMBB);
@@ -333,9 +325,7 @@ void MC6809LowerSelect::moveAwayFromCalls(MachineFunction &MF) {
         continue;
 
       SmallVector<MachineInstr *> PushedMIs;
-      SmallSet<Register,
-               CalculateSmallVectorDefaultInlinedElements<Register>::value>
-          UsedRegs;
+      SmallSet<Register, CalculateSmallVectorDefaultInlinedElements<Register>::value> UsedRegs;
 
       const auto DefinesUsedReg = [&](const MachineInstr &MI) {
         for (const MachineOperand &MO : MI.operands()) {
@@ -408,8 +398,7 @@ void MC6809LowerSelect::sinkSelectsToBranchUses(MachineFunction &MF) {
 
 char MC6809LowerSelect::ID = 0;
 
-INITIALIZE_PASS(MC6809LowerSelect, DEBUG_TYPE,
-                "Lower MC6809 Select pseudo-instruction", false, false)
+INITIALIZE_PASS(MC6809LowerSelect, DEBUG_TYPE, "Lower MC6809 Select pseudo-instruction", false, false)
 
 MachineFunctionPass *llvm::createMC6809LowerSelectPass() {
   return new MC6809LowerSelect();

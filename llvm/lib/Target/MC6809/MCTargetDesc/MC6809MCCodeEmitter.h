@@ -85,7 +85,7 @@ private:
   void emitInstruction(uint64_t Val, unsigned Size, const MCSubtargetInfo &STI,
                        raw_ostream &OS) const;
 
-  void encodeInstruction(const MCInst &MI, raw_ostream &OS,
+  void encodeInstruction(const MCInst &MI, SmallVectorImpl<char> &CB,
                          SmallVectorImpl<MCFixup> &Fixups,
                          const MCSubtargetInfo &STI) const override;
 
@@ -95,9 +95,11 @@ private:
   const MCInstrInfo &MCII;
   MCContext &Ctx;
 
+#if 0
   void
   verifyInstructionPredicates(const MCInst &MI,
                               const FeatureBitset &AvailableFeatures) const;
+#endif
 };
 
 } // namespace llvm
