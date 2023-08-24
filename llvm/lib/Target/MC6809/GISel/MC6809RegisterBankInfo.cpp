@@ -47,7 +47,6 @@ MC6809RegisterBankInfo::MC6809RegisterBankInfo(const TargetRegisterInfo &TRI) {
   // The ACCUM register bank is fully defined by all the registers in
   // AQ + its subclasses.
   assert(RBACCUM.covers(*TRI.getRegClass(MC6809::ACC32RegClassID)) && "Subclass not added?");
-  assert(RBACCUM.getSize() == 32 && "ACCs should hold up to 32 bits");
 }
 
 const RegisterBank &
@@ -243,7 +242,7 @@ MC6809RegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
   return getInstructionMapping(DefaultMappingID, /* Cost */ 1, getOperandsMapping(OpdsMapping), NumOperands);
 }
 
-void MC6809RegisterBankInfo::applyMappingImpl(const OperandsMapper &OpdMapper) const {
+void MC6809RegisterBankInfo::applyMappingImpl(MachineIRBuilder &Builder, const OperandsMapper &OpdMapper) const {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter\n";);
   return applyDefaultMapping(OpdMapper);
 }

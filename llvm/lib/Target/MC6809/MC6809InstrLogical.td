@@ -71,8 +71,146 @@ let Predicates = [IsHD6309] in {
 }
 
 //===---------------------------------------------------------------------===//
+// Loads and Stores
+//===---------------------------------------------------------------------===//
+// Load base class
+class MC6809LoadBase<RegisterClass dst, dag operand> : MC6809PseudoInstr {
+  let Defs = [NZ, V];
+  let mayLoad = true;
+  dag OutOperandList = (outs dst:$dst);
+  dag InOperandList = operand;
+}
+
+multiclass MC6809Load<RegisterClass dst, ValueType vtype> {
+  let isAsCheapAsAMove = true, isMoveImm = true, isReMaterializable = true in {
+    def _Imm : MC6809LoadBase<dst, (ins !cast<Operand>(vtype#"imm"):$imm)>;
+  }
+//  def _Abs : MC6809LoadBase<dst, (ins addr16:$addr)>;
+//  def _Idx : MC6809LoadBase<dst, (ins INDEX16:$idx, unknown:$offset)>;
+//  def _Idx_Inc : MC6809LoadBase<dst, src, (ins INDEX16:$idx)>;
+//  def _Dec_Idx : MC6809LoadBase<dst, src, (ins INDEX16:$idx)>;
+//  def _Indir : MC6809LoadBase<dst, (ins INDEX16:$idx, unknown:$offset)>;
+  let mayLoad = true in {
+    def _Abs : MC6809LoadBase<dst, (ins addr16:$addr)>;
+    def _Idx_Imm : MC6809LoadBase<dst, (ins INDEX16:$idx, i16imm:$offset)>;
+    def _Idx_Reg8 : MC6809LoadBase<dst, (ins INDEX16:$idx, ACC8:$offset)>;
+    def _Idx_Reg16 : MC6809LoadBase<dst, (ins INDEX16:$idx, ACC16:$offset)>;
+    def _Idx_Inc : MC6809LoadBase<dst, (ins INDEX16:$idx)>;
+    def _Dec_Idx : MC6809LoadBase<dst, (ins INDEX16:$idx)>;
+    def _Indir : MC6809LoadBase<dst, (ins INDEX16:$idx, unknown:$offset)>;
+  }
+}
+
+// All the loads
+defm Load_i8 : MC6809Load<ACC8, i8>;
+defm Load_i16 : MC6809Load<ACC16, i16>;
+defm Load_iPtr : MC6809Load<INDEX16, i16>;
+let Predicates = [IsHD6309] in {
+  defm Load_i32 : MC6809Load<ACC32, i32>;
+}
+
+// Loads a boolean value into a NZVC bit or an ACC8 LSB
+def Load_i1_Imm : MC6809PseudoInstr {
+  dag OutOperandList = (outs BIT1:$dst);
+  dag InOperandList = (ins i1imm:$val);
+  let isAsCheapAsAMove = true;
+  let isMoveImm = true;
+//let isReMaterializable = true;
+}
+
+def : Pat<(i1 imm:$s), (Load_i1_Imm imm:$s)>;
+
+multiclass MC6809LoadPat<ValueType vtype> {
+  def _Imm : Pat<(vtype imm:$val), (!cast<Instruction>("Load_"#vtype#"_Imm") imm:$val)>;
+  def _Idx_Zero : Pat<(vtype (load INDEX16:$idx)), (!cast<Instruction>("Load_"#vtype#"_Idx_Imm") INDEX16:$idx, (i16 0))>;
+  def _Idx_Imm : Pat<(vtype (load (am_ls_indexed_imm_offset INDEX16:$idx, i16imm:$offset))), (!cast<Instruction>("Load_"#vtype#"_Idx_Imm") INDEX16:$idx, i16imm:$offset)>;
+  def _Idx_Reg8 : Pat<(vtype (load (am_ls_indexed_imm_offset INDEX16:$idx, ACC8:$offset))), (!cast<Instruction>("Load_"#vtype#"_Idx_Reg8") INDEX16:$idx, ACC8:$offset)>;
+  def _Idx_Reg16 : Pat<(vtype (load (am_ls_indexed_imm_offset INDEX16:$idx, ACC16:$offset))), (!cast<Instruction>("Load_"#vtype#"_Idx_Reg16") INDEX16:$idx, ACC16:$offset)>;
+}
+
+defm LoadPat_i8 : MC6809LoadPat<i8>;
+defm LoadPat_i16 : MC6809LoadPat<i16>;
+let Predicates = [IsHD6309] in {
+  defm LoadPat_i32 : MC6809LoadPat<i32>;
+}
+
+// Store base class
+class MC6809StoreBase<RegisterClass src, dag operand> : MC6809PseudoInstr {
+  let Defs = [NZ, V];
+  let mayStore = true;
+  dag OutOperandList = (outs);
+  dag InOperandList = !con((ins src:$src), operand);
+}
+
+multiclass MC6809Store<RegisterClass src> {
+  def _Abs : MC6809StoreBase<src, (ins addr16:$addr)>;
+  def _Idx : MC6809StoreBase<src, (ins INDEX16:$idx, unknown:$offset)>;
+  def _Indir : MC6809StoreBase<src, (ins INDEX16:$idx, unknown:$offset)>;
+}
+
+// All the stores
+defm Store_i8 : MC6809Store<ACC8>;
+defm Store_i16 : MC6809Store<ACC16>;
+defm Store_iPtr : MC6809Store<INDEX16>;
+let Predicates = [IsHD6309] in {
+  defm Store_i32 : MC6809Store<ACC32>;
+}
+
+multiclass MC6809StorePat<ValueType vtype, RegisterClass reg> {
+  def _#vtype#_Idx_Zero : Pat<(store reg:$src, INDEX16:$idx), (!cast<Instruction>("Store_"#vtype#"_Idx") reg:$src, INDEX16:$idx, (i64 0))>;
+  def _#vtype#_Idx_Imm : Pat<(store reg:$src, (am_ls_indexed_imm_offset INDEX16:$idx, i16imm:$offset)), (!cast<Instruction>("Store_"#vtype#"_Idx") reg:$src, INDEX16:$idx, i16imm:$offset)>;
+  def _#vtype#_Idx_Reg8 : Pat<(store reg:$src, (am_ls_indexed_imm_offset INDEX16:$idx, ACC8:$offset)), (!cast<Instruction>("Store_"#vtype#"_Idx") reg:$src, INDEX16:$idx, ACC8:$offset)>;
+  def _#vtype#_Idx_Reg16 : Pat<(store reg:$src, (am_ls_indexed_imm_offset INDEX16:$idx, ACC16:$offset)), (!cast<Instruction>("Store_"#vtype#"_Idx") reg:$src, INDEX16:$idx, ACC16:$offset)>;
+}
+
+defm StorePat_i8 : MC6809StorePat<i8, ACC8>;
+defm StorePat_i16 : MC6809StorePat<i16, ACC16>;
+defm StorePat_iPtr : MC6809StorePat<i16, INDEX16>;
+let Predicates = [IsHD6309] in {
+  defm StorePat_i32 : MC6809StorePat<i32, ACC32>;
+}
+
+//===---------------------------------------------------------------------===//
 // Addition/subtraction
 //===---------------------------------------------------------------------===//
+
+// Ignoring carry
+
+class MC6809ArithmeticBase<RegisterClass dst, RegisterClass src, dag operand> : MC6809PseudoInstr {
+  let Defs = [NZ, V, C];
+  dag OutOperandList = (outs dst:$dst);
+  dag InOperandList = !con((ins src:$src), operand);
+  let Constraints = "$dst = $src";
+}
+
+multiclass MC6809Arithmetic<ValueType vtype, RegisterClass dst, RegisterClass src> {
+  let isAsCheapAsAMove = true, isReMaterializable = true in {
+    def _Imm : MC6809ArithmeticBase<dst, src, (ins !cast<Operand>(vtype#"imm"):$val)>;
+  }
+  let mayLoad = true in {
+    def _Abs : MC6809ArithmeticBase<dst, src, (ins addr16:$addr)>;
+    def _Idx_Imm : MC6809ArithmeticBase<dst, src, (ins INDEX16:$idx, i16imm:$offset)>;
+    def _Idx_Reg8 : MC6809ArithmeticBase<dst, src, (ins INDEX16:$idx, ACC8:$offset)>;
+    def _Idx_Reg16 : MC6809ArithmeticBase<dst, src, (ins INDEX16:$idx, ACC16:$offset)>;
+    def _Idx_Inc : MC6809ArithmeticBase<dst, src, (ins INDEX16:$idx)>;
+    def _Dec_Idx : MC6809ArithmeticBase<dst, src, (ins INDEX16:$idx)>;
+    def _Indir : MC6809ArithmeticBase<dst, src, (ins INDEX16:$idx, unknown:$offset)>;
+    def _Reg : MC6809ArithmeticBase<dst, src, (ins src:$src2)>;
+  }
+}
+
+let isAdd = true in {
+  defm Add_i8 : MC6809Arithmetic<i8, ACC8, ACC8>;
+  defm Add_i16 : MC6809Arithmetic<i16, ACC16, ACC16>;
+  let Predicates = [IsHD6309] in {
+    defm Add_i32 : MC6809Arithmetic<i32, ACC32, ACC32>;
+  }
+}
+defm Sub_i8 : MC6809Arithmetic<i8, ACC8, ACC8>;
+defm Sub_i16 : MC6809Arithmetic<i16, ACC16, ACC16>;
+let Predicates = [IsHD6309] in {
+  defm Sub_i32 : MC6809Arithmetic<i32, ACC32, ACC32>;
+}
 
 // Setting carry
 
@@ -124,17 +262,28 @@ multiclass MC6809ArithPat<SDNode node, ValueType vtype, RegisterClass reg, strin
   def _Idx_Imm : Pat<(vtype (node reg:$src, (am_am_indexed_imm_offset INDEX16:$idx, i16imm:$offset))), (!cast<Instruction>(inst#"_"#vtype#"_Idx_Imm") reg:$src, INDEX16:$idx, imm:$offset)>;
   def _Idx_Reg8 : Pat<(vtype (node reg:$src, (am_am_indexed_imm_offset INDEX16:$idx, ACC8:$offset))), (!cast<Instruction>(inst#"_"#vtype#"_Idx_Reg8") reg:$src, INDEX16:$idx, ACC8:$offset)>;
   def _Idx_Reg16 : Pat<(vtype (node reg:$src, (am_am_indexed_imm_offset INDEX16:$idx, ACC16:$offset))), (!cast<Instruction>(inst#"_"#vtype#"_Idx_Reg16") reg:$src, INDEX16:$idx, ACC16:$offset)>;
-  def _Reg : Pat<(vtype (node reg:$src, reg:$src2)), (!cast<Instruction>(inst#"_"#vtype#"_Reg") reg:$src, reg:$src2)>;
+  if !not(!eq(vtype, i32)) then {
+    def _Reg : Pat<(vtype (node reg:$src, reg:$src2)), (!cast<Instruction>(inst#"_"#vtype#"_Reg") reg:$src, reg:$src2)>;
+  }
 }
 
-defm AddPat_i8 : MC6809ArithPat<add, i8, ACC8, "AddSetCarry">;
-defm SubPat_i8 : MC6809ArithPat<sub, i8, ACC8, "SubSetCarry">;
-defm AddPat_ii6 : MC6809ArithPat<add, i16, ACC16, "AddSetCarry">;
-defm SubPat_ii6 : MC6809ArithPat<sub, i16, ACC16, "SubSetCarry">;
-let Predicates = [IsHD6309] in {
-  defm AddPat_i32 : MC6809ArithPat<add, i32, ACC32, "AddSetCarry">;
-  defm SubPat_i32 : MC6809ArithPat<sub, i32, ACC32, "SubSetCarry">;
+multiclass MC6809ArithRevPat<SDNode node, ValueType vtype, RegisterClass reg, string inst> {
+  def _Imm : Pat<(vtype (node (am_am_immediate !cast<Operand>(vtype#"imm"):$val), reg:$src)), (!cast<Instruction>("Negate_"#vtype) (!cast<Instruction>(inst#"_"#vtype#"_Imm") reg:$src, imm:$val))>;
+  //def _Imm : Pat<(vtype (node (am_am_immediate i32imm:$val), reg:$src)), (!cast<Instruction>(inst#"_"#vtype#"_Imm") reg:$src, imm:$val)>;
 }
+
+defm AddPat_i8 : MC6809ArithPat<add, i8, ACC8, "Add">;
+defm SubPat_i8 : MC6809ArithPat<sub, i8, ACC8, "Sub">;
+defm SubRevPat_i8 : MC6809ArithRevPat<sub, i8, ACC8, "Sub">;
+defm AddPat_ii6 : MC6809ArithPat<add, i16, ACC16, "Add">;
+defm SubPat_ii6 : MC6809ArithPat<sub, i16, ACC16, "Sub">;
+defm SubRevPat_ii6 : MC6809ArithRevPat<sub, i16, ACC16, "Sub">;
+let Predicates = [IsHD6309] in {
+  defm AddPat_i32 : MC6809ArithPat<add, i32, ACC32, "Add">;
+  defm SubPat_i32 : MC6809ArithPat<sub, i32, ACC32, "Sub">;
+  defm SubRevPat_i32 : MC6809ArithRevPat<sub, i32, ACC32, "Sub">;
+}
+//def SubRevPat_i32_Imm : Pat<(i32 (sub (am_am_immediate i32imm:$val), ACC32:$src)), (Negate_i32 (Sub_i32_Imm ACC32:$src, imm:$val))>;
 
 let Predicates = [IsHD6309] in {
   defm MulPat_i16 : MC6809ArithPat<mul, i16, ADc, "MulSetCarry">;
@@ -147,7 +296,7 @@ let Predicates = [IsHD6309] in {
 class MC6809ArithmeticBaseCarryUse<RegisterClass dst, RegisterClass src, dag operand> : MC6809PseudoInstr {
   let Defs = [NZ, V];
   dag OutOperandList = (outs dst:$dst, CARRY:$carry);
-  dag InOperandList = !con((ins src:$src), operand, (ins CARRY:$carry_in));
+  dag InOperandList = !con((ins src:$src, CARRY:$carry_in), operand);
   let Constraints = "$dst = $src";
 }
 
@@ -173,6 +322,12 @@ let isAdd = true in {
   let Predicates = [IsHD6309] in {
     defm AddSetCarryuse_i32 : MC6809ArithmeticCarryUse<i32, ACC32, ACC32>;
   }
+}
+
+defm SubSetCarryUse_i8 : MC6809ArithmeticCarryUse<i8, ACC8, ACC8>;
+defm SubSetCarryuse_i16 : MC6809ArithmeticCarryUse<i16, ACC16, ACC16>;
+let Predicates = [IsHD6309] in {
+  defm SubSetCarryuse_i32 : MC6809ArithmeticCarryUse<i32, ACC32, ACC32>;
 }
 
 //===---------------------------------------------------------------------===//
@@ -225,22 +380,22 @@ defm XORPat_i16 : MC6809ArithPat<xor, i16, ADc, "XOR">;
 
 // Bit-testing
 
-class MC6809BitBase<RegisterClass reg, dag operand> : MC6809PseudoInstr {
-  let isCompare = true;
-  // let Defs = [NZ, V];
-  dag OutOperandList = (outs i1:$cc);
-  dag InOperandList = !con((ins reg:$reg), operand);
-}
+//class MC6809BitBase<RegisterClass reg, dag operand> : MC6809PseudoInstr {
+//  let isCompare = true;
+//  // let Defs = [NZ, V];
+//  dag OutOperandList = (outs i1:$cc);
+//  dag InOperandList = !con((ins reg:$reg), operand);
+//}
 
-multiclass MC6809Bit<RegisterClass reg> {
-  def Imm : MC6809BitBase<reg, (ins i16imm:$imm)>;
-  def Reg : MC6809BitBase<reg, (ins reg:$src)>;
-  let mayLoad = true in {
-    def Abs : MC6809BitBase<reg, (ins addr16:$addr)>;
-    def Idx : MC6809BitBase<reg, (ins INDEX16:$idx, unknown:$offset)>;
-    def Indir : MC6809BitBase<reg, (ins INDEX16:$idx, unknown:$offset)>;
-  }
-}
+//multiclass MC6809Bit<RegisterClass reg> {
+//  def Imm : MC6809BitBase<reg, (ins i16imm:$imm)>;
+//  def Reg : MC6809BitBase<reg, (ins reg:$src)>;
+//  let mayLoad = true in {
+//    def Abs : MC6809BitBase<reg, (ins addr16:$addr)>;
+//    def Idx : MC6809BitBase<reg, (ins INDEX16:$idx, unknown:$offset)>;
+//    def Indir : MC6809BitBase<reg, (ins INDEX16:$idx, unknown:$offset)>;
+//  }
+//}
 
 //defm Bit_i8 : MC6809Bit<ACC8_AB>;
 //defm Bit_i16 : MC6809Bit<ADc>;
@@ -383,6 +538,8 @@ class MC6809ConditionalBranch : MC6809Branch {
 def ConditionalBranchRelative : MC6809ConditionalBranch;
 def ConditionalLongBranchRelative : MC6809ConditionalBranch;
 
+//def BranchCondBit : Pat<(brcond i1:$bit, bb:$tgt), (ConditionalBranchRelative (i4 5), bb:$tgt, BIT1:$bit)>;
+
 // Subroutines
 
 class MC6809Subroutine : MC6809PseudoInstr {
@@ -435,6 +592,7 @@ class MC6809CompareBase<RegisterClass reg, dag operand> : MC6809PseudoInstr {
   //let Defs = [NZVC, NZ, N, Z, V, C];
   dag OutOperandList = (outs CCond:$dst);
   dag InOperandList = !con((ins i8imm:$cc, reg:$src), operand);
+  let isCompare = true;
 }
 
 multiclass MC6809Compare<ValueType vtype, RegisterClass reg> {
@@ -489,6 +647,7 @@ class MC6809TestBase<dag operand> : MC6809PseudoInstr {
   //let Defs = [NZVC, NZ, N, Z, V, C];
   dag OutOperandList = (outs CCond:$dst);
   dag InOperandList = !con((ins i8imm:$cc), operand);
+  let isCompare = true;
 }
 
 multiclass MC6809Test<RegisterClass reg> {
@@ -504,9 +663,7 @@ multiclass MC6809Test<RegisterClass reg> {
 
 defm Test_i8 : MC6809Test<ACC8_AB>;
 defm Test_i16 : MC6809Test<ACC16>;
-let Predicates = [IsHD6309] in {
-  defm Test_i32 : MC6809Test<ACC32>;
-}
+defm Test_i32 : MC6809Test<ACC32>;
 
 multiclass MC6809TestPat<CondCode CC, int cc, ValueType vtype, RegisterClass reg> {
   def _Reg : Pat<(i8 (setcc (vtype 0), reg:$src, CC)), (!cast<Instruction>("Test_"#vtype#"_Reg") cc, reg:$src)>;
@@ -518,9 +675,7 @@ multiclass MC6809TestPat<CondCode CC, int cc, ValueType vtype, RegisterClass reg
 multiclass MC6809TestCondPat<CondCode CC, int ccode> {
   defm _i8 : MC6809TestPat<CC, ccode, i8, ACC8_AB>;
   defm _i16 : MC6809TestPat<CC, ccode, i16, ACC16>;
-  let Predicates = [IsHD6309] in {
-    defm _i32 : MC6809TestPat<CC, ccode, i32, ACC32>;
-  }
+  defm _i32 : MC6809TestPat<CC, ccode, i32, ACC32>;
 }
 
 defm TestPat_HI : MC6809TestCondPat<SETUGT, 2>;
@@ -533,6 +688,59 @@ defm TestPat_LE : MC6809TestCondPat<SETLE, 15>;
 defm TestPat_LT : MC6809TestCondPat<SETLT, 13>;
 defm TestPat_EQ : MC6809TestCondPat<SETEQ, 7>;
 defm TestPat_NE : MC6809TestCondPat<SETNE, 6>;
+
+// Bit instructions - like compare, but the comparison operation is AND rather than subtract.
+
+class MC6809BitTestBase<RegisterClass reg, dag operand> : MC6809PseudoInstr {
+  //let Defs = [NZVC, NZ, N, Z, V, C];
+  dag OutOperandList = (outs CCond:$dst);
+  dag InOperandList = !con((ins i8imm:$cc, reg:$src), operand);
+  let isCompare = true;
+}
+
+multiclass MC6809BitTest<ValueType vtype, RegisterClass reg> {
+  let isAsCheapAsAMove = true, isReMaterializable = true in {
+    def _Imm : MC6809BitTestBase<reg, (ins !cast<Operand>(vtype#"imm"):$imm)>;
+  }
+  def _Reg : MC6809BitTestBase<reg, (ins reg:$src2)>;
+  let mayLoad = true in {
+    def _Abs : MC6809BitTestBase<reg, (ins addr16:$addr)>;
+    def _Idx_Imm : MC6809BitTestBase<reg, (ins INDEX16:$idx, i16imm:$offset)>;
+    def _Idx_Reg8 : MC6809BitTestBase<reg, (ins INDEX16:$idx, ACC8:$offset)>;
+    def _Idx_Reg16 : MC6809BitTestBase<reg, (ins INDEX16:$idx, ACC16:$offset)>;
+    def _Indir : MC6809BitTestBase<reg, (ins INDEX16:$idx, unknown:$offset)>;
+  }
+}
+
+defm BitTest_i8 : MC6809BitTest<i8, ACC8_AB>;
+let Predicates = [IsHD6309] in {
+  defm BitTest_i16 : MC6809BitTest<i16, ACC16_D>;
+}
+
+//multiclass MC6809BitTestPat<CondCode CC, int cc, ValueType vtype, RegisterClass reg> {
+//  def _Imm : Pat<(i8 (setcc (vtype 1), imm:$val, CC)), (!cast<Instruction>("BitTest_"#vtype#"_Imm") cc, reg:$src, imm:$val)>;
+//  def _Idx_Imm : Pat<(i8 (setcc (vtype 1), (am_am_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), (!cast<Instruction>("BitTest_"#vtype#"_Idx_Imm") cc, (Load_i8_Imm, INDEX16:$idx, i16imm:$offset)>;
+//  def _Idx_Reg8 : Pat<(i8 (setcc (vtype 1), (am_am_indexed_imm_offset INDEX16:$idx, ACC8:$offset), CC)), (!cast<Instruction>("BitTest_"#vtype#"_Idx_Reg8") cc, reg:$src, INDEX16:$idx, ACC8:$offset)>;
+//  def _Idx_Reg16 : Pat<(i8 (setcc (vtype 1), (am_am_indexed_imm_offset INDEX16:$idx, ACC16:$offset), CC)), (!cast<Instruction>("BitTest_"#vtype#"_Idx_Reg16") cc, reg:$src, INDEX16:$idx, ACC16:$offset)>;
+//}
+
+//multiclass MC6809BitTestCondPat<CondCode CC, int ccode> {
+//  defm _i8 : MC6809BitTestPat<CC, ccode, i8, ACC8_AB>;
+//  let Predicates = [IsHD6309] in {
+//    defm _i16 : MC6809BitTestPat<CC, ccode, i16, ACC16_D>;
+//  }
+//}
+
+//defm BitTestPat_HI : MC6809BitTestCondPat<SETUGT, 2>;
+//defm BitTestPat_HS : MC6809BitTestCondPat<SETUGE, 4>;
+//defm BitTestPat_LS : MC6809BitTestCondPat<SETULE, 3>;
+//defm BitTestPat_LO : MC6809BitTestCondPat<SETULT, 5>;
+//defm BitTestPat_GT : MC6809BitTestCondPat<SETGT, 14>;
+//defm BitTestPat_GE : MC6809BitTestCondPat<SETGE, 12>;
+//defm BitTestPat_LE : MC6809BitTestCondPat<SETLE, 15>;
+//defm BitTestPat_LT : MC6809BitTestCondPat<SETLT, 13>;
+//defm BitTestPat_EQ : MC6809BitTestCondPat<SETEQ, 7>;
+//defm BitTestPat_NE : MC6809BitTestCondPat<SETNE, 6>;
 
 //===---------------------------------------------------------------------===//
 // Fused Compare/Branch patterns
@@ -577,9 +785,7 @@ multiclass MC6809TestBraPat<CondCode CC, int cc, ValueType vtype, RegisterClass 
 multiclass MC6809TestBraCondPat<CondCode CC, int ccode> {
   defm _i8 : MC6809TestBraPat<CC, ccode, i8, ACC8_AB>;
   defm _i16 : MC6809TestBraPat<CC, ccode, i16, ACC16>;
-  let Predicates = [IsHD6309] in {
-    defm _i32 : MC6809TestBraPat<CC, ccode, i32, ACC32>;
-  }
+  defm _i32 : MC6809TestBraPat<CC, ccode, i32, ACC32>;
 }
 
 defm TestBraPat_HI : MC6809TestBraCondPat<SETUGT, 2>;
@@ -694,106 +900,6 @@ def ZEX32Implicit : MC6809PseudoInstr {
   dag OutOperandList = (outs ACC32:$dst);
   let Pattern = [(set ACC32:$dst, (zext AWc:$src))];
   let Predicates = [IsHD6309];
-}
-
-//===---------------------------------------------------------------------===//
-// Loads and Stores
-//===---------------------------------------------------------------------===//
-// Load base class
-class MC6809LoadBase<RegisterClass dst, dag operand> : MC6809PseudoInstr {
-  let Defs = [NZ, V];
-  let mayLoad = true;
-  dag OutOperandList = (outs dst:$dst);
-  dag InOperandList = operand;
-}
-
-multiclass MC6809Load<RegisterClass dst, ValueType vtype> {
-  let isAsCheapAsAMove = true, isMoveImm = true, isReMaterializable = true in {
-    def _Imm : MC6809LoadBase<dst, (ins !cast<Operand>(vtype#"imm"):$imm)>;
-  }
-//  def _Abs : MC6809LoadBase<dst, (ins addr16:$addr)>;
-//  def _Idx : MC6809LoadBase<dst, (ins INDEX16:$idx, unknown:$offset)>;
-//  def _Idx_Inc : MC6809LoadBase<dst, src, (ins INDEX16:$idx)>;
-//  def _Dec_Idx : MC6809LoadBase<dst, src, (ins INDEX16:$idx)>;
-//  def _Indir : MC6809LoadBase<dst, (ins INDEX16:$idx, unknown:$offset)>;
-  let mayLoad = true in {
-    def _Abs : MC6809LoadBase<dst, (ins addr16:$addr)>;
-    def _Idx_Imm : MC6809LoadBase<dst, (ins INDEX16:$idx, i16imm:$offset)>;
-    def _Idx_Reg8 : MC6809LoadBase<dst, (ins INDEX16:$idx, ACC8:$offset)>;
-    def _Idx_Reg16 : MC6809LoadBase<dst, (ins INDEX16:$idx, ACC16:$offset)>;
-    def _Idx_Inc : MC6809LoadBase<dst, (ins INDEX16:$idx)>;
-    def _Dec_Idx : MC6809LoadBase<dst, (ins INDEX16:$idx)>;
-    def _Indir : MC6809LoadBase<dst, (ins INDEX16:$idx, unknown:$offset)>;
-  }
-}
-
-// All the loads
-defm Load_i8 : MC6809Load<ACC8, i8>;
-defm Load_i16 : MC6809Load<ACC16, i16>;
-defm Load_iPtr : MC6809Load<INDEX16, i16>;
-let Predicates = [IsHD6309] in {
-  defm Load_i32 : MC6809Load<ACC32, i32>;
-}
-
-// Loads a boolean value into a NZVC bit or an ACC8 LSB
-def Load_i1_Imm : MC6809PseudoInstr {
-  dag OutOperandList = (outs BIT1:$dst);
-  dag InOperandList = (ins i1imm:$val);
-  let isAsCheapAsAMove = true;
-  let isMoveImm = true;
-//let isReMaterializable = true;
-}
-
-def : Pat<(i1 imm:$s), (Load_i1_Imm imm:$s)>;
-
-multiclass MC6809LoadPat<ValueType vtype> {
-  def _Imm : Pat<(vtype imm:$val), (!cast<Instruction>("Load_"#vtype#"_Imm") imm:$val)>;
-  def _Idx_Zero : Pat<(vtype (load INDEX16:$idx)), (!cast<Instruction>("Load_"#vtype#"_Idx_Imm") INDEX16:$idx, (i16 0))>;
-  def _Idx_Imm : Pat<(vtype (load (am_ls_indexed_imm_offset INDEX16:$idx, i16imm:$offset))), (!cast<Instruction>("Load_"#vtype#"_Idx_Imm") INDEX16:$idx, i16imm:$offset)>;
-  def _Idx_Reg8 : Pat<(vtype (load (am_ls_indexed_imm_offset INDEX16:$idx, ACC8:$offset))), (!cast<Instruction>("Load_"#vtype#"_Idx_Reg8") INDEX16:$idx, ACC8:$offset)>;
-  def _Idx_Reg16 : Pat<(vtype (load (am_ls_indexed_imm_offset INDEX16:$idx, ACC16:$offset))), (!cast<Instruction>("Load_"#vtype#"_Idx_Reg16") INDEX16:$idx, ACC16:$offset)>;
-}
-
-defm LoadPat_i8 : MC6809LoadPat<i8>;
-defm LoadPat_i16 : MC6809LoadPat<i16>;
-let Predicates = [IsHD6309] in {
-  defm LoadPat_i32 : MC6809LoadPat<i32>;
-}
-
-// Store base class
-class MC6809StoreBase<RegisterClass src, dag operand> : MC6809PseudoInstr {
-  let Defs = [NZ, V];
-  let mayStore = true;
-  dag OutOperandList = (outs);
-  dag InOperandList = !con((ins src:$src), operand);
-}
-
-multiclass MC6809Store<RegisterClass src> {
-  def _Abs : MC6809StoreBase<src, (ins addr16:$addr)>;
-  def _Idx : MC6809StoreBase<src, (ins INDEX16:$idx, unknown:$offset)>;
-  def _Indir : MC6809StoreBase<src, (ins INDEX16:$idx, unknown:$offset)>;
-}
-
-// All the stores
-defm Store_i8 : MC6809Store<ACC8>;
-defm Store_i16 : MC6809Store<ACC16>;
-defm Store_iPtr : MC6809Store<INDEX16>;
-let Predicates = [IsHD6309] in {
-  defm Store_i32 : MC6809Store<ACC32>;
-}
-
-multiclass MC6809StorePat<ValueType vtype, RegisterClass reg> {
-  def _#vtype#_Idx_Zero : Pat<(store reg:$src, INDEX16:$idx), (!cast<Instruction>("Store_"#vtype#"_Idx") reg:$src, INDEX16:$idx, (i64 0))>;
-  def _#vtype#_Idx_Imm : Pat<(store reg:$src, (am_ls_indexed_imm_offset INDEX16:$idx, i16imm:$offset)), (!cast<Instruction>("Store_"#vtype#"_Idx") reg:$src, INDEX16:$idx, i16imm:$offset)>;
-  def _#vtype#_Idx_Reg8 : Pat<(store reg:$src, (am_ls_indexed_imm_offset INDEX16:$idx, ACC8:$offset)), (!cast<Instruction>("Store_"#vtype#"_Idx") reg:$src, INDEX16:$idx, ACC8:$offset)>;
-  def _#vtype#_Idx_Reg16 : Pat<(store reg:$src, (am_ls_indexed_imm_offset INDEX16:$idx, ACC16:$offset)), (!cast<Instruction>("Store_"#vtype#"_Idx") reg:$src, INDEX16:$idx, ACC16:$offset)>;
-}
-
-defm StorePat_i8 : MC6809StorePat<i8, ACC8>;
-defm StorePat_i16 : MC6809StorePat<i16, ACC16>;
-defm StorePat_iPtr : MC6809StorePat<i16, INDEX16>;
-let Predicates = [IsHD6309] in {
-  defm StorePat_i32 : MC6809StorePat<i32, ACC32>;
 }
 
 //===---------------------------------------------------------------------===//

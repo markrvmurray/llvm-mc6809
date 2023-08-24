@@ -1250,17 +1250,23 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::XOR_i16_Reg:
     expandXORReg(Builder, MI);
     break;
+  case MC6809::Add_i8_Imm:
+  case MC6809::Add_i16_Imm:
   case MC6809::AddSetCarry_i8_Imm:
   case MC6809::AddSetCarry_i16_Imm:
     expandImm(AddImm, Builder, MI);
     break;
+  case MC6809::Add_i32_Imm:
   case MC6809::AddSetCarry_i32_Imm:
     expandAdd32Imm(Builder, MI);
     break;
+  case MC6809::Add_i8_Idx_Imm:
+  case MC6809::Add_i16_Idx_Imm:
   case MC6809::AddSetCarry_i8_Idx_Imm:
   case MC6809::AddSetCarry_i16_Idx_Imm:
     expandIdxImm(AddIdxImm, Builder, MI);
     break;
+  case MC6809::Add_i32_Idx_Imm:
   case MC6809::AddSetCarry_i32_Idx_Imm:
     expandAdd32IdxImm(Builder, MI);
     break;
@@ -1286,19 +1292,23 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::AddSetCarry_i16_Reg:
     expandAddSetCarryReg(Builder, MI);
     break;
+  case MC6809::Sub_i8_Imm:
+  case MC6809::Sub_i16_Imm:
   case MC6809::SubSetCarry_i8_Imm:
   case MC6809::SubSetCarry_i16_Imm:
     expandImm(SubImm, Builder, MI);
     break;
-#if 0
+  case MC6809::Sub_i32_Imm:
   case MC6809::SubSetCarry_i32_Imm:
     expandSub32Imm(Builder, MI);
     break;
-#endif
+  case MC6809::Sub_i8_Idx_Imm:
+  case MC6809::Sub_i16_Idx_Imm:
   case MC6809::SubSetCarry_i8_Idx_Imm:
   case MC6809::SubSetCarry_i16_Idx_Imm:
     expandIdxImm(SubIdxImm, Builder, MI);
     break;
+  case MC6809::Sub_i32_Idx_Imm:
   case MC6809::SubSetCarry_i32_Idx_Imm:
     expandSub32IdxImm(Builder, MI);
     break;
@@ -1458,7 +1468,7 @@ int MC6809InstrInfo::offsetSizeInBits(MachineOperand &OffsetOp) {
 
 void MC6809InstrInfo::expandCallRelative(MachineIRBuilder &Builder, MachineInstr &MI) const {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
-  MI.setDesc(Builder.getTII().get(MC6809::LBSRlb));
+  MI.setDesc(Builder.getTII().get(MC6809::BSRb));
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
 }
 
@@ -2037,16 +2047,19 @@ void MC6809InstrInfo::expandAdd32Imm(MachineIRBuilder &Builder, MachineInstr &MI
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit\n";);
 }
 
-#if 0
 void MC6809InstrInfo::expandSub32Imm(MachineIRBuilder &Builder, MachineInstr &MI) const {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
+  auto operandCount = MI.getNumExplicitOperands();
   MachineOperand DestReg = MI.getOperand(0);
-  assert(DestReg.getReg() == MC6809::AQ && "32-bit add must have q as the target register");
-  MachineOperand ValOp = MI.getOperand(2);
-  int64_t Val = ValOp.isImm() ? ValOp.getImm() : ValOp.getCImm()->getSExtValue();
+  assert(DestReg.getReg() == MC6809::AQ && "32-bit subtract must have q as the target register");
+  int64_t Val;
+  auto ValOp = MI.getOperand(operandCount - 1);
+  if (ValOp.isImm() || ValOp.isCImm())
+    Val = ValOp.isImm() ? ValOp.getImm() : ValOp.getCImm()->getSExtValue();
+  else
+    llvm_unreachable("No constant argument found for 32-bit subtract immediate");
   int64_t ValLo = Val & 0xFFFF;
   int64_t ValHi = (Val >> 16) & 0xFFFF;
-
   auto SubLo = Builder.buildInstr(MC6809::SUBWi16)
                    .addImm(ValLo);
   SubLo->addImplicitDefUseOperands(*MI.getMF());
@@ -2055,10 +2068,9 @@ void MC6809InstrInfo::expandSub32Imm(MachineIRBuilder &Builder, MachineInstr &MI
                    .addImm(ValHi);
   SubHi->addImplicitDefUseOperands(*MI.getMF());
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : SubHi : = "; SubHi->dump(););
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit\n";);
   MI.eraseFromParent();
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit\n";);
 }
-#endif
 
 #if 0
 void MC6809InstrInfo::expandSub32ImmRev(MachineIRBuilder &Builder, MachineInstr &MI) const {
@@ -2134,7 +2146,7 @@ void MC6809InstrInfo::expandAdd32IdxImm(MachineIRBuilder &Builder, MachineInstr 
     .addImm(Offset)
     .addUse(IndexOp.getReg());
   } else
-    llvm_unreachable("Unknown offset type for AddCarryIdx");
+    llvm_unreachable("Unknown offset type for index");
   AddLo->addImplicitDefUseOperands(*MI.getMF());
   AddHi->addImplicitDefUseOperands(*MI.getMF());
   MI.eraseFromParent();
@@ -2251,12 +2263,19 @@ void MC6809InstrInfo::expandSubReg(MachineIRBuilder &Builder, MachineInstr &MI) 
   assert(MI.getOperand(0).getReg() == MI.getOperand(2).getReg() && "Dest and Source 1 must be same for SUBReg");
 
   if (IsHD6309) {
-    unsigned Opcode = MC6809::SUBRp;
-    auto SUBReg = Builder.buildInstr(Opcode)
-                      .addDef(MI.getOperand(0).getReg())
-                      .addDef(MI.getOperand(1).getReg())
-                      .addUse(MI.getOperand(3).getReg())
-                      .addUse(MI.getOperand(2).getReg());
+    MachineInstrBuilder SUBReg;
+    if (MI.getOperand(1).isDead()) {
+      SUBReg = Builder.buildInstr(MC6809::SUBRp)
+                   .addDef(MI.getOperand(0).getReg())
+                   .addUse(MI.getOperand(3).getReg())
+                   .addUse(MI.getOperand(2).getReg());
+    } else {
+      SUBReg = Builder.buildInstr(MC6809::SBCRp)
+                   .addDef(MI.getOperand(0).getReg())
+                   .addDef(MI.getOperand(1).getReg())
+                   .addUse(MI.getOperand(3).getReg())
+                   .addUse(MI.getOperand(2).getReg());
+    }
     SUBReg->addImplicitDefUseOperands(*MI.getMF());
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : SUBReg = "; SUBReg->dump(););
   } else {
