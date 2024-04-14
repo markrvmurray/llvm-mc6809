@@ -1,4 +1,4 @@
-//===--- MC6809MCELFStreamer.h - MC6809 subclass of MCELFStreamer ---------===//
+//===--------- MC6809MCELFStreamer.h - MC6809 subclass of MCELFStreamer ---------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -20,35 +20,47 @@
 namespace llvm {
 
 class MC6809MCELFStreamer : public MCELFStreamer {
-  // std::unique_ptr<MCInstrInfo> MCII;
+  std::unique_ptr<MCInstrInfo> MCII;
 
 public:
-  MC6809MCELFStreamer(MCContext &Context, std::unique_ptr<MCAsmBackend> TAB,
-                      std::unique_ptr<MCObjectWriter> OW,
-                      std::unique_ptr<MCCodeEmitter> Emitter)
-      : MCELFStreamer(Context, std::move(TAB), std::move(OW),
-                      std::move(Emitter)) // ,
-        /* MCII(createMC6809MCInstrInfo()) */ {}
+  MC6809MCELFStreamer(MCContext &Context, std::unique_ptr<MCAsmBackend> TAB, std::unique_ptr<MCObjectWriter> OW, std::unique_ptr<MCCodeEmitter> Emitter)
+      : MCELFStreamer(Context, std::move(TAB), std::move(OW), std::move(Emitter)), MCII(createMC6809MCInstrInfo()) {}
 
   void initSections(bool NoExecStack, const MCSubtargetInfo &STI) override;
   void changeSection(MCSection *Section, const MCExpr *Subsection) override;
 
-  void emitValueImpl(const MCExpr *Value, unsigned Size,
-                     SMLoc Loc = SMLoc()) override;
+  void emitInstruction(const MCInst &Inst, const MCSubtargetInfo &STI) override;
 
+  void emitValueImpl(const MCExpr *Value, unsigned Size, SMLoc Loc = SMLoc()) override;
+
+  void emitMosAddrAsciz(const MCExpr *Value, unsigned Size, SMLoc Loc = SMLoc());
+
+  void emitMappingSymbol(StringRef Name);
+  void emit816MXState(bool IsMLow, bool IsMHigh, bool IsXLow, bool IsXHigh);
+
+  bool hasBSS() const { return HasBSS; }
+  bool hasDPBSS() const { return HasDPBSS; }
+  bool hasData() const { return HasData; }
+  bool hasDPData() const { return HasDPData; }
   bool hasInitArray() const { return HasInitArray; }
   bool hasFiniArray() const { return HasFiniArray; }
 
 private:
+  enum MXFlagState { MXFlagUnknown, MXFlagLow, MXFlagHigh };
+
+  int64_t MappingSymbolCounter = 0;
+  bool HasBSS = false;
+  bool HasDPBSS = false;
+  bool HasData = false;
+  bool HasDPData = false;
   bool HasInitArray = false;
   bool HasFiniArray = false;
+  bool Has6309Instructions = false;
+  MXFlagState MState = MXFlagUnknown;
+  MXFlagState XState = MXFlagUnknown;
 };
 
-MCStreamer *createMC6809MCELFStreamer(const Triple &T, MCContext &Ctx,
-                                      std::unique_ptr<MCAsmBackend> &&TAB,
-                                      std::unique_ptr<MCObjectWriter> &&OW,
-                                      std::unique_ptr<MCCodeEmitter> &&Emitter,
-                                      bool RelaxAll);
+MCStreamer *createMC6809MCELFStreamer(const Triple &T, MCContext &Ctx, std::unique_ptr<MCAsmBackend> &&TAB, std::unique_ptr<MCObjectWriter> &&OW, std::unique_ptr<MCCodeEmitter> &&Emitter, bool RelaxAll);
 
 } // end namespace llvm
 

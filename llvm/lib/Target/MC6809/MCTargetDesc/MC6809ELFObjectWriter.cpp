@@ -27,17 +27,12 @@ class MC6809ELFObjectWriter : public MCELFObjectTargetWriter {
 public:
   explicit MC6809ELFObjectWriter(uint8_t OSABI);
 
-  unsigned getRelocType(MCContext &Ctx, const MCValue &Target,
-                        const MCFixup &Fixup, bool IsPCRel) const override;
+  unsigned getRelocType(MCContext &Ctx, const MCValue &Target, const MCFixup &Fixup, bool IsPCRel) const override;
 };
 
-MC6809ELFObjectWriter::MC6809ELFObjectWriter(uint8_t OSABI)
-    : MCELFObjectTargetWriter(false, OSABI, ELF::EM_MC6809, true) {}
+MC6809ELFObjectWriter::MC6809ELFObjectWriter(uint8_t OSABI) : MCELFObjectTargetWriter(false, OSABI, ELF::EM_MC6809, true) {}
 
-unsigned MC6809ELFObjectWriter::getRelocType(MCContext &Ctx,
-                                             const MCValue &Target,
-                                             const MCFixup &Fixup,
-                                             bool IsPCRel) const {
+unsigned MC6809ELFObjectWriter::getRelocType(MCContext &Ctx, const MCValue &Target, const MCFixup &Fixup, bool IsPCRel) const {
   MCSymbolRefExpr::VariantKind Modifier = Target.getAccessVariant();
   switch ((unsigned)Fixup.getKind()) {
   case FK_Data_1:
@@ -75,9 +70,6 @@ unsigned MC6809ELFObjectWriter::getRelocType(MCContext &Ctx,
   }
 }
 
-std::unique_ptr<MCObjectTargetWriter>
-createMC6809ELFObjectWriter(uint8_t OSABI) {
-  return std::make_unique<MC6809ELFObjectWriter>(OSABI);
-}
+std::unique_ptr<MCObjectTargetWriter> createMC6809ELFObjectWriter(uint8_t OSABI) { return std::make_unique<MC6809ELFObjectWriter>(OSABI); }
 
 } // end of namespace llvm

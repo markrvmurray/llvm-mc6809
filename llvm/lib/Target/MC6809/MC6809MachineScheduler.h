@@ -22,11 +22,9 @@ class MC6809SchedStrategy : public GenericScheduler {
 public:
   MC6809SchedStrategy(const MachineSchedContext *C);
 
-  bool tryCandidate(SchedCandidate &Cand, SchedCandidate &TryCand,
-                    SchedBoundary *Zone) const override;
+  bool tryCandidate(SchedCandidate &Cand, SchedCandidate &TryCand, SchedBoundary *Zone) const override;
 
-  int registerClassPressureDiff(const TargetRegisterClass &RC, const SUnit *SU,
-                                bool IsTop) const;
+  int registerClassPressureDiff(const TargetRegisterClass &RC, const SUnit *SU, bool IsTop) const;
 };
 
 } // namespace llvm

@@ -12,15 +12,15 @@
 
 #include "MC6809LowerSelect.h"
 
-#include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "MC6809.h"
+#include "MCTargetDesc/MC6809MCTargetDesc.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
 #include "llvm/CodeGen/GlobalISel/Utils.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
-#include "llvm/ADT/SmallSet.h"
 
 #define DEBUG_TYPE "mc6809-lower-select"
 
@@ -33,20 +33,11 @@ class MC6809LowerSelect : public MachineFunctionPass {
 public:
   static char ID;
 
-  MC6809LowerSelect() : MachineFunctionPass(ID) {
-    llvm::initializeMC6809LowerSelectPass(*PassRegistry::getPassRegistry());
-  }
+  MC6809LowerSelect() : MachineFunctionPass(ID) { llvm::initializeMC6809LowerSelectPass(*PassRegistry::getPassRegistry()); }
 
-  MachineFunctionProperties getRequiredProperties() const override {
-    return MachineFunctionProperties()
-        .set(MachineFunctionProperties::Property::IsSSA)
-        .set(MachineFunctionProperties::Property::Legalized);
-  }
+  MachineFunctionProperties getRequiredProperties() const override { return MachineFunctionProperties().set(MachineFunctionProperties::Property::IsSSA).set(MachineFunctionProperties::Property::Legalized); }
 
-  MachineFunctionProperties getClearedProperties() const override {
-    return MachineFunctionProperties()
-        .set(MachineFunctionProperties::Property::NoPHIs);
-  }
+  MachineFunctionProperties getClearedProperties() const override { return MachineFunctionProperties().set(MachineFunctionProperties::Property::NoPHIs); }
 
   bool runOnMachineFunction(MachineFunction &MF) override;
   void sinkSelectsToBranchUses(MachineFunction &MF);
@@ -301,12 +292,7 @@ MachineFunction::reverse_iterator MC6809LowerSelect::lowerSelect(MachineInstr &M
     //  ...
     Builder.setInsertPt(*SinkMBB, SinkMBB->begin());
     for (const auto &[Dst, TrueValue, FalseValue] : zip(Dsts, TrueValues, FalseValues)) {
-      Builder.buildInstr(G_PHI)
-          .addDef(Dst)
-          .addUse(TrueValue)
-          .addMBB(TrueMBB)
-          .addUse(FalseValue)
-          .addMBB(FalseMBB);
+      Builder.buildInstr(G_PHI).addDef(Dst).addUse(TrueValue).addMBB(TrueMBB).addUse(FalseValue).addMBB(FalseMBB);
     }
   }
   for (const auto Select : SelectsToRemove)
@@ -400,6 +386,4 @@ char MC6809LowerSelect::ID = 0;
 
 INITIALIZE_PASS(MC6809LowerSelect, DEBUG_TYPE, "Lower MC6809 Select pseudo-instruction", false, false)
 
-MachineFunctionPass *llvm::createMC6809LowerSelectPass() {
-  return new MC6809LowerSelect();
-}
+MachineFunctionPass *llvm::createMC6809LowerSelectPass() { return new MC6809LowerSelect(); }

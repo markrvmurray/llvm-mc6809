@@ -1,5 +1,4 @@
-//===-- MC6809TargetStreamer.cpp - MC6809 Target Streamer Methods
-//---------------===//
+//===-- MC6809TargetStreamer.cpp - MC6809 Target Streamer Methods ---------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -23,55 +22,83 @@
 
 namespace llvm {
 
-MC6809TargetStreamer::MC6809TargetStreamer(MCStreamer &S)
-    : MCTargetStreamer(S) {}
+MC6809TargetStreamer::MC6809TargetStreamer(MCStreamer &S) : MCTargetStreamer(S) {}
 
 void MC6809TargetStreamer::finish() {
   MCStreamer &OS = getStreamer();
   MCContext &Context = OS.getContext();
 
-  if (hasInitArray()) {
-    MCSymbol *Init = Context.getOrCreateSymbol("_init");
-    OS.emitRawComment("Declaring this symbol tells the CRT that there are");
-    OS.emitRawComment("initialization routines to be run in .init_array");
-    stronglyReference(Init);
-  }
+  if (hasBSS())
+    stronglyReference("__do_zero_bss", "Declaring this symbol tells the CRT that there is "
+                                       "something in .bss, so it may need to be zeroed.");
 
-  if (hasFiniArray()) {
-    MCSymbol *Fini = Context.getOrCreateSymbol("_fini");
+  if (hasDPBSS())
+    stronglyReference("__do_zero_dp_bss", "Declaring this symbol tells the CRT that there is "
+                                          "something in .dp.bss, so it may need to be zeroed.");
 
-    OS.emitRawComment("Declaring this symbol tells the CRT that there are");
-    OS.emitRawComment("finalization routines to be run in .fini_array");
-    stronglyReference(Fini);
-    OS.emitSymbolAttribute(Fini, MCSA_Global);
-  }
+  if (hasData())
+    stronglyReference("__do_copy_data", "Declaring this symbol tells the CRT that there is something in .data, "
+                                        "so it may need to be copied from LMA to VMA.");
+
+  if (hasDPData())
+    stronglyReference("__do_copy_dp_data", "Declaring this symbol tells the CRT that there is something in "
+                                           ".dp.data, so it may need to be copied from LMA to VMA.");
+
+  if (hasInitArray())
+    stronglyReference("__do_init_array", "Declaring this symbol tells the CRT that there are "
+                                         "initialization routines to be run in .init_array");
+
+  if (hasFiniArray())
+    stronglyReference("__do_fini_array", "Declaring this symbol tells the CRT that there are "
+                                         "finalization routines to be run in .fini_array");
+
+  bool ReferencesStackPtr = llvm::any_of(Context.getSymbols(), [](const StringMapEntry<MCSymbol *> &TableEntry) { return TableEntry.getKey() == "__rc0" || TableEntry.getKey() == "__rc1"; });
+  if (ReferencesStackPtr)
+    stronglyReference("__do_init_stack", "Declaring this symbol tells the CRT that the stack "
+                                         "pointer needs to be initialized.");
 }
 
-MC6809TargetAsmStreamer::MC6809TargetAsmStreamer(MCStreamer &S)
-    : MC6809TargetStreamer(S) {}
-void MC6809TargetAsmStreamer::changeSection(const MCSection *CurSection,
-                                            MCSection *Section,
-                                            const MCExpr *SubSection,
-                                            raw_ostream &OS) {
+void MC6809TargetStreamer::stronglyReference(StringRef Name, StringRef Comment) {
+  MCStreamer &OS = getStreamer();
+  MCContext &Context = OS.getContext();
+  MCSymbol *Sym = Context.getOrCreateSymbol(Name);
+  OS.emitRawComment(Comment);
+  stronglyReference(Sym);
+}
+
+static bool HasPrefix(StringRef Name, StringRef Prefix) {
+  SmallString<32> PrefixDot = Prefix;
+  PrefixDot += ".";
+  return Name == Prefix || Name.starts_with(PrefixDot);
+}
+
+void MC6809TargetAsmStreamer::changeSection(const MCSection *CurSection, MCSection *Section, const MCExpr *SubSection, raw_ostream &OS) {
   MCTargetStreamer::changeSection(CurSection, Section, SubSection, OS);
-  HasInitArray |= Section->getName().startswith(".init_array");
-  HasFiniArray |= Section->getName().startswith(".fini_array");
+  HasBSS |= HasPrefix(Section->getName(), ".bss");
+  HasDPBSS |= HasPrefix(Section->getName(), ".dp.bss");
+  HasData |= HasPrefix(Section->getName(), ".data");
+  HasDPData |= HasPrefix(Section->getName(), ".dp.data");
+  HasDPData |= HasPrefix(Section->getName(), ".dp.rodata");
+  HasInitArray |= HasPrefix(Section->getName(), ".init_array");
+  HasFiniArray |= HasPrefix(Section->getName(), ".fini_array");
 }
 
-void MC6809TargetAsmStreamer::stronglyReference(MCSymbol *Sym) {
-  getStreamer().emitSymbolAttribute(Sym, MCSA_Global);
+void MC6809TargetAsmStreamer::stronglyReference(MCSymbol *Sym) { getStreamer().emitSymbolAttribute(Sym, MCSA_Global); }
+
+MC6809TargetELFStreamer::MC6809TargetELFStreamer(MCStreamer &S, const MCSubtargetInfo &STI) : MC6809TargetStreamer(S) {}
+
+bool MC6809TargetELFStreamer::hasBSS() { return static_cast<MC6809MCELFStreamer &>(getStreamer()).hasBSS(); }
+bool MC6809TargetELFStreamer::hasDPBSS() { return static_cast<MC6809MCELFStreamer &>(getStreamer()).hasDPBSS(); }
+bool MC6809TargetELFStreamer::hasData() { return static_cast<MC6809MCELFStreamer &>(getStreamer()).hasData(); }
+bool MC6809TargetELFStreamer::hasDPData() { return static_cast<MC6809MCELFStreamer &>(getStreamer()).hasDPData(); }
+bool MC6809TargetELFStreamer::hasInitArray() { return static_cast<MC6809MCELFStreamer &>(getStreamer()).hasInitArray(); }
+bool MC6809TargetELFStreamer::hasFiniArray() { return static_cast<MC6809MCELFStreamer &>(getStreamer()).hasFiniArray(); }
+
+bool MC6809TargetELFStreamer::emitDirectiveDirectPage(MCSymbol *Sym) {
+  cast<MCSymbolELF>(Sym)->setOther(ELF::STO_MC6809_DIRECTPAGE);
+  return true;
 }
 
-MC6809TargetELFStreamer::MC6809TargetELFStreamer(MCStreamer &S,
-                                                 const MCSubtargetInfo &STI)
-    : MC6809TargetStreamer(S) {}
-
-bool MC6809TargetELFStreamer::hasInitArray() {
-  return static_cast<MC6809MCELFStreamer &>(getStreamer()).hasInitArray();
-}
-bool MC6809TargetELFStreamer::hasFiniArray() {
-  return static_cast<MC6809MCELFStreamer &>(getStreamer()).hasFiniArray();
-}
 void MC6809TargetELFStreamer::stronglyReference(MCSymbol *Sym) {
   auto *ES = cast<MCSymbolELF>(Sym);
   // There's an explicit check in emitSymbolAttribute to avoid accidentally

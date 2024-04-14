@@ -38,62 +38,41 @@ class raw_ostream;
 /// Writes MC6809 machine code to a stream.
 class MC6809MCCodeEmitter : public MCCodeEmitter {
 public:
-  MC6809MCCodeEmitter(const MCInstrInfo &MCII, MCContext &Ctx)
-      : MCII(MCII), Ctx(Ctx) {}
+  MC6809MCCodeEmitter(const MCInstrInfo &MCII, MCContext &Ctx) : MCII(MCII) {}
 
 private:
-  unsigned encodeImm3(const MCInst &MI, unsigned Op,
-                      SmallVectorImpl<MCFixup> &Fixups,
-                      const MCSubtargetInfo &STI) const;
+  unsigned encodeImm3(const MCInst &MI, unsigned Op, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const;
 
-  unsigned encodeRegOpValue(const MCInst &MI, unsigned Op,
-                            SmallVectorImpl<MCFixup> &Fixups,
-                            const MCSubtargetInfo &STI) const;
+  unsigned encodeRegOpValue(const MCInst &MI, unsigned Op, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const;
 
-  unsigned encodeRegListOpValue(const MCInst &MI, unsigned Op,
-                                SmallVectorImpl<MCFixup> &Fixups,
-                                const MCSubtargetInfo &STI) const;
+  unsigned encodeRegListOpValue(const MCInst &MI, unsigned Op, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const;
 
-  unsigned encodeCondCodeOpValue(const MCInst &MI, unsigned Op,
-                                 SmallVectorImpl<MCFixup> &Fixups,
-                                 const MCSubtargetInfo &STI) const;
+  unsigned encodeCondCodeOpValue(const MCInst &MI, unsigned Op, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const;
 
   /// Encodes an immediate value with a given fixup.
   /// \tparam Offset The offset into the instruction for the fixup.
-  template <MC6809::Fixups Fixup, unsigned Offset>
-  unsigned encodeImm(const MCInst &MI, unsigned OpNo,
-                     SmallVectorImpl<MCFixup> &Fixups,
-                     const MCSubtargetInfo &STI) const;
+  template <MC6809::Fixups Fixup, unsigned Offset> unsigned encodeImm(const MCInst &MI, unsigned OpNo, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const;
 
   /// TableGen'ed function to get the binary encoding for an instruction.
-  uint64_t getBinaryCodeForInstr(const MCInst &MI,
-                                 SmallVectorImpl<MCFixup> &Fixups,
-                                 const MCSubtargetInfo &STI) const;
+  uint64_t getBinaryCodeForInstr(const MCInst &MI, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const;
 
-  unsigned getExprOpValue(const MCExpr *Expr, SmallVectorImpl<MCFixup> &Fixups,
-                          const MCSubtargetInfo &STI,
-                          unsigned int Offset) const;
+  unsigned getExprOpValue(const MCExpr *Expr, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI, unsigned int Offset) const;
 
   /// Returns the binary encoding of operand.
   ///
   /// If the machine operand requires relocation, the relocation is recorded
   /// and zero is returned.
-  unsigned getMachineOpValue(const MCInst &MI, const MCOperand &MO,
-                             SmallVectorImpl<MCFixup> &Fixups,
-                             const MCSubtargetInfo &STI) const;
+  unsigned getMachineOpValue(const MCInst &MI, const MCOperand &MO, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const;
 
-  void emitInstruction(uint64_t Val, unsigned Size, const MCSubtargetInfo &STI,
-                       raw_ostream &OS) const;
+  void emitInstruction(uint64_t Val, unsigned Size, const MCSubtargetInfo &STI, raw_ostream &OS) const;
 
-  void encodeInstruction(const MCInst &MI, SmallVectorImpl<char> &CB,
-                         SmallVectorImpl<MCFixup> &Fixups,
-                         const MCSubtargetInfo &STI) const override;
+  void encodeInstruction(const MCInst &MI, SmallVectorImpl<char> &CB, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const override;
 
   MC6809MCCodeEmitter(const MC6809MCCodeEmitter &) = delete;
   void operator=(const MC6809MCCodeEmitter &) = delete;
 
   const MCInstrInfo &MCII;
-  MCContext &Ctx;
+  // MCContext &Ctx;
 
 #if 0
   void

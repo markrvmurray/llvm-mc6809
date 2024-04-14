@@ -507,6 +507,12 @@ enum : unsigned {
                                     // relaxation to be applied
 };
 
+// Special values for the st_other field in the symbol table entry for MC6809.
+enum {
+  // External symbol is in the direct page.
+  STO_MC6809_DIRECTPAGE = 0x28
+};
+
 // Special values for the st_other field in the symbol table entry for MOS.
 enum {
   // External symbol is in the zero page.

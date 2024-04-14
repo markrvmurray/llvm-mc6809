@@ -37,27 +37,21 @@ using namespace llvm;
 
 namespace llvm {
 
-void MC6809MCCodeEmitter::emitInstruction(uint64_t Val, unsigned Size,
-                                          const MCSubtargetInfo &STI,
-                                          raw_ostream &OS) const {
+void MC6809MCCodeEmitter::emitInstruction(uint64_t Val, unsigned Size, const MCSubtargetInfo &STI, raw_ostream &OS) const {
   for (int64_t i = 0; i < Size; ++i) {
     OS << (char)(Val & 0xff);
     Val = Val >> 8;
   }
 }
 
-static void emitLittleEndian(uint64_t Val, unsigned Size,
-                             SmallVectorImpl<char> &CB) {
+static void emitLittleEndian(uint64_t Val, unsigned Size, SmallVectorImpl<char> &CB) {
   for (int64_t I = 0; I < Size; ++I) {
     CB.push_back((char)(Val & 0xff));
     Val = Val >> 8;
   }
 }
 
-void MC6809MCCodeEmitter::encodeInstruction(const MCInst &MI,
-                                         SmallVectorImpl<char> &CB,
-                                         SmallVectorImpl<MCFixup> &Fixups,
-                                         const MCSubtargetInfo &STI) const {
+void MC6809MCCodeEmitter::encodeInstruction(const MCInst &MI, SmallVectorImpl<char> &CB, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const {
   const MCInstrDesc &Desc = MCII.get(MI.getOpcode());
   // Get byte count of instruction
   unsigned Size = Desc.getSize();
@@ -68,10 +62,7 @@ void MC6809MCCodeEmitter::encodeInstruction(const MCInst &MI,
   emitLittleEndian(BinaryOpCode, Size, CB);
 }
 
-template <MC6809::Fixups Fixup, unsigned Offset>
-unsigned MC6809MCCodeEmitter::encodeImm(const MCInst &MI, unsigned OpNo,
-                                        SmallVectorImpl<MCFixup> &Fixups,
-                                        const MCSubtargetInfo &STI) const {
+template <MC6809::Fixups Fixup, unsigned Offset> unsigned MC6809MCCodeEmitter::encodeImm(const MCInst &MI, unsigned OpNo, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const {
   auto MO = MI.getOperand(OpNo);
 
   if (MO.isExpr()) {
@@ -84,8 +75,7 @@ unsigned MC6809MCCodeEmitter::encodeImm(const MCInst &MI, unsigned OpNo,
     }
 
     MCFixupKind FixupKind = static_cast<MCFixupKind>(Fixup);
-    Fixups.push_back(
-        MCFixup::create(Offset, MO.getExpr(), FixupKind, MI.getLoc()));
+    Fixups.push_back(MCFixup::create(Offset, MO.getExpr(), FixupKind, MI.getLoc()));
 
     return 0;
   }
@@ -94,10 +84,7 @@ unsigned MC6809MCCodeEmitter::encodeImm(const MCInst &MI, unsigned OpNo,
   return MO.getImm();
 }
 
-unsigned MC6809MCCodeEmitter::getExprOpValue(const MCExpr *Expr,
-                                             SmallVectorImpl<MCFixup> &Fixups,
-                                             const MCSubtargetInfo &STI,
-                                             unsigned int Offset) const {
+unsigned MC6809MCCodeEmitter::getExprOpValue(const MCExpr *Expr, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI, unsigned int Offset) const {
 
   MCExpr::ExprKind Kind = Expr->getKind();
 
@@ -113,8 +100,7 @@ unsigned MC6809MCCodeEmitter::getExprOpValue(const MCExpr *Expr,
       return Result;
     }
 
-    MCFixupKind FixupKind =
-        static_cast<MCFixupKind>(MC6809Expr->getFixupKind());
+    MCFixupKind FixupKind = static_cast<MCFixupKind>(MC6809Expr->getFixupKind());
     Fixups.push_back(MCFixup::create(Offset, MC6809Expr, FixupKind));
     return 0;
   }
@@ -123,10 +109,7 @@ unsigned MC6809MCCodeEmitter::getExprOpValue(const MCExpr *Expr,
   return 0;
 }
 
-unsigned
-MC6809MCCodeEmitter::getMachineOpValue(const MCInst &MI, const MCOperand &MO,
-                                       SmallVectorImpl<MCFixup> &Fixups,
-                                       const MCSubtargetInfo &STI) const {
+unsigned MC6809MCCodeEmitter::getMachineOpValue(const MCInst &MI, const MCOperand &MO, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const {
   if (MO.isImm())
     return MO.getImm();
 
@@ -147,37 +130,15 @@ MC6809MCCodeEmitter::getMachineOpValue(const MCInst &MI, const MCOperand &MO,
   return 0;
 }
 
-unsigned MC6809MCCodeEmitter::encodeImm3(const MCInst &MI, unsigned Op,
-                                         SmallVectorImpl<MCFixup> &Fixups,
-                                         const MCSubtargetInfo &STI) const {
-  return MI.getOperand(Op).getImm();
-}
+unsigned MC6809MCCodeEmitter::encodeImm3(const MCInst &MI, unsigned Op, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const { return MI.getOperand(Op).getImm(); }
 
-unsigned
-MC6809MCCodeEmitter::encodeRegOpValue(const MCInst &MI, unsigned Op,
-                                      SmallVectorImpl<MCFixup> &Fixups,
-                                      const MCSubtargetInfo &STI) const {
-  return MI.getOperand(Op).getReg();
-}
+unsigned MC6809MCCodeEmitter::encodeRegOpValue(const MCInst &MI, unsigned Op, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const { return MI.getOperand(Op).getReg(); }
 
-unsigned
-MC6809MCCodeEmitter::encodeRegListOpValue(const MCInst &MI, unsigned Op,
-                                          SmallVectorImpl<MCFixup> &Fixups,
-                                          const MCSubtargetInfo &STI) const {
-  return MI.getOperand(Op).getImm();
-}
+unsigned MC6809MCCodeEmitter::encodeRegListOpValue(const MCInst &MI, unsigned Op, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const { return MI.getOperand(Op).getImm(); }
 
-unsigned
-MC6809MCCodeEmitter::encodeCondCodeOpValue(const MCInst &MI, unsigned Op,
-                                           SmallVectorImpl<MCFixup> &Fixups,
-                                           const MCSubtargetInfo &STI) const {
-  return MI.getOperand(Op).getImm();
-}
+unsigned MC6809MCCodeEmitter::encodeCondCodeOpValue(const MCInst &MI, unsigned Op, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const { return MI.getOperand(Op).getImm(); }
 
-MCCodeEmitter *createMC6809MCCodeEmitter(const MCInstrInfo &MCII,
-                                         MCContext &Ctx) {
-  return new MC6809MCCodeEmitter(MCII, Ctx);
-}
+MCCodeEmitter *createMC6809MCCodeEmitter(const MCInstrInfo &MCII, MCContext &Ctx) { return new MC6809MCCodeEmitter(MCII, Ctx); }
 
 } // end of namespace llvm
 

@@ -1,4 +1,4 @@
-//===-- MC6809ConditionalBranch.cpp - MC6809 Conditional Branch -----------===//
+//===-- MC6809IncDecPhi.cpp - MC6809 Increment Decrement PHI --------------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file defines the MC6809 pass to correctly associate the condition in
-// a GISel instruction with the machine's conditional branch instruction.
+// This file defines the MC6809 pass to separate an increment/decrement from an
+// ADC of a PHI of -1 or 1.
 //
 //===----------------------------------------------------------------------===//
 
-#include "MC6809ConditionalBranch.h"
+#include "MC6809IncDecPhi.h"
 
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "MC6809.h"
@@ -22,18 +22,18 @@
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/InitializePasses.h"
 
-#define DEBUG_TYPE "mc6809-conditionalbranch"
+#define DEBUG_TYPE "mc6809-incdecphi"
 
 using namespace llvm;
 
 namespace {
 
-class MC6809ConditionalBranch : public MachineFunctionPass {
+class MC6809IncDecPhi : public MachineFunctionPass {
 public:
   static char ID;
 
-  MC6809ConditionalBranch() : MachineFunctionPass(ID) {
-    llvm::initializeMC6809ConditionalBranchPass(*PassRegistry::getPassRegistry());
+  MC6809IncDecPhi() : MachineFunctionPass(ID) {
+    llvm::initializeMC6809IncDecPhiPass(*PassRegistry::getPassRegistry());
   }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
@@ -46,8 +46,11 @@ public:
 
 } // namespace
 
-static bool matchPhiOneNegOne(const MachineInstr &MI, const MachineRegisterInfo &MRI, MachineBasicBlock *&IncMBB, Register &OneReg, MachineBasicBlock *&DecMBB, Register &NegOneReg) {
-  if (MI.getOpcode() != TargetOpcode::G_PHI)
+static bool matchPhiOneNegOne(const MachineInstr &MI,
+                              const MachineRegisterInfo &MRI,
+                              MachineBasicBlock *&IncMBB, Register &OneReg,
+                              MachineBasicBlock *&DecMBB, Register &NegOneReg) {
+  if (MI.getOpcode() != MC6809::G_PHI)
     return false;
   if (MI.getNumOperands() != 5)
     return false;
@@ -71,14 +74,16 @@ static bool matchPhiOneNegOne(const MachineInstr &MI, const MachineRegisterInfo 
   return HasOneReg && HasNegOneReg;
 }
 
-static MachineInstr *matchFoldableStore(Register Dst, const MachineInstr &ValDef, const MachineRegisterInfo &MRI) {
+static MachineInstr *matchFoldableStore(Register Dst,
+                                        const MachineInstr &ValDef,
+                                        const MachineRegisterInfo &MRI) {
   if (!MRI.hasOneNonDBGUse(Dst))
     return nullptr;
   MachineInstr &MI = *MRI.use_instr_nodbg_begin(Dst);
-  if (MI.getOpcode() != TargetOpcode::G_STORE)
+  if (MI.getOpcode() != MC6809::G_STORE)
     return nullptr;
   assert(MI.getOperand(0).getReg() == Dst);
-  if (ValDef.getOpcode() != TargetOpcode::G_LOAD)
+  if (ValDef.getOpcode() != MC6809::G_LOAD)
     return nullptr;
   if (MI.getOperand(1).getReg() != ValDef.getOperand(1).getReg())
     return nullptr;
@@ -87,10 +92,11 @@ static MachineInstr *matchFoldableStore(Register Dst, const MachineInstr &ValDef
   return &MI;
 }
 
-static MachineBasicBlock *splitCriticalEdge(MachineBasicBlock &MBB, MachineBasicBlock &Succ) {
+static MachineBasicBlock *splitCriticalEdge(MachineBasicBlock &MBB,
+                                            MachineBasicBlock &Succ) {
   MachineFunction &MF = *MBB.getParent();
 
-  if (std::prev(MBB.end())->getOpcode() != TargetOpcode::G_BR) {
+  if (std::prev(MBB.end())->getOpcode() != MC6809::G_BR) {
     MachineIRBuilder MIB(MBB, MBB.end());
     MIB.buildBr(Succ);
   }
@@ -101,25 +107,21 @@ static MachineBasicBlock *splitCriticalEdge(MachineBasicBlock &MBB, MachineBasic
   Split->addSuccessor(&Succ);
   MF.insert(std::next(MBB.getIterator()), Split);
 
-  assert(std::prev(MBB.end())->getOpcode() == TargetOpcode::G_BR);
+  assert(std::prev(MBB.end())->getOpcode() == MC6809::G_BR);
   MBB.ReplaceUsesOfBlockWith(&Succ, Split);
   Succ.replacePhiUsesWith(&MBB, Split);
 
   return Split;
 }
 
-bool MC6809ConditionalBranch::runOnMachineFunction(MachineFunction &MF) {
+bool MC6809IncDecPhi::runOnMachineFunction(MachineFunction &MF) {
   MachineRegisterInfo &MRI = MF.getRegInfo();
   bool Changed = false;
   const auto &MDT = getAnalysis<MachineDominatorTree>();
   for (MachineBasicBlock &MBB : MF) {
     for (auto I = MBB.begin(), E = MBB.end(); I != E; ++I) {
       MachineInstr &MI = *I;
-      if (MI.isConditionalBranch()) {
-        auto CondBit = MI.getOperand(0).getReg();
-        auto Compare = getDefIgnoringCopies(CondBit, MRI);
-      }
-      if (MI.getOpcode() != TargetOpcode::G_ADD)
+      if (MI.getOpcode() != MC6809::G_ADD)
         continue;
 
       Register Dst = MI.getOperand(0).getReg();
@@ -185,9 +187,11 @@ bool MC6809ConditionalBranch::runOnMachineFunction(MachineFunction &MF) {
       if (ValDef->getParent() == &MBB) {
         IncMBBVal = MRI.createGenericVirtualRegister(MRI.getType(Val));
         MachineInstr *IncValDef = MBB.getParent()->CloneMachineInstr(ValDef);
-        IncValDef->substituteRegister(Val, IncMBBVal, 0, *MRI.getTargetRegisterInfo());
+        IncValDef->substituteRegister(Val, IncMBBVal, 0,
+                                      *MRI.getTargetRegisterInfo());
         IncMBB->insert(IncMBB->getFirstTerminator(), IncValDef);
-        DecMBB->insert(DecMBB->getFirstTerminator(), ValDef->removeFromParent());
+        DecMBB->insert(DecMBB->getFirstTerminator(),
+                       ValDef->removeFromParent());
       }
 
       MachineIRBuilder MIB(*IncMBB, IncMBB->getFirstTerminator());
@@ -195,7 +199,7 @@ bool MC6809ConditionalBranch::runOnMachineFunction(MachineFunction &MF) {
       MIB.setInsertPt(*DecMBB, DecMBB->getFirstTerminator());
       Register Dec = MIB.buildAdd(Ty, DecMBBVal, NegOneReg).getReg(0);
       MIB.setInsertPt(MBB, MBB.begin());
-      MIB.buildInstr(TargetOpcode::G_PHI)
+      MIB.buildInstr(MC6809::G_PHI)
           .addDef(Dst)
           .addUse(Inc)
           .addMBB(IncMBB)
@@ -205,11 +209,14 @@ bool MC6809ConditionalBranch::runOnMachineFunction(MachineFunction &MF) {
       MI.eraseFromParent();
 
       if (FoldableStore) {
-        MachineInstr *IncStore = MBB.getParent()->CloneMachineInstr(FoldableStore);
+        MachineInstr *IncStore =
+            MBB.getParent()->CloneMachineInstr(FoldableStore);
         IncStore->substituteRegister(Dst, Inc, 0, *MRI.getTargetRegisterInfo());
         IncMBB->insert(IncMBB->getFirstTerminator(), IncStore);
-        FoldableStore->substituteRegister(Dst, Dec, 0, *MRI.getTargetRegisterInfo());
-        DecMBB->insert(DecMBB->getFirstTerminator(), FoldableStore->removeFromParent());
+        FoldableStore->substituteRegister(Dst, Dec, 0,
+                                          *MRI.getTargetRegisterInfo());
+        DecMBB->insert(DecMBB->getFirstTerminator(),
+                       FoldableStore->removeFromParent());
       }
 
       Changed = true;
@@ -219,12 +226,16 @@ bool MC6809ConditionalBranch::runOnMachineFunction(MachineFunction &MF) {
   return Changed;
 }
 
-char MC6809ConditionalBranch::ID = 0;
+char MC6809IncDecPhi::ID = 0;
 
-INITIALIZE_PASS_BEGIN(MC6809ConditionalBranch, DEBUG_TYPE, "Fix MC6809 conditional branch pattern", false, false)
+INITIALIZE_PASS_BEGIN(MC6809IncDecPhi, DEBUG_TYPE,
+                      "Optimize MC6809 Increment/Decrement PHI pattern", false,
+                      false)
 INITIALIZE_PASS_DEPENDENCY(MachineDominatorTree)
-INITIALIZE_PASS_END(MC6809ConditionalBranch, DEBUG_TYPE, "Fix MC6809 conditional branch pattern", false, false)
+INITIALIZE_PASS_END(MC6809IncDecPhi, DEBUG_TYPE,
+                    "Optimize MC6809 Increment/Decrement PHI pattern", false,
+                    false)
 
-MachineFunctionPass *llvm::createMC6809ConditionalBranchPass() {
-  return new MC6809ConditionalBranch();
+MachineFunctionPass *llvm::createMC6809IncDecPhiPass() {
+  return new MC6809IncDecPhi();
 }

@@ -16,28 +16,21 @@
 #include "llvm/MC/MCFixupKindInfo.h"
 
 namespace llvm {
-const MCFixupKindInfo &
-MC6809FixupKinds::getFixupKindInfo(const MC6809::Fixups Kind,
-                                   const MCAsmBackend *Alternative) {
-  const static MCFixupKindInfo Infos[MC6809::NumTargetFixupKinds] = {
-      // This table *must* be in same the order of fixup_* kinds in
-      // MC6809FixupKinds.h.
-      //
-      // name, offset, bits, flags
-      {"Imm8", 0, 8, 0},    // An 8 bit immediate value.
-      {"Addr8", 0, 8, 0},   // An 8 bit direct page address.
-      {"Addr16", 0, 16, 0}, // A 16-bit address.
-      // PCRel8 is pc-relative and requires target specific handling
-      {"PCRel8", 0, 8,
-       MCFixupKindInfo::FKF_IsPCRel | MCFixupKindInfo::FKF_IsTarget}};
+const MCFixupKindInfo &MC6809FixupKinds::getFixupKindInfo(const MC6809::Fixups Kind, const MCAsmBackend *Alternative) {
+  const static MCFixupKindInfo Infos[MC6809::NumTargetFixupKinds] = {// This table *must* be in same the order of fixup_* kinds in
+                                                                     // MC6809FixupKinds.h.
+                                                                     //
+                                                                     // name, offset, bits, flags
+                                                                     {"Imm8", 0, 8, 0},    // An 8 bit immediate value.
+                                                                     {"Addr8", 0, 8, 0},   // An 8 bit direct page address.
+                                                                     {"Addr16", 0, 16, 0}, // A 16-bit address.
+                                                                                           // PCRel8 is pc-relative and requires target specific handling
+                                                                     {"PCRel8", 0, 8, MCFixupKindInfo::FKF_IsPCRel | MCFixupKindInfo::FKF_IsTarget}};
   if (Kind < static_cast<MC6809::Fixups>(FirstTargetFixupKind)) {
-    assert(Alternative &&
-           "Alternative MC6809 backend expected, but none was given!");
+    assert(Alternative && "Alternative MC6809 backend expected, but none was given!");
     return Alternative->getFixupKindInfo(static_cast<MCFixupKind>(Kind));
   }
-  assert(unsigned(Kind - FirstTargetFixupKind) <
-             MC6809::Fixups::NumTargetFixupKinds &&
-         "Invalid kind!");
+  assert(unsigned(Kind - FirstTargetFixupKind) < MC6809::Fixups::NumTargetFixupKinds && "Invalid kind!");
   return Infos[Kind - FirstTargetFixupKind];
 }
 

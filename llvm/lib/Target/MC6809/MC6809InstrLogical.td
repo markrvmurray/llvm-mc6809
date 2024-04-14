@@ -4,8 +4,18 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
+// By examining its register operands, every logical instruction can be mapped
+// to exactly one real target instruction. Pseudoinstructions where this
+// property does not hold are recorded in MC6809InstrPseudos.td instead. These are
+// more traditional pseudo-instructions; they may expand out to short snippets
+// of code required to perform higher-level operations that cannot be expaneded
+// inline, for one reason or another.
+//
+// There are some exceptions; Compare is tied to CondtionalBranch where possible,
+// and some wide instructions are treated as single instructions.
+//
 //===---------------------------------------------------------------------===//
-class MC6809PseudoInstr : Instruction {
+class MC6809LogicalInstr : Instruction {
   let Namespace = "MC6809";
 
   dag OutOperandList = (outs);
@@ -16,23 +26,13 @@ class MC6809PseudoInstr : Instruction {
   let mayStore = false;
   let isPseudo = true;
   let isCodeGenOnly = true;
-  let isReMaterializable = false;
+  let isReMaterializable = true;
 }
-
-class MC6809CallFramePseudo : MC6809PseudoInstr {
-  dag InOperandList = (ins i16imm:$bytes, i16imm:$prior);
-
-  let Defs = [SS];
-  let Uses = [SS];
-}
-
-def ADJCALLSTACKDOWN : MC6809CallFramePseudo;
-def ADJCALLSTACKUP : MC6809CallFramePseudo;
 
 //===---------------------------------------------------------------------===//
 // Inter-register copies and exchanges
 //===---------------------------------------------------------------------===//
-class MC6809Transfer<dag ins, dag outs, string constraints = ""> : MC6809PseudoInstr {
+class MC6809Transfer<dag ins, dag outs, string constraints = ""> : MC6809LogicalInstr {
   dag OutOperandList = outs;
   dag InOperandList = ins;
   let Constraints = constraints;
@@ -47,7 +47,7 @@ def Exchange16 : MC6809Transfer<(ins REGPAIR16:$src1, REGPAIR16:$src2), (outs RE
 //===---------------------------------------------------------------------===//
 // Operandless Accumulator Instructions
 //===---------------------------------------------------------------------===//
-class MC6809Accumulator<RegisterClass reg> : MC6809PseudoInstr {
+class MC6809Accumulator<RegisterClass reg> : MC6809LogicalInstr {
   let Defs = [NZ, C, V];
   dag OutOperandList = (outs reg:$dst);
   dag InOperandList = (ins reg:$src);
@@ -74,7 +74,7 @@ let Predicates = [IsHD6309] in {
 // Loads and Stores
 //===---------------------------------------------------------------------===//
 // Load base class
-class MC6809LoadBase<RegisterClass dst, dag operand> : MC6809PseudoInstr {
+class MC6809LoadBase<RegisterClass dst, dag operand> : MC6809LogicalInstr {
   let Defs = [NZ, V];
   let mayLoad = true;
   dag OutOperandList = (outs dst:$dst);
@@ -82,7 +82,7 @@ class MC6809LoadBase<RegisterClass dst, dag operand> : MC6809PseudoInstr {
 }
 
 multiclass MC6809Load<RegisterClass dst, ValueType vtype> {
-  let isAsCheapAsAMove = true, isMoveImm = true, isReMaterializable = true in {
+  let isAsCheapAsAMove = true, isMoveImm = true in {
     def _Imm : MC6809LoadBase<dst, (ins !cast<Operand>(vtype#"imm"):$imm)>;
   }
 //  def _Abs : MC6809LoadBase<dst, (ins addr16:$addr)>;
@@ -110,12 +110,11 @@ let Predicates = [IsHD6309] in {
 }
 
 // Loads a boolean value into a NZVC bit or an ACC8 LSB
-def Load_i1_Imm : MC6809PseudoInstr {
+def Load_i1_Imm : MC6809LogicalInstr {
   dag OutOperandList = (outs BIT1:$dst);
   dag InOperandList = (ins i1imm:$val);
   let isAsCheapAsAMove = true;
   let isMoveImm = true;
-//let isReMaterializable = true;
 }
 
 def : Pat<(i1 imm:$s), (Load_i1_Imm imm:$s)>;
@@ -133,9 +132,8 @@ defm LoadPat_i16 : MC6809LoadPat<i16>;
 let Predicates = [IsHD6309] in {
   defm LoadPat_i32 : MC6809LoadPat<i32>;
 }
-
 // Store base class
-class MC6809StoreBase<RegisterClass src, dag operand> : MC6809PseudoInstr {
+class MC6809StoreBase<RegisterClass src, dag operand> : MC6809LogicalInstr {
   let Defs = [NZ, V];
   let mayStore = true;
   dag OutOperandList = (outs);
@@ -171,12 +169,31 @@ let Predicates = [IsHD6309] in {
 }
 
 //===---------------------------------------------------------------------===//
+// Set/Clear CC bits
+//===---------------------------------------------------------------------===//
+
+class MC6809ImmediateLoad<RegisterClass dst, Operand val> : MC6809LogicalInstr {
+  dag OutOperandList = (outs dst:$dst);
+  dag InOperandList = (ins val:$val);
+  let isAsCheapAsAMove = true;
+  let isMoveImm = true;
+}
+
+// Clear/set overflow
+//def CLV : MC6809ImmediateLoad<Vc, i1imm>, PseudoInstExpansion<(CLV_Implied)> {
+//  dag InOperandList = (ins);
+//}
+
+// Clear/set carry
+//def LoadCarryImm : MC6809ImmediateLoad<Cc, i1imm>;
+
+//===---------------------------------------------------------------------===//
 // Addition/subtraction
 //===---------------------------------------------------------------------===//
 
 // Ignoring carry
 
-class MC6809ArithmeticBase<RegisterClass dst, RegisterClass src, dag operand> : MC6809PseudoInstr {
+class MC6809ArithmeticBase<RegisterClass dst, RegisterClass src, dag operand> : MC6809LogicalInstr {
   let Defs = [NZ, V, C];
   dag OutOperandList = (outs dst:$dst);
   dag InOperandList = !con((ins src:$src), operand);
@@ -184,7 +201,7 @@ class MC6809ArithmeticBase<RegisterClass dst, RegisterClass src, dag operand> : 
 }
 
 multiclass MC6809Arithmetic<ValueType vtype, RegisterClass dst, RegisterClass src> {
-  let isAsCheapAsAMove = true, isReMaterializable = true in {
+  let isAsCheapAsAMove = true in {
     def _Imm : MC6809ArithmeticBase<dst, src, (ins !cast<Operand>(vtype#"imm"):$val)>;
   }
   let mayLoad = true in {
@@ -214,7 +231,7 @@ let Predicates = [IsHD6309] in {
 
 // Setting carry
 
-class MC6809ArithmeticBaseCarry<RegisterClass dst, RegisterClass carry, RegisterClass src, dag operand> : MC6809PseudoInstr {
+class MC6809ArithmeticBaseCarry<RegisterClass dst, RegisterClass carry, RegisterClass src, dag operand> : MC6809LogicalInstr {
   let Defs = [NZ, V];
   dag OutOperandList = (outs dst:$dst, carry:$carry);
   dag InOperandList = !con((ins src:$src), operand);
@@ -222,7 +239,7 @@ class MC6809ArithmeticBaseCarry<RegisterClass dst, RegisterClass carry, Register
 }
 
 multiclass MC6809ArithmeticCarry<ValueType vtype, RegisterClass dst, RegisterClass carry, RegisterClass src> {
-  let isAsCheapAsAMove = true, isReMaterializable = true in {
+  let isAsCheapAsAMove = true in {
     def _Imm : MC6809ArithmeticBaseCarry<dst, carry, src, (ins !cast<Operand>(vtype#"imm"):$val)>;
   }
   let mayLoad = true in {
@@ -293,7 +310,7 @@ let Predicates = [IsHD6309] in {
 
 // Setting and consuming carry
 
-class MC6809ArithmeticBaseCarryUse<RegisterClass dst, RegisterClass src, dag operand> : MC6809PseudoInstr {
+class MC6809ArithmeticBaseCarryUse<RegisterClass dst, RegisterClass src, dag operand> : MC6809LogicalInstr {
   let Defs = [NZ, V];
   dag OutOperandList = (outs dst:$dst, CARRY:$carry);
   dag InOperandList = !con((ins src:$src, CARRY:$carry_in), operand);
@@ -301,7 +318,7 @@ class MC6809ArithmeticBaseCarryUse<RegisterClass dst, RegisterClass src, dag ope
 }
 
 multiclass MC6809ArithmeticCarryUse<ValueType vtype, RegisterClass dst, RegisterClass src> {
-  let isAsCheapAsAMove = true, isReMaterializable = true in {
+  let isAsCheapAsAMove = true in {
     def _Imm : MC6809ArithmeticBaseCarryUse<dst, src, (ins !cast<Operand>(vtype#"imm"):$val)>;
   }
   let mayLoad = true in {
@@ -334,7 +351,7 @@ let Predicates = [IsHD6309] in {
 // Bitwise instructions
 //===---------------------------------------------------------------------===//
 
-class MC6809BitwiseBase<RegisterClass reg, dag operand> : MC6809PseudoInstr {
+class MC6809BitwiseBase<RegisterClass reg, dag operand> : MC6809LogicalInstr {
   let Defs = [NZ, V];
   dag OutOperandList = (outs reg:$dst);
   dag InOperandList = !con((ins reg:$src), operand);
@@ -342,7 +359,7 @@ class MC6809BitwiseBase<RegisterClass reg, dag operand> : MC6809PseudoInstr {
 }
 
 multiclass MC6809Bitwise<ValueType vtype, RegisterClass reg> {
-  let isAsCheapAsAMove = true, isReMaterializable = true in {
+  let isAsCheapAsAMove = true in {
     def _Imm : MC6809BitwiseBase<reg, (ins !cast<Operand>(vtype#"imm"):$imm)>;
   }
   let Predicates = [IsHD6309] in {
@@ -380,7 +397,7 @@ defm XORPat_i16 : MC6809ArithPat<xor, i16, ADc, "XOR">;
 
 // Bit-testing
 
-//class MC6809BitBase<RegisterClass reg, dag operand> : MC6809PseudoInstr {
+//class MC6809BitBase<RegisterClass reg, dag operand> : MC6809LogicalInstr {
 //  let isCompare = true;
 //  // let Defs = [NZ, V];
 //  dag OutOperandList = (outs i1:$cc);
@@ -404,7 +421,7 @@ defm XORPat_i16 : MC6809ArithPat<xor, i16, ADc, "XOR">;
 // Shift/Rotate instructions
 //===---------------------------------------------------------------------===//
 
-class MC6809ShiftBase<RegisterClass reg> : MC6809PseudoInstr {
+class MC6809ShiftBase<RegisterClass reg> : MC6809LogicalInstr {
   let Defs = [NZ, V, C];
   dag OutOperandList = (outs reg:$dst);
   dag InOperandList = (ins reg:$src, i8imm:$val);
@@ -449,7 +466,7 @@ defm LSR_Pat_i16 : MC6809ShiftPat<srl, i16, ADc, "LSR">;
 // CC register
 //===---------------------------------------------------------------------===//
 
-class MC6809ConditionCodes<RegisterClass cc> : MC6809PseudoInstr {
+class MC6809ConditionCodes<RegisterClass cc> : MC6809LogicalInstr {
   dag OutOperandList = (outs cc:$dst);
   dag InOperandList = (ins cc:$src, i8imm:$val);
   let Constraints = "$dst = $src";
@@ -461,7 +478,7 @@ def ANDCC_Imm : MC6809ConditionCodes<CCond>;
 //===---------------------------------------------------------------------===//
 // Multiply
 //===---------------------------------------------------------------------===//
-class MC6809MultiplyAccumulatorsLow : MC6809PseudoInstr {
+class MC6809MultiplyAccumulatorsLow : MC6809LogicalInstr {
   let Defs = [Z, C, AA, AD, AQ];
   dag OutOperandList = (outs ABc:$dst);
   dag InOperandList = (ins ABc:$src1, AAc:$src2);
@@ -470,7 +487,7 @@ class MC6809MultiplyAccumulatorsLow : MC6809PseudoInstr {
 
 def Mul_i8_i8 : MC6809MultiplyAccumulatorsLow;
 
-class MC6809MultiplyAccumulatorsHigh : MC6809PseudoInstr {
+class MC6809MultiplyAccumulatorsHigh : MC6809LogicalInstr {
   let Defs = [Z, C, AB, AD, AQ];
   dag OutOperandList = (outs AAc:$dst);
   dag InOperandList = (ins ABc:$src1, AAc:$src2);
@@ -479,7 +496,7 @@ class MC6809MultiplyAccumulatorsHigh : MC6809PseudoInstr {
 
 def MulH_i8_i8 : MC6809MultiplyAccumulatorsHigh;
 
-class MC6809MultiplyAccumulatorsExtend : MC6809PseudoInstr {
+class MC6809MultiplyAccumulatorsExtend : MC6809LogicalInstr {
   let Defs = [Z, C, AA, AB, AQ];
   dag OutOperandList = (outs ADc:$dst);
   dag InOperandList = (ins ABc:$src1, AAc:$src2);
@@ -510,7 +527,7 @@ def MulPat_u_i8_i16 : Pat<(i16 (mul (zext ABc:$src1), (zext AAc:$src2))), (Mul_i
 
 // Unconditional relative branches
 
-class MC6809Branch : MC6809PseudoInstr {
+class MC6809Branch : MC6809LogicalInstr {
   let isBranch = true;
   let isTerminator = true;
 }
@@ -528,6 +545,11 @@ def LongBranchRelative : MC6809UnconditionalBranch;
 def JumpRelative : MC6809UnconditionalBranch;
 def LongJumpRelative : MC6809UnconditionalBranch;
 
+// Covers all branch instructions. Branches to $tgt if $flag = $val.
+def BranchFlagIs : MC6809Branch {
+  dag InOperandList = (ins label:$tgt, CCFlag:$flag, i1imm:$val);
+}
+
 // Conditional relative branches
 
 class MC6809ConditionalBranch : MC6809Branch {
@@ -542,7 +564,7 @@ def ConditionalLongBranchRelative : MC6809ConditionalBranch;
 
 // Subroutines
 
-class MC6809Subroutine : MC6809PseudoInstr {
+class MC6809Subroutine : MC6809LogicalInstr {
   let isCall = true;
   dag InOperandList = (ins label:$tgt);
 }
@@ -557,7 +579,7 @@ def IndirectJumpSubroutine : MC6809Subroutine, PseudoInstExpansion<(JSRi_eI addr
   dag InOperandList = (ins addr16:$tgt);
 }
 
-class MC6809Return<Instruction Opcode> : MC6809PseudoInstr, PseudoInstExpansion<(Opcode)> {
+class MC6809Return<Instruction Opcode> : MC6809LogicalInstr, PseudoInstExpansion<(Opcode)> {
   let isBarrier = true;
   let isReturn = true;
   let isTerminator = true;
@@ -576,7 +598,7 @@ def JumpIndir : MC6809UnconditionalBranch, PseudoInstExpansion<(JMPi_eI addr16:$
   let InOperandList = (ins label:$tgt);
 }
 
-def TailJump : MC6809PseudoInstr, PseudoInstExpansion<(JMPe addr16:$tgt)> {
+def TailJump : MC6809LogicalInstr, PseudoInstExpansion<(LBRAlb pcrel16:$tgt)> {
   dag InOperandList = (ins label:$tgt);
   let isBarrier = true;
   let isTerminator = true;
@@ -588,7 +610,7 @@ def TailJump : MC6809PseudoInstr, PseudoInstExpansion<(JMPe addr16:$tgt)> {
 // Comparison Instructions
 //===---------------------------------------------------------------------===//
 
-class MC6809CompareBase<RegisterClass reg, dag operand> : MC6809PseudoInstr {
+class MC6809CompareBase<RegisterClass reg, dag operand> : MC6809LogicalInstr {
   //let Defs = [NZVC, NZ, N, Z, V, C];
   dag OutOperandList = (outs CCond:$dst);
   dag InOperandList = !con((ins i8imm:$cc, reg:$src), operand);
@@ -596,7 +618,7 @@ class MC6809CompareBase<RegisterClass reg, dag operand> : MC6809PseudoInstr {
 }
 
 multiclass MC6809Compare<ValueType vtype, RegisterClass reg> {
-  let isAsCheapAsAMove = true, isReMaterializable = true in {
+  let isAsCheapAsAMove = true in {
     def _Imm : MC6809CompareBase<reg, (ins !cast<Operand>(vtype#"imm"):$imm)>;
   }
   def _Reg : MC6809CompareBase<reg, (ins reg:$src2)>;
@@ -643,7 +665,7 @@ defm CompPat_NE : MC6809CompCondPat<SETNE, 6>;
 
 // Test instructions - like compare, but the comparison is with an implied zero
 
-class MC6809TestBase<dag operand> : MC6809PseudoInstr {
+class MC6809TestBase<dag operand> : MC6809LogicalInstr {
   //let Defs = [NZVC, NZ, N, Z, V, C];
   dag OutOperandList = (outs CCond:$dst);
   dag InOperandList = !con((ins i8imm:$cc), operand);
@@ -691,7 +713,7 @@ defm TestPat_NE : MC6809TestCondPat<SETNE, 6>;
 
 // Bit instructions - like compare, but the comparison operation is AND rather than subtract.
 
-class MC6809BitTestBase<RegisterClass reg, dag operand> : MC6809PseudoInstr {
+class MC6809BitTestBase<RegisterClass reg, dag operand> : MC6809LogicalInstr {
   //let Defs = [NZVC, NZ, N, Z, V, C];
   dag OutOperandList = (outs CCond:$dst);
   dag InOperandList = !con((ins i8imm:$cc, reg:$src), operand);
@@ -699,7 +721,7 @@ class MC6809BitTestBase<RegisterClass reg, dag operand> : MC6809PseudoInstr {
 }
 
 multiclass MC6809BitTest<ValueType vtype, RegisterClass reg> {
-  let isAsCheapAsAMove = true, isReMaterializable = true in {
+  let isAsCheapAsAMove = true in {
     def _Imm : MC6809BitTestBase<reg, (ins !cast<Operand>(vtype#"imm"):$imm)>;
   }
   def _Reg : MC6809BitTestBase<reg, (ins reg:$src2)>;
@@ -803,7 +825,7 @@ defm TestBraPat_NE : MC6809TestBraCondPat<SETNE, 6>;
 // Pointer instructions
 //===---------------------------------------------------------------------===//
 
-class MC6809PtrAdd<RegisterClass idx, dag operand> : MC6809PseudoInstr {
+class MC6809PtrAdd<RegisterClass idx, dag operand> : MC6809LogicalInstr {
   dag OutOperandList = (outs idx:$dst);
   dag InOperandList = !con((ins idx:$src), operand);
   let isAdd = true;
@@ -815,7 +837,7 @@ def LEAPtrAdd_Imm : MC6809PtrAdd<INDEX16, (ins i16imm:$offset)>;
 def LEAPtrAdd_Reg8 : MC6809PtrAdd<INDEX16, (ins ACC8:$offset)>;
 def LEAPtrAdd_Reg16 : MC6809PtrAdd<INDEX16, (ins ACC16:$offset)>;
 
-// def LEAPtrAddPat : Pat<(i16 (ptradd INDEX16:$src, i16imm:$offset)), (LEAPtrAdd_Imm INDEX16:$src, i16imm:$offset)>;
+// def LEAPtrAddPatImm : Pat<(i16 (ptradd INDEX16:$src, imm:$offset)), (LEAPtrAdd_Imm INDEX16:$src, imm:$offset)>;
 def LEAPtrAddPatReg8 : Pat<(i16 (ptradd INDEX16:$src, ACC8:$offset)), (LEAPtrAdd_Reg8 INDEX16:$src, ACC8:$offset)>;
 def LEAPtrAddPatReg16 : Pat<(i16 (ptradd INDEX16:$src, ACC16:$offset)), (LEAPtrAdd_Reg16 INDEX16:$src, ACC16:$offset)>;
 
@@ -823,13 +845,13 @@ def LEAPtrAddPatReg16 : Pat<(i16 (ptradd INDEX16:$src, ACC16:$offset)), (LEAPtrA
 // Stack instructions. These will be squashed together later.
 //===---------------------------------------------------------------------===//
 
-class MC6809StackPush<RegisterClass reg> : MC6809PseudoInstr {
+class MC6809StackPush<RegisterClass reg> : MC6809LogicalInstr {
   dag OutOperandList = (outs);
   dag InOperandList = (ins reg:$reg);
   let mayStore = true;
 }
 
-class MC6809StackPull<RegisterClass reg> : MC6809PseudoInstr {
+class MC6809StackPull<RegisterClass reg> : MC6809LogicalInstr {
   let Defs = [SS];
   let Uses = [SS];
   dag OutOperandList = (outs reg:$reg);
@@ -852,50 +874,50 @@ let Predicates = [IsHD6309] in {
 // Integer Extension/Truncation Patterns
 //===---------------------------------------------------------------------===//
 
-def SEXCC8Implicit : MC6809PseudoInstr {
+def SEXCC8Implicit : MC6809LogicalInstr {
   dag InOperandList = (ins CCFlag:$bit);
   dag OutOperandList = (outs ACC8:$dst);
   //let Pattern = [(set ACC8:$dst, (sext CCFlag:$bit))];
 }
 
-def SEX8Implicit : MC6809PseudoInstr {
+def SEX8Implicit : MC6809LogicalInstr {
   dag InOperandList = (ins BIT1:$src);
   dag OutOperandList = (outs ACC8:$dst);
   let Pattern = [(set ACC8:$dst, (sext BIT1:$src))];
 }
 
-def SEX16Implicit : MC6809PseudoInstr {
+def SEX16Implicit : MC6809LogicalInstr {
   dag InOperandList = (ins ABc:$src);
   dag OutOperandList = (outs ADc:$dst);
   let Pattern = [(set ADc:$dst, (sext ABc:$src))];
 }
 
-def SEX32Implicit : MC6809PseudoInstr {
+def SEX32Implicit : MC6809LogicalInstr {
   dag InOperandList = (ins AWc:$src);
   dag OutOperandList = (outs ACC32:$dst);
   let Pattern = [(set ACC32:$dst, (sext AWc:$src))];
   let Predicates = [IsHD6309];
 }
 
-def ZEXCC8Implicit : MC6809PseudoInstr {
+def ZEXCC8Implicit : MC6809LogicalInstr {
   dag InOperandList = (ins CCFlag:$bit);
   dag OutOperandList = (outs ACC8:$dst);
   //let Pattern = [(set ACC8:$dst, (zext CCFlag:$bit))];
 }
 
-def ZEX8Implicit : MC6809PseudoInstr {
+def ZEX8Implicit : MC6809LogicalInstr {
   dag InOperandList = (ins BIT1:$src);
   dag OutOperandList = (outs ACC8:$dst);
   let Pattern = [(set ACC8:$dst, (zext BIT1:$src))];
 }
 
-def ZEX16Implicit : MC6809PseudoInstr {
+def ZEX16Implicit : MC6809LogicalInstr {
   dag InOperandList = (ins ACC8:$src);
   dag OutOperandList = (outs ACC16:$dst);
   let Pattern = [(set ACC16:$dst, (zext ACC8:$src))];
 }
 
-def ZEX32Implicit : MC6809PseudoInstr {
+def ZEX32Implicit : MC6809LogicalInstr {
   dag InOperandList = (ins AWc:$src);
   dag OutOperandList = (outs ACC32:$dst);
   let Pattern = [(set ACC32:$dst, (zext AWc:$src))];
@@ -925,7 +947,7 @@ let Predicates = [IsHD6309] in {
 // Oddball instructions
 //===---------------------------------------------------------------------===//
 
-def LoadCC : MC6809PseudoInstr {
-  dag InOperandList = (ins ACC8:$src);
-  dag OutOperandList = (outs CCond:$dst);
-}
+//def LoadCC : MC6809LogicalInstr {
+//  dag InOperandList = (ins ACC8:$src);
+//  dag OutOperandList = (outs CCond:$dst);
+//}

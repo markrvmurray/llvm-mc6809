@@ -18,6 +18,7 @@
 #include "llvm/CodeGen/GlobalISel/Legalizer.h"
 #include "llvm/CodeGen/GlobalISel/Localizer.h"
 #include "llvm/CodeGen/GlobalISel/RegBankSelect.h"
+#include "llvm/CodeGen/MachineBlockFrequencyInfo.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/IR/LegacyPassManager.h"
@@ -25,40 +26,55 @@
 #include "llvm/InitializePasses.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Passes/PassBuilder.h"
+#include "llvm/Support/CodeGen.h"
+#include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Scalar/IndVarSimplify.h"
 #include "llvm/Transforms/Utils.h"
 
-#include "GISel/MC6809Combiner.h"
+#include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "MC6809.h"
-#include "MC6809ConditionalBranch.h"
+#include "GISel/MC6809Combiner.h"
+#include "MC6809CopyOpt.h"
+#include "MC6809IncDecPhi.h"
 #include "MC6809IndexIV.h"
+#include "MC6809InsertCopies.h"
+#include "MC6809Internalize.h"
+#include "MC6809LateOptimization.h"
 #include "MC6809LowerSelect.h"
 #include "MC6809MachineFunctionInfo.h"
 #include "MC6809MachineScheduler.h"
-#include "MC6809NoRecurse.h"
+#include "MC6809NonReentrant.h"
 #include "MC6809PostRAScavenging.h"
+#include "MC6809ShiftRotateChain.h"
+#include "MC6809StaticStackAlloc.h"
 #include "MC6809TargetObjectFile.h"
 #include "MC6809TargetTransformInfo.h"
-#include "MCTargetDesc/MC6809MCTargetDesc.h"
-
-#define DEBUG_TYPE "mc6809-targetmachine"
+#include "MC6809DirectPageAlloc.h"
 
 using namespace llvm;
 
-extern "C" void LLVM_EXTERNAL_VISIBILITY LLVMInitializeMC6809Target() {
+extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMC6809Target() {
   // Register the target.
   RegisterTargetMachine<MC6809TargetMachine> X(getTheMC6809Target());
 
   PassRegistry &PR = *PassRegistry::getPassRegistry();
   initializeGlobalISel(PR);
   initializeMC6809CombinerPass(PR);
-  initializeMC6809ConditionalBranchPass(PR);
+  initializeMC6809CopyOptPass(PR);
+  initializeMC6809IncDecPhiPass(PR);
+  initializeMC6809InsertCopiesPass(PR);
+  initializeMC6809InternalizePass(PR);
+  initializeMC6809LateOptimizationPass(PR);
   initializeMC6809LowerSelectPass(PR);
-  initializeMC6809NoRecursePass(PR);
+  initializeMC6809NonReentrantPass(PR);
   initializeMC6809PostRAScavengingPass(PR);
+  initializeMC6809ShiftRotateChainPass(PR);
+  initializeMC6809StaticStackAllocPass(PR);
+  initializeMC6809DirectPageAllocPass(PR);
 }
 
-static const char *MC6809DataLayout = "e-p:16:8-S8-m:e-i1:8-i8:8-i16:8-i32:8-i64:8-f32:8-f64:8-a:0-n8:16";
+static const char *MC6809DataLayout =
+    "e-p:16:8-S8-m:e-i1:8-i8:8-i16:8-i32:8-i64:8-f32:8-f64:8-a:0-n8:16";
 
 /// Processes a CPU name.
 static StringRef getCPU(StringRef CPU) {
@@ -66,19 +82,19 @@ static StringRef getCPU(StringRef CPU) {
 }
 
 static Reloc::Model getEffectiveRelocModel(std::optional<Reloc::Model> RM) {
-  return RM.has_value() ? *RM : Reloc::Static;
+  return RM ? *RM : Reloc::Static;
 }
 
 MC6809TargetMachine::MC6809TargetMachine(const Target &T, const Triple &TT,
-                                         StringRef CPU, StringRef FS,
-                                         const TargetOptions &Options,
-                                         std::optional<Reloc::Model> RM,
-                                         std::optional<CodeModel::Model> CM,
-                                         CodeGenOpt::Level OL, bool JIT)
+                                   StringRef CPU, StringRef FS,
+                                   const TargetOptions &Options,
+                                   std::optional<Reloc::Model> RM,
+                                   std::optional<CodeModel::Model> CM,
+                                   CodeGenOptLevel OL, bool JIT)
     : LLVMTargetMachine(T, MC6809DataLayout, TT, getCPU(CPU), FS, Options,
                         getEffectiveRelocModel(RM),
                         getEffectiveCodeModel(CM, CodeModel::Small), OL),
-      SubTarget(TT, getCPU(CPU).str(), FS.str(), FS.str(), *this) {
+      SubTarget(TT, getCPU(CPU).str(), FS.str(), *this) {
   this->TLOF = std::make_unique<MC6809TargetObjectFile>();
 
   initAsmInfo();
@@ -102,7 +118,7 @@ MC6809TargetMachine::getSubtargetImpl(const Function &F) const {
     // creation will depend on the TM and the code generation flags on the
     // function that reside in TargetOptions.
     resetTargetOptions(F);
-    I = std::make_unique<MC6809Subtarget>(TargetTriple, CPU, CPU, FS, *this);
+    I = std::make_unique<MC6809Subtarget>(TargetTriple, CPU, FS, *this);
   }
   return I.get();
 }
@@ -112,13 +128,24 @@ MC6809TargetMachine::getTargetTransformInfo(const Function &F) const {
   return TargetTransformInfo(MC6809TTIImpl(this, F));
 }
 
-void MC6809TargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
+void MC6809TargetMachine::registerPassBuilderCallbacks(
+    PassBuilder &PB, bool PopulateClassToPassNames) {
   PB.registerPipelineParsingCallback(
       [](StringRef Name, LoopPassManager &PM,
          ArrayRef<PassBuilder::PipelineElement>) {
         if (Name == "mc6809-indexiv") {
           // Rewrite pointer artithmetic in loops to use 8-bit IV offsets.
           PM.addPass(MC6809IndexIV());
+          return true;
+        }
+        return false;
+      });
+
+  PB.registerPipelineParsingCallback(
+      [](StringRef Name, ModulePassManager &PM,
+         ArrayRef<PassBuilder::PipelineElement>) {
+        if (Name == "mc6809-nonreentrant") {
+          PM.addPass(MC6809NonReentrantPass());
           return true;
         }
         return false;
@@ -135,8 +162,16 @@ void MC6809TargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
       });
 }
 
-MachineFunctionInfo *MC6809TargetMachine::createMachineFunctionInfo(BumpPtrAllocator &Allocator, const Function &F, const TargetSubtargetInfo *STI) const {
-  return MC6809MachineFunctionInfo::create<MC6809MachineFunctionInfo>(Allocator, F, static_cast<const MC6809Subtarget *>(STI));
+StringRef MC6809TargetMachine::getSectionPrefix(const GlobalObject *GO) const {
+  return GO->getAddressSpace() == MC6809::AS_DirectPage ? ".dp" : "";
+}
+
+MachineFunctionInfo *MC6809TargetMachine::createMachineFunctionInfo(
+    BumpPtrAllocator &Allocator, const Function &F,
+    const TargetSubtargetInfo *STI) const {
+
+  return MC6809FunctionInfo::create<MC6809FunctionInfo>(
+      Allocator, F, static_cast<const MC6809Subtarget *>(STI));
 }
 
 //===----------------------------------------------------------------------===//
@@ -175,15 +210,15 @@ public:
   void addFastRegAlloc() override { addOptimizedRegAlloc(); }
   void addOptimizedRegAlloc() override;
 
+  void addMachineLateOptimization() override;
+  void addPrePEI() override;
   void addPreSched2() override;
   void addPreEmitPass() override;
 
   ScheduleDAGInstrs *
   createMachineScheduler(MachineSchedContext *C) const override;
 
-#if 0
   std::unique_ptr<CSEConfigBase> getCSEConfig() const override;
-#endif /* 0 */
 };
 } // namespace
 
@@ -192,9 +227,12 @@ TargetPassConfig *MC6809TargetMachine::createPassConfig(PassManagerBase &PM) {
 }
 
 void MC6809PassConfig::addIRPasses() {
-  // Aggressively find provably non-recursive functions.
-  addPass(createMC6809NoRecursePass());
+  if (getOptLevel() != CodeGenOptLevel::None)
+    addPass(createMC6809NonReentrantPass());
   TargetPassConfig::addIRPasses();
+  // Clean up after LSR in particular.
+  if (getOptLevel() != CodeGenOptLevel::None)
+    addPass(createInstructionCombiningPass());
 }
 
 bool MC6809PassConfig::addPreISel() { return false; }
@@ -205,17 +243,22 @@ bool MC6809PassConfig::addIRTranslator() {
 }
 
 void MC6809PassConfig::addPreLegalizeMachineIR() {
-  addPass(createMC6809Combiner());
-  addPass(createMC6809ConditionalBranchPass());
+  if (getOptLevel() != CodeGenOptLevel::None) {
+    addPass(createMC6809Combiner());
+    addPass(createMC6809IncDecPhiPass());
+    addPass(createMC6809ShiftRotateChainPass());
+  }
 }
 
 bool MC6809PassConfig::addLegalizeMachineIR() {
   addPass(new Legalizer());
+  addPass(createMC6809InternalizePass());
   return false;
 }
 
 void MC6809PassConfig::addPreRegBankSelect() {
-  addPass(createMC6809Combiner());
+  if (getOptLevel() != CodeGenOptLevel::None)
+    addPass(createMC6809Combiner());
   addPass(createMC6809LowerSelectPass());
 }
 
@@ -238,13 +281,32 @@ bool MC6809PassConfig::addGlobalInstructionSelect() {
 
 void MC6809PassConfig::addMachineSSAOptimization() {
   TargetPassConfig::addMachineSSAOptimization();
+  if (getOptLevel() != CodeGenOptLevel::None)
+    addPass(createMC6809InsertCopiesPass());
 }
 
 void MC6809PassConfig::addOptimizedRegAlloc() {
-  // Run the coalescer twice to coalesce RMW patterns revealed by the first
-  // coalesce.
-  insertPass(&llvm::TwoAddressInstructionPassID, &llvm::RegisterCoalescerID);
+  if (getOptLevel() != CodeGenOptLevel::None) {
+    // Run the coalescer twice to coalesce RMW patterns revealed by the first
+    // coalesce.
+    insertPass(&llvm::TwoAddressInstructionPassID, &llvm::RegisterCoalescerID);
+
+    // Re-run Live Intervals after coalescing to renumber the contained values.
+    // This can allow constant rematerialization after aggressive coalescing.
+    insertPass(&llvm::MachineSchedulerID, &llvm::LiveIntervalsID);
+  }
   TargetPassConfig::addOptimizedRegAlloc();
+}
+
+void MC6809PassConfig::addMachineLateOptimization() {
+  TargetPassConfig::addMachineLateOptimization();
+  if (getOptLevel() != CodeGenOptLevel::None)
+    addPass(createMC6809CopyOptPass());
+}
+
+void MC6809PassConfig::addPrePEI() {
+  if (getOptLevel() != CodeGenOptLevel::None)
+    addPass(createMC6809DirectPageAllocPass());
 }
 
 void MC6809PassConfig::addPreSched2() {
@@ -253,6 +315,12 @@ void MC6809PassConfig::addPreSched2() {
   addPass(&FinalizeISelID);
   // Lower pseudos produced by control flow pseudos.
   addPass(&ExpandPostRAPseudosID);
+  addPass(createMC6809PostRAScavengingPass());
+
+  // This is currently mandatory, since it lowers CMPTermZ.
+  addPass(createMC6809LateOptimizationPass());
+  if (getOptLevel() != CodeGenOptLevel::None)
+    addPass(createMC6809StaticStackAllocPass());
 }
 
 void MC6809PassConfig::addPreEmitPass() { addPass(&BranchRelaxationPassID); }
@@ -264,32 +332,26 @@ MC6809PassConfig::createMachineScheduler(MachineSchedContext *C) const {
 
 namespace {
 
-#if 0
 class MC6809CSEConfigFull : public CSEConfigFull {
 public:
   virtual ~MC6809CSEConfigFull() = default;
   virtual bool shouldCSEOpc(unsigned Opc) override;
 };
-#endif /* 0 */
 
-#if 0
 bool MC6809CSEConfigFull::shouldCSEOpc(unsigned Opc) {
   switch (Opc) {
   default:
     return CSEConfigFull::shouldCSEOpc(Opc);
-  case TargetOpcode::G_SHLE:
-  case TargetOpcode::G_LSHRE:
+  case MC6809::G_LSHRE:
+  case MC6809::G_SHLE:
     return true;
   }
 }
-#endif /* 0 */
 
 } // namespace
 
-#if 0
 std::unique_ptr<CSEConfigBase> MC6809PassConfig::getCSEConfig() const {
-  if (TM->getOptLevel() == CodeGenOpt::None)
+  if (TM->getOptLevel() == CodeGenOptLevel::None)
     return std::make_unique<CSEConfigConstantOnly>();
   return std::make_unique<MC6809CSEConfigFull>();
 }
-#endif /* 0 */

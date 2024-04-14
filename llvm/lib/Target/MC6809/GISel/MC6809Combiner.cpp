@@ -1,5 +1,4 @@
-//===-- MC6809Combiner.cpp - MC6809 GlobalIsel Combiner
-//-------------------------===//
+//===-- MC6809Combiner.cpp - MC6809 GlobalIsel Combiner -------------------------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -16,23 +15,29 @@
 
 #include "MC6809Combiner.h"
 
+#include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "MC6809.h"
 #include "MC6809LegalizerInfo.h"
 #include "MC6809Subtarget.h"
-#include "MCTargetDesc/MC6809MCTargetDesc.h"
 
+#include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/CodeGen/GlobalISel/CSEInfo.h"
 #include "llvm/CodeGen/GlobalISel/Combiner.h"
 #include "llvm/CodeGen/GlobalISel/CombinerHelper.h"
 #include "llvm/CodeGen/GlobalISel/CombinerInfo.h"
+#include "llvm/CodeGen/GlobalISel/GIMatchTableExecutor.h"
+#include "llvm/CodeGen/GlobalISel/GIMatchTableExecutorImpl.h"
 #include "llvm/CodeGen/GlobalISel/GISelChangeObserver.h"
 #include "llvm/CodeGen/GlobalISel/GISelKnownBits.h"
+#include "llvm/CodeGen/GlobalISel/GenericMachineInstrs.h"
 #include "llvm/CodeGen/GlobalISel/LegalizerHelper.h"
 #include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
+#include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
 #include "llvm/CodeGen/GlobalISel/Utils.h"
 #include "llvm/CodeGen/MachineDominators.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
+#include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetOpcodes.h"
@@ -42,79 +47,104 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Target/TargetMachine.h"
 
+#define GET_GICOMBINER_DEPS
+#include "MC6809GenGICombiner.inc"
+#undef GET_GICOMBINER_DEPS
+
 #define DEBUG_TYPE "mc6809-combiner"
 
 using namespace llvm;
 
-class MC6809CombinerHelperState {
+namespace {
+
+#define GET_GICOMBINER_TYPES
+#include "MC6809GenGICombiner.inc"
+#undef GET_GICOMBINER_TYPES
+
+class MC6809CombinerImpl : public Combiner {
 protected:
-  CombinerHelper &Helper;
+  // TODO: Make CombinerHelper methods const.
+  mutable CombinerHelper Helper;
+  const MC6809CombinerImplRuleConfig &RuleConfig;
+  AAResults *AA;
 
 public:
-  MC6809CombinerHelperState(CombinerHelper &Helper) : Helper(Helper) {}
+  MC6809CombinerImpl(MachineFunction &MF, CombinerInfo &CInfo,
+                  const TargetPassConfig *TPC, bool IsPreLegalize,
+                  GISelKnownBits &KB, GISelCSEInfo *CSEInfo,
+                  const MC6809CombinerImplRuleConfig &RuleConfig,
+                  const MC6809Subtarget &STI, MachineDominatorTree *MDT,
+                  const LegalizerInfo *LI, AAResults *AA);
+
+  static const char *getName() { return "MC6809Combiner"; }
+
+  bool tryCombineAll(MachineInstr &I) const override;
 
   // G_PTR_ADD (GLOBAL_VALUE @x + y_const), z_const =>
   // GLOBAL_VALUE @x + (y_const + z_const)
-  bool matchFoldGlobalOffset(MachineInstr &MI, MachineRegisterInfo &MRI, std::pair<const MachineOperand *, int64_t> &MatchInfo) const;
-  bool applyFoldGlobalOffset(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, std::pair<const MachineOperand *, int64_t> &MatchInfo) const;
+  bool matchFoldGlobalOffset(MachineInstr &MI, std::pair<const MachineOperand *, int64_t> &MatchInfo) const;
+  // G_PTR_ADD (GLOBAL_VALUE @x + y_const), z_const =>
+  // GLOBAL_VALUE @x + (y_const + z_const)
+  void applyFoldGlobalOffset(MachineInstr &MI, std::pair<const MachineOperand *, int64_t> &MatchInfo) const;
 
-  // %1 = G_GLOBAL_VALUE @foo + bar
-  // %2 = COPY %1
-  // =>
-  // %2 = G_GLOBAL_VALUE @foo + bar
-  bool matchFoldCopy(MachineInstr &MI, MachineRegisterInfo &MRI, std::pair<const MachineOperand *, MachineInstr *> &MatchInfo) const;
-  bool applyFoldCopy(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, std::pair<const MachineOperand *, MachineInstr *> &MatchInfo) const;
+  bool matchExtractLowBit(MachineInstr &MI, MachineInstr *&Shift) const;
+  void applyExtractLowBit(MachineInstr &MI, MachineInstr *&Shift) const;
 
-  //  %2:_(s16) = G_[SZ]EXT %1:_(s8)
-  //  %3:_(p0) = G_PTR_ADD %0:_, %2:_(s16)
-  //   =>
-  //  %3:_(s8) = G_PTR_ADD %0:_, %1:_(s8)
-  bool matchFoldPointerExtOffset(MachineInstr &MI, MachineRegisterInfo &MRI, std::pair<MachineInstr *, MachineInstr *>&MatchInfo) const;
-  bool applyFoldPointerExtOffset(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, std::pair<MachineInstr *, MachineInstr *>&MatchInfo) const;
+  bool matchUAddO1(MachineInstr &MI) const;
+  void applyUAddO1(MachineInstr &MI) const;
 
-  //  ( %1:_(s8) = COPY $af // Antipattern )
-  //  %1:_(s8) = G_LOAD %5:_(p0) :: (invariant load (s8) from %fixed-stack.3, align 2)
-  //  %3:_(s8) = G_ADD %1:_, %0:_ ; The known physical register is on the wrong side
-  //   =>
-  //  :
-  //  %3:_(s8) = G_ADD %0:_, %1:_ ; Can make use of addressing modes
-  bool matchSwapPhysregToLhs(MachineInstr &MI, MachineRegisterInfo &MRI, MachineInstr *&MatchInfo) const;
-  bool applySwapPhysregToLhs(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, MachineInstr *&MatchInfo) const;
+  bool matchCMPZZero(MachineInstr &MI, MachineOperand *&Zero) const;
+  void applyCMPZZero(MachineInstr &MI, MachineOperand *&Zero) const;
 
-  //  %0:accum(s8) = COPY $ab
-  //  :
-  //  %11:accum(s8) = G_ADD %10:accum, %4:accum
-  //  %12:accum(s8) = G_SUB %0:accum, %11:accum
-  //   =>
-  //  %0:accum(s8) = COPY $ab
-  //  :
-  //  %12:accum(s8) = G_SUB %0:accum, %4:accum
-  //  %13:accum(s8) = G_SUB %12:accum, %10:accum
-  bool matchSwitchAddToSubtract(MachineInstr &MI, MachineRegisterInfo &MRI, MachineInstr *&MatchInfo) const;
-  bool applySwitchAddToSubtract(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, MachineInstr *&MatchInfo) const;
+  // G_LOAD/G_STORE pair => G_MEMCPY_INLINE
+  bool matchLoadStoreToMemcpy(MachineInstr &MI, GLoad *&Load) const;
+  void applyLoadStoreToMemcpy(MachineInstr &MI, GLoad *&Load) const;
 
-  //  %3:accum(s16) = G_(ANY|S|Z)EXT %0:accum(s8)
-  //  %4:accum(s16) = G_(ANY|S|Z)EXT %1:accum(s8)
-  //  %10:accum(s8) = G_MUL %3:accum, %4:accum
-  //   =>
-  //  %10:accum(s8), %11:accum(s8) = G_EXPAND_MUL %0:accum(s8), %1:accum(s8)
-  bool matchNaturalMultiply(MachineInstr &MI, MachineRegisterInfo &MRI, std::pair<MachineInstr *, MachineInstr *>&MatchInfo) const;
-  bool applyNaturalMultiply(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, std::pair<MachineInstr *, MachineInstr *>&MatchInfo) const;
+  // G_STORE => G_MEMSET
+  bool matchStoreToMemset(MachineInstr &MI, uint8_t &Value) const;
+  void applyStoreToMemset(MachineInstr &MI, uint8_t &Value) const;
 
+  bool matchFoldAddE(MachineInstr &MI, BuildFnTy &MatchInfo) const;
+  bool matchFoldSbc(MachineInstr &MI, BuildFnTy &MatchInfo) const;
+  bool matchFoldShift(MachineInstr &MI, BuildFnTy &MatchInfo) const;
+
+  bool matchShiftUnusedCarryIn(MachineInstr &MI, BuildFnTy &MatchInfo) const;
+
+  APInt getDemandedBits(Register R) const;
+  APInt getDemandedBits(Register R, DenseMap<Register, APInt> &Cache) const;
+
+private:
+#define GET_GICOMBINER_CLASS_MEMBERS
+#include "MC6809GenGICombiner.inc"
+#undef GET_GICOMBINER_CLASS_MEMBERS
 };
-// ======================================================================
+
+#define GET_GICOMBINER_IMPL
+#include "MC6809GenGICombiner.inc"
+#undef GET_GICOMBINER_IMPL
+
+MC6809CombinerImpl::MC6809CombinerImpl(
+    MachineFunction &MF, CombinerInfo &CInfo, const TargetPassConfig *TPC,
+    bool IsPreLegalize, GISelKnownBits &KB, GISelCSEInfo *CSEInfo,
+    const MC6809CombinerImplRuleConfig &RuleConfig, const MC6809Subtarget &STI,
+    MachineDominatorTree *MDT, const LegalizerInfo *LI, AAResults *AA)
+    : Combiner(MF, CInfo, TPC, &KB, CSEInfo),
+      Helper(Observer, B, IsPreLegalize, &KB, MDT, LI), RuleConfig(RuleConfig),
+      AA(AA),
+#define GET_GICOMBINER_CONSTRUCTOR_INITS
+#include "MC6809GenGICombiner.inc"
+#undef GET_GICOMBINER_CONSTRUCTOR_INITS
+{
+}
 
 // G_PTR_ADD (GLOBAL_VALUE @x + y_const), z_const =>
 // GLOBAL_VALUE @x + (y_const + z_const)
-bool MC6809CombinerHelperState::matchFoldGlobalOffset(MachineInstr &MI, MachineRegisterInfo &MRI, std::pair<const MachineOperand *, int64_t> &MatchInfo) const {
+bool MC6809CombinerImpl::matchFoldGlobalOffset(MachineInstr &MI, std::pair<const MachineOperand *, int64_t> &MatchInfo) const {
+  const auto &Add = cast<GPtrAdd>(MI);
   using namespace TargetOpcode;
-  assert(MI.getOpcode() == TargetOpcode::G_PTR_ADD);
 
-  Register Base = MI.getOperand(1).getReg();
-  Register Offset = MI.getOperand(2).getReg();
-
-  MachineInstr *GlobalBase = getOpcodeDef(TargetOpcode::G_GLOBAL_VALUE, Base, MRI);
-  auto ConstOffset = getIConstantVRegValWithLookThrough(Offset, MRI);
+  MachineInstr *GlobalBase = getOpcodeDef(G_GLOBAL_VALUE, Add.getBaseReg(), MRI);
+  auto ConstOffset = getIConstantVRegValWithLookThrough(Add.getOffsetReg(), MRI);
 
   if (!GlobalBase || !ConstOffset)
     return false;
@@ -124,270 +154,395 @@ bool MC6809CombinerHelperState::matchFoldGlobalOffset(MachineInstr &MI, MachineR
   return true;
 }
 
-bool MC6809CombinerHelperState::applyFoldGlobalOffset(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, std::pair<const MachineOperand *, int64_t> &MatchInfo) const {
+// G_PTR_ADD (GLOBAL_VALUE @x + y_const), z_const =>
+// GLOBAL_VALUE @x + (y_const + z_const)
+void MC6809CombinerImpl::applyFoldGlobalOffset(MachineInstr &MI, std::pair<const MachineOperand *, int64_t> &MatchInfo) const {
   using namespace TargetOpcode;
-  assert(MI.getOpcode() == TargetOpcode::G_PTR_ADD);
-  const TargetInstrInfo &TII = MIB.getTII();
+  assert(MI.getOpcode() == G_PTR_ADD);
+  const TargetInstrInfo &TII = B.getTII();
   Observer.changingInstr(MI);
   MI.setDesc(TII.get(TargetOpcode::G_GLOBAL_VALUE));
   MI.getOperand(1).ChangeToGA(MatchInfo.first->getGlobal(), MatchInfo.second, MatchInfo.first->getTargetFlags());
   MI.removeOperand(2);
   Observer.changedInstr(MI);
-  return true;
 }
 
-// %1 = G_GLOBAL_VALUE @foo + bar
-// $aq = COPY %1
-// =>
-// $aq = G_GLOBAL_VALUE @foo + bar
-bool MC6809CombinerHelperState::matchFoldCopy(MachineInstr &MI, MachineRegisterInfo &MRI, std::pair<const MachineOperand *, MachineInstr *> &MatchInfo) const {
-  using namespace TargetOpcode;
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Matching COPY : MI = "; MI.dump(););
-  assert(MI.getOpcode() == COPY);
-
-  MachineOperand *CopyDest = &MI.getOperand(0);
-  MachineOperand *CopySource = &MI.getOperand(1);
-  if (CopySource->isReg() && CopySource->getReg().isPhysical())
-    return false;
-  MachineInstr *Base = getDefIgnoringCopies(CopySource->getReg(), MRI);
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Matching COPY : *CopyDest = "; CopyDest->dump(););
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Matching COPY : *CopySource = "; CopySource->dump(););
-  LLVM_DEBUG(if (Base) {
-    dbgs() << "OINQUE DEBUG " << __func__ << " : Matching COPY : *Base = ";
-    Base->dump();
+bool MC6809CombinerImpl::matchExtractLowBit(MachineInstr &MI, MachineInstr *&Shift) const {
+  using namespace MIPatternMatch;
+  Register Src;
+  if (MI.getOpcode() == MC6809::G_TRUNC) {
+    if (MRI.getType(MI.getOperand(0).getReg()) != LLT::scalar(1))
+      return false;
+    Src = MI.getOperand(1).getReg();
+    Register NewSrc;
+    if (mi_match(Src, MRI, m_GAnd(m_Reg(NewSrc), MIPatternMatch::m_SpecificICst(1))))
+      Src = NewSrc;
   } else {
-        dbgs() << "OINQUE DEBUG " << __func__ << " : Matching COPY : *Base = NULL\n";
-  });
-
-  if (!Base)
-    return false;
-  if (!(CopyDest->isReg() && CopyDest->getReg().isPhysical()))
-    return false;
-  MatchInfo = {CopyDest, Base};
-  return true;
-}
-
-bool MC6809CombinerHelperState::applyFoldCopy(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, std::pair<const MachineOperand *, MachineInstr *> &MatchInfo) const {
-  using namespace TargetOpcode;
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Matching COPY : MI = "; MI.dump(););
-  assert(MI.getOpcode() == COPY);
-  Observer.changingInstr(*(MatchInfo.second));
-  MatchInfo.second->getOperand(0).setReg(MatchInfo.first->getReg());
-  Observer.changedInstr(*(MatchInfo.second));
-  MI.eraseFromParent();
-  return true;
-}
-
-//  %2:_(s16) = G_[SZ]EXT %1:_(s8)
-//  %3:_(p0) = G_PTR_ADD %0:_, %2:_(s16)
-//   =>
-//  %3:_(s8) = G_PTR_ADD %0:_, %1:_(s8)
-bool MC6809CombinerHelperState::matchFoldPointerExtOffset(MachineInstr &MI, MachineRegisterInfo &MRI, std::pair<MachineInstr *, MachineInstr *>&MatchInfo) const {
-  using namespace TargetOpcode;
-  assert(MI.getOpcode() == TargetOpcode::G_PTR_ADD);
-  if (!MI.getOperand(2).isReg())
-    return false;
-  Register Offset = MI.getOperand(2).getReg();
-  MachineInstr *Ext = getOpcodeDef (TargetOpcode::G_SEXT, Offset, MRI);
-  if (!Ext) {
-    Ext = getOpcodeDef(TargetOpcode::G_ZEXT, Offset, MRI);
-    if (!Ext)
+    assert(MI.getOpcode() == MC6809::G_ICMP);
+    ICmpInst::Predicate Pred;
+    if (!mi_match(MI.getOperand(0).getReg(), MRI, m_GICmp(m_Pred(Pred), m_GAnd(m_Reg(Src), MIPatternMatch::m_SpecificICst(1)), MIPatternMatch::m_SpecificICst(0))))
+      return false;
+    // The NE case handled automatically via an optimization that converts it to
+    // a G_TRUNC.
+    if (Pred != CmpInst::ICMP_EQ)
       return false;
   }
-  MatchInfo = {&MI, Ext};
-  return true;
-}
 
-bool MC6809CombinerHelperState::applyFoldPointerExtOffset(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, std::pair<MachineInstr *, MachineInstr *>&MatchInfo) const {
-  using namespace TargetOpcode;
-  assert(MI.getOpcode() == TargetOpcode::G_PTR_ADD);
-  Observer.changingInstr(MI);
-  MI.getOperand(2).ChangeToRegister(MatchInfo.second->getOperand(1).getReg(), /* isDef */ false);
-  MatchInfo.second->eraseFromParent();
-  Observer.changedInstr(MI);
-  return true;
-}
-
-// ============================================================================
-//  ( %1:_(s8) = COPY $af // Antipattern )
-//  %1:_(s8) = G_LOAD %5:_(p0) :: (invariant load (s8) from %fixed-stack.3, align 2)
-//  %3:_(s8) = G_ADD %1:_, %0:_ ; The known physical register is on the wrong side
-//   =>
-//  :
-//  %3:_(s8) = G_ADD %0:_, %1:_ ; Can make use of addressing modes
-bool MC6809CombinerHelperState::matchSwapPhysregToLhs(MachineInstr &MI, MachineRegisterInfo &MRI, MachineInstr *&MatchInfo) const {
-  using namespace TargetOpcode;
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Matching G_ADD\n");
-  assert(MI.getOpcode() == TargetOpcode::G_ADD || MI.getOpcode() == TargetOpcode::G_SADDO || MI.getOpcode() == TargetOpcode::G_UADDO || MI.getOpcode() == TargetOpcode::G_SADDE || MI.getOpcode() == TargetOpcode::G_UADDE);
-  int ArgA, ArgB;
-  if (MI.getOpcode() == TargetOpcode::G_ADD) {
-    ArgA = 1;
-    ArgB = 2;
-  } else {
-    ArgA = 2;
-    ArgB = 3;
-  }
-  Register LHS = MI.getOperand(ArgA).getReg();
-  auto CopyL = getOpcodeDef(G_LOAD, LHS, MRI);
-  if (CopyL && CopyL->getOperand(1).isReg() && CopyL->getOperand(1).getReg().isPhysical()) {
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Matching G_ADD : LHS is a G_LOAD : return FALSE\n");
-    return false;
-  }
-  Register RHS = MI.getOperand(ArgB).getReg();
-  auto CopyR = getOpcodeDef(COPY, RHS, MRI);
-  if (CopyR && CopyR->getOperand(1).isReg() && CopyR->getOperand(1).getReg().isPhysical()) {
-    CopyL = getOpcodeDef(COPY, LHS, MRI);
-    if (CopyL && CopyL->getOperand(1).isReg() && CopyL->getOperand(1).getReg().isPhysical()) {
-      LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Matching G_ADD : LHS and RHS are COPY : return FALSE\n");
-      return false;
-    }
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Matching G_ADD : RHS is a COPY : return TRUE\n");
-    MatchInfo = CopyR;
+  for (MachineInstr &RefMI : MRI.reg_nodbg_instructions(Src)) {
+    if (RefMI.getOpcode() != MC6809::G_LSHR)
+      continue;
+    if (RefMI.getOperand(1).getReg() != Src)
+      continue;
+    auto ConstAmt = getIConstantVRegValWithLookThrough(RefMI.getOperand(2).getReg(), MRI);
+    if (!ConstAmt || !ConstAmt->Value.isOne())
+      continue;
+    if (!Helper.dominates(RefMI, MI) && !Helper.dominates(MI, RefMI))
+      continue;
+    Shift = &RefMI;
     return true;
   }
+
   return false;
 }
 
-bool MC6809CombinerHelperState::applySwapPhysregToLhs(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, MachineInstr *&MatchInfo) const {
-  using namespace TargetOpcode;
-  int ArgA, ArgB;
-  assert(MI.getOpcode() == TargetOpcode::G_ADD || MI.getOpcode() == TargetOpcode::G_SADDO || MI.getOpcode() == TargetOpcode::G_UADDO || MI.getOpcode() == TargetOpcode::G_SADDE || MI.getOpcode() == TargetOpcode::G_UADDE);
-  if (MI.getOpcode() == TargetOpcode::G_ADD) {
-    ArgA = 1;
-    ArgB = 2;
+void MC6809CombinerImpl::applyExtractLowBit(MachineInstr &MI, MachineInstr *&Shift) const {
+  assert(Shift->getOpcode() == MC6809::G_LSHR);
+  LLT S1 = LLT::scalar(1);
+
+  bool Negate = MI.getOpcode() == MC6809::G_ICMP && MI.getOperand(1).getPredicate() == CmpInst::ICMP_EQ;
+
+  if (Helper.dominates(*Shift, MI)) {
+    B.setInstrAndDebugLoc(*Shift);
   } else {
-    ArgA = 2;
-    ArgB = 3;
+    assert(Helper.dominates(MI, *Shift));
+    B.setInstrAndDebugLoc(MI);
   }
-  Observer.changingInstr(MI);
-  auto Temp = MI.getOperand(ArgB).getReg();
-  MI.getOperand(ArgB).setReg(MI.getOperand(ArgA).getReg());
-  MI.getOperand(ArgA).setReg(Temp);
-  Observer.changedInstr(MI);
-  return true;
+
+  auto EvenShift = B.buildInstr(MC6809::G_LSHRE, {Shift->getOperand(0), S1}, {Shift->getOperand(1), B.buildConstant(S1, 0)});
+  if (Negate)
+    B.buildNot(MI.getOperand(0).getReg(), EvenShift.getReg(1));
+  else
+    B.buildCopy(MI.getOperand(0).getReg(), EvenShift.getReg(1));
+  MC6809LegalizerInfo Legalizer(B.getMF().getSubtarget<MC6809Subtarget>());
+  LegalizerHelper LegalizerHelper(B.getMF(), Legalizer, Observer, B);
+  B.setInstrAndDebugLoc(*EvenShift);
+  if (!Legalizer.legalizeLshrEShlE(LegalizerHelper, MRI, *EvenShift))
+    llvm_unreachable("Failed to legalize shift.");
+  Shift->eraseFromParent();
+  MI.eraseFromParent();
 }
 
-//  %0:accum(s8) = COPY $ab
-//  :
-//  %11:accum(s8) = G_ADD %10:accum, %4:accum
-//  %12:accum(s8) = G_SUB %0:accum, %11:accum
-//   =>
-//  %0:accum(s8) = COPY $ab
-//  :
-//  %11:accum(s8) = G_SUB %0:accum, %4:accum
-//  %12:accum(s8) = G_SUB %11:accum, %10:accum
-bool MC6809CombinerHelperState::matchSwitchAddToSubtract(MachineInstr &MI, MachineRegisterInfo &MRI, MachineInstr *&MatchInfo) const {
-  using namespace TargetOpcode;
-  assert(MI.getOpcode() == G_SUB);
-
-  MachineOperand *Subtrahend = &MI.getOperand(2);
-  MachineInstr *GAdd = getOpcodeDef(G_ADD, Subtrahend->getReg(), MRI);
-
-  if (!GAdd)
+// Use of the overflow flag from an increment is better done on the 6502 by
+// comparing the result to zero, since this allows increment and decrement
+// operators instead of just ADC.
+bool MC6809CombinerImpl::matchUAddO1(MachineInstr &MI) const {
+  if (MI.getOpcode() != MC6809::G_UADDO)
     return false;
-  MatchInfo = GAdd;
+  std::optional<ValueAndVReg> Val = getIConstantVRegValWithLookThrough(MI.getOperand(3).getReg(), MRI);
+  if (!Val || !Val->Value.isOne())
+    return false;
   return true;
 }
 
-bool MC6809CombinerHelperState::applySwitchAddToSubtract(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, MachineInstr *&MatchInfo) const {
-  using namespace TargetOpcode;
-  assert(MI.getOpcode() == TargetOpcode::G_SUB);
-  assert(MatchInfo->getOpcode() == TargetOpcode::G_ADD);
-  MachineIRBuilder Builder(MI);
-  Observer.changingInstr(MI);
-  Builder.buildSub(MatchInfo->getOperand(0).getReg(), MI.getOperand(1).getReg(), MatchInfo->getOperand(2).getReg());
-  Builder.buildSub(MI.getOperand(0).getReg(), MI.getOperand(2).getReg(), MatchInfo->getOperand(1).getReg());
-  MatchInfo->eraseFromParent();
-  Observer.changedInstr(MI);
+void MC6809CombinerImpl::applyUAddO1(MachineInstr &MI) const {
+  LLT Ty = MRI.getType(MI.getOperand(0).getReg());
+  B.setInstrAndDebugLoc(MI);
+  B.buildAdd(MI.getOperand(0), MI.getOperand(2), MI.getOperand(3));
+  B.buildICmp(CmpInst::ICMP_EQ, MI.getOperand(1), MI.getOperand(0), B.buildConstant(Ty, 0));
   MI.eraseFromParent();
-  return true;
 }
 
-//  %3:accum(s16) = G_(ANY|S|Z)EXT %0:accum(s8)
-//  %4:accum(s16) = G_(ANY|S|Z)EXT %1:accum(s8)
-//  %10:accum(s8) = G_MUL %3:accum, %4:accum
-//   =>
-//  %10:accum(s8), %11:accum(s8) = G_EXPAND_MUL %0:accum(s8), %1:accum(s8)
-bool MC6809CombinerHelperState::matchNaturalMultiply(MachineInstr &MI, MachineRegisterInfo &MRI, std::pair<MachineInstr *, MachineInstr *>&MatchInfo) const {
-  using namespace TargetOpcode;
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Matching G_MUL\n");
-  assert(MI.getOpcode() == TargetOpcode::G_MUL);
-  Register src1 = MI.getOperand(1).getReg();
-  auto ext1 = getOpcodeDef(G_SEXT, src1, MRI);
-  if (!ext1) {
-    ext1 = getOpcodeDef(G_ZEXT, src1, MRI);
-    if (!ext1) {
-      ext1 = getOpcodeDef(G_ANYEXT, src1, MRI);
-      if (!ext1) {
-        LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Matching G_MUL : src1 is not G_SEXT, G_ZEXT or G_ANYEXT : return FALSE\n");
-        return false;
-      }
+static bool isRepeatingBytePattern(uint64_t Value, uint32_t Bytes) {
+  // Support variants like 0x01010101, 0x02020202...
+  for (uint32_t I = 1; I < Bytes; I++) {
+    if (((Value >> (I * 8)) & 0xFF) != (Value & 0xFF)) {
+      return false;
     }
   }
-  Register src2 = MI.getOperand(2).getReg();
-  auto ext2 = getOpcodeDef(G_SEXT, src2, MRI);
-  if (!ext2) {
-    ext2 = getOpcodeDef(G_ZEXT, src2, MRI);
-    if (!ext2) {
-      ext2 = getOpcodeDef(G_ANYEXT, src2, MRI);
-      if (!ext2) {
-        LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Matching G_MUL : src2 is not G_SEXT, G_ZEXT or G_ANYEXT : return FALSE\n");
-        return false;
-      }
-    }
-  }
-  MatchInfo = {ext1, ext2};
   return true;
 }
 
-bool MC6809CombinerHelperState::applyNaturalMultiply(MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &MIB, GISelChangeObserver &Observer, std::pair<MachineInstr *, MachineInstr *>&MatchInfo) const {
-  using namespace TargetOpcode;
-  assert(MI.getOpcode() == TargetOpcode::G_MUL);
-  MachineIRBuilder Builder(MI);
-  Observer.changingAllUsesOfReg(MRI, MatchInfo.first->getOperand(1).getReg());
-  Observer.changingAllUsesOfReg(MRI, MatchInfo.second->getOperand(1).getReg());
-  auto NaturalMultiply= Builder.buildInstr(MC6809::G_EXPAND_MUL, {MI.getOperand(0)},
-                                            {MatchInfo.first->getOperand(1), MatchInfo.second->getOperand(1)});
-  Builder.setInstrAndDebugLoc(*NaturalMultiply);
-  //MatchInfo.first->eraseFromParent();
-  //MatchInfo.second->eraseFromParent();
+// G_LOAD/G_STORE pair => G_MEMCPY_INLINE
+bool MC6809CombinerImpl::matchLoadStoreToMemcpy(MachineInstr &MI, GLoad *&Load) const {
+  const auto *Store = dyn_cast<GStore>(&MI);
+  if (!Store)
+    return false;
+
+  Load = dyn_cast_or_null<GLoad>(MI.getPrevNode());
+  if (!Load)
+    return false;
+  if (Load->getDstReg() != Store->getValueReg())
+    return false;
+  if (!Load->isUnordered() || !Store->isUnordered())
+    return false;
+  if (MI.mayAlias(AA, *Load, true))
+    return false;
+
+  return true;
+}
+
+void MC6809CombinerImpl::applyLoadStoreToMemcpy(MachineInstr &MI, GLoad *&Load) const {
+  const auto &Store = cast<GStore>(MI);
+  B.setInstrAndDebugLoc(MI);
+
+  B.buildInstr(MC6809::G_MEMCPY_INLINE, {}, {Store.getPointerReg(), Load->getPointerReg(), B.buildConstant(LLT::scalar(16), MRI.getType(Store.getValueReg()).getSizeInBytes())}).addMemOperand(&Store.getMMO()).addMemOperand(&Load->getMMO());
+
   MI.eraseFromParent();
-  Observer.finishedChangingAllUsesOfReg();
+}
+
+// G_STORE => G_MEMSET (large constant stores of repeating bytes)
+bool MC6809CombinerImpl::matchStoreToMemset(MachineInstr &MI, uint8_t &Value) const {
+  const auto *Store = dyn_cast<GStore>(&MI);
+  if (!Store)
+    return false;
+
+  LLT Ty = MRI.getType(Store->getValueReg());
+  if (!Ty.isScalar())
+    return false;
+
+  uint32_t SrcBits = Ty.getSizeInBits();
+  if ((SrcBits & 7) != 0 || SrcBits < 24)
+    return false;
+
+  uint32_t SrcBytes = SrcBits >> 3;
+  auto SrcValue = getIConstantVRegValWithLookThrough(Store->getValueReg(), MRI);
+  if (!SrcValue)
+    return false;
+
+  auto SrcUInt64 = SrcValue->Value.getZExtValue();
+  if (!isRepeatingBytePattern(SrcUInt64, SrcBytes))
+    return false;
+
+  Value = SrcUInt64 & 0xFF;
   return true;
 }
 
-#define MC6809COMBINERHELPER_GENCOMBINERHELPER_DEPS
-#include "MC6809GenGICombiner.inc"
-#undef MC6809COMBINERHELPER_GENCOMBINERHELPER_DEPS
+void MC6809CombinerImpl::applyStoreToMemset(MachineInstr &MI, uint8_t &Value) const {
+  const auto &Store = cast<GStore>(MI);
+  B.setInstrAndDebugLoc(MI);
 
-namespace {
-#define MC6809COMBINERHELPER_GENCOMBINERHELPER_H
-#include "MC6809GenGICombiner.inc"
-#undef MC6809COMBINERHELPER_GENCOMBINERHELPER_H
+  auto Length = MRI.getType(Store.getValueReg()).getSizeInBytes();
 
+  B.buildInstr(MC6809::G_MEMSET, {}, {Store.getPointerReg(), B.buildConstant(LLT::scalar(8), Value), B.buildConstant(LLT::scalar(16), Length), UINT64_C(0)}).addMemOperand(&Store.getMMO());
+
+  MI.eraseFromParent();
+}
+
+bool MC6809CombinerImpl::matchFoldAddE(MachineInstr &MI, BuildFnTy &MatchInfo) const {
+  auto LHS = getIConstantVRegValWithLookThrough(MI.getOperand(2).getReg(), MRI);
+  if (!LHS)
+    return false;
+  auto RHS = getIConstantVRegValWithLookThrough(MI.getOperand(3).getReg(), MRI);
+  if (!RHS)
+    return false;
+  auto CIn = getIConstantVRegValWithLookThrough(MI.getOperand(4).getReg(), MRI);
+  if (!CIn)
+    return false;
+
+  bool Overflow;
+  APInt Result;
+  if (MI.getOpcode() == MC6809::G_UADDE) {
+    Result = LHS->Value.uadd_ov(RHS->Value, Overflow);
+    bool O;
+    Result = Result.uadd_ov(CIn->Value.zext(Result.getBitWidth()), O);
+    Overflow |= O;
+  } else {
+    Result = LHS->Value.sadd_ov(RHS->Value, Overflow);
+    bool O;
+    Result = Result.sadd_ov(CIn->Value.zext(Result.getBitWidth()), O);
+    Overflow |= O;
+  }
+
+  Register Dst = MI.getOperand(0).getReg();
+  Register COut = MI.getOperand(1).getReg();
+  MatchInfo = [=](MachineIRBuilder &B) {
+    B.buildConstant(Dst, Result);
+    B.buildConstant(COut, Overflow);
+  };
+  return true;
+}
+
+bool MC6809CombinerImpl::matchFoldSbc(MachineInstr &MI, BuildFnTy &MatchInfo) const {
+  auto LHS = getIConstantVRegValWithLookThrough(MI.getOperand(5).getReg(), MRI);
+  if (!LHS)
+    return false;
+  auto RHS = getIConstantVRegValWithLookThrough(MI.getOperand(6).getReg(), MRI);
+  if (!RHS)
+    return false;
+  auto CarryIn = getIConstantVRegValWithLookThrough(MI.getOperand(7).getReg(), MRI);
+  if (!CarryIn)
+    return false;
+
+  APInt NotRHS = ~RHS->Value;
+
+  bool CarryOut;
+  APInt Result;
+  Result = LHS->Value.uadd_ov(~RHS->Value, CarryOut);
+  bool O;
+  Result = Result.uadd_ov(CarryIn->Value.zext(Result.getBitWidth()), O);
+  CarryOut |= O;
+
+  bool Overflow = LHS->Value.isNegative() == !RHS->Value.isNegative() && Result.isNegative() != LHS->Value.isNegative();
+
+  bool Negative = Result.isNegative();
+  bool Zero = Result.isZero();
+
+  Register Dst = MI.getOperand(0).getReg();
+  Register C = MI.getOperand(1).getReg();
+  Register N = MI.getOperand(2).getReg();
+  Register V = MI.getOperand(3).getReg();
+  Register Z = MI.getOperand(4).getReg();
+  MatchInfo = [=](MachineIRBuilder &B) {
+    B.buildConstant(Dst, Result);
+    B.buildConstant(C, CarryOut);
+    B.buildConstant(N, Negative);
+    B.buildConstant(V, Overflow);
+    B.buildConstant(Z, Zero);
+  };
+  return true;
+}
+
+bool MC6809CombinerImpl::matchFoldShift(MachineInstr &MI, BuildFnTy &MatchInfo) const {
+  auto Val = getIConstantVRegValWithLookThrough(MI.getOperand(2).getReg(), MRI);
+  if (!Val)
+    return false;
+  assert(Val->Value.getBitWidth() == 8);
+  auto CarryIn = getIConstantVRegValWithLookThrough(MI.getOperand(3).getReg(), MRI);
+  if (!CarryIn)
+    return false;
+
+  bool CarryOut;
+  APInt Result;
+
+  if (MI.getOpcode() == MC6809::G_LSHRE) {
+    CarryOut = (Val->Value & 1).getBoolValue();
+    Result = Val->Value.lshr(1) | CarryIn->Value.zext(8).shl(7);
+  } else {
+    CarryOut = (Val->Value & 0x80).getBoolValue();
+    Result = Val->Value.shl(1) | CarryIn->Value.zext(8);
+  }
+
+  Register Dst = MI.getOperand(0).getReg();
+  Register C = MI.getOperand(1).getReg();
+  MatchInfo = [=](MachineIRBuilder &B) {
+    B.buildConstant(Dst, Result);
+    B.buildConstant(C, CarryOut);
+  };
+  return true;
+}
+
+bool MC6809CombinerImpl::matchShiftUnusedCarryIn(MachineInstr &MI, BuildFnTy &MatchInfo) const {
+  const auto ConstCarryIn = getIConstantVRegValWithLookThrough(MI.getOperand(3).getReg(), MRI);
+  if (ConstCarryIn && ConstCarryIn->Value.isZero())
+    return false;
+
+  APInt DemandedBits = getDemandedBits(MI.getOperand(0).getReg());
+  assert(DemandedBits.getBitWidth() == 8);
+  if (MI.getOpcode() == MC6809::G_LSHRE) {
+    if ((DemandedBits & 0x80).getBoolValue())
+      return false;
+  } else {
+    if ((DemandedBits & 1).getBoolValue())
+      return false;
+  }
+
+  MatchInfo = [=, &MI](MachineIRBuilder &B) {
+    Observer.changingInstr(MI);
+    MI.getOperand(3).setReg(B.buildConstant(LLT::scalar(1), 0).getReg(0));
+    Observer.changedInstr(MI);
+  };
+  return true;
+}
+
+APInt MC6809CombinerImpl::getDemandedBits(Register R) const {
+  DenseMap<Register, APInt> Cache;
+  return getDemandedBits(R, Cache);
+}
+
+APInt MC6809CombinerImpl::getDemandedBits(Register R, DenseMap<Register, APInt> &Cache) const {
+  auto It = Cache.find(R);
+  if (It != Cache.end())
+    return It->second;
+
+  uint64_t Size = MRI.getType(R).getSizeInBits();
+
+  APInt DemandedBits = APInt::getZero(Size);
+  for (const MachineOperand &Use : MRI.use_nodbg_operands(R)) {
+    const MachineInstr &MI = *Use.getParent();
+    switch (MI.getOpcode()) {
+    default:
+      DemandedBits = APInt::getAllOnes(Size);
+      break;
+    case MC6809::G_AND: {
+      APInt Zeroes = KB->getKnownZeroes(MI.getOperand(Use.getOperandNo() == 1 ? 2 : 1).getReg());
+      DemandedBits |= ~Zeroes;
+      break;
+    }
+    case MC6809::G_OR: {
+      APInt Ones = KB->getKnownOnes(MI.getOperand(Use.getOperandNo() == 1 ? 2 : 1).getReg());
+      DemandedBits |= ~Ones;
+      break;
+    }
+    case MC6809::G_LSHRE: {
+      APInt DstDemandedBits = getDemandedBits(MI.getOperand(0).getReg());
+      if (Use.getOperandNo() == 2) {
+        APInt CarryOutDemanded = getDemandedBits(MI.getOperand(1).getReg());
+        DemandedBits |= DstDemandedBits << 1 | CarryOutDemanded.zext(8);
+      } else {
+        assert(Use.getOperandNo() == 3);
+        DemandedBits |= DstDemandedBits.lshr(7).trunc(1);
+      }
+      break;
+    }
+    case MC6809::G_SHLE: {
+      APInt DstDemandedBits = getDemandedBits(MI.getOperand(0).getReg());
+      if (Use.getOperandNo() == 2) {
+        APInt CarryOutDemanded = getDemandedBits(MI.getOperand(1).getReg());
+        DemandedBits |= DstDemandedBits.lshr(1) | (CarryOutDemanded.zext(8) << 7);
+      } else {
+        assert(Use.getOperandNo() == 3);
+        DemandedBits |= DstDemandedBits.trunc(1);
+      }
+      break;
+    }
+    }
+    if (DemandedBits.isAllOnes())
+      break;
+  }
+  Cache.try_emplace(R, DemandedBits);
+  return DemandedBits;
+}
+
+#if 0
 class MC6809CombinerInfo : public CombinerInfo {
   GISelKnownBits *KB;
   MachineDominatorTree *MDT;
-  MC6809GenCombinerHelperRuleConfig GeneratedRuleCfg;
+  AAResults *AA;
+  MC6809CombinerImplRuleConfig GeneratedRuleCfg;
 
 public:
-  MC6809CombinerInfo(bool EnableOpt, bool OptSize, bool MinSize, GISelKnownBits *KB, MachineDominatorTree *MDT)
-      : CombinerInfo(/*AllowIllegalOps*/ true, /*ShouldLegalizeIllegal*/ false, /*LegalizerInfo*/ nullptr, EnableOpt, OptSize, MinSize),
-        KB(KB), MDT(MDT) {
+  MC6809CombinerInfo(bool EnableOpt, bool OptSize, bool MinSize, GISelKnownBits *KB, MachineDominatorTree *MDT, AAResults *AA)
+      : CombinerInfo(/*AllowIllegalOps*/ true,
+                     /*ShouldLegalizeIllegal*/ false,
+                     /*LegalizerInfo*/ nullptr, EnableOpt, OptSize, MinSize),
+        KB(KB), MDT(MDT), AA(AA) {
     if (!GeneratedRuleCfg.parseCommandLineOption())
       report_fatal_error("Invalid rule identifier");
   }
 
-  virtual bool combine(GISelChangeObserver &Observer, MachineInstr &MI, MachineIRBuilder &MIB) const override;
+  virtual bool combine(GISelChangeObserver &Observer, MachineInstr &MI, MachineIRBuilder &B) const override;
 };
 
-bool MC6809CombinerInfo::combine(GISelChangeObserver &Observer, MachineInstr &MI, MachineIRBuilder &MIB) const {
+bool MC6809CombinerInfo::combine(GISelChangeObserver &Observer, MachineInstr &MI, MachineIRBuilder &B) const {
+  const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   const LegalizerInfo *LI = MI.getMF()->getSubtarget().getLegalizerInfo();
-  // bool IsPreLegalize = !MI.getMF()->getProperties().hasProperty(MachineFunctionProperties::Property::Legalized);
-  CombinerHelper Helper(Observer, MIB, /* IsPreLegalize */ false, KB, MDT, LI);
-  MC6809GenCombinerHelper Generated(GeneratedRuleCfg, Helper);
-  return Generated.tryCombineAll(Observer, MI, MIB);
+  bool IsPreLegalize = !MI.getMF()->getProperties().hasProperty(MachineFunctionProperties::Property::Legalized);
+  CombinerHelper Helper(Observer, B, IsPreLegalize, KB, MDT, LI);
+  MC6809CombinerImpl Impl(GeneratedRuleCfg, STI, Observer, B, Helper, *AA);
+  Impl.setupMF(*MI.getMF(), KB, nullptr, nullptr, nullptr, AA);
+  return Impl.tryCombineAll(MI);
 }
+#endif
 
 #define MC6809COMBINERHELPER_GENCOMBINERHELPER_CPP
 #include "MC6809GenGICombiner.inc"
@@ -397,6 +552,8 @@ bool MC6809CombinerInfo::combine(GISelChangeObserver &Observer, MachineInstr &MI
 // ================
 
 class MC6809Combiner : public MachineFunctionPass {
+  MC6809CombinerImplRuleConfig RuleConfig;
+
 public:
   static char ID;
 
@@ -408,6 +565,7 @@ public:
 
   void getAnalysisUsage(AnalysisUsage &AU) const override;
 };
+
 } // end anonymous namespace
 
 void MC6809Combiner::getAnalysisUsage(AnalysisUsage &AU) const {
@@ -420,30 +578,42 @@ void MC6809Combiner::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addPreserved<MachineDominatorTree>();
   AU.addRequired<GISelCSEAnalysisWrapperPass>();
   AU.addPreserved<GISelCSEAnalysisWrapperPass>();
+  AU.addRequired<AAResultsWrapperPass>();
+
   MachineFunctionPass::getAnalysisUsage(AU);
 }
 
-MC6809Combiner::MC6809Combiner() : MachineFunctionPass(ID) {
-  initializeMC6809CombinerPass(*PassRegistry::getPassRegistry());
-}
+MC6809Combiner::MC6809Combiner() : MachineFunctionPass(ID) { initializeMC6809CombinerPass(*PassRegistry::getPassRegistry()); }
 
 bool MC6809Combiner::runOnMachineFunction(MachineFunction &MF) {
-  if (MF.getProperties().hasProperty(MachineFunctionProperties::Property::FailedISel))
+  if (MF.getProperties().hasProperty(
+          MachineFunctionProperties::Property::FailedISel))
     return false;
 
-  auto *TPC = &getAnalysis<TargetPassConfig>();
+  auto &TPC = getAnalysis<TargetPassConfig>();
 
   // Enable CSE.
-  GISelCSEAnalysisWrapper &Wrapper = getAnalysis<GISelCSEAnalysisWrapperPass>().getCSEWrapper();
-  auto *CSEInfo = &Wrapper.get(TPC->getCSEConfig());
+  GISelCSEAnalysisWrapper &Wrapper =
+      getAnalysis<GISelCSEAnalysisWrapperPass>().getCSEWrapper();
+  auto *CSEInfo = &Wrapper.get(TPC.getCSEConfig());
+
+  const MC6809Subtarget &ST = MF.getSubtarget<MC6809Subtarget>();
+  const auto *LI = ST.getLegalizerInfo();
 
   const Function &F = MF.getFunction();
-  bool EnableOpt = MF.getTarget().getOptLevel() != CodeGenOpt::None && !skipFunction(F);
+  bool EnableOpt =
+      MF.getTarget().getOptLevel() != CodeGenOptLevel::None && !skipFunction(F);
+  bool IsPreLegalize = !MF.getProperties().hasProperty(
+      MachineFunctionProperties::Property::Legalized);
   GISelKnownBits *KB = &getAnalysis<GISelKnownBitsAnalysis>().get(MF);
   MachineDominatorTree *MDT = &getAnalysis<MachineDominatorTree>();
-  MC6809CombinerInfo PCInfo(EnableOpt, F.hasOptSize(), F.hasMinSize(), KB, MDT);
-  Combiner C(PCInfo, TPC);
-  return C.combineMachineInstrs(MF, CSEInfo);
+  AAResults *AA = &getAnalysis<AAResultsWrapperPass>().getAAResults();
+  CombinerInfo CInfo(
+      /*AllowIllegalOps*/ IsPreLegalize, /*ShouldLegalizeIllegal*/ false,
+      /*LegalizerInfo*/ nullptr, EnableOpt, F.hasOptSize(), F.hasMinSize());
+  MC6809CombinerImpl Impl(MF, CInfo, &TPC, IsPreLegalize, *KB, CSEInfo, RuleConfig,
+                       ST, MDT, LI, AA);
+  return Impl.combineMachineInstrs();
 }
 
 char MC6809Combiner::ID = 0;

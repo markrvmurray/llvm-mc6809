@@ -8,8 +8,13 @@
 // MC6809 Device Definitions
 //===---------------------------------------------------------------------===//
 
-def Feature6309 : SubtargetFeature<"mc6809-insns-6309", "Has6309Ops", "true",
-                       "The new instructions and registers on the Hitachi HD6309">;
+def Feature6809
+    : SubtargetFeature<"mc6809-insns-6809", "Has6809Insns", "true",
+                       "The original Motorola MC6809 instruction set">;
+
+def Feature6309
+    : SubtargetFeature<"mc6809-insns-6309", "Has6309Insns", "true",
+                       "The extended Hitachi HD6309 instruction set">;
 
 // A feature set aggregates features, grouping them. We don't want to create a
 // new member in MC6809Subtarget (to store a value) for each set because we do not
@@ -23,9 +28,17 @@ class FeatureSet<string name, string desc, list<SubtargetFeature> i>
 class Family<string name, string desc, list<SubtargetFeature> i>
   : FeatureSet<name, desc, i>;
 
-def Family6809 : Family<"mc6809", "Generic MC6809", []>;
 
-def Family6309 : Family<"hd6309", "Extended HD6309", [Feature6309]>;
+def Family6809
+    : Family<
+      "mc6809",
+      "Generic MC6809 processor",
+      [Feature6809]>;
+
+def Family6309
+    : Family<"hd6309",
+      "Extended HD6309 processor",
+      [Feature6809, Feature6309]>;
 
 //===---------------------------------------------------------------------===//
 // MC6809 Families

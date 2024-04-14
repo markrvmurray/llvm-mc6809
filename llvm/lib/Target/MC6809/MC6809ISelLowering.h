@@ -1,5 +1,4 @@
-//===-- MC6809ISelLowering.h - MC6809 DAG Lowering Interface ----------*- C++
-//-*-===//
+//===-- MC6809ISelLowering.h - MC6809 DAG Lowering Interface ----------*- C++ -*-===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -15,7 +14,6 @@
 #ifndef LLVM_LIB_TARGET_MC6809_MC6809ISELLOWERING_H
 #define LLVM_LIB_TARGET_MC6809_MC6809ISELLOWERING_H
 
-#include "llvm/CodeGen/CallingConvLower.h"
 #include "llvm/CodeGen/TargetLowering.h"
 
 #include "llvm/Target/TargetMachine.h"
@@ -27,11 +25,20 @@ class MC6809TargetMachine;
 
 class MC6809TargetLowering : public TargetLowering {
 public:
-  MC6809TargetLowering(const MC6809TargetMachine &TM,
-                       const MC6809Subtarget &STI);
+  MC6809TargetLowering(const MC6809TargetMachine &TM, const MC6809Subtarget &STI);
 
   bool isSelectSupported(SelectSupportKind /*kind*/) const override {
     return false;
+  }
+
+  // While integer division isn't "cheap", long division is not all that much
+  // slower than long multiplication, and the division->multiplication
+  // optimization this disables performs multiplciation at double the width,
+  // which is extraordinarily more expensive.
+  bool isIntDivCheap(EVT VT, AttributeList Attr) const override { return true; }
+
+  bool areJTsAllowed(const Function *Fn) const override {
+    return !Fn->getFnAttribute("no-jump-tables").getValueAsBool();
   }
 
   unsigned getNumRegistersForInlineAsm(LLVMContext &Context,
@@ -39,23 +46,35 @@ public:
 
   ConstraintType getConstraintType(StringRef Constraint) const override;
 
+  MVT getRegisterTypeForCallingConv(
+      LLVMContext &Context, CallingConv::ID CC, EVT VT,
+      const ISD::ArgFlagsTy &Flags) const override;
+
+  unsigned
+  getNumRegistersForCallingConv(LLVMContext &Context, CallingConv::ID CC,
+                                EVT VT,
+                                const ISD::ArgFlagsTy &Flags) const override;
+
   std::pair<unsigned, const TargetRegisterClass *>
   getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
                                StringRef Constraint, MVT VT) const override;
+
+  bool isLegalAddressingMode(const DataLayout &DL, const AddrMode &AM, Type *Ty,
+                             unsigned AddrSpace,
+                             Instruction *I = nullptr) const override;
 
   bool isTruncateFree(Type *SrcTy, Type *DstTy) const override;
 
   bool isZExtFree(Type *SrcTy, Type *DstTy) const override;
 
+  LLT getOptimalMemOpLLT(const MemOp &Op,
+                         const AttributeList &FuncAttributes) const override {
+    return LLT::scalar(8);
+  }
+
   MachineBasicBlock *
   EmitInstrWithCustomInserter(MachineInstr &MI,
                               MachineBasicBlock *MBB) const override;
-
-  /// Selects the correct CCAssignFn for a given CallingConvention value.
-  CCAssignFn *CCAssignFnForCall(CallingConv::ID CC, bool IsVarArg) const;
-
-  /// Selects the correct CCAssignFn for a given CallingConvention value.
-  CCAssignFn *CCAssignFnForReturn(CallingConv::ID CC, bool IsVarArg) const;
 };
 
 } // namespace llvm

@@ -3,15 +3,22 @@
 # Usage for configuring:
 #   cmake -C [path-to-this-file] ...
 
-set(LLVM_TARGETS_TO_BUILD "X86"
-    CACHE STRING "LLVM targets to build")
-set(LLVM_EXPERIMENTAL_TARGETS_TO_BUILD "M68k;MOS;MC6809"
-    CACHE STRING "LLVM experimental targets to build")
-set(LLVM_ENABLE_PROJECTS clang;clang-tools-extra;lld
-    CACHE STRING "LLVM projects to enable")
+set(LLVM_TARGETS_TO_BUILD "" CACHE STRING "")
+set(LLVM_EXPERIMENTAL_TARGETS_TO_BUILD "MC6809;MOS;M68k" CACHE STRING "")
+set(LLVM_ENABLE_PROJECTS clang;clang-tools-extra CACHE STRING "")
+set(LLVM_ENABLE_LIBEDIT OFF CACHE BOOL "")
 set(LLVM_ENABLE_LIBXML2 "OFF" CACHE STRING "")
 set(LLVM_ENABLE_ZLIB "OFF" CACHE STRING "")
 set(LLVM_ENABLE_ZSTD "OFF" CACHE STRING "")
+
+# set(LLVM_ENABLE_RUNTIMES compiler-rt CACHE STRING "")
+
+set(LLVM_BUILTIN_TARGETS mc6809-unknown-unknown CACHE STRING "")
+set(LLVM_RUNTIME_TARGETS mc6809-unknown-unknown CACHE STRING "")
+set(BUILTINS_mc6809-unknown-unknown_COMPILER_RT_BAREMETAL_BUILD ON CACHE BOOL "")
+set(BUILTINS_mc6809-unknown-unknown_COMPILER_RT_BUILTINS_ENABLE_PIC OFF CACHE BOOL "")
+set(BUILTINS_mc6809-unknown-unknown_CMAKE_BUILD_TYPE Debug CACHE BOOL "")
+set(BUILTINS_mc6809-unknown-unknown_CMAKE_SYSTEM_NAME Generic CACHE STRING "")
 
 set(LLVM_DEFAULT_TARGET_TRIPLE "mc6809-unknown-unknown" CACHE STRING "")
 
@@ -20,7 +27,7 @@ set(LLVM_DEFAULT_TARGET_TRIPLE "mc6809-unknown-unknown" CACHE STRING "")
 # already over 1GB without them on most platforms, and the compilers don't seem
 # to be slow on MC6809-sized projects.  If you have more disk space, you may not
 # need them.
-set(CMAKE_BUILD_TYPE MinSizeRel CACHE STRING "CMake build type")
+set(CMAKE_BUILD_TYPE Debug CACHE STRING "CMake build type")
 
 # disable lldb testing until the lldb tests stabilize
 set(LLDB_INCLUDE_TESTS OFF CACHE BOOL "Include lldb tests")
@@ -43,11 +50,10 @@ set(LLVM_TOOLCHAIN_TOOLS
   llvm-size
   llvm-strings
   llvm-strip
-  CACHE STRING "")
+  llvm-symbolizer CACHE STRING "")
 
 set(LLVM_DISTRIBUTION_COMPONENTS
   clang
-  lld
   clang-apply-replacements
   clang-format
   clang-resource-headers

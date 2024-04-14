@@ -284,8 +284,9 @@ public:
     /// The specified value has been assigned to a stack
     /// location. Load or store it there, with appropriate extension
     /// if necessary.
-    virtual void assignValueToAddress(Register ValVReg, Register Addr,
-                                      LLT MemTy, const MachinePointerInfo &MPO,
+    virtual void assignValueToAddress(Register ValVReg,
+                                      Register Addr, LLT MemTy,
+                                      const MachinePointerInfo &MPO,
                                       const CCValAssign &VA) = 0;
 
     /// An overload which takes an ArgInfo if additional information about the

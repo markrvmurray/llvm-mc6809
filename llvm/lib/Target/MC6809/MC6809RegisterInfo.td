@@ -91,6 +91,86 @@ class MC6809Reg32<bits<16> num, string name, list<Register> subregs = [], list<S
     let CoveredBySubRegs = true;
 }
 
+//===----------------------------------------------------------------------===//
+//  Imaginary registers
+//===----------------------------------------------------------------------===//
+
+// This section describes the dimension of the imaginary registers for the MC6809
+// targets. Imaginary registers are locations in the direct page that llvm can
+// treat as physical registers for the purpose of register allocation.
+
+// Imaginary registers are reserved in pairs, which allows them to be used as
+// pointers with the 6809's various addressing modes. The number of imaginary
+// register pointer pairs is configurable at code generation time via the
+// --num-imag-ptrs flag. See MC6809RegisterInfo.cpp for details.
+
+// The two bytes of any given pointer must be contiguous, but otherwise, there
+// are no constraints on the relative layout of the pointers. For example, RS0
+// could be allocated to 0x34 and 0x35, while RS1 is allocated to 0x12 and 0x13.
+// The code generator emits generic symbol references for imaginary registers,
+// and the linker script for a given memory layout later assigns these to their
+// real locations.
+//
+// 32-bit registers are also created, similarly to the 16-bit ones described
+// above. These will be used for 32-bit arithmetic and for floating-point.
+
+// 8-bit imaginary registers.
+multiclass MC6809ImagReg8<bits<16> num, string name> : MC6809Reg8<num, name>;
+
+// 16-bit imaginary registers (consecutive pairs of 8-bit registers).
+class MC6809ImagReg16<bits<16> num, string name, list<Register> subregs>
+    : MC6809Reg<num, name> {
+  let SubRegs = subregs;
+  let SubRegIndices = [sub_lo_byte, sub_hi_byte];
+  let CoveredBySubRegs = 1;
+}
+
+// 32-bit imaginary registers (consecutive pairs of 16-bit registers).
+class MC6809ImagReg32<bits<16> num, string name, list<Register> subregs>
+    : MC6809Reg<num, name> {
+  let SubRegs = subregs;
+  let SubRegIndices = [sub_lo_word, sub_hi_word];
+  let CoveredBySubRegs = 1;
+}
+
+defvar MaxImag8Regs = 256;
+
+// The starting DWARF number for the imaginary registers.
+defvar Imag8RegsOffset = 0x1000;
+
+defvar MaxImag16Regs = !sra(MaxImag8Regs, 1);
+defvar Imag16RegsOffset = !add(Imag8RegsOffset, !shl(MaxImag16Regs,1));
+
+defvar MaxImag32Regs = !sra(MaxImag16Regs, 1);
+defvar Imag32RegsOffset = !add(Imag16RegsOffset, !shl(MaxImag16Regs,1));
+
+// Now we enumerate the imaginary registers.
+// Imaginary 8-bit registers, starting with the prefix rc
+foreach I = 0...!add(MaxImag8Regs, -1) in {
+  // There exist MaxImag8Regs rcXX registers...
+  defm RC#I: MC6809ImagReg8<!add(!shl(I,1), Imag8RegsOffset), "rc"#!cast<string>(I)>;
+}
+
+// Imaginary 16-bit registers, starting with the prefix rs
+foreach I = 0...!add(MaxImag16Regs, -1) in {
+  // There exist MaxImag16Regs rsXX registers...
+  def RS#I: MC6809ImagReg16<!add(I, Imag16RegsOffset), "rs"#!cast<string>(I),
+      [!cast<Register>("RC"#!shl(I, 1)),
+       !cast<Register>("RC"#!add(!shl(I,1),1))]>;
+}
+
+// Imaginary 32-bit registers, starting with the prefix rw
+foreach I = 0...!add(MaxImag32Regs, -1) in {
+  // There exist MaxImag32Regs rwXX registers...
+  def RW#I: MC6809ImagReg32<!add(I, Imag32RegsOffset), "rw"#!cast<string>(I),
+      [!cast<Register>("RS"#!shl(I, 1)),
+       !cast<Register>("RS"#!add(!shl(I,1),1))]>;
+}
+
+//===----------------------------------------------------------------------===//
+//  Define the actual real registers.
+//===----------------------------------------------------------------------===//
+
 def E : MC6809Reg1<48, "E">;
 def F : MC6809Reg1<49, "F">;
 def H : MC6809Reg1<50, "H">;
@@ -155,10 +235,10 @@ class MC6809RegClass<list<ValueType> regTypes, int alignment, dag regList>
         let Namespace = "MC6809";
 }
 
-class MC6809Reg1Class<dag RegList>: MC6809RegClass<[i1], 1, RegList>;/* {
+class MC6809Reg1Class<dag RegList>: MC6809RegClass<[i1], 1, RegList> {
   // The register is 1-bit wide, but takes 8 bits to spill.
-  //let RegInfos = RegInfoByHwMode<[DefaultMode], [RegInfo<1, 8, 8>]>;
-}*/
+  let RegInfos = RegInfoByHwMode<[DefaultMode], [RegInfo<1, 8, 8>]>;
+}
 class MC6809Reg2Class<dag RegList>  : MC6809RegClass<[i2], 8, RegList>;
 class MC6809Reg4Class<dag RegList>  : MC6809RegClass<[i4], 8, RegList>;
 class MC6809Reg8Class<dag RegList>  : MC6809RegClass<[i8], 8, RegList>;
@@ -167,27 +247,26 @@ class MC6809Reg32Class<dag RegList> : MC6809RegClass<[i32], 8, RegList>;
 
 // Register grouping classes.
 let isPressureFineGrained = true in {
-  //def BIT1 : MC6809Reg1Class<(add AALSB, ABLSB, AELSB, AFLSB)>;
-  def BIT1 : MC6809Reg1Class<(add AALSB, ABLSB, C)>;
-  // def NZVC_ACC_LSB : MC6809Reg1Class<(add N, Z, V, C, BIT1)>;
-  // def BIT1 : MC6809Reg1Class<(add ACC_LSB)>;
+  def ACC_LSB : MC6809Reg1Class<(add AALSB, ABLSB)>;
+  def NZVC_ACC_LSB : MC6809Reg1Class<(add N, Z, V, C, ACC_LSB)>;
   def CARRY : MC6809Reg1Class<(add C)>;
+  def BIT1 : MC6809Reg1Class<(add ACC_LSB, V, C)>;
   def ACC8 : MC6809Reg8Class<(add AB, AA, AF, AE)> {
     let AltOrders = [(add AB, AA)];
-    let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().isHD6309() ? 0 : 1;}];
+    let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
     let DiagnosticString = "operand must be an 8-bit accumulator";
   }
   def ACC8_AB : MC6809Reg8Class<(add AB, AA)>;
   def BIT8 : MC6809Reg8Class<(add AA, AB, CC)>; // Valid registers for BAND, BEOR, BOR, BIAND, BIEOR, BIOR, LDBT, STBT
   def ACC16 : MC6809Reg16Class<(add AD, AW)> {
     let AltOrders = [(add AD)];
-    let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().isHD6309() ? 0 : 1;}];
+    let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
     let DiagnosticString = "operand must be a 16-bit accumulator";
   }
   def ACC16_D : MC6809Reg8Class<(add AD)>;
   def ACC32 : MC6809Reg32Class<(add AQ)> {
     let AltOrders = [(add)];
-    let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().isHD6309() ? 0 : 1;}];
+    let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
     let DiagnosticString = "operand must be a 32-bit accumulator";
   }
   def REGLIST8 : MC6809Reg8Class<(add CC, AA, AB, DP)>; // Registers which can be pushed/popped
@@ -201,18 +280,22 @@ let isPressureFineGrained = true in {
   // All 16-bit registers. Useful for load/store.
   def ALL16 : MC6809Reg16Class<(add AD, AW, IX, IY)> {
     let AltOrders = [(add AD, IX, IY)];
-    let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().isHD6309() ? 0 : 1;}];
+    let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
     let DiagnosticString = "operand must be a 16-bit register";
   }
 
   def CCond : MC6809Reg8Class<(add CC)>;
+
+  def Imag8 : MC6809Reg8Class<(sequence "RC%u", 0, !add(MaxImag8Regs, -1))>;
+  def Imag16 : MC6809Reg16Class<(sequence "RS%u", 0, !add(MaxImag16Regs, -1))>;
+  def Imag32 : MC6809Reg32Class<(sequence "RW%u", 0, !add(MaxImag32Regs, -1))>;
 }
 
-
-  def CCFlag : MC6809Reg1Class<(add E, F, H, I, N, Z, V, C)>;
+let isAllocatable = false in {
+  def AllCCFlag : MC6809Reg1Class<(add E, F, H, I, N, Z, V, C)>;
+  def CCFlag : MC6809Reg1Class<(add N, Z, V, C)>;
   def ArithFlag : MC6809Reg2Class<(add NZ)>;
   def AllArithFlag : MC6809Reg2Class<(add NZVC)>;
-let isAllocatable = false in {
   def MDCond : MC6809Reg8Class<(add MD)>;
   def DtPage : MC6809Reg8Class<(add DP)>;
 }

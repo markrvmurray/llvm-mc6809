@@ -23,8 +23,8 @@
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/RegisterScavenging.h"
 
-#include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "MC6809.h"
+#include "MCTargetDesc/MC6809MCTargetDesc.h"
 
 #define DEBUG_TYPE "mc6809-scavenging"
 
@@ -36,9 +36,7 @@ class MC6809PostRAScavenging : public MachineFunctionPass {
 public:
   static char ID;
 
-  MC6809PostRAScavenging() : MachineFunctionPass(ID) {
-    llvm::initializeMC6809PostRAScavengingPass(*PassRegistry::getPassRegistry());
-  }
+  MC6809PostRAScavenging() : MachineFunctionPass(ID) { llvm::initializeMC6809PostRAScavengingPass(*PassRegistry::getPassRegistry()); }
 
   bool runOnMachineFunction(MachineFunction &MF) override;
 };
@@ -59,6 +57,4 @@ char MC6809PostRAScavenging::ID = 0;
 
 INITIALIZE_PASS(MC6809PostRAScavenging, DEBUG_TYPE, "Scavenge virtual registers emitted by post-RA pseudos", false, false)
 
-MachineFunctionPass *llvm::createMC6809PostRAScavengingPass() {
-  return new MC6809PostRAScavenging();
-}
+MachineFunctionPass *llvm::createMC6809PostRAScavengingPass() { return new MC6809PostRAScavenging(); }

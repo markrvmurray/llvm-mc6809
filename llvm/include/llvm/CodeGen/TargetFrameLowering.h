@@ -34,6 +34,8 @@ enum Value {
   WasmLocal = 3,
   MosStatic = 4,
   MosZeroPage = 5,
+  Mc6809Static = 6,
+  Mc6809DirectPage = 7,
   NoAlloc = 255
 };
 }

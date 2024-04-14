@@ -721,6 +721,8 @@ set(mips64_SOURCES ${GENERIC_TF_SOURCES}
 set(mips64el_SOURCES ${GENERIC_TF_SOURCES}
                      ${mips_SOURCES})
 
+set(mc6809_SOURCES ${GENERIC_SOURCES})
+
 set(mos_SOURCES ${GENERIC_SOURCES})
 # MOS SDK implementations are already smaller and faster.
 list(REMOVE_ITEM mos_SOURCES
@@ -952,6 +954,10 @@ else ()
         list(APPEND BUILTIN_CFLAGS_${arch} -fforce-enable-int128)
       endif()
 
+      if (${arch} STREQUAL "mc6809__disabled")
+        list(APPEND BUILTIN_CFLAGS_${arch} -flto)
+      endif()
+
       if (${arch} STREQUAL "mos")
         list(APPEND BUILTIN_CFLAGS_${arch} -flto)
       endif()
@@ -1035,6 +1041,10 @@ if (COMPILER_RT_BUILD_CRT)
   endif()
 
   foreach(arch ${BUILTIN_SUPPORTED_ARCH})
+    if (arch STREQUAL mc6809)
+      continue()
+    endif()
+
     if (arch STREQUAL mos)
       continue()
     endif()

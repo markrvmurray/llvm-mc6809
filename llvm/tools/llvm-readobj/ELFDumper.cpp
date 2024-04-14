@@ -1778,6 +1778,10 @@ const EnumEntry<unsigned> ElfMips16SymOtherFlags[] = {
 const EnumEntry<unsigned> ElfRISCVSymOtherFlags[] = {
     LLVM_READOBJ_ENUM_ENT(ELF, STO_RISCV_VARIANT_CC)};
 
+const EnumEntry<unsigned> ElfMC6809SymOtherFlags[] = {
+  LLVM_READOBJ_ENUM_ENT(ELF, STO_MC6809_DIRECTPAGE)
+};
+
 const EnumEntry<unsigned> ElfMOSSymOtherFlags[] = {
   LLVM_READOBJ_ENUM_ENT(ELF, STO_MOS_ZEROPAGE)
 };
@@ -3520,6 +3524,8 @@ ELFDumper<ELFT>::getOtherFlagsFromSymbol(const Elf_Ehdr &Header,
     llvm::append_range(SymOtherFlags, ElfAArch64SymOtherFlags);
   } else if (Header.e_machine == EM_RISCV) {
     llvm::append_range(SymOtherFlags, ElfRISCVSymOtherFlags);
+  } else if (Header.e_machine == EM_MC6809) {
+    llvm::append_range(SymOtherFlags, ElfMC6809SymOtherFlags);
   } else if (Header.e_machine == EM_MOS) {
     llvm::append_range(SymOtherFlags, ElfMOSSymOtherFlags);
   }

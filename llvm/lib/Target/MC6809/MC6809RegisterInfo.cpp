@@ -14,7 +14,7 @@
 #include "MC6809FrameLowering.h"
 #include "MC6809Subtarget.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
-#include "llvm/ADT/SmallSet.h"                                      
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -34,11 +34,9 @@
 
 using namespace llvm;
 
-MC6809RegisterInfo::MC6809RegisterInfo()
-    : MC6809GenRegisterInfo(/*RA=*/0, /*DwarfFlavor=*/0, /*EHFlavor=*/0, /*PC=*/0, /*HwMode=*/0) {}
+MC6809RegisterInfo::MC6809RegisterInfo() : MC6809GenRegisterInfo(/*RA=*/0, /*DwarfFlavor=*/0, /*EHFlavor=*/0, /*PC=*/0, /*HwMode=*/0) {}
 
-MC6809RegisterInfo::MC6809RegisterInfo(const Triple &TT)
-    : MC6809GenRegisterInfo(/*RA=*/0, /*DwarfFlavor=*/0, /*EHFlavor=*/0, /*PC=*/0, /*HwMode=*/0) {}
+MC6809RegisterInfo::MC6809RegisterInfo(const Triple &TT) : MC6809GenRegisterInfo(/*RA=*/0, /*DwarfFlavor=*/0, /*EHFlavor=*/0, /*PC=*/0, /*HwMode=*/0) {}
 
 BitVector MC6809RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   BitVector Reserved(getNumRegs());
@@ -60,19 +58,13 @@ BitVector MC6809RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   return Reserved;
 }
 
-const MCPhysReg *
-MC6809RegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
-  const MC6809FrameLowering &TFI = *getFrameLowering(*MF);
+const MCPhysReg *MC6809RegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
   return MC6809_CSR_SaveList;
 }
 
-const uint32_t *
-MC6809RegisterInfo::getCallPreservedMask(const MachineFunction &MF, CallingConv::ID CallingConv) const {
-  return MC6809_CSR_RegMask;
-}
+const uint32_t *MC6809RegisterInfo::getCallPreservedMask(const MachineFunction &MF, CallingConv::ID CallingConv) const { return MC6809_CSR_RegMask; }
 
-const TargetRegisterClass *
-MC6809RegisterInfo::getCrossCopyRegClass(const TargetRegisterClass *RC) const {
+const TargetRegisterClass *MC6809RegisterInfo::getCrossCopyRegClass(const TargetRegisterClass *RC) const {
   if (RC == &MC6809::INDEX16RegClass)
     return &MC6809::ACC16RegClass;
   else if (RC == &MC6809::CCFlagRegClass)
@@ -80,8 +72,7 @@ MC6809RegisterInfo::getCrossCopyRegClass(const TargetRegisterClass *RC) const {
   return RC;
 }
 
-bool
-MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int SPAdj, unsigned FIOperandNum, RegScavenger *RS) const {
+bool MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int SPAdj, unsigned FIOperandNum, RegScavenger *RS) const {
   assert(SPAdj == 0 && "Unexpected non-zero SPAdj");
 
   MachineInstr &MI = *II;
@@ -107,21 +98,16 @@ MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int SPAd
   return false;
 }
 
-Register
-MC6809RegisterInfo::getFrameRegister(const MachineFunction &MF) const {
+Register MC6809RegisterInfo::getFrameRegister(const MachineFunction &MF) const {
   const TargetFrameLowering *TFI = getFrameLowering(MF);
   return TFI->hasFP(MF) ? MC6809::SU : MC6809::SS;
 }
 
-int
-copyCost(Register DestReg, Register SrcReg, const MC6809Subtarget &STI) {
-  const auto &TRI = *STI.getRegisterInfo();
+int copyCost(Register DestReg, Register SrcReg, const MC6809Subtarget &STI) {
   if (DestReg == SrcReg)
     return 0;
 
-  const auto &AreClasses = [&](const TargetRegisterClass &Dest, const TargetRegisterClass &Src) {
-    return Dest.contains(DestReg) && Src.contains(SrcReg);
-  };
+  const auto &AreClasses = [&](const TargetRegisterClass &Dest, const TargetRegisterClass &Src) { return Dest.contains(DestReg) && Src.contains(SrcReg); };
 
   if (AreClasses(MC6809::ACC16RegClass, MC6809::INDEX16RegClass)) {
     return 1;
@@ -189,7 +175,8 @@ bool MC6809RegisterInfo::getRegAllocationHints(Register VirtReg, ArrayRef<MCPhys
   const MC6809Subtarget &STI = MF.getSubtarget<MC6809Subtarget>();
   const auto &TRI = *STI.getRegisterInfo();
   const MachineRegisterInfo &MRI = MF.getRegInfo();
-  DenseMap<Register, int> RegScores;
+  DenseMap<Register, MC6809InstrCost> RegScores;
+  auto CostMode = MC6809InstrCost::getModeFor(MF);
 
   DenseMap<Register, int> OriginalIndex;
   for (const auto &R : enumerate(Order))
@@ -213,34 +200,133 @@ bool MC6809RegisterInfo::getRegAllocationHints(Register VirtReg, ArrayRef<MCPhys
       }
       if (Other.getSubReg())
         OtherReg = TRI.getSubReg(OtherReg, Other.getSubReg());
-      int WorstCost = 0;
+      MC6809InstrCost WorstCost;
       for (Register R : Order) {
         Register SelfReg = R;
         if (Self.getSubReg())
           SelfReg = TRI.getSubReg(SelfReg, Self.getSubReg());
-        WorstCost = std::max(WorstCost, copyCost(SelfReg, OtherReg, STI));
+        MC6809InstrCost Cost = copyCost(SelfReg, OtherReg, STI);
+        if (Cost.value(CostMode) > WorstCost.value(CostMode))
+          WorstCost = Cost;
       }
       for (Register R : Order) {
         Register SelfReg = R;
         if (Self.getSubReg())
           SelfReg = TRI.getSubReg(SelfReg, Self.getSubReg());
-        int Cost = copyCost(SelfReg, OtherReg, STI);
-        if (Cost < WorstCost)
-          RegScores[R] += WorstCost - Cost;
+        MC6809InstrCost Cost = copyCost(SelfReg, OtherReg, STI);
+        if (Cost.value(CostMode) < WorstCost.value(CostMode))
+          RegScores[R] += (WorstCost - Cost);
       }
       break;
     }
     }
   }
 
-  SmallVector<std::pair<Register, int>> RegsAndScores(RegScores.begin(), RegScores.end());
-  sort(RegsAndScores, [&](const std::pair<Register, int> &A, const std::pair<Register, int> &B) {
-    if (A.second > B.second)
+  SmallVector<std::pair<Register, MC6809InstrCost>> RegsAndScores(RegScores.begin(), RegScores.end());
+  sort(RegsAndScores, [&](const std::pair<Register, MC6809InstrCost> &A,
+                          const std::pair<Register, MC6809InstrCost> &B) {
+    auto AVal = A.second.value(CostMode);
+    auto BVal = B.second.value(CostMode);
+    if (AVal > BVal)
       return true;
-    if (A.second < B.second)
+    if (AVal < BVal)
       return false;
     return OriginalIndex[A.first] < OriginalIndex[B.first];
   });
   append_range(Hints, make_first_range(RegsAndScores));
   return false;
+}
+
+MC6809InstrCost MC6809RegisterInfo::copyCost(Register DestReg, Register SrcReg, const MC6809Subtarget &STI) const {
+  if (DestReg == SrcReg)
+    return MC6809InstrCost();
+
+  const auto &AreClasses = [&](const TargetRegisterClass &Dest, const TargetRegisterClass &Src) {
+    return Dest.contains(DestReg) && Src.contains(SrcReg);
+  };
+
+  auto TransferCost = MC6809InstrCost(1, 2);
+  auto Push8Cost = MC6809InstrCost(1, 3);
+  auto Push16Cost = MC6809InstrCost(1, 4);
+  auto Pop8Cost = MC6809InstrCost(1, 3);
+  auto Pop16Cost = MC6809InstrCost(1, 4);
+  auto ClVCost = MC6809InstrCost(1, 2);
+  auto JumpCost = MC6809InstrCost(3, 4);
+  auto BranchCost = MC6809InstrCost(2, 4);
+  auto LoadImm8Cost = MC6809InstrCost(2, 2);
+  auto LoadImm16Cost = MC6809InstrCost(2, 3);
+  auto AluImm8Cost = MC6809InstrCost(2, 2);
+  auto AluImm16Cost = MC6809InstrCost(2, 3);
+
+  if (AreClasses(MC6809::ACC8RegClass, MC6809::ACC8RegClass)) {
+      return TransferCost;
+  }
+  if (AreClasses(MC6809::Imag8RegClass, MC6809::ACC8RegClass)) {
+    return MC6809InstrCost(2, 3);
+  }
+  if (AreClasses(MC6809::Imag16RegClass, MC6809::ACC16RegClass)) {
+    return MC6809InstrCost(2, 4);
+  }
+  if (AreClasses(MC6809::ACC8RegClass, MC6809::Imag8RegClass)) {
+    return MC6809InstrCost(2, 3);
+  }
+  if (AreClasses(MC6809::ACC16RegClass, MC6809::Imag16RegClass)) {
+    return MC6809InstrCost(2, 4);
+  }
+  if (AreClasses(MC6809::Imag8RegClass, MC6809::Imag8RegClass)) {
+    return Push8Cost + Pop8Cost + copyCost(DestReg, MC6809::AA, STI) + copyCost(MC6809::AA, SrcReg, STI);
+  }
+  if (AreClasses(MC6809::Imag16RegClass, MC6809::Imag16RegClass)) {
+    return Push16Cost + Pop16Cost + copyCost(DestReg, MC6809::AD, STI) + copyCost(MC6809::AD, SrcReg, STI);
+  }
+  if (AreClasses(MC6809::ACC16RegClass, MC6809::ACC16RegClass)) {
+      return TransferCost;
+  }
+  if (AreClasses(MC6809::ACC16RegClass, MC6809::INDEX16RegClass)) {
+      return TransferCost;
+  }
+  if (AreClasses(MC6809::INDEX16RegClass, MC6809::ACC16RegClass)) {
+      return TransferCost;
+  }
+  if (AreClasses(MC6809::INDEX16RegClass, MC6809::INDEX16RegClass)) {
+      return TransferCost;
+  }
+  if (AreClasses(MC6809::BIT1RegClass, MC6809::BIT1RegClass)) {
+    Register SrcReg8 = getMatchingSuperReg(SrcReg, MC6809::sub_lsb, &MC6809::ACC8RegClass);
+    Register DestReg8 = getMatchingSuperReg(DestReg, MC6809::sub_lsb, &MC6809::ACC8RegClass);
+    auto BitCost = MC6809InstrCost(3, 4);
+
+    if (SrcReg8) {
+      SrcReg = SrcReg8;
+      if (DestReg8) {
+        DestReg = DestReg8;
+        return copyCost(DestReg, SrcReg, STI);
+      }
+      if (DestReg == MC6809::C) {
+        MC6809InstrCost Cost = AluImm8Cost;
+        if (!MC6809::ACC8RegClass.contains(SrcReg))
+          Cost += copyCost(MC6809::AA, SrcReg, STI);
+        return Cost;
+      }
+
+      if (MC6809::ACC8RegClass.contains(SrcReg)) {
+        return Push8Cost + Pop8Cost + BranchCost + BitCost + JumpCost + ClVCost;
+      }
+      return copyCost(MC6809::AA, SrcReg, STI) + BranchCost + BitCost + JumpCost + ClVCost;
+    }
+    if (DestReg8) {
+      DestReg = DestReg8;
+
+      Register Tmp = DestReg;
+      if (!MC6809::ACC8RegClass.contains(Tmp))
+        Tmp = MC6809::AA;
+      MC6809InstrCost Cost = LoadImm8Cost * 2 + BranchCost;
+      if (Tmp != DestReg)
+        Cost += copyCost(DestReg, Tmp, STI);
+      return Cost;
+    }
+    return (Push8Cost + Pop8Cost) * 3 + AluImm8Cost + BranchCost + ClVCost;
+  }
+
+  llvm_unreachable("Unexpected physical register copy.");
 }

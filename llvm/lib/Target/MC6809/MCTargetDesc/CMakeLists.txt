@@ -7,6 +7,7 @@ add_llvm_component_library(LLVMMC6809Desc
   MC6809MCCodeEmitter.cpp
   MC6809MCELFStreamer.cpp
   MC6809MCExpr.cpp
+  MC6809MCInstrAnalysis.cpp
   MC6809MCTargetDesc.cpp
   MC6809TargetStreamer.cpp
 

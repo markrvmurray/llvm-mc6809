@@ -29,13 +29,15 @@ namespace MC6809 {
 ///       in `MC6809AsmBackend.cpp`.
 enum Fixups {
   Imm8 = FirstTargetFixupKind, // An 8 bit direct page address.
-  Addr8,                       // An 8 bit direct page address.
-  Addr16,                      // A 16-bit address.
-  Rel5,                        // A 5-bit index relative value.
-  Rel8,                        // An 8-bit index relative value.
-  Rel16,                       // A 16-bit index relative value.
-  PCRel8,                      // An 8-bit PC relative value.
-  PCRel16,                     // A 16-bit PC relative value.
+  Imm16,
+  Addr8,     // An 8 bit direct page address.
+  Addr16,    // A 16-bit address.
+  Rel5,      // A 5-bit index relative value.
+  Rel8,      // An 8-bit index relative value.
+  Rel16,     // A 16-bit index relative value.
+  PCRel8,    // An 8-bit PC relative value.
+  PCRel16,   // An 16-bit PC relative value.
+  AddrAsciz, // Address encoded as a decimal ASCII string.
   LastTargetFixupKind,
   NumTargetFixupKinds = LastTargetFixupKind - FirstTargetFixupKind
 };
@@ -45,8 +47,7 @@ namespace fixups {} // end of namespace fixups
 
 class MC6809FixupKinds {
 public:
-  const static MCFixupKindInfo &
-  getFixupKindInfo(const MC6809::Fixups Kind, const MCAsmBackend *Alternative);
+  const static MCFixupKindInfo &getFixupKindInfo(const MC6809::Fixups Kind, const MCAsmBackend *Alternative);
 };
 } // namespace llvm
 
