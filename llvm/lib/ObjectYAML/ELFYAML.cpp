@@ -1323,6 +1323,8 @@ struct NormalizedOther {
       Map["STO_AARCH64_VARIANT_PCS"] = ELF::STO_AARCH64_VARIANT_PCS;
     if (EMachine == ELF::EM_RISCV)
       Map["STO_RISCV_VARIANT_CC"] = ELF::STO_RISCV_VARIANT_CC;
+    if (EMachine == ELF::EM_MC6809)
+      Map["STO_MC6809_DIRECTPAGE"] = ELF::STO_MC6809_DIRECTPAGE;
     if (EMachine == ELF::EM_MOS)
       Map["STO_MOS_ZEROPAGE"] = ELF::STO_MOS_ZEROPAGE;
     return Map;

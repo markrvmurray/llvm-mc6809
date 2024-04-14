@@ -2150,5 +2150,7 @@ def ADDFe : MC6809Extended_P3<(outs), "addf", Opcode<0xFB,3>, [AF,NZ,N,Z,V,C,AW,
 // clang-format on
 
 include "MC6809InstrInfoTables.td"
+
+include "MC6809InstrPseudos.td"
 include "MC6809InstrLogical.td"
 include "MC6809InstrGISel.td"

@@ -1,5 +1,4 @@
-//===-- MC6809MCExpr.h - MC6809 specific MC expression classes --------*- C++
-//-*-===//
+//===-- MC6809MCExpr.h - MC6809 specific MC expression classes --*- C++ -*-===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -19,11 +18,10 @@ namespace llvm {
 class MC6809MCExpr : public MCTargetExpr {
 public:
   /// Specifies the type of an expression.
-  enum VariantKind { VK_MC6809_NONE, VK_MC6809_ADDR_8, VK_MC6809_ADDR_16 };
+  enum VariantKind { VK_MC6809_NONE, VK_MC6809_ADDR8, VK_MC6809_ADDR16, VK_MC6809_IMM8, VK_MC6809_IMM16, VK_MC6809_ADDR_ASCIZ };
 
   /// Creates an MC6809 machine code expression.
-  static const MC6809MCExpr *create(VariantKind Kind, const MCExpr *Expr,
-                                    bool isNegated, MCContext &Ctx);
+  static const MC6809MCExpr *create(VariantKind Kind, const MCExpr *Expr, bool IsNegated, MCContext &Ctx);
 
   /// Gets the type of the expression.
   VariantKind getKind() const { return Kind; }
@@ -36,25 +34,20 @@ public:
   bool evaluateAsConstant(int64_t &Result) const;
 
   bool isNegated() const { return Negated; }
-  void setNegated(bool negated = true) { Negated = negated; }
+  void setNegated(bool NegatedIn = true) { Negated = NegatedIn; }
 
   void printImpl(raw_ostream &OS, const MCAsmInfo *MAI) const override;
-  bool evaluateAsRelocatableImpl(MCValue &Res, const MCAsmLayout *Layout,
-                                 const MCFixup *Fixup) const override;
+  bool evaluateAsRelocatableImpl(MCValue &Res, const MCAsmLayout *Layout, const MCFixup *Fixup) const override;
 
-  void visitUsedExpr(MCStreamer &streamer) const override;
+  void visitUsedExpr(MCStreamer &Streamer) const override;
 
-  MCFragment *findAssociatedFragment() const override {
-    return getSubExpr()->findAssociatedFragment();
-  }
+  MCFragment *findAssociatedFragment() const override { return getSubExpr()->findAssociatedFragment(); }
 
   void fixELFSymbolsInTLSFixups(MCAssembler &Asm) const override {}
 
-  static bool classof(const MCExpr *E) {
-    return E->getKind() == MCExpr::Target;
-  }
+  static bool classof(const MCExpr *E) { return E->getKind() == MCExpr::Target; }
 
-  static VariantKind getKindByName(StringRef Name);
+  static VariantKind getKindByName(StringRef Name, bool IsImmediate);
 
 private:
   int64_t evaluateAsInt64(int64_t Value) const;
@@ -63,8 +56,7 @@ private:
   const MCExpr *SubExpr;
   bool Negated;
 
-  explicit MC6809MCExpr(VariantKind Kind, const MCExpr *Expr, bool Negated)
-      : Kind(Kind), SubExpr(Expr), Negated(Negated) {}
+  explicit MC6809MCExpr(VariantKind Kind, const MCExpr *Expr, bool Negated) : Kind(Kind), SubExpr(Expr), Negated(Negated) {}
 };
 
 } // end namespace llvm

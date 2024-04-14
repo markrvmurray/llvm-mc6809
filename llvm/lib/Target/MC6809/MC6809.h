@@ -28,17 +28,21 @@ class MC6809RegisterBankInfo;
 class MC6809Subtarget;
 class MC6809TargetMachine;
 
-InstructionSelector *createMC6809InstructionSelector(const MC6809TargetMachine &TM,
-                                                     MC6809Subtarget &,
-                                                     MC6809RegisterBankInfo &);
+InstructionSelector *createMC6809InstructionSelector(const MC6809TargetMachine &TM, MC6809Subtarget &, MC6809RegisterBankInfo &);
 
 void initializeMC6809CombinerPass(PassRegistry &);
-void initializeMC6809ConditionalBranchPass(PassRegistry &);
+void initializeMC6809CopyOptPass(PassRegistry &);
+void initializeMC6809IncDecPhiPass(PassRegistry &);
 void initializeMC6809IndexIVPass(PassRegistry &);
+void initializeMC6809InsertCopiesPass(PassRegistry &);
+void initializeMC6809InternalizePass(PassRegistry &);
 void initializeMC6809LateOptimizationPass(PassRegistry &);
 void initializeMC6809LowerSelectPass(PassRegistry &);
-void initializeMC6809NoRecursePass(PassRegistry &);
+void initializeMC6809NonReentrantPass(PassRegistry &);
 void initializeMC6809PostRAScavengingPass(PassRegistry &);
+void initializeMC6809ShiftRotateChainPass(PassRegistry &);
+void initializeMC6809StaticStackAllocPass(PassRegistry &);
+void initializeMC6809DirectPageAllocPass(PassRegistry &);
 
 // Enums corresponding to MC6809 condition codes
 namespace MC6809CC {
@@ -176,14 +180,8 @@ inline static MC6809CC::CondCode getSwappedCondition(MC6809CC::CondCode CC) {
 // converts the forward iterators to native reverse iterators that are not
 // behind-by-one and therefore handle erasures correctly when combined with
 // make_early_inc_range().
-inline auto mbb_reverse(MachineBasicBlock::iterator Begin,
-                        MachineBasicBlock::iterator End) {
-  return make_range(MachineBasicBlock::reverse_iterator(End),
-                    MachineBasicBlock::reverse_iterator(Begin));
-}
-template <typename ContainerTy> inline auto mbb_reverse(ContainerTy &&C) {
-  return mbb_reverse(C.begin(), C.end());
-}
+inline auto mbb_reverse(MachineBasicBlock::iterator Begin, MachineBasicBlock::iterator End) { return make_range(MachineBasicBlock::reverse_iterator(End), MachineBasicBlock::reverse_iterator(Begin)); }
+template <typename ContainerTy> inline auto mbb_reverse(ContainerTy &&C) { return mbb_reverse(C.begin(), C.end()); }
 
 } // namespace llvm
 

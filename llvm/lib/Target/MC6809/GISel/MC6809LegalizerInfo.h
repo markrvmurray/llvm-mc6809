@@ -13,8 +13,8 @@
 #ifndef LLVM_LIB_TARGET_MC6809_MC6809MACHINELEGALIZER_H
 #define LLVM_LIB_TARGET_MC6809_MC6809MACHINELEGALIZER_H
 
-#include "llvm/CodeGen/GlobalISel/LegalizerInfo.h"
 #include "llvm/CodeGen/GlobalISel/LegalizerHelper.h"
+#include "llvm/CodeGen/GlobalISel/LegalizerInfo.h"
 
 namespace llvm {
 
@@ -28,30 +28,37 @@ private:
   /// Keep a reference to the MC6809Subtarget around so that we can
   /// make the right decision when generating code for different targets.
   const MC6809Subtarget &Subtarget;
-  const MC6809TargetMachine &TM;
 
 public:
-  MC6809LegalizerInfo(const MC6809Subtarget &STI, const MC6809TargetMachine &TM);
+  MC6809LegalizerInfo(const MC6809Subtarget &STI);
 
-  bool legalizeCustom(LegalizerHelper &Helper, MachineInstr &MI) const override;
+  bool legalizeCustom(LegalizerHelper &Helper, MachineInstr &MI, LostDebugLocObserver &LocObserver) const override;
 
   bool legalizeIntrinsic(LegalizerHelper &Helper, MachineInstr &MI) const override;
 
+  bool legalizeLshrEShlE(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
+  bool legalizeLshrEShlE(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI) const;
+
 private:
-  LegalizerHelper::LegalizeResult legalizeAddSub(LegalizerHelper &Helper, MachineInstr &MI) const;
-  LegalizerHelper::LegalizeResult legalizeBitwise(LegalizerHelper &Helper, MachineInstr &MI) const;
-  LegalizerHelper::LegalizeResult legalizeExtractInsert(LegalizerHelper &Helper, MachineInstr &MI) const;
-  LegalizerHelper::LegalizeResult legalizeFConstant(LegalizerHelper &Helper, MachineInstr &MI) const;
-  LegalizerHelper::LegalizeResult legalizeVAStart(LegalizerHelper &Helper, MachineInstr &MI) const;
-  LegalizerHelper::LegalizeResult legalizeShift(LegalizerHelper &Helper, MachineInstr &MI) const;
-  LegalizerHelper::LegalizeResult legalizeFunnelShift(LegalizerHelper &Helper, MachineInstr &MI) const;
-  LegalizerHelper::LegalizeResult legalizeCompare(LegalizerHelper &Helper, MachineInstr &MI) const;
-  LegalizerHelper::LegalizeResult legalizeFixedMultiply(LegalizerHelper &Helper, MachineInstr &MI) const;
-  LegalizerHelper::LegalizeResult legalizeFixedDivide(LegalizerHelper &Helper, MachineInstr &MI) const;
-  LegalizerHelper::LegalizeResult legalizeMultiplyWithOverflow(LegalizerHelper &Helper, MachineInstr &MI) const;
-  LegalizerHelper::LegalizeResult legalizeFCanonicalize(LegalizerHelper &Helper, MachineInstr &MI) const;
-  LegalizerHelper::LegalizeResult legalizeCtlz(LegalizerHelper &Helper, MachineInstr &MI) const;
-  LegalizerHelper::LegalizeResult legalizeMemIntrinsic(LegalizerHelper &Helper, MachineInstr &MI) const;
+  // bool legalizeAddSub(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
+  // bool legalizeBitwise(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
+  bool legalizeExtractInsert(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
+  bool legalizeFConstant(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
+  bool legalizeVAStart(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
+  // bool legalizeShift(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
+  bool legalizeLoad(LegalizerHelper &Helper, MachineRegisterInfo &MRI, GAnyLoad &MI, LostDebugLocObserver &LocObserver) const;
+  bool legalizeShiftRotate(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
+  bool legalizeFunnelShift(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
+  // bool legalizeCompare(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
+  bool legalizeFixedMultiply(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
+  bool legalizeFixedDivide(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
+  bool legalizeMultiplyWithOverflow(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
+  bool legalizeFCanonicalize(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
+  bool legalizeCtlz(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
+  bool legalizeBrCond(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
+  // bool legalizeMemIntrinsic(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
+
+  bool shiftRotateLibcall(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
 };
 
 } // End namespace llvm

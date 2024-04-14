@@ -12,7 +12,7 @@
 
 /// Predicates. Useful for limiting instructions to particular hardware modes
 /// or particular hardware implementations.
-def IsHD6309 : Predicate<"Subtarget->isHD6309()">,
+def IsHD6309 : Predicate<"Subtarget->has6309()">,
                AssemblerPredicate<(all_of Feature6309), "Feature6309"> {
   let PredicateName = "IsHD6309";
 }
@@ -26,7 +26,7 @@ class MC6809AsmOperand<string name> : AsmOperandClass {
 
 class ImmediateAsmOperand<string name> : MC6809AsmOperand<name> {
   let RenderMethod = "addImmOperands";
-  let DiagnosticType = "Invalid" # name;
+  let DiagnosticType = "immediate";
 }
 
 class PCRelativeOperand<string name> : MC6809AsmOperand<name>;

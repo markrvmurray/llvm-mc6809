@@ -37,12 +37,9 @@
 
 using namespace llvm;
 
-MC6809SchedStrategy::MC6809SchedStrategy(const MachineSchedContext *C)
-    : GenericScheduler(C) {}
+MC6809SchedStrategy::MC6809SchedStrategy(const MachineSchedContext *C) : GenericScheduler(C) {}
 
-bool MC6809SchedStrategy::tryCandidate(SchedCandidate &Cand,
-                                       SchedCandidate &TryCand,
-                                       SchedBoundary *Zone) const {
+bool MC6809SchedStrategy::tryCandidate(SchedCandidate &Cand, SchedCandidate &TryCand, SchedBoundary *Zone) const {
 
   // Initialize the candidate if needed.
   if (!Cand.isValid()) {
@@ -50,36 +47,22 @@ bool MC6809SchedStrategy::tryCandidate(SchedCandidate &Cand,
     return true;
   }
 
-  if (tryLess(
-          registerClassPressureDiff(MC6809::ACC8RegClass, TryCand.SU,
-                                    TryCand.AtTop),
-          registerClassPressureDiff(MC6809::ACC8RegClass, Cand.SU, Cand.AtTop),
-          TryCand, Cand, PhysReg))
+  if (tryLess(registerClassPressureDiff(MC6809::ACC8RegClass, TryCand.SU, TryCand.AtTop), registerClassPressureDiff(MC6809::ACC8RegClass, Cand.SU, Cand.AtTop), TryCand, Cand, PhysReg))
     return TryCand.Reason != NoCand;
 
-  if (tryLess(registerClassPressureDiff(MC6809::INDEX16RegClass, TryCand.SU,
-                                        TryCand.AtTop),
-              registerClassPressureDiff(MC6809::INDEX16RegClass, Cand.SU,
-                                        Cand.AtTop),
-              TryCand, Cand, PhysReg))
+  if (tryLess(registerClassPressureDiff(MC6809::INDEX16RegClass, TryCand.SU, TryCand.AtTop), registerClassPressureDiff(MC6809::INDEX16RegClass, Cand.SU, Cand.AtTop), TryCand, Cand, PhysReg))
     return TryCand.Reason != NoCand;
 
   // Avoid exceeding the target's limit.
-  if (DAG->isTrackingPressure() &&
-      tryPressure(TryCand.RPDelta.Excess, Cand.RPDelta.Excess, TryCand, Cand,
-                  RegExcess, TRI, DAG->MF))
+  if (DAG->isTrackingPressure() && tryPressure(TryCand.RPDelta.Excess, Cand.RPDelta.Excess, TryCand, Cand, RegExcess, TRI, DAG->MF))
     return TryCand.Reason != NoCand;
 
   // Avoid increasing the max critical pressure in the scheduled region.
-  if (DAG->isTrackingPressure() &&
-      tryPressure(TryCand.RPDelta.CriticalMax, Cand.RPDelta.CriticalMax,
-                  TryCand, Cand, RegCritical, TRI, DAG->MF))
+  if (DAG->isTrackingPressure() && tryPressure(TryCand.RPDelta.CriticalMax, Cand.RPDelta.CriticalMax, TryCand, Cand, RegCritical, TRI, DAG->MF))
     return TryCand.Reason != NoCand;
 
   // Avoid increasing the max pressure of the entire region.
-  if (DAG->isTrackingPressure() &&
-      tryPressure(TryCand.RPDelta.CurrentMax, Cand.RPDelta.CurrentMax, TryCand,
-                  Cand, RegMax, TRI, DAG->MF))
+  if (DAG->isTrackingPressure() && tryPressure(TryCand.RPDelta.CurrentMax, Cand.RPDelta.CurrentMax, TryCand, Cand, RegMax, TRI, DAG->MF))
     return TryCand.Reason != NoCand;
 
   // We only compare a subset of features when comparing nodes between
@@ -90,8 +73,7 @@ bool MC6809SchedStrategy::tryCandidate(SchedCandidate &Cand,
   bool SameBoundary = Zone != nullptr;
   if (SameBoundary) {
     // Fall through to original instruction order.
-    if ((Zone->isTop() && TryCand.SU->NodeNum < Cand.SU->NodeNum) ||
-        (!Zone->isTop() && TryCand.SU->NodeNum > Cand.SU->NodeNum)) {
+    if ((Zone->isTop() && TryCand.SU->NodeNum < Cand.SU->NodeNum) || (!Zone->isTop() && TryCand.SU->NodeNum > Cand.SU->NodeNum)) {
       TryCand.Reason = NodeOrder;
       return true;
     }
@@ -101,8 +83,7 @@ bool MC6809SchedStrategy::tryCandidate(SchedCandidate &Cand,
 }
 
 // Returns the change in pressure in a SU for a physical register.
-int MC6809SchedStrategy::registerClassPressureDiff(
-    const TargetRegisterClass &RC, const SUnit *SU, bool IsTop) const {
+int MC6809SchedStrategy::registerClassPressureDiff(const TargetRegisterClass &RC, const SUnit *SU, bool IsTop) const {
   const MachineInstr *MI = SU->getInstr();
 
   int PressureDiff = 0;

@@ -62,7 +62,7 @@ bool MC6809MCInstLower::lowerOperand(const MachineOperand &MO, MCOperand &MCOp) 
     // section. It is the user's responsibility to ensure the linker will
     // locate the symbol completely within the direct-page.
     if (MC6809AsmBackend::isBranchSectionName(GV->getSection())) {
-      const MC6809MCExpr *Expr = MC6809MCExpr::create(MC6809MCExpr::VK_MC6809_ADDR_8, MCOp.getExpr(), /*isNegated=*/false, Ctx);
+      const MC6809MCExpr *Expr = MC6809MCExpr::create(MC6809MCExpr::VK_MC6809_ADDR8, MCOp.getExpr(), /*isNegated=*/false, Ctx);
       MCOp = MCOperand::createExpr(Expr);
     }
     break;
@@ -100,10 +100,10 @@ MCOperand MC6809MCInstLower::lowerSymbolOperand(const MachineOperand &MO, const 
   case MC6809::MO_NO_FLAGS:
     break;
   case MC6809::MO_LO:
-    Expr = MC6809MCExpr::create(MC6809MCExpr::VK_MC6809_ADDR_16, Expr, /*isNegated=*/false, Ctx);
+    Expr = MC6809MCExpr::create(MC6809MCExpr::VK_MC6809_ADDR16, Expr, /*isNegated=*/false, Ctx);
     break;
   case MC6809::MO_HI:
-    Expr = MC6809MCExpr::create(MC6809MCExpr::VK_MC6809_ADDR_16, Expr, /*isNegated=*/false, Ctx);
+    Expr = MC6809MCExpr::create(MC6809MCExpr::VK_MC6809_ADDR16, Expr, /*isNegated=*/false, Ctx);
     break;
   case MC6809::MO_HI_JT: {
     // Jump tables are partitioned in two arrays: first all the low bytes,

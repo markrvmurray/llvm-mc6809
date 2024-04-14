@@ -34,13 +34,10 @@ class MC6809TTIImpl : public BasicTTIImplBase<MC6809TTIImpl> {
 
   const MC6809Subtarget *getST() const { return ST; }
   const MC6809TargetLowering *getTLI() const { return TLI; }
-  bool mightUseCTR(BasicBlock *BB, TargetLibraryInfo *LibInfo,
-                   SmallPtrSetImpl<const Value *> &Visited);
+  bool mightUseCTR(BasicBlock *BB, TargetLibraryInfo *LibInfo, SmallPtrSetImpl<const Value *> &Visited);
 
 public:
-  explicit MC6809TTIImpl(const MC6809TargetMachine *TM, const Function &F)
-      : BaseT(TM, F.getParent()->getDataLayout()), ST(TM->getSubtargetImpl(F)),
-        TLI(ST->getTargetLowering()) {}
+  explicit MC6809TTIImpl(const MC6809TargetMachine *TM, const Function &F) : BaseT(TM, F.getParent()->getDataLayout()), ST(TM->getSubtargetImpl(F)), TLI(ST->getTargetLowering()) {}
 };
 
 } // end namespace llvm

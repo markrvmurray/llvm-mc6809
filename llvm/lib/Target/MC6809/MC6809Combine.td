@@ -1,6 +1,6 @@
 //===-- MC6809Combine.td - Describe MC6809 combiner -------*- tablegen -*-===//
 //
-// Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
+// Part of LLVM-MOS, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -11,102 +11,66 @@
 //
 //===---------------------------------------------------------------------===//
 
-// ============================================================================
-//  %2:_(p0) = G_GLOBAL_VALUE @fold_global_offset
-//  %3:_(s16) = G_CONSTANT i16 42
-//  %1:_(p0) = G_PTR_ADD %2, %3(s16)
-//   =>
-//  %1:_(p0) = G_GLOBAL_VALUE @fold_global_offset + 42
-def fold_global_offset_matchdata : GIDefMatchData<"std::pair<const MachineOperand *, int64_t>">;
+def fold_global_offset_matchdata : GIDefMatchData<"std::pair<const MachineOperand*, int64_t>">;
 def fold_global_offset : GICombineRule<
   (defs root:$root, fold_global_offset_matchdata:$matchinfo),
-  (match (wip_match_opcode G_PTR_ADD):$root, [{ return matchFoldGlobalOffset(*${root}, MRI, ${matchinfo}); }]),
-  (apply [{ return applyFoldGlobalOffset(*${root}, MRI, B, Observer, ${matchinfo});}])
->;
+  (match (wip_match_opcode G_PTR_ADD):$root,
+          [{ return matchFoldGlobalOffset(*${root}, ${matchinfo}); }]),
+  (apply [{  return applyFoldGlobalOffset(*${root}, ${matchinfo});}])>;
 
-// ============================================================================
-//  %2:_(p0) = G_GLOBAL_VALUE @fold_global_copy
-//  %3:_(s16) = COPY %2:_(p0)
-//   =>
-//  %3:_(s16) = G_GLOBAL_VALUE @fold_global_copy
-def fold_copy_matchdata : GIDefMatchData<"std::pair<const MachineOperand *, MachineInstr *>">;
-def fold_copy : GICombineRule<
-  (defs root:$root, fold_copy_matchdata:$matchinfo),
-  (match (wip_match_opcode COPY):$root, [{ return matchFoldCopy(*${root}, MRI, ${matchinfo}); }]),
-  (apply [{ return applyFoldCopy(*${root}, MRI, B, Observer, ${matchinfo});}])
->;
+def extract_low_bit_matchdata : GIDefMatchData<"MachineInstr*">;
+def extract_low_bit : GICombineRule<
+  (defs root:$root, extract_low_bit_matchdata:$matchinfo),
+  (match (wip_match_opcode G_TRUNC, G_ICMP):$root,
+          [{ return matchExtractLowBit(*${root}, ${matchinfo}); }]),
+  (apply [{  return applyExtractLowBit(*${root}, ${matchinfo});}])>;
 
-// ============================================================================
-//  %2:_(s16) = G_[SZ]SEXT %1:_(s8)
-//  %3:_(p0) = G_PTR_ADD %0:_, %2:_(s16)
-//   =>
-//  %3:_(s8) = G_PTR_ADD %0:_, %1:_(s8)
-def fold_pointer_ext_offset_matchdata : GIDefMatchData<"std::pair<MachineInstr *, MachineInstr *>">;
-def fold_pointer_ext_offset : GICombineRule<
-  (defs root:$root, fold_pointer_ext_offset_matchdata:$matchinfo),
-  (match (wip_match_opcode G_PTR_ADD):$root, [{ return matchFoldPointerExtOffset(*${root}, MRI, ${matchinfo}); }]),
-  (apply [{ return applyFoldPointerExtOffset(*${root}, MRI, B, Observer, ${matchinfo});}])
->;
+def uaddo_1 : GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode G_UADDO):$root,
+          [{ return matchUAddO1(*${root}); }]),
+  (apply [{  return applyUAddO1(*${root});}])>;
 
-// ============================================================================
-//  liveins: $ab(, $af)
-//  %0:_(s8) = COPY $ab
-//  ( %1:_(s8) = COPY $af // Antipattern )
-//  %5:_(p0) = G_FRAME_INDEX %fixed-stack.3
-//  %1:_(s8) = G_LOAD %5:_(p0) :: (invariant load (s8) from %fixed-stack.3, align 2)
-//  %9:_(s8) = G_ADD %1:_, %0:_ ; The known physical register is on the wrong side
-//   =>
-//  :
-//  %3:_(s8) = G_ADD %0:_, %1:_ ; Can make use of addressing modes
-def swap_physreg_to_lhs_matchdata : GIDefMatchData<"MachineInstr *">;
-def swap_physreg_to_lhs : GICombineRule<
-  (defs root:$root, swap_physreg_to_lhs_matchdata:$matchinfo),
-  (match (wip_match_opcode G_ADD, G_SADDO, G_SADDE, G_UADDO, G_UADDE):$root,
-    [{ return matchSwapPhysregToLhs(*${root}, MRI, ${matchinfo}); }]),
-  (apply [{ return applySwapPhysregToLhs(*${root}, MRI, B, Observer, ${matchinfo});}])
->;
+def load_store_to_memcpy_matchdata : GIDefMatchData<"GLoad*">;
+def load_store_to_memcpy : GICombineRule<
+  (defs root:$root, load_store_to_memcpy_matchdata:$matchinfo),
+  (match (wip_match_opcode G_STORE):$root,
+          [{ return matchLoadStoreToMemcpy(*${root}, ${matchinfo}); }]),
+  (apply [{  return applyLoadStoreToMemcpy(*${root}, ${matchinfo});}])>;
 
-//  %0:accum(s8) = COPY $ab
-//  :
-//  %11:accum(s8) = G_ADD %10:accum, %4:accum
-//  %12:accum(s8) = G_SUB %0:accum, %11:accum
-//   =>
-//  %0:accum(s8) = COPY $ab
-//  :
-//  %12:accum(s8) = G_SUB %0:accum, %4:accum
-//  %13:accum(s8) = G_SUB %12:accum, %10:accum
-def switch_add_to_subtract_matchdata : GIDefMatchData<"MachineInstr *">;
-def switch_add_to_subtract : GICombineRule<
-  (defs root:$root, switch_add_to_subtract_matchdata:$matchinfo),
-  (match (wip_match_opcode G_SUB):$root,
-    [{ return matchSwitchAddToSubtract(*${root}, MRI, ${matchinfo}); }]),
-  (apply [{ return applySwitchAddToSubtract(*${root}, MRI, B, Observer, ${matchinfo});}])
->;
+def store_to_memset_matchdata : GIDefMatchData<"uint8_t">;
+def store_to_memset : GICombineRule<
+  (defs root:$root, store_to_memset_matchdata:$matchinfo),
+  (match (wip_match_opcode G_STORE):$root,
+          [{ return matchStoreToMemset(*${root}, ${matchinfo}); }]),
+  (apply [{  return applyStoreToMemset(*${root}, ${matchinfo});}])>;
 
-//  %3:accum(s16) = G_(ANY|S|Z)EXT %0:accum(s8)
-//  %4:accum(s16) = G_(ANY|S|Z)EXT %1:accum(s8)
-//  %10:accum(s8) = G_MUL %3:accum, %4:accum
-//   =>
-//  %10:accum(s8), %11:accum(s8) = G_EXPAND_MUL %0:accum(s8), %1:accum(s8)
-def natural_multiply_matchdata : GIDefMatchData<"std::pair<MachineInstr *, MachineInstr *>">;
-def natural_multiply : GICombineRule<
-  (defs root:$root, natural_multiply_matchdata:$matchinfo),
-  (match (wip_match_opcode G_MUL):$root,
-    [{ return matchNaturalMultiply(*${root}, MRI, ${matchinfo}); }]),
-  (apply [{ return applyNaturalMultiply(*${root}, MRI, B, Observer, ${matchinfo});}])
->;
+def fold_adde : GICombineRule<
+  (defs root:$root, build_fn_matchinfo:$matchinfo),
+  (match (wip_match_opcode G_UADDE, G_SADDE):$root,
+          [{ return matchFoldAddE(*${root}, ${matchinfo}); }]),
+  (apply [{ return Helper.applyBuildFn(*${root}, ${matchinfo}); }])>;
 
-// ============================================================================
-def MC6809CombinerHelper: GICombinerHelper<"MC6809GenCombinerHelper",
-                                           [all_combines,
-                                            natural_multiply,
-                                            // fold_global_offset,
-                                            // fold_copy,
-                                            // fold_pointer_ext_offset,
-                                            // swap_physreg_to_lhs,
-                                            // switch_add_to_subtract,
-                                            ]> {
-  let DisableRuleOption = "mc6809combiner-disable-rule";
-  let StateClass = "MC6809CombinerHelperState";
-  let AdditionalArguments = [];
-}
+def fold_shift : GICombineRule<
+  (defs root:$root, build_fn_matchinfo:$matchinfo),
+  (match (wip_match_opcode G_SHLE, G_LSHRE):$root,
+          [{ return matchFoldShift(*${root}, ${matchinfo}); }]),
+  (apply [{ return Helper.applyBuildFn(*${root}, ${matchinfo}); }])>;
+
+def shift_unused_carry_in : GICombineRule<
+  (defs root:$root, build_fn_matchinfo:$matchinfo),
+  (match (wip_match_opcode G_SHLE, G_LSHRE):$root,
+          [{ return matchShiftUnusedCarryIn(*${root}, ${matchinfo}); }]),
+  (apply [{ return Helper.applyBuildFnNoErase(*${root}, ${matchinfo}); }])>;
+
+def MC6809Combiner : GICombiner<"MC6809CombinerImpl", [
+    all_combines,
+    fold_global_offset,
+    extract_low_bit,
+    uaddo_1,
+    load_store_to_memcpy,
+    store_to_memset,
+    fold_adde,
+    fold_shift,
+    shift_unused_carry_in
+]>;

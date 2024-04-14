@@ -23,8 +23,9 @@
 
 #include "llvm/ADT/APFloat.h"
 #include "llvm/Analysis/AliasAnalysis.h"
+#include "llvm/CodeGen/GlobalISel/GIMatchTableExecutorImpl.h"
+#include "llvm/CodeGen/GlobalISel/GenericMachineInstrs.h"
 #include "llvm/CodeGen/GlobalISel/InstructionSelector.h"
-//#include "llvm/CodeGen/GlobalISel/InstructionSelectorImpl.h"
 #include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
 #include "llvm/CodeGen/GlobalISel/Utils.h"
@@ -57,7 +58,7 @@ public:
   bool select(MachineInstr &MI) override;
   static const char *getName() { return DEBUG_TYPE; }
 
-  void setupMF(MachineFunction &MF, GISelKnownBits *KB, CodeGenCoverage &CoverageInfo, ProfileSummaryInfo *PSI, BlockFrequencyInfo *BFI, AAResults *AA) override {
+  void setupMF(MachineFunction &MF, GISelKnownBits *KB, CodeGenCoverage *CoverageInfo, ProfileSummaryInfo *PSI, BlockFrequencyInfo *BFI, AAResults *AA) override {
     InstructionSelector::setupMF(MF, KB, CoverageInfo, PSI, BFI, AA);
     MIB.setMF(MF);
 
@@ -90,8 +91,8 @@ private:
   bool selectMergeValues(MachineInstr &MI);
   bool selectUnMergeValues(MachineInstr &MI);
   // bool selectConstant(MachineInstr &MI);
-  //bool selectStore(MachineInstr &MI);
-  //bool selectLoad(MachineInstr &MI);
+  // bool selectStore(MachineInstr &MI);
+  // bool selectLoad(MachineInstr &MI);
   bool selectTrunc(MachineInstr &MI);
 
   // bool selectExt(MachineInstr &MI);
@@ -103,7 +104,8 @@ private:
   // bool selectMulH(MachineInstr &MI);
 
   // bool selectBranch(MachineInstr &MI);
-  //bool selectConditionalBranch(MachineInstr &MI, MachineFunction &MF, MachineRegisterInfo &MRI);
+  // bool selectBrCondImm(MachineInstr &MI);
+  // bool selectConditionalBranch(MachineInstr &MI, MachineFunction &MF, MachineRegisterInfo &MRI);
 
   // Select instructions that correspond 1:1 to a target instruction.
   bool selectGeneric(MachineInstr &MI);
@@ -122,13 +124,13 @@ private:
 
   const TargetRegisterClass &getRegClassForType(Register Reg) const;
 
-  //MachineInstr *tryFoldIntegerCompare(MachineOperand &LHS, MachineOperand &RHS, MachineOperand &Predicate, MachineIRBuilder &MIRBuilder) const;
-  //bool tryOptAndIntoCompareBranch(MachineInstr &AndInst, bool Invert, MachineBasicBlock *DstMBB, MachineIRBuilder &MIB) const;
-  //bool tryOptCompareBranchFedByICmp(MachineInstr &MI, MachineInstr &ICmp, MachineIRBuilder &MIB) const;
-  //MachineInstr *emitCMN(MachineOperand &LHS, MachineOperand &RHS, MachineIRBuilder &MIRBuilder) const;
-  //MachineInstr *emitIntegerCompare(MachineOperand &LHS, MachineOperand &RHS, MachineOperand &Predicate, MachineIRBuilder &MIRBuilder) const;
-  //bool selectCompareBranchFedByICmp(MachineInstr &MI, MachineInstr &ICmp, MachineIRBuilder &MIB) const;
-  //MachineInstr *emitTestBit(Register TestReg, uint64_t Bit, bool IsNegative, MachineBasicBlock *DstMBB, MachineIRBuilder &MIB) const;
+  // MachineInstr *tryFoldIntegerCompare(MachineOperand &LHS, MachineOperand &RHS, MachineOperand &Predicate, MachineIRBuilder &MIRBuilder) const;
+  // bool tryOptAndIntoCompareBranch(MachineInstr &AndInst, bool Invert, MachineBasicBlock *DstMBB, MachineIRBuilder &MIB) const;
+  // bool tryOptCompareBranchFedByICmp(MachineInstr &MI, MachineInstr &ICmp, MachineIRBuilder &MIB) const;
+  // MachineInstr *emitCMN(MachineOperand &LHS, MachineOperand &RHS, MachineIRBuilder &MIRBuilder) const;
+  // MachineInstr *emitIntegerCompare(MachineOperand &LHS, MachineOperand &RHS, MachineOperand &Predicate, MachineIRBuilder &MIRBuilder) const;
+  // bool selectCompareBranchFedByICmp(MachineInstr &MI, MachineInstr &ICmp, MachineIRBuilder &MIB) const;
+  // MachineInstr *emitTestBit(Register TestReg, uint64_t Bit, bool IsNegative, MachineBasicBlock *DstMBB, MachineIRBuilder &MIB) const;
 
   LLT S1 = LLT::scalar(1);
   LLT S2 = LLT::scalar(2);
@@ -169,16 +171,15 @@ MC6809InstructionSelector::MC6809InstructionSelector(const MC6809TargetMachine &
 }
 
 /// Select a "register plus signed immediate offset" address.
-InstructionSelector::ComplexRendererFns
-MC6809InstructionSelector::selectAMImmediate(MachineOperand &Root) const {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Root = ";Root.dump(););
+InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectAMImmediate(MachineOperand &Root) const {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Root = "; Root.dump(););
   MachineRegisterInfo &MRI = Root.getParent()->getParent()->getParent()->getRegInfo();
 
   if (!Root.isReg())
     return std::nullopt;
 
   MachineInstr *RootDef = MRI.getVRegDef(Root.getReg());
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Looking for G_CONSTANT in ";RootDef->dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Looking for G_CONSTANT in "; RootDef->dump(););
   if (RootDef->getOpcode() == TargetOpcode::G_CONSTANT) {
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Found G_CONSTANT\n";);
     return {{
@@ -190,9 +191,8 @@ MC6809InstructionSelector::selectAMImmediate(MachineOperand &Root) const {
 }
 
 /// Select a "register plus signed immediate offset" address.
-InstructionSelector::ComplexRendererFns
-MC6809InstructionSelector::selectAMIndexedImmOffset(MachineOperand &Root) const {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Root = ";Root.dump(););
+InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectAMIndexedImmOffset(MachineOperand &Root) const {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Root = "; Root.dump(););
   MachineRegisterInfo &MRI = Root.getParent()->getParent()->getParent()->getRegInfo();
 
   if (!Root.isReg())
@@ -222,9 +222,8 @@ MC6809InstructionSelector::selectAMIndexedImmOffset(MachineOperand &Root) const 
 }
 
 /// Select a "register plus signed immediate offset" address for a target load/store instruction
-InstructionSelector::ComplexRendererFns
-MC6809InstructionSelector::selectLSIndexedImmOffset(MachineOperand &Root) const {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Root = ";Root.dump(););
+InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectLSIndexedImmOffset(MachineOperand &Root) const {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Root = "; Root.dump(););
   MachineRegisterInfo &MRI = Root.getParent()->getParent()->getParent()->getRegInfo();
 
   if (!Root.isReg())
@@ -331,7 +330,7 @@ const TargetRegisterClass &MC6809InstructionSelector::getRegClassForType(Registe
 }
 
 bool MC6809InstructionSelector::select(MachineInstr &MI) {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = ";MI.dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
   assert(MI.getParent() && "Instruction should be in a basic block!");
   assert(MI.getParent()->getParent() && "Instruction should be in a function!");
 
@@ -343,7 +342,7 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : If !MI.isPreISelOpcode() : MI = "; MI.dump(););
   // isPreISelOpcode is stolen from llvm-mos. Methinks it means "not a GlobalISel opcode".
   if (!MI.isPreISelOpcode()) {
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : If !MI.isPreISelOpcode() == TRUE: MI = ";MI.dump(););
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : If !MI.isPreISelOpcode() == TRUE: MI = "; MI.dump(););
     // Ensure that target-independent pseudos like COPY have register classes.
     constrainGenericOp(MI);
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : When !MI.isPreISelOpcode() opcode constrained becomes : MI = "; MI.dump(););
@@ -394,14 +393,15 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     return selectPtrAdd(MI);
   case TargetOpcode::G_CONSTANT:
     return selectConstant(MI);
-#endif
 
-#if 0
+  case TargetOpcode::G_BRCOND:
+    return selectBrCondImm(MI);
+
   case TargetOpcode::G_BR:
     return selectBranch(MI);
 
-  case TargetOpcode::G_BRCOND:
-    return selectConditionalBranch(MI, *MF, *MRI);
+  case TargetOpcode::G_BRCOND_IMM:
+    return selectBrCondImm(MI, *MF, *MRI);
 
   case TargetOpcode::G_BRINDIRECT:
     return selectGeneric(MI);
@@ -446,6 +446,84 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     return selectMulExpand(MI);
   }
   return false;
+}
+
+static bool shouldFoldMemAccess(const MachineInstr &Dst, const MachineInstr &Src, AAResults *AA) {
+  assert(Src.mayLoadOrStore());
+
+  // For now, don't attempt to fold across basic block boundaries.
+  if (Dst.getParent() != Src.getParent())
+    return false;
+
+  if ((*Src.memoperands_begin())->isVolatile())
+    return false;
+
+  // Does it pay off to fold the access? Depends on the number of users.
+  //const auto &STI = Dst.getMF()->getSubtarget<MC6809Subtarget>();
+  const auto &MRI = Dst.getMF()->getRegInfo();
+  const auto Users = MRI.use_nodbg_instructions(Src.getOperand(0).getReg());
+  const auto NumUsers = std::distance(Users.begin(), Users.end());
+
+  // Looking at this pessimistically, if we don't fold the access, all
+  // references may refer to an Imag8 reg that needs to be copied to/from a GPR.
+  // This costs 2 bytes and 3 cycles. We also need to do the actual load/store.
+  // If we do fold the access, then we get rid of both that and the load/store.
+  // This makes the first reference free; as it's not any more expensive than
+  // the load/store. However, for each reference past the first, we pay an
+  // overhead for using the addressing over the imaginary addressing mode. This
+  // cost is: Absolute: 1 byte, 1 cycle Absolute Indexed: 1 byte, 1.5 cycles
+  // Indirect: 2 cycles Indirect Indexed: 2.5 cycles
+  // So, it pays off to fold k references of each addressing mode if:
+  // Absolute: k*(1+1) < (2+3) = 5; 2k < 5; k < 2.5; k <= 2
+  // Absolute Indexed: k*(1+1.5) < 5; 2.5k < 5; k <= 1
+  // Indirect: k*(0+2) < 5; 2k < 5; k <= 2
+  // Indirect Indexed: k*(0+2.5) < 5; 2.5k < 5; k <= 1
+  //
+  // For HuC6280, we have different timings, so:
+  // Absolute: k*(1+2) < (2+3) = 5; 3k < 5; k <= 1
+  // Absolute Indexed: k*(1+2.5) < 5; 3.5k < 5; k <= 1
+  // Indirect: k*(0+4) < 5; 4k < 5; k <= 1
+  // Indirect Indexed: k*(0+4.5) < 5; 4.5k < 5; k <= 1
+  //
+  // For SPC700:
+  // Absolute: k*(1+1) < (2+3) = 5; 2k < 5; k < 2.5; k <= 2
+  // Absolute Indexed: k*(1+2) < 5; 3k < 5; k <= 1
+  // Indirect: k*(0+3) < 5; 3k < 5; k <= 1
+  // Indirect Indexed: k*(0+3) < 5; 3k < 5; k <= 1
+  int MaxNumUsers;
+  switch (Src.getOpcode()) {
+  default:
+    MaxNumUsers = 1;
+    break;
+#if 0
+  case MOS::G_LOAD_ABS:
+    MaxNumUsers = STI.hasHUC6280() ? 1 : 2;
+    break;
+  case MOS::G_LOAD_INDIR:
+    MaxNumUsers = (STI.hasHUC6280() || STI.hasSPC700()) ? 1 : 2;
+    break;
+#endif
+  }
+  if (NumUsers > MaxNumUsers)
+    return false;
+
+  // Look for intervening instructions that cannot be folded across.
+  for (const MachineInstr &I : make_range(std::next(MachineBasicBlock::const_iterator(Src)), MachineBasicBlock::const_iterator(Dst))) {
+    if (I.isCall() || I.hasUnmodeledSideEffects())
+      return false;
+    if (I.mayLoadOrStore()) {
+      if (Src.hasOrderedMemoryRef() || I.hasOrderedMemoryRef())
+        return false;
+      if (I.mayAlias(AA, Src, /*UseTBAA=*/true))
+        return false;
+      // Note: Dst may be a store, indicating that the whole sequence is a RMW
+      // operation.
+      if (I.mayAlias(AA, Dst, /*UseTBAA=*/true))
+        return false;
+    }
+  }
+
+  return true;
 }
 
 #if 0
@@ -592,9 +670,7 @@ bool MC6809InstructionSelector::selectMergeValues(MachineInstr &MI) {
       LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Size == 16\n";);
       uint64_t Val = HiConst->Value.getZExtValue() << 8 | LoConst->Value.getZExtValue();
       LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Val : " << Val << "\n";);
-      auto Instr = Builder.buildInstr(MC6809::Load_i16_Imm)
-                       .addDef(Dst)
-                       .addImm(Val);
+      auto Instr = Builder.buildInstr(MC6809::Load_i16_Imm).addDef(Dst).addImm(Val);
       LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Load Instruction : Instr :"; Instr->dump(););
       Instr->addImplicitDefUseOperands(*MF);
       if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
@@ -604,9 +680,7 @@ bool MC6809InstructionSelector::selectMergeValues(MachineInstr &MI) {
       LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Size == 32\n";);
       uint64_t Val = HiConst->Value.getZExtValue() << 16 | LoConst->Value.getZExtValue();
       LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Val : " << Val << "\n";);
-      auto Instr = Builder.buildInstr(MC6809::Load_i32_Imm)
-          .addDef(Dst)
-          .addImm(Val);
+      auto Instr = Builder.buildInstr(MC6809::Load_i32_Imm).addDef(Dst).addImm(Val);
       LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Load Instruction : Instr :"; Instr->dump(););
       Instr->addImplicitDefUseOperands(*MF);
       if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
@@ -936,7 +1010,7 @@ bool MC6809InstructionSelector::selectSub(MachineInstr &MI) {
     }
   }
 
-  if (STI.isHD6309()) {
+  if (STI.has6309()) {
     Register LHS, RHS;
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Trying register/register mode\n";);
     if (SetBorrow)
@@ -1080,7 +1154,7 @@ bool MC6809InstructionSelector::selectConstant(MachineInstr &MI) {
 #endif
 
 bool MC6809InstructionSelector::selectMulExpand(MachineInstr &MI) {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = ";MI.dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
   MachineIRBuilder Builder(MI);
   Register Dst = MI.getOperand(0).getReg();
   LLT DstTy = MRI->getType(Dst);
@@ -1275,6 +1349,248 @@ bool MC6809InstructionSelector::selectGeneric(MachineInstr &MI) {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
   return true;
 }
+
+// Given a G_SBC instruction Sbc and one of its flag output virtual registers,
+// returns the flag that corresponds  to the register.
+static Register getCmpFlagForRegister(const MachineInstr &Sbc, Register Reg) {
+  static const Register Flags[] = {MC6809::N, MC6809::Z, MC6809::V, MC6809::C};
+  // TODO: C++17 structured bindings
+  for (const auto &I : zip(Flags, seq(1, 5)))
+    if (Sbc.getOperand(std::get<1>(I)).getReg() == Reg)
+      return std::get<0>(I);
+  llvm_unreachable("Could not find register in G_SBC outputs.");
+}
+
+// Match criteria common to all CMP addressing modes.
+struct FoldedLdAbs_match {
+  const MachineInstr &Tgt;
+  MachineOperand &Addr;
+  AAResults *AA;
+
+  bool match(const MachineRegisterInfo &MRI, Register Reg) {
+#if 0
+    const MachineInstr *LdAbs = getOpcodeDef(MOS::G_LOAD_ABS, Reg, MRI);
+    if (!LdAbs || !shouldFoldMemAccess(Tgt, *LdAbs, AA))
+      return false;
+    Addr = LdAbs->getOperand(1);
+    return true;
+#else
+    return false;
+#endif
+  }
+};
+
+inline FoldedLdAbs_match m_FoldedLdAbs(const MachineInstr &Tgt, MachineOperand &Addr, AAResults *AA) { return {Tgt, Addr, AA}; }
+
+struct Cmp_match {
+  Register &LHS;
+  Register &Flag;
+
+  // The matched G_SBC representing a CMP.
+  MachineInstr *CondMI;
+
+  Cmp_match(Register &LHS, Register &Flag) : LHS(LHS), Flag(Flag) {}
+
+  bool match(const MachineRegisterInfo &MRI, Register CondReg) {
+    auto DefSrcReg = getDefSrcRegIgnoringCopies(CondReg, MRI);
+    CondMI = DefSrcReg->MI;
+    if (CondMI->getOpcode() != MC6809::G_ICMP)
+      return false;
+
+    auto CInConst = getIConstantVRegValWithLookThrough(CondMI->getOperand(7).getReg(), MRI);
+    if (!CInConst || CInConst->Value.isZero())
+      return false;
+
+    LHS = CondMI->getOperand(5).getReg();
+    Flag = getCmpFlagForRegister(*CondMI, DefSrcReg->Reg);
+    return Flag == MC6809::N || Flag == MC6809::Z;
+  }
+};
+
+struct CMPTermZ_match : public Cmp_match {
+  CMPTermZ_match(Register &LHS, Register &Flag) : Cmp_match(LHS, Flag) {}
+
+  bool match(const MachineRegisterInfo &MRI, Register CondReg) {
+    if (!Cmp_match::match(MRI, CondReg))
+      return false;
+
+    auto RHSConst = getIConstantVRegValWithLookThrough(CondMI->getOperand(6).getReg(), MRI);
+    return RHSConst && RHSConst->Value.isZero();
+  }
+};
+
+inline CMPTermZ_match m_CMPTermZ(Register &LHS, Register &Flag) { return {LHS, Flag}; }
+
+struct CMPTermImm_match : public Cmp_match {
+  int64_t &RHS;
+
+  CMPTermImm_match(Register &LHS, int64_t &RHS, Register &Flag) : Cmp_match(LHS, Flag), RHS(RHS) {}
+
+  bool match(const MachineRegisterInfo &MRI, Register CondReg) {
+    if (!Cmp_match::match(MRI, CondReg))
+      return false;
+
+    auto RHSConst = getIConstantVRegValWithLookThrough(CondMI->getOperand(6).getReg(), MRI);
+    if (!RHSConst)
+      return false;
+
+    RHS = RHSConst->Value.getZExtValue();
+    return true;
+  }
+};
+
+// Match one of the outputs of a G_SBC to a CMPTermImm operation. LHS and RHS
+// are the left and right hand side of the comparison, while Flag is the
+// physical (N or Z) register corresponding to the output by which the G_SBC
+// was reached.
+inline CMPTermImm_match m_CMPTermImm(Register &LHS, int64_t &RHS, Register &Flag) { return {LHS, RHS, Flag}; }
+
+struct CMPTermImag8_match : public Cmp_match {
+  Register &RHS;
+
+  CMPTermImag8_match(Register &LHS, Register &RHS, Register &Flag) : Cmp_match(LHS, Flag), RHS(RHS) {}
+
+  bool match(const MachineRegisterInfo &MRI, Register CondReg) {
+    if (!Cmp_match::match(MRI, CondReg))
+      return false;
+    RHS = CondMI->getOperand(6).getReg();
+    return true;
+  }
+};
+
+struct CMPTermAbs_match : public Cmp_match {
+  MachineOperand &Addr;
+  MachineInstr *&Load;
+  AAResults *AA;
+
+  CMPTermAbs_match(Register &LHS, MachineOperand &Addr, Register &Flag, MachineInstr *&Load, AAResults *AA) : Cmp_match(LHS, Flag), Addr(Addr), Load(Load), AA(AA) {}
+
+  bool match(const MachineRegisterInfo &MRI, Register CondReg) {
+    if (!Cmp_match::match(MRI, CondReg))
+      return false;
+    return mi_match(CondMI->getOperand(6).getReg(), MRI, m_all_of(m_MInstr(Load), m_FoldedLdAbs(*CondMI, Addr, AA)));
+  }
+};
+
+// Match one of the outputs of a G_SBC to a CMPTermAbs operation. Flag is the
+// physical (N or Z) register corresponding to the output by which the G_SBC
+// was reached.
+inline CMPTermAbs_match m_CMPTermAbs(Register &LHS, MachineOperand &Addr, Register &Flag, MachineInstr *&Load, AAResults *AA) { return {LHS, Addr, Flag, Load, AA}; }
+
+struct FoldedLdIdx_match {
+  const MachineInstr &Tgt;
+  MachineOperand &Addr;
+  Register &Idx;
+  bool &DP;
+  AAResults *AA;
+
+  bool match(const MachineRegisterInfo &MRI, Register Reg) {
+#if 0
+    const MachineInstr *LDZpIdx = getOpcodeDef(MOS::G_LOAD_DP_IDX, Reg, MRI);
+    if (LDZpIdx) {
+      if (!shouldFoldMemAccess(Tgt, *LDZpIdx, AA))
+        return false;
+      DP = true;
+      Addr = LDZpIdx->getOperand(1);
+      Idx = LDZpIdx->getOperand(2).getReg();
+      return true;
+    }
+
+    const MachineInstr *LDAbsIdx = getOpcodeDef(MOS::G_LOAD_ABS_IDX, Reg, MRI);
+    if (LDAbsIdx) {
+      if (!shouldFoldMemAccess(Tgt, *LDAbsIdx, AA))
+        return false;
+      DP = false;
+      Addr = LDAbsIdx->getOperand(1);
+      Idx = LDAbsIdx->getOperand(2).getReg();
+      return true;
+    }
+#endif
+
+    return false;
+  }
+};
+inline FoldedLdIdx_match m_FoldedLdIdx(const MachineInstr &Tgt, MachineOperand &Addr, Register &Idx, bool &DP, AAResults *AA) { return {Tgt, Addr, Idx, DP, AA}; }
+
+struct CMPTermIdx_match : public Cmp_match {
+  MachineOperand &Addr;
+  Register &Idx;
+  MachineInstr *&Load;
+  bool &DP;
+  AAResults *AA;
+
+  CMPTermIdx_match(Register &LHS, MachineOperand &Addr, Register &Idx, Register &Flag, MachineInstr *&Load, bool &DP, AAResults *AA) : Cmp_match(LHS, Flag), Addr(Addr), Idx(Idx), Load(Load), DP(DP), AA(AA) {}
+
+  bool match(const MachineRegisterInfo &MRI, Register CondReg) {
+    if (!Cmp_match::match(MRI, CondReg))
+      return false;
+    return mi_match(CondMI->getOperand(6).getReg(), MRI, m_all_of(m_MInstr(Load), m_FoldedLdIdx(*CondMI, Addr, Idx, DP, AA)));
+  }
+};
+
+#if 0
+// Match one of the outputs of a G_SBC to a CMPTermIdx operation. Flag is the
+// physical (N or Z) register corresponding to the output by which the G_SBC
+// was reached.
+inline CMPTermIdx_match m_CMPTermIdx(Register &LHS, MachineOperand &Addr, Register &Idx, Register &Flag, MachineInstr *&Load, bool &DP, AAResults *AA) { return {LHS, Addr, Idx, Flag, Load, DP, AA}; }
+
+bool MC6809InstructionSelector::selectBrCondImm(MachineInstr &MI) {
+  MachineRegisterInfo &MRI = MI.getMF()->getRegInfo();
+
+  Register CondReg = MI.getOperand(0).getReg();
+  MachineBasicBlock *Tgt = MI.getOperand(1).getMBB();
+  int64_t FlagVal = MI.getOperand(2).getImm();
+
+  LLT S1 = LLT::scalar(1);
+
+  MachineInstr *Compare = nullptr;
+  Register Flag;
+
+  MachineIRBuilder Builder(MI);
+
+  MachineInstr *Load;
+
+  Register LHS;
+  if (!Compare && mi_match(CondReg, MRI, m_CMPTermZ(LHS, Flag)))
+    Compare = Builder.buildInstr(MC6809::Test_i8_Reg, {S1}, {LHS});
+  int64_t RHSConst;
+  if (!Compare && mi_match(CondReg, MRI, m_CMPTermImm(LHS, RHSConst, Flag)))
+    Compare = Builder.buildInstr(MC6809::Compare_i8_Imm, {S1}, {LHS, RHSConst});
+  MachineOperand Addr = MachineOperand::CreateReg(MC6809::NoRegister, /*isDef=*/false);
+  if (!Compare && mi_match(CondReg, MRI, m_CMPTermAbs(LHS, Addr, Flag, Load, AA)))
+    Compare = Builder.buildInstr(MC6809::Compare_i8_Abs, {S1}, {LHS}).add(Addr).cloneMemRefs(*Load);
+  Register Idx;
+  bool DP;
+  if (!Compare && mi_match(CondReg, MRI, m_CMPTermIdx(LHS, Addr, Idx, Flag, Load, DP, AA))) {
+    Compare = Builder.buildInstr(DP ? MC6809::CMPTermZpIdx : MC6809::CMPTermAbsIdx, {S1}, {LHS}).add(Addr).addUse(Idx).cloneMemRefs(*Load);
+  }
+  Register RegAddr;
+  if (!Compare && mi_match(CondReg, MRI, m_CMPTermIndir(LHS, RegAddr, Flag, Load, AA))) {
+    Compare = Builder.buildInstr(MC6809::CMPTermIndir, {S1}, {LHS, RegAddr}).cloneMemRefs(*Load);
+  }
+  if (!Compare && mi_match(CondReg, MRI, m_CMPTermIndirIdx(LHS, RegAddr, Idx, Flag, Load, AA))) {
+    Compare = Builder.buildInstr(MC6809::CMPTermIndirIdx, {S1}, {LHS, RegAddr, Idx}).cloneMemRefs(*Load);
+  }
+  Register RHS;
+  if (!Compare && mi_match(CondReg, MRI, m_CMPTermImag8(LHS, RHS, Flag)))
+    Compare = Builder.buildInstr(MC6809::CMPTermImag8, {S1}, {LHS, RHS});
+
+  if (Compare) {
+    if (!constrainSelectedInstRegOperands(*Compare, TII, TRI, RBI))
+      return false;
+    assert(Flag != MC6809::C);
+    Builder.buildInstr(MC6809::LongBranchRelative).addMBB(Tgt).addUse(Flag).addImm(FlagVal);
+    MI.eraseFromParent();
+    return true;
+  }
+
+  auto GBR = Builder.buildInstr(MC6809::LongBranchRelative).addMBB(MI.getOperand(1).getMBB()).addUse(MI.getOperand(0).getReg()).addImm(MI.getOperand(2).getImm());
+  if (!constrainSelectedInstRegOperands(*GBR, TII, TRI, RBI))
+    return false;
+  MI.eraseFromParent();
+  return true;
+}
+#endif
 
 #if 0
 bool MC6809InstructionSelector::selectBranch(MachineInstr &MI) {
@@ -1697,6 +2013,4 @@ bool MC6809InstructionSelector::selectAll(MachineInstrSpan MIS) {
   return true;
 }
 
-InstructionSelector *llvm::createMC6809InstructionSelector(const MC6809TargetMachine &TM, MC6809Subtarget &STI, MC6809RegisterBankInfo &RBI) {
-  return new MC6809InstructionSelector(TM, STI, RBI);
-}
+InstructionSelector *llvm::createMC6809InstructionSelector(const MC6809TargetMachine &TM, MC6809Subtarget &STI, MC6809RegisterBankInfo &RBI) { return new MC6809InstructionSelector(TM, STI, RBI); }

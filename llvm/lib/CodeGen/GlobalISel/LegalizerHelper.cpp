@@ -153,8 +153,8 @@ LegalizerHelper::legalizeInstrStep(MachineInstr &MI,
     return moreElementsVector(MI, Step.TypeIdx, Step.NewType);
   case Custom:
     LLVM_DEBUG(dbgs() << ".. Custom legalization\n");
-    // return LI.legalizeCustomMaybeLegal(*this, MI, LocObserver); // Z80 does this
-    return LI.legalizeCustom(*this, MI) ? Legalized : UnableToLegalize;
+    return LI.legalizeCustom(*this, MI, LocObserver) ? Legalized
+                                                     : UnableToLegalize;
   default:
     LLVM_DEBUG(dbgs() << ".. Unable to legalize\n");
     return UnableToLegalize;

@@ -1,5 +1,4 @@
-//===-- MC6809NoRecurse.cpp - MC6809 NoRecurse Pass
-//-----------------------------===//
+//===-- MC6809NonReentrant.cpp - MC6809 NonReentrant Pass -----------------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,55 +6,54 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file defines the MC6809 NoRecurse pass.
+// This file defines the MC6809 NonReentrant pass.
 //
 // This pass examines the full inter-procedural Module function call graph to
-// identify functions that cannot possibly be recursive. Those functiosn are
-// marked with the norecurse annotation, which allows the code generator to lay
+// identify functions that need not be reentrant. Those functions are marked
+// with the nonreentrant annotation, which allows the code generator to lay
 // their local stack frames out in globally static memory. This is possible
 // because such functions can have at most one invocation active at any given
-// time.
+// time. Along the way, this pass performs a norecurse analysis as well.
 //
-// This pass is considerably more aggressive than LLVM's built-in NoRecurse
-// passes, as it examines the call graph SCCs themselves, not individual
-// functions in SCC order.
 //===----------------------------------------------------------------------===//
 
-#include "MC6809NoRecurse.h"
+#include "MC6809NonReentrant.h"
 
 #include "MC6809.h"
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/CallGraphSCCPass.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/LTO/LTO.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 
-#define DEBUG_TYPE "mc6809-norecurse"
+#define DEBUG_TYPE "mc6809-nonreentrant"
 
 using namespace llvm;
 
 namespace {
 
-struct MC6809NoRecurse : public ModulePass {
-  static char ID; // Pass identification, replacement for typeid
-  SmallPtrSet<const CallGraphNode *, 8> ReachableFromMultipleInterrupts;
+struct MC6809NonReentrantImpl {
+  CallGraph &CG;
+  SmallPtrSet<const CallGraphNode *, 8> Reentrant;
   SmallPtrSet<const CallGraphNode *, 8> ReachableFromCurrentNorecurseInterrupt;
   SmallPtrSet<const CallGraphNode *, 8> ReachableFromOtherNorecurseInterrupt;
   bool HasInterrupts = false;
 
-  MC6809NoRecurse() : ModulePass(ID) {
-    initializeMC6809NoRecursePass(*PassRegistry::getPassRegistry());
+  MC6809NonReentrantImpl(CallGraph &CG) : CG(CG) {
+    initializeMC6809NonReentrantPass(*PassRegistry::getPassRegistry());
   }
 
-  bool runOnModule(Module &M) override;
-  void getAnalysisUsage(AnalysisUsage &Info) const override;
+  bool run(Module &M);
 
   bool runOnSCC(CallGraphSCC &SCC);
-  void markReachableFromMultipleInterrupts(const CallGraphNode &CGN);
+  void markReentrant(const CallGraphNode &CGN);
   void visitNorecurseInterrupt(const CallGraphNode &CGN);
 };
+
+} // namespace
 
 static bool callsSelf(const CallGraphNode &N) {
   for (const CallGraphNode::CallRecord &CR : N)
@@ -64,10 +62,8 @@ static bool callsSelf(const CallGraphNode &N) {
   return false;
 }
 
-bool MC6809NoRecurse::runOnModule(Module &M) {
-  LLVM_DEBUG(dbgs() << "**** MC6809 NoRecurse Pass ****\n");
-
-  CallGraph &CG = getAnalysis<CallGraphWrapperPass>().getCallGraph();
+bool MC6809NonReentrantImpl::run(Module &M) {
+  LLVM_DEBUG(dbgs() << "**** MC6809 NonReentrant Pass ****\n");
 
   // For the conservative recursion analysis, any external call may call any
   // externally-callable function so add an edge from the calls-external node
@@ -85,12 +81,11 @@ bool MC6809NoRecurse::runOnModule(Module &M) {
     Changed |= runOnSCC(CurSCC);
   }
 
-  // Mark all functions reachable from an interrupt function as possibly
-  // recursive.
+  // Mark all functions reachable from an interrupt function as non-reentrant.
   for (Function &F : M.functions()) {
     if (F.hasFnAttribute("interrupt")) {
       HasInterrupts = true;
-      markReachableFromMultipleInterrupts(*CG[&F]);
+      markReentrant(*CG[&F]);
     }
   }
 
@@ -117,25 +112,26 @@ bool MC6809NoRecurse::runOnModule(Module &M) {
     // other than making the conservative assumption here.
     for (const char *LibcallName : lto::LTO::getRuntimeLibcallSymbols()) {
       Function *Libcall = M.getFunction(LibcallName);
-      if (Libcall && !Libcall->isDeclaration() && Libcall->doesNotRecurse()) {
-        LLVM_DEBUG(dbgs() << "Marking libcall as possibly recursive: "
+      if (Libcall && !Libcall->isDeclaration()) {
+        LLVM_DEBUG(dbgs() << "Marking libcall as reentrant: "
                           << Libcall->getName() << "\n");
-        Libcall->removeFnAttr(Attribute::NoRecurse);
+        Reentrant.insert(CG[Libcall]);
       }
     }
   }
+
+  // Make all norecurse functions that were not determined to be reentrant as
+  // nonreentrant.
+  for (Function &F : M.functions())
+    if (F.doesNotRecurse() && !Reentrant.contains(CG[&F]))
+      F.addFnAttr("nonreentrant");
 
   // Remove the artificial edge.
   CG.getCallsExternalNode()->removeAllCalledFunctions();
   return Changed;
 }
 
-void MC6809NoRecurse::getAnalysisUsage(AnalysisUsage &AU) const {
-  AU.addRequired<CallGraphWrapperPass>();
-  AU.addPreserved<CallGraphWrapperPass>();
-}
-
-bool MC6809NoRecurse::runOnSCC(CallGraphSCC &SCC) {
+bool MC6809NonReentrantImpl::runOnSCC(CallGraphSCC &SCC) {
   // All nodes in SCCs with more than one node may be recursive. It's not
   // certain since CFG analysis is conservative, but there's no more
   // information to be gleaned from looking at the call graph, and other
@@ -147,6 +143,7 @@ bool MC6809NoRecurse::runOnSCC(CallGraphSCC &SCC) {
   const CallGraphNode &N = **SCC.begin();
 
   if (!N.getFunction() || N.getFunction()->isDeclaration() ||
+      N.getFunction()->hasFnAttribute("nonreentrant") ||
       N.getFunction()->doesNotRecurse())
     return false;
 
@@ -159,31 +156,22 @@ bool MC6809NoRecurse::runOnSCC(CallGraphSCC &SCC) {
   LLVM_DEBUG(dbgs() << "Found new non-recursive function.\n");
   LLVM_DEBUG(N.print(dbgs()));
 
-  // At this point, the function in N is known non-recursive.
+  // At this point, the function in N can safely be made non-reentrant.
   N.getFunction()->setDoesNotRecurse();
   return true;
 }
 
-void MC6809NoRecurse::markReachableFromMultipleInterrupts(
-    const CallGraphNode &CGN) {
-  if (ReachableFromMultipleInterrupts.contains(&CGN))
+void MC6809NonReentrantImpl::markReentrant(const CallGraphNode &CGN) {
+  if (Reentrant.contains(&CGN))
     return;
-  ReachableFromMultipleInterrupts.insert(&CGN);
-
-  Function *F = CGN.getFunction();
-  if (F && !F->isDeclaration()) {
-    LLVM_DEBUG(dbgs() << "Marking reachable from interrupt: " << F->getName()
-                      << "\n");
-    if (F->doesNotRecurse())
-      F->removeFnAttr(Attribute::NoRecurse);
-  }
+  Reentrant.insert(&CGN);
 
   for (const auto &CallRecord : CGN)
-    markReachableFromMultipleInterrupts(*CallRecord.second);
+    markReentrant(*CallRecord.second);
 }
 
-void MC6809NoRecurse::visitNorecurseInterrupt(const CallGraphNode &CGN) {
-  if (ReachableFromMultipleInterrupts.contains(&CGN))
+void MC6809NonReentrantImpl::visitNorecurseInterrupt(const CallGraphNode &CGN) {
+  if (Reentrant.contains(&CGN))
     return;
   if (ReachableFromCurrentNorecurseInterrupt.contains(&CGN))
     return;
@@ -195,20 +183,53 @@ void MC6809NoRecurse::visitNorecurseInterrupt(const CallGraphNode &CGN) {
     LLVM_DEBUG(
         dbgs() << "Marking reachable from multiple norecurse interrupts: "
                << F->getName() << "\n");
-    ReachableFromMultipleInterrupts.insert(&CGN);
-    if (F->doesNotRecurse())
-      F->removeFnAttr(Attribute::NoRecurse);
+    Reentrant.insert(&CGN);
   }
   for (const auto &CallRecord : CGN)
     visitNorecurseInterrupt(*CallRecord.second);
 }
+
+namespace {
+
+struct MC6809NonReentrant : public ModulePass {
+  static char ID; // Pass identification, replacement for typeid
+
+  MC6809NonReentrant() : ModulePass(ID) {
+    initializeMC6809NonReentrantPass(*PassRegistry::getPassRegistry());
+  }
+
+  bool runOnModule(Module &M) override;
+  void getAnalysisUsage(AnalysisUsage &Info) const override;
+};
+
 } // namespace
 
-char MC6809NoRecurse::ID = 0;
+bool MC6809NonReentrant::runOnModule(Module &M) {
+  LLVM_DEBUG(dbgs() << "**** MC6809 NonReentrant Pass ****\n");
+
+  CallGraph &CG = getAnalysis<CallGraphWrapperPass>().getCallGraph();
+  return MC6809NonReentrantImpl(CG).run(M);
+}
+
+void MC6809NonReentrant::getAnalysisUsage(AnalysisUsage &AU) const {
+  AU.addRequired<CallGraphWrapperPass>();
+  AU.addPreserved<CallGraphWrapperPass>();
+}
+
+PreservedAnalyses MC6809NonReentrantPass::run(Module &M,
+                                           ModuleAnalysisManager &AM) {
+  LLVM_DEBUG(dbgs() << "**** MC6809 NonReentrant Pass ****\n");
+
+  CallGraph &CG = AM.getResult<CallGraphAnalysis>(M);
+  bool Changed = MC6809NonReentrantImpl(CG).run(M);
+  return Changed ? PreservedAnalyses::none() : PreservedAnalyses::all();
+}
+
+char MC6809NonReentrant::ID = 0;
 
 INITIALIZE_PASS(
-    MC6809NoRecurse, DEBUG_TYPE,
-    "Detect non-recursive functions via detailed call graph analysis", false,
+    MC6809NonReentrant, DEBUG_TYPE,
+    "Detect non-reentrant functions via detailed call graph analysis", false,
     false)
 
-ModulePass *llvm::createMC6809NoRecursePass() { return new MC6809NoRecurse(); }
+ModulePass *llvm::createMC6809NonReentrantPass() { return new MC6809NonReentrant(); }

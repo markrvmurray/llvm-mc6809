@@ -7,8 +7,8 @@ tablegen(LLVM MC6809GenAsmWriter.inc -gen-asm-writer)
 tablegen(LLVM MC6809GenCallingConv.inc -gen-callingconv)
 tablegen(LLVM MC6809GenDAGISel.inc -gen-dag-isel)
 tablegen(LLVM MC6809GenDisassemblerTables.inc -gen-disassembler)
-tablegen(LLVM MC6809GenGICombiner.inc -gen-global-isel-combiner-matchtable -combiners="MC6809CombinerHelper")
-tablegen(LLVM MC6809GenGlobalISel.inc -gen-global-isel -instrument-gisel-coverage)
+tablegen(LLVM MC6809GenGICombiner.inc -gen-global-isel-combiner -combiners="MC6809Combiner")
+tablegen(LLVM MC6809GenGlobalISel.inc -gen-global-isel)
 tablegen(LLVM MC6809GenInstrInfo.inc -gen-instr-info)
 tablegen(LLVM MC6809GenMCCodeEmitter.inc -gen-emitter)
 tablegen(LLVM MC6809GenMCPseudoLowering.inc -gen-pseudo-lowering)
@@ -26,22 +26,31 @@ add_llvm_target(MC6809CodeGen
   GISel/MC6809LegalizerInfo.cpp
   GISel/MC6809RegisterBankInfo.cpp
   MC6809AsmPrinter.cpp
+  MC6809CallGraphUtils.cpp
   MC6809CallingConv.cpp
-  MC6809ConditionalBranch.cpp
+  MC6809CopyOpt.cpp
   MC6809FrameLowering.cpp
   MC6809ISelLowering.cpp
+  MC6809IncDecPhi.cpp
   MC6809IndexIV.cpp
+  MC6809InlineAsmLowering.cpp
+  MC6809InsertCopies.cpp
+  MC6809InstrCost.cpp
   MC6809InstrInfo.cpp
+  MC6809Internalize.cpp
+  MC6809LateOptimization.cpp
   MC6809LowerSelect.cpp
   MC6809MCInstLower.cpp
-  MC6809MachineFunctionInfo.cpp
   MC6809MachineScheduler.cpp
-  MC6809NoRecurse.cpp
+  MC6809NonReentrant.cpp
   MC6809PostRAScavenging.cpp
   MC6809RegisterInfo.cpp
+  MC6809ShiftRotateChain.cpp
+  MC6809StaticStackAlloc.cpp
   MC6809Subtarget.cpp
   MC6809TargetMachine.cpp
   MC6809TargetObjectFile.cpp
+  MC6809DirectPageAlloc.cpp
 
   DEPENDS
   intrinsics_gen

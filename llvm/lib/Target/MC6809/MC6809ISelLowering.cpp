@@ -1,4 +1,4 @@
-//===-- MC6809ISelLowering.cpp - MC6809 DAG Lowering Implementation -------===//
+//===-- MC6809ISelLowering.cpp - MC6809 DAG Lowering Implementation -------------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -15,53 +15,36 @@
 
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/CodeGen/CallingConvLower.h"
+#include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
+#include "llvm/CodeGen/LivePhysRegs.h"
+#include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/SelectionDAG.h"
 #include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
 #include "llvm/IR/Function.h"
-#include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 
+#include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "MC6809.h"
-#include "MC6809CallingConv.h"
+#include "MC6809InstrBuilder.h"
+#include "MC6809InstrInfo.h"
 #include "MC6809RegisterInfo.h"
 #include "MC6809Subtarget.h"
 #include "MC6809TargetMachine.h"
-#include "MCTargetDesc/MC6809MCTargetDesc.h"
-
-#define DEBUG_TYPE "mc6809-isel-lowering"
 
 using namespace llvm;
 
-//===----------------------------------------------------------------------===//
-//                      Calling Convention Implementation
-//===----------------------------------------------------------------------===//
-
-/// Selects the correct CCAssignFn for a given CallingConvention value.
-CCAssignFn *MC6809TargetLowering::CCAssignFnForCall(CallingConv::ID CC, bool IsVarArg) const {
-  return IsVarArg ? CC_MC6809_VarArgs : CC_MC6809;
-}
-
-CCAssignFn *MC6809TargetLowering::CCAssignFnForReturn(CallingConv::ID CC, bool IsVarArg) const {
-  return IsVarArg ? CC_MC6809_VarArgs : RetCC_MC6809;
-}
-
-MC6809TargetLowering::MC6809TargetLowering(const MC6809TargetMachine &TM, const MC6809Subtarget &STI)
+MC6809TargetLowering::MC6809TargetLowering(const MC6809TargetMachine &TM,
+                                     const MC6809Subtarget &STI)
     : TargetLowering(TM) {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG : " << __func__ << " : Enter\n";);
-  // This is only used for CallLowering to determine how to split large
-  // primitive types for the calling convention. All need to be split to 8 bits,
-  // so that's all that we report here. The register class is irrelevant.
+  addRegisterClass(MVT::i1, &MC6809::BIT1RegClass);
   addRegisterClass(MVT::i8, &MC6809::ACC8RegClass);
-  addRegisterClass(MVT::i16, &MC6809::ACC16RegClass);
-  if (STI.isHD6309())
-    addRegisterClass(MVT::i32, &MC6809::ACC32RegClass);
-
+  addRegisterClass(MVT::i16, &MC6809::Imag16RegClass);
   computeRegisterProperties(STI.getRegisterInfo());
 
-  // The memset intrinsic takes a char, while the C memset takes an int. These
+  // The memset intrinsic takes an char, while the C memset takes an int. These
   // are different in the MC6809 calling convention, since arguments are not
   // automatically promoted to int. "memset" is the C version, and "__memset" is
   // the intrinsic version.
@@ -79,14 +62,29 @@ MC6809TargetLowering::MC6809TargetLowering(const MC6809TargetMachine &TM, const 
   // Used in legalizer (etc.) to refer to the stack pointer.
   setStackPointerRegisterToSaveRestore(MC6809::SS);
 
-  setOperationAction(ISD::BR_CC, MVT::i8, Expand);
-  setOperationAction(ISD::BR_CC, MVT::i16, Expand);
-  setOperationAction(ISD::BR_CC, MVT::i32, Expand);
-
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG : " << __func__ << " : Exit\n";);
+  setMaximumJumpTableSize(std::min(256u, getMaximumJumpTableSize()));
 }
 
-unsigned MC6809TargetLowering::getNumRegistersForInlineAsm(LLVMContext &Context, EVT VT) const {
+MVT MC6809TargetLowering::getRegisterTypeForCallingConv(
+    LLVMContext &Context, CallingConv::ID CC, EVT VT,
+    const ISD::ArgFlagsTy &Flags) const {
+  if (Flags.isPointer())
+    return Flags.getPointerAddrSpace() == MC6809::AS_DirectPage ? MVT::i8 : MVT::i16;
+  return TargetLowering::getRegisterTypeForCallingConv(Context, CC, VT, Flags);
+}
+
+unsigned MC6809TargetLowering::getNumRegistersForCallingConv(
+    LLVMContext &Context, CallingConv::ID CC, EVT VT,
+    const ISD::ArgFlagsTy &Flags) const {
+  if (Flags.isPointer())
+    return 1;
+  return TargetLowering::getNumRegistersForCallingConv(Context, CC, VT, Flags);
+}
+
+unsigned MC6809TargetLowering::getNumRegistersForInlineAsm(LLVMContext &Context,
+                                                        EVT VT) const {
+  // 16-bit inputs and outputs must be passed in Imag16 registers to allow using
+  // pointer values in inline assembly.
   if (VT == MVT::i16)
     return 1;
   return TargetLowering::getNumRegistersForInlineAsm(Context, VT);
@@ -102,6 +100,8 @@ MC6809TargetLowering::getConstraintType(StringRef Constraint) const {
     case 'x':
     case 'y':
     case 'd':
+    case 'c':
+    case 'v':
       return C_Register;
     case 'R':
       return C_RegisterClass;
@@ -111,31 +111,87 @@ MC6809TargetLowering::getConstraintType(StringRef Constraint) const {
 }
 
 std::pair<unsigned, const TargetRegisterClass *>
-MC6809TargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI, StringRef Constraint, MVT VT) const {
+MC6809TargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
+                                                StringRef Constraint,
+                                                MVT VT) const {
   if (Constraint.size() == 1) {
     switch (Constraint[0]) {
     default:
       break;
     case 'r':
       if (VT == MVT::i16)
-        return std::make_pair(0U, &MC6809::ACC16RegClass);
-      return std::make_pair(0U, &MC6809::ACC8RegClass);
+        return std::make_pair(0U, &MC6809::Imag16RegClass);
+      return std::make_pair(0U, &MC6809::Imag8RegClass);
     case 'R':
       return std::make_pair(0U, &MC6809::ACC8RegClass);
     case 'a':
-      return std::make_pair(MC6809::AA, &MC6809::ACC8RegClass);
+      return std::make_pair(MC6809::AA, &MC6809::AAcRegClass);
     case 'x':
-      return std::make_pair(MC6809::IX, &MC6809::ACC16RegClass);
+      return std::make_pair(MC6809::IX, &MC6809::IXcRegClass);
     case 'y':
-      return std::make_pair(MC6809::IY, &MC6809::ACC16RegClass);
+      return std::make_pair(MC6809::IY, &MC6809::IXcRegClass);
     case 'd':
       return std::make_pair(0U, &MC6809::INDEX16RegClass);
+    case 'c':
+      return std::make_pair(MC6809::C, &MC6809::CCondRegClass);
+    case 'v':
+      return std::make_pair(MC6809::V, &MC6809::CCondRegClass);
     }
   }
   if (Constraint == "{cc}")
     return std::make_pair(MC6809::CC, &MC6809::CCondRegClass);
 
   return TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
+}
+
+static bool is8BitIndex(Type *Ty) {
+  if (!Ty)
+    return false;
+  return Ty == Type::getInt8Ty(Ty->getContext());
+}
+
+bool MC6809TargetLowering::isLegalAddressingMode(const DataLayout &DL,
+                                              const AddrMode &AM, Type *Ty,
+                                              unsigned AddrSpace,
+                                              Instruction *I) const {
+  if (AM.Scale > 1 || AM.Scale < 0)
+    return false;
+
+  // Any Base + Index mode can be legally selected with direct page indexed
+  // addressing.
+  if (AddrSpace == MC6809::AS_DirectPage)
+    return true;
+
+  if (AM.Scale) {
+    assert(AM.Scale == 1);
+    if (!AM.HasBaseReg) {
+      // Indexed addressing mode.
+      if (is8BitIndex(AM.ScaleType))
+        return true;
+
+      // Consider a reg + 8-bit offset selectable via the indirect indexed
+      // addressing mode.
+      return !AM.BaseGV && 0 <= AM.BaseOffs && AM.BaseOffs < 256;
+    }
+
+    // Indirect indexed addressing mode: 16-bit register + 8-bit index register.
+    // Doesn't matter which is 8-bit and which is 16-bit.
+    return !AM.BaseGV && !AM.BaseOffs &&
+           (is8BitIndex(AM.BaseType) || is8BitIndex(AM.ScaleType));
+  }
+
+  if (AM.HasBaseReg) {
+    // Indexed addressing mode.
+    if (is8BitIndex(AM.BaseType))
+      return true;
+
+    // Consider an reg + 8-bit offset selectable via the indirect indexed
+    // addressing mode.
+    return !AM.BaseGV && 0 <= AM.BaseOffs && AM.BaseOffs < 256;
+  }
+
+  // Any other combination of GV and BaseOffset are just global offsets.
+  return true;
 }
 
 bool MC6809TargetLowering::isTruncateFree(Type *SrcTy, Type *DstTy) const {
@@ -150,8 +206,25 @@ bool MC6809TargetLowering::isZExtFree(Type *SrcTy, Type *DstTy) const {
   return SrcTy->getPrimitiveSizeInBits() < DstTy->getPrimitiveSizeInBits();
 }
 
-MachineBasicBlock *MC6809TargetLowering::EmitInstrWithCustomInserter(
-    MachineInstr &MI, MachineBasicBlock *MBB) const {
+static MachineBasicBlock *emitSelectImm(MachineInstr &MI,
+                                        MachineBasicBlock *MBB);
+
+MachineBasicBlock *
+MC6809TargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
+                                               MachineBasicBlock *MBB) const {
+  switch (MI.getOpcode()) {
+  default:
+    llvm_unreachable("Bad opcode.");
+  case MC6809::SelectImm_i1:
+  case MC6809::SelectImm_i8:
+  case MC6809::SelectImm_i16:
+    return emitSelectImm(MI, MBB);
+  }
+}
+
+// FIXME!! MarkM: Do load Immediate of all sizes, not just i8.
+static MachineBasicBlock *emitSelectImm(MachineInstr &MI,
+                                        MachineBasicBlock *MBB) {
   // To "insert" Select* instructions, we actually have to insert the triangle
   // control-flow pattern.  The incoming instructions know the destination reg
   // to set, the flag to branch on, and the true/false values to select between.
@@ -180,12 +253,12 @@ MachineBasicBlock *MC6809TargetLowering::EmitInstrWithCustomInserter(
 
   const BasicBlock *LLVM_BB = MBB->getBasicBlock();
   MachineFunction::iterator I = ++MBB->getIterator();
-  MachineIRBuilder Builder(*MBB, MI);
+  MachineIRBuilder Builder(MI);
 
   MachineBasicBlock *HeadMBB = MBB;
   MachineFunction *F = MBB->getParent();
 
-  const MC6809Subtarget &STI = F->getSubtarget<MC6809Subtarget>();
+  //const MC6809Subtarget &STI = F->getSubtarget<MC6809Subtarget>();
 
   // Split out all instructions after MI into a new basic block, updating
   // liveins.
@@ -217,41 +290,45 @@ MachineBasicBlock *MC6809TargetLowering::EmitInstrWithCustomInserter(
 
     // Add the unconditional branch from IfFalseMBB to TailMBB.
     Builder.setInsertPt(*IfFalseMBB, IfFalseMBB->begin());
-    // XXXX: FIXME: MarkM - Must make the below branch unconditional
-    Builder.buildInstr(MC6809::Bbc).addMBB(TailMBB);
+    Builder.buildInstr(MC6809::LongBranchRelative).addMBB(TailMBB);
     for (const auto &LiveIn : IfFalseMBB->liveins())
       IfTrueMBB->addLiveIn(LiveIn);
 
     Builder.setInsertPt(*HeadMBB, MI.getIterator());
   }
 
-  const auto LDImm8 = [&Builder, &Dst](int64_t Val) {
+  const auto LDImm = [&Builder, &Dst](int64_t Val) {
+    if (MC6809::BIT1RegClass.contains(Dst)) {
+      Builder.buildInstr(MC6809::LDImm1, {Dst}, {Val});
+      return;
+    }
+
     assert(MC6809::ACC8RegClass.contains(Dst));
-    Builder.buildInstr(MC6809::LDAi8, {Dst}, {Val});
+    Builder.buildInstr(MC6809::Load_i8_Imm, {Dst}, {Val});
   };
 
   if (IfTrueMBB) {
     // Insert branch.
-    // XXXX: FIXME: MarkM - Must make the below branch unconditional
-    Builder.buildInstr(MC6809::Bbc).addMBB(IfTrueMBB).addUse(Flag).addImm(1);
+    // FIXME!! MarkM: LongBranch here?
+    Builder.buildInstr(MC6809::BranchFlagIs).addMBB(IfTrueMBB).addUse(Flag).addImm(1);
     HeadMBB->addSuccessor(IfTrueMBB);
 
     Builder.setInsertPt(*IfTrueMBB, IfTrueMBB->begin());
     // Load true value.
-    LDImm8(TrueValue);
+    LDImm(TrueValue);
   } else {
     // Load true value.
-    LDImm8(TrueValue);
+    LDImm(TrueValue);
 
     // Insert branch.
-    // XXXX: FIXME: MarkM - Must make the below branch unconditional
-    Builder.buildInstr(MC6809::Bbc).addMBB(TailMBB).addUse(Flag).addImm(1);
+
+    Builder.buildInstr(MC6809::BranchFlagIs).addMBB(TailMBB).addUse(Flag).addImm(1);
     HeadMBB->addSuccessor(TailMBB);
   }
 
   // Insert false load.
   Builder.setInsertPt(*IfFalseMBB, IfFalseMBB->begin());
-  LDImm8(FalseValue);
+  LDImm(FalseValue);
 
   MI.eraseFromParent();
 

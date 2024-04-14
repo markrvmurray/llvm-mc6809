@@ -14,12 +14,16 @@
 #ifndef LLVM_LIB_TARGET_MC6809_MC6809REGISTERINFO_H
 #define LLVM_LIB_TARGET_MC6809_MC6809REGISTERINFO_H
 
+#include "MC6809InstrCost.h"
+
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 
 #define GET_REGINFO_HEADER
 #include "MC6809GenRegisterInfo.inc"
 
 namespace llvm {
+
+class MC6809Subtarget;
 
 class Triple;
 
@@ -39,8 +43,7 @@ public:
                             const MachineFunction &) const override;
 #endif /* 0 */
 
-  const TargetRegisterClass *
-  getCrossCopyRegClass(const TargetRegisterClass *RC) const override;
+  const TargetRegisterClass *getCrossCopyRegClass(const TargetRegisterClass *RC) const override;
 
 #if 0
   unsigned getCSRFirstUseCost(const MachineFunction &MF) const override;
@@ -56,20 +59,17 @@ public:
     return true;
   }
 
-  bool eliminateFrameIndex(MachineBasicBlock::iterator MI, int SPAdj,
-                           unsigned FIOperandNum,
-                           RegScavenger *RS = nullptr) const override;
+  bool eliminateFrameIndex(MachineBasicBlock::iterator MI, int SPAdj, unsigned FIOperandNum, RegScavenger *RS = nullptr) const override;
 
   Register getFrameRegister(const MachineFunction &MF) const override;
 
-  bool
-  getRegAllocationHints(Register VirtReg, ArrayRef<MCPhysReg> Order,
-                        SmallVectorImpl<MCPhysReg> &Hints,
-                        const MachineFunction &MF,
-                        const VirtRegMap *VRM = nullptr,
-                        const LiveRegMatrix *Matrix = nullptr) const override;
+  bool getRegAllocationHints(Register VirtReg, ArrayRef<MCPhysReg> Order, SmallVectorImpl<MCPhysReg> &Hints, const MachineFunction &MF, const VirtRegMap *VRM = nullptr, const LiveRegMatrix *Matrix = nullptr) const override;
 
   BitVector getReservedRegs(const MachineFunction &MF) const override;
+
+  MC6809InstrCost copyCost(Register DestReg, Register SrcReg,
+                        const MC6809Subtarget &STI) const;
+
 };
 
 } // namespace llvm

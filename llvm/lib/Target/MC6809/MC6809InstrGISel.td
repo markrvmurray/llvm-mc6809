@@ -97,18 +97,18 @@ def G_BRCOND_IMM : MC6809GenericInstruction {
 // Shift an 8-bit value left one bit, placing $carry_in in the LSB and placing
 // the previous MSB bit into $carry_out. This "even" version can be chained to
 // perform multi-byte shifts.
-//def G_SHLE : MC6809GenericInstruction {
-//  let OutOperandList = (outs type0:$dst, type1:$carry_out);
-//  let InOperandList = (ins type0:$src, type1:$carry_in);
-//}
+def G_SHLE : MC6809GenericInstruction {
+  let OutOperandList = (outs type0:$dst, type1:$carry_out);
+  let InOperandList = (ins type0:$src, type1:$carry_in);
+}
 
 // Logically shift an 8-bit value right one bit, placing $carry_in in the MSB
 // and placing the previous LSB bit into $carry_out. This "even" version can be
 // chained to perform multi-byte shifts.
-//def G_LSHRE : MC6809GenericInstruction {
-//  let OutOperandList = (outs type0:$dst, type1:$carry_out);
-//  let InOperandList = (ins type0:$src, type1:$carry_in);
-//}
+def G_LSHRE : MC6809GenericInstruction {
+  let OutOperandList = (outs type0:$dst, type1:$carry_out);
+  let InOperandList = (ins type0:$src, type1:$carry_in);
+}
 
 // Multiply two values, giving a result twice the size of the original values,
 // Thus becoming the same as combined G_MUL and G_[SU]MULH

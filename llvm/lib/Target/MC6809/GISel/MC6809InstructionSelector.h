@@ -1,5 +1,4 @@
-//===-- MC6809InstructionSelector.h - MC6809 Instruction Selector -----*- C++
-//-*-===//
+//===- MC6809InstructionSelector.h - MC6809 Instruction Selector -*- C++ --===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -21,10 +20,7 @@
 
 namespace llvm {
 
-InstructionSelector *
-createMC6809InstructionSelector(const MC6809TargetMachine &TM,
-                                MC6809Subtarget &STI,
-                                MC6809RegisterBankInfo &RBI);
+InstructionSelector *createMC6809InstructionSelector(const MC6809TargetMachine &TM, MC6809Subtarget &STI, MC6809RegisterBankInfo &RBI);
 
 } // namespace llvm
 

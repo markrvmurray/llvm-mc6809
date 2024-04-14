@@ -1,4 +1,4 @@
-//===--- MC6809.h - Declare MC6809 target feature support -------------*- C++ -*-===//
+//===--- MC6809.h - Declare MC6809 target feature support -------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -17,18 +17,21 @@
 #include "clang/Basic/TargetOptions.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/Support/Compiler.h"
+#include "llvm/TargetParser/Triple.h"
 
 namespace clang {
 namespace targets {
 
 class MC6809TargetInfo : public TargetInfo {
+  std::string CPUName;
+
 public:
   MC6809TargetInfo(const llvm::Triple &Triple, const TargetOptions &);
 
   void getTargetDefines(const LangOptions &Opts,
-                        MacroBuilder &Builder) const override {}
+                        MacroBuilder &Builder) const override;
 
-  ArrayRef<Builtin::Info> getTargetBuiltins() const override { return std::nullopt; }
+  ArrayRef<Builtin::Info> getTargetBuiltins() const override { return {}; }
 
   BuiltinVaListKind getBuiltinVaListKind() const override {
     return TargetInfo::VoidPtrBuiltinVaList;
@@ -46,16 +49,20 @@ public:
 
   std::string_view getClobbers() const override { return ""; }
 
+  StringRef getConstraintRegister(StringRef Constraint,
+                                  StringRef Expression) const override;
+
   ArrayRef<const char *> getGCCRegNames() const override;
   ArrayRef<TargetInfo::GCCRegAlias> getGCCRegAliases() const override {
-    return std::nullopt;
+    return {};
   }
   unsigned getRegisterWidth() const override { return 8; }
+  uint64_t getPointerWidthV(LangAS AddrSpace) const override;
 
   bool isValidCPUName(StringRef Name) const override;
   void fillValidCPUList(SmallVectorImpl<StringRef> &Values) const override;
+  bool setCPU(const std::string &Name) override;
 
-  bool setCPU(const std::string &Name) override { return isValidCPUName(Name); }
   bool hasBitIntType() const override { return true; }
 };
 

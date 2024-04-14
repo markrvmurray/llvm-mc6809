@@ -15,13 +15,11 @@
 
 namespace llvm {
 
-MC6809MCAsmInfo::MC6809MCAsmInfo(const Triple &TT,
-                                 const MCTargetOptions &Options) {
+MC6809MCAsmInfo::MC6809MCAsmInfo(const Triple &TT, const MCTargetOptions &Options) {
   CodePointerSize = 2;
   CalleeSaveStackSlotSize = 0;
   SeparatorString = "\n";
   CommentString = ";";
-  DollarIsHexPrefix = true;
   MaxInstLength = 3;
   SupportsDebugInformation = true;
 }

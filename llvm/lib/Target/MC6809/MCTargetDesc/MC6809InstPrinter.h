@@ -23,14 +23,11 @@ namespace llvm {
 /// Prints MC6809 instructions to a textual stream.
 class MC6809InstPrinter : public MCInstPrinter {
 public:
-  MC6809InstPrinter(const MCAsmInfo &MAI, const MCInstrInfo &MII,
-                    const MCRegisterInfo &MRI)
-      : MCInstPrinter(MAI, MII, MRI) {}
+  MC6809InstPrinter(const MCAsmInfo &MAI, const MCInstrInfo &MII, const MCRegisterInfo &MRI) : MCInstPrinter(MAI, MII, MRI) {}
 
   bool printAliasInstr(const MCInst *MI, uint64_t Address, raw_ostream &OS);
 
-  void printInst(const MCInst *MI, uint64_t Address, StringRef Annot,
-                 const MCSubtargetInfo &STI, raw_ostream &O) override;
+  void printInst(const MCInst *MI, uint64_t Address, StringRef Annot, const MCSubtargetInfo &STI, raw_ostream &O) override;
   void printRegName(raw_ostream &O, MCRegister Reg) const override;
 
   std::pair<const char *, uint64_t> getMnemonic(const MCInst *MI) override;
@@ -45,9 +42,7 @@ public:
   static const char *getRegisterName(MCRegister Reg, unsigned AltIdx);
 
   /// Utility function to print immediates in decimal or hex.
-  format_object<int64_t> formatImm(int64_t Value) const {
-    return PrintImmHex ? formatHex(Value) : formatDec(Value);
-  }
+  format_object<int64_t> formatImm(int64_t Value) const { return PrintImmHex ? formatHex(Value) : formatDec(Value); }
 
   /// Utility functions to print decimal/hexadecimal values.
   format_object<int64_t> formatHex(int64_t Value) const;

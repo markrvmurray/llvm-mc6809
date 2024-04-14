@@ -1,19 +1,23 @@
-//===-- MC6809AsmParser.cpp - Parse MC6809 assembly to MCInst instructions --===//
+//===--- MC6809AsmParser.cpp - Parse MC6809 assembly to MCInst instructions --===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===------------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include "MC6809.h"
 #include "MC6809RegisterInfo.h"
+#include "MC6809Subtarget.h"
 #include "MCTargetDesc/MC6809FixupKinds.h"
 #include "MCTargetDesc/MC6809MCELFStreamer.h"
 #include "MCTargetDesc/MC6809MCExpr.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
+#include "MCTargetDesc/MC6809TargetStreamer.h"
 #include "llvm/ADT/APInt.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/MC/MCAsmMacro.h"
 #include "llvm/MC/MCAssembler.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCExpr.h"
@@ -42,35 +46,23 @@ namespace llvm {
 class MC6809Operand : public MCParsedAsmOperand {
 public:
   MC6809Operand() = delete;
-
-  MC6809Operand(const MCExpr *Val, SMLoc S, SMLoc E)
-      : Kind(k_Immediate), Imm(Val), Start(S), End(E){};
-
-  MC6809Operand(unsigned RegNum, SMLoc S, SMLoc E)
-      : Kind(k_Register), Reg(RegNum), Start(S), End(E){};
-
-  MC6809Operand(unsigned short RegList, SMLoc S, SMLoc E)
-      : Kind(k_RegList), RegList(RegList), Start(S), End(E){};
-
-  MC6809Operand(unsigned char CondCode, SMLoc S, SMLoc E)
-      : Kind(k_CondCode), CondCode(CondCode), Start(S), End(E){};
-
-  MC6809Operand(StringRef Str, SMLoc S) : Kind(k_Token), Tok(Str), Start(S){};
+  /// Create an immediate MC6809Operand.
+  MC6809Operand(const MC6809Subtarget &STI, const MCExpr *Val, SMLoc S, SMLoc E) : Kind(k_Immediate), Imm(Val), Start(S), End(E) {};
+  /// Create a register MC6809Operand.
+  MC6809Operand(const MC6809Subtarget &STI, unsigned RegNum, SMLoc S, SMLoc E) : Kind(k_Register), Reg(RegNum), Start(S), End(E) {};
+  /// Create a token MC6809Operand.
+  MC6809Operand(const MC6809Subtarget &STI, StringRef Str, SMLoc S) : Kind(k_Token), Tok(Str), Start(S) {};
 
 private:
   enum KindTy {
     k_None,
     k_Immediate,
     k_Register,
-    k_RegList,
-    k_CondCode,
     k_Token,
   } Kind{k_None};
 
   MCExpr const *Imm{};
   unsigned int Reg{};
-  unsigned short RegList{};
-  unsigned char CondCode{};
   StringRef Tok;
   SMLoc Start, End;
 
@@ -88,8 +80,10 @@ public:
     const auto *MME = dyn_cast<MC6809MCExpr>(getImm());
     if (MME) {
       const MC6809::Fixups Kind = MME->getFixupKind();
-      const MCFixupKindInfo &Info =
-          MC6809FixupKinds::getFixupKindInfo(Kind, nullptr);
+      // Imm16 modifier enforces a lower bound which rejects Imm8.
+      if (Kind == MC6809::Imm16 && High < 0x10000 - 1)
+        return false;
+      const MCFixupKindInfo &Info = MC6809FixupKinds::getFixupKindInfo(Kind, nullptr);
       int64_t MaxValue = (1 << Info.TargetSize) - 1;
       bool Evaluated = false;
       int64_t Constant = 0;
@@ -115,7 +109,7 @@ public:
     return Value >= Low && Value <= High;
   }
 
-  virtual bool is(KindTy K) const { return (Kind == K); }
+  bool is(KindTy K) const { return (Kind == K); }
   bool isToken() const override { return is(k_Token); }
   bool isImm() const override { return is(k_Immediate); }
   bool isReg() const override { return is(k_Register); }
@@ -123,8 +117,6 @@ public:
     assert(false);
     return false;
   }
-  bool isCondCode() const { return is(k_CondCode); }
-  bool isRegList() const { return is(k_RegList); }
   SMLoc getStartLoc() const override { return Start; }
   SMLoc getEndLoc() const override { return End; }
   const StringRef &getToken() const {
@@ -135,31 +127,49 @@ public:
     assert(isImm());
     return Imm;
   };
-  unsigned getReg() const override {
+  MCRegister getReg() const override {
     assert(isReg());
     return Reg;
   }
-  unsigned short getRegList() const {
-    assert(isRegList());
-    return RegList;
+
+  bool isImm3() const { return isImmediate<0, 0x8 - 1>(); }
+  bool isImm5() const { return isImmediate<0, 0x20 - 1>(); }
+  bool isImm8() const { return isImmediate<0, 0x100 - 1>(); }
+  bool isImm16() const { return isImmediate<0, 0x10000 - 1>(); }
+  bool isImm8To16() const { return isImm16() && !isImm8(); }
+
+  bool isRel5() const { return isImm5(); }
+  bool isRel8() const { return isImm8(); }
+  bool isRel16() const { return isImm8(); }
+
+  bool isPCRel8() const { return isImm8(); }
+  bool isPCRel16() const { return isImm16(); }
+
+  bool isAddr8() const {
+    // For constants, use the offseted direct page.
+    auto DirectPageOffset = 0;
+    if (DirectPageOffset != 0 && isImm()) {
+      const auto *CE = dyn_cast<MCConstantExpr>(getImm());
+      if (CE) {
+        int64_t Value = CE->getValue();
+        return Value >= DirectPageOffset && Value <= DirectPageOffset + 0xFF;
+      }
+    }
+    return isImm8();
   }
-  unsigned char getCondCode() const {
-    assert(isRegList());
-    return RegList;
+  bool isAddr16() const { return isImm16(); }
+
+  bool isRegAny() const { return isReg(); }
+
+  bool isRegList() const {
+    assert(false);
+    return false;
   }
 
-  virtual bool isImm3() const { return isImmediate<0, 7>(); }
-  virtual bool isImm8() const { return isImmediate<0, 0x100 - 1>(); }
-  virtual bool isImm16() const { return isImmediate<0, 0x10000 - 1>(); }
-  virtual bool isImm8To16() const { return (!isImm8() && isImm16()); }
-  virtual bool isRel5() const { return isImmediate<-16, 15>(); }
-  virtual bool isRel8() const { return isImmediate<-128, 127>(); }
-  virtual bool isRel16() const { return isImmediate<-32768, 32767>(); }
-  virtual bool isPCRel8() const { return isImmediate<-128, 127>(); }
-  virtual bool isPCRel16() const { return isImmediate<-32768, 32767>(); }
-  virtual bool isAddr8() const { return isImm8(); }
-  virtual bool isAddr16() const { return isImm16(); }
-  virtual bool isRegAny() const { return isReg(); }
+  bool isCondCode() const {
+    assert(false);
+    return false;
+  }
 
   static void addExpr(MCInst &Inst, const MCExpr *Expr) {
     if (const auto *CE = dyn_cast<MCConstantExpr>(Expr)) {
@@ -177,63 +187,33 @@ public:
     addExpr(Inst, Expr);
   }
 
-  void addRegOperands(MCInst &Inst, unsigned /*N*/) const {
-    Inst.addOperand(MCOperand::createReg(getReg()));
-  }
+  void addRegOperands(MCInst &Inst, unsigned /*N*/) const { Inst.addOperand(MCOperand::createReg(getReg())); }
 
-  void addRegAnyOperands(MCInst &Inst, unsigned /*N*/) const {
-    Inst.addOperand(MCOperand::createReg(getReg()));
-  }
+  void addRegAnyOperands(MCInst &Inst, unsigned /*N*/) const { Inst.addOperand(MCOperand::createReg(getReg())); }
 
-  void addRegListOperands(MCInst &Inst, unsigned /*N*/) const {
-    Inst.addOperand(MCOperand::createReg(getReg()));
-  }
+  void addRegListOperands(MCInst &Inst, unsigned N) const { addImmOperands(Inst, N); }
 
-  void addPCRel8Operands(MCInst &Inst, unsigned N) const {
-    addImmOperands(Inst, N);
-  }
+  void addRel5Operands(MCInst &Inst, unsigned N) const { addImmOperands(Inst, N); }
 
-  void addPCRel16Operands(MCInst &Inst, unsigned N) const {
-    addImmOperands(Inst, N);
-  }
+  void addRel8Operands(MCInst &Inst, unsigned N) const { addImmOperands(Inst, N); }
 
-  void addRel5Operands(MCInst &Inst, unsigned N) const {
-    addImmOperands(Inst, N);
-  }
+  void addRel16Operands(MCInst &Inst, unsigned N) const { addImmOperands(Inst, N); }
 
-  void addRel8Operands(MCInst &Inst, unsigned N) const {
-    addImmOperands(Inst, N);
-  }
+  void addPCRel8Operands(MCInst &Inst, unsigned N) const { addImmOperands(Inst, N); }
 
-  void addRel16Operands(MCInst &Inst, unsigned N) const {
-    addImmOperands(Inst, N);
-  }
+  void addPCRel16Operands(MCInst &Inst, unsigned N) const { addImmOperands(Inst, N); }
 
-  void addAddr8Operands(MCInst &Inst, unsigned N) const {
-    addImmOperands(Inst, N);
-  }
+  void addAddr8Operands(MCInst &Inst, unsigned N) const { addImmOperands(Inst, N); }
 
-  void addAddr16Operands(MCInst &Inst, unsigned N) const {
-    addImmOperands(Inst, N);
-  }
+  void addAddr16Operands(MCInst &Inst, unsigned N) const { addImmOperands(Inst, N); }
 
-  void addCondCodeOperands(MCInst &Inst, unsigned N) const {
-    addImmOperands(Inst, N);
-  }
+  void addCondCodeOperands(MCInst &Inst, unsigned N) const { addImmOperands(Inst, N); }
 
-  static std::unique_ptr<MC6809Operand> createImm(const MCExpr *Val, SMLoc S,
-                                                  SMLoc E) {
-    return std::make_unique<MC6809Operand>(Val, S, E);
-  }
+  static std::unique_ptr<MC6809Operand> createImm(const MC6809Subtarget &STI, const MCExpr *Val, SMLoc S, SMLoc E) { return std::make_unique<MC6809Operand>(STI, Val, S, E); }
 
-  static std::unique_ptr<MC6809Operand> createReg(unsigned RegNum, SMLoc S,
-                                                  SMLoc E) {
-    return std::make_unique<MC6809Operand>(RegNum, S, E);
-  }
+  static std::unique_ptr<MC6809Operand> createReg(const MC6809Subtarget &STI, unsigned RegNum, SMLoc S, SMLoc E) { return std::make_unique<MC6809Operand>(STI, RegNum, S, E); }
 
-  static std::unique_ptr<MC6809Operand> createToken(StringRef Str, SMLoc S) {
-    return std::make_unique<MC6809Operand>(Str, S);
-  }
+  static std::unique_ptr<MC6809Operand> createToken(const MC6809Subtarget &STI, StringRef Str, SMLoc S) { return std::make_unique<MC6809Operand>(STI, Str, S); }
 
   void print(raw_ostream &O) const override {
     switch (Kind) {
@@ -246,14 +226,8 @@ public:
     case k_Register:
       O << "Register: " << getReg();
       break;
-    case k_RegList:
-      O << "RegList: " << getRegList();
-      break;
     case k_Immediate:
       O << "Immediate: \"" << *getImm() << "\"";
-      break;
-    case k_CondCode:
-      O << "Immediate: \"" << getCondCode() << "\"";
       break;
     }
     O << "\n";
@@ -262,7 +236,7 @@ public:
 
 /// Parses MC6809 assembly from a stream.
 class MC6809AsmParser : public MCTargetAsmParser {
-  const MCSubtargetInfo &STI;
+  const MC6809Subtarget &STI;
   MCAsmParser &Parser;
   const MCRegisterInfo *MRI;
   const std::string GenerateStubs = "gs";
@@ -278,11 +252,14 @@ public:
 
   };
 
-  MC6809AsmParser(const MCSubtargetInfo &STI, MCAsmParser &Parser,
-                  const MCInstrInfo &MII, const MCTargetOptions &Options)
-      : MCTargetAsmParser(Options, STI, MII), STI(STI), Parser(Parser) {
+  MC6809AsmParser(const MCSubtargetInfo &STI, MCAsmParser &Parser, const MCInstrInfo &MII, const MCTargetOptions &Options) : MCTargetAsmParser(Options, STI, MII), STI(static_cast<const MC6809Subtarget &>(STI)), Parser(Parser) {
     MCAsmParserExtension::Initialize(Parser);
     MRI = getContext().getRegisterInfo();
+
+    Parser.addAliasForDirective(".hword", ".byte");
+    Parser.addAliasForDirective(".word", ".2byte");
+    Parser.addAliasForDirective(".dword", ".4byte");
+    Parser.addAliasForDirective(".xword", ".8byte");
 
     setAvailableFeatures(ComputeAvailableFeatures(STI.getFeatureBits()));
 
@@ -292,12 +269,9 @@ public:
   MCAsmLexer &getLexer() const { return Parser.getLexer(); }
   MCAsmParser &getParser() const { return Parser; }
 
-  bool parsePrimaryExpr(const MCExpr *&Res, SMLoc &EndLoc) override {
-    return MCTargetAsmParser::parsePrimaryExpr(Res, EndLoc);
-  }
+  bool parsePrimaryExpr(const MCExpr *&Res, SMLoc &EndLoc) override { return MCTargetAsmParser::parsePrimaryExpr(Res, EndLoc); }
 
-  bool invalidOperand(SMLoc const &Loc, OperandVector const &Operands,
-                      uint64_t const &ErrorInfo) {
+  bool invalidOperand(SMLoc const &Loc, OperandVector const &Operands, uint64_t const &ErrorInfo) {
     SMLoc ErrorLoc = Loc;
     char const *Diag = nullptr;
 
@@ -316,10 +290,7 @@ public:
     return Error(ErrorLoc, Diag);
   }
 
-  bool missingFeature(llvm::SMLoc const &Loc, uint64_t const & /*ErrorInfo*/) {
-    return Error(Loc,
-                 "instruction requires a CPU feature not currently enabled");
-  }
+  bool missingFeature(llvm::SMLoc const &Loc, uint64_t const & /*ErrorInfo*/) { return Error(Loc, "instruction requires a CPU feature not currently enabled"); }
 
   bool emit(MCInst &Inst, SMLoc const &Loc, MCStreamer &Out) const {
     Inst.setLoc(Loc);
@@ -334,10 +305,7 @@ public:
   ///
   /// On failure, the target parser is responsible for emitting a diagnostic
   /// explaining the match failure.
-  bool MatchAndEmitInstruction(SMLoc Loc, unsigned & /*Opcode*/,
-                               OperandVector &Operands, MCStreamer &Out,
-                               uint64_t &ErrorInfo,
-                               bool MatchingInlineAsm) override {
+  bool MatchAndEmitInstruction(SMLoc Loc, unsigned & /*Opcode*/, OperandVector &Operands, MCStreamer &Out, uint64_t &ErrorInfo, bool MatchingInlineAsm) override {
     MCInst Inst;
     unsigned MatchResult =
         // we always want ConvertToMapAndConstraints to be called
@@ -354,22 +322,21 @@ public:
     case Match_InvalidAddr8:
       return Error(Loc, "operand must be an 8-bit address");
     case Match_InvalidAddr16:
-      return Error(Loc, "operand must be an 16-bit address");
-    case Match_InvalidRel5:
-      return Error(Loc, "operand must be an 5-bit index offset");
-    case Match_InvalidRel8:
-      return Error(Loc, "operand must be an 8-bit index offset");
-    case Match_InvalidRel16:
-      return Error(Loc, "operand must be an 16-bit index offset");
+      return Error(Loc, "operand must be a 16-bit address");
     case Match_InvalidPCRel8:
       return Error(Loc, "operand must be an 8-bit PC relative address");
-    case Match_InvalidPCRel16:
-      return Error(Loc, "operand must be an 16-bit PC relative address");
+    case Match_immediate:
+      return Error(Loc, "operand must be an immediate value");
     case Match_NearMisses:
       return Error(Loc, "found some near misses");
     default:
       return true;
     }
+  }
+
+  MC6809TargetStreamer &getTargetStreamer() {
+    MCTargetStreamer &TS = *getParser().getStreamer().getTargetStreamer();
+    return static_cast<MC6809TargetStreamer &>(TS);
   }
 
   /// ParseDirective - Parse a target specific assembler directive
@@ -383,11 +350,68 @@ public:
   ///
   /// \param DirectiveID - the identifier token of the directive.
   bool ParseDirective(AsmToken DirectiveID) override {
-    // todo
+    StringRef IDVal = DirectiveID.getIdentifier();
+    if (IDVal.starts_with(".mc6809_addr_asciz"))
+      return parseAddrAsciz(DirectiveID.getLoc());
+    if (IDVal.starts_with(".directpage"))
+      return parseDirectpage(DirectiveID.getLoc());
     return true;
   }
 
-  virtual signed char hexToChar(const signed char Letter) {
+  bool parseAddrAsciz(SMLoc DirectiveLoc) {
+    const MCExpr *AddrValue;
+    SMLoc AddrLoc = getLexer().getLoc();
+    if (Parser.checkForValidSection() || Parser.parseExpression(AddrValue))
+      return true;
+
+    if (Parser.parseToken(AsmToken::Comma, "expected `, <char-count>`"))
+      return true;
+
+    SMLoc CharCountLoc = getLexer().getLoc();
+    int64_t CharCountValue;
+    if (Parser.parseAbsoluteExpression(CharCountValue))
+      return true;
+
+    if (CharCountValue < 1 || CharCountValue > 8) {
+      return Error(CharCountLoc, "char count out of range [1,8]");
+    }
+
+    // Special case constant expressions to match code generator.
+    if (const MCConstantExpr *MCE = dyn_cast<MCConstantExpr>(AddrValue)) {
+      std::string ValueStr = itostr(MCE->getValue());
+      if (ValueStr.size() > static_cast<size_t>(CharCountValue))
+        return Error(AddrLoc, "out of range literal value");
+      getStreamer().emitBytes(ValueStr);
+      getStreamer().emitBytes(StringRef("\0\0\0\0\0\0\0\0\0", CharCountValue - ValueStr.size() + 1));
+    } else {
+      const MC6809MCExpr *Expr = MC6809MCExpr::create(MC6809MCExpr::VK_MC6809_ADDR_ASCIZ, AddrValue,
+                                                      /*isNegated=*/false, getContext());
+      getStreamer().emitValue(Expr, CharCountValue + 1, DirectiveLoc);
+    }
+    return false;
+  }
+
+  bool parseDirectpage(SMLoc DirectiveLoc) {
+    auto parseOp = [&]() -> bool {
+      StringRef Name;
+      SMLoc Loc = getTok().getLoc();
+      if (Parser.parseIdentifier(Name))
+        return Error(Loc, "expected identifier");
+
+      if (Parser.discardLTOSymbol(Name))
+        return false;
+
+      MCSymbol *Sym = getContext().getOrCreateSymbol(Name);
+
+      if (!getTargetStreamer().emitDirectiveDirectPage(Sym))
+        return Error(Loc, "unable to mark symbol as direct page");
+      return false;
+    };
+
+    return parseMany(parseOp);
+  }
+
+  signed char hexToChar(const signed char Letter) {
     if (Letter >= '0' && Letter <= '9') {
       return static_cast<signed char>(Letter - '0');
     }
@@ -400,14 +424,13 @@ public:
   // Converts what could be a hex string to an integer value.
   // Result must fit into 32 bits.  More than that is an error.
   // Like everything else in this particular API, it returns false on success.
-  virtual bool tokenToHex(uint64_t &Res, const AsmToken &Tok) {
+  bool tokenToHex(uint64_t &Res, const AsmToken &Tok) {
     Res = 0;
     std::string Text = Tok.getString().str();
     if (Text.size() > 8) {
       return true;
     }
-    std::transform(Text.begin(), Text.end(), Text.begin(),
-                   [](unsigned char C) { return std::tolower(C); });
+    std::transform(Text.begin(), Text.end(), Text.begin(), [](unsigned char C) { return std::tolower(C); });
     for (char Letter : Text) {
       signed char Converted = hexToChar(Letter);
       if (Converted == -1) {
@@ -419,12 +442,31 @@ public:
   }
 
   void eatThatToken(OperandVector &Operands) {
-    Operands.push_back(MC6809Operand::createToken(
-        getLexer().getTok().getString(), getLexer().getLoc()));
+    Operands.push_back(MC6809Operand::createToken(STI, getLexer().getTok().getString(), getLexer().getLoc()));
     Lex();
   }
 
-  bool tryParseRelocExpression(OperandVector &Operands) {
+  bool tryPushSPC700AdditionExpr(OperandVector &Operands, const MCExpr *LHS, const MCBinaryExpr *BE, SMLoc S, SMLoc E) {
+    // On SPC700, the expression can end in +X or +Y, which should be parsed
+    // as an addressing mode, not as part of the expression.
+    if (const auto *SE = dyn_cast<MCSymbolRefExpr>(BE->getRHS())) {
+      if ((SE->getSymbol().getName().equals_insensitive("x") || SE->getSymbol().getName().equals_insensitive("y")) && BE->getOpcode() == MCBinaryExpr::Add) {
+        Operands.push_back(MC6809Operand::createImm(STI, LHS, S, E));
+        Operands.push_back(MC6809Operand::createToken(STI, "+", BE->getLoc()));
+        Operands.push_back(MC6809Operand::createToken(STI, SE->getSymbol().getName(), SE->getLoc()));
+        return false;
+      }
+    }
+    return true;
+  }
+
+  void pushExpr(OperandVector &Operands, const MCExpr *Val, SMLoc S, SMLoc E) {
+    Operands.push_back(MC6809Operand::createImm(STI, Val, S, E));
+  }
+
+  enum ExpressionType { ExprTypeOther, ExprTypeImmediate, ExprTypeAddress };
+
+  bool tryParseRelocExpression(OperandVector &Operands, ExpressionType EType) {
     bool IsNegated = false;
     MC6809MCExpr::VariantKind ModifierKind = MC6809MCExpr::VK_MC6809_NONE;
 
@@ -435,14 +477,10 @@ public:
     size_t ReadCount = Parser.getLexer().peekTokens(tokens);
 
     if (ReadCount == 2) {
-      if ((tokens[0].getKind() == AsmToken::Identifier &&
-           tokens[1].getKind() == AsmToken::LParen) ||
-          (tokens[0].getKind() == AsmToken::LParen &&
-           tokens[1].getKind() == AsmToken::Minus)) {
+      if ((tokens[0].getKind() == AsmToken::Identifier && tokens[1].getKind() == AsmToken::LParen) || (tokens[0].getKind() == AsmToken::LParen && tokens[1].getKind() == AsmToken::Minus)) {
 
         AsmToken::TokenKind CurTok = Parser.getLexer().getKind();
-        if (CurTok == AsmToken::Minus ||
-            tokens[1].getKind() == AsmToken::Minus) {
+        if (CurTok == AsmToken::Minus || tokens[1].getKind() == AsmToken::Minus) {
           IsNegated = true;
         } else {
           assert(CurTok == AsmToken::Plus);
@@ -455,16 +493,45 @@ public:
       }
     }
 
+    /*
+    Shorthands for addressing modes conform to WDC's 65816 standard:
+
+    #<addr == mos16lo(addr)
+    #>addr == mc680916hi(addr)
+    #^addr == mc680924bank(addr)
+
+     <addr == mc68098(addr)
+     |addr == mc680916(addr)
+     !addr == mc680916(addr)
+     >addr == mc680924(addr)
+    */
     MCExpr const *InnerExpression;
-    if (Parser.getTok().getKind() == AsmToken::Less ||
-        Parser.getTok().getKind() == AsmToken::Greater) {
+    if (EType == ExprTypeImmediate && (Parser.getTok().getKind() == AsmToken::Less || Parser.getTok().getKind() == AsmToken::Greater || Parser.getTok().getKind() == AsmToken::Caret)) {
+
+      bool IsImm16 = false;
+      switch (Parser.getTok().getKind()) {
+      case AsmToken::Less:
+        ModifierKind = IsImm16 ? MC6809MCExpr::VK_MC6809_ADDR16 : MC6809MCExpr::VK_MC6809_ADDR8;
+        break;
+      case AsmToken::Greater:
+        ModifierKind = MC6809MCExpr::VK_MC6809_ADDR16;
+        break;
+      default:
+        assert(false);
+      }
+
+      Parser.Lex();
+
+      if (getParser().parseExpression(InnerExpression))
+        return true;
+    } else if (EType == ExprTypeAddress && (Parser.getTok().getKind() == AsmToken::Less || Parser.getTok().getKind() == AsmToken::Greater || Parser.getTok().getKind() == AsmToken::Pipe || Parser.getTok().getKind() == AsmToken::Exclaim)) {
 
       switch (Parser.getTok().getKind()) {
       case AsmToken::Less:
-        ModifierKind = MC6809MCExpr::VK_MC6809_ADDR_8;
+        ModifierKind = MC6809MCExpr::VK_MC6809_ADDR8;
         break;
       case AsmToken::Greater:
-        ModifierKind = MC6809MCExpr::VK_MC6809_ADDR_16;
+        ModifierKind = MC6809MCExpr::VK_MC6809_ADDR16;
         break;
       default:
         assert(false);
@@ -477,21 +544,19 @@ public:
 
     } else {
       // Check if we have a target specific modifier (lo8, hi8, &c)
-      if (Parser.getTok().getKind() != AsmToken::Identifier ||
-          Parser.getLexer().peekTok().getKind() != AsmToken::LParen) {
+      if (Parser.getTok().getKind() != AsmToken::Identifier || Parser.getLexer().peekTok().getKind() != AsmToken::LParen) {
         // Not a reloc expr
         return true;
       }
       StringRef ModifierName = Parser.getTok().getString();
-      ModifierKind = MC6809MCExpr::getKindByName(ModifierName.str());
+      ModifierKind = MC6809MCExpr::getKindByName(ModifierName.str(), EType != ExprTypeAddress);
 
       if (ModifierKind != MC6809MCExpr::VK_MC6809_NONE) {
         Parser.Lex();
         Parser.Lex(); // Eat modifier name and parenthesis
-        if (Parser.getTok().getString() == GenerateStubs &&
-            Parser.getTok().getKind() == AsmToken::Identifier) {
+        if (Parser.getTok().getString() == GenerateStubs && Parser.getTok().getKind() == AsmToken::Identifier) {
           std::string GSModName = ModifierName.str() + "_" + GenerateStubs;
-          ModifierKind = MC6809MCExpr::getKindByName(GSModName);
+          ModifierKind = MC6809MCExpr::getKindByName(GSModName, EType != ExprTypeAddress);
           if (ModifierKind != MC6809MCExpr::VK_MC6809_NONE) {
             Parser.Lex(); // Eat gs modifier name
           }
@@ -500,8 +565,7 @@ public:
         return Error(Parser.getTok().getLoc(), "unknown modifier");
       }
 
-      if (tokens[1].getKind() == AsmToken::Minus ||
-          tokens[1].getKind() == AsmToken::Plus) {
+      if (tokens[1].getKind() == AsmToken::Minus || tokens[1].getKind() == AsmToken::Plus) {
         Parser.Lex();
         assert(Parser.getTok().getKind() == AsmToken::LParen);
         Parser.Lex(); // Eat the sign and parenthesis
@@ -510,8 +574,7 @@ public:
       if (getParser().parseExpression(InnerExpression))
         return true;
 
-      if (tokens[1].getKind() == AsmToken::Minus ||
-          tokens[1].getKind() == AsmToken::Plus) {
+      if (tokens[1].getKind() == AsmToken::Minus || tokens[1].getKind() == AsmToken::Plus) {
         assert(Parser.getTok().getKind() == AsmToken::RParen);
         Parser.Lex(); // Eat closing parenthesis
       }
@@ -521,17 +584,16 @@ public:
       Parser.Lex(); // Eat closing parenthesis
     }
 
-    MCExpr const *Expression = MC6809MCExpr::create(
-        ModifierKind, InnerExpression, IsNegated, getContext());
+    MCExpr const *Expression = MC6809MCExpr::create(ModifierKind, InnerExpression, IsNegated, getContext());
 
     SMLoc E = SMLoc::getFromPointer(Parser.getTok().getLoc().getPointer() - 1);
-    Operands.push_back(MC6809Operand::createImm(Expression, S, E));
+    pushExpr(Operands, Expression, S, E);
 
     return false;
   }
 
-  bool tryParseExpr(OperandVector &Operands, StringRef ErrorMsg) {
-    if (!tryParseRelocExpression(Operands)) {
+  bool tryParseExpr(OperandVector &Operands, ExpressionType EType, StringRef ErrorMsg) {
+    if (!tryParseRelocExpression(Operands, EType)) {
       return false;
     }
 
@@ -542,43 +604,71 @@ public:
       Parser.eatToEndOfStatement();
       return Error(getLexer().getLoc(), ErrorMsg);
     }
-    Operands.push_back(MC6809Operand::createImm(Expression, S, E));
+    pushExpr(Operands, Expression, S, E);
     return false;
   }
 
-  OperandMatchResultTy tryParseRegister(MCRegister &RegNo, SMLoc &StartLoc, SMLoc &EndLoc) override {
+  ParseStatus tryParseRegister(MCRegister &Reg, SMLoc &StartLoc, SMLoc &EndLoc) override {
     std::string AnyCase(StartLoc.getPointer(), EndLoc.getPointer() - StartLoc.getPointer());
-    std::transform(AnyCase.begin(), AnyCase.end(), AnyCase.begin(),
-                   [](unsigned char C) { return std::tolower(C); });
+    std::transform(AnyCase.begin(), AnyCase.end(), AnyCase.begin(), [](unsigned char C) { return std::tolower(C); });
     StringRef RegisterName(AnyCase.c_str(), AnyCase.size());
-    RegNo = MatchRegisterName(RegisterName);
-    if (RegNo == 0) {
+    Reg = MatchRegisterName(RegisterName);
+    if (Reg == 0) {
       // If the user has requested to ignore short register names, then ignore
       // them
       if (getSTI().getFeatureBits()[MC6809::FeatureAltRegisterNamesOnly] == false) {
-        RegNo = MatchRegisterAltName(RegisterName);
+        Reg = MatchRegisterAltName(RegisterName);
       }
     }
-    return (RegNo != 0) ? MatchOperand_Success : MatchOperand_NoMatch;
+    return (Reg != 0) ? ParseStatus::Success : ParseStatus::NoMatch;
   }
 
-  OperandMatchResultTy tryParseRegister(OperandVector &Operands) {
-    MCRegister RegNo = 0;
+  ParseStatus tryParseRegister(OperandVector &Operands) {
+    MCRegister Reg = 0;
     SMLoc S = getLexer().getLoc();
     SMLoc E = getLexer().getTok().getEndLoc();
-    if (tryParseRegister(RegNo, S, E) == MatchOperand_Success) {
-      Operands.push_back(MC6809Operand::createReg(RegNo, S, E));
-      return MatchOperand_Success;
+    if (tryParseRegister(Reg, S, E).isSuccess()) {
+      Operands.push_back(MC6809Operand::createReg(STI, Reg, S, E));
+      return ParseStatus::Success;
     }
-    return MatchOperand_NoMatch;
+    return ParseStatus::NoMatch;
   }
 
-  // This depends on some stuff in MC6809GenAsmMatcher.inc, so we can't define
-  // it inline like everything else in this file.  See below.
-  OperandMatchResultTy tryParseAsmParamRegClass(OperandVector &Operands);
+  // Parse only registers that can be considered parameters to real MC6809
+  // instructions.  The instruction parser considers a, x, y, z, and s to be
+  // strings, not registers, so make a point of filtering those cases out
+  // of what's acceptable.
+  ParseStatus tryParseAsmParamRegClass(OperandVector &Operands) {
+    SMLoc S = getLexer().getLoc();
 
-  bool ParseInstruction(ParseInstructionInfo & /*Info*/, StringRef Mnemonic,
-                        SMLoc NameLoc, OperandVector &Operands) override {
+    const char *LowerStr = StringSwitch<const char *>(getLexer().getTok().getString())
+                               .CaseLower("a", "a")
+                               .CaseLower("x", "x")
+                               .CaseLower("y", "y")
+                               .CaseLower("z", "z")
+                               .CaseLower("s", "s")
+                               .CaseLower("sp", "s")
+                               .CaseLower("r", "r")     // 65EL02
+                               .CaseLower("rp", "r")    // 65EL02
+                               .CaseLower("ya", "ya")   // SPC700
+                               .CaseLower("c", "c")     // SPC700
+                               .CaseLower("psw", "psw") // SPC700
+                               .Default(nullptr);
+    if (LowerStr != nullptr) {
+      Operands.push_back(MC6809Operand::createToken(STI, LowerStr, S));
+      return ParseStatus::Success;
+    }
+
+    MCRegister Reg = 0;
+    SMLoc E = getLexer().getTok().getEndLoc();
+    if (tryParseRegister(Reg, S, E).isSuccess()) {
+      Operands.push_back(MC6809Operand::createReg(STI, Reg, S, E));
+      return ParseStatus::Success;
+    }
+    return ParseStatus::NoMatch;
+  }
+
+  bool ParseInstruction(ParseInstructionInfo & /*Info*/, StringRef Mnemonic, SMLoc NameLoc, OperandVector &Operands) override {
     /*
     On 65xx family instructions, mnemonics and addressing modes take the form:
 
@@ -586,8 +676,13 @@ public:
     mnemonic [(]expr[),xy]*
     mnemonic a
 
-    65816 only:
-    mnemonic [(]expr[),sxy]*
+    65816 and 45GS02 only:
+    mnemonic [(]expr[),sxyz]*
+    mnemonic \[ expr \]
+
+    SPC700:
+    mnemonic expr.bit
+    mnemonic [(]expr[)]+[xy]*
     mnemonic \[ expr \]
 
     Any constant may be prefixed by a $, indicating that it is a hex constant.
@@ -599,93 +694,73 @@ public:
 
     */
     // First, the mnemonic goes on the stack.
-    Operands.push_back(MC6809Operand::createToken(Mnemonic, NameLoc));
-    bool FirstTime = true;
-    while (getLexer().isNot(AsmToken::EndOfStatement)) {
+    Operands.push_back(MC6809Operand::createToken(STI, Mnemonic, NameLoc));
+    AsmToken::TokenKind RightHandSide = AsmToken::Eof;
+    while (getLexer().isNot(AsmToken::EndOfStatement) && getLexer().isNot(AsmToken::Eof)) {
+      // Handle special characters.
       if (getLexer().is(AsmToken::Hash)) {
         eatThatToken(Operands);
-        if (!tryParseExpr(Operands,
-                          "immediate operand must be an expression evaluating "
-                          "to a value between 0 and 255 inclusive")) {
-          FirstTime = false;
+        if (!tryParseExpr(Operands, ExprTypeImmediate, "immediate operand must be an expression evaluating to a value between 0 and 65535 inclusive")) {
           continue;
-        }
       }
-      if (getLexer().is(AsmToken::LParen)) {
-        eatThatToken(Operands);
-        if (!tryParseExpr(Operands,
-                          "expression expected after left parenthesis")) {
-          FirstTime = false;
-          continue;
-        }
-      }
-      // I don't know what llvm has against commas, but for some reason
-      // TableGen makes an effort to ignore them during parsing.  So,
-      // strangely enough, we have to throw out commas too, even though
-      // they have semantic meaning on MC6809 platforms.
-      if (getLexer().is(AsmToken::Comma)) {
-        Lex();
-        continue;
-      }
-
-      StringRef TokName;
-      SMLoc TokLoc;
-      TokName = getLexer().getTok().getString();
-      TokLoc = getLexer().getTok().getLoc();
-
-      // We'll only ever see this on rol a or asl a commands, so handle it
-      // as a special case
-      if (FirstTime && (TokName == "a" || TokName == "A")) {
-        eatThatToken(Operands);
-        FirstTime = false;
-        continue;
-      }
-
-      // We'll only ever see a register name on the third or later parameter.
-      if (tryParseAsmParamRegClass(Operands) == MatchOperand_Success) {
-        Parser.Lex();
-        continue;
-      }
-
-      if (FirstTime && !tryParseExpr(Operands, "expression expected")) {
-        FirstTime = false;
-        continue;
-      }
-      FirstTime = false;
-
-      // Okay then, you're a token.  Hope you're happy.
-      eatThatToken(Operands);
     }
-    Parser.Lex(); // Consume the EndOfStatement
-    return false;
-  }
+    // Handle parentheses and brackets.
+    if (getLexer().is(AsmToken::LParen)) {
+      eatThatToken(Operands);
+      if (!tryParseExpr(Operands, ExprTypeAddress, "expression expected after left parenthesis")) {
+        RightHandSide = AsmToken::RParen;
+        continue;
+      }
+    }
+    {
+      eatThatToken(Operands);
+      if (!tryParseExpr(Operands, ExprTypeAddress, "expression expected after left bracket")) {
+        RightHandSide = AsmToken::RBrac;
+        continue;
+      }
+    }
+    if (RightHandSide != AsmToken::Eof && getLexer().is(RightHandSide)) {
+      eatThatToken(Operands);
+      RightHandSide = AsmToken::Eof;
+      continue;
+    }
+    // I don't know what LLVM has against commas, but for some reason
+    // TableGen makes an effort to ignore them during parsing.  So,
+    // strangely enough, we have to throw out commas too, even though
+    // they have semantic meaning on MC6809 platforms.
+    if (getLexer().is(AsmToken::Comma)) {
+      Lex();
+      continue;
+    }
 
-  bool parseRegister(MCRegister &RegNo, SMLoc &StartLoc, SMLoc &EndLoc) override {
-    auto Result = tryParseRegister(RegNo, StartLoc, EndLoc);
-    return (Result != MatchOperand_Success);
+    // We'll only ever see a register name on the third or later parameter.
+    if (tryParseAsmParamRegClass(Operands).isSuccess()) {
+      Parser.Lex();
+      continue;
+    }
+
+    if (!tryParseExpr(Operands, ExprTypeAddress, "expression expected")) {
+      continue;
+    }
+
+    // Okay then, you're a token.  Hope you're happy.
+    eatThatToken(Operands);
   }
+  Parser.Lex(); // Consume the EndOfStatement
+  return false;
+}
+
+  bool parseRegister(MCRegister &Reg, SMLoc &StartLoc, SMLoc &EndLoc) override {
+  return !tryParseRegister(Reg, StartLoc, EndLoc).isSuccess();
+}
 
 }; // class MC6809AsmParser
 
 #define GET_MATCHER_IMPLEMENTATION
 #include "MC6809GenAsmMatcher.inc"
 
-// Parse only registers that can be considered parameters to real MC6809
-// instructions.
-OperandMatchResultTy
-MC6809AsmParser::tryParseAsmParamRegClass(OperandVector &Operands) {
-  MCRegister RegNo = 0;
-  SMLoc S = getLexer().getLoc();
-  SMLoc E = getLexer().getTok().getEndLoc();
-  if (tryParseRegister(RegNo, S, E) == MatchOperand_Success) {
-    Operands.push_back(MC6809Operand::createReg(RegNo, S, E));
-    return MatchOperand_Success;
-  }
-  return MatchOperand_NoMatch;
-}
-
-extern "C" void LLVM_EXTERNAL_VISIBILITY
-LLVMInitializeMC6809AsmParser() { // NOLINT
+extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMC6809AsmParser() { // NOLINT
   RegisterMCAsmParser<MC6809AsmParser> X(getTheMC6809Target());
 }
+
 } // namespace llvm
