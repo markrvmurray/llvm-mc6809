@@ -12,8 +12,10 @@
 
 /// Predicates. Useful for limiting instructions to particular hardware modes
 /// or particular hardware implementations.
-def IsHD6309 : Predicate<"Subtarget->has6309()">,
-               AssemblerPredicate<(all_of Feature6309), "Feature6309"> {
+def IsHD6309 : Predicate<"Subtarget->has6309()">, AssemblerPredicate<(all_of Feature6309), "Feature6309"> {
+  let PredicateName = "IsHD6309";
+}
+def NotHD6309 : Predicate<"!Subtarget->has6309()">, AssemblerPredicate<(all_of Feature6309), ""> {
   let PredicateName = "IsHD6309";
 }
 

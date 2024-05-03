@@ -45,6 +45,37 @@ def Exchange8 : MC6809Transfer<(ins REGPAIR8:$src1, REGPAIR8:$src2), (outs REGPA
 def Exchange16 : MC6809Transfer<(ins REGPAIR16:$src1, REGPAIR16:$src2), (outs REGPAIR16:$dst1, REGPAIR16:$dst2), "$dst1 = $src2, $dst2 = $src1">;
 
 //===---------------------------------------------------------------------===//
+// Stack instructions. These will be squashed together later.
+//===---------------------------------------------------------------------===//
+
+class MC6809StackPush<RegisterClass index, RegisterClass reg> : MC6809LogicalInstr {
+  let Defs = [SS];
+  let Uses = [SS];
+  dag OutOperandList = (outs index:$stack);
+  dag InOperandList = (ins reg:$reg);
+  let mayStore = true;
+}
+
+class MC6809StackPull<RegisterClass index, RegisterClass reg> : MC6809LogicalInstr {
+  let Defs = [SS];
+  let Uses = [SS];
+  dag OutOperandList = (outs index:$stack, reg:$reg);
+  dag InOperandList = (ins);
+  let mayLoad = true;
+}
+
+def Push_i8 : MC6809StackPush<TOS16, ACC8>;
+def Pull_i8 : MC6809StackPull<TOS16, ACC8>;
+def Push_i16 : MC6809StackPush<TOS16, ACC16>;
+def Pull_i16 : MC6809StackPull<TOS16, ACC16>;
+def Push_Ptr : MC6809StackPush<TOS16, INDEX16>;
+def Pull_Ptr : MC6809StackPull<TOS16, INDEX16>;
+let Predicates = [IsHD6309] in {
+  def Push_i32 : MC6809StackPush<TOS16, ACC32>;
+  def Pull_i32 : MC6809StackPull<TOS16, ACC32>;
+}
+
+//===---------------------------------------------------------------------===//
 // Operandless Accumulator Instructions
 //===---------------------------------------------------------------------===//
 class MC6809Accumulator<RegisterClass reg> : MC6809LogicalInstr {
@@ -55,20 +86,26 @@ class MC6809Accumulator<RegisterClass reg> : MC6809LogicalInstr {
 }
 
 def Negate_i8 : MC6809Accumulator<ACC8>;
-def Negate_i16 : MC6809Accumulator<ACC16>;
 let Predicates = [IsHD6309] in {
+  def Negate_i16 : MC6809Accumulator<ACC16>;
   def Negate_i32 : MC6809Accumulator<ACC32>;
 }
 
-multiclass MC6809NegatePat<ValueType vtype, RegisterClass reg> {
+multiclass MC6809Negate1Pat<ValueType vtype, RegisterClass reg> {
   def _Reg : Pat<(vtype (sub (vtype 0), reg:$src)), (!cast<Instruction>("Negate_"#vtype) reg:$src)>;
 }
 
-defm NegPat_i8 : MC6809NegatePat<i8, ACC8>;
-defm NegPat_ii6 : MC6809NegatePat<i16, ACC16>;
+defm NegPat_i8 : MC6809Negate1Pat<i8, ACC8>;
 let Predicates = [IsHD6309] in {
-  defm NegPat_i32 : MC6809NegatePat<i32, ACC32>;
+  defm NegPat_ii6 : MC6809Negate1Pat<i16, ACC16>;
+  defm NegPat_i32 : MC6809Negate1Pat<i32, ACC32>;
 }
+
+//multiclass MC6809Negate2Pat<ValueType vtype, RegisterClass reg> {
+//  def _Push_Pull : Pat<(vtype (sub (vtype 0), reg:$src)), (!cast<Instruction>(inst#"_"#vtype#"_Pull") reg:$src, (!cast<Instruction>("Push_"#vtype) reg:$src2))>;
+//}
+
+//defm NegPat_ii6 : MC6809Negate2Pat<i16, ACC16>;
 
 //===---------------------------------------------------------------------===//
 // Loads and Stores
@@ -212,7 +249,10 @@ multiclass MC6809Arithmetic<ValueType vtype, RegisterClass dst, RegisterClass sr
     def _Idx_Inc : MC6809ArithmeticBase<dst, src, (ins INDEX16:$idx)>;
     def _Dec_Idx : MC6809ArithmeticBase<dst, src, (ins INDEX16:$idx)>;
     def _Indir : MC6809ArithmeticBase<dst, src, (ins INDEX16:$idx, unknown:$offset)>;
-    def _Reg : MC6809ArithmeticBase<dst, src, (ins src:$src2)>;
+    def _Pull : MC6809ArithmeticBase<dst, src, (ins TOS16:$idx)>;
+//    let Predicates = [IsHD6309] in {
+      def _Reg : MC6809ArithmeticBase<dst, src, (ins src:$src2)>;
+//    }
   }
 }
 
@@ -250,7 +290,10 @@ multiclass MC6809ArithmeticCarry<ValueType vtype, RegisterClass dst, RegisterCla
     def _Idx_Inc : MC6809ArithmeticBaseCarry<dst, carry, src, (ins INDEX16:$idx)>;
     def _Dec_Idx : MC6809ArithmeticBaseCarry<dst, carry, src, (ins INDEX16:$idx)>;
     def _Indir : MC6809ArithmeticBaseCarry<dst, carry, src, (ins INDEX16:$idx, unknown:$offset)>;
-    def _Reg : MC6809ArithmeticBaseCarry<dst, carry, src, (ins src:$src2)>;
+    def _Pull : MC6809ArithmeticBaseCarry<dst, carry, src, (ins TOS16:$idx)>;
+    let Predicates = [IsHD6309] in {
+      def _Reg : MC6809ArithmeticBaseCarry<dst, carry, src, (ins src:$src2)>;
+    }
   }
 }
 
@@ -279,28 +322,35 @@ multiclass MC6809ArithPat<SDNode node, ValueType vtype, RegisterClass reg, strin
   def _Idx_Imm : Pat<(vtype (node reg:$src, (am_am_indexed_imm_offset INDEX16:$idx, i16imm:$offset))), (!cast<Instruction>(inst#"_"#vtype#"_Idx_Imm") reg:$src, INDEX16:$idx, imm:$offset)>;
   def _Idx_Reg8 : Pat<(vtype (node reg:$src, (am_am_indexed_imm_offset INDEX16:$idx, ACC8:$offset))), (!cast<Instruction>(inst#"_"#vtype#"_Idx_Reg8") reg:$src, INDEX16:$idx, ACC8:$offset)>;
   def _Idx_Reg16 : Pat<(vtype (node reg:$src, (am_am_indexed_imm_offset INDEX16:$idx, ACC16:$offset))), (!cast<Instruction>(inst#"_"#vtype#"_Idx_Reg16") reg:$src, INDEX16:$idx, ACC16:$offset)>;
-  if !not(!eq(vtype, i32)) then {
+  let Predicates = [IsHD6309] in {
     def _Reg : Pat<(vtype (node reg:$src, reg:$src2)), (!cast<Instruction>(inst#"_"#vtype#"_Reg") reg:$src, reg:$src2)>;
+  }
+  let Predicates = [NotHD6309] in {
+    def _Push_Pull : Pat<(vtype (node reg:$src, reg:$src2)), (!cast<Instruction>(inst#"_"#vtype#"_Pull") reg:$src, (!cast<Instruction>("Push_"#vtype) reg:$src2))>;
   }
 }
 
 multiclass MC6809ArithRevPat<SDNode node, ValueType vtype, RegisterClass reg, string inst> {
   def _Imm : Pat<(vtype (node (am_am_immediate !cast<Operand>(vtype#"imm"):$val), reg:$src)), (!cast<Instruction>("Negate_"#vtype) (!cast<Instruction>(inst#"_"#vtype#"_Imm") reg:$src, imm:$val))>;
-  //def _Imm : Pat<(vtype (node (am_am_immediate i32imm:$val), reg:$src)), (!cast<Instruction>(inst#"_"#vtype#"_Imm") reg:$src, imm:$val)>;
+  let Predicates = [IsHD6309] in {
+    def _Reg : Pat<(vtype (node reg:$src, reg:$src2)), (!cast<Instruction>(inst#"_"#vtype#"_Reg") reg:$src, reg:$src2)>;
+  }
+  let Predicates = [NotHD6309] in {
+    def _Push_Pull : Pat<(vtype (node reg:$src, reg:$src2)), (!cast<Instruction>(inst#"_"#vtype#"_Pull") reg:$src, (!cast<Instruction>("Push_"#vtype) reg:$src2))>;
+  }
 }
 
 defm AddPat_i8 : MC6809ArithPat<add, i8, ACC8, "Add">;
 defm SubPat_i8 : MC6809ArithPat<sub, i8, ACC8, "Sub">;
-defm SubRevPat_i8 : MC6809ArithRevPat<sub, i8, ACC8, "Sub">;
 defm AddPat_ii6 : MC6809ArithPat<add, i16, ACC16, "Add">;
 defm SubPat_ii6 : MC6809ArithPat<sub, i16, ACC16, "Sub">;
-defm SubRevPat_ii6 : MC6809ArithRevPat<sub, i16, ACC16, "Sub">;
 let Predicates = [IsHD6309] in {
+  defm SubRevPat_i8 : MC6809ArithRevPat<sub, i8, ACC8, "Sub">;
+  defm SubRevPat_ii6 : MC6809ArithRevPat<sub, i16, ACC16, "Sub">;
   defm AddPat_i32 : MC6809ArithPat<add, i32, ACC32, "Add">;
-  defm SubPat_i32 : MC6809ArithPat<sub, i32, ACC32, "Sub">;
+  //defm SubPat_i32 : MC6809ArithPat<sub, i32, ACC32, "Sub">;
   defm SubRevPat_i32 : MC6809ArithRevPat<sub, i32, ACC32, "Sub">;
 }
-//def SubRevPat_i32_Imm : Pat<(i32 (sub (am_am_immediate i32imm:$val), ACC32:$src)), (Negate_i32 (Sub_i32_Imm ACC32:$src, imm:$val))>;
 
 let Predicates = [IsHD6309] in {
   defm MulPat_i16 : MC6809ArithPat<mul, i16, ADc, "MulSetCarry">;
@@ -329,7 +379,9 @@ multiclass MC6809ArithmeticCarryUse<ValueType vtype, RegisterClass dst, Register
     def _Idx_Inc : MC6809ArithmeticBaseCarryUse<dst, src, (ins INDEX16:$idx)>;
     def _Dec_Idx : MC6809ArithmeticBaseCarryUse<dst, src, (ins INDEX16:$idx)>;
     def _Indir : MC6809ArithmeticBaseCarryUse<dst, src, (ins INDEX16:$idx, unknown:$offset)>;
-    def _Reg : MC6809ArithmeticBaseCarryUse<dst, src, (ins src:$src2)>;
+    let Predicates = [IsHD6309] in {
+      def _Reg : MC6809ArithmeticBaseCarryUse<dst, src, (ins src:$src2)>;
+    }
   }
 }
 
@@ -362,9 +414,9 @@ multiclass MC6809Bitwise<ValueType vtype, RegisterClass reg> {
   let isAsCheapAsAMove = true in {
     def _Imm : MC6809BitwiseBase<reg, (ins !cast<Operand>(vtype#"imm"):$imm)>;
   }
-  let Predicates = [IsHD6309] in {
+//  let Predicates = [IsHD6309] in {
     def _Reg : MC6809BitwiseBase<reg, (ins reg:$src2)>;
-  }
+//  }
   let mayLoad = true in {
     def _Abs : MC6809BitwiseBase<reg, (ins addr16:$addr)>;
     def _Idx_Imm : MC6809BitwiseBase<reg, (ins INDEX16:$idx, i16imm:$offset)>;
@@ -373,6 +425,7 @@ multiclass MC6809Bitwise<ValueType vtype, RegisterClass reg> {
     def _Idx_Inc : MC6809BitwiseBase<reg, (ins INDEX16:$idx)>;
     def _Dec_Idx : MC6809BitwiseBase<reg, (ins INDEX16:$idx)>;
     def _Indir : MC6809BitwiseBase<reg, (ins INDEX16:$idx, unknown:$offset)>;
+    def _Pull : MC6809BitwiseBase<reg, (ins TOS16:$idx)>;
   }
 }
 
@@ -837,38 +890,11 @@ def LEAPtrAdd_Imm : MC6809PtrAdd<INDEX16, (ins i16imm:$offset)>;
 def LEAPtrAdd_Reg8 : MC6809PtrAdd<INDEX16, (ins ACC8:$offset)>;
 def LEAPtrAdd_Reg16 : MC6809PtrAdd<INDEX16, (ins ACC16:$offset)>;
 
-// def LEAPtrAddPatImm : Pat<(i16 (ptradd INDEX16:$src, imm:$offset)), (LEAPtrAdd_Imm INDEX16:$src, imm:$offset)>;
+def LEAPtrAddPatImm : Pat<(i16 (ptradd INDEX16:$src, (i16 imm:$offset))), (LEAPtrAdd_Imm INDEX16:$src, imm:$offset)>;
 def LEAPtrAddPatReg8 : Pat<(i16 (ptradd INDEX16:$src, ACC8:$offset)), (LEAPtrAdd_Reg8 INDEX16:$src, ACC8:$offset)>;
 def LEAPtrAddPatReg16 : Pat<(i16 (ptradd INDEX16:$src, ACC16:$offset)), (LEAPtrAdd_Reg16 INDEX16:$src, ACC16:$offset)>;
 
-//===---------------------------------------------------------------------===//
-// Stack instructions. These will be squashed together later.
-//===---------------------------------------------------------------------===//
 
-class MC6809StackPush<RegisterClass reg> : MC6809LogicalInstr {
-  dag OutOperandList = (outs);
-  dag InOperandList = (ins reg:$reg);
-  let mayStore = true;
-}
-
-class MC6809StackPull<RegisterClass reg> : MC6809LogicalInstr {
-  let Defs = [SS];
-  let Uses = [SS];
-  dag OutOperandList = (outs reg:$reg);
-  dag InOperandList = (ins);
-  let mayLoad = true;
-}
-
-def Push8 : MC6809StackPush<ACC8>;
-def Pull8 : MC6809StackPull<ACC8>;
-def Push16 : MC6809StackPush<ACC16>;
-def Pull16 : MC6809StackPull<ACC16>;
-def PushPtr : MC6809StackPush<INDEX16>;
-def PullPtr : MC6809StackPull<INDEX16>;
-let Predicates = [IsHD6309] in {
-  def Push32 : MC6809StackPush<ACC32>;
-  def Pull32 : MC6809StackPull<ACC32>;
-}
 
 //===---------------------------------------------------------------------===//
 // Integer Extension/Truncation Patterns

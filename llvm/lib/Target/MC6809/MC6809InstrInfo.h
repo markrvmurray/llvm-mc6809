@@ -158,14 +158,14 @@ private:
   void expandXORReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
 
   void expandAddReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandAddSetCarryReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandAdd32IdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandAdd32IdxReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
 
-  void expandAddSetCarryReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
-
   void expandSubImmRev(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandSubReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  // void expandSubPop(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandSubSetCarryReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandSubPull(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandSub32IdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandSub32IdxReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   // void expandSub32Pop(MachineIRBuilder &Builder, MachineInstr &MI) const;
@@ -212,7 +212,7 @@ private:
   DenseMap<Register, unsigned> SubImmediateOpcode;
   DenseMap<RegPlusOffsetLen, unsigned> SubIdxImmOpcode;
   DenseMap<RegPlusReg, unsigned> SubIdxRegOpcode;
-  DenseMap<Register, unsigned> SubPopOpcode;
+  DenseMap<Register, unsigned> SubPullOpcode;
 
   DenseMap<Register, unsigned> SubBorrowImmediateOpcode;
   DenseMap<RegPlusOffsetLen, unsigned> SubBorrowIdxImmOpcode;

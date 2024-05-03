@@ -54,6 +54,7 @@ bool MC6809InsertCopies::runOnMachineFunction(MachineFunction &MF) {
   MachineRegisterInfo &MRI = MF.getRegInfo();
 
   bool Changed = false;
+#if 0
   for (MachineBasicBlock &MBB : MF) {
     MachineBasicBlock::iterator Next;
     for (auto I = MBB.begin(), E = MBB.end(); I != E; I = Next) {
@@ -117,6 +118,7 @@ bool MC6809InsertCopies::runOnMachineFunction(MachineFunction &MF) {
       }
     }
   }
+#endif
   return Changed;
 }
 
