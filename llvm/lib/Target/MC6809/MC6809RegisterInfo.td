@@ -199,6 +199,10 @@ def CC : MC6809Reg<10, "cc"> {
 }
 
 
+// Special top-of-stack pseudo-register. Should never be visible except in
+// closely-bound push/pull pairs.
+def TOS : MC6809Reg16<0,  "tos" >;
+
 def IX : MC6809Reg16<1,  "x" >;
 def IY : MC6809Reg16<2,  "y" >;
 def SU : MC6809Reg16<3,  "u" >;
@@ -276,6 +280,10 @@ let isPressureFineGrained = true in {
 
   // Pointer and stack registers
   def INDEX16 : MC6809Reg16Class<(add IX, IY, SU, SS)>;
+
+  // Stack registers
+  def STACK16 : MC6809Reg16Class<(add SU, SS)>;
+  def TOS16 : MC6809Reg16Class<(add TOS)>;
 
   // All 16-bit registers. Useful for load/store.
   def ALL16 : MC6809Reg16Class<(add AD, AW, IX, IY)> {

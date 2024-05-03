@@ -104,7 +104,7 @@ private:
   // bool selectMulH(MachineInstr &MI);
 
   // bool selectBranch(MachineInstr &MI);
-  // bool selectBrCondImm(MachineInstr &MI);
+  bool selectBrCondImm(MachineInstr &MI);
   // bool selectConditionalBranch(MachineInstr &MI, MachineFunction &MF, MachineRegisterInfo &MRI);
 
   // Select instructions that correspond 1:1 to a target instruction.
@@ -400,12 +400,12 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
   case TargetOpcode::G_BR:
     return selectBranch(MI);
 
-  case TargetOpcode::G_BRCOND_IMM:
-    return selectBrCondImm(MI, *MF, *MRI);
-
   case TargetOpcode::G_BRINDIRECT:
     return selectGeneric(MI);
 #endif
+
+  case MC6809::G_BRCOND_IMM:
+    return selectBrCondImm(MI);
 
 #if 0
   case TargetOpcode::G_IMPLICIT_DEF:
@@ -1528,7 +1528,6 @@ struct CMPTermIdx_match : public Cmp_match {
   }
 };
 
-#if 0
 // Match one of the outputs of a G_SBC to a CMPTermIdx operation. Flag is the
 // physical (N or Z) register corresponding to the output by which the G_SBC
 // was reached.
@@ -1562,7 +1561,7 @@ bool MC6809InstructionSelector::selectBrCondImm(MachineInstr &MI) {
   Register Idx;
   bool DP;
   if (!Compare && mi_match(CondReg, MRI, m_CMPTermIdx(LHS, Addr, Idx, Flag, Load, DP, AA))) {
-    Compare = Builder.buildInstr(DP ? MC6809::CMPTermZpIdx : MC6809::CMPTermAbsIdx, {S1}, {LHS}).add(Addr).addUse(Idx).cloneMemRefs(*Load);
+    Compare = Builder.buildInstr(DP ? MC6809::CMPTermDpIdx : MC6809::CMPTermAbsIdx, {S1}, {LHS}).add(Addr).addUse(Idx).cloneMemRefs(*Load);
   }
   Register RegAddr;
   if (!Compare && mi_match(CondReg, MRI, m_CMPTermIndir(LHS, RegAddr, Flag, Load, AA))) {
@@ -1590,7 +1589,6 @@ bool MC6809InstructionSelector::selectBrCondImm(MachineInstr &MI) {
   MI.eraseFromParent();
   return true;
 }
-#endif
 
 #if 0
 bool MC6809InstructionSelector::selectBranch(MachineInstr &MI) {

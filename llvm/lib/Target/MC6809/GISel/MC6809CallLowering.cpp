@@ -1,4 +1,4 @@
-//===-- MC6809CallLowering.cpp - MC6809 Call lowering -----------------*- C++ -*-===//
+//===-- MC6809CallLowering.cpp - MC6809 Call lowering -----------*- C++ -*-===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -133,6 +133,7 @@ struct MC6809IncomingValueHandler : CallLowering::IncomingValueHandler {
       report_fatal_error("Not yet implemented.");
     case 8:
     case 16:
+    case 32:
       break;
     }
 

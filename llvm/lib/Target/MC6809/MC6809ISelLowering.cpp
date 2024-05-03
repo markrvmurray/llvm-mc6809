@@ -1,4 +1,4 @@
-//===-- MC6809ISelLowering.cpp - MC6809 DAG Lowering Implementation -------------===//
+//===-- MC6809ISelLowering.cpp - MC6809 DAG Lowering Implementation -------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -36,15 +36,16 @@
 
 using namespace llvm;
 
-MC6809TargetLowering::MC6809TargetLowering(const MC6809TargetMachine &TM,
-                                     const MC6809Subtarget &STI)
+MC6809TargetLowering::MC6809TargetLowering(const MC6809TargetMachine &TM, const MC6809Subtarget &STI)
     : TargetLowering(TM) {
   addRegisterClass(MVT::i1, &MC6809::BIT1RegClass);
   addRegisterClass(MVT::i8, &MC6809::ACC8RegClass);
-  addRegisterClass(MVT::i16, &MC6809::Imag16RegClass);
+  addRegisterClass(MVT::i16, &MC6809::ACC16RegClass);
+  if (STI.has6309())
+    addRegisterClass(MVT::i32, &MC6809::ACC32RegClass);
   computeRegisterProperties(STI.getRegisterInfo());
 
-  // The memset intrinsic takes an char, while the C memset takes an int. These
+  // The memset intrinsic takes a char, while the C memset takes an int. These
   // are different in the MC6809 calling convention, since arguments are not
   // automatically promoted to int. "memset" is the C version, and "__memset" is
   // the intrinsic version.
@@ -73,25 +74,19 @@ MVT MC6809TargetLowering::getRegisterTypeForCallingConv(
   return TargetLowering::getRegisterTypeForCallingConv(Context, CC, VT, Flags);
 }
 
-unsigned MC6809TargetLowering::getNumRegistersForCallingConv(
-    LLVMContext &Context, CallingConv::ID CC, EVT VT,
-    const ISD::ArgFlagsTy &Flags) const {
+unsigned MC6809TargetLowering::getNumRegistersForCallingConv(LLVMContext &Context, CallingConv::ID CC, EVT VT, const ISD::ArgFlagsTy &Flags) const {
   if (Flags.isPointer())
     return 1;
   return TargetLowering::getNumRegistersForCallingConv(Context, CC, VT, Flags);
 }
 
-unsigned MC6809TargetLowering::getNumRegistersForInlineAsm(LLVMContext &Context,
-                                                        EVT VT) const {
-  // 16-bit inputs and outputs must be passed in Imag16 registers to allow using
-  // pointer values in inline assembly.
+unsigned MC6809TargetLowering::getNumRegistersForInlineAsm(LLVMContext &Context, EVT VT) const {
   if (VT == MVT::i16)
     return 1;
   return TargetLowering::getNumRegistersForInlineAsm(Context, VT);
 }
 
-TargetLowering::ConstraintType
-MC6809TargetLowering::getConstraintType(StringRef Constraint) const {
+TargetLowering::ConstraintType MC6809TargetLowering::getConstraintType(StringRef Constraint) const {
   if (Constraint.size() == 1) {
     switch (Constraint[0]) {
     default:
@@ -110,10 +105,7 @@ MC6809TargetLowering::getConstraintType(StringRef Constraint) const {
   return TargetLowering::getConstraintType(Constraint);
 }
 
-std::pair<unsigned, const TargetRegisterClass *>
-MC6809TargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
-                                                StringRef Constraint,
-                                                MVT VT) const {
+std::pair<unsigned, const TargetRegisterClass *> MC6809TargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI, StringRef Constraint, MVT VT) const {
   if (Constraint.size() == 1) {
     switch (Constraint[0]) {
     default:
@@ -150,10 +142,7 @@ static bool is8BitIndex(Type *Ty) {
   return Ty == Type::getInt8Ty(Ty->getContext());
 }
 
-bool MC6809TargetLowering::isLegalAddressingMode(const DataLayout &DL,
-                                              const AddrMode &AM, Type *Ty,
-                                              unsigned AddrSpace,
-                                              Instruction *I) const {
+bool MC6809TargetLowering::isLegalAddressingMode(const DataLayout &DL, const AddrMode &AM, Type *Ty, unsigned AddrSpace, Instruction *I) const {
   if (AM.Scale > 1 || AM.Scale < 0)
     return false;
 
@@ -206,12 +195,9 @@ bool MC6809TargetLowering::isZExtFree(Type *SrcTy, Type *DstTy) const {
   return SrcTy->getPrimitiveSizeInBits() < DstTy->getPrimitiveSizeInBits();
 }
 
-static MachineBasicBlock *emitSelectImm(MachineInstr &MI,
-                                        MachineBasicBlock *MBB);
+static MachineBasicBlock *emitSelectImm(MachineInstr &MI, MachineBasicBlock *MBB);
 
-MachineBasicBlock *
-MC6809TargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
-                                               MachineBasicBlock *MBB) const {
+MachineBasicBlock *MC6809TargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI, MachineBasicBlock *MBB) const {
   switch (MI.getOpcode()) {
   default:
     llvm_unreachable("Bad opcode.");
@@ -223,8 +209,7 @@ MC6809TargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
 }
 
 // FIXME!! MarkM: Do load Immediate of all sizes, not just i8.
-static MachineBasicBlock *emitSelectImm(MachineInstr &MI,
-                                        MachineBasicBlock *MBB) {
+static MachineBasicBlock *emitSelectImm(MachineInstr &MI, MachineBasicBlock *MBB) {
   // To "insert" Select* instructions, we actually have to insert the triangle
   // control-flow pattern.  The incoming instructions know the destination reg
   // to set, the flag to branch on, and the true/false values to select between.

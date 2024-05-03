@@ -47,7 +47,6 @@ bool MC6809MCInstLower::lowerOperand(const MachineOperand &MO, MCOperand &MCOp) 
   default:
     report_fatal_error("Operand type not implemented.");
   case MachineOperand::MO_RegisterMask:
-    LLVM_DEBUG(dbgs() << "Operand MachineOperand::MO_RegisterMask not implemented\n";);
     return false;
   case MachineOperand::MO_BlockAddress:
     MCOp = lowerSymbolOperand(MO, AP.GetBlockAddressSymbol(MO.getBlockAddress()));

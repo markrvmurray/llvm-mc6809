@@ -105,7 +105,10 @@ bool MC6809FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB, Mach
       continue;
     if (!StackRegClass.contains(Reg))
       Reg = Builder.buildCopy(&StackRegClass, Reg).getReg(0);
-    Builder.buildInstr(MC6809::PSHSs, {}, {Reg});
+    if (Reg == MC6809::AW)
+      Builder.buildInstr(MC6809::PSHSWx, {}, {});
+    else
+      Builder.buildInstr(MC6809::PSHSs, {}, {Reg});
   }
 
   // Record that the frame pointer is killed by these instructions.
@@ -170,7 +173,10 @@ bool MC6809FrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB, Ma
       continue;
     if (!StackRegClass.contains(Reg))
       Reg = Builder.getMRI()->createVirtualRegister(&StackRegClass);
-    Builder.buildInstr(MC6809::PULSs, {Reg}, {});
+    if (Reg == MC6809::AW)
+      Builder.buildInstr(MC6809::PULSWx, {}, {});
+    else
+      Builder.buildInstr(MC6809::PULSs, {Reg}, {});
     if (Reg != CI.getReg())
       Builder.buildCopy(CI.getReg(), Reg);
   }
