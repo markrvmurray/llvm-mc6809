@@ -12,8 +12,8 @@
 
 #include "MC6809LowerSelect.h"
 
-#include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "MC6809.h"
+#include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/CodeGen/GlobalISel/GenericMachineInstrs.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
@@ -33,19 +33,11 @@ class MC6809LowerSelect : public MachineFunctionPass {
 public:
   static char ID;
 
-  MC6809LowerSelect() : MachineFunctionPass(ID) {
-    llvm::initializeMC6809LowerSelectPass(*PassRegistry::getPassRegistry());
-  }
+  MC6809LowerSelect() : MachineFunctionPass(ID) { llvm::initializeMC6809LowerSelectPass(*PassRegistry::getPassRegistry()); }
 
-  MachineFunctionProperties getRequiredProperties() const override {
-    return MachineFunctionProperties()
-        .set(MachineFunctionProperties::Property::IsSSA)
-        .set(MachineFunctionProperties::Property::Legalized);
-  }
+  MachineFunctionProperties getRequiredProperties() const override { return MachineFunctionProperties().set(MachineFunctionProperties::Property::IsSSA).set(MachineFunctionProperties::Property::Legalized); }
 
-  MachineFunctionProperties getClearedProperties() const override {
-    return MachineFunctionProperties().set(MachineFunctionProperties::Property::NoPHIs);
-  }
+  MachineFunctionProperties getClearedProperties() const override { return MachineFunctionProperties().set(MachineFunctionProperties::Property::NoPHIs); }
 
   bool runOnMachineFunction(MachineFunction &MF) override;
   void sinkSelectsToBranchUses(MachineFunction &MF);
@@ -149,7 +141,7 @@ MachineFunction::reverse_iterator MC6809LowerSelect::lowerSelect(GSelect &MI) {
   //   %TrueValue = ...
   //   %FalseValue = ...
   //   ...
-  //   G_BRCOND_IMM %Tst, %TrueMBB, 1
+  //   G_BRCOND %Tst, %TrueMBB
   //   G_BR --> %FalseMBB
   MachineBasicBlock *TrueMBB = MF.CreateMachineBasicBlock(LLVM_BB);
   MachineBasicBlock *FalseMBB = MF.CreateMachineBasicBlock(LLVM_BB);
@@ -165,7 +157,7 @@ MachineFunction::reverse_iterator MC6809LowerSelect::lowerSelect(GSelect &MI) {
   // Next, add the True and False blocks as its successors.
   MBB.addSuccessor(TrueMBB);
   MBB.addSuccessor(FalseMBB);
-  Builder.buildInstr(MC6809::G_BRCOND_IMM, {}, {Tst}).addMBB(TrueMBB).addImm(1);
+  Builder.buildInstr(MC6809::G_BRCOND, {}, {Tst}).addMBB(TrueMBB);
   Builder.buildInstr(MC6809::G_BR).addMBB(FalseMBB);
 
   // Sink the True and False values if only used in the conditional part of the
@@ -194,9 +186,7 @@ MachineFunction::reverse_iterator MC6809LowerSelect::lowerSelect(GSelect &MI) {
       return;
     LLVM_DEBUG(dbgs() << "Sinking value: " << DefMI);
 
-    auto SrcRange =
-        make_range(std::next(MachineBasicBlock::reverse_iterator(DefMI)),
-                   DefMI.getParent()->rend());
+    auto SrcRange = make_range(std::next(MachineBasicBlock::reverse_iterator(DefMI)), DefMI.getParent()->rend());
     DefMI.removeFromParent();
     MBB->insert(MBB->begin(), &DefMI);
 
@@ -217,8 +207,7 @@ MachineFunction::reverse_iterator MC6809LowerSelect::lowerSelect(GSelect &MI) {
             return false;
           if (!MO.isDef())
             continue;
-          for (const MachineInstr &UseMI :
-               MRI.use_nodbg_instructions(MO.getReg()))
+          for (const MachineInstr &UseMI : MRI.use_nodbg_instructions(MO.getReg()))
             if (UseMI.getParent() != MBB)
               return false;
         }
@@ -243,7 +232,7 @@ MachineFunction::reverse_iterator MC6809LowerSelect::lowerSelect(GSelect &MI) {
   // saves the PHI.
   if (Dsts.size() == 1 && MRI.hasOneNonDBGUse(Dst)) {
     MachineInstr &UseMI = *MRI.use_instr_nodbg_begin(Dst);
-    if (UseMI.getIterator() == SinkMBB->begin() && UseMI.getOpcode() == MC6809::G_BRCOND_IMM) {
+    if (UseMI.getIterator() == SinkMBB->begin() && UseMI.getOpcode() == MC6809::G_BRCOND) {
       LLVM_DEBUG(dbgs() << "Folding use MI: " << UseMI);
       MachineBasicBlock *Tgt = UseMI.getOperand(1).getMBB();
 
@@ -302,14 +291,8 @@ MachineFunction::reverse_iterator MC6809LowerSelect::lowerSelect(GSelect &MI) {
     //   %Result = phi [ %TrueValue, TrueMBB ], [ %FalseValue, FalseMBB ]
     //  ...
     Builder.setInsertPt(*SinkMBB, SinkMBB->begin());
-    for (const auto &[Dst, TrueValue, FalseValue] :
-         zip(Dsts, TrueValues, FalseValues)) {
-      Builder.buildInstr(MC6809::G_PHI)
-          .addDef(Dst)
-          .addUse(TrueValue)
-          .addMBB(TrueMBB)
-          .addUse(FalseValue)
-          .addMBB(FalseMBB);
+    for (const auto &[Dst, TrueValue, FalseValue] : zip(Dsts, TrueValues, FalseValues)) {
+      Builder.buildInstr(MC6809::G_PHI).addDef(Dst).addUse(TrueValue).addMBB(TrueMBB).addUse(FalseValue).addMBB(FalseMBB);
     }
   }
   for (const auto Select : SelectsToRemove)
@@ -382,7 +365,7 @@ void MC6809LowerSelect::sinkSelectsToBranchUses(MachineFunction &MF) {
       if (!MRI.hasOneNonDBGUse(Dst))
         continue;
       auto &UseMI = *MRI.use_instr_nodbg_begin(Dst);
-      if (UseMI.getOpcode() != MC6809::G_BRCOND_IMM)
+      if (UseMI.getOpcode() != MC6809::G_BRCOND)
         continue;
       if (UseMI.getParent() != &MBB)
         continue;
@@ -398,6 +381,4 @@ char MC6809LowerSelect::ID = 0;
 
 INITIALIZE_PASS(MC6809LowerSelect, DEBUG_TYPE, "Lower MC6809 Select pseudo-instruction", false, false)
 
-MachineFunctionPass *llvm::createMC6809LowerSelectPass() {
-  return new MC6809LowerSelect();
-}
+MachineFunctionPass *llvm::createMC6809LowerSelectPass() { return new MC6809LowerSelect(); }

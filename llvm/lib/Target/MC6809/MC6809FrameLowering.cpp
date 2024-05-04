@@ -43,16 +43,14 @@ MC6809FrameLowering::MC6809FrameLowering()
     : TargetFrameLowering(StackGrowsDown, /*StackAlignment=*/Align(1),
                           /*LocalAreaOffset=*/0) {}
 
-bool MC6809FrameLowering::usesStaticStack(const MachineFunction &MF) const { return MF.getSubtarget<MC6809Subtarget>().staticStack() && !MF.getFunction().hasOptNone() && MF.getFunction().hasFnAttribute("nonreentrant"); }
-
 bool MC6809FrameLowering::assignCalleeSavedSpillSlots(MachineFunction &MF, const TargetRegisterInfo *TRI, std::vector<CalleeSavedInfo> &CSI) const {
   MachineFrameInfo &MFI = MF.getFrameInfo();
   const auto &MC6809FI = *MF.getInfo<MC6809FunctionInfo>();
 
   size_t HardStackRemaining = 4;
   for (CalleeSavedInfo &Info : CSI) {
-    // Some CSRs may be rewritten to other direct page locations at
-    // MC6809StaticStackAlloc time. These don't need to be spilled.
+    // Some CSRs may be rewritten to direct page locations.
+    // These don't need to be spilled.
     auto It = MC6809FI.CSRDPOffsets.find(Info.getReg());
     if (It != MC6809FI.CSRDPOffsets.end()) {
       Info.setTargetSpilled();
@@ -227,23 +225,7 @@ void MC6809FrameLowering::determineCalleeSaves(MachineFunction &MF, BitVector &S
   }
 }
 
-void MC6809FrameLowering::processFunctionBeforeFrameFinalized(MachineFunction &MF, RegScavenger *RS) const {
-  MachineFrameInfo &MFI = MF.getFrameInfo();
-
-  // Assign all locals to static stack in non-recursive functions.
-  if (usesStaticStack(MF)) {
-    int64_t Offset = 0;
-    for (int Idx : seq(0, MFI.getObjectIndexEnd())) {
-      if (MFI.isDeadObjectIndex(Idx) || MFI.isVariableSizedObjectIndex(Idx) || MFI.getStackID(Idx) != TargetStackID::Default)
-        continue;
-
-      MFI.setStackID(Idx, TargetStackID::MosStatic);
-      MFI.setObjectOffset(Idx, Offset);
-      Offset += MFI.getObjectSize(Idx); // Static stack grows up.
-    }
-    return;
-  }
-}
+void MC6809FrameLowering::processFunctionBeforeFrameFinalized(MachineFunction &MF, RegScavenger *RS) const {}
 
 MachineBasicBlock::iterator MC6809FrameLowering::eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB, MachineBasicBlock::iterator MI) const {
   int64_t Offset = MI->getOperand(0).getImm();
@@ -324,7 +306,7 @@ bool MC6809FrameLowering::hasFP(const MachineFunction &MF) const {
 uint64_t MC6809FrameLowering::staticSize(const MachineFrameInfo &MFI) const {
   uint64_t Size = 0;
   for (int Idx : seq(0, MFI.getObjectIndexEnd()))
-    if (MFI.getStackID(Idx) == TargetStackID::MosStatic)
+    if (MFI.getStackID(Idx) == TargetStackID::Mc6809Static)
       Size += MFI.getObjectSize(Idx);
   return Size;
 }

@@ -45,6 +45,23 @@ def Exchange8 : MC6809Transfer<(ins REGPAIR8:$src1, REGPAIR8:$src2), (outs REGPA
 def Exchange16 : MC6809Transfer<(ins REGPAIR16:$src1, REGPAIR16:$src2), (outs REGPAIR16:$dst1, REGPAIR16:$dst2), "$dst1 = $src2, $dst2 = $src1">;
 
 //===---------------------------------------------------------------------===//
+// Memory block operations
+//===---------------------------------------------------------------------===//
+class MC6809BlockTransfer<dag ins, dag outs, string constraints = ""> : MC6809LogicalInstr {
+  dag OutOperandList = outs;
+  dag InOperandList = ins;
+  let Defs = [AW];
+  let Uses = [AW];
+  let Constraints = constraints;
+  let Predicates = [IsHD6309];
+}
+
+def BlockCopy_Inc_Inc : MC6809Transfer<(ins REGTFM:$src1, REGTFM:$dst1, AWc:$count), (outs REGTFM:$src2, REGTFM:$dst2, AWc:$count1), "$dst1 = $dst2, $src1 = $src2, $count = $count1">;
+def BlockCopy_Dec_Dec : MC6809Transfer<(ins REGTFM:$src1, REGTFM:$dst1, AWc:$count), (outs REGTFM:$src2, REGTFM:$dst2, AWc:$count1), "$dst1 = $dst2, $src1 = $src2, $count = $count1">;
+def BlockCopy_Inc_Stay : MC6809Transfer<(ins REGTFM:$src1, REGTFM:$dst, AWc:$count), (outs REGTFM:$src2, AWc:$count1), "$src1 = $src2, $count = $count1">;
+def BlockCopy_Stay_Inc : MC6809Transfer<(ins REGTFM:$src, REGTFM:$dst1, AWc:$count), (outs REGTFM:$dst2, AWc:$count1), "$dst1 = $dst2, $count = $count1">;
+
+//===---------------------------------------------------------------------===//
 // Stack instructions. These will be squashed together later.
 //===---------------------------------------------------------------------===//
 
@@ -179,7 +196,11 @@ class MC6809StoreBase<RegisterClass src, dag operand> : MC6809LogicalInstr {
 
 multiclass MC6809Store<RegisterClass src> {
   def _Abs : MC6809StoreBase<src, (ins addr16:$addr)>;
-  def _Idx : MC6809StoreBase<src, (ins INDEX16:$idx, unknown:$offset)>;
+  def _Idx_Imm : MC6809StoreBase<src, (ins INDEX16:$idx, i16imm:$offset)>;
+  def _Idx_Reg8 : MC6809StoreBase<src, (ins INDEX16:$idx, ACC8:$offset)>;
+  def _Idx_Reg16 : MC6809StoreBase<src, (ins INDEX16:$idx, ACC16:$offset)>;
+  def _Idx_Inc : MC6809StoreBase<src, (ins INDEX16:$idx)>;
+  def _Dec_Idx : MC6809StoreBase<src, (ins INDEX16:$idx)>;
   def _Indir : MC6809StoreBase<src, (ins INDEX16:$idx, unknown:$offset)>;
 }
 
@@ -192,10 +213,10 @@ let Predicates = [IsHD6309] in {
 }
 
 multiclass MC6809StorePat<ValueType vtype, RegisterClass reg> {
-  def _#vtype#_Idx_Zero : Pat<(store reg:$src, INDEX16:$idx), (!cast<Instruction>("Store_"#vtype#"_Idx") reg:$src, INDEX16:$idx, (i64 0))>;
-  def _#vtype#_Idx_Imm : Pat<(store reg:$src, (am_ls_indexed_imm_offset INDEX16:$idx, i16imm:$offset)), (!cast<Instruction>("Store_"#vtype#"_Idx") reg:$src, INDEX16:$idx, i16imm:$offset)>;
-  def _#vtype#_Idx_Reg8 : Pat<(store reg:$src, (am_ls_indexed_imm_offset INDEX16:$idx, ACC8:$offset)), (!cast<Instruction>("Store_"#vtype#"_Idx") reg:$src, INDEX16:$idx, ACC8:$offset)>;
-  def _#vtype#_Idx_Reg16 : Pat<(store reg:$src, (am_ls_indexed_imm_offset INDEX16:$idx, ACC16:$offset)), (!cast<Instruction>("Store_"#vtype#"_Idx") reg:$src, INDEX16:$idx, ACC16:$offset)>;
+  def _#vtype#_Idx_Zero : Pat<(store reg:$src, INDEX16:$idx), (!cast<Instruction>("Store_"#vtype#"_Idx_Imm") reg:$src, INDEX16:$idx, (i16 0))>;
+  def _#vtype#_Idx_Imm : Pat<(store reg:$src, (am_ls_indexed_imm_offset INDEX16:$idx, i16imm:$offset)), (!cast<Instruction>("Store_"#vtype#"_Idx_Imm") reg:$src, INDEX16:$idx, i16imm:$offset)>;
+  def _#vtype#_Idx_Reg8 : Pat<(store reg:$src, (am_ls_indexed_imm_offset INDEX16:$idx, ACC8:$offset)), (!cast<Instruction>("Store_"#vtype#"_Idx_Reg8") reg:$src, INDEX16:$idx, ACC8:$offset)>;
+  def _#vtype#_Idx_Reg16 : Pat<(store reg:$src, (am_ls_indexed_imm_offset INDEX16:$idx, ACC16:$offset)), (!cast<Instruction>("Store_"#vtype#"_Idx_Reg16") reg:$src, INDEX16:$idx, ACC16:$offset)>;
 }
 
 defm StorePat_i8 : MC6809StorePat<i8, ACC8>;
@@ -686,6 +707,7 @@ multiclass MC6809Compare<ValueType vtype, RegisterClass reg> {
 
 defm Compare_i8 : MC6809Compare<i8, ACC8>;
 defm Compare_i16 : MC6809Compare<i16, ACC16>;
+defm Compare_ptr: MC6809Compare<i16, INDEX16>;
 let Predicates = [IsHD6309] in {
   defm Compare_i32 : MC6809Compare<i32, ACC32>;
 }
@@ -700,6 +722,7 @@ multiclass MC6809CompPat<CondCode CC, int cc, ValueType vtype, RegisterClass reg
 multiclass MC6809CompCondPat<CondCode CC, int ccode> {
   defm _i8 : MC6809CompPat<CC, ccode, i8, ACC8>;
   defm _i16 : MC6809CompPat<CC, ccode, i16, ACC16>;
+  defm _ptr : MC6809CompPat<CC, ccode, i16, INDEX16>;
   let Predicates = [IsHD6309] in {
     defm _i32 : MC6809CompPat<CC, ccode, i32, ACC32>;
   }
@@ -737,8 +760,10 @@ multiclass MC6809Test<RegisterClass reg> {
 }
 
 defm Test_i8 : MC6809Test<ACC8_AB>;
-defm Test_i16 : MC6809Test<ACC16>;
-defm Test_i32 : MC6809Test<ACC32>;
+let Predicates = [IsHD6309] in {
+  defm Test_i16 : MC6809Test<ACC16>;
+  defm Test_i32 : MC6809Test<ACC32>;
+}
 
 multiclass MC6809TestPat<CondCode CC, int cc, ValueType vtype, RegisterClass reg> {
   def _Reg : Pat<(i8 (setcc (vtype 0), reg:$src, CC)), (!cast<Instruction>("Test_"#vtype#"_Reg") cc, reg:$src)>;
@@ -749,8 +774,10 @@ multiclass MC6809TestPat<CondCode CC, int cc, ValueType vtype, RegisterClass reg
 
 multiclass MC6809TestCondPat<CondCode CC, int ccode> {
   defm _i8 : MC6809TestPat<CC, ccode, i8, ACC8_AB>;
-  defm _i16 : MC6809TestPat<CC, ccode, i16, ACC16>;
-  defm _i32 : MC6809TestPat<CC, ccode, i32, ACC32>;
+  let Predicates = [IsHD6309] in {
+    defm _i16 : MC6809TestPat<CC, ccode, i16, ACC16>;
+    defm _i32 : MC6809TestPat<CC, ccode, i32, ACC32>;
+  }
 }
 
 defm TestPat_HI : MC6809TestCondPat<SETUGT, 2>;

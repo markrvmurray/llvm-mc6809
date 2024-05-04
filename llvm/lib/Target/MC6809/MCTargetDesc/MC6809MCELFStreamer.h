@@ -1,4 +1,4 @@
-//===--------- MC6809MCELFStreamer.h - MC6809 subclass of MCELFStreamer ---------===//
+//===--------- MC6809MCELFStreamer.h - MC6809 subclass of MCELFStreamer ----===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -60,7 +60,7 @@ private:
   MXFlagState XState = MXFlagUnknown;
 };
 
-MCStreamer *createMC6809MCELFStreamer(const Triple &T, MCContext &Ctx, std::unique_ptr<MCAsmBackend> &&TAB, std::unique_ptr<MCObjectWriter> &&OW, std::unique_ptr<MCCodeEmitter> &&Emitter, bool RelaxAll);
+MCStreamer *createMC6809MCELFStreamer(const Triple &T, MCContext &Ctx, std::unique_ptr<MCAsmBackend> &&TAB, std::unique_ptr<MCObjectWriter> &&OW, std::unique_ptr<MCCodeEmitter> &&Emitter);
 
 } // end namespace llvm
 

@@ -40,6 +40,7 @@ public:
   bool legalizeLshrEShlE(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI) const;
 
 private:
+  std::optional<MachineOperand> matchAbsoluteAddressing(MachineRegisterInfo &MRI, Register Addr) const;
   // bool legalizeAddSub(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
   // bool legalizeBitwise(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
   bool legalizeExtractInsert(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
@@ -56,7 +57,8 @@ private:
   bool legalizeFCanonicalize(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
   bool legalizeCtlz(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
   bool legalizeBrCond(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
-  // bool legalizeMemIntrinsic(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
+  bool legalizeMemOp(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
+  bool tryTFMBlockCopy(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI) const;
 
   bool shiftRotateLibcall(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
 };

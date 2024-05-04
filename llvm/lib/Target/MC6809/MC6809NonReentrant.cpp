@@ -42,9 +42,7 @@ struct MC6809NonReentrantImpl {
   SmallPtrSet<const CallGraphNode *, 8> ReachableFromOtherNorecurseInterrupt;
   bool HasInterrupts = false;
 
-  MC6809NonReentrantImpl(CallGraph &CG) : CG(CG) {
-    initializeMC6809NonReentrantPass(*PassRegistry::getPassRegistry());
-  }
+  MC6809NonReentrantImpl(CallGraph &CG) : CG(CG) { initializeMC6809NonReentrantPass(*PassRegistry::getPassRegistry()); }
 
   bool run(Module &M);
 
@@ -69,8 +67,7 @@ bool MC6809NonReentrantImpl::run(Module &M) {
   // externally-callable function so add an edge from the calls-external node
   // to the called-by-external node.
   assert(CG.getCallsExternalNode()->empty());
-  CG.getCallsExternalNode()->addCalledFunction(nullptr,
-                                               CG.getExternalCallingNode());
+  CG.getCallsExternalNode()->addCalledFunction(nullptr, CG.getExternalCallingNode());
 
   // Walk the callgraph in bottom-up SCC order.
   scc_iterator<CallGraph *> CGI = scc_begin(&CG);
@@ -113,8 +110,7 @@ bool MC6809NonReentrantImpl::run(Module &M) {
     for (const char *LibcallName : lto::LTO::getRuntimeLibcallSymbols()) {
       Function *Libcall = M.getFunction(LibcallName);
       if (Libcall && !Libcall->isDeclaration()) {
-        LLVM_DEBUG(dbgs() << "Marking libcall as reentrant: "
-                          << Libcall->getName() << "\n");
+        LLVM_DEBUG(dbgs() << "Marking libcall as reentrant: " << Libcall->getName() << "\n");
         Reentrant.insert(CG[Libcall]);
       }
     }
@@ -142,9 +138,7 @@ bool MC6809NonReentrantImpl::runOnSCC(CallGraphSCC &SCC) {
 
   const CallGraphNode &N = **SCC.begin();
 
-  if (!N.getFunction() || N.getFunction()->isDeclaration() ||
-      N.getFunction()->hasFnAttribute("nonreentrant") ||
-      N.getFunction()->doesNotRecurse())
+  if (!N.getFunction() || N.getFunction()->isDeclaration() || N.getFunction()->hasFnAttribute("nonreentrant") || N.getFunction()->doesNotRecurse())
     return false;
 
   // Since the CFG analysis is conservative, any possible indirect recursion
@@ -178,11 +172,8 @@ void MC6809NonReentrantImpl::visitNorecurseInterrupt(const CallGraphNode &CGN) {
   ReachableFromCurrentNorecurseInterrupt.insert(&CGN);
 
   Function *F = CGN.getFunction();
-  if (F && !F->isDeclaration() &&
-      ReachableFromOtherNorecurseInterrupt.contains(&CGN)) {
-    LLVM_DEBUG(
-        dbgs() << "Marking reachable from multiple norecurse interrupts: "
-               << F->getName() << "\n");
+  if (F && !F->isDeclaration() && ReachableFromOtherNorecurseInterrupt.contains(&CGN)) {
+    LLVM_DEBUG(dbgs() << "Marking reachable from multiple norecurse interrupts: " << F->getName() << "\n");
     Reentrant.insert(&CGN);
   }
   for (const auto &CallRecord : CGN)
@@ -194,9 +185,7 @@ namespace {
 struct MC6809NonReentrant : public ModulePass {
   static char ID; // Pass identification, replacement for typeid
 
-  MC6809NonReentrant() : ModulePass(ID) {
-    initializeMC6809NonReentrantPass(*PassRegistry::getPassRegistry());
-  }
+  MC6809NonReentrant() : ModulePass(ID) { initializeMC6809NonReentrantPass(*PassRegistry::getPassRegistry()); }
 
   bool runOnModule(Module &M) override;
   void getAnalysisUsage(AnalysisUsage &Info) const override;
@@ -216,8 +205,7 @@ void MC6809NonReentrant::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addPreserved<CallGraphWrapperPass>();
 }
 
-PreservedAnalyses MC6809NonReentrantPass::run(Module &M,
-                                           ModuleAnalysisManager &AM) {
+PreservedAnalyses MC6809NonReentrantPass::run(Module &M, ModuleAnalysisManager &AM) {
   LLVM_DEBUG(dbgs() << "**** MC6809 NonReentrant Pass ****\n");
 
   CallGraph &CG = AM.getResult<CallGraphAnalysis>(M);
@@ -227,9 +215,6 @@ PreservedAnalyses MC6809NonReentrantPass::run(Module &M,
 
 char MC6809NonReentrant::ID = 0;
 
-INITIALIZE_PASS(
-    MC6809NonReentrant, DEBUG_TYPE,
-    "Detect non-reentrant functions via detailed call graph analysis", false,
-    false)
+INITIALIZE_PASS(MC6809NonReentrant, DEBUG_TYPE, "Detect non-reentrant functions via detailed call graph analysis", false, false)
 
 ModulePass *llvm::createMC6809NonReentrantPass() { return new MC6809NonReentrant(); }

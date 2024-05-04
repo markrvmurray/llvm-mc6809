@@ -104,7 +104,7 @@ private:
   // bool selectMulH(MachineInstr &MI);
 
   // bool selectBranch(MachineInstr &MI);
-  bool selectBrCondImm(MachineInstr &MI);
+  // bool selectBrCondImm(MachineInstr &MI);
   // bool selectConditionalBranch(MachineInstr &MI, MachineFunction &MF, MachineRegisterInfo &MRI);
 
   // Select instructions that correspond 1:1 to a target instruction.
@@ -402,12 +402,10 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
 
   case TargetOpcode::G_BRINDIRECT:
     return selectGeneric(MI);
-#endif
 
   case MC6809::G_BRCOND_IMM:
     return selectBrCondImm(MI);
 
-#if 0
   case TargetOpcode::G_IMPLICIT_DEF:
 #endif
   case TargetOpcode::G_PHI:
@@ -459,7 +457,7 @@ static bool shouldFoldMemAccess(const MachineInstr &Dst, const MachineInstr &Src
     return false;
 
   // Does it pay off to fold the access? Depends on the number of users.
-  //const auto &STI = Dst.getMF()->getSubtarget<MC6809Subtarget>();
+  // const auto &STI = Dst.getMF()->getSubtarget<MC6809Subtarget>();
   const auto &MRI = Dst.getMF()->getRegInfo();
   const auto Users = MRI.use_nodbg_instructions(Src.getOperand(0).getReg());
   const auto NumUsers = std::distance(Users.begin(), Users.end());
@@ -1533,6 +1531,7 @@ struct CMPTermIdx_match : public Cmp_match {
 // was reached.
 inline CMPTermIdx_match m_CMPTermIdx(Register &LHS, MachineOperand &Addr, Register &Idx, Register &Flag, MachineInstr *&Load, bool &DP, AAResults *AA) { return {LHS, Addr, Idx, Flag, Load, DP, AA}; }
 
+#if 0
 bool MC6809InstructionSelector::selectBrCondImm(MachineInstr &MI) {
   MachineRegisterInfo &MRI = MI.getMF()->getRegInfo();
 
@@ -1589,6 +1588,7 @@ bool MC6809InstructionSelector::selectBrCondImm(MachineInstr &MI) {
   MI.eraseFromParent();
   return true;
 }
+#endif
 
 #if 0
 bool MC6809InstructionSelector::selectBranch(MachineInstr &MI) {

@@ -33,13 +33,13 @@ class MC6809GenericInstruction : GenericInstruction {
 // would require making 1-bit G_XORs legal. However, they are only legal when
 // used in this way, so the legalizer handles this instead, that way the
 // remaining unhandled G_XORs can be widened to 8 bits.
-def G_BRCOND_IMM : MC6809GenericInstruction {
-  let OutOperandList = (outs);
-  let InOperandList = (ins type0:$tst, unknown:$truebb, i1imm:$tstval);
-
-  let isBranch = true;
-  let isTerminator = true;
-}
+//def G_BRCOND_IMM : MC6809GenericInstruction {
+//  let OutOperandList = (outs);
+//  let InOperandList = (ins type0:$tst, unknown:$truebb, i1imm:$tstval);
+//
+//  let isBranch = true;
+//  let isTerminator = true;
+//}
 
 // Generalized load using the absolute addressing mode. The address
 // argument isn't a pointer; it's either a global value or a 16-bit immediate.

@@ -277,6 +277,7 @@ let isPressureFineGrained = true in {
   def REGLIST16 : MC6809Reg16Class<(add AD, AW, IX, IY, SU, SS, PC)>; // Registers which can be pushed/popped
   def REGPAIR8 : MC6809Reg8Class<(add AA, AB, CC, DP, A0, AE, AF)>; // Registers for EXG, TFR
   def REGPAIR16 : MC6809Reg16Class<(add AD, IX, IY, SU, SS, PC, AW, AV)>; // Registers for EXG, TFR
+  def REGTFM : MC6809Reg16Class<(add AD, IX, IY, SU, SS)>; // Registers for TFM
 
   // Pointer and stack registers
   def INDEX16 : MC6809Reg16Class<(add IX, IY, SU, SS)>;

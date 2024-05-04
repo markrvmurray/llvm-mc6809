@@ -22,8 +22,6 @@ class MC6809FrameLowering : public TargetFrameLowering {
 public:
   MC6809FrameLowering();
 
-  bool usesStaticStack(const MachineFunction &MF) const;
-
   bool assignCalleeSavedSpillSlots(MachineFunction &MF, const TargetRegisterInfo *TRI, std::vector<CalleeSavedInfo> &CSI) const override;
 
   bool enableShrinkWrapping(const MachineFunction &MF) const override;

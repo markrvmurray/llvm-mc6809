@@ -26,18 +26,17 @@
 #include "llvm/IR/Function.h"
 #include "llvm/Support/ErrorHandling.h"
 
-#include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "MC6809.h"
 #include "MC6809InstrBuilder.h"
 #include "MC6809InstrInfo.h"
 #include "MC6809RegisterInfo.h"
 #include "MC6809Subtarget.h"
 #include "MC6809TargetMachine.h"
+#include "MCTargetDesc/MC6809MCTargetDesc.h"
 
 using namespace llvm;
 
-MC6809TargetLowering::MC6809TargetLowering(const MC6809TargetMachine &TM, const MC6809Subtarget &STI)
-    : TargetLowering(TM) {
+MC6809TargetLowering::MC6809TargetLowering(const MC6809TargetMachine &TM, const MC6809Subtarget &STI) : TargetLowering(TM) {
   addRegisterClass(MVT::i1, &MC6809::BIT1RegClass);
   addRegisterClass(MVT::i8, &MC6809::ACC8RegClass);
   addRegisterClass(MVT::i16, &MC6809::ACC16RegClass);
@@ -66,9 +65,7 @@ MC6809TargetLowering::MC6809TargetLowering(const MC6809TargetMachine &TM, const 
   setMaximumJumpTableSize(std::min(256u, getMaximumJumpTableSize()));
 }
 
-MVT MC6809TargetLowering::getRegisterTypeForCallingConv(
-    LLVMContext &Context, CallingConv::ID CC, EVT VT,
-    const ISD::ArgFlagsTy &Flags) const {
+MVT MC6809TargetLowering::getRegisterTypeForCallingConv(LLVMContext &Context, CallingConv::ID CC, EVT VT, const ISD::ArgFlagsTy &Flags) const {
   if (Flags.isPointer())
     return Flags.getPointerAddrSpace() == MC6809::AS_DirectPage ? MVT::i8 : MVT::i16;
   return TargetLowering::getRegisterTypeForCallingConv(Context, CC, VT, Flags);
@@ -165,8 +162,7 @@ bool MC6809TargetLowering::isLegalAddressingMode(const DataLayout &DL, const Add
 
     // Indirect indexed addressing mode: 16-bit register + 8-bit index register.
     // Doesn't matter which is 8-bit and which is 16-bit.
-    return !AM.BaseGV && !AM.BaseOffs &&
-           (is8BitIndex(AM.BaseType) || is8BitIndex(AM.ScaleType));
+    return !AM.BaseGV && !AM.BaseOffs && (is8BitIndex(AM.BaseType) || is8BitIndex(AM.ScaleType));
   }
 
   if (AM.HasBaseReg) {
@@ -243,7 +239,7 @@ static MachineBasicBlock *emitSelectImm(MachineInstr &MI, MachineBasicBlock *MBB
   MachineBasicBlock *HeadMBB = MBB;
   MachineFunction *F = MBB->getParent();
 
-  //const MC6809Subtarget &STI = F->getSubtarget<MC6809Subtarget>();
+  // const MC6809Subtarget &STI = F->getSubtarget<MC6809Subtarget>();
 
   // Split out all instructions after MI into a new basic block, updating
   // liveins.

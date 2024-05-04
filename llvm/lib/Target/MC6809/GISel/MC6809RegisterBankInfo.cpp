@@ -46,7 +46,7 @@ MC6809RegisterBankInfo::MC6809RegisterBankInfo(/* const TargetRegisterInfo &TRI 
 
   // The ACCUM register bank is fully defined by all the registers in
   // AQ + its subclasses.
-  //assert(RBACCUM.covers(*TRI.getRegClass(MC6809::ACC32RegClassID)) && "Subclass not added?");
+  // assert(RBACCUM.covers(*TRI.getRegClass(MC6809::ACC32RegClassID)) && "Subclass not added?");
 }
 
 const RegisterBank &MC6809RegisterBankInfo::getRegBankFromRegClass(const TargetRegisterClass &RC, LLT) const {

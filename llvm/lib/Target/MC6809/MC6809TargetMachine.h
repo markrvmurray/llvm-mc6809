@@ -26,25 +26,18 @@ namespace llvm {
 /// A generic MC6809 implementation.
 class MC6809TargetMachine : public LLVMTargetMachine {
 public:
-  MC6809TargetMachine(const Target &T, const Triple &TT, StringRef CPU,
-                   StringRef FS, const TargetOptions &Options,
-                   std::optional<Reloc::Model> RM,
-                   std::optional<CodeModel::Model> CM, CodeGenOptLevel OL,
-                   bool JIT);
+  MC6809TargetMachine(const Target &T, const Triple &TT, StringRef CPU, StringRef FS, const TargetOptions &Options, std::optional<Reloc::Model> RM, std::optional<CodeModel::Model> CM, CodeGenOptLevel OL, bool JIT);
 
   const MC6809Subtarget *getSubtargetImpl() const { return &SubTarget; }
   const MC6809Subtarget *getSubtargetImpl(const Function &F) const override;
 
-  TargetLoweringObjectFile *getObjFileLowering() const override {
-    return this->TLOF.get();
-  }
+  TargetLoweringObjectFile *getObjFileLowering() const override { return this->TLOF.get(); }
 
   TargetTransformInfo getTargetTransformInfo(const Function &F) const override;
 
   bool hasNoInitSection() const override { return true; }
 
-  void registerPassBuilderCallbacks(PassBuilder &,
-                                    bool PopulateClassToPassNames) override;
+  void registerPassBuilderCallbacks(PassBuilder &, bool PopulateClassToPassNames) override;
 
   TargetPassConfig *createPassConfig(PassManagerBase &PM) override;
 
@@ -54,9 +47,7 @@ public:
 
   StringRef getSectionPrefix(const GlobalObject *GO) const override;
 
-  MachineFunctionInfo *
-  createMachineFunctionInfo(BumpPtrAllocator &Allocator, const Function &F,
-                            const TargetSubtargetInfo *STI) const override;
+  MachineFunctionInfo *createMachineFunctionInfo(BumpPtrAllocator &Allocator, const Function &F, const TargetSubtargetInfo *STI) const override;
 
 private:
   std::unique_ptr<TargetLoweringObjectFile> TLOF;

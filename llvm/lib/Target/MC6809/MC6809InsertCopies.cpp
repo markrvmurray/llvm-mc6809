@@ -19,9 +19,9 @@
 
 #include "MC6809InsertCopies.h"
 
-#include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "MC6809.h"
 #include "MC6809RegisterInfo.h"
+#include "MCTargetDesc/MC6809MCTargetDesc.h"
 
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
@@ -40,9 +40,7 @@ class MC6809InsertCopies : public MachineFunctionPass {
 public:
   static char ID;
 
-  MC6809InsertCopies() : MachineFunctionPass(ID) {
-    llvm::initializeMC6809InsertCopiesPass(*PassRegistry::getPassRegistry());
-  }
+  MC6809InsertCopies() : MachineFunctionPass(ID) { llvm::initializeMC6809InsertCopiesPass(*PassRegistry::getPassRegistry()); }
 
   bool runOnMachineFunction(MachineFunction &MF) override;
 };
@@ -51,7 +49,9 @@ bool MC6809InsertCopies::runOnMachineFunction(MachineFunction &MF) {
   if (skipFunction(MF.getFunction()))
     return false;
 
+#if 0
   MachineRegisterInfo &MRI = MF.getRegInfo();
+#endif
 
   bool Changed = false;
 #if 0
@@ -128,6 +128,4 @@ char MC6809InsertCopies::ID = 0;
 
 INITIALIZE_PASS(MC6809InsertCopies, DEBUG_TYPE, "MC6809 Copy Insertion", false, false)
 
-MachineFunctionPass *llvm::createMC6809InsertCopiesPass() {
-  return new MC6809InsertCopies;
-}
+MachineFunctionPass *llvm::createMC6809InsertCopiesPass() { return new MC6809InsertCopies; }

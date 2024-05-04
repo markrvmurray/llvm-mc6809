@@ -43,9 +43,7 @@ MCInstrInfo *createMC6809MCInstrInfo();
 MCCodeEmitter *createMC6809MCCodeEmitter(const MCInstrInfo &MCII, MCContext &Ctx);
 
 /// Creates an assembly backend for MC6809.
-MCAsmBackend *createMC6809AsmBackend(const Target &T, const MCSubtargetInfo &STI,
-                                  const MCRegisterInfo &MRI,
-                                  const llvm::MCTargetOptions &TO);
+MCAsmBackend *createMC6809AsmBackend(const Target &T, const MCSubtargetInfo &STI, const MCRegisterInfo &MRI, const llvm::MCTargetOptions &TO);
 
 /// Creates an ELF object writer for MC6809.
 std::unique_ptr<MCObjectTargetWriter> createMC6809ELFObjectWriter(uint8_t OSABI);
@@ -73,28 +71,13 @@ template <> struct enum_iteration_traits<decltype(MC6809::NoRegister)> {
 
 namespace MC6809Op {
 
-enum OperandType : unsigned {
-  OPERAND_IMM8 = MCOI::OPERAND_FIRST_TARGET,
-  OPERAND_ADDR8,
-  OPERAND_ADDR16,
-  OPERAND_IMM16,
-  OPERAND_IMM3,
-  OPERAND_ADDR24,
-  OPERAND_IMM24,
-  OPERAND_ADDR13,
-  OPERAND_IMM4
-};
+enum OperandType : unsigned { OPERAND_IMM8 = MCOI::OPERAND_FIRST_TARGET, OPERAND_ADDR8, OPERAND_ADDR16, OPERAND_IMM16, OPERAND_IMM3, OPERAND_ADDR24, OPERAND_IMM24, OPERAND_ADDR13, OPERAND_IMM4 };
 
 } // namespace MC6809Op
 
 namespace MC6809 {
 
-enum TSFlag {
-  TSFlagMLow = (1 << 0),
-  TSFlagMHigh = (1 << 1),
-  TSFlagXLow = (1 << 2),
-  TSFlagXHigh = (1 << 3)
-};
+enum TSFlag { TSFlagMLow = (1 << 0), TSFlagMHigh = (1 << 1), TSFlagXLow = (1 << 2), TSFlagXHigh = (1 << 3) };
 
 bool isDirectPageSectionName(StringRef Name);
 } // namespace MC6809

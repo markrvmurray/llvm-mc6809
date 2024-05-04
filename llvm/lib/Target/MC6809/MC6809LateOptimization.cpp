@@ -16,11 +16,11 @@
 
 #include "MC6809LateOptimization.h"
 
-#include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "MC6809.h"
 #include "MC6809InstrBuilder.h"
 #include "MC6809RegisterInfo.h"
 #include "MC6809Subtarget.h"
+#include "MCTargetDesc/MC6809MCTargetDesc.h"
 
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
@@ -40,9 +40,7 @@ class MC6809LateOptimization : public MachineFunctionPass {
 public:
   static char ID;
 
-  MC6809LateOptimization() : MachineFunctionPass(ID) {
-    llvm::initializeMC6809LateOptimizationPass(*PassRegistry::getPassRegistry());
-  }
+  MC6809LateOptimization() : MachineFunctionPass(ID) { llvm::initializeMC6809LateOptimizationPass(*PassRegistry::getPassRegistry()); }
 
   bool runOnMachineFunction(MachineFunction &MF) override;
   bool tailJMP(MachineBasicBlock &MBB) const;
@@ -76,9 +74,6 @@ bool MC6809LateOptimization::tailJMP(MachineBasicBlock &MBB) const {
 
 char MC6809LateOptimization::ID = 0;
 
-INITIALIZE_PASS(MC6809LateOptimization, DEBUG_TYPE, "MC6809 Late Optimizations",
-                false, false)
+INITIALIZE_PASS(MC6809LateOptimization, DEBUG_TYPE, "MC6809 Late Optimizations", false, false)
 
-MachineFunctionPass *llvm::createMC6809LateOptimizationPass() {
-  return new MC6809LateOptimization;
-}
+MachineFunctionPass *llvm::createMC6809LateOptimizationPass() { return new MC6809LateOptimization; }

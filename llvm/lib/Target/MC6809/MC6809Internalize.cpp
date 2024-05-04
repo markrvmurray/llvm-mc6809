@@ -47,21 +47,15 @@ class MC6809Internalize : public ModulePass {
 public:
   static char ID;
 
-  MC6809Internalize() : ModulePass(ID) {
-    llvm::initializeMC6809InternalizePass(*PassRegistry::getPassRegistry());
-  }
+  MC6809Internalize() : ModulePass(ID) { llvm::initializeMC6809InternalizePass(*PassRegistry::getPassRegistry()); }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override;
 
   bool runOnModule(Module &M) override;
 
-  DenseMap<std::pair<Function *, GlobalValue *>, Instruction *>
-  insertDummyIRLibcalls(Module &M) const;
+  DenseMap<std::pair<Function *, GlobalValue *>, Instruction *> insertDummyIRLibcalls(Module &M) const;
 
-  void eraseDummyIRLibcalls(
-      DenseMap<std::pair<Function *, GlobalValue *>, Instruction *>
-          DummyIRLibcalls,
-      const DenseSet<Function *> &ErasedFunctions) const;
+  void eraseDummyIRLibcalls(DenseMap<std::pair<Function *, GlobalValue *>, Instruction *> DummyIRLibcalls, const DenseSet<Function *> &ErasedFunctions) const;
 };
 
 } // namespace
@@ -74,8 +68,7 @@ void MC6809Internalize::getAnalysisUsage(AnalysisUsage &AU) const {
 bool MC6809Internalize::runOnModule(Module &M) {
   MMI = &getAnalysis<MachineModuleInfoWrapperPass>().getMMI();
 
-  DenseMap<std::pair<Function *, GlobalValue *>, Instruction *>
-      DummyIRLibcalls = insertDummyIRLibcalls(M);
+  DenseMap<std::pair<Function *, GlobalValue *>, Instruction *> DummyIRLibcalls = insertDummyIRLibcalls(M);
   if (DummyIRLibcalls.empty())
     return false;
 
@@ -109,8 +102,7 @@ bool MC6809Internalize::runOnModule(Module &M) {
   return true;
 }
 
-DenseMap<std::pair<Function *, GlobalValue *>, Instruction *>
-MC6809Internalize::insertDummyIRLibcalls(Module &M) const {
+DenseMap<std::pair<Function *, GlobalValue *>, Instruction *> MC6809Internalize::insertDummyIRLibcalls(Module &M) const {
   DenseMap<std::pair<Function *, GlobalValue *>, Instruction *> DummyIRLibcalls;
 
   for (Function &F : M) {
@@ -136,11 +128,9 @@ MC6809Internalize::insertDummyIRLibcalls(Module &M) const {
           std::pair<Function *, GlobalValue *> KV = {&F, Callee};
           if (DummyIRLibcalls.contains(KV))
             continue;
-          auto Res = DummyIRLibcalls.try_emplace(
-              KV, Builder.CreateCall(
-                      FunctionType::get(Type::getVoidTy(F.getContext()),
-                                        /*isVarArg=*/false),
-                      Callee));
+          auto Res = DummyIRLibcalls.try_emplace(KV, Builder.CreateCall(FunctionType::get(Type::getVoidTy(F.getContext()),
+                                                                                          /*isVarArg=*/false),
+                                                                        Callee));
           (void)Res;
           assert(Res.second);
         }
@@ -151,10 +141,7 @@ MC6809Internalize::insertDummyIRLibcalls(Module &M) const {
   return DummyIRLibcalls;
 }
 
-void MC6809Internalize::eraseDummyIRLibcalls(
-    DenseMap<std::pair<Function *, GlobalValue *>, Instruction *>
-        DummyIRLibcalls,
-    const DenseSet<Function *> &ErasedFunctions) const {
+void MC6809Internalize::eraseDummyIRLibcalls(DenseMap<std::pair<Function *, GlobalValue *>, Instruction *> DummyIRLibcalls, const DenseSet<Function *> &ErasedFunctions) const {
   for (const auto &KV : DummyIRLibcalls) {
     Function *Caller = KV.first.first;
     Instruction *I = KV.second;
@@ -166,7 +153,6 @@ void MC6809Internalize::eraseDummyIRLibcalls(
 
 char MC6809Internalize::ID = 0;
 
-INITIALIZE_PASS(MC6809Internalize, DEBUG_TYPE, "MC6809 internalize libcalls", false,
-                false)
+INITIALIZE_PASS(MC6809Internalize, DEBUG_TYPE, "MC6809 internalize libcalls", false, false)
 
 ModulePass *llvm::createMC6809InternalizePass() { return new MC6809Internalize(); }
