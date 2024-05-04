@@ -84,7 +84,6 @@ public:
 
   bool has6809() const { return Has6809Insns; }
   bool has6309() const { return Has6309Insns; }
-  bool staticStack() const { return StaticStack; }
 
 private:
   /// The ELF e_flags architecture features.
@@ -94,7 +93,6 @@ private:
   bool Has6309Insns = false;
 
   bool LongRegisterNames = false;
-  bool StaticStack = false;
 
   // Dummy member, used by FeatureSet's. We cannot have a SubtargetFeature with
   // no variable, so we instead bind pseudo features to this variable.

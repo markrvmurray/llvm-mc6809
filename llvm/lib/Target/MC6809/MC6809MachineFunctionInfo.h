@@ -23,8 +23,6 @@ struct MC6809FunctionInfo : public MachineFunctionInfo {
   MC6809FunctionInfo(const Function &F, const MC6809Subtarget *STI) {}
 
   int VarArgsStackIndex = -1;
-  const GlobalValue *StaticStackValue = nullptr;
-  const GlobalValue *DirectPageStackValue = nullptr;
   DenseMap<Register, size_t> CSRDPOffsets;
 };
 

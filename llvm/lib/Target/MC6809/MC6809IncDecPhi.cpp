@@ -13,8 +13,8 @@
 
 #include "MC6809IncDecPhi.h"
 
-#include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "MC6809.h"
+#include "MCTargetDesc/MC6809MCTargetDesc.h"
 
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
 #include "llvm/CodeGen/GlobalISel/Utils.h"
@@ -32,9 +32,7 @@ class MC6809IncDecPhi : public MachineFunctionPass {
 public:
   static char ID;
 
-  MC6809IncDecPhi() : MachineFunctionPass(ID) {
-    llvm::initializeMC6809IncDecPhiPass(*PassRegistry::getPassRegistry());
-  }
+  MC6809IncDecPhi() : MachineFunctionPass(ID) { llvm::initializeMC6809IncDecPhiPass(*PassRegistry::getPassRegistry()); }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequired<MachineDominatorTree>();
@@ -46,10 +44,7 @@ public:
 
 } // namespace
 
-static bool matchPhiOneNegOne(const MachineInstr &MI,
-                              const MachineRegisterInfo &MRI,
-                              MachineBasicBlock *&IncMBB, Register &OneReg,
-                              MachineBasicBlock *&DecMBB, Register &NegOneReg) {
+static bool matchPhiOneNegOne(const MachineInstr &MI, const MachineRegisterInfo &MRI, MachineBasicBlock *&IncMBB, Register &OneReg, MachineBasicBlock *&DecMBB, Register &NegOneReg) {
   if (MI.getOpcode() != MC6809::G_PHI)
     return false;
   if (MI.getNumOperands() != 5)
@@ -74,9 +69,7 @@ static bool matchPhiOneNegOne(const MachineInstr &MI,
   return HasOneReg && HasNegOneReg;
 }
 
-static MachineInstr *matchFoldableStore(Register Dst,
-                                        const MachineInstr &ValDef,
-                                        const MachineRegisterInfo &MRI) {
+static MachineInstr *matchFoldableStore(Register Dst, const MachineInstr &ValDef, const MachineRegisterInfo &MRI) {
   if (!MRI.hasOneNonDBGUse(Dst))
     return nullptr;
   MachineInstr &MI = *MRI.use_instr_nodbg_begin(Dst);
@@ -92,8 +85,7 @@ static MachineInstr *matchFoldableStore(Register Dst,
   return &MI;
 }
 
-static MachineBasicBlock *splitCriticalEdge(MachineBasicBlock &MBB,
-                                            MachineBasicBlock &Succ) {
+static MachineBasicBlock *splitCriticalEdge(MachineBasicBlock &MBB, MachineBasicBlock &Succ) {
   MachineFunction &MF = *MBB.getParent();
 
   if (std::prev(MBB.end())->getOpcode() != MC6809::G_BR) {
@@ -187,11 +179,9 @@ bool MC6809IncDecPhi::runOnMachineFunction(MachineFunction &MF) {
       if (ValDef->getParent() == &MBB) {
         IncMBBVal = MRI.createGenericVirtualRegister(MRI.getType(Val));
         MachineInstr *IncValDef = MBB.getParent()->CloneMachineInstr(ValDef);
-        IncValDef->substituteRegister(Val, IncMBBVal, 0,
-                                      *MRI.getTargetRegisterInfo());
+        IncValDef->substituteRegister(Val, IncMBBVal, 0, *MRI.getTargetRegisterInfo());
         IncMBB->insert(IncMBB->getFirstTerminator(), IncValDef);
-        DecMBB->insert(DecMBB->getFirstTerminator(),
-                       ValDef->removeFromParent());
+        DecMBB->insert(DecMBB->getFirstTerminator(), ValDef->removeFromParent());
       }
 
       MachineIRBuilder MIB(*IncMBB, IncMBB->getFirstTerminator());
@@ -199,24 +189,16 @@ bool MC6809IncDecPhi::runOnMachineFunction(MachineFunction &MF) {
       MIB.setInsertPt(*DecMBB, DecMBB->getFirstTerminator());
       Register Dec = MIB.buildAdd(Ty, DecMBBVal, NegOneReg).getReg(0);
       MIB.setInsertPt(MBB, MBB.begin());
-      MIB.buildInstr(MC6809::G_PHI)
-          .addDef(Dst)
-          .addUse(Inc)
-          .addMBB(IncMBB)
-          .addUse(Dec)
-          .addMBB(DecMBB);
+      MIB.buildInstr(MC6809::G_PHI).addDef(Dst).addUse(Inc).addMBB(IncMBB).addUse(Dec).addMBB(DecMBB);
       --I;
       MI.eraseFromParent();
 
       if (FoldableStore) {
-        MachineInstr *IncStore =
-            MBB.getParent()->CloneMachineInstr(FoldableStore);
+        MachineInstr *IncStore = MBB.getParent()->CloneMachineInstr(FoldableStore);
         IncStore->substituteRegister(Dst, Inc, 0, *MRI.getTargetRegisterInfo());
         IncMBB->insert(IncMBB->getFirstTerminator(), IncStore);
-        FoldableStore->substituteRegister(Dst, Dec, 0,
-                                          *MRI.getTargetRegisterInfo());
-        DecMBB->insert(DecMBB->getFirstTerminator(),
-                       FoldableStore->removeFromParent());
+        FoldableStore->substituteRegister(Dst, Dec, 0, *MRI.getTargetRegisterInfo());
+        DecMBB->insert(DecMBB->getFirstTerminator(), FoldableStore->removeFromParent());
       }
 
       Changed = true;
@@ -228,14 +210,8 @@ bool MC6809IncDecPhi::runOnMachineFunction(MachineFunction &MF) {
 
 char MC6809IncDecPhi::ID = 0;
 
-INITIALIZE_PASS_BEGIN(MC6809IncDecPhi, DEBUG_TYPE,
-                      "Optimize MC6809 Increment/Decrement PHI pattern", false,
-                      false)
+INITIALIZE_PASS_BEGIN(MC6809IncDecPhi, DEBUG_TYPE, "Optimize MC6809 Increment/Decrement PHI pattern", false, false)
 INITIALIZE_PASS_DEPENDENCY(MachineDominatorTree)
-INITIALIZE_PASS_END(MC6809IncDecPhi, DEBUG_TYPE,
-                    "Optimize MC6809 Increment/Decrement PHI pattern", false,
-                    false)
+INITIALIZE_PASS_END(MC6809IncDecPhi, DEBUG_TYPE, "Optimize MC6809 Increment/Decrement PHI pattern", false, false)
 
-MachineFunctionPass *llvm::createMC6809IncDecPhiPass() {
-  return new MC6809IncDecPhi();
-}
+MachineFunctionPass *llvm::createMC6809IncDecPhiPass() { return new MC6809IncDecPhi(); }

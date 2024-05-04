@@ -13,11 +13,11 @@
 
 #include "MC6809CopyOpt.h"
 
-#include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "MC6809.h"
 #include "MC6809InstrCost.h"
 #include "MC6809RegisterInfo.h"
 #include "MC6809Subtarget.h"
+#include "MCTargetDesc/MC6809MCTargetDesc.h"
 
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/PostOrderIterator.h"
@@ -37,19 +37,14 @@ class MC6809CopyOpt : public MachineFunctionPass {
 public:
   static char ID;
 
-  MC6809CopyOpt() : MachineFunctionPass(ID) {
-    llvm::initializeMC6809CopyOptPass(*PassRegistry::getPassRegistry());
-  }
+  MC6809CopyOpt() : MachineFunctionPass(ID) { llvm::initializeMC6809CopyOptPass(*PassRegistry::getPassRegistry()); }
 
   bool runOnMachineFunction(MachineFunction &MF) override;
 };
 
 } // namespace
 
-template <typename AcceptDefT>
-static bool findReachingDefs(MachineInstr &MI,
-                             SmallVectorImpl<MachineInstr *> &DefMIs,
-                             const AcceptDefT &AcceptDef) {
+template <typename AcceptDefT> static bool findReachingDefs(MachineInstr &MI, SmallVectorImpl<MachineInstr *> &DefMIs, const AcceptDefT &AcceptDef) {
   assert(MI.isCopy());
   const TargetRegisterInfo &TRI = *MI.getMF()->getSubtarget().getRegisterInfo();
 
@@ -60,8 +55,7 @@ static bool findReachingDefs(MachineInstr &MI,
     MachineBasicBlock::reverse_iterator I;
   };
 
-  SmallVector<Entry> WorkList = {
-      {*MI.getParent(), MachineBasicBlock::reverse_iterator(MI.getIterator())}};
+  SmallVector<Entry> WorkList = {{*MI.getParent(), MachineBasicBlock::reverse_iterator(MI.getIterator())}};
   DenseSet<const MachineBasicBlock *> Seen;
   while (!WorkList.empty()) {
     Entry E = WorkList.back();
@@ -96,8 +90,7 @@ static bool findReachingDefs(MachineInstr &MI,
   return true;
 }
 
-static Register findForwardedCopy(MachineInstr &MI,
-                                  SmallVectorImpl<MachineInstr *> &NewSrcMIs) {
+static Register findForwardedCopy(MachineInstr &MI, SmallVectorImpl<MachineInstr *> &NewSrcMIs) {
   Register Src = MI.getOperand(1).getReg();
   Register NewSrc = 0;
   if (!findReachingDefs(MI, NewSrcMIs, [&](MachineInstr &Def) {
@@ -117,8 +110,7 @@ static Register findForwardedCopy(MachineInstr &MI,
   return NewSrc;
 }
 
-static bool findLdImm(MachineInstr &MI,
-                      SmallVectorImpl<MachineInstr *> &LdImms) {
+static bool findLdImm(MachineInstr &MI, SmallVectorImpl<MachineInstr *> &LdImms) {
   const TargetRegisterInfo &TRI = *MI.getMF()->getSubtarget().getRegisterInfo();
   const TargetInstrInfo &TII = *MI.getMF()->getSubtarget().getInstrInfo();
   Register Dst = MI.getOperand(0).getReg();
@@ -128,8 +120,7 @@ static bool findLdImm(MachineInstr &MI,
       return false;
     if (Def.getOperand(0).getReg() != Src)
       return false;
-    const TargetRegisterClass *RC =
-        TII.getRegClass(Def.getDesc(), 0, &TRI, *MI.getMF());
+    const TargetRegisterClass *RC = TII.getRegClass(Def.getDesc(), 0, &TRI, *MI.getMF());
     if (!RC->contains(Dst))
       return false;
     if (LdImms.empty())
@@ -138,8 +129,7 @@ static bool findLdImm(MachineInstr &MI,
   });
 }
 
-static bool isClobbered(MachineInstr &MI, Register NewSrc,
-                        const SmallVectorImpl<MachineInstr *> &NewSrcMIs) {
+static bool isClobbered(MachineInstr &MI, Register NewSrc, const SmallVectorImpl<MachineInstr *> &NewSrcMIs) {
   const TargetRegisterInfo &TRI = *MI.getMF()->getSubtarget().getRegisterInfo();
 
   struct Entry {
@@ -147,8 +137,7 @@ static bool isClobbered(MachineInstr &MI, Register NewSrc,
     MachineBasicBlock::reverse_iterator I;
   };
 
-  SmallVector<Entry> WorkList = {
-      {*MI.getParent(), MachineBasicBlock::reverse_iterator(MI.getIterator())}};
+  SmallVector<Entry> WorkList = {{*MI.getParent(), MachineBasicBlock::reverse_iterator(MI.getIterator())}};
   DenseSet<const MachineBasicBlock *> Seen;
   while (!WorkList.empty()) {
     Entry E = WorkList.back();
@@ -197,8 +186,7 @@ bool MC6809CopyOpt::runOnMachineFunction(MachineFunction &MF) {
         continue;
 
       LLVM_DEBUG(dbgs() << MI);
-      LLVM_DEBUG(dbgs() << "Found candidate: " << printReg(NewSrc, &TRI)
-                        << '\n');
+      LLVM_DEBUG(dbgs() << "Found candidate: " << printReg(NewSrc, &TRI) << '\n');
 
       if (TRI.copyCost(Dst, NewSrc, STI).value(CostMode) > TRI.copyCost(Dst, Src, STI).value(CostMode)) {
         LLVM_DEBUG(dbgs() << "New copy is more expensive.\n");
@@ -230,9 +218,7 @@ bool MC6809CopyOpt::runOnMachineFunction(MachineFunction &MF) {
       auto [Dst, Src] = MI.getFirst2Regs();
       auto LdImmCostVal = MC6809InstrCost(2, 2).value(CostMode);
 
-      if (!MC6809::Imag16RegClass.contains(Dst) && Dst != MC6809::C &&
-          Dst != MC6809::V &&
-          TRI.copyCost(Dst, Src, STI).value(CostMode) <= LdImmCostVal)
+      if (!MC6809::Imag16RegClass.contains(Dst) && Dst != MC6809::C && Dst != MC6809::V && TRI.copyCost(Dst, Src, STI).value(CostMode) <= LdImmCostVal)
         continue;
 
       SmallVector<MachineInstr *> LdImms;

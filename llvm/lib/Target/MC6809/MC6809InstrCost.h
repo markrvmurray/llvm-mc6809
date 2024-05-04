@@ -20,56 +20,38 @@ namespace llvm {
 
 class MC6809InstrCost {
 public:
-  enum class Mode {
-    PreferBytes,
-    PreferCycles,
-    Average
-  };
+  enum class Mode { PreferBytes, PreferCycles, Average };
 
   MC6809InstrCost() : Bytes(0), Cycles(0) {}
 
-  MC6809InstrCost(int32_t Bytes, int32_t Cycles)
-    : MC6809InstrCost(Bytes, Cycles, 256) {}
+  MC6809InstrCost(int32_t Bytes, int32_t Cycles) : MC6809InstrCost(Bytes, Cycles, 256) {}
 
-  friend MC6809InstrCost operator+(MC6809InstrCost Left,
-                                const MC6809InstrCost& Right) {
-    return MC6809InstrCost(Left.Bytes + Right.Bytes,
-                        Left.Cycles + Right.Cycles, 1);
-  }
+  friend MC6809InstrCost operator+(MC6809InstrCost Left, const MC6809InstrCost &Right) { return MC6809InstrCost(Left.Bytes + Right.Bytes, Left.Cycles + Right.Cycles, 1); }
 
-  MC6809InstrCost& operator+=(const MC6809InstrCost& Right) {
+  MC6809InstrCost &operator+=(const MC6809InstrCost &Right) {
     this->Bytes += Right.Bytes;
     this->Cycles += Right.Cycles;
     return *this;
   }
 
-  friend MC6809InstrCost operator-(MC6809InstrCost Left,
-                                const MC6809InstrCost& Right) {
-    return MC6809InstrCost(Left.Bytes - Right.Bytes,
-                        Left.Cycles - Right.Cycles, 1);
-  }
+  friend MC6809InstrCost operator-(MC6809InstrCost Left, const MC6809InstrCost &Right) { return MC6809InstrCost(Left.Bytes - Right.Bytes, Left.Cycles - Right.Cycles, 1); }
 
-  MC6809InstrCost& operator-=(const MC6809InstrCost& Right) {
+  MC6809InstrCost &operator-=(const MC6809InstrCost &Right) {
     this->Bytes -= Right.Bytes;
     this->Cycles -= Right.Cycles;
     return *this;
   }
 
-  friend MC6809InstrCost operator*(MC6809InstrCost Left, int Right) {
-    return MC6809InstrCost(Left.Bytes * Right, Left.Cycles * Right, 1);
-  }
+  friend MC6809InstrCost operator*(MC6809InstrCost Left, int Right) { return MC6809InstrCost(Left.Bytes * Right, Left.Cycles * Right, 1); }
 
-  friend MC6809InstrCost operator/(MC6809InstrCost Left, int Right) {
-    return MC6809InstrCost(Left.Bytes / Right, Left.Cycles / Right, 1);
-  }
+  friend MC6809InstrCost operator/(MC6809InstrCost Left, int Right) { return MC6809InstrCost(Left.Bytes / Right, Left.Cycles / Right, 1); }
 
   int64_t value(Mode Mode = Mode::Average) const;
 
   static Mode getModeFor(const MachineFunction &MF);
 
 private:
-  MC6809InstrCost(int32_t Bytes, int32_t Cycles, int Multiplier)
-    : Bytes(Bytes * Multiplier), Cycles(Cycles * Multiplier) {}
+  MC6809InstrCost(int32_t Bytes, int32_t Cycles, int Multiplier) : Bytes(Bytes * Multiplier), Cycles(Cycles * Multiplier) {}
 
   int32_t Bytes, Cycles;
 };

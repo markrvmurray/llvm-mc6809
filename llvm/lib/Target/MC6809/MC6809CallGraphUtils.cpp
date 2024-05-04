@@ -55,8 +55,7 @@ void mc6809::addExternalEdges(CallGraph &CG) {
   assert(CG.getCallsExternalNode()->empty());
   for (auto &KV : *CG.getExternalCallingNode()) {
     Function *F = KV.second->getFunction();
-    if (F && !F->hasFnAttribute("interrupt") &&
-        !F->hasFnAttribute("interrupt-norecurse"))
+    if (F && !F->hasFnAttribute("interrupt") && !F->hasFnAttribute("interrupt-norecurse"))
       CG.getCallsExternalNode()->addCalledFunction(nullptr, KV.second);
   }
 }

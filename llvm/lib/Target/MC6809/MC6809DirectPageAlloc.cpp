@@ -13,13 +13,13 @@
 
 #include "MC6809DirectPageAlloc.h"
 
-#include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "MC6809.h"
 #include "MC6809CallGraphUtils.h"
 #include "MC6809FrameLowering.h"
 #include "MC6809MachineFunctionInfo.h"
 #include "MC6809RegisterInfo.h"
 #include "MC6809Subtarget.h"
+#include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/Analysis/BasicAliasAnalysis.h"
@@ -170,8 +170,7 @@ struct SCCGraph {
   size_t GlobalDPSize = 0;
   size_t InterruptDPSize = 0;
   size_t RegularDPSize = 0;
-  DenseMap<const MachineFunction *, size_t> MFDPSizes =
-      DenseMap<const MachineFunction *, size_t>();
+  DenseMap<const MachineFunction *, size_t> MFDPSizes = DenseMap<const MachineFunction *, size_t>();
 };
 
 } // namespace
@@ -189,9 +188,7 @@ template <> struct llvm::GraphTraits<SCC> {
   using NodeRef = SCC *;
   using ChildIteratorType = SmallVector<SCC *>::iterator;
 
-  static NodeRef getEntryNode(const SCC &SCC) {
-    return const_cast<struct SCC *>(&SCC);
-  }
+  static NodeRef getEntryNode(const SCC &SCC) { return const_cast<struct SCC *>(&SCC); }
   static ChildIteratorType child_begin(NodeRef N) { return N->Callees.begin(); }
   static ChildIteratorType child_end(NodeRef N) { return N->Callees.end(); }
 };
@@ -200,9 +197,7 @@ template <> struct llvm::GraphTraits<SCCGraph> {
   using NodeRef = SCC *;
   using ChildIteratorType = SmallVector<SCC *>::iterator;
 
-  static NodeRef getEntryNode(const SCCGraph &G) {
-    return G.ExternalCallingSCC;
-  }
+  static NodeRef getEntryNode(const SCCGraph &G) { return G.ExternalCallingSCC; }
   static ChildIteratorType child_begin(NodeRef N) { return N->Callees.begin(); }
   static ChildIteratorType child_end(NodeRef N) { return N->Callees.end(); }
 };
@@ -213,9 +208,7 @@ class MC6809DirectPageAlloc : public ModulePass {
 public:
   static char ID;
 
-  MC6809DirectPageAlloc() : ModulePass(ID) {
-    llvm::initializeMC6809DirectPageAllocPass(*PassRegistry::getPassRegistry());
-  }
+  MC6809DirectPageAlloc() : ModulePass(ID) { llvm::initializeMC6809DirectPageAllocPass(*PassRegistry::getPassRegistry()); }
 
   bool runOnModule(Module &M) override;
   void getAnalysisUsage(AnalysisUsage &AU) const override;
@@ -225,14 +218,10 @@ private:
   unsigned ModuleDPAvail;
   SCCGraph buildSCCGraph(Module &M);
 
-  void collectCandidates(MachineFunction &MF,
-                         std::vector<std::unique_ptr<Candidate>> &Candidates,
-                         SmallVectorImpl<LocalCandidate> &LocalCandidates,
-                         DenseMap<GlobalVariable *, Candidate *> &GVCandidates);
+  void collectCandidates(MachineFunction &MF, std::vector<std::unique_ptr<Candidate>> &Candidates, SmallVectorImpl<LocalCandidate> &LocalCandidates, DenseMap<GlobalVariable *, Candidate *> &GVCandidates);
 
   std::vector<EntryGraph> buildEntryGraphs(Module &M, SCCGraph &SCCGraph);
-  bool assignDPs(SCCGraph &SCCGraph, std::vector<EntryGraph>::iterator Begin,
-                 std::vector<EntryGraph>::iterator End);
+  bool assignDPs(SCCGraph &SCCGraph, std::vector<EntryGraph>::iterator Begin, std::vector<EntryGraph>::iterator End);
   bool assignDP(SCCGraph &SCCGraph, EntryGraph &EG);
 };
 
@@ -264,18 +253,13 @@ bool MC6809DirectPageAlloc::runOnModule(Module &M) {
     return false;
 
   // The frontend should report this error on the corresponding option.
-  assert(DPAvail <= 256 - 32 &&
-         "There must be room for the imaginary registers.");
+  assert(DPAvail <= 256 - 32 && "There must be room for the imaginary registers.");
 
   ModuleDPAvail = DPAvail;
   for (GlobalVariable &GV : M.globals()) {
     StringRef SecName = GV.getSection();
-    if (MC6809::isDirectPageSectionName(SecName) ||
-        GV.getAddressSpace() == MC6809::AS_DirectPage) {
-      size_t Size = (GV.getParent()->getDataLayout().getTypeSizeInBits(
-                         GV.getValueType()) +
-                     7) /
-                    8;
+    if (MC6809::isDirectPageSectionName(SecName) || GV.getAddressSpace() == MC6809::AS_DirectPage) {
+      size_t Size = (GV.getParent()->getDataLayout().getTypeSizeInBits(GV.getValueType()) + 7) / 8;
       if (Size >= ModuleDPAvail)
         return false;
       ModuleDPAvail -= Size;
@@ -296,8 +280,7 @@ bool MC6809DirectPageAlloc::runOnModule(Module &M) {
 
   // Interrupt-norecurse functions get absolute priority, since they're almost
   // always time-sensitive, and they have an abnormally high number of CSRs.
-  const auto RegularEGBegin =
-      partition(EntryGraphs, [](EntryGraph &EG) { return !EG.IsINR; });
+  const auto RegularEGBegin = partition(EntryGraphs, [](EntryGraph &EG) { return !EG.IsINR; });
 
   // Assign DP locations to entry graphs round-robin until no candidates remain.
   LLVM_DEBUG(dbgs() << "Assigning DP to candidates:\n");
@@ -328,11 +311,8 @@ bool MC6809DirectPageAlloc::runOnModule(Module &M) {
   GlobalVariable *Stack;
   if (StackSize) {
     Type *Typ = ArrayType::get(Type::getInt8Ty(M.getContext()), StackSize);
-    Stack = new GlobalVariable(M, Typ, /*IsConstant=*/false,
-                               GlobalValue::PrivateLinkage,
-                               UndefValue::get(Typ), "dp_stack",
-                               /*InsertBefore=*/nullptr,
-                               GlobalValue::NotThreadLocal, MC6809::AS_DirectPage);
+    Stack = new GlobalVariable(M, Typ, /*IsConstant=*/false, GlobalValue::PrivateLinkage, UndefValue::get(Typ), "dp_stack",
+                               /*InsertBefore=*/nullptr, GlobalValue::NotThreadLocal, MC6809::AS_DirectPage);
     LLVM_DEBUG(dbgs() << "  " << *Stack << '\n');
   }
 
@@ -345,14 +325,10 @@ bool MC6809DirectPageAlloc::runOnModule(Module &M) {
     if (Cand->GV) {
       // The dance here with Tmp avoids an infinite recursion in
       // replaceAllUsesWith().
-      auto *Tmp = new GlobalVariable(
-          M, Cand->GV->getValueType(), Cand->GV->isConstant(),
-          Cand->GV->getLinkage(), Cand->GV->getInitializer());
+      auto *Tmp = new GlobalVariable(M, Cand->GV->getValueType(), Cand->GV->isConstant(), Cand->GV->getLinkage(), Cand->GV->getInitializer());
       Cand->GV->replaceAllUsesWith(Tmp);
-      Cand->GV->mutateType(
-          PointerType::get(Cand->GV->getValueType(), MC6809::AS_DirectPage));
-      Tmp->replaceAllUsesWith(ConstantExpr::getAddrSpaceCast(
-          Cand->GV, PointerType::get(Cand->GV->getValueType(), 0)));
+      Cand->GV->mutateType(PointerType::get(Cand->GV->getValueType(), MC6809::AS_DirectPage));
+      Tmp->replaceAllUsesWith(ConstantExpr::getAddrSpaceCast(Cand->GV, PointerType::get(Cand->GV->getValueType(), 0)));
       Tmp->eraseFromParent();
       LLVM_DEBUG(dbgs() << "  " << *Cand->GV << '\n');
     } else {
@@ -364,31 +340,20 @@ bool MC6809DirectPageAlloc::runOnModule(Module &M) {
         Constant *Aliasee = Stack;
         if (Cand->Comp->DPOffset) {
           Type *I16 = Type::getInt16Ty(Stack->getContext());
-          Aliasee = ConstantExpr::getGetElementPtr(
-              Stack->getValueType(), Stack,
-              SmallVector<Constant *>{
-                  ConstantInt::get(I16, 0),
-                  ConstantInt::get(I16, Cand->Comp->DPOffset)},
-              /*InBounds=*/true);
+          Aliasee = ConstantExpr::getGetElementPtr(Stack->getValueType(), Stack, SmallVector<Constant *>{ConstantInt::get(I16, 0), ConstantInt::get(I16, Cand->Comp->DPOffset)}, /*InBounds=*/true);
         }
         Cand->Comp->DPOffset += SCCGraph.MFDPSizes[&MF];
-        Type *Typ =
-            ArrayType::get(Type::getInt8Ty(M.getContext()), Cand->Comp->DPSize);
-        auto *Alias = GlobalAlias::create(
-            Typ, Stack->getAddressSpace(), Stack->getLinkage(),
-            Twine(MF.getName()) + "_dp_stk", Aliasee, Stack->getParent());
+        Type *Typ = ArrayType::get(Type::getInt8Ty(M.getContext()), Cand->Comp->DPSize);
+        auto *Alias = GlobalAlias::create(Typ, Stack->getAddressSpace(), Stack->getLinkage(), Twine(MF.getName()) + "_dp_stk", Aliasee, Stack->getParent());
         LLVM_DEBUG(dbgs() << "  " << *Alias);
-        MF.getInfo<MC6809FunctionInfo>()->DirectPageStackValue = Alias;
       }
       LLVM_DEBUG(dbgs() << "  " << *Cand << ", Offset " << Offset << '\n');
 
       if (Cand->CSR) {
-        DenseMap<Register, size_t> &CSRDPOffsets =
-            MF.getInfo<MC6809FunctionInfo>()->CSRDPOffsets;
+        DenseMap<Register, size_t> &CSRDPOffsets = MF.getInfo<MC6809FunctionInfo>()->CSRDPOffsets;
         const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
         if (MC6809::Imag16RegClass.contains(Cand->CSR)) {
-          CSRDPOffsets[Cand->CSR] =
-              CSRDPOffsets[TRI.getSubReg(Cand->CSR, MC6809::sub_lo_byte)] = Offset++;
+          CSRDPOffsets[Cand->CSR] = CSRDPOffsets[TRI.getSubReg(Cand->CSR, MC6809::sub_lo_byte)] = Offset++;
           CSRDPOffsets[TRI.getSubReg(Cand->CSR, MC6809::sub_hi_byte)] = Offset++;
         } else {
           CSRDPOffsets[Cand->CSR] = Offset++;
@@ -469,19 +434,14 @@ SCCGraph MC6809DirectPageAlloc::buildSCCGraph(Module &M) {
     dbgs() << '\n';
   });
 
-  return {std::move(SCCs), std::move(FunctionSCCs), ExternalCallingSCC,
-          std::move(Candidates)};
+  return {std::move(SCCs), std::move(FunctionSCCs), ExternalCallingSCC, std::move(Candidates)};
 }
 
 // For each SCC, find all of the local options for DP allocation and score
 // them relative to the function's entry frequency.
-void MC6809DirectPageAlloc::collectCandidates(
-    MachineFunction &MF, std::vector<std::unique_ptr<Candidate>> &Candidates,
-    SmallVectorImpl<LocalCandidate> &LocalCandidates,
-    DenseMap<GlobalVariable *, Candidate *> &GVCandidates) {
+void MC6809DirectPageAlloc::collectCandidates(MachineFunction &MF, std::vector<std::unique_ptr<Candidate>> &Candidates, SmallVectorImpl<LocalCandidate> &LocalCandidates, DenseMap<GlobalVariable *, Candidate *> &GVCandidates) {
   const MachineFrameInfo &MFI = MF.getFrameInfo();
-  auto &BFI =
-      getAnalysis<BlockFrequencyInfoWrapperPass>(MF.getFunction()).getBFI();
+  auto &BFI = getAnalysis<BlockFrequencyInfoWrapperPass>(MF.getFunction()).getBFI();
 
   DenseMap<GlobalVariable *, float> GlobalBenefit;
   for (MachineBasicBlock &MBB : MF) {
@@ -493,15 +453,12 @@ void MC6809DirectPageAlloc::collectCandidates(
           if (!GO)
             continue;
           const auto *GV = dyn_cast<GlobalVariable>(GO);
-          if (!GV || GV->isDeclaration() || GV->getAlign().valueOrOne() != 1 ||
-              GV->hasSection() || GV->hasImplicitSection() ||
-              GV->getAddressSpace() == MC6809::AS_DirectPage)
+          if (!GV || GV->isDeclaration() || GV->getAlign().valueOrOne() != 1 || GV->hasSection() || GV->hasImplicitSection() || GV->getAddressSpace() == MC6809::AS_DirectPage)
             continue;
 
           // Generally moving an absolute reference to the direct page saves one
           // cycle and one byte.
-          GlobalBenefit[const_cast<GlobalVariable *>(GV)] +=
-              2 * getFreq(BFI, MBB);
+          GlobalBenefit[const_cast<GlobalVariable *>(GV)] += 2 * getFreq(BFI, MBB);
         }
       }
     }
@@ -511,14 +468,10 @@ void MC6809DirectPageAlloc::collectCandidates(
     GlobalVariable *GV = KV.first;
     auto It = GVCandidates.find(GV);
     if (It == GVCandidates.end()) {
-      size_t Size = (GV->getParent()->getDataLayout().getTypeSizeInBits(
-                         GV->getValueType()) +
-                     7) /
-                    8;
+      size_t Size = (GV->getParent()->getDataLayout().getTypeSizeInBits(GV->getValueType()) + 7) / 8;
       if (!Size)
         continue;
-      Candidates.push_back(std::make_unique<Candidate>(
-          Candidate{/*MF=*/nullptr, Size, /*CSR=*/0, GV}));
+      Candidates.push_back(std::make_unique<Candidate>(Candidate{/*MF=*/nullptr, Size, /*CSR=*/0, GV}));
       It = GVCandidates.try_emplace(GV, Candidates.back().get()).first;
     }
     assert(It != GVCandidates.end());
@@ -528,10 +481,7 @@ void MC6809DirectPageAlloc::collectCandidates(
     LocalCandidates.push_back(LocalCandidate{Cand, Benefit});
   }
 
-  const MC6809FrameLowering &TFL =
-      *MF.getSubtarget<MC6809Subtarget>().getFrameLowering();
-  if (!TFL.usesStaticStack(MF))
-    return;
+  const MC6809FrameLowering &TFL = *MF.getSubtarget<MC6809Subtarget>().getFrameLowering();
 
   float SaveFreq;
   float RestoreFreq = 0;
@@ -579,8 +529,7 @@ void MC6809DirectPageAlloc::collectCandidates(
     // If the CSR is used as a 16-bit pointer, then the two halves cannot be
     // assigned independently. Thus, instead of two size-1 candidates, one
     // size-2 candidate is used.
-    Register Imag16 =
-        *MF.getSubtarget().getRegisterInfo()->superregs(Reg).begin();
+    Register Imag16 = *MF.getSubtarget().getRegisterInfo()->superregs(Reg).begin();
     assert(MC6809::Imag16RegClass.contains(Imag16));
     if (!MF.getRegInfo().reg_nodbg_empty(Imag16)) {
       // Don't create the Imag16 candidate twice.
@@ -602,8 +551,7 @@ void MC6809DirectPageAlloc::collectCandidates(
       Benefit /= Size;
     }
 
-    Candidates.push_back(
-        std::make_unique<Candidate>(Candidate{&MF, Size, /*CSR=*/Reg}));
+    Candidates.push_back(std::make_unique<Candidate>(Candidate{&MF, Size, /*CSR=*/Reg}));
     LocalCandidates.push_back(LocalCandidate{Candidates.back().get(), Benefit});
   }
 
@@ -627,8 +575,7 @@ void MC6809DirectPageAlloc::collectCandidates(
     }
     auto Size = static_cast<size_t>(MFI.getObjectSize(I));
     Benefit /= Size;
-    Candidates.push_back(std::make_unique<Candidate>(
-        Candidate{&MF, Size, /*CSR=*/0, /*GV=*/nullptr, /*FI=*/I}));
+    Candidates.push_back(std::make_unique<Candidate>(Candidate{&MF, Size, /*CSR=*/0, /*GV=*/nullptr, /*FI=*/I}));
     LocalCandidates.push_back(LocalCandidate{Candidates.back().get(), Benefit});
   }
 }
@@ -664,14 +611,11 @@ static bool isSuitableForNoInit(const GlobalVariable *GV) {
 // from that entry, and assign each their relative frequency to the entry point.
 // From these frequences, an ordered set of candidates is derived for each entry
 // point.
-std::vector<EntryGraph> MC6809DirectPageAlloc::buildEntryGraphs(Module &M,
-                                                           SCCGraph &SCCGraph) {
+std::vector<EntryGraph> MC6809DirectPageAlloc::buildEntryGraphs(Module &M, SCCGraph &SCCGraph) {
   std::vector<EntryGraph> EntryGraphs;
   for (SCC *Entry : SCCGraph.ExternalCallingSCC->Callees) {
     EntryGraphs.push_back(EntryGraph{Entry});
-    EntryGraphs.back().IsINR = any_of(Entry->Funcs, [](Function *F) {
-      return F->hasFnAttribute("interrupt-norecurse");
-    });
+    EntryGraphs.back().IsINR = any_of(Entry->Funcs, [](Function *F) { return F->hasFnAttribute("interrupt-norecurse"); });
   }
   for (EntryGraph &EG : EntryGraphs) {
     LLVM_DEBUG({
@@ -721,20 +665,17 @@ std::vector<EntryGraph> MC6809DirectPageAlloc::buildEntryGraphs(Module &M,
                 continue;
               float Freq = getFreq(BFI, MBB);
               if (is_contained(Component->Funcs, Callee)) {
-                LLVM_DEBUG(dbgs() << "      Recursively calls "
-                                  << Callee->getName() << " " << Freq << '\n');
+                LLVM_DEBUG(dbgs() << "      Recursively calls " << Callee->getName() << " " << Freq << '\n');
                 // Recursive calls are another way to enter the given SCC, so
                 // increase the Entry frequency. Don't compound the increases
                 // though; it's not worth risking overflowing the entry counts,
                 // especially since possible recursion paths may be accidental.
                 EntryFreq += OldEntryFreq * Freq;
-                LLVM_DEBUG(dbgs() << "    SCC freq += " << OldEntryFreq * Freq
-                                  << '\n');
+                LLVM_DEBUG(dbgs() << "    SCC freq += " << OldEntryFreq * Freq << '\n');
               }
               // Defer handling normal calls until after the loop; the final
               // entry frequency won't be known until afterwards.
-              LLVM_DEBUG(dbgs() << "      Calls " << Callee->getName() << ' '
-                                << Freq << '\n');
+              LLVM_DEBUG(dbgs() << "      Calls " << Callee->getName() << ' ' << Freq << '\n');
               CalleeFreqs[Callee] += Freq;
             }
           }
@@ -746,14 +687,12 @@ std::vector<EntryGraph> MC6809DirectPageAlloc::buildEntryGraphs(Module &M,
       // Apply the final entry frequency to the candidates.
       for (LocalCandidate &LC : Component->Candidates) {
         EntryCandidate EC{&LC, EntryFreq * LC.Benefit};
-        if (LC.Cand->GV && LC.Cand->GV->hasInitializer() &&
-            !isSuitableForNoInit(LC.Cand->GV)) {
+        if (LC.Cand->GV && LC.Cand->GV->hasInitializer() && !isSuitableForNoInit(LC.Cand->GV)) {
           // Pessimistically assume that initializing the global variable costs
           // takes a LDA #imm, STA zp, and that the entry function is only
           // called once.
           if (EC.Benefit < 9) {
-            LLVM_DEBUG(dbgs() << "GV not worth initializing to DP; skipping: "
-                              << EC << '\n');
+            LLVM_DEBUG(dbgs() << "GV not worth initializing to DP; skipping: " << EC << '\n');
             continue;
           }
         }
@@ -765,16 +704,12 @@ std::vector<EntryGraph> MC6809DirectPageAlloc::buildEntryGraphs(Module &M,
       // propagate the resulting entry frequencies to callee SCCs.
       for (const auto &KV : CalleeFreqs) {
         float Freq = EntryFreq * KV.second;
-        LLVM_DEBUG(dbgs() << "    " << KV.first->getName() << " += " << Freq
-                          << '\n');
+        LLVM_DEBUG(dbgs() << "    " << KV.first->getName() << " += " << Freq << '\n');
         EntryFreqs[SCCGraph.FunctionSCCs[KV.first]] += Freq;
       }
     }
 
-    stable_sort(EG.Candidates,
-                [](const EntryCandidate &A, const EntryCandidate &B) {
-                  return A.Benefit > B.Benefit;
-                });
+    stable_sort(EG.Candidates, [](const EntryCandidate &A, const EntryCandidate &B) { return A.Benefit > B.Benefit; });
     LLVM_DEBUG({
       dbgs() << "\n  Candidates:\n";
       for (EntryCandidate &Cand : EG.Candidates)
@@ -785,9 +720,7 @@ std::vector<EntryGraph> MC6809DirectPageAlloc::buildEntryGraphs(Module &M,
   return EntryGraphs;
 }
 
-bool MC6809DirectPageAlloc::assignDPs(SCCGraph &SCCGraph,
-                                 std::vector<EntryGraph>::iterator Begin,
-                                 std::vector<EntryGraph>::iterator End) {
+bool MC6809DirectPageAlloc::assignDPs(SCCGraph &SCCGraph, std::vector<EntryGraph>::iterator Begin, std::vector<EntryGraph>::iterator End) {
   bool AssignedAny = false;
   for (auto I = Begin; I != End; ++I)
     AssignedAny |= assignDP(SCCGraph, *I);
@@ -804,8 +737,7 @@ bool MC6809DirectPageAlloc::assignDP(SCCGraph &SCCGraph, EntryGraph &EG) {
     } else {
       if (EG.IsINR) {
         NewInterruptSize -= EG.Entry->MaxDPSize;
-        NewInterruptSize +=
-            std::max(EG.Entry->MaxDPSize, Size + Cand.Comp->MaxDPSize);
+        NewInterruptSize += std::max(EG.Entry->MaxDPSize, Size + Cand.Comp->MaxDPSize);
       } else {
         NewRegularSize = std::max(NewRegularSize, Size + Cand.Comp->MaxDPSize);
       }
@@ -833,8 +765,7 @@ bool MC6809DirectPageAlloc::assignDP(SCCGraph &SCCGraph, EntryGraph &EG) {
 
   ++Cand.AssignedSize;
 
-  LLVM_DEBUG(dbgs() << "Entry " << EG.Entry->Funcs.front()->getName()
-                    << ", Func " << Cand << '\n';);
+  LLVM_DEBUG(dbgs() << "Entry " << EG.Entry->Funcs.front()->getName() << ", Func " << Cand << '\n';);
 
   if (NewDPSize(Cand, Cand.AssignedSize) > ModuleDPAvail) {
     LLVM_DEBUG(dbgs() << "No longer fits; unassigning.\n");
@@ -860,11 +791,9 @@ bool MC6809DirectPageAlloc::assignDP(SCCGraph &SCCGraph, EntryGraph &EG) {
 
   if (EG.IsINR) {
     SCCGraph.InterruptDPSize -= EG.Entry->MaxDPSize;
-    SCCGraph.InterruptDPSize +=
-        std::max(EG.Entry->MaxDPSize, Cand.Size + Cand.Comp->MaxDPSize);
+    SCCGraph.InterruptDPSize += std::max(EG.Entry->MaxDPSize, Cand.Size + Cand.Comp->MaxDPSize);
   } else {
-    SCCGraph.RegularDPSize =
-        std::max(SCCGraph.RegularDPSize, Cand.Size + Cand.Comp->MaxDPSize);
+    SCCGraph.RegularDPSize = std::max(SCCGraph.RegularDPSize, Cand.Size + Cand.Comp->MaxDPSize);
   }
 
   // Allocating a DP can change the offsets of transitive callees, so propagate
@@ -896,15 +825,11 @@ bool MC6809DirectPageAlloc::assignDP(SCCGraph &SCCGraph, EntryGraph &EG) {
 static float getFreq(const BlockFrequencyInfo &BFI, MachineBasicBlock &MBB) {
   if (!MBB.getBasicBlock())
     return 1;
-  return (float)BFI.getBlockFreq(MBB.getBasicBlock()).getFrequency() /
-         (float)BFI.getEntryFreq().getFrequency();
+  return (float)BFI.getBlockFreq(MBB.getBasicBlock()).getFrequency() / (float)BFI.getEntryFreq().getFrequency();
 }
 
 char MC6809DirectPageAlloc::ID = 0;
 
-INITIALIZE_PASS(MC6809DirectPageAlloc, DEBUG_TYPE, "Allocate direct page", false,
-                false)
+INITIALIZE_PASS(MC6809DirectPageAlloc, DEBUG_TYPE, "Allocate direct page", false, false)
 
-ModulePass *llvm::createMC6809DirectPageAllocPass() {
-  return new MC6809DirectPageAlloc();
-}
+ModulePass *llvm::createMC6809DirectPageAllocPass() { return new MC6809DirectPageAlloc(); }

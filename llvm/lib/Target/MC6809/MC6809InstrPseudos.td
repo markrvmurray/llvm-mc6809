@@ -224,21 +224,21 @@ def ADJCALLSTACKUP : MC6809CallFramePseudo;
 
 // Loads a value (1, 8, or 16 bits) from the soft stack. Eliminated once the
 // offset from the frame register is known.
-def LDStk : MC6809Pseudo {
-  dag OutOperandList = (outs unknown:$dst);
-  dag InOperandList = (ins INDEX16:$base, i16imm:$offset);
-
-  let mayLoad = true;
-}
+//def LDStk : MC6809Pseudo {
+//  dag OutOperandList = (outs unknown:$dst);
+//  dag InOperandList = (ins INDEX16:$base, i16imm:$offset);
+//
+//  let mayLoad = true;
+//}
 
 // Stores a value (1, 8, or 16 bits) to the soft stack. Eliminated once the
 // offset from the frame register is known.
-def STStk : MC6809Pseudo {
-  dag OutOperandList = (outs);
-  dag InOperandList = (ins unknown:$src, INDEX16:$base, i16imm:$fi);
-
-  let mayStore = true;
-}
+//def STStk : MC6809Pseudo {
+//  dag OutOperandList = (outs);
+//  dag InOperandList = (ins unknown:$src, INDEX16:$base, i16imm:$fi);
+//
+//  let mayStore = true;
+//}
 
 //===---------------------------------------------------------------------===//
 // Control flow

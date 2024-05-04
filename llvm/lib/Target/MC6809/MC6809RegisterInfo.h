@@ -67,9 +67,7 @@ public:
 
   BitVector getReservedRegs(const MachineFunction &MF) const override;
 
-  MC6809InstrCost copyCost(Register DestReg, Register SrcReg,
-                        const MC6809Subtarget &STI) const;
-
+  MC6809InstrCost copyCost(Register DestReg, Register SrcReg, const MC6809Subtarget &STI) const;
 };
 
 } // namespace llvm

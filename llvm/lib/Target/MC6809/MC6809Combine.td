@@ -69,7 +69,7 @@ def MC6809Combiner : GICombiner<"MC6809CombinerImpl", [
     extract_low_bit,
     uaddo_1,
     load_store_to_memcpy,
-    store_to_memset,
+    //store_to_memset,
     fold_adde,
     fold_shift,
     shift_unused_carry_in

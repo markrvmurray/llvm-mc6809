@@ -58,9 +58,7 @@ BitVector MC6809RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   return Reserved;
 }
 
-const MCPhysReg *MC6809RegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
-  return MC6809_CSR_SaveList;
-}
+const MCPhysReg *MC6809RegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const { return MC6809_CSR_SaveList; }
 
 const uint32_t *MC6809RegisterInfo::getCallPreservedMask(const MachineFunction &MF, CallingConv::ID CallingConv) const { return MC6809_CSR_RegMask; }
 
@@ -103,6 +101,7 @@ Register MC6809RegisterInfo::getFrameRegister(const MachineFunction &MF) const {
   return TFI->hasFP(MF) ? MC6809::SU : MC6809::SS;
 }
 
+#if 0
 int copyCost(Register DestReg, Register SrcReg, const MC6809Subtarget &STI) {
   if (DestReg == SrcReg)
     return 0;
@@ -170,6 +169,7 @@ int copyCost(Register DestReg, Register SrcReg, const MC6809Subtarget &STI) {
   }
   llvm_unreachable("Unexpected physical register copy cost.");
 }
+#endif
 
 bool MC6809RegisterInfo::getRegAllocationHints(Register VirtReg, ArrayRef<MCPhysReg> Order, SmallVectorImpl<MCPhysReg> &Hints, const MachineFunction &MF, const VirtRegMap *VRM, const LiveRegMatrix *Matrix) const {
   const MC6809Subtarget &STI = MF.getSubtarget<MC6809Subtarget>();
@@ -223,8 +223,7 @@ bool MC6809RegisterInfo::getRegAllocationHints(Register VirtReg, ArrayRef<MCPhys
   }
 
   SmallVector<std::pair<Register, MC6809InstrCost>> RegsAndScores(RegScores.begin(), RegScores.end());
-  sort(RegsAndScores, [&](const std::pair<Register, MC6809InstrCost> &A,
-                          const std::pair<Register, MC6809InstrCost> &B) {
+  sort(RegsAndScores, [&](const std::pair<Register, MC6809InstrCost> &A, const std::pair<Register, MC6809InstrCost> &B) {
     auto AVal = A.second.value(CostMode);
     auto BVal = B.second.value(CostMode);
     if (AVal > BVal)
@@ -241,9 +240,22 @@ MC6809InstrCost MC6809RegisterInfo::copyCost(Register DestReg, Register SrcReg, 
   if (DestReg == SrcReg)
     return MC6809InstrCost();
 
-  const auto &AreClasses = [&](const TargetRegisterClass &Dest, const TargetRegisterClass &Src) {
-    return Dest.contains(DestReg) && Src.contains(SrcReg);
-  };
+  const auto &AreClasses = [&](const TargetRegisterClass &Dest, const TargetRegisterClass &Src) { return Dest.contains(DestReg) && Src.contains(SrcReg); };
+
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : DestReg = "; dumpReg(DestReg););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Dest BIT1RegClass.contains(" << DestReg << ") = " << MC6809::BIT1RegClass.contains(DestReg) << "\n";);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Dest CCondRegClass.contains(" << DestReg << ") = " << MC6809::CCondRegClass.contains(DestReg) << "\n";);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Dest ACC8RegClass.contains(" << DestReg << ") = " << MC6809::ACC8RegClass.contains(DestReg) << "\n";);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Dest ACC16RegClass.contains(" << DestReg << ") = " << MC6809::ACC16RegClass.contains(DestReg) << "\n";);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Dest ACC32RegClass.contains(" << DestReg << ") = " << MC6809::ACC32RegClass.contains(DestReg) << "\n";);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Dest INDEX16RegClass.contains(" << DestReg << ") = " << MC6809::INDEX16RegClass.contains(DestReg) << "\n";);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : SrcReg = "; dumpReg(SrcReg););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Src BIT1RegClass.contains(" << SrcReg << ") = " << MC6809::BIT1RegClass.contains(SrcReg) << "\n";);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Src CCondRegClass.contains(" << SrcReg << ") = " << MC6809::CCondRegClass.contains(SrcReg) << "\n";);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Src ACC8RegClass.contains(" << SrcReg << ") = " << MC6809::ACC8RegClass.contains(SrcReg) << "\n";);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Src ACC16RegClass.contains(" << SrcReg << ") = " << MC6809::ACC16RegClass.contains(SrcReg) << "\n";);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Src ACC32RegClass.contains(" << SrcReg << ") = " << MC6809::ACC32RegClass.contains(SrcReg) << "\n";);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Src INDEX16RegClass.contains(" << SrcReg << ") = " << MC6809::INDEX16RegClass.contains(SrcReg) << "\n";);
 
   auto TransferCost = MC6809InstrCost(1, 2);
   auto Push8Cost = MC6809InstrCost(1, 3);
@@ -257,9 +269,16 @@ MC6809InstrCost MC6809RegisterInfo::copyCost(Register DestReg, Register SrcReg, 
   auto LoadImm16Cost = MC6809InstrCost(2, 3);
   auto AluImm8Cost = MC6809InstrCost(2, 2);
   auto AluImm16Cost = MC6809InstrCost(2, 3);
+  auto ImpossibleCost = MC6809InstrCost(32768, 32768);
 
   if (AreClasses(MC6809::ACC8RegClass, MC6809::ACC8RegClass)) {
-      return TransferCost;
+    return TransferCost;
+  }
+  if (AreClasses(MC6809::ACC16RegClass, MC6809::ACC8RegClass)) {
+    return TransferCost + TransferCost;
+  }
+  if (AreClasses(MC6809::ACC32RegClass, MC6809::ACC8RegClass)) {
+    return TransferCost + TransferCost + TransferCost + TransferCost;
   }
   if (AreClasses(MC6809::Imag8RegClass, MC6809::ACC8RegClass)) {
     return MC6809InstrCost(2, 3);
@@ -280,16 +299,25 @@ MC6809InstrCost MC6809RegisterInfo::copyCost(Register DestReg, Register SrcReg, 
     return Push16Cost + Pop16Cost + copyCost(DestReg, MC6809::AD, STI) + copyCost(MC6809::AD, SrcReg, STI);
   }
   if (AreClasses(MC6809::ACC16RegClass, MC6809::ACC16RegClass)) {
-      return TransferCost;
+    return TransferCost;
   }
   if (AreClasses(MC6809::ACC16RegClass, MC6809::INDEX16RegClass)) {
-      return TransferCost;
+    return TransferCost;
   }
   if (AreClasses(MC6809::INDEX16RegClass, MC6809::ACC16RegClass)) {
-      return TransferCost;
+    return TransferCost;
   }
   if (AreClasses(MC6809::INDEX16RegClass, MC6809::INDEX16RegClass)) {
-      return TransferCost;
+    return TransferCost;
+  }
+  if (AreClasses(MC6809::ACC8RegClass, MC6809::ACC16RegClass)) {
+    return ImpossibleCost;
+  }
+  if (AreClasses(MC6809::ACC8RegClass, MC6809::ACC32RegClass)) {
+    return ImpossibleCost;
+  }
+  if (AreClasses(MC6809::ACC8RegClass, MC6809::CCondRegClass) || AreClasses(MC6809::CCondRegClass, MC6809::ACC8RegClass)) {
+    return TransferCost;
   }
   if (AreClasses(MC6809::BIT1RegClass, MC6809::BIT1RegClass)) {
     Register SrcReg8 = getMatchingSuperReg(SrcReg, MC6809::sub_lsb, &MC6809::ACC8RegClass);

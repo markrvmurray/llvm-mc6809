@@ -15,10 +15,10 @@
 
 #include "MC6809Combiner.h"
 
-#include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "MC6809.h"
 #include "MC6809LegalizerInfo.h"
 #include "MC6809Subtarget.h"
+#include "MCTargetDesc/MC6809MCTargetDesc.h"
 
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/CodeGen/GlobalISel/CSEInfo.h"
@@ -69,12 +69,8 @@ protected:
   AAResults *AA;
 
 public:
-  MC6809CombinerImpl(MachineFunction &MF, CombinerInfo &CInfo,
-                  const TargetPassConfig *TPC, bool IsPreLegalize,
-                  GISelKnownBits &KB, GISelCSEInfo *CSEInfo,
-                  const MC6809CombinerImplRuleConfig &RuleConfig,
-                  const MC6809Subtarget &STI, MachineDominatorTree *MDT,
-                  const LegalizerInfo *LI, AAResults *AA);
+  MC6809CombinerImpl(MachineFunction &MF, CombinerInfo &CInfo, const TargetPassConfig *TPC, bool IsPreLegalize, GISelKnownBits &KB, GISelCSEInfo *CSEInfo, const MC6809CombinerImplRuleConfig &RuleConfig, const MC6809Subtarget &STI,
+                     MachineDominatorTree *MDT, const LegalizerInfo *LI, AAResults *AA);
 
   static const char *getName() { return "MC6809Combiner"; }
 
@@ -123,14 +119,9 @@ private:
 #include "MC6809GenGICombiner.inc"
 #undef GET_GICOMBINER_IMPL
 
-MC6809CombinerImpl::MC6809CombinerImpl(
-    MachineFunction &MF, CombinerInfo &CInfo, const TargetPassConfig *TPC,
-    bool IsPreLegalize, GISelKnownBits &KB, GISelCSEInfo *CSEInfo,
-    const MC6809CombinerImplRuleConfig &RuleConfig, const MC6809Subtarget &STI,
-    MachineDominatorTree *MDT, const LegalizerInfo *LI, AAResults *AA)
-    : Combiner(MF, CInfo, TPC, &KB, CSEInfo),
-      Helper(Observer, B, IsPreLegalize, &KB, MDT, LI), RuleConfig(RuleConfig),
-      AA(AA),
+MC6809CombinerImpl::MC6809CombinerImpl(MachineFunction &MF, CombinerInfo &CInfo, const TargetPassConfig *TPC, bool IsPreLegalize, GISelKnownBits &KB, GISelCSEInfo *CSEInfo, const MC6809CombinerImplRuleConfig &RuleConfig, const MC6809Subtarget &STI,
+                                       MachineDominatorTree *MDT, const LegalizerInfo *LI, AAResults *AA)
+    : Combiner(MF, CInfo, TPC, &KB, CSEInfo), Helper(Observer, B, IsPreLegalize, &KB, MDT, LI), RuleConfig(RuleConfig), AA(AA),
 #define GET_GICOMBINER_CONSTRUCTOR_INITS
 #include "MC6809GenGICombiner.inc"
 #undef GET_GICOMBINER_CONSTRUCTOR_INITS
@@ -586,33 +577,28 @@ void MC6809Combiner::getAnalysisUsage(AnalysisUsage &AU) const {
 MC6809Combiner::MC6809Combiner() : MachineFunctionPass(ID) { initializeMC6809CombinerPass(*PassRegistry::getPassRegistry()); }
 
 bool MC6809Combiner::runOnMachineFunction(MachineFunction &MF) {
-  if (MF.getProperties().hasProperty(
-          MachineFunctionProperties::Property::FailedISel))
+  if (MF.getProperties().hasProperty(MachineFunctionProperties::Property::FailedISel))
     return false;
 
   auto &TPC = getAnalysis<TargetPassConfig>();
 
   // Enable CSE.
-  GISelCSEAnalysisWrapper &Wrapper =
-      getAnalysis<GISelCSEAnalysisWrapperPass>().getCSEWrapper();
+  GISelCSEAnalysisWrapper &Wrapper = getAnalysis<GISelCSEAnalysisWrapperPass>().getCSEWrapper();
   auto *CSEInfo = &Wrapper.get(TPC.getCSEConfig());
 
   const MC6809Subtarget &ST = MF.getSubtarget<MC6809Subtarget>();
   const auto *LI = ST.getLegalizerInfo();
 
   const Function &F = MF.getFunction();
-  bool EnableOpt =
-      MF.getTarget().getOptLevel() != CodeGenOptLevel::None && !skipFunction(F);
-  bool IsPreLegalize = !MF.getProperties().hasProperty(
-      MachineFunctionProperties::Property::Legalized);
+  bool EnableOpt = MF.getTarget().getOptLevel() != CodeGenOptLevel::None && !skipFunction(F);
+  bool IsPreLegalize = !MF.getProperties().hasProperty(MachineFunctionProperties::Property::Legalized);
   GISelKnownBits *KB = &getAnalysis<GISelKnownBitsAnalysis>().get(MF);
   MachineDominatorTree *MDT = &getAnalysis<MachineDominatorTree>();
   AAResults *AA = &getAnalysis<AAResultsWrapperPass>().getAAResults();
   CombinerInfo CInfo(
       /*AllowIllegalOps*/ IsPreLegalize, /*ShouldLegalizeIllegal*/ false,
       /*LegalizerInfo*/ nullptr, EnableOpt, F.hasOptSize(), F.hasMinSize());
-  MC6809CombinerImpl Impl(MF, CInfo, &TPC, IsPreLegalize, *KB, CSEInfo, RuleConfig,
-                       ST, MDT, LI, AA);
+  MC6809CombinerImpl Impl(MF, CInfo, &TPC, IsPreLegalize, *KB, CSEInfo, RuleConfig, ST, MDT, LI, AA);
   return Impl.combineMachineInstrs();
 }
 

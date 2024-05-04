@@ -16,8 +16,8 @@
 
 #include "MC6809ShiftRotateChain.h"
 
-#include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "MC6809.h"
+#include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "llvm/ADT/IndexedMap.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
 #include "llvm/CodeGen/GlobalISel/Utils.h"
@@ -37,9 +37,7 @@ class MC6809ShiftRotateChain : public MachineFunctionPass {
 public:
   static char ID;
 
-  MC6809ShiftRotateChain() : MachineFunctionPass(ID) {
-    llvm::initializeMC6809ShiftRotateChainPass(*PassRegistry::getPassRegistry());
-  }
+  MC6809ShiftRotateChain() : MachineFunctionPass(ID) { llvm::initializeMC6809ShiftRotateChainPass(*PassRegistry::getPassRegistry()); }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     MachineFunctionPass::getAnalysisUsage(AU);
@@ -47,18 +45,14 @@ public:
     AU.addPreserved<MachineDominatorTree>();
   }
 
-  MachineFunctionProperties getRequiredProperties() const override {
-    return MachineFunctionProperties().set(
-        MachineFunctionProperties::Property::IsSSA);
-  }
+  MachineFunctionProperties getRequiredProperties() const override { return MachineFunctionProperties().set(MachineFunctionProperties::Property::IsSSA); }
 
   bool runOnMachineFunction(MachineFunction &MF) override;
 
 private:
   // Move PrevMI and the values it depends on up the dominance tree until it
   // dominates MI, all the way up to base.
-  void ensureDominates(const MachineInstr &Base, MachineInstr &PrevMI,
-                       MachineInstr &MI) const;
+  void ensureDominates(const MachineInstr &Base, MachineInstr &PrevMI, MachineInstr &MI) const;
 };
 
 bool MC6809ShiftRotateChain::runOnMachineFunction(MachineFunction &MF) {
@@ -70,8 +64,7 @@ bool MC6809ShiftRotateChain::runOnMachineFunction(MachineFunction &MF) {
   typedef SmallVector<ChainEntry> Chain;
   IndexedMap<Chain, VirtReg2IndexFunctor> Chains;
 
-  LLVM_DEBUG(dbgs() << "\n\nChaining shifts and rotates in: " << MF.getName()
-                    << "\n\n");
+  LLVM_DEBUG(dbgs() << "\n\nChaining shifts and rotates in: " << MF.getName() << "\n\n");
 
   const MachineRegisterInfo &MRI = MF.getRegInfo();
 
@@ -119,8 +112,7 @@ bool MC6809ShiftRotateChain::runOnMachineFunction(MachineFunction &MF) {
         const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
         dbgs() << "Creating chain for " << printReg(R) << ":\n";
         for (const ChainEntry &C : Chains[R]) {
-          dbgs() << printReg(C.R) << " := " << TII.getName(C.Opcode) << ' '
-                 << C.Amount << '\n';
+          dbgs() << printReg(C.R) << " := " << TII.getName(C.Opcode) << ' ' << C.Amount << '\n';
         }
         dbgs() << '\n';
       }
@@ -147,16 +139,13 @@ bool MC6809ShiftRotateChain::runOnMachineFunction(MachineFunction &MF) {
       Changed = true;
       MI.getOperand(1).setReg(PrevMI.getOperand(0).getReg());
       MachineIRBuilder B(MI);
-      MI.getOperand(2).setReg(
-          B.buildConstant(MRI.getType(C.R), C.Amount - Prev.Amount).getReg(0));
+      MI.getOperand(2).setReg(B.buildConstant(MRI.getType(C.R), C.Amount - Prev.Amount).getReg(0));
     }
   }
   return Changed;
 }
 
-void MC6809ShiftRotateChain::ensureDominates(const MachineInstr &Base,
-                                          MachineInstr &PrevMI,
-                                          MachineInstr &MI) const {
+void MC6809ShiftRotateChain::ensureDominates(const MachineInstr &Base, MachineInstr &PrevMI, MachineInstr &MI) const {
   auto &MDT = getAnalysis<MachineDominatorTree>();
   if (MDT.dominates(&PrevMI, &MI))
     return;
@@ -188,9 +177,6 @@ void MC6809ShiftRotateChain::ensureDominates(const MachineInstr &Base,
 
 char MC6809ShiftRotateChain::ID = 0;
 
-INITIALIZE_PASS(MC6809ShiftRotateChain, DEBUG_TYPE, "MC6809 Shift/Rotate Chaining",
-                false, false)
+INITIALIZE_PASS(MC6809ShiftRotateChain, DEBUG_TYPE, "MC6809 Shift/Rotate Chaining", false, false)
 
-MachineFunctionPass *llvm::createMC6809ShiftRotateChainPass() {
-  return new MC6809ShiftRotateChain();
-}
+MachineFunctionPass *llvm::createMC6809ShiftRotateChainPass() { return new MC6809ShiftRotateChain(); }

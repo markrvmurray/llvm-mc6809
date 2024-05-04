@@ -47,11 +47,11 @@ class MC6809Operand : public MCParsedAsmOperand {
 public:
   MC6809Operand() = delete;
   /// Create an immediate MC6809Operand.
-  MC6809Operand(const MC6809Subtarget &STI, const MCExpr *Val, SMLoc S, SMLoc E) : Kind(k_Immediate), Imm(Val), Start(S), End(E) {};
+  MC6809Operand(const MC6809Subtarget &STI, const MCExpr *Val, SMLoc S, SMLoc E) : Kind(k_Immediate), Imm(Val), Start(S), End(E){};
   /// Create a register MC6809Operand.
-  MC6809Operand(const MC6809Subtarget &STI, unsigned RegNum, SMLoc S, SMLoc E) : Kind(k_Register), Reg(RegNum), Start(S), End(E) {};
+  MC6809Operand(const MC6809Subtarget &STI, unsigned RegNum, SMLoc S, SMLoc E) : Kind(k_Register), Reg(RegNum), Start(S), End(E){};
   /// Create a token MC6809Operand.
-  MC6809Operand(const MC6809Subtarget &STI, StringRef Str, SMLoc S) : Kind(k_Token), Tok(Str), Start(S) {};
+  MC6809Operand(const MC6809Subtarget &STI, StringRef Str, SMLoc S) : Kind(k_Token), Tok(Str), Start(S){};
 
 private:
   enum KindTy {
@@ -460,9 +460,7 @@ public:
     return true;
   }
 
-  void pushExpr(OperandVector &Operands, const MCExpr *Val, SMLoc S, SMLoc E) {
-    Operands.push_back(MC6809Operand::createImm(STI, Val, S, E));
-  }
+  void pushExpr(OperandVector &Operands, const MCExpr *Val, SMLoc S, SMLoc E) { Operands.push_back(MC6809Operand::createImm(STI, Val, S, E)); }
 
   enum ExpressionType { ExprTypeOther, ExprTypeImmediate, ExprTypeAddress };
 
@@ -702,57 +700,55 @@ public:
         eatThatToken(Operands);
         if (!tryParseExpr(Operands, ExprTypeImmediate, "immediate operand must be an expression evaluating to a value between 0 and 65535 inclusive")) {
           continue;
+        }
       }
-    }
-    // Handle parentheses and brackets.
-    if (getLexer().is(AsmToken::LParen)) {
-      eatThatToken(Operands);
-      if (!tryParseExpr(Operands, ExprTypeAddress, "expression expected after left parenthesis")) {
-        RightHandSide = AsmToken::RParen;
+      // Handle parentheses and brackets.
+      if (getLexer().is(AsmToken::LParen)) {
+        eatThatToken(Operands);
+        if (!tryParseExpr(Operands, ExprTypeAddress, "expression expected after left parenthesis")) {
+          RightHandSide = AsmToken::RParen;
+          continue;
+        }
+      }
+      {
+        eatThatToken(Operands);
+        if (!tryParseExpr(Operands, ExprTypeAddress, "expression expected after left bracket")) {
+          RightHandSide = AsmToken::RBrac;
+          continue;
+        }
+      }
+      if (RightHandSide != AsmToken::Eof && getLexer().is(RightHandSide)) {
+        eatThatToken(Operands);
+        RightHandSide = AsmToken::Eof;
         continue;
       }
-    }
-    {
-      eatThatToken(Operands);
-      if (!tryParseExpr(Operands, ExprTypeAddress, "expression expected after left bracket")) {
-        RightHandSide = AsmToken::RBrac;
+      // I don't know what LLVM has against commas, but for some reason
+      // TableGen makes an effort to ignore them during parsing.  So,
+      // strangely enough, we have to throw out commas too, even though
+      // they have semantic meaning on MC6809 platforms.
+      if (getLexer().is(AsmToken::Comma)) {
+        Lex();
         continue;
       }
-    }
-    if (RightHandSide != AsmToken::Eof && getLexer().is(RightHandSide)) {
+
+      // We'll only ever see a register name on the third or later parameter.
+      if (tryParseAsmParamRegClass(Operands).isSuccess()) {
+        Parser.Lex();
+        continue;
+      }
+
+      if (!tryParseExpr(Operands, ExprTypeAddress, "expression expected")) {
+        continue;
+      }
+
+      // Okay then, you're a token.  Hope you're happy.
       eatThatToken(Operands);
-      RightHandSide = AsmToken::Eof;
-      continue;
     }
-    // I don't know what LLVM has against commas, but for some reason
-    // TableGen makes an effort to ignore them during parsing.  So,
-    // strangely enough, we have to throw out commas too, even though
-    // they have semantic meaning on MC6809 platforms.
-    if (getLexer().is(AsmToken::Comma)) {
-      Lex();
-      continue;
-    }
-
-    // We'll only ever see a register name on the third or later parameter.
-    if (tryParseAsmParamRegClass(Operands).isSuccess()) {
-      Parser.Lex();
-      continue;
-    }
-
-    if (!tryParseExpr(Operands, ExprTypeAddress, "expression expected")) {
-      continue;
-    }
-
-    // Okay then, you're a token.  Hope you're happy.
-    eatThatToken(Operands);
+    Parser.Lex(); // Consume the EndOfStatement
+    return false;
   }
-  Parser.Lex(); // Consume the EndOfStatement
-  return false;
-}
 
-  bool parseRegister(MCRegister &Reg, SMLoc &StartLoc, SMLoc &EndLoc) override {
-  return !tryParseRegister(Reg, StartLoc, EndLoc).isSuccess();
-}
+  bool parseRegister(MCRegister &Reg, SMLoc &StartLoc, SMLoc &EndLoc) override { return !tryParseRegister(Reg, StartLoc, EndLoc).isSuccess(); }
 
 }; // class MC6809AsmParser
 
