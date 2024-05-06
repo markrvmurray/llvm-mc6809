@@ -310,6 +310,9 @@ MC6809InstrCost MC6809RegisterInfo::copyCost(Register DestReg, Register SrcReg, 
   if (AreClasses(MC6809::INDEX16RegClass, MC6809::INDEX16RegClass)) {
     return TransferCost;
   }
+  if (AreClasses(MC6809::ACC8RegClass, MC6809::INDEX16RegClass)) {
+    return ImpossibleCost;
+  }
   if (AreClasses(MC6809::ACC8RegClass, MC6809::ACC16RegClass)) {
     return ImpossibleCost;
   }
