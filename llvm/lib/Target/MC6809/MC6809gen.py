@@ -861,6 +861,72 @@ with Generate("MC6809InstrInfo.td", marker_start="// MRVM START MARKER 2", marke
 				else:
 					ii.write('def {name} : MC6809{addressmode}_P{page}<{outsformatted}, "{lcmnemonic}", Opcode<0x{opcode:02X},{page}>, [{defslist}], [{useslist}]>;\n\n'.format(**instr))
 
+pagecode = {1:"    ", 2:"0x10", 3:"0x11"}
+conds = {2:"hi", 3:"ls", 4:"hs", 5:"lo", 6:"ne", 7:"eq", 8:"vc", 9:"vs", 10:"pl", 11:"mi", 12:"ge", 13:"lt", 14:"gt", 15:"le"}
+
+with Generate("MC6809InstrDisassemblerTests.txt", marker_start="# MRVM START MARKER", marker_finish="# MRVM END MARKER") as tt:
+	for page in Instructions:
+		for instr in page:
+			if instr["hd6309"] == 1:
+				continue
+			instr["pagecode"] = pagecode[instr["page"]]
+			if instr["mode"] == "i" or instr["mode"] == "ii":
+				if instr["mode"] not in ["i", "ii"]:
+					print("OINQUE!! Diassembler tests indexed address mode '{mode}' not handled!".format(**instr))
+				if instr["mode"] == "i":
+					for k in IndexModes:
+						instr["operand"] = ' '.join(k[2])
+						if not k[6]: # 6309
+							tt.write("{pagecode} 0x{opcode:02X} 0xXX 0x?? 0x??      #\t{lcmnemonic}\t????????   {operand}\n".format(**instr))
+				if instr["mode"] == "ii":
+					for k in IndexModes:
+						instr["operand"] = "$val ; " + ' '.join(k[2])
+						if not k[6]: # 6309
+							tt.write("{pagecode} 0x{opcode:02X} 0x00 0xXX 0x?? 0x?? #\t{lcmnemonic}\t????????   {operand}\n".format(**instr))
+			else:
+				if instr["mode"] not in ["d", "id", "ie", "x", "lb", "lbc", "i8", "i16", "i32", "p", "pp", "b", "bc", "s", "r", "a", "e", "bd"]:
+					print("OINQUE!! Diassembler tests non-indexed address mode '{mode}' not handled!".format(**instr))
+				if instr["mode"] == "d":
+					tt.write("{pagecode} 0x{opcode:02X} 0x00                #\t{lcmnemonic}\t<$00       {operand}\n".format(**instr))
+				if instr["mode"] == "e":
+					tt.write("{pagecode} 0x{opcode:02X} 0x00 0x00           #\t{lcmnemonic}\t>$0000     {operand}\n".format(**instr))
+				if instr["mode"] == "id":
+					tt.write("{pagecode} 0x{opcode:02X} 0x00 0x00           #\t{lcmnemonic}\t$00;<$00   {operand}\n".format(**instr))
+				if instr["mode"] == "ie":
+					tt.write("{pagecode} 0x{opcode:02X} 0x00 0x00 0x00      #\t{lcmnemonic}\t$00;>$0000 {operand}\n".format(**instr))
+				if instr["mode"] in ["x", "r", "a"]:
+					tt.write("{pagecode} 0x{opcode:02X}                     #\t{lcmnemonic}             {operand}\n".format(**instr))
+				if instr["mode"] == "lb":
+					tt.write("{pagecode} 0x{opcode:02X} 0x00 0x00           #\t{lcmnemonic}\t$0000      {operand}\n".format(**instr))
+				if instr["mode"] == "i8":
+					tt.write("{pagecode} 0x{opcode:02X} 0x00                #\t{lcmnemonic}\t#$00       {operand}\n".format(**instr))
+				if instr["mode"] == "i16":
+					tt.write("{pagecode} 0x{opcode:02X} 0x00 0x00           #\t{lcmnemonic}\t#$0000     {operand}\n".format(**instr))
+				if instr["mode"] == "i32":
+					tt.write("{pagecode} 0x{opcode:02X} 0x00 0x00 0x00 0x00 #\t{lcmnemonic}\t#$0000     {operand}\n".format(**instr))
+				if instr["mode"] == "p":
+					tt.write("{pagecode} 0x{opcode:02X} 0x89                #\t{lcmnemonic}\ta,b        {operand}\n".format(**instr))
+				if instr["mode"] == "pp":
+					tt.write("{pagecode} 0x{opcode:02X} 0x12                #\t{lcmnemonic}\tx,y        {operand}\n".format(**instr))
+				if instr["mode"] == "bd":
+					tt.write("{pagecode} 0x{opcode:02X} 0x69 0x00           #\t{lcmnemonic}\ta,5,1,<$00 {operand}\n".format(**instr))
+				if instr["mode"] == "b":
+					tt.write("{pagecode} 0x{opcode:02X} 0x00                #\t{lcmnemonic}\t#00        {operand}\n".format(**instr))
+				if instr["mode"] == "bc":
+					for cond in range(2, 16):
+						instr["conditioncode"] = cond
+						instr["lcmnemonic"] = "b" + conds[cond]
+						tt.write("{pagecode} 0x{opcode:X}{conditioncode:X} 0x00                #\t{lcmnemonic}\t$00        {operand}\n".format(**instr))
+					instr["lcmnemonic"] = "b$cond"
+				if instr["mode"] == "lbc":
+					for cond in range(2, 16):
+						instr["conditioncode"] = cond
+						instr["lcmnemonic"] = "lb" + conds[cond]
+						tt.write("{pagecode} 0x{opcode:X}{conditioncode:X} 0x00 0x00           #\t{lcmnemonic}\t$0000      {operand}\n".format(**instr))
+					instr["lcmnemonic"] = "lb$cond"
+				if instr["mode"] == "s":
+					tt.write("{pagecode} 0x{opcode:02X} 0xFF                #\t{lcmnemonic}\tcc,a,b,dp,x,y,u,pc {operand}\n".format(**instr))
+
 with Generate("MC6809InstrFormats.td", marker_start="// MRVM START MARKER 1", marker_finish="// MRVM END MARKER 1") as fi:
 	for k in sorted(AddressMode):
 		v = AddressMode[k]

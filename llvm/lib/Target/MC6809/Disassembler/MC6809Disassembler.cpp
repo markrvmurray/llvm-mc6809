@@ -34,7 +34,7 @@ static DecodeStatus DecodeCondCodeOperand(MCInst &MI, uint64_t Bits, uint64_t Ad
 
 static DecodeStatus DecodeRegListOperand(MCInst &MI, uint64_t Bits, uint64_t Address, const void *Decoder);
 
-static DecodeStatus DecodeRegOperand(MCInst &MI, uint64_t Bits, uint64_t Address, const void *Decoder);
+static DecodeStatus DecodeRegOperand(MCInst &MI, uint64_t Regno, uint64_t Address, const void *Decoder);
 
 static DecodeStatus DecodeINDEX16RegisterClass(MCInst &MI, uint64_t RegNo, uint64_t Address, const void *Decoder);
 

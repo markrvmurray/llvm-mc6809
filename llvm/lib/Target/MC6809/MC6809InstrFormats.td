@@ -115,6 +115,7 @@ class RegAsmOperand<string type> : MC6809AsmOperand<"Register"> {
 def anyregister : Operand<i8> {
   let EncoderMethod = "encodeRegOpValue";
   let ParserMatchClass = RegAsmOperand<"Any">;
+  let DecoderMethod = "DecodeRegOperand";
 }
 
 // A list of registers separated by comma. Used by load/store multiple.
@@ -136,6 +137,7 @@ def condcode : Operand<i4> {
   let EncoderMethod = "encodeCondCodeOpValue";
   let ParserMatchClass = CondCodeAsmOperand<"CondCode">;
   let PrintMethod = "printCondCode";
+  let DecoderMethod = "DecodeCondCodeOperand";
 }
 
 def CCode : Operand<OtherVT>;
