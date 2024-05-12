@@ -44,22 +44,22 @@ multiclass MC6809ImmediateIndexed_P1<string Mnemonic, Opcode opcode, dag outdag,
   def _o16 : MC6809ImmediateIndexedOffset16_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
     let Predicates = [IsHD6309];
   }
-  def _oA : MC6809ImmediateIndexedOffsetA_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _oA : MC6809ImmediateIndexedOffsetA_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AA])> {
     let Predicates = [IsHD6309];
   }
-  def _oB : MC6809ImmediateIndexedOffsetB_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _oB : MC6809ImmediateIndexedOffsetB_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AB])> {
     let Predicates = [IsHD6309];
   }
-  def _oE : MC6809ImmediateIndexedOffsetE_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _oE : MC6809ImmediateIndexedOffsetE_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AE])> {
     let Predicates = [IsHD6309];
   }
-  def _oF : MC6809ImmediateIndexedOffsetF_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _oF : MC6809ImmediateIndexedOffsetF_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AF])> {
     let Predicates = [IsHD6309];
   }
-  def _oD : MC6809ImmediateIndexedOffsetD_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _oD : MC6809ImmediateIndexedOffsetD_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AD])> {
     let Predicates = [IsHD6309];
   }
-  def _oW : MC6809ImmediateIndexedOffsetW_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _oW : MC6809ImmediateIndexedOffsetW_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
   def _Inc1 : MC6809ImmediateIndexedInc1_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
@@ -80,16 +80,16 @@ multiclass MC6809ImmediateIndexed_P1<string Mnemonic, Opcode opcode, dag outdag,
   def _o16PC : MC6809ImmediateIndexedOffset16PC_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
     let Predicates = [IsHD6309];
   }
-  def _o0W : MC6809ImmediateIndexedOffset0W_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _o0W : MC6809ImmediateIndexedOffset0W_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
   def _o16W : MC6809ImmediateIndexedOffset16W_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
     let Predicates = [IsHD6309];
   }
-  def _IncW2 : MC6809ImmediateIndexedIncW2_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _IncW2 : MC6809ImmediateIndexedIncW2_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, [AW]), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
-  def _DecW2 : MC6809ImmediateIndexedDecW2_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _DecW2 : MC6809ImmediateIndexedDecW2_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, [AW]), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
   def _o0I : MC6809ImmediateIndexedOffset0Ind_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
@@ -101,22 +101,22 @@ multiclass MC6809ImmediateIndexed_P1<string Mnemonic, Opcode opcode, dag outdag,
   def _o16I : MC6809ImmediateIndexedOffset16Ind_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
     let Predicates = [IsHD6309];
   }
-  def _oAI : MC6809ImmediateIndexedOffsetAInd_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _oAI : MC6809ImmediateIndexedOffsetAInd_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AA])> {
     let Predicates = [IsHD6309];
   }
-  def _oBI : MC6809ImmediateIndexedOffsetBInd_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _oBI : MC6809ImmediateIndexedOffsetBInd_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AB])> {
     let Predicates = [IsHD6309];
   }
-  def _oEI : MC6809ImmediateIndexedOffsetEInd_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _oEI : MC6809ImmediateIndexedOffsetEInd_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AE])> {
     let Predicates = [IsHD6309];
   }
-  def _oFI : MC6809ImmediateIndexedOffsetFInd_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _oFI : MC6809ImmediateIndexedOffsetFInd_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AF])> {
     let Predicates = [IsHD6309];
   }
-  def _oDI : MC6809ImmediateIndexedOffsetDInd_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _oDI : MC6809ImmediateIndexedOffsetDInd_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AD])> {
     let Predicates = [IsHD6309];
   }
-  def _oWI : MC6809ImmediateIndexedOffsetWInd_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _oWI : MC6809ImmediateIndexedOffsetWInd_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
   def _Inc2I : MC6809ImmediateIndexedInc2Ind_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
@@ -134,16 +134,16 @@ multiclass MC6809ImmediateIndexed_P1<string Mnemonic, Opcode opcode, dag outdag,
   def _eI : MC6809ImmediateIndexedExtendedInd_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
     let Predicates = [IsHD6309];
   }
-  def _0oWI : MC6809ImmediateIndexedNoOffsetWInd_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _0oWI : MC6809ImmediateIndexedNoOffsetWInd_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
-  def _16oWI : MC6809ImmediateIndexedOffset16WInd_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _16oWI : MC6809ImmediateIndexedOffset16WInd_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
-  def _IncW2I : MC6809ImmediateIndexedIncW2Ind_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _IncW2I : MC6809ImmediateIndexedIncW2Ind_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, [AW]), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
-  def _DecW2I : MC6809ImmediateIndexedDecW2Ind_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _DecW2I : MC6809ImmediateIndexedDecW2Ind_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, [AW]), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
 }
@@ -153,16 +153,16 @@ multiclass MC6809Indexed_P1<string Mnemonic, Opcode opcode, dag outdag, list<Reg
   def _o5 : MC6809IndexedOffset5_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
   def _o8 : MC6809IndexedOffset8_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
   def _o16 : MC6809IndexedOffset16_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
-  def _oA : MC6809IndexedOffsetA_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
-  def _oB : MC6809IndexedOffsetB_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
-  def _oE : MC6809IndexedOffsetE_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _oA : MC6809IndexedOffsetA_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AA])>;
+  def _oB : MC6809IndexedOffsetB_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AB])>;
+  def _oE : MC6809IndexedOffsetE_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AE])> {
     let Predicates = [IsHD6309];
   }
-  def _oF : MC6809IndexedOffsetF_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _oF : MC6809IndexedOffsetF_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AF])> {
     let Predicates = [IsHD6309];
   }
-  def _oD : MC6809IndexedOffsetD_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
-  def _oW : MC6809IndexedOffsetW_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _oD : MC6809IndexedOffsetD_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AD])>;
+  def _oW : MC6809IndexedOffsetW_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
   def _Inc1 : MC6809IndexedInc1_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
@@ -171,31 +171,31 @@ multiclass MC6809Indexed_P1<string Mnemonic, Opcode opcode, dag outdag, list<Reg
   def _Dec2 : MC6809IndexedDec2_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
   def _o8PC : MC6809IndexedOffset8PC_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
   def _o16PC : MC6809IndexedOffset16PC_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
-  def _o0W : MC6809IndexedOffset0W_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _o0W : MC6809IndexedOffset0W_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
   def _o16W : MC6809IndexedOffset16W_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
     let Predicates = [IsHD6309];
   }
-  def _IncW2 : MC6809IndexedIncW2_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _IncW2 : MC6809IndexedIncW2_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, [AW]), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
-  def _DecW2 : MC6809IndexedDecW2_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _DecW2 : MC6809IndexedDecW2_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, [AW]), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
   def _o0I : MC6809IndexedOffset0Ind_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
   def _o8I : MC6809IndexedOffset8Ind_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
   def _o16I : MC6809IndexedOffset16Ind_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
-  def _oAI : MC6809IndexedOffsetAInd_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
-  def _oBI : MC6809IndexedOffsetBInd_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
-  def _oEI : MC6809IndexedOffsetEInd_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _oAI : MC6809IndexedOffsetAInd_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AA])>;
+  def _oBI : MC6809IndexedOffsetBInd_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AB])>;
+  def _oEI : MC6809IndexedOffsetEInd_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AE])> {
     let Predicates = [IsHD6309];
   }
-  def _oFI : MC6809IndexedOffsetFInd_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _oFI : MC6809IndexedOffsetFInd_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AF])> {
     let Predicates = [IsHD6309];
   }
-  def _oDI : MC6809IndexedOffsetDInd_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
-  def _oWI : MC6809IndexedOffsetWInd_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _oDI : MC6809IndexedOffsetDInd_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AD])>;
+  def _oWI : MC6809IndexedOffsetWInd_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
   def _Inc2I : MC6809IndexedInc2Ind_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
@@ -203,16 +203,16 @@ multiclass MC6809Indexed_P1<string Mnemonic, Opcode opcode, dag outdag, list<Reg
   def _o8PCI : MC6809IndexedOffset8PCInd_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
   def _o16PCI : MC6809IndexedOffset16PCInd_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
   def _eI : MC6809IndexedExtendedInd_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
-  def _0oWI : MC6809IndexedNoOffsetWInd_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _0oWI : MC6809IndexedNoOffsetWInd_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
-  def _16oWI : MC6809IndexedOffset16WInd_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _16oWI : MC6809IndexedOffset16WInd_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
-  def _IncW2I : MC6809IndexedIncW2Ind_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _IncW2I : MC6809IndexedIncW2Ind_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, [AW]), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
-  def _DecW2I : MC6809IndexedDecW2Ind_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _DecW2I : MC6809IndexedDecW2Ind_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, [AW]), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
 }
@@ -222,16 +222,16 @@ multiclass MC6809Indexed_P2<string Mnemonic, Opcode opcode, dag outdag, list<Reg
   def _o5 : MC6809IndexedOffset5_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
   def _o8 : MC6809IndexedOffset8_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
   def _o16 : MC6809IndexedOffset16_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
-  def _oA : MC6809IndexedOffsetA_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
-  def _oB : MC6809IndexedOffsetB_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
-  def _oE : MC6809IndexedOffsetE_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _oA : MC6809IndexedOffsetA_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AA])>;
+  def _oB : MC6809IndexedOffsetB_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AB])>;
+  def _oE : MC6809IndexedOffsetE_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AE])> {
     let Predicates = [IsHD6309];
   }
-  def _oF : MC6809IndexedOffsetF_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _oF : MC6809IndexedOffsetF_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AF])> {
     let Predicates = [IsHD6309];
   }
-  def _oD : MC6809IndexedOffsetD_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
-  def _oW : MC6809IndexedOffsetW_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _oD : MC6809IndexedOffsetD_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AD])>;
+  def _oW : MC6809IndexedOffsetW_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
   def _Inc1 : MC6809IndexedInc1_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
@@ -240,31 +240,31 @@ multiclass MC6809Indexed_P2<string Mnemonic, Opcode opcode, dag outdag, list<Reg
   def _Dec2 : MC6809IndexedDec2_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
   def _o8PC : MC6809IndexedOffset8PC_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
   def _o16PC : MC6809IndexedOffset16PC_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
-  def _o0W : MC6809IndexedOffset0W_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _o0W : MC6809IndexedOffset0W_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
   def _o16W : MC6809IndexedOffset16W_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
     let Predicates = [IsHD6309];
   }
-  def _IncW2 : MC6809IndexedIncW2_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _IncW2 : MC6809IndexedIncW2_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, [AW]), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
-  def _DecW2 : MC6809IndexedDecW2_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _DecW2 : MC6809IndexedDecW2_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, [AW]), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
   def _o0I : MC6809IndexedOffset0Ind_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
   def _o8I : MC6809IndexedOffset8Ind_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
   def _o16I : MC6809IndexedOffset16Ind_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
-  def _oAI : MC6809IndexedOffsetAInd_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
-  def _oBI : MC6809IndexedOffsetBInd_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
-  def _oEI : MC6809IndexedOffsetEInd_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _oAI : MC6809IndexedOffsetAInd_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AA])>;
+  def _oBI : MC6809IndexedOffsetBInd_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AB])>;
+  def _oEI : MC6809IndexedOffsetEInd_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AE])> {
     let Predicates = [IsHD6309];
   }
-  def _oFI : MC6809IndexedOffsetFInd_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _oFI : MC6809IndexedOffsetFInd_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AF])> {
     let Predicates = [IsHD6309];
   }
-  def _oDI : MC6809IndexedOffsetDInd_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
-  def _oWI : MC6809IndexedOffsetWInd_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _oDI : MC6809IndexedOffsetDInd_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AD])>;
+  def _oWI : MC6809IndexedOffsetWInd_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
   def _Inc2I : MC6809IndexedInc2Ind_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
@@ -272,16 +272,16 @@ multiclass MC6809Indexed_P2<string Mnemonic, Opcode opcode, dag outdag, list<Reg
   def _o8PCI : MC6809IndexedOffset8PCInd_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
   def _o16PCI : MC6809IndexedOffset16PCInd_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
   def _eI : MC6809IndexedExtendedInd_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
-  def _0oWI : MC6809IndexedNoOffsetWInd_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _0oWI : MC6809IndexedNoOffsetWInd_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
-  def _16oWI : MC6809IndexedOffset16WInd_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _16oWI : MC6809IndexedOffset16WInd_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
-  def _IncW2I : MC6809IndexedIncW2Ind_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _IncW2I : MC6809IndexedIncW2Ind_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, [AW]), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
-  def _DecW2I : MC6809IndexedDecW2Ind_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _DecW2I : MC6809IndexedDecW2Ind_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, [AW]), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
 }
@@ -291,16 +291,16 @@ multiclass MC6809Indexed_P3<string Mnemonic, Opcode opcode, dag outdag, list<Reg
   def _o5 : MC6809IndexedOffset5_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
   def _o8 : MC6809IndexedOffset8_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
   def _o16 : MC6809IndexedOffset16_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
-  def _oA : MC6809IndexedOffsetA_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
-  def _oB : MC6809IndexedOffsetB_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
-  def _oE : MC6809IndexedOffsetE_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _oA : MC6809IndexedOffsetA_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AA])>;
+  def _oB : MC6809IndexedOffsetB_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AB])>;
+  def _oE : MC6809IndexedOffsetE_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AE])> {
     let Predicates = [IsHD6309];
   }
-  def _oF : MC6809IndexedOffsetF_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _oF : MC6809IndexedOffsetF_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AF])> {
     let Predicates = [IsHD6309];
   }
-  def _oD : MC6809IndexedOffsetD_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
-  def _oW : MC6809IndexedOffsetW_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _oD : MC6809IndexedOffsetD_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AD])>;
+  def _oW : MC6809IndexedOffsetW_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
   def _Inc1 : MC6809IndexedInc1_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
@@ -309,31 +309,31 @@ multiclass MC6809Indexed_P3<string Mnemonic, Opcode opcode, dag outdag, list<Reg
   def _Dec2 : MC6809IndexedDec2_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
   def _o8PC : MC6809IndexedOffset8PC_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
   def _o16PC : MC6809IndexedOffset16PC_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
-  def _o0W : MC6809IndexedOffset0W_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _o0W : MC6809IndexedOffset0W_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
   def _o16W : MC6809IndexedOffset16W_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
     let Predicates = [IsHD6309];
   }
-  def _IncW2 : MC6809IndexedIncW2_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _IncW2 : MC6809IndexedIncW2_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, [AW]), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
-  def _DecW2 : MC6809IndexedDecW2_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _DecW2 : MC6809IndexedDecW2_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, [AW]), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
   def _o0I : MC6809IndexedOffset0Ind_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
   def _o8I : MC6809IndexedOffset8Ind_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
   def _o16I : MC6809IndexedOffset16Ind_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
-  def _oAI : MC6809IndexedOffsetAInd_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
-  def _oBI : MC6809IndexedOffsetBInd_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
-  def _oEI : MC6809IndexedOffsetEInd_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _oAI : MC6809IndexedOffsetAInd_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AA])>;
+  def _oBI : MC6809IndexedOffsetBInd_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AB])>;
+  def _oEI : MC6809IndexedOffsetEInd_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AE])> {
     let Predicates = [IsHD6309];
   }
-  def _oFI : MC6809IndexedOffsetFInd_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _oFI : MC6809IndexedOffsetFInd_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AF])> {
     let Predicates = [IsHD6309];
   }
-  def _oDI : MC6809IndexedOffsetDInd_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
-  def _oWI : MC6809IndexedOffsetWInd_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _oDI : MC6809IndexedOffsetDInd_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AD])>;
+  def _oWI : MC6809IndexedOffsetWInd_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
   def _Inc2I : MC6809IndexedInc2Ind_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
@@ -341,16 +341,16 @@ multiclass MC6809Indexed_P3<string Mnemonic, Opcode opcode, dag outdag, list<Reg
   def _o8PCI : MC6809IndexedOffset8PCInd_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
   def _o16PCI : MC6809IndexedOffset16PCInd_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
   def _eI : MC6809IndexedExtendedInd_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
-  def _0oWI : MC6809IndexedNoOffsetWInd_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _0oWI : MC6809IndexedNoOffsetWInd_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
-  def _16oWI : MC6809IndexedOffset16WInd_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _16oWI : MC6809IndexedOffset16WInd_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
-  def _IncW2I : MC6809IndexedIncW2Ind_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _IncW2I : MC6809IndexedIncW2Ind_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, [AW]), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
-  def _DecW2I : MC6809IndexedDecW2Ind_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])> {
+  def _DecW2I : MC6809IndexedDecW2Ind_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, [AW]), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
 }
@@ -503,13 +503,13 @@ def Bbc : MC6809ShortConditionalBranch_P1<(outs), "b$cond", Opcode<0x02,1>, [], 
   let isTerminator = true;
 }
 
-defm LEAXi : MC6809Indexed_P1<"leax", Opcode<0x30, 1>, (outs IXc:$reg), [], []>;
+defm LEAXi : MC6809Indexed_P1<"leax", Opcode<0x30, 1>, (outs), [IX], []>;
 
-defm LEAYi : MC6809Indexed_P1<"leay", Opcode<0x31, 1>, (outs IYc:$reg), [], []>;
+defm LEAYi : MC6809Indexed_P1<"leay", Opcode<0x31, 1>, (outs), [IY], []>;
 
-defm LEASi : MC6809Indexed_P1<"leas", Opcode<0x32, 1>, (outs SSc:$reg), [], []>;
+defm LEASi : MC6809Indexed_P1<"leas", Opcode<0x32, 1>, (outs), [SS], []>;
 
-defm LEAUi : MC6809Indexed_P1<"leau", Opcode<0x33, 1>, (outs SUc:$reg), [], []>;
+defm LEAUi : MC6809Indexed_P1<"leau", Opcode<0x33, 1>, (outs), [SU], []>;
 
 def PSHSs : MC6809Stack_P1<(outs), "pshs", Opcode<0x34,1>, [SS], [SS]>;
 
@@ -766,7 +766,7 @@ def BITAi8 : MC6809Immediate8Bit_P1<(outs), "bita", Opcode<0x85,1>, [NZ,N,Z,V], 
   let mayLoad = true;
 }
 
-def LDAi8 : MC6809Immediate8Bit_P1<(outs AAc:$reg), "lda", Opcode<0x86,1>, [NZ,N,Z,V,AD,AQ], []> {
+def LDAi8 : MC6809Immediate8Bit_P1<(outs), "lda", Opcode<0x86,1>, [NZ,N,Z,V,AD,AQ], []> {
   let mayLoad = true;
 }
 
@@ -799,7 +799,7 @@ def BSRb : MC6809ShortBranch_P1<(outs), "bsr", Opcode<0x8D,1>, [], [SS]> {
   let isCall = true;
 }
 
-def LDXi16 : MC6809Immediate16Bit_P1<(outs IXc:$reg), "ldx", Opcode<0x8E,1>, [NZ,N,Z,V,IX], []> {
+def LDXi16 : MC6809Immediate16Bit_P1<(outs), "ldx", Opcode<0x8E,1>, [NZ,N,Z,V,IX], []> {
   let mayLoad = true;
 }
 
@@ -829,7 +829,7 @@ def BITAd : MC6809Direct_P1<(outs), "bita", Opcode<0x95,1>, [NZ,N,Z,V], [AA]> {
   let mayLoad = true;
 }
 
-def LDAd : MC6809Direct_P1<(outs AAc:$reg), "lda", Opcode<0x96,1>, [NZ,N,Z,V,AD,AQ], []> {
+def LDAd : MC6809Direct_P1<(outs), "lda", Opcode<0x96,1>, [NZ,N,Z,V,AD,AQ], []> {
   let mayLoad = true;
 }
 
@@ -864,7 +864,7 @@ def JSRd : MC6809Direct_P1<(outs), "jsr", Opcode<0x9D,1>, [], []> {
   let isCall = true;
 }
 
-def LDXd : MC6809Direct_P1<(outs IXc:$reg), "ldx", Opcode<0x9E,1>, [NZ,N,Z,V,IX], []> {
+def LDXd : MC6809Direct_P1<(outs), "ldx", Opcode<0x9E,1>, [NZ,N,Z,V,IX], []> {
   let mayLoad = true;
 }
 
@@ -897,7 +897,7 @@ let isCompare = true, mayLoad = true in {
 }
 
 let mayLoad = true in {
-  defm LDAi : MC6809Indexed_P1<"lda", Opcode<0xA6, 1>, (outs AAc:$reg), [NZ,N,Z,V,AD,AQ], []>;
+  defm LDAi : MC6809Indexed_P1<"lda", Opcode<0xA6, 1>, (outs), [NZ,N,Z,V,AD,AQ], []>;
 }
 
 let mayStore = true in {
@@ -929,7 +929,7 @@ let isCall = true in {
 }
 
 let mayLoad = true in {
-  defm LDXi : MC6809Indexed_P1<"ldx", Opcode<0xAE, 1>, (outs IXc:$reg), [NZ,N,Z,V,IX], []>;
+  defm LDXi : MC6809Indexed_P1<"ldx", Opcode<0xAE, 1>, (outs), [NZ,N,Z,V,IX], []>;
 }
 
 let mayStore = true in {
@@ -962,7 +962,7 @@ def BITAe : MC6809Extended_P1<(outs), "bita", Opcode<0xB5,1>, [NZ,N,Z,V], [AA]> 
   let mayLoad = true;
 }
 
-def LDAe : MC6809Extended_P1<(outs AAc:$reg), "lda", Opcode<0xB6,1>, [NZ,N,Z,V,AD,AQ], []> {
+def LDAe : MC6809Extended_P1<(outs), "lda", Opcode<0xB6,1>, [NZ,N,Z,V,AD,AQ], []> {
   let mayLoad = true;
 }
 
@@ -997,7 +997,7 @@ def JSRe : MC6809Extended_P1<(outs), "jsr", Opcode<0xBD,1>, [], []> {
   let isCall = true;
 }
 
-def LDXe : MC6809Extended_P1<(outs IXc:$reg), "ldx", Opcode<0xBE,1>, [NZ,N,Z,V,IX], []> {
+def LDXe : MC6809Extended_P1<(outs), "ldx", Opcode<0xBE,1>, [NZ,N,Z,V,IX], []> {
   let mayLoad = true;
 }
 
@@ -1032,7 +1032,7 @@ def BITBi8 : MC6809Immediate8Bit_P1<(outs), "bitb", Opcode<0xC5,1>, [NZ,N,Z,V], 
   let mayLoad = true;
 }
 
-def LDBi8 : MC6809Immediate8Bit_P1<(outs ABc:$reg), "ldb", Opcode<0xC6,1>, [NZ,N,Z,V,AD,AQ], []> {
+def LDBi8 : MC6809Immediate8Bit_P1<(outs), "ldb", Opcode<0xC6,1>, [NZ,N,Z,V,AD,AQ], []> {
   let mayLoad = true;
 }
 
@@ -1054,16 +1054,16 @@ def ADDBi8 : MC6809Immediate8Bit_P1<(outs), "addb", Opcode<0xCB,1>, [AB,NZ,N,Z,V
   let isAdd = true;
 }
 
-def LDDi16 : MC6809Immediate16Bit_P1<(outs ADc:$reg), "ldd", Opcode<0xCC,1>, [NZ,N,Z,V,AA,AB,AQ], []> {
+def LDDi16 : MC6809Immediate16Bit_P1<(outs), "ldd", Opcode<0xCC,1>, [NZ,N,Z,V,AA,AB,AQ], []> {
   let mayLoad = true;
 }
 
-def LDQi32 : MC6809Immediate32Bit_P1<(outs AQc:$reg), "ldq", Opcode<0xCD,1>, [NZ,N,Z,V,AA,AB,AD,AE,AF,AW], []> {
+def LDQi32 : MC6809Immediate32Bit_P1<(outs), "ldq", Opcode<0xCD,1>, [NZ,N,Z,V,AA,AB,AD,AE,AF,AW], []> {
   let Predicates = [IsHD6309];
   let mayLoad = true;
 }
 
-def LDUi16 : MC6809Immediate16Bit_P1<(outs SUc:$reg), "ldu", Opcode<0xCE,1>, [NZ,N,Z,V,SU], []> {
+def LDUi16 : MC6809Immediate16Bit_P1<(outs), "ldu", Opcode<0xCE,1>, [NZ,N,Z,V,SU], []> {
   let mayLoad = true;
 }
 
@@ -1094,7 +1094,7 @@ def BITBd : MC6809Direct_P1<(outs), "bitb", Opcode<0xD5,1>, [NZ,N,Z,V], [AB]> {
   let mayLoad = true;
 }
 
-def LDBd : MC6809Direct_P1<(outs ABc:$reg), "ldb", Opcode<0xD6,1>, [NZ,N,Z,V,AD,AQ], []> {
+def LDBd : MC6809Direct_P1<(outs), "ldb", Opcode<0xD6,1>, [NZ,N,Z,V,AD,AQ], []> {
   let mayLoad = true;
 }
 
@@ -1120,7 +1120,7 @@ def ADDBd : MC6809Direct_P1<(outs), "addb", Opcode<0xDB,1>, [AB,NZ,N,Z,V,C,AD,AQ
   let isAdd = true;
 }
 
-def LDDd : MC6809Direct_P1<(outs ADc:$reg), "ldd", Opcode<0xDC,1>, [NZ,N,Z,V,AA,AB,AQ], []> {
+def LDDd : MC6809Direct_P1<(outs), "ldd", Opcode<0xDC,1>, [NZ,N,Z,V,AA,AB,AQ], []> {
   let mayLoad = true;
 }
 
@@ -1128,7 +1128,7 @@ def STDd : MC6809Direct_P1<(outs), "std", Opcode<0xDD,1>, [NZ,N,Z,V], []> {
   let mayStore = true;
 }
 
-def LDUd : MC6809Direct_P1<(outs SUc:$reg), "ldu", Opcode<0xDE,1>, [NZ,N,Z,V,SU], []> {
+def LDUd : MC6809Direct_P1<(outs), "ldu", Opcode<0xDE,1>, [NZ,N,Z,V,SU], []> {
   let mayLoad = true;
 }
 
@@ -1161,7 +1161,7 @@ let isCompare = true, mayLoad = true in {
 }
 
 let mayLoad = true in {
-  defm LDBi : MC6809Indexed_P1<"ldb", Opcode<0xE6, 1>, (outs ABc:$reg), [NZ,N,Z,V,AD,AQ], []>;
+  defm LDBi : MC6809Indexed_P1<"ldb", Opcode<0xE6, 1>, (outs), [NZ,N,Z,V,AD,AQ], []>;
 }
 
 let mayStore = true in {
@@ -1185,7 +1185,7 @@ let isAdd = true, mayLoad = true in {
 }
 
 let mayLoad = true in {
-  defm LDDi : MC6809Indexed_P1<"ldd", Opcode<0xEC, 1>, (outs ADc:$reg), [NZ,N,Z,V,AA,AB,AQ], []>;
+  defm LDDi : MC6809Indexed_P1<"ldd", Opcode<0xEC, 1>, (outs), [NZ,N,Z,V,AA,AB,AQ], []>;
 }
 
 let mayStore = true in {
@@ -1193,7 +1193,7 @@ let mayStore = true in {
 }
 
 let mayLoad = true in {
-  defm LDUi : MC6809Indexed_P1<"ldu", Opcode<0xEE, 1>, (outs SUc:$reg), [NZ,N,Z,V,SU], []>;
+  defm LDUi : MC6809Indexed_P1<"ldu", Opcode<0xEE, 1>, (outs), [NZ,N,Z,V,SU], []>;
 }
 
 let mayStore = true in {
@@ -1227,7 +1227,7 @@ def BITBe : MC6809Extended_P1<(outs), "bitb", Opcode<0xF5,1>, [NZ,N,Z,V], [AB]> 
   let mayLoad = true;
 }
 
-def LDBe : MC6809Extended_P1<(outs ABc:$reg), "ldb", Opcode<0xF6,1>, [NZ,N,Z,V,AD,AQ], []> {
+def LDBe : MC6809Extended_P1<(outs), "ldb", Opcode<0xF6,1>, [NZ,N,Z,V,AD,AQ], []> {
   let mayLoad = true;
 }
 
@@ -1253,7 +1253,7 @@ def ADDBe : MC6809Extended_P1<(outs), "addb", Opcode<0xFB,1>, [AB,NZ,N,Z,V,C,AD,
   let isAdd = true;
 }
 
-def LDDe : MC6809Extended_P1<(outs ADc:$reg), "ldd", Opcode<0xFC,1>, [NZ,N,Z,V,AA,AB,AQ], []> {
+def LDDe : MC6809Extended_P1<(outs), "ldd", Opcode<0xFC,1>, [NZ,N,Z,V,AA,AB,AQ], []> {
   let mayLoad = true;
 }
 
@@ -1261,7 +1261,7 @@ def STDe : MC6809Extended_P1<(outs), "std", Opcode<0xFD,1>, [NZ,N,Z,V], []> {
   let mayStore = true;
 }
 
-def LDUe : MC6809Extended_P1<(outs SUc:$reg), "ldu", Opcode<0xFE,1>, [NZ,N,Z,V,SU], []> {
+def LDUe : MC6809Extended_P1<(outs), "ldu", Opcode<0xFE,1>, [NZ,N,Z,V,SU], []> {
   let mayLoad = true;
 }
 
@@ -1441,11 +1441,12 @@ def ANDDi16 : MC6809Immediate16Bit_P2<(outs), "andd", Opcode<0x84,2>, [AD,NZ,N,Z
 }
 
 def BITDi16 : MC6809Immediate16Bit_P2<(outs), "bitd", Opcode<0x85,2>, [NZ,N,Z,V], [AD]> {
+  let Predicates = [IsHD6309];
   let isCompare = true;
   let mayLoad = true;
 }
 
-def LDWi16 : MC6809Immediate16Bit_P2<(outs AWc:$reg), "ldw", Opcode<0x86,2>, [NZ,N,Z,V,AE,AF,AQ], []> {
+def LDWi16 : MC6809Immediate16Bit_P2<(outs), "ldw", Opcode<0x86,2>, [NZ,N,Z,V,AE,AF,AQ], []> {
   let Predicates = [IsHD6309];
   let mayLoad = true;
 }
@@ -1477,7 +1478,7 @@ def CMPYi16 : MC6809Immediate16Bit_P2<(outs), "cmpy", Opcode<0x8C,2>, [NZ,N,Z,V,
   let mayLoad = true;
 }
 
-def LDYi16 : MC6809Immediate16Bit_P2<(outs IYc:$reg), "ldy", Opcode<0x8E,2>, [NZ,N,Z,V,IY], []> {
+def LDYi16 : MC6809Immediate16Bit_P2<(outs), "ldy", Opcode<0x8E,2>, [NZ,N,Z,V,IY], []> {
   let mayLoad = true;
 }
 
@@ -1508,11 +1509,12 @@ def ANDDd : MC6809Direct_P2<(outs), "andd", Opcode<0x94,2>, [AD,NZ,N,Z,V,AA,AB,A
 }
 
 def BITDd : MC6809Direct_P2<(outs), "bitd", Opcode<0x95,2>, [NZ,N,Z,V], [AD]> {
+  let Predicates = [IsHD6309];
   let isCompare = true;
   let mayLoad = true;
 }
 
-def LDWd : MC6809Direct_P2<(outs AWc:$reg), "ldw", Opcode<0x96,2>, [NZ,N,Z,V,AE,AF,AQ], []> {
+def LDWd : MC6809Direct_P2<(outs), "ldw", Opcode<0x96,2>, [NZ,N,Z,V,AE,AF,AQ], []> {
   let Predicates = [IsHD6309];
   let mayLoad = true;
 }
@@ -1549,7 +1551,7 @@ def CMPYd : MC6809Direct_P2<(outs), "cmpy", Opcode<0x9C,2>, [NZ,N,Z,V,C], [IY]> 
   let mayLoad = true;
 }
 
-def LDYd : MC6809Direct_P2<(outs IYc:$reg), "ldy", Opcode<0x9E,2>, [NZ,N,Z,V,IY], []> {
+def LDYd : MC6809Direct_P2<(outs), "ldy", Opcode<0x9E,2>, [NZ,N,Z,V,IY], []> {
   let mayLoad = true;
 }
 
@@ -1582,7 +1584,7 @@ let isCompare = true, mayLoad = true in {
 }
 
 let Predicates = [IsHD6309], mayLoad = true in {
-  defm LDWi : MC6809Indexed_P2<"ldw", Opcode<0xA6, 2>, (outs AWc:$reg), [NZ,N,Z,V,AE,AF,AQ], []>;
+  defm LDWi : MC6809Indexed_P2<"ldw", Opcode<0xA6, 2>, (outs), [NZ,N,Z,V,AE,AF,AQ], []>;
 }
 
 let Predicates = [IsHD6309], mayStore = true in {
@@ -1610,7 +1612,7 @@ let isCompare = true, mayLoad = true in {
 }
 
 let mayLoad = true in {
-  defm LDYi : MC6809Indexed_P2<"ldy", Opcode<0xAE, 2>, (outs IYc:$reg), [NZ,N,Z,V,IY], []>;
+  defm LDYi : MC6809Indexed_P2<"ldy", Opcode<0xAE, 2>, (outs), [NZ,N,Z,V,IY], []>;
 }
 
 let mayStore = true in {
@@ -1648,7 +1650,7 @@ def BITDe : MC6809Extended_P2<(outs), "bitd", Opcode<0xB5,2>, [NZ,N,Z,V], [AD]> 
   let mayLoad = true;
 }
 
-def LDWe : MC6809Extended_P2<(outs AWc:$reg), "ldw", Opcode<0xB6,2>, [NZ,N,Z,V,AE,AF,AQ], []> {
+def LDWe : MC6809Extended_P2<(outs), "ldw", Opcode<0xB6,2>, [NZ,N,Z,V,AE,AF,AQ], []> {
   let Predicates = [IsHD6309];
   let mayLoad = true;
 }
@@ -1685,7 +1687,7 @@ def CMPYe : MC6809Extended_P2<(outs), "cmpy", Opcode<0xBC,2>, [NZ,N,Z,V,C], [IY]
   let mayLoad = true;
 }
 
-def LDYe : MC6809Extended_P2<(outs IYc:$reg), "ldy", Opcode<0xBE,2>, [NZ,N,Z,V,IY], []> {
+def LDYe : MC6809Extended_P2<(outs), "ldy", Opcode<0xBE,2>, [NZ,N,Z,V,IY], []> {
   let mayLoad = true;
 }
 
@@ -1693,11 +1695,11 @@ def STYe : MC6809Extended_P2<(outs), "sty", Opcode<0xBF,2>, [NZ,N,Z,V], []> {
   let mayStore = true;
 }
 
-def LDSi16 : MC6809Immediate16Bit_P2<(outs SSc:$reg), "lds", Opcode<0xCE,2>, [NZ,N,Z,V,SS], []> {
+def LDSi16 : MC6809Immediate16Bit_P2<(outs), "lds", Opcode<0xCE,2>, [NZ,N,Z,V,SS], []> {
   let mayLoad = true;
 }
 
-def LDQd : MC6809Direct_P2<(outs AQc:$reg), "ldq", Opcode<0xDC,2>, [NZ,N,Z,V,AA,AB,AD,AE,AF,AW], []> {
+def LDQd : MC6809Direct_P2<(outs), "ldq", Opcode<0xDC,2>, [NZ,N,Z,V,AA,AB,AD,AE,AF,AW], []> {
   let Predicates = [IsHD6309];
   let mayLoad = true;
 }
@@ -1707,7 +1709,7 @@ def STQd : MC6809Direct_P2<(outs), "stq", Opcode<0xDD,2>, [NZ,N,Z,V], []> {
   let mayStore = true;
 }
 
-def LDSd : MC6809Direct_P2<(outs SSc:$reg), "lds", Opcode<0xDE,2>, [NZ,N,Z,V,SS], []> {
+def LDSd : MC6809Direct_P2<(outs), "lds", Opcode<0xDE,2>, [NZ,N,Z,V,SS], []> {
   let mayLoad = true;
 }
 
@@ -1716,7 +1718,7 @@ def STSd : MC6809Direct_P2<(outs), "sts", Opcode<0xDF,2>, [NZ,N,Z,V], []> {
 }
 
 let Predicates = [IsHD6309], mayLoad = true in {
-  defm LDQi : MC6809Indexed_P2<"ldq", Opcode<0xEC, 2>, (outs AQc:$reg), [NZ,N,Z,V,AA,AB,AD,AE,AF,AW], []>;
+  defm LDQi : MC6809Indexed_P2<"ldq", Opcode<0xEC, 2>, (outs), [NZ,N,Z,V,AA,AB,AD,AE,AF,AW], []>;
 }
 
 let Predicates = [IsHD6309], mayStore = true in {
@@ -1724,14 +1726,14 @@ let Predicates = [IsHD6309], mayStore = true in {
 }
 
 let mayLoad = true in {
-  defm LDSi : MC6809Indexed_P2<"lds", Opcode<0xEE, 2>, (outs SSc:$reg), [NZ,N,Z,V,SS], []>;
+  defm LDSi : MC6809Indexed_P2<"lds", Opcode<0xEE, 2>, (outs), [NZ,N,Z,V,SS], []>;
 }
 
 let mayStore = true in {
   defm STSi : MC6809Indexed_P2<"sts", Opcode<0xEF, 2>, (outs), [NZ,N,Z,V], []>;
 }
 
-def LDQe : MC6809Extended_P2<(outs AQc:$reg), "ldq", Opcode<0xFC,2>, [NZ,N,Z,V,AA,AB,AD,AE,AF,AW], []> {
+def LDQe : MC6809Extended_P2<(outs), "ldq", Opcode<0xFC,2>, [NZ,N,Z,V,AA,AB,AD,AE,AF,AW], []> {
   let Predicates = [IsHD6309];
   let mayLoad = true;
 }
@@ -1741,7 +1743,7 @@ def STQe : MC6809Extended_P2<(outs), "stq", Opcode<0xFD,2>, [NZ,N,Z,V], []> {
   let mayStore = true;
 }
 
-def LDSe : MC6809Extended_P2<(outs SSc:$reg), "lds", Opcode<0xFE,2>, [NZ,N,Z,V,SS], []> {
+def LDSe : MC6809Extended_P2<(outs), "lds", Opcode<0xFE,2>, [NZ,N,Z,V,SS], []> {
   let mayLoad = true;
 }
 
@@ -1875,7 +1877,7 @@ def CMPUi16 : MC6809Immediate16Bit_P3<(outs), "cmpu", Opcode<0x83,3>, [NZ,N,Z,V,
   let mayLoad = true;
 }
 
-def LDEi8 : MC6809Immediate8Bit_P3<(outs AEc:$reg), "lde", Opcode<0x86,3>, [NZ,N,Z,V,AW,AQ], []> {
+def LDEi8 : MC6809Immediate8Bit_P3<(outs), "lde", Opcode<0x86,3>, [NZ,N,Z,V,AW,AQ], []> {
   let Predicates = [IsHD6309];
   let mayLoad = true;
 }
@@ -1922,7 +1924,7 @@ def CMPUd : MC6809Direct_P3<(outs), "cmpu", Opcode<0x93,3>, [NZ,N,Z,V,C], [SU]> 
   let mayLoad = true;
 }
 
-def LDEd : MC6809Direct_P3<(outs AEc:$reg), "lde", Opcode<0x96,3>, [NZ,N,Z,V,AW,AQ], []> {
+def LDEd : MC6809Direct_P3<(outs), "lde", Opcode<0x96,3>, [NZ,N,Z,V,AW,AQ], []> {
   let Predicates = [IsHD6309];
   let mayLoad = true;
 }
@@ -1971,7 +1973,7 @@ let isCompare = true, mayLoad = true in {
 }
 
 let Predicates = [IsHD6309], mayLoad = true in {
-  defm LDEi : MC6809Indexed_P3<"lde", Opcode<0xA6, 3>, (outs AEc:$reg), [NZ,N,Z,V,AW,AQ], []>;
+  defm LDEi : MC6809Indexed_P3<"lde", Opcode<0xA6, 3>, (outs), [NZ,N,Z,V,AW,AQ], []>;
 }
 
 let Predicates = [IsHD6309], mayStore = true in {
@@ -2014,7 +2016,7 @@ def CMPUe : MC6809Extended_P3<(outs), "cmpu", Opcode<0xB3,3>, [NZ,N,Z,V,C], [SU]
   let mayLoad = true;
 }
 
-def LDEe : MC6809Extended_P3<(outs AEc:$reg), "lde", Opcode<0xB6,3>, [NZ,N,Z,V,AW,AQ], []> {
+def LDEe : MC6809Extended_P3<(outs), "lde", Opcode<0xB6,3>, [NZ,N,Z,V,AW,AQ], []> {
   let Predicates = [IsHD6309];
   let mayLoad = true;
 }
@@ -2061,7 +2063,7 @@ def CMPFi8 : MC6809Immediate8Bit_P3<(outs), "cmpf", Opcode<0xC1,3>, [NZ,N,Z,V,C]
   let mayLoad = true;
 }
 
-def LDFi8 : MC6809Immediate8Bit_P3<(outs AFc:$reg), "ldf", Opcode<0xC6,3>, [NZ,N,Z,V,AW,AQ], []> {
+def LDFi8 : MC6809Immediate8Bit_P3<(outs), "ldf", Opcode<0xC6,3>, [NZ,N,Z,V,AW,AQ], []> {
   let Predicates = [IsHD6309];
   let mayLoad = true;
 }
@@ -2083,7 +2085,7 @@ def CMPFd : MC6809Direct_P3<(outs), "cmpf", Opcode<0xD1,3>, [NZ,N,Z,V,C], [AF]> 
   let mayLoad = true;
 }
 
-def LDFd : MC6809Direct_P3<(outs AFc:$reg), "ldf", Opcode<0xD6,3>, [NZ,N,Z,V,AW,AQ], []> {
+def LDFd : MC6809Direct_P3<(outs), "ldf", Opcode<0xD6,3>, [NZ,N,Z,V,AW,AQ], []> {
   let Predicates = [IsHD6309];
   let mayLoad = true;
 }
@@ -2108,7 +2110,7 @@ let Predicates = [IsHD6309], isCompare = true, mayLoad = true in {
 }
 
 let Predicates = [IsHD6309], mayLoad = true in {
-  defm LDFi : MC6809Indexed_P3<"ldf", Opcode<0xE6, 3>, (outs AFc:$reg), [NZ,N,Z,V,AW,AQ], []>;
+  defm LDFi : MC6809Indexed_P3<"ldf", Opcode<0xE6, 3>, (outs), [NZ,N,Z,V,AW,AQ], []>;
 }
 
 let Predicates = [IsHD6309], mayStore = true in {
@@ -2130,7 +2132,7 @@ def CMPFe : MC6809Extended_P3<(outs), "cmpf", Opcode<0xF1,3>, [NZ,N,Z,V,C], [AF]
   let mayLoad = true;
 }
 
-def LDFe : MC6809Extended_P3<(outs AFc:$reg), "ldf", Opcode<0xF6,3>, [NZ,N,Z,V,AW,AQ], []> {
+def LDFe : MC6809Extended_P3<(outs), "ldf", Opcode<0xF6,3>, [NZ,N,Z,V,AW,AQ], []> {
   let Predicates = [IsHD6309];
   let mayLoad = true;
 }

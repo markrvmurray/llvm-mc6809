@@ -2,6 +2,7 @@
 
 import sys
 import copy
+import ctypes
 
 from instructions import RawInstructions
 from indexmodes import IndexModes
@@ -566,14 +567,6 @@ for instr_ in RawInstructions:
 			reg = instr["mnemonic"][-1:]
 			instr["lets"]["mayLoad"] = "true"
 			instr["defs"] = ["NZ", "N", "Z", "V"] + defs(reg)
-			if reg in "ABDEFWQ":
-				instr["outs"] = ["A" + reg + "c:$reg"]
-			elif reg in "XY":
-				instr["outs"] = ["I" + reg + "c:$reg"]
-			elif reg in "SU":
-				instr["outs"] = ["S" + reg + "c:$reg"]
-			else:
-				print("Load register not handled:", instr)
 		if instr["mnemonic"][:-1] == "CLR":
 			reg = instr["mnemonic"][-1:]
 			if reg in "ABDEFWQ":
@@ -585,14 +578,6 @@ for instr_ in RawInstructions:
 			reg = instr["mnemonic"][-1:]
 			instr["defs"] = ["NZ", "N", "Z", "V"]
 			instr["lets"]["mayStore"] = "true"
-			if reg in "ABDEFWQ":
-				instr["ins"] = ["A" + reg + "c:$reg"]
-			elif reg in "XY":
-				instr["ins"] = ["I" + reg + "c:$reg"]
-			elif reg in "SU":
-				instr["ins"] = ["S" + reg + "c:$reg"]
-			else:
-				print("Store register not handled:", instr)
 		elif instr["mnemonic"] == "CLR":
 			instr["defs"] = ["NZ", "N", "Z", "V"]
 			instr["lets"]["mayStore"] = "true"
@@ -617,9 +602,9 @@ for instr_ in RawInstructions:
 	if instr["mnemonic"][:-1] == "LEA":
 		reg = instr["mnemonic"][-1:]
 		if reg in "XY":
-			instr["outs"] = ["I" + reg + "c:$reg"]
+			instr["defs"] = ["I" + reg]
 		elif reg in "SU":
-			instr["outs"] = ["S" + reg + "c:$reg"]
+			instr["defs"] = ["S" + reg]
 		else:
 			print("Strange LEAr instruction:", instr)
 
@@ -770,7 +755,7 @@ for page in range(1):
 	i = 0
 	multiclass = "MC6809ImmediateIndexed_P"+ str(page + 1)
 	MultiClass[multiclass] = { }
-	for mode in IndexModes:
+	for indexmode in IndexModes:
 		instform = {}
 		instform["multiclass"] = multiclass
 		instform["indexnumber"] = i
@@ -778,11 +763,11 @@ for page in range(1):
 		instform["page"] = page + 1
 		instform["mode"] = "ii"
 		instform["function"] = ""
-		instform["addressmode"] = "ImmediateIndexed" + mode[0]
-		instform["indexmode"] = "_" + mode[1]
-		instform["operand"] = ' '.join(["$val", ";"] + mode[2])
-		instform["operandsize"] = mode[4] + 1
-		im = mode[3]
+		instform["addressmode"] = "ImmediateIndexed" + indexmode[0]
+		instform["indexmode"] = "_" + indexmode[1]
+		instform["operand"] = ' '.join(["$val", ";"] + indexmode[2])
+		instform["operandsize"] = indexmode[4] + 1
+		im = indexmode[3]
 		newmode = []
 		for m in im:
 			if m[0][1] == -1:
@@ -791,11 +776,11 @@ for page in range(1):
 				m = ((m[0][0] + 8, m[0][1] + 8), m[1])
 			newmode += [ m ]
 		instform["params"] = newmode + [ ((15, 8), "val{7-0}"), ((7, 0), "Opc") ]
-		instform["ins"] = [ "i8imm:$val" ] + mode[5].split(',')
+		instform["ins"] = [ "i8imm:$val" ] + indexmode[5].split(',')
 		instform["outs"] = []
 		instform["hd6309"] = True
-		instform["defs"] = mode[7]
-		instform["uses"] = mode[8]
+		instform["defs"] = indexmode[7]
+		instform["uses"] = indexmode[8]
 		instform["lets"] = {}
 		instform["lets"]["Constraints"] = []
 		instform["lets"]["Predicates"] = []
@@ -808,7 +793,7 @@ for page in range(3):
 	i = 0
 	multiclass = "MC6809Indexed_P"+ str(page + 1)
 	MultiClass[multiclass] = { }
-	for mode in IndexModes:
+	for indexmode in IndexModes:
 		instform = {}
 		instform["multiclass"] = multiclass
 		instform["indexnumber"] = i
@@ -816,16 +801,16 @@ for page in range(3):
 		instform["page"] = page + 1
 		instform["mode"] = "i"
 		instform["function"] = ""
-		instform["addressmode"] = "Indexed" + mode[0]
-		instform["indexmode"] = "_" + mode[1]
-		instform["operand"] = ' '.join(mode[2])
-		instform["operandsize"] = mode[4]
-		instform["params"] = mode[3] + [ ((7, 0), "Opc") ]
-		instform["hd6309"] = mode[6]
-		instform["ins"] = mode[5].split(',')
+		instform["addressmode"] = "Indexed" + indexmode[0]
+		instform["indexmode"] = "_" + indexmode[1]
+		instform["operand"] = ' '.join(indexmode[2])
+		instform["operandsize"] = indexmode[4]
+		instform["params"] = indexmode[3] + [ ((7, 0), "Opc") ]
+		instform["hd6309"] = indexmode[6]
+		instform["ins"] = indexmode[5].split(',')
 		instform["outs"] = []
-		instform["defs"] = mode[7]
-		instform["uses"] = mode[8]
+		instform["defs"] = indexmode[7]
+		instform["uses"] = indexmode[8]
 		instform["lets"] = {}
 		instform["lets"]["Constraints"] = []
 		instform["lets"]["Predicates"] = []
@@ -862,26 +847,37 @@ with Generate("MC6809InstrInfo.td", marker_start="// MRVM START MARKER 2", marke
 					ii.write('def {name} : MC6809{addressmode}_P{page}<{outsformatted}, "{lcmnemonic}", Opcode<0x{opcode:02X},{page}>, [{defslist}], [{useslist}]>;\n\n'.format(**instr))
 
 pagecode = {1:"    ", 2:"0x10", 3:"0x11"}
-conds = {2:"hi", 3:"ls", 4:"hs", 5:"lo", 6:"ne", 7:"eq", 8:"vc", 9:"vs", 10:"pl", 11:"mi", 12:"ge", 13:"lt", 14:"gt", 15:"le"}
+conds = {1:"rn", 2:"hi", 3:"ls", 4:"hs", 5:"lo", 6:"ne", 7:"eq", 8:"vc", 9:"vs", 10:"pl", 11:"mi", 12:"ge", 13:"lt", 14:"gt", 15:"le"}
 
 with Generate("MC6809InstrDisassemblerTests.txt", marker_start="# MRVM START MARKER", marker_finish="# MRVM END MARKER") as tt:
 	for page in Instructions:
 		for instr in page:
-			if instr["hd6309"] == 1:
+			hd6309 = instr["hd6309"] == 1
+			if hd6309:
 				continue
 			instr["pagecode"] = pagecode[instr["page"]]
 			if instr["mode"] == "i" or instr["mode"] == "ii":
 				if instr["mode"] not in ["i", "ii"]:
 					print("OINQUE!! Diassembler tests indexed address mode '{mode}' not handled!".format(**instr))
 				if instr["mode"] == "i":
-					for k in IndexModes:
-						instr["operand"] = ' '.join(k[2])
-						if not k[6]: # 6309
-							tt.write("{pagecode} 0x{opcode:02X} 0xXX 0x?? 0x??      #\t{lcmnemonic}\t????????   {operand}\n".format(**instr))
+					for indexmode in IndexModes:
+						indexhd6309 = bool(indexmode[6])
+						instr["operand"] = ' '.join(indexmode[2])
+						postbyte = indexmode[9]
+						if postbyte.needs_index():
+							postbyte.set_index_random()
+						if postbyte.needs_offset():
+							postbyte.set_offset_random()
+						if not indexhd6309:
+							instr["symbolic_operand"] = postbyte.set_symbolic_operand(instr["operand"])
+							instr["postbyte_string"] = ' '.join([ f"0x{b:02X}" for b in postbyte.get_bytes() ])
+							tt.write("{pagecode} 0x{opcode:02X} {postbyte_string:15s}     #\t{lcmnemonic}\t{symbolic_operand}\n".format(**instr))
 				if instr["mode"] == "ii":
-					for k in IndexModes:
-						instr["operand"] = "$val ; " + ' '.join(k[2])
-						if not k[6]: # 6309
+					for indexmode in IndexModes:
+						indexhd6309 = bool(indexmode[6])
+						assert indexhd6309
+						instr["operand"] = "$val ; " + ' '.join(indexmode[2])
+						if not indexhd6309:
 							tt.write("{pagecode} 0x{opcode:02X} 0x00 0xXX 0x?? 0x?? #\t{lcmnemonic}\t????????   {operand}\n".format(**instr))
 			else:
 				if instr["mode"] not in ["d", "id", "ie", "x", "lb", "lbc", "i8", "i16", "i32", "p", "pp", "b", "bc", "s", "r", "a", "e", "bd"]:
@@ -919,7 +915,7 @@ with Generate("MC6809InstrDisassemblerTests.txt", marker_start="# MRVM START MAR
 						tt.write("{pagecode} 0x{opcode:X}{conditioncode:X} 0x00                #\t{lcmnemonic}\t$00        {operand}\n".format(**instr))
 					instr["lcmnemonic"] = "b$cond"
 				if instr["mode"] == "lbc":
-					for cond in range(2, 16):
+					for cond in range(1, 16):
 						instr["conditioncode"] = cond
 						instr["lcmnemonic"] = "lb" + conds[cond]
 						tt.write("{pagecode} 0x{opcode:X}{conditioncode:X} 0x00 0x00           #\t{lcmnemonic}\t$0000      {operand}\n".format(**instr))
