@@ -68,31 +68,16 @@ void MC6809InstPrinter::printOperand(const MCInst *MI, unsigned OpNo, raw_ostrea
   }
 }
 
-static const char *RegNameForSU[8] = {"cc", "a", "b", "dp", "x", "y", "s", "pc"};
-static const char *RegNameForSS[8] = {"cc", "a", "b", "dp", "x", "y", "u", "pc"};
 void MC6809InstPrinter::printRegisterList(const MCInst *MI, unsigned OpNo, raw_ostream &O) {
   unsigned Opcode = MI->getOpcode();
-  const MCOperand &Op = MI->getOperand(OpNo);
-  unsigned RegList = Op.getImm() & 0xFF;
-  const char **RegName;
   bool DoneOne = false;
 
-  if (Opcode == MC6809::PSHSs || Opcode == MC6809::PULSs)
-    RegName = RegNameForSS;
-  else if (Opcode == MC6809::PSHUs || Opcode == MC6809::PULUs)
-    RegName = RegNameForSU;
-  else
-    llvm_unreachable("Unknown opcode for reglist operand");
-  do {
-    if (RegList & 1) {
+  for (unsigned i = 0; i < MI->getNumOperands(); i++) {
       if (DoneOne)
         O << ",";
-      O << *RegName;
+      printRegName(O, MI->getOperand(i).getReg());;
       DoneOne = true;
-    }
-    RegName++;
-    RegList >>= 1;
-  } while (RegList);
+  }
 }
 
 void MC6809InstPrinter::printRegName(raw_ostream &O, MCRegister Reg) const { O << getRegisterName(Reg); }

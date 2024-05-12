@@ -164,7 +164,7 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
 
   getActionDefinitionsBuilder(G_FCOPYSIGN).libcallFor({{s32, s32}, {s64, s64}});
 
-  getActionDefinitionsBuilder({G_LOAD, G_STORE}).legalForCartesianProduct(LegalTypes, {p});
+  getActionDefinitionsBuilder({G_LOAD, G_STORE}).legalForCartesianProduct(LegalTypes32, {p});
 
   getActionDefinitionsBuilder({G_FRAME_INDEX, G_GLOBAL_VALUE, G_BRINDIRECT, G_JUMP_TABLE}).legalFor({p});
 
