@@ -9,15 +9,15 @@ from indexmodes import IndexModes
 
 def defs(reg):
 	if reg in "AB":
-		return ["AD", "AQ"]
+		return ["A" + reg,"AD", "AQ"]
 	if reg == "D":
-		return ["AA", "AB", "AQ"]
+		return ["AA", "AB", "AD", "AQ"]
 	if reg in "EF":
-		return ["AW", "AQ"]
+		return ["A" + reg, "AW", "AQ"]
 	if reg == "W":
-		return ["AE", "AF", "AQ"]
+		return ["AE", "AF", "AW", "AQ"]
 	if reg == "Q":
-		return ["AA", "AB", "AD", "AE", "AF", "AW"]
+		return ["AA", "AB", "AD", "AE", "AF", "AW", "AQ"]
 	if reg in "XY":
 		return ["I" + reg]
 	if reg in "SU":

@@ -244,6 +244,7 @@ private:
   };
 
   ContextImmediate AddImm = {&AddImmediateOpcode, 0};
+  ContextImmediate AddCarryImm = {&AddCarryImmediateOpcode, 0};
   ContextImmediate SubImm = {&SubImmediateOpcode, 0};
   ContextImmediate ANDImm = {&ANDImmediateOpcode, -1};
   ContextImmediate ORImm = {&ORImmediateOpcode, 0};
@@ -256,6 +257,7 @@ private:
   };
 
   ContextIndexImmediate AddIdxImm = {&AddIdxImmOpcode};
+  ContextIndexImmediate AddCarryIdxImm = {&AddCarryIdxImmOpcode};
   ContextIndexImmediate SubIdxImm = {&SubIdxImmOpcode};
   ContextIndexImmediate ANDIdxImm = {&ANDIdxImmOpcode};
   ContextIndexImmediate ORIdxImm = {&ORIdxImmOpcode};

@@ -258,20 +258,17 @@ let isPressureFineGrained = true in {
   def ACC8 : MC6809Reg8Class<(add AB, AA, AF, AE)> {
     let AltOrders = [(add AB, AA)];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
-    let DiagnosticString = "operand must be an 8-bit accumulator";
   }
   def ACC8_AB : MC6809Reg8Class<(add AB, AA)>;
   def BIT8 : MC6809Reg8Class<(add AA, AB, CC)>; // Valid registers for BAND, BEOR, BOR, BIAND, BIEOR, BIOR, LDBT, STBT
   def ACC16 : MC6809Reg16Class<(add AD, AW)> {
     let AltOrders = [(add AD)];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
-    let DiagnosticString = "operand must be a 16-bit accumulator";
   }
   def ACC16_D : MC6809Reg8Class<(add AD)>;
   def ACC32 : MC6809Reg32Class<(add AQ)> {
     let AltOrders = [(add)];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
-    let DiagnosticString = "operand must be a 32-bit accumulator";
   }
   def REGLIST8 : MC6809Reg8Class<(add CC, AA, AB, DP)>; // Registers which can be pushed/popped
   def REGLIST16 : MC6809Reg16Class<(add AD, AW, IX, IY, SU, SS, PC)>; // Registers which can be pushed/popped
@@ -280,18 +277,18 @@ let isPressureFineGrained = true in {
   def REGTFM : MC6809Reg16Class<(add AD, IX, IY, SU, SS)>; // Registers for TFM
 
   // Pointer and stack registers
-  def INDEX16 : MC6809Reg16Class<(add IX, IY, SU, SS)>;
+  def INDEX16 : MC6809Reg16Class<(add IX, IY, SU, SS, TOS)>;
 
   // Stack registers
   def STACK16 : MC6809Reg16Class<(add SU, SS)>;
   def TOS16 : MC6809Reg16Class<(add TOS)>;
 
   // All 16-bit registers. Useful for load/store.
-  def ALL16 : MC6809Reg16Class<(add AD, AW, IX, IY)> {
-    let AltOrders = [(add AD, IX, IY)];
-    let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
-    let DiagnosticString = "operand must be a 16-bit register";
-  }
+  // def ALL16 : MC6809Reg16Class<(add AD, AW, IX, IY)> {
+  //   let AltOrders = [(add AD, IX, IY)];
+  //   let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
+  //   let DiagnosticString = "operand must be a 16-bit register";
+  // }
 
   def CCond : MC6809Reg8Class<(add CC)>;
 

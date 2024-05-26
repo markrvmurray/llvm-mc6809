@@ -118,12 +118,6 @@ let Predicates = [IsHD6309] in {
   defm NegPat_i32 : MC6809Negate1Pat<i32, ACC32>;
 }
 
-//multiclass MC6809Negate2Pat<ValueType vtype, RegisterClass reg> {
-//  def _Push_Pull : Pat<(vtype (sub (vtype 0), reg:$src)), (!cast<Instruction>(inst#"_"#vtype#"_Pull") reg:$src, (!cast<Instruction>("Push_"#vtype) reg:$src2))>;
-//}
-
-//defm NegPat_ii6 : MC6809Negate2Pat<i16, ACC16>;
-
 //===---------------------------------------------------------------------===//
 // Loads and Stores
 //===---------------------------------------------------------------------===//
@@ -139,11 +133,6 @@ multiclass MC6809Load<RegisterClass dst, ValueType vtype> {
   let isAsCheapAsAMove = true, isMoveImm = true in {
     def _Imm : MC6809LoadBase<dst, (ins !cast<Operand>(vtype#"imm"):$imm)>;
   }
-//  def _Abs : MC6809LoadBase<dst, (ins addr16:$addr)>;
-//  def _Idx : MC6809LoadBase<dst, (ins INDEX16:$idx, unknown:$offset)>;
-//  def _Idx_Inc : MC6809LoadBase<dst, src, (ins INDEX16:$idx)>;
-//  def _Dec_Idx : MC6809LoadBase<dst, src, (ins INDEX16:$idx)>;
-//  def _Indir : MC6809LoadBase<dst, (ins INDEX16:$idx, unknown:$offset)>;
   let mayLoad = true in {
     def _Abs : MC6809LoadBase<dst, (ins addr16:$addr)>;
     def _Idx_Imm : MC6809LoadBase<dst, (ins INDEX16:$idx, i16imm:$offset)>;
@@ -174,11 +163,12 @@ def Load_i1_Imm : MC6809LogicalInstr {
 def : Pat<(i1 imm:$s), (Load_i1_Imm imm:$s)>;
 
 multiclass MC6809LoadPat<ValueType vtype> {
-  def _Imm : Pat<(vtype imm:$val), (!cast<Instruction>("Load_"#vtype#"_Imm") imm:$val)>;
-  def _Idx_Zero : Pat<(vtype (load INDEX16:$idx)), (!cast<Instruction>("Load_"#vtype#"_Idx_Imm") INDEX16:$idx, (i16 0))>;
-  def _Idx_Imm : Pat<(vtype (load (am_ls_indexed_imm_offset INDEX16:$idx, i16imm:$offset))), (!cast<Instruction>("Load_"#vtype#"_Idx_Imm") INDEX16:$idx, i16imm:$offset)>;
-  def _Idx_Reg8 : Pat<(vtype (load (am_ls_indexed_imm_offset INDEX16:$idx, ACC8:$offset))), (!cast<Instruction>("Load_"#vtype#"_Idx_Reg8") INDEX16:$idx, ACC8:$offset)>;
-  def _Idx_Reg16 : Pat<(vtype (load (am_ls_indexed_imm_offset INDEX16:$idx, ACC16:$offset))), (!cast<Instruction>("Load_"#vtype#"_Idx_Reg16") INDEX16:$idx, ACC16:$offset)>;
+  def _#vtype#_Imm : Pat<(vtype imm:$val), (!cast<Instruction>("Load_"#vtype#"_Imm") imm:$val)>;
+  def _#vtype#_Idx_Zero : Pat<(vtype (load INDEX16:$idx)), (!cast<Instruction>("Load_"#vtype#"_Idx_Imm") INDEX16:$idx, (i16 0))>;
+  def _#vtype#_Idx_Imm : Pat<(vtype (load (am_ls_indexed_imm_offset INDEX16:$idx, i16imm:$offset))), (!cast<Instruction>("Load_"#vtype#"_Idx_Imm") INDEX16:$idx, i16imm:$offset)>;
+  def _#vtype#_Idx_Reg8 : Pat<(vtype (load (am_ls_indexed_imm_offset INDEX16:$idx, ACC8:$offset))), (!cast<Instruction>("Load_"#vtype#"_Idx_Reg8") INDEX16:$idx, ACC8:$offset)>;
+  def _#vtype#_Idx_Reg16 : Pat<(vtype (load (am_ls_indexed_imm_offset INDEX16:$idx, ACC16:$offset))), (!cast<Instruction>("Load_"#vtype#"_Idx_Reg16") INDEX16:$idx, ACC16:$offset)>;
+  def _#vtype#_Frame_Index : Pat<(vtype (load (am_ls_frame_index INDEX16:$idx, i16imm:$offset))), (!cast<Instruction>("Load_"#vtype#"_Idx_Imm") INDEX16:$idx, i16imm:$offset)>;
 }
 
 defm LoadPat_i8 : MC6809LoadPat<i8>;
@@ -217,6 +207,7 @@ multiclass MC6809StorePat<ValueType vtype, RegisterClass reg> {
   def _#vtype#_Idx_Imm : Pat<(store reg:$src, (am_ls_indexed_imm_offset INDEX16:$idx, i16imm:$offset)), (!cast<Instruction>("Store_"#vtype#"_Idx_Imm") reg:$src, INDEX16:$idx, i16imm:$offset)>;
   def _#vtype#_Idx_Reg8 : Pat<(store reg:$src, (am_ls_indexed_imm_offset INDEX16:$idx, ACC8:$offset)), (!cast<Instruction>("Store_"#vtype#"_Idx_Reg8") reg:$src, INDEX16:$idx, ACC8:$offset)>;
   def _#vtype#_Idx_Reg16 : Pat<(store reg:$src, (am_ls_indexed_imm_offset INDEX16:$idx, ACC16:$offset)), (!cast<Instruction>("Store_"#vtype#"_Idx_Reg16") reg:$src, INDEX16:$idx, ACC16:$offset)>;
+  def _#vtype#_Frame_Index : Pat<(store reg:$src, (am_ls_frame_index INDEX16:$idx, ACC16:$offset)), (!cast<Instruction>("Store_"#vtype#"_Idx_Imm") reg:$src, INDEX16:$idx, i16imm:$offset)>;
 }
 
 defm StorePat_i8 : MC6809StorePat<i8, ACC8>;
@@ -230,12 +221,12 @@ let Predicates = [IsHD6309] in {
 // Set/Clear CC bits
 //===---------------------------------------------------------------------===//
 
-class MC6809ImmediateLoad<RegisterClass dst, Operand val> : MC6809LogicalInstr {
-  dag OutOperandList = (outs dst:$dst);
-  dag InOperandList = (ins val:$val);
-  let isAsCheapAsAMove = true;
-  let isMoveImm = true;
-}
+//class MC6809ImmediateLoad<RegisterClass dst, Operand val> : MC6809LogicalInstr {
+//  dag OutOperandList = (outs dst:$dst);
+//  dag InOperandList = (ins val:$val);
+//  let isAsCheapAsAMove = true;
+//  let isMoveImm = true;
+//}
 
 // Clear/set overflow
 //def CLV : MC6809ImmediateLoad<Vc, i1imm>, PseudoInstExpansion<(CLV_Implied)> {
@@ -271,24 +262,24 @@ multiclass MC6809Arithmetic<ValueType vtype, RegisterClass dst, RegisterClass sr
     def _Dec_Idx : MC6809ArithmeticBase<dst, src, (ins INDEX16:$idx)>;
     def _Indir : MC6809ArithmeticBase<dst, src, (ins INDEX16:$idx, unknown:$offset)>;
     def _Pull : MC6809ArithmeticBase<dst, src, (ins TOS16:$idx)>;
-//    let Predicates = [IsHD6309] in {
+    let Predicates = [IsHD6309] in {
       def _Reg : MC6809ArithmeticBase<dst, src, (ins src:$src2)>;
-//    }
+    }
   }
 }
 
 let isAdd = true in {
   defm Add_i8 : MC6809Arithmetic<i8, ACC8, ACC8>;
   defm Add_i16 : MC6809Arithmetic<i16, ACC16, ACC16>;
-  let Predicates = [IsHD6309] in {
+//  let Predicates = [IsHD6309] in {
     defm Add_i32 : MC6809Arithmetic<i32, ACC32, ACC32>;
-  }
+//  }
 }
 defm Sub_i8 : MC6809Arithmetic<i8, ACC8, ACC8>;
 defm Sub_i16 : MC6809Arithmetic<i16, ACC16, ACC16>;
-let Predicates = [IsHD6309] in {
+//let Predicates = [IsHD6309] in {
   defm Sub_i32 : MC6809Arithmetic<i32, ACC32, ACC32>;
-}
+//}
 
 // Setting carry
 
@@ -340,9 +331,9 @@ let Defs = [NZ], Constraints = "$dst = $src" in {
 
 multiclass MC6809ArithPat<SDNode node, ValueType vtype, RegisterClass reg, string inst> {
   def _Imm : Pat<(vtype (node reg:$src, imm:$val)), (!cast<Instruction>(inst#"_"#vtype#"_Imm") reg:$src, imm:$val)>;
-  def _Idx_Imm : Pat<(vtype (node reg:$src, (am_am_indexed_imm_offset INDEX16:$idx, i16imm:$offset))), (!cast<Instruction>(inst#"_"#vtype#"_Idx_Imm") reg:$src, INDEX16:$idx, imm:$offset)>;
-  def _Idx_Reg8 : Pat<(vtype (node reg:$src, (am_am_indexed_imm_offset INDEX16:$idx, ACC8:$offset))), (!cast<Instruction>(inst#"_"#vtype#"_Idx_Reg8") reg:$src, INDEX16:$idx, ACC8:$offset)>;
-  def _Idx_Reg16 : Pat<(vtype (node reg:$src, (am_am_indexed_imm_offset INDEX16:$idx, ACC16:$offset))), (!cast<Instruction>(inst#"_"#vtype#"_Idx_Reg16") reg:$src, INDEX16:$idx, ACC16:$offset)>;
+  def _Idx_Imm : Pat<(vtype (node reg:$src, (am_indexed_imm_offset INDEX16:$idx, i16imm:$offset))), (!cast<Instruction>(inst#"_"#vtype#"_Idx_Imm") reg:$src, INDEX16:$idx, imm:$offset)>;
+  def _Idx_Reg8 : Pat<(vtype (node reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC8:$offset))), (!cast<Instruction>(inst#"_"#vtype#"_Idx_Reg8") reg:$src, INDEX16:$idx, ACC8:$offset)>;
+  def _Idx_Reg16 : Pat<(vtype (node reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC16:$offset))), (!cast<Instruction>(inst#"_"#vtype#"_Idx_Reg16") reg:$src, INDEX16:$idx, ACC16:$offset)>;
   let Predicates = [IsHD6309] in {
     def _Reg : Pat<(vtype (node reg:$src, reg:$src2)), (!cast<Instruction>(inst#"_"#vtype#"_Reg") reg:$src, reg:$src2)>;
   }
@@ -352,24 +343,39 @@ multiclass MC6809ArithPat<SDNode node, ValueType vtype, RegisterClass reg, strin
 }
 
 multiclass MC6809ArithRevPat<SDNode node, ValueType vtype, RegisterClass reg, string inst> {
-  def _Imm : Pat<(vtype (node (am_am_immediate !cast<Operand>(vtype#"imm"):$val), reg:$src)), (!cast<Instruction>("Negate_"#vtype) (!cast<Instruction>(inst#"_"#vtype#"_Imm") reg:$src, imm:$val))>;
+  def _Imm : Pat<(vtype (node imm:$val, reg:$src)), (!cast<Instruction>("Negate_"#vtype) (!cast<Instruction>(inst#"_"#vtype#"_Imm") reg:$src, imm:$val))>;
+  def _Idx_Imm : Pat<(vtype (node (am_indexed_imm_offset INDEX16:$idx, i16imm:$offset), reg:$src)), (!cast<Instruction>("Negate_"#vtype) (!cast<Instruction>(inst#"_"#vtype#"_Idx_Imm") reg:$src, INDEX16:$idx, imm:$offset))>;
+  def _Idx_Reg8 : Pat<(vtype (node (am_indexed_imm_offset INDEX16:$idx, ACC8:$offset), reg:$src)), (!cast<Instruction>("Negate_"#vtype) (!cast<Instruction>(inst#"_"#vtype#"_Idx_Reg8") reg:$src, INDEX16:$idx, ACC8:$offset))>;
+  def _Idx_Reg16 : Pat<(vtype (node (am_indexed_imm_offset INDEX16:$idx, ACC16:$offset), reg:$src)), (!cast<Instruction>("Negate_"#vtype) (!cast<Instruction>(inst#"_"#vtype#"_Idx_Reg16") reg:$src, INDEX16:$idx, ACC16:$offset))>;
   let Predicates = [IsHD6309] in {
-    def _Reg : Pat<(vtype (node reg:$src, reg:$src2)), (!cast<Instruction>(inst#"_"#vtype#"_Reg") reg:$src, reg:$src2)>;
+    def _Reg : Pat<(vtype (node reg:$src2, reg:$src)), (!cast<Instruction>("Negate_"#vtype) (!cast<Instruction>("Negate_"#vtype) (!cast<Instruction>(inst#"_"#vtype#"_Reg") reg:$src, reg:$src2)))>;
   }
   let Predicates = [NotHD6309] in {
-    def _Push_Pull : Pat<(vtype (node reg:$src, reg:$src2)), (!cast<Instruction>(inst#"_"#vtype#"_Pull") reg:$src, (!cast<Instruction>("Push_"#vtype) reg:$src2))>;
+    def _Push_Pull : Pat<(vtype (node reg:$src2, reg:$src)), (!cast<Instruction>("Negate_"#vtype) (!cast<Instruction>("Negate_"#vtype) (!cast<Instruction>(inst#"_"#vtype#"_Pull") reg:$src, (!cast<Instruction>("Push_"#vtype) reg:$src2))))>;
   }
 }
 
+//multiclass MC6809ArithRevPat<SDNode node, ValueType vtype, RegisterClass reg, string inst> {
+//  def _Imm : Pat<(vtype (node (am_immediate !cast<Operand>(vtype#"imm"):$val), reg:$src)), (!cast<Instruction>("Negate_"#vtype) (!cast<Instruction>(inst#"_"#vtype#"_Imm") reg:$src, imm:$val))>;
+//  let Predicates = [IsHD6309] in {
+//    def _Reg : Pat<(vtype (node reg:$src, reg:$src2)), (!cast<Instruction>(inst#"_"#vtype#"_Reg") reg:$src, reg:$src2)>;
+//  }
+//  let Predicates = [NotHD6309] in {
+//    def _Push_Pull : Pat<(vtype (node reg:$src, reg:$src2)), (!cast<Instruction>(inst#"_"#vtype#"_Pull") reg:$src, (!cast<Instruction>("Push_"#vtype) reg:$src2))>;
+//  }
+//}
+
 defm AddPat_i8 : MC6809ArithPat<add, i8, ACC8, "Add">;
 defm SubPat_i8 : MC6809ArithPat<sub, i8, ACC8, "Sub">;
+defm SubRevPat_i8 : MC6809ArithRevPat<sub, i8, ACC8, "Sub">;
+
 defm AddPat_ii6 : MC6809ArithPat<add, i16, ACC16, "Add">;
 defm SubPat_ii6 : MC6809ArithPat<sub, i16, ACC16, "Sub">;
+defm SubRevPat_ii6 : MC6809ArithRevPat<sub, i16, ACC16, "Sub">;
+
 let Predicates = [IsHD6309] in {
-  defm SubRevPat_i8 : MC6809ArithRevPat<sub, i8, ACC8, "Sub">;
-  defm SubRevPat_ii6 : MC6809ArithRevPat<sub, i16, ACC16, "Sub">;
   defm AddPat_i32 : MC6809ArithPat<add, i32, ACC32, "Add">;
-  //defm SubPat_i32 : MC6809ArithPat<sub, i32, ACC32, "Sub">;
+  defm SubPat_i32 : MC6809ArithPat<sub, i32, ACC32, "Sub">;
   defm SubRevPat_i32 : MC6809ArithRevPat<sub, i32, ACC32, "Sub">;
 }
 
@@ -408,17 +414,17 @@ multiclass MC6809ArithmeticCarryUse<ValueType vtype, RegisterClass dst, Register
 
 let isAdd = true in {
   defm AddSetCarryUse_i8 : MC6809ArithmeticCarryUse<i8, ACC8, ACC8>;
-  defm AddSetCarryuse_i16 : MC6809ArithmeticCarryUse<i16, ACC16, ACC16>;
-  let Predicates = [IsHD6309] in {
-    defm AddSetCarryuse_i32 : MC6809ArithmeticCarryUse<i32, ACC32, ACC32>;
-  }
+  defm AddSetCarryUse_i16 : MC6809ArithmeticCarryUse<i16, ACC16, ACC16>;
+//  let Predicates = [IsHD6309] in {
+    defm AddSetCarryUse_i32 : MC6809ArithmeticCarryUse<i32, ACC32, ACC32>;
+//  }
 }
 
 defm SubSetCarryUse_i8 : MC6809ArithmeticCarryUse<i8, ACC8, ACC8>;
-defm SubSetCarryuse_i16 : MC6809ArithmeticCarryUse<i16, ACC16, ACC16>;
-let Predicates = [IsHD6309] in {
-  defm SubSetCarryuse_i32 : MC6809ArithmeticCarryUse<i32, ACC32, ACC32>;
-}
+defm SubSetCarryUse_i16 : MC6809ArithmeticCarryUse<i16, ACC16, ACC16>;
+//let Predicates = [IsHD6309] in {
+  defm SubSetCarryUse_i32 : MC6809ArithmeticCarryUse<i32, ACC32, ACC32>;
+//}
 
 //===---------------------------------------------------------------------===//
 // Bitwise instructions
@@ -525,7 +531,7 @@ multiclass MC6809ShiftPat<SDNode node, ValueType vtype, RegisterClass reg, strin
   def _Reg : Pat<(vtype (node reg:$src, (i8 imm:$val))), (!cast<Instruction>(inst#"_"#vtype#"_Reg") reg:$src, imm:$val)>;
 //  def _Idx_Imm : Pat<(vtype (node reg:$src, (i1 1))), (!cast<Instruction>(inst#"_"#vtype#"_Idx_Imm") reg:$src, INDEX16:$idx, imm:$offset)>;
 //  def _Idx_Reg8 : Pat<(vtype (node reg:$src, (i1 1))), (!cast<Instruction>(inst#"_"#vtype#"_Idx_Reg8") reg:$src, INDEX16:$idx, ACC8:$offset)>;
-//  def _Idx_Reg16 : Pat<(vtype (node reg:$src, (am_am_indexed_imm_offset INDEX16:$idx, ACC16:$offset))), (!cast<Instruction>(inst#"_"#vtype#"_Idx_Reg16") reg:$src, INDEX16:$idx, ACC16:$offset)>;
+//  def _Idx_Reg16 : Pat<(vtype (node reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC16:$offset))), (!cast<Instruction>(inst#"_"#vtype#"_Idx_Reg16") reg:$src, INDEX16:$idx, ACC16:$offset)>;
 }
 
 defm LSL_Pat_i8 : MC6809ShiftPat<shl, i8, ACC8_AB, "LSL">;
@@ -714,9 +720,9 @@ let Predicates = [IsHD6309] in {
 
 multiclass MC6809CompPat<CondCode CC, int cc, ValueType vtype, RegisterClass reg> {
   def _Imm : Pat<(i8 (setcc reg:$src, imm:$val, CC)), (!cast<Instruction>("Compare_"#vtype#"_Imm") cc, reg:$src, imm:$val)>;
-  def _Idx_Imm : Pat<(i8 (setcc reg:$src, (am_am_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), (!cast<Instruction>("Compare_"#vtype#"_Idx_Imm") cc, reg:$src, INDEX16:$idx, i16imm:$offset)>;
-  def _Idx_Reg8 : Pat<(i8 (setcc reg:$src, (am_am_indexed_imm_offset INDEX16:$idx, ACC8:$offset), CC)), (!cast<Instruction>("Compare_"#vtype#"_Idx_Reg8") cc, reg:$src, INDEX16:$idx, ACC8:$offset)>;
-  def _Idx_Reg16 : Pat<(i8 (setcc reg:$src, (am_am_indexed_imm_offset INDEX16:$idx, ACC16:$offset), CC)), (!cast<Instruction>("Compare_"#vtype#"_Idx_Reg16") cc, reg:$src, INDEX16:$idx, ACC16:$offset)>;
+  def _Idx_Imm : Pat<(i8 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), (!cast<Instruction>("Compare_"#vtype#"_Idx_Imm") cc, reg:$src, INDEX16:$idx, i16imm:$offset)>;
+  def _Idx_Reg8 : Pat<(i8 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC8:$offset), CC)), (!cast<Instruction>("Compare_"#vtype#"_Idx_Reg8") cc, reg:$src, INDEX16:$idx, ACC8:$offset)>;
+  def _Idx_Reg16 : Pat<(i8 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC16:$offset), CC)), (!cast<Instruction>("Compare_"#vtype#"_Idx_Reg16") cc, reg:$src, INDEX16:$idx, ACC16:$offset)>;
 }
 
 multiclass MC6809CompCondPat<CondCode CC, int ccode> {
@@ -767,9 +773,9 @@ let Predicates = [IsHD6309] in {
 
 multiclass MC6809TestPat<CondCode CC, int cc, ValueType vtype, RegisterClass reg> {
   def _Reg : Pat<(i8 (setcc (vtype 0), reg:$src, CC)), (!cast<Instruction>("Test_"#vtype#"_Reg") cc, reg:$src)>;
-  def _Idx_Imm : Pat<(i8 (setcc (vtype 0), (am_am_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), (!cast<Instruction>("Test_"#vtype#"_Idx_Imm") cc, INDEX16:$idx, i16imm:$offset)>;
-  def _Idx_Reg8 : Pat<(i8 (setcc (vtype 0), (am_am_indexed_imm_offset INDEX16:$idx, ACC8:$offset), CC)), (!cast<Instruction>("Test_"#vtype#"_Idx_Reg8") cc, INDEX16:$idx, ACC8:$offset)>;
-  def _Idx_Reg16 : Pat<(i8 (setcc (vtype 0), (am_am_indexed_imm_offset INDEX16:$idx, ACC16:$offset), CC)), (!cast<Instruction>("Test_"#vtype#"_Idx_Reg16") cc, INDEX16:$idx, ACC16:$offset)>;
+  def _Idx_Imm : Pat<(i8 (setcc (vtype 0), (am_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), (!cast<Instruction>("Test_"#vtype#"_Idx_Imm") cc, INDEX16:$idx, i16imm:$offset)>;
+  def _Idx_Reg8 : Pat<(i8 (setcc (vtype 0), (am_indexed_imm_offset INDEX16:$idx, ACC8:$offset), CC)), (!cast<Instruction>("Test_"#vtype#"_Idx_Reg8") cc, INDEX16:$idx, ACC8:$offset)>;
+  def _Idx_Reg16 : Pat<(i8 (setcc (vtype 0), (am_indexed_imm_offset INDEX16:$idx, ACC16:$offset), CC)), (!cast<Instruction>("Test_"#vtype#"_Idx_Reg16") cc, INDEX16:$idx, ACC16:$offset)>;
 }
 
 multiclass MC6809TestCondPat<CondCode CC, int ccode> {
@@ -821,9 +827,9 @@ let Predicates = [IsHD6309] in {
 
 //multiclass MC6809BitTestPat<CondCode CC, int cc, ValueType vtype, RegisterClass reg> {
 //  def _Imm : Pat<(i8 (setcc (vtype 1), imm:$val, CC)), (!cast<Instruction>("BitTest_"#vtype#"_Imm") cc, reg:$src, imm:$val)>;
-//  def _Idx_Imm : Pat<(i8 (setcc (vtype 1), (am_am_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), (!cast<Instruction>("BitTest_"#vtype#"_Idx_Imm") cc, (Load_i8_Imm, INDEX16:$idx, i16imm:$offset)>;
-//  def _Idx_Reg8 : Pat<(i8 (setcc (vtype 1), (am_am_indexed_imm_offset INDEX16:$idx, ACC8:$offset), CC)), (!cast<Instruction>("BitTest_"#vtype#"_Idx_Reg8") cc, reg:$src, INDEX16:$idx, ACC8:$offset)>;
-//  def _Idx_Reg16 : Pat<(i8 (setcc (vtype 1), (am_am_indexed_imm_offset INDEX16:$idx, ACC16:$offset), CC)), (!cast<Instruction>("BitTest_"#vtype#"_Idx_Reg16") cc, reg:$src, INDEX16:$idx, ACC16:$offset)>;
+//  def _Idx_Imm : Pat<(i8 (setcc (vtype 1), (am_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), (!cast<Instruction>("BitTest_"#vtype#"_Idx_Imm") cc, (Load_i8_Imm, INDEX16:$idx, i16imm:$offset)>;
+//  def _Idx_Reg8 : Pat<(i8 (setcc (vtype 1), (am_indexed_imm_offset INDEX16:$idx, ACC8:$offset), CC)), (!cast<Instruction>("BitTest_"#vtype#"_Idx_Reg8") cc, reg:$src, INDEX16:$idx, ACC8:$offset)>;
+//  def _Idx_Reg16 : Pat<(i8 (setcc (vtype 1), (am_indexed_imm_offset INDEX16:$idx, ACC16:$offset), CC)), (!cast<Instruction>("BitTest_"#vtype#"_Idx_Reg16") cc, reg:$src, INDEX16:$idx, ACC16:$offset)>;
 //}
 
 //multiclass MC6809BitTestCondPat<CondCode CC, int ccode> {
@@ -850,9 +856,9 @@ let Predicates = [IsHD6309] in {
 
 multiclass MC6809CompBraPat<CondCode CC, int cc, ValueType vtype, RegisterClass reg> {
   def _Imm : Pat<(brcond (i1 (setcc reg:$src, imm:$val, CC)), bb:$tgt), (ConditionalBranchRelative cc, bb:$tgt, (!cast<Instruction>("Compare_"#vtype#"_Imm") cc, reg:$src, imm:$val))>;
-  def _Idx_Imm : Pat<(brcond (i1 (setcc reg:$src, (am_am_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), bb:$tgt), (ConditionalBranchRelative cc, bb:$tgt, (!cast<Instruction>("Compare_"#vtype#"_Idx_Imm") cc, reg:$src, INDEX16:$idx, i16imm:$offset))>;
-  def _Idx_Reg8 : Pat<(brcond (i1 (setcc reg:$src, (am_am_indexed_imm_offset INDEX16:$idx, ACC8:$offset), CC)), bb:$tgt), (ConditionalBranchRelative cc, bb:$tgt, (!cast<Instruction>("Compare_"#vtype#"_Idx_Reg8") cc, reg:$src, INDEX16:$idx, ACC8:$offset))>;
-  def _Idx_Reg16 : Pat<(brcond (i1 (setcc reg:$src, (am_am_indexed_imm_offset INDEX16:$idx, ACC16:$offset), CC)), bb:$tgt), (ConditionalBranchRelative cc, bb:$tgt, (!cast<Instruction>("Compare_"#vtype#"_Idx_Reg16") cc, reg:$src, INDEX16:$idx, ACC16:$offset))>;
+  def _Idx_Imm : Pat<(brcond (i1 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), bb:$tgt), (ConditionalBranchRelative cc, bb:$tgt, (!cast<Instruction>("Compare_"#vtype#"_Idx_Imm") cc, reg:$src, INDEX16:$idx, i16imm:$offset))>;
+  def _Idx_Reg8 : Pat<(brcond (i1 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC8:$offset), CC)), bb:$tgt), (ConditionalBranchRelative cc, bb:$tgt, (!cast<Instruction>("Compare_"#vtype#"_Idx_Reg8") cc, reg:$src, INDEX16:$idx, ACC8:$offset))>;
+  def _Idx_Reg16 : Pat<(brcond (i1 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC16:$offset), CC)), bb:$tgt), (ConditionalBranchRelative cc, bb:$tgt, (!cast<Instruction>("Compare_"#vtype#"_Idx_Reg16") cc, reg:$src, INDEX16:$idx, ACC16:$offset))>;
 }
 
 multiclass MC6809CompBraCondPat<CondCode CC, int ccode> {
@@ -879,9 +885,9 @@ defm CompBraPat_NE : MC6809CompBraCondPat<SETNE, 6>;
 
 multiclass MC6809TestBraPat<CondCode CC, int cc, ValueType vtype, RegisterClass reg> {
   def _Reg : Pat<(brcond (i1 (setcc reg:$src, (vtype 0), CC)), bb:$tgt), (ConditionalBranchRelative cc, bb:$tgt, (!cast<Instruction>("Test_"#vtype#"_Reg") cc, reg:$src))>;
-  def _Idx_Imm : Pat<(brcond (i1 (setcc (vtype 0), (am_am_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), bb:$tgt), (ConditionalBranchRelative cc, bb:$tgt, (!cast<Instruction>("Test_"#vtype#"_Idx_Imm") cc, INDEX16:$idx, i16imm:$offset))>;
-  def _Idx_Reg8 : Pat<(brcond (i1 (setcc (vtype 0), (am_am_indexed_imm_offset INDEX16:$idx, ACC8:$offset), CC)), bb:$tgt), (ConditionalBranchRelative cc, bb:$tgt, (!cast<Instruction>("Test_"#vtype#"_Idx_Reg8") cc, INDEX16:$idx, ACC8:$offset))>;
-  def _Idx_Reg16 : Pat<(brcond (i1 (setcc (vtype 0), (am_am_indexed_imm_offset INDEX16:$idx, ACC16:$offset), CC)), bb:$tgt), (ConditionalBranchRelative cc, bb:$tgt, (!cast<Instruction>("Test_"#vtype#"_Idx_Reg16") cc, INDEX16:$idx, ACC16:$offset))>;
+  def _Idx_Imm : Pat<(brcond (i1 (setcc (vtype 0), (am_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), bb:$tgt), (ConditionalBranchRelative cc, bb:$tgt, (!cast<Instruction>("Test_"#vtype#"_Idx_Imm") cc, INDEX16:$idx, i16imm:$offset))>;
+  def _Idx_Reg8 : Pat<(brcond (i1 (setcc (vtype 0), (am_indexed_imm_offset INDEX16:$idx, ACC8:$offset), CC)), bb:$tgt), (ConditionalBranchRelative cc, bb:$tgt, (!cast<Instruction>("Test_"#vtype#"_Idx_Reg8") cc, INDEX16:$idx, ACC8:$offset))>;
+  def _Idx_Reg16 : Pat<(brcond (i1 (setcc (vtype 0), (am_indexed_imm_offset INDEX16:$idx, ACC16:$offset), CC)), bb:$tgt), (ConditionalBranchRelative cc, bb:$tgt, (!cast<Instruction>("Test_"#vtype#"_Idx_Reg16") cc, INDEX16:$idx, ACC16:$offset))>;
 }
 
 multiclass MC6809TestBraCondPat<CondCode CC, int ccode> {
@@ -921,7 +927,16 @@ def LEAPtrAddPatImm : Pat<(i16 (ptradd INDEX16:$src, (i16 imm:$offset))), (LEAPt
 def LEAPtrAddPatReg8 : Pat<(i16 (ptradd INDEX16:$src, ACC8:$offset)), (LEAPtrAdd_Reg8 INDEX16:$src, ACC8:$offset)>;
 def LEAPtrAddPatReg16 : Pat<(i16 (ptradd INDEX16:$src, ACC16:$offset)), (LEAPtrAdd_Reg16 INDEX16:$src, ACC16:$offset)>;
 
+class MC6809LoadEffectiveAddress<RegisterClass idx, dag operand> : MC6809LogicalInstr {
+  dag OutOperandList = (outs idx:$dst);
+  dag InOperandList = !con((ins idx:$src), operand);
+  let mayLoad = true;
+}
 
+// LEAr n,r or LEAr a,r
+def LEA_Ptr_Imm : MC6809LoadEffectiveAddress<INDEX16, (ins i16imm:$offset)>;
+def LEA_Ptr_Reg8 : MC6809LoadEffectiveAddress<INDEX16, (ins ACC8:$offset)>;
+def LEA_Ptr_Reg16 : MC6809LoadEffectiveAddress<INDEX16, (ins ACC16:$offset)>;
 
 //===---------------------------------------------------------------------===//
 // Integer Extension/Truncation Patterns
