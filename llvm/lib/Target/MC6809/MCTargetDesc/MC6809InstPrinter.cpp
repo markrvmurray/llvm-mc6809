@@ -69,13 +69,12 @@ void MC6809InstPrinter::printOperand(const MCInst *MI, unsigned OpNo, raw_ostrea
 }
 
 void MC6809InstPrinter::printRegisterList(const MCInst *MI, unsigned OpNo, raw_ostream &O) {
-  unsigned Opcode = MI->getOpcode();
   bool DoneOne = false;
 
   for (unsigned i = 0; i < MI->getNumOperands(); i++) {
       if (DoneOne)
         O << ",";
-      printRegName(O, MI->getOperand(i).getReg());;
+      printRegName(O, MI->getOperand(i).getReg());
       DoneOne = true;
   }
 }

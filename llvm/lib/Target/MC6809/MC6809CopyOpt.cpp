@@ -166,6 +166,7 @@ static bool isClobbered(MachineInstr &MI, Register NewSrc, const SmallVectorImpl
 }
 
 bool MC6809CopyOpt::runOnMachineFunction(MachineFunction &MF) {
+#if 0
   const MC6809Subtarget &STI = MF.getSubtarget<MC6809Subtarget>();
   const MC6809RegisterInfo &TRI = *STI.getRegisterInfo();
   const TargetInstrInfo &TII = *STI.getInstrInfo();
@@ -258,6 +259,7 @@ bool MC6809CopyOpt::runOnMachineFunction(MachineFunction &MF) {
       computeAndAddLiveIns(LPR, *MBB);
     }
   }
+#endif
   return true;
 }
 

@@ -504,37 +504,6 @@ APInt MC6809CombinerImpl::getDemandedBits(Register R, DenseMap<Register, APInt> 
   return DemandedBits;
 }
 
-#if 0
-class MC6809CombinerInfo : public CombinerInfo {
-  GISelKnownBits *KB;
-  MachineDominatorTree *MDT;
-  AAResults *AA;
-  MC6809CombinerImplRuleConfig GeneratedRuleCfg;
-
-public:
-  MC6809CombinerInfo(bool EnableOpt, bool OptSize, bool MinSize, GISelKnownBits *KB, MachineDominatorTree *MDT, AAResults *AA)
-      : CombinerInfo(/*AllowIllegalOps*/ true,
-                     /*ShouldLegalizeIllegal*/ false,
-                     /*LegalizerInfo*/ nullptr, EnableOpt, OptSize, MinSize),
-        KB(KB), MDT(MDT), AA(AA) {
-    if (!GeneratedRuleCfg.parseCommandLineOption())
-      report_fatal_error("Invalid rule identifier");
-  }
-
-  virtual bool combine(GISelChangeObserver &Observer, MachineInstr &MI, MachineIRBuilder &B) const override;
-};
-
-bool MC6809CombinerInfo::combine(GISelChangeObserver &Observer, MachineInstr &MI, MachineIRBuilder &B) const {
-  const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
-  const LegalizerInfo *LI = MI.getMF()->getSubtarget().getLegalizerInfo();
-  bool IsPreLegalize = !MI.getMF()->getProperties().hasProperty(MachineFunctionProperties::Property::Legalized);
-  CombinerHelper Helper(Observer, B, IsPreLegalize, KB, MDT, LI);
-  MC6809CombinerImpl Impl(GeneratedRuleCfg, STI, Observer, B, Helper, *AA);
-  Impl.setupMF(*MI.getMF(), KB, nullptr, nullptr, nullptr, AA);
-  return Impl.tryCombineAll(MI);
-}
-#endif
-
 #define MC6809COMBINERHELPER_GENCOMBINERHELPER_CPP
 #include "MC6809GenGICombiner.inc"
 #undef MC6809COMBINERHELPER_GENCOMBINERHELPER_CPP

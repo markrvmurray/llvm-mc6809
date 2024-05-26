@@ -164,12 +164,16 @@ def gi_am_ls_indexed_imm_offset : GIComplexOperandMatcher<s16, "selectLSIndexedI
 // Pointer register with signed immediate offset for use in instruction address
 // modes for instructions other than load/store.
 // index + offset [-32768, 32767].
-def am_am_indexed_imm_offset : ComplexPattern<iPTR, 2, "SelectAMIndexedImmOffset", []>;
-def gi_am_am_indexed_imm_offset : GIComplexOperandMatcher<s16, "selectAMIndexedImmOffset">, GIComplexPatternEquiv<am_am_indexed_imm_offset>;
+def am_indexed_imm_offset : ComplexPattern<iPTR, 2, "SelectAMIndexedImmOffset", []>;
+def gi_am_indexed_imm_offset : GIComplexOperandMatcher<s16, "selectAMIndexedImmOffset">, GIComplexPatternEquiv<am_indexed_imm_offset>;
 
 // Immediate constant
-def am_am_immediate : ComplexPattern<iAny, 2, "SelectAMImmediate", []>;
-def gi_am_am_immediate : GIComplexOperandMatcher<s32, "selectAMImmediate">, GIComplexPatternEquiv<am_am_immediate>;
+def am_immediate : ComplexPattern<iAny, 2, "SelectAMImmediate", []>;
+def gi_am_immediate : GIComplexOperandMatcher<s16, "selectAMImmediate">, GIComplexPatternEquiv<am_immediate>;
+
+// Frame Index
+def am_ls_frame_index : ComplexPattern<i16, 1, "SelectAddrFI", [frameindex], []>;
+def gi_am_ls_frame_index : GIComplexOperandMatcher<s32, "selectLSFrameIndex">, GIComplexPatternEquiv<am_ls_frame_index>;
 
 /// Addressing modes
 /// ----------------

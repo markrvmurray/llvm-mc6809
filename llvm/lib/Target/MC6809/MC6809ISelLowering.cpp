@@ -271,7 +271,7 @@ static MachineBasicBlock *emitSelectImm(MachineInstr &MI, MachineBasicBlock *MBB
 
     // Add the unconditional branch from IfFalseMBB to TailMBB.
     Builder.setInsertPt(*IfFalseMBB, IfFalseMBB->begin());
-    Builder.buildInstr(MC6809::LongBranchRelative).addMBB(TailMBB);
+    Builder.buildInstr(MC6809::BranchRelative).addMBB(TailMBB);
     for (const auto &LiveIn : IfFalseMBB->liveins())
       IfTrueMBB->addLiveIn(LiveIn);
 

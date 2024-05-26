@@ -16,61 +16,61 @@ def fold_global_offset : GICombineRule<
   (defs root:$root, fold_global_offset_matchdata:$matchinfo),
   (match (wip_match_opcode G_PTR_ADD):$root,
           [{ return matchFoldGlobalOffset(*${root}, ${matchinfo}); }]),
-  (apply [{  return applyFoldGlobalOffset(*${root}, ${matchinfo});}])>;
+  (apply [{ applyFoldGlobalOffset(*${root}, ${matchinfo});}])>;
 
 def extract_low_bit_matchdata : GIDefMatchData<"MachineInstr*">;
 def extract_low_bit : GICombineRule<
   (defs root:$root, extract_low_bit_matchdata:$matchinfo),
   (match (wip_match_opcode G_TRUNC, G_ICMP):$root,
           [{ return matchExtractLowBit(*${root}, ${matchinfo}); }]),
-  (apply [{  return applyExtractLowBit(*${root}, ${matchinfo});}])>;
+  (apply [{ applyExtractLowBit(*${root}, ${matchinfo});}])>;
 
 def uaddo_1 : GICombineRule<
   (defs root:$root),
   (match (wip_match_opcode G_UADDO):$root,
           [{ return matchUAddO1(*${root}); }]),
-  (apply [{  return applyUAddO1(*${root});}])>;
+  (apply [{ applyUAddO1(*${root});}])>;
 
 def load_store_to_memcpy_matchdata : GIDefMatchData<"GLoad*">;
 def load_store_to_memcpy : GICombineRule<
   (defs root:$root, load_store_to_memcpy_matchdata:$matchinfo),
   (match (wip_match_opcode G_STORE):$root,
           [{ return matchLoadStoreToMemcpy(*${root}, ${matchinfo}); }]),
-  (apply [{  return applyLoadStoreToMemcpy(*${root}, ${matchinfo});}])>;
+  (apply [{ applyLoadStoreToMemcpy(*${root}, ${matchinfo});}])>;
 
 def store_to_memset_matchdata : GIDefMatchData<"uint8_t">;
 def store_to_memset : GICombineRule<
   (defs root:$root, store_to_memset_matchdata:$matchinfo),
   (match (wip_match_opcode G_STORE):$root,
           [{ return matchStoreToMemset(*${root}, ${matchinfo}); }]),
-  (apply [{  return applyStoreToMemset(*${root}, ${matchinfo});}])>;
+  (apply [{ applyStoreToMemset(*${root}, ${matchinfo});}])>;
 
 def fold_adde : GICombineRule<
   (defs root:$root, build_fn_matchinfo:$matchinfo),
   (match (wip_match_opcode G_UADDE, G_SADDE):$root,
           [{ return matchFoldAddE(*${root}, ${matchinfo}); }]),
-  (apply [{ return Helper.applyBuildFn(*${root}, ${matchinfo}); }])>;
+  (apply [{ Helper.applyBuildFn(*${root}, ${matchinfo}); }])>;
 
 def fold_shift : GICombineRule<
   (defs root:$root, build_fn_matchinfo:$matchinfo),
   (match (wip_match_opcode G_SHLE, G_LSHRE):$root,
           [{ return matchFoldShift(*${root}, ${matchinfo}); }]),
-  (apply [{ return Helper.applyBuildFn(*${root}, ${matchinfo}); }])>;
+  (apply [{ Helper.applyBuildFn(*${root}, ${matchinfo}); }])>;
 
 def shift_unused_carry_in : GICombineRule<
   (defs root:$root, build_fn_matchinfo:$matchinfo),
   (match (wip_match_opcode G_SHLE, G_LSHRE):$root,
           [{ return matchShiftUnusedCarryIn(*${root}, ${matchinfo}); }]),
-  (apply [{ return Helper.applyBuildFnNoErase(*${root}, ${matchinfo}); }])>;
+  (apply [{ Helper.applyBuildFnNoErase(*${root}, ${matchinfo}); }])>;
 
 def MC6809Combiner : GICombiner<"MC6809CombinerImpl", [
     all_combines,
-    fold_global_offset,
-    extract_low_bit,
-    uaddo_1,
-    load_store_to_memcpy,
-    //store_to_memset,
-    fold_adde,
-    fold_shift,
-    shift_unused_carry_in
+    // fold_global_offset,
+    // extract_low_bit,
+    // uaddo_1,
+    // load_store_to_memcpy,
+    // store_to_memset,
+    // fold_adde,
+    // fold_shift,
+    // shift_unused_carry_in
 ]>;
