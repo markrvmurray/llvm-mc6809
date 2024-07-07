@@ -81,15 +81,15 @@ class MC6809StackPull<RegisterClass index, RegisterClass reg> : MC6809LogicalIns
   let mayLoad = true;
 }
 
-def Push_i8 : MC6809StackPush<TOS16, ACC8>;
-def Pull_i8 : MC6809StackPull<TOS16, ACC8>;
-def Push_i16 : MC6809StackPush<TOS16, ACC16>;
-def Pull_i16 : MC6809StackPull<TOS16, ACC16>;
-def Push_Ptr : MC6809StackPush<TOS16, INDEX16>;
-def Pull_Ptr : MC6809StackPull<TOS16, INDEX16>;
+def Push_i8 : MC6809StackPush<SSc, ACC8>;
+def Pull_i8 : MC6809StackPull<SSc, ACC8>;
+def Push_i16 : MC6809StackPush<SSc, ACC16>;
+def Pull_i16 : MC6809StackPull<SSc, ACC16>;
+def Push_Ptr : MC6809StackPush<SSc, INDEX16>;
+def Pull_Ptr : MC6809StackPull<SSc, INDEX16>;
 let Predicates = [IsHD6309] in {
-  def Push_i32 : MC6809StackPush<TOS16, ACC32>;
-  def Pull_i32 : MC6809StackPull<TOS16, ACC32>;
+  def Push_i32 : MC6809StackPush<SSc, ACC32>;
+  def Pull_i32 : MC6809StackPull<SSc, ACC32>;
 }
 
 //===---------------------------------------------------------------------===//
@@ -261,7 +261,7 @@ multiclass MC6809Arithmetic<ValueType vtype, RegisterClass dst, RegisterClass sr
     def _Idx_Inc : MC6809ArithmeticBase<dst, src, (ins INDEX16:$idx)>;
     def _Dec_Idx : MC6809ArithmeticBase<dst, src, (ins INDEX16:$idx)>;
     def _Indir : MC6809ArithmeticBase<dst, src, (ins INDEX16:$idx, unknown:$offset)>;
-    def _Pull : MC6809ArithmeticBase<dst, src, (ins TOS16:$idx)>;
+    def _Pull : MC6809ArithmeticBase<dst, src, (ins SSc:$idx)>;
     let Predicates = [IsHD6309] in {
       def _Reg : MC6809ArithmeticBase<dst, src, (ins src:$src2)>;
     }
@@ -302,7 +302,7 @@ multiclass MC6809ArithmeticCarry<ValueType vtype, RegisterClass dst, RegisterCla
     def _Idx_Inc : MC6809ArithmeticBaseCarry<dst, carry, src, (ins INDEX16:$idx)>;
     def _Dec_Idx : MC6809ArithmeticBaseCarry<dst, carry, src, (ins INDEX16:$idx)>;
     def _Indir : MC6809ArithmeticBaseCarry<dst, carry, src, (ins INDEX16:$idx, unknown:$offset)>;
-    def _Pull : MC6809ArithmeticBaseCarry<dst, carry, src, (ins TOS16:$idx)>;
+    def _Pull : MC6809ArithmeticBaseCarry<dst, carry, src, (ins SSc:$idx)>;
     let Predicates = [IsHD6309] in {
       def _Reg : MC6809ArithmeticBaseCarry<dst, carry, src, (ins src:$src2)>;
     }
@@ -452,7 +452,7 @@ multiclass MC6809Bitwise<ValueType vtype, RegisterClass reg> {
     def _Idx_Inc : MC6809BitwiseBase<reg, (ins INDEX16:$idx)>;
     def _Dec_Idx : MC6809BitwiseBase<reg, (ins INDEX16:$idx)>;
     def _Indir : MC6809BitwiseBase<reg, (ins INDEX16:$idx, unknown:$offset)>;
-    def _Pull : MC6809BitwiseBase<reg, (ins TOS16:$idx)>;
+    def _Pull : MC6809BitwiseBase<reg, (ins SSc:$idx)>;
   }
 }
 

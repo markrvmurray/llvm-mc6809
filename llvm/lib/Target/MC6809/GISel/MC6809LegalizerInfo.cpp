@@ -143,13 +143,12 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
       .narrowScalarIf(IsScalarPointer(1, 0, std::greater<>{}), ChangeToSameSizeScalar(1, 0));
 
   getActionDefinitionsBuilder({G_ADD, G_SUB})
-      .legalFor({s8, s16, s32})
-      .clampScalar(0, s1, s32);
+      .legalFor({s8, s16})
+      .clampScalar(0, s1, s16);
 
   getActionDefinitionsBuilder({G_UADDO, G_UADDE, G_USUBO, G_USUBE, G_SADDO, G_SADDE, G_SSUBO, G_SSUBE})
-      .unsupported();
-      //.legalFor({{s8, s1}, {s8, s8}, {s16, s1}, {s16, s16}})
-      //.clampScalar(0, s8, s16);
+      .legalFor({{s8, s1}, {s8, s8}, {s16, s1}, {s16, s16}})
+      .clampScalar(0, s8, s16);
 
   getActionDefinitionsBuilder({G_MUL, G_UMULH, G_SMULH})
       .legalFor(LegalAccumulators)

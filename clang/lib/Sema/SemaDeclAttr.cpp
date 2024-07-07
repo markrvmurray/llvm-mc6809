@@ -48,6 +48,7 @@
 #include "clang/Sema/SemaHLSL.h"
 #include "clang/Sema/SemaM68k.h"
 #include "clang/Sema/SemaMIPS.h"
+#include "clang/Sema/SemaMC6809.h"
 #include "clang/Sema/SemaMOS.h"
 #include "clang/Sema/SemaMSP430.h"
 #include "clang/Sema/SemaObjC.h"
@@ -6117,7 +6118,7 @@ static void handleInterruptAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     S.M68k().handleInterruptAttr(D, AL);
     break;
   case llvm::Triple::mc6809:
-    handleMC6809InterruptAttr(S, D, AL);
+    S.MC6809().handleInterruptAttr(D, AL);
     break;
   case llvm::Triple::mos:
     S.MOS().handleInterruptAttr(D, AL);
@@ -7033,10 +7034,10 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
     handleBTFDeclTagAttr(S, D, AL);
     break;
   case ParsedAttr::AT_MC6809InterruptNorecurse:
-    handleMC6809InterruptNorecurseAttr(S, D, AL);
+    S.MC6809().handleInterruptNorecurseAttr(D, AL);
     break;
   case ParsedAttr::AT_MC6809NoISR:
-    handleMC6809InterruptNoISRAttr(S, D, AL);
+    S.MC6809().handleInterruptNoISRAttr(D, AL);
     break;
   case ParsedAttr::AT_MOSInterruptNorecurse:
     S.MOS().handleInterruptNorecurseAttr(D, AL);

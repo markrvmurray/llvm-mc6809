@@ -109,10 +109,10 @@ const MC6809Subtarget *MC6809TargetMachine::getSubtargetImpl(const Function &F) 
 
 TargetTransformInfo MC6809TargetMachine::getTargetTransformInfo(const Function &F) const { return TargetTransformInfo(MC6809TTIImpl(this, F)); }
 
-void MC6809TargetMachine::registerPassBuilderCallbacks(PassBuilder &PB, bool PopulateClassToPassNames) {
+void MC6809TargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
   PB.registerPipelineParsingCallback([](StringRef Name, LoopPassManager &PM, ArrayRef<PassBuilder::PipelineElement>) {
     if (Name == "mc6809-indexiv") {
-      // Rewrite pointer artithmetic in loops to use 8-bit IV offsets.
+      // Rewrite pointer arithmetic in loops to use 8-bit IV offsets.
       PM.addPass(MC6809IndexIV());
       return true;
     }

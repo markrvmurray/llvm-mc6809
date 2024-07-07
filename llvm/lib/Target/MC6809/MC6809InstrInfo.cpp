@@ -2225,7 +2225,7 @@ void MC6809InstrInfo::expandSubSetCarryReg(MachineIRBuilder &Builder, MachineIns
 void MC6809InstrInfo::expandSubPull(MachineIRBuilder &Builder, MachineInstr &MI) const {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
   auto Stack = MI.getOperand(2).getReg();
-  assert(Stack == MC6809::TOS && "subtract-with-pull must use TOS register");
+  assert(Stack == MC6809::SS && "subtract-with-pull must use TOS register");
 
   auto OpcodePair = SubPullOpcode.find(MI.getOperand(0).getReg());
   if (OpcodePair == SubPullOpcode.end()) {

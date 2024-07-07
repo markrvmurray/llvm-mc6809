@@ -27,16 +27,16 @@ public:
       : MCELFStreamer(Context, std::move(TAB), std::move(OW), std::move(Emitter)), MCII(createMC6809MCInstrInfo()) {}
 
   void initSections(bool NoExecStack, const MCSubtargetInfo &STI) override;
-  void changeSection(MCSection *Section, const MCExpr *Subsection) override;
+  void changeSection(MCSection *Section, uint32_t Subsection = 0) override;
 
   void emitInstruction(const MCInst &Inst, const MCSubtargetInfo &STI) override;
 
   void emitValueImpl(const MCExpr *Value, unsigned Size, SMLoc Loc = SMLoc()) override;
 
-  void emitMosAddrAsciz(const MCExpr *Value, unsigned Size, SMLoc Loc = SMLoc());
+  void emitMc6809AddrAsciz(const MCExpr *Value, unsigned Size, SMLoc Loc = SMLoc());
 
   void emitMappingSymbol(StringRef Name);
-  void emit816MXState(bool IsMLow, bool IsMHigh, bool IsXLow, bool IsXHigh);
+  //void emit816MXState(bool IsMLow, bool IsMHigh, bool IsXLow, bool IsXHigh);
 
   bool hasBSS() const { return HasBSS; }
   bool hasDPBSS() const { return HasDPBSS; }

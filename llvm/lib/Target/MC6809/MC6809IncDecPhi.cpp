@@ -13,8 +13,8 @@
 
 #include "MC6809IncDecPhi.h"
 
-#include "MC6809.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
+#include "MC6809.h"
 
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
 #include "llvm/CodeGen/GlobalISel/Utils.h"
@@ -32,10 +32,12 @@ class MC6809IncDecPhi : public MachineFunctionPass {
 public:
   static char ID;
 
-  MC6809IncDecPhi() : MachineFunctionPass(ID) { llvm::initializeMC6809IncDecPhiPass(*PassRegistry::getPassRegistry()); }
+  MC6809IncDecPhi() : MachineFunctionPass(ID) {
+    llvm::initializeMC6809IncDecPhiPass(*PassRegistry::getPassRegistry());
+  }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.addRequired<MachineDominatorTree>();
+    AU.addRequired<MachineDominatorTreeWrapperPass>();
     MachineFunctionPass::getAnalysisUsage(AU);
   }
 
@@ -109,7 +111,7 @@ static MachineBasicBlock *splitCriticalEdge(MachineBasicBlock &MBB, MachineBasic
 bool MC6809IncDecPhi::runOnMachineFunction(MachineFunction &MF) {
   MachineRegisterInfo &MRI = MF.getRegInfo();
   bool Changed = false;
-  const auto &MDT = getAnalysis<MachineDominatorTree>();
+  const auto &MDT = getAnalysis<MachineDominatorTreeWrapperPass>().getDomTree();
   for (MachineBasicBlock &MBB : MF) {
     for (auto I = MBB.begin(), E = MBB.end(); I != E; ++I) {
       MachineInstr &MI = *I;
@@ -156,7 +158,8 @@ bool MC6809IncDecPhi::runOnMachineFunction(MachineFunction &MF) {
         // If the value is defined in some other basic block, we don't try to
         // rematerialize it. Instead, just check that it's available in both
         // predecessors.
-        if (!MDT.dominates(ValDefMBB, IncMBB) || !MDT.dominates(ValDefMBB, DecMBB))
+        if (!MDT.dominates(ValDefMBB, IncMBB) ||
+            !MDT.dominates(ValDefMBB, DecMBB))
           continue;
       }
 
@@ -189,7 +192,12 @@ bool MC6809IncDecPhi::runOnMachineFunction(MachineFunction &MF) {
       MIB.setInsertPt(*DecMBB, DecMBB->getFirstTerminator());
       Register Dec = MIB.buildAdd(Ty, DecMBBVal, NegOneReg).getReg(0);
       MIB.setInsertPt(MBB, MBB.begin());
-      MIB.buildInstr(MC6809::G_PHI).addDef(Dst).addUse(Inc).addMBB(IncMBB).addUse(Dec).addMBB(DecMBB);
+      MIB.buildInstr(MC6809::G_PHI)
+          .addDef(Dst)
+          .addUse(Inc)
+          .addMBB(IncMBB)
+          .addUse(Dec)
+          .addMBB(DecMBB);
       --I;
       MI.eraseFromParent();
 
@@ -211,7 +219,9 @@ bool MC6809IncDecPhi::runOnMachineFunction(MachineFunction &MF) {
 char MC6809IncDecPhi::ID = 0;
 
 INITIALIZE_PASS_BEGIN(MC6809IncDecPhi, DEBUG_TYPE, "Optimize MC6809 Increment/Decrement PHI pattern", false, false)
-INITIALIZE_PASS_DEPENDENCY(MachineDominatorTree)
+INITIALIZE_PASS_DEPENDENCY(MachineDominatorTreeWrapperPass)
 INITIALIZE_PASS_END(MC6809IncDecPhi, DEBUG_TYPE, "Optimize MC6809 Increment/Decrement PHI pattern", false, false)
 
-MachineFunctionPass *llvm::createMC6809IncDecPhiPass() { return new MC6809IncDecPhi(); }
+MachineFunctionPass *llvm::createMC6809IncDecPhiPass() {
+  return new MC6809IncDecPhi();
+}
