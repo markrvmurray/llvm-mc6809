@@ -201,7 +201,7 @@ def CC : MC6809Reg<10, "cc"> {
 
 // Special top-of-stack pseudo-register. Should never be visible except in
 // closely-bound push/pull pairs.
-def TOS : MC6809Reg16<0,  "tos" >;
+//def TOS : MC6809Reg16<0,  "tos" >;
 
 def IX : MC6809Reg16<1,  "x" >;
 def IY : MC6809Reg16<2,  "y" >;
@@ -250,11 +250,11 @@ class MC6809Reg16Class<dag RegList> : MC6809RegClass<[i16], 8, RegList>;
 class MC6809Reg32Class<dag RegList> : MC6809RegClass<[i32], 8, RegList>;
 
 // Register grouping classes.
-let isPressureFineGrained = true in {
+//let isPressureFineGrained = true in {
   def ACC_LSB : MC6809Reg1Class<(add AALSB, ABLSB)>;
-  def NZVC_ACC_LSB : MC6809Reg1Class<(add N, Z, V, C, ACC_LSB)>;
+  //def NZVC_ACC_LSB : MC6809Reg1Class<(add N, Z, V, C, ACC_LSB)>;
   def CARRY : MC6809Reg1Class<(add C)>;
-  def BIT1 : MC6809Reg1Class<(add ACC_LSB, V, C)>;
+  def BIT1 : MC6809Reg1Class<(add ACC_LSB/*, V, C*/)>;
   def ACC8 : MC6809Reg8Class<(add AB, AA, AF, AE)> {
     let AltOrders = [(add AB, AA)];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
@@ -277,11 +277,11 @@ let isPressureFineGrained = true in {
   def REGTFM : MC6809Reg16Class<(add AD, IX, IY, SU, SS)>; // Registers for TFM
 
   // Pointer and stack registers
-  def INDEX16 : MC6809Reg16Class<(add IX, IY, SU, SS, TOS)>;
+  def INDEX16 : MC6809Reg16Class<(add IX, IY, SU, SS/*, TOS*/)>;
 
   // Stack registers
   def STACK16 : MC6809Reg16Class<(add SU, SS)>;
-  def TOS16 : MC6809Reg16Class<(add TOS)>;
+  //def TOS16 : MC6809Reg16Class<(add TOS)>;
 
   // All 16-bit registers. Useful for load/store.
   // def ALL16 : MC6809Reg16Class<(add AD, AW, IX, IY)> {
@@ -295,7 +295,7 @@ let isPressureFineGrained = true in {
   def Imag8 : MC6809Reg8Class<(sequence "RC%u", 0, !add(MaxImag8Regs, -1))>;
   def Imag16 : MC6809Reg16Class<(sequence "RS%u", 0, !add(MaxImag16Regs, -1))>;
   def Imag32 : MC6809Reg32Class<(sequence "RW%u", 0, !add(MaxImag32Regs, -1))>;
-}
+//}
 
 let isAllocatable = false in {
   def AllCCFlag : MC6809Reg1Class<(add E, F, H, I, N, Z, V, C)>;
@@ -307,7 +307,7 @@ let isAllocatable = false in {
 }
 
 // Single register classes.
-let isPressureFineGrained = true in {
+//let isPressureFineGrained = true in {
     def AAc : MC6809Reg8Class<(add AA)>;
     def ABc : MC6809Reg8Class<(add AB)>;
     def ADc : MC6809Reg16Class<(add AD)>;
@@ -327,4 +327,4 @@ let isPressureFineGrained = true in {
     def Zc : MC6809Reg1Class<(add Z)>;
     def Vc : MC6809Reg1Class<(add V)>;
     def Cc : MC6809Reg1Class<(add C)>;
-}
+//}

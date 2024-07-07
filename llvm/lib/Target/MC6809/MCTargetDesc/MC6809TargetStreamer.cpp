@@ -52,7 +52,7 @@ void MC6809TargetStreamer::finish() {
     stronglyReference("__do_fini_array", "Declaring this symbol tells the CRT that there are "
                                          "finalization routines to be run in .fini_array");
 
-  bool ReferencesStackPtr = llvm::any_of(Context.getSymbols(), [](const StringMapEntry<MCSymbol *> &TableEntry) { return TableEntry.getKey() == "__rc0" || TableEntry.getKey() == "__rc1"; });
+  bool ReferencesStackPtr = llvm::any_of(Context.getSymbols(), [](const StringMapEntry<MCSymbolTableValue> &TableEntry) { return TableEntry.getKey() == "__rc0" || TableEntry.getKey() == "__rc1"; });
   if (ReferencesStackPtr)
     stronglyReference("__do_init_stack", "Declaring this symbol tells the CRT that the stack "
                                          "pointer needs to be initialized.");
@@ -72,7 +72,7 @@ static bool HasPrefix(StringRef Name, StringRef Prefix) {
   return Name == Prefix || Name.starts_with(PrefixDot);
 }
 
-void MC6809TargetAsmStreamer::changeSection(const MCSection *CurSection, MCSection *Section, const MCExpr *SubSection, raw_ostream &OS) {
+void MC6809TargetAsmStreamer::changeSection(const MCSection *CurSection, MCSection *Section, uint32_t SubSection, raw_ostream &OS) {
   MCTargetStreamer::changeSection(CurSection, Section, SubSection, OS);
   HasBSS |= HasPrefix(Section->getName(), ".bss");
   HasDPBSS |= HasPrefix(Section->getName(), ".dp.bss");

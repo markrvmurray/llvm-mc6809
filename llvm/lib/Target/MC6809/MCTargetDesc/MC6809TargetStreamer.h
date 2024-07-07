@@ -49,7 +49,7 @@ private:
     return true;
   };
 
-  void changeSection(const MCSection *CurSection, MCSection *Section, const MCExpr *SubSection, raw_ostream &OS) override;
+  void changeSection(const MCSection *CurSection, MCSection *Section, uint32_t SubSection, raw_ostream &OS) override;
 
   bool hasBSS() override { return HasBSS; }
   bool hasDPBSS() override { return HasDPBSS; }

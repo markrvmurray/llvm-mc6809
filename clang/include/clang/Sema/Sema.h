@@ -180,6 +180,7 @@ class SemaSYCL;
 class SemaSwift;
 class SemaSystemZ;
 class SemaWasm;
+class SemaMC6809;
 class SemaMOS;
 class SemaX86;
 class StandardConversionSequence;
@@ -1178,6 +1179,11 @@ public:
     return *WasmPtr;
   }
 
+  SemaMC6809 &MC6809() {
+    assert(MC6809Ptr);
+    return *MC6809Ptr;
+  }
+
   SemaMOS &MOS() {
     assert(MOSPtr);
     return *MOSPtr;
@@ -1232,6 +1238,7 @@ private:
   std::unique_ptr<SemaLoongArch> LoongArchPtr;
   std::unique_ptr<SemaM68k> M68kPtr;
   std::unique_ptr<SemaMIPS> MIPSPtr;
+  std::unique_ptr<SemaMC6809> MC6809Ptr;
   std::unique_ptr<SemaMOS> MOSPtr;
   std::unique_ptr<SemaMSP430> MSP430Ptr;
   std::unique_ptr<SemaNVPTX> NVPTXPtr;

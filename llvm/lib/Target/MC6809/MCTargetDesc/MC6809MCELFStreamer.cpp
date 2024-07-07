@@ -48,7 +48,7 @@ static bool HasPrefix(StringRef Name, StringRef Prefix) {
   return Name == Prefix || Name.starts_with(PrefixDot);
 }
 
-void MC6809MCELFStreamer::changeSection(MCSection *Section, const MCExpr *Subsection) {
+void MC6809MCELFStreamer::changeSection(MCSection *Section, uint32_t Subsection) {
   MCELFStreamer::changeSection(Section, Subsection);
   HasBSS |= HasPrefix(Section->getName(), ".bss");
   HasDPBSS |= HasPrefix(Section->getName(), ".dp.bss");
@@ -66,18 +66,17 @@ void MC6809MCELFStreamer::emitInstruction(const MCInst &Inst, const MCSubtargetI
 void MC6809MCELFStreamer::emitValueImpl(const MCExpr *Value, unsigned Size, SMLoc Loc) {
   if (const auto *MME = dyn_cast<MC6809MCExpr>(Value)) {
     if (MME->getKind() == MC6809MCExpr::VK_MC6809_ADDR_ASCIZ) {
-      emitMosAddrAsciz(MME->getSubExpr(), Size, Loc);
+      emitMc6809AddrAsciz(MME->getSubExpr(), Size, Loc);
       return;
     }
   }
   MCELFStreamer::emitValueImpl(Value, Size, Loc);
 }
 
-void MC6809MCELFStreamer::emitMosAddrAsciz(const MCExpr *Value, unsigned Size, SMLoc Loc) {
+void MC6809MCELFStreamer::emitMc6809AddrAsciz(const MCExpr *Value, unsigned Size, SMLoc Loc) {
   visitUsedExpr(*Value);
   MCDwarfLineEntry::make(this, getCurrentSectionOnly());
   MCDataFragment *DF = getOrCreateDataFragment();
-  flushPendingLabels(DF, DF->getContents().size());
 
   DF->getFixups().push_back(MCFixup::create(DF->getContents().size(), Value, (MCFixupKind)MC6809::AddrAsciz, Loc));
   DF->getContents().resize(DF->getContents().size() + Size, 0);
