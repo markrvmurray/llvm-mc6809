@@ -16,5 +16,8 @@ def ACCUMRegBank : RegisterBank<"ACCUM", [ACC32]>;
 /// Index Registers: IX, IY, SU, SS
 def INDEXRegBank : RegisterBank<"INDEX", [INDEX16]>;
 
+/// Imaginary (DP) registers: Imag8, Imag16, Imag32;
+def IMAGRegBank : RegisterBank<"IMAG", [Imag32]>;
+
 /// Conditional register: CC bits
-def CCRegBank : RegisterBank<"FLAGS", [CCond]>;
+def CCRegBank : RegisterBank<"FLAGS", [CCFlag, CCond]>;

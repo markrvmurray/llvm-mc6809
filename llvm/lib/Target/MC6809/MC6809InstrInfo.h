@@ -135,6 +135,7 @@ private:
   // void copyPhysRegImpl(MachineBasicBlock &MBB, MachineIRBuilder &Builder, Register DestReg, Register SrcReg) const;
 
   // Post RA pseudos
+  void expandSetIf(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandCallRelative(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandLEAPtrAdd(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI) const;
@@ -161,10 +162,11 @@ private:
 
   void expandAddReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandAddSetCarryReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandAddSetCarryUseReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandAdd32IdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandAdd32IdxReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  // void expandAdd32IdxReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
 
-  void expandSubImmRev(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  // void expandSubImmRev(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandSubReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandSubSetCarryReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandSubPull(MachineIRBuilder &Builder, MachineInstr &MI) const;
@@ -172,11 +174,13 @@ private:
   void expandSub32IdxReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   // void expandSub32Pop(MachineIRBuilder &Builder, MachineInstr &MI) const;
 
-  // void expandCompareReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandCompareImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandCompare32Imm(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  // void expandComparePop(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandCompareIdx(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandCompareReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  // void expandComparePop(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  // void expandCompare32Imm(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  // void expandCompare32IdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  // void expandCompare32IdxReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
 
   void expandTestReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandTestReg32(MachineIRBuilder &Builder, MachineInstr &MI) const;

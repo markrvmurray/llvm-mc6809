@@ -114,9 +114,27 @@ multiclass MC6809Negate1Pat<ValueType vtype, RegisterClass reg> {
 
 defm NegPat_i8 : MC6809Negate1Pat<i8, ACC8>;
 let Predicates = [IsHD6309] in {
-  defm NegPat_ii6 : MC6809Negate1Pat<i16, ACC16>;
+  defm NegPat_i16 : MC6809Negate1Pat<i16, ACC16>;
   defm NegPat_i32 : MC6809Negate1Pat<i32, ACC32>;
 }
+
+let InOperandList = (ins), Constraints = "" in {
+  def Clear_i8 : MC6809Accumulator<ACC8>;
+  let Predicates = [IsHD6309] in {
+    def Clear_i16 : MC6809Accumulator<ACC16>;
+    def Clear_i32 : MC6809Accumulator<ACC32>;
+  }
+}
+
+//multiclass MC6809Clear1Pat<ValueType vtype, RegisterClass reg> {
+//  def _Reg : Pat<(set reg:$dst, (vtype 0)), (!cast<Instruction>("Clear_"#vtype) reg:$dst)>;
+//}
+
+//defm ClearPat_i8 : MC6809Clear1Pat<i8, ACC8>;
+//let Predicates = [IsHD6309] in {
+//  defm ClearPat_i16 : MC6809Clear1Pat<i16, ACC16>;
+//  defm ClearPat_i32 : MC6809Clear1Pat<i32, ACC32>;
+//}
 
 //===---------------------------------------------------------------------===//
 // Loads and Stores
@@ -391,7 +409,7 @@ class MC6809ArithmeticBaseCarryUse<RegisterClass dst, RegisterClass src, dag ope
   let Defs = [NZ, V];
   dag OutOperandList = (outs dst:$dst, CARRY:$carry);
   dag InOperandList = !con((ins src:$src, CARRY:$carry_in), operand);
-  let Constraints = "$dst = $src";
+  let Constraints = "$dst = $src, $carry = $carry_in";
 }
 
 multiclass MC6809ArithmeticCarryUse<ValueType vtype, RegisterClass dst, RegisterClass src> {
@@ -625,22 +643,21 @@ def LongBranchRelative : MC6809UnconditionalBranch;
 def JumpRelative : MC6809UnconditionalBranch;
 def LongJumpRelative : MC6809UnconditionalBranch;
 
-// Covers all branch instructions. Branches to $tgt if $flag = $val.
+// Branches to $tgt if $flag = $val.
 def BranchFlagIs : MC6809Branch {
-  dag InOperandList = (ins label:$tgt, CCFlag:$flag, i1imm:$val);
+  dag InOperandList = (ins label:$tgt, BIT1:$flag, i1imm:$val);
 }
 
 // Conditional relative branches
 
 class MC6809ConditionalBranch : MC6809Branch {
+  //let Uses = [NZVC, NZ, N, Z, V, C];
   dag InOperandList = (ins condcode:$cc, label:$tgt, CCond:$bits);
 }
 
 // Covers all conditional branch instructions. Branches to $tgt if $cc is true.
 def ConditionalBranchRelative : MC6809ConditionalBranch;
 def ConditionalLongBranchRelative : MC6809ConditionalBranch;
-
-//def BranchCondBit : Pat<(brcond i1:$bit, bb:$tgt), (ConditionalBranchRelative (i4 5), bb:$tgt, BIT1:$bit)>;
 
 // Subroutines
 
@@ -708,6 +725,7 @@ multiclass MC6809Compare<ValueType vtype, RegisterClass reg> {
     def _Idx_Reg8 : MC6809CompareBase<reg, (ins INDEX16:$idx, ACC8:$offset)>;
     def _Idx_Reg16 : MC6809CompareBase<reg, (ins INDEX16:$idx, ACC16:$offset)>;
     def _Indir : MC6809CompareBase<reg, (ins INDEX16:$idx, unknown:$offset)>;
+    def _Pull : MC6809CompareBase<reg, (ins SSc:$idx)>;
   }
 }
 
@@ -718,32 +736,50 @@ let Predicates = [IsHD6309] in {
   defm Compare_i32 : MC6809Compare<i32, ACC32>;
 }
 
-multiclass MC6809CompPat<CondCode CC, int cc, ValueType vtype, RegisterClass reg> {
-  def _Imm : Pat<(i8 (setcc reg:$src, imm:$val, CC)), (!cast<Instruction>("Compare_"#vtype#"_Imm") cc, reg:$src, imm:$val)>;
-  def _Idx_Imm : Pat<(i8 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), (!cast<Instruction>("Compare_"#vtype#"_Idx_Imm") cc, reg:$src, INDEX16:$idx, i16imm:$offset)>;
-  def _Idx_Reg8 : Pat<(i8 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC8:$offset), CC)), (!cast<Instruction>("Compare_"#vtype#"_Idx_Reg8") cc, reg:$src, INDEX16:$idx, ACC8:$offset)>;
-  def _Idx_Reg16 : Pat<(i8 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC16:$offset), CC)), (!cast<Instruction>("Compare_"#vtype#"_Idx_Reg16") cc, reg:$src, INDEX16:$idx, ACC16:$offset)>;
-}
-
-multiclass MC6809CompCondPat<CondCode CC, int ccode> {
-  defm _i8 : MC6809CompPat<CC, ccode, i8, ACC8>;
-  defm _i16 : MC6809CompPat<CC, ccode, i16, ACC16>;
-  defm _ptr : MC6809CompPat<CC, ccode, i16, INDEX16>;
+multiclass MC6809SetIfCondPat<CondCode CC, int cc, ValueType vtype, RegisterClass reg> {
+  def _i1_Imm : Pat<(i1 (setcc reg:$src, imm:$val, CC)), (ConditionalImm cc, (!cast<Instruction>("Compare_"#vtype#"_Imm") cc, reg:$src, imm:$val), 1, 0)>;
+  def _i1_Idx_Imm : Pat<(i1 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), (ConditionalImm cc, (!cast<Instruction>("Compare_"#vtype#"_Idx_Imm") cc, reg:$src, INDEX16:$idx, imm:$offset), 1, 0)>;
+  def _i1_Unmerge_Idx_Imm : Pat<(i1 (setcc reg:$src, (am_unmerge_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), (ConditionalImm cc, (!cast<Instruction>("Compare_"#vtype#"_Idx_Imm") cc, reg:$src, INDEX16:$idx, imm:$offset), 1, 0)>;
+  def _i1_Idx_Reg8 : Pat<(i1 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC8:$offset), CC)), (ConditionalImm cc, (!cast<Instruction>("Compare_"#vtype#"_Idx_Reg8") cc, reg:$src, INDEX16:$idx, ACC8:$offset), 1, 0)>;
+  def _i1_Idx_Reg16 : Pat<(i1 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC16:$offset), CC)), (ConditionalImm cc, (!cast<Instruction>("Compare_"#vtype#"_Idx_Reg16") cc, reg:$src, INDEX16:$idx, ACC16:$offset), 1, 0)>;
   let Predicates = [IsHD6309] in {
-    defm _i32 : MC6809CompPat<CC, ccode, i32, ACC32>;
+    def _i1_Reg : Pat<(i1 (setcc reg:$src, reg:$src2, CC)), (ConditionalImm cc, (!cast<Instruction>("Compare_"#vtype#"_Reg") cc, reg:$src, reg:$src2), 1, 0)>;
+  }
+  let Predicates = [NotHD6309] in {
+    def _i1_Push_Pull : Pat<(i1 (setcc reg:$src, reg:$src2, CC)), (ConditionalImm cc, (!cast<Instruction>("Compare_"#vtype#"_Pull") cc, reg:$src, (!cast<Instruction>("Push_"#vtype) reg:$src2)), 1, 0)>;
   }
 }
 
-defm CompPat_HI : MC6809CompCondPat<SETUGT, 2>;
-defm CompPat_HS : MC6809CompCondPat<SETUGE, 4>;
-defm CompPat_LS : MC6809CompCondPat<SETULE, 3>;
-defm CompPat_LO : MC6809CompCondPat<SETULT, 5>;
-defm CompPat_GT : MC6809CompCondPat<SETGT, 14>;
-defm CompPat_GE : MC6809CompCondPat<SETGE, 12>;
-defm CompPat_LE : MC6809CompCondPat<SETLE, 15>;
-defm CompPat_LT : MC6809CompCondPat<SETLT, 13>;
-defm CompPat_EQ : MC6809CompCondPat<SETEQ, 7>;
-defm CompPat_NE : MC6809CompCondPat<SETNE, 6>;
+multiclass MC6809SetIfCompCondPat<CondCode CC, int ccode> {
+  defm _i8 : MC6809SetIfCondPat<CC, ccode, i8, ACC8>;
+  defm _i16 : MC6809SetIfCondPat<CC, ccode, i16, ACC16>;
+  defm _ptr : MC6809SetIfCondPat<CC, ccode, i16, INDEX16>;
+  let Predicates = [IsHD6309] in {
+    defm _i32 : MC6809SetIfCondPat<CC, ccode, i32, ACC32>;
+  }
+}
+
+//defm CompPat_HI : MC6809CompCondPat<SETUGT, 2>;
+//defm CompPat_HS : MC6809CompCondPat<SETUGE, 4>;
+//defm CompPat_LS : MC6809CompCondPat<SETULE, 3>;
+//defm CompPat_LO : MC6809CompCondPat<SETULT, 5>;
+//defm CompPat_GT : MC6809CompCondPat<SETGT, 14>;
+//defm CompPat_GE : MC6809CompCondPat<SETGE, 12>;
+//defm CompPat_LE : MC6809CompCondPat<SETLE, 15>;
+//defm CompPat_LT : MC6809CompCondPat<SETLT, 13>;
+//defm CompPat_EQ : MC6809CompCondPat<SETEQ, 7>;
+//defm CompPat_NE : MC6809CompCondPat<SETNE, 6>;
+
+defm SetIfCompPat_HI : MC6809SetIfCompCondPat<SETUGT, 2>;
+defm SetIfCompPat_HS : MC6809SetIfCompCondPat<SETUGE, 4>;
+defm SetIfCompPat_LS : MC6809SetIfCompCondPat<SETULE, 3>;
+defm SetIfCompPat_LO : MC6809SetIfCompCondPat<SETULT, 5>;
+defm SetIfCompPat_GT : MC6809SetIfCompCondPat<SETGT, 14>;
+defm SetIfCompPat_GE : MC6809SetIfCompCondPat<SETGE, 12>;
+defm SetIfCompPat_LE : MC6809SetIfCompCondPat<SETLE, 15>;
+defm SetIfCompPat_LT : MC6809SetIfCompCondPat<SETLT, 13>;
+defm SetIfCompPat_EQ : MC6809SetIfCompCondPat<SETEQ, 7>;
+defm SetIfCompPat_NE : MC6809SetIfCompCondPat<SETNE, 6>;
 
 // Test instructions - like compare, but the comparison is with an implied zero
 
@@ -772,10 +808,10 @@ let Predicates = [IsHD6309] in {
 }
 
 multiclass MC6809TestPat<CondCode CC, int cc, ValueType vtype, RegisterClass reg> {
-  def _Reg : Pat<(i8 (setcc (vtype 0), reg:$src, CC)), (!cast<Instruction>("Test_"#vtype#"_Reg") cc, reg:$src)>;
-  def _Idx_Imm : Pat<(i8 (setcc (vtype 0), (am_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), (!cast<Instruction>("Test_"#vtype#"_Idx_Imm") cc, INDEX16:$idx, i16imm:$offset)>;
-  def _Idx_Reg8 : Pat<(i8 (setcc (vtype 0), (am_indexed_imm_offset INDEX16:$idx, ACC8:$offset), CC)), (!cast<Instruction>("Test_"#vtype#"_Idx_Reg8") cc, INDEX16:$idx, ACC8:$offset)>;
-  def _Idx_Reg16 : Pat<(i8 (setcc (vtype 0), (am_indexed_imm_offset INDEX16:$idx, ACC16:$offset), CC)), (!cast<Instruction>("Test_"#vtype#"_Idx_Reg16") cc, INDEX16:$idx, ACC16:$offset)>;
+  def _Reg : Pat<(i1 (setcc (vtype 0), reg:$src, CC)), (ConditionalImm cc, (!cast<Instruction>("Test_"#vtype#"_Reg") cc, reg:$src), 1, 0)>;
+  def _Idx_Imm : Pat<(i1 (setcc (vtype 0), (am_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), (ConditionalImm cc, (!cast<Instruction>("Test_"#vtype#"_Idx_Imm") cc, INDEX16:$idx, i16imm:$offset), 1, 0)>;
+  def _Idx_Reg8 : Pat<(i1 (setcc (vtype 0), (am_indexed_imm_offset INDEX16:$idx, ACC8:$offset), CC)), (ConditionalImm cc, (!cast<Instruction>("Test_"#vtype#"_Idx_Reg8") cc, INDEX16:$idx, ACC8:$offset), 1, 0)>;
+  def _Idx_Reg16 : Pat<(i1 (setcc (vtype 0), (am_indexed_imm_offset INDEX16:$idx, ACC16:$offset), CC)), (ConditionalImm cc, (!cast<Instruction>("Test_"#vtype#"_Idx_Reg16") cc, INDEX16:$idx, ACC16:$offset), 1, 0)>;
 }
 
 multiclass MC6809TestCondPat<CondCode CC, int ccode> {
@@ -857,16 +893,23 @@ let Predicates = [IsHD6309] in {
 multiclass MC6809CompBraPat<CondCode CC, int cc, ValueType vtype, RegisterClass reg> {
   def _Imm : Pat<(brcond (i1 (setcc reg:$src, imm:$val, CC)), bb:$tgt), (ConditionalBranchRelative cc, bb:$tgt, (!cast<Instruction>("Compare_"#vtype#"_Imm") cc, reg:$src, imm:$val))>;
   def _Idx_Imm : Pat<(brcond (i1 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), bb:$tgt), (ConditionalBranchRelative cc, bb:$tgt, (!cast<Instruction>("Compare_"#vtype#"_Idx_Imm") cc, reg:$src, INDEX16:$idx, i16imm:$offset))>;
+  def _Unmerge_Idx_Imm : Pat<(brcond (i1 (setcc reg:$src, (am_unmerge_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), bb:$tgt), (ConditionalBranchRelative cc, bb:$tgt, (!cast<Instruction>("Compare_"#vtype#"_Idx_Imm") cc, reg:$src, INDEX16:$idx, imm:$offset))>;
   def _Idx_Reg8 : Pat<(brcond (i1 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC8:$offset), CC)), bb:$tgt), (ConditionalBranchRelative cc, bb:$tgt, (!cast<Instruction>("Compare_"#vtype#"_Idx_Reg8") cc, reg:$src, INDEX16:$idx, ACC8:$offset))>;
   def _Idx_Reg16 : Pat<(brcond (i1 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC16:$offset), CC)), bb:$tgt), (ConditionalBranchRelative cc, bb:$tgt, (!cast<Instruction>("Compare_"#vtype#"_Idx_Reg16") cc, reg:$src, INDEX16:$idx, ACC16:$offset))>;
+  let Predicates = [IsHD6309] in {
+    def _Reg : Pat<(brcond (i1 (setcc reg:$src, reg:$src2, CC)), bb:$tgt), (ConditionalBranchRelative cc, bb:$tgt, (!cast<Instruction>("Compare_"#vtype#"_Reg") cc, reg:$src, reg:$src2))>;
+  }
+  let Predicates = [NotHD6309] in {
+    def _Push_Pull : Pat<(brcond (i1 (setcc reg:$src, reg:$src2, CC)), bb:$tgt), (ConditionalBranchRelative cc, bb:$tgt, (!cast<Instruction>("Compare_"#vtype#"_Pull") cc, reg:$src, (!cast<Instruction>("Push_"#vtype) reg:$src2)))>;
+  }
 }
 
 multiclass MC6809CompBraCondPat<CondCode CC, int ccode> {
   defm _i8 : MC6809CompBraPat<CC, ccode, i8, ACC8>;
   defm _i16 : MC6809CompBraPat<CC, ccode, i16, ACC16>;
-  let Predicates = [IsHD6309] in {
-    defm _i32 : MC6809CompBraPat<CC, ccode, i32, ACC32>;
-  }
+  // let Predicates = [IsHD6309] in {
+  //   defm _i32 : MC6809CompBraPat<CC, ccode, i32, ACC32>;
+  // }
 }
 
 defm CompBraPat_HI : MC6809CompBraCondPat<SETUGT, 2>;
@@ -942,11 +985,11 @@ def LEA_Ptr_Reg16 : MC6809LoadEffectiveAddress<INDEX16, (ins ACC16:$offset)>;
 // Integer Extension/Truncation Patterns
 //===---------------------------------------------------------------------===//
 
-def SEXCC8Implicit : MC6809LogicalInstr {
-  dag InOperandList = (ins CCFlag:$bit);
-  dag OutOperandList = (outs ACC8:$dst);
-  //let Pattern = [(set ACC8:$dst, (sext CCFlag:$bit))];
-}
+//def SEXCC8Implicit : MC6809LogicalInstr {
+//  dag InOperandList = (ins BIT1:$bit);
+//  dag OutOperandList = (outs ACC8:$dst);
+//  let Pattern = [(set ACC8:$dst, (sext BIT1:$bit))];
+//}
 
 def SEX8Implicit : MC6809LogicalInstr {
   dag InOperandList = (ins BIT1:$src);
@@ -967,16 +1010,10 @@ def SEX32Implicit : MC6809LogicalInstr {
   let Predicates = [IsHD6309];
 }
 
-def ZEXCC8Implicit : MC6809LogicalInstr {
-  dag InOperandList = (ins CCFlag:$bit);
-  dag OutOperandList = (outs ACC8:$dst);
-  //let Pattern = [(set ACC8:$dst, (zext CCFlag:$bit))];
-}
-
 def ZEX8Implicit : MC6809LogicalInstr {
-  dag InOperandList = (ins BIT1:$src);
-  dag OutOperandList = (outs ACC8:$dst);
-  let Pattern = [(set ACC8:$dst, (zext BIT1:$src))];
+  dag InOperandList = (ins ABLSBc:$src);
+  dag OutOperandList = (outs ABc:$dst);
+  let Pattern = [(set ABc:$dst, (zext ABLSBc:$src))];
 }
 
 def ZEX16Implicit : MC6809LogicalInstr {

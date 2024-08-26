@@ -36,6 +36,8 @@
 
 using namespace llvm;
 
+#define DEBUG_TYPE "mc6809-isellowering"
+
 MC6809TargetLowering::MC6809TargetLowering(const MC6809TargetMachine &TM, const MC6809Subtarget &STI) : TargetLowering(TM) {
   addRegisterClass(MVT::i1, &MC6809::BIT1RegClass);
   addRegisterClass(MVT::i8, &MC6809::ACC8RegClass);
@@ -121,14 +123,18 @@ std::pair<unsigned, const TargetRegisterClass *> MC6809TargetLowering::getRegFor
       return std::make_pair(MC6809::IY, &MC6809::IXcRegClass);
     case 'd':
       return std::make_pair(0U, &MC6809::INDEX16RegClass);
+#if 0
     case 'c':
       return std::make_pair(MC6809::C, &MC6809::CCondRegClass);
     case 'v':
       return std::make_pair(MC6809::V, &MC6809::CCondRegClass);
+#endif
     }
   }
+#if 0
   if (Constraint == "{cc}")
     return std::make_pair(MC6809::CC, &MC6809::CCondRegClass);
+#endif
 
   return TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
 }
@@ -191,17 +197,123 @@ bool MC6809TargetLowering::isZExtFree(Type *SrcTy, Type *DstTy) const {
   return SrcTy->getPrimitiveSizeInBits() < DstTy->getPrimitiveSizeInBits();
 }
 
+static MachineBasicBlock *emitConditionalImm(MachineInstr &MI, MachineBasicBlock *MBB);
 static MachineBasicBlock *emitSelectImm(MachineInstr &MI, MachineBasicBlock *MBB);
 
 MachineBasicBlock *MC6809TargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI, MachineBasicBlock *MBB) const {
   switch (MI.getOpcode()) {
   default:
-    llvm_unreachable("Bad opcode.");
-  case MC6809::SelectImm_i1:
-  case MC6809::SelectImm_i8:
-  case MC6809::SelectImm_i16:
+    llvm_unreachable("Bad opcode in EmitInstrWithCustomInserter");
+  case MC6809::ConditionalImm:
+    return emitConditionalImm(MI, MBB);
+  case MC6809::SelectImm:
     return emitSelectImm(MI, MBB);
   }
+}
+
+// FIXME!! MarkM: Do load Immediate of all sizes, not just i1(=i8).
+static MachineBasicBlock *emitConditionalImm(MachineInstr &MI, MachineBasicBlock *MBB) {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
+  // To "insert" Select* instructions, we actually have to insert the triangle
+  // control-flow pattern.  The incoming instructions know the destination reg
+  // to set, the flag to branch on, and the true/false values to select between.
+  //
+  // We produce the following control flow if the flag is neither N nor Z:
+  //     HeadMBB
+  //     |  \
+  //     |  IfFalseMBB
+  //     | /
+  //    TailMBB
+  //
+  // If the flag is N or Z, then loading the true value in HeadMBB would clobber
+  // the flag before the branch. We instead emit the following:
+  //     HeadMBB
+  //     |  \
+  //     |  IfTrueMBB
+  //     |      |
+  //    IfFalse |
+  //     |     /
+  //     |    /
+  //     TailMBB
+  Register Dst = MI.getOperand(0).getReg();
+  int64_t Condition = MI.getOperand(1).getImm();
+  Register Flag = MI.getOperand(2).getReg();
+  int64_t TrueValue = MI.getOperand(3).getImm();
+  int64_t FalseValue = MI.getOperand(4).getImm();
+
+  const BasicBlock *LLVM_BB = MBB->getBasicBlock();
+  MachineFunction::iterator I = ++MBB->getIterator();
+  MachineIRBuilder Builder(MI);
+
+  MachineBasicBlock *HeadMBB = MBB;
+  MachineFunction *F = MBB->getParent();
+  MachineRegisterInfo &MRI = F->getRegInfo();
+  unsigned Opcode;
+  Register Dst0;
+  Register Dst1;
+  Opcode = MC6809::Load_i1_Imm;
+  Dst0 = MRI.createVirtualRegister(&MC6809::BIT1RegClass);
+  Dst1 = MRI.createVirtualRegister(&MC6809::BIT1RegClass);
+
+  // const MC6809Subtarget &STI = F->getSubtarget<MC6809Subtarget>();
+
+  // Split out all instructions after MI into a new basic block, updating
+  // liveins.
+  MachineBasicBlock *TailMBB = HeadMBB->splitAt(MI);
+
+  // If MI is the last instruction, splitAt won't insert a new block. In that
+  // case, the block must fall through, since there's no branch. Thus the tail
+  // MBB is just the next MBB.
+  if (TailMBB == HeadMBB)
+    TailMBB = &*I;
+
+  HeadMBB->removeSuccessor(TailMBB);
+
+  // Add the false block between HeadMBB and TailMBB
+  MachineBasicBlock *IfFalseMBB = F->CreateMachineBasicBlock(LLVM_BB);
+  F->insert(TailMBB->getIterator(), IfFalseMBB);
+  HeadMBB->addSuccessor(IfFalseMBB);
+  for (const auto &LiveIn : TailMBB->liveins())
+    if (LiveIn.PhysReg != Dst)
+      IfFalseMBB->addLiveIn(LiveIn);
+  IfFalseMBB->addSuccessor(TailMBB);
+
+  MachineBasicBlock *IfTrueMBB = F->CreateMachineBasicBlock(LLVM_BB);
+  F->insert(TailMBB->getIterator(), IfTrueMBB);
+  IfTrueMBB->addSuccessor(TailMBB);
+  // Add the unconditional branch from IfFalseMBB to TailMBB.
+  Builder.setInsertPt(*IfFalseMBB, IfFalseMBB->begin());
+  Builder.buildInstr(MC6809::BranchRelative).addMBB(TailMBB);
+  for (const auto &LiveIn : IfFalseMBB->liveins())
+    IfTrueMBB->addLiveIn(LiveIn);
+  Builder.setInsertPt(*HeadMBB, MI.getIterator());
+
+  // Insert branch.
+  Builder.buildInstr(MC6809::ConditionalBranchRelative)
+      .addImm(Condition)
+      .addMBB(IfTrueMBB)
+      .addUse(Flag);
+  HeadMBB->addSuccessor(IfTrueMBB);
+
+  Builder.setInsertPt(*IfTrueMBB, IfTrueMBB->begin());
+  // Load true value.
+  Builder.buildInstr(Opcode, {Dst1}, {TrueValue});
+
+  // Insert false load.
+  Builder.setInsertPt(*IfFalseMBB, IfFalseMBB->begin());
+  Builder.buildInstr(Opcode, {Dst0}, {FalseValue});
+
+  Builder.setInsertPt(*TailMBB, TailMBB->begin());
+  Builder.buildInstr(MC6809::PHI)
+      .addDef(Dst)
+      .addReg(Dst0)
+      .addMBB(IfFalseMBB)
+      .addReg(Dst1)
+      .addMBB(IfTrueMBB);
+
+  MI.eraseFromParent();
+
+  return TailMBB;
 }
 
 // FIXME!! MarkM: Do load Immediate of all sizes, not just i8.
@@ -280,7 +392,7 @@ static MachineBasicBlock *emitSelectImm(MachineInstr &MI, MachineBasicBlock *MBB
 
   const auto LDImm = [&Builder, &Dst](int64_t Val) {
     if (MC6809::BIT1RegClass.contains(Dst)) {
-      Builder.buildInstr(MC6809::LDImm1, {Dst}, {Val});
+      Builder.buildInstr(MC6809::Load_i1_Imm, {Dst}, {Val});
       return;
     }
 

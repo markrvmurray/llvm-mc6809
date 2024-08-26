@@ -15,6 +15,8 @@
 #include "MC6809Subtarget.h"
 #include "MC6809TargetMachine.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
+
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/CodeGen/GlobalISel/GenericMachineInstrs.h"
 #include "llvm/CodeGen/GlobalISel/LegalizerHelper.h"
 #include "llvm/CodeGen/GlobalISel/LegalizerInfo.h"
@@ -207,8 +209,8 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   getActionDefinitionsBuilder(G_VASTART).customFor({p});
 
   getActionDefinitionsBuilder(G_ICMP)
-      .legalForCartesianProduct({s1}, LegalTypes16)
-      .clampScalar(1, s1, s16);
+      .legalForCartesianProduct({s1}, {s8, s16})
+      .clampScalar(1, s8, s16);
 
   getActionDefinitionsBuilder(G_FCMP)
       .legalForCartesianProduct({s1}, {s32, s64});
@@ -218,7 +220,8 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
       .legalFor({s1});
 
   getActionDefinitionsBuilder(G_BRJT)
-      .legalForCartesianProduct({p}, LegalScalars).clampScalar(1, s8, sMax);
+      .legalForCartesianProduct({p}, LegalScalars)
+      .clampScalar(1, s8, sMax);
 
   getActionDefinitionsBuilder(G_SELECT)
       .legalForCartesianProduct(LegalTypesWithOne, {s1}).clampScalar(0, s8, sMax);
@@ -292,9 +295,9 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
   case G_FSHR:
     return legalizeFunnelShift(Helper, MRI, MI, LocObserver);
 #if 0
-  case G_ICMP:
   case G_FCMP:
-    return legalizeCompare(Helper, MRI, MI, LocObserver);
+  case G_ICMP:
+    return legalizeICmp(Helper, MRI, MI, LocObserver);
 #endif
   case G_UMULO:
     return legalizeMultiplyWithOverflow(Helper, MRI, MI, LocObserver);
@@ -499,94 +502,142 @@ bool MC6809LegalizerInfo::legalizeFunnelShift(LegalizerHelper &Helper, MachineRe
 }
 
 #if 0
-bool
-MC6809LegalizerInfo::legalizeCompare(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
-  MachineIRBuilder &MIRBuilder = Helper.MIRBuilder;
-  Register DstReg = MI.getOperand(0).getReg();
-  auto Pred = CmpInst::Predicate(MI.getOperand(1).getPredicate());
-  Register LHSReg = MI.getOperand(2).getReg();
-  Register RHSReg = MI.getOperand(3).getReg();
-  LLT OpTy = MRI.getType(LHSReg);
-  unsigned OpSize = OpTy.getSizeInBits();
-  assert(MRI.getType(DstReg) == LLT::scalar(1) && "Destination is not single-bit!");
-  assert(OpSize == 32 && "Unexpected size!");
+bool MC6809LegalizerInfo::legalizeICmp(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const {
+  MachineIRBuilder &Builder = Helper.MIRBuilder;
 
-  Type *Ty;
-  RTLIB::Libcall Libcall;
-  bool IsSigned;
-  MC6809CC::CondCode CondCode = MC6809::GetBranchConditionForPredicate(Pred, IsSigned);
-  auto &Ctx = MIRBuilder.getMF().getFunction().getContext();
-#if 0
-  bool ZeroRHS = false;
-#endif
-  if (MI.getOpcode() == G_ICMP) {
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Found G_ICMP\n";);
-    Ty = IntegerType::get(Ctx, OpSize);
-#if 0
-    if (auto C = getIConstantVRegVal(RHSReg, MRI))
-      ZeroRHS = *C == 0;
-#endif
-    switch (OpSize) {
-    case 32:
-      Libcall = RTLIB::CMP_I32;
-      break;
-    case 64:
-      Libcall = RTLIB::CMP_I64;
-      break;
-    default:
-      llvm_unreachable("Unexpected type");
+  Register Dst = MI.getOperand(0).getReg();
+  CmpInst::Predicate Pred = static_cast<CmpInst::Predicate>(MI.getOperand(1).getPredicate());
+  Register LHS = MI.getOperand(2).getReg();
+  Register RHS = MI.getOperand(3).getReg();
+
+  LLT Type = MRI.getType(LHS);
+
+  LLT P = LLT::pointer(0, 16);
+  LLT S1 = LLT::scalar(1);
+  LLT S8 = LLT::scalar(8);
+  LLT S16 = LLT::scalar(16);
+  LLT S32 = LLT::scalar(32);
+
+  bool RHSIsZero = mi_match(RHS, MRI, m_SpecificICst(0));
+  Register CIn;
+
+  if (Type != S8 && Type != S16 && Type != S32 && Type != P) {
+    if (RHSIsZero && Pred == CmpInst::ICMP_EQ && all_of(MRI.use_instructions(Dst), [](const MachineInstr &MI) {
+          return MI.getOpcode() == MOS::G_BRCOND_IMM;
+        })) {
+      auto Unmerge = Builder.buildUnmerge(S8, LHS);
+      auto Cmp = Builder.buildInstr(MOS::G_CMPZ, {Dst}, {});
+      for (const MachineOperand &MO : unmergeDefs(Unmerge))
+        Cmp.addUse(MO.getReg());
+      MI.eraseFromParent();
+      return true;
     }
+
+    if (Pred != CmpInst::ICMP_SLT) {
+      Register LHSHigh, LHSRest;
+      Register RHSHigh, RHSRest;
+      std::tie(LHSHigh, LHSRest) = splitHighRest(LHS, Builder);
+      std::tie(RHSHigh, RHSRest) = splitHighRest(RHS, Builder);
+
+      auto EqHigh = Builder.buildICmp(CmpInst::ICMP_EQ, S1, LHSHigh, RHSHigh);
+      // If EqHigh is false, we defer to CmpHigh, which is equal to EqHigh if
+      // Pred==ICMP_EQ.
+      auto CmpHigh = (Pred == CmpInst::ICMP_EQ)
+                         ? Builder.buildConstant(S1, 0)
+                         : Builder.buildICmp(Pred, S1, LHSHigh, RHSHigh);
+      auto RestPred = Pred;
+      if (CmpInst::isSigned(RestPred))
+        RestPred = CmpInst::getUnsignedPredicate(Pred);
+      auto CmpRest = Builder.buildICmp(RestPred, S1, LHSRest, RHSRest).getReg(0);
+
+      // If the high byte is equal, defer to the unsigned comparison on the
+      // rest. Otherwise, defer to the comparison on the high byte.
+      Builder.buildSelect(Dst, EqHigh, CmpRest, CmpHigh);
+      MI.eraseFromParent();
+      return true;
+    }
+
+    auto LHSUnmerge = Builder.buildUnmerge(S8, LHS);
+    auto LHSUnmergeDefs = unmergeDefsSplitHigh(LHSUnmerge);
+
+    // Determining whether the LHS is negative only requires looking at the
+    // highest byte (bit, really).
+    if (RHSIsZero) {
+      Helper.Observer.changingInstr(MI);
+      MI.getOperand(2).setReg(LHSUnmergeDefs.High.getReg());
+      MI.getOperand(3).setReg(Builder.buildConstant(S8, 0).getReg(0));
+      Helper.Observer.changedInstr(MI);
+      return true;
+    }
+
+    // Perform multibyte signed comparisons by a multibyte subtraction.
+    auto RHSUnmerge = Builder.buildUnmerge(S8, RHS);
+    auto RHSUnmergeDefs = unmergeDefsSplitHigh(RHSUnmerge);
+    assert(LHSUnmerge->getNumOperands() == RHSUnmerge->getNumOperands());
+    CIn = Builder.buildConstant(S1, 1).getReg(0);
+    for (const auto &[LHS, RHS] : zip(LHSUnmergeDefs.Lows, RHSUnmergeDefs.Lows)) {
+      auto Sbc = Builder.buildInstr(MOS::G_SBC, {S8, S1, S1, S1, S1}, {LHS, RHS, CIn});
+      CIn = Sbc.getReg(1);
+    }
+    Type = S8;
+    LHS = LHSUnmergeDefs.High.getReg();
+    RHS = RHSUnmergeDefs.High.getReg();
+    // Fall through to produce the final SBC that determines the comparison
+    // result.
   } else {
-    assert(MI.getOpcode() == G_FCMP && "Unexpected opcode");
-    assert(OpTy.isScalar() && "Unexpected type");
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Found G_FCMP\n";);
-    switch (OpSize) {
-    case 32:
-      Ty = Type::getFloatTy(Ctx);
-      Libcall = RTLIB::CMP_F32;
-      break;
-    case 64:
-      Ty = Type::getDoubleTy(Ctx);
-      Libcall = RTLIB::CMP_F64;
-      break;
-    default:
-      llvm_unreachable("Unexpected type");
-    }
+    CIn = Builder.buildConstant(S1, 1).getReg(0);
   }
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : So far, so good. Starting to lower.\n";);
-  LLT s8 = LLT::scalar(8);
-  Type *Int8Ty = Type::getInt8Ty(Ctx);
-  Register FlagsReg = MRI.createGenericVirtualRegister(s8);
-#if 0
-  CallLowering::ArgInfo FlagsArg(FlagsReg, Int8Ty, CallLowering::ArgInfo::NoArgIndex);
-  CallLowering::ArgInfo Args[2] = {{LHSReg, Ty, 0}, {RHSReg, Ty, 1}};
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Doing createLibcall\n";);
-  auto Result = createLibcall(MIRBuilder, Libcall, FlagsArg, ArrayRef(Args, 2 /* - ZeroRHS */));
-  auto Result = createLibcall(MIRBuilder, Libcall, {RetRegs, RetTy, 0},
-                {{MI.getOperand(1).getReg(), ArgTy, 0},
-                 {MI.getOperand(2).getReg(), ArgTy, 0}});
-  if (Result != LegalizerHelper::Legalized)
-    return false;
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Done createLibcall()\n";);
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Doing buildCopy()\n";);
-  MIRBuilder.buildCopy(Register(MC6809::CC), FlagsReg);
-#endif
-#if 0
-  if (!ZeroRHS)
-#endif
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Doing buildCMP()\n";);
-  auto LibcallInstr = Subtarget.getCallLowering()->buildCMP(MIRBuilder, Libcall);
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Done buildCMP() : LibcallInstr = "; LibcallInstr->dump(););
-  LibcallInstr.addReg(DstReg, RegState::Define);
-  LibcallInstr.addReg(LHSReg, RegState::Implicit);
-  LibcallInstr.addReg(RHSReg, RegState::Implicit);
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Doing buildInstr(MC6809::LoadCC, ...)\n";);
-  MIRBuilder.buildInstr(MC6809::LoadCC, {DstReg}, {int64_t(CondCode)});
-  MRI.setRegClass(DstReg, &MC6809::ACC8RegClass);
-  MI.eraseFromParent();
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Legalised\n";);
-  return LegalizerHelper::Legalized;
+
+  assert(Type == S8);
+
+  // Lower 8-bit comparisons to a generic G_SBC instruction with similar
+  // capabilities to the 6502's SBC and CMP instructions.  See
+  // www.6502.org/tutorials/compare_beyond.html.
+  switch (Pred) {
+  case CmpInst::ICMP_EQ: {
+    auto Sbc = Builder.buildInstr(MOS::G_SBC, {S8, S1, S1, S1, S1}, {LHS, RHS, CIn});
+    Register Z = Sbc.getReg(4);
+    if (!isNZUseLegal(Dst, MRI))
+      Z = buildNZSelect(Z, Builder);
+    Builder.buildCopy(Dst, Z);
+    MI.eraseFromParent();
+    break;
+  }
+  case CmpInst::ICMP_UGE: {
+    auto Sbc = Builder.buildInstr(MOS::G_SBC, {S8, S1, S1, S1, S1}, {LHS, RHS, CIn});
+    Builder.buildCopy(Dst, Sbc.getReg(1) /*=C*/);
+    MI.eraseFromParent();
+    break;
+  }
+  case CmpInst::ICMP_SLT: {
+    // Subtractions of zero cannot overflow, so N is always correct.
+    if (RHSIsZero) {
+      auto Sbc = Builder.buildInstr(MOS::G_SBC, {S8, S1, S1, S1, S1}, {LHS, RHS, CIn});
+      Register N = Sbc.getReg(2);
+      if (!isNZUseLegal(Dst, MRI))
+        N = buildNZSelect(N, Builder);
+      Builder.buildCopy(Dst, N);
+    } else {
+      // General subtractions can overflow; if so, N is flipped.
+      auto Sbc = Builder.buildInstr(MOS::G_SBC, {S8, S1, S1, S1, S1}, {LHS, RHS, CIn});
+      // The quickest way to XOR N with V is to XOR the accumulator with 0x80
+      // iff V, then reexamine N of the accumulator.
+      auto Eor = Builder.buildXor(S8, Sbc, Builder.buildConstant(S8, 0x80));
+      auto Zero = Builder.buildConstant(S8, 0);
+      auto One = Builder.buildConstant(S1, 1);
+      Register N = Builder.buildInstr(MOS::G_SBC, {S8, S1, S1, S1, S1}, {Builder.buildSelect(S8, Sbc.getReg(3) /*=V*/, Eor, Sbc), Zero, One}).getReg(2);
+      if (!isNZUseLegal(Dst, MRI))
+        N = buildNZSelect(N, Builder);
+      Builder.buildCopy(Dst, N);
+    }
+    MI.eraseFromParent();
+    break;
+  }
+  default:
+    llvm_unreachable("Unexpected integer comparison type.");
+  }
+
+  return true;
 }
 #endif
 

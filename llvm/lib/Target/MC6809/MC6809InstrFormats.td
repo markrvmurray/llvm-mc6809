@@ -166,6 +166,8 @@ def gi_am_ls_indexed_imm_offset : GIComplexOperandMatcher<s16, "selectLSIndexedI
 // index + offset [-32768, 32767].
 def am_indexed_imm_offset : ComplexPattern<iPTR, 2, "SelectAMIndexedImmOffset", []>;
 def gi_am_indexed_imm_offset : GIComplexOperandMatcher<s16, "selectAMIndexedImmOffset">, GIComplexPatternEquiv<am_indexed_imm_offset>;
+def am_unmerge_indexed_imm_offset : ComplexPattern<iPTR, 2, "SelectAMUnmergeIndexedImmOffset", []>;
+def gi_am_unmerge_indexed_imm_offset : GIComplexOperandMatcher<s16, "selectAMUnmergeIndexedImmOffset">, GIComplexPatternEquiv<am_unmerge_indexed_imm_offset>;
 
 // Immediate constant
 def am_immediate : ComplexPattern<iAny, 2, "SelectAMImmediate", []>;
@@ -2806,6 +2808,13 @@ class MC6809Inherent_P3<dag outs, string mnemonic, Opcode opc, list<Register> de
 }
 
 class MC6809LongBranch_P1<dag outs, string mnemonic, Opcode opc, list<Register> defs, list<Register> uses>
+  : LongBranch<mnemonic, opc> {
+    let Defs = defs;
+    let Uses = uses;
+    let OutOperandList = outs;
+}
+
+class MC6809LongBranch_P2<dag outs, string mnemonic, Opcode opc, list<Register> defs, list<Register> uses>
   : LongBranch<mnemonic, opc> {
     let Defs = defs;
     let Uses = uses;
