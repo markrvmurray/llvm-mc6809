@@ -492,8 +492,8 @@ def BRAb : MC6809ShortBranch_P1<(outs), "bra", Opcode<0x20,1>, [], []> {
 def BRNb : MC6809ShortBranch_P1<(outs), "brn", Opcode<0x21,1>, [], []> {
   let mayLoad = false;
   let mayStore = false;
-  let isBranch = true;
-  let isTerminator = true;
+  let isBranch = false;
+  let isTerminator = false;
 }
 
 def Bbc : MC6809ShortConditionalBranch_P1<(outs), "b$cond", Opcode<0x02,1>, [], []> {
@@ -1267,6 +1267,13 @@ def LDUe : MC6809Extended_P1<(outs), "ldu", Opcode<0xFE,1>, [NZ,N,Z,V,SU], []> {
 
 def STUe : MC6809Extended_P1<(outs), "stu", Opcode<0xFF,1>, [NZ,N,Z,V], []> {
   let mayStore = true;
+}
+
+def LBRNlb : MC6809LongBranch_P2<(outs), "lbrn", Opcode<0x21,2>, [], []> {
+  let mayLoad = false;
+  let mayStore = false;
+  let isBranch = false;
+  let isTerminator = false;
 }
 
 def LBlbc : MC6809LongConditionalBranch_P2<(outs), "lb$cond", Opcode<0x02,2>, [], []> {

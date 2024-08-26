@@ -83,6 +83,12 @@ public:
   // GLOBAL_VALUE @x + (y_const + z_const)
   void applyFoldGlobalOffset(MachineInstr &MI, std::pair<const MachineOperand *, int64_t> &MatchInfo) const;
 
+  bool matchUnmergeHighFromLoad(MachineInstr &MI, MachineOperand *MatchInfo) const;
+  void applyUnmergeHighFromLoad(MachineInstr &MI, MachineOperand *MatchInfo) const;
+
+  bool matchUnmergeLowFromLoad(MachineInstr &MI, MachineOperand *MatchInfo) const;
+  void applyUnmergeLowFromLoad(MachineInstr &MI, MachineOperand *MatchInfo) const;
+
   bool matchExtractLowBit(MachineInstr &MI, MachineInstr *&Shift) const;
   void applyExtractLowBit(MachineInstr &MI, MachineInstr *&Shift) const;
 
@@ -156,6 +162,26 @@ void MC6809CombinerImpl::applyFoldGlobalOffset(MachineInstr &MI, std::pair<const
   MI.getOperand(1).ChangeToGA(MatchInfo.first->getGlobal(), MatchInfo.second, MatchInfo.first->getTargetFlags());
   MI.removeOperand(2);
   Observer.changedInstr(MI);
+}
+
+bool MC6809CombinerImpl::matchUnmergeHighFromLoad(MachineInstr &MI, MachineOperand *MatchInfo) const {
+  using namespace MIPatternMatch;
+  Register Src = MI.getOperand(1).getReg();
+  Register LoadSrc;
+  if (mi_match(Src, MRI, m_GLoad(m_Reg(LoadSrc)))) {
+    MachineInstr *UltSrc = getDefIgnoringCopies(LoadSrc, MRI);
+    *MatchInfo = UltSrc->getOperand(0);
+    return true;
+  }
+  return false;
+}
+
+void MC6809CombinerImpl::applyUnmergeHighFromLoad(MachineInstr &MI, MachineOperand *MatchInfo) const {
+  LLT Ty = MRI.getType(MI.getOperand(0).getReg());
+  B.setInstrAndDebugLoc(MI);
+  B.buildAdd(MI.getOperand(0), MI.getOperand(2), MI.getOperand(3));
+  B.buildICmp(CmpInst::ICMP_EQ, MI.getOperand(1), MI.getOperand(0), B.buildConstant(Ty, 0));
+  MI.eraseFromParent();
 }
 
 bool MC6809CombinerImpl::matchExtractLowBit(MachineInstr &MI, MachineInstr *&Shift) const {

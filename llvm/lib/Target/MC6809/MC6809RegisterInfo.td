@@ -250,58 +250,60 @@ class MC6809Reg16Class<dag RegList> : MC6809RegClass<[i16], 8, RegList>;
 class MC6809Reg32Class<dag RegList> : MC6809RegClass<[i32], 8, RegList>;
 
 // Register grouping classes.
-//let isPressureFineGrained = true in {
-  def ACC_LSB : MC6809Reg1Class<(add AALSB, ABLSB)>;
-  //def NZVC_ACC_LSB : MC6809Reg1Class<(add N, Z, V, C, ACC_LSB)>;
-  def CARRY : MC6809Reg1Class<(add C)>;
-  def BIT1 : MC6809Reg1Class<(add ACC_LSB/*, V, C*/)>;
-  def ACC8 : MC6809Reg8Class<(add AB, AA, AF, AE)> {
+//def ACC_LSB : MC6809Reg1Class<(add AALSB, ABLSB, AELSB, AFLSB)>;
+//def NZVC_ACC_LSB : MC6809Reg1Class<(add N, Z, V, C, ACC_LSB)>;
+def CARRY : MC6809Reg1Class<(add C)>;
+def BIT1 : MC6809Reg1Class<(add AALSB, ABLSB, AELSB, AFLSB)> {
+    let AltOrders = [(add AALSB, ABLSB)];
+    let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
+}
+def ACC8 : MC6809Reg8Class<(add AB, AA, AF, AE)> {
     let AltOrders = [(add AB, AA)];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
-  }
-  def ACC8_AB : MC6809Reg8Class<(add AB, AA)>;
-  def BIT8 : MC6809Reg8Class<(add AA, AB, CC)>; // Valid registers for BAND, BEOR, BOR, BIAND, BIEOR, BIOR, LDBT, STBT
-  def ACC16 : MC6809Reg16Class<(add AD, AW)> {
+}
+def ACC8_AB : MC6809Reg8Class<(add AB, AA)>;
+def BIT8 : MC6809Reg8Class<(add AA, AB, CC)>; // Valid registers for BAND, BEOR, BOR, BIAND, BIEOR, BIOR, LDBT, STBT
+def ACC16 : MC6809Reg16Class<(add AD, AW)> {
     let AltOrders = [(add AD)];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
-  }
-  def ACC16_D : MC6809Reg8Class<(add AD)>;
-  def ACC32 : MC6809Reg32Class<(add AQ)> {
+}
+def ACC16_D : MC6809Reg8Class<(add AD)>;
+def ACC32 : MC6809Reg32Class<(add AQ)> {
     let AltOrders = [(add)];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
-  }
-  def REGLIST8 : MC6809Reg8Class<(add CC, AA, AB, DP)>; // Registers which can be pushed/popped
-  def REGLIST16 : MC6809Reg16Class<(add AD, AW, IX, IY, SU, SS, PC)>; // Registers which can be pushed/popped
-  def REGPAIR8 : MC6809Reg8Class<(add AA, AB, CC, DP, A0, AE, AF)>; // Registers for EXG, TFR
-  def REGPAIR16 : MC6809Reg16Class<(add AD, IX, IY, SU, SS, PC, AW, AV)>; // Registers for EXG, TFR
-  def REGTFM : MC6809Reg16Class<(add AD, IX, IY, SU, SS)>; // Registers for TFM
+}
+def REGLIST8 : MC6809Reg8Class<(add CC, AA, AB, DP)>; // Registers which can be pushed/popped
+def REGLIST16 : MC6809Reg16Class<(add AD, AW, IX, IY, SU, SS, PC)>; // Registers which can be pushed/popped
+def REGPAIR8 : MC6809Reg8Class<(add AA, AB, CC, DP, A0, AE, AF)>; // Registers for EXG, TFR
+def REGPAIR16 : MC6809Reg16Class<(add AD, IX, IY, SU, SS, PC, AW, AV)>; // Registers for EXG, TFR
+def REGTFM : MC6809Reg16Class<(add AD, IX, IY, SU, SS)>; // Registers for TFM
 
-  // Pointer and stack registers
-  def INDEX16 : MC6809Reg16Class<(add IX, IY, SU, SS/*, TOS*/)>;
+// Pointer and stack registers
+def INDEX16 : MC6809Reg16Class<(add IX, IY, SU, SS/*, TOS*/)>;
 
-  // Stack registers
-  def STACK16 : MC6809Reg16Class<(add SU, SS)>;
-  //def TOS16 : MC6809Reg16Class<(add TOS)>;
+// Stack registers
+def STACK16 : MC6809Reg16Class<(add SU, SS)>;
+//def TOS16 : MC6809Reg16Class<(add TOS)>;
 
-  // All 16-bit registers. Useful for load/store.
-  // def ALL16 : MC6809Reg16Class<(add AD, AW, IX, IY)> {
-  //   let AltOrders = [(add AD, IX, IY)];
-  //   let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
-  //   let DiagnosticString = "operand must be a 16-bit register";
-  // }
+// All 16-bit registers. Useful for load/store.
+// def ALL16 : MC6809Reg16Class<(add AD, AW, IX, IY)> {
+//   let AltOrders = [(add AD, IX, IY)];
+//   let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
+//   let DiagnosticString = "operand must be a 16-bit register";
+// }
 
-  def CCond : MC6809Reg8Class<(add CC)>;
+def CCond : MC6809Reg8Class<(add CC)>;
 
-  def Imag8 : MC6809Reg8Class<(sequence "RC%u", 0, !add(MaxImag8Regs, -1))>;
-  def Imag16 : MC6809Reg16Class<(sequence "RS%u", 0, !add(MaxImag16Regs, -1))>;
-  def Imag32 : MC6809Reg32Class<(sequence "RW%u", 0, !add(MaxImag32Regs, -1))>;
-//}
+def Imag8 : MC6809Reg8Class<(sequence "RC%u", 0, !add(MaxImag8Regs, -1))>;
+def Imag16 : MC6809Reg16Class<(sequence "RS%u", 0, !add(MaxImag16Regs, -1))>;
+def Imag32 : MC6809Reg32Class<(sequence "RW%u", 0, !add(MaxImag32Regs, -1))>;
+
+def AllCCFlag : MC6809Reg1Class<(add E, F, H, I, N, Z, V, C)>;
+def CCFlag : MC6809Reg1Class<(add N, Z, V, C)>;
+def ArithFlag : MC6809Reg2Class<(add NZ)>;
+def AllArithFlag : MC6809Reg2Class<(add NZVC)>;
 
 let isAllocatable = false in {
-  def AllCCFlag : MC6809Reg1Class<(add E, F, H, I, N, Z, V, C)>;
-  def CCFlag : MC6809Reg1Class<(add N, Z, V, C)>;
-  def ArithFlag : MC6809Reg2Class<(add NZ)>;
-  def AllArithFlag : MC6809Reg2Class<(add NZVC)>;
   def MDCond : MC6809Reg8Class<(add MD)>;
   def DtPage : MC6809Reg8Class<(add DP)>;
 }
@@ -309,10 +311,14 @@ let isAllocatable = false in {
 // Single register classes.
 //let isPressureFineGrained = true in {
     def AAc : MC6809Reg8Class<(add AA)>;
+    def AALSBc : MC6809Reg1Class<(add AALSB)>;
     def ABc : MC6809Reg8Class<(add AB)>;
+    def ABLSBc : MC6809Reg1Class<(add ABLSB)>;
     def ADc : MC6809Reg16Class<(add AD)>;
     def AEc : MC6809Reg8Class<(add AE)>;
+    def AELSBc : MC6809Reg1Class<(add AELSB)>;
     def AFc : MC6809Reg8Class<(add AF)>;
+    def AFLSBc : MC6809Reg1Class<(add AFLSB)>;
     def AWc : MC6809Reg16Class<(add AW)>;
     def AQc : MC6809Reg32Class<(add AQ)>;
     def IXc : MC6809Reg16Class<(add IX)>;

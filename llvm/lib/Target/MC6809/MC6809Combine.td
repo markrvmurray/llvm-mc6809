@@ -18,6 +18,20 @@ def fold_global_offset : GICombineRule<
           [{ return matchFoldGlobalOffset(*${root}, ${matchinfo}); }]),
   (apply [{ applyFoldGlobalOffset(*${root}, ${matchinfo});}])>;
 
+def unmerge_high_from_load_matchdata : GIDefMatchData<"MachineOperand *">;
+def unmerge_high_from_load : GICombineRule<
+  (defs root:$root, unmerge_high_from_load_matchdata:$matchinfo),
+  (match (wip_match_opcode G_UNMERGE_VALUES):$root,
+          [{ return matchUnmergeHighFromLoad(*${root}, ${matchinfo}); }]),
+  (apply [{ applyUnmergeHighFromLoad(*${root}, ${matchinfo});}])>;
+
+def unmerge_low_from_load_matchdata : GIDefMatchData<"MachineOperand *">;
+def unmerge_low_from_load : GICombineRule<
+  (defs root:$root, unmerge_low_from_load_matchdata:$matchinfo),
+  (match (wip_match_opcode G_UNMERGE_VALUES):$root,
+          [{ return matchUnmergeLowFromLoad(*${root}, ${matchinfo}); }]),
+  (apply [{ applyUnmergeLowFromLoad(*${root}, ${matchinfo});}])>;
+
 def extract_low_bit_matchdata : GIDefMatchData<"MachineInstr*">;
 def extract_low_bit : GICombineRule<
   (defs root:$root, extract_low_bit_matchdata:$matchinfo),
@@ -65,6 +79,8 @@ def shift_unused_carry_in : GICombineRule<
 
 def MC6809Combiner : GICombiner<"MC6809CombinerImpl", [
     all_combines,
+    // unmerge_high_from_load,
+    // unmerge_low_from_load,
     // fold_global_offset,
     // extract_low_bit,
     // uaddo_1,

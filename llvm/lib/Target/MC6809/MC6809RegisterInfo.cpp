@@ -172,6 +172,7 @@ int copyCost(Register DestReg, Register SrcReg, const MC6809Subtarget &STI) {
 #endif
 
 bool MC6809RegisterInfo::getRegAllocationHints(Register VirtReg, ArrayRef<MCPhysReg> Order, SmallVectorImpl<MCPhysReg> &Hints, const MachineFunction &MF, const VirtRegMap *VRM, const LiveRegMatrix *Matrix) const {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter\n";);
   const MC6809Subtarget &STI = MF.getSubtarget<MC6809Subtarget>();
   const auto &TRI = *STI.getRegisterInfo();
   const MachineRegisterInfo &MRI = MF.getRegInfo();
@@ -244,14 +245,14 @@ MC6809InstrCost MC6809RegisterInfo::copyCost(Register DestReg, Register SrcReg, 
 
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : DestReg = "; dumpReg(DestReg););
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Dest BIT1RegClass.contains(" << DestReg << ") = " << MC6809::BIT1RegClass.contains(DestReg) << "\n";);
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Dest CCondRegClass.contains(" << DestReg << ") = " << MC6809::CCondRegClass.contains(DestReg) << "\n";);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Dest CCFlagRegClass.contains(" << DestReg << ") = " << MC6809::CCFlagRegClass.contains(DestReg) << "\n";);
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Dest ACC8RegClass.contains(" << DestReg << ") = " << MC6809::ACC8RegClass.contains(DestReg) << "\n";);
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Dest ACC16RegClass.contains(" << DestReg << ") = " << MC6809::ACC16RegClass.contains(DestReg) << "\n";);
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Dest ACC32RegClass.contains(" << DestReg << ") = " << MC6809::ACC32RegClass.contains(DestReg) << "\n";);
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Dest INDEX16RegClass.contains(" << DestReg << ") = " << MC6809::INDEX16RegClass.contains(DestReg) << "\n";);
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : SrcReg = "; dumpReg(SrcReg););
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Src BIT1RegClass.contains(" << SrcReg << ") = " << MC6809::BIT1RegClass.contains(SrcReg) << "\n";);
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Src CCondRegClass.contains(" << SrcReg << ") = " << MC6809::CCondRegClass.contains(SrcReg) << "\n";);
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Src CCFlagRegClass.contains(" << SrcReg << ") = " << MC6809::CCFlagRegClass.contains(SrcReg) << "\n";);
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Src ACC8RegClass.contains(" << SrcReg << ") = " << MC6809::ACC8RegClass.contains(SrcReg) << "\n";);
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Src ACC16RegClass.contains(" << SrcReg << ") = " << MC6809::ACC16RegClass.contains(SrcReg) << "\n";);
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Src ACC32RegClass.contains(" << SrcReg << ") = " << MC6809::ACC32RegClass.contains(SrcReg) << "\n";);
@@ -319,7 +320,7 @@ MC6809InstrCost MC6809RegisterInfo::copyCost(Register DestReg, Register SrcReg, 
   if (AreClasses(MC6809::ACC8RegClass, MC6809::ACC32RegClass)) {
     return ImpossibleCost;
   }
-  if (AreClasses(MC6809::ACC8RegClass, MC6809::CCondRegClass) || AreClasses(MC6809::CCondRegClass, MC6809::ACC8RegClass)) {
+  if (AreClasses(MC6809::ACC8RegClass, MC6809::CCFlagRegClass) || AreClasses(MC6809::CCFlagRegClass, MC6809::ACC8RegClass)) {
     return TransferCost;
   }
   if (AreClasses(MC6809::BIT1RegClass, MC6809::BIT1RegClass)) {

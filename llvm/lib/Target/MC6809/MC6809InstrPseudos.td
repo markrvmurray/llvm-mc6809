@@ -59,15 +59,15 @@ class MC6809Pseudo : Instruction {
 //  let mayLoad = true;
 //}
 
-// Loads a boolean value into C, V or any accumulator's LSB
-def LDImm1 : MC6809Pseudo {
-  dag OutOperandList = (outs BIT1:$dst);
-  dag InOperandList = (ins i1imm:$val);
-
-  let isAsCheapAsAMove = true;
-  let isMoveImm = true;
-  let isReMaterializable = true;
-}
+//// Loads a boolean value into C, V or any accumulator's LSB
+//def LDImm1 : MC6809Pseudo {
+//  dag OutOperandList = (outs BIT1:$dst);
+//  dag InOperandList = (ins i1imm:$val);
+//
+//  let isAsCheapAsAMove = true;
+//  let isMoveImm = true;
+//  let isReMaterializable = true;
+//}
 
 // Loads a 16-bit value into an imaginary pointer pair. This is generally more
 // constrained than loading two 8-bit values using a REG_SEQUENCE, but bundling
@@ -245,16 +245,16 @@ def ADJCALLSTACKUP : MC6809CallFramePseudo;
 //===---------------------------------------------------------------------===//
 
 // Generic conditional branch that can branch on BIT1. Branches to $tgt if $tst = $val.
-def GBR : MC6809Pseudo {
-  dag InOperandList = (ins label:$tgt, BIT1:$tst, i1imm:$val);
-
-  // This may need to lower to a compare, which clobbers C.
-  // FIXME!! MarkM: Other flags?
-  let Defs = [C];
-
-  let isBranch = true;
-  let isTerminator = true;
-}
+//def GBR : MC6809Pseudo {
+//  dag InOperandList = (ins label:$tgt, BIT1:$tst, i1imm:$val);
+//
+//  // This may need to lower to a compare, which clobbers C.
+//  // FIXME!! MarkM: Other flags?
+//  let Defs = [C];
+//
+//  let isBranch = true;
+//  let isTerminator = true;
+//}
 
 // It's difficult for the code generator to keep N and Z free for the usual
 // multi-byte increments and decrements, so these pseudos bundle arbitrary-width
@@ -286,22 +286,19 @@ def GBR : MC6809Pseudo {
 //}
 
 // Use the diamond control flow pattern to load one of two immediates based on
-// the value of a flag.
-def SelectImm_i1 : MC6809Pseudo {
+// the value of a BIT1/Flag.
+def SelectImm : MC6809Pseudo {
   dag OutOperandList = (outs unknown:$dst);
-  dag InOperandList = (ins CCFlag:$tst, i1imm:$true, i1imm:$false);
+  dag InOperandList = (ins BIT1:$tst, i1imm:$true, i1imm:$false);
 
   let usesCustomInserter = true;
 }
-def SelectImm_i8 : MC6809Pseudo {
-  dag OutOperandList = (outs unknown:$dst);
-  dag InOperandList = (ins CCFlag:$tst, i8imm:$true, i8imm:$false);
 
-  let usesCustomInserter = true;
-}
-def SelectImm_i16 : MC6809Pseudo {
-  dag OutOperandList = (outs unknown:$dst);
-  dag InOperandList = (ins CCFlag:$tst, i16imm:$true, i16imm:$false);
+// Use the diamond control flow pattern to load one of two immediates based on
+// the value of a conditional - same as is used in the Bbc $cond instruction..
+def ConditionalImm : MC6809Pseudo {
+  dag OutOperandList = (outs BIT1:$dst);
+  dag InOperandList = (ins condcode:$cc, CCond:$tst, i1imm:$true, i1imm:$false);
 
   let usesCustomInserter = true;
 }

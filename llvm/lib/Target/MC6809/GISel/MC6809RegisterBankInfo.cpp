@@ -84,9 +84,13 @@ const RegisterBank &MC6809RegisterBankInfo::getRegBankFromRegClass(const TargetR
   case MC6809::BIT1RegClassID:
   case MC6809::BIT8RegClassID:
   case MC6809::AAcRegClassID:
+  case MC6809::AALSBcRegClassID:
   case MC6809::ABcRegClassID:
+  case MC6809::ABLSBcRegClassID:
   case MC6809::AEcRegClassID:
+  case MC6809::AELSBcRegClassID:
   case MC6809::AFcRegClassID:
+  case MC6809::AFLSBcRegClassID:
   case MC6809::ACC8_ABRegClassID:
   case MC6809::ACC8RegClassID:
   case MC6809::ADcRegClassID:
@@ -101,6 +105,10 @@ const RegisterBank &MC6809RegisterBankInfo::getRegBankFromRegClass(const TargetR
   case MC6809::SUcRegClassID:
   case MC6809::SScRegClassID:
     return getRegBank(MC6809::INDEXRegBankID);
+  case MC6809::Imag8RegClassID:
+  case MC6809::Imag16RegClassID:
+  case MC6809::Imag32RegClassID:
+    return getRegBank(MC6809::IMAGRegBankID);
   default:
     break;
   }
