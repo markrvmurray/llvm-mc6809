@@ -5667,8 +5667,12 @@ def mthumb : Flag<["-"], "mthumb">, Group<m_Group>;
 def mtune_EQ : Joined<["-"], "mtune=">, Group<m_Group>,
   Visibility<[ClangOption, FlangOption]>,
   HelpText<"Only supported on AArch64, PowerPC, RISC-V, SPARC, SystemZ, and X86">;
+def mlto_dp_EQ : Joined<["-"], "mlto-dp=">, Group<m_Group>,
+  HelpText<"Allocate a number of bytes of direct page for use by the compiler in LTO.">;
 def mlto_zp_EQ : Joined<["-"], "mlto-zp=">, Group<m_Group>,
   HelpText<"Allocate a number of bytes of zero page for use by the compiler in LTO.">;
+def mreserve_dp_EQ : Joined<["-"], "mreserve-dp=">, Group<m_Group>,
+  HelpText<"Reserve a number of bytes of direct page from the region allocated to the compiler in LTO">;
 def mreserve_zp_EQ : Joined<["-"], "mreserve-zp=">, Group<m_Group>,
   HelpText<"Reserve a number of bytes of zero page from the region allocated to the compiler in LTO">;
 def multi_lib_config : Joined<["-", "--"], "multi-lib-config=">,

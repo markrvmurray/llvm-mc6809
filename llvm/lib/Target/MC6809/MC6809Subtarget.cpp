@@ -42,9 +42,6 @@ MC6809Subtarget &MC6809Subtarget::initializeSubtargetDependencies(StringRef CPU,
   // Parse features string.
   ParseSubtargetFeatures(CPU, /* TuneCPU */ CPU, FS);
 
-  // Convert feature bits to e_flags
-  EFlags = MC6809_MC::makeEFlags(getFeatureBits());
-
   return *this;
 }
 

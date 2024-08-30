@@ -262,9 +262,6 @@ public:
     Parser.addAliasForDirective(".xword", ".8byte");
 
     setAvailableFeatures(ComputeAvailableFeatures(STI.getFeatureBits()));
-
-    if (MCAssembler *Asm = Parser.getStreamer().getAssemblerPtr())
-      Asm->setELFHeaderEFlags(MC6809_MC::makeEFlags(STI.getFeatureBits()));
   }
   MCAsmLexer &getLexer() const { return Parser.getLexer(); }
   MCAsmParser &getParser() const { return Parser; }

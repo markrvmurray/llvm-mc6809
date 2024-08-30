@@ -519,10 +519,10 @@ for instr_ in RawInstructions:
 			instr["lets"]["isBranch"] = "true"
 			instr["lets"]["isTerminator"] = "true"
 			instr["lets"]["isBarrier"] = "true"
-		elif instr["mnemonic"] == "BRN":
+		elif instr["mnemonic"] == "BRN" or instr["mnemonic"] == "LBRN":
 			instr["ins"] = ["pcrel16:$tgt"]
-			instr["lets"]["isBranch"] = "true"
-			instr["lets"]["isTerminator"] = "true"
+			instr["lets"]["isBranch"] = "false"
+			instr["lets"]["isTerminator"] = "false"
 		elif instr["mnemonic"] == "B$COND":
 			instr["mnemonic"] = "B"
 			instr["name"] = instr["mnemonic"] + instr["mode"]
@@ -710,7 +710,6 @@ for instr_ in RawInstructions:
 		instr["params"] = [ ((39, 32), "val{7-0}"), ((31, 24), "val{15-8}"), ((23, 16), "val{23-16}"), ((15, 8), "val{31-24}"), ((7, 0), "Opc") ]
 		insert_instruction(instr)
 	elif instr["mode"] == "b" or instr["mode"] == "lb":
-		assert instr["page"] == 1, instr
 		if instr["mode"] == "b":
 			instr["addressmode"] = "ShortBranch"
 		else:
@@ -719,7 +718,10 @@ for instr_ in RawInstructions:
 			assert instr["size"] == 2, instr
 			instr["params"] = [ ((15, 8), "tgt{7-0}"), ((7, 0), "Opc") ]
 		else:
-			assert instr["size"] == 3, instr
+			if instr["mnemonic"] == "LBRN":
+				assert instr["size"] == 4, instr
+			else:
+				assert instr["size"] == 3, instr
 			instr["params"] = [ ((23, 16), "tgt{7-0}"), ((15, 8), "tgt{15-8}"), ((7, 0), "Opc") ]
 		insert_instruction(instr)
 	elif instr["mode"] == "bc" or instr["mode"] == "lbc":
@@ -818,6 +820,7 @@ for page in range(3):
 			instform["lets"]["Predicates"] += ["IsHD6309"]
 		insert_indexmode(instform)
 
+# =====================================================================================================================
 with Generate("MC6809InstrInfo.td", marker_start="// MRVM START MARKER 1", marker_finish="// MRVM END MARKER 1") as ii:
 	for mck in sorted(MultiClass):
 		ii.write("// ============================== PAGE {} ==================================\n".format(mck))
@@ -827,6 +830,7 @@ with Generate("MC6809InstrInfo.td", marker_start="// MRVM START MARKER 1", marke
 		ii.write("}\n")
 	ii.write("// ============================== END PAGES ==================================\n")
 
+# =====================================================================================================================
 with Generate("MC6809InstrInfo.td", marker_start="// MRVM START MARKER 2", marker_finish="// MRVM END MARKER 2") as ii:
 	for page in Instructions:
 		for instr in page:
@@ -846,9 +850,107 @@ with Generate("MC6809InstrInfo.td", marker_start="// MRVM START MARKER 2", marke
 				else:
 					ii.write('def {name} : MC6809{addressmode}_P{page}<{outsformatted}, "{lcmnemonic}", Opcode<0x{opcode:02X},{page}>, [{defslist}], [{useslist}]>;\n\n'.format(**instr))
 
+# =====================================================================================================================
+opcode_enum = [ ]
+opcode_table = [ [ "None" for i in range(256) ] for _ in range(3) ]
+pageindex = 0
+for page in Instructions:
+	for instr in page:
+		match instr['mode']:
+			case 'd':
+				instr['enum_fields_decl'] = ['u8']
+				instr['enum_fields'] = ['addr8']
+			case 'e':
+				instr['enum_fields_decl'] = ['u16']
+				instr['enum_fields'] = ['addr16']
+			case 'id':
+				instr['enum_fields_decl'] = ['u8', 'u8']
+				instr['enum_fields'] = ['imm8', 'addr8']
+			case 'ie':
+				instr['enum_fields_decl'] = ['u8', 'u16']
+				instr['enum_fields'] = ['imm8', 'addr16']
+			case 'x':
+				instr['enum_fields_decl'] = []
+				instr['enum_fields'] = []
+			case 'b':
+				instr['enum_fields_decl'] = ['i8']
+				instr['enum_fields'] = ['pcoffset8']
+			case 'lb':
+				instr['enum_fields_decl'] = ['i16']
+				instr['enum_fields'] = ['pcoffset16']
+			case 'bc':
+				instr['enum_fields_decl'] = ['Cond', 'i8']
+				instr['enum_fields'] = ['cond', 'pcoffset8']
+			case 'lbc':
+				instr['enum_fields_decl'] = ['Cond', 'i16']
+				instr['enum_fields'] = ['cond', 'pcoffset16']
+			case 'r':
+				instr['enum_fields_decl'] = []
+				instr['enum_fields'] = []
+			case 'i8':
+				instr['enum_fields_decl'] = ['u8']
+				instr['enum_fields'] = ['imm8']
+			case 'i16':
+				instr['enum_fields_decl'] = ['u16']
+				instr['enum_fields'] = ['imm16']
+			case 'i32':
+				instr['enum_fields_decl'] = ['u32']
+				instr['enum_fields'] = ['imm32']
+			case 'a':
+				instr['enum_fields_decl'] = []
+				instr['enum_fields'] = []
+			case 'p':
+				instr['enum_fields_decl'] = ['Reg', 'Reg']
+				instr['enum_fields'] = ['rega', 'regb']
+			case 'pp':
+				instr['enum_fields_decl'] = ['Reg', 'Reg']
+				instr['enum_fields'] = ['rega', 'regb']
+			case 's':
+				instr['enum_fields_decl'] = ['u8']
+				instr['enum_fields'] = ['stackbyte']
+			case 'bd':
+				instr['enum_fields_decl'] = ['Reg', 'u8', 'u8', 'u8']
+				instr['enum_fields'] = ['reg', 'bita', 'bitb', 'addr8']
+			case 'i':
+				instr['enum_fields_decl'] = ['IndexMode']
+				instr['enum_fields'] = ['index']
+			case 'ii':
+				instr['enum_fields_decl'] = ['u8', 'IndexMode']
+				instr['enum_fields'] = ['imm8', 'index']
+			case _:
+				print("OINQUE DEBUG mode '{}' not handled".format(instr['mode']))
+				raise RuntimeError("OINQUE DEBUG mode '{mode}' not handled for {name}".format(**instr))
+		if len(instr['enum_fields_decl']):
+			instr['enum_fields_decl'] = '(' + ', '.join(instr['enum_fields_decl']) + ')'
+			instr['enum_fields'] = '(' + ', '.join(instr['enum_fields']) + ')'
+		else:
+			instr['enum_fields_decl'] = ''
+			instr['enum_fields'] = ''
+		opcode_enum.append("{name}".format(**instr))
+		if instr['opcode'] == 0x2 and (instr['name'] == 'Bbc' or instr['name'] == 'LBlbc'):
+			opcode_table[pageindex][instr['opcode']*16 + 2] = 'Some(Instruction::{name}{enum_fields})'.format(**instr)
+		else:
+			opcode_table[pageindex][instr['opcode']] = 'Some(Instruction::{name}{enum_fields})'.format(**instr)
+	pageindex += 1
+with Generate("MC6809Instructions.rs", marker_start="// MRVM START MARKER 1", marker_finish="// MRVM END MARKER 1") as rust:
+	pageindex = 0
+	for page in Instructions:
+		for instr in page:
+			rust.write('    {name}{enum_fields_decl},\n'.format(**instr))
+
+# =====================================================================================================================
+with Generate("MC6809Instructions.rs", marker_start="// MRVM START MARKER 2", marker_finish="// MRVM END MARKER 2") as rust:
+	table_row = 0
+	for pageindex in range(3):
+		rust.write("    [\n")
+		for opcodeindex in range(256):
+			rust.write("        {},\n".format(opcode_table[pageindex][opcodeindex]))
+			table_row += 1 
+		rust.write("    ],\n")
+
+# =====================================================================================================================
 pagecode = {1:"    ", 2:"0x10", 3:"0x11"}
 conds = {1:"rn", 2:"hi", 3:"ls", 4:"hs", 5:"lo", 6:"ne", 7:"eq", 8:"vc", 9:"vs", 10:"pl", 11:"mi", 12:"ge", 13:"lt", 14:"gt", 15:"le"}
-
 with Generate("MC6809InstrDisassembler6809Tests.txt", marker_start="# MRVM START MARKER", marker_finish="# MRVM END MARKER") as tt6809, Generate("MC6809InstrDisassembler6309Tests.txt", marker_start="# MRVM START MARKER", marker_finish="# MRVM END MARKER") as tt6309:
 	for page in Instructions:
 		for instr in page:
@@ -934,6 +1036,7 @@ with Generate("MC6809InstrDisassembler6809Tests.txt", marker_start="# MRVM START
 				if instr["mode"] == "s":
 					tt.write("{pagecode} 0x{opcode:02X} 0xFF                #\t{lcmnemonic}\tcc,a,b,dp,x,y,u,pc {operand}\n".format(**instr))
 
+# =====================================================================================================================
 with Generate("MC6809InstrFormats.td", marker_start="// MRVM START MARKER 1", marker_finish="// MRVM END MARKER 1") as fi:
 	for k in sorted(AddressMode):
 		v = AddressMode[k]
@@ -974,6 +1077,7 @@ with Generate("MC6809InstrFormats.td", marker_start="// MRVM START MARKER 1", ma
 		fi.write('  let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);\n')
 		fi.write("}\n\n")
 
+# =====================================================================================================================
 with Generate("MC6809InstrFormats.td", marker_start="// MRVM START MARKER 2", marker_finish="// MRVM END MARKER 2") as fi:
 	for k in sorted(InstrFormat):
 		v = InstrFormat[k]
@@ -984,10 +1088,9 @@ with Generate("MC6809InstrFormats.td", marker_start="// MRVM START MARKER 2", ma
 		fi.write('    let OutOperandList = outs;\n')
 		fi.write('}\n\n')
 
+# =====================================================================================================================
 DecoderTables = sorted(list(DecoderTables))
 ModeEnums = sorted(list(ModeEnums))
-print("There are {} distinct addressing modes".format(len(ModeEnums)))
-
 with Generate("Disassembler/MC6809Disassembler.cpp") as dt:
 	dt.write("  unsigned DecoderTableSize = {};\n".format(len(DecoderTables)))
 	dt.write("  struct DecoderTableList {\n")
@@ -997,3 +1100,6 @@ with Generate("Disassembler/MC6809Disassembler.cpp") as dt:
 	for table in DecoderTables:
 		dt.write('    {{ {}, {} }},\n'.format(*table))
 	dt.write("  };\n")
+
+# =====================================================================================================================
+print("There are {} distinct addressing modes".format(len(ModeEnums)))

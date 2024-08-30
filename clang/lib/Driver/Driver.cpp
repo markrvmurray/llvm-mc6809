@@ -6938,7 +6938,7 @@ const ToolChain &Driver::getToolChain(const ArgList &Args,
         TC = std::make_unique<toolchains::SPIRVToolChain>(*this, Target, Args);
         break;
       case llvm::Triple::mc6809:
-        TC = std::make_unique<toolchains::MC6809>(*this, Target, Args);
+        TC = std::make_unique<toolchains::MC6809ToolChain>(*this, Target, Args);
         break;
       case llvm::Triple::mos:
         TC = std::make_unique<toolchains::MOSToolChain>(*this, Target, Args);

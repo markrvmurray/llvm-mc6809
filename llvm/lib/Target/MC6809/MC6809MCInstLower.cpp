@@ -60,7 +60,9 @@ bool MC6809MCInstLower::lowerOperand(const MachineOperand &MO, MCOperand &MCOp) 
     // This is the last chance to catch values that are attributed a direct-page
     // section. It is the user's responsibility to ensure the linker will
     // locate the symbol completely within the direct-page.
-    if (MC6809AsmBackend::isBranchSectionName(GV->getSection())) {
+    const auto *GVar = dyn_cast<GlobalVariable>(GV->getAliaseeObject());
+    if (MC6809::isDirectPageSectionName(GV->getSection()) ||
+        (GVar && GVar->getAddressSpace() == MC6809::AS_DirectPage)) {
       const MC6809MCExpr *Expr = MC6809MCExpr::create(MC6809MCExpr::VK_MC6809_ADDR8, MCOp.getExpr(), /*isNegated=*/false, Ctx);
       MCOp = MCOperand::createExpr(Expr);
     }
