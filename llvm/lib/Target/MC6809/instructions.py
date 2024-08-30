@@ -239,6 +239,7 @@ RawInstructions = [
 {"page":1, "size":3, "mnemonic":"LDU", "function":"l", "mode":"e", "outs":[], "ins":[], "operand":"$addr", "opcode":0xFE, "hd6309":0},
 {"page":1, "size":3, "mnemonic":"STU", "function":"s", "mode":"e", "outs":[], "ins":[], "operand":"$addr", "opcode":0xFF, "hd6309":0},
 
+{"page":2, "size":4, "mnemonic":"LBRN", "function":"r", "mode":"lb", "outs":[], "ins":[], "operand":"$tgt", "opcode":0x21, "hd6309":0},
 {"page":2, "size":4, "mnemonic":"LB$COND", "function":"r", "mode":"lbc", "outs":[], "ins":[], "operand":"$tgt", "opcode":0x2, "hd6309":0},
 
 {"page":2, "size":3, "mnemonic":"ADDR", "function":"a", "mode":"p", "outs":[], "ins":[], "operand":"$reg1 , $reg2", "opcode":0x30, "hd6309":1},

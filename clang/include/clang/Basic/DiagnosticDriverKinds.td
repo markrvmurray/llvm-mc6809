@@ -805,6 +805,13 @@ def err_drv_invalid_empty_dxil_validator_version : Error<
   "invalid validator version : %0; if validator major version is 0, minor "
   "version must also be 0">;
 
+def err_drv_invalid_dp : Error<
+  "invalid direct page amount : %0; "
+  "direct page amounts must be unsigned integers">;
+def err_drv_too_much_dp_reserved : Error<
+  "reserved more dp than available: %0; "
+  "cannot reserve more bytes of direct page than allocated to the compiler">;
+
 def err_drv_invalid_zp : Error<
   "invalid zero page amount : %0; "
   "zero page amounts must be unsigned integers">;

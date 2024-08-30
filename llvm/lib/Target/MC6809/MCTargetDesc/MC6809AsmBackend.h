@@ -1,5 +1,4 @@
-//===-- MC6809AsmBackend.h - MC6809 Asm Backend
-//--------------------------------===//
+//===-- MC6809AsmBackend.h - MC6809 Asm Backend  --------------------------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -22,6 +21,7 @@
 #include "llvm/MC/MCELFObjectWriter.h"
 #include "llvm/MC/MCObjectWriter.h"
 #include "llvm/MC/MCSectionELF.h"
+#include "llvm/TargetParser/Triple.h"
 
 namespace llvm {
 
@@ -32,13 +32,21 @@ struct MCFixupKindInfo;
 
 class MC6809ObjectTargetWriter : public MCELFObjectTargetWriter {
 public:
-  MC6809ObjectTargetWriter() : MCELFObjectTargetWriter(false, 0, ELF::EM_MC6809, false) { val = ELF::EM_MC6809; }
+  MC6809ObjectTargetWriter()
+      : MCELFObjectTargetWriter(false, 0, ELF::EM_MC6809, false) {
+    val = ELF::EM_MC6809;
+  }
 
   ~MC6809ObjectTargetWriter() override { val = 0; }
 
-  unsigned getRelocType(MCContext &Ctx, const MCValue &Target, const MCFixup &Fixup, bool IsPCRel) const override { return 0; }
+  unsigned getRelocType(MCContext &Ctx, const MCValue &Target,
+                        const MCFixup &Fixup, bool IsPCRel) const override {
+    return 0;
+  }
 
-  Triple::ObjectFormatType getFormat() const override { return Triple::ObjectFormatType::ELF; }
+  Triple::ObjectFormatType getFormat() const override {
+    return Triple::ObjectFormatType::ELF;
+  }
 
   int val;
 };
@@ -46,11 +54,11 @@ public:
 /// Utilities for manipulating generated MC6809 machine code.
 class MC6809AsmBackend : public MCAsmBackend {
 public:
-  MC6809AsmBackend(Triple::OSType OSType) : llvm::MCAsmBackend(endianness::little), OSType(OSType) {}
+  MC6809AsmBackend(Triple::OSType OSType)
+      : llvm::MCAsmBackend(endianness::little), OSType(OSType) {}
 
-  std::unique_ptr<MCObjectTargetWriter> createObjectTargetWriter() const override;
-
-  void adjustFixupValue(const MCFixup &Fixup, const MCValue &Target, uint64_t &Value, MCContext *Ctx = nullptr) const;
+  std::unique_ptr<MCObjectTargetWriter>
+  createObjectTargetWriter() const override;
 
   /// Apply the \p Value for given \p Fixup into the provided data fragment, at
   /// the offset specified by the fixup and following the fixup kind as
@@ -58,25 +66,27 @@ public:
   /// reported via \p Ctx.
   /// The  \p STI is present only for fragments of type MCRelaxableFragment and
   /// MCDataFragment with hasInstructions() == true.
-  virtual void applyFixup(const MCAssembler &Asm, const MCFixup &Fixup, const MCValue &Target, MutableArrayRef<char> Data, uint64_t Value, bool IsResolved, const MCSubtargetInfo *STI) const override;
+  void applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
+                  const MCValue &Target, MutableArrayRef<char> Data,
+                  uint64_t Value, bool IsResolved,
+                  const MCSubtargetInfo *STI) const override;
 
-#if 0
-  virtual bool evaluateTargetFixup(const MCAssembler &Asm,
-                                   const MCAsmLayout &Layout,
-                                   const MCFixup &Fixup, const MCFragment *DF,
-                                   const MCValue &Target,
-                                   const MCSubtargetInfo *STI, uint64_t &Value,
-                                   bool &WasForced) override;
-#endif
+  bool evaluateTargetFixup(const MCAssembler &Asm, const MCFixup &Fixup,
+                           const MCFragment *DF, const MCValue &Target,
+                           const MCSubtargetInfo *STI, uint64_t &Value,
+                           bool &WasForced) override;
 
   /// Simple predicate for targets where !Resolved implies requiring relaxation
-  bool fixupNeedsRelaxation(const MCFixup &Fixup, uint64_t Value, const MCRelaxableFragment *DF, const MCAsmLayout &Layout) const override;
+  bool fixupNeedsRelaxation(const MCFixup &Fixup,
+                            uint64_t Value) const override;
   /// Carefully determine whether the instruction in question requires
   /// relaxation.  This implementation considers the fixup as well as
   /// the section that the symbol points to.
-  bool fixupNeedsRelaxationAdvanced(const MCFixup &Fixup, bool Resolved, uint64_t Value, const MCRelaxableFragment *DF, const MCAsmLayout &Layout, const bool WasForced) const override;
-  /// Determine if section name indicates direct-page placement by linker.
-  static bool isBranchSectionName(StringRef Name);
+  bool fixupNeedsRelaxationAdvanced(const MCAssembler &ASM,
+                                    const MCFixup &Fixup, bool Resolved,
+                                    uint64_t Value,
+                                    const MCRelaxableFragment *DF,
+                                    const bool WasForced) const override;
   unsigned getNumFixupKinds() const override;
   MCFixupKindInfo const &getFixupKindInfo(MCFixupKind Kind) const override;
   /// Check whether the given instruction may need relaxation.
@@ -84,7 +94,8 @@ public:
   /// \param Inst - The instruction to test.
   /// \param STI - The MCSubtargetInfo in effect when the instruction was
   /// encoded.
-  bool mayNeedRelaxation(const MCInst &Inst, const MCSubtargetInfo &STI) const override;
+  bool mayNeedRelaxation(const MCInst &Inst,
+                         const MCSubtargetInfo &STI) const override;
 
   /// Relax the instruction in the given fragment to the next wider instruction.
   ///
@@ -92,24 +103,39 @@ public:
   /// output.
   /// \param STI the subtarget information for the associated instruction.
   /// \param [out] Res On return, the relaxed instruction.
-  void relaxInstruction(MCInst &Inst, const MCSubtargetInfo &STI) const override;
+  void relaxInstruction(MCInst &Inst,
+                        const MCSubtargetInfo &STI) const override;
 
   /// If the instruction can be relaxed, return the opcode of the instruction
-  /// that this instruction can be relaxed to.  If the instruction cannot
-  /// be relaxed, return zero.
-  static unsigned relaxInstructionTo(const MCInst &Inst);
+  /// that this instruction can be relaxed to. If the instruction cannot be
+  /// relaxed, return zero. When 65816 subtarget is active and the instruction
+  /// is relaxed to Addr24, BankRelax is set to true.
+  static unsigned relaxInstructionTo(const MCInst &Inst,
+                                     const MCSubtargetInfo &STI,
+                                     bool &BankRelax);
+  static unsigned relaxInstructionTo(const MCInst &Inst,
+                                     const MCSubtargetInfo &STI) {
+    bool BankRelax = false;
+    return relaxInstructionTo(Inst, STI, BankRelax);
+  }
+
+  /// If the provided subtarget uses a custom set of machine instructions,
+  /// translate the provided MC6809 machine instruction to the subtarget's.
+  static void translateOpcodeToSubtarget(MCInst &Inst,
+                                         const MCSubtargetInfo &STI);
 
   /// If the provided instruction contains an out-of-range immediate in a
-  /// relaxable opcode, perform the relaxation now. MC6809AsmPrinter calls this
-  /// at the end of lowering so it does not have to deal with the relaxation
+  /// relaxable opcode, perform the relaxation now. MC6809AsmPrinter calls this at
+  /// the end of lowering so it does not have to deal with the relaxation
   /// itself.
-  static void relaxForImmediate(MCInst &Inst);
+  static void relaxForImmediate(MCInst &Inst, const MCSubtargetInfo &STI);
 
   /// Write an (optimal) nop sequence of Count bytes to the given output. If the
   /// target cannot generate such a sequence, it should return an error.
   ///
   /// \return - True on success.
-  bool writeNopData(raw_ostream &OS, uint64_t Count, const MCSubtargetInfo *STI) const override;
+  bool writeNopData(raw_ostream &OS, uint64_t Count,
+                    const MCSubtargetInfo *STI) const override;
 
 private:
   Triple::OSType OSType;

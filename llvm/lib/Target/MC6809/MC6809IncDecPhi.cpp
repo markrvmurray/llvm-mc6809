@@ -141,7 +141,7 @@ bool MC6809IncDecPhi::runOnMachineFunction(MachineFunction &MF) {
       MachineBasicBlock *ValDefMBB = ValDef->getParent();
       if (ValDefMBB == &MBB) {
         bool SawStore = false;
-        if (!ValDef->isSafeToMove(nullptr, SawStore))
+        if (!ValDef->isSafeToMove(SawStore))
           continue;
         if (!MRI.hasOneNonDBGUse(Val))
           continue;

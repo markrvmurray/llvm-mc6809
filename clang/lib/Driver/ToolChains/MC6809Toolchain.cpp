@@ -59,7 +59,7 @@ static bool hasLTOEmitAsm(const ArgList &Args) {
   return false;
 }
 
-void mc6809ToolChain::Linker::ConstructJob(Compilation &C, const JobAction &JA,
+void mc6809::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                                const InputInfo &Output,
                                const InputInfoList &Inputs, const ArgList &Args,
                                const char *LinkingOutput) const {
@@ -81,7 +81,7 @@ void mc6809ToolChain::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(Args.MakeArgString("--sysroot=" + D.SysRoot));
 
   TC.AddFilePathLibArgs(Args, CmdArgs);
-  Args.AddAllArgs(CmdArgs, {options::OPT_L, options::OPT_T_Group,
+  Args.addAllArgs(CmdArgs, {options::OPT_L, options::OPT_T_Group,
                             options::OPT_e, options::OPT_s, options::OPT_t,
                             options::OPT_Z_Flag, options::OPT_r});
 
@@ -132,7 +132,7 @@ void mc6809ToolChain::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   }
 }
 
-void mc6809ToolChain::Linker::AddLTOOptions(const toolchains::MC6809 &TC, const ArgList &Args,
+void mc6809::Linker::AddLTOOptions(const toolchains::MC6809ToolChain &TC, const ArgList &Args,
                                 const InputInfo &Output,
                                 const InputInfoList &Inputs,
                                 ArgStringList &CmdArgs) const {

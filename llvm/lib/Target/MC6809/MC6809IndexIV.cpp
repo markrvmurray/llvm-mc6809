@@ -16,6 +16,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "MC6809IndexIV.h"
+#include "MC6809InstrInfo.h"
 
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Transforms/Scalar/LoopPassManager.h"

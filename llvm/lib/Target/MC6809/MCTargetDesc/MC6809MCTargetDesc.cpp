@@ -39,20 +39,6 @@
 
 using namespace llvm;
 
-namespace llvm {
-namespace MC6809_MC {
-/// Makes an e_flags value based on subtarget features.
-unsigned makeEFlags(const FeatureBitset &Features) {
-  unsigned ELFArch = 0;
-  if (Features[MC6809::Feature6809])
-    ELFArch |= ELF::EF_MC6809_ARCH_6809;
-  if (Features[MC6809::Feature6309])
-    ELFArch |= ELF::EF_MC6809_ARCH_6309;
-  return ELFArch;
-}
-} // namespace MC6809_MC
-} // end namespace llvm
-
 MCInstrInfo *llvm::createMC6809MCInstrInfo() {
   MCInstrInfo *X = new MCInstrInfo();
   InitMC6809MCInstrInfo(X);
@@ -87,7 +73,7 @@ static MCInstPrinter *createMC6809MCInstPrinter(const Triple &T, unsigned Syntax
 
 static MCTargetStreamer *createMC6809ObjectTargetStreamer(MCStreamer &S, const MCSubtargetInfo &STI) { return new MC6809TargetELFStreamer(S, STI); }
 
-static MCTargetStreamer *createMCAsmTargetStreamer(MCStreamer &S, formatted_raw_ostream &OS, MCInstPrinter *InstPrint, bool isVerboseAsm) { return new MC6809TargetAsmStreamer(S, OS); }
+static MCTargetStreamer *createMCAsmTargetStreamer(MCStreamer &S, formatted_raw_ostream &OS, MCInstPrinter *InstPrint) { return new MC6809TargetAsmStreamer(S, OS); }
 
 static MCInstrAnalysis *createMC6809MCInstrAnalysis(const MCInstrInfo *Info) { return new MC6809MCInstrAnalysis(Info); }
 

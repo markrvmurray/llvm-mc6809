@@ -48,11 +48,6 @@ MCAsmBackend *createMC6809AsmBackend(const Target &T, const MCSubtargetInfo &STI
 /// Creates an ELF object writer for MC6809.
 std::unique_ptr<MCObjectTargetWriter> createMC6809ELFObjectWriter(uint8_t OSABI);
 
-namespace MC6809_MC {
-/// Makes an e_flags value based on subtarget features.
-unsigned makeEFlags(const FeatureBitset &Features);
-} // namespace MC6809_MC
-
 } // end namespace llvm
 
 #define GET_REGINFO_ENUM

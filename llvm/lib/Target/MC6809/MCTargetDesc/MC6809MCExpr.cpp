@@ -9,7 +9,6 @@
 #include "MC6809MCExpr.h"
 #include "MC6809FixupKinds.h"
 
-#include "llvm/MC/MCAsmLayout.h"
 #include "llvm/MC/MCAssembler.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCStreamer.h"
@@ -64,9 +63,9 @@ bool MC6809MCExpr::evaluateAsConstant(int64_t &Result) const {
   return false;
 }
 
-bool MC6809MCExpr::evaluateAsRelocatableImpl(MCValue &Result, const MCAsmLayout *Layout, const MCFixup *Fixup) const {
+bool MC6809MCExpr::evaluateAsRelocatableImpl(MCValue &Result, const MCAssembler *Asm, const MCFixup *Fixup) const {
   MCValue Value;
-  bool IsRelocatable = SubExpr->evaluateAsRelocatable(Value, Layout, Fixup);
+  bool IsRelocatable = SubExpr->evaluateAsRelocatable(Value, Asm, Fixup);
 
   if (!IsRelocatable)
     return false;
@@ -74,11 +73,11 @@ bool MC6809MCExpr::evaluateAsRelocatableImpl(MCValue &Result, const MCAsmLayout 
   if (Value.isAbsolute()) {
     Result = MCValue::get(evaluateAsInt64(Value.getConstant()));
   } else {
-    if (!Layout) {
+    if (!Asm) {
       return false;
     }
 
-    MCContext &Context = Layout->getAssembler().getContext();
+    MCContext &Context = Asm->getContext();
     const MCSymbolRefExpr *Sym = Value.getSymA();
     MCSymbolRefExpr::VariantKind Modifier = Sym->getKind();
     if (Modifier != MCSymbolRefExpr::VK_None) {
