@@ -14,6 +14,15 @@
 RegisterBankInfo::PartialMapping MC6809GenRegisterBankInfo::PartMappings[]{
     /* StartIdx, Length, RegBank */
     // ACC value
+    //{0, 8,  MC6809::ACCUMRegBank},  // :0
+    //{0, 16, MC6809::ACCUMRegBank},  // :1
+    //{0, 32, MC6809::ACCUMRegBank},  // :2
+    // ACC value
+    //{0, 16, MC6809::INDEXRegBank},  // :3
+    // BIT1 value
+    //{0, 8,  MC6809::ACCUMRegBank},  // :4
+    /* StartIdx, Length, RegBank */
+    // ACC value
     {0, 8,  MC6809::ACCUMRegBank},  // :0
     {0, 16, MC6809::ACCUMRegBank},  // :1
     {0, 32, MC6809::ACCUMRegBank},  // :2

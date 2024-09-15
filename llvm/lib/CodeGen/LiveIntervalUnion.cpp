@@ -65,10 +65,8 @@ void LiveIntervalUnion::extract(const LiveInterval &VirtReg,
   SegmentIter SegPos = Segments.find(RegPos->start);
 
   while (true) {
-    dbgs() << "OINQUE DEBUG : " << __FILE__ << " : " << __func__ << " : SegPos.value() = " << SegPos.value() << "\n";
-    dbgs() << "OINQUE DEBUG : " << __FILE__ << " : " << __func__ << " : *SegPos.value() = " << *SegPos.value() << "\n";
-    dbgs() << "OINQUE DEBUG : " << __FILE__ << " : " << __func__ << " : &VirtReg = " << &VirtReg << "\n";
-    dbgs() << "OINQUE DEBUG : " << __FILE__ << " : " << __func__ << " : VirtReg = " << VirtReg << "\n";
+    dbgs() << "\nOINQUE DEBUG : " << __FILE__ << " : " << __func__ << " : *SegPos.value() = " << *SegPos.value() << "\n";
+    dbgs() << "\nOINQUE DEBUG : " << __FILE__ << " : " << __func__ << " : VirtReg = " << VirtReg << "\n";
     assert(SegPos.value() == &VirtReg && "Inconsistent LiveInterval");
     SegPos.erase();
     if (!SegPos.valid())

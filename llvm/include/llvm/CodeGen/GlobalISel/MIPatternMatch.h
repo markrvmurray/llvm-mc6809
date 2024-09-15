@@ -435,6 +435,17 @@ struct ImplicitDefMatch {
 
 inline ImplicitDefMatch m_GImplicitDef() { return ImplicitDefMatch(); }
 
+struct UnmergeValuesMatch {
+  bool match(const MachineRegisterInfo &MRI, Register Reg) {
+    MachineInstr *TmpMI;
+    if (mi_match(Reg, MRI, m_MInstr(TmpMI)))
+      return TmpMI->getOpcode() == TargetOpcode::G_UNMERGE_VALUES;
+    return false;
+  }
+};
+
+inline UnmergeValuesMatch m_GUnmergeValues() { return UnmergeValuesMatch(); }
+
 // Helper for matching G_FCONSTANT
 inline bind_ty<const ConstantFP *> m_GFCst(const ConstantFP *&C) { return C; }
 
@@ -709,7 +720,7 @@ m_GSMulH(const LHS &L, const RHS &R) {
   return Binary2Op_match<LHS, RHS, TargetOpcode::G_SMULH, true>(L, R);
 }
 
-// General helper for all the binary generic MI such as G_UADDE
+// General helper for all the ternary generic MI such as G_UADDE
 template <typename LHS_P, typename RHS_P, typename CARRY_P, unsigned Opcode,
           bool Commutable = false>
 struct Ternary2Op_match {

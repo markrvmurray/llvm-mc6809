@@ -183,8 +183,10 @@ bool MC6809RegisterInfo::getRegAllocationHints(Register VirtReg, ArrayRef<MCPhys
   for (const auto &R : enumerate(Order))
     OriginalIndex[R.value()] = R.index();
 
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Loop starts\n";);
   SmallSet<const MachineInstr *, 32> Visited;
   for (MachineInstr &MI : MRI.reg_nodbg_instructions(VirtReg)) {
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Loop : MI = "; MI.dump());
     if (!Visited.insert(&MI).second)
       continue;
     switch (MI.getOpcode()) {
@@ -222,6 +224,7 @@ bool MC6809RegisterInfo::getRegAllocationHints(Register VirtReg, ArrayRef<MCPhys
     }
     }
   }
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Loop ends\n";);
 
   SmallVector<std::pair<Register, MC6809InstrCost>> RegsAndScores(RegScores.begin(), RegScores.end());
   sort(RegsAndScores, [&](const std::pair<Register, MC6809InstrCost> &A, const std::pair<Register, MC6809InstrCost> &B) {
@@ -234,6 +237,7 @@ bool MC6809RegisterInfo::getRegAllocationHints(Register VirtReg, ArrayRef<MCPhys
     return OriginalIndex[A.first] < OriginalIndex[B.first];
   });
   append_range(Hints, make_first_range(RegsAndScores));
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit\n";);
   return false;
 }
 

@@ -1910,7 +1910,7 @@ def DIVQi16 : MC6809Immediate16Bit_P3<(outs), "divq", Opcode<0x8E,3>, [NZ,N,Z,V,
   let mayLoad = true;
 }
 
-def MULDi16 : MC6809Immediate16Bit_P3<(outs), "muld", Opcode<0x8F,3>, [AQ,NZ,N,Z,AA,AB,AD,AE,AF,AW,AQ], [AD]> {
+def MULDi16 : MC6809Immediate16Bit_P3<(outs), "muld", Opcode<0x8F,3>, [NZ,N,Z,AA,AB,AD,AE,AF,AW,AQ], [AD]> {
   let Predicates = [IsHD6309];
   let mayLoad = true;
 }
@@ -1962,7 +1962,7 @@ def DIVQd : MC6809Direct_P3<(outs), "divq", Opcode<0x9E,3>, [NZ,N,Z,V,C,AA,AB,AD
   let mayLoad = true;
 }
 
-def MULDd : MC6809Direct_P3<(outs), "muld", Opcode<0x9F,3>, [AQ,NZ,N,Z,AA,AB,AD,AE,AF,AW,AQ], [AD]> {
+def MULDd : MC6809Direct_P3<(outs), "muld", Opcode<0x9F,3>, [NZ,N,Z,AA,AB,AD,AE,AF,AW,AQ], [AD]> {
   let Predicates = [IsHD6309];
   let mayLoad = true;
 }
@@ -2004,7 +2004,7 @@ let Predicates = [IsHD6309], mayLoad = true in {
 }
 
 let Predicates = [IsHD6309], mayLoad = true in {
-  defm MULDi : MC6809Indexed_P3<"muld", Opcode<0xAF, 3>, (outs), [AQ,NZ,N,Z,AA,AB,AD,AE,AF,AW,AQ], [AD]>;
+  defm MULDi : MC6809Indexed_P3<"muld", Opcode<0xAF, 3>, (outs), [NZ,N,Z,AA,AB,AD,AE,AF,AW,AQ], [AD]>;
 }
 
 def SUBEe : MC6809Extended_P3<(outs), "sube", Opcode<0xB0,3>, [AE,NZ,N,Z,V,C,AE,AW,AQ], [AE]> {
@@ -2054,7 +2054,7 @@ def DIVQe : MC6809Extended_P3<(outs), "divq", Opcode<0xBE,3>, [NZ,N,Z,V,C,AA,AB,
   let mayLoad = true;
 }
 
-def MULDe : MC6809Extended_P3<(outs), "muld", Opcode<0xBF,3>, [AQ,NZ,N,Z,AA,AB,AD,AE,AF,AW,AQ], [AD]> {
+def MULDe : MC6809Extended_P3<(outs), "muld", Opcode<0xBF,3>, [NZ,N,Z,AA,AB,AD,AE,AF,AW,AQ], [AD]> {
   let Predicates = [IsHD6309];
   let mayLoad = true;
 }

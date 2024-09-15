@@ -45,7 +45,7 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   LLT s32 = LLT::scalar(32);
   LLT s64 = LLT::scalar(64);
   LLT sMax = IsHD6309 ? s32 : s16;
-  LLT sMaxArith = IsHD6309 ? s16 : s8;
+  LLT sMaxLogic = IsHD6309 ? s16 : s8;
   LLT sOther = IsHD6309 ? s16 : s32;
 
   auto LegalTypes32 = {p, s8, s16, s32};
@@ -145,28 +145,29 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
       .narrowScalarIf(IsScalarPointer(1, 0, std::greater<>{}), ChangeToSameSizeScalar(1, 0));
 
   getActionDefinitionsBuilder({G_ADD, G_SUB})
-      .legalFor({s8, s16})
-      .clampScalar(0, s1, s16);
+      .legalFor(LegalAccumulators)
+      .clampScalar(0, s1, sMaxLogic);
 
   getActionDefinitionsBuilder({G_UADDO, G_UADDE, G_USUBO, G_USUBE, G_SADDO, G_SADDE, G_SSUBO, G_SSUBE})
-      .legalFor({{s8, s1}, {s8, s8}, {s16, s1}, {s16, s16}})
-      .clampScalar(0, s8, s16);
+      .legalForCartesianProduct(LegalAccumulators, {s1, sMaxLogic})
+      .clampScalar(0, s1, sMaxLogic);
 
   getActionDefinitionsBuilder({G_MUL, G_UMULH, G_SMULH})
       .legalFor(LegalAccumulators)
-      .libcall();
-      //.clampScalar(0, s8, sMaxArith);
+      .clampScalar(0, s1, sMaxLogic);
 
   getActionDefinitionsBuilder({G_SDIV, G_UDIV, G_SREM, G_UREM})
-      .libcallFor(LegalLibcallScalars).clampScalar(0, s8, s32);
+      .libcallFor(LegalLibcallScalars)
+      .clampScalar(0, s8, s32);
 
   getActionDefinitionsBuilder({G_AND, G_OR, G_XOR})
-      .legalFor({s8, s16}).libcall();
+      .legalFor(LegalAccumulators)
+      .clampScalar(0, s1, sMaxLogic);
 
   getActionDefinitionsBuilder({G_SHL, G_LSHR, G_ASHR, G_ROTR, G_ROTL})
       .legalForCartesianProduct(LegalScalars, {s1, s8})
-      .clampScalar(0, s8, sMaxArith)
-      .clampScalar(1, s1, s3).custom();
+      .clampScalar(0, s8, sMaxLogic)
+      .clampScalar(1, s1, s3);
 
   getActionDefinitionsBuilder({G_FSHL, G_FSHR, G_UMULO, G_UMULFIX, G_SMULFIX, G_SMULFIXSAT, G_UMULFIXSAT, G_UDIVFIX, G_SDIVFIX, G_SDIVFIXSAT, G_UDIVFIXSAT, G_FCANONICALIZE})
       .libcall();
@@ -769,34 +770,6 @@ bool MC6809LegalizerInfo::legalizeMultiplyWithOverflow(LegalizerHelper &Helper, 
   MI.eraseFromParent();
   return LegalizerHelper::Legalized;
 }
-
-#if 0
-bool
-MC6809LegalizerInfo::legalizeMultiply(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const {
-  MachineIRBuilder &MIRBuilder = Helper.MIRBuilder;
-
-  assert(MI.getOpcode() == G_MUL && "Unexpected opcode");
-
-  Register MulReg = MI.getOperand(0).getReg();
-  LLT Ty = MRI.getType(MulReg);
-
-  Register LHSReg = MI.getOperand(1).getReg();
-  Register RHSReg = MI.getOperand(2).getReg();
-
-  MIRBuilder.buildMul(MulReg, LHSReg, RHSReg);
-
-  auto One = MIRBuilder.buildConstant(Ty, 1);
-  auto Max =
-      MIRBuilder.buildConstant(Ty, APInt::getMaxValue(Ty.getSizeInBits()));
-  MIRBuilder.buildICmp(
-      CmpInst::ICMP_UGT, OverflowReg, LHSReg,
-      MIRBuilder.buildInstr(G_UDIV, {Ty},
-                            {Max, MIRBuilder.buildUMax(Ty, RHSReg, One)}));
-
-  MI.eraseFromParent();
-  return LegalizerHelper::Legalized;
-}
-#endif
 
 bool MC6809LegalizerInfo::legalizeFCanonicalize(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const {
   Helper.Observer.changingInstr(MI);
