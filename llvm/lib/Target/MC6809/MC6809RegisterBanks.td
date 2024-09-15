@@ -10,8 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+//def AnyRegBank : RegisterBank<"Any", [ACC32, ACC16, ACC8, BIT1, INDEX16, CCFlag, CCond, CARRY]>;
+
 /// General Purpose Registers: AA, AD, etc
-def ACCUMRegBank : RegisterBank<"ACCUM", [ACC32]>;
+def ACCUMRegBank : RegisterBank<"ACCUM", [ACC32, ACC16, ACC8, BIT1]>;
 
 /// Index Registers: IX, IY, SU, SS
 def INDEXRegBank : RegisterBank<"INDEX", [INDEX16]>;
@@ -20,4 +22,4 @@ def INDEXRegBank : RegisterBank<"INDEX", [INDEX16]>;
 def IMAGRegBank : RegisterBank<"IMAG", [Imag32]>;
 
 /// Conditional register: CC bits
-def CCRegBank : RegisterBank<"FLAGS", [CCFlag, CCond]>;
+def FLAGSRegBank : RegisterBank<"FLAGS", [CCFlag, CCond]>;

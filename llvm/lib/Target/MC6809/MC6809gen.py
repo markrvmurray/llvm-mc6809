@@ -39,14 +39,14 @@ class Generate:
 		self.filehandle = open(self.filename, "w")
 		for line in self.contents:
 			self.filehandle.write(line + '\n')
-			if line == self.marker_start:
+			if self.marker_start in line:
 				break
 		return self.filehandle
 
 	def __exit__(self, *args):
 		preamble_done = False
 		for line in self.contents:
-			if line == self.marker_finish:
+			if self.marker_finish in line:
 				preamble_done = True
 			if preamble_done:
 				self.filehandle.write(line + '\n')
@@ -372,7 +372,7 @@ for instr_ in RawInstructions:
 					instr["lets"]["mayLoad"] = "true"
 				if instr["mnemonic"] == "MULD":
 					instr["uses"] = ["AD"]
-					instr["defs"] = ["AQ", "NZ", "N", "Z"] + defs("Q")
+					instr["defs"] = ["NZ", "N", "Z"] + defs("Q")
 					instr["lets"]["mayLoad"] = "true"
 			elif instr["mnemonic"] in ["ANDCC", "ORCC"]:
 				instr["uses"] += ["NZ", "N", "Z", "V", "C"]
@@ -851,8 +851,10 @@ with Generate("MC6809InstrInfo.td", marker_start="// MRVM START MARKER 2", marke
 					ii.write('def {name} : MC6809{addressmode}_P{page}<{outsformatted}, "{lcmnemonic}", Opcode<0x{opcode:02X},{page}>, [{defslist}], [{useslist}]>;\n\n'.format(**instr))
 
 # =====================================================================================================================
+conds = {1:"rn", 2:"hi", 3:"ls", 4:"hs", 5:"lo", 6:"ne", 7:"eq", 8:"vc", 9:"vs", 10:"pl", 11:"mi", 12:"ge", 13:"lt", 14:"gt", 15:"le"}
 opcode_enum = [ ]
 opcode_table = [ [ "None" for i in range(256) ] for _ in range(3) ]
+consumer_table = [ [ "" for i in range(256) ] for _ in range(3) ]
 pageindex = 0
 for page in Instructions:
 	for instr in page:
@@ -860,97 +862,150 @@ for page in Instructions:
 			case 'd':
 				instr['enum_fields_decl'] = ['u8']
 				instr['enum_fields'] = ['addr8']
+				instr['enum_fields_consume'] = ['let addr8 = self.mem.read8(&self.reg.pc);', 'self.reg.pc_increment();']
 			case 'e':
 				instr['enum_fields_decl'] = ['u16']
 				instr['enum_fields'] = ['addr16']
+				instr['enum_fields_consume'] = ['let addr16 = self.mem.read16(&self.reg.pc);', 'self.reg.pc_increment();', 'self.reg.pc_increment();']
 			case 'id':
 				instr['enum_fields_decl'] = ['u8', 'u8']
 				instr['enum_fields'] = ['imm8', 'addr8']
+				instr['enum_fields_consume'] = ['let imm8 = self.mem.read8(&self.reg.pc);', 'self.reg.pc_increment();', 'let addr8 = self.mem.read8(&self.reg.pc);', 'self.reg.pc_increment();']
 			case 'ie':
 				instr['enum_fields_decl'] = ['u8', 'u16']
 				instr['enum_fields'] = ['imm8', 'addr16']
+				instr['enum_fields_consume'] = ['let imm8 = self.mem.read8(&self.reg.pc);', 'self.reg.pc_increment();', 'let addr16 = self.mem.read16(&self.reg.pc);', 'self.reg.pc_increment();', 'self.reg.pc_increment();']
 			case 'x':
 				instr['enum_fields_decl'] = []
 				instr['enum_fields'] = []
+				instr['enum_fields_consume'] = []
 			case 'b':
 				instr['enum_fields_decl'] = ['i8']
 				instr['enum_fields'] = ['pcoffset8']
+				instr['enum_fields_consume'] = ['let pcoffset8 = self.mem.read8(&self.reg.pc) as i8;', 'self.reg.pc_increment();']
 			case 'lb':
 				instr['enum_fields_decl'] = ['i16']
 				instr['enum_fields'] = ['pcoffset16']
+				instr['enum_fields_consume'] = ['let pcoffset16 = self.mem.read16(&self.reg.pc) as i16;', 'self.reg.pc_increment();', 'self.reg.pc_increment();']
 			case 'bc':
 				instr['enum_fields_decl'] = ['Cond', 'i8']
-				instr['enum_fields'] = ['cond', 'pcoffset8']
+				instr['enum_fields'] = ['pcoffset8']
+				instr['enum_fields_consume'] = ['let pcoffset8 = self.mem.read8(&self.reg.pc) as i8;', 'self.reg.pc_increment();']
 			case 'lbc':
 				instr['enum_fields_decl'] = ['Cond', 'i16']
-				instr['enum_fields'] = ['cond', 'pcoffset16']
+				instr['enum_fields'] = ['pcoffset16']
+				instr['enum_fields_consume'] = ['let pcoffset16 = self.mem.read16(&self.reg.pc) as i16;', 'self.reg.pc_increment();', 'self.reg.pc_increment();']
 			case 'r':
 				instr['enum_fields_decl'] = []
 				instr['enum_fields'] = []
+				instr['enum_fields_consume'] = []
 			case 'i8':
 				instr['enum_fields_decl'] = ['u8']
 				instr['enum_fields'] = ['imm8']
+				instr['enum_fields_consume'] = ['let imm8 = self.mem.read8(&self.reg.pc);', 'self.reg.pc_increment();']
 			case 'i16':
 				instr['enum_fields_decl'] = ['u16']
 				instr['enum_fields'] = ['imm16']
+				instr['enum_fields_consume'] = ['let imm16 = self.mem.read16(&self.reg.pc);', 'self.reg.pc_increment();', 'self.reg.pc_increment();']
 			case 'i32':
 				instr['enum_fields_decl'] = ['u32']
 				instr['enum_fields'] = ['imm32']
+				instr['enum_fields_consume'] = ['let imm32 = self.mem.read32(&self.reg.pc);', 'self.reg.pc_increment();', 'self.reg.pc_increment();', 'self.reg.pc_increment();', 'self.reg.pc_increment();']
 			case 'a':
 				instr['enum_fields_decl'] = []
 				instr['enum_fields'] = []
+				instr['enum_fields_consume'] = []
 			case 'p':
-				instr['enum_fields_decl'] = ['Reg', 'Reg']
-				instr['enum_fields'] = ['rega', 'regb']
+				instr['enum_fields_decl'] = ['RegPair']
+				instr['enum_fields'] = ['regpair']
+				instr['enum_fields_consume'] = ['let regpair = RegPair::new(self.mem.read8(&self.reg.pc));', 'self.reg.pc_increment();']
 			case 'pp':
-				instr['enum_fields_decl'] = ['Reg', 'Reg']
-				instr['enum_fields'] = ['rega', 'regb']
+				instr['enum_fields_decl'] = ['RegPair']
+				instr['enum_fields'] = ['regpair']
+				instr['enum_fields_consume'] = ['let regpair = RegPair::new(self.mem.read8(&self.reg.pc));', 'self.reg.pc_increment();']
 			case 's':
 				instr['enum_fields_decl'] = ['u8']
 				instr['enum_fields'] = ['stackbyte']
+				instr['enum_fields_consume'] = ['let stackbyte = self.mem.read8(&self.reg.pc);', 'self.reg.pc_increment();']
 			case 'bd':
-				instr['enum_fields_decl'] = ['Reg', 'u8', 'u8', 'u8']
-				instr['enum_fields'] = ['reg', 'bita', 'bitb', 'addr8']
+				instr['enum_fields_decl'] = ['BitSet', 'u8']
+				instr['enum_fields'] = ['bitset', 'addr8']
+				instr['enum_fields_consume'] = ['let bitset = BitSet::new(self.mem.read8(&self.reg.pc));', 'self.reg.pc_increment();', 'let addr8 = self.mem.read8(&self.reg.pc);', 'self.reg.pc_increment();']
 			case 'i':
 				instr['enum_fields_decl'] = ['IndexMode']
 				instr['enum_fields'] = ['index']
+				instr['enum_fields_consume'] = ['let indexbyte = self.mem.read8(&self.reg.pc);', 'self.reg.pc_increment();', 'let byte1 = self.mem.read8(&(self.reg.pc + 1));', 'let byte2 = self.mem.read8(&(self.reg.pc + 2));', 'let index = IndexMode::new(indexbyte, byte1, byte2);']
 			case 'ii':
 				instr['enum_fields_decl'] = ['u8', 'IndexMode']
 				instr['enum_fields'] = ['imm8', 'index']
+				instr['enum_fields_consume'] = ['let imm8 = self.mem.read8(&self.reg.pc);', 'self.reg.pc_increment();', 'let indexbyte = self.mem.read8(&self.reg.pc);', 'self.reg.pc_increment();', 'let byte1 = self.mem.read8(&(self.reg.pc + 1));', 'let byte2 = self.mem.read8(&(self.reg.pc + 2));', 'let index = IndexMode::new(indexbyte, byte1, byte2);']
 			case _:
 				print("OINQUE DEBUG mode '{}' not handled".format(instr['mode']))
 				raise RuntimeError("OINQUE DEBUG mode '{mode}' not handled for {name}".format(**instr))
 		if len(instr['enum_fields_decl']):
 			instr['enum_fields_decl'] = '(' + ', '.join(instr['enum_fields_decl']) + ')'
-			instr['enum_fields'] = '(' + ', '.join(instr['enum_fields']) + ')'
+			instr['enum_fields_joined'] = '(' + ', '.join(instr['enum_fields']) + ')'
 		else:
 			instr['enum_fields_decl'] = ''
-			instr['enum_fields'] = ''
+			instr['enum_fields_joined'] = ''
 		opcode_enum.append("{name}".format(**instr))
-		if instr['opcode'] == 0x2 and (instr['name'] == 'Bbc' or instr['name'] == 'LBlbc'):
-			opcode_table[pageindex][instr['opcode']*16 + 2] = 'Some(Instruction::{name}{enum_fields})'.format(**instr)
+		if (instr['name'] == 'Bbc' or instr['name'] == 'LBlbc'):
+			for condition in range(2, 16):
+				instr['enum_fields_joined'] = '(Cond::' + conds[condition].upper() + ', ' + ', '.join(instr['enum_fields']) + ')'
+				opcode_table[pageindex][instr['opcode']*16 + condition] = 'Instruction::{name}{enum_fields_joined}'.format(**instr)
+				consumer_table[pageindex][instr['opcode']*16 + condition] = instr['enum_fields_consume']
 		else:
-			opcode_table[pageindex][instr['opcode']] = 'Some(Instruction::{name}{enum_fields})'.format(**instr)
+			opcode_table[pageindex][instr['opcode']] = 'Instruction::{name}{enum_fields_joined}'.format(**instr)
+			consumer_table[pageindex][instr['opcode']] = instr['enum_fields_consume']
 	pageindex += 1
-with Generate("MC6809Instructions.rs", marker_start="// MRVM START MARKER 1", marker_finish="// MRVM END MARKER 1") as rust:
+with Generate("simulation.rs", marker_start="// MRVM START MARKER 1", marker_finish="// MRVM END MARKER 1") as rust:
 	pageindex = 0
 	for page in Instructions:
 		for instr in page:
 			rust.write('    {name}{enum_fields_decl},\n'.format(**instr))
 
 # =====================================================================================================================
-with Generate("MC6809Instructions.rs", marker_start="// MRVM START MARKER 2", marker_finish="// MRVM END MARKER 2") as rust:
-	table_row = 0
-	for pageindex in range(3):
-		rust.write("    [\n")
-		for opcodeindex in range(256):
-			rust.write("        {},\n".format(opcode_table[pageindex][opcodeindex]))
-			table_row += 1 
-		rust.write("    ],\n")
+with Generate("simulation.rs", marker_start="// MRVM START MARKER 2", marker_finish="// MRVM END MARKER 2") as rust:
+	for opcodeindex in range(256):
+		if opcode_table[0][opcodeindex] == "None":
+			continue
+		if len(consumer_table[0][opcodeindex]):
+			rust.write("            0x{:02X} => {{\n".format(opcodeindex))
+			for consumer in consumer_table[0][opcodeindex]:
+				rust.write("                {}\n".format(consumer))
+			rust.write("                {}\n".format(opcode_table[0][opcodeindex]))
+			rust.write("            }\n")
+		else:
+			rust.write("            0x{:02X} => {},\n".format(opcodeindex, opcode_table[0][opcodeindex])) 
+
+with Generate("simulation.rs", marker_start="// MRVM START MARKER 3", marker_finish="// MRVM END MARKER 3") as rust:
+	for opcodeindex in range(256):
+		if opcode_table[1][opcodeindex] == "None":
+			continue
+		if len(consumer_table[1][opcodeindex]):
+			rust.write("            0x{:02X} => {{\n".format(opcodeindex))
+			for consumer in consumer_table[1][opcodeindex]:
+				rust.write("                {}\n".format(consumer))
+			rust.write("                {}\n".format(opcode_table[1][opcodeindex]))
+			rust.write("            }\n")
+		else:
+			rust.write("            0x{:02X} => {},\n".format(opcodeindex, opcode_table[1][opcodeindex])) 
+
+with Generate("simulation.rs", marker_start="// MRVM START MARKER 4", marker_finish="// MRVM END MARKER 4") as rust:
+	for opcodeindex in range(256):
+		if opcode_table[2][opcodeindex] == "None":
+			continue
+		if len(consumer_table[2][opcodeindex]):
+			rust.write("            0x{:02X} => {{\n".format(opcodeindex))
+			for consumer in consumer_table[2][opcodeindex]:
+				rust.write("                {}\n".format(consumer))
+			rust.write("                {}\n".format(opcode_table[2][opcodeindex]))
+			rust.write("            }\n")
+		else:
+			rust.write("            0x{:02X} => {},\n".format(opcodeindex, opcode_table[2][opcodeindex])) 
 
 # =====================================================================================================================
 pagecode = {1:"    ", 2:"0x10", 3:"0x11"}
-conds = {1:"rn", 2:"hi", 3:"ls", 4:"hs", 5:"lo", 6:"ne", 7:"eq", 8:"vc", 9:"vs", 10:"pl", 11:"mi", 12:"ge", 13:"lt", 14:"gt", 15:"le"}
 with Generate("MC6809InstrDisassembler6809Tests.txt", marker_start="# MRVM START MARKER", marker_finish="# MRVM END MARKER") as tt6809, Generate("MC6809InstrDisassembler6309Tests.txt", marker_start="# MRVM START MARKER", marker_finish="# MRVM END MARKER") as tt6309:
 	for page in Instructions:
 		for instr in page:

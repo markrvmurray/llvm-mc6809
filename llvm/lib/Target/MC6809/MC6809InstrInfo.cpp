@@ -157,9 +157,7 @@ MC6809InstrInfo::MC6809InstrInfo()
       {{MC6809::AD, MC6809::AE}, MC6809::ADCDi_oE}, {{MC6809::AD, MC6809::AF}, MC6809::ADCDi_oF}, {{MC6809::AD, MC6809::AW}, MC6809::ADCDi_oW},
   };
   SubBorrowImmediateOpcode = {
-      {{MC6809::AA}, MC6809::SBCAi8},
-      {{MC6809::AB}, MC6809::SBCBi8},
-      {{MC6809::AD}, MC6809::SBCDi16},
+      {{MC6809::AA}, MC6809::SBCAi8}, {{MC6809::AALSB}, MC6809::SBCAi8}, {{MC6809::AB}, MC6809::SBCBi8}, {{MC6809::ABLSB}, MC6809::SBCBi8}, {{MC6809::AD}, MC6809::SBCDi16},
   };
   SubImmediateOpcode = {
       {{MC6809::AA}, MC6809::SUBAi8}, {{MC6809::AB}, MC6809::SUBBi8}, {{MC6809::AE}, MC6809::SUBEi8}, {{MC6809::AF}, MC6809::SUBFi8}, {{MC6809::AD}, MC6809::SUBDi16}, {{MC6809::AW}, MC6809::SUBWi16},
@@ -170,6 +168,11 @@ MC6809InstrInfo::MC6809InstrInfo()
       {{MC6809::AD, 5}, MC6809::SUBDi_o5},   {{MC6809::AD, 8}, MC6809::SUBDi_o8},   {{MC6809::AD, 16}, MC6809::SUBDi_o16}, {{MC6809::AE, -1}, MC6809::SUBEi_o16}, {{MC6809::AE, 0}, MC6809::SUBEi_o0},   {{MC6809::AE, 5}, MC6809::SUBEi_o5},
       {{MC6809::AE, 8}, MC6809::SUBEi_o8},   {{MC6809::AE, 16}, MC6809::SUBEi_o16}, {{MC6809::AF, -1}, MC6809::SUBFi_o16}, {{MC6809::AF, 0}, MC6809::SUBFi_o0},   {{MC6809::AF, 5}, MC6809::SUBFi_o5},   {{MC6809::AF, 8}, MC6809::SUBFi_o8},
       {{MC6809::AF, 16}, MC6809::SUBFi_o16}, {{MC6809::AW, -1}, MC6809::SUBWi_o16}, {{MC6809::AW, 0}, MC6809::SUBWi_o0},   {{MC6809::AW, 5}, MC6809::SUBWi_o5},   {{MC6809::AW, 8}, MC6809::SUBWi_o8},   {{MC6809::AW, 16}, MC6809::SUBWi_o16},
+  };
+  SubBorrowIdxImmOpcode = {
+      {{MC6809::AA, -1}, MC6809::SBCAi_o16}, {{MC6809::AA, 0}, MC6809::SBCAi_o0}, {{MC6809::AA, 5}, MC6809::SBCAi_o5}, {{MC6809::AA, 8}, MC6809::SBCAi_o8}, {{MC6809::AA, 16}, MC6809::SBCAi_o16},
+      {{MC6809::AB, -1}, MC6809::SBCBi_o16}, {{MC6809::AB, 0}, MC6809::SBCBi_o0}, {{MC6809::AB, 5}, MC6809::SBCBi_o5}, {{MC6809::AB, 8}, MC6809::SBCBi_o8}, {{MC6809::AB, 16}, MC6809::SBCBi_o16},
+      {{MC6809::AD, -1}, MC6809::SBCDi_o16}, {{MC6809::AD, 0}, MC6809::SBCDi_o0}, {{MC6809::AD, 5}, MC6809::SBCDi_o5}, {{MC6809::AD, 8}, MC6809::SBCDi_o8}, {{MC6809::AD, 16}, MC6809::SBCDi_o16},
   };
   SubIdxRegOpcode = {
       {{MC6809::AA, MC6809::AA}, MC6809::SUBAi_oA}, {{MC6809::AA, MC6809::AB}, MC6809::SUBAi_oB}, {{MC6809::AA, MC6809::AD}, MC6809::SUBAi_oD}, {{MC6809::AA, MC6809::AE}, MC6809::SUBAi_oE}, {{MC6809::AA, MC6809::AF}, MC6809::SUBAi_oF},
@@ -240,6 +243,9 @@ MC6809InstrInfo::MC6809InstrInfo()
       {{MC6809::AB, MC6809::AF}, MC6809::ANDBi_oF}, {{MC6809::AB, MC6809::AW}, MC6809::ANDBi_oW}, {{MC6809::AD, MC6809::AA}, MC6809::ANDDi_oA}, {{MC6809::AD, MC6809::AB}, MC6809::ANDDi_oB}, {{MC6809::AD, MC6809::AD}, MC6809::ANDDi_oD},
       {{MC6809::AD, MC6809::AE}, MC6809::ANDDi_oE}, {{MC6809::AD, MC6809::AF}, MC6809::ANDDi_oF}, {{MC6809::AD, MC6809::AW}, MC6809::ANDDi_oW},
   };
+  ANDPullOpcode = {
+      {{MC6809::AA}, MC6809::ANDAi_Inc1}, {{MC6809::AB}, MC6809::ANDBi_Inc1}, {{MC6809::AD}, MC6809::ANDDi_Inc2},
+  };
   ORImmediateOpcode = {
       {{MC6809::AA}, MC6809::ORAi8}, {{MC6809::AALSB}, MC6809::ORAi8}, {{MC6809::AB}, MC6809::ORBi8}, {{MC6809::ABLSB}, MC6809::ORBi8}, {{MC6809::AD}, MC6809::ORDi16},
   };
@@ -253,6 +259,9 @@ MC6809InstrInfo::MC6809InstrInfo()
       {{MC6809::AA, MC6809::AW}, MC6809::ORAi_oW}, {{MC6809::AB, MC6809::AA}, MC6809::ORBi_oA}, {{MC6809::AB, MC6809::AB}, MC6809::ORBi_oB}, {{MC6809::AB, MC6809::AD}, MC6809::ORBi_oD}, {{MC6809::AB, MC6809::AE}, MC6809::ORBi_oE},
       {{MC6809::AB, MC6809::AF}, MC6809::ORBi_oF}, {{MC6809::AB, MC6809::AW}, MC6809::ORBi_oW}, {{MC6809::AD, MC6809::AA}, MC6809::ORDi_oA}, {{MC6809::AD, MC6809::AB}, MC6809::ORDi_oB}, {{MC6809::AD, MC6809::AD}, MC6809::ORDi_oD},
       {{MC6809::AD, MC6809::AE}, MC6809::ORDi_oE}, {{MC6809::AD, MC6809::AF}, MC6809::ORDi_oF}, {{MC6809::AD, MC6809::AW}, MC6809::ORDi_oW},
+  };
+  ORPullOpcode = {
+      {{MC6809::AA}, MC6809::ORAi_Inc1}, {{MC6809::AB}, MC6809::ORBi_Inc1}, {{MC6809::AD}, MC6809::ORDi_Inc2},
   };
   XORImmediateOpcode = {
       {{MC6809::AA}, MC6809::EORAi8},
@@ -269,6 +278,9 @@ MC6809InstrInfo::MC6809InstrInfo()
       {{MC6809::AA, MC6809::AW}, MC6809::EORAi_oW}, {{MC6809::AB, MC6809::AA}, MC6809::EORBi_oA}, {{MC6809::AB, MC6809::AB}, MC6809::EORBi_oB}, {{MC6809::AB, MC6809::AD}, MC6809::EORBi_oD}, {{MC6809::AB, MC6809::AE}, MC6809::EORBi_oE},
       {{MC6809::AB, MC6809::AF}, MC6809::EORBi_oF}, {{MC6809::AB, MC6809::AW}, MC6809::EORBi_oW}, {{MC6809::AD, MC6809::AA}, MC6809::EORDi_oA}, {{MC6809::AD, MC6809::AB}, MC6809::EORDi_oB}, {{MC6809::AD, MC6809::AD}, MC6809::EORDi_oD},
       {{MC6809::AD, MC6809::AE}, MC6809::EORDi_oE}, {{MC6809::AD, MC6809::AF}, MC6809::EORDi_oF}, {{MC6809::AD, MC6809::AW}, MC6809::EORDi_oW},
+  };
+  XORPullOpcode = {
+      {{MC6809::AA}, MC6809::EORAi_Inc1}, {{MC6809::AB}, MC6809::EORBi_Inc1}, {{MC6809::AD}, MC6809::EORDi_Inc2},
   };
 }
 
@@ -304,130 +316,20 @@ MachineBasicBlock *MC6809InstrInfo::getBB(const MachineBasicBlock::instr_iterato
 }
 
 Register MC6809InstrInfo::isLoadFromStackSlot(const MachineInstr &MI, int &FrameIndex) const {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
-  switch (MI.getOpcode()) {
-  default:
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : No Match, exiting\n";);
-    break;
-#if 0
-  case MC6809::LDAi_o0:
-  case MC6809::LDBi_o0:
-  case MC6809::LDDi_o0:
-  case MC6809::LDEi_o0:
-  case MC6809::LDFi_o0:
-  case MC6809::LDWi_o0:
-  case MC6809::LDQi_o0:
-  case MC6809::LDXi_o0:
-  case MC6809::LDYi_o0:
-  case MC6809::LDAi_o8:
-  case MC6809::LDBi_o8:
-  case MC6809::LDDi_o8:
-  case MC6809::LDEi_o8:
-  case MC6809::LDFi_o8:
-  case MC6809::LDWi_o8:
-  case MC6809::LDQi_o8:
-  case MC6809::LDXi_o8:
-  case MC6809::LDYi_o8:
-  case MC6809::LDAi_o16:
-  case MC6809::LDBi_o16:
-  case MC6809::LDDi_o16:
-  case MC6809::LDEi_o16:
-  case MC6809::LDFi_o16:
-  case MC6809::LDWi_o16:
-  case MC6809::LDQi_o16:
-  case MC6809::LDXi_o16:
-  case MC6809::LDYi_o16:
-#endif
-  case MC6809::Load_i8_Idx_Imm:
-  case MC6809::Load_i8_Idx_Reg8:
-  case MC6809::Load_i8_Idx_Reg16:
-  case MC6809::Load_i16_Idx_Imm:
-  case MC6809::Load_i16_Idx_Reg8:
-  case MC6809::Load_i16_Idx_Reg16:
-  case MC6809::Load_iPtr_Idx_Imm:
-  case MC6809::Load_iPtr_Idx_Reg8:
-  case MC6809::Load_iPtr_Idx_Reg16:
-  case MC6809::Load_i32_Idx_Imm:
-  case MC6809::Load_i32_Idx_Reg8:
-  case MC6809::Load_i32_Idx_Reg16:
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Match - checking further\n";);
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Match : MI.getOperand(0).getSubReg() (== 0) = " << MI.getOperand(0).getSubReg() << "\n";);
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Match : MI.getOperand(1).isFI() = " << MI.getOperand(1).isFI() << "\n";);
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Match : MI.getOperand(2).isImm() = " << MI.getOperand(2).isImm() << "\n";);
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Match : MI.getOperand(2).getImm() (== 0) = " << MI.getOperand(2).getImm() << "\n";);
-    if (MI.getOperand(0).getSubReg() == 0 && MI.getOperand(1).isFI() && MI.getOperand(2).isImm() && MI.getOperand(2).getImm() == 0) {
-      LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Match further\n";);
-      FrameIndex = MI.getOperand(1).getIndex();
-      return MI.getOperand(0).getReg();
-    }
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : No Match\n";);
-    break;
+  SmallVector<const MachineMemOperand *, 1> Accesses;
+  if (MI.mayLoad() && hasLoadFromStackSlot(MI, Accesses) && Accesses.size() == 1) {
+    FrameIndex = cast<FixedStackPseudoSourceValue>(Accesses.front()->getPseudoValue())->getFrameIndex();
+    return MI.getOperand(0).getReg();
   }
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : 0 : MI = "; MI.dump(););
   return 0;
 }
 
 Register MC6809InstrInfo::isStoreToStackSlot(const MachineInstr &MI, int &FrameIndex) const {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
-  switch (MI.getOpcode()) {
-  default:
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : No Match, exiting\n";);
-    break;
-#if 0
-  case MC6809::STAi_o0:
-  case MC6809::STBi_o0:
-  case MC6809::STDi_o0:
-  case MC6809::STEi_o0:
-  case MC6809::STFi_o0:
-  case MC6809::STWi_o0:
-  case MC6809::STQi_o0:
-  case MC6809::STXi_o0:
-  case MC6809::STYi_o0:
-  case MC6809::STAi_o8:
-  case MC6809::STBi_o8:
-  case MC6809::STDi_o8:
-  case MC6809::STEi_o8:
-  case MC6809::STFi_o8:
-  case MC6809::STWi_o8:
-  case MC6809::STQi_o8:
-  case MC6809::STXi_o8:
-  case MC6809::STYi_o8:
-  case MC6809::STAi_o16:
-  case MC6809::STBi_o16:
-  case MC6809::STDi_o16:
-  case MC6809::STEi_o16:
-  case MC6809::STFi_o16:
-  case MC6809::STWi_o16:
-  case MC6809::STQi_o16:
-  case MC6809::STXi_o16:
-  case MC6809::STYi_o16:
-#endif
-  case MC6809::Store_i8_Idx_Imm:
-  case MC6809::Store_i8_Idx_Reg8:
-  case MC6809::Store_i8_Idx_Reg16:
-  case MC6809::Store_i16_Idx_Imm:
-  case MC6809::Store_i16_Idx_Reg8:
-  case MC6809::Store_i16_Idx_Reg16:
-  case MC6809::Store_iPtr_Idx_Imm:
-  case MC6809::Store_iPtr_Idx_Reg8:
-  case MC6809::Store_iPtr_Idx_Reg16:
-  case MC6809::Store_i32_Idx_Imm:
-  case MC6809::Store_i32_Idx_Reg8:
-  case MC6809::Store_i32_Idx_Reg16:
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Match - checking further\n";);
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Match : MI.getOperand(0).getSubReg() (== 0) = " << MI.getOperand(0).getSubReg() << "\n";);
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Match : MI.getOperand(1).isFI() = " << MI.getOperand(1).isFI() << "\n";);
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Match : MI.getOperand(2).isImm() = " << MI.getOperand(2).isImm() << "\n";);
-    // LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Match : MI.getOperand(2).getImm() (== 0) = " << MI.getOperand(2).getImm() << "\n";);
-    if (MI.getOperand(0).getSubReg() == 0 && MI.getOperand(1).isFI() && MI.getOperand(2).isImm() && MI.getOperand(2).getImm() == 0) {
-      LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Match further\n";);
-      FrameIndex = MI.getOperand(1).getIndex();
-      return MI.getOperand(0).getReg();
-    }
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : No Match\n";);
-    break;
+  SmallVector<const MachineMemOperand *, 1> Accesses;
+  if (MI.mayStore() && hasStoreToStackSlot(MI, Accesses) && Accesses.size() == 1) {
+    FrameIndex = cast<FixedStackPseudoSourceValue>(Accesses.front()->getPseudoValue())->getFrameIndex();
+    return MI.getOperand(0).getReg();
   }
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : 0 : MI = "; MI.dump(););
   return 0;
 }
 
@@ -894,8 +796,7 @@ void MC6809InstrInfo::copyPhysReg(MachineBasicBlock &MBB, MachineBasicBlock::ite
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Bundle exit\n";);
     auto Bundler = MIBundleBuilder(MBB, B, ++E);
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Bundle built\n";);
-    LLVM_DEBUG(for (auto &I
-                    : Bundler) {
+    LLVM_DEBUG(for (auto &I: Bundler) {
       dbgs() << "OINQUE DEBUG " << __func__ << " : bundle : I = ";
       I.dump();
     });
@@ -1179,7 +1080,6 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     break;
   case MC6809::Negate_i8:
   case MC6809::Negate_i16:
-  case MC6809::Negate_i32:
     expandNegate(Builder, MI);
     break;
   case MC6809::LSL_i8_Reg:
@@ -1193,20 +1093,31 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::Mul_i8_i16:
     expandMul8_16(Builder, MI);
     break;
-  case MC6809::MulSetCarry_i16_Imm:
-  case MC6809::MulHSetCarry_i16_Imm:
+  case MC6809::Multiply_i16_Imm:
     expandMul16Imm(Builder, MI);
     break;
-  case MC6809::MulSetCarry_i16_Idx_Imm:
+  case MC6809::MultiplyHigh_i16_Imm:
+    expandMulH16Imm(Builder, MI);
+    break;
+  case MC6809::Multiply_i16_Idx_Imm:
     expandMul16IdxImm(Builder, MI);
     break;
-  case MC6809::MulSetCarry_i16_Idx_Reg8:
-  case MC6809::MulSetCarry_i16_Idx_Reg16:
+  case MC6809::MultiplyHigh_i16_Idx_Imm:
+    expandMulH16IdxImm(Builder, MI);
+    break;
+  case MC6809::Multiply_i16_Idx_Reg8:
+  case MC6809::Multiply_i16_Idx_Reg16:
     expandMul16IdxReg(Builder, MI);
     break;
-  case MC6809::MulSetCarry_i16_Reg:
-  case MC6809::MulHSetCarry_i16_Reg:
+  case MC6809::MultiplyHigh_i16_Idx_Reg8:
+  case MC6809::MultiplyHigh_i16_Idx_Reg16:
+    expandMulH16IdxReg(Builder, MI);
+    break;
+  case MC6809::Multiply_i16_Reg:
     expandMul16Reg(Builder, MI);
+    break;
+  case MC6809::MultiplyHigh_i16_Reg:
+    expandMulH16Reg(Builder, MI);
     break;
   case MC6809::BranchSubroutine:
     expandCallRelative(Builder, MI);
@@ -1268,6 +1179,10 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::AND_i16_Reg:
     expandANDReg(Builder, MI);
     break;
+  case MC6809::AND_i8_Pull:
+  case MC6809::AND_i16_Pull:
+    expandANDPull(Builder, MI);
+    break;
   case MC6809::OR_i8_Imm:
   case MC6809::OR_i16_Imm:
     expandImm(ORImm, Builder, MI);
@@ -1314,10 +1229,6 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::AddSetCarryUse_i16_Imm:
     expandImm(AddCarryImm, Builder, MI);
     break;
-  case MC6809::Add_i32_Imm:
-  case MC6809::AddSetCarry_i32_Imm:
-    expandAdd32Imm(Builder, MI);
-    break;
   case MC6809::Add_i8_Idx_Imm:
   case MC6809::Add_i16_Idx_Imm:
   case MC6809::AddSetCarry_i8_Idx_Imm:
@@ -1328,22 +1239,12 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::AddSetCarryUse_i16_Idx_Imm:
     expandIdxImm(AddCarryIdxImm, Builder, MI);
     break;
-  case MC6809::Add_i32_Idx_Imm:
-  case MC6809::AddSetCarry_i32_Idx_Imm:
-    expandAdd32IdxImm(Builder, MI);
-    break;
   case MC6809::AddSetCarry_i8_Idx_Reg8:
   case MC6809::AddSetCarry_i16_Idx_Reg8:
   case MC6809::AddSetCarry_i8_Idx_Reg16:
   case MC6809::AddSetCarry_i16_Idx_Reg16:
     expandIdxReg(AddIdxReg, Builder, MI);
     break;
-#if 0
-  case MC6809::AddSetCarry_i32_Idx_Reg8:
-  case MC6809::AddSetCarry_i32_Idx_Reg16:
-    expandAdd32IdxReg(Builder, MI);
-    break;
-#endif
   case MC6809::Add_i8_Reg:
   case MC6809::Add_i16_Reg:
     expandAddReg(Builder, MI);
@@ -1362,9 +1263,9 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::SubSetCarry_i16_Imm:
     expandImm(SubImm, Builder, MI);
     break;
-  case MC6809::Sub_i32_Imm:
-  case MC6809::SubSetCarry_i32_Imm:
-    expandSub32Imm(Builder, MI);
+  case MC6809::SubSetCarryUse_i8_Imm:
+  case MC6809::SubSetCarryUse_i16_Imm:
+    expandImm(SubBorrowImm, Builder, MI);
     break;
   case MC6809::Sub_i8_Idx_Imm:
   case MC6809::Sub_i16_Idx_Imm:
@@ -1372,22 +1273,12 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::SubSetCarry_i16_Idx_Imm:
     expandIdxImm(SubIdxImm, Builder, MI);
     break;
-  case MC6809::Sub_i32_Idx_Imm:
-  case MC6809::SubSetCarry_i32_Idx_Imm:
-    expandSub32IdxImm(Builder, MI);
-    break;
   case MC6809::SubSetCarry_i8_Idx_Reg8:
   case MC6809::SubSetCarry_i16_Idx_Reg8:
   case MC6809::SubSetCarry_i8_Idx_Reg16:
   case MC6809::SubSetCarry_i16_Idx_Reg16:
     expandIdxReg(SubIdxReg, Builder, MI);
     break;
-#if 0
-  case MC6809::SubSetCarry_i32_Idx_Reg8:
-  case MC6809::SubSetCarry_i32_Idx_Reg16:
-    expandSub32IdxReg(Builder, MI);
-    break;
-#endif
   case MC6809::Sub_i8_Reg:
   case MC6809::Sub_i16_Reg:
     expandSubReg(Builder, MI);
@@ -1396,20 +1287,22 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::SubSetCarry_i16_Reg:
     expandSubSetCarryReg(Builder, MI);
     break;
+  case MC6809::SubSetCarryUse_i8_Idx_Imm:
+  case MC6809::SubSetCarryUse_i16_Idx_Imm:
+    expandIdxImm(SubBorrowIdxImm, Builder, MI);
+    break;
+  case MC6809::SubSetCarryUse_i8_Reg:
+  case MC6809::SubSetCarryUse_i16_Reg:
+    expandSubSetCarryUseReg(Builder, MI);
+    break;
   case MC6809::Sub_i8_Pull:
   case MC6809::Sub_i16_Pull:
-  case MC6809::Sub_i32_Pull:
     expandSubPull(Builder, MI);
     break;
   case MC6809::Compare_i8_Imm:
   case MC6809::Compare_i16_Imm:
     expandCompareImm(Builder, MI);
     break;
-#if 0
-  case MC6809::Compare_i32_Imm:
-    expandCompare32Imm(Builder, MI);
-    break;
-#endif
   case MC6809::Compare_i8_Idx_Imm:
   case MC6809::Compare_i16_Idx_Imm:
   case MC6809::Compare_i8_Idx_Reg8:
@@ -1422,32 +1315,14 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::Compare_i16_Reg:
     expandCompareReg(Builder, MI);
     break;
-#if 0
-  case MC6809::Compare_i32_Idx_Imm:
-    expandCompare32IdxImm(Builder, MI);
-    break;
-  case MC6809::Compare_i32_Idx_Reg8:
-  case MC6809::Compare_i32_Idx_Reg16:
-    expandCompare32Idx(Builder, MI);
-    break;
-#endif
   case MC6809::Test_i8_Reg:
   case MC6809::Test_i16_Reg:
     expandTestReg(Builder, MI);
-    break;
-  case MC6809::Test_i32_Reg:
-    expandTestReg32(Builder, MI);
     break;
   case MC6809::Copy8:
   case MC6809::Copy16:
     MI.setDesc(Builder.getTII().get(MC6809::TFRp));
     break;
-  case MC6809::Push_i32: {
-    Builder.buildInstr(MC6809::PSHSWx); // PSHS W
-    Builder.buildInstr(MC6809::PSHSs).addUse(MC6809::AD); // PSHS D
-    MI.removeFromParent();
-    break;
-  }
   case MC6809::Push_i8:
   case MC6809::Push_i16:
   case MC6809::Push_Ptr: {
@@ -1581,12 +1456,33 @@ void MC6809InstrInfo::expandImm(ContextImmediate Context, MachineIRBuilder &Buil
 
   if (ValOp.isImm() || ValOp.isCImm())
     Val = ValOp.isImm() ? ValOp.getImm() : ValOp.getCImm()->getSExtValue();
-  auto OpcodePair = Context.Opcode->find(DestReg);
-  if (OpcodePair == Context.Opcode->end())
-    llvm_unreachable("Cannot find machine instruction with this immediate operand");
+  else
+    llvm_unreachable("Unable to determine immediate value");
   if (Val != Context.IdentityValue) {
-    auto Instr = Builder.buildInstr(OpcodePair->getSecond()).addDef(DestReg, RegState::Implicit).addImm(Val);
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Instr = "; Instr->dump(););
+    auto OpcodePair = Context.Opcode->find(DestReg);
+    if (OpcodePair == Context.Opcode->end()) {
+      if (DestReg == MC6809::AW) {
+        // Now we cheat!
+        OpcodePair = Context.Opcode->find(MC6809::AD);
+        assert((OpcodePair != Context.Opcode->end()) && "This should not be reached! We have the D register available.");
+        MachineBasicBlock &MBB = *MI.getParent();
+        MachineBasicBlock::iterator B, E;
+        B = Builder.buildInstr(MC6809::EXGp).addDef(MC6809::AD).addDef(DestReg).addUse(MC6809::AD).addUse(DestReg);
+        Builder.buildInstr(OpcodePair->getSecond()).addDef(MC6809::AD, RegState::Implicit).addImm(Val);
+        E = Builder.buildInstr(MC6809::EXGp).addDef(DestReg).addDef(MC6809::AD).addUse(DestReg).addUse(MC6809::AD);
+        auto Bundler = MIBundleBuilder(MBB, B, ++E);
+        finalizeBundle(MBB, Bundler.begin(), Bundler.end());
+        LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Bundle built\n";);
+        LLVM_DEBUG(for (auto &I : Bundler) {
+          dbgs() << "OINQUE DEBUG " << __func__ << " : bundle : I = ";
+          I.dump();
+        });
+      } else
+        llvm_unreachable("Cannot find machine instruction with this immediate operand");
+    } else {
+      auto Instr = Builder.buildInstr(OpcodePair->getSecond()).addDef(DestReg, RegState::Implicit).addImm(Val);
+      LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Instr = "; Instr->dump(););
+    }
   }
   MI.eraseFromParent();
 }
@@ -1605,14 +1501,38 @@ void MC6809InstrInfo::expandIdxImm(ContextIndexImmediate Context, MachineIRBuild
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : OffsetSize (in bits) = " << OffsetSize << " : Offset = " << Offset << "\n";);
   RegPlusOffsetLen Lookup{DestReg, OffsetSize};
   auto OpcodePair = Context.Opcode->find(Lookup);
-  if (OpcodePair == Context.Opcode->end())
-    llvm_unreachable("Cannot find machine instruction with these immediate indexed operands");
-  auto Instr = Builder.buildInstr(OpcodePair->getSecond()).addDef(DestReg, RegState::Implicit);
-  if (OffsetSize == 0)
-    Instr.addReg(IndexReg);
-  else
-    Instr.addImm(Offset).addReg(IndexReg);
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Instr = "; Instr->dump(););
+  if (OpcodePair == Context.Opcode->end()) {
+    if (DestReg == MC6809::AW) {
+      // Now we cheat!
+      RegPlusOffsetLen Lookup1{MC6809::AD, OffsetSize};
+      OpcodePair = Context.Opcode->find(Lookup1);
+      assert((OpcodePair != Context.Opcode->end()) && "This should not be reached! We have the D register available.");
+      MachineBasicBlock &MBB = *MI.getParent();
+      MachineBasicBlock::iterator B, E;
+      B = Builder.buildInstr(MC6809::EXGp).addDef(MC6809::AD).addDef(DestReg).addUse(MC6809::AD).addUse(DestReg);
+      auto Instr = Builder.buildInstr(OpcodePair->getSecond()).addDef(MC6809::AD, RegState::Implicit);
+      if (OffsetSize == 0)
+        Instr.addReg(IndexReg);
+      else
+        Instr.addImm(Offset).addReg(IndexReg);
+      E = Builder.buildInstr(MC6809::EXGp).addDef(DestReg).addDef(MC6809::AD).addUse(DestReg).addUse(MC6809::AD);
+      auto Bundler = MIBundleBuilder(MBB, B, ++E);
+      finalizeBundle(MBB, Bundler.begin(), Bundler.end());
+      LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Bundle built\n";);
+      LLVM_DEBUG(for (auto &I : Bundler) {
+        dbgs() << "OINQUE DEBUG " << __func__ << " : bundle : I = ";
+        I.dump();
+      });
+    } else
+      llvm_unreachable("Cannot find machine instruction with these immediate indexed operands");
+  } else {
+    auto Instr = Builder.buildInstr(OpcodePair->getSecond()).addDef(DestReg, RegState::Implicit);
+    if (OffsetSize == 0)
+      Instr.addReg(IndexReg);
+    else
+      Instr.addImm(Offset).addReg(IndexReg);
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Instr = "; Instr->dump(););
+  }
   MI.eraseFromParent();
 }
 
@@ -1637,7 +1557,7 @@ void MC6809InstrInfo::expandNegate(MachineIRBuilder &Builder, MachineInstr &MI) 
   bool has6309 = STI.has6309();
   switch (MI.getOperand(0).getReg()) {
   default:
-    llvm_unreachable("Illegal register for Neg(1|16|32)");
+    llvm_unreachable("Illegal register for Neg(1|16)");
   case MC6809::AA:
     MI.setDesc(Builder.getTII().get(MC6809::NEGAa));
     MI.removeOperand(3);
@@ -1748,12 +1668,25 @@ void MC6809InstrInfo::expandMul8_16(MachineIRBuilder &Builder, MachineInstr &MI)
 
 void MC6809InstrInfo::expandMul16Imm(MachineIRBuilder &Builder, MachineInstr &MI) const {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
-  assert(((MI.getOperand(0).getReg() == MC6809::AW && MI.getOperand(1).getReg() == MC6809::AD) || (MI.getOperand(0).getReg() == MC6809::AD && MI.getOperand(1).getReg() == MC6809::AW)) && "Results must be in AW and AD");
-  auto ValueOp = MI.getOperand(3);
+  assert((MI.getOperand(0).getReg() == MC6809::AW && MI.getOperand(1).getReg() == MC6809::AD) && "Result must be in AW and AD must be the source");
+  auto ValueOp = MI.getOperand(2);
   auto Value = ValueOp.isImm() ? ValueOp.getImm() : ValueOp.getCImm()->getSExtValue();
   auto Instr = Builder.buildInstr(MC6809::MULDi16)
                    .addDef(MI.getOperand(0).getReg(), RegState::ImplicitDefine)
-                   .addDef(MI.getOperand(1).getReg(), RegState::ImplicitDefine)
+                   .addUse(MI.getOperand(1).getReg(), RegState::Implicit)
+                   .addImm(Value);
+  MI.eraseFromParent();
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Instr = "; Instr->dump(););
+}
+
+void MC6809InstrInfo::expandMulH16Imm(MachineIRBuilder &Builder, MachineInstr &MI) const {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
+  assert((MI.getOperand(0).getReg() == MC6809::AD && MI.getOperand(1).getReg() == MC6809::AD) && "Result must be in AD and AD must be the source");
+  auto ValueOp = MI.getOperand(2);
+  auto Value = ValueOp.isImm() ? ValueOp.getImm() : ValueOp.getCImm()->getSExtValue();
+  auto Instr = Builder.buildInstr(MC6809::MULDi16)
+                   .addDef(MI.getOperand(0).getReg(), RegState::ImplicitDefine)
+                   .addUse(MI.getOperand(1).getReg(), RegState::Implicit)
                    .addImm(Value);
   MI.eraseFromParent();
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Instr = "; Instr->dump(););
@@ -1761,9 +1694,9 @@ void MC6809InstrInfo::expandMul16Imm(MachineIRBuilder &Builder, MachineInstr &MI
 
 void MC6809InstrInfo::expandMul16IdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
-  assert((MI.getOperand(0).getReg() == MC6809::AW && MI.getOperand(1).getReg() == MC6809::AD) && "Results must be in AW and AD");
-  auto IndexReg = MI.getOperand(3).getReg();
-  auto OffsetOp = MI.getOperand(4);
+  assert((MI.getOperand(0).getReg() == MC6809::AW && MI.getOperand(1).getReg() == MC6809::AD) && "Result must be in AW and AD must be the source");
+  auto IndexReg = MI.getOperand(2).getReg();
+  auto OffsetOp = MI.getOperand(3);
   unsigned Opcode;
   int Offset;
 
@@ -1785,7 +1718,46 @@ void MC6809InstrInfo::expandMul16IdxImm(MachineIRBuilder &Builder, MachineInstr 
     }
     auto Instr = Builder.buildInstr(Opcode)
                      .addDef(MI.getOperand(0).getReg(), RegState::ImplicitDefine)
-                     .addDef(MI.getOperand(1).getReg(), RegState::ImplicitDefine);
+                     .addUse(MI.getOperand(1).getReg(), RegState::Implicit);
+    if (OffsetSize == 0) {
+      Instr.addReg(IndexReg);
+    } else {
+      Offset = OffsetOp.isImm() ? OffsetOp.getImm() : OffsetOp.getCImm()->getSExtValue();
+      Instr.addImm(Offset).addReg(IndexReg);
+    }
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Instr = "; Instr->dump(););
+  } else
+    llvm_unreachable("Unknown offset type");
+  MI.eraseFromParent();
+}
+
+void MC6809InstrInfo::expandMulH16IdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
+  assert((MI.getOperand(0).getReg() == MC6809::AD && MI.getOperand(1).getReg() == MC6809::AD) && "Result must be in AD and AD must be the source");
+  auto IndexReg = MI.getOperand(2).getReg();
+  auto OffsetOp = MI.getOperand(3);
+  unsigned Opcode;
+  int Offset;
+
+  int OffsetSize = offsetSizeInBits(OffsetOp);
+  if (OffsetSize >= 0) {
+    switch (OffsetSize) {
+    case 0:
+      Opcode = MC6809::MULDi_o0;
+      break;
+    case 5:
+      Opcode = MC6809::MULDi_o5;
+      break;
+    case 8:
+      Opcode = MC6809::MULDi_o8;
+      break;
+    case 16:
+      Opcode = MC6809::MULDi_o16;
+      break;
+    }
+    auto Instr = Builder.buildInstr(Opcode)
+                     .addDef(MI.getOperand(0).getReg(), RegState::ImplicitDefine)
+                     .addUse(MI.getOperand(1).getReg(), RegState::Implicit);
     if (OffsetSize == 0) {
       Instr.addReg(IndexReg);
     } else {
@@ -1835,6 +1807,10 @@ void MC6809InstrInfo::expandMul16IdxReg(MachineIRBuilder &Builder, MachineInstr 
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Instr = "; Instr->dump(););
 }
 
+void MC6809InstrInfo::expandMulH16IdxReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
+  llvm_unreachable("Write me!");
+}
+
 void MC6809InstrInfo::expandMul16Reg(MachineIRBuilder &Builder, MachineInstr &MI) const {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
   assert(((MI.getOperand(0).getReg() == MC6809::AW && MI.getOperand(1).getReg() == MC6809::AD) || (MI.getOperand(0).getReg() == MC6809::AD && MI.getOperand(1).getReg() == MC6809::AW)) && "Results must be in AW and AD");
@@ -1852,6 +1828,10 @@ void MC6809InstrInfo::expandMul16Reg(MachineIRBuilder &Builder, MachineInstr &MI
     I.dump();
   });
   MI.eraseFromParent();
+}
+
+void MC6809InstrInfo::expandMulH16Reg(MachineIRBuilder &Builder, MachineInstr &MI) const {
+  llvm_unreachable("Write me!");
 }
 
 void MC6809InstrInfo::expandLoad1Imm(MachineIRBuilder &Builder, MachineInstr &MI) const {
@@ -2008,12 +1988,31 @@ void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI
 
 void MC6809InstrInfo::expandANDReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
-  assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg() && "Dest and Source 1 must be same for ANDReg");
+  assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg() && "Dest and Source must be same for ANDReg");
 
   unsigned Opcode = MC6809::ANDRp;
-  auto ANDReg = Builder.buildInstr(Opcode).addDef(MI.getOperand(0).getReg()).addUse(MI.getOperand(2).getReg()).addUse(MI.getOperand(1).getReg());
+  auto ANDReg = Builder.buildInstr(Opcode)
+                    .addDef(MI.getOperand(0).getReg())
+                    .addUse(MI.getOperand(2).getReg())
+                    .addUse(MI.getOperand(1).getReg());
   MI.eraseFromParent();
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : ANDReg = "; ANDReg->dump(););
+}
+
+void MC6809InstrInfo::expandANDPull(MachineIRBuilder &Builder, MachineInstr &MI) const {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
+  auto DestReg = MI.getOperand(0).getReg();
+  auto SrcReg = MI.getOperand(1).getReg();
+  auto StackReg = MI.getOperand(2).getReg();
+  assert((StackReg == MC6809::SS || StackReg == MC6809::SU) && "AND-with-pull must use TOS register");
+
+  auto OpcodePair = ANDPullOpcode.find(DestReg);
+  auto Instr = Builder.buildInstr(OpcodePair->getSecond())
+                   .addDef(DestReg, RegState::Implicit)
+                   .addUse(SrcReg, RegState::Implicit)
+                   .addUse(StackReg);
+  MI.eraseFromParent();
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Instr = "; Instr->dump(););
 }
 
 void MC6809InstrInfo::expandORReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
@@ -2040,7 +2039,10 @@ void MC6809InstrInfo::expandAddReg(MachineIRBuilder &Builder, MachineInstr &MI) 
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
   assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg() && "Dest and Source 1 must be same for AddReg");
 
-  auto AddReg = Builder.buildInstr(MC6809::ADDRp).addDef(MI.getOperand(0).getReg()).addUse(MI.getOperand(2).getReg()).addUse(MI.getOperand(1).getReg());
+  auto AddReg = Builder.buildInstr(MC6809::ADDRp)
+                    .addDef(MI.getOperand(0).getReg())
+                    .addUse(MI.getOperand(2).getReg())
+                    .addUse(MI.getOperand(1).getReg());
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : AddReg = "; AddReg->dump(););
   MI.eraseFromParent();
 }
@@ -2049,14 +2051,14 @@ void MC6809InstrInfo::expandAddSetCarryReg(MachineIRBuilder &Builder, MachineIns
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
   assert(MI.getOperand(0).getReg() == MI.getOperand(2).getReg() && "Dest and Source 2 must be same for AddSetCarryReg");
 
-  Builder.buildInstr(MC6809::ADDRp)
+  auto Add = Builder.buildInstr(MC6809::ADDRp)
       .addDef(MI.getOperand(0).getReg())
       .addDef(MI.getOperand(1).getReg(), RegState::Implicit)
       .addUse(MI.getOperand(2).getReg())
       .addUse(MI.getOperand(3).getReg(), RegState::Implicit)
       .addUse(MI.getOperand(4).getReg());
   MI.eraseFromParent();
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Add = "; Add->dump(););
 }
 
 void MC6809InstrInfo::expandAddSetCarryUseReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
@@ -2064,334 +2066,71 @@ void MC6809InstrInfo::expandAddSetCarryUseReg(MachineIRBuilder &Builder, Machine
   assert(MI.getOperand(0).getReg() == MI.getOperand(2).getReg() && "Dest and Source 2 must be same for AddSetCarryUseReg");
   assert(MI.getOperand(1).getReg() == MI.getOperand(3).getReg() && "Carry and Carry_in must be same for AddSetCarryUseReg");
 
-  Builder.buildInstr(MC6809::ADCRp)
+  auto Adc = Builder.buildInstr(MC6809::ADCRp)
       .addDef(MI.getOperand(0).getReg())
       .addDef(MI.getOperand(1).getReg(), RegState::Implicit)
       .addUse(MI.getOperand(2).getReg())
       .addUse(MI.getOperand(3).getReg(), RegState::Implicit)
       .addUse(MI.getOperand(4).getReg());
   MI.eraseFromParent();
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Adc = "; Adc->dump(););
 }
-
-void MC6809InstrInfo::expandAdd32Imm(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
-  auto operandCount = MI.getNumExplicitOperands();
-  MachineOperand DestReg = MI.getOperand(0);
-  assert(DestReg.getReg() == MC6809::AQ && "32-bit add must have q as the target register");
-  int64_t Val;
-  auto ValOp = MI.getOperand(operandCount - 1);
-  if (ValOp.isImm() || ValOp.isCImm())
-    Val = ValOp.isImm() ? ValOp.getImm() : ValOp.getCImm()->getSExtValue();
-  else
-    llvm_unreachable("No constant argument found for 32-bit add immediate");
-  int64_t ValLo = Val & 0xFFFF;
-  int64_t ValHi = (Val >> 16) & 0xFFFF;
-
-  auto AddLo = Builder.buildInstr(MC6809::ADDWi16).addImm(ValLo);
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : AddLo : = "; AddLo->dump(););
-  auto AddHi = Builder.buildInstr(MC6809::ADCDi16).addImm(ValHi);
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : AddHi : = "; AddHi->dump(););
-  MI.eraseFromParent();
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit\n";);
-}
-
-void MC6809InstrInfo::expandSub32Imm(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
-  auto operandCount = MI.getNumExplicitOperands();
-  MachineOperand DestReg = MI.getOperand(0);
-  assert(DestReg.getReg() == MC6809::AQ && "32-bit subtract must have q as the target register");
-  int64_t Val;
-  auto ValOp = MI.getOperand(operandCount - 1);
-  if (ValOp.isImm() || ValOp.isCImm())
-    Val = ValOp.isImm() ? ValOp.getImm() : ValOp.getCImm()->getSExtValue();
-  else
-    llvm_unreachable("No constant argument found for 32-bit subtract immediate");
-  int64_t ValLo = Val & 0xFFFF;
-  int64_t ValHi = (Val >> 16) & 0xFFFF;
-  auto SubLo = Builder.buildInstr(MC6809::SUBWi16).addImm(ValLo);
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : SubLo : = "; SubLo->dump(););
-  auto SubHi = Builder.buildInstr(MC6809::SBCDi16).addImm(ValHi);
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : SubHi : = "; SubHi->dump(););
-  MI.eraseFromParent();
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit\n";);
-}
-
-#if 0
-void MC6809InstrInfo::expandSub32ImmRev(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
-
-  auto DestReg = MI.getOperand(0);
-  assert(DestReg.getReg() == MC6809::AQ && "32-bit subtract must have q as the target register");
-  MachineOperand ValOp = MI.getOperand(2);
-  assert((ValOp.isImm() || ValOp.isCImm()) && "The argument must be a constant");
-  int64_t Val = ValOp.isImm() ? ValOp.getImm() : ValOp.getCImm()->getSExtValue();
-  if (Val != 0) {
-    int64_t ValLo = Val & 0xFFFF;
-    int64_t ValHi = (Val >> 16) & 0xFFFF;
-
-    auto SubLo = Builder.buildInstr(MC6809::SUBWi16).addImm(ValLo);
-    SubLo->addImplicitDefUseOperands(*MI.getMF());
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : SubLo : = "; SubLo->dump(););
-    auto SubHi = Builder.buildInstr(MC6809::SBCDi16).addImm(ValHi);
-    SubHi->addImplicitDefUseOperands(*MI.getMF());
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : SubHi : = "; SubHi->dump(););
-  } else {
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Subtract32 : Constant is 0, so ignoring.\n";);
-  }
-
-  auto Com1 = Builder.buildInstr(MC6809::COMDa);
-  Com1->addImplicitDefUseOperands(*MI.getMF());
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Com1 : = "; Com1->dump(););
-  auto Com2 = Builder.buildInstr(MC6809::COMWa);
-  Com2->addImplicitDefUseOperands(*MI.getMF());
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Com2 : = "; Com2->dump(););
-  auto Inc2 = Builder.buildInstr(MC6809::ADCRp)
-                  .addDef(MC6809::AW)
-                  .addReg(MC6809::A0)
-                  .addReg(MC6809::AW);
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Inc2 : = "; Inc2->dump(););
-  Inc2->addImplicitDefUseOperands(*MI.getMF());
-  auto Inc1 = Builder.buildInstr(MC6809::ADCRp)
-                  .addDef(MC6809::AD)
-                  .addReg(MC6809::A0)
-                  .addReg(MC6809::AD);
-  Inc1->addImplicitDefUseOperands(*MI.getMF());
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Inc1 : = "; Inc1->dump(););
-  MI.eraseFromParent();
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit\n ";);
-}
-#endif
-
-void MC6809InstrInfo::expandAdd32IdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
-  auto operandCount = MI.getNumExplicitOperands();
-  MachineOperand DestReg = MI.getOperand(0);
-  MachineOperand IndexOp = MI.getOperand(operandCount - 2);
-  MachineOperand OffsetOp = MI.getOperand(operandCount - 1);
-  MachineInstrBuilder AddLo, AddHi;
-
-  assert(DestReg.getReg() == MC6809::AQ && "32-bit add must have q as the target register");
-  int OffsetSize = offsetSizeInBits(OffsetOp);
-  if (OffsetSize >= 0) {
-    int64_t Offset = (OffsetOp.isImm() ? OffsetOp.getImm() : OffsetOp.getCImm()->getSExtValue()) + 2; // Low word
-    RegPlusOffsetLen LookupL{MC6809::AW, OffsetSize};
-    auto OpcodePairL = AddIdxImmOpcode.find(LookupL);
-    if (OpcodePairL == AddIdxImmOpcode.end())
-      llvm_unreachable("Unexpected operand(s).");
-    AddLo = Builder.buildInstr(OpcodePairL->getSecond()).addImm(Offset).addUse(IndexOp.getReg());
-    Offset -= 2; // High word
-    RegPlusOffsetLen LookupH{MC6809::AD, OffsetSize};
-    auto OpcodePairH = AddCarryIdxImmOpcode.find(LookupH);
-    if (OpcodePairH == AddCarryIdxImmOpcode.end())
-      llvm_unreachable("Unexpected operand(s).");
-    AddHi = Builder.buildInstr(OpcodePairH->getSecond()).addImm(Offset).addUse(IndexOp.getReg());
-  } else
-    llvm_unreachable("Unknown offset type for index");
-  MI.eraseFromParent();
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : AddLo = "; AddLo->dump(););
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : AddHi = "; AddHi->dump(););
-}
-
-#if 0
-void MC6809InstrInfo::expandSubImmRev(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
-
-  auto DestReg = MI.getOperand(0).getReg();
-  MachineOperand ValOp = MI.getOperand(2);
-  assert((ValOp.isImm() || ValOp.isCImm()) && "The argument must be a constant");
-  auto SubOpcodePair = SubImmediateOpcode.find(DestReg);
-  if (SubOpcodePair == SubImmediateOpcode.end())
-    llvm_unreachable("Unexpected subtract register.");
-  int64_t Val = ValOp.isImm() ? ValOp.getImm() : ValOp.getCImm()->getSExtValue();
-  if (Val != 0) {
-    MachineInstrBuilder Subtract = Builder.buildInstr(SubOpcodePair->getSecond()).addImm(Val);
-    Subtract->addImplicitDefUseOperands(*MI.getMF());
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Subtract : = "; Subtract->dump(););
-  } else {
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Subtract : constant is 0, so ignoring\n";);
-  }
-
-  MachineInstrBuilder Negate;
-  MachineInstrBuilder Inc;
-  bool NeedInc = false;
-
-  switch (DestReg) {
-  default:
-    llvm_unreachable("Unexpected negate register.");
-  case MC6809::AA:
-    Negate = Builder.buildInstr(MC6809::NEGAa);
-    break;
-  case MC6809::AB:
-    Negate = Builder.buildInstr(MC6809::NEGBa);
-    break;
-  case MC6809::AD:
-    Negate = Builder.buildInstr(MC6809::NEGDa);
-    break;
-  case MC6809::AE:
-    Negate = Builder.buildInstr(MC6809::COMEa);
-    Inc = Builder.buildInstr(MC6809::ADCRp)
-              .addUse(MC6809::AE)
-              .addReg(MC6809::A0)
-              .addReg(MC6809::AE);
-    NeedInc = true;
-    break;
-  case MC6809::AF:
-    Negate = Builder.buildInstr(MC6809::COMFa);
-    Inc = Builder.buildInstr(MC6809::ADCRp)
-              .addUse(MC6809::AF)
-              .addReg(MC6809::A0)
-              .addReg(MC6809::AF);
-    NeedInc = true;
-    break;
-  case MC6809::AW:
-    Negate = Builder.buildInstr(MC6809::COMWa);
-    Inc = Builder.buildInstr(MC6809::ADCRp)
-              .addUse(MC6809::AW)
-              .addReg(MC6809::A0)
-              .addReg(MC6809::AW);
-    NeedInc = true;
-    break;
-  }
-  Negate->addImplicitDefUseOperands(*MI.getMF());
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Negate : = "; Negate->dump(););
-  if (NeedInc) {
-    Inc->addImplicitDefUseOperands(*MI.getMF());
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Inc : = "; Inc->dump(););
-  }
-  MI.eraseFromParent();
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit\n ";);
-}
-#endif
 
 void MC6809InstrInfo::expandSubReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
-  assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg() && "Dest and Source 1 must be same for SubReg");
+  assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg() && "Dest and Source must be same for SubReg");
 
-  auto SUBReg = Builder.buildInstr(MC6809::SUBRp).addDef(MI.getOperand(0).getReg()).addUse(MI.getOperand(2).getReg()).addUse(MI.getOperand(1).getReg());
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : SUBReg = "; SUBReg->dump(););
+  auto SubReg = Builder.buildInstr(MC6809::SUBRp)
+                    .addDef(MI.getOperand(0).getReg())
+                    .addUse(MI.getOperand(2).getReg())
+                    .addUse(MI.getOperand(1).getReg());
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : SubReg = "; SubReg->dump(););
   MI.eraseFromParent();
 }
 
 void MC6809InstrInfo::expandSubSetCarryReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
-  assert(MI.getOperand(0).getReg() == MI.getOperand(2).getReg() && "Dest and Source 2 must be same for SubSetCarryReg");
+  assert(MI.getOperand(0).getReg() == MI.getOperand(2).getReg() && "Dest and Source must be same for SubSetCarryReg");
 
-  Builder.buildInstr(MC6809::SBCRp).addDef(MI.getOperand(0).getReg()).addDef(MI.getOperand(1).getReg()).addUse(MI.getOperand(3).getReg()).addUse(MI.getOperand(2).getReg());
+  auto Sub = Builder.buildInstr(MC6809::SUBRp)
+      .addDef(MI.getOperand(0).getReg())
+      .addDef(MI.getOperand(1).getReg(), RegState::Implicit)
+      .addUse(MI.getOperand(4).getReg())
+      .addUse(MI.getOperand(3).getReg(), RegState::Implicit)
+      .addUse(MI.getOperand(2).getReg());
   MI.eraseFromParent();
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Sub = "; Sub->dump(););
+}
+
+void MC6809InstrInfo::expandSubSetCarryUseReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
+  assert(MI.getOperand(0).getReg() == MI.getOperand(2).getReg() && "Dest and Source must be same for SubSetCarryUseReg");
+  assert(MI.getOperand(1).getReg() == MI.getOperand(3).getReg() && "Carry and Carry_in must be same for SubSetCarryUseReg");
+
+  auto Sbc = Builder.buildInstr(MC6809::SBCRp)
+      .addDef(MI.getOperand(0).getReg())
+      .addDef(MI.getOperand(1).getReg(), RegState::Implicit)
+      .addUse(MI.getOperand(4).getReg())
+      .addUse(MI.getOperand(3).getReg(), RegState::Implicit)
+      .addUse(MI.getOperand(2).getReg());
+  MI.eraseFromParent();
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Sbc = "; Sbc->dump(););
 }
 
 void MC6809InstrInfo::expandSubPull(MachineIRBuilder &Builder, MachineInstr &MI) const {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
-  auto Stack = MI.getOperand(2).getReg();
-  assert(Stack == MC6809::SS && "subtract-with-pull must use TOS register");
+  auto DestReg = MI.getOperand(0).getReg();
+  auto SrcReg = MI.getOperand(1).getReg();
+  auto StackReg = MI.getOperand(2).getReg();
+  assert((StackReg == MC6809::SS || StackReg == MC6809::SU) && "Subtract-with-pull must use TOS register");
 
-  auto OpcodePair = SubPullOpcode.find(MI.getOperand(0).getReg());
-  if (OpcodePair == SubPullOpcode.end()) {
-    if (MI.getOperand(0).getReg() == MC6809::AQ) {
-      auto SUBPull1 = Builder.buildInstr(MC6809::SUBWi_Dec2).addDef(MC6809::AW, RegState::Implicit).addDef(MC6809::SS, RegState::Implicit).addUse(MC6809::SS);
-      auto SUBPull2 = Builder.buildInstr(MC6809::SBCDi_Dec2).addDef(MC6809::AD, RegState::Implicit).addDef(MC6809::SS, RegState::Implicit).addUse(MC6809::SS);
-      LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit :  SUBPull1 = "; SUBPull1->dump(););
-      LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit :  SUBPull2 = "; SUBPull2->dump(););
-      MI.eraseFromParent();
-    } else
-      llvm_unreachable("Unexpected register for 32-bit SubPull.");
-  } else {
-    MI.setDesc(Builder.getTII().get(OpcodePair->getSecond()));
-    MI.getOperand(0).setImplicit();
-    MI.getOperand(1).setImplicit();
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
-  }
-}
-
-void MC6809InstrInfo::expandSub32IdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
-  auto operandCount = MI.getNumExplicitOperands();
-  MachineOperand DestReg = MI.getOperand(0);
-  MachineOperand IndexOp = MI.getOperand(operandCount - 2);
-  MachineOperand OffsetOp = MI.getOperand(operandCount - 1);
-  MachineInstrBuilder SubLo, SubHi;
-
-  assert(DestReg.getReg() == MC6809::AQ && "32-bit subtract must have q as the target register");
-  int OffsetSize = offsetSizeInBits(OffsetOp);
-  if (OffsetSize >= 0) {
-    int64_t Offset = (OffsetOp.isImm() ? OffsetOp.getImm() : OffsetOp.getCImm()->getSExtValue()) + 2; // Low word
-    RegPlusOffsetLen LookupL{MC6809::AW, OffsetSize};
-    auto OpcodePairL = SubIdxImmOpcode.find(LookupL);
-    if (OpcodePairL == SubIdxImmOpcode.end())
-      llvm_unreachable("Unexpected operand(s).");
-    SubLo = Builder.buildInstr(OpcodePairL->getSecond()).addImm(Offset).addUse(IndexOp.getReg());
-    Offset -= 2; // High word
-    RegPlusOffsetLen LookupH{MC6809::AD, OffsetSize};
-    auto OpcodePairH = SubBorrowIdxImmOpcode.find(LookupH);
-    if (OpcodePairH == SubBorrowIdxImmOpcode.end())
-      llvm_unreachable("Unexpected operand(s).");
-    SubHi = Builder.buildInstr(OpcodePairH->getSecond()).addImm(Offset).addUse(IndexOp.getReg());
-  } else
-    llvm_unreachable("Unknown offset type for Sub32IdxImm");
+  auto OpcodePair = SubPullOpcode.find(DestReg);
+  auto Instr = Builder.buildInstr(OpcodePair->getSecond())
+                   .addDef(DestReg, RegState::Implicit)
+                   .addUse(SrcReg, RegState::Implicit)
+                   .addUse(StackReg);
   MI.eraseFromParent();
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : SubLo = "; SubLo->dump(););
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : SubHi = "; SubHi->dump(););
-}
-
-#if 0
-// (Ab)use subtract, and hope that the target being killed is sufficient for codegen to preserve it
-void MC6809InstrInfo::expandCompare32IdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
-  auto operandCount = MI.getNumExplicitOperands();
-  MachineOperand DestReg = MI.getOperand(0);
-  MachineOperand IndexOp = MI.getOperand(operandCount - 2);
-  MachineOperand OffsetOp = MI.getOperand(operandCount - 1);
-  MachineInstrBuilder SubLo, SubHi;
-
-  assert(DestReg.getReg() == MC6809::AQ && "32-bit compare must have q as the target register");
-  int OffsetSize = offsetSizeInBits(OffsetOp);
-  if (OffsetSize >= 0) {
-    int64_t Offset = (OffsetOp.isImm() ? OffsetOp.getImm() : OffsetOp.getCImm()->getSExtValue()) + 2; // Low word
-    RegPlusOffsetLen LookupL{MC6809::AW, OffsetSize};
-    auto OpcodePairL = SubIdxImmOpcode.find(LookupL);
-    if (OpcodePairL == SubIdxImmOpcode.end())
-      llvm_unreachable("Unexpected operand(s).");
-    SubLo = Builder.buildInstr(OpcodePairL->getSecond()).addImm(Offset).addUse(IndexOp.getReg());
-    Offset -= 2; // High word
-    RegPlusOffsetLen LookupH{MC6809::AD, OffsetSize};
-    auto OpcodePairH = SubBorrowIdxImmOpcode.find(LookupH);
-    if (OpcodePairH == SubBorrowIdxImmOpcode.end())
-      llvm_unreachable("Unexpected operand(s).");
-    SubHi = Builder.buildInstr(OpcodePairH->getSecond()).addImm(Offset).addUse(IndexOp.getReg());
-  } else
-    llvm_unreachable("Unknown offset type for Sub32IdxImm");
-  MI.eraseFromParent();
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : SubLo = "; SubLo->dump(););
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : SubHi = "; SubHi->dump(););
-}
-#endif
-
-void MC6809InstrInfo::expandSub32IdxReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
-  MachineOperand DestReg = MI.getOperand(0);
-  MachineOperand IndexOp = MI.getOperand(2);
-  MachineOperand OffsetOp = MI.getOperand(3);
-  MachineInstrBuilder SubLo, SubHi;
-
-  assert(DestReg.getReg() == MC6809::AQ && "32-bit subtract must have q as the target register");
-  if (OffsetOp.isReg()) {
-    RegPlusReg LookupL{MC6809::AW, OffsetOp.getReg()};
-    auto OpcodePairL = SubIdxRegOpcode.find(LookupL);
-    if (OpcodePairL == SubIdxRegOpcode.end())
-      llvm_unreachable("Unexpected operand(s).");
-    SubLo = Builder.buildInstr(OpcodePairL->getSecond()).addUse(IndexOp.getReg());
-    RegPlusReg LookupH{MC6809::AD, OffsetOp.getReg()};
-    auto OpcodePairH = SubBorrowIdxRegOpcode.find(LookupH);
-    if (OpcodePairH == SubBorrowIdxRegOpcode.end())
-      llvm_unreachable("Unexpected operand(s).");
-    SubHi = Builder.buildInstr(OpcodePairH->getSecond()).addUse(IndexOp.getReg());
-  } else
-    llvm_unreachable("Unknown offset type for SubBorrowIdx");
-  MI.eraseFromParent();
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : SubLo = "; SubLo->dump(););
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : SubHi = "; SubHi->dump(););
+  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Instr = "; Instr->dump(););
 }
 
 void MC6809InstrInfo::expandCompareImm(MachineIRBuilder &Builder, MachineInstr &MI) const {
@@ -2414,38 +2153,6 @@ void MC6809InstrInfo::expandCompareImm(MachineIRBuilder &Builder, MachineInstr &
   MI.eraseFromParent();
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Compare = "; Compare->dump(););
 }
-
-#if 0
-void MC6809InstrInfo::expandCompare32Imm(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
-  // Operand 0 is the CC register
-  // Operand 1 is the 4-bit field that Bcc and LBcc use as the condition.
-  // Operand 2 is the source register for the comparison
-  // This is needed to model the G_ICMP/G_BRCOND behaviour.
-  // assert(MI.getOperand(0).isReg() && MI.getOperand(0).getReg() == MC6809::CC && "The target of compares must be the CC register");
-  assert((MI.getOperand(1).isImm() || MI.getOperand(1).isCImm()) && "The condition field of compares must be an immediate constant");
-  assert(MI.getOperand(2).isReg() && MI.getOperand(2).getReg() == MC6809::AQ && "The source of i32-bit compares must be the AQ register");
-  assert((MI.getOperand(3).isImm() || MI.getOperand(3).isCImm()) && "The final operand of immediate compares must be an immediate constant");
-
-  MachineOperand ValOp = MI.getOperand(3);
-  int64_t Val = ValOp.isImm() ? ValOp.getImm() : ValOp.getCImm()->getSExtValue();
-  int64_t ValLo = Val & 0xFFFF;
-  int64_t ValHi = (Val >> 16) & 0xFFFF;
-
-  // FIXME: MarkM: This is badly broken. This instruction sequence won't work.
-  errs() << "OINQUE DEBUG Warning : This 32-bit compare instruction sequence won't work!\n";
-  auto SubLo = Builder.buildInstr(MC6809::SUBWi16)
-                   .addImm(ValLo);
-  SubLo->addImplicitDefUseOperands(*MI.getMF());
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : SubLo : = "; SubLo->dump(););
-  auto SubHi = Builder.buildInstr(MC6809::SBCDi16)
-                   .addImm(ValHi);
-  SubHi->addImplicitDefUseOperands(*MI.getMF());
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : SubHi : = "; SubHi->dump(););
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit\n";);
-  MI.eraseFromParent();
-}
-#endif
 
 void MC6809InstrInfo::expandCompareIdx(MachineIRBuilder &Builder, MachineInstr &MI) const {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
@@ -2520,70 +2227,6 @@ void MC6809InstrInfo::expandTestReg(MachineIRBuilder &Builder, MachineInstr &MI)
   MI.eraseFromParent();
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Test = "; Test->dump(););
 }
-
-void MC6809InstrInfo::expandTestReg32(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
-  // Operand 0 is the CC register
-  // Operand 1 is the 4-bit field that Bcc and LBcc use as the condition.
-  // Operand 2 is the source register for the comparison
-  // This is needed to model the G_ICMP/G_BRCOND behaviour.
-  assert(MI.getOperand(0).isReg() && MI.getOperand(0).getReg() == MC6809::CC && "The target of tests must be the CC register");
-  assert((MI.getOperand(1).isImm() || MI.getOperand(1).isCImm()) && "The condition field of tests must be an immediate constant");
-  assert(MI.getOperand(2).isReg() && MI.getOperand(2).getReg() == MC6809::AQ && "The source of 32-bit register tests must be the Q register");
-
-  // We do a 32-bit above stack store to set the flags like a TST instruction would.
-  auto Store = Builder.buildInstr(MC6809::STQi_o5).addImm(-4).addUse(MC6809::SS);
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Store : = "; Store->dump(););
-  MI.eraseFromParent();
-}
-
-#if 0
-MC6809CC::CondCode MC6809::GetBranchConditionForPredicate(CmpInst::Predicate Pred, bool &IsSigned) {
-  IsSigned = CmpInst::isSigned(Pred);
-  switch (Pred) {
-  case CmpInst::FCMP_FALSE:
-  case CmpInst::FCMP_UNO:
-    return MC6809CC::CS;
-  case CmpInst::FCMP_TRUE:
-  case CmpInst::FCMP_ORD:
-    return MC6809CC::CC;
-  case CmpInst::FCMP_OEQ:
-  case CmpInst::FCMP_UEQ:
-  case CmpInst::ICMP_EQ:
-    return MC6809CC::EQ;
-  case CmpInst::FCMP_ONE:
-  case CmpInst::FCMP_UNE:
-  case CmpInst::ICMP_NE:
-    return MC6809CC::NE;
-  case CmpInst::ICMP_UGT:
-    return MC6809CC::HI;
-  case CmpInst::ICMP_ULT:
-    return MC6809CC::LO;
-  case CmpInst::ICMP_ULE:
-    return MC6809CC::LS;
-  case CmpInst::ICMP_UGE:
-    return MC6809CC::HS;
-  case CmpInst::FCMP_OGT:
-  case CmpInst::FCMP_UGT:
-  case CmpInst::ICMP_SGT:
-    return MC6809CC::GT;
-  case CmpInst::FCMP_OLT:
-  case CmpInst::FCMP_ULT:
-  case CmpInst::ICMP_SLT:
-    return MC6809CC::LT;
-  case CmpInst::FCMP_OLE:
-  case CmpInst::FCMP_ULE:
-  case CmpInst::ICMP_SLE:
-    return MC6809CC::LE;
-  case CmpInst::FCMP_OGE:
-  case CmpInst::FCMP_UGE:
-  case CmpInst::ICMP_SGE:
-    return MC6809CC::GE;
-  default:
-    llvm_unreachable("Unknown predicate");
-  }
-}
-#endif
 
 bool MC6809InstrInfo::reverseBranchCondition(SmallVectorImpl<MachineOperand> &Cond) const {
   assert(Cond.size() == 1);

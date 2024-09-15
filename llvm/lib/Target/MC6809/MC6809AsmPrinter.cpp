@@ -85,11 +85,19 @@ void MC6809AsmPrinter::emitInstruction(const MachineInstr *MI) {
     EmitToStreamer(*OutStreamer, OutInst);
     return;
   }
-  MCInst Inst;
-  // XXXX: FIXME: MarkM - the below does a lot of final lowering. Isn't this way
-  // too late?
-  InstLowering.lower(MI, Inst);
-  EmitToStreamer(*OutStreamer, Inst);
+  if (MI->isBundle()) {
+    MachineBasicBlock::const_instr_iterator I = MI->getIterator();
+    MachineBasicBlock::const_instr_iterator E = MI->getParent()->instr_end();
+    while (++I != E && I->isInsideBundle()) {
+        MCInst Inst;
+        InstLowering.lower(&*I, Inst);
+        EmitToStreamer(*OutStreamer, Inst);
+    }
+  } else {
+    MCInst Inst;
+    InstLowering.lower(MI, Inst);
+    EmitToStreamer(*OutStreamer, Inst);
+  }
 }
 
 void MC6809AsmPrinter::lowerOperand(const MachineOperand &MO, MCOperand &MCOp) {

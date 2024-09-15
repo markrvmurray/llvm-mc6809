@@ -118,7 +118,7 @@ bool MC6809AsmBackend::fixupNeedsRelaxation(const MCFixup &Fixup,
 }
 
 static cl::opt<bool> ForcePCRelReloc(
-    "mos-force-pcrel-reloc",
+    "mc6809-force-pcrel-reloc",
     cl::desc("Force relocation entries to be emitted for PCREL fixups."),
     cl::init(false), cl::Hidden);
 

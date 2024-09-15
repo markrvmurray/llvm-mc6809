@@ -160,6 +160,8 @@ def DefaultOpcode : Opcode<0, 0>;
 // index + offset [-32768, 32767].
 def am_ls_indexed_imm_offset : ComplexPattern<iPTR, 2, "SelectLSIndexedImmOffset", []>;
 def gi_am_ls_indexed_imm_offset : GIComplexOperandMatcher<s16, "selectLSIndexedImmOffset">, GIComplexPatternEquiv<am_ls_indexed_imm_offset>;
+def am_ls_unmerge_indexed_imm_offset : ComplexPattern<iPTR, 2, "SelectLSUnmergeIndexedImmOffset", []>;
+def gi_am_ls_unmerge_indexed_imm_offset : GIComplexOperandMatcher<s16, "selectAMUnmergeIndexedImmOffset">, GIComplexPatternEquiv<am_ls_unmerge_indexed_imm_offset>;
 
 // Pointer register with signed immediate offset for use in instruction address
 // modes for instructions other than load/store.

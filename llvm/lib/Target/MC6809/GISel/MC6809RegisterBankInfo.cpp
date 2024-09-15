@@ -40,9 +40,9 @@ MC6809RegisterBankInfo::MC6809RegisterBankInfo(/* const TargetRegisterInfo &TRI 
   (void)RBINDEX;
   assert(&MC6809::INDEXRegBank == &RBINDEX && "Incorrect INDEX RegBank initialization.");
 
-  const RegisterBank &RBCC = getRegBank(MC6809::CCRegBankID);
+  const RegisterBank &RBCC = getRegBank(MC6809::FLAGSRegBankID);
   (void)RBCC;
-  assert(&MC6809::CCRegBank == &RBCC && "Incorrect CC RegBank initialization.");
+  assert(&MC6809::FLAGSRegBank == &RBCC && "Incorrect FLAGS RegBank initialization.");
 
   // The ACCUM register bank is fully defined by all the registers in
   // AQ + its subclasses.
@@ -51,8 +51,9 @@ MC6809RegisterBankInfo::MC6809RegisterBankInfo(/* const TargetRegisterInfo &TRI 
 
 const RegisterBank &MC6809RegisterBankInfo::getRegBankFromRegClass(const TargetRegisterClass &RC, LLT) const {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : RC.getID() = " << RC.getID() << "\n";);
-#if 0
-  if (MC6809::ACC8RegClass.hasSubClassEq(&RC) ||
+#if 1
+  if (MC6809::BIT1RegClass.hasSubClassEq(&RC) ||
+      MC6809::ACC8RegClass.hasSubClassEq(&RC) ||
       MC6809::ACC16RegClass.hasSubClassEq(&RC) ||
       MC6809::ACC32RegClass.hasSubClassEq(&RC)) {
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : ACCUM\n";);
@@ -64,10 +65,10 @@ const RegisterBank &MC6809RegisterBankInfo::getRegBankFromRegClass(const TargetR
              MC6809::AllArithFlagRegClass.hasSubClassEq(&RC) ||
              MC6809::ArithFlagRegClass.hasSubClassEq(&RC) ||
              MC6809::CCFlagRegClass.hasSubClassEq(&RC)) {
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : CC\n";);
-    return getRegBank(MC6809::CCRegBankID);
+    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : FLAGS\n";);
+    return getRegBank(MC6809::FLAGSRegBankID);
   }
-#endif
+#else
   switch (RC.getID()) {
   case MC6809::CCondRegClassID:
   case MC6809::CCcRegClassID:
@@ -80,7 +81,7 @@ const RegisterBank &MC6809RegisterBankInfo::getRegBankFromRegClass(const TargetR
   case MC6809::ArithFlagRegClassID:
   case MC6809::NZVCcRegClassID:
   case MC6809::NZcRegClassID:
-    return getRegBank(MC6809::CCRegBankID);
+    return getRegBank(MC6809::AnyRegBankID);
   case MC6809::BIT1RegClassID:
   case MC6809::BIT8RegClassID:
   case MC6809::AAcRegClassID:
@@ -98,20 +99,21 @@ const RegisterBank &MC6809RegisterBankInfo::getRegBankFromRegClass(const TargetR
   case MC6809::ACC16RegClassID:
   case MC6809::AQcRegClassID:
   case MC6809::ACC32RegClassID:
-    return getRegBank(MC6809::ACCUMRegBankID);
+    return getRegBank(MC6809::AnyRegBankID);
   case MC6809::INDEX16RegClassID:
   case MC6809::IXcRegClassID:
   case MC6809::IYcRegClassID:
   case MC6809::SUcRegClassID:
   case MC6809::SScRegClassID:
-    return getRegBank(MC6809::INDEXRegBankID);
+    return getRegBank(MC6809::AnyRegBankID);
   case MC6809::Imag8RegClassID:
   case MC6809::Imag16RegClassID:
   case MC6809::Imag32RegClassID:
-    return getRegBank(MC6809::IMAGRegBankID);
+    return getRegBank(MC6809::AnyRegBankID);
   default:
     break;
   }
+#endif
   llvm_unreachable("Unsupported register kind.");
 }
 
@@ -227,6 +229,17 @@ const RegisterBankInfo::InstructionMapping &MC6809RegisterBankInfo::getInstrMapp
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 20 : Mapping = "; Mapping->dump(););
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 20 : Doing getInstructionMapping() " << NumOperands << " operands\n";);
     return getInstructionMapping(DefaultMappingID, 1, Mapping, NumOperands);
+  }
+  case TargetOpcode::G_UNMERGE_VALUES: {
+    assert(MI.getNumOperands() == 3 && "Unsupported G_UNMERGE_VALUES");
+    unsigned Op3Size = MRI.getType(MI.getOperand(2).getReg()).getSizeInBits();
+    InstTy = TI.determineInstType(&MI);
+    OperandsMapping = getOperandsMapping({&Mips::ValueMappings[Mips::GPRIdx],
+                                          &Mips::ValueMappings[Mips::GPRIdx],
+                                          &Mips::ValueMappings[Mips::DPRIdx]});
+    if (isAmbiguousWithMergeOrUnmerge_64(InstTy, Op3Size))
+      MappingID = CustomMappingID;
+    break;
   }
   default:
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : default (nothing)\n";);

@@ -15,6 +15,7 @@
 #define LLVM_LIB_TARGET_MC6809_MC6809INSTRINFO_H
 
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
+#include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 
 #include "MC6809RegisterInfo.h"
@@ -151,14 +152,21 @@ private:
   void expandMul8_8(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandMul8_16(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandMul16Imm(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandMulH16Imm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandMul16IdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandMulH16IdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandMul16IdxReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandMulH16IdxReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   // void expandMul16Pop(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandMul16Reg(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandMulH16Reg(MachineIRBuilder &Builder, MachineInstr &MI) const;
 
   void expandANDReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandANDPull(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandORReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandORPull(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandXORReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandXORPull(MachineIRBuilder &Builder, MachineInstr &MI) const;
 
   void expandAddReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandAddSetCarryReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
@@ -166,9 +174,10 @@ private:
   void expandAdd32IdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   // void expandAdd32IdxReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
 
-  // void expandSubImmRev(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandSubReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  // void expandSubImmRev(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandSubSetCarryReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandSubSetCarryUseReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandSubPull(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandSub32IdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandSub32IdxReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
@@ -235,12 +244,15 @@ private:
   DenseMap<Register, unsigned> ANDImmediateOpcode;
   DenseMap<RegPlusOffsetLen, unsigned> ANDIdxImmOpcode;
   DenseMap<RegPlusReg, unsigned> ANDIdxRegOpcode;
+  DenseMap<Register, unsigned> ANDPullOpcode;
   DenseMap<Register, unsigned> ORImmediateOpcode;
   DenseMap<RegPlusOffsetLen, unsigned> ORIdxImmOpcode;
   DenseMap<RegPlusReg, unsigned> ORIdxRegOpcode;
+  DenseMap<Register, unsigned> ORPullOpcode;
   DenseMap<Register, unsigned> XORImmediateOpcode;
   DenseMap<RegPlusOffsetLen, unsigned> XORIdxImmOpcode;
   DenseMap<RegPlusReg, unsigned> XORIdxRegOpcode;
+  DenseMap<Register, unsigned> XORPullOpcode;
 
   struct ContextImmediate {
     DenseMap<Register, unsigned> *Opcode;
@@ -250,6 +262,7 @@ private:
   ContextImmediate AddImm = {&AddImmediateOpcode, 0};
   ContextImmediate AddCarryImm = {&AddCarryImmediateOpcode, 0};
   ContextImmediate SubImm = {&SubImmediateOpcode, 0};
+  ContextImmediate SubBorrowImm = {&SubBorrowImmediateOpcode, 0};
   ContextImmediate ANDImm = {&ANDImmediateOpcode, -1};
   ContextImmediate ORImm = {&ORImmediateOpcode, 0};
   ContextImmediate XORImm = {&XORImmediateOpcode, 0};
@@ -263,6 +276,7 @@ private:
   ContextIndexImmediate AddIdxImm = {&AddIdxImmOpcode};
   ContextIndexImmediate AddCarryIdxImm = {&AddCarryIdxImmOpcode};
   ContextIndexImmediate SubIdxImm = {&SubIdxImmOpcode};
+  ContextIndexImmediate SubBorrowIdxImm = {&SubBorrowIdxImmOpcode};
   ContextIndexImmediate ANDIdxImm = {&ANDIdxImmOpcode};
   ContextIndexImmediate ORIdxImm = {&ORIdxImmOpcode};
   ContextIndexImmediate XORIdxImm = {&XORIdxImmOpcode};
