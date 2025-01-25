@@ -1340,55 +1340,7 @@ bool MC6809InstructionSelector::selectUnMergeValues(MachineInstr &MI) {
   Register Lo = MI.getOperand(0).getReg();
   Register Hi = MI.getOperand(1).getReg();
   Register Src = MI.getOperand(2).getReg();
-  bool SplittingAQ
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      = false;
+  bool SplittingAQ = false;
 
     // auto SrcConst = getIConstantVRegValWithLookThrough(Src, *MRI);
     auto MaybeCopy = getDefIgnoringCopies(MI.getOperand(2).getReg(), *MRI);
