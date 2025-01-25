@@ -862,19 +862,19 @@ for page in Instructions:
 			case 'd':
 				instr['enum_fields_decl'] = ['u8']
 				instr['enum_fields'] = ['addr8']
-				instr['enum_fields_consume'] = ['let addr8 = self.mem.read8(&self.reg.pc);', 'self.reg.pc_increment();']
+				instr['enum_fields_consume'] = ['let addr8 = self.mem.read8(&self.reg.pc);', 'self.reg.pc_increment(1);']
 			case 'e':
 				instr['enum_fields_decl'] = ['u16']
 				instr['enum_fields'] = ['addr16']
-				instr['enum_fields_consume'] = ['let addr16 = self.mem.read16(&self.reg.pc);', 'self.reg.pc_increment();', 'self.reg.pc_increment();']
+				instr['enum_fields_consume'] = ['let addr16 = self.mem.read16(&self.reg.pc);', 'self.reg.pc_increment(1);', 'self.reg.pc_increment(1);']
 			case 'id':
 				instr['enum_fields_decl'] = ['u8', 'u8']
 				instr['enum_fields'] = ['imm8', 'addr8']
-				instr['enum_fields_consume'] = ['let imm8 = self.mem.read8(&self.reg.pc);', 'self.reg.pc_increment();', 'let addr8 = self.mem.read8(&self.reg.pc);', 'self.reg.pc_increment();']
+				instr['enum_fields_consume'] = ['let imm8 = self.mem.read8(&self.reg.pc);', 'self.reg.pc_increment(1);', 'let addr8 = self.mem.read8(&self.reg.pc);', 'self.reg.pc_increment(1);']
 			case 'ie':
 				instr['enum_fields_decl'] = ['u8', 'u16']
 				instr['enum_fields'] = ['imm8', 'addr16']
-				instr['enum_fields_consume'] = ['let imm8 = self.mem.read8(&self.reg.pc);', 'self.reg.pc_increment();', 'let addr16 = self.mem.read16(&self.reg.pc);', 'self.reg.pc_increment();', 'self.reg.pc_increment();']
+				instr['enum_fields_consume'] = ['let imm8 = self.mem.read8(&self.reg.pc);', 'self.reg.pc_increment(1);', 'let addr16 = self.mem.read16(&self.reg.pc);', 'self.reg.pc_increment(1);', 'self.reg.pc_increment(1);']
 			case 'x':
 				instr['enum_fields_decl'] = []
 				instr['enum_fields'] = []
@@ -882,19 +882,19 @@ for page in Instructions:
 			case 'b':
 				instr['enum_fields_decl'] = ['i8']
 				instr['enum_fields'] = ['pcoffset8']
-				instr['enum_fields_consume'] = ['let pcoffset8 = self.mem.read8(&self.reg.pc) as i8;', 'self.reg.pc_increment();']
+				instr['enum_fields_consume'] = ['let pcoffset8 = self.mem.read8(&self.reg.pc) as i8;', 'self.reg.pc_increment(1);']
 			case 'lb':
 				instr['enum_fields_decl'] = ['i16']
 				instr['enum_fields'] = ['pcoffset16']
-				instr['enum_fields_consume'] = ['let pcoffset16 = self.mem.read16(&self.reg.pc) as i16;', 'self.reg.pc_increment();', 'self.reg.pc_increment();']
+				instr['enum_fields_consume'] = ['let pcoffset16 = self.mem.read16(&self.reg.pc) as i16;', 'self.reg.pc_increment(1);', 'self.reg.pc_increment(1);']
 			case 'bc':
 				instr['enum_fields_decl'] = ['Cond', 'i8']
 				instr['enum_fields'] = ['pcoffset8']
-				instr['enum_fields_consume'] = ['let pcoffset8 = self.mem.read8(&self.reg.pc) as i8;', 'self.reg.pc_increment();']
+				instr['enum_fields_consume'] = ['let pcoffset8 = self.mem.read8(&self.reg.pc) as i8;', 'self.reg.pc_increment(1);']
 			case 'lbc':
 				instr['enum_fields_decl'] = ['Cond', 'i16']
 				instr['enum_fields'] = ['pcoffset16']
-				instr['enum_fields_consume'] = ['let pcoffset16 = self.mem.read16(&self.reg.pc) as i16;', 'self.reg.pc_increment();', 'self.reg.pc_increment();']
+				instr['enum_fields_consume'] = ['let pcoffset16 = self.mem.read16(&self.reg.pc) as i16;', 'self.reg.pc_increment(1);', 'self.reg.pc_increment(1);']
 			case 'r':
 				instr['enum_fields_decl'] = []
 				instr['enum_fields'] = []
@@ -902,15 +902,15 @@ for page in Instructions:
 			case 'i8':
 				instr['enum_fields_decl'] = ['u8']
 				instr['enum_fields'] = ['imm8']
-				instr['enum_fields_consume'] = ['let imm8 = self.mem.read8(&self.reg.pc);', 'self.reg.pc_increment();']
+				instr['enum_fields_consume'] = ['let imm8 = self.mem.read8(&self.reg.pc);', 'self.reg.pc_increment(1);']
 			case 'i16':
 				instr['enum_fields_decl'] = ['u16']
 				instr['enum_fields'] = ['imm16']
-				instr['enum_fields_consume'] = ['let imm16 = self.mem.read16(&self.reg.pc);', 'self.reg.pc_increment();', 'self.reg.pc_increment();']
+				instr['enum_fields_consume'] = ['let imm16 = self.mem.read16(&self.reg.pc);', 'self.reg.pc_increment(1);', 'self.reg.pc_increment(1);']
 			case 'i32':
 				instr['enum_fields_decl'] = ['u32']
 				instr['enum_fields'] = ['imm32']
-				instr['enum_fields_consume'] = ['let imm32 = self.mem.read32(&self.reg.pc);', 'self.reg.pc_increment();', 'self.reg.pc_increment();', 'self.reg.pc_increment();', 'self.reg.pc_increment();']
+				instr['enum_fields_consume'] = ['let imm32 = self.mem.read32(&self.reg.pc);', 'self.reg.pc_increment(1);', 'self.reg.pc_increment(1);', 'self.reg.pc_increment(1);', 'self.reg.pc_increment(1);']
 			case 'a':
 				instr['enum_fields_decl'] = []
 				instr['enum_fields'] = []
@@ -918,27 +918,27 @@ for page in Instructions:
 			case 'p':
 				instr['enum_fields_decl'] = ['RegPair']
 				instr['enum_fields'] = ['regpair']
-				instr['enum_fields_consume'] = ['let regpair = RegPair::new(self.mem.read8(&self.reg.pc));', 'self.reg.pc_increment();']
+				instr['enum_fields_consume'] = ['let regpair = RegPair::new(self.mem.read8(&self.reg.pc));', 'self.reg.pc_increment(1);']
 			case 'pp':
 				instr['enum_fields_decl'] = ['RegPair']
 				instr['enum_fields'] = ['regpair']
-				instr['enum_fields_consume'] = ['let regpair = RegPair::new(self.mem.read8(&self.reg.pc));', 'self.reg.pc_increment();']
+				instr['enum_fields_consume'] = ['let regpair = RegPair::new(self.mem.read8(&self.reg.pc));', 'self.reg.pc_increment(1);']
 			case 's':
 				instr['enum_fields_decl'] = ['u8']
 				instr['enum_fields'] = ['stackbyte']
-				instr['enum_fields_consume'] = ['let stackbyte = self.mem.read8(&self.reg.pc);', 'self.reg.pc_increment();']
+				instr['enum_fields_consume'] = ['let stackbyte = self.mem.read8(&self.reg.pc);', 'self.reg.pc_increment(1);']
 			case 'bd':
 				instr['enum_fields_decl'] = ['BitSet', 'u8']
 				instr['enum_fields'] = ['bitset', 'addr8']
-				instr['enum_fields_consume'] = ['let bitset = BitSet::new(self.mem.read8(&self.reg.pc));', 'self.reg.pc_increment();', 'let addr8 = self.mem.read8(&self.reg.pc);', 'self.reg.pc_increment();']
+				instr['enum_fields_consume'] = ['let bitset = BitSet::new(self.mem.read8(&self.reg.pc));', 'self.reg.pc_increment(1);', 'let addr8 = self.mem.read8(&self.reg.pc);', 'self.reg.pc_increment(1);']
 			case 'i':
 				instr['enum_fields_decl'] = ['IndexMode']
 				instr['enum_fields'] = ['index']
-				instr['enum_fields_consume'] = ['let indexbyte = self.mem.read8(&self.reg.pc);', 'self.reg.pc_increment();', 'let byte1 = self.mem.read8(&(self.reg.pc + 1));', 'let byte2 = self.mem.read8(&(self.reg.pc + 2));', 'let index = IndexMode::new(indexbyte, byte1, byte2);']
+				instr['enum_fields_consume'] = ['let indexbyte = self.mem.read8(&self.reg.pc);', 'self.reg.pc_increment(1);', 'let byte1 = self.mem.read8(&(self.reg.pc));', 'let byte2 = self.mem.read8(&(self.reg.pc + 1));', 'let index = IndexMode::new(indexbyte, byte1, byte2);', 'self.reg.pc_increment(index.extra_bytes());']
 			case 'ii':
 				instr['enum_fields_decl'] = ['u8', 'IndexMode']
 				instr['enum_fields'] = ['imm8', 'index']
-				instr['enum_fields_consume'] = ['let imm8 = self.mem.read8(&self.reg.pc);', 'self.reg.pc_increment();', 'let indexbyte = self.mem.read8(&self.reg.pc);', 'self.reg.pc_increment();', 'let byte1 = self.mem.read8(&(self.reg.pc + 1));', 'let byte2 = self.mem.read8(&(self.reg.pc + 2));', 'let index = IndexMode::new(indexbyte, byte1, byte2);']
+				instr['enum_fields_consume'] = ['let imm8 = self.mem.read8(&self.reg.pc);', 'self.reg.pc_increment(1);', 'let indexbyte = self.mem.read8(&self.reg.pc);', 'self.reg.pc_increment(1);', 'let byte1 = self.mem.read8(&(self.reg.pc));', 'let byte2 = self.mem.read8(&(self.reg.pc + 1));', 'let index = IndexMode::new(indexbyte, byte1, byte2);', 'self.reg.pc_increment(index.extra_bytes());']
 			case _:
 				print("OINQUE DEBUG mode '{}' not handled".format(instr['mode']))
 				raise RuntimeError("OINQUE DEBUG mode '{mode}' not handled for {name}".format(**instr))

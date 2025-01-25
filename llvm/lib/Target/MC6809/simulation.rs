@@ -106,8 +106,8 @@ impl Register {
         self.pc = pc;
     }
 
-    pub fn pc_increment(&mut self) {
-        self.pc += 1;
+    pub fn pc_increment(&mut self, amount: u16) {
+        self.pc += amount;
     }
 }
 
@@ -117,6 +117,17 @@ enum IndexReg {
     Y,
     U,
     S,
+}
+
+impl IndexReg {
+    pub fn str(&mut self) -> &str {
+        match self {
+           IndexReg::X => "x",
+           IndexReg::Y => "y",
+           IndexReg::U => "u",
+           IndexReg::S => "s",
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -214,6 +225,7 @@ enum IndexMode {
 impl IndexMode {
     // A public constructor method
     pub fn new(indexbyte: u8, byte1: u8, byte2: u8) -> IndexMode {
+        println!("indexbyte: {:02X} byte1: {:02X} byte2: {:02X}", indexbyte, byte1, byte2);
         let iregbits = (indexbyte >> 5) & 0b0000_0011;
         let ireg = match iregbits {
             0b0000_0000 => IndexReg::X,
@@ -362,6 +374,166 @@ impl IndexMode {
             }
             0b1011_1111 | 0b1101_1111 | 0b1111_1111 => {
                 unreachable!()
+            }
+        }
+    }
+
+    pub fn extra_bytes(&self) -> u16 {
+        match self {
+            IndexMode::Imm8Offs{idx: _, offset: _} |
+            IndexMode::IndirImm8Offs{idx: _, offset: _} => 2,
+            IndexMode::Imm8OffsPC{offset: _} |
+            IndexMode::IndirImm8OffsPC{offset: _} => 1,
+            IndexMode::Imm16Offs{idx: _, offset: _} |
+            IndexMode::IndirImm16Offs{idx: _, offset: _} => 2,
+            IndexMode::Imm16OffsW{offset: _} |
+            IndexMode::Imm16OffsPC{offset: _} |
+            IndexMode::IndirImm16OffsW{offset: _} |
+            IndexMode::IndirImm16OffsPC{offset: _} => 2,
+            _ => 0,
+        }
+    }
+
+    pub fn str(&mut self) -> String {
+        match self {
+            IndexMode::ZeroOffs{idx} => {
+                let idxstr = idx.str();
+                format!(",{idxstr}")
+            }
+            IndexMode::Imm5Offs{idx, offset} => {
+                let idxstr = idx.str();
+                format!("{offset},{idxstr}")
+            }
+            IndexMode::Imm8Offs{idx, offset} => {
+                let idxstr = idx.str();
+                format!("{offset},{idxstr}")
+            }
+            IndexMode::Imm16Offs{idx, offset} => {
+                let idxstr = idx.str();
+                format!("{offset},{idxstr}")
+            }
+            IndexMode::ZeroOffsW => {
+                format!(",w")
+            }
+            IndexMode::Imm16OffsW{offset} => {
+                format!("{offset},w")
+            }
+            IndexMode::AccA8Offs{idx} => {
+                let idxstr = idx.str();
+                format!("a,{idxstr}")
+            }
+            IndexMode::AccB8Offs{idx} => {
+                let idxstr = idx.str();
+                format!("b,{idxstr}")
+            }
+            IndexMode::AccD16Offs{idx} => {
+                let idxstr = idx.str();
+                format!("d,{idxstr}")
+            }
+            IndexMode::AccE8Offs{idx} => {
+                let idxstr = idx.str();
+                format!("e,{idxstr}")
+            }
+            IndexMode::AccF8Offs{idx} => {
+                let idxstr = idx.str();
+                format!("f,{idxstr}")
+            }
+            IndexMode::AccW16Offs{idx} => {
+                let idxstr = idx.str();
+                format!("w,{idxstr}")
+            }
+            IndexMode::PostInc1{idx} => {
+                let idxstr = idx.str();
+                format!(",{idxstr}+")
+            }
+            IndexMode::PostInc2{idx} => {
+                let idxstr = idx.str();
+                format!(",{idxstr}++")
+            }
+            IndexMode::PreDec1{idx} => {
+                let idxstr = idx.str();
+                format!(",-{idxstr}")
+            }
+            IndexMode::PreDec2{idx} => {
+                let idxstr = idx.str();
+                format!(",--{idxstr}")
+            }
+            IndexMode::PostInc2W => {
+                format!(",w++")
+            }
+            IndexMode::PreDec2W => {
+                format!(",--w")
+            }
+            IndexMode::Imm8OffsPC{offset} => {
+                format!("{offset},pc")
+            }
+            IndexMode::Imm16OffsPC{offset} => {
+                format!("{offset},pc")
+            }
+            IndexMode::IndirZeroOffs{idx} => {
+                let idxstr = idx.str();
+                format!("[,{idxstr}]")
+            }
+            IndexMode::IndirImm8Offs{idx, offset} => {
+                let idxstr = idx.str();
+                format!("[{offset},{idxstr}]")
+            }
+            IndexMode::IndirImm16Offs{idx, offset} => {
+                let idxstr = idx.str();
+                format!("[{offset},{idxstr}]")
+            }
+            IndexMode::IndirZeroOffsW => {
+                format!("[,w]")
+            }
+            IndexMode::IndirImm16OffsW{offset} => {
+                format!("[{offset},w]")
+            }
+            IndexMode::IndirAccA8Offs{idx} => {
+                let idxstr = idx.str();
+                format!("[a,{idxstr}]")
+            }
+            IndexMode::IndirAccB8Offs{idx} => {
+                let idxstr = idx.str();
+                format!("[b,{idxstr}]")
+            }
+            IndexMode::IndirAccD16Offs{idx} => {
+                let idxstr = idx.str();
+                format!("[d,{idxstr}]")
+            }
+            IndexMode::IndirAccE8Offs{idx} => {
+                let idxstr = idx.str();
+                format!("[e,{idxstr}]")
+            }
+            IndexMode::IndirAccF8Offs{idx} => {
+                let idxstr = idx.str();
+                format!("[f,{idxstr}]")
+            }
+            IndexMode::IndirAccW16Offs{idx} => {
+                let idxstr = idx.str();
+                format!("[w,{idxstr}]")
+            }
+            IndexMode::IndirPostInc2{idx} => {
+                let idxstr = idx.str();
+                format!("[,{idxstr}++]")
+            }
+            IndexMode::IndirPreDec2{idx} => {
+                let idxstr = idx.str();
+                format!("[,--{idxstr}]")
+            }
+            IndexMode::IndirPostInc2W => {
+                format!("[,w++]")
+            }
+            IndexMode::IndirPreDec2W => {
+                format!("[,--w]")
+            }
+            IndexMode::IndirImm8OffsPC{offset} => {
+                format!("[{offset},pc]")
+            }
+            IndexMode::IndirImm16OffsPC{offset} => {
+                format!("[{offset},pc]")
+            }
+            IndexMode::IndirExtended{addr} => {
+                format!("[{addr}]")
             }
         }
     }
@@ -841,95 +1013,106 @@ impl Processor {
         }
     }
 
+    pub fn reset(&mut self) {
+        let reset_vector = self.mem.read16(&0xFFFE);
+        self.reg.reset(reset_vector);
+    }
+
+    pub fn fill_rom(&mut self, buffer: [u8; 8 * 1024 - 512]) {
+        unsafe {
+            std::ptr::copy_nonoverlapping(buffer.as_ptr(), self.mem.rom.as_mut_ptr(), 8 * 1024 - 512);
+        }
+    }
+
     fn continue_instruction_page_00(&mut self, opcode: u8) -> Instruction {
         match opcode {
             // MRVM START MARKER 2
             0x00 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::NEGd(addr8)
             }
             0x01 => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::OIMid(imm8, addr8)
             }
             0x02 => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::AIMid(imm8, addr8)
             }
             0x03 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::COMd(addr8)
             }
             0x04 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::LSRd(addr8)
             }
             0x05 => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::EIMid(imm8, addr8)
             }
             0x06 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::RORd(addr8)
             }
             0x07 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::ASRd(addr8)
             }
             0x08 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::ASLd(addr8)
             }
             0x09 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::ROLd(addr8)
             }
             0x0A => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::DECd(addr8)
             }
             0x0B => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::TIMid(imm8, addr8)
             }
             0x0C => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::INCd(addr8)
             }
             0x0D => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::TSTd(addr8)
             }
             0x0E => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::JMPd(addr8)
             }
             0x0F => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::CLRd(addr8)
             }
             0x12 => Instruction::NOPx,
@@ -938,168 +1121,172 @@ impl Processor {
             0x15 => Instruction::HCFx,
             0x16 => {
                 let pcoffset16 = self.mem.read16(&self.reg.pc) as i16;
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::LBRAlb(pcoffset16)
             }
             0x17 => {
                 let pcoffset16 = self.mem.read16(&self.reg.pc) as i16;
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::LBSRlb(pcoffset16)
             }
             0x19 => Instruction::DAAx,
             0x1A => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::ORCCi8(imm8)
             }
             0x1C => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::ANDCCi8(imm8)
             }
             0x1D => Instruction::SEXx,
             0x1E => {
                 let regpair = RegPair::new(self.mem.read8(&self.reg.pc));
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::EXGp(regpair)
             }
             0x1F => {
                 let regpair = RegPair::new(self.mem.read8(&self.reg.pc));
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::TFRp(regpair)
             }
             0x20 => {
                 let pcoffset8 = self.mem.read8(&self.reg.pc) as i8;
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::BRAb(pcoffset8)
             }
             0x21 => {
                 let pcoffset8 = self.mem.read8(&self.reg.pc) as i8;
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::BRNb(pcoffset8)
             }
             0x22 => {
                 let pcoffset8 = self.mem.read8(&self.reg.pc) as i8;
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::Bbc(Cond::HI, pcoffset8)
             }
             0x23 => {
                 let pcoffset8 = self.mem.read8(&self.reg.pc) as i8;
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::Bbc(Cond::LS, pcoffset8)
             }
             0x24 => {
                 let pcoffset8 = self.mem.read8(&self.reg.pc) as i8;
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::Bbc(Cond::HS, pcoffset8)
             }
             0x25 => {
                 let pcoffset8 = self.mem.read8(&self.reg.pc) as i8;
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::Bbc(Cond::LO, pcoffset8)
             }
             0x26 => {
                 let pcoffset8 = self.mem.read8(&self.reg.pc) as i8;
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::Bbc(Cond::NE, pcoffset8)
             }
             0x27 => {
                 let pcoffset8 = self.mem.read8(&self.reg.pc) as i8;
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::Bbc(Cond::EQ, pcoffset8)
             }
             0x28 => {
                 let pcoffset8 = self.mem.read8(&self.reg.pc) as i8;
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::Bbc(Cond::VC, pcoffset8)
             }
             0x29 => {
                 let pcoffset8 = self.mem.read8(&self.reg.pc) as i8;
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::Bbc(Cond::VS, pcoffset8)
             }
             0x2A => {
                 let pcoffset8 = self.mem.read8(&self.reg.pc) as i8;
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::Bbc(Cond::PL, pcoffset8)
             }
             0x2B => {
                 let pcoffset8 = self.mem.read8(&self.reg.pc) as i8;
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::Bbc(Cond::MI, pcoffset8)
             }
             0x2C => {
                 let pcoffset8 = self.mem.read8(&self.reg.pc) as i8;
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::Bbc(Cond::GE, pcoffset8)
             }
             0x2D => {
                 let pcoffset8 = self.mem.read8(&self.reg.pc) as i8;
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::Bbc(Cond::LT, pcoffset8)
             }
             0x2E => {
                 let pcoffset8 = self.mem.read8(&self.reg.pc) as i8;
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::Bbc(Cond::GT, pcoffset8)
             }
             0x2F => {
                 let pcoffset8 = self.mem.read8(&self.reg.pc) as i8;
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::Bbc(Cond::LE, pcoffset8)
             }
             0x30 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::LEAXi(index)
             }
             0x31 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::LEAYi(index)
             }
             0x32 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::LEASi(index)
             }
             0x33 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::LEAUi(index)
             }
             0x34 => {
                 let stackbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::PSHSs(stackbyte)
             }
             0x35 => {
                 let stackbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::PULSs(stackbyte)
             }
             0x36 => {
                 let stackbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::PSHUs(stackbyte)
             }
             0x37 => {
                 let stackbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::PULUs(stackbyte)
             }
             0x39 => Instruction::RTSr,
@@ -1107,7 +1294,7 @@ impl Processor {
             0x3B => Instruction::RTIr,
             0x3C => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::CWAIi8(imm8)
             }
             0x3D => Instruction::MULx,
@@ -1137,999 +1324,1047 @@ impl Processor {
             0x5F => Instruction::CLRBa,
             0x60 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::NEGi(index)
             }
             0x61 => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::OIMii(imm8, index)
             }
             0x62 => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::AIMii(imm8, index)
             }
             0x63 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::COMi(index)
             }
             0x64 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::LSRi(index)
             }
             0x65 => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::EIMii(imm8, index)
             }
             0x66 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::RORi(index)
             }
             0x67 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::ASRi(index)
             }
             0x68 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::ASLi(index)
             }
             0x69 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::ROLi(index)
             }
             0x6A => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::DECi(index)
             }
             0x6B => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::TIMii(imm8, index)
             }
             0x6C => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::INCi(index)
             }
             0x6D => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::TSTi(index)
             }
             0x6E => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::JMPi(index)
             }
             0x6F => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::CLRi(index)
             }
             0x70 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::NEGe(addr16)
             }
             0x71 => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::OIMie(imm8, addr16)
             }
             0x72 => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::AIMie(imm8, addr16)
             }
             0x73 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::COMe(addr16)
             }
             0x74 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::LSRe(addr16)
             }
             0x75 => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::EIMie(imm8, addr16)
             }
             0x76 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::RORe(addr16)
             }
             0x77 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::ASRe(addr16)
             }
             0x78 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::ASLe(addr16)
             }
             0x79 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::ROLe(addr16)
             }
             0x7A => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::DECe(addr16)
             }
             0x7B => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::TIMie(imm8, addr16)
             }
             0x7C => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::INCe(addr16)
             }
             0x7D => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::TSTe(addr16)
             }
             0x7E => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::JMPe(addr16)
             }
             0x7F => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::CLRe(addr16)
             }
             0x80 => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::SUBAi8(imm8)
             }
             0x81 => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::CMPAi8(imm8)
             }
             0x82 => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::SBCAi8(imm8)
             }
             0x83 => {
                 let imm16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::SUBDi16(imm16)
             }
             0x84 => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::ANDAi8(imm8)
             }
             0x85 => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::BITAi8(imm8)
             }
             0x86 => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::LDAi8(imm8)
             }
             0x88 => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::EORAi8(imm8)
             }
             0x89 => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::ADCAi8(imm8)
             }
             0x8A => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::ORAi8(imm8)
             }
             0x8B => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::ADDAi8(imm8)
             }
             0x8C => {
                 let imm16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::CMPXi16(imm16)
             }
             0x8D => {
                 let pcoffset8 = self.mem.read8(&self.reg.pc) as i8;
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::BSRb(pcoffset8)
             }
             0x8E => {
                 let imm16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::LDXi16(imm16)
             }
             0x90 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::SUBAd(addr8)
             }
             0x91 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::CMPAd(addr8)
             }
             0x92 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::SBCAd(addr8)
             }
             0x93 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::SUBDd(addr8)
             }
             0x94 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::ANDAd(addr8)
             }
             0x95 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::BITAd(addr8)
             }
             0x96 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::LDAd(addr8)
             }
             0x97 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::STAd(addr8)
             }
             0x98 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::EORAd(addr8)
             }
             0x99 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::ADCAd(addr8)
             }
             0x9A => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::ORAd(addr8)
             }
             0x9B => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::ADDAd(addr8)
             }
             0x9C => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::CMPXd(addr8)
             }
             0x9D => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::JSRd(addr8)
             }
             0x9E => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::LDXd(addr8)
             }
             0x9F => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::STXd(addr8)
             }
             0xA0 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::SUBAi(index)
             }
             0xA1 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::CMPAi(index)
             }
             0xA2 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::SBCAi(index)
             }
             0xA3 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::SUBDi(index)
             }
             0xA4 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::ANDAi(index)
             }
             0xA5 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::BITAi(index)
             }
             0xA6 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::LDAi(index)
             }
             0xA7 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::STAi(index)
             }
             0xA8 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::EORAi(index)
             }
             0xA9 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::ADCAi(index)
             }
             0xAA => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::ORAi(index)
             }
             0xAB => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::ADDAi(index)
             }
             0xAC => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::CMPXi(index)
             }
             0xAD => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::JSRi(index)
             }
             0xAE => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::LDXi(index)
             }
             0xAF => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::STXi(index)
             }
             0xB0 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::SUBAe(addr16)
             }
             0xB1 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::CMPAe(addr16)
             }
             0xB2 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::SBCAe(addr16)
             }
             0xB3 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::SUBDe(addr16)
             }
             0xB4 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::ANDAe(addr16)
             }
             0xB5 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::BITAe(addr16)
             }
             0xB6 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::LDAe(addr16)
             }
             0xB7 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::STAe(addr16)
             }
             0xB8 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::EORAe(addr16)
             }
             0xB9 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::ADCAe(addr16)
             }
             0xBA => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::ORAe(addr16)
             }
             0xBB => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::ADDAe(addr16)
             }
             0xBC => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::CMPXe(addr16)
             }
             0xBD => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::JSRe(addr16)
             }
             0xBE => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::LDXe(addr16)
             }
             0xBF => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::STXe(addr16)
             }
             0xC0 => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::SUBBi8(imm8)
             }
             0xC1 => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::CMPBi8(imm8)
             }
             0xC2 => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::SBCBi8(imm8)
             }
             0xC3 => {
                 let imm16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::ADDDi16(imm16)
             }
             0xC4 => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::ANDBi8(imm8)
             }
             0xC5 => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::BITBi8(imm8)
             }
             0xC6 => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::LDBi8(imm8)
             }
             0xC8 => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::EORBi8(imm8)
             }
             0xC9 => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::ADCBi8(imm8)
             }
             0xCA => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::ORBi8(imm8)
             }
             0xCB => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::ADDBi8(imm8)
             }
             0xCC => {
                 let imm16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::LDDi16(imm16)
             }
             0xCD => {
                 let imm32 = self.mem.read32(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::LDQi32(imm32)
             }
             0xCE => {
                 let imm16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::LDUi16(imm16)
             }
             0xD0 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::SUBBd(addr8)
             }
             0xD1 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::CMPBd(addr8)
             }
             0xD2 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::SBCBd(addr8)
             }
             0xD3 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::ADDDd(addr8)
             }
             0xD4 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::ANDBd(addr8)
             }
             0xD5 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::BITBd(addr8)
             }
             0xD6 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::LDBd(addr8)
             }
             0xD7 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::STBd(addr8)
             }
             0xD8 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::EORBd(addr8)
             }
             0xD9 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::ADCBd(addr8)
             }
             0xDA => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::ORBd(addr8)
             }
             0xDB => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::ADDBd(addr8)
             }
             0xDC => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::LDDd(addr8)
             }
             0xDD => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::STDd(addr8)
             }
             0xDE => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::LDUd(addr8)
             }
             0xDF => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::STUd(addr8)
             }
             0xE0 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::SUBBi(index)
             }
             0xE1 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::CMPBi(index)
             }
             0xE2 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::SBCBi(index)
             }
             0xE3 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::ADDDi(index)
             }
             0xE4 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::ANDBi(index)
             }
             0xE5 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::BITBi(index)
             }
             0xE6 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::LDBi(index)
             }
             0xE7 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::STBi(index)
             }
             0xE8 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::EORBi(index)
             }
             0xE9 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::ADCBi(index)
             }
             0xEA => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::ORBi(index)
             }
             0xEB => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::ADDBi(index)
             }
             0xEC => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::LDDi(index)
             }
             0xED => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::STDi(index)
             }
             0xEE => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::LDUi(index)
             }
             0xEF => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::STUi(index)
             }
             0xF0 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::SUBBe(addr16)
             }
             0xF1 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::CMPBe(addr16)
             }
             0xF2 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::SBCBe(addr16)
             }
             0xF3 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::ADDDe(addr16)
             }
             0xF4 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::ANDBe(addr16)
             }
             0xF5 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::BITBe(addr16)
             }
             0xF6 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::LDBe(addr16)
             }
             0xF7 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::STBe(addr16)
             }
             0xF8 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::EORBe(addr16)
             }
             0xF9 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::ADCBe(addr16)
             }
             0xFA => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::ORBe(addr16)
             }
             0xFB => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::ADDBe(addr16)
             }
             0xFC => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::LDDe(addr16)
             }
             0xFD => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::STDe(addr16)
             }
             0xFE => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::LDUe(addr16)
             }
             0xFF => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::STUe(addr16)
             }
             // MRVM END MARKER 2
@@ -2142,132 +2377,132 @@ impl Processor {
             // MRVM START MARKER 3
             0x21 => {
                 let pcoffset16 = self.mem.read16(&self.reg.pc) as i16;
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::LBRNlb(pcoffset16)
             }
             0x22 => {
                 let pcoffset16 = self.mem.read16(&self.reg.pc) as i16;
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::LBlbc(Cond::HI, pcoffset16)
             }
             0x23 => {
                 let pcoffset16 = self.mem.read16(&self.reg.pc) as i16;
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::LBlbc(Cond::LS, pcoffset16)
             }
             0x24 => {
                 let pcoffset16 = self.mem.read16(&self.reg.pc) as i16;
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::LBlbc(Cond::HS, pcoffset16)
             }
             0x25 => {
                 let pcoffset16 = self.mem.read16(&self.reg.pc) as i16;
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::LBlbc(Cond::LO, pcoffset16)
             }
             0x26 => {
                 let pcoffset16 = self.mem.read16(&self.reg.pc) as i16;
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::LBlbc(Cond::NE, pcoffset16)
             }
             0x27 => {
                 let pcoffset16 = self.mem.read16(&self.reg.pc) as i16;
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::LBlbc(Cond::EQ, pcoffset16)
             }
             0x28 => {
                 let pcoffset16 = self.mem.read16(&self.reg.pc) as i16;
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::LBlbc(Cond::VC, pcoffset16)
             }
             0x29 => {
                 let pcoffset16 = self.mem.read16(&self.reg.pc) as i16;
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::LBlbc(Cond::VS, pcoffset16)
             }
             0x2A => {
                 let pcoffset16 = self.mem.read16(&self.reg.pc) as i16;
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::LBlbc(Cond::PL, pcoffset16)
             }
             0x2B => {
                 let pcoffset16 = self.mem.read16(&self.reg.pc) as i16;
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::LBlbc(Cond::MI, pcoffset16)
             }
             0x2C => {
                 let pcoffset16 = self.mem.read16(&self.reg.pc) as i16;
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::LBlbc(Cond::GE, pcoffset16)
             }
             0x2D => {
                 let pcoffset16 = self.mem.read16(&self.reg.pc) as i16;
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::LBlbc(Cond::LT, pcoffset16)
             }
             0x2E => {
                 let pcoffset16 = self.mem.read16(&self.reg.pc) as i16;
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::LBlbc(Cond::GT, pcoffset16)
             }
             0x2F => {
                 let pcoffset16 = self.mem.read16(&self.reg.pc) as i16;
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::LBlbc(Cond::LE, pcoffset16)
             }
             0x30 => {
                 let regpair = RegPair::new(self.mem.read8(&self.reg.pc));
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::ADDRp(regpair)
             }
             0x31 => {
                 let regpair = RegPair::new(self.mem.read8(&self.reg.pc));
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::ADCRp(regpair)
             }
             0x32 => {
                 let regpair = RegPair::new(self.mem.read8(&self.reg.pc));
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::SUBRp(regpair)
             }
             0x33 => {
                 let regpair = RegPair::new(self.mem.read8(&self.reg.pc));
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::SBCRp(regpair)
             }
             0x34 => {
                 let regpair = RegPair::new(self.mem.read8(&self.reg.pc));
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::ANDRp(regpair)
             }
             0x35 => {
                 let regpair = RegPair::new(self.mem.read8(&self.reg.pc));
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::ORRp(regpair)
             }
             0x36 => {
                 let regpair = RegPair::new(self.mem.read8(&self.reg.pc));
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::EORRp(regpair)
             }
             0x37 => {
                 let regpair = RegPair::new(self.mem.read8(&self.reg.pc));
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::CMPRp(regpair)
             }
             0x38 => Instruction::PSHSWx,
@@ -2296,447 +2531,466 @@ impl Processor {
             0x5F => Instruction::CLRWa,
             0x80 => {
                 let imm16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::SUBWi16(imm16)
             }
             0x81 => {
                 let imm16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::CMPWi16(imm16)
             }
             0x82 => {
                 let imm16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::SBCDi16(imm16)
             }
             0x83 => {
                 let imm16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::CMPDi16(imm16)
             }
             0x84 => {
                 let imm16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::ANDDi16(imm16)
             }
             0x85 => {
                 let imm16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::BITDi16(imm16)
             }
             0x86 => {
                 let imm16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::LDWi16(imm16)
             }
             0x88 => {
                 let imm16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::EORDi16(imm16)
             }
             0x89 => {
                 let imm16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::ADCDi16(imm16)
             }
             0x8A => {
                 let imm16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::ORDi16(imm16)
             }
             0x8B => {
                 let imm16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::ADDWi16(imm16)
             }
             0x8C => {
                 let imm16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::CMPYi16(imm16)
             }
             0x8E => {
                 let imm16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::LDYi16(imm16)
             }
             0x90 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::SUBWd(addr8)
             }
             0x91 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::CMPWd(addr8)
             }
             0x92 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::SBCDd(addr8)
             }
             0x93 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::CMPDd(addr8)
             }
             0x94 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::ANDDd(addr8)
             }
             0x95 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::BITDd(addr8)
             }
             0x96 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::LDWd(addr8)
             }
             0x97 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::STWd(addr8)
             }
             0x98 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::EORDd(addr8)
             }
             0x99 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::ADCDd(addr8)
             }
             0x9A => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::ORDd(addr8)
             }
             0x9B => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::ADDWd(addr8)
             }
             0x9C => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::CMPYd(addr8)
             }
             0x9E => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::LDYd(addr8)
             }
             0x9F => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::STYd(addr8)
             }
             0xA0 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::SUBWi(index)
             }
             0xA1 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::CMPWi(index)
             }
             0xA2 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::SBCDi(index)
             }
             0xA3 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::CMPDi(index)
             }
             0xA4 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::ANDDi(index)
             }
             0xA5 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::BITDi(index)
             }
             0xA6 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::LDWi(index)
             }
             0xA7 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::STWi(index)
             }
             0xA8 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::EORDi(index)
             }
             0xA9 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::ADCDi(index)
             }
             0xAA => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::ORDi(index)
             }
             0xAB => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::ADDWi(index)
             }
             0xAC => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::CMPYi(index)
             }
             0xAE => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::LDYi(index)
             }
             0xAF => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::STYi(index)
             }
             0xB0 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::SUBWe(addr16)
             }
             0xB1 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::CMPWe(addr16)
             }
             0xB2 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::SBCDe(addr16)
             }
             0xB3 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::CMPDe(addr16)
             }
             0xB4 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::ANDDe(addr16)
             }
             0xB5 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::BITDe(addr16)
             }
             0xB6 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::LDWe(addr16)
             }
             0xB7 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::STWe(addr16)
             }
             0xB8 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::EORDe(addr16)
             }
             0xB9 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::ADCDe(addr16)
             }
             0xBA => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::ORDe(addr16)
             }
             0xBB => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::ADDWe(addr16)
             }
             0xBC => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::CMPYe(addr16)
             }
             0xBE => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::LDYe(addr16)
             }
             0xBF => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::STYe(addr16)
             }
             0xCE => {
                 let imm16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::LDSi16(imm16)
             }
             0xDC => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::LDQd(addr8)
             }
             0xDD => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::STQd(addr8)
             }
             0xDE => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::LDSd(addr8)
             }
             0xDF => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::STSd(addr8)
             }
             0xEC => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::LDQi(index)
             }
             0xED => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::STQi(index)
             }
             0xEE => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::LDSi(index)
             }
             0xEF => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::STSi(index)
             }
             0xFC => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::LDQe(addr16)
             }
             0xFD => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::STQe(addr16)
             }
             0xFE => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::LDSe(addr16)
             }
             0xFF => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::STSe(addr16)
             }
             // MRVM END MARKER 3
@@ -2749,88 +3003,88 @@ impl Processor {
             // MRVM START MARKER 4
             0x30 => {
                 let bitset = BitSet::new(self.mem.read8(&self.reg.pc));
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::BANDbd(bitset, addr8)
             }
             0x31 => {
                 let bitset = BitSet::new(self.mem.read8(&self.reg.pc));
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::BIANDbd(bitset, addr8)
             }
             0x32 => {
                 let bitset = BitSet::new(self.mem.read8(&self.reg.pc));
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::BORbd(bitset, addr8)
             }
             0x33 => {
                 let bitset = BitSet::new(self.mem.read8(&self.reg.pc));
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::BIORbd(bitset, addr8)
             }
             0x34 => {
                 let bitset = BitSet::new(self.mem.read8(&self.reg.pc));
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::BEORbd(bitset, addr8)
             }
             0x35 => {
                 let bitset = BitSet::new(self.mem.read8(&self.reg.pc));
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::BIEORbd(bitset, addr8)
             }
             0x36 => {
                 let bitset = BitSet::new(self.mem.read8(&self.reg.pc));
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::LDBTbd(bitset, addr8)
             }
             0x37 => {
                 let bitset = BitSet::new(self.mem.read8(&self.reg.pc));
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::STBTbd(bitset, addr8)
             }
             0x38 => {
                 let regpair = RegPair::new(self.mem.read8(&self.reg.pc));
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::TFM0pp(regpair)
             }
             0x39 => {
                 let regpair = RegPair::new(self.mem.read8(&self.reg.pc));
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::TFM1pp(regpair)
             }
             0x3A => {
                 let regpair = RegPair::new(self.mem.read8(&self.reg.pc));
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::TFM2pp(regpair)
             }
             0x3B => {
                 let regpair = RegPair::new(self.mem.read8(&self.reg.pc));
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::TFM3pp(regpair)
             }
             0x3C => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::BITMDi8(imm8)
             }
             0x3D => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::LDMDi8(imm8)
             }
             0x3F => Instruction::SWI3x,
@@ -2846,356 +3100,371 @@ impl Processor {
             0x5F => Instruction::CLRFa,
             0x80 => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::SUBEi8(imm8)
             }
             0x81 => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::CMPEi8(imm8)
             }
             0x83 => {
                 let imm16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::CMPUi16(imm16)
             }
             0x86 => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::LDEi8(imm8)
             }
             0x8B => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::ADDEi8(imm8)
             }
             0x8C => {
                 let imm16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::CMPSi16(imm16)
             }
             0x8D => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::DIVDi8(imm8)
             }
             0x8E => {
                 let imm16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::DIVQi16(imm16)
             }
             0x8F => {
                 let imm16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::MULDi16(imm16)
             }
             0x90 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::SUBEd(addr8)
             }
             0x91 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::CMPEd(addr8)
             }
             0x93 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::CMPUd(addr8)
             }
             0x96 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::LDEd(addr8)
             }
             0x97 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::STEd(addr8)
             }
             0x9B => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::ADDEd(addr8)
             }
             0x9C => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::CMPSd(addr8)
             }
             0x9D => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::DIVDd(addr8)
             }
             0x9E => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::DIVQd(addr8)
             }
             0x9F => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::MULDd(addr8)
             }
             0xA0 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::SUBEi(index)
             }
             0xA1 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::CMPEi(index)
             }
             0xA3 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::CMPUi(index)
             }
             0xA6 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::LDEi(index)
             }
             0xA7 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::STEi(index)
             }
             0xAB => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::ADDEi(index)
             }
             0xAC => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::CMPSi(index)
             }
             0xAD => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::DIVDi(index)
             }
             0xAE => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::DIVQi(index)
             }
             0xAF => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::MULDi(index)
             }
             0xB0 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::SUBEe(addr16)
             }
             0xB1 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::CMPEe(addr16)
             }
             0xB3 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::CMPUe(addr16)
             }
             0xB6 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::LDEe(addr16)
             }
             0xB7 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::STEe(addr16)
             }
             0xBB => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::ADDEe(addr16)
             }
             0xBC => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::CMPSe(addr16)
             }
             0xBD => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::DIVDe(addr16)
             }
             0xBE => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::DIVQe(addr16)
             }
             0xBF => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::MULDe(addr16)
             }
             0xC0 => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::SUBFi8(imm8)
             }
             0xC1 => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::CMPFi8(imm8)
             }
             0xC6 => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::LDFi8(imm8)
             }
             0xCB => {
                 let imm8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::ADDFi8(imm8)
             }
             0xD0 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::SUBFd(addr8)
             }
             0xD1 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::CMPFd(addr8)
             }
             0xD6 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::LDFd(addr8)
             }
             0xD7 => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::STFd(addr8)
             }
             0xDB => {
                 let addr8 = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 Instruction::ADDFd(addr8)
             }
             0xE0 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::SUBFi(index)
             }
             0xE1 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::CMPFi(index)
             }
             0xE6 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::LDFi(index)
             }
             0xE7 => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::STFi(index)
             }
             0xEB => {
                 let indexbyte = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
-                let byte1 = self.mem.read8(&(self.reg.pc + 1));
-                let byte2 = self.mem.read8(&(self.reg.pc + 2));
+                self.reg.pc_increment(1);
+                let byte1 = self.mem.read8(&(self.reg.pc));
+                let byte2 = self.mem.read8(&(self.reg.pc + 1));
                 let index = IndexMode::new(indexbyte, byte1, byte2);
+                self.reg.pc_increment(index.extra_bytes());
                 Instruction::ADDFi(index)
             }
             0xF0 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::SUBFe(addr16)
             }
             0xF1 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::CMPFe(addr16)
             }
             0xF6 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::LDFe(addr16)
             }
             0xF7 => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::STFe(addr16)
             }
             0xFB => {
                 let addr16 = self.mem.read16(&self.reg.pc);
-                self.reg.pc_increment();
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
+                self.reg.pc_increment(1);
                 Instruction::ADDFe(addr16)
             }
             // MRVM END MARKER 4
@@ -3205,16 +3474,16 @@ impl Processor {
 
     fn decode_next_instruction(&mut self) -> Instruction {
         let mut opcode = self.mem.read8(&self.reg.pc);
-        self.reg.pc_increment();
+        self.reg.pc_increment(1);
         match opcode {
             0x10 => {
                 opcode = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 self.continue_instruction_page_10(opcode)
             }
             0x11 => {
                 opcode = self.mem.read8(&self.reg.pc);
-                self.reg.pc_increment();
+                self.reg.pc_increment(1);
                 self.continue_instruction_page_11(opcode)
             }
             _ => self.continue_instruction_page_00(opcode),
@@ -3222,7 +3491,9 @@ impl Processor {
     }
 
     pub fn execute_instruction(&mut self) {
+        let pc = self.get_pc();
         let opcode = self.decode_next_instruction();
+        println!("{:04X} {:?}", pc, opcode);
     }
 
     pub fn set_a(&mut self, value: &u8) {
