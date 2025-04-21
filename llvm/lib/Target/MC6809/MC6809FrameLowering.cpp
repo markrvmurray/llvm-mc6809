@@ -311,6 +311,11 @@ uint64_t MC6809FrameLowering::staticSize(const MachineFrameInfo &MFI) const {
   return Size;
 }
 
+bool MC6809FrameLowering::hasFPImpl(const MachineFunction &MF) const {
+  const MachineFrameInfo &MFI = MF.getFrameInfo();
+  return MFI.isFrameAddressTaken() || MFI.hasVarSizedObjects();
+}
+
 void MC6809FrameLowering::offsetSP(MachineIRBuilder &Builder, int64_t Offset) const {
   assert(Offset);
   if (Offset < SHRT_MIN)

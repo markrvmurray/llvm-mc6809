@@ -1334,51 +1334,27 @@ bool MC6809InstructionSelector::selectTrunc(MachineInstr &MI) {
 #endif
 
 bool MC6809InstructionSelector::selectUnMergeValues(MachineInstr &MI) {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
+  auto [Lo, Hi, Src] = MI.getFirst3Regs();
+
   MachineIRBuilder Builder(MI);
+  LLT SrcTy = MRI->getType(Src);
+  assert((SrcTy == S16 || SrcTy == S32) && "The Src of G_UNMERGE_VALUES must be S16 or S32");
 
-  Register Lo = MI.getOperand(0).getReg();
-  Register Hi = MI.getOperand(1).getReg();
-  Register Src = MI.getOperand(2).getReg();
-  bool SplittingAQ = false;
-
-    // auto SrcConst = getIConstantVRegValWithLookThrough(Src, *MRI);
-    auto MaybeCopy = getDefIgnoringCopies(MI.getOperand(2).getReg(), *MRI);
-    dbgs() << "OINQUE DEBUG : " << __func__ << " : Gotcha? : Parent = "; MaybeCopy->dump();
-    if (MaybeCopy->isCopy()) {
-      dbgs() << "OINQUE DEBUG : " << __func__ << " : Gotcha! : isCopy()\n";
-      if (MaybeCopy->getOperand(1).isReg()) {
-        dbgs() << "OINQUE DEBUG : " << __func__ << " : Gotcha! : isReg()\n";
-        if (MaybeCopy->getOperand(1).getReg() == MC6809::AQ) {
-          SplittingAQ = true;
-          dbgs() << "OINQUE DEBUG : " << __func__ << " : Gotcha! : == AQ\n";
-        }
-      }
-    }
-    const unsigned Size = MRI->getType(Lo).getSizeInBits();
-    MachineInstrBuilder LoCopy;
-    MachineInstrBuilder HiCopy;
-    LoCopy = Builder.buildCopy(Lo, Src);
-    HiCopy = Builder.buildCopy(Hi, Src);
-    if (Size == 8) {
-      LoCopy->getOperand(1).setSubReg(MC6809::sub_lo_byte);
-      HiCopy->getOperand(1).setSubReg(MC6809::sub_hi_byte);
-    } else if (Size == 16) {
-      if (SplittingAQ) {
-        constrainOperandRegClass(LoCopy->getOperand(1), getRegClassForType());
-        LoCopy->getOperand(1);
-        HiCopy->getOperand(1).setSubReg(MC6809::sub_hi_word);
-      }
-      LoCopy->getOperand(1).setSubReg(MC6809::sub_lo_word);
-      HiCopy->getOperand(1).setSubReg(MC6809::sub_hi_word);
-    } else
-      return false;
-    constrainGenericOp(*LoCopy);
-    constrainGenericOp(*HiCopy);
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : LoCopy = "; LoCopy->dump(););
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : HiCopy = "; HiCopy->dump(););
-    MI.eraseFromParent();
-    return true;
+  MachineInstrBuilder LoCopy;
+  MachineInstrBuilder HiCopy;
+  LoCopy = Builder.buildCopy(Lo, Src);
+  HiCopy = Builder.buildCopy(Hi, Src);
+  if (SrcTy == S16) {
+    LoCopy->getOperand(1).setSubReg(MC6809::sub_lo_byte);
+    HiCopy->getOperand(1).setSubReg(MC6809::sub_hi_byte);
+  } else {
+    LoCopy->getOperand(1).setSubReg(MC6809::sub_lo_word);
+    HiCopy->getOperand(1).setSubReg(MC6809::sub_hi_word);
+  }
+  constrainGenericOp(*LoCopy);
+  constrainGenericOp(*HiCopy);
+  MI.eraseFromParent();
+  return true;
 }
 
 bool MC6809InstructionSelector::selectGeneric(MachineInstr &MI) {

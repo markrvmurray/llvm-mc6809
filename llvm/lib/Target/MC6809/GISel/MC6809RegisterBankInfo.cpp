@@ -230,17 +230,6 @@ const RegisterBankInfo::InstructionMapping &MC6809RegisterBankInfo::getInstrMapp
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 20 : Doing getInstructionMapping() " << NumOperands << " operands\n";);
     return getInstructionMapping(DefaultMappingID, 1, Mapping, NumOperands);
   }
-  case TargetOpcode::G_UNMERGE_VALUES: {
-    assert(MI.getNumOperands() == 3 && "Unsupported G_UNMERGE_VALUES");
-    unsigned Op3Size = MRI.getType(MI.getOperand(2).getReg()).getSizeInBits();
-    InstTy = TI.determineInstType(&MI);
-    OperandsMapping = getOperandsMapping({&Mips::ValueMappings[Mips::GPRIdx],
-                                          &Mips::ValueMappings[Mips::GPRIdx],
-                                          &Mips::ValueMappings[Mips::DPRIdx]});
-    if (isAmbiguousWithMergeOrUnmerge_64(InstTy, Op3Size))
-      MappingID = CustomMappingID;
-    break;
-  }
   default:
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : default (nothing)\n";);
     break;

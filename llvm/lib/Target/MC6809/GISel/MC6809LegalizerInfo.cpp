@@ -46,7 +46,7 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   LLT s64 = LLT::scalar(64);
   LLT sMax = IsHD6309 ? s32 : s16;
   LLT sMaxLogic = IsHD6309 ? s16 : s8;
-  LLT sOther = IsHD6309 ? s16 : s32;
+  // LLT sOther = IsHD6309 ? s16 : s32;
 
   auto LegalTypes32 = {p, s8, s16, s32};
   auto LegalTypes16 = {p, s8, s16};
@@ -54,7 +54,7 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   auto LegalAccumulators8 = {s8};
   auto LegalAccumulators = IsHD6309 ? LegalAccumulators16 : LegalAccumulators8;
   auto LegalTypes = IsHD6309 ? LegalTypes32 : LegalTypes16;
-  auto LegalTypesOther = IsHD6309 ? LegalTypes32 : LegalTypes16;
+  // auto LegalTypesOther = IsHD6309 ? LegalTypes32 : LegalTypes16;
   auto LegalTypesWithOne32 = {p, s1, s8, s16, s32};
   auto LegalTypesWithOne16 = {p, s1, s8, s16};
   auto LegalTypesWithOne = IsHD6309 ? LegalTypesWithOne32 : LegalTypesWithOne16;
@@ -67,14 +67,14 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   auto LegalLibcallScalars32 = {s16, s32, s64};
   auto LegalLibcallScalars16 = {s16, s32, s64};
   auto LegalLibcallScalars = IsHD6309 ? LegalLibcallScalars32 : LegalLibcallScalars16;
-  auto NotMax32 = {s8, s16}, NotMax16 = {s8};
-  auto NotMax = IsHD6309 ? NotMax32 : NotMax16;
-  auto NotMin32 = {s16, s32}, NotMin16 = {s16};
-  auto NotMin = IsHD6309 ? NotMin32 : NotMin16;
+  // auto NotMax32 = {s8, s16}, NotMax16 = {s8};
+  // auto NotMax = IsHD6309 ? NotMax32 : NotMax16;
+  // auto NotMin32 = {s16, s32}, NotMin16 = {s16};
+  // auto NotMin = IsHD6309 ? NotMin32 : NotMin16;
   auto NotMaxWithOne32 = {s1, s8, s16}, NotMaxWithOne16 = {s1, s8};
   auto NotMaxWithOne = IsHD6309 ? NotMaxWithOne32 : NotMaxWithOne16;
 
-  const auto IsSpecificType = [](unsigned TypeIdx, LLT Ty) { return [=](const LegalityQuery &Query) { return Query.Types[TypeIdx] == Ty; }; };
+  // const auto IsSpecificType = [](unsigned TypeIdx, LLT Ty) { return [=](const LegalityQuery &Query) { return Query.Types[TypeIdx] == Ty; }; };
 
   const auto IsScalarPointer = [](unsigned ScalarTypeIdx, unsigned PointerTypeIdx, auto Predicate) {
     return [=](const LegalityQuery &Query) { return Query.Types[ScalarTypeIdx].isScalar() && Query.Types[PointerTypeIdx].isPointer() && Predicate(Query.Types[ScalarTypeIdx].getSizeInBits(), Query.Types[PointerTypeIdx].getSizeInBits()); };

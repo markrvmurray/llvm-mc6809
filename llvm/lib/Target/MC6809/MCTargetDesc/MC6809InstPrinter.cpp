@@ -37,7 +37,7 @@ namespace llvm {
 void MC6809InstPrinter::printInst(const MCInst *MI, uint64_t Address, StringRef Annot, const MCSubtargetInfo &STI, raw_ostream &OS) {
   std::string AiryOperands;
   raw_string_ostream AiryOperandStream(AiryOperands);
-  auto MnemonicInfo = getMnemonic(MI);
+  auto MnemonicInfo = getMnemonic(*MI);
   assert(MnemonicInfo.second && "Missing opcode for instruction.");
   printInstruction(MI, Address, AiryOperandStream);
   AiryOperands = AiryOperandStream.str();
@@ -79,7 +79,9 @@ void MC6809InstPrinter::printRegisterList(const MCInst *MI, unsigned OpNo, raw_o
   }
 }
 
-void MC6809InstPrinter::printRegName(raw_ostream &O, MCRegister Reg) const { O << getRegisterName(Reg); }
+void MC6809InstPrinter::printRegName(raw_ostream &O, MCRegister Reg) {
+  O << getRegisterName(Reg);
+}
 
 void MC6809InstPrinter::printCondCode(const MCInst *MI, unsigned OpNo, raw_ostream &O) {
   const MCOperand &Op = MI->getOperand(OpNo);

@@ -718,7 +718,7 @@ void MC6809InstrInfo::insertIndirectBranch(MachineBasicBlock &MBB, MachineBasicB
   llvm_unreachable("This process is a crock - fix me!");
 }
 
-void MC6809InstrInfo::copyPhysReg(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, const DebugLoc &DL, MCRegister DestReg, MCRegister SrcReg, bool KillSrc) const {
+void MC6809InstrInfo::copyPhysReg(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, const DebugLoc &DL, MCRegister DestReg, MCRegister SrcReg, bool KillSrc, bool RenamableDest, bool RenamableSrc) const {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI->dump(););
   MachineIRBuilder Builder(MBB, MI);
   if (DestReg == SrcReg)
