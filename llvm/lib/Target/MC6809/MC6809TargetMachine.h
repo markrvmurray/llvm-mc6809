@@ -13,6 +13,7 @@
 #ifndef LLVM_MC6809_TARGET_MACHINE_H
 #define LLVM_MC6809_TARGET_MACHINE_H
 
+#include "llvm/CodeGen/CodeGenTargetMachineImpl.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/Target/TargetMachine.h"
 
@@ -24,7 +25,7 @@
 namespace llvm {
 
 /// A generic MC6809 implementation.
-class MC6809TargetMachine : public LLVMTargetMachine {
+class MC6809TargetMachine : public CodeGenTargetMachineImpl {
 public:
   MC6809TargetMachine(const Target &T, const Triple &TT, StringRef CPU, StringRef FS, const TargetOptions &Options, std::optional<Reloc::Model> RM, std::optional<CodeModel::Model> CM, CodeGenOptLevel OL, bool JIT);
 

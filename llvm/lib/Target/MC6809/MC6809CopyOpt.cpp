@@ -90,6 +90,7 @@ template <typename AcceptDefT> static bool findReachingDefs(MachineInstr &MI, Sm
   return true;
 }
 
+#if 0
 static Register findForwardedCopy(MachineInstr &MI, SmallVectorImpl<MachineInstr *> &NewSrcMIs) {
   Register Src = MI.getOperand(1).getReg();
   Register NewSrc = 0;
@@ -164,6 +165,7 @@ static bool isClobbered(MachineInstr &MI, Register NewSrc, const SmallVectorImpl
   }
   return false;
 }
+#endif
 
 bool MC6809CopyOpt::runOnMachineFunction(MachineFunction &MF) {
 #if 0

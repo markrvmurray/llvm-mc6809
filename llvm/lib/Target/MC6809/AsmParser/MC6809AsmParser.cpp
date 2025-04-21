@@ -302,7 +302,7 @@ public:
   ///
   /// On failure, the target parser is responsible for emitting a diagnostic
   /// explaining the match failure.
-  bool MatchAndEmitInstruction(SMLoc Loc, unsigned & /*Opcode*/, OperandVector &Operands, MCStreamer &Out, uint64_t &ErrorInfo, bool MatchingInlineAsm) override {
+  bool matchAndEmitInstruction(SMLoc Loc, unsigned & /*Opcode*/, OperandVector &Operands, MCStreamer &Out, uint64_t &ErrorInfo, bool MatchingInlineAsm) override {
     MCInst Inst;
     unsigned MatchResult =
         // we always want ConvertToMapAndConstraints to be called
@@ -663,7 +663,7 @@ public:
     return ParseStatus::NoMatch;
   }
 
-  bool ParseInstruction(ParseInstructionInfo & /*Info*/, StringRef Mnemonic, SMLoc NameLoc, OperandVector &Operands) override {
+  bool parseInstruction(ParseInstructionInfo & /*Info*/, StringRef Mnemonic, SMLoc NameLoc, OperandVector &Operands) override {
     /*
     On 65xx family instructions, mnemonics and addressing modes take the form:
 
