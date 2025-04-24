@@ -65,6 +65,7 @@ protected:
   GISelValueTracking *VT = nullptr;
   BlockFrequencyInfo *BFI = nullptr;
   ProfileSummaryInfo *PSI = nullptr;
+  AAResults *AA = nullptr;
 
   CodeGenOptLevel OptLevel = CodeGenOptLevel::None;
 

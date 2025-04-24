@@ -2110,6 +2110,8 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
   if (EnableLoopFlatten && Level.getSpeedupLevel() > 1)
     LPM.addPass(LoopFlattenPass());
   LPM.addPass(IndVarSimplifyPass());
+  for (auto &C : LateLoopOptimizationsEPCallbacks)
+    C(LPM, Level);
   LPM.addPass(LoopDeletionPass());
   // FIXME: Add loop interchange.
 

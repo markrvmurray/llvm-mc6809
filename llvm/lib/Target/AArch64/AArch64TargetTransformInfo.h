@@ -462,7 +462,8 @@ public:
   /// If the AM is not supported, it returns an invalid cost.
   InstructionCost getScalingFactorCost(Type *Ty, GlobalValue *BaseGV,
                                        StackOffset BaseOffset, bool HasBaseReg,
-                                       int64_t Scale, unsigned AddrSpace) const;
+                                       Type *BaseTy, int64_t Scale,
+                                       Type *ScaleTy, unsigned AddrSpace) const;
 
   bool enableSelectOptimize() const { return ST->enableSelectOptimize(); }
 

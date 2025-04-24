@@ -19,6 +19,7 @@
 ///
 //===----------------------------------------------------------------------===//
 
+
 #ifndef LLVM_CODEGEN_TARGETLOWERING_H
 #define LLVM_CODEGEN_TARGETLOWERING_H
 
@@ -1429,6 +1430,11 @@ public:
   bool isSuitableForBitTests(unsigned NumDests, unsigned NumCmps,
                              const APInt &Low, const APInt &High,
                              const DataLayout &DL) const {
+    // If target does not have legal shift left, do not emit bit tests at all.
+    EVT PTy = getPointerTy(DL);
+    if (!isOperationLegal(ISD::SHL, PTy))
+      return false;
+
     // FIXME: I don't think NumCmps is the correct metric: a single case and a
     // range of cases both require only one branch to lower. Just looking at the
     // number of clusters and destinations should be enough to decide whether to
@@ -1755,7 +1761,7 @@ public:
   virtual Align getByValTypeAlignment(Type *Ty, const DataLayout &DL) const;
 
   /// Return the type of registers that this ValueType will eventually require.
-  MVT getRegisterType(MVT VT) const {
+  virtual MVT getRegisterType(MVT VT) const {
     assert((unsigned)VT.SimpleTy < std::size(RegisterTypeForVT));
     return RegisterTypeForVT[VT.SimpleTy];
   }
@@ -1819,6 +1825,12 @@ public:
     return getRegisterType(Context, VT);
   }
 
+  // Variant of the above that includes flags, particularly isPointer.
+  virtual MVT getRegisterTypeForCallingConv(LLVMContext &Context,
+      CallingConv::ID CC, EVT VT, const ISD::ArgFlagsTy& Flags) const {
+    return getRegisterTypeForCallingConv(Context, CC, VT);
+  }
+
   /// Certain targets require unusual breakdowns of certain types. For MIPS,
   /// this occurs when a vector type is used, as vector are passed through the
   /// integer register set.
@@ -1828,11 +1840,24 @@ public:
     return getNumRegisters(Context, VT);
   }
 
+  // Variant of the above that includes flags, particularly isPointer.
+  virtual unsigned getNumRegistersForCallingConv(LLVMContext &Context,
+      CallingConv::ID CC, EVT VT, const ISD::ArgFlagsTy& Flags) const {
+    return getNumRegistersForCallingConv(Context, CC, VT);
+  }
+
   /// Certain targets have context sensitive alignment requirements, where one
   /// type has the alignment requirement of another type.
   virtual Align getABIAlignmentForCallingConv(Type *ArgTy,
                                               const DataLayout &DL) const {
     return DL.getABITypeAlign(ArgTy);
+  }
+
+  /// Certain targets require unusual breakdowns of certain types for inline
+  /// assembly.
+  virtual unsigned getNumRegistersForInlineAsm(LLVMContext &Context,
+                                               EVT VT) const {
+    return getNumRegisters(Context, VT);
   }
 
   /// If true, then instruction selection should seek to shrink the FP constant
@@ -2871,7 +2896,9 @@ public:
     GlobalValue *BaseGV = nullptr;
     int64_t      BaseOffs = 0;
     bool         HasBaseReg = false;
+    Type *BaseType = nullptr;
     int64_t      Scale = 0;
+    Type *ScaleType = nullptr;
     int64_t ScalableOffset = 0;
     AddrMode() = default;
   };
@@ -3137,6 +3164,11 @@ public:
   /// Return true if sign-extension from FromTy to ToTy is cheaper than
   /// zero-extension.
   virtual bool isSExtCheaperThanZExt(EVT FromTy, EVT ToTy) const {
+    return false;
+  }
+
+  /// Return true if narrow types are generally cheaper than wide types.
+  virtual bool preferNarrowTypes() const {
     return false;
   }
 

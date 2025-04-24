@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+
 #ifndef LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_COMMONARGS_H
 #define LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_COMMONARGS_H
 
@@ -193,6 +194,8 @@ void addMultilibFlag(bool Enabled, const StringRef Flag,
 void addX86AlignBranchArgs(const Driver &D, const llvm::opt::ArgList &Args,
                            llvm::opt::ArgStringList &CmdArgs, bool IsLTO,
                            const StringRef PluginOptPrefix = "");
+
+void addMOSCodeGenArgs(llvm::opt::ArgStringList &CmdArgs);
 
 void checkAMDGPUCodeObjectVersion(const Driver &D,
                                   const llvm::opt::ArgList &Args);

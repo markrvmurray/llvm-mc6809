@@ -470,16 +470,9 @@ ENUM_CODEGENOPT(ZeroCallUsedRegs, llvm::ZeroCallUsedRegs::ZeroCallUsedRegsKind,
 /// non-deleting destructors. (No effect on Microsoft ABI.)
 CODEGENOPT(CtorDtorReturnThis, 1, 0)
 
-/// Enables emitting Import Call sections on supported targets that can be used
-/// by the Windows kernel to enable import call optimization.
-CODEGENOPT(ImportCallOptimization, 1, 0)
-
-/// Controls whether we generate code for static linking of libclosure
-/// (BlocksRuntime) on Windows.
-CODEGENOPT(StaticClosure, 1, 0)
-
-/// Assume that UAVs/SRVs may alias
-CODEGENOPT(ResMayAlias, 1, 0)
+/// Whether to assume that functions cannot have more than one simultaneous
+/// activation.
+CODEGENOPT(AssumeNonReentrant, 1, 0)
 
 /// FIXME: Make DebugOptions its own top-level .def file.
 #include "DebugOptions.def"

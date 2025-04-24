@@ -383,6 +383,14 @@ public:
   /// scientific. A target may has no bonus on vector instructions.
   int getInlinerVectorBonusPercent() const;
 
+  /// \returns Whether inlining costs should be boosted or taken as law.
+  ///
+  /// Some targets typically have extreme size constraints; in such cases,
+  /// inlining may be inappropriate even if it provides a great runtime benefit.
+  /// If true, the inlining costs are always compared directly against the
+  /// threshold; boosts for desireable runtime benefits are not applied.
+  bool strictInliningCosts() const;
+
   /// \return the expected cost of a memcpy, which could e.g. depend on the
   /// source/destination type and alignment and the number of bytes copied.
   InstructionCost getMemcpyCost(const Instruction *I) const;
@@ -754,6 +762,18 @@ public:
                              unsigned AddrSpace = 0, Instruction *I = nullptr,
                              int64_t ScalableOffset = 0) const;
 
+  /// Return true if the addressing mode represented by AM is legal for
+  /// this target, for a load/store of the specified type.
+  /// The type may be VoidTy, in which case only return true if the addressing
+  /// mode is legal for a load/store of any legal type.
+  /// If target returns true in LSRWithInstrQueries(), I may be valid.
+  /// TODO: Handle pre/postinc as well.
+  bool isLegalAddressingMode(Type *Ty, GlobalValue *BaseGV, int64_t BaseOffset,
+                             bool HasBaseReg, Type *BaseType, int64_t Scale,
+                             Type *ScaleType, unsigned AddrSpace = 0,
+                             Instruction *I = nullptr,
+                             int64_t ScalableOffset = 0) const;
+
   /// Return true if LSR cost of C1 is lower than C2.
   bool isLSRCostLess(const TargetTransformInfo::LSRCost &C1,
                      const TargetTransformInfo::LSRCost &C2) const;
@@ -873,7 +893,8 @@ public:
   /// TODO: Handle pre/postinc as well.
   InstructionCost getScalingFactorCost(Type *Ty, GlobalValue *BaseGV,
                                        StackOffset BaseOffset, bool HasBaseReg,
-                                       int64_t Scale,
+                                       Type *BaseType, int64_t Scale,
+                                       Type *ScaleType,
                                        unsigned AddrSpace = 0) const;
 
   /// Return true if the loop strength reduce pass should make
@@ -886,6 +907,14 @@ public:
   /// Ty2. e.g. On x86 it's free to truncate a i32 value in register EAX to i16
   /// by referencing its sub-register AX.
   bool isTruncateFree(Type *Ty1, Type *Ty2) const;
+
+  /// Return true if it's free to zero extend a value of type Ty1 to type
+  /// Ty2.
+  bool isZExtFree(Type *Ty1, Type *Ty2) const;
+
+  /// Return true if a operations on narrow types are generally cheaper than
+  /// operations on wide types.
+  bool preferNarrowTypes() const;
 
   /// Return true if it is profitable to hoist instruction in the
   /// then/else to before if.
@@ -1882,6 +1911,8 @@ public:
   VPLegalization getVPLegalizationStrategy(const VPIntrinsic &PI) const;
   /// @}
 
+  bool allowIllegalIntegerIV() const;
+
   /// \returns Whether a 32-bit branch instruction is available in Arm or Thumb
   /// state.
   ///
@@ -1945,6 +1976,7 @@ public:
   virtual int getInliningLastCallToStaticBonus() const = 0;
   virtual unsigned adjustInliningThreshold(const CallBase *CB) const = 0;
   virtual int getInlinerVectorBonusPercent() const = 0;
+  virtual bool strictInliningCosts() const = 0;
   virtual unsigned getCallerAllocaCost(const CallBase *CB,
                                        const AllocaInst *AI) const = 0;
   virtual InstructionCost getMemcpyCost(const Instruction *I) const = 0;
@@ -2008,7 +2040,13 @@ public:
                                      int64_t BaseOffset, bool HasBaseReg,
                                      int64_t Scale, unsigned AddrSpace,
                                      Instruction *I,
-                                     int64_t ScalableOffset) const = 0;
+                                     int64_t ScalableOffset) = 0;
+  virtual bool isLegalAddressingMode(Type *Ty, GlobalValue *BaseGV,
+                                     int64_t BaseOffset, bool HasBaseReg,
+                                     Type *BaseType, int64_t Scale,
+                                     Type *ScaleType, unsigned AddrSpace,
+                                     Instruction *I,
+                                     int64_t ScalableOffset) = 0;
   virtual bool isLSRCostLess(const TargetTransformInfo::LSRCost &C1,
                              const TargetTransformInfo::LSRCost &C2) const = 0;
   virtual bool isNumRegsMajorCostOfLSR() const = 0;
@@ -2055,23 +2093,24 @@ public:
   virtual bool prefersVectorizedAddressing() const = 0;
   virtual InstructionCost getScalingFactorCost(Type *Ty, GlobalValue *BaseGV,
                                                StackOffset BaseOffset,
-                                               bool HasBaseReg, int64_t Scale,
-                                               unsigned AddrSpace) const = 0;
-  virtual bool LSRWithInstrQueries() const = 0;
-  virtual bool isTruncateFree(Type *Ty1, Type *Ty2) const = 0;
-  virtual bool isProfitableToHoist(Instruction *I) const = 0;
-  virtual bool useAA() const = 0;
-  virtual bool isTypeLegal(Type *Ty) const = 0;
-  virtual unsigned getRegUsageForType(Type *Ty) const = 0;
-  virtual bool shouldBuildLookupTables() const = 0;
-  virtual bool shouldBuildLookupTablesForConstant(Constant *C) const = 0;
-  virtual bool shouldBuildRelLookupTables() const = 0;
-  virtual bool useColdCCForColdCall(Function &F) const = 0;
-  virtual bool
-  isTargetIntrinsicTriviallyScalarizable(Intrinsic::ID ID) const = 0;
-  virtual bool
-  isTargetIntrinsicWithScalarOpAtArg(Intrinsic::ID ID,
-                                     unsigned ScalarOpdIdx) const = 0;
+                                               bool HasBaseReg, Type *BaseType,
+                                               int64_t Scale, Type *ScaleType,
+                                               unsigned AddrSpace) = 0;
+  virtual bool LSRWithInstrQueries() = 0;
+  virtual bool isTruncateFree(Type *Ty1, Type *Ty2) = 0;
+  virtual bool isZExtFree(Type *Ty1, Type *Ty2) = 0;
+  virtual bool preferNarrowTypes() = 0;
+  virtual bool isProfitableToHoist(Instruction *I) = 0;
+  virtual bool useAA() = 0;
+  virtual bool isTypeLegal(Type *Ty) = 0;
+  virtual unsigned getRegUsageForType(Type *Ty) = 0;
+  virtual bool shouldBuildLookupTables() = 0;
+  virtual bool shouldBuildLookupTablesForConstant(Constant *C) = 0;
+  virtual bool shouldBuildRelLookupTables() = 0;
+  virtual bool useColdCCForColdCall(Function &F) = 0;
+  virtual bool isTargetIntrinsicTriviallyScalarizable(Intrinsic::ID ID) = 0;
+  virtual bool isTargetIntrinsicWithScalarOpAtArg(Intrinsic::ID ID,
+                                                  unsigned ScalarOpdIdx) = 0;
   virtual bool isTargetIntrinsicWithOverloadTypeAtArg(Intrinsic::ID ID,
                                                       int OpdIdx) const = 0;
   virtual bool
@@ -2372,6 +2411,7 @@ public:
   virtual bool isVectorShiftByScalarCheap(Type *Ty) const = 0;
   virtual VPLegalization
   getVPLegalizationStrategy(const VPIntrinsic &PI) const = 0;
+  virtual bool allowIllegalIntegerIV() const = 0;
   virtual bool hasArmWideBranch(bool Thumb) const = 0;
   virtual uint64_t getFeatureMask(const Function &F) const = 0;
   virtual bool isMultiversionedFunction(const Function &F) const = 0;
@@ -2425,6 +2465,9 @@ public:
   }
   int getInlinerVectorBonusPercent() const override {
     return Impl.getInlinerVectorBonusPercent();
+  }
+  bool strictInliningCosts() const override {
+    return Impl.strictInliningCosts();
   }
   unsigned getCallerAllocaCost(const CallBase *CB,
                                const AllocaInst *AI) const override {
@@ -2565,6 +2608,14 @@ public:
     return Impl.isLegalAddressingMode(Ty, BaseGV, BaseOffset, HasBaseReg, Scale,
                                       AddrSpace, I, ScalableOffset);
   }
+  bool isLegalAddressingMode(Type *Ty, GlobalValue *BaseGV, int64_t BaseOffset,
+                             bool HasBaseReg, Type *BaseType, int64_t Scale,
+                             Type *ScaleType, unsigned AddrSpace,
+                             Instruction *I, int64_t ScalableOffset) override {
+    return Impl.isLegalAddressingMode(Ty, BaseGV, BaseOffset, HasBaseReg,
+                                      BaseType, Scale, ScaleType, AddrSpace, I,
+                                      ScalableOffset);
+  }
   bool isLSRCostLess(const TargetTransformInfo::LSRCost &C1,
                      const TargetTransformInfo::LSRCost &C2) const override {
     return Impl.isLSRCostLess(C1, C2);
@@ -2658,10 +2709,11 @@ public:
   }
   InstructionCost getScalingFactorCost(Type *Ty, GlobalValue *BaseGV,
                                        StackOffset BaseOffset, bool HasBaseReg,
-                                       int64_t Scale,
-                                       unsigned AddrSpace) const override {
-    return Impl.getScalingFactorCost(Ty, BaseGV, BaseOffset, HasBaseReg, Scale,
-                                     AddrSpace);
+                                       Type *BaseType, int64_t Scale,
+                                       Type *ScaleType,
+                                       unsigned AddrSpace) override {
+    return Impl.getScalingFactorCost(Ty, BaseGV, BaseOffset, HasBaseReg,
+                                     BaseType, Scale, ScaleType, AddrSpace);
   }
   bool LSRWithInstrQueries() const override {
     return Impl.LSRWithInstrQueries();
@@ -2669,7 +2721,13 @@ public:
   bool isTruncateFree(Type *Ty1, Type *Ty2) const override {
     return Impl.isTruncateFree(Ty1, Ty2);
   }
-  bool isProfitableToHoist(Instruction *I) const override {
+  bool isZExtFree(Type *Ty1, Type *Ty2) override {
+    return Impl.isZExtFree(Ty1, Ty2);
+  }
+  bool preferNarrowTypes() override {
+    return Impl.preferNarrowTypes();
+  }
+  bool isProfitableToHoist(Instruction *I) override {
     return Impl.isProfitableToHoist(I);
   }
   bool useAA() const override { return Impl.useAA(); }
@@ -3238,6 +3296,9 @@ public:
   VPLegalization
   getVPLegalizationStrategy(const VPIntrinsic &PI) const override {
     return Impl.getVPLegalizationStrategy(PI);
+  }
+  bool allowIllegalIntegerIV() const override {
+    return Impl.allowIllegalIntegerIV();
   }
 
   bool hasArmWideBranch(bool Thumb) const override {

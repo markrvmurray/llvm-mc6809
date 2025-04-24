@@ -537,7 +537,7 @@ static unsigned getELFSectionType(StringRef Name, SectionKind K) {
   if (Name == ".llvm.lto")
     return ELF::SHT_LLVM_LTO;
 
-  if (K.isBSS() || K.isThreadBSS())
+  if (K.isBSS() || K.isNoInit() || K.isThreadBSS())
     return ELF::SHT_NOBITS;
 
   return ELF::SHT_PROGBITS;
@@ -635,6 +635,8 @@ static StringRef getSectionPrefixForGlobal(SectionKind Kind, bool IsLarge) {
     return IsLarge ? ".lrodata" : ".rodata";
   if (Kind.isBSS())
     return IsLarge ? ".lbss" : ".bss";
+  if (Kind.isNoInit())
+    return ".noinit";
   if (Kind.isThreadData())
     return ".tdata";
   if (Kind.isThreadBSS())
@@ -649,10 +651,10 @@ static StringRef getSectionPrefixForGlobal(SectionKind Kind, bool IsLarge) {
 static SmallString<128>
 getELFSectionNameForGlobal(const GlobalObject *GO, SectionKind Kind,
                            Mangler &Mang, const TargetMachine &TM,
-                           unsigned EntrySize, bool UniqueSectionName,
-                           const MachineJumpTableEntry *JTE) {
-  SmallString<128> Name =
-      getSectionPrefixForGlobal(Kind, TM.isLargeGlobalValue(GO));
+                           unsigned EntrySize, bool UniqueSectionName) {
+  SmallString<128> Name = TM.getSectionPrefix(GO);
+  Name += getSectionPrefixForGlobal(Kind, TM.isLargeGlobalValue(GO));
+
   if (Kind.isMergeableCString()) {
     // We also need alignment here.
     // FIXME: this is getting the alignment of the character, not the

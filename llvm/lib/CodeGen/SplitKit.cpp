@@ -1652,6 +1652,9 @@ void SplitEditor::splitSingleBlock(const SplitAnalysis::BlockInfo &BI) {
       // The last use is after the last valid split point.
     SlotIndex SegStop = leaveIntvBefore(LastSplitPoint);
     useIntv(SegStart, SegStop);
+    // No need to increase the register pressure if the use is already at a
+    // most general register class.
+    if (TII.shouldOverlapInterval(*LIS.getInstructionFromIndex(BI.LastInstr)))
     overlapIntv(SegStop, BI.LastInstr);
   }
 }

@@ -11,6 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+
 #include "llvm/CodeGen/MachineScheduler.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/BitVector.h"
@@ -546,8 +547,10 @@ bool PostMachineSchedulerImpl::run(MachineFunction &Func,
 /// ScheduleDAGInstrs whenever adding or removing instructions. A much simpler
 /// design would be to split blocks at scheduling boundaries, but LLVM has a
 /// general bias against block splitting purely for implementation simplicity.
-bool MachineSchedulerLegacy::runOnMachineFunction(MachineFunction &MF) {
-  if (skipFunction(MF.getFunction()))
+bool MachineScheduler::runOnMachineFunction(MachineFunction &mf) {
+  PassConfig = &getAnalysis<TargetPassConfig>();
+  if (!PassConfig->alwaysRequiresMachineScheduler() &&
+      skipFunction(mf.getFunction()))
     return false;
 
   if (EnableMachineSched.getNumOccurrences()) {

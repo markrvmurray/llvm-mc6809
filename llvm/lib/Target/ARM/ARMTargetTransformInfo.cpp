@@ -2714,7 +2714,8 @@ bool ARMTTIImpl::preferPredicatedReductionSelect(unsigned Opcode,
 
 InstructionCost ARMTTIImpl::getScalingFactorCost(Type *Ty, GlobalValue *BaseGV,
                                                  StackOffset BaseOffset,
-                                                 bool HasBaseReg, int64_t Scale,
+                                                 bool HasBaseReg, Type *BaseTy,
+                                                 int64_t Scale, Type *ScaleTy,
                                                  unsigned AddrSpace) const {
   TargetLoweringBase::AddrMode AM;
   AM.BaseGV = BaseGV;

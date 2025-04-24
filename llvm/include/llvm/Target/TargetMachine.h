@@ -36,6 +36,7 @@ class AAManager;
 using ModulePassManager = PassManager<Module>;
 
 class Function;
+class GlobalObject;
 class GlobalValue;
 class MachineModuleInfoWrapperPass;
 struct MachineSchedContext;
@@ -326,8 +327,8 @@ public:
     return Options.FunctionSections;
   }
 
-  bool getEnableStaticDataPartitioning() const {
-    return Options.EnableStaticDataPartitioning;
+  virtual bool hasNoInitSection() const {
+    return false;
   }
 
   /// Return true if visibility attribute should not be emitted in XCOFF,
@@ -434,6 +435,8 @@ public:
 
   void getNameWithPrefix(SmallVectorImpl<char> &Name, const GlobalValue *GV,
                          Mangler &Mang, bool MayAlwaysUsePrivate = false) const;
+  virtual StringRef getSectionPrefix(const GlobalObject *GO) const { return {}; }
+
   MCSymbol *getSymbol(const GlobalValue *GV) const;
 
   /// The integer bit size to use for SjLj based exception handling.
