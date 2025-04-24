@@ -39,6 +39,8 @@ namespace lld::elf {
 class InputFile;
 class BinaryFile;
 class BitcodeFile;
+class XO65Enclave;
+class XO65File;
 class ELFFileBase;
 class SharedFile;
 class InputSectionBase;
@@ -418,7 +420,10 @@ struct Config {
   StringRef thinLTOJobs;
   unsigned timeTraceGranularity;
   int32_t splitStackAdjustSize;
-  SmallVector<uint8_t, 0> packageMetadata;
+  StringRef packageMetadata;
+  StringRef ld65Path;
+  StringRef od65Path;
+  StringRef cc65Launcher;
 
   // The following config options do not directly correspond to any
   // particular command line options.
@@ -638,6 +643,7 @@ struct Ctx : CommonLinkerContext {
   SmallVector<BinaryFile *, 0> binaryFiles;
   SmallVector<BitcodeFile *, 0> bitcodeFiles;
   SmallVector<BitcodeFile *, 0> lazyBitcodeFiles;
+  XO65Enclave *xo65Enclave = nullptr;
   SmallVector<InputSectionBase *, 0> inputSections;
   SmallVector<EhInputSection *, 0> ehInputSections;
 

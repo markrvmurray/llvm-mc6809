@@ -5,6 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
+
 #include "llvm/CodeGen/GlobalISel/CombinerHelper.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/STLExtras.h"
@@ -2538,6 +2540,7 @@ bool CombinerHelper::matchCombineAddP2IToPtrAdd(
       // Don't handle cases where the integer is implicitly converted to the
       // pointer width.
       LLT PtrTy = MRI.getType(PtrReg.first);
+      if (isLegalOrBeforeLegalizer({TargetOpcode::G_PTR_ADD, {PtrTy, IntTy}}))
       if (PtrTy.getScalarSizeInBits() == IntTy.getScalarSizeInBits())
         return true;
     }
@@ -3167,6 +3170,9 @@ bool CombinerHelper::matchHoistLogicOpWithSameOpcodeHands(
   Register Y = RightHandInst->getOperand(1).getReg();
   LLT XTy = MRI.getType(X);
   LLT YTy = MRI.getType(Y);
+  // Hand may be a copy of a physical register.
+  if (!X.isVirtual() || !Y.isVirtual())
+    return false;
   if (!XTy.isValid() || XTy != YTy)
     return false;
 
@@ -5215,7 +5221,6 @@ bool CombinerHelper::matchAddEToAddO(MachineInstr &MI,
          MI.getOpcode() == TargetOpcode::G_SSUBE);
   if (!mi_match(MI.getOperand(4).getReg(), MRI, m_SpecificICstOrSplat(0)))
     return false;
-  MatchInfo = [&](MachineIRBuilder &B) {
     unsigned NewOpcode;
     switch (MI.getOpcode()) {
     case TargetOpcode::G_UADDE:
@@ -5231,6 +5236,11 @@ bool CombinerHelper::matchAddEToAddO(MachineInstr &MI,
       NewOpcode = TargetOpcode::G_SSUBO;
       break;
     }
+  if (!isLegalOrBeforeLegalizer({NewOpcode,
+                                 {MRI.getType(MI.getOperand(0).getReg()),
+                                  MRI.getType(MI.getOperand(1).getReg())}}))
+    return false;
+  MatchInfo = [&, NewOpcode](MachineIRBuilder &B) {
     Observer.changingInstr(MI);
     MI.setDesc(B.getTII().get(NewOpcode));
     MI.removeOperand(4);
@@ -6881,7 +6891,8 @@ bool CombinerHelper::tryFoldSelectOfConstants(GSelect *Select,
   APInt FalseValue = FalseOpt->Value;
 
   // select Cond, 1, 0 --> zext (Cond)
-  if (TrueValue.isOne() && FalseValue.isZero()) {
+  if (TrueValue.isOne() && FalseValue.isZero() &&
+      isLegalOrBeforeLegalizer({TargetOpcode::G_ZEXT, {TrueTy, CondTy}})) {
     MatchInfo = [=](MachineIRBuilder &B) {
       B.setInstrAndDebugLoc(*Select);
       B.buildZExtOrTrunc(Dest, Cond);
@@ -6890,7 +6901,8 @@ bool CombinerHelper::tryFoldSelectOfConstants(GSelect *Select,
   }
 
   // select Cond, -1, 0 --> sext (Cond)
-  if (TrueValue.isAllOnes() && FalseValue.isZero()) {
+  if (TrueValue.isAllOnes() && FalseValue.isZero() &&
+      isLegalOrBeforeLegalizer({TargetOpcode::G_SEXT, {TrueTy, CondTy}})) {
     MatchInfo = [=](MachineIRBuilder &B) {
       B.setInstrAndDebugLoc(*Select);
       B.buildSExtOrTrunc(Dest, Cond);
@@ -6899,7 +6911,9 @@ bool CombinerHelper::tryFoldSelectOfConstants(GSelect *Select,
   }
 
   // select Cond, 0, 1 --> zext (!Cond)
-  if (TrueValue.isZero() && FalseValue.isOne()) {
+  if (TrueValue.isZero() && FalseValue.isOne() &&
+      isLegalOrBeforeLegalizer({TargetOpcode::G_ZEXT, {TrueTy, CondTy}}) &&
+      isLegalOrBeforeLegalizer({TargetOpcode::G_XOR, {CondTy}})) {
     MatchInfo = [=](MachineIRBuilder &B) {
       B.setInstrAndDebugLoc(*Select);
       Register Inner = MRI.createGenericVirtualRegister(CondTy);
@@ -6910,7 +6924,9 @@ bool CombinerHelper::tryFoldSelectOfConstants(GSelect *Select,
   }
 
   // select Cond, 0, -1 --> sext (!Cond)
-  if (TrueValue.isZero() && FalseValue.isAllOnes()) {
+  if (TrueValue.isZero() && FalseValue.isAllOnes() &&
+      isLegalOrBeforeLegalizer({TargetOpcode::G_SEXT, {TrueTy, CondTy}}) &&
+      isLegalOrBeforeLegalizer({TargetOpcode::G_XOR, {CondTy}})) {
     MatchInfo = [=](MachineIRBuilder &B) {
       B.setInstrAndDebugLoc(*Select);
       Register Inner = MRI.createGenericVirtualRegister(CondTy);
@@ -6921,7 +6937,9 @@ bool CombinerHelper::tryFoldSelectOfConstants(GSelect *Select,
   }
 
   // select Cond, C1, C1-1 --> add (zext Cond), C1-1
-  if (TrueValue - 1 == FalseValue) {
+  if (TrueValue - 1 == FalseValue &&
+      isLegalOrBeforeLegalizer({TargetOpcode::G_ZEXT, {TrueTy, CondTy}}) &&
+      isLegalOrBeforeLegalizer({TargetOpcode::G_ADD, {TrueTy}})) {
     MatchInfo = [=](MachineIRBuilder &B) {
       B.setInstrAndDebugLoc(*Select);
       Register Inner = MRI.createGenericVirtualRegister(TrueTy);
@@ -6932,7 +6950,9 @@ bool CombinerHelper::tryFoldSelectOfConstants(GSelect *Select,
   }
 
   // select Cond, C1, C1+1 --> add (sext Cond), C1+1
-  if (TrueValue + 1 == FalseValue) {
+  if (TrueValue + 1 == FalseValue &&
+      isLegalOrBeforeLegalizer({TargetOpcode::G_SEXT, {TrueTy, CondTy}}) &&
+      isLegalOrBeforeLegalizer({TargetOpcode::G_ADD, {TrueTy}})) {
     MatchInfo = [=](MachineIRBuilder &B) {
       B.setInstrAndDebugLoc(*Select);
       Register Inner = MRI.createGenericVirtualRegister(TrueTy);
@@ -6943,13 +6963,15 @@ bool CombinerHelper::tryFoldSelectOfConstants(GSelect *Select,
   }
 
   // select Cond, Pow2, 0 --> (zext Cond) << log2(Pow2)
-  if (TrueValue.isPowerOf2() && FalseValue.isZero()) {
+  // The shift amount must be scalar.
+  LLT ShiftTy = TrueTy.isVector() ? TrueTy.getElementType() : TrueTy;
+  if (TrueValue.isPowerOf2() && FalseValue.isZero() &&
+      isLegalOrBeforeLegalizer({TargetOpcode::G_ZEXT, {TrueTy, CondTy}}) &&
+      isLegalOrBeforeLegalizer({TargetOpcode::G_SHL, {TrueTy, ShiftTy}})) {
     MatchInfo = [=](MachineIRBuilder &B) {
       B.setInstrAndDebugLoc(*Select);
       Register Inner = MRI.createGenericVirtualRegister(TrueTy);
       B.buildZExtOrTrunc(Inner, Cond);
-      // The shift amount must be scalar.
-      LLT ShiftTy = TrueTy.isVector() ? TrueTy.getElementType() : TrueTy;
       auto ShAmtC = B.buildConstant(ShiftTy, TrueValue.exactLogBase2());
       B.buildShl(Dest, Inner, ShAmtC, Flags);
     };
@@ -6957,7 +6979,9 @@ bool CombinerHelper::tryFoldSelectOfConstants(GSelect *Select,
   }
 
   // select Cond, 0, Pow2 --> (zext (!Cond)) << log2(Pow2)
-  if (FalseValue.isPowerOf2() && TrueValue.isZero()) {
+  if (FalseValue.isPowerOf2() && TrueValue.isZero() &&
+      isLegalOrBeforeLegalizer({TargetOpcode::G_ZEXT, {TrueTy, CondTy}}) &&
+      isLegalOrBeforeLegalizer({TargetOpcode::G_SHL, {TrueTy, ShiftTy}})) {
     MatchInfo = [=](MachineIRBuilder &B) {
       B.setInstrAndDebugLoc(*Select);
       Register Not = MRI.createGenericVirtualRegister(CondTy);
@@ -6973,7 +6997,9 @@ bool CombinerHelper::tryFoldSelectOfConstants(GSelect *Select,
   }
 
   // select Cond, -1, C --> or (sext Cond), C
-  if (TrueValue.isAllOnes()) {
+  if (TrueValue.isAllOnes() &&
+      isLegalOrBeforeLegalizer({TargetOpcode::G_SEXT, {TrueTy, CondTy}}) &&
+      isLegalOrBeforeLegalizer({TargetOpcode::G_OR, {TrueTy}})) {
     MatchInfo = [=](MachineIRBuilder &B) {
       B.setInstrAndDebugLoc(*Select);
       Register Inner = MRI.createGenericVirtualRegister(TrueTy);
@@ -6984,7 +7010,10 @@ bool CombinerHelper::tryFoldSelectOfConstants(GSelect *Select,
   }
 
   // select Cond, C, -1 --> or (sext (not Cond)), C
-  if (FalseValue.isAllOnes()) {
+  if (FalseValue.isAllOnes() &&
+      isLegalOrBeforeLegalizer({TargetOpcode::G_XOR, {CondTy}}) &&
+      isLegalOrBeforeLegalizer({TargetOpcode::G_SEXT, {TrueTy, CondTy}}) &&
+      isLegalOrBeforeLegalizer({TargetOpcode::G_OR, {TrueTy}})) {
     MatchInfo = [=](MachineIRBuilder &B) {
       B.setInstrAndDebugLoc(*Select);
       Register Not = MRI.createGenericVirtualRegister(CondTy);
@@ -7022,7 +7051,8 @@ bool CombinerHelper::tryFoldBoolSelectToLogic(GSelect *Select,
 
   // select Cond, Cond, F --> or Cond, F
   // select Cond, 1, F    --> or Cond, F
-  if ((Cond == True) || isOneOrOneSplat(True, /* AllowUndefs */ true)) {
+  if (((Cond == True) || isOneOrOneSplat(True, /* AllowUndefs */ true)) &&
+      isLegalOrBeforeLegalizer({TargetOpcode::G_OR, {TrueTy}})) {
     MatchInfo = [=](MachineIRBuilder &B) {
       B.setInstrAndDebugLoc(*Select);
       Register Ext = MRI.createGenericVirtualRegister(TrueTy);
@@ -7035,7 +7065,8 @@ bool CombinerHelper::tryFoldBoolSelectToLogic(GSelect *Select,
 
   // select Cond, T, Cond --> and Cond, T
   // select Cond, T, 0    --> and Cond, T
-  if ((Cond == False) || isZeroOrZeroSplat(False, /* AllowUndefs */ true)) {
+  if (((Cond == False) || isZeroOrZeroSplat(False, /* AllowUndefs */ true)) &&
+      isLegalOrBeforeLegalizer({TargetOpcode::G_AND, {TrueTy}})) {
     MatchInfo = [=](MachineIRBuilder &B) {
       B.setInstrAndDebugLoc(*Select);
       Register Ext = MRI.createGenericVirtualRegister(TrueTy);
@@ -7047,7 +7078,9 @@ bool CombinerHelper::tryFoldBoolSelectToLogic(GSelect *Select,
   }
 
   // select Cond, T, 1 --> or (not Cond), T
-  if (isOneOrOneSplat(False, /* AllowUndefs */ true)) {
+  if (isOneOrOneSplat(False, /* AllowUndefs */ true) &&
+      isLegalOrBeforeLegalizer({TargetOpcode::G_XOR, {CondTy}}) &&
+      isLegalOrBeforeLegalizer({TargetOpcode::G_OR, {TrueTy}})) {
     MatchInfo = [=](MachineIRBuilder &B) {
       B.setInstrAndDebugLoc(*Select);
       // First the not.
@@ -7063,7 +7096,9 @@ bool CombinerHelper::tryFoldBoolSelectToLogic(GSelect *Select,
   }
 
   // select Cond, 0, F --> and (not Cond), F
-  if (isZeroOrZeroSplat(True, /* AllowUndefs */ true)) {
+  if (isZeroOrZeroSplat(True, /* AllowUndefs */ true) &&
+      isLegalOrBeforeLegalizer({TargetOpcode::G_XOR, {CondTy}}) &&
+      isLegalOrBeforeLegalizer({TargetOpcode::G_AND, {TrueTy}})) {
     MatchInfo = [=](MachineIRBuilder &B) {
       B.setInstrAndDebugLoc(*Select);
       // First the not.

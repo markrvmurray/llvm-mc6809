@@ -42,6 +42,7 @@
 ///
 //===----------------------------------------------------------------------===//
 
+
 #ifndef LLVM_ANALYSIS_CALLGRAPH_H
 #define LLVM_ANALYSIS_CALLGRAPH_H
 
@@ -84,6 +85,10 @@ class CallGraph {
   /// This node has edges to it from all functions making indirect calls
   /// or calling an external function.
   std::unique_ptr<CallGraphNode> CallsExternalNode;
+
+  /// This node has edges to if from all functions that call external NoCallback
+  /// functions. These edges are in lieu of edges to CallsExternalNode.
+  std::unique_ptr<CallGraphNode> NoCallbackNode;
 
 public:
   explicit CallGraph(Module &M);

@@ -1,3 +1,5 @@
+# Modified by Daniel Thornburgh (mysterymath@gmail.com).
+
 set(LLVM_LINK_COMPONENTS
   BinaryFormat
   MC
@@ -35,6 +37,7 @@ add_clang_library(clangDriver
   ToolChains/Arch/LoongArch.cpp
   ToolChains/Arch/M68k.cpp
   ToolChains/Arch/Mips.cpp
+  ToolChains/Arch/MOS.cpp
   ToolChains/Arch/PPC.cpp
   ToolChains/Arch/RISCV.cpp
   ToolChains/Arch/Sparc.cpp
@@ -67,6 +70,7 @@ add_clang_library(clangDriver
   ToolChains/Linux.cpp
   ToolChains/MipsLinux.cpp
   ToolChains/MinGW.cpp
+  ToolChains/MOSToolchain.cpp
   ToolChains/MSP430.cpp
   ToolChains/MSVC.cpp
   ToolChains/NaCl.cpp

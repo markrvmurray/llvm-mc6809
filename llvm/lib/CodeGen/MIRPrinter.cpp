@@ -11,6 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+
 #include "llvm/CodeGen/MIRPrinter.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/STLExtras.h"
@@ -493,12 +494,13 @@ void MIRPrinter::convertStackObjects(yaml::MachineFunction &YMF,
 
   for (const auto &CSInfo : MFI.getCalleeSavedInfo()) {
     const int FrameIdx = CSInfo.getFrameIdx();
-    if (!CSInfo.isSpilledToReg() && MFI.isDeadObjectIndex(FrameIdx))
+    if (!CSInfo.isSpilledToReg() && !CSInfo.isTargetSpilled() &&
+        MFI.isDeadObjectIndex(FrameIdx))
       continue;
 
     yaml::StringValue Reg;
     printRegMIR(CSInfo.getReg(), Reg, TRI);
-    if (!CSInfo.isSpilledToReg()) {
+    if (!CSInfo.isSpilledToReg() && !CSInfo.isTargetSpilled()) {
       assert(FrameIdx >= MFI.getObjectIndexBegin() &&
              FrameIdx < MFI.getObjectIndexEnd() &&
              "Invalid stack object index");
@@ -1014,6 +1016,7 @@ void MIPrinter::print(const MachineInstr &MI, unsigned OpIdx,
   }
   case MachineOperand::MO_FrameIndex:
     printStackObjectReference(Op.getIndex());
+    Op.printOperandOffset(OS, Op.getOffset());
     break;
   case MachineOperand::MO_RegisterMask: {
     auto RegMaskInfo = RegisterMaskIds.find(Op.getRegMask());

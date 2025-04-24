@@ -364,9 +364,9 @@ private:
   void initializeCSRCost();
   MCRegister tryBlockSplit(const LiveInterval &, AllocationOrder &,
                            SmallVectorImpl<Register> &);
-  MCRegister tryInstructionSplit(const LiveInterval &, AllocationOrder &,
-                                 SmallVectorImpl<Register> &);
-  MCRegister tryLocalSplit(const LiveInterval &, AllocationOrder &,
+  unsigned tryInstructionSplit(const LiveInterval &, AllocationOrder &,
+                               SmallVectorImpl<Register> &, bool LightSpill);
+  unsigned tryLocalSplit(const LiveInterval &, AllocationOrder &,
                            SmallVectorImpl<Register> &);
   MCRegister trySplit(const LiveInterval &, AllocationOrder &,
                       SmallVectorImpl<Register> &, const SmallVirtRegSet &);

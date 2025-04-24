@@ -1309,6 +1309,20 @@ bool RegisterCoalescer::reMaterializeTrivialDef(const CoalescerPair &CP,
   if (SrcReg.isPhysical())
     return false;
 
+  if (DstReg.isPhysical() && !TII->shouldRematPhysRegCopy()) {
+    const TargetRegisterClass *SrcRC = MRI->getRegClass(SrcReg);
+    if (SrcIdx) {
+      if (llvm::any_of(*SrcRC, [&](Register R) {
+            return Register(TRI->getSubReg(R, SrcIdx)) == DstReg;
+          })) {
+        return false;
+      }
+    } else {
+      if (SrcRC->contains(DstReg))
+        return false;
+    }
+  }
+
   LiveInterval &SrcInt = LIS->getInterval(SrcReg);
   SlotIndex CopyIdx = LIS->getInstructionIndex(*CopyMI);
   VNInfo *ValNo = SrcInt.Query(CopyIdx).valueIn();
@@ -1415,17 +1429,24 @@ bool RegisterCoalescer::reMaterializeTrivialDef(const CoalescerPair &CP,
   // instead of widening %1 to the register class of %0 simply do:
   //     %1 = instr
   const TargetRegisterClass *NewRC = CP.getNewRC();
-  if (DstIdx != 0) {
-    MachineOperand &DefMO = NewMI.getOperand(0);
-    if (DefMO.getSubReg() == DstIdx) {
-      assert(SrcIdx == 0 && CP.isFlipped() &&
-             "Shouldn't have SrcIdx+DstIdx at this point");
+  if (DstReg.isVirtual()) {
       const TargetRegisterClass *DstRC = MRI->getRegClass(DstReg);
       const TargetRegisterClass *CommonRC =
           TRI->getCommonSubClass(DefRC, DstRC);
       if (CommonRC != nullptr) {
         NewRC = CommonRC;
 
+      // In a situation like the following:
+      //     %0:subreg = instr              ; DefMI, subreg = DstIdx
+      //     %1        = copy %0:subreg ; CopyMI, SrcIdx = 0
+      // instead of widening %1 to the register class of %0 simply do:
+      //     %1 = instr
+      if (DstIdx != 0) {
+        MachineOperand &DefMO = NewMI.getOperand(0);
+        if (DefMO.getSubReg() == DstIdx) {
+          assert(SrcIdx == 0 && CP.isFlipped()
+                && "Shouldn't have SrcIdx+DstIdx at this point");
+          if (CommonRC != nullptr) {
         // Instruction might contain "undef %0:subreg" as use operand:
         //   %0:subreg = instr op_1, ..., op_N, undef %0:subreg, op_N+2, ...
         //
@@ -1439,6 +1460,8 @@ bool RegisterCoalescer::reMaterializeTrivialDef(const CoalescerPair &CP,
         DstIdx = 0;
         DefMO.setIsUndef(false); // Only subregs can have def+undef.
       }
+    }
+  }
     }
   }
 

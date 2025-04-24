@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+
 #ifndef LLVM_CODEGEN_TARGETFRAMELOWERING_H
 #define LLVM_CODEGEN_TARGETFRAMELOWERING_H
 
@@ -31,6 +32,8 @@ enum Value {
   SGPRSpill = 1,
   ScalableVector = 2,
   WasmLocal = 3,
+  MosStatic = 4,
+  MosZeroPage = 5,
   NoAlloc = 255
 };
 }

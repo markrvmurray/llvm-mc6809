@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+
 #include "Clang.h"
 #include "AMDGPU.h"
 #include "Arch/AArch64.h"
@@ -13,6 +14,7 @@
 #include "Arch/CSKY.h"
 #include "Arch/LoongArch.h"
 #include "Arch/M68k.h"
+#include "Arch/MOS.h"
 #include "Arch/Mips.h"
 #include "Arch/PPC.h"
 #include "Arch/RISCV.h"
@@ -1363,6 +1365,7 @@ static bool isSignedCharDefault(const llvm::Triple &Triple) {
 
   case llvm::Triple::csky:
   case llvm::Triple::hexagon:
+  case llvm::Triple::mos:
   case llvm::Triple::msp430:
   case llvm::Triple::ppcle:
   case llvm::Triple::ppc64le:
@@ -1745,6 +1748,10 @@ void Clang::RenderTargetOptions(const llvm::Triple &EffectiveTriple,
     AddMIPSTargetArgs(Args, CmdArgs);
     break;
 
+  case llvm::Triple::mos:
+    AddMOSTargetArgs(Args, CmdArgs);
+    break;
+
   case llvm::Triple::ppc:
   case llvm::Triple::ppcle:
   case llvm::Triple::ppc64:
@@ -2082,6 +2089,11 @@ void Clang::AddMIPSTargetArgs(const ArgList &Args,
       CmdArgs.push_back("-mips-jalr-reloc=0");
     }
   }
+}
+
+void Clang::AddMOSTargetArgs(const ArgList &Args,
+                                 ArgStringList &CmdArgs) const {
+  addMOSCodeGenArgs(CmdArgs);
 }
 
 void Clang::AddPPCTargetArgs(const ArgList &Args,
@@ -7224,7 +7236,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   // -fshort-enums=0 is default for all architectures except Hexagon and z/OS.
   if (Args.hasFlag(options::OPT_fshort_enums, options::OPT_fno_short_enums,
-                   TC.getArch() == llvm::Triple::hexagon || Triple.isOSzOS()))
+                   TC.getArch() == llvm::Triple::hexagon ||
+                       TC.getArch() == llvm::Triple::mos || Triple.isOSzOS()))
     CmdArgs.push_back("-fshort-enums");
 
   RenderCharacterOptions(Args, AuxTriple ? *AuxTriple : RawTriple, CmdArgs);
@@ -8058,6 +8071,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (A->getOption().matches(options::OPT_fforce_enable_int128))
       CmdArgs.push_back("-fforce-enable-int128");
   }
+
+  if (Args.hasFlag(options::OPT_fnonreentrant, options::OPT_freentrant, false))
+    CmdArgs.push_back("-fnonreentrant");
 
   Args.addOptInFlag(CmdArgs, options::OPT_fkeep_static_consts,
                     options::OPT_fno_keep_static_consts);

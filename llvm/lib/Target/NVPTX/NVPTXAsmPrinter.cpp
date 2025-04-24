@@ -393,7 +393,7 @@ void NVPTXAsmPrinter::emitFunctionBodyEnd() {
   VRegMapping.clear();
 }
 
-const MCSymbol *NVPTXAsmPrinter::getFunctionFrameSymbol() const {
+const MCSymbol *NVPTXAsmPrinter::getFunctionFrameSymbol(int) const {
     SmallString<128> Str;
     raw_svector_ostream(Str) << DEPOTNAME << getFunctionNumber();
     return OutContext.getOrCreateSymbol(Str);

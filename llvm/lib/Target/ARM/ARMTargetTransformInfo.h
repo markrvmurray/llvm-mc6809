@@ -308,7 +308,8 @@ public:
   /// If the AM is not supported, the return value is an invalid cost.
   InstructionCost getScalingFactorCost(Type *Ty, GlobalValue *BaseGV,
                                        StackOffset BaseOffset, bool HasBaseReg,
-                                       int64_t Scale, unsigned AddrSpace) const;
+                                       Type *BaseTy, int64_t Scale,
+                                       Type *ScaleTy, unsigned AddrSpace) const;
 
   bool maybeLoweredToCall(Instruction &I) const;
   bool isLoweredToCall(const Function *F) const;

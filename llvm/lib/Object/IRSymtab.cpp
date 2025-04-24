@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+
 #include "llvm/Object/IRSymtab.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
@@ -284,8 +285,10 @@ Error Builder::addSymbol(const ModuleSymbolTable &Msymtab,
       buildPreservedSymbolsSet(GV->getParent()->getTargetTriple());
   bool IsPreservedSymbol = PreservedSymbolsSet.contains(GV->getName());
 
-  if (Used.count(GV) || IsPreservedSymbol)
+  if (Used.count(GV))
     Sym.Flags |= 1 << storage::Symbol::FB_used;
+  if (IsPreservedSymbol)
+    Sym.Flags |= 1 << storage::Symbol::FB_preserved;
   if (GV->isThreadLocal())
     Sym.Flags |= 1 << storage::Symbol::FB_tls;
   if (GV->hasGlobalUnnamedAddr())

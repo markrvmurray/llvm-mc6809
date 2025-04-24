@@ -201,7 +201,58 @@ public:
 
     VK_COFF_IMGREL32, // symbol@imgrel (image-relative)
 
-    FirstTargetSpecifier,
+    VK_Hexagon_LO16,
+    VK_Hexagon_HI16,
+    VK_Hexagon_GPREL,
+    VK_Hexagon_GD_GOT,
+    VK_Hexagon_LD_GOT,
+    VK_Hexagon_GD_PLT,
+    VK_Hexagon_LD_PLT,
+    VK_Hexagon_IE,
+    VK_Hexagon_IE_GOT,
+
+    VK_WASM_TYPEINDEX, // Reference to a symbol's type (signature)
+    VK_WASM_TLSREL,    // Memory address relative to __tls_base
+    VK_WASM_MBREL,     // Memory address relative to __memory_base
+    VK_WASM_TBREL,     // Table index relative to __table_base
+    VK_WASM_GOT_TLS,   // Wasm global index of TLS symbol.
+    VK_WASM_FUNCINDEX, // Wasm function index.
+
+    VK_AMDGPU_GOTPCREL32_LO, // symbol@gotpcrel32@lo
+    VK_AMDGPU_GOTPCREL32_HI, // symbol@gotpcrel32@hi
+    VK_AMDGPU_REL32_LO,      // symbol@rel32@lo
+    VK_AMDGPU_REL32_HI,      // symbol@rel32@hi
+    VK_AMDGPU_REL64,         // symbol@rel64
+    VK_AMDGPU_ABS32_LO,      // symbol@abs32@lo
+    VK_AMDGPU_ABS32_HI,      // symbol@abs32@hi
+
+    VK_VE_HI32,        // symbol@hi
+    VK_VE_LO32,        // symbol@lo
+    VK_VE_PC_HI32,     // symbol@pc_hi
+    VK_VE_PC_LO32,     // symbol@pc_lo
+    VK_VE_GOT_HI32,    // symbol@got_hi
+    VK_VE_GOT_LO32,    // symbol@got_lo
+    VK_VE_GOTOFF_HI32, // symbol@gotoff_hi
+    VK_VE_GOTOFF_LO32, // symbol@gotoff_lo
+    VK_VE_PLT_HI32,    // symbol@plt_hi
+    VK_VE_PLT_LO32,    // symbol@plt_lo
+    VK_VE_TLS_GD_HI32, // symbol@tls_gd_hi
+    VK_VE_TLS_GD_LO32, // symbol@tls_gd_lo
+    VK_VE_TPOFF_HI32,  // symbol@tpoff_hi
+    VK_VE_TPOFF_LO32,  // symbol@tpoff_lo
+
+    VK_TPREL,
+    VK_DTPREL,
+
+    VK_MOS_ADDR8,               // mos8()
+    VK_MOS_ADDR16,              // mos16()
+    VK_MOS_ADDR16_LO,           // mos16lo()
+    VK_MOS_ADDR16_HI,           // mos16hi()
+    VK_MOS_ADDR24_BANK,         // mos24bank()
+    VK_MOS_ADDR24_SEGMENT,      // mos24segment()
+    VK_MOS_ADDR24_SEGMENT_LO,   // mos24segmentlo()
+    VK_MOS_ADDR24_SEGMENT_HI,   // mos24segmenthi()
+    VK_MOS_ADDR13,              // mos13()
   };
 
 private:

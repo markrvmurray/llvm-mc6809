@@ -129,6 +129,7 @@ jobs:
                 -B "$builddir" \
                 -S llvm \
                 -DLLVM_ENABLE_PROJECTS="${{ inputs.projects }}" \
+                -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD="MOS" \
                 -DCMAKE_BUILD_TYPE=Release \
                 -DLLVM_ENABLE_ASSERTIONS=ON \
                 -DLLDB_INCLUDE_TESTS=OFF \
@@ -138,12 +139,3 @@ jobs:
                 $extra_cmake_args \
                 ${{ inputs.extra_cmake_args }}
           ninja -C "$builddir" '${{ inputs.build_target }}'
-
-      - name: Build and Test libclc
-        if: "!startsWith(matrix.os, 'windows') && contains(inputs.projects, 'libclc')"
-        env:
-          LLVM_BUILDDIR: ${{ steps.build-llvm.outputs.llvm-builddir }}
-        run: |
-          # The libclc tests don't have a generated check target so all we can
-          # do is build it.
-          ninja -C "$LLVM_BUILDDIR"
