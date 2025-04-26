@@ -651,10 +651,11 @@ static StringRef getSectionPrefixForGlobal(SectionKind Kind, bool IsLarge) {
 static SmallString<128>
 getELFSectionNameForGlobal(const GlobalObject *GO, SectionKind Kind,
                            Mangler &Mang, const TargetMachine &TM,
-                           unsigned EntrySize, bool UniqueSectionName) {
+                           unsigned EntrySize, bool UniqueSectionName,
+                           const MachineJumpTableEntry *JTE) {
   SmallString<128> Name = TM.getSectionPrefix(GO);
-  Name += getSectionPrefixForGlobal(Kind, TM.isLargeGlobalValue(GO));
-
+  Name +=
+      getSectionPrefixForGlobal(Kind, TM.isLargeGlobalValue(GO));
   if (Kind.isMergeableCString()) {
     // We also need alignment here.
     // FIXME: this is getting the alignment of the character, not the

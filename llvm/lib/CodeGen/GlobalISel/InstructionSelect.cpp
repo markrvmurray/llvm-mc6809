@@ -166,7 +166,7 @@ bool InstructionSelect::selectMachineFunction(MachineFunction &MF) {
 
   const TargetPassConfig &TPC = *ISel->TPC;
   CodeGenCoverage CoverageInfo;
-  ISel->setupMF(MF, KB, &CoverageInfo, PSI, BFI, AA);
+  ISel->setupMF(MF, VT, &CoverageInfo, PSI, BFI, AA);
 
   // An optimization remark emitter. Used to report failures.
   MachineOptimizationRemarkEmitter MORE(MF, /*MBFI=*/nullptr);

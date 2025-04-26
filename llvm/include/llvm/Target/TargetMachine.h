@@ -331,6 +331,10 @@ public:
     return false;
   }
 
+  bool getEnableStaticDataPartitioning() const {
+    return Options.EnableStaticDataPartitioning;
+  }
+
   /// Return true if visibility attribute should not be emitted in XCOFF,
   /// corresponding to -mignore-xcoff-visibility.
   bool getIgnoreXCOFFVisibility() const {

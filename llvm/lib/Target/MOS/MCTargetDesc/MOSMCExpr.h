@@ -9,8 +9,8 @@
 #ifndef LLVM_MOS_MCEXPR_H
 #define LLVM_MOS_MCEXPR_H
 
-#include "llvm/MC/MCExpr.h"
 #include "MCTargetDesc/MOSFixupKinds.h"
+#include "llvm/MC/MCExpr.h"
 
 namespace llvm {
 
@@ -19,22 +19,22 @@ class MOSMCExpr : public MCTargetExpr {
 public:
   /// Specifies the type of an expression.
   enum VariantKind {
-    VK_MOS_NONE,
-    VK_MOS_ADDR16,
-    VK_MOS_IMM16,
-    VK_MOS_ADDR8,
-    VK_MOS_IMM8,
-    VK_MOS_ADDR16_HI,
-    VK_MOS_ADDR16_LO,
-    VK_MOS_ADDR24,
-    VK_MOS_ADDR24_BANK,
-    VK_MOS_ADDR24_SEGMENT,
-    VK_MOS_ADDR24_SEGMENT_LO,
-    VK_MOS_ADDR24_SEGMENT_HI,
-    VK_MOS_ADDR13,
-    VK_MOS_ADDR_ASCIZ
-  };
+    VK_NONE,
 
+    VK_ADDR16 = MCSymbolRefExpr::FirstTargetSpecifier,
+    VK_IMM16,
+    VK_ADDR8,
+    VK_IMM8,
+    VK_ADDR16_HI,
+    VK_ADDR16_LO,
+    VK_ADDR24,
+    VK_ADDR24_BANK,
+    VK_ADDR24_SEGMENT,
+    VK_ADDR24_SEGMENT_LO,
+    VK_ADDR24_SEGMENT_HI,
+    VK_ADDR13,
+    VK_ADDR_ASCIZ
+  };
 
   /// Creates an MOS machine code expression.
   static const MOSMCExpr *create(VariantKind Kind, const MCExpr *Expr,
@@ -54,16 +54,14 @@ public:
   void setNegated(bool NegatedIn = true) { Negated = NegatedIn; }
 
   void printImpl(raw_ostream &OS, const MCAsmInfo *MAI) const override;
-  bool evaluateAsRelocatableImpl(MCValue &Res, const MCAssembler *Asm,
-                                 const MCFixup *Fixup) const override;
+  bool evaluateAsRelocatableImpl(MCValue &Res,
+                                 const MCAssembler *Asm) const override;
 
   void visitUsedExpr(MCStreamer &Streamer) const override;
 
   MCFragment *findAssociatedFragment() const override {
     return getSubExpr()->findAssociatedFragment();
   }
-
-  void fixELFSymbolsInTLSFixups(MCAssembler &Asm) const override {}
 
   static bool classof(const MCExpr *E) {
     return E->getKind() == MCExpr::Target;

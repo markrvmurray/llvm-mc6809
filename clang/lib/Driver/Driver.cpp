@@ -1740,10 +1740,6 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   // Perform the default argument translations.
   DerivedArgList *TranslatedArgs = TranslateInputArgs(*UArgs);
 
-  // Owned by the host.
-  const ToolChain &TC = getToolChain(
-      *UArgs, computeTargetTriple(*this, TargetTriple, *UArgs));
-
   // Check if the environment version is valid.
   llvm::Triple Triple = TC.getTriple();
   if (!Triple.isWasm() && !Triple.isMOS()) {

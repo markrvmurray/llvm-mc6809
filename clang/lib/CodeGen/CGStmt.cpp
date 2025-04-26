@@ -792,6 +792,7 @@ void CodeGenFunction::EmitAttributedStmt(const AttributedStmt &S) {
       HLSLControlFlowHintAttr::SpellingNotCalculated;
   const CallExpr *musttail = nullptr;
   bool leaf = false;
+  const AtomicAttr *AA = nullptr;
 
   for (const auto *A : S.getAttrs()) {
     switch (A->getKind()) {
@@ -824,6 +825,9 @@ void CodeGenFunction::EmitAttributedStmt(const AttributedStmt &S) {
     } break;
     case attr::Leaf:
       leaf = true;
+      break;
+    case attr::Atomic:
+      AA = cast<AtomicAttr>(A);
       break;
     case attr::HLSLControlFlowHint: {
       flattenOrBranch = cast<HLSLControlFlowHintAttr>(A)->getSemanticSpelling();

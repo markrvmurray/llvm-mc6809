@@ -1851,6 +1851,8 @@ void CompilerInvocationBase::GenerateCodeGenArgs(const CodeGenOptions &Opts,
 
   if (Opts.AssumeNonReentrant)
     GenerateArg(Consumer, OPT_fnonreentrant);
+  if (Opts.StaticClosure)
+    GenerateArg(Consumer, OPT_static_libclosure);
 }
 
 bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
@@ -2340,9 +2342,8 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
   if (!Opts.EmitIEEENaNCompliantInsts && !LangOptsRef.NoHonorNaNs)
     Diags.Report(diag::err_drv_amdgpu_ieee_without_no_honor_nans);
 
-  if (Args.hasArg(OPT_fnonreentrant))
-    Opts.AssumeNonReentrant = true;
-
+  Opts.AssumeNonReentrant = Args.hasArg(options::OPT_fnonreentrant);
+  Opts.StaticClosure = Args.hasArg(options::OPT_static_libclosure);
   return Diags.getNumErrors() == NumErrorsBefore;
 }
 

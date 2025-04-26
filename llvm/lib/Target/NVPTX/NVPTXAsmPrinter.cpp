@@ -394,9 +394,9 @@ void NVPTXAsmPrinter::emitFunctionBodyEnd() {
 }
 
 const MCSymbol *NVPTXAsmPrinter::getFunctionFrameSymbol(int) const {
-    SmallString<128> Str;
-    raw_svector_ostream(Str) << DEPOTNAME << getFunctionNumber();
-    return OutContext.getOrCreateSymbol(Str);
+  SmallString<128> Str;
+  raw_svector_ostream(Str) << DEPOTNAME << getFunctionNumber();
+  return OutContext.getOrCreateSymbol(Str);
 }
 
 void NVPTXAsmPrinter::emitImplicitDef(const MachineInstr *MI) const {
