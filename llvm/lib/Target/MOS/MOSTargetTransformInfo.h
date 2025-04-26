@@ -42,7 +42,7 @@ public:
   // exists.
   bool hasDivRemOp(Type *DataType, bool IsSigned) const override { return true; }
 
-  bool allowIllegalIntegerIV() const { return true; }
+  bool allowIllegalIntegerIV() const override { return true; }
 
   bool isLSRCostLess(const TargetTransformInfo::LSRCost &C1,
                      const TargetTransformInfo::LSRCost &C2) const override {
@@ -61,7 +61,7 @@ public:
     return true;
   }
 
-  bool strictInliningCosts() const { return true; }
+  bool strictInliningCosts() const override { return true; }
 };
 
 } // end namespace llvm
