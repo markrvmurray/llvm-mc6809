@@ -40,12 +40,12 @@ public:
 
   // All div, rem, and divrem ops are libcalls, so any possible combination
   // exists.
-  bool hasDivRemOp(Type *DataType, bool IsSigned) { return true; }
+  bool hasDivRemOp(Type *DataType, bool IsSigned) const { return true; }
 
   bool allowIllegalIntegerIV() const { return true; }
 
   bool isLSRCostLess(const TargetTransformInfo::LSRCost &C1,
-                     const TargetTransformInfo::LSRCost &C2) {
+                     const TargetTransformInfo::LSRCost &C2) const {
     // Prefer instruction count to the other metrics.
     return std::tie(C1.Insns, C1.NumRegs, C1.AddRecCost, C1.NumIVMuls,
                     C1.NumBaseAdds, C1.ScaleCost, C1.ImmCost, C1.SetupCost) <
