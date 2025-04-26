@@ -2657,9 +2657,6 @@ Instruction *InstCombinerImpl::foldICmpShrConstant(ICmpInst &Cmp,
   if (Shr->isExact())
     return new ICmpInst(Pred, X, ConstantInt::get(ShrTy, C << ShAmtVal));
 
-  if (!Shr->hasOneUse())
-    return nullptr;
-
   if (C.isZero()) {
     // == 0 is u< 1.
     if (Pred == CmpInst::ICMP_EQ)
@@ -2670,6 +2667,7 @@ Instruction *InstCombinerImpl::foldICmpShrConstant(ICmpInst &Cmp,
                           ConstantInt::get(ShrTy, (C + 1).shl(ShAmtVal) - 1));
   }
 
+  if (Shr->hasOneUse()) {
     // Canonicalize the shift into an 'and':
     // icmp eq/ne (shr X, ShAmt), C --> icmp eq/ne (and X, HiMask), (C << ShAmt)
     APInt Val(APInt::getHighBitsSet(TypeBits, TypeBits - ShAmtVal));
@@ -2677,6 +2675,9 @@ Instruction *InstCombinerImpl::foldICmpShrConstant(ICmpInst &Cmp,
     Value *And = Builder.CreateAnd(X, Mask, Shr->getName() + ".mask");
     return new ICmpInst(Pred, And, ConstantInt::get(ShrTy, C << ShAmtVal));
   }
+
+  return nullptr;
+}
 
 Instruction *InstCombinerImpl::foldICmpSRemConstant(ICmpInst &Cmp,
                                                     BinaryOperator *SRem,
