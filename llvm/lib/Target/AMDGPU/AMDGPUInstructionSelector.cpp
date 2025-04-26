@@ -65,7 +65,7 @@ void AMDGPUInstructionSelector::setupMF(MachineFunction &MF,
   MRI = &MF.getRegInfo();
   Subtarget = &MF.getSubtarget<GCNSubtarget>();
   Subtarget->checkSubtargetFeatures(MF.getFunction());
-  InstructionSelector::setupMF(MF, KB, CoverageInfo, PSI, BFI, AA);
+  InstructionSelector::setupMF(MF, VT, CoverageInfo, PSI, BFI, AA);
 }
 
 // Return the wave level SGPR base address if this is a wave address.

@@ -1008,9 +1008,9 @@ AsmToken AsmLexer::LexToken() {
       return AsmToken(AsmToken::Greater, StringRef(TokStart, 1));
     }
 
-  // TODO: Quoted identifiers (objc methods etc)
-  // local labels: [0-9][:]
-  // Forward/backward labels: [0-9][fb]
-  // Integers, fp constants, character constants.
+    // TODO: Quoted identifiers (objc methods etc)
+    // local labels: [0-9][:]
+    // Forward/backward labels: [0-9][fb]
+    // Integers, fp constants, character constants.
   }
 }

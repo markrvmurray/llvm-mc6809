@@ -420,10 +420,10 @@ struct Config {
   StringRef thinLTOJobs;
   unsigned timeTraceGranularity;
   int32_t splitStackAdjustSize;
-  StringRef packageMetadata;
   StringRef ld65Path;
   StringRef od65Path;
   StringRef cc65Launcher;
+  SmallVector<uint8_t, 0> packageMetadata;
 
   // The following config options do not directly correspond to any
   // particular command line options.

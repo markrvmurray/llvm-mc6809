@@ -26,10 +26,9 @@ define void @test1(ptr nocapture noundef writeonly %dst, i32 noundef signext %i_
 ; RV32-NEXT:    slli t1, t0, 1
 ; RV32-NEXT:    li t6, 32
 ; RV32-NEXT:    mv t2, t1
-; RV32-NEXT:    bnez zero, .LBB0_4
 ; RV32-NEXT:  # %bb.3: # %for.cond1.preheader.us.preheader
 ; RV32-NEXT:    li t2, 32
-; RV32-NEXT:  .LBB0_4: # %for.cond1.preheader.us.preheader
+; RV32-NEXT:  # %bb.4: # %for.cond1.preheader.us.preheader
 ; RV32-NEXT:    addi sp, sp, -32
 ; RV32-NEXT:    .cfi_def_cfa_offset 32
 ; RV32-NEXT:    sw s0, 28(sp) # 4-byte Folded Spill
@@ -42,6 +41,7 @@ define void @test1(ptr nocapture noundef writeonly %dst, i32 noundef signext %i_
 ; RV32-NEXT:    .cfi_offset s2, -12
 ; RV32-NEXT:    .cfi_offset s3, -16
 ; RV32-NEXT:    .cfi_offset s4, -20
+; RV32-NEXT:    .cfi_remember_state
 ; RV32-NEXT:    add s0, a0, t3
 ; RV32-NEXT:    add s1, a2, t4
 ; RV32-NEXT:    add t5, a4, t5
@@ -53,10 +53,11 @@ define void @test1(ptr nocapture noundef writeonly %dst, i32 noundef signext %i_
 ; RV32-NEXT:    add t4, s0, a6
 ; RV32-NEXT:    add s1, s1, a6
 ; RV32-NEXT:    add t5, t5, a6
-; RV32-NEXT:    beqz zero, .LBB0_8
+; RV32-NEXT:    j .LBB0_8
 ; RV32-NEXT:  # %bb.7: # %for.cond1.preheader.us.preheader
 ; RV32-NEXT:    mv t3, t2
 ; RV32-NEXT:  .LBB0_8: # %for.cond1.preheader.us.preheader
+; RV32-NEXT:    .cfi_restore_state
 ; RV32-NEXT:    li t2, 0
 ; RV32-NEXT:    sltu t6, a0, s1
 ; RV32-NEXT:    sltu s0, a2, t4

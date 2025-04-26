@@ -547,10 +547,9 @@ bool PostMachineSchedulerImpl::run(MachineFunction &Func,
 /// ScheduleDAGInstrs whenever adding or removing instructions. A much simpler
 /// design would be to split blocks at scheduling boundaries, but LLVM has a
 /// general bias against block splitting purely for implementation simplicity.
-bool MachineScheduler::runOnMachineFunction(MachineFunction &mf) {
-  PassConfig = &getAnalysis<TargetPassConfig>();
-  if (!PassConfig->alwaysRequiresMachineScheduler() &&
-      skipFunction(mf.getFunction()))
+bool MachineSchedulerLegacy::runOnMachineFunction(MachineFunction &MF) {
+  const auto &PC = getAnalysis<TargetPassConfig>();
+  if (!PC.alwaysRequiresMachineScheduler() && skipFunction(MF.getFunction()))
     return false;
 
   if (EnableMachineSched.getNumOccurrences()) {
@@ -564,7 +563,7 @@ bool MachineScheduler::runOnMachineFunction(MachineFunction &mf) {
 
   auto &MLI = getAnalysis<MachineLoopInfoWrapperPass>().getLI();
   auto &MDT = getAnalysis<MachineDominatorTreeWrapperPass>().getDomTree();
-  auto &TM = getAnalysis<TargetPassConfig>().getTM<TargetMachine>();
+  auto &TM = PC.getTM<TargetMachine>();
   auto &AA = getAnalysis<AAResultsWrapperPass>().getAAResults();
   auto &LIS = getAnalysis<LiveIntervalsWrapperPass>().getLIS();
   Impl.setLegacyPass(this);

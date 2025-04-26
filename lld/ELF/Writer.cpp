@@ -1554,7 +1554,7 @@ template <class ELFT> void Writer<ELFT>::finalizeAddressDependentContent() {
     }
 
     changed |= ctx.target->needsThunks ? tc.createThunks(pass, ctx.outputSections)
-                       : ctx.target->relaxOnce(pass);
+                                   : ctx.target->relaxOnce(pass);
     bool spilled = ctx.script->spillSections();
     changed |= spilled;
     ++pass;

@@ -2368,7 +2368,7 @@ MCRegister RAGreedy::tryAssignCSRFirstTime(
       // Set CostPerUseLimit to 1 to make sure that
       // we will not use a callee-saved register in tryEvict.
       CostPerUseLimit = 1;
-      return 0;
+      return MCRegister();
     }
   }
   return PhysReg;
@@ -2383,7 +2383,9 @@ void RAGreedy::initializeCSRCost() {
   // We use the command-line option if it is explicitly set, otherwise use the
   // larger one out of the command-line option and the value reported by TRI.
   CSRCost = BlockFrequency(
-      std::max((unsigned)CSRFirstTimeCost, TRI->getCSRFirstUseCost(*MF)));
+      CSRFirstTimeCost.getNumOccurrences()
+          ? CSRFirstTimeCost
+          : std::max((unsigned)CSRFirstTimeCost, TRI->getCSRFirstUseCost(*MF)));
   if (!CSRCost.getFrequency())
     return;
 

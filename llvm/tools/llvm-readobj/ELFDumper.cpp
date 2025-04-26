@@ -3509,11 +3509,9 @@ ELFDumper<ELFT>::getOtherFlagsFromSymbol(const Elf_Ehdr &Header,
   } else if (Header.e_machine == EM_AARCH64) {
     llvm::append_range(SymOtherFlags, ElfAArch64SymOtherFlags);
   } else if (Header.e_machine == EM_RISCV) {
-    SymOtherFlags.insert(SymOtherFlags.end(), std::begin(ElfRISCVSymOtherFlags),
-                         std::end(ElfRISCVSymOtherFlags));
+    llvm::append_range(SymOtherFlags, ElfRISCVSymOtherFlags);
   } else if (Header.e_machine == EM_MOS) {
-    SymOtherFlags.insert(SymOtherFlags.end(), std::begin(ElfMOSSymOtherFlags),
-                         std::end(ElfMOSSymOtherFlags));
+    llvm::append_range(SymOtherFlags, ElfMOSSymOtherFlags);
   }
   return SymOtherFlags;
 }
