@@ -28,7 +28,6 @@
 #include "llvm/CodeGen/GlobalISel/GIMatchTableExecutor.h"
 #include "llvm/CodeGen/GlobalISel/GIMatchTableExecutorImpl.h"
 #include "llvm/CodeGen/GlobalISel/GISelChangeObserver.h"
-#include "llvm/CodeGen/GlobalISel/GISelKnownBits.h"
 #include "llvm/CodeGen/GlobalISel/GenericMachineInstrs.h"
 #include "llvm/CodeGen/GlobalISel/LegalizerHelper.h"
 #include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
@@ -69,8 +68,12 @@ protected:
   AAResults *AA;
 
 public:
-  MC6809CombinerImpl(MachineFunction &MF, CombinerInfo &CInfo, const TargetPassConfig *TPC, bool IsPreLegalize, GISelKnownBits &KB, GISelCSEInfo *CSEInfo, const MC6809CombinerImplRuleConfig &RuleConfig, const MC6809Subtarget &STI,
-                     MachineDominatorTree *MDT, const LegalizerInfo *LI, AAResults *AA);
+  MC6809CombinerImpl(MachineFunction &MF, CombinerInfo &CInfo,
+                  const TargetPassConfig *TPC, bool IsPreLegalize,
+                  GISelValueTracking &VT, GISelCSEInfo *CSEInfo,
+                  const MC6809CombinerImplRuleConfig &RuleConfig,
+                  const MC6809Subtarget &STI, MachineDominatorTree *MDT,
+                  const LegalizerInfo *LI, AAResults *AA);
 
   static const char *getName() { return "MC6809Combiner"; }
 
@@ -125,9 +128,12 @@ private:
 #include "MC6809GenGICombiner.inc"
 #undef GET_GICOMBINER_IMPL
 
-MC6809CombinerImpl::MC6809CombinerImpl(MachineFunction &MF, CombinerInfo &CInfo, const TargetPassConfig *TPC, bool IsPreLegalize, GISelKnownBits &KB, GISelCSEInfo *CSEInfo, const MC6809CombinerImplRuleConfig &RuleConfig, const MC6809Subtarget &STI,
-                                       MachineDominatorTree *MDT, const LegalizerInfo *LI, AAResults *AA)
-    : Combiner(MF, CInfo, TPC, &KB, CSEInfo), Helper(Observer, B, IsPreLegalize, &KB, MDT, LI), RuleConfig(RuleConfig), AA(AA),
+MC6809CombinerImpl::MC6809CombinerImpl(
+    MachineFunction &MF, CombinerInfo &CInfo, const TargetPassConfig *TPC,
+    bool IsPreLegalize, GISelValueTracking &VT, GISelCSEInfo *CSEInfo,
+    const MC6809CombinerImplRuleConfig &RuleConfig, const MC6809Subtarget &STI,
+    MachineDominatorTree *MDT, const LegalizerInfo *LI, AAResults *AA)
+    : Combiner(MF, CInfo, TPC, &VT, CSEInfo), Helper(Observer, B, IsPreLegalize, &VT, MDT, LI), RuleConfig(RuleConfig), AA(AA),
 #define GET_GICOMBINER_CONSTRUCTOR_INITS
 #include "MC6809GenGICombiner.inc"
 #undef GET_GICOMBINER_CONSTRUCTOR_INITS
@@ -491,12 +497,12 @@ APInt MC6809CombinerImpl::getDemandedBits(Register R, DenseMap<Register, APInt> 
       DemandedBits = APInt::getAllOnes(Size);
       break;
     case MC6809::G_AND: {
-      APInt Zeroes = KB->getKnownZeroes(MI.getOperand(Use.getOperandNo() == 1 ? 2 : 1).getReg());
+      APInt Zeroes = VT->getKnownZeroes(MI.getOperand(Use.getOperandNo() == 1 ? 2 : 1).getReg());
       DemandedBits |= ~Zeroes;
       break;
     }
     case MC6809::G_OR: {
-      APInt Ones = KB->getKnownOnes(MI.getOperand(Use.getOperandNo() == 1 ? 2 : 1).getReg());
+      APInt Ones = VT->getKnownOnes(MI.getOperand(Use.getOperandNo() == 1 ? 2 : 1).getReg());
       DemandedBits |= ~Ones;
       break;
     }
@@ -558,8 +564,8 @@ void MC6809Combiner::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetPassConfig>();
   AU.setPreservesCFG();
   getSelectionDAGFallbackAnalysisUsage(AU);
-  AU.addRequired<GISelKnownBitsAnalysis>();
-  AU.addPreserved<GISelKnownBitsAnalysis>();
+  AU.addRequired<GISelValueTrackingAnalysis>();
+  AU.addPreserved<GISelValueTrackingAnalysis>();
   AU.addRequired<MachineDominatorTreeWrapperPass>();
   AU.addPreserved<MachineDominatorTreeWrapperPass>();
   AU.addRequired<GISelCSEAnalysisWrapperPass>();
@@ -587,20 +593,20 @@ bool MC6809Combiner::runOnMachineFunction(MachineFunction &MF) {
   const Function &F = MF.getFunction();
   bool EnableOpt = MF.getTarget().getOptLevel() != CodeGenOptLevel::None && !skipFunction(F);
   bool IsPreLegalize = !MF.getProperties().hasProperty(MachineFunctionProperties::Property::Legalized);
-  GISelKnownBits *KB = &getAnalysis<GISelKnownBitsAnalysis>().get(MF);
+  GISelValueTracking *VT = &getAnalysis<GISelValueTrackingAnalysis>().get(MF);
   MachineDominatorTree *MDT = &getAnalysis<MachineDominatorTreeWrapperPass>().getDomTree();
   AAResults *AA = &getAnalysis<AAResultsWrapperPass>().getAAResults();
   CombinerInfo CInfo(
       /*AllowIllegalOps*/ IsPreLegalize, /*ShouldLegalizeIllegal*/ false,
       /*LegalizerInfo*/ nullptr, EnableOpt, F.hasOptSize(), F.hasMinSize());
-  MC6809CombinerImpl Impl(MF, CInfo, &TPC, IsPreLegalize, *KB, CSEInfo, RuleConfig, ST, MDT, LI, AA);
+  MC6809CombinerImpl Impl(MF, CInfo, &TPC, IsPreLegalize, *VT, CSEInfo, RuleConfig, ST, MDT, LI, AA);
   return Impl.combineMachineInstrs();
 }
 
 char MC6809Combiner::ID = 0;
 INITIALIZE_PASS_BEGIN(MC6809Combiner, DEBUG_TYPE, "Combine MC6809 machine instrs", false, false)
 INITIALIZE_PASS_DEPENDENCY(TargetPassConfig)
-INITIALIZE_PASS_DEPENDENCY(GISelKnownBitsAnalysis)
+INITIALIZE_PASS_DEPENDENCY(GISelValueTrackingAnalysis)
 INITIALIZE_PASS_END(MC6809Combiner, DEBUG_TYPE, "Combine MC6809 machine instrs", false, false)
 
 namespace llvm {

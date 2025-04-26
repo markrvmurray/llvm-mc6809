@@ -58,20 +58,7 @@ public:
   bool select(MachineInstr &MI) override;
   static const char *getName() { return DEBUG_TYPE; }
 
-  void setupMF(MachineFunction &MF, GISelKnownBits *KB, CodeGenCoverage *CoverageInfo, ProfileSummaryInfo *PSI, BlockFrequencyInfo *BFI, AAResults *AA) override {
-    InstructionSelector::setupMF(MF, KB, CoverageInfo, PSI, BFI, AA);
-    MIB.setMF(MF);
-
-#if 0
-    // hasFnAttribute() is expensive to call on every BRCOND selection, so
-    // cache it here for each run of the selector.
-    ProduceNonFlagSettingCondBr =
-        !MF.getFunction().hasFnAttribute(Attribute::SpeculativeLoadHardening);
-    MFReturnAddr = Register();
-
-    processPHIs(MF);
-#endif
-  }
+  void setupMF(MachineFunction &MF, GISelValueTracking *VT, CodeGenCoverage *CovInfo, ProfileSummaryInfo *PSI, BlockFrequencyInfo *BFI, AAResults *AA) override;
 
 private:
   const MC6809Subtarget &STI;
@@ -153,6 +140,31 @@ private:
 #include "MC6809GenGlobalISel.inc"
 #undef GET_GLOBALISEL_TEMPORARIES_DECL
 };
+
+void MC6809InstructionSelector::setupMF(MachineFunction &MF,
+                                     GISelValueTracking *VT,
+                                     CodeGenCoverage *CovInfo,
+                                     ProfileSummaryInfo *PSI,
+                                     BlockFrequencyInfo *BFI, AAResults *AA) {
+  InstructionSelector::setupMF(MF, VT, CovInfo, PSI, BFI, AA);
+
+  // The machine verifier doesn't allow COPY instructions to have differing
+  // types, but the various GlobalISel utilities used in the instruction
+  // selector really need to be able to look through G_PTRTOINT and G_INTTOPTR
+  // as if they were copies. To avoid maintaining separate versions of these, we
+  // temporarily lower these to technically-illegal COPY instructions, but only
+  // for the duration of this one pass.
+  for (MachineBasicBlock &MBB : MF) {
+    for (MachineInstr &MI : MBB) {
+      switch (MI.getOpcode()) {
+      case MC6809::G_PTRTOINT:
+      case MC6809::G_INTTOPTR:
+        MI.setDesc(TII.get(MC6809::COPY));
+        break;
+      }
+    }
+  }
+}
 
 } // namespace
 

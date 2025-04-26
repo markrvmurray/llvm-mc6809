@@ -1,6 +1,6 @@
 //===-- MC6809Combine.td - Describe MC6809 combiner -------*- tablegen -*-===//
 //
-// Part of LLVM-MOS, under the Apache License v2.0 with LLVM Exceptions.
+// Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //

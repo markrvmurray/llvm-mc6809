@@ -63,7 +63,7 @@ bool MC6809MCInstLower::lowerOperand(const MachineOperand &MO, MCOperand &MCOp) 
     const auto *GVar = dyn_cast<GlobalVariable>(GV->getAliaseeObject());
     if (MC6809::isDirectPageSectionName(GV->getSection()) ||
         (GVar && GVar->getAddressSpace() == MC6809::AS_DirectPage)) {
-      const MC6809MCExpr *Expr = MC6809MCExpr::create(MC6809MCExpr::VK_MC6809_ADDR8, MCOp.getExpr(), /*isNegated=*/false, Ctx);
+      const MC6809MCExpr *Expr = MC6809MCExpr::create(MC6809MCExpr::VK_ADDR8, MCOp.getExpr(), /*isNegated=*/false, Ctx);
       MCOp = MCOperand::createExpr(Expr);
     }
     break;
@@ -99,12 +99,6 @@ MCOperand MC6809MCInstLower::lowerSymbolOperand(const MachineOperand &MO, const 
   default:
     llvm_unreachable("Invalid target operand flags.");
   case MC6809::MO_NO_FLAGS:
-    break;
-  case MC6809::MO_LO:
-    Expr = MC6809MCExpr::create(MC6809MCExpr::VK_MC6809_ADDR16, Expr, /*isNegated=*/false, Ctx);
-    break;
-  case MC6809::MO_HI:
-    Expr = MC6809MCExpr::create(MC6809MCExpr::VK_MC6809_ADDR16, Expr, /*isNegated=*/false, Ctx);
     break;
   case MC6809::MO_HI_JT: {
     // Jump tables are partitioned in two arrays: first all the low bytes,

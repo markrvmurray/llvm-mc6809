@@ -42,7 +42,6 @@
 ///
 //===----------------------------------------------------------------------===//
 
-
 #ifndef LLVM_ANALYSIS_CALLGRAPH_H
 #define LLVM_ANALYSIS_CALLGRAPH_H
 

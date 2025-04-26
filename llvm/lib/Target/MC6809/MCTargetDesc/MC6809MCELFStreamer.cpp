@@ -65,7 +65,7 @@ void MC6809MCELFStreamer::emitInstruction(const MCInst &Inst, const MCSubtargetI
 
 void MC6809MCELFStreamer::emitValueImpl(const MCExpr *Value, unsigned Size, SMLoc Loc) {
   if (const auto *MME = dyn_cast<MC6809MCExpr>(Value)) {
-    if (MME->getKind() == MC6809MCExpr::VK_MC6809_ADDR_ASCIZ) {
+    if (MME->getKind() == MC6809MCExpr::VK_ADDR_ASCIZ) {
       emitMc6809AddrAsciz(MME->getSubExpr(), Size, Loc);
       return;
     }
