@@ -248,10 +248,6 @@ int TargetTransformInfo::getInlinerVectorBonusPercent() const {
   return TTIImpl->getInlinerVectorBonusPercent();
 }
 
-bool TargetTransformInfo::strictInliningCosts() const {
-  return TTIImpl->strictInliningCosts();
-}
-
 InstructionCost TargetTransformInfo::getGEPCost(
     Type *PointeeType, const Value *Ptr, ArrayRef<const Value *> Operands,
     Type *AccessType, TTI::TargetCostKind CostKind) const {
@@ -436,15 +432,6 @@ bool TargetTransformInfo::isLegalAddressingMode(Type *Ty, GlobalValue *BaseGV,
                                         Scale, AddrSpace, I, ScalableOffset);
 }
 
-bool TargetTransformInfo::isLegalAddressingMode(
-    Type *Ty, GlobalValue *BaseGV, int64_t BaseOffset, bool HasBaseReg,
-    Type *BaseType, int64_t Scale, Type *ScaleType, unsigned AddrSpace,
-    Instruction *I, int64_t ScalableOffset) const {
-  return TTIImpl->isLegalAddressingMode(Ty, BaseGV, BaseOffset, HasBaseReg,
-                                        BaseType, Scale, ScaleType, AddrSpace,
-                                        I, ScalableOffset);
-}
-
 bool TargetTransformInfo::isLSRCostLess(const LSRCost &C1,
                                         const LSRCost &C2) const {
   return TTIImpl->isLSRCostLess(C1, C2);
@@ -575,10 +562,9 @@ bool TargetTransformInfo::prefersVectorizedAddressing() const {
 
 InstructionCost TargetTransformInfo::getScalingFactorCost(
     Type *Ty, GlobalValue *BaseGV, StackOffset BaseOffset, bool HasBaseReg,
-    Type *BaseType, int64_t Scale, Type *ScaleType, unsigned AddrSpace) const {
-  InstructionCost Cost =
-      TTIImpl->getScalingFactorCost(Ty, BaseGV, BaseOffset, HasBaseReg,
-                                    BaseType, Scale, ScaleType, AddrSpace);
+    int64_t Scale, unsigned AddrSpace) const {
+  InstructionCost Cost = TTIImpl->getScalingFactorCost(
+      Ty, BaseGV, BaseOffset, HasBaseReg, Scale, AddrSpace);
   assert(Cost >= 0 && "TTI should not produce negative costs!");
   return Cost;
 }
@@ -589,14 +575,6 @@ bool TargetTransformInfo::LSRWithInstrQueries() const {
 
 bool TargetTransformInfo::isTruncateFree(Type *Ty1, Type *Ty2) const {
   return TTIImpl->isTruncateFree(Ty1, Ty2);
-}
-
-bool TargetTransformInfo::isZExtFree(Type *Ty1, Type *Ty2) const {
-  return TTIImpl->isZExtFree(Ty1, Ty2);
-}
-
-bool TargetTransformInfo::preferNarrowTypes() const {
-  return TTIImpl->preferNarrowTypes();
 }
 
 bool TargetTransformInfo::isProfitableToHoist(Instruction *I) const {
@@ -1428,10 +1406,6 @@ bool TargetTransformInfo::preferEpilogueVectorization() const {
 TargetTransformInfo::VPLegalization
 TargetTransformInfo::getVPLegalizationStrategy(const VPIntrinsic &VPI) const {
   return TTIImpl->getVPLegalizationStrategy(VPI);
-}
-
-bool TargetTransformInfo::allowIllegalIntegerIV() const {
-  return TTIImpl->allowIllegalIntegerIV();
 }
 
 bool TargetTransformInfo::hasArmWideBranch(bool Thumb) const {

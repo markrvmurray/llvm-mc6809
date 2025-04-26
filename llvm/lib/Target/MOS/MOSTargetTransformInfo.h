@@ -40,12 +40,12 @@ public:
 
   // All div, rem, and divrem ops are libcalls, so any possible combination
   // exists.
-  bool hasDivRemOp(Type *DataType, bool IsSigned) const { return true; }
+  bool hasDivRemOp(Type *DataType, bool IsSigned) const override { return true; }
 
   bool allowIllegalIntegerIV() const { return true; }
 
   bool isLSRCostLess(const TargetTransformInfo::LSRCost &C1,
-                     const TargetTransformInfo::LSRCost &C2) const {
+                     const TargetTransformInfo::LSRCost &C2) const override {
     // Prefer instruction count to the other metrics.
     return std::tie(C1.Insns, C1.NumRegs, C1.AddRecCost, C1.NumIVMuls,
                     C1.NumBaseAdds, C1.ScaleCost, C1.ImmCost, C1.SetupCost) <
@@ -53,11 +53,11 @@ public:
                     C2.NumBaseAdds, C2.ScaleCost, C2.ImmCost, C2.SetupCost);
   }
 
-  BranchProbability getPredictableBranchThreshold() const {
+  BranchProbability getPredictableBranchThreshold() const override {
     return BranchProbability(0, 1);
   }
 
-  bool isValidAddrSpaceCast(unsigned FromAS, unsigned ToAS) const {
+  bool isValidAddrSpaceCast(unsigned FromAS, unsigned ToAS) const override {
     return true;
   }
 

@@ -51,6 +51,13 @@ struct InstructionRelaxationEntry {
   unsigned To;
 };
 
+#define GET_ZeroPageInstructionRelaxation_DECL
+#define GET_ZeroPageInstructionRelaxation_IMPL
+#define GET_ZeroBankInstructionRelaxation_DECL
+#define GET_ZeroBankInstructionRelaxation_IMPL
+#define GET_BranchInstructionRelaxation_DECL
+#define GET_BranchInstructionRelaxation_IMPL
+
 #include "MC6809GenSearchableTables.inc"
 } // namespace MC6809
 
@@ -133,15 +140,12 @@ static bool fitsIntoFixup(const int64_t SignedValue, const bool IsPCRel16) {
          SignedValue <= (IsPCRel16 ? INT16_MAX : INT8_MAX);
 }
 
-bool MC6809AsmBackend::evaluateTargetFixup(const MCAssembler &Asm,
-                                        const MCFixup &Fixup,
-                                        const MCFragment *DF,
-                                        const MCValue &Target,
-                                        const MCSubtargetInfo *STI,
-                                        uint64_t &Value, bool &WasForced) {
+bool MC6809AsmBackend::evaluateTargetFixup(
+    const MCAssembler &Asm, const MCFixup &Fixup, const MCFragment *DF,
+    const MCValue &Target, const MCSubtargetInfo *STI, uint64_t &Value) {
   // ForcePCRelReloc is a CLI option to force relocation emit, primarily for
   // testing R_MC6809_PCREL_*.
-  WasForced = ForcePCRelReloc;
+  bool WasForced = ForcePCRelReloc;
 
   const bool IsPCRel16 = Fixup.getKind() == (MCFixupKind)MC6809::PCRel16;
   assert((IsPCRel16 || Fixup.getKind() == (MCFixupKind)MC6809::PCRel8) &&
@@ -149,14 +153,13 @@ bool MC6809AsmBackend::evaluateTargetFixup(const MCAssembler &Asm,
 
   // Logic taken from MCAssembler::evaluateFixup.
   bool IsResolved = false;
-  if (Target.getSymB()) {
+  if (Target.getSubSym()) {
     IsResolved = false;
-  } else if (!Target.getSymA()) {
+  } else if (!Target.getAddSym()) {
     IsResolved = false;
   } else {
-    const MCSymbolRefExpr *A = Target.getSymA();
-    const MCSymbol &SA = A->getSymbol();
-    if (A->getKind() != MCSymbolRefExpr::VK_None || SA.isUndefined()) {
+    const MCSymbol &SA = *Target.getAddSym();
+    if (SA.isUndefined()) {
       IsResolved = false;
     } else {
       IsResolved = Asm.getWriter().isSymbolRefDifferenceFullyResolvedImpl(
@@ -166,15 +169,13 @@ bool MC6809AsmBackend::evaluateTargetFixup(const MCAssembler &Asm,
 
   Value = Target.getConstant();
 
-  if (const MCSymbolRefExpr *A = Target.getSymA()) {
-    const MCSymbol &Sym = A->getSymbol();
-    if (Sym.isDefined())
-      Value += Asm.getSymbolOffset(Sym);
+  if (const MCSymbol *A = Target.getAddSym()) {
+    if (A->isDefined())
+      Value += Asm.getSymbolOffset(*A);
   }
-  if (const MCSymbolRefExpr *B = Target.getSymB()) {
-    const MCSymbol &Sym = B->getSymbol();
-    if (Sym.isDefined())
-      Value -= Asm.getSymbolOffset(Sym);
+  if (const MCSymbol *B = Target.getSubSym()) {
+    if (B->isDefined())
+      Value -= Asm.getSymbolOffset(*B);
   }
 
   Value -= Asm.getFragmentOffset(*DF) + Fixup.getOffset();
@@ -211,15 +212,14 @@ bool isBasedOnDirectPageSymbol(const MCExpr *E) {
 
 bool MC6809AsmBackend::fixupNeedsRelaxationAdvanced(const MCAssembler &Asm,
                                                  const MCFixup &Fixup,
-                                                 bool Resolved, uint64_t Value,
-                                                 const MCRelaxableFragment *DF,
-                                                 const bool WasForced) const {
+                                                 const MCValue &Target,
+                                                 uint64_t Value,
+                                                 bool Resolved) const {
   // On 65816, it is possible to zero-bank relax from Addr16 to Addr24. The
   // assembler relaxes in a loop until instructions cannot be relaxed further,
   // so this is able to follow zero-page relaxation.
   bool BankRelax = false;
-  MC6809AsmBackend::relaxInstructionTo(DF->getInst(), *DF->getSubtargetInfo(),
-                                    BankRelax);
+  MC6809AsmBackend::relaxInstructionTo(*RelaxedMC, *RelaxedSTI, BankRelax);
 
   auto Info = getFixupKindInfo(Fixup.getKind());
   const auto *MME = dyn_cast<MC6809MCExpr>(Fixup.getValue());
@@ -266,7 +266,7 @@ bool MC6809AsmBackend::fixupNeedsRelaxationAdvanced(const MCAssembler &Asm,
   return !MC6809::isDirectPageSectionName(Sec->getName());
 }
 
-MCFixupKindInfo const &MC6809AsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
+MCFixupKindInfo MC6809AsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
   if (Kind < FirstTargetFixupKind) {
     return MCAsmBackend::getFixupKindInfo(Kind);
   }
@@ -274,17 +274,42 @@ MCFixupKindInfo const &MC6809AsmBackend::getFixupKindInfo(MCFixupKind Kind) cons
   return MC6809FixupKinds::getFixupKindInfo(static_cast<MC6809::Fixups>(Kind), this);
 }
 
-unsigned MC6809AsmBackend::getNumFixupKinds() const {
-  return MC6809::Fixups::NumTargetFixupKinds;
-}
-
 unsigned MC6809AsmBackend::relaxInstructionTo(const MCInst &Inst,
                                            const MCSubtargetInfo &STI,
                                            bool &BankRelax) {
+#if 0
   // Attempt branch relaxation.
+  const auto *BIRE = MC6809::getBranchInstructionRelaxationEntry(Inst.getOpcode());
+  if (BIRE) {
+    if (STI.hasFeature(MC6809::FeatureW65816)) {
+      if (BIRE->To == MC6809::BRA_Relative16)
+        return MC6809::BRL_Relative16;
+      return 0;
+    }
 
-  // Attempt direct page/bank relaxation.
+    if (STI.hasFeature(MC6809::Feature65CE02)) {
+      return BIRE->To;
+    }
 
+    return 0;
+  }
+
+  // Attempt zero page/bank relaxation.
+  const auto *ZPIRE =
+      MC6809::getZeroPageInstructionRelaxationEntry(Inst.getOpcode());
+  if (ZPIRE)
+    return ZPIRE->To;
+
+  if (STI.hasFeature(MC6809::FeatureW65816)) {
+    // Attempt zero-bank relaxation on 65816.
+    const auto *ZBIRE =
+        MC6809::getZeroBankInstructionRelaxationEntry(Inst.getOpcode());
+    if (ZBIRE) {
+      BankRelax = true;
+      return ZBIRE->To;
+    }
+  }
+#endif
   return 0;
 }
 
@@ -303,9 +328,9 @@ static bool isImmediateBankRelaxable(const MCSubtargetInfo &STI, int64_t Imm,
   if (BankRelax)
     return Imm >= 0 && Imm <= UINT16_MAX;
 
-  uint32_t ZpAddrOffset =
+  uint32_t DpAddrOffset =
       static_cast<const MC6809Subtarget &>(STI).getDirectPageOffset();
-  return Imm >= ZpAddrOffset && Imm <= ZpAddrOffset + 0xFF;
+  return Imm >= DpAddrOffset && Imm <= DpAddrOffset + 0xFF;
 }
 
 void MC6809AsmBackend::relaxForImmediate(MCInst &Inst,
@@ -333,6 +358,8 @@ void MC6809AsmBackend::relaxForImmediate(MCInst &Inst,
 
 bool MC6809AsmBackend::mayNeedRelaxation(const MCInst &Inst,
                                       const MCSubtargetInfo &STI) const {
+  RelaxedMC = &Inst;
+  RelaxedSTI = &STI;
   return visitRelaxableOperand(Inst, STI,
                                [](const MCOperand &Operand, unsigned RelaxTo,
                                   bool BankRelax) { return Operand.isExpr(); });
@@ -349,15 +376,10 @@ void MC6809AsmBackend::relaxInstruction(MCInst &Inst,
 bool MC6809AsmBackend::writeNopData(raw_ostream &OS, uint64_t Count,
                                  const MCSubtargetInfo *STI) const {
   while (Count--) {
-    // Sports. It's in the game. Knowing the 6502 hexadecimal representation of
-    // a NOP on 6502 used to be an interview question at Electronic Arts.
-    OS << '\x12'; // MC6809 NOP
+    // NOP on 6809
+    OS << '\x12';
   }
   return true;
-}
-
-void MC6809AsmBackend::translateOpcodeToSubtarget(MCInst &Inst,
-                                               const MCSubtargetInfo &STI) {
 }
 
 std::unique_ptr<llvm::MCObjectTargetWriter>

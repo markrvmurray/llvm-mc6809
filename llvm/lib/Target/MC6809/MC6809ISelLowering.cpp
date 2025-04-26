@@ -274,7 +274,7 @@ static MachineBasicBlock *emitConditionalImm(MachineInstr &MI, MachineBasicBlock
   F->insert(TailMBB->getIterator(), IfFalseMBB);
   HeadMBB->addSuccessor(IfFalseMBB);
   for (const auto &LiveIn : TailMBB->liveins())
-    if (LiveIn.PhysReg != Dst)
+    if (Register(LiveIn.PhysReg) != Dst)
       IfFalseMBB->addLiveIn(LiveIn);
   IfFalseMBB->addSuccessor(TailMBB);
 
@@ -370,7 +370,7 @@ static MachineBasicBlock *emitSelectImm(MachineInstr &MI, MachineBasicBlock *MBB
   F->insert(TailMBB->getIterator(), IfFalseMBB);
   HeadMBB->addSuccessor(IfFalseMBB);
   for (const auto &LiveIn : TailMBB->liveins())
-    if (LiveIn.PhysReg != Dst)
+    if (Register(LiveIn.PhysReg) != Dst)
       IfFalseMBB->addLiveIn(LiveIn);
   IfFalseMBB->addSuccessor(TailMBB);
 

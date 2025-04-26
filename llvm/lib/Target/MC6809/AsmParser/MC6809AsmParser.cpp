@@ -381,7 +381,7 @@ public:
       getStreamer().emitBytes(ValueStr);
       getStreamer().emitBytes(StringRef("\0\0\0\0\0\0\0\0\0", CharCountValue - ValueStr.size() + 1));
     } else {
-      const MC6809MCExpr *Expr = MC6809MCExpr::create(MC6809MCExpr::VK_MC6809_ADDR_ASCIZ, AddrValue,
+      const MC6809MCExpr *Expr = MC6809MCExpr::create(MC6809MCExpr::VK_ADDR_ASCIZ, AddrValue,
                                                       /*isNegated=*/false, getContext());
       getStreamer().emitValue(Expr, CharCountValue + 1, DirectiveLoc);
     }
@@ -463,7 +463,7 @@ public:
 
   bool tryParseRelocExpression(OperandVector &Operands, ExpressionType EType) {
     bool IsNegated = false;
-    MC6809MCExpr::VariantKind ModifierKind = MC6809MCExpr::VK_MC6809_NONE;
+    MC6809MCExpr::VariantKind ModifierKind = MC6809MCExpr::VK_NONE;
 
     SMLoc S = Parser.getTok().getLoc();
 
@@ -492,13 +492,13 @@ public:
     Shorthands for addressing modes conform to WDC's 65816 standard:
 
     #<addr == mos16lo(addr)
-    #>addr == mc680916hi(addr)
-    #^addr == mc680924bank(addr)
+    #>addr == mos16hi(addr)
+    #^addr == mos24bank(addr)
 
-     <addr == mc68098(addr)
-     |addr == mc680916(addr)
-     !addr == mc680916(addr)
-     >addr == mc680924(addr)
+     <addr == mos8(addr)
+     |addr == mos16(addr)
+     !addr == mos16(addr)
+     >addr == mos24(addr)
     */
     MCExpr const *InnerExpression;
     if (EType == ExprTypeImmediate && (Parser.getTok().getKind() == AsmToken::Less || Parser.getTok().getKind() == AsmToken::Greater || Parser.getTok().getKind() == AsmToken::Caret)) {
@@ -506,10 +506,10 @@ public:
       bool IsImm16 = false;
       switch (Parser.getTok().getKind()) {
       case AsmToken::Less:
-        ModifierKind = IsImm16 ? MC6809MCExpr::VK_MC6809_ADDR16 : MC6809MCExpr::VK_MC6809_ADDR8;
+        ModifierKind = IsImm16 ? MC6809MCExpr::VK_ADDR16 : MC6809MCExpr::VK_ADDR8;
         break;
       case AsmToken::Greater:
-        ModifierKind = MC6809MCExpr::VK_MC6809_ADDR16;
+        ModifierKind = MC6809MCExpr::VK_ADDR16;
         break;
       default:
         assert(false);
@@ -523,10 +523,10 @@ public:
 
       switch (Parser.getTok().getKind()) {
       case AsmToken::Less:
-        ModifierKind = MC6809MCExpr::VK_MC6809_ADDR8;
+        ModifierKind = MC6809MCExpr::VK_ADDR8;
         break;
       case AsmToken::Greater:
-        ModifierKind = MC6809MCExpr::VK_MC6809_ADDR16;
+        ModifierKind = MC6809MCExpr::VK_ADDR16;
         break;
       default:
         assert(false);
@@ -546,13 +546,13 @@ public:
       StringRef ModifierName = Parser.getTok().getString();
       ModifierKind = MC6809MCExpr::getKindByName(ModifierName.str(), EType != ExprTypeAddress);
 
-      if (ModifierKind != MC6809MCExpr::VK_MC6809_NONE) {
+      if (ModifierKind != MC6809MCExpr::VK_NONE) {
         Parser.Lex();
         Parser.Lex(); // Eat modifier name and parenthesis
         if (Parser.getTok().getString() == GenerateStubs && Parser.getTok().getKind() == AsmToken::Identifier) {
           std::string GSModName = ModifierName.str() + "_" + GenerateStubs;
           ModifierKind = MC6809MCExpr::getKindByName(GSModName, EType != ExprTypeAddress);
-          if (ModifierKind != MC6809MCExpr::VK_MC6809_NONE) {
+          if (ModifierKind != MC6809MCExpr::VK_NONE) {
             Parser.Lex(); // Eat gs modifier name
           }
         }

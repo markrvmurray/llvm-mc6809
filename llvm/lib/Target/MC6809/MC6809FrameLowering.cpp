@@ -176,7 +176,7 @@ bool MC6809FrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB, Ma
     else
       Builder.buildInstr(MC6809::PULSs, {Reg}, {});
     if (Reg != CI.getReg())
-      Builder.buildCopy(CI.getReg(), Reg);
+      Builder.buildCopy(Register(CI.getReg()), Reg);
   }
 
   // Mark the CSRs as used by the return to ensure Machine Copy Propagation

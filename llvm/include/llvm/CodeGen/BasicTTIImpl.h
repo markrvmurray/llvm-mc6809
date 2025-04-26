@@ -453,22 +453,6 @@ public:
     return getTLI()->isLegalAddressingMode(DL, AM, Ty, AddrSpace, I);
   }
 
-  bool isLegalAddressingMode(Type *Ty, GlobalValue *BaseGV, int64_t BaseOffset,
-                             bool HasBaseReg, Type *BaseType, int64_t Scale,
-                             Type *ScaleType, unsigned AddrSpace,
-                             Instruction *I = nullptr,
-                             int64_t ScalableOffset = 0) {
-    TargetLoweringBase::AddrMode AM;
-    AM.BaseGV = BaseGV;
-    AM.BaseOffs = BaseOffset;
-    AM.HasBaseReg = HasBaseReg;
-    AM.BaseType = BaseType;
-    AM.Scale = Scale;
-    AM.ScaleType = ScaleType;
-    AM.ScalableOffset = ScalableOffset;
-    return getTLI()->isLegalAddressingMode(DL, AM, Ty, AddrSpace, I);
-  }
-
   int64_t getPreferredLargeGEPBaseOffset(int64_t MinOffset, int64_t MaxOffset) {
     return getTLI()->getPreferredLargeGEPBaseOffset(MinOffset, MaxOffset);
   }
@@ -528,9 +512,7 @@ public:
     AM.BaseGV = BaseGV;
     AM.BaseOffs = BaseOffset.getFixed();
     AM.HasBaseReg = HasBaseReg;
-    AM.BaseType = BaseType;
     AM.Scale = Scale;
-    AM.ScaleType = ScaleType;
     AM.ScalableOffset = BaseOffset.getScalable();
     if (getTLI()->isLegalAddressingMode(DL, AM, Ty, AddrSpace))
       return 0;

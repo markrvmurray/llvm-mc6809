@@ -73,8 +73,8 @@ public:
 
   bool evaluateTargetFixup(const MCAssembler &Asm, const MCFixup &Fixup,
                            const MCFragment *DF, const MCValue &Target,
-                           const MCSubtargetInfo *STI, uint64_t &Value,
-                           bool &WasForced) override;
+                           const MCSubtargetInfo *STI,
+                           uint64_t &Value) override;
 
   /// Simple predicate for targets where !Resolved implies requiring relaxation
   bool fixupNeedsRelaxation(const MCFixup &Fixup,
@@ -82,13 +82,11 @@ public:
   /// Carefully determine whether the instruction in question requires
   /// relaxation.  This implementation considers the fixup as well as
   /// the section that the symbol points to.
-  bool fixupNeedsRelaxationAdvanced(const MCAssembler &ASM,
-                                    const MCFixup &Fixup, bool Resolved,
-                                    uint64_t Value,
-                                    const MCRelaxableFragment *DF,
-                                    const bool WasForced) const override;
-  unsigned getNumFixupKinds() const override;
-  MCFixupKindInfo const &getFixupKindInfo(MCFixupKind Kind) const override;
+  bool fixupNeedsRelaxationAdvanced(const MCAssembler &,
+                                    const MCFixup &, const MCValue &,
+                                    uint64_t, bool Resolved) const override;
+  unsigned getNumFixupKinds() const;
+  MCFixupKindInfo getFixupKindInfo(MCFixupKind Kind) const override;
   /// Check whether the given instruction may need relaxation.
   ///
   /// \param Inst - The instruction to test.
@@ -119,11 +117,6 @@ public:
     return relaxInstructionTo(Inst, STI, BankRelax);
   }
 
-  /// If the provided subtarget uses a custom set of machine instructions,
-  /// translate the provided MC6809 machine instruction to the subtarget's.
-  static void translateOpcodeToSubtarget(MCInst &Inst,
-                                         const MCSubtargetInfo &STI);
-
   /// If the provided instruction contains an out-of-range immediate in a
   /// relaxable opcode, perform the relaxation now. MC6809AsmPrinter calls this at
   /// the end of lowering so it does not have to deal with the relaxation
@@ -138,6 +131,8 @@ public:
                     const MCSubtargetInfo *STI) const override;
 
 private:
+  mutable const MCInst *RelaxedMC = nullptr;
+  mutable const MCSubtargetInfo *RelaxedSTI = nullptr;
   Triple::OSType OSType;
 };
 

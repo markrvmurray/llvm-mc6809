@@ -403,8 +403,8 @@ public:
                                                unsigned AddrSpace) const {
     // Guess that all legal addressing mode are free.
     if (isLegalAddressingMode(Ty, BaseGV, BaseOffset.getFixed(), HasBaseReg,
-                              BaseType, Scale, ScaleType, AddrSpace,
-                              /*I=*/nullptr, BaseOffset.getScalable()))
+                              Scale, AddrSpace, /*I=*/nullptr,
+                              BaseOffset.getScalable()))
       return 0;
     return InstructionCost::getInvalid();
   }

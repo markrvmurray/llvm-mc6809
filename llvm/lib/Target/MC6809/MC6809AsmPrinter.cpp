@@ -184,7 +184,7 @@ void MC6809AsmPrinter::emitJumpTableInfo() {
 
     // Emit an array of the target addresses.
     for (const MachineBasicBlock *JTBB : JTBBs) {
-      OutStreamer->emitValue(MCSymbolRefExpr::create(JTBB->getSymbol(), MCSymbolRefExpr::VK_MC6809_ADDR_16, OutContext), 2);
+      OutStreamer->emitValue(MCSymbolRefExpr::create(JTBB->getSymbol(), MC6809MCExpr::VK_ADDR16, OutContext), 2);
     }
   }
   if (!JTInDiffSection)

@@ -109,7 +109,7 @@ const MC6809Subtarget *MC6809TargetMachine::getSubtargetImpl(const Function &F) 
   return I.get();
 }
 
-TargetTransformInfo MC6809TargetMachine::getTargetTransformInfo(const Function &F) const { return TargetTransformInfo(MC6809TTIImpl(this, F)); }
+TargetTransformInfo MC6809TargetMachine::getTargetTransformInfo(const Function &F) const { return TargetTransformInfo(std::make_unique<MC6809TTIImpl>(this, F)); }
 
 void MC6809TargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
   PB.registerPipelineParsingCallback([](StringRef Name, LoopPassManager &PM, ArrayRef<PassBuilder::PipelineElement>) {
@@ -183,8 +183,6 @@ public:
   void addPrePEI() override;
   void addPreSched2() override;
   void addPreEmitPass() override;
-
-  ScheduleDAGInstrs *createMachineScheduler(MachineSchedContext *C) const override;
 
   std::unique_ptr<CSEConfigBase> getCSEConfig() const override;
 };
@@ -289,7 +287,10 @@ void MC6809PassConfig::addPreSched2() {
 
 void MC6809PassConfig::addPreEmitPass() { addPass(&BranchRelaxationPassID); }
 
-ScheduleDAGInstrs *MC6809PassConfig::createMachineScheduler(MachineSchedContext *C) const { return new ScheduleDAGMILive(C, std::make_unique<MC6809SchedStrategy>(C)); }
+ScheduleDAGInstrs *MC6809TargetMachine::createMachineScheduler(MachineSchedContext *C) const {
+  return new ScheduleDAGMILive(C, std::make_unique<MC6809SchedStrategy>(C));
+}
+
 
 namespace {
 

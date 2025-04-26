@@ -1,5 +1,4 @@
-//===-- MC6809ELFObjectWriter.cpp - MC6809 ELF Writer
-//---------------------------===//
+//===-- MC6809ELFObjectWriter.cpp - MC6809 ELF Writer ---------------------===//
 //
 // Part of LLVM-MC6809, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "MCTargetDesc/MC6809FixupKinds.h"
+#include "MCTargetDesc/MC6809MCExpr.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
 
 #include "llvm/BinaryFormat/ELF.h"
@@ -27,32 +27,37 @@ class MC6809ELFObjectWriter : public MCELFObjectTargetWriter {
 public:
   explicit MC6809ELFObjectWriter(uint8_t OSABI);
 
-  unsigned getRelocType(MCContext &Ctx, const MCValue &Target, const MCFixup &Fixup, bool IsPCRel) const override;
+  unsigned getRelocType(MCContext &Ctx, const MCValue &Target,
+                        const MCFixup &Fixup, bool IsPCRel) const override;
 };
 
-MC6809ELFObjectWriter::MC6809ELFObjectWriter(uint8_t OSABI) : MCELFObjectTargetWriter(false, OSABI, ELF::EM_MC6809, true) {}
+MC6809ELFObjectWriter::MC6809ELFObjectWriter(uint8_t OSABI)
+    : MCELFObjectTargetWriter(false, OSABI, ELF::EM_MC6809, true) {}
 
-unsigned MC6809ELFObjectWriter::getRelocType(MCContext &Ctx, const MCValue &Target, const MCFixup &Fixup, bool IsPCRel) const {
-  MCSymbolRefExpr::VariantKind Modifier = Target.getAccessVariant();
-  switch ((unsigned)Fixup.getKind()) {
+unsigned MC6809ELFObjectWriter::getRelocType(MCContext &Ctx, const MCValue &Target,
+                                          const MCFixup &Fixup,
+                                          bool IsPCRel) const {
+  unsigned Kind = Fixup.getTargetKind();
+  auto Specifier = static_cast<MC6809MCExpr::VariantKind>(Target.getSpecifier());
+  switch (Kind) {
   case FK_Data_1:
-    switch (Modifier) {
+    switch (Specifier) {
     default:
-      llvm_unreachable("Unsupported Modifier");
-    case MCSymbolRefExpr::VK_None:
-    case MCSymbolRefExpr::VK_MC6809_ADDR_8:
+      llvm_unreachable("Unsupported Specifier");
+    case MC6809MCExpr::VK_NONE:
+    case MC6809MCExpr::VK_ADDR8:
       return ELF::R_MC6809_ADDR_8;
-    case MCSymbolRefExpr::VK_MC6809_ADDR_16:
+    case MC6809MCExpr::VK_ADDR16:
       return ELF::R_MC6809_ADDR_16;
     }
   case FK_Data_2:
-    switch (Modifier) {
+    switch (Specifier) {
     default:
-      llvm_unreachable("Unsupported Modifier");
-    case MCSymbolRefExpr::VK_None:
+      llvm_unreachable("Unsupported Specifier");
+    case MC6809MCExpr::VK_NONE:
+    case MC6809MCExpr::VK_ADDR16:
       return ELF::R_MC6809_ADDR_16;
     }
-
   case MC6809::Imm8:
     return ELF::R_MC6809_IMM_8;
   case MC6809::Addr8:
@@ -61,15 +66,21 @@ unsigned MC6809ELFObjectWriter::getRelocType(MCContext &Ctx, const MCValue &Targ
     return ELF::R_MC6809_ADDR_16;
   case MC6809::PCRel8:
     return ELF::R_MC6809_PCREL_8;
+  case MC6809::PCRel16:
+    return ELF::R_MC6809_PCREL_16;
   case MCFixupKind::FK_Data_4:
     return ELF::R_MC6809_FK_DATA_4;
   case MCFixupKind::FK_Data_8:
     return ELF::R_MC6809_FK_DATA_8;
+  case MC6809::AddrAsciz:
+    return ELF::R_MC6809_ADDR_ASCIZ;
   default:
     llvm_unreachable("invalid fixup kind!");
   }
 }
 
-std::unique_ptr<MCObjectTargetWriter> createMC6809ELFObjectWriter(uint8_t OSABI) { return std::make_unique<MC6809ELFObjectWriter>(OSABI); }
+std::unique_ptr<MCObjectTargetWriter> createMC6809ELFObjectWriter(uint8_t OSABI) {
+  return std::make_unique<MC6809ELFObjectWriter>(OSABI);
+}
 
 } // end of namespace llvm
