@@ -5250,6 +5250,11 @@ LegalizerHelper::reduceLoadStoreWidth(GLoadStore &LdStMI, unsigned TypeIdx,
   if (TypeIdx != 0)
     return UnableToLegalize;
 
+  if (!NarrowTy.isByteSized()) {
+    LLVM_DEBUG(dbgs() << "Can't narrow load/store to non-byte-sized type\n");
+    return UnableToLegalize;
+  }
+
   // This implementation doesn't work for atomics. Give up instead of doing
   // something invalid.
   if (LdStMI.isAtomic())
