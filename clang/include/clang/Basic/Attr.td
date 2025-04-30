@@ -3908,6 +3908,7 @@ def AssertCapability : InheritableAttr {
   let ParseArgumentsAsUnevaluated = 1;
   let InheritEvenIfAlreadyPresent = 1;
   let Args = [VariadicExprArgument<"Args">];
+  let AcceptsExprPack = 1;
   let Accessors = [Accessor<"isShared",
                     [Clang<"assert_shared_capability", 0>,
                      GNU<"assert_shared_lock">]>];
@@ -3925,6 +3926,7 @@ def AcquireCapability : InheritableAttr {
   let ParseArgumentsAsUnevaluated = 1;
   let InheritEvenIfAlreadyPresent = 1;
   let Args = [VariadicExprArgument<"Args">];
+  let AcceptsExprPack = 1;
   let Accessors = [Accessor<"isShared",
                     [Clang<"acquire_shared_capability", 0>,
                      GNU<"shared_lock_function">]>];
@@ -3942,6 +3944,7 @@ def TryAcquireCapability : InheritableAttr {
   let ParseArgumentsAsUnevaluated = 1;
   let InheritEvenIfAlreadyPresent = 1;
   let Args = [ExprArgument<"SuccessValue">, VariadicExprArgument<"Args">];
+  let AcceptsExprPack = 1;
   let Accessors = [Accessor<"isShared",
                     [Clang<"try_acquire_shared_capability", 0>,
                      GNU<"shared_trylock_function">]>];
@@ -3959,6 +3962,7 @@ def ReleaseCapability : InheritableAttr {
   let ParseArgumentsAsUnevaluated = 1;
   let InheritEvenIfAlreadyPresent = 1;
   let Args = [VariadicExprArgument<"Args">];
+  let AcceptsExprPack = 1;
   let Accessors = [Accessor<"isShared",
                     [Clang<"release_shared_capability", 0>]>,
                    Accessor<"isGeneric",
@@ -3973,6 +3977,7 @@ def RequiresCapability : InheritableAttr {
                    Clang<"requires_shared_capability", 0>,
                    Clang<"shared_locks_required", 0>];
   let Args = [VariadicExprArgument<"Args">];
+  let AcceptsExprPack = 1;
   let LateParsed = LateAttrParseStandard;
   let TemplateDependent = 1;
   let ParseArgumentsAsUnevaluated = 1;
@@ -4015,6 +4020,7 @@ def PtGuardedBy : InheritableAttr {
 def AcquiredAfter : InheritableAttr {
   let Spellings = [GNU<"acquired_after">];
   let Args = [VariadicExprArgument<"Args">];
+  let AcceptsExprPack = 1;
   let LateParsed = LateAttrParseExperimentalExt;
   let TemplateDependent = 1;
   let ParseArgumentsAsUnevaluated = 1;
@@ -4026,6 +4032,7 @@ def AcquiredAfter : InheritableAttr {
 def AcquiredBefore : InheritableAttr {
   let Spellings = [GNU<"acquired_before">];
   let Args = [VariadicExprArgument<"Args">];
+  let AcceptsExprPack = 1;
   let LateParsed = LateAttrParseExperimentalExt;
   let TemplateDependent = 1;
   let ParseArgumentsAsUnevaluated = 1;
@@ -4047,6 +4054,7 @@ def LockReturned : InheritableAttr {
 def LocksExcluded : InheritableAttr {
   let Spellings = [GNU<"locks_excluded">];
   let Args = [VariadicExprArgument<"Args">];
+  let AcceptsExprPack = 1;
   let LateParsed = LateAttrParseStandard;
   let TemplateDependent = 1;
   let ParseArgumentsAsUnevaluated = 1;
