@@ -4754,6 +4754,9 @@ void Sema::MergeVarDecl(VarDecl *New, LookupResult &Previous) {
       if (Def && checkVarDeclRedefinition(Def, New))
         return;
     }
+  } else {
+    Diag(New->getLocation(), diag::warn_cxx_compat_tentative_definition) << New;
+    Diag(Old->getLocation(), diag::note_previous_declaration);
   }
 
   if (haveIncompatibleLanguageLinkages(Old, New)) {
