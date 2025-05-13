@@ -497,6 +497,10 @@ Error DataAggregator::preprocessProfile(BinaryContext &BC) {
   filterBinaryMMapInfo();
   prepareToParse("events", MainEventsPPI, ErrorCallback);
 
+  if ((!opts::BasicAggregation && parseBranchEvents()) ||
+      (opts::BasicAggregation && parseBasicEvents()))
+    errs() << "PERF2BOLT: failed to parse samples\n";
+
   if (opts::HeatmapMode) {
     if (std::error_code EC = printLBRHeatMap()) {
       errs() << "ERROR: failed to print heat map: " << EC.message() << '\n';
@@ -504,10 +508,6 @@ Error DataAggregator::preprocessProfile(BinaryContext &BC) {
     }
     exit(0);
   }
-
-  if ((!opts::BasicAggregation && parseBranchEvents()) ||
-      (opts::BasicAggregation && parseBasicEvents()))
-    errs() << "PERF2BOLT: failed to parse samples\n";
 
   // Special handling for memory events
   if (prepareToParse("mem events", MemEventsPPI, MemEventsErrorCallback))
@@ -1303,53 +1303,6 @@ std::error_code DataAggregator::printLBRHeatMap() {
   }
   Heatmap HM(opts::HeatmapBlock, opts::HeatmapMinAddress,
              opts::HeatmapMaxAddress, getTextSections(BC));
-  uint64_t NumTotalSamples = 0;
-
-  if (opts::BasicAggregation) {
-    while (hasData()) {
-      ErrorOr<PerfBasicSample> SampleRes = parseBasicSample();
-      if (std::error_code EC = SampleRes.getError()) {
-        if (EC == errc::no_such_process)
-          continue;
-        return EC;
-      }
-      PerfBasicSample &Sample = SampleRes.get();
-      HM.registerAddress(Sample.PC);
-      NumTotalSamples++;
-    }
-    outs() << "HEATMAP: read " << NumTotalSamples << " basic samples\n";
-  } else {
-    while (hasData()) {
-      ErrorOr<PerfBranchSample> SampleRes = parseBranchSample();
-      if (std::error_code EC = SampleRes.getError()) {
-        if (EC == errc::no_such_process)
-          continue;
-        return EC;
-      }
-
-      PerfBranchSample &Sample = SampleRes.get();
-
-      // LBRs are stored in reverse execution order. NextLBR refers to the next
-      // executed branch record.
-      const LBREntry *NextLBR = nullptr;
-      for (const LBREntry &LBR : Sample.LBR) {
-        if (NextLBR) {
-          // Record fall-through trace.
-          const uint64_t TraceFrom = LBR.To;
-          const uint64_t TraceTo = NextLBR->From;
-          ++FallthroughLBRs[Trace(TraceFrom, TraceTo)].InternCount;
-        }
-        NextLBR = &LBR;
-      }
-      if (!Sample.LBR.empty()) {
-        HM.registerAddress(Sample.LBR.front().To);
-        HM.registerAddress(Sample.LBR.back().From);
-      }
-      NumTotalSamples += Sample.LBR.size();
-    }
-    outs() << "HEATMAP: read " << NumTotalSamples << " LBR samples\n";
-    outs() << "HEATMAP: " << FallthroughLBRs.size() << " unique traces\n";
-  }
 
   if (!NumTotalSamples) {
     if (opts::BasicAggregation) {
@@ -1365,10 +1318,14 @@ std::error_code DataAggregator::printLBRHeatMap() {
 
   outs() << "HEATMAP: building heat map...\n";
 
+  // Register basic samples and perf LBR addresses not covered by fallthroughs.
+  for (const auto &[PC, Hits] : BasicSamples)
+    HM.registerAddress(PC, Hits);
   for (const auto &LBR : FallthroughLBRs) {
     const Trace &Trace = LBR.first;
     const FTInfo &Info = LBR.second;
-    HM.registerAddressRange(Trace.From, Trace.To, Info.InternCount);
+    HM.registerAddressRange(Trace.From, Trace.To,
+                            Info.InternCount + Info.ExternCount);
   }
 
   if (HM.getNumInvalidRanges())
@@ -1415,7 +1372,10 @@ uint64_t DataAggregator::parseLBRSample(const PerfBranchSample &Sample,
       const uint64_t TraceTo = NextLBR->From;
       const BinaryFunction *TraceBF =
           getBinaryFunctionContainingAddress(TraceFrom);
-      if (TraceBF && TraceBF->containsAddress(TraceTo)) {
+      if (opts::HeatmapMode) {
+        FTInfo &Info = FallthroughLBRs[Trace(TraceFrom, TraceTo)];
+        ++Info.InternCount;
+      } else if (TraceBF && TraceBF->containsAddress(TraceTo)) {
         FTInfo &Info = FallthroughLBRs[Trace(TraceFrom, TraceTo)];
         if (TraceBF->containsAddress(LBR.From))
           ++Info.InternCount;
@@ -1449,6 +1409,12 @@ uint64_t DataAggregator::parseLBRSample(const PerfBranchSample &Sample,
     }
     NextLBR = &LBR;
 
+    // Record branches outside binary functions for heatmap.
+    if (opts::HeatmapMode) {
+      TakenBranchInfo &Info = BranchLBRs[Trace(LBR.From, LBR.To)];
+      ++Info.TakenCount;
+      continue;
+    }
     uint64_t From = getBinaryFunctionContainingAddress(LBR.From) ? LBR.From : 0;
     uint64_t To = getBinaryFunctionContainingAddress(LBR.To) ? LBR.To : 0;
     if (!From && !To)
@@ -1457,7 +1423,89 @@ uint64_t DataAggregator::parseLBRSample(const PerfBranchSample &Sample,
     ++Info.TakenCount;
     Info.MispredCount += LBR.Mispred;
   }
-  return NumTraces;
+  // Record LBR addresses not covered by fallthroughs (bottom-of-stack source
+  // and top-of-stack target) as basic samples for heatmap.
+  if (opts::HeatmapMode && !Sample.LBR.empty()) {
+    ++BasicSamples[Sample.LBR.front().To];
+    ++BasicSamples[Sample.LBR.back().From];
+  }
+}
+
+void DataAggregator::printColdSamplesDiagnostic() const {
+  if (NumColdSamples > 0) {
+    const float ColdSamples = NumColdSamples * 100.0f / NumTotalSamples;
+    outs() << "PERF2BOLT: " << NumColdSamples
+           << format(" (%.1f%%)", ColdSamples)
+           << " samples recorded in cold regions of split functions.\n";
+    if (ColdSamples > 5.0f)
+      outs()
+          << "WARNING: The BOLT-processed binary where samples were collected "
+             "likely used bad data or your service observed a large shift in "
+             "profile. You may want to audit this\n";
+  }
+}
+
+void DataAggregator::printLongRangeTracesDiagnostic() const {
+  outs() << "PERF2BOLT: out of range traces involving unknown regions: "
+         << NumLongRangeTraces;
+  if (NumTraces > 0)
+    outs() << format(" (%.1f%%)", NumLongRangeTraces * 100.0f / NumTraces);
+  outs() << "\n";
+}
+
+static float printColoredPct(uint64_t Numerator, uint64_t Denominator, float T1,
+                             float T2) {
+  if (Denominator == 0) {
+    outs() << "\n";
+    return 0;
+  }
+  float Percent = Numerator * 100.0f / Denominator;
+  outs() << " (";
+  if (outs().has_colors()) {
+    if (Percent > T2)
+      outs().changeColor(raw_ostream::RED);
+    else if (Percent > T1)
+      outs().changeColor(raw_ostream::YELLOW);
+    else
+      outs().changeColor(raw_ostream::GREEN);
+  }
+  outs() << format("%.1f%%", Percent);
+  if (outs().has_colors())
+    outs().resetColor();
+  outs() << ")\n";
+  return Percent;
+}
+
+void DataAggregator::printBranchSamplesDiagnostics() const {
+  outs() << "PERF2BOLT: traces mismatching disassembled function contents: "
+         << NumInvalidTraces;
+  if (printColoredPct(NumInvalidTraces, NumTraces, 5, 10) > 10)
+    outs() << "\n !! WARNING !! This high mismatch ratio indicates the input "
+              "binary is probably not the same binary used during profiling "
+              "collection. The generated data may be ineffective for improving "
+              "performance\n\n";
+  printLongRangeTracesDiagnostic();
+  printColdSamplesDiagnostic();
+}
+
+void DataAggregator::printBasicSamplesDiagnostics(
+    uint64_t OutOfRangeSamples) const {
+  outs() << "PERF2BOLT: out of range samples recorded in unknown regions: "
+         << OutOfRangeSamples;
+  if (printColoredPct(OutOfRangeSamples, NumTotalSamples, 40, 60) > 80)
+    outs() << "\n !! WARNING !! This high mismatch ratio indicates the input "
+              "binary is probably not the same binary used during profiling "
+              "collection. The generated data may be ineffective for improving "
+              "performance\n\n";
+  printColdSamplesDiagnostic();
+}
+
+void DataAggregator::printBranchStacksDiagnostics(
+    uint64_t IgnoredSamples) const {
+  outs() << "PERF2BOLT: ignored samples: " << IgnoredSamples;
+  if (printColoredPct(IgnoredSamples, NumTotalSamples, 20, 50) > 50)
+    errs() << "PERF2BOLT-WARNING: less than 50% of all recorded samples "
+              "were attributed to the input binary\n";
 }
 
 std::error_code DataAggregator::parseBranchEvents() {
@@ -1612,6 +1660,7 @@ std::error_code DataAggregator::parseBasicEvents() {
 
     if (!Sample->PC)
       continue;
+    ++NumTotalSamples;
 
     if (BinaryFunction *BF = getBinaryFunctionContainingAddress(Sample->PC))
       BF->setHasProfileAvailable();
@@ -1619,6 +1668,7 @@ std::error_code DataAggregator::parseBasicEvents() {
     ++BasicSamples[Sample->PC];
     EventNames.insert(Sample->EventName);
   }
+  outs() << "PERF2BOLT: read " << NumTotalSamples << " basic samples\n";
 
   return std::error_code();
 }
@@ -1632,7 +1682,6 @@ void DataAggregator::processBasicEvents() {
   for (auto &Sample : BasicSamples) {
     const uint64_t PC = Sample.first;
     const uint64_t HitCount = Sample.second;
-    NumSamples += HitCount;
     BinaryFunction *Func = getBinaryFunctionContainingAddress(PC);
     if (!Func) {
       OutOfRangeSamples += HitCount;
@@ -1641,7 +1690,6 @@ void DataAggregator::processBasicEvents() {
 
     doBasicSample(*Func, PC, HitCount);
   }
-  outs() << "PERF2BOLT: read " << NumSamples << " samples\n";
 
   outs() << "PERF2BOLT: out of range samples recorded in unknown regions: "
          << OutOfRangeSamples;
