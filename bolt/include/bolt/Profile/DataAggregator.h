@@ -211,11 +211,7 @@ private:
   /// Aggregation statistics
   uint64_t NumInvalidTraces{0};
   uint64_t NumLongRangeTraces{0};
-  /// Specifies how many samples were recorded in cold areas if we are dealing
-  /// with profiling data collected in a bolted binary. For LBRs, incremented
-  /// for the source of the branch to avoid counting cold activity twice (one
-  /// for source and another for destination).
-  uint64_t NumColdSamples{0};
+  uint64_t NumTotalSamples{0};
 
   /// Looks into system PATH for Linux Perf and set up the aggregator to use it
   void findPerfExecutable();
@@ -469,6 +465,12 @@ private:
   void dump(const LBREntry &LBR) const;
   void dump(const PerfBranchSample &Sample) const;
   void dump(const PerfMemSample &Sample) const;
+
+  /// Profile diagnostics print methods
+  void printLongRangeTracesDiagnostic() const;
+  void printBranchSamplesDiagnostics() const;
+  void printBasicSamplesDiagnostics(uint64_t OutOfRangeSamples) const;
+  void printBranchStacksDiagnostics(uint64_t IgnoredSamples) const;
 
 public:
   /// If perf.data was collected without build ids, the buildid-list may contain
