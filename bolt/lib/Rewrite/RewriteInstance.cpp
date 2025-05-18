@@ -4677,7 +4677,6 @@ RewriteInstance::getOutputSections(ELFObjectFile<ELFT> *File,
   }
 
   // Assign indices to sections.
-  std::unordered_map<std::string, uint64_t> NameToIndex;
   for (uint32_t Index = 1; Index < OutputSections.size(); ++Index)
     OutputSections[Index].first->setIndex(Index);
 
