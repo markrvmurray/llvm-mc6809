@@ -400,7 +400,7 @@ bool ELFAsmParser::parseDirectiveSection(StringRef, SMLoc loc) {
 }
 
 bool ELFAsmParser::maybeParseSectionType(StringRef &TypeName) {
-  MCAsmLexer &L = getLexer();
+  AsmLexer &L = getLexer();
   if (L.isNot(AsmToken::Comma))
     return false;
   Lex();
@@ -433,7 +433,7 @@ bool ELFAsmParser::parseMergeSize(int64_t &Size) {
 }
 
 bool ELFAsmParser::parseGroup(StringRef &GroupName, bool &IsComdat) {
-  MCAsmLexer &L = getLexer();
+  AsmLexer &L = getLexer();
   if (L.isNot(AsmToken::Comma))
     return TokError("expected group name");
   Lex();
@@ -458,7 +458,7 @@ bool ELFAsmParser::parseGroup(StringRef &GroupName, bool &IsComdat) {
 }
 
 bool ELFAsmParser::parseLinkedToSym(MCSymbolELF *&LinkedToSym) {
-  MCAsmLexer &L = getLexer();
+  AsmLexer &L = getLexer();
   if (L.isNot(AsmToken::Comma))
     return TokError("expected linked-to symbol");
   Lex();
@@ -567,7 +567,7 @@ bool ELFAsmParser::parseSectionArguments(bool IsPush, SMLoc loc) {
     if (maybeParseSectionType(TypeName))
       return true;
 
-    MCAsmLexer &L = getLexer();
+    AsmLexer &L = getLexer();
     if (TypeName.empty()) {
       if (Mergeable)
         return TokError("Mergeable section must specify the type");
