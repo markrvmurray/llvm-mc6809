@@ -15,6 +15,7 @@
 #include "CGOpenMPRuntime.h"
 #include "CodeGenFunction.h"
 #include "CodeGenModule.h"
+#include "CodeGenPGO.h"
 #include "TargetInfo.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/Expr.h"
@@ -60,7 +61,7 @@ void CodeGenFunction::EmitStopPoint(const Stmt *S) {
 
 void CodeGenFunction::EmitStmt(const Stmt *S, ArrayRef<const Attr *> Attrs) {
   assert(S && "Null statement?");
-  PGO.setCurrentStmt(S);
+  PGO->setCurrentStmt(S);
 
   // These statements have their own debug info handling.
   if (EmitSimpleStmt(S, Attrs))
@@ -77,7 +78,7 @@ void CodeGenFunction::EmitStmt(const Stmt *S, ArrayRef<const Attr *> Attrs) {
       // Verify that any decl statements were handled as simple, they may be in
       // scope of subsequent reachable statements.
       assert(!isa<DeclStmt>(*S) && "Unexpected DeclStmt!");
-      PGO.markStmtMaybeUsed(S);
+      PGO->markStmtMaybeUsed(S);
       return;
     }
 
@@ -923,7 +924,7 @@ void CodeGenFunction::EmitIfStmt(const IfStmt &S) {
         RunCleanupsScope ExecutedScope(*this);
         EmitStmt(Executed);
       }
-      PGO.markStmtMaybeUsed(Skipped);
+      PGO->markStmtMaybeUsed(Skipped);
       return;
     }
   }
@@ -2271,7 +2272,7 @@ void CodeGenFunction::EmitSwitchStmt(const SwitchStmt &S) {
       for (unsigned i = 0, e = CaseStmts.size(); i != e; ++i)
         EmitStmt(CaseStmts[i]);
       incrementProfileCounter(&S);
-      PGO.markStmtMaybeUsed(S.getBody());
+      PGO->markStmtMaybeUsed(S.getBody());
 
       // Now we want to restore the saved switch instance so that nested
       // switches continue to function properly
@@ -2314,7 +2315,7 @@ void CodeGenFunction::EmitSwitchStmt(const SwitchStmt &S) {
                             llvm::MDNode::get(CGM.getLLVMContext(), Vals));
   }
 
-  if (PGO.haveRegionCounts()) {
+  if (PGO->haveRegionCounts()) {
     // Walk the SwitchCase list to find how many there are.
     uint64_t DefaultCount = 0;
     unsigned NumCases = 0;
@@ -3337,7 +3338,7 @@ CodeGenFunction::GenerateCapturedStmtFunction(const CapturedStmt &S) {
     CXXThisValue = EmitLoadOfLValue(ThisLValue, Loc).getScalarVal();
   }
 
-  PGO.assignRegionCounters(GlobalDecl(CD), F);
+  PGO->assignRegionCounters(GlobalDecl(CD), F);
   CapturedStmtInfo->EmitBody(*this, CD->getBody());
   FinishFunction(CD->getBodyRBrace());
 
