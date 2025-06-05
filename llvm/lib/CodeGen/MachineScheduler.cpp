@@ -16,6 +16,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/EquivalenceClasses.h"
 #include "llvm/ADT/PriorityQueue.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
@@ -945,8 +946,6 @@ void ScheduleDAGMI::releaseSucc(SUnit *SU, SDep *SuccEdge) {
 
   if (SuccEdge->isWeak()) {
     --SuccSU->WeakPredsLeft;
-    if (SuccEdge->isCluster())
-      NextClusterSucc = SuccSU;
     return;
   }
 #ifndef NDEBUG
@@ -969,12 +968,6 @@ void ScheduleDAGMI::releaseSucc(SUnit *SU, SDep *SuccEdge) {
 
 /// releaseSuccessors - Call releaseSucc on each of SU's successors.
 void ScheduleDAGMI::releaseSuccessors(SUnit *SU) {
-  // Reset the next successor, For example, we want to cluster A B C.
-  // After A is picked, we will set B as next cluster succ, but if we pick
-  // D instead of B after A, then we need to reset the next cluster succ because
-  // we have decided to not pick the cluster candidate B during pickNode().
-  // Leaving B as the NextClusterSucc just make things messy.
-  NextClusterSucc = nullptr;
   for (SDep &Succ : SU->Succs)
     releaseSucc(SU, &Succ);
 }
@@ -988,8 +981,6 @@ void ScheduleDAGMI::releasePred(SUnit *SU, SDep *PredEdge) {
 
   if (PredEdge->isWeak()) {
     --PredSU->WeakSuccsLeft;
-    if (PredEdge->isCluster())
-      NextClusterPred = PredSU;
     return;
   }
 #ifndef NDEBUG
@@ -1012,7 +1003,6 @@ void ScheduleDAGMI::releasePred(SUnit *SU, SDep *PredEdge) {
 
 /// releasePredecessors - Call releasePred on each of SU's predecessors.
 void ScheduleDAGMI::releasePredecessors(SUnit *SU) {
-  NextClusterPred = nullptr;
   for (SDep &Pred : SU->Preds)
     releasePred(SU, &Pred);
 }
@@ -1186,11 +1176,8 @@ findRootsAndBiasEdges(SmallVectorImpl<SUnit*> &TopRoots,
 }
 
 /// Identify DAG roots and setup scheduler queues.
-void ScheduleDAGMI::initQueues(ArrayRef<SUnit*> TopRoots,
-                               ArrayRef<SUnit*> BotRoots) {
-  NextClusterSucc = nullptr;
-  NextClusterPred = nullptr;
-
+void ScheduleDAGMI::initQueues(ArrayRef<SUnit *> TopRoots,
+                               ArrayRef<SUnit *> BotRoots) {
   // Release all DAG roots for scheduling, not including EntrySU/ExitSU.
   //
   // Nodes with unreleased weak edges can still be roots.
@@ -2118,6 +2105,7 @@ void BaseMemOpClusterMutation::clusterNeighboringMemOps(
     ScheduleDAGInstrs *DAG) {
   // Keep track of the current cluster length and bytes for each SUnit.
   DenseMap<unsigned, std::pair<unsigned, unsigned>> SUnit2ClusterInfo;
+  EquivalenceClasses<SUnit *> Clusters;
 
   // At this point, `MemOpRecords` array must hold atleast two mem ops. Try to
   // cluster mem ops collected within `MemOpRecords` array.
@@ -2157,6 +2145,7 @@ void BaseMemOpClusterMutation::clusterNeighboringMemOps(
 
     SUnit *SUa = MemOpa.SU;
     SUnit *SUb = MemOpb.SU;
+
     if (!ReorderWhileClustering && SUa->NodeNum > SUb->NodeNum)
       std::swap(SUa, SUb);
 
@@ -2164,6 +2153,7 @@ void BaseMemOpClusterMutation::clusterNeighboringMemOps(
     if (!DAG->addEdge(SUb, SDep(SUa, SDep::Cluster)))
       continue;
 
+    Clusters.unionSets(SUa, SUb);
     LLVM_DEBUG(dbgs() << "Cluster ld/st SU(" << SUa->NodeNum << ") - SU("
                       << SUb->NodeNum << ")\n");
     ++NumClustered;
@@ -2202,6 +2192,21 @@ void BaseMemOpClusterMutation::clusterNeighboringMemOps(
     LLVM_DEBUG(dbgs() << "  Curr cluster length: " << ClusterLength
                       << ", Curr cluster bytes: " << CurrentClusterBytes
                       << "\n");
+  }
+
+  // Add cluster group information.
+  // Iterate over all of the equivalence sets.
+  auto &AllClusters = DAG->getClusters();
+  for (const EquivalenceClasses<SUnit *>::ECValue *I : Clusters) {
+    if (!I->isLeader())
+      continue;
+    ClusterInfo Group;
+    unsigned ClusterIdx = AllClusters.size();
+    for (SUnit *MemberI : Clusters.members(*I)) {
+      MemberI->ParentClusterIdx = ClusterIdx;
+      Group.insert(MemberI);
+    }
+    AllClusters.push_back(Group);
   }
 }
 
@@ -3690,6 +3695,9 @@ void GenericScheduler::initialize(ScheduleDAGMI *dag) {
   }
   TopCand.SU = nullptr;
   BotCand.SU = nullptr;
+
+  TopCluster = nullptr;
+  BotCluster = nullptr;
 }
 
 /// Initialize the per-region scheduling policy.
@@ -3999,13 +4007,11 @@ bool GenericScheduler::tryCandidate(SchedCandidate &Cand,
   // This is a best effort to set things up for a post-RA pass. Optimizations
   // like generating loads of multiple registers should ideally be done within
   // the scheduler pass by combining the loads during DAG postprocessing.
-  const SUnit *CandNextClusterSU =
-    Cand.AtTop ? DAG->getNextClusterSucc() : DAG->getNextClusterPred();
-  const SUnit *TryCandNextClusterSU =
-    TryCand.AtTop ? DAG->getNextClusterSucc() : DAG->getNextClusterPred();
-  if (tryGreater(TryCand.SU == TryCandNextClusterSU,
-                 Cand.SU == CandNextClusterSU,
-                 TryCand, Cand, Cluster))
+  const ClusterInfo *CandCluster = Cand.AtTop ? TopCluster : BotCluster;
+  const ClusterInfo *TryCandCluster = TryCand.AtTop ? TopCluster : BotCluster;
+  if (tryGreater(TryCandCluster && TryCandCluster->contains(TryCand.SU),
+                 CandCluster && CandCluster->contains(Cand.SU), TryCand, Cand,
+                 Cluster))
     return TryCand.Reason != NoCand;
 
   if (SameBoundary) {
@@ -4264,11 +4270,25 @@ void GenericScheduler::reschedulePhysReg(SUnit *SU, bool isTop) {
 void GenericScheduler::schedNode(SUnit *SU, bool IsTopNode) {
   if (IsTopNode) {
     SU->TopReadyCycle = std::max(SU->TopReadyCycle, Top.getCurrCycle());
+    TopCluster = DAG->getCluster(SU->ParentClusterIdx);
+    LLVM_DEBUG(if (TopCluster) {
+      dbgs() << "  Top Cluster: ";
+      for (auto *N : *TopCluster)
+        dbgs() << N->NodeNum << '\t';
+      dbgs() << '\n';
+    });
     Top.bumpNode(SU);
     if (SU->hasPhysRegUses)
       reschedulePhysReg(SU, true);
   } else {
     SU->BotReadyCycle = std::max(SU->BotReadyCycle, Bot.getCurrCycle());
+    BotCluster = DAG->getCluster(SU->ParentClusterIdx);
+    LLVM_DEBUG(if (BotCluster) {
+      dbgs() << "  Bot Cluster: ";
+      for (auto *N : *BotCluster)
+        dbgs() << N->NodeNum << '\t';
+      dbgs() << '\n';
+    });
     Bot.bumpNode(SU);
     if (SU->hasPhysRegDefs)
       reschedulePhysReg(SU, false);
@@ -4305,6 +4325,8 @@ void PostGenericScheduler::initialize(ScheduleDAGMI *Dag) {
   if (!Bot.HazardRec) {
     Bot.HazardRec = DAG->TII->CreateTargetMIHazardRecognizer(Itin, DAG);
   }
+  TopCluster = nullptr;
+  BotCluster = nullptr;
 }
 
 void PostGenericScheduler::initPolicy(MachineBasicBlock::iterator Begin,
@@ -4369,14 +4391,12 @@ bool PostGenericScheduler::tryCandidate(SchedCandidate &Cand,
     return TryCand.Reason != NoCand;
 
   // Keep clustered nodes together.
-  const SUnit *CandNextClusterSU =
-      Cand.AtTop ? DAG->getNextClusterSucc() : DAG->getNextClusterPred();
-  const SUnit *TryCandNextClusterSU =
-      TryCand.AtTop ? DAG->getNextClusterSucc() : DAG->getNextClusterPred();
-  if (tryGreater(TryCand.SU == TryCandNextClusterSU,
-                 Cand.SU == CandNextClusterSU, TryCand, Cand, Cluster))
+  const ClusterInfo *CandCluster = Cand.AtTop ? TopCluster : BotCluster;
+  const ClusterInfo *TryCandCluster = TryCand.AtTop ? TopCluster : BotCluster;
+  if (tryGreater(TryCandCluster && TryCandCluster->contains(TryCand.SU),
+                 CandCluster && CandCluster->contains(Cand.SU), TryCand, Cand,
+                 Cluster))
     return TryCand.Reason != NoCand;
-
   // Avoid critical resource consumption and balance the schedule.
   if (tryLess(TryCand.ResDelta.CritResources, Cand.ResDelta.CritResources,
               TryCand, Cand, ResourceReduce))
@@ -4573,9 +4593,11 @@ SUnit *PostGenericScheduler::pickNode(bool &IsTopNode) {
 void PostGenericScheduler::schedNode(SUnit *SU, bool IsTopNode) {
   if (IsTopNode) {
     SU->TopReadyCycle = std::max(SU->TopReadyCycle, Top.getCurrCycle());
+    TopCluster = DAG->getCluster(SU->ParentClusterIdx);
     Top.bumpNode(SU);
   } else {
     SU->BotReadyCycle = std::max(SU->BotReadyCycle, Bot.getCurrCycle());
+    BotCluster = DAG->getCluster(SU->ParentClusterIdx);
     Bot.bumpNode(SU);
   }
 }
