@@ -2316,7 +2316,8 @@ void GlobalISelEmitter::emitLeafPredicateFns(raw_ostream &OS) {
       OS,
       "  const auto &Operands = State.RecordedOperands;\n"
       "  Register Reg = MO.getReg();\n"
-      "  (void)Operands;",
+      "  (void)Operands;\n"
+      "  (void)Reg;",
       ArrayRef<const Record *>(MatchedRecords), &getPatFragPredicateEnumName,
       [](const Record *R) {
         return R->getValueAsString("GISelLeafPredicateCode");
