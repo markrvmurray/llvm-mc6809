@@ -71,8 +71,6 @@ using namespace object;
 
 #define DEBUG_TYPE "lto"
 
-LLVM_ABI extern cl::opt<bool> UseNewDbgInfoFormat;
-
 static cl::opt<bool>
     DumpThinCGSCCs("dump-thin-cg-sccs", cl::init(false), cl::Hidden,
                    cl::desc("Dump the SCCs in the ThinLTO index's callgraph"));
@@ -603,7 +601,7 @@ LTO::RegularLTOState::RegularLTOState(unsigned ParallelCodeGenParallelismLevel,
     : ParallelCodeGenParallelismLevel(ParallelCodeGenParallelismLevel),
       Ctx(Conf), CombinedModule(std::make_unique<Module>("ld-temp.o", Ctx)),
       Mover(std::make_unique<IRMover>(*CombinedModule)) {
-  CombinedModule->IsNewDbgInfoFormat = UseNewDbgInfoFormat;
+  CombinedModule->IsNewDbgInfoFormat = true;
 }
 
 LTO::ThinLTOState::ThinLTOState(ThinBackend BackendParam)

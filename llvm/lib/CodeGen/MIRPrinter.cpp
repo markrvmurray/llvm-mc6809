@@ -71,8 +71,6 @@ static cl::opt<bool> SimplifyMIR(
 static cl::opt<bool> PrintLocations("mir-debug-loc", cl::Hidden, cl::init(true),
                                     cl::desc("Print MIR debug-locations"));
 
-extern cl::opt<bool> UseNewDbgInfoFormat;
-
 namespace {
 
 /// This structure describes how to print out stack object references.
@@ -969,8 +967,7 @@ void MIRFormatter::printIRValue(raw_ostream &OS, const Value &V,
 }
 
 void llvm::printMIR(raw_ostream &OS, const Module &M) {
-  ScopedDbgInfoFormatSetter FormatSetter(const_cast<Module &>(M),
-                                         UseNewDbgInfoFormat);
+  ScopedDbgInfoFormatSetter FormatSetter(const_cast<Module &>(M), true);
 
   yaml::Output Out(OS);
   Out << const_cast<Module &>(M);
@@ -981,6 +978,6 @@ void llvm::printMIR(raw_ostream &OS, const MachineModuleInfo &MMI,
   // RemoveDIs: as there's no textual form for DbgRecords yet, print debug-info
   // in dbg.value format.
   ScopedDbgInfoFormatSetter FormatSetter(
-      const_cast<Function &>(MF.getFunction()), UseNewDbgInfoFormat);
+      const_cast<Function &>(MF.getFunction()), true);
   printMF(OS, MMI, MF);
 }
