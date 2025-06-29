@@ -29,43 +29,40 @@ define void @test1(ptr nocapture noundef writeonly %dst, i32 noundef signext %i_
 ; RV32-NEXT:  # %bb.3: # %for.cond1.preheader.us.preheader
 ; RV32-NEXT:    li t2, 32
 ; RV32-NEXT:  # %bb.4: # %for.cond1.preheader.us.preheader
-; RV32-NEXT:    addi sp, sp, -32
-; RV32-NEXT:    .cfi_def_cfa_offset 32
-; RV32-NEXT:    sw s0, 28(sp) # 4-byte Folded Spill
-; RV32-NEXT:    sw s1, 24(sp) # 4-byte Folded Spill
-; RV32-NEXT:    sw s2, 20(sp) # 4-byte Folded Spill
-; RV32-NEXT:    sw s3, 16(sp) # 4-byte Folded Spill
-; RV32-NEXT:    sw s4, 12(sp) # 4-byte Folded Spill
+; RV32-NEXT:    add t3, a0, t3
+; RV32-NEXT:    add t4, a2, t4
+; RV32-NEXT:    add t5, a4, t5
+; RV32-NEXT:    bltu t6, t1, .LBB0_6
+; RV32-NEXT:  # %bb.5: # %for.cond1.preheader.us.preheader
+; RV32-NEXT:    li t1, 32
+; RV32-NEXT:  .LBB0_6: # %for.cond1.preheader.us.preheader
+; RV32-NEXT:    add t3, t3, a6
+; RV32-NEXT:    add t6, t4, a6
+; RV32-NEXT:    add t4, t5, a6
+; RV32-NEXT:    j .LBB0_8
+; RV32-NEXT:  # %bb.7: # %for.cond1.preheader.us.preheader
+; RV32-NEXT:    mv t1, t0
+; RV32-NEXT:  .LBB0_8: # %for.cond1.preheader.us.preheader
+; RV32-NEXT:    addi sp, sp, -16
+; RV32-NEXT:    .cfi_def_cfa_offset 16
+; RV32-NEXT:    sw s0, 12(sp) # 4-byte Folded Spill
+; RV32-NEXT:    sw s1, 8(sp) # 4-byte Folded Spill
+; RV32-NEXT:    sw s2, 4(sp) # 4-byte Folded Spill
 ; RV32-NEXT:    .cfi_offset s0, -4
 ; RV32-NEXT:    .cfi_offset s1, -8
 ; RV32-NEXT:    .cfi_offset s2, -12
-; RV32-NEXT:    .cfi_offset s3, -16
-; RV32-NEXT:    .cfi_offset s4, -20
-; RV32-NEXT:    .cfi_remember_state
-; RV32-NEXT:    add s0, a0, t3
-; RV32-NEXT:    add s1, a2, t4
-; RV32-NEXT:    add t5, a4, t5
-; RV32-NEXT:    mv t3, t1
-; RV32-NEXT:    bltu t6, t1, .LBB0_6
-; RV32-NEXT:  # %bb.5: # %for.cond1.preheader.us.preheader
-; RV32-NEXT:    li t3, 32
-; RV32-NEXT:  .LBB0_6: # %for.cond1.preheader.us.preheader
-; RV32-NEXT:    add t4, s0, a6
-; RV32-NEXT:    add s1, s1, a6
-; RV32-NEXT:    add t5, t5, a6
-; RV32-NEXT:    j .LBB0_8
-; RV32-NEXT:  # %bb.7: # %for.cond1.preheader.us.preheader
-; RV32-NEXT:    mv t3, t2
-; RV32-NEXT:  .LBB0_8: # %for.cond1.preheader.us.preheader
-; RV32-NEXT:    .cfi_restore_state
-; RV32-NEXT:    li t2, 0
-; RV32-NEXT:    sltu t6, a0, s1
-; RV32-NEXT:    sltu s0, a2, t4
-; RV32-NEXT:    and t6, t6, s0
-; RV32-NEXT:    sltu t5, a0, t5
-; RV32-NEXT:    sltu t4, a4, t4
-; RV32-NEXT:    and t4, t5, t4
-; RV32-NEXT:    or t5, a1, a3
+; RV32-NEXT:    li t0, 0
+; RV32-NEXT:    sltu t5, a0, t6
+; RV32-NEXT:    sltu t6, a2, t3
+; RV32-NEXT:    and t5, t5, t6
+; RV32-NEXT:    sltu t4, a0, t4
+; RV32-NEXT:    sltu t3, a4, t3
+; RV32-NEXT:    and t3, t4, t3
+; RV32-NEXT:    or t4, a1, a3
+; RV32-NEXT:    slti t4, t4, 0
+; RV32-NEXT:    or t4, t5, t4
+; RV32-NEXT:    or t5, a1, a5
+; RV32-NEXT:    sltu t1, a6, t1
 ; RV32-NEXT:    slti t5, t5, 0
 ; RV32-NEXT:    or t5, t6, t5
 ; RV32-NEXT:    or t6, a1, a5
