@@ -66,14 +66,12 @@ define void @test1(ptr nocapture noundef writeonly %dst, i32 noundef signext %i_
 ; RV32-NEXT:    or t5, a1, a5
 ; RV32-NEXT:    sltu t1, a6, t1
 ; RV32-NEXT:    slti t5, t5, 0
-; RV32-NEXT:    or t5, t6, t5
-; RV32-NEXT:    or t6, a1, a5
-; RV32-NEXT:    slti t6, t6, 0
-; RV32-NEXT:    or t4, t4, t6
-; RV32-NEXT:    or t4, t5, t4
-; RV32-NEXT:    sltu t3, a6, t3
-; RV32-NEXT:    or t3, t3, t4
-; RV32-NEXT:    andi t3, t3, 1
+; RV32-NEXT:    or t3, t3, t5
+; RV32-NEXT:    or t3, t4, t3
+; RV32-NEXT:    or t1, t1, t3
+; RV32-NEXT:    andi t1, t1, 1
+; RV32-NEXT:    slli t2, t2, 1
+; RV32-NEXT:    csrwi vxrm, 0
 ; RV32-NEXT:    j .LBB0_10
 ; RV32-NEXT:  .LBB0_9: # %for.cond1.for.cond.cleanup3_crit_edge.us
 ; RV32-NEXT:    # in Loop: Header=BB0_10 Depth=1
@@ -97,13 +95,9 @@ define void @test1(ptr nocapture noundef writeonly %dst, i32 noundef signext %i_
 ; RV32-NEXT:    slli t4, t0, 1
 ; RV32-NEXT:    neg t4, t4
 ; RV32-NEXT:    and t4, t4, a6
-; RV32-NEXT:    csrwi vxrm, 0
-; RV32-NEXT:    mv t6, a2
-; RV32-NEXT:    mv s0, a4
-; RV32-NEXT:    mv s1, a0
-; RV32-NEXT:    mv s3, t4
-; RV32-NEXT:    li s2, 0
-; RV32-NEXT:    vsetvli s4, zero, e8, m2, ta, ma
+; RV32-NEXT:    li t6, 0
+; RV32-NEXT:    li t5, 0
+; RV32-NEXT:    vsetvli s0, zero, e8, m2, ta, ma
 ; RV32-NEXT:  .LBB0_13: # %vector.body
 ; RV32-NEXT:    # Parent Loop BB0_10 Depth=1
 ; RV32-NEXT:    # => This Inner Loop Header: Depth=2
@@ -488,6 +482,7 @@ define void @test1(ptr nocapture noundef writeonly %dst, i32 noundef signext %i_
 ; RV64-NEXT:    or t4, t4, t5
 ; RV64-NEXT:    andi t4, t4, 1
 ; RV64-NEXT:    mv t5, a0
+; RV64-NEXT:    csrwi vxrm, 0
 ; RV64-NEXT:    j .LBB0_6
 ; RV64-NEXT:  .LBB0_5: # %for.cond1.for.cond.cleanup3_crit_edge.us
 ; RV64-NEXT:    # in Loop: Header=BB0_6 Depth=1
@@ -510,7 +505,6 @@ define void @test1(ptr nocapture noundef writeonly %dst, i32 noundef signext %i_
 ; RV64-NEXT:    slli t6, t0, 28
 ; RV64-NEXT:    sub t6, t6, t1
 ; RV64-NEXT:    and t6, t6, a6
-; RV64-NEXT:    csrwi vxrm, 0
 ; RV64-NEXT:    mv s0, a2
 ; RV64-NEXT:    mv s1, a4
 ; RV64-NEXT:    mv s2, t5
