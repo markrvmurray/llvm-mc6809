@@ -15991,6 +15991,10 @@ static SDValue expandMul(SDNode *N, SelectionDAG &DAG,
     return SDValue();
   uint64_t MulAmt = CNode->getZExtValue();
 
+  // Don't do this if the Xqciac extension is enabled and the MulAmt in simm12.
+  if (Subtarget.hasVendorXqciac() && isInt<12>(MulAmt))
+    return SDValue();
+
   const bool HasShlAdd = Subtarget.hasStdExtZba() ||
                          Subtarget.hasVendorXTHeadBa() ||
                          Subtarget.hasVendorXAndesPerf();
@@ -23749,6 +23753,10 @@ bool RISCVTargetLowering::decomposeMulByConstant(LLVMContext &Context, EVT VT,
 
   auto *ConstNode = cast<ConstantSDNode>(C);
   const APInt &Imm = ConstNode->getAPIntValue();
+
+  // Don't do this if the Xqciac extension is enabled and the Imm in simm12.
+  if (Subtarget.hasVendorXqciac() && Imm.isSignedIntN(12))
+    return false;
 
   // Break the MUL to a SLLI and an ADD/SUB.
   if ((Imm + 1).isPowerOf2() || (Imm - 1).isPowerOf2() ||
