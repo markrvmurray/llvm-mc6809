@@ -1385,8 +1385,7 @@ public:
     int ISD = TLI->InstructionOpcodeToISD(Opcode);
     assert(ISD && "Invalid opcode");
 
-    // TODO: Handle other cost kinds.
-    if (CostKind != TTI::TCK_RecipThroughput)
+    if (getTLI()->getValueType(DL, ValTy, true) == MVT::Other)
       return BaseT::getCmpSelInstrCost(Opcode, ValTy, CondTy, VecPred, CostKind,
                                        Op1Info, Op2Info, I);
 
