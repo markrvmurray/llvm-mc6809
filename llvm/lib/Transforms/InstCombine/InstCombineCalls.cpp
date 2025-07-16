@@ -3937,7 +3937,7 @@ Instruction *InstCombinerImpl::visitFenceInst(FenceInst &FI) {
   if (NFI && isIdenticalOrStrongerFence(NFI, &FI))
     return eraseInstFromFunction(FI);
 
-  if (auto *PFI = dyn_cast_or_null<FenceInst>(FI.getPrevNonDebugInstruction()))
+  if (auto *PFI = dyn_cast_or_null<FenceInst>(FI.getPrevNode()))
     if (isIdenticalOrStrongerFence(PFI, &FI))
       return eraseInstFromFunction(FI);
   return nullptr;
