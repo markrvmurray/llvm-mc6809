@@ -1066,10 +1066,14 @@ public:
   }
 
   /// Tests whether the target is 32-bit RISC-V.
-  bool isRISCV32() const { return getArch() == Triple::riscv32; }
+  bool isRISCV32() const {
+    return getArch() == Triple::riscv32 || getArch() == Triple::riscv32be;
+  }
 
   /// Tests whether the target is 64-bit RISC-V.
-  bool isRISCV64() const { return getArch() == Triple::riscv64; }
+  bool isRISCV64() const {
+    return getArch() == Triple::riscv64 || getArch() == Triple::riscv64be;
+  }
 
   /// Tests whether the target is RISC-V (32- and 64-bit).
   bool isRISCV() const { return isRISCV32() || isRISCV64(); }
