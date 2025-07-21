@@ -13,6 +13,7 @@ add_llvm_component_library(LLVMBinaryFormat
   MsgPackDocumentYAML.cpp
   MsgPackReader.cpp
   MsgPackWriter.cpp
+  SFrame.cpp
   Wasm.cpp
   XCOFF.cpp
 
