@@ -986,6 +986,7 @@ void SIFrameLowering::emitCSRSpillStores(
   const GCNSubtarget &ST = MF.getSubtarget<GCNSubtarget>();
   const SIInstrInfo *TII = ST.getInstrInfo();
   const SIRegisterInfo &TRI = TII->getRegisterInfo();
+  MachineRegisterInfo &MRI = MF.getRegInfo();
 
   // Spill Whole-Wave Mode VGPRs. Save only the inactive lanes of the scratch
   // registers. However, save all lanes of callee-saved VGPRs. Due to this, we
@@ -1008,6 +1009,12 @@ void SIFrameLowering::emitCSRSpillStores(
         }
       };
 
+  for (const Register Reg : make_first_range(WWMScratchRegs)) {
+    if (!MRI.isReserved(Reg)) {
+      MRI.addLiveIn(Reg);
+      MBB.addLiveIn(Reg);
+    }
+  }
   StoreWWMRegisters(WWMScratchRegs);
 
   auto EnableAllLanes = [&]() {
