@@ -2374,9 +2374,10 @@ bool TargetLoweringObjectFileXCOFF::ShouldSetSSPCanaryBitInTB(
 
 MCSymbol *
 TargetLoweringObjectFileXCOFF::getEHInfoTableSymbol(const MachineFunction *MF) {
-  MCSymbol *EHInfoSym = MF->getContext().getOrCreateSymbol(
-      "__ehinfo." + Twine(MF->getFunctionNumber()));
-  cast<MCSymbolXCOFF>(EHInfoSym)->setEHInfo();
+  auto *EHInfoSym =
+      static_cast<MCSymbolXCOFF *>(MF->getContext().getOrCreateSymbol(
+          "__ehinfo." + Twine(MF->getFunctionNumber())));
+  EHInfoSym->setEHInfo();
   return EHInfoSym;
 }
 
@@ -2514,7 +2515,8 @@ MCSection *TargetLoweringObjectFileXCOFF::SelectSectionForGlobal(
 
   if (Kind.isText()) {
     if (TM.getFunctionSections()) {
-      return cast<MCSymbolXCOFF>(getFunctionEntryPointSymbol(GO, TM))
+      return static_cast<const MCSymbolXCOFF *>(
+                 getFunctionEntryPointSymbol(GO, TM))
           ->getRepresentedCsect();
     }
     return TextSection;
@@ -2717,7 +2719,7 @@ MCSection *TargetLoweringObjectFileXCOFF::getSectionForTOCEntry(
     const MCSymbol *Sym, const TargetMachine &TM) const {
   const XCOFF::StorageMappingClass SMC = [](const MCSymbol *Sym,
                                             const TargetMachine &TM) {
-    const MCSymbolXCOFF *XSym = cast<MCSymbolXCOFF>(Sym);
+    auto *XSym = static_cast<const MCSymbolXCOFF *>(Sym);
 
     // The "_$TLSML" symbol for TLS local-dynamic mode requires XMC_TC,
     // otherwise the AIX assembler will complain.
@@ -2741,8 +2743,8 @@ MCSection *TargetLoweringObjectFileXCOFF::getSectionForTOCEntry(
   }(Sym, TM);
 
   return getContext().getXCOFFSection(
-      cast<MCSymbolXCOFF>(Sym)->getSymbolTableName(), SectionKind::getData(),
-      XCOFF::CsectProperties(SMC, XCOFF::XTY_SD));
+      static_cast<const MCSymbolXCOFF *>(Sym)->getSymbolTableName(),
+      SectionKind::getData(), XCOFF::CsectProperties(SMC, XCOFF::XTY_SD));
 }
 
 MCSection *TargetLoweringObjectFileXCOFF::getSectionForLSDA(
