@@ -9,6 +9,8 @@ respective anchor symbols, and prints the resulting file to stdout.
 
 import argparse
 import os
+import platform
+import shutil
 import subprocess
 import sys
 import re
@@ -18,7 +20,11 @@ parser.add_argument("input")
 parser.add_argument("objfile", help="Object file to extract symbol values from")
 parser.add_argument("output")
 parser.add_argument("prefix", nargs="?", default="FDATA", help="Custom FDATA prefix")
-parser.add_argument("--nmtool", default="nm", help="Path to nm tool")
+parser.add_argument(
+    "--nmtool",
+    default="llvm-nm" if platform.system() == "Windows" else "nm",
+    help="Path to nm tool",
+)
 parser.add_argument("--no-lbr", action="store_true")
 parser.add_argument("--no-redefine", action="store_true")
 
