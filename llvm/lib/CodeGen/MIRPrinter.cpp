@@ -620,8 +620,6 @@ static void convertMCP(yaml::MachineFunction &MF,
 static void convertSRPoints(ModuleSlotTracker &MST,
                             yaml::SaveRestorePoints &YamlSRPoints,
                             ArrayRef<MachineBasicBlock *> SRPoints) {
-  auto &Points =
-      std::get<std::vector<yaml::SaveRestorePointEntry>>(YamlSRPoints);
   for (const auto &MBB : SRPoints) {
     SmallString<16> Str;
     yaml::SaveRestorePointEntry Entry;
@@ -629,7 +627,7 @@ static void convertSRPoints(ModuleSlotTracker &MST,
     StrOS << printMBBReference(*MBB);
     Entry.Point = StrOS.str().str();
     Str.clear();
-    Points.push_back(Entry);
+    YamlSRPoints.push_back(Entry);
   }
 }
 
