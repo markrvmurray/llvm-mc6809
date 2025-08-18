@@ -104,5 +104,6 @@ add_clang_library(clangDriver
 
   LINK_LIBS
   clangBasic
+  clangLex
   ${system_libs}
   )
