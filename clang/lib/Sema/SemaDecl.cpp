@@ -18548,8 +18548,14 @@ CreateNewDecl:
   if (PrevDecl)
     CheckRedeclarationInModule(New, PrevDecl);
 
-  if (TUK == TagUseKind::Definition && (!SkipBody || !SkipBody->ShouldSkip))
-    New->startDefinition();
+  if (TUK == TagUseKind::Definition) {
+    if (!SkipBody || !SkipBody->ShouldSkip) {
+      New->startDefinition();
+    } else {
+      New->setCompleteDefinition();
+      New->demoteThisDefinitionToDeclaration();
+    }
+  }
 
   ProcessDeclAttributeList(S, New, Attrs);
   AddPragmaAttributes(S, New);
