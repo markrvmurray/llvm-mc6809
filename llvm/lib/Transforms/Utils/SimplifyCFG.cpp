@@ -6464,6 +6464,9 @@ public:
   /// Return the default value of the switch.
   Constant *getDefaultValue();
 
+  /// Return true if the replacement is a lookup table.
+  bool isLookupTable();
+
 private:
   // Depending on the switch, there are different alternatives.
   enum {
@@ -6611,7 +6614,6 @@ SwitchReplacement::SwitchReplacement(
         (void)M.smul_ov(APInt(M.getBitWidth(), TableSize - 1), MayWrap);
       LinearMapValWrapped = NonMonotonic || MayWrap;
       Kind = LinearMapKind;
-      ++NumLinearMaps;
       return;
     }
   }
@@ -6631,7 +6633,6 @@ SwitchReplacement::SwitchReplacement(
     BitMap = ConstantInt::get(M.getContext(), TableInt);
     BitMapElementTy = IT;
     Kind = BitMapKind;
-    ++NumBitMaps;
     return;
   }
 
@@ -6648,6 +6649,7 @@ Value *SwitchReplacement::replaceSwitch(Value *Index, IRBuilder<> &Builder,
   case SingleValueKind:
     return SingleValue;
   case LinearMapKind: {
+    ++NumLinearMaps;
     // Derive the result value from the input value.
     Value *Result = Builder.CreateIntCast(Index, LinearMultiplier->getType(),
                                           false, "switch.idx.cast");
@@ -6663,6 +6665,7 @@ Value *SwitchReplacement::replaceSwitch(Value *Index, IRBuilder<> &Builder,
     return Result;
   }
   case BitMapKind: {
+    ++NumBitMaps;
     // Type of the bitmap (e.g. i59).
     IntegerType *MapTy = BitMap->getIntegerType();
 
@@ -6685,6 +6688,7 @@ Value *SwitchReplacement::replaceSwitch(Value *Index, IRBuilder<> &Builder,
     return Builder.CreateTrunc(DownShifted, BitMapElementTy, "switch.masked");
   }
   case LookupTableKind: {
+    ++NumLookupTables;
     auto *Table =
         new GlobalVariable(*Func->getParent(), Initializer->getType(),
                            /*isConstant=*/true, GlobalVariable::PrivateLinkage,
@@ -6750,6 +6754,8 @@ static bool isTypeLegalForLookupTable(Type *Ty, const TargetTransformInfo &TTI,
 }
 
 Constant *SwitchReplacement::getDefaultValue() { return DefaultValue; }
+
+bool SwitchReplacement::isLookupTable() { return Kind == LookupTableKind; }
 
 static bool isSwitchDense(uint64_t NumCases, uint64_t CaseRange) {
   // 40% is the default density for building a jump table in optsize/minsize
@@ -6921,11 +6927,6 @@ static bool simplifySwitchLookup(SwitchInst *SI, IRBuilder<> &Builder,
 
   BasicBlock *BB = SI->getParent();
   Function *Fn = BB->getParent();
-  // Only build lookup table when we have a target that supports it or the
-  // attribute is not set.
-  if (!TTI.shouldBuildLookupTables() ||
-      (Fn->getFnAttribute("no-jump-tables").getValueAsBool()))
-    return false;
 
   // FIXME: If the switch is too sparse for a lookup table, perhaps we could
   // split off a dense part and build a lookup table for that.
@@ -7084,6 +7085,20 @@ static bool simplifySwitchLookup(SwitchInst *SI, IRBuilder<> &Builder,
     PhiToReplacementMap.insert({PHI, Replacement});
   }
 
+  bool AnyLookupTables = any_of(
+      PhiToReplacementMap, [](auto &KV) { return KV.second.isLookupTable(); });
+
+  // A few conditions prevent the generation of lookup tables:
+  //     1. The target does not support lookup tables.
+  //     2. The "no-jump-tables" function attribute is set.
+  // However, these objections do not apply to other switch replacements, like
+  // the bitmap, so we only stop here if any of these conditions are met and we
+  // want to create a LUT. Otherwise, continue with the switch replacement.
+  if (AnyLookupTables &&
+      (!TTI.shouldBuildLookupTables() ||
+       Fn->getFnAttribute("no-jump-tables").getValueAsBool()))
+    return false;
+
   Builder.SetInsertPoint(SI);
   // TableIndex is the switch condition - TableIndexOffset if we don't
   // use the condition directly
@@ -7225,7 +7240,6 @@ static bool simplifySwitchLookup(SwitchInst *SI, IRBuilder<> &Builder,
   if (DTU)
     DTU->applyUpdates(Updates);
 
-  ++NumLookupTables;
   if (NeedMask)
     ++NumLookupTablesHoles;
   return true;
