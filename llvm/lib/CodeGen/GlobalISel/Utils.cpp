@@ -1410,7 +1410,8 @@ bool llvm::isBuildVectorConstantSplat(const Register Reg,
 
 bool llvm::isBuildVectorConstantSplat(const Register Reg,
                                       const MachineRegisterInfo &MRI,
-                                      APInt SplatValue, bool AllowUndef) {
+                                      const APInt &SplatValue,
+                                      bool AllowUndef) {
   if (auto SplatValAndReg = getAnyConstantSplat(Reg, MRI, AllowUndef)) {
     if (SplatValAndReg->Value.getBitWidth() < SplatValue.getBitWidth())
       return APInt::isSameValue(
@@ -1432,7 +1433,8 @@ bool llvm::isBuildVectorConstantSplat(const MachineInstr &MI,
 
 bool llvm::isBuildVectorConstantSplat(const MachineInstr &MI,
                                       const MachineRegisterInfo &MRI,
-                                      APInt SplatValue, bool AllowUndef) {
+                                      const APInt &SplatValue,
+                                      bool AllowUndef) {
   return isBuildVectorConstantSplat(MI.getOperand(0).getReg(), MRI, SplatValue,
                                     AllowUndef);
 }
