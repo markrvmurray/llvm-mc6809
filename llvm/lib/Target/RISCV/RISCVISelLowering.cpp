@@ -403,8 +403,7 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
                        Legal);
   }
 
-  if (Subtarget.hasStdExtZbb() ||
-      (Subtarget.hasVendorXCVbitmanip() && !Subtarget.is64Bit())) {
+  if (Subtarget.hasCTZLike()) {
     if (Subtarget.is64Bit())
       setOperationAction({ISD::CTTZ, ISD::CTTZ_ZERO_UNDEF}, MVT::i32, Custom);
   } else {
@@ -416,8 +415,7 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::CTPOP, MVT::i64, LibCall);
   }
 
-  if (Subtarget.hasStdExtZbb() || Subtarget.hasVendorXTHeadBb() ||
-      (Subtarget.hasVendorXCVbitmanip() && !Subtarget.is64Bit())) {
+  if (Subtarget.hasCLZLike()) {
     // We need the custom lowering to make sure that the resulting sequence
     // for the 32bit case is efficient on 64bit targets.
     // Use default promotion for i32 without Zbb.
@@ -2156,13 +2154,11 @@ bool RISCVTargetLowering::signExtendConstant(const ConstantInt *CI) const {
 }
 
 bool RISCVTargetLowering::isCheapToSpeculateCttz(Type *Ty) const {
-  return Subtarget.hasStdExtZbb() ||
-         (Subtarget.hasVendorXCVbitmanip() && !Subtarget.is64Bit());
+  return Subtarget.hasCTZLike();
 }
 
 bool RISCVTargetLowering::isCheapToSpeculateCtlz(Type *Ty) const {
-  return Subtarget.hasStdExtZbb() || Subtarget.hasVendorXTHeadBb() ||
-         (Subtarget.hasVendorXCVbitmanip() && !Subtarget.is64Bit());
+  return Subtarget.hasCLZLike();
 }
 
 bool RISCVTargetLowering::isMaskAndCmp0FoldingBeneficial(
@@ -24841,6 +24837,7 @@ bool RISCVTargetLowering::isCtpopFast(EVT VT) const {
     return isTypeLegal(VT) && Subtarget.hasStdExtZvbb();
   if (VT.isFixedLengthVector() && Subtarget.hasStdExtZvbb())
     return true;
+  // FIXME: Should use hasCPOPLike here.
   return Subtarget.hasStdExtZbb() &&
          (VT == MVT::i32 || VT == MVT::i64 || VT.isFixedLengthVector());
 }
