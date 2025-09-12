@@ -584,6 +584,8 @@ const char *ArchSpec::GetArchitectureName() const {
 
 bool ArchSpec::IsMIPS() const { return GetTriple().isMIPS(); }
 
+bool ArchSpec::IsNVPTX() const { return GetTriple().isNVPTX(); }
+
 std::string ArchSpec::GetTargetABI() const {
 
   std::string abi;
