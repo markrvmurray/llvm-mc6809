@@ -59,6 +59,15 @@ configure_lit_site_cfg(
 
 # Set the depends list as a variable so that it can grow conditionally.
 # NOTE: Sync the substitutions in test/lit.cfg when adding to this list.
+
+set(LLVM_TEST_DEPENDS_COMMON
+  FileCheck
+  count
+  llvm-config
+  not
+  prepare-check-lit
+  )
+
 set(LLVM_TEST_DEPENDS
           BugpointPasses
           FileCheck
@@ -260,11 +269,16 @@ add_lit_testsuite(check-llvm "Running the LLVM regression tests"
   )
 set_target_properties(check-llvm PROPERTIES FOLDER "LLVM/Tests")
 
+# Note, exclude TableGen and FileCheck directories as we define them with a
+# reduced set of dependencies in their individual CMakeLists.txt
 add_lit_testsuites(LLVM ${CMAKE_CURRENT_SOURCE_DIR}
   ${exclude_from_check_all}
   DEPENDS ${LLVM_TEST_DEPENDS}
   FOLDER "Tests/Subdirectories"
+  SKIP "^FileCheck" "^TableGen"
   )
+add_subdirectory(FileCheck)
+add_subdirectory(TableGen)
 
 # Setup an alias for 'check-all'.
 add_custom_target(check)
