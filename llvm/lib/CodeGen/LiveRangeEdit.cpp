@@ -92,7 +92,8 @@ void LiveRangeEdit::scanRemattable() {
     MachineInstr *DefMI = LIS.getInstructionFromIndex(OrigVNI->def);
     if (!DefMI)
       continue;
-    checkRematerializable(OrigVNI, DefMI);
+    if (TII.isTriviallyReMaterializable(*DefMI))
+      Remattable.insert(OrigVNI);
   }
   ScannedRemattable = true;
 }

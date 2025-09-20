@@ -179,8 +179,8 @@ public:
   Register create() { return createFrom(getReg()); }
 
   /// anyRematerializable - Return true if any parent values may be
-  /// rematerializable.
-  /// This function must be called before any rematerialization is attempted.
+  /// rematerializable.  This function must be called before
+  /// canRematerializeAt is called..
   bool anyRematerializable();
 
   /// checkRematerializable - Manually add VNI to the list of rematerializable
