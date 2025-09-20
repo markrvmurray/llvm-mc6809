@@ -56,8 +56,6 @@ StringRef Triple::getArchTypeName(ArchType Kind) {
   case msp430:         return "msp430";
   case nvptx64:        return "nvptx64";
   case nvptx:          return "nvptx";
-  case nvsass:
-    return "nvsass";
   case ppc64:          return "powerpc64";
   case ppc64le:        return "powerpc64le";
   case ppc:            return "powerpc";
@@ -245,9 +243,6 @@ StringRef Triple::getArchTypePrefix(ArchType Kind) {
   case shave:       return "shave";
   case wasm32:
   case wasm64:      return "wasm";
-
-  case nvsass:
-    return "nvsass";
 
   case riscv32:
   case riscv64:
@@ -999,7 +994,6 @@ static Triple::ObjectFormatType getDefaultFormat(const Triple &T) {
   case Triple::msp430:
   case Triple::nvptx64:
   case Triple::nvptx:
-  case Triple::nvsass:
   case Triple::ppc64le:
   case Triple::ppcle:
   case Triple::r600:
@@ -1762,9 +1756,6 @@ unsigned Triple::getArchPointerBitWidth(llvm::Triple::ArchType Arch) {
   case llvm::Triple::mips64:
   case llvm::Triple::mips64el:
   case llvm::Triple::nvptx64:
-  // nvsass can represent both 32- and 64-bit pointers, but assume
-  // 64-bit for the triple
-  case llvm::Triple::nvsass:
   case llvm::Triple::ppc64:
   case llvm::Triple::ppc64le:
   case llvm::Triple::renderscript64:
@@ -1845,7 +1836,6 @@ Triple Triple::get32BitArchVariant() const {
   case Triple::mips:
   case Triple::mipsel:
   case Triple::nvptx:
-  case Triple::nvsass:
   case Triple::ppc:
   case Triple::ppcle:
   case Triple::r600:
@@ -1935,7 +1925,6 @@ Triple Triple::get64BitArchVariant() const {
   case Triple::mips64:
   case Triple::mips64el:
   case Triple::nvptx64:
-  case Triple::nvsass:
   case Triple::ppc64:
   case Triple::ppc64le:
   case Triple::renderscript64:
@@ -2008,7 +1997,6 @@ Triple Triple::getBigEndianArchVariant() const {
   case Triple::msp430:
   case Triple::nvptx64:
   case Triple::nvptx:
-  case Triple::nvsass:
   case Triple::r600:
   case Triple::renderscript32:
   case Triple::renderscript64:
@@ -2126,7 +2114,6 @@ bool Triple::isLittleEndian() const {
   case Triple::msp430:
   case Triple::nvptx64:
   case Triple::nvptx:
-  case Triple::nvsass:
   case Triple::ppcle:
   case Triple::ppc64le:
   case Triple::r600:
