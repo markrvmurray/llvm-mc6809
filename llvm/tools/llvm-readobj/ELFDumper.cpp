@@ -1302,6 +1302,7 @@ const EnumEntry<unsigned> ElfMachineType[] = {
   ENUM_ENT(EM_LOONGARCH,     "LoongArch"),
   ENUM_ENT(EM_MC6809,        "Motorola and Hitachi"),
   ENUM_ENT(EM_MOS,           "MOS Technologies")
+  ENUM_ENT(EM_INTELGT,       "Intel Graphics Technology"),
 };
 
 const EnumEntry<unsigned> ElfSymbolBindings[] = {
