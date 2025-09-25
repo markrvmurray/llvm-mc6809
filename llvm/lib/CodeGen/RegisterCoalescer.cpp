@@ -20,6 +20,7 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/CodeGen/CalcSpillWeights.h"
 #include "llvm/CodeGen/LiveInterval.h"
 #include "llvm/CodeGen/LiveIntervals.h"
 #include "llvm/CodeGen/LiveRangeEdit.h"
@@ -1407,10 +1408,7 @@ bool RegisterCoalescer::reMaterializeDef(const CoalescerPair &CP,
     }
   }
 
-  SmallVector<Register, 8> NewRegs;
-  LiveRangeEdit Edit(&SrcInt, NewRegs, *MF, *LIS, nullptr, this);
-  SlotIndex DefIdx = LIS->getInstructionIndex(*DefMI);
-  if (!Edit.allUsesAvailableAt(DefMI, DefIdx, CopyIdx))
+  if (!VirtRegAuxInfo::allUsesAvailableAt(DefMI, CopyIdx, *LIS, *MRI, *TII))
     return false;
 
   DebugLoc DL = CopyMI->getDebugLoc();
@@ -1419,6 +1417,8 @@ bool RegisterCoalescer::reMaterializeDef(const CoalescerPair &CP,
       std::next(MachineBasicBlock::iterator(CopyMI));
   LiveRangeEdit::Remat RM(ValNo);
   RM.OrigMI = DefMI;
+  SmallVector<Register, 8> NewRegs;
+  LiveRangeEdit Edit(&SrcInt, NewRegs, *MF, *LIS, nullptr, this);
   Edit.rematerializeAt(*MBB, MII, DstReg, RM, *TRI, false, SrcIdx, CopyMI);
   MachineInstr &NewMI = *std::prev(MII);
   NewMI.setDebugLoc(DL);

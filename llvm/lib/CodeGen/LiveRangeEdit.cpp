@@ -171,12 +171,10 @@ bool LiveRangeEdit::canRematerializeAt(Remat &RM, VNInfo *OrigVNI,
     return false;
 
   // No defining instruction provided.
-  SlotIndex DefIdx;
   assert(RM.OrigMI && "No defining instruction for remattable value");
-  DefIdx = LIS.getInstructionIndex(*RM.OrigMI);
 
   // Verify that all used registers are available with the same values.
-  if (!allUsesAvailableAt(RM.OrigMI, DefIdx, UseIdx))
+  if (!VirtRegAuxInfo::allUsesAvailableAt(RM.OrigMI, UseIdx, LIS, MRI, TII))
     return false;
 
   return true;
@@ -237,8 +235,8 @@ bool LiveRangeEdit::foldAsLoad(LiveInterval *LI,
 
   // Since we're moving the DefMI load, make sure we're not extending any live
   // ranges.
-  if (!allUsesAvailableAt(DefMI, LIS.getInstructionIndex(*DefMI),
-                          LIS.getInstructionIndex(*UseMI)))
+  if (!VirtRegAuxInfo::allUsesAvailableAt(
+          DefMI, LIS.getInstructionIndex(*UseMI), LIS, MRI, TII))
     return false;
 
   // We also need to make sure it is safe to move the load.
