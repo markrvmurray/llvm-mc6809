@@ -92,7 +92,7 @@ void LiveRangeEdit::scanRemattable() {
     MachineInstr *DefMI = LIS.getInstructionFromIndex(OrigVNI->def);
     if (!DefMI)
       continue;
-    if (TII.isTriviallyReMaterializable(*DefMI))
+    if (TII.isReMaterializable(*DefMI))
       Remattable.insert(OrigVNI);
   }
   ScannedRemattable = true;
@@ -403,7 +403,7 @@ void LiveRangeEdit::eliminateDeadDef(MachineInstr *MI, ToShrinkSet &ToShrink) {
     // register uses. That may provoke RA to split an interval at the KILL
     // and later result in an invalid live segment end.
     if (isOrigDef && DeadRemats && !HasLiveVRegUses &&
-        TII.isTriviallyReMaterializable(*MI)) {
+        TII.isReMaterializable(*MI)) {
       LiveInterval &NewLI = createEmptyIntervalFrom(Dest, false);
       VNInfo::Allocator &Alloc = LIS.getVNInfoAllocator();
       VNInfo *VNI = NewLI.getNextValue(Idx, Alloc);
