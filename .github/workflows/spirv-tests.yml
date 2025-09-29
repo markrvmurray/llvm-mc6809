@@ -1,18 +1,14 @@
-name: MLIR SPIR-V Tests
+name: SPIR-V Tests
 
 permissions:
   contents: read
 
 on:
-  workflow_dispatch:
   pull_request:
     paths:
-      - 'mlir/include/mlir/Dialect/SPIRV/**'
-      - 'mlir/lib/Dialect/SPIRV/**'
-      - 'mlir/include/mlir/Target/SPIRV/**'
-      - 'mlir/lib/Target/SPIRV/**'
-      - 'mlir/test/Target/SPIRV/**'
-      - '.github/workflows/mlir-spirv-tests.yml'
+      - 'llvm/lib/Target/SPIRV/**'
+      - 'llvm/test/CodeGen/SPIRV/**'
+      - '.github/workflows/spirv-tests.yml'
 
 concurrency:
   # Skip intermediate builds: always.
@@ -23,7 +19,7 @@ concurrency:
 jobs:
   check_spirv:
     if: github.repository_owner == 'llvm'
-    name: Test MLIR SPIR-V
+    name: Test SPIR-V
     runs-on: ubuntu-24.04
     container:
       image: ghcr.io/llvm/ci-ubuntu-24.04:latest
@@ -33,7 +29,7 @@ jobs:
         uses: hendrikmuhs/ccache-action@bfa03e1de4d7f7c3e80ad9109feedd05c4f5a716 # v1.2.19
         with:
           max-size: 2G
-          key: spirv-mlir-ubuntu-24.04
+          key: spirv-ubuntu-24.04
           variant: sccache
       - name: Build and Test
         run: |
@@ -45,7 +41,6 @@ jobs:
             -DLLVM_ENABLE_ASSERTIONS=ON \
             -DCMAKE_C_COMPILER_LAUNCHER=sccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=sccache \
-            -DLLVM_TARGETS_TO_BUILD="host" \
-            -DLLVM_INCLUDE_SPIRV_TOOLS_TESTS=ON \
-            -DLLVM_ENABLE_PROJECTS=mlir
-          ninja -C build check-mlir
+            -DLLVM_TARGETS_TO_BUILD="SPIRV" \
+            -DLLVM_INCLUDE_SPIRV_TOOLS_TESTS=ON
+          ninja -C build check-llvm-codegen-spirv
