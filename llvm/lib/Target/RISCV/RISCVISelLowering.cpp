@@ -403,6 +403,11 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
       setOperationAction({ISD::CTTZ, ISD::CTTZ_ZERO_UNDEF}, MVT::i32, Custom);
   } else {
     setOperationAction(ISD::CTTZ, XLenVT, Expand);
+  }
+
+  if (!Subtarget.hasCPOPLike()) {
+    // TODO: These should be set to LibCall, but this currently breaks
+    //   the Linux kernel build. See #101786. Lacks i128 tests, too.
     if (Subtarget.is64Bit())
       setOperationAction(ISD::CTPOP, MVT::i128, LibCall);
     else

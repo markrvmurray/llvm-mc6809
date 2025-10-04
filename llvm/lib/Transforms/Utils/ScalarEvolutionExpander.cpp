@@ -1778,7 +1778,7 @@ unsigned
 SCEVExpander::replaceCongruentIVs(Loop *L, const DominatorTree *DT,
                                   SmallVectorImpl<WeakTrackingVH> &DeadInsts,
                                   const TargetTransformInfo *TTI) {
-  // Find integer phis in order of increasing width.
+  // Find integer phis in order of decreasing width.
   SmallVector<PHINode *, 8> Phis(
       llvm::make_pointer_range(L->getHeader()->phis()));
 

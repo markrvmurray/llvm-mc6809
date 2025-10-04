@@ -183,13 +183,9 @@ public:
   /// canRematerializeAt is called..
   bool anyRematerializable();
 
-  /// checkRematerializable - Manually add VNI to the list of rematerializable
-  /// values if DefMI may be rematerializable.
-  bool checkRematerializable(VNInfo *VNI, const MachineInstr *DefMI);
-
   /// setRematEnable - Set whether rematerializing is enabled.
   void setRematEnable(bool Enable);
-
+ 
   /// Remat - Information needed to rematerialize at a specific location.
   struct Remat {
     const VNInfo *const ParentVNI;  // parent_'s value at the remat location.

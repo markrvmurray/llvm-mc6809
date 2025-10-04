@@ -1015,8 +1015,9 @@ unsigned MCAssembler::relaxOnce(unsigned FirstStable) {
   for (unsigned I = 0; I != FirstStable; ++I) {
     // Assume each iteration finalizes at least one extra fragment. If the
     // layout does not converge after N+1 iterations, bail out.
+    // LLVM-MOS HACK: We need a lot more than this.
     auto &Sec = *Sections[I];
-    auto MaxIter = Sec.curFragList()->Tail->getLayoutOrder() + 1;
+    auto MaxIter = 100 * (Sec.curFragList()->Tail->getLayoutOrder() + 1);
     for (;;) {
       bool Changed = false;
       for (MCFragment &F : Sec)

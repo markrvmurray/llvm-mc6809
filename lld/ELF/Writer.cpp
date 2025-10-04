@@ -1567,7 +1567,7 @@ template <class ELFT> void Writer<ELFT>::finalizeAddressDependentContent() {
   // Iterate until a fixed point is reached, skipping relocatable links since
   // the final addresses are unavailable.
   uint32_t pass = 0, assignPasses = 0;
-  for (;;) {
+  while (!ctx.arg.relocatable) {
     bool changed = false;
     if (ctx.xo65Enclave) {
       changed |= ctx.xo65Enclave->link();
@@ -1575,8 +1575,9 @@ template <class ELFT> void Writer<ELFT>::finalizeAddressDependentContent() {
         ctx.script->assignAddresses();
     }
 
-    changed |= ctx.target->needsThunks ? tc.createThunks(pass, ctx.outputSections)
-                                   : ctx.target->relaxOnce(pass);
+    changed |= ctx.target->needsThunks
+                   ? tc.createThunks(pass, ctx.outputSections)
+                   : ctx.target->relaxOnce(pass);
     bool spilled = ctx.script->spillSections();
     changed |= spilled;
     ++pass;

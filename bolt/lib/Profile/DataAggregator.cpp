@@ -1622,22 +1622,6 @@ std::error_code DataAggregator::parseBranchEvents() {
   }
   clear(TraceMap);
 
-  auto printColored = [](raw_ostream &OS, float Percent, float T1, float T2) {
-    OS << " (";
-    if (OS.has_colors()) {
-      if (Percent > T2)
-        OS.changeColor(raw_ostream::RED);
-      else if (Percent > T1)
-        OS.changeColor(raw_ostream::YELLOW);
-      else
-        OS.changeColor(raw_ostream::GREEN);
-    }
-    OS << format("%.1f%%", Percent);
-    if (OS.has_colors())
-      OS.resetColor();
-    OS << ")";
-  };
-
   outs() << "PERF2BOLT: read " << NumSamples << " samples and " << NumEntries
          << " LBR entries\n";
   if (NumTotalSamples) {

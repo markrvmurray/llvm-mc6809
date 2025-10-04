@@ -30,7 +30,7 @@ MOSELFObjectWriter::MOSELFObjectWriter(uint8_t OSABI)
 unsigned MOSELFObjectWriter::getRelocType(const MCFixup &Fixup,
                                           const MCValue &Target,
                                           bool IsPCRel) const {
-  unsigned Kind = Fixup.getTargetKind();
+  unsigned Kind = Fixup.getKind();
   auto Specifier = static_cast<MOSMCExpr::VariantKind>(Target.getSpecifier());
   switch (Kind) {
   case FK_Data_1:
@@ -90,9 +90,9 @@ unsigned MOSELFObjectWriter::getRelocType(const MCFixup &Fixup,
     return ELF::R_MOS_PCREL_8;
   case MOS::PCRel16:
     return ELF::R_MOS_PCREL_16;
-  case MCFixupKind::FK_Data_4:
+  case FK_Data_4:
     return ELF::R_MOS_FK_DATA_4;
-  case MCFixupKind::FK_Data_8:
+  case FK_Data_8:
     return ELF::R_MOS_FK_DATA_8;
   case MOS::AddrAsciz:
     return ELF::R_MOS_ADDR_ASCIZ;

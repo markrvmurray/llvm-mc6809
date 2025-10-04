@@ -40,7 +40,9 @@ public:
 
   // All div, rem, and divrem ops are libcalls, so any possible combination
   // exists.
-  bool hasDivRemOp(Type *DataType, bool IsSigned) const override { return true; }
+  bool hasDivRemOp(Type *DataType, bool IsSigned) const override {
+    return true;
+  }
 
   bool allowIllegalIntegerIV() const override { return true; }
 

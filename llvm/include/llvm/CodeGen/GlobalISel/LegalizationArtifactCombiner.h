@@ -101,6 +101,10 @@ public:
       const LLT DstTy = MRI.getType(DstReg);
       if (isInstLegal({TargetOpcode::G_CONSTANT, {DstTy}})) {
         auto &CstVal = SrcMI->getOperand(1);
+        APInt WideVal =
+            LI.preferZext()
+                ? CstVal.getCImm()->getValue().zext(DstTy.getSizeInBits())
+                : CstVal.getCImm()->getValue().sext(DstTy.getSizeInBits());
         auto MergedLocation =
             DebugLoc::getMergedLocation(MI.getDebugLoc(), SrcMI->getDebugLoc());
         // Set the debug location to the merged location of the SrcMI and the MI

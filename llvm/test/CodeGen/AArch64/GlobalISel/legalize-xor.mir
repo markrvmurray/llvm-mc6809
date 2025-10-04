@@ -136,7 +136,7 @@ body:             |
     ; CHECK-NEXT: [[EXTRACT:%[0-9]+]]:_(s32) = G_EXTRACT [[AND2]](s64), 0
     ; CHECK-NEXT: G_STORE [[COPY3]](s64), %ptr(p0) :: (store (s64), align 32)
     ; CHECK-NEXT: [[C2:%[0-9]+]]:_(s64) = G_CONSTANT i64 8
-    ; CHECK-NEXT: [[PTR_ADD:%[0-9]+]]:_(p0) = G_PTR_ADD %ptr, [[C2]](s64)
+    ; CHECK-NEXT: [[PTR_ADD:%[0-9]+]]:_(p0) = nuw inbounds G_PTR_ADD %ptr, [[C2]](s64)
     ; CHECK-NEXT: G_STORE [[COPY4]](s64), [[PTR_ADD]](p0) :: (store (s64) into unknown-address + 8)
     ; CHECK-NEXT: [[C3:%[0-9]+]]:_(s64) = G_CONSTANT i64 16
     ; CHECK-NEXT: [[PTR_ADD1:%[0-9]+]]:_(p0) = nuw inbounds G_PTR_ADD %ptr, [[C3]](s64)

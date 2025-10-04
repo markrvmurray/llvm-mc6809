@@ -91,7 +91,10 @@ with open(args.input, "r") as f:
             exit("ERROR: unexpected input:\n%s" % line)
 
 # Read nm output: <symbol value> <symbol type> <symbol name>
-is_llvm_nm = os.path.basename(args.nmtool) == "llvm-nm"
+# Ignore .exe on Windows host.
+is_llvm_nm = os.path.basename(os.path.realpath(shutil.which(args.nmtool))).startswith(
+    "llvm-nm"
+)
 nm_output = subprocess.run(
     [
         args.nmtool,

@@ -30,14 +30,12 @@ define void @za_with_raii(i1 %fail) "aarch64_inout_za" personality ptr @__gxx_pe
 ; CHECK-NEXT:    .cfi_personality 156, DW.ref.__gxx_personality_v0
 ; CHECK-NEXT:    .cfi_lsda 28, .Lexception0
 ; CHECK-NEXT:  // %bb.0:
-; CHECK-NEXT:    stp x29, x30, [sp, #-32]! // 16-byte Folded Spill
-; CHECK-NEXT:    str x19, [sp, #16] // 8-byte Folded Spill
+; CHECK-NEXT:    stp x29, x30, [sp, #-16]! // 16-byte Folded Spill
 ; CHECK-NEXT:    mov x29, sp
-; CHECK-NEXT:    sub sp, sp, #16
-; CHECK-NEXT:    .cfi_def_cfa w29, 32
-; CHECK-NEXT:    .cfi_offset w19, -16
-; CHECK-NEXT:    .cfi_offset w30, -24
-; CHECK-NEXT:    .cfi_offset w29, -32
+; CHECK-NEXT:    sub sp, sp, #32
+; CHECK-NEXT:    .cfi_def_cfa w29, 16
+; CHECK-NEXT:    .cfi_offset w30, -8
+; CHECK-NEXT:    .cfi_offset w29, -16
 ; CHECK-NEXT:    rdsvl x8, #1
 ; CHECK-NEXT:    mov x9, sp
 ; CHECK-NEXT:    msub x9, x8, x8, x9
@@ -46,8 +44,7 @@ define void @za_with_raii(i1 %fail) "aarch64_inout_za" personality ptr @__gxx_pe
 ; CHECK-NEXT:    tbnz w0, #0, .LBB0_2
 ; CHECK-NEXT:  // %bb.1: // %return_normally
 ; CHECK-NEXT:    mov sp, x29
-; CHECK-NEXT:    ldr x19, [sp, #16] // 8-byte Folded Reload
-; CHECK-NEXT:    ldp x29, x30, [sp], #32 // 16-byte Folded Reload
+; CHECK-NEXT:    ldp x29, x30, [sp], #16 // 16-byte Folded Reload
 ; CHECK-NEXT:    b shared_za_call
 ; CHECK-NEXT:  .LBB0_2: // %throw_exception
 ; CHECK-NEXT:    sub x8, x29, #16
@@ -74,7 +71,7 @@ define void @za_with_raii(i1 %fail) "aarch64_inout_za" personality ptr @__gxx_pe
 ; CHECK-NEXT:  // %bb.5: // %throw_fail
 ; CHECK-NEXT:  .LBB0_6: // %unwind_dtors
 ; CHECK-NEXT:  .Ltmp2: // EH_LABEL
-; CHECK-NEXT:    mov x19, x0
+; CHECK-NEXT:    stur x0, [x29, #-24] // 8-byte Folded Spill
 ; CHECK-NEXT:    smstart za
 ; CHECK-NEXT:    mrs x8, TPIDR2_EL0
 ; CHECK-NEXT:    sub x0, x29, #16
@@ -85,8 +82,8 @@ define void @za_with_raii(i1 %fail) "aarch64_inout_za" personality ptr @__gxx_pe
 ; CHECK-NEXT:    msr TPIDR2_EL0, xzr
 ; CHECK-NEXT:    bl shared_za_call
 ; CHECK-NEXT:    sub x8, x29, #16
-; CHECK-NEXT:    mov x0, x19
 ; CHECK-NEXT:    msr TPIDR2_EL0, x8
+; CHECK-NEXT:    ldur x0, [x29, #-24] // 8-byte Folded Reload
 ; CHECK-NEXT:    bl _Unwind_Resume
 ;
 ; CHECK-SDAG-LABEL: za_with_raii:
@@ -95,15 +92,12 @@ define void @za_with_raii(i1 %fail) "aarch64_inout_za" personality ptr @__gxx_pe
 ; CHECK-SDAG-NEXT:    .cfi_personality 156, DW.ref.__gxx_personality_v0
 ; CHECK-SDAG-NEXT:    .cfi_lsda 28, .Lexception0
 ; CHECK-SDAG-NEXT:  // %bb.0:
-; CHECK-SDAG-NEXT:    stp x29, x30, [sp, #-32]! // 16-byte Folded Spill
-; CHECK-SDAG-NEXT:    stp x20, x19, [sp, #16] // 16-byte Folded Spill
+; CHECK-SDAG-NEXT:    stp x29, x30, [sp, #-16]! // 16-byte Folded Spill
 ; CHECK-SDAG-NEXT:    mov x29, sp
-; CHECK-SDAG-NEXT:    sub sp, sp, #16
-; CHECK-SDAG-NEXT:    .cfi_def_cfa w29, 32
-; CHECK-SDAG-NEXT:    .cfi_offset w19, -8
-; CHECK-SDAG-NEXT:    .cfi_offset w20, -16
-; CHECK-SDAG-NEXT:    .cfi_offset w30, -24
-; CHECK-SDAG-NEXT:    .cfi_offset w29, -32
+; CHECK-SDAG-NEXT:    sub sp, sp, #32
+; CHECK-SDAG-NEXT:    .cfi_def_cfa w29, 16
+; CHECK-SDAG-NEXT:    .cfi_offset w30, -8
+; CHECK-SDAG-NEXT:    .cfi_offset w29, -16
 ; CHECK-SDAG-NEXT:    rdsvl x8, #1
 ; CHECK-SDAG-NEXT:    mov x9, sp
 ; CHECK-SDAG-NEXT:    msub x9, x8, x8, x9
@@ -112,13 +106,12 @@ define void @za_with_raii(i1 %fail) "aarch64_inout_za" personality ptr @__gxx_pe
 ; CHECK-SDAG-NEXT:    tbnz w0, #0, .LBB0_2
 ; CHECK-SDAG-NEXT:  // %bb.1: // %return_normally
 ; CHECK-SDAG-NEXT:    mov sp, x29
-; CHECK-SDAG-NEXT:    ldp x20, x19, [sp, #16] // 16-byte Folded Reload
-; CHECK-SDAG-NEXT:    ldp x29, x30, [sp], #32 // 16-byte Folded Reload
+; CHECK-SDAG-NEXT:    ldp x29, x30, [sp], #16 // 16-byte Folded Reload
 ; CHECK-SDAG-NEXT:    b shared_za_call
 ; CHECK-SDAG-NEXT:  .LBB0_2: // %throw_exception
-; CHECK-SDAG-NEXT:    sub x20, x29, #16
+; CHECK-SDAG-NEXT:    sub x8, x29, #16
 ; CHECK-SDAG-NEXT:    mov w0, #8 // =0x8
-; CHECK-SDAG-NEXT:    msr TPIDR2_EL0, x20
+; CHECK-SDAG-NEXT:    msr TPIDR2_EL0, x8
 ; CHECK-SDAG-NEXT:    bl __cxa_allocate_exception
 ; CHECK-SDAG-NEXT:    mov x8, x0
 ; CHECK-SDAG-NEXT:    smstart za
@@ -133,9 +126,10 @@ define void @za_with_raii(i1 %fail) "aarch64_inout_za" personality ptr @__gxx_pe
 ; CHECK-SDAG-NEXT:    msr TPIDR2_EL0, xzr
 ; CHECK-SDAG-NEXT:    str x9, [x8]
 ; CHECK-SDAG-NEXT:  .Ltmp0: // EH_LABEL
+; CHECK-SDAG-NEXT:    sub x9, x29, #16
 ; CHECK-SDAG-NEXT:    adrp x1, :got:typeinfo_for_char_const_ptr
-; CHECK-SDAG-NEXT:    msr TPIDR2_EL0, x20
 ; CHECK-SDAG-NEXT:    mov x0, x8
+; CHECK-SDAG-NEXT:    msr TPIDR2_EL0, x9
 ; CHECK-SDAG-NEXT:    ldr x1, [x1, :got_lo12:typeinfo_for_char_const_ptr]
 ; CHECK-SDAG-NEXT:    mov x2, xzr
 ; CHECK-SDAG-NEXT:    bl __cxa_throw
@@ -151,7 +145,7 @@ define void @za_with_raii(i1 %fail) "aarch64_inout_za" personality ptr @__gxx_pe
 ; CHECK-SDAG-NEXT:  // %bb.7: // %throw_fail
 ; CHECK-SDAG-NEXT:  .LBB0_8: // %unwind_dtors
 ; CHECK-SDAG-NEXT:  .Ltmp2: // EH_LABEL
-; CHECK-SDAG-NEXT:    mov x19, x0
+; CHECK-SDAG-NEXT:    stur x0, [x29, #-24] // 8-byte Folded Spill
 ; CHECK-SDAG-NEXT:    smstart za
 ; CHECK-SDAG-NEXT:    mrs x8, TPIDR2_EL0
 ; CHECK-SDAG-NEXT:    sub x0, x29, #16
@@ -161,8 +155,9 @@ define void @za_with_raii(i1 %fail) "aarch64_inout_za" personality ptr @__gxx_pe
 ; CHECK-SDAG-NEXT:  .LBB0_10: // %unwind_dtors
 ; CHECK-SDAG-NEXT:    msr TPIDR2_EL0, xzr
 ; CHECK-SDAG-NEXT:    bl shared_za_call
-; CHECK-SDAG-NEXT:    mov x0, x19
-; CHECK-SDAG-NEXT:    msr TPIDR2_EL0, x20
+; CHECK-SDAG-NEXT:    sub x8, x29, #16
+; CHECK-SDAG-NEXT:    msr TPIDR2_EL0, x8
+; CHECK-SDAG-NEXT:    ldur x0, [x29, #-24] // 8-byte Folded Reload
 ; CHECK-SDAG-NEXT:    bl _Unwind_Resume
 ; CHECK-SDAG-NEXT:    smstart za
 ; CHECK-SDAG-NEXT:    mrs x8, TPIDR2_EL0
@@ -424,14 +419,12 @@ define void @try_catch_shared_za_callee() "aarch64_new_za" personality ptr @__gx
 ; CHECK-SDAG-NEXT:    .cfi_personality 156, DW.ref.__gxx_personality_v0
 ; CHECK-SDAG-NEXT:    .cfi_lsda 28, .Lexception2
 ; CHECK-SDAG-NEXT:  // %bb.0: // %prelude
-; CHECK-SDAG-NEXT:    stp x29, x30, [sp, #-32]! // 16-byte Folded Spill
-; CHECK-SDAG-NEXT:    str x19, [sp, #16] // 8-byte Folded Spill
+; CHECK-SDAG-NEXT:    stp x29, x30, [sp, #-16]! // 16-byte Folded Spill
 ; CHECK-SDAG-NEXT:    mov x29, sp
 ; CHECK-SDAG-NEXT:    sub sp, sp, #16
-; CHECK-SDAG-NEXT:    .cfi_def_cfa w29, 32
-; CHECK-SDAG-NEXT:    .cfi_offset w19, -16
-; CHECK-SDAG-NEXT:    .cfi_offset w30, -24
-; CHECK-SDAG-NEXT:    .cfi_offset w29, -32
+; CHECK-SDAG-NEXT:    .cfi_def_cfa w29, 16
+; CHECK-SDAG-NEXT:    .cfi_offset w30, -8
+; CHECK-SDAG-NEXT:    .cfi_offset w29, -16
 ; CHECK-SDAG-NEXT:    rdsvl x8, #1
 ; CHECK-SDAG-NEXT:    mov x9, sp
 ; CHECK-SDAG-NEXT:    msub x9, x8, x8, x9
@@ -451,8 +444,7 @@ define void @try_catch_shared_za_callee() "aarch64_new_za" personality ptr @__gx
 ; CHECK-SDAG-NEXT:  .LBB2_3: // %exit
 ; CHECK-SDAG-NEXT:    smstop za
 ; CHECK-SDAG-NEXT:    mov sp, x29
-; CHECK-SDAG-NEXT:    ldr x19, [sp, #16] // 8-byte Folded Reload
-; CHECK-SDAG-NEXT:    ldp x29, x30, [sp], #32 // 16-byte Folded Reload
+; CHECK-SDAG-NEXT:    ldp x29, x30, [sp], #16 // 16-byte Folded Reload
 ; CHECK-SDAG-NEXT:    ret
 ; CHECK-SDAG-NEXT:  .LBB2_4: // %catch
 ; CHECK-SDAG-NEXT:  .Ltmp8: // EH_LABEL
@@ -460,14 +452,14 @@ define void @try_catch_shared_za_callee() "aarch64_new_za" personality ptr @__gx
 ; CHECK-SDAG-NEXT:    smstart za
 ; CHECK-SDAG-NEXT:    mrs x8, TPIDR2_EL0
 ; CHECK-SDAG-NEXT:    sub x0, x29, #16
-; CHECK-SDAG-NEXT:    sub x19, x29, #16
+; CHECK-SDAG-NEXT:    sub x9, x29, #16
 ; CHECK-SDAG-NEXT:    cbnz x8, .LBB2_6
 ; CHECK-SDAG-NEXT:  // %bb.5: // %catch
 ; CHECK-SDAG-NEXT:    bl __arm_tpidr2_restore
 ; CHECK-SDAG-NEXT:  .LBB2_6: // %catch
 ; CHECK-SDAG-NEXT:    mov x0, x1
 ; CHECK-SDAG-NEXT:    msr TPIDR2_EL0, xzr
-; CHECK-SDAG-NEXT:    msr TPIDR2_EL0, x19
+; CHECK-SDAG-NEXT:    msr TPIDR2_EL0, x9
 ; CHECK-SDAG-NEXT:    bl __cxa_begin_catch
 ; CHECK-SDAG-NEXT:    smstart za
 ; CHECK-SDAG-NEXT:    mrs x8, TPIDR2_EL0
@@ -478,7 +470,8 @@ define void @try_catch_shared_za_callee() "aarch64_new_za" personality ptr @__gx
 ; CHECK-SDAG-NEXT:  .LBB2_8: // %catch
 ; CHECK-SDAG-NEXT:    msr TPIDR2_EL0, xzr
 ; CHECK-SDAG-NEXT:    bl noexcept_shared_za_call
-; CHECK-SDAG-NEXT:    msr TPIDR2_EL0, x19
+; CHECK-SDAG-NEXT:    sub x8, x29, #16
+; CHECK-SDAG-NEXT:    msr TPIDR2_EL0, x8
 ; CHECK-SDAG-NEXT:    bl __cxa_end_catch
 ; CHECK-SDAG-NEXT:    smstart za
 ; CHECK-SDAG-NEXT:    mrs x8, TPIDR2_EL0
@@ -528,12 +521,11 @@ define void @try_catch_shared_zt0_callee() "aarch64_inout_zt0" personality ptr @
 ; CHECK-NEXT:    .cfi_lsda 28, .Lexception3
 ; CHECK-NEXT:  // %bb.0:
 ; CHECK-NEXT:    stp x29, x30, [sp, #-32]! // 16-byte Folded Spill
-; CHECK-NEXT:    stp x20, x19, [sp, #16] // 16-byte Folded Spill
+; CHECK-NEXT:    str x19, [sp, #16] // 8-byte Folded Spill
 ; CHECK-NEXT:    mov x29, sp
 ; CHECK-NEXT:    sub sp, sp, #80
 ; CHECK-NEXT:    .cfi_def_cfa w29, 32
-; CHECK-NEXT:    .cfi_offset w19, -8
-; CHECK-NEXT:    .cfi_offset w20, -16
+; CHECK-NEXT:    .cfi_offset w19, -16
 ; CHECK-NEXT:    .cfi_offset w30, -24
 ; CHECK-NEXT:    .cfi_offset w29, -32
 ; CHECK-NEXT:    rdsvl x8, #1
@@ -551,13 +543,12 @@ define void @try_catch_shared_zt0_callee() "aarch64_inout_zt0" personality ptr @
 ; CHECK-NEXT:  .Ltmp10: // EH_LABEL
 ; CHECK-NEXT:  // %bb.1: // %return_normally
 ; CHECK-NEXT:    mov sp, x29
-; CHECK-NEXT:    ldp x20, x19, [sp, #16] // 16-byte Folded Reload
+; CHECK-NEXT:    ldr x19, [sp, #16] // 8-byte Folded Reload
 ; CHECK-NEXT:    ldp x29, x30, [sp], #32 // 16-byte Folded Reload
 ; CHECK-NEXT:    ret
 ; CHECK-NEXT:  .LBB3_2: // %unwind_dtors
 ; CHECK-NEXT:  .Ltmp11: // EH_LABEL
-; CHECK-NEXT:    sub x20, x29, #64
-; CHECK-NEXT:    mov x19, x0
+; CHECK-NEXT:    str x0, [x29, #24] // 8-byte Folded Spill
 ; CHECK-NEXT:    smstart za
 ; CHECK-NEXT:    mrs x8, TPIDR2_EL0
 ; CHECK-NEXT:    sub x0, x29, #80
@@ -567,12 +558,12 @@ define void @try_catch_shared_zt0_callee() "aarch64_inout_zt0" personality ptr @
 ; CHECK-NEXT:  .LBB3_4: // %unwind_dtors
 ; CHECK-NEXT:    msr TPIDR2_EL0, xzr
 ; CHECK-NEXT:    bl shared_zt0_call
-; CHECK-NEXT:    str zt0, [x20]
+; CHECK-NEXT:    str zt0, [x19]
 ; CHECK-NEXT:    smstop za
-; CHECK-NEXT:    mov x0, x19
+; CHECK-NEXT:    ldr x0, [x29, #24] // 8-byte Folded Reload
 ; CHECK-NEXT:    bl _Unwind_Resume
 ; CHECK-NEXT:    smstart za
-; CHECK-NEXT:    ldr zt0, [x20]
+; CHECK-NEXT:    ldr zt0, [x19]
 ;
 ; CHECK-SDAG-LABEL: try_catch_shared_zt0_callee:
 ; CHECK-SDAG:       .Lfunc_begin3:
@@ -581,14 +572,12 @@ define void @try_catch_shared_zt0_callee() "aarch64_inout_zt0" personality ptr @
 ; CHECK-SDAG-NEXT:    .cfi_lsda 28, .Lexception3
 ; CHECK-SDAG-NEXT:  // %bb.0:
 ; CHECK-SDAG-NEXT:    sub sp, sp, #96
-; CHECK-SDAG-NEXT:    str x30, [sp, #64] // 8-byte Folded Spill
-; CHECK-SDAG-NEXT:    stp x20, x19, [sp, #80] // 16-byte Folded Spill
+; CHECK-SDAG-NEXT:    stp x30, x19, [sp, #80] // 16-byte Folded Spill
 ; CHECK-SDAG-NEXT:    .cfi_def_cfa_offset 96
 ; CHECK-SDAG-NEXT:    .cfi_offset w19, -8
-; CHECK-SDAG-NEXT:    .cfi_offset w20, -16
-; CHECK-SDAG-NEXT:    .cfi_offset w30, -32
+; CHECK-SDAG-NEXT:    .cfi_offset w30, -16
 ; CHECK-SDAG-NEXT:  .Ltmp9: // EH_LABEL
-; CHECK-SDAG-NEXT:    mov x19, sp
+; CHECK-SDAG-NEXT:    add x19, sp, #16
 ; CHECK-SDAG-NEXT:    str zt0, [x19]
 ; CHECK-SDAG-NEXT:    smstop za
 ; CHECK-SDAG-NEXT:    bl may_throw
@@ -596,23 +585,21 @@ define void @try_catch_shared_zt0_callee() "aarch64_inout_zt0" personality ptr @
 ; CHECK-SDAG-NEXT:    ldr zt0, [x19]
 ; CHECK-SDAG-NEXT:  .Ltmp10: // EH_LABEL
 ; CHECK-SDAG-NEXT:  // %bb.1: // %return_normally
-; CHECK-SDAG-NEXT:    ldp x20, x19, [sp, #80] // 16-byte Folded Reload
-; CHECK-SDAG-NEXT:    ldr x30, [sp, #64] // 8-byte Folded Reload
+; CHECK-SDAG-NEXT:    ldp x30, x19, [sp, #80] // 16-byte Folded Reload
 ; CHECK-SDAG-NEXT:    add sp, sp, #96
 ; CHECK-SDAG-NEXT:    ret
 ; CHECK-SDAG-NEXT:  .LBB3_2: // %unwind_dtors
 ; CHECK-SDAG-NEXT:  .Ltmp11: // EH_LABEL
-; CHECK-SDAG-NEXT:    mov x20, sp
-; CHECK-SDAG-NEXT:    mov x19, x0
+; CHECK-SDAG-NEXT:    str x0, [sp, #8] // 8-byte Folded Spill
 ; CHECK-SDAG-NEXT:    smstart za
-; CHECK-SDAG-NEXT:    ldr zt0, [x20]
+; CHECK-SDAG-NEXT:    ldr zt0, [x19]
 ; CHECK-SDAG-NEXT:    bl shared_zt0_call
-; CHECK-SDAG-NEXT:    str zt0, [x20]
+; CHECK-SDAG-NEXT:    str zt0, [x19]
 ; CHECK-SDAG-NEXT:    smstop za
-; CHECK-SDAG-NEXT:    mov x0, x19
+; CHECK-SDAG-NEXT:    ldr x0, [sp, #8] // 8-byte Folded Reload
 ; CHECK-SDAG-NEXT:    bl _Unwind_Resume
 ; CHECK-SDAG-NEXT:    smstart za
-; CHECK-SDAG-NEXT:    ldr zt0, [x20]
+; CHECK-SDAG-NEXT:    ldr zt0, [x19]
   invoke void @may_throw()
           to label %return_normally unwind label %unwind_dtors
 

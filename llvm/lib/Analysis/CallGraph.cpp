@@ -101,9 +101,10 @@ void CallGraph::populateCallGraphNode(CallGraphNode *Node) {
         const Function *Callee = Call->getCalledFunction();
         if (!Callee) {
           if (!Call->hasFnAttr(Attribute::NoCallback))
-          Node->addCalledFunction(Call, CallsExternalNode.get());
-        else
+            Node->addCalledFunction(Call, CallsExternalNode.get());
+        } else {
           Node->addCalledFunction(Call, getOrInsertFunction(Callee));
+        }
 
         // Add reference to callback functions or the external node if the
         // callback is indirect.

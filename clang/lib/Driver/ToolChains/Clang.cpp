@@ -10,6 +10,8 @@
 #include "Clang.h"
 #include "Arch/ARM.h"
 #include "Arch/LoongArch.h"
+#include "Arch/MC6809.h"
+#include "Arch/MOS.h"
 #include "Arch/Mips.h"
 #include "Arch/PPC.h"
 #include "Arch/RISCV.h"

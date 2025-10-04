@@ -980,6 +980,7 @@ static void printMIOperand(raw_ostream &OS, MFPrintState &State,
   }
   case MachineOperand::MO_FrameIndex:
     printStackObjectReference(OS, State, Op.getIndex());
+    Op.printOperandOffset(OS, Op.getOffset());
     break;
   case MachineOperand::MO_RegisterMask: {
     const auto &RegisterMaskIds = State.RegisterMaskIds;

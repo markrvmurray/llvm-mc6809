@@ -641,8 +641,14 @@ static bool isMOSElf(const ObjectFile &Obj) {
   return Elf && Elf->getEMachine() == ELF::EM_MOS;
 }
 
+static bool isRISCVElf(const ObjectFile &Obj) {
+  const auto *Elf = dyn_cast<ELFObjectFileBase>(&Obj);
+  return Elf && Elf->getEMachine() == ELF::EM_RISCV;
+}
+
 static bool hasMappingSymbols(const ObjectFile &Obj) {
-  return isArmElf(Obj) || isAArch64Elf(Obj) || isCSKYElf(Obj) || isMOSElf(Obj);
+  return isArmElf(Obj) || isAArch64Elf(Obj) || isCSKYElf(Obj) ||
+         isMOSElf(Obj) || isRISCVElf(Obj);
 }
 
 static void printRelocation(formatted_raw_ostream &OS, StringRef FileName,
@@ -1564,7 +1570,8 @@ collectLocalBranchTargets(ArrayRef<uint8_t> Bytes, MCInstrAnalysis *MIA,
   const bool isX86 = STI->getTargetTriple().isX86();
   const bool isAArch64 = STI->getTargetTriple().isAArch64();
   const bool isBPF = STI->getTargetTriple().isBPF();
-  if (!isPPC && !isX86 && !isAArch64 && !isBPF)
+  const bool isMOS = STI->getTargetTriple().isMOS();
+  if (!isPPC && !isX86 && !isAArch64 && !isBPF && !isMOS)
     return;
 
   if (MIA)

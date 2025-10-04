@@ -150,7 +150,7 @@ define dso_local void @rv_marker_3() personality ptr @__gxx_personality_v0 {
 ; SELDAG-NEXT:    add sp, sp, #48
 ; SELDAG-NEXT:    b _objc_release
 ; SELDAG-NEXT:  LBB3_2: ; %lpad
-; SELDAG-NEXT:  Ltmp2:
+; SELDAG-NEXT:  Ltmp2: ; EH_LABEL
 ; SELDAG-NEXT:    str x0, [sp, #8] ; 8-byte Folded Spill
 ; SELDAG-NEXT:    mov x0, x19
 ; SELDAG-NEXT:    bl _objc_release
@@ -302,13 +302,13 @@ define dso_local void @rv_marker_4() personality ptr @__gxx_personality_v0 {
 ; SELDAG-NEXT:    add sp, sp, #48
 ; SELDAG-NEXT:    ret
 ; SELDAG-NEXT:  LBB4_3: ; %lpad1
-; SELDAG-NEXT:  Ltmp8:
+; SELDAG-NEXT:  Ltmp8: ; EH_LABEL
 ; SELDAG-NEXT:    str x0, [sp] ; 8-byte Folded Spill
 ; SELDAG-NEXT:    mov x0, x19
 ; SELDAG-NEXT:    bl _objc_release
 ; SELDAG-NEXT:    b LBB4_5
 ; SELDAG-NEXT:  LBB4_4: ; %lpad
-; SELDAG-NEXT:  Ltmp5:
+; SELDAG-NEXT:  Ltmp5: ; EH_LABEL
 ; SELDAG-NEXT:    str x0, [sp] ; 8-byte Folded Spill
 ; SELDAG-NEXT:  LBB4_5: ; %ehcleanup
 ; SELDAG-NEXT:    add x0, sp, #15
@@ -389,7 +389,7 @@ define dso_local void @rv_marker_4() personality ptr @__gxx_personality_v0 {
 ; GISEL-NEXT:    blr x8
 ; GISEL-NEXT:    b LBB4_5
 ; GISEL-NEXT:  LBB4_4: ; %lpad
-; GISEL-NEXT:  Ltmp5:
+; GISEL-NEXT:  Ltmp5: ; EH_LABEL
 ; GISEL-NEXT:    str x0, [sp] ; 8-byte Folded Spill
 ; GISEL-NEXT:  LBB4_5: ; %ehcleanup
 ; GISEL-NEXT:    add x0, sp, #15

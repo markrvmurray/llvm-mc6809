@@ -771,11 +771,6 @@ public:
   /// the setImm method should be used.
   LLVM_ABI void ChangeToImmediate(int64_t ImmVal, unsigned TargetFlags = 0);
 
-  /// ChangeToCImmediate - Replace this operand with a new CI immediate operand
-  /// of the specified value.  If an operand is known to be an CI immediate
-  /// already, the setCImm method should be used.
-  void ChangeToCImmediate(const ConstantInt *CI);
-
   /// ChangeToFPImmediate - Replace this operand with a new FP immediate operand
   /// of the specified value.  If an operand is known to be an FP immediate
   /// already, the setFPImm method should be used.
@@ -800,7 +795,8 @@ public:
   LLVM_ABI void ChangeToMCSymbol(MCSymbol *Sym, unsigned TargetFlags = 0);
 
   /// Replace this operand with a frame index.
-  LLVM_ABI void ChangeToFrameIndex(int Idx, unsigned TargetFlags = 0);
+  LLVM_ABI void ChangeToFrameIndex(int Idx, int64_t Offset = 0,
+                                   unsigned TargetFlags = 0);
 
   /// Replace this operand with a target index.
   LLVM_ABI void ChangeToTargetIndex(unsigned Idx, int64_t Offset,

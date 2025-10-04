@@ -270,13 +270,9 @@ Error Builder::addSymbol(const ModuleSymbolTable &Msymtab,
   StringRef GVName = GV->getName();
   setStr(Sym.IRName, GVName);
 
-  static const StringSet<> PreservedSymbolsSet =
-      buildPreservedSymbolsSet(GV->getParent()->getTargetTriple());
-  bool IsPreservedSymbol = PreservedSymbolsSet.contains(GV->getName());
-
   if (Used.count(GV))
     Sym.Flags |= 1 << storage::Symbol::FB_used;
-  if (IsPreservedSymbol)
+  if (isPreservedName(GVName))
     Sym.Flags |= 1 << storage::Symbol::FB_preserved;
   if (GV->isThreadLocal())
     Sym.Flags |= 1 << storage::Symbol::FB_tls;

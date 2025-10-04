@@ -1977,8 +1977,8 @@ void CodeGenRegBank::pruneUnitSets() {
       const RegUnitSet &SuperSet = RegUnitSets[SuperIdx];
       if (isRegUnitSubSet(SubSet.Units, SuperSet.Units) &&
           (SubSet.Units.size() + 3 > SuperSet.Units.size()) &&
-          UnitWeight == RegUnits[SuperSet.Units[0]].Weight &&
-          UnitWeight == RegUnits[SuperSet.Units.back()].Weight) {
+          UnitWeight == RegUnits[SuperSet.Units.back()].Weight &&
+          !SubSet.IsFineGrained) {
         LLVM_DEBUG({
           dbgs() << "UnitSet " << SubIdx << " subsumed by " << SuperIdx << '\n';
         });

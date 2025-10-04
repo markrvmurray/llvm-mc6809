@@ -1396,6 +1396,7 @@ static unsigned getSetupCost(const SCEV *Reg, unsigned Depth) {
 void Cost::RateRegister(const Formula &F, const SCEV *Reg,
                         SmallPtrSetImpl<const SCEV *> &Regs, const LSRUse &LU,
                         bool HardwareLoopProfitable) {
+  const DataLayout &DL = L->getHeader()->getModule()->getDataLayout();
   if (const SCEVAddRecExpr *AR = dyn_cast<SCEVAddRecExpr>(Reg)) {
     // If this is an addrec for another loop, it should be an invariant
     // with respect to L since L is the innermost loop (at least

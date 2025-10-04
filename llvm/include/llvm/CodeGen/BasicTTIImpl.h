@@ -538,7 +538,8 @@ public:
 
   InstructionCost getScalingFactorCost(Type *Ty, GlobalValue *BaseGV,
                                        StackOffset BaseOffset, bool HasBaseReg,
-                                       int64_t Scale,
+                                       Type *BaseType, int64_t Scale,
+                                       Type *ScaleType,
                                        unsigned AddrSpace) const override {
     TargetLoweringBase::AddrMode AM;
     AM.BaseGV = BaseGV;
@@ -553,6 +554,14 @@ public:
 
   bool isTruncateFree(Type *Ty1, Type *Ty2) const override {
     return getTLI()->isTruncateFree(Ty1, Ty2);
+  }
+
+  bool isZExtFree(Type *Ty1, Type *Ty2) const override {
+    return getTLI()->isZExtFree(Ty1, Ty2);
+  }
+
+  bool preferNarrowTypes() const override {
+    return getTLI()->preferNarrowTypes();
   }
 
   bool isProfitableToHoist(Instruction *I) const override {
@@ -714,6 +723,7 @@ public:
   }
 
   int getInlinerVectorBonusPercent() const override { return 150; }
+  bool strictInliningCosts() const override { return false; }
 
   void getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
                                TTI::UnrollingPreferences &UP,
