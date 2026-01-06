@@ -521,7 +521,7 @@ static unsigned getELFSectionType(StringRef Name, SectionKind K) {
   if (Name == ".llvm.lto")
     return ELF::SHT_LLVM_LTO;
 
-  if (K.isBSS() || K.isThreadBSS())
+  if (K.isBSS() || K.isNoInit() || K.isThreadBSS())
     return ELF::SHT_NOBITS;
 
   return ELF::SHT_PROGBITS;
@@ -620,6 +620,8 @@ static StringRef getSectionPrefixForGlobal(SectionKind Kind, bool IsLarge) {
     return IsLarge ? ".lrodata" : ".rodata";
   if (Kind.isBSS())
     return IsLarge ? ".lbss" : ".bss";
+  if (Kind.isNoInit())
+    return ".noinit";
   if (Kind.isThreadData())
     return ".tdata";
   if (Kind.isThreadBSS())
@@ -636,7 +638,8 @@ getELFSectionNameForGlobal(const GlobalObject *GO, SectionKind Kind,
                            Mangler &Mang, const TargetMachine &TM,
                            unsigned EntrySize, bool UniqueSectionName,
                            const MachineJumpTableEntry *JTE) {
-  SmallString<128> Name =
+  SmallString<128> Name = TM.getSectionPrefix(GO);
+  Name +=
       getSectionPrefixForGlobal(Kind, TM.isLargeGlobalValue(GO));
   if (Kind.isMergeableCString()) {
     // We also need alignment here.

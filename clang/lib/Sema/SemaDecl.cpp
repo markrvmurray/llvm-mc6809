@@ -2929,6 +2929,10 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.Swift().mergeNameAttr(D, *SNA, SNA->getName());
   else if (const auto *OA = dyn_cast<OptimizeNoneAttr>(Attr))
     NewAttr = S.mergeOptimizeNoneAttr(D, *OA);
+  else if (const auto *RA = dyn_cast<ReentrantAttr>(Attr))
+    NewAttr = S.mergeReentrantAttr(D, *RA);
+  else if (const auto *NRA = dyn_cast<NonReentrantAttr>(Attr))
+    NewAttr = S.mergeNonReentrantAttr(D, *NRA);
   else if (const auto *InternalLinkageA = dyn_cast<InternalLinkageAttr>(Attr))
     NewAttr = S.mergeInternalLinkageAttr(D, *InternalLinkageA);
   else if (isa<AlignedAttr>(Attr))

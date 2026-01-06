@@ -1,0 +1,23 @@
+name: Dispatch Test Suite
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'clang/**'
+      - 'compiler-rt/**'
+      - 'lld/**'
+      - 'llvm/**'
+      - '.github/workflows/dispatch_test.yml'
+
+jobs:
+  dispatch:
+    if: github.repository_owner == 'llvm-mos'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repository Dispatch
+        uses: llvm-mos/repository-dispatch@v1
+        with:
+          token: ${{ secrets.ACTION_TOKEN }}
+          repository: llvm-mos/llvm-test-suite
+          event-type: on-llvm-update
+          client-payload: '{"head_commit": ${{ toJSON(github.event.head_commit) }}}'

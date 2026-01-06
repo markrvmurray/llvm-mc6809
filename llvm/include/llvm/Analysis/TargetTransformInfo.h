@@ -450,6 +450,14 @@ public:
   /// scientific. A target may has no bonus on vector instructions.
   LLVM_ABI int getInlinerVectorBonusPercent() const;
 
+  /// \returns Whether inlining costs should be boosted or taken as law.
+  ///
+  /// Some targets typically have extreme size constraints; in such cases,
+  /// inlining may be inappropriate even if it provides a great runtime benefit.
+  /// If true, the inlining costs are always compared directly against the
+  /// threshold; boosts for desireable runtime benefits are not applied.
+  bool strictInliningCosts() const;
+
   /// \return the expected cost of a memcpy, which could e.g. depend on the
   /// source/destination type and alignment and the number of bytes copied.
   LLVM_ABI InstructionCost getMemcpyCost(const Instruction *I) const;
@@ -829,6 +837,18 @@ public:
                                       Instruction *I = nullptr,
                                       int64_t ScalableOffset = 0) const;
 
+  /// Return true if the addressing mode represented by AM is legal for
+  /// this target, for a load/store of the specified type.
+  /// The type may be VoidTy, in which case only return true if the addressing
+  /// mode is legal for a load/store of any legal type.
+  /// If target returns true in LSRWithInstrQueries(), I may be valid.
+  /// TODO: Handle pre/postinc as well.
+  bool isLegalAddressingMode(Type *Ty, GlobalValue *BaseGV, int64_t BaseOffset,
+                             bool HasBaseReg, Type *BaseType, int64_t Scale,
+                             Type *ScaleType, unsigned AddrSpace = 0,
+                             Instruction *I = nullptr,
+                             int64_t ScalableOffset = 0) const;
+
   /// Return true if LSR cost of C1 is lower than C2.
   LLVM_ABI bool isLSRCostLess(const TargetTransformInfo::LSRCost &C1,
                               const TargetTransformInfo::LSRCost &C2) const;
@@ -966,7 +986,8 @@ public:
   /// TODO: Handle pre/postinc as well.
   LLVM_ABI InstructionCost getScalingFactorCost(Type *Ty, GlobalValue *BaseGV,
                                                 StackOffset BaseOffset,
-                                                bool HasBaseReg, int64_t Scale,
+                                                bool HasBaseReg, Type *BaseType,
+                                                int64_t Scale, Type *ScaleType,
                                                 unsigned AddrSpace = 0) const;
 
   /// Return true if the loop strength reduce pass should make
@@ -979,6 +1000,14 @@ public:
   /// Ty2. e.g. On x86 it's free to truncate a i32 value in register EAX to i16
   /// by referencing its sub-register AX.
   LLVM_ABI bool isTruncateFree(Type *Ty1, Type *Ty2) const;
+
+  /// Return true if it's free to zero extend a value of type Ty1 to type
+  /// Ty2.
+  bool isZExtFree(Type *Ty1, Type *Ty2) const;
+
+  /// Return true if a operations on narrow types are generally cheaper than
+  /// operations on wide types.
+  bool preferNarrowTypes() const;
 
   /// Return true if it is profitable to hoist instruction in the
   /// then/else to before if.
@@ -1961,6 +1990,8 @@ public:
   LLVM_ABI VPLegalization
   getVPLegalizationStrategy(const VPIntrinsic &PI) const;
   /// @}
+
+  bool allowIllegalIntegerIV() const;
 
   /// \returns Whether a 32-bit branch instruction is available in Arm or Thumb
   /// state.

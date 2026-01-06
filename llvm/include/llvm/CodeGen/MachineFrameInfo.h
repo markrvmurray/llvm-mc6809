@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+
 #ifndef LLVM_CODEGEN_MACHINEFRAMEINFO_H
 #define LLVM_CODEGEN_MACHINEFRAMEINFO_H
 
@@ -55,6 +56,11 @@ class CalleeSavedInfo {
   /// register.
   bool SpilledToReg = false;
 
+  /// Flag indicating that the register is spilled using some mechanism unknown
+  /// to PEI. In this case, neither getFrameIdx() nor getDestReg() will return
+  /// meaningful results.
+  bool TargetSpilled = false;
+
 public:
   explicit CalleeSavedInfo(MCRegister R, int FI = 0) : Reg(R), FrameIdx(FI) {}
 
@@ -71,9 +77,14 @@ public:
     DstReg = SpillReg.id();
     SpilledToReg = true;
   }
+  void setTargetSpilled() {
+    SpilledToReg = false;
+    TargetSpilled = true;
+  }
   bool isRestored()                        const { return Restored; }
   void setRestored(bool R)                       { Restored = R; }
   bool isSpilledToReg()                    const { return SpilledToReg; }
+  bool isTargetSpilled()                   const { return TargetSpilled; }
 };
 
 using SaveRestorePoints =

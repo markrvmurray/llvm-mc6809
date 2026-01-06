@@ -1798,6 +1798,8 @@ void CompilerInvocationBase::GenerateCodeGenArgs(const CodeGenOptions &Opts,
     break;
   }
 
+  if (Opts.AssumeNonReentrant)
+    GenerateArg(Consumer, OPT_fnonreentrant);
   if (Opts.StaticClosure)
     GenerateArg(Consumer, OPT_static_libclosure);
 }
@@ -2302,8 +2304,8 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
   if (!Opts.EmitIEEENaNCompliantInsts && !LangOptsRef.NoHonorNaNs)
     Diags.Report(diag::err_drv_amdgpu_ieee_without_no_honor_nans);
 
+  Opts.AssumeNonReentrant = Args.hasArg(options::OPT_fnonreentrant);
   Opts.StaticClosure = Args.hasArg(options::OPT_static_libclosure);
-
   return Diags.getNumErrors() == NumErrorsBefore;
 }
 
@@ -4288,7 +4290,8 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
 
   // Set the flag to prevent the implementation from emitting device exception
   // handling code for those requiring so.
-  if ((Opts.OpenMPIsTargetDevice && T.isGPU()) || Opts.OpenCLCPlusPlus) {
+  if ((Opts.OpenMPIsTargetDevice && T.isGPU()) || Opts.OpenCLCPlusPlus ||
+      T.isMOS()) {
 
     Opts.Exceptions = 0;
     Opts.CXXExceptions = 0;

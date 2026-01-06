@@ -115,6 +115,7 @@ struct Symbol {
     FB_format_specific,
     FB_unnamed_addr,
     FB_executable,
+    FB_preserved,
   };
 };
 
@@ -213,6 +214,8 @@ struct Symbol {
   bool isFormatSpecific() const { return (Flags >> S::FB_format_specific) & 1; }
   bool isUnnamedAddr() const { return (Flags >> S::FB_unnamed_addr) & 1; }
   bool isExecutable() const { return (Flags >> S::FB_executable) & 1; }
+
+  bool isPreserved() const { return (Flags >> S::FB_preserved) & 1; }
 
   uint64_t getCommonSize() const {
     assert(isCommon());

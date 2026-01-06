@@ -241,6 +241,14 @@ AsmToken AsmLexer::LexIdentifier() {
     while (isDigit(*CurPtr))
       ++CurPtr;
 
+    if (MAI.getDotAsIntSeparator() &&
+        !isIdentifierChar(*CurPtr, AllowAtInIdentifier,
+                          AllowHashInIdentifier)) {
+      // Treat .1234 as a dot followed by an integer literal.
+      CurPtr = TokStart + 1;
+      return AsmToken(AsmToken::Dot, StringRef(TokStart, 1));
+    }
+
     if (!isIdentifierChar(*CurPtr, AllowAtInIdentifier,
                           AllowHashInIdentifier) ||
         *CurPtr == 'e' || *CurPtr == 'E')
@@ -383,6 +391,7 @@ static AsmToken intToken(StringRef Ref, APInt &Value) {
     return AsmToken(AsmToken::Integer, Ref, Value);
   return AsmToken(AsmToken::BigNum, Ref, Value);
 }
+
 
 static std::string radixName(unsigned Radix) {
   switch (Radix) {
@@ -1009,9 +1018,9 @@ AsmToken AsmLexer::LexToken() {
       return AsmToken(AsmToken::Greater, StringRef(TokStart, 1));
     }
 
-  // TODO: Quoted identifiers (objc methods etc)
-  // local labels: [0-9][:]
-  // Forward/backward labels: [0-9][fb]
-  // Integers, fp constants, character constants.
+    // TODO: Quoted identifiers (objc methods etc)
+    // local labels: [0-9][:]
+    // Forward/backward labels: [0-9][fb]
+    // Integers, fp constants, character constants.
   }
 }

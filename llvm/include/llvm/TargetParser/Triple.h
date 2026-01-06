@@ -68,6 +68,7 @@ public:
     mipsel,      // MIPSEL: mipsel, mipsallegrexe, mipsr6el
     mips64,      // MIPS64: mips64, mips64r6, mipsn32, mipsn32r6
     mips64el,    // MIPS64EL: mips64el, mips64r6el, mipsn32el, mipsn32r6el
+    mos,          // MOS: mos 65xx
     msp430,      // MSP430: msp430
     ppc,         // PPC: powerpc
     ppcle,       // PPCLE: powerpc (little endian)
@@ -1171,6 +1172,11 @@ public:
   bool isX32() const {
     EnvironmentType Env = getEnvironment();
     return Env == Triple::GNUX32 || Env == Triple::MuslX32;
+  }
+
+  /// Tests whether the target is MOS.
+  bool isMOS() const {
+    return getArch() == Triple::mos;
   }
 
   /// Tests whether the target is eBPF.

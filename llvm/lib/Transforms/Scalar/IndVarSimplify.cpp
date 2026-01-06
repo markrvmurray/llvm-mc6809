@@ -40,6 +40,7 @@
 #include "llvm/Analysis/ScalarEvolutionPatternMatch.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
+#include "llvm/Analysis/TargetTransformInfoImpl.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constant.h"
@@ -937,14 +938,16 @@ static bool isLoopCounter(PHINode* Phi, Loop *L,
 /// valid count without scaling the address stride, so it remains a pointer
 /// expression as far as SCEV is concerned.
 static PHINode *FindLoopCounter(Loop *L, BasicBlock *ExitingBB,
-                                const SCEV *BECount,
-                                ScalarEvolution *SE, DominatorTree *DT) {
+                                const SCEV *BECount, ScalarEvolution *SE,
+                                DominatorTree *DT,
+                                const TargetTransformInfo *TTI) {
   uint64_t BCWidth = SE->getTypeSizeInBits(BECount->getType());
 
   Value *Cond = cast<BranchInst>(ExitingBB->getTerminator())->getCondition();
 
   // Loop over all of the PHI nodes, looking for a simple counter.
   PHINode *BestPhi = nullptr;
+  bool BestPhiLegal = false;
   const SCEV *BestInit = nullptr;
   BasicBlock *LatchBlock = L->getLoopLatch();
   assert(LatchBlock && "Must be in simplified form");
@@ -961,7 +964,14 @@ static PHINode *FindLoopCounter(Loop *L, BasicBlock *ExitingBB,
     // AR may be wider than BECount. With eq/ne tests overflow is immaterial.
     // AR may not be a narrower type, or we may never exit.
     uint64_t PhiWidth = SE->getTypeSizeInBits(AR->getType());
-    if (PhiWidth < BCWidth || !DL.isLegalInteger(PhiWidth))
+    if (PhiWidth < BCWidth)
+      continue;
+
+    bool Legal = DL.isLegalInteger(PhiWidth);
+
+    // Don't use an illegal integer if a legal integer can be used or if
+    // disallowed.
+    if (!Legal && (!TTI->allowIllegalIntegerIV() || BestPhiLegal))
       continue;
 
     // Avoid reusing a potentially undef value to compute other values that may
@@ -1008,6 +1018,7 @@ static PHINode *FindLoopCounter(Loop *L, BasicBlock *ExitingBB,
         continue;
     }
     BestPhi = Phi;
+    BestPhiLegal = Legal;
     BestInit = Init;
   }
   return BestPhi;
@@ -2124,8 +2135,9 @@ bool IndVarSimplify::run(Loop *L) {
     SmallVector<BasicBlock*, 16> ExitingBlocks;
     L->getExitingBlocks(ExitingBlocks);
     for (BasicBlock *ExitingBB : ExitingBlocks) {
+      BranchInst *Term = dyn_cast<BranchInst>(ExitingBB->getTerminator());
       // Can't rewrite non-branch yet.
-      if (!isa<BranchInst>(ExitingBB->getTerminator()))
+      if (!Term)
         continue;
 
       // If our exitting block exits multiple loops, we can only rewrite the
@@ -2148,9 +2160,29 @@ bool IndVarSimplify::run(Loop *L) {
       if (ExitCount->isZero())
         continue;
 
-      PHINode *IndVar = FindLoopCounter(L, ExitingBB, ExitCount, SE, DT);
+      PHINode *IndVar = FindLoopCounter(L, ExitingBB, ExitCount, SE, DT, TTI);
       if (!IndVar)
         continue;
+
+      uint64_t IndVarWidth = SE->getTypeSizeInBits(IndVar->getType());
+      if (!DL.isLegalInteger(IndVarWidth)) {
+        const auto *Cond = dyn_cast<CmpInst>(Term->getCondition());
+        if (!Cond)
+          continue;
+
+        Type *CondTy = Cond->getOperand(0)->getType();
+        if (!SE->isSCEVable(CondTy))
+          continue;
+
+        // Don't replace a legal exit condition with an illegal one.
+        uint64_t CondWidth = SE->getTypeSizeInBits(CondTy);
+        if (DL.isLegalInteger(CondWidth))
+          continue;
+
+        // Don't widen an illegal exit condition.
+        if (IndVarWidth > CondWidth)
+          continue;
+      }
 
       // Avoid high cost expansions.  Note: This heuristic is questionable in
       // that our definition of "high cost" is not exactly principled.

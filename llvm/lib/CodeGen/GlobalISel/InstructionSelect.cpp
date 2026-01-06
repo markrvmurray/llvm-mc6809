@@ -12,6 +12,8 @@
 #include "llvm/CodeGen/GlobalISel/InstructionSelect.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/ScopeExit.h"
+#include "llvm/Analysis/AliasAnalysis.h"
+#include "llvm/Analysis/BlockFrequencyInfo.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/Analysis/LazyBlockFrequencyInfo.h"
 #include "llvm/Analysis/ProfileSummaryInfo.h"
@@ -124,6 +126,7 @@ void InstructionSelect::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addPreserved<GISelValueTrackingAnalysisLegacy>();
 
   if (OptLevel != CodeGenOptLevel::None) {
+    AU.addRequired<AAResultsWrapperPass>();
     AU.addRequired<ProfileSummaryInfoWrapperPass>();
     LazyBlockFrequencyInfoPass::getLazyBFIAnalysisUsage(AU);
   }
@@ -149,6 +152,12 @@ bool InstructionSelect::runOnMachineFunction(MachineFunction &MF) {
     PSI = &getAnalysis<ProfileSummaryInfoWrapperPass>().getPSI();
     if (PSI && PSI->hasProfileSummary())
       BFI = &getAnalysis<LazyBlockFrequencyInfoPass>().getBFI();
+    AA = &getAnalysis<AAResultsWrapperPass>().getAAResults();
+  } else {
+    // When not optimizing, explicitly clear analysis pointers to avoid stale values
+    AA = nullptr;
+    PSI = nullptr;
+    BFI = nullptr;
   }
 
   return selectMachineFunction(MF);
@@ -159,7 +168,7 @@ bool InstructionSelect::selectMachineFunction(MachineFunction &MF) {
   assert(ISel && "Cannot work without InstructionSelector");
 
   CodeGenCoverage CoverageInfo;
-  ISel->setupMF(MF, VT, &CoverageInfo, PSI, BFI);
+  ISel->setupMF(MF, VT, &CoverageInfo, PSI, BFI, AA);
 
   // An optimization remark emitter. Used to report failures.
   MachineOptimizationRemarkEmitter MORE(MF, /*MBFI=*/nullptr);

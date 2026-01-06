@@ -291,7 +291,7 @@ static void
 addUsedSymbolToPreservedGUID(const lto::InputFile &File,
                              DenseSet<GlobalValue::GUID> &PreservedGUID) {
   for (const auto &Sym : File.symbols()) {
-    if (Sym.isUsed())
+    if (Sym.isUsed() || Sym.isPreserved())
       PreservedGUID.insert(
           GlobalValue::getGUIDAssumingExternalLinkage(Sym.getIRName()));
   }

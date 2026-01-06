@@ -29,6 +29,7 @@
 #include "TargetInfo.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTLambda.h"
+#include "clang/AST/Attrs.inc"
 #include "clang/AST/CharUnits.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
@@ -128,6 +129,9 @@ createTargetCodeGenInfo(CodeGenModule &CGM) {
   case llvm::Triple::mips64:
   case llvm::Triple::mips64el:
     return createMIPSTargetCodeGenInfo(CGM, /*IsOS32=*/false);
+
+  case llvm::Triple::mos:
+    return createMOSTargetCodeGenInfo(CGM);
 
   case llvm::Triple::avr: {
     // For passing parameters, R8~R25 are used on avr, and R18~R25 are used
@@ -420,11 +424,19 @@ CodeGenModule::CodeGenModule(ASTContext &C,
   FloatTy = llvm::Type::getFloatTy(LLVMContext);
   DoubleTy = llvm::Type::getDoubleTy(LLVMContext);
   PointerWidthInBits = C.getTargetInfo().getPointerWidth(LangAS::Default);
-  PointerAlignInBytes =
-      C.toCharUnitsFromBits(C.getTargetInfo().getPointerAlign(LangAS::Default))
+  PointerSizeInBytes =
+      C.toCharUnitsFromBits(C.getTargetInfo().getPointerWidth(LangAS::Default))
           .getQuantity();
-  SizeSizeInBytes =
-    C.toCharUnitsFromBits(C.getTargetInfo().getMaxPointerWidth()).getQuantity();
+  PointerAlignInBytes =
+      C.toCharUnitsFromBits(C.getTargetInfo().getPointerAlign(LangAS::Default)).getQuantity();
+  SizeSizeInBytes = C.toCharUnitsFromBits(C.getTargetInfo().getTypeWidth(
+                                              C.getTargetInfo().getSizeType()))
+                        .getQuantity();
+  SizeAlignInBytes = C.toCharUnitsFromBits(C.getTargetInfo().getTypeAlign(
+                                               C.getTargetInfo().getSizeType()))
+                         .getQuantity();
+  IntSizeInBytes =
+    C.toCharUnitsFromBits(C.getTargetInfo().getIntWidth()).getQuantity();
   IntAlignInBytes =
     C.toCharUnitsFromBits(C.getTargetInfo().getIntAlign()).getQuantity();
   CharTy =
@@ -2749,6 +2761,9 @@ void CodeGenModule::SetLLVMFunctionAttributesForDefinition(const Decl *D,
              CodeGenOpts.getInlining() == CodeGenOptions::OnlyAlwaysInlining)
       B.addAttribute(llvm::Attribute::NoInline);
 
+    if (CodeGenOpts.AssumeNonReentrant)
+      B.addAttribute("nonreentrant");
+
     F->addFnAttrs(B);
     return;
   }
@@ -2852,6 +2867,10 @@ void CodeGenModule::SetLLVMFunctionAttributesForDefinition(const Decl *D,
     if (D->hasAttr<MinSizeAttr>())
       B.addAttribute(llvm::Attribute::MinSize);
   }
+
+  if (D->hasAttr<NonReentrantAttr>() ||
+      (CodeGenOpts.AssumeNonReentrant && !D->hasAttr<ReentrantAttr>()))
+    B.addAttribute("nonreentrant");
 
   F->addFnAttrs(B);
 

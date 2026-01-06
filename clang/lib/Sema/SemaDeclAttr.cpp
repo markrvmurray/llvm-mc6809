@@ -50,6 +50,7 @@
 #include "clang/Sema/SemaHLSL.h"
 #include "clang/Sema/SemaM68k.h"
 #include "clang/Sema/SemaMIPS.h"
+#include "clang/Sema/SemaMOS.h"
 #include "clang/Sema/SemaMSP430.h"
 #include "clang/Sema/SemaObjC.h"
 #include "clang/Sema/SemaOpenCL.h"
@@ -5012,6 +5013,32 @@ OptimizeNoneAttr *Sema::mergeOptimizeNoneAttr(Decl *D,
   return ::new (Context) OptimizeNoneAttr(Context, CI);
 }
 
+ReentrantAttr *Sema::mergeReentrantAttr(Decl *D, const AttributeCommonInfo &CI) {
+  if (NonReentrantAttr *Attr = D->getAttr<NonReentrantAttr>()) {
+    Diag(CI.getLoc(), diag::warn_attribute_ignored) << "'reentrant'";
+    Diag(Attr->getLocation(), diag::note_conflicting_attribute);
+    return nullptr;
+  }
+
+  if (D->hasAttr<ReentrantAttr>())
+    return nullptr;
+
+  return ::new (Context) ReentrantAttr(Context, CI);
+}
+
+NonReentrantAttr *Sema::mergeNonReentrantAttr(Decl *D, const AttributeCommonInfo &CI) {
+  if (ReentrantAttr *Attr = D->getAttr<ReentrantAttr>()) {
+    Diag(CI.getLoc(), diag::warn_attribute_ignored) << "'nonreentrant'";
+    Diag(Attr->getLocation(), diag::note_conflicting_attribute);
+    return nullptr;
+  }
+
+  if (D->hasAttr<NonReentrantAttr>())
+    return nullptr;
+
+  return ::new (Context) NonReentrantAttr(Context, CI);
+}
+
 static void handleAlwaysInlineAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (AlwaysInlineAttr *Inline =
           S.mergeAlwaysInlineAttr(D, AL, AL.getAttrName()))
@@ -5026,6 +5053,15 @@ static void handleMinSizeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 static void handleOptimizeNoneAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (OptimizeNoneAttr *Optnone = S.mergeOptimizeNoneAttr(D, AL))
     D->addAttr(Optnone);
+}
+
+static void handleReentrantAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  if (ReentrantAttr *Attr = S.mergeReentrantAttr(D, AL))
+    D->addAttr(Attr);
+}
+static void handleNonReentrantAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  if (NonReentrantAttr *Attr = S.mergeNonReentrantAttr(D, AL))
+    D->addAttr(Attr);
 }
 
 static void handleConstantAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
@@ -6272,6 +6308,9 @@ static void handleInterruptAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   case llvm::Triple::m68k:
     S.M68k().handleInterruptAttr(D, AL);
     break;
+  case llvm::Triple::mos:
+    S.MOS().handleInterruptAttr(D, AL);
+    break;
   case llvm::Triple::x86:
   case llvm::Triple::x86_64:
     S.X86().handleAnyInterruptAttr(D, AL);
@@ -7273,6 +7312,12 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
   case ParsedAttr::AT_BTFDeclTag:
     handleBTFDeclTagAttr(S, D, AL);
     break;
+  case ParsedAttr::AT_MOSInterruptNorecurse:
+    S.MOS().handleInterruptNorecurseAttr(D, AL);
+    break;
+  case ParsedAttr::AT_MOSNoISR:
+    S.MOS().handleInterruptNoISRAttr(D, AL);
+    break;
   case ParsedAttr::AT_WebAssemblyExportName:
     S.Wasm().handleWebAssemblyExportNameAttr(D, AL);
     break;
@@ -8003,6 +8048,14 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
 
   case ParsedAttr::AT_UsingIfExists:
     handleSimpleAttribute<UsingIfExistsAttr>(S, D, AL);
+    break;
+
+  case ParsedAttr::AT_Reentrant:
+    handleReentrantAttr(S, D, AL);
+    break;
+
+  case ParsedAttr::AT_NonReentrant:
+    handleNonReentrantAttr(S, D, AL);
     break;
 
   case ParsedAttr::AT_TypeNullable:

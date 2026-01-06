@@ -599,6 +599,7 @@ public:
   MachineFunction *MF = nullptr;
   ProfileSummaryInfo *PSI = nullptr;
   BlockFrequencyInfo *BFI = nullptr;
+  AAResults *AA = nullptr;
   // For some predicates, we need to track the current MBB.
   MachineBasicBlock *CurMBB = nullptr;
 
@@ -608,12 +609,14 @@ public:
   virtual void setupMF(MachineFunction &mf, GISelValueTracking *vt,
                        CodeGenCoverage *covinfo = nullptr,
                        ProfileSummaryInfo *psi = nullptr,
-                       BlockFrequencyInfo *bfi = nullptr) {
+                       BlockFrequencyInfo *bfi = nullptr,
+                       AAResults *aa = nullptr) {
     CoverageInfo = covinfo;
     VT = vt;
     MF = &mf;
     PSI = psi;
     BFI = bfi;
+    AA = aa;
     CurMBB = nullptr;
     setupGeneratedPerFunctionState(mf);
   }

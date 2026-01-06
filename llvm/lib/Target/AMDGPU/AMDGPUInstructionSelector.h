@@ -60,7 +60,7 @@ public:
 
   void setupMF(MachineFunction &MF, GISelValueTracking *VT,
                CodeGenCoverage *CoverageInfo, ProfileSummaryInfo *PSI,
-               BlockFrequencyInfo *BFI) override;
+               BlockFrequencyInfo *BFI, AAResults *AA) override;
 
 private:
   struct GEPInfo {

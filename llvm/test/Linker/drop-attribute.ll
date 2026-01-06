@@ -1,4 +1,5 @@
 ; RUN: llvm-link %s %p/Inputs/drop-attribute.ll -S -o - | FileCheck %s
+; UNSUPPORTED: target={{.*}}
 
 ; Test case that checks that nocallback attribute is dropped during linking.
 

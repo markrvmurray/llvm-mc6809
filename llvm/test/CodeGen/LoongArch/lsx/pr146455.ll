@@ -105,10 +105,10 @@ define void @eliminate_frame_index(<16 x i8> %a) nounwind {
 ; CHECK-NEXT:    #APP
 ; CHECK-NEXT:    addi.d $s8, $zero, 1
 ; CHECK-NEXT:    #NO_APP
-; CHECK-NEXT:    st.d $a0, $sp, 0 # 8-byte Folded Spill
-; CHECK-NEXT:    addi.d $a0, $sp, 136
-; CHECK-NEXT:    vstelm.b $vr0, $a0, 0, 0
-; CHECK-NEXT:    ld.d $a0, $sp, 0 # 8-byte Folded Reload
+; CHECK-NEXT:    st.d $ra, $sp, 0 # 8-byte Folded Spill
+; CHECK-NEXT:    addi.d $ra, $sp, 136
+; CHECK-NEXT:    vstelm.b $vr0, $ra, 0, 0
+; CHECK-NEXT:    ld.d $ra, $sp, 0 # 8-byte Folded Reload
 ; CHECK-NEXT:    #APP
 ; CHECK-NEXT:    # reg use $zero
 ; CHECK-NEXT:    #NO_APP

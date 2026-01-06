@@ -126,6 +126,10 @@ protected:
   /// the current PC.  Defaults to false.
   bool DollarIsPC = false;
 
+  /// The '.' token, when followed immediately by a decimal, is a separate
+  /// token. Defaults to false (interpret as real value).
+  bool DotAsIntSeparator = false;
+
   /// This string, if specified, is used to separate instructions from each
   /// other when on the same line.  Defaults to ';'
   const char *SeparatorString;
@@ -530,6 +534,7 @@ public:
 
   unsigned getMinInstAlignment() const { return MinInstAlignment; }
   bool getDollarIsPC() const { return DollarIsPC; }
+  bool getDotAsIntSeparator() const { return DotAsIntSeparator; }
   const char *getSeparatorString() const { return SeparatorString; }
 
   unsigned getCommentColumn() const { return CommentColumn; }

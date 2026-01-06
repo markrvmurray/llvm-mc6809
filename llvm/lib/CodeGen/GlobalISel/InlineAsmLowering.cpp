@@ -11,6 +11,7 @@
 ///
 //===----------------------------------------------------------------------===//
 
+
 #include "llvm/CodeGen/GlobalISel/InlineAsmLowering.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
@@ -108,8 +109,8 @@ static void getRegistersForValue(MachineFunction &MF,
   // Initialize NumRegs.
   unsigned NumRegs = 1;
   if (OpInfo.ConstraintVT != MVT::Other)
-    NumRegs =
-        TLI.getNumRegisters(MF.getFunction().getContext(), OpInfo.ConstraintVT);
+    NumRegs = TLI.getNumRegistersForInlineAsm(MF.getFunction().getContext(),
+                                              OpInfo.ConstraintVT);
 
   // If this is a constraint for a specific physical register, but the type of
   // the operand requires more than one register to be passed, we allocate the
@@ -386,7 +387,26 @@ bool InlineAsmLowering::lowerInlineAsm(
         unsigned InstFlagIdx = StartIdx;
         for (unsigned i = 0; i < DefIdx; ++i)
           InstFlagIdx += getNumOpRegs(*Inst, InstFlagIdx) + 1;
-        assert(getNumOpRegs(*Inst, InstFlagIdx) == 1 && "Wrong flag");
+        unsigned NumOpRegs = getNumOpRegs(*Inst, InstFlagIdx);
+        // FIXME: This assertion limits inline asm tied operands to single-
+        // register values. Targets with narrow registers (e.g., MOS 6502 with
+        // 8-bit registers) require multiple registers for larger types like
+        // i16 or i32. For example, MOS needs 4 registers for an i32. When
+        // this assertion fires, the tied operand constraint (e.g., "0" in
+        // "=r,0") refers to a multi-register output, which this code cannot
+        // handle. To support such targets, this code would need to be
+        // generalized to tie multiple input registers to multiple output
+        // registers. Until then, inline asm with tied constraints only works
+        // for types that fit in a single register on the target.
+        if (NumOpRegs != 1) {
+          LLVM_DEBUG(dbgs() << "Matching input constraint: DefIdx=" << DefIdx
+                            << " InstFlagIdx=" << InstFlagIdx
+                            << " NumOpRegs=" << NumOpRegs
+                            << " (expected 1)\n");
+          LLVM_DEBUG(dbgs() << "Instruction: " << *Inst << "\n");
+        }
+        assert(NumOpRegs == 1 && "Wrong flag: multi-register tied operands "
+                                 "not supported in GlobalISel inline asm");
 
         const InlineAsm::Flag MatchedOperandFlag(Inst->getOperand(InstFlagIdx).getImm());
         if (MatchedOperandFlag.isMemKind()) {
@@ -588,9 +608,20 @@ bool InlineAsmLowering::lowerInlineAsm(
 
   // Finally, copy the output operands into the output registers
   ArrayRef<Register> ResRegs = GetOrCreateVRegs(Call);
+  // FIXME: This check doesn't account for indirect output constraints (=*).
+  // Indirect outputs write through a pointer argument and don't produce a
+  // return value, so they shouldn't be counted in OutputOperands when
+  // comparing against ResRegs. For example:
+  //   call void asm "...", "=*X"(ptr %p)
+  // has one output constraint (=*X) but returns void (ResRegs is empty).
+  // This causes the check below to incorrectly fail. To fix this, we would
+  // need to filter OutputOperands to only count direct outputs, or track
+  // indirect vs direct outputs separately.
   if (ResRegs.size() != OutputOperands.size()) {
     LLVM_DEBUG(dbgs() << "Expected the number of output registers to match the "
-                         "number of destination registers\n");
+                         "number of destination registers (ResRegs="
+                      << ResRegs.size()
+                      << ", OutputOperands=" << OutputOperands.size() << ")\n");
     return false;
   }
   for (unsigned int i = 0, e = ResRegs.size(); i < e; i++) {
@@ -619,6 +650,11 @@ bool InlineAsmLowering::lowerInlineAsm(
         MIRBuilder.buildCopy(Tmp1Reg, SrcReg);
         // Need to truncate the result of the register
         MIRBuilder.buildTrunc(ResRegs[i], Tmp1Reg);
+      } else if (ResTy.isScalar() && ResTy.getSizeInBits() > SrcSize) {
+         Register Tmp = SrcReg;
+         if (!MRI->getType(SrcReg).isValid())
+            Tmp = MRI->createGenericVirtualRegister(LLT::scalar(SrcSize)), MIRBuilder.buildCopy(Tmp, SrcReg);
+         MIRBuilder.buildZExt(ResRegs[i], Tmp);
       } else if (ResTy.getSizeInBits() == SrcSize) {
         MIRBuilder.buildCopy(ResRegs[i], SrcReg);
       } else {
@@ -677,8 +713,10 @@ bool InlineAsmLowering::lowerAsmOperandForConstraint(
       bool IsBool = CI->getBitWidth() == 1;
       int64_t ExtVal = IsBool ? CI->getZExtValue() : CI->getSExtValue();
       Ops.push_back(MachineOperand::CreateImm(ExtVal));
-      return true;
-    }
-    return false;
+    } else if (GlobalValue *GV = dyn_cast<GlobalValue>(Val)) {
+      Ops.push_back(MachineOperand::CreateGA(GV, 0));
+    } else
+      return false;
+    return true;
   }
 }

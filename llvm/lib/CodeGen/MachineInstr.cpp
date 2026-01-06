@@ -1214,11 +1214,16 @@ void MachineInstr::tieOperands(unsigned DefIdx, unsigned UseIdx) {
   if (DefIdx < TiedMax) {
     UseMO.TiedTo = DefIdx + 1;
   } else {
+    const TargetInstrInfo *TII = nullptr;
+    (void)TII;
+    if (const MachineFunction *MF = getMFIfAvailable(*this))
+      TII = MF->getSubtarget().getInstrInfo();
     // Inline asm can use the group descriptors to find tied operands,
     // statepoint tied operands are trivial to match (1-1 reg def with reg use),
     // but on normal instruction, the tied def must be within the first TiedMax
     // operands.
-    assert((isInlineAsm() || getOpcode() == TargetOpcode::STATEPOINT) &&
+    assert((isInlineAsm() || getOpcode() == TargetOpcode::STATEPOINT ||
+            (TII && TII->hasCustomTiedOperands(getOpcode()))) &&
            "DefIdx out of range");
     UseMO.TiedTo = TiedMax;
   }
@@ -1231,6 +1236,9 @@ void MachineInstr::tieOperands(unsigned DefIdx, unsigned UseIdx) {
 /// Defs are tied to uses and vice versa. Returns the index of the tied operand
 /// which must exist.
 unsigned MachineInstr::findTiedOperandIdx(unsigned OpIdx) const {
+  const TargetInstrInfo *TII = nullptr;
+  if (const MachineFunction *MF = getMFIfAvailable(*this))
+    TII = MF->getSubtarget().getInstrInfo();
   const MachineOperand &MO = getOperand(OpIdx);
   assert(MO.isTied() && "Operand isn't tied");
 
@@ -1239,7 +1247,8 @@ unsigned MachineInstr::findTiedOperandIdx(unsigned OpIdx) const {
     return MO.TiedTo - 1;
 
   // Uses on normal instructions can be out of range.
-  if (!isInlineAsm() && getOpcode() != TargetOpcode::STATEPOINT) {
+  if (!isInlineAsm() && getOpcode() != TargetOpcode::STATEPOINT &&
+      (!TII || !TII->hasCustomTiedOperands(getOpcode()))) {
     // Normal tied defs must be in the 0..TiedMax-1 range.
     if (MO.isUse())
       return TiedMax - 1;
@@ -1270,6 +1279,9 @@ unsigned MachineInstr::findTiedOperandIdx(unsigned OpIdx) const {
     }
     llvm_unreachable("Can't find tied use");
   }
+
+  if (TII && TII->hasCustomTiedOperands(getOpcode()))
+    return TII->findCustomTiedOperandIdx(*this, OpIdx);
 
   // Now deal with inline asm by parsing the operand group descriptor flags.
   // Find the beginning of each operand group.
@@ -1710,8 +1722,10 @@ void MachineInstr::copyImplicitOps(MachineFunction &MF,
 }
 
 bool MachineInstr::hasComplexRegisterTies() const {
+  const TargetInstrInfo &TII = *getMF()->getSubtarget().getInstrInfo();
   const MCInstrDesc &MCID = getDesc();
-  if (MCID.Opcode == TargetOpcode::STATEPOINT)
+  if (MCID.Opcode == TargetOpcode::STATEPOINT ||
+      TII.hasCustomTiedOperands(getOpcode()))
     return true;
   for (unsigned I = 0, E = getNumOperands(); I < E; ++I) {
     const auto &Operand = getOperand(I);

@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/ADT/STLExtras.h"
@@ -50,7 +51,8 @@ CallGraph::CallGraph(CallGraph &&Arg)
 }
 
 CallGraph::~CallGraph() {
-  // CallsExternalNode is not in the function map, delete it explicitly.
+  // Null nodes besides ExternalCallingNode are not in the function map, so
+  // delete them explicitly.
   if (CallsExternalNode)
     CallsExternalNode->allReferencesDropped();
 
@@ -97,14 +99,20 @@ void CallGraph::populateCallGraphNode(CallGraphNode *Node) {
     for (Instruction &I : BB) {
       if (auto *Call = dyn_cast<CallBase>(&I)) {
         const Function *Callee = Call->getCalledFunction();
-        if (!Callee)
-          Node->addCalledFunction(Call, CallsExternalNode.get());
-        else
+        if (!Callee) {
+          if (!Call->hasFnAttr(Attribute::NoCallback))
+            Node->addCalledFunction(Call, CallsExternalNode.get());
+        } else {
           Node->addCalledFunction(Call, getOrInsertFunction(Callee));
+        }
 
-        // Add reference to callback functions.
-        forEachCallbackFunction(*Call, [=](Function *CB) {
-          Node->addCalledFunction(nullptr, getOrInsertFunction(CB));
+        // Add reference to callback functions or the external node if the
+        // callback is indirect.
+        forEachCallbackCallSite(*Call, [=](AbstractCallSite &ACS) {
+          if (Function *Callback = ACS.getCalledFunction())
+            Node->addCalledFunction(nullptr, getOrInsertFunction(Callback));
+          else
+            Node->addCalledFunction(nullptr, CallsExternalNode.get());
         });
       }
     }

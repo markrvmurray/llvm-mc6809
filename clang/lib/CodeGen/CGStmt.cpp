@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+
 #include "CGDebugInfo.h"
 #include "CGOpenMPRuntime.h"
 #include "CodeGenFunction.h"
@@ -794,6 +795,7 @@ void CodeGenFunction::EmitAttributedStmt(const AttributedStmt &S) {
   HLSLControlFlowHintAttr::Spelling flattenOrBranch =
       HLSLControlFlowHintAttr::SpellingNotCalculated;
   const CallExpr *musttail = nullptr;
+  bool leaf = false;
   const AtomicAttr *AA = nullptr;
 
   for (const auto *A : S.getAttrs()) {
@@ -825,6 +827,9 @@ void CodeGenFunction::EmitAttributedStmt(const AttributedStmt &S) {
         Builder.CreateAssumption(AssumptionVal);
       }
     } break;
+    case attr::Leaf:
+      leaf = true;
+      break;
     case attr::Atomic:
       AA = cast<AtomicAttr>(A);
       break;
@@ -838,6 +843,7 @@ void CodeGenFunction::EmitAttributedStmt(const AttributedStmt &S) {
   SaveAndRestore save_alwaysinline(InAlwaysInlineAttributedStmt, alwaysinline);
   SaveAndRestore save_noconvergent(InNoConvergentAttributedStmt, noconvergent);
   SaveAndRestore save_musttail(MustTailCall, musttail);
+  SaveAndRestore save_leaf(InLeafAttributedStmt, leaf);
   SaveAndRestore save_flattenOrBranch(HLSLControlFlowAttr, flattenOrBranch);
   CGAtomicOptionsRAII AORAII(CGM, AA);
   EmitStmt(S.getSubStmt(), S.getAttrs());
@@ -2684,7 +2690,7 @@ static llvm::MDNode *getAsmSrcLocInfo(const StringLiteral *Str,
 static void UpdateAsmCallInst(llvm::CallBase &Result, bool HasSideEffect,
                               bool HasUnwindClobber, bool ReadOnly,
                               bool ReadNone, bool NoMerge, bool NoConvergent,
-                              const AsmStmt &S,
+                              bool Leaf, const AsmStmt &S,
                               const std::vector<llvm::Type *> &ResultRegTypes,
                               const std::vector<llvm::Type *> &ArgElemTypes,
                               CodeGenFunction &CGF,
@@ -2694,6 +2700,8 @@ static void UpdateAsmCallInst(llvm::CallBase &Result, bool HasSideEffect,
 
   if (NoMerge)
     Result.addFnAttr(llvm::Attribute::NoMerge);
+  if (Leaf)
+    Result.addFnAttr(llvm::Attribute::NoCallback);
   // Attach readnone and readonly attributes.
   if (!HasSideEffect) {
     if (ReadNone)
@@ -3271,8 +3279,8 @@ void CodeGenFunction::EmitAsmStmt(const AsmStmt &S) {
     EmitBlock(Fallthrough);
     UpdateAsmCallInst(*CBR, HasSideEffect, /*HasUnwindClobber=*/false, ReadOnly,
                       ReadNone, InNoMergeAttributedStmt,
-                      InNoConvergentAttributedStmt, S, ResultRegTypes,
-                      ArgElemTypes, *this, RegResults);
+                      InNoConvergentAttributedStmt, InLeafAttributedStmt, S,
+                      ResultRegTypes, ArgElemTypes, *this, RegResults);
     // Because we are emitting code top to bottom, we don't have enough
     // information at this point to know precisely whether we have a critical
     // edge. If we have outputs, split all indirect destinations.
@@ -3302,15 +3310,15 @@ void CodeGenFunction::EmitAsmStmt(const AsmStmt &S) {
     llvm::CallBase *Result = EmitCallOrInvoke(IA, Args, "");
     UpdateAsmCallInst(*Result, HasSideEffect, /*HasUnwindClobber=*/true,
                       ReadOnly, ReadNone, InNoMergeAttributedStmt,
-                      InNoConvergentAttributedStmt, S, ResultRegTypes,
-                      ArgElemTypes, *this, RegResults);
+                      InNoConvergentAttributedStmt, InLeafAttributedStmt, S,
+                      ResultRegTypes, ArgElemTypes, *this, RegResults);
   } else {
     llvm::CallInst *Result =
         Builder.CreateCall(IA, Args, getBundlesForFunclet(IA));
     UpdateAsmCallInst(*Result, HasSideEffect, /*HasUnwindClobber=*/false,
                       ReadOnly, ReadNone, InNoMergeAttributedStmt,
-                      InNoConvergentAttributedStmt, S, ResultRegTypes,
-                      ArgElemTypes, *this, RegResults);
+                      InNoConvergentAttributedStmt, InLeafAttributedStmt, S,
+                      ResultRegTypes, ArgElemTypes, *this, RegResults);
   }
 
   EmitAsmStores(*this, S, RegResults, ResultRegTypes, ResultTruncRegTypes,

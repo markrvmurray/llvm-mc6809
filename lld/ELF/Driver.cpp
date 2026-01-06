@@ -177,6 +177,7 @@ static std::tuple<ELFKind, uint16_t, uint8_t> parseEmulation(Ctx &ctx,
           .Case("elf_iamcu", {ELF32LEKind, EM_IAMCU})
           .Case("elf64_sparc", {ELF64BEKind, EM_SPARCV9})
           .Case("msp430elf", {ELF32LEKind, EM_MSP430})
+          .Case("moself", {ELF32LEKind, EM_MOS})
           .Case("elf64_amdgpu", {ELF64LEKind, EM_AMDGPU})
           .Case("elf64loongarch", {ELF64LEKind, EM_LOONGARCH})
           .Case("elf64_s390", {ELF64BEKind, EM_S390})
@@ -327,6 +328,9 @@ void LinkerDriver::addFile(StringRef path, bool withLOption) {
   case file_magic::elf_relocatable:
     if (!tryAddFatLTOFile(mbref, "", 0, inLib))
       files.push_back(createObjFile(ctx, mbref, "", inLib));
+    break;
+  case file_magic::xo65_object:
+    files.push_back(std::make_unique<XO65File>(ctx, mbref));
     break;
   default:
     ErrAlways(ctx) << path << ": unknown file type";
@@ -642,8 +646,8 @@ static void checkZOptions(Ctx &ctx, opt::InputArgList &args) {
 }
 
 constexpr const char *saveTempsValues[] = {
-    "resolution", "preopt",     "promote", "internalize",  "import",
-    "opt",        "precodegen", "prelink", "combinedindex"};
+    "resolution", "preopt",     "promote", "internalize",   "import",
+    "opt",        "precodegen", "prelink", "combinedindex", "ld65"};
 
 LinkerDriver::LinkerDriver(Ctx &ctx) : ctx(ctx) {}
 
@@ -1443,6 +1447,7 @@ static void readConfigs(Ctx &ctx, opt::InputArgList &args) {
   ctx.arg.ignoreFunctionAddressEquality =
       args.hasArg(OPT_ignore_function_address_equality);
   ctx.arg.init = args.getLastArgValue(OPT_init, "_init");
+  ctx.arg.ld65Path = args.getLastArgValue(OPT_ld65_path);
   ctx.arg.ltoAAPipeline = args.getLastArgValue(OPT_lto_aa_pipeline);
   ctx.arg.ltoCSProfileGenerate = args.hasArg(OPT_lto_cs_profile_generate);
   ctx.arg.ltoCSProfileFile = args.getLastArgValue(OPT_lto_cs_profile_file);
@@ -1486,6 +1491,8 @@ static void readConfigs(Ctx &ctx, opt::InputArgList &args) {
   ctx.arg.nmagic = args.hasFlag(OPT_nmagic, OPT_no_nmagic, false);
   ctx.arg.noinhibitExec = args.hasArg(OPT_noinhibit_exec);
   ctx.arg.nostdlib = args.hasArg(OPT_nostdlib);
+  ctx.arg.od65Path = args.getLastArgValue(OPT_od65_path);
+  ctx.arg.cc65Launcher = args.getLastArgValue(OPT_cc65_launcher);
   ctx.arg.oFormatBinary = isOutputFormatBinary(ctx, args);
   ctx.arg.omagic = args.hasFlag(OPT_omagic, OPT_no_omagic, false);
   ctx.arg.optRemarksFilename = args.getLastArgValue(OPT_opt_remarks_filename);
@@ -3225,6 +3232,8 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &args) {
     initSectionsAndLocalSyms(file, /*ignoreComdats=*/false);
   });
   parallelForEach(ctx.objectFiles, postParseObjectFile);
+  if (ctx.xo65Enclave)
+    ctx.xo65Enclave->postParse();
   parallelForEach(ctx.bitcodeFiles,
                   [](BitcodeFile *file) { file->postParse(); });
   for (auto &it : ctx.nonPrevailingSyms) {
@@ -3368,6 +3377,11 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &args) {
     for (BinaryFile *f : ctx.binaryFiles)
       for (InputSectionBase *s : f->getSections())
         ctx.inputSections.push_back(cast<InputSection>(s));
+    if (ctx.xo65Enclave) {
+      ctx.xo65Enclave->createSections();
+      for (InputSectionBase *s : ctx.xo65Enclave->getSections())
+        ctx.inputSections.push_back(s);
+    }
   }
 
   {

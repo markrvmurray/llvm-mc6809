@@ -53,6 +53,7 @@
 #include "clang/Sema/SemaLoongArch.h"
 #include "clang/Sema/SemaM68k.h"
 #include "clang/Sema/SemaMIPS.h"
+#include "clang/Sema/SemaMOS.h"
 #include "clang/Sema/SemaMSP430.h"
 #include "clang/Sema/SemaNVPTX.h"
 #include "clang/Sema/SemaObjC.h"
@@ -291,6 +292,7 @@ Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
       LoongArchPtr(std::make_unique<SemaLoongArch>(*this)),
       M68kPtr(std::make_unique<SemaM68k>(*this)),
       MIPSPtr(std::make_unique<SemaMIPS>(*this)),
+      MOSPtr(std::make_unique<SemaMOS>(*this)),
       MSP430Ptr(std::make_unique<SemaMSP430>(*this)),
       NVPTXPtr(std::make_unique<SemaNVPTX>(*this)),
       ObjCPtr(std::make_unique<SemaObjC>(*this)),

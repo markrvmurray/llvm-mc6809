@@ -144,6 +144,9 @@ void MCAsmInfoELF::printSwitchToSection(const MCSection &Section,
   } else if (Arch == Triple::hexagon) {
     if (Sec.Flags & ELF::SHF_HEX_GPREL)
       OS << 's';
+  } else if (Arch == Triple::mos) {
+    if (Sec.Flags & ELF::SHF_MOS_ZEROPAGE)
+      OS << 'z';
   } else if (Arch == Triple::x86_64) {
     if (Sec.Flags & ELF::SHF_X86_64_LARGE)
       OS << 'l';

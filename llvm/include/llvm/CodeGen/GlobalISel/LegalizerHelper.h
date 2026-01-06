@@ -17,6 +17,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+
 #ifndef LLVM_CODEGEN_GLOBALISEL_LEGALIZERHELPER_H
 #define LLVM_CODEGEN_GLOBALISEL_LEGALIZERHELPER_H
 
@@ -558,6 +559,9 @@ createLibcall(MachineIRBuilder &MIRBuilder, RTLIB::Libcall Libcall,
 LLVM_ABI LegalizerHelper::LegalizeResult
 createMemLibcall(MachineIRBuilder &MIRBuilder, MachineRegisterInfo &MRI,
                  MachineInstr &MI, LostDebugLocObserver &LocObserver);
+
+/// Return the libcall corresponding to a given opcode and size.
+RTLIB::Libcall getRTLibDesc(unsigned Opcode, unsigned Size);
 
 } // End namespace llvm.
 

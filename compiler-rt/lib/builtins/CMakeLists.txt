@@ -25,9 +25,11 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   include(base-config-ix)
   include(CompilerRTUtils)
 
-  if (NOT LLVM_RUNTIMES_BUILD)
-    load_llvm_config()
-  endif()
+  # FIXME (llvm-mos): We don't support shared libraries, so this fails, but
+  # it's also extremely weird that this check uses the MOS target.
+  #if (NOT LLVM_RUNTIMES_BUILD)
+  #load_llvm_config()
+  #endif()
   construct_compiler_rt_default_triple()
 
   include(SetPlatformToolchainTools)
@@ -811,6 +813,37 @@ set(mips64_SOURCES ${GENERIC_TF_SOURCES}
 set(mips64el_SOURCES ${GENERIC_TF_SOURCES}
                      ${mips_SOURCES})
 
+set(mos_SOURCES ${GENERIC_SOURCES})
+# MOS SDK implementations are already smaller and faster.
+list(REMOVE_ITEM mos_SOURCES
+  ashldi3.c
+  ashlti3.c
+  ashrdi3.c
+  ashrti3.c
+  divdi3.c
+  divmoddi4.c
+  divmodsi4.c
+  divmodti4.c
+  divsi3.c
+  divti3.c
+  lshrdi3.c
+  lshrti3.c
+  moddi3.c
+  modsi3.c
+  modti3.c
+  muldi3.c
+  multi3.c
+  udivdi3.c
+  udivmoddi4.c
+  udivmodsi4.c
+  udivmodti4.c
+  udivsi3.c
+  udivti3.c
+  umoddi3.c
+  umodsi3.c
+  umodti3.c
+)
+
 set(nvptx64_SOURCES ${GENERIC_SOURCES})
 
 set(powerpc_SOURCES ${GENERIC_SOURCES})
@@ -1019,6 +1052,10 @@ else ()
         list(APPEND BUILTIN_CFLAGS_${arch} -fforce-enable-int128)
       endif()
 
+      if (${arch} STREQUAL "mos")
+        list(APPEND BUILTIN_CFLAGS_${arch} -flto)
+      endif()
+
       add_compiler_rt_runtime(clang_rt.builtins
                               STATIC
                               ARCHS ${arch}
@@ -1106,6 +1143,10 @@ if (COMPILER_RT_BUILD_CRT)
   endif()
 
   foreach(arch ${BUILTIN_SUPPORTED_ARCH})
+    if (arch STREQUAL mos)
+      continue()
+    endif()
+
     add_compiler_rt_runtime(clang_rt.crtbegin
       OBJECT
       ARCHS ${arch}

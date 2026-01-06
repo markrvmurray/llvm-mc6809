@@ -479,6 +479,10 @@ ENUM_CODEGENOPT(ZeroCallUsedRegs, ZeroCallUsedRegsKind,
 /// non-deleting destructors. (No effect on Microsoft ABI.)
 CODEGENOPT(CtorDtorReturnThis, 1, 0, Benign)
 
+/// Whether to assume that functions cannot have more than one simultaneous
+/// activation.
+CODEGENOPT(AssumeNonReentrant, 1, 0, Benign)
+
 /// Enables emitting Import Call sections on supported targets that can be used
 /// by the Windows kernel to enable import call optimization.
 CODEGENOPT(ImportCallOptimization, 1, 0, Benign)

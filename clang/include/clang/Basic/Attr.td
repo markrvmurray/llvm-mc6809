@@ -476,6 +476,7 @@ def TargetMips32 : TargetArch<["mips", "mipsel"]>;
 def TargetAnyMips : TargetArch<["mips", "mipsel", "mips64", "mips64el"]>;
 def TargetMSP430 : TargetArch<["msp430"]>;
 def TargetM68k : TargetArch<["m68k"]>;
+def TargetMOS : TargetArch<["mos"]>;
 def TargetRISCV : TargetArch<["riscv32", "riscv64"]>;
 def TargetX86 : TargetArch<["x86"]>;
 def TargetX86_64 : TargetArch<["x86_64"]>;
@@ -2077,9 +2078,10 @@ def LayoutVersion : InheritableAttr, TargetSpecificAttr<TargetMicrosoftRecordLay
   let Documentation = [LayoutVersionDocs];
 }
 
-def Leaf : InheritableAttr {
+def Leaf : DeclOrStmtAttr {
   let Spellings = [GCC<"leaf">];
-  let Subjects = SubjectList<[Function]>;
+  let Subjects = SubjectList<[Function, Stmt], WarnDiag,
+                             "functions and statements">;
   let Documentation = [LeafDocs];
   let SimpleHandler = 1;
 }
@@ -2233,6 +2235,36 @@ def M68kInterrupt : InheritableAttr, TargetSpecificAttr<TargetM68k> {
   let Args = [UnsignedArgument<"Number">];
   let ParseKind = "Interrupt";
   let HasCustomParsing = 1;
+  let Documentation = [Undocumented];
+}
+
+def MOSInterrupt : InheritableAttr, TargetSpecificAttr<TargetMOS> {
+  let Spellings = [GCC<"interrupt">];
+  let Subjects = SubjectList<[Function]>;
+  let ParseKind = "Interrupt";
+  let Documentation = [Undocumented];
+}
+
+def MOSInterruptNorecurse : InheritableAttr, TargetSpecificAttr<TargetMOS> {
+  let Spellings = [GCC<"interrupt_norecurse">];
+  let Subjects = SubjectList<[Function]>;
+  let Documentation = [Undocumented];
+}
+
+def MOSNoISR : InheritableAttr, TargetSpecificAttr<TargetMOS> {
+  let Spellings = [GCC<"no_isr">];
+  let Subjects = SubjectList<[Function]>;
+  let Documentation = [Undocumented];
+}
+
+def Reentrant : InheritableAttr {
+  let Spellings = [GCC<"reentrant">];
+  let Subjects = SubjectList<[Function]>;
+  let Documentation = [Undocumented];
+}
+def NonReentrant : InheritableAttr {
+  let Spellings = [GCC<"nonreentrant">];
+  let Subjects = SubjectList<[Function]>;
   let Documentation = [Undocumented];
 }
 

@@ -15,6 +15,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+
 #include "llvm/IR/DataLayout.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringExtras.h"
@@ -26,6 +27,7 @@
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
@@ -40,6 +42,10 @@
 #include <utility>
 
 using namespace llvm;
+
+cl::opt<bool> AlignLargeGlobals("align-large-globals",
+    cl::desc("Prefer large globals to be at least 16-byte aligned."),
+    cl::Hidden, cl::init(true));
 
 //===----------------------------------------------------------------------===//
 // Support for StructLayout
@@ -1131,7 +1137,7 @@ Align DataLayout::getPreferredAlign(const GlobalVariable *GV) const {
   // If no explicit alignment is specified, and the global is large, increase
   // the alignment to 16.
   // FIXME: Why 16, specifically?
-  if (GV->hasInitializer() && !GVAlignment) {
+  if (AlignLargeGlobals && GV->hasInitializer() && !GVAlignment) {
     if (Alignment < Align(16)) {
       // If the global is not external, see if it is large.  If so, give it a
       // larger alignment.

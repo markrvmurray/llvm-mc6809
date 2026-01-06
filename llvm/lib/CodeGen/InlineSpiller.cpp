@@ -70,6 +70,8 @@ STATISTIC(NumFolded,          "Number of folded stack accesses");
 STATISTIC(NumFoldedLoads,     "Number of folded loads");
 STATISTIC(NumRemats,          "Number of rematerialized defs for spilling");
 
+static cl::opt<bool> DisableHoisting("disable-spill-hoist", cl::Hidden,
+                                     cl::desc("Disable inline spill hoisting"));
 static cl::opt<bool>
 RestrictStatepointRemat("restrict-statepoint-remat",
                        cl::init(false), cl::Hidden,
@@ -540,6 +542,8 @@ void InlineSpiller::eliminateRedundantSpills(LiveInterval &SLI, VNInfo *VNI) {
         LLVM_DEBUG(dbgs() << "Redundant spill " << Idx << '\t' << MI);
         // eliminateDeadDefs won't normally remove stores, so switch opcode.
         MI.setDesc(TII.get(TargetOpcode::KILL));
+        for (MachineOperand &MO : MI.defs())
+          MO.setIsDead();
         DeadDefs.push_back(&MI);
         ++NumSpillsRemoved;
         if (HSpiller.rmFromMergeableSpills(MI, StackSlot))
@@ -1354,7 +1358,10 @@ void InlineSpiller::spill(LiveRangeEdit &edit, AllocationOrder *order) {
 }
 
 /// Optimizations after all the reg selections and spills are done.
-void InlineSpiller::postOptimization() { HSpiller.hoistAllSpills(); }
+void InlineSpiller::postOptimization() {
+  if (!DisableHoisting)
+    HSpiller.hoistAllSpills();
+}
 
 /// When a spill is inserted, add the spill to MergeableSpills map.
 void HoistSpillHelper::addToMergeableSpills(MachineInstr &Spill, int StackSlot,

@@ -1,3 +1,5 @@
+# Modified by Daniel Thornburgh (mysterymath@gmail.com).
+
 set(LLVM_LINK_COMPONENTS
   Support
   TargetParser
@@ -107,6 +109,7 @@ add_clang_library(clangBasic
   Targets/Lanai.cpp
   Targets/LoongArch.cpp
   Targets/M68k.cpp
+  Targets/MOS.cpp
   Targets/MSP430.cpp
   Targets/Mips.cpp
   Targets/NVPTX.cpp

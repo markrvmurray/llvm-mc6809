@@ -86,6 +86,7 @@ set(HEXAGON hexagon)
 set(X86 i386)
 set(X86_64 x86_64)
 set(LOONGARCH64 loongarch64)
+set(MOS mos)
 set(MIPS32 mips mipsel)
 set(MIPS64 mips64 mips64el)
 set(NVPTX nvptx64)
@@ -109,7 +110,7 @@ endif()
 
 set(ALL_BUILTIN_SUPPORTED_ARCH
   ${X86} ${X86_64} ${AMDGPU} ${ARM32} ${ARM64} ${AVR}
-  ${HEXAGON} ${MIPS32} ${MIPS64} ${NVPTX} ${PPC32} ${PPC64}
+  ${HEXAGON} ${MIPS32} ${MIPS64} ${MOS} ${NVPTX} ${PPC32} ${PPC64}
   ${RISCV32} ${RISCV64} ${S390X} ${SPARC} ${SPARCV9}
   ${WASM32} ${WASM64} ${VE} ${LOONGARCH64} ${M68K})
 

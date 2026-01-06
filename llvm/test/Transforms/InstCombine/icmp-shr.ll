@@ -930,6 +930,46 @@ define i1 @ashr_ult_15(i4 %x) {
   ret i1 %r
 }
 
+define i1 @lshr_eq_0_singleuse(i8 %x) {
+; CHECK-LABEL: @lshr_eq_0_singleuse(
+; CHECK-NEXT:    [[C:%.*]] = icmp ult i8 [[X:%.*]], 4
+; CHECK-NEXT:    ret i1 [[C]]
+;
+  %s = lshr i8 %x, 2
+  %c = icmp eq i8 %s, 0
+  ret i1 %c
+}
+
+define i1 @lshr_ne_0_singleuse(i8 %x) {
+; CHECK-LABEL: @lshr_ne_0_singleuse(
+; CHECK-NEXT:    [[C:%.*]] = icmp ugt i8 [[X:%.*]], 3
+; CHECK-NEXT:    ret i1 [[C]]
+;
+  %s = lshr i8 %x, 2
+  %c = icmp ne i8 %s, 0
+  ret i1 %c
+}
+
+define i1 @ashr_eq_0_singleuse(i8 %x) {
+; CHECK-LABEL: @ashr_eq_0_singleuse(
+; CHECK-NEXT:    [[C:%.*]] = icmp ult i8 [[X:%.*]], 4
+; CHECK-NEXT:    ret i1 [[C]]
+;
+  %s = ashr i8 %x, 2
+  %c = icmp eq i8 %s, 0
+  ret i1 %c
+}
+
+define i1 @ashr_ne_0_singleuse(i8 %x) {
+; CHECK-LABEL: @ashr_ne_0_singleuse(
+; CHECK-NEXT:    [[C:%.*]] = icmp ugt i8 [[X:%.*]], 3
+; CHECK-NEXT:    ret i1 [[C]]
+;
+  %s = ashr i8 %x, 2
+  %c = icmp ne i8 %s, 0
+  ret i1 %c
+}
+
 define i1 @lshr_eq_0_multiuse(i8 %x) {
 ; CHECK-LABEL: @lshr_eq_0_multiuse(
 ; CHECK-NEXT:    [[S:%.*]] = lshr i8 [[X:%.*]], 2

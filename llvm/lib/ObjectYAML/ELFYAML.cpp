@@ -357,6 +357,7 @@ void ScalarEnumerationTraits<ELFYAML::ELF_EM>::enumeration(
   ECase(EM_VE);
   ECase(EM_CSKY);
   ECase(EM_LOONGARCH);
+  ECase(EM_MOS);
   ECase(EM_INTELGT);
 #undef ECase
   IO.enumFallback<Hex16>(Value);
@@ -844,6 +845,9 @@ void ScalarBitSetTraits<ELFYAML::ELF_SHF>::bitset(IO &IO,
   case ELF::EM_X86_64:
     BCase(SHF_X86_64_LARGE);
     break;
+  case ELF::EM_MOS:
+    BCase(SHF_MOS_ZEROPAGE);
+    break;
   default:
     // Nothing to do.
     break;
@@ -982,6 +986,9 @@ void ScalarEnumerationTraits<ELFYAML::ELF_REL>::enumeration(
     break;
   case ELF::EM_LOONGARCH:
 #include "llvm/BinaryFormat/ELFRelocs/LoongArch.def"
+    break;
+  case ELF::EM_MOS:
+#include "llvm/BinaryFormat/ELFRelocs/MOS.def"
     break;
   case ELF::EM_XTENSA:
 #include "llvm/BinaryFormat/ELFRelocs/Xtensa.def"
@@ -1340,6 +1347,8 @@ struct NormalizedOther {
       Map["STO_AARCH64_VARIANT_PCS"] = ELF::STO_AARCH64_VARIANT_PCS;
     if (EMachine == ELF::EM_RISCV)
       Map["STO_RISCV_VARIANT_CC"] = ELF::STO_RISCV_VARIANT_CC;
+    if (EMachine == ELF::EM_MOS)
+      Map["STO_MOS_ZEROPAGE"] = ELF::STO_MOS_ZEROPAGE;
     return Map;
   }
 

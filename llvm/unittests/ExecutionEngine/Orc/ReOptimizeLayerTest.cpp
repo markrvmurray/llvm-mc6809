@@ -34,9 +34,10 @@ public:
 
 protected:
   void SetUp() override {
+    // Quarantine this test on llvm-mos
+    GTEST_SKIP();
 
     OrcNativeTarget::initialize();
-
     auto JTMB = JITTargetMachineBuilder::detectHost();
     // Bail out if we can not detect the host.
     if (!JTMB) {

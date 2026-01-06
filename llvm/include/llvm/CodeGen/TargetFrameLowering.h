@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+
 #ifndef LLVM_CODEGEN_TARGETFRAMELOWERING_H
 #define LLVM_CODEGEN_TARGETFRAMELOWERING_H
 
@@ -33,6 +34,8 @@ enum Value {
   ScalableVector = 2,
   WasmLocal = 3,
   ScalablePredicateVector = 4,
+  MosStatic = 5,
+  MosZeroPage = 6,
   NoAlloc = 255
 };
 }

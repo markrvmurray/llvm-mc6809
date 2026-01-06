@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/EvaluatedExprVisitor.h"
 #include "clang/Basic/TargetInfo.h"
@@ -355,6 +356,15 @@ static Attr *handleUnlikely(Sema &S, Stmt *St, const ParsedAttr &A,
     S.Diag(A.getLoc(), diag::ext_cxx20_attr) << A << Range;
 
   return ::new (S.Context) UnlikelyAttr(S.Context, A);
+}
+
+static Attr *handleLeaf(Sema &S, Stmt *St, const ParsedAttr &A,
+                            SourceRange Range) {
+
+  if (!S.getLangOpts().CPlusPlus20 && A.isCXX11Attribute() && !A.getScopeName())
+    S.Diag(A.getLoc(), diag::ext_cxx20_attr) << A << Range;
+
+  return ::new (S.Context) LeafAttr(S.Context, A);
 }
 
 CodeAlignAttr *Sema::BuildCodeAlignAttr(const AttributeCommonInfo &CI,
@@ -714,6 +724,8 @@ static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
     return handleLikely(S, St, A, Range);
   case ParsedAttr::AT_Unlikely:
     return handleUnlikely(S, St, A, Range);
+  case ParsedAttr::AT_Leaf:
+    return handleLeaf(S, St, A, Range);
   case ParsedAttr::AT_CodeAlign:
     return handleCodeAlignAttr(S, St, A);
   case ParsedAttr::AT_MSConstexpr:

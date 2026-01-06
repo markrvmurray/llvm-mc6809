@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+
 #ifndef LLVM_CODEGEN_TARGETINSTRINFO_H
 #define LLVM_CODEGEN_TARGETINSTRINFO_H
 
@@ -1271,6 +1272,12 @@ public:
                                   MachineInstr &LoadMI,
                                   LiveIntervals *LIS = nullptr) const;
 
+  // If the COPY instruction in MI can be folded to a stack operation, return
+  // the register class to use.
+  virtual const TargetRegisterClass *canFoldCopy(const MachineInstr &MI,
+                                                 const TargetInstrInfo &TII,
+                                                 unsigned FoldIdx) const;
+
   /// This function defines the logic to lower COPY instruction to
   /// target specific instruction(s).
   void lowerCopy(MachineInstr *MI, const TargetRegisterInfo *TRI) const;
@@ -2363,6 +2370,25 @@ public:
 
     llvm_unreachable("impossible call instruction");
   }
+
+  virtual bool shouldOverlapInterval(const MachineInstr &MI) const {
+    return true;
+  }
+
+  /// Returns true if the operand can have more than TiedMax tied operands, and
+  /// the logic for determining tied operands is custom.
+  virtual bool hasCustomTiedOperands(unsigned Opcode) const {
+    return false;
+  }
+
+  /// For an instruction where hasCustomTiedOperands(), implement
+  /// MachinInstr.findTiedOperandIdx().
+  virtual unsigned findCustomTiedOperandIdx(const MachineInstr &MI,
+                                            unsigned OpIdx) const {
+    llvm_unreachable("target did not implement");
+  }
+
+  virtual bool shouldRematPhysRegCopy() const { return true; }
 
   /// Return the uniformity behavior of the given instruction.
   virtual InstructionUniformity

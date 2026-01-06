@@ -78,10 +78,12 @@ def ExceptionModelIsSjLj : RuntimeLibcallPredicate<
 //--------------------------------------------------------------------
 
 // Integer
-foreach IntTy = ["I16", "I32", "I64", "I128"] in {
+foreach IntTy = ["I8", "I16", "I32", "I64", "I128"] in {
   def SHL_#IntTy : RuntimeLibcall;
   def SRL_#IntTy : RuntimeLibcall;
   def SRA_#IntTy : RuntimeLibcall;
+  def ROTL_#IntTy : RuntimeLibcall;
+  def ROTR_#IntTy : RuntimeLibcall;
 }
 
 foreach IntTy = ["I8", "I16", "I32", "I64", "I128"] in {
@@ -105,9 +107,10 @@ foreach IntTy = ["I32", "I64" ] in {
   def NEG_#IntTy : RuntimeLibcall;
 }
 
-foreach IntTy = ["I32", "I64", "I128"] in {
+foreach IntTy = ["I8", "I16", "I32", "I64", "I128"] in {
   def CTLZ_#IntTy : RuntimeLibcall;
   def CTPOP_#IntTy : RuntimeLibcall;
+  def BSWAP_#IntTy : RuntimeLibcall;
 }
 
 foreach FPTy = ["F32", "F64", "F80", "F128", "PPCF128"] in {
@@ -3506,6 +3509,60 @@ def WasmSystemLibrary
                              __small_sprintf,
                              __small_fprintf), isOSEmscripten>,
            __stack_chk_fail, __stack_chk_guard)>;
+
+//===----------------------------------------------------------------------===//
+// MOS Runtime Libcalls
+//===----------------------------------------------------------------------===//
+
+def __divmoddi4 : RuntimeLibcallImpl<SDIVREM_I64>;
+def __udivmoddi4 : RuntimeLibcallImpl<UDIVREM_I64>;
+
+def __ashlqi3 : RuntimeLibcallImpl<SHL_I8>;
+def __lshrqi3 : RuntimeLibcallImpl<SRL_I8>;
+def __ashrqi3 : RuntimeLibcallImpl<SRA_I8>;
+
+def __rotlqi3 : RuntimeLibcallImpl<ROTL_I8>;
+def __rotlhi3 : RuntimeLibcallImpl<ROTL_I16>;
+def __rotlsi3 : RuntimeLibcallImpl<ROTL_I32>;
+def __rotldi3 : RuntimeLibcallImpl<ROTL_I64>;
+def __rotlti3 : RuntimeLibcallImpl<ROTL_I128>;
+
+def __rotrqi3 : RuntimeLibcallImpl<ROTR_I8>;
+def __rotrhi3 : RuntimeLibcallImpl<ROTR_I16>;
+def __rotrsi3 : RuntimeLibcallImpl<ROTR_I32>;
+def __rotrdi3 : RuntimeLibcallImpl<ROTR_I64>;
+def __rotrti3 : RuntimeLibcallImpl<ROTR_I128>;
+
+def __clzqi2 : RuntimeLibcallImpl<CTLZ_I8>;
+def __clzhi2 : RuntimeLibcallImpl<CTLZ_I16>;
+
+def __bswapqi2 : RuntimeLibcallImpl<BSWAP_I8>;
+def __bswaphi2 : RuntimeLibcallImpl<BSWAP_I16>;
+def __bswapsi2 : RuntimeLibcallImpl<BSWAP_I32>;
+def __bswapdi2 : RuntimeLibcallImpl<BSWAP_I64>;
+def __bswapti2 : RuntimeLibcallImpl<BSWAP_I128>;
+
+// The memset intrinsic takes an char, while the C memset takes an int. These
+// are different in the MOS calling convention, since arguments are not
+// automatically promoted to int. "memset" is the C version, and "__memset" is
+// the intrinsic version.
+def __memset : RuntimeLibcallImpl<MEMSET>;
+
+def isMOS : RuntimeLibcallPredicate<"TT.getArch() == Triple::mos">;
+
+def MOSSystemLibrary
+    : SystemRuntimeLibrary<
+          isMOS,
+          (add (sub DefaultRuntimeLibcallImpls, memset),
+          __ashlqi3, __lshrqi3, __ashrqi3,
+          __rotlqi3, __rotlhi3, __rotlsi3, __rotldi3, __rotlti3,
+          __rotrqi3, __rotrhi3, __rotrsi3, __rotrdi3, __rotrti3,
+          __clzqi2, __clzhi2,
+          __bswapqi2, __bswaphi2, __bswapsi2, __bswapdi2, __bswapti2,
+          __udivmodqi4, __udivmodhi4, __udivmodsi4, __udivmoddi4, 
+          __divmodqi4, __divmodhi4, __divmodsi4, __divmoddi4, 
+          __memset,
+          abort)>;
 
 //===----------------------------------------------------------------------===//
 // Legacy Default Runtime Libcalls

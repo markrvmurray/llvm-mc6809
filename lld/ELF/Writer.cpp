@@ -26,12 +26,16 @@
 #include "lld/Common/Filesystem.h"
 #include "lld/Common/Strings.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Support/BLAKE3.h"
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Parallel.h"
 #include "llvm/Support/RandomNumberGenerator.h"
 #include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/xxhash.h"
+#include <algorithm>
 #include <climits>
 
 #define DEBUG_TYPE "lld"
@@ -80,6 +84,7 @@ private:
   void writeHeader();
   void writeSections();
   void writeSectionsBinary();
+  void writeCustomOutputFormat();
   void writeBuildId();
 
   Ctx &ctx;
@@ -362,8 +367,17 @@ template <class ELFT> void Writer<ELFT>::run() {
   if (errCount(ctx))
     return;
 
+  StringRef customOutputFile = ctx.arg.outputFile;
   {
     llvm::TimeTraceScope timeScope("Write output file");
+    auto restoreOutputFile =
+        llvm::scope_exit([&]() { ctx.arg.outputFile = customOutputFile; });
+    SmallString<64> outputFile = customOutputFile;
+    if (!ctx.script->outputFormat.empty()) {
+      outputFile += ".elf";
+      ctx.arg.outputFile = outputFile;
+    }
+
     // Write the result down to a file.
     openFile();
     if (errCount(ctx))
@@ -393,6 +407,11 @@ template <class ELFT> void Writer<ELFT>::run() {
     if (!ctx.arg.cmseOutputLib.empty())
       writeARMCmseImportLib<ELFT>(ctx);
   }
+
+  writeCustomOutputFormat();
+
+  if (ctx.xo65Enclave)
+    ctx.xo65Enclave->postWrite();
 }
 
 template <class ELFT, class RelTy>
@@ -799,6 +818,10 @@ unsigned elf::getSectionRank(Ctx &ctx, OutputSection &osec) {
     if (name == ".sdata" || (osec.type == SHT_NOBITS && name != ".sbss"))
       rank |= 1;
   }
+
+  if (ctx.arg.emachine == EM_MOS)
+    if (osec.name == ".zp" || osec.name.starts_with(".zp."))
+      rank |= 1;
 
   return rank;
 }
@@ -1544,9 +1567,16 @@ template <class ELFT> void Writer<ELFT>::finalizeAddressDependentContent() {
   // the final addresses are unavailable.
   uint32_t pass = 0, assignPasses = 0;
   while (!ctx.arg.relocatable) {
-    bool changed = ctx.target->needsThunks
-                       ? tc.createThunks(pass, ctx.outputSections)
-                       : ctx.target->relaxOnce(pass);
+    bool changed = false;
+    if (ctx.xo65Enclave) {
+      changed |= ctx.xo65Enclave->link();
+      if (changed)
+        ctx.script->assignAddresses();
+    }
+
+    changed |= ctx.target->needsThunks
+                   ? tc.createThunks(pass, ctx.outputSections)
+                   : ctx.target->relaxOnce(pass);
     bool spilled = ctx.script->spillSections();
     changed |= spilled;
     ++pass;
@@ -2952,6 +2982,122 @@ template <class ELFT> void Writer<ELFT>::writeSectionsBinary() {
   for (OutputSection *sec : ctx.outputSections)
     if (sec->flags & SHF_ALLOC)
       sec->writeTo<ELFT>(ctx, ctx.bufferStart + sec->offset, tg);
+}
+
+template <class ELFT> void Writer<ELFT>::writeCustomOutputFormat() {
+  if (ctx.script->outputFormat.empty())
+    return;
+
+  llvm::TimeTraceScope timeScope("Write custom output file");
+
+  std::error_code ec;
+  raw_fd_ostream os(ctx.arg.outputFile, ec);
+  if (ec) {
+    error("cannot open " + ctx.arg.outputFile + ": " + ec.message());
+    return;
+  }
+
+  for (SectionCommand *command : ctx.script->outputFormat) {
+    if (ByteCommand *data = dyn_cast<ByteCommand>(command)) {
+      uint64_t value = data->expression().getValue();
+      char buf[8];
+      switch (data->size) {
+      case 1:
+        buf[0] = value;
+        break;
+      case 2:
+        write16(ctx, buf, value);
+        break;
+      case 4:
+        write32(ctx, buf, value);
+        break;
+      case 8:
+        write64(ctx, buf, value);
+        break;
+      default:
+        llvm_unreachable("unsupported Size argument");
+      }
+      os.write(buf, data->size);
+    } else if (MemoryRegionCommand *mem =
+                  dyn_cast<MemoryRegionCommand>(command)) {
+      uint64_t regionBegin = mem->memRegion->origin().getValue();
+      uint64_t regionLength = mem->memRegion->length().getValue();
+      uint64_t regionEnd = regionBegin + regionLength;
+      auto buf = WritableMemoryBuffer::getNewMemBuffer(regionLength);
+
+      // The last LMA to write. This is maintained as the high watermark of all
+      // LMAs collected so far.
+      uint64_t regionAreaEnd = mem->full ? regionEnd : regionBegin;
+
+      {
+        parallel::TaskGroup tg;
+        // Collect each output section that LMA overlaps with the memory region
+        // and write it to the corresponding portion of the buffer.
+        for (OutputSection *sec : ctx.outputSections) {
+          if (!(sec->flags & SHF_ALLOC) || sec->type != SHT_PROGBITS ||
+              !sec->size)
+            continue;
+
+          uint64_t lmaBegin = sec->getLMA();
+          uint64_t lmaEnd = lmaBegin + sec->size;
+
+          // Skip the section if it doesn't LMA overlap with the region.
+          if (lmaEnd <= regionBegin || lmaBegin >= regionEnd)
+            continue;
+
+          // If the section is wholly contained by the region, just write it
+          // directly to the buffer.
+          if (lmaBegin >= regionBegin && lmaEnd <= regionEnd) {
+            regionAreaEnd = std::max(regionAreaEnd, lmaEnd);
+            sec->writeTo<ELFT>(
+                ctx,
+                reinterpret_cast<uint8_t *>(buf->getBufferStart() +
+                                            (lmaBegin - regionBegin)),
+                tg);
+            continue;
+          }
+
+          // Otherwise, collect the whole output section into a separate buffer.
+          auto secBuf = WritableMemoryBuffer::getNewMemBuffer(sec->size);
+          {
+            parallel::TaskGroup tg;
+            sec->writeTo<ELFT>(
+                ctx, reinterpret_cast<uint8_t *>(secBuf->getBufferStart()), tg);
+          }
+
+          // Trim the output section against the memory region.
+          uint64_t copyBegin = 0;
+          if (lmaBegin < regionBegin)
+            copyBegin += regionBegin - lmaBegin;
+          uint64_t copyEnd = sec->size;
+          if (lmaEnd > regionEnd)
+            copyEnd -= lmaEnd - regionEnd;
+
+          // Copy the trimmed portion of the output section into the region
+          // buffer.
+          memcpy(buf->getBufferStart() + (lmaBegin + copyBegin - regionBegin),
+                  secBuf->getBufferStart() + copyBegin, copyEnd - copyBegin);
+        }
+      }
+
+      uint64_t regionWriteStart = 0;
+      uint64_t regionWriteLength = regionAreaEnd - regionBegin;
+      // Apply additional restrictions, if present.
+      if (mem->start != nullptr) {
+        regionWriteStart = std::min(mem->start().getValue(), regionWriteLength);
+        regionWriteLength -= regionWriteStart;
+      }
+      if (mem->length != nullptr)
+        regionWriteLength = std::min(mem->length().getValue(), regionWriteLength);
+
+      if (regionWriteLength > 0) {
+        os.write(buf->getBufferStart() + regionWriteStart, regionWriteLength);
+      }
+    } else {
+      error("unexpected command type");
+      return;
+    }
+  }
 }
 
 static void fillTrap(std::array<uint8_t, 4> trapInstr, uint8_t *i,

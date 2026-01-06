@@ -637,7 +637,7 @@ public:
   /// for ExternalSymbol operands.
   int64_t getOffset() const {
     assert((isGlobal() || isSymbol() || isMCSymbol() || isCPI() ||
-            isTargetIndex() || isBlockAddress()) &&
+            isTargetIndex() || isBlockAddress() || isFI()) &&
            "Wrong MachineOperand accessor");
     return int64_t(uint64_t(Contents.OffsetedInfo.OffsetHi) << 32) |
            SmallContents.OffsetLo;
@@ -708,7 +708,7 @@ public:
 
   void setOffset(int64_t Offset) {
     assert((isGlobal() || isSymbol() || isMCSymbol() || isCPI() ||
-            isTargetIndex() || isBlockAddress()) &&
+            isTargetIndex() || isBlockAddress() || isFI()) &&
            "Wrong MachineOperand mutator");
     SmallContents.OffsetLo = unsigned(Offset);
     Contents.OffsetedInfo.OffsetHi = int(Offset >> 32);
@@ -804,7 +804,8 @@ public:
   LLVM_ABI void ChangeToMCSymbol(MCSymbol *Sym, unsigned TargetFlags = 0);
 
   /// Replace this operand with a frame index.
-  LLVM_ABI void ChangeToFrameIndex(int Idx, unsigned TargetFlags = 0);
+  LLVM_ABI void ChangeToFrameIndex(int Idx, int64_t Offset = 0,
+                                   unsigned TargetFlags = 0);
 
   /// Replace this operand with a target index.
   LLVM_ABI void ChangeToTargetIndex(unsigned Idx, int64_t Offset,
@@ -880,9 +881,10 @@ public:
     Op.setTargetFlags(TargetFlags);
     return Op;
   }
-  static MachineOperand CreateFI(int Idx) {
+  static MachineOperand CreateFI(int Idx, int64_t Offset = 0) {
     MachineOperand Op(MachineOperand::MO_FrameIndex);
     Op.setIndex(Idx);
+    Op.setOffset(Offset);
     return Op;
   }
   static MachineOperand CreateCPI(unsigned Idx, int Offset,

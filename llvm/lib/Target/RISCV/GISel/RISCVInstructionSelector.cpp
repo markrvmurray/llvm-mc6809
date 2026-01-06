@@ -46,7 +46,7 @@ public:
 
   void setupMF(MachineFunction &MF, GISelValueTracking *VT,
                CodeGenCoverage *CoverageInfo, ProfileSummaryInfo *PSI,
-               BlockFrequencyInfo *BFI) override {
+               BlockFrequencyInfo *BFI, AAResults *AA) override {
     InstructionSelector::setupMF(MF, VT, CoverageInfo, PSI, BFI);
     MRI = &MF.getRegInfo();
   }

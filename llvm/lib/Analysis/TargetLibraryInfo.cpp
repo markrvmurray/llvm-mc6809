@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallString.h"
@@ -141,6 +142,43 @@ static void initializeLibCalls(TargetLibraryInfoImpl &TLI, const Triple &T,
   TLI.setUnavailable(LibFunc_fwrite_unlocked);
   TLI.setUnavailable(LibFunc_fputs_unlocked);
   TLI.setUnavailable(LibFunc_fgets_unlocked);
+
+  if (T.getArch() == Triple::mos) {
+    // The MOS target doesn't come with a standard library yet.
+    TLI.disableAllFunctions();
+    // Freestanding functions are available.
+    TLI.setAvailable(LibFunc_memcpy);
+    TLI.setAvailable(LibFunc_memset);
+
+    // A few other C library functions are also available.
+
+    TLI.setAvailable(LibFunc_printf);
+    TLI.setAvailable(LibFunc_sprintf);
+    TLI.setAvailable(LibFunc_snprintf);
+    TLI.setAvailable(LibFunc_vsnprintf);
+    TLI.setAvailable(LibFunc_vprintf);
+    TLI.setAvailable(LibFunc_putchar);
+    TLI.setAvailable(LibFunc_puts);
+
+    TLI.setAvailable(LibFunc_abs);
+    TLI.setAvailable(LibFunc_labs);
+    TLI.setAvailable(LibFunc_llabs);
+
+    TLI.setAvailable(LibFunc_memchr);
+    TLI.setAvailable(LibFunc_memcmp);
+    TLI.setAvailable(LibFunc_memcpy);
+    TLI.setAvailable(LibFunc_memset);
+    TLI.setAvailable(LibFunc_memmove);
+    TLI.setAvailable(LibFunc_strchr);
+    TLI.setAvailable(LibFunc_strcmp);
+    TLI.setAvailable(LibFunc_strcpy);
+    TLI.setAvailable(LibFunc_strlen);
+    TLI.setAvailable(LibFunc_strncmp);
+    TLI.setAvailable(LibFunc_strncpy);
+    TLI.setAvailable(LibFunc_strrchr);
+
+    return;
+  }
 
   // There is really no runtime library on AMDGPU, apart from
   // __kmpc_alloc/free_shared.

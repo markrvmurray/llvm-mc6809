@@ -1613,6 +1613,10 @@ def : Flag<["-"], "shared-libasan">, Alias<shared_libsan>;
 def : Flag<["-"], "static-libasan">, Alias<static_libsan>;
 def fasm : Flag<["-"], "fasm">, Group<f_Group>;
 
+def fpost_link_tool
+  : Joined<["-"], "fpost-link-tool=">, Group<f_Group>,
+    HelpText<"LLVM-MOS flag to run the given tool on the ELF file after linking.">;
+
 defm assume_unique_vtables : BoolFOption<"assume-unique-vtables",
   CodeGenOpts<"AssumeUniqueVTables">, DefaultTrue,
   PosFlag<SetTrue>,
@@ -3684,6 +3688,16 @@ def fdiagnostics_absolute_paths : Flag<["-"], "fdiagnostics-absolute-paths">, Gr
   Visibility<[ClangOption, CC1Option, CLOption, DXCOption]>,
   HelpText<"Print absolute paths in diagnostics">,
   MarshallingInfoFlag<DiagnosticOpts<"AbsolutePath">>;
+def fstatic_stack : Flag<["-"], "fstatic-stack">, Group<f_Group>,
+  HelpText<"Statically allocates stack frames whenever possible.">;
+def fno_static_stack : Flag<["-"], "fno-static-stack">, Group<f_Group>,
+  HelpText<"Always use a dynamic stack pointer.">;
+def fnonreentrant : Flag<["-"], "fnonreentrant">, Group<f_Group>,
+  Visibility<[ClangOption, CC1Option]>,
+  HelpText<"Assume that at most one invocation of a function can be active simultaneously">;
+def freentrant : Flag<["-"], "freentrant">, Group<f_Group>,
+  Visibility<[ClangOption, CC1Option]>,
+  HelpText<"Use the default reentrant C function semantics">;
 defm diagnostics_show_line_numbers : BoolFOption<"diagnostics-show-line-numbers",
   DiagnosticOpts<"ShowLineNumbers">, DefaultTrue,
   NegFlag<SetFalse, [], [ClangOption, CC1Option],
@@ -6044,6 +6058,10 @@ def mthumb : Flag<["-"], "mthumb">, Group<m_Group>;
 def mtune_EQ : Joined<["-"], "mtune=">, Group<m_Group>,
   Visibility<[ClangOption, FlangOption]>,
   HelpText<"Only supported on AArch64, PowerPC, RISC-V, SPARC, SystemZ, and X86">;
+def mlto_zp_EQ : Joined<["-"], "mlto-zp=">, Group<m_Group>,
+  HelpText<"Allocate a number of bytes of zero page for use by the compiler in LTO.">;
+def mreserve_zp_EQ : Joined<["-"], "mreserve-zp=">, Group<m_Group>,
+  HelpText<"Reserve a number of bytes of zero page from the region allocated to the compiler in LTO">;
 def multi_lib_config : Joined<["-", "--"], "multi-lib-config=">,
   HelpText<"Path to the YAML configuration file to be used for multilib selection">,
   MetaVarName<"<file>">;

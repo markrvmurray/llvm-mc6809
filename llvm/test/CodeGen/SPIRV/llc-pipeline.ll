@@ -1,4 +1,4 @@
-; UNSUPPORTED:expensive_checks
+; UNSUPPORTED:target={{.*}}
 ; RUN:llc -O0 -mtriple=spirv-- -disable-verify -debug-pass=Structure < %s 2>&1 \
 ; RUN:   | FileCheck -match-full-lines -strict-whitespace -check-prefix=SPIRV-O0 %s
 ; RUN:llc -O1 -mtriple=spirv-- -disable-verify -debug-pass=Structure < %s 2>&1 \

@@ -1179,6 +1179,8 @@ void TargetPassConfig::addMachinePasses() {
     addPass(&ShrinkWrapID);
   }
 
+  addPrePEI();
+
   // Prolog/Epilog inserter needs a TargetMachine to instantiate. But only
   // do so if it hasn't been disabled, substituted, or overridden.
   if (!isPassSubstitutedOrOverridden(&PrologEpilogCodeInserterID))

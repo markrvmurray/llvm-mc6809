@@ -13,6 +13,7 @@
 #include "Arch/LoongArch.h"
 #include "Arch/M68k.h"
 #include "Arch/Mips.h"
+#include "Arch/MOS.h"
 #include "Arch/PPC.h"
 #include "Arch/RISCV.h"
 #include "Arch/Sparc.h"
@@ -761,6 +762,9 @@ std::string tools::getCPUName(const Driver &D, const ArgList &Args,
     return std::string(CPUName);
   }
 
+  case llvm::Triple::mos:
+    return mos::getMOSTargetCPU(Args);
+
   case llvm::Triple::nvptx:
   case llvm::Triple::nvptx64:
     if (const Arg *A = Args.getLastArg(options::OPT_march_EQ))
@@ -903,6 +907,9 @@ void tools::getTargetFeatures(const Driver &D, const llvm::Triple &Triple,
   case llvm::Triple::m68k:
     m68k::getM68kTargetFeatures(D, Triple, Args, Features);
     break;
+  case llvm::Triple::mos:
+    mos::getMOSTargetFeatures(D, Args, Features);
+    break;
   case llvm::Triple::msp430:
     msp430::getMSP430TargetFeatures(D, Args, Features);
     break;
@@ -936,7 +943,7 @@ llvm::StringRef tools::getLTOParallelism(const ArgList &Args, const Driver &D) {
 
 // PS4/PS5 uses -ffunction-sections and -fdata-sections by default.
 bool tools::isUseSeparateSections(const llvm::Triple &Triple) {
-  return Triple.isPS();
+  return Triple.isPS() || Triple.isMOS();
 }
 
 bool tools::isTLSDESCEnabled(const ToolChain &TC,
@@ -2566,6 +2573,49 @@ void tools::addX86AlignBranchArgs(const Driver &D, const ArgList &Args,
       addArg("-x86-pad-max-prefix-size=" + Twine(PrefixSize));
     }
   }
+}
+
+void tools::addMOSCodeGenArgs(llvm::opt::ArgStringList &CmdArgs) {
+  // Give machine block placement an accurate cost assessment of branches and
+  // fallthroughs. (By default, it considers unconditional branches cheaper than
+  // taken conditional branches.)
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-force-precise-rotation-cost");
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-jump-inst-cost=6");
+  // Keeping all the blocks of a loop contiguous doesn't matter as much on the
+  // 6502, since there's no instruction cache. It still matters a bit; near
+  // branches are faster.
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-force-loop-cold-block");
+
+  // Never fold control flow into selects; control flow is already the most
+  // efficient way to implement select.
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-phi-node-folding-threshold=0");
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-speculate-blocks=0");
+
+  // The 6502 has no alignment requirements, so this simplifies the ASM backend
+  // and saves space.
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-align-large-globals=false");
+
+  // Spill hoisting can turn a spill that requires no additional virtual
+  // register (say of a GPR), into a spill that does (say of an Imag8). This
+  // would be fine if spill hoisting didn't occur at the absolute very end of
+  // register allocation, leaving no chance to assign the register. Global spill
+  // hoisting doesn't seem like an absolutely essential optimization for now.
+  // When we revisit, we can notify MOSInstrInfo that it's not allowed to
+  // generate vregs here, then use the register scavenger.
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-disable-spill-hoist");
+
+  // Loop strength reduction gives up too easily, but loop quality is absolutely
+  // essential on the 6502. There's far less code to compile, so we can be
+  // pickier.
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-lsr-complexity-limit=10000000");
 }
 
 /// SDLSearch: Search for Static Device Library

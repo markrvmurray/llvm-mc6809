@@ -37,6 +37,7 @@ class AAManager;
 using ModulePassManager = PassManager<Module>;
 
 class Function;
+class GlobalObject;
 class GlobalValue;
 class MachineInstr;
 class MachineModuleInfoWrapperPass;
@@ -337,6 +338,10 @@ public:
     return Options.FunctionSections;
   }
 
+  virtual bool hasNoInitSection() const {
+    return false;
+  }
+
   bool getEnableStaticDataPartitioning() const {
     return Options.EnableStaticDataPartitioning;
   }
@@ -450,6 +455,8 @@ public:
 
   void getNameWithPrefix(SmallVectorImpl<char> &Name, const GlobalValue *GV,
                          Mangler &Mang, bool MayAlwaysUsePrivate = false) const;
+  virtual StringRef getSectionPrefix(const GlobalObject *GO) const { return {}; }
+
   MCSymbol *getSymbol(const GlobalValue *GV) const;
 
   /// The integer bit size to use for SjLj based exception handling.

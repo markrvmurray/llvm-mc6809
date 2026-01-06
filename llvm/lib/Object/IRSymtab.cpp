@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+
 #include "llvm/Object/IRSymtab.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -269,8 +270,10 @@ Error Builder::addSymbol(const ModuleSymbolTable &Msymtab,
   StringRef GVName = GV->getName();
   setStr(Sym.IRName, GVName);
 
-  if (Used.count(GV) || isPreservedName(GVName))
+  if (Used.count(GV))
     Sym.Flags |= 1 << storage::Symbol::FB_used;
+  if (isPreservedName(GVName))
+    Sym.Flags |= 1 << storage::Symbol::FB_preserved;
   if (GV->isThreadLocal())
     Sym.Flags |= 1 << storage::Symbol::FB_tls;
   if (GV->hasGlobalUnnamedAddr())

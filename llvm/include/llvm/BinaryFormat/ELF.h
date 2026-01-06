@@ -325,6 +325,7 @@ enum {
   EM_VE = 251,            // NEC SX-Aurora VE
   EM_CSKY = 252,          // C-SKY 32-bit processor
   EM_LOONGARCH = 258,     // LoongArch
+  EM_MOS = 6502,          // MOS Technologies 65xx
 };
 
 // Object file classes.
@@ -511,6 +512,36 @@ enum : unsigned {
 
   EF_AVR_LINKRELAX_PREPARED = 0x80, // The file is prepared for linker
                                     // relaxation to be applied
+};
+
+// Special values for the st_other field in the symbol table entry for MOS.
+enum {
+  // External symbol is in the zero page.
+  STO_MOS_ZEROPAGE = 0x20
+};
+
+// ELF relocation types for MOS
+enum {
+#include "ELFRelocs/MOS.def"
+};
+
+// https://llvm-mos.org/wiki/ELF_specification
+enum : unsigned {
+  EF_MOS_ARCH_6502 = 0x00000001, // Core NMOS 6502 instruction set, no BCD
+  EF_MOS_ARCH_6502_BCD = 0x00000002, // BCD support, including CLD and SED
+  EF_MOS_ARCH_6502X = 0x00000004, // "Illegal" NMOS 6502 instructions
+  EF_MOS_ARCH_65C02 = 0x00000008, // Core 65C02 instruction set
+  EF_MOS_ARCH_R65C02 = 0x00000010, // Rockwell extensions to 65C02 insns
+  EF_MOS_ARCH_W65C02 = 0x00000020, // WDC extensions to 65C02 insns
+  EF_MOS_ARCH_W65816 = 0x00000100, // 65816 instructions
+  EF_MOS_ARCH_65EL02 = 0x00000200, // 65EL02 instructions
+  EF_MOS_ARCH_65CE02 = 0x00000400,  // 65CE02 instructions
+  EF_MOS_ARCH_HUC6280 = 0x00000800,  // HuC6280 instructions
+  EF_MOS_ARCH_65DTV02 = 0x00001000,  // C64DTV 6502 instructions
+  EF_MOS_ARCH_4510 = 0x00002000,  // CSG 4510 instructions
+  EF_MOS_ARCH_45GS02 = 0x0004000, // 45GS02 instructions
+  EF_MOS_ARCH_SWEET16 = 0x00010000,   // SWEET16 instructions
+  EF_MOS_ARCH_SPC700 = 0x00020000   // SPC700 instructions
 };
 
 // ELF Relocation types for AVR
@@ -1343,7 +1374,10 @@ enum : unsigned {
   SHF_ARM_PURECODE = 0x20000000,
 
   // Section contains only program instructions and no program data.
-  SHF_AARCH64_PURECODE = 0x20000000
+  SHF_AARCH64_PURECODE = 0x20000000,
+
+  // 8-bit addressable section
+  SHF_MOS_ZEROPAGE = 0x10000000
 };
 
 // Section Group Flags

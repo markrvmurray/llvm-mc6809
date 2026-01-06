@@ -79,7 +79,7 @@ public:
                            const RegisterBankInfo &RBI);
   void setupMF(MachineFunction &MF, GISelValueTracking *VT,
                CodeGenCoverage *CoverageInfo, ProfileSummaryInfo *PSI,
-               BlockFrequencyInfo *BFI) override;
+               BlockFrequencyInfo *BFI, AAResults *AA) override;
   // Common selection code. Instruction-specific selection occurs in spvSelect.
   bool select(MachineInstr &I) override;
   static const char *getName() { return DEBUG_TYPE; }
@@ -416,10 +416,10 @@ void SPIRVInstructionSelector::setupMF(MachineFunction &MF,
                                        GISelValueTracking *VT,
                                        CodeGenCoverage *CoverageInfo,
                                        ProfileSummaryInfo *PSI,
-                                       BlockFrequencyInfo *BFI) {
+                                       BlockFrequencyInfo *BFI, AAResults *AA) {
   MRI = &MF.getRegInfo();
   GR.setCurrentFunc(MF);
-  InstructionSelector::setupMF(MF, VT, CoverageInfo, PSI, BFI);
+  InstructionSelector::setupMF(MF, VT, CoverageInfo, PSI, BFI, AA);
 }
 
 // Ensure that register classes correspond to pattern matching rules.

@@ -4637,6 +4637,13 @@ size_t MemtagGlobalDescriptors::getSize() const {
   return createMemtagGlobalDescriptors(ctx, symbols);
 }
 
+XO65Section::XO65Section(Ctx &ctx, const XO65Segment &segment)
+    : SyntheticSection(ctx, segment.sectionName, segment.type, segment.flags,
+                       segment.alignment),
+      segmentName(segment.name), size(segment.size) {}
+
+void XO65Section::writeTo(uint8_t *buf) { memcpy(buf, contents.data(), size); }
+
 static OutputSection *findSection(Ctx &ctx, StringRef name) {
   for (SectionCommand *cmd : ctx.script->sectionCommands)
     if (auto *osd = dyn_cast<OutputDesc>(cmd))

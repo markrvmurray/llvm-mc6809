@@ -498,7 +498,7 @@ static void assignCalleeSavedSpillSlots(MachineFunction &F,
     for (auto &CS : CSI) {
       // If the target has spilled this register to another register or already
       // handled it , we don't need to allocate a stack slot.
-      if (CS.isSpilledToReg())
+      if (CS.isSpilledToReg() || CS.isTargetSpilled())
         continue;
 
       MCRegister Reg = CS.getReg();

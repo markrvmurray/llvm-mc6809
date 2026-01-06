@@ -6,6 +6,7 @@ add_llvm_component_library(LLVMBinaryFormat
   ELF.cpp
   MachO.cpp
   Magic.cpp
+  MOSFlags.cpp
   MsgPackDocument.cpp
   MsgPackDocumentYAML.cpp
   MsgPackReader.cpp

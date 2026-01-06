@@ -326,7 +326,6 @@ Retry:
           << AL;
     // Prevent these from being interpreted as statement attributes later on.
     CXX11Attrs.clear();
-    ProhibitAttributes(GNUAttrs);
     bool msAsm = false;
     Res = ParseAsmStatement(msAsm);
     if (msAsm) return Res;

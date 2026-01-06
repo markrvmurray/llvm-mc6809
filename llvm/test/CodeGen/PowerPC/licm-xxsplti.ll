@@ -81,7 +81,7 @@ define void @_Z3fooPfS_Pi(ptr noalias nocapture noundef %_a, ptr noalias nocaptu
 ; AIX32-NEXT:    lxvwsx 1, 12, 9
 ; AIX32-NEXT:    addic 6, 6, 2
 ; AIX32-NEXT:    addze 11, 11
-; AIX32-NEXT:    xor 0, 6, 7
+; AIX32-NEXT:    xor 0, 7, 6
 ; AIX32-NEXT:    or. 0, 0, 11
 ; AIX32-NEXT:    xxland 1, 1, 0
 ; AIX32-NEXT:    xscvspdpn 1, 1

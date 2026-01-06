@@ -182,6 +182,7 @@ class SemaSYCL;
 class SemaSwift;
 class SemaSystemZ;
 class SemaWasm;
+class SemaMOS;
 class SemaX86;
 class StandardConversionSequence;
 class TemplateArgument;
@@ -1543,6 +1544,11 @@ public:
     return *WasmPtr;
   }
 
+  SemaMOS &MOS() {
+    assert(MOSPtr);
+    return *MOSPtr;
+  }
+
   SemaX86 &X86() {
     assert(X86Ptr);
     return *X86Ptr;
@@ -1592,6 +1598,7 @@ private:
   std::unique_ptr<SemaLoongArch> LoongArchPtr;
   std::unique_ptr<SemaM68k> M68kPtr;
   std::unique_ptr<SemaMIPS> MIPSPtr;
+  std::unique_ptr<SemaMOS> MOSPtr;
   std::unique_ptr<SemaMSP430> MSP430Ptr;
   std::unique_ptr<SemaNVPTX> NVPTXPtr;
   std::unique_ptr<SemaObjC> ObjCPtr;
@@ -4993,6 +5000,9 @@ public:
                                           const IdentifierInfo *Ident);
   MinSizeAttr *mergeMinSizeAttr(Decl *D, const AttributeCommonInfo &CI);
   OptimizeNoneAttr *mergeOptimizeNoneAttr(Decl *D,
+                                          const AttributeCommonInfo &CI);
+  ReentrantAttr *mergeReentrantAttr(Decl *D, const AttributeCommonInfo &CI);
+  NonReentrantAttr *mergeNonReentrantAttr(Decl *D,
                                           const AttributeCommonInfo &CI);
   InternalLinkageAttr *mergeInternalLinkageAttr(Decl *D, const ParsedAttr &AL);
   InternalLinkageAttr *mergeInternalLinkageAttr(Decl *D,

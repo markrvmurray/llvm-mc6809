@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringExtras.h"
@@ -475,9 +476,9 @@ TargetInstrInfo::duplicate(MachineBasicBlock &MBB,
 
 // If the COPY instruction in MI can be folded to a stack operation, return
 // the register class to use.
-static const TargetRegisterClass *canFoldCopy(const MachineInstr &MI,
-                                              const TargetInstrInfo &TII,
-                                              unsigned FoldIdx) {
+const TargetRegisterClass *
+TargetInstrInfo::canFoldCopy(const MachineInstr &MI, const TargetInstrInfo &TII,
+                             unsigned FoldIdx) const {
   assert(TII.isCopyInstr(MI) && "MI must be a COPY instruction");
   if (MI.getNumOperands() != 2)
     return nullptr;

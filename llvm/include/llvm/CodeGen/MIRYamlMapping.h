@@ -11,6 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+
 #ifndef LLVM_CODEGEN_MIRYAMLMAPPING_H
 #define LLVM_CODEGEN_MIRYAMLMAPPING_H
 
@@ -381,6 +382,8 @@ struct ScalarEnumerationTraits<TargetStackID::Value> {
     IO.enumCase(ID, "scalable-predicate-vector",
                 TargetStackID::ScalablePredicateVector);
     IO.enumCase(ID, "wasm-local", TargetStackID::WasmLocal);
+    IO.enumCase(ID, "mos-static", TargetStackID::MosStatic);
+    IO.enumCase(ID, "mos-zero-page", TargetStackID::MosZeroPage);
     IO.enumCase(ID, "noalloc", TargetStackID::NoAlloc);
   }
 };

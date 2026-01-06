@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+
 #ifndef LLVM_CLANG_LIB_CODEGEN_CODEGENFUNCTION_H
 #define LLVM_CLANG_LIB_CODEGEN_CODEGENFUNCTION_H
 
@@ -599,6 +600,9 @@ public:
 
   /// True if the current statement has nomerge attribute.
   bool InNoMergeAttributedStmt = false;
+
+  /// True if the current statement has leaf attribute.
+  bool InLeafAttributedStmt = false;
 
   /// True if the current statement has noinline attribute.
   bool InNoInlineAttributedStmt = false;

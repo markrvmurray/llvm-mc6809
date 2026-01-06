@@ -476,6 +476,22 @@ public:
     return getTLI()->isLegalAddressingMode(DL, AM, Ty, AddrSpace, I);
   }
 
+  bool isLegalAddressingMode(Type *Ty, GlobalValue *BaseGV, int64_t BaseOffset,
+                             bool HasBaseReg, Type *BaseType, int64_t Scale,
+                             Type *ScaleType, unsigned AddrSpace,
+                             Instruction *I = nullptr,
+                             int64_t ScalableOffset = 0) const override {
+    TargetLoweringBase::AddrMode AM;
+    AM.BaseGV = BaseGV;
+    AM.BaseOffs = BaseOffset;
+    AM.HasBaseReg = HasBaseReg;
+    AM.BaseType = BaseType;
+    AM.Scale = Scale;
+    AM.ScaleType = ScaleType;
+    AM.ScalableOffset = ScalableOffset;
+    return getTLI()->isLegalAddressingMode(DL, AM, Ty, AddrSpace, I);
+  }
+
   int64_t getPreferredLargeGEPBaseOffset(int64_t MinOffset, int64_t MaxOffset) {
     return getTLI()->getPreferredLargeGEPBaseOffset(MinOffset, MaxOffset);
   }
@@ -529,13 +545,16 @@ public:
 
   InstructionCost getScalingFactorCost(Type *Ty, GlobalValue *BaseGV,
                                        StackOffset BaseOffset, bool HasBaseReg,
-                                       int64_t Scale,
+                                       Type *BaseType, int64_t Scale,
+                                       Type *ScaleType,
                                        unsigned AddrSpace) const override {
     TargetLoweringBase::AddrMode AM;
     AM.BaseGV = BaseGV;
     AM.BaseOffs = BaseOffset.getFixed();
     AM.HasBaseReg = HasBaseReg;
+    AM.BaseType = BaseType;
     AM.Scale = Scale;
+    AM.ScaleType = ScaleType;
     AM.ScalableOffset = BaseOffset.getScalable();
     if (getTLI()->isLegalAddressingMode(DL, AM, Ty, AddrSpace))
       return 0;
@@ -544,6 +563,14 @@ public:
 
   bool isTruncateFree(Type *Ty1, Type *Ty2) const override {
     return getTLI()->isTruncateFree(Ty1, Ty2);
+  }
+
+  bool isZExtFree(Type *Ty1, Type *Ty2) const override {
+    return getTLI()->isZExtFree(Ty1, Ty2);
+  }
+
+  bool preferNarrowTypes() const override {
+    return getTLI()->preferNarrowTypes();
   }
 
   bool isProfitableToHoist(Instruction *I) const override {
@@ -706,6 +733,7 @@ public:
   }
 
   int getInlinerVectorBonusPercent() const override { return 150; }
+  bool strictInliningCosts() const override { return false; }
 
   void getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
                                TTI::UnrollingPreferences &UP,

@@ -962,7 +962,7 @@ void DwarfCompileUnit::applyConcreteDbgVariableAttributes(const Loc::MMI &MMI,
       Ops.append(Expr->elements_begin(), Expr->elements_end());
     DIExpressionCursor Cursor(Ops);
     DwarfExpr.setMemoryLocationKind();
-    if (const MCSymbol *FrameSymbol = Asm->getFunctionFrameSymbol())
+    if (const MCSymbol *FrameSymbol = Asm->getFunctionFrameSymbol(Fragment.FI))
       addOpAddress(*Loc, FrameSymbol);
     else
       DwarfExpr.addMachineRegExpression(

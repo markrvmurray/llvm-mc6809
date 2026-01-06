@@ -108,6 +108,7 @@ public:
   };
 
   virtual int getInlinerVectorBonusPercent() const { return 150; }
+  virtual bool strictInliningCosts() const { return false; }
 
   virtual InstructionCost getMemcpyCost(const Instruction *I) const {
     return TTI::TCC_Expensive;
@@ -279,6 +280,16 @@ public:
     return !BaseGV && BaseOffset == 0 && (Scale == 0 || Scale == 1);
   }
 
+  virtual bool isLegalAddressingMode(Type *Ty, GlobalValue *BaseGV,
+                                     int64_t BaseOffset, bool HasBaseReg,
+                                     Type *BaseType, int64_t Scale,
+                                     Type *ScaleType, unsigned AddrSpace,
+                                     Instruction *I = nullptr,
+                                     int64_t ScalableOffset = 0) const {
+    return isLegalAddressingMode(Ty, BaseGV, BaseOffset, HasBaseReg, Scale,
+                                 AddrSpace, I, ScalableOffset);
+  }
+
   virtual bool isLSRCostLess(const TTI::LSRCost &C1,
                              const TTI::LSRCost &C2) const {
     return std::tie(C1.NumRegs, C1.AddRecCost, C1.NumIVMuls, C1.NumBaseAdds,
@@ -401,12 +412,13 @@ public:
 
   virtual InstructionCost getScalingFactorCost(Type *Ty, GlobalValue *BaseGV,
                                                StackOffset BaseOffset,
-                                               bool HasBaseReg, int64_t Scale,
+                                               bool HasBaseReg, Type *BaseType,
+                                               int64_t Scale, Type *ScaleType,
                                                unsigned AddrSpace) const {
     // Guess that all legal addressing mode are free.
     if (isLegalAddressingMode(Ty, BaseGV, BaseOffset.getFixed(), HasBaseReg,
-                              Scale, AddrSpace, /*I=*/nullptr,
-                              BaseOffset.getScalable()))
+                              BaseType, Scale, ScaleType, AddrSpace,
+                              /*I=*/nullptr, BaseOffset.getScalable()))
       return 0;
     return InstructionCost::getInvalid();
   }
@@ -414,6 +426,10 @@ public:
   virtual bool LSRWithInstrQueries() const { return false; }
 
   virtual bool isTruncateFree(Type *Ty1, Type *Ty2) const { return false; }
+
+  virtual bool isZExtFree(Type *Ty1, Type *Ty2) const { return false; }
+
+  virtual bool preferNarrowTypes() const { return false; }
 
   virtual bool isProfitableToHoist(Instruction *I) const { return true; }
 
@@ -1123,6 +1139,8 @@ public:
         /* EVLParamStrategy */ TargetTransformInfo::VPLegalization::Discard,
         /* OperatorStrategy */ TargetTransformInfo::VPLegalization::Convert);
   }
+
+  virtual bool allowIllegalIntegerIV() const { return false; }
 
   virtual bool hasArmWideBranch(bool) const { return false; }
 
