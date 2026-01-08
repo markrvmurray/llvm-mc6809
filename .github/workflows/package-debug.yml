@@ -2,8 +2,9 @@ name: Debug packaging
 concurrency: compiler-package-debug
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 0 * * *'
+  push:
+    ignore-forks: true
+    branches: [main]
 jobs:
   package:
     if: github.repository_owner == 'llvm-mos'
