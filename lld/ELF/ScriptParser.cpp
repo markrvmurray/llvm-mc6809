@@ -181,6 +181,7 @@ static ExprValue bitOr(LinkerScript &s, ExprValue a, ExprValue b) {
 }
 
 void ScriptParser::readDynamicList() {
+  SaveAndRestore saved(lexState, State::VersionNode);
   expect("{");
   SmallVector<SymbolVersion, 0> locals;
   SmallVector<SymbolVersion, 0> globals;
@@ -209,6 +210,7 @@ void ScriptParser::readVersionScript() {
 }
 
 void ScriptParser::readVersionScriptCommand() {
+  SaveAndRestore saved(lexState, State::VersionNode);
   if (consume("{")) {
     readAnonymousDeclaration();
     return;
@@ -1811,11 +1813,11 @@ ScriptParser::readSymbols() {
       SmallVector<SymbolVersion, 0> ext = readVersionExtern();
       v->insert(v->end(), ext.begin(), ext.end());
     } else {
-      if (tok == "local:" || (tok == "local" && consume(":"))) {
+      if (tok == "local" && consume(":")) {
         v = &locals;
         continue;
       }
-      if (tok == "global:" || (tok == "global" && consume(":"))) {
+      if (tok == "global" && consume(":")) {
         v = &globals;
         continue;
       }
