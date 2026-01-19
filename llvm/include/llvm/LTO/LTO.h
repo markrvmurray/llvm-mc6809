@@ -195,6 +195,8 @@ public:
 
   // Returns the only BitcodeModule from InputFile.
   LLVM_ABI BitcodeModule &getSingleBitcodeModule();
+  // Returns the primary BitcodeModule from InputFile.
+  LLVM_ABI BitcodeModule &getPrimaryBitcodeModule();
   // Returns the memory buffer reference for this input file.
   MemoryBufferRef getFileBuffer() const { return MbRef; }
   // Returns true if this input file is a member of an archive.
@@ -444,6 +446,13 @@ public:
   LLVM_ABI static SmallVector<const char *>
   getRuntimeLibcallSymbols(const Triple &TT);
 
+protected:
+  // Called at the start of run().
+  virtual Error handleArchiveInputs() { return Error::success(); }
+
+  // Called before returning from run().
+  virtual void cleanup() {}
+
 private:
   Config Conf;
 
@@ -623,8 +632,6 @@ public:
   addInput(std::unique_ptr<lto::InputFile> InputPtr) {
     return std::shared_ptr<lto::InputFile>(InputPtr.release());
   }
-
-  virtual llvm::Error handleArchiveInputs() { return llvm::Error::success(); }
 };
 
 /// The resolution for a symbol. The linker must provide a SymbolResolution for

@@ -446,8 +446,9 @@ bool MOSLegalizerInfo::legalizeIntrinsic(LegalizerHelper &Helper,
     Args.push_back({FI->getOperand(0).getReg(), PtrTy, 1}); // output pointer
 
     LostDebugLocObserver LocObserver("");
-    if (!createLibcall(Builder, Libcall, {MI.getOperand(0).getReg(), HLTy, 0},
-                       Args, LocObserver))
+    if (Helper.createLibcall(Libcall, {MI.getOperand(0).getReg(), HLTy, 0},
+                             Args, LocObserver) !=
+        LegalizerHelper::LegalizeResult::Legalized)
       return false;
 
     // Load the integer part from the stack temporary
@@ -769,7 +770,7 @@ bool MOSLegalizerInfo::legalizeDivRem(LegalizerHelper &Helper,
   LLT Ty = MRI.getType(MI.getOperand(0).getReg());
   auto &Ctx = MI.getMF()->getFunction().getContext();
 
-  auto Libcall = getRTLibDesc(MI.getOpcode(), Ty.getSizeInBits());
+  auto Libcall = Helper.getRTLibDesc(MI.getOpcode(), Ty.getSizeInBits());
 
   Type *HLTy = IntegerType::get(Ctx, Ty.getSizeInBits());
 
@@ -784,8 +785,9 @@ bool MOSLegalizerInfo::legalizeDivRem(LegalizerHelper &Helper,
   Type *PtrTy = PointerType::get(Ctx, 0);
   Args.push_back({FI->getOperand(0).getReg(), PtrTy, 2});
 
-  if (!createLibcall(Helper.MIRBuilder, Libcall,
-                     {MI.getOperand(0).getReg(), HLTy, 0}, Args, LocObserver))
+  if (Helper.createLibcall(Libcall, {MI.getOperand(0).getReg(), HLTy, 0}, Args,
+                           LocObserver) !=
+      LegalizerHelper::LegalizeResult::Legalized)
     return false;
 
   Helper.MIRBuilder.buildLoad(
@@ -1079,7 +1081,7 @@ bool MOSLegalizerInfo::shiftRotateLibcall(
   unsigned Size = MRI.getType(MI.getOperand(0).getReg()).getSizeInBits();
   auto &Ctx = MI.getMF()->getFunction().getContext();
 
-  auto Libcall = getRTLibDesc(MI.getOpcode(), Size);
+  auto Libcall = Helper.getRTLibDesc(MI.getOpcode(), Size);
 
   Type *HLTy = IntegerType::get(Ctx, Size);
   Type *HLAmtTy = IntegerType::get(Ctx, 8);
@@ -1087,8 +1089,9 @@ bool MOSLegalizerInfo::shiftRotateLibcall(
   SmallVector<CallLowering::ArgInfo, 3> Args;
   Args.push_back({MI.getOperand(1).getReg(), HLTy, 0});
   Args.push_back({MI.getOperand(2).getReg(), HLAmtTy, 1});
-  if (!createLibcall(Helper.MIRBuilder, Libcall,
-                     {MI.getOperand(0).getReg(), HLTy, 0}, Args, LocObserver))
+  if (Helper.createLibcall(Libcall, {MI.getOperand(0).getReg(), HLTy, 0}, Args,
+                           LocObserver) !=
+      LegalizerHelper::LegalizeResult::Legalized)
     return false;
 
   MI.eraseFromParent();
@@ -1990,7 +1993,7 @@ bool MOSLegalizerInfo::legalizeMemOp(LegalizerHelper &Helper,
   }
 
   // Try emitting a libcall.
-  Result = createMemLibcall(Builder, MRI, MI, LocObserver);
+  Result = Helper.createMemLibcall(MRI, MI, LocObserver);
   if (Result == LegalizerHelper::Legalized) {
     MI.eraseFromParent();
     return true;
@@ -2277,8 +2280,8 @@ bool MOSLegalizerInfo::legalizeTrap(LegalizerHelper &Helper,
                                     MachineInstr &MI) const {
   auto *RetTy = Type::getVoidTy(MI.getMF()->getFunction().getContext());
   LostDebugLocObserver LocObserver("");
-  if (!createLibcall(Helper.MIRBuilder, RTLIB::ABORT, {{}, RetTy, 0}, {},
-                     LocObserver))
+  if (Helper.createLibcall(RTLIB::ABORT, {{}, RetTy, 0}, {}, LocObserver) !=
+      LegalizerHelper::LegalizeResult::Legalized)
     return false;
   MI.eraseFromParent();
   return true;
@@ -2391,10 +2394,10 @@ bool MOSLegalizerInfo::legalizeFCmp(LegalizerHelper &Helper,
   for (auto Libcall : Libcalls) {
     auto LibcallResult = MRI.createGenericVirtualRegister(LLT::scalar(32));
     auto Status =
-        createLibcall(Builder, Libcall.LibcallID, {LibcallResult, RetTy, 0},
-                      {{MI.getOperand(2).getReg(), ArgTy, 0},
-                       {MI.getOperand(3).getReg(), ArgTy, 0}},
-                      LocObserver);
+        Helper.createLibcall(Libcall.LibcallID, {LibcallResult, RetTy, 0},
+                             {{MI.getOperand(2).getReg(), ArgTy, 0},
+                              {MI.getOperand(3).getReg(), ArgTy, 0}},
+                             LocObserver);
 
     if (Status != LegalizerHelper::Legalized)
       return false;

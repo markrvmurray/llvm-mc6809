@@ -822,7 +822,7 @@ void MOSInstrInfo::storeRegToStackSlot(
 void MOSInstrInfo::loadRegFromStackSlot(
     MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, Register DestReg,
     int FrameIndex, const TargetRegisterClass *RC, Register VReg,
-    MachineInstr::MIFlag Flags) const {
+    unsigned /*SubReg*/, MachineInstr::MIFlag Flags) const {
   loadStoreRegStackSlot(MBB, MI, DestReg, false, FrameIndex, RC, Flags,
                         /*IsLoad=*/true);
 }
