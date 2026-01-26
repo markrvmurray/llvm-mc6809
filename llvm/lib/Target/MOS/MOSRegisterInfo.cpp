@@ -367,7 +367,7 @@ void MOSRegisterInfo::expandAddrLostk(MachineBasicBlock::iterator MI) const {
                      .add(VDef)
                      .addUse(A)
                      .addImm(Offset)
-                     .addUse(CDef.getReg(), 0, CDef.getSubReg());
+                     .addUse(CDef.getReg(), RegState{}, CDef.getSubReg());
     Instr->getOperand(2).setIsDead();
     Builder.buildInstr(MOS::COPY).add(Dst).addUse(A);
   }
@@ -440,7 +440,7 @@ void MOSRegisterInfo::expandLDSTStk(MachineBasicBlock::iterator MI) const {
 
     auto Lo = Builder.buildInstr(MOS::AddrLostk)
                   .addDef(TRI.getSubReg(NewBase, MOS::sublo))
-                  .addDef(P, /*Flags=*/0, MOS::subcarry)
+                  .addDef(P, RegState{}, MOS::subcarry)
                   .addDef(P, RegState::Dead, MOS::subv)
                   .add(MI->getOperand(2))
                   .add(MI->getOperand(3));
@@ -450,7 +450,7 @@ void MOSRegisterInfo::expandLDSTStk(MachineBasicBlock::iterator MI) const {
                   .addDef(P, RegState::Dead, MOS::subv)
                   .add(MI->getOperand(2))
                   .add(MI->getOperand(3))
-                  .addUse(P, /*Flags=*/0, MOS::subcarry)
+                  .addUse(P, RegState{}, MOS::subcarry)
                   .addUse(NewBase, RegState::Implicit);
     MI->getOperand(2).setReg(NewBase);
     MI->getOperand(3).setImm(0);
@@ -531,7 +531,7 @@ void MOSRegisterInfo::expandLDSTStk(MachineBasicBlock::iterator MI) const {
   // Transfer the loaded value out of A (if applicable).
   if (IsLoad && Loc != A) {
     if (Loc == MOS::C || Loc == MOS::V)
-      Builder.buildInstr(MOS::COPY, {Loc}, {}).addUse(A, 0, MOS::sublsb);
+      Builder.buildInstr(MOS::COPY, {Loc}, {}).addUse(A, RegState{}, MOS::sublsb);
     else {
       assert(MOS::Anyi8RegClass.contains(Loc));
       Builder.buildCopy(Loc, A);

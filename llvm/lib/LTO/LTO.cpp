@@ -598,6 +598,11 @@ Expected<std::unique_ptr<InputFile>> InputFile::create(MemoryBufferRef Object) {
   return std::move(File);
 }
 
+bool InputFile::Symbol::isLibcall(
+    const RTLIB::RuntimeLibcallsInfo &Libcalls) const {
+  return Libcalls.getSupportedLibcallImpl(IRName) != RTLIB::Unsupported;
+}
+
 StringRef InputFile::getName() const {
   return Mods[0].getModuleIdentifier();
 }
@@ -643,11 +648,13 @@ LTO::~LTO() = default;
 // their partitions.
 void LTO::addModuleToGlobalRes(ArrayRef<InputFile::Symbol> Syms,
                                ArrayRef<SymbolResolution> Res,
-                               unsigned Partition, bool InSummary) {
+                               unsigned Partition, bool InSummary,
+                               const Triple &TT) {
   llvm::TimeTraceScope timeScope("LTO add module to global resolution");
   auto *ResI = Res.begin();
   auto *ResE = Res.end();
   (void)ResE;
+  RTLIB::RuntimeLibcallsInfo Libcalls(TT);
   for (const InputFile::Symbol &Sym : Syms) {
     assert(ResI != ResE);
     SymbolResolution Res = *ResI++;
@@ -690,14 +697,17 @@ void LTO::addModuleToGlobalRes(ArrayRef<InputFile::Symbol> Syms,
       GlobalRes.VisibleOutsideSummary = true;
     }
 
+    bool IsLibcall = Sym.isLibcall(Libcalls);
+
     // Set the partition to external if we know it is re-defined by the linker
     // with -defsym or -wrap options, used elsewhere, e.g. it is visible to a
     // regular object, is referenced from llvm.compiler.used/llvm.used, or was
     // already recorded as being referenced from a different partition.
-    const bool KnownExternal = Res.LinkerRedefined || Res.VisibleToRegularObj || Sym.isUsed() ||
-        (GlobalRes.Partition != GlobalResolution::Unknown &&
-         GlobalRes.Partition != Partition);
-    if (KnownExternal || Sym.isPreserved()) {
+    const bool KnownExternal = Res.LinkerRedefined || Res.VisibleToRegularObj ||
+                               Sym.isUsed() ||
+                               (GlobalRes.Partition != GlobalResolution::Unknown &&
+                                GlobalRes.Partition != Partition);
+    if (KnownExternal || IsLibcall) {
       GlobalRes.Partition = GlobalResolution::External;
       if (!KnownExternal)
         GlobalRes.Contingent = true;
@@ -708,8 +718,7 @@ void LTO::addModuleToGlobalRes(ArrayRef<InputFile::Symbol> Syms,
     // Flag as visible outside of summary if visible from a regular object or
     // from a module that does not have a summary.
     GlobalRes.VisibleOutsideSummary |=
-        (Res.VisibleToRegularObj || Sym.isUsed() || Sym.isPreserved() ||
-         !InSummary);
+        (Res.VisibleToRegularObj || Sym.isUsed() || IsLibcall || !InSummary);
 
     GlobalRes.ExportDynamic |= Res.ExportDynamic;
   }
@@ -816,7 +825,7 @@ LTO::addModule(InputFile &Input, ArrayRef<SymbolResolution> InputRes,
   auto ModSyms = Input.module_symbols(ModI);
   addModuleToGlobalRes(ModSyms, Res,
                        IsThinLTO ? ThinLTO.ModuleMap.size() + 1 : 0,
-                       LTOInfo->HasSummary);
+                       LTOInfo->HasSummary, Triple(Input.getTargetTriple()));
 
   if (IsThinLTO)
     return addThinLTO(BM, ModSyms, Res);
@@ -1320,7 +1329,7 @@ Error LTO::runRegularLTO(AddStreamFn AddStream) {
       // Don't do anything if no instance of this common was prevailing.
       continue;
     GlobalVariable *OldGV = RegularLTO.CombinedModule->getNamedGlobal(I.first);
-    if (OldGV && DL.getTypeAllocSize(OldGV->getValueType()) == I.second.Size) {
+    if (OldGV && OldGV->getGlobalSize(DL) == I.second.Size) {
       // Don't create a new global if the type is already correct, just make
       // sure the alignment is correct.
       OldGV->setAlignment(I.second.Alignment);

@@ -661,10 +661,8 @@ LegalizerHelper::LegalizeResult LegalizerHelper::createLibcall(
   if (LibcallImpl == RTLIB::Unsupported)
     return LegalizerHelper::UnableToLegalize;
 
-  auto &TLI = *MIRBuilder.getMF().getSubtarget().getTargetLowering();
-
   StringRef Name = RTLIB::RuntimeLibcallsInfo::getLibcallImplName(LibcallImpl);
-  const CallingConv::ID CC = TLI.getLibcallImplCallingConv(LibcallImpl);
+  const CallingConv::ID CC = Libcalls->getLibcallImplCallingConv(LibcallImpl);
   return createLibcall(Name.data(), Result, Args, CC, LocObserver, MI);
 }
 
@@ -829,7 +827,6 @@ LegalizerHelper::createMemLibcall(MachineRegisterInfo &MRI, MachineInstr &MI,
   }
 
   auto &CLI = *MIRBuilder.getMF().getSubtarget().getCallLowering();
-  auto &TLI = *MIRBuilder.getMF().getSubtarget().getTargetLowering();
   RTLIB::Libcall RTLibcall;
   unsigned Opc = MI.getOpcode();
   switch (Opc) {
@@ -865,7 +862,7 @@ LegalizerHelper::createMemLibcall(MachineRegisterInfo &MRI, MachineInstr &MI,
   }
 
   CallLowering::CallLoweringInfo Info;
-  Info.CallConv = TLI.getLibcallImplCallingConv(RTLibcallImpl);
+  Info.CallConv = Libcalls->getLibcallImplCallingConv(RTLibcallImpl);
 
   StringRef LibcallName =
       RTLIB::RuntimeLibcallsInfo::getLibcallImplName(RTLibcallImpl);
@@ -1009,7 +1006,6 @@ LegalizerHelper::createAtomicLibcall(MachineInstr &MI) const {
     return LegalizerHelper::UnableToLegalize;
 
   auto &CLI = *MIRBuilder.getMF().getSubtarget().getCallLowering();
-  auto &TLI = *MIRBuilder.getMF().getSubtarget().getTargetLowering();
   RTLIB::Libcall RTLibcall = getOutlineAtomicLibcall(MI);
   RTLIB::LibcallImpl RTLibcallImpl = Libcalls->getLibcallImpl(RTLibcall);
 
@@ -1021,7 +1017,7 @@ LegalizerHelper::createAtomicLibcall(MachineInstr &MI) const {
   }
 
   CallLowering::CallLoweringInfo Info;
-  Info.CallConv = TLI.getLibcallImplCallingConv(RTLibcallImpl);
+  Info.CallConv = Libcalls->getLibcallImplCallingConv(RTLibcallImpl);
 
   StringRef LibcallName =
       RTLIB::RuntimeLibcallsInfo::getLibcallImplName(RTLibcallImpl);
