@@ -448,11 +448,17 @@ static MachineBasicBlock *emitIncDecMB(MachineInstr &MI,
   unsigned FirstUseIdx = MI.getNumExplicitDefs();
   unsigned FirstDefIdx = IsDec ? 1 : 0;
   bool IsReg = MI.getOperand(FirstUseIdx).isReg();
-  bool IsMemReg =
-      IsReg && MOS::Imag8RegClass.contains(MI.getOperand(FirstUseIdx).getReg());
+  Register UseReg = IsReg ? MI.getOperand(FirstUseIdx).getReg() : Register();
+  bool IsImag16 = IsReg && MOS::Imag16RegClass.contains(UseReg);
+  bool IsMemReg = IsReg && (IsImag16 || MOS::Imag8RegClass.contains(UseReg));
   bool IsLast = FirstUseIdx >= MI.getNumExplicitOperands() - 1;
   bool UseDcpOpcode = (!IsReg || IsMemReg) && !IsLast && STI.has6502X() &&
                       MI.getOpcode() == MOS::DecDcpMB;
+
+  // 65CE02 INW/DEW can increment/decrement a 16-bit word in place. INW sets
+  // Z on 16-bit wraparound, so it chains with BNE just like byte INC. DEW
+  // doesn't provide usable borrow detection, so only use it for the last word.
+  bool UseWordOp = IsImag16 && STI.has65CE02() && (!IsDec || IsLast);
 
   if (IsDec && !IsLast) {
     if (!IsReg || IsMemReg) {
@@ -463,7 +469,12 @@ static MachineBasicBlock *emitIncDecMB(MachineInstr &MI,
     }
   }
   MachineInstrBuilder First;
-  if (UseDcpOpcode) {
+  if (UseWordOp) {
+    First = Builder.buildInstr(IsDec ? MOS::DEWImag : MOS::INWImag);
+    First.addDef(MI.getOperand(FirstDefIdx).getReg())
+        .addUse(MI.getOperand(FirstUseIdx).getReg());
+    ++FirstDefIdx;
+  } else if (UseDcpOpcode) {
     // 3. DEC (memory): Emit DCP opcode, if requested.
     if (IsMemReg) {
       First = Builder.buildInstr(MOS::DCPImag8)
@@ -500,7 +511,10 @@ static MachineBasicBlock *emitIncDecMB(MachineInstr &MI,
     MI.eraseFromParent();
     return MBB;
   }
-  if (IsDec && !UseDcpOpcode) {
+  if (UseWordOp) {
+    // INW sets Z on wraparound; used by BNE to chain to the next word.
+    First.addDef(MOS::Z, RegState::Implicit);
+  } else if (IsDec && !UseDcpOpcode) {
     // 2/3. DEC: Emit CMP.
     if (IsReg && !IsMemReg) {
       Builder.buildInstr(MOS::CMPImm)

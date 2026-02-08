@@ -1243,6 +1243,18 @@ void MOSInstrInfo::expandIncDecPtr(MachineIRBuilder &Builder) const {
   MachineInstr &MI = *Builder.getInsertPt();
   const TargetRegisterInfo &TRI = *Builder.getMRI()->getTargetRegisterInfo();
   Register Reg = MI.getOperand(MI.getOpcode() == MOS::IncPtr ? 0 : 1).getReg();
+
+  // 65CE02 INW/DEW can operate on the Imag16 pointer directly, avoiding
+  // the split into lo/hi bytes and the IncMB/DecMB machinery.
+  if (STI->has65CE02() &&
+      (MI.getOpcode() == MOS::IncPtr || MI.getOpcode() == MOS::DecPtr)) {
+    unsigned NewOp =
+        MI.getOpcode() == MOS::IncPtr ? MOS::INWImag : MOS::DEWImag;
+    Builder.buildInstr(NewOp).addDef(Reg).addUse(Reg);
+    MI.eraseFromParent();
+    return;
+  }
+
   Register Lo = TRI.getSubReg(Reg, MOS::sublo);
   Register Hi = TRI.getSubReg(Reg, MOS::subhi);
   auto Op = MI.getOpcode() == MOS::IncPtr
