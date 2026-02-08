@@ -1902,11 +1902,7 @@ bool MOSInstructionSelector::selectIncDecMB(MachineInstr &MI) {
   for (MachineOperand &MO : Instr->explicit_operands()) {
     if (!MO.isReg())
       continue;
-    LLT Ty = Builder.getMRI()->getType(MO.getReg());
-    if (Ty == LLT::scalar(16))
-      constrainOperandRegClass(MO, MOS::Imag16RegClass);
-    else
-      constrainOperandRegClass(MO, MOS::Anyi8RegClass);
+    constrainOperandRegClass(MO, MOS::Anyi8RegClass);
   }
 
   unsigned DstIdx = Opcode == MOS::IncMB ? 0 : 1;
