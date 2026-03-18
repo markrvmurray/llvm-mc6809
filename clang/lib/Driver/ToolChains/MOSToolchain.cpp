@@ -11,7 +11,7 @@
 #include "clang/Driver/CommonArgs.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
-#include "clang/Driver/Options.h"
+#include "clang/Options/Options.h"
 #include "llvm/Support/Path.h"
 
 using namespace llvm::opt;
@@ -49,8 +49,8 @@ void MOSToolChain::addClangTargetOptions(const ArgList &DriverArgs,
 
 static bool hasLTOEmitAsm(const ArgList &Args) {
   for (Arg *A : Args) {
-    if (!A->getOption().matches(options::OPT_Wl_COMMA) &&
-        !A->getOption().matches(options::OPT_Xlinker))
+    if (!A->getOption().matches(clang::options::OPT_Wl_COMMA) &&
+        !A->getOption().matches(clang::options::OPT_Xlinker))
       continue;
     if (A->containsValue("--lto-emit-asm"))
       return true;
@@ -69,7 +69,10 @@ void mos::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Pass defaults before AddLinkerInputs, since that includes -Wl
   // options, which should override these.
-  CmdArgs.push_back("--gc-sections");
+  // Don't use --gc-sections for relocatable links (-r) since we're just
+  // combining objects, not producing a final executable.
+  if (!Args.hasArg(options::OPT_r))
+    CmdArgs.push_back("--gc-sections");
   CmdArgs.push_back("--sort-section=alignment");
 
   AddLinkerInputs(TC, Inputs, Args, CmdArgs, JA);

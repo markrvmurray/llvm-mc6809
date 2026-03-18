@@ -33,10 +33,11 @@ enum Value {
   SGPRSpill = 1,
   ScalableVector = 2,
   WasmLocal = 3,
-  MosStatic = 4,
-  MosZeroPage = 5,
-  Mc6809Static = 6,
-  Mc6809DirectPage = 7,
+  ScalablePredicateVector = 4,
+  MosStatic = 5,
+  MosZeroPage = 6,
+  Mc6809Static = 7,
+  Mc6809DirectPage = 8,
   NoAlloc = 255
 };
 }
@@ -163,14 +164,6 @@ public:
   /// returns false, spill slots will be assigned using generic implementation.
   /// assignCalleeSavedSpillSlots() may add, delete or rearrange elements of
   /// CSI.
-  virtual bool assignCalleeSavedSpillSlots(MachineFunction &MF,
-                                           const TargetRegisterInfo *TRI,
-                                           std::vector<CalleeSavedInfo> &CSI,
-                                           unsigned &MinCSFrameIndex,
-                                           unsigned &MaxCSFrameIndex) const {
-    return assignCalleeSavedSpillSlots(MF, TRI, CSI);
-  }
-
   virtual bool
   assignCalleeSavedSpillSlots(MachineFunction &MF,
                               const TargetRegisterInfo *TRI,

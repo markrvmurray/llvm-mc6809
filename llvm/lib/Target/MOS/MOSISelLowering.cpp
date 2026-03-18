@@ -38,7 +38,7 @@ using namespace llvm;
 
 MOSTargetLowering::MOSTargetLowering(const MOSTargetMachine &TM,
                                      const MOSSubtarget &STI)
-    : TargetLowering(TM) {
+    : TargetLowering(TM, STI) {
   addRegisterClass(MVT::i1, &MOS::Anyi1RegClass);
   addRegisterClass(MVT::i8, &MOS::Anyi8RegClass);
   addRegisterClass(MVT::i16, &MOS::Imag16RegClass);
@@ -47,7 +47,22 @@ MOSTargetLowering::MOSTargetLowering(const MOSTargetMachine &TM,
   // Used in legalizer (etc.) to refer to the stack pointer.
   setStackPointerRegisterToSaveRestore(MOS::RS0);
 
+  // MOS jump tables use split low/high byte arrays indexed by an 8-bit register.
+  // The 8-bit index register can hold values 0-255, allowing up to 256 entries.
   setMaximumJumpTableSize(std::min(256u, getMaximumJumpTableSize()));
+}
+
+bool MOSTargetLowering::isSuitableForJumpTable(const SwitchInst *SI,
+                                               uint64_t NumCases,
+                                               uint64_t Range,
+                                               ProfileSummaryInfo *PSI,
+                                               BlockFrequencyInfo *BFI) const {
+  // MOS jump tables use split low/high byte arrays indexed by an 8-bit register.
+  // This is a hard architectural limit that must be enforced regardless of
+  // optimization level (the base class bypasses MaxJumpTableSize for -Os).
+  if (Range > 256)
+    return false;
+  return TargetLowering::isSuitableForJumpTable(SI, NumCases, Range, PSI, BFI);
 }
 
 MVT MOSTargetLowering::getRegisterType(MVT VT) const {
@@ -62,9 +77,10 @@ unsigned
 MOSTargetLowering::getNumRegisters(LLVMContext &Context, EVT VT,
                                    std::optional<MVT> RegisterVT) const {
   // Even though a 16-bit register is available, it's not actually an integer
-  // register, so split to 8 bits instead.
+  // register, so split to 8 bits instead. Use ceiling division to ensure
+  // non-power-of-2 types like i9 get enough registers.
   if (VT.getSizeInBits() > 8)
-    return VT.getSizeInBits() / 8;
+    return (VT.getSizeInBits() + 7) / 8;
   return TargetLowering::getNumRegisters(Context, VT, RegisterVT);
 }
 
@@ -427,14 +443,40 @@ static MachineBasicBlock *emitIncDecMB(MachineInstr &MI,
   // - "3. DEC (memory)" is also used for imaginary registers, which are
   //   modeled as registers, but exist in memory.
   MachineIRBuilder Builder(MI);
+  const TargetRegisterInfo &TRI = *MBB->getParent()->getSubtarget().getRegisterInfo();
   bool IsDec = MI.getOpcode() == MOS::DecMB || MI.getOpcode() == MOS::DecDcpMB;
   assert(IsDec || MI.getOpcode() == MOS::IncMB);
   unsigned FirstUseIdx = MI.getNumExplicitDefs();
   unsigned FirstDefIdx = IsDec ? 1 : 0;
   bool IsReg = MI.getOperand(FirstUseIdx).isReg();
-  bool IsMemReg =
-      IsReg && MOS::Imag8RegClass.contains(MI.getOperand(FirstUseIdx).getReg());
-  bool IsLast = FirstUseIdx >= MI.getNumExplicitOperands() - 1;
+  Register UseReg = IsReg ? MI.getOperand(FirstUseIdx).getReg() : Register();
+  bool IsImag8 = IsReg && MOS::Imag8RegClass.contains(UseReg);
+  bool IsMemReg = IsImag8;
+  bool IsLastByte = FirstUseIdx >= MI.getNumExplicitOperands() - 1;
+
+  // Defer the INW/DEW decision to post-RA so the register allocator can freely
+  // assign A/X/Y. Only use word ops when RA placed consecutive bytes into an
+  // adjacent Imag16 pair.
+  bool UseWordOp = false;
+  unsigned NextUseIdx = FirstUseIdx + 1;
+  Register WordReg;
+  if (IsImag8 && !IsLastByte && STI.has65CE02()) {
+    bool NextIsReg = MI.getOperand(NextUseIdx).isReg();
+    MCRegister NextUseReg =
+        NextIsReg ? MI.getOperand(NextUseIdx).getReg().asMCReg() : MCRegister();
+    if (NextIsReg && MOS::Imag8RegClass.contains(NextUseReg)) {
+      WordReg = TRI.getMatchingSuperReg(UseReg, MOS::sublo,
+                                        &MOS::Imag16RegClass);
+      if (WordReg && TRI.getSubReg(WordReg, MOS::subhi) == NextUseReg) {
+        bool IsLastWord = NextUseIdx >= MI.getNumExplicitOperands() - 1;
+        // INW chains via Z+BNE. DEW lacks borrow detection, so only use on
+        // the last word.
+        UseWordOp = !IsDec || IsLastWord;
+      }
+    }
+  }
+  bool IsLast = UseWordOp ? (NextUseIdx >= MI.getNumExplicitOperands() - 1)
+                           : IsLastByte;
   bool UseDcpOpcode = (!IsReg || IsMemReg) && !IsLast && STI.has6502X() &&
                       MI.getOpcode() == MOS::DecDcpMB;
 
@@ -447,7 +489,11 @@ static MachineBasicBlock *emitIncDecMB(MachineInstr &MI,
     }
   }
   MachineInstrBuilder First;
-  if (UseDcpOpcode) {
+  if (UseWordOp) {
+    First = Builder.buildInstr(IsDec ? MOS::DEWImag : MOS::INWImag);
+    First.addDef(WordReg).addUse(WordReg);
+    FirstDefIdx += 2; // Word op consumed both bytes
+  } else if (UseDcpOpcode) {
     // 3. DEC (memory): Emit DCP opcode, if requested.
     if (IsMemReg) {
       First = Builder.buildInstr(MOS::DCPImag8)
@@ -484,7 +530,10 @@ static MachineBasicBlock *emitIncDecMB(MachineInstr &MI,
     MI.eraseFromParent();
     return MBB;
   }
-  if (IsDec && !UseDcpOpcode) {
+  if (UseWordOp) {
+    // INW sets Z on wraparound; used by BNE to chain to the next word.
+    First.addDef(MOS::Z, RegState::Implicit);
+  } else if (IsDec && !UseDcpOpcode) {
     // 2/3. DEC: Emit CMP.
     if (IsReg && !IsMemReg) {
       Builder.buildInstr(MOS::CMPImm)
@@ -527,7 +576,7 @@ static MachineBasicBlock *emitIncDecMB(MachineInstr &MI,
   if (IsDec)
     Rest.addDef(MI.getOperand(0).getReg());
   for (unsigned I = FirstDefIdx, E = MI.getNumExplicitOperands(); I != E; ++I) {
-    if (I == FirstUseIdx)
+    if (I == FirstUseIdx || (UseWordOp && I == NextUseIdx))
       continue;
     Rest.add(MI.getOperand(I));
     if (MI.getOperand(I).isReg())
@@ -570,7 +619,7 @@ static MachineBasicBlock *emitCmpBrZeroMultiByte(MachineInstr &MI,
   MachineBasicBlock *TBB;
   MachineBasicBlock *FBB;
   SmallVector<MachineOperand> Cond;
-  bool CannotAnalyze = TII.analyzeBranch(*MBB, TBB, FBB, Cond);
+  [[maybe_unused]] bool CannotAnalyze = TII.analyzeBranch(*MBB, TBB, FBB, Cond);
   assert(!CannotAnalyze &&
          "all CmpBr branches structures should be analyzable");
   assert(!Cond.empty() && "expected conditional branch");

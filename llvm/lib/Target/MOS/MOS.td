@@ -39,7 +39,7 @@ def MOSAsmWriter : AsmWriter {
 
 def MOSAsmParser : AsmParser {
   let ShouldEmitMatchRegisterAltName = 1;
-  let ReportMultipleNearMisses = 0;
+  let ReportMultipleNearMisses = 1;
   string RegisterPrefix = "";
   string TokenizingCharacters = "#(),[]*!";
 }
@@ -73,3 +73,5 @@ def MOS : Target {
                                 MOSAsmParserVariantCA65,
                                 MOSAsmParserVariantXA65];
 }
+
+defm : RemapAllTargetPseudoPointerOperands<Imag16>;

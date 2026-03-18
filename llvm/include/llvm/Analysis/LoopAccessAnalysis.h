@@ -562,8 +562,7 @@ public:
 
   /// Generate the checks and store it.  This also performs the grouping
   /// of pointers to reduce the number of memchecks necessary.
-  LLVM_ABI void generateChecks(MemoryDepChecker::DepCandidates &DepCands,
-                               bool UseDependencies);
+  LLVM_ABI void generateChecks(MemoryDepChecker::DepCandidates &DepCands);
 
   /// Returns the checks that generateChecks created. They can be used to ensure
   /// no read/write accesses overlap across all loop iterations.
@@ -630,10 +629,8 @@ public:
 private:
   /// Groups pointers such that a single memcheck is required
   /// between two different groups. This will clear the CheckingGroups vector
-  /// and re-compute it. We will only group dependecies if \p UseDependencies
-  /// is true, otherwise we will create a separate group for each pointer.
-  void groupChecks(MemoryDepChecker::DepCandidates &DepCands,
-                   bool UseDependencies);
+  /// and re-compute it.
+  void groupChecks(MemoryDepChecker::DepCandidates &DepCands);
 
   /// Generate the checks and return them.
   SmallVector<RuntimePointerCheck, 4> generateChecks();
@@ -724,8 +721,9 @@ public:
 
   /// Return true if the block BB needs to be predicated in order for the loop
   /// to be vectorized.
-  LLVM_ABI static bool blockNeedsPredication(BasicBlock *BB, Loop *TheLoop,
-                                             DominatorTree *DT);
+  LLVM_ABI static bool blockNeedsPredication(const BasicBlock *BB,
+                                             const Loop *TheLoop,
+                                             const DominatorTree *DT);
 
   /// Returns true if value \p V is loop invariant.
   LLVM_ABI bool isInvariant(Value *V) const;
@@ -892,7 +890,7 @@ replaceSymbolicStrideSCEV(PredicatedScalarEvolution &PSE,
 /// result of this function is undefined.
 LLVM_ABI std::optional<int64_t>
 getPtrStride(PredicatedScalarEvolution &PSE, Type *AccessTy, Value *Ptr,
-             const Loop *Lp,
+             const Loop *Lp, const DominatorTree &DT,
              const DenseMap<Value *, const SCEV *> &StridesMap =
                  DenseMap<Value *, const SCEV *>(),
              bool Assume = false, bool ShouldCheckWrap = true);

@@ -246,7 +246,7 @@ static constexpr const CoreDefinition g_core_definitions[] = {
 
     {eByteOrderLittle, 2, 2, 4, llvm::Triple::avr, ArchSpec::eCore_avr, "avr"},
 
-    {eByteOrderLittle, 4, 1, 7, llvm::Triple::mos, ArchSpec::eCore_mos, "mos"},
+    {eByteOrderLittle, 2, 1, 7, llvm::Triple::mos, ArchSpec::eCore_mos, "mos"},
 
     {eByteOrderLittle, 4, 1, 4, llvm::Triple::wasm32, ArchSpec::eCore_wasm32,
      "wasm32"},
@@ -674,10 +674,6 @@ uint32_t ArchSpec::GetMachOCPUSubType() const {
   return LLDB_INVALID_CPUTYPE;
 }
 
-uint32_t ArchSpec::GetDataByteSize() const { return 1; }
-
-uint32_t ArchSpec::GetCodeByteSize() const { return 1; }
-
 llvm::Triple::ArchType ArchSpec::GetMachine() const {
   const CoreDefinition *core_def = FindCoreDefinition(m_core);
   if (core_def)
@@ -725,6 +721,8 @@ bool ArchSpec::CharIsSignedByDefault() const {
   case llvm::Triple::ppc64:
     return m_triple.isOSDarwin();
 
+  case llvm::Triple::riscv64:
+  case llvm::Triple::riscv32:
   case llvm::Triple::ppc64le:
   case llvm::Triple::systemz:
   case llvm::Triple::xcore:

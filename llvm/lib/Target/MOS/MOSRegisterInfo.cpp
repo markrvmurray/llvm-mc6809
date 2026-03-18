@@ -117,7 +117,7 @@ MOSRegisterInfo::getCrossCopyRegClass(const TargetRegisterClass *RC) const {
 // up.  Unfortunately, the way the register allocator actually uses this is very
 // heuristic, and if tuning these params doesn't suffice, we'll need to build a
 // more sophisticated analysis into the register allocator.
-unsigned MOSRegisterInfo::getCSRFirstUseCost(const MachineFunction &MF) const {
+unsigned MOSRegisterInfo::getCSRCost(const MachineFunction &MF) const {
   const MOSFrameLowering &TFL =
       *MF.getSubtarget<MOSSubtarget>().getFrameLowering();
   return TFL.usesStaticStack(MF) ? 15 * 16384 / 10 : 5 * 16384 / 10;
@@ -367,7 +367,7 @@ void MOSRegisterInfo::expandAddrLostk(MachineBasicBlock::iterator MI) const {
                      .add(VDef)
                      .addUse(A)
                      .addImm(Offset)
-                     .addUse(CDef.getReg(), 0, CDef.getSubReg());
+                     .addUse(CDef.getReg(), RegState{}, CDef.getSubReg());
     Instr->getOperand(2).setIsDead();
     Builder.buildInstr(MOS::COPY).add(Dst).addUse(A);
   }
@@ -440,7 +440,7 @@ void MOSRegisterInfo::expandLDSTStk(MachineBasicBlock::iterator MI) const {
 
     auto Lo = Builder.buildInstr(MOS::AddrLostk)
                   .addDef(TRI.getSubReg(NewBase, MOS::sublo))
-                  .addDef(P, /*Flags=*/0, MOS::subcarry)
+                  .addDef(P, RegState{}, MOS::subcarry)
                   .addDef(P, RegState::Dead, MOS::subv)
                   .add(MI->getOperand(2))
                   .add(MI->getOperand(3));
@@ -450,7 +450,7 @@ void MOSRegisterInfo::expandLDSTStk(MachineBasicBlock::iterator MI) const {
                   .addDef(P, RegState::Dead, MOS::subv)
                   .add(MI->getOperand(2))
                   .add(MI->getOperand(3))
-                  .addUse(P, /*Flags=*/0, MOS::subcarry)
+                  .addUse(P, RegState{}, MOS::subcarry)
                   .addUse(NewBase, RegState::Implicit);
     MI->getOperand(2).setReg(NewBase);
     MI->getOperand(3).setImm(0);
@@ -531,7 +531,7 @@ void MOSRegisterInfo::expandLDSTStk(MachineBasicBlock::iterator MI) const {
   // Transfer the loaded value out of A (if applicable).
   if (IsLoad && Loc != A) {
     if (Loc == MOS::C || Loc == MOS::V)
-      Builder.buildInstr(MOS::COPY, {Loc}, {}).addUse(A, 0, MOS::sublsb);
+      Builder.buildInstr(MOS::COPY, {Loc}, {}).addUse(A, RegState{}, MOS::sublsb);
     else {
       assert(MOS::Anyi8RegClass.contains(Loc));
       Builder.buildCopy(Loc, A);
@@ -808,6 +808,41 @@ bool MOSRegisterInfo::getRegAllocationHints(Register VirtReg,
         RegScores[MOS::X] += INCzp - INCxy;
       if (is_contained(Order, MOS::Y))
         RegScores[MOS::Y] += INCzp - INCxy;
+
+      // Prefer placing adjacent IncMB/DecMB bytes into consecutive Imag8
+      // pairs so post-RA expansion can emit INW/DEW word operations.
+      if (STI.has65CE02() && VRM &&
+          (MI.getOpcode() == MOS::IncMB || MI.getOpcode() == MOS::DecMB ||
+           MI.getOpcode() == MOS::DecDcpMB)) {
+        unsigned NumDefs = MI.getNumExplicitDefs();
+        for (unsigned I = NumDefs, E = MI.getNumExplicitOperands(); I < E;
+             ++I) {
+          if (!MI.getOperand(I).isReg() ||
+              MI.getOperand(I).getReg() != VirtReg)
+            continue;
+          unsigned ByteIdx = I - NumDefs;
+          unsigned PartnerI = NumDefs + (ByteIdx ^ 1);
+          if (PartnerI >= E || !MI.getOperand(PartnerI).isReg())
+            break;
+          Register PartnerVReg = MI.getOperand(PartnerI).getReg();
+          if (!PartnerVReg.isVirtual() || !VRM->hasPhys(PartnerVReg))
+            break;
+          MCPhysReg PartnerPhys = VRM->getPhys(PartnerVReg);
+          if (!MOS::Imag8RegClass.contains(PartnerPhys))
+            break;
+          bool IsLo = (ByteIdx % 2 == 0);
+          MCRegister Super = TRI.getMatchingSuperReg(
+              PartnerPhys, IsLo ? MOS::subhi : MOS::sublo,
+              &MOS::Imag16RegClass);
+          if (!Super)
+            break;
+          MCPhysReg HintReg =
+              TRI.getSubReg(Super, IsLo ? MOS::sublo : MOS::subhi);
+          if (HintReg && is_contained(Order, HintReg))
+            Hints.push_back(HintReg);
+          break;
+        }
+      }
       break;
     }
     }
