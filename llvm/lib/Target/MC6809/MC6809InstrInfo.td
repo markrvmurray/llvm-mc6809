@@ -216,6 +216,57 @@ multiclass MC6809Indexed_P1<string Mnemonic, Opcode opcode, dag outdag, list<Reg
     let Predicates = [IsHD6309];
   }
 }
+// ============================== Load8 multiclass ======================================
+// Produces all concrete forms of an 8-bit load: immediate, direct, indexed (all
+// variants), and extended. Use with defm to generate e.g. LDAi8, LDAd, LDAi_o0,
+// ..., LDAe from a single line.
+// See also: Load_i8 pseudo in MC6809InstrLogical.td (register-agnostic version
+// used by GlobalISel).
+multiclass Load8Concrete<string Mnem, Opcode ImmOpc, Opcode DirOpc,
+                         Opcode IdxOpc, Opcode ExtOpc,
+                         list<Register> Defs> {
+  let mayLoad = true in {
+    def i8 : MC6809Immediate8Bit_P1<(outs), Mnem, ImmOpc, Defs, []>;
+    def d  : MC6809Direct_P1<(outs), Mnem, DirOpc, Defs, []>;
+    defm i : MC6809Indexed_P1<Mnem, IdxOpc, (outs), Defs, []>;
+    def e  : MC6809Extended_P1<(outs), Mnem, ExtOpc, Defs, []>;
+  }
+}
+
+// 16-bit load: immediate/direct/indexed/extended (Page 1).
+multiclass Load16Concrete<string Mnem, Opcode ImmOpc, Opcode DirOpc,
+                          Opcode IdxOpc, Opcode ExtOpc,
+                          list<Register> Defs> {
+  let mayLoad = true in {
+    def i16 : MC6809Immediate16Bit_P1<(outs), Mnem, ImmOpc, Defs, []>;
+    def d   : MC6809Direct_P1<(outs), Mnem, DirOpc, Defs, []>;
+    defm i  : MC6809Indexed_P1<Mnem, IdxOpc, (outs), Defs, []>;
+    def e   : MC6809Extended_P1<(outs), Mnem, ExtOpc, Defs, []>;
+  }
+}
+
+// 8-bit loads: LDA/LDB (6809 Page 1)
+defm LDA : Load8Concrete<"lda", Opcode<0x86,1>, Opcode<0x96,1>,
+                          Opcode<0xA6,1>, Opcode<0xB6,1>,
+                          [NZ,N,Z,V,AA,AD,AQ]>;
+defm LDB : Load8Concrete<"ldb", Opcode<0xC6,1>, Opcode<0xD6,1>,
+                          Opcode<0xE6,1>, Opcode<0xF6,1>,
+                          [NZ,N,Z,V,AB,AD,AQ]>;
+
+// 16-bit loads: LDD/LDX/LDU (6809 Page 1)
+defm LDD : Load16Concrete<"ldd", Opcode<0xCC,1>, Opcode<0xDC,1>,
+                           Opcode<0xEC,1>, Opcode<0xFC,1>,
+                           [NZ,N,Z,V,AA,AB,AD,AQ]>;
+defm LDX : Load16Concrete<"ldx", Opcode<0x8E,1>, Opcode<0x9E,1>,
+                           Opcode<0xAE,1>, Opcode<0xBE,1>,
+                           [NZ,N,Z,V,IX]>;
+defm LDU : Load16Concrete<"ldu", Opcode<0xCE,1>, Opcode<0xDE,1>,
+                           Opcode<0xEE,1>, Opcode<0xFE,1>,
+                           [NZ,N,Z,V,SU]>;
+
+// LDE/LDF (6309 Page 3) and LDW/LDY/LDS/LDQ (Page 2) are defined after
+// their respective indexed multiclasses below.
+
 // ============================== PAGE MC6809Indexed_P2 ==================================
 multiclass MC6809Indexed_P2<string Mnemonic, Opcode opcode, dag outdag, list<Register> defsin, list<Register> usesin> {
   def _o0 : MC6809IndexedOffset0_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, []), !listconcat(usesin, [])>;
@@ -357,6 +408,63 @@ multiclass MC6809Indexed_P3<string Mnemonic, Opcode opcode, dag outdag, list<Reg
 // ============================== END PAGES ==================================
 // MRVM END MARKER 1
 // clang-format on
+
+// Page 3 (HD6309, prefix 0x11) variant of Load8Concrete.
+multiclass Load8Concrete_P3<string Mnem, Opcode ImmOpc, Opcode DirOpc,
+                            Opcode IdxOpc, Opcode ExtOpc,
+                            list<Register> Defs> {
+  let Predicates = [IsHD6309], mayLoad = true in {
+    def i8 : MC6809Immediate8Bit_P3<(outs), Mnem, ImmOpc, Defs, []>;
+    def d  : MC6809Direct_P3<(outs), Mnem, DirOpc, Defs, []>;
+    defm i : MC6809Indexed_P3<Mnem, IdxOpc, (outs), Defs, []>;
+    def e  : MC6809Extended_P3<(outs), Mnem, ExtOpc, Defs, []>;
+  }
+}
+
+// 8-bit loads: LDE/LDF (6309 Page 3)
+defm LDE : Load8Concrete_P3<"lde", Opcode<0x86,3>, Opcode<0x96,3>,
+                             Opcode<0xA6,3>, Opcode<0xB6,3>,
+                             [NZ,N,Z,V,AE,AW,AQ]>;
+defm LDF : Load8Concrete_P3<"ldf", Opcode<0xC6,3>, Opcode<0xD6,3>,
+                             Opcode<0xE6,3>, Opcode<0xF6,3>,
+                             [NZ,N,Z,V,AF,AW,AQ]>;
+
+// 16-bit load (Page 2, prefix 0x10).
+multiclass Load16Concrete_P2<string Mnem, Opcode ImmOpc, Opcode DirOpc,
+                             Opcode IdxOpc, Opcode ExtOpc,
+                             list<Register> Defs> {
+  let mayLoad = true in {
+    def i16 : MC6809Immediate16Bit_P2<(outs), Mnem, ImmOpc, Defs, []>;
+    def d   : MC6809Direct_P2<(outs), Mnem, DirOpc, Defs, []>;
+    defm i  : MC6809Indexed_P2<Mnem, IdxOpc, (outs), Defs, []>;
+    def e   : MC6809Extended_P2<(outs), Mnem, ExtOpc, Defs, []>;
+  }
+}
+
+// 16-bit loads: LDY/LDS (6809 Page 2), LDW (6309 Page 2)
+defm LDY : Load16Concrete_P2<"ldy", Opcode<0x8E,2>, Opcode<0x9E,2>,
+                              Opcode<0xAE,2>, Opcode<0xBE,2>,
+                              [NZ,N,Z,V,IY]>;
+defm LDS : Load16Concrete_P2<"lds", Opcode<0xCE,2>, Opcode<0xDE,2>,
+                              Opcode<0xEE,2>, Opcode<0xFE,2>,
+                              [NZ,N,Z,V,SS]>;
+let Predicates = [IsHD6309] in {
+  defm LDW : Load16Concrete_P2<"ldw", Opcode<0x86,2>, Opcode<0x96,2>,
+                                Opcode<0xA6,2>, Opcode<0xB6,2>,
+                                [NZ,N,Z,V,AE,AF,AW,AQ]>;
+}
+
+// LDQ (6309, 32-bit): immediate on Page 1, dir/idx/ext on Page 2.
+let Predicates = [IsHD6309], mayLoad = true in {
+  def LDQi32 : MC6809Immediate32Bit_P1<(outs), "ldq", Opcode<0xCD,1>,
+               [NZ,N,Z,V,AA,AB,AD,AE,AF,AW,AQ], []>;
+  def LDQd   : MC6809Direct_P2<(outs), "ldq", Opcode<0xDC,2>,
+               [NZ,N,Z,V,AA,AB,AD,AE,AF,AW,AQ], []>;
+  defm LDQi  : MC6809Indexed_P2<"ldq", Opcode<0xEC,2>, (outs),
+               [NZ,N,Z,V,AA,AB,AD,AE,AF,AW,AQ], []>;
+  def LDQe   : MC6809Extended_P2<(outs), "ldq", Opcode<0xFC,2>,
+               [NZ,N,Z,V,AA,AB,AD,AE,AF,AW,AQ], []>;
+}
 
 // clang-format off
 // MRVM START MARKER 2
@@ -766,9 +874,7 @@ def BITAi8 : MC6809Immediate8Bit_P1<(outs), "bita", Opcode<0x85,1>, [NZ,N,Z,V], 
   let mayLoad = true;
 }
 
-def LDAi8 : MC6809Immediate8Bit_P1<(outs), "lda", Opcode<0x86,1>, [NZ,N,Z,V,AA,AD,AQ], []> {
-  let mayLoad = true;
-}
+// LDAi8 now generated by Load8Concrete multiclass above
 
 def EORAi8 : MC6809Immediate8Bit_P1<(outs), "eora", Opcode<0x88,1>, [AA,NZ,N,Z,V,AA,AD,AQ], [AA]> {
   let mayLoad = true;
@@ -799,9 +905,7 @@ def BSRb : MC6809ShortBranch_P1<(outs), "bsr", Opcode<0x8D,1>, [], [SS]> {
   let isCall = true;
 }
 
-def LDXi16 : MC6809Immediate16Bit_P1<(outs), "ldx", Opcode<0x8E,1>, [NZ,N,Z,V,IX], []> {
-  let mayLoad = true;
-}
+// LDXi16 now generated by Load16Concrete multiclass above
 
 def SUBAd : MC6809Direct_P1<(outs), "suba", Opcode<0x90,1>, [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA]> {
   let mayLoad = true;
@@ -829,9 +933,7 @@ def BITAd : MC6809Direct_P1<(outs), "bita", Opcode<0x95,1>, [NZ,N,Z,V], [AA]> {
   let mayLoad = true;
 }
 
-def LDAd : MC6809Direct_P1<(outs), "lda", Opcode<0x96,1>, [NZ,N,Z,V,AA,AD,AQ], []> {
-  let mayLoad = true;
-}
+// LDAd now generated by Load8Concrete multiclass above
 
 def STAd : MC6809Direct_P1<(outs), "sta", Opcode<0x97,1>, [NZ,N,Z,V], []> {
   let mayStore = true;
@@ -864,9 +966,7 @@ def JSRd : MC6809Direct_P1<(outs), "jsr", Opcode<0x9D,1>, [], []> {
   let isCall = true;
 }
 
-def LDXd : MC6809Direct_P1<(outs), "ldx", Opcode<0x9E,1>, [NZ,N,Z,V,IX], []> {
-  let mayLoad = true;
-}
+// LDXd now generated by Load16Concrete multiclass above
 
 def STXd : MC6809Direct_P1<(outs), "stx", Opcode<0x9F,1>, [NZ,N,Z,V], []> {
   let mayStore = true;
@@ -896,9 +996,7 @@ let isCompare = true, mayLoad = true in {
   defm BITAi : MC6809Indexed_P1<"bita", Opcode<0xA5, 1>, (outs), [NZ,N,Z,V], [AA]>;
 }
 
-let mayLoad = true in {
-  defm LDAi : MC6809Indexed_P1<"lda", Opcode<0xA6, 1>, (outs), [NZ,N,Z,V,AA,AD,AQ], []>;
-}
+// LDAi now generated by Load8Concrete multiclass above
 
 let mayStore = true in {
   defm STAi : MC6809Indexed_P1<"sta", Opcode<0xA7, 1>, (outs), [NZ,N,Z,V], []>;
@@ -928,9 +1026,7 @@ let isCall = true in {
   defm JSRi : MC6809Indexed_P1<"jsr", Opcode<0xAD, 1>, (outs), [], []>;
 }
 
-let mayLoad = true in {
-  defm LDXi : MC6809Indexed_P1<"ldx", Opcode<0xAE, 1>, (outs), [NZ,N,Z,V,IX], []>;
-}
+// defm LDXi now generated by Load16Concrete multiclass above
 
 let mayStore = true in {
   defm STXi : MC6809Indexed_P1<"stx", Opcode<0xAF, 1>, (outs), [NZ,N,Z,V], []>;
@@ -962,9 +1058,7 @@ def BITAe : MC6809Extended_P1<(outs), "bita", Opcode<0xB5,1>, [NZ,N,Z,V], [AA]> 
   let mayLoad = true;
 }
 
-def LDAe : MC6809Extended_P1<(outs), "lda", Opcode<0xB6,1>, [NZ,N,Z,V,AA,AD,AQ], []> {
-  let mayLoad = true;
-}
+// LDAe now generated by Load8Concrete multiclass above
 
 def STAe : MC6809Extended_P1<(outs), "sta", Opcode<0xB7,1>, [NZ,N,Z,V], []> {
   let mayStore = true;
@@ -997,9 +1091,7 @@ def JSRe : MC6809Extended_P1<(outs), "jsr", Opcode<0xBD,1>, [], []> {
   let isCall = true;
 }
 
-def LDXe : MC6809Extended_P1<(outs), "ldx", Opcode<0xBE,1>, [NZ,N,Z,V,IX], []> {
-  let mayLoad = true;
-}
+// LDXe now generated by Load16Concrete multiclass above
 
 def STXe : MC6809Extended_P1<(outs), "stx", Opcode<0xBF,1>, [NZ,N,Z,V], []> {
   let mayStore = true;
@@ -1032,9 +1124,7 @@ def BITBi8 : MC6809Immediate8Bit_P1<(outs), "bitb", Opcode<0xC5,1>, [NZ,N,Z,V], 
   let mayLoad = true;
 }
 
-def LDBi8 : MC6809Immediate8Bit_P1<(outs), "ldb", Opcode<0xC6,1>, [NZ,N,Z,V,AB,AD,AQ], []> {
-  let mayLoad = true;
-}
+// LDBi8 now generated by Load8Concrete multiclass above
 
 def EORBi8 : MC6809Immediate8Bit_P1<(outs), "eorb", Opcode<0xC8,1>, [AB,NZ,N,Z,V,AB,AD,AQ], [AB]> {
   let mayLoad = true;
@@ -1054,18 +1144,11 @@ def ADDBi8 : MC6809Immediate8Bit_P1<(outs), "addb", Opcode<0xCB,1>, [AB,NZ,N,Z,V
   let isAdd = true;
 }
 
-def LDDi16 : MC6809Immediate16Bit_P1<(outs), "ldd", Opcode<0xCC,1>, [NZ,N,Z,V,AA,AB,AD,AQ], []> {
-  let mayLoad = true;
-}
+// LDDi16 now generated by Load16Concrete multiclass above
 
-def LDQi32 : MC6809Immediate32Bit_P1<(outs), "ldq", Opcode<0xCD,1>, [NZ,N,Z,V,AA,AB,AD,AE,AF,AW,AQ], []> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-}
+// LDQi32 now generated by Load16Concrete multiclass above
 
-def LDUi16 : MC6809Immediate16Bit_P1<(outs), "ldu", Opcode<0xCE,1>, [NZ,N,Z,V,SU], []> {
-  let mayLoad = true;
-}
+// LDUi16 now generated by Load16Concrete multiclass above
 
 def SUBBd : MC6809Direct_P1<(outs), "subb", Opcode<0xD0,1>, [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB]> {
   let mayLoad = true;
@@ -1094,9 +1177,7 @@ def BITBd : MC6809Direct_P1<(outs), "bitb", Opcode<0xD5,1>, [NZ,N,Z,V], [AB]> {
   let mayLoad = true;
 }
 
-def LDBd : MC6809Direct_P1<(outs), "ldb", Opcode<0xD6,1>, [NZ,N,Z,V,AB,AD,AQ], []> {
-  let mayLoad = true;
-}
+// LDBd now generated by Load8Concrete multiclass above
 
 def STBd : MC6809Direct_P1<(outs), "stb", Opcode<0xD7,1>, [NZ,N,Z,V], []> {
   let mayStore = true;
@@ -1120,17 +1201,13 @@ def ADDBd : MC6809Direct_P1<(outs), "addb", Opcode<0xDB,1>, [AB,NZ,N,Z,V,C,AB,AD
   let isAdd = true;
 }
 
-def LDDd : MC6809Direct_P1<(outs), "ldd", Opcode<0xDC,1>, [NZ,N,Z,V,AA,AB,AD,AQ], []> {
-  let mayLoad = true;
-}
+// LDDd now generated by Load16Concrete multiclass above
 
 def STDd : MC6809Direct_P1<(outs), "std", Opcode<0xDD,1>, [NZ,N,Z,V], []> {
   let mayStore = true;
 }
 
-def LDUd : MC6809Direct_P1<(outs), "ldu", Opcode<0xDE,1>, [NZ,N,Z,V,SU], []> {
-  let mayLoad = true;
-}
+// LDUd now generated by Load16Concrete multiclass above
 
 def STUd : MC6809Direct_P1<(outs), "stu", Opcode<0xDF,1>, [NZ,N,Z,V], []> {
   let mayStore = true;
@@ -1160,9 +1237,7 @@ let isCompare = true, mayLoad = true in {
   defm BITBi : MC6809Indexed_P1<"bitb", Opcode<0xE5, 1>, (outs), [NZ,N,Z,V], [AB]>;
 }
 
-let mayLoad = true in {
-  defm LDBi : MC6809Indexed_P1<"ldb", Opcode<0xE6, 1>, (outs), [NZ,N,Z,V,AB,AD,AQ], []>;
-}
+// LDBi now generated by Load8Concrete multiclass above
 
 let mayStore = true in {
   defm STBi : MC6809Indexed_P1<"stb", Opcode<0xE7, 1>, (outs), [NZ,N,Z,V], []>;
@@ -1184,17 +1259,13 @@ let isAdd = true, mayLoad = true in {
   defm ADDBi : MC6809Indexed_P1<"addb", Opcode<0xEB, 1>, (outs), [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB]>;
 }
 
-let mayLoad = true in {
-  defm LDDi : MC6809Indexed_P1<"ldd", Opcode<0xEC, 1>, (outs), [NZ,N,Z,V,AA,AB,AD,AQ], []>;
-}
+// defm LDDi now generated by Load16Concrete multiclass above
 
 let mayStore = true in {
   defm STDi : MC6809Indexed_P1<"std", Opcode<0xED, 1>, (outs), [NZ,N,Z,V], []>;
 }
 
-let mayLoad = true in {
-  defm LDUi : MC6809Indexed_P1<"ldu", Opcode<0xEE, 1>, (outs), [NZ,N,Z,V,SU], []>;
-}
+// defm LDUi now generated by Load16Concrete multiclass above
 
 let mayStore = true in {
   defm STUi : MC6809Indexed_P1<"stu", Opcode<0xEF, 1>, (outs), [NZ,N,Z,V], []>;
@@ -1227,9 +1298,7 @@ def BITBe : MC6809Extended_P1<(outs), "bitb", Opcode<0xF5,1>, [NZ,N,Z,V], [AB]> 
   let mayLoad = true;
 }
 
-def LDBe : MC6809Extended_P1<(outs), "ldb", Opcode<0xF6,1>, [NZ,N,Z,V,AB,AD,AQ], []> {
-  let mayLoad = true;
-}
+// LDBe now generated by Load8Concrete multiclass above
 
 def STBe : MC6809Extended_P1<(outs), "stb", Opcode<0xF7,1>, [NZ,N,Z,V], []> {
   let mayStore = true;
@@ -1253,17 +1322,13 @@ def ADDBe : MC6809Extended_P1<(outs), "addb", Opcode<0xFB,1>, [AB,NZ,N,Z,V,C,AB,
   let isAdd = true;
 }
 
-def LDDe : MC6809Extended_P1<(outs), "ldd", Opcode<0xFC,1>, [NZ,N,Z,V,AA,AB,AD,AQ], []> {
-  let mayLoad = true;
-}
+// LDDe now generated by Load16Concrete multiclass above
 
 def STDe : MC6809Extended_P1<(outs), "std", Opcode<0xFD,1>, [NZ,N,Z,V], []> {
   let mayStore = true;
 }
 
-def LDUe : MC6809Extended_P1<(outs), "ldu", Opcode<0xFE,1>, [NZ,N,Z,V,SU], []> {
-  let mayLoad = true;
-}
+// LDUe now generated by Load16Concrete multiclass above
 
 def STUe : MC6809Extended_P1<(outs), "stu", Opcode<0xFF,1>, [NZ,N,Z,V], []> {
   let mayStore = true;
@@ -1453,10 +1518,7 @@ def BITDi16 : MC6809Immediate16Bit_P2<(outs), "bitd", Opcode<0x85,2>, [NZ,N,Z,V]
   let mayLoad = true;
 }
 
-def LDWi16 : MC6809Immediate16Bit_P2<(outs), "ldw", Opcode<0x86,2>, [NZ,N,Z,V,AE,AF,AW,AQ], []> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-}
+// LDWi16 now generated by Load16Concrete multiclass above
 
 def EORDi16 : MC6809Immediate16Bit_P2<(outs), "eord", Opcode<0x88,2>, [AD,NZ,N,Z,V,AA,AB,AD,AQ], [AD]> {
   let Predicates = [IsHD6309];
@@ -1485,9 +1547,7 @@ def CMPYi16 : MC6809Immediate16Bit_P2<(outs), "cmpy", Opcode<0x8C,2>, [NZ,N,Z,V,
   let mayLoad = true;
 }
 
-def LDYi16 : MC6809Immediate16Bit_P2<(outs), "ldy", Opcode<0x8E,2>, [NZ,N,Z,V,IY], []> {
-  let mayLoad = true;
-}
+// LDYi16 now generated by Load16Concrete multiclass above
 
 def SUBWd : MC6809Direct_P2<(outs), "subw", Opcode<0x90,2>, [AW,NZ,N,Z,V,C,AE,AF,AW,AQ], [AW]> {
   let Predicates = [IsHD6309];
@@ -1521,10 +1581,7 @@ def BITDd : MC6809Direct_P2<(outs), "bitd", Opcode<0x95,2>, [NZ,N,Z,V], [AD]> {
   let mayLoad = true;
 }
 
-def LDWd : MC6809Direct_P2<(outs), "ldw", Opcode<0x96,2>, [NZ,N,Z,V,AE,AF,AW,AQ], []> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-}
+// LDWd now generated by Load16Concrete multiclass above
 
 def STWd : MC6809Direct_P2<(outs), "stw", Opcode<0x97,2>, [NZ,N,Z,V], []> {
   let Predicates = [IsHD6309];
@@ -1558,9 +1615,7 @@ def CMPYd : MC6809Direct_P2<(outs), "cmpy", Opcode<0x9C,2>, [NZ,N,Z,V,C], [IY]> 
   let mayLoad = true;
 }
 
-def LDYd : MC6809Direct_P2<(outs), "ldy", Opcode<0x9E,2>, [NZ,N,Z,V,IY], []> {
-  let mayLoad = true;
-}
+// LDYd now generated by Load16Concrete multiclass above
 
 def STYd : MC6809Direct_P2<(outs), "sty", Opcode<0x9F,2>, [NZ,N,Z,V], []> {
   let mayStore = true;
@@ -1590,9 +1645,7 @@ let isCompare = true, mayLoad = true in {
   defm BITDi : MC6809Indexed_P2<"bitd", Opcode<0xA5, 2>, (outs), [NZ,N,Z,V], [AD]>;
 }
 
-let Predicates = [IsHD6309], mayLoad = true in {
-  defm LDWi : MC6809Indexed_P2<"ldw", Opcode<0xA6, 2>, (outs), [NZ,N,Z,V,AE,AF,AW,AQ], []>;
-}
+// defm LDWi now generated by Load16Concrete multiclass above
 
 let Predicates = [IsHD6309], mayStore = true in {
   defm STWi : MC6809Indexed_P2<"stw", Opcode<0xA7, 2>, (outs), [NZ,N,Z,V], []>;
@@ -1618,9 +1671,7 @@ let isCompare = true, mayLoad = true in {
   defm CMPYi : MC6809Indexed_P2<"cmpy", Opcode<0xAC, 2>, (outs), [NZ,N,Z,V,C], [IY]>;
 }
 
-let mayLoad = true in {
-  defm LDYi : MC6809Indexed_P2<"ldy", Opcode<0xAE, 2>, (outs), [NZ,N,Z,V,IY], []>;
-}
+// defm LDYi now generated by Load16Concrete multiclass above
 
 let mayStore = true in {
   defm STYi : MC6809Indexed_P2<"sty", Opcode<0xAF, 2>, (outs), [NZ,N,Z,V], []>;
@@ -1657,10 +1708,7 @@ def BITDe : MC6809Extended_P2<(outs), "bitd", Opcode<0xB5,2>, [NZ,N,Z,V], [AD]> 
   let mayLoad = true;
 }
 
-def LDWe : MC6809Extended_P2<(outs), "ldw", Opcode<0xB6,2>, [NZ,N,Z,V,AE,AF,AW,AQ], []> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-}
+// LDWe now generated by Load16Concrete multiclass above
 
 def STWe : MC6809Extended_P2<(outs), "stw", Opcode<0xB7,2>, [NZ,N,Z,V], []> {
   let Predicates = [IsHD6309];
@@ -1694,65 +1742,47 @@ def CMPYe : MC6809Extended_P2<(outs), "cmpy", Opcode<0xBC,2>, [NZ,N,Z,V,C], [IY]
   let mayLoad = true;
 }
 
-def LDYe : MC6809Extended_P2<(outs), "ldy", Opcode<0xBE,2>, [NZ,N,Z,V,IY], []> {
-  let mayLoad = true;
-}
+// LDYe now generated by Load16Concrete multiclass above
 
 def STYe : MC6809Extended_P2<(outs), "sty", Opcode<0xBF,2>, [NZ,N,Z,V], []> {
   let mayStore = true;
 }
 
-def LDSi16 : MC6809Immediate16Bit_P2<(outs), "lds", Opcode<0xCE,2>, [NZ,N,Z,V,SS], []> {
-  let mayLoad = true;
-}
+// LDSi16 now generated by Load16Concrete multiclass above
 
-def LDQd : MC6809Direct_P2<(outs), "ldq", Opcode<0xDC,2>, [NZ,N,Z,V,AA,AB,AD,AE,AF,AW,AQ], []> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-}
+// LDQd now generated by Load16Concrete multiclass above
 
 def STQd : MC6809Direct_P2<(outs), "stq", Opcode<0xDD,2>, [NZ,N,Z,V], []> {
   let Predicates = [IsHD6309];
   let mayStore = true;
 }
 
-def LDSd : MC6809Direct_P2<(outs), "lds", Opcode<0xDE,2>, [NZ,N,Z,V,SS], []> {
-  let mayLoad = true;
-}
+// LDSd now generated by Load16Concrete multiclass above
 
 def STSd : MC6809Direct_P2<(outs), "sts", Opcode<0xDF,2>, [NZ,N,Z,V], []> {
   let mayStore = true;
 }
 
-let Predicates = [IsHD6309], mayLoad = true in {
-  defm LDQi : MC6809Indexed_P2<"ldq", Opcode<0xEC, 2>, (outs), [NZ,N,Z,V,AA,AB,AD,AE,AF,AW,AQ], []>;
-}
+// defm LDQi now generated by Load16Concrete multiclass above
 
 let Predicates = [IsHD6309], mayStore = true in {
   defm STQi : MC6809Indexed_P2<"stq", Opcode<0xED, 2>, (outs), [NZ,N,Z,V], []>;
 }
 
-let mayLoad = true in {
-  defm LDSi : MC6809Indexed_P2<"lds", Opcode<0xEE, 2>, (outs), [NZ,N,Z,V,SS], []>;
-}
+// defm LDSi now generated by Load16Concrete multiclass above
 
 let mayStore = true in {
   defm STSi : MC6809Indexed_P2<"sts", Opcode<0xEF, 2>, (outs), [NZ,N,Z,V], []>;
 }
 
-def LDQe : MC6809Extended_P2<(outs), "ldq", Opcode<0xFC,2>, [NZ,N,Z,V,AA,AB,AD,AE,AF,AW,AQ], []> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-}
+// LDQe now generated by Load16Concrete multiclass above
 
 def STQe : MC6809Extended_P2<(outs), "stq", Opcode<0xFD,2>, [NZ,N,Z,V], []> {
   let Predicates = [IsHD6309];
   let mayStore = true;
 }
 
-def LDSe : MC6809Extended_P2<(outs), "lds", Opcode<0xFE,2>, [NZ,N,Z,V,SS], []> {
-  let mayLoad = true;
-}
+// LDSe now generated by Load16Concrete multiclass above
 
 def STSe : MC6809Extended_P2<(outs), "sts", Opcode<0xFF,2>, [NZ,N,Z,V], []> {
   let mayStore = true;
@@ -1884,10 +1914,7 @@ def CMPUi16 : MC6809Immediate16Bit_P3<(outs), "cmpu", Opcode<0x83,3>, [NZ,N,Z,V,
   let mayLoad = true;
 }
 
-def LDEi8 : MC6809Immediate8Bit_P3<(outs), "lde", Opcode<0x86,3>, [NZ,N,Z,V,AE,AW,AQ], []> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-}
+// LDEi8 now generated by Load8Concrete_P3 multiclass above
 
 def ADDEi8 : MC6809Immediate8Bit_P3<(outs), "adde", Opcode<0x8B,3>, [AE,NZ,N,Z,V,C,AE,AW,AQ], [AE]> {
   let Predicates = [IsHD6309];
@@ -1931,10 +1958,7 @@ def CMPUd : MC6809Direct_P3<(outs), "cmpu", Opcode<0x93,3>, [NZ,N,Z,V,C], [SU]> 
   let mayLoad = true;
 }
 
-def LDEd : MC6809Direct_P3<(outs), "lde", Opcode<0x96,3>, [NZ,N,Z,V,AE,AW,AQ], []> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-}
+// LDEd now generated by Load8Concrete_P3 multiclass above
 
 def STEd : MC6809Direct_P3<(outs), "ste", Opcode<0x97,3>, [NZ,N,Z,V], []> {
   let Predicates = [IsHD6309];
@@ -1979,9 +2003,7 @@ let isCompare = true, mayLoad = true in {
   defm CMPUi : MC6809Indexed_P3<"cmpu", Opcode<0xA3, 3>, (outs), [NZ,N,Z,V,C], [SU]>;
 }
 
-let Predicates = [IsHD6309], mayLoad = true in {
-  defm LDEi : MC6809Indexed_P3<"lde", Opcode<0xA6, 3>, (outs), [NZ,N,Z,V,AE,AW,AQ], []>;
-}
+// LDEi now generated by Load8Concrete_P3 multiclass above
 
 let Predicates = [IsHD6309], mayStore = true in {
   defm STEi : MC6809Indexed_P3<"ste", Opcode<0xA7, 3>, (outs), [NZ,N,Z,V], []>;
@@ -2023,10 +2045,7 @@ def CMPUe : MC6809Extended_P3<(outs), "cmpu", Opcode<0xB3,3>, [NZ,N,Z,V,C], [SU]
   let mayLoad = true;
 }
 
-def LDEe : MC6809Extended_P3<(outs), "lde", Opcode<0xB6,3>, [NZ,N,Z,V,AE,AW,AQ], []> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-}
+// LDEe now generated by Load8Concrete_P3 multiclass above
 
 def STEe : MC6809Extended_P3<(outs), "ste", Opcode<0xB7,3>, [NZ,N,Z,V], []> {
   let Predicates = [IsHD6309];
@@ -2070,10 +2089,7 @@ def CMPFi8 : MC6809Immediate8Bit_P3<(outs), "cmpf", Opcode<0xC1,3>, [NZ,N,Z,V,C]
   let mayLoad = true;
 }
 
-def LDFi8 : MC6809Immediate8Bit_P3<(outs), "ldf", Opcode<0xC6,3>, [NZ,N,Z,V,AF,AW,AQ], []> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-}
+// LDFi8 now generated by Load8Concrete_P3 multiclass above
 
 def ADDFi8 : MC6809Immediate8Bit_P3<(outs), "addf", Opcode<0xCB,3>, [AF,NZ,N,Z,V,C,AF,AW,AQ], [AF]> {
   let Predicates = [IsHD6309];
@@ -2092,10 +2108,7 @@ def CMPFd : MC6809Direct_P3<(outs), "cmpf", Opcode<0xD1,3>, [NZ,N,Z,V,C], [AF]> 
   let mayLoad = true;
 }
 
-def LDFd : MC6809Direct_P3<(outs), "ldf", Opcode<0xD6,3>, [NZ,N,Z,V,AF,AW,AQ], []> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-}
+// LDFd now generated by Load8Concrete_P3 multiclass above
 
 def STFd : MC6809Direct_P3<(outs), "stf", Opcode<0xD7,3>, [NZ,N,Z,V], []> {
   let Predicates = [IsHD6309];
@@ -2116,9 +2129,7 @@ let Predicates = [IsHD6309], isCompare = true, mayLoad = true in {
   defm CMPFi : MC6809Indexed_P3<"cmpf", Opcode<0xE1, 3>, (outs), [NZ,N,Z,V,C], [AF]>;
 }
 
-let Predicates = [IsHD6309], mayLoad = true in {
-  defm LDFi : MC6809Indexed_P3<"ldf", Opcode<0xE6, 3>, (outs), [NZ,N,Z,V,AF,AW,AQ], []>;
-}
+// LDFi now generated by Load8Concrete_P3 multiclass above
 
 let Predicates = [IsHD6309], mayStore = true in {
   defm STFi : MC6809Indexed_P3<"stf", Opcode<0xE7, 3>, (outs), [NZ,N,Z,V], []>;
@@ -2139,10 +2150,7 @@ def CMPFe : MC6809Extended_P3<(outs), "cmpf", Opcode<0xF1,3>, [NZ,N,Z,V,C], [AF]
   let mayLoad = true;
 }
 
-def LDFe : MC6809Extended_P3<(outs), "ldf", Opcode<0xF6,3>, [NZ,N,Z,V,AF,AW,AQ], []> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-}
+// LDFe now generated by Load8Concrete_P3 multiclass above
 
 def STFe : MC6809Extended_P3<(outs), "stf", Opcode<0xF7,3>, [NZ,N,Z,V], []> {
   let Predicates = [IsHD6309];
