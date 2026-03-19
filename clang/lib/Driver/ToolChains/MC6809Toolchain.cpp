@@ -8,11 +8,11 @@
 
 #include "MC6809Toolchain.h"
 
-#include "CommonArgs.h"
+#include "clang/Driver/CommonArgs.h"
 
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
-#include "clang/Driver/Options.h"
+#include "clang/Options/Options.h"
 #include "llvm/Support/Path.h"
 
 using namespace llvm::opt;
@@ -50,8 +50,8 @@ void MC6809ToolChain::addClangTargetOptions(const ArgList &DriverArgs,
 
 static bool hasLTOEmitAsm(const ArgList &Args) {
   for (Arg *A : Args) {
-    if (!A->getOption().matches(options::OPT_Wl_COMMA) &&
-        !A->getOption().matches(options::OPT_Xlinker))
+    if (!A->getOption().matches(clang::options::OPT_Wl_COMMA) &&
+        !A->getOption().matches(clang::options::OPT_Xlinker))
       continue;
     if (A->containsValue("--lto-emit-asm"))
       return true;
@@ -137,7 +137,7 @@ void mc6809::Linker::AddLTOOptions(const toolchains::MC6809ToolChain &TC, const 
                                 const InputInfoList &Inputs,
                                 ArgStringList &CmdArgs) const {
   assert(!Inputs.empty() && "Must have at least one input.");
-  addLTOOptions(TC, Args, CmdArgs, Output, Inputs[0],
+  addLTOOptions(TC, Args, CmdArgs, Output, Inputs,
                 TC.getDriver().getLTOMode() == LTOK_Thin);
   addMC6809CodeGenArgs(CmdArgs);
   unsigned DPBytes = 0;

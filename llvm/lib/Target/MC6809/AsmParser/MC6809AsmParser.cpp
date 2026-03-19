@@ -17,13 +17,14 @@
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCAsmMacro.h"
 #include "llvm/MC/MCAssembler.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstBuilder.h"
-#include "llvm/MC/MCParser/MCAsmLexer.h"
+#include "llvm/MC/MCParser/AsmLexer.h"
 #include "llvm/MC/MCParser/MCParsedAsmOperand.h"
 #include "llvm/MC/MCParser/MCTargetAsmParser.h"
 #include "llvm/MC/MCStreamer.h"
@@ -215,7 +216,7 @@ public:
 
   static std::unique_ptr<MC6809Operand> createToken(const MC6809Subtarget &STI, StringRef Str, SMLoc S) { return std::make_unique<MC6809Operand>(STI, Str, S); }
 
-  void print(raw_ostream &O) const override {
+  void print(raw_ostream &O, const MCAsmInfo &MAI) const override {
     switch (Kind) {
     case k_None:
       O << "None";
@@ -227,7 +228,9 @@ public:
       O << "Register: " << getReg();
       break;
     case k_Immediate:
-      O << "Immediate: \"" << *getImm() << "\"";
+      O << "Immediate: \"";
+      MAI.printExpr(O, *getImm());
+      O << "\"";
       break;
     }
     O << "\n";
@@ -236,7 +239,7 @@ public:
 
 /// Parses MC6809 assembly from a stream.
 class MC6809AsmParser : public MCTargetAsmParser {
-  const MC6809Subtarget &STI;
+  const MC6809Subtarget &MCSTI;
   MCAsmParser &Parser;
   const MCRegisterInfo *MRI;
   const std::string GenerateStubs = "gs";
@@ -252,7 +255,7 @@ public:
 
   };
 
-  MC6809AsmParser(const MCSubtargetInfo &STI, MCAsmParser &Parser, const MCInstrInfo &MII, const MCTargetOptions &Options) : MCTargetAsmParser(Options, STI, MII), STI(static_cast<const MC6809Subtarget &>(STI)), Parser(Parser) {
+  MC6809AsmParser(const MCSubtargetInfo &STI, MCAsmParser &Parser, const MCInstrInfo &MII, const MCTargetOptions &Options) : MCTargetAsmParser(Options, STI, MII), MCSTI(static_cast<const MC6809Subtarget &>(STI)), Parser(Parser) {
     MCAsmParserExtension::Initialize(Parser);
     MRI = getContext().getRegisterInfo();
 
@@ -263,7 +266,7 @@ public:
 
     setAvailableFeatures(ComputeAvailableFeatures(STI.getFeatureBits()));
   }
-  MCAsmLexer &getLexer() const { return Parser.getLexer(); }
+  AsmLexer &getLexer() const { return Parser.getLexer(); }
   MCAsmParser &getParser() const { return Parser; }
 
   bool parsePrimaryExpr(const MCExpr *&Res, SMLoc &EndLoc) override { return MCTargetAsmParser::parsePrimaryExpr(Res, EndLoc); }
@@ -291,7 +294,7 @@ public:
 
   bool emit(MCInst &Inst, SMLoc const &Loc, MCStreamer &Out) const {
     Inst.setLoc(Loc);
-    Out.emitInstruction(Inst, STI);
+    Out.emitInstruction(Inst, MCSTI);
 
     return false;
   }
@@ -439,7 +442,7 @@ public:
   }
 
   void eatThatToken(OperandVector &Operands) {
-    Operands.push_back(MC6809Operand::createToken(STI, getLexer().getTok().getString(), getLexer().getLoc()));
+    Operands.push_back(MC6809Operand::createToken(MCSTI, getLexer().getTok().getString(), getLexer().getLoc()));
     Lex();
   }
 
@@ -448,16 +451,16 @@ public:
     // as an addressing mode, not as part of the expression.
     if (const auto *SE = dyn_cast<MCSymbolRefExpr>(BE->getRHS())) {
       if ((SE->getSymbol().getName().equals_insensitive("x") || SE->getSymbol().getName().equals_insensitive("y")) && BE->getOpcode() == MCBinaryExpr::Add) {
-        Operands.push_back(MC6809Operand::createImm(STI, LHS, S, E));
-        Operands.push_back(MC6809Operand::createToken(STI, "+", BE->getLoc()));
-        Operands.push_back(MC6809Operand::createToken(STI, SE->getSymbol().getName(), SE->getLoc()));
+        Operands.push_back(MC6809Operand::createImm(MCSTI, LHS, S, E));
+        Operands.push_back(MC6809Operand::createToken(MCSTI, "+", BE->getLoc()));
+        Operands.push_back(MC6809Operand::createToken(MCSTI, SE->getSymbol().getName(), SE->getLoc()));
         return false;
       }
     }
     return true;
   }
 
-  void pushExpr(OperandVector &Operands, const MCExpr *Val, SMLoc S, SMLoc E) { Operands.push_back(MC6809Operand::createImm(STI, Val, S, E)); }
+  void pushExpr(OperandVector &Operands, const MCExpr *Val, SMLoc S, SMLoc E) { Operands.push_back(MC6809Operand::createImm(MCSTI, Val, S, E)); }
 
   enum ExpressionType { ExprTypeOther, ExprTypeImmediate, ExprTypeAddress };
 
@@ -623,7 +626,7 @@ public:
     SMLoc S = getLexer().getLoc();
     SMLoc E = getLexer().getTok().getEndLoc();
     if (tryParseRegister(Reg, S, E).isSuccess()) {
-      Operands.push_back(MC6809Operand::createReg(STI, Reg, S, E));
+      Operands.push_back(MC6809Operand::createReg(MCSTI, Reg, S, E));
       return ParseStatus::Success;
     }
     return ParseStatus::NoMatch;
@@ -650,14 +653,14 @@ public:
                                .CaseLower("psw", "psw") // SPC700
                                .Default(nullptr);
     if (LowerStr != nullptr) {
-      Operands.push_back(MC6809Operand::createToken(STI, LowerStr, S));
+      Operands.push_back(MC6809Operand::createToken(MCSTI, LowerStr, S));
       return ParseStatus::Success;
     }
 
     MCRegister Reg = 0;
     SMLoc E = getLexer().getTok().getEndLoc();
     if (tryParseRegister(Reg, S, E).isSuccess()) {
-      Operands.push_back(MC6809Operand::createReg(STI, Reg, S, E));
+      Operands.push_back(MC6809Operand::createReg(MCSTI, Reg, S, E));
       return ParseStatus::Success;
     }
     return ParseStatus::NoMatch;
@@ -689,7 +692,7 @@ public:
 
     */
     // First, the mnemonic goes on the stack.
-    Operands.push_back(MC6809Operand::createToken(STI, Mnemonic, NameLoc));
+    Operands.push_back(MC6809Operand::createToken(MCSTI, Mnemonic, NameLoc));
     AsmToken::TokenKind RightHandSide = AsmToken::Eof;
     while (getLexer().isNot(AsmToken::EndOfStatement) && getLexer().isNot(AsmToken::Eof)) {
       // Handle special characters.

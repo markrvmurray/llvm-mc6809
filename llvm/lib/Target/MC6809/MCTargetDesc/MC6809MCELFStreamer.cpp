@@ -39,7 +39,7 @@ void MC6809MCELFStreamer::initSections(bool NoExecStack, const MCSubtargetInfo &
   emitCodeAlignment(Align(1), &STI);
 
   if (NoExecStack)
-    switchSection(Ctx.getAsmInfo()->getNonexecutableStackSection(Ctx));
+    switchSection(Ctx.getAsmInfo()->getStackSection(Ctx, false));
 }
 
 static bool HasPrefix(StringRef Name, StringRef Prefix) {
@@ -76,18 +76,17 @@ void MC6809MCELFStreamer::emitValueImpl(const MCExpr *Value, unsigned Size, SMLo
 void MC6809MCELFStreamer::emitMc6809AddrAsciz(const MCExpr *Value, unsigned Size, SMLoc Loc) {
   visitUsedExpr(*Value);
   MCDwarfLineEntry::make(this, getCurrentSectionOnly());
-  MCDataFragment *DF = getOrCreateDataFragment();
-
-  DF->getFixups().push_back(MCFixup::create(DF->getContents().size(), Value, (MCFixupKind)MC6809::AddrAsciz, Loc));
-  DF->getContents().resize(DF->getContents().size() + Size, 0);
+  addFixup(Value, (MCFixupKind)MC6809::AddrAsciz);
+  SmallVector<char> Zeroes(Size, 0);
+  appendContents(Zeroes);
 }
 
 void MC6809MCELFStreamer::emitMappingSymbol(StringRef Name) {
-  auto *Symbol = cast<MCSymbolELF>(getContext().getOrCreateSymbol(Name + "." + Twine(MappingSymbolCounter++)));
+  auto *Symbol = static_cast<MCSymbolELF *>(getContext().getOrCreateSymbol(
+      Name + "." + Twine(MappingSymbolCounter++)));
   emitLabel(Symbol);
   Symbol->setType(ELF::STT_NOTYPE);
   Symbol->setBinding(ELF::STB_LOCAL);
-  Symbol->setExternal(false);
 }
 
 MCStreamer *createMC6809MCELFStreamer(const Triple & /*T*/, MCContext &Ctx, std::unique_ptr<MCAsmBackend> &&TAB, std::unique_ptr<MCObjectWriter> &&OW, std::unique_ptr<MCCodeEmitter> &&Emitter) {

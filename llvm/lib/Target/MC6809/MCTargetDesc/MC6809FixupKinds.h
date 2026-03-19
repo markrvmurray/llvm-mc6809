@@ -13,7 +13,6 @@
 
 #include "llvm/MC/MCAsmBackend.h"
 #include "llvm/MC/MCFixup.h"
-#include "llvm/MC/MCFixupKindInfo.h"
 
 namespace llvm {
 namespace MC6809 {

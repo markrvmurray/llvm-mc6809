@@ -9,6 +9,7 @@
 #include "MC6809MCExpr.h"
 #include "MC6809FixupKinds.h"
 
+#include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCAssembler.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCStreamer.h"
@@ -45,7 +46,7 @@ void MC6809MCExpr::printImpl(raw_ostream &OS, const MCAsmInfo *MAI) const {
   }
 
   OS << getName() << '(';
-  getSubExpr()->print(OS, MAI);
+  MAI->printExpr(OS, *getSubExpr());
   OS << ')';
 }
 

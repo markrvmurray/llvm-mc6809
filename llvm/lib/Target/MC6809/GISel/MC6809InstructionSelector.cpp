@@ -569,8 +569,7 @@ bool MC6809InstructionSelector::selectFrameIndex(MachineInstr &MI) {
   auto Instr = Builder.buildInstr(MC6809::LEA_Ptr_Imm).add(MI.getOperand(0))
                    .add(MI.getOperand(1))
                    .addImm(0);
-  if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
-    llvm_unreachable("Could not constrain Load Frame Index instruction.");
+  constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
   MI.eraseFromParent();
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Instr = "; Instr->dump(););
   return true;
@@ -634,8 +633,7 @@ bool MC6809InstructionSelector::selectMergeValues(MachineInstr &MI) {
       auto Instr = Builder.buildInstr(MC6809::Load_i16_Imm).addDef(Dst).addImm(Val);
       LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Load Instruction : Instr :"; Instr->dump(););
       Instr->addImplicitDefUseOperands(*MF);
-      if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
-        return false;
+      constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
       LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Instr = "; Instr->dump(););
     } else if (Size == 32) {
       LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Size == 32\n";);
@@ -644,8 +642,7 @@ bool MC6809InstructionSelector::selectMergeValues(MachineInstr &MI) {
       auto Instr = Builder.buildInstr(MC6809::Load_i32_Imm).addDef(Dst).addImm(Val);
       LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Load Instruction : Instr :"; Instr->dump(););
       Instr->addImplicitDefUseOperands(*MF);
-      if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
-        return false;
+      constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
       LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : Instr = "; Instr->dump(););
     }
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : true\n";);
@@ -719,8 +716,7 @@ bool MC6809InstructionSelector::selectAddO(MachineInstr &MI) {
                      .addDef(CarryOut)
                      .addUse(Reg)
                      .addImm(Value);
-    if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
-      llvm_unreachable("Could not constrain immediate add/subtract instruction.");
+    constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Immediate : Instr = "; Instr->dump(););
     return true;
@@ -741,8 +737,7 @@ bool MC6809InstructionSelector::selectAddO(MachineInstr &MI) {
                      .add(Ptr)
                      .add(Offset)
                      .cloneMemRefs(*Ptr.getParent());
-    if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
-      llvm_unreachable("Could not constrain indexed add/subtract instruction.");
+    constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Indexed : Instr = "; Instr->dump(););
     return true;
@@ -759,8 +754,7 @@ bool MC6809InstructionSelector::selectAddO(MachineInstr &MI) {
                 .addDef(CarryOut)
                 .addUse(LHS)
                 .addUse(RHS);
-    if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
-      llvm_unreachable("Could not constrain register/register add/subtract instruction.");
+    constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Reg/Reg : Instr = "; Instr->dump(););
     return true;
@@ -808,8 +802,7 @@ bool MC6809InstructionSelector::selectSubO(MachineInstr &MI) {
                      .addDef(CarryOut)
                      .addUse(Reg)
                      .addImm(Value);
-    if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
-      llvm_unreachable("Could not constrain immediate add/subtract instruction.");
+    constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Immediate : Instr = "; Instr->dump(););
     return true;
@@ -832,8 +825,7 @@ bool MC6809InstructionSelector::selectSubO(MachineInstr &MI) {
                      .add(Ptr)
                      .add(Offset)
                      .cloneMemRefs(*Ptr.getParent());
-    if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
-      llvm_unreachable("Could not constrain indexed add/subtract instruction.");
+    constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Indexed : Instr = "; Instr->dump(););
     return true;
@@ -850,8 +842,7 @@ bool MC6809InstructionSelector::selectSubO(MachineInstr &MI) {
                 .addDef(CarryOut)
                 .addUse(LHS)
                 .addUse(RHS);
-    if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
-      llvm_unreachable("Could not constrain register/register add/subtract instruction.");
+    constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Reg/Reg : Instr = "; Instr->dump(););
     return true;
@@ -900,8 +891,7 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
                      .addUse(Reg)
                      .addUse(Carry)
                      .addImm(Value);
-    if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
-      llvm_unreachable("Could not constrain immediate instruction.");
+    constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Immediate : Instr = "; Instr->dump(););
     return true;
@@ -923,8 +913,7 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
                      .add(Ptr)
                      .add(Offset)
                      .cloneMemRefs(*Ptr.getParent());
-    if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
-      llvm_unreachable("Could not constrain indexed add instruction.");
+    constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Indexed : Instr = "; Instr->dump(););
     return true;
@@ -944,8 +933,7 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
                      .add(Ptr)
                      .add(Offset)
                      .cloneMemRefs(*Ptr.getParent());
-    if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
-      llvm_unreachable("Could not constrain indexed add instruction.");
+    constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Indexed : Instr = "; Instr->dump(););
     return true;
@@ -963,8 +951,7 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
                 .addUse(LHS)
                 .addUse(Carry)
                 .addUse(RHS);
-    if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
-      llvm_unreachable("Could not constrain register/register add instruction.");
+    constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Reg/Reg : Instr = "; Instr->dump(););
     return true;
@@ -1016,8 +1003,7 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
                      .addUse(Reg)
                      .addUse(Carry)
                      .addImm(Value);
-    if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
-      llvm_unreachable("Could not constrain immediate instruction.");
+    constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Immediate : Instr = "; Instr->dump(););
     return true;
@@ -1041,8 +1027,7 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
                      .add(Ptr)
                      .add(Offset)
                      .cloneMemRefs(*Ptr.getParent());
-    if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
-      llvm_unreachable("Could not constrain indexed add instruction.");
+    constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Indexed : Instr = "; Instr->dump(););
     return true;
@@ -1064,8 +1049,7 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
                      .add(Ptr)
                      .add(Offset)
                      .cloneMemRefs(*Ptr.getParent());
-    if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
-      llvm_unreachable("Could not constrain indexed add instruction.");
+    constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Indexed : Instr = "; Instr->dump(););
     return true;
@@ -1083,8 +1067,7 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
                 .addUse(LHS)
                 .addUse(Carry)
                 .addUse(RHS);
-    if (!constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI))
-      llvm_unreachable("Could not constrain register/register add instruction.");
+    constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : Reg/Reg : Instr = "; Instr->dump(););
     return true;
@@ -1386,10 +1369,7 @@ bool MC6809InstructionSelector::selectGeneric(MachineInstr &MI) {
   MI.setDesc(TII.get(Opcode));
   MI.addImplicitDefUseOperands(*MF);
   // Establish any tied operands and known register classes.
-  if (!constrainSelectedInstRegOperands(MI, TII, TRI, RBI)) {
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit cannot constrainSelectedInstRegOperands()\n";);
-    return false;
-  }
+  constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
   // Make sure that the outputs have register classes.
   constrainGenericOp(MI);
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););

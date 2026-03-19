@@ -1798,19 +1798,19 @@ def STBTbd : MC6809BitDirect_P3<(outs BIT8:$dst), "stbt", Opcode<0x37,3>, [], []
   let Predicates = [IsHD6309];
 }
 
-def TFM0pp : MC6809BlockRegisterPair0_P3<(outs anyregister:$dst), "tfm", Opcode<0x38,3>, [], []> {
+def TFM0pp : MC6809BlockRegisterPair0_P3<(outs), "tfm", Opcode<0x38,3>, [], []> {
   let Predicates = [IsHD6309];
 }
 
-def TFM1pp : MC6809BlockRegisterPair1_P3<(outs anyregister:$dst), "tfm", Opcode<0x39,3>, [], []> {
+def TFM1pp : MC6809BlockRegisterPair1_P3<(outs), "tfm", Opcode<0x39,3>, [], []> {
   let Predicates = [IsHD6309];
 }
 
-def TFM2pp : MC6809BlockRegisterPair2_P3<(outs anyregister:$dst), "tfm", Opcode<0x3A,3>, [], []> {
+def TFM2pp : MC6809BlockRegisterPair2_P3<(outs), "tfm", Opcode<0x3A,3>, [], []> {
   let Predicates = [IsHD6309];
 }
 
-def TFM3pp : MC6809BlockRegisterPair3_P3<(outs anyregister:$dst), "tfm", Opcode<0x3B,3>, [], []> {
+def TFM3pp : MC6809BlockRegisterPair3_P3<(outs), "tfm", Opcode<0x3B,3>, [], []> {
   let Predicates = [IsHD6309];
 }
 

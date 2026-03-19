@@ -57,7 +57,7 @@ struct MC6809ValueAssigner : CallLowering::ValueAssigner {
     for (Register R : Reserved.set_bits())
       State.AllocateReg(R);
 
-    if (getAssignFn(!Info.IsFixed)(ValNo, ValVT, LocVT, LocInfo, Flags, State))
+    if (getAssignFn(State.isVarArg())(ValNo, ValVT, LocVT, LocInfo, Flags, Info.Ty, State))
       return true;
     StackSize = State.getStackSize();
     return false;
@@ -73,7 +73,7 @@ struct MC6809OutgoingValueHandler : CallLowering::OutgoingValueHandler {
 
   MC6809OutgoingValueHandler(MachineIRBuilder &MIRBuilder, MachineInstrBuilder &MIB, MachineRegisterInfo &MRI) : OutgoingValueHandler(MIRBuilder, MRI), MIB(MIB) {}
 
-  void assignValueToReg(Register ValVReg, Register PhysReg, const CCValAssign &VA) override {
+  void assignValueToReg(Register ValVReg, Register PhysReg, const CCValAssign &VA, ISD::ArgFlagsTy Flags) override {
     // Ensure that the physical remains alive until control flow leaves the
     // current function.
     MIB.addUse(PhysReg, RegState::Implicit);
@@ -127,7 +127,7 @@ struct MC6809OutgoingReturnHandler : MC6809OutgoingValueHandler {
 struct MC6809IncomingValueHandler : CallLowering::IncomingValueHandler {
   MC6809IncomingValueHandler(MachineIRBuilder &MIRBuilder, MachineRegisterInfo &MRI) : IncomingValueHandler(MIRBuilder, MRI) {}
 
-  void assignValueToReg(Register ValVReg, Register PhysReg, const CCValAssign &VA) override {
+  void assignValueToReg(Register ValVReg, Register PhysReg, const CCValAssign &VA, ISD::ArgFlagsTy Flags = {}) override {
     switch (VA.getLocVT().getSizeInBits()) {
     default:
       report_fatal_error("Not yet implemented.");

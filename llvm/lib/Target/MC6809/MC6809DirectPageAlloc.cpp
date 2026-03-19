@@ -483,21 +483,24 @@ void MC6809DirectPageAlloc::collectCandidates(MachineFunction &MF, std::vector<s
 
   const MC6809FrameLowering &TFL = *MF.getSubtarget<MC6809Subtarget>().getFrameLowering();
 
-  float SaveFreq;
+  float SaveFreq = 0;
   float RestoreFreq = 0;
-  if (MFI.getSavePoint()) {
-    SaveFreq = getFreq(BFI, *MFI.getSavePoint());
-    MachineBasicBlock *RestoreBlock = MFI.getRestorePoint();
-    // If RestoreBlock does not have any successor and is not a return block
-    // then the end point is unreachable and we do not need to insert any
-    // epilogue.
-    if (!RestoreBlock->succ_empty() || RestoreBlock->isReturnBlock())
-      RestoreFreq = getFreq(BFI, *RestoreBlock);
-  } else {
+  if (MFI.getSavePoints().empty()) {
     SaveFreq = getFreq(BFI, *MF.begin());
     for (MachineBasicBlock &MBB : MF) {
       if (MBB.isReturnBlock())
         RestoreFreq += getFreq(BFI, MBB);
+    }
+  } else {
+    for (const auto &[SavePoint, _] : MFI.getSavePoints())
+      SaveFreq += getFreq(BFI, *SavePoint);
+    for (const auto &[RestorePoint, _] : MFI.getRestorePoints()) {
+      // If RestorePoint does not have any successor and is not a return block
+      // then the end point is unreachable and we do not need to insert any
+      // epilogue.
+      if (RestorePoint->succ_empty() && !RestorePoint->isReturnBlock())
+        continue;
+      RestoreFreq += getFreq(BFI, *RestorePoint);
     }
   }
 

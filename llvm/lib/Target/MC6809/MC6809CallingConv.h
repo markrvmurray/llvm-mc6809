@@ -19,9 +19,9 @@
 // #include "llvm/Support/MachineValueType.h"
 
 namespace llvm {
-bool RetCC_MC6809(unsigned ValNo, MVT ValVT, MVT LocVT, CCValAssign::LocInfo LocInfo, ISD::ArgFlagsTy ArgFlags, CCState &State);
-bool CC_MC6809(unsigned ValNo, MVT ValVT, MVT LocVT, CCValAssign::LocInfo LocInfo, ISD::ArgFlagsTy ArgFlags, CCState &State);
-bool CC_MC6809_VarArgs(unsigned ValNo, MVT ValVT, MVT LocVT, CCValAssign::LocInfo LocInfo, ISD::ArgFlagsTy ArgFlags, CCState &State);
+bool RetCC_MC6809(unsigned ValNo, MVT ValVT, MVT LocVT, CCValAssign::LocInfo LocInfo, ISD::ArgFlagsTy ArgFlags, Type *OrigTy, CCState &State);
+bool CC_MC6809(unsigned ValNo, MVT ValVT, MVT LocVT, CCValAssign::LocInfo LocInfo, ISD::ArgFlagsTy ArgFlags, Type *OrigTy, CCState &State);
+bool CC_MC6809_VarArgs(unsigned ValNo, MVT ValVT, MVT LocVT, CCValAssign::LocInfo LocInfo, ISD::ArgFlagsTy ArgFlags, Type *OrigTy, CCState &State);
 } // namespace llvm
 
 #endif // LLVM_LIB_TARGET_MC6809_MC6809CALLINGCONV_H

@@ -35,7 +35,7 @@
 using namespace llvm;
 
 MC6809Subtarget::MC6809Subtarget(const Triple &TT, const std::string &CPU, const std::string &FS, const MC6809TargetMachine &TM)
-    : MC6809GenSubtargetInfo(TT, CPU, /* TuneCPU */ CPU, FS), InstrInfo(), RegInfo(), FrameLowering(), TLInfo(TM, initializeSubtargetDependencies(CPU, FS, TM)), CallLoweringInfo(&TLInfo), Legalizer(*this),
+    : MC6809GenSubtargetInfo(TT, CPU, /* TuneCPU */ CPU, FS), InstrInfo(*this), RegInfo(), FrameLowering(), TLInfo(TM, initializeSubtargetDependencies(CPU, FS, TM)), CallLoweringInfo(&TLInfo), Legalizer(*this),
       InstSelector(createMC6809InstructionSelector(TM, *this, RegBankInfo)), InlineAsmLoweringInfo(&TLInfo) {}
 
 MC6809Subtarget &MC6809Subtarget::initializeSubtargetDependencies(StringRef CPU, StringRef FS, const TargetMachine &TM) {
@@ -45,7 +45,7 @@ MC6809Subtarget &MC6809Subtarget::initializeSubtargetDependencies(StringRef CPU,
   return *this;
 }
 
-void MC6809Subtarget::overrideSchedPolicy(MachineSchedPolicy &Policy, unsigned NumRegionInstrs) const {
+void MC6809Subtarget::overrideSchedPolicy(MachineSchedPolicy &Policy, const SchedRegion &Region) const {
   // Force register pressure tracking; by default it's disabled for small
   // regions, but it's the only 6502 scheduling concern.
   Policy.ShouldTrackPressure = true;

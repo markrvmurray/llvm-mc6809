@@ -65,7 +65,7 @@ class MC6809InstrInfo final : public MC6809GenInstrInfo {
   const MC6809RegisterInfo RI;
 
 public:
-  MC6809InstrInfo();
+  MC6809InstrInfo(const MC6809Subtarget &STI);
 
   /// getRegisterInfo - TargetInstrInfo is a superset of MRegister info.  As
   /// such, whenever a client has an instance of instruction info, it should
@@ -80,7 +80,7 @@ public:
 
   Register isStoreToStackSlot(const MachineInstr &MI, int &FrameIndex) const override;
 
-  void reMaterialize(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, Register DestReg, unsigned SubIdx, const MachineInstr &Orig, const TargetRegisterInfo &TRI) const override;
+  void reMaterialize(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, Register DestReg, unsigned SubIdx, const MachineInstr &Orig) const override;
 
   MachineInstr *commuteInstructionImpl(MachineInstr &MI, bool NewMI, unsigned OpIdx1, unsigned OpIdx2) const override;
 
@@ -108,13 +108,13 @@ public:
 
   void copyPhysReg(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, const DebugLoc &DL, Register DestReg, Register SrcReg, bool KillSrc, bool RenamableDest = false, bool RenamableSrc = false) const override;
 
-  void storeRegToStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, Register SrcReg, bool isKill, int FrameIndex, const TargetRegisterClass *RC, const TargetRegisterInfo *TRI, Register VReg, MachineInstr::MIFlag Flags) const override;
+  void storeRegToStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, Register SrcReg, bool isKill, int FrameIndex, const TargetRegisterClass *RC, Register VReg, MachineInstr::MIFlag Flags = MachineInstr::NoFlags) const override;
 
   const TargetRegisterClass *canFoldCopy(const MachineInstr &MI, const TargetInstrInfo &TII, unsigned FoldIdx) const override;
 
-  void loadRegFromStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, Register DestReg, int FrameIndex, const TargetRegisterClass *RC, const TargetRegisterInfo *TRI, Register VReg, MachineInstr::MIFlag Flags) const override;
+  void loadRegFromStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, Register DestReg, int FrameIndex, const TargetRegisterClass *RC, Register VReg, unsigned SubReg = 0, MachineInstr::MIFlag Flags = MachineInstr::NoFlags) const override;
 
-  void loadStoreRegStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, Register Reg, bool IsKill, int FrameIndex, const TargetRegisterClass *RC, const TargetRegisterInfo *TRI, bool IsLoad) const;
+  void loadStoreRegStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, Register Reg, bool IsKill, int FrameIndex, const TargetRegisterClass *RC, bool IsLoad) const;
 
   bool expandPostRAPseudo(MachineInstr &MI) const override;
 

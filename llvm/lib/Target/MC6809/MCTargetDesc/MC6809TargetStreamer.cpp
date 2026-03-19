@@ -95,12 +95,12 @@ bool MC6809TargetELFStreamer::hasInitArray() { return static_cast<MC6809MCELFStr
 bool MC6809TargetELFStreamer::hasFiniArray() { return static_cast<MC6809MCELFStreamer &>(getStreamer()).hasFiniArray(); }
 
 bool MC6809TargetELFStreamer::emitDirectiveDirectPage(MCSymbol *Sym) {
-  cast<MCSymbolELF>(Sym)->setOther(ELF::STO_MC6809_DIRECTPAGE);
+  static_cast<MCSymbolELF *>(Sym)->setOther(ELF::STO_MC6809_DIRECTPAGE);
   return true;
 }
 
 void MC6809TargetELFStreamer::stronglyReference(MCSymbol *Sym) {
-  auto *ES = cast<MCSymbolELF>(Sym);
+  auto *ES = static_cast<MCSymbolELF *>(Sym);
   // There's an explicit check in emitSymbolAttribute to avoid accidentally
   // overriding weak->global due to a GCC corner case, but it should always be
   // safe for symbols under complete compiler control.

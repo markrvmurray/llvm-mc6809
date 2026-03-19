@@ -44,8 +44,9 @@ void llvm::MC6809::emitFrameOffset(MachineBasicBlock &MBB, MachineBasicBlock::it
     BuildMI(MBB, MBBI, DL, TII->get(MC6809::LEAPtrAdd_Imm), DestReg).addReg(SrcReg).addImm(Bytes);
 }
 
-MC6809InstrInfo::MC6809InstrInfo()
-    : MC6809GenInstrInfo(/*CFSetupOpcode=*/MC6809::ADJCALLSTACKDOWN,
+MC6809InstrInfo::MC6809InstrInfo(const MC6809Subtarget &STI)
+    : MC6809GenInstrInfo(STI, RI,
+                         /*CFSetupOpcode=*/MC6809::ADJCALLSTACKDOWN,
                          /*CFDestroyOpcode=*/MC6809::ADJCALLSTACKUP) {
 
   LEAPtrAddImmOpcode = {
@@ -333,16 +334,17 @@ Register MC6809InstrInfo::isStoreToStackSlot(const MachineInstr &MI, int &FrameI
   return 0;
 }
 
-void MC6809InstrInfo::reMaterialize(MachineBasicBlock &MBB, MachineBasicBlock::iterator I, Register DestReg, unsigned SubIdx, const MachineInstr &Orig, const TargetRegisterInfo &TRI) const {
+void MC6809InstrInfo::reMaterialize(MachineBasicBlock &MBB, MachineBasicBlock::iterator I, Register DestReg, unsigned SubIdx, const MachineInstr &Orig) const {
   auto opcode = Orig.getOpcode();
   if (opcode == MC6809::Load_i8_Imm || opcode == MC6809::Load_i16_Imm || opcode == MC6809::Load_i32_Imm) {
+    const TargetRegisterInfo &TRI = getRegisterInfo();
     MachineInstr *MI = MBB.getParent()->CloneMachineInstr(&Orig);
     MI->removeOperand(1);
     MI->substituteRegister(MI->getOperand(0).getReg(), DestReg, SubIdx, TRI);
     MI->setDesc(get(opcode));
     MBB.insert(I, MI);
   } else {
-    TargetInstrInfo::reMaterialize(MBB, I, DestReg, SubIdx, Orig, TRI);
+    TargetInstrInfo::reMaterialize(MBB, I, DestReg, SubIdx, Orig);
   }
 }
 
@@ -374,8 +376,8 @@ MachineInstr *MC6809InstrInfo::commuteInstructionImpl(MachineInstr &MI, bool New
     return RC;
   };
 
-  const TargetRegisterClass *RegClass1 = getRegClass(MI.getDesc(), Idx1, TRI, MF);
-  const TargetRegisterClass *RegClass2 = getRegClass(MI.getDesc(), Idx2, TRI, MF);
+  const TargetRegisterClass *RegClass1 = getRegClass(MI.getDesc(), Idx1);
+  const TargetRegisterClass *RegClass2 = getRegClass(MI.getDesc(), Idx2);
   Register Reg1 = MI.getOperand(Idx1).getReg();
   Register Reg2 = MI.getOperand(Idx2).getReg();
 
@@ -858,15 +860,15 @@ const TargetRegisterClass *MC6809InstrInfo::canFoldCopy(const MachineInstr &MI, 
   return nullptr;
 }
 
-void MC6809InstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, Register SrcReg, bool isKill, int FrameIndex, const TargetRegisterClass *RC, const TargetRegisterInfo *TRI, Register VReg, MachineInstr::MIFlag Flags) const {
+void MC6809InstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, Register SrcReg, bool isKill, int FrameIndex, const TargetRegisterClass *RC, Register VReg, MachineInstr::MIFlag Flags) const {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter\n";);
-  loadStoreRegStackSlot(MBB, MI, SrcReg, isKill, FrameIndex, RC, TRI, /*IsLoad=*/false);
+  loadStoreRegStackSlot(MBB, MI, SrcReg, isKill, FrameIndex, RC, /*IsLoad=*/false);
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI ="; MI->dump(););
 }
 
-void MC6809InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, Register DestReg, int FrameIndex, const TargetRegisterClass *RC, const TargetRegisterInfo *TRI, Register VReg, MachineInstr::MIFlag Flags) const {
+void MC6809InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, Register DestReg, int FrameIndex, const TargetRegisterClass *RC, Register VReg, unsigned SubReg, MachineInstr::MIFlag Flags) const {
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter\n";);
-  loadStoreRegStackSlot(MBB, MI, DestReg, false, FrameIndex, RC, TRI, /*IsLoad=*/true);
+  loadStoreRegStackSlot(MBB, MI, DestReg, false, FrameIndex, RC, /*IsLoad=*/true);
   LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI->dump(););
 }
 
@@ -967,7 +969,7 @@ static void loadStoreRegisterStaticStackSlot(MachineIRBuilder &Builder, MachineO
   }
 }
 
-void MC6809InstrInfo::loadStoreRegStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, Register Reg, bool IsKill, int FrameIndex, const TargetRegisterClass *RC, const TargetRegisterInfo *TRI, bool IsLoad) const {
+void MC6809InstrInfo::loadStoreRegStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, Register Reg, bool IsKill, int FrameIndex, const TargetRegisterClass *RC, bool IsLoad) const {
   MachineFunction &MF = *MBB.getParent();
   MachineFrameInfo &MFI = MF.getFrameInfo();
   MachineRegisterInfo &MRI = MF.getRegInfo();

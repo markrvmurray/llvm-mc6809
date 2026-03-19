@@ -123,7 +123,7 @@ bool MC6809FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB, Mach
       continue;
     assert(!CI.isSpilledToReg());
     const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
-    TII.storeRegToStackSlot(MBB, Builder.getInsertPt(), Reg, true, CI.getFrameIdx(), RC, TRI, Register{});
+    TII.storeRegToStackSlot(MBB, Builder.getInsertPt(), Reg, true, CI.getFrameIdx(), RC, Register{});
   }
 
   return true;
@@ -158,7 +158,7 @@ bool MC6809FrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB, Ma
       continue;
     assert(!CI.isSpilledToReg());
     const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
-    TII.loadRegFromStackSlot(MBB, Builder.getInsertPt(), Reg, CI.getFrameIdx(), RC, TRI, Register{});
+    TII.loadRegFromStackSlot(MBB, Builder.getInsertPt(), Reg, CI.getFrameIdx(), RC, Register{});
   }
 
   // Begin tracking the frame pointer exclusion region only after all soft stack

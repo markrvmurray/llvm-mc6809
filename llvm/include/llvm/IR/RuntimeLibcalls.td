@@ -82,6 +82,12 @@ def ExceptionModelIsSjLj : RuntimeLibcallPredicate<
 
 // Integer
 foreach IntTy = ["I8", "I16", "I32", "I64", "I128"] in {
+  def ADD_#IntTy : RuntimeLibcall;
+  def SUB_#IntTy : RuntimeLibcall;
+  def AND_#IntTy : RuntimeLibcall;
+  def OR_#IntTy : RuntimeLibcall;
+  def XOR_#IntTy : RuntimeLibcall;
+  def NOT_#IntTy : RuntimeLibcall;
   def SHL_#IntTy : RuntimeLibcall;
   def SRL_#IntTy : RuntimeLibcall;
   def SRA_#IntTy : RuntimeLibcall;
@@ -3613,6 +3619,74 @@ def MOSSystemLibrary
           __bswapqi2, __bswaphi2, __bswapsi2, __bswapdi2, __bswapti2,
           __udivmodqi4, __udivmodhi4, __udivmodsi4, __udivmoddi4, 
           __divmodqi4, __divmodhi4, __divmodsi4, __divmoddi4, 
+          __memset,
+          abort)>;
+
+//===----------------------------------------------------------------------===//
+// MC6809 Runtime Libcalls
+//===----------------------------------------------------------------------===//
+
+// Integer arithmetic libcalls for MC6809 (8-bit CPU needing software routines)
+// GCC naming: qi=8bit, hi=16bit, si=32bit, di=64bit, ti=128bit
+def __addqi3 : RuntimeLibcallImpl<ADD_I8>;
+def __addhi3 : RuntimeLibcallImpl<ADD_I16>;
+def __addsi3 : RuntimeLibcallImpl<ADD_I32>;
+def __adddi3 : RuntimeLibcallImpl<ADD_I64>;
+def __addti3 : RuntimeLibcallImpl<ADD_I128>;
+
+def __subqi3 : RuntimeLibcallImpl<SUB_I8>;
+def __subhi3 : RuntimeLibcallImpl<SUB_I16>;
+def __subsi3 : RuntimeLibcallImpl<SUB_I32>;
+def __subdi3 : RuntimeLibcallImpl<SUB_I64>;
+def __subti3 : RuntimeLibcallImpl<SUB_I128>;
+
+def __andqi3 : RuntimeLibcallImpl<AND_I8>;
+def __andhi3 : RuntimeLibcallImpl<AND_I16>;
+def __andsi3 : RuntimeLibcallImpl<AND_I32>;
+def __anddi3 : RuntimeLibcallImpl<AND_I64>;
+def __andti3 : RuntimeLibcallImpl<AND_I128>;
+
+def __orqi3 : RuntimeLibcallImpl<OR_I8>;
+def __orhi3 : RuntimeLibcallImpl<OR_I16>;
+def __orsi3 : RuntimeLibcallImpl<OR_I32>;
+def __ordi3 : RuntimeLibcallImpl<OR_I64>;
+def __orti3 : RuntimeLibcallImpl<OR_I128>;
+
+def __xorqi3 : RuntimeLibcallImpl<XOR_I8>;
+def __xorhi3 : RuntimeLibcallImpl<XOR_I16>;
+def __xorsi3 : RuntimeLibcallImpl<XOR_I32>;
+def __xordi3 : RuntimeLibcallImpl<XOR_I64>;
+def __xorti3 : RuntimeLibcallImpl<XOR_I128>;
+
+def __notqi2 : RuntimeLibcallImpl<NOT_I8>;
+def __nothi2 : RuntimeLibcallImpl<NOT_I16>;
+def __notsi2 : RuntimeLibcallImpl<NOT_I32>;
+def __notdi2 : RuntimeLibcallImpl<NOT_I64>;
+def __notti2 : RuntimeLibcallImpl<NOT_I128>;
+
+def isMC6809 : RuntimeLibcallPredicate<"TT.getArch() == Triple::mc6809">;
+
+// The memset intrinsic takes a char, while the C memset takes an int. These
+// are different in the MC6809 calling convention, since arguments are not
+// automatically promoted to int. "memset" is the C version, and "__memset" is
+// the intrinsic version.
+def MC6809SystemLibrary
+    : SystemRuntimeLibrary<
+          isMC6809,
+          (add (sub DefaultRuntimeLibcallImpls, memset),
+          __addqi3, __addhi3, __addsi3, __adddi3, __addti3,
+          __subqi3, __subhi3, __subsi3, __subdi3, __subti3,
+          __andqi3, __andhi3, __andsi3, __anddi3, __andti3,
+          __orqi3, __orhi3, __orsi3, __ordi3, __orti3,
+          __xorqi3, __xorhi3, __xorsi3, __xordi3, __xorti3,
+          __notqi2, __nothi2, __notsi2, __notdi2, __notti2,
+          __ashlqi3, __lshrqi3, __ashrqi3,
+          __rotlqi3, __rotlhi3, __rotlsi3, __rotldi3, __rotlti3,
+          __rotrqi3, __rotrhi3, __rotrsi3, __rotrdi3, __rotrti3,
+          __clzqi2, __clzhi2,
+          __bswapqi2, __bswaphi2, __bswapsi2, __bswapdi2, __bswapti2,
+          __udivmodqi4, __udivmodhi4, __udivmodsi4, __udivmoddi4,
+          __divmodqi4, __divmodhi4, __divmodsi4, __divmoddi4,
           __memset,
           abort)>;
 

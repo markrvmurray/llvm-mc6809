@@ -84,7 +84,7 @@ PreservedAnalyses MC6809IndexIV::run(Loop &L, LoopAnalysisManager &AM, LoopStand
       LLVM_DEBUG(dbgs() << "Rewriting to 8-bit index.\n");
       Changed = true;
 
-      SCEVExpander Rewriter(SE, DL, "mc6809-indexiv");
+      SCEVExpander Rewriter(SE, "mc6809-indexiv");
       // The IVs should be computed from already available subexpressions
       // wherever possible. Canonical mode instead expands them fully to make
       // them easier to analyze.

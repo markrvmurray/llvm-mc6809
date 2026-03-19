@@ -679,7 +679,6 @@ for instr_ in RawInstructions:
 	elif instr["mode"] == "pp":
 		instr["addressmode"] = "BlockRegisterPair"
 		instr["ins"] += ["anyregister:$reg1","anyregister:$reg2"]
-		instr["outs"] += ["anyregister:$dst"]
 		instr["name"] = instr["mnemonic"] + str(instr["opcode"] - 0x38) + instr["mode"]
 		instr["addressmode"] += str(instr["opcode"] - 0x38)
 		instr["params"] = [ ((15, 12), "reg1"), ((11, 8), "reg2"), ((7, 0), "Opc") ]
@@ -778,7 +777,7 @@ for page in range(1):
 				m = ((m[0][0] + 8, m[0][1] + 8), m[1])
 			newmode += [ m ]
 		instform["params"] = newmode + [ ((15, 8), "val{7-0}"), ((7, 0), "Opc") ]
-		instform["ins"] = [ "i8imm:$val" ] + indexmode[5].split(',')
+		instform["ins"] = [ "i8imm:$val" ] + [x for x in indexmode[5].split(',') if x]
 		instform["outs"] = []
 		instform["hd6309"] = True
 		instform["defs"] = indexmode[7]
@@ -809,7 +808,7 @@ for page in range(3):
 		instform["operandsize"] = indexmode[4]
 		instform["params"] = indexmode[3] + [ ((7, 0), "Opc") ]
 		instform["hd6309"] = indexmode[6]
-		instform["ins"] = indexmode[5].split(',')
+		instform["ins"] = [x for x in indexmode[5].split(',') if x]
 		instform["outs"] = []
 		instform["defs"] = indexmode[7]
 		instform["uses"] = indexmode[8]

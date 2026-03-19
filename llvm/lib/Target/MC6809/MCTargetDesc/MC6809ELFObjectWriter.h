@@ -24,8 +24,9 @@ namespace llvm {
 class MC6809ELFObjectWriter : public MCELFObjectTargetWriter {
 public:
   explicit MC6809ELFObjectWriter(uint8_t OSABI);
-  virtual ~MC6809ELFObjectWriter();
-  unsigned getRelocType(MCContext &Ctx, const MCValue &Target, const MCFixup &Fixup, bool IsPCRel) const override;
+  virtual ~MC6809ELFObjectWriter() = default;
+  unsigned getRelocType(const MCFixup &Fixup, const MCValue &Target,
+                        bool IsPCRel) const override;
 };
 
 } // end of namespace llvm

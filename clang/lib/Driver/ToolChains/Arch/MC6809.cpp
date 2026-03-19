@@ -17,12 +17,12 @@ using namespace llvm;
 
 /// getMC6809TargetCPU - Get the (LLVM) name of the MC6809 cpu we are targeting.
 std::string mc6809::getMC6809TargetCPU(const ArgList &Args) {
-  if (Arg *A = Args.getLastArg(clang::driver::options::OPT_mcpu_EQ)) {
+  if (Arg *A = Args.getLastArg(options::OPT_mcpu_EQ)) {
     StringRef CPUName = A->getValue();
 
     return llvm::StringSwitch<const char *>(CPUName)
-        .Cases("mc6809", "6809", "mc6809")
-        .Cases("hd6309", "6309", "hd6309")
+        .Cases({"mc6809", "6809"}, "mc6809")
+        .Cases({"hd6309", "6309"}, "hd6309")
         .Default("");
   }
 
@@ -31,10 +31,10 @@ std::string mc6809::getMC6809TargetCPU(const ArgList &Args) {
 
 void mc6809::getMC6809TargetFeatures(const Driver &D, const ArgList &Args,
                                std::vector<StringRef> &Features) {
-  if (Args.hasArg(clang::driver::options::OPT_mcpu_EQ) &&
+  if (Args.hasArg(options::OPT_mcpu_EQ) &&
       getMC6809TargetCPU(Args).empty()) {
     D.Diag(diag::err_drv_clang_unsupported)
-        << Args.getLastArg(clang::driver::options::OPT_mcpu_EQ)
+        << Args.getLastArg(options::OPT_mcpu_EQ)
                ->getAsString(Args);
   }
 

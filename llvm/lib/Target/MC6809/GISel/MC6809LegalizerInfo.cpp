@@ -355,8 +355,8 @@ MC6809LegalizerInfo::legalizeAddSub(LegalizerHelper &Helper, MachineRegisterInfo
       llvm_unreachable("Unexpected type");
     }
     Type *Ty = IntegerType::get(Ctx, Size);
-    auto Result = createLibcall(Helper.MIRBuilder, Libcall,
-                                {DstReg, Ty, 0}, {{LHSReg, Ty, 0}});
+    auto Result = Helper.createLibcall(Libcall,
+                                {DstReg, Ty, 0}, {{LHSReg, Ty, 0}}, LocObserver);
     if (Result == LegalizerHelper::Legalized) {
       MI.eraseFromParent();
       return true;
@@ -396,7 +396,7 @@ MC6809LegalizerInfo::legalizeBitwise(LegalizerHelper &Helper, MachineRegisterInf
     case 64: Libcall = RTLIB::NOT_I64; break;
     }
     Type *Ty = IntegerType::get(Ctx, Size);
-    auto Result = createLibcall(Helper.MIRBuilder, Libcall, {DstReg, Ty, 0}, {{LHSReg, Ty, 0}});
+    auto Result = Helper.createLibcall(Libcall, {DstReg, Ty, 0}, {{LHSReg, Ty, 0}}, LocObserver);
     MI.eraseFromParent();
     return Result;
   }
@@ -410,9 +410,9 @@ MC6809LegalizerInfo::legalizeBitwise(LegalizerHelper &Helper, MachineRegisterInf
     case 64: Libcall = RTLIB::AND_I64; break;
     }
     Type *Ty = IntegerType::get(Ctx, Size);
-    auto Result = createLibcall(Helper.MIRBuilder, Libcall, {DstReg, Ty, 0},
+    auto Result = Helper.createLibcall(Libcall, {DstReg, Ty, 0},
                                 {{MI.getOperand(1).getReg(), Ty, 0},
-                                 {MI.getOperand(2).getReg(), Ty, 1}});
+                                 {MI.getOperand(2).getReg(), Ty, 1}}, LocObserver);
     MI.eraseFromParent();
     return Result;
   }
@@ -431,7 +431,7 @@ bool MC6809LegalizerInfo::legalizeFConstant(LegalizerHelper &Helper, MachineRegi
   MI.setDesc(Helper.MIRBuilder.getTII().get(G_CONSTANT));
   MachineOperand &Imm = MI.getOperand(1);
   const ConstantFP *FPImm = Imm.getFPImm();
-  Imm.ChangeToCImmediate(ConstantInt::get(FPImm->getContext(), FPImm->getValueAPF().bitcastToAPInt()));
+  Imm.ChangeToImmediate(FPImm->getValueAPF().bitcastToAPInt().getZExtValue());
   Helper.Observer.changedInstr(MI);
   return LegalizerHelper::Legalized;
 }
@@ -810,7 +810,7 @@ bool MC6809LegalizerInfo::legalizeCtlz(LegalizerHelper &Helper, MachineRegisterI
     Libcall = RTLIB::CTLZ_I64;
     break;
   }
-  auto Result = createLibcall(MIRBuilder, Libcall, {DstReg, IntegerType::get(Ctx, DstSize), 0}, {{SrcReg, IntegerType::get(Ctx, SrcSize), 0}}, LocObserver);
+  auto Result = Helper.createLibcall(Libcall, {DstReg, IntegerType::get(Ctx, DstSize), 0}, {{SrcReg, IntegerType::get(Ctx, SrcSize), 0}}, LocObserver);
   MI.eraseFromParent();
   return Result;
 }
@@ -879,7 +879,7 @@ bool MC6809LegalizerInfo::legalizeMemOp(LegalizerHelper &Helper, MachineRegister
   }
 
   // Try emitting a libcall.
-  Result = createMemLibcall(Builder, MRI, MI, LocObserver);
+  Result = Helper.createMemLibcall(MRI, MI, LocObserver);
   if (Result == LegalizerHelper::Legalized) {
     MI.eraseFromParent();
     return true;
@@ -952,7 +952,7 @@ static std::optional<int> compareOperandLocations(const MachineOperand &A, const
   if (A.isImm() && B.isImm())
     return compareNumbers(A.getImm(), B.getImm());
   if (A.isGlobal() && B.isGlobal())
-    if (A.getGlobal()->getGlobalIdentifier() == B.getGlobal()->getGlobalIdentifier())
+    if (A.getGlobal()->getGUID() == B.getGlobal()->getGUID())
       return compareNumbers(A.getOffset(), B.getOffset());
   return std::nullopt;
 }
@@ -1086,7 +1086,7 @@ bool MC6809LegalizerInfo::legalizeIntrinsic(LegalizerHelper &Helper, MachineInst
     auto &Ctx = MI.getMF()->getFunction().getContext();
     auto *RetTy = Type::getVoidTy(Ctx);
     LostDebugLocObserver LocObserver("");
-    if (!createLibcall(Builder, "abort", {{}, RetTy, 0}, {}, CallingConv::C, LocObserver)) {
+    if (!Helper.createLibcall("abort", {{}, RetTy, 0}, {}, CallingConv::C, LocObserver)) {
       return false;
     }
     MI.eraseFromParent();
@@ -1399,7 +1399,7 @@ bool MC6809LegalizerInfo::shiftRotateLibcall(LegalizerHelper &Helper, MachineReg
   unsigned Size = MRI.getType(MI.getOperand(0).getReg()).getSizeInBits();
   auto &Ctx = MI.getMF()->getFunction().getContext();
 
-  auto Libcall = getRTLibDesc(MI.getOpcode(), Size);
+  auto Libcall = Helper.getRTLibDesc(MI.getOpcode(), Size);
 
   Type *HLTy = IntegerType::get(Ctx, Size);
   Type *HLAmtTy = IntegerType::get(Ctx, 8);
@@ -1407,7 +1407,7 @@ bool MC6809LegalizerInfo::shiftRotateLibcall(LegalizerHelper &Helper, MachineReg
   SmallVector<CallLowering::ArgInfo, 3> Args;
   Args.push_back({MI.getOperand(1).getReg(), HLTy, 0});
   Args.push_back({MI.getOperand(2).getReg(), HLAmtTy, 1});
-  if (!createLibcall(Helper.MIRBuilder, Libcall, {MI.getOperand(0).getReg(), HLTy, 0}, Args, LocObserver))
+  if (!Helper.createLibcall(Libcall, {MI.getOperand(0).getReg(), HLTy, 0}, Args, LocObserver))
     return false;
 
   MI.eraseFromParent();

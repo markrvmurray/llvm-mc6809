@@ -61,3 +61,5 @@ def MC6809 : Target {
   let AssemblyParsers        = [MC6809AsmParser];
   let AssemblyParserVariants = [MC6809AsmParserVariantDefault];
 }
+
+defm : RemapAllTargetPseudoPointerOperands<INDEX16>;

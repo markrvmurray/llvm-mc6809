@@ -75,7 +75,7 @@ template <MC6809::Fixups Fixup, unsigned Offset> unsigned MC6809MCCodeEmitter::e
     }
 
     MCFixupKind FixupKind = static_cast<MCFixupKind>(Fixup);
-    Fixups.push_back(MCFixup::create(Offset, MO.getExpr(), FixupKind, MI.getLoc()));
+    Fixups.push_back(MCFixup::create(Offset, MO.getExpr(), FixupKind));
 
     return 0;
   }
@@ -119,7 +119,7 @@ unsigned MC6809MCCodeEmitter::getMachineOpValue(const MCInst &MI, const MCOperan
 
   const MCExpr *Expr = MO.getExpr();
   if (isa<MCSymbolRefExpr>(Expr)) {
-    Fixups.push_back(MCFixup::create(0, Expr, MCFixupKind::FK_Data_1));
+    Fixups.push_back(MCFixup::create(0, Expr, FK_Data_1));
     return 0;
   }
 

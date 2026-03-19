@@ -27,8 +27,6 @@
 #include "llvm/MC/MCDirectives.h"
 #include "llvm/MC/MCELFObjectWriter.h"
 #include "llvm/MC/MCFixup.h"
-#include "llvm/MC/MCFixupKindInfo.h"
-#include "llvm/MC/MCFragment.h"
 #include "llvm/MC/MCObjectWriter.h"
 #include "llvm/MC/MCSectionELF.h"
 #include "llvm/MC/MCSubtargetInfo.h"
@@ -67,21 +65,31 @@ MCAsmBackend *createMC6809AsmBackend(const Target &T, const MCSubtargetInfo &STI
   return new MC6809AsmBackend(STI.getTargetTriple().getOS());
 }
 
-void MC6809AsmBackend::applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
-                               const MCValue &Target,
-                               MutableArrayRef<char> Data, uint64_t Value,
-                               bool IsResolved,
-                               const MCSubtargetInfo *STI) const {
-  unsigned int Kind = Fixup.getKind();
-  uint32_t Offset = Fixup.getOffset();
+static int getRelativeMC6809PCCorrection(const bool IsPCRel16);
 
-  if (Kind == MC6809::AddrAsciz) {
+void MC6809AsmBackend::applyFixup(const MCFragment &F, const MCFixup &Fixup,
+                               const MCValue &Target, uint8_t *Data,
+                               uint64_t Value, bool IsResolved) {
+  if (IsResolved && shouldForceRelocation(Fixup, Target))
+    IsResolved = false;
+  if (!IsResolved)
+    Asm->getWriter().recordRelocation(F, Fixup, Target, Value);
+
+  unsigned int Kind = Fixup.getKind();
+
+  switch (Kind) {
+  case MC6809::AddrAsciz: {
     std::string ValueStr = utostr(Value);
-    assert(((ValueStr.size() + 1 + Offset) <= Data.size()) &&
-           "Invalid offset within MC6809 instruction for modifier!");
-    std::copy(ValueStr.begin(), ValueStr.end(), Data.begin() + Offset);
-    Data[Offset + ValueStr.size()] = '\0';
+    std::copy(ValueStr.begin(), ValueStr.end(), Data);
+    Data[ValueStr.size()] = '\0';
     return;
+  }
+  case MC6809::PCRel8:
+  case MC6809::PCRel16:
+    Value += getRelativeMC6809PCCorrection(Kind == MC6809::PCRel16);
+    break;
+  default:
+    break;
   }
 
   unsigned int Bytes = 0;
@@ -109,11 +117,7 @@ void MC6809AsmBackend::applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
     return;
   }
 
-  assert(((Bytes + Offset) <= Data.size()) &&
-         "Invalid offset within MC6809 instruction for modifier!");
-  char *RangeStart = Data.begin() + Offset;
-
-  for (char &Out : make_range(RangeStart, RangeStart + Bytes)) {
+  for (uint8_t &Out : make_range(Data, Data + Bytes)) {
     Out = Value & 0xff;
     Value = Value >> 8;
   }
@@ -140,48 +144,9 @@ static bool fitsIntoFixup(const int64_t SignedValue, const bool IsPCRel16) {
          SignedValue <= (IsPCRel16 ? INT16_MAX : INT8_MAX);
 }
 
-bool MC6809AsmBackend::evaluateTargetFixup(
-    const MCAssembler &Asm, const MCFixup &Fixup, const MCFragment *DF,
-    const MCValue &Target, const MCSubtargetInfo *STI, uint64_t &Value) {
-  // ForcePCRelReloc is a CLI option to force relocation emit, primarily for
-  // testing R_MC6809_PCREL_*.
-  bool WasForced = ForcePCRelReloc;
-
-  const bool IsPCRel16 = Fixup.getKind() == (MCFixupKind)MC6809::PCRel16;
-  assert((IsPCRel16 || Fixup.getKind() == (MCFixupKind)MC6809::PCRel8) &&
-         "unexpected target fixup kind");
-
-  // Logic taken from MCAssembler::evaluateFixup.
-  bool IsResolved = false;
-  if (Target.getSubSym()) {
-    IsResolved = false;
-  } else if (!Target.getAddSym()) {
-    IsResolved = false;
-  } else {
-    const MCSymbol &SA = *Target.getAddSym();
-    if (SA.isUndefined()) {
-      IsResolved = false;
-    } else {
-      IsResolved = Asm.getWriter().isSymbolRefDifferenceFullyResolvedImpl(
-          Asm, SA, *DF, false, true);
-    }
-  }
-
-  Value = Target.getConstant();
-
-  if (const MCSymbol *A = Target.getAddSym()) {
-    if (A->isDefined())
-      Value += Asm.getSymbolOffset(*A);
-  }
-  if (const MCSymbol *B = Target.getSubSym()) {
-    if (B->isDefined())
-      Value -= Asm.getSymbolOffset(*B);
-  }
-
-  Value -= Asm.getFragmentOffset(*DF) + Fixup.getOffset();
-  Value += getRelativeMC6809PCCorrection(IsPCRel16);
-
-  return IsResolved && !WasForced && fitsIntoFixup(Value, IsPCRel16);
+bool MC6809AsmBackend::shouldForceRelocation(const MCFixup &F,
+                                              const MCValue &V) {
+  return ForcePCRelReloc && F.isPCRel();
 }
 
 // Derived from findAssociatedFragment.
@@ -191,10 +156,11 @@ bool isBasedOnDirectPageSymbol(const MCExpr *E) {
     return isBasedOnDirectPageSymbol(cast<MC6809MCExpr>(E)->getSubExpr());
 
   case MCExpr::Constant:
+  case MCExpr::Specifier:
     return false;
 
   case MCExpr::SymbolRef:
-    return cast<MCSymbolELF>(cast<MCSymbolRefExpr>(E)->getSymbol()).getOther() &
+    return static_cast<const MCSymbolELF &>(cast<MCSymbolRefExpr>(E)->getSymbol()).getOther() &
            ELF::STO_MC6809_DIRECTPAGE;
 
   case MCExpr::Unary:
@@ -210,7 +176,7 @@ bool isBasedOnDirectPageSymbol(const MCExpr *E) {
   llvm_unreachable("Invalid assembly expression kind!");
 }
 
-bool MC6809AsmBackend::fixupNeedsRelaxationAdvanced(const MCAssembler &Asm,
+bool MC6809AsmBackend::fixupNeedsRelaxationAdvanced(const MCFragment &F,
                                                  const MCFixup &Fixup,
                                                  const MCValue &Target,
                                                  uint64_t Value,
@@ -219,7 +185,7 @@ bool MC6809AsmBackend::fixupNeedsRelaxationAdvanced(const MCAssembler &Asm,
   // assembler relaxes in a loop until instructions cannot be relaxed further,
   // so this is able to follow zero-page relaxation.
   bool BankRelax = false;
-  MC6809AsmBackend::relaxInstructionTo(*RelaxedMC, *RelaxedSTI, BankRelax);
+  MC6809AsmBackend::relaxInstructionTo(RelaxedOpcode, *RelaxedSTI, BankRelax);
 
   auto Info = getFixupKindInfo(Fixup.getKind());
   const auto *MME = dyn_cast<MC6809MCExpr>(Fixup.getValue());
@@ -233,7 +199,7 @@ bool MC6809AsmBackend::fixupNeedsRelaxationAdvanced(const MCAssembler &Asm,
   if (Info.TargetSize > (BankRelax ? 16 : 8))
     return true;
 
-  if (Info.Flags & MCFixupKindInfo::FKF_IsPCRel) {
+  if (Fixup.isPCRel()) {
     // This fixup concerns a relative branch.
     // If the fixup is unresolved, we can't know if relaxation is needed.
     return !Resolved || !fitsIntoFixup(Value, false);
@@ -250,10 +216,9 @@ bool MC6809AsmBackend::fixupNeedsRelaxationAdvanced(const MCAssembler &Asm,
   MCFragment *Frag = Fixup.getValue()->findAssociatedFragment();
   if (!Frag)
     return true;
-
   // If we're not writing to ELF, punt on this whole idea, just do the
   // relaxation for safety's sake
-  const auto *Sec = dyn_cast_if_present<MCSectionELF>(Frag->getParent());
+  const auto *Sec = static_cast<const MCSectionELF *>(Frag->getParent());
   if (!Sec)
     return true;
 
@@ -274,7 +239,7 @@ MCFixupKindInfo MC6809AsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
   return MC6809FixupKinds::getFixupKindInfo(static_cast<MC6809::Fixups>(Kind), this);
 }
 
-unsigned MC6809AsmBackend::relaxInstructionTo(const MCInst &Inst,
+unsigned MC6809AsmBackend::relaxInstructionTo(unsigned Opcode,
                                            const MCSubtargetInfo &STI,
                                            bool &BankRelax) {
 #if 0
@@ -314,13 +279,13 @@ unsigned MC6809AsmBackend::relaxInstructionTo(const MCInst &Inst,
 }
 
 template <typename Fn>
-static bool visitRelaxableOperand(const MCInst &Inst,
+static bool visitRelaxableOperand(unsigned Opcode, ArrayRef<MCOperand> Operands,
                                   const MCSubtargetInfo &STI, Fn Visit) {
   bool BankRelax = false;
-  unsigned RelaxTo = MC6809AsmBackend::relaxInstructionTo(Inst, STI, BankRelax);
+  unsigned RelaxTo = MC6809AsmBackend::relaxInstructionTo(Opcode, STI, BankRelax);
 
-  return RelaxTo && Inst.getNumOperands() <= 2 &&
-         Visit(Inst.getOperand(Inst.getNumOperands() - 1), RelaxTo, BankRelax);
+  return RelaxTo && Operands.size() <= 2 &&
+         Visit(Operands[Operands.size() - 1], RelaxTo, BankRelax);
 }
 
 static bool isImmediateBankRelaxable(const MCSubtargetInfo &STI, int64_t Imm,
@@ -336,7 +301,7 @@ static bool isImmediateBankRelaxable(const MCSubtargetInfo &STI, int64_t Imm,
 void MC6809AsmBackend::relaxForImmediate(MCInst &Inst,
                                       const MCSubtargetInfo &STI) {
   // Two steps are required for zero-bank relaxation on 65816.
-  while (visitRelaxableOperand(Inst, STI,
+  while (visitRelaxableOperand(Inst.getOpcode(), Inst.getOperands(), STI,
                                [&Inst, &STI](const MCOperand &Operand,
                                              unsigned RelaxTo, bool BankRelax) {
                                  int64_t Imm;
@@ -356,18 +321,19 @@ void MC6809AsmBackend::relaxForImmediate(MCInst &Inst,
     ;
 }
 
-bool MC6809AsmBackend::mayNeedRelaxation(const MCInst &Inst,
+bool MC6809AsmBackend::mayNeedRelaxation(unsigned Opcode,
+                                      ArrayRef<MCOperand> Operands,
                                       const MCSubtargetInfo &STI) const {
-  RelaxedMC = &Inst;
+  RelaxedOpcode = Opcode;
   RelaxedSTI = &STI;
-  return visitRelaxableOperand(Inst, STI,
+  return visitRelaxableOperand(Opcode, Operands, STI,
                                [](const MCOperand &Operand, unsigned RelaxTo,
                                   bool BankRelax) { return Operand.isExpr(); });
 }
 
 void MC6809AsmBackend::relaxInstruction(MCInst &Inst,
                                      const MCSubtargetInfo &STI) const {
-  unsigned Opcode = relaxInstructionTo(Inst, STI);
+  unsigned Opcode = relaxInstructionTo(Inst.getOpcode(), STI);
   if (Opcode != 0) {
     Inst.setOpcode(Opcode);
   }

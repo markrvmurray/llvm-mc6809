@@ -72,7 +72,7 @@ public:
   bool enableMachineScheduler() const override { return true; }
   bool enableSubRegLiveness() const override { return true; }
 
-  void overrideSchedPolicy(MachineSchedPolicy &Policy, unsigned NumRegionInstrs) const override;
+  void overrideSchedPolicy(MachineSchedPolicy &Policy, const SchedRegion &Region) const override;
 
   bool useAA() const override { return true; }
 

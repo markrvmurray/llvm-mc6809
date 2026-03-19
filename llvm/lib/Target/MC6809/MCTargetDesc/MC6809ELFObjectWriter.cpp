@@ -27,17 +27,17 @@ class MC6809ELFObjectWriter : public MCELFObjectTargetWriter {
 public:
   explicit MC6809ELFObjectWriter(uint8_t OSABI);
 
-  unsigned getRelocType(MCContext &Ctx, const MCValue &Target,
-                        const MCFixup &Fixup, bool IsPCRel) const override;
+  unsigned getRelocType(const MCFixup &Fixup, const MCValue &Target,
+                        bool IsPCRel) const override;
 };
 
 MC6809ELFObjectWriter::MC6809ELFObjectWriter(uint8_t OSABI)
     : MCELFObjectTargetWriter(false, OSABI, ELF::EM_MC6809, true) {}
 
-unsigned MC6809ELFObjectWriter::getRelocType(MCContext &Ctx, const MCValue &Target,
-                                          const MCFixup &Fixup,
+unsigned MC6809ELFObjectWriter::getRelocType(const MCFixup &Fixup,
+                                          const MCValue &Target,
                                           bool IsPCRel) const {
-  unsigned Kind = Fixup.getTargetKind();
+  unsigned Kind = Fixup.getKind();
   auto Specifier = static_cast<MC6809MCExpr::VariantKind>(Target.getSpecifier());
   switch (Kind) {
   case FK_Data_1:
@@ -68,9 +68,9 @@ unsigned MC6809ELFObjectWriter::getRelocType(MCContext &Ctx, const MCValue &Targ
     return ELF::R_MC6809_PCREL_8;
   case MC6809::PCRel16:
     return ELF::R_MC6809_PCREL_16;
-  case MCFixupKind::FK_Data_4:
+  case FK_Data_4:
     return ELF::R_MC6809_FK_DATA_4;
-  case MCFixupKind::FK_Data_8:
+  case FK_Data_8:
     return ELF::R_MC6809_FK_DATA_8;
   case MC6809::AddrAsciz:
     return ELF::R_MC6809_ADDR_ASCIZ;

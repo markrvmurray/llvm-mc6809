@@ -564,8 +564,8 @@ void MC6809Combiner::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetPassConfig>();
   AU.setPreservesCFG();
   getSelectionDAGFallbackAnalysisUsage(AU);
-  AU.addRequired<GISelValueTrackingAnalysis>();
-  AU.addPreserved<GISelValueTrackingAnalysis>();
+  AU.addRequired<GISelValueTrackingAnalysisLegacy>();
+  AU.addPreserved<GISelValueTrackingAnalysisLegacy>();
   AU.addRequired<MachineDominatorTreeWrapperPass>();
   AU.addPreserved<MachineDominatorTreeWrapperPass>();
   AU.addRequired<GISelCSEAnalysisWrapperPass>();
@@ -593,7 +593,7 @@ bool MC6809Combiner::runOnMachineFunction(MachineFunction &MF) {
   const Function &F = MF.getFunction();
   bool EnableOpt = MF.getTarget().getOptLevel() != CodeGenOptLevel::None && !skipFunction(F);
   bool IsPreLegalize = !MF.getProperties().hasProperty(MachineFunctionProperties::Property::Legalized);
-  GISelValueTracking *VT = &getAnalysis<GISelValueTrackingAnalysis>().get(MF);
+  GISelValueTracking *VT = &getAnalysis<GISelValueTrackingAnalysisLegacy>().get(MF);
   MachineDominatorTree *MDT = &getAnalysis<MachineDominatorTreeWrapperPass>().getDomTree();
   AAResults *AA = &getAnalysis<AAResultsWrapperPass>().getAAResults();
   CombinerInfo CInfo(
@@ -606,7 +606,7 @@ bool MC6809Combiner::runOnMachineFunction(MachineFunction &MF) {
 char MC6809Combiner::ID = 0;
 INITIALIZE_PASS_BEGIN(MC6809Combiner, DEBUG_TYPE, "Combine MC6809 machine instrs", false, false)
 INITIALIZE_PASS_DEPENDENCY(TargetPassConfig)
-INITIALIZE_PASS_DEPENDENCY(GISelValueTrackingAnalysis)
+INITIALIZE_PASS_DEPENDENCY(GISelValueTrackingAnalysisLegacy)
 INITIALIZE_PASS_END(MC6809Combiner, DEBUG_TYPE, "Combine MC6809 machine instrs", false, false)
 
 namespace llvm {

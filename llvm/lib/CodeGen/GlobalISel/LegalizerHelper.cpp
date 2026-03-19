@@ -423,10 +423,6 @@ RTLIB::Libcall LegalizerHelper::getRTLibDesc(unsigned Opcode,
     RTLIBCASE(LROUND_F);
   case TargetOpcode::G_LLROUND:
     RTLIBCASE(LLROUND_F);
-  case TargetOpcode::G_ADD:
-    RTLIBCASE_INT(ADD_I);
-  case TargetOpcode::G_SUB:
-    RTLIBCASE_INT(SUB_I);
   case TargetOpcode::G_MUL:
     RTLIBCASE_INT(MUL_I);
   case TargetOpcode::G_SDIV:
@@ -453,12 +449,6 @@ RTLIB::Libcall LegalizerHelper::getRTLibDesc(unsigned Opcode,
     RTLIBCASE_INT(ROTL_I);
   case TargetOpcode::G_ROTR:
     RTLIBCASE_INT(ROTR_I);
-  case TargetOpcode::G_AND:
-    RTLIBCASE_INT(AND_I);
-  case TargetOpcode::G_OR:
-    RTLIBCASE_INT(OR_I);
-  case TargetOpcode::G_XOR:
-    RTLIBCASE_INT(XOR_I);
    case TargetOpcode::G_BSWAP:
     RTLIBCASE_INT(BSWAP_I);
   case TargetOpcode::G_FADD:
@@ -1344,21 +1334,13 @@ LegalizerHelper::libcall(MachineInstr &MI, LostDebugLocObserver &LocObserver) {
 
   switch (MI.getOpcode()) {
   default:
-    LLVM_DEBUG(dbgs() << " .. This is not legalisable as a libcall";);
     return UnableToLegalize;
-  case TargetOpcode::G_ADD:
-  case TargetOpcode::G_SUB:
-  case TargetOpcode::G_AND:
-  case TargetOpcode::G_OR:
-  case TargetOpcode::G_XOR:
   case TargetOpcode::G_MUL:
   case TargetOpcode::G_SDIV:
   case TargetOpcode::G_UDIV:
   case TargetOpcode::G_SREM:
   case TargetOpcode::G_UREM:
   case TargetOpcode::G_BSWAP:
-  case TargetOpcode::G_ASHR:
-  case TargetOpcode::G_LSHR:
   case TargetOpcode::G_CTLZ_ZERO_UNDEF: {
     LLT LLTy = MRI.getType(MI.getOperand(0).getReg());
     unsigned Size = LLTy.getSizeInBits();
