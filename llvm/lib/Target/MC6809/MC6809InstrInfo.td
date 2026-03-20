@@ -475,6 +475,26 @@ let Predicates = [IsHD6309] in {
   def PULUWx : MC6809Inherent_P2<(outs), "puluw", Opcode<0x3B,2>, [SU], [SU]>;
 }
 
+// Register pair ops (Page 1): EXG, TFR.
+def EXGp : MC6809RegisterPairSwap_P1<(outs anyregister:$dst2, anyregister:$dst1), "exg", Opcode<0x1E,1>, [], []> {
+  let Constraints = "$dst2 = $reg1, $dst1 = $reg2";
+}
+def TFRp : MC6809RegisterPairCopy_P1<(outs anyregister:$reg2), "tfr", Opcode<0x1F,1>, [], []>;
+
+// Register pair arithmetic (Page 2, HD6309).
+let Predicates = [IsHD6309] in {
+  let Constraints = "$dst = $reg2" in {
+    def ADDRp : MC6809RegisterPairArithmetic_P2<(outs anyregister:$dst), "addr", Opcode<0x30,2>, [NZ,N,Z,V,C], []> { let isAdd = true; }
+    def ADCRp : MC6809RegisterPairArithmetic_P2<(outs anyregister:$dst), "adcr", Opcode<0x31,2>, [NZ,N,Z,V,C], [C]> { let isAdd = true; }
+    def SUBRp : MC6809RegisterPairArithmetic_P2<(outs anyregister:$dst), "subr", Opcode<0x32,2>, [NZ,N,Z,V,C], []>;
+    def SBCRp : MC6809RegisterPairArithmetic_P2<(outs anyregister:$dst), "sbcr", Opcode<0x33,2>, [NZ,N,Z,V,C], [C]>;
+    def ANDRp : MC6809RegisterPairArithmetic_P2<(outs anyregister:$dst), "andr", Opcode<0x34,2>, [NZ,N,Z,V], []>;
+    def ORRp  : MC6809RegisterPairArithmetic_P2<(outs anyregister:$dst), "orr",  Opcode<0x35,2>, [NZ,N,Z,V], []>;
+    def EORRp : MC6809RegisterPairArithmetic_P2<(outs anyregister:$dst), "eorr", Opcode<0x36,2>, [NZ,N,Z,V], []>;
+  }
+  def CMPRp : MC6809RegisterPairCompare_P2<(outs), "cmpr", Opcode<0x37,2>, [NZ,N,Z,V], []> { let isCompare = true; }
+}
+
 // LDE/LDF/STE/STF and ALU/Unary Page 2/3 ops are defined after their
 // respective indexed multiclasses below.
 
@@ -900,11 +920,7 @@ def ANDCCi8 : MC6809Immediate8Bit_P1<(outs), "andcc", Opcode<0x1C,1>, [NZ,N,Z,V,
 
 def SEXx : MC6809Inherent_P1<(outs), "sex", Opcode<0x1D,1>, [NZ,N,Z,AA,AB,AD,AQ], [AB]>;
 
-def EXGp : MC6809RegisterPairSwap_P1<(outs anyregister:$dst2, anyregister:$dst1), "exg", Opcode<0x1E,1>, [], []> {
-  let Constraints = "$dst2 = $reg1, $dst1 = $reg2";
-}
-
-def TFRp : MC6809RegisterPairCopy_P1<(outs anyregister:$reg2), "tfr", Opcode<0x1F,1>, [], []>;
+// EXGp/TFRp now consolidated above
 
 def BRAb : MC6809ShortBranch_P1<(outs), "bra", Opcode<0x20,1>, [], []> {
   let mayLoad = false;
@@ -1344,47 +1360,7 @@ def LBlbc : MC6809LongConditionalBranch_P2<(outs), "lb$cond", Opcode<0x02,2>, []
   let isTerminator = true;
 }
 
-def ADDRp : MC6809RegisterPairArithmetic_P2<(outs anyregister:$dst), "addr", Opcode<0x30,2>, [NZ,N,Z,V,C], []> {
-  let Constraints = "$dst = $reg2";
-  let Predicates = [IsHD6309];
-  let isAdd = true;
-}
-
-def ADCRp : MC6809RegisterPairArithmetic_P2<(outs anyregister:$dst), "adcr", Opcode<0x31,2>, [NZ,N,Z,V,C], [C]> {
-  let Constraints = "$dst = $reg2";
-  let Predicates = [IsHD6309];
-  let isAdd = true;
-}
-
-def SUBRp : MC6809RegisterPairArithmetic_P2<(outs anyregister:$dst), "subr", Opcode<0x32,2>, [NZ,N,Z,V,C], []> {
-  let Constraints = "$dst = $reg2";
-  let Predicates = [IsHD6309];
-}
-
-def SBCRp : MC6809RegisterPairArithmetic_P2<(outs anyregister:$dst), "sbcr", Opcode<0x33,2>, [NZ,N,Z,V,C], [C]> {
-  let Constraints = "$dst = $reg2";
-  let Predicates = [IsHD6309];
-}
-
-def ANDRp : MC6809RegisterPairArithmetic_P2<(outs anyregister:$dst), "andr", Opcode<0x34,2>, [NZ,N,Z,V], []> {
-  let Constraints = "$dst = $reg2";
-  let Predicates = [IsHD6309];
-}
-
-def ORRp : MC6809RegisterPairArithmetic_P2<(outs anyregister:$dst), "orr", Opcode<0x35,2>, [NZ,N,Z,V], []> {
-  let Constraints = "$dst = $reg2";
-  let Predicates = [IsHD6309];
-}
-
-def EORRp : MC6809RegisterPairArithmetic_P2<(outs anyregister:$dst), "eorr", Opcode<0x36,2>, [NZ,N,Z,V], []> {
-  let Constraints = "$dst = $reg2";
-  let Predicates = [IsHD6309];
-}
-
-def CMPRp : MC6809RegisterPairCompare_P2<(outs), "cmpr", Opcode<0x37,2>, [NZ,N,Z,V], []> {
-  let Predicates = [IsHD6309];
-  let isCompare = true;
-}
+// ADDRp/ADCRp/SUBRp/SBCRp/ANDRp/ORRp/EORRp/CMPRp now consolidated above
 
 // PSHSWx/PULSWx/PSHUWx/PULUWx now consolidated above
 
