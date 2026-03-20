@@ -30,6 +30,10 @@ set(LLVM_DEFAULT_TARGET_TRIPLE "mc6809-unknown-unknown" CACHE STRING "")
 # need them.
 set(CMAKE_BUILD_TYPE Debug CACHE STRING "CMake build type")
 
+# Disable precompiled headers so that TableGen changes only rebuild the
+# affected backend, not the entire tree.
+set(CMAKE_DISABLE_PRECOMPILE_HEADERS ON CACHE BOOL "")
+
 # disable lldb testing until the lldb tests stabilize
 set(LLDB_INCLUDE_TESTS OFF CACHE BOOL "Include lldb tests")
 
