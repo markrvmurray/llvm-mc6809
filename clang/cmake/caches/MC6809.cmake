@@ -59,15 +59,10 @@ set(LLVM_TOOLCHAIN_TOOLS
 
 set(LLVM_DISTRIBUTION_COMPONENTS
   clang
-  clang-apply-replacements
   clang-format
   clang-resource-headers
-  clang-include-fixer
   clang-refactor
   clang-scan-deps
-  clang-tidy
-  clangd
-  find-all-symbols
   ${LLVM_TOOLCHAIN_TOOLS}
   CACHE STRING "")
 
