@@ -292,8 +292,85 @@ defm STD : Store16Concrete<"std", Opcode<0xDD,1>, Opcode<0xED,1>, Opcode<0xFD,1>
 defm STX : Store16Concrete<"stx", Opcode<0x9F,1>, Opcode<0xAF,1>, Opcode<0xBF,1>>;
 defm STU : Store16Concrete<"stu", Opcode<0xDF,1>, Opcode<0xEF,1>, Opcode<0xFF,1>>;
 
-// LDE/LDF/STE/STF (6309 Page 3) and LDW/LDY/LDS/STW/STY/STS/LDQ/STQ (Page 2)
-// are defined after their respective indexed multiclasses below.
+// ALU 8-bit: immediate/direct/indexed/extended (Page 1).
+// Used for ADD, ADC, SUB, SBC, AND, OR, EOR, BIT, CMP on 8-bit accumulators.
+multiclass ALU8Concrete<string Mnem, Opcode ImmOpc, Opcode DirOpc,
+                        Opcode IdxOpc, Opcode ExtOpc,
+                        list<Register> Defs, list<Register> Uses,
+                        bit IsCompare = 0, bit IsAdd = 0> {
+  let mayLoad = true, isCompare = IsCompare, isAdd = IsAdd in {
+    def i8 : MC6809Immediate8Bit_P1<(outs), Mnem, ImmOpc, Defs, Uses>;
+    def d  : MC6809Direct_P1<(outs), Mnem, DirOpc, Defs, Uses>;
+    defm i : MC6809Indexed_P1<Mnem, IdxOpc, (outs), Defs, Uses>;
+    def e  : MC6809Extended_P1<(outs), Mnem, ExtOpc, Defs, Uses>;
+  }
+}
+
+// ALU 16-bit: immediate/direct/indexed/extended (Page 1).
+multiclass ALU16Concrete<string Mnem, Opcode ImmOpc, Opcode DirOpc,
+                         Opcode IdxOpc, Opcode ExtOpc,
+                         list<Register> Defs, list<Register> Uses,
+                         bit IsCompare = 0, bit IsAdd = 0> {
+  let mayLoad = true, isCompare = IsCompare, isAdd = IsAdd in {
+    def i16 : MC6809Immediate16Bit_P1<(outs), Mnem, ImmOpc, Defs, Uses>;
+    def d   : MC6809Direct_P1<(outs), Mnem, DirOpc, Defs, Uses>;
+    defm i  : MC6809Indexed_P1<Mnem, IdxOpc, (outs), Defs, Uses>;
+    def e   : MC6809Extended_P1<(outs), Mnem, ExtOpc, Defs, Uses>;
+  }
+}
+
+// 8-bit ALU: A accumulator (Page 1)
+defm SUBA : ALU8Concrete<"suba", Opcode<0x80,1>, Opcode<0x90,1>, Opcode<0xA0,1>, Opcode<0xB0,1>,
+                          [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA]>;
+defm CMPA : ALU8Concrete<"cmpa", Opcode<0x81,1>, Opcode<0x91,1>, Opcode<0xA1,1>, Opcode<0xB1,1>,
+                          [NZ,N,Z,V,C], [AA], /*IsCompare=*/1>;
+defm SBCA : ALU8Concrete<"sbca", Opcode<0x82,1>, Opcode<0x92,1>, Opcode<0xA2,1>, Opcode<0xB2,1>,
+                          [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA,C]>;
+defm ANDA : ALU8Concrete<"anda", Opcode<0x84,1>, Opcode<0x94,1>, Opcode<0xA4,1>, Opcode<0xB4,1>,
+                          [AA,NZ,N,Z,V,AA,AD,AQ], [AA]>;
+defm BITA : ALU8Concrete<"bita", Opcode<0x85,1>, Opcode<0x95,1>, Opcode<0xA5,1>, Opcode<0xB5,1>,
+                          [NZ,N,Z,V], [AA], /*IsCompare=*/1>;
+defm EORA : ALU8Concrete<"eora", Opcode<0x88,1>, Opcode<0x98,1>, Opcode<0xA8,1>, Opcode<0xB8,1>,
+                          [AA,NZ,N,Z,V,AA,AD,AQ], [AA]>;
+defm ADCA : ALU8Concrete<"adca", Opcode<0x89,1>, Opcode<0x99,1>, Opcode<0xA9,1>, Opcode<0xB9,1>,
+                          [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA,C], /*IsCompare=*/0, /*IsAdd=*/1>;
+defm ORA  : ALU8Concrete<"ora",  Opcode<0x8A,1>, Opcode<0x9A,1>, Opcode<0xAA,1>, Opcode<0xBA,1>,
+                          [AA,NZ,N,Z,V,AA,AD,AQ], [AA]>;
+defm ADDA : ALU8Concrete<"adda", Opcode<0x8B,1>, Opcode<0x9B,1>, Opcode<0xAB,1>, Opcode<0xBB,1>,
+                          [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA], /*IsCompare=*/0, /*IsAdd=*/1>;
+
+// 8-bit ALU: B accumulator (Page 1)
+defm SUBB : ALU8Concrete<"subb", Opcode<0xC0,1>, Opcode<0xD0,1>, Opcode<0xE0,1>, Opcode<0xF0,1>,
+                          [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB]>;
+defm CMPB : ALU8Concrete<"cmpb", Opcode<0xC1,1>, Opcode<0xD1,1>, Opcode<0xE1,1>, Opcode<0xF1,1>,
+                          [NZ,N,Z,V,C], [AB], /*IsCompare=*/1>;
+defm SBCB : ALU8Concrete<"sbcb", Opcode<0xC2,1>, Opcode<0xD2,1>, Opcode<0xE2,1>, Opcode<0xF2,1>,
+                          [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB,C]>;
+defm ANDB : ALU8Concrete<"andb", Opcode<0xC4,1>, Opcode<0xD4,1>, Opcode<0xE4,1>, Opcode<0xF4,1>,
+                          [AB,NZ,N,Z,V,AB,AD,AQ], [AB]>;
+defm BITB : ALU8Concrete<"bitb", Opcode<0xC5,1>, Opcode<0xD5,1>, Opcode<0xE5,1>, Opcode<0xF5,1>,
+                          [NZ,N,Z,V], [AB], /*IsCompare=*/1>;
+defm EORB : ALU8Concrete<"eorb", Opcode<0xC8,1>, Opcode<0xD8,1>, Opcode<0xE8,1>, Opcode<0xF8,1>,
+                          [AB,NZ,N,Z,V,AB,AD,AQ], [AB]>;
+defm ADCB : ALU8Concrete<"adcb", Opcode<0xC9,1>, Opcode<0xD9,1>, Opcode<0xE9,1>, Opcode<0xF9,1>,
+                          [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB,C], /*IsCompare=*/0, /*IsAdd=*/1>;
+defm ORB  : ALU8Concrete<"orb",  Opcode<0xCA,1>, Opcode<0xDA,1>, Opcode<0xEA,1>, Opcode<0xFA,1>,
+                          [AB,NZ,N,Z,V,AB,AD,AQ], [AB]>;
+defm ADDB : ALU8Concrete<"addb", Opcode<0xCB,1>, Opcode<0xDB,1>, Opcode<0xEB,1>, Opcode<0xFB,1>,
+                          [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB], /*IsCompare=*/0, /*IsAdd=*/1>;
+
+// 16-bit ALU: D accumulator (Page 1)
+defm SUBD : ALU16Concrete<"subd", Opcode<0x83,1>, Opcode<0x93,1>, Opcode<0xA3,1>, Opcode<0xB3,1>,
+                           [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], [AD]>;
+defm ADDD : ALU16Concrete<"addd", Opcode<0xC3,1>, Opcode<0xD3,1>, Opcode<0xE3,1>, Opcode<0xF3,1>,
+                           [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], [AD], /*IsCompare=*/0, /*IsAdd=*/1>;
+
+// 16-bit CMP: X, Y, U, S (Page 1 and 2)
+defm CMPX : ALU16Concrete<"cmpx", Opcode<0x8C,1>, Opcode<0x9C,1>, Opcode<0xAC,1>, Opcode<0xBC,1>,
+                           [NZ,N,Z,V,C], [IX], /*IsCompare=*/1>;
+
+// LDE/LDF/STE/STF and ALU Page 2/3 ops are defined after their respective
+// indexed multiclasses below.
 
 // ============================== PAGE MC6809Indexed_P2 ==================================
 multiclass MC6809Indexed_P2<string Mnemonic, Opcode opcode, dag outdag, list<Register> defsin, list<Register> usesin> {
@@ -531,6 +608,84 @@ let Predicates = [IsHD6309], mayStore = true in {
   defm STQi : MC6809Indexed_P2<"stq", Opcode<0xED,2>, (outs), [NZ,N,Z,V], []>;
   def STQe  : MC6809Extended_P2<(outs), "stq", Opcode<0xFD,2>, [NZ,N,Z,V], []>;
 }
+
+// ALU 8-bit (Page 3, HD6309).
+multiclass ALU8Concrete_P3<string Mnem, Opcode ImmOpc, Opcode DirOpc,
+                           Opcode IdxOpc, Opcode ExtOpc,
+                           list<Register> Defs, list<Register> Uses,
+                           bit IsCompare = 0, bit IsAdd = 0> {
+  let Predicates = [IsHD6309], mayLoad = true, isCompare = IsCompare, isAdd = IsAdd in {
+    def i8 : MC6809Immediate8Bit_P3<(outs), Mnem, ImmOpc, Defs, Uses>;
+    def d  : MC6809Direct_P3<(outs), Mnem, DirOpc, Defs, Uses>;
+    defm i : MC6809Indexed_P3<Mnem, IdxOpc, (outs), Defs, Uses>;
+    def e  : MC6809Extended_P3<(outs), Mnem, ExtOpc, Defs, Uses>;
+  }
+}
+
+// ALU 16-bit (Page 2).
+multiclass ALU16Concrete_P2<string Mnem, Opcode ImmOpc, Opcode DirOpc,
+                            Opcode IdxOpc, Opcode ExtOpc,
+                            list<Register> Defs, list<Register> Uses,
+                            bit IsCompare = 0, bit IsAdd = 0> {
+  let mayLoad = true, isCompare = IsCompare, isAdd = IsAdd in {
+    def i16 : MC6809Immediate16Bit_P2<(outs), Mnem, ImmOpc, Defs, Uses>;
+    def d   : MC6809Direct_P2<(outs), Mnem, DirOpc, Defs, Uses>;
+    defm i  : MC6809Indexed_P2<Mnem, IdxOpc, (outs), Defs, Uses>;
+    def e   : MC6809Extended_P2<(outs), Mnem, ExtOpc, Defs, Uses>;
+  }
+}
+
+// 16-bit CMP: Y, U, S (Page 2)
+defm CMPY : ALU16Concrete_P2<"cmpy", Opcode<0x8C,2>, Opcode<0x9C,2>, Opcode<0xAC,2>, Opcode<0xBC,2>,
+                              [NZ,N,Z,V,C], [IY], /*IsCompare=*/1>;
+defm CMPU : ALU16Concrete_P2<"cmpu", Opcode<0x83,3>, Opcode<0x93,3>, Opcode<0xA3,3>, Opcode<0xB3,3>,
+                              [NZ,N,Z,V,C], [SU], /*IsCompare=*/1>;
+defm CMPS : ALU16Concrete_P2<"cmps", Opcode<0x8C,3>, Opcode<0x9C,3>, Opcode<0xAC,3>, Opcode<0xBC,3>,
+                              [NZ,N,Z,V,C], [SS], /*IsCompare=*/1>;
+
+// 16-bit ALU: D register (Page 2, HD6309)
+let Predicates = [IsHD6309] in {
+  defm SBCD : ALU16Concrete_P2<"sbcd", Opcode<0x82,2>, Opcode<0x92,2>, Opcode<0xA2,2>, Opcode<0xB2,2>,
+                                [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], [AD,C]>;
+  defm CMPD : ALU16Concrete_P2<"cmpd", Opcode<0x83,2>, Opcode<0x93,2>, Opcode<0xA3,2>, Opcode<0xB3,2>,
+                                [NZ,N,Z,V,C], [AD], /*IsCompare=*/1>;
+  defm ANDD : ALU16Concrete_P2<"andd", Opcode<0x84,2>, Opcode<0x94,2>, Opcode<0xA4,2>, Opcode<0xB4,2>,
+                                [AD,NZ,N,Z,V,AA,AB,AD,AQ], [AD]>;
+  defm BITD : ALU16Concrete_P2<"bitd", Opcode<0x85,2>, Opcode<0x95,2>, Opcode<0xA5,2>, Opcode<0xB5,2>,
+                                [NZ,N,Z,V], [AD], /*IsCompare=*/1>;
+  defm EORD : ALU16Concrete_P2<"eord", Opcode<0x88,2>, Opcode<0x98,2>, Opcode<0xA8,2>, Opcode<0xB8,2>,
+                                [AD,NZ,N,Z,V,AA,AB,AD,AQ], [AD]>;
+  defm ADCD : ALU16Concrete_P2<"adcd", Opcode<0x89,2>, Opcode<0x99,2>, Opcode<0xA9,2>, Opcode<0xB9,2>,
+                                [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], [AD,C], /*IsCompare=*/0, /*IsAdd=*/1>;
+  defm ORD  : ALU16Concrete_P2<"ord",  Opcode<0x8A,2>, Opcode<0x9A,2>, Opcode<0xAA,2>, Opcode<0xBA,2>,
+                                [AD,NZ,N,Z,V,AA,AB,AD,AQ], [AD]>;
+}
+
+// 16-bit ALU: W register (Page 2, HD6309)
+let Predicates = [IsHD6309] in {
+  defm SUBW : ALU16Concrete_P2<"subw", Opcode<0x80,2>, Opcode<0x90,2>, Opcode<0xA0,2>, Opcode<0xB0,2>,
+                                [AW,NZ,N,Z,V,C,AE,AF,AW,AQ], [AW]>;
+  defm CMPW : ALU16Concrete_P2<"cmpw", Opcode<0x81,2>, Opcode<0x91,2>, Opcode<0xA1,2>, Opcode<0xB1,2>,
+                                [NZ,N,Z,V,C], [AW], /*IsCompare=*/1>;
+  defm ADDW : ALU16Concrete_P2<"addw", Opcode<0x8B,2>, Opcode<0x9B,2>, Opcode<0xAB,2>, Opcode<0xBB,2>,
+                                [AW,NZ,N,Z,V,C,AE,AF,AW,AQ], [AW], /*IsCompare=*/0, /*IsAdd=*/1>;
+}
+
+// 8-bit ALU: E accumulator (Page 3, HD6309)
+defm SUBE : ALU8Concrete_P3<"sube", Opcode<0x80,3>, Opcode<0x90,3>, Opcode<0xA0,3>, Opcode<0xB0,3>,
+                             [AE,NZ,N,Z,V,C,AE,AW,AQ], [AE]>;
+defm CMPE : ALU8Concrete_P3<"cmpe", Opcode<0x81,3>, Opcode<0x91,3>, Opcode<0xA1,3>, Opcode<0xB1,3>,
+                             [NZ,N,Z,V,C], [AE], /*IsCompare=*/1>;
+defm ADDE : ALU8Concrete_P3<"adde", Opcode<0x8B,3>, Opcode<0x9B,3>, Opcode<0xAB,3>, Opcode<0xBB,3>,
+                             [AE,NZ,N,Z,V,C,AE,AW,AQ], [AE], /*IsCompare=*/0, /*IsAdd=*/1>;
+
+// 8-bit ALU: F accumulator (Page 3, HD6309)
+defm SUBF : ALU8Concrete_P3<"subf", Opcode<0xC0,3>, Opcode<0xD0,3>, Opcode<0xE0,3>, Opcode<0xF0,3>,
+                             [AF,NZ,N,Z,V,C,AF,AW,AQ], [AF]>;
+defm CMPF : ALU8Concrete_P3<"cmpf", Opcode<0xC1,3>, Opcode<0xD1,3>, Opcode<0xE1,3>, Opcode<0xF1,3>,
+                             [NZ,N,Z,V,C], [AF], /*IsCompare=*/1>;
+defm ADDF : ALU8Concrete_P3<"addf", Opcode<0xCB,3>, Opcode<0xDB,3>, Opcode<0xEB,3>, Opcode<0xFB,3>,
+                             [AF,NZ,N,Z,V,C,AF,AW,AQ], [AF], /*IsCompare=*/0, /*IsAdd=*/1>;
 
 // clang-format off
 // MRVM START MARKER 2
@@ -914,56 +1069,29 @@ def CLRe : MC6809Extended_P1<(outs), "clr", Opcode<0x7F,1>, [NZ,N,Z,V,C], []> {
   let mayStore = true;
 }
 
-def SUBAi8 : MC6809Immediate8Bit_P1<(outs), "suba", Opcode<0x80,1>, [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA]> {
-  let mayLoad = true;
-}
+// SUBAi8 now generated by ALU8Concrete multiclass above
 
-def CMPAi8 : MC6809Immediate8Bit_P1<(outs), "cmpa", Opcode<0x81,1>, [NZ,N,Z,V,C], [AA]> {
-  let isCompare = true;
-  let mayLoad = true;
-}
+// CMPAi8 now generated by ALU8Concrete multiclass above
 
-def SBCAi8 : MC6809Immediate8Bit_P1<(outs), "sbca", Opcode<0x82,1>, [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA,C]> {
-  let mayLoad = true;
-}
+// SBCAi8 now generated by ALU8Concrete multiclass above
 
-def SUBDi16 : MC6809Immediate16Bit_P1<(outs), "subd", Opcode<0x83,1>, [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], [AD]> {
-  let mayLoad = true;
-}
+// SUBDi16 now generated by ALU16Concrete multiclass above
 
-def ANDAi8 : MC6809Immediate8Bit_P1<(outs), "anda", Opcode<0x84,1>, [AA,NZ,N,Z,V,AA,AD,AQ], [AA]> {
-  let mayLoad = true;
-}
+// ANDAi8 now generated by ALU8Concrete multiclass above
 
-def BITAi8 : MC6809Immediate8Bit_P1<(outs), "bita", Opcode<0x85,1>, [NZ,N,Z,V], [AA]> {
-  let isCompare = true;
-  let mayLoad = true;
-}
+// BITAi8 now generated by ALU8Concrete multiclass above
 
 // LDAi8 now generated by Load8Concrete multiclass above
 
-def EORAi8 : MC6809Immediate8Bit_P1<(outs), "eora", Opcode<0x88,1>, [AA,NZ,N,Z,V,AA,AD,AQ], [AA]> {
-  let mayLoad = true;
-}
+// EORAi8 now generated by ALU8Concrete multiclass above
 
-def ADCAi8 : MC6809Immediate8Bit_P1<(outs), "adca", Opcode<0x89,1>, [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA,C]> {
-  let mayLoad = true;
-  let isAdd = true;
-}
+// ADCAi8 now generated by ALU8Concrete multiclass above
 
-def ORAi8 : MC6809Immediate8Bit_P1<(outs), "ora", Opcode<0x8A,1>, [AA,NZ,N,Z,V,AA,AD,AQ], [AA]> {
-  let mayLoad = true;
-}
+// ORAi8 now generated by ALU8Concrete multiclass above
 
-def ADDAi8 : MC6809Immediate8Bit_P1<(outs), "adda", Opcode<0x8B,1>, [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA]> {
-  let mayLoad = true;
-  let isAdd = true;
-}
+// ADDAi8 now generated by ALU8Concrete multiclass above
 
-def CMPXi16 : MC6809Immediate16Bit_P1<(outs), "cmpx", Opcode<0x8C,1>, [NZ,N,Z,V,C], [IX]> {
-  let isCompare = true;
-  let mayLoad = true;
-}
+// CMPXi16 now generated by ALU16Concrete multiclass above
 
 def BSRb : MC6809ShortBranch_P1<(outs), "bsr", Opcode<0x8D,1>, [], [SS]> {
   let mayLoad = false;
@@ -973,58 +1101,31 @@ def BSRb : MC6809ShortBranch_P1<(outs), "bsr", Opcode<0x8D,1>, [], [SS]> {
 
 // LDXi16 now generated by Load16Concrete multiclass above
 
-def SUBAd : MC6809Direct_P1<(outs), "suba", Opcode<0x90,1>, [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA]> {
-  let mayLoad = true;
-}
+// SUBAd now generated by ALU8Concrete multiclass above
 
-def CMPAd : MC6809Direct_P1<(outs), "cmpa", Opcode<0x91,1>, [NZ,N,Z,V,C], [AA]> {
-  let isCompare = true;
-  let mayLoad = true;
-}
+// CMPAd now generated by ALU8Concrete multiclass above
 
-def SBCAd : MC6809Direct_P1<(outs), "sbca", Opcode<0x92,1>, [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA,C]> {
-  let mayLoad = true;
-}
+// SBCAd now generated by ALU8Concrete multiclass above
 
-def SUBDd : MC6809Direct_P1<(outs), "subd", Opcode<0x93,1>, [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], [AD]> {
-  let mayLoad = true;
-}
+// SUBDd now generated by ALU16Concrete multiclass above
 
-def ANDAd : MC6809Direct_P1<(outs), "anda", Opcode<0x94,1>, [AA,NZ,N,Z,V,AA,AD,AQ], [AA]> {
-  let mayLoad = true;
-}
+// ANDAd now generated by ALU8Concrete multiclass above
 
-def BITAd : MC6809Direct_P1<(outs), "bita", Opcode<0x95,1>, [NZ,N,Z,V], [AA]> {
-  let isCompare = true;
-  let mayLoad = true;
-}
+// BITAd now generated by ALU8Concrete multiclass above
 
 // LDAd now generated by Load8Concrete multiclass above
 
 // STAd now generated by Store8Concrete multiclass above
 
-def EORAd : MC6809Direct_P1<(outs), "eora", Opcode<0x98,1>, [AA,NZ,N,Z,V,AA,AD,AQ], [AA]> {
-  let mayLoad = true;
-}
+// EORAd now generated by ALU8Concrete multiclass above
 
-def ADCAd : MC6809Direct_P1<(outs), "adca", Opcode<0x99,1>, [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA,C]> {
-  let mayLoad = true;
-  let isAdd = true;
-}
+// ADCAd now generated by ALU8Concrete multiclass above
 
-def ORAd : MC6809Direct_P1<(outs), "ora", Opcode<0x9A,1>, [AA,NZ,N,Z,V,AA,AD,AQ], [AA]> {
-  let mayLoad = true;
-}
+// ORAd now generated by ALU8Concrete multiclass above
 
-def ADDAd : MC6809Direct_P1<(outs), "adda", Opcode<0x9B,1>, [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA]> {
-  let mayLoad = true;
-  let isAdd = true;
-}
+// ADDAd now generated by ALU8Concrete multiclass above
 
-def CMPXd : MC6809Direct_P1<(outs), "cmpx", Opcode<0x9C,1>, [NZ,N,Z,V,C], [IX]> {
-  let isCompare = true;
-  let mayLoad = true;
-}
+// CMPXd now generated by ALU16Concrete multiclass above
 
 def JSRd : MC6809Direct_P1<(outs), "jsr", Opcode<0x9D,1>, [], []> {
   let isCall = true;
@@ -1034,53 +1135,31 @@ def JSRd : MC6809Direct_P1<(outs), "jsr", Opcode<0x9D,1>, [], []> {
 
 // STXd now generated by Store8Concrete multiclass above
 
-let mayLoad = true in {
-  defm SUBAi : MC6809Indexed_P1<"suba", Opcode<0xA0, 1>, (outs), [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA]>;
-}
+// SUBAi now generated by ALU8Concrete multiclass above
 
-let isCompare = true, mayLoad = true in {
-  defm CMPAi : MC6809Indexed_P1<"cmpa", Opcode<0xA1, 1>, (outs), [NZ,N,Z,V,C], [AA]>;
-}
+// CMPAi now generated by ALU8Concrete multiclass above
 
-let mayLoad = true in {
-  defm SBCAi : MC6809Indexed_P1<"sbca", Opcode<0xA2, 1>, (outs), [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA,C]>;
-}
+// SBCAi now generated by ALU8Concrete multiclass above
 
-let mayLoad = true in {
-  defm SUBDi : MC6809Indexed_P1<"subd", Opcode<0xA3, 1>, (outs), [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], [AD]>;
-}
+// SUBDi now generated by ALU16Concrete multiclass above
 
-let mayLoad = true in {
-  defm ANDAi : MC6809Indexed_P1<"anda", Opcode<0xA4, 1>, (outs), [AA,NZ,N,Z,V,AA,AD,AQ], [AA]>;
-}
+// ANDAi now generated by ALU8Concrete multiclass above
 
-let isCompare = true, mayLoad = true in {
-  defm BITAi : MC6809Indexed_P1<"bita", Opcode<0xA5, 1>, (outs), [NZ,N,Z,V], [AA]>;
-}
+// BITAi now generated by ALU8Concrete multiclass above
 
 // LDAi now generated by Load8Concrete multiclass above
 
 // STAi now generated by Store8Concrete multiclass above
 
-let mayLoad = true in {
-  defm EORAi : MC6809Indexed_P1<"eora", Opcode<0xA8, 1>, (outs), [AA,NZ,N,Z,V,AA,AD,AQ], [AA]>;
-}
+// EORAi now generated by ALU8Concrete multiclass above
 
-let isAdd = true, mayLoad = true in {
-  defm ADCAi : MC6809Indexed_P1<"adca", Opcode<0xA9, 1>, (outs), [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA,C]>;
-}
+// ADCAi now generated by ALU8Concrete multiclass above
 
-let mayLoad = true in {
-  defm ORAi : MC6809Indexed_P1<"ora", Opcode<0xAA, 1>, (outs), [AA,NZ,N,Z,V,AA,AD,AQ], [AA]>;
-}
+// ORAi now generated by ALU8Concrete multiclass above
 
-let isAdd = true, mayLoad = true in {
-  defm ADDAi : MC6809Indexed_P1<"adda", Opcode<0xAB, 1>, (outs), [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA]>;
-}
+// ADDAi now generated by ALU8Concrete multiclass above
 
-let isCompare = true, mayLoad = true in {
-  defm CMPXi : MC6809Indexed_P1<"cmpx", Opcode<0xAC, 1>, (outs), [NZ,N,Z,V,C], [IX]>;
-}
+// CMPXi now generated by ALU16Concrete multiclass above
 
 let isCall = true in {
   defm JSRi : MC6809Indexed_P1<"jsr", Opcode<0xAD, 1>, (outs), [], []>;
@@ -1090,58 +1169,31 @@ let isCall = true in {
 
 // STXi now generated by Store8Concrete multiclass above
 
-def SUBAe : MC6809Extended_P1<(outs), "suba", Opcode<0xB0,1>, [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA]> {
-  let mayLoad = true;
-}
+// SUBAe now generated by ALU8Concrete multiclass above
 
-def CMPAe : MC6809Extended_P1<(outs), "cmpa", Opcode<0xB1,1>, [NZ,N,Z,V,C], [AA]> {
-  let isCompare = true;
-  let mayLoad = true;
-}
+// CMPAe now generated by ALU8Concrete multiclass above
 
-def SBCAe : MC6809Extended_P1<(outs), "sbca", Opcode<0xB2,1>, [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA,C]> {
-  let mayLoad = true;
-}
+// SBCAe now generated by ALU8Concrete multiclass above
 
-def SUBDe : MC6809Extended_P1<(outs), "subd", Opcode<0xB3,1>, [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], [AD]> {
-  let mayLoad = true;
-}
+// SUBDe now generated by ALU16Concrete multiclass above
 
-def ANDAe : MC6809Extended_P1<(outs), "anda", Opcode<0xB4,1>, [AA,NZ,N,Z,V,AA,AD,AQ], [AA]> {
-  let mayLoad = true;
-}
+// ANDAe now generated by ALU8Concrete multiclass above
 
-def BITAe : MC6809Extended_P1<(outs), "bita", Opcode<0xB5,1>, [NZ,N,Z,V], [AA]> {
-  let isCompare = true;
-  let mayLoad = true;
-}
+// BITAe now generated by ALU8Concrete multiclass above
 
 // LDAe now generated by Load8Concrete multiclass above
 
 // STAe now generated by Store8Concrete multiclass above
 
-def EORAe : MC6809Extended_P1<(outs), "eora", Opcode<0xB8,1>, [AA,NZ,N,Z,V,AA,AD,AQ], [AA]> {
-  let mayLoad = true;
-}
+// EORAe now generated by ALU8Concrete multiclass above
 
-def ADCAe : MC6809Extended_P1<(outs), "adca", Opcode<0xB9,1>, [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA,C]> {
-  let mayLoad = true;
-  let isAdd = true;
-}
+// ADCAe now generated by ALU8Concrete multiclass above
 
-def ORAe : MC6809Extended_P1<(outs), "ora", Opcode<0xBA,1>, [AA,NZ,N,Z,V,AA,AD,AQ], [AA]> {
-  let mayLoad = true;
-}
+// ORAe now generated by ALU8Concrete multiclass above
 
-def ADDAe : MC6809Extended_P1<(outs), "adda", Opcode<0xBB,1>, [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA]> {
-  let mayLoad = true;
-  let isAdd = true;
-}
+// ADDAe now generated by ALU8Concrete multiclass above
 
-def CMPXe : MC6809Extended_P1<(outs), "cmpx", Opcode<0xBC,1>, [NZ,N,Z,V,C], [IX]> {
-  let isCompare = true;
-  let mayLoad = true;
-}
+// CMPXe now generated by ALU16Concrete multiclass above
 
 def JSRe : MC6809Extended_P1<(outs), "jsr", Opcode<0xBD,1>, [], []> {
   let isCall = true;
@@ -1151,52 +1203,27 @@ def JSRe : MC6809Extended_P1<(outs), "jsr", Opcode<0xBD,1>, [], []> {
 
 // STXe now generated by Store8Concrete multiclass above
 
-def SUBBi8 : MC6809Immediate8Bit_P1<(outs), "subb", Opcode<0xC0,1>, [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB]> {
-  let mayLoad = true;
-}
+// SUBBi8 now generated by ALU8Concrete multiclass above
 
-def CMPBi8 : MC6809Immediate8Bit_P1<(outs), "cmpb", Opcode<0xC1,1>, [NZ,N,Z,V,C], [AB]> {
-  let isCompare = true;
-  let mayLoad = true;
-}
+// CMPBi8 now generated by ALU8Concrete multiclass above
 
-def SBCBi8 : MC6809Immediate8Bit_P1<(outs), "sbcb", Opcode<0xC2,1>, [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB,C]> {
-  let mayLoad = true;
-}
+// SBCBi8 now generated by ALU8Concrete multiclass above
 
-def ADDDi16 : MC6809Immediate16Bit_P1<(outs), "addd", Opcode<0xC3,1>, [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], [AD]> {
-  let mayLoad = true;
-  let isAdd = true;
-}
+// ADDDi16 now generated by ALU16Concrete multiclass above
 
-def ANDBi8 : MC6809Immediate8Bit_P1<(outs), "andb", Opcode<0xC4,1>, [AB,NZ,N,Z,V,AB,AD,AQ], [AB]> {
-  let mayLoad = true;
-}
+// ANDBi8 now generated by ALU8Concrete multiclass above
 
-def BITBi8 : MC6809Immediate8Bit_P1<(outs), "bitb", Opcode<0xC5,1>, [NZ,N,Z,V], [AB]> {
-  let isCompare = true;
-  let mayLoad = true;
-}
+// BITBi8 now generated by ALU8Concrete multiclass above
 
 // LDBi8 now generated by Load8Concrete multiclass above
 
-def EORBi8 : MC6809Immediate8Bit_P1<(outs), "eorb", Opcode<0xC8,1>, [AB,NZ,N,Z,V,AB,AD,AQ], [AB]> {
-  let mayLoad = true;
-}
+// EORBi8 now generated by ALU8Concrete multiclass above
 
-def ADCBi8 : MC6809Immediate8Bit_P1<(outs), "adcb", Opcode<0xC9,1>, [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB,C]> {
-  let mayLoad = true;
-  let isAdd = true;
-}
+// ADCBi8 now generated by ALU8Concrete multiclass above
 
-def ORBi8 : MC6809Immediate8Bit_P1<(outs), "orb", Opcode<0xCA,1>, [AB,NZ,N,Z,V,AB,AD,AQ], [AB]> {
-  let mayLoad = true;
-}
+// ORBi8 now generated by ALU8Concrete multiclass above
 
-def ADDBi8 : MC6809Immediate8Bit_P1<(outs), "addb", Opcode<0xCB,1>, [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB]> {
-  let mayLoad = true;
-  let isAdd = true;
-}
+// ADDBi8 now generated by ALU8Concrete multiclass above
 
 // LDDi16 now generated by Load16Concrete multiclass above
 
@@ -1204,54 +1231,29 @@ def ADDBi8 : MC6809Immediate8Bit_P1<(outs), "addb", Opcode<0xCB,1>, [AB,NZ,N,Z,V
 
 // LDUi16 now generated by Load16Concrete multiclass above
 
-def SUBBd : MC6809Direct_P1<(outs), "subb", Opcode<0xD0,1>, [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB]> {
-  let mayLoad = true;
-}
+// SUBBd now generated by ALU8Concrete multiclass above
 
-def CMPBd : MC6809Direct_P1<(outs), "cmpb", Opcode<0xD1,1>, [NZ,N,Z,V,C], [AB]> {
-  let isCompare = true;
-  let mayLoad = true;
-}
+// CMPBd now generated by ALU8Concrete multiclass above
 
-def SBCBd : MC6809Direct_P1<(outs), "sbcb", Opcode<0xD2,1>, [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB,C]> {
-  let mayLoad = true;
-}
+// SBCBd now generated by ALU8Concrete multiclass above
 
-def ADDDd : MC6809Direct_P1<(outs), "addd", Opcode<0xD3,1>, [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], [AD]> {
-  let mayLoad = true;
-  let isAdd = true;
-}
+// ADDDd now generated by ALU16Concrete multiclass above
 
-def ANDBd : MC6809Direct_P1<(outs), "andb", Opcode<0xD4,1>, [AB,NZ,N,Z,V,AB,AD,AQ], [AB]> {
-  let mayLoad = true;
-}
+// ANDBd now generated by ALU8Concrete multiclass above
 
-def BITBd : MC6809Direct_P1<(outs), "bitb", Opcode<0xD5,1>, [NZ,N,Z,V], [AB]> {
-  let isCompare = true;
-  let mayLoad = true;
-}
+// BITBd now generated by ALU8Concrete multiclass above
 
 // LDBd now generated by Load8Concrete multiclass above
 
 // STBd now generated by Store8Concrete multiclass above
 
-def EORBd : MC6809Direct_P1<(outs), "eorb", Opcode<0xD8,1>, [AB,NZ,N,Z,V,AB,AD,AQ], [AB]> {
-  let mayLoad = true;
-}
+// EORBd now generated by ALU8Concrete multiclass above
 
-def ADCBd : MC6809Direct_P1<(outs), "adcb", Opcode<0xD9,1>, [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB,C]> {
-  let mayLoad = true;
-  let isAdd = true;
-}
+// ADCBd now generated by ALU8Concrete multiclass above
 
-def ORBd : MC6809Direct_P1<(outs), "orb", Opcode<0xDA,1>, [AB,NZ,N,Z,V,AB,AD,AQ], [AB]> {
-  let mayLoad = true;
-}
+// ORBd now generated by ALU8Concrete multiclass above
 
-def ADDBd : MC6809Direct_P1<(outs), "addb", Opcode<0xDB,1>, [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB]> {
-  let mayLoad = true;
-  let isAdd = true;
-}
+// ADDBd now generated by ALU8Concrete multiclass above
 
 // LDDd now generated by Load16Concrete multiclass above
 
@@ -1261,49 +1263,29 @@ def ADDBd : MC6809Direct_P1<(outs), "addb", Opcode<0xDB,1>, [AB,NZ,N,Z,V,C,AB,AD
 
 // STUd now generated by Store8Concrete multiclass above
 
-let mayLoad = true in {
-  defm SUBBi : MC6809Indexed_P1<"subb", Opcode<0xE0, 1>, (outs), [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB]>;
-}
+// SUBBi now generated by ALU8Concrete multiclass above
 
-let isCompare = true, mayLoad = true in {
-  defm CMPBi : MC6809Indexed_P1<"cmpb", Opcode<0xE1, 1>, (outs), [NZ,N,Z,V,C], [AB]>;
-}
+// CMPBi now generated by ALU8Concrete multiclass above
 
-let mayLoad = true in {
-  defm SBCBi : MC6809Indexed_P1<"sbcb", Opcode<0xE2, 1>, (outs), [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB,C]>;
-}
+// SBCBi now generated by ALU8Concrete multiclass above
 
-let isAdd = true, mayLoad = true in {
-  defm ADDDi : MC6809Indexed_P1<"addd", Opcode<0xE3, 1>, (outs), [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], [AD]>;
-}
+// ADDDi now generated by ALU16Concrete multiclass above
 
-let mayLoad = true in {
-  defm ANDBi : MC6809Indexed_P1<"andb", Opcode<0xE4, 1>, (outs), [AB,NZ,N,Z,V,AB,AD,AQ], [AB]>;
-}
+// ANDBi now generated by ALU8Concrete multiclass above
 
-let isCompare = true, mayLoad = true in {
-  defm BITBi : MC6809Indexed_P1<"bitb", Opcode<0xE5, 1>, (outs), [NZ,N,Z,V], [AB]>;
-}
+// BITBi now generated by ALU8Concrete multiclass above
 
 // LDBi now generated by Load8Concrete multiclass above
 
 // STBi now generated by Store8Concrete multiclass above
 
-let mayLoad = true in {
-  defm EORBi : MC6809Indexed_P1<"eorb", Opcode<0xE8, 1>, (outs), [AB,NZ,N,Z,V,AB,AD,AQ], [AB]>;
-}
+// EORBi now generated by ALU8Concrete multiclass above
 
-let isAdd = true, mayLoad = true in {
-  defm ADCBi : MC6809Indexed_P1<"adcb", Opcode<0xE9, 1>, (outs), [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB,C]>;
-}
+// ADCBi now generated by ALU8Concrete multiclass above
 
-let mayLoad = true in {
-  defm ORBi : MC6809Indexed_P1<"orb", Opcode<0xEA, 1>, (outs), [AB,NZ,N,Z,V,AB,AD,AQ], [AB]>;
-}
+// ORBi now generated by ALU8Concrete multiclass above
 
-let isAdd = true, mayLoad = true in {
-  defm ADDBi : MC6809Indexed_P1<"addb", Opcode<0xEB, 1>, (outs), [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB]>;
-}
+// ADDBi now generated by ALU8Concrete multiclass above
 
 // defm LDDi now generated by Load16Concrete multiclass above
 
@@ -1313,54 +1295,29 @@ let isAdd = true, mayLoad = true in {
 
 // STUi now generated by Store8Concrete multiclass above
 
-def SUBBe : MC6809Extended_P1<(outs), "subb", Opcode<0xF0,1>, [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB]> {
-  let mayLoad = true;
-}
+// SUBBe now generated by ALU8Concrete multiclass above
 
-def CMPBe : MC6809Extended_P1<(outs), "cmpb", Opcode<0xF1,1>, [NZ,N,Z,V,C], [AB]> {
-  let isCompare = true;
-  let mayLoad = true;
-}
+// CMPBe now generated by ALU8Concrete multiclass above
 
-def SBCBe : MC6809Extended_P1<(outs), "sbcb", Opcode<0xF2,1>, [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB,C]> {
-  let mayLoad = true;
-}
+// SBCBe now generated by ALU8Concrete multiclass above
 
-def ADDDe : MC6809Extended_P1<(outs), "addd", Opcode<0xF3,1>, [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], [AD]> {
-  let mayLoad = true;
-  let isAdd = true;
-}
+// ADDDe now generated by ALU16Concrete multiclass above
 
-def ANDBe : MC6809Extended_P1<(outs), "andb", Opcode<0xF4,1>, [AB,NZ,N,Z,V,AB,AD,AQ], [AB]> {
-  let mayLoad = true;
-}
+// ANDBe now generated by ALU8Concrete multiclass above
 
-def BITBe : MC6809Extended_P1<(outs), "bitb", Opcode<0xF5,1>, [NZ,N,Z,V], [AB]> {
-  let isCompare = true;
-  let mayLoad = true;
-}
+// BITBe now generated by ALU8Concrete multiclass above
 
 // LDBe now generated by Load8Concrete multiclass above
 
 // STBe now generated by Store8Concrete multiclass above
 
-def EORBe : MC6809Extended_P1<(outs), "eorb", Opcode<0xF8,1>, [AB,NZ,N,Z,V,AB,AD,AQ], [AB]> {
-  let mayLoad = true;
-}
+// EORBe now generated by ALU8Concrete multiclass above
 
-def ADCBe : MC6809Extended_P1<(outs), "adcb", Opcode<0xF9,1>, [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB,C]> {
-  let mayLoad = true;
-  let isAdd = true;
-}
+// ADCBe now generated by ALU8Concrete multiclass above
 
-def ORBe : MC6809Extended_P1<(outs), "orb", Opcode<0xFA,1>, [AB,NZ,N,Z,V,AB,AD,AQ], [AB]> {
-  let mayLoad = true;
-}
+// ORBe now generated by ALU8Concrete multiclass above
 
-def ADDBe : MC6809Extended_P1<(outs), "addb", Opcode<0xFB,1>, [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB]> {
-  let mayLoad = true;
-  let isAdd = true;
-}
+// ADDBe now generated by ALU8Concrete multiclass above
 
 // LDDe now generated by Load16Concrete multiclass above
 
@@ -1522,249 +1479,117 @@ def CLRWa : MC6809Accumulator_P2<(outs), "clrw", Opcode<0x5F,2>, [AW,NZ,N,Z,V,C,
   let Predicates = [IsHD6309];
 }
 
-def SUBWi16 : MC6809Immediate16Bit_P2<(outs), "subw", Opcode<0x80,2>, [AW,NZ,N,Z,V,C,AE,AF,AW,AQ], [AW]> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-}
+// SUBWi16 now generated by ALU16Concrete multiclass above
 
-def CMPWi16 : MC6809Immediate16Bit_P2<(outs), "cmpw", Opcode<0x81,2>, [NZ,N,Z,V,C], [AW]> {
-  let Predicates = [IsHD6309];
-  let isCompare = true;
-  let mayLoad = true;
-}
+// CMPWi16 now generated by ALU16Concrete multiclass above
 
-def SBCDi16 : MC6809Immediate16Bit_P2<(outs), "sbcd", Opcode<0x82,2>, [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], [AD,C]> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-}
+// SBCDi16 now generated by ALU16Concrete multiclass above
 
-def CMPDi16 : MC6809Immediate16Bit_P2<(outs), "cmpd", Opcode<0x83,2>, [NZ,N,Z,V,C], [AD]> {
-  let isCompare = true;
-  let mayLoad = true;
-}
+// CMPDi16 now generated by ALU16Concrete multiclass above
 
-def ANDDi16 : MC6809Immediate16Bit_P2<(outs), "andd", Opcode<0x84,2>, [AD,NZ,N,Z,V,AA,AB,AD,AQ], [AD]> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-}
+// ANDDi16 now generated by ALU16Concrete multiclass above
 
-def BITDi16 : MC6809Immediate16Bit_P2<(outs), "bitd", Opcode<0x85,2>, [NZ,N,Z,V], [AD]> {
-  let Predicates = [IsHD6309];
-  let isCompare = true;
-  let mayLoad = true;
-}
+// BITDi16 now generated by ALU16Concrete multiclass above
 
 // LDWi16 now generated by Load16Concrete multiclass above
 
-def EORDi16 : MC6809Immediate16Bit_P2<(outs), "eord", Opcode<0x88,2>, [AD,NZ,N,Z,V,AA,AB,AD,AQ], [AD]> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-}
+// EORDi16 now generated by ALU16Concrete multiclass above
 
-def ADCDi16 : MC6809Immediate16Bit_P2<(outs), "adcd", Opcode<0x89,2>, [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], [AD,C]> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-  let isAdd = true;
-}
+// ADCDi16 now generated by ALU16Concrete multiclass above
 
-def ORDi16 : MC6809Immediate16Bit_P2<(outs), "ord", Opcode<0x8A,2>, [AD,NZ,N,Z,V,AA,AB,AD,AQ], [AD]> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-}
+// ORDi16 now generated by ALU16Concrete_P2 multiclass above
 
-def ADDWi16 : MC6809Immediate16Bit_P2<(outs), "addw", Opcode<0x8B,2>, [AW,NZ,N,Z,V,C,AE,AF,AW,AQ], [AW]> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-  let isAdd = true;
-}
+// ADDWi16 now generated by ALU16Concrete multiclass above
 
-def CMPYi16 : MC6809Immediate16Bit_P2<(outs), "cmpy", Opcode<0x8C,2>, [NZ,N,Z,V,C], [IY]> {
-  let isCompare = true;
-  let mayLoad = true;
-}
+// CMPYi16 now generated by ALU16Concrete multiclass above
 
 // LDYi16 now generated by Load16Concrete multiclass above
 
-def SUBWd : MC6809Direct_P2<(outs), "subw", Opcode<0x90,2>, [AW,NZ,N,Z,V,C,AE,AF,AW,AQ], [AW]> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-}
+// SUBWd now generated by ALU16Concrete multiclass above
 
-def CMPWd : MC6809Direct_P2<(outs), "cmpw", Opcode<0x91,2>, [NZ,N,Z,V,C], [AW]> {
-  let Predicates = [IsHD6309];
-  let isCompare = true;
-  let mayLoad = true;
-}
+// CMPWd now generated by ALU16Concrete multiclass above
 
-def SBCDd : MC6809Direct_P2<(outs), "sbcd", Opcode<0x92,2>, [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], [AD,C]> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-}
+// SBCDd now generated by ALU16Concrete multiclass above
 
-def CMPDd : MC6809Direct_P2<(outs), "cmpd", Opcode<0x93,2>, [NZ,N,Z,V,C], [AD]> {
-  let isCompare = true;
-  let mayLoad = true;
-}
+// CMPDd now generated by ALU16Concrete multiclass above
 
-def ANDDd : MC6809Direct_P2<(outs), "andd", Opcode<0x94,2>, [AD,NZ,N,Z,V,AA,AB,AD,AQ], [AD]> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-}
+// ANDDd now generated by ALU16Concrete multiclass above
 
-def BITDd : MC6809Direct_P2<(outs), "bitd", Opcode<0x95,2>, [NZ,N,Z,V], [AD]> {
-  let Predicates = [IsHD6309];
-  let isCompare = true;
-  let mayLoad = true;
-}
+// BITDd now generated by ALU16Concrete multiclass above
 
 // LDWd now generated by Load16Concrete multiclass above
 
 // STWd now generated by Store8Concrete multiclass above
 
-def EORDd : MC6809Direct_P2<(outs), "eord", Opcode<0x98,2>, [AD,NZ,N,Z,V,AA,AB,AD,AQ], [AD]> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-}
+// EORDd now generated by ALU16Concrete multiclass above
 
-def ADCDd : MC6809Direct_P2<(outs), "adcd", Opcode<0x99,2>, [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], [AD,C]> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-  let isAdd = true;
-}
+// ADCDd now generated by ALU16Concrete multiclass above
 
-def ORDd : MC6809Direct_P2<(outs), "ord", Opcode<0x9A,2>, [AD,NZ,N,Z,V,AA,AB,AD,AQ], [AD]> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-}
+// ORDd now generated by ALU16Concrete_P2 multiclass above
 
-def ADDWd : MC6809Direct_P2<(outs), "addw", Opcode<0x9B,2>, [AW,NZ,N,Z,V,C,AE,AF,AW,AQ], [AW]> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-  let isAdd = true;
-}
+// ADDWd now generated by ALU16Concrete multiclass above
 
-def CMPYd : MC6809Direct_P2<(outs), "cmpy", Opcode<0x9C,2>, [NZ,N,Z,V,C], [IY]> {
-  let isCompare = true;
-  let mayLoad = true;
-}
+// CMPYd now generated by ALU16Concrete multiclass above
 
 // LDYd now generated by Load16Concrete multiclass above
 
 // STYd now generated by Store8Concrete multiclass above
 
-let Predicates = [IsHD6309], mayLoad = true in {
-  defm SUBWi : MC6809Indexed_P2<"subw", Opcode<0xA0, 2>, (outs), [AW,NZ,N,Z,V,C,AE,AF,AW,AQ], [AW]>;
-}
+// SUBWi now generated by ALU16Concrete multiclass above
 
-let Predicates = [IsHD6309], isCompare = true, mayLoad = true in {
-  defm CMPWi : MC6809Indexed_P2<"cmpw", Opcode<0xA1, 2>, (outs), [NZ,N,Z,V,C], [AW]>;
-}
+// CMPWi now generated by ALU16Concrete multiclass above
 
-let Predicates = [IsHD6309], mayLoad = true in {
-  defm SBCDi : MC6809Indexed_P2<"sbcd", Opcode<0xA2, 2>, (outs), [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], [AD,C]>;
-}
+// SBCDi now generated by ALU16Concrete multiclass above
 
-let isCompare = true, mayLoad = true in {
-  defm CMPDi : MC6809Indexed_P2<"cmpd", Opcode<0xA3, 2>, (outs), [NZ,N,Z,V,C], [AD]>;
-}
+// CMPDi now generated by ALU16Concrete multiclass above
 
-let Predicates = [IsHD6309], mayLoad = true in {
-  defm ANDDi : MC6809Indexed_P2<"andd", Opcode<0xA4, 2>, (outs), [AD,NZ,N,Z,V,AA,AB,AD,AQ], [AD]>;
-}
+// ANDDi now generated by ALU16Concrete multiclass above
 
-let isCompare = true, mayLoad = true in {
-  defm BITDi : MC6809Indexed_P2<"bitd", Opcode<0xA5, 2>, (outs), [NZ,N,Z,V], [AD]>;
-}
+// BITDi now generated by ALU16Concrete multiclass above
 
 // defm LDWi now generated by Load16Concrete multiclass above
 
 // STWi now generated by Store8Concrete multiclass above
 
-let Predicates = [IsHD6309], mayLoad = true in {
-  defm EORDi : MC6809Indexed_P2<"eord", Opcode<0xA8, 2>, (outs), [AD,NZ,N,Z,V,AA,AB,AD,AQ], [AD]>;
-}
+// EORDi now generated by ALU16Concrete multiclass above
 
-let Predicates = [IsHD6309], isAdd = true, mayLoad = true in {
-  defm ADCDi : MC6809Indexed_P2<"adcd", Opcode<0xA9, 2>, (outs), [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], [AD,C]>;
-}
+// ADCDi now generated by ALU16Concrete multiclass above
 
-let Predicates = [IsHD6309], mayLoad = true in {
-  defm ORDi : MC6809Indexed_P2<"ord", Opcode<0xAA, 2>, (outs), [AD,NZ,N,Z,V,AA,AB,AD,AQ], [AD]>;
-}
+// ORDi now generated by ALU16Concrete_P2 multiclass above
 
-let Predicates = [IsHD6309], isAdd = true, mayLoad = true in {
-  defm ADDWi : MC6809Indexed_P2<"addw", Opcode<0xAB, 2>, (outs), [AW,NZ,N,Z,V,C,AE,AF,AW,AQ], [AW]>;
-}
+// ADDWi now generated by ALU16Concrete multiclass above
 
-let isCompare = true, mayLoad = true in {
-  defm CMPYi : MC6809Indexed_P2<"cmpy", Opcode<0xAC, 2>, (outs), [NZ,N,Z,V,C], [IY]>;
-}
+// CMPYi now generated by ALU16Concrete multiclass above
 
 // defm LDYi now generated by Load16Concrete multiclass above
 
 // STYi now generated by Store8Concrete multiclass above
 
-def SUBWe : MC6809Extended_P2<(outs), "subw", Opcode<0xB0,2>, [AW,NZ,N,Z,V,C,AE,AF,AW,AQ], [AW]> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-}
+// SUBWe now generated by ALU16Concrete multiclass above
 
-def CMPWe : MC6809Extended_P2<(outs), "cmpw", Opcode<0xB1,2>, [NZ,N,Z,V,C], [AW]> {
-  let Predicates = [IsHD6309];
-  let isCompare = true;
-  let mayLoad = true;
-}
+// CMPWe now generated by ALU16Concrete multiclass above
 
-def SBCDe : MC6809Extended_P2<(outs), "sbcd", Opcode<0xB2,2>, [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], [AD,C]> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-}
+// SBCDe now generated by ALU16Concrete multiclass above
 
-def CMPDe : MC6809Extended_P2<(outs), "cmpd", Opcode<0xB3,2>, [NZ,N,Z,V,C], [AD]> {
-  let isCompare = true;
-  let mayLoad = true;
-}
+// CMPDe now generated by ALU16Concrete multiclass above
 
-def ANDDe : MC6809Extended_P2<(outs), "andd", Opcode<0xB4,2>, [AD,NZ,N,Z,V,AA,AB,AD,AQ], [AD]> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-}
+// ANDDe now generated by ALU16Concrete multiclass above
 
-def BITDe : MC6809Extended_P2<(outs), "bitd", Opcode<0xB5,2>, [NZ,N,Z,V], [AD]> {
-  let isCompare = true;
-  let mayLoad = true;
-}
+// BITDe now generated by ALU16Concrete multiclass above
 
 // LDWe now generated by Load16Concrete multiclass above
 
 // STWe now generated by Store8Concrete multiclass above
 
-def EORDe : MC6809Extended_P2<(outs), "eord", Opcode<0xB8,2>, [AD,NZ,N,Z,V,AA,AB,AD,AQ], [AD]> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-}
+// EORDe now generated by ALU16Concrete multiclass above
 
-def ADCDe : MC6809Extended_P2<(outs), "adcd", Opcode<0xB9,2>, [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], [AD,C]> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-  let isAdd = true;
-}
+// ADCDe now generated by ALU16Concrete multiclass above
 
-def ORDe : MC6809Extended_P2<(outs), "ord", Opcode<0xBA,2>, [AD,NZ,N,Z,V,AA,AB,AD,AQ], [AD]> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-}
+// ORDe now generated by ALU16Concrete_P2 multiclass above
 
-def ADDWe : MC6809Extended_P2<(outs), "addw", Opcode<0xBB,2>, [AW,NZ,N,Z,V,C,AE,AF,AW,AQ], [AW]> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-  let isAdd = true;
-}
+// ADDWe now generated by ALU16Concrete multiclass above
 
-def CMPYe : MC6809Extended_P2<(outs), "cmpy", Opcode<0xBC,2>, [NZ,N,Z,V,C], [IY]> {
-  let isCompare = true;
-  let mayLoad = true;
-}
+// CMPYe now generated by ALU16Concrete multiclass above
 
 // LDYe now generated by Load16Concrete multiclass above
 
@@ -1906,34 +1731,17 @@ def CLRFa : MC6809Accumulator_P3<(outs), "clrf", Opcode<0x5F,3>, [AF,NZ,N,Z,V,C,
   let Predicates = [IsHD6309];
 }
 
-def SUBEi8 : MC6809Immediate8Bit_P3<(outs), "sube", Opcode<0x80,3>, [AE,NZ,N,Z,V,C,AE,AW,AQ], [AE]> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-}
+// SUBEi8 now generated by ALU8Concrete multiclass above
 
-def CMPEi8 : MC6809Immediate8Bit_P3<(outs), "cmpe", Opcode<0x81,3>, [NZ,N,Z,V,C], [AE]> {
-  let Predicates = [IsHD6309];
-  let isCompare = true;
-  let mayLoad = true;
-}
+// CMPEi8 now generated by ALU8Concrete multiclass above
 
-def CMPUi16 : MC6809Immediate16Bit_P3<(outs), "cmpu", Opcode<0x83,3>, [NZ,N,Z,V,C], [SU]> {
-  let isCompare = true;
-  let mayLoad = true;
-}
+// CMPUi16 now generated by ALU16Concrete multiclass above
 
 // LDEi8 now generated by Load8Concrete_P3 multiclass above
 
-def ADDEi8 : MC6809Immediate8Bit_P3<(outs), "adde", Opcode<0x8B,3>, [AE,NZ,N,Z,V,C,AE,AW,AQ], [AE]> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-  let isAdd = true;
-}
+// ADDEi8 now generated by ALU8Concrete multiclass above
 
-def CMPSi16 : MC6809Immediate16Bit_P3<(outs), "cmps", Opcode<0x8C,3>, [NZ,N,Z,V,C], [SS]> {
-  let isCompare = true;
-  let mayLoad = true;
-}
+// CMPSi16 now generated by ALU16Concrete multiclass above
 
 def DIVDi8 : MC6809Immediate8Bit_P3<(outs), "divd", Opcode<0x8D,3>, [NZ,N,Z,V,C,AA,AB,AD,AQ], [AD]> {
   let Predicates = [IsHD6309];
@@ -1950,36 +1758,19 @@ def MULDi16 : MC6809Immediate16Bit_P3<(outs), "muld", Opcode<0x8F,3>, [NZ,N,Z,AA
   let mayLoad = true;
 }
 
-def SUBEd : MC6809Direct_P3<(outs), "sube", Opcode<0x90,3>, [AE,NZ,N,Z,V,C,AE,AW,AQ], [AE]> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-}
+// SUBEd now generated by ALU8Concrete multiclass above
 
-def CMPEd : MC6809Direct_P3<(outs), "cmpe", Opcode<0x91,3>, [NZ,N,Z,V,C], [AE]> {
-  let Predicates = [IsHD6309];
-  let isCompare = true;
-  let mayLoad = true;
-}
+// CMPEd now generated by ALU8Concrete multiclass above
 
-def CMPUd : MC6809Direct_P3<(outs), "cmpu", Opcode<0x93,3>, [NZ,N,Z,V,C], [SU]> {
-  let isCompare = true;
-  let mayLoad = true;
-}
+// CMPUd now generated by ALU16Concrete multiclass above
 
 // LDEd now generated by Load8Concrete_P3 multiclass above
 
 // STEd now generated by Store8Concrete multiclass above
 
-def ADDEd : MC6809Direct_P3<(outs), "adde", Opcode<0x9B,3>, [AE,NZ,N,Z,V,C,AE,AW,AQ], [AE]> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-  let isAdd = true;
-}
+// ADDEd now generated by ALU8Concrete multiclass above
 
-def CMPSd : MC6809Direct_P3<(outs), "cmps", Opcode<0x9C,3>, [NZ,N,Z,V,C], [SS]> {
-  let isCompare = true;
-  let mayLoad = true;
-}
+// CMPSd now generated by ALU16Concrete multiclass above
 
 def DIVDd : MC6809Direct_P3<(outs), "divd", Opcode<0x9D,3>, [NZ,N,Z,V,C,AA,AB,AD,AQ], [AD]> {
   let Predicates = [IsHD6309];
@@ -1996,29 +1787,19 @@ def MULDd : MC6809Direct_P3<(outs), "muld", Opcode<0x9F,3>, [NZ,N,Z,AA,AB,AD,AE,
   let mayLoad = true;
 }
 
-let Predicates = [IsHD6309], mayLoad = true in {
-  defm SUBEi : MC6809Indexed_P3<"sube", Opcode<0xA0, 3>, (outs), [AE,NZ,N,Z,V,C,AE,AW,AQ], [AE]>;
-}
+// SUBEi now generated by ALU8Concrete multiclass above
 
-let Predicates = [IsHD6309], isCompare = true, mayLoad = true in {
-  defm CMPEi : MC6809Indexed_P3<"cmpe", Opcode<0xA1, 3>, (outs), [NZ,N,Z,V,C], [AE]>;
-}
+// CMPEi now generated by ALU8Concrete multiclass above
 
-let isCompare = true, mayLoad = true in {
-  defm CMPUi : MC6809Indexed_P3<"cmpu", Opcode<0xA3, 3>, (outs), [NZ,N,Z,V,C], [SU]>;
-}
+// CMPUi now generated by ALU16Concrete multiclass above
 
 // LDEi now generated by Load8Concrete_P3 multiclass above
 
 // STEi now generated by Store8Concrete multiclass above
 
-let Predicates = [IsHD6309], isAdd = true, mayLoad = true in {
-  defm ADDEi : MC6809Indexed_P3<"adde", Opcode<0xAB, 3>, (outs), [AE,NZ,N,Z,V,C,AE,AW,AQ], [AE]>;
-}
+// ADDEi now generated by ALU8Concrete multiclass above
 
-let isCompare = true, mayLoad = true in {
-  defm CMPSi : MC6809Indexed_P3<"cmps", Opcode<0xAC, 3>, (outs), [NZ,N,Z,V,C], [SS]>;
-}
+// CMPSi now generated by ALU16Concrete multiclass above
 
 let Predicates = [IsHD6309], mayLoad = true in {
   defm DIVDi : MC6809Indexed_P3<"divd", Opcode<0xAD, 3>, (outs), [NZ,N,Z,V,C,AA,AB,AD,AQ], [AD]>;
@@ -2032,36 +1813,19 @@ let Predicates = [IsHD6309], mayLoad = true in {
   defm MULDi : MC6809Indexed_P3<"muld", Opcode<0xAF, 3>, (outs), [NZ,N,Z,AA,AB,AD,AE,AF,AW,AQ], [AD]>;
 }
 
-def SUBEe : MC6809Extended_P3<(outs), "sube", Opcode<0xB0,3>, [AE,NZ,N,Z,V,C,AE,AW,AQ], [AE]> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-}
+// SUBEe now generated by ALU8Concrete multiclass above
 
-def CMPEe : MC6809Extended_P3<(outs), "cmpe", Opcode<0xB1,3>, [NZ,N,Z,V,C], [AE]> {
-  let Predicates = [IsHD6309];
-  let isCompare = true;
-  let mayLoad = true;
-}
+// CMPEe now generated by ALU8Concrete multiclass above
 
-def CMPUe : MC6809Extended_P3<(outs), "cmpu", Opcode<0xB3,3>, [NZ,N,Z,V,C], [SU]> {
-  let isCompare = true;
-  let mayLoad = true;
-}
+// CMPUe now generated by ALU16Concrete multiclass above
 
 // LDEe now generated by Load8Concrete_P3 multiclass above
 
 // STEe now generated by Store8Concrete multiclass above
 
-def ADDEe : MC6809Extended_P3<(outs), "adde", Opcode<0xBB,3>, [AE,NZ,N,Z,V,C,AE,AW,AQ], [AE]> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-  let isAdd = true;
-}
+// ADDEe now generated by ALU8Concrete multiclass above
 
-def CMPSe : MC6809Extended_P3<(outs), "cmps", Opcode<0xBC,3>, [NZ,N,Z,V,C], [SS]> {
-  let isCompare = true;
-  let mayLoad = true;
-}
+// CMPSe now generated by ALU16Concrete multiclass above
 
 def DIVDe : MC6809Extended_P3<(outs), "divd", Opcode<0xBD,3>, [NZ,N,Z,V,C,AA,AB,AD,AQ], [AD]> {
   let Predicates = [IsHD6309];
@@ -2078,82 +1842,43 @@ def MULDe : MC6809Extended_P3<(outs), "muld", Opcode<0xBF,3>, [NZ,N,Z,AA,AB,AD,A
   let mayLoad = true;
 }
 
-def SUBFi8 : MC6809Immediate8Bit_P3<(outs), "subf", Opcode<0xC0,3>, [AF,NZ,N,Z,V,C,AF,AW,AQ], [AF]> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-}
+// SUBFi8 now generated by ALU8Concrete multiclass above
 
-def CMPFi8 : MC6809Immediate8Bit_P3<(outs), "cmpf", Opcode<0xC1,3>, [NZ,N,Z,V,C], [AF]> {
-  let Predicates = [IsHD6309];
-  let isCompare = true;
-  let mayLoad = true;
-}
+// CMPFi8 now generated by ALU8Concrete multiclass above
 
 // LDFi8 now generated by Load8Concrete_P3 multiclass above
 
-def ADDFi8 : MC6809Immediate8Bit_P3<(outs), "addf", Opcode<0xCB,3>, [AF,NZ,N,Z,V,C,AF,AW,AQ], [AF]> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-  let isAdd = true;
-}
+// ADDFi8 now generated by ALU8Concrete multiclass above
 
-def SUBFd : MC6809Direct_P3<(outs), "subf", Opcode<0xD0,3>, [AF,NZ,N,Z,V,C,AF,AW,AQ], [AF]> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-}
+// SUBFd now generated by ALU8Concrete multiclass above
 
-def CMPFd : MC6809Direct_P3<(outs), "cmpf", Opcode<0xD1,3>, [NZ,N,Z,V,C], [AF]> {
-  let Predicates = [IsHD6309];
-  let isCompare = true;
-  let mayLoad = true;
-}
+// CMPFd now generated by ALU8Concrete multiclass above
 
 // LDFd now generated by Load8Concrete_P3 multiclass above
 
 // STFd now generated by Store8Concrete multiclass above
 
-def ADDFd : MC6809Direct_P3<(outs), "addf", Opcode<0xDB,3>, [AF,NZ,N,Z,V,C,AF,AW,AQ], [AF]> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-  let isAdd = true;
-}
+// ADDFd now generated by ALU8Concrete multiclass above
 
-let Predicates = [IsHD6309], mayLoad = true in {
-  defm SUBFi : MC6809Indexed_P3<"subf", Opcode<0xE0, 3>, (outs), [AF,NZ,N,Z,V,C,AF,AW,AQ], [AF]>;
-}
+// SUBFi now generated by ALU8Concrete multiclass above
 
-let Predicates = [IsHD6309], isCompare = true, mayLoad = true in {
-  defm CMPFi : MC6809Indexed_P3<"cmpf", Opcode<0xE1, 3>, (outs), [NZ,N,Z,V,C], [AF]>;
-}
+// CMPFi now generated by ALU8Concrete multiclass above
 
 // LDFi now generated by Load8Concrete_P3 multiclass above
 
 // STFi now generated by Store8Concrete multiclass above
 
-let Predicates = [IsHD6309], isAdd = true, mayLoad = true in {
-  defm ADDFi : MC6809Indexed_P3<"addf", Opcode<0xEB, 3>, (outs), [AF,NZ,N,Z,V,C,AF,AW,AQ], [AF]>;
-}
+// ADDFi now generated by ALU8Concrete multiclass above
 
-def SUBFe : MC6809Extended_P3<(outs), "subf", Opcode<0xF0,3>, [AF,NZ,N,Z,V,C,AF,AW,AQ], [AF]> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-}
+// SUBFe now generated by ALU8Concrete multiclass above
 
-def CMPFe : MC6809Extended_P3<(outs), "cmpf", Opcode<0xF1,3>, [NZ,N,Z,V,C], [AF]> {
-  let Predicates = [IsHD6309];
-  let isCompare = true;
-  let mayLoad = true;
-}
+// CMPFe now generated by ALU8Concrete multiclass above
 
 // LDFe now generated by Load8Concrete_P3 multiclass above
 
 // STFe now generated by Store8Concrete multiclass above
 
-def ADDFe : MC6809Extended_P3<(outs), "addf", Opcode<0xFB,3>, [AF,NZ,N,Z,V,C,AF,AW,AQ], [AF]> {
-  let Predicates = [IsHD6309];
-  let mayLoad = true;
-  let isAdd = true;
-}
+// ADDFe now generated by ALU8Concrete multiclass above
 
 // MRVM END MARKER 2
 // clang-format on
