@@ -536,6 +536,15 @@ let mayLoad = false, mayStore = false, isCall = true in {
   def LBSRlb : MC6809LongBranch_P1<(outs),  "lbsr", Opcode<0x17,1>, [], [SS]>;
 }
 
+// Block transfer modes (Page 3, HD6309).
+// TFM r0+,r1+ (copy), r0-,r1- (reverse copy), r0+,r1 (fill), r0,r1+ (read)
+let Predicates = [IsHD6309] in {
+  def TFM0pp : MC6809BlockRegisterPair0_P3<(outs), "tfm", Opcode<0x38,3>, [], []>;
+  def TFM1pp : MC6809BlockRegisterPair1_P3<(outs), "tfm", Opcode<0x39,3>, [], []>;
+  def TFM2pp : MC6809BlockRegisterPair2_P3<(outs), "tfm", Opcode<0x3A,3>, [], []>;
+  def TFM3pp : MC6809BlockRegisterPair3_P3<(outs), "tfm", Opcode<0x3B,3>, [], []>;
+}
+
 // LDE/LDF/STE/STF and ALU/Unary Page 2/3 ops are defined after their
 // respective indexed multiclasses below.
 
@@ -1565,21 +1574,7 @@ def STBTbd : MC6809BitDirect_P3<(outs BIT8:$dst), "stbt", Opcode<0x37,3>, [], []
   let Predicates = [IsHD6309];
 }
 
-def TFM0pp : MC6809BlockRegisterPair0_P3<(outs), "tfm", Opcode<0x38,3>, [], []> {
-  let Predicates = [IsHD6309];
-}
-
-def TFM1pp : MC6809BlockRegisterPair1_P3<(outs), "tfm", Opcode<0x39,3>, [], []> {
-  let Predicates = [IsHD6309];
-}
-
-def TFM2pp : MC6809BlockRegisterPair2_P3<(outs), "tfm", Opcode<0x3A,3>, [], []> {
-  let Predicates = [IsHD6309];
-}
-
-def TFM3pp : MC6809BlockRegisterPair3_P3<(outs), "tfm", Opcode<0x3B,3>, [], []> {
-  let Predicates = [IsHD6309];
-}
+// TFM0pp/TFM1pp/TFM2pp/TFM3pp now consolidated above
 
 def BITMDi8 : MC6809Immediate8Bit_P3<(outs), "bitmd", Opcode<0x3C,3>, [NZ,N,Z,V], [AD]> {
   let Predicates = [IsHD6309];
