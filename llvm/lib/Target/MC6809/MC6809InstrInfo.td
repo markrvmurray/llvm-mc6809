@@ -369,8 +369,63 @@ defm ADDD : ALU16Concrete<"addd", Opcode<0xC3,1>, Opcode<0xD3,1>, Opcode<0xE3,1>
 defm CMPX : ALU16Concrete<"cmpx", Opcode<0x8C,1>, Opcode<0x9C,1>, Opcode<0xAC,1>, Opcode<0xBC,1>,
                            [NZ,N,Z,V,C], [IX], /*IsCompare=*/1>;
 
-// LDE/LDF/STE/STF and ALU Page 2/3 ops are defined after their respective
-// indexed multiclasses below.
+// Unary memory-modify: direct/indexed/extended (Page 1). No immediate.
+// mayLoad and mayStore since they read-modify-write memory.
+multiclass Unary1Concrete<string Mnem, Opcode DirOpc, Opcode IdxOpc,
+                          Opcode ExtOpc,
+                          list<Register> Defs, list<Register> Uses> {
+  let mayLoad = true, mayStore = true in {
+    def d  : MC6809Direct_P1<(outs), Mnem, DirOpc, Defs, Uses>;
+    defm i : MC6809Indexed_P1<Mnem, IdxOpc, (outs), Defs, Uses>;
+    def e  : MC6809Extended_P1<(outs), Mnem, ExtOpc, Defs, Uses>;
+  }
+}
+
+// Unary accumulator pair (A and B forms, Page 1).
+multiclass UnaryAcc8_AB<string MnemA, Opcode OpcA, list<Register> DefsA, list<Register> UsesA,
+                        string MnemB, Opcode OpcB, list<Register> DefsB, list<Register> UsesB> {
+  def Aa : MC6809Accumulator_P1<(outs), MnemA, OpcA, DefsA, UsesA>;
+  def Ba : MC6809Accumulator_P1<(outs), MnemB, OpcB, DefsB, UsesB>;
+}
+
+// Memory-modify unary ops (Page 1): NEG, COM, LSR, ROR, ASR, ASL, ROL, DEC, INC, TST, CLR
+defm NEG : Unary1Concrete<"neg", Opcode<0x00,1>, Opcode<0x60,1>, Opcode<0x70,1>, [NZ,N,Z,V,C], []>;
+defm COM : Unary1Concrete<"com", Opcode<0x03,1>, Opcode<0x63,1>, Opcode<0x73,1>, [NZ,N,Z,V,C], []>;
+defm LSR : Unary1Concrete<"lsr", Opcode<0x04,1>, Opcode<0x64,1>, Opcode<0x74,1>, [NZ,N,Z,C], []>;
+defm ROR : Unary1Concrete<"ror", Opcode<0x06,1>, Opcode<0x66,1>, Opcode<0x76,1>, [NZ,N,Z,C], [C]>;
+defm ASR : Unary1Concrete<"asr", Opcode<0x07,1>, Opcode<0x67,1>, Opcode<0x77,1>, [NZ,N,Z,C], [C]>;
+defm ASL : Unary1Concrete<"asl", Opcode<0x08,1>, Opcode<0x68,1>, Opcode<0x78,1>, [NZ,N,Z,V,C], []>;
+defm ROL : Unary1Concrete<"rol", Opcode<0x09,1>, Opcode<0x69,1>, Opcode<0x79,1>, [NZ,N,Z,V,C], [C]>;
+defm DEC : Unary1Concrete<"dec", Opcode<0x0A,1>, Opcode<0x6A,1>, Opcode<0x7A,1>, [NZ,N,Z,V], []>;
+defm INC : Unary1Concrete<"inc", Opcode<0x0C,1>, Opcode<0x6C,1>, Opcode<0x7C,1>, [NZ,N,Z,V], []>;
+defm TST : Unary1Concrete<"tst", Opcode<0x0D,1>, Opcode<0x6D,1>, Opcode<0x7D,1>, [NZ,N,Z,V], []>;
+defm CLR : Unary1Concrete<"clr", Opcode<0x0F,1>, Opcode<0x6F,1>, Opcode<0x7F,1>, [NZ,N,Z,V,C], []>;
+
+// Accumulator unary ops (Page 1): A and B forms
+// Same defm prefix as memory ops — no conflict since suffixes differ (Aa/Ba vs d/i/e)
+defm NEG : UnaryAcc8_AB<"nega", Opcode<0x40,1>, [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA],
+                         "negb", Opcode<0x50,1>, [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB]>;
+defm COM : UnaryAcc8_AB<"coma", Opcode<0x43,1>, [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA],
+                         "comb", Opcode<0x53,1>, [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB]>;
+defm LSR : UnaryAcc8_AB<"lsra", Opcode<0x44,1>, [AA,NZ,N,Z,C,AA,AD,AQ], [AA],
+                         "lsrb", Opcode<0x54,1>, [AB,NZ,N,Z,C,AB,AD,AQ], [AB]>;
+defm ROR : UnaryAcc8_AB<"rora", Opcode<0x46,1>, [AA,NZ,N,Z,C,AA,AD,AQ], [AA,C],
+                         "rorb", Opcode<0x56,1>, [AB,NZ,N,Z,C,AB,AD,AQ], [AB,C]>;
+defm ASR : UnaryAcc8_AB<"asra", Opcode<0x47,1>, [AA,NZ,N,Z,C,AA,AD,AQ], [AA,C],
+                         "asrb", Opcode<0x57,1>, [AB,NZ,N,Z,C,AB,AD,AQ], [AB,C]>;
+defm ASL : UnaryAcc8_AB<"asla", Opcode<0x48,1>, [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA],
+                         "aslb", Opcode<0x58,1>, [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB]>;
+defm ROL : UnaryAcc8_AB<"rola", Opcode<0x49,1>, [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA,C],
+                         "rolb", Opcode<0x59,1>, [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB,C]>;
+defm DEC : UnaryAcc8_AB<"deca", Opcode<0x4A,1>, [AA,NZ,N,Z,V,AA,AD,AQ], [AA],
+                         "decb", Opcode<0x5A,1>, [AB,NZ,N,Z,V,AB,AD,AQ], [AB]>;
+defm INC : UnaryAcc8_AB<"inca", Opcode<0x4C,1>, [AA,NZ,N,Z,V,AA,AD,AQ], [AA],
+                         "incb", Opcode<0x5C,1>, [AB,NZ,N,Z,V,AB,AD,AQ], [AB]>;
+defm CLR : UnaryAcc8_AB<"clra", Opcode<0x4F,1>, [AA,NZ,N,Z,V,C,AA,AD,AQ], [],
+                         "clrb", Opcode<0x5F,1>, [AB,NZ,N,Z,V,C,AB,AD,AQ], []>;
+
+// LDE/LDF/STE/STF and ALU/Unary Page 2/3 ops are defined after their
+// respective indexed multiclasses below.
 
 // ============================== PAGE MC6809Indexed_P2 ==================================
 multiclass MC6809Indexed_P2<string Mnemonic, Opcode opcode, dag outdag, list<Register> defsin, list<Register> usesin> {
@@ -687,12 +742,46 @@ defm CMPF : ALU8Concrete_P3<"cmpf", Opcode<0xC1,3>, Opcode<0xD1,3>, Opcode<0xE1,
 defm ADDF : ALU8Concrete_P3<"addf", Opcode<0xCB,3>, Opcode<0xDB,3>, Opcode<0xEB,3>, Opcode<0xFB,3>,
                              [AF,NZ,N,Z,V,C,AF,AW,AQ], [AF], /*IsCompare=*/0, /*IsAdd=*/1>;
 
+// Unary accumulator ops: D and W registers (Page 2, HD6309)
+let Predicates = [IsHD6309] in {
+  def NEGDa : MC6809Accumulator_P2<(outs), "negd", Opcode<0x40,2>, [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], [AD]>;
+  def COMDa : MC6809Accumulator_P2<(outs), "comd", Opcode<0x43,2>, [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], [AD]>;
+  def LSRDa : MC6809Accumulator_P2<(outs), "lsrd", Opcode<0x44,2>, [AD,NZ,N,Z,C,AA,AB,AD,AQ], [AD]>;
+  def RORDa : MC6809Accumulator_P2<(outs), "rord", Opcode<0x46,2>, [AD,NZ,N,Z,C,AA,AB,AD,AQ], [AD,C]>;
+  def ASRDa : MC6809Accumulator_P2<(outs), "asrd", Opcode<0x47,2>, [AD,NZ,N,Z,C,AA,AB,AD,AQ], [AD,C]>;
+  def ASLDa : MC6809Accumulator_P2<(outs), "asld", Opcode<0x48,2>, [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], [AD]>;
+  def ROLDa : MC6809Accumulator_P2<(outs), "rold", Opcode<0x49,2>, [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], [AD,C]>;
+  def DECDa : MC6809Accumulator_P2<(outs), "decd", Opcode<0x4A,2>, [AD,NZ,N,Z,V,AA,AB,AD,AQ], [AD]>;
+  def INCDa : MC6809Accumulator_P2<(outs), "incd", Opcode<0x4C,2>, [AD,NZ,N,Z,V,AA,AB,AD,AQ], [AD]>;
+  def TSTDa : MC6809Accumulator_P2<(outs), "tstd", Opcode<0x4D,2>, [NZ,N,Z,V], [AD]>;
+  def CLRDa : MC6809Accumulator_P2<(outs), "clrd", Opcode<0x4F,2>, [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], []>;
+  def COMWa : MC6809Accumulator_P2<(outs), "comw", Opcode<0x53,2>, [AW,NZ,N,Z,V,C,AE,AF,AW,AQ], [AW]>;
+  def LSRWa : MC6809Accumulator_P2<(outs), "lsrw", Opcode<0x54,2>, [AW,NZ,N,Z,C,AE,AF,AW,AQ], [AW]>;
+  def RORWa : MC6809Accumulator_P2<(outs), "rorw", Opcode<0x56,2>, [AW,NZ,N,Z,C,AE,AF,AW,AQ], [AW,C]>;
+  def ROLWa : MC6809Accumulator_P2<(outs), "rolw", Opcode<0x59,2>, [AW,NZ,N,Z,V,C,AE,AF,AW,AQ], [AW,C]>;
+  def DECWa : MC6809Accumulator_P2<(outs), "decw", Opcode<0x5A,2>, [AW,NZ,N,Z,V,AE,AF,AW,AQ], [AW]>;
+  def INCWa : MC6809Accumulator_P2<(outs), "incw", Opcode<0x5C,2>, [AW,NZ,N,Z,V,AE,AF,AW,AQ], [AW]>;
+  def TSTWa : MC6809Accumulator_P2<(outs), "tstw", Opcode<0x5D,2>, [NZ,N,Z,V], [AW]>;
+  def CLRWa : MC6809Accumulator_P2<(outs), "clrw", Opcode<0x5F,2>, [AW,NZ,N,Z,V,C,AE,AF,AW,AQ], []>;
+}
+
+// Unary accumulator ops: E and F registers (Page 3, HD6309)
+let Predicates = [IsHD6309] in {
+  def COMEa : MC6809Accumulator_P3<(outs), "come", Opcode<0x43,3>, [AE,NZ,N,Z,V,C,AE,AW,AQ], [AE]>;
+  def DECEa : MC6809Accumulator_P3<(outs), "dece", Opcode<0x4A,3>, [AE,NZ,N,Z,V,AE,AW,AQ], [AE]>;
+  def INCEa : MC6809Accumulator_P3<(outs), "ince", Opcode<0x4C,3>, [AE,NZ,N,Z,V,AE,AW,AQ], [AE]>;
+  def TSTEa : MC6809Accumulator_P3<(outs), "tste", Opcode<0x4D,3>, [NZ,N,Z,V], [AE]>;
+  def CLREa : MC6809Accumulator_P3<(outs), "clre", Opcode<0x4F,3>, [AE,NZ,N,Z,V,C,AE,AW,AQ], []>;
+  def COMFa : MC6809Accumulator_P3<(outs), "comf", Opcode<0x53,3>, [AF,NZ,N,Z,V,C,AF,AW,AQ], [AF]>;
+  def DECFa : MC6809Accumulator_P3<(outs), "decf", Opcode<0x5A,3>, [AF,NZ,N,Z,V,AF,AW,AQ], [AF]>;
+  def INCFa : MC6809Accumulator_P3<(outs), "incf", Opcode<0x5C,3>, [AF,NZ,N,Z,V,AF,AW,AQ], [AF]>;
+  def TSTFa : MC6809Accumulator_P3<(outs), "tstf", Opcode<0x5D,3>, [NZ,N,Z,V], [AF]>;
+  def CLRFa : MC6809Accumulator_P3<(outs), "clrf", Opcode<0x5F,3>, [AF,NZ,N,Z,V,C,AF,AW,AQ], []>;
+}
+
 // clang-format off
 // MRVM START MARKER 2
-def NEGd : MC6809Direct_P1<(outs), "neg", Opcode<0x00,1>, [NZ,N,Z,V,C], []> {
-  let mayLoad = true;
-  let mayStore = true;
-}
+// NEGd now generated by Unary1Concrete multiclass above
 
 def OIMid : MC6809ImmediateDirect_P1<(outs), "oim", Opcode<0x01,1>, [NZ,N,Z,V], []> {
   let Predicates = [IsHD6309];
@@ -706,15 +795,9 @@ def AIMid : MC6809ImmediateDirect_P1<(outs), "aim", Opcode<0x02,1>, [NZ,N,Z,V], 
   let mayStore = true;
 }
 
-def COMd : MC6809Direct_P1<(outs), "com", Opcode<0x03,1>, [NZ,N,Z,V,C], []> {
-  let mayLoad = true;
-  let mayStore = true;
-}
+// COMd now generated by Unary1Concrete multiclass above
 
-def LSRd : MC6809Direct_P1<(outs), "lsr", Opcode<0x04,1>, [NZ,N,Z,C], []> {
-  let mayLoad = true;
-  let mayStore = true;
-}
+// LSRd now generated by Unary1Concrete multiclass above
 
 def EIMid : MC6809ImmediateDirect_P1<(outs), "eim", Opcode<0x05,1>, [NZ,N,Z,V], []> {
   let Predicates = [IsHD6309];
@@ -722,30 +805,15 @@ def EIMid : MC6809ImmediateDirect_P1<(outs), "eim", Opcode<0x05,1>, [NZ,N,Z,V], 
   let mayStore = true;
 }
 
-def RORd : MC6809Direct_P1<(outs), "ror", Opcode<0x06,1>, [NZ,N,Z,C], [C]> {
-  let mayLoad = true;
-  let mayStore = true;
-}
+// RORd now generated by Unary1Concrete multiclass above
 
-def ASRd : MC6809Direct_P1<(outs), "asr", Opcode<0x07,1>, [NZ,N,Z,C], [C]> {
-  let mayLoad = true;
-  let mayStore = true;
-}
+// ASRd now generated by Unary1Concrete multiclass above
 
-def ASLd : MC6809Direct_P1<(outs), "asl", Opcode<0x08,1>, [NZ,N,Z,V,C], []> {
-  let mayLoad = true;
-  let mayStore = true;
-}
+// ASLd now generated by Unary1Concrete multiclass above
 
-def ROLd : MC6809Direct_P1<(outs), "rol", Opcode<0x09,1>, [NZ,N,Z,V,C], [C]> {
-  let mayLoad = true;
-  let mayStore = true;
-}
+// ROLd now generated by Unary1Concrete multiclass above
 
-def DECd : MC6809Direct_P1<(outs), "dec", Opcode<0x0A,1>, [NZ,N,Z,V], []> {
-  let mayLoad = true;
-  let mayStore = true;
-}
+// DECd now generated by Unary1Concrete multiclass above
 
 def TIMid : MC6809ImmediateDirect_P1<(outs), "tim", Opcode<0x0B,1>, [NZ,N,Z,V], []> {
   let Predicates = [IsHD6309];
@@ -753,14 +821,9 @@ def TIMid : MC6809ImmediateDirect_P1<(outs), "tim", Opcode<0x0B,1>, [NZ,N,Z,V], 
   let mayLoad = true;
 }
 
-def INCd : MC6809Direct_P1<(outs), "inc", Opcode<0x0C,1>, [NZ,N,Z,V], []> {
-  let mayLoad = true;
-  let mayStore = true;
-}
+// INCd now generated by Unary1Concrete multiclass above
 
-def TSTd : MC6809Direct_P1<(outs), "tst", Opcode<0x0D,1>, [NZ,N,Z,V], []> {
-  let isCompare = true;
-}
+// TSTd now generated by Unary1Concrete multiclass above
 
 def JMPd : MC6809Direct_P1<(outs), "jmp", Opcode<0x0E,1>, [], []> {
   let isBranch = true;
@@ -768,9 +831,7 @@ def JMPd : MC6809Direct_P1<(outs), "jmp", Opcode<0x0E,1>, [], []> {
   let isTerminator = true;
 }
 
-def CLRd : MC6809Direct_P1<(outs), "clr", Opcode<0x0F,1>, [NZ,N,Z,V,C], []> {
-  let mayStore = true;
-}
+// CLRd now generated by Unary1Concrete multiclass above
 
 def NOPx : MC6809Inherent_P1<(outs), "nop", Opcode<0x12,1>, [], []>;
 
@@ -874,57 +935,51 @@ def RESETx : MC6809Inherent_P1<(outs), "reset", Opcode<0x3E,1>, [], []>;
 
 def SWIx : MC6809Inherent_P1<(outs), "swi", Opcode<0x3F,1>, [], []>;
 
-def NEGAa : MC6809Accumulator_P1<(outs), "nega", Opcode<0x40,1>, [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA]>;
+// NEGAa now generated by Unary1Concrete multiclass above
 
-def COMAa : MC6809Accumulator_P1<(outs), "coma", Opcode<0x43,1>, [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA]>;
+// COMAa now generated by Unary1Concrete multiclass above
 
-def LSRAa : MC6809Accumulator_P1<(outs), "lsra", Opcode<0x44,1>, [AA,NZ,N,Z,C,AA,AD,AQ], [AA]>;
+// LSRAa now generated by Unary1Concrete multiclass above
 
-def RORAa : MC6809Accumulator_P1<(outs), "rora", Opcode<0x46,1>, [AA,NZ,N,Z,C,AA,AD,AQ], [AA,C]>;
+// RORAa now generated by Unary1Concrete multiclass above
 
-def ASRAa : MC6809Accumulator_P1<(outs), "asra", Opcode<0x47,1>, [AA,NZ,N,Z,C,AA,AD,AQ], [AA,C]>;
+// ASRAa now generated by Unary1Concrete multiclass above
 
-def ASLAa : MC6809Accumulator_P1<(outs), "asla", Opcode<0x48,1>, [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA]>;
+// ASLAa now generated by Unary1Concrete multiclass above
 
-def ROLAa : MC6809Accumulator_P1<(outs), "rola", Opcode<0x49,1>, [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA,C]>;
+// ROLAa now generated by Unary1Concrete multiclass above
 
-def DECAa : MC6809Accumulator_P1<(outs), "deca", Opcode<0x4A,1>, [AA,NZ,N,Z,V,AA,AD,AQ], [AA]>;
+// DECAa now generated by Unary1Concrete multiclass above
 
-def INCAa : MC6809Accumulator_P1<(outs), "inca", Opcode<0x4C,1>, [AA,NZ,N,Z,V,AA,AD,AQ], [AA]>;
+// INCAa now generated by Unary1Concrete multiclass above
 
-def TSTAa : MC6809Accumulator_P1<(outs), "tsta", Opcode<0x4D,1>, [NZ,N,Z,V], [AA]> {
-  let isCompare = true;
-}
+// TSTAa now generated by Unary1Concrete multiclass above
 
-def CLRAa : MC6809Accumulator_P1<(outs), "clra", Opcode<0x4F,1>, [AA,NZ,N,Z,V,C,AA,AD,AQ], []>;
+// CLRAa now generated by Unary1Concrete multiclass above
 
-def NEGBa : MC6809Accumulator_P1<(outs), "negb", Opcode<0x50,1>, [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB]>;
+// NEGBa now generated by Unary1Concrete multiclass above
 
-def COMBa : MC6809Accumulator_P1<(outs), "comb", Opcode<0x53,1>, [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB]>;
+// COMBa now generated by Unary1Concrete multiclass above
 
-def LSRBa : MC6809Accumulator_P1<(outs), "lsrb", Opcode<0x54,1>, [AB,NZ,N,Z,C,AB,AD,AQ], [AB]>;
+// LSRBa now generated by Unary1Concrete multiclass above
 
-def RORBa : MC6809Accumulator_P1<(outs), "rorb", Opcode<0x56,1>, [AB,NZ,N,Z,C,AB,AD,AQ], [AB,C]>;
+// RORBa now generated by Unary1Concrete multiclass above
 
-def ASRBa : MC6809Accumulator_P1<(outs), "asrb", Opcode<0x57,1>, [AB,NZ,N,Z,C,AB,AD,AQ], [AB,C]>;
+// ASRBa now generated by Unary1Concrete multiclass above
 
-def ASLBa : MC6809Accumulator_P1<(outs), "aslb", Opcode<0x58,1>, [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB]>;
+// ASLBa now generated by Unary1Concrete multiclass above
 
-def ROLBa : MC6809Accumulator_P1<(outs), "rolb", Opcode<0x59,1>, [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB,C]>;
+// ROLBa now generated by Unary1Concrete multiclass above
 
-def DECBa : MC6809Accumulator_P1<(outs), "decb", Opcode<0x5A,1>, [AB,NZ,N,Z,V,AB,AD,AQ], [AB]>;
+// DECBa now generated by Unary1Concrete multiclass above
 
-def INCBa : MC6809Accumulator_P1<(outs), "incb", Opcode<0x5C,1>, [AB,NZ,N,Z,V,AB,AD,AQ], [AB]>;
+// INCBa now generated by Unary1Concrete multiclass above
 
-def TSTBa : MC6809Accumulator_P1<(outs), "tstb", Opcode<0x5D,1>, [NZ,N,Z,V], [AB]> {
-  let isCompare = true;
-}
+// TSTBa now generated by Unary1Concrete multiclass above
 
-def CLRBa : MC6809Accumulator_P1<(outs), "clrb", Opcode<0x5F,1>, [AB,NZ,N,Z,V,C,AB,AD,AQ], []>;
+// CLRBa now generated by Unary1Concrete multiclass above
 
-let mayLoad = true, mayStore = true in {
-  defm NEGi : MC6809Indexed_P1<"neg", Opcode<0x60, 1>, (outs), [NZ,N,Z,V,C], []>;
-}
+// NEGi now generated by Unary1Concrete multiclass above
 
 let Predicates = [IsHD6309], mayLoad = true, mayStore = true in {
   defm OIMii : MC6809ImmediateIndexed_P1<"oim", Opcode<0x61, 1>, (outs), [NZ,N,Z,V], []>;
@@ -934,62 +989,39 @@ let Predicates = [IsHD6309], mayLoad = true, mayStore = true in {
   defm AIMii : MC6809ImmediateIndexed_P1<"aim", Opcode<0x62, 1>, (outs), [NZ,N,Z,V], []>;
 }
 
-let mayLoad = true, mayStore = true in {
-  defm COMi : MC6809Indexed_P1<"com", Opcode<0x63, 1>, (outs), [NZ,N,Z,V,C], []>;
-}
+// COMi now generated by Unary1Concrete multiclass above
 
-let mayLoad = true, mayStore = true in {
-  defm LSRi : MC6809Indexed_P1<"lsr", Opcode<0x64, 1>, (outs), [NZ,N,Z,C], []>;
-}
+// LSRi now generated by Unary1Concrete multiclass above
 
 let Predicates = [IsHD6309], mayLoad = true, mayStore = true in {
   defm EIMii : MC6809ImmediateIndexed_P1<"eim", Opcode<0x65, 1>, (outs), [NZ,N,Z,V], []>;
 }
 
-let mayLoad = true, mayStore = true in {
-  defm RORi : MC6809Indexed_P1<"ror", Opcode<0x66, 1>, (outs), [NZ,N,Z,C], [C]>;
-}
+// RORi now generated by Unary1Concrete multiclass above
 
-let mayLoad = true, mayStore = true in {
-  defm ASRi : MC6809Indexed_P1<"asr", Opcode<0x67, 1>, (outs), [NZ,N,Z,C], [C]>;
-}
+// ASRi now generated by Unary1Concrete multiclass above
 
-let mayLoad = true, mayStore = true in {
-  defm ASLi : MC6809Indexed_P1<"asl", Opcode<0x68, 1>, (outs), [NZ,N,Z,V,C], []>;
-}
+// ASLi now generated by Unary1Concrete multiclass above
 
-let mayLoad = true, mayStore = true in {
-  defm ROLi : MC6809Indexed_P1<"rol", Opcode<0x69, 1>, (outs), [NZ,N,Z,V,C], [C]>;
-}
+// ROLi now generated by Unary1Concrete multiclass above
 
-let mayLoad = true, mayStore = true in {
-  defm DECi : MC6809Indexed_P1<"dec", Opcode<0x6A, 1>, (outs), [NZ,N,Z,V], []>;
-}
+// DECi now generated by Unary1Concrete multiclass above
 
 let Predicates = [IsHD6309], isCompare = true, mayLoad = true in {
   defm TIMii : MC6809ImmediateIndexed_P1<"tim", Opcode<0x6B, 1>, (outs), [NZ,N,Z,V], []>;
 }
 
-let mayLoad = true, mayStore = true in {
-  defm INCi : MC6809Indexed_P1<"inc", Opcode<0x6C, 1>, (outs), [NZ,N,Z,V], []>;
-}
+// INCi now generated by Unary1Concrete multiclass above
 
-let isCompare = true in {
-  defm TSTi : MC6809Indexed_P1<"tst", Opcode<0x6D, 1>, (outs), [NZ,N,Z,V], []>;
-}
+// TSTi now generated by Unary1Concrete multiclass above
 
 let isBarrier = true, isBranch = true, isTerminator = true in {
   defm JMPi : MC6809Indexed_P1<"jmp", Opcode<0x6E, 1>, (outs), [], []>;
 }
 
-let mayStore = true in {
-  defm CLRi : MC6809Indexed_P1<"clr", Opcode<0x6F, 1>, (outs), [NZ,N,Z,V,C], []>;
-}
+// CLRi now generated by Unary1Concrete multiclass above
 
-def NEGe : MC6809Extended_P1<(outs), "neg", Opcode<0x70,1>, [NZ,N,Z,V,C], []> {
-  let mayLoad = true;
-  let mayStore = true;
-}
+// NEGe now generated by Unary1Concrete multiclass above
 
 def OIMie : MC6809ImmediateExtended_P1<(outs), "oim", Opcode<0x71,1>, [NZ,N,Z,V], []> {
   let Predicates = [IsHD6309];
@@ -1003,15 +1035,9 @@ def AIMie : MC6809ImmediateExtended_P1<(outs), "aim", Opcode<0x72,1>, [NZ,N,Z,V]
   let mayStore = true;
 }
 
-def COMe : MC6809Extended_P1<(outs), "com", Opcode<0x73,1>, [NZ,N,Z,V,C], []> {
-  let mayLoad = true;
-  let mayStore = true;
-}
+// COMe now generated by Unary1Concrete multiclass above
 
-def LSRe : MC6809Extended_P1<(outs), "lsr", Opcode<0x74,1>, [NZ,N,Z,C], []> {
-  let mayLoad = true;
-  let mayStore = true;
-}
+// LSRe now generated by Unary1Concrete multiclass above
 
 def EIMie : MC6809ImmediateExtended_P1<(outs), "eim", Opcode<0x75,1>, [NZ,N,Z,V], []> {
   let Predicates = [IsHD6309];
@@ -1019,30 +1045,15 @@ def EIMie : MC6809ImmediateExtended_P1<(outs), "eim", Opcode<0x75,1>, [NZ,N,Z,V]
   let mayStore = true;
 }
 
-def RORe : MC6809Extended_P1<(outs), "ror", Opcode<0x76,1>, [NZ,N,Z,C], [C]> {
-  let mayLoad = true;
-  let mayStore = true;
-}
+// RORe now generated by Unary1Concrete multiclass above
 
-def ASRe : MC6809Extended_P1<(outs), "asr", Opcode<0x77,1>, [NZ,N,Z,C], [C]> {
-  let mayLoad = true;
-  let mayStore = true;
-}
+// ASRe now generated by Unary1Concrete multiclass above
 
-def ASLe : MC6809Extended_P1<(outs), "asl", Opcode<0x78,1>, [NZ,N,Z,V,C], []> {
-  let mayLoad = true;
-  let mayStore = true;
-}
+// ASLe now generated by Unary1Concrete multiclass above
 
-def ROLe : MC6809Extended_P1<(outs), "rol", Opcode<0x79,1>, [NZ,N,Z,V,C], [C]> {
-  let mayLoad = true;
-  let mayStore = true;
-}
+// ROLe now generated by Unary1Concrete multiclass above
 
-def DECe : MC6809Extended_P1<(outs), "dec", Opcode<0x7A,1>, [NZ,N,Z,V], []> {
-  let mayLoad = true;
-  let mayStore = true;
-}
+// DECe now generated by Unary1Concrete multiclass above
 
 def TIMie : MC6809ImmediateExtended_P1<(outs), "tim", Opcode<0x7B,1>, [NZ,N,Z,V], []> {
   let Predicates = [IsHD6309];
@@ -1050,14 +1061,9 @@ def TIMie : MC6809ImmediateExtended_P1<(outs), "tim", Opcode<0x7B,1>, [NZ,N,Z,V]
   let mayLoad = true;
 }
 
-def INCe : MC6809Extended_P1<(outs), "inc", Opcode<0x7C,1>, [NZ,N,Z,V], []> {
-  let mayLoad = true;
-  let mayStore = true;
-}
+// INCe now generated by Unary1Concrete multiclass above
 
-def TSTe : MC6809Extended_P1<(outs), "tst", Opcode<0x7D,1>, [NZ,N,Z,V], []> {
-  let isCompare = true;
-}
+// TSTe now generated by Unary1Concrete multiclass above
 
 def JMPe : MC6809Extended_P1<(outs), "jmp", Opcode<0x7E,1>, [], []> {
   let isBranch = true;
@@ -1065,9 +1071,7 @@ def JMPe : MC6809Extended_P1<(outs), "jmp", Opcode<0x7E,1>, [], []> {
   let isTerminator = true;
 }
 
-def CLRe : MC6809Extended_P1<(outs), "clr", Opcode<0x7F,1>, [NZ,N,Z,V,C], []> {
-  let mayStore = true;
-}
+// CLRe now generated by Unary1Concrete multiclass above
 
 // SUBAi8 now generated by ALU8Concrete multiclass above
 
@@ -1401,83 +1405,43 @@ def PULUWx : MC6809Inherent_P2<(outs), "puluw", Opcode<0x3B,2>, [SU], [SU]> {
 
 def SWI2x : MC6809Inherent_P2<(outs), "swi2", Opcode<0x3F,2>, [], []>;
 
-def NEGDa : MC6809Accumulator_P2<(outs), "negd", Opcode<0x40,2>, [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], [AD]> {
-  let Predicates = [IsHD6309];
-}
+// NEGDa now generated by Unary1Concrete multiclass above
 
-def COMDa : MC6809Accumulator_P2<(outs), "comd", Opcode<0x43,2>, [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], [AD]> {
-  let Predicates = [IsHD6309];
-}
+// COMDa now generated by Unary1Concrete multiclass above
 
-def LSRDa : MC6809Accumulator_P2<(outs), "lsrd", Opcode<0x44,2>, [AD,NZ,N,Z,C,AA,AB,AD,AQ], [AD]> {
-  let Predicates = [IsHD6309];
-}
+// LSRDa now generated by Unary1Concrete multiclass above
 
-def RORDa : MC6809Accumulator_P2<(outs), "rord", Opcode<0x46,2>, [AD,NZ,N,Z,C,AA,AB,AD,AQ], [AD,C]> {
-  let Predicates = [IsHD6309];
-}
+// RORDa now generated by Unary1Concrete multiclass above
 
-def ASRDa : MC6809Accumulator_P2<(outs), "asrd", Opcode<0x47,2>, [AD,NZ,N,Z,C,AA,AB,AD,AQ], [AD,C]> {
-  let Predicates = [IsHD6309];
-}
+// ASRDa now generated by Unary1Concrete multiclass above
 
-def ASLDa : MC6809Accumulator_P2<(outs), "asld", Opcode<0x48,2>, [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], [AD]> {
-  let Predicates = [IsHD6309];
-}
+// ASLDa now generated by Unary1Concrete multiclass above
 
-def ROLDa : MC6809Accumulator_P2<(outs), "rold", Opcode<0x49,2>, [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], [AD,C]> {
-  let Predicates = [IsHD6309];
-}
+// ROLDa now generated by Unary1Concrete multiclass above
 
-def DECDa : MC6809Accumulator_P2<(outs), "decd", Opcode<0x4A,2>, [AD,NZ,N,Z,V,AA,AB,AD,AQ], [AD]> {
-  let Predicates = [IsHD6309];
-}
+// DECDa now generated by Unary1Concrete multiclass above
 
-def INCDa : MC6809Accumulator_P2<(outs), "incd", Opcode<0x4C,2>, [AD,NZ,N,Z,V,AA,AB,AD,AQ], [AD]> {
-  let Predicates = [IsHD6309];
-}
+// INCDa now generated by Unary1Concrete multiclass above
 
-def TSTDa : MC6809Accumulator_P2<(outs), "tstd", Opcode<0x4D,2>, [NZ,N,Z,V], [AD]> {
-  let Predicates = [IsHD6309];
-  let isCompare = true;
-}
+// TSTDa now generated by Unary1Concrete multiclass above
 
-def CLRDa : MC6809Accumulator_P2<(outs), "clrd", Opcode<0x4F,2>, [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], []> {
-  let Predicates = [IsHD6309];
-}
+// CLRDa now generated by Unary1Concrete multiclass above
 
-def COMWa : MC6809Accumulator_P2<(outs), "comw", Opcode<0x53,2>, [AW,NZ,N,Z,V,C,AE,AF,AW,AQ], [AW]> {
-  let Predicates = [IsHD6309];
-}
+// COMWa now generated by Unary1Concrete multiclass above
 
-def LSRWa : MC6809Accumulator_P2<(outs), "lsrw", Opcode<0x54,2>, [AW,NZ,N,Z,C,AE,AF,AW,AQ], [AW]> {
-  let Predicates = [IsHD6309];
-}
+// LSRWa now generated by Unary1Concrete multiclass above
 
-def RORWa : MC6809Accumulator_P2<(outs), "rorw", Opcode<0x56,2>, [AW,NZ,N,Z,C,AE,AF,AW,AQ], [AW,C]> {
-  let Predicates = [IsHD6309];
-}
+// RORWa now generated by Unary1Concrete multiclass above
 
-def ROLWa : MC6809Accumulator_P2<(outs), "rolw", Opcode<0x59,2>, [AW,NZ,N,Z,V,C,AE,AF,AW,AQ], [AW,C]> {
-  let Predicates = [IsHD6309];
-}
+// ROLWa now generated by Unary1Concrete multiclass above
 
-def DECWa : MC6809Accumulator_P2<(outs), "decw", Opcode<0x5A,2>, [AW,NZ,N,Z,V,AE,AF,AW,AQ], [AW]> {
-  let Predicates = [IsHD6309];
-}
+// DECWa now generated by Unary1Concrete multiclass above
 
-def INCWa : MC6809Accumulator_P2<(outs), "incw", Opcode<0x5C,2>, [AW,NZ,N,Z,V,AE,AF,AW,AQ], [AW]> {
-  let Predicates = [IsHD6309];
-}
+// INCWa now generated by Unary1Concrete multiclass above
 
-def TSTWa : MC6809Accumulator_P2<(outs), "tstw", Opcode<0x5D,2>, [NZ,N,Z,V], [AW]> {
-  let Predicates = [IsHD6309];
-  let isCompare = true;
-}
+// TSTWa now generated by Unary1Concrete multiclass above
 
-def CLRWa : MC6809Accumulator_P2<(outs), "clrw", Opcode<0x5F,2>, [AW,NZ,N,Z,V,C,AE,AF,AW,AQ], []> {
-  let Predicates = [IsHD6309];
-}
+// CLRWa now generated by Unary1Concrete multiclass above
 
 // SUBWi16 now generated by ALU16Concrete multiclass above
 
@@ -1689,47 +1653,25 @@ def LDMDi8 : MC6809Immediate8Bit_P3<(outs), "ldmd", Opcode<0x3D,3>, [], []> {
 
 def SWI3x : MC6809Inherent_P3<(outs), "swi3", Opcode<0x3F,3>, [], []>;
 
-def COMEa : MC6809Accumulator_P3<(outs), "come", Opcode<0x43,3>, [AE,NZ,N,Z,V,C,AE,AW,AQ], [AE]> {
-  let Predicates = [IsHD6309];
-}
+// COMEa now generated by Unary1Concrete multiclass above
 
-def DECEa : MC6809Accumulator_P3<(outs), "dece", Opcode<0x4A,3>, [AE,NZ,N,Z,V,AE,AW,AQ], [AE]> {
-  let Predicates = [IsHD6309];
-}
+// DECEa now generated by Unary1Concrete multiclass above
 
-def INCEa : MC6809Accumulator_P3<(outs), "ince", Opcode<0x4C,3>, [AE,NZ,N,Z,V,AE,AW,AQ], [AE]> {
-  let Predicates = [IsHD6309];
-}
+// INCEa now generated by Unary1Concrete multiclass above
 
-def TSTEa : MC6809Accumulator_P3<(outs), "tste", Opcode<0x4D,3>, [NZ,N,Z,V], [AE]> {
-  let Predicates = [IsHD6309];
-  let isCompare = true;
-}
+// TSTEa now generated by Unary1Concrete multiclass above
 
-def CLREa : MC6809Accumulator_P3<(outs), "clre", Opcode<0x4F,3>, [AE,NZ,N,Z,V,C,AE,AW,AQ], []> {
-  let Predicates = [IsHD6309];
-}
+// CLREa now generated by Unary1Concrete multiclass above
 
-def COMFa : MC6809Accumulator_P3<(outs), "comf", Opcode<0x53,3>, [AF,NZ,N,Z,V,C,AF,AW,AQ], [AF]> {
-  let Predicates = [IsHD6309];
-}
+// COMFa now generated by Unary1Concrete multiclass above
 
-def DECFa : MC6809Accumulator_P3<(outs), "decf", Opcode<0x5A,3>, [AF,NZ,N,Z,V,AF,AW,AQ], [AF]> {
-  let Predicates = [IsHD6309];
-}
+// DECFa now generated by Unary1Concrete multiclass above
 
-def INCFa : MC6809Accumulator_P3<(outs), "incf", Opcode<0x5C,3>, [AF,NZ,N,Z,V,AF,AW,AQ], [AF]> {
-  let Predicates = [IsHD6309];
-}
+// INCFa now generated by Unary1Concrete multiclass above
 
-def TSTFa : MC6809Accumulator_P3<(outs), "tstf", Opcode<0x5D,3>, [NZ,N,Z,V], [AF]> {
-  let Predicates = [IsHD6309];
-  let isCompare = true;
-}
+// TSTFa now generated by Unary1Concrete multiclass above
 
-def CLRFa : MC6809Accumulator_P3<(outs), "clrf", Opcode<0x5F,3>, [AF,NZ,N,Z,V,C,AF,AW,AQ], []> {
-  let Predicates = [IsHD6309];
-}
+// CLRFa now generated by Unary1Concrete multiclass above
 
 // SUBEi8 now generated by ALU8Concrete multiclass above
 
