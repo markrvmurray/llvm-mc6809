@@ -243,24 +243,7 @@ multiclass Load16Concrete<string Mnem, Opcode ImmOpc, Opcode DirOpc,
   }
 }
 
-// 8-bit loads: LDA/LDB (6809 Page 1)
-defm LDA : Load8Concrete<"lda", Opcode<0x86,1>, Opcode<0x96,1>,
-                          Opcode<0xA6,1>, Opcode<0xB6,1>,
-                          [NZ,N,Z,V,AA,AD,AQ]>;
-defm LDB : Load8Concrete<"ldb", Opcode<0xC6,1>, Opcode<0xD6,1>,
-                          Opcode<0xE6,1>, Opcode<0xF6,1>,
-                          [NZ,N,Z,V,AB,AD,AQ]>;
-
-// 16-bit loads: LDD/LDX/LDU (6809 Page 1)
-defm LDD : Load16Concrete<"ldd", Opcode<0xCC,1>, Opcode<0xDC,1>,
-                           Opcode<0xEC,1>, Opcode<0xFC,1>,
-                           [NZ,N,Z,V,AA,AB,AD,AQ]>;
-defm LDX : Load16Concrete<"ldx", Opcode<0x8E,1>, Opcode<0x9E,1>,
-                           Opcode<0xAE,1>, Opcode<0xBE,1>,
-                           [NZ,N,Z,V,IX]>;
-defm LDU : Load16Concrete<"ldu", Opcode<0xCE,1>, Opcode<0xDE,1>,
-                           Opcode<0xEE,1>, Opcode<0xFE,1>,
-                           [NZ,N,Z,V,SU]>;
+// Load concrete defm lines are in MC6809InstrFamilies.td
 
 // Store: direct/indexed/extended (Page 1). No immediate form.
 multiclass Store8Concrete<string Mnem, Opcode DirOpc, Opcode IdxOpc,
@@ -716,14 +699,6 @@ multiclass Load8Concrete_P3<string Mnem, Opcode ImmOpc, Opcode DirOpc,
   }
 }
 
-// 8-bit loads: LDE/LDF (6309 Page 3)
-defm LDE : Load8Concrete_P3<"lde", Opcode<0x86,3>, Opcode<0x96,3>,
-                             Opcode<0xA6,3>, Opcode<0xB6,3>,
-                             [NZ,N,Z,V,AE,AW,AQ]>;
-defm LDF : Load8Concrete_P3<"ldf", Opcode<0xC6,3>, Opcode<0xD6,3>,
-                             Opcode<0xE6,3>, Opcode<0xF6,3>,
-                             [NZ,N,Z,V,AF,AW,AQ]>;
-
 // 16-bit load (Page 2, prefix 0x10).
 multiclass Load16Concrete_P2<string Mnem, Opcode ImmOpc, Opcode DirOpc,
                              Opcode IdxOpc, Opcode ExtOpc,
@@ -736,30 +711,7 @@ multiclass Load16Concrete_P2<string Mnem, Opcode ImmOpc, Opcode DirOpc,
   }
 }
 
-// 16-bit loads: LDY/LDS (6809 Page 2), LDW (6309 Page 2)
-defm LDY : Load16Concrete_P2<"ldy", Opcode<0x8E,2>, Opcode<0x9E,2>,
-                              Opcode<0xAE,2>, Opcode<0xBE,2>,
-                              [NZ,N,Z,V,IY]>;
-defm LDS : Load16Concrete_P2<"lds", Opcode<0xCE,2>, Opcode<0xDE,2>,
-                              Opcode<0xEE,2>, Opcode<0xFE,2>,
-                              [NZ,N,Z,V,SS]>;
-let Predicates = [IsHD6309] in {
-  defm LDW : Load16Concrete_P2<"ldw", Opcode<0x86,2>, Opcode<0x96,2>,
-                                Opcode<0xA6,2>, Opcode<0xB6,2>,
-                                [NZ,N,Z,V,AE,AF,AW,AQ]>;
-}
-
-// LDQ (6309, 32-bit): immediate on Page 1, dir/idx/ext on Page 2.
-let Predicates = [IsHD6309], mayLoad = true in {
-  def LDQi32 : MC6809Immediate32Bit_P1<(outs), "ldq", Opcode<0xCD,1>,
-               [NZ,N,Z,V,AA,AB,AD,AE,AF,AW,AQ], []>;
-  def LDQd   : MC6809Direct_P2<(outs), "ldq", Opcode<0xDC,2>,
-               [NZ,N,Z,V,AA,AB,AD,AE,AF,AW,AQ], []>;
-  defm LDQi  : MC6809Indexed_P2<"ldq", Opcode<0xEC,2>, (outs),
-               [NZ,N,Z,V,AA,AB,AD,AE,AF,AW,AQ], []>;
-  def LDQe   : MC6809Extended_P2<(outs), "ldq", Opcode<0xFC,2>,
-               [NZ,N,Z,V,AA,AB,AD,AE,AF,AW,AQ], []>;
-}
+// Load defm instantiations are in MC6809InstrFamilies.td
 
 // Store (Page 3, HD6309).
 multiclass Store8Concrete_P3<string Mnem, Opcode DirOpc, Opcode IdxOpc,
@@ -1034,3 +986,4 @@ include "MC6809InstrInfoTables.td"
 include "MC6809InstrPseudos.td"
 include "MC6809InstrLogical.td"
 include "MC6809InstrGISel.td"
+include "MC6809InstrFamilies.td"
