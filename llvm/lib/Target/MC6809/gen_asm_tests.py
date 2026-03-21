@@ -36,14 +36,6 @@ BRANCH_MNEMONICS = {
     'lbsr', 'bsr',
 }
 
-# Conditional branches use b$cond / lb$cond with an unimplemented condition
-# code parser. Only unconditional branches and subroutine calls are assemblable.
-CONDITIONAL_BRANCH_MNEMONICS = {
-    'bhi', 'bls', 'bhs', 'blo', 'bne', 'beq',
-    'bvc', 'bvs', 'bpl', 'bmi', 'bge', 'blt', 'bgt', 'ble',
-    'lbhi', 'lbls', 'lbhs', 'lblo', 'lbne', 'lbeq',
-    'lbvc', 'lbvs', 'lbpl', 'lbmi', 'lbge', 'lblt', 'lbgt', 'lble',
-}
 
 
 def parse_line(line):
@@ -131,8 +123,6 @@ def should_skip(mnemonic, operands):
     """Check if an instruction should be skipped entirely."""
     if mnemonic in SKIP_MNEMONICS:
         return True
-    if mnemonic in CONDITIONAL_BRANCH_MNEMONICS:
-        return True  # Condition code parser not implemented
     if operands and re.search(r'\[-\d+\]', operands):
         return True
     return False

@@ -52,6 +52,48 @@ bra	.Lbr_bra
 ; CHECK: encoding: [0x21,A]
 brn	.Lbr_brn
 .Lbr_brn:
+; CHECK: encoding: [0x22,A]
+bhi	.Lbr_bhi
+.Lbr_bhi:
+; CHECK: encoding: [0x23,A]
+bls	.Lbr_bls
+.Lbr_bls:
+; CHECK: encoding: [0x24,A]
+bhs	.Lbr_bhs
+.Lbr_bhs:
+; CHECK: encoding: [0x25,A]
+blo	.Lbr_blo
+.Lbr_blo:
+; CHECK: encoding: [0x26,A]
+bne	.Lbr_bne
+.Lbr_bne:
+; CHECK: encoding: [0x27,A]
+beq	.Lbr_beq
+.Lbr_beq:
+; CHECK: encoding: [0x28,A]
+bvc	.Lbr_bvc
+.Lbr_bvc:
+; CHECK: encoding: [0x29,A]
+bvs	.Lbr_bvs
+.Lbr_bvs:
+; CHECK: encoding: [0x2a,A]
+bpl	.Lbr_bpl
+.Lbr_bpl:
+; CHECK: encoding: [0x2b,A]
+bmi	.Lbr_bmi
+.Lbr_bmi:
+; CHECK: encoding: [0x2c,A]
+bge	.Lbr_bge
+.Lbr_bge:
+; CHECK: encoding: [0x2d,A]
+blt	.Lbr_blt
+.Lbr_blt:
+; CHECK: encoding: [0x2e,A]
+bgt	.Lbr_bgt
+.Lbr_bgt:
+; CHECK: encoding: [0x2f,A]
+ble	.Lbr_ble
+.Lbr_ble:
 ; CHECK: encoding: [0x30,0xa4]
 leax	,y
 ; CHECK: encoding: [0x30,0x0c]
@@ -2582,6 +2624,48 @@ stu	0
 ; CHECK: encoding: [0x10,0x21'A',A,0x00]
 lbrn	.Lbr_lbrn
 .Lbr_lbrn:
+; CHECK: encoding: [0x10,0x22'A',A,0x00]
+lbhi	.Lbr_lbhi
+.Lbr_lbhi:
+; CHECK: encoding: [0x10,0x23'A',A,0x00]
+lbls	.Lbr_lbls
+.Lbr_lbls:
+; CHECK: encoding: [0x10,0x24'A',A,0x00]
+lbhs	.Lbr_lbhs
+.Lbr_lbhs:
+; CHECK: encoding: [0x10,0x25'A',A,0x00]
+lblo	.Lbr_lblo
+.Lbr_lblo:
+; CHECK: encoding: [0x10,0x26'A',A,0x00]
+lbne	.Lbr_lbne
+.Lbr_lbne:
+; CHECK: encoding: [0x10,0x27'A',A,0x00]
+lbeq	.Lbr_lbeq
+.Lbr_lbeq:
+; CHECK: encoding: [0x10,0x28'A',A,0x00]
+lbvc	.Lbr_lbvc
+.Lbr_lbvc:
+; CHECK: encoding: [0x10,0x29'A',A,0x00]
+lbvs	.Lbr_lbvs
+.Lbr_lbvs:
+; CHECK: encoding: [0x10,0x2a'A',A,0x00]
+lbpl	.Lbr_lbpl
+.Lbr_lbpl:
+; CHECK: encoding: [0x10,0x2b'A',A,0x00]
+lbmi	.Lbr_lbmi
+.Lbr_lbmi:
+; CHECK: encoding: [0x10,0x2c'A',A,0x00]
+lbge	.Lbr_lbge
+.Lbr_lbge:
+; CHECK: encoding: [0x10,0x2d'A',A,0x00]
+lblt	.Lbr_lblt
+.Lbr_lblt:
+; CHECK: encoding: [0x10,0x2e'A',A,0x00]
+lbgt	.Lbr_lbgt
+.Lbr_lbgt:
+; CHECK: encoding: [0x10,0x2f'A',A,0x00]
+lble	.Lbr_lble
+.Lbr_lble:
 ; CHECK: encoding: [0x10,0x3f]
 swi2
 ; CHECK: encoding: [0x10,0x83,0x00,0x00]

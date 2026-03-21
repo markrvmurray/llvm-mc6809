@@ -169,8 +169,13 @@ public:
   bool isRegList() const { return is(k_RegList); }
 
   bool isCondCode() const {
-    assert(false);
-    return false;
+    if (!isImm())
+      return false;
+    const auto *CE = dyn_cast<MCConstantExpr>(getImm());
+    if (!CE)
+      return false;
+    int64_t Value = CE->getValue();
+    return Value >= 0 && Value <= 15;
   }
 
   static void addExpr(MCInst &Inst, const MCExpr *Expr) {
@@ -761,9 +766,55 @@ public:
     what.
 
     */
+    // MC6809: conditional branches use "b$cond" / "lb$cond" mnemonics.
+    // The AsmMatcher expects mnemonic "b" or "lb" with a separate CondCode
+    // operand. Split the mnemonic and push the condition code as an immediate.
+    if (getSTI().getFeatureBits()[MC6809::Feature6809]) {
+      std::string MnLower = Mnemonic.lower();
+      StringRef Prefix;
+      StringRef CCStr;
+      if (MnLower.size() > 2 && MnLower.substr(0, 2) == "lb") {
+        Prefix = "lb";
+        CCStr = StringRef(MnLower).substr(2);
+      } else if (MnLower.size() > 1 && MnLower[0] == 'b') {
+        Prefix = "b";
+        CCStr = StringRef(MnLower).substr(1);
+      }
+      if (!Prefix.empty()) {
+        int CCVal = StringSwitch<int>(CCStr)
+                        .Case("hi", MC6809CC::HI)
+                        .Case("ls", MC6809CC::LS)
+                        .Case("hs", MC6809CC::HS)
+                        .Case("cs", MC6809CC::CS)
+                        .Case("lo", MC6809CC::LO)
+                        .Case("cc", MC6809CC::CC)
+                        .Case("ne", MC6809CC::NE)
+                        .Case("eq", MC6809CC::EQ)
+                        .Case("vc", MC6809CC::VC)
+                        .Case("vs", MC6809CC::VS)
+                        .Case("pl", MC6809CC::PL)
+                        .Case("mi", MC6809CC::MI)
+                        .Case("ge", MC6809CC::GE)
+                        .Case("lt", MC6809CC::LT)
+                        .Case("gt", MC6809CC::GT)
+                        .Case("le", MC6809CC::LE)
+                        .Default(-1);
+        if (CCVal >= 0) {
+          // Push the shortened mnemonic ("b" or "lb") and the CC operand.
+          Operands.push_back(MC6809Operand::createToken(MCSTI, Prefix, NameLoc));
+          const MCExpr *CCExpr = MCConstantExpr::create(CCVal, getContext());
+          SMLoc E = SMLoc::getFromPointer(NameLoc.getPointer() + Mnemonic.size());
+          Operands.push_back(MC6809Operand::createImm(MCSTI, CCExpr, NameLoc, E));
+          // Fall through to parse the target operand normally.
+          goto parse_operands;
+        }
+      }
+    }
+
     // First, the mnemonic goes on the stack.
     Operands.push_back(MC6809Operand::createToken(MCSTI, Mnemonic, NameLoc));
 
+parse_operands:
     // MC6809: push/pull instructions take a comma-separated register list.
     // Parse them specially before the main loop consumes registers individually.
     if (getSTI().getFeatureBits()[MC6809::Feature6809]) {
