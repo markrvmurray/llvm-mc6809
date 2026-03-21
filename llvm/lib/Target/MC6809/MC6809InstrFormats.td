@@ -122,7 +122,9 @@ def anyregister : Operand<i8> {
 }
 
 // A list of registers separated by comma. Used by push/pull
-def RegListAsmOperand : MC6809AsmOperand<"RegList">;
+def RegListAsmOperand : MC6809AsmOperand<"RegList"> {
+  let ParserMethod = "parseRegList";
+}
 def reglist : Operand<i8> {
   let EncoderMethod = "encodeRegListOpValue";
   let ParserMatchClass = RegListAsmOperand;
@@ -374,7 +376,7 @@ class ImmediateDirect<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opc
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins addr8:$addr, i8imm:$val);
-  let AsmString = !strconcat(mnemonic, " # $val ; < $addr");
+  let AsmString = !strconcat(mnemonic, " # $val ,< $addr");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -388,7 +390,7 @@ class ImmediateExtended<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, o
   let OperandSize = 3;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins addr16:$addr, i8imm:$val);
-  let AsmString = !strconcat(mnemonic, " # $val ; $addr");
+  let AsmString = !strconcat(mnemonic, " # $val ,$addr");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -402,7 +404,7 @@ class ImmediateIndexedDec1<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val, INDEX16:$ireg);
-  let AsmString = !strconcat(mnemonic, " $val ; , - $ireg");
+  let AsmString = !strconcat(mnemonic, " $val ,, - $ireg");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -416,7 +418,7 @@ class ImmediateIndexedDec2<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val, INDEX16:$ireg);
-  let AsmString = !strconcat(mnemonic, " $val ; , -- $ireg");
+  let AsmString = !strconcat(mnemonic, " $val ,, -- $ireg");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -430,7 +432,7 @@ class ImmediateIndexedDec2Ind<string mnemonic, Opcode opcode> : MC6809Inst<mnemo
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val, INDEX16:$ireg);
-  let AsmString = !strconcat(mnemonic, " $val ; [ , -- $ireg ]");
+  let AsmString = !strconcat(mnemonic, " $val ,[ , -- $ireg ]");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -443,7 +445,7 @@ class ImmediateIndexedDecW2<string mnemonic, Opcode opcode> : MC6809Inst<mnemoni
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val);
-  let AsmString = !strconcat(mnemonic, " $val ; , -- w");
+  let AsmString = !strconcat(mnemonic, " $val ,, -- w");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -456,7 +458,7 @@ class ImmediateIndexedDecW2Ind<string mnemonic, Opcode opcode> : MC6809Inst<mnem
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val);
-  let AsmString = !strconcat(mnemonic, " $val ; [ , -- w ]");
+  let AsmString = !strconcat(mnemonic, " $val ,[ , -- w ]");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -470,7 +472,7 @@ class ImmediateIndexedExtendedInd<string mnemonic, Opcode opcode> : MC6809Inst<m
   let OperandSize = 4;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val, addr16:$addr);
-  let AsmString = !strconcat(mnemonic, " $val ; [ $addr ]");
+  let AsmString = !strconcat(mnemonic, " $val ,[ $addr ]");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -484,7 +486,7 @@ class ImmediateIndexedInc1<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val, INDEX16:$ireg);
-  let AsmString = !strconcat(mnemonic, " $val ; , $ireg +");
+  let AsmString = !strconcat(mnemonic, " $val ,, $ireg +");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -498,7 +500,7 @@ class ImmediateIndexedInc2<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val, INDEX16:$ireg);
-  let AsmString = !strconcat(mnemonic, " $val ; , $ireg ++");
+  let AsmString = !strconcat(mnemonic, " $val ,, $ireg ++");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -512,7 +514,7 @@ class ImmediateIndexedInc2Ind<string mnemonic, Opcode opcode> : MC6809Inst<mnemo
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val, INDEX16:$ireg);
-  let AsmString = !strconcat(mnemonic, " $val ; [ , $ireg ++ ]");
+  let AsmString = !strconcat(mnemonic, " $val ,[ , $ireg ++ ]");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -525,7 +527,7 @@ class ImmediateIndexedIncW2<string mnemonic, Opcode opcode> : MC6809Inst<mnemoni
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val);
-  let AsmString = !strconcat(mnemonic, " $val ; , w ++");
+  let AsmString = !strconcat(mnemonic, " $val ,, w ++");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -538,7 +540,7 @@ class ImmediateIndexedIncW2Ind<string mnemonic, Opcode opcode> : MC6809Inst<mnem
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val);
-  let AsmString = !strconcat(mnemonic, " $val ; [ , w ++ ]");
+  let AsmString = !strconcat(mnemonic, " $val ,[ , w ++ ]");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -551,7 +553,7 @@ class ImmediateIndexedNoOffsetWInd<string mnemonic, Opcode opcode> : MC6809Inst<
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val);
-  let AsmString = !strconcat(mnemonic, " $val ; [ , w ]");
+  let AsmString = !strconcat(mnemonic, " $val ,[ , w ]");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -565,7 +567,7 @@ class ImmediateIndexedOffset0<string mnemonic, Opcode opcode> : MC6809Inst<mnemo
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val, INDEX16:$ireg);
-  let AsmString = !strconcat(mnemonic, " $val ; , $ireg");
+  let AsmString = !strconcat(mnemonic, " $val ,, $ireg");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -579,7 +581,7 @@ class ImmediateIndexedOffset0Ind<string mnemonic, Opcode opcode> : MC6809Inst<mn
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val, INDEX16:$ireg);
-  let AsmString = !strconcat(mnemonic, " $val ; [ , $ireg ]");
+  let AsmString = !strconcat(mnemonic, " $val ,[ , $ireg ]");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -592,7 +594,7 @@ class ImmediateIndexedOffset0W<string mnemonic, Opcode opcode> : MC6809Inst<mnem
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val);
-  let AsmString = !strconcat(mnemonic, " $val ; , w");
+  let AsmString = !strconcat(mnemonic, " $val ,, w");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -607,7 +609,7 @@ class ImmediateIndexedOffset16<string mnemonic, Opcode opcode> : MC6809Inst<mnem
   let OperandSize = 4;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val, offset16:$offset, INDEX16:$ireg);
-  let AsmString = !strconcat(mnemonic, " $val ; $offset , $ireg");
+  let AsmString = !strconcat(mnemonic, " $val ,$offset , $ireg");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -622,7 +624,7 @@ class ImmediateIndexedOffset16Ind<string mnemonic, Opcode opcode> : MC6809Inst<m
   let OperandSize = 4;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val, offset16:$offset, INDEX16:$ireg);
-  let AsmString = !strconcat(mnemonic, " $val ; [ $offset , $ireg ]");
+  let AsmString = !strconcat(mnemonic, " $val ,[ $offset , $ireg ]");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -636,7 +638,7 @@ class ImmediateIndexedOffset16PC<string mnemonic, Opcode opcode> : MC6809Inst<mn
   let OperandSize = 4;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val, pcrel16:$offset);
-  let AsmString = !strconcat(mnemonic, " $val ; $offset , pc");
+  let AsmString = !strconcat(mnemonic, " $val ,$offset , pc");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -650,7 +652,7 @@ class ImmediateIndexedOffset16PCInd<string mnemonic, Opcode opcode> : MC6809Inst
   let OperandSize = 4;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val, pcrel16:$offset);
-  let AsmString = !strconcat(mnemonic, " $val ; [ $offset , pc ]");
+  let AsmString = !strconcat(mnemonic, " $val ,[ $offset , pc ]");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -664,7 +666,7 @@ class ImmediateIndexedOffset16W<string mnemonic, Opcode opcode> : MC6809Inst<mne
   let OperandSize = 4;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val, offset16:$offset);
-  let AsmString = !strconcat(mnemonic, " $val ; $offset , w");
+  let AsmString = !strconcat(mnemonic, " $val ,$offset , w");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -678,7 +680,7 @@ class ImmediateIndexedOffset16WInd<string mnemonic, Opcode opcode> : MC6809Inst<
   let OperandSize = 4;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val, offset16:$offset);
-  let AsmString = !strconcat(mnemonic, " $val ; [ $offset , w ]");
+  let AsmString = !strconcat(mnemonic, " $val ,[ $offset , w ]");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -693,7 +695,7 @@ class ImmediateIndexedOffset5<string mnemonic, Opcode opcode> : MC6809Inst<mnemo
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val, offset5:$offset, INDEX16:$ireg);
-  let AsmString = !strconcat(mnemonic, " $val ; $offset , $ireg");
+  let AsmString = !strconcat(mnemonic, " $val ,$offset , $ireg");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -708,7 +710,7 @@ class ImmediateIndexedOffset8<string mnemonic, Opcode opcode> : MC6809Inst<mnemo
   let OperandSize = 3;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val, offset8:$offset, INDEX16:$ireg);
-  let AsmString = !strconcat(mnemonic, " $val ; $offset , $ireg");
+  let AsmString = !strconcat(mnemonic, " $val ,$offset , $ireg");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -723,7 +725,7 @@ class ImmediateIndexedOffset8Ind<string mnemonic, Opcode opcode> : MC6809Inst<mn
   let OperandSize = 3;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val, offset8:$offset, INDEX16:$ireg);
-  let AsmString = !strconcat(mnemonic, " $val ; [ $offset , $ireg ]");
+  let AsmString = !strconcat(mnemonic, " $val ,[ $offset , $ireg ]");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -737,7 +739,7 @@ class ImmediateIndexedOffset8PC<string mnemonic, Opcode opcode> : MC6809Inst<mne
   let OperandSize = 3;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val, pcrel8:$offset);
-  let AsmString = !strconcat(mnemonic, " $val ; $offset , pc");
+  let AsmString = !strconcat(mnemonic, " $val ,$offset , pc");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -751,7 +753,7 @@ class ImmediateIndexedOffset8PCInd<string mnemonic, Opcode opcode> : MC6809Inst<
   let OperandSize = 3;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val, pcrel8:$offset);
-  let AsmString = !strconcat(mnemonic, " $val ; [ $offset , pc ]");
+  let AsmString = !strconcat(mnemonic, " $val ,[ $offset , pc ]");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -765,7 +767,7 @@ class ImmediateIndexedOffsetA<string mnemonic, Opcode opcode> : MC6809Inst<mnemo
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val, INDEX16:$ireg);
-  let AsmString = !strconcat(mnemonic, " $val ; a , $ireg");
+  let AsmString = !strconcat(mnemonic, " $val ,a , $ireg");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -779,7 +781,7 @@ class ImmediateIndexedOffsetAInd<string mnemonic, Opcode opcode> : MC6809Inst<mn
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val, INDEX16:$ireg);
-  let AsmString = !strconcat(mnemonic, " $val ; [ a , $ireg ]");
+  let AsmString = !strconcat(mnemonic, " $val ,[ a , $ireg ]");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -793,7 +795,7 @@ class ImmediateIndexedOffsetB<string mnemonic, Opcode opcode> : MC6809Inst<mnemo
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val, INDEX16:$ireg);
-  let AsmString = !strconcat(mnemonic, " $val ; b , $ireg");
+  let AsmString = !strconcat(mnemonic, " $val ,b , $ireg");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -807,7 +809,7 @@ class ImmediateIndexedOffsetBInd<string mnemonic, Opcode opcode> : MC6809Inst<mn
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val, INDEX16:$ireg);
-  let AsmString = !strconcat(mnemonic, " $val ; [ b , $ireg ]");
+  let AsmString = !strconcat(mnemonic, " $val ,[ b , $ireg ]");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -821,7 +823,7 @@ class ImmediateIndexedOffsetD<string mnemonic, Opcode opcode> : MC6809Inst<mnemo
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val, INDEX16:$ireg);
-  let AsmString = !strconcat(mnemonic, " $val ; d , $ireg");
+  let AsmString = !strconcat(mnemonic, " $val ,d , $ireg");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -835,7 +837,7 @@ class ImmediateIndexedOffsetDInd<string mnemonic, Opcode opcode> : MC6809Inst<mn
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val, INDEX16:$ireg);
-  let AsmString = !strconcat(mnemonic, " $val ; [ d , $ireg ]");
+  let AsmString = !strconcat(mnemonic, " $val ,[ d , $ireg ]");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -849,7 +851,7 @@ class ImmediateIndexedOffsetE<string mnemonic, Opcode opcode> : MC6809Inst<mnemo
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val, INDEX16:$ireg);
-  let AsmString = !strconcat(mnemonic, " $val ; e , $ireg");
+  let AsmString = !strconcat(mnemonic, " $val ,e , $ireg");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -863,7 +865,7 @@ class ImmediateIndexedOffsetEInd<string mnemonic, Opcode opcode> : MC6809Inst<mn
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val, INDEX16:$ireg);
-  let AsmString = !strconcat(mnemonic, " $val ; [ e , $ireg ]");
+  let AsmString = !strconcat(mnemonic, " $val ,[ e , $ireg ]");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -877,7 +879,7 @@ class ImmediateIndexedOffsetF<string mnemonic, Opcode opcode> : MC6809Inst<mnemo
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val, INDEX16:$ireg);
-  let AsmString = !strconcat(mnemonic, " $val ; f , $ireg");
+  let AsmString = !strconcat(mnemonic, " $val ,f , $ireg");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -891,7 +893,7 @@ class ImmediateIndexedOffsetFInd<string mnemonic, Opcode opcode> : MC6809Inst<mn
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val, INDEX16:$ireg);
-  let AsmString = !strconcat(mnemonic, " $val ; [ f , $ireg ]");
+  let AsmString = !strconcat(mnemonic, " $val ,[ f , $ireg ]");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -905,7 +907,7 @@ class ImmediateIndexedOffsetW<string mnemonic, Opcode opcode> : MC6809Inst<mnemo
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val, INDEX16:$ireg);
-  let AsmString = !strconcat(mnemonic, " $val ; w , $ireg");
+  let AsmString = !strconcat(mnemonic, " $val ,w , $ireg");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
@@ -919,7 +921,7 @@ class ImmediateIndexedOffsetWInd<string mnemonic, Opcode opcode> : MC6809Inst<mn
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val, INDEX16:$ireg);
-  let AsmString = !strconcat(mnemonic, " $val ; [ w , $ireg ]");
+  let AsmString = !strconcat(mnemonic, " $val ,[ w , $ireg ]");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 

@@ -53,6 +53,8 @@ public:
   MC6809Operand(const MC6809Subtarget &STI, unsigned RegNum, SMLoc S, SMLoc E) : Kind(k_Register), Reg(RegNum), Start(S), End(E){};
   /// Create a token MC6809Operand.
   MC6809Operand(const MC6809Subtarget &STI, StringRef Str, SMLoc S) : Kind(k_Token), Tok(Str), Start(S){};
+  /// Create a register list MC6809Operand.
+  MC6809Operand(const MC6809Subtarget &STI, SmallVector<unsigned, 8> Regs, SMLoc S, SMLoc E) : Kind(k_RegList), RegListRegs(std::move(Regs)), Start(S), End(E){};
 
 private:
   enum KindTy {
@@ -60,11 +62,13 @@ private:
     k_Immediate,
     k_Register,
     k_Token,
+    k_RegList,
   } Kind{k_None};
 
   MCExpr const *Imm{};
   unsigned int Reg{};
   StringRef Tok;
+  SmallVector<unsigned, 8> RegListRegs;
   SMLoc Start, End;
 
 public:
@@ -139,12 +143,12 @@ public:
   bool isImm16() const { return isImmediate<0, 0x10000 - 1>(); }
   bool isImm8To16() const { return isImm16() && !isImm8(); }
 
-  bool isRel5() const { return isImm5(); }
-  bool isRel8() const { return isImm8(); }
-  bool isRel16() const { return isImm8(); }
+  bool isRel5() const { return isImmediate<-16, 15>(); }
+  bool isRel8() const { return isImmediate<-128, 127>(); }
+  bool isRel16() const { return isImmediate<-32768, 32767>(); }
 
-  bool isPCRel8() const { return isImm8(); }
-  bool isPCRel16() const { return isImm16(); }
+  bool isPCRel8() const { return isImmediate<-128, 127>(); }
+  bool isPCRel16() const { return isImmediate<-32768, 32767>(); }
 
   bool isAddr8() const {
     // For constants, use the offseted direct page.
@@ -162,10 +166,7 @@ public:
 
   bool isRegAny() const { return isReg(); }
 
-  bool isRegList() const {
-    assert(false);
-    return false;
-  }
+  bool isRegList() const { return is(k_RegList); }
 
   bool isCondCode() const {
     assert(false);
@@ -192,7 +193,11 @@ public:
 
   void addRegAnyOperands(MCInst &Inst, unsigned /*N*/) const { Inst.addOperand(MCOperand::createReg(getReg())); }
 
-  void addRegListOperands(MCInst &Inst, unsigned N) const { addImmOperands(Inst, N); }
+  void addRegListOperands(MCInst &Inst, unsigned /*N*/) const {
+    assert(Kind == k_RegList && "Unexpected operand kind");
+    for (unsigned R : RegListRegs)
+      Inst.addOperand(MCOperand::createReg(R));
+  }
 
   void addRel5Operands(MCInst &Inst, unsigned N) const { addImmOperands(Inst, N); }
 
@@ -216,6 +221,8 @@ public:
 
   static std::unique_ptr<MC6809Operand> createToken(const MC6809Subtarget &STI, StringRef Str, SMLoc S) { return std::make_unique<MC6809Operand>(STI, Str, S); }
 
+  static std::unique_ptr<MC6809Operand> createRegList(const MC6809Subtarget &STI, SmallVector<unsigned, 8> Regs, SMLoc S, SMLoc E) { return std::make_unique<MC6809Operand>(STI, std::move(Regs), S, E); }
+
   void print(raw_ostream &O, const MCAsmInfo &MAI) const override {
     switch (Kind) {
     case k_None:
@@ -231,6 +238,14 @@ public:
       O << "Immediate: \"";
       MAI.printExpr(O, *getImm());
       O << "\"";
+      break;
+    case k_RegList:
+      O << "RegList: {";
+      for (unsigned I = 0; I < RegListRegs.size(); I++) {
+        if (I > 0) O << ",";
+        O << RegListRegs[I];
+      }
+      O << "}";
       break;
     }
     O << "\n";
@@ -632,13 +647,63 @@ public:
     return ParseStatus::NoMatch;
   }
 
+  // Parse a comma-separated list of register names for push/pull instructions.
+  // Called by the AsmMatcher via the ParserMethod on RegListAsmOperand.
+  // Produces a single k_RegList operand containing all the registers.
+  ParseStatus parseRegList(OperandVector &Operands) {
+    SMLoc S = getLexer().getLoc();
+    SMLoc E;
+    SmallVector<unsigned, 8> Regs;
+
+    while (true) {
+      MCRegister Reg = 0;
+      SMLoc RS = getLexer().getLoc();
+      E = getLexer().getTok().getEndLoc();
+      if (tryParseRegister(Reg, RS, E).isFailure())
+        return ParseStatus::Failure;
+      if (Reg == 0)
+        break;
+      Regs.push_back(Reg);
+      Parser.Lex(); // Consume the register token
+      if (getLexer().isNot(AsmToken::Comma))
+        break;
+      Parser.Lex(); // Consume the comma
+    }
+
+    if (Regs.empty())
+      return ParseStatus::NoMatch;
+
+    Operands.push_back(MC6809Operand::createRegList(MCSTI, std::move(Regs), S, E));
+    return ParseStatus::Success;
+  }
+
   // Parse only registers that can be considered parameters to real MC6809
-  // instructions.  The instruction parser considers a, x, y, z, and s to be
-  // strings, not registers, so make a point of filtering those cases out
-  // of what's acceptable.
+  // instructions.
+  //
+  // For MOS targets, a, x, y, z, and s are treated as literal token strings
+  // (not register operands) because MOS AsmString patterns use them as tokens.
+  //
+  // For MC6809 targets, INDEX16 registers (x, y, u, s) are parsed as register
+  // operands so the AsmMatcher can match them against INDEX16:$ireg in AsmString
+  // patterns. Other register names (a, b, d, pc) are left as tokens because
+  // they appear as literal tokens in accumulator-offset and PC-relative patterns.
   ParseStatus tryParseAsmParamRegClass(OperandVector &Operands) {
     SMLoc S = getLexer().getLoc();
 
+    // MC6809: parse all register names as register operands. The AsmMatcher
+    // treats register names in AsmString patterns (e.g., "a" in "a , $ireg")
+    // as register class constraints, so they must be register operands.
+    if (getSTI().getFeatureBits()[MC6809::Feature6809]) {
+      MCRegister Reg = 0;
+      SMLoc E = getLexer().getTok().getEndLoc();
+      if (tryParseRegister(Reg, S, E).isSuccess()) {
+        Operands.push_back(MC6809Operand::createReg(MCSTI, Reg, S, E));
+        return ParseStatus::Success;
+      }
+      return ParseStatus::NoMatch;
+    }
+
+    // MOS: some register names are treated as token strings.
     const char *LowerStr = StringSwitch<const char *>(getLexer().getTok().getString())
                                .CaseLower("a", "a")
                                .CaseLower("x", "x")
@@ -693,6 +758,21 @@ public:
     */
     // First, the mnemonic goes on the stack.
     Operands.push_back(MC6809Operand::createToken(MCSTI, Mnemonic, NameLoc));
+
+    // MC6809: push/pull instructions take a comma-separated register list.
+    // Parse them specially before the main loop consumes registers individually.
+    if (getSTI().getFeatureBits()[MC6809::Feature6809]) {
+      std::string MnLower = Mnemonic.lower();
+      if (MnLower == "pshs" || MnLower == "puls" ||
+          MnLower == "pshu" || MnLower == "pulu") {
+        if (parseRegList(Operands).isSuccess()) {
+          Parser.Lex(); // Consume the EndOfStatement
+          return false;
+        }
+        return Error(getLexer().getLoc(), "expected register list");
+      }
+    }
+
     AsmToken::TokenKind RightHandSide = AsmToken::Eof;
     while (getLexer().isNot(AsmToken::EndOfStatement) && getLexer().isNot(AsmToken::Eof)) {
       // Handle special characters.
@@ -710,31 +790,105 @@ public:
           continue;
         }
       }
-      {
+      // MC6809: push [ and ] as tokens for the AsmMatcher. The AsmString
+      // patterns include literal [ and ] (e.g., "[ , $ireg ]", "[ $offset , $ireg ]").
+      // MOS: parse [ expr ] as a bracketed expression.
+      if (getLexer().is(AsmToken::LBrac)) {
+        if (getSTI().getFeatureBits()[MC6809::Feature6809]) {
+          eatThatToken(Operands);
+          continue;
+        }
         eatThatToken(Operands);
         if (!tryParseExpr(Operands, ExprTypeAddress, "expression expected after left bracket")) {
           RightHandSide = AsmToken::RBrac;
           continue;
         }
       }
+      if (getLexer().is(AsmToken::RBrac)) {
+        eatThatToken(Operands);
+        continue;
+      }
       if (RightHandSide != AsmToken::Eof && getLexer().is(RightHandSide)) {
         eatThatToken(Operands);
         RightHandSide = AsmToken::Eof;
         continue;
       }
-      // I don't know what LLVM has against commas, but for some reason
-      // TableGen makes an effort to ignore them during parsing.  So,
-      // strangely enough, we have to throw out commas too, even though
-      // they have semantic meaning on MC6809 platforms.
+      // The AsmMatcher treats commas in AsmString patterns as operand separators,
+      // not matchable tokens. Consume them so the operand stream contains only
+      // the actual operands (offsets, registers, etc.).
       if (getLexer().is(AsmToken::Comma)) {
         Lex();
         continue;
+      }
+
+      // MC6809: handle < and > address mode prefixes as tokens.
+      // The Direct AsmString pattern uses a literal "<" token ("lda < $addr"),
+      // so we push it as a token for the AsmMatcher. The ">" prefix is consumed
+      // silently since Extended is the default (no ">" in the AsmString).
+      if (getSTI().getFeatureBits()[MC6809::Feature6809]) {
+        if (getLexer().is(AsmToken::Less)) {
+          eatThatToken(Operands);
+          continue;
+        }
+        if (getLexer().is(AsmToken::Greater)) {
+          Lex(); // Consume > silently; extended is the default
+          continue;
+        }
       }
 
       // We'll only ever see a register name on the third or later parameter.
       if (tryParseAsmParamRegClass(Operands).isSuccess()) {
         Parser.Lex();
         continue;
+      }
+
+      // MC6809: handle +/- as auto-increment/decrement tokens when they
+      // appear after a register (post-inc: ,x+ ,x++) or after another +/-
+      // (second char of ++ or --). Also handle pre-decrement (,-x ,--x)
+      // where - appears before a register. Must be checked before tryParseExpr
+      // which would destructively fail on bare +/- tokens.
+      if (getSTI().getFeatureBits()[MC6809::Feature6809] &&
+          (getLexer().is(AsmToken::Plus) || getLexer().is(AsmToken::Minus))) {
+        bool PushAsToken = false;
+        if (!Operands.empty()) {
+          auto *LastOp = static_cast<MC6809Operand *>(Operands.back().get());
+          // After a register: post-increment/decrement (,x+ ,x++)
+          // After a register: post-increment/decrement (,x+ ,x++)
+          PushAsToken = LastOp->isReg();
+          // After a + or - token: merge into ++ or --
+          if (!PushAsToken && LastOp->isToken()) {
+            StringRef LastTok = LastOp->getToken();
+            if ((LastTok == "+" && getLexer().is(AsmToken::Plus)) ||
+                (LastTok == "-" && getLexer().is(AsmToken::Minus))) {
+              // Replace the last "+" with "++" (or "-" with "--")
+              Operands.pop_back();
+              SMLoc TokLoc = getLexer().getLoc();
+              Operands.push_back(MC6809Operand::createToken(
+                  MCSTI, getLexer().is(AsmToken::Plus) ? "++" : "--", TokLoc));
+              Lex();
+              continue;
+            }
+          }
+        }
+        // Pre-decrement: - before a register (,-x ,--x)
+        if (!PushAsToken && getLexer().is(AsmToken::Minus)) {
+          AsmToken NextTok = getLexer().peekTok();
+          if (NextTok.getKind() == AsmToken::Minus) {
+            PushAsToken = true; // First - of --
+          } else if (NextTok.getKind() == AsmToken::Identifier) {
+            // Check if the identifier is a register name
+            MCRegister Reg = 0;
+            SMLoc NS = NextTok.getLoc();
+            SMLoc NE = NextTok.getEndLoc();
+            tryParseRegister(Reg, NS, NE);
+            if (Reg != 0)
+              PushAsToken = true; // - before a register
+          }
+        }
+        if (PushAsToken) {
+          eatThatToken(Operands);
+          continue;
+        }
       }
 
       if (!tryParseExpr(Operands, ExprTypeAddress, "expression expected")) {

@@ -754,7 +754,9 @@ multiclass ALU16Concrete_P2<string Mnem, Opcode ImmOpc, Opcode DirOpc,
   }
 }
 
-// 16-bit CMP: Y, U, S (Page 2)
+// 16-bit CMP: D, Y, U, S (Page 2)
+defm CMPD : ALU16Concrete_P2<"cmpd", Opcode<0x83,2>, Opcode<0x93,2>, Opcode<0xA3,2>, Opcode<0xB3,2>,
+                              [NZ,N,Z,V,C], [AD], /*IsCompare=*/1>;
 defm CMPY : ALU16Concrete_P2<"cmpy", Opcode<0x8C,2>, Opcode<0x9C,2>, Opcode<0xAC,2>, Opcode<0xBC,2>,
                               [NZ,N,Z,V,C], [IY], /*IsCompare=*/1>;
 defm CMPU : ALU16Concrete_P2<"cmpu", Opcode<0x83,3>, Opcode<0x93,3>, Opcode<0xA3,3>, Opcode<0xB3,3>,
@@ -766,8 +768,6 @@ defm CMPS : ALU16Concrete_P2<"cmps", Opcode<0x8C,3>, Opcode<0x9C,3>, Opcode<0xAC
 let Predicates = [IsHD6309] in {
   defm SBCD : ALU16Concrete_P2<"sbcd", Opcode<0x82,2>, Opcode<0x92,2>, Opcode<0xA2,2>, Opcode<0xB2,2>,
                                 [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], [AD,C]>;
-  defm CMPD : ALU16Concrete_P2<"cmpd", Opcode<0x83,2>, Opcode<0x93,2>, Opcode<0xA3,2>, Opcode<0xB3,2>,
-                                [NZ,N,Z,V,C], [AD], /*IsCompare=*/1>;
   defm ANDD : ALU16Concrete_P2<"andd", Opcode<0x84,2>, Opcode<0x94,2>, Opcode<0xA4,2>, Opcode<0xB4,2>,
                                 [AD,NZ,N,Z,V,AA,AB,AD,AQ], [AD]>;
   defm BITD : ALU16Concrete_P2<"bitd", Opcode<0x85,2>, Opcode<0x95,2>, Opcode<0xA5,2>, Opcode<0xB5,2>,

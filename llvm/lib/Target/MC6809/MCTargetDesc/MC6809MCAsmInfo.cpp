@@ -20,6 +20,7 @@ MC6809MCAsmInfo::MC6809MCAsmInfo(const Triple &TT, const MCTargetOptions &Option
   CalleeSaveStackSlotSize = 0;
   SeparatorString = "\n";
   CommentString = ";";
+  UseMotorolaIntegers = true;
   MaxInstLength = 3;
   SupportsDebugInformation = true;
 }
