@@ -928,13 +928,13 @@ static void loadStoreRegisterStaticStackSlot(MachineIRBuilder &Builder, MachineO
       llvm_unreachable("Unknown register size");
     case 1:
     case 8:
-      opcode = MO.isDef() ? MC6809::Load_i8_Mem : MC6809::Store_i8_Idx_Imm;
+      opcode = MO.isDef() ? MC6809::Load_i8_Mem : MC6809::Store_i8_Mem;
       break;
     case 16:
-      opcode = MO.isDef() ? MC6809::Load_i16_Mem : MC6809::Store_i16_Idx_Imm;
+      opcode = MO.isDef() ? MC6809::Load_i16_Mem : MC6809::Store_i16_Mem;
       break;
     case 32:
-      opcode = MO.isDef() ? MC6809::Load_i32_Mem : MC6809::Store_i32_Idx_Imm;
+      opcode = MO.isDef() ? MC6809::Load_i32_Mem : MC6809::Store_i32_Mem;
       break;
     }
     Builder.buildInstr(opcode).add(MO).addFrameIndex(FrameIndex, Offset).addImm(0).addMemOperand(MMO);
@@ -1140,18 +1140,10 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::Load_iPtr_Mem:
     expandLoadIdx(Builder, MI);
     break;
-  case MC6809::Store_i8_Idx_Imm:
-  case MC6809::Store_i8_Idx_Reg8:
-  case MC6809::Store_i8_Idx_Reg16:
-  case MC6809::Store_i16_Idx_Imm:
-  case MC6809::Store_i16_Idx_Reg8:
-  case MC6809::Store_i16_Idx_Reg16:
-  case MC6809::Store_i32_Idx_Imm:
-  case MC6809::Store_i32_Idx_Reg8:
-  case MC6809::Store_i32_Idx_Reg16:
-  case MC6809::Store_iPtr_Idx_Imm:
-  case MC6809::Store_iPtr_Idx_Reg8:
-  case MC6809::Store_iPtr_Idx_Reg16:
+  case MC6809::Store_i8_Mem:
+  case MC6809::Store_i16_Mem:
+  case MC6809::Store_i32_Mem:
+  case MC6809::Store_iPtr_Mem:
     expandStoreIdx(Builder, MI);
     break;
   case MC6809::AND_i1_Imm:

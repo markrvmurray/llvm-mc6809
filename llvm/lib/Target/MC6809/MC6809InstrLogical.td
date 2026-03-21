@@ -138,47 +138,7 @@ let InOperandList = (ins), Constraints = "" in {
 //===---------------------------------------------------------------------===//
 // Load pseudos, concrete instructions, and patterns are in MC6809InstrFamilies.td
 
-// Store base class
-class MC6809StoreBase<RegisterClass src, dag operand> : MC6809LogicalInstr {
-  let Defs = [NZ, V];
-  let mayStore = true;
-  dag OutOperandList = (outs);
-  dag InOperandList = !con((ins src:$src), operand);
-}
-
-multiclass MC6809Store<RegisterClass src> {
-  def _Abs : MC6809StoreBase<src, (ins addr16:$addr)>;
-  def _Idx_Imm : MC6809StoreBase<src, (ins INDEX16:$idx, i16imm:$offset)>;
-  def _Idx_Reg8 : MC6809StoreBase<src, (ins INDEX16:$idx, ACC8:$offset)>;
-  def _Idx_Reg16 : MC6809StoreBase<src, (ins INDEX16:$idx, ACC16:$offset)>;
-  def _Idx_Inc : MC6809StoreBase<src, (ins INDEX16:$idx)>;
-  def _Dec_Idx : MC6809StoreBase<src, (ins INDEX16:$idx)>;
-  def _Indir : MC6809StoreBase<src, (ins INDEX16:$idx, unknown:$offset)>;
-}
-
-// All the stores
-defm Store_i8 : MC6809Store<ACC8>;
-defm Store_i16 : MC6809Store<ACC16>;
-defm Store_iPtr : MC6809Store<INDEX16>;
-let Predicates = [IsHD6309] in {
-  defm Store_i32 : MC6809Store<ACC32>;
-}
-
-multiclass MC6809StorePat<ValueType vtype, RegisterClass reg> {
-  def _#vtype#_Idx_Zero : Pat<(store reg:$src, INDEX16:$idx), (!cast<Instruction>("Store_"#vtype#"_Idx_Imm") reg:$src, INDEX16:$idx, (i16 0))>;
-  def _#vtype#_Idx_Imm : Pat<(store reg:$src, (am_ls_indexed_imm_offset INDEX16:$idx, i16imm:$offset)), (!cast<Instruction>("Store_"#vtype#"_Idx_Imm") reg:$src, INDEX16:$idx, i16imm:$offset)>;
-  def _#vtype#_Unmerge_Idx_Imm : Pat<(store reg:$src, (am_ls_unmerge_indexed_imm_offset INDEX16:$idx, i16imm:$offset)), (!cast<Instruction>("Store_"#vtype#"_Idx_Imm") reg:$src, INDEX16:$idx, i16imm:$offset)>;
-  def _#vtype#_Idx_Reg8 : Pat<(store reg:$src, (am_ls_indexed_imm_offset INDEX16:$idx, ACC8:$offset)), (!cast<Instruction>("Store_"#vtype#"_Idx_Reg8") reg:$src, INDEX16:$idx, ACC8:$offset)>;
-  def _#vtype#_Idx_Reg16 : Pat<(store reg:$src, (am_ls_indexed_imm_offset INDEX16:$idx, ACC16:$offset)), (!cast<Instruction>("Store_"#vtype#"_Idx_Reg16") reg:$src, INDEX16:$idx, ACC16:$offset)>;
-  def _#vtype#_Frame_Index : Pat<(store reg:$src, (am_ls_frame_index INDEX16:$idx, ACC16:$offset)), (!cast<Instruction>("Store_"#vtype#"_Idx_Imm") reg:$src, INDEX16:$idx, i16imm:$offset)>;
-}
-
-defm StorePat_i8 : MC6809StorePat<i8, ACC8>;
-defm StorePat_i16 : MC6809StorePat<i16, ACC16>;
-defm StorePat_iPtr : MC6809StorePat<i16, INDEX16>;
-let Predicates = [IsHD6309] in {
-  defm StorePat_i32 : MC6809StorePat<i32, ACC32>;
-}
+// Store pseudos, concrete instructions, and patterns are in MC6809InstrFamilies.td
 
 //===---------------------------------------------------------------------===//
 // Set/Clear CC bits

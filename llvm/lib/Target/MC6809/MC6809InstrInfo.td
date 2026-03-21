@@ -264,14 +264,7 @@ multiclass Store16Concrete<string Mnem, Opcode DirOpc, Opcode IdxOpc,
   }
 }
 
-// 8-bit stores: STA/STB (6809 Page 1)
-defm STA : Store8Concrete<"sta", Opcode<0x97,1>, Opcode<0xA7,1>, Opcode<0xB7,1>>;
-defm STB : Store8Concrete<"stb", Opcode<0xD7,1>, Opcode<0xE7,1>, Opcode<0xF7,1>>;
-
-// 16-bit stores: STD/STX/STU (6809 Page 1)
-defm STD : Store16Concrete<"std", Opcode<0xDD,1>, Opcode<0xED,1>, Opcode<0xFD,1>>;
-defm STX : Store16Concrete<"stx", Opcode<0x9F,1>, Opcode<0xAF,1>, Opcode<0xBF,1>>;
-defm STU : Store16Concrete<"stu", Opcode<0xDF,1>, Opcode<0xEF,1>, Opcode<0xFF,1>>;
+// Store concrete defm lines are in MC6809InstrFamilies.td
 
 // ALU 8-bit: immediate/direct/indexed/extended (Page 1).
 // Used for ADD, ADC, SUB, SBC, AND, OR, EOR, BIT, CMP on 8-bit accumulators.
@@ -733,23 +726,7 @@ multiclass Store16Concrete_P2<string Mnem, Opcode DirOpc, Opcode IdxOpc,
   }
 }
 
-// 8-bit stores: STE/STF (6309 Page 3)
-defm STE : Store8Concrete_P3<"ste", Opcode<0x97,3>, Opcode<0xA7,3>, Opcode<0xB7,3>>;
-defm STF : Store8Concrete_P3<"stf", Opcode<0xD7,3>, Opcode<0xE7,3>, Opcode<0xF7,3>>;
-
-// 16-bit stores: STY/STS (6809 Page 2), STW (6309 Page 2)
-defm STY : Store16Concrete_P2<"sty", Opcode<0x9F,2>, Opcode<0xAF,2>, Opcode<0xBF,2>>;
-defm STS : Store16Concrete_P2<"sts", Opcode<0xDF,2>, Opcode<0xEF,2>, Opcode<0xFF,2>>;
-let Predicates = [IsHD6309] in {
-  defm STW : Store16Concrete_P2<"stw", Opcode<0x97,2>, Opcode<0xA7,2>, Opcode<0xB7,2>>;
-}
-
-// STQ (6309, 32-bit): dir/idx/ext on Page 2.
-let Predicates = [IsHD6309], mayStore = true in {
-  def STQd  : MC6809Direct_P2<(outs), "stq", Opcode<0xDD,2>, [NZ,N,Z,V], []>;
-  defm STQi : MC6809Indexed_P2<"stq", Opcode<0xED,2>, (outs), [NZ,N,Z,V], []>;
-  def STQe  : MC6809Extended_P2<(outs), "stq", Opcode<0xFD,2>, [NZ,N,Z,V], []>;
-}
+// Store P2/P3/STQ concrete defm lines are in MC6809InstrFamilies.td
 
 // ALU 8-bit (Page 3, HD6309).
 multiclass ALU8Concrete_P3<string Mnem, Opcode ImmOpc, Opcode DirOpc,
