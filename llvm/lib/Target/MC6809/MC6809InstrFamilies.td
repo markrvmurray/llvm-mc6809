@@ -32,13 +32,7 @@ multiclass MC6809Load<RegisterClass dst, ValueType vtype> {
     def _Imm : MC6809LoadBase<dst, (ins !cast<Operand>(vtype#"imm"):$imm)>;
   }
   let mayLoad = true in {
-    def _Abs : MC6809LoadBase<dst, (ins addr16:$addr)>;
-    def _Idx_Imm : MC6809LoadBase<dst, (ins INDEX16:$idx, i16imm:$offset)>;
-    def _Idx_Reg8 : MC6809LoadBase<dst, (ins INDEX16:$idx, ACC8:$offset)>;
-    def _Idx_Reg16 : MC6809LoadBase<dst, (ins INDEX16:$idx, ACC16:$offset)>;
-    def _Idx_Inc : MC6809LoadBase<dst, (ins INDEX16:$idx)>;
-    def _Dec_Idx : MC6809LoadBase<dst, (ins INDEX16:$idx)>;
-    def _Indir : MC6809LoadBase<dst, (ins INDEX16:$idx, unknown:$offset)>;
+    def _Mem : MC6809LoadBase<dst, (ins INDEX16:$idx, unknown:$offset)>;
   }
 }
 
@@ -117,12 +111,12 @@ def : Pat<(i1 imm:$s), (Load_i1_Imm imm:$s)>;
 
 multiclass MC6809LoadPat<ValueType vtype> {
   def _#vtype#_Imm : Pat<(vtype imm:$val), (!cast<Instruction>("Load_"#vtype#"_Imm") imm:$val)>;
-  def _#vtype#_Idx_Zero : Pat<(vtype (load INDEX16:$idx)), (!cast<Instruction>("Load_"#vtype#"_Idx_Imm") INDEX16:$idx, (i16 0))>;
-  def _#vtype#_Idx_Imm : Pat<(vtype (load (am_ls_indexed_imm_offset INDEX16:$idx, i16imm:$offset))), (!cast<Instruction>("Load_"#vtype#"_Idx_Imm") INDEX16:$idx, i16imm:$offset)>;
-  def _#vtype#_Unmerge_Idx_Imm : Pat<(vtype (load (am_ls_unmerge_indexed_imm_offset INDEX16:$idx, i16imm:$offset))), (!cast<Instruction>("Load_"#vtype#"_Idx_Imm") INDEX16:$idx, i16imm:$offset)>;
-  def _#vtype#_Idx_Reg8 : Pat<(vtype (load (am_ls_indexed_imm_offset INDEX16:$idx, ACC8:$offset))), (!cast<Instruction>("Load_"#vtype#"_Idx_Reg8") INDEX16:$idx, ACC8:$offset)>;
-  def _#vtype#_Idx_Reg16 : Pat<(vtype (load (am_ls_indexed_imm_offset INDEX16:$idx, ACC16:$offset))), (!cast<Instruction>("Load_"#vtype#"_Idx_Reg16") INDEX16:$idx, ACC16:$offset)>;
-  def _#vtype#_Frame_Index : Pat<(vtype (load (am_ls_frame_index INDEX16:$idx, i16imm:$offset))), (!cast<Instruction>("Load_"#vtype#"_Idx_Imm") INDEX16:$idx, i16imm:$offset)>;
+  def _#vtype#_Idx_Zero : Pat<(vtype (load INDEX16:$idx)), (!cast<Instruction>("Load_"#vtype#"_Mem") INDEX16:$idx, (i16 0))>;
+  def _#vtype#_Idx_Imm : Pat<(vtype (load (am_ls_indexed_imm_offset INDEX16:$idx, i16imm:$offset))), (!cast<Instruction>("Load_"#vtype#"_Mem") INDEX16:$idx, i16imm:$offset)>;
+  def _#vtype#_Unmerge_Idx_Imm : Pat<(vtype (load (am_ls_unmerge_indexed_imm_offset INDEX16:$idx, i16imm:$offset))), (!cast<Instruction>("Load_"#vtype#"_Mem") INDEX16:$idx, i16imm:$offset)>;
+  def _#vtype#_Idx_Reg8 : Pat<(vtype (load (am_ls_indexed_imm_offset INDEX16:$idx, ACC8:$offset))), (!cast<Instruction>("Load_"#vtype#"_Mem") INDEX16:$idx, ACC8:$offset)>;
+  def _#vtype#_Idx_Reg16 : Pat<(vtype (load (am_ls_indexed_imm_offset INDEX16:$idx, ACC16:$offset))), (!cast<Instruction>("Load_"#vtype#"_Mem") INDEX16:$idx, ACC16:$offset)>;
+  def _#vtype#_Frame_Index : Pat<(vtype (load (am_ls_frame_index INDEX16:$idx, i16imm:$offset))), (!cast<Instruction>("Load_"#vtype#"_Mem") INDEX16:$idx, i16imm:$offset)>;
 }
 
 defm LoadPat_i8 : MC6809LoadPat<i8>;
