@@ -42,9 +42,9 @@ orcc	#0
 andcc	#0
 ; CHECK: encoding: [0x1d]
 sex
-; CHECK: encoding: [0x1e,0x13]
+; CHECK: encoding: [0x1e,0x89]
 exg	a,b
-; CHECK: encoding: [0x1f,0x13]
+; CHECK: encoding: [0x1f,0x89]
 tfr	a,b
 ; CHECK: encoding: [0x20,A]
 bra	.Lbr_bra

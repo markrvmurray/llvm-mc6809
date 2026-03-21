@@ -116,7 +116,7 @@ unsigned MC6809MCCodeEmitter::getMachineOpValue(const MCInst &MI, const MCOperan
   if (MO.isReg()) {
     unsigned Reg = MO.getReg();
     // Map index registers to 2-bit postbyte encoding: X=0, Y=1, U=2, S=3.
-    // The LLVM MC register enum values don't match the hardware encoding.
+    // TFR/EXG instructions use encodeRegOpValue for 4-bit encoding.
     switch (Reg) {
     case MC6809::IX: return 0;
     case MC6809::IY: return 1;
@@ -149,12 +149,22 @@ unsigned MC6809MCCodeEmitter::encodeImm3(const MCInst &MI, unsigned Op, SmallVec
 
 unsigned MC6809MCCodeEmitter::encodeRegOpValue(const MCInst &MI, unsigned Op, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const {
   unsigned Reg = MI.getOperand(Op).getReg();
-  // Map index registers to 2-bit postbyte encoding: X=0, Y=1, U=2, S=3.
+  // Map registers to 4-bit TFR/EXG/TFM postbyte encoding.
   switch (Reg) {
-  case MC6809::IX: return 0;
-  case MC6809::IY: return 1;
-  case MC6809::SU: return 2;
-  case MC6809::SS: return 3;
+  case MC6809::AD: return 0;   // D
+  case MC6809::IX: return 1;   // X
+  case MC6809::IY: return 2;   // Y
+  case MC6809::SU: return 3;   // U
+  case MC6809::SS: return 4;   // S
+  case MC6809::PC: return 5;   // PC
+  case MC6809::AW: return 6;   // W (6309)
+  case MC6809::AV: return 7;   // V (6309)
+  case MC6809::AA: return 8;   // A
+  case MC6809::AB: return 9;   // B
+  case MC6809::CC: return 10;  // CC
+  case MC6809::DP: return 11;  // DP
+  case MC6809::AE: return 14;  // E (6309)
+  case MC6809::AF: return 15;  // F (6309)
   default: return Reg;
   }
 }
