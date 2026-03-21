@@ -120,7 +120,9 @@ unsigned MC6809MCCodeEmitter::getMachineOpValue(const MCInst &MI, const MCOperan
 
   const MCExpr *Expr = MO.getExpr();
   if (isa<MCSymbolRefExpr>(Expr)) {
-    Fixups.push_back(MCFixup::create(0, Expr, FK_Data_1));
+    // MC6809 has a 16-bit address bus; default to 16-bit fixups for symbol
+    // references that reach this fallback path (e.g. i16imm operands).
+    Fixups.push_back(MCFixup::create(0, Expr, FK_Data_2));
     return 0;
   }
 

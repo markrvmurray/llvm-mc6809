@@ -9,15 +9,12 @@
 	.section .rom,"ax",@progbits
 	.globl	test_main
 test_main:
-	;; Print "Hi!" character by character (workaround: ldx #symbol
-	;; and leax symbol,pc have encoding issues with relocations)
-	lda	#0x48		; 'H'
-	jsr	putchar
-	lda	#0x69		; 'i'
-	jsr	putchar
-	lda	#0x21		; '!'
-	jsr	putchar
+	ldx	#message
+	jsr	putstr
 	jsr	putnl
 	rts
 
-; CHECK: Hi!
+message:
+	.asciz	"Hello, 6809!"
+
+; CHECK: Hello, 6809!

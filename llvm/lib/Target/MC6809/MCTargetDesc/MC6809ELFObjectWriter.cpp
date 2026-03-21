@@ -62,6 +62,7 @@ unsigned MC6809ELFObjectWriter::getRelocType(const MCFixup &Fixup,
     return ELF::R_MC6809_IMM_8;
   case MC6809::Addr8:
     return ELF::R_MC6809_ADDR_8;
+  case MC6809::Imm16:
   case MC6809::Addr16:
     return ELF::R_MC6809_ADDR_16;
   case MC6809::PCRel8:

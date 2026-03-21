@@ -46,13 +46,14 @@ def imm3 : Operand<i32> {
 
 def imm8 : Operand<i32> {
   let ParserMatchClass = ImmediateAsmOperand<"Imm8">;
-  let EncoderMethod = "encodeImm<MC6809::Imm_8, 1>";
+  let EncoderMethod = "encodeImm<MC6809::Imm8, 1>";
 }
 
 def imm16 : Operand<i32> {
   let ParserMatchClass = ImmediateAsmOperand<"Imm16">;
   let EncoderMethod = "encodeImm<MC6809::Imm16, 1>";
 }
+
 
 def pcrel8 : Operand<i32> {
   let ParserMatchClass = PCRelativeOperand<"PCRel8">;
@@ -61,9 +62,41 @@ def pcrel8 : Operand<i32> {
   let OperandType = "OPERAND_PCREL";
 }
 
+// PC-relative operands for indexed addressing modes (opcode + postbyte + offset).
+// Fixup offset is 2, not 1, because the postbyte sits between the opcode and offset.
+def pcrel8_idx : Operand<i32> {
+  let ParserMatchClass = PCRelativeOperand<"PCRel8">;
+  let EncoderMethod = "encodeImm<MC6809::PCRel8, 2>";
+  let PrintMethod = "printBranchOperand";
+  let OperandType = "OPERAND_PCREL";
+}
+
 def pcrel16 : Operand<i32> {
   let ParserMatchClass = PCRelativeOperand<"PCRel16">;
   let EncoderMethod = "encodeImm<MC6809::PCRel16, 1>";
+  let PrintMethod = "printBranchOperand";
+  let OperandType = "OPERAND_PCREL";
+}
+
+def pcrel16_idx : Operand<i32> {
+  let ParserMatchClass = PCRelativeOperand<"PCRel16">;
+  let EncoderMethod = "encodeImm<MC6809::PCRel16, 2>";
+  let PrintMethod = "printBranchOperand";
+  let OperandType = "OPERAND_PCREL";
+}
+
+// PC-relative operands for immediate-indexed addressing (opcode + imm + postbyte + offset).
+// Fixup offset is 3.
+def pcrel8_imm_idx : Operand<i32> {
+  let ParserMatchClass = PCRelativeOperand<"PCRel8">;
+  let EncoderMethod = "encodeImm<MC6809::PCRel8, 3>";
+  let PrintMethod = "printBranchOperand";
+  let OperandType = "OPERAND_PCREL";
+}
+
+def pcrel16_imm_idx : Operand<i32> {
+  let ParserMatchClass = PCRelativeOperand<"PCRel16">;
+  let EncoderMethod = "encodeImm<MC6809::PCRel16, 3>";
   let PrintMethod = "printBranchOperand";
   let OperandType = "OPERAND_PCREL";
 }
@@ -344,7 +377,7 @@ class Immediate16Bit<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opco
   let Mode = "i16";
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
-  let InOperandList = (ins i16imm:$val);
+  let InOperandList = (ins imm16:$val);
   let AsmString = !strconcat(mnemonic, " # $val");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
@@ -370,7 +403,7 @@ class Immediate8Bit<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opcod
   let Mode = "i8";
   let OperandSize = 1;
   let Size = !add(OperandSize, OpcodeSize);
-  let InOperandList = (ins i8imm:$val);
+  let InOperandList = (ins imm8:$val);
   let AsmString = !strconcat(mnemonic, " # $val");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
@@ -646,7 +679,7 @@ class ImmediateIndexedOffset16PC<string mnemonic, Opcode opcode> : MC6809Inst<mn
   let Mode = "ii_o16PC";
   let OperandSize = 4;
   let Size = !add(OperandSize, OpcodeSize);
-  let InOperandList = (ins i8imm:$val, pcrel16:$offset);
+  let InOperandList = (ins i8imm:$val, pcrel16_imm_idx:$offset);
   let AsmString = !strconcat(mnemonic, " $val ,$offset , pc");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
@@ -660,7 +693,7 @@ class ImmediateIndexedOffset16PCInd<string mnemonic, Opcode opcode> : MC6809Inst
   let Mode = "ii_o16PCI";
   let OperandSize = 4;
   let Size = !add(OperandSize, OpcodeSize);
-  let InOperandList = (ins i8imm:$val, pcrel16:$offset);
+  let InOperandList = (ins i8imm:$val, pcrel16_imm_idx:$offset);
   let AsmString = !strconcat(mnemonic, " $val ,[ $offset , pc ]");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
@@ -747,7 +780,7 @@ class ImmediateIndexedOffset8PC<string mnemonic, Opcode opcode> : MC6809Inst<mne
   let Mode = "ii_o8PC";
   let OperandSize = 3;
   let Size = !add(OperandSize, OpcodeSize);
-  let InOperandList = (ins i8imm:$val, pcrel8:$offset);
+  let InOperandList = (ins i8imm:$val, pcrel8_imm_idx:$offset);
   let AsmString = !strconcat(mnemonic, " $val ,$offset , pc");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
@@ -761,7 +794,7 @@ class ImmediateIndexedOffset8PCInd<string mnemonic, Opcode opcode> : MC6809Inst<
   let Mode = "ii_o8PCI";
   let OperandSize = 3;
   let Size = !add(OperandSize, OpcodeSize);
-  let InOperandList = (ins i8imm:$val, pcrel8:$offset);
+  let InOperandList = (ins i8imm:$val, pcrel8_imm_idx:$offset);
   let AsmString = !strconcat(mnemonic, " $val ,[ $offset , pc ]");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
@@ -1159,7 +1192,7 @@ class IndexedOffset16PC<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, o
   let Mode = "i_o16PC";
   let OperandSize = 3;
   let Size = !add(OperandSize, OpcodeSize);
-  let InOperandList = (ins pcrel16:$offset);
+  let InOperandList = (ins pcrel16_idx:$offset);
   let AsmString = !strconcat(mnemonic, " $offset , pc");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
@@ -1172,7 +1205,7 @@ class IndexedOffset16PCInd<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic
   let Mode = "i_o16PCI";
   let OperandSize = 3;
   let Size = !add(OperandSize, OpcodeSize);
-  let InOperandList = (ins pcrel16:$offset);
+  let InOperandList = (ins pcrel16_idx:$offset);
   let AsmString = !strconcat(mnemonic, " [ $offset , pc ]");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
@@ -1253,7 +1286,7 @@ class IndexedOffset8PC<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, op
   let Mode = "i_o8PC";
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
-  let InOperandList = (ins pcrel8:$offset);
+  let InOperandList = (ins pcrel8_idx:$offset);
   let AsmString = !strconcat(mnemonic, " $offset , pc");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
@@ -1266,7 +1299,7 @@ class IndexedOffset8PCInd<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic,
   let Mode = "i_o8PCI";
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
-  let InOperandList = (ins pcrel8:$offset);
+  let InOperandList = (ins pcrel8_idx:$offset);
   let AsmString = !strconcat(mnemonic, " [ $offset , pc ]");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }

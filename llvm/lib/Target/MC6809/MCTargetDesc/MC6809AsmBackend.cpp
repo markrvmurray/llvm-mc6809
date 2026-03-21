@@ -110,9 +110,10 @@ void MC6809AsmBackend::applyFixup(const MCFragment &F, const MCFixup &Fixup,
     return;
   }
 
-  for (uint8_t &Out : make_range(Data, Data + Bytes)) {
-    Out = Value & 0xff;
-    Value = Value >> 8;
+  // MC6809 is big-endian: write multi-byte values MSB-first.
+  for (unsigned I = Bytes; I > 0; --I) {
+    Data[I - 1] = Value & 0xff;
+    Value >>= 8;
   }
 }
 
