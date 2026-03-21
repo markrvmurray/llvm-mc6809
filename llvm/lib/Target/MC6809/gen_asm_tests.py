@@ -95,22 +95,6 @@ def parse_line(line):
     if mnemonic in ('oim', 'aim', 'eim', 'tim') and operands and not operands.startswith('#'):
         operands = '#' + operands
 
-    # The disassembler printer omits +/- suffixes for tfm block transfer
-    # variants. Determine the correct suffix from the opcode byte.
-    if mnemonic == 'tfm' and len(hex_bytes) >= 2:
-        opc = int(hex_bytes[1], 16) & 0xFF
-        parts = operands.split(',')
-        if len(parts) == 2:
-            r1, r2 = parts[0].strip(), parts[1].strip()
-            if opc == 0x38:    # r0+,r1+ (copy)
-                operands = f'{r1}+,{r2}+'
-            elif opc == 0x39:  # r0-,r1- (reverse copy)
-                operands = f'{r1}-,{r2}-'
-            elif opc == 0x3A:  # r0+,r1 (fill)
-                operands = f'{r1}+,{r2}'
-            elif opc == 0x3B:  # r0,r1+ (read)
-                operands = f'{r1},{r2}+'
-
     if operands:
         asm_text = f'{mnemonic}\t{operands}'
     else:

@@ -147,8 +147,8 @@ public:
   bool isRel8() const { return isImmediate<-128, 127>(); }
   bool isRel16() const { return isImmediate<-32768, 32767>(); }
 
-  bool isPCRel8() const { return isImmediate<-128, 127>(); }
-  bool isPCRel16() const { return isImmediate<-32768, 32767>(); }
+  bool isPCRel8() const { return isImmediate<-128, 255>(); }
+  bool isPCRel16() const { return isImmediate<-32768, 65535>(); }
 
   bool isAddr8() const {
     // For constants, use the offseted direct page.
