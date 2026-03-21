@@ -281,7 +281,8 @@ def REGTFM : MC6809Reg16Class<(add AD, IX, IY, SU, SS)>; // Registers for TFM
 // Pointer and stack registers
 def INDEX16 : MC6809Reg16Class<(add IX, IY, SU, SS/*, TOS*/)>;
 
-// Stack registers
+// Stack registers for internal push/pull operations.
+// SU is always reserved (frame pointer), so only SS will be allocated.
 def STACK16 : MC6809Reg16Class<(add SU, SS)>;
 //def TOS16 : MC6809Reg16Class<(add TOS)>;
 

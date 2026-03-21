@@ -1,4 +1,14 @@
-; Simple subtract functions that compile without regalloc issues.
+; Subtract functions for codegen execution testing.
+
+; a - b - c - d - e
+define dso_local signext i8 @sub_s_i8(i8 noundef signext %a, i8 noundef signext %b, i8 noundef signext %c, i8 noundef signext %d, i8 noundef signext %e) local_unnamed_addr {
+entry:
+  %sub = sub i8 %a, %b
+  %sub3 = sub i8 %sub, %c
+  %sub5 = sub i8 %sub3, %d
+  %sub7 = sub i8 %sub5, %e
+  ret i8 %sub7
+}
 
 ; 5 - a - b - c - d - e
 define dso_local signext i8 @sub_s_i8_consts(i8 noundef signext %a, i8 noundef signext %b, i8 noundef signext %c, i8 noundef signext %d, i8 noundef signext %e) local_unnamed_addr {

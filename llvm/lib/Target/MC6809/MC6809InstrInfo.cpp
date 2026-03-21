@@ -1852,14 +1852,12 @@ void MC6809InstrInfo::expandANDReg(MachineIRBuilder &Builder, MachineInstr &MI) 
 void MC6809InstrInfo::expandANDPull(MachineIRBuilder &Builder, MachineInstr &MI) const {
   auto DestReg = MI.getOperand(0).getReg();
   auto SrcReg = MI.getOperand(1).getReg();
-  auto StackReg = MI.getOperand(2).getReg();
-  assert((StackReg == MC6809::SS || StackReg == MC6809::SU) && "AND-with-pull must use TOS register");
-
+  // Always use SS — Push expands to PSHS (S stack), U is reserved.
   auto OpcodePair = ANDPullOpcode.find(DestReg);
   auto Instr = Builder.buildInstr(OpcodePair->getSecond())
                    .addDef(DestReg, RegState::Implicit)
                    .addUse(SrcReg, RegState::Implicit)
-                   .addUse(StackReg);
+                   .addUse(MC6809::SS);
   MI.eraseFromParent();
 }
 
@@ -1952,14 +1950,13 @@ void MC6809InstrInfo::expandSubSetCarryUseReg(MachineIRBuilder &Builder, Machine
 void MC6809InstrInfo::expandSubPull(MachineIRBuilder &Builder, MachineInstr &MI) const {
   auto DestReg = MI.getOperand(0).getReg();
   auto SrcReg = MI.getOperand(1).getReg();
-  auto StackReg = MI.getOperand(2).getReg();
-  assert((StackReg == MC6809::SS || StackReg == MC6809::SU) && "Subtract-with-pull must use TOS register");
-
+  // Always use SS for pull operations — Push_i8 expands to PSHS (S stack),
+  // and U is reserved as the frame pointer.
   auto OpcodePair = SubPullOpcode.find(DestReg);
   auto Instr = Builder.buildInstr(OpcodePair->getSecond())
                    .addDef(DestReg, RegState::Implicit)
                    .addUse(SrcReg, RegState::Implicit)
-                   .addUse(StackReg);
+                   .addUse(MC6809::SS);
   MI.eraseFromParent();
 }
 
