@@ -810,7 +810,7 @@ void MC6809InstrInfo::insertIndirectBranch(MachineBasicBlock &MBB, MachineBasicB
       Builder.buildInstr(MC6809::ANDCC_Imm).addDef(MC6809::CC).addUse(MC6809::CC).addImm(0xFE);
       Builder.buildInstr(MC6809::Push_i8).addUse(MC6809::CC);
       Builder.buildInstr(MC6809::AND_i8_Imm).addDef(SrcReg).addUse(SrcReg).addImm(0xFE);
-      Builder.buildInstr(MC6809::OR_i8_Dec_Idx).addDef(SrcReg).addUse(SrcReg).addUse(MC6809::SS);
+      Builder.buildInstr(MC6809::OR_i8_Pull).addDef(SrcReg).addUse(SrcReg).addUse(MC6809::SS);
       Builder.buildInstr(MC6809::TFRp).addDef(MC6809::CC).addUse(SrcReg);
       break;
     case MC6809::V:
@@ -818,7 +818,7 @@ void MC6809InstrInfo::insertIndirectBranch(MachineBasicBlock &MBB, MachineBasicB
       Builder.buildInstr(MC6809::Push_i8).addUse(MC6809::CC);
       Builder.buildInstr(MC6809::AND_i1_Imm).addDef(SrcReg).addUse(SrcReg).addImm(0xFE);
       Builder.buildInstr(MC6809::LSL_i8_Reg).addDef(SrcReg).addUse(SrcReg).addImm(1);
-      Builder.buildInstr(MC6809::OR_i8_Dec_Idx).addDef(SrcReg).addUse(SrcReg).addUse(MC6809::SS);
+      Builder.buildInstr(MC6809::OR_i8_Pull).addDef(SrcReg).addUse(SrcReg).addUse(MC6809::SS);
       Builder.buildInstr(MC6809::TFRp).addDef(MC6809::CC).addUse(SrcReg);
       break;
     case MC6809::Z:
@@ -826,14 +826,14 @@ void MC6809InstrInfo::insertIndirectBranch(MachineBasicBlock &MBB, MachineBasicB
       Builder.buildInstr(MC6809::Push_i8).addUse(MC6809::CC);
       Builder.buildInstr(MC6809::AND_i1_Imm).addDef(SrcReg).addUse(SrcReg).addImm(0xFE);
       Builder.buildInstr(MC6809::LSL_i8_Reg).addDef(SrcReg).addUse(SrcReg).addImm(2);
-      Builder.buildInstr(MC6809::OR_i8_Dec_Idx).addDef(SrcReg).addUse(SrcReg).addUse(MC6809::SS);
+      Builder.buildInstr(MC6809::OR_i8_Pull).addDef(SrcReg).addUse(SrcReg).addUse(MC6809::SS);
       Builder.buildInstr(MC6809::TFRp).addDef(MC6809::CC).addUse(SrcReg);
       break;
     case MC6809::N:
       Builder.buildInstr(MC6809::ANDCC_Imm).addDef(MC6809::CC).addUse(MC6809::CC).addImm(0xF7);
       Builder.buildInstr(MC6809::Push_i8).addUse(MC6809::CC);
       Builder.buildInstr(MC6809::AND_i1_Imm).addDef(SrcReg).addUse(SrcReg).addImm(0xFE);
-      Builder.buildInstr(MC6809::OR_i8_Dec_Idx).addDef(SrcReg).addUse(SrcReg).addUse(MC6809::SS);
+      Builder.buildInstr(MC6809::OR_i8_Pull).addDef(SrcReg).addUse(SrcReg).addUse(MC6809::SS);
       Builder.buildInstr(MC6809::LSL_i8_Reg).addDef(SrcReg).addUse(SrcReg).addImm(3);
       Builder.buildInstr(MC6809::TFRp).addDef(MC6809::CC).addUse(SrcReg);
       break;
@@ -1101,19 +1101,11 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::MultiplyHigh_i16_Imm:
     expandMulH16Imm(Builder, MI);
     break;
-  case MC6809::Multiply_i16_Idx_Imm:
+  case MC6809::Multiply_i16_Mem:
     expandMul16IdxImm(Builder, MI);
     break;
-  case MC6809::MultiplyHigh_i16_Idx_Imm:
+  case MC6809::MultiplyHigh_i16_Mem:
     expandMulH16IdxImm(Builder, MI);
-    break;
-  case MC6809::Multiply_i16_Idx_Reg8:
-  case MC6809::Multiply_i16_Idx_Reg16:
-    expandMul16IdxReg(Builder, MI);
-    break;
-  case MC6809::MultiplyHigh_i16_Idx_Reg8:
-  case MC6809::MultiplyHigh_i16_Idx_Reg16:
-    expandMulH16IdxReg(Builder, MI);
     break;
   case MC6809::Multiply_i16_Reg:
     expandMul16Reg(Builder, MI);
@@ -1151,15 +1143,9 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::AND_i16_Imm:
     expandImm(ANDImm, Builder, MI);
     break;
-  case MC6809::AND_i8_Idx_Imm:
-  case MC6809::AND_i16_Idx_Imm:
+  case MC6809::AND_i8_Mem:
+  case MC6809::AND_i16_Mem:
     expandIdxImm(ANDIdxImm, Builder, MI);
-    break;
-  case MC6809::AND_i8_Idx_Reg8:
-  case MC6809::AND_i16_Idx_Reg8:
-  case MC6809::AND_i8_Idx_Reg16:
-  case MC6809::AND_i16_Idx_Reg16:
-    expandIdxReg(ANDIdxReg, Builder, MI);
     break;
   case MC6809::AND_i8_Reg:
   case MC6809::AND_i16_Reg:
@@ -1173,15 +1159,9 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::OR_i16_Imm:
     expandImm(ORImm, Builder, MI);
     break;
-  case MC6809::OR_i8_Idx_Imm:
-  case MC6809::OR_i16_Idx_Imm:
+  case MC6809::OR_i8_Mem:
+  case MC6809::OR_i16_Mem:
     expandIdxImm(ORIdxImm, Builder, MI);
-    break;
-  case MC6809::OR_i8_Idx_Reg8:
-  case MC6809::OR_i16_Idx_Reg8:
-  case MC6809::OR_i8_Idx_Reg16:
-  case MC6809::OR_i16_Idx_Reg16:
-    expandIdxReg(ORIdxReg, Builder, MI);
     break;
   case MC6809::OR_i8_Reg:
   case MC6809::OR_i16_Reg:
@@ -1191,15 +1171,9 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::XOR_i16_Imm:
     expandImm(XORImm, Builder, MI);
     break;
-  case MC6809::XOR_i8_Idx_Imm:
-  case MC6809::XOR_i16_Idx_Imm:
+  case MC6809::XOR_i8_Mem:
+  case MC6809::XOR_i16_Mem:
     expandIdxImm(XORIdxImm, Builder, MI);
-    break;
-  case MC6809::XOR_i8_Idx_Reg8:
-  case MC6809::XOR_i16_Idx_Reg8:
-  case MC6809::XOR_i8_Idx_Reg16:
-  case MC6809::XOR_i16_Idx_Reg16:
-    expandIdxReg(XORIdxReg, Builder, MI);
     break;
   case MC6809::XOR_i8_Reg:
   case MC6809::XOR_i16_Reg:
@@ -1215,21 +1189,15 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::AddSetCarryUse_i16_Imm:
     expandImm(AddCarryImm, Builder, MI);
     break;
-  case MC6809::Add_i8_Idx_Imm:
-  case MC6809::Add_i16_Idx_Imm:
-  case MC6809::AddSetCarry_i8_Idx_Imm:
-  case MC6809::AddSetCarry_i16_Idx_Imm:
+  case MC6809::Add_i8_Mem:
+  case MC6809::Add_i16_Mem:
+  case MC6809::AddSetCarry_i8_Mem:
+  case MC6809::AddSetCarry_i16_Mem:
     expandIdxImm(AddIdxImm, Builder, MI);
     break;
-  case MC6809::AddSetCarryUse_i8_Idx_Imm:
-  case MC6809::AddSetCarryUse_i16_Idx_Imm:
+  case MC6809::AddSetCarryUse_i8_Mem:
+  case MC6809::AddSetCarryUse_i16_Mem:
     expandIdxImm(AddCarryIdxImm, Builder, MI);
-    break;
-  case MC6809::AddSetCarry_i8_Idx_Reg8:
-  case MC6809::AddSetCarry_i16_Idx_Reg8:
-  case MC6809::AddSetCarry_i8_Idx_Reg16:
-  case MC6809::AddSetCarry_i16_Idx_Reg16:
-    expandIdxReg(AddIdxReg, Builder, MI);
     break;
   case MC6809::Add_i8_Reg:
   case MC6809::Add_i16_Reg:
@@ -1253,17 +1221,11 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::SubSetCarryUse_i16_Imm:
     expandImm(SubBorrowImm, Builder, MI);
     break;
-  case MC6809::Sub_i8_Idx_Imm:
-  case MC6809::Sub_i16_Idx_Imm:
-  case MC6809::SubSetCarry_i8_Idx_Imm:
-  case MC6809::SubSetCarry_i16_Idx_Imm:
+  case MC6809::Sub_i8_Mem:
+  case MC6809::Sub_i16_Mem:
+  case MC6809::SubSetCarry_i8_Mem:
+  case MC6809::SubSetCarry_i16_Mem:
     expandIdxImm(SubIdxImm, Builder, MI);
-    break;
-  case MC6809::SubSetCarry_i8_Idx_Reg8:
-  case MC6809::SubSetCarry_i16_Idx_Reg8:
-  case MC6809::SubSetCarry_i8_Idx_Reg16:
-  case MC6809::SubSetCarry_i16_Idx_Reg16:
-    expandIdxReg(SubIdxReg, Builder, MI);
     break;
   case MC6809::Sub_i8_Reg:
   case MC6809::Sub_i16_Reg:
@@ -1273,8 +1235,8 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::SubSetCarry_i16_Reg:
     expandSubSetCarryReg(Builder, MI);
     break;
-  case MC6809::SubSetCarryUse_i8_Idx_Imm:
-  case MC6809::SubSetCarryUse_i16_Idx_Imm:
+  case MC6809::SubSetCarryUse_i8_Mem:
+  case MC6809::SubSetCarryUse_i16_Mem:
     expandIdxImm(SubBorrowIdxImm, Builder, MI);
     break;
   case MC6809::SubSetCarryUse_i8_Reg:
@@ -1289,12 +1251,8 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::Compare_i16_Imm:
     expandCompareImm(Builder, MI);
     break;
-  case MC6809::Compare_i8_Idx_Imm:
-  case MC6809::Compare_i16_Idx_Imm:
-  case MC6809::Compare_i8_Idx_Reg8:
-  case MC6809::Compare_i16_Idx_Reg8:
-  case MC6809::Compare_i8_Idx_Reg16:
-  case MC6809::Compare_i16_Idx_Reg16:
+  case MC6809::Compare_i8_Mem:
+  case MC6809::Compare_i16_Mem:
     expandCompareIdx(Builder, MI);
     break;
   case MC6809::Compare_i8_Reg:

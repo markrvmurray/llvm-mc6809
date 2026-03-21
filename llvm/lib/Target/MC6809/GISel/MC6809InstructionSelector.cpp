@@ -729,7 +729,7 @@ bool MC6809InstructionSelector::selectAddO(MachineInstr &MI) {
             mi_match(Dst, *MRI, m_GUAddO(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA))));
   if (Success) {
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Proceeding with G_LOAD\n";);
-    Opcode = DstSize == 8 ? MC6809::AddSetCarry_i8_Idx_Imm : MC6809::AddSetCarry_i16_Idx_Imm;
+    Opcode = DstSize == 8 ? MC6809::AddSetCarry_i8_Mem : MC6809::AddSetCarry_i16_Mem;
     Instr = Builder.buildInstr(Opcode)
                      .addDef(Dst)
                      .addDef(CarryOut)
@@ -817,7 +817,7 @@ bool MC6809InstructionSelector::selectSubO(MachineInstr &MI) {
             mi_match(Dst, *MRI, m_GUSubO(m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)), m_Reg(Reg)));
   if (Success) {
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Proceeding with G_LOAD\n";);
-    Opcode = DstSize == 8 ? MC6809::SubSetCarry_i8_Idx_Imm : MC6809::SubSetCarry_i16_Idx_Imm;
+    Opcode = DstSize == 8 ? MC6809::SubSetCarry_i8_Mem : MC6809::SubSetCarry_i16_Mem;
     Instr = Builder.buildInstr(Opcode)
                      .addDef(Dst)
                      .addDef(CarryOut)
@@ -904,7 +904,7 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
             mi_match(Dst, *MRI, m_GUAddE(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)), m_Reg(Carry)));
   if (Success) {
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Found load\n";);
-    Opcode = DstSize == 8 ? MC6809::AddSetCarryUse_i8_Idx_Imm : MC6809::AddSetCarryUse_i16_Idx_Imm;
+    Opcode = DstSize == 8 ? MC6809::AddSetCarryUse_i8_Mem : MC6809::AddSetCarryUse_i16_Mem;
     Instr = Builder.buildInstr(Opcode)
                      .addDef(Dst)
                      .addDef(CarryOut)
@@ -924,7 +924,7 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
             mi_match(Dst, *MRI, m_GUAddE(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)), m_Reg(Carry)));
   if (Success) {
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Found load\n";);
-    Opcode = DstSize == 8 ? MC6809::AddSetCarryUse_i8_Idx_Imm : MC6809::AddSetCarryUse_i16_Idx_Imm;
+    Opcode = DstSize == 8 ? MC6809::AddSetCarryUse_i8_Mem : MC6809::AddSetCarryUse_i16_Mem;
     Instr = Builder.buildInstr(Opcode)
                      .addDef(Dst)
                      .addDef(CarryOut)
@@ -1018,7 +1018,7 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
             mi_match(Dst, *MRI, m_GUSubE(m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)), m_Reg(Reg), m_Reg(Carry)));
   if (Success) {
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Found load\n";);
-    Opcode = DstSize == 8 ? MC6809::SubSetCarryUse_i8_Idx_Imm : MC6809::SubSetCarryUse_i16_Idx_Imm;
+    Opcode = DstSize == 8 ? MC6809::SubSetCarryUse_i8_Mem : MC6809::SubSetCarryUse_i16_Mem;
     Instr = Builder.buildInstr(Opcode)
                      .addDef(Dst)
                      .addDef(CarryOut)
@@ -1040,7 +1040,7 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
             mi_match(Dst, *MRI, m_GUSubE(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)), m_Reg(Carry)));
   if (Success) {
     LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Found load\n";);
-    Opcode = DstSize == 8 ? MC6809::SubSetCarryUse_i8_Idx_Imm : MC6809::SubSetCarryUse_i16_Idx_Imm;
+    Opcode = DstSize == 8 ? MC6809::SubSetCarryUse_i8_Mem : MC6809::SubSetCarryUse_i16_Mem;
     Instr = Builder.buildInstr(Opcode)
                      .addDef(Dst)
                      .addDef(CarryOut)
