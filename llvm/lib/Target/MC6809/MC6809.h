@@ -53,10 +53,10 @@ enum CondCode { // Meaning
   RN = INVALID, // 1 Never (unconditional)
   HI,           // 2 Unsigned higher
   LS,           // 3 Unsigned lower or same
-  CS,           // 4 Carry set
-  HS = CS,      // 4 Unsigned higher or same
-  CC,           // 5 Carry Clear
-  LO = CC,      // 5 Unsigned lower
+  CC,           // 4 Carry clear
+  HS = CC,      // 4 Unsigned higher or same
+  CS,           // 5 Carry set
+  LO = CS,      // 5 Unsigned lower
   NE,           // 6 Not equal
   EQ,           // 7 Equal
   VC,           // 8 No overflow
