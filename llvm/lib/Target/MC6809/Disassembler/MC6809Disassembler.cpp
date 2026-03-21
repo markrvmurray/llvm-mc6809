@@ -141,10 +141,12 @@ static DecodeStatus DecodeINDEX16RegisterClass(MCInst &MI, uint64_t RegNo, uint6
 }
 
 static DecodeStatus DecodeBIT8RegisterClass(MCInst &MI, uint64_t RegNo, uint64_t Address, const MCDisassembler *Decoder) {
+  // BIT8 register encoding: 0=CC, 1=A, 2=B
+  static const unsigned BIT8DecoderTable[] = {MC6809::CC, MC6809::AA, MC6809::AB};
   if (RegNo > 2)
     return MCDisassembler::Fail;
 
-  unsigned Reg = RegDecoderTable[RegNo];
+  unsigned Reg = BIT8DecoderTable[RegNo];
   MI.addOperand(MCOperand::createReg(Reg));
   return MCDisassembler::Success;
 }

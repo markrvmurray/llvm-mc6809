@@ -2654,14 +2654,22 @@ sts	[,--w]
 ldq	0
 ; CHECK: encoding: [0x10,0xfd,0x00,0x00]
 stq	0
-; SKIP (assembler error): band	x,5,1,<0
-; SKIP (assembler error): biand	x,5,1,<0
-; SKIP (assembler error): bor	x,5,1,<0
-; SKIP (assembler error): bior	x,5,1,<0
-; SKIP (assembler error): beor	x,5,1,<0
-; SKIP (assembler error): bieor	x,5,1,<0
-; SKIP (assembler error): ldbt	x,5,1,<0
-; SKIP (assembler error): stbt	x,5,1,<0
+; CHECK: encoding: [0x11,0x30,0x69,0x00]
+band	a,5,1,<0
+; CHECK: encoding: [0x11,0x31,0x69,0x00]
+biand	a,5,1,<0
+; CHECK: encoding: [0x11,0x32,0x69,0x00]
+bor	a,5,1,<0
+; CHECK: encoding: [0x11,0x33,0x69,0x00]
+bior	a,5,1,<0
+; CHECK: encoding: [0x11,0x34,0x69,0x00]
+beor	a,5,1,<0
+; CHECK: encoding: [0x11,0x35,0x69,0x00]
+bieor	a,5,1,<0
+; CHECK: encoding: [0x11,0x36,0x69,0x00]
+ldbt	a,5,1,<0
+; CHECK: encoding: [0x11,0x37,0x69,0x00]
+stbt	a,5,1,<0
 ; CHECK: encoding: [0x11,0x38,0x45]
 tfm	x+,y+
 ; CHECK: encoding: [0x11,0x39,0x45]
