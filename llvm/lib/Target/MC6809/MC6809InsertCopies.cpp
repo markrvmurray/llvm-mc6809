@@ -60,7 +60,6 @@ bool MC6809InsertCopies::runOnMachineFunction(MachineFunction &MF) {
     for (auto I = MBB.begin(), E = MBB.end(); I != E; I = Next) {
       Next = std::next(I);
       const TargetRegisterClass *WideRC;
-      LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __FILE__ << " : " << __func__ << " : SEE MOS! Shifts, incs, decs may need RMW work" << '\n';);
 #if 0
       switch (I->getOpcode()) {
       default:

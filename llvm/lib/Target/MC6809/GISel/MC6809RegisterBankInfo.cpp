@@ -50,22 +50,18 @@ MC6809RegisterBankInfo::MC6809RegisterBankInfo(/* const TargetRegisterInfo &TRI 
 }
 
 const RegisterBank &MC6809RegisterBankInfo::getRegBankFromRegClass(const TargetRegisterClass &RC, LLT) const {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : RC.getID() = " << RC.getID() << "\n";);
 #if 1
   if (MC6809::BIT1RegClass.hasSubClassEq(&RC) ||
       MC6809::ACC8RegClass.hasSubClassEq(&RC) ||
       MC6809::ACC16RegClass.hasSubClassEq(&RC) ||
       MC6809::ACC32RegClass.hasSubClassEq(&RC)) {
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : ACCUM\n";);
     return getRegBank(MC6809::ACCUMRegBankID);
   } else if (MC6809::INDEX16RegClass.hasSubClassEq(&RC)) {
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : INDEX\n";);
     return getRegBank(MC6809::INDEXRegBankID);
   } else if (MC6809::CCondRegClass.hasSubClassEq(&RC) ||
              MC6809::AllArithFlagRegClass.hasSubClassEq(&RC) ||
              MC6809::ArithFlagRegClass.hasSubClassEq(&RC) ||
              MC6809::CCFlagRegClass.hasSubClassEq(&RC)) {
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : FLAGS\n";);
     return getRegBank(MC6809::FLAGSRegBankID);
   }
 #else
@@ -118,7 +114,6 @@ const RegisterBank &MC6809RegisterBankInfo::getRegBankFromRegClass(const TargetR
 }
 
 MC6809GenRegisterBankInfo::PartialMappingIdx MC6809GenRegisterBankInfo::getPartialMappingIdx(const LLT &Ty) {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter\n";);
   if (Ty.isVector())
     llvm_unreachable("Vector is unsupported.");
   if (Ty.isPointer())
@@ -136,46 +131,36 @@ MC6809GenRegisterBankInfo::PartialMappingIdx MC6809GenRegisterBankInfo::getParti
   default:
     llvm_unreachable("Unsupported register size.");
   }
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit\n";);
 }
 
 void MC6809RegisterBankInfo::getInstrPartialMappingIdxs(const MachineInstr &MI, const MachineRegisterInfo &MRI, SmallVectorImpl<PartialMappingIdx> &OpRegBankIdx) {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
   unsigned NumOperands = MI.getNumOperands();
   for (unsigned Idx = 0; Idx < NumOperands; ++Idx) {
     auto &MO = MI.getOperand(Idx);
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Loop : MO = "; MO.dump(););
     if (!MO.isReg())
       OpRegBankIdx[Idx] = PMI_None;
     else
       OpRegBankIdx[Idx] = getPartialMappingIdx(MRI.getType(MO.getReg()));
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : OpRegBankIdx[" << Idx << "] = " << OpRegBankIdx[Idx] << "\n";);
   }
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : MI = "; MI.dump(););
 }
 
 bool MC6809RegisterBankInfo::getInstrValueMapping(const MachineInstr &MI, const SmallVectorImpl<PartialMappingIdx> &OpRegBankIdx, SmallVectorImpl<const ValueMapping *> &OpdsMapping) {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
   unsigned NumOperands = MI.getNumOperands();
   for (unsigned Idx = 0; Idx < NumOperands; ++Idx) {
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Loop : MI = "; MI.dump(););
     if (!MI.getOperand(Idx).isReg())
       continue;
 
     auto Mapping = getValueMapping(OpRegBankIdx[Idx], 1);
     if (!Mapping->isValid()) {
-      LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit false : MI = "; MI.dump(););
       return false;
     }
 
     OpdsMapping[Idx] = Mapping;
   }
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit true : MI = "; MI.dump(););
   return true;
 }
 
 const RegisterBankInfo::InstructionMapping &MC6809RegisterBankInfo::getSameOperandsMapping(const MachineInstr &MI) const {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
   const MachineFunction &MF = *MI.getParent()->getParent();
   const MachineRegisterInfo &MRI = MF.getRegInfo();
 
@@ -186,12 +171,10 @@ const RegisterBankInfo::InstructionMapping &MC6809RegisterBankInfo::getSameOpera
     llvm_unreachable("Unsupported operand mapping.");
 
   auto Mapping = getValueMapping(getPartialMappingIdx(Ty), 3);
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Calling final getInstructionMapping() : MI = "; MI.dump(););
   return getInstructionMapping(DefaultMappingID, 1, Mapping, NumOperands);
 }
 
 const RegisterBankInfo::InstructionMapping &MC6809RegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
   const MachineFunction &MF = *MI.getParent()->getParent();
   const MachineRegisterInfo &MRI = MF.getRegInfo();
   unsigned Opc = MI.getOpcode();
@@ -201,17 +184,13 @@ const RegisterBankInfo::InstructionMapping &MC6809RegisterBankInfo::getInstrMapp
   // or already have some operands assigned to banks.
   if (!isPreISelGenericOpcode(Opc) || Opc == TargetOpcode::G_PHI) {
     const InstructionMapping &Mapping = getInstrMappingImpl(MI);
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 10 : Mapping = "; Mapping.dump(););
     if (Mapping.isValid())
       return Mapping;
   }
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Done default logic\n";);
 
   switch (Opc) {
 #if 0
   case TargetOpcode::G_FRAME_INDEX:
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Not yet doing G_FRAME_INDEX\n";);
-    llvm_unreachable("OINQUE DEBUG Does this have to be here?");
 #endif /* 0 */
   case TargetOpcode::G_MUL:
   case TargetOpcode::G_ADD:
@@ -219,38 +198,30 @@ const RegisterBankInfo::InstructionMapping &MC6809RegisterBankInfo::getInstrMapp
   case TargetOpcode::G_AND:
   case TargetOpcode::G_OR:
   case TargetOpcode::G_XOR:
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Doing getSameOperandsMapping()\n";);
     return getSameOperandsMapping(MI);
   case TargetOpcode::G_SHL:
   case TargetOpcode::G_LSHR:
   case TargetOpcode::G_ASHR: {
     LLT Ty = MRI.getType(MI.getOperand(0).getReg());
     auto Mapping = getValueMapping(getPartialMappingIdx(Ty), NumOperands);
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 20 : Mapping = "; Mapping->dump(););
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 20 : Doing getInstructionMapping() " << NumOperands << " operands\n";);
     return getInstructionMapping(DefaultMappingID, 1, Mapping, NumOperands);
   }
   default:
-    LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : default (nothing)\n";);
     break;
   }
 
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 30 : MI = "; MI.dump(););
   // Track the bank of each register.
   SmallVector<PartialMappingIdx, 4> OpRegBankIdx(NumOperands);
   getInstrPartialMappingIdxs(MI, MRI, OpRegBankIdx);
 
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : 40 : MI = "; MI.dump(););
   // Finally construct the computed mapping.
   SmallVector<const ValueMapping *, 8> OpdsMapping(NumOperands);
   if (!getInstrValueMapping(MI, OpRegBankIdx, OpdsMapping))
     return getInvalidInstructionMapping();
 
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Calling final getInstructionMapping()\n";);
   return getInstructionMapping(DefaultMappingID, /* Cost */ 1, getOperandsMapping(OpdsMapping), NumOperands);
 }
 
 void MC6809RegisterBankInfo::applyMappingImpl(MachineIRBuilder &Builder, const OperandsMapper &OpdMapper) const {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter\n";);
   return applyDefaultMapping(OpdMapper);
 }

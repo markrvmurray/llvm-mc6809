@@ -201,7 +201,6 @@ MachineBasicBlock *MC6809TargetLowering::EmitInstrWithCustomInserter(MachineInst
 
 // FIXME!! MarkM: Do load Immediate of all sizes, not just i1(=i8).
 static MachineBasicBlock *emitConditionalImm(MachineInstr &MI, MachineBasicBlock *MBB) {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
   // To "insert" Select* instructions, we actually have to insert the triangle
   // control-flow pattern.  The incoming instructions know the destination reg
   // to set, the flag to branch on, and the true/false values to select between.

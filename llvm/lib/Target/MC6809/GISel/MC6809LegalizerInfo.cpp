@@ -251,7 +251,6 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
 }
 
 bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &MI, LostDebugLocObserver &LocObserver) const {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter : MI = "; MI.dump(););
   MachineRegisterInfo &MRI = MI.getMF()->getRegInfo();
   Helper.MIRBuilder.setInstrAndDebugLoc(MI);
   switch (MI.getOpcode()) {
