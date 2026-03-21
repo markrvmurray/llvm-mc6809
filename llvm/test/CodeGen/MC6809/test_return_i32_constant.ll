@@ -7,7 +7,7 @@ define i32 @foo() {
 ; CHECK-LABEL: foo:
 ; CHECK:       ; %bb.0: ; %entry
 ; CHECK-NEXT:    ldd #188
-; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    std 2,s
 ; CHECK-NEXT:    ldd #24910
 ; CHECK-NEXT:    rts
 ;
