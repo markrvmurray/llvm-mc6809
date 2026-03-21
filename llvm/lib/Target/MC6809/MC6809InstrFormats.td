@@ -121,6 +121,15 @@ def anyregister : Operand<i8> {
   let DecoderMethod = "DecodeRegOperand";
 }
 
+// BIT8 register operand for bit manipulation instructions (band, bor, etc.).
+// Uses a custom encoder because the 2-bit encoding (0=CC, 1=A, 2=B) differs
+// from the registers' HW encoding numbers.
+def bit8register : Operand<i8> {
+  let EncoderMethod = "encodeBIT8RegOpValue";
+  let ParserMatchClass = RegAsmOperand<"Any">;
+  let DecoderMethod = "DecodeBIT8RegisterClass";
+}
+
 // A list of registers separated by comma. Used by push/pull
 def RegListAsmOperand : MC6809AsmOperand<"RegList"> {
   let ParserMethod = "parseRegList";
@@ -240,7 +249,7 @@ class BitDirect<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opcode> {
   let Mode = "bd";
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
-  let InOperandList = (ins BIT8:$reg, imm3:$dstbit, imm3:$srcbit, addr8:$addr);
+  let InOperandList = (ins bit8register:$reg, imm3:$dstbit, imm3:$srcbit, addr8:$addr);
   let AsmString = !strconcat(mnemonic, " $dst , $srcbit , $dstbit , < $addr");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }

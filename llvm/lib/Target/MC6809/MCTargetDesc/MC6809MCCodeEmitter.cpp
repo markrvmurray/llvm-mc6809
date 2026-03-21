@@ -136,6 +136,17 @@ unsigned MC6809MCCodeEmitter::encodeImm3(const MCInst &MI, unsigned Op, SmallVec
 
 unsigned MC6809MCCodeEmitter::encodeRegOpValue(const MCInst &MI, unsigned Op, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const { return MI.getOperand(Op).getReg(); }
 
+unsigned MC6809MCCodeEmitter::encodeBIT8RegOpValue(const MCInst &MI, unsigned Op, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const {
+  // BIT8 register encoding: CC=0, A=1, B=2
+  unsigned Reg = MI.getOperand(Op).getReg();
+  switch (Reg) {
+  case MC6809::CC: return 0;
+  case MC6809::AA: return 1;
+  case MC6809::AB: return 2;
+  default: llvm_unreachable("Invalid BIT8 register");
+  }
+}
+
 unsigned MC6809MCCodeEmitter::encodeRegListOpValue(const MCInst &MI, unsigned Op, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const {
   unsigned res = 0;
   for (unsigned I = Op, E = MI.getNumOperands(); I < E; ++I) {
