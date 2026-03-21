@@ -75,7 +75,8 @@ template <MC6809::Fixups Fixup, unsigned Offset> unsigned MC6809MCCodeEmitter::e
     }
 
     MCFixupKind FixupKind = static_cast<MCFixupKind>(Fixup);
-    Fixups.push_back(MCFixup::create(Offset, MO.getExpr(), FixupKind));
+    bool IsPCRel = (Fixup == MC6809::PCRel8 || Fixup == MC6809::PCRel16);
+    Fixups.push_back(MCFixup::create(Offset, MO.getExpr(), FixupKind, IsPCRel));
 
     return 0;
   }
