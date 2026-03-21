@@ -113,8 +113,18 @@ unsigned MC6809MCCodeEmitter::getExprOpValue(const MCExpr *Expr, SmallVectorImpl
 unsigned MC6809MCCodeEmitter::getMachineOpValue(const MCInst &MI, const MCOperand &MO, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const {
   if (MO.isImm())
     return MO.getImm();
-  if (MO.isReg())
-    return MO.getReg();
+  if (MO.isReg()) {
+    unsigned Reg = MO.getReg();
+    // Map index registers to 2-bit postbyte encoding: X=0, Y=1, U=2, S=3.
+    // The LLVM MC register enum values don't match the hardware encoding.
+    switch (Reg) {
+    case MC6809::IX: return 0;
+    case MC6809::IY: return 1;
+    case MC6809::SU: return 2;
+    case MC6809::SS: return 3;
+    default: return Reg;
+    }
+  }
 
   assert(MO.isExpr());
 
@@ -137,7 +147,17 @@ unsigned MC6809MCCodeEmitter::getMachineOpValue(const MCInst &MI, const MCOperan
 
 unsigned MC6809MCCodeEmitter::encodeImm3(const MCInst &MI, unsigned Op, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const { return MI.getOperand(Op).getImm(); }
 
-unsigned MC6809MCCodeEmitter::encodeRegOpValue(const MCInst &MI, unsigned Op, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const { return MI.getOperand(Op).getReg(); }
+unsigned MC6809MCCodeEmitter::encodeRegOpValue(const MCInst &MI, unsigned Op, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const {
+  unsigned Reg = MI.getOperand(Op).getReg();
+  // Map index registers to 2-bit postbyte encoding: X=0, Y=1, U=2, S=3.
+  switch (Reg) {
+  case MC6809::IX: return 0;
+  case MC6809::IY: return 1;
+  case MC6809::SU: return 2;
+  case MC6809::SS: return 3;
+  default: return Reg;
+  }
+}
 
 unsigned MC6809MCCodeEmitter::encodeBIT8RegOpValue(const MCInst &MI, unsigned Op, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const {
   // BIT8 register encoding: CC=0, A=1, B=2
