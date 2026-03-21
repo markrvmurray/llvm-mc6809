@@ -30,7 +30,6 @@ const MCFixupKindInfo &MC6809FixupKinds::getFixupKindInfo(const MC6809::Fixups K
       {"Rel16", 0, 16, 0},    // A 16-bit index relative value.
       {"PCRel8", 0, 8, 0},    // An 8-bit PC relative value.
       {"PCRel16", 0, 16, 0},  // A 16-bit PC relative value.
-      {"AddrAsciz", 0, 0, 0}, // Address encoded as decimal ASCII string.
   };
   if (Kind < static_cast<MC6809::Fixups>(FirstTargetFixupKind)) {
     assert(Alternative &&

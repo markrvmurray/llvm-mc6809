@@ -72,8 +72,6 @@ unsigned MC6809ELFObjectWriter::getRelocType(const MCFixup &Fixup,
     return ELF::R_MC6809_FK_DATA_4;
   case FK_Data_8:
     return ELF::R_MC6809_FK_DATA_8;
-  case MC6809::AddrAsciz:
-    return ELF::R_MC6809_ADDR_ASCIZ;
   default:
     llvm_unreachable("invalid fixup kind!");
   }

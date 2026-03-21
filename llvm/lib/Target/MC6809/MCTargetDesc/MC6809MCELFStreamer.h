@@ -33,8 +33,6 @@ public:
 
   void emitValueImpl(const MCExpr *Value, unsigned Size, SMLoc Loc = SMLoc()) override;
 
-  void emitMc6809AddrAsciz(const MCExpr *Value, unsigned Size, SMLoc Loc = SMLoc());
-
   void emitMappingSymbol(StringRef Name);
   //void emit816MXState(bool IsMLow, bool IsMHigh, bool IsXLow, bool IsXHigh);
 

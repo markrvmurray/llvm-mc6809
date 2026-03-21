@@ -37,9 +37,6 @@ ELF_RELOC(R_MC6809_PCREL_8,        7)
 // A 16-bit PC-relative value
 ELF_RELOC(R_MC6809_PCREL_16,       8)
 
-// A 16-bit PC-relative value
-ELF_RELOC(R_MC6809_ADDR_ASCIZ,     9)
-
 // Relocations for DWARF.
 ELF_RELOC(R_MC6809_FK_DATA_4,     10)
 ELF_RELOC(R_MC6809_FK_DATA_8,     11)

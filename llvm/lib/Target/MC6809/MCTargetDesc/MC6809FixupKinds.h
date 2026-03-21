@@ -27,7 +27,7 @@ namespace MC6809 {
 ///       MCFixupKindInfo Infos[MC6809::NumTargetFixupKinds]
 ///       in `MC6809AsmBackend.cpp`.
 enum Fixups {
-  Imm8 = FirstTargetFixupKind, // An 8 bit direct page address.
+  Imm8 = FirstTargetFixupKind,
   Imm16,
   Addr8,     // An 8 bit direct page address.
   Addr16,    // A 16-bit address.
@@ -36,7 +36,6 @@ enum Fixups {
   Rel16,     // A 16-bit index relative value.
   PCRel8,    // An 8-bit PC relative value.
   PCRel16,   // An 16-bit PC relative value.
-  AddrAsciz, // Address encoded as a decimal ASCII string.
   LastTargetFixupKind,
   NumTargetFixupKinds = LastTargetFixupKind - FirstTargetFixupKind
 };

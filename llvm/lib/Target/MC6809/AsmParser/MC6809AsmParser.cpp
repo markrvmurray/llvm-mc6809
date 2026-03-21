@@ -371,44 +371,9 @@ public:
   /// \param DirectiveID - the identifier token of the directive.
   bool ParseDirective(AsmToken DirectiveID) override {
     StringRef IDVal = DirectiveID.getIdentifier();
-    if (IDVal.starts_with(".mc6809_addr_asciz"))
-      return parseAddrAsciz(DirectiveID.getLoc());
     if (IDVal.starts_with(".directpage"))
       return parseDirectpage(DirectiveID.getLoc());
     return true;
-  }
-
-  bool parseAddrAsciz(SMLoc DirectiveLoc) {
-    const MCExpr *AddrValue;
-    SMLoc AddrLoc = getLexer().getLoc();
-    if (Parser.checkForValidSection() || Parser.parseExpression(AddrValue))
-      return true;
-
-    if (Parser.parseToken(AsmToken::Comma, "expected `, <char-count>`"))
-      return true;
-
-    SMLoc CharCountLoc = getLexer().getLoc();
-    int64_t CharCountValue;
-    if (Parser.parseAbsoluteExpression(CharCountValue))
-      return true;
-
-    if (CharCountValue < 1 || CharCountValue > 8) {
-      return Error(CharCountLoc, "char count out of range [1,8]");
-    }
-
-    // Special case constant expressions to match code generator.
-    if (const MCConstantExpr *MCE = dyn_cast<MCConstantExpr>(AddrValue)) {
-      std::string ValueStr = itostr(MCE->getValue());
-      if (ValueStr.size() > static_cast<size_t>(CharCountValue))
-        return Error(AddrLoc, "out of range literal value");
-      getStreamer().emitBytes(ValueStr);
-      getStreamer().emitBytes(StringRef("\0\0\0\0\0\0\0\0\0", CharCountValue - ValueStr.size() + 1));
-    } else {
-      const MC6809MCExpr *Expr = MC6809MCExpr::create(MC6809MCExpr::VK_ADDR_ASCIZ, AddrValue,
-                                                      /*isNegated=*/false, getContext());
-      getStreamer().emitValue(Expr, CharCountValue + 1, DirectiveLoc);
-    }
-    return false;
   }
 
   bool parseDirectpage(SMLoc DirectiveLoc) {

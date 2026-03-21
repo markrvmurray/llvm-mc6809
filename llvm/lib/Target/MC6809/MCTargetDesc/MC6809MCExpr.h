@@ -24,8 +24,7 @@ public:
     VK_ADDR8 = MCSymbolRefExpr::FirstTargetSpecifier,
     VK_ADDR16,
     VK_IMM8,
-    VK_IMM16,
-    VK_ADDR_ASCIZ
+    VK_IMM16
   };
 
   /// Creates an MC6809 machine code expression.

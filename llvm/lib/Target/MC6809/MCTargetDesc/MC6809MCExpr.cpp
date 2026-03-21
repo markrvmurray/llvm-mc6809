@@ -87,9 +87,6 @@ int64_t MC6809MCExpr::evaluateAsInt64(int64_t Value) const {
     Value &= 0xffff;
     break;
 
-  case MC6809MCExpr::VK_ADDR_ASCIZ:
-    llvm_unreachable("Unable to evaluate VK_ADDR_ASCIZ as int64.");
-
   case MC6809MCExpr::VK_NONE:
     llvm_unreachable("Uninitialized expression.");
   }
@@ -111,9 +108,6 @@ MC6809::Fixups MC6809MCExpr::getFixupKind() const {
     break;
   case VK_ADDR16:
     Kind = MC6809::Addr16;
-    break;
-  case VK_ADDR_ASCIZ:
-    Kind = MC6809::AddrAsciz;
     break;
   case VK_NONE:
     llvm_unreachable("Uninitialized expression");

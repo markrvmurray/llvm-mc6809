@@ -64,21 +64,7 @@ void MC6809MCELFStreamer::changeSection(MCSection *Section, uint32_t Subsection)
 void MC6809MCELFStreamer::emitInstruction(const MCInst &Inst, const MCSubtargetInfo &STI) { MCELFStreamer::emitInstruction(Inst, STI); }
 
 void MC6809MCELFStreamer::emitValueImpl(const MCExpr *Value, unsigned Size, SMLoc Loc) {
-  if (const auto *MME = dyn_cast<MC6809MCExpr>(Value)) {
-    if (MME->getKind() == MC6809MCExpr::VK_ADDR_ASCIZ) {
-      emitMc6809AddrAsciz(MME->getSubExpr(), Size, Loc);
-      return;
-    }
-  }
   MCELFStreamer::emitValueImpl(Value, Size, Loc);
-}
-
-void MC6809MCELFStreamer::emitMc6809AddrAsciz(const MCExpr *Value, unsigned Size, SMLoc Loc) {
-  visitUsedExpr(*Value);
-  MCDwarfLineEntry::make(this, getCurrentSectionOnly());
-  addFixup(Value, (MCFixupKind)MC6809::AddrAsciz);
-  SmallVector<char> Zeroes(Size, 0);
-  appendContents(Zeroes);
 }
 
 void MC6809MCELFStreamer::emitMappingSymbol(StringRef Name) {

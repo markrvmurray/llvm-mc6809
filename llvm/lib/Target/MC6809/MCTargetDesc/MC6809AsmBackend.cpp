@@ -17,7 +17,6 @@
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "MC6809Subtarget.h"
 
-#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
@@ -78,12 +77,6 @@ void MC6809AsmBackend::applyFixup(const MCFragment &F, const MCFixup &Fixup,
   unsigned int Kind = Fixup.getKind();
 
   switch (Kind) {
-  case MC6809::AddrAsciz: {
-    std::string ValueStr = utostr(Value);
-    std::copy(ValueStr.begin(), ValueStr.end(), Data);
-    Data[ValueStr.size()] = '\0';
-    return;
-  }
   case MC6809::PCRel8:
   case MC6809::PCRel16:
     Value += getRelativeMC6809PCCorrection(Kind == MC6809::PCRel16);
