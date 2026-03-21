@@ -77,18 +77,14 @@ enum ValueMappingIdx {
 #undef GET_TARGET_REGBANK_INFO_IMPL
 const RegisterBankInfo::ValueMapping *
 MC6809GenRegisterBankInfo::getValueMapping(PartialMappingIdx Idx, unsigned NumOperands) {
-  LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Enter\n";);
   // We can use VMI_3Ops Mapping for all the cases.
   // XXXX: FixMe: MarkM - Oh, no we can't! This should only be valid if NumOperands == 1
   if (NumOperands <= 3) {
     if (Idx >= PMI_ACC8 && Idx <= PMI_ACC32) {
-      LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : return accumulator\n";);
       return &ValMappings[(unsigned)Idx * 3];
     } else if (Idx == PMI_INDEX) {
-      LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : return pointer\n";);
       return &ValMappings[(unsigned)Idx * 3];
     } else if (Idx == PMI_COND) {
-      LLVM_DEBUG(dbgs() << "OINQUE DEBUG " << __func__ << " : Exit : return BIT1 bit\n";);
       return &ValMappings[(unsigned)Idx * 3];
     }
   }
