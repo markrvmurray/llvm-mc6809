@@ -693,7 +693,12 @@ public:
     // MC6809: parse all register names as register operands. The AsmMatcher
     // treats register names in AsmString patterns (e.g., "a" in "a , $ireg")
     // as register class constraints, so they must be register operands.
+    // Only try register matching for identifier tokens — integer tokens like
+    // "0" can match numeric register names (e.g., A0 is named "0") but should
+    // be parsed as expressions.
     if (getSTI().getFeatureBits()[MC6809::Feature6809]) {
+      if (getLexer().isNot(AsmToken::Identifier))
+        return ParseStatus::NoMatch;
       MCRegister Reg = 0;
       SMLoc E = getLexer().getTok().getEndLoc();
       if (tryParseRegister(Reg, S, E).isSuccess()) {

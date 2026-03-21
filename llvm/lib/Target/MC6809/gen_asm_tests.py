@@ -155,34 +155,27 @@ def get_branch_encoding(mnemonic, llvm_mc, triple, mcpu=None):
 
 
 def get_actual_encodings(asm_lines, llvm_mc, triple, mcpu=None):
-    """Run instructions through llvm-mc and capture actual encodings.
+    """Run instructions through llvm-mc one at a time to get actual encodings.
 
     Returns a dict mapping line_index -> encoding_string, and a set of
-    failed line indices.
+    failed line indices. Running individually avoids batch alignment issues
+    where one error cascades and corrupts subsequent line tracking.
     """
-    input_text = '\n'.join(asm_lines) + '\n'
-    cmd = [llvm_mc, f'-triple={triple}', '-show-encoding']
+    cmd_base = [llvm_mc, f'-triple={triple}', '-show-encoding']
     if mcpu:
-        cmd.append(f'-mcpu={mcpu}')
-
-    result = subprocess.run(cmd, input=input_text, capture_output=True, text=True)
-
-    # Collect error line numbers (1-based stdin lines).
-    failed = set()
-    for out_line in (result.stderr or '').split('\n'):
-        line_match = re.search(r'<stdin>:(\d+):', out_line)
-        if line_match and 'error:' in out_line:
-            failed.add(int(line_match.group(1)) - 1)
+        cmd_base.append(f'-mcpu={mcpu}')
 
     encodings = {}
-    successful_indices = [i for i in range(len(asm_lines)) if i not in failed]
+    failed = set()
 
-    enc_idx = 0
-    for out_line in (result.stdout or '').split('\n'):
-        enc_match = re.search(r'encoding: (\[.*?\])', out_line)
-        if enc_match and enc_idx < len(successful_indices):
-            encodings[successful_indices[enc_idx]] = enc_match.group(1)
-            enc_idx += 1
+    for idx, asm in enumerate(asm_lines):
+        result = subprocess.run(cmd_base, input=asm + '\n',
+                                capture_output=True, text=True, timeout=5)
+        enc_match = re.search(r'encoding: (\[.*?\])', result.stdout or '')
+        if enc_match:
+            encodings[idx] = enc_match.group(1)
+        else:
+            failed.add(idx)
 
     return encodings, failed
 
