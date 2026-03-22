@@ -149,8 +149,7 @@ private:
 
   void expandNegate(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandShiftLeft(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandMul8_8(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandMul8_16(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandMulD(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandMul16Imm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandMulH16Imm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandMul16IdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const;

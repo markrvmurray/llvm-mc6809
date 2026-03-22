@@ -1058,12 +1058,8 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::LSL_i16_Reg:
     expandShiftLeft(Builder, MI);
     break;
-  case MC6809::Mul_i8_i8:
-  case MC6809::MulH_i8_i8:
-    expandMul8_8(Builder, MI);
-    break;
-  case MC6809::Mul_i8_i16:
-    expandMul8_16(Builder, MI);
+  case MC6809::MUL_D:
+    expandMulD(Builder, MI);
     break;
   case MC6809::Multiply_i16_Imm:
     expandMul16Imm(Builder, MI);
@@ -1533,29 +1529,15 @@ void MC6809InstrInfo::expandShiftLeft(MachineIRBuilder &Builder, MachineInstr &M
   }
 }
 
-void MC6809InstrInfo::expandMul8_8(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  auto Opcode = MI.getOpcode();
-  assert((Opcode == MC6809::Mul_i8_i8 || Opcode == MC6809::MulH_i8_i8) && "Invalid multiply opcode");
-  if (Opcode == MC6809::Mul_i8_i8)
-    assert((MI.getOperand(0).getReg() == MC6809::AB) && "Results must be AB");
-  else
-    assert((MI.getOperand(0).getReg() == MC6809::AA) && "Results must be AA");
-  assert(((MI.getOperand(1).getReg() == MC6809::AA && MI.getOperand(2).getReg() == MC6809::AB) || (MI.getOperand(1).getReg() == MC6809::AB && MI.getOperand(2).getReg() == MC6809::AA)) && "Arguments must be AA and AB");
+void MC6809InstrInfo::expandMulD(MachineIRBuilder &Builder, MachineInstr &MI) const {
+  assert(MI.getOpcode() == MC6809::MUL_D && "Invalid multiply opcode");
+  assert(MI.getOperand(0).getReg() == MC6809::AD && "Result must be AD");
+  assert(MI.getOperand(1).getReg() == MC6809::AD && "Source must be AD");
+  // MUL_D pseudo takes D as explicit input/output.
+  // The real MULx instruction has all operands implicit.
   MI.setDesc(Builder.getTII().get(MC6809::MULx));
   MI.getOperand(0).setImplicit();
   MI.getOperand(1).setImplicit();
-  MI.getOperand(2).setImplicit();
-}
-
-void MC6809InstrInfo::expandMul8_16(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  auto Opcode = MI.getOpcode();
-  assert((Opcode == MC6809::Mul_i8_i16) && "Invalid multiply opcode");
-  assert(MI.getOperand(0).getReg() == MC6809::AD && "Results must be in AD");
-  assert(((MI.getOperand(1).getReg() == MC6809::AA && MI.getOperand(2).getReg() == MC6809::AB) || (MI.getOperand(1).getReg() == MC6809::AB && MI.getOperand(2).getReg() == MC6809::AA)) && "Arguments must be AB and AA");
-  MI.setDesc(Builder.getTII().get(MC6809::MULx));
-  MI.getOperand(0).setImplicit();
-  MI.getOperand(1).setImplicit();
-  MI.getOperand(2).setImplicit();
 }
 
 void MC6809InstrInfo::expandMul16Imm(MachineIRBuilder &Builder, MachineInstr &MI) const {

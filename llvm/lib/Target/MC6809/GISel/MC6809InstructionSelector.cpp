@@ -552,12 +552,8 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
   case TargetOpcode::G_SSUBE:
     return selectSubE(MI);
 
-#if 0
-  case TargetOpcode::G_MUL:
-    return selectMul(MI);
-  case MC6809::G_EXPAND_MUL:
-    return selectMulExpand(MI);
-#endif
+  // G_MUL/G_UMULH/G_SMULH i8: handled by TableGen patterns via
+  // REG_SEQUENCE + MUL_D + EXTRACT_SUBREG (no hand-lowering needed).
   }
   return false;
 }

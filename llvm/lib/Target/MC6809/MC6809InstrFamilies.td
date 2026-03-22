@@ -667,54 +667,43 @@ let Predicates = [IsHD6309] in {
 // Multiply Family
 //===----------------------------------------------------------------------===//
 
-// --- 8-bit multiply pseudo-instructions ---
+// --- 8-bit multiply pseudo-instruction ---
+// The 6809 MUL instruction multiplies A × B → D (16-bit result).
+// We model this as a single pseudo taking D as input/output to avoid
+// the D/A/B register aliasing problem: if A and B are separate operands,
+// the register allocator can't handle the fact that loading one (via LDD
+// or TFR) clobbers the other through D.
+//
+// Patterns use REG_SEQUENCE to pack the two i8 operands into D, then
+// EXTRACT_SUBREG to pull the result byte out.
 
-class MC6809MultiplyAccumulatorsLow : MC6809LogicalInstr {
-  let Defs = [Z, C, AA, AD, AQ];
-  dag OutOperandList = (outs ABc:$dst);
-  dag InOperandList = (ins ABc:$src1, AAc:$src2);
-  let Constraints = "$dst = $src1";
-  //let isCommutable = true;
-}
-
-def Mul_i8_i8 : MC6809MultiplyAccumulatorsLow;
-
-class MC6809MultiplyAccumulatorsHigh : MC6809LogicalInstr {
-  let Defs = [Z, C, AB, AD, AQ];
-  dag OutOperandList = (outs AAc:$dst);
-  dag InOperandList = (ins ABc:$src1, AAc:$src2);
-  let Constraints = "$dst = $src2";
-  //let isCommutable = true;
-}
-
-def MulH_i8_i8 : MC6809MultiplyAccumulatorsHigh;
-
-class MC6809MultiplyAccumulatorsExtend : MC6809LogicalInstr {
-  let Defs = [Z, C, AA, AB, AQ];
+class MC6809MultiplyD : MC6809LogicalInstr {
+  let Defs = [Z, C];
   dag OutOperandList = (outs ADc:$dst);
-  dag InOperandList = (ins ABc:$src1, AAc:$src2);
-  let isCommutable = true;
+  dag InOperandList = (ins ADc:$src);
+  let Constraints = "$dst = $src";
 }
 
-def Mul_i8_i16 : MC6809MultiplyAccumulatorsExtend;
-
-//def Mul_i8_i8 : MC6809MultiplyAccumulators<ABc> {
-//   let Defs = [Z, C, AA];
-//}
-
-//def MulH_i8_i8 : MC6809MultiplyAccumulators<AAc> {
-//   let Defs = [Z, C, AB];
-//}
-
-//def Mul_i8_i16 : MC6809MultiplyAccumulators<ADc>;
+def MUL_D : MC6809MultiplyD;
 
 // --- 8-bit multiply patterns ---
+// Pack two i8 operands into D via REG_SEQUENCE, multiply, extract result.
+// mul  → low byte (B = sub_lo_byte)
+// mulhu/mulhs → high byte (A = sub_hi_byte)
+def MulPat_i8 : Pat<(i8 (mul ACC8:$b, ACC8:$a)),
+  (EXTRACT_SUBREG
+    (MUL_D (REG_SEQUENCE ADc, ACC8:$b, sub_lo_byte, ACC8:$a, sub_hi_byte)),
+    sub_lo_byte)>;
 
-def MulPat_i8_i8 : Pat<(i8 (mul ABc:$src1, AAc:$src2)), (Mul_i8_i8 ABc:$src1, AAc:$src2)>;
-def MulHUPat_i8_i8 : Pat<(i8 (mulhu ABc:$src1, AAc:$src2)), (MulH_i8_i8 ABc:$src1, AAc:$src2)>;
-def MulHSPat_i8_i8 : Pat<(i8 (mulhs ABc:$src1, AAc:$src2)), (MulH_i8_i8 ABc:$src1, AAc:$src2)>;
-def MulPat_s_i8_i16 : Pat<(i16 (mul (sext ABc:$src1), (sext AAc:$src2))), (Mul_i8_i16 ABc:$src1, AAc:$src2)>;
-def MulPat_u_i8_i16 : Pat<(i16 (mul (zext ABc:$src1), (zext AAc:$src2))), (Mul_i8_i16 ABc:$src1, AAc:$src2)>;
+def MulHUPat_i8 : Pat<(i8 (mulhu ACC8:$b, ACC8:$a)),
+  (EXTRACT_SUBREG
+    (MUL_D (REG_SEQUENCE ADc, ACC8:$b, sub_lo_byte, ACC8:$a, sub_hi_byte)),
+    sub_hi_byte)>;
+
+def MulHSPat_i8 : Pat<(i8 (mulhs ACC8:$b, ACC8:$a)),
+  (EXTRACT_SUBREG
+    (MUL_D (REG_SEQUENCE ADc, ACC8:$b, sub_lo_byte, ACC8:$a, sub_hi_byte)),
+    sub_hi_byte)>;
 
 // --- 16-bit multiply pseudo-instructions (6309 only) ---
 
