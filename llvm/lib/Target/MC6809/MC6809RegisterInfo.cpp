@@ -85,7 +85,11 @@ bool MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int
   unsigned BasePtr = (TFI->hasFP(MF) ? MC6809::SU : MC6809::SS);
   int Offset = MF.getFrameInfo().getObjectOffset(FrameIndex);
 
-  Offset += 2; // Skip the saved PC
+  // Fixed stack objects (args, positive offset) are above the return
+  // address on the stack. Local objects (spills, negative offset) are
+  // below it. Only args need the +2 PC skip.
+  if (Offset >= 0)
+    Offset += 2; // Skip the saved PC (return address)
 
   if (!TFI->hasFP(MF))
     Offset += MF.getFrameInfo().getStackSize();
