@@ -775,42 +775,46 @@ void MC6809InstrInfo::insertIndirectBranch(MachineBasicBlock &MBB, MachineBasicB
       I.dump();
     });
   } else if (AreClasses(MC6809::CCFlagRegClass, MC6809::BIT1RegClass)) {
+    // Insert a boolean bit into a CC flag position.
+    // Bundled to prevent passes inserting between Push and Pull.
     SrcReg = SrcReg == MC6809::AALSB ? MC6809::AA : MC6809::AB;
+    MachineBasicBlock::iterator B, E;
     switch (DestReg) {
     case MC6809::C:
-      Builder.buildInstr(MC6809::ANDCC_Imm).addDef(MC6809::CC).addUse(MC6809::CC).addImm(0xFE);
+      B = Builder.buildInstr(MC6809::ANDCC_Imm).addDef(MC6809::CC).addUse(MC6809::CC).addImm(0xFE);
       Builder.buildInstr(MC6809::Push_i8).addUse(MC6809::CC);
       Builder.buildInstr(MC6809::AND_i8_Imm).addDef(SrcReg).addUse(SrcReg).addImm(0xFE);
       Builder.buildInstr(MC6809::OR_i8_Pull).addDef(SrcReg).addUse(SrcReg).addUse(MC6809::SS);
-      Builder.buildInstr(MC6809::TFRp).addDef(MC6809::CC).addUse(SrcReg);
+      E = Builder.buildInstr(MC6809::TFRp).addDef(MC6809::CC).addUse(SrcReg);
       break;
     case MC6809::V:
-      Builder.buildInstr(MC6809::ANDCC_Imm).addDef(MC6809::CC).addUse(MC6809::CC).addImm(0xFD);
+      B = Builder.buildInstr(MC6809::ANDCC_Imm).addDef(MC6809::CC).addUse(MC6809::CC).addImm(0xFD);
       Builder.buildInstr(MC6809::Push_i8).addUse(MC6809::CC);
       Builder.buildInstr(MC6809::AND_i1_Imm).addDef(SrcReg).addUse(SrcReg).addImm(0xFE);
       Builder.buildInstr(MC6809::LSL_i8_Reg).addDef(SrcReg).addUse(SrcReg).addImm(1);
       Builder.buildInstr(MC6809::OR_i8_Pull).addDef(SrcReg).addUse(SrcReg).addUse(MC6809::SS);
-      Builder.buildInstr(MC6809::TFRp).addDef(MC6809::CC).addUse(SrcReg);
+      E = Builder.buildInstr(MC6809::TFRp).addDef(MC6809::CC).addUse(SrcReg);
       break;
     case MC6809::Z:
-      Builder.buildInstr(MC6809::ANDCC_Imm).addDef(MC6809::CC).addUse(MC6809::CC).addImm(0xFB);
+      B = Builder.buildInstr(MC6809::ANDCC_Imm).addDef(MC6809::CC).addUse(MC6809::CC).addImm(0xFB);
       Builder.buildInstr(MC6809::Push_i8).addUse(MC6809::CC);
       Builder.buildInstr(MC6809::AND_i1_Imm).addDef(SrcReg).addUse(SrcReg).addImm(0xFE);
       Builder.buildInstr(MC6809::LSL_i8_Reg).addDef(SrcReg).addUse(SrcReg).addImm(2);
       Builder.buildInstr(MC6809::OR_i8_Pull).addDef(SrcReg).addUse(SrcReg).addUse(MC6809::SS);
-      Builder.buildInstr(MC6809::TFRp).addDef(MC6809::CC).addUse(SrcReg);
+      E = Builder.buildInstr(MC6809::TFRp).addDef(MC6809::CC).addUse(SrcReg);
       break;
     case MC6809::N:
-      Builder.buildInstr(MC6809::ANDCC_Imm).addDef(MC6809::CC).addUse(MC6809::CC).addImm(0xF7);
+      B = Builder.buildInstr(MC6809::ANDCC_Imm).addDef(MC6809::CC).addUse(MC6809::CC).addImm(0xF7);
       Builder.buildInstr(MC6809::Push_i8).addUse(MC6809::CC);
       Builder.buildInstr(MC6809::AND_i1_Imm).addDef(SrcReg).addUse(SrcReg).addImm(0xFE);
       Builder.buildInstr(MC6809::OR_i8_Pull).addDef(SrcReg).addUse(SrcReg).addUse(MC6809::SS);
       Builder.buildInstr(MC6809::LSL_i8_Reg).addDef(SrcReg).addUse(SrcReg).addImm(3);
-      Builder.buildInstr(MC6809::TFRp).addDef(MC6809::CC).addUse(SrcReg);
+      E = Builder.buildInstr(MC6809::TFRp).addDef(MC6809::CC).addUse(SrcReg);
       break;
     default:
       llvm_unreachable("Unexpected CC bit copy in.");
     }
+    MIBundleBuilder(MBB, B, ++E);
   } else
     llvm_unreachable("Unexpected physical register copy.");
 }

@@ -353,5 +353,6 @@ MC6809InstrCost MC6809RegisterInfo::copyCost(Register DestReg, Register SrcReg, 
     return (Push8Cost + Pop8Cost) * 3 + AluImm8Cost + BranchCost + ClVCost;
   }
 
-  llvm_unreachable("Unexpected physical register copy.");
+  // Guard: any remaining pair is impossible (size mismatch, nonsensical).
+  return ImpossibleCost;
 }
