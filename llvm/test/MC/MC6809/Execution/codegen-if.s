@@ -9,14 +9,7 @@
 ; REQUIRES: usim
 ;
 ; Codegen execution test: if/branch.
-; if_s8(a, b) returns a if a > b (signed), else b.
-;
-; Tests:
-;   if_s8(5, 3) = 5 (a > b, return a)
-;   if_s8(3, 5) = 5 (a <= b, return b)
-;   if_s8(3, 3) = 3 (a <= b, return b)
-;   if_s8(-1, 1) = 1 (0xFF <= 1 signed, return b)
-;   if_s8(1, -1) = 1 (1 > -1 signed, return a)
+; CC: first arg in B, remaining as 16-bit words on stack.
 
 .include "runtime.inc"
 
@@ -24,44 +17,48 @@
 	.globl	test_main
 test_main:
 	;; if_s8(5, 3) = 5
-	lda	#3
-	pshs	a
+	clra
+	ldb	#3
+	pshs	b,a
 	ldb	#5
 	jsr	if_s8
-	leas	1,s
+	leas	2,s
 	tfr	b,a
 	jsr	puthex
 	jsr	putnl
 ; CHECK: 05
 
 	;; if_s8(3, 5) = 5
-	lda	#5
-	pshs	a
+	clra
+	ldb	#5
+	pshs	b,a
 	ldb	#3
 	jsr	if_s8
-	leas	1,s
+	leas	2,s
 	tfr	b,a
 	jsr	puthex
 	jsr	putnl
 ; CHECK-NEXT: 05
 
 	;; if_s8(3, 3) = 3
-	lda	#3
-	pshs	a
+	clra
+	ldb	#3
+	pshs	b,a
 	ldb	#3
 	jsr	if_s8
-	leas	1,s
+	leas	2,s
 	tfr	b,a
 	jsr	puthex
 	jsr	putnl
 ; CHECK-NEXT: 03
 
-	;; if_s8(-1, 1) = 1 (0xFF is -1 signed)
-	lda	#1
-	pshs	a
+	;; if_s8(-1, 1) = 1
+	clra
+	ldb	#1
+	pshs	b,a
 	ldb	#0xff
 	jsr	if_s8
-	leas	1,s
+	leas	2,s
 	tfr	b,a
 	jsr	puthex
 	jsr	putnl
@@ -69,10 +66,11 @@ test_main:
 
 	;; if_s8(1, -1) = 1
 	lda	#0xff
-	pshs	a
+	ldb	#0xff
+	pshs	b,a
 	ldb	#1
 	jsr	if_s8
-	leas	1,s
+	leas	2,s
 	tfr	b,a
 	jsr	puthex
 	jsr	putnl

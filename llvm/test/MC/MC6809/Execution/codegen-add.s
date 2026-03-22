@@ -9,7 +9,7 @@
 ; REQUIRES: usim
 ;
 ; Codegen execution test: 8-bit add functions.
-; CC: first arg in B, remaining args as packed bytes on stack.
+; CC: first arg in B, remaining args as 16-bit words on stack.
 
 .include "runtime.inc"
 
@@ -17,49 +17,50 @@
 	.globl	test_main
 test_main:
 	;; add_s_i8(1, 2, 3, 4, 5) = 15 = 0x0F
-	lda	#5
-	pshs	a
-	lda	#4
-	pshs	a
-	lda	#3
-	pshs	a
-	lda	#2
-	pshs	a
-	ldb	#1
+	;; Push as 16-bit words (high byte 0, low byte = value)
+	clra
+	ldb	#5
+	pshs	b,a
+	ldb	#4
+	pshs	b,a
+	ldb	#3
+	pshs	b,a
+	ldb	#2
+	pshs	b,a
+	ldb	#1		; first arg in B
 	jsr	add_s_i8
-	leas	4,s
+	leas	8,s		; clean up 4 x 2-byte words
 	tfr	b,a
 	jsr	puthex
 	jsr	putnl
 ; CHECK: 0F
 
 	;; add_s_i8(0x10, 0x10, 0x10, 0x10, 0x02) = 0x42
-	lda	#0x02
-	pshs	a
-	lda	#0x10
-	pshs	a
-	lda	#0x10
-	pshs	a
-	lda	#0x10
-	pshs	a
+	clra
+	ldb	#0x02
+	pshs	b,a
+	ldb	#0x10
+	pshs	b,a
+	pshs	b,a
+	pshs	b,a
 	ldb	#0x10
 	jsr	add_s_i8
-	leas	4,s
+	leas	8,s
 	tfr	b,a
 	jsr	puthex
 	jsr	putnl
 ; CHECK-NEXT: 42
 
 	;; add_s_i8_consts(0x10, 0x10, 0x10, 0x0D) = 0x42
-	lda	#0x0d
-	pshs	a
-	lda	#0x10
-	pshs	a
-	lda	#0x10
-	pshs	a
+	clra
+	ldb	#0x0d
+	pshs	b,a
+	ldb	#0x10
+	pshs	b,a
+	pshs	b,a
 	ldb	#0x10
 	jsr	add_s_i8_consts
-	leas	3,s
+	leas	6,s
 	tfr	b,a
 	jsr	puthex
 	jsr	putnl

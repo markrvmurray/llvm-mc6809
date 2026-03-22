@@ -103,15 +103,20 @@ struct MC6809OutgoingArgsHandler : MC6809OutgoingValueHandler {
   MC6809OutgoingArgsHandler(MachineIRBuilder &MIRBuilder, MachineInstrBuilder &MIB, MachineRegisterInfo &MRI) : MC6809OutgoingValueHandler(MIRBuilder, MIB, MRI) {}
 
   Register getStackAddress(uint64_t Size, int64_t Offset, MachinePointerInfo &MPO, ISD::ArgFlagsTy Flags) override {
-    MPO = MachinePointerInfo::getStack(MIRBuilder.getMF(), Offset);
+    // GCC 6809 convention: i8 args in 2-byte stack slots.
+    // On big-endian MC6809, store the byte at offset+1 (low byte).
+    int64_t ActualOffset = Offset;
+    if (Size == 1) {
+      ActualOffset = Offset + 1;
+    }
+    MPO = MachinePointerInfo::getStack(MIRBuilder.getMF(), ActualOffset);
 
     LLT P = LLT::pointer(0, 16);
 
-    // Cache the SP virtual register to avoid generating it more than once.
     if (!SPReg)
       SPReg = MIRBuilder.buildCopy(P, Register(MC6809::SS)).getReg(0);
 
-    auto OffsetReg = MIRBuilder.buildConstant(LLT::scalar(16), Offset).getReg(0);
+    auto OffsetReg = MIRBuilder.buildConstant(LLT::scalar(16), ActualOffset).getReg(0);
     return MIRBuilder.buildPtrAdd(P, SPReg, OffsetReg).getReg(0);
   }
 };
@@ -159,7 +164,17 @@ struct MC6809IncomingArgsHandler : public MC6809IncomingValueHandler {
 
   Register getStackAddress(uint64_t Size, int64_t Offset, MachinePointerInfo &MPO, ISD::ArgFlagsTy Flags) override {
     auto &MFI = MIRBuilder.getMF().getFrameInfo();
-    int FI = MFI.CreateFixedObject(Size, Offset, true);
+    // GCC 6809 convention: i8 args occupy 2-byte stack slots.
+    // On big-endian MC6809, the byte value is at offset+1 (low byte).
+    // Adjust the fixed object to point directly at the value byte.
+    uint64_t ActualSize = Size;
+    int64_t ActualOffset = Offset;
+    // For i8 args (Size==1), the CC allocates 2-byte slots but passes
+    // Size=1 here. The byte is at offset+1 within the 2-byte slot.
+    if (Size == 1) {
+      ActualOffset = Offset + 1;
+    }
+    int FI = MFI.CreateFixedObject(ActualSize, ActualOffset, true);
     MPO = MachinePointerInfo::getFixedStack(MIRBuilder.getMF(), FI);
     auto AddrReg = MIRBuilder.buildFrameIndex(LLT::pointer(0, 16), FI);
     return AddrReg.getReg(0);
@@ -169,10 +184,6 @@ struct MC6809IncomingArgsHandler : public MC6809IncomingValueHandler {
     MachineFunction &MF = MIRBuilder.getMF();
     LLT ValTy = MRI.getType(ValVReg);
 
-    // Handle i8→i16 argument promotion (GCC 6809 convention).
-    // Instead of loading i16 and truncating (which requires the D register),
-    // load just the i8 value directly from offset+1 in the big-endian
-    // 16-bit stack slot. This avoids 16-bit register pressure entirely.
     auto *MMO = MF.getMachineMemOperand(MPO, MachineMemOperand::MOLoad | MachineMemOperand::MOInvariant, ValTy, inferAlignFromPtrInfo(MF, MPO));
     MIRBuilder.buildLoad(ValVReg, Addr, *MMO);
   }

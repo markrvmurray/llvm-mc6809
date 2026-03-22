@@ -9,7 +9,7 @@
 ; REQUIRES: usim
 ;
 ; Codegen execution test: subtraction.
-; CC: first arg in B, remaining as packed bytes on stack.
+; CC: first arg in B, remaining as 16-bit words on stack.
 
 .include "runtime.inc"
 
@@ -17,50 +17,54 @@
 	.globl	test_main
 test_main:
 	;; sub_simple(0x50, 0x08) = 0x48
-	lda	#0x08
-	pshs	a
+	clra
+	ldb	#0x08
+	pshs	b,a
 	ldb	#0x50
 	jsr	sub_simple
-	leas	1,s
+	leas	2,s
 	tfr	b,a
 	jsr	puthex
 	jsr	putnl
 ; CHECK: 48
 
 	;; sub_simple(0x42, 0x00) = 0x42
-	lda	#0x00
-	pshs	a
+	clra
+	ldb	#0x00
+	pshs	b,a
 	ldb	#0x42
 	jsr	sub_simple
-	leas	1,s
+	leas	2,s
 	tfr	b,a
 	jsr	puthex
 	jsr	putnl
 ; CHECK-NEXT: 42
 
 	;; sub_s_i8_consts(0,0,0,0,0) = 5
-	lda	#0
-	pshs	a
-	pshs	a
-	pshs	a
-	pshs	a
+	clra
+	clrb
+	pshs	b,a
+	pshs	b,a
+	pshs	b,a
+	pshs	b,a
 	ldb	#0
 	jsr	sub_s_i8_consts
-	leas	4,s
+	leas	8,s
 	tfr	b,a
 	jsr	puthex
 	jsr	putnl
 ; CHECK-NEXT: 05
 
 	;; sub_s_i8_consts(1,1,1,1,1) = 0
-	lda	#1
-	pshs	a
-	pshs	a
-	pshs	a
-	pshs	a
+	clra
+	ldb	#1
+	pshs	b,a
+	pshs	b,a
+	pshs	b,a
+	pshs	b,a
 	ldb	#1
 	jsr	sub_s_i8_consts
-	leas	4,s
+	leas	8,s
 	tfr	b,a
 	jsr	puthex
 	jsr	putnl

@@ -52,6 +52,10 @@ def CC_MC6809 : CallingConv<[
   CCIfPtr<CCAssignToReg<[IX]>>,
   CCIfType<[i1],  CCPromoteToType<i8>>,
   CCIfType<[i8],  CCAssignToReg<[AB]>>,
+  // Remaining i8 args get 2-byte stack slots (GCC 6809 convention:
+  // char promoted to int). Value at offset+1 (BE low byte).
+  // Handlers adjust address — no type promotion, no D pressure.
+  CCIfType<[i8],  CCAssignToStack<2, 2>>,
   CCIfType<[i16], CCAssignToReg<[AD]>>,
   CCIfType<[i32], CCIfSubtarget<"has6309()", CCAssignToReg<[AQ]>>>,
   CCAssignToStack<0, 1>,
