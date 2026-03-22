@@ -83,7 +83,8 @@ bool MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int
   DebugLoc dl = MI.getDebugLoc();
   int FrameIndex = MI.getOperand(FIOperandNum).getIndex();
   unsigned BasePtr = (TFI->hasFP(MF) ? MC6809::SU : MC6809::SS);
-  int Offset = MF.getFrameInfo().getObjectOffset(FrameIndex);
+  const MachineFrameInfo &MFI = MF.getFrameInfo();
+  int Offset = MFI.getObjectOffset(FrameIndex);
 
   // Fixed stack objects (args, positive offset) are above the return
   // address on the stack. Local objects (spills, negative offset) are
@@ -91,8 +92,19 @@ bool MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int
   if (Offset >= 0)
     Offset += 2; // Skip the saved PC (return address)
 
+  // Compute size of callee-saved registers pushed onto the hard stack.
+  // These sit between the stack allocation and the return address.
+  unsigned CalleeSavedSize = 0;
+  for (const auto &CSI : MFI.getCalleeSavedInfo()) {
+    if (CSI.isTargetSpilled()) {
+      const TargetRegisterInfo *TRI = MF.getRegInfo().getTargetRegisterInfo();
+      const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(CSI.getReg());
+      CalleeSavedSize += TRI->getSpillSize(*RC);
+    }
+  }
+
   if (!TFI->hasFP(MF))
-    Offset += MF.getFrameInfo().getStackSize();
+    Offset += MFI.getStackSize() + CalleeSavedSize;
   else
     Offset += 2; // Skip the saved FP
 
