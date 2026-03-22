@@ -231,6 +231,30 @@ def AQ : MC6809Reg32<16, "q", [AW, AD], [sub_lo_word, sub_hi_word]>;
 def MD : MC6809Reg8<17,  "md">;
 
 //===----------------------------------------------------------------------===//
+//  Stack-backed spill pseudo-registers
+//===----------------------------------------------------------------------===//
+// These pseudo-registers are backed by fixed stack frame locations.
+// They give the register allocator extra "registers" for 1-register classes
+// (ADc, AAc, ABc) that would otherwise cause allocation failures.
+// Values assigned to spill registers are accessed via S-indexed loads/stores.
+// DWARF numbers in 0x2000+ range to avoid collision with imaginary regs.
+
+defm SPILL_A0 : MC6809Reg8<0x2000, "spill_a0">;
+defm SPILL_A1 : MC6809Reg8<0x2002, "spill_a1">;
+defm SPILL_A2 : MC6809Reg8<0x2004, "spill_a2">;
+defm SPILL_A3 : MC6809Reg8<0x2006, "spill_a3">;
+
+defm SPILL_B0 : MC6809Reg8<0x2001, "spill_b0">;
+defm SPILL_B1 : MC6809Reg8<0x2003, "spill_b1">;
+defm SPILL_B2 : MC6809Reg8<0x2005, "spill_b2">;
+defm SPILL_B3 : MC6809Reg8<0x2007, "spill_b3">;
+
+def SPILL_D0 : MC6809Reg16<0x2000, "spill_d0", [SPILL_B0, SPILL_A0], [sub_lo_byte, sub_hi_byte]>;
+def SPILL_D1 : MC6809Reg16<0x2002, "spill_d1", [SPILL_B1, SPILL_A1], [sub_lo_byte, sub_hi_byte]>;
+def SPILL_D2 : MC6809Reg16<0x2004, "spill_d2", [SPILL_B2, SPILL_A2], [sub_lo_byte, sub_hi_byte]>;
+def SPILL_D3 : MC6809Reg16<0x2006, "spill_d3", [SPILL_B3, SPILL_A3], [sub_lo_byte, sub_hi_byte]>;
+
+//===----------------------------------------------------------------------===//
 //  Register classes
 //===----------------------------------------------------------------------===//
 
@@ -311,11 +335,11 @@ let isAllocatable = false in {
 
 // Single register classes.
 //let isPressureFineGrained = true in {
-    def AAc : MC6809Reg8Class<(add AA)>;
-    def AALSBc : MC6809Reg1Class<(add AALSB)>;
-    def ABc : MC6809Reg8Class<(add AB)>;
-    def ABLSBc : MC6809Reg1Class<(add ABLSB)>;
-    def ADc : MC6809Reg16Class<(add AD)>;
+    def AAc : MC6809Reg8Class<(add AA, SPILL_A0, SPILL_A1, SPILL_A2, SPILL_A3)>;
+    def AALSBc : MC6809Reg1Class<(add AALSB, SPILL_A0LSB, SPILL_A1LSB, SPILL_A2LSB, SPILL_A3LSB)>;
+    def ABc : MC6809Reg8Class<(add AB, SPILL_B0, SPILL_B1, SPILL_B2, SPILL_B3)>;
+    def ABLSBc : MC6809Reg1Class<(add ABLSB, SPILL_B0LSB, SPILL_B1LSB, SPILL_B2LSB, SPILL_B3LSB)>;
+    def ADc : MC6809Reg16Class<(add AD, SPILL_D0, SPILL_D1, SPILL_D2, SPILL_D3)>;
     def AEc : MC6809Reg8Class<(add AE)>;
     def AELSBc : MC6809Reg1Class<(add AELSB)>;
     def AFc : MC6809Reg8Class<(add AF)>;
