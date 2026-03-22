@@ -154,7 +154,9 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
       .clampScalar(0, s1, sMaxLogic);
 
   // MUL is 8x8→16 on standard 6809. 16x16 only on HD6309 (MULD).
-  // On 6809, i16 multiply is narrowed to i8 long multiplication.
+  // On 6809, i8 mul is native (MUL instruction: A×B→D). Wider multiplies
+  // use libcalls (__mulhi3, __mulsi3) because the register allocator can't
+  // handle narrowScalar decomposition with 1-register classes (D/A/B aliasing).
   if (IsHD6309) {
     getActionDefinitionsBuilder({G_MUL, G_UMULH, G_SMULH})
         .legalFor(LegalAccumulators)
@@ -162,8 +164,8 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   } else {
     getActionDefinitionsBuilder({G_MUL, G_UMULH, G_SMULH})
         .legalFor({s8})
-        .narrowScalar(0, LegalizeMutations::changeTo(0, s8))
-        .clampScalar(0, s1, sMaxLogic);
+        .libcallFor({s16, s32, s64})
+        .clampScalar(0, s8, s64);
   }
 
   getActionDefinitionsBuilder({G_SDIV, G_UDIV, G_SREM, G_UREM})
