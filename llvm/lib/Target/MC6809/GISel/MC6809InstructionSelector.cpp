@@ -532,6 +532,10 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     return false;  // Fall through to selectImpl for ACCUM-bank (ADDD/SUBD).
   }
 
+  // G_ICMP: INDEX-bank CMPX/CMPY selection deferred — requires post-RA
+  // peephole to replace TFR X,D + CMPD with CMPX. The compare opcode
+  // maps (CompareImmediateOpcode) are ready with IX/IY/SU/SS entries.
+
   case TargetOpcode::G_SADDO:
   case TargetOpcode::G_UADDO:
     return selectAddO(MI);

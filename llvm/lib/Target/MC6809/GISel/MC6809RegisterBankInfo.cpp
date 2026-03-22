@@ -63,6 +63,12 @@ const RegisterBank &MC6809RegisterBankInfo::getRegBankFromRegClass(const TargetR
              MC6809::ArithFlagRegClass.hasSubClassEq(&RC) ||
              MC6809::CCFlagRegClass.hasSubClassEq(&RC)) {
     return getRegBank(MC6809::FLAGSRegBankID);
+  } else if (MC6809::Imag8RegClass.hasSubClassEq(&RC) ||
+             MC6809::Imag16RegClass.hasSubClassEq(&RC) ||
+             MC6809::Imag32RegClass.hasSubClassEq(&RC)) {
+    return getRegBank(MC6809::ACCUMRegBankID);
+  } else if (MC6809::STACK16RegClass.hasSubClassEq(&RC)) {
+    return getRegBank(MC6809::INDEXRegBankID);
   }
 #else
   switch (RC.getID()) {
@@ -201,14 +207,16 @@ const RegisterBankInfo::InstructionMapping &MC6809RegisterBankInfo::getInstrMapp
       Register Src1 = MI.getOperand(1).getReg();
       const RegisterBank *RB1 = MRI.getRegBankOrNull(Src1);
       if (RB1 && RB1->getID() == MC6809::INDEXRegBankID) {
-        // First source is INDEX — map the whole operation to INDEX.
-        // LEA handles add/sub with immediate or register offset.
         auto Mapping = getValueMapping(PMI_INDEX, 3);
         return getInstructionMapping(DefaultMappingID, 1, Mapping, NumOperands);
       }
     }
     return getSameOperandsMapping(MI);
   }
+  // G_ICMP: INDEX-bank CMPX/CMPY requires deeper framework changes.
+  // The compare opcode maps are ready (IX→CMPXi16 etc.) but routing
+  // INDEX-bank values through G_ICMP crashes InstructionSelect.
+  // TODO: implement as post-RA peephole (TFR X,D + CMPD → CMPX).
   case TargetOpcode::G_MUL:
   case TargetOpcode::G_AND:
   case TargetOpcode::G_OR:
