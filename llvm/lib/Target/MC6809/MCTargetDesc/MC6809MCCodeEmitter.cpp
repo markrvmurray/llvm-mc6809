@@ -196,6 +196,9 @@ unsigned MC6809MCCodeEmitter::encodeRegListOpValue(const MCInst &MI, unsigned Op
     case MC6809::AB:
       res |= 0b00000100;
       break;
+    case MC6809::AD:
+      res |= 0b00000110;  // D = A + B
+      break;
     case MC6809::DP:
       res |= 0b00001000;
       break;
