@@ -153,9 +153,18 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
       .legalForCartesianProduct(LegalAccumulators, {s1, sMaxLogic})
       .clampScalar(0, s1, sMaxLogic);
 
-  getActionDefinitionsBuilder({G_MUL, G_UMULH, G_SMULH})
-      .legalFor(LegalAccumulators)
-      .clampScalar(0, s1, sMaxLogic);
+  // MUL is 8x8→16 on standard 6809. 16x16 only on HD6309 (MULD).
+  // On 6809, i16 multiply is narrowed to i8 long multiplication.
+  if (IsHD6309) {
+    getActionDefinitionsBuilder({G_MUL, G_UMULH, G_SMULH})
+        .legalFor(LegalAccumulators)
+        .clampScalar(0, s1, sMaxLogic);
+  } else {
+    getActionDefinitionsBuilder({G_MUL, G_UMULH, G_SMULH})
+        .legalFor({s8})
+        .narrowScalar(0, LegalizeMutations::changeTo(0, s8))
+        .clampScalar(0, s1, sMaxLogic);
+  }
 
   getActionDefinitionsBuilder({G_SDIV, G_UDIV, G_SREM, G_UREM})
       .libcallFor(LegalLibcallScalars)
