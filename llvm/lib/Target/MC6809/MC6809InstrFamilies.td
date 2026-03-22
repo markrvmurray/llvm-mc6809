@@ -339,6 +339,10 @@ defm AddPat_ii6 : MC6809ArithPat<add, i16, ACC16, "Add">;
 defm SubPat_ii6 : MC6809ArithPat<sub, i16, ACC16, "Sub">;
 defm SubRevPat_ii6 : MC6809ArithRevPat<sub, i16, ACC16, "Sub">;
 
+// LEA-based i16 add/sub for INDEX registers is handled in
+// MC6809InstructionSelector.cpp (hand-lowering required for GlobalISel
+// because constants are in registers, not bare immediates).
+
 //===----------------------------------------------------------------------===//
 // Bitwise (AND/OR/XOR) Family
 //===----------------------------------------------------------------------===//

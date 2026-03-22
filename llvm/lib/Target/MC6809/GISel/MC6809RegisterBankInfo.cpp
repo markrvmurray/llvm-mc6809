@@ -192,9 +192,24 @@ const RegisterBankInfo::InstructionMapping &MC6809RegisterBankInfo::getInstrMapp
 #if 0
   case TargetOpcode::G_FRAME_INDEX:
 #endif /* 0 */
-  case TargetOpcode::G_MUL:
   case TargetOpcode::G_ADD:
-  case TargetOpcode::G_SUB:
+  case TargetOpcode::G_SUB: {
+    // For i16 add/sub: if an operand is in INDEX bank (X/Y from CC or
+    // pointer ops), keep the operation in INDEX and use LEA.
+    LLT Ty = MRI.getType(MI.getOperand(0).getReg());
+    if (Ty.getSizeInBits() == 16 && !Ty.isPointer()) {
+      Register Src1 = MI.getOperand(1).getReg();
+      const RegisterBank *RB1 = MRI.getRegBankOrNull(Src1);
+      if (RB1 && RB1->getID() == MC6809::INDEXRegBankID) {
+        // First source is INDEX — map the whole operation to INDEX.
+        // LEA handles add/sub with immediate or register offset.
+        auto Mapping = getValueMapping(PMI_INDEX, 3);
+        return getInstructionMapping(DefaultMappingID, 1, Mapping, NumOperands);
+      }
+    }
+    return getSameOperandsMapping(MI);
+  }
+  case TargetOpcode::G_MUL:
   case TargetOpcode::G_AND:
   case TargetOpcode::G_OR:
   case TargetOpcode::G_XOR:

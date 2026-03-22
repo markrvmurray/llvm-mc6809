@@ -494,6 +494,44 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     return selectAddE(MI);
 #endif
 
+  case TargetOpcode::G_ADD:
+  case TargetOpcode::G_SUB: {
+    // Handle INDEX-bank i16 add/sub via LEA.
+    // GlobalISel puts constants in registers (not bare immediates),
+    // so TableGen patterns can't match — hand-lowering required.
+    Register DstReg = MI.getOperand(0).getReg();
+    const RegisterBank *RB = MRI->getRegBankOrNull(DstReg);
+    if (RB && RB->getID() == MC6809::INDEXRegBankID) {
+      Register Src1 = MI.getOperand(1).getReg();
+      Register Src2 = MI.getOperand(2).getReg();
+      // Look through COPYs to find the defining G_CONSTANT.
+      Register Src2Origin = Src2;
+      MachineInstr *Src2Def = MRI->getVRegDef(Src2Origin);
+      while (Src2Def && Src2Def->getOpcode() == TargetOpcode::COPY) {
+        Src2Origin = Src2Def->getOperand(1).getReg();
+        if (!Src2Origin.isVirtual()) break;
+        Src2Def = MRI->getVRegDef(Src2Origin);
+      }
+      if (Src2Def && Src2Def->getOpcode() == TargetOpcode::G_CONSTANT) {
+        int64_t Offset;
+        if (Src2Def->getOperand(1).isCImm())
+          Offset = Src2Def->getOperand(1).getCImm()->getSExtValue();
+        else
+          Offset = Src2Def->getOperand(1).getImm();
+        if (MI.getOpcode() == TargetOpcode::G_SUB)
+          Offset = -Offset;
+        auto LEA = BuildMI(*MI.getParent(), MI, MI.getDebugLoc(),
+                           TII.get(MC6809::LEAPtrAdd_Imm), DstReg)
+                       .addReg(Src1)
+                       .addImm(Offset);
+        constrainSelectedInstRegOperands(*LEA, TII, TRI, RBI);
+        MI.eraseFromParent();
+        return true;
+      }
+    }
+    return false;  // Fall through to selectImpl for ACCUM-bank (ADDD/SUBD).
+  }
+
   case TargetOpcode::G_SADDO:
   case TargetOpcode::G_UADDO:
     return selectAddO(MI);
