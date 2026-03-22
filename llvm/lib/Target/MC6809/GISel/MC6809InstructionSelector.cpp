@@ -405,6 +405,17 @@ static const TargetRegisterClass &getRegClassForType(LLT Ty) {
     }
   }
 }
+
+// Version that checks register bank for s16 values — returns INDEX16
+// for values in the index bank (e.g., args/returns passed in X).
+static const TargetRegisterClass &getRegClassForTypeOnBank(
+    LLT Ty, const RegisterBank *RB) {
+  if (Ty.getSizeInBits() == 16 && RB &&
+      RB->getID() == MC6809::INDEXRegBankID) {
+    return MC6809::INDEX16RegClass;
+  }
+  return getRegClassForType(Ty);
+}
 bool MC6809InstructionSelector::select(MachineInstr &MI) {
   assert(MI.getParent() && "Instruction should be in a basic block!");
   assert(MI.getParent()->getParent() && "Instruction should be in a function!");
@@ -1793,7 +1804,8 @@ void MC6809InstructionSelector::constrainGenericOp(MachineInstr &MI) {
     if (Op.getReg().isPhysical() || MRI.getRegClassOrNull(Op.getReg()))
       continue;
     LLT Ty = MRI.getType(Op.getReg());
-    constrainOperandRegClass(Op, getRegClassForType(Ty));
+    const RegisterBank *RB = MRI.getRegBankOrNull(Op.getReg());
+    constrainOperandRegClass(Op, getRegClassForTypeOnBank(Ty, RB));
   }
 }
 

@@ -27,14 +27,13 @@ class CCIfNotSubtarget<string F, CCAction A>
 // Return Value Calling Convention
 //===----------------------------------------------------------------------===//
 
-// Return value convention.
-// Stage 1: i8 in B, i16 in D (TODO: move i16 to X for full CMOC GCC compat).
+// Return value convention (GCC 6809): i8 in B, i16/ptr in X.
 let Entry = 1 in
 def RetCC_MC6809 : CallingConv<[
   CCIfType<[i1],  CCPromoteToType<i8>>,
   CCIfType<[i8],  CCAssignToReg<[AB]>>,
   CCIfPtr<CCAssignToReg<[IX]>>,
-  CCIfType<[i16], CCAssignToReg<[AD]>>,
+  CCIfType<[i16], CCAssignToReg<[IX]>>,
   CCIfType<[i32], CCIfSubtarget<"has6309()", CCAssignToReg<[AQ]>>>,
   CCAssignToStack<0, 1>,
 ]>;
@@ -43,20 +42,17 @@ def RetCC_MC6809 : CallingConv<[
 // Argument Calling Convention
 //===----------------------------------------------------------------------===//
 
-// Stage 1 toward CMOC GCC convention:
-//   - First 8-bit arg in B, first 16-bit/ptr arg in D (TODO: X)
-//   - Remaining args as 16-bit words on stack (2-byte aligned)
+// GCC 6809 calling convention:
+//   - First 8-bit arg in B, first 16-bit/ptr arg in X
+//   - Remaining i8 args as 16-bit words on stack
 //   - Callee-saved: U, Y
 let Entry = 1 in
 def CC_MC6809 : CallingConv<[
   CCIfPtr<CCAssignToReg<[IX]>>,
   CCIfType<[i1],  CCPromoteToType<i8>>,
   CCIfType<[i8],  CCAssignToReg<[AB]>>,
-  // Remaining i8 args get 2-byte stack slots (GCC 6809 convention:
-  // char promoted to int). Value at offset+1 (BE low byte).
-  // Handlers adjust address — no type promotion, no D pressure.
   CCIfType<[i8],  CCAssignToStack<2, 2>>,
-  CCIfType<[i16], CCAssignToReg<[AD]>>,
+  CCIfType<[i16], CCAssignToReg<[IX]>>,
   CCIfType<[i32], CCIfSubtarget<"has6309()", CCAssignToReg<[AQ]>>>,
   CCAssignToStack<0, 1>,
 ]>;
