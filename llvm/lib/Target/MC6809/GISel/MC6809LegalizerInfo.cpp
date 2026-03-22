@@ -50,9 +50,10 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
 
   auto LegalTypes32 = {p, s8, s16, s32};
   auto LegalTypes16 = {p, s8, s16};
-  auto LegalAccumulators16 = {s8, s16};
-  auto LegalAccumulators8 = {s8};
-  auto LegalAccumulators = IsHD6309 ? LegalAccumulators16 : LegalAccumulators8;
+  // The 6809 has native 8-bit and 16-bit accumulator ops (ADDA/ADDB/ADDD,
+  // SUBA/SUBB/SUBD, etc.). Mark both as legal to avoid unnecessary
+  // narrowing of i16 ops into i8 carry chains.
+  auto LegalAccumulators = {s8, s16};
   auto LegalTypes = IsHD6309 ? LegalTypes32 : LegalTypes16;
   // auto LegalTypesOther = IsHD6309 ? LegalTypes32 : LegalTypes16;
   auto LegalTypesWithOne32 = {p, s1, s8, s16, s32};
