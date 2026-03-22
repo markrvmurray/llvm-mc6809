@@ -49,7 +49,12 @@ struct MC6809ValueAssigner : CallLowering::ValueAssigner {
   /// registers must be avoided when selecting registers for arguments.
   BitVector Reserved;
 
-  MC6809ValueAssigner(bool IsIncoming, MachineRegisterInfo &MRI, const MachineFunction &MF) : CallLowering::ValueAssigner(IsIncoming, CC_MC6809, CC_MC6809_VarArgs) { Reserved = MRI.getTargetRegisterInfo()->getReservedRegs(MF); }
+  MC6809ValueAssigner(bool IsIncoming, MachineRegisterInfo &MRI, const MachineFunction &MF, bool IsReturn = false)
+    : CallLowering::ValueAssigner(IsIncoming,
+        IsReturn ? RetCC_MC6809 : CC_MC6809,
+        CC_MC6809_VarArgs) {
+    Reserved = MRI.getTargetRegisterInfo()->getReservedRegs(MF);
+  }
 
   bool assignArg(unsigned ValNo, EVT OrigVT, MVT ValVT, MVT LocVT, CCValAssign::LocInfo LocInfo, const CallLowering::ArgInfo &Info, ISD::ArgFlagsTy Flags, CCState &State) override {
     // Ensure that reserved registers are not used in calling convention by
@@ -255,7 +260,7 @@ bool MC6809CallLowering::lowerReturn(MachineIRBuilder &MIRBuilder, const Value *
     // Invoke TableGen compatibility layer. This will generate copies and stores
     // from the return value virtual register to physical and stack locations.
     MC6809OutgoingReturnHandler Handler(MIRBuilder, Return, MRI);
-    MC6809ValueAssigner Assigner(/*IsIncoming=*/false, MRI, MF);
+    MC6809ValueAssigner Assigner(/*IsIncoming=*/false, MRI, MF, /*IsReturn=*/true);
     if (!determineAndHandleAssignments(Handler, Assigner, Args, MIRBuilder, F.getCallingConv(), F.isVarArg()))
       return false;
   }
@@ -350,7 +355,7 @@ bool MC6809CallLowering::lowerCall(MachineIRBuilder &MIRBuilder, CallLoweringInf
   if (!Info.OrigRet.Ty->isVoidTy()) {
     // Copy the return value from its physical location into a virtual register.
     MC6809IncomingReturnHandler RetHandler(MIRBuilder, MRI, Call);
-    MC6809ValueAssigner RetAssigner(/*IsIncoming=*/true, MRI, MF);
+    MC6809ValueAssigner RetAssigner(/*IsIncoming=*/true, MRI, MF, /*IsReturn=*/true);
     if (!determineAndHandleAssignments(RetHandler, RetAssigner, InArgs, MIRBuilder, Info.CallConv, Info.IsVarArg))
       return false;
     StackSize = std::max(StackSize, RetAssigner.StackSize);

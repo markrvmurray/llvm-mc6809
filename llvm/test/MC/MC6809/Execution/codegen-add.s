@@ -8,22 +8,15 @@
 ; RUN: %usim09batch --timeout=500000 %t.hex | FileCheck %s
 ; REQUIRES: usim
 ;
-; Codegen execution test: compile LLVM IR with llc, run on usim.
-; Uses LLVM's native calling convention (first arg in B, rest packed
-; on stack) — NOT CMOC convention.
-;
-; Tests:
-;   add_s_i8(1,2,3,4,5) = 15 = 0x0F
-;   add_s_i8(0x10,0x10,0x10,0x10,0x02) = 0x42
-;   add_s_i8_consts(0x10,0x10,0x10,0x0D) = 0x10+0x10+0x10+0x0D+5 = 0x42
+; Codegen execution test: 8-bit add functions.
+; CC: first arg in B, remaining args as packed bytes on stack.
 
 .include "runtime.inc"
 
 	.section .rom,"ax",@progbits
 	.globl	test_main
 test_main:
-	;; LLVM CC: first arg in B, rest as packed bytes on stack.
-	;; add_s_i8(1, 2, 3, 4, 5)
+	;; add_s_i8(1, 2, 3, 4, 5) = 15 = 0x0F
 	lda	#5
 	pshs	a
 	lda	#4
@@ -31,16 +24,16 @@ test_main:
 	lda	#3
 	pshs	a
 	lda	#2
-	pshs	a		; stack: 2, 3, 4, 5
-	ldb	#1		; first arg in B
+	pshs	a
+	ldb	#1
 	jsr	add_s_i8
-	leas	4,s		; clean up 4 bytes
+	leas	4,s
 	tfr	b,a
 	jsr	puthex
 	jsr	putnl
 ; CHECK: 0F
 
-	;; add_s_i8(0x10, 0x10, 0x10, 0x10, 0x02)
+	;; add_s_i8(0x10, 0x10, 0x10, 0x10, 0x02) = 0x42
 	lda	#0x02
 	pshs	a
 	lda	#0x10
@@ -57,7 +50,7 @@ test_main:
 	jsr	putnl
 ; CHECK-NEXT: 42
 
-	;; add_s_i8_consts(0x10, 0x10, 0x10, 0x0D) — adds 5 internally
+	;; add_s_i8_consts(0x10, 0x10, 0x10, 0x0D) = 0x42
 	lda	#0x0d
 	pshs	a
 	lda	#0x10

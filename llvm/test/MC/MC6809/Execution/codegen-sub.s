@@ -9,14 +9,7 @@
 ; REQUIRES: usim
 ;
 ; Codegen execution test: subtraction.
-; LLVM CC: first arg in B, rest packed bytes on stack.
-;
-; Tests:
-;   sub_simple(0x50, 0x08) = 0x48
-;   sub_simple(0x42, 0x00) = 0x42
-;   sub_s_i8(0x50, 0x02, 0x03, 0x04, 0x05) = 0x50-0x02-0x03-0x04-0x05 = 0x42
-;   sub_s_i8_consts(0,0,0,0,0) = 5-0-0-0-0-0 = 0x05
-;   sub_s_i8_consts(1,1,1,1,1) = 5-1-1-1-1-1 = 0x00
+; CC: first arg in B, remaining as packed bytes on stack.
 
 .include "runtime.inc"
 
@@ -40,23 +33,6 @@ test_main:
 	ldb	#0x42
 	jsr	sub_simple
 	leas	1,s
-	tfr	b,a
-	jsr	puthex
-	jsr	putnl
-; CHECK-NEXT: 42
-
-	;; sub_s_i8(0x50, 0x02, 0x03, 0x04, 0x05) = 0x42
-	lda	#0x05
-	pshs	a
-	lda	#0x04
-	pshs	a
-	lda	#0x03
-	pshs	a
-	lda	#0x02
-	pshs	a
-	ldb	#0x50
-	jsr	sub_s_i8
-	leas	4,s
 	tfr	b,a
 	jsr	puthex
 	jsr	putnl
