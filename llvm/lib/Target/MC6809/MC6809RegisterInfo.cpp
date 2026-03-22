@@ -310,6 +310,12 @@ MC6809InstrCost MC6809RegisterInfo::copyCost(Register DestReg, Register SrcReg, 
   if (AreClasses(MC6809::ACC8RegClass, MC6809::CCFlagRegClass) || AreClasses(MC6809::CCFlagRegClass, MC6809::ACC8RegClass)) {
     return TransferCost;
   }
+  if (AreClasses(MC6809::ACC8RegClass, MC6809::CCondRegClass) || AreClasses(MC6809::CCondRegClass, MC6809::ACC8RegClass)) {
+    return TransferCost;
+  }
+  if (AreClasses(MC6809::CCondRegClass, MC6809::CCondRegClass)) {
+    return MC6809InstrCost(0, 0);
+  }
   if (AreClasses(MC6809::BIT1RegClass, MC6809::BIT1RegClass)) {
     Register SrcReg8 = getMatchingSuperReg(SrcReg, MC6809::sub_lsb, &MC6809::ACC8RegClass);
     Register DestReg8 = getMatchingSuperReg(DestReg, MC6809::sub_lsb, &MC6809::ACC8RegClass);

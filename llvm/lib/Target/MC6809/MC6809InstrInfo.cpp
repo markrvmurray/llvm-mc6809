@@ -739,6 +739,8 @@ void MC6809InstrInfo::insertIndirectBranch(MachineBasicBlock &MBB, MachineBasicB
   } else if (AreClasses(MC6809::CCFlagRegClass, MC6809::ACC8RegClass)) {
     // XXXX FixMe Markm need to mask out the non-arithmetic bits?
     Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(SrcReg);
+  } else if (AreClasses(MC6809::ACC8RegClass, MC6809::CCondRegClass) || AreClasses(MC6809::CCondRegClass, MC6809::ACC8RegClass)) {
+    Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(SrcReg);
   } else if (AreClasses(MC6809::BIT1RegClass, MC6809::BIT1RegClass)) {
     Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(SrcReg);
   } else if (AreClasses(MC6809::BIT1RegClass, MC6809::CCFlagRegClass)) {
@@ -857,6 +859,8 @@ static void loadStoreRegisterStaticStackSlot(MachineIRBuilder &Builder, MachineO
     if (MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::BIT1RegClass))
       Size = 1;
     else if (MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::CCFlagRegClass))
+      Size = 8;
+    else if (MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::CCondRegClass))
       Size = 8;
     else if (MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::ACC8RegClass))
       Size = 8;
