@@ -168,6 +168,7 @@ private:
   void expandXORReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandXORPull(MachineIRBuilder &Builder, MachineInstr &MI) const;
 
+  void expandAddPull(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandAddReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandAddSetCarryReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandAddSetCarryUseReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
@@ -223,6 +224,8 @@ private:
   DenseMap<Register, unsigned> AddCarryImmediateOpcode;
   DenseMap<RegPlusOffsetLen, unsigned> AddCarryIdxImmOpcode;
   DenseMap<RegPlusReg, unsigned> AddCarryIdxRegOpcode;
+
+  DenseMap<Register, unsigned> AddPullOpcode;
 
   DenseMap<Register, unsigned> SubImmediateOpcode;
   DenseMap<RegPlusOffsetLen, unsigned> SubIdxImmOpcode;

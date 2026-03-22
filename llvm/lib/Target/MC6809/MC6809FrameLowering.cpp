@@ -18,6 +18,7 @@
 #include "MC6809RegisterInfo.h"
 #include "MC6809Subtarget.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
+#include "llvm/CodeGen/RegisterScavenging.h"
 
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/CodeGen/GlobalISel/CallLowering.h"
@@ -225,7 +226,16 @@ void MC6809FrameLowering::determineCalleeSaves(MachineFunction &MF, BitVector &S
   }
 }
 
-void MC6809FrameLowering::processFunctionBeforeFrameFinalized(MachineFunction &MF, RegScavenger *RS) const {}
+void MC6809FrameLowering::processFunctionBeforeFrameFinalized(MachineFunction &MF, RegScavenger *RS) const {
+  // Always reserve an emergency spill slot for the register scavenger.
+  // The 6809 has very few registers, so the scavenger frequently needs
+  // to temporarily spill a register during frame index elimination.
+  if (RS) {
+    MachineFrameInfo &MFI = MF.getFrameInfo();
+    int FI = MFI.CreateStackObject(2, Align(1), false);
+    RS->addScavengingFrameIndex(FI);
+  }
+}
 
 MachineBasicBlock::iterator MC6809FrameLowering::eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB, MachineBasicBlock::iterator MI) const {
   int64_t Offset = MI->getOperand(0).getImm();

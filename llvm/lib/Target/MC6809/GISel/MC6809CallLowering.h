@@ -28,6 +28,9 @@ public:
 
   bool lowerCall(MachineIRBuilder &MIRBuilder, CallLoweringInfo &Info) const override;
 
+  // MC6809 is big-endian (Motorola byte order). Enable GlobalISel BE support.
+  bool enableBigEndian() const override { return true; }
+
 private:
   void splitToValueTypes(const ArgInfo &OrigArg, SmallVectorImpl<ArgInfo> &SplitArgs, const DataLayout &DL) const;
 };

@@ -167,9 +167,13 @@ struct MC6809IncomingArgsHandler : public MC6809IncomingValueHandler {
 
   void assignValueToAddress(Register ValVReg, Register Addr, LLT MemTy, const MachinePointerInfo &MPO, const CCValAssign &VA) override {
     MachineFunction &MF = MIRBuilder.getMF();
-    // All such loads are invariant: if the values are later spilled, they'll be
-    // spilled to spill slots, not the original incoming argument slots.
-    auto *MMO = MF.getMachineMemOperand(MPO, MachineMemOperand::MOLoad | MachineMemOperand::MOInvariant, MemTy, inferAlignFromPtrInfo(MF, MPO));
+    LLT ValTy = MRI.getType(ValVReg);
+
+    // Handle i8→i16 argument promotion (GCC 6809 convention).
+    // Instead of loading i16 and truncating (which requires the D register),
+    // load just the i8 value directly from offset+1 in the big-endian
+    // 16-bit stack slot. This avoids 16-bit register pressure entirely.
+    auto *MMO = MF.getMachineMemOperand(MPO, MachineMemOperand::MOLoad | MachineMemOperand::MOInvariant, ValTy, inferAlignFromPtrInfo(MF, MPO));
     MIRBuilder.buildLoad(ValVReg, Addr, *MMO);
   }
 

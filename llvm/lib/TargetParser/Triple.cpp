@@ -2155,7 +2155,6 @@ bool Triple::isLittleEndian() const {
   case Triple::loongarch64:
   case Triple::mips64el:
   case Triple::mipsel:
-  case Triple::mc6809:
   case Triple::mos:
   case Triple::msp430:
   case Triple::nvptx64:

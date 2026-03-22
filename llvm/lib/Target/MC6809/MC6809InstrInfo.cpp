@@ -185,6 +185,9 @@ MC6809InstrInfo::MC6809InstrInfo(const MC6809Subtarget &STI)
       {{MC6809::AW, MC6809::AA}, MC6809::SUBWi_oA}, {{MC6809::AW, MC6809::AB}, MC6809::SUBWi_oB}, {{MC6809::AW, MC6809::AD}, MC6809::SUBWi_oD}, {{MC6809::AW, MC6809::AE}, MC6809::SUBWi_oE}, {{MC6809::AW, MC6809::AF}, MC6809::SUBWi_oF},
       {{MC6809::AW, MC6809::AW}, MC6809::SUBWi_oW},
   };
+  AddPullOpcode = {
+      {{MC6809::AA}, MC6809::ADDAi_Inc1}, {{MC6809::AB}, MC6809::ADDBi_Inc1}, {{MC6809::AE}, MC6809::ADDEi_Inc1}, {{MC6809::AF}, MC6809::ADDFi_Inc1}, {{MC6809::AD}, MC6809::ADDDi_Inc2}, {{MC6809::AW}, MC6809::ADDWi_Inc2},
+  };
   SubPullOpcode = {
       {{MC6809::AA}, MC6809::SUBAi_Inc1}, {{MC6809::AB}, MC6809::SUBBi_Inc1}, {{MC6809::AE}, MC6809::SUBEi_Inc1}, {{MC6809::AF}, MC6809::SUBFi_Inc1}, {{MC6809::AD}, MC6809::SUBDi_Inc2}, {{MC6809::AW}, MC6809::SUBWi_Inc2},
   };
@@ -1205,6 +1208,10 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::SubSetCarryUse_i16_Reg:
     expandSubSetCarryUseReg(Builder, MI);
     break;
+  case MC6809::Add_i8_Pull:
+  case MC6809::Add_i16_Pull:
+    expandAddPull(Builder, MI);
+    break;
   case MC6809::Sub_i8_Pull:
   case MC6809::Sub_i16_Pull:
     expandSubPull(Builder, MI);
@@ -1948,6 +1955,18 @@ void MC6809InstrInfo::expandSubSetCarryUseReg(MachineIRBuilder &Builder, Machine
       .addUse(MI.getOperand(4).getReg())
       .addUse(MI.getOperand(3).getReg(), RegState::Implicit)
       .addUse(MI.getOperand(2).getReg());
+  MI.eraseFromParent();
+}
+
+void MC6809InstrInfo::expandAddPull(MachineIRBuilder &Builder, MachineInstr &MI) const {
+  auto DestReg = MI.getOperand(0).getReg();
+  auto SrcReg = MI.getOperand(1).getReg();
+  // Always use SS — Push_i8 expands to PSHS (S stack), U is reserved.
+  auto OpcodePair = AddPullOpcode.find(DestReg);
+  auto Instr = Builder.buildInstr(OpcodePair->getSecond())
+                   .addDef(DestReg, RegState::Implicit)
+                   .addUse(SrcReg, RegState::Implicit)
+                   .addUse(MC6809::SS);
   MI.eraseFromParent();
 }
 

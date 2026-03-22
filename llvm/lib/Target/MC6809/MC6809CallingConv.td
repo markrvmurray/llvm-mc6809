@@ -54,8 +54,6 @@ def CC_MC6809 : CallingConv<[
   CCIfType<[i8],  CCAssignToReg<[AB]>>,
   CCIfType<[i16], CCAssignToReg<[AD]>>,
   CCIfType<[i32], CCIfSubtarget<"has6309()", CCAssignToReg<[AQ]>>>,
-  // TODO: promote i8 stack args to i16 words for full CMOC GCC compat.
-  // Requires CallLowering changes to handle promotion on load.
   CCAssignToStack<0, 1>,
 ]>;
 
