@@ -54,8 +54,6 @@ public:
   MC6809Disassembler(const MCSubtargetInfo &STI, MCContext &Ctx) : MCDisassembler(STI, Ctx) {}
   DecodeStatus getInstruction(MCInst &Instr, uint64_t &Size, ArrayRef<uint8_t> Bytes, uint64_t Address, raw_ostream &CStream) const override;
 
-  // clang-format off
-// MRVM START MARKER
   unsigned DecoderTableSize = 13;
   struct DecoderTableList {
     const uint8_t *Table;
@@ -75,8 +73,6 @@ public:
     { DecoderTable_Page_3_Size_32, 4 },
     { DecoderTable_Page_3_Size_40, 5 },
   };
-// MRVM END MARKER
-  // clang-format on
 };
 } // namespace
 

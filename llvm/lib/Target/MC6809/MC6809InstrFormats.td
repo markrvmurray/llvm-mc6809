@@ -215,8 +215,6 @@ class MC6809Inst<string mnemonic, Opcode opcode> : Instruction {
   let hasSideEffects = true;
 }
 
-// clang-format off
-// MRVM START MARKER 1
 class Accumulator<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opcode> {
   let P1Inst{7-0} = Opc;
   let P23Inst{15-8} = Opc; let P23Inst{7-0} = Pre{7-0};
@@ -1565,11 +1563,6 @@ class Stack<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opcode> {
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
 
-// MRVM END MARKER 1
-// clang-format on
-
-// clang-format off
-// MRVM START MARKER 2
 class MC6809Accumulator_P1<dag outs, string mnemonic, Opcode opc, list<Register> defs, list<Register> uses>
   : Accumulator<mnemonic, opc> {
     let Defs = defs;
@@ -2886,5 +2879,3 @@ class MC6809Stack_P1<dag outs, string mnemonic, Opcode opc, list<Register> defs,
     let OutOperandList = outs;
 }
 
-// MRVM END MARKER 2
-// clang-format on
