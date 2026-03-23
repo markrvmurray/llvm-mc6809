@@ -422,6 +422,12 @@ defm INC : UnaryAcc8_AB<"inca", Opcode<0x4C,1>, [AA,NZ,N,Z,V,AA,AD,AQ], [AA],
 defm CLR : UnaryAcc8_AB<"clra", Opcode<0x4F,1>, [AA,NZ,N,Z,V,C,AA,AD,AQ], [],
                          "clrb", Opcode<0x5F,1>, [AB,NZ,N,Z,V,C,AB,AD,AQ], []>;
 
+// TST accumulator forms — separate because isCompare = true and defs differ.
+let isCompare = true in {
+  def TSTAa : MC6809Accumulator_P1<(outs), "tsta", Opcode<0x4D,1>, [NZ,N,Z,V], [AA]>;
+  def TSTBa : MC6809Accumulator_P1<(outs), "tstb", Opcode<0x5D,1>, [NZ,N,Z,V], [AB]>;
+}
+
 // LEA: indexed only (Page 1).
 multiclass LEAConcrete<string Mnem, Opcode IdxOpc, list<Register> Defs> {
   defm i : MC6809Indexed_P1<Mnem, IdxOpc, (outs), Defs, []>;
