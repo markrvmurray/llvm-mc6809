@@ -2022,16 +2022,14 @@ void MC6809InstrInfo::expandLoadImm(MachineIRBuilder &Builder, MachineInstr &MI)
     auto ValOp = MI.getOperand(1);
     if (ValOp.isImm() || ValOp.isCImm())
       Val = ValOp.isImm() ? ValOp.getImm() : ValOp.getCImm()->getSExtValue();
-    // Save real accumulator.
-    emitSpillStore(Builder, RealReg, MC6809::SPILL_D3, MF);
-    // Load immediate into real accumulator (inline, not recursive).
+    // Load immediate into real accumulator, then store to spill slot.
+    // No save/restore needed — MUL_D Defs=[AA,AB,AD] ensures the allocator
+    // doesn't leave live values in the real accumulator across spill operations.
     auto OpcodePair = LoadImmediateOpcode.find(RealReg);
     assert(OpcodePair != LoadImmediateOpcode.end());
     Builder.buildInstr(OpcodePair->getSecond()).addDef(RealReg, RegState::Implicit).addImm(Val);
     // Store to spill slot.
     emitSpillStore(Builder, RealReg, DestRegOp.getReg(), MF);
-    // Restore real accumulator.
-    emitSpillLoad(Builder, RealReg, MC6809::SPILL_D3, MF);
     MI.removeFromParent();
     return;
   }
@@ -2051,30 +2049,23 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
 
   auto DestRegOp = MI.getOperand(0);
 
-  // If the destination is a spill register, save the real accumulator,
-  // load into it, store to the spill slot (U-relative), then restore.
-  // U-relative addressing means PSHS/PULS won't invalidate spill offsets.
+  // If the destination is a spill register, load into the real accumulator
+  // then store to the spill slot. The MUL_D Defs=[AA,AB,AD] tells the
+  // allocator that the real accumulator is clobbered, so it won't leave
+  // live values in A/B across operations that expand through spill registers.
   if (isSpillReg(DestRegOp.getReg())) {
     Register RealReg = getRealRegForSpill(DestRegOp.getReg());
     MachineFunction &MF = *MI.getMF();
-    MachineBasicBlock &MBB = *MI.getParent();
-
-    // Save the real accumulator (it may be live with another value).
-    MachineIRBuilder PreBuilder(MBB, MI.getIterator());
-    emitSpillStore(PreBuilder, RealReg, MC6809::SPILL_D3, MF);
 
     // Load from memory into the real accumulator.
     MI.getOperand(0).setReg(RealReg);
     expandLoadIdx(Builder, MI);
 
-    // Store the real accumulator to the spill slot (U-relative, stable).
+    // Store the real accumulator to the spill slot (U-relative).
     MachineBasicBlock::iterator InsertPt = MI.getIterator();
     ++InsertPt;
-    MachineIRBuilder PostBuilder(MBB, InsertPt);
+    MachineIRBuilder PostBuilder(*MI.getParent(), InsertPt);
     emitSpillStore(PostBuilder, RealReg, DestRegOp.getReg(), MF);
-
-    // Restore the real accumulator from the stack.
-    emitSpillLoad(PostBuilder, RealReg, MC6809::SPILL_D3, MF);
     return;
   }
 
