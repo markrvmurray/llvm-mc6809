@@ -1590,6 +1590,17 @@ void MC6809InstrInfo::expandLEAPtrAdd(MachineIRBuilder &Builder, MachineInstr &M
 void MC6809InstrInfo::expandImm(ContextImmediate Context, MachineIRBuilder &Builder, MachineInstr &MI) const {
   auto operandCount = MI.getNumExplicitOperands();
   auto DestReg = MI.getOperand(0).getReg();
+  bool DestIsSpill = isSpillReg(DestReg);
+  Register OrigSpillReg = DestReg;
+  if (DestIsSpill) {
+    Register RealReg = getRealRegForSpill(DestReg);
+    MachineFunction &MF = *MI.getMF();
+    emitSpillLoad(Builder, RealReg, DestReg, MF);
+    MI.getOperand(0).setReg(RealReg);
+    if (operandCount >= 3 && MI.getOperand(1).isReg() && MI.getOperand(1).getReg() == DestReg)
+      MI.getOperand(1).setReg(RealReg);
+    DestReg = RealReg;
+  }
   auto ValOp = MI.getOperand(operandCount - 1);
   int Val;
 
@@ -1626,6 +1637,20 @@ void MC6809InstrInfo::expandImm(ContextImmediate Context, MachineIRBuilder &Buil
 void MC6809InstrInfo::expandIdxImm(ContextIndexImmediate Context, MachineIRBuilder &Builder, MachineInstr &MI) const {
   auto operandCount = MI.getNumExplicitOperands();
   auto DestReg = MI.getOperand(0).getReg();
+  // If destination is a spill register, load into real accumulator, operate,
+  // then store back.
+  bool DestIsSpill = isSpillReg(DestReg);
+  Register OrigSpillReg = DestReg;
+  if (DestIsSpill) {
+    Register RealReg = getRealRegForSpill(DestReg);
+    MachineFunction &MF = *MI.getMF();
+    emitSpillLoad(Builder, RealReg, DestReg, MF);
+    MI.getOperand(0).setReg(RealReg);
+    // Also fix the tied source operand (operand 1 for most arith pseudos).
+    if (operandCount >= 3 && MI.getOperand(1).isReg() && MI.getOperand(1).getReg() == DestReg)
+      MI.getOperand(1).setReg(RealReg);
+    DestReg = RealReg;
+  }
   auto IndexReg = MI.getOperand(operandCount - 2).getReg();
   auto OffsetOp = MI.getOperand(operandCount - 1);
   assert((OffsetOp.isImm() || OffsetOp.isCImm()) && "This offset must be an immediate");
@@ -1663,6 +1688,15 @@ void MC6809InstrInfo::expandIdxImm(ContextIndexImmediate Context, MachineIRBuild
       Instr.addReg(IndexReg);
     else
       Instr.addImm(Offset).addReg(IndexReg);
+  }
+  // Store result back to spill slot BEFORE erasing MI.
+  if (DestIsSpill) {
+    MachineFunction &MF = *MI.getMF();
+    MachineBasicBlock &MBB = *MI.getParent();
+    // Insert after MI (which is about to be erased, but is still in the MBB).
+    auto NextIt = std::next(MachineBasicBlock::iterator(MI));
+    MachineIRBuilder StoreBuilder(MBB, NextIt);
+    emitSpillStore(StoreBuilder, DestReg, OrigSpillReg, MF);
   }
   MI.eraseFromParent();
 }
@@ -2120,19 +2154,18 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
 
 void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI) const {
 
-  auto SrcRegOp = MI.getOperand(0);
-
   // If the source is a spill register, load from the spill slot into the
   // real accumulator first, then proceed with the store.
-  if (isSpillReg(SrcRegOp.getReg())) {
-    Register RealReg = getRealRegForSpill(SrcRegOp.getReg());
+  if (isSpillReg(MI.getOperand(0).getReg())) {
+    Register SpillReg = MI.getOperand(0).getReg();
+    Register RealReg = getRealRegForSpill(SpillReg);
     MachineFunction &MF = *MI.getMF();
     MachineIRBuilder LoadBuilder(*MI.getParent(), MI.getIterator());
-    emitSpillLoad(LoadBuilder, RealReg, SrcRegOp.getReg(), MF);
+    emitSpillLoad(LoadBuilder, RealReg, SpillReg, MF);
     MI.getOperand(0).setReg(RealReg);
-    // Fall through to normal expansion with the real register.
   }
 
+  auto SrcRegOp = MI.getOperand(0); // re-read AFTER spill fix
   auto IndexRegOp = MI.getOperand(1);
   auto OffsetOp = MI.getOperand(2);
   MI.removeOperand(2);
@@ -2339,6 +2372,12 @@ void MC6809InstrInfo::expandCompareImm(MachineIRBuilder &Builder, MachineInstr &
   assert((MI.getOperand(3).isImm() || MI.getOperand(3).isCImm()) && "The final operand of immediate compares must be an immediate constant");
 
   auto SrcReg = MI.getOperand(2).getReg();
+  if (isSpillReg(SrcReg)) {
+    Register RealReg = getRealRegForSpill(SrcReg);
+    MachineFunction &MF = *MI.getMF();
+    emitSpillLoad(Builder, RealReg, SrcReg, MF);
+    SrcReg = RealReg;
+  }
   auto OpcodePair = CompareImmediateOpcode.find(SrcReg);
   if (OpcodePair == CompareImmediateOpcode.end())
     llvm_unreachable("Compare Immediate - unexpected register.");
@@ -2358,6 +2397,12 @@ void MC6809InstrInfo::expandCompareIdx(MachineIRBuilder &Builder, MachineInstr &
   assert(MI.getOperand(3).isReg() && "The index operand of indexed compares must be a register");
 
   auto SrcReg = MI.getOperand(2).getReg();
+  if (isSpillReg(SrcReg)) {
+    Register RealReg = getRealRegForSpill(SrcReg);
+    MachineFunction &MF = *MI.getMF();
+    emitSpillLoad(Builder, RealReg, SrcReg, MF);
+    SrcReg = RealReg;
+  }
   auto IndexOp = MI.getOperand(3);
   auto OffsetOp = MI.getOperand(4);
   unsigned Opcode = 0;
@@ -2407,6 +2452,12 @@ void MC6809InstrInfo::expandTestReg(MachineIRBuilder &Builder, MachineInstr &MI)
   assert(MI.getOperand(2).isReg() && "The source of register tests must be a register");
 
   auto SrcReg = MI.getOperand(2).getReg();
+  if (isSpillReg(SrcReg)) {
+    Register RealReg = getRealRegForSpill(SrcReg);
+    MachineFunction &MF = *MI.getMF();
+    emitSpillLoad(Builder, RealReg, SrcReg, MF);
+    SrcReg = RealReg;
+  }
   auto OpcodePair = TestRegOpcode.find(SrcReg);
   if (OpcodePair == TestRegOpcode.end())
     llvm_unreachable("Compare Immediate - unexpected register.");
