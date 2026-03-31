@@ -1542,10 +1542,37 @@ void MC6809InstrInfo::expandLEAPtrAdd(MachineIRBuilder &Builder, MachineInstr &M
   auto IndexReg = MI.getOperand(0);
   auto IndexOp = MI.getOperand(1);
   auto OffsetOp = MI.getOperand(2);
-  int OffsetSize = offsetSizeInBits(OffsetOp);
   MI.removeOperand(2);
   MI.removeOperand(1);
 
+  // Check register offset first (LEAPtrAdd_Reg8/Reg16) — offsetSizeInBits
+  // crashes on register operands.
+  if (OffsetOp.isReg()) {
+    Register OffsetReg = OffsetOp.getReg();
+    // If the offset is a spill register, load into real accumulator first.
+    if (isSpillReg(OffsetReg)) {
+      Register RealReg = getRealRegForSpill(OffsetReg);
+      MachineFunction &MF = *MI.getMF();
+      MachineIRBuilder PreBuilder(*MI.getParent(), MI.getIterator());
+      emitSpillLoad(PreBuilder, RealReg, OffsetReg, MF);
+      OffsetOp = MachineOperand::CreateReg(RealReg, false);
+      OffsetReg = RealReg;
+    }
+    RegPlusReg Lookup{IndexReg.getReg(), OffsetReg};
+    auto OpcodePair = LEAPtrAddRegOpcode.find(Lookup);
+    if (OpcodePair == LEAPtrAddRegOpcode.end())
+      llvm_unreachable("Unexpected LEAPtrAdd register offset operand.");
+    MI.setDesc(Builder.getTII().get(OpcodePair->getSecond()));
+    // The concrete indexed-offset-reg instruction (e.g. LEAXi_oD) has:
+    //   - Result register as implicit def (from Defs list)
+    //   - Offset register as implicit use (from Uses list)
+    //   - One explicit operand: $ireg (the base/index register)
+    MI.getOperand(0).setImplicit();  // result becomes implicit
+    MI.addOperand(IndexOp);          // base register as sole explicit operand
+    return;
+  }
+
+  int OffsetSize = offsetSizeInBits(OffsetOp);
   if (OffsetSize >= 0) {
     RegPlusOffsetLen Lookup{IndexReg.getReg(), OffsetSize};
     auto OpcodePair = LEAPtrAddImmOpcode.find(Lookup);
@@ -1555,16 +1582,6 @@ void MC6809InstrInfo::expandLEAPtrAdd(MachineIRBuilder &Builder, MachineInstr &M
     MI.getOperand(0).setImplicit();
     if (OffsetSize > 0)
       MI.addOperand(OffsetOp);
-    MI.addOperand(IndexOp);
-  } else if (OffsetOp.isReg()) {
-    RegPlusReg Lookup{IndexReg.getReg(), OffsetOp.getReg()};
-    auto OpcodePair = LEAPtrAddRegOpcode.find(Lookup);
-    if (OpcodePair == LEAPtrAddRegOpcode.end())
-      llvm_unreachable("Unexpected LoadIdx register offset operand.");
-    MI.setDesc(Builder.getTII().get(OpcodePair->getSecond()));
-    MI.getOperand(0).setImplicit();
-    MI.addOperand(OffsetOp);
-    MI.getOperand(1).setImplicit();
     MI.addOperand(IndexOp);
   } else
     llvm_unreachable("Unknown offset type for LEAPtrAdd");
@@ -1692,7 +1709,12 @@ void MC6809InstrInfo::expandNegate(MachineIRBuilder &Builder, MachineInstr &MI) 
       MI.removeOperand(2);
       MI.removeOperand(1);
       MI.removeOperand(0);
-      // MI.addImplicitDefUseOperands(*MI.getMF());
+    } else {
+      // Standard 6809: no NEGD. Use COMA; COMB; ADDD #1 (two's complement).
+      Builder.buildInstr(MC6809::COMAa);
+      Builder.buildInstr(MC6809::COMBa);
+      Builder.buildInstr(MC6809::ADDDi16).addDef(MC6809::AD, RegState::Implicit).addImm(1);
+      MI.eraseFromParent();
     }
     break;
   case MC6809::AE:
@@ -2280,10 +2302,26 @@ void MC6809InstrInfo::expandAddPull(MachineIRBuilder &Builder, MachineInstr &MI)
 void MC6809InstrInfo::expandSubPull(MachineIRBuilder &Builder, MachineInstr &MI) const {
   auto DestReg = MI.getOperand(0).getReg();
   auto SrcReg = MI.getOperand(1).getReg();
-  // Always use SS for pull operations — Push_i8 expands to PSHS (S stack),
-  // and U is reserved as the frame pointer.
+
+  // If the destination is a spill register, load into real accumulator,
+  // do the sub-pull, then store back.
+  if (isSpillReg(DestReg)) {
+    Register RealReg = getRealRegForSpill(DestReg);
+    MachineFunction &MF = *MI.getMF();
+    emitSpillLoad(Builder, RealReg, DestReg, MF);
+    auto OpcodePair = SubPullOpcode.find(RealReg);
+    Builder.buildInstr(OpcodePair->getSecond())
+        .addDef(RealReg, RegState::Implicit)
+        .addUse(SrcReg, RegState::Implicit)
+        .addUse(MC6809::SS);
+    emitSpillStore(Builder, RealReg, DestReg, MF);
+    MI.eraseFromParent();
+    return;
+  }
+
+  // Always use SS for pull operations.
   auto OpcodePair = SubPullOpcode.find(DestReg);
-  auto Instr = Builder.buildInstr(OpcodePair->getSecond())
+  Builder.buildInstr(OpcodePair->getSecond())
                    .addDef(DestReg, RegState::Implicit)
                    .addUse(SrcReg, RegState::Implicit)
                    .addUse(MC6809::SS);

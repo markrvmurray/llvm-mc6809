@@ -528,6 +528,86 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
         MI.eraseFromParent();
         return true;
       }
+
+      // INDEX + INDEX (non-constant): route through ACCUM (D).
+      // The 6809 has no "add two index registers" instruction.
+      // Rewrite: COPY src1→D, COPY src2→D2, Push D2, Add/Sub_i16_Pull, COPY D→result.
+      {
+        MachineBasicBlock &MBB = *MI.getParent();
+        DebugLoc DL = MI.getDebugLoc();
+        bool IsSub = (MI.getOpcode() == TargetOpcode::G_SUB);
+
+        LLT s16 = LLT::scalar(16);
+
+        // Constrain the original INDEX-bank operands to INDEX16 register class.
+        RBI.constrainGenericRegister(Src1, MC6809::INDEX16RegClass, *MRI);
+        RBI.constrainGenericRegister(Src2, MC6809::INDEX16RegClass, *MRI);
+        RBI.constrainGenericRegister(DstReg, MC6809::INDEX16RegClass, *MRI);
+
+        if (!IsSub) {
+          // ADD: copy one operand to D, then LEAX D,X (single instruction).
+          Register AccSrc = MRI->createGenericVirtualRegister(s16);
+          MRI->setRegClass(AccSrc, &MC6809::ACC16RegClass);
+          BuildMI(MBB, MI, DL, TII.get(TargetOpcode::COPY), AccSrc).addReg(Src2);
+          auto LEA = BuildMI(MBB, MI, DL, TII.get(MC6809::LEAPtrAdd_Reg16), DstReg)
+              .addReg(Src1)
+              .addReg(AccSrc);
+          constrainSelectedInstRegOperands(*LEA, TII, TRI, RBI);
+        } else {
+          // SUB: compute -b as (0 - b), then LEAX D,X.
+          // Trace Src2 back to its defining load to get the memory operand,
+          // so we can SUBD directly from memory: LDD #0; SUBD offset,S; LEAX D,X.
+          Register AccZero = MRI->createGenericVirtualRegister(s16);
+          MRI->setRegClass(AccZero, &MC6809::ACC16RegClass);
+          Register AccNegB = MRI->createGenericVirtualRegister(s16);
+          MRI->setRegClass(AccNegB, &MC6809::ACC16RegClass);
+
+          // Find the memory source of Src2 by looking through COPYs.
+          Register Src2Origin = Src2;
+          MachineInstr *Src2Load = MRI->getVRegDef(Src2Origin);
+          while (Src2Load && Src2Load->getOpcode() == TargetOpcode::COPY) {
+            Src2Origin = Src2Load->getOperand(1).getReg();
+            if (!Src2Origin.isVirtual()) break;
+            Src2Load = MRI->getVRegDef(Src2Origin);
+          }
+
+          // D = 0.
+          auto Zero = BuildMI(MBB, MI, DL, TII.get(MC6809::Load_i16_Imm), AccZero)
+              .addImm(0);
+          constrainSelectedInstRegOperands(*Zero, TII, TRI, RBI);
+
+          if (Src2Load && Src2Load->getOpcode() == MC6809::Load_i16_Mem) {
+            // SUBD directly from memory: SUBD offset,index.
+            auto SubMem = BuildMI(MBB, MI, DL, TII.get(MC6809::Sub_i16_Mem), AccNegB)
+                .addReg(AccZero)
+                .add(Src2Load->getOperand(1))  // index register
+                .add(Src2Load->getOperand(2)); // offset
+            constrainSelectedInstRegOperands(*SubMem, TII, TRI, RBI);
+          } else {
+            // Fallback: push and pull.
+            Register AccSrc2 = MRI->createGenericVirtualRegister(s16);
+            MRI->setRegClass(AccSrc2, &MC6809::ACC16RegClass);
+            Register StackReg = MRI->createGenericVirtualRegister(s16);
+            MRI->setRegClass(StackReg, &MC6809::STACK16RegClass);
+            BuildMI(MBB, MI, DL, TII.get(TargetOpcode::COPY), AccSrc2).addReg(Src2);
+            auto Push = BuildMI(MBB, MI, DL, TII.get(MC6809::Push_i16), StackReg)
+                .addReg(AccSrc2);
+            constrainSelectedInstRegOperands(*Push, TII, TRI, RBI);
+            auto Sub = BuildMI(MBB, MI, DL, TII.get(MC6809::Sub_i16_Pull), AccNegB)
+                .addReg(AccZero)
+                .addReg(StackReg);
+            constrainSelectedInstRegOperands(*Sub, TII, TRI, RBI);
+          }
+
+          // LEA: result = src1 + (-b).
+          auto LEA = BuildMI(MBB, MI, DL, TII.get(MC6809::LEAPtrAdd_Reg16), DstReg)
+              .addReg(Src1)
+              .addReg(AccNegB);
+          constrainSelectedInstRegOperands(*LEA, TII, TRI, RBI);
+        }
+        MI.eraseFromParent();
+        return true;
+      }
     }
     return false;  // Fall through to selectImpl for ACCUM-bank (ADDD/SUBD).
   }
