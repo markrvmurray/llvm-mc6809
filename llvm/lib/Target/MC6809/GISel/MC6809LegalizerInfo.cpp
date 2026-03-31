@@ -166,7 +166,8 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   } else {
     getActionDefinitionsBuilder({G_MUL, G_UMULH, G_SMULH})
         .legalFor({s8})
-        .libcallFor({s16, s32, s64})
+        .narrowScalar(0, LegalizeMutations::changeTo(0, s8))
+        .libcallFor({s32, s64})
         .clampScalar(0, s8, s64);
   }
 

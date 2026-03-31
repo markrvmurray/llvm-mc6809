@@ -873,11 +873,19 @@ static MachineInstrBuilder emitSpillStore(MachineIRBuilder &Builder,
   if (isSpillReg(DestReg) || isSpillReg(SrcReg)) {
     MachineFunction &MF = *MBB.getParent();
     if (isSpillReg(DestReg) && !isSpillReg(SrcReg)) {
-      // Real → Spill: Store real register to spill slot.
-      emitSpillStore(Builder, SrcReg, DestReg, MF);
+      // Real → Spill: Store via real accumulator to spill slot.
+      Register RealAcc = getRealRegForSpill(DestReg);
+      // If source is not the accumulator (e.g. INDEX16), transfer first.
+      if (SrcReg != RealAcc)
+        Builder.buildInstr(MC6809::TFRp).addDef(RealAcc).addUse(SrcReg);
+      emitSpillStore(Builder, RealAcc, DestReg, MF);
     } else if (!isSpillReg(DestReg) && isSpillReg(SrcReg)) {
-      // Spill → Real: Load from spill slot to real register.
-      emitSpillLoad(Builder, DestReg, SrcReg, MF);
+      // Spill → Real: Load from spill slot via real accumulator.
+      Register RealAcc = getRealRegForSpill(SrcReg);
+      emitSpillLoad(Builder, RealAcc, SrcReg, MF);
+      // If destination is not the accumulator (e.g. INDEX16), transfer.
+      if (DestReg != RealAcc)
+        Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(RealAcc);
     } else {
       // Spill → Spill: Load to real accumulator, store to dest slot.
       Register TmpReal = getRealRegForSpill(SrcReg);
@@ -2006,18 +2014,25 @@ void MC6809InstrInfo::expandLoadImm(MachineIRBuilder &Builder, MachineInstr &MI)
 
   // If the destination is a spill register, save the real accumulator,
   // load immediate into it, store to spill slot (U-relative), then restore.
+  // Don't recurse into expandLoadImm — it removes MI and invalidates Builder.
   if (isSpillReg(DestRegOp.getReg())) {
     Register RealReg = getRealRegForSpill(DestRegOp.getReg());
     MachineFunction &MF = Builder.getMF();
+    int64_t Val;
+    auto ValOp = MI.getOperand(1);
+    if (ValOp.isImm() || ValOp.isCImm())
+      Val = ValOp.isImm() ? ValOp.getImm() : ValOp.getCImm()->getSExtValue();
     // Save real accumulator.
     emitSpillStore(Builder, RealReg, MC6809::SPILL_D3, MF);
-    // Load immediate into real accumulator.
-    MI.getOperand(0).setReg(RealReg);
-    expandLoadImm(Builder, MI);
-    // Store to spill slot (U-relative, stable across PSHS).
+    // Load immediate into real accumulator (inline, not recursive).
+    auto OpcodePair = LoadImmediateOpcode.find(RealReg);
+    assert(OpcodePair != LoadImmediateOpcode.end());
+    Builder.buildInstr(OpcodePair->getSecond()).addDef(RealReg, RegState::Implicit).addImm(Val);
+    // Store to spill slot.
     emitSpillStore(Builder, RealReg, DestRegOp.getReg(), MF);
     // Restore real accumulator.
     emitSpillLoad(Builder, RealReg, MC6809::SPILL_D3, MF);
+    MI.removeFromParent();
     return;
   }
 
@@ -2248,9 +2263,26 @@ void MC6809InstrInfo::expandSubSetCarryUseReg(MachineIRBuilder &Builder, Machine
 void MC6809InstrInfo::expandAddPull(MachineIRBuilder &Builder, MachineInstr &MI) const {
   auto DestReg = MI.getOperand(0).getReg();
   auto SrcReg = MI.getOperand(1).getReg();
+
+  // If the destination is a spill register, load it into the real accumulator,
+  // do the add-pull, then store back.
+  if (isSpillReg(DestReg)) {
+    Register RealReg = getRealRegForSpill(DestReg);
+    MachineFunction &MF = *MI.getMF();
+    emitSpillLoad(Builder, RealReg, DestReg, MF);
+    auto OpcodePair = AddPullOpcode.find(RealReg);
+    Builder.buildInstr(OpcodePair->getSecond())
+        .addDef(RealReg, RegState::Implicit)
+        .addUse(SrcReg, RegState::Implicit)
+        .addUse(MC6809::SS);
+    emitSpillStore(Builder, RealReg, DestReg, MF);
+    MI.eraseFromParent();
+    return;
+  }
+
   // Always use SS — Push_i8 expands to PSHS (S stack), U is reserved.
   auto OpcodePair = AddPullOpcode.find(DestReg);
-  auto Instr = Builder.buildInstr(OpcodePair->getSecond())
+  Builder.buildInstr(OpcodePair->getSecond())
                    .addDef(DestReg, RegState::Implicit)
                    .addUse(SrcReg, RegState::Implicit)
                    .addUse(MC6809::SS);

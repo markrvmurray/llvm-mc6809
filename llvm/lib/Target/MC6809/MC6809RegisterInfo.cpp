@@ -113,15 +113,15 @@ bool MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int
   if (Offset >= 0)
     Offset += 2; // Skip the saved PC (return address)
 
-  // Compute size of callee-saved registers pushed onto the hard stack.
+  // Compute size of ALL callee-saved registers pushed onto the hard stack.
   // These sit between the stack allocation and the return address.
+  // Count all CSRs regardless of isTargetSpilled() — the MC6809 backend
+  // pushes all CSRs to the hard stack via PSHS (even those with frame indices).
   unsigned CalleeSavedSize = 0;
   for (const auto &CSI : MFI.getCalleeSavedInfo()) {
-    if (CSI.isTargetSpilled()) {
-      const TargetRegisterInfo *TRI = MF.getRegInfo().getTargetRegisterInfo();
-      const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(CSI.getReg());
-      CalleeSavedSize += TRI->getSpillSize(*RC);
-    }
+    const TargetRegisterInfo *TRI = MF.getRegInfo().getTargetRegisterInfo();
+    const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(CSI.getReg());
+    CalleeSavedSize += TRI->getSpillSize(*RC);
   }
 
   // The frame pointer (U) is set to S AFTER both stack allocation and

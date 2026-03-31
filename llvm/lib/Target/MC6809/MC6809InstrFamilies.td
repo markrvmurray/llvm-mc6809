@@ -678,7 +678,11 @@ let Predicates = [IsHD6309] in {
 // EXTRACT_SUBREG to pull the result byte out.
 
 class MC6809MultiplyD : MC6809LogicalInstr {
-  let Defs = [Z, C];
+  // Always clobbers the real accumulator (AA, AB, AD) because the expansion
+  // loads into D, does MUL, then stores back — even when the operand is a
+  // spill register. Without these implicit defs, the allocator could leave
+  // values in A/B that get destroyed during the MUL expansion.
+  let Defs = [Z, C, AA, AB, AD];
   dag OutOperandList = (outs ADc:$dst);
   dag InOperandList = (ins ADc:$src);
   let Constraints = "$dst = $src";
