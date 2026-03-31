@@ -176,7 +176,7 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
 
   getActionDefinitionsBuilder({G_SDIV, G_UDIV, G_SREM, G_UREM})
       .libcallFor(LegalLibcallScalars)
-      .clampScalar(0, s8, s32);
+      .clampScalar(0, s16, s32);
 
   getActionDefinitionsBuilder({G_AND, G_OR, G_XOR})
       .legalFor(LegalAccumulators)
