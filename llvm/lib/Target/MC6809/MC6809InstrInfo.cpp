@@ -786,9 +786,6 @@ static int computeSpillStackOffset(MCPhysReg SpillReg, MachineFunction &MF) {
   MCPhysReg SpillD = getSpillDParent(SpillReg);
   int FI = FuncInfo.SpillRegFrameIndices[SpillD];
   const MachineFrameInfo &MFI = MF.getFrameInfo();
-  const MC6809FrameLowering *TFI =
-      static_cast<const MC6809FrameLowering *>(MF.getSubtarget().getFrameLowering());
-
   int Offset = MFI.getObjectOffset(FI);
 
   // Local stack objects have negative offsets; no PC skip needed.
@@ -1642,7 +1639,7 @@ void MC6809InstrInfo::expandImm(ContextImmediate Context, MachineIRBuilder &Buil
       } else
         llvm_unreachable("Cannot find machine instruction with this immediate operand");
     } else {
-      auto Instr = Builder.buildInstr(OpcodePair->getSecond()).addDef(DestReg, RegState::Implicit).addImm(Val);
+      Builder.buildInstr(OpcodePair->getSecond()).addDef(DestReg, RegState::Implicit).addImm(Val);
     }
   }
   // Store result back to spill slot BEFORE erasing MI.
@@ -1819,7 +1816,7 @@ void MC6809InstrInfo::expandIdxReg(ContextIndexRegister Context, MachineIRBuilde
   auto OpcodePair = Context.Opcode->find(Lookup);
   if (OpcodePair == Context.Opcode->end())
     llvm_unreachable("Cannot find machine instruction with these register indexed operands");
-  auto Instr = Builder.buildInstr(OpcodePair->getSecond()).addDef(DestReg, RegState::Implicit).addReg(IndexReg);
+  Builder.buildInstr(OpcodePair->getSecond()).addDef(DestReg, RegState::Implicit).addReg(IndexReg);
   MI.eraseFromParent();
 }
 
@@ -1956,10 +1953,10 @@ void MC6809InstrInfo::expandMul16Imm(MachineIRBuilder &Builder, MachineInstr &MI
   assert((MI.getOperand(0).getReg() == MC6809::AW && MI.getOperand(1).getReg() == MC6809::AD) && "Result must be in AW and AD must be the source");
   auto ValueOp = MI.getOperand(2);
   auto Value = ValueOp.isImm() ? ValueOp.getImm() : ValueOp.getCImm()->getSExtValue();
-  auto Instr = Builder.buildInstr(MC6809::MULDi16)
-                   .addDef(MI.getOperand(0).getReg(), RegState::ImplicitDefine)
-                   .addUse(MI.getOperand(1).getReg(), RegState::Implicit)
-                   .addImm(Value);
+  Builder.buildInstr(MC6809::MULDi16)
+      .addDef(MI.getOperand(0).getReg(), RegState::ImplicitDefine)
+      .addUse(MI.getOperand(1).getReg(), RegState::Implicit)
+      .addImm(Value);
   MI.eraseFromParent();
 }
 
@@ -1967,10 +1964,10 @@ void MC6809InstrInfo::expandMulH16Imm(MachineIRBuilder &Builder, MachineInstr &M
   assert((MI.getOperand(0).getReg() == MC6809::AD && MI.getOperand(1).getReg() == MC6809::AD) && "Result must be in AD and AD must be the source");
   auto ValueOp = MI.getOperand(2);
   auto Value = ValueOp.isImm() ? ValueOp.getImm() : ValueOp.getCImm()->getSExtValue();
-  auto Instr = Builder.buildInstr(MC6809::MULDi16)
-                   .addDef(MI.getOperand(0).getReg(), RegState::ImplicitDefine)
-                   .addUse(MI.getOperand(1).getReg(), RegState::Implicit)
-                   .addImm(Value);
+  Builder.buildInstr(MC6809::MULDi16)
+      .addDef(MI.getOperand(0).getReg(), RegState::ImplicitDefine)
+      .addUse(MI.getOperand(1).getReg(), RegState::Implicit)
+      .addImm(Value);
   MI.eraseFromParent();
 }
 
@@ -2076,10 +2073,10 @@ void MC6809InstrInfo::expandMul16IdxReg(MachineIRBuilder &Builder, MachineInstr 
     Opcode = MC6809::MULDi_oW;
     break;
   }
-  auto Instr = Builder.buildInstr(Opcode)
-                   .addDef(MI.getOperand(0).getReg(), RegState::ImplicitDefine)
-                   .addDef(MI.getOperand(1).getReg(), RegState::ImplicitDefine)
-                   .addReg(OffsetReg, RegState::Implicit).addReg(IndexReg);
+  Builder.buildInstr(Opcode)
+      .addDef(MI.getOperand(0).getReg(), RegState::ImplicitDefine)
+      .addDef(MI.getOperand(1).getReg(), RegState::ImplicitDefine)
+      .addReg(OffsetReg, RegState::Implicit).addReg(IndexReg);
   MI.eraseFromParent();
 }
 
@@ -2203,7 +2200,7 @@ void MC6809InstrInfo::expandLoadImm(MachineIRBuilder &Builder, MachineInstr &MI)
   auto OpcodePair = LoadImmediateOpcode.find(MI.getOperand(0).getReg());
   if (OpcodePair == LoadImmediateOpcode.end())
     llvm_unreachable("Unexpected LoadImm register.");
-  auto LoadImm = Builder.buildInstr(OpcodePair->getSecond()).addDef(DestRegOp.getReg(), RegState::Implicit).addImm(Val);
+  Builder.buildInstr(OpcodePair->getSecond()).addDef(DestRegOp.getReg(), RegState::Implicit).addImm(Val);
   MI.removeFromParent();
 }
 
@@ -2307,10 +2304,10 @@ void MC6809InstrInfo::expandANDReg(MachineIRBuilder &Builder, MachineInstr &MI) 
   assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg() && "Dest and Source must be same for ANDReg");
 
   unsigned Opcode = MC6809::ANDRp;
-  auto ANDReg = Builder.buildInstr(Opcode)
-                    .addDef(MI.getOperand(0).getReg())
-                    .addUse(MI.getOperand(2).getReg())
-                    .addUse(MI.getOperand(1).getReg());
+  Builder.buildInstr(Opcode)
+      .addDef(MI.getOperand(0).getReg())
+      .addUse(MI.getOperand(2).getReg())
+      .addUse(MI.getOperand(1).getReg());
   MI.eraseFromParent();
 }
 
@@ -2319,10 +2316,10 @@ void MC6809InstrInfo::expandANDPull(MachineIRBuilder &Builder, MachineInstr &MI)
   auto SrcReg = MI.getOperand(1).getReg();
   // Always use SS — Push expands to PSHS (S stack), U is reserved.
   auto OpcodePair = ANDPullOpcode.find(DestReg);
-  auto Instr = Builder.buildInstr(OpcodePair->getSecond())
-                   .addDef(DestReg, RegState::Implicit)
-                   .addUse(SrcReg, RegState::Implicit)
-                   .addUse(MC6809::SS);
+  Builder.buildInstr(OpcodePair->getSecond())
+      .addDef(DestReg, RegState::Implicit)
+      .addUse(SrcReg, RegState::Implicit)
+      .addUse(MC6809::SS);
   MI.eraseFromParent();
 }
 
@@ -2645,7 +2642,7 @@ void MC6809InstrInfo::expandCompareImm(MachineIRBuilder &Builder, MachineInstr &
   if (OpcodePair == CompareImmediateOpcode.end())
     llvm_unreachable("Compare Immediate - unexpected register.");
   auto Opcode = OpcodePair->getSecond();
-  auto Compare = Builder.buildInstr(Opcode).add(MI.getOperand(3));
+  Builder.buildInstr(Opcode).add(MI.getOperand(3));
   MI.eraseFromParent();
 }
 
@@ -2684,8 +2681,8 @@ void MC6809InstrInfo::expandCompareIdx(MachineIRBuilder &Builder, MachineInstr &
       llvm_unreachable("Unexpected operand(s) in compare indexed/register.");
   } else
     llvm_unreachable("Unknown offset type for CompareIdx");
-  auto Compare = Builder.buildInstr(Opcode)
-                     .add(OffsetOp).add(IndexOp);
+  Builder.buildInstr(Opcode)
+      .add(OffsetOp).add(IndexOp);
   MI.eraseFromParent();
 }
 
@@ -2699,9 +2696,9 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
   assert(MI.getOperand(2).isReg() && "The 2nd source of register tests must be a register");
   assert(MI.getOperand(3).isReg() && "The 1st source of register tests must be a register");
 
-  auto CompareReg = Builder.buildInstr(MC6809::CMPRp)
-                        .addUse(MI.getOperand(3).getReg())
-                        .addUse(MI.getOperand(2).getReg());
+  Builder.buildInstr(MC6809::CMPRp)
+      .addUse(MI.getOperand(3).getReg())
+      .addUse(MI.getOperand(2).getReg());
   MI.eraseFromParent();
 }
 
@@ -2725,7 +2722,7 @@ void MC6809InstrInfo::expandTestReg(MachineIRBuilder &Builder, MachineInstr &MI)
   if (OpcodePair == TestRegOpcode.end())
     llvm_unreachable("Compare Immediate - unexpected register.");
   auto Opcode = OpcodePair->getSecond();
-  auto Test = Builder.buildInstr(Opcode);
+  Builder.buildInstr(Opcode);
   MI.eraseFromParent();
 }
 

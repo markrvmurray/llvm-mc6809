@@ -816,11 +816,6 @@ bool MC6809InstructionSelector::selectAddO(MachineInstr &MI) {
     return true;
   }
 
-  LLVM_DEBUG(
-      MachineInstr *Def1 = MRI->getVRegDef(MI.getOperand(2).getReg());
-      MachineInstr *Def2 = MRI->getVRegDef(MI.getOperand(3).getReg());
-  );
-
   return false;
 }
 
@@ -892,8 +887,8 @@ bool MC6809InstructionSelector::selectSubO(MachineInstr &MI) {
   }
 
   LLVM_DEBUG(
-      MachineInstr *Def1 = MRI->getVRegDef(MI.getOperand(2).getReg());
-      MachineInstr *Def2 = MRI->getVRegDef(MI.getOperand(3).getReg());
+      (void)MRI->getVRegDef(MI.getOperand(2).getReg());
+      (void)MRI->getVRegDef(MI.getOperand(3).getReg());
   );
 
   return false;
@@ -985,8 +980,8 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
   }
 
   LLVM_DEBUG(
-      MachineInstr *Def1 = MRI->getVRegDef(MI.getOperand(2).getReg());
-      MachineInstr *Def2 = MRI->getVRegDef(MI.getOperand(3).getReg());
+      (void)MRI->getVRegDef(MI.getOperand(2).getReg());
+      (void)MRI->getVRegDef(MI.getOperand(3).getReg());
       );
 
   return false;
@@ -1085,8 +1080,8 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
   }
 
   LLVM_DEBUG(
-      MachineInstr *Def1 = MRI->getVRegDef(MI.getOperand(2).getReg());
-      MachineInstr *Def2 = MRI->getVRegDef(MI.getOperand(3).getReg());
+      (void)MRI->getVRegDef(MI.getOperand(2).getReg());
+      (void)MRI->getVRegDef(MI.getOperand(3).getReg());
       );
 
   return false;
