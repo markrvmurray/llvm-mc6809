@@ -243,16 +243,28 @@ defm SPILL_A0 : MC6809Reg8<0x2000, "spill_a0">;
 defm SPILL_A1 : MC6809Reg8<0x2002, "spill_a1">;
 defm SPILL_A2 : MC6809Reg8<0x2004, "spill_a2">;
 defm SPILL_A3 : MC6809Reg8<0x2006, "spill_a3">;
+defm SPILL_A4 : MC6809Reg8<0x2008, "spill_a4">;
+defm SPILL_A5 : MC6809Reg8<0x200A, "spill_a5">;
+defm SPILL_A6 : MC6809Reg8<0x200C, "spill_a6">;
+defm SPILL_A7 : MC6809Reg8<0x200E, "spill_a7">;
 
 defm SPILL_B0 : MC6809Reg8<0x2001, "spill_b0">;
 defm SPILL_B1 : MC6809Reg8<0x2003, "spill_b1">;
 defm SPILL_B2 : MC6809Reg8<0x2005, "spill_b2">;
 defm SPILL_B3 : MC6809Reg8<0x2007, "spill_b3">;
+defm SPILL_B4 : MC6809Reg8<0x2009, "spill_b4">;
+defm SPILL_B5 : MC6809Reg8<0x200B, "spill_b5">;
+defm SPILL_B6 : MC6809Reg8<0x200D, "spill_b6">;
+defm SPILL_B7 : MC6809Reg8<0x200F, "spill_b7">;
 
 def SPILL_D0 : MC6809Reg16<0x2000, "spill_d0", [SPILL_B0, SPILL_A0], [sub_lo_byte, sub_hi_byte]>;
 def SPILL_D1 : MC6809Reg16<0x2002, "spill_d1", [SPILL_B1, SPILL_A1], [sub_lo_byte, sub_hi_byte]>;
 def SPILL_D2 : MC6809Reg16<0x2004, "spill_d2", [SPILL_B2, SPILL_A2], [sub_lo_byte, sub_hi_byte]>;
 def SPILL_D3 : MC6809Reg16<0x2006, "spill_d3", [SPILL_B3, SPILL_A3], [sub_lo_byte, sub_hi_byte]>;
+def SPILL_D4 : MC6809Reg16<0x2008, "spill_d4", [SPILL_B4, SPILL_A4], [sub_lo_byte, sub_hi_byte]>;
+def SPILL_D5 : MC6809Reg16<0x200A, "spill_d5", [SPILL_B5, SPILL_A5], [sub_lo_byte, sub_hi_byte]>;
+def SPILL_D6 : MC6809Reg16<0x200C, "spill_d6", [SPILL_B6, SPILL_A6], [sub_lo_byte, sub_hi_byte]>;
+def SPILL_D7 : MC6809Reg16<0x200E, "spill_d7", [SPILL_B7, SPILL_A7], [sub_lo_byte, sub_hi_byte]>;
 
 //===----------------------------------------------------------------------===//
 //  Register classes
@@ -281,14 +293,14 @@ def BIT1 : MC6809Reg1Class<(add AALSB, ABLSB, AELSB, AFLSB)> {
     let AltOrders = [(add AALSB, ABLSB)];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
 }
-def ACC8 : MC6809Reg8Class<(add AB, AA, AF, AE, SPILL_B0, SPILL_B1, SPILL_B2, SPILL_B3, SPILL_A0, SPILL_A1, SPILL_A2, SPILL_A3)> {
-    let AltOrders = [(add AB, AA, SPILL_B0, SPILL_B1, SPILL_B2, SPILL_B3, SPILL_A0, SPILL_A1, SPILL_A2, SPILL_A3)];
+def ACC8 : MC6809Reg8Class<(add AB, AA, AF, AE, SPILL_B0, SPILL_B1, SPILL_B2, SPILL_B3, SPILL_B4, SPILL_B5, SPILL_B6, SPILL_B7, SPILL_A0, SPILL_A1, SPILL_A2, SPILL_A3, SPILL_A4, SPILL_A5, SPILL_A6, SPILL_A7)> {
+    let AltOrders = [(add AB, AA, SPILL_B0, SPILL_B1, SPILL_B2, SPILL_B3, SPILL_B4, SPILL_B5, SPILL_B6, SPILL_B7, SPILL_A0, SPILL_A1, SPILL_A2, SPILL_A3, SPILL_A4, SPILL_A5, SPILL_A6, SPILL_A7)];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
 }
 def ACC8_AB : MC6809Reg8Class<(add AB, AA)>;
 def BIT8 : MC6809Reg8Class<(add AA, AB, CC)>; // Valid registers for BAND, BEOR, BOR, BIAND, BIEOR, BIOR, LDBT, STBT
-def ACC16 : MC6809Reg16Class<(add AD, AW, SPILL_D0, SPILL_D1, SPILL_D2, SPILL_D3)> {
-    let AltOrders = [(add AD, SPILL_D0, SPILL_D1, SPILL_D2, SPILL_D3)];
+def ACC16 : MC6809Reg16Class<(add AD, AW, SPILL_D0, SPILL_D1, SPILL_D2, SPILL_D3, SPILL_D4, SPILL_D5, SPILL_D6, SPILL_D7)> {
+    let AltOrders = [(add AD, SPILL_D0, SPILL_D1, SPILL_D2, SPILL_D3, SPILL_D4, SPILL_D5, SPILL_D6, SPILL_D7)];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
 }
 def ACC16_D : MC6809Reg8Class<(add AD)>;
@@ -335,11 +347,11 @@ let isAllocatable = false in {
 
 // Single register classes.
 //let isPressureFineGrained = true in {
-    def AAc : MC6809Reg8Class<(add AA, SPILL_A0, SPILL_A1, SPILL_A2, SPILL_A3)>;
-    def AALSBc : MC6809Reg1Class<(add AALSB, SPILL_A0LSB, SPILL_A1LSB, SPILL_A2LSB, SPILL_A3LSB)>;
-    def ABc : MC6809Reg8Class<(add AB, SPILL_B0, SPILL_B1, SPILL_B2, SPILL_B3)>;
-    def ABLSBc : MC6809Reg1Class<(add ABLSB, SPILL_B0LSB, SPILL_B1LSB, SPILL_B2LSB, SPILL_B3LSB)>;
-    def ADc : MC6809Reg16Class<(add AD, SPILL_D0, SPILL_D1, SPILL_D2, SPILL_D3)>;
+    def AAc : MC6809Reg8Class<(add AA, SPILL_A0, SPILL_A1, SPILL_A2, SPILL_A3, SPILL_A4, SPILL_A5, SPILL_A6, SPILL_A7)>;
+    def AALSBc : MC6809Reg1Class<(add AALSB, SPILL_A0LSB, SPILL_A1LSB, SPILL_A2LSB, SPILL_A3LSB, SPILL_A4LSB, SPILL_A5LSB, SPILL_A6LSB, SPILL_A7LSB)>;
+    def ABc : MC6809Reg8Class<(add AB, SPILL_B0, SPILL_B1, SPILL_B2, SPILL_B3, SPILL_B4, SPILL_B5, SPILL_B6, SPILL_B7)>;
+    def ABLSBc : MC6809Reg1Class<(add ABLSB, SPILL_B0LSB, SPILL_B1LSB, SPILL_B2LSB, SPILL_B3LSB, SPILL_B4LSB, SPILL_B5LSB, SPILL_B6LSB, SPILL_B7LSB)>;
+    def ADc : MC6809Reg16Class<(add AD, SPILL_D0, SPILL_D1, SPILL_D2, SPILL_D3, SPILL_D4, SPILL_D5, SPILL_D6, SPILL_D7)>;
     def AEc : MC6809Reg8Class<(add AE)>;
     def AELSBc : MC6809Reg1Class<(add AELSB)>;
     def AFc : MC6809Reg8Class<(add AF)>;

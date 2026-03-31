@@ -8,16 +8,19 @@
 define dso_local signext i8 @if_s8(i8 noundef signext %a, i8 noundef signext %b) local_unnamed_addr #0 {
 ; CHECK-LABEL: if_s8:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -2,s
-; CHECK-NEXT:    tfr b,a
-; CHECK-NEXT:    ldb 5,s
-; CHECK-NEXT:    tsta
+; CHECK-NEXT:    leas -4,s
+; CHECK-NEXT:    tstb
+; CHECK-NEXT:    tfr cc,b
+; CHECK-NEXT:    stb 3,s ; 1-byte Folded Spill
+; CHECK-NEXT:    ldb 7,s
+; CHECK-NEXT:    lda 3,s ; 1-byte Folded Reload
+; CHECK-NEXT:    tfr a,cc
 ; CHECK-NEXT:    bgt .LBB0_2
 ; CHECK-NEXT:  ; %bb.1: ; %if.end
 ; CHECK-NEXT:    ldb #0
-; CHECK-NEXT:    subb 5,s
+; CHECK-NEXT:    subb 7,s
 ; CHECK-NEXT:  .LBB0_2: ; %return
-; CHECK-NEXT:    leas 2,s
+; CHECK-NEXT:    leas 4,s
 ; CHECK-NEXT:    rts
 entry:
   %cmp = icmp sgt i8 %a, 0
@@ -36,16 +39,19 @@ return:                                           ; preds = %entry, %if.end
 define dso_local zeroext i8 @if_u8(i8 noundef zeroext %a, i8 noundef zeroext %b) local_unnamed_addr #0 {
 ; CHECK-LABEL: if_u8:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -2,s
-; CHECK-NEXT:    tfr b,a
-; CHECK-NEXT:    ldb 5,s
-; CHECK-NEXT:    tsta
+; CHECK-NEXT:    leas -4,s
+; CHECK-NEXT:    tstb
+; CHECK-NEXT:    tfr cc,b
+; CHECK-NEXT:    stb 3,s ; 1-byte Folded Spill
+; CHECK-NEXT:    ldb 7,s
+; CHECK-NEXT:    lda 3,s ; 1-byte Folded Reload
+; CHECK-NEXT:    tfr a,cc
 ; CHECK-NEXT:    bne .LBB1_2
 ; CHECK-NEXT:  ; %bb.1: ; %if.end
 ; CHECK-NEXT:    ldb #-1
-; CHECK-NEXT:    eorb 5,s
+; CHECK-NEXT:    eorb 7,s
 ; CHECK-NEXT:  .LBB1_2: ; %return
-; CHECK-NEXT:    leas 2,s
+; CHECK-NEXT:    leas 4,s
 ; CHECK-NEXT:    rts
 entry:
   %cmp.not = icmp eq i8 %a, 0

@@ -284,66 +284,74 @@ entry:
 define dso_local i32 @sub_s_i32(i32 noundef %a, i32 noundef %b, i32 noundef %c, i32 noundef %d, i32 noundef %e) local_unnamed_addr #0 {
 ; CHECK-LABEL: sub_s_i32:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -10,s
+; CHECK-NEXT:    leas -11,s
 ; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    ldd 18,u
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldb 5,u
-; CHECK-NEXT:    addb 22,u
-; CHECK-NEXT:    stb 5,u
-; CHECK-NEXT:    lda 4,u
-; CHECK-NEXT:    adca 23,u
-; CHECK-NEXT:    sta 4,u
-; CHECK-NEXT:    ldd 16,u
+; CHECK-NEXT:    ldd 19,u
+; CHECK-NEXT:    std 6,u
+; CHECK-NEXT:    ldb 7,u
+; CHECK-NEXT:    addb 23,u
+; CHECK-NEXT:    stb 7,u
+; CHECK-NEXT:    lda 6,u
+; CHECK-NEXT:    adca 24,u
+; CHECK-NEXT:    sta 6,u
+; CHECK-NEXT:    ldd 17,u
 ; CHECK-NEXT:    std 8,u
 ; CHECK-NEXT:    ldb 9,u
-; CHECK-NEXT:    adcb 20,u
+; CHECK-NEXT:    adcb 21,u
 ; CHECK-NEXT:    stb 9,u
 ; CHECK-NEXT:    lda 8,u
-; CHECK-NEXT:    adca 21,u
+; CHECK-NEXT:    adca 22,u
 ; CHECK-NEXT:    sta 8,u
-; CHECK-NEXT:    ldb 5,u
-; CHECK-NEXT:    addb 26,u
-; CHECK-NEXT:    stb 5,u
-; CHECK-NEXT:    lda 4,u
-; CHECK-NEXT:    adca 27,u
-; CHECK-NEXT:    sta 4,u
+; CHECK-NEXT:    ldb 7,u
+; CHECK-NEXT:    addb 27,u
+; CHECK-NEXT:    stb 7,u
+; CHECK-NEXT:    lda 6,u
+; CHECK-NEXT:    adca 28,u
+; CHECK-NEXT:    sta 6,u
 ; CHECK-NEXT:    ldb 9,u
-; CHECK-NEXT:    adcb 24,u
+; CHECK-NEXT:    adcb 25,u
 ; CHECK-NEXT:    stb 9,u
 ; CHECK-NEXT:    lda 8,u
-; CHECK-NEXT:    adca 25,u
+; CHECK-NEXT:    adca 26,u
 ; CHECK-NEXT:    sta 8,u
-; CHECK-NEXT:    ldb 5,u
-; CHECK-NEXT:    addb 30,u
-; CHECK-NEXT:    stb 5,u
-; CHECK-NEXT:    lda 4,u
-; CHECK-NEXT:    adca 31,u
-; CHECK-NEXT:    sta 4,u
+; CHECK-NEXT:    ldb 7,u
+; CHECK-NEXT:    addb 31,u
+; CHECK-NEXT:    stb 7,u
+; CHECK-NEXT:    lda 6,u
+; CHECK-NEXT:    adca 32,u
+; CHECK-NEXT:    sta 6,u
 ; CHECK-NEXT:    ldb 9,u
-; CHECK-NEXT:    adcb 28,u
+; CHECK-NEXT:    adcb 29,u
 ; CHECK-NEXT:    stb 9,u
 ; CHECK-NEXT:    lda 8,u
-; CHECK-NEXT:    adca 29,u
+; CHECK-NEXT:    adca 30,u
 ; CHECK-NEXT:    sta 8,u
-; CHECK-NEXT:    ldb 5,u
-; CHECK-NEXT:    subb 14,u
-; CHECK-NEXT:    stb 5,u
-; CHECK-NEXT:    lda 4,u
-; CHECK-NEXT:    sbca 15,u
-; CHECK-NEXT:    sta 4,u
+; CHECK-NEXT:    ldb 7,u
+; CHECK-NEXT:    subb 15,u
+; CHECK-NEXT:    stb 7,u
+; CHECK-NEXT:    lda 6,u
+; CHECK-NEXT:    sbca 16,u
+; CHECK-NEXT:    sta 6,u
+; CHECK-NEXT:    ; kill: def $ablsb killed $ablsb def $ab
+; CHECK-NEXT:    stb 10,u ; 1-byte Folded Spill
 ; CHECK-NEXT:    tfr x,d
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    sbcr spill_b0,spill_b1
-; CHECK-NEXT:    sbcr spill_a0,spill_a1
-; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    std 14,u
+; CHECK-NEXT:    std 4,u
+; CHECK-NEXT:    lda 10,u ; 1-byte Folded Reload
+; CHECK-NEXT:    ; kill: def $aalsb killed $aalsb killed $aa
+; CHECK-NEXT:    sbcr spill_b0,spill_b2
+; CHECK-NEXT:    ; kill: def $aalsb killed $aalsb def $aa
+; CHECK-NEXT:    sta 10,u ; 1-byte Folded Spill
+; CHECK-NEXT:    lda 10,u ; 1-byte Folded Reload
+; CHECK-NEXT:    ; kill: def $aalsb killed $aalsb killed $aa
+; CHECK-NEXT:    sbcr spill_a0,spill_a2
 ; CHECK-NEXT:    ldd 6,u
+; CHECK-NEXT:    std 15,u
+; CHECK-NEXT:    ldd 4,u
 ; CHECK-NEXT:    tfr d,x
 ; CHECK-NEXT:    tfr u,s
 ; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 10,s
+; CHECK-NEXT:    leas 11,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: sub_s_i32:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
@@ -470,66 +478,74 @@ entry:
 define dso_local i32 @sub_u_i32(i32 noundef %a, i32 noundef %b, i32 noundef %c, i32 noundef %d, i32 noundef %e) local_unnamed_addr #0 {
 ; CHECK-LABEL: sub_u_i32:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -10,s
+; CHECK-NEXT:    leas -11,s
 ; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    ldd 18,u
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldb 5,u
-; CHECK-NEXT:    addb 22,u
-; CHECK-NEXT:    stb 5,u
-; CHECK-NEXT:    lda 4,u
-; CHECK-NEXT:    adca 23,u
-; CHECK-NEXT:    sta 4,u
-; CHECK-NEXT:    ldd 16,u
+; CHECK-NEXT:    ldd 19,u
+; CHECK-NEXT:    std 6,u
+; CHECK-NEXT:    ldb 7,u
+; CHECK-NEXT:    addb 23,u
+; CHECK-NEXT:    stb 7,u
+; CHECK-NEXT:    lda 6,u
+; CHECK-NEXT:    adca 24,u
+; CHECK-NEXT:    sta 6,u
+; CHECK-NEXT:    ldd 17,u
 ; CHECK-NEXT:    std 8,u
 ; CHECK-NEXT:    ldb 9,u
-; CHECK-NEXT:    adcb 20,u
+; CHECK-NEXT:    adcb 21,u
 ; CHECK-NEXT:    stb 9,u
 ; CHECK-NEXT:    lda 8,u
-; CHECK-NEXT:    adca 21,u
+; CHECK-NEXT:    adca 22,u
 ; CHECK-NEXT:    sta 8,u
-; CHECK-NEXT:    ldb 5,u
-; CHECK-NEXT:    addb 26,u
-; CHECK-NEXT:    stb 5,u
-; CHECK-NEXT:    lda 4,u
-; CHECK-NEXT:    adca 27,u
-; CHECK-NEXT:    sta 4,u
+; CHECK-NEXT:    ldb 7,u
+; CHECK-NEXT:    addb 27,u
+; CHECK-NEXT:    stb 7,u
+; CHECK-NEXT:    lda 6,u
+; CHECK-NEXT:    adca 28,u
+; CHECK-NEXT:    sta 6,u
 ; CHECK-NEXT:    ldb 9,u
-; CHECK-NEXT:    adcb 24,u
+; CHECK-NEXT:    adcb 25,u
 ; CHECK-NEXT:    stb 9,u
 ; CHECK-NEXT:    lda 8,u
-; CHECK-NEXT:    adca 25,u
+; CHECK-NEXT:    adca 26,u
 ; CHECK-NEXT:    sta 8,u
-; CHECK-NEXT:    ldb 5,u
-; CHECK-NEXT:    addb 30,u
-; CHECK-NEXT:    stb 5,u
-; CHECK-NEXT:    lda 4,u
-; CHECK-NEXT:    adca 31,u
-; CHECK-NEXT:    sta 4,u
+; CHECK-NEXT:    ldb 7,u
+; CHECK-NEXT:    addb 31,u
+; CHECK-NEXT:    stb 7,u
+; CHECK-NEXT:    lda 6,u
+; CHECK-NEXT:    adca 32,u
+; CHECK-NEXT:    sta 6,u
 ; CHECK-NEXT:    ldb 9,u
-; CHECK-NEXT:    adcb 28,u
+; CHECK-NEXT:    adcb 29,u
 ; CHECK-NEXT:    stb 9,u
 ; CHECK-NEXT:    lda 8,u
-; CHECK-NEXT:    adca 29,u
+; CHECK-NEXT:    adca 30,u
 ; CHECK-NEXT:    sta 8,u
-; CHECK-NEXT:    ldb 5,u
-; CHECK-NEXT:    subb 14,u
-; CHECK-NEXT:    stb 5,u
-; CHECK-NEXT:    lda 4,u
-; CHECK-NEXT:    sbca 15,u
-; CHECK-NEXT:    sta 4,u
+; CHECK-NEXT:    ldb 7,u
+; CHECK-NEXT:    subb 15,u
+; CHECK-NEXT:    stb 7,u
+; CHECK-NEXT:    lda 6,u
+; CHECK-NEXT:    sbca 16,u
+; CHECK-NEXT:    sta 6,u
+; CHECK-NEXT:    ; kill: def $ablsb killed $ablsb def $ab
+; CHECK-NEXT:    stb 10,u ; 1-byte Folded Spill
 ; CHECK-NEXT:    tfr x,d
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    sbcr spill_b0,spill_b1
-; CHECK-NEXT:    sbcr spill_a0,spill_a1
-; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    std 14,u
+; CHECK-NEXT:    std 4,u
+; CHECK-NEXT:    lda 10,u ; 1-byte Folded Reload
+; CHECK-NEXT:    ; kill: def $aalsb killed $aalsb killed $aa
+; CHECK-NEXT:    sbcr spill_b0,spill_b2
+; CHECK-NEXT:    ; kill: def $aalsb killed $aalsb def $aa
+; CHECK-NEXT:    sta 10,u ; 1-byte Folded Spill
+; CHECK-NEXT:    lda 10,u ; 1-byte Folded Reload
+; CHECK-NEXT:    ; kill: def $aalsb killed $aalsb killed $aa
+; CHECK-NEXT:    sbcr spill_a0,spill_a2
 ; CHECK-NEXT:    ldd 6,u
+; CHECK-NEXT:    std 15,u
+; CHECK-NEXT:    ldd 4,u
 ; CHECK-NEXT:    tfr d,x
 ; CHECK-NEXT:    tfr u,s
 ; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 10,s
+; CHECK-NEXT:    leas 11,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: sub_u_i32:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
