@@ -12,6 +12,8 @@
 
 #include "MC6809InstrInfo.h"
 #include "MC6809.h"
+#include "MC6809FrameLowering.h"
+#include "MC6809MachineFunctionInfo.h"
 
 #include "MC6809RegisterInfo.h"
 
@@ -709,10 +711,181 @@ void MC6809InstrInfo::insertIndirectBranch(MachineBasicBlock &MBB, MachineBasicB
   llvm_unreachable("This process is a crock - fix me!");
 }
 
+/// Check if a register is a stack-backed spill pseudo-register.
+static bool isSpillReg(Register Reg) {
+  switch (Reg) {
+  case MC6809::SPILL_A0: case MC6809::SPILL_A1: case MC6809::SPILL_A2: case MC6809::SPILL_A3:
+  case MC6809::SPILL_B0: case MC6809::SPILL_B1: case MC6809::SPILL_B2: case MC6809::SPILL_B3:
+  case MC6809::SPILL_D0: case MC6809::SPILL_D1: case MC6809::SPILL_D2: case MC6809::SPILL_D3:
+    return true;
+  default:
+    return false;
+  }
+}
+
+/// Get the SPILL_D parent register for any spill register.
+static MCPhysReg getSpillDParent(Register Reg) {
+  switch (Reg) {
+  case MC6809::SPILL_A0: case MC6809::SPILL_B0: case MC6809::SPILL_D0: return MC6809::SPILL_D0;
+  case MC6809::SPILL_A1: case MC6809::SPILL_B1: case MC6809::SPILL_D1: return MC6809::SPILL_D1;
+  case MC6809::SPILL_A2: case MC6809::SPILL_B2: case MC6809::SPILL_D2: return MC6809::SPILL_D2;
+  case MC6809::SPILL_A3: case MC6809::SPILL_B3: case MC6809::SPILL_D3: return MC6809::SPILL_D3;
+  default: llvm_unreachable("Not a spill register");
+  }
+}
+
+/// Get byte offset within the 2-byte SPILL_D frame object.
+/// Big-endian: A (high byte) at offset 0, B (low byte) at offset 1.
+static int getSpillByteOffset(Register Reg) {
+  switch (Reg) {
+  case MC6809::SPILL_D0: case MC6809::SPILL_D1: case MC6809::SPILL_D2: case MC6809::SPILL_D3:
+    return 0; // Full 16-bit, offset 0
+  case MC6809::SPILL_A0: case MC6809::SPILL_A1: case MC6809::SPILL_A2: case MC6809::SPILL_A3:
+    return 0; // High byte (big-endian)
+  case MC6809::SPILL_B0: case MC6809::SPILL_B1: case MC6809::SPILL_B2: case MC6809::SPILL_B3:
+    return 1; // Low byte (big-endian)
+  default: llvm_unreachable("Not a spill register");
+  }
+}
+
+/// Get the corresponding real hardware register for a spill register.
+static Register getRealRegForSpill(Register Reg) {
+  switch (Reg) {
+  case MC6809::SPILL_A0: case MC6809::SPILL_A1: case MC6809::SPILL_A2: case MC6809::SPILL_A3:
+    return MC6809::AA;
+  case MC6809::SPILL_B0: case MC6809::SPILL_B1: case MC6809::SPILL_B2: case MC6809::SPILL_B3:
+    return MC6809::AB;
+  case MC6809::SPILL_D0: case MC6809::SPILL_D1: case MC6809::SPILL_D2: case MC6809::SPILL_D3:
+    return MC6809::AD;
+  default: llvm_unreachable("Not a spill register");
+  }
+}
+
+/// Get the size in bytes of a spill register (1 for A/B, 2 for D).
+static unsigned getSpillRegSize(Register Reg) {
+  switch (Reg) {
+  case MC6809::SPILL_A0: case MC6809::SPILL_A1: case MC6809::SPILL_A2: case MC6809::SPILL_A3:
+  case MC6809::SPILL_B0: case MC6809::SPILL_B1: case MC6809::SPILL_B2: case MC6809::SPILL_B3:
+    return 1;
+  case MC6809::SPILL_D0: case MC6809::SPILL_D1: case MC6809::SPILL_D2: case MC6809::SPILL_D3:
+    return 2;
+  default: llvm_unreachable("Not a spill register");
+  }
+}
+
+/// Compute the actual stack offset for a spill register's frame slot.
+/// This replicates the logic from eliminateFrameIndex so we can emit
+/// concrete S-indexed instructions during post-RA expansion (after PEI
+/// has already run and frame indices are no longer valid).
+static int computeSpillStackOffset(MCPhysReg SpillReg, MachineFunction &MF) {
+  auto &FuncInfo = *MF.getInfo<MC6809FunctionInfo>();
+  MCPhysReg SpillD = getSpillDParent(SpillReg);
+  int FI = FuncInfo.SpillRegFrameIndices[SpillD];
+  const MachineFrameInfo &MFI = MF.getFrameInfo();
+  const MC6809FrameLowering *TFI =
+      static_cast<const MC6809FrameLowering *>(MF.getSubtarget().getFrameLowering());
+
+  int Offset = MFI.getObjectOffset(FI);
+
+  // Local stack objects have negative offsets; no PC skip needed.
+  // (Fixed/arg objects have positive offsets and need +2 for return address,
+  // but spill slots are always local.)
+
+  // Compute callee-saved size.
+  unsigned CalleeSavedSize = 0;
+  for (const auto &CSI : MFI.getCalleeSavedInfo()) {
+    if (CSI.isTargetSpilled()) {
+      const TargetRegisterInfo *TRI = MF.getRegInfo().getTargetRegisterInfo();
+      const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(CSI.getReg());
+      CalleeSavedSize += TRI->getSpillSize(*RC);
+    }
+  }
+
+  if (!TFI->hasFP(MF))
+    Offset += MFI.getStackSize() + CalleeSavedSize;
+  else
+    Offset += 2; // Skip the saved FP
+
+  // Add byte offset within the 2-byte slot (0 for A/D, 1 for B).
+  Offset += getSpillByteOffset(SpillReg);
+
+  return Offset;
+}
+
+/// Pick the right indexed load opcode for a given register and offset.
+static unsigned getLoadIdxOpcode(Register Reg, int Offset) {
+  bool Is8 = (Offset >= -128 && Offset <= 127);
+  if (Reg == MC6809::AA) return Is8 ? MC6809::LDAi_o8 : MC6809::LDAi_o16;
+  if (Reg == MC6809::AB) return Is8 ? MC6809::LDBi_o8 : MC6809::LDBi_o16;
+  if (Reg == MC6809::AD) return Is8 ? MC6809::LDDi_o8 : MC6809::LDDi_o16;
+  llvm_unreachable("Unexpected register for spill load");
+}
+
+/// Pick the right indexed store opcode for a given register and offset.
+static unsigned getStoreIdxOpcode(Register Reg, int Offset) {
+  bool Is8 = (Offset >= -128 && Offset <= 127);
+  if (Reg == MC6809::AA) return Is8 ? MC6809::STAi_o8 : MC6809::STAi_o16;
+  if (Reg == MC6809::AB) return Is8 ? MC6809::STBi_o8 : MC6809::STBi_o16;
+  if (Reg == MC6809::AD) return Is8 ? MC6809::STDi_o8 : MC6809::STDi_o16;
+  llvm_unreachable("Unexpected register for spill store");
+}
+
+/// Emit a concrete U-indexed (frame pointer) load from a spill register's
+/// stack slot. Uses U (not S) so PSHS/PULS don't invalidate offsets.
+static MachineInstrBuilder emitSpillLoad(MachineIRBuilder &Builder,
+                                         Register RealReg, MCPhysReg SpillReg,
+                                         MachineFunction &MF) {
+  int Offset = computeSpillStackOffset(SpillReg, MF);
+  unsigned Size = getSpillRegSize(SpillReg);
+  Register Reg = (Size == 2) ? Register(MC6809::AD) : RealReg;
+  unsigned Opcode = getLoadIdxOpcode(Reg, Offset);
+  auto MI = Builder.buildInstr(Opcode)
+      .addDef(Reg, RegState::Implicit)
+      .addImm(Offset)
+      .addReg(MC6809::SU);  // Frame pointer — stable across PSHS/PULS
+  return MI;
+}
+
+/// Emit a concrete U-indexed (frame pointer) store to a spill register's
+/// stack slot. Uses U (not S) so PSHS/PULS don't invalidate offsets.
+static MachineInstrBuilder emitSpillStore(MachineIRBuilder &Builder,
+                                          Register RealReg, MCPhysReg SpillReg,
+                                          MachineFunction &MF) {
+  int Offset = computeSpillStackOffset(SpillReg, MF);
+  unsigned Size = getSpillRegSize(SpillReg);
+  Register Reg = (Size == 2) ? Register(MC6809::AD) : RealReg;
+  unsigned Opcode = getStoreIdxOpcode(Reg, Offset);
+  auto MI = Builder.buildInstr(Opcode)
+      .addUse(Reg, RegState::Implicit)
+      .addImm(Offset)
+      .addReg(MC6809::SU);  // Frame pointer — stable across PSHS/PULS
+  return MI;
+}
+
  void  MC6809InstrInfo::copyPhysReg(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, const DebugLoc &DL, Register DestReg, Register SrcReg, bool KillSrc, bool RenamableDest, bool RenamableSrc) const {
   MachineIRBuilder Builder(MBB, MI);
   if (DestReg == SrcReg)
     return;
+
+  // Handle copies involving stack-backed spill pseudo-registers.
+  // Emit concrete S-indexed instructions (not pseudos with frame indices,
+  // since PEI has already run by the time copyPhysReg is called).
+  if (isSpillReg(DestReg) || isSpillReg(SrcReg)) {
+    MachineFunction &MF = *MBB.getParent();
+    if (isSpillReg(DestReg) && !isSpillReg(SrcReg)) {
+      // Real → Spill: Store real register to spill slot.
+      emitSpillStore(Builder, SrcReg, DestReg, MF);
+    } else if (!isSpillReg(DestReg) && isSpillReg(SrcReg)) {
+      // Spill → Real: Load from spill slot to real register.
+      emitSpillLoad(Builder, DestReg, SrcReg, MF);
+    } else {
+      // Spill → Spill: Load to real accumulator, store to dest slot.
+      Register TmpReal = getRealRegForSpill(SrcReg);
+      emitSpillLoad(Builder, TmpReal, SrcReg, MF);
+      emitSpillStore(Builder, TmpReal, DestReg, MF);
+    }
+    return;
+  }
 
   const auto &IsClass = [&](Register Reg, const TargetRegisterClass &RC) {
     if (Reg.isPhysical() && !RC.contains(Reg))
@@ -952,7 +1125,20 @@ void MC6809InstrInfo::loadStoreRegStackSlot(MachineBasicBlock &MBB, MachineBasic
   MachineIRBuilder Builder(MBB, MI);
   MachineInstrSpan MIS(MI, &MBB);
 
-  if ((Reg.isPhysical() && MC6809::ACC16RegClass.contains(Reg)) || (Reg.isVirtual() && MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::ACC16RegClass))) {
+  if ((Reg.isPhysical() && MC6809::INDEX16RegClass.contains(Reg)) ||
+      (Reg.isVirtual() && MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::INDEX16RegClass))) {
+    // INDEX16 registers (X, Y, U, S) save/restore via TFR to/from D
+    // then Store/Load D. This avoids creating an intermediate ACC16
+    // virtual register that the scavenger might assign to a spill
+    // pseudo-register (which can't be pushed/pulled).
+    if (IsLoad) {
+      loadStoreRegisterStaticStackSlot(Builder, MachineOperand::CreateReg(MC6809::AD, /*isDef=*/true), FrameIndex, 0, MF.getMachineMemOperand(MMO, 0, 2));
+      Builder.buildInstr(MC6809::TFRp).addDef(Reg).addUse(MC6809::AD);
+    } else {
+      Builder.buildInstr(MC6809::TFRp).addDef(MC6809::AD).addUse(Reg);
+      loadStoreRegisterStaticStackSlot(Builder, MachineOperand::CreateReg(MC6809::AD, /*isDef=*/false), FrameIndex, 0, MF.getMachineMemOperand(MMO, 0, 2));
+    }
+  } else if ((Reg.isPhysical() && MC6809::ACC16RegClass.contains(Reg)) || (Reg.isVirtual() && MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::ACC16RegClass))) {
     Register Tmp = Reg;
     if (!Reg.isPhysical()) {
       assert(Reg.isVirtual());
@@ -1240,6 +1426,16 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::Push_i8:
   case MC6809::Push_i16:
   case MC6809::Push_Ptr: {
+    // Operand 0 = stack register (def), operand 1 = value to push (use).
+    Register PushReg = MI.getOperand(1).getReg();
+    // If pushing a spill register, load into real accumulator first.
+    if (isSpillReg(PushReg)) {
+      Register RealReg = getRealRegForSpill(PushReg);
+      MachineFunction &MF = *MI.getMF();
+      MachineIRBuilder PreBuilder(*MI.getParent(), MI.getIterator());
+      emitSpillLoad(PreBuilder, RealReg, PushReg, MF);
+      MI.getOperand(1).setReg(RealReg);
+    }
     MI.setDesc(Builder.getTII().get(MC6809::PSHSs));
     MI.getOperand(0).setImplicit();
     break;
@@ -1248,6 +1444,13 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::Pull_i16:
   case MC6809::Pull_Ptr: {
     auto PullReg = MI.getOperand(1).getReg();
+    // If pulling into a spill register, pull into real accumulator then store.
+    bool PullToSpill = isSpillReg(PullReg);
+    Register OrigPullReg = PullReg;
+    if (PullToSpill) {
+      PullReg = getRealRegForSpill(PullReg);
+      MI.getOperand(1).setReg(PullReg);
+    }
     if (PullReg == MC6809::AQ) {
       MI.setDesc(Builder.getTII().get(MC6809::PULSWx));
       MI.removeOperand(1);
@@ -1297,6 +1500,14 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     MI.removeOperand(1);
     MI.removeOperand(0);
     MI.addOperand(MachineOperand::CreateImm(regList));
+    // If the pull target was a spill register, store from real reg to spill slot.
+    if (PullToSpill) {
+      MachineFunction &MF = *MI.getMF();
+      MachineBasicBlock::iterator InsertPt = MI.getIterator();
+      ++InsertPt;
+      MachineIRBuilder PostBuilder(*MI.getParent(), InsertPt);
+      emitSpillStore(PostBuilder, PullReg, OrigPullReg, MF);
+    }
     break;
   }
   }
@@ -1531,13 +1742,44 @@ void MC6809InstrInfo::expandShiftLeft(MachineIRBuilder &Builder, MachineInstr &M
 
 void MC6809InstrInfo::expandMulD(MachineIRBuilder &Builder, MachineInstr &MI) const {
   assert(MI.getOpcode() == MC6809::MUL_D && "Invalid multiply opcode");
-  assert(MI.getOperand(0).getReg() == MC6809::AD && "Result must be AD");
-  assert(MI.getOperand(1).getReg() == MC6809::AD && "Source must be AD");
-  // MUL_D pseudo takes D as explicit input/output.
-  // The real MULx instruction has all operands implicit.
+  Register DstReg = MI.getOperand(0).getReg();
+  Register SrcReg = MI.getOperand(1).getReg();
+
+  if (DstReg == MC6809::AD && SrcReg == MC6809::AD) {
+    // Direct: operands already in real D register.
+    MI.setDesc(Builder.getTII().get(MC6809::MULx));
+    MI.getOperand(0).setImplicit();
+    MI.getOperand(1).setImplicit();
+    return;
+  }
+
+  // Spill register operand: load from spill slot → D, MUL, store D → spill slot.
+  // Emit concrete S-indexed instructions (PEI has already resolved frame indices).
+  MachineFunction &MF = *MI.getMF();
+  MachineBasicBlock &MBB = *MI.getParent();
+
+  // Load spill slot into real D before the MUL.
+  if (SrcReg != MC6809::AD) {
+    assert(isSpillReg(SrcReg) && "MUL_D source must be AD or spill register");
+    MachineIRBuilder PreBuilder(MBB, MI.getIterator());
+    emitSpillLoad(PreBuilder, MC6809::AD, SrcReg, MF);
+  }
+
+  // The MUL instruction itself.
   MI.setDesc(Builder.getTII().get(MC6809::MULx));
+  MI.getOperand(0).setReg(MC6809::AD);
   MI.getOperand(0).setImplicit();
+  MI.getOperand(1).setReg(MC6809::AD);
   MI.getOperand(1).setImplicit();
+
+  // Store result from D to spill slot after the MUL.
+  if (DstReg != MC6809::AD) {
+    assert(isSpillReg(DstReg) && "MUL_D dest must be AD or spill register");
+    MachineBasicBlock::iterator InsertPt = MI.getIterator();
+    ++InsertPt;
+    MachineIRBuilder PostBuilder(MBB, InsertPt);
+    emitSpillStore(PostBuilder, MC6809::AD, DstReg, MF);
+  }
 }
 
 void MC6809InstrInfo::expandMul16Imm(MachineIRBuilder &Builder, MachineInstr &MI) const {
@@ -1761,6 +2003,24 @@ void MC6809InstrInfo::expandLoad1Imm(MachineIRBuilder &Builder, MachineInstr &MI
 void MC6809InstrInfo::expandLoadImm(MachineIRBuilder &Builder, MachineInstr &MI) const {
 
   auto DestRegOp = MI.getOperand(0);
+
+  // If the destination is a spill register, save the real accumulator,
+  // load immediate into it, store to spill slot (U-relative), then restore.
+  if (isSpillReg(DestRegOp.getReg())) {
+    Register RealReg = getRealRegForSpill(DestRegOp.getReg());
+    MachineFunction &MF = Builder.getMF();
+    // Save real accumulator.
+    emitSpillStore(Builder, RealReg, MC6809::SPILL_D3, MF);
+    // Load immediate into real accumulator.
+    MI.getOperand(0).setReg(RealReg);
+    expandLoadImm(Builder, MI);
+    // Store to spill slot (U-relative, stable across PSHS).
+    emitSpillStore(Builder, RealReg, DestRegOp.getReg(), MF);
+    // Restore real accumulator.
+    emitSpillLoad(Builder, RealReg, MC6809::SPILL_D3, MF);
+    return;
+  }
+
   int64_t Val;
   auto ValOp = MI.getOperand(1);
   if (ValOp.isImm() || ValOp.isCImm())
@@ -1775,6 +2035,34 @@ void MC6809InstrInfo::expandLoadImm(MachineIRBuilder &Builder, MachineInstr &MI)
 void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI) const {
 
   auto DestRegOp = MI.getOperand(0);
+
+  // If the destination is a spill register, save the real accumulator,
+  // load into it, store to the spill slot (U-relative), then restore.
+  // U-relative addressing means PSHS/PULS won't invalidate spill offsets.
+  if (isSpillReg(DestRegOp.getReg())) {
+    Register RealReg = getRealRegForSpill(DestRegOp.getReg());
+    MachineFunction &MF = *MI.getMF();
+    MachineBasicBlock &MBB = *MI.getParent();
+
+    // Save the real accumulator (it may be live with another value).
+    MachineIRBuilder PreBuilder(MBB, MI.getIterator());
+    emitSpillStore(PreBuilder, RealReg, MC6809::SPILL_D3, MF);
+
+    // Load from memory into the real accumulator.
+    MI.getOperand(0).setReg(RealReg);
+    expandLoadIdx(Builder, MI);
+
+    // Store the real accumulator to the spill slot (U-relative, stable).
+    MachineBasicBlock::iterator InsertPt = MI.getIterator();
+    ++InsertPt;
+    MachineIRBuilder PostBuilder(MBB, InsertPt);
+    emitSpillStore(PostBuilder, RealReg, DestRegOp.getReg(), MF);
+
+    // Restore the real accumulator from the stack.
+    emitSpillLoad(PostBuilder, RealReg, MC6809::SPILL_D3, MF);
+    return;
+  }
+
   auto IndexRegOp = MI.getOperand(1);
   auto OffsetOp = MI.getOperand(2);
   MI.removeOperand(2);
@@ -1808,6 +2096,18 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
 void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI) const {
 
   auto SrcRegOp = MI.getOperand(0);
+
+  // If the source is a spill register, load from the spill slot into the
+  // real accumulator first, then proceed with the store.
+  if (isSpillReg(SrcRegOp.getReg())) {
+    Register RealReg = getRealRegForSpill(SrcRegOp.getReg());
+    MachineFunction &MF = *MI.getMF();
+    MachineIRBuilder LoadBuilder(*MI.getParent(), MI.getIterator());
+    emitSpillLoad(LoadBuilder, RealReg, SrcRegOp.getReg(), MF);
+    MI.getOperand(0).setReg(RealReg);
+    // Fall through to normal expansion with the real register.
+  }
+
   auto IndexRegOp = MI.getOperand(1);
   auto OffsetOp = MI.getOperand(2);
   MI.removeOperand(2);

@@ -281,14 +281,14 @@ def BIT1 : MC6809Reg1Class<(add AALSB, ABLSB, AELSB, AFLSB)> {
     let AltOrders = [(add AALSB, ABLSB)];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
 }
-def ACC8 : MC6809Reg8Class<(add AB, AA, AF, AE)> {
-    let AltOrders = [(add AB, AA)];
+def ACC8 : MC6809Reg8Class<(add AB, AA, AF, AE, SPILL_B0, SPILL_B1, SPILL_B2, SPILL_B3, SPILL_A0, SPILL_A1, SPILL_A2, SPILL_A3)> {
+    let AltOrders = [(add AB, AA, SPILL_B0, SPILL_B1, SPILL_B2, SPILL_B3, SPILL_A0, SPILL_A1, SPILL_A2, SPILL_A3)];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
 }
 def ACC8_AB : MC6809Reg8Class<(add AB, AA)>;
 def BIT8 : MC6809Reg8Class<(add AA, AB, CC)>; // Valid registers for BAND, BEOR, BOR, BIAND, BIEOR, BIOR, LDBT, STBT
-def ACC16 : MC6809Reg16Class<(add AD, AW)> {
-    let AltOrders = [(add AD)];
+def ACC16 : MC6809Reg16Class<(add AD, AW, SPILL_D0, SPILL_D1, SPILL_D2, SPILL_D3)> {
+    let AltOrders = [(add AD, SPILL_D0, SPILL_D1, SPILL_D2, SPILL_D3)];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
 }
 def ACC16_D : MC6809Reg8Class<(add AD)>;

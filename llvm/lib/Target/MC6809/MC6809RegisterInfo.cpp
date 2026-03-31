@@ -63,7 +63,28 @@ BitVector MC6809RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
 
 const MCPhysReg *MC6809RegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const { return MC6809_CSR_SaveList; }
 
-const uint32_t *MC6809RegisterInfo::getCallPreservedMask(const MachineFunction &MF, CallingConv::ID CallingConv) const { return MC6809_CSR_RegMask; }
+const uint32_t *MC6809RegisterInfo::getCallPreservedMask(const MachineFunction &MF, CallingConv::ID CallingConv) const {
+  // Start with the TableGen-generated mask from CalleeSavedRegs.
+  // Then mark spill pseudo-registers as call-preserved — they're backed by
+  // stack memory so function calls can't clobber them.
+  static uint32_t SpillPreservedMask[MC6809::NUM_TARGET_REGS / 32 + 1];
+  static bool Initialized = false;
+  if (!Initialized) {
+    // Copy the base mask.
+    unsigned MaskSize = (MC6809::NUM_TARGET_REGS + 31) / 32;
+    memcpy(SpillPreservedMask, MC6809_CSR_RegMask, sizeof(uint32_t) * MaskSize);
+    // Mark all spill registers as preserved across calls.
+    for (MCPhysReg Reg : {MC6809::SPILL_D0, MC6809::SPILL_D1, MC6809::SPILL_D2, MC6809::SPILL_D3,
+                          MC6809::SPILL_A0, MC6809::SPILL_A1, MC6809::SPILL_A2, MC6809::SPILL_A3,
+                          MC6809::SPILL_B0, MC6809::SPILL_B1, MC6809::SPILL_B2, MC6809::SPILL_B3,
+                          MC6809::SPILL_A0LSB, MC6809::SPILL_A1LSB, MC6809::SPILL_A2LSB, MC6809::SPILL_A3LSB,
+                          MC6809::SPILL_B0LSB, MC6809::SPILL_B1LSB, MC6809::SPILL_B2LSB, MC6809::SPILL_B3LSB}) {
+      SpillPreservedMask[Reg / 32] |= (1u << (Reg % 32));
+    }
+    Initialized = true;
+  }
+  return SpillPreservedMask;
+}
 
 const TargetRegisterClass *MC6809RegisterInfo::getCrossCopyRegClass(const TargetRegisterClass *RC) const {
   if (RC == &MC6809::INDEX16RegClass)
@@ -103,10 +124,11 @@ bool MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int
     }
   }
 
-  if (!TFI->hasFP(MF))
-    Offset += MFI.getStackSize() + CalleeSavedSize;
-  else
-    Offset += 2; // Skip the saved FP
+  // The frame pointer (U) is set to S AFTER both stack allocation and
+  // callee-saved pushes. So the offset from FP to args includes both.
+  // Same formula for FP and non-FP — the base register differs (U vs S)
+  // but the offset computation is identical.
+  Offset += MFI.getStackSize() + CalleeSavedSize;
 
   // Fold imm into offset
   Offset += MI.getOperand(FIOperandNum + 1).getImm();
@@ -274,6 +296,35 @@ MC6809InstrCost MC6809RegisterInfo::copyCost(Register DestReg, Register SrcReg, 
   auto AluImm8Cost = MC6809InstrCost(2, 2);
   auto AluImm16Cost = MC6809InstrCost(2, 3);
   auto ImpossibleCost = MC6809InstrCost(32768, 32768);
+
+  // Spill register costs: load/store to stack via S-indexed addressing.
+  auto SpillLoad8Cost = MC6809InstrCost(2, 4);   // LDA/LDB offset,S
+  auto SpillStore8Cost = MC6809InstrCost(2, 4);   // STA/STB offset,S
+  auto SpillLoad16Cost = MC6809InstrCost(2, 5);   // LDD offset,S
+  auto SpillStore16Cost = MC6809InstrCost(2, 5);   // STD offset,S
+
+  // Real ↔ 8-bit spill register
+  if ((MC6809::ACC8RegClass.contains(DestReg) && MC6809::AAcRegClass.contains(SrcReg) && !MC6809::ACC8RegClass.contains(SrcReg)) ||
+      (MC6809::ACC8RegClass.contains(DestReg) && MC6809::ABcRegClass.contains(SrcReg) && !MC6809::ACC8RegClass.contains(SrcReg)))
+    return SpillLoad8Cost;
+  if ((MC6809::AAcRegClass.contains(DestReg) && !MC6809::ACC8RegClass.contains(DestReg) && MC6809::ACC8RegClass.contains(SrcReg)) ||
+      (MC6809::ABcRegClass.contains(DestReg) && !MC6809::ACC8RegClass.contains(DestReg) && MC6809::ACC8RegClass.contains(SrcReg)))
+    return SpillStore8Cost;
+  // Real ↔ 16-bit spill register
+  if (MC6809::ACC16RegClass.contains(DestReg) && MC6809::ADcRegClass.contains(SrcReg) && !MC6809::ACC16RegClass.contains(SrcReg))
+    return SpillLoad16Cost;
+  if (MC6809::ADcRegClass.contains(DestReg) && !MC6809::ACC16RegClass.contains(DestReg) && MC6809::ACC16RegClass.contains(SrcReg))
+    return SpillStore16Cost;
+  // Spill ↔ spill (same size): load + store
+  if (MC6809::AAcRegClass.contains(DestReg) && !MC6809::ACC8RegClass.contains(DestReg) &&
+      MC6809::AAcRegClass.contains(SrcReg) && !MC6809::ACC8RegClass.contains(SrcReg))
+    return SpillLoad8Cost + SpillStore8Cost;
+  if (MC6809::ABcRegClass.contains(DestReg) && !MC6809::ACC8RegClass.contains(DestReg) &&
+      MC6809::ABcRegClass.contains(SrcReg) && !MC6809::ACC8RegClass.contains(SrcReg))
+    return SpillLoad8Cost + SpillStore8Cost;
+  if (MC6809::ADcRegClass.contains(DestReg) && !MC6809::ACC16RegClass.contains(DestReg) &&
+      MC6809::ADcRegClass.contains(SrcReg) && !MC6809::ACC16RegClass.contains(SrcReg))
+    return SpillLoad16Cost + SpillStore16Cost;
 
   if (AreClasses(MC6809::ACC8RegClass, MC6809::ACC8RegClass)) {
     return TransferCost;

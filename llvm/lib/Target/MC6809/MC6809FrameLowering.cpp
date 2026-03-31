@@ -90,7 +90,9 @@ bool MC6809FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB, Mach
   MachineInstrSpan MIS(MI, &MBB);
   const MC6809Subtarget &STI = MBB.getParent()->getSubtarget<MC6809Subtarget>();
   const TargetInstrInfo &TII = *STI.getInstrInfo();
-  const TargetRegisterClass &StackRegClass = MC6809::ACC16RegClass;
+  // Use ACC16_D (just {AD}) — not ACC16 which includes spill registers
+  // that the scavenger could pick as intermediates.
+  const TargetRegisterClass &StackRegClass = MC6809::ACC16_DRegClass;
   const auto &FuncInfo = MBB.getParent()->getInfo<MC6809FunctionInfo>();
 
   // There are intentionally very few CSRs, few enough to place on the hard
@@ -102,12 +104,23 @@ bool MC6809FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB, Mach
     Register Reg = CI.getReg();
     if (!CI.isTargetSpilled() || FuncInfo->CSRDPOffsets.count(Reg))
       continue;
-    if (!StackRegClass.contains(Reg))
-      Reg = Builder.buildCopy(&StackRegClass, Reg).getReg(0);
-    if (Reg == MC6809::AW)
-      Builder.buildInstr(MC6809::PSHSWx, {}, {});
-    else
+    // INDEX16 registers (X, Y, U, S) can be pushed directly — no need to
+    // copy through D. This avoids frame references before the frame pointer
+    // is set up, and avoids the scavenger picking spill pseudo-registers.
+    if (MC6809::INDEX16RegClass.contains(Reg)) {
       Builder.buildInstr(MC6809::PSHSs, {}, {Reg});
+    } else if (!StackRegClass.contains(Reg)) {
+      Reg = Builder.buildCopy(&StackRegClass, Reg).getReg(0);
+      if (Reg == MC6809::AW)
+        Builder.buildInstr(MC6809::PSHSWx, {}, {});
+      else
+        Builder.buildInstr(MC6809::PSHSs, {}, {Reg});
+    } else {
+      if (Reg == MC6809::AW)
+        Builder.buildInstr(MC6809::PSHSWx, {}, {});
+      else
+        Builder.buildInstr(MC6809::PSHSs, {}, {Reg});
+    }
   }
 
   // Record that the frame pointer is killed by these instructions.
@@ -150,7 +163,9 @@ bool MC6809FrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB, Ma
   MachineIRBuilder Builder(MBB, MI);
   const MC6809Subtarget &STI = MBB.getParent()->getSubtarget<MC6809Subtarget>();
   const TargetInstrInfo &TII = *STI.getInstrInfo();
-  const TargetRegisterClass &StackRegClass = MC6809::ACC16RegClass;
+  // Use ACC16_D (just {AD}) — not ACC16 which includes spill registers
+  // that the scavenger could pick as intermediates.
+  const TargetRegisterClass &StackRegClass = MC6809::ACC16_DRegClass;
   const auto &FuncInfo = MBB.getParent()->getInfo<MC6809FunctionInfo>();
 
   for (const CalleeSavedInfo &CI : reverse(CSI)) {
@@ -170,12 +185,21 @@ bool MC6809FrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB, Ma
     Register Reg = CI.getReg();
     if (!CI.isTargetSpilled() || FuncInfo->CSRDPOffsets.count(Reg))
       continue;
-    if (!StackRegClass.contains(Reg))
-      Reg = Builder.getMRI()->createVirtualRegister(&StackRegClass);
-    if (Reg == MC6809::AW)
-      Builder.buildInstr(MC6809::PULSWx, {}, {});
-    else
+    // INDEX16 registers can be pulled directly.
+    if (MC6809::INDEX16RegClass.contains(Reg)) {
       Builder.buildInstr(MC6809::PULSs, {Reg}, {});
+    } else if (!StackRegClass.contains(Reg)) {
+      Reg = Builder.getMRI()->createVirtualRegister(&StackRegClass);
+      if (Reg == MC6809::AW)
+        Builder.buildInstr(MC6809::PULSWx, {}, {});
+      else
+        Builder.buildInstr(MC6809::PULSs, {Reg}, {});
+    } else {
+      if (Reg == MC6809::AW)
+        Builder.buildInstr(MC6809::PULSWx, {}, {});
+      else
+        Builder.buildInstr(MC6809::PULSs, {Reg}, {});
+    }
     if (Reg != CI.getReg())
       Builder.buildCopy(Register(CI.getReg()), Reg);
   }
@@ -207,10 +231,38 @@ bool MC6809FrameLowering::enableCalleeSaveSkip(const MachineFunction &MF) const 
 void MC6809FrameLowering::determineCalleeSaves(MachineFunction &MF, BitVector &SavedRegs, RegScavenger *RS) const {
   TargetFrameLowering::determineCalleeSaves(MF, SavedRegs, RS);
 
+  // Detect spill register usage early — before hasFP is checked for
+  // callee-save decisions. This ensures U is saved when spill registers
+  // require frame pointer setup.
+  MachineRegisterInfo &MRI = MF.getRegInfo();
+  auto &FuncInfo = *MF.getInfo<MC6809FunctionInfo>();
+  static const MCPhysReg SpillDRegs[] = {
+    MC6809::SPILL_D0, MC6809::SPILL_D1, MC6809::SPILL_D2, MC6809::SPILL_D3
+  };
+  for (MCPhysReg Reg : SpillDRegs) {
+    if (MRI.isPhysRegUsed(Reg)) {
+      FuncInfo.UsesSpillRegisters = true;
+      break;
+    }
+  }
+
   // If we have a frame pointer, the frame register SU needs to be saved as
   // well, since the code that uses it hasn't yet been emitted.
   if (hasFP(MF))
     SavedRegs.set(MC6809::SU);
+
+  // Spill pseudo-registers are stack-local — they don't need callee-saving.
+  // Clear them from SavedRegs even if the call-preserved mask includes them.
+  for (MCPhysReg Reg : SpillDRegs)
+    SavedRegs.reset(Reg);
+  static const MCPhysReg SpillSubRegs[] = {
+    MC6809::SPILL_A0, MC6809::SPILL_A1, MC6809::SPILL_A2, MC6809::SPILL_A3,
+    MC6809::SPILL_B0, MC6809::SPILL_B1, MC6809::SPILL_B2, MC6809::SPILL_B3,
+    MC6809::SPILL_A0LSB, MC6809::SPILL_A1LSB, MC6809::SPILL_A2LSB, MC6809::SPILL_A3LSB,
+    MC6809::SPILL_B0LSB, MC6809::SPILL_B1LSB, MC6809::SPILL_B2LSB, MC6809::SPILL_B3LSB,
+  };
+  for (MCPhysReg Reg : SpillSubRegs)
+    SavedRegs.reset(Reg);
 
   if (isISR(MF)) {
     // We need A to save anything else. This may require in turn saving A.
@@ -234,6 +286,33 @@ void MC6809FrameLowering::processFunctionBeforeFrameFinalized(MachineFunction &M
     MachineFrameInfo &MFI = MF.getFrameInfo();
     int FI = MFI.CreateStackObject(2, Align(1), false);
     RS->addScavengingFrameIndex(FI);
+  }
+
+  // Allocate stack slots for used spill pseudo-registers.
+  // Only allocate slots for SPILL_D registers that are actually used.
+  // SPILL_A/SPILL_B share the same stack bytes via sub-register relationships.
+  MachineRegisterInfo &MRI = MF.getRegInfo();
+  MachineFrameInfo &MFI = MF.getFrameInfo();
+  auto &FuncInfo = *MF.getInfo<MC6809FunctionInfo>();
+  static const MCPhysReg SpillDRegs[] = {
+    MC6809::SPILL_D0, MC6809::SPILL_D1, MC6809::SPILL_D2, MC6809::SPILL_D3
+  };
+  bool AnySpillUsed = false;
+  for (MCPhysReg Reg : SpillDRegs) {
+    if (MRI.isPhysRegUsed(Reg)) {
+      int FI = MFI.CreateStackObject(2, Align(1), false);
+      FuncInfo.SpillRegFrameIndices[Reg] = FI;
+      AnySpillUsed = true;
+    }
+  }
+  // Always allocate SPILL_D3 as a scratch save slot for accumulator
+  // save/restore during spill expansion, even if not used for allocation.
+  if (AnySpillUsed) {
+    FuncInfo.UsesSpillRegisters = true;
+    if (FuncInfo.SpillRegFrameIndices.count(MC6809::SPILL_D3) == 0) {
+      int FI = MFI.CreateStackObject(2, Align(1), false);
+      FuncInfo.SpillRegFrameIndices[MC6809::SPILL_D3] = FI;
+    }
   }
 }
 
@@ -310,7 +389,14 @@ void MC6809FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &M
 
 bool MC6809FrameLowering::hasFP(const MachineFunction &MF) const {
   const MachineFrameInfo &MFI = MF.getFrameInfo();
-  return MFI.isFrameAddressTaken() || MFI.hasVarSizedObjects();
+  if (MFI.isFrameAddressTaken() || MFI.hasVarSizedObjects())
+    return true;
+  // Force frame pointer when spill pseudo-registers are used.
+  // Spill accesses use U-relative addressing so PSHS/PULS (which change S)
+  // don't invalidate spill slot offsets.
+  if (auto *FuncInfo = MF.getInfo<MC6809FunctionInfo>())
+    return FuncInfo->UsesSpillRegisters;
+  return false;
 }
 
 uint64_t MC6809FrameLowering::staticSize(const MachineFrameInfo &MFI) const {
@@ -322,8 +408,7 @@ uint64_t MC6809FrameLowering::staticSize(const MachineFrameInfo &MFI) const {
 }
 
 bool MC6809FrameLowering::hasFPImpl(const MachineFunction &MF) const {
-  const MachineFrameInfo &MFI = MF.getFrameInfo();
-  return MFI.isFrameAddressTaken() || MFI.hasVarSizedObjects();
+  return hasFP(MF);
 }
 
 void MC6809FrameLowering::offsetSP(MachineIRBuilder &Builder, int64_t Offset) const {
