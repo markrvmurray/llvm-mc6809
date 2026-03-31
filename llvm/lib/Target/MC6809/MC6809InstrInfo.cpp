@@ -791,20 +791,17 @@ static int computeSpillStackOffset(MCPhysReg SpillReg, MachineFunction &MF) {
   // (Fixed/arg objects have positive offsets and need +2 for return address,
   // but spill slots are always local.)
 
-  // Compute callee-saved size.
+  // Compute callee-saved size — count ALL CSRs pushed to the hard stack.
   unsigned CalleeSavedSize = 0;
   for (const auto &CSI : MFI.getCalleeSavedInfo()) {
-    if (CSI.isTargetSpilled()) {
-      const TargetRegisterInfo *TRI = MF.getRegInfo().getTargetRegisterInfo();
-      const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(CSI.getReg());
-      CalleeSavedSize += TRI->getSpillSize(*RC);
-    }
+    const TargetRegisterInfo *TRI = MF.getRegInfo().getTargetRegisterInfo();
+    const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(CSI.getReg());
+    CalleeSavedSize += TRI->getSpillSize(*RC);
   }
 
-  if (!TFI->hasFP(MF))
-    Offset += MFI.getStackSize() + CalleeSavedSize;
-  else
-    Offset += 2; // Skip the saved FP
+  // Same formula for FP and non-FP — U is set to S after both allocation
+  // and CSR pushes, so the offset from U includes both.
+  Offset += MFI.getStackSize() + CalleeSavedSize;
 
   // Add byte offset within the 2-byte slot (0 for A/D, 1 for B).
   Offset += getSpillByteOffset(SpillReg);
