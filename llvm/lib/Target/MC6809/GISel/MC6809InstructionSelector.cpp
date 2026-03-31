@@ -499,9 +499,16 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     // Handle INDEX-bank i16 add/sub via LEA.
     // GlobalISel puts constants in registers (not bare immediates),
     // so TableGen patterns can't match — hand-lowering required.
+    // Check DstReg for INDEX bank OR INDEX16 class (intermediate results
+    // in multi-add chains may already have a class from earlier selection).
     Register DstReg = MI.getOperand(0).getReg();
     const RegisterBank *RB = MRI->getRegBankOrNull(DstReg);
-    if (RB && RB->getID() == MC6809::INDEXRegBankID) {
+    bool IsIndex = (RB && RB->getID() == MC6809::INDEXRegBankID);
+    if (!IsIndex) {
+      const TargetRegisterClass *RC = MRI->getRegClassOrNull(DstReg);
+      IsIndex = RC && MC6809::INDEX16RegClass.hasSubClassEq(RC);
+    }
+    if (IsIndex) {
       Register Src1 = MI.getOperand(1).getReg();
       Register Src2 = MI.getOperand(2).getReg();
       // Look through COPYs to find the defining G_CONSTANT.
