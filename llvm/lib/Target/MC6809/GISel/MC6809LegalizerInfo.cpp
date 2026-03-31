@@ -145,13 +145,16 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
       .widenScalarIf(IsScalarPointer(1, 0, std::less<>{}), ChangeToSameSizeScalar(1, 0))
       .narrowScalarIf(IsScalarPointer(1, 0, std::greater<>{}), ChangeToSameSizeScalar(1, 0));
 
+  // The 6809 has native 16-bit add/sub (ADDD/SUBD), so i32 should decompose
+  // to i16 (not i8). Using s16 as max instead of sMaxLogic (which is s8)
+  // halves the number of operations and register pressure for i32 arithmetic.
   getActionDefinitionsBuilder({G_ADD, G_SUB})
       .legalFor(LegalAccumulators)
-      .clampScalar(0, s1, sMaxLogic);
+      .clampScalar(0, s1, s16);
 
   getActionDefinitionsBuilder({G_UADDO, G_UADDE, G_USUBO, G_USUBE, G_SADDO, G_SADDE, G_SSUBO, G_SSUBE})
-      .legalForCartesianProduct(LegalAccumulators, {s1, sMaxLogic})
-      .clampScalar(0, s1, sMaxLogic);
+      .legalForCartesianProduct(LegalAccumulators, {s1, s16})
+      .clampScalar(0, s1, s16);
 
   // MUL is 8x8→16 on standard 6809. 16x16 only on HD6309 (MULD).
   // On 6809, i8 mul is native (MUL instruction: A×B→D). Wider multiplies
