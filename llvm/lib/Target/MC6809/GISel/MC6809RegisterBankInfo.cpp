@@ -55,11 +55,14 @@ const RegisterBank &MC6809RegisterBankInfo::getRegBankFromRegClass(const TargetR
       MC6809::ACC8RegClass.hasSubClassEq(&RC) ||
       MC6809::ACC16RegClass.hasSubClassEq(&RC) ||
       MC6809::ACC32RegClass.hasSubClassEq(&RC) ||
-      // Tiny classes with spill registers (AAc, ABc, ADc) are no longer
-      // subclasses of ACC8/ACC16, but still belong to the ACCUM bank.
+      // Classes that may not be subclasses of ACC8/ACC16 due to spill
+      // registers breaking set containment, but still belong to ACCUM bank.
       MC6809::AAcRegClass.hasSubClassEq(&RC) ||
       MC6809::ABcRegClass.hasSubClassEq(&RC) ||
-      MC6809::ADcRegClass.hasSubClassEq(&RC)) {
+      MC6809::ADcRegClass.hasSubClassEq(&RC) ||
+      MC6809::ACC8_ABRegClass.hasSubClassEq(&RC) ||
+      MC6809::AALSBcRegClass.hasSubClassEq(&RC) ||
+      MC6809::ABLSBcRegClass.hasSubClassEq(&RC)) {
     return getRegBank(MC6809::ACCUMRegBankID);
   } else if (MC6809::INDEX16RegClass.hasSubClassEq(&RC)) {
     return getRegBank(MC6809::INDEXRegBankID);
