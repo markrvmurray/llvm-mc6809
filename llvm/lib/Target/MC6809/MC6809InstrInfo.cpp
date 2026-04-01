@@ -920,7 +920,10 @@ static MachineInstrBuilder emitSpillStore(MachineIRBuilder &Builder,
       return;
     Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(SrcReg);
   } else if (AreClasses(MC6809::ACC16RegClass, MC6809::ACC16RegClass) || AreClasses(MC6809::ACC16RegClass, MC6809::INDEX16RegClass) || AreClasses(MC6809::INDEX16RegClass, MC6809::ACC16RegClass) ||
-             AreClasses(MC6809::INDEX16RegClass, MC6809::INDEX16RegClass)) {
+             AreClasses(MC6809::INDEX16RegClass, MC6809::INDEX16RegClass) ||
+             AreClasses(MC6809::STACK16RegClass, MC6809::STACK16RegClass) ||
+             AreClasses(MC6809::STACK16RegClass, MC6809::INDEX16RegClass) || AreClasses(MC6809::INDEX16RegClass, MC6809::STACK16RegClass) ||
+             AreClasses(MC6809::STACK16RegClass, MC6809::ACC16RegClass) || AreClasses(MC6809::ACC16RegClass, MC6809::STACK16RegClass)) {
     Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(SrcReg);
   } else if (AreClasses(MC6809::ACC8RegClass, MC6809::CCFlagRegClass)) {
     // TODO: May need AND #0x0F to mask EFHI bits if callers expect only NZVC.
@@ -3046,8 +3049,42 @@ void MC6809InstrInfo::expandTestReg(MachineIRBuilder &Builder, MachineInstr &MI)
 
   auto SrcReg = MI.getOperand(2).getReg();
   if (isSpillReg(SrcReg)) {
-    Register RealReg = getRealRegForSpill(SrcReg);
+    // Optimization: if the spill was stored from an INDEX register (STX/STY),
+    // use CMPX/CMPY #0 directly. This avoids clobbering D which may hold a
+    // live value (e.g. loop sum while testing loop counter — bug #31).
     MachineFunction &MF = *MI.getMF();
+    int SpillOffset = computeSpillStackOffset(SrcReg, MF);
+    Register IndexSrc = Register();
+    MachineBasicBlock &MBB = *MI.getParent();
+    for (auto It = MachineBasicBlock::reverse_iterator(MI.getIterator());
+         It != MBB.rend(); ++It) {
+      unsigned Opc = It->getOpcode();
+      if ((Opc == MC6809::STXi_o8 || Opc == MC6809::STXi_o16) &&
+          It->getOperand(0).isImm() &&
+          It->getOperand(0).getImm() == SpillOffset) {
+        IndexSrc = MC6809::IX;
+        break;
+      }
+      if ((Opc == MC6809::STYi_o8 || Opc == MC6809::STYi_o16) &&
+          It->getOperand(0).isImm() &&
+          It->getOperand(0).getImm() == SpillOffset) {
+        IndexSrc = MC6809::IY;
+        break;
+      }
+      if (It->definesRegister(MC6809::IX, /*TRI=*/nullptr) ||
+          It->definesRegister(MC6809::IY, /*TRI=*/nullptr))
+        break;
+    }
+    if (IndexSrc.isValid()) {
+      // Use CMPX/CMPY #0 directly — preserves D.
+      auto OpcodePair = CompareImmediateOpcode.find(IndexSrc);
+      assert(OpcodePair != CompareImmediateOpcode.end());
+      Builder.buildInstr(OpcodePair->getSecond()).addImm(0);
+      MI.eraseFromParent();
+      return;
+    }
+    // Fallback: load spill into D and test.
+    Register RealReg = getRealRegForSpill(SrcReg);
     emitSpillLoad(Builder, RealReg, SrcReg, MF);
     SrcReg = RealReg;
   }

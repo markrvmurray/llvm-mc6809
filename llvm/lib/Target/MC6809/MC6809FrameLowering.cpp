@@ -357,9 +357,11 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &M
   auto MBBI = std::find_if_not(Builder.getInsertPt(), MBB.end(), [](const MachineInstr &MI) { return MI.getFlag(MachineInstr::FrameSetup); });
 
   // Set the frame pointer to the stack pointer.
+  // Use TFRp directly instead of COPY to prevent Machine Copy Propagation
+  // from eliminating it (PSHSs modifies SS, so SU != SS after the push).
   Builder.setInsertPt(MBB, MBBI);
   Builder.setDebugLoc({});
-  Builder.buildCopy(TRI.getFrameRegister(MF), Register(MC6809::SS));
+  Builder.buildInstr(MC6809::TFRp).addDef(TRI.getFrameRegister(MF)).addUse(MC6809::SS);
 }
 
 void MC6809FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const {
@@ -374,7 +376,7 @@ void MC6809FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &M
     Builder.setInsertPt(MBB, MachineBasicBlock::iterator(MBBI));
 
     // Set the stack pointer to the frame pointer.
-    Builder.buildCopy(MC6809::SS, TRI.getFrameRegister(MF));
+    Builder.buildInstr(MC6809::TFRp).addDef(MC6809::SS).addUse(TRI.getFrameRegister(MF));
     Builder.setInsertPt(MBB, MBB.getFirstTerminator());
   }
 

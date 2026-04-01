@@ -12,6 +12,7 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; CHECK:       ; %bb.0: ; %entry
 ; CHECK-NEXT:    leas -8,s
 ; CHECK-NEXT:    pshs u
+; CHECK-NEXT:    tfr s,u
 ; CHECK-NEXT:    ldd #0
 ; CHECK-NEXT:    std 6,u
 ; CHECK-NEXT:    tstb
@@ -48,6 +49,7 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; CHECK-HD6309:       ; %bb.0: ; %entry
 ; CHECK-HD6309-NEXT:    leas -6,s
 ; CHECK-HD6309-NEXT:    pshs u
+; CHECK-HD6309-NEXT:    tfr s,u
 ; CHECK-HD6309-NEXT:    ldw #0
 ; CHECK-HD6309-NEXT:    tstb
 ; CHECK-HD6309-NEXT:    ble .LBB0_3

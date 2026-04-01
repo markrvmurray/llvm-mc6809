@@ -9,9 +9,7 @@
 ; REQUIRES: usim
 ;
 ; Codegen execution test: loop control flow (PHI, back-edge, exit).
-; NOTE: Loops with 2+ live i16 values have register pressure bugs
-; (flag clobbering between compare and branch). This tests the
-; single-live-value case which works correctly.
+; Tests single-value (countdown) and multi-value (sum) loops.
 
 .include "runtime.inc"
 
@@ -69,5 +67,42 @@ test_main:
 	jsr	putx
 	jsr	putnl
 ; CHECK-NEXT: FFFF
+
+	;; ===== sum_to_n: multi-value loop (sum + counter) =====
+
+	;; sum_to_n(3) = 1+2+3 = 6
+	ldx	#3
+	jsr	sum_to_n
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0006
+
+	;; sum_to_n(10) = 55 = 0x0037
+	ldx	#10
+	jsr	sum_to_n
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0037
+
+	;; sum_to_n(0) = 0 (loop skipped)
+	ldx	#0
+	jsr	sum_to_n
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0000
+
+	;; sum_to_n(1) = 1
+	ldx	#1
+	jsr	sum_to_n
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0001
+
+	;; sum_to_n(100) = 5050 = 0x13BA
+	ldx	#100
+	jsr	sum_to_n
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 13BA
 
 	jsr	halt
