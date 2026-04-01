@@ -477,8 +477,8 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
   case MC6809::G_BRCOND_IMM:
     return selectBrCondImm(MI);
 
-  case TargetOpcode::G_IMPLICIT_DEF:
 #endif
+  case TargetOpcode::G_IMPLICIT_DEF:
   case TargetOpcode::G_PHI:
     return selectGeneric(MI);
 
