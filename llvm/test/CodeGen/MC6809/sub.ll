@@ -297,8 +297,8 @@ define dso_local i32 @sub_s_i32(i32 noundef %a, i32 noundef %b, i32 noundef %c, 
 ; CHECK-NEXT:    ldd 6,u
 ; CHECK-NEXT:    subd 14,u
 ; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    tfr x,d
-; CHECK-NEXT:    std 4,u
+; CHECK-NEXT:    stx 4,u
+; CHECK-NEXT:    ldd 4,u
 ; CHECK-NEXT:    sbcb 9,u
 ; CHECK-NEXT:    sbca 8,u
 ; CHECK-NEXT:    std 4,u
@@ -306,8 +306,7 @@ define dso_local i32 @sub_s_i32(i32 noundef %a, i32 noundef %b, i32 noundef %c, 
 ; CHECK-NEXT:    ldd 6,u
 ; CHECK-NEXT:    std 14,u
 ; CHECK-NEXT:    ldd 0,u
-; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    tfr d,x
+; CHECK-NEXT:    ldx 4,u
 ; CHECK-NEXT:    tfr u,s
 ; CHECK-NEXT:    puls u
 ; CHECK-NEXT:    leas 10,s
@@ -346,8 +345,8 @@ define dso_local i32 @sub_s_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; CHECK-NEXT:    ldd 4,u
 ; CHECK-NEXT:    addd 16,u
 ; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    tfr x,d
-; CHECK-NEXT:    std 6,u
+; CHECK-NEXT:    stx 6,u
+; CHECK-NEXT:    ldd 6,u
 ; CHECK-NEXT:    adcb 15,u
 ; CHECK-NEXT:    adca 14,u
 ; CHECK-NEXT:    std 6,u
@@ -383,8 +382,7 @@ define dso_local i32 @sub_s_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; CHECK-NEXT:    ldd 4,u
 ; CHECK-NEXT:    std 12,u
 ; CHECK-NEXT:    ldd 0,u
-; CHECK-NEXT:    ldd 6,u
-; CHECK-NEXT:    tfr d,x
+; CHECK-NEXT:    ldx 6,u
 ; CHECK-NEXT:    tfr u,s
 ; CHECK-NEXT:    puls u
 ; CHECK-NEXT:    leas 8,s
@@ -455,8 +453,8 @@ define dso_local i32 @sub_u_i32(i32 noundef %a, i32 noundef %b, i32 noundef %c, 
 ; CHECK-NEXT:    ldd 6,u
 ; CHECK-NEXT:    subd 14,u
 ; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    tfr x,d
-; CHECK-NEXT:    std 4,u
+; CHECK-NEXT:    stx 4,u
+; CHECK-NEXT:    ldd 4,u
 ; CHECK-NEXT:    sbcb 9,u
 ; CHECK-NEXT:    sbca 8,u
 ; CHECK-NEXT:    std 4,u
@@ -464,8 +462,7 @@ define dso_local i32 @sub_u_i32(i32 noundef %a, i32 noundef %b, i32 noundef %c, 
 ; CHECK-NEXT:    ldd 6,u
 ; CHECK-NEXT:    std 14,u
 ; CHECK-NEXT:    ldd 0,u
-; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    tfr d,x
+; CHECK-NEXT:    ldx 4,u
 ; CHECK-NEXT:    tfr u,s
 ; CHECK-NEXT:    puls u
 ; CHECK-NEXT:    leas 10,s
@@ -504,8 +501,8 @@ define dso_local i32 @sub_u_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; CHECK-NEXT:    ldd 4,u
 ; CHECK-NEXT:    addd 16,u
 ; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    tfr x,d
-; CHECK-NEXT:    std 6,u
+; CHECK-NEXT:    stx 6,u
+; CHECK-NEXT:    ldd 6,u
 ; CHECK-NEXT:    adcb 15,u
 ; CHECK-NEXT:    adca 14,u
 ; CHECK-NEXT:    std 6,u
@@ -541,8 +538,7 @@ define dso_local i32 @sub_u_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; CHECK-NEXT:    ldd 4,u
 ; CHECK-NEXT:    std 12,u
 ; CHECK-NEXT:    ldd 0,u
-; CHECK-NEXT:    ldd 6,u
-; CHECK-NEXT:    tfr d,x
+; CHECK-NEXT:    ldx 6,u
 ; CHECK-NEXT:    tfr u,s
 ; CHECK-NEXT:    puls u
 ; CHECK-NEXT:    leas 8,s

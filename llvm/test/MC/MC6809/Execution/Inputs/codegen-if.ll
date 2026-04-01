@@ -60,3 +60,17 @@ define dso_local i16 @test_ne16(i16 noundef %a, i16 noundef %b) local_unnamed_ad
   %r = zext i1 %c to i16
   ret i16 %r
 }
+
+; i32 signed max: return a > b ? a : b
+define dso_local i32 @test_max_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr {
+  %cmp = icmp sgt i32 %a, %b
+  %r = select i1 %cmp, i32 %a, i32 %b
+  ret i32 %r
+}
+
+; i32 unsigned min: return a < b ? a : b
+define dso_local i32 @test_min_u32(i32 noundef %a, i32 noundef %b) local_unnamed_addr {
+  %cmp = icmp ult i32 %a, %b
+  %r = select i1 %cmp, i32 %a, i32 %b
+  ret i32 %r
+}

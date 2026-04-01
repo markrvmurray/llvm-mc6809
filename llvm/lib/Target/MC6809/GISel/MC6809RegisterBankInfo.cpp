@@ -44,13 +44,9 @@ MC6809RegisterBankInfo::MC6809RegisterBankInfo(/* const TargetRegisterInfo &TRI 
   (void)RBCC;
   assert(&MC6809::FLAGSRegBank == &RBCC && "Incorrect FLAGS RegBank initialization.");
 
-  // The ACCUM register bank is fully defined by all the registers in
-  // AQ + its subclasses.
-  // assert(RBACCUM.covers(*TRI.getRegClass(MC6809::ACC32RegClassID)) && "Subclass not added?");
 }
 
 const RegisterBank &MC6809RegisterBankInfo::getRegBankFromRegClass(const TargetRegisterClass &RC, LLT) const {
-#if 1
   if (MC6809::BIT1RegClass.hasSubClassEq(&RC) ||
       MC6809::ACC8RegClass.hasSubClassEq(&RC) ||
       MC6809::ACC16RegClass.hasSubClassEq(&RC) ||
@@ -78,52 +74,6 @@ const RegisterBank &MC6809RegisterBankInfo::getRegBankFromRegClass(const TargetR
   } else if (MC6809::STACK16RegClass.hasSubClassEq(&RC)) {
     return getRegBank(MC6809::INDEXRegBankID);
   }
-#else
-  switch (RC.getID()) {
-  case MC6809::CCondRegClassID:
-  case MC6809::CCcRegClassID:
-  case MC6809::CCFlagRegClassID:
-  case MC6809::CcRegClassID:
-  case MC6809::NcRegClassID:
-  case MC6809::VcRegClassID:
-  case MC6809::ZcRegClassID:
-  case MC6809::AllArithFlagRegClassID:
-  case MC6809::ArithFlagRegClassID:
-  case MC6809::NZVCcRegClassID:
-  case MC6809::NZcRegClassID:
-    return getRegBank(MC6809::AnyRegBankID);
-  case MC6809::BIT1RegClassID:
-  case MC6809::BIT8RegClassID:
-  case MC6809::AAcRegClassID:
-  case MC6809::AALSBcRegClassID:
-  case MC6809::ABcRegClassID:
-  case MC6809::ABLSBcRegClassID:
-  case MC6809::AEcRegClassID:
-  case MC6809::AELSBcRegClassID:
-  case MC6809::AFcRegClassID:
-  case MC6809::AFLSBcRegClassID:
-  case MC6809::ACC8_ABRegClassID:
-  case MC6809::ACC8RegClassID:
-  case MC6809::ADcRegClassID:
-  case MC6809::AWcRegClassID:
-  case MC6809::ACC16RegClassID:
-  case MC6809::AQcRegClassID:
-  case MC6809::ACC32RegClassID:
-    return getRegBank(MC6809::AnyRegBankID);
-  case MC6809::INDEX16RegClassID:
-  case MC6809::IXcRegClassID:
-  case MC6809::IYcRegClassID:
-  case MC6809::SUcRegClassID:
-  case MC6809::SScRegClassID:
-    return getRegBank(MC6809::AnyRegBankID);
-  case MC6809::Imag8RegClassID:
-  case MC6809::Imag16RegClassID:
-  case MC6809::Imag32RegClassID:
-    return getRegBank(MC6809::AnyRegBankID);
-  default:
-    break;
-  }
-#endif
   llvm_unreachable("Unsupported register kind.");
 }
 
@@ -203,9 +153,6 @@ const RegisterBankInfo::InstructionMapping &MC6809RegisterBankInfo::getInstrMapp
   }
 
   switch (Opc) {
-#if 0
-  case TargetOpcode::G_FRAME_INDEX:
-#endif /* 0 */
   case TargetOpcode::G_ADD:
   case TargetOpcode::G_SUB: {
     // For i16 add/sub: if an operand is in INDEX bank (X/Y from CC or
@@ -221,10 +168,9 @@ const RegisterBankInfo::InstructionMapping &MC6809RegisterBankInfo::getInstrMapp
     }
     return getSameOperandsMapping(MI);
   }
-  // G_ICMP: INDEX-bank CMPX/CMPY requires deeper framework changes.
-  // The compare opcode maps are ready (IX→CMPXi16 etc.) but routing
-  // INDEX-bank values through G_ICMP crashes InstructionSelect.
-  // TODO: implement as post-RA peephole (TFR X,D + CMPD → CMPX).
+  // G_ICMP: INDEX-bank CMPX/CMPY would avoid D clobber, but the imported
+  // patterns use pointer type (p0) for INDEX16 whereas G_ICMP operands have
+  // s16 type, causing pattern mismatch. Fixed at spill expansion level instead.
   case TargetOpcode::G_MUL:
   case TargetOpcode::G_AND:
   case TargetOpcode::G_OR:

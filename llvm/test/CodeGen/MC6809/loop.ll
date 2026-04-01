@@ -38,8 +38,7 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; CHECK-NEXT:    std 4,u
 ; CHECK-NEXT:    bne .LBB0_2
 ; CHECK-NEXT:  .LBB0_3: ; %for.end
-; CHECK-NEXT:    ldd 6,u
-; CHECK-NEXT:    tfr d,x
+; CHECK-NEXT:    ldx 6,u
 ; CHECK-NEXT:    tfr u,s
 ; CHECK-NEXT:    puls u
 ; CHECK-NEXT:    leas 8,s

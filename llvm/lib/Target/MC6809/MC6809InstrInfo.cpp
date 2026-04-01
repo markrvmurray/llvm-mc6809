@@ -218,6 +218,8 @@ MC6809InstrInfo::MC6809InstrInfo(const MC6809Subtarget &STI)
       {{MC6809::AD, 5}, MC6809::CMPDi_o5},   {{MC6809::AD, 8}, MC6809::CMPDi_o8},   {{MC6809::AD, 16}, MC6809::CMPDi_o16}, {{MC6809::AE, -1}, MC6809::CMPEi_o16}, {{MC6809::AE, 0}, MC6809::CMPEi_o0},   {{MC6809::AE, 5}, MC6809::CMPEi_o5},
       {{MC6809::AE, 8}, MC6809::CMPEi_o8},   {{MC6809::AE, 16}, MC6809::CMPEi_o16}, {{MC6809::AF, -1}, MC6809::CMPFi_o16}, {{MC6809::AF, 0}, MC6809::CMPFi_o0},   {{MC6809::AF, 5}, MC6809::CMPFi_o5},   {{MC6809::AF, 8}, MC6809::CMPFi_o8},
       {{MC6809::AF, 16}, MC6809::CMPFi_o16}, {{MC6809::AW, -1}, MC6809::CMPWi_o16}, {{MC6809::AW, 0}, MC6809::CMPWi_o0},   {{MC6809::AW, 5}, MC6809::CMPWi_o5},   {{MC6809::AW, 8}, MC6809::CMPWi_o8},   {{MC6809::AW, 16}, MC6809::CMPWi_o16},
+      {{MC6809::IX, -1}, MC6809::CMPXi_o16}, {{MC6809::IX, 0}, MC6809::CMPXi_o0},   {{MC6809::IX, 5}, MC6809::CMPXi_o5},   {{MC6809::IX, 8}, MC6809::CMPXi_o8},   {{MC6809::IX, 16}, MC6809::CMPXi_o16},
+      {{MC6809::IY, -1}, MC6809::CMPYi_o16}, {{MC6809::IY, 0}, MC6809::CMPYi_o0},   {{MC6809::IY, 5}, MC6809::CMPYi_o5},   {{MC6809::IY, 8}, MC6809::CMPYi_o8},   {{MC6809::IY, 16}, MC6809::CMPYi_o16},
   };
   CompareIdxRegOpcode = {
       {{MC6809::AA, MC6809::AA}, MC6809::CMPAi_oA}, {{MC6809::AA, MC6809::AB}, MC6809::CMPAi_oB}, {{MC6809::AA, MC6809::AD}, MC6809::CMPAi_oD}, {{MC6809::AA, MC6809::AE}, MC6809::CMPAi_oE}, {{MC6809::AA, MC6809::AF}, MC6809::CMPAi_oF},
@@ -228,6 +230,10 @@ MC6809InstrInfo::MC6809InstrInfo(const MC6809Subtarget &STI)
       {{MC6809::AF, MC6809::AB}, MC6809::CMPFi_oB}, {{MC6809::AF, MC6809::AD}, MC6809::CMPFi_oD}, {{MC6809::AF, MC6809::AE}, MC6809::CMPFi_oE}, {{MC6809::AF, MC6809::AF}, MC6809::CMPFi_oF}, {{MC6809::AF, MC6809::AW}, MC6809::CMPFi_oW},
       {{MC6809::AW, MC6809::AA}, MC6809::CMPWi_oA}, {{MC6809::AW, MC6809::AB}, MC6809::CMPWi_oB}, {{MC6809::AW, MC6809::AD}, MC6809::CMPWi_oD}, {{MC6809::AW, MC6809::AE}, MC6809::CMPWi_oE}, {{MC6809::AW, MC6809::AF}, MC6809::CMPWi_oF},
       {{MC6809::AW, MC6809::AW}, MC6809::CMPWi_oW},
+      {{MC6809::IX, MC6809::AA}, MC6809::CMPXi_oA}, {{MC6809::IX, MC6809::AB}, MC6809::CMPXi_oB}, {{MC6809::IX, MC6809::AD}, MC6809::CMPXi_oD}, {{MC6809::IX, MC6809::AE}, MC6809::CMPXi_oE}, {{MC6809::IX, MC6809::AF}, MC6809::CMPXi_oF},
+      {{MC6809::IX, MC6809::AW}, MC6809::CMPXi_oW},
+      {{MC6809::IY, MC6809::AA}, MC6809::CMPYi_oA}, {{MC6809::IY, MC6809::AB}, MC6809::CMPYi_oB}, {{MC6809::IY, MC6809::AD}, MC6809::CMPYi_oD}, {{MC6809::IY, MC6809::AE}, MC6809::CMPYi_oE}, {{MC6809::IY, MC6809::AF}, MC6809::CMPYi_oF},
+      {{MC6809::IY, MC6809::AW}, MC6809::CMPYi_oW},
   };
   CompareImmediateOpcode = {
       {{MC6809::AA}, MC6809::CMPAi8}, {{MC6809::AB}, MC6809::CMPBi8}, {{MC6809::AE}, MC6809::CMPEi8}, {{MC6809::AF}, MC6809::CMPFi8}, {{MC6809::AD}, MC6809::CMPDi16}, {{MC6809::AW}, MC6809::CMPWi16},
@@ -463,28 +469,7 @@ unsigned MC6809InstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
 // XXXX FixMe: MarkM. Branch offset relaxation should cover for all sins committed, but only
 // once we have lowered to non-pseudo instructions.
 bool MC6809InstrInfo::isBranchOffsetInRange(unsigned BranchOpc, int64_t BrOffset) const {
-#if 0
-  switch (BranchOpc) {
-  default:
-    llvm_unreachable("Bad branch opcode");
-  case MC6809::BranchRelative:
-  case MC6809::LongBranchRelative:
-  case MC6809::Bbc:
-  case MC6809::JMPi_o8PC:
-    // BRA range is [-128,127] starting from the PC location after the
-    // instruction, which is two bytes after the start of the instruction.
-    return -126 <= BrOffset && BrOffset <= 129;
-  case MC6809::ConditionalBranchRelative:
-  case MC6809::ConditionalLongBranchRelative:
-  case MC6809::LBRAlb:
-  case MC6809::LBlbc:
-  case MC6809::JMPi_o16PC:
-    // LBRA, JMP, JSR range is [-32768,32767], covering the full memory range.
-    return true;
-  }
-#else
   return true;
-#endif
 }
 
 unsigned MC6809InstrInfo::getInstBundleLength(const MachineInstr &MI) const {
@@ -816,6 +801,8 @@ static unsigned getLoadIdxOpcode(Register Reg, int Offset) {
   if (Reg == MC6809::AA) return Is8 ? MC6809::LDAi_o8 : MC6809::LDAi_o16;
   if (Reg == MC6809::AB) return Is8 ? MC6809::LDBi_o8 : MC6809::LDBi_o16;
   if (Reg == MC6809::AD) return Is8 ? MC6809::LDDi_o8 : MC6809::LDDi_o16;
+  if (Reg == MC6809::IX) return Is8 ? MC6809::LDXi_o8 : MC6809::LDXi_o16;
+  if (Reg == MC6809::IY) return Is8 ? MC6809::LDYi_o8 : MC6809::LDYi_o16;
   llvm_unreachable("Unexpected register for spill load");
 }
 
@@ -825,6 +812,8 @@ static unsigned getStoreIdxOpcode(Register Reg, int Offset) {
   if (Reg == MC6809::AA) return Is8 ? MC6809::STAi_o8 : MC6809::STAi_o16;
   if (Reg == MC6809::AB) return Is8 ? MC6809::STBi_o8 : MC6809::STBi_o16;
   if (Reg == MC6809::AD) return Is8 ? MC6809::STDi_o8 : MC6809::STDi_o16;
+  if (Reg == MC6809::IX) return Is8 ? MC6809::STXi_o8 : MC6809::STXi_o16;
+  if (Reg == MC6809::IY) return Is8 ? MC6809::STYi_o8 : MC6809::STYi_o16;
   llvm_unreachable("Unexpected register for spill store");
 }
 
@@ -871,19 +860,39 @@ static MachineInstrBuilder emitSpillStore(MachineIRBuilder &Builder,
   if (isSpillReg(DestReg) || isSpillReg(SrcReg)) {
     MachineFunction &MF = *MBB.getParent();
     if (isSpillReg(DestReg) && !isSpillReg(SrcReg)) {
-      // Real → Spill: Store via real accumulator to spill slot.
-      Register RealAcc = getRealRegForSpill(DestReg);
-      // If source is not the accumulator (e.g. INDEX16), transfer first.
-      if (SrcReg != RealAcc)
-        Builder.buildInstr(MC6809::TFRp).addDef(RealAcc).addUse(SrcReg);
-      emitSpillStore(Builder, RealAcc, DestReg, MF);
+      // Real → Spill: Store to spill slot.
+      // For INDEX registers (IX/IY), use STX/STY directly to avoid
+      // clobbering D with a TFR. This is critical for i32 conditionals
+      // where D holds a live value (fixes bug #30).
+      if (SrcReg == MC6809::IX || SrcReg == MC6809::IY) {
+        int Offset = computeSpillStackOffset(DestReg, MF);
+        unsigned Opcode = getStoreIdxOpcode(SrcReg, Offset);
+        Builder.buildInstr(Opcode)
+            .addUse(SrcReg, RegState::Implicit)
+            .addImm(Offset)
+            .addReg(MC6809::SU);
+      } else {
+        Register RealAcc = getRealRegForSpill(DestReg);
+        if (SrcReg != RealAcc)
+          Builder.buildInstr(MC6809::TFRp).addDef(RealAcc).addUse(SrcReg);
+        emitSpillStore(Builder, RealAcc, DestReg, MF);
+      }
     } else if (!isSpillReg(DestReg) && isSpillReg(SrcReg)) {
-      // Spill → Real: Load from spill slot via real accumulator.
-      Register RealAcc = getRealRegForSpill(SrcReg);
-      emitSpillLoad(Builder, RealAcc, SrcReg, MF);
-      // If destination is not the accumulator (e.g. INDEX16), transfer.
-      if (DestReg != RealAcc)
-        Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(RealAcc);
+      // Spill → Real: Load from spill slot.
+      // For INDEX registers, use LDX/LDY directly to avoid clobbering D.
+      if (DestReg == MC6809::IX || DestReg == MC6809::IY) {
+        int Offset = computeSpillStackOffset(SrcReg, MF);
+        unsigned Opcode = getLoadIdxOpcode(DestReg, Offset);
+        Builder.buildInstr(Opcode)
+            .addDef(DestReg, RegState::Implicit)
+            .addImm(Offset)
+            .addReg(MC6809::SU);
+      } else {
+        Register RealAcc = getRealRegForSpill(SrcReg);
+        emitSpillLoad(Builder, RealAcc, SrcReg, MF);
+        if (DestReg != RealAcc)
+          Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(RealAcc);
+      }
     } else {
       // Spill → Spill: Load to real accumulator, store to dest slot.
       Register TmpReal = getRealRegForSpill(SrcReg);
@@ -1401,14 +1410,17 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     break;
   case MC6809::Compare_i8_Imm:
   case MC6809::Compare_i16_Imm:
+  case MC6809::Compare_ptr_Imm:
     expandCompareImm(Builder, MI);
     break;
   case MC6809::Compare_i8_Mem:
   case MC6809::Compare_i16_Mem:
+  case MC6809::Compare_ptr_Mem:
     expandCompareIdx(Builder, MI);
     break;
   case MC6809::Compare_i8_Reg:
   case MC6809::Compare_i16_Reg:
+  case MC6809::Compare_ptr_Reg:
     expandCompareReg(Builder, MI);
     break;
   case MC6809::Test_i8_Reg:
@@ -2181,7 +2193,6 @@ void MC6809InstrInfo::expandMulH16IdxImm(MachineIRBuilder &Builder, MachineInstr
 }
 
 void MC6809InstrInfo::expandMul16IdxReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  // auto DestReg = MI.getOperand(0).getReg();
   auto IndexReg = MI.getOperand(2).getReg();
   auto OffsetReg = MI.getOperand(3).getReg();
   unsigned Opcode;
@@ -2902,10 +2913,42 @@ void MC6809InstrInfo::expandCompareIdx(MachineIRBuilder &Builder, MachineInstr &
 
   auto SrcReg = MI.getOperand(2).getReg();
   if (isSpillReg(SrcReg)) {
-    Register RealReg = getRealRegForSpill(SrcReg);
     MachineFunction &MF = *MI.getMF();
-    emitSpillLoad(Builder, RealReg, SrcReg, MF);
-    SrcReg = RealReg;
+    // Optimization: if the spill was stored from an INDEX register (STX/STY)
+    // and that register hasn't been redefined, use CMPX/CMPY directly.
+    // This avoids clobbering D which may hold a live value (bug #30).
+    int SpillOffset = computeSpillStackOffset(SrcReg, MF);
+    Register IndexSrc = Register();
+    MachineBasicBlock &MBB = *MI.getParent();
+    for (auto It = MachineBasicBlock::reverse_iterator(MI.getIterator());
+         It != MBB.rend(); ++It) {
+      unsigned Opc = It->getOpcode();
+      // Check for STX/STY to the same spill offset via U.
+      // Operand layout: (offset_imm, index_reg, implicit src_reg)
+      if ((Opc == MC6809::STXi_o8 || Opc == MC6809::STXi_o16) &&
+          It->getOperand(0).isImm() &&
+          It->getOperand(0).getImm() == SpillOffset) {
+        IndexSrc = MC6809::IX;
+        break;
+      }
+      if ((Opc == MC6809::STYi_o8 || Opc == MC6809::STYi_o16) &&
+          It->getOperand(0).isImm() &&
+          It->getOperand(0).getImm() == SpillOffset) {
+        IndexSrc = MC6809::IY;
+        break;
+      }
+      // If IX or IY is redefined before we find the store, stop.
+      if (It->definesRegister(MC6809::IX, /*TRI=*/nullptr) ||
+          It->definesRegister(MC6809::IY, /*TRI=*/nullptr))
+        break;
+    }
+    if (IndexSrc.isValid()) {
+      SrcReg = IndexSrc;  // Use CMPX/CMPY directly, preserving D.
+    } else {
+      Register RealReg = getRealRegForSpill(SrcReg);
+      emitSpillLoad(Builder, RealReg, SrcReg, MF);
+      SrcReg = RealReg;
+    }
   }
   auto IndexOp = MI.getOperand(3);
   auto OffsetOp = MI.getOperand(4);

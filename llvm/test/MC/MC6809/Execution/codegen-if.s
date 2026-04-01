@@ -8,7 +8,7 @@
 ; RUN: %usim09batch --timeout=500000 %t.hex | FileCheck %s
 ; REQUIRES: usim
 ;
-; Codegen execution test: conditionals (icmp + select) for i8 and i16.
+; Codegen execution test: conditionals (icmp + select) for i8, i16, and i32.
 
 .include "runtime.inc"
 
@@ -240,5 +240,108 @@ test_main:
 	jsr	putx
 	jsr	putnl
 ; CHECK-NEXT: 0000
+
+	;; ===== i32 signed max (sgt + select) =====
+	;; Tests bug #30 fix: CMPX used for hi-word to avoid D clobber
+
+	;; max_s32(3, 1) = 3
+	;; a = 0x00000003, b = 0x00000001
+	ldd	#1		; b_lo
+	pshs	d
+	ldd	#0		; b_hi
+	pshs	d
+	ldd	#3		; a_lo
+	pshs	d
+	ldx	#0		; a_hi
+	jsr	test_max_s32
+	;; X = result_hi, [S] = result_lo
+	ldd	,s		; D = result_lo
+	leas	6,s		; clean 3 words
+	pshs	d		; save result_lo (putx clobbers D)
+	jsr	putx		; print hi word (X)
+	puls	d		; restore result_lo
+	tfr	d,x
+	jsr	putx		; print lo word
+	jsr	putnl
+; CHECK-NEXT: 00000003
+
+	;; max_s32(1, 3) = 3
+	ldd	#3		; b_lo
+	pshs	d
+	ldd	#0		; b_hi
+	pshs	d
+	ldd	#1		; a_lo
+	pshs	d
+	ldx	#0		; a_hi
+	jsr	test_max_s32
+	ldd	,s
+	leas	6,s
+	pshs	d
+	jsr	putx
+	puls	d
+	tfr	d,x
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 00000003
+
+	;; max_s32(-1, 1) = 1  (0xFFFFFFFF vs 0x00000001)
+	ldd	#1		; b_lo
+	pshs	d
+	ldd	#0		; b_hi
+	pshs	d
+	ldd	#0xFFFF		; a_lo
+	pshs	d
+	ldx	#0xFFFF		; a_hi
+	jsr	test_max_s32
+	ldd	,s
+	leas	6,s
+	pshs	d
+	jsr	putx
+	puls	d
+	tfr	d,x
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 00000001
+
+	;; max_s32(0x12345678, 0x12345679) = 0x12345679
+	;; Same hi, lo differs: tests the lo-word compare path
+	ldd	#0x5679		; b_lo
+	pshs	d
+	ldd	#0x1234		; b_hi
+	pshs	d
+	ldd	#0x5678		; a_lo
+	pshs	d
+	ldx	#0x1234		; a_hi
+	jsr	test_max_s32
+	ldd	,s
+	leas	6,s
+	pshs	d
+	jsr	putx
+	puls	d
+	tfr	d,x
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 12345679
+
+	;; ===== i32 unsigned min (ult + select) =====
+
+	;; min_u32(5, 3) = 3
+	ldd	#3		; b_lo
+	pshs	d
+	ldd	#0		; b_hi
+	pshs	d
+	ldd	#5		; a_lo
+	pshs	d
+	ldx	#0		; a_hi
+	jsr	test_min_u32
+	ldd	,s
+	leas	6,s
+	pshs	d
+	jsr	putx
+	puls	d
+	tfr	d,x
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 00000003
 
 	jsr	halt
