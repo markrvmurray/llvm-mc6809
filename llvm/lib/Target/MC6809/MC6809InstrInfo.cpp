@@ -687,13 +687,10 @@ void MC6809InstrInfo::insertIndirectBranch(MachineBasicBlock &MBB, MachineBasicB
   // insertBranch or some hypothetical "insertDirectBranch".
   // See lib/CodeGen/BranchRelaxation.cpp for details.
   // We end up here when a jump is too long for a BRA instruction.
-  // XXXX: FIXME: MarkM - this process is a crock; LBRA should always work.
-
   MachineIRBuilder Builder(MBB, MBB.end());
   Builder.setDebugLoc(DL);
 
   Builder.buildInstr(MC6809::LBRAlb).addMBB(&NewDestBB);
-  llvm_unreachable("This process is a crock - fix me!");
 }
 
 /// Check if a register is a stack-backed spill pseudo-register.
@@ -926,10 +923,10 @@ static MachineInstrBuilder emitSpillStore(MachineIRBuilder &Builder,
              AreClasses(MC6809::INDEX16RegClass, MC6809::INDEX16RegClass)) {
     Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(SrcReg);
   } else if (AreClasses(MC6809::ACC8RegClass, MC6809::CCFlagRegClass)) {
-    // XXXX FixMe Markm need to mask out the non-arithmetic bits?
+    // TODO: May need AND #0x0F to mask EFHI bits if callers expect only NZVC.
     Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(SrcReg);
   } else if (AreClasses(MC6809::CCFlagRegClass, MC6809::ACC8RegClass)) {
-    // XXXX FixMe Markm need to mask out the non-arithmetic bits?
+    // TODO: May need AND #0x0F to mask EFHI bits if callers expect only NZVC.
     Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(SrcReg);
   } else if (AreClasses(MC6809::ACC8RegClass, MC6809::CCondRegClass) || AreClasses(MC6809::CCondRegClass, MC6809::ACC8RegClass)) {
     Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(SrcReg);

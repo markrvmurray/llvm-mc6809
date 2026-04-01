@@ -1179,9 +1179,11 @@ bool MC6809InstructionSelector::selectAll(MachineInstrSpan MIS) {
       Register Reg = MO.getReg();
       if (!MO.getReg().isVirtual())
         continue;
-      if (MRI->getRegClassOrNull(MO.getReg()))
+      if (MRI->getRegBankOrNull(Reg))
         continue;
-      auto *RC = MRI->getRegClassOrNull(MO.getReg());
+      const auto *RC = MRI->getRegClassOrNull(Reg);
+      if (!RC)
+        continue;
       MRI->setRegBank(Reg, RBI.getRegBankFromRegClass(*RC, LLT()));
     }
   }
