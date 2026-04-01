@@ -326,6 +326,7 @@ define dso_local i32 @add_s_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; CHECK-NEXT:    std 6,u
 ; CHECK-NEXT:    ldd 4,u
 ; CHECK-NEXT:    addd #-21923
+; CHECK-NEXT:    std 4,u
 ; CHECK-NEXT:    ldd 6,u
 ; CHECK-NEXT:    adcb #8
 ; CHECK-NEXT:    adca #0
@@ -465,6 +466,7 @@ define dso_local i32 @add_u_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; CHECK-NEXT:    std 6,u
 ; CHECK-NEXT:    ldd 4,u
 ; CHECK-NEXT:    addd #-2081
+; CHECK-NEXT:    std 4,u
 ; CHECK-NEXT:    ldd 6,u
 ; CHECK-NEXT:    adcb #126
 ; CHECK-NEXT:    adca #0

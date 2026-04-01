@@ -1651,6 +1651,14 @@ void MC6809InstrInfo::expandImm(ContextImmediate Context, MachineIRBuilder &Buil
       auto Instr = Builder.buildInstr(OpcodePair->getSecond()).addDef(DestReg, RegState::Implicit).addImm(Val);
     }
   }
+  // Store result back to spill slot BEFORE erasing MI.
+  if (DestIsSpill) {
+    MachineFunction &MF = *MI.getMF();
+    MachineBasicBlock &MBB = *MI.getParent();
+    auto NextIt = std::next(MachineBasicBlock::iterator(MI));
+    MachineIRBuilder StoreBuilder(MBB, NextIt);
+    emitSpillStore(StoreBuilder, DestReg, OrigSpillReg, MF);
+  }
   MI.eraseFromParent();
 }
 

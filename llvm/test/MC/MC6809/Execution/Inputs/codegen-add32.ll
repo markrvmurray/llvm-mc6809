@@ -8,6 +8,6 @@ entry:
 
 define dso_local i32 @add_i32_const(i32 noundef %a) local_unnamed_addr {
 entry:
-  %add = add i32 %a, 100000
+  %add = add i32 %a, 30000
   ret i32 %add
 }
