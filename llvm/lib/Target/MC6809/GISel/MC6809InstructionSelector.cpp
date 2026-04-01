@@ -578,20 +578,18 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
             Src2Load = MRI->getVRegDef(Src2Origin);
           }
 
-          // D = 0.
-          auto Zero = BuildMI(MBB, MI, DL, TII.get(MC6809::Load_i16_Imm), AccZero)
-              .addImm(0);
-          constrainSelectedInstRegOperands(*Zero, TII, TRI, RBI);
-
           if (Src2Load && Src2Load->getOpcode() == MC6809::Load_i16_Mem) {
-            // SUBD directly from memory: SUBD offset,index.
+            // D = 0, then SUBD directly from memory.
+            auto Zero = BuildMI(MBB, MI, DL, TII.get(MC6809::Load_i16_Imm), AccZero)
+                .addImm(0);
+            constrainSelectedInstRegOperands(*Zero, TII, TRI, RBI);
             auto SubMem = BuildMI(MBB, MI, DL, TII.get(MC6809::Sub_i16_Mem), AccNegB)
                 .addReg(AccZero)
                 .add(Src2Load->getOperand(1))  // index register
                 .add(Src2Load->getOperand(2)); // offset
             constrainSelectedInstRegOperands(*SubMem, TII, TRI, RBI);
           } else {
-            // Fallback: push and pull.
+            // Push b FIRST (before loading 0 into D), then subtract.
             Register AccSrc2 = MRI->createGenericVirtualRegister(s16);
             MRI->setRegClass(AccSrc2, &MC6809::ACC16RegClass);
             Register StackReg = MRI->createGenericVirtualRegister(s16);
@@ -600,6 +598,10 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
             auto Push = BuildMI(MBB, MI, DL, TII.get(MC6809::Push_i16), StackReg)
                 .addReg(AccSrc2);
             constrainSelectedInstRegOperands(*Push, TII, TRI, RBI);
+            // NOW load 0 (after b is safely on the stack).
+            auto Zero = BuildMI(MBB, MI, DL, TII.get(MC6809::Load_i16_Imm), AccZero)
+                .addImm(0);
+            constrainSelectedInstRegOperands(*Zero, TII, TRI, RBI);
             auto Sub = BuildMI(MBB, MI, DL, TII.get(MC6809::Sub_i16_Pull), AccNegB)
                 .addReg(AccZero)
                 .addReg(StackReg);

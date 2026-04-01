@@ -128,24 +128,18 @@ entry:
 define dso_local i16 @sub_s_i16(i16 noundef %a, i16 noundef %b, i16 noundef %c, i16 noundef %d, i16 noundef %e) local_unnamed_addr #0 {
 ; CHECK-LABEL: sub_s_i16:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -6,s
+; CHECK-NEXT:    leas -2,s
 ; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    ldd 12,u
-; CHECK-NEXT:    addd 10,u
-; CHECK-NEXT:    addd 14,u
-; CHECK-NEXT:    addd 16,u
-; CHECK-NEXT:    ldd #0
-; CHECK-NEXT:    std 4,u
+; CHECK-NEXT:    ldd 8,s
+; CHECK-NEXT:    addd 6,s
+; CHECK-NEXT:    addd 10,s
+; CHECK-NEXT:    addd 12,s
 ; CHECK-NEXT:    pshs d
-; CHECK-NEXT:    ldd 4,u
+; CHECK-NEXT:    ldd #0
 ; CHECK-NEXT:    subd ,s++
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldd 4,u
 ; CHECK-NEXT:    leax d,x
-; CHECK-NEXT:    tfr u,s
 ; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 6,s
+; CHECK-NEXT:    leas 2,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: sub_s_i16:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
@@ -205,24 +199,18 @@ entry:
 define dso_local i16 @sub_u_i16(i16 noundef %a, i16 noundef %b, i16 noundef %c, i16 noundef %d, i16 noundef %e) local_unnamed_addr #0 {
 ; CHECK-LABEL: sub_u_i16:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -6,s
+; CHECK-NEXT:    leas -2,s
 ; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    ldd 12,u
-; CHECK-NEXT:    addd 10,u
-; CHECK-NEXT:    addd 14,u
-; CHECK-NEXT:    addd 16,u
-; CHECK-NEXT:    ldd #0
-; CHECK-NEXT:    std 4,u
+; CHECK-NEXT:    ldd 8,s
+; CHECK-NEXT:    addd 6,s
+; CHECK-NEXT:    addd 10,s
+; CHECK-NEXT:    addd 12,s
 ; CHECK-NEXT:    pshs d
-; CHECK-NEXT:    ldd 4,u
+; CHECK-NEXT:    ldd #0
 ; CHECK-NEXT:    subd ,s++
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldd 4,u
 ; CHECK-NEXT:    leax d,x
-; CHECK-NEXT:    tfr u,s
 ; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 6,s
+; CHECK-NEXT:    leas 2,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: sub_u_i16:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
