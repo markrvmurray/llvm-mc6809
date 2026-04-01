@@ -289,7 +289,7 @@ bool MC6809CallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder, cons
   MachineFunction &MF = MIRBuilder.getMF();
   const DataLayout &DL = MF.getDataLayout();
   MachineRegisterInfo &MRI = MF.getRegInfo();
-  // const auto &TFI = static_cast<const MC6809FrameLowering &>(*MF.getSubtarget().getFrameLowering());
+
 
   SmallVector<ArgInfo> SplitArgs;
   unsigned Idx = 0;

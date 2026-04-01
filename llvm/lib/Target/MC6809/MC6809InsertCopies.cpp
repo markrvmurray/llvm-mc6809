@@ -49,75 +49,7 @@ bool MC6809InsertCopies::runOnMachineFunction(MachineFunction &MF) {
   if (skipFunction(MF.getFunction()))
     return false;
 
-#if 0
-  MachineRegisterInfo &MRI = MF.getRegInfo();
-#endif
-
   bool Changed = false;
-#if 0
-  for (MachineBasicBlock &MBB : MF) {
-    MachineBasicBlock::iterator Next;
-    for (auto I = MBB.begin(), E = MBB.end(); I != E; I = Next) {
-      Next = std::next(I);
-      const TargetRegisterClass *WideRC;
-#if 0
-      switch (I->getOpcode()) {
-      default:
-        continue;
-      case MC6809::ASL:
-      case MC6809::LSR:
-      case MC6809::ROL:
-      case MC6809::ROR:
-        WideRC = &MC6809::AImag8RegClass;
-        break;
-      case MC6809::INC:
-      case MC6809::DEC:
-      case MC6809::IncNMC6809:
-      case MC6809::DecNMC6809:
-      case MC6809::IncMB:
-      case MC6809::DecMB:
-      case MC6809::DecDcpMB:
-        WideRC = &MC6809::Anyi8RegClass;
-        break;
-      }
-#else
-      WideRC = &MC6809::ACC8RegClass;
-#endif
-
-      for (unsigned Idx = 0, EndIdx = I->getNumExplicitDefs(); Idx != EndIdx; ++Idx) {
-        MachineOperand &DstOp = I->getOperand(Idx);
-        if (!DstOp.isReg() || !DstOp.isTied() || !DstOp.getReg().isVirtual())
-          continue;
-        MachineOperand &SrcOp = I->getOperand(I->findTiedOperandIdx(Idx));
-
-        const TargetRegisterClass *SrcRC = MRI.getRegClass(SrcOp.getReg());
-        const TargetRegisterClass *DstRC = MRI.getRegClass(DstOp.getReg());
-
-        // This may be an unrelated tied register; if so, ignore.
-        if (!SrcRC->hasSuperClassEq(WideRC) || !DstRC->hasSuperClassEq(WideRC))
-          continue;
-
-        // Avoid copying to and from Imag8 just to make the regclass wider. This
-        // could produce LDA ASL STA patterns, when it'd be better to just ASL.
-        if (SrcRC == &MC6809::Imag8RegClass && DstRC == &MC6809::Imag8RegClass)
-          continue;
-
-        if (SrcRC != WideRC) {
-          Changed = true;
-          MachineIRBuilder Builder(MBB, I);
-          SrcOp.setReg(Builder.buildCopy(WideRC, SrcOp).getReg(0));
-        }
-        if (DstRC != WideRC) {
-          Changed = true;
-          Register NewDst = MRI.createVirtualRegister(WideRC);
-          MachineIRBuilder Builder(MBB, Next);
-          Builder.buildCopy(DstOp, NewDst);
-          DstOp.setReg(NewDst);
-        }
-      }
-    }
-  }
-#endif
   return Changed;
 }
 

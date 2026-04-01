@@ -111,19 +111,8 @@ std::pair<unsigned, const TargetRegisterClass *> MC6809TargetLowering::getRegFor
       return std::make_pair(MC6809::IY, &MC6809::IXcRegClass);
     case 'd':
       return std::make_pair(0U, &MC6809::INDEX16RegClass);
-#if 0
-    case 'c':
-      return std::make_pair(MC6809::C, &MC6809::CCondRegClass);
-    case 'v':
-      return std::make_pair(MC6809::V, &MC6809::CCondRegClass);
-#endif
     }
   }
-#if 0
-  if (Constraint == "{cc}")
-    return std::make_pair(MC6809::CC, &MC6809::CCondRegClass);
-#endif
-
   return TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
 }
 
@@ -242,8 +231,6 @@ static MachineBasicBlock *emitConditionalImm(MachineInstr &MI, MachineBasicBlock
   Dst0 = MRI.createVirtualRegister(&MC6809::BIT1RegClass);
   Dst1 = MRI.createVirtualRegister(&MC6809::BIT1RegClass);
 
-  // const MC6809Subtarget &STI = F->getSubtarget<MC6809Subtarget>();
-
   // Split out all instructions after MI into a new basic block, updating
   // liveins.
   MachineBasicBlock *TailMBB = HeadMBB->splitAt(MI);
@@ -337,8 +324,6 @@ static MachineBasicBlock *emitSelectImm(MachineInstr &MI, MachineBasicBlock *MBB
 
   MachineBasicBlock *HeadMBB = MBB;
   MachineFunction *F = MBB->getParent();
-
-  // const MC6809Subtarget &STI = F->getSubtarget<MC6809Subtarget>();
 
   // Split out all instructions after MI into a new basic block, updating
   // liveins.

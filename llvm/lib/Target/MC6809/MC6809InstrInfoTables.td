@@ -13,21 +13,3 @@
 include "llvm/TableGen/SearchableTable.td"
 
 /// ---------------------------------------------------------------------------
-
-//class MC6809RelaxationEntry< MC6809Inst from, 
-//                             MC6809Inst to> {
-//  MC6809Inst From = from;
-//  MC6809Inst To = to;
-//}
-
-/// MC6809 branch instruction relaxation entries.
-
-//class BranchInstructionRelaxationEntry< MC6809Inst from,
-//                                        MC6809Inst to> :
-//                                        MC6809Inst<from, to>;
-
-//class BIRE< MC6809Inst from, MC6809Inst to> :
-//	BranchInstructionRelaxationEntry< from, to >;
-
-//def : BIRE< BranchRelative, LongBranchRelative >;
-//def : BIRE< ConditionalBranchRelative, ConditionalLongBranchRelative >;

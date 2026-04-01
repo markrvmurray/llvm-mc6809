@@ -236,39 +236,6 @@ MCFixupKindInfo MC6809AsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
 unsigned MC6809AsmBackend::relaxInstructionTo(unsigned Opcode,
                                            const MCSubtargetInfo &STI,
                                            bool &BankRelax) {
-#if 0
-  // Attempt branch relaxation.
-  const auto *BIRE = MC6809::getBranchInstructionRelaxationEntry(Inst.getOpcode());
-  if (BIRE) {
-    if (STI.hasFeature(MC6809::FeatureW65816)) {
-      if (BIRE->To == MC6809::BRA_Relative16)
-        return MC6809::BRL_Relative16;
-      return 0;
-    }
-
-    if (STI.hasFeature(MC6809::Feature65CE02)) {
-      return BIRE->To;
-    }
-
-    return 0;
-  }
-
-  // Attempt zero page/bank relaxation.
-  const auto *ZPIRE =
-      MC6809::getZeroPageInstructionRelaxationEntry(Inst.getOpcode());
-  if (ZPIRE)
-    return ZPIRE->To;
-
-  if (STI.hasFeature(MC6809::FeatureW65816)) {
-    // Attempt zero-bank relaxation on 65816.
-    const auto *ZBIRE =
-        MC6809::getZeroBankInstructionRelaxationEntry(Inst.getOpcode());
-    if (ZBIRE) {
-      BankRelax = true;
-      return ZBIRE->To;
-    }
-  }
-#endif
   return 0;
 }
 

@@ -199,10 +199,6 @@ def CC : MC6809Reg<10, "cc"> {
 }
 
 
-// Special top-of-stack pseudo-register. Should never be visible except in
-// closely-bound push/pull pairs.
-//def TOS : MC6809Reg16<0,  "tos" >;
-
 def IX : MC6809Reg16<1,  "x" >;
 def IY : MC6809Reg16<2,  "y" >;
 def SU : MC6809Reg16<3,  "u" >;
@@ -286,8 +282,6 @@ class MC6809Reg16Class<dag RegList> : MC6809RegClass<[i16], 8, RegList>;
 class MC6809Reg32Class<dag RegList> : MC6809RegClass<[i32], 8, RegList>;
 
 // Register grouping classes.
-//def ACC_LSB : MC6809Reg1Class<(add AALSB, ABLSB, AELSB, AFLSB)>;
-//def NZVC_ACC_LSB : MC6809Reg1Class<(add N, Z, V, C, ACC_LSB)>;
 def CARRY : MC6809Reg1Class<(add C)>;
 def BIT1 : MC6809Reg1Class<(add AALSB, ABLSB, AELSB, AFLSB)> {
     let AltOrders = [(add AALSB, ABLSB)];
@@ -315,21 +309,13 @@ def REGPAIR16 : MC6809Reg16Class<(add AD, IX, IY, SU, SS, PC, AW, AV)>; // Regis
 def REGTFM : MC6809Reg16Class<(add AD, IX, IY, SU, SS)>; // Registers for TFM
 
 // Pointer and stack registers
-def INDEX16 : MC6809Reg16Class<(add IX, IY, SU, SS/*, TOS*/)>;
+def INDEX16 : MC6809Reg16Class<(add IX, IY, SU, SS)>;
 
 // Stack registers for internal push/pull operations.
 // SU is always reserved (frame pointer), so only SS will be allocated.
 // Stack registers for Push/Pull operations.
 // The allocator may assign SU but the expansion always forces SS.
 def STACK16 : MC6809Reg16Class<(add SU, SS)>;
-//def TOS16 : MC6809Reg16Class<(add TOS)>;
-
-// All 16-bit registers. Useful for load/store.
-// def ALL16 : MC6809Reg16Class<(add AD, AW, IX, IY)> {
-//   let AltOrders = [(add AD, IX, IY)];
-//   let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
-//   let DiagnosticString = "operand must be a 16-bit register";
-// }
 
 def CCond : MC6809Reg8Class<(add CC)>;
 
@@ -348,7 +334,6 @@ let isAllocatable = false in {
 }
 
 // Single register classes.
-//let isPressureFineGrained = true in {
     def AAc : MC6809Reg8Class<(add AA, SPILL_A0, SPILL_A1, SPILL_A2, SPILL_A3, SPILL_A4, SPILL_A5, SPILL_A6, SPILL_A7)>;
     def AALSBc : MC6809Reg1Class<(add AALSB, SPILL_A0LSB, SPILL_A1LSB, SPILL_A2LSB, SPILL_A3LSB, SPILL_A4LSB, SPILL_A5LSB, SPILL_A6LSB, SPILL_A7LSB)>;
     def ABc : MC6809Reg8Class<(add AB, SPILL_B0, SPILL_B1, SPILL_B2, SPILL_B3, SPILL_B4, SPILL_B5, SPILL_B6, SPILL_B7)>;
@@ -372,4 +357,3 @@ let isAllocatable = false in {
     def Zc : MC6809Reg1Class<(add Z)>;
     def Vc : MC6809Reg1Class<(add V)>;
     def Cc : MC6809Reg1Class<(add C)>;
-//}

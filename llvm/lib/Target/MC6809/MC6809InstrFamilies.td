@@ -321,16 +321,6 @@ multiclass MC6809ArithRevPat<SDNode node, ValueType vtype, RegisterClass reg, st
   }
 }
 
-//multiclass MC6809ArithRevPat<SDNode node, ValueType vtype, RegisterClass reg, string inst> {
-//  def _Imm : Pat<(vtype (node (am_immediate !cast<Operand>(vtype#"imm"):$val), reg:$src)), (!cast<Instruction>("Negate_"#vtype) (!cast<Instruction>(inst#"_"#vtype#"_Imm") reg:$src, imm:$val))>;
-//  let Predicates = [IsHD6309] in {
-//    def _Reg : Pat<(vtype (node reg:$src, reg:$src2)), (!cast<Instruction>(inst#"_"#vtype#"_Reg") reg:$src, reg:$src2)>;
-//  }
-//  let Predicates = [NotHD6309] in {
-//    def _Push_Pull : Pat<(vtype (node reg:$src, reg:$src2)), (!cast<Instruction>(inst#"_"#vtype#"_Pull") reg:$src, (!cast<Instruction>("Push_"#vtype) reg:$src2))>;
-//  }
-//}
-
 defm AddPat_i8 : MC6809ArithPat<add, i8, ACC8, "Add">;
 defm SubPat_i8 : MC6809ArithPat<sub, i8, ACC8, "Sub">;
 defm SubRevPat_i8 : MC6809ArithRevPat<sub, i8, ACC8, "Sub">;
@@ -360,9 +350,7 @@ multiclass MC6809Bitwise<ValueType vtype, RegisterClass reg> {
   let isAsCheapAsAMove = true in {
     def _Imm : MC6809BitwiseBase<reg, (ins !cast<Operand>(vtype#"imm"):$imm)>;
   }
-//  let Predicates = [IsHD6309] in {
     def _Reg : MC6809BitwiseBase<reg, (ins reg:$src2)>;
-//  }
   let mayLoad = true in {
     def _Mem : MC6809BitwiseBase<reg, (ins INDEX16:$idx, unknown:$offset)>;
     def _Pull : MC6809BitwiseBase<reg, (ins STACK16:$idx)>;
@@ -378,28 +366,6 @@ defm XOR_i8 : MC6809Bitwise<i8, ACC8>;
 defm AND_i16 : MC6809Bitwise<i16, ACC16>;
 defm OR_i16 : MC6809Bitwise<i16, ACC16>;
 defm XOR_i16 : MC6809Bitwise<i16, ACC16>;
-
-// Bit-testing (commented out — preserved for future use)
-
-//class MC6809BitBase<RegisterClass reg, dag operand> : MC6809LogicalInstr {
-//  let isCompare = true;
-//  // let Defs = [NZ, V];
-//  dag OutOperandList = (outs i1:$cc);
-//  dag InOperandList = !con((ins reg:$reg), operand);
-//}
-
-//multiclass MC6809Bit<RegisterClass reg> {
-//  def Imm : MC6809BitBase<reg, (ins i16imm:$imm)>;
-//  def Reg : MC6809BitBase<reg, (ins reg:$src)>;
-//  let mayLoad = true in {
-//    def Abs : MC6809BitBase<reg, (ins addr16:$addr)>;
-//    def Idx : MC6809BitBase<reg, (ins INDEX16:$idx, unknown:$offset)>;
-//    def Indir : MC6809BitBase<reg, (ins INDEX16:$idx, unknown:$offset)>;
-//  }
-//}
-
-//defm Bit_i8 : MC6809Bit<ACC8_AB>;
-//defm Bit_i16 : MC6809Bit<ADc>;
 
 // --- Concrete instructions (register-specific, assembler/disassembler) ---
 // Concrete bitwise instructions (ANDA, ANDB, ORA, ORB, EORA, EORB, etc.)
@@ -430,13 +396,6 @@ class MC6809ShiftBase<RegisterClass reg> : MC6809LogicalInstr {
 
 multiclass MC6809Shift<RegisterClass reg> {
   def _Reg : MC6809ShiftBase<reg>;
-//  let mayLoad = true in {
-//    def _Abs : MC6809ShiftBase<reg, (ins addr16:$addr)>;
-//    def _Idx_Imm : MC6809ShiftBase<reg, (ins INDEX16:$idx, i16imm:$offset)>;
-//    def _Idx_Reg8 : MC6809ShiftBase<reg, (ins INDEX16:$idx, ACC8:$offset)>;
-//    def _Idx_Reg16 : MC6809ShiftBase<reg, (ins INDEX16:$idx, ACC16:$offset)>;
-//    def _Indir : MC6809ShiftBase<reg, (ins INDEX16:$idx, unknown:$offset)>;
-//  }
 }
 
 defm LSL_i8 : MC6809Shift<ACC8_AB>;
@@ -461,9 +420,6 @@ defm ROR_i8 : MC6809Shift<ACC8_AB>;
 
 multiclass MC6809ShiftPat<SDNode node, ValueType vtype, RegisterClass reg, string inst> {
   def _Reg : Pat<(vtype (node reg:$src, (i8 imm:$val))), (!cast<Instruction>(inst#"_"#vtype#"_Reg") reg:$src, imm:$val)>;
-//  def _Idx_Imm : Pat<(vtype (node reg:$src, (i1 1))), (!cast<Instruction>(inst#"_"#vtype#"_Idx_Imm") reg:$src, INDEX16:$idx, imm:$offset)>;
-//  def _Idx_Reg8 : Pat<(vtype (node reg:$src, (i1 1))), (!cast<Instruction>(inst#"_"#vtype#"_Idx_Reg8") reg:$src, INDEX16:$idx, ACC8:$offset)>;
-//  def _Idx_Reg16 : Pat<(vtype (node reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC16:$offset))), (!cast<Instruction>(inst#"_"#vtype#"_Idx_Reg16") reg:$src, INDEX16:$idx, ACC16:$offset)>;
 }
 
 defm LSL_Pat_i8 : MC6809ShiftPat<shl, i8, ACC8_AB, "LSL">;
@@ -527,17 +483,6 @@ multiclass MC6809SetIfCompCondPat<CondCode CC, int ccode> {
   defm _i16 : MC6809SetIfCondPat<CC, ccode, i16, ACC16>;
   defm _ptr : MC6809SetIfCondPat<CC, ccode, i16, INDEX16>;
 }
-
-//defm CompPat_HI : MC6809CompCondPat<SETUGT, 2>;
-//defm CompPat_HS : MC6809CompCondPat<SETUGE, 4>;
-//defm CompPat_LS : MC6809CompCondPat<SETULE, 3>;
-//defm CompPat_LO : MC6809CompCondPat<SETULT, 5>;
-//defm CompPat_GT : MC6809CompCondPat<SETGT, 14>;
-//defm CompPat_GE : MC6809CompCondPat<SETGE, 12>;
-//defm CompPat_LE : MC6809CompCondPat<SETLE, 15>;
-//defm CompPat_LT : MC6809CompCondPat<SETLT, 13>;
-//defm CompPat_EQ : MC6809CompCondPat<SETEQ, 7>;
-//defm CompPat_NE : MC6809CompCondPat<SETNE, 6>;
 
 defm SetIfCompPat_HI : MC6809SetIfCompCondPat<SETUGT, 2>;
 defm SetIfCompPat_HS : MC6809SetIfCompCondPat<SETUGE, 4>;
@@ -640,32 +585,6 @@ let Predicates = [IsHD6309] in {
 // are defined in MC6809InstrInfo.td.
 
 // --- Patterns (connect LLVM IR to pseudo-instructions) ---
-
-//multiclass MC6809BitTestPat<CondCode CC, int cc, ValueType vtype, RegisterClass reg> {
-//  def _Imm : Pat<(i8 (setcc (vtype 1), imm:$val, CC)), (!cast<Instruction>("BitTest_"#vtype#"_Imm") cc, reg:$src, imm:$val)>;
-//  def _Idx_Imm : Pat<(i8 (setcc (vtype 1), (am_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), (!cast<Instruction>("BitTest_"#vtype#"_Mem") cc, (Load_i8_Imm, INDEX16:$idx, i16imm:$offset)>;
-//  def _Unmerge_Idx_Imm : Pat<(i8 (setcc (vtype 1), (am_unmerge_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), (!cast<Instruction>("BitTest_"#vtype#"_Mem") cc, (Load_i8_Imm, INDEX16:$idx, i16imm:$offset)>;
-//  def _Idx_Reg8 : Pat<(i8 (setcc (vtype 1), (am_indexed_imm_offset INDEX16:$idx, ACC8:$offset), CC)), (!cast<Instruction>("BitTest_"#vtype#"_Mem") cc, reg:$src, INDEX16:$idx, ACC8:$offset)>;
-//  def _Idx_Reg16 : Pat<(i8 (setcc (vtype 1), (am_indexed_imm_offset INDEX16:$idx, ACC16:$offset), CC)), (!cast<Instruction>("BitTest_"#vtype#"_Mem") cc, reg:$src, INDEX16:$idx, ACC16:$offset)>;
-//}
-
-//multiclass MC6809BitTestCondPat<CondCode CC, int ccode> {
-//  defm _i8 : MC6809BitTestPat<CC, ccode, i8, ACC8_AB>;
-//  let Predicates = [IsHD6309] in {
-//    defm _i16 : MC6809BitTestPat<CC, ccode, i16, ACC16_D>;
-//  }
-//}
-
-//defm BitTestPat_HI : MC6809BitTestCondPat<SETUGT, 2>;
-//defm BitTestPat_HS : MC6809BitTestCondPat<SETUGE, 4>;
-//defm BitTestPat_LS : MC6809BitTestCondPat<SETULE, 3>;
-//defm BitTestPat_LO : MC6809BitTestCondPat<SETULT, 5>;
-//defm BitTestPat_GT : MC6809BitTestCondPat<SETGT, 14>;
-//defm BitTestPat_GE : MC6809BitTestCondPat<SETGE, 12>;
-//defm BitTestPat_LE : MC6809BitTestCondPat<SETLE, 15>;
-//defm BitTestPat_LT : MC6809BitTestCondPat<SETLT, 13>;
-//defm BitTestPat_EQ : MC6809BitTestCondPat<SETEQ, 7>;
-//defm BitTestPat_NE : MC6809BitTestCondPat<SETNE, 6>;
 
 //===----------------------------------------------------------------------===//
 // Multiply Family

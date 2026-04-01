@@ -46,7 +46,6 @@ BitVector MC6809RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   Reserved.set(MC6809::PC);
   Reserved.set(MC6809::SS);
   Reserved.set(MC6809::DP);
-  // Reserved.set(MC6809::CC);
   Reserved.set(MC6809::A0);
   Reserved.set(MC6809::AV);
   Reserved.set(MC6809::MD);
@@ -138,76 +137,6 @@ Register MC6809RegisterInfo::getFrameRegister(const MachineFunction &MF) const {
   const TargetFrameLowering *TFI = getFrameLowering(MF);
   return TFI->hasFP(MF) ? MC6809::SU : MC6809::SS;
 }
-
-#if 0
-int copyCost(Register DestReg, Register SrcReg, const MC6809Subtarget &STI) {
-  if (DestReg == SrcReg)
-    return 0;
-
-  const auto &AreClasses = [&](const TargetRegisterClass &Dest, const TargetRegisterClass &Src) { return Dest.contains(DestReg) && Src.contains(SrcReg); };
-
-  if (AreClasses(MC6809::ACC16RegClass, MC6809::INDEX16RegClass)) {
-    return 1;
-  } else if (AreClasses(MC6809::INDEX16RegClass, MC6809::ACC16RegClass)) {
-    return 1;
-  } else if (AreClasses(MC6809::INDEX16RegClass, MC6809::INDEX16RegClass)) {
-    return 1;
-  } else if (AreClasses(MC6809::ACC8RegClass, MC6809::ACC8RegClass)) {
-    return 1;
-  } else if (AreClasses(MC6809::ACC16RegClass, MC6809::ACC16RegClass)) {
-    return 1;
-  } else if (AreClasses(MC6809::ACC16RegClass, MC6809::ACC8RegClass)) {
-    if (AreClasses(MC6809::ADcRegClass, MC6809::ABcRegClass))
-      return 0;
-    if (AreClasses(MC6809::AWcRegClass, MC6809::AFcRegClass))
-      return 0;
-    return 1;
-  } else if (AreClasses(MC6809::ACC8RegClass, MC6809::ACC16RegClass)) {
-    if (AreClasses(MC6809::ABcRegClass, MC6809::ADcRegClass))
-      return 0;
-    if (AreClasses(MC6809::AFcRegClass, MC6809::AWcRegClass))
-      return 0;
-    return 1;
-  } else if (AreClasses(MC6809::ACC32RegClass, MC6809::ACC8RegClass)) {
-    if (AreClasses(MC6809::AQcRegClass, MC6809::AFcRegClass))
-      return 0;
-    return 1;
-  } else if (AreClasses(MC6809::ACC8RegClass, MC6809::ACC32RegClass)) {
-    if (AreClasses(MC6809::AFcRegClass, MC6809::AQcRegClass))
-      return 0;
-    return 1;
-  } else if (AreClasses(MC6809::ACC32RegClass, MC6809::ACC16RegClass)) {
-    if (AreClasses(MC6809::AQcRegClass, MC6809::AWcRegClass))
-      return 0;
-    return 1;
-  } else if (AreClasses(MC6809::ACC16RegClass, MC6809::ACC32RegClass)) {
-    if (AreClasses(MC6809::AWcRegClass, MC6809::AQcRegClass))
-      return 0;
-    return 1;
-  } else if (AreClasses(MC6809::BIT1RegClass, MC6809::ACC8RegClass)) {
-    return 0;
-  } else if (AreClasses(MC6809::ACC8RegClass, MC6809::BIT1RegClass)) {
-    return 0;
-  } else if (AreClasses(MC6809::CCondRegClass, MC6809::ACC8RegClass)) {
-    return 1;
-  } else if (AreClasses(MC6809::ACC8RegClass, MC6809::CCondRegClass)) {
-    return 1;
-  } else if (AreClasses(MC6809::BIT1RegClass, MC6809::CCFlagRegClass) || AreClasses(MC6809::BIT1RegClass, MC6809::CARRYRegClass)) {
-    return 16;
-  } else if (AreClasses(MC6809::CCFlagRegClass, MC6809::BIT1RegClass) || AreClasses(MC6809::CARRYRegClass, MC6809::BIT1RegClass)) {
-    return 16;
-  } else if (AreClasses(MC6809::ACC8RegClass, MC6809::AllArithFlagRegClass)) {
-    return 4;
-  } else if (AreClasses(MC6809::AllArithFlagRegClass, MC6809::ACC8RegClass)) {
-    return 4;
-  } else if (AreClasses(MC6809::ACC8RegClass, MC6809::ArithFlagRegClass)) {
-    return 8;
-  } else if (AreClasses(MC6809::ArithFlagRegClass, MC6809::ACC8RegClass)) {
-    return 8;
-  }
-  llvm_unreachable("Unexpected physical register copy cost.");
-}
-#endif
 
 bool MC6809RegisterInfo::getRegAllocationHints(Register VirtReg, ArrayRef<MCPhysReg> Order, SmallVectorImpl<MCPhysReg> &Hints, const MachineFunction &MF, const VirtRegMap *VRM, const LiveRegMatrix *Matrix) const {
   const MC6809Subtarget &STI = MF.getSubtarget<MC6809Subtarget>();

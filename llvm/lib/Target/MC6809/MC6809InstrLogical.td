@@ -44,11 +44,6 @@ def Copy16 : MC6809Transfer<(ins REGPAIR16:$src), (outs REGPAIR16:$dst), "">;
 def Exchange8 : MC6809Transfer<(ins REGPAIR8:$src1, REGPAIR8:$src2), (outs REGPAIR8:$dst1, REGPAIR8:$dst2), "$dst1 = $src2, $dst2 = $src1">;
 def Exchange16 : MC6809Transfer<(ins REGPAIR16:$src1, REGPAIR16:$src2), (outs REGPAIR16:$dst1, REGPAIR16:$dst2), "$dst1 = $src2, $dst2 = $src1">;
 
-// XXXX: FixMe: MarkM: Use a ComplexPattern to get at the carry bit?
-//def CopyFromCarry : MC6809Transfer<(ins CARRY:$carry), (outs BIT1:$dst)> {
-//  let Pattern = [(set BIT1:$dst, CARRY:$carry)];
-//}
-
 //===---------------------------------------------------------------------===//
 // Memory block operations
 //===---------------------------------------------------------------------===//
@@ -124,15 +119,6 @@ let InOperandList = (ins), Constraints = "" in {
   }
 }
 
-//multiclass MC6809Clear1Pat<ValueType vtype, RegisterClass reg> {
-//  def _Reg : Pat<(set reg:$dst, (vtype 0)), (!cast<Instruction>("Clear_"#vtype) reg:$dst)>;
-//}
-
-//defm ClearPat_i8 : MC6809Clear1Pat<i8, ACC8>;
-//let Predicates = [IsHD6309] in {
-//  defm ClearPat_i16 : MC6809Clear1Pat<i16, ACC16>;
-//}
-
 //===---------------------------------------------------------------------===//
 // Loads and Stores
 //===---------------------------------------------------------------------===//
@@ -143,21 +129,6 @@ let InOperandList = (ins), Constraints = "" in {
 //===---------------------------------------------------------------------===//
 // Set/Clear CC bits
 //===---------------------------------------------------------------------===//
-
-//class MC6809ImmediateLoad<RegisterClass dst, Operand val> : MC6809LogicalInstr {
-//  dag OutOperandList = (outs dst:$dst);
-//  dag InOperandList = (ins val:$val);
-//  let isAsCheapAsAMove = true;
-//  let isMoveImm = true;
-//}
-
-// Clear/set overflow
-//def CLV : MC6809ImmediateLoad<Vc, i1imm>, PseudoInstExpansion<(CLV_Implied)> {
-//  dag InOperandList = (ins);
-//}
-
-// Clear/set carry
-//def LoadCarryImm : MC6809ImmediateLoad<Cc, i1imm>;
 
 // Arithmetic pseudos, concrete instructions, and patterns are in MC6809InstrFamilies.td
 
@@ -309,12 +280,6 @@ def LEA_Ptr_Reg16 : MC6809LoadEffectiveAddress<INDEX16, (ins ACC16:$offset)>;
 // Integer Extension/Truncation Patterns
 //===---------------------------------------------------------------------===//
 
-//def SEXCC8Implicit : MC6809LogicalInstr {
-//  dag InOperandList = (ins BIT1:$bit);
-//  dag OutOperandList = (outs ACC8:$dst);
-//  let Pattern = [(set ACC8:$dst, (sext BIT1:$bit))];
-//}
-
 def SEX8Implicit : MC6809LogicalInstr {
   dag InOperandList = (ins BIT1:$src);
   dag OutOperandList = (outs ACC8:$dst);
@@ -362,7 +327,6 @@ def : Pat<(i8 (zext CARRY:$bit)), (INSERT_SUBREG (IMPLICIT_DEF), CARRY:$bit, sub
 def : Pat<(i16 (anyext ACC8:$byte)), (INSERT_SUBREG (IMPLICIT_DEF), ACC8:$byte, sub_lo_byte)>;
 def : Pat<(i16 (anyext BIT1:$bit)), (INSERT_SUBREG (IMPLICIT_DEF), (INSERT_SUBREG (i8 (IMPLICIT_DEF)), BIT1:$bit, sub_lsb), sub_lo_byte)>;
 
-//def : Pat<(i1 (trunc ACC8:$byte)), (EXTRACT_SUBREG ACC8:$byte, sub_lsb)>;
 def : Pat<(i8 (trunc ACC16:$word)), (EXTRACT_SUBREG ACC16:$word, sub_lo_byte)>;
 let Predicates = [IsHD6309] in {
   def : Pat<(i16 (trunc ACC32:$dword)), (EXTRACT_SUBREG ACC32:$dword, sub_lo_word)>;
@@ -376,7 +340,3 @@ let Predicates = [IsHD6309] in {
 // Oddball instructions
 //===---------------------------------------------------------------------===//
 
-//def LoadCC : MC6809LogicalInstr {
-//  dag InOperandList = (ins ACC8:$src);
-//  dag OutOperandList = (outs CCond:$dst);
-//}
