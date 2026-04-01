@@ -189,8 +189,9 @@ bool MC6809FrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB, Ma
     if (MC6809::INDEX16RegClass.contains(Reg)) {
       Builder.buildInstr(MC6809::PULSs, {Reg}, {});
     } else if (!StackRegClass.contains(Reg)) {
+      Register OrigReg = Reg;
       Reg = Builder.getMRI()->createVirtualRegister(&StackRegClass);
-      if (Reg == MC6809::AW)
+      if (OrigReg == MC6809::AW)
         Builder.buildInstr(MC6809::PULSWx, {}, {});
       else
         Builder.buildInstr(MC6809::PULSs, {Reg}, {});
