@@ -240,8 +240,11 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
                         MachineInstr *Store) {
       for (auto &E : Slots) {
         if (E.first == Key) {
-          // Stage 2: if previous store was never read, it's dead.
-          if (E.second.StoreInstr && !E.second.WasRead) {
+          // Stage 2: if previous store was never read, it's dead — but only
+          // if the new store covers the same width. A 1-byte STA to offset N
+          // does NOT kill a 2-byte STD at offset N (the low byte is still live).
+          if (E.second.StoreInstr && !E.second.WasRead &&
+              E.second.Reg == Reg) {
             LLVM_DEBUG(dbgs() << "  SpillOpt: deleting dead store: "
                               << *E.second.StoreInstr);
             E.second.StoreInstr->eraseFromParent();
@@ -272,6 +275,16 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
       if (isIndexedStore(Opc)) {
         Register AccReg = getAccRegForOpcode(Opc);
         SlotKey Key = getSlotKey(MI);
+        // A 16-bit STD at offset N also invalidates any 8-bit STA at N
+        // or STB at N+1 (since STD covers both bytes).
+        if (AccReg == MC6809::AD) {
+          SlotKey HiKey = {Key.BaseReg, Key.Offset};
+          SlotKey LoKey = {Key.BaseReg, Key.Offset + 1};
+          if (auto *Hi = findSlot(HiKey))
+            Hi->WasRead = true; // prevent incorrect dead-store deletion
+          if (auto *Lo = findSlot(LoKey))
+            Lo->WasRead = true;
+        }
         setSlot(Key, AccReg, &MI);
         continue;
       }
