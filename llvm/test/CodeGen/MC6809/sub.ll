@@ -338,12 +338,10 @@ define dso_local i32 @sub_s_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; CHECK-NEXT:    tfr s,u
 ; CHECK-NEXT:    ldd 12,u
 ; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldd 4,u
 ; CHECK-NEXT:    addd 16,u
 ; CHECK-NEXT:    std 4,u
 ; CHECK-NEXT:    tfr x,d
 ; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldd 6,u
 ; CHECK-NEXT:    adcd 14,u
 ; CHECK-NEXT:    std 6,u
 ; CHECK-NEXT:    ldd 4,u
@@ -475,12 +473,10 @@ define dso_local i32 @sub_u_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; CHECK-NEXT:    tfr s,u
 ; CHECK-NEXT:    ldd 12,u
 ; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldd 4,u
 ; CHECK-NEXT:    addd 16,u
 ; CHECK-NEXT:    std 4,u
 ; CHECK-NEXT:    tfr x,d
 ; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldd 6,u
 ; CHECK-NEXT:    adcd 14,u
 ; CHECK-NEXT:    std 6,u
 ; CHECK-NEXT:    ldd 4,u

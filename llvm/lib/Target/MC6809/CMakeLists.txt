@@ -44,6 +44,7 @@ add_llvm_target(MC6809CodeGen
   MC6809MachineScheduler.cpp
   MC6809NonReentrant.cpp
   MC6809PostRAScavenging.cpp
+  MC6809PostRASpillOpt.cpp
   MC6809RegisterInfo.cpp
   MC6809ShiftRotateChain.cpp
   MC6809Subtarget.cpp

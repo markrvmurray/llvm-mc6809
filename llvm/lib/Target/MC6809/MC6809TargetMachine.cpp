@@ -41,6 +41,7 @@
 #include "MC6809InsertCopies.h"
 #include "MC6809Internalize.h"
 #include "MC6809LateOptimization.h"
+#include "MC6809PostRASpillOpt.h"
 #include "MC6809LowerSelect.h"
 #include "MC6809MachineFunctionInfo.h"
 #include "MC6809MachineScheduler.h"
@@ -281,6 +282,10 @@ void MC6809PassConfig::addPreSched2() {
   // Lower pseudos produced by control flow pseudos.
   addPass(&ExpandPostRAPseudosID);
   addPass(createMC6809PostRAScavengingPass());
+
+  // Eliminate redundant spill loads/stores from post-RA expansion.
+  if (getOptLevel() != CodeGenOptLevel::None)
+    addPass(createMC6809PostRASpillOptPass());
 
   // This is currently mandatory, since it lowers CMPTermZ.
   addPass(createMC6809LateOptimizationPass());
