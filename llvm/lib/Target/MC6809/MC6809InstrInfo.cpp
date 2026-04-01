@@ -1446,6 +1446,10 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
       MI.getOperand(1).setReg(RealReg);
     }
     MI.setDesc(Builder.getTII().get(MC6809::PSHSs));
+    // PSHS always uses the S stack, not U. Force SS regardless of what
+    // the allocator assigned — otherwise implicit-def $su would clobber
+    // the frame pointer.
+    MI.getOperand(0).setReg(MC6809::SS);
     MI.getOperand(0).setImplicit();
     break;
   }

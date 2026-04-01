@@ -52,9 +52,6 @@ BitVector MC6809RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   Reserved.set(MC6809::MD);
 
   // Mark frame pointer as reserved if needed.
-  // Note: SU is also used as a scratch by Push/Pull pseudo expansions,
-  // but those always expand to use SS. The SU assignment from regalloc
-  // is discarded during expansion.
   if (TFI->hasFP(MF))
     Reserved.set(MC6809::SU);
 
