@@ -69,6 +69,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMC6809Target() {
   initializeMC6809LowerSelectPass(PR);
   initializeMC6809NonReentrantPass(PR);
   initializeMC6809PostRAScavengingPass(PR);
+  initializeMC6809PostRASpillOptPass(PR);
   initializeMC6809ShiftRotateChainPass(PR);
   initializeMC6809DirectPageAllocPass(PR);
 }

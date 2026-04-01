@@ -25,6 +25,7 @@
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstr.h"
+#include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/Support/Debug.h"
@@ -113,17 +114,94 @@ static SlotKey getSlotKey(const MachineInstr &MI) {
   return {BaseReg, Offset};
 }
 
-/// Returns true if MI defines (clobbers) the given physical register
-/// or any of its sub/super-registers.
-static bool clobbersReg(const MachineInstr &MI, Register Reg,
-                        const TargetRegisterInfo &TRI) {
-  for (const MachineOperand &MO : MI.operands()) {
-    if (MO.isReg() && MO.isDef() && MO.getReg().isPhysical()) {
-      if (TRI.regsOverlap(MO.getReg(), Reg))
-        return true;
+
+/// Returns true if the opcode is a LEAS indexed instruction.
+static bool isLEAS(unsigned Opc) {
+  switch (Opc) {
+  case MC6809::LEASi_o0: case MC6809::LEASi_o5:
+  case MC6809::LEASi_o8: case MC6809::LEASi_o16:
+    return true;
+  default:
+    return false;
+  }
+}
+
+/// Try to extract (base register, offset) from any indexed instruction.
+/// Returns true if the instruction uses indexed addressing with an
+/// immediate offset and a physical base register.
+static bool getBaseAndOffset(const MachineInstr &MI, Register &BaseReg,
+                             int &Offset) {
+  // Look for the pattern: optional imm operand + register operand among
+  // the explicit operands. The _o0 variants have no imm (offset=0).
+  bool FoundReg = false, FoundImm = false;
+  Offset = 0;
+  BaseReg = Register();
+  for (const MachineOperand &MO : MI.explicit_operands()) {
+    if (MO.isImm() && !FoundImm) {
+      Offset = MO.getImm();
+      FoundImm = true;
+    } else if (MO.isReg() && MO.getReg().isPhysical() && !MO.isDef()) {
+      BaseReg = MO.getReg();
+      FoundReg = true;
     }
   }
-  return false;
+  return FoundReg;
+}
+
+/// Return the _o5 opcode variant for a given _o5/_o8/_o16 opcode (identity),
+/// or 0 if not a recognized indexed instruction. Used when adjusting offsets
+/// may require changing the opcode variant.
+static unsigned getOpcodeForOffsetSize(unsigned OrigOpc, int NewOffset) {
+  // Determine which offset size category the new offset needs.
+  int Size = (NewOffset == 0) ? 0
+           : (NewOffset >= -16 && NewOffset < 16) ? 5
+           : (NewOffset >= -128 && NewOffset < 128) ? 8 : 16;
+
+  // Map from original opcode to its family, then pick the right variant.
+  // We use a macro-based approach: strip the _oN suffix and reattach.
+#define OFFSET_VARIANT(BASE)                                                   \
+  case MC6809::BASE##_o0: case MC6809::BASE##_o5:                              \
+  case MC6809::BASE##_o8: case MC6809::BASE##_o16:                             \
+    switch (Size) {                                                            \
+    case 0:  return MC6809::BASE##_o0;                                         \
+    case 5:  return MC6809::BASE##_o5;                                         \
+    case 8:  return MC6809::BASE##_o8;                                         \
+    default: return MC6809::BASE##_o16;                                        \
+    }
+
+  switch (OrigOpc) {
+  OFFSET_VARIANT(LEASi)
+  OFFSET_VARIANT(LDDi)
+  OFFSET_VARIANT(LDAi)
+  OFFSET_VARIANT(LDBi)
+  OFFSET_VARIANT(STDi)
+  OFFSET_VARIANT(STAi)
+  OFFSET_VARIANT(STBi)
+  OFFSET_VARIANT(ADDAi)
+  OFFSET_VARIANT(ADDBi)
+  OFFSET_VARIANT(ADDDi)
+  OFFSET_VARIANT(SUBAi)
+  OFFSET_VARIANT(SUBBi)
+  OFFSET_VARIANT(SUBDi)
+  OFFSET_VARIANT(ADCAi)
+  OFFSET_VARIANT(ADCBi)
+  OFFSET_VARIANT(SBCAi)
+  OFFSET_VARIANT(SBCBi)
+  OFFSET_VARIANT(CMPAi)
+  OFFSET_VARIANT(CMPBi)
+  OFFSET_VARIANT(CMPDi)
+  OFFSET_VARIANT(ANDAi)
+  OFFSET_VARIANT(ANDBi)
+  OFFSET_VARIANT(ORAi)
+  OFFSET_VARIANT(ORBi)
+  OFFSET_VARIANT(EORAi)
+  OFFSET_VARIANT(EORBi)
+  OFFSET_VARIANT(LEAXi)
+  OFFSET_VARIANT(LEAYi)
+  OFFSET_VARIANT(LEAUi)
+  default: return 0;
+  }
+#undef OFFSET_VARIANT
 }
 
 class MC6809PostRASpillOpt : public MachineFunctionPass {
@@ -141,32 +219,50 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
   bool Changed = false;
 
   for (MachineBasicBlock &MBB : MF) {
-    // Map: {(base, offset)} → register that currently holds slot value.
-    // If D was stored to slot (SU,4), then RegInSlot[{SU,4}] = AD.
-    SmallVector<std::pair<SlotKey, Register>, 8> RegInSlot;
+    // Track slot contents: {(base, offset)} → {register, store instruction}.
+    // The store instruction is kept so we can delete dead stores (Stage 2).
+    struct SlotInfo {
+      Register Reg;
+      MachineInstr *StoreInstr = nullptr; // null if value came from a load
+      bool WasRead = false;               // true if slot was read since store
+    };
+    SmallVector<std::pair<SlotKey, SlotInfo>, 8> Slots;
 
-    auto findSlot = [&](const SlotKey &Key) -> Register {
-      for (auto &E : RegInSlot) {
+    auto findSlot = [&](const SlotKey &Key) -> SlotInfo * {
+      for (auto &E : Slots) {
         if (E.first == Key)
-          return E.second;
+          return &E.second;
       }
-      return Register();
+      return nullptr;
     };
 
-    auto setSlot = [&](const SlotKey &Key, Register Reg) {
-      for (auto &E : RegInSlot) {
+    auto setSlot = [&](const SlotKey &Key, Register Reg,
+                        MachineInstr *Store) {
+      for (auto &E : Slots) {
         if (E.first == Key) {
-          E.second = Reg;
+          // Stage 2: if previous store was never read, it's dead.
+          if (E.second.StoreInstr && !E.second.WasRead) {
+            LLVM_DEBUG(dbgs() << "  SpillOpt: deleting dead store: "
+                              << *E.second.StoreInstr);
+            E.second.StoreInstr->eraseFromParent();
+            Changed = true;
+          }
+          E.second = {Reg, Store, false};
           return;
         }
       }
-      RegInSlot.push_back({Key, Reg});
+      Slots.push_back({Key, {Reg, Store, false}});
+    };
+
+    auto markRead = [&](const SlotKey &Key) {
+      if (auto *S = findSlot(Key))
+        S->WasRead = true;
     };
 
     auto clearReg = [&](Register Reg) {
-      for (auto &E : RegInSlot) {
-        if (E.second.isValid() && TRI.regsOverlap(E.second, Reg))
-          E.second = Register();
+      for (auto &E : Slots) {
+        if (E.second.Reg.isValid() && TRI.regsOverlap(E.second.Reg, Reg))
+          E.second.Reg = Register();
       }
     };
 
@@ -176,15 +272,15 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
       if (isIndexedStore(Opc)) {
         Register AccReg = getAccRegForOpcode(Opc);
         SlotKey Key = getSlotKey(MI);
-        setSlot(Key, AccReg);
+        setSlot(Key, AccReg, &MI);
         continue;
       }
 
       if (isIndexedLoad(Opc)) {
         Register AccReg = getAccRegForOpcode(Opc);
         SlotKey Key = getSlotKey(MI);
-        Register Cached = findSlot(Key);
-        if (Cached == AccReg) {
+        SlotInfo *Info = findSlot(Key);
+        if (Info && Info->Reg == AccReg) {
           // The register already holds this slot's value → delete the load.
           LLVM_DEBUG(dbgs() << "  SpillOpt: deleting redundant load: " << MI);
           MI.eraseFromParent();
@@ -192,8 +288,9 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
           continue;
         }
         // Load defines the register — update tracking.
+        markRead(Key);
         clearReg(AccReg);
-        setSlot(Key, AccReg);
+        setSlot(Key, AccReg, nullptr); // no store to delete
         continue;
       }
 
@@ -205,8 +302,106 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
 
       // Branches, calls, and other control flow invalidate everything.
       if (MI.isCall() || MI.isBranch() || MI.isReturn())
-        RegInSlot.clear();
+        Slots.clear();
     }
+  }
+
+  // Stage 3: Remove redundant leas -N,s / leas N,s pairs when the
+  // allocated stack area [0, N) relative to S is never accessed.
+  for (MachineBasicBlock &MBB : MF) {
+    // Find a LEAS with negative offset at the start of the block.
+    MachineInstr *PrologLEAS = nullptr;
+    MachineInstr *EpilogLEAS = nullptr;
+    int AllocSize = 0;
+
+    for (MachineInstr &MI : MBB) {
+      if (!isLEAS(MI.getOpcode()))
+        continue;
+      Register BaseReg;
+      int Offset;
+      if (!getBaseAndOffset(MI, BaseReg, Offset))
+        continue;
+      if (BaseReg != MC6809::SS)
+        continue;
+      if (Offset < 0 && !PrologLEAS) {
+        PrologLEAS = &MI;
+        AllocSize = -Offset;
+      } else if (Offset > 0 && PrologLEAS && Offset == AllocSize) {
+        EpilogLEAS = &MI;
+        break; // found the matching pair
+      }
+    }
+
+    if (!PrologLEAS || !EpilogLEAS)
+      continue;
+
+    // Check whether any instruction between them accesses S-relative
+    // memory in the allocated range [0, AllocSize), or modifies S
+    // (PSHS/PULS change S, making offset analysis unreliable).
+    bool AllocatedAreaUsed = false;
+    SmallVector<MachineInstr *, 16> SSRelativeInstrs;
+    for (auto It = std::next(PrologLEAS->getIterator());
+         &*It != EpilogLEAS; ++It) {
+      MachineInstr &MI = *It;
+      // If any instruction (other than our LEAS pair) defines SS,
+      // S moves and our offset analysis is invalid — bail out.
+      // This catches PSHS, PULS, and any other S-modifying instruction.
+      for (const MachineOperand &MO : MI.operands()) {
+        if (MO.isReg() && MO.isDef() && MO.getReg() == MC6809::SS) {
+          AllocatedAreaUsed = true;
+          break;
+        }
+      }
+      if (AllocatedAreaUsed)
+        break;
+      Register BaseReg;
+      int Offset;
+      if (!getBaseAndOffset(MI, BaseReg, Offset))
+        continue;
+      if (BaseReg != MC6809::SS)
+        continue;
+      if (Offset >= 0 && Offset < AllocSize) {
+        AllocatedAreaUsed = true;
+        break;
+      }
+      SSRelativeInstrs.push_back(&MI);
+    }
+
+    if (AllocatedAreaUsed)
+      continue;
+
+    // The allocated area is unused. Remove both LEAS and adjust all
+    // S-relative offsets by -AllocSize.
+    LLVM_DEBUG(dbgs() << "  SpillOpt: removing redundant leas -"
+                      << AllocSize << ",s / leas " << AllocSize << ",s\n");
+    for (MachineInstr *MI : SSRelativeInstrs) {
+      // Find the immediate operand and adjust it.
+      for (MachineOperand &MO : MI->explicit_operands()) {
+        if (MO.isImm()) {
+          int OldOffset = MO.getImm();
+          int NewOffset = OldOffset - AllocSize;
+          MO.setImm(NewOffset);
+          // Change opcode variant if the offset size category changed.
+          // Never use _o0 (would require operand removal); use _o5 for 0.
+          int Size = (NewOffset >= -16 && NewOffset < 16) ? 5
+                   : (NewOffset >= -128 && NewOffset < 128) ? 8 : 16;
+          (void)Size;
+          unsigned NewOpc = getOpcodeForOffsetSize(MI->getOpcode(), NewOffset);
+          // Don't switch to _o0 — keep _o5 with offset 0 instead.
+          if (NewOffset == 0)
+            NewOpc = getOpcodeForOffsetSize(MI->getOpcode(), 1); // force _o5
+          if (NewOpc && NewOpc != MI->getOpcode()) {
+            LLVM_DEBUG(dbgs() << "    adjusting " << OldOffset
+                              << " → " << NewOffset << "\n");
+            MI->setDesc(MF.getSubtarget().getInstrInfo()->get(NewOpc));
+          }
+          break;
+        }
+      }
+    }
+    PrologLEAS->eraseFromParent();
+    EpilogLEAS->eraseFromParent();
+    Changed = true;
   }
 
   return Changed;

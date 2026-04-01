@@ -270,6 +270,8 @@ private:
   ContextImmediate XORImm = {&XORImmediateOpcode, 0};
 
   void expandImm(ContextImmediate Context, MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandCarryImm16(bool IsAdd, MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandCarryMem16(bool IsAdd, MachineIRBuilder &Builder, MachineInstr &MI) const;
 
   struct ContextIndexImmediate {
     DenseMap<RegPlusOffsetLen, unsigned> *Opcode;
