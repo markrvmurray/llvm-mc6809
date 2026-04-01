@@ -1433,8 +1433,18 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::Push_Ptr: {
     // Operand 0 = stack register (def), operand 1 = value to push (use).
     Register PushReg = MI.getOperand(1).getReg();
-    // If pushing a spill register, load into real accumulator first.
-    if (isSpillReg(PushReg)) {
+    // If pushing a spill register, load into an INDEX register and push that
+    // to avoid clobbering D (which may hold a live value).
+    if (isSpillReg(PushReg) && getSpillRegSize(PushReg) == 2) {
+      MachineFunction &MF = *MI.getMF();
+      int Offset = computeSpillStackOffset(PushReg, MF);
+      unsigned LoadOpc = getLoadIdxOpcode(MC6809::IX, Offset);
+      MachineIRBuilder PreBuilder(*MI.getParent(), MI.getIterator());
+      PreBuilder.buildInstr(LoadOpc)
+          .addDef(MC6809::IX, RegState::Implicit)
+          .addImm(Offset).addReg(MC6809::SU);
+      MI.getOperand(1).setReg(MC6809::IX);
+    } else if (isSpillReg(PushReg)) {
       Register RealReg = getRealRegForSpill(PushReg);
       MachineFunction &MF = *MI.getMF();
       MachineIRBuilder PreBuilder(*MI.getParent(), MI.getIterator());
@@ -1815,6 +1825,8 @@ void MC6809InstrInfo::expandBitwiseImm16(ContextImmediate Context, unsigned OpcA
   if (DestIsSpill) {
     Register RealReg = getRealRegForSpill(DestReg);
     MachineFunction &MF = *MI.getMF();
+    // Save D — it may hold a live value while we operate on the spill.
+    Builder.buildInstr(MC6809::PSHSs, {}, {Register(MC6809::AD)});
     emitSpillLoad(Builder, RealReg, DestReg, MF);
     DestReg = RealReg;
   }
@@ -1830,6 +1842,7 @@ void MC6809InstrInfo::expandBitwiseImm16(ContextImmediate Context, unsigned OpcA
   if (DestIsSpill) {
     MachineFunction &MF = *MI.getMF();
     emitSpillStore(Builder, DestReg, OrigSpillReg, MF);
+    Builder.buildInstr(MC6809::PULSs, {}, {Register(MC6809::AD)});
   }
   MI.eraseFromParent();
 }
@@ -1851,6 +1864,9 @@ void MC6809InstrInfo::expandBitwiseMem16(ContextIndexImmediate Context,
   if (DestIsSpill) {
     Register RealReg = getRealRegForSpill(DestReg);
     MachineFunction &MF = *MI.getMF();
+    // Save D — it may hold a live value while we operate on the spill.
+    // Uses S stack; U-relative spill offsets are unaffected.
+    Builder.buildInstr(MC6809::PSHSs, {}, {Register(MC6809::AD)});
     emitSpillLoad(Builder, RealReg, DestReg, MF);
     DestReg = RealReg;
   }
@@ -1882,6 +1898,8 @@ void MC6809InstrInfo::expandBitwiseMem16(ContextIndexImmediate Context,
   if (DestIsSpill) {
     MachineFunction &MF = *MI.getMF();
     emitSpillStore(Builder, DestReg, OrigSpillReg, MF);
+    // Restore D's original value.
+    Builder.buildInstr(MC6809::PULSs, {}, {Register(MC6809::AD)});
   }
   MI.eraseFromParent();
 }
@@ -2527,7 +2545,7 @@ void MC6809InstrInfo::expandANDPull(MachineIRBuilder &Builder, MachineInstr &MI)
     // 6809: Push_i16 put 2 bytes on S stack. Big-endian: S+0=hi, S+1=lo.
     Builder.buildInstr(MC6809::ANDBi_o5).addDef(MC6809::AB, RegState::Implicit).addImm(1).addReg(MC6809::SS);
     Builder.buildInstr(MC6809::ANDAi_o0).addDef(MC6809::AA, RegState::Implicit).addReg(MC6809::SS);
-    Builder.buildInstr(MC6809::LEASi_o5).addDef(MC6809::SS).addImm(2).addReg(MC6809::SS);
+    Builder.buildInstr(MC6809::LEASi_o5).addImm(2).addReg(MC6809::SS);
   } else {
     auto OpcodePair = ANDPullOpcode.find(DestReg);
     Builder.buildInstr(OpcodePair->getSecond())
@@ -2545,7 +2563,7 @@ void MC6809InstrInfo::expandORPull(MachineIRBuilder &Builder, MachineInstr &MI) 
     // 6809: Push_i16 put 2 bytes on S stack. Big-endian: S+0=hi, S+1=lo.
     Builder.buildInstr(MC6809::ORBi_o5).addDef(MC6809::AB, RegState::Implicit).addImm(1).addReg(MC6809::SS);
     Builder.buildInstr(MC6809::ORAi_o0).addDef(MC6809::AA, RegState::Implicit).addReg(MC6809::SS);
-    Builder.buildInstr(MC6809::LEASi_o5).addDef(MC6809::SS).addImm(2).addReg(MC6809::SS);
+    Builder.buildInstr(MC6809::LEASi_o5).addImm(2).addReg(MC6809::SS);
   } else {
     auto OpcodePair = ORPullOpcode.find(DestReg);
     Builder.buildInstr(OpcodePair->getSecond())
@@ -2563,7 +2581,7 @@ void MC6809InstrInfo::expandXORPull(MachineIRBuilder &Builder, MachineInstr &MI)
     // 6809: Push_i16 put 2 bytes on S stack. Big-endian: S+0=hi, S+1=lo.
     Builder.buildInstr(MC6809::EORBi_o5).addDef(MC6809::AB, RegState::Implicit).addImm(1).addReg(MC6809::SS);
     Builder.buildInstr(MC6809::EORAi_o0).addDef(MC6809::AA, RegState::Implicit).addReg(MC6809::SS);
-    Builder.buildInstr(MC6809::LEASi_o5).addDef(MC6809::SS).addImm(2).addReg(MC6809::SS);
+    Builder.buildInstr(MC6809::LEASi_o5).addImm(2).addReg(MC6809::SS);
   } else {
     auto OpcodePair = XORPullOpcode.find(DestReg);
     Builder.buildInstr(OpcodePair->getSecond())
@@ -2684,7 +2702,6 @@ static void emit6809RegByteFromMem(MachineIRBuilder &Builder,
         .addDef(AccReg, RegState::Implicit)
         .addImm(0).addReg(MC6809::SS);
     Builder.buildInstr(MC6809::LEASi_o5)
-        .addDef(MC6809::SS)
         .addImm(1).addReg(MC6809::SS);
   }
   if (isSpillReg(LHS))

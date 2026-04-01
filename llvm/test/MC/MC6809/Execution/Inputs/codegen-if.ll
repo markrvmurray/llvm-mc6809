@@ -74,3 +74,17 @@ define dso_local i32 @test_min_u32(i32 noundef %a, i32 noundef %b) local_unnamed
   %r = select i1 %cmp, i32 %a, i32 %b
   ret i32 %r
 }
+
+; i32 equality: return a == b ? 1 : 0
+define dso_local i16 @test_eq32(i32 noundef %a, i32 noundef %b) local_unnamed_addr {
+  %c = icmp eq i32 %a, %b
+  %r = zext i1 %c to i16
+  ret i16 %r
+}
+
+; i32 not-equal: return a != b ? 1 : 0
+define dso_local i16 @test_ne32(i32 noundef %a, i32 noundef %b) local_unnamed_addr {
+  %c = icmp ne i32 %a, %b
+  %r = zext i1 %c to i16
+  ret i16 %r
+}

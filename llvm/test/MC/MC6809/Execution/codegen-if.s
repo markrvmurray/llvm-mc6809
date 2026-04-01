@@ -344,4 +344,92 @@ test_main:
 	jsr	putnl
 ; CHECK-NEXT: 00000003
 
+	;; ===== i32 equality (eq) =====
+
+	;; eq32(0x12345678, 0x12345678) = 1 (equal)
+	ldd	#0x5678		; b_lo
+	pshs	d
+	ldd	#0x1234		; b_hi
+	pshs	d
+	ldd	#0x5678		; a_lo
+	pshs	d
+	ldx	#0x1234		; a_hi
+	jsr	test_eq32
+	leas	6,s
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0001
+
+	;; eq32(0x12345678, 0x12345679) = 0 (lo differs)
+	ldd	#0x5679		; b_lo
+	pshs	d
+	ldd	#0x1234		; b_hi
+	pshs	d
+	ldd	#0x5678		; a_lo
+	pshs	d
+	ldx	#0x1234		; a_hi
+	jsr	test_eq32
+	leas	6,s
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0000
+
+	;; eq32(0x12345678, 0x12345678) but hi differs = 0
+	ldd	#0x5678		; b_lo
+	pshs	d
+	ldd	#0x1235		; b_hi (differs)
+	pshs	d
+	ldd	#0x5678		; a_lo
+	pshs	d
+	ldx	#0x1234		; a_hi
+	jsr	test_eq32
+	leas	6,s
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0000
+
+	;; eq32(0, 0) = 1
+	ldd	#0		; b_lo
+	pshs	d
+	ldd	#0		; b_hi
+	pshs	d
+	ldd	#0		; a_lo
+	pshs	d
+	ldx	#0		; a_hi
+	jsr	test_eq32
+	leas	6,s
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0001
+
+	;; ===== i32 not-equal (ne) =====
+
+	;; ne32(0x12345678, 0x12345678) = 0 (equal)
+	ldd	#0x5678		; b_lo
+	pshs	d
+	ldd	#0x1234		; b_hi
+	pshs	d
+	ldd	#0x5678		; a_lo
+	pshs	d
+	ldx	#0x1234		; a_hi
+	jsr	test_ne32
+	leas	6,s
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0000
+
+	;; ne32(0x12345678, 0xFFFFFFFF) = 1 (totally different)
+	ldd	#0xFFFF		; b_lo
+	pshs	d
+	ldd	#0xFFFF		; b_hi
+	pshs	d
+	ldd	#0x5678		; a_lo
+	pshs	d
+	ldx	#0x1234		; a_hi
+	jsr	test_ne32
+	leas	6,s
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0001
+
 	jsr	halt
