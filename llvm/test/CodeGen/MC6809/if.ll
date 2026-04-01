@@ -74,7 +74,7 @@ define dso_local i16 @if_s16(i16 noundef %a, i16 noundef %b) local_unnamed_addr 
 ; CHECK-NEXT:    ldd 10,u
 ; CHECK-NEXT:    stx 4,u
 ; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    tstd
+; CHECK-NEXT:    cmpd #0
 ; CHECK-NEXT:    bgt .LBB2_2
 ; CHECK-NEXT:  ; %bb.1: ; %if.end
 ; CHECK-NEXT:    ldd #0
@@ -108,7 +108,7 @@ define dso_local i16 @if_u16(i16 noundef %a, i16 noundef %b) local_unnamed_addr 
 ; CHECK-NEXT:    ldd 10,u
 ; CHECK-NEXT:    stx 4,u
 ; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    tstd
+; CHECK-NEXT:    cmpd #0
 ; CHECK-NEXT:    bne .LBB3_2
 ; CHECK-NEXT:  ; %bb.1: ; %if.end
 ; CHECK-NEXT:    ldd #-1
@@ -150,7 +150,7 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; CHECK-NEXT:    ldd 0,u
 ; CHECK-NEXT:    stx 6,u
 ; CHECK-NEXT:    ldd 6,u
-; CHECK-NEXT:    tstd
+; CHECK-NEXT:    cmpd #0
 ; CHECK-NEXT:    beq .LBB4_1
 ; CHECK-NEXT:    bra .LBB4_2
 ; CHECK-NEXT:  .LBB4_1: ; %entry
@@ -159,13 +159,13 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; CHECK-NEXT:    std 6,u
 ; CHECK-NEXT:    ldd 0,u
 ; CHECK-NEXT:    ldd 6,u
-; CHECK-NEXT:    tstd
+; CHECK-NEXT:    cmpd #0
 ; CHECK-NEXT:    bhi .LBB4_4
 ; CHECK-NEXT:    bra .LBB4_3
 ; CHECK-NEXT:  .LBB4_2: ; %entry
 ; CHECK-NEXT:    stx 6,u
 ; CHECK-NEXT:    ldd 6,u
-; CHECK-NEXT:    tstd
+; CHECK-NEXT:    cmpd #0
 ; CHECK-NEXT:    bgt .LBB4_4
 ; CHECK-NEXT:  .LBB4_3: ; %if.end
 ; CHECK-NEXT:    ldd 4,u
@@ -216,7 +216,7 @@ define dso_local i32 @if_u32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; CHECK-NEXT:    ora 12,u
 ; CHECK-NEXT:    std 4,u
 ; CHECK-NEXT:    puls d
-; CHECK-NEXT:    tstd
+; CHECK-NEXT:    cmpd #0
 ; CHECK-NEXT:    bne .LBB5_2
 ; CHECK-NEXT:  ; %bb.1: ; %if.end
 ; CHECK-NEXT:    ldd #-1

@@ -33,7 +33,7 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; CHECK-NEXT:    std 6,u
 ; CHECK-NEXT:    leax 2,x
 ; CHECK-NEXT:    addd #-1
-; CHECK-NEXT:    tstd
+; CHECK-NEXT:    cmpd #0
 ; CHECK-NEXT:    ldd 6,u
 ; CHECK-NEXT:    std 4,u
 ; CHECK-NEXT:    bne .LBB0_2

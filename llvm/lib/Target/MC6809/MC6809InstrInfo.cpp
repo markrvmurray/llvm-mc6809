@@ -1415,6 +1415,11 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::Compare_ptr_Mem:
     expandCompareIdx(Builder, MI);
     break;
+  case MC6809::Compare_i8_Pull:
+  case MC6809::Compare_i16_Pull:
+  case MC6809::Compare_ptr_Pull:
+    expandComparePull(Builder, MI);
+    break;
   case MC6809::Compare_i8_Reg:
   case MC6809::Compare_i16_Reg:
   case MC6809::Compare_ptr_Reg:
@@ -3003,6 +3008,33 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
   MI.eraseFromParent();
 }
 
+void MC6809InstrInfo::expandComparePull(MachineIRBuilder &Builder, MachineInstr &MI) const {
+  // Compare_*_Pull: compare register with value pushed on S stack.
+  // Push_i16 already pushed the second operand. We compare the first
+  // operand (in an accumulator) with [S], then clean up the stack.
+  // Operand 0 = CC (def), 1 = condition code, 2 = src register, 3 = stack reg
+  assert(MI.getOperand(2).isReg() && "The source of pull compares must be a register");
+
+  auto SrcReg = MI.getOperand(2).getReg();
+  if (isSpillReg(SrcReg)) {
+    Register RealReg = getRealRegForSpill(SrcReg);
+    MachineFunction &MF = *MI.getMF();
+    emitSpillLoad(Builder, RealReg, SrcReg, MF);
+    SrcReg = RealReg;
+  }
+  int Size = (SrcReg == MC6809::AA || SrcReg == MC6809::AB ||
+              SrcReg == MC6809::AE || SrcReg == MC6809::AF) ? 1 : 2;
+  // Compare with [S+0] (zero offset from stack pointer).
+  RegPlusOffsetLen Lookup{SrcReg, 0};
+  auto OpcodePair = CompareIdxImmOpcode.find(Lookup);
+  if (OpcodePair == CompareIdxImmOpcode.end())
+    llvm_unreachable("Unexpected register in Compare_Pull expansion.");
+  Builder.buildInstr(OpcodePair->getSecond()).addReg(MC6809::SS);
+  // Clean up the pushed value.
+  Builder.buildInstr(MC6809::LEASi_o5).addImm(Size).addReg(MC6809::SS);
+  MI.eraseFromParent();
+}
+
 void MC6809InstrInfo::expandTestReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
   // Operand 0 is the CC register
   // Operand 1 is the 4-bit field that Bcc and LBcc use as the condition.
@@ -3019,11 +3051,17 @@ void MC6809InstrInfo::expandTestReg(MachineIRBuilder &Builder, MachineInstr &MI)
     emitSpillLoad(Builder, RealReg, SrcReg, MF);
     SrcReg = RealReg;
   }
-  auto OpcodePair = TestRegOpcode.find(SrcReg);
-  if (OpcodePair == TestRegOpcode.end())
-    llvm_unreachable("Compare Immediate - unexpected register.");
-  auto Opcode = OpcodePair->getSecond();
-  Builder.buildInstr(Opcode);
+  // TSTD/TSTW are HD6309-only. On 6809, use CMPD/CMPW #0 instead.
+  const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
+  if (!STI.has6309() && (SrcReg == MC6809::AD || SrcReg == MC6809::AW)) {
+    unsigned CmpOpc = (SrcReg == MC6809::AD) ? MC6809::CMPDi16 : MC6809::CMPWi16;
+    Builder.buildInstr(CmpOpc).addImm(0);
+  } else {
+    auto OpcodePair = TestRegOpcode.find(SrcReg);
+    if (OpcodePair == TestRegOpcode.end())
+      llvm_unreachable("Test register - unexpected register.");
+    Builder.buildInstr(OpcodePair->getSecond());
+  }
   MI.eraseFromParent();
 }
 

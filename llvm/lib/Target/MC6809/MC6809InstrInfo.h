@@ -188,7 +188,7 @@ private:
   void expandCompareImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandCompareIdx(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandCompareReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  // void expandComparePop(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandComparePull(MachineIRBuilder &Builder, MachineInstr &MI) const;
   // void expandCompare32Imm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   // void expandCompare32IdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   // void expandCompare32IdxReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
