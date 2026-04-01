@@ -2324,42 +2324,120 @@ void MC6809InstrInfo::expandANDPull(MachineIRBuilder &Builder, MachineInstr &MI)
   MI.eraseFromParent();
 }
 
+// Forward declarations for 6809 register-to-memory helpers.
+static void emit6809RegByteFromMem(MachineIRBuilder &Builder,
+                                   Register LHS, Register RHS,
+                                   unsigned Opc_o8, unsigned Opc_o5);
+static void emit6809RegPairFromMem(MachineIRBuilder &Builder,
+                                   Register LHS, Register RHS,
+                                   unsigned OpcB_o8, unsigned OpcA_o8,
+                                   unsigned OpcB_o5, unsigned OpcA_o0);
+
 void MC6809InstrInfo::expandORReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
   assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg() && "Dest and Source 1 must be same for ORReg");
 
-  unsigned Opcode = MC6809::ORRp;
-  auto ORReg = Builder.buildInstr(Opcode).addDef(MI.getOperand(0).getReg()).addUse(MI.getOperand(2).getReg()).addUse(MI.getOperand(1).getReg());
+  const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
+  if (STI.has6309()) {
+    Builder.buildInstr(MC6809::ORRp).addDef(MI.getOperand(0).getReg()).addUse(MI.getOperand(2).getReg()).addUse(MI.getOperand(1).getReg());
+  } else {
+    emit6809RegByteFromMem(Builder,
+                           MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
+                           MC6809::ORBi_o8, MC6809::ORBi_o5);
+  }
   MI.eraseFromParent();
 }
 
 void MC6809InstrInfo::expandXORReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
   assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg() && "Dest and Source 1 must be same for XORReg");
 
-  unsigned Opcode = MC6809::EORRp;
-  auto EORReg = Builder.buildInstr(Opcode).addDef(MI.getOperand(0).getReg()).addUse(MI.getOperand(2).getReg()).addUse(MI.getOperand(1).getReg());
+  const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
+  if (STI.has6309()) {
+    Builder.buildInstr(MC6809::EORRp).addDef(MI.getOperand(0).getReg()).addUse(MI.getOperand(2).getReg()).addUse(MI.getOperand(1).getReg());
+  } else {
+    emit6809RegByteFromMem(Builder,
+                           MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
+                           MC6809::EORBi_o8, MC6809::EORBi_o5);
+  }
   MI.eraseFromParent();
 }
 
 void MC6809InstrInfo::expandAddReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
   assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg() && "Dest and Source 1 must be same for AddReg");
 
-  auto AddReg = Builder.buildInstr(MC6809::ADDRp)
-                    .addDef(MI.getOperand(0).getReg())
-                    .addUse(MI.getOperand(2).getReg())
-                    .addUse(MI.getOperand(1).getReg());
+  const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
+  if (STI.has6309()) {
+    Builder.buildInstr(MC6809::ADDRp)
+        .addDef(MI.getOperand(0).getReg())
+        .addUse(MI.getOperand(2).getReg())
+        .addUse(MI.getOperand(1).getReg());
+  } else if (MI.getOpcode() == MC6809::Add_i8_Reg) {
+    emit6809RegByteFromMem(Builder,
+                           MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
+                           MC6809::ADDBi_o8, MC6809::ADDBi_o5);
+  } else {
+    emit6809RegPairFromMem(Builder,
+                           MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
+                           MC6809::ADDBi_o8, MC6809::ADDAi_o8,
+                           MC6809::ADDBi_o5, MC6809::ADDAi_o0);
+  }
   MI.eraseFromParent();
 }
 
 void MC6809InstrInfo::expandAddSetCarryReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
   assert(MI.getOperand(0).getReg() == MI.getOperand(2).getReg() && "Dest and Source 2 must be same for AddSetCarryReg");
 
-  auto Add = Builder.buildInstr(MC6809::ADDRp)
-      .addDef(MI.getOperand(0).getReg())
-      .addDef(MI.getOperand(1).getReg(), RegState::Implicit)
-      .addUse(MI.getOperand(2).getReg())
-      .addUse(MI.getOperand(3).getReg(), RegState::Implicit)
-      .addUse(MI.getOperand(4).getReg());
+  const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
+  if (STI.has6309()) {
+    Builder.buildInstr(MC6809::ADDRp)
+        .addDef(MI.getOperand(0).getReg())
+        .addDef(MI.getOperand(1).getReg(), RegState::Implicit)
+        .addUse(MI.getOperand(2).getReg())
+        .addUse(MI.getOperand(3).getReg(), RegState::Implicit)
+        .addUse(MI.getOperand(4).getReg());
+  } else {
+    emit6809RegPairFromMem(Builder,
+                           MI.getOperand(0).getReg(), MI.getOperand(4).getReg(),
+                           MC6809::ADDBi_o8, MC6809::ADDAi_o8,
+                           MC6809::ADDBi_o5, MC6809::ADDAi_o0);
+  }
   MI.eraseFromParent();
+}
+
+/// Emit 6809 single-byte add/sub from register. Both operands may be spill
+/// registers. Load LHS into real accumulator, operate from RHS's spill slot
+/// (U-relative) or push RHS to stack, then store back.
+static void emit6809RegByteFromMem(MachineIRBuilder &Builder,
+                                   Register LHS, Register RHS,
+                                   unsigned Opc_o8, unsigned Opc_o5) {
+  MachineFunction &MF = Builder.getMF();
+  Register RealLHS = isSpillReg(LHS) ? getRealRegForSpill(LHS) : LHS;
+  // Determine which accumulator half (A or B) we're operating on.
+  Register AccReg = (RealLHS == MC6809::AA || RealLHS == MC6809::AALSB)
+                        ? MC6809::AA : MC6809::AB;
+  if (isSpillReg(LHS))
+    emitSpillLoad(Builder, RealLHS, LHS, MF);
+  if (isSpillReg(RHS)) {
+    int Offset = computeSpillStackOffset(RHS, MF);
+    // Spill_B registers are the low byte of 16-bit spill slots (offset+1).
+    int ByteOffset = Offset + 1;
+    Builder.buildInstr(Opc_o8)
+        .addDef(AccReg, RegState::Implicit)
+        .addImm(ByteOffset).addReg(MC6809::SU);
+  } else {
+    // RHS is a real register — push 1 byte to stack and operate.
+    Builder.buildInstr(MC6809::PSHSs)
+        .addDef(MC6809::SS)
+        .addUse(RHS, RegState::Implicit)
+        .addUse(MC6809::SS);
+    Builder.buildInstr(Opc_o5)
+        .addDef(AccReg, RegState::Implicit)
+        .addImm(0).addReg(MC6809::SS);
+    Builder.buildInstr(MC6809::LEASi_o5)
+        .addDef(MC6809::SS)
+        .addImm(1).addReg(MC6809::SS);
+  }
+  if (isSpillReg(LHS))
+    emitSpillStore(Builder, RealLHS, LHS, MF);
 }
 
 /// Emit 6809 two-byte carry/sub from register: load LHS into D if spill,
