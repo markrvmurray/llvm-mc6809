@@ -66,13 +66,13 @@ def convert(lines):
             continue
 
         # label EQU * [comment] → label:
-        m = re.match(r'(\w+)\s+EQU\s+\*(.*)', stripped, re.IGNORECASE)
+        m = re.match(r'([\w.]+)\s+EQU\s+\*(.*)', stripped, re.IGNORECASE)
         if m:
             output.append(f'{m.group(1)}:')
             continue
 
         # label EQU expr → .set label, expr
-        m = re.match(r'(\w+)\s+EQU\s+(.+)', stripped, re.IGNORECASE)
+        m = re.match(r'([\w.]+)\s+EQU\s+(.+)', stripped, re.IGNORECASE)
         if m:
             output.append(f'\t.set\t{m.group(1)}, {m.group(2)}')
             continue
@@ -81,22 +81,29 @@ def convert(lines):
         m = re.match(r'\t(.+)', stripped)
         if m:
             content = m.group(1)
-            # Split instruction from comment (double-tab separated)
-            parts = re.split(r'\t\t+', content, maxsplit=1)
-            instr_part = parts[0].rstrip()
-            comment = ''
-            if len(parts) > 1:
-                comment = '\t; ' + parts[1].strip()
-            # Lowercase only the mnemonic, preserve operand case (label refs)
-            tokens = instr_part.split(None, 1)
-            mnemonic = tokens[0].lower()
-            operand = tokens[1] if len(tokens) > 1 else ''
-            instr_part = f'{mnemonic}\t{operand}' if operand else mnemonic
+            # CMOC format: MNEMONIC\tOPERAND\tCOMMENT (tab-separated fields)
+            fields = content.split('\t')
+            mnemonic = fields[0].strip().lower()
+            operand = fields[1].strip() if len(fields) > 1 else ''
+            comment = ('\t; ' + ' '.join(f.strip() for f in fields[2:])) if len(fields) > 2 else ''
+            # PCR → pc (CMOC PC-relative addressing)
+            operand = re.sub(r',PCR\b', ',pc', operand)
+            # Translate Motorola pseudo-ops to GAS equivalents
+            if mnemonic == 'fcc':
+                instr_part = f'.ascii\t{operand}'
+            elif mnemonic == 'fcb':
+                instr_part = f'.byte\t{operand}'
+            elif mnemonic == 'fdb':
+                instr_part = f'.word\t{operand}'
+            elif mnemonic == 'rmb':
+                instr_part = f'.space\t{operand}'
+            else:
+                instr_part = f'{mnemonic}\t{operand}' if operand else mnemonic
             output.append(f'\t{instr_part}{comment}')
             continue
 
         # Non-indented with content (label + instruction on same line)
-        m = re.match(r'(\w+)\s+(.*)', stripped)
+        m = re.match(r'([\w.]+)\s+(.*)', stripped)
         if m:
             label = m.group(1)
             rest = m.group(2).strip()
