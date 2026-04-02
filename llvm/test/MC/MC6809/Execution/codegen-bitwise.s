@@ -8,17 +8,31 @@
 ; RUN: %usim09batch --timeout=500000 %t.hex | FileCheck %s
 ; REQUIRES: usim
 ;
-; Codegen execution test: bitwise AND, OR, XOR for i8.
-; NOTE: i16 bitwise emits 6309-only ANDD/ORD/EORD on 6809 (bug #26).
+; Codegen execution test: bitwise AND, OR, XOR for i8 and i16.
 
 .include "runtime.inc"
 
 	.section .rom,"ax",@progbits
 
+;;; putx — print X as 4 hex digits (preserves X)
+putx:
+	pshs	x
+	tfr	x,d
+	tfr	a,b
+	tfr	b,a
+	jsr	puthex
+	puls	x
+	pshs	x
+	tfr	x,d
+	tfr	b,a
+	jsr	puthex
+	puls	x
+	rts
+
 	.globl	test_main
 test_main:
-	;; i8 calling convention: first arg in B, second in 2-byte stack slot
-	;; (value at offset+1, i.e. 3,s inside callee after return addr push)
+	;; i8 CC: first arg in B, second in 2-byte stack slot (value at +1)
+	;; i16 CC: first arg in X, second in 2-byte stack slot
 
 	;; ===== AND i8 =====
 
@@ -124,5 +138,71 @@ test_main:
 	jsr	puthex
 	jsr	putnl
 ; CHECK-NEXT: FF
+
+	;; ===== AND i16 =====
+
+	;; 0xFF00 & 0x00FF = 0x0000
+	ldd	#0x00FF
+	pshs	d
+	ldx	#0xFF00
+	jsr	test_and16
+	leas	2,s
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0000
+
+	;; 0xABCD & 0xFF00 = 0xAB00
+	ldd	#0xFF00
+	pshs	d
+	ldx	#0xABCD
+	jsr	test_and16
+	leas	2,s
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: AB00
+
+	;; ===== OR i16 =====
+
+	;; 0xFF00 | 0x00FF = 0xFFFF
+	ldd	#0x00FF
+	pshs	d
+	ldx	#0xFF00
+	jsr	test_or16
+	leas	2,s
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: FFFF
+
+	;; 0x1234 | 0x0000 = 0x1234
+	ldd	#0x0000
+	pshs	d
+	ldx	#0x1234
+	jsr	test_or16
+	leas	2,s
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 1234
+
+	;; ===== XOR i16 =====
+
+	;; 0xFFFF ^ 0xAAAA = 0x5555
+	ldd	#0xAAAA
+	pshs	d
+	ldx	#0xFFFF
+	jsr	test_xor16
+	leas	2,s
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 5555
+
+	;; 0x1234 ^ 0x1234 = 0x0000
+	ldd	#0x1234
+	pshs	d
+	ldx	#0x1234
+	jsr	test_xor16
+	leas	2,s
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0000
 
 	jsr	halt

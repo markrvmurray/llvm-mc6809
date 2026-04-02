@@ -878,7 +878,7 @@ define dso_local i32 @mul_s_i32_consts(i32 noundef %a, i32 noundef %b) local_unn
 ; CHECK-NEXT:    ldb 7,u
 ; CHECK-NEXT:    addb ,s+
 ; CHECK-NEXT:    stb 7,u
-; CHECK-NEXT:    addb 21,u
+; CHECK-NEXT:    addb 19,u
 ; CHECK-NEXT:    stb 7,u
 ; CHECK-NEXT:    lda 2,u
 ; CHECK-NEXT:    pshs a

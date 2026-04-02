@@ -234,7 +234,13 @@ InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectAMUnmer
 
   MachineInstr *RootDef = MRI.getVRegDef(Root.getReg());
   if (RootDef->getOpcode() == TargetOpcode::G_UNMERGE_VALUES) {
-    unsigned mergeoffset = Root.getReg() == RootDef->getOperand(0).getReg() ? 0 : 2;
+    // Big-endian: operand 0 = lo part, operand 1 = hi part.
+    // Lo part is at the HIGHER address: base + element_size.
+    // Hi part is at base + 0.
+    Register SrcReg = RootDef->getOperand(2).getReg();
+    unsigned EltSize = MRI.getType(Root.getReg()).getSizeInBytes();
+    bool IsLo = Root.getReg() == RootDef->getOperand(0).getReg();
+    unsigned mergeoffset = IsLo ? EltSize : 0;
     MachineInstr *LoadDef = MRI.getVRegDef(RootDef->getOperand(2).getReg());
     if (LoadDef->getOpcode() == TargetOpcode::G_LOAD) {
       MachineInstr *FrameDef = MRI.getVRegDef(LoadDef->getOperand(1).getReg());

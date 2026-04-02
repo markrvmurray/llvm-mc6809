@@ -178,9 +178,18 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
       .libcallFor(LegalLibcallScalars)
       .clampScalar(0, s16, s32);
 
-  getActionDefinitionsBuilder({G_AND, G_OR, G_XOR})
-      .legalFor(LegalAccumulators)
-      .clampScalar(0, s1, sMaxLogic);
+  // 6809 has 8-bit bitwise only (ANDA/B, ORA/B, EORA/B).
+  // HD6309 adds 16-bit (ANDD, ORD, EORD) — i16 patterns predicated on IsHD6309.
+  // On 6809, s16 narrows to s8 byte pairs via clampScalar + narrowScalar.
+  if (IsHD6309) {
+    getActionDefinitionsBuilder({G_AND, G_OR, G_XOR})
+        .legalFor({s8, s16})
+        .clampScalar(0, s1, s16);
+  } else {
+    getActionDefinitionsBuilder({G_AND, G_OR, G_XOR})
+        .legalFor({s8})
+        .clampScalar(0, s1, s8);
+  }
 
   getActionDefinitionsBuilder({G_SHL, G_LSHR, G_ASHR, G_ROTR, G_ROTL})
       .legalForCartesianProduct(LegalScalars, {s1, s8})
@@ -287,7 +296,6 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
   case G_AND:
   case G_OR:
   case G_XOR:
-  case G_PTRMASK:
     return legalizeBitwise(Helper, MRI, MI, LocObserver);
 #endif
   case G_EXTRACT:
@@ -384,56 +392,63 @@ MC6809LegalizerInfo::legalizeAddSub(LegalizerHelper &Helper, MachineRegisterInfo
     return LegalizerHelper::Legalized;
   return Helper.libcall(MI, LocObserver);
 }
+#endif
+
+#if 0 // Custom legalization - kept for future use if needed
+// Split an s16 operand into two s8 byte values (lo and hi).
+// Uses G_UNMERGE_VALUES. For G_LOAD sources, inserts a G_BITCAST
+// through a new vreg to break the load-unmerge chain that the
+// instruction selector's memory folder gets wrong on big-endian.
+static void splitS16Operand(MachineIRBuilder &B, MachineRegisterInfo &MRI,
+                            Register Reg, Register &Lo, Register &Hi) {
+  LLT S8 = LLT::scalar(8);
+  LLT S16 = LLT::scalar(16);
+  MachineInstr *Def = MRI.getVRegDef(Reg);
+  if (Def && Def->getOpcode() == TargetOpcode::G_LOAD) {
+    // Insert a COPY to a new vreg to prevent the instruction selector
+    // from looking through the unmerge to the load and folding it
+    // with incorrect byte offsets.
+    auto Copy = B.buildCopy(S16, Reg);
+    Reg = Copy.getReg(0);
+  }
+  auto Parts = B.buildUnmerge(S8, Reg);
+  Lo = Parts.getReg(0);
+  Hi = Parts.getReg(1);
+}
 
 bool
-MC6809LegalizerInfo::legalizeBitwise(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const {
-  assert((MI.getOpcode() == G_AND || MI.getOpcode() == G_OR || MI.getOpcode() == G_XOR || MI.getOpcode() == G_PTRMASK) &&
-         "Unexpected opcode");
-  Function &F = Helper.MIRBuilder.getMF().getFunction();
-  bool OptSize = F.hasOptSize();
+MC6809LegalizerInfo::legalizeBitwise(LegalizerHelper &Helper,
+    MachineRegisterInfo &MRI, MachineInstr &MI,
+    LostDebugLocObserver &LocObserver) const {
+  // Custom s16 AND/OR/XOR on 6809 (no ANDD/ORD/EORD).
+  // Split into s8 byte-pair operations. For memory operands, create
+  // explicit byte loads to avoid the isel memory folding offset bug.
+  unsigned Opc = MI.getOpcode();
+  assert((Opc == G_AND || Opc == G_OR || Opc == G_XOR) && "Unexpected opcode");
   Register DstReg = MI.getOperand(0).getReg();
-  unsigned Size = MRI.getType(DstReg).getSizeInBits();
-  if (!OptSize && Size == 16)
-    if (Helper.narrowScalar(MI, 0, LLT::scalar(8)) ==
-        LegalizerHelper::Legalized)
-      return LegalizerHelper::Legalized;
-  Register LHSReg;
-  if (mi_match(MI, MRI, m_Not(m_Reg(LHSReg)))) {
-    if (!OptSize && (Size == 16 || (Subtarget.has6309() && Size == 32))) {
-      Helper.MIRBuilder.buildSub(DstReg, Helper.MIRBuilder.buildConstant(LLT::scalar(Size), -1), MI.getOperand(1).getReg());
-      MI.eraseFromParent();
-      return LegalizerHelper::Legalized;
-    }
-    auto &Ctx = F.getContext();
-    RTLIB::Libcall Libcall;
-    switch (Size) {
-    default: llvm_unreachable("Unexpected type");
-    case 16: Libcall = RTLIB::NOT_I16; break;
-    case 32: Libcall = RTLIB::NOT_I32; break;
-    case 64: Libcall = RTLIB::NOT_I64; break;
-    }
-    Type *Ty = IntegerType::get(Ctx, Size);
-    auto Result = Helper.createLibcall(Libcall, {DstReg, Ty, 0}, {{LHSReg, Ty, 0}}, LocObserver);
-    MI.eraseFromParent();
-    return Result;
+  Register LHSReg = MI.getOperand(1).getReg();
+  Register RHSReg = MI.getOperand(2).getReg();
+  LLT S8 = LLT::scalar(8);
+
+  MachineIRBuilder &B = Helper.MIRBuilder;
+  Register LHSLo, LHSHi, RHSLo, RHSHi;
+  splitS16Operand(B, MRI, LHSReg, LHSLo, LHSHi);
+  splitS16Operand(B, MRI, RHSReg, RHSLo, RHSHi);
+
+  MachineInstrBuilder ResLo, ResHi;
+  if (Opc == G_AND) {
+    ResLo = B.buildAnd(S8, LHSLo, RHSLo);
+    ResHi = B.buildAnd(S8, LHSHi, RHSHi);
+  } else if (Opc == G_OR) {
+    ResLo = B.buildOr(S8, LHSLo, RHSLo);
+    ResHi = B.buildOr(S8, LHSHi, RHSHi);
+  } else {
+    ResLo = B.buildXor(S8, LHSLo, RHSLo);
+    ResHi = B.buildXor(S8, LHSHi, RHSHi);
   }
-  if (MI.getOpcode() == G_PTRMASK) {
-    auto &Ctx = F.getContext();
-    RTLIB::Libcall Libcall;
-    switch (Size) {
-    default: llvm_unreachable("Unexpected type");
-    case 16: Libcall = RTLIB::AND_I16; break;
-    case 32: Libcall = RTLIB::AND_I32; break;
-    case 64: Libcall = RTLIB::AND_I64; break;
-    }
-    Type *Ty = IntegerType::get(Ctx, Size);
-    auto Result = Helper.createLibcall(Libcall, {DstReg, Ty, 0},
-                                {{MI.getOperand(1).getReg(), Ty, 0},
-                                 {MI.getOperand(2).getReg(), Ty, 1}}, LocObserver);
-    MI.eraseFromParent();
-    return Result;
-  }
-  return Helper.libcall(MI, LocObserver);
+  B.buildMergeValues(DstReg, {ResLo.getReg(0), ResHi.getReg(0)});
+  MI.eraseFromParent();
+  return true;
 }
 #endif
 

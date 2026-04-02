@@ -413,9 +413,11 @@ let Predicates = [IsHD6309] in {
 defm ANDPat_i8 : MC6809ArithPat<and, i8, ACC8, "AND">;
 defm ORPat_i8 : MC6809ArithPat<or, i8, ACC8, "OR">;
 defm XORPat_i8 : MC6809ArithPat<xor, i8, ACC8, "XOR">;
-defm ANDPat_i16 : MC6809ArithPat<and, i16, ACC16, "AND">;
-defm ORPat_i16 : MC6809ArithPat<or, i16, ACC16, "OR">;
-defm XORPat_i16 : MC6809ArithPat<xor, i16, ACC16, "XOR">;
+let Predicates = [IsHD6309] in {
+  defm ANDPat_i16 : MC6809ArithPat<and, i16, ACC16, "AND">;
+  defm ORPat_i16 : MC6809ArithPat<or, i16, ACC16, "OR">;
+  defm XORPat_i16 : MC6809ArithPat<xor, i16, ACC16, "XOR">;
+}
 
 //===----------------------------------------------------------------------===//
 // Shift/Rotate Family
