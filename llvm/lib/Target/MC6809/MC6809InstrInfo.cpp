@@ -2562,12 +2562,22 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
 
 void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI) const {
 
-  // If the source is a spill register, save $ad, load from the spill slot
-  // into the real accumulator, then the store will use it. After the store,
-  // restore $ad. This prevents clobbering a live value in D (bug #26).
+  // If the source is a spill register, load from the spill slot.
+  // INDEX spills use IY (avoids clobbering IX which may be the index base).
+  // ACC spills use D with emergency save/restore.
   bool NeedRestore = false;
   int EmergencyOffset = 0;
-  if (isSpillReg(MI.getOperand(0).getReg())) {
+  if (isIndexSpillReg(MI.getOperand(0).getReg())) {
+    Register SpillReg = MI.getOperand(0).getReg();
+    MachineFunction &MF = *MI.getMF();
+    int SpillOff = computeSpillStackOffset(SpillReg, MF);
+    MachineIRBuilder LoadBuilder(*MI.getParent(), MI.getIterator());
+    unsigned LoadOpc = getLoadIdxOpcode(MC6809::IY, SpillOff);
+    LoadBuilder.buildInstr(LoadOpc)
+        .addDef(MC6809::IY, RegState::Implicit)
+        .addImm(SpillOff).addReg(MC6809::SU);
+    MI.getOperand(0).setReg(MC6809::IY);
+  } else if (isSpillReg(MI.getOperand(0).getReg())) {
     Register SpillReg = MI.getOperand(0).getReg();
     Register RealReg = getRealRegForSpill(SpillReg);
     MachineFunction &MF = *MI.getMF();
