@@ -54,6 +54,40 @@ static bool overlapsDReg(Register Reg, const TargetRegisterInfo &TRI) {
   return TRI.regsOverlap(Reg, MC6809::AD);
 }
 
+/// Check if a register is an INDEX spill (SPILL_X0..X3).
+static bool isIndexSpillReg(Register Reg) {
+  switch (Reg) {
+  case MC6809::SPILL_X0: case MC6809::SPILL_X1:
+  case MC6809::SPILL_X2: case MC6809::SPILL_X3:
+    return true;
+  default:
+    return false;
+  }
+}
+
+/// Check if this instruction will clobber IX due to INDEX spill operands.
+static bool willClobberX(const MachineInstr &MI, const TargetRegisterInfo &TRI) {
+  bool HasIndexSpill = false;
+  for (const MachineOperand &MO : MI.operands()) {
+    if (MO.isReg() && MO.getReg().isPhysical() && isIndexSpillReg(MO.getReg()))
+      HasIndexSpill = true;
+  }
+  if (!HasIndexSpill)
+    return false;
+
+  // COPY IX↔SPILL_X: IX is the intended operand (no extra clobber).
+  if (MI.isCopy()) {
+    Register DstReg = MI.getOperand(0).getReg();
+    Register SrcReg = MI.getOperand(1).getReg();
+    if (!isIndexSpillReg(DstReg) && TRI.regsOverlap(DstReg, MC6809::IX))
+      return false; // COPY defines IX from spill — IX is the output
+    if (!isIndexSpillReg(SrcReg) && TRI.regsOverlap(SrcReg, MC6809::IX))
+      return false; // COPY stores IX to spill — IX is being read
+  }
+
+  return true;
+}
+
 /// Check if this instruction's expansion will clobber D due to spill operands.
 /// Returns false for INDEX→SPILL copies (use STX/LDX) and D→SPILL copies
 /// (D is the intended operand).
@@ -125,49 +159,71 @@ bool MC6809SpillDSaveRestore::runOnMachineFunction(MachineFunction &MF) {
     LivePhysRegs LPR(TRI);
     LPR.addLiveOuts(MBB);
 
-    // Walk backwards, collecting instructions that need D save/restore.
-    SmallVector<MachineInstr *, 4> NeedSave;
+    // Walk backwards, collecting instructions that need D or IX save/restore.
+    SmallVector<MachineInstr *, 4> NeedSaveD;
+    SmallVector<MachineInstr *, 4> NeedSaveX;
 
     for (MachineInstr &MI : llvm::reverse(MBB)) {
       LPR.stepBackward(MI);
 
-      if (!willClobberD(MI, TRI))
-        continue;
+      // Check D clobber from ACC16 spill operations.
+      if (willClobberD(MI, TRI)) {
+        bool DLive = LPR.contains(MC6809::AD) ||
+                     LPR.contains(MC6809::AA) ||
+                     LPR.contains(MC6809::AB);
+        if (DLive) {
+          LLVM_DEBUG(dbgs() << "Spill-Save: D live at " << MI);
+          NeedSaveD.push_back(&MI);
+        }
+      }
 
-      // Is D (or any sub-register) live at this point?
-      bool DLive = LPR.contains(MC6809::AD) ||
-                   LPR.contains(MC6809::AA) ||
-                   LPR.contains(MC6809::AB);
-      if (!DLive)
-        continue;
-
-      LLVM_DEBUG(dbgs() << "Spill-D-Save: D live at " << MI);
-      NeedSave.push_back(&MI);
+      // Check IX clobber from INDEX spill operations.
+      if (willClobberX(MI, TRI)) {
+        bool XLive = LPR.contains(MC6809::IX);
+        if (XLive) {
+          LLVM_DEBUG(dbgs() << "Spill-Save: IX live at " << MI);
+          NeedSaveX.push_back(&MI);
+        }
+      }
     }
 
-    if (NeedSave.empty())
-      continue;
-
-    // Allocate a frame slot for saving D (2 bytes, U-relative).
     MachineFrameInfo &MFI = MF.getFrameInfo();
-    int SaveSlot = MFI.CreateStackObject(2, Align(1), /*isSpillSlot=*/true);
 
-    // Insert Store_i16_Mem (save D) before and Load_i16_Mem (restore D) after
-    // each candidate. PEI will resolve the frame index to a U-relative offset.
-    for (MachineInstr *MI : NeedSave) {
-      DebugLoc DL = MI->getDebugLoc();
-      // Save D before the instruction
-      BuildMI(MBB, MI, DL, TII.get(MC6809::Store_i16_Mem))
-          .addReg(MC6809::AD)
-          .addFrameIndex(SaveSlot)
-          .addImm(0);
-      // Restore D after the instruction
-      auto After = std::next(MachineBasicBlock::iterator(MI));
-      BuildMI(MBB, After, DL, TII.get(MC6809::Load_i16_Mem))
-          .addReg(MC6809::AD, RegState::Define)
-          .addFrameIndex(SaveSlot)
-          .addImm(0);
-      Changed = true;
+    // Save/restore D around ACC16 spill operations.
+    if (!NeedSaveD.empty()) {
+      int DSaveSlot = MFI.CreateStackObject(2, Align(1), /*isSpillSlot=*/true);
+      for (MachineInstr *MI : NeedSaveD) {
+        DebugLoc DL = MI->getDebugLoc();
+        BuildMI(MBB, MI, DL, TII.get(MC6809::Store_i16_Mem))
+            .addReg(MC6809::AD)
+            .addFrameIndex(DSaveSlot)
+            .addImm(0);
+        auto After = std::next(MachineBasicBlock::iterator(MI));
+        BuildMI(MBB, After, DL, TII.get(MC6809::Load_i16_Mem))
+            .addReg(MC6809::AD, RegState::Define)
+            .addFrameIndex(DSaveSlot)
+            .addImm(0);
+        Changed = true;
+      }
+    }
+
+    // Save/restore IX around INDEX spill operations.
+    // Uses Store_iPtr_Mem / Load_iPtr_Mem (STX/LDX, no D clobber).
+    if (!NeedSaveX.empty()) {
+      int XSaveSlot = MFI.CreateStackObject(2, Align(1), /*isSpillSlot=*/true);
+      for (MachineInstr *MI : NeedSaveX) {
+        DebugLoc DL = MI->getDebugLoc();
+        BuildMI(MBB, MI, DL, TII.get(MC6809::Store_iPtr_Mem))
+            .addReg(MC6809::IX)
+            .addFrameIndex(XSaveSlot)
+            .addImm(0);
+        auto After = std::next(MachineBasicBlock::iterator(MI));
+        BuildMI(MBB, After, DL, TII.get(MC6809::Load_iPtr_Mem))
+            .addReg(MC6809::IX, RegState::Define)
+            .addFrameIndex(XSaveSlot)
+            .addImm(0);
+        Changed = true;
+      }
     }
   }
 
