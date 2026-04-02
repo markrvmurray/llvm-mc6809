@@ -42,7 +42,7 @@ public:
 private:
   std::optional<MachineOperand> matchAbsoluteAddressing(MachineRegisterInfo &MRI, Register Addr) const;
   // bool legalizeAddSub(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
-  // bool legalizeBitwise(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
+  bool legalizeBitwise(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
   bool legalizeExtractInsert(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
   bool legalizeFConstant(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
   bool legalizeVAStart(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;

@@ -180,11 +180,12 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
 
   // Bitwise AND/OR/XOR: s8 and s16 legal on all targets.
   // On 6809, i16 pseudos expand post-RA into ANDA+ANDB byte pairs.
-  // HD6309 uses native ANDD/ORD/EORD. i32 narrows to i16.
-  // NOTE: i32 bitwise has a regalloc bug (bug #26) — the two i16 results
-  // can't coexist in D. Needs regalloc spill support for ACC16.
+  // HD6309 uses native ANDD/ORD/EORD. i32 uses custom legalization
+  // that sequences the Store between the two i16 ANDs (avoids ACC16
+  // register pressure from having both results live in D simultaneously).
   getActionDefinitionsBuilder({G_AND, G_OR, G_XOR})
       .legalFor({s8, s16})
+      .customFor({s32})
       .clampScalar(0, s1, s16);
 
   getActionDefinitionsBuilder({G_SHL, G_LSHR, G_ASHR, G_ROTR, G_ROTL})
@@ -294,6 +295,10 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
   case G_XOR:
     return legalizeBitwise(Helper, MRI, MI, LocObserver);
 #endif
+  case G_AND:
+  case G_OR:
+  case G_XOR:
+    return legalizeBitwise(Helper, MRI, MI, LocObserver);
   case G_EXTRACT:
   case G_INSERT:
     return legalizeExtractInsert(Helper, MRI, MI, LocObserver);
@@ -390,32 +395,25 @@ MC6809LegalizerInfo::legalizeAddSub(LegalizerHelper &Helper, MachineRegisterInfo
 }
 #endif
 
-#if 0 // i32 custom legalization — blocked by ACC16 regalloc pressure (bug #26)
 bool
 MC6809LegalizerInfo::legalizeBitwise(LegalizerHelper &Helper,
     MachineRegisterInfo &MRI, MachineInstr &MI,
     LostDebugLocObserver &LocObserver) const {
-  // Custom s32 AND/OR/XOR: decompose to two s16 operations with an
-  // explicit store between them to avoid register pressure on the
-  // 1-register ACC16 class. Without the store, both s16 results need
-  // to coexist in D and the regalloc drops one.
+  // Custom s32 AND/OR/XOR: decompose to two s16 ops with the lo result
+  // stored between them. This avoids ACC16 register pressure: D can only
+  // hold one i16 at a time, but the return sequence needs both halves.
+  // Sequence: AND_lo → Store lo → AND_hi → $ix = hi
   unsigned Opc = MI.getOpcode();
   assert((Opc == G_AND || Opc == G_OR || Opc == G_XOR) && "Unexpected opcode");
   Register DstReg = MI.getOperand(0).getReg();
   Register LHSReg = MI.getOperand(1).getReg();
   Register RHSReg = MI.getOperand(2).getReg();
   LLT S16 = LLT::scalar(16);
-  LLT S32 = LLT::scalar(32);
-  assert(MRI.getType(DstReg) == S32 && "Expected s32 for custom bitwise");
+  assert(MRI.getType(DstReg) == LLT::scalar(32) && "Expected s32");
 
   MachineIRBuilder &B = Helper.MIRBuilder;
 
-  // Unmerge both i32 operands into i16 lo/hi
-  auto LHSParts = B.buildUnmerge(S16, LHSReg);
-  auto RHSParts = B.buildUnmerge(S16, RHSReg);
-
-  // Find the UNMERGE that consumes the i32 result, so we can interleave
-  // the store between the two AND operations (avoiding D register pressure).
+  // Find the UNMERGE + Store + COPY chain that consumes the i32 result.
   MachineInstr *Unmerge = nullptr;
   for (auto &Use : MRI.use_instructions(DstReg)) {
     if (Use.getOpcode() == TargetOpcode::G_UNMERGE_VALUES) {
@@ -424,47 +422,60 @@ MC6809LegalizerInfo::legalizeBitwise(LegalizerHelper &Helper,
     }
   }
 
+  // Unmerge both i32 operands into i16 lo/hi
+  auto LHSParts = B.buildUnmerge(S16, LHSReg);
+  auto RHSParts = B.buildUnmerge(S16, RHSReg);
+
   if (Unmerge) {
-    Register LoUse = Unmerge->getOperand(0).getReg(); // lo consumer
-    Register HiUse = Unmerge->getOperand(1).getReg(); // hi consumer
+    Register LoUse = Unmerge->getOperand(0).getReg();
+    Register HiUse = Unmerge->getOperand(1).getReg();
 
-    // Find the G_STORE that consumes the lo result (from return lowering)
+    // Check if this is a simple return chain: LoUse → G_STORE, HiUse → COPY $ix
+    // Only apply the interleaved store optimization for this specific pattern.
     MachineInstr *LoStore = nullptr;
-    for (auto &Use : MRI.use_instructions(LoUse)) {
-      if (Use.getOpcode() == TargetOpcode::G_STORE) {
-        LoStore = &Use;
-        break;
-      }
-    }
-
-    // Compute lo result
-    auto ResLo = B.buildInstr(Opc, {S16},
-        {LHSParts.getReg(0), RHSParts.getReg(0)});
-
-    // Store lo result to a temp slot IMMEDIATELY (before computing hi).
-    // This releases D for the hi computation, avoiding register pressure.
-    // The original G_STORE will reload from this temp.
-    MachineFunction &MF = B.getMF();
-    int TmpFI = MF.getFrameInfo().CreateStackObject(2, Align(1), false);
-    auto TmpPtr = B.buildFrameIndex(LLT::pointer(0, 16), TmpFI);
-    B.buildStore(ResLo, TmpPtr, MachinePointerInfo::getFixedStack(MF, TmpFI),
-                 Align(1));
-    // Replace the original Store's source with a reload from the temp
+    bool IsReturnChain = false;
+    for (auto &Use : MRI.use_instructions(LoUse))
+      if (Use.getOpcode() == TargetOpcode::G_STORE) { LoStore = &Use; break; }
     if (LoStore) {
-      auto Reload = B.buildLoad(S16, TmpPtr,
-          MachinePointerInfo::getFixedStack(MF, TmpFI), Align(1));
-      LoStore->getOperand(0).setReg(Reload.getReg(0));
+      for (auto &Use : MRI.use_instructions(HiUse))
+        if (Use.getOpcode() == TargetOpcode::COPY && Use.getOperand(0).isReg()
+            && Use.getOperand(0).getReg().isPhysical())
+          { IsReturnChain = true; break; }
     }
 
-    // Compute hi result (D is now free)
-    auto ResHi = B.buildInstr(Opc, {S16},
-        {LHSParts.getReg(1), RHSParts.getReg(1)});
+    if (IsReturnChain) {
+      // Step 1: Compute lo result
+      auto ResLo = B.buildInstr(Opc, {S16},
+          {LHSParts.getReg(0), RHSParts.getReg(0)});
 
-    // Replace hi consumer with our hi result
-    MRI.replaceRegWith(HiUse, ResHi.getReg(0));
-    Unmerge->eraseFromParent();
+      // Step 2: Store lo result NOW (D is free after this)
+      Register Addr = LoStore->getOperand(1).getReg();
+      MachineInstr *AddrDef = MRI.getVRegDef(Addr);
+      auto NewAddr = B.buildFrameIndex(MRI.getType(Addr),
+          AddrDef->getOperand(1).getIndex());
+      B.buildStore(ResLo, NewAddr, **LoStore->memoperands_begin());
+      LoStore->eraseFromParent();
+      if (MRI.use_empty(Addr))
+        AddrDef->eraseFromParent();
+
+      // Step 3: Compute hi result (D is free now)
+      auto ResHi = B.buildInstr(Opc, {S16},
+          {LHSParts.getReg(1), RHSParts.getReg(1)});
+
+      // Step 4: Replace consumers
+      MRI.replaceRegWith(HiUse, ResHi.getReg(0));
+      Unmerge->eraseFromParent();
+    } else {
+      // Not a simple return chain — use G_MERGE (may hit regalloc pressure
+      // for i32, but works for intermediate values in conditionals etc.)
+      auto ResLo = B.buildInstr(Opc, {S16},
+          {LHSParts.getReg(0), RHSParts.getReg(0)});
+      auto ResHi = B.buildInstr(Opc, {S16},
+          {LHSParts.getReg(1), RHSParts.getReg(1)});
+      B.buildMergeValues(DstReg, {ResLo.getReg(0), ResHi.getReg(0)});
+    }
   } else {
-    // No UNMERGE — fall back to merge
+    // No UNMERGE consumer — fall back to G_MERGE
     auto ResLo = B.buildInstr(Opc, {S16},
         {LHSParts.getReg(0), RHSParts.getReg(0)});
     auto ResHi = B.buildInstr(Opc, {S16},
@@ -474,7 +485,6 @@ MC6809LegalizerInfo::legalizeBitwise(LegalizerHelper &Helper,
   MI.eraseFromParent();
   return true;
 }
-#endif
 
 bool MC6809LegalizerInfo::legalizeExtractInsert(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const {
   assert((MI.getOpcode() == G_EXTRACT || MI.getOpcode() == G_INSERT) && "Unexpected opcode");
