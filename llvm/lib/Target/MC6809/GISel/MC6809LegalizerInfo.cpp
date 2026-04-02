@@ -188,10 +188,14 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
       .customFor({s32})
       .clampScalar(0, s1, s16);
 
+  // Shifts/rotates: only shift-by-1 is a native instruction (ASL/LSR/ASR).
+  // Variable shifts and larger constants go through custom legalization
+  // (legalizeShiftRotate) which decomposes or calls a libcall.
   getActionDefinitionsBuilder({G_SHL, G_LSHR, G_ASHR, G_ROTR, G_ROTL})
-      .legalForCartesianProduct(LegalScalars, {s1, s8})
+      .legalForCartesianProduct(LegalScalars, {s1})
+      .customForCartesianProduct(LegalScalars, {s8})
       .clampScalar(0, s8, sMaxLogic)
-      .clampScalar(1, s1, s3);
+      .clampScalar(1, s1, s8);
 
   getActionDefinitionsBuilder({G_FSHL, G_FSHR, G_UMULO, G_UMULFIX, G_SMULFIX, G_SMULFIXSAT, G_UMULFIXSAT, G_UDIVFIX, G_SDIVFIX, G_SDIVFIXSAT, G_UDIVFIXSAT, G_FCANONICALIZE})
       .libcall();

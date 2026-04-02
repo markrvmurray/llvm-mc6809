@@ -1250,6 +1250,14 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::LSL_i16_Reg:
     expandShiftLeft(Builder, MI);
     break;
+  case MC6809::LSR_i8_Reg:
+  case MC6809::LSR_i16_Reg:
+    expandShiftRight(Builder, MI, /*Arithmetic=*/false);
+    break;
+  case MC6809::ASR_i8_Reg:
+  case MC6809::ASR_i16_Reg:
+    expandShiftRight(Builder, MI, /*Arithmetic=*/true);
+    break;
   case MC6809::MUL_D:
     expandMulD(Builder, MI);
     break;
@@ -2013,6 +2021,28 @@ void MC6809InstrInfo::expandShiftLeft(MachineIRBuilder &Builder, MachineInstr &M
     MI.addImplicitDefUseOperands(*MI.getMF());
     break;
   }
+}
+
+void MC6809InstrInfo::expandShiftRight(MachineIRBuilder &Builder, MachineInstr &MI, bool Arithmetic) const {
+  Register Reg = MI.getOperand(0).getReg();
+  unsigned Opcode;
+  switch (Reg) {
+  default:
+    llvm_unreachable("Illegal register for LSR/ASR");
+  case MC6809::AA:
+    Opcode = Arithmetic ? MC6809::ASRAa : MC6809::LSRAa;
+    break;
+  case MC6809::AB:
+    Opcode = Arithmetic ? MC6809::ASRBa : MC6809::LSRBa;
+    break;
+  case MC6809::AD:
+    Opcode = Arithmetic ? MC6809::ASRDa : MC6809::LSRDa;
+    break;
+  }
+  MI.setDesc(Builder.getTII().get(Opcode));
+  MI.removeOperand(1); // remove immediate
+  MI.removeOperand(0); // remove register (now implicit)
+  MI.addImplicitDefUseOperands(*MI.getMF());
 }
 
 void MC6809InstrInfo::expandMulD(MachineIRBuilder &Builder, MachineInstr &MI) const {
