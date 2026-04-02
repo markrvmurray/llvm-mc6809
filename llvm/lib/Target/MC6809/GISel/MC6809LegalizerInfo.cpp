@@ -152,7 +152,7 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // halves the number of operations and register pressure for i32 arithmetic.
   getActionDefinitionsBuilder({G_ADD, G_SUB})
       .legalFor(LegalAccumulators)
-      .clampScalar(0, s1, s16);
+      .clampScalar(0, s8, s16);
 
   getActionDefinitionsBuilder({G_UADDO, G_UADDE, G_USUBO, G_USUBE, G_SADDO, G_SADDE, G_SSUBO, G_SSUBE})
       .legalForCartesianProduct(LegalAccumulators, {s1, s16})
@@ -188,7 +188,7 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   getActionDefinitionsBuilder({G_AND, G_OR, G_XOR})
       .legalFor({s8, s16})
       .customFor({s32})
-      .clampScalar(0, s1, s16);
+      .clampScalar(0, s8, s16);
 
   // Shifts/rotates: shift-by-1 is a native instruction (ASL/LSR/ASR).
   // Constant shifts (s8 amount) are handled in the instruction selector
