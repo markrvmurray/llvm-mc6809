@@ -8,72 +8,193 @@
 ; RUN: %usim09batch --timeout=500000 %t.hex | FileCheck %s
 ; REQUIRES: usim
 ;
-; Codegen execution test: if/branch.
-; CC: first arg in B, remaining as 16-bit words on stack.
+; Codegen execution test: conditionals (icmp + select) for i8 and i16.
 
 .include "runtime.inc"
 
 	.section .rom,"ax",@progbits
+
+;;; putx — print X as 4 hex digits (preserves X)
+putx:
+	pshs	x
+	tfr	x,d
+	tfr	a,b
+	tfr	b,a
+	jsr	puthex
+	puls	x
+	pshs	x
+	tfr	x,d
+	tfr	b,a
+	jsr	puthex
+	puls	x
+	rts
+
 	.globl	test_main
 test_main:
-	;; if_s8(5, 3) = 5
-	clra
-	ldb	#3
-	pshs	b,a
+
+	;; ===== Signed max i8 (sgt) =====
+
+	;; max_s8(5, 3) = 5
+	ldd	#3
+	pshs	d
 	ldb	#5
-	jsr	if_s8
+	jsr	test_max_s8
 	leas	2,s
 	tfr	b,a
 	jsr	puthex
 	jsr	putnl
 ; CHECK: 05
 
-	;; if_s8(3, 5) = 5
-	clra
-	ldb	#5
-	pshs	b,a
+	;; max_s8(3, 5) = 5
+	ldd	#5
+	pshs	d
 	ldb	#3
-	jsr	if_s8
+	jsr	test_max_s8
 	leas	2,s
 	tfr	b,a
 	jsr	puthex
 	jsr	putnl
 ; CHECK-NEXT: 05
 
-	;; if_s8(3, 3) = 3
-	clra
-	ldb	#3
-	pshs	b,a
-	ldb	#3
-	jsr	if_s8
+	;; max_s8(-1, 1) = 1  (0xFF vs 0x01 signed)
+	ldd	#1
+	pshs	d
+	ldb	#0xFF
+	jsr	test_max_s8
+	leas	2,s
+	tfr	b,a
+	jsr	puthex
+	jsr	putnl
+; CHECK-NEXT: 01
+
+	;; max_s8(7, 7) = 7  (equal)
+	ldd	#7
+	pshs	d
+	ldb	#7
+	jsr	test_max_s8
+	leas	2,s
+	tfr	b,a
+	jsr	puthex
+	jsr	putnl
+; CHECK-NEXT: 07
+
+	;; ===== Signed max i16 (sgt) =====
+
+	;; max_s16(1000, 500) = 1000 = 0x03E8
+	ldd	#500
+	pshs	d
+	ldx	#1000
+	jsr	test_max_s16
+	leas	2,s
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 03E8
+
+	;; max_s16(-1, 1) = 1 (0xFFFF vs 0x0001)
+	ldd	#1
+	pshs	d
+	ldx	#0xFFFF
+	jsr	test_max_s16
+	leas	2,s
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0001
+
+	;; ===== Unsigned max i8 (ugt) =====
+
+	;; max_u8(0xFF, 0x01) = 0xFF (unsigned: 255 > 1)
+	ldd	#1
+	pshs	d
+	ldb	#0xFF
+	jsr	test_max_u8
+	leas	2,s
+	tfr	b,a
+	jsr	puthex
+	jsr	putnl
+; CHECK-NEXT: FF
+
+	;; ===== Unsigned max i16 (ugt) =====
+
+	;; max_u16(0xFFFF, 0x0001) = 0xFFFF
+	ldd	#1
+	pshs	d
+	ldx	#0xFFFF
+	jsr	test_max_u16
+	leas	2,s
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: FFFF
+
+	;; ===== Signed min i8 (slt) =====
+
+	;; min_s8(5, 3) = 3
+	ldd	#3
+	pshs	d
+	ldb	#5
+	jsr	test_min_s8
 	leas	2,s
 	tfr	b,a
 	jsr	puthex
 	jsr	putnl
 ; CHECK-NEXT: 03
 
-	;; if_s8(-1, 1) = 1
-	clra
-	ldb	#1
-	pshs	b,a
-	ldb	#0xff
-	jsr	if_s8
+	;; min_s8(-1, 1) = -1 = 0xFF
+	ldd	#1
+	pshs	d
+	ldb	#0xFF
+	jsr	test_min_s8
+	leas	2,s
+	tfr	b,a
+	jsr	puthex
+	jsr	putnl
+; CHECK-NEXT: FF
+
+	;; ===== Equality i8 (eq) =====
+
+	;; eq8(42, 42) = 1 (equal)
+	ldd	#42
+	pshs	d
+	ldb	#42
+	jsr	test_eq8
 	leas	2,s
 	tfr	b,a
 	jsr	puthex
 	jsr	putnl
 ; CHECK-NEXT: 01
 
-	;; if_s8(1, -1) = 1
-	lda	#0xff
-	ldb	#0xff
-	pshs	b,a
-	ldb	#1
-	jsr	if_s8
+	;; eq8(42, 43) = 0 (not equal)
+	ldd	#43
+	pshs	d
+	ldb	#42
+	jsr	test_eq8
+	leas	2,s
+	tfr	b,a
+	jsr	puthex
+	jsr	putnl
+; CHECK-NEXT: 00
+
+	;; ===== Not-equal i8 (ne) =====
+
+	;; ne8(42, 43) = 1 (not equal)
+	ldd	#43
+	pshs	d
+	ldb	#42
+	jsr	test_ne8
 	leas	2,s
 	tfr	b,a
 	jsr	puthex
 	jsr	putnl
 ; CHECK-NEXT: 01
 
-	rts
+	;; ne8(42, 42) = 0 (equal)
+	ldd	#42
+	pshs	d
+	ldb	#42
+	jsr	test_ne8
+	leas	2,s
+	tfr	b,a
+	jsr	puthex
+	jsr	putnl
+; CHECK-NEXT: 00
+
+	jsr	halt
