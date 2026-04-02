@@ -1454,9 +1454,6 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
       MI.getOperand(1).setReg(RealReg);
     }
     MI.setDesc(Builder.getTII().get(MC6809::PSHSs));
-    // PSHS always uses the S stack, not U. Force SS regardless of what
-    // the allocator assigned — otherwise implicit-def $su would clobber
-    // the frame pointer.
     MI.getOperand(0).setReg(MC6809::SS);
     MI.getOperand(0).setImplicit();
     break;
@@ -1470,17 +1467,15 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     Register OrigPullReg = PullReg;
     if (PullToSpill) {
       PullReg = getRealRegForSpill(PullReg);
-      MI.getOperand(1).setReg(PullReg);
+      MI.getOperand(0).setReg(PullReg);
     }
     if (PullReg == MC6809::AQ) {
       MI.setDesc(Builder.getTII().get(MC6809::PULSWx));
-      MI.removeOperand(1);
       MI.removeOperand(0);
       Builder.buildInstr(MC6809::PULSs).addImm(0x06); // PULS D
       break;
     } else if (PullReg == MC6809::AW) {
       MI.setDesc(Builder.getTII().get(MC6809::PULSWx));
-      MI.removeOperand(1);
       MI.removeOperand(0);
       break;
     }
@@ -1518,7 +1513,6 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
       regList |= 128;
       break;
     }
-    MI.removeOperand(1);
     MI.removeOperand(0);
     MI.addOperand(MachineOperand::CreateImm(regList));
     // If the pull target was a spill register, store from real reg to spill slot.

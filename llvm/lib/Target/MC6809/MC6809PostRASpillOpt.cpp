@@ -417,6 +417,71 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
     Changed = true;
   }
 
+  // Stage 4: Eliminate push/pull around add/sub from stack.
+  // Pattern: LDD offset,s; PSHS D; LDD #imm; SUBD/ADDD ,s++ → LDD #imm; SUBD/ADDD offset,s
+  const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
+  for (MachineBasicBlock &MBB : MF) {
+    for (auto It = MBB.begin(); It != MBB.end(); ) {
+      MachineInstr &MI = *It++;
+      // Look for LDD from S-relative slot.
+      unsigned LoadOpc = MI.getOpcode();
+      if (getAccRegForOpcode(LoadOpc) != MC6809::AD || !isIndexedLoad(LoadOpc))
+        continue;
+      SlotKey LoadSlot = getSlotKey(MI);
+      if (LoadSlot.BaseReg != MC6809::SS)
+        continue;
+
+      // Next: PSHS D.
+      if (It == MBB.end()) continue;
+      MachineInstr &Push = *It;
+      if (Push.getOpcode() != MC6809::PSHSs) continue;
+      bool PushesD = false;
+      for (const MachineOperand &MO : Push.operands())
+        if (MO.isReg() && MO.isUse() && MO.getReg() == MC6809::AD)
+          PushesD = true;
+      if (!PushesD) continue;
+
+      // Next: LDD #imm (any immediate load into D).
+      auto It2 = std::next(It);
+      if (It2 == MBB.end()) continue;
+      MachineInstr &LoadImm = *It2;
+      if (LoadImm.getOpcode() != MC6809::LDDi16) continue;
+
+      // Next: SUBD/ADDD ,s++ (auto-increment from stack).
+      auto It3 = std::next(It2);
+      if (It3 == MBB.end()) continue;
+      MachineInstr &ArithPull = *It3;
+      unsigned PullOpc = ArithPull.getOpcode();
+      unsigned ReplacementOpc;
+      if (PullOpc == MC6809::SUBDi_Inc2)
+        ReplacementOpc = getOpcodeForOffsetSize(MC6809::SUBDi_o5, LoadSlot.Offset);
+      else if (PullOpc == MC6809::ADDDi_Inc2)
+        ReplacementOpc = getOpcodeForOffsetSize(MC6809::ADDDi_o5, LoadSlot.Offset);
+      else
+        continue;
+      if (!ReplacementOpc) continue;
+
+      LLVM_DEBUG(dbgs() << "  SpillOpt: folding push/pull into direct mem op: "
+                        << MI << "  → " << ArithPull);
+
+      // Replace SUBD/ADDD ,s++ with SUBD/ADDD offset,s.
+      ArithPull.setDesc(TII.get(ReplacementOpc));
+      // Add offset and base register operands (before the implicit operands).
+      // The _Inc2 variant has just $ss as explicit operand; we need imm + $ss.
+      // Remove old explicit operand and re-add with offset.
+      ArithPull.removeOperand(0); // remove $ss
+      MachineInstrBuilder(MF, &ArithPull)
+          .addImm(LoadSlot.Offset).addReg(MC6809::SS);
+
+      // Delete the LDD and PSHS.
+      MI.eraseFromParent();
+      Push.eraseFromParent();
+      // It now points past the deleted Push; LoadImm and ArithPull are still valid.
+      It = It2; // resume from LoadImm (which we keep)
+      Changed = true;
+    }
+  }
+
   return Changed;
 }
 
