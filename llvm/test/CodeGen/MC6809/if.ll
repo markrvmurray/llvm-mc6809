@@ -111,8 +111,7 @@ define dso_local i16 @if_u16(i16 noundef %a, i16 noundef %b) local_unnamed_addr 
 ; CHECK-NEXT:    tstd
 ; CHECK-NEXT:    bne .LBB3_2
 ; CHECK-NEXT:  ; %bb.1: ; %if.end
-; CHECK-NEXT:    lda #-1
-; CHECK-NEXT:    tfr a,b
+; CHECK-NEXT:    ldd #-1
 ; CHECK-NEXT:    eorb 11,u
 ; CHECK-NEXT:    eora 10,u
 ; CHECK-NEXT:  .LBB3_2: ; %return
@@ -202,25 +201,17 @@ define dso_local i32 @if_u32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; CHECK-NEXT:    ldd 14,u
 ; CHECK-NEXT:    tfr x,d
 ; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldb 5,u
 ; CHECK-NEXT:    orb 13,u
-; CHECK-NEXT:    stb 5,u
-; CHECK-NEXT:    lda 4,u
 ; CHECK-NEXT:    ora 12,u
-; CHECK-NEXT:    sta 4,u
-; CHECK-NEXT:    ldd 4,u
+; CHECK-NEXT:    std 4,u
 ; CHECK-NEXT:    tstd
 ; CHECK-NEXT:    bne .LBB5_2
 ; CHECK-NEXT:  ; %bb.1: ; %if.end
-; CHECK-NEXT:    lda #-1
-; CHECK-NEXT:    tfr a,b
-; CHECK-NEXT:    stb 7,u
+; CHECK-NEXT:    ldd #-1
+; CHECK-NEXT:    std 6,u
 ; CHECK-NEXT:    eorb 17,u
-; CHECK-NEXT:    stb 7,u
-; CHECK-NEXT:    sta 6,u
 ; CHECK-NEXT:    eora 16,u
-; CHECK-NEXT:    sta 6,u
-; CHECK-NEXT:    tfr a,b
+; CHECK-NEXT:    std 6,u
 ; CHECK-NEXT:    eorb 15,u
 ; CHECK-NEXT:    eora 14,u
 ; CHECK-NEXT:  .LBB5_2: ; %return

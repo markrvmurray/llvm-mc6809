@@ -178,18 +178,14 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
       .libcallFor(LegalLibcallScalars)
       .clampScalar(0, s16, s32);
 
-  // 6809 has 8-bit bitwise only (ANDA/B, ORA/B, EORA/B).
-  // HD6309 adds 16-bit (ANDD, ORD, EORD) — i16 patterns predicated on IsHD6309.
-  // On 6809, s16 narrows to s8 byte pairs via clampScalar + narrowScalar.
-  if (IsHD6309) {
-    getActionDefinitionsBuilder({G_AND, G_OR, G_XOR})
-        .legalFor({s8, s16})
-        .clampScalar(0, s1, s16);
-  } else {
-    getActionDefinitionsBuilder({G_AND, G_OR, G_XOR})
-        .legalFor({s8})
-        .clampScalar(0, s1, s8);
-  }
+  // Bitwise AND/OR/XOR: s8 and s16 legal on all targets.
+  // On 6809, i16 pseudos expand post-RA into ANDA+ANDB byte pairs.
+  // HD6309 uses native ANDD/ORD/EORD. i32 narrows to i16.
+  // NOTE: i32 bitwise has a regalloc bug (bug #26) — the two i16 results
+  // can't coexist in D. Needs regalloc spill support for ACC16.
+  getActionDefinitionsBuilder({G_AND, G_OR, G_XOR})
+      .legalFor({s8, s16})
+      .clampScalar(0, s1, s16);
 
   getActionDefinitionsBuilder({G_SHL, G_LSHR, G_ASHR, G_ROTR, G_ROTL})
       .legalForCartesianProduct(LegalScalars, {s1, s8})
@@ -394,59 +390,87 @@ MC6809LegalizerInfo::legalizeAddSub(LegalizerHelper &Helper, MachineRegisterInfo
 }
 #endif
 
-#if 0 // Custom legalization - kept for future use if needed
-// Split an s16 operand into two s8 byte values (lo and hi).
-// Uses G_UNMERGE_VALUES. For G_LOAD sources, inserts a G_BITCAST
-// through a new vreg to break the load-unmerge chain that the
-// instruction selector's memory folder gets wrong on big-endian.
-static void splitS16Operand(MachineIRBuilder &B, MachineRegisterInfo &MRI,
-                            Register Reg, Register &Lo, Register &Hi) {
-  LLT S8 = LLT::scalar(8);
-  LLT S16 = LLT::scalar(16);
-  MachineInstr *Def = MRI.getVRegDef(Reg);
-  if (Def && Def->getOpcode() == TargetOpcode::G_LOAD) {
-    // Insert a COPY to a new vreg to prevent the instruction selector
-    // from looking through the unmerge to the load and folding it
-    // with incorrect byte offsets.
-    auto Copy = B.buildCopy(S16, Reg);
-    Reg = Copy.getReg(0);
-  }
-  auto Parts = B.buildUnmerge(S8, Reg);
-  Lo = Parts.getReg(0);
-  Hi = Parts.getReg(1);
-}
-
+#if 0 // i32 custom legalization — blocked by ACC16 regalloc pressure (bug #26)
 bool
 MC6809LegalizerInfo::legalizeBitwise(LegalizerHelper &Helper,
     MachineRegisterInfo &MRI, MachineInstr &MI,
     LostDebugLocObserver &LocObserver) const {
-  // Custom s16 AND/OR/XOR on 6809 (no ANDD/ORD/EORD).
-  // Split into s8 byte-pair operations. For memory operands, create
-  // explicit byte loads to avoid the isel memory folding offset bug.
+  // Custom s32 AND/OR/XOR: decompose to two s16 operations with an
+  // explicit store between them to avoid register pressure on the
+  // 1-register ACC16 class. Without the store, both s16 results need
+  // to coexist in D and the regalloc drops one.
   unsigned Opc = MI.getOpcode();
   assert((Opc == G_AND || Opc == G_OR || Opc == G_XOR) && "Unexpected opcode");
   Register DstReg = MI.getOperand(0).getReg();
   Register LHSReg = MI.getOperand(1).getReg();
   Register RHSReg = MI.getOperand(2).getReg();
-  LLT S8 = LLT::scalar(8);
+  LLT S16 = LLT::scalar(16);
+  LLT S32 = LLT::scalar(32);
+  assert(MRI.getType(DstReg) == S32 && "Expected s32 for custom bitwise");
 
   MachineIRBuilder &B = Helper.MIRBuilder;
-  Register LHSLo, LHSHi, RHSLo, RHSHi;
-  splitS16Operand(B, MRI, LHSReg, LHSLo, LHSHi);
-  splitS16Operand(B, MRI, RHSReg, RHSLo, RHSHi);
 
-  MachineInstrBuilder ResLo, ResHi;
-  if (Opc == G_AND) {
-    ResLo = B.buildAnd(S8, LHSLo, RHSLo);
-    ResHi = B.buildAnd(S8, LHSHi, RHSHi);
-  } else if (Opc == G_OR) {
-    ResLo = B.buildOr(S8, LHSLo, RHSLo);
-    ResHi = B.buildOr(S8, LHSHi, RHSHi);
-  } else {
-    ResLo = B.buildXor(S8, LHSLo, RHSLo);
-    ResHi = B.buildXor(S8, LHSHi, RHSHi);
+  // Unmerge both i32 operands into i16 lo/hi
+  auto LHSParts = B.buildUnmerge(S16, LHSReg);
+  auto RHSParts = B.buildUnmerge(S16, RHSReg);
+
+  // Find the UNMERGE that consumes the i32 result, so we can interleave
+  // the store between the two AND operations (avoiding D register pressure).
+  MachineInstr *Unmerge = nullptr;
+  for (auto &Use : MRI.use_instructions(DstReg)) {
+    if (Use.getOpcode() == TargetOpcode::G_UNMERGE_VALUES) {
+      Unmerge = &Use;
+      break;
+    }
   }
-  B.buildMergeValues(DstReg, {ResLo.getReg(0), ResHi.getReg(0)});
+
+  if (Unmerge) {
+    Register LoUse = Unmerge->getOperand(0).getReg(); // lo consumer
+    Register HiUse = Unmerge->getOperand(1).getReg(); // hi consumer
+
+    // Find the G_STORE that consumes the lo result (from return lowering)
+    MachineInstr *LoStore = nullptr;
+    for (auto &Use : MRI.use_instructions(LoUse)) {
+      if (Use.getOpcode() == TargetOpcode::G_STORE) {
+        LoStore = &Use;
+        break;
+      }
+    }
+
+    // Compute lo result
+    auto ResLo = B.buildInstr(Opc, {S16},
+        {LHSParts.getReg(0), RHSParts.getReg(0)});
+
+    // Store lo result to a temp slot IMMEDIATELY (before computing hi).
+    // This releases D for the hi computation, avoiding register pressure.
+    // The original G_STORE will reload from this temp.
+    MachineFunction &MF = B.getMF();
+    int TmpFI = MF.getFrameInfo().CreateStackObject(2, Align(1), false);
+    auto TmpPtr = B.buildFrameIndex(LLT::pointer(0, 16), TmpFI);
+    B.buildStore(ResLo, TmpPtr, MachinePointerInfo::getFixedStack(MF, TmpFI),
+                 Align(1));
+    // Replace the original Store's source with a reload from the temp
+    if (LoStore) {
+      auto Reload = B.buildLoad(S16, TmpPtr,
+          MachinePointerInfo::getFixedStack(MF, TmpFI), Align(1));
+      LoStore->getOperand(0).setReg(Reload.getReg(0));
+    }
+
+    // Compute hi result (D is now free)
+    auto ResHi = B.buildInstr(Opc, {S16},
+        {LHSParts.getReg(1), RHSParts.getReg(1)});
+
+    // Replace hi consumer with our hi result
+    MRI.replaceRegWith(HiUse, ResHi.getReg(0));
+    Unmerge->eraseFromParent();
+  } else {
+    // No UNMERGE — fall back to merge
+    auto ResLo = B.buildInstr(Opc, {S16},
+        {LHSParts.getReg(0), RHSParts.getReg(0)});
+    auto ResHi = B.buildInstr(Opc, {S16},
+        {LHSParts.getReg(1), RHSParts.getReg(1)});
+    B.buildMergeValues(DstReg, {ResLo.getReg(0), ResHi.getReg(0)});
+  }
   MI.eraseFromParent();
   return true;
 }

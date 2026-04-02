@@ -286,6 +286,10 @@ private:
   ContextIndexImmediate XORIdxImm = {&XORIdxImmOpcode};
 
   void expandIdxImm(ContextIndexImmediate Context, MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandBitwiseImm16(ContextImmediate Context, unsigned OpcA, unsigned OpcB,
+                          MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandBitwiseMem16(ContextIndexImmediate Context,
+                          MachineIRBuilder &Builder, MachineInstr &MI) const;
 
   struct ContextIndexRegister {
     DenseMap<RegPlusReg, unsigned> *Opcode;
