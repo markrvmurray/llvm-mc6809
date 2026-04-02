@@ -189,7 +189,7 @@ bool MC6809SpillDSaveRestore::runOnMachineFunction(MachineFunction &MF) {
 
     MachineFrameInfo &MFI = MF.getFrameInfo();
 
-    // Save/restore D around ACC16 spill operations.
+    // Save/restore D per-instruction (D changes between spill operations).
     if (!NeedSaveD.empty()) {
       int DSaveSlot = MFI.CreateStackObject(2, Align(1), /*isSpillSlot=*/true);
       for (MachineInstr *MI : NeedSaveD) {
@@ -207,43 +207,24 @@ bool MC6809SpillDSaveRestore::runOnMachineFunction(MachineFunction &MF) {
       }
     }
 
-    // Save/restore IX and/or IY around INDEX spill operations.
-    // Uses Store_iPtr_Mem / Load_iPtr_Mem (STX/LDX/STY/LDY, no D clobber).
+    // Save IX/IY ONCE before the first INDEX spill op, restore after the last.
     if (!NeedSaveX.empty()) {
       int XSaveSlot = MFI.CreateStackObject(2, Align(1), /*isSpillSlot=*/true);
-      int YSaveSlot = -1;
-      for (MachineInstr *MI : NeedSaveX) {
-        DebugLoc DL = MI->getDebugLoc();
-        // Save IX
-        BuildMI(MBB, MI, DL, TII.get(MC6809::Store_iPtr_Mem))
-            .addReg(MC6809::IX)
-            .addFrameIndex(XSaveSlot)
-            .addImm(0);
-        // Also save IY if it's live (expansion may use IY as staging)
-        if (LPR.contains(MC6809::IY)) {
-          if (YSaveSlot < 0)
-            YSaveSlot = MFI.CreateStackObject(2, Align(1), /*isSpillSlot=*/true);
-          // Use concrete STYi since Store_iPtr_Mem defaults to STX
-          BuildMI(MBB, MI, DL, TII.get(MC6809::Store_iPtr_Mem))
-              .addReg(MC6809::IY)
-              .addFrameIndex(YSaveSlot)
-              .addImm(0);
-        }
-        auto After = std::next(MachineBasicBlock::iterator(MI));
-        // Restore IY first (if saved)
-        if (YSaveSlot >= 0 && LPR.contains(MC6809::IY)) {
-          BuildMI(MBB, After, DL, TII.get(MC6809::Load_iPtr_Mem))
-              .addReg(MC6809::IY, RegState::Define)
-              .addFrameIndex(YSaveSlot)
-              .addImm(0);
-        }
-        // Restore IX
-        BuildMI(MBB, After, DL, TII.get(MC6809::Load_iPtr_Mem))
-            .addReg(MC6809::IX, RegState::Define)
-            .addFrameIndex(XSaveSlot)
-            .addImm(0);
-        Changed = true;
-      }
+      DebugLoc DL;
+      MachineInstr *First = NeedSaveX.back();
+      MachineInstr *Last = NeedSaveX.front();
+      // Save IX before first
+      BuildMI(MBB, First, DL, TII.get(MC6809::Store_iPtr_Mem))
+          .addReg(MC6809::IX)
+          .addFrameIndex(XSaveSlot)
+          .addImm(0);
+      // Restore IX after last
+      auto After = std::next(MachineBasicBlock::iterator(Last));
+      BuildMI(MBB, After, DL, TII.get(MC6809::Load_iPtr_Mem))
+          .addReg(MC6809::IX, RegState::Define)
+          .addFrameIndex(XSaveSlot)
+          .addImm(0);
+      Changed = true;
     }
   }
 

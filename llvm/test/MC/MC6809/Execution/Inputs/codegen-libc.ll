@@ -6,22 +6,24 @@ target triple = "mc6809"
 ; NOTE: memcpy/memset require multiple live pointers in loops, triggering
 ; frame pointer clobber or CC flag corruption (bug #38). Skipped for now.
 
+; strlen using counter (avoids 2 live pointers which exhaust INDEX regs)
 define dso_local i16 @my_strlen(ptr %s) {
 entry:
   br label %loop
 
 loop:
-  %p = phi ptr [ %s, %entry ], [ %p.next, %loop ]
+  %i = phi i16 [ 0, %entry ], [ %i.next, %cont ]
+  %p = getelementptr i8, ptr %s, i16 %i
   %v = load i8, ptr %p, align 1
-  %p.next = getelementptr i8, ptr %p, i16 1
-  %exit = icmp eq i8 %v, 0
-  br i1 %exit, label %done, label %loop
+  %done = icmp eq i8 %v, 0
+  br i1 %done, label %exit, label %cont
 
-done:
-  %pi = ptrtoint ptr %p to i16
-  %si = ptrtoint ptr %s to i16
-  %len = sub i16 %pi, %si
-  ret i16 %len
+cont:
+  %i.next = add i16 %i, 1
+  br label %loop
+
+exit:
+  ret i16 %i
 }
 
 define dso_local i16 @my_strcmp(ptr %a, ptr %b) {

@@ -1614,20 +1614,28 @@ void MC6809InstrInfo::expandLEAPtrAdd(MachineIRBuilder &Builder, MachineInstr &M
   MI.removeOperand(2);
   MI.removeOperand(1);
 
-  // If the base register is an INDEX spill, load into IY (preferred, callee-saved)
-  // or IX, do the LEA, then store back to the spill slot.
+  // If the RESULT register is an INDEX spill, use IY as staging and store back.
+  // Only pre-load from spill if the BASE (operand 1) is the SAME spill register
+  // (modify-in-place). For pure definitions (base is frame index or different
+  // register), don't pre-load — the spill slot isn't initialized yet.
   Register OrigSpillReg;
   if (isIndexSpillReg(IndexReg.getReg())) {
     OrigSpillReg = IndexReg.getReg();
-    Register StageReg = MC6809::IY;  // Prefer IY (callee-saved, less likely live)
-    MachineFunction &MF = *MI.getMF();
-    int SpillOff = computeSpillStackOffset(OrigSpillReg, MF);
-    unsigned LoadOpc = getLoadIdxOpcode(StageReg, SpillOff);
-    Builder.buildInstr(LoadOpc)
-        .addDef(StageReg, RegState::Implicit)
-        .addImm(SpillOff).addReg(MC6809::SU);
+    Register StageReg = MC6809::IY;
+    bool SameSpillBase = (IndexOp.isReg() && IndexOp.getReg() == OrigSpillReg);
+    if (SameSpillBase) {
+      // Modify-in-place: load current spill value into IY.
+      MachineFunction &MF = *MI.getMF();
+      int SpillOff = computeSpillStackOffset(OrigSpillReg, MF);
+      unsigned LoadOpc = getLoadIdxOpcode(StageReg, SpillOff);
+      Builder.buildInstr(LoadOpc)
+          .addDef(StageReg, RegState::Implicit)
+          .addImm(SpillOff).addReg(MC6809::SU);
+      // Rewrite base to IY.
+      IndexOp = MachineOperand::CreateReg(StageReg, false);
+    }
+    // Rewrite result to IY (for both modify-in-place and pure definition).
     IndexReg = MachineOperand::CreateReg(StageReg, true);
-    IndexOp = MachineOperand::CreateReg(StageReg, false);
     MI.getOperand(0).setReg(StageReg);
   }
 
@@ -1655,8 +1663,8 @@ void MC6809InstrInfo::expandLEAPtrAdd(MachineIRBuilder &Builder, MachineInstr &M
     //   - One explicit operand: $ireg (the base/index register)
     MI.getOperand(0).setImplicit();  // result becomes implicit
     MI.addOperand(IndexOp);          // base register as sole explicit operand
-    return;
-  }
+    // Don't return — fall through to the post-store for SPILL_X.
+  } else {
 
   int OffsetSize = offsetSizeInBits(OffsetOp);
   if (OffsetSize >= 0) {
@@ -1671,6 +1679,7 @@ void MC6809InstrInfo::expandLEAPtrAdd(MachineIRBuilder &Builder, MachineInstr &M
     MI.addOperand(IndexOp);
   } else
     llvm_unreachable("Unknown offset type for LEAPtrAdd");
+  }
 
   // If the original register was a spill, store staging reg back to spill slot.
   if (OrigSpillReg.isValid()) {
