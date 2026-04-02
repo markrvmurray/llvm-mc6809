@@ -883,14 +883,14 @@ static MachineInstrBuilder emitSpillStore(MachineIRBuilder &Builder,
     if (isSpillReg(DestReg) && !isSpillReg(SrcReg)) {
       // Real → Spill: Store to spill slot.
       if (isIndexSpillReg(DestReg)) {
-        // INDEX spill: use STX directly (doesn't touch D).
+        // INDEX spill: use IY as staging (callee-saved, avoids IX conflicts).
         int Offset = computeSpillStackOffset(DestReg, MF);
-        Register RealIdx = getRealRegForSpill(DestReg); // IX
-        if (SrcReg != RealIdx)
-          Builder.buildInstr(MC6809::TFRp).addDef(RealIdx).addUse(SrcReg);
-        unsigned Opcode = getStoreIdxOpcode(RealIdx, Offset);
+        Register StageReg = MC6809::IY;
+        if (SrcReg != StageReg)
+          Builder.buildInstr(MC6809::TFRp).addDef(StageReg).addUse(SrcReg);
+        unsigned Opcode = getStoreIdxOpcode(StageReg, Offset);
         Builder.buildInstr(Opcode)
-            .addUse(RealIdx, RegState::Implicit)
+            .addUse(StageReg, RegState::Implicit)
             .addImm(Offset)
             .addReg(MC6809::SU);
       } else if (SrcReg == MC6809::IX || SrcReg == MC6809::IY) {
@@ -910,16 +910,16 @@ static MachineInstrBuilder emitSpillStore(MachineIRBuilder &Builder,
     } else if (!isSpillReg(DestReg) && isSpillReg(SrcReg)) {
       // Spill → Real: Load from spill slot.
       if (isIndexSpillReg(SrcReg)) {
-        // INDEX spill → Real: use LDX (doesn't touch D).
+        // INDEX spill → Real: use IY as staging (callee-saved).
         int Offset = computeSpillStackOffset(SrcReg, MF);
-        Register RealIdx = getRealRegForSpill(SrcReg); // IX
-        unsigned Opcode = getLoadIdxOpcode(RealIdx, Offset);
+        Register StageReg = MC6809::IY;
+        unsigned Opcode = getLoadIdxOpcode(StageReg, Offset);
         Builder.buildInstr(Opcode)
-            .addDef(RealIdx, RegState::Implicit)
+            .addDef(StageReg, RegState::Implicit)
             .addImm(Offset)
             .addReg(MC6809::SU);
-        if (DestReg != RealIdx)
-          Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(RealIdx);
+        if (DestReg != StageReg)
+          Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(StageReg);
       } else if (DestReg == MC6809::IX || DestReg == MC6809::IY) {
         // ACC spill → INDEX: use LDX/LDY directly (no D clobber).
         int Offset = computeSpillStackOffset(SrcReg, MF);
@@ -1614,22 +1614,21 @@ void MC6809InstrInfo::expandLEAPtrAdd(MachineIRBuilder &Builder, MachineInstr &M
   MI.removeOperand(2);
   MI.removeOperand(1);
 
-  // If the base register is an INDEX spill, load into IX, do the LEA,
-  // then store IX back to the spill slot afterward.
+  // If the base register is an INDEX spill, load into IY (preferred, callee-saved)
+  // or IX, do the LEA, then store back to the spill slot.
   Register OrigSpillReg;
   if (isIndexSpillReg(IndexReg.getReg())) {
     OrigSpillReg = IndexReg.getReg();
+    Register StageReg = MC6809::IY;  // Prefer IY (callee-saved, less likely live)
     MachineFunction &MF = *MI.getMF();
     int SpillOff = computeSpillStackOffset(OrigSpillReg, MF);
-    // Load spill → IX
-    unsigned LoadOpc = getLoadIdxOpcode(MC6809::IX, SpillOff);
+    unsigned LoadOpc = getLoadIdxOpcode(StageReg, SpillOff);
     Builder.buildInstr(LoadOpc)
-        .addDef(MC6809::IX, RegState::Implicit)
+        .addDef(StageReg, RegState::Implicit)
         .addImm(SpillOff).addReg(MC6809::SU);
-    // Rewrite the LEA to use IX
-    IndexReg = MachineOperand::CreateReg(MC6809::IX, true);
-    IndexOp = MachineOperand::CreateReg(MC6809::IX, false);
-    MI.getOperand(0).setReg(MC6809::IX);
+    IndexReg = MachineOperand::CreateReg(StageReg, true);
+    IndexOp = MachineOperand::CreateReg(StageReg, false);
+    MI.getOperand(0).setReg(StageReg);
   }
 
   // Check register offset first (LEAPtrAdd_Reg8/Reg16) — offsetSizeInBits
@@ -1673,15 +1672,16 @@ void MC6809InstrInfo::expandLEAPtrAdd(MachineIRBuilder &Builder, MachineInstr &M
   } else
     llvm_unreachable("Unknown offset type for LEAPtrAdd");
 
-  // If the original register was a spill, store IX back to the spill slot.
+  // If the original register was a spill, store staging reg back to spill slot.
   if (OrigSpillReg.isValid()) {
+    Register StageReg = MC6809::IY;  // Must match the staging register above
     MachineFunction &MF = *MI.getMF();
     int SpillOff = computeSpillStackOffset(OrigSpillReg, MF);
     MachineBasicBlock::iterator After = std::next(MI.getIterator());
     MachineIRBuilder PostBuilder(*MI.getParent(), After);
-    unsigned StoreOpc = getStoreIdxOpcode(MC6809::IX, SpillOff);
+    unsigned StoreOpc = getStoreIdxOpcode(StageReg, SpillOff);
     PostBuilder.buildInstr(StoreOpc)
-        .addUse(MC6809::IX, RegState::Implicit)
+        .addUse(StageReg, RegState::Implicit)
         .addImm(SpillOff).addReg(MC6809::SU);
   }
 }
@@ -2423,10 +2423,11 @@ void MC6809InstrInfo::expandLoadImm(MachineIRBuilder &Builder, MachineInstr &MI)
   // load immediate into it, store to spill slot (U-relative), then restore.
   // Don't recurse into expandLoadImm — it removes MI and invalidates Builder.
   if (isSpillReg(DestRegOp.getReg())) {
-    Register RealReg = getRealRegForSpill(DestRegOp.getReg());
+    Register RealReg = isIndexSpillReg(DestRegOp.getReg()) ? MC6809::IY
+                                                           : getRealRegForSpill(DestRegOp.getReg());
     MachineFunction &MF = Builder.getMF();
     auto ValOp = MI.getOperand(1);
-    // Load immediate into real register, then store to spill slot.
+    // Load immediate into staging register, then store to spill slot.
     auto OpcodePair = LoadImmediateOpcode.find(RealReg);
     assert(OpcodePair != LoadImmediateOpcode.end());
     auto NewMI = Builder.buildInstr(OpcodePair->getSecond()).addDef(RealReg, RegState::Implicit);
@@ -2436,12 +2437,13 @@ void MC6809InstrInfo::expandLoadImm(MachineIRBuilder &Builder, MachineInstr &MI)
       int64_t Val = ValOp.isImm() ? ValOp.getImm() : ValOp.getCImm()->getSExtValue();
       NewMI.addImm(Val);
     }
-    // Store to spill slot (use STX for INDEX spills, STD for ACC spills).
+    // Store to spill slot (use STY for INDEX spills, STD for ACC spills).
     if (isIndexSpillReg(DestRegOp.getReg())) {
       int SpillOff = computeSpillStackOffset(DestRegOp.getReg(), MF);
-      unsigned StoreOpc = getStoreIdxOpcode(RealReg, SpillOff);
+      // RealReg is IX from getRealRegForSpill, but we use IY for INDEX spills
+      unsigned StoreOpc = getStoreIdxOpcode(MC6809::IY, SpillOff);
       Builder.buildInstr(StoreOpc)
-          .addUse(RealReg, RegState::Implicit)
+          .addUse(MC6809::IY, RegState::Implicit)
           .addImm(SpillOff).addReg(MC6809::SU);
     } else {
       emitSpillStore(Builder, RealReg, DestRegOp.getReg(), MF);
@@ -2477,16 +2479,17 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
   if (isSpillReg(DestRegOp.getReg())) {
     MachineFunction &MF = *MI.getMF();
     if (isIndexSpillReg(DestRegOp.getReg())) {
-      // INDEX spill dest: load into IX, then store IX to spill slot.
-      MI.getOperand(0).setReg(MC6809::IX);
+      // INDEX spill dest: load into IY (staging), then store to spill slot.
+      Register StageReg = MC6809::IY;
+      MI.getOperand(0).setReg(StageReg);
       expandLoadIdx(Builder, MI);
       int SpillOff = computeSpillStackOffset(DestRegOp.getReg(), MF);
       MachineBasicBlock::iterator InsertPt = MI.getIterator();
       ++InsertPt;
       MachineIRBuilder PostBuilder(*MI.getParent(), InsertPt);
-      unsigned StoreOpc = getStoreIdxOpcode(MC6809::IX, SpillOff);
+      unsigned StoreOpc = getStoreIdxOpcode(StageReg, SpillOff);
       PostBuilder.buildInstr(StoreOpc)
-          .addUse(MC6809::IX, RegState::Implicit)
+          .addUse(StageReg, RegState::Implicit)
           .addImm(SpillOff).addReg(MC6809::SU);
     } else {
       Register RealReg = getRealRegForSpill(DestRegOp.getReg());
@@ -2502,17 +2505,20 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
     return;
   }
 
-  // If the index register is an INDEX spill, load into IX first.
+  // If the index register is an INDEX spill, load into a staging index reg.
+  // Use IY if the dest operand is IX (avoid conflict), otherwise IX.
   if (isIndexSpillReg(MI.getOperand(1).getReg())) {
     Register SpillReg = MI.getOperand(1).getReg();
+    Register DestReg = MI.getOperand(0).getReg();
+    Register StageReg = MC6809::IY;  // Prefer IY (callee-saved)
     MachineFunction &MF = *MI.getMF();
     int SpillOff = computeSpillStackOffset(SpillReg, MF);
-    unsigned LoadOpc = getLoadIdxOpcode(MC6809::IX, SpillOff);
+    unsigned LoadOpc = getLoadIdxOpcode(StageReg, SpillOff);
     MachineIRBuilder PreBuilder(*MI.getParent(), MI.getIterator());
     PreBuilder.buildInstr(LoadOpc)
-        .addDef(MC6809::IX, RegState::Implicit)
+        .addDef(StageReg, RegState::Implicit)
         .addImm(SpillOff).addReg(MC6809::SU);
-    MI.getOperand(1).setReg(MC6809::IX);
+    MI.getOperand(1).setReg(StageReg);
   }
 
   auto IndexRegOp = MI.getOperand(1);
@@ -2571,17 +2577,20 @@ void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI
     NeedRestore = true;
   }
 
-  // If the index register is an INDEX spill, load into IX first.
+  // If the index register is an INDEX spill, load into a staging index reg.
+  // Use IY if the source operand is IX (avoid conflict), otherwise IX.
   if (isIndexSpillReg(MI.getOperand(1).getReg())) {
     Register SpillReg = MI.getOperand(1).getReg();
+    Register SrcReg = MI.getOperand(0).getReg();
+    Register StageReg = MC6809::IY;  // Prefer IY (callee-saved)
     MachineFunction &MF = *MI.getMF();
     int SpillOff = computeSpillStackOffset(SpillReg, MF);
-    unsigned LoadOpc = getLoadIdxOpcode(MC6809::IX, SpillOff);
+    unsigned LoadOpc = getLoadIdxOpcode(StageReg, SpillOff);
     MachineIRBuilder PreBuilder(*MI.getParent(), MI.getIterator());
     PreBuilder.buildInstr(LoadOpc)
-        .addDef(MC6809::IX, RegState::Implicit)
+        .addDef(StageReg, RegState::Implicit)
         .addImm(SpillOff).addReg(MC6809::SU);
-    MI.getOperand(1).setReg(MC6809::IX);
+    MI.getOperand(1).setReg(StageReg);
   }
 
   auto SrcRegOp = MI.getOperand(0); // re-read AFTER spill fix
