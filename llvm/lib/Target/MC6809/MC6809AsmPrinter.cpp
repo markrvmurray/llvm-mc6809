@@ -138,10 +138,16 @@ bool MC6809AsmPrinter::PrintAsmMemoryOperand(const MachineInstr *MI, unsigned Op
 }
 
 void MC6809AsmPrinter::emitStartOfAsmFile(Module &M) {
+  // Direct page pseudo-registers (__rc0..__rc31) are not currently used
+  // by the GlobalISel backend. Emitting .directpage directives for them
+  // crashes the ELF streamer (MCSymbolELF::setOther assertion). Disabled
+  // until the direct page allocator pass is implemented.
+#if 0
   auto &MTS =
       *static_cast<MC6809TargetStreamer *>(OutStreamer->getTargetStreamer());
   for (int I = 0; I < 32; I++)
     MTS.emitDirectiveDirectPage(OutContext.getOrCreateSymbol("__rc" + Twine(I)));
+#endif
 }
 
 void MC6809AsmPrinter::emitJumpTableInfo() {
