@@ -167,7 +167,9 @@ bool MC6809SpillDSaveRestore::runOnMachineFunction(MachineFunction &MF) {
       LPR.stepBackward(MI);
 
       // Check D clobber from ACC16 spill operations.
-      if (willClobberD(MI, TRI)) {
+      // Skip terminators (fused compare-branch pseudos) — placing D restore
+      // after a terminator violates the MIR invariant.
+      if (!MI.isTerminator() && willClobberD(MI, TRI)) {
         bool DLive = LPR.contains(MC6809::AD) ||
                      LPR.contains(MC6809::AA) ||
                      LPR.contains(MC6809::AB);

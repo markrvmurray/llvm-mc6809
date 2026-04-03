@@ -315,10 +315,13 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
         }
       }
 
-      // Skip compare/test instructions — their expansion functions handle
-      // spill registers via backwards scan (CMPX/CMPY), avoiding D clobber
-      // and CC issues. SpillDSaveRestore handles the D save/restore for these.
-      if (MI.isCompare())
+      // Skip compare/test instructions and fused compare-and-branch pseudos.
+      // Compares: expansion functions handle spills via backwards scan
+      // (CMPX/CMPY), avoiding D clobber. SpillDSaveRestore handles D save/restore.
+      // Fused pseudos: they're terminators, and placing D restore after them
+      // violates the MIR invariant (non-terminator between terminators).
+      // SpillDSaveRestore handles D save/restore for these.
+      if (MI.isCompare() || MI.isTerminator())
         continue;
 
       bool NeedD = false, NeedIY = false;
