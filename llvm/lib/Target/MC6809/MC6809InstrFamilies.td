@@ -520,6 +520,49 @@ let Predicates = [IsHD6309] in {
   defm Test_i16 : MC6809Test<ACC16>;
 }
 
+// --- Fused compare-and-branch pseudos (bug #42 fix) ---
+// These combine a compare/test with a conditional branch into a single
+// instruction so the register allocator cannot insert spill reloads between
+// them (which would clobber the CC flags on the 6809, where all loads set NZV).
+// CC is internal — not exposed as an output register.
+// Expanded post-RA into separate Compare/Test + ConditionalBranchRelative.
+
+class MC6809TestBranchBase<dag operand> : MC6809LogicalInstr {
+  dag OutOperandList = (outs);
+  dag InOperandList = !con((ins condcode:$cc), operand, (ins label:$tgt));
+  let isBranch = true;
+  let isTerminator = true;
+}
+
+multiclass MC6809TestBranch<RegisterClass reg> {
+  def _Reg : MC6809TestBranchBase<(ins reg:$src)>;
+  let mayLoad = true in {
+    def _Mem : MC6809TestBranchBase<(ins INDEX16:$idx, unknown:$offset)>;
+  }
+}
+
+defm TestBranch_i8 : MC6809TestBranch<ACC8_AB>;
+defm TestBranch_i16 : MC6809TestBranch<ACC16>;
+
+class MC6809CompareBranchBase<RegisterClass reg, dag operand> : MC6809LogicalInstr {
+  dag OutOperandList = (outs);
+  dag InOperandList = !con((ins condcode:$cc, reg:$src), operand, (ins label:$tgt));
+  let isBranch = true;
+  let isTerminator = true;
+}
+
+multiclass MC6809CompareBranch<ValueType vtype, RegisterClass reg> {
+  def _Imm : MC6809CompareBranchBase<reg, (ins !cast<Operand>(vtype#"imm"):$imm)>;
+  def _Reg : MC6809CompareBranchBase<reg, (ins reg:$src2)>;
+  let mayLoad = true in {
+    def _Mem : MC6809CompareBranchBase<reg, (ins INDEX16:$idx, unknown:$offset)>;
+    def _Pull : MC6809CompareBranchBase<reg, (ins STACK16:$idx)>;
+  }
+}
+
+defm CompareBranch_i8 : MC6809CompareBranch<i8, ACC8>;
+defm CompareBranch_i16 : MC6809CompareBranch<i16, ACC16>;
+
 // --- Concrete instructions (register-specific, assembler/disassembler) ---
 // Concrete test instructions (TSTA, TSTB, TSTD, etc.)
 // are defined in MC6809InstrInfo.td.
@@ -700,16 +743,16 @@ let Predicates = [IsHD6309] in {
 //===----------------------------------------------------------------------===//
 
 multiclass MC6809CompBraPat<CondCode CC, int cc, ValueType vtype, RegisterClass reg> {
-  def _Imm : Pat<(brcond (i1 (setcc reg:$src, imm:$val, CC)), bb:$tgt), (ConditionalBranchRelative cc, bb:$tgt, (!cast<Instruction>("Compare_"#vtype#"_Imm") cc, reg:$src, imm:$val))>;
-  def _Idx_Imm : Pat<(brcond (i1 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), bb:$tgt), (ConditionalBranchRelative cc, bb:$tgt, (!cast<Instruction>("Compare_"#vtype#"_Mem") cc, reg:$src, INDEX16:$idx, i16imm:$offset))>;
-  def _Unmerge_Idx_Imm : Pat<(brcond (i1 (setcc reg:$src, (am_unmerge_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), bb:$tgt), (ConditionalBranchRelative cc, bb:$tgt, (!cast<Instruction>("Compare_"#vtype#"_Mem") cc, reg:$src, INDEX16:$idx, imm:$offset))>;
-  def _Idx_Reg8 : Pat<(brcond (i1 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC8:$offset), CC)), bb:$tgt), (ConditionalBranchRelative cc, bb:$tgt, (!cast<Instruction>("Compare_"#vtype#"_Mem") cc, reg:$src, INDEX16:$idx, ACC8:$offset))>;
-  def _Idx_Reg16 : Pat<(brcond (i1 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC16:$offset), CC)), bb:$tgt), (ConditionalBranchRelative cc, bb:$tgt, (!cast<Instruction>("Compare_"#vtype#"_Mem") cc, reg:$src, INDEX16:$idx, ACC16:$offset))>;
+  def _Imm : Pat<(brcond (i1 (setcc reg:$src, imm:$val, CC)), bb:$tgt), (!cast<Instruction>("CompareBranch_"#vtype#"_Imm") cc, reg:$src, imm:$val, bb:$tgt)>;
+  def _Idx_Imm : Pat<(brcond (i1 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), bb:$tgt), (!cast<Instruction>("CompareBranch_"#vtype#"_Mem") cc, reg:$src, INDEX16:$idx, i16imm:$offset, bb:$tgt)>;
+  def _Unmerge_Idx_Imm : Pat<(brcond (i1 (setcc reg:$src, (am_unmerge_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), bb:$tgt), (!cast<Instruction>("CompareBranch_"#vtype#"_Mem") cc, reg:$src, INDEX16:$idx, imm:$offset, bb:$tgt)>;
+  def _Idx_Reg8 : Pat<(brcond (i1 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC8:$offset), CC)), bb:$tgt), (!cast<Instruction>("CompareBranch_"#vtype#"_Mem") cc, reg:$src, INDEX16:$idx, ACC8:$offset, bb:$tgt)>;
+  def _Idx_Reg16 : Pat<(brcond (i1 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC16:$offset), CC)), bb:$tgt), (!cast<Instruction>("CompareBranch_"#vtype#"_Mem") cc, reg:$src, INDEX16:$idx, ACC16:$offset, bb:$tgt)>;
   let Predicates = [IsHD6309] in {
-    def _Reg : Pat<(brcond (i1 (setcc reg:$src, reg:$src2, CC)), bb:$tgt), (ConditionalBranchRelative cc, bb:$tgt, (!cast<Instruction>("Compare_"#vtype#"_Reg") cc, reg:$src, reg:$src2))>;
+    def _Reg : Pat<(brcond (i1 (setcc reg:$src, reg:$src2, CC)), bb:$tgt), (!cast<Instruction>("CompareBranch_"#vtype#"_Reg") cc, reg:$src, reg:$src2, bb:$tgt)>;
   }
   let Predicates = [NotHD6309] in {
-    def _Push_Pull : Pat<(brcond (i1 (setcc reg:$src, reg:$src2, CC)), bb:$tgt), (ConditionalBranchRelative cc, bb:$tgt, (!cast<Instruction>("Compare_"#vtype#"_Pull") cc, reg:$src, (!cast<Instruction>("Push_"#vtype) reg:$src2)))>;
+    def _Push_Pull : Pat<(brcond (i1 (setcc reg:$src, reg:$src2, CC)), bb:$tgt), (!cast<Instruction>("CompareBranch_"#vtype#"_Pull") cc, reg:$src, (!cast<Instruction>("Push_"#vtype) reg:$src2), bb:$tgt)>;
   }
 }
 
@@ -734,11 +777,11 @@ defm CompBraPat_NE : MC6809CompBraCondPat<SETNE, 6>;
 //===----------------------------------------------------------------------===//
 
 multiclass MC6809TestBraPat<CondCode CC, int cc, ValueType vtype, RegisterClass reg> {
-  def _Reg : Pat<(brcond (i1 (setcc reg:$src, (vtype 0), CC)), bb:$tgt), (ConditionalBranchRelative cc, bb:$tgt, (!cast<Instruction>("Test_"#vtype#"_Reg") cc, reg:$src))>;
-  def _Idx_Imm : Pat<(brcond (i1 (setcc (vtype 0), (am_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), bb:$tgt), (ConditionalBranchRelative cc, bb:$tgt, (!cast<Instruction>("Test_"#vtype#"_Mem") cc, INDEX16:$idx, i16imm:$offset))>;
-  def _Unmerge_Idx_Imm : Pat<(brcond (i1 (setcc (vtype 0), (am_unmerge_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), bb:$tgt), (ConditionalBranchRelative cc, bb:$tgt, (!cast<Instruction>("Test_"#vtype#"_Mem") cc, INDEX16:$idx, i16imm:$offset))>;
-  def _Idx_Reg8 : Pat<(brcond (i1 (setcc (vtype 0), (am_indexed_imm_offset INDEX16:$idx, ACC8:$offset), CC)), bb:$tgt), (ConditionalBranchRelative cc, bb:$tgt, (!cast<Instruction>("Test_"#vtype#"_Mem") cc, INDEX16:$idx, ACC8:$offset))>;
-  def _Idx_Reg16 : Pat<(brcond (i1 (setcc (vtype 0), (am_indexed_imm_offset INDEX16:$idx, ACC16:$offset), CC)), bb:$tgt), (ConditionalBranchRelative cc, bb:$tgt, (!cast<Instruction>("Test_"#vtype#"_Mem") cc, INDEX16:$idx, ACC16:$offset))>;
+  def _Reg : Pat<(brcond (i1 (setcc reg:$src, (vtype 0), CC)), bb:$tgt), (!cast<Instruction>("TestBranch_"#vtype#"_Reg") cc, reg:$src, bb:$tgt)>;
+  def _Idx_Imm : Pat<(brcond (i1 (setcc (vtype 0), (am_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), bb:$tgt), (!cast<Instruction>("TestBranch_"#vtype#"_Mem") cc, INDEX16:$idx, i16imm:$offset, bb:$tgt)>;
+  def _Unmerge_Idx_Imm : Pat<(brcond (i1 (setcc (vtype 0), (am_unmerge_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), bb:$tgt), (!cast<Instruction>("TestBranch_"#vtype#"_Mem") cc, INDEX16:$idx, i16imm:$offset, bb:$tgt)>;
+  def _Idx_Reg8 : Pat<(brcond (i1 (setcc (vtype 0), (am_indexed_imm_offset INDEX16:$idx, ACC8:$offset), CC)), bb:$tgt), (!cast<Instruction>("TestBranch_"#vtype#"_Mem") cc, INDEX16:$idx, ACC8:$offset, bb:$tgt)>;
+  def _Idx_Reg16 : Pat<(brcond (i1 (setcc (vtype 0), (am_indexed_imm_offset INDEX16:$idx, ACC16:$offset), CC)), bb:$tgt), (!cast<Instruction>("TestBranch_"#vtype#"_Mem") cc, INDEX16:$idx, ACC16:$offset, bb:$tgt)>;
 }
 
 multiclass MC6809TestBraCondPat<CondCode CC, int ccode> {

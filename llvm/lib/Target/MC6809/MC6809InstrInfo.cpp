@@ -1536,6 +1536,22 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::Test_i16_Reg:
     expandTestReg(Builder, MI);
     break;
+  // Fused test-and-branch: split into Test + ConditionalLongBranchRelative.
+  case MC6809::TestBranch_i8_Reg:
+  case MC6809::TestBranch_i16_Reg:
+  case MC6809::TestBranch_i8_Mem:
+  case MC6809::TestBranch_i16_Mem:
+  // Fused compare-and-branch: split into Compare + ConditionalLongBranchRelative.
+  case MC6809::CompareBranch_i8_Imm:
+  case MC6809::CompareBranch_i16_Imm:
+  case MC6809::CompareBranch_i8_Reg:
+  case MC6809::CompareBranch_i16_Reg:
+  case MC6809::CompareBranch_i8_Mem:
+  case MC6809::CompareBranch_i16_Mem:
+  case MC6809::CompareBranch_i8_Pull:
+  case MC6809::CompareBranch_i16_Pull:
+    expandFusedCompareBranch(Builder, MI);
+    break;
   case MC6809::Copy8:
   case MC6809::Copy16:
     MI.setDesc(Builder.getTII().get(MC6809::TFRp));
@@ -3386,4 +3402,57 @@ std::pair<unsigned, unsigned> MC6809InstrInfo::decomposeMachineOperandsTargetFla
 ArrayRef<std::pair<unsigned, const char *>> MC6809InstrInfo::getSerializableDirectMachineOperandTargetFlags() const {
   static const std::pair<unsigned, const char *> Flags[] = {{MC6809::MO_LO, "lo"}, {MC6809::MO_HI, "hi"}, {MC6809::MO_HI_JT, "hi-jt"}};
   return Flags;
+}
+
+void MC6809InstrInfo::expandFusedCompareBranch(MachineIRBuilder &Builder, MachineInstr &MI) const {
+  // Fused compare-and-branch pseudos (bug #42). These were created as single
+  // instructions so the register allocator couldn't insert CC-clobbering
+  // reloads between the compare and branch. Now split them back.
+  //
+  // Operand layout:
+  //   TestBranch_*_Reg:  (cc, src, tgt)
+  //   TestBranch_*_Mem:  (cc, idx, offset, tgt)
+  //   CompareBranch_*_Imm:  (cc, src, imm, tgt)
+  //   CompareBranch_*_Reg:  (cc, src, src2, tgt)
+  //   CompareBranch_*_Mem:  (cc, src, idx, offset, tgt)
+  //   CompareBranch_*_Pull: (cc, src, stack, tgt)
+  //
+  // The last operand is always the branch target MBB.
+
+  unsigned Opc = MI.getOpcode();
+  unsigned NumOps = MI.getNumOperands();
+  MachineBasicBlock *TargetMBB = MI.getOperand(NumOps - 1).getMBB();
+  unsigned CC = MI.getOperand(0).getImm();
+
+  // Map fused opcode → original compare/test opcode.
+  unsigned CmpOpc;
+  switch (Opc) {
+  case MC6809::TestBranch_i8_Reg:  CmpOpc = MC6809::Test_i8_Reg; break;
+  case MC6809::TestBranch_i16_Reg: CmpOpc = MC6809::Test_i16_Reg; break;
+  case MC6809::TestBranch_i8_Mem:  CmpOpc = MC6809::Test_i8_Mem; break;
+  case MC6809::TestBranch_i16_Mem: CmpOpc = MC6809::Test_i16_Mem; break;
+  case MC6809::CompareBranch_i8_Imm:  CmpOpc = MC6809::Compare_i8_Imm; break;
+  case MC6809::CompareBranch_i16_Imm: CmpOpc = MC6809::Compare_i16_Imm; break;
+  case MC6809::CompareBranch_i8_Reg:  CmpOpc = MC6809::Compare_i8_Reg; break;
+  case MC6809::CompareBranch_i16_Reg: CmpOpc = MC6809::Compare_i16_Reg; break;
+  case MC6809::CompareBranch_i8_Mem:  CmpOpc = MC6809::Compare_i8_Mem; break;
+  case MC6809::CompareBranch_i16_Mem: CmpOpc = MC6809::Compare_i16_Mem; break;
+  case MC6809::CompareBranch_i8_Pull:  CmpOpc = MC6809::Compare_i8_Pull; break;
+  case MC6809::CompareBranch_i16_Pull: CmpOpc = MC6809::Compare_i16_Pull; break;
+  default: llvm_unreachable("Unknown fused compare-branch opcode");
+  }
+
+  // Emit the compare/test — all operands except the last (branch target).
+  // The compare defines CC as an implicit physical register.
+  auto CmpMI = Builder.buildInstr(CmpOpc);
+  CmpMI.addDef(MC6809::CC, RegState::Dead);
+  for (unsigned I = 0; I < NumOps - 1; ++I)
+    CmpMI.add(MI.getOperand(I));
+
+  // Emit the conditional branch.
+  Builder.buildInstr(MC6809::LBlbc)
+      .addImm(CC)
+      .addMBB(TargetMBB);
+
+  MI.eraseFromParent();
 }

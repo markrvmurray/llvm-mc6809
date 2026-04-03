@@ -26,6 +26,7 @@ add_llvm_target(MC6809CodeGen
   GISel/MC6809LegalizerInfo.cpp
   GISel/MC6809RegisterBankInfo.cpp
   MC6809AsmPrinter.cpp
+  MC6809BundleCC.cpp
   MC6809CallGraphUtils.cpp
   MC6809CallingConv.cpp
   MC6809CopyOpt.cpp

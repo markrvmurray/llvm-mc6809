@@ -195,6 +195,7 @@ private:
 
   void expandTestReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandTestReg32(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandFusedCompareBranch(MachineIRBuilder &Builder, MachineInstr &MI) const;
 
   void expandAdd32Imm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandSub32Imm(MachineIRBuilder &Builder, MachineInstr &MI) const;

@@ -18,7 +18,7 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; CHECK-NEXT:    std 18,u
 ; CHECK-NEXT:    ldd 14,u
 ; CHECK-NEXT:    tstb
-; CHECK-NEXT:    ble .LBB0_3
+; CHECK-NEXT:    lble .LBB0_3
 ; CHECK-NEXT:  ; %bb.1: ; %for.body.preheader
 ; CHECK-NEXT:    clra
 ; CHECK-NEXT:    std 12,u
@@ -42,12 +42,12 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; CHECK-NEXT:    ldd 6,u
 ; CHECK-NEXT:    leax 2,x
 ; CHECK-NEXT:    addd #-1
-; CHECK-NEXT:    cmpd #0
 ; CHECK-NEXT:    std 4,u
 ; CHECK-NEXT:    ldd 18,u
 ; CHECK-NEXT:    std 16,u
 ; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    bne .LBB0_2
+; CHECK-NEXT:    cmpd #0
+; CHECK-NEXT:    lbne .LBB0_2
 ; CHECK-NEXT:  .LBB0_3: ; %for.end
 ; CHECK-NEXT:    ldx 18,u
 ; CHECK-NEXT:    tfr u,s
@@ -62,7 +62,7 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; CHECK-HD6309-NEXT:    tfr s,u
 ; CHECK-HD6309-NEXT:    ldw #0
 ; CHECK-HD6309-NEXT:    tstb
-; CHECK-HD6309-NEXT:    ble .LBB0_3
+; CHECK-HD6309-NEXT:    lble .LBB0_3
 ; CHECK-HD6309-NEXT:  ; %bb.1: ; %for.body.preheader
 ; CHECK-HD6309-NEXT:    clra
 ; CHECK-HD6309-NEXT:    ldw #0
@@ -80,7 +80,7 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; CHECK-HD6309-NEXT:    leax 2,x
 ; CHECK-HD6309-NEXT:    addd #-1
 ; CHECK-HD6309-NEXT:    tstd
-; CHECK-HD6309-NEXT:    bne .LBB0_2
+; CHECK-HD6309-NEXT:    lbne .LBB0_2
 ; CHECK-HD6309-NEXT:  .LBB0_3: ; %for.end
 ; CHECK-HD6309-NEXT:    tfr w,x
 ; CHECK-HD6309-NEXT:    tfr u,s

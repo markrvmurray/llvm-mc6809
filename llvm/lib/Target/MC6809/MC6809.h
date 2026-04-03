@@ -30,6 +30,7 @@ class MC6809TargetMachine;
 
 InstructionSelector *createMC6809InstructionSelector(const MC6809TargetMachine &TM, MC6809Subtarget &, MC6809RegisterBankInfo &);
 
+void initializeMC6809BundleCCPass(PassRegistry &);
 void initializeMC6809CombinerPass(PassRegistry &);
 void initializeMC6809CopyOptPass(PassRegistry &);
 void initializeMC6809IncDecPhiPass(PassRegistry &);

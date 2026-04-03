@@ -40,6 +40,7 @@
 #include "MC6809IndexIV.h"
 #include "MC6809InsertCopies.h"
 #include "MC6809Internalize.h"
+#include "MC6809BundleCC.h"
 #include "MC6809LateOptimization.h"
 #include "MC6809PostRASpillOpt.h"
 #include "MC6809LowerSelect.h"
@@ -62,6 +63,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMC6809Target() {
 
   PassRegistry &PR = *PassRegistry::getPassRegistry();
   initializeGlobalISel(PR);
+  initializeMC6809BundleCCPass(PR);
   initializeMC6809CombinerPass(PR);
   initializeMC6809CopyOptPass(PR);
   initializeMC6809IncDecPhiPass(PR);
