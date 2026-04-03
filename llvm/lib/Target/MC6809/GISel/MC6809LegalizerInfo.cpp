@@ -200,8 +200,9 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   getActionDefinitionsBuilder({G_SHL, G_LSHR, G_ASHR, G_ROTR, G_ROTL})
       .legalForCartesianProduct(LegalScalars, {s1})
       .customForCartesianProduct(LegalScalars, {s8})
+      .customForCartesianProduct({s32}, {s8})
       .clampScalar(1, s1, s8)
-      .clampScalar(0, s8, s16);
+      .clampScalar(0, s8, s32);
 
   getActionDefinitionsBuilder({G_FSHL, G_FSHR, G_UMULO, G_UMULFIX, G_SMULFIX, G_SMULFIXSAT, G_UMULFIXSAT, G_UDIVFIX, G_SDIVFIX, G_SDIVFIXSAT, G_UDIVFIXSAT, G_FCANONICALIZE})
       .libcall();
@@ -405,60 +406,51 @@ MC6809LegalizerInfo::legalizeAddSub(LegalizerHelper &Helper, MachineRegisterInfo
 }
 #endif
 
-bool
-MC6809LegalizerInfo::legalizeBitwise(LegalizerHelper &Helper,
-    MachineRegisterInfo &MRI, MachineInstr &MI,
-    LostDebugLocObserver &LocObserver) const {
-  // Custom s32 AND/OR/XOR: decompose to two s16 ops with the lo result
-  // stored between them. This avoids ACC16 register pressure: D can only
-  // hold one i16 at a time, but the return sequence needs both halves.
-  // Sequence: AND_lo → Store lo → AND_hi → $ix = hi
-  unsigned Opc = MI.getOpcode();
-  assert((Opc == G_AND || Opc == G_OR || Opc == G_XOR) && "Unexpected opcode");
+/// Generalized i32 binary operation legalization helper.
+/// Decomposes an i32 binary op into two i16 ops, interleaving a Store
+/// between them when feeding a return chain (UNMERGE → Store lo + COPY hi).
+/// This avoids ACC16 register pressure: D holds only one i16 at a time.
+///
+/// buildLoOp/buildHiOp: callbacks that create the lo/hi i16 operations
+/// given the lo/hi parts of both operands.
+static bool legalizeI32BinaryOp(
+    MachineIRBuilder &B, MachineRegisterInfo &MRI,
+    MachineInstr &MI,
+    function_ref<MachineInstrBuilder(Register, Register)> BuildLoOp,
+    function_ref<MachineInstrBuilder(Register, Register)> BuildHiOp) {
   Register DstReg = MI.getOperand(0).getReg();
   Register LHSReg = MI.getOperand(1).getReg();
   Register RHSReg = MI.getOperand(2).getReg();
   LLT S16 = LLT::scalar(16);
-  assert(MRI.getType(DstReg) == LLT::scalar(32) && "Expected s32");
-
-  MachineIRBuilder &B = Helper.MIRBuilder;
-
-  // Find the UNMERGE + Store + COPY chain that consumes the i32 result.
-  MachineInstr *Unmerge = nullptr;
-  for (auto &Use : MRI.use_instructions(DstReg)) {
-    if (Use.getOpcode() == TargetOpcode::G_UNMERGE_VALUES) {
-      Unmerge = &Use;
-      break;
-    }
-  }
 
   // Unmerge both i32 operands into i16 lo/hi
   auto LHSParts = B.buildUnmerge(S16, LHSReg);
   auto RHSParts = B.buildUnmerge(S16, RHSReg);
 
+  // Find the UNMERGE + Store + COPY return chain
+  MachineInstr *Unmerge = nullptr;
+  for (auto &Use : MRI.use_instructions(DstReg))
+    if (Use.getOpcode() == TargetOpcode::G_UNMERGE_VALUES)
+      { Unmerge = &Use; break; }
+
   if (Unmerge) {
     Register LoUse = Unmerge->getOperand(0).getReg();
     Register HiUse = Unmerge->getOperand(1).getReg();
 
-    // Check if this is a simple return chain: LoUse → G_STORE, HiUse → COPY $ix
-    // Only apply the interleaved store optimization for this specific pattern.
+    // Detect return chain: LoUse → G_STORE, HiUse → COPY to phys reg
     MachineInstr *LoStore = nullptr;
     bool IsReturnChain = false;
     for (auto &Use : MRI.use_instructions(LoUse))
       if (Use.getOpcode() == TargetOpcode::G_STORE) { LoStore = &Use; break; }
-    if (LoStore) {
+    if (LoStore)
       for (auto &Use : MRI.use_instructions(HiUse))
         if (Use.getOpcode() == TargetOpcode::COPY && Use.getOperand(0).isReg()
             && Use.getOperand(0).getReg().isPhysical())
           { IsReturnChain = true; break; }
-    }
 
     if (IsReturnChain) {
-      // Step 1: Compute lo result
-      auto ResLo = B.buildInstr(Opc, {S16},
-          {LHSParts.getReg(0), RHSParts.getReg(0)});
-
-      // Step 2: Store lo result NOW (D is free after this)
+      // Compute lo, store immediately, compute hi, replace consumers
+      auto ResLo = BuildLoOp(LHSParts.getReg(0), RHSParts.getReg(0));
       Register Addr = LoStore->getOperand(1).getReg();
       MachineInstr *AddrDef = MRI.getVRegDef(Addr);
       auto NewAddr = B.buildFrameIndex(MRI.getType(Addr),
@@ -467,33 +459,35 @@ MC6809LegalizerInfo::legalizeBitwise(LegalizerHelper &Helper,
       LoStore->eraseFromParent();
       if (MRI.use_empty(Addr))
         AddrDef->eraseFromParent();
-
-      // Step 3: Compute hi result (D is free now)
-      auto ResHi = B.buildInstr(Opc, {S16},
-          {LHSParts.getReg(1), RHSParts.getReg(1)});
-
-      // Step 4: Replace consumers
+      auto ResHi = BuildHiOp(LHSParts.getReg(1), RHSParts.getReg(1));
       MRI.replaceRegWith(HiUse, ResHi.getReg(0));
       Unmerge->eraseFromParent();
-    } else {
-      // Not a simple return chain — use G_MERGE (may hit regalloc pressure
-      // for i32, but works for intermediate values in conditionals etc.)
-      auto ResLo = B.buildInstr(Opc, {S16},
-          {LHSParts.getReg(0), RHSParts.getReg(0)});
-      auto ResHi = B.buildInstr(Opc, {S16},
-          {LHSParts.getReg(1), RHSParts.getReg(1)});
-      B.buildMergeValues(DstReg, {ResLo.getReg(0), ResHi.getReg(0)});
+      MI.eraseFromParent();
+      return true;
     }
-  } else {
-    // No UNMERGE consumer — fall back to G_MERGE
-    auto ResLo = B.buildInstr(Opc, {S16},
-        {LHSParts.getReg(0), RHSParts.getReg(0)});
-    auto ResHi = B.buildInstr(Opc, {S16},
-        {LHSParts.getReg(1), RHSParts.getReg(1)});
-    B.buildMergeValues(DstReg, {ResLo.getReg(0), ResHi.getReg(0)});
   }
+
+  // Fallback: use G_MERGE (may hit regalloc pressure for complex patterns)
+  auto ResLo = BuildLoOp(LHSParts.getReg(0), RHSParts.getReg(0));
+  auto ResHi = BuildHiOp(LHSParts.getReg(1), RHSParts.getReg(1));
+  B.buildMergeValues(DstReg, {ResLo.getReg(0), ResHi.getReg(0)});
   MI.eraseFromParent();
   return true;
+}
+
+bool
+MC6809LegalizerInfo::legalizeBitwise(LegalizerHelper &Helper,
+    MachineRegisterInfo &MRI, MachineInstr &MI,
+    LostDebugLocObserver &LocObserver) const {
+  unsigned Opc = MI.getOpcode();
+  assert((Opc == G_AND || Opc == G_OR || Opc == G_XOR) && "Unexpected opcode");
+  assert(MRI.getType(MI.getOperand(0).getReg()) == LLT::scalar(32) && "Expected s32");
+  MachineIRBuilder &B = Helper.MIRBuilder;
+  LLT S16 = LLT::scalar(16);
+  auto BuildOp = [&](Register L, Register R) {
+    return B.buildInstr(Opc, {S16}, {L, R});
+  };
+  return legalizeI32BinaryOp(B, MRI, MI, BuildOp, BuildOp);
 }
 
 bool MC6809LegalizerInfo::legalizeExtractInsert(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const {
