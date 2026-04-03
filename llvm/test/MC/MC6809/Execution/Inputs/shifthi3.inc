@@ -1,15 +1,16 @@
 ;;; shifthi3.inc — 16-bit variable shift library functions
 ;;;
-;;; All routines: X = value, 2,s = shift amount (after return addr).
+;;; Calling convention (matches LLVM MC6809 codegen):
+;;;   X = value to shift, B = shift amount (unsigned byte).
 ;;; Returns: X = result.  Clobbers: D.  Preserves: Y, U.
 
 ;;; __ashlhi3 — 16-bit left shift
 	.globl	__ashlhi3
 	.type	__ashlhi3,@function
 __ashlhi3:
-	lda	3,s		; shift count (lo byte of stack slot)
+	tstb
 	beq	.Lshl16_zero
-	pshs	a		; push count to stack
+	pshs	b		; push count to stack
 	tfr	x,d		; D = value (A=hi, B=lo)
 .Lshl16_loop:
 	aslb			; shift lo left, carry → C
@@ -26,9 +27,9 @@ __ashlhi3:
 	.globl	__lshrhi3
 	.type	__lshrhi3,@function
 __lshrhi3:
-	lda	3,s
+	tstb
 	beq	.Llsr16_zero
-	pshs	a
+	pshs	b
 	tfr	x,d
 .Llsr16_loop:
 	lsra			; shift hi right, bit 0 → C
@@ -45,9 +46,9 @@ __lshrhi3:
 	.globl	__ashrhi3
 	.type	__ashrhi3,@function
 __ashrhi3:
-	lda	3,s
+	tstb
 	beq	.Lasr16_zero
-	pshs	a
+	pshs	b
 	tfr	x,d
 .Lasr16_loop:
 	asra			; arithmetic shift hi, sign preserved, bit 0 → C
