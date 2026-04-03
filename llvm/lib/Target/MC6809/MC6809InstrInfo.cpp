@@ -566,8 +566,7 @@ bool MC6809InstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock *&
       return true;
     }
 
-    // Fused compare-and-branch pseudos are opaque to branch analysis.
-    // They will be expanded post-RA; until then, don't try to optimize them.
+    // Fused compare-and-branch pseudos: opaque to branch analysis.
     if (isFusedCompareBranch(I->getOpcode()))
       return true;
 
@@ -666,6 +665,8 @@ unsigned MC6809InstrInfo::removeBranch(MachineBasicBlock &MBB, int *BytesRemoved
     if (I->isDebugValue())
       continue;
     if (!I->isBranch())
+      break;
+    if (isFusedCompareBranch(I->getOpcode()))
       break;
     // Remove the branch.
     Bytes += getInstSizeInBytes(*I);
