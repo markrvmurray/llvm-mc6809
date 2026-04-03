@@ -995,6 +995,22 @@ static MachineInstrBuilder emitSpillStore(MachineIRBuilder &Builder,
       llvm_unreachable("Unexpected CC bit copy in.");
     }
     MIBundleBuilder(MBB, B, ++E);
+  } else if (AreClasses(MC6809::ACC8RegClass, MC6809::BIT1RegClass)) {
+    // BIT1 → ACC8: the boolean value is in the LSB of an ACC8 register.
+    // Copy the byte and mask to ensure only bit 0 is set.
+    const TargetRegisterInfo *TRI = Builder.getMRI()->getTargetRegisterInfo();
+    SrcReg = TRI->getMatchingSuperReg(SrcReg, MC6809::sub_lsb, &MC6809::ACC8RegClass);
+    if (!SrcReg) SrcReg = MI->getOperand(1).getReg(); // fallback
+    if (DestReg != SrcReg)
+      Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(SrcReg);
+    Builder.buildInstr(MC6809::AND_i8_Imm).addDef(DestReg).addUse(DestReg).addImm(1);
+  } else if (AreClasses(MC6809::BIT1RegClass, MC6809::ACC8RegClass)) {
+    // ACC8 → BIT1: just copy the byte (the LSB is the boolean).
+    const TargetRegisterInfo *TRI = Builder.getMRI()->getTargetRegisterInfo();
+    DestReg = TRI->getMatchingSuperReg(DestReg, MC6809::sub_lsb, &MC6809::ACC8RegClass);
+    if (!DestReg) DestReg = MI->getOperand(0).getReg();
+    if (DestReg != SrcReg)
+      Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(SrcReg);
   } else
     llvm_unreachable("Unexpected physical register copy.");
 }

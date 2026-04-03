@@ -103,9 +103,15 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   getActionDefinitionsBuilder({G_EXTRACT, G_INSERT})
       .customForCartesianProduct(LegalTypes, LegalTypes).unsupported();
 
+  // G_ZEXT/G_ANYEXT: (s16,s1) has no selection pattern — custom decompose
+  // to s1→s8 (AND with 1) then s8→s16 (merge with zero hi byte).
   getActionDefinitionsBuilder({G_ZEXT, G_ANYEXT})
+      .customIf([=](const LegalityQuery &Query) {
+        return Query.Types[0] == s16 && Query.Types[1] == s1;
+      })
       .legalForCartesianProduct(LegalScalars, NotMaxWithOne)
-      .clampScalar(0, *LegalScalars.begin(), *std::prev(LegalScalars.end())).clampScalar(1, *NotMaxWithOne.begin(), *std::prev(NotMaxWithOne.end()));
+      .clampScalar(0, *LegalScalars.begin(), *std::prev(LegalScalars.end()))
+      .clampScalar(1, *NotMaxWithOne.begin(), *std::prev(NotMaxWithOne.end()));
 
   getActionDefinitionsBuilder(G_SEXT)
       .legalForCartesianProduct(LegalScalars, LegalShortScalars);
@@ -310,6 +316,22 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
   case G_OR:
   case G_XOR:
     return legalizeBitwise(Helper, MRI, MI, LocObserver);
+  case G_ZEXT:
+  case G_ANYEXT: {
+    // Decompose s1→s16: zext s1→s8 (AND with 1), then merge with zero.
+    // Can't chain G_ZEXT (combiner folds them → infinite loop).
+    Register DstReg = MI.getOperand(0).getReg();
+    Register SrcReg = MI.getOperand(1).getReg();
+    MachineIRBuilder &B = Helper.MIRBuilder;
+    LLT S8 = LLT::scalar(8);
+    // s1→s8: zext (legal — selectImpl produces AND #1)
+    auto Ext8 = B.buildZExt(S8, SrcReg);
+    // s8→s16: merge lo=Ext8, hi=0
+    auto Zero = B.buildConstant(S8, 0);
+    B.buildMergeValues(DstReg, {Ext8.getReg(0), Zero.getReg(0)});
+    MI.eraseFromParent();
+    return true;
+  }
   case G_EXTRACT:
   case G_INSERT:
     return legalizeExtractInsert(Helper, MRI, MI, LocObserver);
