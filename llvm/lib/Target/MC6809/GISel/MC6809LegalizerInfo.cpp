@@ -192,13 +192,14 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // Constant shifts (s8 amount) are handled in the instruction selector
   // (selectShift16 for i16, selectShiftExtend for decomposed i8).
   // Variable shifts go through custom → legalizeShiftRotate → libcall.
-  // i8 shift-by-1: legal (ASL/LSR/ASR). i8 larger constant/variable: custom
-  // (decomposes in legalizeShiftRotate). i16 constant shifts: legal,
-  // hand-selected by selectShift16 into LSL_i16_Reg loops.
+  // Shift-by-1 (s1 amount): legal on all targets (native ASL/LSR/ASR).
+  // Shift by s8 amount: custom → legalizeShiftRotate decomposes constants
+  // into shift-by-1 chains (G_SHLE/G_LSHRE) and routes variables to libcalls.
+  // selectShift16 in the isel handles i16 constant shifts directly via
+  // LSL_i16_Reg loops (ASLB+ROLA / LSRA+RORB byte pairs).
   getActionDefinitionsBuilder({G_SHL, G_LSHR, G_ASHR, G_ROTR, G_ROTL})
       .legalForCartesianProduct(LegalScalars, {s1})
-      .legalForCartesianProduct({s16}, {s8})
-      .customForCartesianProduct({s8}, {s8})
+      .customForCartesianProduct(LegalScalars, {s8})
       .clampScalar(1, s1, s8)
       .clampScalar(0, s8, s16);
 

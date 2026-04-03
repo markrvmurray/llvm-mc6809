@@ -8,9 +8,14 @@
 ; RUN: %usim09batch --timeout=500000 %t.hex | FileCheck %s
 ; REQUIRES: usim
 ;
-; Codegen execution test: constant shifts (shl, lshr, ashr) for i8 and i16.
+; Codegen execution test: shifts (shl, lshr, ashr) for i8 and i16,
+; both constant and variable. Variable shifts use libcall functions.
 
 .include "runtime.inc"
+
+	.text
+.include "shiftqi3.inc"
+.include "shifthi3.inc"
 
 	.section .rom,"ax",@progbits
 
@@ -146,5 +151,72 @@ test_main:
 	jsr	putx
 	jsr	putnl
 ; CHECK-NEXT: F800
+
+	;; ===== Variable i8 shifts =====
+
+	;; shl8_var(1, 7) = 0x80
+	ldd	#7
+	pshs	d
+	ldb	#1
+	jsr	test_shl8_var
+	leas	2,s
+	tfr	b,a
+	jsr	puthex
+	jsr	putnl
+; CHECK-NEXT: 80
+
+	;; lshr8_var(0x80, 7) = 0x01
+	ldd	#7
+	pshs	d
+	ldb	#0x80
+	jsr	test_lshr8_var
+	leas	2,s
+	tfr	b,a
+	jsr	puthex
+	jsr	putnl
+; CHECK-NEXT: 01
+
+	;; ashr8_var(0x80, 4) = 0xF8 (sign-extend)
+	ldd	#4
+	pshs	d
+	ldb	#0x80
+	jsr	test_ashr8_var
+	leas	2,s
+	tfr	b,a
+	jsr	puthex
+	jsr	putnl
+; CHECK-NEXT: F8
+
+	;; ===== Variable i16 shifts =====
+
+	;; shl16_var(0x1234, 4) = 0x2340
+	ldd	#4
+	pshs	d
+	ldx	#0x1234
+	jsr	test_shl16_var
+	leas	2,s
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 2340
+
+	;; lshr16_var(0xABCD, 8) = 0x00AB
+	ldd	#8
+	pshs	d
+	ldx	#0xABCD
+	jsr	test_lshr16_var
+	leas	2,s
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 00AB
+
+	;; ashr16_var(0x8000, 8) = 0xFF80 (sign-extend)
+	ldd	#8
+	pshs	d
+	ldx	#0x8000
+	jsr	test_ashr16_var
+	leas	2,s
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: FF80
 
 	jsr	halt
