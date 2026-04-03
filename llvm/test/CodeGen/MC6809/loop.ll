@@ -22,8 +22,10 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; CHECK-NEXT:    std 4,u
 ; CHECK-NEXT:  .LBB0_2: ; %for.body
 ; CHECK-NEXT:    ; =>This Inner Loop Header: Depth=1
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    ldd ,x
 ; CHECK-NEXT:    std 6,u
+; CHECK-NEXT:    ldd 0,u
 ; CHECK-NEXT:    ldd 4,u
 ; CHECK-NEXT:    pshs d
 ; CHECK-NEXT:    ldd 6,u

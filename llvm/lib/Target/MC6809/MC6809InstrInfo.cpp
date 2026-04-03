@@ -2395,13 +2395,24 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
 
   auto DestRegOp = MI.getOperand(0);
 
-  // If the destination is a spill register, load into the real accumulator
-  // then store to the spill slot. The MUL_D Defs=[AA,AB,AD] tells the
-  // allocator that the real accumulator is clobbered, so it won't leave
-  // live values in A/B across operations that expand through spill registers.
+  // If the destination is a spill register, save the real accumulator ($ad),
+  // load from memory into it, store to the spill slot, then restore $ad.
+  // Without the save/restore, loading into the spill register clobbers
+  // whatever live value was in $ad (bug #26 root cause).
   if (isSpillReg(DestRegOp.getReg())) {
     Register RealReg = getRealRegForSpill(DestRegOp.getReg());
     MachineFunction &MF = *MI.getMF();
+
+    // Save $ad to an emergency spill slot (U-relative STD).
+    // Can't use PSHS D here because the MC layer's register list format
+    // isn't compatible with buildInstr at post-RA expansion time.
+    MachineFunction &SpillMF = Builder.getMF();
+    int EmergencyFI = SpillMF.getFrameInfo().CreateStackObject(2, Align(1), true);
+    int EmergencyOffset = SpillMF.getFrameInfo().getObjectOffset(EmergencyFI);
+    Builder.buildInstr(MC6809::STDi_o8)
+        .addUse(MC6809::AD, RegState::Implicit)
+        .addImm(EmergencyOffset)
+        .addReg(MC6809::SU);
 
     // Load from memory into the real accumulator.
     MI.getOperand(0).setReg(RealReg);
@@ -2412,6 +2423,12 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
     ++InsertPt;
     MachineIRBuilder PostBuilder(*MI.getParent(), InsertPt);
     emitSpillStore(PostBuilder, RealReg, DestRegOp.getReg(), MF);
+
+    // Restore $ad from emergency spill slot.
+    PostBuilder.buildInstr(MC6809::LDDi_o8)
+        .addDef(MC6809::AD, RegState::Implicit)
+        .addImm(EmergencyOffset)
+        .addReg(MC6809::SU);
     return;
   }
 
@@ -2447,15 +2464,28 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
 
 void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI) const {
 
-  // If the source is a spill register, load from the spill slot into the
-  // real accumulator first, then proceed with the store.
+  // If the source is a spill register, save $ad, load from the spill slot
+  // into the real accumulator, then the store will use it. After the store,
+  // restore $ad. This prevents clobbering a live value in D (bug #26).
+  bool NeedRestore = false;
+  int EmergencyOffset = 0;
   if (isSpillReg(MI.getOperand(0).getReg())) {
     Register SpillReg = MI.getOperand(0).getReg();
     Register RealReg = getRealRegForSpill(SpillReg);
     MachineFunction &MF = *MI.getMF();
     MachineIRBuilder LoadBuilder(*MI.getParent(), MI.getIterator());
+
+    // Save $ad to emergency spill slot
+    int EmergencyFI = MF.getFrameInfo().CreateStackObject(2, Align(1), true);
+    EmergencyOffset = MF.getFrameInfo().getObjectOffset(EmergencyFI);
+    LoadBuilder.buildInstr(MC6809::STDi_o8)
+        .addUse(MC6809::AD, RegState::Implicit)
+        .addImm(EmergencyOffset)
+        .addReg(MC6809::SU);
+
     emitSpillLoad(LoadBuilder, RealReg, SpillReg, MF);
     MI.getOperand(0).setReg(RealReg);
+    NeedRestore = true;
   }
 
   auto SrcRegOp = MI.getOperand(0); // re-read AFTER spill fix
@@ -2485,6 +2515,17 @@ void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI
     MI.getOperand(2).setImplicit();
   } else
     llvm_unreachable("Unknown offset type for StoreIdx");
+
+  // Restore $ad from emergency spill slot
+  if (NeedRestore) {
+    MachineBasicBlock::iterator RestorePt = MI.getIterator();
+    ++RestorePt;
+    MachineIRBuilder RestoreBuilder(*MI.getParent(), RestorePt);
+    RestoreBuilder.buildInstr(MC6809::LDDi_o8)
+        .addDef(MC6809::AD, RegState::Implicit)
+        .addImm(EmergencyOffset)
+        .addReg(MC6809::SU);
+  }
 }
 
 // Forward declarations for 6809 register-to-memory helpers.

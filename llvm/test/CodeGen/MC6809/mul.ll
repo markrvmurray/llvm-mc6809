@@ -10,8 +10,10 @@ define dso_local signext i8 @mul_s_i8(i8 noundef signext %a, i8 noundef signext 
 ; CHECK-NEXT:    tfr s,u
 ; CHECK-NEXT:    tfr b,a
 ; CHECK-NEXT:    sta 6,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    ldb 11,u
 ; CHECK-NEXT:    stb 7,u
+; CHECK-NEXT:    ldd 0,u
 ; CHECK-NEXT:    ldd 6,u
 ; CHECK-NEXT:    mul
 ; CHECK-NEXT:    std 6,u
@@ -42,9 +44,12 @@ define dso_local i16 @mul_s_i8_i16(i8 noundef signext %a, i8 noundef signext %b)
 ; CHECK-NEXT:    tfr s,u
 ; CHECK-NEXT:    tfr b,a
 ; CHECK-NEXT:    sta 6,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    ldb 15,u
 ; CHECK-NEXT:    stb 7,u
+; CHECK-NEXT:    ldd 0,u
 ; CHECK-NEXT:    sex
+; CHECK-NEXT:    lda 6,u
 ; CHECK-NEXT:    tfr a,b
 ; CHECK-NEXT:    sex
 ; CHECK-NEXT:    tfr a,b
@@ -107,8 +112,10 @@ define dso_local signext i8 @mul_s_i8_consts(i8 noundef signext %a, i8 noundef s
 ; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    tfr s,u
 ; CHECK-NEXT:    stb 9,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    lda 13,u
 ; CHECK-NEXT:    sta 6,u
+; CHECK-NEXT:    ldd 0,u
 ; CHECK-NEXT:    lda #12
 ; CHECK-NEXT:    sta 8,u
 ; CHECK-NEXT:    ldd 8,u
@@ -153,8 +160,10 @@ define dso_local zeroext i8 @mul_u_i8(i8 noundef zeroext %a, i8 noundef zeroext 
 ; CHECK-NEXT:    tfr s,u
 ; CHECK-NEXT:    tfr b,a
 ; CHECK-NEXT:    sta 6,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    ldb 11,u
 ; CHECK-NEXT:    stb 7,u
+; CHECK-NEXT:    ldd 0,u
 ; CHECK-NEXT:    ldd 6,u
 ; CHECK-NEXT:    mul
 ; CHECK-NEXT:    std 6,u
@@ -185,8 +194,10 @@ define dso_local i16 @mul_u_i8_i16(i8 noundef zeroext %a, i8 noundef zeroext %b)
 ; CHECK-NEXT:    tfr s,u
 ; CHECK-NEXT:    tfr b,a
 ; CHECK-NEXT:    sta 6,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    ldb 11,u
 ; CHECK-NEXT:    stb 7,u
+; CHECK-NEXT:    ldd 0,u
 ; CHECK-NEXT:    ldd 6,u
 ; CHECK-NEXT:    mul
 ; CHECK-NEXT:    std 6,u
@@ -222,8 +233,10 @@ define dso_local zeroext i8 @mul_u_i8_consts(i8 noundef zeroext %a, i8 noundef z
 ; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    tfr s,u
 ; CHECK-NEXT:    stb 9,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    lda 13,u
 ; CHECK-NEXT:    sta 6,u
+; CHECK-NEXT:    ldd 0,u
 ; CHECK-NEXT:    lda #13
 ; CHECK-NEXT:    sta 8,u
 ; CHECK-NEXT:    ldd 8,u
@@ -266,8 +279,10 @@ define dso_local i16 @mul_s_i16(i16 noundef %a, i16 noundef %b) local_unnamed_ad
 ; CHECK-NEXT:    leas -10,s
 ; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    tfr s,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    ldd 14,u
 ; CHECK-NEXT:    std 4,u
+; CHECK-NEXT:    ldd 0,u
 ; CHECK-NEXT:    lda 4,u
 ; CHECK-NEXT:    sta 9,u
 ; CHECK-NEXT:    tfr x,d
@@ -332,8 +347,10 @@ define dso_local i16 @mul_s_i16_consts(i16 noundef %a, i16 noundef %b) local_unn
 ; CHECK-NEXT:    sta 8,u
 ; CHECK-NEXT:    aslb
 ; CHECK-NEXT:    std 10,u ; 2-byte Folded Spill
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    ldd 16,u
 ; CHECK-NEXT:    std 4,u
+; CHECK-NEXT:    ldd 0,u
 ; CHECK-NEXT:    ldd 6,u
 ; CHECK-NEXT:    mul
 ; CHECK-NEXT:    std 6,u
@@ -404,8 +421,10 @@ define dso_local i16 @mul_u_i16(i16 noundef %a, i16 noundef %b) local_unnamed_ad
 ; CHECK-NEXT:    leas -10,s
 ; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    tfr s,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    ldd 14,u
 ; CHECK-NEXT:    std 4,u
+; CHECK-NEXT:    ldd 0,u
 ; CHECK-NEXT:    lda 4,u
 ; CHECK-NEXT:    sta 9,u
 ; CHECK-NEXT:    tfr x,d
@@ -470,8 +489,10 @@ define dso_local i16 @mul_u_i16_consts(i16 noundef %a, i16 noundef %b) local_unn
 ; CHECK-NEXT:    sta 8,u
 ; CHECK-NEXT:    aslb
 ; CHECK-NEXT:    std 10,u ; 2-byte Folded Spill
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    ldd 16,u
 ; CHECK-NEXT:    std 4,u
+; CHECK-NEXT:    ldd 0,u
 ; CHECK-NEXT:    ldd 6,u
 ; CHECK-NEXT:    mul
 ; CHECK-NEXT:    std 6,u
@@ -542,12 +563,18 @@ define dso_local i32 @mul_s_i32(i32 noundef %a, i32 noundef %b) local_unnamed_ad
 ; CHECK-NEXT:    leas -19,s
 ; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    tfr s,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    ldd 23,u
 ; CHECK-NEXT:    std 17,u
+; CHECK-NEXT:    ldd 0,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    ldd 27,u
 ; CHECK-NEXT:    std 4,u
+; CHECK-NEXT:    ldd 0,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    ldd 25,u
 ; CHECK-NEXT:    std 17,u
+; CHECK-NEXT:    ldd 0,u
 ; CHECK-NEXT:    lda 4,u
 ; CHECK-NEXT:    sta 7,u
 ; CHECK-NEXT:    ldb 18,u
@@ -560,6 +587,7 @@ define dso_local i32 @mul_s_i32(i32 noundef %a, i32 noundef %b) local_unnamed_ad
 ; CHECK-NEXT:    std 8,u
 ; CHECK-NEXT:    mul
 ; CHECK-NEXT:    std 8,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    std 17,u ; 2-byte Folded Spill
 ; CHECK-NEXT:    ldb 18,u
 ; CHECK-NEXT:    stb 6,u
@@ -585,8 +613,10 @@ define dso_local i32 @mul_s_i32(i32 noundef %a, i32 noundef %b) local_unnamed_ad
 ; CHECK-NEXT:    adda ,s
 ; CHECK-NEXT:    leas s,2
 ; CHECK-NEXT:    stb 3,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    ldd 2,u
 ; CHECK-NEXT:    std 10,u ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 0,u
 ; CHECK-NEXT:    andb #1
 ; CHECK-NEXT:    lda 17,u
 ; CHECK-NEXT:    sta 18,u
@@ -596,6 +626,7 @@ define dso_local i32 @mul_s_i32(i32 noundef %a, i32 noundef %b) local_unnamed_ad
 ; CHECK-NEXT:    ldb 9,u
 ; CHECK-NEXT:    addb ,s+
 ; CHECK-NEXT:    stb 9,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    stb 12,u ; 1-byte Folded Spill
 ; CHECK-NEXT:    lda 4,u
 ; CHECK-NEXT:    sta 17,u
@@ -609,6 +640,7 @@ define dso_local i32 @mul_s_i32(i32 noundef %a, i32 noundef %b) local_unnamed_ad
 ; CHECK-NEXT:    std 2,u
 ; CHECK-NEXT:    mul
 ; CHECK-NEXT:    std 2,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    std 13,u ; 2-byte Folded Spill
 ; CHECK-NEXT:    lda 8,u
 ; CHECK-NEXT:    ldb 5,u
@@ -632,8 +664,10 @@ define dso_local i32 @mul_s_i32(i32 noundef %a, i32 noundef %b) local_unnamed_ad
 ; CHECK-NEXT:    pshs b
 ; CHECK-NEXT:    addb ,s+
 ; CHECK-NEXT:    stb 18,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    ldd 10,u ; 2-byte Folded Reload
 ; CHECK-NEXT:    std 2,u
+; CHECK-NEXT:    ldd 0,u
 ; CHECK-NEXT:    ldb 18,u
 ; CHECK-NEXT:    pshs s,s
 ; CHECK-NEXT:    addb 1,s
@@ -753,8 +787,10 @@ define dso_local i32 @mul_s_i32_consts(i32 noundef %a, i32 noundef %b) local_unn
 ; CHECK-NEXT:    leas -15,s
 ; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    tfr s,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    ldd 19,u
 ; CHECK-NEXT:    std 13,u
+; CHECK-NEXT:    ldd 0,u
 ; CHECK-NEXT:    lda 13,u
 ; CHECK-NEXT:    sta 5,u
 ; CHECK-NEXT:    tfr x,d
@@ -798,6 +834,7 @@ define dso_local i32 @mul_s_i32_consts(i32 noundef %a, i32 noundef %b) local_unn
 ; CHECK-NEXT:    ldb 3,u
 ; CHECK-NEXT:    addb ,s+
 ; CHECK-NEXT:    stb 3,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    stb 13,u ; 1-byte Folded Spill
 ; CHECK-NEXT:    lda 13,u
 ; CHECK-NEXT:    sta 13,u
@@ -897,8 +934,10 @@ define dso_local i32 @mul_s_i32_consts(i32 noundef %a, i32 noundef %b) local_unn
 ; CHECK-NEXT:    ldb 7,u
 ; CHECK-NEXT:    addb ,s+
 ; CHECK-NEXT:    stb 7,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    ldd 23,u
 ; CHECK-NEXT:    std 13,u
+; CHECK-NEXT:    ldd 0,u
 ; CHECK-NEXT:    ldb 9,u
 ; CHECK-NEXT:    stb 14,u
 ; CHECK-NEXT:    stb 13,u
@@ -909,6 +948,7 @@ define dso_local i32 @mul_s_i32_consts(i32 noundef %a, i32 noundef %b) local_unn
 ; CHECK-NEXT:    std 13,u
 ; CHECK-NEXT:    mul
 ; CHECK-NEXT:    std 13,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    std 13,u ; 2-byte Folded Spill
 ; CHECK-NEXT:    ldb 14,u
 ; CHECK-NEXT:    stb 13,u
@@ -922,6 +962,7 @@ define dso_local i32 @mul_s_i32_consts(i32 noundef %a, i32 noundef %b) local_unn
 ; CHECK-NEXT:    sta 8,u
 ; CHECK-NEXT:    mul
 ; CHECK-NEXT:    std 13,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    std 11,u ; 2-byte Folded Spill
 ; CHECK-NEXT:    ldb 5,u
 ; CHECK-NEXT:    pshs s,s
@@ -940,6 +981,7 @@ define dso_local i32 @mul_s_i32_consts(i32 noundef %a, i32 noundef %b) local_unn
 ; CHECK-NEXT:    ldb 9,u
 ; CHECK-NEXT:    addb ,s+
 ; CHECK-NEXT:    stb 9,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    stb 10,u ; 1-byte Folded Spill
 ; CHECK-NEXT:    lda 13,u
 ; CHECK-NEXT:    sta 2,u
@@ -1103,12 +1145,18 @@ define dso_local i32 @mul_u_i32(i32 noundef %a, i32 noundef %b) local_unnamed_ad
 ; CHECK-NEXT:    leas -19,s
 ; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    tfr s,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    ldd 23,u
 ; CHECK-NEXT:    std 17,u
+; CHECK-NEXT:    ldd 0,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    ldd 27,u
 ; CHECK-NEXT:    std 4,u
+; CHECK-NEXT:    ldd 0,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    ldd 25,u
 ; CHECK-NEXT:    std 17,u
+; CHECK-NEXT:    ldd 0,u
 ; CHECK-NEXT:    lda 4,u
 ; CHECK-NEXT:    sta 7,u
 ; CHECK-NEXT:    ldb 18,u
@@ -1121,6 +1169,7 @@ define dso_local i32 @mul_u_i32(i32 noundef %a, i32 noundef %b) local_unnamed_ad
 ; CHECK-NEXT:    std 8,u
 ; CHECK-NEXT:    mul
 ; CHECK-NEXT:    std 8,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    std 17,u ; 2-byte Folded Spill
 ; CHECK-NEXT:    ldb 18,u
 ; CHECK-NEXT:    stb 6,u
@@ -1146,8 +1195,10 @@ define dso_local i32 @mul_u_i32(i32 noundef %a, i32 noundef %b) local_unnamed_ad
 ; CHECK-NEXT:    adda ,s
 ; CHECK-NEXT:    leas s,2
 ; CHECK-NEXT:    stb 3,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    ldd 2,u
 ; CHECK-NEXT:    std 10,u ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 0,u
 ; CHECK-NEXT:    andb #1
 ; CHECK-NEXT:    lda 17,u
 ; CHECK-NEXT:    sta 18,u
@@ -1157,6 +1208,7 @@ define dso_local i32 @mul_u_i32(i32 noundef %a, i32 noundef %b) local_unnamed_ad
 ; CHECK-NEXT:    ldb 9,u
 ; CHECK-NEXT:    addb ,s+
 ; CHECK-NEXT:    stb 9,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    stb 12,u ; 1-byte Folded Spill
 ; CHECK-NEXT:    lda 4,u
 ; CHECK-NEXT:    sta 17,u
@@ -1170,6 +1222,7 @@ define dso_local i32 @mul_u_i32(i32 noundef %a, i32 noundef %b) local_unnamed_ad
 ; CHECK-NEXT:    std 2,u
 ; CHECK-NEXT:    mul
 ; CHECK-NEXT:    std 2,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    std 13,u ; 2-byte Folded Spill
 ; CHECK-NEXT:    lda 8,u
 ; CHECK-NEXT:    ldb 5,u
@@ -1193,8 +1246,10 @@ define dso_local i32 @mul_u_i32(i32 noundef %a, i32 noundef %b) local_unnamed_ad
 ; CHECK-NEXT:    pshs b
 ; CHECK-NEXT:    addb ,s+
 ; CHECK-NEXT:    stb 18,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    ldd 10,u ; 2-byte Folded Reload
 ; CHECK-NEXT:    std 2,u
+; CHECK-NEXT:    ldd 0,u
 ; CHECK-NEXT:    ldb 18,u
 ; CHECK-NEXT:    pshs s,s
 ; CHECK-NEXT:    addb 1,s
@@ -1314,8 +1369,10 @@ define dso_local i32 @mul_u_i32_consts(i32 noundef %a, i32 noundef %b) local_unn
 ; CHECK-NEXT:    leas -17,s
 ; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    tfr s,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    ldd 21,u
 ; CHECK-NEXT:    std 4,u
+; CHECK-NEXT:    ldd 0,u
 ; CHECK-NEXT:    lda 4,u
 ; CHECK-NEXT:    sta 16,u
 ; CHECK-NEXT:    tfr x,d
@@ -1327,6 +1384,7 @@ define dso_local i32 @mul_u_i32_consts(i32 noundef %a, i32 noundef %b) local_unn
 ; CHECK-NEXT:    mul
 ; CHECK-NEXT:    std 6,u
 ; CHECK-NEXT:    std 2,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    std 15,u ; 2-byte Folded Spill
 ; CHECK-NEXT:    lda 4,u
 ; CHECK-NEXT:    sta 15,u
@@ -1361,11 +1419,13 @@ define dso_local i32 @mul_u_i32_consts(i32 noundef %a, i32 noundef %b) local_unn
 ; CHECK-NEXT:    ldb 3,u
 ; CHECK-NEXT:    addb ,s+
 ; CHECK-NEXT:    stb 3,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    stb 10,u ; 1-byte Folded Spill
 ; CHECK-NEXT:    lda 4,u
 ; CHECK-NEXT:    sta 8,u
 ; CHECK-NEXT:    ldd 8,u
 ; CHECK-NEXT:    std 2,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    std 11,u ; 2-byte Folded Spill
 ; CHECK-NEXT:    mul
 ; CHECK-NEXT:    std 2,u
@@ -1381,6 +1441,7 @@ define dso_local i32 @mul_u_i32_consts(i32 noundef %a, i32 noundef %b) local_unn
 ; CHECK-NEXT:    sta 15,u
 ; CHECK-NEXT:    mul
 ; CHECK-NEXT:    std 8,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    std 13,u ; 2-byte Folded Spill
 ; CHECK-NEXT:    ldb 3,u
 ; CHECK-NEXT:    pshs s,s
@@ -1438,8 +1499,10 @@ define dso_local i32 @mul_u_i32_consts(i32 noundef %a, i32 noundef %b) local_unn
 ; CHECK-NEXT:    ldd 6,u
 ; CHECK-NEXT:    mul
 ; CHECK-NEXT:    std 6,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    ldd 11,u ; 2-byte Folded Reload
 ; CHECK-NEXT:    std 8,u
+; CHECK-NEXT:    ldd 0,u
 ; CHECK-NEXT:    lda 15,u
 ; CHECK-NEXT:    sta 8,u
 ; CHECK-NEXT:    ldd 8,u
@@ -1476,9 +1539,14 @@ define dso_local i32 @mul_u_i32_consts(i32 noundef %a, i32 noundef %b) local_unn
 ; CHECK-NEXT:    ldb 7,u
 ; CHECK-NEXT:    addb ,s+
 ; CHECK-NEXT:    stb 7,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    ldd 25,u
 ; CHECK-NEXT:    std 15,u
+; CHECK-NEXT:    ldd 0,u
+; CHECK-NEXT:    std 0,u
+; CHECK-NEXT:    ldd 15,u ; 2-byte Folded Reload
 ; CHECK-NEXT:    std 15,u
+; CHECK-NEXT:    ldd 0,u
 ; CHECK-NEXT:    ldb 16,u
 ; CHECK-NEXT:    stb 15,u
 ; CHECK-NEXT:    ldd 23,u
@@ -1488,6 +1556,7 @@ define dso_local i32 @mul_u_i32_consts(i32 noundef %a, i32 noundef %b) local_unn
 ; CHECK-NEXT:    std 15,u
 ; CHECK-NEXT:    mul
 ; CHECK-NEXT:    std 15,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    std 15,u ; 2-byte Folded Spill
 ; CHECK-NEXT:    ldb 16,u
 ; CHECK-NEXT:    stb 15,u
@@ -1501,6 +1570,7 @@ define dso_local i32 @mul_u_i32_consts(i32 noundef %a, i32 noundef %b) local_unn
 ; CHECK-NEXT:    sta 8,u
 ; CHECK-NEXT:    mul
 ; CHECK-NEXT:    std 15,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    std 13,u ; 2-byte Folded Spill
 ; CHECK-NEXT:    ldb 5,u
 ; CHECK-NEXT:    pshs s,s
@@ -1519,6 +1589,7 @@ define dso_local i32 @mul_u_i32_consts(i32 noundef %a, i32 noundef %b) local_unn
 ; CHECK-NEXT:    ldb 9,u
 ; CHECK-NEXT:    addb ,s+
 ; CHECK-NEXT:    stb 9,u
+; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    stb 11,u ; 1-byte Folded Spill
 ; CHECK-NEXT:    lda 15,u
 ; CHECK-NEXT:    sta 2,u
