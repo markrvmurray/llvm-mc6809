@@ -47,7 +47,6 @@ add_llvm_target(MC6809CodeGen
   MC6809PostRAScavenging.cpp
   MC6809PostRASpillOpt.cpp
   MC6809MaterializeSpills.cpp
-  MC6809SpillDSaveRestore.cpp
   MC6809RegisterInfo.cpp
   MC6809ShiftRotateChain.cpp
   MC6809Subtarget.cpp

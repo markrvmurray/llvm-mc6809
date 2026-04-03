@@ -42,7 +42,6 @@ void initializeMC6809LowerSelectPass(PassRegistry &);
 void initializeMC6809NonReentrantPass(PassRegistry &);
 void initializeMC6809PostRAScavengingPass(PassRegistry &);
 void initializeMC6809MaterializeSpillsPass(PassRegistry &);
-void initializeMC6809SpillDSaveRestorePass(PassRegistry &);
 void initializeMC6809ShiftRotateChainPass(PassRegistry &);
 void initializeMC6809DirectPageAllocPass(PassRegistry &);
 
