@@ -301,10 +301,27 @@ bool MC6809InstrInfo::isJumpTableBranch(const MachineBasicBlock::instr_iterator 
 
 bool MC6809InstrInfo::isIndirBranch(const MachineBasicBlock::instr_iterator &I) const { return false; }
 
+/// Check if this is a fused compare-and-branch pseudo.
+static bool isFusedCompareBranch(unsigned Opc) {
+  switch (Opc) {
+  case MC6809::TestBranch_i8_Reg:  case MC6809::TestBranch_i16_Reg:
+  case MC6809::TestBranch_i8_Mem:  case MC6809::TestBranch_i16_Mem:
+  case MC6809::CompareBranch_i8_Imm:  case MC6809::CompareBranch_i16_Imm:
+  case MC6809::CompareBranch_i8_Reg:  case MC6809::CompareBranch_i16_Reg:
+  case MC6809::CompareBranch_i8_Mem:  case MC6809::CompareBranch_i16_Mem:
+  case MC6809::CompareBranch_i8_Pull:  case MC6809::CompareBranch_i16_Pull:
+    return true;
+  default:
+    return false;
+  }
+}
+
 bool MC6809InstrInfo::isCondBranch(const MachineBasicBlock::instr_iterator &I) const {
   if (I->isBranch()) {
     if (I->getOpcode() == MC6809::Bbc || I->getOpcode() == MC6809::LBlbc)
       return I->getOperand(0).getImm() != MC6809CC::RA;
+    if (isFusedCompareBranch(I->getOpcode()))
+      return true;
     return I->isConditionalBranch();
   }
   return false;
@@ -324,6 +341,9 @@ MachineBasicBlock *MC6809InstrInfo::getBB(const MachineBasicBlock::instr_iterato
     return I->getOperand(0).getMBB();
   if (I->getOpcode() == TargetOpcode::G_BRCOND || I->getOpcode() == MC6809::ConditionalBranchRelative || I->getOpcode() == MC6809::ConditionalLongBranchRelative || I->getOpcode() == MC6809::Bbc || I->getOpcode() == MC6809::LBlbc)
     return I->getOperand(1).getMBB();
+  // Fused compare-and-branch: target MBB is the last operand.
+  if (isFusedCompareBranch(I->getOpcode()))
+    return I->getOperand(I->getNumOperands() - 1).getMBB();
   llvm_unreachable("Unable to handle opcode. Please fix me!");
 }
 
@@ -545,6 +565,11 @@ bool MC6809InstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock *&
     if (!I->isBranch()) {
       return true;
     }
+
+    // Fused compare-and-branch pseudos are opaque to branch analysis.
+    // They will be expanded post-RA; until then, don't try to optimize them.
+    if (isFusedCompareBranch(I->getOpcode()))
+      return true;
 
     // Cannot handle branches that don't branch to a block.
     if (!I->getOperand(0).isMBB()) {
