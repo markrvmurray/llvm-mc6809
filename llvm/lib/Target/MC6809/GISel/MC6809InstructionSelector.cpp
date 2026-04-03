@@ -76,6 +76,7 @@ private:
   bool selectSubO(MachineInstr &MI);
   bool selectSubE(MachineInstr &MI);
   bool selectShiftExtend(MachineInstr &MI);
+  bool selectShift16(MachineInstr &MI);
 
   // Select instructions that correspond 1:1 to a target instruction.
   bool selectGeneric(MachineInstr &MI);
@@ -401,6 +402,20 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     return true;
   }
 
+  // Intercept i16 shifts on 6809 before selectImpl (no i16 shift pattern).
+  if (!STI.has6309()) {
+    switch (MI.getOpcode()) {
+    case TargetOpcode::G_SHL:
+    case TargetOpcode::G_LSHR:
+    case TargetOpcode::G_ASHR:
+      if (MRI->getType(MI.getOperand(0).getReg()) == LLT::scalar(16))
+        return selectShift16(MI);
+      break;
+    default:
+      break;
+    }
+  }
+
   if (selectImpl(MI, *CoverageInfo)) {
     return true;
   }
@@ -573,6 +588,15 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
   case MC6809::G_SHLE:
   case MC6809::G_LSHRE:
     return selectShiftExtend(MI);
+
+  case TargetOpcode::G_SHL:
+  case TargetOpcode::G_LSHR:
+  case TargetOpcode::G_ASHR:
+    // i16 shifts on 6809: no native instruction. Hand-select to byte pairs
+    // (constant: LSL_i16_Reg loop, variable: libcall).
+    if (!STI.has6309() && MRI->getType(MI.getOperand(0).getReg()) == LLT::scalar(16))
+      return selectShift16(MI);
+    break;
   }
   return false;
 }
@@ -998,14 +1022,23 @@ bool MC6809InstructionSelector::selectShiftExtend(MachineInstr &MI) {
   if (Ty != LLT::scalar(8))
     return false; // Only handle s8 for now
 
+  // Determine the shift instruction based on carry_in source:
+  // - Constant 0 / undef: first in chain → ASL/LSR/ASR
+  // - From G_ICMP: ASHR sign test → ASR
+  // - From another G_SHLE/G_LSHRE: carry chain → ROL/ROR
+  MachineInstr *CarryDef = MRI->getVRegDef(CarryIn);
+  bool IsCarryChain = CarryDef &&
+      (CarryDef->getOpcode() == MC6809::G_SHLE ||
+       CarryDef->getOpcode() == MC6809::G_LSHRE);
+
   unsigned ShiftOpc;
   if (MI.getOpcode() == MC6809::G_SHLE) {
-    ShiftOpc = MC6809::LSL_i8_Reg;
+    ShiftOpc = IsCarryChain ? MC6809::ROL_i8_Reg : MC6809::LSL_i8_Reg;
   } else {
-    // G_LSHRE: check if carry_in comes from G_ICMP (ASHR sign test)
-    MachineInstr *CarryDef = MRI->getVRegDef(CarryIn);
     if (CarryDef && CarryDef->getOpcode() == TargetOpcode::G_ICMP)
       ShiftOpc = MC6809::ASR_i8_Reg;
+    else if (IsCarryChain)
+      ShiftOpc = MC6809::ROR_i8_Reg;
     else
       ShiftOpc = MC6809::LSR_i8_Reg;
   }
@@ -1029,6 +1062,59 @@ bool MC6809InstructionSelector::selectShiftExtend(MachineInstr &MI) {
     Builder.buildUndef(CarryOut);
   }
 
+  MI.eraseFromParent();
+  return true;
+}
+
+bool MC6809InstructionSelector::selectShift16(MachineInstr &MI) {
+  // Hand-select i16 shifts on 6809 into byte-pair operations.
+  // SHL: ASLB + ROLA (carry from lo propagates to hi)
+  // LSHR: LSRA + RORB (carry from hi propagates to lo)
+  // ASHR: ASRA + RORB (sign-preserving shift of hi, carry to lo)
+  Register DstReg = MI.getOperand(0).getReg();
+  Register SrcReg = MI.getOperand(1).getReg();
+  Register AmtReg = MI.getOperand(2).getReg();
+
+  // Only handle constant shift amount
+  auto Amt = getIConstantVRegValWithLookThrough(AmtReg, *MRI);
+  if (!Amt)
+    return false;
+
+  uint64_t ShiftAmt = Amt->Value.getZExtValue();
+  if (ShiftAmt == 0) {
+    // Shift by 0 = copy
+    MachineIRBuilder Builder(MI);
+    Builder.buildCopy(DstReg, SrcReg);
+    MI.eraseFromParent();
+    return true;
+  }
+
+  unsigned ShiftOpc;
+  switch (MI.getOpcode()) {
+  case TargetOpcode::G_SHL:  ShiftOpc = MC6809::LSL_i16_Reg; break;
+  case TargetOpcode::G_LSHR: ShiftOpc = MC6809::LSR_i16_Reg; break;
+  case TargetOpcode::G_ASHR: ShiftOpc = MC6809::ASR_i16_Reg; break;
+  default: return false;
+  }
+
+  MachineBasicBlock &MBB = *MI.getParent();
+  const DebugLoc &DL = MI.getDebugLoc();
+
+  // Copy source into ACC16 (D register) for shift
+  Register Cur = MRI->createVirtualRegister(&MC6809::ACC16RegClass);
+  BuildMI(MBB, MI, DL, TII.get(TargetOpcode::COPY), Cur).addReg(SrcReg);
+
+  for (uint64_t I = 0; I < ShiftAmt; ++I) {
+    Register Next = (I == ShiftAmt - 1) ? DstReg
+        : MRI->createVirtualRegister(&MC6809::ACC16RegClass);
+    auto &Shift = *BuildMI(MBB, MI, DL, TII.get(ShiftOpc), Next)
+        .addReg(Cur)
+        .addImm(1);
+    constrainSelectedInstRegOperands(Shift, TII, TRI, RBI);
+    Cur = Next;
+  }
+
+  MRI->setRegClass(DstReg, &MC6809::ACC16RegClass);
   MI.eraseFromParent();
   return true;
 }

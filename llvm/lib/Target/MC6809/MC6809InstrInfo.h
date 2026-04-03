@@ -150,6 +150,7 @@ private:
   void expandNegate(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandShiftLeft(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandShiftRight(MachineIRBuilder &Builder, MachineInstr &MI, bool Arithmetic) const;
+  void expandRotate(MachineIRBuilder &Builder, MachineInstr &MI, bool Left) const;
   void expandMulD(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandMul16Imm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandMulH16Imm(MachineIRBuilder &Builder, MachineInstr &MI) const;

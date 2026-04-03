@@ -447,6 +447,12 @@ defm ASR_i16 : MC6809Shift<ADc>;
 defm LSR_i8 : MC6809Shift<ACC8_AB>;
 defm LSR_i16 : MC6809Shift<ADc>;
 
+// Rotate pseudos for carry-chain shifts (multi-byte shift-by-1).
+// ROL: carry → bit 0, bit 7 → carry. Used for hi byte of left shift chain.
+// ROR: carry → bit 7, bit 0 → carry. Used for lo byte of right shift chain.
+defm ROL_i8 : MC6809Shift<ACC8_AB>;
+defm ROR_i8 : MC6809Shift<ACC8_AB>;
+
 // --- Concrete instructions (register-specific, assembler/disassembler) ---
 // Concrete shift instructions (ASLA, ASLB, ASRA, ASRB, LSLA, LSLB, LSRA, LSRB, etc.)
 // are defined in MC6809InstrInfo.td.

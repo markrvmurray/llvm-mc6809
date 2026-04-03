@@ -1258,6 +1258,12 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::ASR_i16_Reg:
     expandShiftRight(Builder, MI, /*Arithmetic=*/true);
     break;
+  case MC6809::ROL_i8_Reg:
+    expandRotate(Builder, MI, /*Left=*/true);
+    break;
+  case MC6809::ROR_i8_Reg:
+    expandRotate(Builder, MI, /*Left=*/false);
+    break;
   case MC6809::MUL_D:
     expandMulD(Builder, MI);
     break;
@@ -2014,12 +2020,22 @@ void MC6809InstrInfo::expandShiftLeft(MachineIRBuilder &Builder, MachineInstr &M
     MI.removeOperand(0);
     MI.addImplicitDefUseOperands(*MI.getMF());
     break;
-  case MC6809::AD:
-    MI.setDesc(Builder.getTII().get(MC6809::ASLDa));
-    MI.removeOperand(1);
-    MI.removeOperand(0);
-    MI.addImplicitDefUseOperands(*MI.getMF());
+  case MC6809::AD: {
+    const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
+    if (STI.has6309()) {
+      MI.setDesc(Builder.getTII().get(MC6809::ASLDa));
+      MI.removeOperand(1);
+      MI.removeOperand(0);
+      MI.addImplicitDefUseOperands(*MI.getMF());
+    } else {
+      // 6809: ASLB then ROLA (carry from B propagates to A)
+      MachineFunction &MF = *MI.getMF();
+      Builder.buildInstr(MC6809::ASLBa)->addImplicitDefUseOperands(MF);
+      Builder.buildInstr(MC6809::ROLAa)->addImplicitDefUseOperands(MF);
+      MI.eraseFromParent();
+    }
     break;
+  }
   }
 }
 
@@ -2035,13 +2051,46 @@ void MC6809InstrInfo::expandShiftRight(MachineIRBuilder &Builder, MachineInstr &
   case MC6809::AB:
     Opcode = Arithmetic ? MC6809::ASRBa : MC6809::LSRBa;
     break;
-  case MC6809::AD:
-    Opcode = Arithmetic ? MC6809::ASRDa : MC6809::LSRDa;
+  case MC6809::AD: {
+    const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
+    if (STI.has6309()) {
+      Opcode = Arithmetic ? MC6809::ASRDa : MC6809::LSRDa;
+    } else {
+      // 6809: shift A right first, then ROR B (carry from A to B)
+      // LSHR: LSRA + RORB  (logical: 0 into A bit 7, carry into B bit 7)
+      // ASHR: ASRA + RORB  (arithmetic: sign preserved in A, carry into B)
+      unsigned FirstOpc = Arithmetic ? MC6809::ASRAa : MC6809::LSRAa;
+      MachineFunction &MF = *MI.getMF();
+      Builder.buildInstr(FirstOpc)->addImplicitDefUseOperands(MF);
+      Builder.buildInstr(MC6809::RORBa)->addImplicitDefUseOperands(MF);
+      MI.eraseFromParent();
+      return;
+    }
     break;
+  }
   }
   MI.setDesc(Builder.getTII().get(Opcode));
   MI.removeOperand(1); // remove immediate
   MI.removeOperand(0); // remove register (now implicit)
+  MI.addImplicitDefUseOperands(*MI.getMF());
+}
+
+void MC6809InstrInfo::expandRotate(MachineIRBuilder &Builder, MachineInstr &MI, bool Left) const {
+  Register Reg = MI.getOperand(0).getReg();
+  unsigned Opcode;
+  switch (Reg) {
+  default:
+    llvm_unreachable("Illegal register for ROL/ROR");
+  case MC6809::AA:
+    Opcode = Left ? MC6809::ROLAa : MC6809::RORAa;
+    break;
+  case MC6809::AB:
+    Opcode = Left ? MC6809::ROLBa : MC6809::RORBa;
+    break;
+  }
+  MI.setDesc(Builder.getTII().get(Opcode));
+  MI.removeOperand(1);
+  MI.removeOperand(0);
   MI.addImplicitDefUseOperands(*MI.getMF());
 }
 
