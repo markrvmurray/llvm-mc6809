@@ -424,6 +424,15 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
   default:
     return false;
 
+  case TargetOpcode::G_GLOBAL_VALUE: {
+    // Load the address of a global into an index register (LDX #addr).
+    Register DstReg = MI.getOperand(0).getReg();
+    MRI->setRegClass(DstReg, &MC6809::INDEX16RegClass);
+    MI.setDesc(TII.get(MC6809::Load_iPtr_Imm));
+    constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
+    return true;
+  }
+
   case TargetOpcode::G_FRAME_INDEX:
     return selectFrameIndex(MI);
   case TargetOpcode::G_MERGE_VALUES:

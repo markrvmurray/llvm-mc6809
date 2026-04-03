@@ -1295,6 +1295,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     break;
   case MC6809::Load_i8_Imm:
   case MC6809::Load_i16_Imm:
+  case MC6809::Load_iPtr_Imm:
   case MC6809::Load_i32_Imm:
     expandLoadImm(Builder, MI);
     break;
@@ -2380,14 +2381,18 @@ void MC6809InstrInfo::expandLoadImm(MachineIRBuilder &Builder, MachineInstr &MI)
     return;
   }
 
-  int64_t Val;
   auto ValOp = MI.getOperand(1);
-  if (ValOp.isImm() || ValOp.isCImm())
-    Val = ValOp.isImm() ? ValOp.getImm() : ValOp.getCImm()->getSExtValue();
   auto OpcodePair = LoadImmediateOpcode.find(MI.getOperand(0).getReg());
   if (OpcodePair == LoadImmediateOpcode.end())
     llvm_unreachable("Unexpected LoadImm register.");
-  Builder.buildInstr(OpcodePair->getSecond()).addDef(DestRegOp.getReg(), RegState::Implicit).addImm(Val);
+  auto NewMI = Builder.buildInstr(OpcodePair->getSecond()).addDef(DestRegOp.getReg(), RegState::Implicit);
+  // Preserve the operand type: integer immediate or global address reference.
+  if (ValOp.isGlobal())
+    NewMI.addGlobalAddress(ValOp.getGlobal(), ValOp.getOffset(), ValOp.getTargetFlags());
+  else {
+    int64_t Val = ValOp.isImm() ? ValOp.getImm() : ValOp.getCImm()->getSExtValue();
+    NewMI.addImm(Val);
+  }
   MI.removeFromParent();
 }
 

@@ -12,6 +12,16 @@ SECTIONS {
         *(.ram)
     } > RAM
 
+    .data : {
+        *(.data)
+        *(.data.*)
+    } > RAM
+
+    .bss (NOLOAD) : {
+        *(.bss)
+        *(.bss.*)
+    } > RAM
+
     .rom : {
         *(.rom)
     } > ROM
