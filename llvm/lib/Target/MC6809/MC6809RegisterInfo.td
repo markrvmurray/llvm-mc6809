@@ -117,21 +117,15 @@ class MC6809Reg32<bits<16> num, string name, list<Register> subregs = [], list<S
 // 8-bit imaginary registers.
 multiclass MC6809ImagReg8<bits<16> num, string name> : MC6809Reg8<num, name>;
 
-// 16-bit imaginary registers (consecutive pairs of 8-bit registers).
-class MC6809ImagReg16<bits<16> num, string name, list<Register> subregs>
-    : MC6809Reg<num, name> {
-  let SubRegs = subregs;
-  let SubRegIndices = [sub_lo_byte, sub_hi_byte];
-  let CoveredBySubRegs = 1;
-}
+// 16-bit imaginary registers — independent, no sub-register aliasing with
+// 8-bit imaginary registers. Memory-backed registers don't physically alias,
+// so sub-register composition would only create artificial regalloc pressure.
+class MC6809ImagReg16<bits<16> num, string name>
+    : MC6809Reg<num, name>;
 
-// 32-bit imaginary registers (consecutive pairs of 16-bit registers).
-class MC6809ImagReg32<bits<16> num, string name, list<Register> subregs>
-    : MC6809Reg<num, name> {
-  let SubRegs = subregs;
-  let SubRegIndices = [sub_lo_word, sub_hi_word];
-  let CoveredBySubRegs = 1;
-}
+// 32-bit imaginary registers — independent, no sub-register aliasing.
+class MC6809ImagReg32<bits<16> num, string name>
+    : MC6809Reg<num, name>;
 
 defvar MaxImag8Regs = 256;
 
@@ -153,18 +147,12 @@ foreach I = 0...!add(MaxImag8Regs, -1) in {
 
 // Imaginary 16-bit registers, starting with the prefix rs
 foreach I = 0...!add(MaxImag16Regs, -1) in {
-  // There exist MaxImag16Regs rsXX registers...
-  def RS#I: MC6809ImagReg16<!add(I, Imag16RegsOffset), "rs"#!cast<string>(I),
-      [!cast<Register>("RC"#!shl(I, 1)),
-       !cast<Register>("RC"#!add(!shl(I,1),1))]>;
+  def RS#I: MC6809ImagReg16<!add(I, Imag16RegsOffset), "rs"#!cast<string>(I)>;
 }
 
 // Imaginary 32-bit registers, starting with the prefix rw
 foreach I = 0...!add(MaxImag32Regs, -1) in {
-  // There exist MaxImag32Regs rwXX registers...
-  def RW#I: MC6809ImagReg32<!add(I, Imag32RegsOffset), "rw"#!cast<string>(I),
-      [!cast<Register>("RS"#!shl(I, 1)),
-       !cast<Register>("RS"#!add(!shl(I,1),1))]>;
+  def RW#I: MC6809ImagReg32<!add(I, Imag32RegsOffset), "rw"#!cast<string>(I)>;
 }
 
 //===----------------------------------------------------------------------===//
