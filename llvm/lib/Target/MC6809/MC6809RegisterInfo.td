@@ -282,9 +282,6 @@ def BIT1 : MC6809Reg1Class<(add AALSB, ABLSB, AELSB, AFLSB)> {
     let AltOrders = [(add AALSB, ABLSB)];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
 }
-// Imaginary registers (RC0..RC7, RS0..RS3) ready to add here once
-// bug #51 (mul16 inline expansion fragility) is fixed. Activation is
-// a 2-line change: append RC0..RC7 here and RS0..RS3 to ACC16.
 def ACC8 : MC6809Reg8Class<(add AB, AA, AF, AE, SPILL_B0, SPILL_B1, SPILL_B2, SPILL_B3, SPILL_B4, SPILL_B5, SPILL_B6, SPILL_B7, SPILL_A0, SPILL_A1, SPILL_A2, SPILL_A3, SPILL_A4, SPILL_A5, SPILL_A6, SPILL_A7)> {
     let AltOrders = [(add AB, AA, SPILL_B0, SPILL_B1, SPILL_B2, SPILL_B3, SPILL_B4, SPILL_B5, SPILL_B6, SPILL_B7, SPILL_A0, SPILL_A1, SPILL_A2, SPILL_A3, SPILL_A4, SPILL_A5, SPILL_A6, SPILL_A7)];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];

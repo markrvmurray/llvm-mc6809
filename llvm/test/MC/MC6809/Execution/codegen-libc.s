@@ -1,6 +1,6 @@
 ; RUN: llc -global-isel -global-isel-abort=1 -O3 -mtriple=mc6809 \
 ; RUN:   %S/Inputs/codegen-libc.ll -o %t-raw.s 2>/dev/null
-; RUN: sed 's/bsr/lbsr/g' %t-raw.s | grep -v '\.directpage' > %t-funcs.s
+; RUN: grep -v '\.directpage' %t-raw.s > %t-funcs.s
 ; RUN: cat %s %t-funcs.s | llvm-mc -triple=mc6809 -I %S/Inputs \
 ; RUN:   --filetype=obj -o %t.o
 ; RUN: ld.lld -T %S/Inputs/link.ld %t.o -o %t.elf

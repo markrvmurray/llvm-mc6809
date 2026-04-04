@@ -160,10 +160,11 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
 
   // MUL is 8x8→16 on standard 6809. 16x16 only on HD6309 (MULD).
   // On 6809, i8 mul is native (MUL instruction: A×B→D). Wider multiplies
-  // use libcalls (__mulhi3, __mulsi3). NarrowScalar decomposition is now
-  // possible with spill registers (allocator succeeds) but the expansion
-  // code produces incorrect results — stack offset / value routing issues
-  // in the spill load/store paths need debugging.
+  // 6809: 8-bit MUL is legal, 16-bit narrowed to four 8-bit MULs.
+  // NOTE: narrowScalar has a latent spill-register aliasing bug (#51) that
+  // manifests when ACC8/ACC16 register classes are expanded (e.g., with
+  // imaginary registers). The __mulhi3 libcall path requires calling
+  // convention work before it can replace narrowScalar.
   if (IsHD6309) {
     getActionDefinitionsBuilder({G_MUL, G_UMULH, G_SMULH})
         .legalFor(LegalAccumulators)
