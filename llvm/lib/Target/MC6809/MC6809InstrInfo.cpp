@@ -1872,12 +1872,10 @@ void MC6809InstrInfo::expandLEAPtrAdd(MachineIRBuilder &Builder, MachineInstr &M
 void MC6809InstrInfo::expandImm(ContextImmediate Context, MachineIRBuilder &Builder, MachineInstr &MI) const {
   auto operandCount = MI.getNumExplicitOperands();
   auto DestReg = MI.getOperand(0).getReg();
-  bool DestIsSpill = isSpillReg(DestReg);
-  Register OrigSpillReg = DestReg;
-  if (DestIsSpill) {
-    Register RealReg = getRealRegForSpill(DestReg);
-    MachineFunction &MF = *MI.getMF();
-    emitSpillLoad(Builder, RealReg, DestReg, MF);
+  Register OrigDest = DestReg;
+  MachineFunction &MF = *MI.getMF();
+  if (needsMaterialization(DestReg)) {
+    Register RealReg = materializeReg(Builder, DestReg, MF);
     MI.getOperand(0).setReg(RealReg);
     if (operandCount >= 3 && MI.getOperand(1).isReg() && MI.getOperand(1).getReg() == DestReg)
       MI.getOperand(1).setReg(RealReg);
@@ -1913,13 +1911,12 @@ void MC6809InstrInfo::expandImm(ContextImmediate Context, MachineIRBuilder &Buil
       Builder.buildInstr(OpcodePair->getSecond()).addDef(DestReg, RegState::Implicit).addImm(Val);
     }
   }
-  // Store result back to spill slot BEFORE erasing MI.
-  if (DestIsSpill) {
-    MachineFunction &MF = *MI.getMF();
+  // Store result back BEFORE erasing MI.
+  if (needsMaterialization(OrigDest)) {
     MachineBasicBlock &MBB = *MI.getParent();
     auto NextIt = std::next(MachineBasicBlock::iterator(MI));
     MachineIRBuilder StoreBuilder(MBB, NextIt);
-    emitSpillStore(StoreBuilder, DestReg, OrigSpillReg, MF);
+    dematerializeReg(StoreBuilder, DestReg, OrigDest, MF);
   }
   MI.eraseFromParent();
 }
@@ -1927,14 +1924,10 @@ void MC6809InstrInfo::expandImm(ContextImmediate Context, MachineIRBuilder &Buil
 void MC6809InstrInfo::expandIdxImm(ContextIndexImmediate Context, MachineIRBuilder &Builder, MachineInstr &MI) const {
   auto operandCount = MI.getNumExplicitOperands();
   auto DestReg = MI.getOperand(0).getReg();
-  // If destination is a spill register, load into real accumulator, operate,
-  // then store back.
-  bool DestIsSpill = isSpillReg(DestReg);
-  Register OrigSpillReg = DestReg;
-  if (DestIsSpill) {
-    Register RealReg = getRealRegForSpill(DestReg);
-    MachineFunction &MF = *MI.getMF();
-    emitSpillLoad(Builder, RealReg, DestReg, MF);
+  Register OrigDest = DestReg;
+  MachineFunction &MF = *MI.getMF();
+  if (needsMaterialization(DestReg)) {
+    Register RealReg = materializeReg(Builder, DestReg, MF);
     MI.getOperand(0).setReg(RealReg);
     // Also fix the tied source operand (operand 1 for most arith pseudos).
     if (operandCount >= 3 && MI.getOperand(1).isReg() && MI.getOperand(1).getReg() == DestReg)
@@ -1979,14 +1972,12 @@ void MC6809InstrInfo::expandIdxImm(ContextIndexImmediate Context, MachineIRBuild
     else
       Instr.addImm(Offset).addReg(IndexReg);
   }
-  // Store result back to spill slot BEFORE erasing MI.
-  if (DestIsSpill) {
-    MachineFunction &MF = *MI.getMF();
+  // Store result back BEFORE erasing MI.
+  if (needsMaterialization(OrigDest)) {
     MachineBasicBlock &MBB = *MI.getParent();
-    // Insert after MI (which is about to be erased, but is still in the MBB).
     auto NextIt = std::next(MachineBasicBlock::iterator(MI));
     MachineIRBuilder StoreBuilder(MBB, NextIt);
-    emitSpillStore(StoreBuilder, DestReg, OrigSpillReg, MF);
+    dematerializeReg(StoreBuilder, DestReg, OrigDest, MF);
   }
   MI.eraseFromParent();
 }
@@ -2002,14 +1993,9 @@ void MC6809InstrInfo::expandCarryImm16(bool IsAdd, MachineIRBuilder &Builder,
   // 6809: split 16-bit carry immediate into two 8-bit operations.
   // ADCB #lo / ADCA #hi  or  SBCB #lo / SBCA #hi
   auto DestReg = MI.getOperand(0).getReg();
-  bool DestIsSpill = isSpillReg(DestReg);
-  Register OrigSpillReg = DestReg;
-  if (DestIsSpill) {
-    Register RealReg = getRealRegForSpill(DestReg);
-    MachineFunction &MF = *MI.getMF();
-    emitSpillLoad(Builder, RealReg, DestReg, MF);
-    DestReg = RealReg;
-  }
+  Register OrigDest = DestReg;
+  MachineFunction &MF = *MI.getMF();
+  DestReg = materializeReg(Builder, DestReg, MF);
   auto operandCount = MI.getNumExplicitOperands();
   auto ValOp = MI.getOperand(operandCount - 1);
   int Val = ValOp.isImm() ? ValOp.getImm() : ValOp.getCImm()->getSExtValue();
@@ -2019,10 +2005,7 @@ void MC6809InstrInfo::expandCarryImm16(bool IsAdd, MachineIRBuilder &Builder,
   unsigned AdcaOpc = IsAdd ? MC6809::ADCAi8 : MC6809::SBCAi8;
   Builder.buildInstr(AdcbOpc).addDef(MC6809::AB, RegState::Implicit).addImm(Lo);
   Builder.buildInstr(AdcaOpc).addDef(MC6809::AA, RegState::Implicit).addImm(Hi);
-  if (DestIsSpill) {
-    MachineFunction &MF = *MI.getMF();
-    emitSpillStore(Builder, DestReg, OrigSpillReg, MF);
-  }
+  dematerializeReg(Builder, DestReg, OrigDest, MF);
   MI.eraseFromParent();
 }
 
@@ -2030,17 +2013,14 @@ void MC6809InstrInfo::expandCarryMem16(bool IsAdd, MachineIRBuilder &Builder,
                                        MachineInstr &MI) const {
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   if (STI.has6309()) {
-    // 6309 has ADCD/SBCD — use the standard expand path.
     expandIdxImm(IsAdd ? AddCarryIdxImm : SubBorrowIdxImm, Builder, MI);
     return;
   }
-  // 6809: split 16-bit carry indexed into two 8-bit operations.
-  // ADCB offset+1,base / ADCA offset,base  or  SBCB/SBCA
   auto DestReg = MI.getOperand(0).getReg();
-  bool DestIsSpill = isSpillReg(DestReg);
-  Register OrigSpillReg = DestReg;
-  if (DestIsSpill) {
-    Register RealReg = getRealRegForSpill(DestReg);
+  Register OrigDest = DestReg;
+  MachineFunction &MF = *MI.getMF();
+  if (needsMaterialization(DestReg)) {
+    Register RealReg = materializeReg(Builder, DestReg, MF);
     MachineFunction &MF = *MI.getMF();
     emitSpillLoad(Builder, RealReg, DestReg, MF);
     DestReg = RealReg;
@@ -2071,10 +2051,7 @@ void MC6809InstrInfo::expandCarryMem16(bool IsAdd, MachineIRBuilder &Builder,
     InstrA.addReg(IndexReg);
   else
     InstrA.addImm(OffsetHi).addReg(IndexReg);
-  if (DestIsSpill) {
-    MachineFunction &MF = *MI.getMF();
-    emitSpillStore(Builder, DestReg, OrigSpillReg, MF);
-  }
+  dematerializeReg(Builder, DestReg, OrigDest, MF);
   MI.eraseFromParent();
 }
 
@@ -2090,15 +2067,12 @@ void MC6809InstrInfo::expandBitwiseImm16(ContextImmediate Context, unsigned OpcA
   // 6809: split 16-bit immediate into two 8-bit byte operations.
   // OpcA #hi / OpcB #lo (big-endian: A=high byte, B=low byte)
   auto DestReg = MI.getOperand(0).getReg();
-  bool DestIsSpill = isSpillReg(DestReg);
-  Register OrigSpillReg = DestReg;
-  if (DestIsSpill) {
-    Register RealReg = getRealRegForSpill(DestReg);
-    MachineFunction &MF = *MI.getMF();
-    // Save D — it may hold a live value while we operate on the spill.
+  Register OrigDest = DestReg;
+  MachineFunction &MF = *MI.getMF();
+  if (needsMaterialization(DestReg)) {
+    // Save D — it may hold a live value while we operate on the spill/imag.
     Builder.buildInstr(MC6809::PSHSs, {}, {Register(MC6809::AD)});
-    emitSpillLoad(Builder, RealReg, DestReg, MF);
-    DestReg = RealReg;
+    DestReg = materializeReg(Builder, DestReg, MF);
   }
   auto operandCount = MI.getNumExplicitOperands();
   auto ValOp = MI.getOperand(operandCount - 1);
@@ -2109,9 +2083,8 @@ void MC6809InstrInfo::expandBitwiseImm16(ContextImmediate Context, unsigned OpcA
     Builder.buildInstr(OpcB).addDef(MC6809::AB, RegState::Implicit).addImm(Lo);
   if (Hi != Context.IdentityValue)
     Builder.buildInstr(OpcA).addDef(MC6809::AA, RegState::Implicit).addImm(Hi);
-  if (DestIsSpill) {
-    MachineFunction &MF = *MI.getMF();
-    emitSpillStore(Builder, DestReg, OrigSpillReg, MF);
+  if (needsMaterialization(OrigDest)) {
+    dematerializeReg(Builder, DestReg, OrigDest, MF);
     Builder.buildInstr(MC6809::PULSs, {}, {Register(MC6809::AD)});
   }
   MI.eraseFromParent();
@@ -2129,27 +2102,20 @@ void MC6809InstrInfo::expandBitwiseMem16(ContextIndexImmediate Context,
   // 6809: split 16-bit indexed into two 8-bit byte operations.
   // OpB offset+1,base / OpA offset,base (big-endian: A=high, B=low)
   auto DestReg = MI.getOperand(0).getReg();
-  bool DestIsSpill = isSpillReg(DestReg);
-  Register OrigSpillReg = DestReg;
-  if (DestIsSpill) {
-    Register RealReg = getRealRegForSpill(DestReg);
-    MachineFunction &MF = *MI.getMF();
-    // Save D — it may hold a live value while we operate on the spill.
-    // Uses S stack; U-relative spill offsets are unaffected.
+  Register OrigDest = DestReg;
+  MachineFunction &MF = *MI.getMF();
+  if (needsMaterialization(DestReg)) {
     Builder.buildInstr(MC6809::PSHSs, {}, {Register(MC6809::AD)});
-    emitSpillLoad(Builder, RealReg, DestReg, MF);
-    DestReg = RealReg;
+    DestReg = materializeReg(Builder, DestReg, MF);
   }
   auto operandCount = MI.getNumExplicitOperands();
   auto IndexReg = MI.getOperand(operandCount - 2).getReg();
   auto OffsetOp = MI.getOperand(operandCount - 1);
   auto Offset = OffsetOp.isImm() ? OffsetOp.getImm() : OffsetOp.getCImm()->getSExtValue();
-  // Low byte at offset+1, high byte at offset (big-endian).
   int OffsetLo = Offset + 1;
   int OffsetHi = Offset;
   int OffsetLoSize = offsetSizeInBitsForValue(OffsetLo);
   int OffsetHiSize = offsetSizeInBitsForValue(OffsetHi);
-  // Look up the 8-bit opcodes for B (low) and A (high).
   RegPlusOffsetLen LookupB{MC6809::AB, OffsetLoSize};
   RegPlusOffsetLen LookupA{MC6809::AA, OffsetHiSize};
   auto OpcB = Context.Opcode->find(LookupB);
@@ -2165,10 +2131,8 @@ void MC6809InstrInfo::expandBitwiseMem16(ContextIndexImmediate Context,
     InstrA.addReg(IndexReg);
   else
     InstrA.addImm(OffsetHi).addReg(IndexReg);
-  if (DestIsSpill) {
-    MachineFunction &MF = *MI.getMF();
-    emitSpillStore(Builder, DestReg, OrigSpillReg, MF);
-    // Restore D's original value.
+  if (needsMaterialization(OrigDest)) {
+    dematerializeReg(Builder, DestReg, OrigDest, MF);
     Builder.buildInstr(MC6809::PULSs, {}, {Register(MC6809::AD)});
   }
   MI.eraseFromParent();
