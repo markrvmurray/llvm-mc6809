@@ -83,26 +83,24 @@ entry:
 define dso_local signext i8 @mul_s_i8_consts(i8 noundef signext %a, i8 noundef signext %b) local_unnamed_addr #0 {
 ; CHECK-LABEL: mul_s_i8_consts:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -8,s
+; CHECK-NEXT:    leas -6,s
 ; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    stb 9,u
-; CHECK-NEXT:    lda 13,u
-; CHECK-NEXT:    sta 6,u
+; CHECK-NEXT:    stb 7,u
 ; CHECK-NEXT:    lda #12
-; CHECK-NEXT:    sta 8,u
-; CHECK-NEXT:    ldd 8,u
+; CHECK-NEXT:    sta 6,u
+; CHECK-NEXT:    ldd 6,u
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 8,u
-; CHECK-NEXT:    lda 6,u
-; CHECK-NEXT:    sta 8,u
-; CHECK-NEXT:    ldd 8,u
+; CHECK-NEXT:    std 6,u
+; CHECK-NEXT:    lda 11,u
+; CHECK-NEXT:    sta 6,u
+; CHECK-NEXT:    ldd 6,u
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 8,u
-; CHECK-NEXT:    ldb 9,u
+; CHECK-NEXT:    std 6,u
+; CHECK-NEXT:    ldb 7,u
 ; CHECK-NEXT:    tfr u,s
 ; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 8,s
+; CHECK-NEXT:    leas 6,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: mul_s_i8_consts:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
@@ -205,26 +203,24 @@ entry:
 define dso_local zeroext i8 @mul_u_i8_consts(i8 noundef zeroext %a, i8 noundef zeroext %b) local_unnamed_addr #0 {
 ; CHECK-LABEL: mul_u_i8_consts:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -8,s
+; CHECK-NEXT:    leas -6,s
 ; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    stb 9,u
-; CHECK-NEXT:    lda 13,u
-; CHECK-NEXT:    sta 6,u
+; CHECK-NEXT:    stb 7,u
 ; CHECK-NEXT:    lda #13
-; CHECK-NEXT:    sta 8,u
-; CHECK-NEXT:    ldd 8,u
+; CHECK-NEXT:    sta 6,u
+; CHECK-NEXT:    ldd 6,u
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 8,u
-; CHECK-NEXT:    lda 6,u
-; CHECK-NEXT:    sta 8,u
-; CHECK-NEXT:    ldd 8,u
+; CHECK-NEXT:    std 6,u
+; CHECK-NEXT:    lda 11,u
+; CHECK-NEXT:    sta 6,u
+; CHECK-NEXT:    ldd 6,u
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 8,u
-; CHECK-NEXT:    ldb 9,u
+; CHECK-NEXT:    std 6,u
+; CHECK-NEXT:    ldb 7,u
 ; CHECK-NEXT:    tfr u,s
 ; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 8,s
+; CHECK-NEXT:    leas 6,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: mul_u_i8_consts:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
