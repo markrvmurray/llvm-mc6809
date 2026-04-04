@@ -102,6 +102,11 @@ void mc6809::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                    options::OPT_nostdlib))
     CmdArgs.push_back("-lc");
 
+  // MC6809 runtime library: hand-written assembly builtins for shift, multiply,
+  // divide operations that the hardware can't do natively.
+  if (!Args.hasArg(options::OPT_nodefaultlibs, options::OPT_nostdlib))
+    CmdArgs.push_back("-lmc6809rt");
+
   // No matter what's included in the link, the default linker script is
   // nonsense for the 6809. Accordingly, use one named "link.ld" if none is
   // specified.
