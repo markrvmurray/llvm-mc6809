@@ -56,7 +56,7 @@ test_main:
 	jsr	putnl
 ; CHECK-NEXT: 0000
 
-	;; ===== atoi (positive only — negative blocked by bug #49) =====
+	;; ===== atoi (positive) =====
 	ldx	#str_42
 	jsr	test_atoi
 	jsr	putx
@@ -74,6 +74,37 @@ test_main:
 	jsr	putx
 	jsr	putnl
 ; CHECK-NEXT: 03E7
+
+	;; ===== atoi_neg (positive and negative — bug #49 fix) =====
+	ldx	#str_42
+	jsr	test_atoi_neg
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 002A
+
+	ldx	#str_neg3
+	jsr	test_atoi_neg
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: FFFD
+
+	ldx	#str_0
+	jsr	test_atoi_neg
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0000
+
+	ldx	#str_neg1
+	jsr	test_atoi_neg
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: FFFF
+
+	ldx	#str_neg999
+	jsr	test_atoi_neg
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: FC19
 
 	;; ===== div (via test_div: result[0]=quot, result[1]=rem) =====
 	;; 17 / 5 = 3 rem 2
@@ -193,6 +224,9 @@ test_main:
 str_42:		.asciz	"42"
 str_0:		.asciz	"0"
 str_999:	.asciz	"999"
+str_neg3:	.asciz	"-3"
+str_neg1:	.asciz	"-1"
+str_neg999:	.asciz	"-999"
 
 	.section .data,"aw",@progbits
 divbuf:		.space	4, 0

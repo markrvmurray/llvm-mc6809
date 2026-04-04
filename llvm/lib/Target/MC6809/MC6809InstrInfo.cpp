@@ -3250,6 +3250,75 @@ void MC6809InstrInfo::expandCompareImm(MachineIRBuilder &Builder, MachineInstr &
     }
   }
 
+  // Bug #49 fix part 2: 8-bit compare where the byte load (LDA/LDB) clobbered
+  // a live D value (PHI copy). Wrap the byte load + compare with PSHS D / PULS D
+  // to preserve D across the condition evaluation. PSHS/PULS don't affect CC.
+  if (SrcReg == MC6809::AB || SrcReg == MC6809::AA) {
+    MachineBasicBlock &MBB = *MI.getParent();
+    MachineInstr *ByteLoad = nullptr;
+
+    // Find the byte load that defined the source register.
+    for (auto It = MachineBasicBlock::reverse_iterator(MI.getIterator());
+         It != MBB.rend(); ++It) {
+      unsigned Opc = It->getOpcode();
+      bool IsLDB = (Opc == MC6809::LDBi_o0 || Opc == MC6809::LDBi_o5 ||
+                    Opc == MC6809::LDBi_o8 || Opc == MC6809::LDBi_o16);
+      bool IsLDA = (Opc == MC6809::LDAi_o0 || Opc == MC6809::LDAi_o5 ||
+                    Opc == MC6809::LDAi_o8 || Opc == MC6809::LDAi_o16);
+      if ((SrcReg == MC6809::AB && IsLDB) || (SrcReg == MC6809::AA && IsLDA)) {
+        if (It->getNumOperands() >= 2 && It->getOperand(1).isReg() &&
+            It->getOperand(1).getReg() == MC6809::SU) {
+          ByteLoad = &*It;
+        }
+        break;
+      }
+      if (It->definesRegister(SrcReg, /*TRI=*/nullptr))
+        break;
+    }
+
+    if (ByteLoad) {
+      // Check if D was defined before the byte load (a PHI value being clobbered).
+      bool DDefinedBefore = false;
+      for (auto It = MachineBasicBlock::reverse_iterator(ByteLoad->getIterator());
+           It != MBB.rend(); ++It) {
+        if (It->definesRegister(MC6809::AD, /*TRI=*/nullptr)) {
+          DDefinedBefore = true;
+          break;
+        }
+      }
+
+      // Safety: ensure no S-based indexing between ByteLoad and the compare,
+      // since PSHS shifts S by 2.
+      bool SSUsed = false;
+      if (DDefinedBefore) {
+        for (auto It = ByteLoad->getIterator(); It != MI.getIterator(); ++It) {
+          for (unsigned I = 0; I < It->getNumOperands(); ++I) {
+            if (It->getOperand(I).isReg() &&
+                It->getOperand(I).getReg() == MC6809::SS && It->getOperand(I).isUse())
+              SSUsed = true;
+          }
+        }
+      }
+
+      if (DDefinedBefore && !SSUsed) {
+        // Insert PSHS D before the byte load.
+        MachineIRBuilder PreBuilder(*ByteLoad);
+        PreBuilder.buildInstr(MC6809::PSHSs, {}, {Register(MC6809::AD)});
+
+        // Emit the compare.
+        auto OpcodePair = CompareImmediateOpcode.find(SrcReg);
+        assert(OpcodePair != CompareImmediateOpcode.end());
+        Builder.buildInstr(OpcodePair->getSecond()).add(MI.getOperand(3));
+
+        // Insert PULS D after the compare (CC preserved).
+        Builder.buildInstr(MC6809::PULSs, {}, {Register(MC6809::AD)});
+
+        MI.eraseFromParent();
+        return;
+      }
+    }
+  }
+
   auto OpcodePair = CompareImmediateOpcode.find(SrcReg);
   if (OpcodePair == CompareImmediateOpcode.end())
     llvm_unreachable("Compare Immediate - unexpected register.");
