@@ -8,9 +8,10 @@
 ; RUN: %usim09batch --timeout=500000 %t.hex | FileCheck %s
 ; REQUIRES: usim
 ;
-; Execution tests for bugs #46 (G_ABS), #47 (null pointer), #48 (LEASi operand).
+; Execution tests for bugs #46 (G_ABS), #47 (atoi/null pointer), #48 (LEASi).
 
 .include "runtime.inc"
+.include "mc6809rt.s"
 
 	.section .rom,"ax",@progbits
 
@@ -60,6 +61,29 @@ test_main:
 	jsr	putnl
 ; CHECK-NEXT: 0001
 
+	;; === Bug #47: atoi (positive numbers — negative blocked by #49) ===
+
+	;; atoi("42") = 42 = 0x002A
+	ldx	#str_42
+	jsr	test_atoi
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 002A
+
+	;; atoi("0") = 0
+	ldx	#str_0
+	jsr	test_atoi
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0000
+
+	;; atoi("123") = 123 = 0x007B
+	ldx	#str_123
+	jsr	test_atoi
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 007B
+
 	;; === Bug #48: 16-bit bitwise via push/pull (LEASi operand fix) ===
 
 	;; or16(0x00FF, 0xFF00) = 0xFFFF
@@ -96,3 +120,8 @@ test_main:
 ; CHECK-NEXT: FFFF
 
 	rts
+
+	.section .rodata,"a",@progbits
+str_42:		.asciz	"42"
+str_0:		.asciz	"0"
+str_123:	.asciz	"123"
