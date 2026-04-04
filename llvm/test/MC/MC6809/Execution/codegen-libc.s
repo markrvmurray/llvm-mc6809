@@ -8,7 +8,7 @@
 ; RUN: %usim09batch --timeout=2000000 %t.hex | FileCheck %s
 ; REQUIRES: usim
 ;
-; Libc smoke test: memcpy, memset, strlen, strcmp, atoi.
+; Libc smoke test: strlen, strcmp (equal only), atoi.
 
 .include "runtime.inc"
 
@@ -81,8 +81,29 @@ test_main:
 	jsr	putnl
 ; CHECK-NEXT: 0000
 
-	;; NOTE: strcmp unequal and atoi produce wrong results due to
-	;; register pressure / CC flag issues in complex loops (bug #38).
-	;; strcmp equal works; unequal and atoi skipped.
+	;; NOTE: strcmp unequal returns 0 — codegen bug, needs investigation.
+
+	;; ===== atoi =====
+
+	;; atoi("123") = 123 = 0x007B
+	ldx	#src_123
+	jsr	my_atoi
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 007B
+
+	;; atoi("9999") = 9999 = 0x270F
+	ldx	#src_9999
+	jsr	my_atoi
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 270F
+
+	;; atoi("") = 0
+	ldx	#src_empty
+	jsr	my_atoi
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0000
 
 	jsr	halt
