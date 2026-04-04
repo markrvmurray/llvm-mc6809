@@ -1038,6 +1038,13 @@ static bool shouldOverCorrect(uint64_t Amt, LLT Ty, bool IsRotate) {
   if (IsRotate)
     return Amt > 4;
 
+  // The over-correct path widens to Ty+8 bits. Only use it when the wider
+  // type is a legal power-of-2 size (s8, s16, s32). Non-power-of-2 types
+  // like s40 (from s32+8) can't be legalized and cause infinite cycles.
+  unsigned WiderBits = Ty.getSizeInBits() + 8;
+  if (WiderBits != 8 && WiderBits != 16 && WiderBits != 32)
+    return false;
+
   // The choice is between emitting Amt operations at width Ty, or emitting 8 -
   // Amt operations (in the opposite direction) at width Ty + 8.
   return Amt * Ty.getSizeInBytes() > (8 - Amt) * (Ty.getSizeInBytes() + 1);
