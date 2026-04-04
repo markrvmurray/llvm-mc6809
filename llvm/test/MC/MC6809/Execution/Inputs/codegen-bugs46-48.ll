@@ -58,6 +58,36 @@ while.end:                                        ; preds = %while.body, %entry
   ret i16 %result.0.lcssa
 }
 
+define dso_local i16 @test_atoi_neg(ptr noundef readonly captures(none) %s) local_unnamed_addr #1 {
+entry:
+  %0 = load i8, ptr %s, align 1, !tbaa !7
+  %cmp.not = icmp eq i8 %0, 45
+  %s.addr.0.idx = zext i1 %cmp.not to i16
+  %s.addr.0 = getelementptr inbounds nuw i8, ptr %s, i16 %s.addr.0.idx
+  %1 = load i8, ptr %s.addr.0, align 1, !tbaa !7
+  %2 = add i8 %1, -48
+  %or.cond18 = icmp ult i8 %2, 10
+  br i1 %or.cond18, label %while.body, label %while.end
+while.body:
+  %3 = phi i8 [ %4, %while.body ], [ %1, %entry ]
+  %n.020 = phi i16 [ %add, %while.body ], [ 0, %entry ]
+  %s.addr.119 = phi ptr [ %incdec.ptr9, %while.body ], [ %s.addr.0, %entry ]
+  %mul = mul nsw i16 %n.020, 10
+  %narrow = add nsw i8 %3, -48
+  %sub = zext nneg i8 %narrow to i16
+  %add = add nsw i16 %mul, %sub
+  %incdec.ptr9 = getelementptr inbounds nuw i8, ptr %s.addr.119, i16 1
+  %4 = load i8, ptr %incdec.ptr9, align 1, !tbaa !7
+  %5 = add i8 %4, -48
+  %or.cond = icmp ult i8 %5, 10
+  br i1 %or.cond, label %while.body, label %while.end, !llvm.loop !8
+while.end:
+  %n.0.lcssa = phi i16 [ 0, %entry ], [ %add, %while.body ]
+  %sub10 = sub nsw i16 0, %n.0.lcssa
+  %cond = select i1 %cmp.not, i16 %sub10, i16 %n.0.lcssa
+  ret i16 %cond
+}
+
 ; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
 declare i16 @llvm.abs.i16(i16, i1 immarg) #2
 

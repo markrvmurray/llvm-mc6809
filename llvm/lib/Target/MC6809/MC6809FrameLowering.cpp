@@ -438,10 +438,13 @@ bool MC6809FrameLowering::hasFP(const MachineFunction &MF) const {
   if (MFI.isFrameAddressTaken() || MFI.hasVarSizedObjects())
     return true;
   // Force frame pointer when spill pseudo-registers are used.
-  // Spill accesses use U-relative addressing so PSHS/PULS (which change S)
-  // don't invalidate spill slot offsets.
   if (auto *FuncInfo = MF.getInfo<MC6809FunctionInfo>())
-    return FuncInfo->UsesSpillRegisters;
+    if (FuncInfo->UsesSpillRegisters)
+      return true;
+  // Force frame pointer when the function makes calls — calls shift S
+  // (return address push), so S-relative frame access is unstable.
+  if (MFI.hasCalls())
+    return true;
   return false;
 }
 

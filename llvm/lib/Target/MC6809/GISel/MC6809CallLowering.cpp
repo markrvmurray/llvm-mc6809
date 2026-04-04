@@ -382,6 +382,11 @@ bool MC6809CallLowering::lowerCall(MachineIRBuilder &MIRBuilder, CallLoweringInf
 
   // Generate the call frame destroy pseudo with the correct sizes.
   MIRBuilder.buildInstr(MC6809::ADJCALLSTACKUP).addImm(StackSize).addImm(0);
+
+  // Mark the function as having calls so the register allocator knows to
+  // preserve caller-saved registers and the frame pointer.
+  MF.getFrameInfo().setHasCalls(true);
+  MF.getFrameInfo().setAdjustsStack(true);
   return true;
 }
 

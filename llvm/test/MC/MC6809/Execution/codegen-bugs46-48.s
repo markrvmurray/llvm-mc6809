@@ -65,21 +65,21 @@ test_main:
 
 	;; atoi("42") = 42 = 0x002A
 	ldx	#str_42
-	jsr	test_atoi
+	jsr	test_atoi_neg
 	jsr	putx
 	jsr	putnl
 ; CHECK-NEXT: 002A
 
 	;; atoi("0") = 0
 	ldx	#str_0
-	jsr	test_atoi
+	jsr	test_atoi_neg
 	jsr	putx
 	jsr	putnl
 ; CHECK-NEXT: 0000
 
 	;; atoi("123") = 123 = 0x007B
 	ldx	#str_123
-	jsr	test_atoi
+	jsr	test_atoi_neg
 	jsr	putx
 	jsr	putnl
 ; CHECK-NEXT: 007B

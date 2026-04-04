@@ -11,6 +11,7 @@
 ; Libc smoke test: strlen, strcmp, atoi.
 
 .include "runtime.inc"
+.include "mc6809rt.s"
 
 	.section .rom,"ax",@progbits
 
