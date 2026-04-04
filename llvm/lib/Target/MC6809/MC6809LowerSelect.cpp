@@ -243,13 +243,15 @@ MachineFunction::reverse_iterator MC6809LowerSelect::lowerSelect(GSelect &MI) {
       const auto InsertUseMI = [&](MachineBasicBlock *MBB, MachineInstr *UseMI, Register Value) {
         auto ConstVal = getIConstantVRegValWithLookThrough(Value, MRI);
         if (ConstVal) {
-          if (ConstVal->Value.getBoolValue() != static_cast<bool>(UseMI->getOperand(2).getImm())) {
+          // G_BRCOND has (cond, mbb). If the condition is constant, we can
+          // determine whether the branch is always/never taken.
+          if (!ConstVal->Value.getBoolValue()) {
             LLVM_DEBUG(dbgs() << "User branch cannot be taken; eliding.\n");
             return;
           }
           LLVM_DEBUG(dbgs() << "User branch is always taken. Making unconditional.\n");
           UseMI->setDesc(Builder.getTII().get(MC6809::G_BR));
-          UseMI->removeOperand(2);
+          // G_BR has just (mbb), remove condition operand.
           UseMI->removeOperand(0);
         } else
           UseMI->getOperand(0).setReg(Value);

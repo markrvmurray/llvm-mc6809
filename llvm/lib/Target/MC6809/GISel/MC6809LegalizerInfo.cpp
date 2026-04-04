@@ -209,13 +209,10 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // G_ABS: custom legalization to avoid the default ASHR+ADD+XOR pattern
   // which creates massive byte-level shift chains on the 6809. Instead,
   // decompose to compare + negate + select (branch-based).
-  // G_ABS: custom for s8/s16 (decompose to compare + negate + select,
-  // avoiding the default ASHR+XOR pattern that creates massive shift chains).
-  // s32 uses the default lower (XOR+shift) since G_SELECT for s32 creates
-  // even more register pressure.
+  // G_ABS: custom legalization decomposes to compare + negate + select,
+  // avoiding the default ASHR+XOR pattern that creates massive shift chains.
   getActionDefinitionsBuilder(G_ABS)
-      .customFor({s8, s16})
-      .lower();
+      .customFor({s8, s16, s32});
 
   getActionDefinitionsBuilder({G_FSHL, G_FSHR, G_UMULO, G_UMULFIX, G_SMULFIX, G_SMULFIXSAT, G_UMULFIXSAT, G_UDIVFIX, G_SDIVFIX, G_SDIVFIXSAT, G_UDIVFIXSAT, G_FCANONICALIZE})
       .libcall();
@@ -408,7 +405,8 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
     // This avoids the default ASHR+ADD+XOR pattern which creates massive
     // byte-level shift chains on the 6809.
     MachineIRBuilder &Builder = Helper.MIRBuilder;
-    auto [Dst, Src] = MI.getFirst2Regs();
+    Register Dst = MI.getOperand(0).getReg();
+    Register Src = MI.getOperand(1).getReg();
     LLT Ty = MRI.getType(Src);
     auto Zero = Builder.buildConstant(Ty, 0);
     auto Neg = Builder.buildSub(Ty, Zero, Src);
