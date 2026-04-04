@@ -425,6 +425,26 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
   default:
     return false;
 
+  case TargetOpcode::G_TRUNC: {
+    // Hand-select G_TRUNC when the imported pattern doesn't match (e.g.,
+    // when imaginary registers in ACC16 cause a synthesized 'accum' class).
+    // trunc i16→i8: EXTRACT_SUBREG sub_lo_byte (for real registers) or
+    // COPY with class constraint (for imaginary/spill).
+    Register DstReg = MI.getOperand(0).getReg();
+    Register SrcReg = MI.getOperand(1).getReg();
+    LLT DstTy = MRI->getType(DstReg);
+    LLT SrcTy = MRI->getType(SrcReg);
+    if (DstTy == LLT::scalar(8) && SrcTy == LLT::scalar(16)) {
+      MRI->setRegClass(DstReg, &MC6809::ACC8RegClass);
+      MRI->setRegClass(SrcReg, &MC6809::ACC16RegClass);
+      MI.setDesc(TII.get(TargetOpcode::COPY));
+      MI.getOperand(1).setSubReg(MC6809::sub_lo_byte);
+      constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
+      return true;
+    }
+    return false;
+  }
+
   case TargetOpcode::G_CONSTANT: {
     // Pointer constants (e.g., NULL) aren't covered by imported patterns
     // because they have p0 type, not s16. Hand-select to LDX #imm.

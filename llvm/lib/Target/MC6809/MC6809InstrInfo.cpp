@@ -2233,7 +2233,20 @@ void MC6809InstrInfo::expandNegate(MachineIRBuilder &Builder, MachineInstr &MI) 
 }
 
 void MC6809InstrInfo::expandShiftLeft(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  switch (MI.getOperand(0).getReg()) {
+  Register Reg = MI.getOperand(0).getReg();
+  if (needsMaterialization(Reg)) {
+    Register OrigReg = Reg;
+    MachineFunction &MF = *MI.getMF();
+    Reg = materializeReg(Builder, Reg, MF);
+    MI.getOperand(0).setReg(Reg);
+    if (MI.getNumOperands() > 1 && MI.getOperand(1).isReg() &&
+        MI.getOperand(1).getReg() == OrigReg)
+      MI.getOperand(1).setReg(Reg);
+    expandShiftLeft(Builder, MI);
+    dematerializeReg(Builder, Reg, OrigReg, MF);
+    return;
+  }
+  switch (Reg) {
   default:
     llvm_unreachable("Illegal register for ASL/LSL");
   case MC6809::AA:
@@ -2269,6 +2282,18 @@ void MC6809InstrInfo::expandShiftLeft(MachineIRBuilder &Builder, MachineInstr &M
 
 void MC6809InstrInfo::expandShiftRight(MachineIRBuilder &Builder, MachineInstr &MI, bool Arithmetic) const {
   Register Reg = MI.getOperand(0).getReg();
+  if (needsMaterialization(Reg)) {
+    Register OrigReg = Reg;
+    MachineFunction &MF = *MI.getMF();
+    Reg = materializeReg(Builder, Reg, MF);
+    MI.getOperand(0).setReg(Reg);
+    if (MI.getNumOperands() > 1 && MI.getOperand(1).isReg() &&
+        MI.getOperand(1).getReg() == OrigReg)
+      MI.getOperand(1).setReg(Reg);
+    expandShiftRight(Builder, MI, Arithmetic);
+    dematerializeReg(Builder, Reg, OrigReg, MF);
+    return;
+  }
   unsigned Opcode;
   switch (Reg) {
   default:
@@ -2305,6 +2330,18 @@ void MC6809InstrInfo::expandShiftRight(MachineIRBuilder &Builder, MachineInstr &
 
 void MC6809InstrInfo::expandRotate(MachineIRBuilder &Builder, MachineInstr &MI, bool Left) const {
   Register Reg = MI.getOperand(0).getReg();
+  if (needsMaterialization(Reg)) {
+    Register OrigReg = Reg;
+    MachineFunction &MF = *MI.getMF();
+    Reg = materializeReg(Builder, Reg, MF);
+    MI.getOperand(0).setReg(Reg);
+    if (MI.getNumOperands() > 1 && MI.getOperand(1).isReg() &&
+        MI.getOperand(1).getReg() == OrigReg)
+      MI.getOperand(1).setReg(Reg);
+    expandRotate(Builder, MI, Left);
+    dematerializeReg(Builder, Reg, OrigReg, MF);
+    return;
+  }
   unsigned Opcode;
   switch (Reg) {
   default:
@@ -2328,39 +2365,32 @@ void MC6809InstrInfo::expandMulD(MachineIRBuilder &Builder, MachineInstr &MI) co
   Register SrcReg = MI.getOperand(1).getReg();
 
   if (DstReg == MC6809::AD && SrcReg == MC6809::AD) {
-    // Direct: operands already in real D register.
     MI.setDesc(Builder.getTII().get(MC6809::MULx));
     MI.getOperand(0).setImplicit();
     MI.getOperand(1).setImplicit();
     return;
   }
 
-  // Spill register operand: load from spill slot → D, MUL, store D → spill slot.
-  // Emit concrete S-indexed instructions (PEI has already resolved frame indices).
+  // Spill/imaginary operand: materialize → MUL → dematerialize.
   MachineFunction &MF = *MI.getMF();
   MachineBasicBlock &MBB = *MI.getParent();
 
-  // Load spill slot into real D before the MUL.
   if (SrcReg != MC6809::AD) {
-    assert(isSpillReg(SrcReg) && "MUL_D source must be AD or spill register");
     MachineIRBuilder PreBuilder(MBB, MI.getIterator());
-    emitSpillLoad(PreBuilder, MC6809::AD, SrcReg, MF);
+    materializeReg(PreBuilder, SrcReg, MF);
   }
 
-  // The MUL instruction itself.
   MI.setDesc(Builder.getTII().get(MC6809::MULx));
   MI.getOperand(0).setReg(MC6809::AD);
   MI.getOperand(0).setImplicit();
   MI.getOperand(1).setReg(MC6809::AD);
   MI.getOperand(1).setImplicit();
 
-  // Store result from D to spill slot after the MUL.
   if (DstReg != MC6809::AD) {
-    assert(isSpillReg(DstReg) && "MUL_D dest must be AD or spill register");
     MachineBasicBlock::iterator InsertPt = MI.getIterator();
     ++InsertPt;
     MachineIRBuilder PostBuilder(MBB, InsertPt);
-    emitSpillStore(PostBuilder, MC6809::AD, DstReg, MF);
+    dematerializeReg(PostBuilder, MC6809::AD, DstReg, MF);
   }
 }
 
