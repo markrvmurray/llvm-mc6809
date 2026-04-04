@@ -896,6 +896,60 @@ static MachineInstrBuilder emitSpillStore(MachineIRBuilder &Builder,
   return MI;
 }
 
+/// Check if a register needs materialization (spill or imaginary — not a real
+/// hardware register that can be used directly in instructions).
+static bool needsMaterialization(Register Reg) {
+  if (isSpillReg(Reg)) return true;
+  return Reg.isPhysical() &&
+         (MC6809::Imag8RegClass.contains(Reg) ||
+          MC6809::Imag16RegClass.contains(Reg));
+}
+
+/// Get the physical hardware register that a non-physical register maps to.
+static Register getPhysRegFor(Register Reg) {
+  if (isSpillReg(Reg))
+    return getRealRegForSpill(Reg);
+  if (Reg.isPhysical() && MC6809::Imag8RegClass.contains(Reg))
+    return MC6809::AB;
+  if (Reg.isPhysical() && MC6809::Imag16RegClass.contains(Reg))
+    return MC6809::AD;
+  return Reg; // Already a real hardware register.
+}
+
+/// Materialize: if Reg is a spill or imaginary register, emit a load into the
+/// corresponding hardware register and return it. If already physical, no-op.
+static Register materializeReg(MachineIRBuilder &Builder, Register Reg,
+                                MachineFunction &MF) {
+  if (!needsMaterialization(Reg))
+    return Reg;
+  Register PhysReg = getPhysRegFor(Reg);
+  if (isSpillReg(Reg)) {
+    emitSpillLoad(Builder, PhysReg, Reg, MF);
+  } else if (MC6809::Imag8RegClass.contains(Reg)) {
+    unsigned Opc = (PhysReg == MC6809::AA) ? MC6809::LDAd : MC6809::LDBd;
+    Builder.buildInstr(Opc).addReg(Reg);
+  } else if (MC6809::Imag16RegClass.contains(Reg)) {
+    Builder.buildInstr(MC6809::LDDd).addReg(Reg);
+  }
+  return PhysReg;
+}
+
+/// Dematerialize: if OrigReg is a spill or imaginary register, store PhysReg
+/// back to it. If OrigReg is already physical, no-op.
+static void dematerializeReg(MachineIRBuilder &Builder, Register PhysReg,
+                              Register OrigReg, MachineFunction &MF) {
+  if (!needsMaterialization(OrigReg))
+    return;
+  if (isSpillReg(OrigReg)) {
+    emitSpillStore(Builder, PhysReg, OrigReg, MF);
+  } else if (MC6809::Imag8RegClass.contains(OrigReg)) {
+    unsigned Opc = (PhysReg == MC6809::AA) ? MC6809::STAd : MC6809::STBd;
+    Builder.buildInstr(Opc).addReg(OrigReg);
+  } else if (MC6809::Imag16RegClass.contains(OrigReg)) {
+    Builder.buildInstr(MC6809::STDd).addReg(OrigReg);
+  }
+}
+
  void  MC6809InstrInfo::copyPhysReg(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, const DebugLoc &DL, Register DestReg, Register SrcReg, bool KillSrc, bool RenamableDest, bool RenamableSrc) const {
   MachineIRBuilder Builder(MBB, MI);
   if (DestReg == SrcReg)
@@ -2138,21 +2192,20 @@ void MC6809InstrInfo::expandNegate(MachineIRBuilder &Builder, MachineInstr &MI) 
   bool has6309 = STI.has6309();
   Register Reg = MI.getOperand(0).getReg();
 
-  // Handle spill registers: load to real register, negate, store back.
-  if (isSpillReg(Reg)) {
-    Register OrigSpillReg = Reg;
-    Register RealReg = getRealRegForSpill(Reg);
+  // Handle spill/imaginary registers: load to real register, negate, store back.
+  if (needsMaterialization(Reg)) {
+    Register OrigReg = Reg;
     MachineFunction &MF = *MI.getMF();
-    emitSpillLoad(Builder, RealReg, OrigSpillReg, MF);
+    Register RealReg = materializeReg(Builder, Reg, MF);
     // Rewrite operands to the real register.
     MI.getOperand(0).setReg(RealReg);
     if (MI.getNumOperands() > 1 && MI.getOperand(1).isReg() &&
-        MI.getOperand(1).getReg() == OrigSpillReg)
+        MI.getOperand(1).getReg() == OrigReg)
       MI.getOperand(1).setReg(RealReg);
     // Recursively expand with the real register.
     expandNegate(Builder, MI);
-    // Store back to spill slot.
-    emitSpillStore(Builder, RealReg, OrigSpillReg, MF);
+    // Store back.
+    dematerializeReg(Builder, RealReg, OrigReg, MF);
     return;
   }
 
@@ -3120,58 +3173,34 @@ void MC6809InstrInfo::expandSubSetCarryUseReg(MachineIRBuilder &Builder, Machine
 void MC6809InstrInfo::expandAddPull(MachineIRBuilder &Builder, MachineInstr &MI) const {
   auto DestReg = MI.getOperand(0).getReg();
   auto SrcReg = MI.getOperand(1).getReg();
+  Register OrigDest = DestReg;
+  MachineFunction &MF = *MI.getMF();
+  DestReg = materializeReg(Builder, DestReg, MF);
 
-  // If the destination is a spill register, load it into the real accumulator,
-  // do the add-pull, then store back.
-  if (isSpillReg(DestReg)) {
-    Register RealReg = getRealRegForSpill(DestReg);
-    MachineFunction &MF = *MI.getMF();
-    emitSpillLoad(Builder, RealReg, DestReg, MF);
-    auto OpcodePair = AddPullOpcode.find(RealReg);
-    Builder.buildInstr(OpcodePair->getSecond())
-        .addDef(RealReg, RegState::Implicit)
-        .addUse(SrcReg, RegState::Implicit)
-        .addUse(MC6809::SS);
-    emitSpillStore(Builder, RealReg, DestReg, MF);
-    MI.eraseFromParent();
-    return;
-  }
-
-  // Always use SS — Push_i8 expands to PSHS (S stack), U is reserved.
   auto OpcodePair = AddPullOpcode.find(DestReg);
   Builder.buildInstr(OpcodePair->getSecond())
-                   .addDef(DestReg, RegState::Implicit)
-                   .addUse(SrcReg, RegState::Implicit)
-                   .addUse(MC6809::SS);
+      .addDef(DestReg, RegState::Implicit)
+      .addUse(SrcReg, RegState::Implicit)
+      .addUse(MC6809::SS);
+
+  dematerializeReg(Builder, DestReg, OrigDest, MF);
   MI.eraseFromParent();
 }
 
 void MC6809InstrInfo::expandSubPull(MachineIRBuilder &Builder, MachineInstr &MI) const {
   auto DestReg = MI.getOperand(0).getReg();
   auto SrcReg = MI.getOperand(1).getReg();
+  Register OrigDest = DestReg;
+  MachineFunction &MF = *MI.getMF();
+  DestReg = materializeReg(Builder, DestReg, MF);
 
-  // If the destination is a spill register, load into real accumulator,
-  // do the sub-pull, then store back.
-  if (isSpillReg(DestReg)) {
-    Register RealReg = getRealRegForSpill(DestReg);
-    MachineFunction &MF = *MI.getMF();
-    emitSpillLoad(Builder, RealReg, DestReg, MF);
-    auto OpcodePair = SubPullOpcode.find(RealReg);
-    Builder.buildInstr(OpcodePair->getSecond())
-        .addDef(RealReg, RegState::Implicit)
-        .addUse(SrcReg, RegState::Implicit)
-        .addUse(MC6809::SS);
-    emitSpillStore(Builder, RealReg, DestReg, MF);
-    MI.eraseFromParent();
-    return;
-  }
-
-  // Always use SS for pull operations.
   auto OpcodePair = SubPullOpcode.find(DestReg);
   Builder.buildInstr(OpcodePair->getSecond())
-                   .addDef(DestReg, RegState::Implicit)
-                   .addUse(SrcReg, RegState::Implicit)
-                   .addUse(MC6809::SS);
+      .addDef(DestReg, RegState::Implicit)
+      .addUse(SrcReg, RegState::Implicit)
+      .addUse(MC6809::SS);
+
+  dematerializeReg(Builder, DestReg, OrigDest, MF);
   MI.eraseFromParent();
 }
 
@@ -3186,12 +3215,8 @@ void MC6809InstrInfo::expandCompareImm(MachineIRBuilder &Builder, MachineInstr &
   assert((MI.getOperand(3).isImm() || MI.getOperand(3).isCImm()) && "The final operand of immediate compares must be an immediate constant");
 
   auto SrcReg = MI.getOperand(2).getReg();
-  if (isSpillReg(SrcReg)) {
-    Register RealReg = getRealRegForSpill(SrcReg);
-    MachineFunction &MF = *MI.getMF();
-    emitSpillLoad(Builder, RealReg, SrcReg, MF);
-    SrcReg = RealReg;
-  }
+  MachineFunction &MF = *MI.getMF();
+  SrcReg = materializeReg(Builder, SrcReg, MF);
 
   // Bug #49 fix: if source is AD and D was loaded from a frame slot that was
   // stored from X or Y, use CMPX/CMPY instead. This preserves D's PHI value
@@ -3428,12 +3453,8 @@ void MC6809InstrInfo::expandComparePull(MachineIRBuilder &Builder, MachineInstr 
   assert(MI.getOperand(2).isReg() && "The source of pull compares must be a register");
 
   auto SrcReg = MI.getOperand(2).getReg();
-  if (isSpillReg(SrcReg)) {
-    Register RealReg = getRealRegForSpill(SrcReg);
-    MachineFunction &MF = *MI.getMF();
-    emitSpillLoad(Builder, RealReg, SrcReg, MF);
-    SrcReg = RealReg;
-  }
+  MachineFunction &MF = *MI.getMF();
+  SrcReg = materializeReg(Builder, SrcReg, MF);
   int Size = (SrcReg == MC6809::AA || SrcReg == MC6809::AB ||
               SrcReg == MC6809::AE || SrcReg == MC6809::AF) ? 1 : 2;
   // Compare with [S+0] (zero offset from stack pointer).
