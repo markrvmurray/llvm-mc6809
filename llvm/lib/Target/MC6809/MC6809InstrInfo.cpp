@@ -1206,6 +1206,29 @@ void MC6809InstrInfo::loadStoreRegStackSlot(MachineBasicBlock &MBB, MachineBasic
   MachineFrameInfo &MFI = MF.getFrameInfo();
   MachineRegisterInfo &MRI = MF.getRegInfo();
 
+  // Imaginary registers (RC0..RC255, RS0..RS127) are direct-page memory
+  // locations — they don't use frame indices. Emit direct-page LDA/STA
+  // (or LDD/STD for 16-bit) with the register as the address operand.
+  // MCInstLower converts imaginary register operands to symbol references.
+  if (Reg.isPhysical() &&
+      (MC6809::Imag8RegClass.contains(Reg) || MC6809::Imag16RegClass.contains(Reg))) {
+    MachineIRBuilder Builder(MBB, MI);
+    if (MC6809::Imag16RegClass.contains(Reg)) {
+      if (IsLoad) {
+        Builder.buildInstr(MC6809::LDDd).addReg(Reg);
+      } else {
+        Builder.buildInstr(MC6809::STDd).addReg(Reg);
+      }
+    } else {
+      if (IsLoad) {
+        Builder.buildInstr(MC6809::LDAd).addReg(Reg);
+      } else {
+        Builder.buildInstr(MC6809::STAd).addReg(Reg);
+      }
+    }
+    return;
+  }
+
   MachinePointerInfo PtrInfo = MachinePointerInfo::getFixedStack(MF, FrameIndex);
   MachineMemOperand *MMO = MF.getMachineMemOperand(PtrInfo, IsLoad ? MachineMemOperand::MOLoad : MachineMemOperand::MOStore, MFI.getObjectSize(FrameIndex), MFI.getObjectAlign(FrameIndex));
 
