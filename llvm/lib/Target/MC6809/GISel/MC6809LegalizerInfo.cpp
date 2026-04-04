@@ -206,6 +206,17 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
       .clampScalar(1, s1, s8)
       .clampScalar(0, s8, s32);
 
+  // G_ABS: custom legalization to avoid the default ASHR+ADD+XOR pattern
+  // which creates massive byte-level shift chains on the 6809. Instead,
+  // decompose to compare + negate + select (branch-based).
+  // G_ABS: custom for s8/s16 (decompose to compare + negate + select,
+  // avoiding the default ASHR+XOR pattern that creates massive shift chains).
+  // s32 uses the default lower (XOR+shift) since G_SELECT for s32 creates
+  // even more register pressure.
+  getActionDefinitionsBuilder(G_ABS)
+      .customFor({s8, s16})
+      .lower();
+
   getActionDefinitionsBuilder({G_FSHL, G_FSHR, G_UMULO, G_UMULFIX, G_SMULFIX, G_SMULFIXSAT, G_UMULFIXSAT, G_UDIVFIX, G_SDIVFIX, G_SDIVFIXSAT, G_UDIVFIXSAT, G_FCANONICALIZE})
       .libcall();
 
@@ -273,7 +284,7 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
       })
       .legalForCartesianProduct(LegalTypesWithOne, {s1}).clampScalar(0, s8, sMax);
 
-  getActionDefinitionsBuilder({G_SDIVREM, G_UDIVREM, G_ABS, G_DYN_STACKALLOC, G_SEXT_INREG, G_SMULO, G_SMIN, G_SMAX, G_UMIN, G_UMAX, G_UADDSAT, G_SADDSAT, G_USUBSAT, G_SSUBSAT, G_USHLSAT, G_SSHLSAT, G_FPOWI})
+  getActionDefinitionsBuilder({G_SDIVREM, G_UDIVREM, G_DYN_STACKALLOC, G_SEXT_INREG, G_SMULO, G_SMIN, G_SMAX, G_UMIN, G_UMAX, G_UADDSAT, G_SADDSAT, G_USUBSAT, G_SSUBSAT, G_USHLSAT, G_SSHLSAT, G_FPOWI})
       .lower();
 
   getActionDefinitionsBuilder({G_CTTZ, G_CTTZ_ZERO_UNDEF, G_CTLZ_ZERO_UNDEF})
@@ -391,6 +402,21 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
   case G_FCANONICALIZE:
     return legalizeFCanonicalize(Helper, MRI, MI, LocObserver);
     break;
+  case G_ABS: {
+    // Decompose to: %neg = G_SUB 0, %src; %cmp = G_ICMP slt, %src, 0;
+    //               %res = G_SELECT %cmp, %neg, %src
+    // This avoids the default ASHR+ADD+XOR pattern which creates massive
+    // byte-level shift chains on the 6809.
+    MachineIRBuilder &Builder = Helper.MIRBuilder;
+    auto [Dst, Src] = MI.getFirst2Regs();
+    LLT Ty = MRI.getType(Src);
+    auto Zero = Builder.buildConstant(Ty, 0);
+    auto Neg = Builder.buildSub(Ty, Zero, Src);
+    auto Cmp = Builder.buildICmp(CmpInst::ICMP_SLT, LLT::scalar(1), Src, Zero);
+    Builder.buildSelect(Dst, Cmp, Neg, Src);
+    MI.eraseFromParent();
+    return LegalizerHelper::Legalized;
+  }
   case G_CTLZ:
     return legalizeCtlz(Helper, MRI, MI, LocObserver);
   case G_MEMCPY:
