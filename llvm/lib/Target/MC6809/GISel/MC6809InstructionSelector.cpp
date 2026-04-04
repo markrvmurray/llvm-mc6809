@@ -522,6 +522,31 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
   case TargetOpcode::G_PHI:
     return selectGeneric(MI);
 
+  case TargetOpcode::G_FREEZE: {
+    // G_FREEZE is a no-op (marks value as non-poison). Lower to COPY.
+    Register DstReg = MI.getOperand(0).getReg();
+    Register SrcReg = MI.getOperand(1).getReg();
+    const TargetRegisterClass *RC = MRI->getRegClassOrNull(SrcReg);
+    if (!RC) {
+      LLT Ty = MRI->getType(SrcReg);
+      if (Ty == LLT::scalar(1))
+        RC = &MC6809::BIT1RegClass;
+      else if (Ty == LLT::scalar(8))
+        RC = &MC6809::ACC8RegClass;
+      else if (Ty == LLT::scalar(16) || Ty == LLT::pointer(0, 16))
+        RC = &MC6809::ACC16RegClass;
+      else if (Ty == LLT::scalar(32))
+        RC = &MC6809::ACC32RegClass;
+    }
+    if (RC) {
+      MRI->setRegClass(DstReg, RC);
+      MRI->setRegClass(SrcReg, RC);
+    }
+    MI.setDesc(TII.get(TargetOpcode::COPY));
+    constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
+    return true;
+  }
+
   case TargetOpcode::G_ADD:
   case TargetOpcode::G_SUB: {
     // Handle INDEX-bank i16 add/sub via LEA.
