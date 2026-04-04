@@ -8,7 +8,7 @@
 ; RUN: %usim09batch --timeout=2000000 %t.hex | FileCheck %s
 ; REQUIRES: usim
 ;
-; Libc smoke test: strlen, strcmp (equal only), atoi.
+; Libc smoke test: strlen, strcmp, atoi.
 
 .include "runtime.inc"
 
@@ -81,7 +81,25 @@ test_main:
 	jsr	putnl
 ; CHECK-NEXT: 0000
 
-	;; NOTE: strcmp unequal returns 0 — codegen bug, needs investigation.
+	;; strcmp("Hello", "Hell") > 0 (first is longer)
+	ldd	#src_hell
+	pshs	d
+	ldx	#src_hello
+	jsr	my_strcmp
+	leas	2,s
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0001
+
+	;; strcmp("Hell", "Help") < 0  ('l' < 'p')
+	ldd	#src_help
+	pshs	d
+	ldx	#src_hell
+	jsr	my_strcmp
+	leas	2,s
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: FFFF
 
 	;; ===== atoi =====
 

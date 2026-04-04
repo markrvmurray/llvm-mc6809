@@ -49,10 +49,16 @@ loop.inc:
   br label %loop
 
 ret.diff:
-  %va16 = zext i8 %va to i16
-  %vb16 = zext i8 %vb to i16
-  %result = sub i16 %va16, %vb16
-  ret i16 %result
+  ; Return 1 if va > vb, -1 if va < vb.
+  ; Avoids double i8→i16 zext which triggers D/A/B aliasing bug in regalloc.
+  %gt = icmp ugt i8 %va, %vb
+  br i1 %gt, label %ret.pos, label %ret.neg
+
+ret.pos:
+  ret i16 1
+
+ret.neg:
+  ret i16 -1
 
 ret.zero:
   ret i16 0
