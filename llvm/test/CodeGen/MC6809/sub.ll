@@ -335,7 +335,7 @@ define dso_local i32 @sub_s_i32(i32 noundef %a, i32 noundef %b, i32 noundef %c, 
 ; CHECK-NEXT:    pshs s,s
 ; CHECK-NEXT:    sbcb 1,s
 ; CHECK-NEXT:    sbca ,s
-; CHECK-NEXT:    leas s,2
+; CHECK-NEXT:    leas 2,s
 ; CHECK-NEXT:    std 4,u
 ; CHECK-NEXT:    ldd 6,u
 ; CHECK-NEXT:    std 14,u
@@ -483,7 +483,7 @@ define dso_local i32 @sub_u_i32(i32 noundef %a, i32 noundef %b, i32 noundef %c, 
 ; CHECK-NEXT:    pshs s,s
 ; CHECK-NEXT:    sbcb 1,s
 ; CHECK-NEXT:    sbca ,s
-; CHECK-NEXT:    leas s,2
+; CHECK-NEXT:    leas 2,s
 ; CHECK-NEXT:    std 4,u
 ; CHECK-NEXT:    ldd 6,u
 ; CHECK-NEXT:    std 14,u
