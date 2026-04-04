@@ -9,17 +9,29 @@ MEMORY {
 
 SECTIONS {
     /* Imaginary registers — direct page (DP=0, addresses 0x00-0xFF).
-       Each __rsN is a 2-byte pointer, __rcN are the individual bytes.
-       RC0 is the low byte of RS0, RC1 is the high byte. */
+       8-bit (RC) and 16-bit (RS) pools are non-overlapping. */
     .directpage (NOLOAD) : {
-        __rc0 = .; __rc1 = . + 1; __rs0 = .; . += 2;
-        __rc2 = .; __rc3 = . + 1; __rs1 = .; . += 2;
-        __rc4 = .; __rc5 = . + 1; __rs2 = .; . += 2;
-        __rc6 = .; __rc7 = . + 1; __rs3 = .; . += 2;
-        __rc8 = .; __rc9 = . + 1; __rs4 = .; . += 2;
-        __rc10 = .; __rc11 = . + 1; __rs5 = .; . += 2;
-        __rc12 = .; __rc13 = . + 1; __rs6 = .; . += 2;
-        __rc14 = .; __rc15 = . + 1; __rs7 = .; . += 2;
+        /* 8-bit pool: RC0..RC7 at $00-$07 */
+        __rc0 = .; . += 1;
+        __rc1 = .; . += 1;
+        __rc2 = .; . += 1;
+        __rc3 = .; . += 1;
+        __rc4 = .; . += 1;
+        __rc5 = .; . += 1;
+        __rc6 = .; . += 1;
+        __rc7 = .; . += 1;
+        /* 16-bit pool: RS0..RS3 at $08-$0F */
+        __rs0 = .; . += 2;
+        __rs1 = .; . += 2;
+        __rs2 = .; . += 2;
+        __rs3 = .; . += 2;
+        /* Remaining (for future expansion) */
+        __rc8 = .; . += 1; __rc9 = .; . += 1;
+        __rc10 = .; . += 1; __rc11 = .; . += 1;
+        __rc12 = .; . += 1; __rc13 = .; . += 1;
+        __rc14 = .; . += 1; __rc15 = .; . += 1;
+        __rs4 = .; . += 2; __rs5 = .; . += 2;
+        __rs6 = .; . += 2; __rs7 = .; . += 2;
         *(.directpage)
     } > RAM
 
