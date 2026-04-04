@@ -3030,7 +3030,6 @@ static void emit6809RegPairFromMem(MachineIRBuilder &Builder,
         .addDef(MC6809::AA, RegState::Implicit)
         .addReg(MC6809::SS);
     Builder.buildInstr(MC6809::LEASi_o5)
-        .addDef(MC6809::SS)
         .addImm(2).addReg(MC6809::SS);
   }
   // Store result back if LHS was a spill register.
