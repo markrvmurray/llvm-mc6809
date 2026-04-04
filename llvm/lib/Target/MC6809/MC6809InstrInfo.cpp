@@ -3192,6 +3192,64 @@ void MC6809InstrInfo::expandCompareImm(MachineIRBuilder &Builder, MachineInstr &
     emitSpillLoad(Builder, RealReg, SrcReg, MF);
     SrcReg = RealReg;
   }
+
+  // Bug #49 fix: if source is AD and D was loaded from a frame slot that was
+  // stored from X or Y, use CMPX/CMPY instead. This preserves D's PHI value
+  // which would otherwise be clobbered by the LDD reload.
+  if (SrcReg == MC6809::AD) {
+    MachineBasicBlock &MBB = *MI.getParent();
+    MachineInstr *LDDInstr = nullptr;
+    int LoadOffset = 0;
+
+    // Find the LDD that loaded the comparison value into D.
+    for (auto It = MachineBasicBlock::reverse_iterator(MI.getIterator());
+         It != MBB.rend(); ++It) {
+      if (It->definesRegister(MC6809::AD, /*TRI=*/nullptr)) {
+        unsigned Opc = It->getOpcode();
+        if ((Opc == MC6809::LDDi_o0 || Opc == MC6809::LDDi_o5 ||
+             Opc == MC6809::LDDi_o8 || Opc == MC6809::LDDi_o16) &&
+            It->getNumOperands() >= 2 && It->getOperand(1).isReg() &&
+            It->getOperand(1).getReg() == MC6809::SU) {
+          LDDInstr = &*It;
+          LoadOffset = It->getOperand(0).getImm();
+        }
+        break; // Stop at the first D definition.
+      }
+    }
+
+    if (LDDInstr) {
+      // Look further back for STX/STY to the same frame offset.
+      Register IndexSrc;
+      for (auto It = MachineBasicBlock::reverse_iterator(LDDInstr->getIterator());
+           It != MBB.rend(); ++It) {
+        unsigned Opc = It->getOpcode();
+        if ((Opc == MC6809::STXi_o5 || Opc == MC6809::STXi_o8 ||
+             Opc == MC6809::STXi_o16) &&
+            It->getOperand(0).isImm() &&
+            It->getOperand(0).getImm() == LoadOffset) {
+          IndexSrc = MC6809::IX;
+          break;
+        }
+        if ((Opc == MC6809::STYi_o5 || Opc == MC6809::STYi_o8 ||
+             Opc == MC6809::STYi_o16) &&
+            It->getOperand(0).isImm() &&
+            It->getOperand(0).getImm() == LoadOffset) {
+          IndexSrc = MC6809::IY;
+          break;
+        }
+        // If X or Y is redefined before we find the store, stop.
+        if (It->definesRegister(MC6809::IX, /*TRI=*/nullptr) ||
+            It->definesRegister(MC6809::IY, /*TRI=*/nullptr))
+          break;
+      }
+
+      if (IndexSrc.isValid()) {
+        SrcReg = IndexSrc;
+        LDDInstr->eraseFromParent();
+      }
+    }
+  }
+
   auto OpcodePair = CompareImmediateOpcode.find(SrcReg);
   if (OpcodePair == CompareImmediateOpcode.end())
     llvm_unreachable("Compare Immediate - unexpected register.");

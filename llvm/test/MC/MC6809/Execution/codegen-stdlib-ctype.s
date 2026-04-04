@@ -10,7 +10,6 @@
 ;
 ; Execution tests for stdlib (abs, atoi, div) and ctype (isdigit, isalpha,
 ; isupper, islower) functions compiled from C.
-; Note: ctype inputs chosen to avoid bug #49 PHI-clobber on early-exit paths.
 
 .include "runtime.inc"
 .include "mc6809rt.s"
@@ -117,9 +116,6 @@ test_main:
 ; CHECK-NEXT: 0F00
 
 	;; ===== ctype =====
-	;; NOTE: Short-circuit evaluation (&&/||) has a PHI-clobber bug (#49)
-	;; when the early-exit path is taken. Test inputs here are chosen to
-	;; go through the full evaluation path, avoiding the early-exit bug.
 
 	;; isdigit('5') = 1
 	ldx	#0x35
@@ -135,15 +131,22 @@ test_main:
 	jsr	putnl
 ; CHECK-NEXT: 0000
 
-	;; isalpha('a') = 1  (lowercase — avoids uppercase early-exit)
+	;; isdigit(' ') = 0  (early-exit false path)
+	ldx	#0x20
+	jsr	test_isdigit
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0000
+
+	;; isalpha('a') = 1
 	ldx	#0x61
 	jsr	test_isalpha
 	jsr	putx
 	jsr	putnl
 ; CHECK-NEXT: 0001
 
-	;; isalpha('~') = 0  (c>96 but c>=123 — avoids both early-exits)
-	ldx	#0x7E
+	;; isalpha('3') = 0  (early-exit false path)
+	ldx	#0x33
 	jsr	test_isalpha
 	jsr	putx
 	jsr	putnl
@@ -163,15 +166,22 @@ test_main:
 	jsr	putnl
 ; CHECK-NEXT: 0000
 
-	;; islower('a') = 1
-	ldx	#0x61
+	;; isupper('!') = 0  (early-exit false path)
+	ldx	#0x21
+	jsr	test_isupper
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0000
+
+	;; islower('z') = 1
+	ldx	#0x7A
 	jsr	test_islower
 	jsr	putx
 	jsr	putnl
 ; CHECK-NEXT: 0001
 
-	;; islower('{') = 0  (c>96 but c>=123 — avoids early-exit)
-	ldx	#0x7B
+	;; islower('Z') = 0  (early-exit false path)
+	ldx	#0x5A
 	jsr	test_islower
 	jsr	putx
 	jsr	putnl
