@@ -425,6 +425,18 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
   default:
     return false;
 
+  case TargetOpcode::G_CONSTANT: {
+    // Pointer constants (e.g., NULL) aren't covered by imported patterns
+    // because they have p0 type, not s16. Hand-select to LDX #imm.
+    Register DstReg = MI.getOperand(0).getReg();
+    if (!MRI->getType(DstReg).isPointer())
+      return false;
+    MRI->setRegClass(DstReg, &MC6809::INDEX16RegClass);
+    MI.setDesc(TII.get(MC6809::Load_iPtr_Imm));
+    constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
+    return true;
+  }
+
   case TargetOpcode::G_GLOBAL_VALUE: {
     // Load the address of a global into an index register (LDX #addr).
     Register DstReg = MI.getOperand(0).getReg();
