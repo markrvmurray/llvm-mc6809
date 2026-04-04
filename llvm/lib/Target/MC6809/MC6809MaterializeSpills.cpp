@@ -315,14 +315,27 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
         }
       }
 
-      // Skip compare/test instructions and fused compare-and-branch pseudos.
-      // Compares: expansion functions handle spills via backwards scan
-      // (CMPX/CMPY), avoiding D clobber. SpillDSaveRestore handles D save/restore.
-      // Fused pseudos: they're terminators, and placing D restore after them
-      // violates the MIR invariant (non-terminator between terminators).
-      // SpillDSaveRestore handles D save/restore for these.
-      if (MI.isCompare() || MI.isTerminator())
-        continue;
+      // Skip compare/test instructions and fused compare-branch terminators
+      // that only have 16-bit spill operands (SPILL_D). Their expansion
+      // functions handle these via backwards scan (CMPX/CMPY), preserving D.
+      // Fused pseudos with 8-bit spill operands (SPILL_B) ARE processed
+      // because the expansion can't avoid clobbering D for byte comparisons.
+      if (MI.isCompare() || MI.isTerminator()) {
+        // Check if any spill operand is an 8-bit byte spill that needs
+        // materialization (the expansion can't handle these without D clobber).
+        bool Has8BitSpill = false;
+        for (const MachineOperand &MO : MI.operands()) {
+          if (MO.isReg() && MO.getReg().isPhysical() && isAccSpillReg(MO.getReg())) {
+            Register RealReg = getRealReg(MO.getReg());
+            if (RealReg == MC6809::AA || RealReg == MC6809::AB) {
+              Has8BitSpill = true;
+              break;
+            }
+          }
+        }
+        if (!Has8BitSpill)
+          continue;
+      }
 
       bool NeedD = false, NeedIY = false;
 
@@ -442,19 +455,44 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
         }
       }
 
-      // Restore saved registers.
-      if (IYSaveSlot >= 0) {
-        BuildMI(MBB, After, DL, TII.get(MC6809::Load_iPtr_Mem))
-            .addReg(MC6809::IY, RegState::Define)
-            .addFrameIndex(IYSaveSlot)
-            .addImm(0);
-      }
-      // Restore D if saved.
-      if (DSaveSlot >= 0) {
-        BuildMI(MBB, After, DL, TII.get(MC6809::Load_i16_Mem))
-            .addReg(MC6809::AD, RegState::Define)
-            .addFrameIndex(DSaveSlot)
-            .addImm(0);
+      if (!MI.isTerminator()) {
+        // Restore saved registers after non-terminator instructions.
+        if (IYSaveSlot >= 0) {
+          BuildMI(MBB, After, DL, TII.get(MC6809::Load_iPtr_Mem))
+              .addReg(MC6809::IY, RegState::Define)
+              .addFrameIndex(IYSaveSlot)
+              .addImm(0);
+        }
+        if (DSaveSlot >= 0) {
+          BuildMI(MBB, After, DL, TII.get(MC6809::Load_i16_Mem))
+              .addReg(MC6809::AD, RegState::Define)
+              .addFrameIndex(DSaveSlot)
+              .addImm(0);
+        }
+      } else {
+        // Terminator (fused compare-branch): can't place D restore after it.
+        // Insert the D restore at the start of each single-predecessor
+        // successor that expects D to be live.
+        if (DSaveSlot >= 0) {
+          for (MachineBasicBlock *Succ : MBB.successors()) {
+            if (Succ->pred_size() == 1) {
+              BuildMI(*Succ, Succ->begin(), DL, TII.get(MC6809::Load_i16_Mem))
+                  .addReg(MC6809::AD, RegState::Define)
+                  .addFrameIndex(DSaveSlot)
+                  .addImm(0);
+            }
+          }
+        }
+        if (IYSaveSlot >= 0) {
+          for (MachineBasicBlock *Succ : MBB.successors()) {
+            if (Succ->pred_size() == 1) {
+              BuildMI(*Succ, Succ->begin(), DL, TII.get(MC6809::Load_iPtr_Mem))
+                  .addReg(MC6809::IY, RegState::Define)
+                  .addFrameIndex(IYSaveSlot)
+                  .addImm(0);
+            }
+          }
+        }
       }
 
       Changed = true;
