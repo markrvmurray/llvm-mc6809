@@ -81,7 +81,7 @@ test_main:
 	jsr	putnl
 ; CHECK-NEXT: 0000
 
-	;; strcmp("Hello", "Hell") > 0 (first is longer)
+	;; strcmp("Hello", "Hell") > 0  ('o' - '\0' = 111 = 0x006F)
 	ldd	#src_hell
 	pshs	d
 	ldx	#src_hello
@@ -89,9 +89,9 @@ test_main:
 	leas	2,s
 	jsr	putx
 	jsr	putnl
-; CHECK-NEXT: 0001
+; CHECK-NEXT: 006F
 
-	;; strcmp("Hell", "Help") < 0  ('l' < 'p')
+	;; strcmp("Hell", "Help") < 0  ('l' - 'p' = -4 = 0xFFFC)
 	ldd	#src_help
 	pshs	d
 	ldx	#src_hell
@@ -99,7 +99,7 @@ test_main:
 	leas	2,s
 	jsr	putx
 	jsr	putnl
-; CHECK-NEXT: FFFF
+; CHECK-NEXT: FFFC
 
 	;; ===== atoi =====
 

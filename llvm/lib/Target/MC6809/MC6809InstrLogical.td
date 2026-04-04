@@ -316,9 +316,9 @@ def ZEX8Implicit : MC6809LogicalInstr {
 }
 
 def ZEX16Implicit : MC6809LogicalInstr {
-  dag InOperandList = (ins ACC8:$src);
+  dag InOperandList = (ins ABc:$src);
   dag OutOperandList = (outs ACC16:$dst);
-  let Pattern = [(set ACC16:$dst, (zext ACC8:$src))];
+  let Pattern = [(set ACC16:$dst, (zext ABc:$src))];
 }
 
 def ZEX32Implicit : MC6809LogicalInstr {
