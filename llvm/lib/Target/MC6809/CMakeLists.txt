@@ -84,4 +84,5 @@ add_llvm_target(MC6809CodeGen
 add_subdirectory(AsmParser)
 add_subdirectory(Disassembler)
 add_subdirectory(MCTargetDesc)
+add_subdirectory(Runtime)
 add_subdirectory(TargetInfo)
