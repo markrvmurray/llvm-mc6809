@@ -7,7 +7,7 @@
 ;
 ; Execution test: 32-bit multiply via __mulsi3.
 ; Tests the library function directly (no LLVM codegen).
-; __mulsi3 ABI: X=a_hi, stack: a_lo, b_hi, b_lo → X=result_lo, stack=result_hi
+; __mulsi3 ABI: X=a_hi, stack: a_lo, b_hi, b_lo → X=result_hi, stack=result_lo
 
 .include "runtime.inc"
 
@@ -57,12 +57,10 @@ mul32_and_print:
 	std	4,s		; arg slot 2 = b_lo
 	ldx	8,s		; X = a_hi
 	jsr	__mulsi3
-	;; X = result_lo, ,s = result_hi
-	pshs	x		; save result_lo
-	ldd	2,s		; result_hi (at ,s before push, now 2,s)
+	;; X = result_hi, ,s = result_lo
+	jsr	putx		; print result_hi (X)
+	ldd	,s		; result_lo
 	tfr	d,x
-	jsr	putx		; print result_hi
-	puls	x		; restore result_lo
 	jsr	putx		; print result_lo
 	jsr	putnl
 	leas	6,s		; clean up arg space

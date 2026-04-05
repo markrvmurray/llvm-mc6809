@@ -2,7 +2,7 @@
 ;;;
 ;;; Convention (same as __mulsi3):
 ;;;   Input:  X = a_hi, 2,s = a_lo, 4,s = b_hi, 6,s = b_lo
-;;;   Output: X = result_lo, result_hi written to 2,s
+;;;   Output: X = result_hi, result_lo written to 2,s
 ;;;   Clobbers: D.  Preserves: Y, U.
 ;;;
 ;;; Algorithm: restoring division (shift-and-subtract), 32 iterations.
@@ -81,12 +81,12 @@ __udivsi3:
 	dec	8,s
 	bne	.Lud32_loop
 
-	; Return quotient: X = lo, 2,s = hi
-	ldx	2,s		; result lo
-	ldd	,s		; result hi
+	; Return quotient: X = hi, 2,s = lo
+	ldx	,s		; result hi
+	ldd	2,s		; result lo
 	leas	9,s
 	puls	y
-	std	2,s		; write hi to caller slot
+	std	2,s		; write lo to caller slot
 	rts
 
 ;;; ============================================================
@@ -147,9 +147,9 @@ __umodsi3:
 	dec	8,s
 	bne	.Lum32_loop
 
-	; Return remainder: X = lo, 2,s = hi
-	ldx	6,s		; remainder lo
-	ldd	4,s		; remainder hi
+	; Return remainder: X = hi, 2,s = lo
+	ldx	4,s		; remainder hi
+	ldd	6,s		; remainder lo
 	leas	9,s
 	puls	y
 	std	2,s
@@ -282,8 +282,8 @@ __divsi3:
 	std	,s
 .Lsd32_pos:
 
-	ldx	2,s		; result lo
-	ldd	,s		; result hi
+	ldx	,s		; result hi
+	ldd	2,s		; result lo
 	leas	10,s
 	puls	y
 	std	2,s
@@ -410,8 +410,8 @@ __modsi3:
 	std	4,s
 .Lsm32_pos:
 
-	ldx	6,s		; remainder lo
-	ldd	4,s		; remainder hi
+	ldx	4,s		; remainder hi
+	ldd	6,s		; remainder lo
 	leas	10,s
 	puls	y
 	std	2,s

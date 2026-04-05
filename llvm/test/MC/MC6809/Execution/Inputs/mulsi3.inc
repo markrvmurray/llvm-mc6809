@@ -1,7 +1,7 @@
 ;;; __mulsi3 — 32-bit unsigned multiply (truncated to 32 bits)
 ;;; Input:  X = a_hi, 2,s = a_lo, 4,s = b_hi, 6,s = b_lo
 ;;;         (all 16-bit, big-endian; a = a_hi:a_lo, b = b_hi:b_lo)
-;;; Output: X = result_lo, result_hi written to caller stack at 2,s
+;;; Output: X = result_hi, result_lo written to caller stack at 2,s
 ;;; Clobbers: D
 ;;;
 ;;; Algorithm (schoolbook, truncated to 32 bits):
@@ -109,11 +109,11 @@ __mulsi3:
 	stb	0,s
 
 	;; ==== Assemble result ====
-	ldx	2,s		; X = result_lo
-	ldd	0,s		; D = result_hi
+	ldx	0,s		; X = result_hi
+	ldd	2,s		; D = result_lo
 
 	leas	6,s		; clean up: workspace(4) + saved_x(2)
 	; S+0,1 = return addr
-	; S+2,3 = caller's a_lo slot → write result_hi here
+	; S+2,3 = caller's a_lo slot → write result_lo here
 	std	2,s
 	rts

@@ -57,12 +57,10 @@ div32_and_print:
 	std	4,s
 	ldx	10,s		; X = a_hi
 	jsr	[8,s]		; indirect call through func ptr
-	; X = result_lo, ,s = result_hi
-	pshs	x		; save result_lo
-	ldd	2,s		; result_hi
+	; X = result_hi, ,s = result_lo
+	jsr	putx		; print hi word (X)
+	ldd	,s		; result_lo
 	tfr	d,x
-	jsr	putx		; print hi word
-	puls	x
 	jsr	putx		; print lo word
 	jsr	putnl
 	leas	6,s		; clean up arg space
