@@ -157,6 +157,12 @@ bool MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int
   Offset += MI.getOperand(FIOperandNum + 1).getImm();
   MI.getOperand(FIOperandNum).ChangeToRegister(BasePtr, false);
   MI.getOperand(FIOperandNum + 1).ChangeToImmediate(Offset);
+
+  // Ensure the base register is in the block's liveins so the machine
+  // verifier doesn't flag it as undefined (bug #16).
+  if (!MBB.isLiveIn(BasePtr))
+    MBB.addLiveIn(BasePtr);
+
   return false;
 }
 

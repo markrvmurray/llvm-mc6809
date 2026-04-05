@@ -1268,6 +1268,20 @@ void MC6809InstrInfo::loadStoreRegStackSlot(MachineBasicBlock &MBB, MachineBasic
   MachineFrameInfo &MFI = MF.getFrameInfo();
   MachineRegisterInfo &MRI = MF.getRegInfo();
 
+  // Mark that this function uses spill registers the first time the RA
+  // creates a stack spill. This sets UsesSpillRegisters early (during RA)
+  // so hasFP() returns true before PEI. Also reserve the frame pointer
+  // ($su) so the machine verifier treats it as always-live (bug #16).
+  auto &FuncInfo = *MF.getInfo<MC6809FunctionInfo>();
+  if (!FuncInfo.UsesSpillRegisters) {
+    FuncInfo.UsesSpillRegisters = true;
+    // Reserve $su now that we know a frame pointer is needed. The initial
+    // freezeReservedRegs() call missed it because hasFP() was false before
+    // spill registers were assigned.
+    if (MRI.reservedRegsFrozen() && !MRI.isReserved(MC6809::SU))
+      MRI.reserveReg(MC6809::SU, MF.getSubtarget().getRegisterInfo());
+  }
+
   // Imaginary registers (RC0..RC255, RS0..RS127) are direct-page memory
   // locations — they don't use frame indices. Emit direct-page LDA/STA
   // (or LDD/STD for 16-bit) with the register as the address operand.
