@@ -15,11 +15,11 @@ while.body:                                       ; preds = %entry, %while.body
   %n.addr.04 = phi i16 [ %dec, %while.body ], [ %n, %entry ]
   %dec = add i16 %n.addr.04, -1
   %incdec.ptr = getelementptr inbounds nuw i8, ptr %s.06, i16 1
-  %0 = load i8, ptr %s.06, align 1, !tbaa !7
+  %0 = load i8, ptr %s.06, align 1, !tbaa !6
   %incdec.ptr1 = getelementptr inbounds nuw i8, ptr %d.05, i16 1
-  store i8 %0, ptr %d.05, align 1, !tbaa !7
+  store i8 %0, ptr %d.05, align 1, !tbaa !6
   %tobool.not = icmp eq i16 %dec, 0
-  br i1 %tobool.not, label %while.end, label %while.body, !llvm.loop !8
+  br i1 %tobool.not, label %while.end, label %while.body, !llvm.loop !7
 
 while.end:                                        ; preds = %while.body, %entry
   ret ptr %dst
@@ -40,9 +40,9 @@ while.body:                                       ; preds = %while.body.lr.ph, %
   %n.addr.03 = phi i16 [ %n, %while.body.lr.ph ], [ %dec, %while.body ]
   %dec = add i16 %n.addr.03, -1
   %incdec.ptr = getelementptr inbounds nuw i8, ptr %d.04, i16 1
-  store i8 %conv, ptr %d.04, align 1, !tbaa !7
+  store i8 %conv, ptr %d.04, align 1, !tbaa !6
   %tobool.not = icmp eq i16 %dec, 0
-  br i1 %tobool.not, label %while.end, label %while.body, !llvm.loop !10
+  br i1 %tobool.not, label %while.end, label %while.body, !llvm.loop !9
 
 while.end:                                        ; preds = %while.body, %entry
   ret ptr %dst
@@ -58,8 +58,8 @@ while.body:                                       ; preds = %entry, %if.end
   %dec16.in = phi i16 [ %dec16, %if.end ], [ %n, %entry ]
   %p2.015 = phi ptr [ %incdec.ptr5, %if.end ], [ %s2, %entry ]
   %p1.014 = phi ptr [ %incdec.ptr, %if.end ], [ %s1, %entry ]
-  %0 = load i8, ptr %p1.014, align 1, !tbaa !7
-  %1 = load i8, ptr %p2.015, align 1, !tbaa !7
+  %0 = load i8, ptr %p1.014, align 1, !tbaa !6
+  %1 = load i8, ptr %p2.015, align 1, !tbaa !6
   %cmp.not = icmp eq i8 %0, %1
   br i1 %cmp.not, label %if.end, label %if.then
 
@@ -74,7 +74,7 @@ if.end:                                           ; preds = %while.body
   %incdec.ptr = getelementptr inbounds nuw i8, ptr %p1.014, i16 1
   %incdec.ptr5 = getelementptr inbounds nuw i8, ptr %p2.015, i16 1
   %tobool.not = icmp eq i16 %dec16, 0
-  br i1 %tobool.not, label %cleanup, label %while.body, !llvm.loop !11
+  br i1 %tobool.not, label %cleanup, label %while.body, !llvm.loop !10
 
 cleanup:                                          ; preds = %if.end, %entry, %if.then
   %retval.0 = phi i16 [ %sub, %if.then ], [ 0, %entry ], [ 0, %if.end ]
@@ -90,14 +90,39 @@ while.cond:                                       ; preds = %while.cond, %entry
   %src.addr.0 = phi ptr [ %src, %entry ], [ %incdec.ptr, %while.cond ]
   %d.0 = phi ptr [ %dst, %entry ], [ %incdec.ptr1, %while.cond ]
   %incdec.ptr = getelementptr inbounds nuw i8, ptr %src.addr.0, i16 1
-  %0 = load i8, ptr %src.addr.0, align 1, !tbaa !7
+  %0 = load i8, ptr %src.addr.0, align 1, !tbaa !6
   %incdec.ptr1 = getelementptr inbounds nuw i8, ptr %d.0, i16 1
-  store i8 %0, ptr %d.0, align 1, !tbaa !7
+  store i8 %0, ptr %d.0, align 1, !tbaa !6
   %tobool.not = icmp eq i8 %0, 0
-  br i1 %tobool.not, label %while.end, label %while.cond, !llvm.loop !12
+  br i1 %tobool.not, label %while.end, label %while.cond, !llvm.loop !11
 
 while.end:                                        ; preds = %while.cond
   ret ptr %dst
+}
+
+; Function Attrs: nofree norecurse nosync nounwind memory(argmem: read)
+define dso_local noundef ptr @test_strchr(ptr noundef readonly captures(ret: address, provenance) %s, i16 noundef %c) local_unnamed_addr #2 {
+entry:
+  %0 = trunc i16 %c to i8
+  %1 = load i8, ptr %s, align 1, !tbaa !6
+  %tobool.not7 = icmp eq i8 %1, 0
+  br i1 %tobool.not7, label %cleanup, label %while.body
+
+while.body:                                       ; preds = %entry, %if.end
+  %2 = phi i8 [ %3, %if.end ], [ %1, %entry ]
+  %s.addr.08 = phi ptr [ %incdec.ptr, %if.end ], [ %s, %entry ]
+  %cmp = icmp eq i8 %2, %0
+  br i1 %cmp, label %cleanup, label %if.end
+
+if.end:                                           ; preds = %while.body
+  %incdec.ptr = getelementptr inbounds nuw i8, ptr %s.addr.08, i16 1
+  %3 = load i8, ptr %incdec.ptr, align 1, !tbaa !6
+  %tobool.not = icmp eq i8 %3, 0
+  br i1 %tobool.not, label %cleanup, label %while.body, !llvm.loop !12
+
+cleanup:                                          ; preds = %while.body, %if.end, %entry
+  %retval.0 = phi ptr [ null, %entry ], [ null, %if.end ], [ %s.addr.08, %while.body ]
+  ret ptr %retval.0
 }
 
 ; Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(none)
@@ -181,25 +206,25 @@ entry:
   ret i16 %cond
 }
 
-attributes #0 = { nofree norecurse nosync nounwind memory(argmem: readwrite) "frame-pointer"="all" "no-builtins" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
-attributes #1 = { nofree norecurse nosync nounwind memory(argmem: write) "frame-pointer"="all" "no-builtins" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
-attributes #2 = { nofree norecurse nosync nounwind memory(argmem: read) "frame-pointer"="all" "no-builtins" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
-attributes #3 = { mustprogress nofree norecurse nosync nounwind willreturn memory(none) "frame-pointer"="all" "no-builtins" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
+attributes #0 = { nofree norecurse nosync nounwind memory(argmem: readwrite) "no-builtins" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
+attributes #1 = { nofree norecurse nosync nounwind memory(argmem: write) "no-builtins" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
+attributes #2 = { nofree norecurse nosync nounwind memory(argmem: read) "no-builtins" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
+attributes #3 = { mustprogress nofree norecurse nosync nounwind willreturn memory(none) "no-builtins" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 
-!llvm.module.flags = !{!0, !1}
-!llvm.ident = !{!2}
-!llvm.errno.tbaa = !{!3}
+!llvm.module.flags = !{!0}
+!llvm.ident = !{!1}
+!llvm.errno.tbaa = !{!2}
 
 !0 = !{i32 1, !"wchar_size", i32 4}
-!1 = !{i32 7, !"frame-pointer", i32 2}
-!2 = !{!"clang version 23.0.0git (git@github.com:markrvmurray/llvm-mc6809.git 10a5156b44a8357a4f4bae910668e2140aa2ac41)"}
-!3 = !{!4, !4, i64 0}
-!4 = !{!"int", !5, i64 0}
-!5 = !{!"omnipotent char", !6, i64 0}
-!6 = !{!"Simple C/C++ TBAA"}
-!7 = !{!5, !5, i64 0}
-!8 = distinct !{!8, !9}
-!9 = !{!"llvm.loop.mustprogress"}
-!10 = distinct !{!10, !9}
-!11 = distinct !{!11, !9}
-!12 = distinct !{!12, !9}
+!1 = !{!"clang version 23.0.0git (git@github.com:markrvmurray/llvm-mc6809.git 10a5156b44a8357a4f4bae910668e2140aa2ac41)"}
+!2 = !{!3, !3, i64 0}
+!3 = !{!"int", !4, i64 0}
+!4 = !{!"omnipotent char", !5, i64 0}
+!5 = !{!"Simple C/C++ TBAA"}
+!6 = !{!4, !4, i64 0}
+!7 = distinct !{!7, !8}
+!8 = !{!"llvm.loop.mustprogress"}
+!9 = distinct !{!9, !8}
+!10 = distinct !{!10, !8}
+!11 = distinct !{!11, !8}
+!12 = distinct !{!12, !8}

@@ -36,10 +36,8 @@
 ; RUN: %usim09batch --timeout=2000000 %t.hex | FileCheck %s
 ; REQUIRES: usim
 ;
-; Picolibc execution tests: memcpy, memset, memcmp, strcpy, isspace,
-; isprint, isxdigit, tolower, toupper. Tested at -O0 through -O3.
-; Known failing: isxdigit and tolower produce wrong results (select/PHI
-; clobbered by comparison — D register pressure).
+; Picolibc execution tests: memcpy, memset, memcmp, strcpy, strchr,
+; isspace, isprint, isxdigit, tolower, toupper. Tested at -O0 through -O3.
 
 .include "runtime.inc"
 .include "mc6809rt.s"
@@ -223,6 +221,32 @@ test_main:
 	jsr	putx
 	jsr	putnl
 ; CHECK-NEXT: 007A
+
+	;; strchr: find 'l' in "Hello" → pointer to 3rd char
+	ldx	#str_hello
+	leas	-2,s
+	ldd	#0x6C		; 'l'
+	std	,s
+	jsr	test_strchr
+	leas	2,s
+	;; Result is a pointer — compute offset from str_hello
+	tfr	x,d
+	subd	#str_hello
+	tfr	d,x
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0002
+
+	;; strchr: find 'z' in "Hello" → NULL (0)
+	ldx	#str_hello
+	leas	-2,s
+	ldd	#0x7A		; 'z'
+	std	,s
+	jsr	test_strchr
+	leas	2,s
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0000
 
 	rts
 
