@@ -39,6 +39,7 @@
 ; Codegen execution test: pointer dereference, array indexing, struct access.
 
 .include "runtime.inc"
+.include "mc6809rt.s"
 
 	.section .rom,"ax",@progbits
 

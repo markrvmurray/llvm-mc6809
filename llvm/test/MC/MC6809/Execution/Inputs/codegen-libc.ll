@@ -58,27 +58,31 @@ ret.zero:
   ret i16 0
 }
 
+; Single-block loop structure (matches Clang output). The old multi-block
+; version split digit-check and digit-processing across blocks, which
+; caused register exhaustion at -O0 due to PHI pressure.
 define dso_local i16 @my_atoi(ptr %s) {
 entry:
-  br label %loop
+  %c0 = load i8, ptr %s, align 1
+  %t0 = add i8 %c0, -48
+  %isdigit0 = icmp ult i8 %t0, 10
+  br i1 %isdigit0, label %loop, label %done
 
 loop:
-  %p = phi ptr [ %s, %entry ], [ %p.next, %digit ]
-  %acc = phi i16 [ 0, %entry ], [ %acc.next, %digit ]
-  %ch = load i8, ptr %p, align 1
-  %is.ge.0 = icmp uge i8 %ch, 48  ; '0'
-  %is.le.9 = icmp ule i8 %ch, 57  ; '9'
-  %is.digit = and i1 %is.ge.0, %is.le.9
-  br i1 %is.digit, label %digit, label %done
-
-digit:
-  %d = sub i8 %ch, 48
+  %ch = phi i8 [ %c0, %entry ], [ %cnext, %loop ]
+  %acc = phi i16 [ 0, %entry ], [ %acc.next, %loop ]
+  %p = phi ptr [ %s, %entry ], [ %p.next, %loop ]
+  %mul = mul i16 %acc, 10
+  %d = add i8 %ch, -48
   %d16 = zext i8 %d to i16
-  %acc10 = mul i16 %acc, 10
-  %acc.next = add i16 %acc10, %d16
+  %acc.next = add i16 %mul, %d16
   %p.next = getelementptr i8, ptr %p, i16 1
-  br label %loop
+  %cnext = load i8, ptr %p.next, align 1
+  %tnext = add i8 %cnext, -48
+  %isdigit = icmp ult i8 %tnext, 10
+  br i1 %isdigit, label %loop, label %done
 
 done:
-  ret i16 %acc
+  %result = phi i16 [ 0, %entry ], [ %acc.next, %loop ]
+  ret i16 %result
 }

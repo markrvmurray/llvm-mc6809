@@ -417,9 +417,8 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     }
   }
 
-  if (selectImpl(MI, *CoverageInfo)) {
+  if (selectImpl(MI, *CoverageInfo))
     return true;
-  }
 
   switch (MI.getOpcode()) {
   default:
@@ -1317,6 +1316,16 @@ bool MC6809InstructionSelector::selectAll(MachineInstrSpan MIS) {
     if (!select(MI))
       return false;
   }
+
+  // Push/Pull patterns create STACK16 virtual registers for the stack operand.
+  // STACK16 contains only SS (reserved), so the RA can't allocate it. Replace
+  // all STACK16 vregs with physical SS now — push/pull always use S (bug #55).
+  for (MachineInstr &MI : MIS)
+    for (MachineOperand &MO : MI.operands())
+      if (MO.isReg() && MO.getReg().isVirtual() &&
+          MRI->getRegClassOrNull(MO.getReg()) == &MC6809::STACK16RegClass)
+        MO.setReg(MC6809::SS);
+
   return true;
 }
 
