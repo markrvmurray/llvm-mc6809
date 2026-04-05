@@ -827,7 +827,7 @@ list(REMOVE_ITEM mc6809_SOURCES
   ashldi3.c ashrdi3.c lshrdi3.c
   divdi3.c moddi3.c udivdi3.c umoddi3.c muldi3.c
   divmoddi4.c udivmoddi4.c
-  absvdi2.c addvdi3.c subvdi3.c mulvdi3.c mulodi4.c
+  absvdi2.c negvdi2.c addvdi3.c subvdi3.c mulvdi3.c mulodi4.c
   clzdi2.c ctzdi2.c ffsdi2.c paritydi2.c popcountdi2.c
   cmpdi2.c ucmpdi2.c
   # 128-bit arithmetic
