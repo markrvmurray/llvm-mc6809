@@ -37,7 +37,8 @@
 ; REQUIRES: usim
 ;
 ; Picolibc execution tests: memcpy, memset, memcmp, strcpy, strchr,
-; isspace, isprint, isxdigit, tolower, toupper. Tested at -O0 through -O3.
+; strncmp, isspace, isprint, isxdigit, tolower, toupper.
+; Tested at -O0 through -O3.
 
 .include "runtime.inc"
 .include "mc6809rt.s"
@@ -247,6 +248,32 @@ test_main:
 	jsr	putx
 	jsr	putnl
 ; CHECK-NEXT: 0000
+
+	;; strncmp: "Hello" vs "Help!", 3 chars = 0 (first 3 match)
+	ldx	#str_hello
+	leas	-4,s
+	ldd	#str_help
+	std	,s
+	ldd	#3
+	std	2,s
+	jsr	test_strncmp
+	leas	4,s
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0000
+
+	;; strncmp: "Hello" vs "Help!", 5 chars = diff at 'l' vs 'p'
+	ldx	#str_hello
+	leas	-4,s
+	ldd	#str_help
+	std	,s
+	ldd	#5
+	std	2,s
+	jsr	test_strncmp
+	leas	4,s
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: FFFC
 
 	rts
 

@@ -3499,15 +3499,15 @@ void MC6809InstrInfo::expandComparePull(MachineIRBuilder &Builder, MachineInstr 
 }
 
 void MC6809InstrInfo::expandTestReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  // Operand 0 is the CC register
-  // Operand 1 is the 4-bit field that Bcc and LBcc use as the condition.
-  // Operand 2 is the source register for the comparison
-  // This is needed to model the G_ICMP/G_BRCOND behaviour.
   assert(MI.getOperand(0).isReg() && MI.getOperand(0).getReg() == MC6809::CC && "The target of tests must be the CC register");
   assert((MI.getOperand(1).isImm() || MI.getOperand(1).isCImm()) && "The condition field of tests must be an immediate constant");
   assert(MI.getOperand(2).isReg() && "The source of register tests must be a register");
 
   auto SrcReg = MI.getOperand(2).getReg();
+  // BIT1 sub-registers (AALSB, ABLSB) have no test instruction.
+  // Promote to parent ACC8 register — testing 8 bits includes the LSB.
+  if (SrcReg == MC6809::AALSB) SrcReg = MC6809::AA;
+  else if (SrcReg == MC6809::ABLSB) SrcReg = MC6809::AB;
   if (needsMaterialization(SrcReg)) {
     MachineFunction &MF = *MI.getMF();
     Register IndexSrc = Register();

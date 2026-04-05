@@ -81,6 +81,18 @@ BitVector MC6809RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   if (TFI->hasFP(MF))
     Reserved.set(MC6809::SU);
 
+  // HD6309-only registers: reserve on standard 6809.
+  const MC6809Subtarget &STI = MF.getSubtarget<MC6809Subtarget>();
+  if (!STI.has6309()) {
+    Reserved.set(MC6809::AE);
+    Reserved.set(MC6809::AF);
+    Reserved.set(MC6809::AW);
+    Reserved.set(MC6809::AQ);
+    Reserved.set(MC6809::AELSB);
+    Reserved.set(MC6809::AFLSB);
+    Reserved.set(MC6809::MD);
+  }
+
   return Reserved;
 }
 

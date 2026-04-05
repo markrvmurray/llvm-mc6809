@@ -125,6 +125,41 @@ cleanup:                                          ; preds = %while.body, %if.end
   ret ptr %retval.0
 }
 
+; Function Attrs: nofree norecurse nosync nounwind memory(argmem: read)
+define dso_local range(i16 -255, 256) i16 @test_strncmp(ptr noundef readonly captures(none) %s1, ptr noundef readonly captures(none) %s2, i16 noundef %n) local_unnamed_addr #2 {
+entry:
+  %tobool.not18 = icmp eq i16 %n, 0
+  br i1 %tobool.not18, label %return, label %while.body
+
+while.body:                                       ; preds = %entry, %if.end
+  %dec21.in = phi i16 [ %dec21, %if.end ], [ %n, %entry ]
+  %s2.addr.020 = phi ptr [ %incdec.ptr10, %if.end ], [ %s2, %entry ]
+  %s1.addr.019 = phi ptr [ %incdec.ptr, %if.end ], [ %s1, %entry ]
+  %0 = load i8, ptr %s1.addr.019, align 1, !tbaa !6
+  %1 = load i8, ptr %s2.addr.020, align 1, !tbaa !6
+  %cmp.not = icmp eq i8 %0, %1
+  br i1 %cmp.not, label %if.end, label %if.then
+
+if.then:                                          ; preds = %while.body
+  %conv = zext i8 %0 to i16
+  %conv1 = zext i8 %1 to i16
+  %sub = sub nsw i16 %conv, %conv1
+  br label %return
+
+if.end:                                           ; preds = %while.body
+  %dec21 = add i16 %dec21.in, -1
+  %cmp6 = icmp eq i8 %0, 0
+  %incdec.ptr = getelementptr inbounds nuw i8, ptr %s1.addr.019, i16 1
+  %incdec.ptr10 = getelementptr inbounds nuw i8, ptr %s2.addr.020, i16 1
+  %tobool.not = icmp eq i16 %dec21, 0
+  %or.cond = select i1 %cmp6, i1 true, i1 %tobool.not
+  br i1 %or.cond, label %return, label %while.body, !llvm.loop !13
+
+return:                                           ; preds = %if.end, %entry, %if.then
+  %retval.0 = phi i16 [ %sub, %if.then ], [ 0, %entry ], [ 0, %if.end ]
+  ret i16 %retval.0
+}
+
 ; Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(none)
 define dso_local range(i16 0, 2) i16 @test_isspace(i16 noundef %c) local_unnamed_addr #3 {
 entry:
@@ -216,7 +251,7 @@ attributes #3 = { mustprogress nofree norecurse nosync nounwind willreturn memor
 !llvm.errno.tbaa = !{!2}
 
 !0 = !{i32 1, !"wchar_size", i32 4}
-!1 = !{!"clang version 23.0.0git (git@github.com:markrvmurray/llvm-mc6809.git 10a5156b44a8357a4f4bae910668e2140aa2ac41)"}
+!1 = !{!"clang version 23.0.0git (git@github.com:markrvmurray/llvm-mc6809.git 56561fa834fde327dbb1e4173043ab5800d27671)"}
 !2 = !{!3, !3, i64 0}
 !3 = !{!"int", !4, i64 0}
 !4 = !{!"omnipotent char", !5, i64 0}
@@ -228,3 +263,4 @@ attributes #3 = { mustprogress nofree norecurse nosync nounwind willreturn memor
 !10 = distinct !{!10, !8}
 !11 = distinct !{!11, !8}
 !12 = distinct !{!12, !8}
+!13 = distinct !{!13, !8}

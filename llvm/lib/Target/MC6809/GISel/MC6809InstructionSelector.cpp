@@ -461,14 +461,19 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
       constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
       return true;
     }
-    // trunc i8→i1: the boolean is just the low bit of the i8.
-    // Rewrite as COPY with sub_lsb extraction.
+    // trunc i8→i1: extract bit 0 with AND #1. We can't use COPY with
+    // sub_lsb because the register coalescer eliminates it, losing the
+    // bit extraction (e.g., XOR -1 gives 0xFE which tests as non-zero).
     if (DstTy == LLT::scalar(1) && SrcTy == LLT::scalar(8)) {
-      MRI->setRegClass(DstReg, &MC6809::BIT1RegClass);
+      // Rewrite: %dst = G_TRUNC %src → %dst = AND_i8_Imm %src(tied), 1
+      // The two-address pass will insert a COPY if dst != src.
+      MRI->setRegClass(DstReg, &MC6809::ACC8RegClass);
       if (!MRI->getRegClassOrNull(SrcReg))
         MRI->setRegClass(SrcReg, &MC6809::ACC8RegClass);
-      MI.setDesc(TII.get(TargetOpcode::COPY));
-      MI.getOperand(1).setSubReg(MC6809::sub_lsb);
+      MI.setDesc(TII.get(MC6809::AND_i8_Imm));
+      MI.getOperand(1).setIsUse();
+      MI.tieOperands(0, 1);
+      MI.addOperand(MachineOperand::CreateImm(1));
       return true;
     }
     return false;
