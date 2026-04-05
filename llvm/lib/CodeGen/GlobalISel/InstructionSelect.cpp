@@ -253,9 +253,9 @@ bool InstructionSelect::selectMachineFunction(MachineFunction &MF) {
       Register SrcReg = MI.getOperand(1).getReg();
       Register DstReg = MI.getOperand(0).getReg();
       if (SrcReg.isVirtual() && DstReg.isVirtual()) {
-        auto SrcRC = MRI.getRegClass(SrcReg);
-        auto DstRC = MRI.getRegClass(DstReg);
-        if (SrcRC == DstRC) {
+        auto *SrcRC = MRI.getRegClassOrNull(SrcReg);
+        auto *DstRC = MRI.getRegClassOrNull(DstReg);
+        if (SrcRC && DstRC && SrcRC == DstRC) {
           MRI.replaceRegWith(DstReg, SrcReg);
           MI.eraseFromParent();
         }

@@ -417,6 +417,24 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     }
   }
 
+  // Intercept G_ANYEXT s1→s8 before selectImpl — selectImpl creates a COPY
+  // that leaves the destination without a register class (dangling MI issue).
+  if (MI.getOpcode() == TargetOpcode::G_ANYEXT) {
+    Register DstReg = MI.getOperand(0).getReg();
+    Register SrcReg = MI.getOperand(1).getReg();
+    LLT DstTy = MRI->getType(DstReg);
+    LLT SrcTy = MRI->getType(SrcReg);
+    if (DstTy == LLT::scalar(8) && SrcTy == LLT::scalar(1)) {
+      // anyext i1→i8: both live in ACC8 (BIT1 is a sub-register of ACC8).
+      // Just COPY — the value is already in the right register.
+      MRI->setRegClass(DstReg, &MC6809::ACC8RegClass);
+      if (!MRI->getRegClassOrNull(SrcReg))
+        MRI->setRegClass(SrcReg, &MC6809::ACC8RegClass);
+      MI.setDesc(TII.get(TargetOpcode::COPY));
+      return true;
+    }
+  }
+
   if (selectImpl(MI, *CoverageInfo))
     return true;
 
@@ -441,6 +459,33 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
       MI.setDesc(TII.get(TargetOpcode::COPY));
       MI.getOperand(1).setSubReg(MC6809::sub_lo_byte);
       constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
+      return true;
+    }
+    // trunc i8→i1: the boolean is just the low bit of the i8.
+    // Rewrite as COPY with sub_lsb extraction.
+    if (DstTy == LLT::scalar(1) && SrcTy == LLT::scalar(8)) {
+      MRI->setRegClass(DstReg, &MC6809::BIT1RegClass);
+      if (!MRI->getRegClassOrNull(SrcReg))
+        MRI->setRegClass(SrcReg, &MC6809::ACC8RegClass);
+      MI.setDesc(TII.get(TargetOpcode::COPY));
+      MI.getOperand(1).setSubReg(MC6809::sub_lsb);
+      return true;
+    }
+    return false;
+  }
+
+  case TargetOpcode::G_ANYEXT: {
+    // anyext i1→i8: insert sub_lsb into ACC8 (reverse of G_TRUNC s8→s1).
+    Register DstReg = MI.getOperand(0).getReg();
+    Register SrcReg = MI.getOperand(1).getReg();
+    LLT DstTy = MRI->getType(DstReg);
+    LLT SrcTy = MRI->getType(SrcReg);
+    if (DstTy == LLT::scalar(8) && SrcTy == LLT::scalar(1)) {
+      MRI->setRegClass(DstReg, &MC6809::ACC8RegClass);
+      if (!MRI->getRegClassOrNull(SrcReg))
+        MRI->setRegClass(SrcReg, &MC6809::BIT1RegClass);
+      MI.setDesc(TII.get(TargetOpcode::COPY));
+      MI.getOperand(1).setSubReg(MC6809::sub_lsb);
       return true;
     }
     return false;
@@ -1317,15 +1362,29 @@ bool MC6809InstructionSelector::selectAll(MachineInstrSpan MIS) {
       return false;
   }
 
-  // Push/Pull patterns create STACK16 virtual registers for the stack operand.
-  // Replace all STACK16 vregs with physical SS across the entire function —
-  // push/pull always use S, and SS is reserved so the RA can't allocate it.
+  // Post-selection cleanup across the entire function.
   for (MachineBasicBlock &MBB : *MF)
     for (MachineInstr &MI : MBB)
-      for (MachineOperand &MO : MI.operands())
-        if (MO.isReg() && MO.getReg().isVirtual() &&
-            MRI->getRegClassOrNull(MO.getReg()) == &MC6809::STACK16RegClass)
+      for (MachineOperand &MO : MI.operands()) {
+        if (!MO.isReg() || !MO.getReg().isVirtual())
+          continue;
+        // Push/Pull: replace STACK16 vregs with physical SS (bug #55).
+        if (MRI->getRegClassOrNull(MO.getReg()) == &MC6809::STACK16RegClass) {
           MO.setReg(MC6809::SS);
+          continue;
+        }
+        // Ensure all vregs have a register class (not just a bank).
+        // The LLVM InstructionSelect post-ISel COPY coalescing crashes
+        // on vregs without classes (e.g., strncmp G_XOR→G_TRUNC chain).
+        if (!MRI->getRegClassOrNull(MO.getReg()) &&
+            MRI->getType(MO.getReg()).isValid()) {
+          const RegisterBank *RB = MRI->getRegBankOrNull(MO.getReg());
+          if (RB) {
+            LLT Ty = MRI->getType(MO.getReg());
+            MRI->setRegClass(MO.getReg(), &getRegClassForTypeOnBank(Ty, RB));
+          }
+        }
+      }
 
   return true;
 }
