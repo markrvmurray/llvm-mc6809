@@ -1318,13 +1318,14 @@ bool MC6809InstructionSelector::selectAll(MachineInstrSpan MIS) {
   }
 
   // Push/Pull patterns create STACK16 virtual registers for the stack operand.
-  // STACK16 contains only SS (reserved), so the RA can't allocate it. Replace
-  // all STACK16 vregs with physical SS now — push/pull always use S (bug #55).
-  for (MachineInstr &MI : MIS)
-    for (MachineOperand &MO : MI.operands())
-      if (MO.isReg() && MO.getReg().isVirtual() &&
-          MRI->getRegClassOrNull(MO.getReg()) == &MC6809::STACK16RegClass)
-        MO.setReg(MC6809::SS);
+  // Replace all STACK16 vregs with physical SS across the entire function —
+  // push/pull always use S, and SS is reserved so the RA can't allocate it.
+  for (MachineBasicBlock &MBB : *MF)
+    for (MachineInstr &MI : MBB)
+      for (MachineOperand &MO : MI.operands())
+        if (MO.isReg() && MO.getReg().isVirtual() &&
+            MRI->getRegClassOrNull(MO.getReg()) == &MC6809::STACK16RegClass)
+          MO.setReg(MC6809::SS);
 
   return true;
 }
