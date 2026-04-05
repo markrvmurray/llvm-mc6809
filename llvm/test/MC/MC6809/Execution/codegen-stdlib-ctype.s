@@ -1,3 +1,30 @@
+; RUN: llc -global-isel -global-isel-abort=1 -O0 -mtriple=mc6809 \
+; RUN:   %S/Inputs/codegen-stdlib-ctype.ll -o %t-raw.s 2>/dev/null
+; RUN: grep -v '\.directpage' %t-raw.s > %t-funcs.s
+; RUN: cat %s %t-funcs.s | llvm-mc -triple=mc6809 -I %S/Inputs \
+; RUN:   --filetype=obj -o %t.o
+; RUN: ld.lld -T %S/Inputs/link.ld %t.o -o %t.elf
+; RUN: llvm-objcopy -O ihex %t.elf %t.hex
+; RUN: %usim09batch --timeout=1000000 %t.hex | FileCheck %s
+;
+; RUN: llc -global-isel -global-isel-abort=1 -O1 -mtriple=mc6809 \
+; RUN:   %S/Inputs/codegen-stdlib-ctype.ll -o %t-raw.s 2>/dev/null
+; RUN: grep -v '\.directpage' %t-raw.s > %t-funcs.s
+; RUN: cat %s %t-funcs.s | llvm-mc -triple=mc6809 -I %S/Inputs \
+; RUN:   --filetype=obj -o %t.o
+; RUN: ld.lld -T %S/Inputs/link.ld %t.o -o %t.elf
+; RUN: llvm-objcopy -O ihex %t.elf %t.hex
+; RUN: %usim09batch --timeout=1000000 %t.hex | FileCheck %s
+;
+; RUN: llc -global-isel -global-isel-abort=1 -O2 -mtriple=mc6809 \
+; RUN:   %S/Inputs/codegen-stdlib-ctype.ll -o %t-raw.s 2>/dev/null
+; RUN: grep -v '\.directpage' %t-raw.s > %t-funcs.s
+; RUN: cat %s %t-funcs.s | llvm-mc -triple=mc6809 -I %S/Inputs \
+; RUN:   --filetype=obj -o %t.o
+; RUN: ld.lld -T %S/Inputs/link.ld %t.o -o %t.elf
+; RUN: llvm-objcopy -O ihex %t.elf %t.hex
+; RUN: %usim09batch --timeout=1000000 %t.hex | FileCheck %s
+;
 ; RUN: llc -global-isel -global-isel-abort=1 -O3 -mtriple=mc6809 \
 ; RUN:   %S/Inputs/codegen-stdlib-ctype.ll -o %t-raw.s 2>/dev/null
 ; RUN: grep -v '\.directpage' %t-raw.s > %t-funcs.s
@@ -9,7 +36,7 @@
 ; REQUIRES: usim
 ;
 ; Execution tests for stdlib (abs, atoi, div) and ctype (isdigit, isalpha,
-; isupper, islower) functions compiled from C.
+; isupper, islower) functions compiled from C. Tested at -O0 through -O3.
 
 .include "runtime.inc"
 .include "mc6809rt.s"
