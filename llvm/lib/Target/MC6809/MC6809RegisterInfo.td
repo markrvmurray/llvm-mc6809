@@ -283,6 +283,9 @@ def BIT1 : MC6809Reg1Class<(add AALSB, ABLSB, AELSB, AFLSB)> {
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
 }
 def ACC8 : MC6809Reg8Class<(add AB, AA, AF, AE, SPILL_B0, SPILL_B1, SPILL_B2, SPILL_B3, SPILL_B4, SPILL_B5, SPILL_B6, SPILL_B7, SPILL_A0, SPILL_A1, SPILL_A2, SPILL_A3, SPILL_A4, SPILL_A5, SPILL_A6, SPILL_A7, RC0, RC1, RC2, RC3, RC4, RC5, RC6, RC7)> {
+    // AE and AF are HD6309-only. Exclude from allocation on 6809.
+    let AltOrders = [(add AB, AA, SPILL_B0, SPILL_B1, SPILL_B2, SPILL_B3, SPILL_B4, SPILL_B5, SPILL_B6, SPILL_B7, SPILL_A0, SPILL_A1, SPILL_A2, SPILL_A3, SPILL_A4, SPILL_A5, SPILL_A6, SPILL_A7, RC0, RC1, RC2, RC3, RC4, RC5, RC6, RC7)];
+    let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
     let AltOrders = [(add AB, AA, SPILL_B0, SPILL_B1, SPILL_B2, SPILL_B3, SPILL_B4, SPILL_B5, SPILL_B6, SPILL_B7, SPILL_A0, SPILL_A1, SPILL_A2, SPILL_A3, SPILL_A4, SPILL_A5, SPILL_A6, SPILL_A7, RC0, RC1, RC2, RC3, RC4, RC5, RC6, RC7)];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
 }
