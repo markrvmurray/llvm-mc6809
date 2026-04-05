@@ -340,26 +340,29 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
         }
       }
 
-      // Skip compare/test instructions and fused compare-branch terminators
-      // that only have 16-bit spill operands (SPILL_D). Their expansion
-      // functions handle these via backwards scan (CMPX/CMPY), preserving D.
-      // Fused pseudos with 8-bit spill operands (SPILL_B) ARE processed
-      // because the expansion can't avoid clobbering D for byte comparisons.
+      // Compare/test instructions with 16-bit spill operands (SPILL_D) can
+      // sometimes be handled by the expansion's backwards scan (CMPX/CMPY),
+      // which preserves D. BUT if D is live with a non-spill value, the
+      // fallback materialization will clobber it. In that case, we MUST
+      // process the instruction here so the D save/restore logic fires.
       if (MI.isCompare() || MI.isTerminator()) {
-        // Check if any spill operand is an 8-bit byte spill that needs
-        // materialization (the expansion can't handle these without D clobber).
         bool Has8BitSpill = false;
+        bool DLiveNonSpill = false;
         for (const MachineOperand &MO : MI.operands()) {
           if (MO.isReg() && MO.getReg().isPhysical() && isAccSpillReg(MO.getReg())) {
             Register RealReg = getRealReg(MO.getReg());
-            if (RealReg == MC6809::AA || RealReg == MC6809::AB) {
+            if (RealReg == MC6809::AA || RealReg == MC6809::AB)
               Has8BitSpill = true;
-              break;
-            }
           }
         }
-        if (!Has8BitSpill)
-          continue;
+        if (!Has8BitSpill) {
+          // Check if D is live with a value that would be clobbered.
+          bool DLive = LPR.contains(MC6809::AD) ||
+                       LPR.contains(MC6809::AA) ||
+                       LPR.contains(MC6809::AB);
+          if (!DLive)
+            continue; // Safe to skip — D isn't live, expansion won't lose anything.
+        }
       }
 
       bool NeedD = false, NeedIY = false;
@@ -496,15 +499,41 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
         }
       } else {
         // Terminator (fused compare-branch): can't place D restore after it.
-        // Insert the D restore at the start of each single-predecessor
-        // successor that expects D to be live.
+        // Insert the D restore at the start of each successor. For
+        // multi-predecessor successors (critical edges), split the edge
+        // by inserting a new block for the restore.
         if (DSaveSlot >= 0) {
-          for (MachineBasicBlock *Succ : MBB.successors()) {
+          for (MachineBasicBlock *Succ : llvm::to_vector(MBB.successors())) {
             if (Succ->pred_size() == 1) {
               BuildMI(*Succ, Succ->begin(), DL, TII.get(MC6809::Load_i16_Mem))
                   .addReg(MC6809::AD, RegState::Define)
                   .addFrameIndex(DSaveSlot)
                   .addImm(0);
+            } else {
+              // Critical edge: split by inserting a new block.
+              MachineBasicBlock *RestoreBB =
+                  MF.CreateMachineBasicBlock(MBB.getBasicBlock());
+              MF.insert(std::next(MBB.getIterator()), RestoreBB);
+              RestoreBB->addSuccessor(Succ);
+              MBB.replaceSuccessor(Succ, RestoreBB);
+              // Update any branch targets in MBB that pointed to Succ.
+              for (MachineInstr &Term : MBB.terminators())
+                for (MachineOperand &MO : Term.operands())
+                  if (MO.isMBB() && MO.getMBB() == Succ)
+                    MO.setMBB(RestoreBB);
+              // Transfer live-ins from the edge.
+              for (const auto &LI : Succ->liveins())
+                if (!RestoreBB->isLiveIn(LI.PhysReg))
+                  RestoreBB->addLiveIn(LI.PhysReg);
+              // Insert D restore and unconditional branch.
+              BuildMI(*RestoreBB, RestoreBB->end(), DL,
+                      TII.get(MC6809::Load_i16_Mem))
+                  .addReg(MC6809::AD, RegState::Define)
+                  .addFrameIndex(DSaveSlot)
+                  .addImm(0);
+              BuildMI(*RestoreBB, RestoreBB->end(), DL,
+                      TII.get(MC6809::BRAb))
+                  .addMBB(Succ);
             }
           }
         }
