@@ -436,7 +436,9 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     LLT SrcTy = MRI->getType(SrcReg);
     if (DstTy == LLT::scalar(8) && SrcTy == LLT::scalar(16)) {
       MRI->setRegClass(DstReg, &MC6809::ACC8RegClass);
-      MRI->setRegClass(SrcReg, &MC6809::ACC16RegClass);
+      // Use ADc (AD + SPILL_D), not ACC16, because sub_lo_byte requires
+      // registers that have sub-register structure (RS0-RS3 don't).
+      MRI->setRegClass(SrcReg, &MC6809::ADcRegClass);
       MI.setDesc(TII.get(TargetOpcode::COPY));
       MI.getOperand(1).setSubReg(MC6809::sub_lo_byte);
       constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
