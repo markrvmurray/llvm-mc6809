@@ -28,6 +28,7 @@
 #include "MC6809MaterializeSpills.h"
 
 #include "MC6809.h"
+#include "MC6809FrameLowering.h"
 #include "MC6809MachineFunctionInfo.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
 
@@ -256,6 +257,15 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
   }
 
   for (MachineBasicBlock &MBB : MF) {
+    // Add spill pseudo-registers to liveins so the machine verifier doesn't
+    // flag them as used-without-definition (bug #16). The value is defined
+    // by a store in a predecessor block; the livein tells the verifier.
+    for (const MachineInstr &MI : MBB)
+      for (const MachineOperand &MO : MI.operands())
+        if (MO.isReg() && MO.isUse() && MO.getReg().isPhysical() &&
+            isAnySpillReg(MO.getReg()) && !MBB.isLiveIn(MO.getReg()))
+          MBB.addLiveIn(MO.getReg());
+
     LivePhysRegs LPR(TRI);
     LPR.addLiveOuts(MBB);
     SmallVector<MachineInstr *, 4> ToErase;
@@ -501,6 +511,18 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
     // Erase instructions that were replaced by direct load/store.
     for (MachineInstr *MI : ToErase)
       MI->eraseFromParent();
+  }
+
+  // Add frame pointer ($su) to liveins of all blocks that use it.
+  // MaterializeSpills inserts Store/Load instructions with $su as base;
+  // without the livein, the machine verifier flags it as undefined (bug #16).
+  const MC6809FrameLowering *TFI =
+      static_cast<const MC6809FrameLowering *>(MF.getSubtarget().getFrameLowering());
+  if (TFI->hasFP(MF)) {
+    Register FPReg = MC6809::SU;
+    for (MachineBasicBlock &MBB : MF)
+      if (!MBB.isLiveIn(FPReg))
+        MBB.addLiveIn(FPReg);
   }
 
   return Changed;

@@ -404,7 +404,14 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &M
   // from eliminating it (PSHSs modifies SS, so SU != SS after the push).
   Builder.setInsertPt(MBB, MBBI);
   Builder.setDebugLoc({});
-  Builder.buildInstr(MC6809::TFRp).addDef(TRI.getFrameRegister(MF)).addUse(MC6809::SS);
+  Register FPReg = TRI.getFrameRegister(MF);
+  Builder.buildInstr(MC6809::TFRp).addDef(FPReg).addUse(MC6809::SS);
+
+  // Add frame pointer to liveins of all blocks so the machine verifier
+  // doesn't flag it as used-without-definition (bug #16).
+  for (MachineBasicBlock &Block : MF)
+    if (!Block.isLiveIn(FPReg))
+      Block.addLiveIn(FPReg);
 }
 
 void MC6809FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const {
