@@ -152,6 +152,7 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; CHECK-NEXT:    lbgt .LBB4_4
 ; CHECK-NEXT:  .LBB4_3: ; %if.end
 ; CHECK-NEXT:    ldd 4,u
+; CHECK-NEXT:    subd #0
 ; CHECK-NEXT:    std 4,u
 ; CHECK-NEXT:    ldd 8,u
 ; CHECK-NEXT:    sbcb #0

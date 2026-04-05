@@ -1565,10 +1565,18 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     break;
   case MC6809::Add_i8_Imm:
   case MC6809::Add_i16_Imm:
-  case MC6809::AddSetCarry_i8_Imm:
-  case MC6809::AddSetCarry_i16_Imm:
     expandImm(AddImm, Builder, MI);
     break;
+  case MC6809::AddSetCarry_i8_Imm:
+  case MC6809::AddSetCarry_i16_Imm: {
+    // Must always emit the ADD even when the immediate is 0, because the
+    // carry flag output is consumed by AddSetCarryUse.
+    ContextImmediate AddImmNoSkip = {
+        const_cast<DenseMap<Register, unsigned> *>(&AddImmediateOpcode),
+        INT32_MIN};
+    expandImm(AddImmNoSkip, Builder, MI);
+    break;
+  }
   case MC6809::AddSetCarryUse_i8_Imm:
     expandImm(AddCarryImm, Builder, MI);
     break;
@@ -1601,10 +1609,19 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     break;
   case MC6809::Sub_i8_Imm:
   case MC6809::Sub_i16_Imm:
-  case MC6809::SubSetCarry_i8_Imm:
-  case MC6809::SubSetCarry_i16_Imm:
     expandImm(SubImm, Builder, MI);
     break;
+  case MC6809::SubSetCarry_i8_Imm:
+  case MC6809::SubSetCarry_i16_Imm: {
+    // Must always emit the SUB even when the immediate is 0 (the identity
+    // value), because the carry flag output is consumed by SubSetCarryUse.
+    // Using INT32_MIN as IdentityValue ensures the skip never triggers.
+    ContextImmediate SubImmNoSkip = {
+        const_cast<DenseMap<Register, unsigned> *>(&SubImmediateOpcode),
+        INT32_MIN};
+    expandImm(SubImmNoSkip, Builder, MI);
+    break;
+  }
   case MC6809::SubSetCarryUse_i8_Imm:
     expandImm(SubBorrowImm, Builder, MI);
     break;
