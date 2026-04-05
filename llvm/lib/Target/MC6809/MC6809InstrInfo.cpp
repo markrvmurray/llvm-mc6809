@@ -871,7 +871,11 @@ static MachineInstrBuilder emitSpillLoad(MachineIRBuilder &Builder,
                                          MachineFunction &MF) {
   int Offset = computeSpillStackOffset(SpillReg, MF);
   unsigned Size = getSpillRegSize(SpillReg);
-  Register Reg = (Size == 2) ? Register(MC6809::AD) : RealReg;
+  // INDEX spills (SPILL_X0..X3) use LDX/LDY directly — no D clobber.
+  // ACC spills (SPILL_D0..D7) route through D as before.
+  Register Reg = (Size == 2 && !isIndexSpillReg(SpillReg))
+                     ? Register(MC6809::AD)
+                     : RealReg;
   unsigned Opcode = getLoadIdxOpcode(Reg, Offset);
   auto MI = Builder.buildInstr(Opcode)
       .addDef(Reg, RegState::Implicit)
@@ -887,7 +891,11 @@ static MachineInstrBuilder emitSpillStore(MachineIRBuilder &Builder,
                                           MachineFunction &MF) {
   int Offset = computeSpillStackOffset(SpillReg, MF);
   unsigned Size = getSpillRegSize(SpillReg);
-  Register Reg = (Size == 2) ? Register(MC6809::AD) : RealReg;
+  // INDEX spills (SPILL_X0..X3) use STX/STY directly — no D clobber.
+  // ACC spills (SPILL_D0..D7) route through D as before.
+  Register Reg = (Size == 2 && !isIndexSpillReg(SpillReg))
+                     ? Register(MC6809::AD)
+                     : RealReg;
   unsigned Opcode = getStoreIdxOpcode(Reg, Offset);
   auto MI = Builder.buildInstr(Opcode)
       .addUse(Reg, RegState::Implicit)
@@ -1205,9 +1213,11 @@ static void loadStoreRegisterStaticStackSlot(MachineIRBuilder &Builder, MachineO
     MO.setReg(Reg);
   }
 
-  // Emit directly through ACC if possible.
-  if ((Reg.isPhysical() && (MC6809::ACC8RegClass.contains(Reg) || MC6809::ACC16RegClass.contains(Reg) || MC6809::ACC32RegClass.contains(Reg))) ||
-      (Reg.isVirtual() && (MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::ACC8RegClass) || MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::ACC16RegClass) || MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::ACC32RegClass)))) {
+  // Emit directly through ACC or INDEX if possible.
+  // INDEX16 uses Store/Load_i16_Mem which expand to STX/LDX/STY/LDY via
+  // StoreIdxImmOpcode/LoadIdxImmOpcode — no D register clobber (bug #52).
+  if ((Reg.isPhysical() && (MC6809::ACC8RegClass.contains(Reg) || MC6809::ACC16RegClass.contains(Reg) || MC6809::ACC32RegClass.contains(Reg) || MC6809::INDEX16RegClass.contains(Reg))) ||
+      (Reg.isVirtual() && (MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::ACC8RegClass) || MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::ACC16RegClass) || MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::ACC32RegClass) || MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::INDEX16RegClass)))) {
     unsigned opcode;
     switch (Size) {
     default:
@@ -1291,17 +1301,23 @@ void MC6809InstrInfo::loadStoreRegStackSlot(MachineBasicBlock &MBB, MachineBasic
 
   if ((Reg.isPhysical() && MC6809::INDEX16RegClass.contains(Reg)) ||
       (Reg.isVirtual() && MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::INDEX16RegClass))) {
-    // INDEX16 registers (X, Y, U, S) save/restore via TFR to/from D
-    // then Store/Load D. This avoids creating an intermediate ACC16
-    // virtual register that the scavenger might assign to a spill
-    // pseudo-register (which can't be pushed/pulled).
-    if (IsLoad) {
-      loadStoreRegisterStaticStackSlot(Builder, MachineOperand::CreateReg(MC6809::AD, /*isDef=*/true), FrameIndex, 0, MF.getMachineMemOperand(MMO, 0, 2));
-      Builder.buildInstr(MC6809::TFRp).addDef(Reg).addUse(MC6809::AD);
-    } else {
-      Builder.buildInstr(MC6809::TFRp).addDef(MC6809::AD).addUse(Reg);
-      loadStoreRegisterStaticStackSlot(Builder, MachineOperand::CreateReg(MC6809::AD, /*isDef=*/false), FrameIndex, 0, MF.getMachineMemOperand(MMO, 0, 2));
+    // Use Store/Load_i16_Mem directly with the index register.
+    // expandStoreIdx/expandLoadIdx generate concrete STXi/LDXi/STYi/LDYi
+    // via the StoreIdxImmOpcode/LoadIdxImmOpcode lookup tables.
+    // This avoids TFR-to-D which clobbers $AD without the RA knowing,
+    // causing miscompiles when D holds a live value (bug #52).
+    Register Tmp = Reg;
+    if (!Reg.isPhysical()) {
+      Tmp = MRI.createVirtualRegister(&MC6809::INDEX16RegClass);
     }
+    if (!IsLoad && Tmp != Reg)
+      Builder.buildCopy(Tmp, Reg);
+    unsigned Opcode = IsLoad ? MC6809::Load_i16_Mem : MC6809::Store_i16_Mem;
+    auto MO = MachineOperand::CreateReg(Tmp, IsLoad);
+    Builder.buildInstr(Opcode).add(MO)
+        .addFrameIndex(FrameIndex).addImm(0).addMemOperand(MMO);
+    if (IsLoad && Tmp != Reg)
+      Builder.buildCopy(Reg, Tmp);
   } else if ((Reg.isPhysical() && MC6809::ACC16RegClass.contains(Reg)) || (Reg.isVirtual() && MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::ACC16RegClass))) {
     Register Tmp = Reg;
     if (!Reg.isPhysical()) {

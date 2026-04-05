@@ -56,21 +56,21 @@ test_main:
 	jsr	putnl
 ; CHECK-NEXT: 0000
 
-	;; ===== atoi (positive) =====
+	;; ===== atoi (positive, bug #52 fix) =====
 	ldx	#str_42
-	jsr	test_atoi_neg
+	jsr	test_atoi
 	jsr	putx
 	jsr	putnl
 ; CHECK-NEXT: 002A
 
 	ldx	#str_0
-	jsr	test_atoi_neg
+	jsr	test_atoi
 	jsr	putx
 	jsr	putnl
 ; CHECK-NEXT: 0000
 
 	ldx	#str_999
-	jsr	test_atoi_neg
+	jsr	test_atoi
 	jsr	putx
 	jsr	putnl
 ; CHECK-NEXT: 03E7
