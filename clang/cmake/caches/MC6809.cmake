@@ -15,7 +15,8 @@ set(LLVM_ENABLE_RUNTIMES compiler-rt CACHE STRING "")
 
 # RT library / builtins cross-compilation for bare-metal MC6809.
 set(LLVM_BUILTIN_TARGETS mc6809-unknown-unknown CACHE STRING "")
-set(LLVM_RUNTIME_TARGETS mc6809-unknown-unknown CACHE STRING "")
+# No full runtimes (sanitizers etc.) for bare-metal MC6809 — only builtins.
+# set(LLVM_RUNTIME_TARGETS mc6809-unknown-unknown CACHE STRING "")
 set(BUILTINS_mc6809-unknown-unknown_COMPILER_RT_BAREMETAL_BUILD ON CACHE BOOL "")
 set(BUILTINS_mc6809-unknown-unknown_COMPILER_RT_BUILTINS_ENABLE_PIC OFF CACHE BOOL "")
 set(BUILTINS_mc6809-unknown-unknown_CMAKE_BUILD_TYPE MinSizeRel CACHE STRING "")
