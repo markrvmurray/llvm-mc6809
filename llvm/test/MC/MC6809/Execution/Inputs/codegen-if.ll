@@ -46,3 +46,17 @@ define dso_local i8 @test_ne8(i8 noundef signext %a, i8 noundef signext %b) loca
   %r = zext i1 %cmp to i8
   ret i8 %r
 }
+
+
+; eq/ne returning i16 (zext i1 → i16)
+define dso_local i16 @test_eq16(i16 noundef %a, i16 noundef %b) local_unnamed_addr {
+  %c = icmp eq i16 %a, %b
+  %r = zext i1 %c to i16
+  ret i16 %r
+}
+
+define dso_local i16 @test_ne16(i16 noundef %a, i16 noundef %b) local_unnamed_addr {
+  %c = icmp ne i16 %a, %b
+  %r = zext i1 %c to i16
+  ret i16 %r
+}

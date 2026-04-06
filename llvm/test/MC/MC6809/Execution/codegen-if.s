@@ -197,4 +197,48 @@ test_main:
 	jsr	putnl
 ; CHECK-NEXT: 00
 
+	;; ===== Equality i16 (eq) =====
+
+	;; eq16(0x1234, 0x1234) = 1
+	ldd	#0x1234
+	pshs	d
+	ldx	#0x1234
+	jsr	test_eq16
+	leas	2,s
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0001
+
+	;; eq16(0x1234, 0x5678) = 0
+	ldd	#0x5678
+	pshs	d
+	ldx	#0x1234
+	jsr	test_eq16
+	leas	2,s
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0000
+
+	;; ===== Not-equal i16 (ne) =====
+
+	;; ne16(0x1234, 0x5678) = 1
+	ldd	#0x5678
+	pshs	d
+	ldx	#0x1234
+	jsr	test_ne16
+	leas	2,s
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0001
+
+	;; ne16(0xAAAA, 0xAAAA) = 0
+	ldd	#0xAAAA
+	pshs	d
+	ldx	#0xAAAA
+	jsr	test_ne16
+	leas	2,s
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0000
+
 	jsr	halt
