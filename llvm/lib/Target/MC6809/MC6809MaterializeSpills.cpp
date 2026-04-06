@@ -32,6 +32,7 @@
 #include "MC6809MachineFunctionInfo.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
 
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/CodeGen/LivePhysRegs.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
@@ -124,6 +125,19 @@ static bool willClobberD(const MachineInstr &MI,
                          const TargetRegisterInfo &TRI) {
   bool HasAccSpill = false;
   bool DIsDirectOperand = false;
+
+  // Multi-INDEX-spill case: when 2 distinct SPILL_X operands appear, the
+  // materializer routes one through D (because IY can only stage one).
+  // That clobbers D, so we need the save/restore.
+  llvm::SmallSet<Register, 4> UniqueIndexSpills;
+  for (const MachineOperand &MO : MI.operands()) {
+    if (!MO.isReg() || !MO.getReg().isPhysical())
+      continue;
+    if (isIndexSpillReg(MO.getReg()))
+      UniqueIndexSpills.insert(MO.getReg());
+  }
+  if (UniqueIndexSpills.size() >= 2)
+    return true;
 
   for (const MachineOperand &MO : MI.operands()) {
     if (!MO.isReg() || !MO.getReg().isPhysical())
@@ -401,6 +415,48 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
             .addImm(0);
       }
 
+      // Multi-INDEX-spill special case for Store_iPtr_Mem.
+      //
+      // When BOTH the source value and the base address are SPILL_X
+      // registers (e.g., "store one pointer at another"), we can't stage
+      // both through IY. Route the source through D and the base through
+      // IY, then rewrite the opcode from Store_iPtr_Mem (INDEX16 source)
+      // to Store_i16_Mem (ACC16 source). The expansion lookup table picks
+      // up STD ,Y automatically.
+      //
+      // willClobberD already returned true for this case (2+ unique
+      // SPILL_X operands), so D save/restore is handled at the top/end
+      // of this iteration if D was live.
+      if (MI.getOpcode() == MC6809::Store_iPtr_Mem) {
+        Register Op0 = MI.getOperand(0).getReg();
+        Register Op1 = MI.getOperand(1).getReg();
+        if (Op0.isPhysical() && Op1.isPhysical() &&
+            isIndexSpillReg(Op0) && isIndexSpillReg(Op1) && Op0 != Op1) {
+          auto [VFI, VOff] = getSpillSlot(Op0, FuncInfo);
+          auto [AFI, AOff] = getSpillSlot(Op1, FuncInfo);
+          (void)VOff; (void)AOff;
+          // LDD value_slot — load source value into D
+          BuildMI(MBB, MI, DL, TII.get(MC6809::Load_i16_Mem))
+              .addReg(MC6809::AD, RegState::Define)
+              .addFrameIndex(VFI)
+              .addImm(0);
+          // LDY base_slot — load base address into Y
+          BuildMI(MBB, MI, DL, TII.get(MC6809::Load_iPtr_Mem))
+              .addReg(MC6809::IY, RegState::Define)
+              .addFrameIndex(AFI)
+              .addImm(0);
+          // Rewrite MI in place: Store_iPtr_Mem → Store_i16_Mem with
+          // $ad as source and $iy as base. Same operand layout, just a
+          // different source register class.
+          MI.setDesc(TII.get(MC6809::Store_i16_Mem));
+          MI.getOperand(0).setReg(MC6809::AD);
+          MI.getOperand(1).setReg(MC6809::IY);
+          // Operand 2 (offset immediate) unchanged.
+          // No SPILL_X operands remain — the regular SpillOps loop below
+          // will see nothing and skip materialization.
+        }
+      }
+
       // Collect spill operands.
       SmallVector<std::pair<unsigned, Register>, 4> SpillOps;
       for (unsigned I = 0; I < MI.getNumOperands(); ++I) {
@@ -426,20 +482,21 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
               .addReg(RealReg, RegState::Define)
               .addFrameIndex(FI)
               .addImm(0);
+          MO.setReg(RealReg);
         } else if (RealReg == MC6809::AD) {
           BuildMI(MBB, MI, DL, TII.get(MC6809::Load_i16_Mem))
               .addReg(MC6809::AD, RegState::Define)
               .addFrameIndex(FI)
               .addImm(ByteOffset);
+          MO.setReg(RealReg);
         } else {
           // 8-bit A or B: load individual byte.
           BuildMI(MBB, MI, DL, TII.get(MC6809::Load_i8_Mem))
               .addReg(RealReg, RegState::Define)
               .addFrameIndex(FI)
               .addImm(ByteOffset);
+          MO.setReg(RealReg);
         }
-
-        MO.setReg(RealReg);
       }
 
       // After the instruction: store back any DEFs to spill slots.
