@@ -7,12 +7,8 @@
 ; RUN: llvm-objcopy -O ihex %t.elf %t.hex
 ; RUN: %usim09batch --timeout=500000 %t.hex | FileCheck %s
 ; REQUIRES: usim
-; XFAIL: *
 ;
-; KNOWN BROKEN: i32 arg setup clobbers B (shift count) via spill-through-D.
-; See bug #33. Test will pass once spill pseudo-registers model D clobber.
-;
-; Codegen execution test: i32 variable shifts via codegen → __ashlsi3 etc.
+; Codegen execution test: i32 variable shifts via codegen → __ashlsi3.
 
 .include "runtime.inc"
 	.section .rom,"ax",@progbits
@@ -66,9 +62,10 @@ putx:
 test_main:
 
 	;; shl32(1, 16) = 0x00010000
+	;; Use X to push a_lo (pshs x), then set B, to avoid clobbering B.
+	ldx	#1		; a_lo
+	pshs	x		; push a_lo without touching B
 	ldb	#16		; shift count
-	ldd	#1		; a_lo
-	pshs	d
 	ldx	#0		; a_hi
 	jsr	shl32
 	;; X = result_hi, [S] = result_lo
@@ -84,9 +81,9 @@ test_main:
 
 	;; shl32(0xDEAD, 0, 8) = 0x00AD0000 ... wait, shl32(0x00DEAD, 8)
 	;; Actually: shl32(0x0000DEAD, 8) = 0x00DEAD00
-	ldb	#8
-	ldd	#0xDEAD		; a_lo
-	pshs	d
+	ldx	#0xDEAD		; a_lo
+	pshs	x		; push a_lo without touching B
+	ldb	#8		; shift count
 	ldx	#0		; a_hi
 	jsr	shl32
 	ldd	,s

@@ -47,6 +47,7 @@
 #include "MC6809MachineScheduler.h"
 #include "MC6809NonReentrant.h"
 #include "MC6809PostRAScavenging.h"
+#include "MC6809SpillDSaveRestore.h"
 #include "MC6809ShiftRotateChain.h"
 #include "MC6809TargetObjectFile.h"
 #include "MC6809TargetTransformInfo.h"
@@ -70,6 +71,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMC6809Target() {
   initializeMC6809NonReentrantPass(PR);
   initializeMC6809PostRAScavengingPass(PR);
   initializeMC6809PostRASpillOptPass(PR);
+  initializeMC6809SpillDSaveRestorePass(PR);
   initializeMC6809ShiftRotateChainPass(PR);
   initializeMC6809DirectPageAllocPass(PR);
 }
@@ -274,6 +276,10 @@ void MC6809PassConfig::addMachineLateOptimization() {
 void MC6809PassConfig::addPrePEI() {
   if (getOptLevel() != CodeGenOptLevel::None)
     addPass(createMC6809DirectPageAllocPass());
+  // Save/restore D around spill operations where D is live (bug #33).
+  // Must run after VirtRegRewriter (spill regs assigned) but before PEI
+  // (which expands frame-index pseudos and triggers pseudo expansion).
+  addPass(createMC6809SpillDSaveRestorePass());
 }
 
 void MC6809PassConfig::addPreSched2() {
