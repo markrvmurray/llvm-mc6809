@@ -535,6 +535,70 @@ test_main:
 	jsr	putnl
 ; CHECK-NEXT: 4869686F00
 
+	;; strtok test: copy "a,b,c\0" into buf, then tokenize on ","
+	;; First, memcpy the source string into buf (strtok modifies its input).
+	ldx	#buf
+	leas	-4,s
+	ldd	#str_abc
+	std	,s
+	ldd	#6
+	std	2,s
+	jsr	test_memcpy
+	leas	4,s
+
+	;; strtok(buf, ",") → "a" at offset 0
+	ldx	#buf
+	leas	-2,s
+	ldd	#str_comma
+	std	,s
+	jsr	test_strtok
+	leas	2,s
+	tfr	x,d
+	subd	#buf
+	tfr	d,x
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0000
+
+	;; strtok(NULL, ",") → "b" at offset 2
+	ldx	#0
+	leas	-2,s
+	ldd	#str_comma
+	std	,s
+	jsr	test_strtok
+	leas	2,s
+	tfr	x,d
+	subd	#buf
+	tfr	d,x
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0002
+
+	;; strtok(NULL, ",") → "c" at offset 4
+	ldx	#0
+	leas	-2,s
+	ldd	#str_comma
+	std	,s
+	jsr	test_strtok
+	leas	2,s
+	tfr	x,d
+	subd	#buf
+	tfr	d,x
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0004
+
+	;; strtok(NULL, ",") → NULL (no more tokens)
+	ldx	#0
+	leas	-2,s
+	ldd	#str_comma
+	std	,s
+	jsr	test_strtok
+	leas	2,s
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0000
+
 	rts
 
 	.section .rodata,"a",@progbits
@@ -549,6 +613,8 @@ str_lo:		.asciz	"lo"
 str_He:		.asciz	"He"
 str_yex:	.asciz	"y!"
 str_hox:	.asciz	"ho!"
+str_abc:	.asciz	"a,b,c"
+str_comma:	.asciz	","
 
 	.section .bss,"aw",@nobits
 buf:	.space	16
