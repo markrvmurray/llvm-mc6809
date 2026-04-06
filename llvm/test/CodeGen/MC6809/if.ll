@@ -68,21 +68,22 @@ return:                                           ; preds = %entry, %if.end
 define dso_local i16 @if_s16(i16 noundef %a, i16 noundef %b) local_unnamed_addr #0 {
 ; CHECK-LABEL: if_s16:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -6,s
+; CHECK-NEXT:    leas -8,s
 ; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    ldd 10,u
+; CHECK-NEXT:    ldd 12,u
 ; CHECK-NEXT:    stx 4,u
+; CHECK-NEXT:    std 6,u
 ; CHECK-NEXT:    cmpx #0
 ; CHECK-NEXT:    bgt .LBB2_2
 ; CHECK-NEXT:  ; %bb.1: ; %if.end
 ; CHECK-NEXT:    ldd #0
-; CHECK-NEXT:    subd 10,u
+; CHECK-NEXT:    subd 12,u
 ; CHECK-NEXT:  .LBB2_2: ; %return
 ; CHECK-NEXT:    tfr d,x
 ; CHECK-NEXT:    tfr u,s
 ; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 6,s
+; CHECK-NEXT:    leas 8,s
 ; CHECK-NEXT:    rts
 entry:
   %cmp = icmp sgt i16 %a, 0
@@ -101,22 +102,23 @@ return:                                           ; preds = %entry, %if.end
 define dso_local i16 @if_u16(i16 noundef %a, i16 noundef %b) local_unnamed_addr #0 {
 ; CHECK-LABEL: if_u16:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -6,s
+; CHECK-NEXT:    leas -8,s
 ; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    ldd 10,u
+; CHECK-NEXT:    ldd 12,u
 ; CHECK-NEXT:    stx 4,u
+; CHECK-NEXT:    std 6,u
 ; CHECK-NEXT:    cmpx #0
 ; CHECK-NEXT:    bne .LBB3_2
 ; CHECK-NEXT:  ; %bb.1: ; %if.end
 ; CHECK-NEXT:    ldd #-1
-; CHECK-NEXT:    eorb 11,u
-; CHECK-NEXT:    eora 10,u
+; CHECK-NEXT:    eorb 13,u
+; CHECK-NEXT:    eora 12,u
 ; CHECK-NEXT:  .LBB3_2: ; %return
 ; CHECK-NEXT:    tfr d,x
 ; CHECK-NEXT:    tfr u,s
 ; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 6,s
+; CHECK-NEXT:    leas 8,s
 ; CHECK-NEXT:    rts
 entry:
   %cmp.not = icmp eq i16 %a, 0
@@ -197,42 +199,45 @@ return:                                           ; preds = %entry, %if.end
 define dso_local i32 @if_u32(i32 noundef %a, i32 noundef %b) local_unnamed_addr #0 {
 ; CHECK-LABEL: if_u32:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -8,s
+; CHECK-NEXT:    leas -12,s
 ; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    tfr s,u
 ; CHECK-NEXT:    std 0,u
-; CHECK-NEXT:    ldd 16,u
+; CHECK-NEXT:    ldd 20,u
 ; CHECK-NEXT:    std 6,u
 ; CHECK-NEXT:    ldd 0,u
-; CHECK-NEXT:    ldd 14,u
+; CHECK-NEXT:    ldd 18,u
 ; CHECK-NEXT:    stx 4,u
 ; CHECK-NEXT:    pshs d
 ; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    orb 13,u
-; CHECK-NEXT:    ora 12,u
+; CHECK-NEXT:    orb 17,u
+; CHECK-NEXT:    ora 16,u
 ; CHECK-NEXT:    std 4,u
 ; CHECK-NEXT:    puls d
+; CHECK-NEXT:    std 10,u
 ; CHECK-NEXT:    cmpx #0
 ; CHECK-NEXT:    bne .LBB5_2
 ; CHECK-NEXT:  ; %bb.1: ; %if.end
 ; CHECK-NEXT:    ldd #-1
 ; CHECK-NEXT:    std 6,u
 ; CHECK-NEXT:    pshs d
-; CHECK-NEXT:    eorb 17,u
-; CHECK-NEXT:    eora 16,u
+; CHECK-NEXT:    eorb 21,u
+; CHECK-NEXT:    eora 20,u
 ; CHECK-NEXT:    std 6,u
 ; CHECK-NEXT:    puls d
-; CHECK-NEXT:    eorb 15,u
-; CHECK-NEXT:    eora 14,u
+; CHECK-NEXT:    eorb 19,u
+; CHECK-NEXT:    eora 18,u
 ; CHECK-NEXT:  .LBB5_2: ; %return
+; CHECK-NEXT:    std 8,u
 ; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    ldd 6,u
-; CHECK-NEXT:    std 12,u
+; CHECK-NEXT:    std 16,u
 ; CHECK-NEXT:    ldd 0,u
+; CHECK-NEXT:    ldd 8,u
 ; CHECK-NEXT:    tfr d,x
 ; CHECK-NEXT:    tfr u,s
 ; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 8,s
+; CHECK-NEXT:    leas 12,s
 ; CHECK-NEXT:    rts
 entry:
   %cmp.not = icmp eq i32 %a, 0

@@ -21,6 +21,7 @@
 #include "MC6809.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
 
+#include "llvm/IR/Constants.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
@@ -108,6 +109,8 @@ static SlotKey getSlotKey(const MachineInstr &MI) {
   for (const MachineOperand &MO : MI.explicit_operands()) {
     if (MO.isImm())
       Offset = MO.getImm();
+    else if (MO.isCImm())
+      Offset = static_cast<int>(MO.getCImm()->getZExtValue());
     else if (MO.isReg())
       BaseReg = MO.getReg();
   }

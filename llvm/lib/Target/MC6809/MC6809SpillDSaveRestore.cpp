@@ -6,13 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// Spill pseudo-register expansion routes through the D register. If a
-// sub-register of D (typically B for i8 args) is live across spill operations,
-// the expansion clobbers it. This pass saves live D sub-registers to a frame
-// slot at function entry and restores them before each use point (typically
-// a call with implicit $ab).
+// Spill pseudo-register expansion routes through D (LDD/STD). If D holds a
+// live value at the point of a spill operation, the expansion silently
+// clobbers it. This pass inserts Store_i16_Mem/Load_i16_Mem pairs to save
+// and restore D around such instructions.
 //
-// Uses U-relative (frame pointer) addressing, which is unaffected by S changes.
+// Runs in addPrePEI — after register allocation (spill regs assigned) but
+// before PEI and pseudo expansion. Uses LivePhysRegs for liveness analysis.
+// Save/restore uses U-relative frame slots (unaffected by S changes).
 //
 //===----------------------------------------------------------------------===//
 
@@ -48,6 +49,62 @@ static bool isSpillReg(Register Reg) {
   }
 }
 
+/// Check if a register overlaps with D (AD, AA, AB).
+static bool overlapsDReg(Register Reg, const TargetRegisterInfo &TRI) {
+  return TRI.regsOverlap(Reg, MC6809::AD);
+}
+
+/// Check if this instruction's expansion will clobber D due to spill operands.
+/// Returns false for INDEX→SPILL copies (use STX/LDX) and D→SPILL copies
+/// (D is the intended operand).
+static bool willClobberD(const MachineInstr &MI, const TargetRegisterInfo &TRI) {
+  bool HasSpillOp = false;
+  bool DIsDirectOperand = false;
+
+  for (const MachineOperand &MO : MI.operands()) {
+    if (!MO.isReg() || !MO.getReg().isPhysical())
+      continue;
+    if (isSpillReg(MO.getReg()))
+      HasSpillOp = true;
+    if (overlapsDReg(MO.getReg(), TRI))
+      DIsDirectOperand = true;
+  }
+
+  if (!HasSpillOp)
+    return false;
+
+  // For COPYs, check specific safe cases.
+  if (MI.isCopy()) {
+    Register DstReg = MI.getOperand(0).getReg();
+    Register SrcReg = MI.getOperand(1).getReg();
+    // INDEX↔SPILL copies use STX/LDX directly — no D clobber.
+    if (isSpillReg(DstReg) && (SrcReg == MC6809::IX || SrcReg == MC6809::IY))
+      return false;
+    if (isSpillReg(SrcReg) && (DstReg == MC6809::IX || DstReg == MC6809::IY))
+      return false;
+    // D↔SPILL: D is the intended operand.
+    if (!isSpillReg(DstReg) && overlapsDReg(DstReg, TRI))
+      return false;
+    if (!isSpillReg(SrcReg) && overlapsDReg(SrcReg, TRI))
+      return false;
+  }
+
+  // If a spill register is DEFINED by this instruction (e.g., Load_i16_Mem
+  // with dest=$spill_d0), expandLoadIdx already has its own internal
+  // emergency save/restore of D. Don't add a redundant wrapper.
+  for (const MachineOperand &MO : MI.operands()) {
+    if (MO.isReg() && MO.isDef() && isSpillReg(MO.getReg()))
+      return false;
+  }
+
+  // For non-COPY pseudos where D is a direct operand but NOT being defined
+  // by a spill: D is the intended operand, no save needed.
+  if (!MI.isCopy() && DIsDirectOperand)
+    return false;
+
+  return true;
+}
+
 namespace {
 
 class MC6809SpillDSaveRestore : public MachineFunctionPass {
@@ -71,69 +128,53 @@ bool MC6809SpillDSaveRestore::runOnMachineFunction(MachineFunction &MF) {
   bool Changed = false;
 
   for (MachineBasicBlock &MBB : MF) {
-    // Check if $ab (B register) is a live-in to this block.
-    bool BLiveIn = MBB.isLiveIn(MC6809::AB) || MBB.isLiveIn(MC6809::AD);
-    if (!BLiveIn)
-      continue;
+    LivePhysRegs LPR(TRI);
+    LPR.addLiveOuts(MBB);
 
-    // Scan for: (a) spill register operands, (b) calls with implicit $ab.
-    bool HasSpillOps = false;
-    SmallVector<MachineInstr *, 2> CallsUsingAB;
+    // Walk backwards, collecting instructions that need D save/restore.
+    SmallVector<MachineInstr *, 4> NeedSave;
 
-    for (MachineInstr &MI : MBB) {
-      // Check for spill register operands.
-      for (const MachineOperand &MO : MI.operands()) {
-        if (MO.isReg() && MO.getReg().isPhysical() && isSpillReg(MO.getReg())) {
-          HasSpillOps = true;
-          break;
-        }
-      }
-      // Check for calls with implicit $ab.
-      if (MI.isCall()) {
-        for (const MachineOperand &MO : MI.implicit_operands()) {
-          if (MO.isReg() && MO.isUse() &&
-              (MO.getReg() == MC6809::AB || MO.getReg() == MC6809::AD)) {
-            CallsUsingAB.push_back(&MI);
-            break;
-          }
-        }
-      }
+    for (MachineInstr &MI : llvm::reverse(MBB)) {
+      LPR.stepBackward(MI);
+
+      if (!willClobberD(MI, TRI))
+        continue;
+
+      // Is D (or any sub-register) live at this point?
+      bool DLive = LPR.contains(MC6809::AD) ||
+                   LPR.contains(MC6809::AA) ||
+                   LPR.contains(MC6809::AB);
+      if (!DLive)
+        continue;
+
+      LLVM_DEBUG(dbgs() << "Spill-D-Save: D live at " << MI);
+      NeedSave.push_back(&MI);
     }
 
-    if (!HasSpillOps || CallsUsingAB.empty())
+    if (NeedSave.empty())
       continue;
-
-    LLVM_DEBUG(dbgs() << "Spill-D-Save: B live-in with spill ops and call in "
-                      << MBB.getName() << "\n");
 
     // Allocate a frame slot for saving D (2 bytes, U-relative).
     MachineFrameInfo &MFI = MF.getFrameInfo();
     int SaveSlot = MFI.CreateStackObject(2, Align(1), /*isSpillSlot=*/true);
 
-    // Insert STD [SaveSlot] at the beginning of the block (after any frame
-    // setup marked with FrameSetup flag).
-    auto InsertPt = MBB.begin();
-    while (InsertPt != MBB.end() && InsertPt->getFlag(MachineInstr::FrameSetup))
-      ++InsertPt;
-    // Also skip past TFR S,U (frame pointer setup) which isn't marked FrameSetup.
-    while (InsertPt != MBB.end() && InsertPt->getOpcode() == MC6809::TFRp)
-      ++InsertPt;
-
-    DebugLoc DL;
-    BuildMI(MBB, InsertPt, DL, TII.get(MC6809::Store_i16_Mem))
-        .addReg(MC6809::AD)
-        .addFrameIndex(SaveSlot)
-        .addImm(0);
-
-    // Insert LDD [SaveSlot] before each call that uses $ab.
-    for (MachineInstr *Call : CallsUsingAB) {
-      BuildMI(MBB, Call, Call->getDebugLoc(), TII.get(MC6809::Load_i16_Mem))
+    // Insert Store_i16_Mem (save D) before and Load_i16_Mem (restore D) after
+    // each candidate. PEI will resolve the frame index to a U-relative offset.
+    for (MachineInstr *MI : NeedSave) {
+      DebugLoc DL = MI->getDebugLoc();
+      // Save D before the instruction
+      BuildMI(MBB, MI, DL, TII.get(MC6809::Store_i16_Mem))
+          .addReg(MC6809::AD)
+          .addFrameIndex(SaveSlot)
+          .addImm(0);
+      // Restore D after the instruction
+      auto After = std::next(MachineBasicBlock::iterator(MI));
+      BuildMI(MBB, After, DL, TII.get(MC6809::Load_i16_Mem))
           .addReg(MC6809::AD, RegState::Define)
           .addFrameIndex(SaveSlot)
           .addImm(0);
+      Changed = true;
     }
-
-    Changed = true;
   }
 
   return Changed;

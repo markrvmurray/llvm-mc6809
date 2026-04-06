@@ -10,7 +10,7 @@ target triple = "mc6809-unknown-unknown"
 define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signext %n) local_unnamed_addr #0 {
 ; CHECK-LABEL: loop:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -8,s
+; CHECK-NEXT:    leas -10,s
 ; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    tfr s,u
 ; CHECK-NEXT:    ldd #0
@@ -27,6 +27,7 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; CHECK-NEXT:    ldd ,x
 ; CHECK-NEXT:    std 6,u
 ; CHECK-NEXT:    ldd 0,u
+; CHECK-NEXT:    std 8,u
 ; CHECK-NEXT:    ldx 4,u
 ; CHECK-NEXT:    pshs x
 ; CHECK-NEXT:    ldd 6,u
@@ -42,12 +43,12 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; CHECK-NEXT:    ldx 6,u
 ; CHECK-NEXT:    tfr u,s
 ; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 8,s
+; CHECK-NEXT:    leas 10,s
 ; CHECK-NEXT:    rts
 ;
 ; CHECK-HD6309-LABEL: loop:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
-; CHECK-HD6309-NEXT:    leas -6,s
+; CHECK-HD6309-NEXT:    leas -8,s
 ; CHECK-HD6309-NEXT:    pshs u
 ; CHECK-HD6309-NEXT:    tfr s,u
 ; CHECK-HD6309-NEXT:    ldw #0
@@ -62,6 +63,7 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; CHECK-HD6309-NEXT:    std 4,u
 ; CHECK-HD6309-NEXT:    ldw ,x
 ; CHECK-HD6309-NEXT:    leax 2,x
+; CHECK-HD6309-NEXT:    std 6,u
 ; CHECK-HD6309-NEXT:    addr spill_d0,w
 ; CHECK-HD6309-NEXT:    addd #-1
 ; CHECK-HD6309-NEXT:    tstd
@@ -70,7 +72,7 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; CHECK-HD6309-NEXT:    tfr w,x
 ; CHECK-HD6309-NEXT:    tfr u,s
 ; CHECK-HD6309-NEXT:    puls u
-; CHECK-HD6309-NEXT:    leas 6,s
+; CHECK-HD6309-NEXT:    leas 8,s
 ; CHECK-HD6309-NEXT:    rts
 entry:
   %cmp6 = icmp sgt i8 %n, 0
