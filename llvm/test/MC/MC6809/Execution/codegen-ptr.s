@@ -29,22 +29,18 @@ putx:
 	puls	x
 	rts
 
-;;; Test data (big-endian byte pairs — .word is little-endian, bug in assembler)
+;;; Test data
 arr_i16:
-	.byte	0x11, 0x11	; 0x1111
-	.byte	0x22, 0x22	; 0x2222
-	.byte	0x33, 0x33	; 0x3333
-	.byte	0x44, 0x44	; 0x4444
-	.byte	0x55, 0x55	; 0x5555
+	.word	0x1111, 0x2222, 0x3333, 0x4444, 0x5555
 
 arr_i8:
 	.byte	0xAA, 0xBB, 0xCC, 0xDD, 0xEE
 
 ;;; Struct-like data: 2 bytes + 2 bytes + 2 bytes (field at offset 4)
 struct_data:
-	.byte	0x00, 0x01	; field0 (offset 0) = 0x0001
-	.byte	0x00, 0x02	; field1 (offset 2) = 0x0002
-	.byte	0xBE, 0xEF	; field2 (offset 4) = 0xBEEF
+	.word	0x0001		; field0 (offset 0)
+	.word	0x0002		; field1 (offset 2)
+	.word	0xBEEF		; field2 (offset 4)
 
 	.section .bss
 buf:	.space	10		; writable buffer

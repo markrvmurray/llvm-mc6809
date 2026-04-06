@@ -16,6 +16,7 @@
 namespace llvm {
 
 MC6809MCAsmInfo::MC6809MCAsmInfo(const Triple &TT, const MCTargetOptions &Options) {
+  IsLittleEndian = false;
   CodePointerSize = 2;
   CalleeSaveStackSlotSize = 0;
   SeparatorString = "\n";
