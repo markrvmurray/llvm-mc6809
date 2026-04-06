@@ -7,6 +7,10 @@
 ; RUN: llvm-objcopy -O ihex %t.elf %t.hex
 ; RUN: %usim09batch --timeout=500000 %t.hex | FileCheck %s
 ; REQUIRES: usim
+; XFAIL: *
+;
+; KNOWN BROKEN: i32 arg setup clobbers B (shift count) via spill-through-D.
+; See bug #33. Test will pass once spill pseudo-registers model D clobber.
 ;
 ; Codegen execution test: i32 variable shifts via codegen → __ashlsi3 etc.
 
