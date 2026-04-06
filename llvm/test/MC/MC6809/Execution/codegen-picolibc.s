@@ -36,8 +36,11 @@
 ; RUN: %usim09batch --timeout=2000000 %t.hex | FileCheck %s
 ; REQUIRES: usim
 ;
-; Picolibc execution tests: memcpy, memset, memcmp, strcpy, strchr,
-; strncmp, isspace, isprint, isxdigit, tolower, toupper.
+; Picolibc execution tests: 28 functions covering string.h (memcpy,
+; memset, memmove, memcmp, memchr, strcpy, strncpy, strcat, strncat,
+; strlen, strchr, strrchr, strstr, strspn, strcspn, strpbrk, strncmp,
+; strtok), ctype.h (isspace, isprint, isxdigit, tolower, toupper,
+; ispunct, iscntrl, isgraph), and stdlib.h (rand, srand).
 ; Tested at -O0 through -O3.
 
 .include "runtime.inc"
@@ -598,6 +601,105 @@ test_main:
 	jsr	putx
 	jsr	putnl
 ; CHECK-NEXT: 0000
+
+	;; ispunct('!') = 1
+	ldx	#0x21
+	jsr	test_ispunct
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0001
+
+	;; ispunct('A') = 0
+	ldx	#0x41
+	jsr	test_ispunct
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0000
+
+	;; ispunct(' ') = 0  (space is not punctuation)
+	ldx	#0x20
+	jsr	test_ispunct
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0000
+
+	;; iscntrl('\n') = 1
+	ldx	#0x0A
+	jsr	test_iscntrl
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0001
+
+	;; iscntrl(0x7F) = 1  (DEL)
+	ldx	#0x7F
+	jsr	test_iscntrl
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0001
+
+	;; iscntrl('A') = 0
+	ldx	#0x41
+	jsr	test_iscntrl
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0000
+
+	;; isgraph('A') = 1
+	ldx	#0x41
+	jsr	test_isgraph
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0001
+
+	;; isgraph(' ') = 0  (space is not graph)
+	ldx	#0x20
+	jsr	test_isgraph
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0000
+
+	;; isgraph(0x7F) = 0  (DEL is not graph)
+	ldx	#0x7F
+	jsr	test_isgraph
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0000
+
+	;; labs/atol omitted: both expose codegen bug #61 (i32 sub-from-zero
+	;; produces "x - 0" instead of "0 - x" because the SubSetCarry_i16_Imm
+	;; pattern only matches the (reg, imm) form). Add back when fixed.
+
+	;; srand(42); rand(); rand(); rand()
+	;; LCG: state = state*75 + 17, return state & 0x7FFF
+	;; srand(42) → state=42
+	ldx	#42
+	jsr	test_srand
+	;; rand() → state=42*75+17=3167=0x0C5F, return 0x0C5F
+	jsr	test_rand
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0C5F
+	;; rand() → state=3167*75+17=237542 mod 65536=40934=0x9FE6,
+	;;          return 0x9FE6 & 0x7FFF = 0x1FE6
+	jsr	test_rand
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 1FE6
+	;; rand() → state=40934*75+17=3070067 mod 65536=55411=0xD873,
+	;;          return 0xD873 & 0x7FFF = 0x5873
+	jsr	test_rand
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 5873
+
+	;; srand(1); rand() — verify reseeding works
+	ldx	#1
+	jsr	test_srand
+	;; state=1*75+17=92=0x005C
+	jsr	test_rand
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 005C
 
 	rts
 

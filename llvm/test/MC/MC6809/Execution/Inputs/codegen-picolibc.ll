@@ -4,6 +4,7 @@ target datalayout = "E-p:16:8-S8-m:e-i1:8-i8:8-i16:8-i32:8-i64:8-f32:8-f64:8-a:0
 target triple = "mc6809-unknown-unknown"
 
 @test_strtok.next = internal unnamed_addr global ptr null, align 1
+@rand_state = internal unnamed_addr global i16 1, align 1
 
 ; Function Attrs: nofree norecurse nosync nounwind memory(argmem: readwrite)
 define dso_local noundef ptr @test_memcpy(ptr noundef returned writeonly captures(ret: address, provenance) %dst, ptr noundef readonly captures(none) %src, i16 noundef %n) local_unnamed_addr #0 {
@@ -732,11 +733,101 @@ entry:
   ret i16 %cond
 }
 
+; Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(none)
+define dso_local range(i16 0, 2) i16 @test_ispunct(i16 noundef %c) local_unnamed_addr #4 {
+entry:
+  %0 = add i16 %c, -33
+  %or.cond = icmp ult i16 %0, 15
+  br i1 %or.cond, label %lor.end, label %switch.early.test
+
+switch.early.test:                                ; preds = %entry
+  switch i16 %c, label %lor.rhs [
+    i16 96, label %lor.end
+    i16 95, label %lor.end
+    i16 94, label %lor.end
+    i16 93, label %lor.end
+    i16 92, label %lor.end
+    i16 91, label %lor.end
+    i16 64, label %lor.end
+    i16 63, label %lor.end
+    i16 62, label %lor.end
+    i16 61, label %lor.end
+    i16 60, label %lor.end
+    i16 59, label %lor.end
+    i16 58, label %lor.end
+  ]
+
+lor.rhs:                                          ; preds = %switch.early.test
+  %cmp9 = icmp sgt i16 %c, 122
+  br i1 %cmp9, label %land.rhs, label %lor.end
+
+land.rhs:                                         ; preds = %lor.rhs
+  %cmp10 = icmp samesign ult i16 %c, 127
+  %1 = zext i1 %cmp10 to i16
+  br label %lor.end
+
+lor.end:                                          ; preds = %switch.early.test, %switch.early.test, %switch.early.test, %switch.early.test, %switch.early.test, %switch.early.test, %switch.early.test, %switch.early.test, %switch.early.test, %switch.early.test, %switch.early.test, %switch.early.test, %switch.early.test, %entry, %lor.rhs, %land.rhs
+  %lor.ext = phi i16 [ 0, %lor.rhs ], [ %1, %land.rhs ], [ 1, %switch.early.test ], [ 1, %entry ], [ 1, %switch.early.test ], [ 1, %switch.early.test ], [ 1, %switch.early.test ], [ 1, %switch.early.test ], [ 1, %switch.early.test ], [ 1, %switch.early.test ], [ 1, %switch.early.test ], [ 1, %switch.early.test ], [ 1, %switch.early.test ], [ 1, %switch.early.test ], [ 1, %switch.early.test ], [ 1, %switch.early.test ]
+  ret i16 %lor.ext
+}
+
+; Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(none)
+define dso_local range(i16 0, 2) i16 @test_iscntrl(i16 noundef %c) local_unnamed_addr #4 {
+entry:
+  %or.cond = icmp ult i16 %c, 32
+  br i1 %or.cond, label %lor.end, label %lor.rhs
+
+lor.rhs:                                          ; preds = %entry
+  %cmp2 = icmp eq i16 %c, 127
+  %0 = zext i1 %cmp2 to i16
+  br label %lor.end
+
+lor.end:                                          ; preds = %entry, %lor.rhs
+  %lor.ext = phi i16 [ 1, %entry ], [ %0, %lor.rhs ]
+  ret i16 %lor.ext
+}
+
+; Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(none)
+define dso_local range(i16 0, 2) i16 @test_isgraph(i16 noundef %c) local_unnamed_addr #4 {
+entry:
+  %cmp = icmp sgt i16 %c, 32
+  br i1 %cmp, label %land.rhs, label %land.end
+
+land.rhs:                                         ; preds = %entry
+  %cmp1 = icmp samesign ult i16 %c, 127
+  %0 = zext i1 %cmp1 to i16
+  br label %land.end
+
+land.end:                                         ; preds = %land.rhs, %entry
+  %land.ext = phi i16 [ 0, %entry ], [ %0, %land.rhs ]
+  ret i16 %land.ext
+}
+
+; Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(readwrite, argmem: none, inaccessiblemem: none, target_mem0: none, target_mem1: none)
+define dso_local range(i16 0, -32768) i16 @test_rand() local_unnamed_addr #5 {
+entry:
+  %0 = load i16, ptr @rand_state, align 1, !tbaa !3
+  %mul = mul i16 %0, 75
+  %add = add i16 %mul, 17
+  store i16 %add, ptr @rand_state, align 1, !tbaa !3
+  %and = and i16 %add, 32767
+  ret i16 %and
+}
+
+; Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(write, argmem: none, inaccessiblemem: none, target_mem0: none, target_mem1: none)
+define dso_local void @test_srand(i16 noundef %seed) local_unnamed_addr #6 {
+entry:
+  store i16 %seed, ptr @rand_state, align 1, !tbaa !3
+  ret void
+}
+
 attributes #0 = { nofree norecurse nosync nounwind memory(argmem: readwrite) "frame-pointer"="all" "no-builtins" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 attributes #1 = { nofree norecurse nosync nounwind memory(argmem: write) "frame-pointer"="all" "no-builtins" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 attributes #2 = { nofree norecurse nosync nounwind memory(argmem: read) "frame-pointer"="all" "no-builtins" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 attributes #3 = { nofree norecurse nosync nounwind memory(readwrite, inaccessiblemem: none, target_mem0: none, target_mem1: none) "frame-pointer"="all" "no-builtins" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 attributes #4 = { mustprogress nofree norecurse nosync nounwind willreturn memory(none) "frame-pointer"="all" "no-builtins" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
+attributes #5 = { mustprogress nofree norecurse nosync nounwind willreturn memory(readwrite, argmem: none, inaccessiblemem: none, target_mem0: none, target_mem1: none) "frame-pointer"="all" "no-builtins" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
+attributes #6 = { mustprogress nofree norecurse nosync nounwind willreturn memory(write, argmem: none, inaccessiblemem: none, target_mem0: none, target_mem1: none) "frame-pointer"="all" "no-builtins" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 
 !llvm.module.flags = !{!0, !1}
 !llvm.ident = !{!2}
