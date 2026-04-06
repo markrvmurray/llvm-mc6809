@@ -1245,6 +1245,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     expandCallRelative(Builder, MI);
     break;
   case MC6809::LEAPtrAdd_Imm:
+  case MC6809::LEA_Ptr_Imm:
   case MC6809::LEAPtrAdd_Reg8:
   case MC6809::LEAPtrAdd_Reg16:
     expandLEAPtrAdd(Builder, MI);
