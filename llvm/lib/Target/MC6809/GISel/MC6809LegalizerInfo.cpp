@@ -103,11 +103,12 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   getActionDefinitionsBuilder({G_EXTRACT, G_INSERT})
       .customForCartesianProduct(LegalTypes, LegalTypes).unsupported();
 
-  // G_ZEXT/G_ANYEXT: (s16,s1) has no selection pattern — custom decompose
-  // to s1→s8 (AND with 1) then s8→s16 (merge with zero hi byte).
+  // G_ZEXT/G_ANYEXT: (s16/s32, s1) has no selection pattern — custom
+  // decompose to s1→s8 (AND #1) then merge with zero bytes.
   getActionDefinitionsBuilder({G_ZEXT, G_ANYEXT})
       .customIf([=](const LegalityQuery &Query) {
-        return Query.Types[0] == s16 && Query.Types[1] == s1;
+        return Query.Types[1] == s1 &&
+               (Query.Types[0] == s16 || Query.Types[0] == s32);
       })
       .legalForCartesianProduct(LegalScalars, NotMaxWithOne)
       .clampScalar(0, *LegalScalars.begin(), *std::prev(LegalScalars.end()))
@@ -265,7 +266,12 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
       .legalForCartesianProduct({p}, LegalScalars)
       .clampScalar(1, s8, sMax);
 
+  // G_SELECT s32: decompose to two independent i16 selects to avoid
+  // two ACC16 values competing for D in the PHI path.
   getActionDefinitionsBuilder(G_SELECT)
+      .customIf([=](const LegalityQuery &Query) {
+        return Query.Types[0] == s32;
+      })
       .legalForCartesianProduct(LegalTypesWithOne, {s1}).clampScalar(0, s8, sMax);
 
   getActionDefinitionsBuilder({G_SDIVREM, G_UDIVREM, G_ABS, G_DYN_STACKALLOC, G_SEXT_INREG, G_SMULO, G_SMIN, G_SMAX, G_UMIN, G_UMAX, G_UADDSAT, G_SADDSAT, G_USUBSAT, G_SSUBSAT, G_USHLSAT, G_SSHLSAT, G_FPOWI})
@@ -318,17 +324,49 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
     return legalizeBitwise(Helper, MRI, MI, LocObserver);
   case G_ZEXT:
   case G_ANYEXT: {
-    // Decompose s1→s16: zext s1→s8 (AND with 1), then merge with zero.
+    // Decompose s1→s16/s32: zext s1→s8 (AND #1), then merge with zeros.
     // Can't chain G_ZEXT (combiner folds them → infinite loop).
     Register DstReg = MI.getOperand(0).getReg();
     Register SrcReg = MI.getOperand(1).getReg();
+    LLT DstTy = MRI.getType(DstReg);
     MachineIRBuilder &B = Helper.MIRBuilder;
     LLT S8 = LLT::scalar(8);
-    // s1→s8: zext (legal — selectImpl produces AND #1)
     auto Ext8 = B.buildZExt(S8, SrcReg);
-    // s8→s16: merge lo=Ext8, hi=0
-    auto Zero = B.buildConstant(S8, 0);
-    B.buildMergeValues(DstReg, {Ext8.getReg(0), Zero.getReg(0)});
+    auto Zero8 = B.buildConstant(S8, 0);
+    if (DstTy == LLT::scalar(16)) {
+      B.buildMergeValues(DstReg, {Ext8.getReg(0), Zero8.getReg(0)});
+    } else {
+      // s32: merge 4 bytes (lo=ext8, then 3 zero bytes)
+      auto Zero8b = B.buildConstant(S8, 0);
+      auto Zero8c = B.buildConstant(S8, 0);
+      B.buildMergeValues(DstReg, {Ext8.getReg(0), Zero8.getReg(0),
+                                   Zero8b.getReg(0), Zero8c.getReg(0)});
+    }
+    MI.eraseFromParent();
+    return true;
+  }
+  case G_SELECT: {
+    // Decompose i32 select into two INDEPENDENT i16 selects.
+    // Use separate copies of the condition register so that the
+    // MC6809LowerSelect pass doesn't merge them into one diamond
+    // (which would put two ACC16 loads in the same block → regalloc fail).
+    Register DstReg = MI.getOperand(0).getReg();
+    Register CondReg = MI.getOperand(1).getReg();
+    Register TrueReg = MI.getOperand(2).getReg();
+    Register FalseReg = MI.getOperand(3).getReg();
+    MachineIRBuilder &B = Helper.MIRBuilder;
+    LLT S1 = LLT::scalar(1);
+    LLT S16 = LLT::scalar(16);
+    auto TrueParts = B.buildUnmerge(S16, TrueReg);
+    auto FalseParts = B.buildUnmerge(S16, FalseReg);
+    // Use separate condition copies so LowerSelect treats them independently
+    auto CondLo = B.buildCopy(S1, CondReg);
+    auto CondHi = B.buildCopy(S1, CondReg);
+    auto SelLo = B.buildSelect(S16, CondLo,
+        TrueParts.getReg(0), FalseParts.getReg(0));
+    auto SelHi = B.buildSelect(S16, CondHi,
+        TrueParts.getReg(1), FalseParts.getReg(1));
+    B.buildMergeValues(DstReg, {SelLo.getReg(0), SelHi.getReg(0)});
     MI.eraseFromParent();
     return true;
   }
