@@ -69,4 +69,23 @@ test_main:
 	jsr	putnl
 ; CHECK-NEXT: 00
 
+	;; ===== i32 globals =====
+	;; inc_counter32() 3 times, then check via direct memory read
+
+	jsr	inc_counter32
+	jsr	inc_counter32
+	jsr	inc_counter32
+
+	;; Read counter32 directly from memory (bypass CC issues)
+	ldx	#counter32
+	ldd	,x		; hi word
+	tfr	d,x
+	jsr	putx
+	ldx	#counter32
+	ldd	2,x		; lo word
+	tfr	d,x
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 00000003
+
 	jsr	halt

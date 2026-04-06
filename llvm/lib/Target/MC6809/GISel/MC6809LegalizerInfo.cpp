@@ -243,8 +243,11 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   getActionDefinitionsBuilder(G_FCOPYSIGN)
       .libcallFor({{s32, s32}, {s64, s64}});
 
+  // On 6809, s32 load/store has no instruction — narrow to s16 pairs.
+  // HD6309 has native 32-bit load/store via Q register.
   getActionDefinitionsBuilder({G_LOAD, G_STORE})
-      .legalForCartesianProduct(LegalTypes32, {p});
+      .legalForCartesianProduct(LegalTypes, {p})
+      .clampScalar(0, s8, sMax);
 
   getActionDefinitionsBuilder({G_FRAME_INDEX, G_GLOBAL_VALUE, G_BRINDIRECT, G_JUMP_TABLE})
       .legalFor({p});
