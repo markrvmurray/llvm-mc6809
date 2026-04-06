@@ -139,8 +139,8 @@ public:
 
   bool isImm3() const { return isImmediate<0, 0x8 - 1>(); }
   bool isImm5() const { return isImmediate<0, 0x20 - 1>(); }
-  bool isImm8() const { return isImmediate<0, 0x100 - 1>(); }
-  bool isImm16() const { return isImmediate<0, 0x10000 - 1>(); }
+  bool isImm8() const { return isImmediate<-0x80, 0xFF>(); }
+  bool isImm16() const { return isImmediate<-0x8000, 0xFFFF>(); }
   bool isImm8To16() const { return isImm16() && !isImm8(); }
 
   bool isRel5() const { return isImmediate<-16, 15>(); }

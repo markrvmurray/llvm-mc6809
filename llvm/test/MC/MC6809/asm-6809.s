@@ -3146,3 +3146,21 @@ cmps	[45745]
 cmpu	0
 ; CHECK: encoding: [0x11,0xbc,0x00,0x00]
 cmps	0
+
+; === Negative immediates ===
+; CHECK: addb	#-1                     ; encoding: [0xcb,0xff]
+addb	#-1
+; CHECK: addb	#-128                   ; encoding: [0xcb,0x80]
+addb	#-128
+; CHECK: adda	#-1                     ; encoding: [0x8b,0xff]
+adda	#-1
+; CHECK: ldb	#-1                      ; encoding: [0xc6,0xff]
+ldb	#-1
+; CHECK: ldd	#-1                      ; encoding: [0xcc,0xff,0xff]
+ldd	#-1
+; CHECK: ldd	#-31072                  ; encoding: [0xcc,0x86,0xa0]
+ldd	#-31072
+; CHECK: addd	#-100                   ; encoding: [0xc3,0xff,0x9c]
+addd	#-100
+; CHECK: cmpd	#-1                     ; encoding: [0x10,0x83,0xff,0xff]
+cmpd	#-1
