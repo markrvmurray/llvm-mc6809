@@ -557,23 +557,20 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
   case TargetOpcode::G_BRCOND: {
     // G_BRCOND %cond(s1), %bb.target
     // When the condition is an s1 in the accum bank (not FLAGS), the imported
-    // patterns can't handle it. Emit TSTB + BNE to test the boolean byte.
+    // patterns can't handle it. Emit a single fused TestBranch_i8_Reg, NOT
+    // a separate Test_i8_Reg + ConditionalLongBranchRelative pair — PHI
+    // elimination would put COPYs between them, and any COPY that gets
+    // spilled (becoming STX/STY/STD) clobbers CC and breaks the branch
+    // (was bug #59).
     Register CondReg = MI.getOperand(0).getReg();
     MachineBasicBlock *TargetMBB = MI.getOperand(1).getMBB();
-    // Set register class to ACC8 (the boolean is a byte: 0 or 1).
-    MRI->setRegClass(CondReg, &MC6809::ACC8RegClass);
-    // Test the boolean: Test_i8_Reg sets CC from the register value.
-    Register CCReg = MRI->createVirtualRegister(&MC6809::CCondRegClass);
-    BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(MC6809::Test_i8_Reg))
-        .addDef(CCReg)
-        .addImm(MC6809CC::NE)
-        .addReg(CondReg);
+    // TestBranch_i8_Reg's source is constrained to ACC8_AB (AA or AB).
+    MRI->setRegClass(CondReg, &MC6809::ACC8_ABRegClass);
     // Branch if non-zero (NE).
-    BuildMI(*MBB, MI, MI.getDebugLoc(),
-            TII.get(MC6809::ConditionalLongBranchRelative))
+    BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(MC6809::TestBranch_i8_Reg))
         .addImm(MC6809CC::NE)
-        .addMBB(TargetMBB)
-        .addReg(CCReg);
+        .addReg(CondReg)
+        .addMBB(TargetMBB);
     MI.eraseFromParent();
     return true;
   }
