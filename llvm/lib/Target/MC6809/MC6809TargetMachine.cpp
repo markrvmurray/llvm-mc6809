@@ -39,6 +39,7 @@
 #include "MC6809IncDecPhi.h"
 #include "MC6809IndexIV.h"
 #include "MC6809InsertCopies.h"
+#include "MC6809NoShortBranches.h"
 #include "MC6809Internalize.h"
 #include "MC6809BundleCC.h"
 #include "MC6809LateOptimization.h"
@@ -67,6 +68,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMC6809Target() {
   initializeMC6809CopyOptPass(PR);
   initializeMC6809IncDecPhiPass(PR);
   initializeMC6809InsertCopiesPass(PR);
+  initializeMC6809NoShortBranchesPass(PR);
   initializeMC6809InternalizePass(PR);
   initializeMC6809LateOptimizationPass(PR);
   initializeMC6809LowerSelectPass(PR);
@@ -298,7 +300,12 @@ void MC6809PassConfig::addPreSched2() {
   addPass(createMC6809LateOptimizationPass());
 }
 
-void MC6809PassConfig::addPreEmitPass() { addPass(&BranchRelaxationPassID); }
+void MC6809PassConfig::addPreEmitPass() {
+  addPass(&BranchRelaxationPassID);
+  // After relaxation, no short branches should remain. This pass enforces
+  // that — see MC6809NoShortBranches.cpp.
+  addPass(createMC6809NoShortBranchesPass());
+}
 
 ScheduleDAGInstrs *MC6809TargetMachine::createMachineScheduler(MachineSchedContext *C) const {
   return new ScheduleDAGMILive(C, std::make_unique<MC6809SchedStrategy>(C));

@@ -517,7 +517,7 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
                   .addFrameIndex(DSaveSlot)
                   .addImm(0);
               BuildMI(*RestoreBB, RestoreBB->end(), DL,
-                      TII.get(MC6809::BRAb))
+                      TII.get(MC6809::LBRAlb))
                   .addMBB(Succ);
             }
           }

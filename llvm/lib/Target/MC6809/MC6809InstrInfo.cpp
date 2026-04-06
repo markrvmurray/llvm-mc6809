@@ -489,7 +489,36 @@ unsigned MC6809InstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
 // XXXX FixMe: MarkM. Branch offset relaxation should cover for all sins committed, but only
 // once we have lowered to non-pseudo instructions.
 bool MC6809InstrInfo::isBranchOffsetInRange(unsigned BranchOpc, int64_t BrOffset) const {
-  return true;
+  // Branch ranges (signed offset from PC after the instruction):
+  //   Short branches (BRA, BCC, BCS, etc.):    8-bit signed: -128..+127
+  //   Long branches (LBRA, LBCC, LBCS, etc.): 16-bit signed: -32768..+32767
+  //
+  // The pseudos BranchRelative / ConditionalBranchRelative get expanded into
+  // BRAb / Bbc respectively. If isBranchOffsetInRange returns false for
+  // these, the BranchRelaxation pass replaces them with their long-branch
+  // counterparts (LongBranchRelative / ConditionalLongBranchRelative).
+  //
+  // Returning true unconditionally was a stub — it disabled relaxation and
+  // caused short branches with out-of-range offsets to silently truncate
+  // their offset bytes, jumping to wrong addresses (was bug #58).
+  switch (BranchOpc) {
+  case MC6809::BranchRelative:
+  case MC6809::ConditionalBranchRelative:
+  case MC6809::JumpRelative:
+  case MC6809::BRAb:
+  case MC6809::Bbc:
+    return isInt<8>(BrOffset);
+  case MC6809::LongBranchRelative:
+  case MC6809::ConditionalLongBranchRelative:
+  case MC6809::LongJumpRelative:
+  case MC6809::LBRAlb:
+  case MC6809::LBlbc:
+    return isInt<16>(BrOffset);
+  default:
+    // Unknown branch opcode — be conservative and say it's in range so we
+    // don't break anything that doesn't follow the BRA/LBRA pattern.
+    return true;
+  }
 }
 
 unsigned MC6809InstrInfo::getInstBundleLength(const MachineInstr &MI) const {
@@ -632,8 +661,9 @@ bool MC6809InstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock *&
         CC = getOppositeCondition(CC);
         MachineBasicBlock::iterator OldInst = I;
 
-        BuildMI(MBB, UnCondBrIter, MBB.findDebugLoc(I), get(MC6809::Bbc)).addImm(CC).addMBB(UnCondBrIter->getOperand(0).getMBB());
-        BuildMI(MBB, UnCondBrIter, MBB.findDebugLoc(I), get(MC6809::BRAb)).addMBB(TargetBB);
+        // Always emit long branches; relaxation to short happens later.
+        BuildMI(MBB, UnCondBrIter, MBB.findDebugLoc(I), get(MC6809::LBlbc)).addImm(CC).addMBB(UnCondBrIter->getOperand(0).getMBB());
+        BuildMI(MBB, UnCondBrIter, MBB.findDebugLoc(I), get(MC6809::LBRAlb)).addMBB(TargetBB);
 
         OldInst->eraseFromParent();
         UnCondBrIter->eraseFromParent();
@@ -1359,13 +1389,16 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     Changed = false;
     break;
   case MC6809::BranchRelative:
-    MI.setDesc(Builder.getTII().get(MC6809::BRAb));
+    // Default to long branches (was bug #58). A future relaxation pass
+    // will promote to short BRA when the offset fits.
+    MI.setDesc(Builder.getTII().get(MC6809::LBRAlb));
     break;
   case MC6809::LongBranchRelative:
     MI.setDesc(Builder.getTII().get(MC6809::LBRAlb));
     break;
   case MC6809::ConditionalBranchRelative:
-    MI.setDesc(Builder.getTII().get(MC6809::Bbc));
+    // Default to long conditional branches (was bug #58).
+    MI.setDesc(Builder.getTII().get(MC6809::LBlbc));
     MI.removeOperand(2);
     break;
   case MC6809::ConditionalLongBranchRelative:

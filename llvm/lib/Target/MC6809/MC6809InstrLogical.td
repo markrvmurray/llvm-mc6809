@@ -167,10 +167,13 @@ class MC6809UnconditionalBranch : MC6809Branch {
   dag InOperandList = (ins label:$tgt);
 }
 
-def BranchRelative : MC6809UnconditionalBranch {
+def BranchRelative : MC6809UnconditionalBranch;
+def LongBranchRelative : MC6809UnconditionalBranch {
+  // Default to LONG branches everywhere. A future relaxation pass will
+  // promote them back to short BRA when the offset fits — until then,
+  // emitting short by default risks silent truncation. Was bug #58.
   let Pattern = [(br bb:$tgt)];
 }
-def LongBranchRelative : MC6809UnconditionalBranch;
 
 def JumpRelative : MC6809UnconditionalBranch;
 def LongJumpRelative : MC6809UnconditionalBranch;
