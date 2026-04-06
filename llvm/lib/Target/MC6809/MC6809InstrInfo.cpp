@@ -2382,24 +2382,14 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
 
   auto DestRegOp = MI.getOperand(0);
 
-  // If the destination is a spill register, save the real accumulator ($ad),
-  // load from memory into it, store to the spill slot, then restore $ad.
-  // Without the save/restore, loading into the spill register clobbers
-  // whatever live value was in $ad (bug #26 root cause).
+  // If the destination is a spill register, load into D then store to the
+  // spill slot. The SpillDSaveRestore pass (addPrePEI) handles saving and
+  // restoring D around this operation when D is live — we don't need to
+  // do emergency save/restore here. (The old emergency mechanism created
+  // frame slots after PEI with unreliable offsets.)
   if (isSpillReg(DestRegOp.getReg())) {
     Register RealReg = getRealRegForSpill(DestRegOp.getReg());
     MachineFunction &MF = *MI.getMF();
-
-    // Save $ad to an emergency spill slot (U-relative STD).
-    // Can't use PSHS D here because the MC layer's register list format
-    // isn't compatible with buildInstr at post-RA expansion time.
-    MachineFunction &SpillMF = Builder.getMF();
-    int EmergencyFI = SpillMF.getFrameInfo().CreateStackObject(2, Align(1), true);
-    int EmergencyOffset = SpillMF.getFrameInfo().getObjectOffset(EmergencyFI);
-    Builder.buildInstr(MC6809::STDi_o8)
-        .addUse(MC6809::AD, RegState::Implicit)
-        .addImm(EmergencyOffset)
-        .addReg(MC6809::SU);
 
     // Load from memory into the real accumulator.
     MI.getOperand(0).setReg(RealReg);
@@ -2410,12 +2400,6 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
     ++InsertPt;
     MachineIRBuilder PostBuilder(*MI.getParent(), InsertPt);
     emitSpillStore(PostBuilder, RealReg, DestRegOp.getReg(), MF);
-
-    // Restore $ad from emergency spill slot.
-    PostBuilder.buildInstr(MC6809::LDDi_o8)
-        .addDef(MC6809::AD, RegState::Implicit)
-        .addImm(EmergencyOffset)
-        .addReg(MC6809::SU);
     return;
   }
 

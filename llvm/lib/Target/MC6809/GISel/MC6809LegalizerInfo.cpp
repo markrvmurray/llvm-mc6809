@@ -248,6 +248,7 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
       .legalFor({p});
 
   getActionDefinitionsBuilder(G_VASTART).customFor({p});
+  getActionDefinitionsBuilder(G_VAARG).customForCartesianProduct(LegalTypes, {p});
 
   getActionDefinitionsBuilder(G_ICMP)
       .legalForCartesianProduct({s1}, {s8, s16})
@@ -364,6 +365,8 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
     return legalizeFConstant(Helper, MRI, MI, LocObserver);
   case G_VASTART:
     return legalizeVAStart(Helper, MRI, MI, LocObserver);
+  case G_VAARG:
+    return legalizeVAArg(Helper, MRI, MI, LocObserver);
   case G_LSHR:
   case G_SHL:
   case G_ASHR:
@@ -507,6 +510,39 @@ bool MC6809LegalizerInfo::legalizeVAStart(LegalizerHelper &Helper, MachineRegist
   MachineIRBuilder &Builder = Helper.MIRBuilder;
   auto *FuncInfo = Builder.getMF().getInfo<MC6809FunctionInfo>();
   Builder.buildStore(Builder.buildFrameIndex(P, FuncInfo->VarArgsStackIndex), MI.getOperand(0), **MI.memoperands_begin());
+  MI.eraseFromParent();
+  return true;
+}
+
+bool MC6809LegalizerInfo::legalizeVAArg(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const {
+  // G_VAARG: %val = G_VAARG %ap_ptr, align
+  // Decompose to: load current ap, load value from ap, bump ap, store ap back.
+  //   ap_val = load ap_ptr       ; current va_list pointer
+  //   val = load ap_val          ; load the argument
+  //   ap_val += sizeof(type)     ; advance (always rounded up to 2 bytes)
+  //   store ap_val to ap_ptr     ; write back
+  MachineIRBuilder &Builder = Helper.MIRBuilder;
+  LLT ValTy = MRI.getType(MI.getOperand(0).getReg());
+  LLT P = LLT::pointer(0, 16);
+
+  Register DstReg = MI.getOperand(0).getReg();
+  Register APPtr = MI.getOperand(1).getReg();
+  unsigned ArgSize = ValTy.getSizeInBytes();
+  if (ArgSize < 2) ArgSize = 2; // 6809 CC: args are at least 16-bit aligned
+
+  // Load current ap value (pointer to next vararg)
+  auto APVal = Builder.buildLoad(P, APPtr, MachinePointerInfo(), Align(1));
+
+  // Load the argument value from the current ap
+  Builder.buildLoad(DstReg, APVal, MachinePointerInfo(), Align(1));
+
+  // Bump ap past this argument
+  auto Bump = Builder.buildConstant(LLT::scalar(16), ArgSize);
+  auto NewAP = Builder.buildPtrAdd(P, APVal, Bump);
+
+  // Store updated ap back
+  Builder.buildStore(NewAP, APPtr, MachinePointerInfo(), Align(1));
+
   MI.eraseFromParent();
   return true;
 }

@@ -89,17 +89,11 @@ static bool willClobberD(const MachineInstr &MI, const TargetRegisterInfo &TRI) 
       return false;
   }
 
-  // If a spill register is DEFINED by this instruction (e.g., Load_i16_Mem
-  // with dest=$spill_d0), expandLoadIdx already has its own internal
-  // emergency save/restore of D. Don't add a redundant wrapper.
-  for (const MachineOperand &MO : MI.operands()) {
-    if (MO.isReg() && MO.isDef() && isSpillReg(MO.getReg()))
-      return false;
-  }
-
-  // For non-COPY pseudos where D is a direct operand but NOT being defined
-  // by a spill: D is the intended operand, no save needed.
-  if (!MI.isCopy() && DIsDirectOperand)
+  // For non-COPY pseudos where D is a direct operand and there's no spill
+  // that would clobber it: D is the intended operand, no save needed.
+  // (If a spill is defined alongside D, the D clobber is from the spill
+  // expansion going through D — the save IS needed.)
+  if (!MI.isCopy() && DIsDirectOperand && !HasSpillOp)
     return false;
 
   return true;

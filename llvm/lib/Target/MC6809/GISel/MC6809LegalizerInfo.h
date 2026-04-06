@@ -46,6 +46,7 @@ private:
   bool legalizeExtractInsert(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
   bool legalizeFConstant(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
   bool legalizeVAStart(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
+  bool legalizeVAArg(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
   // bool legalizeShift(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
   bool legalizeLoad(LegalizerHelper &Helper, MachineRegisterInfo &MRI, GAnyLoad &MI, LostDebugLocObserver &LocObserver) const;
   bool legalizeShiftRotate(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;

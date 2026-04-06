@@ -229,11 +229,8 @@ define dso_local i32 @add_s_i32(i32 noundef %a, i32 noundef %b, i32 noundef %c, 
 ; CHECK-NEXT:    leas -8,s
 ; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    ldd 12,u
 ; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldd 0,u
-; CHECK-NEXT:    ldd 4,u
 ; CHECK-NEXT:    addd 16,u
 ; CHECK-NEXT:    std 4,u
 ; CHECK-NEXT:    stx 6,u
@@ -298,11 +295,8 @@ define dso_local i32 @add_s_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; CHECK-NEXT:    leas -8,s
 ; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    ldd 12,u
 ; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldd 0,u
-; CHECK-NEXT:    ldd 4,u
 ; CHECK-NEXT:    addd 16,u
 ; CHECK-NEXT:    std 4,u
 ; CHECK-NEXT:    stx 6,u
@@ -377,11 +371,8 @@ define dso_local i32 @add_u_i32(i32 noundef %a, i32 noundef %b, i32 noundef %c, 
 ; CHECK-NEXT:    leas -8,s
 ; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    ldd 12,u
 ; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldd 0,u
-; CHECK-NEXT:    ldd 4,u
 ; CHECK-NEXT:    addd 16,u
 ; CHECK-NEXT:    std 4,u
 ; CHECK-NEXT:    stx 6,u
@@ -446,11 +437,8 @@ define dso_local i32 @add_u_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; CHECK-NEXT:    leas -8,s
 ; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    std 0,u
 ; CHECK-NEXT:    ldd 12,u
 ; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldd 0,u
-; CHECK-NEXT:    ldd 4,u
 ; CHECK-NEXT:    addd 16,u
 ; CHECK-NEXT:    std 4,u
 ; CHECK-NEXT:    stx 6,u

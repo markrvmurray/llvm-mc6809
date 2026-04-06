@@ -311,9 +311,18 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
       }
 
       // Any instruction that modifies a tracked register invalidates entries.
+      // Clear both the accumulator (Reg) and base register (BaseReg) mappings.
       for (const MachineOperand &MO : MI.operands()) {
-        if (MO.isReg() && MO.isDef() && MO.getReg().isPhysical())
-          clearReg(MO.getReg());
+        if (MO.isReg() && MO.isDef() && MO.getReg().isPhysical()) {
+          Register Def = MO.getReg();
+          clearReg(Def);
+          // Also invalidate any slot whose BASE register was modified
+          // (e.g., LEAY changes IY, invalidating all {IY, *} slots).
+          for (auto &E : Slots) {
+            if (E.first.BaseReg.isValid() && TRI.regsOverlap(E.first.BaseReg, Def))
+              E.second.Reg = Register();
+          }
+        }
       }
 
       // Branches, calls, and other control flow invalidate everything.

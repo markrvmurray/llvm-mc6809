@@ -433,9 +433,22 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     return true;
   }
 
+  case TargetOpcode::G_LOAD: {
+    // Pointer (p0) loads aren't covered by imported patterns.
+    Register DstReg = MI.getOperand(0).getReg();
+    if (!MRI->getType(DstReg).isPointer())
+      return false;
+    Register AddrReg = MI.getOperand(1).getReg();
+    MRI->setRegClass(DstReg, &MC6809::INDEX16RegClass);
+    MRI->setRegClass(AddrReg, &MC6809::INDEX16RegClass);
+    MI.setDesc(TII.get(MC6809::Load_iPtr_Mem));
+    MI.addOperand(MachineOperand::CreateImm(0));
+    constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
+    return true;
+  }
+
   case TargetOpcode::G_STORE: {
-    // Pointer (p0) stores aren't covered by imported patterns (SelectionDAG
-    // patterns use i16/INDEX16 which GlobalISel imports as s16, not p0).
+    // Pointer (p0) stores aren't covered by imported patterns.
     Register ValReg = MI.getOperand(0).getReg();
     if (!MRI->getType(ValReg).isPointer())
       return false;
