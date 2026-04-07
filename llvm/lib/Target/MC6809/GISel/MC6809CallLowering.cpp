@@ -49,14 +49,6 @@ struct MC6809ValueAssigner : CallLowering::ValueAssigner {
   /// registers must be avoided when selecting registers for arguments.
   BitVector Reserved;
 
-  /// For variadic-call lowering: number of named (non-variadic) parameters
-  /// in the callee's function type. Args with OrigArgIndex < NumNamedArgs
-  /// use the regular CC (CC_MC6809); args at NumNamedArgs and beyond use
-  /// the variadic CC (CC_MC6809_VarArgs). Default ~0u means "all args
-  /// named" — used for non-variadic calls and for the formal-args /
-  /// return paths where State.isVarArg() is always passed false.
-  unsigned NumNamedArgs = ~0u;
-
   MC6809ValueAssigner(bool IsIncoming, MachineRegisterInfo &MRI, const MachineFunction &MF, bool IsReturn = false)
     : CallLowering::ValueAssigner(IsIncoming,
         IsReturn ? RetCC_MC6809 : CC_MC6809,
@@ -70,16 +62,15 @@ struct MC6809ValueAssigner : CallLowering::ValueAssigner {
     for (Register R : Reserved.set_bits())
       State.AllocateReg(R);
 
-    // For variadic calls, the named args use the regular CC (e.g. fmt → X
-    // for printf) and only the variadic tail uses CC_MC6809_VarArgs (all
-    // on stack). Without this split, the call site puts everything on
-    // the stack but the callee's lowerFormalArguments (post-bug-#67)
-    // expects the named args in their regular CC slots — and they'd be
-    // mismatched. State.isVarArg() is function-level so doesn't help us
-    // here; instead we use the per-arg OrigArgIndex against the cached
-    // NumNamedArgs that lowerCall reads from the callee's FunctionType.
-    bool IsVariadicArg = (Info.OrigArgIndex >= NumNamedArgs);
-    if (getAssignFn(IsVariadicArg)(ValNo, ValVT, LocVT, LocInfo, Flags, Info.Ty, State))
+    // gcc6809's __gcccall variadic ABI puts ALL args (including the
+    // named ones like printf's fmt) on the stack. The variadic CC
+    // table CC_MC6809_VarArgs is `CCAssignToStack<0,1>` for all
+    // types — exactly the all-on-stack layout gcc6809 uses on both
+    // the call site and the callee side. State.isVarArg() carries
+    // the function-level variadic flag through from
+    // determineAndHandleAssignments, so the call site / formal-args
+    // path passes its `IsVarArg` flag and we just dispatch on it.
+    if (getAssignFn(State.isVarArg())(ValNo, ValVT, LocVT, LocInfo, Flags, Info.Ty, State))
       return true;
     StackSize = State.getStackSize();
     return false;
@@ -320,14 +311,12 @@ bool MC6809CallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder, cons
 
   MC6809IncomingArgsHandler Handler(MIRBuilder, MRI);
   MC6809ValueAssigner Assigner(/*IsIncoming=*/true, MRI, MF);
-  // Named formal arguments of variadic functions still use the regular CC
-  // (CC_MC6809), exactly as the comment in MC6809CallingConv.td says: only
-  // the *unnamed* arguments at the call site go through CC_MC6809_VarArgs.
-  // Passing F.isVarArg() here would (wrongly) push the named args onto the
-  // stack — discovered while building test_printf, where `fmt` was being
-  // assigned to a stack slot instead of X. Always pass false here: at the
-  // callee side we only ever see the named args, never the variadic ones.
-  if (!determineAndHandleAssignments(Handler, Assigner, SplitArgs, MIRBuilder, F.getCallingConv(), /*IsVarArg=*/false))
+  // gcc6809's __gcccall variadic ABI puts ALL args (including named ones
+  // like printf's `fmt`) on the stack — even at the callee, where the
+  // named args land on the stack alongside the variadic ones. So we
+  // pass F.isVarArg() here and let the assigner dispatch to
+  // CC_MC6809_VarArgs (all-on-stack) when this function is variadic.
+  if (!determineAndHandleAssignments(Handler, Assigner, SplitArgs, MIRBuilder, F.getCallingConv(), F.isVarArg()))
     return false;
 
   // Record the beginning of the varargs region of the stack by creating a fake
@@ -378,19 +367,12 @@ bool MC6809CallLowering::lowerCall(MachineIRBuilder &MIRBuilder, CallLoweringInf
     splitToValueTypes(Info.OrigRet, InArgs, DL);
 
   // Copy arguments from virtual registers to their real physical locations.
-  // For variadic calls, tell the value assigner how many of the args are
-  // *named* (non-variadic) so that the regular CC applies to those and
-  // only the variadic tail goes through CC_MC6809_VarArgs. This was the
-  // call-site half of bug #67: the formal-args side was already fixed to
-  // use the regular CC for named args, but the call site was still
-  // sending everything through the all-on-stack variadic CC. Calls
-  // emitted from variadic wrappers (e.g. `void f4(fmt, a, b, c, d)
-  // { test_printf(fmt, a, b, c, d); }`) put fmt on the stack but the
-  // callee read fmt from X — silent ABI mismatch.
+  // For variadic calls, gcc6809 puts ALL args on the stack (named and
+  // variadic alike), so we just propagate Info.IsVarArg through to the
+  // assigner and let it dispatch to CC_MC6809_VarArgs (all-on-stack)
+  // for the whole call.
   MC6809OutgoingArgsHandler ArgsHandler(MIRBuilder, Call, MRI);
   MC6809ValueAssigner ArgsAssigner(/*IsIncoming=*/false, MRI, MF);
-  if (Info.IsVarArg && Info.CB)
-    ArgsAssigner.NumNamedArgs = Info.CB->getFunctionType()->getNumParams();
   if (!determineAndHandleAssignments(ArgsHandler, ArgsAssigner, OutArgs, MIRBuilder, Info.CallConv, Info.IsVarArg))
     return false;
 

@@ -1687,27 +1687,6 @@ test_strtoul.exit:                                ; preds = %if.else63.i, %if.en
   ret void
 }
 
-; Function Attrs: nofree norecurse nounwind
-define dso_local void @test_printf_4(ptr noundef readonly captures(none) %fmt, i16 noundef %a, ptr noundef %b, i16 noundef %c, i16 noundef %d) local_unnamed_addr #9 {
-entry:
-  tail call void (ptr, ...) @test_printf(ptr noundef %fmt, i16 noundef %a, ptr noundef %b, i16 noundef %c, i16 noundef %d) #15
-  ret void
-}
-
-; Function Attrs: nofree norecurse nounwind
-define dso_local void @test_printf_d(ptr noundef readonly captures(none) %fmt, i16 noundef %v) local_unnamed_addr #9 {
-entry:
-  tail call void (ptr, ...) @test_printf(ptr noundef %fmt, i16 noundef %v) #15
-  ret void
-}
-
-; Function Attrs: nofree norecurse nounwind
-define dso_local void @test_printf_uxX(ptr noundef readonly captures(none) %fmt, i16 noundef %u, i16 noundef %x, i16 noundef %X) local_unnamed_addr #9 {
-entry:
-  tail call void (ptr, ...) @test_printf(ptr noundef %fmt, i16 noundef %u, i16 noundef %x, i16 noundef %X) #15
-  ret void
-}
-
 ; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
 declare i32 @llvm.abs.i32(i32, i1 immarg) #13
 

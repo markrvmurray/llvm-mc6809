@@ -6,12 +6,13 @@
  * under test (codegen-picolibc.ll). Validates calling-convention
  * interop end-to-end.
  *
- * For functions whose LLVM CC differs from gcc6809's CC (long
- * return, varargs), the IR provides bridge wrappers (test_*_w,
- * test_printf_*) with non-variadic, non-long-returning signatures
- * that both compilers handle the same way. We call those wrappers
- * here. See the long comment in /tmp/picolibc-all.c (the source of
- * codegen-picolibc.ll) for details on the CC differences.
+ * For long-returning functions whose LLVM CC differs from gcc6809
+ * (split-result vs out-pointer), the IR provides void-returning
+ * out-pointer wrappers (test_*_w). Variadic functions (test_printf)
+ * are now ABI-compatible with gcc6809 thanks to the all-on-stack
+ * convention, so they can be called directly. See the comment in
+ * /tmp/picolibc-all.c (the source of codegen-picolibc.ll) for
+ * the long-return CC details.
  */
 
 #include "harness-common.h"
@@ -60,11 +61,7 @@ extern void test_strtoul_w(unsigned long *out, const char *nptr, int base);
 
 /* stdio.h */
 extern int test_putchar(int c);
-
-/* Variadic-bridge wrappers (gcc6809 normal CC → LLVM varargs CC) */
-extern void test_printf_4(const char *fmt, int a, const char *b, int c, int d);
-extern void test_printf_d(const char *fmt, int v);
-extern void test_printf_uxX(const char *fmt, unsigned u, unsigned x, unsigned X);
+extern void test_printf(const char *fmt, ...);
 
 /* String literals — keep them as globals so the linker places them
    in .rodata next to the other test data. (Local "..." literals work
@@ -405,16 +402,16 @@ void test_main(void) {
     h_putnl();
     /* CHECK-NEXT: ! */
 
-    /* === printf via varargs bridges ===
-       The wrappers in codegen-picolibc.ll forward fixed-arg calls
-       (which gcc6809 handles correctly) into LLVM-side variadic
-       calls (which test_printf expects). */
-    test_printf_4(fmt_printf_4, 42, str_ok, 0xBEEF, 'Z');
+    /* === printf via direct varargs call ===
+       gcc6809 and LLVM-MC6809 now share the all-on-stack variadic
+       ABI (gcc6809's __gcccall convention), so the harness can call
+       test_printf directly without a fixed-arg bridge wrapper. */
+    test_printf(fmt_printf_4, 42, str_ok, 0xBEEF, 'Z');
     /* CHECK-NEXT: Hi=42 ok beef Z % */
 
-    test_printf_d(fmt_printf_d, -1);
+    test_printf(fmt_printf_d, -1);
     /* CHECK-NEXT: -1 */
 
-    test_printf_uxX(fmt_printf_uxX, 65535u, 255u, 255u);
+    test_printf(fmt_printf_uxX, 65535u, 255u, 255u);
     /* CHECK-NEXT: 65535 ff FF */
 }
