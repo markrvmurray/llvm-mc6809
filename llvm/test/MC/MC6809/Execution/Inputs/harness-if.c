@@ -39,25 +39,23 @@ static void h_putnl(void) {
 
 /* ===== Functions under test (from codegen-if.ll) =====
  *
- * The i8 functions are called via i16-taking wrappers because
- * gcc6809 and LLVM-MC6809 disagree on i8 stack-arg layout (gcc6809
- * uses a 1-byte slot, LLVM a 2-byte slot with the byte at offset+1).
  * The 32-bit return functions are called via out-pointer wrappers
- * because the long return CCs don't match either.
+ * because the long return CCs differ between the two compilers.
+ * The i32-arg-with-i16-return functions use pointer-to-long wrappers
+ * because gcc6809 and LLVM-MC6809 disagree on i32 stack-arg layout.
+ * Everything else (including the i8 functions) is called directly.
  */
 
-/* i16-direct (matches between both compilers) */
+/* Direct calls (gcc6809 and LLVM-MC6809 agree) */
+extern signed char     test_max_s8(signed char a, signed char b);
 extern signed int      test_max_s16(signed int a, signed int b);
+extern unsigned char   test_max_u8(unsigned char a, unsigned char b);
 extern unsigned int    test_max_u16(unsigned int a, unsigned int b);
+extern signed char     test_min_s8(signed char a, signed char b);
+extern unsigned char   test_eq8(signed char a, signed char b);
+extern unsigned char   test_ne8(signed char a, signed char b);
 extern unsigned int    test_eq16(unsigned int a, unsigned int b);
 extern unsigned int    test_ne16(unsigned int a, unsigned int b);
-
-/* i8 stack-arg bridges (i16 in, i16 out — both compilers agree) */
-extern int test_max_s8_w(int a, int b);
-extern int test_max_u8_w(int a, int b);
-extern int test_min_s8_w(int a, int b);
-extern int test_eq8_w(int a, int b);
-extern int test_ne8_w(int a, int b);
 
 /* Long-return bridges (out-pointer pattern) */
 extern void test_max_s32_w(long *out, long a, long b);
@@ -69,31 +67,31 @@ extern int test_eq32_w(const long *a, const long *b);
 extern int test_ne32_w(const long *a, const long *b);
 
 void test_main(void) {
-    /* ===== Signed max i8 (sgt) — via i16 wrapper ===== */
-    h_puthex((unsigned char)test_max_s8_w(5, 3));    h_putnl(); /* CHECK: 05 */
-    h_puthex((unsigned char)test_max_s8_w(3, 5));    h_putnl(); /* CHECK-NEXT: 05 */
-    h_puthex((unsigned char)test_max_s8_w(-1, 1));   h_putnl(); /* CHECK-NEXT: 01 */
-    h_puthex((unsigned char)test_max_s8_w(7, 7));    h_putnl(); /* CHECK-NEXT: 07 */
+    /* ===== Signed max i8 (sgt) ===== */
+    h_puthex((unsigned char)test_max_s8(5, 3));   h_putnl();   /* CHECK: 05 */
+    h_puthex((unsigned char)test_max_s8(3, 5));   h_putnl();   /* CHECK-NEXT: 05 */
+    h_puthex((unsigned char)test_max_s8(-1, 1));  h_putnl();   /* CHECK-NEXT: 01 */
+    h_puthex((unsigned char)test_max_s8(7, 7));   h_putnl();   /* CHECK-NEXT: 07 */
 
     /* ===== Signed max i16 (sgt) ===== */
     h_putx((unsigned)test_max_s16(1000, 500));    h_putnl();   /* CHECK-NEXT: 03E8 */
     h_putx((unsigned)test_max_s16(-1, 1));        h_putnl();   /* CHECK-NEXT: 0001 */
 
-    /* ===== Unsigned max i8 (ugt) — via wrapper ===== */
-    h_puthex((unsigned char)test_max_u8_w(0xFF, 0x01)); h_putnl(); /* CHECK-NEXT: FF */
+    /* ===== Unsigned max i8 (ugt) ===== */
+    h_puthex(test_max_u8(0xFF, 0x01));            h_putnl();   /* CHECK-NEXT: FF */
 
     /* ===== Unsigned max i16 (ugt) ===== */
     h_putx(test_max_u16(0xFFFFu, 0x0001u));       h_putnl();   /* CHECK-NEXT: FFFF */
 
-    /* ===== Signed min i8 (slt) — via wrapper ===== */
-    h_puthex((unsigned char)test_min_s8_w(5, 3));   h_putnl(); /* CHECK-NEXT: 03 */
-    h_puthex((unsigned char)test_min_s8_w(-1, 1));  h_putnl(); /* CHECK-NEXT: FF */
+    /* ===== Signed min i8 (slt) ===== */
+    h_puthex((unsigned char)test_min_s8(5, 3));   h_putnl();   /* CHECK-NEXT: 03 */
+    h_puthex((unsigned char)test_min_s8(-1, 1));  h_putnl();   /* CHECK-NEXT: FF */
 
-    /* ===== Equality / not-equal i8 — via wrappers ===== */
-    h_puthex((unsigned char)test_eq8_w(42, 42));    h_putnl(); /* CHECK-NEXT: 01 */
-    h_puthex((unsigned char)test_eq8_w(42, 43));    h_putnl(); /* CHECK-NEXT: 00 */
-    h_puthex((unsigned char)test_ne8_w(42, 43));    h_putnl(); /* CHECK-NEXT: 01 */
-    h_puthex((unsigned char)test_ne8_w(42, 42));    h_putnl(); /* CHECK-NEXT: 00 */
+    /* ===== Equality / not-equal i8 ===== */
+    h_puthex(test_eq8(42, 42));   h_putnl();                    /* CHECK-NEXT: 01 */
+    h_puthex(test_eq8(42, 43));   h_putnl();                    /* CHECK-NEXT: 00 */
+    h_puthex(test_ne8(42, 43));   h_putnl();                    /* CHECK-NEXT: 01 */
+    h_puthex(test_ne8(42, 42));   h_putnl();                    /* CHECK-NEXT: 00 */
 
     /* ===== Equality / not-equal i16 ===== */
     h_putx(test_eq16(0x1234, 0x1234));  h_putnl();              /* CHECK-NEXT: 0001 */
