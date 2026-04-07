@@ -3256,10 +3256,18 @@ void MC6809InstrInfo::expandAddReg(MachineIRBuilder &Builder, MachineInstr &MI) 
                            MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
                            MC6809::ADDBi_o8, MC6809::ADDBi_o5);
   } else {
+    // i16 reg-reg add: low byte ADDB sets carry, high byte ADCA must
+    // consume it. Earlier code used ADDA for the high byte and silently
+    // dropped the carry between bytes 0 and 1 of the i16 add — so e.g.
+    // 0xFFFF + 0x0001 produced 0xFF00 instead of 0x0000-with-carry-out.
+    // The bug was dormant because the legalizer/selector almost always
+    // chose the memory-form ADDD instead of routing through this
+    // register-register expansion path. Compare with expandSubReg
+    // which has always used SUBB; SBCA correctly.
     emit6809RegPairFromMem(Builder,
                            MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
-                           MC6809::ADDBi_o8, MC6809::ADDAi_o8,
-                           MC6809::ADDBi_o5, MC6809::ADDAi_o0);
+                           MC6809::ADDBi_o8, MC6809::ADCAi_o8,
+                           MC6809::ADDBi_o5, MC6809::ADCAi_o0);
   }
   MI.eraseFromParent();
 }
@@ -3315,12 +3323,14 @@ void MC6809InstrInfo::expandAddSetCarryReg(MachineIRBuilder &Builder, MachineIns
     // Plain 6809: no register-register add. Route through the
     // emit6809RegPairFromMem helper which loads LHS into D and either
     // reads RHS from its U-relative spill slot or pushes RHS to S
-    // and reads from there. ADDB/ADCA chain handles the carry.
+    // and reads from there. ADDB/ADCA chain handles the carry between
+    // the low and high bytes of the i16 add and produces a final
+    // carry-out for the upper half of an i32 add to consume.
     emit6809RegPairFromMem(Builder,
                            MI.getOperand(0).getReg(),  // LHS = dst (== src by tie)
                            MI.getOperand(3).getReg(),  // RHS = src2  (op3)
-                           MC6809::ADDBi_o8, MC6809::ADDAi_o8,
-                           MC6809::ADDBi_o5, MC6809::ADDAi_o0);
+                           MC6809::ADDBi_o8, MC6809::ADCAi_o8,
+                           MC6809::ADDBi_o5, MC6809::ADCAi_o0);
   }
   MI.eraseFromParent();
 }
