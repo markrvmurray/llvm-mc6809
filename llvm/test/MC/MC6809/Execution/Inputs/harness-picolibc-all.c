@@ -14,39 +14,7 @@
  * codegen-picolibc.ll) for details on the CC differences.
  */
 
-/* ACIA at 0xBF00 (status) and 0xBF01 (data) — see Inputs/runtime.inc
-   for the full memory map. */
-#define ACIA_STATUS (*(volatile unsigned char *)0xBF00)
-#define ACIA_DATA   (*(volatile unsigned char *)0xBF01)
-
-static void h_putc(unsigned char c) {
-    while (!(ACIA_STATUS & 0x02))
-        ;
-    ACIA_DATA = c;
-}
-
-static void h_putnibble(unsigned char n) {
-    h_putc(n < 10 ? '0' + n : 'A' + n - 10);
-}
-
-static void h_puthex(unsigned char b) {
-    h_putnibble(b >> 4);
-    h_putnibble(b & 0x0F);
-}
-
-static void h_putx(unsigned int x) {
-    h_puthex((unsigned char)(x >> 8));
-    h_puthex((unsigned char)(x & 0xFF));
-}
-
-static void h_putlong(unsigned long l) {
-    h_putx((unsigned int)(l >> 16));
-    h_putx((unsigned int)(l & 0xFFFFu));
-}
-
-static void h_putnl(void) {
-    h_putc('\n');
-}
+#include "harness-common.h"
 
 /* ===== Functions under test (compiled by LLVM from codegen-picolibc.ll) ===== */
 
