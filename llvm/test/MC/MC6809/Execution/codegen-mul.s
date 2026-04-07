@@ -37,7 +37,8 @@
 ; REQUIRES: usim
 ;
 ; Codegen execution test: 8-bit multiply functions.
-; CC: first arg in B, remaining args as 16-bit words on stack.
+; CC: first arg in B, remaining i8 args as 1-byte stack slots
+; (matches gcc6809).
 
 .include "runtime.inc"
 
@@ -45,36 +46,33 @@
 	.globl	test_main
 test_main:
 	;; mul_i8(6, 7) = 42 = 0x2A
-	clra
 	ldb	#7
-	pshs	b,a
+	pshs	b
 	ldb	#6
 	jsr	mul_i8
-	leas	2,s
+	leas	1,s
 	tfr	b,a
 	jsr	puthex
 	jsr	putnl
 ; CHECK: 2A
 
 	;; mul_i8(0, 5) = 0
-	clra
 	ldb	#5
-	pshs	b,a
+	pshs	b
 	ldb	#0
 	jsr	mul_i8
-	leas	2,s
+	leas	1,s
 	tfr	b,a
 	jsr	puthex
 	jsr	putnl
 ; CHECK-NEXT: 00
 
 	;; mul_i8(15, 17) = 255 = 0xFF
-	clra
 	ldb	#17
-	pshs	b,a
+	pshs	b
 	ldb	#15
 	jsr	mul_i8
-	leas	2,s
+	leas	1,s
 	tfr	b,a
 	jsr	puthex
 	jsr	putnl
@@ -89,14 +87,13 @@ test_main:
 ; CHECK-NEXT: 2A
 
 	;; mul_i8_chain(2, 3, 7) = 2*3*7 = 42 = 0x2A
-	clra
 	ldb	#7
-	pshs	b,a
+	pshs	b
 	ldb	#3
-	pshs	b,a
+	pshs	b
 	ldb	#2
 	jsr	mul_i8_chain
-	leas	4,s
+	leas	2,s
 	tfr	b,a
 	jsr	puthex
 	jsr	putnl

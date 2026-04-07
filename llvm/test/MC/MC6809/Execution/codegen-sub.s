@@ -37,7 +37,8 @@
 ; REQUIRES: usim
 ;
 ; Codegen execution test: subtraction.
-; CC: first arg in B, remaining as 16-bit words on stack.
+; CC: first arg in B, remaining i8 args as 1-byte stack slots
+; (matches gcc6809).
 
 .include "runtime.inc"
 
@@ -45,54 +46,50 @@
 	.globl	test_main
 test_main:
 	;; sub_simple(0x50, 0x08) = 0x48
-	clra
 	ldb	#0x08
-	pshs	b,a
+	pshs	b
 	ldb	#0x50
 	jsr	sub_simple
-	leas	2,s
+	leas	1,s
 	tfr	b,a
 	jsr	puthex
 	jsr	putnl
 ; CHECK: 48
 
 	;; sub_simple(0x42, 0x00) = 0x42
-	clra
 	ldb	#0x00
-	pshs	b,a
+	pshs	b
 	ldb	#0x42
 	jsr	sub_simple
-	leas	2,s
+	leas	1,s
 	tfr	b,a
 	jsr	puthex
 	jsr	putnl
 ; CHECK-NEXT: 42
 
 	;; sub_s_i8_consts(0,0,0,0,0) = 5
-	clra
 	clrb
-	pshs	b,a
-	pshs	b,a
-	pshs	b,a
-	pshs	b,a
+	pshs	b
+	pshs	b
+	pshs	b
+	pshs	b
 	ldb	#0
 	jsr	sub_s_i8_consts
-	leas	8,s
+	leas	4,s
 	tfr	b,a
 	jsr	puthex
 	jsr	putnl
 ; CHECK-NEXT: 05
 
 	;; sub_s_i8_consts(1,1,1,1,1) = 0
-	clra
 	ldb	#1
-	pshs	b,a
-	pshs	b,a
-	pshs	b,a
-	pshs	b,a
+	pshs	b
+	pshs	b
+	pshs	b
+	pshs	b
 	ldb	#1
 	jsr	sub_s_i8_consts
-	leas	8,s
+	leas	4,s
 	tfr	b,a
 	jsr	puthex
 	jsr	putnl

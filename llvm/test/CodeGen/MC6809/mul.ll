@@ -9,13 +9,13 @@ define dso_local signext i8 @mul_s_i8(i8 noundef signext %a, i8 noundef signext 
 ; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    tfr s,u
 ; CHECK-NEXT:    tfr b,a
-; CHECK-NEXT:    sta 6,u
-; CHECK-NEXT:    ldb 11,u
-; CHECK-NEXT:    stb 7,u
-; CHECK-NEXT:    ldd 6,u
+; CHECK-NEXT:    sta 4,u
+; CHECK-NEXT:    ldb 10,u
+; CHECK-NEXT:    stb 5,u
+; CHECK-NEXT:    ldd 4,u
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldb 7,u
+; CHECK-NEXT:    std 4,u
+; CHECK-NEXT:    ldb 5,u
 ; CHECK-NEXT:    tfr u,s
 ; CHECK-NEXT:    puls u
 ; CHECK-NEXT:    leas 6,s
@@ -40,19 +40,19 @@ define dso_local i16 @mul_s_i8_i16(i8 noundef signext %a, i8 noundef signext %b)
 ; CHECK-NEXT:    leas -10,s
 ; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    std 8,u
-; CHECK-NEXT:    ldb 15,u
-; CHECK-NEXT:    stb 11,u
-; CHECK-NEXT:    ldd 8,u
 ; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldb 11,u
-; CHECK-NEXT:    sex
-; CHECK-NEXT:    std 10,u
+; CHECK-NEXT:    ldb 14,u
+; CHECK-NEXT:    stb 9,u
 ; CHECK-NEXT:    ldd 6,u
+; CHECK-NEXT:    std 4,u
+; CHECK-NEXT:    ldb 9,u
+; CHECK-NEXT:    sex
+; CHECK-NEXT:    std 8,u
+; CHECK-NEXT:    ldd 4,u
 ; CHECK-NEXT:    sex
 ; CHECK-NEXT:    leas -2,s
 ; CHECK-NEXT:    std ,s
-; CHECK-NEXT:    ldx 10,u
+; CHECK-NEXT:    ldx 8,u
 ; CHECK-NEXT:    lbsr __mulhi3
 ; CHECK-NEXT:    leas 2,s
 ; CHECK-NEXT:    tfr u,s
@@ -86,18 +86,18 @@ define dso_local signext i8 @mul_s_i8_consts(i8 noundef signext %a, i8 noundef s
 ; CHECK-NEXT:    leas -6,s
 ; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    stb 7,u
+; CHECK-NEXT:    stb 5,u
 ; CHECK-NEXT:    lda #12
-; CHECK-NEXT:    sta 6,u
-; CHECK-NEXT:    ldd 6,u
+; CHECK-NEXT:    sta 4,u
+; CHECK-NEXT:    ldd 4,u
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    lda 11,u
-; CHECK-NEXT:    sta 6,u
-; CHECK-NEXT:    ldd 6,u
+; CHECK-NEXT:    std 4,u
+; CHECK-NEXT:    lda 10,u
+; CHECK-NEXT:    sta 4,u
+; CHECK-NEXT:    ldd 4,u
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldb 7,u
+; CHECK-NEXT:    std 4,u
+; CHECK-NEXT:    ldb 5,u
 ; CHECK-NEXT:    tfr u,s
 ; CHECK-NEXT:    puls u
 ; CHECK-NEXT:    leas 6,s
@@ -130,13 +130,13 @@ define dso_local zeroext i8 @mul_u_i8(i8 noundef zeroext %a, i8 noundef zeroext 
 ; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    tfr s,u
 ; CHECK-NEXT:    tfr b,a
-; CHECK-NEXT:    sta 6,u
-; CHECK-NEXT:    ldb 11,u
-; CHECK-NEXT:    stb 7,u
-; CHECK-NEXT:    ldd 6,u
+; CHECK-NEXT:    sta 4,u
+; CHECK-NEXT:    ldb 10,u
+; CHECK-NEXT:    stb 5,u
+; CHECK-NEXT:    ldd 4,u
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldb 7,u
+; CHECK-NEXT:    std 4,u
+; CHECK-NEXT:    ldb 5,u
 ; CHECK-NEXT:    tfr u,s
 ; CHECK-NEXT:    puls u
 ; CHECK-NEXT:    leas 6,s
@@ -161,19 +161,19 @@ define dso_local i16 @mul_u_i8_i16(i8 noundef zeroext %a, i8 noundef zeroext %b)
 ; CHECK-NEXT:    leas -10,s
 ; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    std 8,u
-; CHECK-NEXT:    ldb 15,u
-; CHECK-NEXT:    stb 11,u
-; CHECK-NEXT:    ldd 8,u
 ; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldb 11,u
-; CHECK-NEXT:    clra
-; CHECK-NEXT:    std 10,u
+; CHECK-NEXT:    ldb 14,u
+; CHECK-NEXT:    stb 9,u
 ; CHECK-NEXT:    ldd 6,u
+; CHECK-NEXT:    std 4,u
+; CHECK-NEXT:    ldb 9,u
+; CHECK-NEXT:    clra
+; CHECK-NEXT:    std 8,u
+; CHECK-NEXT:    ldd 4,u
 ; CHECK-NEXT:    clra
 ; CHECK-NEXT:    leas -2,s
 ; CHECK-NEXT:    std ,s
-; CHECK-NEXT:    ldx 10,u
+; CHECK-NEXT:    ldx 8,u
 ; CHECK-NEXT:    lbsr __mulhi3
 ; CHECK-NEXT:    leas 2,s
 ; CHECK-NEXT:    tfr u,s
@@ -206,18 +206,18 @@ define dso_local zeroext i8 @mul_u_i8_consts(i8 noundef zeroext %a, i8 noundef z
 ; CHECK-NEXT:    leas -6,s
 ; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    stb 7,u
+; CHECK-NEXT:    stb 5,u
 ; CHECK-NEXT:    lda #13
-; CHECK-NEXT:    sta 6,u
-; CHECK-NEXT:    ldd 6,u
+; CHECK-NEXT:    sta 4,u
+; CHECK-NEXT:    ldd 4,u
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    lda 11,u
-; CHECK-NEXT:    sta 6,u
-; CHECK-NEXT:    ldd 6,u
+; CHECK-NEXT:    std 4,u
+; CHECK-NEXT:    lda 10,u
+; CHECK-NEXT:    sta 4,u
+; CHECK-NEXT:    ldd 4,u
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldb 7,u
+; CHECK-NEXT:    std 4,u
+; CHECK-NEXT:    ldb 5,u
 ; CHECK-NEXT:    tfr u,s
 ; CHECK-NEXT:    puls u
 ; CHECK-NEXT:    leas 6,s

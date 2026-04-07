@@ -7,10 +7,10 @@ define dso_local signext i8 @sub_s_i8(i8 noundef signext %a, i8 noundef signext 
 ; CHECK-LABEL: sub_s_i8:
 ; CHECK:       ; %bb.0: ; %entry
 ; CHECK-NEXT:    leas -2,s
-; CHECK-NEXT:    lda 7,s
-; CHECK-NEXT:    adda 5,s
-; CHECK-NEXT:    adda 9,s
-; CHECK-NEXT:    adda 11,s
+; CHECK-NEXT:    lda 5,s
+; CHECK-NEXT:    adda 4,s
+; CHECK-NEXT:    adda 6,s
+; CHECK-NEXT:    adda 7,s
 ; CHECK-NEXT:    pshs a
 ; CHECK-NEXT:    subb ,s+
 ; CHECK-NEXT:    leas 2,s
@@ -34,10 +34,10 @@ entry:
 define dso_local signext i8 @sub_s_i8_consts(i8 noundef signext %a, i8 noundef signext %b, i8 noundef signext %c, i8 noundef signext %d, i8 noundef signext %e) local_unnamed_addr #0 {
 ; CHECK-LABEL: sub_s_i8_consts:
 ; CHECK:       ; %bb.0: ; %entry
+; CHECK-NEXT:    addb 2,s
 ; CHECK-NEXT:    addb 3,s
+; CHECK-NEXT:    addb 4,s
 ; CHECK-NEXT:    addb 5,s
-; CHECK-NEXT:    addb 7,s
-; CHECK-NEXT:    addb 9,s
 ; CHECK-NEXT:    subb #5
 ; CHECK-NEXT:    negb
 ; CHECK-NEXT:    rts
@@ -64,10 +64,10 @@ define dso_local zeroext i8 @sub_u_i8(i8 noundef zeroext %a, i8 noundef zeroext 
 ; CHECK-LABEL: sub_u_i8:
 ; CHECK:       ; %bb.0: ; %entry
 ; CHECK-NEXT:    leas -2,s
-; CHECK-NEXT:    lda 7,s
-; CHECK-NEXT:    adda 5,s
-; CHECK-NEXT:    adda 9,s
-; CHECK-NEXT:    adda 11,s
+; CHECK-NEXT:    lda 5,s
+; CHECK-NEXT:    adda 4,s
+; CHECK-NEXT:    adda 6,s
+; CHECK-NEXT:    adda 7,s
 ; CHECK-NEXT:    pshs a
 ; CHECK-NEXT:    subb ,s+
 ; CHECK-NEXT:    leas 2,s
@@ -91,10 +91,10 @@ entry:
 define dso_local zeroext i8 @sub_u_i8_consts(i8 noundef zeroext %a, i8 noundef zeroext %b, i8 noundef zeroext %c, i8 noundef zeroext %d, i8 noundef zeroext %e) local_unnamed_addr #0 {
 ; CHECK-LABEL: sub_u_i8_consts:
 ; CHECK:       ; %bb.0: ; %entry
+; CHECK-NEXT:    addb 2,s
 ; CHECK-NEXT:    addb 3,s
+; CHECK-NEXT:    addb 4,s
 ; CHECK-NEXT:    addb 5,s
-; CHECK-NEXT:    addb 7,s
-; CHECK-NEXT:    addb 9,s
 ; CHECK-NEXT:    subb #45
 ; CHECK-NEXT:    negb
 ; CHECK-NEXT:    rts

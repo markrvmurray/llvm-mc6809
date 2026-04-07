@@ -120,20 +120,18 @@ struct MC6809OutgoingArgsHandler : MC6809OutgoingValueHandler {
   MC6809OutgoingArgsHandler(MachineIRBuilder &MIRBuilder, MachineInstrBuilder &MIB, MachineRegisterInfo &MRI) : MC6809OutgoingValueHandler(MIRBuilder, MIB, MRI) {}
 
   Register getStackAddress(uint64_t Size, int64_t Offset, MachinePointerInfo &MPO, ISD::ArgFlagsTy Flags) override {
-    // GCC 6809 convention: i8 args in 2-byte stack slots.
-    // On big-endian MC6809, store the byte at offset+1 (low byte).
-    int64_t ActualOffset = Offset;
-    if (Size == 1) {
-      ActualOffset = Offset + 1;
-    }
-    MPO = MachinePointerInfo::getStack(MIRBuilder.getMF(), ActualOffset);
+    // gcc6809 convention: i8 stack args occupy 1-byte slots (not
+    // padded to a word). The CC table now uses CCAssignToStack<1,1>
+    // for i8, so Offset already points at the value byte and no
+    // adjustment is needed here.
+    MPO = MachinePointerInfo::getStack(MIRBuilder.getMF(), Offset);
 
     LLT P = LLT::pointer(0, 16);
 
     if (!SPReg)
       SPReg = MIRBuilder.buildCopy(P, Register(MC6809::SS)).getReg(0);
 
-    auto OffsetReg = MIRBuilder.buildConstant(LLT::scalar(16), ActualOffset).getReg(0);
+    auto OffsetReg = MIRBuilder.buildConstant(LLT::scalar(16), Offset).getReg(0);
     return MIRBuilder.buildPtrAdd(P, SPReg, OffsetReg).getReg(0);
   }
 };
@@ -181,17 +179,10 @@ struct MC6809IncomingArgsHandler : public MC6809IncomingValueHandler {
 
   Register getStackAddress(uint64_t Size, int64_t Offset, MachinePointerInfo &MPO, ISD::ArgFlagsTy Flags) override {
     auto &MFI = MIRBuilder.getMF().getFrameInfo();
-    // GCC 6809 convention: i8 args occupy 2-byte stack slots.
-    // On big-endian MC6809, the byte value is at offset+1 (low byte).
-    // Adjust the fixed object to point directly at the value byte.
-    uint64_t ActualSize = Size;
-    int64_t ActualOffset = Offset;
-    // For i8 args (Size==1), the CC allocates 2-byte slots but passes
-    // Size=1 here. The byte is at offset+1 within the 2-byte slot.
-    if (Size == 1) {
-      ActualOffset = Offset + 1;
-    }
-    int FI = MFI.CreateFixedObject(ActualSize, ActualOffset, true);
+    // gcc6809 convention: i8 stack args occupy 1-byte slots. The CC
+    // table allocates 1 byte per i8 arg via CCAssignToStack<1,1>, so
+    // Offset already points at the value byte. No padding to a word.
+    int FI = MFI.CreateFixedObject(Size, Offset, true);
     MPO = MachinePointerInfo::getFixedStack(MIRBuilder.getMF(), FI);
     auto AddrReg = MIRBuilder.buildFrameIndex(LLT::pointer(0, 16), FI);
     return AddrReg.getReg(0);

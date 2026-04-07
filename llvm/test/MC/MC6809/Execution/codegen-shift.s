@@ -181,35 +181,36 @@ test_main:
 ; CHECK-NEXT: F800
 
 	;; ===== Variable i8 shifts =====
+	;; Both args are i8: first in B, second in 1-byte stack slot.
 
 	;; shl8_var(1, 7) = 0x80
-	ldd	#7
-	pshs	d
+	ldb	#7
+	pshs	b
 	ldb	#1
 	jsr	test_shl8_var
-	leas	2,s
+	leas	1,s
 	tfr	b,a
 	jsr	puthex
 	jsr	putnl
 ; CHECK-NEXT: 80
 
 	;; lshr8_var(0x80, 7) = 0x01
-	ldd	#7
-	pshs	d
+	ldb	#7
+	pshs	b
 	ldb	#0x80
 	jsr	test_lshr8_var
-	leas	2,s
+	leas	1,s
 	tfr	b,a
 	jsr	puthex
 	jsr	putnl
 ; CHECK-NEXT: 01
 
 	;; ashr8_var(0x80, 4) = 0xF8 (sign-extend)
-	ldd	#4
-	pshs	d
+	ldb	#4
+	pshs	b
 	ldb	#0x80
 	jsr	test_ashr8_var
-	leas	2,s
+	leas	1,s
 	tfr	b,a
 	jsr	puthex
 	jsr	putnl

@@ -42,16 +42,21 @@ def RetCC_MC6809 : CallingConv<[
 // Argument Calling Convention
 //===----------------------------------------------------------------------===//
 
-// GCC 6809 calling convention:
+// GCC 6809 calling convention (matches gcc6809 / m6809-unknown-gcc):
 //   - First 8-bit arg in B, first 16-bit/ptr arg in X
-//   - Remaining i8 args as 16-bit words on stack
+//   - Remaining i8 args occupy 1-byte stack slots (NOT 2-byte slots).
+//     gcc6809 emits `stb ,-s` for the second i8 arg and reads it from
+//     offset 0 of a 1-byte slot — the byte is NOT padded to a word.
+//     CMOC's __gcccall promotes char→int and uses a 2-byte slot, but
+//     the canonical reference for this backend is gcc6809.
+//   - Remaining i16/ptr args on stack (2-byte slots)
 //   - Callee-saved: U, Y
 let Entry = 1 in
 def CC_MC6809 : CallingConv<[
   CCIfPtr<CCAssignToReg<[IX]>>,
   CCIfType<[i1],  CCPromoteToType<i8>>,
   CCIfType<[i8],  CCAssignToReg<[AB]>>,
-  CCIfType<[i8],  CCAssignToStack<2, 2>>,
+  CCIfType<[i8],  CCAssignToStack<1, 1>>,
   CCIfType<[i16], CCAssignToReg<[IX]>>,
   CCIfType<[i32], CCIfSubtarget<"has6309()", CCAssignToReg<[AQ]>>>,
   CCAssignToStack<0, 1>,

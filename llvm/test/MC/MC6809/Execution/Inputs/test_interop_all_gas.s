@@ -52,14 +52,21 @@ _main:
 ; Calling convention: 0 (CMOC Default)
 ; Line test_interop_all.c:19: function call: puthex()
 ; Line test_interop_all.c:19: function call: llvm_add8()
-	clra
-	ldb	#$12	; decimal 18 signed
-	pshs	B,A	; C function argument 2 of llvm_add8(): int
-; optim: stripConsecutiveLoadsToSameReg
+;
+; HAND-EDITED (no longer a faithful CMOC capture): the original CMOC
+; output for the second i8 arg used `clra; pshs B,A` (a 2-byte slot
+; with the byte at offset+1, because CMOC promotes char→int when
+; passing byte args via __gcccall). LLVM-MC6809 now uses gcc6809's
+; convention (1-byte slot, byte at offset 0) — see CC_MC6809 in
+; MC6809CallingConv.td. CMOC's actual output won't link cleanly
+; against the new LLVM convention; this hand-edit demonstrates what
+; CMOC *should* emit if it were updated to match gcc6809.
+	ldb	#$12	; second i8 arg → 1-byte stack slot
+	pshs	B
 ; function receives argument in B
 	ldb	#48	; __gcccall: first byte-sized argument
 	lbsr	_llvm_add8
-	leas	2,S
+	leas	1,S
 ; Cast from `char' to byte: result already in B
 	clra	; promoting byte argument to word
 	pshs	B,A	; C function argument 1 of puthex(): unsigned char

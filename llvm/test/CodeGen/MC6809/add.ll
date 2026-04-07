@@ -6,10 +6,10 @@
 define dso_local signext i8 @add_s_i8(i8 noundef signext %a, i8 noundef signext %b, i8 noundef signext %c, i8 noundef signext %d, i8 noundef signext %e) local_unnamed_addr #0 {
 ; CHECK-LABEL: add_s_i8:
 ; CHECK:       ; %bb.0: ; %entry
+; CHECK-NEXT:    addb 2,s
 ; CHECK-NEXT:    addb 3,s
+; CHECK-NEXT:    addb 4,s
 ; CHECK-NEXT:    addb 5,s
-; CHECK-NEXT:    addb 7,s
-; CHECK-NEXT:    addb 9,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: add_s_i8:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
@@ -30,10 +30,10 @@ entry:
 define dso_local signext i8 @add_s_i8_consts(i8 noundef signext %a, i8 noundef signext %b, i8 noundef signext %c, i8 noundef signext %d, i8 noundef signext %e) local_unnamed_addr #0 {
 ; CHECK-LABEL: add_s_i8_consts:
 ; CHECK:       ; %bb.0: ; %entry
+; CHECK-NEXT:    addb 2,s
 ; CHECK-NEXT:    addb 3,s
+; CHECK-NEXT:    addb 4,s
 ; CHECK-NEXT:    addb 5,s
-; CHECK-NEXT:    addb 7,s
-; CHECK-NEXT:    addb 9,s
 ; CHECK-NEXT:    addb #5
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: add_s_i8_consts:
@@ -57,10 +57,10 @@ entry:
 define dso_local zeroext i8 @add_u_i8(i8 noundef zeroext %a, i8 noundef zeroext %b, i8 noundef zeroext %c, i8 noundef zeroext %d, i8 noundef zeroext %e) local_unnamed_addr #0 {
 ; CHECK-LABEL: add_u_i8:
 ; CHECK:       ; %bb.0: ; %entry
+; CHECK-NEXT:    addb 2,s
 ; CHECK-NEXT:    addb 3,s
+; CHECK-NEXT:    addb 4,s
 ; CHECK-NEXT:    addb 5,s
-; CHECK-NEXT:    addb 7,s
-; CHECK-NEXT:    addb 9,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: add_u_i8:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
@@ -81,10 +81,10 @@ entry:
 define dso_local zeroext i8 @add_u_i8_consts(i8 noundef zeroext %a, i8 noundef zeroext %b, i8 noundef zeroext %c, i8 noundef zeroext %d, i8 noundef zeroext %e) local_unnamed_addr #0 {
 ; CHECK-LABEL: add_u_i8_consts:
 ; CHECK:       ; %bb.0: ; %entry
+; CHECK-NEXT:    addb 2,s
 ; CHECK-NEXT:    addb 3,s
+; CHECK-NEXT:    addb 4,s
 ; CHECK-NEXT:    addb 5,s
-; CHECK-NEXT:    addb 7,s
-; CHECK-NEXT:    addb 9,s
 ; CHECK-NEXT:    addb #45
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: add_u_i8_consts:

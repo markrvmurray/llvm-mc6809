@@ -37,7 +37,8 @@
 ; REQUIRES: usim
 ;
 ; Codegen execution test: 8-bit add functions.
-; CC: first arg in B, remaining args as 16-bit words on stack.
+; CC: first arg in B, remaining i8 args as 1-byte stack slots
+; (matches gcc6809). i16/ptr args go in 2-byte slots.
 
 .include "runtime.inc"
 
@@ -45,50 +46,47 @@
 	.globl	test_main
 test_main:
 	;; add_s_i8(1, 2, 3, 4, 5) = 15 = 0x0F
-	;; Push as 16-bit words (high byte 0, low byte = value)
-	clra
+	;; Push i8 args as 1-byte slots (gcc6809 convention).
 	ldb	#5
-	pshs	b,a
+	pshs	b
 	ldb	#4
-	pshs	b,a
+	pshs	b
 	ldb	#3
-	pshs	b,a
+	pshs	b
 	ldb	#2
-	pshs	b,a
+	pshs	b
 	ldb	#1		; first arg in B
 	jsr	add_s_i8
-	leas	8,s		; clean up 4 x 2-byte words
+	leas	4,s		; clean up 4 x 1-byte slots
 	tfr	b,a
 	jsr	puthex
 	jsr	putnl
 ; CHECK: 0F
 
 	;; add_s_i8(0x10, 0x10, 0x10, 0x10, 0x02) = 0x42
-	clra
 	ldb	#0x02
-	pshs	b,a
+	pshs	b
 	ldb	#0x10
-	pshs	b,a
-	pshs	b,a
-	pshs	b,a
+	pshs	b
+	pshs	b
+	pshs	b
 	ldb	#0x10
 	jsr	add_s_i8
-	leas	8,s
+	leas	4,s
 	tfr	b,a
 	jsr	puthex
 	jsr	putnl
 ; CHECK-NEXT: 42
 
 	;; add_s_i8_consts(0x10, 0x10, 0x10, 0x0D) = 0x42
-	clra
 	ldb	#0x0d
-	pshs	b,a
+	pshs	b
 	ldb	#0x10
-	pshs	b,a
-	pshs	b,a
+	pshs	b
+	pshs	b
 	ldb	#0x10
 	jsr	add_s_i8_consts
-	leas	6,s
+	leas	3,s
 	tfr	b,a
 	jsr	puthex
 	jsr	putnl

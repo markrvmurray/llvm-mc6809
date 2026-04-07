@@ -8,12 +8,12 @@ define dso_local signext i8 @if_s8(i8 noundef signext %a, i8 noundef signext %b)
 ; CHECK:       ; %bb.0: ; %entry
 ; CHECK-NEXT:    leas -2,s
 ; CHECK-NEXT:    tfr b,a
-; CHECK-NEXT:    ldb 5,s
+; CHECK-NEXT:    ldb 4,s
 ; CHECK-NEXT:    tsta
 ; CHECK-NEXT:    lbgt .LBB0_2
 ; CHECK-NEXT:  ; %bb.1: ; %if.end
 ; CHECK-NEXT:    ldb #0
-; CHECK-NEXT:    subb 5,s
+; CHECK-NEXT:    subb 4,s
 ; CHECK-NEXT:  .LBB0_2: ; %return
 ; CHECK-NEXT:    leas 2,s
 ; CHECK-NEXT:    rts
@@ -36,12 +36,12 @@ define dso_local zeroext i8 @if_u8(i8 noundef zeroext %a, i8 noundef zeroext %b)
 ; CHECK:       ; %bb.0: ; %entry
 ; CHECK-NEXT:    leas -2,s
 ; CHECK-NEXT:    tfr b,a
-; CHECK-NEXT:    ldb 5,s
+; CHECK-NEXT:    ldb 4,s
 ; CHECK-NEXT:    tsta
 ; CHECK-NEXT:    lbne .LBB1_2
 ; CHECK-NEXT:  ; %bb.1: ; %if.end
 ; CHECK-NEXT:    ldb #-1
-; CHECK-NEXT:    eorb 5,s
+; CHECK-NEXT:    eorb 4,s
 ; CHECK-NEXT:  .LBB1_2: ; %return
 ; CHECK-NEXT:    leas 2,s
 ; CHECK-NEXT:    rts
