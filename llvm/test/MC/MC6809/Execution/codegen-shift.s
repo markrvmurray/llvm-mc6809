@@ -1,9 +1,12 @@
-;
 ; RUN: llc -global-isel -global-isel-abort=1 -O0 -mtriple=mc6809 \
 ; RUN:   %S/Inputs/codegen-shift.ll -o %t-raw.s 2>/dev/null
 ; RUN: grep -v '\.directpage' %t-raw.s > %t-funcs.s
-; RUN: cat %s %t-funcs.s | llvm-mc -triple=mc6809 -I %S/Inputs \
-; RUN:   --filetype=obj -o %t.o
+; RUN: %gcc6809 -S -Os -o %t-harness-raw.s %S/Inputs/harness-shift.c
+; RUN: %S/Inputs/sdcc2gas.sh < %t-harness-raw.s > %t-harness.s
+; RUN: echo '.include "runtime.inc"' > %t-all.s
+; RUN: echo '.include "mc6809rt.s"' >> %t-all.s
+; RUN: cat %t-harness.s %t-funcs.s >> %t-all.s
+; RUN: llvm-mc -triple=mc6809 -I %S/Inputs --filetype=obj -o %t.o %t-all.s
 ; RUN: ld.lld -T %S/Inputs/link.ld %t.o -o %t.elf
 ; RUN: llvm-objcopy -O ihex %t.elf %t.hex
 ; RUN: %usim09batch --timeout=500000 %t.hex | FileCheck %s
@@ -11,8 +14,12 @@
 ; RUN: llc -global-isel -global-isel-abort=1 -O1 -mtriple=mc6809 \
 ; RUN:   %S/Inputs/codegen-shift.ll -o %t-raw.s 2>/dev/null
 ; RUN: grep -v '\.directpage' %t-raw.s > %t-funcs.s
-; RUN: cat %s %t-funcs.s | llvm-mc -triple=mc6809 -I %S/Inputs \
-; RUN:   --filetype=obj -o %t.o
+; RUN: %gcc6809 -S -Os -o %t-harness-raw.s %S/Inputs/harness-shift.c
+; RUN: %S/Inputs/sdcc2gas.sh < %t-harness-raw.s > %t-harness.s
+; RUN: echo '.include "runtime.inc"' > %t-all.s
+; RUN: echo '.include "mc6809rt.s"' >> %t-all.s
+; RUN: cat %t-harness.s %t-funcs.s >> %t-all.s
+; RUN: llvm-mc -triple=mc6809 -I %S/Inputs --filetype=obj -o %t.o %t-all.s
 ; RUN: ld.lld -T %S/Inputs/link.ld %t.o -o %t.elf
 ; RUN: llvm-objcopy -O ihex %t.elf %t.hex
 ; RUN: %usim09batch --timeout=500000 %t.hex | FileCheck %s
@@ -20,8 +27,12 @@
 ; RUN: llc -global-isel -global-isel-abort=1 -O2 -mtriple=mc6809 \
 ; RUN:   %S/Inputs/codegen-shift.ll -o %t-raw.s 2>/dev/null
 ; RUN: grep -v '\.directpage' %t-raw.s > %t-funcs.s
-; RUN: cat %s %t-funcs.s | llvm-mc -triple=mc6809 -I %S/Inputs \
-; RUN:   --filetype=obj -o %t.o
+; RUN: %gcc6809 -S -Os -o %t-harness-raw.s %S/Inputs/harness-shift.c
+; RUN: %S/Inputs/sdcc2gas.sh < %t-harness-raw.s > %t-harness.s
+; RUN: echo '.include "runtime.inc"' > %t-all.s
+; RUN: echo '.include "mc6809rt.s"' >> %t-all.s
+; RUN: cat %t-harness.s %t-funcs.s >> %t-all.s
+; RUN: llvm-mc -triple=mc6809 -I %S/Inputs --filetype=obj -o %t.o %t-all.s
 ; RUN: ld.lld -T %S/Inputs/link.ld %t.o -o %t.elf
 ; RUN: llvm-objcopy -O ihex %t.elf %t.hex
 ; RUN: %usim09batch --timeout=500000 %t.hex | FileCheck %s
@@ -29,223 +40,43 @@
 ; RUN: llc -global-isel -global-isel-abort=1 -O3 -mtriple=mc6809 \
 ; RUN:   %S/Inputs/codegen-shift.ll -o %t-raw.s 2>/dev/null
 ; RUN: grep -v '\.directpage' %t-raw.s > %t-funcs.s
-; RUN: cat %s %t-funcs.s | llvm-mc -triple=mc6809 -I %S/Inputs \
-; RUN:   --filetype=obj -o %t.o
+; RUN: %gcc6809 -S -Os -o %t-harness-raw.s %S/Inputs/harness-shift.c
+; RUN: %S/Inputs/sdcc2gas.sh < %t-harness-raw.s > %t-harness.s
+; RUN: echo '.include "runtime.inc"' > %t-all.s
+; RUN: echo '.include "mc6809rt.s"' >> %t-all.s
+; RUN: cat %t-harness.s %t-funcs.s >> %t-all.s
+; RUN: llvm-mc -triple=mc6809 -I %S/Inputs --filetype=obj -o %t.o %t-all.s
 ; RUN: ld.lld -T %S/Inputs/link.ld %t.o -o %t.elf
 ; RUN: llvm-objcopy -O ihex %t.elf %t.hex
 ; RUN: %usim09batch --timeout=500000 %t.hex | FileCheck %s
-; REQUIRES: usim
+; REQUIRES: usim, gcc6809
 ;
-; Codegen execution test: shifts (shl, lshr, ashr) for i8 and i16,
-; both constant and variable. Variable shifts use libcall functions.
+; Codegen execution test: i8 and i16 shifts (shl/lshr/ashr), both
+; constant-amount (handled inline by the isel) and variable-amount
+; (lowered to libcalls in shiftqi3.inc / shifthi3.inc). The harness
+; (Inputs/harness-shift.c) is compiled by gcc6809 and the functions
+; under test by LLVM-MC6809; linking the two validates the i8 and
+; i16 ABI plus the libcall emission and runtime library together
+; at every opt level.
 
-.include "runtime.inc"
-
-	.text
-.include "shiftqi3.inc"
-.include "shifthi3.inc"
-
-	.section .rom,"ax",@progbits
-
-;;; putx — print X as 4 hex digits (preserves X)
-putx:
-	pshs	x
-	tfr	x,d
-	tfr	a,b
-	tfr	b,a
-	jsr	puthex
-	puls	x
-	pshs	x
-	tfr	x,d
-	tfr	b,a
-	jsr	puthex
-	puls	x
-	rts
-
-	.globl	test_main
-test_main:
-
-	;; shl 0x42 << 1 = 0x84
-	ldb	#0x42
-	jsr	test_shl8_1
-	tfr	b,a
-	jsr	puthex
-	jsr	putnl
 ; CHECK: 84
-
-	;; shl 0x0F << 4 = 0xF0
-	ldb	#0x0F
-	jsr	test_shl8_4
-	tfr	b,a
-	jsr	puthex
-	jsr	putnl
 ; CHECK-NEXT: F0
-
-	;; lshr 0x84 >> 1 = 0x42
-	ldb	#0x84
-	jsr	test_lshr8_1
-	tfr	b,a
-	jsr	puthex
-	jsr	putnl
 ; CHECK-NEXT: 42
-
-	;; lshr 0xF0 >> 4 = 0x0F
-	ldb	#0xF0
-	jsr	test_lshr8_4
-	tfr	b,a
-	jsr	puthex
-	jsr	putnl
 ; CHECK-NEXT: 0F
-
-	;; ashr 0x80 >> 1 = 0xC0 (sign-extend: bit 7 preserved)
-	ldb	#0x80
-	jsr	test_ashr8_1
-	tfr	b,a
-	jsr	puthex
-	jsr	putnl
 ; CHECK-NEXT: C0
-
-	;; ashr 0x40 >> 1 = 0x20 (positive, same as lshr)
-	ldb	#0x40
-	jsr	test_ashr8_1
-	tfr	b,a
-	jsr	puthex
-	jsr	putnl
 ; CHECK-NEXT: 20
-
-	;; ashr 0x80 >> 4 = 0xF8 (sign-extend over 4 bits)
-	ldb	#0x80
-	jsr	test_ashr8_4
-	tfr	b,a
-	jsr	puthex
-	jsr	putnl
 ; CHECK-NEXT: F8
-
-	;; ashr 0x7F >> 4 = 0x07 (positive)
-	ldb	#0x7F
-	jsr	test_ashr8_4
-	tfr	b,a
-	jsr	puthex
-	jsr	putnl
 ; CHECK-NEXT: 07
-
-	;; ===== i16 shifts =====
-
-	;; shl16 0x1234 << 1 = 0x2468
-	ldx	#0x1234
-	jsr	test_shl16_1
-	jsr	putx
-	jsr	putnl
 ; CHECK-NEXT: 2468
-
-	;; shl16 0x8001 << 1 = 0x0002 (overflow)
-	ldx	#0x8001
-	jsr	test_shl16_1
-	jsr	putx
-	jsr	putnl
 ; CHECK-NEXT: 0002
-
-	;; lshr16 0x2468 >> 1 = 0x1234
-	ldx	#0x2468
-	jsr	test_lshr16_1
-	jsr	putx
-	jsr	putnl
 ; CHECK-NEXT: 1234
-
-	;; lshr16 0x8000 >> 1 = 0x4000 (logical: 0 into MSB)
-	ldx	#0x8000
-	jsr	test_lshr16_1
-	jsr	putx
-	jsr	putnl
 ; CHECK-NEXT: 4000
-
-	;; ashr16 0x8000 >> 1 = 0xC000 (arithmetic: sign preserved)
-	ldx	#0x8000
-	jsr	test_ashr16_1
-	jsr	putx
-	jsr	putnl
 ; CHECK-NEXT: C000
-
-	;; lshr16 0xABCD >> 4 = 0x0ABC
-	ldx	#0xABCD
-	jsr	test_lshr16_4
-	jsr	putx
-	jsr	putnl
 ; CHECK-NEXT: 0ABC
-
-	;; ashr16 0x8000 >> 4 = 0xF800 (sign-extend)
-	ldx	#0x8000
-	jsr	test_ashr16_4
-	jsr	putx
-	jsr	putnl
 ; CHECK-NEXT: F800
-
-	;; ===== Variable i8 shifts =====
-	;; Both args are i8: first in B, second in 1-byte stack slot.
-
-	;; shl8_var(1, 7) = 0x80
-	ldb	#7
-	pshs	b
-	ldb	#1
-	jsr	test_shl8_var
-	leas	1,s
-	tfr	b,a
-	jsr	puthex
-	jsr	putnl
 ; CHECK-NEXT: 80
-
-	;; lshr8_var(0x80, 7) = 0x01
-	ldb	#7
-	pshs	b
-	ldb	#0x80
-	jsr	test_lshr8_var
-	leas	1,s
-	tfr	b,a
-	jsr	puthex
-	jsr	putnl
 ; CHECK-NEXT: 01
-
-	;; ashr8_var(0x80, 4) = 0xF8 (sign-extend)
-	ldb	#4
-	pshs	b
-	ldb	#0x80
-	jsr	test_ashr8_var
-	leas	1,s
-	tfr	b,a
-	jsr	puthex
-	jsr	putnl
 ; CHECK-NEXT: F8
-
-	;; ===== Variable i16 shifts =====
-
-	;; shl16_var(0x1234, 4) = 0x2340
-	ldd	#4
-	pshs	d
-	ldx	#0x1234
-	jsr	test_shl16_var
-	leas	2,s
-	jsr	putx
-	jsr	putnl
 ; CHECK-NEXT: 2340
-
-	;; lshr16_var(0xABCD, 8) = 0x00AB
-	ldd	#8
-	pshs	d
-	ldx	#0xABCD
-	jsr	test_lshr16_var
-	leas	2,s
-	jsr	putx
-	jsr	putnl
 ; CHECK-NEXT: 00AB
-
-	;; ashr16_var(0x8000, 8) = 0xFF80 (sign-extend)
-	ldd	#8
-	pshs	d
-	ldx	#0x8000
-	jsr	test_ashr16_var
-	leas	2,s
-	jsr	putx
-	jsr	putnl
 ; CHECK-NEXT: FF80
-
-	jsr	halt
