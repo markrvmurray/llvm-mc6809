@@ -702,6 +702,7 @@ static bool isSpillReg(Register Reg) {
   case MC6809::SPILL_A0: case MC6809::SPILL_A1: case MC6809::SPILL_A2: case MC6809::SPILL_A3: case MC6809::SPILL_A4: case MC6809::SPILL_A5: case MC6809::SPILL_A6: case MC6809::SPILL_A7:
   case MC6809::SPILL_B0: case MC6809::SPILL_B1: case MC6809::SPILL_B2: case MC6809::SPILL_B3: case MC6809::SPILL_B4: case MC6809::SPILL_B5: case MC6809::SPILL_B6: case MC6809::SPILL_B7:
   case MC6809::SPILL_D0: case MC6809::SPILL_D1: case MC6809::SPILL_D2: case MC6809::SPILL_D3: case MC6809::SPILL_D4: case MC6809::SPILL_D5: case MC6809::SPILL_D6: case MC6809::SPILL_D7:
+  case MC6809::SPILL_X0: case MC6809::SPILL_X1: case MC6809::SPILL_X2: case MC6809::SPILL_X3:
     return true;
   default:
     return false;
@@ -719,6 +720,10 @@ static MCPhysReg getSpillDParent(Register Reg) {
   case MC6809::SPILL_A5: case MC6809::SPILL_B5: case MC6809::SPILL_D5: return MC6809::SPILL_D5;
   case MC6809::SPILL_A6: case MC6809::SPILL_B6: case MC6809::SPILL_D6: return MC6809::SPILL_D6;
   case MC6809::SPILL_A7: case MC6809::SPILL_B7: case MC6809::SPILL_D7: return MC6809::SPILL_D7;
+  case MC6809::SPILL_X0: return MC6809::SPILL_X0;
+  case MC6809::SPILL_X1: return MC6809::SPILL_X1;
+  case MC6809::SPILL_X2: return MC6809::SPILL_X2;
+  case MC6809::SPILL_X3: return MC6809::SPILL_X3;
   default: llvm_unreachable("Not a spill register");
   }
 }
@@ -733,6 +738,8 @@ static int getSpillByteOffset(Register Reg) {
     return 0; // High byte (big-endian)
   case MC6809::SPILL_B0: case MC6809::SPILL_B1: case MC6809::SPILL_B2: case MC6809::SPILL_B3: case MC6809::SPILL_B4: case MC6809::SPILL_B5: case MC6809::SPILL_B6: case MC6809::SPILL_B7:
     return 1; // Low byte (big-endian)
+  case MC6809::SPILL_X0: case MC6809::SPILL_X1: case MC6809::SPILL_X2: case MC6809::SPILL_X3:
+    return 0; // Full 16-bit, offset 0
   default: llvm_unreachable("Not a spill register");
   }
 }
@@ -746,17 +753,30 @@ static Register getRealRegForSpill(Register Reg) {
     return MC6809::AB;
   case MC6809::SPILL_D0: case MC6809::SPILL_D1: case MC6809::SPILL_D2: case MC6809::SPILL_D3: case MC6809::SPILL_D4: case MC6809::SPILL_D5: case MC6809::SPILL_D6: case MC6809::SPILL_D7:
     return MC6809::AD;
+  case MC6809::SPILL_X0: case MC6809::SPILL_X1: case MC6809::SPILL_X2: case MC6809::SPILL_X3:
+    return MC6809::IX;
   default: llvm_unreachable("Not a spill register");
   }
 }
 
-/// Get the size in bytes of a spill register (1 for A/B, 2 for D).
+/// Check if a spill register is an INDEX spill (uses LDX/STX, not LDD/STD).
+static bool isIndexSpillReg(Register Reg) {
+  switch (Reg) {
+  case MC6809::SPILL_X0: case MC6809::SPILL_X1: case MC6809::SPILL_X2: case MC6809::SPILL_X3:
+    return true;
+  default:
+    return false;
+  }
+}
+
+/// Get the size in bytes of a spill register (1 for A/B, 2 for D/X).
 static unsigned getSpillRegSize(Register Reg) {
   switch (Reg) {
   case MC6809::SPILL_A0: case MC6809::SPILL_A1: case MC6809::SPILL_A2: case MC6809::SPILL_A3: case MC6809::SPILL_A4: case MC6809::SPILL_A5: case MC6809::SPILL_A6: case MC6809::SPILL_A7:
   case MC6809::SPILL_B0: case MC6809::SPILL_B1: case MC6809::SPILL_B2: case MC6809::SPILL_B3: case MC6809::SPILL_B4: case MC6809::SPILL_B5: case MC6809::SPILL_B6: case MC6809::SPILL_B7:
     return 1;
   case MC6809::SPILL_D0: case MC6809::SPILL_D1: case MC6809::SPILL_D2: case MC6809::SPILL_D3: case MC6809::SPILL_D4: case MC6809::SPILL_D5: case MC6809::SPILL_D6: case MC6809::SPILL_D7:
+  case MC6809::SPILL_X0: case MC6809::SPILL_X1: case MC6809::SPILL_X2: case MC6809::SPILL_X3:
     return 2;
   default: llvm_unreachable("Not a spill register");
   }
@@ -768,8 +788,9 @@ static unsigned getSpillRegSize(Register Reg) {
 /// has already run and frame indices are no longer valid).
 static int computeSpillStackOffset(MCPhysReg SpillReg, MachineFunction &MF) {
   auto &FuncInfo = *MF.getInfo<MC6809FunctionInfo>();
-  MCPhysReg SpillD = getSpillDParent(SpillReg);
-  int FI = FuncInfo.SpillRegFrameIndices[SpillD];
+  // INDEX spill registers use themselves as the key (no parent register).
+  MCPhysReg SpillKey = isIndexSpillReg(SpillReg) ? SpillReg : getSpillDParent(SpillReg);
+  int FI = FuncInfo.SpillRegFrameIndices[SpillKey];
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   int Offset = MFI.getObjectOffset(FI);
 
@@ -861,10 +882,19 @@ static MachineInstrBuilder emitSpillStore(MachineIRBuilder &Builder,
     MachineFunction &MF = *MBB.getParent();
     if (isSpillReg(DestReg) && !isSpillReg(SrcReg)) {
       // Real → Spill: Store to spill slot.
-      // For INDEX registers (IX/IY), use STX/STY directly to avoid
-      // clobbering D with a TFR. This is critical for i32 conditionals
-      // where D holds a live value (fixes bug #30).
-      if (SrcReg == MC6809::IX || SrcReg == MC6809::IY) {
+      if (isIndexSpillReg(DestReg)) {
+        // INDEX spill: use STX directly (doesn't touch D).
+        int Offset = computeSpillStackOffset(DestReg, MF);
+        Register RealIdx = getRealRegForSpill(DestReg); // IX
+        if (SrcReg != RealIdx)
+          Builder.buildInstr(MC6809::TFRp).addDef(RealIdx).addUse(SrcReg);
+        unsigned Opcode = getStoreIdxOpcode(RealIdx, Offset);
+        Builder.buildInstr(Opcode)
+            .addUse(RealIdx, RegState::Implicit)
+            .addImm(Offset)
+            .addReg(MC6809::SU);
+      } else if (SrcReg == MC6809::IX || SrcReg == MC6809::IY) {
+        // INDEX → ACC spill: use STX/STY directly (no D clobber).
         int Offset = computeSpillStackOffset(DestReg, MF);
         unsigned Opcode = getStoreIdxOpcode(SrcReg, Offset);
         Builder.buildInstr(Opcode)
@@ -879,8 +909,19 @@ static MachineInstrBuilder emitSpillStore(MachineIRBuilder &Builder,
       }
     } else if (!isSpillReg(DestReg) && isSpillReg(SrcReg)) {
       // Spill → Real: Load from spill slot.
-      // For INDEX registers, use LDX/LDY directly to avoid clobbering D.
-      if (DestReg == MC6809::IX || DestReg == MC6809::IY) {
+      if (isIndexSpillReg(SrcReg)) {
+        // INDEX spill → Real: use LDX (doesn't touch D).
+        int Offset = computeSpillStackOffset(SrcReg, MF);
+        Register RealIdx = getRealRegForSpill(SrcReg); // IX
+        unsigned Opcode = getLoadIdxOpcode(RealIdx, Offset);
+        Builder.buildInstr(Opcode)
+            .addDef(RealIdx, RegState::Implicit)
+            .addImm(Offset)
+            .addReg(MC6809::SU);
+        if (DestReg != RealIdx)
+          Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(RealIdx);
+      } else if (DestReg == MC6809::IX || DestReg == MC6809::IY) {
+        // ACC spill → INDEX: use LDX/LDY directly (no D clobber).
         int Offset = computeSpillStackOffset(SrcReg, MF);
         unsigned Opcode = getLoadIdxOpcode(DestReg, Offset);
         Builder.buildInstr(Opcode)

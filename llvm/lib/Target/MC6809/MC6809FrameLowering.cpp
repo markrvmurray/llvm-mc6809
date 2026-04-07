@@ -240,7 +240,16 @@ void MC6809FrameLowering::determineCalleeSaves(MachineFunction &MF, BitVector &S
   static const MCPhysReg SpillDRegs[] = {
     MC6809::SPILL_D0, MC6809::SPILL_D1, MC6809::SPILL_D2, MC6809::SPILL_D3
   };
+  static const MCPhysReg SpillXRegs[] = {
+    MC6809::SPILL_X0, MC6809::SPILL_X1, MC6809::SPILL_X2, MC6809::SPILL_X3
+  };
   for (MCPhysReg Reg : SpillDRegs) {
+    if (MRI.isPhysRegUsed(Reg)) {
+      FuncInfo.UsesSpillRegisters = true;
+      break;
+    }
+  }
+  for (MCPhysReg Reg : SpillXRegs) {
     if (MRI.isPhysRegUsed(Reg)) {
       FuncInfo.UsesSpillRegisters = true;
       break;
@@ -263,6 +272,9 @@ void MC6809FrameLowering::determineCalleeSaves(MachineFunction &MF, BitVector &S
     MC6809::SPILL_B0LSB, MC6809::SPILL_B1LSB, MC6809::SPILL_B2LSB, MC6809::SPILL_B3LSB, MC6809::SPILL_B4LSB, MC6809::SPILL_B5LSB, MC6809::SPILL_B6LSB, MC6809::SPILL_B7LSB,
   };
   for (MCPhysReg Reg : SpillSubRegs)
+    SavedRegs.reset(Reg);
+  // INDEX spill registers also don't need callee-saving.
+  for (MCPhysReg Reg : SpillXRegs)
     SavedRegs.reset(Reg);
 
   if (isISR(MF)) {
@@ -300,6 +312,17 @@ void MC6809FrameLowering::processFunctionBeforeFrameFinalized(MachineFunction &M
   };
   bool AnySpillUsed = false;
   for (MCPhysReg Reg : SpillDRegs) {
+    if (MRI.isPhysRegUsed(Reg)) {
+      int FI = MFI.CreateStackObject(2, Align(1), false);
+      FuncInfo.SpillRegFrameIndices[Reg] = FI;
+      AnySpillUsed = true;
+    }
+  }
+  // Allocate slots for INDEX spill registers (SPILL_X0..X3).
+  static const MCPhysReg SpillXRegsEmit[] = {
+    MC6809::SPILL_X0, MC6809::SPILL_X1, MC6809::SPILL_X2, MC6809::SPILL_X3
+  };
+  for (MCPhysReg Reg : SpillXRegsEmit) {
     if (MRI.isPhysRegUsed(Reg)) {
       int FI = MFI.CreateStackObject(2, Align(1), false);
       FuncInfo.SpillRegFrameIndices[Reg] = FI;
@@ -395,6 +418,8 @@ bool MC6809FrameLowering::hasFP(const MachineFunction &MF) const {
   if (MFI.isFrameAddressTaken() || MFI.hasVarSizedObjects())
     return true;
   // Force frame pointer when spill pseudo-registers are used.
+  // Spill accesses use U-relative addressing so PSHS/PULS (which change S)
+  // don't invalidate spill slot offsets.
   if (auto *FuncInfo = MF.getInfo<MC6809FunctionInfo>())
     return FuncInfo->UsesSpillRegisters;
   return false;

@@ -262,6 +262,13 @@ def SPILL_D5 : MC6809Reg16<0x200A, "spill_d5", [SPILL_B5, SPILL_A5], [sub_lo_byt
 def SPILL_D6 : MC6809Reg16<0x200C, "spill_d6", [SPILL_B6, SPILL_A6], [sub_lo_byte, sub_hi_byte]>;
 def SPILL_D7 : MC6809Reg16<0x200E, "spill_d7", [SPILL_B7, SPILL_A7], [sub_lo_byte, sub_hi_byte]>;
 
+// INDEX16 spill pseudo-registers (backed by stack slots, expanded via LDX/STX).
+// These DON'T touch D during expansion, unlike ACC16 spills.
+def SPILL_X0 : MC6809Reg16<0x2010, "spill_x0">;
+def SPILL_X1 : MC6809Reg16<0x2012, "spill_x1">;
+def SPILL_X2 : MC6809Reg16<0x2014, "spill_x2">;
+def SPILL_X3 : MC6809Reg16<0x2016, "spill_x3">;
+
 //===----------------------------------------------------------------------===//
 //  Register classes
 //===----------------------------------------------------------------------===//
@@ -309,7 +316,7 @@ def REGPAIR16 : MC6809Reg16Class<(add AD, IX, IY, SU, SS, PC, AW, AV)>; // Regis
 def REGTFM : MC6809Reg16Class<(add AD, IX, IY, SU, SS)>; // Registers for TFM
 
 // Pointer and stack registers
-def INDEX16 : MC6809Reg16Class<(add IX, IY, SU, SS)>;
+def INDEX16 : MC6809Reg16Class<(add IX, IY, SPILL_X0, SPILL_X1, SPILL_X2, SPILL_X3, SU, SS)>;
 
 // Stack registers for internal push/pull operations.
 // SU is always reserved (frame pointer), so only SS will be allocated.

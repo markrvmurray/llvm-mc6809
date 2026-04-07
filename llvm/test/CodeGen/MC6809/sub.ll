@@ -156,13 +156,28 @@ entry:
 define dso_local i16 @sub_s_i16_consts(i16 noundef %a, i16 noundef %b, i16 noundef %c, i16 noundef %d, i16 noundef %e) local_unnamed_addr #0 {
 ; CHECK-LABEL: sub_s_i16_consts:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    ldd 2,s
+; CHECK-NEXT:    leas -12,s
+; CHECK-NEXT:    pshs u
+; CHECK-NEXT:    tfr s,u
+; CHECK-NEXT:    ldd 16,u
+; CHECK-NEXT:    std 10,u
+; CHECK-NEXT:    ldd 18,u
+; CHECK-NEXT:    std 8,u
+; CHECK-NEXT:    ldd 10,u
+; CHECK-NEXT:    std 10,u
+; CHECK-NEXT:    ldd 20,u
+; CHECK-NEXT:    std 6,u
+; CHECK-NEXT:    ldd 10,u
+; CHECK-NEXT:    std 10,u
+; CHECK-NEXT:    ldd 22,u
+; CHECK-NEXT:    std 4,u
+; CHECK-NEXT:    ldd 10,u
 ; CHECK-NEXT:    leax d,x
-; CHECK-NEXT:    ldd 4,s
+; CHECK-NEXT:    ldd 8,u
 ; CHECK-NEXT:    leax d,x
-; CHECK-NEXT:    ldd 6,s
+; CHECK-NEXT:    ldd 6,u
 ; CHECK-NEXT:    leax d,x
-; CHECK-NEXT:    ldd 8,s
+; CHECK-NEXT:    ldd 4,u
 ; CHECK-NEXT:    leax d,x
 ; CHECK-NEXT:    tfr x,d
 ; CHECK-NEXT:    subd #3149
@@ -170,6 +185,9 @@ define dso_local i16 @sub_s_i16_consts(i16 noundef %a, i16 noundef %b, i16 nound
 ; CHECK-NEXT:    comb
 ; CHECK-NEXT:    addd #1
 ; CHECK-NEXT:    tfr d,x
+; CHECK-NEXT:    tfr u,s
+; CHECK-NEXT:    puls u
+; CHECK-NEXT:    leas 12,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: sub_s_i16_consts:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
@@ -225,13 +243,28 @@ entry:
 define dso_local i16 @sub_u_i16_consts(i16 noundef %a, i16 noundef %b, i16 noundef %c, i16 noundef %d, i16 noundef %e) local_unnamed_addr #0 {
 ; CHECK-LABEL: sub_u_i16_consts:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    ldd 2,s
+; CHECK-NEXT:    leas -12,s
+; CHECK-NEXT:    pshs u
+; CHECK-NEXT:    tfr s,u
+; CHECK-NEXT:    ldd 16,u
+; CHECK-NEXT:    std 10,u
+; CHECK-NEXT:    ldd 18,u
+; CHECK-NEXT:    std 8,u
+; CHECK-NEXT:    ldd 10,u
+; CHECK-NEXT:    std 10,u
+; CHECK-NEXT:    ldd 20,u
+; CHECK-NEXT:    std 6,u
+; CHECK-NEXT:    ldd 10,u
+; CHECK-NEXT:    std 10,u
+; CHECK-NEXT:    ldd 22,u
+; CHECK-NEXT:    std 4,u
+; CHECK-NEXT:    ldd 10,u
 ; CHECK-NEXT:    leax d,x
-; CHECK-NEXT:    ldd 4,s
+; CHECK-NEXT:    ldd 8,u
 ; CHECK-NEXT:    leax d,x
-; CHECK-NEXT:    ldd 6,s
+; CHECK-NEXT:    ldd 6,u
 ; CHECK-NEXT:    leax d,x
-; CHECK-NEXT:    ldd 8,s
+; CHECK-NEXT:    ldd 4,u
 ; CHECK-NEXT:    leax d,x
 ; CHECK-NEXT:    tfr x,d
 ; CHECK-NEXT:    subd #8447
@@ -239,6 +272,9 @@ define dso_local i16 @sub_u_i16_consts(i16 noundef %a, i16 noundef %b, i16 nound
 ; CHECK-NEXT:    comb
 ; CHECK-NEXT:    addd #1
 ; CHECK-NEXT:    tfr d,x
+; CHECK-NEXT:    tfr u,s
+; CHECK-NEXT:    puls u
+; CHECK-NEXT:    leas 12,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: sub_u_i16_consts:
 ; CHECK-HD6309:       ; %bb.0: ; %entry

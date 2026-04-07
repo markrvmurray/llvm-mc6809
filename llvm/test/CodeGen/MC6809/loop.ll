@@ -72,9 +72,9 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; CHECK-HD6309-NEXT:    std 4,u
 ; CHECK-HD6309-NEXT:    ldd 6,u
 ; CHECK-HD6309-NEXT:    ldw ,x
-; CHECK-HD6309-NEXT:    leax 2,x
 ; CHECK-HD6309-NEXT:    std 6,u
 ; CHECK-HD6309-NEXT:    addr spill_d0,w
+; CHECK-HD6309-NEXT:    leax 2,x
 ; CHECK-HD6309-NEXT:    addd #-1
 ; CHECK-HD6309-NEXT:    tstd
 ; CHECK-HD6309-NEXT:    bne .LBB0_2
