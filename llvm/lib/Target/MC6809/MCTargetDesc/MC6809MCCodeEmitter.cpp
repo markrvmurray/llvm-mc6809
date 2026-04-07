@@ -58,7 +58,23 @@ void MC6809MCCodeEmitter::encodeInstruction(const MCInst &MI, SmallVectorImpl<ch
 
   assert(Size > 0 && "Instruction size cannot be zero");
 
+  unsigned FixupsBefore = Fixups.size();
   uint64_t BinaryOpCode = getBinaryCodeForInstr(MI, Fixups, STI);
+
+  // Page-2 (0x10) and page-3 (0x11) instructions have a prefix byte that
+  // the TableGen-generated encoder doesn't account for in fixup offsets.
+  // Detect the prefix and adjust all new fixup offsets by +1.
+  if (Size >= 3) {
+    uint8_t FirstByte = BinaryOpCode & 0xFF;
+    if (FirstByte == 0x10 || FirstByte == 0x11) {
+      for (unsigned I = FixupsBefore; I < Fixups.size(); ++I)
+        Fixups[I] = MCFixup::create(Fixups[I].getOffset() + 1,
+                                    Fixups[I].getValue(),
+                                    Fixups[I].getKind(),
+                                    Fixups[I].isPCRel());
+    }
+  }
+
   emitLittleEndian(BinaryOpCode, Size, CB);
 }
 

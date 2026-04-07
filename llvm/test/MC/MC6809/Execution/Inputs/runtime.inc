@@ -18,23 +18,15 @@ _start:
 	lds	#0x8000		; stack at top of RAM
 
 	;; Copy .data initial values from ROM (LMA) to RAM (VMA).
-	;; Note: LDY/CMPY/LDU/CMPU with #symbol have a page-2 fixup
-	;; offset bug, so we use only page-1 instructions (LDX/CMPX).
 	ldx	#__data_load	; ROM source
-	pshs	x
-	ldx	#__data_start	; RAM dest
+	ldy	#__data_start	; RAM dest
 .Ldata_copy:
-	cmpx	#__data_end
+	cmpy	#__data_end
 	beq	.Ldata_done
-	pshs	x		; save dest
-	ldx	2,s		; load source
 	lda	,x+
-	stx	2,s		; update source on stack
-	puls	x		; restore dest
-	sta	,x+
+	sta	,y+
 	bra	.Ldata_copy
 .Ldata_done:
-	leas	2,s		; drop saved source
 
 	;; Zero .bss
 	ldx	#__bss_start
