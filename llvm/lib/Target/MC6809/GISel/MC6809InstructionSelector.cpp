@@ -461,6 +461,19 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     return true;
   }
 
+  case TargetOpcode::G_BRJT: {
+    // Branch via jump table. G_BRJT %table_ptr, %jump-table.N, %index
+    // Select to BranchJumpTable pseudo (expanded post-RA to PIC sequence).
+    Register IdxReg = MI.getOperand(2).getReg();
+    unsigned JTI = MI.getOperand(1).getIndex();
+    MRI->setRegClass(IdxReg, &MC6809::ACC16RegClass);
+    BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(MC6809::BranchJumpTable))
+        .addReg(IdxReg)
+        .addJumpTableIndex(JTI);
+    MI.eraseFromParent();
+    return true;
+  }
+
   case TargetOpcode::G_FRAME_INDEX:
     return selectFrameIndex(MI);
   case TargetOpcode::G_MERGE_VALUES:

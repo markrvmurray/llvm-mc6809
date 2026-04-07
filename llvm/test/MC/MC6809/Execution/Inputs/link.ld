@@ -26,6 +26,8 @@ SECTIONS {
         *(.rom)
         *(.text)
         *(.text.*)
+        *(.rodata)
+        *(.rodata.*)
     } > ROM
 
     .vectors : {

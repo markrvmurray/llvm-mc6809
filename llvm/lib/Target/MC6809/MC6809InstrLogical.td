@@ -198,6 +198,16 @@ class MC6809Subroutine : MC6809LogicalInstr {
   dag InOperandList = (ins label:$tgt);
 }
 
+// Branch via jump table: index in ACC16, table identified by JTI.
+// Expanded post-RA to ASLB+ROLA+LEAX table,PCR+JMP [D,X].
+// Not marked isBranch to avoid branch relaxation analysis (which
+// can't handle indirect branches with no single destination).
+let isBranch = false, isTerminator = true, isBarrier = true in
+def BranchJumpTable : MC6809LogicalInstr {
+  let isIndirectBranch = true;
+  dag InOperandList = (ins ACC16:$idx, unknown:$jti);
+}
+
 def BranchSubroutine : MC6809Subroutine, PseudoInstExpansion<(BSRb pcrel8:$tgt)>;
 def LongBranchSubroutine : MC6809Subroutine, PseudoInstExpansion<(LBSRlb pcrel16:$tgt)>;
 

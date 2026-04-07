@@ -85,6 +85,33 @@ void MC6809AsmPrinter::emitInstruction(const MachineInstr *MI) {
     EmitToStreamer(*OutStreamer, OutInst);
     return;
   }
+  // BranchJumpTable: expand to PIC jump table sequence.
+  // ASLB+ROLA (index*2), LEAX table,PCR, JMP [D,X]
+  if (MI->getOpcode() == MC6809::BranchJumpTable) {
+    unsigned JTI = MI->getOperand(1).getIndex();
+    MCSymbol *JTSym = GetJTISymbol(JTI);
+    // ASLB — shift index left (low byte)
+    MCInst ASL;
+    ASL.setOpcode(MC6809::ASLBa);
+    EmitToStreamer(*OutStreamer, ASL);
+    // ROLA — shift index left (high byte with carry)
+    MCInst ROL;
+    ROL.setOpcode(MC6809::ROLAa);
+    EmitToStreamer(*OutStreamer, ROL);
+    // LEAX table,PCR — PC-relative table base address
+    MCInst LEA;
+    LEA.setOpcode(MC6809::LEAXi_o16PC);
+    LEA.addOperand(MCOperand::createExpr(
+        MCSymbolRefExpr::create(JTSym, OutContext)));
+    EmitToStreamer(*OutStreamer, LEA);
+    // JMP [D,X] — indexed indirect jump through table
+    MCInst JMP;
+    JMP.setOpcode(MC6809::JMPi_oDI);
+    JMP.addOperand(MCOperand::createReg(MC6809::IX));
+    EmitToStreamer(*OutStreamer, JMP);
+    return;
+  }
+
   if (MI->isBundle()) {
     MachineBasicBlock::const_instr_iterator I = MI->getIterator();
     MachineBasicBlock::const_instr_iterator E = MI->getParent()->instr_end();
@@ -190,7 +217,7 @@ void MC6809AsmPrinter::emitJumpTableInfo() {
 
     // Emit an array of the target addresses.
     for (const MachineBasicBlock *JTBB : JTBBs) {
-      OutStreamer->emitValue(MCSymbolRefExpr::create(JTBB->getSymbol(), MC6809MCExpr::VK_ADDR16, OutContext), 2);
+      OutStreamer->emitValue(MCSymbolRefExpr::create(JTBB->getSymbol(), OutContext), 2);
     }
   }
   if (!JTInDiffSection)

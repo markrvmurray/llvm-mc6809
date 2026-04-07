@@ -513,6 +513,9 @@ MachineBasicBlock *MC6809InstrInfo::getBranchDestBlock(const MachineInstr &MI) c
   case TargetOpcode::G_BRCOND:
     return MI.getOperand(1).getMBB();
   case MC6809::JumpIndir:
+  case MC6809::BranchJumpTable:
+  case MC6809::JMPi_oDI:
+  case MC6809::JMPi_oD:
   case TargetOpcode::G_BRINDIRECT:
     return nullptr;
   }
@@ -1243,6 +1246,10 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     break;
   case MC6809::BranchSubroutine:
     expandCallRelative(Builder, MI);
+    break;
+  case MC6809::BranchJumpTable:
+    // Keep as pseudo — expanded in MCInstLower to avoid branch relaxation
+    // seeing the concrete JMPi_oDI (which has isBranch and crashes verify).
     break;
   case MC6809::LEAPtrAdd_Imm:
   case MC6809::LEA_Ptr_Imm:
