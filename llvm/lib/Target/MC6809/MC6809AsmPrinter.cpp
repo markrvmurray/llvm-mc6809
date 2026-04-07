@@ -104,9 +104,14 @@ void MC6809AsmPrinter::emitInstruction(const MachineInstr *MI) {
     LEA.addOperand(MCOperand::createExpr(
         MCSymbolRefExpr::create(JTSym, OutContext)));
     EmitToStreamer(*OutStreamer, LEA);
-    // JMP [D,X] — indexed indirect jump through table
+    // LDD D,X — load relative offset from table[index]
+    MCInst LDD;
+    LDD.setOpcode(MC6809::LDDi_oD);
+    LDD.addOperand(MCOperand::createReg(MC6809::IX));
+    EmitToStreamer(*OutStreamer, LDD);
+    // JMP D,X — jump to table base + offset (PIC)
     MCInst JMP;
-    JMP.setOpcode(MC6809::JMPi_oDI);
+    JMP.setOpcode(MC6809::JMPi_oD);
     JMP.addOperand(MCOperand::createReg(MC6809::IX));
     EmitToStreamer(*OutStreamer, JMP);
     return;
@@ -187,23 +192,13 @@ void MC6809AsmPrinter::emitJumpTableInfo() {
   if (JT.empty())
     return;
 
-  // Pick the directive to use to print the jump table entries, and switch to
-  // the appropriate section.
-  const Function &F = MF->getFunction();
-  const TargetLoweringObjectFile &TLOF = getObjFileLowering();
-  bool JTInDiffSection = !TLOF.shouldPutJumpTableInFunctionSection(/*UsesLabelDifference*/ false, F);
-  if (JTInDiffSection) {
-    // Drop it in the readonly section.
-    MCSection *ReadOnlySection = TLOF.getSectionForJumpTable(F, TM);
-    OutStreamer->switchSection(ReadOnlySection);
-  }
+  // Jump table must be in the same section as the function for PIC label
+  // differences to resolve correctly. Don't switch to .rodata.
 
   emitAlignment(Align(MJTI->getEntryAlignment(DL)));
 
-  // Jump tables in code sections are marked with a data_region directive
-  // where that's supported.
-  if (!JTInDiffSection)
-    OutStreamer->emitDataRegion(MCDR_DataRegionJT32);
+  // Mark the data region in the code section.
+  OutStreamer->emitDataRegion(MCDR_DataRegionJT32);
 
   for (const auto &JTI : enumerate(JT)) {
     const std::vector<MachineBasicBlock *> &JTBBs = JTI.value().MBBs;
@@ -215,13 +210,16 @@ void MC6809AsmPrinter::emitJumpTableInfo() {
     MCSymbol *JTISymbol = GetJTISymbol(JTI.index());
     OutStreamer->emitLabel(JTISymbol);
 
-    // Emit an array of the target addresses.
+    // Emit an array of offsets from the table base (PIC).
+    // Each entry is (target - table_base), so JMP D,X reaches the target.
+    const MCExpr *TableBase = MCSymbolRefExpr::create(JTISymbol, OutContext);
     for (const MachineBasicBlock *JTBB : JTBBs) {
-      OutStreamer->emitValue(MCSymbolRefExpr::create(JTBB->getSymbol(), OutContext), 2);
+      const MCExpr *Target = MCSymbolRefExpr::create(JTBB->getSymbol(), OutContext);
+      const MCExpr *Diff = MCBinaryExpr::createSub(Target, TableBase, OutContext);
+      OutStreamer->emitValue(Diff, 2);
     }
   }
-  if (!JTInDiffSection)
-    OutStreamer->emitDataRegion(MCDR_DataRegionEnd);
+  OutStreamer->emitDataRegion(MCDR_DataRegionEnd);
 }
 
 const MCSymbol *MC6809AsmPrinter::getFunctionFrameSymbol(int FI) const { return AsmPrinter::getFunctionFrameSymbol(FI); }
