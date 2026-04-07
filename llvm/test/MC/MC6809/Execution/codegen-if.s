@@ -2,13 +2,7 @@
 ; RUN:   %S/Inputs/codegen-if.ll -o %t-raw.s 2>/dev/null
 ; RUN: grep -v '\.directpage' %t-raw.s > %t-funcs.s
 ; RUN: %gcc6809 -S -Os -o %t-harness-raw.s %S/Inputs/harness-if.c
-; RUN: perl -ne 'next if /^\s*\.module/; \
-; RUN:   s/\.area\s+\.text/.section .rom,"ax",\@progbits/; \
-; RUN:   s/\.area\s+\.bss/.section .bss,"aw",\@nobits/; \
-; RUN:   s/\.area\s+\.rodata/.section .rodata,"a",\@progbits/; \
-; RUN:   s/(?<![a-zA-Z0-9])_([a-zA-Z])/$1/g; \
-; RUN:   s/\.blkb\s+(\d+)/.space $1/; s/\bzmb\s+(\d+)/.space $1/; \
-; RUN:   print;' %t-harness-raw.s > %t-harness.s
+; RUN: %S/Inputs/sdcc2gas.sh < %t-harness-raw.s > %t-harness.s
 ; RUN: echo '.include "runtime.inc"' > %t-all.s
 ; RUN: echo '.include "mc6809rt.s"' >> %t-all.s
 ; RUN: cat %t-harness.s %t-funcs.s >> %t-all.s
@@ -21,13 +15,7 @@
 ; RUN:   %S/Inputs/codegen-if.ll -o %t-raw.s 2>/dev/null
 ; RUN: grep -v '\.directpage' %t-raw.s > %t-funcs.s
 ; RUN: %gcc6809 -S -Os -o %t-harness-raw.s %S/Inputs/harness-if.c
-; RUN: perl -ne 'next if /^\s*\.module/; \
-; RUN:   s/\.area\s+\.text/.section .rom,"ax",\@progbits/; \
-; RUN:   s/\.area\s+\.bss/.section .bss,"aw",\@nobits/; \
-; RUN:   s/\.area\s+\.rodata/.section .rodata,"a",\@progbits/; \
-; RUN:   s/(?<![a-zA-Z0-9])_([a-zA-Z])/$1/g; \
-; RUN:   s/\.blkb\s+(\d+)/.space $1/; s/\bzmb\s+(\d+)/.space $1/; \
-; RUN:   print;' %t-harness-raw.s > %t-harness.s
+; RUN: %S/Inputs/sdcc2gas.sh < %t-harness-raw.s > %t-harness.s
 ; RUN: echo '.include "runtime.inc"' > %t-all.s
 ; RUN: echo '.include "mc6809rt.s"' >> %t-all.s
 ; RUN: cat %t-harness.s %t-funcs.s >> %t-all.s
@@ -40,13 +28,7 @@
 ; RUN:   %S/Inputs/codegen-if.ll -o %t-raw.s 2>/dev/null
 ; RUN: grep -v '\.directpage' %t-raw.s > %t-funcs.s
 ; RUN: %gcc6809 -S -Os -o %t-harness-raw.s %S/Inputs/harness-if.c
-; RUN: perl -ne 'next if /^\s*\.module/; \
-; RUN:   s/\.area\s+\.text/.section .rom,"ax",\@progbits/; \
-; RUN:   s/\.area\s+\.bss/.section .bss,"aw",\@nobits/; \
-; RUN:   s/\.area\s+\.rodata/.section .rodata,"a",\@progbits/; \
-; RUN:   s/(?<![a-zA-Z0-9])_([a-zA-Z])/$1/g; \
-; RUN:   s/\.blkb\s+(\d+)/.space $1/; s/\bzmb\s+(\d+)/.space $1/; \
-; RUN:   print;' %t-harness-raw.s > %t-harness.s
+; RUN: %S/Inputs/sdcc2gas.sh < %t-harness-raw.s > %t-harness.s
 ; RUN: echo '.include "runtime.inc"' > %t-all.s
 ; RUN: echo '.include "mc6809rt.s"' >> %t-all.s
 ; RUN: cat %t-harness.s %t-funcs.s >> %t-all.s
@@ -59,13 +41,7 @@
 ; RUN:   %S/Inputs/codegen-if.ll -o %t-raw.s 2>/dev/null
 ; RUN: grep -v '\.directpage' %t-raw.s > %t-funcs.s
 ; RUN: %gcc6809 -S -Os -o %t-harness-raw.s %S/Inputs/harness-if.c
-; RUN: perl -ne 'next if /^\s*\.module/; \
-; RUN:   s/\.area\s+\.text/.section .rom,"ax",\@progbits/; \
-; RUN:   s/\.area\s+\.bss/.section .bss,"aw",\@nobits/; \
-; RUN:   s/\.area\s+\.rodata/.section .rodata,"a",\@progbits/; \
-; RUN:   s/(?<![a-zA-Z0-9])_([a-zA-Z])/$1/g; \
-; RUN:   s/\.blkb\s+(\d+)/.space $1/; s/\bzmb\s+(\d+)/.space $1/; \
-; RUN:   print;' %t-harness-raw.s > %t-harness.s
+; RUN: %S/Inputs/sdcc2gas.sh < %t-harness-raw.s > %t-harness.s
 ; RUN: echo '.include "runtime.inc"' > %t-all.s
 ; RUN: echo '.include "mc6809rt.s"' >> %t-all.s
 ; RUN: cat %t-harness.s %t-funcs.s >> %t-all.s
