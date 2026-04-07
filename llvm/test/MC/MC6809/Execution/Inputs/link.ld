@@ -12,14 +12,20 @@ SECTIONS {
         *(.ram)
     } > RAM
 
+    /* .data lives in RAM (VMA) but initial values are stored in ROM (LMA).
+       The crt0 in runtime.inc copies from ROM to RAM at startup. */
     .data : {
+        __data_start = .;
         *(.data)
         *(.data.*)
-    } > RAM
+        __data_end = .;
+    } > RAM AT> ROM
 
     .bss (NOLOAD) : {
+        __bss_start = .;
         *(.bss)
         *(.bss.*)
+        __bss_end = .;
     } > RAM
 
     .rom : {
@@ -33,4 +39,6 @@ SECTIONS {
     .vectors : {
         *(.vectors)
     } > VEC
+
+    __data_load = LOADADDR(.data);
 }
