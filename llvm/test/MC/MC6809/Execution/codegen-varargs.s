@@ -63,4 +63,84 @@ test_main:
 	jsr	putnl
 ; CHECK-NEXT: 68AC
 
+	;; ===== sum_va4: 4 varargs =====
+
+	;; sum_va4(4, 10, 20, 30, 40) = 100 = 0x0064
+	ldd	#40
+	pshs	d
+	ldd	#30
+	pshs	d
+	ldd	#20
+	pshs	d
+	ldd	#10
+	pshs	d
+	ldd	#4
+	pshs	d
+	jsr	sum_va4
+	ldd	,s
+	tfr	d,x
+	leas	10,s
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0064
+
+	;; sum_va4(4, 0x1000, 0x0200, 0x0030, 0x0004) = 0x1234
+	ldd	#0x0004
+	pshs	d
+	ldd	#0x0030
+	pshs	d
+	ldd	#0x0200
+	pshs	d
+	ldd	#0x1000
+	pshs	d
+	ldd	#4
+	pshs	d
+	jsr	sum_va4
+	ldd	,s
+	tfr	d,x
+	leas	10,s
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 1234
+
+	;; ===== get_nth_va: skip to Nth arg =====
+
+	;; get_nth_va(1, 0xAA, 0xBB, 0xCC, 0xDD) = 0xAA (first)
+	ldd	#0xDD
+	pshs	d
+	ldd	#0xCC
+	pshs	d
+	ldd	#0xBB
+	pshs	d
+	ldd	#0xAA
+	pshs	d
+	ldd	#1
+	pshs	d
+	jsr	get_nth_va
+	ldd	,s
+	tfr	d,x
+	leas	10,s
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 00AA
+
+	;; get_nth_va(4, 0xAA, 0xBB, 0xCC, 0xDD) = 0xDD (fourth)
+	ldd	#0xDD
+	pshs	d
+	ldd	#0xCC
+	pshs	d
+	ldd	#0xBB
+	pshs	d
+	ldd	#0xAA
+	pshs	d
+	ldd	#4
+	pshs	d
+	jsr	get_nth_va
+	ldd	,s
+	tfr	d,x
+	leas	10,s
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 00DD
+
 	jsr	halt
