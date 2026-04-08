@@ -851,11 +851,19 @@ list(REMOVE_ITEM mc6809_SOURCES
   # 32-bit functions that exhaust registers on MC6809. The legalizer cycle
   # (bug #40) is fixed, but the resulting byte-level decomposition creates
   # too much register pressure for the 6809's limited register set.
-  # Provided as hand-written assembly in mc6809rt instead.
+  # Provided as hand-written assembly in mc6809/ instead.
   absvsi2.c addvsi3.c subvsi3.c mulvsi3.c mulosi4.c
   clzsi2.c ctzsi2.c ffssi2.c paritysi2.c popcountsi2.c
   divsi3.c modsi3.c udivsi3.c umodsi3.c
   divmodsi4.c udivmodsi4.c
+)
+# Hand-written 6809 assembly. Each file here exists because the upstream
+# generic C lowering produces too much register pressure for the 6809's
+# tiny register file (see bug #73 and the regalloc-strategy discussion).
+# Hand-written assembly uses exactly the registers it needs and saves
+# the callee-saved ones explicitly via PSHS/PULS.
+list(APPEND mc6809_SOURCES
+  mc6809/ctzhi2.S
 )
 
 set(mos_SOURCES ${GENERIC_SOURCES})
