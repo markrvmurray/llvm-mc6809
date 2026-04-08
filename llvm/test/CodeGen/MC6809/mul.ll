@@ -5,20 +5,16 @@
 define dso_local signext i8 @mul_s_i8(i8 noundef signext %a, i8 noundef signext %b) local_unnamed_addr #0 {
 ; CHECK-LABEL: mul_s_i8:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -6,s
-; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    tfr s,u
+; CHECK-NEXT:    leas -2,s
 ; CHECK-NEXT:    tfr b,a
-; CHECK-NEXT:    sta 6,u
-; CHECK-NEXT:    ldb 11,u
-; CHECK-NEXT:    stb 7,u
-; CHECK-NEXT:    ldd 6,u
+; CHECK-NEXT:    sta ,s
+; CHECK-NEXT:    ldb 5,s
+; CHECK-NEXT:    stb 1,s
+; CHECK-NEXT:    ldd ,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldb 7,u
-; CHECK-NEXT:    tfr u,s
-; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 6,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    ldb 1,s
+; CHECK-NEXT:    leas 2,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: mul_s_i8:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
@@ -37,47 +33,50 @@ entry:
 define dso_local i16 @mul_s_i8_i16(i8 noundef signext %a, i8 noundef signext %b) local_unnamed_addr #0 {
 ; CHECK-LABEL: mul_s_i8_i16:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -12,s
+; CHECK-NEXT:    leas -4,s
 ; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    tfr s,u
 ; CHECK-NEXT:    tfr b,a
-; CHECK-NEXT:    sta 6,u
-; CHECK-NEXT:    ldb 17,u
-; CHECK-NEXT:    stb 7,u
+; CHECK-NEXT:    sta 4,s
+; CHECK-NEXT:    ldb 9,s
+; CHECK-NEXT:    stb 5,s
 ; CHECK-NEXT:    sex
-; CHECK-NEXT:    tfr a,b
-; CHECK-NEXT:    std 12,u
+; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    lda 4,s
+; CHECK-NEXT:    ldd 4,s
 ; CHECK-NEXT:    sex
+; CHECK-NEXT:    std 4,s
 ; CHECK-NEXT:    tfr a,b
-; CHECK-NEXT:    stb 11,u
-; CHECK-NEXT:    ldd 6,u
-; CHECK-NEXT:    std 8,u
+; CHECK-NEXT:    stb 5,s
+; CHECK-NEXT:    ldd 4,s
+; CHECK-NEXT:    std 4,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 8,u
-; CHECK-NEXT:    lda 6,u
-; CHECK-NEXT:    sta 10,u
-; CHECK-NEXT:    ldd 10,u
+; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    lda 4,s
+; CHECK-NEXT:    sta 4,s
+; CHECK-NEXT:    ldd 4,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 10,u
-; CHECK-NEXT:    lda 4,u
-; CHECK-NEXT:    sta 6,u
-; CHECK-NEXT:    ldd 6,u
+; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    lda 4,s
+; CHECK-NEXT:    sta 4,s
+; CHECK-NEXT:    ldd 4,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldb 7,u
+; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    ldb 5,s
 ; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 11,u
+; CHECK-NEXT:    ldb 5,s
 ; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 11,u
-; CHECK-NEXT:    lda 8,u
+; CHECK-NEXT:    stb 5,s
+; CHECK-NEXT:    lda 4,s
 ; CHECK-NEXT:    pshs a
+; CHECK-NEXT:    ldb 5,s
 ; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 11,u
-; CHECK-NEXT:    stb 8,u
-; CHECK-NEXT:    ldx 8,u
-; CHECK-NEXT:    tfr u,s
+; CHECK-NEXT:    stb 5,s
+; CHECK-NEXT:    tfr b,a
+; CHECK-NEXT:    sta 4,s
+; CHECK-NEXT:    ldd 4,s
+; CHECK-NEXT:    tfr d,x
 ; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 12,s
+; CHECK-NEXT:    leas 4,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: mul_s_i8_i16:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
@@ -103,26 +102,22 @@ entry:
 define dso_local signext i8 @mul_s_i8_consts(i8 noundef signext %a, i8 noundef signext %b) local_unnamed_addr #0 {
 ; CHECK-LABEL: mul_s_i8_consts:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -6,s
-; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    stb 7,u
-; CHECK-NEXT:    lda 11,u
-; CHECK-NEXT:    sta 2,u
+; CHECK-NEXT:    leas -2,s
+; CHECK-NEXT:    stb 1,s
+; CHECK-NEXT:    lda 5,s
+; CHECK-NEXT:    sta ,s
 ; CHECK-NEXT:    lda #12
-; CHECK-NEXT:    sta 6,u
-; CHECK-NEXT:    ldd 6,u
+; CHECK-NEXT:    sta ,s
+; CHECK-NEXT:    ldd ,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    lda 2,u
-; CHECK-NEXT:    sta 6,u
-; CHECK-NEXT:    ldd 6,u
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    lda ,s
+; CHECK-NEXT:    sta ,s
+; CHECK-NEXT:    ldd ,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldb 7,u
-; CHECK-NEXT:    tfr u,s
-; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 6,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    ldb 1,s
+; CHECK-NEXT:    leas 2,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: mul_s_i8_consts:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
@@ -148,20 +143,16 @@ entry:
 define dso_local zeroext i8 @mul_u_i8(i8 noundef zeroext %a, i8 noundef zeroext %b) local_unnamed_addr #0 {
 ; CHECK-LABEL: mul_u_i8:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -6,s
-; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    tfr s,u
+; CHECK-NEXT:    leas -2,s
 ; CHECK-NEXT:    tfr b,a
-; CHECK-NEXT:    sta 6,u
-; CHECK-NEXT:    ldb 11,u
-; CHECK-NEXT:    stb 7,u
-; CHECK-NEXT:    ldd 6,u
+; CHECK-NEXT:    sta ,s
+; CHECK-NEXT:    ldb 5,s
+; CHECK-NEXT:    stb 1,s
+; CHECK-NEXT:    ldd ,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldb 7,u
-; CHECK-NEXT:    tfr u,s
-; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 6,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    ldb 1,s
+; CHECK-NEXT:    leas 2,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: mul_u_i8:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
@@ -180,20 +171,16 @@ entry:
 define dso_local i16 @mul_u_i8_i16(i8 noundef zeroext %a, i8 noundef zeroext %b) local_unnamed_addr #0 {
 ; CHECK-LABEL: mul_u_i8_i16:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -6,s
-; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    tfr s,u
+; CHECK-NEXT:    leas -2,s
 ; CHECK-NEXT:    tfr b,a
-; CHECK-NEXT:    sta 6,u
-; CHECK-NEXT:    ldb 11,u
-; CHECK-NEXT:    stb 7,u
-; CHECK-NEXT:    ldd 6,u
+; CHECK-NEXT:    sta ,s
+; CHECK-NEXT:    ldb 5,s
+; CHECK-NEXT:    stb 1,s
+; CHECK-NEXT:    ldd ,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldx 6,u
-; CHECK-NEXT:    tfr u,s
-; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 6,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    tfr d,x
+; CHECK-NEXT:    leas 2,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: mul_u_i8_i16:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
@@ -218,26 +205,22 @@ entry:
 define dso_local zeroext i8 @mul_u_i8_consts(i8 noundef zeroext %a, i8 noundef zeroext %b) local_unnamed_addr #0 {
 ; CHECK-LABEL: mul_u_i8_consts:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -6,s
-; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    stb 7,u
-; CHECK-NEXT:    lda 11,u
-; CHECK-NEXT:    sta 2,u
+; CHECK-NEXT:    leas -2,s
+; CHECK-NEXT:    stb 1,s
+; CHECK-NEXT:    lda 5,s
+; CHECK-NEXT:    sta ,s
 ; CHECK-NEXT:    lda #13
-; CHECK-NEXT:    sta 6,u
-; CHECK-NEXT:    ldd 6,u
+; CHECK-NEXT:    sta ,s
+; CHECK-NEXT:    ldd ,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    lda 2,u
-; CHECK-NEXT:    sta 6,u
-; CHECK-NEXT:    ldd 6,u
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    lda ,s
+; CHECK-NEXT:    sta ,s
+; CHECK-NEXT:    ldd ,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldb 7,u
-; CHECK-NEXT:    tfr u,s
-; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 6,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    ldb 1,s
+; CHECK-NEXT:    leas 2,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: mul_u_i8_consts:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
@@ -263,44 +246,49 @@ entry:
 define dso_local i16 @mul_s_i16(i16 noundef %a, i16 noundef %b) local_unnamed_addr #0 {
 ; CHECK-LABEL: mul_s_i16:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -10,s
+; CHECK-NEXT:    leas -2,s
 ; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    ldd 14,u
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    lda 4,u
-; CHECK-NEXT:    sta 9,u
-; CHECK-NEXT:    stx 2,u
-; CHECK-NEXT:    ldb 3,u
-; CHECK-NEXT:    stb 4,u
-; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    std 6,u
+; CHECK-NEXT:    ldd 6,s
+; CHECK-NEXT:    std 2,s
+; CHECK-NEXT:    lda 2,s
+; CHECK-NEXT:    tfr a,b
+; CHECK-NEXT:    stb 3,s
+; CHECK-NEXT:    tfr x,d
+; CHECK-NEXT:    std 2,s
+; CHECK-NEXT:    ldb 3,s
+; CHECK-NEXT:    tfr b,a
+; CHECK-NEXT:    sta 2,s
+; CHECK-NEXT:    ldd 2,s
+; CHECK-NEXT:    std 2,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldb 3,u
-; CHECK-NEXT:    stb 8,u
-; CHECK-NEXT:    ldd 8,u
+; CHECK-NEXT:    std 2,s
+; CHECK-NEXT:    ldb 3,s
+; CHECK-NEXT:    tfr b,a
+; CHECK-NEXT:    sta 2,s
+; CHECK-NEXT:    ldd 2,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 8,u
-; CHECK-NEXT:    lda 2,u
-; CHECK-NEXT:    sta 4,u
-; CHECK-NEXT:    ldd 4,u
+; CHECK-NEXT:    std 2,s
+; CHECK-NEXT:    lda 2,s
+; CHECK-NEXT:    sta 2,s
+; CHECK-NEXT:    ldd 2,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldb 5,u
+; CHECK-NEXT:    std 2,s
+; CHECK-NEXT:    ldb 3,s
 ; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 9,u
+; CHECK-NEXT:    ldb 3,s
 ; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 9,u
-; CHECK-NEXT:    lda 6,u
+; CHECK-NEXT:    stb 3,s
+; CHECK-NEXT:    lda 2,s
 ; CHECK-NEXT:    pshs a
+; CHECK-NEXT:    ldb 3,s
 ; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 9,u
-; CHECK-NEXT:    stb 6,u
-; CHECK-NEXT:    ldx 6,u
-; CHECK-NEXT:    tfr u,s
+; CHECK-NEXT:    stb 3,s
+; CHECK-NEXT:    tfr b,a
+; CHECK-NEXT:    sta 2,s
+; CHECK-NEXT:    ldd 2,s
+; CHECK-NEXT:    tfr d,x
 ; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 10,s
+; CHECK-NEXT:    leas 2,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: mul_s_i16:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
@@ -319,64 +307,64 @@ entry:
 define dso_local i16 @mul_s_i16_consts(i16 noundef %a, i16 noundef %b) local_unnamed_addr #0 {
 ; CHECK-LABEL: mul_s_i16_consts:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -12,s
+; CHECK-NEXT:    leas -4,s
 ; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    tfr s,u
 ; CHECK-NEXT:    tfr x,d
 ; CHECK-NEXT:    tfr a,b
-; CHECK-NEXT:    stb 9,u
+; CHECK-NEXT:    stb 5,s
 ; CHECK-NEXT:    lda #-14
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    sta 8,u
+; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    sta 4,s
 ; CHECK-NEXT:    aslb
-; CHECK-NEXT:    std 10,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd 16,u
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldd 6,u
+; CHECK-NEXT:    std 4,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 8,s
+; CHECK-NEXT:    std 4,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldd 8,u
+; CHECK-NEXT:    std 4,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 8,u
-; CHECK-NEXT:    ldd 10,u ; 2-byte Folded Reload
+; CHECK-NEXT:    std 4,s
 ; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 9,u
+; CHECK-NEXT:    ldb 5,s
 ; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 9,u
-; CHECK-NEXT:    lda 6,u
+; CHECK-NEXT:    stb 5,s
+; CHECK-NEXT:    lda 4,s
 ; CHECK-NEXT:    pshs a
+; CHECK-NEXT:    ldb 5,s
 ; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 9,u
-; CHECK-NEXT:    ldb 5,u
-; CHECK-NEXT:    stb 6,u
-; CHECK-NEXT:    ldd 6,u
-; CHECK-NEXT:    std 2,u
+; CHECK-NEXT:    stb 5,s
+; CHECK-NEXT:    tfr b,a
+; CHECK-NEXT:    sta 4,s
+; CHECK-NEXT:    ldd 4,s
+; CHECK-NEXT:    std 4,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 2,u
-; CHECK-NEXT:    ldb 5,u
-; CHECK-NEXT:    stb 8,u
-; CHECK-NEXT:    ldd 8,u
+; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    ldb 5,s
+; CHECK-NEXT:    tfr b,a
+; CHECK-NEXT:    sta 4,s
+; CHECK-NEXT:    ldd 4,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 8,u
-; CHECK-NEXT:    lda 4,u
-; CHECK-NEXT:    sta 6,u
-; CHECK-NEXT:    ldd 6,u
+; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    lda 4,s
+; CHECK-NEXT:    sta 4,s
+; CHECK-NEXT:    ldd 4,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldb 7,u
+; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    ldb 5,s
 ; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 9,u
+; CHECK-NEXT:    ldb 5,s
 ; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 9,u
-; CHECK-NEXT:    lda 2,u
+; CHECK-NEXT:    stb 5,s
+; CHECK-NEXT:    lda 4,s
 ; CHECK-NEXT:    pshs a
+; CHECK-NEXT:    ldb 5,s
 ; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 9,u
-; CHECK-NEXT:    stb 2,u
-; CHECK-NEXT:    ldx 2,u
-; CHECK-NEXT:    tfr u,s
+; CHECK-NEXT:    stb 5,s
+; CHECK-NEXT:    tfr b,a
+; CHECK-NEXT:    sta 4,s
+; CHECK-NEXT:    ldd 4,s
+; CHECK-NEXT:    tfr d,x
 ; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 12,s
+; CHECK-NEXT:    leas 4,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: mul_s_i16_consts:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
@@ -398,44 +386,49 @@ entry:
 define dso_local i16 @mul_u_i16(i16 noundef %a, i16 noundef %b) local_unnamed_addr #0 {
 ; CHECK-LABEL: mul_u_i16:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -10,s
+; CHECK-NEXT:    leas -2,s
 ; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    ldd 14,u
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    lda 4,u
-; CHECK-NEXT:    sta 9,u
-; CHECK-NEXT:    stx 2,u
-; CHECK-NEXT:    ldb 3,u
-; CHECK-NEXT:    stb 4,u
-; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    std 6,u
+; CHECK-NEXT:    ldd 6,s
+; CHECK-NEXT:    std 2,s
+; CHECK-NEXT:    lda 2,s
+; CHECK-NEXT:    tfr a,b
+; CHECK-NEXT:    stb 3,s
+; CHECK-NEXT:    tfr x,d
+; CHECK-NEXT:    std 2,s
+; CHECK-NEXT:    ldb 3,s
+; CHECK-NEXT:    tfr b,a
+; CHECK-NEXT:    sta 2,s
+; CHECK-NEXT:    ldd 2,s
+; CHECK-NEXT:    std 2,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldb 3,u
-; CHECK-NEXT:    stb 8,u
-; CHECK-NEXT:    ldd 8,u
+; CHECK-NEXT:    std 2,s
+; CHECK-NEXT:    ldb 3,s
+; CHECK-NEXT:    tfr b,a
+; CHECK-NEXT:    sta 2,s
+; CHECK-NEXT:    ldd 2,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 8,u
-; CHECK-NEXT:    lda 2,u
-; CHECK-NEXT:    sta 4,u
-; CHECK-NEXT:    ldd 4,u
+; CHECK-NEXT:    std 2,s
+; CHECK-NEXT:    lda 2,s
+; CHECK-NEXT:    sta 2,s
+; CHECK-NEXT:    ldd 2,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldb 5,u
+; CHECK-NEXT:    std 2,s
+; CHECK-NEXT:    ldb 3,s
 ; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 9,u
+; CHECK-NEXT:    ldb 3,s
 ; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 9,u
-; CHECK-NEXT:    lda 6,u
+; CHECK-NEXT:    stb 3,s
+; CHECK-NEXT:    lda 2,s
 ; CHECK-NEXT:    pshs a
+; CHECK-NEXT:    ldb 3,s
 ; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 9,u
-; CHECK-NEXT:    stb 6,u
-; CHECK-NEXT:    ldx 6,u
-; CHECK-NEXT:    tfr u,s
+; CHECK-NEXT:    stb 3,s
+; CHECK-NEXT:    tfr b,a
+; CHECK-NEXT:    sta 2,s
+; CHECK-NEXT:    ldd 2,s
+; CHECK-NEXT:    tfr d,x
 ; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 10,s
+; CHECK-NEXT:    leas 2,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: mul_u_i16:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
@@ -454,64 +447,64 @@ entry:
 define dso_local i16 @mul_u_i16_consts(i16 noundef %a, i16 noundef %b) local_unnamed_addr #0 {
 ; CHECK-LABEL: mul_u_i16_consts:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -12,s
+; CHECK-NEXT:    leas -4,s
 ; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    tfr s,u
 ; CHECK-NEXT:    tfr x,d
 ; CHECK-NEXT:    tfr a,b
-; CHECK-NEXT:    stb 9,u
+; CHECK-NEXT:    stb 5,s
 ; CHECK-NEXT:    lda #87
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    sta 8,u
+; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    sta 4,s
 ; CHECK-NEXT:    aslb
-; CHECK-NEXT:    std 10,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd 16,u
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldd 6,u
+; CHECK-NEXT:    std 4,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd 8,s
+; CHECK-NEXT:    std 4,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldd 8,u
+; CHECK-NEXT:    std 4,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 8,u
-; CHECK-NEXT:    ldd 10,u ; 2-byte Folded Reload
+; CHECK-NEXT:    std 4,s
 ; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 9,u
+; CHECK-NEXT:    ldb 5,s
 ; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 9,u
-; CHECK-NEXT:    lda 6,u
+; CHECK-NEXT:    stb 5,s
+; CHECK-NEXT:    lda 4,s
 ; CHECK-NEXT:    pshs a
+; CHECK-NEXT:    ldb 5,s
 ; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 9,u
-; CHECK-NEXT:    ldb 5,u
-; CHECK-NEXT:    stb 6,u
-; CHECK-NEXT:    ldd 6,u
-; CHECK-NEXT:    std 2,u
+; CHECK-NEXT:    stb 5,s
+; CHECK-NEXT:    tfr b,a
+; CHECK-NEXT:    sta 4,s
+; CHECK-NEXT:    ldd 4,s
+; CHECK-NEXT:    std 4,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 2,u
-; CHECK-NEXT:    ldb 5,u
-; CHECK-NEXT:    stb 8,u
-; CHECK-NEXT:    ldd 8,u
+; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    ldb 5,s
+; CHECK-NEXT:    tfr b,a
+; CHECK-NEXT:    sta 4,s
+; CHECK-NEXT:    ldd 4,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 8,u
-; CHECK-NEXT:    lda 4,u
-; CHECK-NEXT:    sta 6,u
-; CHECK-NEXT:    ldd 6,u
+; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    lda 4,s
+; CHECK-NEXT:    sta 4,s
+; CHECK-NEXT:    ldd 4,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldb 7,u
+; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    ldb 5,s
 ; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 9,u
+; CHECK-NEXT:    ldb 5,s
 ; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 9,u
-; CHECK-NEXT:    lda 2,u
+; CHECK-NEXT:    stb 5,s
+; CHECK-NEXT:    lda 4,s
 ; CHECK-NEXT:    pshs a
+; CHECK-NEXT:    ldb 5,s
 ; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 9,u
-; CHECK-NEXT:    stb 2,u
-; CHECK-NEXT:    ldx 2,u
-; CHECK-NEXT:    tfr u,s
+; CHECK-NEXT:    stb 5,s
+; CHECK-NEXT:    tfr b,a
+; CHECK-NEXT:    sta 4,s
+; CHECK-NEXT:    ldd 4,s
+; CHECK-NEXT:    tfr d,x
 ; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 12,s
+; CHECK-NEXT:    leas 4,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: mul_u_i16_consts:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
@@ -533,207 +526,201 @@ entry:
 define dso_local i32 @mul_s_i32(i32 noundef %a, i32 noundef %b) local_unnamed_addr #0 {
 ; CHECK-LABEL: mul_s_i32:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -21,s
+; CHECK-NEXT:    leas -19,s
 ; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    ldd 25,u
-; CHECK-NEXT:    std 19,u
-; CHECK-NEXT:    ldd 29,u
-; CHECK-NEXT:    std 2,u
-; CHECK-NEXT:    ldd 27,u
-; CHECK-NEXT:    std 19,u
-; CHECK-NEXT:    lda 2,u
-; CHECK-NEXT:    sta 5,u
-; CHECK-NEXT:    lda 19,u
-; CHECK-NEXT:    sta 9,u
-; CHECK-NEXT:    ldb 20,u
-; CHECK-NEXT:    stb 2,u
-; CHECK-NEXT:    ldd 2,u
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    std 0,u
-; CHECK-NEXT:    std 19,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldb 20,u
-; CHECK-NEXT:    stb 4,u
-; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    std 19,u
-; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 19,u
-; CHECK-NEXT:    lda 19,u
-; CHECK-NEXT:    ldb 3,u
-; CHECK-NEXT:    std 19,u
-; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 19,u
-; CHECK-NEXT:    std 0,u
-; CHECK-NEXT:    std 15,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldb 20,u
-; CHECK-NEXT:    pshs s,s
-; CHECK-NEXT:    addb 1,s
-; CHECK-NEXT:    adda ,s
-; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 20,u
-; CHECK-NEXT:    andb #1
-; CHECK-NEXT:    pshs s,s
-; CHECK-NEXT:    addb 1,s
-; CHECK-NEXT:    adda ,s
-; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 20,u
-; CHECK-NEXT:    std 0,u
-; CHECK-NEXT:    ldd 19,u
-; CHECK-NEXT:    std 12,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd 0,u
-; CHECK-NEXT:    andb #1
-; CHECK-NEXT:    stx 6,u
-; CHECK-NEXT:    std 10,u
-; CHECK-NEXT:    std 0,u
-; CHECK-NEXT:    ldd 6,u
-; CHECK-NEXT:    std 17,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd 0,u
-; CHECK-NEXT:    ldd 10,u
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 20,u
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 20,u
-; CHECK-NEXT:    std 0,u
-; CHECK-NEXT:    stb 14,u ; 1-byte Folded Spill
-; CHECK-NEXT:    stb 19,u
-; CHECK-NEXT:    ldd 19,u
-; CHECK-NEXT:    std 19,u
-; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 19,u
-; CHECK-NEXT:    lda 19,u
-; CHECK-NEXT:    sta 4,u
-; CHECK-NEXT:    sta 19,u
-; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    std 19,u
-; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 19,u
-; CHECK-NEXT:    ldb 7,u
+; CHECK-NEXT:    ldd 23,s
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    ldd 27,s
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    ldd 25,s
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    lda 19,s
+; CHECK-NEXT:    tfr a,b
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    tfr a,b
+; CHECK-NEXT:    stb 20,s
 ; CHECK-NEXT:    tfr b,a
-; CHECK-NEXT:    ldb 3,u
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    sta 4,u
+; CHECK-NEXT:    sta 19,s
+; CHECK-NEXT:    ldd 19,s
+; CHECK-NEXT:    std 19,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldb 20,u
-; CHECK-NEXT:    pshs s,s
-; CHECK-NEXT:    addb 1,s
-; CHECK-NEXT:    adda ,s
-; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 20,u
-; CHECK-NEXT:    lda 19,u
-; CHECK-NEXT:    sta 19,u
-; CHECK-NEXT:    andb #1
-; CHECK-NEXT:    pshs s,s
-; CHECK-NEXT:    addb 1,s
-; CHECK-NEXT:    adda ,s
-; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 20,u
-; CHECK-NEXT:    andb #1
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 20,u
-; CHECK-NEXT:    ldd 12,u ; 2-byte Folded Reload
-; CHECK-NEXT:    std 19,u
-; CHECK-NEXT:    ldb 20,u
-; CHECK-NEXT:    pshs s,s
-; CHECK-NEXT:    addb 1,s
-; CHECK-NEXT:    adda ,s
-; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 20,u
-; CHECK-NEXT:    andb #1
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 20,u
-; CHECK-NEXT:    ldd 15,u ; 2-byte Folded Reload
-; CHECK-NEXT:    std 10,u
-; CHECK-NEXT:    ldb 20,u
-; CHECK-NEXT:    pshs s,s
-; CHECK-NEXT:    addb 1,s
-; CHECK-NEXT:    adda ,s
-; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 20,u
-; CHECK-NEXT:    ldd 10,u
-; CHECK-NEXT:    andb #1
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 20,u
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 20,u
-; CHECK-NEXT:    ldb 14,u ; 1-byte Folded Reload
-; CHECK-NEXT:    std 10,u
-; CHECK-NEXT:    ldb 20,u
-; CHECK-NEXT:    pshs s,s
-; CHECK-NEXT:    addb 1,s
-; CHECK-NEXT:    adda ,s
-; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 20,u
-; CHECK-NEXT:    ldd 10,u
-; CHECK-NEXT:    andb #1
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 20,u
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 20,u
-; CHECK-NEXT:    lda 2,u
-; CHECK-NEXT:    sta 8,u
-; CHECK-NEXT:    ldd 8,u
-; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 8,u
-; CHECK-NEXT:    ldd 19,u
-; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 19,u
-; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldd 17,u ; 2-byte Folded Reload
-; CHECK-NEXT:    sta 2,u
-; CHECK-NEXT:    ldd 2,u
-; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 2,u
-; CHECK-NEXT:    ldb 20,u
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 9,u
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 9,u
-; CHECK-NEXT:    ldb 5,u
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 9,u
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 9,u
-; CHECK-NEXT:    ldb 3,u
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 9,u
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 9,u
-; CHECK-NEXT:    lda 19,u
-; CHECK-NEXT:    pshs a
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 9,u
-; CHECK-NEXT:    lda 19,u
-; CHECK-NEXT:    pshs a
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 9,u
-; CHECK-NEXT:    lda 6,u
-; CHECK-NEXT:    pshs a
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 9,u
-; CHECK-NEXT:    ldb 20,u
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 9,u
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 9,u
-; CHECK-NEXT:    ldd 19,u ; 2-byte Folded Reload
-; CHECK-NEXT:    ldb 20,u
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    std 19,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldb 20,s
 ; CHECK-NEXT:    tfr b,a
-; CHECK-NEXT:    std 10,u
-; CHECK-NEXT:    ldb 9,u
-; CHECK-NEXT:    stb 19,u
-; CHECK-NEXT:    ldd 10,u
-; CHECK-NEXT:    std 25,u
-; CHECK-NEXT:    ldx 19,u
-; CHECK-NEXT:    tfr u,s
+; CHECK-NEXT:    sta 19,s
+; CHECK-NEXT:    ldd 19,s
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    mul
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    lda 19,s
+; CHECK-NEXT:    std 10,s
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    ldd 10,s
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    mul
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    std 15,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    pshs s,s
+; CHECK-NEXT:    addb 1,s
+; CHECK-NEXT:    adda ,s
+; CHECK-NEXT:    leas s,2
+; CHECK-NEXT:    andb #1
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    lda 19,s
+; CHECK-NEXT:    pshs s,s
+; CHECK-NEXT:    addb 1,s
+; CHECK-NEXT:    adda ,s
+; CHECK-NEXT:    leas s,2
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    ldd 19,s
+; CHECK-NEXT:    std 12,s ; 2-byte Folded Spill
+; CHECK-NEXT:    andb #1
+; CHECK-NEXT:    tfr x,d
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    std 8,s
+; CHECK-NEXT:    std 17,s ; 2-byte Folded Spill
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    stb 14,s ; 1-byte Folded Spill
+; CHECK-NEXT:    tfr b,a
+; CHECK-NEXT:    sta 19,s
+; CHECK-NEXT:    ldd 19,s
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    mul
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    lda 19,s
+; CHECK-NEXT:    sta 19,s
+; CHECK-NEXT:    ldd 19,s
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    mul
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    tfr b,a
+; CHECK-NEXT:    std 6,s
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    sta 19,s
+; CHECK-NEXT:    ldd 19,s
+; CHECK-NEXT:    mul
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    pshs s,s
+; CHECK-NEXT:    addb 1,s
+; CHECK-NEXT:    adda ,s
+; CHECK-NEXT:    leas s,2
+; CHECK-NEXT:    lda 19,s
+; CHECK-NEXT:    sta 19,s
+; CHECK-NEXT:    andb #1
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    pshs s,s
+; CHECK-NEXT:    addb 1,s
+; CHECK-NEXT:    adda ,s
+; CHECK-NEXT:    leas s,2
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    andb #1
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    ldd 12,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    lda 19,s
+; CHECK-NEXT:    pshs s,s
+; CHECK-NEXT:    addb 1,s
+; CHECK-NEXT:    adda ,s
+; CHECK-NEXT:    leas s,2
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    andb #1
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    ldd 15,s ; 2-byte Folded Reload
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    pshs s,s
+; CHECK-NEXT:    addb 1,s
+; CHECK-NEXT:    adda ,s
+; CHECK-NEXT:    leas s,2
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    andb #1
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    ldb 14,s ; 1-byte Folded Reload
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    pshs s,s
+; CHECK-NEXT:    addb 1,s
+; CHECK-NEXT:    adda ,s
+; CHECK-NEXT:    leas s,2
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    andb #1
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    lda 19,s
+; CHECK-NEXT:    sta 19,s
+; CHECK-NEXT:    ldd 19,s
+; CHECK-NEXT:    mul
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    mul
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    mul
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    ldd 17,s ; 2-byte Folded Reload
+; CHECK-NEXT:    sta 19,s
+; CHECK-NEXT:    ldd 19,s
+; CHECK-NEXT:    mul
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    lda 19,s
+; CHECK-NEXT:    pshs a
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    lda 19,s
+; CHECK-NEXT:    pshs a
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    lda 19,s
+; CHECK-NEXT:    pshs a
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    ldd 19,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    ldd 4,s
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    tfr b,a
+; CHECK-NEXT:    sta 19,s
+; CHECK-NEXT:    std 23,s
+; CHECK-NEXT:    ldd 19,s
+; CHECK-NEXT:    tfr d,x
 ; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 21,s
+; CHECK-NEXT:    leas 19,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: mul_s_i32:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
@@ -761,336 +748,339 @@ entry:
 define dso_local i32 @mul_s_i32_consts(i32 noundef %a, i32 noundef %b) local_unnamed_addr #0 {
 ; CHECK-LABEL: mul_s_i32_consts:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -17,s
+; CHECK-NEXT:    leas -13,s
 ; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    ldd 21,u
-; CHECK-NEXT:    std 15,u
-; CHECK-NEXT:    lda 15,u
-; CHECK-NEXT:    sta 3,u
+; CHECK-NEXT:    ldd 17,s
+; CHECK-NEXT:    std 13,s
+; CHECK-NEXT:    lda 13,s
+; CHECK-NEXT:    tfr a,b
+; CHECK-NEXT:    stb 14,s
 ; CHECK-NEXT:    lda #35
-; CHECK-NEXT:    sta 15,u
-; CHECK-NEXT:    ldd 15,u
-; CHECK-NEXT:    std 8,u
+; CHECK-NEXT:    sta 13,s
+; CHECK-NEXT:    ldd 13,s
+; CHECK-NEXT:    std 13,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 8,u
-; CHECK-NEXT:    lda 15,u
-; CHECK-NEXT:    sta 2,u
-; CHECK-NEXT:    ldd 2,u
-; CHECK-NEXT:    std 15,u
+; CHECK-NEXT:    std 13,s
+; CHECK-NEXT:    lda 13,s
+; CHECK-NEXT:    sta 13,s
+; CHECK-NEXT:    ldd 13,s
+; CHECK-NEXT:    std 13,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 15,u
+; CHECK-NEXT:    std 13,s
 ; CHECK-NEXT:    lda #11
-; CHECK-NEXT:    sta 15,u
-; CHECK-NEXT:    ldb 16,u
-; CHECK-NEXT:    stb 16,u
-; CHECK-NEXT:    ldd 15,u
-; CHECK-NEXT:    std 6,u
+; CHECK-NEXT:    sta 13,s
+; CHECK-NEXT:    ldb 14,s
+; CHECK-NEXT:    stb 14,s
+; CHECK-NEXT:    ldd 13,s
+; CHECK-NEXT:    std 13,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldb 16,u
+; CHECK-NEXT:    std 13,s
+; CHECK-NEXT:    ldb 14,s
 ; CHECK-NEXT:    pshs s,s
 ; CHECK-NEXT:    addb 1,s
 ; CHECK-NEXT:    adda ,s
 ; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 16,u
 ; CHECK-NEXT:    andb #1
+; CHECK-NEXT:    stb 14,s
+; CHECK-NEXT:    lda 13,s
 ; CHECK-NEXT:    pshs s,s
 ; CHECK-NEXT:    addb 1,s
 ; CHECK-NEXT:    adda ,s
 ; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 16,u
+; CHECK-NEXT:    stb 14,s
 ; CHECK-NEXT:    andb #1
-; CHECK-NEXT:    stx 15,u
-; CHECK-NEXT:    std 10,u
-; CHECK-NEXT:    lda 15,u
-; CHECK-NEXT:    sta 7,u
-; CHECK-NEXT:    ldd 10,u
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 5,u
+; CHECK-NEXT:    tfr x,d
+; CHECK-NEXT:    std 13,s
+; CHECK-NEXT:    lda 13,s
+; CHECK-NEXT:    tfr a,b
+; CHECK-NEXT:    stb 14,s
+; CHECK-NEXT:    pshs a
+; CHECK-NEXT:    ldb 14,s
 ; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 5,u
-; CHECK-NEXT:    std 0,u
-; CHECK-NEXT:    stb 15,u ; 1-byte Folded Spill
-; CHECK-NEXT:    lda 15,u
-; CHECK-NEXT:    sta 15,u
-; CHECK-NEXT:    ldd 15,u
-; CHECK-NEXT:    std 4,u
+; CHECK-NEXT:    stb 14,s
+; CHECK-NEXT:    stb 13,s ; 1-byte Folded Spill
+; CHECK-NEXT:    lda 13,s
+; CHECK-NEXT:    sta 13,s
+; CHECK-NEXT:    ldd 13,s
+; CHECK-NEXT:    std 13,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    lda 15,u
-; CHECK-NEXT:    sta 2,u
-; CHECK-NEXT:    ldd 2,u
+; CHECK-NEXT:    std 13,s
+; CHECK-NEXT:    lda 13,s
+; CHECK-NEXT:    sta 13,s
+; CHECK-NEXT:    ldd 13,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 2,u
-; CHECK-NEXT:    ldb 5,u
+; CHECK-NEXT:    std 13,s
+; CHECK-NEXT:    ldb 14,s
 ; CHECK-NEXT:    pshs s,s
 ; CHECK-NEXT:    addb 1,s
 ; CHECK-NEXT:    adda ,s
 ; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 5,u
 ; CHECK-NEXT:    andb #1
-; CHECK-NEXT:    addb 21,u
-; CHECK-NEXT:    stb 5,u
-; CHECK-NEXT:    andb #1
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 16,u
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 16,u
-; CHECK-NEXT:    ldb 5,u
-; CHECK-NEXT:    pshs s,s
-; CHECK-NEXT:    addb 1,s
-; CHECK-NEXT:    adda ,s
-; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 5,u
+; CHECK-NEXT:    stb 14,s
+; CHECK-NEXT:    addb 17,s
+; CHECK-NEXT:    stb 14,s
 ; CHECK-NEXT:    andb #1
 ; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 16,u
+; CHECK-NEXT:    ldb 14,s
 ; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 16,u
-; CHECK-NEXT:    ldb 5,u
+; CHECK-NEXT:    stb 14,s
+; CHECK-NEXT:    lda 13,s
 ; CHECK-NEXT:    pshs s,s
 ; CHECK-NEXT:    addb 1,s
 ; CHECK-NEXT:    adda ,s
 ; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 5,u
+; CHECK-NEXT:    stb 14,s
 ; CHECK-NEXT:    andb #1
 ; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 16,u
+; CHECK-NEXT:    ldb 14,s
 ; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 16,u
-; CHECK-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; CHECK-NEXT:    std 10,u
-; CHECK-NEXT:    ldb 5,u
+; CHECK-NEXT:    stb 14,s
+; CHECK-NEXT:    lda 13,s
 ; CHECK-NEXT:    pshs s,s
 ; CHECK-NEXT:    addb 1,s
 ; CHECK-NEXT:    adda ,s
 ; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 5,u
-; CHECK-NEXT:    ldd 10,u
+; CHECK-NEXT:    stb 14,s
 ; CHECK-NEXT:    andb #1
 ; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 16,u
+; CHECK-NEXT:    ldb 14,s
 ; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 16,u
-; CHECK-NEXT:    lda 15,u
-; CHECK-NEXT:    sta 6,u
-; CHECK-NEXT:    ldd 6,u
+; CHECK-NEXT:    stb 14,s
+; CHECK-NEXT:    ldb 13,s ; 1-byte Folded Reload
+; CHECK-NEXT:    ldb 14,s
+; CHECK-NEXT:    pshs s,s
+; CHECK-NEXT:    addb 1,s
+; CHECK-NEXT:    adda ,s
+; CHECK-NEXT:    leas s,2
+; CHECK-NEXT:    stb 14,s
+; CHECK-NEXT:    andb #1
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    ldb 14,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 14,s
+; CHECK-NEXT:    lda 13,s
+; CHECK-NEXT:    sta 13,s
+; CHECK-NEXT:    ldd 13,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    lda 15,u
-; CHECK-NEXT:    sta 15,u
-; CHECK-NEXT:    ldd 15,u
+; CHECK-NEXT:    std 13,s
+; CHECK-NEXT:    lda 13,s
+; CHECK-NEXT:    sta 13,s
+; CHECK-NEXT:    ldd 13,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 15,u
+; CHECK-NEXT:    std 13,s
 ; CHECK-NEXT:    lda #1
-; CHECK-NEXT:    sta 15,u
-; CHECK-NEXT:    ldd 15,u
+; CHECK-NEXT:    sta 13,s
+; CHECK-NEXT:    ldd 13,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 15,u
-; CHECK-NEXT:    ldb 16,u
+; CHECK-NEXT:    std 13,s
+; CHECK-NEXT:    ldb 14,s
 ; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 7,u
+; CHECK-NEXT:    ldb 14,s
 ; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 7,u
-; CHECK-NEXT:    addb 21,u
-; CHECK-NEXT:    stb 7,u
-; CHECK-NEXT:    lda 4,u
+; CHECK-NEXT:    stb 14,s
+; CHECK-NEXT:    addb 17,s
+; CHECK-NEXT:    stb 14,s
+; CHECK-NEXT:    lda 13,s
 ; CHECK-NEXT:    pshs a
+; CHECK-NEXT:    ldb 14,s
 ; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 7,u
-; CHECK-NEXT:    lda 2,u
+; CHECK-NEXT:    stb 14,s
+; CHECK-NEXT:    lda 13,s
 ; CHECK-NEXT:    pshs a
+; CHECK-NEXT:    ldb 14,s
 ; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 7,u
-; CHECK-NEXT:    lda 15,u
+; CHECK-NEXT:    stb 14,s
+; CHECK-NEXT:    lda 13,s
 ; CHECK-NEXT:    pshs a
+; CHECK-NEXT:    ldb 14,s
 ; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 7,u
-; CHECK-NEXT:    ldb 16,u
+; CHECK-NEXT:    stb 14,s
 ; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 7,u
+; CHECK-NEXT:    ldb 14,s
 ; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 7,u
-; CHECK-NEXT:    ldd 25,u
-; CHECK-NEXT:    std 15,u
-; CHECK-NEXT:    ldb 9,u
-; CHECK-NEXT:    stb 16,u
-; CHECK-NEXT:    stb 15,u
-; CHECK-NEXT:    ldd 23,u
+; CHECK-NEXT:    stb 14,s
+; CHECK-NEXT:    ldd 21,s
+; CHECK-NEXT:    std 13,s
+; CHECK-NEXT:    ldb 14,s
+; CHECK-NEXT:    stb 14,s
 ; CHECK-NEXT:    tfr b,a
-; CHECK-NEXT:    sta 6,u
-; CHECK-NEXT:    ldd 15,u
-; CHECK-NEXT:    std 15,u
-; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 15,u
-; CHECK-NEXT:    std 0,u
-; CHECK-NEXT:    std 15,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldb 16,u
-; CHECK-NEXT:    stb 15,u
-; CHECK-NEXT:    ldd 15,u
-; CHECK-NEXT:    std 2,u
-; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 2,u
-; CHECK-NEXT:    lda 15,u
-; CHECK-NEXT:    ldb 9,u
-; CHECK-NEXT:    std 15,u
-; CHECK-NEXT:    sta 8,u
-; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 15,u
-; CHECK-NEXT:    std 0,u
-; CHECK-NEXT:    std 13,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldb 3,u
-; CHECK-NEXT:    pshs s,s
-; CHECK-NEXT:    addb 1,s
-; CHECK-NEXT:    adda ,s
-; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 3,u
-; CHECK-NEXT:    andb #1
-; CHECK-NEXT:    pshs s,s
-; CHECK-NEXT:    addb 1,s
-; CHECK-NEXT:    adda ,s
-; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 3,u
-; CHECK-NEXT:    andb #1
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 9,u
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 9,u
-; CHECK-NEXT:    std 0,u
-; CHECK-NEXT:    stb 12,u ; 1-byte Folded Spill
-; CHECK-NEXT:    lda 15,u
-; CHECK-NEXT:    sta 4,u
-; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    std 15,u
-; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 15,u
-; CHECK-NEXT:    lda 8,u
-; CHECK-NEXT:    sta 15,u
-; CHECK-NEXT:    sta 4,u
-; CHECK-NEXT:    ldd 15,u
-; CHECK-NEXT:    std 15,u
-; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 15,u
-; CHECK-NEXT:    lda 6,u
-; CHECK-NEXT:    ldb 16,u
-; CHECK-NEXT:    std 8,u
-; CHECK-NEXT:    sta 15,u
-; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 8,u
-; CHECK-NEXT:    ldb 16,u
-; CHECK-NEXT:    pshs s,s
-; CHECK-NEXT:    addb 1,s
-; CHECK-NEXT:    adda ,s
-; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 16,u
-; CHECK-NEXT:    andb #1
-; CHECK-NEXT:    pshs s,s
-; CHECK-NEXT:    addb 1,s
-; CHECK-NEXT:    adda ,s
-; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 16,u
-; CHECK-NEXT:    andb #1
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 16,u
-; CHECK-NEXT:    pshs s,s
-; CHECK-NEXT:    addb 1,s
-; CHECK-NEXT:    adda ,s
-; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 16,u
-; CHECK-NEXT:    andb #1
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 16,u
-; CHECK-NEXT:    ldd 13,u ; 2-byte Folded Reload
-; CHECK-NEXT:    std 10,u
-; CHECK-NEXT:    ldb 16,u
-; CHECK-NEXT:    pshs s,s
-; CHECK-NEXT:    addb 1,s
-; CHECK-NEXT:    adda ,s
-; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 16,u
-; CHECK-NEXT:    ldd 10,u
-; CHECK-NEXT:    andb #1
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 16,u
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 16,u
-; CHECK-NEXT:    ldb 12,u ; 1-byte Folded Reload
-; CHECK-NEXT:    std 10,u
-; CHECK-NEXT:    ldb 16,u
-; CHECK-NEXT:    pshs s,s
-; CHECK-NEXT:    addb 1,s
-; CHECK-NEXT:    adda ,s
-; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 16,u
-; CHECK-NEXT:    ldd 10,u
-; CHECK-NEXT:    andb #1
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 16,u
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 16,u
-; CHECK-NEXT:    lda 15,u
-; CHECK-NEXT:    sta 6,u
-; CHECK-NEXT:    ldd 6,u
-; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldd 15,u
-; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 15,u
-; CHECK-NEXT:    ldd 23,u
-; CHECK-NEXT:    sta 15,u
-; CHECK-NEXT:    ldd 15,u
-; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 15,u
-; CHECK-NEXT:    ldb 5,u
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 7,u
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 7,u
-; CHECK-NEXT:    ldb 16,u
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 7,u
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 7,u
-; CHECK-NEXT:    ldb 16,u
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 7,u
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 7,u
-; CHECK-NEXT:    lda 15,u
-; CHECK-NEXT:    pshs a
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 7,u
-; CHECK-NEXT:    lda 15,u
-; CHECK-NEXT:    pshs a
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 7,u
-; CHECK-NEXT:    lda 8,u
-; CHECK-NEXT:    pshs a
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 7,u
-; CHECK-NEXT:    ldb 16,u
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 7,u
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 7,u
-; CHECK-NEXT:    ldd 15,u ; 2-byte Folded Reload
-; CHECK-NEXT:    ldb 3,u
+; CHECK-NEXT:    sta 13,s
+; CHECK-NEXT:    ldd 19,s
 ; CHECK-NEXT:    tfr b,a
-; CHECK-NEXT:    std 10,u
-; CHECK-NEXT:    ldb 7,u
-; CHECK-NEXT:    stb 15,u
-; CHECK-NEXT:    ldd 10,u
-; CHECK-NEXT:    std 21,u
-; CHECK-NEXT:    ldx 15,u
-; CHECK-NEXT:    tfr u,s
+; CHECK-NEXT:    sta 13,s
+; CHECK-NEXT:    ldd 13,s
+; CHECK-NEXT:    std 13,s
+; CHECK-NEXT:    mul
+; CHECK-NEXT:    std 13,s
+; CHECK-NEXT:    std 13,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldb 14,s
+; CHECK-NEXT:    tfr b,a
+; CHECK-NEXT:    sta 13,s
+; CHECK-NEXT:    ldd 13,s
+; CHECK-NEXT:    std 13,s
+; CHECK-NEXT:    mul
+; CHECK-NEXT:    std 13,s
+; CHECK-NEXT:    lda 13,s
+; CHECK-NEXT:    std 8,s
+; CHECK-NEXT:    ldb 14,s
+; CHECK-NEXT:    ldd 8,s
+; CHECK-NEXT:    std 13,s
+; CHECK-NEXT:    sta 13,s
+; CHECK-NEXT:    ldd 13,s
+; CHECK-NEXT:    mul
+; CHECK-NEXT:    std 13,s
+; CHECK-NEXT:    std 11,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldb 14,s
+; CHECK-NEXT:    pshs s,s
+; CHECK-NEXT:    addb 1,s
+; CHECK-NEXT:    adda ,s
+; CHECK-NEXT:    leas s,2
+; CHECK-NEXT:    andb #1
+; CHECK-NEXT:    stb 14,s
+; CHECK-NEXT:    lda 13,s
+; CHECK-NEXT:    pshs s,s
+; CHECK-NEXT:    addb 1,s
+; CHECK-NEXT:    adda ,s
+; CHECK-NEXT:    leas s,2
+; CHECK-NEXT:    stb 14,s
+; CHECK-NEXT:    andb #1
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    ldb 14,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 14,s
+; CHECK-NEXT:    stb 10,s ; 1-byte Folded Spill
+; CHECK-NEXT:    lda 13,s
+; CHECK-NEXT:    sta 13,s
+; CHECK-NEXT:    ldd 13,s
+; CHECK-NEXT:    std 13,s
+; CHECK-NEXT:    mul
+; CHECK-NEXT:    std 13,s
+; CHECK-NEXT:    lda 13,s
+; CHECK-NEXT:    sta 13,s
+; CHECK-NEXT:    ldd 13,s
+; CHECK-NEXT:    std 13,s
+; CHECK-NEXT:    mul
+; CHECK-NEXT:    std 13,s
+; CHECK-NEXT:    lda 13,s
+; CHECK-NEXT:    std 6,s
+; CHECK-NEXT:    ldb 14,s
+; CHECK-NEXT:    ldd 6,s
+; CHECK-NEXT:    std 13,s
+; CHECK-NEXT:    lda 13,s
+; CHECK-NEXT:    sta 13,s
+; CHECK-NEXT:    ldd 13,s
+; CHECK-NEXT:    mul
+; CHECK-NEXT:    std 13,s
+; CHECK-NEXT:    ldb 14,s
+; CHECK-NEXT:    pshs s,s
+; CHECK-NEXT:    addb 1,s
+; CHECK-NEXT:    adda ,s
+; CHECK-NEXT:    leas s,2
+; CHECK-NEXT:    andb #1
+; CHECK-NEXT:    stb 14,s
+; CHECK-NEXT:    pshs s,s
+; CHECK-NEXT:    addb 1,s
+; CHECK-NEXT:    adda ,s
+; CHECK-NEXT:    leas s,2
+; CHECK-NEXT:    stb 14,s
+; CHECK-NEXT:    andb #1
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    ldb 14,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 14,s
+; CHECK-NEXT:    lda 13,s
+; CHECK-NEXT:    pshs s,s
+; CHECK-NEXT:    addb 1,s
+; CHECK-NEXT:    adda ,s
+; CHECK-NEXT:    leas s,2
+; CHECK-NEXT:    stb 14,s
+; CHECK-NEXT:    andb #1
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    ldb 14,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 14,s
+; CHECK-NEXT:    ldd 11,s ; 2-byte Folded Reload
+; CHECK-NEXT:    ldb 14,s
+; CHECK-NEXT:    pshs s,s
+; CHECK-NEXT:    addb 1,s
+; CHECK-NEXT:    adda ,s
+; CHECK-NEXT:    leas s,2
+; CHECK-NEXT:    stb 14,s
+; CHECK-NEXT:    andb #1
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    ldb 14,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 14,s
+; CHECK-NEXT:    ldb 10,s ; 1-byte Folded Reload
+; CHECK-NEXT:    ldb 14,s
+; CHECK-NEXT:    pshs s,s
+; CHECK-NEXT:    addb 1,s
+; CHECK-NEXT:    adda ,s
+; CHECK-NEXT:    leas s,2
+; CHECK-NEXT:    stb 14,s
+; CHECK-NEXT:    andb #1
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    ldb 14,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 14,s
+; CHECK-NEXT:    lda 13,s
+; CHECK-NEXT:    sta 13,s
+; CHECK-NEXT:    ldd 13,s
+; CHECK-NEXT:    mul
+; CHECK-NEXT:    std 13,s
+; CHECK-NEXT:    mul
+; CHECK-NEXT:    std 13,s
+; CHECK-NEXT:    mul
+; CHECK-NEXT:    std 13,s
+; CHECK-NEXT:    ldd 19,s
+; CHECK-NEXT:    sta 13,s
+; CHECK-NEXT:    ldd 13,s
+; CHECK-NEXT:    mul
+; CHECK-NEXT:    std 13,s
+; CHECK-NEXT:    ldb 14,s
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    ldb 14,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 14,s
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    ldb 14,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 14,s
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    ldb 14,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 14,s
+; CHECK-NEXT:    lda 13,s
+; CHECK-NEXT:    pshs a
+; CHECK-NEXT:    ldb 14,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 14,s
+; CHECK-NEXT:    lda 13,s
+; CHECK-NEXT:    pshs a
+; CHECK-NEXT:    ldb 14,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 14,s
+; CHECK-NEXT:    lda 13,s
+; CHECK-NEXT:    pshs a
+; CHECK-NEXT:    ldb 14,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 14,s
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    ldb 14,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 14,s
+; CHECK-NEXT:    ldd 13,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    ldb 14,s
+; CHECK-NEXT:    ldd 4,s
+; CHECK-NEXT:    ldb 14,s
+; CHECK-NEXT:    tfr b,a
+; CHECK-NEXT:    sta 13,s
+; CHECK-NEXT:    std 17,s
+; CHECK-NEXT:    ldd 13,s
+; CHECK-NEXT:    tfr d,x
 ; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 17,s
+; CHECK-NEXT:    leas 13,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: mul_s_i32_consts:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
@@ -1125,207 +1115,201 @@ entry:
 define dso_local i32 @mul_u_i32(i32 noundef %a, i32 noundef %b) local_unnamed_addr #0 {
 ; CHECK-LABEL: mul_u_i32:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -21,s
+; CHECK-NEXT:    leas -19,s
 ; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    ldd 25,u
-; CHECK-NEXT:    std 19,u
-; CHECK-NEXT:    ldd 29,u
-; CHECK-NEXT:    std 2,u
-; CHECK-NEXT:    ldd 27,u
-; CHECK-NEXT:    std 19,u
-; CHECK-NEXT:    lda 2,u
-; CHECK-NEXT:    sta 5,u
-; CHECK-NEXT:    lda 19,u
-; CHECK-NEXT:    sta 9,u
-; CHECK-NEXT:    ldb 20,u
-; CHECK-NEXT:    stb 2,u
-; CHECK-NEXT:    ldd 2,u
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    std 0,u
-; CHECK-NEXT:    std 19,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldb 20,u
-; CHECK-NEXT:    stb 4,u
-; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    std 19,u
-; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 19,u
-; CHECK-NEXT:    lda 19,u
-; CHECK-NEXT:    ldb 3,u
-; CHECK-NEXT:    std 19,u
-; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 19,u
-; CHECK-NEXT:    std 0,u
-; CHECK-NEXT:    std 15,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldb 20,u
-; CHECK-NEXT:    pshs s,s
-; CHECK-NEXT:    addb 1,s
-; CHECK-NEXT:    adda ,s
-; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 20,u
-; CHECK-NEXT:    andb #1
-; CHECK-NEXT:    pshs s,s
-; CHECK-NEXT:    addb 1,s
-; CHECK-NEXT:    adda ,s
-; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 20,u
-; CHECK-NEXT:    std 0,u
-; CHECK-NEXT:    ldd 19,u
-; CHECK-NEXT:    std 12,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd 0,u
-; CHECK-NEXT:    andb #1
-; CHECK-NEXT:    stx 6,u
-; CHECK-NEXT:    std 10,u
-; CHECK-NEXT:    std 0,u
-; CHECK-NEXT:    ldd 6,u
-; CHECK-NEXT:    std 17,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd 0,u
-; CHECK-NEXT:    ldd 10,u
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 20,u
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 20,u
-; CHECK-NEXT:    std 0,u
-; CHECK-NEXT:    stb 14,u ; 1-byte Folded Spill
-; CHECK-NEXT:    stb 19,u
-; CHECK-NEXT:    ldd 19,u
-; CHECK-NEXT:    std 19,u
-; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 19,u
-; CHECK-NEXT:    lda 19,u
-; CHECK-NEXT:    sta 4,u
-; CHECK-NEXT:    sta 19,u
-; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    std 19,u
-; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 19,u
-; CHECK-NEXT:    ldb 7,u
+; CHECK-NEXT:    ldd 23,s
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    ldd 27,s
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    ldd 25,s
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    lda 19,s
+; CHECK-NEXT:    tfr a,b
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    tfr a,b
+; CHECK-NEXT:    stb 20,s
 ; CHECK-NEXT:    tfr b,a
-; CHECK-NEXT:    ldb 3,u
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    sta 4,u
+; CHECK-NEXT:    sta 19,s
+; CHECK-NEXT:    ldd 19,s
+; CHECK-NEXT:    std 19,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldb 20,u
-; CHECK-NEXT:    pshs s,s
-; CHECK-NEXT:    addb 1,s
-; CHECK-NEXT:    adda ,s
-; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 20,u
-; CHECK-NEXT:    lda 19,u
-; CHECK-NEXT:    sta 19,u
-; CHECK-NEXT:    andb #1
-; CHECK-NEXT:    pshs s,s
-; CHECK-NEXT:    addb 1,s
-; CHECK-NEXT:    adda ,s
-; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 20,u
-; CHECK-NEXT:    andb #1
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 20,u
-; CHECK-NEXT:    ldd 12,u ; 2-byte Folded Reload
-; CHECK-NEXT:    std 19,u
-; CHECK-NEXT:    ldb 20,u
-; CHECK-NEXT:    pshs s,s
-; CHECK-NEXT:    addb 1,s
-; CHECK-NEXT:    adda ,s
-; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 20,u
-; CHECK-NEXT:    andb #1
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 20,u
-; CHECK-NEXT:    ldd 15,u ; 2-byte Folded Reload
-; CHECK-NEXT:    std 10,u
-; CHECK-NEXT:    ldb 20,u
-; CHECK-NEXT:    pshs s,s
-; CHECK-NEXT:    addb 1,s
-; CHECK-NEXT:    adda ,s
-; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 20,u
-; CHECK-NEXT:    ldd 10,u
-; CHECK-NEXT:    andb #1
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 20,u
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 20,u
-; CHECK-NEXT:    ldb 14,u ; 1-byte Folded Reload
-; CHECK-NEXT:    std 10,u
-; CHECK-NEXT:    ldb 20,u
-; CHECK-NEXT:    pshs s,s
-; CHECK-NEXT:    addb 1,s
-; CHECK-NEXT:    adda ,s
-; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 20,u
-; CHECK-NEXT:    ldd 10,u
-; CHECK-NEXT:    andb #1
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 20,u
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 20,u
-; CHECK-NEXT:    lda 2,u
-; CHECK-NEXT:    sta 8,u
-; CHECK-NEXT:    ldd 8,u
-; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 8,u
-; CHECK-NEXT:    ldd 19,u
-; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 19,u
-; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldd 17,u ; 2-byte Folded Reload
-; CHECK-NEXT:    sta 2,u
-; CHECK-NEXT:    ldd 2,u
-; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 2,u
-; CHECK-NEXT:    ldb 20,u
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 9,u
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 9,u
-; CHECK-NEXT:    ldb 5,u
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 9,u
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 9,u
-; CHECK-NEXT:    ldb 3,u
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 9,u
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 9,u
-; CHECK-NEXT:    lda 19,u
-; CHECK-NEXT:    pshs a
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 9,u
-; CHECK-NEXT:    lda 19,u
-; CHECK-NEXT:    pshs a
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 9,u
-; CHECK-NEXT:    lda 6,u
-; CHECK-NEXT:    pshs a
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 9,u
-; CHECK-NEXT:    ldb 20,u
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 9,u
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 9,u
-; CHECK-NEXT:    ldd 19,u ; 2-byte Folded Reload
-; CHECK-NEXT:    ldb 20,u
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    std 19,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldb 20,s
 ; CHECK-NEXT:    tfr b,a
-; CHECK-NEXT:    std 10,u
-; CHECK-NEXT:    ldb 9,u
-; CHECK-NEXT:    stb 19,u
-; CHECK-NEXT:    ldd 10,u
-; CHECK-NEXT:    std 25,u
-; CHECK-NEXT:    ldx 19,u
-; CHECK-NEXT:    tfr u,s
+; CHECK-NEXT:    sta 19,s
+; CHECK-NEXT:    ldd 19,s
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    mul
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    lda 19,s
+; CHECK-NEXT:    std 10,s
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    ldd 10,s
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    mul
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    std 15,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    pshs s,s
+; CHECK-NEXT:    addb 1,s
+; CHECK-NEXT:    adda ,s
+; CHECK-NEXT:    leas s,2
+; CHECK-NEXT:    andb #1
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    lda 19,s
+; CHECK-NEXT:    pshs s,s
+; CHECK-NEXT:    addb 1,s
+; CHECK-NEXT:    adda ,s
+; CHECK-NEXT:    leas s,2
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    ldd 19,s
+; CHECK-NEXT:    std 12,s ; 2-byte Folded Spill
+; CHECK-NEXT:    andb #1
+; CHECK-NEXT:    tfr x,d
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    std 8,s
+; CHECK-NEXT:    std 17,s ; 2-byte Folded Spill
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    stb 14,s ; 1-byte Folded Spill
+; CHECK-NEXT:    tfr b,a
+; CHECK-NEXT:    sta 19,s
+; CHECK-NEXT:    ldd 19,s
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    mul
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    lda 19,s
+; CHECK-NEXT:    sta 19,s
+; CHECK-NEXT:    ldd 19,s
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    mul
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    tfr b,a
+; CHECK-NEXT:    std 6,s
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    sta 19,s
+; CHECK-NEXT:    ldd 19,s
+; CHECK-NEXT:    mul
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    pshs s,s
+; CHECK-NEXT:    addb 1,s
+; CHECK-NEXT:    adda ,s
+; CHECK-NEXT:    leas s,2
+; CHECK-NEXT:    lda 19,s
+; CHECK-NEXT:    sta 19,s
+; CHECK-NEXT:    andb #1
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    pshs s,s
+; CHECK-NEXT:    addb 1,s
+; CHECK-NEXT:    adda ,s
+; CHECK-NEXT:    leas s,2
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    andb #1
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    ldd 12,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    lda 19,s
+; CHECK-NEXT:    pshs s,s
+; CHECK-NEXT:    addb 1,s
+; CHECK-NEXT:    adda ,s
+; CHECK-NEXT:    leas s,2
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    andb #1
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    ldd 15,s ; 2-byte Folded Reload
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    pshs s,s
+; CHECK-NEXT:    addb 1,s
+; CHECK-NEXT:    adda ,s
+; CHECK-NEXT:    leas s,2
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    andb #1
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    ldb 14,s ; 1-byte Folded Reload
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    pshs s,s
+; CHECK-NEXT:    addb 1,s
+; CHECK-NEXT:    adda ,s
+; CHECK-NEXT:    leas s,2
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    andb #1
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    lda 19,s
+; CHECK-NEXT:    sta 19,s
+; CHECK-NEXT:    ldd 19,s
+; CHECK-NEXT:    mul
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    mul
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    mul
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    ldd 17,s ; 2-byte Folded Reload
+; CHECK-NEXT:    sta 19,s
+; CHECK-NEXT:    ldd 19,s
+; CHECK-NEXT:    mul
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    lda 19,s
+; CHECK-NEXT:    pshs a
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    lda 19,s
+; CHECK-NEXT:    pshs a
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    lda 19,s
+; CHECK-NEXT:    pshs a
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 20,s
+; CHECK-NEXT:    ldd 19,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    ldd 4,s
+; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    tfr b,a
+; CHECK-NEXT:    sta 19,s
+; CHECK-NEXT:    std 23,s
+; CHECK-NEXT:    ldd 19,s
+; CHECK-NEXT:    tfr d,x
 ; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 21,s
+; CHECK-NEXT:    leas 19,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: mul_u_i32:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
@@ -1353,358 +1337,357 @@ entry:
 define dso_local i32 @mul_u_i32_consts(i32 noundef %a, i32 noundef %b) local_unnamed_addr #0 {
 ; CHECK-LABEL: mul_u_i32_consts:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -17,s
+; CHECK-NEXT:    leas -15,s
 ; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    ldd 21,u
-; CHECK-NEXT:    std 15,u
-; CHECK-NEXT:    lda 15,u
-; CHECK-NEXT:    sta 3,u
+; CHECK-NEXT:    ldd 19,s
+; CHECK-NEXT:    std 15,s
+; CHECK-NEXT:    lda 15,s
+; CHECK-NEXT:    tfr a,b
+; CHECK-NEXT:    stb 16,s
 ; CHECK-NEXT:    lda #46
-; CHECK-NEXT:    sta 15,u
-; CHECK-NEXT:    ldd 15,u
-; CHECK-NEXT:    std 8,u
+; CHECK-NEXT:    sta 15,s
+; CHECK-NEXT:    ldd 15,s
+; CHECK-NEXT:    std 15,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 8,u
-; CHECK-NEXT:    std 0,u
-; CHECK-NEXT:    std 13,u ; 2-byte Folded Spill
-; CHECK-NEXT:    lda 15,u
-; CHECK-NEXT:    sta 2,u
-; CHECK-NEXT:    ldd 2,u
-; CHECK-NEXT:    std 4,u
+; CHECK-NEXT:    std 15,s
+; CHECK-NEXT:    std 13,s ; 2-byte Folded Spill
+; CHECK-NEXT:    lda 15,s
+; CHECK-NEXT:    sta 15,s
+; CHECK-NEXT:    ldd 15,s
+; CHECK-NEXT:    std 15,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 4,u
+; CHECK-NEXT:    std 15,s
 ; CHECK-NEXT:    lda #-28
-; CHECK-NEXT:    sta 15,u
-; CHECK-NEXT:    ldb 16,u
-; CHECK-NEXT:    stb 16,u
-; CHECK-NEXT:    ldd 15,u
-; CHECK-NEXT:    std 6,u
+; CHECK-NEXT:    sta 15,s
+; CHECK-NEXT:    ldb 16,s
+; CHECK-NEXT:    stb 16,s
+; CHECK-NEXT:    ldd 15,s
+; CHECK-NEXT:    std 15,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldb 5,u
+; CHECK-NEXT:    std 15,s
+; CHECK-NEXT:    ldb 16,s
 ; CHECK-NEXT:    pshs s,s
 ; CHECK-NEXT:    addb 1,s
 ; CHECK-NEXT:    adda ,s
 ; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 5,u
 ; CHECK-NEXT:    andb #1
+; CHECK-NEXT:    stb 16,s
+; CHECK-NEXT:    lda 15,s
 ; CHECK-NEXT:    pshs s,s
 ; CHECK-NEXT:    addb 1,s
 ; CHECK-NEXT:    adda ,s
 ; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 5,u
-; CHECK-NEXT:    std 0,u
-; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    std 15,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldd 0,u
+; CHECK-NEXT:    stb 16,s
+; CHECK-NEXT:    ldd 15,s
+; CHECK-NEXT:    std 15,s ; 2-byte Folded Spill
 ; CHECK-NEXT:    andb #1
-; CHECK-NEXT:    stx 15,u
-; CHECK-NEXT:    std 10,u
-; CHECK-NEXT:    lda 15,u
-; CHECK-NEXT:    sta 7,u
-; CHECK-NEXT:    ldd 10,u
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 9,u
+; CHECK-NEXT:    tfr x,d
+; CHECK-NEXT:    std 15,s
+; CHECK-NEXT:    lda 15,s
+; CHECK-NEXT:    tfr a,b
+; CHECK-NEXT:    stb 16,s
+; CHECK-NEXT:    pshs a
+; CHECK-NEXT:    ldb 16,s
 ; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 9,u
-; CHECK-NEXT:    std 0,u
-; CHECK-NEXT:    stb 12,u ; 1-byte Folded Spill
-; CHECK-NEXT:    lda 15,u
-; CHECK-NEXT:    sta 15,u
-; CHECK-NEXT:    ldd 15,u
-; CHECK-NEXT:    std 4,u
+; CHECK-NEXT:    stb 16,s
+; CHECK-NEXT:    stb 12,s ; 1-byte Folded Spill
+; CHECK-NEXT:    lda 15,s
+; CHECK-NEXT:    sta 15,s
+; CHECK-NEXT:    ldd 15,s
+; CHECK-NEXT:    std 15,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    lda 15,u
-; CHECK-NEXT:    sta 2,u
-; CHECK-NEXT:    ldd 2,u
-; CHECK-NEXT:    std 15,u
+; CHECK-NEXT:    std 15,s
+; CHECK-NEXT:    lda 15,s
+; CHECK-NEXT:    sta 15,s
+; CHECK-NEXT:    ldd 15,s
+; CHECK-NEXT:    std 15,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 15,u
+; CHECK-NEXT:    std 15,s
 ; CHECK-NEXT:    lda #6
-; CHECK-NEXT:    ldb 16,u
-; CHECK-NEXT:    std 8,u
-; CHECK-NEXT:    sta 2,u
+; CHECK-NEXT:    std 10,s
+; CHECK-NEXT:    ldb 16,s
+; CHECK-NEXT:    ldd 10,s
+; CHECK-NEXT:    std 15,s
+; CHECK-NEXT:    sta 15,s
+; CHECK-NEXT:    ldd 15,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 8,u
-; CHECK-NEXT:    ldb 5,u
+; CHECK-NEXT:    std 15,s
+; CHECK-NEXT:    ldb 16,s
 ; CHECK-NEXT:    pshs s,s
 ; CHECK-NEXT:    addb 1,s
 ; CHECK-NEXT:    adda ,s
 ; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 5,u
 ; CHECK-NEXT:    andb #1
+; CHECK-NEXT:    stb 16,s
 ; CHECK-NEXT:    pshs s,s
 ; CHECK-NEXT:    addb 1,s
 ; CHECK-NEXT:    adda ,s
 ; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 5,u
-; CHECK-NEXT:    andb #1
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 16,u
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 16,u
-; CHECK-NEXT:    ldd 15,u ; 2-byte Folded Reload
-; CHECK-NEXT:    std 10,u
-; CHECK-NEXT:    ldb 5,u
-; CHECK-NEXT:    pshs s,s
-; CHECK-NEXT:    addb 1,s
-; CHECK-NEXT:    adda ,s
-; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 5,u
-; CHECK-NEXT:    ldd 10,u
+; CHECK-NEXT:    stb 16,s
 ; CHECK-NEXT:    andb #1
 ; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 16,u
+; CHECK-NEXT:    ldb 16,s
 ; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 16,u
-; CHECK-NEXT:    ldb 5,u
+; CHECK-NEXT:    stb 16,s
+; CHECK-NEXT:    ldd 15,s ; 2-byte Folded Reload
+; CHECK-NEXT:    ldb 16,s
 ; CHECK-NEXT:    pshs s,s
 ; CHECK-NEXT:    addb 1,s
 ; CHECK-NEXT:    adda ,s
 ; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 5,u
+; CHECK-NEXT:    stb 16,s
 ; CHECK-NEXT:    andb #1
 ; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 16,u
+; CHECK-NEXT:    ldb 16,s
 ; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 16,u
-; CHECK-NEXT:    ldb 12,u ; 1-byte Folded Reload
-; CHECK-NEXT:    std 10,u
-; CHECK-NEXT:    ldb 5,u
+; CHECK-NEXT:    stb 16,s
+; CHECK-NEXT:    lda 15,s
 ; CHECK-NEXT:    pshs s,s
 ; CHECK-NEXT:    addb 1,s
 ; CHECK-NEXT:    adda ,s
 ; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 5,u
-; CHECK-NEXT:    ldd 10,u
+; CHECK-NEXT:    stb 16,s
 ; CHECK-NEXT:    andb #1
 ; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 16,u
+; CHECK-NEXT:    ldb 16,s
 ; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 16,u
-; CHECK-NEXT:    lda 15,u
-; CHECK-NEXT:    sta 6,u
-; CHECK-NEXT:    ldd 6,u
+; CHECK-NEXT:    stb 16,s
+; CHECK-NEXT:    ldb 12,s ; 1-byte Folded Reload
+; CHECK-NEXT:    ldb 16,s
+; CHECK-NEXT:    pshs s,s
+; CHECK-NEXT:    addb 1,s
+; CHECK-NEXT:    adda ,s
+; CHECK-NEXT:    leas s,2
+; CHECK-NEXT:    stb 16,s
+; CHECK-NEXT:    andb #1
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    ldb 16,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 16,s
+; CHECK-NEXT:    lda 15,s
+; CHECK-NEXT:    sta 15,s
+; CHECK-NEXT:    ldd 15,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    lda 15,u
-; CHECK-NEXT:    sta 15,u
-; CHECK-NEXT:    ldd 15,u
+; CHECK-NEXT:    std 15,s
+; CHECK-NEXT:    lda 15,s
+; CHECK-NEXT:    sta 15,s
+; CHECK-NEXT:    ldd 15,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 15,u
-; CHECK-NEXT:    ldd 2,u
+; CHECK-NEXT:    std 15,s
 ; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 2,u
-; CHECK-NEXT:    ldb 16,u
+; CHECK-NEXT:    std 15,s
+; CHECK-NEXT:    ldb 16,s
 ; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 7,u
+; CHECK-NEXT:    ldb 16,s
 ; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 7,u
-; CHECK-NEXT:    ldb 3,u
+; CHECK-NEXT:    stb 16,s
 ; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 7,u
+; CHECK-NEXT:    ldb 16,s
 ; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 7,u
-; CHECK-NEXT:    lda 4,u
+; CHECK-NEXT:    stb 16,s
+; CHECK-NEXT:    lda 15,s
 ; CHECK-NEXT:    pshs a
+; CHECK-NEXT:    ldb 16,s
 ; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 7,u
-; CHECK-NEXT:    lda 15,u
+; CHECK-NEXT:    stb 16,s
+; CHECK-NEXT:    lda 15,s
 ; CHECK-NEXT:    pshs a
+; CHECK-NEXT:    ldb 16,s
 ; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 7,u
-; CHECK-NEXT:    lda 8,u
+; CHECK-NEXT:    stb 16,s
+; CHECK-NEXT:    lda 15,s
 ; CHECK-NEXT:    pshs a
+; CHECK-NEXT:    ldb 16,s
 ; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 7,u
-; CHECK-NEXT:    ldb 16,u
+; CHECK-NEXT:    stb 16,s
 ; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 7,u
+; CHECK-NEXT:    ldb 16,s
 ; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 7,u
-; CHECK-NEXT:    ldd 25,u
-; CHECK-NEXT:    std 15,u
-; CHECK-NEXT:    ldd 13,u ; 2-byte Folded Reload
-; CHECK-NEXT:    std 15,u
-; CHECK-NEXT:    ldb 16,u
-; CHECK-NEXT:    stb 15,u
-; CHECK-NEXT:    ldd 23,u
+; CHECK-NEXT:    stb 16,s
+; CHECK-NEXT:    ldd 23,s
+; CHECK-NEXT:    std 15,s
+; CHECK-NEXT:    ldd 13,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 15,s
+; CHECK-NEXT:    ldb 16,s
 ; CHECK-NEXT:    tfr b,a
-; CHECK-NEXT:    sta 6,u
-; CHECK-NEXT:    ldd 15,u
-; CHECK-NEXT:    std 15,u
-; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 15,u
-; CHECK-NEXT:    std 0,u
-; CHECK-NEXT:    std 13,u ; 2-byte Folded Spill
-; CHECK-NEXT:    std 15,u
-; CHECK-NEXT:    ldb 16,u
-; CHECK-NEXT:    stb 15,u
-; CHECK-NEXT:    ldd 15,u
-; CHECK-NEXT:    std 2,u
-; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 2,u
-; CHECK-NEXT:    lda 15,u
-; CHECK-NEXT:    ldb 16,u
-; CHECK-NEXT:    std 15,u
-; CHECK-NEXT:    sta 8,u
-; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 15,u
-; CHECK-NEXT:    std 0,u
-; CHECK-NEXT:    std 15,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldb 3,u
-; CHECK-NEXT:    pshs s,s
-; CHECK-NEXT:    addb 1,s
-; CHECK-NEXT:    adda ,s
-; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 3,u
-; CHECK-NEXT:    andb #1
-; CHECK-NEXT:    pshs s,s
-; CHECK-NEXT:    addb 1,s
-; CHECK-NEXT:    adda ,s
-; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 3,u
-; CHECK-NEXT:    andb #1
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 9,u
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 9,u
-; CHECK-NEXT:    std 0,u
-; CHECK-NEXT:    stb 12,u ; 1-byte Folded Spill
-; CHECK-NEXT:    lda 15,u
-; CHECK-NEXT:    sta 4,u
-; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    std 15,u
-; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 15,u
-; CHECK-NEXT:    lda 8,u
-; CHECK-NEXT:    sta 15,u
-; CHECK-NEXT:    sta 4,u
-; CHECK-NEXT:    ldd 15,u
-; CHECK-NEXT:    std 15,u
-; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 15,u
-; CHECK-NEXT:    lda 6,u
-; CHECK-NEXT:    ldb 16,u
-; CHECK-NEXT:    std 8,u
-; CHECK-NEXT:    sta 15,u
-; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 8,u
-; CHECK-NEXT:    ldb 16,u
-; CHECK-NEXT:    pshs s,s
-; CHECK-NEXT:    addb 1,s
-; CHECK-NEXT:    adda ,s
-; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 16,u
-; CHECK-NEXT:    andb #1
-; CHECK-NEXT:    pshs s,s
-; CHECK-NEXT:    addb 1,s
-; CHECK-NEXT:    adda ,s
-; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 16,u
-; CHECK-NEXT:    andb #1
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 16,u
-; CHECK-NEXT:    pshs s,s
-; CHECK-NEXT:    addb 1,s
-; CHECK-NEXT:    adda ,s
-; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 16,u
-; CHECK-NEXT:    andb #1
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 16,u
-; CHECK-NEXT:    ldd 15,u ; 2-byte Folded Reload
-; CHECK-NEXT:    std 10,u
-; CHECK-NEXT:    ldb 16,u
-; CHECK-NEXT:    pshs s,s
-; CHECK-NEXT:    addb 1,s
-; CHECK-NEXT:    adda ,s
-; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 16,u
-; CHECK-NEXT:    ldd 10,u
-; CHECK-NEXT:    andb #1
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 16,u
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 16,u
-; CHECK-NEXT:    ldb 12,u ; 1-byte Folded Reload
-; CHECK-NEXT:    std 10,u
-; CHECK-NEXT:    ldb 16,u
-; CHECK-NEXT:    pshs s,s
-; CHECK-NEXT:    addb 1,s
-; CHECK-NEXT:    adda ,s
-; CHECK-NEXT:    leas s,2
-; CHECK-NEXT:    stb 16,u
-; CHECK-NEXT:    ldd 10,u
-; CHECK-NEXT:    andb #1
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 16,u
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 16,u
-; CHECK-NEXT:    lda 15,u
-; CHECK-NEXT:    sta 6,u
-; CHECK-NEXT:    ldd 6,u
-; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldd 15,u
-; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 15,u
-; CHECK-NEXT:    ldd 23,u
-; CHECK-NEXT:    sta 15,u
-; CHECK-NEXT:    ldd 15,u
-; CHECK-NEXT:    mul
-; CHECK-NEXT:    std 15,u
-; CHECK-NEXT:    ldb 5,u
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 7,u
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 7,u
-; CHECK-NEXT:    ldb 16,u
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 7,u
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 7,u
-; CHECK-NEXT:    ldb 16,u
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 7,u
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 7,u
-; CHECK-NEXT:    lda 15,u
-; CHECK-NEXT:    pshs a
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 7,u
-; CHECK-NEXT:    lda 15,u
-; CHECK-NEXT:    pshs a
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 7,u
-; CHECK-NEXT:    lda 8,u
-; CHECK-NEXT:    pshs a
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 7,u
-; CHECK-NEXT:    ldb 16,u
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 7,u
-; CHECK-NEXT:    addb ,s+
-; CHECK-NEXT:    stb 7,u
-; CHECK-NEXT:    ldd 13,u ; 2-byte Folded Reload
-; CHECK-NEXT:    ldb 3,u
+; CHECK-NEXT:    sta 15,s
+; CHECK-NEXT:    ldd 21,s
 ; CHECK-NEXT:    tfr b,a
-; CHECK-NEXT:    std 10,u
-; CHECK-NEXT:    ldb 7,u
-; CHECK-NEXT:    stb 15,u
-; CHECK-NEXT:    ldd 10,u
-; CHECK-NEXT:    std 21,u
-; CHECK-NEXT:    ldx 15,u
-; CHECK-NEXT:    tfr u,s
+; CHECK-NEXT:    sta 15,s
+; CHECK-NEXT:    ldd 15,s
+; CHECK-NEXT:    std 15,s
+; CHECK-NEXT:    mul
+; CHECK-NEXT:    std 15,s
+; CHECK-NEXT:    std 13,s ; 2-byte Folded Spill
+; CHECK-NEXT:    std 15,s
+; CHECK-NEXT:    ldb 16,s
+; CHECK-NEXT:    tfr b,a
+; CHECK-NEXT:    sta 15,s
+; CHECK-NEXT:    ldd 15,s
+; CHECK-NEXT:    std 15,s
+; CHECK-NEXT:    mul
+; CHECK-NEXT:    std 15,s
+; CHECK-NEXT:    lda 15,s
+; CHECK-NEXT:    std 8,s
+; CHECK-NEXT:    ldb 16,s
+; CHECK-NEXT:    ldd 8,s
+; CHECK-NEXT:    std 15,s
+; CHECK-NEXT:    sta 15,s
+; CHECK-NEXT:    ldd 15,s
+; CHECK-NEXT:    mul
+; CHECK-NEXT:    std 15,s
+; CHECK-NEXT:    std 15,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldb 16,s
+; CHECK-NEXT:    pshs s,s
+; CHECK-NEXT:    addb 1,s
+; CHECK-NEXT:    adda ,s
+; CHECK-NEXT:    leas s,2
+; CHECK-NEXT:    andb #1
+; CHECK-NEXT:    stb 16,s
+; CHECK-NEXT:    lda 15,s
+; CHECK-NEXT:    pshs s,s
+; CHECK-NEXT:    addb 1,s
+; CHECK-NEXT:    adda ,s
+; CHECK-NEXT:    leas s,2
+; CHECK-NEXT:    stb 16,s
+; CHECK-NEXT:    andb #1
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    ldb 16,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 16,s
+; CHECK-NEXT:    stb 12,s ; 1-byte Folded Spill
+; CHECK-NEXT:    lda 15,s
+; CHECK-NEXT:    sta 15,s
+; CHECK-NEXT:    ldd 15,s
+; CHECK-NEXT:    std 15,s
+; CHECK-NEXT:    mul
+; CHECK-NEXT:    std 15,s
+; CHECK-NEXT:    lda 15,s
+; CHECK-NEXT:    sta 15,s
+; CHECK-NEXT:    ldd 15,s
+; CHECK-NEXT:    std 15,s
+; CHECK-NEXT:    mul
+; CHECK-NEXT:    std 15,s
+; CHECK-NEXT:    lda 15,s
+; CHECK-NEXT:    std 6,s
+; CHECK-NEXT:    ldb 16,s
+; CHECK-NEXT:    ldd 6,s
+; CHECK-NEXT:    std 15,s
+; CHECK-NEXT:    lda 15,s
+; CHECK-NEXT:    sta 15,s
+; CHECK-NEXT:    ldd 15,s
+; CHECK-NEXT:    mul
+; CHECK-NEXT:    std 15,s
+; CHECK-NEXT:    ldb 16,s
+; CHECK-NEXT:    pshs s,s
+; CHECK-NEXT:    addb 1,s
+; CHECK-NEXT:    adda ,s
+; CHECK-NEXT:    leas s,2
+; CHECK-NEXT:    andb #1
+; CHECK-NEXT:    stb 16,s
+; CHECK-NEXT:    pshs s,s
+; CHECK-NEXT:    addb 1,s
+; CHECK-NEXT:    adda ,s
+; CHECK-NEXT:    leas s,2
+; CHECK-NEXT:    stb 16,s
+; CHECK-NEXT:    andb #1
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    ldb 16,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 16,s
+; CHECK-NEXT:    lda 15,s
+; CHECK-NEXT:    pshs s,s
+; CHECK-NEXT:    addb 1,s
+; CHECK-NEXT:    adda ,s
+; CHECK-NEXT:    leas s,2
+; CHECK-NEXT:    stb 16,s
+; CHECK-NEXT:    andb #1
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    ldb 16,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 16,s
+; CHECK-NEXT:    ldd 15,s ; 2-byte Folded Reload
+; CHECK-NEXT:    ldb 16,s
+; CHECK-NEXT:    pshs s,s
+; CHECK-NEXT:    addb 1,s
+; CHECK-NEXT:    adda ,s
+; CHECK-NEXT:    leas s,2
+; CHECK-NEXT:    stb 16,s
+; CHECK-NEXT:    andb #1
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    ldb 16,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 16,s
+; CHECK-NEXT:    ldb 12,s ; 1-byte Folded Reload
+; CHECK-NEXT:    ldb 16,s
+; CHECK-NEXT:    pshs s,s
+; CHECK-NEXT:    addb 1,s
+; CHECK-NEXT:    adda ,s
+; CHECK-NEXT:    leas s,2
+; CHECK-NEXT:    stb 16,s
+; CHECK-NEXT:    andb #1
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    ldb 16,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 16,s
+; CHECK-NEXT:    lda 15,s
+; CHECK-NEXT:    sta 15,s
+; CHECK-NEXT:    ldd 15,s
+; CHECK-NEXT:    mul
+; CHECK-NEXT:    std 15,s
+; CHECK-NEXT:    mul
+; CHECK-NEXT:    std 15,s
+; CHECK-NEXT:    mul
+; CHECK-NEXT:    std 15,s
+; CHECK-NEXT:    ldd 21,s
+; CHECK-NEXT:    sta 15,s
+; CHECK-NEXT:    ldd 15,s
+; CHECK-NEXT:    mul
+; CHECK-NEXT:    std 15,s
+; CHECK-NEXT:    ldb 16,s
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    ldb 16,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 16,s
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    ldb 16,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 16,s
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    ldb 16,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 16,s
+; CHECK-NEXT:    lda 15,s
+; CHECK-NEXT:    pshs a
+; CHECK-NEXT:    ldb 16,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 16,s
+; CHECK-NEXT:    lda 15,s
+; CHECK-NEXT:    pshs a
+; CHECK-NEXT:    ldb 16,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 16,s
+; CHECK-NEXT:    lda 15,s
+; CHECK-NEXT:    pshs a
+; CHECK-NEXT:    ldb 16,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 16,s
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    ldb 16,s
+; CHECK-NEXT:    addb ,s+
+; CHECK-NEXT:    stb 16,s
+; CHECK-NEXT:    ldd 13,s ; 2-byte Folded Reload
+; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    ldb 16,s
+; CHECK-NEXT:    ldd 4,s
+; CHECK-NEXT:    ldb 16,s
+; CHECK-NEXT:    tfr b,a
+; CHECK-NEXT:    sta 15,s
+; CHECK-NEXT:    std 19,s
+; CHECK-NEXT:    ldd 15,s
+; CHECK-NEXT:    tfr d,x
 ; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 17,s
+; CHECK-NEXT:    leas 15,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: mul_u_i32_consts:
 ; CHECK-HD6309:       ; %bb.0: ; %entry

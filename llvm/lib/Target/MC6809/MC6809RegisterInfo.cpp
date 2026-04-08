@@ -25,7 +25,9 @@
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/IR/CallingConv.h"
 #include "llvm/MC/MCRegisterInfo.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/ErrorHandling.h"
+#include <algorithm>
 
 #define DEBUG_TYPE "mc6809-reginfo"
 
@@ -34,9 +36,34 @@
 
 using namespace llvm;
 
-MC6809RegisterInfo::MC6809RegisterInfo() : MC6809GenRegisterInfo(/*RA=*/0, /*DwarfFlavor=*/0, /*EHFlavor=*/0, /*PC=*/0, /*HwMode=*/0) {}
+static void initImag8SymbolNames(const MC6809RegisterInfo &TRI,
+                                  std::unique_ptr<std::string[]> &Names) {
+  Names.reset(new std::string[TRI.getNumRegs()]);
+  for (unsigned Reg : seq(0u, TRI.getNumRegs())) {
+    // 16-bit imaginary registers are referred to by their low byte.
+    unsigned R = Reg;
+    if (MC6809::Imag16RegClass.contains(R))
+      R = TRI.getSubReg(R, MC6809::sub_lo_byte);
+    if (!MC6809::Imag8RegClass.contains(R))
+      continue;
+    std::string &Str = Names[Reg];
+    Str = "__";
+    Str += TRI.getName(R);
+    std::transform(Str.begin(), Str.end(), Str.begin(), ::tolower);
+  }
+}
 
-MC6809RegisterInfo::MC6809RegisterInfo(const Triple &TT) : MC6809GenRegisterInfo(/*RA=*/0, /*DwarfFlavor=*/0, /*EHFlavor=*/0, /*PC=*/0, /*HwMode=*/0) {}
+MC6809RegisterInfo::MC6809RegisterInfo()
+    : MC6809GenRegisterInfo(/*RA=*/0, /*DwarfFlavor=*/0, /*EHFlavor=*/0,
+                            /*PC=*/0, /*HwMode=*/0) {
+  initImag8SymbolNames(*this, Imag8SymbolNames);
+}
+
+MC6809RegisterInfo::MC6809RegisterInfo(const Triple &TT)
+    : MC6809GenRegisterInfo(/*RA=*/0, /*DwarfFlavor=*/0, /*EHFlavor=*/0,
+                            /*PC=*/0, /*HwMode=*/0) {
+  initImag8SymbolNames(*this, Imag8SymbolNames);
+}
 
 BitVector MC6809RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   BitVector Reserved(getNumRegs());

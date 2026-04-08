@@ -108,32 +108,19 @@ entry:
 define dso_local i16 @add_s_i16(i16 noundef %a, i16 noundef %b, i16 noundef %c, i16 noundef %d, i16 noundef %e) local_unnamed_addr #0 {
 ; CHECK-LABEL: add_s_i16:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -12,s
-; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    ldd 16,u
-; CHECK-NEXT:    std 10,u
-; CHECK-NEXT:    ldd 18,u
-; CHECK-NEXT:    std 8,u
-; CHECK-NEXT:    ldd 10,u
-; CHECK-NEXT:    std 10,u
-; CHECK-NEXT:    ldd 20,u
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldd 10,u
-; CHECK-NEXT:    std 10,u
-; CHECK-NEXT:    ldd 22,u
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldd 10,u
+; CHECK-NEXT:    leas -2,s
+; CHECK-NEXT:    ldd 4,s
+; CHECK-NEXT:    ldd 6,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    ldd 8,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    ldd 10,s
+; CHECK-NEXT:    std ,s
 ; CHECK-NEXT:    leax d,x
-; CHECK-NEXT:    ldd 8,u
 ; CHECK-NEXT:    leax d,x
-; CHECK-NEXT:    ldd 6,u
 ; CHECK-NEXT:    leax d,x
-; CHECK-NEXT:    ldd 4,u
 ; CHECK-NEXT:    leax d,x
-; CHECK-NEXT:    tfr u,s
-; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 12,s
+; CHECK-NEXT:    leas 2,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: add_s_i16:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
@@ -154,33 +141,20 @@ entry:
 define dso_local i16 @add_s_i16_consts(i16 noundef %a, i16 noundef %b, i16 noundef %c, i16 noundef %d, i16 noundef %e) local_unnamed_addr #0 {
 ; CHECK-LABEL: add_s_i16_consts:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -12,s
-; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    ldd 16,u
-; CHECK-NEXT:    std 10,u
-; CHECK-NEXT:    ldd 18,u
-; CHECK-NEXT:    std 8,u
-; CHECK-NEXT:    ldd 10,u
-; CHECK-NEXT:    std 10,u
-; CHECK-NEXT:    ldd 20,u
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldd 10,u
-; CHECK-NEXT:    std 10,u
-; CHECK-NEXT:    ldd 22,u
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldd 10,u
+; CHECK-NEXT:    leas -2,s
+; CHECK-NEXT:    ldd 4,s
+; CHECK-NEXT:    ldd 6,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    ldd 8,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    ldd 10,s
+; CHECK-NEXT:    std ,s
 ; CHECK-NEXT:    leax d,x
-; CHECK-NEXT:    ldd 8,u
 ; CHECK-NEXT:    leax d,x
-; CHECK-NEXT:    ldd 6,u
 ; CHECK-NEXT:    leax d,x
-; CHECK-NEXT:    ldd 4,u
 ; CHECK-NEXT:    leax d,x
 ; CHECK-NEXT:    leax 3149,x
-; CHECK-NEXT:    tfr u,s
-; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 12,s
+; CHECK-NEXT:    leas 2,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: add_s_i16_consts:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
@@ -203,32 +177,19 @@ entry:
 define dso_local i16 @add_u_i16(i16 noundef %a, i16 noundef %b, i16 noundef %c, i16 noundef %d, i16 noundef %e) local_unnamed_addr #0 {
 ; CHECK-LABEL: add_u_i16:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -12,s
-; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    ldd 16,u
-; CHECK-NEXT:    std 10,u
-; CHECK-NEXT:    ldd 18,u
-; CHECK-NEXT:    std 8,u
-; CHECK-NEXT:    ldd 10,u
-; CHECK-NEXT:    std 10,u
-; CHECK-NEXT:    ldd 20,u
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldd 10,u
-; CHECK-NEXT:    std 10,u
-; CHECK-NEXT:    ldd 22,u
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldd 10,u
+; CHECK-NEXT:    leas -2,s
+; CHECK-NEXT:    ldd 4,s
+; CHECK-NEXT:    ldd 6,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    ldd 8,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    ldd 10,s
+; CHECK-NEXT:    std ,s
 ; CHECK-NEXT:    leax d,x
-; CHECK-NEXT:    ldd 8,u
 ; CHECK-NEXT:    leax d,x
-; CHECK-NEXT:    ldd 6,u
 ; CHECK-NEXT:    leax d,x
-; CHECK-NEXT:    ldd 4,u
 ; CHECK-NEXT:    leax d,x
-; CHECK-NEXT:    tfr u,s
-; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 12,s
+; CHECK-NEXT:    leas 2,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: add_u_i16:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
@@ -249,33 +210,20 @@ entry:
 define dso_local i16 @add_u_i16_consts(i16 noundef %a, i16 noundef %b, i16 noundef %c, i16 noundef %d, i16 noundef %e) local_unnamed_addr #0 {
 ; CHECK-LABEL: add_u_i16_consts:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -12,s
-; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    ldd 16,u
-; CHECK-NEXT:    std 10,u
-; CHECK-NEXT:    ldd 18,u
-; CHECK-NEXT:    std 8,u
-; CHECK-NEXT:    ldd 10,u
-; CHECK-NEXT:    std 10,u
-; CHECK-NEXT:    ldd 20,u
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldd 10,u
-; CHECK-NEXT:    std 10,u
-; CHECK-NEXT:    ldd 22,u
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldd 10,u
+; CHECK-NEXT:    leas -2,s
+; CHECK-NEXT:    ldd 4,s
+; CHECK-NEXT:    ldd 6,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    ldd 8,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    ldd 10,s
+; CHECK-NEXT:    std ,s
 ; CHECK-NEXT:    leax d,x
-; CHECK-NEXT:    ldd 8,u
 ; CHECK-NEXT:    leax d,x
-; CHECK-NEXT:    ldd 6,u
 ; CHECK-NEXT:    leax d,x
-; CHECK-NEXT:    ldd 4,u
 ; CHECK-NEXT:    leax d,x
 ; CHECK-NEXT:    leax 8447,x
-; CHECK-NEXT:    tfr u,s
-; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 12,s
+; CHECK-NEXT:    leas 2,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: add_u_i16_consts:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
@@ -298,47 +246,34 @@ entry:
 define dso_local i32 @add_s_i32(i32 noundef %a, i32 noundef %b, i32 noundef %c, i32 noundef %d, i32 noundef %e) local_unnamed_addr #0 {
 ; CHECK-LABEL: add_s_i32:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -8,s
-; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    ldd 12,u
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    addd 16,u
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    stx 6,u
-; CHECK-NEXT:    ldd 6,u
-; CHECK-NEXT:    adcb 15,u
-; CHECK-NEXT:    adca 14,u
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    addd 20,u
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldd 6,u
-; CHECK-NEXT:    adcb 19,u
-; CHECK-NEXT:    adca 18,u
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    addd 24,u
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldd 6,u
-; CHECK-NEXT:    adcb 23,u
-; CHECK-NEXT:    adca 22,u
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    addd 28,u
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldd 6,u
-; CHECK-NEXT:    adcb 27,u
-; CHECK-NEXT:    adca 26,u
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    std 0,u
-; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    std 12,u
-; CHECK-NEXT:    ldd 0,u
-; CHECK-NEXT:    ldx 6,u
-; CHECK-NEXT:    tfr u,s
-; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 8,s
+; CHECK-NEXT:    leas -2,s
+; CHECK-NEXT:    ldd 4,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    addd 8,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    tfr x,d
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    adcb 7,s
+; CHECK-NEXT:    adca 6,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    addd 12,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    adcb 11,s
+; CHECK-NEXT:    adca 10,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    addd 16,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    adcb 15,s
+; CHECK-NEXT:    adca 14,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    addd 20,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    adcb 19,s
+; CHECK-NEXT:    adca 18,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    tfr d,x
+; CHECK-NEXT:    leas 2,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: add_s_i32:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
@@ -364,54 +299,39 @@ entry:
 define dso_local i32 @add_s_i32_consts(i32 noundef %a, i32 noundef %b, i32 noundef %c, i32 noundef %d, i32 noundef %e) local_unnamed_addr #0 {
 ; CHECK-LABEL: add_s_i32_consts:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -8,s
-; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    ldd 12,u
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    addd 16,u
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    stx 6,u
-; CHECK-NEXT:    ldd 6,u
-; CHECK-NEXT:    adcb 15,u
-; CHECK-NEXT:    adca 14,u
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    addd 20,u
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldd 6,u
-; CHECK-NEXT:    adcb 19,u
-; CHECK-NEXT:    adca 18,u
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    addd 24,u
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldd 6,u
-; CHECK-NEXT:    adcb 23,u
-; CHECK-NEXT:    adca 22,u
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    addd 28,u
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldd 6,u
-; CHECK-NEXT:    adcb 27,u
-; CHECK-NEXT:    adca 26,u
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldd 4,u
+; CHECK-NEXT:    leas -2,s
+; CHECK-NEXT:    ldd 4,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    addd 8,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    tfr x,d
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    adcb 7,s
+; CHECK-NEXT:    adca 6,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    addd 12,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    adcb 11,s
+; CHECK-NEXT:    adca 10,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    addd 16,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    adcb 15,s
+; CHECK-NEXT:    adca 14,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    addd 20,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    adcb 19,s
+; CHECK-NEXT:    adca 18,s
+; CHECK-NEXT:    std ,s
 ; CHECK-NEXT:    addd #-21923
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldd 6,u
+; CHECK-NEXT:    std ,s
 ; CHECK-NEXT:    adcb #8
 ; CHECK-NEXT:    adca #0
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    std 0,u
-; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    std 12,u
-; CHECK-NEXT:    ldd 0,u
-; CHECK-NEXT:    ldx 6,u
-; CHECK-NEXT:    tfr u,s
-; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 8,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    tfr d,x
+; CHECK-NEXT:    leas 2,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: add_s_i32_consts:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
@@ -440,47 +360,34 @@ entry:
 define dso_local i32 @add_u_i32(i32 noundef %a, i32 noundef %b, i32 noundef %c, i32 noundef %d, i32 noundef %e) local_unnamed_addr #0 {
 ; CHECK-LABEL: add_u_i32:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -8,s
-; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    ldd 12,u
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    addd 16,u
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    stx 6,u
-; CHECK-NEXT:    ldd 6,u
-; CHECK-NEXT:    adcb 15,u
-; CHECK-NEXT:    adca 14,u
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    addd 20,u
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldd 6,u
-; CHECK-NEXT:    adcb 19,u
-; CHECK-NEXT:    adca 18,u
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    addd 24,u
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldd 6,u
-; CHECK-NEXT:    adcb 23,u
-; CHECK-NEXT:    adca 22,u
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    addd 28,u
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldd 6,u
-; CHECK-NEXT:    adcb 27,u
-; CHECK-NEXT:    adca 26,u
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    std 0,u
-; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    std 12,u
-; CHECK-NEXT:    ldd 0,u
-; CHECK-NEXT:    ldx 6,u
-; CHECK-NEXT:    tfr u,s
-; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 8,s
+; CHECK-NEXT:    leas -2,s
+; CHECK-NEXT:    ldd 4,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    addd 8,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    tfr x,d
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    adcb 7,s
+; CHECK-NEXT:    adca 6,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    addd 12,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    adcb 11,s
+; CHECK-NEXT:    adca 10,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    addd 16,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    adcb 15,s
+; CHECK-NEXT:    adca 14,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    addd 20,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    adcb 19,s
+; CHECK-NEXT:    adca 18,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    tfr d,x
+; CHECK-NEXT:    leas 2,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: add_u_i32:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
@@ -506,54 +413,39 @@ entry:
 define dso_local i32 @add_u_i32_consts(i32 noundef %a, i32 noundef %b, i32 noundef %c, i32 noundef %d, i32 noundef %e) local_unnamed_addr #0 {
 ; CHECK-LABEL: add_u_i32_consts:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -8,s
-; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    ldd 12,u
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    addd 16,u
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    stx 6,u
-; CHECK-NEXT:    ldd 6,u
-; CHECK-NEXT:    adcb 15,u
-; CHECK-NEXT:    adca 14,u
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    addd 20,u
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldd 6,u
-; CHECK-NEXT:    adcb 19,u
-; CHECK-NEXT:    adca 18,u
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    addd 24,u
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldd 6,u
-; CHECK-NEXT:    adcb 23,u
-; CHECK-NEXT:    adca 22,u
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    addd 28,u
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldd 6,u
-; CHECK-NEXT:    adcb 27,u
-; CHECK-NEXT:    adca 26,u
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldd 4,u
+; CHECK-NEXT:    leas -2,s
+; CHECK-NEXT:    ldd 4,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    addd 8,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    tfr x,d
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    adcb 7,s
+; CHECK-NEXT:    adca 6,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    addd 12,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    adcb 11,s
+; CHECK-NEXT:    adca 10,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    addd 16,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    adcb 15,s
+; CHECK-NEXT:    adca 14,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    addd 20,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    adcb 19,s
+; CHECK-NEXT:    adca 18,s
+; CHECK-NEXT:    std ,s
 ; CHECK-NEXT:    addd #-2081
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldd 6,u
+; CHECK-NEXT:    std ,s
 ; CHECK-NEXT:    adcb #126
 ; CHECK-NEXT:    adca #0
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    std 0,u
-; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    std 12,u
-; CHECK-NEXT:    ldd 0,u
-; CHECK-NEXT:    ldx 6,u
-; CHECK-NEXT:    tfr u,s
-; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 8,s
+; CHECK-NEXT:    std ,s
+; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    tfr d,x
+; CHECK-NEXT:    leas 2,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: add_u_i32_consts:
 ; CHECK-HD6309:       ; %bb.0: ; %entry

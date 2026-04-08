@@ -81,12 +81,25 @@ bool MC6809MCInstLower::lowerOperand(const MachineOperand &MO, MCOperand &MCOp) 
   case MachineOperand::MO_MachineBasicBlock:
     MCOp = MCOperand::createExpr(MCSymbolRefExpr::create(MO.getMBB()->getSymbol(), Ctx));
     break;
-  case MachineOperand::MO_Register:
+  case MachineOperand::MO_Register: {
     // Ignore all implicit register operands.
     if (MO.isImplicit())
       return false;
-    MCOp = MCOperand::createReg(MO.getReg());
+    Register Reg = MO.getReg();
+    // Convert imaginary registers to symbol references (direct-page addresses).
+    if (MC6809::Imag16RegClass.contains(Reg) ||
+        MC6809::Imag8RegClass.contains(Reg)) {
+      const auto &TRI =
+          *MO.getParent()->getMF()->getSubtarget().getRegisterInfo();
+      const MC6809RegisterInfo &MC6809TRI =
+          static_cast<const MC6809RegisterInfo &>(TRI);
+      const MCExpr *Expr = MCSymbolRefExpr::create(
+          Ctx.getOrCreateSymbol(MC6809TRI.getImag8SymbolName(Reg)), Ctx);
+      MCOp = MCOperand::createExpr(Expr);
+    } else
+      MCOp = MCOperand::createReg(Reg);
     break;
+  }
   }
   return true;
 }

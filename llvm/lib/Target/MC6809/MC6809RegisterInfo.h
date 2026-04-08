@@ -28,10 +28,15 @@ class MC6809Subtarget;
 class Triple;
 
 class MC6809RegisterInfo : public MC6809GenRegisterInfo {
+  std::unique_ptr<std::string[]> Imag8SymbolNames;
 
 public:
   MC6809RegisterInfo();
   MC6809RegisterInfo(const Triple &TT);
+
+  const char *getImag8SymbolName(Register Reg) const {
+    return Imag8SymbolNames[Reg].c_str();
+  }
 
   const MCPhysReg *getCalleeSavedRegs(const MachineFunction *MF) const override;
 

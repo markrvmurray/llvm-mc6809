@@ -995,6 +995,61 @@ static MachineInstrBuilder emitSpillStore(MachineIRBuilder &Builder,
     if (!DestReg) DestReg = MI->getOperand(0).getReg();
     if (DestReg != SrcReg)
       Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(SrcReg);
+  } else if (AreClasses(MC6809::Imag8RegClass, MC6809::ACC8RegClass)) {
+    // ACC8 → Imag8: store accumulator to direct-page imaginary register.
+    unsigned StoreOpc;
+    if (SrcReg == MC6809::AA)
+      StoreOpc = MC6809::STAd;
+    else if (SrcReg == MC6809::AB)
+      StoreOpc = MC6809::STBd;
+    else {
+      // Other ACC8 (e.g., AE, AF): TFR to AA first, then store.
+      Builder.buildInstr(MC6809::TFRp).addDef(MC6809::AA).addUse(SrcReg);
+      StoreOpc = MC6809::STAd;
+    }
+    Builder.buildInstr(StoreOpc).addReg(DestReg);
+  } else if (AreClasses(MC6809::ACC8RegClass, MC6809::Imag8RegClass)) {
+    // Imag8 → ACC8: load from direct-page imaginary register.
+    unsigned LoadOpc;
+    if (DestReg == MC6809::AA)
+      LoadOpc = MC6809::LDAd;
+    else if (DestReg == MC6809::AB)
+      LoadOpc = MC6809::LDBd;
+    else {
+      // Other ACC8: load to AA, then TFR.
+      Builder.buildInstr(MC6809::LDAd).addReg(SrcReg);
+      Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(MC6809::AA);
+      return;
+    }
+    Builder.buildInstr(LoadOpc).addReg(SrcReg);
+  } else if (AreClasses(MC6809::Imag16RegClass, MC6809::ACC16RegClass)) {
+    // ACC16 → Imag16: store D to direct-page imaginary register.
+    if (SrcReg != MC6809::AD)
+      Builder.buildInstr(MC6809::TFRp).addDef(MC6809::AD).addUse(SrcReg);
+    Builder.buildInstr(MC6809::STDd).addReg(DestReg);
+  } else if (AreClasses(MC6809::ACC16RegClass, MC6809::Imag16RegClass)) {
+    // Imag16 → ACC16: load D from direct-page imaginary register.
+    Builder.buildInstr(MC6809::LDDd).addReg(SrcReg);
+    if (DestReg != MC6809::AD)
+      Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(MC6809::AD);
+  } else if (AreClasses(MC6809::Imag8RegClass, MC6809::Imag8RegClass)) {
+    // Imag8 → Imag8: load to AA, store to dest.
+    Builder.buildInstr(MC6809::LDAd).addReg(SrcReg);
+    Builder.buildInstr(MC6809::STAd).addReg(DestReg);
+  } else if (AreClasses(MC6809::Imag16RegClass, MC6809::Imag16RegClass)) {
+    // Imag16 → Imag16: load to D, store to dest.
+    Builder.buildInstr(MC6809::LDDd).addReg(SrcReg);
+    Builder.buildInstr(MC6809::STDd).addReg(DestReg);
+  } else if (AreClasses(MC6809::Imag16RegClass, MC6809::INDEX16RegClass) ||
+             AreClasses(MC6809::Imag16RegClass, MC6809::STACK16RegClass)) {
+    // INDEX16/STACK16 → Imag16: TFR to D, store D.
+    Builder.buildInstr(MC6809::TFRp).addDef(MC6809::AD).addUse(SrcReg);
+    Builder.buildInstr(MC6809::STDd).addReg(DestReg);
+  } else if (AreClasses(MC6809::INDEX16RegClass, MC6809::Imag16RegClass) ||
+             AreClasses(MC6809::STACK16RegClass, MC6809::Imag16RegClass)) {
+    // Imag16 → INDEX16/STACK16: load D, TFR to dest.
+    Builder.buildInstr(MC6809::LDDd).addReg(SrcReg);
+    Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(MC6809::AD);
   } else
     llvm_unreachable("Unexpected physical register copy.");
 }
@@ -2016,7 +2071,27 @@ void MC6809InstrInfo::expandIdxReg(ContextIndexRegister Context, MachineIRBuilde
 void MC6809InstrInfo::expandNegate(MachineIRBuilder &Builder, MachineInstr &MI) const {
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   bool has6309 = STI.has6309();
-  switch (MI.getOperand(0).getReg()) {
+  Register Reg = MI.getOperand(0).getReg();
+
+  // Handle spill registers: load to real register, negate, store back.
+  if (isSpillReg(Reg)) {
+    Register OrigSpillReg = Reg;
+    Register RealReg = getRealRegForSpill(Reg);
+    MachineFunction &MF = *MI.getMF();
+    emitSpillLoad(Builder, RealReg, OrigSpillReg, MF);
+    // Rewrite operands to the real register.
+    MI.getOperand(0).setReg(RealReg);
+    if (MI.getNumOperands() > 1 && MI.getOperand(1).isReg() &&
+        MI.getOperand(1).getReg() == OrigSpillReg)
+      MI.getOperand(1).setReg(RealReg);
+    // Recursively expand with the real register.
+    expandNegate(Builder, MI);
+    // Store back to spill slot.
+    emitSpillStore(Builder, RealReg, OrigSpillReg, MF);
+    return;
+  }
+
+  switch (Reg) {
   default:
     llvm_unreachable("Illegal register for Neg(1|16)");
   case MC6809::AA:
@@ -3097,6 +3172,11 @@ void MC6809InstrInfo::expandCompareIdx(MachineIRBuilder &Builder, MachineInstr &
         IndexSrc = MC6809::IY;
         break;
       }
+      // Skip D save/restore instructions (STD/LDD to frame slots) that may
+      // have been inserted by SpillDSaveRestore between the STX and here.
+      if (It->mayStore() && !It->definesRegister(MC6809::IX, /*TRI=*/nullptr) &&
+          !It->definesRegister(MC6809::IY, /*TRI=*/nullptr))
+        continue;
       // If IX or IY is redefined before we find the store, stop.
       if (It->definesRegister(MC6809::IX, /*TRI=*/nullptr) ||
           It->definesRegister(MC6809::IY, /*TRI=*/nullptr))
@@ -3209,6 +3289,11 @@ void MC6809InstrInfo::expandTestReg(MachineIRBuilder &Builder, MachineInstr &MI)
         IndexSrc = MC6809::IY;
         break;
       }
+      // Skip stores that don't affect IX/IY (e.g., D save/restore from
+      // SpillDSaveRestore inserted between STX and this test).
+      if (It->mayStore() && !It->definesRegister(MC6809::IX, /*TRI=*/nullptr) &&
+          !It->definesRegister(MC6809::IY, /*TRI=*/nullptr))
+        continue;
       if (It->definesRegister(MC6809::IX, /*TRI=*/nullptr) ||
           It->definesRegister(MC6809::IY, /*TRI=*/nullptr))
         break;
