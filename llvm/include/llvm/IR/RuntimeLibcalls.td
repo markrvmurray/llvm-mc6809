@@ -118,6 +118,7 @@ foreach IntTy = ["I32", "I64" ] in {
 
 foreach IntTy = ["I8", "I16", "I32", "I64", "I128"] in {
   def CTLZ_#IntTy : RuntimeLibcall;
+  def CTTZ_#IntTy : RuntimeLibcall;
   def CTPOP_#IntTy : RuntimeLibcall;
   def BSWAP_#IntTy : RuntimeLibcall;
 }
@@ -964,6 +965,10 @@ def __clzti2 : RuntimeLibcallImpl<CTLZ_I128>;
 def __popcountsi2 : RuntimeLibcallImpl<CTPOP_I32>;
 def __popcountdi2 : RuntimeLibcallImpl<CTPOP_I64>;
 def __popcountti2 : RuntimeLibcallImpl<CTPOP_I128>;
+
+def __ctzsi2 : RuntimeLibcallImpl<CTTZ_I32>;
+def __ctzdi2 : RuntimeLibcallImpl<CTTZ_I64>;
+def __ctzti2 : RuntimeLibcallImpl<CTTZ_I128>;
 
 def __addsf3 : RuntimeLibcallImpl<ADD_F32>;
 def __adddf3 : RuntimeLibcallImpl<ADD_F64>;
@@ -3594,6 +3599,12 @@ def __rotrti3 : RuntimeLibcallImpl<ROTR_I128>;
 def __clzqi2 : RuntimeLibcallImpl<CTLZ_I8>;
 def __clzhi2 : RuntimeLibcallImpl<CTLZ_I16>;
 
+def __ctzqi2 : RuntimeLibcallImpl<CTTZ_I8>;
+def __ctzhi2 : RuntimeLibcallImpl<CTTZ_I16>;
+
+def __popcountqi2 : RuntimeLibcallImpl<CTPOP_I8>;
+def __popcounthi2 : RuntimeLibcallImpl<CTPOP_I16>;
+
 def __bswapqi2 : RuntimeLibcallImpl<BSWAP_I8>;
 def __bswaphi2 : RuntimeLibcallImpl<BSWAP_I16>;
 def __bswapsi2 : RuntimeLibcallImpl<BSWAP_I32>;
@@ -3683,7 +3694,9 @@ def MC6809SystemLibrary
           __ashlqi3, __lshrqi3, __ashrqi3,
           __rotlqi3, __rotlhi3, __rotlsi3, __rotldi3, __rotlti3,
           __rotrqi3, __rotrhi3, __rotrsi3, __rotrdi3, __rotrti3,
-          __clzqi2, __clzhi2,
+          __clzqi2, __clzhi2, __clzsi2, __clzdi2, __clzti2,
+          __ctzqi2, __ctzhi2, __ctzsi2, __ctzdi2, __ctzti2,
+          __popcountqi2, __popcounthi2, __popcountsi2, __popcountdi2, __popcountti2,
           __bswapqi2, __bswaphi2, __bswapsi2, __bswapdi2, __bswapti2,
           __udivmodqi4, __udivmodhi4, __udivmodsi4, __udivmoddi4,
           __divmodqi4, __divmodhi4, __divmodsi4, __divmoddi4,
