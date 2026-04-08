@@ -345,7 +345,7 @@ bool MC6809CallLowering::lowerCall(MachineIRBuilder &MIRBuilder, CallLoweringInf
   // additional code.
   auto CallSeqStart = MIRBuilder.buildInstr(MC6809::ADJCALLSTACKDOWN);
 
-  auto Call = MIRBuilder.buildInstrNoInsert(MC6809::BranchSubroutine).add(Info.Callee).addRegMask(TRI.getCallPreservedMask(MF, Info.CallConv));
+  auto Call = MIRBuilder.buildInstrNoInsert(MC6809::LongBranchSubroutine).add(Info.Callee).addRegMask(TRI.getCallPreservedMask(MF, Info.CallConv));
 
   SmallVector<ArgInfo, 8> OutArgs;
   for (auto &OrigArg : Info.OrigArgs) {

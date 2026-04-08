@@ -257,13 +257,13 @@ static MachineBasicBlock *emitConditionalImm(MachineInstr &MI, MachineBasicBlock
   IfTrueMBB->addSuccessor(TailMBB);
   // Add the unconditional branch from IfFalseMBB to TailMBB.
   Builder.setInsertPt(*IfFalseMBB, IfFalseMBB->begin());
-  Builder.buildInstr(MC6809::BranchRelative).addMBB(TailMBB);
+  Builder.buildInstr(MC6809::LongBranchRelative).addMBB(TailMBB);
   for (const auto &LiveIn : IfFalseMBB->liveins())
     IfTrueMBB->addLiveIn(LiveIn);
   Builder.setInsertPt(*HeadMBB, MI.getIterator());
 
   // Insert branch.
-  Builder.buildInstr(MC6809::ConditionalBranchRelative)
+  Builder.buildInstr(MC6809::ConditionalLongBranchRelative)
       .addImm(Condition)
       .addMBB(IfTrueMBB)
       .addUse(Flag);
@@ -355,7 +355,7 @@ static MachineBasicBlock *emitSelectImm(MachineInstr &MI, MachineBasicBlock *MBB
 
     // Add the unconditional branch from IfFalseMBB to TailMBB.
     Builder.setInsertPt(*IfFalseMBB, IfFalseMBB->begin());
-    Builder.buildInstr(MC6809::BranchRelative).addMBB(TailMBB);
+    Builder.buildInstr(MC6809::LongBranchRelative).addMBB(TailMBB);
     for (const auto &LiveIn : IfFalseMBB->liveins())
       IfTrueMBB->addLiveIn(LiveIn);
 

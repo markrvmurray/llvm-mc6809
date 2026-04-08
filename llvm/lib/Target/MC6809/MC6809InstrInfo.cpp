@@ -664,17 +664,17 @@ unsigned MC6809InstrInfo::insertBranch(MachineBasicBlock &MBB, MachineBasicBlock
   if (Cond.empty()) {
     // Unconditional branch?
     assert(!FBB && "Unconditional branch with multiple successors!");
-    Bytes += getInstSizeInBytes(*BuildMI(&MBB, DL, get(MC6809::BRAb)).addMBB(TBB));
+    Bytes += getInstSizeInBytes(*BuildMI(&MBB, DL, get(MC6809::LBRAlb)).addMBB(TBB));
     ++Count;
   } else {
     // Conditional branch.
-    Bytes += getInstSizeInBytes(*BuildMI(&MBB, DL, get(MC6809::Bbc)).add(Cond[0]).addMBB(TBB));
+    Bytes += getInstSizeInBytes(*BuildMI(&MBB, DL, get(MC6809::LBlbc)).add(Cond[0]).addMBB(TBB));
     ++Count;
 
     // If FBB is null, it is implied to be a fall-through block.
     if (FBB) {
       // Two-way Conditional branch. Insert the second branch.
-      Bytes += getInstSizeInBytes(*BuildMI(&MBB, DL, get(MC6809::BRAb)).addMBB(FBB));
+      Bytes += getInstSizeInBytes(*BuildMI(&MBB, DL, get(MC6809::LBRAlb)).addMBB(FBB));
       ++Count;
     }
   }
