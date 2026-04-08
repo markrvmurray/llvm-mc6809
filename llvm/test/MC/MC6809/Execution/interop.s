@@ -1,53 +1,32 @@
 ; RUN: llc -global-isel -global-isel-abort=1 -O3 -mtriple=mc6809 \
 ; RUN:   %S/Inputs/interop.ll -o %t-raw.s 2>/dev/null
 ; RUN: grep -v '\.directpage' %t-raw.s > %t-funcs.s
-; RUN: cat %s %t-funcs.s | llvm-mc -triple=mc6809 -I %S/Inputs \
-; RUN:   --filetype=obj -o %t.o
+; RUN: %gcc6809 -S -Os -o %t-harness-raw.s %S/Inputs/harness-interop.c
+; RUN: %S/Inputs/sdcc2gas.sh < %t-harness-raw.s > %t-harness.s
+; RUN: echo '.include "runtime.inc"' > %t-all.s
+; RUN: echo '.include "mc6809rt.s"' >> %t-all.s
+; RUN: cat %t-harness.s %t-funcs.s >> %t-all.s
+; RUN: llvm-mc -triple=mc6809 -I %S/Inputs --filetype=obj -o %t.o %t-all.s
 ; RUN: ld.lld -T %S/Inputs/link.ld %t.o -o %t.elf
 ; RUN: llvm-objcopy -O ihex %t.elf %t.hex
 ; RUN: %usim09batch --timeout=500000 %t.hex | FileCheck %s
-; REQUIRES: usim
+; REQUIRES: usim, gcc6809
 ;
-; CMOC __gcccall ↔ LLVM interop test.
-; CMOC-compiled driver calls LLVM-compiled functions via GCC 6809 ABI.
+; gcc6809 ↔ LLVM-MC6809 mixed-type interop test.
+;
+; gcc6809 (the reference compiler) compiles harness-interop.c into a
+; driver that calls three LLVM-compiled functions covering both
+; register slots of ABI v1: i8 args (filling B and 1-byte stack
+; slots) and i16 args (filling X). Both halves of the link share
+; the ABI by design — divergence shows up as a runtime mismatch
+; against the CHECK lines.
 ;
 ; Tests:
-;   llvm_add8(0x30, 0x12) = 0x42      — 8-bit multi-arg
-;   llvm_negate8(0xBE) = 0x42          — 8-bit single-arg
-;   llvm_identity16(0xBEEF) = 0xBEEF  — 16-bit pass-through via X
-;   llvm_identity16(0x1234) = 0x1234   — 16-bit via X (second call)
-
-.include "runtime.inc"
-.include "test_interop_all_gas.s"
-
-	.section .rom,"ax",@progbits
-
-; CMOC→LLVM name bridges
-	.globl	_llvm_add8
-	.set	_llvm_add8, llvm_add8
-	.globl	_llvm_negate8
-	.set	_llvm_negate8, llvm_negate8
-	.globl	_llvm_identity16
-	.set	_llvm_identity16, llvm_identity16
-
-	.globl	_puthex
-_puthex:
-	lda	3,s
-	jsr	puthex
-	rts
-	.globl	_putnl
-_putnl:
-	jsr	putnl
-	rts
-	.globl	_halt
-_halt:
-	jsr	halt
-	rts
-	.globl	test_main
-test_main:
-	jsr	_main
-	rts
-
+;   llvm_add8(0x30, 0x12) = 0x42      — i8 in B + i8 at 2,s
+;   llvm_negate8(0xBE) = 0x42         — single i8 in B
+;   llvm_identity16(0xBEEF) = 0xBEEF  — first i16 in X
+;   llvm_identity16(0x1234) = 0x1234  — same path, second call
+;
 ; CHECK: 42
 ; CHECK-NEXT: 42
 ; CHECK-NEXT: BEEF
