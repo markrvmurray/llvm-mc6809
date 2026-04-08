@@ -331,9 +331,12 @@ void MC6809FrameLowering::processFunctionBeforeFrameFinalized(MachineFunction &M
   };
 
   for (MCPhysReg Reg : SpillDRegs) {
-    if (isSpillUsedInFunction(Reg)) {
+    if (FuncInfo.SpillRegFrameIndices.count(Reg) == 0 &&
+        isSpillUsedInFunction(Reg)) {
       int FI = MFI.CreateStackObject(2, Align(1), false);
       FuncInfo.SpillRegFrameIndices[Reg] = FI;
+      AnySpillUsed = true;
+    } else if (FuncInfo.SpillRegFrameIndices.count(Reg)) {
       AnySpillUsed = true;
     }
   }
@@ -342,9 +345,12 @@ void MC6809FrameLowering::processFunctionBeforeFrameFinalized(MachineFunction &M
     MC6809::SPILL_X0, MC6809::SPILL_X1, MC6809::SPILL_X2, MC6809::SPILL_X3
   };
   for (MCPhysReg Reg : SpillXRegsEmit) {
-    if (isSpillUsedInFunction(Reg)) {
+    if (FuncInfo.SpillRegFrameIndices.count(Reg) == 0 &&
+        isSpillUsedInFunction(Reg)) {
       int FI = MFI.CreateStackObject(2, Align(1), false);
       FuncInfo.SpillRegFrameIndices[Reg] = FI;
+      AnySpillUsed = true;
+    } else if (FuncInfo.SpillRegFrameIndices.count(Reg)) {
       AnySpillUsed = true;
     }
   }

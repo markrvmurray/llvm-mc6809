@@ -3160,13 +3160,13 @@ void MC6809InstrInfo::expandCompareIdx(MachineIRBuilder &Builder, MachineInstr &
       unsigned Opc = It->getOpcode();
       // Check for STX/STY to the same spill offset via U.
       // Operand layout: (offset_imm, index_reg, implicit src_reg)
-      if ((Opc == MC6809::STXi_o8 || Opc == MC6809::STXi_o16) &&
+      if ((Opc == MC6809::STXi_o5 || Opc == MC6809::STXi_o8 || Opc == MC6809::STXi_o16) &&
           It->getOperand(0).isImm() &&
           It->getOperand(0).getImm() == SpillOffset) {
         IndexSrc = MC6809::IX;
         break;
       }
-      if ((Opc == MC6809::STYi_o8 || Opc == MC6809::STYi_o16) &&
+      if ((Opc == MC6809::STYi_o5 || Opc == MC6809::STYi_o8 || Opc == MC6809::STYi_o16) &&
           It->getOperand(0).isImm() &&
           It->getOperand(0).getImm() == SpillOffset) {
         IndexSrc = MC6809::IY;
@@ -3277,13 +3277,13 @@ void MC6809InstrInfo::expandTestReg(MachineIRBuilder &Builder, MachineInstr &MI)
     for (auto It = MachineBasicBlock::reverse_iterator(MI.getIterator());
          It != MBB.rend(); ++It) {
       unsigned Opc = It->getOpcode();
-      if ((Opc == MC6809::STXi_o8 || Opc == MC6809::STXi_o16) &&
+      if ((Opc == MC6809::STXi_o5 || Opc == MC6809::STXi_o8 || Opc == MC6809::STXi_o16) &&
           It->getOperand(0).isImm() &&
           It->getOperand(0).getImm() == SpillOffset) {
         IndexSrc = MC6809::IX;
         break;
       }
-      if ((Opc == MC6809::STYi_o8 || Opc == MC6809::STYi_o16) &&
+      if ((Opc == MC6809::STYi_o5 || Opc == MC6809::STYi_o8 || Opc == MC6809::STYi_o16) &&
           It->getOperand(0).isImm() &&
           It->getOperand(0).getImm() == SpillOffset) {
         IndexSrc = MC6809::IY;
