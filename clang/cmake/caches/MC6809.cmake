@@ -11,15 +11,15 @@ set(LLVM_ENABLE_LIBXML2 "OFF" CACHE STRING "")
 set(LLVM_ENABLE_ZLIB "OFF" CACHE STRING "")
 set(LLVM_ENABLE_ZSTD "OFF" CACHE STRING "")
 
-# set(LLVM_ENABLE_RUNTIMES compiler-rt CACHE STRING "")
+set(LLVM_ENABLE_RUNTIMES compiler-rt CACHE STRING "")
 
-# RT library / builtins cross-compilation disabled for now.
-# set(LLVM_BUILTIN_TARGETS mc6809-unknown-unknown CACHE STRING "")
-# set(LLVM_RUNTIME_TARGETS mc6809-unknown-unknown CACHE STRING "")
-# set(BUILTINS_mc6809-unknown-unknown_COMPILER_RT_BAREMETAL_BUILD ON CACHE BOOL "")
-# set(BUILTINS_mc6809-unknown-unknown_COMPILER_RT_BUILTINS_ENABLE_PIC OFF CACHE BOOL "")
-# set(BUILTINS_mc6809-unknown-unknown_CMAKE_BUILD_TYPE Debug CACHE BOOL "")
-# set(BUILTINS_mc6809-unknown-unknown_CMAKE_SYSTEM_NAME Generic CACHE STRING "")
+# RT library / builtins cross-compilation for bare-metal MC6809.
+set(LLVM_BUILTIN_TARGETS mc6809-unknown-unknown CACHE STRING "")
+set(LLVM_RUNTIME_TARGETS mc6809-unknown-unknown CACHE STRING "")
+set(BUILTINS_mc6809-unknown-unknown_COMPILER_RT_BAREMETAL_BUILD ON CACHE BOOL "")
+set(BUILTINS_mc6809-unknown-unknown_COMPILER_RT_BUILTINS_ENABLE_PIC OFF CACHE BOOL "")
+set(BUILTINS_mc6809-unknown-unknown_CMAKE_BUILD_TYPE MinSizeRel CACHE STRING "")
+set(BUILTINS_mc6809-unknown-unknown_CMAKE_SYSTEM_NAME Generic CACHE STRING "")
 
 set(LLVM_DEFAULT_TARGET_TRIPLE "mc6809-unknown-unknown" CACHE STRING "")
 

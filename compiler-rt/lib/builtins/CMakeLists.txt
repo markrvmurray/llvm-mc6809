@@ -818,6 +818,44 @@ set(mips64el_SOURCES ${GENERIC_TF_SOURCES}
                      ${mips_SOURCES})
 
 set(mc6809_SOURCES ${GENERIC_SOURCES})
+# MC6809 is a 16-bit processor — remove 64-bit, 128-bit, and floating-point
+# builtins. We keep 32-bit (si3) arithmetic since the 6809 can't do it natively.
+# We also have hand-written assembly for shifts and multiply (shiftsi3.inc etc.)
+# that are faster than the C versions; those will be provided separately.
+list(REMOVE_ITEM mc6809_SOURCES
+  # 64-bit arithmetic (not needed on 16-bit target)
+  ashldi3.c ashrdi3.c lshrdi3.c
+  divdi3.c moddi3.c udivdi3.c umoddi3.c muldi3.c
+  divmoddi4.c udivmoddi4.c
+  absvdi2.c addvdi3.c subvdi3.c mulvdi3.c mulodi4.c
+  clzdi2.c ctzdi2.c ffsdi2.c paritydi2.c popcountdi2.c
+  cmpdi2.c ucmpdi2.c
+  # 128-bit arithmetic
+  ashlti3.c ashrti3.c lshrti3.c
+  divti3.c modti3.c udivti3.c umodti3.c multi3.c
+  divmodti4.c udivmodti4.c
+  # Floating-point (no FPU on MC6809)
+  addsf3.c adddf3.c subsf3.c subdf3.c mulsf3.c muldf3.c
+  divsf3.c divdf3.c negsf2.c negdf2.c
+  comparesf2.c comparedf2.c
+  extendhfsf2.c extendhfdf2.c extendsfdf2.c
+  truncsfhf2.c truncdfhf2.c truncdfsf2.c
+  fixsfsi.c fixdfsi.c fixsfdi.c fixdfdi.c
+  fixunssfsi.c fixunsdfsi.c fixunssfdi.c fixunsdfdi.c
+  floatsisf.c floatsidf.c floatdisf.c floatdidf.c
+  floatunsisf.c floatunsidf.c floatundisf.c floatundidf.c
+  powisf2.c powidf2.c
+  divsc3.c divdc3.c mulsc3.c muldc3.c
+  # Exception handling (not needed for bare-metal)
+  gcc_personality_v0.c
+  # 32-bit functions that hit MC6809 backend legalization gaps (G_LSHR s20,
+  # G_FSHR s32, G_CTPOP s32, register exhaustion). These will be provided
+  # as hand-written assembly in the MC6809 runtime library instead.
+  absvsi2.c addvsi3.c subvsi3.c mulvsi3.c mulosi4.c
+  clzsi2.c ctzsi2.c ffssi2.c paritysi2.c popcountsi2.c
+  divsi3.c modsi3.c udivsi3.c umodsi3.c
+  divmodsi4.c udivmodsi4.c
+)
 
 set(mos_SOURCES ${GENERIC_SOURCES})
 # MOS SDK implementations are already smaller and faster.
