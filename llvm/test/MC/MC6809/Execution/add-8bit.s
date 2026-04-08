@@ -3,6 +3,8 @@
 ; RUN: llvm-objcopy -O ihex %t.elf %t.hex
 ; RUN: %usim09batch --timeout=100000 %t.hex | FileCheck %s
 ; REQUIRES: usim
+;
+; 8-bit add instruction execution tests.
 
 .include "runtime.inc"
 
