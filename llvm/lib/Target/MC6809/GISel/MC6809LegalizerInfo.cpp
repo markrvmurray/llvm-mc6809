@@ -233,8 +233,32 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   getActionDefinitionsBuilder(G_ABS)
       .customFor({s8, s16, s32});
 
-  getActionDefinitionsBuilder({G_FSHL, G_FSHR, G_UMULO, G_UMULFIX, G_SMULFIX, G_SMULFIXSAT, G_UMULFIXSAT, G_UDIVFIX, G_SDIVFIX, G_SDIVFIXSAT, G_UDIVFIXSAT, G_FCANONICALIZE})
+  getActionDefinitionsBuilder({G_FSHL, G_FSHR, G_UMULFIX, G_SMULFIX, G_SMULFIXSAT, G_UMULFIXSAT, G_UDIVFIX, G_SDIVFIX, G_SDIVFIXSAT, G_UDIVFIXSAT, G_FCANONICALIZE})
       .libcall();
+
+  // G_UMULO uses our custom legalizeMultiplyWithOverflow handler, which
+  // implements unsigned-multiply-with-overflow as
+  //   result   = LHS * RHS
+  //   overflow = LHS > UINT_MAX / max(RHS, 1)
+  // All four sub-operations (G_MUL, G_UDIV, G_UMAX, G_ICMP) bottom out
+  // in libcalls or legal byte-level ops on the supported widths, so the
+  // resulting code is small and avoids the regalloc-pressure problems
+  // of inline expansions like upstream G_UMULO → G_MUL + G_UMULH + G_ICMP
+  // (G_UMULH has no libcall in upstream RTLIB).
+  //
+  // The previous rule used .libcall() for G_UMULO, but LegalizerHelper::
+  // libcall() has no G_UMULO case — so the action was Libcall but the
+  // dispatch returned UnableToLegalize. The custom handler was unreachable
+  // dead code. Closes bug #83 for s8/s16/s32.
+  //
+  // s64 is intentionally NOT in the list. The custom handler would produce
+  // s64 G_MUL/G_UDIV/G_UMAX/G_ICMP intermediates that bottom out in s64
+  // vregs, which MC6809RegisterBankInfo can't classify (it only knows up to
+  // 32 bits). The s64 path needs the broader i64 plumbing — see the
+  // long-long roadmap memory.
+  getActionDefinitionsBuilder(G_UMULO)
+      .customForCartesianProduct({s8, s16, s32}, {s1})
+      .clampScalar(0, s8, s32);
 
   getActionDefinitionsBuilder({G_MEMCPY, G_MEMCPY_INLINE, G_MEMMOVE, G_MEMSET})
       .custom();
