@@ -849,8 +849,10 @@ list(REMOVE_ITEM mc6809_SOURCES
   # Exception handling (not needed for bare-metal)
   gcc_personality_v0.c
   # 32-bit functions that hit MC6809 backend legalization gaps (G_LSHR s20,
-  # G_FSHR s32, G_CTPOP s32, register exhaustion). These will be provided
-  # as hand-written assembly in the MC6809 runtime library instead.
+  # G_FSHR s32, G_CTPOP s32, register exhaustion). Provided as hand-written
+  # assembly instead. Fixing the legalizer cycle (custom shift decomposition
+  # produces non-standard widths → widen → more shifts → cycle) will allow
+  # these to move to compiler-rt.
   absvsi2.c addvsi3.c subvsi3.c mulvsi3.c mulosi4.c
   clzsi2.c ctzsi2.c ffssi2.c paritysi2.c popcountsi2.c
   divsi3.c modsi3.c udivsi3.c umodsi3.c
