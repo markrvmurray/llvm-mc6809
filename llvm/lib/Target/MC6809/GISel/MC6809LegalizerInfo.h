@@ -56,7 +56,6 @@ private:
   bool legalizeFixedDivide(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
   bool legalizeMultiplyWithOverflow(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
   bool legalizeFCanonicalize(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
-  bool legalizeCtlz(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
   // bool legalizeBrCond(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
   bool legalizeMemOp(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const;
   bool tryTFMBlockCopy(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI) const;

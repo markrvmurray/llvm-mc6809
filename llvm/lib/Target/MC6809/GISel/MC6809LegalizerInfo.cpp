@@ -310,15 +310,31 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   getActionDefinitionsBuilder({G_SDIVREM, G_UDIVREM, G_DYN_STACKALLOC, G_SEXT_INREG, G_SMULO, G_SMIN, G_SMAX, G_UMIN, G_UMAX, G_UADDSAT, G_SADDSAT, G_USUBSAT, G_SSUBSAT, G_USHLSAT, G_SSHLSAT, G_FPOWI})
       .lower();
 
-  getActionDefinitionsBuilder({G_CTTZ, G_CTTZ_ZERO_UNDEF, G_CTLZ_ZERO_UNDEF})
-      .lowerForCartesianProduct({s8}, LegalLibcallScalars)
-      .clampScalar(0, s8, s8);
+  // CTTZ / CTLZ / CTPOP all go to hand-written runtime libcalls
+  // (compiler-rt/lib/builtins/mc6809/{ctz,clz,popcount}{qi,hi}2.S for the
+  // 8/16-bit forms; the 32/64/128 forms come from upstream compiler-rt).
+  // The upstream "lower inline via SWAR" path produces too many simultaneous
+  // i16 temps for our regalloc — see bug #73 and the regalloc-strategy
+  // discussion. Libcalls put the cost in hand-tuned assembly that uses
+  // exactly the registers it needs and saves them via PSHS/PULS.
+  //
+  // Same-type rules (result and source share the scalar width) avoid the
+  // upstream lowerBitCount path that produces (s8, s16) shapes the
+  // libcall machinery can't handle.
+  getActionDefinitionsBuilder({G_CTTZ, G_CTTZ_ZERO_UNDEF})
+      .libcallFor({{s16, s16}, {s32, s32}, {s64, s64}})
+      .widenScalarToNextPow2(0, /*Min=*/16)
+      .clampScalar(0, s16, s64);
 
-  getActionDefinitionsBuilder(G_CTLZ).customForCartesianProduct({s8}, LegalLibcallScalars)
-      .clampScalar(0, s8, s8);
+  getActionDefinitionsBuilder({G_CTLZ, G_CTLZ_ZERO_UNDEF})
+      .libcallFor({{s16, s16}, {s32, s32}, {s64, s64}})
+      .widenScalarToNextPow2(0, /*Min=*/16)
+      .clampScalar(0, s16, s64);
 
-  getActionDefinitionsBuilder(G_CTPOP).libcallForCartesianProduct({s8}, LegalLibcallScalars)
-      .clampScalar(0, s8, s8);
+  getActionDefinitionsBuilder(G_CTPOP)
+      .libcallFor({{s16, s16}, {s32, s32}, {s64, s64}})
+      .widenScalarToNextPow2(0, /*Min=*/16)
+      .clampScalar(0, s16, s64);
 
   getActionDefinitionsBuilder(G_BSWAP).legalFor({s16}).libcallFor({s32, s64})
       .clampScalar(0, s16, s64);
@@ -523,8 +539,6 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
     MI.eraseFromParent();
     return LegalizerHelper::Legalized;
   }
-  case G_CTLZ:
-    return legalizeCtlz(Helper, MRI, MI, LocObserver);
   case G_MEMCPY:
   case G_MEMCPY_INLINE:
   case G_MEMMOVE:
@@ -846,43 +860,6 @@ bool MC6809LegalizerInfo::legalizeFCanonicalize(LegalizerHelper &Helper, Machine
   MI.setDesc(Helper.MIRBuilder.getTII().get(COPY));
   Helper.Observer.changedInstr(MI);
   return LegalizerHelper::Legalized;
-}
-
-bool MC6809LegalizerInfo::legalizeCtlz(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const {
-  assert(MI.getOpcode() == G_CTLZ);
-  MachineIRBuilder &MIRBuilder = Helper.MIRBuilder;
-  auto &Ctx = MIRBuilder.getMF().getFunction().getContext();
-
-  Register DstReg = MI.getOperand(0).getReg();
-  LLT DstTy = MRI.getType(DstReg);
-  unsigned DstSize = DstTy.getSizeInBits();
-  Register SrcReg = MI.getOperand(1).getReg();
-  LLT SrcTy = MRI.getType(SrcReg);
-  unsigned SrcSize = SrcTy.getSizeInBits();
-
-  if (DstTy != LLT::scalar(8) || !SrcTy.isScalar())
-    return LegalizerHelper::UnableToLegalize;
-
-  RTLIB::Libcall Libcall;
-  switch (SrcSize) {
-  default:
-    return LegalizerHelper::UnableToLegalize;
-  case 8:
-    Libcall = RTLIB::CTLZ_I8;
-    break;
-  case 16:
-    Libcall = RTLIB::CTLZ_I16;
-    break;
-  case 32:
-    Libcall = RTLIB::CTLZ_I32;
-    break;
-  case 64:
-    Libcall = RTLIB::CTLZ_I64;
-    break;
-  }
-  auto Result = Helper.createLibcall(Libcall, {DstReg, IntegerType::get(Ctx, DstSize), 0}, {{SrcReg, IntegerType::get(Ctx, SrcSize), 0}}, LocObserver);
-  MI.eraseFromParent();
-  return Result;
 }
 
 bool MC6809LegalizerInfo::legalizeMemOp(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const {
