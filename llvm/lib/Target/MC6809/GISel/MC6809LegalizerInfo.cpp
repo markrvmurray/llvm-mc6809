@@ -281,7 +281,17 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
       .legalFor({p});
 
   getActionDefinitionsBuilder(G_VASTART).customFor({p});
-  getActionDefinitionsBuilder(G_VAARG).customForCartesianProduct(LegalTypes, {p});
+  // G_VAARG: dst type can be anything the va_list might hold. The custom
+  // handler (legalizeVAArg) is type-agnostic — it loads ValTy.getSizeInBytes()
+  // bytes from the current va_list pointer and bumps by that amount. Wider
+  // dst types (s32, s64) are picolibc's `%ld` / `%lld` paths through
+  // vfiprintf / vfmprintf. The resulting wide G_LOAD is narrowed to s16
+  // pairs by the standard G_LOAD legalizer rule's clampScalar, so no extra
+  // work is needed here.
+  //
+  // Closes bug #85 once paired with the matching G_LOAD narrow-scalar path.
+  getActionDefinitionsBuilder(G_VAARG)
+      .customForCartesianProduct({p, s8, s16, s32, s64}, {p});
 
   getActionDefinitionsBuilder(G_ICMP)
       .legalForCartesianProduct({s1}, {s8, s16})
