@@ -128,8 +128,8 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // available pool. The s1-source case was the problematic one.
   getActionDefinitionsBuilder(G_SEXT)
       .legalFor({{s8, s1}, {s16, s8}})
-      .lowerFor({{s32, s16}})
-      .customFor({{s16, s1}, {s32, s1}});
+      .lowerFor({{s32, s16}, {s64, s32}})
+      .customFor({{s16, s1}, {s32, s1}, {s64, s1}});
 
   getActionDefinitionsBuilder({G_SEXTLOAD, G_ZEXTLOAD})
       .custom();
@@ -269,8 +269,8 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // 32 bits). The s64 path needs the broader i64 plumbing — see the
   // long-long roadmap memory.
   getActionDefinitionsBuilder(G_UMULO)
-      .customForCartesianProduct({s8, s16, s32}, {s1})
-      .clampScalar(0, s8, s32);
+      .customForCartesianProduct({s8, s16, s32, s64}, {s1})
+      .clampScalar(0, s8, s64);
 
   getActionDefinitionsBuilder({G_MEMCPY, G_MEMCPY_INLINE, G_MEMMOVE, G_MEMSET})
       .custom();

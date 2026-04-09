@@ -26,10 +26,12 @@ RegisterBankInfo::PartialMapping MC6809GenRegisterBankInfo::PartMappings[]{
     {0, 8,  MC6809::ACCUMRegBank},  // :0
     {0, 16, MC6809::ACCUMRegBank},  // :1
     {0, 32, MC6809::ACCUMRegBank},  // :2
-    // ACC value
-    {0, 16, MC6809::INDEXRegBank},  // :3
+    // i64 ACC value
+    {0, 64, MC6809::ACCUMRegBank},  // :3
+    // INDEX value
+    {0, 16, MC6809::INDEXRegBank},  // :4
     // BIT1 value
-    {0, 8,  MC6809::ACCUMRegBank},  // :4
+    {0, 8,  MC6809::ACCUMRegBank},  // :5
 };
 #endif // GET_TARGET_REGBANK_INFO_IMPL
 
@@ -39,6 +41,7 @@ enum PartialMappingIdx {
   PMI_ACC8,
   PMI_ACC16,
   PMI_ACC32,
+  PMI_ACC64,
   PMI_INDEX,
   PMI_COND
 };
@@ -56,8 +59,9 @@ RegisterBankInfo::ValueMapping MC6809GenRegisterBankInfo::ValMappings[]{
     INSTR_3OP(BREAKDOWN(PMI_ACC8, 1))  //  0: ACC_8
     INSTR_3OP(BREAKDOWN(PMI_ACC16, 1)) //  3: ACC_16
     INSTR_3OP(BREAKDOWN(PMI_ACC32, 1)) //  6: ACC_32
-    INSTR_3OP(BREAKDOWN(PMI_INDEX, 1)) //  9: INDEX
-    INSTR_3OP(BREAKDOWN(PMI_COND, 1))  // 12: BIT_1
+    INSTR_3OP(BREAKDOWN(PMI_ACC64, 1)) //  9: ACC_64
+    INSTR_3OP(BREAKDOWN(PMI_INDEX, 1)) // 12: INDEX
+    INSTR_3OP(BREAKDOWN(PMI_COND, 1))  // 15: BIT_1
 };
 #undef INSTR_3OP
 #undef BREAKDOWN
@@ -80,7 +84,7 @@ MC6809GenRegisterBankInfo::getValueMapping(PartialMappingIdx Idx, unsigned NumOp
   // We can use VMI_3Ops Mapping for all the cases.
   // XXXX: FixMe: MarkM - Oh, no we can't! This should only be valid if NumOperands == 1
   if (NumOperands <= 3) {
-    if (Idx >= PMI_ACC8 && Idx <= PMI_ACC32) {
+    if (Idx >= PMI_ACC8 && Idx <= PMI_ACC64) {
       return &ValMappings[(unsigned)Idx * 3];
     } else if (Idx == PMI_INDEX) {
       return &ValMappings[(unsigned)Idx * 3];

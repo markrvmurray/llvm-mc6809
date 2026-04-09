@@ -31,6 +31,9 @@ using namespace llvm;
 
 MC6809RegisterBankInfo::MC6809RegisterBankInfo(/* const TargetRegisterInfo &TRI */) {
 
+  // The ACCUM bank's maximum size is 64 (from ACC64 — a dummy non-allocatable
+  // class added solely to set the bank width for i64 support).
+
   // validate RegBank initialization.
   const RegisterBank &RBACCUM = getRegBank(MC6809::ACCUMRegBankID);
   (void)RBACCUM;
@@ -93,9 +96,7 @@ MC6809GenRegisterBankInfo::PartialMappingIdx MC6809GenRegisterBankInfo::getParti
   case 32:
     return PMI_ACC32;
   case 64:
-    // i64 decomposes to 2×i32 → 4×i16. Reuse the 32-bit accumulator
-    // bank mapping — the legaliser handles the decomposition.
-    return PMI_ACC32;
+    return PMI_ACC64;
   default:
     llvm_unreachable("Unsupported register size.");
   }

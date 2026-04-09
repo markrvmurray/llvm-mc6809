@@ -13,7 +13,7 @@
 //def AnyRegBank : RegisterBank<"Any", [ACC32, ACC16, ACC8, BIT1, INDEX16, CCFlag, CCond, CARRY]>;
 
 /// General Purpose Registers: AA, AD, etc
-def ACCUMRegBank : RegisterBank<"ACCUM", [ACC32, ACC16, ACC8, BIT1]>;
+def ACCUMRegBank : RegisterBank<"ACCUM", [ACC64, ACC32, ACC16, ACC8, BIT1]>;
 
 /// Index Registers: IX, IY, SU, SS
 def INDEXRegBank : RegisterBank<"INDEX", [INDEX16]>;

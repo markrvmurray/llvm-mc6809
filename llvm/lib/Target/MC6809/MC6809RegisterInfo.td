@@ -311,6 +311,7 @@ class MC6809Reg4Class<dag RegList>  : MC6809RegClass<[i4], 8, RegList>;
 class MC6809Reg8Class<dag RegList>  : MC6809RegClass<[i8], 8, RegList>;
 class MC6809Reg16Class<dag RegList> : MC6809RegClass<[i16], 8, RegList>;
 class MC6809Reg32Class<dag RegList> : MC6809RegClass<[i32], 8, RegList>;
+class MC6809Reg64Class<dag RegList> : MC6809RegClass<[i64], 8, RegList>;
 
 // Register grouping classes.
 def CARRY : MC6809Reg1Class<(add C)>;
@@ -347,6 +348,13 @@ def ACC32 : MC6809Reg32Class<(add AQ)> {
     let AltOrders = [(add)];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
 }
+// ACC64: non-allocatable class with a dummy member register. Exists solely
+// to set the ACCUM register bank's maximum size to 64 bits (for i64
+// support). No physical 64-bit registers exist on MC6809 — i64
+// decomposes to 4×i16 via the legaliser.
+def PHANTOM64 : MC6809Reg<0xFFFF, "">;
+let isAllocatable = false in
+def ACC64 : MC6809Reg64Class<(add PHANTOM64)>;
 def REGLIST8 : MC6809Reg8Class<(add CC, AA, AB, DP)>; // Registers which can be pushed/popped
 def REGLIST16 : MC6809Reg16Class<(add AD, AW, IX, IY, SU, SS, PC)>; // Registers which can be pushed/popped
 def REGPAIR8 : MC6809Reg8Class<(add AA, AB, CC, DP, A0, AE, AF)>; // Registers for EXG, TFR
