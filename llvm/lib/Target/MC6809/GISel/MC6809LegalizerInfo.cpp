@@ -82,14 +82,14 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
       .legalFor(LegalTypesWithOne);
 
   getActionDefinitionsBuilder(G_MERGE_VALUES)
-      .legalForCartesianProduct({s16, s32}, {s8, s16});
+      .legalForCartesianProduct({s16, s32, s64}, {s8, s16, s32});
   //.clampScalar(0, *NotMin.begin(), *std::prev(NotMin.end()))
   //.clampScalar(1, *NotMax.begin(), *std::prev(NotMax.end()))
   //.lower();
   //.unsupported();
 
   getActionDefinitionsBuilder(G_UNMERGE_VALUES)
-      .legalForCartesianProduct({s8, s16}, {s16, s32});
+      .legalForCartesianProduct({s8, s16, s32}, {s16, s32, s64});
   //.clampScalar(0, *NotMax.begin(), *std::prev(NotMax.end()))
   //.clampScalar(1, *NotMin.begin(), *std::prev(NotMin.end()))
   //.lower();
@@ -103,9 +103,11 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   getActionDefinitionsBuilder({G_ZEXT, G_ANYEXT})
       .customIf([=](const LegalityQuery &Query) {
         return Query.Types[1] == s1 &&
-               (Query.Types[0] == s16 || Query.Types[0] == s32);
+               (Query.Types[0] == s16 || Query.Types[0] == s32 ||
+                Query.Types[0] == s64);
       })
       .legalForCartesianProduct(LegalScalars, NotMaxWithOne)
+      .lowerFor({{s64, s32}})
       .clampScalar(0, *LegalScalars.begin(), *std::prev(LegalScalars.end()))
       .clampScalar(1, *NotMaxWithOne.begin(), *std::prev(NotMaxWithOne.end()));
 
@@ -243,7 +245,7 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // G_ABS: custom legalization decomposes to compare + negate + select,
   // avoiding the default ASHR+XOR pattern that creates massive shift chains.
   getActionDefinitionsBuilder(G_ABS)
-      .customFor({s8, s16, s32});
+      .customFor({s8, s16, s32, s64});
 
   getActionDefinitionsBuilder({G_FSHL, G_FSHR, G_UMULFIX, G_SMULFIX, G_SMULFIXSAT, G_UMULFIXSAT, G_UDIVFIX, G_SDIVFIX, G_SDIVFIXSAT, G_UDIVFIXSAT, G_FCANONICALIZE})
       .libcall();
@@ -345,11 +347,11 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
       .legalForCartesianProduct({p}, LegalScalars)
       .clampScalar(1, s8, sMax);
 
-  // G_SELECT s32: decompose to two independent i16 selects to avoid
-  // two ACC16 values competing for D in the PHI path.
+  // G_SELECT s32/s64: decompose to pairs of narrower selects to avoid
+  // multiple ACC16 values competing for D in the PHI path.
   getActionDefinitionsBuilder(G_SELECT)
       .customIf([=](const LegalityQuery &Query) {
-        return Query.Types[0] == s32;
+        return Query.Types[0] == s32 || Query.Types[0] == s64;
       })
       .legalForCartesianProduct(LegalTypesWithOne, {s1}).clampScalar(0, s8, sMax);
 
@@ -425,7 +427,7 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
   }
   case G_ZEXT:
   case G_ANYEXT: {
-    // Decompose s1→s16/s32: zext s1→s8 (AND #1), then merge with zeros.
+    // Decompose s1→s16/s32/s64: zext s1→s8 (AND #1), then merge with zeros.
     // Can't chain G_ZEXT (combiner folds them → infinite loop).
     Register DstReg = MI.getOperand(0).getReg();
     Register SrcReg = MI.getOperand(1).getReg();
@@ -433,16 +435,12 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
     MachineIRBuilder &B = Helper.MIRBuilder;
     LLT S8 = LLT::scalar(8);
     auto Ext8 = B.buildZExt(S8, SrcReg);
-    auto Zero8 = B.buildConstant(S8, 0);
-    if (DstTy == LLT::scalar(16)) {
-      B.buildMergeValues(DstReg, {Ext8.getReg(0), Zero8.getReg(0)});
-    } else {
-      // s32: merge 4 bytes (lo=ext8, then 3 zero bytes)
-      auto Zero8b = B.buildConstant(S8, 0);
-      auto Zero8c = B.buildConstant(S8, 0);
-      B.buildMergeValues(DstReg, {Ext8.getReg(0), Zero8.getReg(0),
-                                   Zero8b.getReg(0), Zero8c.getReg(0)});
-    }
+    unsigned DstBytes = DstTy.getSizeInBytes();
+    SmallVector<Register, 8> Parts;
+    Parts.push_back(Ext8.getReg(0));
+    for (unsigned I = 1; I < DstBytes; ++I)
+      Parts.push_back(B.buildConstant(S8, 0).getReg(0));
+    B.buildMergeValues(DstReg, Parts);
     MI.eraseFromParent();
     return true;
   }
@@ -492,25 +490,26 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
     return true;
   }
   case G_SELECT: {
-    // Decompose i32 select into two INDEPENDENT i16 selects.
+    // Decompose wide select into pairs of half-width selects.
+    // i32 → 2×i16, i64 → 2×i32 (each i32 re-enters and splits to 2×i16).
     // Use separate copies of the condition register so that the
     // MC6809LowerSelect pass doesn't merge them into one diamond
-    // (which would put two ACC16 loads in the same block → regalloc fail).
+    // (which would put multiple ACC16 loads in the same block → regalloc fail).
     Register DstReg = MI.getOperand(0).getReg();
     Register CondReg = MI.getOperand(1).getReg();
     Register TrueReg = MI.getOperand(2).getReg();
     Register FalseReg = MI.getOperand(3).getReg();
     MachineIRBuilder &B = Helper.MIRBuilder;
+    LLT DstTy = MRI.getType(DstReg);
     LLT S1 = LLT::scalar(1);
-    LLT S16 = LLT::scalar(16);
-    auto TrueParts = B.buildUnmerge(S16, TrueReg);
-    auto FalseParts = B.buildUnmerge(S16, FalseReg);
-    // Use separate condition copies so LowerSelect treats them independently
+    LLT HalfTy = LLT::scalar(DstTy.getSizeInBits() / 2);
+    auto TrueParts = B.buildUnmerge(HalfTy, TrueReg);
+    auto FalseParts = B.buildUnmerge(HalfTy, FalseReg);
     auto CondLo = B.buildCopy(S1, CondReg);
     auto CondHi = B.buildCopy(S1, CondReg);
-    auto SelLo = B.buildSelect(S16, CondLo,
+    auto SelLo = B.buildSelect(HalfTy, CondLo,
         TrueParts.getReg(0), FalseParts.getReg(0));
-    auto SelHi = B.buildSelect(S16, CondHi,
+    auto SelHi = B.buildSelect(HalfTy, CondHi,
         TrueParts.getReg(1), FalseParts.getReg(1));
     B.buildMergeValues(DstReg, {SelLo.getReg(0), SelHi.getReg(0)});
     MI.eraseFromParent();
