@@ -3203,12 +3203,17 @@ void MC6809InstrInfo::expandANDReg(MachineIRBuilder &Builder, MachineInstr &MI) 
 void MC6809InstrInfo::expandANDPull(MachineIRBuilder &Builder, MachineInstr &MI) const {
   auto DestReg = MI.getOperand(0).getReg();
   auto SrcReg = MI.getOperand(1).getReg();
+  auto &MF = *MI.getMF();
   // Always use SS — Push expands to PSHS (S stack), U is reserved.
-  if (!MI.getMF()->getSubtarget<MC6809Subtarget>().has6309() && DestReg == MC6809::AD) {
+  if (!MF.getSubtarget<MC6809Subtarget>().has6309()) {
+    Register OrigDest = DestReg;
+    if (needsMaterialization(DestReg))
+      DestReg = materializeReg(Builder, DestReg, MF);
     // 6809: Push_i16 put 2 bytes on S stack. Big-endian: S+0=hi, S+1=lo.
     Builder.buildInstr(MC6809::ANDBi_o5).addDef(MC6809::AB, RegState::Implicit).addImm(1).addReg(MC6809::SS);
     Builder.buildInstr(MC6809::ANDAi_o0).addDef(MC6809::AA, RegState::Implicit).addReg(MC6809::SS);
     Builder.buildInstr(MC6809::LEASi_o5).addImm(2).addReg(MC6809::SS);
+    dematerializeReg(Builder, DestReg, OrigDest, MF);
   } else {
     auto OpcodePair = ANDPullOpcode.find(DestReg);
     Builder.buildInstr(OpcodePair->getSecond())
@@ -3222,11 +3227,16 @@ void MC6809InstrInfo::expandANDPull(MachineIRBuilder &Builder, MachineInstr &MI)
 void MC6809InstrInfo::expandORPull(MachineIRBuilder &Builder, MachineInstr &MI) const {
   auto DestReg = MI.getOperand(0).getReg();
   auto SrcReg = MI.getOperand(1).getReg();
-  if (!MI.getMF()->getSubtarget<MC6809Subtarget>().has6309() && DestReg == MC6809::AD) {
+  auto &MF = *MI.getMF();
+  if (!MF.getSubtarget<MC6809Subtarget>().has6309()) {
+    Register OrigDest = DestReg;
+    if (needsMaterialization(DestReg))
+      DestReg = materializeReg(Builder, DestReg, MF);
     // 6809: Push_i16 put 2 bytes on S stack. Big-endian: S+0=hi, S+1=lo.
     Builder.buildInstr(MC6809::ORBi_o5).addDef(MC6809::AB, RegState::Implicit).addImm(1).addReg(MC6809::SS);
     Builder.buildInstr(MC6809::ORAi_o0).addDef(MC6809::AA, RegState::Implicit).addReg(MC6809::SS);
     Builder.buildInstr(MC6809::LEASi_o5).addImm(2).addReg(MC6809::SS);
+    dematerializeReg(Builder, DestReg, OrigDest, MF);
   } else {
     auto OpcodePair = ORPullOpcode.find(DestReg);
     Builder.buildInstr(OpcodePair->getSecond())
@@ -3240,11 +3250,16 @@ void MC6809InstrInfo::expandORPull(MachineIRBuilder &Builder, MachineInstr &MI) 
 void MC6809InstrInfo::expandXORPull(MachineIRBuilder &Builder, MachineInstr &MI) const {
   auto DestReg = MI.getOperand(0).getReg();
   auto SrcReg = MI.getOperand(1).getReg();
-  if (!MI.getMF()->getSubtarget<MC6809Subtarget>().has6309() && DestReg == MC6809::AD) {
+  auto &MF = *MI.getMF();
+  if (!MF.getSubtarget<MC6809Subtarget>().has6309()) {
+    Register OrigDest = DestReg;
+    if (needsMaterialization(DestReg))
+      DestReg = materializeReg(Builder, DestReg, MF);
     // 6809: Push_i16 put 2 bytes on S stack. Big-endian: S+0=hi, S+1=lo.
     Builder.buildInstr(MC6809::EORBi_o5).addDef(MC6809::AB, RegState::Implicit).addImm(1).addReg(MC6809::SS);
     Builder.buildInstr(MC6809::EORAi_o0).addDef(MC6809::AA, RegState::Implicit).addReg(MC6809::SS);
     Builder.buildInstr(MC6809::LEASi_o5).addImm(2).addReg(MC6809::SS);
+    dematerializeReg(Builder, DestReg, OrigDest, MF);
   } else {
     auto OpcodePair = XORPullOpcode.find(DestReg);
     Builder.buildInstr(OpcodePair->getSecond())
