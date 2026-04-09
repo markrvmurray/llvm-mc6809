@@ -71,7 +71,7 @@ define dso_local i16 @if_s16(i16 noundef %a, i16 noundef %b) local_unnamed_addr 
 ; CHECK-NEXT:    ldd 6,u
 ; CHECK-NEXT:    cmpd #0
 ; CHECK-NEXT:    lbgt .LBB2_1
-; CHECK-NEXT:    bra .LBB2_2
+; CHECK-NEXT:    lbra .LBB2_2
 ; CHECK-NEXT:  .LBB2_1: ; %entry
 ; CHECK-NEXT:    ldd 4,u
 ; CHECK-NEXT:    lbra .LBB2_3
@@ -111,7 +111,7 @@ define dso_local i16 @if_u16(i16 noundef %a, i16 noundef %b) local_unnamed_addr 
 ; CHECK-NEXT:    ldd 6,u
 ; CHECK-NEXT:    cmpd #0
 ; CHECK-NEXT:    lbne .LBB3_1
-; CHECK-NEXT:    bra .LBB3_2
+; CHECK-NEXT:    lbra .LBB3_2
 ; CHECK-NEXT:  .LBB3_1: ; %entry
 ; CHECK-NEXT:    ldd 4,u
 ; CHECK-NEXT:    lbra .LBB3_3
@@ -147,35 +147,42 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    tfr s,u
 ; CHECK-NEXT:    ldd 18,u
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldd 16,u
 ; CHECK-NEXT:    std 8,u
+; CHECK-NEXT:    ldd 16,u
+; CHECK-NEXT:    std 2,u
 ; CHECK-NEXT:    stx 6,u
 ; CHECK-NEXT:    cmpx #0
 ; CHECK-NEXT:    lbeq .LBB4_1
-; CHECK-NEXT:    bra .LBB4_2
+; CHECK-NEXT:    lbra .LBB4_2
 ; CHECK-NEXT:  .LBB4_1: ; %entry
 ; CHECK-NEXT:    ldd 14,u
 ; CHECK-NEXT:    std 6,u
 ; CHECK-NEXT:    cmpd #0
 ; CHECK-NEXT:    lbhi .LBB4_4
-; CHECK-NEXT:    bra .LBB4_3
+; CHECK-NEXT:    lbra .LBB4_3
 ; CHECK-NEXT:  .LBB4_2: ; %entry
 ; CHECK-NEXT:    stx 6,u
 ; CHECK-NEXT:    cmpx #0
 ; CHECK-NEXT:    lbgt .LBB4_4
 ; CHECK-NEXT:  .LBB4_3: ; %if.end
-; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    subd #0
+; CHECK-NEXT:    ldd #0
+; CHECK-NEXT:    std 6,u
 ; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldd 8,u
-; CHECK-NEXT:    sbcb #0
-; CHECK-NEXT:    sbca #0
-; CHECK-NEXT:    std 8,u
-; CHECK-NEXT:  .LBB4_4: ; %return
+; CHECK-NEXT:    subb 9,u
+; CHECK-NEXT:    sbca 8,u
+; CHECK-NEXT:    std 4,u
+; CHECK-NEXT:    ldd 6,u
+; CHECK-NEXT:    sbcb 3,u
+; CHECK-NEXT:    sbca 2,u
+; CHECK-NEXT:    std 6,u
 ; CHECK-NEXT:    ldd 4,u
+; CHECK-NEXT:    std 8,u
+; CHECK-NEXT:    ldd 6,u
+; CHECK-NEXT:    std 2,u
+; CHECK-NEXT:  .LBB4_4: ; %return
+; CHECK-NEXT:    ldd 8,u
 ; CHECK-NEXT:    std 14,u
-; CHECK-NEXT:    ldx 8,u
+; CHECK-NEXT:    ldx 2,u
 ; CHECK-NEXT:    tfr u,s
 ; CHECK-NEXT:    puls u
 ; CHECK-NEXT:    leas 10,s
@@ -214,7 +221,7 @@ define dso_local i32 @if_u32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; CHECK-NEXT:    ldd 12,u
 ; CHECK-NEXT:    cmpd #0
 ; CHECK-NEXT:    lbne .LBB5_1
-; CHECK-NEXT:    bra .LBB5_2
+; CHECK-NEXT:    lbra .LBB5_2
 ; CHECK-NEXT:  .LBB5_1: ; %entry
 ; CHECK-NEXT:    ldd 8,u
 ; CHECK-NEXT:    lbra .LBB5_3

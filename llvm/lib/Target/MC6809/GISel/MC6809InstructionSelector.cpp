@@ -904,10 +904,15 @@ bool MC6809InstructionSelector::selectSubO(MachineInstr &MI) {
 
   std::optional<ValueAndVReg> ValReg;
   int64_t Value;
+  // Sub is non-commutative — only match the (reg, const) form here.
+  // The (const, reg) form (e.g. `0 - x`) must NOT be matched here,
+  // because the (reg, const) → SubSetCarry_*_Imm pattern would silently
+  // swap operands. The (const, reg) case falls through to the (reg,
+  // reg) match below where the constant is materialized into a register
+  // and operand order is preserved. This is bug #61 — see the bug
+  // tracker for the historical context.
   Success = mi_match(Dst, *MRI, m_GSSubO(m_Reg(Reg), m_GCst(ValReg))) ||
-            mi_match(Dst, *MRI, m_GUSubO(m_Reg(Reg), m_GCst(ValReg))) ||
-            mi_match(Dst, *MRI, m_GSSubO(m_GCst(ValReg), m_Reg(Reg))) ||
-            mi_match(Dst, *MRI, m_GUSubO(m_GCst(ValReg), m_Reg(Reg)));
+            mi_match(Dst, *MRI, m_GUSubO(m_Reg(Reg), m_GCst(ValReg)));
   if (Success) {
     Value = ValReg->Value.getSExtValue();
     Opcode = DstSize == 8 ? MC6809::SubSetCarry_i8_Imm : MC6809::SubSetCarry_i16_Imm;
@@ -923,10 +928,9 @@ bool MC6809InstructionSelector::selectSubO(MachineInstr &MI) {
 
   MachineOperand Ptr = MachineOperand::CreateReg(0, false);
   MachineOperand Offset = MachineOperand::CreateReg(0, false);
+  // Same non-commutative reasoning as for the immediate form above.
   Success = mi_match(Dst, *MRI, m_GSSubO(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)))) ||
-            mi_match(Dst, *MRI, m_GUSubO(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)))) ||
-            mi_match(Dst, *MRI, m_GSSubO(m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)), m_Reg(Reg))) ||
-            mi_match(Dst, *MRI, m_GUSubO(m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)), m_Reg(Reg)));
+            mi_match(Dst, *MRI, m_GUSubO(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA))));
   if (Success) {
     Opcode = DstSize == 8 ? MC6809::SubSetCarry_i8_Mem : MC6809::SubSetCarry_i16_Mem;
     Instr = Builder.buildInstr(Opcode)
@@ -1075,10 +1079,10 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
 
   std::optional<ValueAndVReg> ValReg;
   int64_t Value;
+  // Sub is non-commutative — only match the (reg, const) form here.
+  // See bug #61 / selectSubO for the rationale.
   Success = mi_match(Dst, *MRI, m_GSSubE(m_Reg(Reg), m_GCst(ValReg), m_Reg(Carry))) ||
-            mi_match(Dst, *MRI, m_GUSubE(m_Reg(Reg), m_GCst(ValReg), m_Reg(Carry))) ||
-            mi_match(Dst, *MRI, m_GSSubE(m_GCst(ValReg), m_Reg(Reg), m_Reg(Carry))) ||
-            mi_match(Dst, *MRI, m_GUSubE(m_GCst(ValReg), m_Reg(Reg), m_Reg(Carry)));
+            mi_match(Dst, *MRI, m_GUSubE(m_Reg(Reg), m_GCst(ValReg), m_Reg(Carry)));
   if (Success) {
     Value = ValReg->Value.getSExtValue();
     Opcode = DstSize == 8 ? MC6809::SubSetCarryUse_i8_Imm : MC6809::SubSetCarryUse_i16_Imm;
@@ -1096,9 +1100,7 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
   MachineOperand Ptr = MachineOperand::CreateReg(0, false);
   MachineOperand Offset = MachineOperand::CreateReg(0, false);
   Success = mi_match(Dst, *MRI, m_GSSubE(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)), m_Reg(Carry))) ||
-            mi_match(Dst, *MRI, m_GUSubE(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)), m_Reg(Carry))) ||
-            mi_match(Dst, *MRI, m_GSSubE(m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)), m_Reg(Reg), m_Reg(Carry))) ||
-            mi_match(Dst, *MRI, m_GUSubE(m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)), m_Reg(Reg), m_Reg(Carry)));
+            mi_match(Dst, *MRI, m_GUSubE(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)), m_Reg(Carry)));
   if (Success) {
     Opcode = DstSize == 8 ? MC6809::SubSetCarryUse_i8_Mem : MC6809::SubSetCarryUse_i16_Mem;
     Instr = Builder.buildInstr(Opcode)
