@@ -323,12 +323,232 @@ test_main:
 	jsr	putnl
 ; CHECK-NEXT: FFFC
 
+	;; strlen("Hello") = 5
+	ldx	#str_hello
+	jsr	test_strlen
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0005
+
+	;; strrchr("Hello", 'l') → offset 3 (last 'l')
+	ldx	#str_hello
+	leas	-2,s
+	ldd	#0x6C
+	std	,s
+	jsr	test_strrchr
+	leas	2,s
+	tfr	x,d
+	subd	#str_hello
+	tfr	d,x
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0003
+
+	;; strrchr("Hello", 'z') → NULL
+	ldx	#str_hello
+	leas	-2,s
+	ldd	#0x7A
+	std	,s
+	jsr	test_strrchr
+	leas	2,s
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0000
+
+	;; strstr("Hello", "ll") → offset 2
+	;; KNOWN BUG #58: test_strstr corrupts the stack at -O0; works at -O1+.
+	;; Left in deliberately so the failure stays visible.
+	ldx	#str_hello
+	leas	-2,s
+	ldd	#str_ll
+	std	,s
+	jsr	test_strstr
+	leas	2,s
+	tfr	x,d
+	subd	#str_hello
+	tfr	d,x
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0002
+
+	;; strstr("Hello", "xy") → NULL
+	ldx	#str_hello
+	leas	-2,s
+	ldd	#str_xy
+	std	,s
+	jsr	test_strstr
+	leas	2,s
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0000
+
+	;; strstr("Hello", "") → "Hello" (offset 0)
+	ldx	#str_hello
+	leas	-2,s
+	ldd	#str_empty
+	std	,s
+	jsr	test_strstr
+	leas	2,s
+	tfr	x,d
+	subd	#str_hello
+	tfr	d,x
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0000
+
+	;; memchr("Hello", 'l', 5) → offset 2
+	ldx	#str_hello
+	leas	-4,s
+	ldd	#0x6C
+	std	,s
+	ldd	#5
+	std	2,s
+	jsr	test_memchr
+	leas	4,s
+	tfr	x,d
+	subd	#str_hello
+	tfr	d,x
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0002
+
+	;; memchr("Hello", 'z', 5) → NULL
+	ldx	#str_hello
+	leas	-4,s
+	ldd	#0x7A
+	std	,s
+	ldd	#5
+	std	2,s
+	jsr	test_memchr
+	leas	4,s
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0000
+
+	;; strspn("Hello", "elH") = 4 (H,e,l,l all match; o doesn't)
+	ldx	#str_hello
+	leas	-2,s
+	ldd	#str_elH
+	std	,s
+	jsr	test_strspn
+	leas	2,s
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0004
+
+	;; strcspn("Hello", "lo") = 2 (H,e don't match; l matches)
+	ldx	#str_hello
+	leas	-2,s
+	ldd	#str_lo
+	std	,s
+	jsr	test_strcspn
+	leas	2,s
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0002
+
+	;; strpbrk("Hello", "lo") → "llo" (offset 2)
+	ldx	#str_hello
+	leas	-2,s
+	ldd	#str_lo
+	std	,s
+	jsr	test_strpbrk
+	leas	2,s
+	tfr	x,d
+	subd	#str_hello
+	tfr	d,x
+	jsr	putx
+	jsr	putnl
+; CHECK-NEXT: 0002
+
+	;; strncpy(buf, "Hi", 4) → "Hi\0\0"
+	ldx	#buf
+	leas	-4,s
+	ldd	#str_hi
+	std	,s
+	ldd	#4
+	std	2,s
+	jsr	test_strncpy
+	leas	4,s
+	ldb	buf
+	jsr	putb
+	ldb	buf+1
+	jsr	putb
+	ldb	buf+2
+	jsr	putb
+	ldb	buf+3
+	jsr	putb
+	jsr	putnl
+; CHECK-NEXT: 48690000
+
+	;; strcpy(buf, "He"); strcat(buf, "y!") → "Hey!\0"
+	ldx	#buf
+	leas	-2,s
+	ldd	#str_He
+	std	,s
+	jsr	test_strcpy
+	leas	2,s
+	ldx	#buf
+	leas	-2,s
+	ldd	#str_yex
+	std	,s
+	jsr	test_strcat
+	leas	2,s
+	ldb	buf
+	jsr	putb
+	ldb	buf+1
+	jsr	putb
+	ldb	buf+2
+	jsr	putb
+	ldb	buf+3
+	jsr	putb
+	ldb	buf+4
+	jsr	putb
+	jsr	putnl
+; CHECK-NEXT: 4865792100
+
+	;; strcpy(buf, "Hi"); strncat(buf, "ho!", 2) → "Hiho\0"
+	ldx	#buf
+	leas	-2,s
+	ldd	#str_hi
+	std	,s
+	jsr	test_strcpy
+	leas	2,s
+	ldx	#buf
+	leas	-4,s
+	ldd	#str_hox
+	std	,s
+	ldd	#2
+	std	2,s
+	jsr	test_strncat
+	leas	4,s
+	ldb	buf
+	jsr	putb
+	ldb	buf+1
+	jsr	putb
+	ldb	buf+2
+	jsr	putb
+	ldb	buf+3
+	jsr	putb
+	ldb	buf+4
+	jsr	putb
+	jsr	putnl
+; CHECK-NEXT: 4869686F00
+
 	rts
 
 	.section .rodata,"a",@progbits
 str_hello:	.asciz	"Hello"
 str_hi:		.asciz	"Hi"
 str_help:	.asciz	"Help!"
+str_ll:		.asciz	"ll"
+str_xy:		.asciz	"xy"
+str_empty:	.asciz	""
+str_elH:	.asciz	"elH"
+str_lo:		.asciz	"lo"
+str_He:		.asciz	"He"
+str_yex:	.asciz	"y!"
+str_hox:	.asciz	"ho!"
 
 	.section .bss,"aw",@nobits
 buf:	.space	16

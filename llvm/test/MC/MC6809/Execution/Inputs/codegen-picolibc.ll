@@ -206,6 +206,364 @@ return:                                           ; preds = %if.end, %entry, %if
   ret i16 %retval.0
 }
 
+; Function Attrs: nofree norecurse nosync nounwind memory(argmem: read)
+define dso_local noundef i16 @test_strlen(ptr noundef %s) local_unnamed_addr #2 {
+entry:
+  br label %while.cond
+
+while.cond:                                       ; preds = %while.cond, %entry
+  %p.0 = phi ptr [ %s, %entry ], [ %incdec.ptr, %while.cond ]
+  %0 = load i8, ptr %p.0, align 1, !tbaa !6
+  %tobool.not = icmp eq i8 %0, 0
+  %incdec.ptr = getelementptr inbounds nuw i8, ptr %p.0, i16 1
+  br i1 %tobool.not, label %while.end, label %while.cond, !llvm.loop !16
+
+while.end:                                        ; preds = %while.cond
+  %sub.ptr.lhs.cast = ptrtoint ptr %p.0 to i16
+  %sub.ptr.rhs.cast = ptrtoint ptr %s to i16
+  %sub.ptr.sub = sub i16 %sub.ptr.lhs.cast, %sub.ptr.rhs.cast
+  ret i16 %sub.ptr.sub
+}
+
+; Function Attrs: nofree norecurse nosync nounwind memory(argmem: readwrite)
+define dso_local noundef ptr @test_strncpy(ptr noundef returned writeonly captures(ret: address, provenance) %dst, ptr noundef readonly captures(none) %src, i16 noundef %n) local_unnamed_addr #0 {
+entry:
+  %tobool.not15 = icmp eq i16 %n, 0
+  br i1 %tobool.not15, label %while.end8, label %land.rhs
+
+land.rhs:                                         ; preds = %entry, %while.body
+  %d.018 = phi ptr [ %incdec.ptr, %while.body ], [ %dst, %entry ]
+  %n.addr.017 = phi i16 [ %dec, %while.body ], [ %n, %entry ]
+  %src.addr.016 = phi ptr [ %incdec.ptr2, %while.body ], [ %src, %entry ]
+  %0 = load i8, ptr %src.addr.016, align 1, !tbaa !6
+  store i8 %0, ptr %d.018, align 1, !tbaa !6
+  %tobool1.not = icmp eq i8 %0, 0
+  br i1 %tobool1.not, label %while.body6, label %while.body
+
+while.body:                                       ; preds = %land.rhs
+  %incdec.ptr = getelementptr inbounds nuw i8, ptr %d.018, i16 1
+  %incdec.ptr2 = getelementptr inbounds nuw i8, ptr %src.addr.016, i16 1
+  %dec = add i16 %n.addr.017, -1
+  %tobool.not = icmp eq i16 %dec, 0
+  br i1 %tobool.not, label %while.end8, label %land.rhs, !llvm.loop !17
+
+while.body6:                                      ; preds = %land.rhs, %while.body6
+  %d.124 = phi ptr [ %incdec.ptr7, %while.body6 ], [ %d.018, %land.rhs ]
+  %n.addr.123 = phi i16 [ %dec4, %while.body6 ], [ %n.addr.017, %land.rhs ]
+  %dec4 = add i16 %n.addr.123, -1
+  %incdec.ptr7 = getelementptr inbounds nuw i8, ptr %d.124, i16 1
+  store i8 0, ptr %d.124, align 1, !tbaa !6
+  %tobool5.not = icmp eq i16 %dec4, 0
+  br i1 %tobool5.not, label %while.end8, label %while.body6, !llvm.loop !18
+
+while.end8:                                       ; preds = %while.body, %while.body6, %entry
+  ret ptr %dst
+}
+
+; Function Attrs: nofree norecurse nosync nounwind memory(argmem: readwrite)
+define dso_local noundef ptr @test_strcat(ptr noundef returned captures(ret: address, provenance) %dst, ptr noundef readonly captures(none) %src) local_unnamed_addr #0 {
+entry:
+  br label %while.cond
+
+while.cond:                                       ; preds = %while.cond, %entry
+  %d.0 = phi ptr [ %dst, %entry ], [ %incdec.ptr, %while.cond ]
+  %0 = load i8, ptr %d.0, align 1, !tbaa !6
+  %tobool.not = icmp eq i8 %0, 0
+  %incdec.ptr = getelementptr inbounds nuw i8, ptr %d.0, i16 1
+  br i1 %tobool.not, label %while.cond1, label %while.cond, !llvm.loop !19
+
+while.cond1:                                      ; preds = %while.cond, %while.cond1
+  %src.addr.0 = phi ptr [ %incdec.ptr2, %while.cond1 ], [ %src, %while.cond ]
+  %d.1 = phi ptr [ %incdec.ptr3, %while.cond1 ], [ %d.0, %while.cond ]
+  %incdec.ptr2 = getelementptr inbounds nuw i8, ptr %src.addr.0, i16 1
+  %1 = load i8, ptr %src.addr.0, align 1, !tbaa !6
+  %incdec.ptr3 = getelementptr inbounds nuw i8, ptr %d.1, i16 1
+  store i8 %1, ptr %d.1, align 1, !tbaa !6
+  %tobool4.not = icmp eq i8 %1, 0
+  br i1 %tobool4.not, label %while.end6, label %while.cond1, !llvm.loop !20
+
+while.end6:                                       ; preds = %while.cond1
+  ret ptr %dst
+}
+
+; Function Attrs: nofree norecurse nosync nounwind memory(argmem: readwrite)
+define dso_local noundef ptr @test_strncat(ptr noundef returned captures(ret: address, provenance) %dst, ptr noundef readonly captures(none) %src, i16 noundef %n) local_unnamed_addr #0 {
+entry:
+  br label %while.cond
+
+while.cond:                                       ; preds = %while.cond, %entry
+  %d.0 = phi ptr [ %dst, %entry ], [ %incdec.ptr, %while.cond ]
+  %0 = load i8, ptr %d.0, align 1, !tbaa !6
+  %tobool.not = icmp eq i8 %0, 0
+  %incdec.ptr = getelementptr inbounds nuw i8, ptr %d.0, i16 1
+  br i1 %tobool.not, label %while.cond1.preheader, label %while.cond, !llvm.loop !21
+
+while.cond1.preheader:                            ; preds = %while.cond
+  %tobool2.not14 = icmp eq i16 %n, 0
+  br i1 %tobool2.not14, label %while.end7, label %land.rhs
+
+land.rhs:                                         ; preds = %while.cond1.preheader, %while.body4
+  %d.117 = phi ptr [ %incdec.ptr6, %while.body4 ], [ %d.0, %while.cond1.preheader ]
+  %n.addr.016 = phi i16 [ %dec, %while.body4 ], [ %n, %while.cond1.preheader ]
+  %src.addr.015 = phi ptr [ %incdec.ptr5, %while.body4 ], [ %src, %while.cond1.preheader ]
+  %1 = load i8, ptr %src.addr.015, align 1, !tbaa !6
+  %tobool3.not = icmp eq i8 %1, 0
+  br i1 %tobool3.not, label %while.end7, label %while.body4
+
+while.body4:                                      ; preds = %land.rhs
+  %incdec.ptr5 = getelementptr inbounds nuw i8, ptr %src.addr.015, i16 1
+  %incdec.ptr6 = getelementptr inbounds nuw i8, ptr %d.117, i16 1
+  store i8 %1, ptr %d.117, align 1, !tbaa !6
+  %dec = add i16 %n.addr.016, -1
+  %tobool2.not = icmp eq i16 %dec, 0
+  br i1 %tobool2.not, label %while.end7, label %land.rhs, !llvm.loop !22
+
+while.end7:                                       ; preds = %land.rhs, %while.body4, %while.cond1.preheader
+  %d.1.lcssa = phi ptr [ %d.0, %while.cond1.preheader ], [ %incdec.ptr6, %while.body4 ], [ %d.117, %land.rhs ]
+  store i8 0, ptr %d.1.lcssa, align 1, !tbaa !6
+  ret ptr %dst
+}
+
+; Function Attrs: nofree norecurse nosync nounwind memory(argmem: read)
+define dso_local ptr @test_strrchr(ptr noundef readonly captures(ret: address, provenance) %s, i16 noundef %c) local_unnamed_addr #2 {
+entry:
+  %0 = trunc i16 %c to i8
+  br label %do.body
+
+do.body:                                          ; preds = %do.body, %entry
+  %last.0 = phi ptr [ null, %entry ], [ %last.1, %do.body ]
+  %s.addr.0 = phi ptr [ %s, %entry ], [ %incdec.ptr, %do.body ]
+  %1 = load i8, ptr %s.addr.0, align 1, !tbaa !6
+  %cmp = icmp eq i8 %1, %0
+  %last.1 = select i1 %cmp, ptr %s.addr.0, ptr %last.0
+  %incdec.ptr = getelementptr inbounds nuw i8, ptr %s.addr.0, i16 1
+  %tobool.not = icmp eq i8 %1, 0
+  br i1 %tobool.not, label %do.end, label %do.body, !llvm.loop !23
+
+do.end:                                           ; preds = %do.body
+  ret ptr %last.1
+}
+
+; Function Attrs: nofree norecurse nosync nounwind memory(argmem: read)
+define dso_local noundef ptr @test_strstr(ptr noundef readonly captures(ret: address, provenance) %haystack, ptr noundef readonly captures(none) %needle) local_unnamed_addr #2 {
+entry:
+  %0 = load i8, ptr %needle, align 1, !tbaa !6
+  %tobool.not = icmp eq i8 %0, 0
+  br i1 %tobool.not, label %return, label %for.cond.preheader
+
+for.cond.preheader:                               ; preds = %entry
+  %1 = load i8, ptr %haystack, align 1, !tbaa !6
+  %tobool1.not26 = icmp eq i8 %1, 0
+  br i1 %tobool1.not26, label %return, label %while.cond.preheader
+
+while.cond.preheader:                             ; preds = %for.cond.preheader, %for.inc
+  %2 = phi i8 [ %6, %for.inc ], [ %1, %for.cond.preheader ]
+  %haystack.addr.027 = phi ptr [ %incdec.ptr13, %for.inc ], [ %haystack, %for.cond.preheader ]
+  br label %land.lhs.true
+
+land.lhs.true:                                    ; preds = %while.cond.preheader, %while.body
+  %n.025 = phi ptr [ %needle, %while.cond.preheader ], [ %incdec.ptr8, %while.body ]
+  %h.024 = phi ptr [ %haystack.addr.027, %while.cond.preheader ], [ %incdec.ptr, %while.body ]
+  %3 = phi i8 [ %2, %while.cond.preheader ], [ %.pr, %while.body ]
+  %4 = load i8, ptr %n.025, align 1, !tbaa !6
+  %cmp = icmp eq i8 %3, %4
+  br i1 %cmp, label %while.body, label %while.end
+
+while.body:                                       ; preds = %land.lhs.true
+  %incdec.ptr = getelementptr inbounds nuw i8, ptr %h.024, i16 1
+  %incdec.ptr8 = getelementptr inbounds nuw i8, ptr %n.025, i16 1
+  %.pr = load i8, ptr %incdec.ptr, align 1, !tbaa !6
+  %tobool2.not = icmp eq i8 %.pr, 0
+  br i1 %tobool2.not, label %while.body.while.end_crit_edge, label %land.lhs.true, !llvm.loop !24
+
+while.body.while.end_crit_edge:                   ; preds = %while.body
+  %.pre = load i8, ptr %incdec.ptr8, align 1, !tbaa !6
+  br label %while.end, !llvm.loop !24
+
+while.end:                                        ; preds = %land.lhs.true, %while.body.while.end_crit_edge
+  %5 = phi i8 [ %.pre, %while.body.while.end_crit_edge ], [ %4, %land.lhs.true ]
+  %tobool9.not.not = icmp eq i8 %5, 0
+  br i1 %tobool9.not.not, label %return, label %for.inc
+
+for.inc:                                          ; preds = %while.end
+  %incdec.ptr13 = getelementptr inbounds nuw i8, ptr %haystack.addr.027, i16 1
+  %6 = load i8, ptr %incdec.ptr13, align 1, !tbaa !6
+  %tobool1.not = icmp eq i8 %6, 0
+  br i1 %tobool1.not, label %return, label %while.cond.preheader, !llvm.loop !25
+
+return:                                           ; preds = %for.inc, %while.end, %for.cond.preheader, %entry
+  %retval.2 = phi ptr [ %haystack, %entry ], [ null, %for.cond.preheader ], [ null, %for.inc ], [ %haystack.addr.027, %while.end ]
+  ret ptr %retval.2
+}
+
+; Function Attrs: nofree norecurse nosync nounwind memory(argmem: read)
+define dso_local noundef i16 @test_strspn(ptr noundef %s, ptr noundef readonly captures(none) %accept) local_unnamed_addr #2 {
+entry:
+  %0 = load i8, ptr %s, align 1, !tbaa !6
+  %tobool.not26 = icmp eq i8 %0, 0
+  br i1 %tobool.not26, label %while.end9, label %while.cond1.preheader.lr.ph
+
+while.cond1.preheader.lr.ph:                      ; preds = %entry
+  %1 = load i8, ptr %accept, align 1, !tbaa !6
+  %tobool2.not23 = icmp eq i8 %1, 0
+  br i1 %tobool2.not23, label %while.end9, label %while.cond1.preheader
+
+while.cond1.preheader:                            ; preds = %while.cond1.preheader.lr.ph, %while.end
+  %2 = phi i8 [ %5, %while.end ], [ %0, %while.cond1.preheader.lr.ph ]
+  %p.027 = phi ptr [ %incdec.ptr8, %while.end ], [ %s, %while.cond1.preheader.lr.ph ]
+  br label %land.rhs
+
+while.cond1:                                      ; preds = %land.rhs
+  %incdec.ptr = getelementptr inbounds nuw i8, ptr %a.024, i16 1
+  %3 = load i8, ptr %incdec.ptr, align 1, !tbaa !6
+  %tobool2.not = icmp eq i8 %3, 0
+  br i1 %tobool2.not, label %while.end9, label %land.rhs, !llvm.loop !26
+
+land.rhs:                                         ; preds = %while.cond1.preheader, %while.cond1
+  %4 = phi i8 [ %1, %while.cond1.preheader ], [ %3, %while.cond1 ]
+  %a.024 = phi ptr [ %accept, %while.cond1.preheader ], [ %incdec.ptr, %while.cond1 ]
+  %cmp.not = icmp eq i8 %4, %2
+  br i1 %cmp.not, label %while.end, label %while.cond1
+
+while.end:                                        ; preds = %land.rhs
+  %incdec.ptr8 = getelementptr inbounds nuw i8, ptr %p.027, i16 1
+  %5 = load i8, ptr %incdec.ptr8, align 1, !tbaa !6
+  %tobool.not = icmp eq i8 %5, 0
+  br i1 %tobool.not, label %while.end9, label %while.cond1.preheader
+
+while.end9:                                       ; preds = %while.end, %while.cond1, %entry, %while.cond1.preheader.lr.ph
+  %p.022 = phi ptr [ %p.027, %while.cond1 ], [ %s, %while.cond1.preheader.lr.ph ], [ %s, %entry ], [ %incdec.ptr8, %while.end ]
+  %sub.ptr.lhs.cast = ptrtoint ptr %p.022 to i16
+  %sub.ptr.rhs.cast = ptrtoint ptr %s to i16
+  %sub.ptr.sub = sub i16 %sub.ptr.lhs.cast, %sub.ptr.rhs.cast
+  ret i16 %sub.ptr.sub
+}
+
+; Function Attrs: nofree norecurse nosync nounwind memory(argmem: read)
+define dso_local noundef i16 @test_strcspn(ptr noundef %s, ptr noundef readonly captures(none) %reject) local_unnamed_addr #2 {
+entry:
+  %0 = load i8, ptr %s, align 1, !tbaa !6
+  %tobool.not25 = icmp eq i8 %0, 0
+  br i1 %tobool.not25, label %while.end9, label %while.cond1.preheader.lr.ph
+
+while.cond1.preheader.lr.ph:                      ; preds = %entry
+  %1 = load i8, ptr %reject, align 1, !tbaa !6
+  %tobool2.not23 = icmp eq i8 %1, 0
+  br i1 %tobool2.not23, label %while.cond1.preheader.us, label %while.cond1.preheader
+
+while.cond1.preheader.us:                         ; preds = %while.cond1.preheader.lr.ph, %while.cond1.preheader.us
+  %p.026.us = phi ptr [ %incdec.ptr8.us, %while.cond1.preheader.us ], [ %s, %while.cond1.preheader.lr.ph ]
+  %incdec.ptr8.us = getelementptr inbounds nuw i8, ptr %p.026.us, i16 1
+  %2 = load i8, ptr %incdec.ptr8.us, align 1, !tbaa !6
+  %tobool.not.us = icmp eq i8 %2, 0
+  br i1 %tobool.not.us, label %while.end9, label %while.cond1.preheader.us
+
+while.cond1.preheader:                            ; preds = %while.cond1.preheader.lr.ph, %while.cond1.while.end_crit_edge
+  %3 = phi i8 [ %6, %while.cond1.while.end_crit_edge ], [ %0, %while.cond1.preheader.lr.ph ]
+  %p.026 = phi ptr [ %incdec.ptr8, %while.cond1.while.end_crit_edge ], [ %s, %while.cond1.preheader.lr.ph ]
+  br label %land.rhs
+
+while.cond1:                                      ; preds = %land.rhs
+  %incdec.ptr = getelementptr inbounds nuw i8, ptr %r.024, i16 1
+  %4 = load i8, ptr %incdec.ptr, align 1, !tbaa !6
+  %tobool2.not = icmp eq i8 %4, 0
+  br i1 %tobool2.not, label %while.cond1.while.end_crit_edge, label %land.rhs, !llvm.loop !27
+
+land.rhs:                                         ; preds = %while.cond1.preheader, %while.cond1
+  %5 = phi i8 [ %1, %while.cond1.preheader ], [ %4, %while.cond1 ]
+  %r.024 = phi ptr [ %reject, %while.cond1.preheader ], [ %incdec.ptr, %while.cond1 ]
+  %cmp.not = icmp eq i8 %5, %3
+  br i1 %cmp.not, label %while.end9, label %while.cond1
+
+while.cond1.while.end_crit_edge:                  ; preds = %while.cond1
+  %incdec.ptr8 = getelementptr inbounds nuw i8, ptr %p.026, i16 1
+  %6 = load i8, ptr %incdec.ptr8, align 1, !tbaa !6
+  %tobool.not = icmp eq i8 %6, 0
+  br i1 %tobool.not, label %while.end9, label %while.cond1.preheader
+
+while.end9:                                       ; preds = %while.cond1.while.end_crit_edge, %land.rhs, %while.cond1.preheader.us, %entry
+  %p.022 = phi ptr [ %p.026, %land.rhs ], [ %s, %entry ], [ %incdec.ptr8.us, %while.cond1.preheader.us ], [ %incdec.ptr8, %while.cond1.while.end_crit_edge ]
+  %sub.ptr.lhs.cast = ptrtoint ptr %p.022 to i16
+  %sub.ptr.rhs.cast = ptrtoint ptr %s to i16
+  %sub.ptr.sub = sub i16 %sub.ptr.lhs.cast, %sub.ptr.rhs.cast
+  ret i16 %sub.ptr.sub
+}
+
+; Function Attrs: nofree norecurse nosync nounwind memory(argmem: read)
+define dso_local noundef ptr @test_strpbrk(ptr noundef readonly captures(ret: address, provenance) %s, ptr noundef readonly captures(none) %accept) local_unnamed_addr #2 {
+entry:
+  %0 = load i8, ptr %s, align 1, !tbaa !6
+  %tobool.not19 = icmp eq i8 %0, 0
+  br i1 %tobool.not19, label %return, label %while.cond1.preheader.lr.ph
+
+while.cond1.preheader.lr.ph:                      ; preds = %entry
+  %1 = load i8, ptr %accept, align 1, !tbaa !6
+  %tobool2.not.not17 = icmp eq i8 %1, 0
+  br i1 %tobool2.not.not17, label %while.cond1.preheader.us, label %while.cond1.preheader
+
+while.cond1.preheader.us:                         ; preds = %while.cond1.preheader.lr.ph, %while.cond1.preheader.us
+  %s.addr.020.us = phi ptr [ %incdec.ptr6.us, %while.cond1.preheader.us ], [ %s, %while.cond1.preheader.lr.ph ]
+  %incdec.ptr6.us = getelementptr inbounds nuw i8, ptr %s.addr.020.us, i16 1
+  %2 = load i8, ptr %incdec.ptr6.us, align 1, !tbaa !6
+  %tobool.not.us = icmp eq i8 %2, 0
+  br i1 %tobool.not.us, label %return, label %while.cond1.preheader.us
+
+while.cond1.preheader:                            ; preds = %while.cond1.preheader.lr.ph, %while.cond1.cleanup_crit_edge
+  %3 = phi i8 [ %6, %while.cond1.cleanup_crit_edge ], [ %0, %while.cond1.preheader.lr.ph ]
+  %s.addr.020 = phi ptr [ %incdec.ptr6, %while.cond1.cleanup_crit_edge ], [ %s, %while.cond1.preheader.lr.ph ]
+  br label %while.body3
+
+while.cond1:                                      ; preds = %while.body3
+  %incdec.ptr = getelementptr inbounds nuw i8, ptr %a.018, i16 1
+  %4 = load i8, ptr %incdec.ptr, align 1, !tbaa !6
+  %tobool2.not.not = icmp eq i8 %4, 0
+  br i1 %tobool2.not.not, label %while.cond1.cleanup_crit_edge, label %while.body3, !llvm.loop !28
+
+while.body3:                                      ; preds = %while.cond1.preheader, %while.cond1
+  %5 = phi i8 [ %1, %while.cond1.preheader ], [ %4, %while.cond1 ]
+  %a.018 = phi ptr [ %accept, %while.cond1.preheader ], [ %incdec.ptr, %while.cond1 ]
+  %cmp = icmp eq i8 %5, %3
+  br i1 %cmp, label %return, label %while.cond1
+
+while.cond1.cleanup_crit_edge:                    ; preds = %while.cond1
+  %incdec.ptr6 = getelementptr inbounds nuw i8, ptr %s.addr.020, i16 1
+  %6 = load i8, ptr %incdec.ptr6, align 1, !tbaa !6
+  %tobool.not = icmp eq i8 %6, 0
+  br i1 %tobool.not, label %return, label %while.cond1.preheader
+
+return:                                           ; preds = %while.cond1.cleanup_crit_edge, %while.body3, %while.cond1.preheader.us, %entry
+  %retval.2 = phi ptr [ %s.addr.020, %while.body3 ], [ null, %entry ], [ null, %while.cond1.preheader.us ], [ null, %while.cond1.cleanup_crit_edge ]
+  ret ptr %retval.2
+}
+
+; Function Attrs: nofree norecurse nosync nounwind memory(argmem: read)
+define dso_local noundef ptr @test_memchr(ptr noundef readonly captures(ret: address, provenance) %s, i16 noundef %c, i16 noundef %n) local_unnamed_addr #2 {
+entry:
+  %tobool.not8 = icmp eq i16 %n, 0
+  br i1 %tobool.not8, label %cleanup, label %while.body.lr.ph
+
+while.body.lr.ph:                                 ; preds = %entry
+  %0 = trunc i16 %c to i8
+  br label %while.body
+
+while.body:                                       ; preds = %while.body.lr.ph, %if.end
+  %dec10.in = phi i16 [ %n, %while.body.lr.ph ], [ %dec10, %if.end ]
+  %p.09 = phi ptr [ %s, %while.body.lr.ph ], [ %incdec.ptr, %if.end ]
+  %1 = load i8, ptr %p.09, align 1, !tbaa !6
+  %cmp = icmp eq i8 %1, %0
+  br i1 %cmp, label %cleanup, label %if.end
+
+if.end:                                           ; preds = %while.body
+  %dec10 = add i16 %dec10.in, -1
+  %incdec.ptr = getelementptr inbounds nuw i8, ptr %p.09, i16 1
+  %tobool.not = icmp eq i16 %dec10, 0
+  br i1 %tobool.not, label %cleanup, label %while.body, !llvm.loop !29
+
+cleanup:                                          ; preds = %while.body, %if.end, %entry
+  %retval.0 = phi ptr [ null, %entry ], [ null, %if.end ], [ %p.09, %while.body ]
+  ret ptr %retval.0
+}
+
 ; Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(none)
 define dso_local range(i16 0, 2) i16 @test_isspace(i16 noundef %c) local_unnamed_addr #3 {
 entry:
@@ -312,3 +670,17 @@ attributes #3 = { mustprogress nofree norecurse nosync nounwind willreturn memor
 !13 = distinct !{!13, !8}
 !14 = distinct !{!14, !8}
 !15 = distinct !{!15, !8}
+!16 = distinct !{!16, !8}
+!17 = distinct !{!17, !8}
+!18 = distinct !{!18, !8}
+!19 = distinct !{!19, !8}
+!20 = distinct !{!20, !8}
+!21 = distinct !{!21, !8}
+!22 = distinct !{!22, !8}
+!23 = distinct !{!23, !8}
+!24 = distinct !{!24, !8}
+!25 = distinct !{!25, !8}
+!26 = distinct !{!26, !8}
+!27 = distinct !{!27, !8}
+!28 = distinct !{!28, !8}
+!29 = distinct !{!29, !8}
