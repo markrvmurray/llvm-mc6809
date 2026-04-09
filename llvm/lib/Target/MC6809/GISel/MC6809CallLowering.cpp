@@ -49,6 +49,13 @@ struct MC6809ValueAssigner : CallLowering::ValueAssigner {
   /// registers must be avoided when selecting registers for arguments.
   BitVector Reserved;
 
+  /// Track whether we're inside a multi-piece split (e.g. i64 → 4×i16).
+  /// determineAssignments sets isSplit on piece 0 and isSplitEnd on the
+  /// last piece, but middle pieces get neither flag. We use this state
+  /// to force middle pieces to the stack (gcc6809 ABI: all split pieces
+  /// go on the stack, none in registers).
+  bool InsideSplit = false;
+
   MC6809ValueAssigner(bool IsIncoming, MachineRegisterInfo &MRI, const MachineFunction &MF, bool IsReturn = false)
     : CallLowering::ValueAssigner(IsIncoming,
         IsReturn ? RetCC_MC6809 : CC_MC6809,
@@ -83,6 +90,19 @@ struct MC6809ValueAssigner : CallLowering::ValueAssigner {
       StackSize = State.getStackSize();
       return false;
     }
+
+    // Middle-piece fix: determineAssignments splits i64 into 4×i16
+    // and sets isSplit on piece 0, isSplitEnd on piece 3, but pieces
+    // 1 and 2 get neither flag. Without this fix, piece 1 grabs IX
+    // (violating gcc6809 ABI where all split pieces go on the stack).
+    // Track split state across assignArg calls and force middle
+    // pieces to the stack by setting isSplit on them.
+    if (Flags.isSplit())
+      InsideSplit = true;
+    else if (Flags.isSplitEnd())
+      InsideSplit = false;
+    else if (InsideSplit)
+      Flags.setSplit(); // Middle piece — force to stack via CCIfSplit
 
     // gcc6809's __gcccall variadic ABI puts ALL args (including the
     // named ones like printf's fmt) on the stack. The variadic CC
@@ -600,6 +620,10 @@ void MC6809CallLowering::splitToValueTypes(const ArgInfo &OrigArg, SmallVectorIm
   size_t OldSize = SplitArgs.size();
   CallLowering::splitToValueTypes(OrigArg, SplitArgs, DL, CallingConv::C);
   auto NewArgs = make_range(SplitArgs.begin() + OldSize, SplitArgs.end());
+
+  // (Note: for i64, NumNew is typically 1 here — the full 4-way split
+  // to i16 happens later in determineAssignments, not in splitToValueTypes.
+  // The middle-piece CC fix is in MC6809CallingConv.td instead.)
 
   // Transfer is-pointer information from LLTs to argument flags.
   SmallVector<LLT> SplitLLTs;

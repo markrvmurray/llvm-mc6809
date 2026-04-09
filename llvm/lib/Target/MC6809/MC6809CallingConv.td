@@ -89,9 +89,10 @@ def CC_MC6809 : CallingConv<[
   CCIfType<[i8],  CCAssignToStack<1, 1>>,
   // Pieces of a split i32 (or larger) → always stack. The first
   // piece carries ArgFlags.isSplit() and the last piece carries
-  // ArgFlags.isSplitEnd(). For i32 → 2*i16 there are no middle
-  // pieces; for i64+ middle pieces have neither flag set and need
-  // an additional rule (not yet exercised by any test).
+  // ArgFlags.isSplitEnd(). For i64 → 4*i16, middle pieces get
+  // neither flag from upstream; MC6809ValueAssigner::assignArg
+  // tracks split state and sets isSplit on them so CCIfSplit
+  // catches all non-final pieces.
   CCIfSplit<CCAssignToStack<2, 1>>,
   CCIf<"ArgFlags.isSplitEnd()", CCAssignToStack<2, 1>>,
   CCIfType<[i16], CCAssignToReg<[IX]>>,
