@@ -15,6 +15,7 @@
 ; Live CMOC↔LLVM interop: CMOC driver calls LLVM functions via __gcccall.
 
 .include "runtime.inc"
+.include "mc6809rt.s"
 
 	.section .rom,"ax",@progbits
 
