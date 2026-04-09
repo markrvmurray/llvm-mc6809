@@ -252,23 +252,8 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
         AnySpillUsed = true;
       }
     }
-    if (AnySpillUsed) {
+    if (AnySpillUsed)
       FuncInfo->UsesSpillRegisters = true;
-      // Reserve the frame pointer ($su) now that we know spill registers
-      // are in use. The initial freezeReservedRegs() may have missed it
-      // because hasFP() was false before spills were assigned (bug #16).
-      MachineRegisterInfo &MRI = MF.getRegInfo();
-      if (MRI.reservedRegsFrozen() && !MRI.isReserved(MC6809::SU)) {
-        MRI.reserveReg(MC6809::SU, &TRI);
-        // Clear 'renamable' flags on $su operands — they were set by the RA
-        // before $su was reserved. The verifier flags these as errors.
-        for (MachineBasicBlock &MBB : MF)
-          for (MachineInstr &MI : MBB)
-            for (MachineOperand &MO : MI.operands())
-              if (MO.isReg() && MO.getReg() == MC6809::SU && MO.isRenamable())
-                MO.setIsRenamable(false);
-      }
-    }
   }
 
   for (MachineBasicBlock &MBB : MF) {
@@ -557,17 +542,9 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
       MI->eraseFromParent();
   }
 
-  // Add frame pointer ($su) to liveins of all blocks that use it.
-  // MaterializeSpills inserts Store/Load instructions with $su as base;
-  // without the livein, the machine verifier flags it as undefined (bug #16).
-  const MC6809FrameLowering *TFI =
-      static_cast<const MC6809FrameLowering *>(MF.getSubtarget().getFrameLowering());
-  if (TFI->hasFP(MF)) {
-    Register FPReg = MC6809::SU;
-    for (MachineBasicBlock &MBB : MF)
-      if (!MBB.isLiveIn(FPReg))
-        MBB.addLiveIn(FPReg);
-  }
+  // Frame pointer ($su) liveins are added by emitPrologue (FrameLowering).
+  // SU is unconditionally reserved (see MC6809RegisterInfo::getReservedRegs),
+  // so the machine verifier accepts it as a livein without a def in this pass.
 
   return Changed;
 }

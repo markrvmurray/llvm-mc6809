@@ -230,7 +230,6 @@ void MC6809FrameLowering::determineCalleeSaves(MachineFunction &MF, BitVector &S
   // Detect spill register usage early — before hasFP is checked for
   // callee-save decisions. This ensures U is saved when spill registers
   // require frame pointer setup.
-  MachineRegisterInfo &MRI = MF.getRegInfo();
   auto &FuncInfo = *MF.getInfo<MC6809FunctionInfo>();
   static const MCPhysReg SpillDRegs[] = {
     MC6809::SPILL_D0, MC6809::SPILL_D1, MC6809::SPILL_D2, MC6809::SPILL_D3
@@ -238,22 +237,23 @@ void MC6809FrameLowering::determineCalleeSaves(MachineFunction &MF, BitVector &S
   static const MCPhysReg SpillXRegs[] = {
     MC6809::SPILL_X0, MC6809::SPILL_X1, MC6809::SPILL_X2, MC6809::SPILL_X3
   };
-  // Check for actual explicit spill register operands (not regmask).
+  // Check for explicit spill register operands (not regmask hits).
+  auto isSpillReg = [&](Register Reg) {
+    return llvm::is_contained(SpillDRegs, Reg) ||
+           llvm::is_contained(SpillXRegs, Reg);
+  };
   for (const MachineBasicBlock &MBB : MF) {
     for (const MachineInstr &MI : MBB) {
       for (const MachineOperand &MO : MI.operands()) {
-        if (!MO.isReg() || MO.isImplicit()) continue;
-        Register Reg = MO.getReg();
-        for (MCPhysReg SR : SpillDRegs) {
-          if (Reg == SR) { FuncInfo.UsesSpillRegisters = true; goto spill_check_done; }
-        }
-        for (MCPhysReg SR : SpillXRegs) {
-          if (Reg == SR) { FuncInfo.UsesSpillRegisters = true; goto spill_check_done; }
+        if (MO.isReg() && !MO.isImplicit() && isSpillReg(MO.getReg())) {
+          FuncInfo.UsesSpillRegisters = true;
+          break;
         }
       }
+      if (FuncInfo.UsesSpillRegisters) break;
     }
+    if (FuncInfo.UsesSpillRegisters) break;
   }
-  spill_check_done:;
 
   // If we have a frame pointer, the frame register SU needs to be saved as
   // well, since the code that uses it hasn't yet been emitted.

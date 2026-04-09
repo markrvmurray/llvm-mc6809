@@ -1268,15 +1268,9 @@ void MC6809InstrInfo::loadStoreRegStackSlot(MachineBasicBlock &MBB, MachineBasic
   MachineFrameInfo &MFI = MF.getFrameInfo();
   MachineRegisterInfo &MRI = MF.getRegInfo();
 
-  // Mark that this function uses spill registers the first time the RA
-  // creates a stack spill. This sets UsesSpillRegisters early (during RA)
-  // so hasFP() returns true before PEI.
-  // Note: do NOT call reserveReg here — the RA may have already assigned
-  // $su to virtual registers. The reserveReg call is in MaterializeSpills
-  // (post-RA) where it's safe.
-  auto &FuncInfo = *MF.getInfo<MC6809FunctionInfo>();
-  if (!FuncInfo.UsesSpillRegisters)
-    FuncInfo.UsesSpillRegisters = true;
+  // UsesSpillRegisters is detected by determineCalleeSaves (which scans all
+  // instructions before PEI runs hasFP). SU is unconditionally reserved in
+  // getReservedRegs, so we no longer need to coordinate flag-setting here.
 
   // Imaginary registers (RC0..RC255, RS0..RS127) are direct-page memory
   // locations — they don't use frame indices. Emit direct-page LDA/STA

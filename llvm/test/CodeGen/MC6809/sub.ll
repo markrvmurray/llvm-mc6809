@@ -7,14 +7,12 @@ define dso_local signext i8 @sub_s_i8(i8 noundef signext %a, i8 noundef signext 
 ; CHECK-LABEL: sub_s_i8:
 ; CHECK:       ; %bb.0: ; %entry
 ; CHECK-NEXT:    leas -2,s
-; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    lda 9,s
-; CHECK-NEXT:    adda 7,s
+; CHECK-NEXT:    lda 7,s
+; CHECK-NEXT:    adda 5,s
+; CHECK-NEXT:    adda 9,s
 ; CHECK-NEXT:    adda 11,s
-; CHECK-NEXT:    adda 13,s
 ; CHECK-NEXT:    pshs a
 ; CHECK-NEXT:    subb ,s+
-; CHECK-NEXT:    puls u
 ; CHECK-NEXT:    leas 2,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: sub_s_i8:
@@ -66,14 +64,12 @@ define dso_local zeroext i8 @sub_u_i8(i8 noundef zeroext %a, i8 noundef zeroext 
 ; CHECK-LABEL: sub_u_i8:
 ; CHECK:       ; %bb.0: ; %entry
 ; CHECK-NEXT:    leas -2,s
-; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    lda 9,s
-; CHECK-NEXT:    adda 7,s
+; CHECK-NEXT:    lda 7,s
+; CHECK-NEXT:    adda 5,s
+; CHECK-NEXT:    adda 9,s
 ; CHECK-NEXT:    adda 11,s
-; CHECK-NEXT:    adda 13,s
 ; CHECK-NEXT:    pshs a
 ; CHECK-NEXT:    subb ,s+
-; CHECK-NEXT:    puls u
 ; CHECK-NEXT:    leas 2,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: sub_u_i8:
@@ -125,16 +121,14 @@ define dso_local i16 @sub_s_i16(i16 noundef %a, i16 noundef %b, i16 noundef %c, 
 ; CHECK-LABEL: sub_s_i16:
 ; CHECK:       ; %bb.0: ; %entry
 ; CHECK-NEXT:    leas -2,s
-; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    ldd 8,s
-; CHECK-NEXT:    addd 6,s
+; CHECK-NEXT:    ldd 6,s
+; CHECK-NEXT:    addd 4,s
+; CHECK-NEXT:    addd 8,s
 ; CHECK-NEXT:    addd 10,s
-; CHECK-NEXT:    addd 12,s
 ; CHECK-NEXT:    pshs d
 ; CHECK-NEXT:    ldd #0
 ; CHECK-NEXT:    subd ,s++
 ; CHECK-NEXT:    leax d,x
-; CHECK-NEXT:    puls u
 ; CHECK-NEXT:    leas 2,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: sub_s_i16:
@@ -212,16 +206,14 @@ define dso_local i16 @sub_u_i16(i16 noundef %a, i16 noundef %b, i16 noundef %c, 
 ; CHECK-LABEL: sub_u_i16:
 ; CHECK:       ; %bb.0: ; %entry
 ; CHECK-NEXT:    leas -2,s
-; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    ldd 8,s
-; CHECK-NEXT:    addd 6,s
+; CHECK-NEXT:    ldd 6,s
+; CHECK-NEXT:    addd 4,s
+; CHECK-NEXT:    addd 8,s
 ; CHECK-NEXT:    addd 10,s
-; CHECK-NEXT:    addd 12,s
 ; CHECK-NEXT:    pshs d
 ; CHECK-NEXT:    ldd #0
 ; CHECK-NEXT:    subd ,s++
 ; CHECK-NEXT:    leax d,x
-; CHECK-NEXT:    puls u
 ; CHECK-NEXT:    leas 2,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: sub_u_i16:

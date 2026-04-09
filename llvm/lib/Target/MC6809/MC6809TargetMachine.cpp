@@ -247,13 +247,14 @@ void MC6809PassConfig::addPreGlobalInstructionSelect() {
 
 bool MC6809PassConfig::addGlobalInstructionSelect() {
   addPass(new InstructionSelect());
+  // Post-ISel cleanup (STACK16 vreg → $ss). Must run before RA at all opt
+  // levels — see MC6809InsertCopies.cpp.
+  addPass(createMC6809InsertCopiesPass());
   return false;
 }
 
 void MC6809PassConfig::addMachineSSAOptimization() {
   TargetPassConfig::addMachineSSAOptimization();
-  if (getOptLevel() != CodeGenOptLevel::None)
-    addPass(createMC6809InsertCopiesPass());
 }
 
 void MC6809PassConfig::addOptimizedRegAlloc() {

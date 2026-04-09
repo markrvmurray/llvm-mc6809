@@ -86,10 +86,6 @@ private:
 
   void constrainOperandRegClass(MachineOperand &RegMO, const TargetRegisterClass &RegClass);
 
-  // Select all instructions in a given span, recursively. Allows selecting an
-  // instruction sequence by reducing it to a more easily selectable sequence.
-  bool selectAll(MachineInstrSpan MIS);
-
   /// tblgenerated 'select' implementation, used as the initial selector for
   /// the patterns that don't require complex C++.
   bool selectImpl(MachineInstr &MI, CodeGenCoverage &CoverageInfo) const;
@@ -1342,56 +1338,6 @@ void MC6809InstructionSelector::constrainGenericOp(MachineInstr &MI) {
 void MC6809InstructionSelector::constrainOperandRegClass(MachineOperand &RegMO, const TargetRegisterClass &RegClass) {
   MachineInstr &MI = *RegMO.getParent();
   RegMO.setReg(llvm::constrainOperandRegClass(*MF, TRI, *MRI, TII, RBI, MI, RegClass, RegMO));
-}
-
-bool MC6809InstructionSelector::selectAll(MachineInstrSpan MIS) {
-  // Ensure that all new generic virtual registers have a register bank.
-  for (MachineInstr &MI : MIS) {
-    for (MachineOperand &MO : MI.operands()) {
-      if (!MO.isReg())
-        continue;
-      Register Reg = MO.getReg();
-      if (!MO.getReg().isVirtual())
-        continue;
-      if (MRI->getRegBankOrNull(Reg))
-        continue;
-      const auto *RC = MRI->getRegClassOrNull(Reg);
-      if (!RC)
-        continue;
-      MRI->setRegBank(Reg, RBI.getRegBankFromRegClass(*RC, LLT()));
-    }
-  }
-
-  for (MachineInstr &MI : MIS) {
-    if (!select(MI))
-      return false;
-  }
-
-  // Post-selection cleanup across the entire function.
-  for (MachineBasicBlock &MBB : *MF)
-    for (MachineInstr &MI : MBB)
-      for (MachineOperand &MO : MI.operands()) {
-        if (!MO.isReg() || !MO.getReg().isVirtual())
-          continue;
-        // Push/Pull: replace STACK16 vregs with physical SS (bug #55).
-        if (MRI->getRegClassOrNull(MO.getReg()) == &MC6809::STACK16RegClass) {
-          MO.setReg(MC6809::SS);
-          continue;
-        }
-        // Ensure all vregs have a register class (not just a bank).
-        // The LLVM InstructionSelect post-ISel COPY coalescing crashes
-        // on vregs without classes (e.g., strncmp G_XOR→G_TRUNC chain).
-        if (!MRI->getRegClassOrNull(MO.getReg()) &&
-            MRI->getType(MO.getReg()).isValid()) {
-          const RegisterBank *RB = MRI->getRegBankOrNull(MO.getReg());
-          if (RB) {
-            LLT Ty = MRI->getType(MO.getReg());
-            MRI->setRegClass(MO.getReg(), &getRegClassForTypeOnBank(Ty, RB));
-          }
-        }
-      }
-
-  return true;
 }
 
 InstructionSelector *llvm::createMC6809InstructionSelector(const MC6809TargetMachine &TM, MC6809Subtarget &STI, MC6809RegisterBankInfo &RBI) { return new MC6809InstructionSelector(TM, STI, RBI); }

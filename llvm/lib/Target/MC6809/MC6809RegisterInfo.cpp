@@ -67,7 +67,6 @@ MC6809RegisterInfo::MC6809RegisterInfo(const Triple &TT)
 
 BitVector MC6809RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   BitVector Reserved(getNumRegs());
-  const MC6809FrameLowering *TFI = getFrameLowering(MF);
 
   // Mark special registers as reserved.
   Reserved.set(MC6809::PC);
@@ -77,9 +76,12 @@ BitVector MC6809RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   Reserved.set(MC6809::AV);
   Reserved.set(MC6809::MD);
 
-  // Mark frame pointer as reserved if needed.
-  if (TFI->hasFP(MF))
-    Reserved.set(MC6809::SU);
+  // SU is unconditionally reserved as the frame pointer. Even when a function
+  // doesn't need a frame pointer at the start of compilation, the register
+  // allocator may introduce stack-backed spill registers that require one.
+  // Reserving SU upfront avoids the phase-ordering trap where hasFP() flips
+  // mid-allocation (was bug #16).
+  Reserved.set(MC6809::SU);
 
   // HD6309-only registers: reserve on standard 6809.
   const MC6809Subtarget &STI = MF.getSubtarget<MC6809Subtarget>();
