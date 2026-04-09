@@ -74,6 +74,34 @@ static bool isAnySpillReg(Register Reg) {
   return isAccSpillReg(Reg) || isIndexSpillReg(Reg);
 }
 
+/// Bug #63 support: opcodes whose expansion runs through
+/// emit6809Reg{Byte,Pair}FromMem (in MC6809InstrInfo.cpp). These
+/// expansions already have a U-relative spill path that handles a
+/// SPILL_A*/SPILL_B*/SPILL_D* RHS without going through D — so when an
+/// instruction has TWO distinct ACC spill operands, MaterializeSpills
+/// should leave the RHS alone and let the expansion handle it directly.
+/// Without this, both operands materialize through $ad and the second
+/// LDD clobbers the first (the "multi-ACC-spill via D" bug).
+static bool isAddSubFamilyReg(unsigned Opcode) {
+  switch (Opcode) {
+  case MC6809::Add_i8_Reg:
+  case MC6809::Add_i16_Reg:
+  case MC6809::Sub_i8_Reg:
+  case MC6809::Sub_i16_Reg:
+  case MC6809::AddSetCarry_i8_Reg:
+  case MC6809::AddSetCarry_i16_Reg:
+  case MC6809::SubSetCarry_i8_Reg:
+  case MC6809::SubSetCarry_i16_Reg:
+  case MC6809::AddSetCarryUse_i8_Reg:
+  case MC6809::AddSetCarryUse_i16_Reg:
+  case MC6809::SubSetCarryUse_i8_Reg:
+  case MC6809::SubSetCarryUse_i16_Reg:
+    return true;
+  default:
+    return false;
+  }
+}
+
 /// Get the real register to use for materialization.
 static Register getRealReg(Register SpillReg) {
   if (isIndexSpillReg(SpillReg))
@@ -458,11 +486,34 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
       }
 
       // Collect spill operands.
+      //
+      // Bug #63: for Add/Sub/SetCarry binary _Reg pseudos, the expansion
+      // (emit6809Reg{Byte,Pair}FromMem) already has a U-relative spill
+      // path for the RHS. Without special handling here, two distinct
+      // ACC spill operands both materialize through $ad and the second
+      // load clobbers the first. Skip the second-and-beyond UNIQUE ACC
+      // spill so the expansion can handle it directly. Tied operands
+      // referencing the same SPILL_D (dst+src for these pseudos) all
+      // remain in SpillOps and rewrite together.
       SmallVector<std::pair<unsigned, Register>, 4> SpillOps;
+      const bool IsAddSubReg = isAddSubFamilyReg(MI.getOpcode());
+      llvm::SmallSet<Register, 4> SeenAccSpillsForSkip;
       for (unsigned I = 0; I < MI.getNumOperands(); ++I) {
         MachineOperand &MO = MI.getOperand(I);
-        if (MO.isReg() && MO.getReg().isPhysical() && isAnySpillReg(MO.getReg()))
-          SpillOps.push_back({I, MO.getReg()});
+        if (!MO.isReg() || !MO.getReg().isPhysical() ||
+            !isAnySpillReg(MO.getReg()))
+          continue;
+        if (IsAddSubReg && isAccSpillReg(MO.getReg())) {
+          if (!SeenAccSpillsForSkip.contains(MO.getReg())) {
+            SeenAccSpillsForSkip.insert(MO.getReg());
+            if (SeenAccSpillsForSkip.size() > 1) {
+              // 2nd+ unique ACC spill — leave it for the expansion's
+              // U-relative spill path.
+              continue;
+            }
+          }
+        }
+        SpillOps.push_back({I, MO.getReg()});
       }
 
       // Load spill values into real registers for USE operands.
