@@ -803,6 +803,13 @@ land.end:                                         ; preds = %land.rhs, %entry
   ret i16 %land.ext
 }
 
+; Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(none)
+define dso_local range(i32 0, -2147483648) i32 @test_labs(i32 noundef %x) local_unnamed_addr #4 {
+entry:
+  %cond = tail call i32 @llvm.abs.i32(i32 %x, i1 true)
+  ret i32 %cond
+}
+
 ; Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(readwrite, argmem: none, inaccessiblemem: none, target_mem0: none, target_mem1: none)
 define dso_local range(i16 0, -32768) i16 @test_rand() local_unnamed_addr #5 {
 entry:
@@ -821,6 +828,9 @@ entry:
   ret void
 }
 
+; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
+declare i32 @llvm.abs.i32(i32, i1 immarg) #7
+
 attributes #0 = { nofree norecurse nosync nounwind memory(argmem: readwrite) "frame-pointer"="all" "no-builtins" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 attributes #1 = { nofree norecurse nosync nounwind memory(argmem: write) "frame-pointer"="all" "no-builtins" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 attributes #2 = { nofree norecurse nosync nounwind memory(argmem: read) "frame-pointer"="all" "no-builtins" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
@@ -828,6 +838,7 @@ attributes #3 = { nofree norecurse nosync nounwind memory(readwrite, inaccessibl
 attributes #4 = { mustprogress nofree norecurse nosync nounwind willreturn memory(none) "frame-pointer"="all" "no-builtins" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 attributes #5 = { mustprogress nofree norecurse nosync nounwind willreturn memory(readwrite, argmem: none, inaccessiblemem: none, target_mem0: none, target_mem1: none) "frame-pointer"="all" "no-builtins" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 attributes #6 = { mustprogress nofree norecurse nosync nounwind willreturn memory(write, argmem: none, inaccessiblemem: none, target_mem0: none, target_mem1: none) "frame-pointer"="all" "no-builtins" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
+attributes #7 = { nocallback nofree nosync nounwind speculatable willreturn memory(none) }
 
 !llvm.module.flags = !{!0, !1}
 !llvm.ident = !{!2}

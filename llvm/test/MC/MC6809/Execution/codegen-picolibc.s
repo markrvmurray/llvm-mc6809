@@ -36,11 +36,11 @@
 ; RUN: %usim09batch --timeout=2000000 %t.hex | FileCheck %s
 ; REQUIRES: usim
 ;
-; Picolibc execution tests: 28 functions covering string.h (memcpy,
+; Picolibc execution tests: 29 functions covering string.h (memcpy,
 ; memset, memmove, memcmp, memchr, strcpy, strncpy, strcat, strncat,
 ; strlen, strchr, strrchr, strstr, strspn, strcspn, strpbrk, strncmp,
 ; strtok), ctype.h (isspace, isprint, isxdigit, tolower, toupper,
-; ispunct, iscntrl, isgraph), and stdlib.h (rand, srand).
+; ispunct, iscntrl, isgraph), and stdlib.h (labs, rand, srand).
 ; Tested at -O0 through -O3.
 
 .include "runtime.inc"
@@ -665,9 +665,51 @@ test_main:
 	jsr	putnl
 ; CHECK-NEXT: 0000
 
-	;; labs/atol omitted: both expose codegen bug #61 (i32 sub-from-zero
-	;; produces "x - 0" instead of "0 - x" because the SubSetCarry_i16_Imm
-	;; pattern only matches the (reg, imm) form). Add back when fixed.
+	;; labs(5) = 5  (i32: hi=0, lo=5)
+	leas	-2,s
+	ldd	#5		; lo
+	std	,s
+	ldx	#0		; hi
+	jsr	test_labs
+	jsr	putx		; result_hi
+	ldd	,s		; result_lo
+	tfr	d,x
+	jsr	putx
+	leas	2,s
+	jsr	putnl
+; CHECK-NEXT: 00000005
+
+	;; labs(0) = 0
+	leas	-2,s
+	ldd	#0		; lo
+	std	,s
+	ldx	#0		; hi
+	jsr	test_labs
+	jsr	putx
+	ldd	,s
+	tfr	d,x
+	jsr	putx
+	leas	2,s
+	jsr	putnl
+; CHECK-NEXT: 00000000
+
+	;; labs(-3) = 3  (-3 = 0xFFFFFFFD → hi=0xFFFF, lo=0xFFFD)
+	;; This was bug #61 (the labs(-3) case returned -3 unchanged via
+	;; the (0 - x) selector path). Now sidestepped via XOR/ADD lowering
+	;; in customAbs — see MC6809LegalizerInfo.cpp G_ABS case. The
+	;; underlying selectSubO/E operand-swap bug is still latent.
+	leas	-2,s
+	ldd	#0xFFFD		; lo
+	std	,s
+	ldx	#0xFFFF		; hi
+	jsr	test_labs
+	jsr	putx		; result_hi
+	ldd	,s		; result_lo
+	tfr	d,x
+	jsr	putx
+	leas	2,s
+	jsr	putnl
+; CHECK-NEXT: 00000003
 
 	;; srand(42); rand(); rand(); rand()
 	;; LCG: state = state*75 + 17, return state & 0x7FFF

@@ -418,16 +418,31 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
     return legalizeFCanonicalize(Helper, MRI, MI, LocObserver);
     break;
   case G_ABS: {
-    // Decompose to: %neg = G_SUB 0, %src; %cmp = G_ICMP slt, %src, 0;
+    // Decompose to: %not = G_XOR %src, -1; %neg = G_ADD %not, 1;
+    //               %cmp = G_ICMP slt, %src, 0;
     //               %res = G_SELECT %cmp, %neg, %src
-    // This avoids the default ASHR+ADD+XOR pattern which creates massive
-    // byte-level shift chains on the 6809.
+    //
+    // Why XOR/ADD instead of SUB(0, src)? The selectSubO/selectSubE
+    // matchers (MC6809InstructionSelector.cpp) silently swap operands
+    // of (const, reg) Sub matches and emit SubSetCarry_*_Imm reg, 0,
+    // computing "x - 0" (no-op) instead of "0 - x" (negation). That's
+    // bug #61 — see project_bug_tracker.md. Going through XOR + ADD
+    // sidesteps the buggy selector path entirely (Add IS commutative,
+    // so its selector handles (const, reg) correctly).
+    //
+    // The default LegalizerHelper ABS lowering uses ASHR+ADD+XOR which
+    // also avoids SUB but creates massive byte-level shift chains for
+    // i32 ASHR 31 on the 6809. This explicit XOR-with-(-1) + ADD is
+    // tighter — XOR with all-ones is just two byte-XORs against 0xFF.
     MachineIRBuilder &Builder = Helper.MIRBuilder;
     Register Dst = MI.getOperand(0).getReg();
     Register Src = MI.getOperand(1).getReg();
     LLT Ty = MRI.getType(Src);
+    auto NegOne = Builder.buildConstant(Ty, -1);
+    auto NotSrc = Builder.buildXor(Ty, Src, NegOne);
+    auto One = Builder.buildConstant(Ty, 1);
+    auto Neg = Builder.buildAdd(Ty, NotSrc, One);
     auto Zero = Builder.buildConstant(Ty, 0);
-    auto Neg = Builder.buildSub(Ty, Zero, Src);
     auto Cmp = Builder.buildICmp(CmpInst::ICMP_SLT, LLT::scalar(1), Src, Zero);
     Builder.buildSelect(Dst, Cmp, Neg, Src);
     MI.eraseFromParent();
