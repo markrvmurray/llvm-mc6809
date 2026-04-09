@@ -13,6 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "MC6809InstructionSelector.h"
+#include "MC6809.h"
 #include "MC6809RegisterBankInfo.h"
 
 #include "MC6809RegisterInfo.h"
@@ -470,6 +471,30 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(MC6809::BranchJumpTable))
         .addReg(IdxReg)
         .addJumpTableIndex(JTI);
+    MI.eraseFromParent();
+    return true;
+  }
+
+  case TargetOpcode::G_BRCOND: {
+    // G_BRCOND %cond(s1), %bb.target
+    // When the condition is an s1 in the accum bank (not FLAGS), the imported
+    // patterns can't handle it. Emit TSTB + BNE to test the boolean byte.
+    Register CondReg = MI.getOperand(0).getReg();
+    MachineBasicBlock *TargetMBB = MI.getOperand(1).getMBB();
+    // Set register class to ACC8 (the boolean is a byte: 0 or 1).
+    MRI->setRegClass(CondReg, &MC6809::ACC8RegClass);
+    // Test the boolean: Test_i8_Reg sets CC from the register value.
+    Register CCReg = MRI->createVirtualRegister(&MC6809::CCondRegClass);
+    BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(MC6809::Test_i8_Reg))
+        .addDef(CCReg)
+        .addImm(MC6809CC::NE)
+        .addReg(CondReg);
+    // Branch if non-zero (NE).
+    BuildMI(*MBB, MI, MI.getDebugLoc(),
+            TII.get(MC6809::ConditionalLongBranchRelative))
+        .addImm(MC6809CC::NE)
+        .addMBB(TargetMBB)
+        .addReg(CCReg);
     MI.eraseFromParent();
     return true;
   }
