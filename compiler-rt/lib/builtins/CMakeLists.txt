@@ -823,13 +823,15 @@ set(mc6809_SOURCES ${GENERIC_SOURCES})
 # We also have hand-written assembly for shifts and multiply (shiftsi3.inc etc.)
 # that are faster than the C versions; those will be provided separately.
 list(REMOVE_ITEM mc6809_SOURCES
-  # 64-bit arithmetic (not needed on 16-bit target)
-  ashldi3.c ashrdi3.c lshrdi3.c
-  divdi3.c moddi3.c udivdi3.c umoddi3.c muldi3.c
+  # 64-bit arithmetic: most are kept for i64 (long long) support.
+  # Generic C implementations that compile OK are left in GENERIC_SOURCES.
+  # The ones below exhaust registers or hit legalizer gaps; they need
+  # hand-written assembly in mc6809/ per the libcall-first strategy.
+  ashrdi3.c
+  divdi3.c moddi3.c udivdi3.c umoddi3.c
   divmoddi4.c udivmoddi4.c
-  absvdi2.c negvdi2.c addvdi3.c subvdi3.c mulvdi3.c mulodi4.c
-  clzdi2.c ctzdi2.c ffsdi2.c paritydi2.c popcountdi2.c
-  cmpdi2.c ucmpdi2.c
+  absvdi2.c mulvdi3.c mulodi4.c
+  paritydi2.c popcountdi2.c
   # 128-bit arithmetic
   ashlti3.c ashrti3.c lshrti3.c
   divti3.c modti3.c udivti3.c umodti3.c multi3.c
