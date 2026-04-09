@@ -108,6 +108,54 @@ test_main:
 	jsr	putnl
 ; CHECK-NEXT: AAAAAAAA
 
+	;; memmove: forward (dst < src) — copy "Hello" forward into buf
+	ldx	#buf
+	leas	-4,s
+	ldd	#str_hello
+	std	,s
+	ldd	#5
+	std	2,s
+	jsr	test_memmove
+	leas	4,s
+	ldb	buf
+	jsr	putb
+	ldb	buf+1
+	jsr	putb
+	ldb	buf+2
+	jsr	putb
+	ldb	buf+3
+	jsr	putb
+	ldb	buf+4
+	jsr	putb
+	jsr	putnl
+; CHECK-NEXT: 48656C6C6F
+
+	;; memmove: backward (dst > src, overlapping) — shift buf right by 1
+	;; buf currently = "Hello"
+	;; Move buf+0..4 → buf+1..5 (overlap)
+	ldx	#buf+1
+	leas	-4,s
+	ldd	#buf
+	std	,s
+	ldd	#5
+	std	2,s
+	jsr	test_memmove
+	leas	4,s
+	ldb	buf
+	jsr	putb
+	ldb	buf+1
+	jsr	putb
+	ldb	buf+2
+	jsr	putb
+	ldb	buf+3
+	jsr	putb
+	ldb	buf+4
+	jsr	putb
+	ldb	buf+5
+	jsr	putb
+	jsr	putnl
+; CHECK-NEXT: 4848656C6C6F
+
 	;; strcpy: copy "Hi" into buf
 	ldx	#buf
 	leas	-2,s

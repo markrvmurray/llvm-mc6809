@@ -57,14 +57,14 @@ define i8 @foo2(i8* nocapture noundef readonly %a) #0 {
 ; CHECK-MC6809-LABEL: foo2:
 ; CHECK-MC6809:       ; %bb.0: ; %entry
 ; CHECK-MC6809-NEXT:    leas -2,s
-; CHECK-MC6809-NEXT:    ldb 65531,x
+; CHECK-MC6809-NEXT:    ldb -5,x
 ; CHECK-MC6809-NEXT:    leas 2,s
 ; CHECK-MC6809-NEXT:    rts
 ;
 ; CHECK-HD6309-LABEL: foo2:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
 ; CHECK-HD6309-NEXT:    leas -2,s
-; CHECK-HD6309-NEXT:    ldb 65531,x
+; CHECK-HD6309-NEXT:    ldb -5,x
 ; CHECK-HD6309-NEXT:    leas 2,s
 ; CHECK-HD6309-NEXT:    rts
 entry:

@@ -260,6 +260,7 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
 
   getActionDefinitionsBuilder(G_ICMP)
       .legalForCartesianProduct({s1}, {s8, s16})
+      .customForCartesianProduct({s1}, {p})
       .clampScalar(1, s8, s16);
 
   getActionDefinitionsBuilder(G_FCMP)
@@ -318,6 +319,23 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
   case G_OR:
   case G_XOR:
     return legalizeBitwise(Helper, MRI, MI, LocObserver);
+  case G_ICMP: {
+    // Pointer compare: convert ptr operands to s16 via G_PTRTOINT and reuse
+    // the existing s16 G_ICMP patterns. The hardware CMPD/CMPX instructions
+    // don't distinguish pointers from integers; this just keeps the imported
+    // selection patterns happy.
+    Register Dst = MI.getOperand(0).getReg();
+    auto Pred = (CmpInst::Predicate)MI.getOperand(1).getPredicate();
+    Register Lhs = MI.getOperand(2).getReg();
+    Register Rhs = MI.getOperand(3).getReg();
+    MachineIRBuilder &B = Helper.MIRBuilder;
+    LLT S16 = LLT::scalar(16);
+    auto LhsInt = B.buildPtrToInt(S16, Lhs);
+    auto RhsInt = B.buildPtrToInt(S16, Rhs);
+    B.buildICmp(Pred, Dst, LhsInt, RhsInt);
+    MI.eraseFromParent();
+    return true;
+  }
   case G_ZEXT:
   case G_ANYEXT: {
     // Decompose s1→s16/s32: zext s1→s8 (AND #1), then merge with zeros.

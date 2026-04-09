@@ -73,7 +73,9 @@ bool MC6809MCInstLower::lowerOperand(const MachineOperand &MO, MCOperand &MCOp) 
     break;
   }
   case MachineOperand::MO_CImmediate:
-    MCOp = MCOperand::createImm(MO.getCImm()->getLimitedValue());
+    // Use sign-extended value so negative offsets (e.g., i16 -1 from a
+    // pre-decrement pointer) are emitted as -1, not as 65535.
+    MCOp = MCOperand::createImm(MO.getCImm()->getSExtValue());
     break;
   case MachineOperand::MO_Immediate:
     MCOp = MCOperand::createImm(MO.getImm());
