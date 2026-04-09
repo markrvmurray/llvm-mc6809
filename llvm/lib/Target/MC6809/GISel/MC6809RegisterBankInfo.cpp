@@ -92,6 +92,10 @@ MC6809GenRegisterBankInfo::PartialMappingIdx MC6809GenRegisterBankInfo::getParti
     return PMI_ACC16;
   case 32:
     return PMI_ACC32;
+  case 64:
+    // i64 decomposes to 2×i32 → 4×i16. Reuse the 32-bit accumulator
+    // bank mapping — the legaliser handles the decomposition.
+    return PMI_ACC32;
   default:
     llvm_unreachable("Unsupported register size.");
   }
