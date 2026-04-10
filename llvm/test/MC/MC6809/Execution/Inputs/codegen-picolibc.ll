@@ -858,6 +858,260 @@ while.end:                                        ; preds = %while.body, %if.end
   ret i32 %cond
 }
 
+; Function Attrs: nofree norecurse nosync nounwind memory(argmem: readwrite)
+define dso_local range(i32 -2147483647, -2147483648) i32 @test_strtol(ptr noundef %nptr, ptr noundef writeonly captures(address_is_null) %endptr, i16 noundef %base) local_unnamed_addr #0 {
+entry:
+  br label %while.cond
+
+while.cond:                                       ; preds = %while.body, %entry
+  %s.0 = phi ptr [ %nptr, %entry ], [ %incdec.ptr, %while.body ]
+  %0 = load i8, ptr %s.0, align 1, !tbaa !7
+  switch i8 %0, label %while.end [
+    i8 32, label %while.body
+    i8 9, label %while.body
+    i8 10, label %while.body
+  ]
+
+while.body:                                       ; preds = %while.cond, %while.cond, %while.cond
+  %incdec.ptr = getelementptr inbounds nuw i8, ptr %s.0, i16 1
+  br label %while.cond, !llvm.loop !37
+
+while.end:                                        ; preds = %while.cond
+  %cmp9.not = icmp eq i8 %0, 45
+  br i1 %cmp9.not, label %if.then, label %if.else
+
+if.then:                                          ; preds = %while.end
+  %incdec.ptr11 = getelementptr inbounds nuw i8, ptr %s.0, i16 1
+  br label %if.end17
+
+if.else:                                          ; preds = %while.end
+  %cmp13 = icmp eq i8 %0, 43
+  br i1 %cmp13, label %if.then15, label %if.end17
+
+if.then15:                                        ; preds = %if.else
+  %incdec.ptr16 = getelementptr inbounds nuw i8, ptr %s.0, i16 1
+  br label %if.end17
+
+if.end17:                                         ; preds = %if.else, %if.then15, %if.then
+  %s.1 = phi ptr [ %incdec.ptr11, %if.then ], [ %incdec.ptr16, %if.then15 ], [ %s.0, %if.else ]
+  %cmp18 = icmp eq i16 %base, 0
+  switch i16 %base, label %if.end45 [
+    i16 16, label %land.lhs.true
+    i16 0, label %land.lhs.true
+  ]
+
+land.lhs.true:                                    ; preds = %if.end17, %if.end17
+  %1 = load i8, ptr %s.1, align 1, !tbaa !7
+  %cmp24 = icmp eq i8 %1, 48
+  br i1 %cmp24, label %land.lhs.true26, label %if.else37
+
+land.lhs.true26:                                  ; preds = %land.lhs.true
+  %arrayidx27 = getelementptr inbounds nuw i8, ptr %s.1, i16 1
+  %2 = load i8, ptr %arrayidx27, align 1, !tbaa !7
+  switch i8 %2, label %if.else37 [
+    i8 120, label %if.then36
+    i8 88, label %if.then36
+  ]
+
+if.then36:                                        ; preds = %land.lhs.true26, %land.lhs.true26
+  %add.ptr = getelementptr inbounds nuw i8, ptr %s.1, i16 2
+  br label %if.end45
+
+if.else37:                                        ; preds = %land.lhs.true26, %land.lhs.true
+  br i1 %cmp18, label %if.then40, label %if.end45
+
+if.then40:                                        ; preds = %if.else37
+  %cond = select i1 %cmp24, i16 8, i16 10
+  br label %if.end45
+
+if.end45:                                         ; preds = %if.end17, %if.else37, %if.then40, %if.then36
+  %base.addr.0 = phi i16 [ 16, %if.then36 ], [ %cond, %if.then40 ], [ %base, %if.else37 ], [ %base, %if.end17 ]
+  %s.2 = phi ptr [ %add.ptr, %if.then36 ], [ %s.1, %if.then40 ], [ %s.1, %if.else37 ], [ %s.1, %if.end17 ]
+  %3 = load i8, ptr %s.2, align 1, !tbaa !7
+  %tobool.not126 = icmp eq i8 %3, 0
+  br i1 %tobool.not126, label %while.end82, label %while.body47.lr.ph
+
+while.body47.lr.ph:                               ; preds = %if.end45
+  %conv79 = zext nneg i16 %base.addr.0 to i32
+  br label %while.body47
+
+while.body47:                                     ; preds = %while.body47.lr.ph, %if.end78
+  %4 = phi i8 [ %3, %while.body47.lr.ph ], [ %8, %if.end78 ]
+  %acc.0128 = phi i32 [ 0, %while.body47.lr.ph ], [ %add, %if.end78 ]
+  %s.3127 = phi ptr [ %s.2, %while.body47.lr.ph ], [ %incdec.ptr81, %if.end78 ]
+  %conv48 = zext i8 %4 to i16
+  %5 = add i8 %4, -48
+  %or.cond90 = icmp ult i8 %5, 10
+  br i1 %or.cond90, label %if.end74, label %if.else55
+
+if.else55:                                        ; preds = %while.body47
+  %6 = add i8 %4, -97
+  %or.cond91 = icmp ult i8 %6, 26
+  br i1 %or.cond91, label %if.end74, label %if.else63
+
+if.else63:                                        ; preds = %if.else55
+  %7 = add i8 %4, -65
+  %or.cond92 = icmp ult i8 %7, 26
+  br i1 %or.cond92, label %if.end74, label %while.end82
+
+if.end74:                                         ; preds = %if.else63, %if.else55, %while.body47
+  %.sink = phi i16 [ -48, %while.body47 ], [ -87, %if.else55 ], [ -55, %if.else63 ]
+  %sub62 = add nsw i16 %.sink, %conv48
+  %cmp75.not = icmp slt i16 %sub62, %base.addr.0
+  br i1 %cmp75.not, label %if.end78, label %while.end82
+
+if.end78:                                         ; preds = %if.end74
+  %mul = mul nsw i32 %acc.0128, %conv79
+  %conv80 = zext nneg i16 %sub62 to i32
+  %add = add nuw nsw i32 %mul, %conv80
+  %incdec.ptr81 = getelementptr inbounds nuw i8, ptr %s.3127, i16 1
+  %8 = load i8, ptr %incdec.ptr81, align 1, !tbaa !7
+  %tobool.not = icmp eq i8 %8, 0
+  br i1 %tobool.not, label %while.end82, label %while.body47, !llvm.loop !38
+
+while.end82:                                      ; preds = %if.end78, %if.else63, %if.end74, %if.end45
+  %s.3.lcssa = phi ptr [ %s.2, %if.end45 ], [ %s.3127, %if.end74 ], [ %s.3127, %if.else63 ], [ %incdec.ptr81, %if.end78 ]
+  %acc.0.lcssa = phi i32 [ 0, %if.end45 ], [ %acc.0128, %if.end74 ], [ %acc.0128, %if.else63 ], [ %add, %if.end78 ]
+  %cmp83.not = icmp eq ptr %endptr, null
+  br i1 %cmp83.not, label %if.end86, label %if.then85
+
+if.then85:                                        ; preds = %while.end82
+  store ptr %s.3.lcssa, ptr %endptr, align 1, !tbaa !31
+  br label %if.end86
+
+if.end86:                                         ; preds = %if.then85, %while.end82
+  %sub88 = sub nsw i32 0, %acc.0.lcssa
+  %cond89 = select i1 %cmp9.not, i32 %sub88, i32 %acc.0.lcssa
+  ret i32 %cond89
+}
+
+; Function Attrs: nofree norecurse nosync nounwind memory(argmem: readwrite)
+define dso_local i32 @test_strtoul(ptr noundef %nptr, ptr noundef writeonly captures(address_is_null) %endptr, i16 noundef %base) local_unnamed_addr #0 {
+entry:
+  br label %while.cond
+
+while.cond:                                       ; preds = %while.body, %entry
+  %s.0 = phi ptr [ %nptr, %entry ], [ %incdec.ptr, %while.body ]
+  %0 = load i8, ptr %s.0, align 1, !tbaa !7
+  switch i8 %0, label %while.end [
+    i8 32, label %while.body
+    i8 9, label %while.body
+    i8 10, label %while.body
+  ]
+
+while.body:                                       ; preds = %while.cond, %while.cond, %while.cond
+  %incdec.ptr = getelementptr inbounds nuw i8, ptr %s.0, i16 1
+  br label %while.cond, !llvm.loop !39
+
+while.end:                                        ; preds = %while.cond
+  %cmp9.not = icmp eq i8 %0, 45
+  br i1 %cmp9.not, label %if.then, label %if.else
+
+if.then:                                          ; preds = %while.end
+  %incdec.ptr11 = getelementptr inbounds nuw i8, ptr %s.0, i16 1
+  br label %if.end17
+
+if.else:                                          ; preds = %while.end
+  %cmp13 = icmp eq i8 %0, 43
+  br i1 %cmp13, label %if.then15, label %if.end17
+
+if.then15:                                        ; preds = %if.else
+  %incdec.ptr16 = getelementptr inbounds nuw i8, ptr %s.0, i16 1
+  br label %if.end17
+
+if.end17:                                         ; preds = %if.else, %if.then15, %if.then
+  %s.1 = phi ptr [ %incdec.ptr11, %if.then ], [ %incdec.ptr16, %if.then15 ], [ %s.0, %if.else ]
+  %cmp18 = icmp eq i16 %base, 0
+  switch i16 %base, label %if.end45 [
+    i16 16, label %land.lhs.true
+    i16 0, label %land.lhs.true
+  ]
+
+land.lhs.true:                                    ; preds = %if.end17, %if.end17
+  %1 = load i8, ptr %s.1, align 1, !tbaa !7
+  %cmp24 = icmp eq i8 %1, 48
+  br i1 %cmp24, label %land.lhs.true26, label %if.else37
+
+land.lhs.true26:                                  ; preds = %land.lhs.true
+  %arrayidx27 = getelementptr inbounds nuw i8, ptr %s.1, i16 1
+  %2 = load i8, ptr %arrayidx27, align 1, !tbaa !7
+  switch i8 %2, label %if.else37 [
+    i8 120, label %if.then36
+    i8 88, label %if.then36
+  ]
+
+if.then36:                                        ; preds = %land.lhs.true26, %land.lhs.true26
+  %add.ptr = getelementptr inbounds nuw i8, ptr %s.1, i16 2
+  br label %if.end45
+
+if.else37:                                        ; preds = %land.lhs.true26, %land.lhs.true
+  br i1 %cmp18, label %if.then40, label %if.end45
+
+if.then40:                                        ; preds = %if.else37
+  %cond = select i1 %cmp24, i16 8, i16 10
+  br label %if.end45
+
+if.end45:                                         ; preds = %if.end17, %if.else37, %if.then40, %if.then36
+  %base.addr.0 = phi i16 [ 16, %if.then36 ], [ %cond, %if.then40 ], [ %base, %if.else37 ], [ %base, %if.end17 ]
+  %s.2 = phi ptr [ %add.ptr, %if.then36 ], [ %s.1, %if.then40 ], [ %s.1, %if.else37 ], [ %s.1, %if.end17 ]
+  %3 = load i8, ptr %s.2, align 1, !tbaa !7
+  %tobool.not126 = icmp eq i8 %3, 0
+  br i1 %tobool.not126, label %while.end82, label %while.body47.lr.ph
+
+while.body47.lr.ph:                               ; preds = %if.end45
+  %conv79 = zext nneg i16 %base.addr.0 to i32
+  br label %while.body47
+
+while.body47:                                     ; preds = %while.body47.lr.ph, %if.end78
+  %4 = phi i8 [ %3, %while.body47.lr.ph ], [ %8, %if.end78 ]
+  %acc.0128 = phi i32 [ 0, %while.body47.lr.ph ], [ %add, %if.end78 ]
+  %s.3127 = phi ptr [ %s.2, %while.body47.lr.ph ], [ %incdec.ptr81, %if.end78 ]
+  %conv48 = zext i8 %4 to i16
+  %5 = add i8 %4, -48
+  %or.cond90 = icmp ult i8 %5, 10
+  br i1 %or.cond90, label %if.end74, label %if.else55
+
+if.else55:                                        ; preds = %while.body47
+  %6 = add i8 %4, -97
+  %or.cond91 = icmp ult i8 %6, 26
+  br i1 %or.cond91, label %if.end74, label %if.else63
+
+if.else63:                                        ; preds = %if.else55
+  %7 = add i8 %4, -65
+  %or.cond92 = icmp ult i8 %7, 26
+  br i1 %or.cond92, label %if.end74, label %while.end82
+
+if.end74:                                         ; preds = %if.else63, %if.else55, %while.body47
+  %.sink = phi i16 [ -48, %while.body47 ], [ -87, %if.else55 ], [ -55, %if.else63 ]
+  %sub62 = add nsw i16 %.sink, %conv48
+  %cmp75.not = icmp slt i16 %sub62, %base.addr.0
+  br i1 %cmp75.not, label %if.end78, label %while.end82
+
+if.end78:                                         ; preds = %if.end74
+  %mul = mul i32 %acc.0128, %conv79
+  %conv80 = zext nneg i16 %sub62 to i32
+  %add = add i32 %mul, %conv80
+  %incdec.ptr81 = getelementptr inbounds nuw i8, ptr %s.3127, i16 1
+  %8 = load i8, ptr %incdec.ptr81, align 1, !tbaa !7
+  %tobool.not = icmp eq i8 %8, 0
+  br i1 %tobool.not, label %while.end82, label %while.body47, !llvm.loop !40
+
+while.end82:                                      ; preds = %if.end78, %if.else63, %if.end74, %if.end45
+  %s.3.lcssa = phi ptr [ %s.2, %if.end45 ], [ %s.3127, %if.end74 ], [ %s.3127, %if.else63 ], [ %incdec.ptr81, %if.end78 ]
+  %acc.0.lcssa = phi i32 [ 0, %if.end45 ], [ %acc.0128, %if.end74 ], [ %acc.0128, %if.else63 ], [ %add, %if.end78 ]
+  %cmp83.not = icmp eq ptr %endptr, null
+  br i1 %cmp83.not, label %if.end86, label %if.then85
+
+if.then85:                                        ; preds = %while.end82
+  store ptr %s.3.lcssa, ptr %endptr, align 1, !tbaa !31
+  br label %if.end86
+
+if.end86:                                         ; preds = %if.then85, %while.end82
+  %sub88 = sub i32 0, %acc.0.lcssa
+  %cond89 = select i1 %cmp9.not, i32 %sub88, i32 %acc.0.lcssa
+  ret i32 %cond89
+}
+
 ; Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(readwrite, argmem: none, inaccessiblemem: none, target_mem0: none, target_mem1: none)
 define dso_local range(i16 0, -32768) i16 @test_rand() local_unnamed_addr #5 {
 entry:
@@ -929,3 +1183,7 @@ attributes #7 = { nocallback nofree nosync nounwind speculatable willreturn memo
 !34 = distinct !{!34, !9}
 !35 = distinct !{!35, !9}
 !36 = distinct !{!36, !9}
+!37 = distinct !{!37, !9}
+!38 = distinct !{!38, !9}
+!39 = distinct !{!39, !9}
+!40 = distinct !{!40, !9}

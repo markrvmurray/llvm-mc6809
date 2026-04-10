@@ -6,7 +6,7 @@
 ; RUN:   --filetype=obj -o %t.o
 ; RUN: ld.lld -T %S/Inputs/link.ld %t.o -o %t.elf
 ; RUN: llvm-objcopy -O ihex %t.elf %t.hex
-; RUN: %usim09batch --timeout=2000000 %t.hex | FileCheck %s
+; RUN: %usim09batch --timeout=5000000 %t.hex | FileCheck %s
 ;
 ; RUN: llc -global-isel -global-isel-abort=1 -O1 -mtriple=mc6809 \
 ; RUN:   %S/Inputs/codegen-picolibc.ll -o %t-raw.s 2>/dev/null
@@ -15,7 +15,7 @@
 ; RUN:   --filetype=obj -o %t.o
 ; RUN: ld.lld -T %S/Inputs/link.ld %t.o -o %t.elf
 ; RUN: llvm-objcopy -O ihex %t.elf %t.hex
-; RUN: %usim09batch --timeout=2000000 %t.hex | FileCheck %s
+; RUN: %usim09batch --timeout=5000000 %t.hex | FileCheck %s
 ;
 ; RUN: llc -global-isel -global-isel-abort=1 -O2 -mtriple=mc6809 \
 ; RUN:   %S/Inputs/codegen-picolibc.ll -o %t-raw.s 2>/dev/null
@@ -24,7 +24,7 @@
 ; RUN:   --filetype=obj -o %t.o
 ; RUN: ld.lld -T %S/Inputs/link.ld %t.o -o %t.elf
 ; RUN: llvm-objcopy -O ihex %t.elf %t.hex
-; RUN: %usim09batch --timeout=2000000 %t.hex | FileCheck %s
+; RUN: %usim09batch --timeout=5000000 %t.hex | FileCheck %s
 ;
 ; RUN: llc -global-isel -global-isel-abort=1 -O3 -mtriple=mc6809 \
 ; RUN:   %S/Inputs/codegen-picolibc.ll -o %t-raw.s 2>/dev/null
@@ -33,14 +33,15 @@
 ; RUN:   --filetype=obj -o %t.o
 ; RUN: ld.lld -T %S/Inputs/link.ld %t.o -o %t.elf
 ; RUN: llvm-objcopy -O ihex %t.elf %t.hex
-; RUN: %usim09batch --timeout=2000000 %t.hex | FileCheck %s
+; RUN: %usim09batch --timeout=5000000 %t.hex | FileCheck %s
 ; REQUIRES: usim
 ;
-; Picolibc execution tests: 30 functions covering string.h (memcpy,
+; Picolibc execution tests: 32 functions covering string.h (memcpy,
 ; memset, memmove, memcmp, memchr, strcpy, strncpy, strcat, strncat,
 ; strlen, strchr, strrchr, strstr, strspn, strcspn, strpbrk, strncmp,
 ; strtok), ctype.h (isspace, isprint, isxdigit, tolower, toupper,
-; ispunct, iscntrl, isgraph), and stdlib.h (labs, atol, rand, srand).
+; ispunct, iscntrl, isgraph), and stdlib.h (labs, atol, strtol,
+; strtoul, rand, srand).
 ; Tested at -O0 through -O3.
 
 .include "runtime.inc"
@@ -783,12 +784,139 @@ test_main:
 	jsr	putnl
 ; CHECK-NEXT: 00000000
 
+	;; strtol/strtoul tests
+	;;
+	;; Calling convention for `long strtol(const char *nptr, char **endptr, int base)`:
+	;;   nptr   → X
+	;;   endptr → ,s     (i16, NULL = 0 if not interested)
+	;;   base   → 2,s    (i16)
+	;; Return long: result_hi = X, result_lo = ,s (clobbers endptr slot)
+	;; Caller allocates 4 bytes for the 2 stack args; the result_lo
+	;; lands in the first slot when the function returns.
+
+	;; strtol("42", NULL, 10) = 42
+	ldx	#str_42
+	leas	-4,s
+	ldd	#0		; endptr = NULL
+	std	,s
+	ldd	#10		; base = 10
+	std	2,s
+	jsr	test_strtol
+	jsr	putx		; result_hi
+	ldd	,s		; result_lo
+	tfr	d,x
+	jsr	putx
+	leas	4,s
+	jsr	putnl
+; CHECK-NEXT: 0000002A
+
+	;; strtol("-3", NULL, 10) = -3 (= 0xFFFFFFFD)
+	ldx	#str_neg3
+	leas	-4,s
+	ldd	#0
+	std	,s
+	ldd	#10
+	std	2,s
+	jsr	test_strtol
+	jsr	putx
+	ldd	,s
+	tfr	d,x
+	jsr	putx
+	leas	4,s
+	jsr	putnl
+; CHECK-NEXT: FFFFFFFD
+
+	;; strtol("FF", NULL, 16) = 255 (= 0x000000FF)
+	ldx	#str_ff
+	leas	-4,s
+	ldd	#0
+	std	,s
+	ldd	#16
+	std	2,s
+	jsr	test_strtol
+	jsr	putx
+	ldd	,s
+	tfr	d,x
+	jsr	putx
+	leas	4,s
+	jsr	putnl
+; CHECK-NEXT: 000000FF
+
+	;; strtol("0x10", NULL, 0) = 16 (auto-detect hex from prefix)
+	ldx	#str_0x10
+	leas	-4,s
+	ldd	#0
+	std	,s
+	ldd	#0		; base = 0 → auto-detect
+	std	2,s
+	jsr	test_strtol
+	jsr	putx
+	ldd	,s
+	tfr	d,x
+	jsr	putx
+	leas	4,s
+	jsr	putnl
+; CHECK-NEXT: 00000010
+
+	;; strtol("777", NULL, 8) = 511 (= 0x000001FF)
+	ldx	#str_777
+	leas	-4,s
+	ldd	#0
+	std	,s
+	ldd	#8
+	std	2,s
+	jsr	test_strtol
+	jsr	putx
+	ldd	,s
+	tfr	d,x
+	jsr	putx
+	leas	4,s
+	jsr	putnl
+; CHECK-NEXT: 000001FF
+
+	;; strtoul("12345", NULL, 10) = 12345 (= 0x00003039)
+	ldx	#str_12345
+	leas	-4,s
+	ldd	#0
+	std	,s
+	ldd	#10
+	std	2,s
+	jsr	test_strtoul
+	jsr	putx
+	ldd	,s
+	tfr	d,x
+	jsr	putx
+	leas	4,s
+	jsr	putnl
+; CHECK-NEXT: 00003039
+
+	;; strtoul("FFFF", NULL, 16) = 65535 (= 0x0000FFFF)
+	ldx	#str_ffff
+	leas	-4,s
+	ldd	#0
+	std	,s
+	ldd	#16
+	std	2,s
+	jsr	test_strtoul
+	jsr	putx
+	ldd	,s
+	tfr	d,x
+	jsr	putx
+	leas	4,s
+	jsr	putnl
+; CHECK-NEXT: 0000FFFF
+
 	rts
 
 	.section .rodata,"a",@progbits
 str_42:		.asciz	"42"
 str_neg3:	.asciz	"-3"
 str_atol_0:	.asciz	"0"
+str_ff:		.asciz	"FF"
+str_0x10:	.asciz	"0x10"
+str_777:	.asciz	"777"
+str_12345:	.asciz	"12345"
+str_ffff:	.asciz	"FFFF"
 str_hello:	.asciz	"Hello"
 str_hi:		.asciz	"Hi"
 str_help:	.asciz	"Help!"

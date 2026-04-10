@@ -2,8 +2,18 @@
 
 MEMORY {
     RAM (rwx) : ORIGIN = 0x0000, LENGTH = 0x8000
-    IO  (rw)  : ORIGIN = 0xBF00, LENGTH = 0x0100
-    ROM (rx)  : ORIGIN = 0xE000, LENGTH = 0x1FF0
+    /* IO map (matches usim09batch — see runtime.inc):
+         0xBF00-0xBF01  ACIA (status/data)
+         0xBF02         halt device
+       The IO region declaration here is informational only —
+       nothing is actually placed in it by SECTIONS below. */
+    IO  (rw)  : ORIGIN = 0xBF00, LENGTH = 0x0003
+    /* ROM extended from 0xE000 to 0xC000 (8 KiB → 16 KiB) so
+       larger picolibc tests fit. The ACIA and halt device used to
+       be inside this range; they were moved into the 0xBF00 area
+       (see usim09batch's main09batch.cpp) so the ROM range stays
+       contiguous. */
+    ROM (rx)  : ORIGIN = 0xC000, LENGTH = 0x3FF0
     VEC (r)   : ORIGIN = 0xFFF0, LENGTH = 0x0010
 }
 

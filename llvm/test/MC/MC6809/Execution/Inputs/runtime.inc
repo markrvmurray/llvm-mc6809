@@ -3,11 +3,16 @@
 ;;
 ;; Memory map (matches usim09batch):
 ;;   0x0000-0x7fff  RAM (32KB)
-;;   0xbf00         Halt device (write any value to halt CPU)
-;;   0xc000         ACIA status register
-;;   0xc001         ACIA data register
-;;   0xe000-0xffef  ROM (code)
+;;   0xbf00         ACIA status register
+;;   0xbf01         ACIA data register
+;;   0xbf02         Halt device (write any value to halt CPU)
+;;   0xc000-0xffef  ROM (code, 16KB)
 ;;   0xfff0-0xffff  Vectors
+;;
+;; History: ACIA was at 0xc000-0xc001 and halt at 0xbf00 until
+;; ROM was extended down to 0xc000 to fit larger picolibc tests.
+;; The two devices were swapped into the 0xbf00 area so the ROM
+;; range stays contiguous.
 ;;
 
 ;; ===== Entry point =====
@@ -49,10 +54,10 @@ _hang:
 putchar:
 	pshs	b
 .Lputchar_wait:
-	ldb	0xc000		; ACIA status
+	ldb	0xbf00		; ACIA status
 	bitb	#0x02		; TDRE
 	beq	.Lputchar_wait
-	sta	0xc001		; ACIA data
+	sta	0xbf01		; ACIA data
 	puls	b,pc
 
 ;; ===== puthex =====
@@ -108,7 +113,7 @@ putnl:
 ;; Halt the CPU by writing to the halt device.
 
 halt:
-	sta	0xbf00
+	sta	0xbf02
 	rts
 
 ;; ===== Vector table =====
