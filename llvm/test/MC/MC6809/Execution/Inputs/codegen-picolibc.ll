@@ -28,8 +28,14 @@ while.end:                                        ; preds = %while.body, %entry
   ret ptr %dst
 }
 
+; Function Attrs: mustprogress nocallback nofree nosync nounwind willreturn memory(argmem: readwrite)
+declare void @llvm.lifetime.start.p0(ptr captures(none)) #1
+
+; Function Attrs: mustprogress nocallback nofree nosync nounwind willreturn memory(argmem: readwrite)
+declare void @llvm.lifetime.end.p0(ptr captures(none)) #1
+
 ; Function Attrs: nofree norecurse nosync nounwind memory(argmem: write)
-define dso_local noundef ptr @test_memset(ptr noundef returned writeonly captures(ret: address, provenance) %dst, i16 noundef %c, i16 noundef %n) local_unnamed_addr #1 {
+define dso_local noundef ptr @test_memset(ptr noundef returned writeonly captures(ret: address, provenance) %dst, i16 noundef %c, i16 noundef %n) local_unnamed_addr #2 {
 entry:
   %tobool.not2 = icmp eq i16 %n, 0
   br i1 %tobool.not2, label %while.end, label %while.body.lr.ph
@@ -98,7 +104,7 @@ if.end:                                           ; preds = %while.body6, %while
 }
 
 ; Function Attrs: nofree norecurse nosync nounwind memory(argmem: read)
-define dso_local range(i16 -255, 256) i16 @test_memcmp(ptr noundef readonly captures(none) %s1, ptr noundef readonly captures(none) %s2, i16 noundef %n) local_unnamed_addr #2 {
+define dso_local range(i16 -255, 256) i16 @test_memcmp(ptr noundef readonly captures(none) %s1, ptr noundef readonly captures(none) %s2, i16 noundef %n) local_unnamed_addr #3 {
 entry:
   %tobool.not13 = icmp eq i16 %n, 0
   br i1 %tobool.not13, label %cleanup, label %while.body
@@ -150,7 +156,7 @@ while.end:                                        ; preds = %while.cond
 }
 
 ; Function Attrs: nofree norecurse nosync nounwind memory(argmem: read)
-define dso_local noundef ptr @test_strchr(ptr noundef readonly captures(ret: address, provenance) %s, i16 noundef %c) local_unnamed_addr #2 {
+define dso_local noundef ptr @test_strchr(ptr noundef readonly captures(ret: address, provenance) %s, i16 noundef %c) local_unnamed_addr #3 {
 entry:
   %0 = trunc i16 %c to i8
   %1 = load i8, ptr %s, align 1, !tbaa !7
@@ -175,7 +181,7 @@ cleanup:                                          ; preds = %while.body, %if.end
 }
 
 ; Function Attrs: nofree norecurse nosync nounwind memory(argmem: read)
-define dso_local range(i16 -255, 256) i16 @test_strncmp(ptr noundef readonly captures(none) %s1, ptr noundef readonly captures(none) %s2, i16 noundef %n) local_unnamed_addr #2 {
+define dso_local range(i16 -255, 256) i16 @test_strncmp(ptr noundef readonly captures(none) %s1, ptr noundef readonly captures(none) %s2, i16 noundef %n) local_unnamed_addr #3 {
 entry:
   %tobool.not18 = icmp eq i16 %n, 0
   br i1 %tobool.not18, label %return, label %while.body
@@ -210,7 +216,7 @@ return:                                           ; preds = %if.end, %entry, %if
 }
 
 ; Function Attrs: nofree norecurse nosync nounwind memory(argmem: read)
-define dso_local noundef i16 @test_strlen(ptr noundef %s) local_unnamed_addr #2 {
+define dso_local noundef i16 @test_strlen(ptr noundef %s) local_unnamed_addr #3 {
 entry:
   br label %while.cond
 
@@ -328,7 +334,7 @@ while.end7:                                       ; preds = %land.rhs, %while.bo
 }
 
 ; Function Attrs: nofree norecurse nosync nounwind memory(argmem: read)
-define dso_local ptr @test_strrchr(ptr noundef readonly captures(ret: address, provenance) %s, i16 noundef %c) local_unnamed_addr #2 {
+define dso_local ptr @test_strrchr(ptr noundef readonly captures(ret: address, provenance) %s, i16 noundef %c) local_unnamed_addr #3 {
 entry:
   %0 = trunc i16 %c to i8
   br label %do.body
@@ -348,7 +354,7 @@ do.end:                                           ; preds = %do.body
 }
 
 ; Function Attrs: nofree norecurse nosync nounwind memory(argmem: read)
-define dso_local noundef ptr @test_strstr(ptr noundef readonly captures(ret: address, provenance) %haystack, ptr noundef readonly captures(none) %needle) local_unnamed_addr #2 {
+define dso_local noundef ptr @test_strstr(ptr noundef readonly captures(ret: address, provenance) %haystack, ptr noundef readonly captures(none) %needle) local_unnamed_addr #3 {
 entry:
   %0 = load i8, ptr %needle, align 1, !tbaa !7
   %tobool.not = icmp eq i8 %0, 0
@@ -400,7 +406,7 @@ return:                                           ; preds = %for.inc, %while.end
 }
 
 ; Function Attrs: nofree norecurse nosync nounwind memory(argmem: read)
-define dso_local noundef i16 @test_strspn(ptr noundef %s, ptr noundef readonly captures(none) %accept) local_unnamed_addr #2 {
+define dso_local noundef i16 @test_strspn(ptr noundef %s, ptr noundef readonly captures(none) %accept) local_unnamed_addr #3 {
 entry:
   %0 = load i8, ptr %s, align 1, !tbaa !7
   %tobool.not26 = icmp eq i8 %0, 0
@@ -443,7 +449,7 @@ while.end9:                                       ; preds = %while.end, %while.c
 }
 
 ; Function Attrs: nofree norecurse nosync nounwind memory(argmem: read)
-define dso_local noundef i16 @test_strcspn(ptr noundef %s, ptr noundef readonly captures(none) %reject) local_unnamed_addr #2 {
+define dso_local noundef i16 @test_strcspn(ptr noundef %s, ptr noundef readonly captures(none) %reject) local_unnamed_addr #3 {
 entry:
   %0 = load i8, ptr %s, align 1, !tbaa !7
   %tobool.not25 = icmp eq i8 %0, 0
@@ -493,7 +499,7 @@ while.end9:                                       ; preds = %while.cond1.while.e
 }
 
 ; Function Attrs: nofree norecurse nosync nounwind memory(argmem: read)
-define dso_local noundef ptr @test_strpbrk(ptr noundef readonly captures(ret: address, provenance) %s, ptr noundef readonly captures(none) %accept) local_unnamed_addr #2 {
+define dso_local noundef ptr @test_strpbrk(ptr noundef readonly captures(ret: address, provenance) %s, ptr noundef readonly captures(none) %accept) local_unnamed_addr #3 {
 entry:
   %0 = load i8, ptr %s, align 1, !tbaa !7
   %tobool.not19 = icmp eq i8 %0, 0
@@ -540,7 +546,7 @@ return:                                           ; preds = %while.cond1.cleanup
 }
 
 ; Function Attrs: nofree norecurse nosync nounwind memory(argmem: read)
-define dso_local noundef ptr @test_memchr(ptr noundef readonly captures(ret: address, provenance) %s, i16 noundef %c, i16 noundef %n) local_unnamed_addr #2 {
+define dso_local noundef ptr @test_memchr(ptr noundef readonly captures(ret: address, provenance) %s, i16 noundef %c, i16 noundef %n) local_unnamed_addr #3 {
 entry:
   %tobool.not8 = icmp eq i16 %n, 0
   br i1 %tobool.not8, label %cleanup, label %while.body.lr.ph
@@ -568,7 +574,7 @@ cleanup:                                          ; preds = %while.body, %if.end
 }
 
 ; Function Attrs: nofree norecurse nosync nounwind memory(readwrite, inaccessiblemem: none, target_mem0: none, target_mem1: none)
-define dso_local noundef ptr @test_strtok(ptr noundef %str, ptr noundef readonly captures(none) %delim) local_unnamed_addr #3 {
+define dso_local noundef ptr @test_strtok(ptr noundef %str, ptr noundef readonly captures(none) %delim) local_unnamed_addr #4 {
 entry:
   %tobool.not = icmp eq ptr %str, null
   br i1 %tobool.not, label %if.end, label %for.cond.preheader
@@ -653,7 +659,7 @@ return:                                           ; preds = %return.sink.split, 
 }
 
 ; Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(none)
-define dso_local range(i16 0, 2) i16 @test_isspace(i16 noundef %c) local_unnamed_addr #4 {
+define dso_local range(i16 0, 2) i16 @test_isspace(i16 noundef %c) local_unnamed_addr #5 {
 entry:
   switch i16 %c, label %lor.rhs [
     i16 32, label %lor.end
@@ -674,7 +680,7 @@ lor.end:                                          ; preds = %entry, %entry, %ent
 }
 
 ; Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(none)
-define dso_local range(i16 0, 2) i16 @test_isprint(i16 noundef %c) local_unnamed_addr #4 {
+define dso_local range(i16 0, 2) i16 @test_isprint(i16 noundef %c) local_unnamed_addr #5 {
 entry:
   %cmp = icmp sgt i16 %c, 31
   br i1 %cmp, label %land.rhs, label %land.end
@@ -690,7 +696,7 @@ land.end:                                         ; preds = %land.rhs, %entry
 }
 
 ; Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(none)
-define dso_local range(i16 0, 2) i16 @test_isxdigit(i16 noundef %c) local_unnamed_addr #4 {
+define dso_local range(i16 0, 2) i16 @test_isxdigit(i16 noundef %c) local_unnamed_addr #5 {
 entry:
   %0 = add i16 %c, -48
   %or.cond = icmp ult i16 %0, 10
@@ -714,7 +720,7 @@ lor.end:                                          ; preds = %lor.rhs, %land.rhs,
 }
 
 ; Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(none)
-define dso_local i16 @test_tolower(i16 noundef %c) local_unnamed_addr #4 {
+define dso_local i16 @test_tolower(i16 noundef %c) local_unnamed_addr #5 {
 entry:
   %0 = add i16 %c, -65
   %or.cond = icmp ult i16 %0, 26
@@ -724,7 +730,7 @@ entry:
 }
 
 ; Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(none)
-define dso_local i16 @test_toupper(i16 noundef %c) local_unnamed_addr #4 {
+define dso_local i16 @test_toupper(i16 noundef %c) local_unnamed_addr #5 {
 entry:
   %0 = add i16 %c, -97
   %or.cond = icmp ult i16 %0, 26
@@ -734,7 +740,7 @@ entry:
 }
 
 ; Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(none)
-define dso_local range(i16 0, 2) i16 @test_ispunct(i16 noundef %c) local_unnamed_addr #4 {
+define dso_local range(i16 0, 2) i16 @test_ispunct(i16 noundef %c) local_unnamed_addr #5 {
 entry:
   %0 = add i16 %c, -33
   %or.cond = icmp ult i16 %0, 15
@@ -772,7 +778,7 @@ lor.end:                                          ; preds = %switch.early.test, 
 }
 
 ; Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(none)
-define dso_local range(i16 0, 2) i16 @test_iscntrl(i16 noundef %c) local_unnamed_addr #4 {
+define dso_local range(i16 0, 2) i16 @test_iscntrl(i16 noundef %c) local_unnamed_addr #5 {
 entry:
   %or.cond = icmp ult i16 %c, 32
   br i1 %or.cond, label %lor.end, label %lor.rhs
@@ -788,7 +794,7 @@ lor.end:                                          ; preds = %entry, %lor.rhs
 }
 
 ; Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(none)
-define dso_local range(i16 0, 2) i16 @test_isgraph(i16 noundef %c) local_unnamed_addr #4 {
+define dso_local range(i16 0, 2) i16 @test_isgraph(i16 noundef %c) local_unnamed_addr #5 {
 entry:
   %cmp = icmp sgt i16 %c, 32
   br i1 %cmp, label %land.rhs, label %land.end
@@ -804,14 +810,14 @@ land.end:                                         ; preds = %land.rhs, %entry
 }
 
 ; Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(none)
-define dso_local range(i32 0, -2147483648) i32 @test_labs(i32 noundef %x) local_unnamed_addr #4 {
+define dso_local range(i32 0, -2147483648) i32 @test_labs(i32 noundef %x) local_unnamed_addr #5 {
 entry:
   %cond = tail call i32 @llvm.abs.i32(i32 %x, i1 true)
   ret i32 %cond
 }
 
 ; Function Attrs: nofree norecurse nosync nounwind memory(argmem: read)
-define dso_local i32 @test_atol(ptr noundef readonly captures(none) %s) local_unnamed_addr #2 {
+define dso_local i32 @test_atol(ptr noundef readonly captures(none) %s) local_unnamed_addr #3 {
 entry:
   %0 = load i8, ptr %s, align 1, !tbaa !7
   %cmp = icmp eq i8 %0, 45
@@ -1113,7 +1119,7 @@ if.end86:                                         ; preds = %if.then85, %while.e
 }
 
 ; Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(readwrite, argmem: none, inaccessiblemem: none, target_mem0: none, target_mem1: none)
-define dso_local range(i16 0, -32768) i16 @test_rand() local_unnamed_addr #5 {
+define dso_local range(i16 0, -32768) i16 @test_rand() local_unnamed_addr #6 {
 entry:
   %0 = load i16, ptr @rand_state, align 1, !tbaa !3
   %mul = mul i16 %0, 75
@@ -1124,23 +1130,286 @@ entry:
 }
 
 ; Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(write, argmem: none, inaccessiblemem: none, target_mem0: none, target_mem1: none)
-define dso_local void @test_srand(i16 noundef %seed) local_unnamed_addr #6 {
+define dso_local void @test_srand(i16 noundef %seed) local_unnamed_addr #7 {
 entry:
   store i16 %seed, ptr @rand_state, align 1, !tbaa !3
   ret void
 }
 
+; Function Attrs: nofree norecurse nounwind memory(readwrite, target_mem0: none, target_mem1: none)
+define dso_local noundef i16 @test_putchar(i16 noundef returned %c) local_unnamed_addr #8 {
+entry:
+  br label %while.cond
+
+while.cond:                                       ; preds = %while.cond, %entry
+  %0 = load volatile i8, ptr inttoptr (i16 -16640 to ptr), align 256, !tbaa !7
+  %1 = and i8 %0, 2
+  %cmp = icmp eq i8 %1, 0
+  br i1 %cmp, label %while.cond, label %while.end, !llvm.loop !41
+
+while.end:                                        ; preds = %while.cond
+  %conv2 = trunc i16 %c to i8
+  store volatile i8 %conv2, ptr inttoptr (i16 -16639 to ptr), align 1, !tbaa !7
+  ret i16 %c
+}
+
+; Function Attrs: nofree norecurse nounwind
+define dso_local void @test_printf(ptr noundef readonly captures(none) %fmt, ...) local_unnamed_addr #9 {
+entry:
+  %ap = alloca ptr, align 1
+  call void @llvm.lifetime.start.p0(ptr nonnull %ap) #13
+  call void @llvm.va_start.p0(ptr nonnull %ap)
+  br label %while.cond
+
+while.cond:                                       ; preds = %while.cond.backedge, %entry
+  %fmt.addr.0 = phi ptr [ %fmt, %entry ], [ %fmt.addr.0.be, %while.cond.backedge ]
+  %0 = load i8, ptr %fmt.addr.0, align 1, !tbaa !7
+  switch i8 %0, label %while.cond.i [
+    i8 0, label %while.end68
+    i8 37, label %if.end
+  ]
+
+while.cond.i:                                     ; preds = %while.cond, %while.cond.i
+  %1 = load volatile i8, ptr inttoptr (i16 -16640 to ptr), align 256, !tbaa !7
+  %2 = and i8 %1, 2
+  %cmp.i = icmp eq i8 %2, 0
+  br i1 %cmp.i, label %while.cond.i, label %test_putchar.exit, !llvm.loop !41
+
+test_putchar.exit:                                ; preds = %while.cond.i
+  %incdec.ptr = getelementptr inbounds nuw i8, ptr %fmt.addr.0, i16 1
+  store volatile i8 %0, ptr inttoptr (i16 -16639 to ptr), align 1, !tbaa !7
+  br label %while.cond.backedge
+
+while.cond.backedge:                              ; preds = %test_putchar.exit, %if.end66
+  %fmt.addr.0.be = phi ptr [ %incdec.ptr, %test_putchar.exit ], [ %incdec.ptr67, %if.end66 ]
+  br label %while.cond, !llvm.loop !42
+
+if.end:                                           ; preds = %while.cond
+  %incdec.ptr3 = getelementptr inbounds nuw i8, ptr %fmt.addr.0, i16 1
+  %3 = load i8, ptr %incdec.ptr3, align 1, !tbaa !7
+  switch i8 %3, label %while.cond.i98 [
+    i8 100, label %if.then7
+    i8 117, label %if.then17
+    i8 120, label %if.then23
+    i8 88, label %if.then29
+    i8 115, label %if.then35
+    i8 99, label %if.then47
+    i8 37, label %while.cond.i95
+  ]
+
+if.then7:                                         ; preds = %if.end
+  %4 = va_arg ptr %ap, i16
+  %cmp8 = icmp slt i16 %4, 0
+  br i1 %cmp8, label %while.cond.i86, label %if.end12
+
+while.cond.i86:                                   ; preds = %if.then7, %while.cond.i86
+  %5 = load volatile i8, ptr inttoptr (i16 -16640 to ptr), align 256, !tbaa !7
+  %6 = and i8 %5, 2
+  %cmp.i87 = icmp eq i8 %6, 0
+  br i1 %cmp.i87, label %while.cond.i86, label %test_putchar.exit88, !llvm.loop !41
+
+test_putchar.exit88:                              ; preds = %while.cond.i86
+  store volatile i8 45, ptr inttoptr (i16 -16639 to ptr), align 1, !tbaa !7
+  %sub = sub nsw i16 0, %4
+  br label %if.end12
+
+if.end12:                                         ; preds = %if.then7, %test_putchar.exit88
+  %u.0 = phi i16 [ %sub, %test_putchar.exit88 ], [ %4, %if.then7 ]
+  call fastcc void @print_uint(i16 noundef %u.0, i16 noundef 10, i16 noundef 0) #14
+  br label %if.end66
+
+if.then17:                                        ; preds = %if.end
+  %7 = va_arg ptr %ap, i16
+  call fastcc void @print_uint(i16 noundef %7, i16 noundef 10, i16 noundef 0) #14
+  br label %if.end66
+
+if.then23:                                        ; preds = %if.end
+  %8 = va_arg ptr %ap, i16
+  call fastcc void @print_uint(i16 noundef %8, i16 noundef 16, i16 noundef 0) #14
+  br label %if.end66
+
+if.then29:                                        ; preds = %if.end
+  %9 = va_arg ptr %ap, i16
+  call fastcc void @print_uint(i16 noundef %9, i16 noundef 16, i16 noundef 1) #14
+  br label %if.end66
+
+if.then35:                                        ; preds = %if.end
+  %10 = va_arg ptr %ap, ptr
+  %11 = load i8, ptr %10, align 1, !tbaa !7
+  %tobool38.not105 = icmp eq i8 %11, 0
+  br i1 %tobool38.not105, label %if.end66, label %while.body39
+
+while.body39:                                     ; preds = %if.then35, %test_putchar.exit91
+  %12 = phi i8 [ %15, %test_putchar.exit91 ], [ %11, %if.then35 ]
+  %s.0106 = phi ptr [ %incdec.ptr40, %test_putchar.exit91 ], [ %10, %if.then35 ]
+  br label %while.cond.i89
+
+while.cond.i89:                                   ; preds = %while.cond.i89, %while.body39
+  %13 = load volatile i8, ptr inttoptr (i16 -16640 to ptr), align 256, !tbaa !7
+  %14 = and i8 %13, 2
+  %cmp.i90 = icmp eq i8 %14, 0
+  br i1 %cmp.i90, label %while.cond.i89, label %test_putchar.exit91, !llvm.loop !41
+
+test_putchar.exit91:                              ; preds = %while.cond.i89
+  %incdec.ptr40 = getelementptr inbounds nuw i8, ptr %s.0106, i16 1
+  store volatile i8 %12, ptr inttoptr (i16 -16639 to ptr), align 1, !tbaa !7
+  %15 = load i8, ptr %incdec.ptr40, align 1, !tbaa !7
+  %tobool38.not = icmp eq i8 %15, 0
+  br i1 %tobool38.not, label %if.end66, label %while.body39, !llvm.loop !43
+
+if.then47:                                        ; preds = %if.end
+  %16 = va_arg ptr %ap, i16
+  br label %while.cond.i92
+
+while.cond.i92:                                   ; preds = %while.cond.i92, %if.then47
+  %17 = load volatile i8, ptr inttoptr (i16 -16640 to ptr), align 256, !tbaa !7
+  %18 = and i8 %17, 2
+  %cmp.i93 = icmp eq i8 %18, 0
+  br i1 %cmp.i93, label %while.cond.i92, label %test_putchar.exit94, !llvm.loop !41
+
+test_putchar.exit94:                              ; preds = %while.cond.i92
+  %conv2.i = trunc i16 %16 to i8
+  store volatile i8 %conv2.i, ptr inttoptr (i16 -16639 to ptr), align 1, !tbaa !7
+  br label %if.end66
+
+while.cond.i95:                                   ; preds = %if.end, %while.cond.i95
+  %19 = load volatile i8, ptr inttoptr (i16 -16640 to ptr), align 256, !tbaa !7
+  %20 = and i8 %19, 2
+  %cmp.i96 = icmp eq i8 %20, 0
+  br i1 %cmp.i96, label %while.cond.i95, label %test_putchar.exit97, !llvm.loop !41
+
+test_putchar.exit97:                              ; preds = %while.cond.i95
+  store volatile i8 37, ptr inttoptr (i16 -16639 to ptr), align 1, !tbaa !7
+  br label %if.end66
+
+while.cond.i98:                                   ; preds = %if.end, %while.cond.i98
+  %21 = load volatile i8, ptr inttoptr (i16 -16640 to ptr), align 256, !tbaa !7
+  %22 = and i8 %21, 2
+  %cmp.i99 = icmp eq i8 %22, 0
+  br i1 %cmp.i99, label %while.cond.i98, label %test_putchar.exit100, !llvm.loop !41
+
+test_putchar.exit100:                             ; preds = %while.cond.i98
+  store volatile i8 37, ptr inttoptr (i16 -16639 to ptr), align 1, !tbaa !7
+  %23 = load i8, ptr %incdec.ptr3, align 1, !tbaa !7
+  br label %while.cond.i101
+
+while.cond.i101:                                  ; preds = %while.cond.i101, %test_putchar.exit100
+  %24 = load volatile i8, ptr inttoptr (i16 -16640 to ptr), align 256, !tbaa !7
+  %25 = and i8 %24, 2
+  %cmp.i102 = icmp eq i8 %25, 0
+  br i1 %cmp.i102, label %while.cond.i101, label %test_putchar.exit104, !llvm.loop !41
+
+test_putchar.exit104:                             ; preds = %while.cond.i101
+  store volatile i8 %23, ptr inttoptr (i16 -16639 to ptr), align 1, !tbaa !7
+  br label %if.end66
+
+if.end66:                                         ; preds = %test_putchar.exit91, %if.then35, %if.then17, %if.then29, %test_putchar.exit94, %test_putchar.exit104, %test_putchar.exit97, %if.then23, %if.end12
+  %incdec.ptr67 = getelementptr inbounds nuw i8, ptr %fmt.addr.0, i16 2
+  br label %while.cond.backedge
+
+while.end68:                                      ; preds = %while.cond
+  call void @llvm.va_end.p0(ptr nonnull %ap)
+  call void @llvm.lifetime.end.p0(ptr nonnull %ap) #13
+  ret void
+}
+
+; Function Attrs: mustprogress nocallback nofree nosync nounwind willreturn
+declare void @llvm.va_start.p0(ptr) #10
+
+; Function Attrs: nofree noinline norecurse nounwind memory(readwrite, target_mem0: none, target_mem1: none)
+define internal fastcc void @print_uint(i16 noundef %val, i16 noundef range(i16 10, 17) %base, i16 noundef range(i16 0, 2) %upper) unnamed_addr #11 {
+entry:
+  %buf = alloca [6 x i8], align 1
+  call void @llvm.lifetime.start.p0(ptr nonnull %buf) #13
+  %cmp = icmp eq i16 %val, 0
+  br i1 %cmp, label %while.cond.i, label %while.cond.preheader
+
+while.cond.preheader:                             ; preds = %entry
+  %tobool2.not = icmp eq i16 %upper, 0
+  %add3 = select i1 %tobool2.not, i16 87, i16 55
+  br label %while.body
+
+while.cond.i:                                     ; preds = %entry, %while.cond.i
+  %0 = load volatile i8, ptr inttoptr (i16 -16640 to ptr), align 256, !tbaa !7
+  %1 = and i8 %0, 2
+  %cmp.i = icmp eq i8 %1, 0
+  br i1 %cmp.i, label %while.cond.i, label %test_putchar.exit, !llvm.loop !41
+
+test_putchar.exit:                                ; preds = %while.cond.i
+  store volatile i8 48, ptr inttoptr (i16 -16639 to ptr), align 1, !tbaa !7
+  br label %cleanup
+
+while.body:                                       ; preds = %while.cond.preheader, %cond.end
+  %val.addr.025 = phi i16 [ %val, %while.cond.preheader ], [ %div, %cond.end ]
+  %i.024 = phi i16 [ 0, %while.cond.preheader ], [ %inc, %cond.end ]
+  %val.addr.025.frozen = freeze i16 %val.addr.025
+  %div = udiv i16 %val.addr.025.frozen, %base
+  %2 = mul i16 %div, %base
+  %rem.decomposed = sub i16 %val.addr.025.frozen, %2
+  %cmp1 = icmp samesign ult i16 %rem.decomposed, 10
+  br i1 %cmp1, label %cond.true, label %cond.false
+
+cond.true:                                        ; preds = %while.body
+  %add = or disjoint i16 %rem.decomposed, 48
+  br label %cond.end
+
+cond.false:                                       ; preds = %while.body
+  %sub = add nuw nsw i16 %add3, %rem.decomposed
+  br label %cond.end
+
+cond.end:                                         ; preds = %cond.false, %cond.true
+  %cond4 = phi i16 [ %add, %cond.true ], [ %sub, %cond.false ]
+  %conv = trunc nuw nsw i16 %cond4 to i8
+  %inc = add nuw nsw i16 %i.024, 1
+  %arrayidx = getelementptr inbounds nuw i8, ptr %buf, i16 %i.024
+  store i8 %conv, ptr %arrayidx, align 1, !tbaa !7
+  %tobool.not = icmp ugt i16 %base, %val.addr.025
+  br i1 %tobool.not, label %while.body7, label %while.body, !llvm.loop !44
+
+while.body7:                                      ; preds = %cond.end, %test_putchar.exit23
+  %i.126 = phi i16 [ %dec, %test_putchar.exit23 ], [ %inc, %cond.end ]
+  %dec = add nsw i16 %i.126, -1
+  %arrayidx8 = getelementptr inbounds i8, ptr %buf, i16 %dec
+  %3 = load i8, ptr %arrayidx8, align 1, !tbaa !7
+  br label %while.cond.i21
+
+while.cond.i21:                                   ; preds = %while.cond.i21, %while.body7
+  %4 = load volatile i8, ptr inttoptr (i16 -16640 to ptr), align 256, !tbaa !7
+  %5 = and i8 %4, 2
+  %cmp.i22 = icmp eq i8 %5, 0
+  br i1 %cmp.i22, label %while.cond.i21, label %test_putchar.exit23, !llvm.loop !41
+
+test_putchar.exit23:                              ; preds = %while.cond.i21
+  store volatile i8 %3, ptr inttoptr (i16 -16639 to ptr), align 1, !tbaa !7
+  %tobool6.not = icmp eq i16 %dec, 0
+  br i1 %tobool6.not, label %cleanup, label %while.body7, !llvm.loop !45
+
+cleanup:                                          ; preds = %test_putchar.exit23, %test_putchar.exit
+  call void @llvm.lifetime.end.p0(ptr nonnull %buf) #13
+  ret void
+}
+
+; Function Attrs: mustprogress nocallback nofree nosync nounwind willreturn
+declare void @llvm.va_end.p0(ptr) #10
+
 ; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
-declare i32 @llvm.abs.i32(i32, i1 immarg) #7
+declare i32 @llvm.abs.i32(i32, i1 immarg) #12
 
 attributes #0 = { nofree norecurse nosync nounwind memory(argmem: readwrite) "frame-pointer"="all" "no-builtins" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
-attributes #1 = { nofree norecurse nosync nounwind memory(argmem: write) "frame-pointer"="all" "no-builtins" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
-attributes #2 = { nofree norecurse nosync nounwind memory(argmem: read) "frame-pointer"="all" "no-builtins" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
-attributes #3 = { nofree norecurse nosync nounwind memory(readwrite, inaccessiblemem: none, target_mem0: none, target_mem1: none) "frame-pointer"="all" "no-builtins" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
-attributes #4 = { mustprogress nofree norecurse nosync nounwind willreturn memory(none) "frame-pointer"="all" "no-builtins" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
-attributes #5 = { mustprogress nofree norecurse nosync nounwind willreturn memory(readwrite, argmem: none, inaccessiblemem: none, target_mem0: none, target_mem1: none) "frame-pointer"="all" "no-builtins" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
-attributes #6 = { mustprogress nofree norecurse nosync nounwind willreturn memory(write, argmem: none, inaccessiblemem: none, target_mem0: none, target_mem1: none) "frame-pointer"="all" "no-builtins" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
-attributes #7 = { nocallback nofree nosync nounwind speculatable willreturn memory(none) }
+attributes #1 = { mustprogress nocallback nofree nosync nounwind willreturn memory(argmem: readwrite) }
+attributes #2 = { nofree norecurse nosync nounwind memory(argmem: write) "frame-pointer"="all" "no-builtins" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
+attributes #3 = { nofree norecurse nosync nounwind memory(argmem: read) "frame-pointer"="all" "no-builtins" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
+attributes #4 = { nofree norecurse nosync nounwind memory(readwrite, inaccessiblemem: none, target_mem0: none, target_mem1: none) "frame-pointer"="all" "no-builtins" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
+attributes #5 = { mustprogress nofree norecurse nosync nounwind willreturn memory(none) "frame-pointer"="all" "no-builtins" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
+attributes #6 = { mustprogress nofree norecurse nosync nounwind willreturn memory(readwrite, argmem: none, inaccessiblemem: none, target_mem0: none, target_mem1: none) "frame-pointer"="all" "no-builtins" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
+attributes #7 = { mustprogress nofree norecurse nosync nounwind willreturn memory(write, argmem: none, inaccessiblemem: none, target_mem0: none, target_mem1: none) "frame-pointer"="all" "no-builtins" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
+attributes #8 = { nofree norecurse nounwind memory(readwrite, target_mem0: none, target_mem1: none) "frame-pointer"="all" "no-builtins" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
+attributes #9 = { nofree norecurse nounwind "frame-pointer"="all" "no-builtins" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
+attributes #10 = { mustprogress nocallback nofree nosync nounwind willreturn }
+attributes #11 = { nofree noinline norecurse nounwind memory(readwrite, target_mem0: none, target_mem1: none) "frame-pointer"="all" "no-builtins" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
+attributes #12 = { nocallback nofree nosync nounwind speculatable willreturn memory(none) }
+attributes #13 = { nounwind }
+attributes #14 = { nobuiltin "no-builtins" }
 
 !llvm.module.flags = !{!0, !1}
 !llvm.ident = !{!2}
@@ -1187,3 +1456,8 @@ attributes #7 = { nocallback nofree nosync nounwind speculatable willreturn memo
 !38 = distinct !{!38, !9}
 !39 = distinct !{!39, !9}
 !40 = distinct !{!40, !9}
+!41 = distinct !{!41, !9}
+!42 = distinct !{!42, !9}
+!43 = distinct !{!43, !9}
+!44 = distinct !{!44, !9}
+!45 = distinct !{!45, !9}

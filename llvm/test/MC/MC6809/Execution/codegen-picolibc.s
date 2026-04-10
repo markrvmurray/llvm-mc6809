@@ -36,12 +36,12 @@
 ; RUN: %usim09batch --timeout=5000000 %t.hex | FileCheck %s
 ; REQUIRES: usim
 ;
-; Picolibc execution tests: 32 functions covering string.h (memcpy,
+; Picolibc execution tests: 34 functions covering string.h (memcpy,
 ; memset, memmove, memcmp, memchr, strcpy, strncpy, strcat, strncat,
 ; strlen, strchr, strrchr, strstr, strspn, strcspn, strpbrk, strncmp,
 ; strtok), ctype.h (isspace, isprint, isxdigit, tolower, toupper,
-; ispunct, iscntrl, isgraph), and stdlib.h (labs, atol, strtol,
-; strtoul, rand, srand).
+; ispunct, iscntrl, isgraph), stdlib.h (labs, atol, strtol, strtoul,
+; rand, srand), and stdio.h (putchar, printf — varargs torture test).
 ; Tested at -O0 through -O3.
 
 .include "runtime.inc"
@@ -906,6 +906,58 @@ test_main:
 	jsr	putnl
 ; CHECK-NEXT: 0000FFFF
 
+	;; test_putchar — direct ACIA write via volatile pointer.
+	;; Picolibc's putchar() is one line; this is the same idea.
+	;; putchar('!') = '!' returned (= 0x21)
+	ldx	#0x21		; '!'
+	jsr	test_putchar
+	jsr	putnl
+; CHECK-NEXT: !
+
+	;; test_printf — minimal varargs printf clone (the first test
+	;; that exercises G_VASTART/G_VAARG end-to-end through codegen).
+	;; printf("Hi=%d %s %x %c %%\n", 42, "ok", 0xBEEF, 'Z')
+	;;   produces: "Hi=42 ok beef Z %\n"
+	;; Calling convention for varargs:
+	;;   fmt → X (first non-vararg)
+	;;   varargs → stack starting at ,s, in declaration order, all 16-bit
+	leas	-8,s
+	ldd	#42		; first vararg: int 42
+	std	,s
+	ldd	#str_ok		; second vararg: const char *"ok"
+	std	2,s
+	ldd	#0xBEEF		; third vararg: unsigned int 0xBEEF
+	std	4,s
+	ldd	#0x5A		; fourth vararg: int 'Z'
+	std	6,s
+	ldx	#str_printf_fmt
+	jsr	test_printf
+	leas	8,s
+; CHECK-NEXT: Hi=42 ok beef Z %
+
+	;; printf("%d\n", -1) — exercise the negative-int path
+	;; (this is what triggered the s16→s32 G_SEXT legalizer gap)
+	leas	-2,s
+	ldd	#-1
+	std	,s
+	ldx	#str_printf_d
+	jsr	test_printf
+	leas	2,s
+; CHECK-NEXT: -1
+
+	;; printf("%u %x %X\n", 65535, 255, 255)
+	leas	-6,s
+	ldd	#65535
+	std	,s
+	ldd	#255
+	std	2,s
+	ldd	#255
+	std	4,s
+	ldx	#str_printf_uxX
+	jsr	test_printf
+	leas	6,s
+; CHECK-NEXT: 65535 ff FF
+
 	rts
 
 	.section .rodata,"a",@progbits
@@ -930,6 +982,10 @@ str_yex:	.asciz	"y!"
 str_hox:	.asciz	"ho!"
 str_abc:	.asciz	"a,b,c"
 str_comma:	.asciz	","
+str_ok:		.asciz	"ok"
+str_printf_fmt:	.asciz	"Hi=%d %s %x %c %%\n"
+str_printf_d:	.asciz	"%d\n"
+str_printf_uxX:	.asciz	"%u %x %X\n"
 
 	.section .bss,"aw",@nobits
 buf:	.space	16
