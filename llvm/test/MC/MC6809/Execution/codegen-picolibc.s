@@ -36,11 +36,11 @@
 ; RUN: %usim09batch --timeout=2000000 %t.hex | FileCheck %s
 ; REQUIRES: usim
 ;
-; Picolibc execution tests: 29 functions covering string.h (memcpy,
+; Picolibc execution tests: 30 functions covering string.h (memcpy,
 ; memset, memmove, memcmp, memchr, strcpy, strncpy, strcat, strncat,
 ; strlen, strchr, strrchr, strstr, strspn, strcspn, strpbrk, strncmp,
 ; strtok), ctype.h (isspace, isprint, isxdigit, tolower, toupper,
-; ispunct, iscntrl, isgraph), and stdlib.h (labs, rand, srand).
+; ispunct, iscntrl, isgraph), and stdlib.h (labs, atol, rand, srand).
 ; Tested at -O0 through -O3.
 
 .include "runtime.inc"
@@ -743,9 +743,52 @@ test_main:
 	jsr	putnl
 ; CHECK-NEXT: 005C
 
+	;; atol("42") = 42  (= 0x0000002A)
+	;; This was bug #57 (carry chain disruption in the loop body's
+	;; result*10 + digit add). Now sidestepped via hasSideEffects=1
+	;; on AddSetCarry/SubSetCarry pseudos — see the bug tracker for
+	;; the design discussion.
+	ldx	#str_42
+	leas	-2,s
+	jsr	test_atol
+	jsr	putx		; result_hi
+	ldd	,s		; result_lo
+	tfr	d,x
+	jsr	putx
+	leas	2,s
+	jsr	putnl
+; CHECK-NEXT: 0000002A
+
+	;; atol("-3") = -3  (= 0xFFFFFFFD)
+	ldx	#str_neg3
+	leas	-2,s
+	jsr	test_atol
+	jsr	putx
+	ldd	,s
+	tfr	d,x
+	jsr	putx
+	leas	2,s
+	jsr	putnl
+; CHECK-NEXT: FFFFFFFD
+
+	;; atol("0") = 0
+	ldx	#str_atol_0
+	leas	-2,s
+	jsr	test_atol
+	jsr	putx
+	ldd	,s
+	tfr	d,x
+	jsr	putx
+	leas	2,s
+	jsr	putnl
+; CHECK-NEXT: 00000000
+
 	rts
 
 	.section .rodata,"a",@progbits
+str_42:		.asciz	"42"
+str_neg3:	.asciz	"-3"
+str_atol_0:	.asciz	"0"
 str_hello:	.asciz	"Hello"
 str_hi:		.asciz	"Hi"
 str_help:	.asciz	"Help!"

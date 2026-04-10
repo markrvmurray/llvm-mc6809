@@ -230,9 +230,58 @@ defm Sub_i8 : MC6809Arithmetic<i8, ACC8, ACC8>;
 defm Sub_i16 : MC6809Arithmetic<i16, ACC16, ACC16>;
 
 // --- Carry-setting variants ---
+//
+// Bug #57 fix (2026-04-07): the i32 narrow into i16 add-with-carry uses
+// these pseudos for the lo half (here) paired with a SetCarryUse pseudo
+// (below) for the hi half. The two are connected by a BIT1 vreg that
+// represents the carry-out of the lo half flowing into the carry-in of
+// the hi half.
+//
+// THE BIT1 VREG IS A PHANTOM. The actual hardware ADC instruction reads
+// CC.C, not the BIT1 reg. The BIT1 vreg's allocation (AALSB or ABLSB)
+// has nothing to do with the resource the instruction actually touches.
+//
+// Without further constraints, the pre-RA scheduler tracks the BIT1
+// vreg dependency between SetCarry and SetCarryUse, but doesn't see
+// that CC.C is a separate fragile resource. It happily schedules
+// other CC-clobbering instructions BETWEEN the producer and consumer,
+// breaking the carry chain. (Atol's loop body exposes this — see
+// the bug tracker for the symptom.)
+//
+// The fix:
+//   1. `Defs = [NZ, V, C]`     — be honest about touching CC.C.
+//      The plain MC6809ArithmeticBase already does this; the
+//      carry-aware variants should too.
+//   2. `hasSideEffects = 1`    — make these pseudos scheduling
+//      barriers. The pre-RA scheduler treats `hasSideEffects` as
+//      "this instruction has unmodelled effects" and creates Order
+//      edges from every preceding instruction into the pseudo and
+//      from the pseudo into every following instruction. Combined
+//      with the existing BIT1 vreg dependency that already forces
+//      SetCarry → SetCarryUse ordering, anything originally
+//      between them STAYS between them, but nothing else can be
+//      scheduled into the gap.
+//
+// Why not the obvious "switch BIT1 → CARRY class" approach?
+// ----------------------------------------------------------
+// Was tried (project_carry_class_attempt.md, 2026-04-06). Functionally
+// correct but caused a 75% stack frame growth in i32 add — greedy
+// regalloc made worse spill decisions with the smaller class. Reverted.
+//
+// Why not "Defs=[C] + Uses=[C] on SetCarryUse"?
+// ----------------------------------------------
+// Tried (2026-04-07, intermediate). Adding Uses=[C] tells the
+// verifier that $c must be live-in to every BB containing a
+// SetCarryUse. But the carry chain crosses BBs via the BIT1 vreg
+// PHI, NOT via $c — the BIT1 vreg gets allocated and copied, while
+// $c is destroyed by intervening branches/compares. Verifier
+// complained at -O0 about $c not being live-in to bb.13. Reverted
+// the Uses=[C] half.
 
 class MC6809ArithmeticBaseCarry<RegisterClass dst, RegisterClass carry, RegisterClass src, dag operand> : MC6809LogicalInstr {
-  let Defs = [NZ, V];
+  let Defs = [NZ, V, C];
+  // bug #57: scheduling barrier — see the long comment above.
+  let hasSideEffects = 1;
   dag OutOperandList = (outs dst:$dst, carry:$carry);
   dag InOperandList = !con((ins src:$src), operand);
   let Constraints = "$dst = $src";
@@ -259,9 +308,20 @@ defm SubSetCarry_i8 : MC6809ArithmeticCarry<i8, ACC8, BIT1, ACC8>;
 defm SubSetCarry_i16 : MC6809ArithmeticCarry<i16, ACC16, BIT1, ACC16>;
 
 // --- Carry-using variants ---
+//
+// Bug #57 fix: same hasSideEffects barrier as the SetCarry variants
+// above. NOTE: do NOT add `let Uses = [C];` here — see the long
+// comment on MC6809ArithmeticBaseCarry for why. The carry-in flow
+// goes through the BIT1 vreg ($carry_in) which crosses BB boundaries
+// via PHIs; adding C as a physical Use would force the verifier to
+// check that $c is live-in to every BB containing a SetCarryUse,
+// which it isn't (the BIT1 phantom is used precisely because $c
+// doesn't survive cross-BB transitions).
 
 class MC6809ArithmeticBaseCarryUse<RegisterClass dst, RegisterClass src, dag operand> : MC6809LogicalInstr {
-  let Defs = [NZ, V];
+  let Defs = [NZ, V, C];
+  // bug #57: scheduling barrier — see MC6809ArithmeticBaseCarry above.
+  let hasSideEffects = 1;
   dag OutOperandList = (outs dst:$dst, BIT1:$carry);
   dag InOperandList = !con((ins src:$src, BIT1:$carry_in), operand);
   let Constraints = "$dst = $src, $carry = $carry_in";
