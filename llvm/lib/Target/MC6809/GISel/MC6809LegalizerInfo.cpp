@@ -418,30 +418,57 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
     return legalizeFCanonicalize(Helper, MRI, MI, LocObserver);
     break;
   case G_ABS: {
-    // Decompose to: %not = G_XOR %src, -1; %neg = G_ADD %not, 1;
-    //               %cmp = G_ICMP slt, %src, 0;
-    //               %res = G_SELECT %cmp, %neg, %src
+    // |x| via two's complement negation, then SELECT on the sign bit.
     //
-    // Why XOR/ADD instead of SUB(0, src)? The selectSubO/selectSubE
-    // matchers (MC6809InstructionSelector.cpp) silently swap operands
-    // of (const, reg) Sub matches and emit SubSetCarry_*_Imm reg, 0,
-    // computing "x - 0" (no-op) instead of "0 - x" (negation). That's
-    // bug #61 — see project_bug_tracker.md. Going through XOR + ADD
-    // sidesteps the buggy selector path entirely (Add IS commutative,
-    // so its selector handles (const, reg) correctly).
+    // Lowering produced:
+    //   %not = G_XOR %src, -1     ; bitwise NOT (each byte XORed with 0xFF)
+    //   %neg = G_ADD %not, 1      ; ~x + 1 == -x  (two's complement identity)
+    //   %cmp = G_ICMP slt, %src, 0
+    //   %res = G_SELECT %cmp, %neg, %src
     //
-    // The default LegalizerHelper ABS lowering uses ASHR+ADD+XOR which
-    // also avoids SUB but creates massive byte-level shift chains for
-    // i32 ASHR 31 on the 6809. This explicit XOR-with-(-1) + ADD is
-    // tighter — XOR with all-ones is just two byte-XORs against 0xFF.
+    // Math: for any signed integer x in two's complement,
+    //   -x = ~x + 1
+    // So  abs(x) = (x < 0) ? -x : x
+    //            = (x < 0) ? (~x + 1) : x
+    //
+    // Why this lowering instead of the obvious (G_SUB 0, %src)?
+    // -----------------------------------------------------------
+    // Bug #61: GISel's selectSubO/selectSubE in
+    // MC6809InstructionSelector.cpp had a bug where the (const, reg)
+    // matchers silently swapped operands when emitting
+    // SubSetCarry_*_Imm — computing "x - 0" (no-op) instead of
+    // "0 - x" (negation). The bug is now FIXED in selectSubO/E
+    // proper, but going through XOR + ADD here keeps a small code
+    // quality win: it avoids loading the 0-constant into a vreg
+    // (which the (reg, reg) sub path requires) and produces a
+    // tighter sequence on 6809.
+    //
+    // Why not the default LegalizerHelper ABS lowering?
+    // -------------------------------------------------
+    // The LLVM default does (x ^ (x ASHR (N-1))) - (x ASHR (N-1)),
+    // which also avoids SUB(0, x) but requires an arithmetic shift
+    // by 31 of the i32 input. ASHR i32 has no native instruction on
+    // the 6809 — it would expand to a tower of byte shifts (or a
+    // libcall on top of that), one or two orders of magnitude
+    // larger than this XOR + ADD pair.
+    //
+    // XOR with all-ones is genuinely tight on the 6809: two byte-XORs
+    // against the immediate 0xFF (one per A/B half) for i16, four
+    // for i32. ADD with 1 is a single ADDD #1 (i16) or two i16 adds
+    // chained via carry (i32). Both narrow naturally without
+    // exposing #61's bug or the older multi-spill pattern (#63).
     MachineIRBuilder &Builder = Helper.MIRBuilder;
     Register Dst = MI.getOperand(0).getReg();
     Register Src = MI.getOperand(1).getReg();
     LLT Ty = MRI.getType(Src);
+    // Step 1: ~src  (each byte XORed with 0xFF; the i32 narrows to
+    //                two i16 XORs which narrow further to four i8 XORs).
     auto NegOne = Builder.buildConstant(Ty, -1);
     auto NotSrc = Builder.buildXor(Ty, Src, NegOne);
+    // Step 2: ~src + 1  (two's complement of src, == -src).
     auto One = Builder.buildConstant(Ty, 1);
     auto Neg = Builder.buildAdd(Ty, NotSrc, One);
+    // Step 3: pick -src for negative inputs, src for non-negative.
     auto Zero = Builder.buildConstant(Ty, 0);
     auto Cmp = Builder.buildICmp(CmpInst::ICMP_SLT, LLT::scalar(1), Src, Zero);
     Builder.buildSelect(Dst, Cmp, Neg, Src);

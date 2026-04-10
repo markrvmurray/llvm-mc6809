@@ -75,13 +75,47 @@ static bool isAnySpillReg(Register Reg) {
 }
 
 /// Bug #63 support: opcodes whose expansion runs through
-/// emit6809Reg{Byte,Pair}FromMem (in MC6809InstrInfo.cpp). These
-/// expansions already have a U-relative spill path that handles a
-/// SPILL_A*/SPILL_B*/SPILL_D* RHS without going through D — so when an
-/// instruction has TWO distinct ACC spill operands, MaterializeSpills
-/// should leave the RHS alone and let the expansion handle it directly.
-/// Without this, both operands materialize through $ad and the second
-/// LDD clobbers the first (the "multi-ACC-spill via D" bug).
+/// emit6809Reg{Byte,Pair}FromMem (in MC6809InstrInfo.cpp).
+///
+/// What this is for
+/// ----------------
+/// MaterializeSpills' default behavior for an ACC spill operand is
+/// "load the spill slot into D and rewrite the operand to $ad". That
+/// works fine for instructions with ONE spill operand. For an
+/// instruction with TWO distinct ACC spills (e.g.
+/// `AddSetCarry_i16_Reg $spill_d4, $aalsb, $spill_d4(tied), $spill_d1`)
+/// the default would load both spills through D — and the second LDD
+/// clobbers the first. The expansion would then see `(D, D)` and
+/// compute `D op D` instead of `LHS op RHS`. That's bug #63 (the same
+/// shape as #60, but for the ACC class instead of the INDEX class).
+///
+/// How we work around it
+/// ---------------------
+/// `emit6809Reg{Byte,Pair}FromMem` already has a U-relative spill path
+/// for the RHS that reads the spill slot directly without going through
+/// D. That path was previously dead code because MaterializeSpills
+/// always rewrote spill operands BEFORE expansion ran. We re-enable
+/// it by teaching MaterializeSpills to LEAVE THE SECOND DISTINCT ACC
+/// SPILL alone for these specific opcodes — the operand stays as a
+/// spill register, the expansion sees it as a spill, and the
+/// U-relative path takes over naturally.
+///
+/// Tied operands stay together
+/// ---------------------------
+/// For `AddSetCarry_i16_Reg dst, carry, src, src2`, op0 (dst) and op2
+/// (src) are tied — same physical register. The "second distinct ACC
+/// spill" rule kicks in only when src2 (op3 for non-Use, op4 for Use)
+/// references a DIFFERENT spill register from dst/src. The tied
+/// dst+src pair both still materialize through D, together.
+///
+/// Why this list and not "all _Reg pseudos with two ACC operands"?
+/// --------------------------------------------------------------
+/// Only opcodes whose expansion path includes the U-relative spill
+/// fallback can benefit. emit6809Reg{Byte,Pair}FromMem is the helper
+/// that has it; instructions whose expansion uses a different helper
+/// would need a separate fix. The opcodes below all dispatch through
+/// expandAddReg/expandSubReg/expand{Add,Sub}SetCarryReg/
+/// expand{Add,Sub}SetCarryUseReg, which all call into the helper.
 static bool isAddSubFamilyReg(unsigned Opcode) {
   switch (Opcode) {
   case MC6809::Add_i8_Reg:
@@ -485,16 +519,41 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
         }
       }
 
-      // Collect spill operands.
+      // Collect spill operands into SpillOps for the materialization
+      // loop below to process. Each entry is (operand index, spill reg).
       //
-      // Bug #63: for Add/Sub/SetCarry binary _Reg pseudos, the expansion
-      // (emit6809Reg{Byte,Pair}FromMem) already has a U-relative spill
-      // path for the RHS. Without special handling here, two distinct
-      // ACC spill operands both materialize through $ad and the second
-      // load clobbers the first. Skip the second-and-beyond UNIQUE ACC
-      // spill so the expansion can handle it directly. Tied operands
-      // referencing the same SPILL_D (dst+src for these pseudos) all
-      // remain in SpillOps and rewrite together.
+      // Bug #63 special-case
+      // ====================
+      // For Add/Sub/SetCarry binary _Reg pseudos that expand via
+      // emit6809Reg{Byte,Pair}FromMem (see isAddSubFamilyReg), we
+      // SKIP the SECOND-and-later distinct ACC spill operand here.
+      // Those operands stay in the MI as spill regs, and the expansion
+      // handles them via its U-relative spill path. See the long
+      // comment on isAddSubFamilyReg for the full rationale.
+      //
+      // Tied dst+src referencing the SAME SPILL_D both stay in SpillOps
+      // (because they hash to the same entry in SeenAccSpillsForSkip
+      // and the size never grows past 1 from them). Only a NEW spill
+      // register — the src2 — gets skipped.
+      //
+      // Worked example for `AddSetCarry_i16_Reg dst, carry, src, src2`
+      // with dst = $spill_d4 (tied to src) and src2 = $spill_d1:
+      //
+      //   op0 dst   = $spill_d4 (def, tied to op2)
+      //   op1 carry = $aalsb       (def, BIT1 — not in any spill set)
+      //   op2 src   = $spill_d4 (use, tied — same reg as op0)
+      //   op3 src2  = $spill_d1 (use)
+      //
+      // Iteration:
+      //   op0: $spill_d4 not seen → seen={$spill_d4}, size=1 → push
+      //   op1: $aalsb not a spill → skip entirely
+      //   op2: $spill_d4 already seen → push (still size 1)
+      //   op3: $spill_d1 not seen → seen={d4,d1}, size=2 → SKIP push
+      //
+      // Result: SpillOps = [(0,d4), (2,d4)]. The materialization loop
+      // rewrites op0 and op2 to $ad (loaded from spill_d4). op3 stays
+      // as $spill_d1. The expansion's U-relative path then reads
+      // spill_d1 as `adcb d1+1,u; adca d1+0,u`. No clash.
       SmallVector<std::pair<unsigned, Register>, 4> SpillOps;
       const bool IsAddSubReg = isAddSubFamilyReg(MI.getOpcode());
       llvm::SmallSet<Register, 4> SeenAccSpillsForSkip;
@@ -504,11 +563,17 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
             !isAnySpillReg(MO.getReg()))
           continue;
         if (IsAddSubReg && isAccSpillReg(MO.getReg())) {
+          // Track unique ACC spill registers seen so far. The first
+          // unique one is added to SpillOps as normal. The second
+          // (and beyond) are SKIPPED — they survive into expansion
+          // as spill regs and the expansion's U-relative path
+          // handles them. Same-spill repeats (tied dst+src) don't
+          // count toward the limit because they don't grow the set.
           if (!SeenAccSpillsForSkip.contains(MO.getReg())) {
             SeenAccSpillsForSkip.insert(MO.getReg());
             if (SeenAccSpillsForSkip.size() > 1) {
               // 2nd+ unique ACC spill — leave it for the expansion's
-              // U-relative spill path.
+              // U-relative spill path. See the worked example above.
               continue;
             }
           }

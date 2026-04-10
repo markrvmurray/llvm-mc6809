@@ -894,14 +894,45 @@ static unsigned getStoreIdxOpcode(Register Reg, int Offset) {
   llvm_unreachable("Unexpected register for spill store");
 }
 
-/// SPILL_*LSB pseudo-registers — bug #62 support.
+/// SPILL_*LSB pseudo-register support — bug #62.
 ///
-/// These are 1-bit sub-registers of SPILL_A0..A7/SPILL_B0..B7 (declared
-/// via the MC6809Reg8 multiclass). The regalloc picks them when a BIT1
-/// vreg in AALSBc/ABLSBc runs out of AALSB/ABLSB. They share storage
-/// with the parent SPILL_A*/SPILL_B* (same direct-page slot, same
-/// frame index) — to materialize a SPILL_*LSB you load the parent
-/// byte and the LSB sub-register holds the bit naturally.
+/// What SPILL_*LSB is
+/// ------------------
+/// The MC6809Reg8 multiclass in MC6809RegisterInfo.td declares both
+/// a byte register and a 1-bit sub-register for every spill byte:
+///
+///     defm SPILL_B2 : MC6809Reg8<0x2005, "spill_b2">;
+///
+/// expands to:
+///
+///     def SPILL_B2LSB : MC6809Reg1<...>;       // 1-bit, the LSB
+///     def SPILL_B2 : MC6809Reg8<..., [SPILL_B2LSB], [sub_lsb]>;
+///
+/// The 1-bit pseudos are added to the AALSBc/ABLSBc register
+/// SUBclasses (alongside the real AALSB/ABLSB) so the regalloc has
+/// somewhere to spill BIT1 vregs when AALSB/ABLSB are otherwise live.
+///
+/// SPILL_*LSB doesn't exist in hardware
+/// ------------------------------------
+/// It's a regalloc fiction. The "value" lives in bit 0 of the
+/// corresponding byte slot at the parent SPILL_A*/SPILL_B*'s
+/// direct-page address. To USE one, load the parent byte; the LSB
+/// sub-register of the loaded byte then holds the value naturally
+/// (because the regalloc only ever stores 0/1 there).
+///
+/// These helpers are used by copyPhysReg's SPILL_*LSB block (search
+/// for "Bug #62" near the top of copyPhysReg).
+///
+/// Why a separate isLsbSpillReg() and not a tweak to isSpillReg()?
+/// ---------------------------------------------------------------
+/// SPILL_*LSB doesn't go through MaterializeSpills (which only knows
+/// how to deal with byte/word spills, not 1-bit slices). Adding it
+/// to isSpillReg would push it through code paths that would try
+/// to load/store individual bits, which doesn't make sense. Keep it
+/// distinct so each consumer can decide whether to handle it.
+
+/// Returns true if `Reg` is one of the SPILL_*LSB 1-bit pseudo
+/// sub-registers of a spill byte (SPILL_A0LSB..SPILL_B7LSB).
 static bool isLsbSpillReg(Register Reg) {
   switch (Reg) {
   case MC6809::SPILL_A0LSB: case MC6809::SPILL_A1LSB:
@@ -1067,35 +1098,108 @@ static void dematerializeReg(MachineIRBuilder &Builder, Register PhysReg,
   if (DestReg == SrcReg)
     return;
 
-  // Bug #62: SPILL_*LSB pseudo-registers. The regalloc picks these for
-  // BIT1 vregs in AALSBc/ABLSBc when AALSB/ABLSB are exhausted. They
-  // share storage with the parent SPILL_A*/SPILL_B* — to load a
-  // SPILL_*LSB, load the parent byte; the LSB sub-register holds the
-  // bit naturally.
+  // ===== Bug #62 fix: COPYs involving SPILL_*LSB pseudo-registers ====
+  //
+  // Background
+  // ----------
+  // The MC6809Reg8 multiclass declares each spill byte SPILL_A*/SPILL_B*
+  // alongside a 1-bit sub-register SPILL_*LSB. The 1-bit pseudos exist
+  // so the regalloc has somewhere to store BIT1 vregs (used to model
+  // the carry chain — see bug #57) when the real BIT1 registers
+  // (AALSB/ABLSB) are exhausted. They live in the AALSBc/ABLSBc
+  // register subclasses alongside the real BIT1 regs.
+  //
+  // SPILL_*LSB does not exist in hardware — it's a regalloc fiction
+  // meaning "the LSB of byte slot N at direct page address X". To
+  // USE the value, you have to load the whole parent byte; the loaded
+  // byte's LSB holds the 1-bit value naturally because the regalloc
+  // only ever stores values in the LSB position.
+  //
+  // What this block handles
+  // -----------------------
+  // PHI elimination and other post-RA passes can produce three shapes
+  // of COPY involving SPILL_*LSB. Each maps to a tiny instruction
+  // sequence:
+  //
+  //   1. SPILL_*LSB → BIT1   (load: e.g. `$ablsb = COPY $spill_b2lsb`)
+  //        emit:  LDB <spill slot>,U     ; AB now holds the byte
+  //               (TFR if dest is in the OTHER half of the byte pair)
+  //        After the LDB, ABLSB *is* the value — no further work.
+  //
+  //   2. BIT1 → SPILL_*LSB   (store: e.g. `$spill_b2lsb = COPY $ablsb`)
+  //        emit:  (TFR if source is in the OTHER half)
+  //               STB <spill slot>,U     ; AB written to the slot
+  //        The LSB rides along inside the byte store.
+  //
+  //   3. SPILL_*LSB → SPILL_*LSB   (spill-to-spill move)
+  //        emit:  LDB <src slot>,U
+  //               (TFR if src and dst halves differ)
+  //               STB <dst slot>,U
+  //
+  // The TFR in cases 1 and 3 handles the cross-half case: SPILL_A*LSB
+  // (parent SPILL_A*) lives in the A half (AA), SPILL_B*LSB lives in
+  // the B half (AB). If the dest BIT1 reg is in the OTHER half from
+  // the source byte we just loaded, we need a TFR A,B or TFR B,A
+  // before the LSB sub-register is in the right place.
+  //
+  // Why this is at the very top of copyPhysReg
+  // ------------------------------------------
+  // SPILL_*LSB doesn't satisfy `needsMaterialization()` because
+  // `isSpillReg()` only lists the byte/word spill registers, not
+  // their LSB sub-registers. So the existing materialization block
+  // below would fall through to the AreClasses chain, which doesn't
+  // have a case for BIT1 ↔ SPILL_*LSB either, and the function would
+  // hit `llvm_unreachable("Unexpected physical register copy.")`.
+  // Special-casing here, before the materialization check, keeps the
+  // existing logic untouched and avoids dragging SPILL_*LSB into the
+  // wider spill-handling machinery.
+  //
+  // Why not add SPILL_*LSB to isSpillReg() instead?
+  // -----------------------------------------------
+  // That would route SPILL_*LSB through MaterializeSpills, which
+  // doesn't know about 1-bit operands and would try to load them as
+  // bytes anyway — and would also try to dematerialize them as bytes
+  // on store-back. Cleaner to handle the small set of LSB COPY shapes
+  // here than to teach two passes about a pseudo that's only ever
+  // moved by COPYs.
   if (isLsbSpillReg(SrcReg) || isLsbSpillReg(DestReg)) {
     MachineFunction &MF = *MBB.getParent();
+
+    // Case 1: SPILL_*LSB → BIT1 (real). Load the parent byte; the
+    // LSB sub-register IS the destination value.
     if (isLsbSpillReg(SrcReg) && !isLsbSpillReg(DestReg)) {
-      // SPILL_*LSB → BIT1: load the parent byte; LSB IS the value.
-      MCPhysReg Parent = getLsbSpillParent(SrcReg);
-      Register SrcByte = getLsbSpillByteHalf(SrcReg);
+      MCPhysReg Parent = getLsbSpillParent(SrcReg);  // SPILL_B2 from SPILL_B2LSB
+      Register SrcByte = getLsbSpillByteHalf(SrcReg);  // AA or AB
+      // emitSpillLoad picks LDA or LDB based on SrcByte and emits a
+      // U-relative load from the parent's frame slot. After this,
+      // AALSB or ABLSB (the LSB sub-register of SrcByte) holds the bit.
       emitSpillLoad(Builder, SrcByte, Parent, MF);
-      Register DestByte = getBit1ByteHalf(DestReg);
+      Register DestByte = getBit1ByteHalf(DestReg);  // AA for AALSB, AB for ABLSB
+      // If the destination BIT1 lives in a different byte half from
+      // the one we loaded into, transfer the byte across. The LSB
+      // sub-register of the destination half then holds the value.
       if (SrcByte != DestByte)
         Builder.buildInstr(MC6809::TFRp).addDef(DestByte).addUse(SrcByte);
       return;
     }
+
+    // Case 2: BIT1 (real) → SPILL_*LSB. Store the parent byte; the
+    // LSB the source represents rides along in bit 0 of that byte.
     if (!isLsbSpillReg(SrcReg) && isLsbSpillReg(DestReg)) {
-      // BIT1 → SPILL_*LSB: store the parent byte holding the bit.
       MCPhysReg Parent = getLsbSpillParent(DestReg);
-      Register DestByte = getLsbSpillByteHalf(DestReg);
+      Register DestByte = getLsbSpillByteHalf(DestReg);  // AA for SPILL_A*LSB, AB for SPILL_B*LSB
       Register SrcByte = getBit1ByteHalf(SrcReg);
+      // Move the byte holding the LSB into the byte half that the
+      // dest spill lives in (only needed when crossing AA↔AB).
       if (SrcByte != DestByte)
         Builder.buildInstr(MC6809::TFRp).addDef(DestByte).addUse(SrcByte);
+      // emitSpillStore picks STA/STB based on DestByte.
       emitSpillStore(Builder, DestByte, Parent, MF);
       return;
     }
-    // SPILL_*LSB → SPILL_*LSB: load source parent, possibly TFR, store
-    // dest parent.
+
+    // Case 3: SPILL_*LSB → SPILL_*LSB. Load source's parent into a
+    // byte register, transfer halves if needed, store dest's parent.
     MCPhysReg SrcParent = getLsbSpillParent(SrcReg);
     MCPhysReg DestParent = getLsbSpillParent(DestReg);
     Register SrcByte = getLsbSpillByteHalf(SrcReg);
@@ -3160,69 +3264,147 @@ void MC6809InstrInfo::expandAddReg(MachineIRBuilder &Builder, MachineInstr &MI) 
   MI.eraseFromParent();
 }
 
+// Expand `AddSetCarry_i{8,16}_Reg` (i32-narrow lo half — does the
+// add and PRODUCES carry-out for the upper half to consume).
+//
+// Operand layout (this is the NON-Use variant — 4 operands)
+// ---------------------------------------------------------
+// From the MC6809ArithmeticBaseCarry multiclass in
+// MC6809InstrFamilies.td:
+//
+//   class MC6809ArithmeticBaseCarry<dst, carry, src, operand> {
+//     OutOperandList = (outs dst:$dst, carry:$carry);
+//     InOperandList  = !con((ins src:$src), operand);  // adds src2
+//     Constraints    = "$dst = $src";                  // tied
+//   }
+//
+// Resulting MachineInstr operand indices:
+//
+//   op0 : dst    (def, BIT1's parent class) — tied to op2
+//   op1 : carry  (def, BIT1)
+//   op2 : src    (use, == op0 by tie)
+//   op3 : src2   (use)
+//
+// Then the implicit-defs from `let Defs = [NZ, V]` follow at op4
+// ($nz) and op5 ($v). It is critically important not to confuse
+// op3 (the real src2) with op4 (an implicit-def $nz).
+//
+// Bug #64
+// -------
+// Earlier code here used `MI.getOperand(4)` for src2 — that was
+// the implicit-def $nz, not src2. The result was a passed-as-RHS
+// register that didn't make sense, producing garbage assembly
+// like `pshs NZ; sbcb 1,s; sbca ,s` once the call reached
+// emit6809RegPairFromMem. The Use variant (`AddSetCarryUse_*_Reg`)
+// has 5 operands and op4 IS its src2 — the bug came from copying
+// the Use-variant code without adjusting the index. Fixed.
 void MC6809InstrInfo::expandAddSetCarryReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
   assert(MI.getOperand(0).getReg() == MI.getOperand(2).getReg() && "Dest and Source must be same for AddSetCarryReg");
 
-  // Operand layout for AddSetCarry_i*_Reg (the non-Use variant):
-  //   0: dst (def)        — tied to op2
-  //   1: carry (def, BIT1)
-  //   2: src (use)
-  //   3: src2 (use)
-  // The Use variant has an extra carry_in at op3 and src2 at op4. Be
-  // careful not to confuse the layouts — using op4 here picks up the
-  // first IMPLICIT-def ($nz) instead of src2.
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   if (STI.has6309()) {
+    // 6309 has a true register-to-register add: ADDR. The pseudo
+    // operands map directly: dst, src (tied), src2 → ADDR dst, src, src2.
+    // Carry-out is implicit on the carry def operand.
     Builder.buildInstr(MC6809::ADDRp)
-        .addDef(MI.getOperand(0).getReg())
-        .addDef(MI.getOperand(1).getReg(), RegState::Implicit)
-        .addUse(MI.getOperand(2).getReg())
-        .addUse(MI.getOperand(3).getReg());
+        .addDef(MI.getOperand(0).getReg())                         // dst
+        .addDef(MI.getOperand(1).getReg(), RegState::Implicit)     // carry out
+        .addUse(MI.getOperand(2).getReg())                         // src
+        .addUse(MI.getOperand(3).getReg());                        // src2  (op3, NOT op4)
   } else {
+    // Plain 6809: no register-register add. Route through the
+    // emit6809RegPairFromMem helper which loads LHS into D and either
+    // reads RHS from its U-relative spill slot or pushes RHS to S
+    // and reads from there. ADDB/ADCA chain handles the carry.
     emit6809RegPairFromMem(Builder,
-                           MI.getOperand(0).getReg(), MI.getOperand(3).getReg(),
+                           MI.getOperand(0).getReg(),  // LHS = dst (== src by tie)
+                           MI.getOperand(3).getReg(),  // RHS = src2  (op3)
                            MC6809::ADDBi_o8, MC6809::ADDAi_o8,
                            MC6809::ADDBi_o5, MC6809::ADDAi_o0);
   }
   MI.eraseFromParent();
 }
 
-/// Emit 6809 single-byte add/sub from register. Both operands may be spill
-/// or imaginary registers. Load LHS into real accumulator, operate from RHS's
-/// spill slot (U-relative) or push RHS to stack, then store back.
+/// Emit a 6809 8-bit register-register operation by loading LHS into
+/// an accumulator and reading RHS from memory.
+///
+/// The 6809 has no native register-register byte arithmetic — every
+/// instruction takes one ACC source and one memory source. So a
+/// "byte op two regs" pseudo expands to:
+///   1. Make sure LHS is in an accumulator (A or B).
+///   2. Get RHS into a memory location we can address.
+///   3. Emit the op as `<acc> := <acc> op <mem>`.
+///   4. Store the result back if LHS was a spill or imaginary reg.
+///
+/// `Opc_o8` is the opcode for the U-relative form (8-bit displacement,
+/// used for the spill RHS path). `Opc_o5` is the opcode for the
+/// 5-bit-displacement form (used for the S-relative `0,s` access
+/// after PSHS). The two forms encode differently in the postbyte.
+///
+/// LHS handling
+/// ------------
+/// `RealLHS` is the actual hardware register the accumulator op will
+/// touch. For LHS = an imaginary or A/B-spill register, materializeReg
+/// emits an LDA/LDB and `RealLHS` is the AA or AB it loaded into.
+///
+/// RHS handling — TWO PATHS
+/// ------------------------
+///   (a) RHS is a SPILL_A*/SPILL_B*: read it directly via U-relative
+///       addressing from the spill slot — no need to push anything.
+///       Used by bug #63's "skip the second ACC spill" path in
+///       MaterializeSpills (see MC6809MaterializeSpills.cpp). The
+///       byte spills live at +1 from the parent's frame slot
+///       (big-endian: A is at slot+0, B is at slot+1).
+///
+///   (b) RHS is a real register or imaginary register: push it onto
+///       the S stack with PSHS, operate from `0,s`, then LEAS to
+///       deallocate. Imaginary regs are materialized first.
 static void emit6809RegByteFromMem(MachineIRBuilder &Builder,
                                    Register LHS, Register RHS,
                                    unsigned Opc_o8, unsigned Opc_o5) {
   MachineFunction &MF = Builder.getMF();
   Register OrigLHS = LHS;
   Register RealLHS = needsMaterialization(LHS) ? getPhysRegFor(LHS) : LHS;
-  // Determine which accumulator half (A or B) we're operating on.
+  // The accumulator half (A or B) is determined by where LHS lives.
+  // SPILL_A* / Imag8-A maps to AA; SPILL_B* / Imag8-B maps to AB.
   Register AccReg = (RealLHS == MC6809::AA || RealLHS == MC6809::AALSB)
                         ? MC6809::AA : MC6809::AB;
   if (needsMaterialization(LHS))
     materializeReg(Builder, LHS, MF);
-  // RHS: spill registers use their U-relative stack slot directly (efficient).
-  // Imaginary registers must be materialized then pushed to S-stack.
   Register RealRHS = RHS;
   if (isSpillReg(RHS)) {
+    // Path (a): U-relative read from RHS's spill slot. The byte
+    // spill lives at slot+1 (big-endian: A at slot+0, B at slot+1).
     int Offset = computeSpillStackOffset(RHS, MF);
     int ByteOffset = Offset + 1;
     Builder.buildInstr(Opc_o8)
         .addDef(AccReg, RegState::Implicit)
         .addImm(ByteOffset).addReg(MC6809::SU);
   } else {
+    // Path (b): push RHS onto S, operate from 0,s, then LEAS to
+    // pop. If RHS is an imaginary register, materialize it first.
     if (needsMaterialization(RHS))
       RealRHS = materializeReg(Builder, RHS, MF);
-    // RHS is a real register — push 1 byte to stack and operate.
-    // Use the (opc, defs, srcs) buildInstr form so RealRHS is an
-    // EXPLICIT use that the asm printer's printRegisterList can
-    // iterate. The chained .addUse(.., Implicit) form leaves the
-    // operand off the printed register list, producing garbage like
-    // "pshs s,s" in the assembly output.
+
+    // Bug #65: PSHS builder syntax matters here. Use the
+    // (opc, defs, srcs) form — `Builder.buildInstr(PSHSs, {}, {RealRHS})`
+    // — so RealRHS becomes an EXPLICIT use operand that the asm
+    // printer's printRegisterList can iterate. The earlier code used
+    // the chained form
+    //
+    //     Builder.buildInstr(PSHSs)
+    //         .addDef(SS).addUse(RealRHS, Implicit).addUse(SS);
+    //
+    // which leaves RealRHS off the explicit operand list. The asm
+    // printer then iterated only the SS def/use and emitted nonsense
+    // like "pshs s,s" — a syntactically valid but semantically wrong
+    // instruction (it pushes the stack pointer onto itself).
     Builder.buildInstr(MC6809::PSHSs, {}, {RealRHS});
+    // Operate from the top of the S stack (offset 0).
     Builder.buildInstr(Opc_o5)
         .addDef(AccReg, RegState::Implicit)
         .addImm(0).addReg(MC6809::SS);
+    // Pop the byte we pushed.
     Builder.buildInstr(MC6809::LEASi_o5)
         .addImm(1).addReg(MC6809::SS);
   }
@@ -3230,48 +3412,97 @@ static void emit6809RegByteFromMem(MachineIRBuilder &Builder,
     dematerializeReg(Builder, RealLHS, OrigLHS, MF);
 }
 
-/// Emit 6809 two-byte carry/sub from register: load LHS into D if spill or
-/// imaginary, use RHS from its spill slot (U-relative) or push to stack
-/// (S-relative), then do 8-bit B op + A op.
+/// Emit a 6809 16-bit register-register operation as a chained pair
+/// of 8-bit operations: byte-low first (sets carry), byte-high second
+/// (uses carry).
+///
+/// The 6809 has no native register-register 16-bit ADD/SUB. Instead
+/// we expand to:
+///
+///     <op-low>  AB, lo-byte-of-RHS    ; ADDB / SUBB / ADCB / SBCB
+///     <op-high> AA, hi-byte-of-RHS    ; ADCA / SBCA / etc.
+///
+/// The carry from the low byte propagates to the high byte via the
+/// processor's CC.C flag — meaning NOTHING that touches CC may be
+/// scheduled between the two halves. (This is the structural fragility
+/// behind bug #57.) The expansion here is straight-line; downstream
+/// passes don't reorder these instructions because they're emitted as
+/// a contiguous group.
+///
+/// `OpcB_o8`/`OpcA_o8` are the U-relative (8-bit displacement)
+/// variants for the spill RHS path. `OpcB_o5`/`OpcA_o0` are the
+/// 5-bit / 0-byte displacement variants used after a PSHS — `0,s`
+/// and `1,s` access the just-pushed bytes.
+///
+/// LHS handling
+/// ------------
+/// LHS is loaded into D (the only 16-bit accumulator) if it's a
+/// spill or imaginary register. The 8-bit ops then act on AA and AB
+/// implicitly. The result is in D at the end and stored back to the
+/// spill slot if needed.
+///
+/// RHS handling — TWO PATHS  (mirror image of emit6809RegByteFromMem)
+/// ------------------------
+///   (a) RHS is a SPILL_D / SPILL_A* / SPILL_B*: read it directly
+///       from the parent's spill slot via U-relative addressing.
+///       This path was previously dead code (MaterializeSpills used
+///       to rewrite all spill operands before this function ran),
+///       but bug #63's fix re-enables it: MaterializeSpills now
+///       deliberately leaves the SECOND distinct ACC spill alone for
+///       Add/Sub/SetCarry _Reg pseudos so this path can handle it.
+///       Big-endian byte order: high byte at slot+0, low byte at
+///       slot+1.
+///
+///   (b) RHS is a real or imaginary register: materialize if needed,
+///       PSHS to push the i16 onto the S stack (high byte at 0,s,
+///       low byte at 1,s), operate from there, then LEAS to pop.
 static void emit6809RegPairFromMem(MachineIRBuilder &Builder,
                                    Register LHS, Register RHS,
                                    unsigned OpcB_o8, unsigned OpcA_o8,
                                    unsigned OpcB_o5, unsigned OpcA_o0) {
   MachineFunction &MF = Builder.getMF();
   Register OrigLHS = LHS;
-  // Load LHS into real D if it's a spill or imaginary register.
+  // Load LHS into D if it's a spill or imaginary register. After
+  // this, AA/AB are the operands the 8-bit ops will work on.
   if (needsMaterialization(LHS))
     materializeReg(Builder, LHS, MF);
-  // RHS: spill registers use their U-relative stack slot directly (efficient).
-  // Imaginary registers must be materialized then pushed to S-stack.
   Register RealRHS = RHS;
   if (isSpillReg(RHS)) {
+    // Path (a): read RHS bytes directly from its U-relative spill
+    // slot. Byte order: hi at slot+0, lo at slot+1.
     int Offset = computeSpillStackOffset(RHS, MF);
+    // Low byte first — sets CC.C if this op carries.
     Builder.buildInstr(OpcB_o8)
         .addDef(MC6809::AB, RegState::Implicit)
         .addImm(Offset + 1).addReg(MC6809::SU);
+    // High byte second — uses (and possibly sets) CC.C from the low op.
     Builder.buildInstr(OpcA_o8)
         .addDef(MC6809::AA, RegState::Implicit)
         .addImm(Offset).addReg(MC6809::SU);
   } else {
+    // Path (b): push RHS onto S, operate from 0,s and 1,s, then LEAS.
     if (needsMaterialization(RHS))
       RealRHS = materializeReg(Builder, RHS, MF);
-    // Use the (opc, defs, srcs) buildInstr form so RealRHS is an
-    // EXPLICIT use that the asm printer's printRegisterList can
-    // iterate. The chained .addUse(.., Implicit) form leaves the
-    // operand off the printed register list, producing garbage like
-    // "pshs s,s" in the assembly output.
+
+    // Bug #65: see emit6809RegByteFromMem for the full explanation
+    // of why we use the (opc, defs, srcs) buildInstr form here. TL;DR:
+    // the chained .addUse(..., Implicit) form leaves RealRHS off the
+    // printed register list and the asm printer emits garbage like
+    // "pshs s,s".
     Builder.buildInstr(MC6809::PSHSs, {}, {RealRHS});
+    // Low byte at S+1, high byte at S+0 (big-endian on the stack).
     Builder.buildInstr(OpcB_o5)
         .addDef(MC6809::AB, RegState::Implicit)
         .addImm(1).addReg(MC6809::SS);
     Builder.buildInstr(OpcA_o0)
         .addDef(MC6809::AA, RegState::Implicit)
         .addReg(MC6809::SS);
+    // Pop the i16 we pushed.
     Builder.buildInstr(MC6809::LEASi_o5)
         .addImm(2).addReg(MC6809::SS);
   }
-  // Store result back if LHS was a spill or imaginary register.
+  // Store the i16 result back to LHS's slot if LHS was a spill /
+  // imaginary register. AD now holds the result.
   if (needsMaterialization(OrigLHS))
     dematerializeReg(Builder, MC6809::AD, OrigLHS, MF);
 }
@@ -3315,25 +3546,29 @@ void MC6809InstrInfo::expandSubReg(MachineIRBuilder &Builder, MachineInstr &MI) 
   MI.eraseFromParent();
 }
 
+// Expand `SubSetCarry_i{8,16}_Reg` (i32-narrow lo half — does the
+// subtract and PRODUCES borrow-out for the upper half to consume).
+//
+// Same operand layout and bug #64 history as expandAddSetCarryReg
+// above (4 operands: dst, carry, src(==dst), src2). RHS lives at
+// op3, NOT op4. See expandAddSetCarryReg for the full write-up.
 void MC6809InstrInfo::expandSubSetCarryReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
   assert(MI.getOperand(0).getReg() == MI.getOperand(2).getReg() && "Dest and Source must be same for SubSetCarryReg");
 
-  // Operand layout for SubSetCarry_i*_Reg (the non-Use variant):
-  //   0: dst (def)        — tied to op2
-  //   1: carry (def, BIT1)
-  //   2: src (use)
-  //   3: src2 (use)
-  // See expandAddSetCarryReg for the Use-vs-non-Use distinction.
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   if (STI.has6309()) {
+    // 6309 register-register subtract: SUBR dst, src, src2.
     Builder.buildInstr(MC6809::SUBRp)
-        .addDef(MI.getOperand(0).getReg())
-        .addDef(MI.getOperand(1).getReg(), RegState::Implicit)
-        .addUse(MI.getOperand(2).getReg())
-        .addUse(MI.getOperand(3).getReg());
+        .addDef(MI.getOperand(0).getReg())                         // dst
+        .addDef(MI.getOperand(1).getReg(), RegState::Implicit)     // borrow out
+        .addUse(MI.getOperand(2).getReg())                         // src
+        .addUse(MI.getOperand(3).getReg());                        // src2  (op3, NOT op4)
   } else {
+    // Plain 6809: route through the byte-pair helper. SUBB/SBCA
+    // chain handles the borrow propagation.
     emit6809RegPairFromMem(Builder,
-                           MI.getOperand(0).getReg(), MI.getOperand(3).getReg(),
+                           MI.getOperand(0).getReg(),  // LHS = dst (== src by tie)
+                           MI.getOperand(3).getReg(),  // RHS = src2  (op3)
                            MC6809::SUBBi_o8, MC6809::SBCAi_o8,
                            MC6809::SUBBi_o5, MC6809::SBCAi_o0);
   }
