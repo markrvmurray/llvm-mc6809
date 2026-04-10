@@ -544,9 +544,13 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
   case TargetOpcode::G_BRJT: {
     // Branch via jump table. G_BRJT %table_ptr, %jump-table.N, %index
     // Select to BranchJumpTable pseudo (expanded post-RA to PIC sequence).
+    // The index is constrained to ADc (D + SPILL_D variants) — see the
+    // BranchJumpTable definition in MC6809InstrLogical.td for why. This
+    // was bug #68 (was using ACC16, which let regalloc pick IX/IY and
+    // the asm-printer expansion blindly shifted D regardless).
     Register IdxReg = MI.getOperand(2).getReg();
     unsigned JTI = MI.getOperand(1).getIndex();
-    MRI->setRegClass(IdxReg, &MC6809::ACC16RegClass);
+    MRI->setRegClass(IdxReg, &MC6809::ADcRegClass);
     BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(MC6809::BranchJumpTable))
         .addReg(IdxReg)
         .addJumpTableIndex(JTI);

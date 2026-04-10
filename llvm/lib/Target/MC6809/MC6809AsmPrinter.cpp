@@ -85,9 +85,34 @@ void MC6809AsmPrinter::emitInstruction(const MachineInstr *MI) {
     EmitToStreamer(*OutStreamer, OutInst);
     return;
   }
-  // BranchJumpTable: expand to PIC jump table sequence.
-  // ASLB+ROLA (index*2), LEAX table,PCR, JMP [D,X]
+  // BranchJumpTable: expand to a jump-table dispatch sequence.
+  //
+  //   ASLB             ; D = index * 2 (each entry is 2 bytes)
+  //   ROLA
+  //   LDX #JTbase      ; X = absolute address of jump table
+  //   LDD D,X          ; D = JT[index] (PC-relative offset)
+  //   JMP D,X          ; jump to JT base + offset
+  //
+  // The $idx operand must already be in $ad by the time we get here —
+  // see the BranchJumpTable definition (operand class ADc) and
+  // MC6809MaterializeSpills (which materializes any SPILL_D operand
+  // into AD with an LDD before this instruction). Assert it as a
+  // tripwire for any future regression of bug #68.
+  //
+  // History note (bug #68): the original expansion used `LEAX JT,PCR`
+  // to get the table base. That goes through the textual asm
+  // intermediate, where the assembler's operand matcher silently
+  // chose the 8-bit `LEAXi_o8PC` form for any symbol ref (because
+  // MC6809AsmParser::isImmediate accepts all symbol refs as both
+  // PCRel8 and PCRel16, and there's no relaxation rule for the
+  // PC-rel addressing modes — same lesson as bug #58 for branches).
+  // Switching to `LDX #JT` sidesteps the matcher ambiguity entirely:
+  // immediate-loaded absolute addresses always use the 16-bit form
+  // and the linker resolves the symbol at link time.
   if (MI->getOpcode() == MC6809::BranchJumpTable) {
+    assert(MI->getOperand(0).isReg() &&
+           MI->getOperand(0).getReg() == MC6809::AD &&
+           "BranchJumpTable: $idx must be in $ad before expansion (bug #68)");
     unsigned JTI = MI->getOperand(1).getIndex();
     MCSymbol *JTSym = GetJTISymbol(JTI);
     // ASLB — shift index left (low byte)
@@ -98,18 +123,18 @@ void MC6809AsmPrinter::emitInstruction(const MachineInstr *MI) {
     MCInst ROL;
     ROL.setOpcode(MC6809::ROLAa);
     EmitToStreamer(*OutStreamer, ROL);
-    // LEAX table,PCR — PC-relative table base address
-    MCInst LEA;
-    LEA.setOpcode(MC6809::LEAXi_o16PC);
-    LEA.addOperand(MCOperand::createExpr(
+    // LDX #JT — absolute 16-bit address of jump table base
+    MCInst LDX;
+    LDX.setOpcode(MC6809::LDXi16);
+    LDX.addOperand(MCOperand::createExpr(
         MCSymbolRefExpr::create(JTSym, OutContext)));
-    EmitToStreamer(*OutStreamer, LEA);
+    EmitToStreamer(*OutStreamer, LDX);
     // LDD D,X — load relative offset from table[index]
     MCInst LDD;
     LDD.setOpcode(MC6809::LDDi_oD);
     LDD.addOperand(MCOperand::createReg(MC6809::IX));
     EmitToStreamer(*OutStreamer, LDD);
-    // JMP D,X — jump to table base + offset (PIC)
+    // JMP D,X — jump to table base + offset
     MCInst JMP;
     JMP.setOpcode(MC6809::JMPi_oD);
     JMP.addOperand(MCOperand::createReg(MC6809::IX));

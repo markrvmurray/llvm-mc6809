@@ -201,14 +201,18 @@ class MC6809Subroutine : MC6809LogicalInstr {
   dag InOperandList = (ins label:$tgt);
 }
 
-// Branch via jump table: index in ACC16, table identified by JTI.
-// Expanded post-RA to ASLB+ROLA+LEAX table,PCR+JMP [D,X].
+// Branch via jump table: index must be materializable to D, table
+// identified by JTI. Expanded post-RA to ASLB+ROLA+LEAX table,PCR
+// +LDD D,X+JMP D,X — that sequence is hardcoded against D, so the
+// $idx operand is constrained to ADc (AD + SPILL_D0..7 only).
+// Constraining to plain ACC16 here was bug #68: regalloc was free
+// to pick IX/IY, and the expansion blindly shifted whatever D held.
 // Not marked isBranch to avoid branch relaxation analysis (which
 // can't handle indirect branches with no single destination).
 let isBranch = false, isTerminator = true, isBarrier = true in
 def BranchJumpTable : MC6809LogicalInstr {
   let isIndirectBranch = true;
-  dag InOperandList = (ins ACC16:$idx, unknown:$jti);
+  dag InOperandList = (ins ADc:$idx, unknown:$jti);
 }
 
 def BranchSubroutine : MC6809Subroutine, PseudoInstExpansion<(BSRb pcrel8:$tgt)>;

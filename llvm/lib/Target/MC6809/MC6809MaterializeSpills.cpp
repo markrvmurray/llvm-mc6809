@@ -406,7 +406,14 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
       // which preserves D. BUT if D is live with a non-spill value, the
       // fallback materialization will clobber it. In that case, we MUST
       // process the instruction here so the D save/restore logic fires.
-      if (MI.isCompare() || MI.isTerminator()) {
+      //
+      // BranchJumpTable is also isTerminator() but its expansion has NO
+      // backwards-scan equivalent — it hardcodes ASLB+ROLA on D and just
+      // assumes D already holds the index. So we must NEVER take the skip
+      // path for it; the spill operand has to be materialized into D
+      // before the asm printer's expansion runs. This was bug #68.
+      if ((MI.isCompare() || MI.isTerminator()) &&
+          MI.getOpcode() != MC6809::BranchJumpTable) {
         bool Has8BitSpill = false;
         bool DLiveNonSpill = false;
         for (const MachineOperand &MO : MI.operands()) {
