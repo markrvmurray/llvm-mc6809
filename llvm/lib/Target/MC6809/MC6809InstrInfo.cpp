@@ -1892,10 +1892,14 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     expandAddReg(Builder, MI);
     break;
   case MC6809::AddSetCarry_i8_Reg:
+    expandAddSetCarryByteReg(Builder, MI);
+    break;
   case MC6809::AddSetCarry_i16_Reg:
     expandAddSetCarryReg(Builder, MI);
     break;
   case MC6809::AddSetCarryUse_i8_Reg:
+    expandAddSetCarryUseByteReg(Builder, MI);
+    break;
   case MC6809::AddSetCarryUse_i16_Reg:
     expandAddSetCarryUseReg(Builder, MI);
     break;
@@ -1927,10 +1931,14 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     expandIdxImm(SubIdxImm, Builder, MI);
     break;
   case MC6809::Sub_i8_Reg:
+    expandSubByteReg(Builder, MI);
+    break;
   case MC6809::Sub_i16_Reg:
     expandSubReg(Builder, MI);
     break;
   case MC6809::SubSetCarry_i8_Reg:
+    expandSubSetCarryByteReg(Builder, MI);
+    break;
   case MC6809::SubSetCarry_i16_Reg:
     expandSubSetCarryReg(Builder, MI);
     break;
@@ -1941,6 +1949,8 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     expandCarryMem16(false, Builder, MI);
     break;
   case MC6809::SubSetCarryUse_i8_Reg:
+    expandSubSetCarryUseByteReg(Builder, MI);
+    break;
   case MC6809::SubSetCarryUse_i16_Reg:
     expandSubSetCarryUseReg(Builder, MI);
     break;
@@ -3401,6 +3411,126 @@ void MC6809InstrInfo::expandAddSetCarryReg(MachineIRBuilder &Builder, MachineIns
   MI.eraseFromParent();
 }
 
+// Expand `AddSetCarry_i8_Reg` — byte-level add that PRODUCES carry-out.
+// Same operand layout as the i16 variant (4 operands: dst, carry, src, src2),
+// but uses emit6809RegByteFromMem instead of emit6809RegPairFromMem.
+/// Determine the correct A or B opcode variant for a byte-level
+/// carry chain operation based on which accumulator the LHS maps to.
+static void getByteOpcodes(Register LHS,
+                           unsigned OpcA_o8, unsigned OpcB_o8,
+                           unsigned OpcA_o5, unsigned OpcB_o5,
+                           unsigned &Opc_o8, unsigned &Opc_o5) {
+  Register RealLHS = needsMaterialization(LHS) ? getPhysRegFor(LHS) : LHS;
+  bool UseA = (RealLHS == MC6809::AA || RealLHS == MC6809::AALSB);
+  Opc_o8 = UseA ? OpcA_o8 : OpcB_o8;
+  Opc_o5 = UseA ? OpcA_o5 : OpcB_o5;
+}
+
+void MC6809InstrInfo::expandAddSetCarryByteReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
+  assert(MI.getOperand(0).getReg() == MI.getOperand(2).getReg());
+  const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
+  if (STI.has6309()) {
+    Builder.buildInstr(MC6809::ADDRp)
+        .addDef(MI.getOperand(0).getReg())
+        .addDef(MI.getOperand(1).getReg(), RegState::Implicit)
+        .addUse(MI.getOperand(2).getReg())
+        .addUse(MI.getOperand(3).getReg());
+  } else {
+    unsigned Opc_o8, Opc_o5;
+    getByteOpcodes(MI.getOperand(0).getReg(),
+                   MC6809::ADDAi_o8, MC6809::ADDBi_o8,
+                   MC6809::ADDAi_o5, MC6809::ADDBi_o5, Opc_o8, Opc_o5);
+    emit6809RegByteFromMem(Builder, MI.getOperand(0).getReg(),
+                           MI.getOperand(3).getReg(), Opc_o8, Opc_o5);
+  }
+  MI.eraseFromParent();
+}
+
+void MC6809InstrInfo::expandAddSetCarryUseByteReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
+  assert(MI.getOperand(0).getReg() == MI.getOperand(2).getReg());
+  const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
+  if (STI.has6309()) {
+    Builder.buildInstr(MC6809::ADCRp)
+        .addDef(MI.getOperand(0).getReg())
+        .addDef(MI.getOperand(1).getReg(), RegState::Implicit)
+        .addUse(MI.getOperand(2).getReg())
+        .addUse(MI.getOperand(3).getReg(), RegState::Implicit)
+        .addUse(MI.getOperand(4).getReg());
+  } else {
+    unsigned Opc_o8, Opc_o5;
+    getByteOpcodes(MI.getOperand(0).getReg(),
+                   MC6809::ADCAi_o8, MC6809::ADCBi_o8,
+                   MC6809::ADCAi_o5, MC6809::ADCBi_o5, Opc_o8, Opc_o5);
+    emit6809RegByteFromMem(Builder, MI.getOperand(0).getReg(),
+                           MI.getOperand(4).getReg(), Opc_o8, Opc_o5);
+  }
+  MI.eraseFromParent();
+}
+
+void MC6809InstrInfo::expandSubSetCarryByteReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
+  assert(MI.getOperand(0).getReg() == MI.getOperand(2).getReg());
+  const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
+  if (STI.has6309()) {
+    Builder.buildInstr(MC6809::SUBRp)
+        .addDef(MI.getOperand(0).getReg())
+        .addDef(MI.getOperand(1).getReg(), RegState::Implicit)
+        .addUse(MI.getOperand(2).getReg())
+        .addUse(MI.getOperand(3).getReg());
+  } else {
+    unsigned Opc_o8, Opc_o5;
+    getByteOpcodes(MI.getOperand(0).getReg(),
+                   MC6809::SUBAi_o8, MC6809::SUBBi_o8,
+                   MC6809::SUBAi_o5, MC6809::SUBBi_o5, Opc_o8, Opc_o5);
+    emit6809RegByteFromMem(Builder, MI.getOperand(0).getReg(),
+                           MI.getOperand(3).getReg(), Opc_o8, Opc_o5);
+  }
+  MI.eraseFromParent();
+}
+
+void MC6809InstrInfo::expandSubSetCarryUseByteReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
+  assert(MI.getOperand(0).getReg() == MI.getOperand(2).getReg());
+  const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
+  if (STI.has6309()) {
+    Builder.buildInstr(MC6809::SBCRp)
+        .addDef(MI.getOperand(0).getReg())
+        .addDef(MI.getOperand(1).getReg(), RegState::Implicit)
+        .addUse(MI.getOperand(4).getReg())
+        .addUse(MI.getOperand(3).getReg(), RegState::Implicit)
+        .addUse(MI.getOperand(2).getReg());
+  } else {
+    unsigned Opc_o8, Opc_o5;
+    getByteOpcodes(MI.getOperand(0).getReg(),
+                   MC6809::SBCAi_o8, MC6809::SBCBi_o8,
+                   MC6809::SBCAi_o5, MC6809::SBCBi_o5, Opc_o8, Opc_o5);
+    emit6809RegByteFromMem(Builder, MI.getOperand(0).getReg(),
+                           MI.getOperand(4).getReg(), Opc_o8, Opc_o5);
+  }
+  MI.eraseFromParent();
+}
+
+/// Map an indexed opcode (e.g. ADDBi_o8) to its direct-page variant
+/// (e.g. ADDBd). Used when RHS is an Imag8 register — the imaginary
+/// regs live in the direct page and can be addressed with the shorter
+/// direct-page instruction form instead of pushing onto the stack.
+static unsigned getDirectPageOpcode(unsigned IdxOpc) {
+  switch (IdxOpc) {
+  case MC6809::ADDBi_o8: case MC6809::ADDBi_o5: return MC6809::ADDBd;
+  case MC6809::ADDAi_o8: case MC6809::ADDAi_o0: return MC6809::ADDAd;
+  case MC6809::ADCAi_o8: case MC6809::ADCAi_o0: return MC6809::ADCAd;
+  case MC6809::ADCBi_o8: case MC6809::ADCBi_o5: return MC6809::ADCBd;
+  case MC6809::SUBBi_o8: case MC6809::SUBBi_o5: return MC6809::SUBBd;
+  case MC6809::SBCAi_o8: case MC6809::SBCAi_o0: return MC6809::SBCAd;
+  case MC6809::SBCBi_o8: case MC6809::SBCBi_o5: return MC6809::SBCBd;
+  case MC6809::ANDBi_o8: case MC6809::ANDBi_o5: return MC6809::ANDBd;
+  case MC6809::ANDAi_o8: case MC6809::ANDAi_o0: return MC6809::ANDAd;
+  case MC6809::ORBi_o8:  case MC6809::ORBi_o5:  return MC6809::ORBd;
+  case MC6809::ORAi_o8:  case MC6809::ORAi_o0:  return MC6809::ORAd;
+  case MC6809::EORBi_o8: case MC6809::EORBi_o5: return MC6809::EORBd;
+  case MC6809::EORAi_o8: case MC6809::EORAi_o0: return MC6809::EORAd;
+  default: llvm_unreachable("No direct-page variant for this opcode");
+  }
+}
+
 /// Emit a 6809 8-bit register-register operation by loading LHS into
 /// an accumulator and reading RHS from memory.
 ///
@@ -3423,18 +3553,22 @@ void MC6809InstrInfo::expandAddSetCarryReg(MachineIRBuilder &Builder, MachineIns
 /// touch. For LHS = an imaginary or A/B-spill register, materializeReg
 /// emits an LDA/LDB and `RealLHS` is the AA or AB it loaded into.
 ///
-/// RHS handling — TWO PATHS
-/// ------------------------
+/// RHS handling — THREE PATHS
+/// --------------------------
 ///   (a) RHS is a SPILL_A*/SPILL_B*: read it directly via U-relative
 ///       addressing from the spill slot — no need to push anything.
 ///       Used by bug #63's "skip the second ACC spill" path in
 ///       MaterializeSpills (see MC6809MaterializeSpills.cpp). The
-///       byte spills live at +1 from the parent's frame slot
-///       (big-endian: A is at slot+0, B is at slot+1).
+///       byte spills use getSpillByteOffset for the correct offset
+///       within the parent frame slot (big-endian: A at slot+0,
+///       B at slot+1).
 ///
-///   (b) RHS is a real register or imaginary register: push it onto
-///       the S stack with PSHS, operate from `0,s`, then LEAS to
-///       deallocate. Imaginary regs are materialized first.
+///   (b) RHS is an Imag8 register: use the direct-page opcode to
+///       read it directly from its DP location. No push needed.
+///
+///   (c) RHS is a real register or other imaginary register: push it
+///       onto the S stack with PSHS, operate from `0,s`, then LEAS
+///       to deallocate. Imaginary regs are materialized first.
 static void emit6809RegByteFromMem(MachineIRBuilder &Builder,
                                    Register LHS, Register RHS,
                                    unsigned Opc_o8, unsigned Opc_o5) {
@@ -3445,42 +3579,48 @@ static void emit6809RegByteFromMem(MachineIRBuilder &Builder,
   // SPILL_A* / Imag8-A maps to AA; SPILL_B* / Imag8-B maps to AB.
   Register AccReg = (RealLHS == MC6809::AA || RealLHS == MC6809::AALSB)
                         ? MC6809::AA : MC6809::AB;
+  // If the RHS is a physical register that's the SAME as the LHS
+  // accumulator, push it BEFORE materializing the LHS. Otherwise
+  // the LHS load clobbers the RHS value. This happens when the
+  // byte-level carry chain has a spill-backed LHS and the RHS was
+  // left in A/B by a preceding operation (e.g., libcall result).
+  Register RealRHS = needsMaterialization(RHS) ? getPhysRegFor(RHS) : RHS;
+  bool PushedEarly = false;
+  if (!isSpillReg(RHS) && !(RHS.isPhysical() && MC6809::Imag8RegClass.contains(RHS)) &&
+      RealRHS == AccReg) {
+    if (needsMaterialization(RHS))
+      RealRHS = materializeReg(Builder, RHS, MF);
+    Builder.buildInstr(MC6809::PSHSs, {}, {RealRHS});
+    PushedEarly = true;
+  }
   if (needsMaterialization(LHS))
     materializeReg(Builder, LHS, MF);
-  Register RealRHS = RHS;
+  RealRHS = RHS;
   if (isSpillReg(RHS)) {
-    // Path (a): U-relative read from RHS's spill slot. The byte
-    // spill lives at slot+1 (big-endian: A at slot+0, B at slot+1).
-    int Offset = computeSpillStackOffset(RHS, MF);
-    int ByteOffset = Offset + 1;
+    // Path (a): U-relative read from RHS's spill slot.
+    // computeSpillStackOffset already includes the byte offset within
+    // the parent D slot (A at +0, B at +1 on big-endian).
+    int ByteOffset = computeSpillStackOffset(RHS, MF);
+    LLVM_DEBUG(dbgs() << "emit6809RegByteFromMem: path(a) RHS="
+               << printReg(RHS) << " offset=" << ByteOffset << "\n");
     Builder.buildInstr(Opc_o8)
         .addDef(AccReg, RegState::Implicit)
         .addImm(ByteOffset).addReg(MC6809::SU);
+  } else if (RHS.isPhysical() && MC6809::Imag8RegClass.contains(RHS)) {
+    // Path (b): RHS is an Imag8 register — use the direct-page
+    // opcode to read it directly from its DP location. This avoids
+    // the push/pop overhead and is correct because Imag8 registers
+    // live in the direct page at fixed addresses.
+    unsigned DPOpc = getDirectPageOpcode(Opc_o8);
+    Builder.buildInstr(DPOpc).addReg(RHS);
   } else {
-    // Path (b): push RHS onto S, operate from 0,s, then LEAS to
-    // pop. If RHS is an imaginary register, materialize it first.
+    // Path (c): push RHS onto S, operate from 0,s, then LEAS to pop.
     if (needsMaterialization(RHS))
       RealRHS = materializeReg(Builder, RHS, MF);
-
-    // Bug #65: PSHS builder syntax matters here. Use the
-    // (opc, defs, srcs) form — `Builder.buildInstr(PSHSs, {}, {RealRHS})`
-    // — so RealRHS becomes an EXPLICIT use operand that the asm
-    // printer's printRegisterList can iterate. The earlier code used
-    // the chained form
-    //
-    //     Builder.buildInstr(PSHSs)
-    //         .addDef(SS).addUse(RealRHS, Implicit).addUse(SS);
-    //
-    // which leaves RealRHS off the explicit operand list. The asm
-    // printer then iterated only the SS def/use and emitted nonsense
-    // like "pshs s,s" — a syntactically valid but semantically wrong
-    // instruction (it pushes the stack pointer onto itself).
     Builder.buildInstr(MC6809::PSHSs, {}, {RealRHS});
-    // Operate from the top of the S stack (offset 0).
     Builder.buildInstr(Opc_o5)
         .addDef(AccReg, RegState::Implicit)
         .addImm(0).addReg(MC6809::SS);
-    // Pop the byte we pushed.
     Builder.buildInstr(MC6809::LEASi_o5)
         .addImm(1).addReg(MC6809::SS);
   }
@@ -3618,6 +3758,29 @@ void MC6809InstrInfo::expandSubReg(MachineIRBuilder &Builder, MachineInstr &MI) 
                            MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
                            MC6809::SUBBi_o8, MC6809::SBCAi_o8,
                            MC6809::SUBBi_o5, MC6809::SBCAi_o0);
+  }
+  MI.eraseFromParent();
+}
+
+// Expand `Sub_i8_Reg` — plain byte subtraction (no carry chain).
+// Same as expandSubReg but uses emit6809RegByteFromMem with correct
+// A/B accumulator selection, avoiding the 16-bit pair expansion
+// that clobbers when LHS and RHS share the same register.
+void MC6809InstrInfo::expandSubByteReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
+  assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg());
+  const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
+  if (STI.has6309()) {
+    Builder.buildInstr(MC6809::SUBRp)
+        .addDef(MI.getOperand(0).getReg())
+        .addUse(MI.getOperand(2).getReg())
+        .addUse(MI.getOperand(1).getReg());
+  } else {
+    unsigned Opc_o8, Opc_o5;
+    getByteOpcodes(MI.getOperand(0).getReg(),
+                   MC6809::SUBAi_o8, MC6809::SUBBi_o8,
+                   MC6809::SUBAi_o5, MC6809::SUBBi_o5, Opc_o8, Opc_o5);
+    emit6809RegByteFromMem(Builder, MI.getOperand(0).getReg(),
+                           MI.getOperand(2).getReg(), Opc_o8, Opc_o5);
   }
   MI.eraseFromParent();
 }

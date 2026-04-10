@@ -298,6 +298,31 @@ static bool shouldFoldMemAccess(const MachineInstr &Dst, const MachineInstr &Src
   return true;
 }
 
+/// Try to extract a byte constant from a G_UNMERGE_VALUES of a
+/// G_CONSTANT.  Returns true and fills `Val` when the pattern matches.
+///
+///   %wide = G_CONSTANT i16 <const>
+///   %lo, %hi = G_UNMERGE_VALUES %wide
+///
+/// For big-endian MC6809: part[0] (lo) is `const & 0xFF`,
+/// part[1] (hi) is `(const >> 8) & 0xFF`.
+static bool getUnmergedByteConstant(const MachineRegisterInfo &MRI,
+                                    Register Reg, int64_t &Val) {
+  const MachineInstr *Unmerge =
+      getOpcodeDef(MC6809::G_UNMERGE_VALUES, Reg, MRI);
+  if (!Unmerge)
+    return false;
+  // The source of the unmerge is the last operand.
+  Register SrcReg = Unmerge->getOperand(Unmerge->getNumOperands() - 1).getReg();
+  auto SrcConst = getIConstantVRegValWithLookThrough(SrcReg, MRI);
+  if (!SrcConst)
+    return false;
+  int64_t WideVal = SrcConst->Value.getSExtValue();
+  bool IsLow = (Reg == Unmerge->getOperand(0).getReg());
+  Val = IsLow ? (WideVal & 0xFF) : ((WideVal >> 8) & 0xFF);
+  return true;
+}
+
 struct FoldedLdIdx_match {
   const MachineInstr &Tgt;
   MachineOperand &Ptr;
@@ -317,16 +342,13 @@ struct FoldedLdIdx_match {
           Ptr = FrameIndex->getOperand(1);
           const LLT Ty = MRI.getType(Unmerge->getOperand(2).getReg());
           const unsigned TySize = Ty.getSizeInBits();
+          // MC6809 is big-endian: part[0] is the LOW half (LSB),
+          // which lives at the HIGHER offset in memory.
+          bool IsLow = (Reg == Unmerge->getOperand(0).getReg());
           if (TySize == 32) {
-            if (Reg == Unmerge->getOperand(0).getReg())
-              Offset = MachineOperand::CreateImm(0);
-            else
-              Offset = MachineOperand::CreateImm(2);
+            Offset = MachineOperand::CreateImm(IsLow ? 2 : 0);
           } else if (TySize == 16) {
-            if (Reg == Unmerge->getOperand(0).getReg())
-              Offset = MachineOperand::CreateImm(0);
-            else
-              Offset = MachineOperand::CreateImm(1);
+            Offset = MachineOperand::CreateImm(IsLow ? 1 : 0);
           } else
             llvm_unreachable("Impossible unmerge size");
           return true;
@@ -857,6 +879,27 @@ bool MC6809InstructionSelector::selectAddO(MachineInstr &MI) {
     return true;
   }
 
+  // Fold G_UNMERGE_VALUES of G_CONSTANT into an immediate operand.
+  // This catches the byte halves of an i16 constant that was split
+  // by the legalizer for an i32 carry chain.
+  {
+    Register UnmReg;
+    int64_t ByteVal;
+    Success = mi_match(Dst, *MRI, m_GSAddO(m_Reg(UnmReg), m_Reg(Reg))) ||
+              mi_match(Dst, *MRI, m_GUAddO(m_Reg(UnmReg), m_Reg(Reg)));
+    if (Success && getUnmergedByteConstant(*MRI, Reg, ByteVal)) {
+      Opcode = DstSize == 8 ? MC6809::AddSetCarry_i8_Imm : MC6809::AddSetCarry_i16_Imm;
+      Instr = Builder.buildInstr(Opcode)
+                       .addDef(Dst)
+                       .addDef(CarryOut)
+                       .addUse(UnmReg)
+                       .addImm(ByteVal);
+      constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
+      MI.eraseFromParent();
+      return true;
+    }
+  }
+
   MachineOperand Ptr = MachineOperand::CreateReg(0, false);
   MachineOperand Offset = MachineOperand::CreateReg(0, false);
   Success = mi_match(Dst, *MRI, m_GSAddO(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)))) ||
@@ -977,6 +1020,27 @@ bool MC6809InstructionSelector::selectSubO(MachineInstr &MI) {
     return true;
   }
 
+  // Fold G_UNMERGE_VALUES of G_CONSTANT into an immediate operand.
+  // Only match (reg - unmerged_const), never the reverse — SUB is
+  // non-commutative (see bug #61 comments above).
+  {
+    Register UnmReg;
+    int64_t ByteVal;
+    Success = mi_match(Dst, *MRI, m_GSSubO(m_Reg(UnmReg), m_Reg(Reg))) ||
+              mi_match(Dst, *MRI, m_GUSubO(m_Reg(UnmReg), m_Reg(Reg)));
+    if (Success && getUnmergedByteConstant(*MRI, Reg, ByteVal)) {
+      Opcode = DstSize == 8 ? MC6809::SubSetCarry_i8_Imm : MC6809::SubSetCarry_i16_Imm;
+      Instr = Builder.buildInstr(Opcode)
+                       .addDef(Dst)
+                       .addDef(CarryOut)
+                       .addUse(UnmReg)
+                       .addImm(ByteVal);
+      constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
+      MI.eraseFromParent();
+      return true;
+    }
+  }
+
   MachineOperand Ptr = MachineOperand::CreateReg(0, false);
   MachineOperand Offset = MachineOperand::CreateReg(0, false);
   // Match `(reg − mem)` only — never `(mem − reg)`. Same
@@ -1053,6 +1117,26 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
     return true;
+  }
+
+  // Fold G_UNMERGE_VALUES of G_CONSTANT into an immediate operand.
+  {
+    Register UnmReg;
+    int64_t ByteVal;
+    Success = mi_match(Dst, *MRI, m_GSAddE(m_Reg(UnmReg), m_Reg(Reg), m_Reg(Carry))) ||
+              mi_match(Dst, *MRI, m_GUAddE(m_Reg(UnmReg), m_Reg(Reg), m_Reg(Carry)));
+    if (Success && getUnmergedByteConstant(*MRI, Reg, ByteVal)) {
+      Opcode = DstSize == 8 ? MC6809::AddSetCarryUse_i8_Imm : MC6809::AddSetCarryUse_i16_Imm;
+      Instr = Builder.buildInstr(Opcode)
+                       .addDef(Dst)
+                       .addDef(CarryOut)
+                       .addUse(UnmReg)
+                       .addUse(Carry)
+                       .addImm(ByteVal);
+      constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
+      MI.eraseFromParent();
+      return true;
+    }
   }
 
   MachineOperand Ptr = MachineOperand::CreateReg(0, false);
@@ -1158,6 +1242,28 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
     return true;
+  }
+
+  // Fold G_UNMERGE_VALUES of G_CONSTANT into an immediate operand.
+  // Only match (reg - unmerged_const, carry_in) — same non-commutative
+  // reasoning as selectSubO.
+  {
+    Register UnmReg;
+    int64_t ByteVal;
+    Success = mi_match(Dst, *MRI, m_GSSubE(m_Reg(UnmReg), m_Reg(Reg), m_Reg(Carry))) ||
+              mi_match(Dst, *MRI, m_GUSubE(m_Reg(UnmReg), m_Reg(Reg), m_Reg(Carry)));
+    if (Success && getUnmergedByteConstant(*MRI, Reg, ByteVal)) {
+      Opcode = DstSize == 8 ? MC6809::SubSetCarryUse_i8_Imm : MC6809::SubSetCarryUse_i16_Imm;
+      Instr = Builder.buildInstr(Opcode)
+                       .addDef(Dst)
+                       .addDef(CarryOut)
+                       .addUse(UnmReg)
+                       .addUse(Carry)
+                       .addImm(ByteVal);
+      constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
+      MI.eraseFromParent();
+      return true;
+    }
   }
 
   MachineOperand Ptr = MachineOperand::CreateReg(0, false);

@@ -208,22 +208,25 @@ define dso_local i16 @if_s16(i16 noundef %a, i16 noundef %b) local_unnamed_addr 
 ; O0-NEXT:    pshs u
 ; O0-NEXT:    tfr s,u
 ; O0-NEXT:    ldd 12,u
-; O0-NEXT:    stx 6,u
 ; O0-NEXT:    std 4,u
-; O0-NEXT:    ldd 6,u
-; O0-NEXT:    cmpd #0
-; O0-NEXT:    lbgt .LBB2_1
-; O0-NEXT:    lbra .LBB2_2
-; O0-NEXT:  .LBB2_1: ; %entry
-; O0-NEXT:    ldd 4,u
-; O0-NEXT:    lbra .LBB2_3
-; O0-NEXT:  .LBB2_2: ; %if.end
-; O0-NEXT:    ldd 4,u
+; O0-NEXT:    stx 6,u
+; O0-NEXT:    cmpx #0
+; O0-NEXT:    lbgt .LBB2_2
+; O0-NEXT:    lbra .LBB2_1
+; O0-NEXT:  .LBB2_1: ; %if.end
 ; O0-NEXT:    ldd #0
-; O0-NEXT:    subd 12,u
-; O0-NEXT:    lbra .LBB2_3
-; O0-NEXT:  .LBB2_3: ; %return
-; O0-NEXT:    tfr d,x
+; O0-NEXT:    std 4,u
+; O0-NEXT:    ldb 5,u
+; O0-NEXT:    ldb 5,u
+; O0-NEXT:    subb 13,u
+; O0-NEXT:    stb 5,u
+; O0-NEXT:    lda 4,u
+; O0-NEXT:    lda 4,u
+; O0-NEXT:    sbca 12,u
+; O0-NEXT:    sta 4,u
+; O0-NEXT:    lbra .LBB2_2
+; O0-NEXT:  .LBB2_2: ; %return
+; O0-NEXT:    ldx 4,u
 ; O0-NEXT:    tfr u,s
 ; O0-NEXT:    puls u
 ; O0-NEXT:    leas 8,s
@@ -235,21 +238,22 @@ define dso_local i16 @if_s16(i16 noundef %a, i16 noundef %b) local_unnamed_addr 
 ; O1-NEXT:    pshs u
 ; O1-NEXT:    tfr s,u
 ; O1-NEXT:    ldd 12,u
-; O1-NEXT:    stx 6,u
 ; O1-NEXT:    std 4,u
-; O1-NEXT:    ldd 6,u
-; O1-NEXT:    cmpd #0
-; O1-NEXT:    lbgt .LBB2_1
-; O1-NEXT:    lbra .LBB2_2
-; O1-NEXT:  .LBB2_1: ; %entry
-; O1-NEXT:    ldd 4,u
-; O1-NEXT:    lbra .LBB2_3
-; O1-NEXT:  .LBB2_2: ; %if.end
-; O1-NEXT:    ldd 4,u
-; O1-NEXT:    ldd #0
-; O1-NEXT:    subd 12,u
-; O1-NEXT:  .LBB2_3: ; %return
-; O1-NEXT:    tfr d,x
+; O1-NEXT:    stx 6,u
+; O1-NEXT:    cmpx #0
+; O1-NEXT:    lbgt .LBB2_2
+; O1-NEXT:  ; %bb.1: ; %if.end
+; O1-NEXT:    lda #0
+; O1-NEXT:    sta 4,u
+; O1-NEXT:    tfr a,b
+; O1-NEXT:    stb 5,u
+; O1-NEXT:    subb 13,u
+; O1-NEXT:    stb 5,u
+; O1-NEXT:    lda 4,u
+; O1-NEXT:    sbca 12,u
+; O1-NEXT:    sta 4,u
+; O1-NEXT:  .LBB2_2: ; %return
+; O1-NEXT:    ldx 4,u
 ; O1-NEXT:    tfr u,s
 ; O1-NEXT:    puls u
 ; O1-NEXT:    leas 8,s
@@ -261,21 +265,22 @@ define dso_local i16 @if_s16(i16 noundef %a, i16 noundef %b) local_unnamed_addr 
 ; O2-NEXT:    pshs u
 ; O2-NEXT:    tfr s,u
 ; O2-NEXT:    ldd 12,u
-; O2-NEXT:    stx 6,u
 ; O2-NEXT:    std 4,u
-; O2-NEXT:    ldd 6,u
-; O2-NEXT:    cmpd #0
-; O2-NEXT:    lbgt .LBB2_1
-; O2-NEXT:    lbra .LBB2_2
-; O2-NEXT:  .LBB2_1: ; %entry
-; O2-NEXT:    ldd 4,u
-; O2-NEXT:    lbra .LBB2_3
-; O2-NEXT:  .LBB2_2: ; %if.end
-; O2-NEXT:    ldd 4,u
-; O2-NEXT:    ldd #0
-; O2-NEXT:    subd 12,u
-; O2-NEXT:  .LBB2_3: ; %return
-; O2-NEXT:    tfr d,x
+; O2-NEXT:    stx 6,u
+; O2-NEXT:    cmpx #0
+; O2-NEXT:    lbgt .LBB2_2
+; O2-NEXT:  ; %bb.1: ; %if.end
+; O2-NEXT:    lda #0
+; O2-NEXT:    sta 4,u
+; O2-NEXT:    tfr a,b
+; O2-NEXT:    stb 5,u
+; O2-NEXT:    subb 13,u
+; O2-NEXT:    stb 5,u
+; O2-NEXT:    lda 4,u
+; O2-NEXT:    sbca 12,u
+; O2-NEXT:    sta 4,u
+; O2-NEXT:  .LBB2_2: ; %return
+; O2-NEXT:    ldx 4,u
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u
 ; O2-NEXT:    leas 8,s
@@ -287,21 +292,22 @@ define dso_local i16 @if_s16(i16 noundef %a, i16 noundef %b) local_unnamed_addr 
 ; O3-NEXT:    pshs u
 ; O3-NEXT:    tfr s,u
 ; O3-NEXT:    ldd 12,u
-; O3-NEXT:    stx 6,u
 ; O3-NEXT:    std 4,u
-; O3-NEXT:    ldd 6,u
-; O3-NEXT:    cmpd #0
-; O3-NEXT:    lbgt .LBB2_1
-; O3-NEXT:    lbra .LBB2_2
-; O3-NEXT:  .LBB2_1: ; %entry
-; O3-NEXT:    ldd 4,u
-; O3-NEXT:    lbra .LBB2_3
-; O3-NEXT:  .LBB2_2: ; %if.end
-; O3-NEXT:    ldd 4,u
-; O3-NEXT:    ldd #0
-; O3-NEXT:    subd 12,u
-; O3-NEXT:  .LBB2_3: ; %return
-; O3-NEXT:    tfr d,x
+; O3-NEXT:    stx 6,u
+; O3-NEXT:    cmpx #0
+; O3-NEXT:    lbgt .LBB2_2
+; O3-NEXT:  ; %bb.1: ; %if.end
+; O3-NEXT:    lda #0
+; O3-NEXT:    sta 4,u
+; O3-NEXT:    tfr a,b
+; O3-NEXT:    stb 5,u
+; O3-NEXT:    subb 13,u
+; O3-NEXT:    stb 5,u
+; O3-NEXT:    lda 4,u
+; O3-NEXT:    sbca 12,u
+; O3-NEXT:    sta 4,u
+; O3-NEXT:  .LBB2_2: ; %return
+; O3-NEXT:    ldx 4,u
 ; O3-NEXT:    tfr u,s
 ; O3-NEXT:    puls u
 ; O3-NEXT:    leas 8,s
@@ -521,28 +527,27 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; CHECK-NEXT:    rts
 ; O0-LABEL: if_s32:
 ; O0:       ; %bb.0: ; %entry
-; O0-NEXT:    leas -10,s
+; O0-NEXT:    leas -12,s
 ; O0-NEXT:    pshs u
 ; O0-NEXT:    tfr s,u
-; O0-NEXT:    ldd 14,u
+; O0-NEXT:    ldd 16,u
 ; O0-NEXT:    std 6,u
+; O0-NEXT:    ldd 22,u
+; O0-NEXT:    std 10,u
+; O0-NEXT:    ldd 6,u
+; O0-NEXT:    std 4,u
 ; O0-NEXT:    ldd 20,u
 ; O0-NEXT:    std 8,u
-; O0-NEXT:    ldd 18,u
-; O0-NEXT:    std 2,u
-; O0-NEXT:    ldd 6,u
+; O0-NEXT:    ldd 4,u
 ; O0-NEXT:    cmpd #0
 ; O0-NEXT:    lbeq .LBB4_1
 ; O0-NEXT:    lbra .LBB4_2
 ; O0-NEXT:  .LBB4_1: ; %entry
-; O0-NEXT:    ldd 16,u
-; O0-NEXT:    std 6,u
-; O0-NEXT:    ldd 6,u
+; O0-NEXT:    ldd 18,u
 ; O0-NEXT:    cmpd #0
 ; O0-NEXT:    lbhi .LBB4_5
 ; O0-NEXT:    lbra .LBB4_3
 ; O0-NEXT:  .LBB4_2: ; %entry
-; O0-NEXT:    ldd 6,u
 ; O0-NEXT:    cmpd #0
 ; O0-NEXT:    lbgt .LBB4_5
 ; O0-NEXT:    lbra .LBB4_3
@@ -550,51 +555,55 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O0-NEXT:    lbra .LBB4_4
 ; O0-NEXT:  .LBB4_4: ; %if.end
 ; O0-NEXT:    ldd #0
-; O0-NEXT:    std 6,u
-; O0-NEXT:    ldd 6,u
-; O0-NEXT:    std 4,u
-; O0-NEXT:    ldd 4,u
-; O0-NEXT:    ldd 4,u
-; O0-NEXT:    subb 9,u
-; O0-NEXT:    sbca 8,u
-; O0-NEXT:    std 4,u
-; O0-NEXT:    ldd 6,u
-; O0-NEXT:    ldd 6,u
-; O0-NEXT:    sbcb 3,u
-; O0-NEXT:    sbca 2,u
-; O0-NEXT:    std 6,u
-; O0-NEXT:    ldd 4,u
 ; O0-NEXT:    std 8,u
-; O0-NEXT:    ldd 6,u
-; O0-NEXT:    std 2,u
+; O0-NEXT:    ldb 9,u
+; O0-NEXT:    stb 11,u
+; O0-NEXT:    ldb 11,u
+; O0-NEXT:    ldb 11,u
+; O0-NEXT:    subb 23,u
+; O0-NEXT:    stb 11,u
+; O0-NEXT:    lda 8,u
+; O0-NEXT:    sta 10,u
+; O0-NEXT:    lda 10,u
+; O0-NEXT:    lda 10,u
+; O0-NEXT:    sbca 22,u
+; O0-NEXT:    sta 10,u
+; O0-NEXT:    ldb 9,u
+; O0-NEXT:    ldb 9,u
+; O0-NEXT:    sbcb 21,u
+; O0-NEXT:    stb 9,u
+; O0-NEXT:    lda 8,u
+; O0-NEXT:    lda 8,u
+; O0-NEXT:    sbca 20,u
+; O0-NEXT:    sta 8,u
 ; O0-NEXT:    lbra .LBB4_5
 ; O0-NEXT:  .LBB4_5: ; %return
-; O0-NEXT:    ldd 8,u
+; O0-NEXT:    ldd 10,u
 ; O0-NEXT:    std 2,x
-; O0-NEXT:    ldd 2,u
+; O0-NEXT:    ldd 8,u
 ; O0-NEXT:    std ,x
 ; O0-NEXT:    tfr u,s
 ; O0-NEXT:    puls u
-; O0-NEXT:    leas 10,s
+; O0-NEXT:    leas 12,s
 ; O0-NEXT:    rts
 ;
 ; O1-LABEL: if_s32:
 ; O1:       ; %bb.0: ; %entry
-; O1-NEXT:    leas -10,s
+; O1-NEXT:    leas -11,s
 ; O1-NEXT:    pshs u
 ; O1-NEXT:    tfr s,u
-; O1-NEXT:    ldd 14,u
+; O1-NEXT:    ldd 15,u
 ; O1-NEXT:    std 6,u
-; O1-NEXT:    ldd 20,u
+; O1-NEXT:    ldd 21,u
 ; O1-NEXT:    std 8,u
-; O1-NEXT:    ldd 18,u
-; O1-NEXT:    std 2,u
+; O1-NEXT:    ldd 19,u
+; O1-NEXT:    std 4,u
 ; O1-NEXT:    ldd 6,u
 ; O1-NEXT:    cmpd #0
 ; O1-NEXT:    lbeq .LBB4_1
 ; O1-NEXT:    lbra .LBB4_2
 ; O1-NEXT:  .LBB4_1: ; %entry
-; O1-NEXT:    ldd 16,u
+; O1-NEXT:    ldd 17,u
 ; O1-NEXT:    std 6,u
 ; O1-NEXT:    cmpd #0
 ; O1-NEXT:    lbhi .LBB4_4
@@ -604,47 +613,58 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O1-NEXT:    cmpd #0
 ; O1-NEXT:    lbgt .LBB4_4
 ; O1-NEXT:  .LBB4_3: ; %if.end
-; O1-NEXT:    ldd #0
-; O1-NEXT:    std 6,u
-; O1-NEXT:    std 4,u
-; O1-NEXT:    subb 9,u
-; O1-NEXT:    sbca 8,u
-; O1-NEXT:    std 4,u
-; O1-NEXT:    ldd 6,u
-; O1-NEXT:    sbcb 3,u
-; O1-NEXT:    sbca 2,u
-; O1-NEXT:    std 6,u
-; O1-NEXT:    ldd 4,u
-; O1-NEXT:    std 8,u
-; O1-NEXT:    ldd 6,u
-; O1-NEXT:    std 2,u
+; O1-NEXT:    lda #0
+; O1-NEXT:    sta 4,u
+; O1-NEXT:    tfr a,b
+; O1-NEXT:    stb 9,u
+; O1-NEXT:    subb 22,u
+; O1-NEXT:    stb 9,u
+; O1-NEXT:    lda 4,u
+; O1-NEXT:    sta 8,u
+; O1-NEXT:    sbca 21,u
+; O1-NEXT:    sta 8,u
+; O1-NEXT:    ; kill: def $ablsb killed $ablsb def $ab
+; O1-NEXT:    stb 10,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 4,u
+; O1-NEXT:    tfr a,b
+; O1-NEXT:    stb 5,u
+; O1-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O1-NEXT:    ; kill: def $aalsb killed $aalsb killed $aa
+; O1-NEXT:    sbcb 20,u
+; O1-NEXT:    stb 5,u
+; O1-NEXT:    ; kill: def $aalsb killed $aalsb def $aa
+; O1-NEXT:    sta 10,u ; 1-byte Folded Spill
+; O1-NEXT:    ; kill: def $aalsb killed $aalsb killed $aa
+; O1-NEXT:    lda 4,u
+; O1-NEXT:    sbca 19,u
+; O1-NEXT:    sta 4,u
 ; O1-NEXT:  .LBB4_4: ; %return
 ; O1-NEXT:    ldd 8,u
 ; O1-NEXT:    std 2,x
-; O1-NEXT:    ldd 2,u
+; O1-NEXT:    ldd 4,u
 ; O1-NEXT:    std ,x
 ; O1-NEXT:    tfr u,s
 ; O1-NEXT:    puls u
-; O1-NEXT:    leas 10,s
+; O1-NEXT:    leas 11,s
 ; O1-NEXT:    rts
 ;
 ; O2-LABEL: if_s32:
 ; O2:       ; %bb.0: ; %entry
-; O2-NEXT:    leas -10,s
+; O2-NEXT:    leas -11,s
 ; O2-NEXT:    pshs u
 ; O2-NEXT:    tfr s,u
-; O2-NEXT:    ldd 14,u
+; O2-NEXT:    ldd 15,u
 ; O2-NEXT:    std 6,u
-; O2-NEXT:    ldd 20,u
+; O2-NEXT:    ldd 21,u
 ; O2-NEXT:    std 8,u
-; O2-NEXT:    ldd 18,u
-; O2-NEXT:    std 2,u
+; O2-NEXT:    ldd 19,u
+; O2-NEXT:    std 4,u
 ; O2-NEXT:    ldd 6,u
 ; O2-NEXT:    cmpd #0
 ; O2-NEXT:    lbeq .LBB4_1
 ; O2-NEXT:    lbra .LBB4_2
 ; O2-NEXT:  .LBB4_1: ; %entry
-; O2-NEXT:    ldd 16,u
+; O2-NEXT:    ldd 17,u
 ; O2-NEXT:    std 6,u
 ; O2-NEXT:    cmpd #0
 ; O2-NEXT:    lbhi .LBB4_4
@@ -654,47 +674,58 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O2-NEXT:    cmpd #0
 ; O2-NEXT:    lbgt .LBB4_4
 ; O2-NEXT:  .LBB4_3: ; %if.end
-; O2-NEXT:    ldd #0
-; O2-NEXT:    std 6,u
-; O2-NEXT:    std 4,u
-; O2-NEXT:    subb 9,u
-; O2-NEXT:    sbca 8,u
-; O2-NEXT:    std 4,u
-; O2-NEXT:    ldd 6,u
-; O2-NEXT:    sbcb 3,u
-; O2-NEXT:    sbca 2,u
-; O2-NEXT:    std 6,u
-; O2-NEXT:    ldd 4,u
-; O2-NEXT:    std 8,u
-; O2-NEXT:    ldd 6,u
-; O2-NEXT:    std 2,u
+; O2-NEXT:    lda #0
+; O2-NEXT:    sta 4,u
+; O2-NEXT:    tfr a,b
+; O2-NEXT:    stb 9,u
+; O2-NEXT:    subb 22,u
+; O2-NEXT:    stb 9,u
+; O2-NEXT:    lda 4,u
+; O2-NEXT:    sta 8,u
+; O2-NEXT:    sbca 21,u
+; O2-NEXT:    sta 8,u
+; O2-NEXT:    ; kill: def $ablsb killed $ablsb def $ab
+; O2-NEXT:    stb 10,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 4,u
+; O2-NEXT:    tfr a,b
+; O2-NEXT:    stb 5,u
+; O2-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O2-NEXT:    ; kill: def $aalsb killed $aalsb killed $aa
+; O2-NEXT:    sbcb 20,u
+; O2-NEXT:    stb 5,u
+; O2-NEXT:    ; kill: def $aalsb killed $aalsb def $aa
+; O2-NEXT:    sta 10,u ; 1-byte Folded Spill
+; O2-NEXT:    ; kill: def $aalsb killed $aalsb killed $aa
+; O2-NEXT:    lda 4,u
+; O2-NEXT:    sbca 19,u
+; O2-NEXT:    sta 4,u
 ; O2-NEXT:  .LBB4_4: ; %return
 ; O2-NEXT:    ldd 8,u
 ; O2-NEXT:    std 2,x
-; O2-NEXT:    ldd 2,u
+; O2-NEXT:    ldd 4,u
 ; O2-NEXT:    std ,x
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u
-; O2-NEXT:    leas 10,s
+; O2-NEXT:    leas 11,s
 ; O2-NEXT:    rts
 ;
 ; O3-LABEL: if_s32:
 ; O3:       ; %bb.0: ; %entry
-; O3-NEXT:    leas -10,s
+; O3-NEXT:    leas -11,s
 ; O3-NEXT:    pshs u
 ; O3-NEXT:    tfr s,u
-; O3-NEXT:    ldd 14,u
+; O3-NEXT:    ldd 15,u
 ; O3-NEXT:    std 6,u
-; O3-NEXT:    ldd 20,u
+; O3-NEXT:    ldd 21,u
 ; O3-NEXT:    std 8,u
-; O3-NEXT:    ldd 18,u
-; O3-NEXT:    std 2,u
+; O3-NEXT:    ldd 19,u
+; O3-NEXT:    std 4,u
 ; O3-NEXT:    ldd 6,u
 ; O3-NEXT:    cmpd #0
 ; O3-NEXT:    lbeq .LBB4_1
 ; O3-NEXT:    lbra .LBB4_2
 ; O3-NEXT:  .LBB4_1: ; %entry
-; O3-NEXT:    ldd 16,u
+; O3-NEXT:    ldd 17,u
 ; O3-NEXT:    std 6,u
 ; O3-NEXT:    cmpd #0
 ; O3-NEXT:    lbhi .LBB4_4
@@ -704,28 +735,39 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O3-NEXT:    cmpd #0
 ; O3-NEXT:    lbgt .LBB4_4
 ; O3-NEXT:  .LBB4_3: ; %if.end
-; O3-NEXT:    ldd #0
-; O3-NEXT:    std 6,u
-; O3-NEXT:    std 4,u
-; O3-NEXT:    subb 9,u
-; O3-NEXT:    sbca 8,u
-; O3-NEXT:    std 4,u
-; O3-NEXT:    ldd 6,u
-; O3-NEXT:    sbcb 3,u
-; O3-NEXT:    sbca 2,u
-; O3-NEXT:    std 6,u
-; O3-NEXT:    ldd 4,u
-; O3-NEXT:    std 8,u
-; O3-NEXT:    ldd 6,u
-; O3-NEXT:    std 2,u
+; O3-NEXT:    lda #0
+; O3-NEXT:    sta 4,u
+; O3-NEXT:    tfr a,b
+; O3-NEXT:    stb 9,u
+; O3-NEXT:    subb 22,u
+; O3-NEXT:    stb 9,u
+; O3-NEXT:    lda 4,u
+; O3-NEXT:    sta 8,u
+; O3-NEXT:    sbca 21,u
+; O3-NEXT:    sta 8,u
+; O3-NEXT:    ; kill: def $ablsb killed $ablsb def $ab
+; O3-NEXT:    stb 10,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 4,u
+; O3-NEXT:    tfr a,b
+; O3-NEXT:    stb 5,u
+; O3-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O3-NEXT:    ; kill: def $aalsb killed $aalsb killed $aa
+; O3-NEXT:    sbcb 20,u
+; O3-NEXT:    stb 5,u
+; O3-NEXT:    ; kill: def $aalsb killed $aalsb def $aa
+; O3-NEXT:    sta 10,u ; 1-byte Folded Spill
+; O3-NEXT:    ; kill: def $aalsb killed $aalsb killed $aa
+; O3-NEXT:    lda 4,u
+; O3-NEXT:    sbca 19,u
+; O3-NEXT:    sta 4,u
 ; O3-NEXT:  .LBB4_4: ; %return
 ; O3-NEXT:    ldd 8,u
 ; O3-NEXT:    std 2,x
-; O3-NEXT:    ldd 2,u
+; O3-NEXT:    ldd 4,u
 ; O3-NEXT:    std ,x
 ; O3-NEXT:    tfr u,s
 ; O3-NEXT:    puls u
-; O3-NEXT:    leas 10,s
+; O3-NEXT:    leas 11,s
 ; O3-NEXT:    rts
 entry:
   %cmp = icmp sgt i32 %a, 0

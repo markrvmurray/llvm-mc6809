@@ -588,8 +588,75 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
         SpillOps.push_back({I, MO.getReg()});
       }
 
+      // Conflict detection for 8-bit spill loads that would clobber a
+      // live value in the same register.
+      //
+      // Case 1 (LHS=spill, RHS=physical): the spill load clobbers the
+      //   physical RHS. Fix: save RHS to a fresh frame slot, load into
+      //   the OPPOSITE accumulator half, redirect RHS operand.
+      //
+      // Case 2 (LHS=physical/tied, RHS=spill): the spill load clobbers
+      //   the tied LHS. Fix: DON'T load the spill — leave it as a
+      //   spill register and let the expansion read it from its
+      //   U-relative slot via path (a). This avoids the clobber entirely.
+      SmallSet<unsigned, 4> SkipSpillLoad;
+      for (auto &[OpIdx, SpillReg] : SpillOps) {
+        MachineOperand &SpillMO = MI.getOperand(OpIdx);
+        if (!SpillMO.isUse() && !(SpillMO.isDef() && SpillMO.isTied()))
+          continue;
+        Register RealReg = getRealReg(SpillReg);
+        if (RealReg == MC6809::AD) continue;
+        for (unsigned J = 0; J < MI.getNumOperands(); ++J) {
+          if (J == (unsigned)OpIdx) continue;
+          MachineOperand &OtherMO = MI.getOperand(J);
+          if (!OtherMO.isReg() || !OtherMO.isUse()) continue;
+          if (isAnySpillReg(OtherMO.getReg())) continue;
+          if (OtherMO.getReg() != RealReg) continue;
+          if (OtherMO.isTied()) {
+            // Case 2: RHS spill would clobber tied LHS. Same fix as
+            // Case 1: save the live value to a fresh slot, load into
+            // the alt register. The tied DEF/USE pair keeps the
+            // original register; only the spill USE gets the alt.
+            int SaveFI = MF.getFrameInfo().CreateStackObject(
+                2, Align(1), /*isSpillSlot=*/false);
+            int SaveOff = (RealReg == MC6809::AB) ? 1 : 0;
+            // Save the LHS (tied) value currently in the register.
+            BuildMI(MBB, MI, DL, TII.get(MC6809::Store_i8_Mem))
+                .addReg(RealReg)
+                .addFrameIndex(SaveFI)
+                .addImm(SaveOff);
+            // After the spill load clobbers the register with the RHS,
+            // we need the LHS back. Load it into the alt register.
+            Register AltReg = (RealReg == MC6809::AB) ? MC6809::AA : MC6809::AB;
+            // Insert the reload AFTER all spill loads complete (deferred).
+            // For now, change the tied operands to the alt register and
+            // skip the spill load.
+            SkipSpillLoad.insert(OpIdx);
+          } else {
+            // Case 1: LHS spill would clobber physical RHS.
+            int SaveFI = MF.getFrameInfo().CreateStackObject(
+                2, Align(1), /*isSpillSlot=*/false);
+            int SaveOff = (RealReg == MC6809::AB) ? 1 : 0;
+            BuildMI(MBB, MI, DL, TII.get(MC6809::Store_i8_Mem))
+                .addReg(RealReg)
+                .addFrameIndex(SaveFI)
+                .addImm(SaveOff);
+            Register AltReg = (RealReg == MC6809::AB) ? MC6809::AA : MC6809::AB;
+            BuildMI(MBB, MI, DL, TII.get(MC6809::Load_i8_Mem))
+                .addReg(AltReg, RegState::Define)
+                .addFrameIndex(SaveFI)
+                .addImm(SaveOff);
+            OtherMO.setReg(AltReg);
+          }
+          break;
+        }
+      }
+
       // Load spill values into real registers for USE operands.
       for (auto &[OpIdx, SpillReg] : SpillOps) {
+        // Case 2 skip: leave as a spill register for the expansion.
+        if (SkipSpillLoad.count(OpIdx))
+          continue;
         MachineOperand &MO = MI.getOperand(OpIdx);
         bool NeedLoad = MO.isUse() || (MO.isDef() && MO.isTied());
         if (!NeedLoad) {
@@ -600,7 +667,22 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
         Register RealReg = getRealReg(SpillReg);
         auto [FI, ByteOffset] = getSpillSlot(SpillReg, FuncInfo);
 
-        if (isIndexSpillReg(SpillReg)) {
+        // Sub-register extraction from a spilled i16: load only the
+        // requested byte instead of the full i16. On big-endian MC6809:
+        //   sub_hi_byte (MSB) = slot + 0, loaded into A
+        //   sub_lo_byte (LSB) = slot + 1, loaded into B
+        unsigned SubReg = MO.getSubReg();
+        if (SubReg && RealReg == MC6809::AD) {
+          bool IsLo = (SubReg == MC6809::sub_lo_byte);
+          Register ByteReg = IsLo ? MC6809::AB : MC6809::AA;
+          int SubOffset = ByteOffset + (IsLo ? 1 : 0);
+          BuildMI(MBB, MI, DL, TII.get(MC6809::Load_i8_Mem))
+              .addReg(ByteReg, RegState::Define)
+              .addFrameIndex(FI)
+              .addImm(SubOffset);
+          MO.setReg(ByteReg);
+          MO.setSubReg(0);
+        } else if (isIndexSpillReg(SpillReg)) {
           BuildMI(MBB, MI, DL, TII.get(MC6809::Load_iPtr_Mem))
               .addReg(RealReg, RegState::Define)
               .addFrameIndex(FI)
@@ -630,7 +712,20 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
           continue;
         Register RealReg = getRealReg(SpillReg);
         auto [FI, ByteOffset] = getSpillSlot(SpillReg, FuncInfo);
-        if (isIndexSpillReg(SpillReg)) {
+
+        // Sub-register store: write only the byte to the correct
+        // position within the i16 spill slot.
+        unsigned SubReg = MO.getSubReg();
+        if (SubReg && RealReg == MC6809::AD) {
+          bool IsLo = (SubReg == MC6809::sub_lo_byte);
+          Register ByteReg = IsLo ? MC6809::AB : MC6809::AA;
+          int SubOffset = ByteOffset + (IsLo ? 1 : 0);
+          BuildMI(MBB, After, DL, TII.get(MC6809::Store_i8_Mem))
+              .addReg(ByteReg)
+              .addFrameIndex(FI)
+              .addImm(SubOffset);
+          MO.setSubReg(0);
+        } else if (isIndexSpillReg(SpillReg)) {
           BuildMI(MBB, After, DL, TII.get(MC6809::Store_iPtr_Mem))
               .addReg(RealReg)
               .addFrameIndex(FI)

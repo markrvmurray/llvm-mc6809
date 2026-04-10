@@ -41,6 +41,13 @@ struct MC6809FunctionInfo : public MachineFunctionInfo {
   /// through it. Zero (no register) when the function returns a value
   /// that fits in a register or returns void.
   Register SRetReturnReg;
+
+  /// Scratch frame slot (2 bytes) for byte-level ALU expansion.
+  /// Used by emit6809RegByteFromMem to store an RHS operand to
+  /// memory before operating, replacing the push/pop path that
+  /// requires 3 instructions with a store+operate (2 instructions).
+  /// Lazily allocated on first use. -1 = not yet allocated.
+  int ByteALUScratchFI = -1;
 };
 
 } // namespace llvm

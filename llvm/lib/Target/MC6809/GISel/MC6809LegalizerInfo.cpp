@@ -50,9 +50,8 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
 
   auto LegalTypes32 = {p, s8, s16, s32};
   auto LegalTypes16 = {p, s8, s16};
-  // The 6809 has native 8-bit and 16-bit accumulator ops (ADDA/ADDB/ADDD,
-  // SUBA/SUBB/SUBD, etc.). Mark both as legal to avoid unnecessary
-  // narrowing of i16 ops into i8 carry chains.
+  // LegalAccumulators: kept at {s8, s16} for HD6309 G_MUL (MULD needs s16).
+  // G_ADD/G_SUB use s8-only rules — see the byte-decomposition comment below.
   auto LegalAccumulators = {s8, s16};
   auto LegalTypes = IsHD6309 ? LegalTypes32 : LegalTypes16;
   auto LegalTypesWithOne32 = {p, s1, s8, s16, s32};
@@ -184,16 +183,19 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
       .widenScalarIf(IsScalarPointer(1, 0, std::less<>{}), ChangeToSameSizeScalar(1, 0))
       .narrowScalarIf(IsScalarPointer(1, 0, std::greater<>{}), ChangeToSameSizeScalar(1, 0));
 
-  // The 6809 has native 16-bit add/sub (ADDD/SUBD), so i32 should decompose
-  // to i16 (not i8). Using s16 as max instead of sMaxLogic (which is s8)
-  // halves the number of operations and register pressure for i32 arithmetic.
+  // Byte-level decomposition: only s8 is legal for G_ADD/G_SUB. i16 adds
+  // narrow to i8 carry chains (G_UADDO s8 + G_UADDE s8) via the upstream
+  // narrowScalarAddSub. This eliminates ADDD/SUBD, moving regalloc
+  // pressure from ACC16_D (1 register) to ACC8 (26 registers).
+  // MaterializeSpills handles sub-register byte extraction from spilled
+  // i16 values (loads from the correct byte offset within the i16 slot).
   getActionDefinitionsBuilder({G_ADD, G_SUB})
-      .legalFor(LegalAccumulators)
-      .clampScalar(0, s8, s16);
+      .legalFor({s8})
+      .clampScalar(0, s8, s8);
 
   getActionDefinitionsBuilder({G_UADDO, G_UADDE, G_USUBO, G_USUBE, G_SADDO, G_SADDE, G_SSUBO, G_SSUBE})
-      .legalForCartesianProduct(LegalAccumulators, {s1, s16})
-      .clampScalar(0, s1, s16);
+      .legalForCartesianProduct({s8}, {s1, s16})
+      .clampScalar(0, s1, s8);
 
   // MUL is 8x8→16 on standard 6809. 16x16 only on HD6309 (MULD).
   // On 6809, i8 mul is native (MUL instruction: A×B→D). Wider multiplies

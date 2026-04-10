@@ -10,49 +10,48 @@ target triple = "mc6809-unknown-unknown"
 define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signext %n) local_unnamed_addr #0 {
 ; CHECK-LABEL: loop:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -20,s
+; CHECK-NEXT:    leas -14,s
 ; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    std 14,u
+; CHECK-NEXT:    std 6,u
 ; CHECK-NEXT:    ldd #0
-; CHECK-NEXT:    std 18,u
-; CHECK-NEXT:    ldd 14,u
+; CHECK-NEXT:    std 12,u
+; CHECK-NEXT:    ldd 6,u
 ; CHECK-NEXT:    tstb
 ; CHECK-NEXT:    lble .LBB0_3
 ; CHECK-NEXT:  ; %bb.1: ; %for.body.preheader
+; CHECK-NEXT:    std 4,u
 ; CHECK-NEXT:    clra
-; CHECK-NEXT:    std 12,u
+; CHECK-NEXT:    std 8,u
 ; CHECK-NEXT:    ldd #0
-; CHECK-NEXT:    std 16,u
-; CHECK-NEXT:    ldd 12,u
+; CHECK-NEXT:    std 10,u
 ; CHECK-NEXT:  .LBB0_2: ; %for.body
 ; CHECK-NEXT:    ; =>This Inner Loop Header: Depth=1
-; CHECK-NEXT:    std 10,u
 ; CHECK-NEXT:    ldd ,x
-; CHECK-NEXT:    std 18,u
-; CHECK-NEXT:    ldd 10,u
-; CHECK-NEXT:    std 8,u
-; CHECK-NEXT:    ldd 16,u
-; CHECK-NEXT:    pshs d
-; CHECK-NEXT:    ldd 8,u
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldd 18,u
-; CHECK-NEXT:    addd ,s++
-; CHECK-NEXT:    std 18,u
-; CHECK-NEXT:    ldd 6,u
+; CHECK-NEXT:    std 12,u
+; CHECK-NEXT:    ldb 13,u
+; CHECK-NEXT:    addb 11,u
+; CHECK-NEXT:    stb 13,u
+; CHECK-NEXT:    lda 12,u
+; CHECK-NEXT:    adca 10,u
+; CHECK-NEXT:    sta 12,u
 ; CHECK-NEXT:    leax 2,x
-; CHECK-NEXT:    addd #-1
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldd 18,u
-; CHECK-NEXT:    std 16,u
-; CHECK-NEXT:    ldd 4,u
+; CHECK-NEXT:    ldb 9,u
+; CHECK-NEXT:    addb #-1
+; CHECK-NEXT:    stb 9,u
+; CHECK-NEXT:    lda 8,u
+; CHECK-NEXT:    adca #-1
+; CHECK-NEXT:    sta 8,u
+; CHECK-NEXT:    ldd 12,u
+; CHECK-NEXT:    std 10,u
+; CHECK-NEXT:    ldd 8,u
 ; CHECK-NEXT:    cmpd #0
 ; CHECK-NEXT:    lbne .LBB0_2
 ; CHECK-NEXT:  .LBB0_3: ; %for.end
-; CHECK-NEXT:    ldx 18,u
+; CHECK-NEXT:    ldx 12,u
 ; CHECK-NEXT:    tfr u,s
 ; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 20,s
+; CHECK-NEXT:    leas 14,s
 ; CHECK-NEXT:    rts
 ;
 ; CHECK-HD6309-LABEL: loop:
@@ -64,21 +63,28 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; CHECK-HD6309-NEXT:    tstb
 ; CHECK-HD6309-NEXT:    lble .LBB0_3
 ; CHECK-HD6309-NEXT:  ; %bb.1: ; %for.body.preheader
+; CHECK-HD6309-NEXT:    std 4,u
 ; CHECK-HD6309-NEXT:    clra
-; CHECK-HD6309-NEXT:    ldw #0
+; CHECK-HD6309-NEXT:    std 6,u
+; CHECK-HD6309-NEXT:    ldd #0
+; CHECK-HD6309-NEXT:    std 8,u
 ; CHECK-HD6309-NEXT:  .LBB0_2: ; %for.body
 ; CHECK-HD6309-NEXT:    ; =>This Inner Loop Header: Depth=1
-; CHECK-HD6309-NEXT:    std 6,u
+; CHECK-HD6309-NEXT:    ldw ,x
+; CHECK-HD6309-NEXT:    ldb 9,u
+; CHECK-HD6309-NEXT:    addr f,b
+; CHECK-HD6309-NEXT:    lda 8,u
+; CHECK-HD6309-NEXT:    adcr e,a
+; CHECK-HD6309-NEXT:    leax 2,x
+; CHECK-HD6309-NEXT:    ldb 7,u
+; CHECK-HD6309-NEXT:    addb #-1
+; CHECK-HD6309-NEXT:    stb 7,u
+; CHECK-HD6309-NEXT:    lda 6,u
+; CHECK-HD6309-NEXT:    adca #-1
+; CHECK-HD6309-NEXT:    sta 6,u
 ; CHECK-HD6309-NEXT:    tfr w,d
 ; CHECK-HD6309-NEXT:    std 8,u
 ; CHECK-HD6309-NEXT:    ldd 6,u
-; CHECK-HD6309-NEXT:    ldw ,x
-; CHECK-HD6309-NEXT:    std 4,u
-; CHECK-HD6309-NEXT:    ldd 8,u
-; CHECK-HD6309-NEXT:    addr d,w
-; CHECK-HD6309-NEXT:    ldd 4,u
-; CHECK-HD6309-NEXT:    leax 2,x
-; CHECK-HD6309-NEXT:    addd #-1
 ; CHECK-HD6309-NEXT:    tstd
 ; CHECK-HD6309-NEXT:    lbne .LBB0_2
 ; CHECK-HD6309-NEXT:  .LBB0_3: ; %for.end

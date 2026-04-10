@@ -172,14 +172,19 @@ private:
   void expandAddPull(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandAddReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandAddSetCarryReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandAddSetCarryByteReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandAddSetCarryUseReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandAddSetCarryUseByteReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandAdd32IdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   // void expandAdd32IdxReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
 
   void expandSubReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandSubByteReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   // void expandSubImmRev(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandSubSetCarryReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandSubSetCarryByteReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandSubSetCarryUseReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandSubSetCarryUseByteReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandSubPull(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandSub32IdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandSub32IdxReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
