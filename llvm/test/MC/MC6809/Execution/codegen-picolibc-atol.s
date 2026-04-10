@@ -36,15 +36,27 @@
 ; RUN: %usim09batch --timeout=500000 %t.hex | FileCheck %s
 ; REQUIRES: usim
 ;
-; KNOWN-FAIL: this test exists to keep bug #62 visible.
-; test_atol crashes the compiler at every opt level with "Unexpected
-; physical register copy" in copyPhysReg, because the optimizer
-; reduces `sign` to a 1-bit value, the regalloc spills it to a
-; SPILL_*LSB pseudo, and copyPhysReg has no case for the resulting
-; `BIT1 ← SPILL_*LSB` copy. The llc step itself fails (no .s output
-; produced), so the test fails before it can run any tokens through
-; usim. Once bug #62 is fixed, this whole file can move into
-; codegen-picolibc.s.
+; KNOWN-FAIL: this test exists to keep bug #57 visible.
+;
+; History: this file originally caught bug #62 (compile crash in
+; copyPhysReg from SPILL_*LSB) — that bug is now fixed. atol now
+; compiles cleanly at every opt level, but the runtime exposes bug
+; #57 (BIT1↔CC linkage phantom).
+;
+; Symptom: atol("42") returns 0x000A002A instead of 0x0000002A. The
+; lo half (42) is correct, the hi half (10 = the multiplier) leaks
+; in. atol("0") and atol("-3") work correctly.
+;
+; Root cause: in the loop body, `result = result * 10 + (*s - '0')`,
+; the codegen interleaves the next iteration's `(*s - '0')` (an
+; `addb #-48`) BETWEEN this iteration's `addb 15,u; adda 14,u` (the
+; lo half of the i32 add, sets CC.C) and `adcb #0; adca #0` (the hi
+; half, propagates CC.C). The intervening addb #-48 clobbers CC.C.
+; The carry should flow through a BIT1 vreg from the lo add to the
+; hi propagation, but the BIT1 vreg lives in AALSB/ABLSB which is a
+; phantom for CC.C — see bug #57 in the tracker for the full design
+; discussion. Once #57 has a working fix, this whole file can move
+; into codegen-picolibc.s.
 
 .include "runtime.inc"
 .include "mc6809rt.s"

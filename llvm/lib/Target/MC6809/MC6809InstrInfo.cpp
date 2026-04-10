@@ -894,6 +894,80 @@ static unsigned getStoreIdxOpcode(Register Reg, int Offset) {
   llvm_unreachable("Unexpected register for spill store");
 }
 
+/// SPILL_*LSB pseudo-registers — bug #62 support.
+///
+/// These are 1-bit sub-registers of SPILL_A0..A7/SPILL_B0..B7 (declared
+/// via the MC6809Reg8 multiclass). The regalloc picks them when a BIT1
+/// vreg in AALSBc/ABLSBc runs out of AALSB/ABLSB. They share storage
+/// with the parent SPILL_A*/SPILL_B* (same direct-page slot, same
+/// frame index) — to materialize a SPILL_*LSB you load the parent
+/// byte and the LSB sub-register holds the bit naturally.
+static bool isLsbSpillReg(Register Reg) {
+  switch (Reg) {
+  case MC6809::SPILL_A0LSB: case MC6809::SPILL_A1LSB:
+  case MC6809::SPILL_A2LSB: case MC6809::SPILL_A3LSB:
+  case MC6809::SPILL_A4LSB: case MC6809::SPILL_A5LSB:
+  case MC6809::SPILL_A6LSB: case MC6809::SPILL_A7LSB:
+  case MC6809::SPILL_B0LSB: case MC6809::SPILL_B1LSB:
+  case MC6809::SPILL_B2LSB: case MC6809::SPILL_B3LSB:
+  case MC6809::SPILL_B4LSB: case MC6809::SPILL_B5LSB:
+  case MC6809::SPILL_B6LSB: case MC6809::SPILL_B7LSB:
+    return true;
+  default:
+    return false;
+  }
+}
+
+/// Map a SPILL_*LSB to its parent SPILL_A* or SPILL_B* (the byte that
+/// contains it).
+static MCPhysReg getLsbSpillParent(Register Reg) {
+  switch (Reg) {
+  case MC6809::SPILL_A0LSB: return MC6809::SPILL_A0;
+  case MC6809::SPILL_A1LSB: return MC6809::SPILL_A1;
+  case MC6809::SPILL_A2LSB: return MC6809::SPILL_A2;
+  case MC6809::SPILL_A3LSB: return MC6809::SPILL_A3;
+  case MC6809::SPILL_A4LSB: return MC6809::SPILL_A4;
+  case MC6809::SPILL_A5LSB: return MC6809::SPILL_A5;
+  case MC6809::SPILL_A6LSB: return MC6809::SPILL_A6;
+  case MC6809::SPILL_A7LSB: return MC6809::SPILL_A7;
+  case MC6809::SPILL_B0LSB: return MC6809::SPILL_B0;
+  case MC6809::SPILL_B1LSB: return MC6809::SPILL_B1;
+  case MC6809::SPILL_B2LSB: return MC6809::SPILL_B2;
+  case MC6809::SPILL_B3LSB: return MC6809::SPILL_B3;
+  case MC6809::SPILL_B4LSB: return MC6809::SPILL_B4;
+  case MC6809::SPILL_B5LSB: return MC6809::SPILL_B5;
+  case MC6809::SPILL_B6LSB: return MC6809::SPILL_B6;
+  case MC6809::SPILL_B7LSB: return MC6809::SPILL_B7;
+  default: llvm_unreachable("Not an LSB spill register");
+  }
+}
+
+/// Which ACC8 byte (AA or AB) holds the LSB after loading the parent.
+/// SPILL_A* parents map to AA, SPILL_B* parents map to AB.
+static Register getLsbSpillByteHalf(Register Reg) {
+  switch (Reg) {
+  case MC6809::SPILL_A0LSB: case MC6809::SPILL_A1LSB:
+  case MC6809::SPILL_A2LSB: case MC6809::SPILL_A3LSB:
+  case MC6809::SPILL_A4LSB: case MC6809::SPILL_A5LSB:
+  case MC6809::SPILL_A6LSB: case MC6809::SPILL_A7LSB:
+    return MC6809::AA;
+  case MC6809::SPILL_B0LSB: case MC6809::SPILL_B1LSB:
+  case MC6809::SPILL_B2LSB: case MC6809::SPILL_B3LSB:
+  case MC6809::SPILL_B4LSB: case MC6809::SPILL_B5LSB:
+  case MC6809::SPILL_B6LSB: case MC6809::SPILL_B7LSB:
+    return MC6809::AB;
+  default: llvm_unreachable("Not an LSB spill register");
+  }
+}
+
+/// Which ACC8 byte (AA or AB) does a real BIT1 register live in?
+/// AALSB ↔ AA, ABLSB ↔ AB.
+static Register getBit1ByteHalf(Register Reg) {
+  if (Reg == MC6809::AALSB) return MC6809::AA;
+  if (Reg == MC6809::ABLSB) return MC6809::AB;
+  llvm_unreachable("Not a BIT1 hardware register");
+}
+
 /// Emit a concrete U-indexed (frame pointer) load from a spill register's
 /// stack slot. Uses U (not S) so PSHS/PULS don't invalidate offsets.
 static MachineInstrBuilder emitSpillLoad(MachineIRBuilder &Builder,
@@ -992,6 +1066,46 @@ static void dematerializeReg(MachineIRBuilder &Builder, Register PhysReg,
   MachineIRBuilder Builder(MBB, MI);
   if (DestReg == SrcReg)
     return;
+
+  // Bug #62: SPILL_*LSB pseudo-registers. The regalloc picks these for
+  // BIT1 vregs in AALSBc/ABLSBc when AALSB/ABLSB are exhausted. They
+  // share storage with the parent SPILL_A*/SPILL_B* — to load a
+  // SPILL_*LSB, load the parent byte; the LSB sub-register holds the
+  // bit naturally.
+  if (isLsbSpillReg(SrcReg) || isLsbSpillReg(DestReg)) {
+    MachineFunction &MF = *MBB.getParent();
+    if (isLsbSpillReg(SrcReg) && !isLsbSpillReg(DestReg)) {
+      // SPILL_*LSB → BIT1: load the parent byte; LSB IS the value.
+      MCPhysReg Parent = getLsbSpillParent(SrcReg);
+      Register SrcByte = getLsbSpillByteHalf(SrcReg);
+      emitSpillLoad(Builder, SrcByte, Parent, MF);
+      Register DestByte = getBit1ByteHalf(DestReg);
+      if (SrcByte != DestByte)
+        Builder.buildInstr(MC6809::TFRp).addDef(DestByte).addUse(SrcByte);
+      return;
+    }
+    if (!isLsbSpillReg(SrcReg) && isLsbSpillReg(DestReg)) {
+      // BIT1 → SPILL_*LSB: store the parent byte holding the bit.
+      MCPhysReg Parent = getLsbSpillParent(DestReg);
+      Register DestByte = getLsbSpillByteHalf(DestReg);
+      Register SrcByte = getBit1ByteHalf(SrcReg);
+      if (SrcByte != DestByte)
+        Builder.buildInstr(MC6809::TFRp).addDef(DestByte).addUse(SrcByte);
+      emitSpillStore(Builder, DestByte, Parent, MF);
+      return;
+    }
+    // SPILL_*LSB → SPILL_*LSB: load source parent, possibly TFR, store
+    // dest parent.
+    MCPhysReg SrcParent = getLsbSpillParent(SrcReg);
+    MCPhysReg DestParent = getLsbSpillParent(DestReg);
+    Register SrcByte = getLsbSpillByteHalf(SrcReg);
+    Register DestByte = getLsbSpillByteHalf(DestReg);
+    emitSpillLoad(Builder, SrcByte, SrcParent, MF);
+    if (SrcByte != DestByte)
+      Builder.buildInstr(MC6809::TFRp).addDef(DestByte).addUse(SrcByte);
+    emitSpillStore(Builder, DestByte, DestParent, MF);
+    return;
+  }
 
   // Handle copies involving spill pseudo-registers or imaginary registers.
   // Emit concrete S-indexed instructions (not pseudos with frame indices,
@@ -3047,19 +3161,26 @@ void MC6809InstrInfo::expandAddReg(MachineIRBuilder &Builder, MachineInstr &MI) 
 }
 
 void MC6809InstrInfo::expandAddSetCarryReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  assert(MI.getOperand(0).getReg() == MI.getOperand(2).getReg() && "Dest and Source 2 must be same for AddSetCarryReg");
+  assert(MI.getOperand(0).getReg() == MI.getOperand(2).getReg() && "Dest and Source must be same for AddSetCarryReg");
 
+  // Operand layout for AddSetCarry_i*_Reg (the non-Use variant):
+  //   0: dst (def)        — tied to op2
+  //   1: carry (def, BIT1)
+  //   2: src (use)
+  //   3: src2 (use)
+  // The Use variant has an extra carry_in at op3 and src2 at op4. Be
+  // careful not to confuse the layouts — using op4 here picks up the
+  // first IMPLICIT-def ($nz) instead of src2.
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   if (STI.has6309()) {
     Builder.buildInstr(MC6809::ADDRp)
         .addDef(MI.getOperand(0).getReg())
         .addDef(MI.getOperand(1).getReg(), RegState::Implicit)
         .addUse(MI.getOperand(2).getReg())
-        .addUse(MI.getOperand(3).getReg(), RegState::Implicit)
-        .addUse(MI.getOperand(4).getReg());
+        .addUse(MI.getOperand(3).getReg());
   } else {
     emit6809RegPairFromMem(Builder,
-                           MI.getOperand(0).getReg(), MI.getOperand(4).getReg(),
+                           MI.getOperand(0).getReg(), MI.getOperand(3).getReg(),
                            MC6809::ADDBi_o8, MC6809::ADDAi_o8,
                            MC6809::ADDBi_o5, MC6809::ADDAi_o0);
   }
@@ -3093,10 +3214,12 @@ static void emit6809RegByteFromMem(MachineIRBuilder &Builder,
     if (needsMaterialization(RHS))
       RealRHS = materializeReg(Builder, RHS, MF);
     // RHS is a real register — push 1 byte to stack and operate.
-    Builder.buildInstr(MC6809::PSHSs)
-        .addDef(MC6809::SS)
-        .addUse(RealRHS, RegState::Implicit)
-        .addUse(MC6809::SS);
+    // Use the (opc, defs, srcs) buildInstr form so RealRHS is an
+    // EXPLICIT use that the asm printer's printRegisterList can
+    // iterate. The chained .addUse(.., Implicit) form leaves the
+    // operand off the printed register list, producing garbage like
+    // "pshs s,s" in the assembly output.
+    Builder.buildInstr(MC6809::PSHSs, {}, {RealRHS});
     Builder.buildInstr(Opc_o5)
         .addDef(AccReg, RegState::Implicit)
         .addImm(0).addReg(MC6809::SS);
@@ -3133,10 +3256,12 @@ static void emit6809RegPairFromMem(MachineIRBuilder &Builder,
   } else {
     if (needsMaterialization(RHS))
       RealRHS = materializeReg(Builder, RHS, MF);
-    Builder.buildInstr(MC6809::PSHSs)
-        .addDef(MC6809::SS)
-        .addUse(RealRHS, RegState::Implicit)
-        .addUse(MC6809::SS);
+    // Use the (opc, defs, srcs) buildInstr form so RealRHS is an
+    // EXPLICIT use that the asm printer's printRegisterList can
+    // iterate. The chained .addUse(.., Implicit) form leaves the
+    // operand off the printed register list, producing garbage like
+    // "pshs s,s" in the assembly output.
+    Builder.buildInstr(MC6809::PSHSs, {}, {RealRHS});
     Builder.buildInstr(OpcB_o5)
         .addDef(MC6809::AB, RegState::Implicit)
         .addImm(1).addReg(MC6809::SS);
@@ -3193,17 +3318,22 @@ void MC6809InstrInfo::expandSubReg(MachineIRBuilder &Builder, MachineInstr &MI) 
 void MC6809InstrInfo::expandSubSetCarryReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
   assert(MI.getOperand(0).getReg() == MI.getOperand(2).getReg() && "Dest and Source must be same for SubSetCarryReg");
 
+  // Operand layout for SubSetCarry_i*_Reg (the non-Use variant):
+  //   0: dst (def)        — tied to op2
+  //   1: carry (def, BIT1)
+  //   2: src (use)
+  //   3: src2 (use)
+  // See expandAddSetCarryReg for the Use-vs-non-Use distinction.
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   if (STI.has6309()) {
     Builder.buildInstr(MC6809::SUBRp)
         .addDef(MI.getOperand(0).getReg())
         .addDef(MI.getOperand(1).getReg(), RegState::Implicit)
-        .addUse(MI.getOperand(4).getReg())
-        .addUse(MI.getOperand(3).getReg(), RegState::Implicit)
-        .addUse(MI.getOperand(2).getReg());
+        .addUse(MI.getOperand(2).getReg())
+        .addUse(MI.getOperand(3).getReg());
   } else {
     emit6809RegPairFromMem(Builder,
-                           MI.getOperand(0).getReg(), MI.getOperand(4).getReg(),
+                           MI.getOperand(0).getReg(), MI.getOperand(3).getReg(),
                            MC6809::SUBBi_o8, MC6809::SBCAi_o8,
                            MC6809::SUBBi_o5, MC6809::SBCAi_o0);
   }
