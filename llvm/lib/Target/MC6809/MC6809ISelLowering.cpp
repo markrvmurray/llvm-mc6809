@@ -25,6 +25,7 @@
 #include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
 #include "llvm/IR/Function.h"
 #include "llvm/Support/ErrorHandling.h"
+#include <limits>
 
 #include "MC6809.h"
 #include "MC6809InstrBuilder.h"
@@ -53,6 +54,22 @@ MC6809TargetLowering::MC6809TargetLowering(const MC6809TargetMachine &TM, const 
   setStackPointerRegisterToSaveRestore(MC6809::SS);
 
   setMaximumJumpTableSize(std::min(256u, getMaximumJumpTableSize()));
+
+  // Disable jump tables as a workaround for two real bugs in the
+  // BranchJumpTable lowering path that surfaced while building the
+  // picolibc test_printf at -O1+:
+  //   1. MC6809AsmPrinter::emitInstruction expands BranchJumpTable
+  //      to ASLB+ROLA+LEAX+LDD+JMP without ever loading the IdxReg
+  //      operand into D, so it relies on regalloc to put the index
+  //      in D — but the operand class is ACC16 (which includes IX/IY),
+  //      so regalloc may legitimately pick IX or IY instead.
+  //   2. Even when regalloc does pick D, a spill-slot-coloring (or
+  //      similar) bug at -O1+ ends up reloading D from the wrong slot
+  //      (the original switch value, not the post-subtract offset).
+  // Setting the threshold extremely high makes the switch lowering
+  // always pick if-else chains over jump tables. Re-enable after the
+  // BranchJumpTable expansion is rewritten to take an explicit IdxReg.
+  setMinimumJumpTableEntries(std::numeric_limits<unsigned>::max());
 }
 
 MVT MC6809TargetLowering::getRegisterTypeForCallingConv(LLVMContext &Context, CallingConv::ID CC, EVT VT, const ISD::ArgFlagsTy &Flags) const {
