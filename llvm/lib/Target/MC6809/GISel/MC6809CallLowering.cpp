@@ -274,9 +274,15 @@ bool MC6809CallLowering::lowerReturn(MachineIRBuilder &MIRBuilder, const Value *
 
     // Invoke TableGen compatibility layer. This will generate copies and stores
     // from the return value virtual register to physical and stack locations.
+    // Return values always use the regular RetCC_MC6809 — never the variadic
+    // CC — even for variadic functions, so the caller can find the result in
+    // a known location (X for i16/ptr, B for i8). The MC6809ValueAssigner
+    // constructor sets RetCC when IsReturn=true, but we still need to pass
+    // IsVarArg=false here so that getAssignFn() picks the (non-vararg) RetCC
+    // branch rather than going through the all-on-stack VarArgs path.
     MC6809OutgoingReturnHandler Handler(MIRBuilder, Return, MRI);
     MC6809ValueAssigner Assigner(/*IsIncoming=*/false, MRI, MF, /*IsReturn=*/true);
-    if (!determineAndHandleAssignments(Handler, Assigner, Args, MIRBuilder, F.getCallingConv(), F.isVarArg()))
+    if (!determineAndHandleAssignments(Handler, Assigner, Args, MIRBuilder, F.getCallingConv(), /*IsVarArg=*/false))
       return false;
   }
 
@@ -306,14 +312,21 @@ bool MC6809CallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder, cons
 
   MC6809IncomingArgsHandler Handler(MIRBuilder, MRI);
   MC6809ValueAssigner Assigner(/*IsIncoming=*/true, MRI, MF);
-  // Invoke TableGen compatibility layer to create loads and copies from the
-  // formal argument physical and stack locations to virtual registers.
-  if (!determineAndHandleAssignments(Handler, Assigner, SplitArgs, MIRBuilder, F.getCallingConv(), F.isVarArg()))
+  // Named formal arguments of variadic functions still use the regular CC
+  // (CC_MC6809), exactly as the comment in MC6809CallingConv.td says: only
+  // the *unnamed* arguments at the call site go through CC_MC6809_VarArgs.
+  // Passing F.isVarArg() here would (wrongly) push the named args onto the
+  // stack — discovered while building test_printf, where `fmt` was being
+  // assigned to a stack slot instead of X. Always pass false here: at the
+  // callee side we only ever see the named args, never the variadic ones.
+  if (!determineAndHandleAssignments(Handler, Assigner, SplitArgs, MIRBuilder, F.getCallingConv(), /*IsVarArg=*/false))
     return false;
 
   // Record the beginning of the varargs region of the stack by creating a fake
-  // stack argument a4 that location. The varargs instructions are lowered by
-  // walking a pointer forward from that memory location.
+  // stack argument at that location. The varargs instructions are lowered by
+  // walking a pointer forward from that memory location. Assigner.StackSize
+  // is the size of the named args' stack region, so the first vararg sits
+  // immediately above it (or at offset 0 when all named args are in regs).
   if (F.isVarArg()) {
     auto *FuncInfo = MF.getInfo<MC6809FunctionInfo>();
     FuncInfo->VarArgsStackIndex = MF.getFrameInfo().CreateFixedObject(

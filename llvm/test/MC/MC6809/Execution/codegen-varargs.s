@@ -60,33 +60,35 @@ putx:
 	.globl	test_main
 test_main:
 
+	;; Varargs CC for `T fn(T n, ...)`:
+	;;   - Named arg `n` in X (regular CC, since first i16/ptr arg).
+	;;   - Variadic args on the stack starting at SP+0 (above the return
+	;;     address), in declaration order, all 16-bit slots.
+	;;   - Return value in X (regular RetCC).
+	;; Caller is responsible for cleaning up the variadic stack region.
+
 	;; sum_va2(2, 100, 200) = 300 = 0x012C
-	;; Varargs CC: all args on stack, return via stack slot [S+0]
-	ldd	#200		; arg 3
-	pshs	d
-	ldd	#100		; arg 2
-	pshs	d
-	ldd	#2		; n (arg 1)
-	pshs	d
+	leas	-4,s
+	ldd	#100
+	std	,s		; first vararg
+	ldd	#200
+	std	2,s		; second vararg
+	ldx	#2		; n (named arg)
 	jsr	sum_va2
-	ldd	,s		; result from stack slot
-	tfr	d,x
-	leas	6,s
+	leas	4,s
 	jsr	putx
 	jsr	putnl
 ; CHECK: 012C
 
 	;; sum_va2(2, 0x1234, 0x5678) = 0x68AC
-	ldd	#0x5678
-	pshs	d
+	leas	-4,s
 	ldd	#0x1234
-	pshs	d
-	ldd	#2
-	pshs	d
+	std	,s
+	ldd	#0x5678
+	std	2,s
+	ldx	#2
 	jsr	sum_va2
-	ldd	,s
-	tfr	d,x
-	leas	6,s
+	leas	4,s
 	jsr	putx
 	jsr	putnl
 ; CHECK-NEXT: 68AC
@@ -94,39 +96,35 @@ test_main:
 	;; ===== sum_va4: 4 varargs =====
 
 	;; sum_va4(4, 10, 20, 30, 40) = 100 = 0x0064
-	ldd	#40
-	pshs	d
-	ldd	#30
-	pshs	d
-	ldd	#20
-	pshs	d
+	leas	-8,s
 	ldd	#10
-	pshs	d
-	ldd	#4
-	pshs	d
+	std	,s
+	ldd	#20
+	std	2,s
+	ldd	#30
+	std	4,s
+	ldd	#40
+	std	6,s
+	ldx	#4
 	jsr	sum_va4
-	ldd	,s
-	tfr	d,x
-	leas	10,s
+	leas	8,s
 	jsr	putx
 	jsr	putnl
 ; CHECK-NEXT: 0064
 
 	;; sum_va4(4, 0x1000, 0x0200, 0x0030, 0x0004) = 0x1234
-	ldd	#0x0004
-	pshs	d
-	ldd	#0x0030
-	pshs	d
-	ldd	#0x0200
-	pshs	d
+	leas	-8,s
 	ldd	#0x1000
-	pshs	d
-	ldd	#4
-	pshs	d
+	std	,s
+	ldd	#0x0200
+	std	2,s
+	ldd	#0x0030
+	std	4,s
+	ldd	#0x0004
+	std	6,s
+	ldx	#4
 	jsr	sum_va4
-	ldd	,s
-	tfr	d,x
-	leas	10,s
+	leas	8,s
 	jsr	putx
 	jsr	putnl
 ; CHECK-NEXT: 1234
@@ -134,39 +132,35 @@ test_main:
 	;; ===== get_nth_va: skip to Nth arg =====
 
 	;; get_nth_va(1, 0xAA, 0xBB, 0xCC, 0xDD) = 0xAA (first)
-	ldd	#0xDD
-	pshs	d
-	ldd	#0xCC
-	pshs	d
-	ldd	#0xBB
-	pshs	d
+	leas	-8,s
 	ldd	#0xAA
-	pshs	d
-	ldd	#1
-	pshs	d
+	std	,s
+	ldd	#0xBB
+	std	2,s
+	ldd	#0xCC
+	std	4,s
+	ldd	#0xDD
+	std	6,s
+	ldx	#1
 	jsr	get_nth_va
-	ldd	,s
-	tfr	d,x
-	leas	10,s
+	leas	8,s
 	jsr	putx
 	jsr	putnl
 ; CHECK-NEXT: 00AA
 
 	;; get_nth_va(4, 0xAA, 0xBB, 0xCC, 0xDD) = 0xDD (fourth)
-	ldd	#0xDD
-	pshs	d
-	ldd	#0xCC
-	pshs	d
-	ldd	#0xBB
-	pshs	d
+	leas	-8,s
 	ldd	#0xAA
-	pshs	d
-	ldd	#4
-	pshs	d
+	std	,s
+	ldd	#0xBB
+	std	2,s
+	ldd	#0xCC
+	std	4,s
+	ldd	#0xDD
+	std	6,s
+	ldx	#4
 	jsr	get_nth_va
-	ldd	,s
-	tfr	d,x
-	leas	10,s
+	leas	8,s
 	jsr	putx
 	jsr	putnl
 ; CHECK-NEXT: 00DD
