@@ -1289,6 +1289,25 @@ bool MC6809LegalizerInfo::legalizeShiftRotate(LegalizerHelper &Helper, MachineRe
   LLT S1 = LLT::scalar(1);
   LLT S8 = LLT::scalar(8);
 
+  // For i32 and i64 shifts (non-rotates), always use libcalls regardless
+  // of whether the amount is constant. The constant-amount byte
+  // decomposition path below builds an i32/i64 result via
+  // G_MERGE_VALUES of byte parts; the merge collapses under register
+  // coalescer sub-register rewrites and traps the parent vreg in the
+  // 1-register ACC16_D class, exhausting it for any non-trivial
+  // function (e.g. picolibc rand_r's `ashr i32 %x, 31`).
+  //
+  // Treat i32 the same way i64 is treated: 4 bytes for everything
+  // except shifts, which go to hand-written assembly libcalls
+  // (__ashlsi3, __ashrsi3, __lshrsi3, __ashldi3, __ashrdi3,
+  // __lshrdi3) in compiler-rt/lib/builtins/mc6809/.
+  if (Ty.getSizeInBits() >= 32 && !IsRotate) {
+    LLT AmtTy = MRI.getType(AmtReg);
+    if (AmtTy != S8)
+      MI.getOperand(2).setReg(Builder.buildTrunc(S8, AmtReg).getReg(0));
+    return shiftRotateLibcall(Helper, MRI, MI, LocObserver);
+  }
+
   // Presently, only left shifts by one bit are supported.
   auto ConstantAmt = getIConstantVRegValWithLookThrough(AmtReg, MRI);
   if (!ConstantAmt) {
@@ -1555,10 +1574,11 @@ bool MC6809LegalizerInfo::shiftRotateLibcall(LegalizerHelper &Helper, MachineReg
 
   Type *HLTy = IntegerType::get(Ctx, Size);
   // The shift amount matches the C runtime signature's `int` type.
-  // For i64 shifts (when enabled), this is i16 so the amount goes
-  // on the stack (B gets clobbered by the i64 arg stack setup).
-  // For <= i32 shifts, i8 is fine (amount in B, no conflict).
-  unsigned AmtBits = (Size > 32) ? 16 : 8;
+  // For i32 and i64 shifts, declare it as i16 so it lands on the
+  // stack — B gets clobbered by the i32/i64 arg stack setup, so
+  // passing the amount in B is unreliable. For ≤ i16 shifts, i8
+  // is fine (amount in B, no conflict).
+  unsigned AmtBits = (Size >= 32) ? 16 : 8;
   Type *HLAmtTy = IntegerType::get(Ctx, AmtBits);
 
   // For i64 shifts, the amount is declared as i16 (on the stack)
