@@ -64,8 +64,18 @@ def pcrel8 : Operand<i32> {
 
 // PC-relative operands for indexed addressing modes (opcode + postbyte + offset).
 // Fixup offset is 2, not 1, because the postbyte sits between the opcode and offset.
+//
+// Note the distinct ParserMatchClass `PCRel8Idx` (vs the `PCRel8` used for
+// short branches above): in the asm parser, isPCRel8Idx() rejects symbol
+// references so the matcher always picks the 16-bit indexed form for any
+// label operand. The 8-bit indexed form is reserved for numeric literal
+// offsets whose range can be checked at parse time. This was bug #68 —
+// the assembler has no relaxation rule to grow o8PC into o16PC, and
+// indexed PC-rel ops routinely target labels (jump tables, etc) far
+// outside the ±127 byte range. See MC6809AsmParser::isPCRel8Idx for the
+// full reasoning.
 def pcrel8_idx : Operand<i32> {
-  let ParserMatchClass = PCRelativeOperand<"PCRel8">;
+  let ParserMatchClass = PCRelativeOperand<"PCRel8Idx">;
   let EncoderMethod = "encodeImm<MC6809::PCRel8, 2>";
   let PrintMethod = "printBranchOperand";
   let OperandType = "OPERAND_PCREL";
@@ -86,9 +96,10 @@ def pcrel16_idx : Operand<i32> {
 }
 
 // PC-relative operands for immediate-indexed addressing (opcode + imm + postbyte + offset).
-// Fixup offset is 3.
+// Fixup offset is 3. Same strict matcher as pcrel8_idx — see the comment
+// on pcrel8_idx and MC6809AsmParser::isPCRel8Idx for the bug #68 reasoning.
 def pcrel8_imm_idx : Operand<i32> {
-  let ParserMatchClass = PCRelativeOperand<"PCRel8">;
+  let ParserMatchClass = PCRelativeOperand<"PCRel8Idx">;
   let EncoderMethod = "encodeImm<MC6809::PCRel8, 3>";
   let PrintMethod = "printBranchOperand";
   let OperandType = "OPERAND_PCREL";

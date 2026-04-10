@@ -147,8 +147,30 @@ public:
   bool isRel8() const { return isImmediate<-128, 127>(); }
   bool isRel16() const { return isImmediate<-32768, 32767>(); }
 
+  // PC-relative for short branches (BRA/BEQ/...). Symbol refs accepted —
+  // there's no relaxation rule, but in practice every short-branch use
+  // either has a numeric offset or a *nearby* label, and codegen avoids
+  // emitting short branches at all (bug #58). Hand-written runtime asm
+  // relies on this lenient form.
   bool isPCRel8() const { return isImmediate<-128, 255>(); }
   bool isPCRel16() const { return isImmediate<-32768, 65535>(); }
+
+  // PC-relative for indexed addressing (LEAX/LDD/STX/etc with `,PCR`).
+  // Strict: symbol refs are rejected so that the matcher always picks
+  // the 16-bit form for symbolic operands. Why: the assembler has no
+  // relaxation rule to promote o8PC to o16PC, and indexed PC-rel
+  // operands routinely target labels that are *outside* the ±127 byte
+  // range (jump tables sit after the function body, etc.). Accepting
+  // a symbol ref at the 8-bit indexed form silently truncates when the
+  // offset overflows. This was bug #68: a `LEAX JT,PCR` for a jump
+  // table 919 bytes away got encoded with offset -105 and jumped into
+  // the middle of the function. Restricting only the indexed-PC-rel
+  // path keeps short branches working unchanged.
+  bool isPCRel8Idx() const {
+    if (isImm() && isa<MCSymbolRefExpr>(getImm()))
+      return false;
+    return isImmediate<-128, 255>();
+  }
 
   bool isAddr8() const {
     // For constants, use the offseted direct page.
@@ -211,6 +233,8 @@ public:
   void addRel16Operands(MCInst &Inst, unsigned N) const { addImmOperands(Inst, N); }
 
   void addPCRel8Operands(MCInst &Inst, unsigned N) const { addImmOperands(Inst, N); }
+
+  void addPCRel8IdxOperands(MCInst &Inst, unsigned N) const { addImmOperands(Inst, N); }
 
   void addPCRel16Operands(MCInst &Inst, unsigned N) const { addImmOperands(Inst, N); }
 
@@ -345,6 +369,9 @@ public:
       return Error(Loc, "operand must be a 16-bit address");
     case Match_InvalidPCRel8:
       return Error(Loc, "operand must be an 8-bit PC relative address");
+    case Match_InvalidPCRel8Idx:
+      return Error(Loc, "operand must be an 8-bit PC relative literal "
+                        "(symbol references must use the 16-bit form)");
     case Match_immediate:
       return Error(Loc, "operand must be an immediate value");
     case Match_NearMisses:

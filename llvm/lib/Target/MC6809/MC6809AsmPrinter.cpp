@@ -85,12 +85,13 @@ void MC6809AsmPrinter::emitInstruction(const MachineInstr *MI) {
     EmitToStreamer(*OutStreamer, OutInst);
     return;
   }
-  // BranchJumpTable: expand to a jump-table dispatch sequence.
+  // BranchJumpTable: expand to a position-independent jump-table
+  // dispatch sequence.
   //
   //   ASLB             ; D = index * 2 (each entry is 2 bytes)
   //   ROLA
-  //   LDX #JTbase      ; X = absolute address of jump table
-  //   LDD D,X          ; D = JT[index] (PC-relative offset)
+  //   LEAX JT,PCR      ; X = jump table base, PC-relative
+  //   LDD D,X          ; D = JT[index] (rel offset from JT base)
   //   JMP D,X          ; jump to JT base + offset
   //
   // The $idx operand must already be in $ad by the time we get here —
@@ -99,16 +100,20 @@ void MC6809AsmPrinter::emitInstruction(const MachineInstr *MI) {
   // into AD with an LDD before this instruction). Assert it as a
   // tripwire for any future regression of bug #68.
   //
-  // History note (bug #68): the original expansion used `LEAX JT,PCR`
-  // to get the table base. That goes through the textual asm
-  // intermediate, where the assembler's operand matcher silently
-  // chose the 8-bit `LEAXi_o8PC` form for any symbol ref (because
-  // MC6809AsmParser::isImmediate accepts all symbol refs as both
-  // PCRel8 and PCRel16, and there's no relaxation rule for the
-  // PC-rel addressing modes — same lesson as bug #58 for branches).
-  // Switching to `LDX #JT` sidesteps the matcher ambiguity entirely:
-  // immediate-loaded absolute addresses always use the 16-bit form
-  // and the linker resolves the symbol at link time.
+  // The whole sequence stays position-independent: jump table entries
+  // are emitted as `.short Lcase - LJTbase` (relative offsets), and
+  // the LEAX uses `,PCR` to compute the table base relative to PC.
+  // Together with the `LDXi16` opcode for `LDX #JT` being avoided,
+  // there are no absolute addresses anywhere in the dispatch — the
+  // whole thing can be relocated by an OS-9-style loader.
+  //
+  // History note (bug #68): the obvious LEAXi_o16PC choice loses its
+  // size info through the textual `.s` intermediate (the asm parser
+  // accepted any symbol ref as PCRel8 too, and the matcher picked
+  // the smaller form). The fix is in the parser (isPCRel8 now
+  // rejects symbol refs), so the assembler always picks the 16-bit
+  // form for symbolic operands. With that fix in place, this
+  // expansion can use the original PCR-relative LEAX cleanly.
   if (MI->getOpcode() == MC6809::BranchJumpTable) {
     assert(MI->getOperand(0).isReg() &&
            MI->getOperand(0).getReg() == MC6809::AD &&
@@ -123,12 +128,12 @@ void MC6809AsmPrinter::emitInstruction(const MachineInstr *MI) {
     MCInst ROL;
     ROL.setOpcode(MC6809::ROLAa);
     EmitToStreamer(*OutStreamer, ROL);
-    // LDX #JT — absolute 16-bit address of jump table base
-    MCInst LDX;
-    LDX.setOpcode(MC6809::LDXi16);
-    LDX.addOperand(MCOperand::createExpr(
+    // LEAX JT,PCR — PC-relative jump table base
+    MCInst LEA;
+    LEA.setOpcode(MC6809::LEAXi_o16PC);
+    LEA.addOperand(MCOperand::createExpr(
         MCSymbolRefExpr::create(JTSym, OutContext)));
-    EmitToStreamer(*OutStreamer, LDX);
+    EmitToStreamer(*OutStreamer, LEA);
     // LDD D,X — load relative offset from table[index]
     MCInst LDD;
     LDD.setOpcode(MC6809::LDDi_oD);
