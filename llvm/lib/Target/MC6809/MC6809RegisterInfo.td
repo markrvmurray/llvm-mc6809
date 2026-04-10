@@ -145,6 +145,14 @@ foreach I = 0...!add(MaxImag8Regs, -1) in {
   defm RC#I: MC6809ImagReg8<!add(!shl(I,1), Imag8RegsOffset), "rc"#!cast<string>(I)>;
 }
 
+// Dedicated DP scratch byte for the byte-ALU path (c) in
+// emit6809RegByteFromMem. Reserved in the linker script as __scratch.
+// NOT in any allocatable class — regalloc must never assign anything to it.
+// Used only to materialize a real-register RHS (A/B/E/F) into direct page
+// so the operation can run via the 2-instruction STxd/op pattern instead
+// of the 3-instruction PSHS/op/LEAS triple (which also wastes S).
+defm SCRATCH : MC6809ImagReg8<0x1F00, "scratch">;
+
 // Imaginary 16-bit registers, starting with the prefix rs.
 //
 // RS0..RS3 (the registers actually in allocation classes ACC16/ADc)
@@ -373,7 +381,7 @@ def STACK16 : MC6809Reg16Class<(add SU, SS)>;
 
 def CCond : MC6809Reg8Class<(add CC)>;
 
-def Imag8 : MC6809Reg8Class<(sequence "RC%u", 0, !add(MaxImag8Regs, -1))>;
+def Imag8 : MC6809Reg8Class<(add (sequence "RC%u", 0, !add(MaxImag8Regs, -1)), SCRATCH)>;
 def Imag16 : MC6809Reg16Class<(sequence "RS%u", 0, !add(MaxImag16Regs, -1))>;
 def Imag32 : MC6809Reg32Class<(sequence "RW%u", 0, !add(MaxImag32Regs, -1))>;
 

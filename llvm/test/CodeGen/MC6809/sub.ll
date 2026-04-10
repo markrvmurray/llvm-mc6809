@@ -1057,9 +1057,8 @@ define dso_local i16 @sub_u_i16_consts(i16 noundef %a, i16 noundef %b, i16 nound
 ; O1-NEXT:    ldb #32
 ; O1-NEXT:    std 4,u
 ; O1-NEXT:    lda 6,u
-; O1-NEXT:    pshs a
-; O1-NEXT:    subb 0,s
-; O1-NEXT:    leas 1,s
+; O1-NEXT:    sta <__scratch
+; O1-NEXT:    subb <__scratch
 ; O1-NEXT:    ldd 4,u
 ; O1-NEXT:    tfr b,a
 ; O1-NEXT:    sta 6,u
@@ -1106,9 +1105,8 @@ define dso_local i16 @sub_u_i16_consts(i16 noundef %a, i16 noundef %b, i16 nound
 ; O2-NEXT:    ldb #32
 ; O2-NEXT:    std 4,u
 ; O2-NEXT:    lda 6,u
-; O2-NEXT:    pshs a
-; O2-NEXT:    subb 0,s
-; O2-NEXT:    leas 1,s
+; O2-NEXT:    sta <__scratch
+; O2-NEXT:    subb <__scratch
 ; O2-NEXT:    ldd 4,u
 ; O2-NEXT:    tfr b,a
 ; O2-NEXT:    sta 6,u
@@ -1155,9 +1153,8 @@ define dso_local i16 @sub_u_i16_consts(i16 noundef %a, i16 noundef %b, i16 nound
 ; O3-NEXT:    ldb #32
 ; O3-NEXT:    std 4,u
 ; O3-NEXT:    lda 6,u
-; O3-NEXT:    pshs a
-; O3-NEXT:    subb 0,s
-; O3-NEXT:    leas 1,s
+; O3-NEXT:    sta <__scratch
+; O3-NEXT:    subb <__scratch
 ; O3-NEXT:    ldd 4,u
 ; O3-NEXT:    tfr b,a
 ; O3-NEXT:    sta 6,u

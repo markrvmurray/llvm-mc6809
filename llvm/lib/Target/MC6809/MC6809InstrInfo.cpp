@@ -3508,6 +3508,20 @@ void MC6809InstrInfo::expandSubSetCarryUseByteReg(MachineIRBuilder &Builder, Mac
   MI.eraseFromParent();
 }
 
+/// Pick the direct-page store opcode that writes the given real byte
+/// register to memory. Used by path (c) of emit6809RegByteFromMem to
+/// park a live RHS value in the DP `__scratch` byte, so the byte-ALU
+/// operation can then read it via a direct-page opcode instead of the
+/// 3-instruction PSHS/op/LEAS triple. Returns 0 if the register has no
+/// direct-page store variant (AE/AF on 6309) — callers fall back to PSHS.
+static unsigned getStoreDPOpcode(Register Reg) {
+  switch (Reg) {
+  case MC6809::AA: return MC6809::STAd;
+  case MC6809::AB: return MC6809::STBd;
+  default: return 0;
+  }
+}
+
 /// Map an indexed opcode (e.g. ADDBi_o8) to its direct-page variant
 /// (e.g. ADDBd). Used when RHS is an Imag8 register — the imaginary
 /// regs live in the direct page and can be addressed with the shorter
@@ -3613,16 +3627,37 @@ static void emit6809RegByteFromMem(MachineIRBuilder &Builder,
     // live in the direct page at fixed addresses.
     unsigned DPOpc = getDirectPageOpcode(Opc_o8);
     Builder.buildInstr(DPOpc).addReg(RHS);
-  } else {
-    // Path (c): push RHS onto S, operate from 0,s, then LEAS to pop.
-    if (needsMaterialization(RHS))
-      RealRHS = materializeReg(Builder, RHS, MF);
-    Builder.buildInstr(MC6809::PSHSs, {}, {RealRHS});
+  } else if (PushedEarly) {
+    // RHS was pushed to S before LHS materialization (collision case
+    // above). The real register no longer holds the value, so we must
+    // consume it from the stack via 0,S rather than re-pushing.
     Builder.buildInstr(Opc_o5)
         .addDef(AccReg, RegState::Implicit)
         .addImm(0).addReg(MC6809::SS);
     Builder.buildInstr(MC6809::LEASi_o5)
         .addImm(1).addReg(MC6809::SS);
+  } else {
+    // Path (c): park RHS in the DP __scratch byte, operate via
+    // direct-page addressing. 2 instructions instead of the old
+    // PSHS/op/LEAS triple, and S is left untouched. STAd/STBd leave
+    // the carry flag intact, so multi-byte carry chains are safe.
+    if (needsMaterialization(RHS))
+      RealRHS = materializeReg(Builder, RHS, MF);
+    if (unsigned StoreOpc = getStoreDPOpcode(RealRHS)) {
+      Builder.buildInstr(StoreOpc).addReg(MC6809::SCRATCH);
+      unsigned DPOpc = getDirectPageOpcode(Opc_o8);
+      Builder.buildInstr(DPOpc)
+          .addDef(AccReg, RegState::Implicit)
+          .addReg(MC6809::SCRATCH);
+    } else {
+      // Fallback for registers without a DP store variant (AE/AF on 6309).
+      Builder.buildInstr(MC6809::PSHSs, {}, {RealRHS});
+      Builder.buildInstr(Opc_o5)
+          .addDef(AccReg, RegState::Implicit)
+          .addImm(0).addReg(MC6809::SS);
+      Builder.buildInstr(MC6809::LEASi_o5)
+          .addImm(1).addReg(MC6809::SS);
+    }
   }
   if (needsMaterialization(OrigLHS))
     dematerializeReg(Builder, RealLHS, OrigLHS, MF);

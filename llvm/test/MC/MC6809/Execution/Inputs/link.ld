@@ -42,6 +42,9 @@ SECTIONS {
         __rc14 = .; . += 1; __rc15 = .; . += 1;
         __rs4 = .; . += 2; __rs5 = .; . += 2;
         __rs6 = .; . += 2; __rs7 = .; . += 2;
+        /* Dedicated byte-ALU scratch (path (c) of
+           emit6809RegByteFromMem — replaces PSHS/op/LEAS triple). */
+        __scratch = .; . += 1;
         *(.directpage)
     } > RAM
 
