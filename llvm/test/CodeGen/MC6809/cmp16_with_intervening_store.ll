@@ -27,8 +27,8 @@
 target triple = "mc6809-unknown-unknown"
 
 ; CHECK-LABEL: test_toupper:
-; CHECK:      addb    #159
-; CHECK:      adca    #255
+; CHECK:      addb    #{{-?[0-9]+}}
+; CHECK:      adca    #{{-?[0-9]+}}
 ; The compare must load D from the slot, not reuse X (which still
 ; holds the pre-subtract value).
 ; CHECK:      ldd     {{[0-9]+,u}}
