@@ -8039,33 +8039,66 @@ LegalizerHelper::LegalizeResult LegalizerHelper::lowerEXT(MachineInstr &MI) {
       !isPowerOf2_32(SrcTyScalarSize))
     return UnableToLegalize;
 
-  // Base case for scalar extends where the destination is exactly twice
-  // the source size: build the high half explicitly and merge.
-  //   G_SEXT  → high = ASHR(src, SrcSize - 1)
-  //   G_ZEXT  → high = 0
-  //   G_ANYEXT → high = undef
-  // followed by a single G_MERGE_VALUES of (src, high). This gives small
-  // 16-bit / register-poor targets a way to widen by one step without
-  // having to provide a custom legalizer rule for every (s2N, sN) pair.
-  if (DstTy.isScalar() && SrcTyScalarSize * 2 == DstTyScalarSize) {
-    Register HighReg;
+  // Scalar extend via byte-level G_MERGE_VALUES.
+  //
+  // For any scalar (DstTy, SrcTy) where DstTy is wider than SrcTy and both
+  // are byte-multiple sizes: unmerge Src into bytes, compute a single
+  // "fill" byte (zero / undef / sign), and build the result via a single
+  // byte-level G_MERGE_VALUES of [src bytes..., fill bytes...].
+  //
+  // Why byte-level instead of the obvious "build a wider intermediate ext
+  // and merge"? The intermediate-ext approach produces a fresh G_SEXT/
+  // G_ZEXT/G_ANYEXT which the combiner's `sext(sext)→sext` (and zext/
+  // anyext) folds back into the original shape, creating a
+  // legalize→combine→legalize loop on register-poor targets that route
+  // wide extends to lowerEXT. Byte-level merge has nothing to fold.
+  //
+  // Sign-bit broadcast for SEXT goes via ICMP+SEXT(s8, i1) instead of
+  // ASHR-by-(SrcSize-1) — the ASHR form pulls in shift legalization,
+  // which on small targets can recurse back into lowerEXT via the
+  // over-correct wider-type path. ICMP+SEXT-i1 avoids the shift entirely.
+  if (DstTy.isScalar() && SrcTy.isScalar() &&
+      SrcTyScalarSize < DstTyScalarSize &&
+      (SrcTyScalarSize % 8) == 0 && (DstTyScalarSize % 8) == 0) {
+    LLT S8 = LLT::scalar(8);
+    LLT S1 = LLT::scalar(1);
+    unsigned NumDstBytes = DstTyScalarSize / 8;
+    unsigned NumSrcBytes = SrcTyScalarSize / 8;
+
+    // Unmerge Src into its byte parts.
+    SmallVector<Register, 8> Bytes;
+    if (SrcTy == S8) {
+      Bytes.push_back(Src);
+    } else {
+      auto Unmerge = MIRBuilder.buildUnmerge(S8, Src);
+      for (unsigned I = 0; I < NumSrcBytes; ++I)
+        Bytes.push_back(Unmerge.getReg(I));
+    }
+
+    // Compute the fill byte (one byte value reused for every high byte).
+    Register Fill;
     switch (MI.getOpcode()) {
     case TargetOpcode::G_ZEXT:
-      HighReg = MIRBuilder.buildConstant(SrcTy, 0).getReg(0);
+      Fill = MIRBuilder.buildConstant(S8, 0).getReg(0);
       break;
     case TargetOpcode::G_ANYEXT:
-      HighReg = MIRBuilder.buildUndef(SrcTy).getReg(0);
+      Fill = MIRBuilder.buildUndef(S8).getReg(0);
       break;
     case TargetOpcode::G_SEXT: {
-      auto ShiftAmt =
-          MIRBuilder.buildConstant(SrcTy, SrcTyScalarSize - 1);
-      HighReg = MIRBuilder.buildAShr(SrcTy, Src, ShiftAmt).getReg(0);
+      auto Zero = MIRBuilder.buildConstant(SrcTy, 0);
+      auto SignI1 = MIRBuilder.buildICmp(CmpInst::ICMP_SLT, S1, Src, Zero);
+      Fill = MIRBuilder.buildSExt(S8, SignI1).getReg(0);
       break;
     }
     default:
       llvm_unreachable("lowerEXT called for non-extend opcode");
     }
-    MIRBuilder.buildMergeLikeInstr(Dst, {Src, HighReg});
+
+    // Pad to DstTy width with the fill byte.
+    while (Bytes.size() < NumDstBytes)
+      Bytes.push_back(Fill);
+
+    MIRBuilder.buildMergeLikeInstr(Dst, Bytes);
     MI.eraseFromParent();
     return Legalized;
   }

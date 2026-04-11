@@ -1422,7 +1422,11 @@ bool MC6809LegalizerInfo::legalizeShiftRotate(LegalizerHelper &Helper, MachineRe
       auto Left = Builder.buildRotateLeft(Ty, Src, LeftAmt);
       Builder.buildRotateRight(Dst, Left, RightAmt);
     } else {
-      LLT WideTy = LLT::scalar(Ty.getSizeInBits() + 8);
+      // Round up to the next power-of-2 width, not just +8. The +8 form
+      // produced non-power-of-2 widths (s16 → s24, s32 → s40) which the
+      // upstream lowerEXT can't handle and which feed back into a
+      // legalization loop via clampScalar widening.
+      LLT WideTy = LLT::scalar(NextPowerOf2(Ty.getSizeInBits() + 1));
       Register WideSrc;
       switch (MI.getOpcode()) {
       default:

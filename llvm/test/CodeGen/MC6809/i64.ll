@@ -309,23 +309,32 @@ define i64 @xor64(i64 %a, i64 %b) {
 define i64 @zext_i32_to_i64(i32 %v) {
 ; CHECK-LABEL: zext_i32_to_i64:
 ; CHECK:       ; %bb.0:
-; CHECK-NEXT:    leas -8,s
+; CHECK-NEXT:    leas -16,s
 ; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    ldd 14,u
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldd 12,u
+; CHECK-NEXT:    ldd 22,u
+; CHECK-NEXT:    std 8,u
+; CHECK-NEXT:    ldd 20,u
+; CHECK-NEXT:    std 14,u
+; CHECK-NEXT:    ldd 8,u
 ; CHECK-NEXT:    std 6,u
+; CHECK-NEXT:    ldd #0
+; CHECK-NEXT:    std 12,u
+; CHECK-NEXT:    ldd 6,u
+; CHECK-NEXT:    std 4,u
+; CHECK-NEXT:    ldd #0
+; CHECK-NEXT:    std 10,u
 ; CHECK-NEXT:    ldd 4,u
 ; CHECK-NEXT:    std 6,x
-; CHECK-NEXT:    ldd 6,u
+; CHECK-NEXT:    ldd 14,u
 ; CHECK-NEXT:    std 4,x
-; CHECK-NEXT:    ldd #0
+; CHECK-NEXT:    ldd 12,u
 ; CHECK-NEXT:    std 2,x
+; CHECK-NEXT:    ldd 10,u
 ; CHECK-NEXT:    std ,x
 ; CHECK-NEXT:    tfr u,s
 ; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 8,s
+; CHECK-NEXT:    leas 16,s
 ; CHECK-NEXT:    rts
   %r = zext i32 %v to i64
   ret i64 %r
