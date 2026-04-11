@@ -18,11 +18,15 @@
 #include "MCTargetDesc/MC6809AsmBackend.h"
 #include "MCTargetDesc/MC6809MCExpr.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
+#include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineJumpTableInfo.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/MC/MCExpr.h"
+#include "llvm/MC/MCInstrInfo.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FormatVariadic.h"
+#include "llvm/Support/raw_ostream.h"
+#include "llvm/Target/TargetMachine.h"
 
 using namespace llvm;
 
@@ -31,8 +35,30 @@ using namespace llvm;
 void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
   // Handle any real instructions that weren't generated from a pseudo.
   if (MI->isPseudo()) {
-    LLVM_DEBUG(dbgs() << "Pseudoinstruction was never lowered : "; MI->dump(););
-    llvm_unreachable("Pseudoinstruction was never lowered.");
+    // Always print the opcode name and full dump unconditionally — this
+    // failure mode is rare, developer-facing, and a silent llvm_unreachable
+    // makes diagnosis unnecessarily hard. See bug #90 for a case where
+    // this exact path fired on ``SEX8Implicit`` and the unreachable message
+    // alone gave no hint which pseudo was missing.
+    const TargetInstrInfo &TII = *MI->getMF()->getSubtarget().getInstrInfo();
+    const MCInstrInfo *MCII = MI->getMF()->getTarget().getMCInstrInfo();
+    StringRef OpName = MCII ? MCII->getName(MI->getOpcode()) : StringRef("<unknown>");
+    (void)TII;
+    errs() << "MC6809: pseudo instruction was never lowered: "
+           << OpName << " (opcode=" << MI->getOpcode() << ")\n"
+           << "  in function: "
+           << MI->getMF()->getName() << "\n"
+           << "  MI: ";
+    MI->print(errs());
+    errs() << "\nFix path:\n"
+           << "  1. Add a case for ``" << OpName
+           << "`` to ``MC6809InstrInfo::expandPostRAPseudo``.\n"
+           << "  2. Or set ``PseudoInstExpansion<(...)>`` on the tablegen\n"
+           << "     definition so ``lowerPseudoInstExpansion`` handles it.\n"
+           << "  3. See ``memory/project_materialize_spills_liveness.md``\n"
+           << "     for the MCInstrDesc invariant and the #57/#88/#89/#90\n"
+           << "     worked examples.\n";
+    llvm_unreachable("MC6809: pseudo instruction was never lowered.");
   }
   OutMI.setOpcode(MI->getOpcode());
   for (const MachineOperand &MO : MI->operands()) {
