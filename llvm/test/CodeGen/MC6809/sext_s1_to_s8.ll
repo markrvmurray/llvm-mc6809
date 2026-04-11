@@ -1,4 +1,7 @@
 ; RUN: llc -global-isel -global-isel-abort=1 -O0 -mtriple=mc6809 < %s | FileCheck %s
+; RUN: llc -global-isel -global-isel-abort=1 -O1 -mtriple=mc6809 < %s | FileCheck %s
+; RUN: llc -global-isel -global-isel-abort=1 -O2 -mtriple=mc6809 < %s | FileCheck %s
+; RUN: llc -global-isel -global-isel-abort=1 -O3 -mtriple=mc6809 < %s | FileCheck %s
 ;
 ; Bug #90 regression test: G_SEXT from s1 to s8 selects SEX8Implicit,
 ; which must be expanded in expandPostRAPseudo. Previously the switch

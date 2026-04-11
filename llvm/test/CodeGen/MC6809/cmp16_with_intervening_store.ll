@@ -1,4 +1,7 @@
 ; RUN: llc -global-isel -global-isel-abort=1 -O0 -mtriple=mc6809 < %s | FileCheck %s
+; RUN: llc -global-isel -global-isel-abort=1 -O1 -mtriple=mc6809 < %s | FileCheck %s
+; RUN: llc -global-isel -global-isel-abort=1 -O2 -mtriple=mc6809 < %s | FileCheck %s
+; RUN: llc -global-isel -global-isel-abort=1 -O3 -mtriple=mc6809 < %s | FileCheck %s
 ;
 ; Bug #87 regression test. The compare expansion backwards-scan
 ; (expandCompareImm, MC6809InstrInfo.cpp) used to rewrite
