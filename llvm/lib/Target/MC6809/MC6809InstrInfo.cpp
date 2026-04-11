@@ -3998,7 +3998,56 @@ void MC6809InstrInfo::expandCompareImm(MachineIRBuilder &Builder, MachineInstr &
 
     if (LDDInstr) {
       // Look further back for STX/STY to the same frame offset.
+      //
+      // Bug #87: the scan must bail out if ANY byte- or word-level store
+      // to the slot's 2-byte footprint (offsets LoadOffset and
+      // LoadOffset+1) occurs between the candidate STX/STY and the LDD.
+      // Those stores mutate the in-memory value *after* the STX, so the
+      // index register is stale compared to the slot contents. Without
+      // this check, sequences like
+      //
+      //    stx     4,u          ; original c
+      //    ldb     5,u          ; \
+      //    addb    #-97         ;  |  byte-level c -= 97 in memory
+      //    stb     5,u          ; /
+      //    lda     4,u          ; \
+      //    adca    #-1          ;  |  (propagates borrow)
+      //    sta     4,u          ; /
+      //    [cmpd   4,u]         ; <- erased; replaced by cmpx below
+      //    cmpx    #26          ; WRONG: X still holds original c
+      //
+      // silently miscompile (test_toupper('a') returns 'a' unchanged in
+      // picolibc at -O0, and similarly for test_tolower / test_isspace).
       Register IndexSrc;
+      auto OverlapsSlot = [LoadOffset](int Off, int Size) {
+        return Off < LoadOffset + 2 && Off + Size > LoadOffset;
+      };
+      auto IsStoreToSU = [](const MachineInstr &I, int &OffOut, int &SizeOut) {
+        // Recognise STB/STA/STD/STX/STY through $su with an immediate
+        // offset. Returns the byte offset and the store size. STD/STX/STY
+        // are 2 bytes; STA/STB are 1 byte.
+        auto CheckOpnd = [&](unsigned OffOpIdx) {
+          if (I.getNumOperands() <= OffOpIdx + 1) return false;
+          const MachineOperand &OffMO = I.getOperand(OffOpIdx);
+          const MachineOperand &BaseMO = I.getOperand(OffOpIdx + 1);
+          if (!OffMO.isImm() || !BaseMO.isReg()) return false;
+          if (BaseMO.getReg() != MC6809::SU) return false;
+          OffOut = OffMO.getImm();
+          return true;
+        };
+        switch (I.getOpcode()) {
+        case MC6809::STAi_o5: case MC6809::STAi_o8: case MC6809::STAi_o16:
+        case MC6809::STBi_o5: case MC6809::STBi_o8: case MC6809::STBi_o16:
+          SizeOut = 1;
+          return CheckOpnd(0);
+        case MC6809::STDi_o5: case MC6809::STDi_o8: case MC6809::STDi_o16:
+        case MC6809::STXi_o5: case MC6809::STXi_o8: case MC6809::STXi_o16:
+        case MC6809::STYi_o5: case MC6809::STYi_o8: case MC6809::STYi_o16:
+          SizeOut = 2;
+          return CheckOpnd(0);
+        }
+        return false;
+      };
       for (auto It = MachineBasicBlock::reverse_iterator(LDDInstr->getIterator());
            It != MBB.rend(); ++It) {
         unsigned Opc = It->getOpcode();
@@ -4016,6 +4065,11 @@ void MC6809InstrInfo::expandCompareImm(MachineIRBuilder &Builder, MachineInstr &
           IndexSrc = MC6809::IY;
           break;
         }
+        // Bug #87: any intervening store to the slot footprint makes the
+        // index register stale — bail.
+        int Off = 0, Sz = 0;
+        if (IsStoreToSU(*It, Off, Sz) && OverlapsSlot(Off, Sz))
+          break;
         // If X or Y is redefined before we find the store, stop.
         if (It->definesRegister(MC6809::IX, /*TRI=*/nullptr) ||
             It->definesRegister(MC6809::IY, /*TRI=*/nullptr))
