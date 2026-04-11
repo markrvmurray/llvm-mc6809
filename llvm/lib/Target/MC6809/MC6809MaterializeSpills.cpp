@@ -181,12 +181,27 @@ static std::pair<int, int> getSpillSlot(Register SpillReg,
   return {FI, ByteOffset};
 }
 
+/// Return true if SpillReg is a 16-bit ACC spill (SPILL_D0..D7), whose
+/// materialization uses LDD and therefore clobbers both halves of D.
+/// 8-bit ACC spills (SPILL_A0..7, SPILL_B0..7) use LDA/LDB for one half
+/// and leave the other untouched.
+static bool isWideAccSpillReg(Register Reg) {
+  switch (Reg) {
+  case MC6809::SPILL_D0: case MC6809::SPILL_D1:
+  case MC6809::SPILL_D2: case MC6809::SPILL_D3:
+  case MC6809::SPILL_D4: case MC6809::SPILL_D5:
+  case MC6809::SPILL_D6: case MC6809::SPILL_D7:
+    return true;
+  default:
+    return false;
+  }
+}
+
 /// Check if this instruction's spill operands will cause D to be clobbered
 /// during materialization. Mirrors SpillDSaveRestore's willClobberD logic.
 static bool willClobberD(const MachineInstr &MI,
                          const TargetRegisterInfo &TRI) {
-  bool HasAccSpill = false;
-  bool DIsDirectOperand = false;
+  bool HasWideAccSpill = false;
 
   // Multi-INDEX-spill case: when 2 distinct SPILL_X operands appear, the
   // materializer routes one through D (because IY can only stage one).
@@ -201,16 +216,23 @@ static bool willClobberD(const MachineInstr &MI,
   if (UniqueIndexSpills.size() >= 2)
     return true;
 
+  // Only 16-bit ACC spills (SPILL_D*) clobber D — their materialization
+  // uses LDD which loads both A and B. 8-bit ACC spills (SPILL_A*/SPILL_B*)
+  // materialize via LDA/LDB which only touches one half of D, leaving the
+  // other untouched. Bug #88: previously this was just `isAccSpillReg`,
+  // which over-fired on byte-level pseudos like SubSetCarry_i8_Reg whose
+  // 8-bit spill operand goes through path-(a) U-relative byte addressing
+  // (no LDD at all) and whose tied DEF is one half of D — the over-eager
+  // D-save then restored the OLD D after the instruction, clobbering the
+  // freshly-computed result byte.
   for (const MachineOperand &MO : MI.operands()) {
     if (!MO.isReg() || !MO.getReg().isPhysical())
       continue;
-    if (isAccSpillReg(MO.getReg()))
-      HasAccSpill = true;
-    if (TRI.regsOverlap(MO.getReg(), MC6809::AD) && !isAccSpillReg(MO.getReg()))
-      DIsDirectOperand = true;
+    if (isWideAccSpillReg(MO.getReg()))
+      HasWideAccSpill = true;
   }
 
-  if (!HasAccSpill)
+  if (!HasWideAccSpill)
     return false;
 
   // COPYs: check for safe cases where D is the intended operand.
@@ -347,9 +369,14 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
     SmallVector<MachineInstr *, 4> ToErase;
 
     // Per-instruction: do we need D save/restore? IY save/restore?
+    // NeedSaveA/NeedSaveB are narrower than NeedSaveD — they preserve only
+    // one half of $ad around a pseudo whose expansion uses that half as a
+    // scratch (bug #89). NeedSaveD saves both halves via STD/LDD.
     struct SpillInfo {
       bool NeedSaveD;
       bool NeedSaveIY;
+      bool NeedSaveA;
+      bool NeedSaveB;
     };
     DenseMap<MachineInstr *, SpillInfo> NeedSave;
 
@@ -415,7 +442,6 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
       if ((MI.isCompare() || MI.isTerminator()) &&
           MI.getOpcode() != MC6809::BranchJumpTable) {
         bool Has8BitSpill = false;
-        bool DLiveNonSpill = false;
         for (const MachineOperand &MO : MI.operands()) {
           if (MO.isReg() && MO.getReg().isPhysical() && isAccSpillReg(MO.getReg())) {
             Register RealReg = getRealReg(MO.getReg());
@@ -434,6 +460,7 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
       }
 
       bool NeedD = false, NeedIY = false;
+      bool NeedA = false, NeedB = false;
 
       if (willClobberD(MI, TRI)) {
         bool DLive = LPR.contains(MC6809::AD) ||
@@ -448,7 +475,68 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
           NeedIY = true;
       }
 
-      NeedSave[&MI] = {NeedD, NeedIY};
+      // Bug #89: an 8-bit ACC spill operand is materialized via LDA/LDB,
+      // which uses $aa/$ab as a scratch register. If $aa/$ab is live with
+      // a non-operand value, the expansion clobbers it — the register
+      // allocator made its decisions without knowing the expansion would
+      // touch $aa/$ab. Detect that case and preserve just the affected
+      // half of $ad around the instruction.
+      //
+      // Two flavours to watch for:
+      //
+      //  (1) The spill operand's real reg X ($aa or $ab) is live with a
+      //      non-operand value. Materialisation will overwrite X.
+      //
+      //  (2) The spill operand's real reg X matches a non-spill physical
+      //      use of the SAME instruction (e.g., SubSetCarry_i8_Reg with
+      //      op0 = $spill_b0 and op3 = $ab). Case 1 conflict resolution
+      //      below saves the physical operand and redirects it to the
+      //      ALT half — but that clobbers the alt half. If the alt half
+      //      is live with a non-operand value, we must preserve it too.
+      //
+      // Wide D save/restore via NeedSaveD is wrong here: the restore
+      // would overwrite the sub result that lives in $ab after the
+      // expansion, causing bug #88.
+      if (!NeedD) {
+        bool SpillClobbersA = false, SpillClobbersB = false;
+        bool Case1NeedsAltA = false, Case1NeedsAltB = false;
+        for (const MachineOperand &MO : MI.operands()) {
+          if (!MO.isReg() || !MO.getReg().isPhysical()) continue;
+          if (!isAccSpillReg(MO.getReg())) continue;
+          Register RealReg = getRealReg(MO.getReg());
+          if (RealReg == MC6809::AA) SpillClobbersA = true;
+          if (RealReg == MC6809::AB) SpillClobbersB = true;
+
+          // Detect Case 1: physical non-spill use on RealReg.
+          for (const MachineOperand &RhsMO : MI.operands()) {
+            if (!RhsMO.isReg() || !RhsMO.isUse()) continue;
+            if (!RhsMO.getReg().isPhysical()) continue;
+            if (isAnySpillReg(RhsMO.getReg())) continue;
+            if (RhsMO.getReg() != RealReg) continue;
+            // Case 1 will use the alt half as the redirect target.
+            if (RealReg == MC6809::AB) Case1NeedsAltA = true;
+            else Case1NeedsAltB = true;
+            break;
+          }
+        }
+        auto hasDirectOperand = [&](Register Half) {
+          for (const MachineOperand &MO : MI.operands()) {
+            if (!MO.isReg() || !MO.getReg().isPhysical()) continue;
+            if (isAccSpillReg(MO.getReg())) continue;
+            if (TRI.regsOverlap(MO.getReg(), Half))
+              return true;
+          }
+          return false;
+        };
+        if ((SpillClobbersB || Case1NeedsAltB) &&
+            LPR.contains(MC6809::AB) && !hasDirectOperand(MC6809::AB))
+          NeedB = true;
+        if ((SpillClobbersA || Case1NeedsAltA) &&
+            LPR.contains(MC6809::AA) && !hasDirectOperand(MC6809::AA))
+          NeedA = true;
+      }
+
+      NeedSave[&MI] = {NeedD, NeedIY, NeedA, NeedB};
     }
 
     // Forward pass: materialize spill operands.
@@ -465,6 +553,8 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
       int IYSaveSlot = -1;
 
       int DSaveSlot = -1;
+      int ASaveSlot = -1;
+      int BSaveSlot = -1;
 
       // Save D if needed.
       if (Info.NeedSaveD) {
@@ -472,6 +562,23 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
         BuildMI(MBB, MI, DL, TII.get(MC6809::Store_i16_Mem))
             .addReg(MC6809::AD)
             .addFrameIndex(DSaveSlot)
+            .addImm(0);
+      }
+
+      // Bug #89: save just $aa or $ab (not both) around an 8-bit spill-
+      // operand instruction whose expansion uses that half as a scratch.
+      if (Info.NeedSaveA) {
+        ASaveSlot = MFI.CreateStackObject(1, Align(1), true);
+        BuildMI(MBB, MI, DL, TII.get(MC6809::Store_i8_Mem))
+            .addReg(MC6809::AA)
+            .addFrameIndex(ASaveSlot)
+            .addImm(0);
+      }
+      if (Info.NeedSaveB) {
+        BSaveSlot = MFI.CreateStackObject(1, Align(1), true);
+        BuildMI(MBB, MI, DL, TII.get(MC6809::Store_i8_Mem))
+            .addReg(MC6809::AB)
+            .addFrameIndex(BSaveSlot)
             .addImm(0);
       }
 
@@ -755,6 +862,18 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
           BuildMI(MBB, After, DL, TII.get(MC6809::Load_i16_Mem))
               .addReg(MC6809::AD, RegState::Define)
               .addFrameIndex(DSaveSlot)
+              .addImm(0);
+        }
+        if (ASaveSlot >= 0) {
+          BuildMI(MBB, After, DL, TII.get(MC6809::Load_i8_Mem))
+              .addReg(MC6809::AA, RegState::Define)
+              .addFrameIndex(ASaveSlot)
+              .addImm(0);
+        }
+        if (BSaveSlot >= 0) {
+          BuildMI(MBB, After, DL, TII.get(MC6809::Load_i8_Mem))
+              .addReg(MC6809::AB, RegState::Define)
+              .addFrameIndex(BSaveSlot)
               .addImm(0);
         }
       } else {
