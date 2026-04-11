@@ -1530,6 +1530,7 @@ define dso_local i32 @add_s_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; O0-NEXT:    stb 7,u
 ; O0-NEXT:    lda 6,u
 ; O0-NEXT:    lda 6,u
+; O0-NEXT:    adca #0
 ; O0-NEXT:    sta 6,u
 ; O0-NEXT:    ldb 5,u
 ; O0-NEXT:    ldb 5,u
@@ -1671,6 +1672,7 @@ define dso_local i32 @add_s_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; O1-NEXT:    adcb #8
 ; O1-NEXT:    stb 7,u
 ; O1-NEXT:    lda 6,u
+; O1-NEXT:    adca #0
 ; O1-NEXT:    sta 6,u
 ; O1-NEXT:    ldd 4,u
 ; O1-NEXT:    std 2,x
@@ -1748,6 +1750,7 @@ define dso_local i32 @add_s_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; O2-NEXT:    adcb #8
 ; O2-NEXT:    stb 7,u
 ; O2-NEXT:    lda 6,u
+; O2-NEXT:    adca #0
 ; O2-NEXT:    sta 6,u
 ; O2-NEXT:    ldd 4,u
 ; O2-NEXT:    std 2,x
@@ -1825,6 +1828,7 @@ define dso_local i32 @add_s_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; O3-NEXT:    adcb #8
 ; O3-NEXT:    stb 7,u
 ; O3-NEXT:    lda 6,u
+; O3-NEXT:    adca #0
 ; O3-NEXT:    sta 6,u
 ; O3-NEXT:    ldd 4,u
 ; O3-NEXT:    std 2,x
@@ -2422,6 +2426,7 @@ define dso_local i32 @add_u_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; O1-NEXT:    adcb #126
 ; O1-NEXT:    stb 7,u
 ; O1-NEXT:    lda 6,u
+; O1-NEXT:    adca #0
 ; O1-NEXT:    sta 6,u
 ; O1-NEXT:    ldd 4,u
 ; O1-NEXT:    std 2,x
@@ -2499,6 +2504,7 @@ define dso_local i32 @add_u_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; O2-NEXT:    adcb #126
 ; O2-NEXT:    stb 7,u
 ; O2-NEXT:    lda 6,u
+; O2-NEXT:    adca #0
 ; O2-NEXT:    sta 6,u
 ; O2-NEXT:    ldd 4,u
 ; O2-NEXT:    std 2,x
@@ -2576,6 +2582,7 @@ define dso_local i32 @add_u_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; O3-NEXT:    adcb #126
 ; O3-NEXT:    stb 7,u
 ; O3-NEXT:    lda 6,u
+; O3-NEXT:    adca #0
 ; O3-NEXT:    sta 6,u
 ; O3-NEXT:    ldd 4,u
 ; O3-NEXT:    std 2,x

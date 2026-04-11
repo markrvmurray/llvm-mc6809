@@ -1923,9 +1923,17 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     expandImm(AddImmNoSkip, Builder, MI);
     break;
   }
-  case MC6809::AddSetCarryUse_i8_Imm:
-    expandImm(AddCarryImm, Builder, MI);
+  case MC6809::AddSetCarryUse_i8_Imm: {
+    // Bug #92: must always emit the ADC even when the immediate is 0.
+    // The carry flag input is being consumed and propagated into the
+    // result byte — skipping the instruction silently drops the carry.
+    // Same rationale as AddSetCarry_i8_Imm above (#53).
+    ContextImmediate AddCarryImmNoSkip = {
+        const_cast<DenseMap<Register, unsigned> *>(&AddCarryImmediateOpcode),
+        INT32_MIN};
+    expandImm(AddCarryImmNoSkip, Builder, MI);
     break;
+  }
   case MC6809::AddSetCarryUse_i16_Imm:
     expandCarryImm16(true, Builder, MI);
     break;
@@ -1972,9 +1980,19 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     expandImm(SubImmNoSkip, Builder, MI);
     break;
   }
-  case MC6809::SubSetCarryUse_i8_Imm:
-    expandImm(SubBorrowImm, Builder, MI);
+  case MC6809::SubSetCarryUse_i8_Imm: {
+    // Bug #92: must always emit the SBC even when the immediate is 0.
+    // The borrow-in from CC.C is being consumed and propagated into the
+    // result byte — skipping the instruction silently drops the borrow,
+    // producing e.g. 0x00FC instead of 0xFFFC for `sub i16 (zext i8),
+    // (zext i8)` where both operand high bytes are known-zero. Same
+    // rationale as SubSetCarry_i8_Imm above (#53).
+    ContextImmediate SubBorrowImmNoSkip = {
+        const_cast<DenseMap<Register, unsigned> *>(&SubBorrowImmediateOpcode),
+        INT32_MIN};
+    expandImm(SubBorrowImmNoSkip, Builder, MI);
     break;
+  }
   case MC6809::SubSetCarryUse_i16_Imm:
     expandCarryImm16(false, Builder, MI);
     break;
@@ -2384,8 +2402,15 @@ void MC6809InstrInfo::expandCarryImm16(bool IsAdd, MachineIRBuilder &Builder,
                                        MachineInstr &MI) const {
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   if (STI.has6309()) {
-    // 6309 has ADCD/SBCD — use the standard expand path.
-    expandImm(IsAdd ? AddCarryImm : SubBorrowImm, Builder, MI);
+    // 6309 has ADCD/SBCD — use the standard expand path, but force
+    // IdentityValue to INT32_MIN so a zero immediate doesn't silently
+    // drop the carry propagation (bug #92). Same rationale as the 8-bit
+    // AddSetCarryUse_i8_Imm / SubSetCarryUse_i8_Imm cases above.
+    ContextImmediate CarryImmNoSkip = {
+        const_cast<DenseMap<Register, unsigned> *>(
+            IsAdd ? &AddCarryImmediateOpcode : &SubBorrowImmediateOpcode),
+        INT32_MIN};
+    expandImm(CarryImmNoSkip, Builder, MI);
     return;
   }
   // 6809: split 16-bit carry immediate into two 8-bit operations.
