@@ -1682,6 +1682,60 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     MI.setDesc(Builder.getTII().get(MC6809::RTIr));
     MI.removeOperand(0);
     break;
+  case MC6809::SEX8Implicit: {
+    // Sign-extend the LSB of an 8-bit register ($aalsb/$ablsb) to 8 bits.
+    // Bug #90: previously missing from expandPostRAPseudo, causing llc to
+    // crash with "Pseudoinstruction was never lowered" for any function
+    // that selected a G_SEXT from s1 to s8 at -O0. Two expansion paths:
+    //
+    //   same-half (src byte == dst byte):
+    //     AND[AB] #1   ; mask off the bit
+    //     NEG[AB]      ; 0 → 0, 1 → -1 (= 0xFF)
+    //
+    //   cross-half (src byte != dst byte):
+    //     TFR src_byte, dst_byte
+    //     AND[AB] #1
+    //     NEG[AB]
+    //
+    // ANDA/ANDB clear V and set NZ; NEGA/NEGB set C from the input. No
+    // carry-chain ordering constraint — SEX8Implicit isn't used inside a
+    // multi-byte arithmetic chain today.
+    MachineFunction &MF = *MI.getMF();
+    Register DstReg = MI.getOperand(0).getReg();
+    Register SrcReg = MI.getOperand(1).getReg();
+
+    // Materialise imaginary/spill destination if needed.
+    Register OrigDst = DstReg;
+    if (needsMaterialization(DstReg))
+      DstReg = materializeReg(Builder, DstReg, MF);
+
+    // Map the BIT1 source to its parent byte register.
+    Register SrcByte;
+    switch (SrcReg) {
+    case MC6809::AALSB: SrcByte = MC6809::AA; break;
+    case MC6809::ABLSB: SrcByte = MC6809::AB; break;
+    default:
+      llvm_unreachable("SEX8Implicit: BIT1 source must be AALSB or ABLSB");
+    }
+
+    // If src and dst live in different halves of D, copy the byte first.
+    // TFR preserves the LSB we care about.
+    if (SrcByte != DstReg)
+      Builder.buildInstr(MC6809::TFRp).addDef(DstReg).addUse(SrcByte);
+
+    // Extract the LSB and sign-extend via two's-complement negation.
+    bool DstIsA = (DstReg == MC6809::AA);
+    unsigned AndOpc = DstIsA ? MC6809::ANDAi8 : MC6809::ANDBi8;
+    unsigned NegOpc = DstIsA ? MC6809::NEGAa  : MC6809::NEGBa;
+    Builder.buildInstr(AndOpc).addImm(1);
+    Builder.buildInstr(NegOpc);
+
+    if (needsMaterialization(OrigDst))
+      dematerializeReg(Builder, DstReg, OrigDst, MF);
+
+    MI.eraseFromParent();
+    return true;
+  }
   case MC6809::SEX16Implicit:
     MI.setDesc(Builder.getTII().get(MC6809::SEXx));
     MI.removeOperand(1);
