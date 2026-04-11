@@ -1289,19 +1289,21 @@ bool MC6809LegalizerInfo::legalizeShiftRotate(LegalizerHelper &Helper, MachineRe
   LLT S1 = LLT::scalar(1);
   LLT S8 = LLT::scalar(8);
 
-  // For i32 and i64 shifts (non-rotates), always use libcalls regardless
-  // of whether the amount is constant. The constant-amount byte
-  // decomposition path below builds an i32/i64 result via
-  // G_MERGE_VALUES of byte parts; the merge collapses under register
-  // coalescer sub-register rewrites and traps the parent vreg in the
-  // 1-register ACC16_D class, exhausting it for any non-trivial
-  // function (e.g. picolibc rand_r's `ashr i32 %x, 31`).
+  // For i16, i32 and i64 shifts (non-rotates), always use libcalls
+  // regardless of whether the amount is constant. The constant-amount
+  // byte decomposition path below builds the result via byte-level
+  // operations that access sub-byte halves of an i16/i32/i64 parent
+  // vreg; combined with the BIT1 carry vreg from the carry chain, the
+  // coalescer is forced to tighten the parent's class to ACC16_D
+  // (1 register = AD), exhausting it for any function with multiple
+  // simultaneously-live shift operands. picolibc rand_r and
+  // ubsan_val_to_imax both fail this way.
   //
-  // Treat i32 the same way i64 is treated: 4 bytes for everything
-  // except shifts, which go to hand-written assembly libcalls
-  // (__ashlsi3, __ashrsi3, __lshrsi3, __ashldi3, __ashrdi3,
-  // __lshrdi3) in compiler-rt/lib/builtins/mc6809/.
-  if (Ty.getSizeInBits() >= 32 && !IsRotate) {
+  // Treat i16 / i32 / i64 the same way: bytes for everything except
+  // shifts, which go to hand-written assembly libcalls in
+  // compiler-rt/lib/builtins/mc6809/ (__ashlhi3, __ashrhi3, __lshrhi3,
+  // __ashlsi3, __ashrsi3, __lshrsi3, __ashldi3, __ashrdi3, __lshrdi3).
+  if (Ty.getSizeInBits() >= 16 && !IsRotate) {
     LLT AmtTy = MRI.getType(AmtReg);
     if (AmtTy != S8)
       MI.getOperand(2).setReg(Builder.buildTrunc(S8, AmtReg).getReg(0));

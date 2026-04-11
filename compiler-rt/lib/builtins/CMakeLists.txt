@@ -864,6 +864,9 @@ list(REMOVE_ITEM mc6809_SOURCES
 # Hand-written assembly uses exactly the registers it needs and saves
 # the callee-saved ones explicitly via PSHS/PULS.
 list(APPEND mc6809_SOURCES
+  mc6809/ashlhi3.S
+  mc6809/ashrhi3.S
+  mc6809/lshrhi3.S
   mc6809/ashlsi3.S
   mc6809/ashrsi3.S
   mc6809/lshrsi3.S
