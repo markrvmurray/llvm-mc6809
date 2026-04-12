@@ -21,6 +21,8 @@
 	.globl	_start
 _start:
 	lds	#0x8000		; stack at top of RAM
+	clra
+	tfr	a,dp		; DP=0 (direct page at $0000)
 
 	;; Copy .data initial values from ROM (LMA) to RAM (VMA).
 	ldx	#__data_load	; ROM source

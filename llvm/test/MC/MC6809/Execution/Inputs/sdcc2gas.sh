@@ -2,6 +2,11 @@
 # sdcc2gas.sh — translate gcc6809 / SDCC assembler syntax to GAS
 # (the syntax llvm-mc accepts).
 #
+# Legacy: only used by the gcc6809 interop tests (interop.s,
+# calling-convention.s, calling-convention-16.s). The main codegen
+# tests now use clang for harness compilation, which outputs GAS
+# syntax directly.
+#
 # Usage: sdcc2gas.sh < gcc6809-output.s > gas-input.s
 #
 # Used by every C-harness execution test (codegen-*-gcc.s,
