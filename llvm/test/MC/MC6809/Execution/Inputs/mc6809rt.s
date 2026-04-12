@@ -35,3 +35,6 @@
 
 ;; 64-bit shifts
 .include "shiftdi3.inc"
+
+;; memcpy / memmove / memset — required by clang for struct copies
+.include "memops.inc"
