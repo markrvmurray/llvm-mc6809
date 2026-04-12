@@ -225,6 +225,15 @@ static bool willClobberD(const MachineInstr &MI,
   // (no LDD at all) and whose tied DEF is one half of D — the over-eager
   // D-save then restored the OLD D after the instruction, clobbering the
   // freshly-computed result byte.
+  //
+  // Bug #94 analysis: the 16-bit save/restore IS correct because both the
+  // save/restore (STD/LDD) and the expansion (LDD+op+STD) operate on the
+  // full $ad — no partial-clobber mismatch. The dematerialize store-back
+  // (in the SpillOps DEF loop below) runs BEFORE the D-restore (both use
+  // the same After insertion point, but SpillOps fires first in the code
+  // flow), so the result is safely in the spill slot before $ad is restored
+  // to its pre-instruction value. The regalloc never reads $ad for the
+  // spill-backed vreg; it rematerializes from the slot. Closed as not-a-bug.
   for (const MachineOperand &MO : MI.operands()) {
     if (!MO.isReg() || !MO.getReg().isPhysical())
       continue;
