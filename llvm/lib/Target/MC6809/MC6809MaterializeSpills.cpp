@@ -968,6 +968,47 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
             }
           }
         }
+        // Bug #89 fix completion: A/B saves also need restoration in
+        // successors when the instruction is a terminator. Without this,
+        // a TestBranch with a spill operand that clobbers $ab/$aa
+        // saves the live value but never restores it on the path
+        // through the successor blocks. Exposed by bug #86's ACC8
+        // relaxation for TestBranch_i8_Reg.
+        auto insertByteRestoreInSuccessors = [&](int SaveSlot, Register ByteReg) {
+          if (SaveSlot < 0) return;
+          for (MachineBasicBlock *Succ : llvm::to_vector(MBB.successors())) {
+            if (Succ->pred_size() == 1) {
+              BuildMI(*Succ, Succ->begin(), DL, TII.get(MC6809::Load_i8_Mem))
+                  .addReg(ByteReg, RegState::Define)
+                  .addFrameIndex(SaveSlot)
+                  .addImm(0);
+            } else {
+              // Critical edge: split by inserting a new block.
+              MachineBasicBlock *RestoreBB =
+                  MF.CreateMachineBasicBlock(MBB.getBasicBlock());
+              MF.insert(std::next(MBB.getIterator()), RestoreBB);
+              RestoreBB->addSuccessor(Succ);
+              MBB.replaceSuccessor(Succ, RestoreBB);
+              for (MachineInstr &Term : MBB.terminators())
+                for (MachineOperand &MO : Term.operands())
+                  if (MO.isMBB() && MO.getMBB() == Succ)
+                    MO.setMBB(RestoreBB);
+              for (const auto &LI : Succ->liveins())
+                if (!RestoreBB->isLiveIn(LI.PhysReg))
+                  RestoreBB->addLiveIn(LI.PhysReg);
+              BuildMI(*RestoreBB, RestoreBB->end(), DL,
+                      TII.get(MC6809::Load_i8_Mem))
+                  .addReg(ByteReg, RegState::Define)
+                  .addFrameIndex(SaveSlot)
+                  .addImm(0);
+              BuildMI(*RestoreBB, RestoreBB->end(), DL,
+                      TII.get(MC6809::LBRAlb))
+                  .addMBB(Succ);
+            }
+          }
+        };
+        insertByteRestoreInSuccessors(ASaveSlot, MC6809::AA);
+        insertByteRestoreInSuccessors(BSaveSlot, MC6809::AB);
       }
 
       Changed = true;
