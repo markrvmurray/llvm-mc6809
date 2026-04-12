@@ -267,12 +267,28 @@ private:
   struct ContextImmediate {
     DenseMap<Register, unsigned> *Opcode;
     int IdentityValue;
+    // Bug #93: when true, expandImm always emits the instruction even if
+    // the immediate equals IdentityValue. Required for any pseudo that
+    // participates in a carry chain — the carry-in/out is part of the
+    // computation, so `A op 0` is NOT a no-op when CC.C is involved.
+    bool NeverSkip = false;
   };
 
+  // Plain arithmetic — safe to skip when immediate is the identity value.
   ContextImmediate AddImm = {&AddImmediateOpcode, 0};
-  ContextImmediate AddCarryImm = {&AddCarryImmediateOpcode, 0};
   ContextImmediate SubImm = {&SubImmediateOpcode, 0};
-  ContextImmediate SubBorrowImm = {&SubBorrowImmediateOpcode, 0};
+
+  // Carry-producing variants (SetCarry) — the carry FLAG OUTPUT is consumed
+  // downstream, so we must always emit even for identity immediates.
+  ContextImmediate AddSetCarryImm = {&AddImmediateOpcode, 0, true};
+  ContextImmediate SubSetCarryImm = {&SubImmediateOpcode, 0, true};
+
+  // Carry-consuming variants (SetCarryUse / borrow) — the carry FLAG INPUT
+  // participates in the result, so `A - 0 - borrow != A`.
+  ContextImmediate AddCarryImm = {&AddCarryImmediateOpcode, 0, true};
+  ContextImmediate SubBorrowImm = {&SubBorrowImmediateOpcode, 0, true};
+
+  // Bitwise — safe to skip on identity.
   ContextImmediate ANDImm = {&ANDImmediateOpcode, -1};
   ContextImmediate ORImm = {&ORImmediateOpcode, 0};
   ContextImmediate XORImm = {&XORImmediateOpcode, 0};
