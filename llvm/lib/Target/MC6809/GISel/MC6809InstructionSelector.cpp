@@ -590,8 +590,8 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     // (was bug #59).
     Register CondReg = MI.getOperand(0).getReg();
     MachineBasicBlock *TargetMBB = MI.getOperand(1).getMBB();
-    // TestBranch_i8_Reg's source is constrained to ACC8_AB (AA or AB).
-    MRI->setRegClass(CondReg, &MC6809::ACC8_ABRegClass);
+    // TestBranch_i8_Reg's source is constrained to ACC8.
+    MRI->setRegClass(CondReg, &MC6809::ACC8RegClass);
     // Branch if non-zero (NE).
     BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(MC6809::TestBranch_i8_Reg))
         .addImm(MC6809CC::NE)

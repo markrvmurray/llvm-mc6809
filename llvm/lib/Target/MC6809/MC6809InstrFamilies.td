@@ -575,7 +575,7 @@ multiclass MC6809Test<RegisterClass reg> {
   }
 }
 
-defm Test_i8 : MC6809Test<ACC8_AB>;
+defm Test_i8 : MC6809Test<ACC8>;
 let Predicates = [IsHD6309] in {
   defm Test_i16 : MC6809Test<ACC16>;
 }
@@ -601,7 +601,7 @@ multiclass MC6809TestBranch<RegisterClass reg> {
   }
 }
 
-defm TestBranch_i8 : MC6809TestBranch<ACC8_AB>;
+defm TestBranch_i8 : MC6809TestBranch<ACC8>;
 defm TestBranch_i16 : MC6809TestBranch<ACC16>;
 
 class MC6809CompareBranchBase<RegisterClass reg, dag operand> : MC6809LogicalInstr {
@@ -638,7 +638,7 @@ multiclass MC6809TestPat<CondCode CC, int cc, ValueType vtype, RegisterClass reg
 }
 
 multiclass MC6809TestCondPat<CondCode CC, int ccode> {
-  defm _i8 : MC6809TestPat<CC, ccode, i8, ACC8_AB>;
+  defm _i8 : MC6809TestPat<CC, ccode, i8, ACC8>;
   let Predicates = [IsHD6309] in {
     defm _i16 : MC6809TestPat<CC, ccode, i16, ACC16>;
   }
@@ -845,7 +845,7 @@ multiclass MC6809TestBraPat<CondCode CC, int cc, ValueType vtype, RegisterClass 
 }
 
 multiclass MC6809TestBraCondPat<CondCode CC, int ccode> {
-  defm _i8 : MC6809TestBraPat<CC, ccode, i8, ACC8_AB>;
+  defm _i8 : MC6809TestBraPat<CC, ccode, i8, ACC8>;
   defm _i16 : MC6809TestBraPat<CC, ccode, i16, ACC16>;
 }
 

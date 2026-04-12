@@ -892,6 +892,27 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
         }
       }
 
+      // Determine if A/B restores must be deferred to successors.
+      // On the 6809, LDA/LDB set NZ flags. If we insert a byte restore
+      // between a Compare (which sets CC) and its conditional branch
+      // (which reads CC), the restore clobbers the comparison result.
+      // This is the same CC-clobbering problem that led to the fused
+      // CompareBranch pseudos (bugs #42, #59). The D and IY restores
+      // (LDD, LDY) have the same NZ issue but are less common here.
+      //
+      // Detection: if the instruction defines CC and the NEXT instruction
+      // is a conditional branch reading CC, defer A/B restores to the
+      // branch's successor blocks (same path as terminators).
+      bool DeferByteRestore = false;
+      if (!MI.isTerminator() && (ASaveSlot >= 0 || BSaveSlot >= 0)) {
+        if (MI.isCompare() ||
+            MI.definesRegister(MC6809::CC, /*TRI=*/nullptr)) {
+          auto NextIt = After;
+          if (NextIt != MBB.end() && NextIt->isConditionalBranch())
+            DeferByteRestore = true;
+        }
+      }
+
       if (!MI.isTerminator()) {
         // Restore saved registers after non-terminator instructions.
         if (IYSaveSlot >= 0) {
@@ -906,24 +927,33 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
               .addFrameIndex(DSaveSlot)
               .addImm(0);
         }
-        if (ASaveSlot >= 0) {
-          BuildMI(MBB, After, DL, TII.get(MC6809::Load_i8_Mem))
-              .addReg(MC6809::AA, RegState::Define)
-              .addFrameIndex(ASaveSlot)
-              .addImm(0);
+        if (!DeferByteRestore) {
+          if (ASaveSlot >= 0) {
+            BuildMI(MBB, After, DL, TII.get(MC6809::Load_i8_Mem))
+                .addReg(MC6809::AA, RegState::Define)
+                .addFrameIndex(ASaveSlot)
+                .addImm(0);
+          }
+          if (BSaveSlot >= 0) {
+            BuildMI(MBB, After, DL, TII.get(MC6809::Load_i8_Mem))
+                .addReg(MC6809::AB, RegState::Define)
+                .addFrameIndex(BSaveSlot)
+                .addImm(0);
+          }
         }
-        if (BSaveSlot >= 0) {
-          BuildMI(MBB, After, DL, TII.get(MC6809::Load_i8_Mem))
-              .addReg(MC6809::AB, RegState::Define)
-              .addFrameIndex(BSaveSlot)
-              .addImm(0);
-        }
-      } else {
-        // Terminator (fused compare-branch): can't place D restore after it.
-        // Insert the D restore at the start of each successor. For
-        // multi-predecessor successors (critical edges), split the edge
-        // by inserting a new block for the restore.
-        if (DSaveSlot >= 0) {
+      }
+
+      if (MI.isTerminator() || DeferByteRestore) {
+        // For terminators (and deferred byte restores after compares):
+        // insert the restore at the start of each successor block.
+        //
+        // D and IY restores go here ONLY for terminators. For deferred
+        // byte restores (DeferByteRestore), only the A/B restores are
+        // deferred — D and IY were already placed inline above.
+        //
+        // For multi-predecessor successors (critical edges), split the
+        // edge by inserting a new block for the restore.
+        if (MI.isTerminator() && DSaveSlot >= 0) {
           for (MachineBasicBlock *Succ : llvm::to_vector(MBB.successors())) {
             if (Succ->pred_size() == 1) {
               BuildMI(*Succ, Succ->begin(), DL, TII.get(MC6809::Load_i16_Mem))
@@ -958,7 +988,7 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
             }
           }
         }
-        if (IYSaveSlot >= 0) {
+        if (MI.isTerminator() && IYSaveSlot >= 0) {
           for (MachineBasicBlock *Succ : MBB.successors()) {
             if (Succ->pred_size() == 1) {
               BuildMI(*Succ, Succ->begin(), DL, TII.get(MC6809::Load_iPtr_Mem))
