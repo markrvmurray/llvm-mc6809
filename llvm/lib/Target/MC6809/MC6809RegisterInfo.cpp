@@ -98,6 +98,13 @@ BitVector MC6809RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   // mid-allocation (was bug #16).
   Reserved.set(MC6809::SU);
 
+  // Imaginary registers are direct-page memory locations, not CPU registers.
+  // Reserve them so the verifier doesn't track their liveness.
+  for (MCPhysReg Reg : MC6809::Imag8RegClass)
+    Reserved.set(Reg);
+  for (MCPhysReg Reg : MC6809::Imag16RegClass)
+    Reserved.set(Reg);
+
   // HD6309-only registers: reserve on standard 6809.
   const MC6809Subtarget &STI = MF.getSubtarget<MC6809Subtarget>();
   if (!STI.has6309()) {
