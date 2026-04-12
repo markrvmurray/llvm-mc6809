@@ -383,6 +383,39 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
     for (MachineInstr &MI : llvm::reverse(MBB)) {
       LPR.stepBackward(MI);
 
+      // Bug #91: BranchJumpTable requires its index operand (operand 0) in
+      // $ad at the time the asm printer expands it (ASLB+ROLA+LEAX+LDD+JMP).
+      // If regalloc placed the index in an imaginary register (RS0..RS3),
+      // the isAnySpillReg gate below won't catch it and we'll silently skip
+      // the instruction. Handle this before the HasSpill check: materialize
+      // the index into $ad and rewrite the operand in place.
+      if (MI.getOpcode() == MC6809::BranchJumpTable) {
+        Register IdxReg = MI.getOperand(0).getReg();
+        if (IdxReg != MC6809::AD) {
+          DebugLoc DL = MI.getDebugLoc();
+          if (isAccSpillReg(IdxReg)) {
+            auto [FI, ByteOffset] = getSpillSlot(IdxReg, FuncInfo);
+            BuildMI(MBB, MI, DL, TII.get(MC6809::Load_i16_Mem))
+                .addReg(MC6809::AD, RegState::Define)
+                .addFrameIndex(FI)
+                .addImm(ByteOffset);
+          } else if (IdxReg == MC6809::RS0 || IdxReg == MC6809::RS1 ||
+                     IdxReg == MC6809::RS2 || IdxReg == MC6809::RS3) {
+            BuildMI(MBB, MI, DL, TII.get(MC6809::LDDd))
+                .addReg(IdxReg);
+          } else {
+            llvm_unreachable("BranchJumpTable: unexpected index register");
+          }
+          MI.getOperand(0).setReg(MC6809::AD);
+          Changed = true;
+        }
+        // Don't fall through to the spill-operand loop; we've handled
+        // BranchJumpTable completely. Mark any remaining spill operands as
+        // processed (there shouldn't be any — BranchJumpTable has only
+        // the index + a JTI operand).
+        continue;
+      }
+
       bool HasSpill = false;
       for (const MachineOperand &MO : MI.operands()) {
         if (MO.isReg() && MO.getReg().isPhysical() && isAnySpillReg(MO.getReg())) {
