@@ -42,7 +42,7 @@ __udivdi3:
 	ldb	#64
 	stb	16,s
 	// Divisor is at 29,s..36,s
-	bsr	.Ludiv64_loop
+	lbsr	.Ludiv64_loop
 	// Copy quotient to [Y]
 	ldd	,s
 	std	,y
@@ -80,7 +80,7 @@ __umoddi3:
 	std	14,s
 	ldb	#64
 	stb	16,s
-	bsr	.Ludiv64_loop
+	lbsr	.Ludiv64_loop
 	// Copy remainder to [Y]
 	ldd	8,s
 	std	,y
@@ -120,7 +120,7 @@ __udivmoddi4:
 	ldb	#64
 	stb	16,s
 	// rem pointer at 37,s..38,s
-	bsr	.Ludiv64_loop
+	lbsr	.Ludiv64_loop
 	// Copy quotient to [Y]
 	ldd	,s
 	std	,y
@@ -225,7 +225,7 @@ __udivmoddi4:
 
 .Ludiv64_next:
 	dec	18,s		// decrement counter
-	bne	.Ludiv64_loop
+	lbne	.Ludiv64_loop
 	rts
 
 // ============================================================
@@ -302,13 +302,13 @@ __divdi3:
 	tst	,s
 	bpl	.Ldivdi3_apos
 	leax	,s
-	bsr	.Lneg64
+	lbsr	.Lneg64
 .Ldivdi3_apos:
 	// Negate b if negative
 	tst	8,s
 	bpl	.Ldivdi3_bpos
 	leax	8,s
-	bsr	.Lneg64
+	lbsr	.Lneg64
 .Ldivdi3_bpos:
 	// Push args for __udivdi3: a(8) + b(8) on stack, X = sret
 	leas	-16,s
@@ -335,7 +335,7 @@ __divdi3:
 	tst	16,s
 	bpl	.Ldivdi3_done
 	tfr	y,x
-	bsr	.Lneg64
+	lbsr	.Lneg64
 .Ldivdi3_done:
 	leas	17,s
 	puls	y,u,pc
@@ -374,13 +374,13 @@ __moddi3:
 	tst	,s
 	bpl	.Lmoddi3_apos
 	leax	,s
-	bsr	.Lneg64
+	lbsr	.Lneg64
 .Lmoddi3_apos:
 	// Negate b if negative
 	tst	8,s
 	bpl	.Lmoddi3_bpos
 	leax	8,s
-	bsr	.Lneg64
+	lbsr	.Lneg64
 .Lmoddi3_bpos:
 	leas	-16,s
 	ldd	16,s
@@ -406,7 +406,7 @@ __moddi3:
 	tst	16,s
 	bpl	.Lmoddi3_done
 	tfr	y,x
-	bsr	.Lneg64
+	lbsr	.Lneg64
 .Lmoddi3_done:
 	leas	17,s
 	puls	y,u,pc
