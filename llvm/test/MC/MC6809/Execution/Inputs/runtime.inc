@@ -113,8 +113,10 @@ putnl:
 
 ;; ===== halt =====
 ;; Halt the CPU by writing to the halt device.
+;; The written byte becomes the process exit code.
 
 halt:
+	clra
 	sta	0xbf02
 	rts
 
