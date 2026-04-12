@@ -189,6 +189,16 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // pressure from ACC16_D (1 register) to ACC8 (26 registers).
   // MaterializeSpills handles sub-register byte extraction from spilled
   // i16 values (loads from the correct byte offset within the i16 slot).
+  //
+  // NOTE (bug #85b strategy session, 2026-04-12): making i16 legal here
+  // was attempted and reverted. The i16 path through the instruction
+  // selector (INDEX-bank LEA + ACCUM-bank ADDD) produced wrong results
+  // at -O0 for atoi-like functions — likely a reg-bank assignment or
+  // phi-handling issue in the i16 add path that doesn't exist for the
+  // i8 carry-chain path. The underlying BIT1 exhaustion (which motivates
+  // i16 legality) needs a different solution: either making BIT1
+  // spillable or using a targeted libcall for the `sub i16 (zext i8),
+  // (zext i8)` pattern. See the strategy discussion in the bug tracker.
   getActionDefinitionsBuilder({G_ADD, G_SUB})
       .legalFor({s8})
       .clampScalar(0, s8, s8);
