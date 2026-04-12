@@ -36,5 +36,8 @@
 ;; 64-bit shifts
 .include "shiftdi3.inc"
 
+;; 64-bit division and modulo (signed + unsigned)
+.include "divdi.inc"
+
 ;; memcpy / memmove / memset — required by clang for struct copies
 .include "memops.inc"
