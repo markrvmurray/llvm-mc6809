@@ -645,7 +645,8 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
       // willClobberD already returned true for this case (2+ unique
       // SPILL_X operands), so D save/restore is handled at the top/end
       // of this iteration if D was live.
-      if (MI.getOpcode() == MC6809::Store_iPtr_Mem) {
+      if (MI.getOpcode() == MC6809::Store_iPtr_Mem &&
+          MI.getOperand(0).isReg() && MI.getOperand(1).isReg()) {
         Register Op0 = MI.getOperand(0).getReg();
         Register Op1 = MI.getOperand(1).getReg();
         if (Op0.isPhysical() && Op1.isPhysical() &&

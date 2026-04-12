@@ -1511,8 +1511,9 @@ static void loadStoreRegisterStaticStackSlot(MachineIRBuilder &Builder, MachineO
   }
 
   // Emit directly through ACC or INDEX if possible.
-  // INDEX16 uses Store/Load_i16_Mem which expand to STX/LDX/STY/LDY via
-  // StoreIdxImmOpcode/LoadIdxImmOpcode — no D register clobber (bug #52).
+  // INDEX16 uses Store/Load_iPtr_Mem (STX/LDX/STY/LDY) — no D clobber.
+  // ACC16 uses Store/Load_i16_Mem (STD/LDD).
+  bool IsIdx = (Reg.isPhysical() && MC6809::INDEX16RegClass.contains(Reg)) || (Reg.isVirtual() && MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::INDEX16RegClass));
   if ((Reg.isPhysical() && (MC6809::ACC8RegClass.contains(Reg) || MC6809::ACC16RegClass.contains(Reg) || MC6809::ACC32RegClass.contains(Reg) || MC6809::INDEX16RegClass.contains(Reg))) ||
       (Reg.isVirtual() && (MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::ACC8RegClass) || MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::ACC16RegClass) || MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::ACC32RegClass) || MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::INDEX16RegClass)))) {
     unsigned opcode;
@@ -1524,7 +1525,10 @@ static void loadStoreRegisterStaticStackSlot(MachineIRBuilder &Builder, MachineO
       opcode = MO.isDef() ? MC6809::Load_i8_Mem : MC6809::Store_i8_Mem;
       break;
     case 16:
-      opcode = MO.isDef() ? MC6809::Load_i16_Mem : MC6809::Store_i16_Mem;
+      if (IsIdx)
+        opcode = MO.isDef() ? MC6809::Load_iPtr_Mem : MC6809::Store_iPtr_Mem;
+      else
+        opcode = MO.isDef() ? MC6809::Load_i16_Mem : MC6809::Store_i16_Mem;
       break;
     case 32:
       opcode = MO.isDef() ? MC6809::Load_i32_Mem : MC6809::Store_i32_Mem;
@@ -1602,23 +1606,10 @@ void MC6809InstrInfo::loadStoreRegStackSlot(MachineBasicBlock &MBB, MachineBasic
 
   if ((Reg.isPhysical() && MC6809::INDEX16RegClass.contains(Reg)) ||
       (Reg.isVirtual() && MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::INDEX16RegClass))) {
-    // Use Store/Load_i16_Mem directly with the index register.
-    // expandStoreIdx/expandLoadIdx generate concrete STXi/LDXi/STYi/LDYi
-    // via the StoreIdxImmOpcode/LoadIdxImmOpcode lookup tables.
-    // This avoids TFR-to-D which clobbers $AD without the RA knowing,
-    // causing miscompiles when D holds a live value (bug #52).
-    Register Tmp = Reg;
-    if (!Reg.isPhysical()) {
-      Tmp = MRI.createVirtualRegister(&MC6809::INDEX16RegClass);
-    }
-    if (!IsLoad && Tmp != Reg)
-      Builder.buildCopy(Tmp, Reg);
-    unsigned Opcode = IsLoad ? MC6809::Load_i16_Mem : MC6809::Store_i16_Mem;
-    auto MO = MachineOperand::CreateReg(Tmp, IsLoad);
-    Builder.buildInstr(Opcode).add(MO)
-        .addFrameIndex(FrameIndex).addImm(0).addMemOperand(MMO);
-    if (IsLoad && Tmp != Reg)
-      Builder.buildCopy(Reg, Tmp);
+    unsigned Opcode = IsLoad ? MC6809::Load_iPtr_Mem : MC6809::Store_iPtr_Mem;
+    auto MIB = Builder.buildInstr(Opcode);
+    MIB.addReg(Reg, getDefRegState(IsLoad) | getKillRegState(IsKill && !IsLoad));
+    MIB.addFrameIndex(FrameIndex).addImm(0).addMemOperand(MMO);
   } else if ((Reg.isPhysical() && MC6809::ACC16RegClass.contains(Reg)) || (Reg.isVirtual() && MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::ACC16RegClass))) {
     Register Tmp = Reg;
     if (!Reg.isPhysical()) {
