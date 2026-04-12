@@ -235,11 +235,21 @@ static MachineBasicBlock *emitConditionalImm(MachineInstr &MI, MachineBasicBlock
   // liveins.
   MachineBasicBlock *TailMBB = HeadMBB->splitAt(MI);
 
-  // If MI is the last instruction, splitAt won't insert a new block. In that
-  // case, the block must fall through, since there's no branch. Thus the tail
-  // MBB is just the next MBB.
-  if (TailMBB == HeadMBB)
-    TailMBB = &*I;
+  // If MI is the last instruction, splitAt won't create a new block.
+  // Create a merge block and update the successor's PHIs.
+  if (TailMBB == HeadMBB) {
+    MachineBasicBlock *OrigSucc = &*I;
+    TailMBB = F->CreateMachineBasicBlock(LLVM_BB);
+    F->insert(OrigSucc->getIterator(), TailMBB);
+    TailMBB->addSuccessor(OrigSucc);
+    HeadMBB->replaceSuccessor(OrigSucc, TailMBB);
+    for (MachineInstr &Phi : OrigSucc->phis())
+      for (unsigned Idx = 1; Idx < Phi.getNumOperands(); Idx += 2)
+        if (Phi.getOperand(Idx + 1).getMBB() == HeadMBB)
+          Phi.getOperand(Idx + 1).setMBB(TailMBB);
+    Builder.setInsertPt(*TailMBB, TailMBB->end());
+    Builder.buildInstr(MC6809::LongBranchRelative).addMBB(OrigSucc);
+  }
 
   HeadMBB->removeSuccessor(TailMBB);
 
