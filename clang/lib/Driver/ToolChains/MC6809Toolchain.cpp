@@ -93,6 +93,10 @@ void mc6809::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     // libcrt0.a contains optional startup objects that are only pulled in if
     // referenced.
     CmdArgs.push_back("-lcrt0");
+  } else if (!Args.hasArg(options::OPT_e)) {
+    // No crt0 means no _start. Set a dummy entry point to suppress
+    // the "cannot find entry symbol" linker warning.
+    CmdArgs.push_back("-e0");
   }
 
   if (!Args.hasArg(options::OPT_nodefaultlibs, options::OPT_nostdlib))
@@ -107,10 +111,9 @@ void mc6809::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   if (!Args.hasArg(options::OPT_nodefaultlibs, options::OPT_nostdlib))
     CmdArgs.push_back("-lmc6809rt");
 
-  // No matter what's included in the link, the default linker script is
-  // nonsense for the 6809. Accordingly, use one named "link.ld" if none is
-  // specified.
-  if (!Args.hasArg(options::OPT_T))
+  // Use "link.ld" as default linker script unless one is specified or
+  // -nostdlib is active (which means the caller provides their own).
+  if (!Args.hasArg(options::OPT_T, options::OPT_nostdlib))
     CmdArgs.push_back("-Tlink.ld");
 
   CmdArgs.push_back("-o");
