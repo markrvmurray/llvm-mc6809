@@ -597,7 +597,7 @@ bool MC6809CallLowering::lowerCall(MachineIRBuilder &MIRBuilder, CallLoweringInf
     // Copy the return value from its physical location into a virtual register.
     MC6809IncomingReturnHandler RetHandler(MIRBuilder, MRI, Call);
     MC6809ValueAssigner RetAssigner(/*IsIncoming=*/true, MRI, MF, /*IsReturn=*/true);
-    if (!determineAndHandleAssignments(RetHandler, RetAssigner, InArgs, MIRBuilder, Info.CallConv, Info.IsVarArg))
+    if (!determineAndHandleAssignments(RetHandler, RetAssigner, InArgs, MIRBuilder, Info.CallConv, /*IsVarArg=*/false))
       return false;
     StackSize = std::max(StackSize, RetAssigner.StackSize);
   }
