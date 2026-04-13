@@ -78,14 +78,16 @@ TargetLowering::ConstraintType MC6809TargetLowering::getConstraintType(StringRef
     switch (Constraint[0]) {
     default:
       break;
-    case 'a':
     case 'x':
     case 'y':
-    case 'd':
+    case 'A':
+    case 'B':
     case 'c':
     case 'v':
       return C_Register;
-    case 'R':
+    case 'a':
+    case 'd':
+    case 'q':
       return C_RegisterClass;
     }
   }
@@ -98,19 +100,32 @@ std::pair<unsigned, const TargetRegisterClass *> MC6809TargetLowering::getRegFor
     default:
       break;
     case 'r':
+      // gcc6809: 'r' = GENERAL_REGS = G_REGS (D,X,Y,U,S,PC + A,B).
+      // Map to the widest allocatable hardware class for the size.
       if (VT == MVT::i16)
-        return std::make_pair(0U, &MC6809::Imag16RegClass);
-      return std::make_pair(0U, &MC6809::Imag8RegClass);
-    case 'R':
+        return std::make_pair(0U, &MC6809::INDEX16RegClass);
       return std::make_pair(0U, &MC6809::ACC8RegClass);
+    case 'q':
+      // gcc6809: 'q' = Q_REGS (A, B — 8-bit byte registers).
+      return std::make_pair(0U, &MC6809::ACC8RegClass);
+    case 'd':
+      // gcc6809: 'd' = D_REGS (D register — 16-bit accumulator).
+      return std::make_pair(MC6809::AD, &MC6809::ADcRegClass);
     case 'a':
-      return std::make_pair(MC6809::AA, &MC6809::AAcRegClass);
+      // gcc6809: 'a' = A_REGS (X,Y,U,S,PC — 16-bit address registers).
+      return std::make_pair(0U, &MC6809::INDEX16RegClass);
     case 'x':
+      // gcc6809: 'x' maps to I_REGS. We keep it as X register for
+      // compatibility with existing MC6809 inline asm.
       return std::make_pair(MC6809::IX, &MC6809::IXcRegClass);
     case 'y':
       return std::make_pair(MC6809::IY, &MC6809::IXcRegClass);
-    case 'd':
-      return std::make_pair(0U, &MC6809::INDEX16RegClass);
+    case 'A':
+      // gcc6809: 'A' = ACC_A_REGS (A register only).
+      return std::make_pair(MC6809::AA, &MC6809::AAcRegClass);
+    case 'B':
+      // gcc6809: 'B' = ACC_B_REGS (B register only).
+      return std::make_pair(MC6809::AB, &MC6809::ABcRegClass);
     }
   }
   return TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
