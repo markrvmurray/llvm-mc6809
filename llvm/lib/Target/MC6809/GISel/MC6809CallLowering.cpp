@@ -236,6 +236,20 @@ void adjustArgFlags(CallLowering::ArgInfo &Arg, LLT Ty) {
   Flags.setPointerAddrSpace(Ty.getAddressSpace());
 }
 
+/// Returns true if the given return type is too large to fit in a single
+/// 6809 register and must therefore be returned via the gcc6809 sret
+/// convention: caller allocates a buffer, passes its address in IX, callee
+/// writes the result through that pointer. The threshold is 2 bytes — the
+/// size of the largest 6809 hardware register (X/Y/U/D). Anything larger
+/// (i32, i64, structs, doubles, …) is returned via sret.
+///
+/// Mirrors gcc6809's `(GET_MODE_SIZE (MODE) > 2)` test in `m6809.h`.
+bool isLargeReturnType(const Type *Ty, const DataLayout &DL) {
+  if (Ty->isVoidTy())
+    return false;
+  return DL.getTypeStoreSize(const_cast<Type *>(Ty)).getKnownMinValue() > 2;
+}
+
 } // namespace
 
 bool MC6809CallLowering::lowerReturn(MachineIRBuilder &MIRBuilder, const Value *Val, ArrayRef<Register> VRegs, FunctionLoweringInfo &FLI) const {

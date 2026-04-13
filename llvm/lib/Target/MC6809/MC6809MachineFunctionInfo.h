@@ -33,6 +33,14 @@ struct MC6809FunctionInfo : public MachineFunctionInfo {
   /// Set when spill pseudo-registers are used. Forces frame pointer (U)
   /// setup so spill accesses use U-relative addressing (stable when S moves).
   bool UsesSpillRegisters = false;
+
+  /// For functions whose return type is too large to fit in a register
+  /// (i32, structs, …), gcc6809 returns the value via an implicit sret
+  /// pointer passed in IX. lowerFormalArguments stashes the vreg holding
+  /// the incoming pointer here so that lowerReturn can store the result
+  /// through it. Zero (no register) when the function returns a value
+  /// that fits in a register or returns void.
+  Register SRetReturnReg;
 };
 
 } // namespace llvm
