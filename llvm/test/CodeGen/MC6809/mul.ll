@@ -392,34 +392,43 @@ entry:
 define dso_local i32 @mul_s_i32(i32 noundef %a, i32 noundef %b) local_unnamed_addr #0 {
 ; CHECK-LABEL: mul_s_i32:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -14,s
+; CHECK-NEXT:    leas -18,s
+; CHECK-NEXT:    pshs y
 ; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    ldd 18,u
-; CHECK-NEXT:    std 8,u
-; CHECK-NEXT:    ldd 22,u
+; CHECK-NEXT:    tfr x,y
+; CHECK-NEXT:    ldd 26,u
 ; CHECK-NEXT:    std 12,u
-; CHECK-NEXT:    ldd 8,u
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldd 20,u
-; CHECK-NEXT:    std 10,u
-; CHECK-NEXT:    ldd 6,u
-; CHECK-NEXT:    leas -6,s
-; CHECK-NEXT:    std 4,u
+; CHECK-NEXT:    ldd 24,u
+; CHECK-NEXT:    std 18,u
 ; CHECK-NEXT:    ldd 12,u
+; CHECK-NEXT:    std 10,u
+; CHECK-NEXT:    ldd 30,u
+; CHECK-NEXT:    std 16,u
+; CHECK-NEXT:    ldd 10,u
+; CHECK-NEXT:    std 8,u
+; CHECK-NEXT:    ldd 28,u
+; CHECK-NEXT:    std 14,u
+; CHECK-NEXT:    ldd 8,u
+; CHECK-NEXT:    leas -6,s
+; CHECK-NEXT:    std 6,u
+; CHECK-NEXT:    ldd 16,u
 ; CHECK-NEXT:    std ,s
-; CHECK-NEXT:    ldd 4,u
+; CHECK-NEXT:    ldd 6,u
 ; CHECK-NEXT:    std 4,s
-; CHECK-NEXT:    tfr x,d
+; CHECK-NEXT:    ldd 18,u
 ; CHECK-NEXT:    std 2,s
-; CHECK-NEXT:    ldx 10,u
+; CHECK-NEXT:    ldx 14,u
 ; CHECK-NEXT:    lbsr __mulsi3
 ; CHECK-NEXT:    ldd ,s
 ; CHECK-NEXT:    leas 6,s
-; CHECK-NEXT:    std 18,u
+; CHECK-NEXT:    std 2,y
+; CHECK-NEXT:    tfr x,d
+; CHECK-NEXT:    std ,y
 ; CHECK-NEXT:    tfr u,s
 ; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 14,s
+; CHECK-NEXT:    puls y
+; CHECK-NEXT:    leas 18,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: mul_s_i32:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
@@ -447,40 +456,50 @@ entry:
 define dso_local i32 @mul_s_i32_consts(i32 noundef %a, i32 noundef %b) local_unnamed_addr #0 {
 ; CHECK-LABEL: mul_s_i32_consts:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -12,s
+; CHECK-NEXT:    leas -16,s
+; CHECK-NEXT:    pshs y
 ; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    ldd 16,u
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldd 20,u
+; CHECK-NEXT:    tfr x,y
+; CHECK-NEXT:    ldd 24,u
 ; CHECK-NEXT:    std 10,u
-; CHECK-NEXT:    ldd 6,u
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldd 18,u
+; CHECK-NEXT:    ldd 22,u
+; CHECK-NEXT:    std 16,u
+; CHECK-NEXT:    ldd 10,u
 ; CHECK-NEXT:    std 8,u
-; CHECK-NEXT:    ldd 4,u
+; CHECK-NEXT:    ldd 28,u
+; CHECK-NEXT:    std 14,u
+; CHECK-NEXT:    ldd 8,u
+; CHECK-NEXT:    std 6,u
+; CHECK-NEXT:    ldd 26,u
+; CHECK-NEXT:    std 12,u
+; CHECK-NEXT:    ldd 6,u
 ; CHECK-NEXT:    leas -6,s
 ; CHECK-NEXT:    std ,s
 ; CHECK-NEXT:    ldd #2851
 ; CHECK-NEXT:    std 4,s
 ; CHECK-NEXT:    ldd #1
 ; CHECK-NEXT:    std 2,s
+; CHECK-NEXT:    ldx 16,u
 ; CHECK-NEXT:    lbsr __mulsi3
 ; CHECK-NEXT:    ldd ,s
 ; CHECK-NEXT:    leas 6,s
 ; CHECK-NEXT:    leas -6,s
 ; CHECK-NEXT:    std ,s
-; CHECK-NEXT:    ldd 10,u
+; CHECK-NEXT:    ldd 14,u
 ; CHECK-NEXT:    std 4,s
-; CHECK-NEXT:    ldd 8,u
+; CHECK-NEXT:    ldd 12,u
 ; CHECK-NEXT:    std 2,s
 ; CHECK-NEXT:    lbsr __mulsi3
 ; CHECK-NEXT:    ldd ,s
 ; CHECK-NEXT:    leas 6,s
-; CHECK-NEXT:    std 16,u
+; CHECK-NEXT:    std 2,y
+; CHECK-NEXT:    tfr x,d
+; CHECK-NEXT:    std ,y
 ; CHECK-NEXT:    tfr u,s
 ; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 12,s
+; CHECK-NEXT:    puls y
+; CHECK-NEXT:    leas 16,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: mul_s_i32_consts:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
@@ -515,34 +534,43 @@ entry:
 define dso_local i32 @mul_u_i32(i32 noundef %a, i32 noundef %b) local_unnamed_addr #0 {
 ; CHECK-LABEL: mul_u_i32:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -14,s
+; CHECK-NEXT:    leas -18,s
+; CHECK-NEXT:    pshs y
 ; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    ldd 18,u
-; CHECK-NEXT:    std 8,u
-; CHECK-NEXT:    ldd 22,u
+; CHECK-NEXT:    tfr x,y
+; CHECK-NEXT:    ldd 26,u
 ; CHECK-NEXT:    std 12,u
-; CHECK-NEXT:    ldd 8,u
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldd 20,u
-; CHECK-NEXT:    std 10,u
-; CHECK-NEXT:    ldd 6,u
-; CHECK-NEXT:    leas -6,s
-; CHECK-NEXT:    std 4,u
+; CHECK-NEXT:    ldd 24,u
+; CHECK-NEXT:    std 18,u
 ; CHECK-NEXT:    ldd 12,u
+; CHECK-NEXT:    std 10,u
+; CHECK-NEXT:    ldd 30,u
+; CHECK-NEXT:    std 16,u
+; CHECK-NEXT:    ldd 10,u
+; CHECK-NEXT:    std 8,u
+; CHECK-NEXT:    ldd 28,u
+; CHECK-NEXT:    std 14,u
+; CHECK-NEXT:    ldd 8,u
+; CHECK-NEXT:    leas -6,s
+; CHECK-NEXT:    std 6,u
+; CHECK-NEXT:    ldd 16,u
 ; CHECK-NEXT:    std ,s
-; CHECK-NEXT:    ldd 4,u
+; CHECK-NEXT:    ldd 6,u
 ; CHECK-NEXT:    std 4,s
-; CHECK-NEXT:    tfr x,d
+; CHECK-NEXT:    ldd 18,u
 ; CHECK-NEXT:    std 2,s
-; CHECK-NEXT:    ldx 10,u
+; CHECK-NEXT:    ldx 14,u
 ; CHECK-NEXT:    lbsr __mulsi3
 ; CHECK-NEXT:    ldd ,s
 ; CHECK-NEXT:    leas 6,s
-; CHECK-NEXT:    std 18,u
+; CHECK-NEXT:    std 2,y
+; CHECK-NEXT:    tfr x,d
+; CHECK-NEXT:    std ,y
 ; CHECK-NEXT:    tfr u,s
 ; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 14,s
+; CHECK-NEXT:    puls y
+; CHECK-NEXT:    leas 18,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: mul_u_i32:
 ; CHECK-HD6309:       ; %bb.0: ; %entry
@@ -570,40 +598,50 @@ entry:
 define dso_local i32 @mul_u_i32_consts(i32 noundef %a, i32 noundef %b) local_unnamed_addr #0 {
 ; CHECK-LABEL: mul_u_i32_consts:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -12,s
+; CHECK-NEXT:    leas -16,s
+; CHECK-NEXT:    pshs y
 ; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    ldd 16,u
-; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    ldd 20,u
+; CHECK-NEXT:    tfr x,y
+; CHECK-NEXT:    ldd 24,u
 ; CHECK-NEXT:    std 10,u
-; CHECK-NEXT:    ldd 6,u
-; CHECK-NEXT:    std 4,u
-; CHECK-NEXT:    ldd 18,u
+; CHECK-NEXT:    ldd 22,u
+; CHECK-NEXT:    std 16,u
+; CHECK-NEXT:    ldd 10,u
 ; CHECK-NEXT:    std 8,u
-; CHECK-NEXT:    ldd 4,u
+; CHECK-NEXT:    ldd 28,u
+; CHECK-NEXT:    std 14,u
+; CHECK-NEXT:    ldd 8,u
+; CHECK-NEXT:    std 6,u
+; CHECK-NEXT:    ldd 26,u
+; CHECK-NEXT:    std 12,u
+; CHECK-NEXT:    ldd 6,u
 ; CHECK-NEXT:    leas -6,s
 ; CHECK-NEXT:    std ,s
 ; CHECK-NEXT:    ldd #-7122
 ; CHECK-NEXT:    std 4,s
 ; CHECK-NEXT:    ldd #6
 ; CHECK-NEXT:    std 2,s
+; CHECK-NEXT:    ldx 16,u
 ; CHECK-NEXT:    lbsr __mulsi3
 ; CHECK-NEXT:    ldd ,s
 ; CHECK-NEXT:    leas 6,s
 ; CHECK-NEXT:    leas -6,s
 ; CHECK-NEXT:    std ,s
-; CHECK-NEXT:    ldd 10,u
+; CHECK-NEXT:    ldd 14,u
 ; CHECK-NEXT:    std 4,s
-; CHECK-NEXT:    ldd 8,u
+; CHECK-NEXT:    ldd 12,u
 ; CHECK-NEXT:    std 2,s
 ; CHECK-NEXT:    lbsr __mulsi3
 ; CHECK-NEXT:    ldd ,s
 ; CHECK-NEXT:    leas 6,s
-; CHECK-NEXT:    std 16,u
+; CHECK-NEXT:    std 2,y
+; CHECK-NEXT:    tfr x,d
+; CHECK-NEXT:    std ,y
 ; CHECK-NEXT:    tfr u,s
 ; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 12,s
+; CHECK-NEXT:    puls y
+; CHECK-NEXT:    leas 16,s
 ; CHECK-NEXT:    rts
 ; CHECK-HD6309-LABEL: mul_u_i32_consts:
 ; CHECK-HD6309:       ; %bb.0: ; %entry

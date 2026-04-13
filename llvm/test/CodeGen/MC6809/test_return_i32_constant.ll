@@ -8,9 +8,9 @@ define i32 @foo() {
 ; CHECK:       ; %bb.0: ; %entry
 ; CHECK-NEXT:    leas -2,s
 ; CHECK-NEXT:    ldd #24910
-; CHECK-NEXT:    std 4,s
+; CHECK-NEXT:    std 2,x
 ; CHECK-NEXT:    ldd #188
-; CHECK-NEXT:    tfr d,x
+; CHECK-NEXT:    std ,x
 ; CHECK-NEXT:    leas 2,s
 ; CHECK-NEXT:    rts
 ;
@@ -18,6 +18,7 @@ define i32 @foo() {
 ; CHECK-HD6309:       ; %bb.0: ; %entry
 ; CHECK-HD6309-NEXT:    leas -2,s
 ; CHECK-HD6309-NEXT:    ldq #12345678
+; CHECK-HD6309-NEXT:    stq ,x
 ; CHECK-HD6309-NEXT:    leas 2,s
 ; CHECK-HD6309-NEXT:    rts
 entry:

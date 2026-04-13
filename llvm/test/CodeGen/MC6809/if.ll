@@ -146,23 +146,25 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; CHECK-NEXT:    leas -10,s
 ; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    ldd 18,u
+; CHECK-NEXT:    ldd 14,u
+; CHECK-NEXT:    std 6,u
+; CHECK-NEXT:    ldd 20,u
 ; CHECK-NEXT:    std 8,u
-; CHECK-NEXT:    ldd 16,u
+; CHECK-NEXT:    ldd 18,u
 ; CHECK-NEXT:    std 2,u
-; CHECK-NEXT:    stx 6,u
-; CHECK-NEXT:    cmpx #0
+; CHECK-NEXT:    ldd 6,u
+; CHECK-NEXT:    cmpd #0
 ; CHECK-NEXT:    lbeq .LBB4_1
 ; CHECK-NEXT:    lbra .LBB4_2
 ; CHECK-NEXT:  .LBB4_1: ; %entry
-; CHECK-NEXT:    ldd 14,u
+; CHECK-NEXT:    ldd 16,u
 ; CHECK-NEXT:    std 6,u
 ; CHECK-NEXT:    cmpd #0
 ; CHECK-NEXT:    lbhi .LBB4_4
 ; CHECK-NEXT:    lbra .LBB4_3
 ; CHECK-NEXT:  .LBB4_2: ; %entry
-; CHECK-NEXT:    stx 6,u
-; CHECK-NEXT:    cmpx #0
+; CHECK-NEXT:    ldd 6,u
+; CHECK-NEXT:    cmpd #0
 ; CHECK-NEXT:    lbgt .LBB4_4
 ; CHECK-NEXT:  .LBB4_3: ; %if.end
 ; CHECK-NEXT:    ldd #0
@@ -181,8 +183,9 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; CHECK-NEXT:    std 2,u
 ; CHECK-NEXT:  .LBB4_4: ; %return
 ; CHECK-NEXT:    ldd 8,u
-; CHECK-NEXT:    std 14,u
-; CHECK-NEXT:    ldx 2,u
+; CHECK-NEXT:    std 2,x
+; CHECK-NEXT:    ldd 2,u
+; CHECK-NEXT:    std ,x
 ; CHECK-NEXT:    tfr u,s
 ; CHECK-NEXT:    puls u
 ; CHECK-NEXT:    leas 10,s
@@ -207,14 +210,15 @@ define dso_local i32 @if_u32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; CHECK-NEXT:    leas -16,s
 ; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    ldd 24,u
+; CHECK-NEXT:    ldd 20,u
+; CHECK-NEXT:    std 12,u
+; CHECK-NEXT:    ldd 26,u
 ; CHECK-NEXT:    std 14,u
-; CHECK-NEXT:    ldd 22,u
-; CHECK-NEXT:    stx 12,u
+; CHECK-NEXT:    ldd 24,u
 ; CHECK-NEXT:    std 10,u
 ; CHECK-NEXT:    ldd 12,u
-; CHECK-NEXT:    orb 21,u
-; CHECK-NEXT:    ora 20,u
+; CHECK-NEXT:    orb 23,u
+; CHECK-NEXT:    ora 22,u
 ; CHECK-NEXT:    std 12,u
 ; CHECK-NEXT:    ldd 10,u
 ; CHECK-NEXT:    std 8,u
@@ -230,18 +234,18 @@ define dso_local i32 @if_u32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; CHECK-NEXT:    ldd #-1
 ; CHECK-NEXT:    std 14,u
 ; CHECK-NEXT:    std 6,u
-; CHECK-NEXT:    eorb 25,u
-; CHECK-NEXT:    eora 24,u
+; CHECK-NEXT:    eorb 27,u
+; CHECK-NEXT:    eora 26,u
 ; CHECK-NEXT:    std 14,u
 ; CHECK-NEXT:    ldd 6,u
-; CHECK-NEXT:    eorb 23,u
-; CHECK-NEXT:    eora 22,u
+; CHECK-NEXT:    eorb 25,u
+; CHECK-NEXT:    eora 24,u
 ; CHECK-NEXT:  .LBB5_3: ; %return
 ; CHECK-NEXT:    std 4,u
 ; CHECK-NEXT:    ldd 14,u
-; CHECK-NEXT:    std 20,u
+; CHECK-NEXT:    std 2,x
 ; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    tfr d,x
+; CHECK-NEXT:    std ,x
 ; CHECK-NEXT:    tfr u,s
 ; CHECK-NEXT:    puls u
 ; CHECK-NEXT:    leas 16,s

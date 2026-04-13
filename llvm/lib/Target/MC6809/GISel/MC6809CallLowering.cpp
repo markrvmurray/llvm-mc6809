@@ -250,6 +250,30 @@ bool isLargeReturnType(const Type *Ty, const DataLayout &DL) {
   return DL.getTypeStoreSize(const_cast<Type *>(Ty)).getKnownMinValue() > 2;
 }
 
+/// Returns true if the given call's callee is a runtime libcall (compiler-rt
+/// helper) whose hand-written assembly still uses the OLD i32 calling
+/// convention (X = a_hi, stack = a_lo/b_hi/b_lo, X = result_hi, stack =
+/// result_lo). These functions live in `lib/Target/MC6809/Runtime/*.inc` and
+/// will be rewritten to the new sret convention in a follow-up commit. Until
+/// then, lowerCall must NOT apply the sret transformation when calling them,
+/// otherwise LLVM-compiled callers and the hand-written runtime asm would
+/// disagree on the layout.
+///
+/// Conventionally, all compiler-rt helpers begin with `__` (e.g. `__mulsi3`,
+/// `__udivsi3`, `__ashlsi3`). The MC6809 indirect-call thunk `__call_indir`
+/// also matches but is harmless because it returns void.
+///
+/// TODO(ABI #4 step 2): delete this helper and its callers once
+/// mulsi3.inc / divsi.inc / shiftsi3.inc are rewritten for the sret CC.
+bool isOldCCRuntimeLibcall(const MachineOperand &Callee) {
+  StringRef Name;
+  if (Callee.isGlobal())
+    Name = Callee.getGlobal()->getName();
+  else if (Callee.isSymbol())
+    Name = Callee.getSymbolName();
+  return Name.starts_with("__");
+}
+
 } // namespace
 
 bool MC6809CallLowering::lowerReturn(MachineIRBuilder &MIRBuilder, const Value *Val, ArrayRef<Register> VRegs, FunctionLoweringInfo &FLI) const {
@@ -264,6 +288,26 @@ bool MC6809CallLowering::lowerReturn(MachineIRBuilder &MIRBuilder, const Value *
     const TargetLowering &TLI = *getTLI();
     const DataLayout &DL = MF.getDataLayout();
     LLVMContext &Ctx = Val->getContext();
+
+    // gcc6809 sret convention: when the return type is larger than 2 bytes,
+    // the value is written through the implicit pointer that lowerFormal-
+    // Arguments stashed in MC6809FunctionInfo::SRetReturnReg. The pointer
+    // arrived in IX as the synthetic first arg; the regular RetCC path is
+    // skipped entirely (the function effectively returns void at the
+    // hardware level — RTS with no result register).
+    if (isLargeReturnType(Val->getType(), DL)) {
+      auto *FuncInfo = MF.getInfo<MC6809FunctionInfo>();
+      Register SRetVReg = FuncInfo->SRetReturnReg;
+      assert(SRetVReg.isValid() && "lowerFormalArguments must allocate SRetReturnReg "
+                                   "for large-return functions");
+      assert(VRegs.size() == 1 && "expected single vreg for large return");
+      LLT ValLLT = MRI.getType(VRegs[0]);
+      auto *MMO = MF.getMachineMemOperand(
+          MachinePointerInfo(), MachineMemOperand::MOStore, ValLLT, Align(1));
+      MIRBuilder.buildStore(VRegs[0], SRetVReg, *MMO);
+      MIRBuilder.insertInstr(Return);
+      return true;
+    }
 
     SmallVector<EVT> ValueVTs;
     ComputeValueVTs(TLI, DL, Val->getType(), ValueVTs);
@@ -323,6 +367,31 @@ bool MC6809CallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder, cons
     ++Idx;
   }
 
+  // gcc6809 sret convention: when this function returns a value larger than
+  // 2 bytes (i32, i64, structs, …), the caller passes an implicit pointer to
+  // the return-value buffer in IX. We model this by prepending a synthetic
+  // ptr ArgInfo to the SplitArgs list. CC_MC6809's first-ptr-in-IX rule
+  // routes it to IX, leaving the user args to fill the stack (the first
+  // user i16/ptr arg, which would normally have gone in IX, falls through
+  // to CCAssignToStack — exactly matching gcc6809).
+  //
+  // The vreg holding the incoming pointer is stashed in MC6809FunctionInfo
+  // so lowerReturn can store the result through it.
+  if (isLargeReturnType(F.getReturnType(), DL)) {
+    LLT PtrLLT = LLT::pointer(0, 16);
+    Register SRetVReg = MRI.createGenericVirtualRegister(PtrLLT);
+    Type *PtrTy = PointerType::get(F.getContext(), 0);
+    // Use OrigArgIndex = ~0u to mark this as a synthetic arg distinct from
+    // any real function-level arg index.
+    ArgInfo SRetArg(SRetVReg, PtrTy, /*OrigArgIndex=*/~0u);
+    adjustArgFlags(SRetArg, PtrLLT);
+    SRetArg.Flags[0].setSRet();
+    SplitArgs.insert(SplitArgs.begin(), SRetArg);
+
+    auto *FuncInfo = MF.getInfo<MC6809FunctionInfo>();
+    FuncInfo->SRetReturnReg = SRetVReg;
+  }
+
   MC6809IncomingArgsHandler Handler(MIRBuilder, MRI);
   MC6809ValueAssigner Assigner(/*IsIncoming=*/true, MRI, MF);
   // gcc6809's __gcccall variadic ABI puts ALL args (including named ones
@@ -376,8 +445,38 @@ bool MC6809CallLowering::lowerCall(MachineIRBuilder &MIRBuilder, CallLoweringInf
     splitToValueTypes(OrigArg, OutArgs, DL);
   }
 
+  // gcc6809 sret convention: when the callee returns a value larger than
+  // 2 bytes (i32, i64, structs, …), the caller allocates a buffer on its
+  // own stack frame, passes the buffer's address as an implicit first
+  // pointer arg in IX, and the callee writes the result through that
+  // pointer. After the call, we G_LOAD the result back from the buffer
+  // into the original return-value vreg.
+  //
+  // Libcall exclusion: the runtime helpers in lib/Target/MC6809/Runtime/
+  // (mulsi3.inc, divsi.inc, shiftsi3.inc) still hardcode the OLD i32
+  // return convention (X = result_hi, stack = result_lo). Until they are
+  // rewritten in a follow-up commit, leave libcalls on the old path.
+  bool LargeRet = !Info.OrigRet.Ty->isVoidTy() &&
+                  isLargeReturnType(Info.OrigRet.Ty, DL);
+  bool UseSret = LargeRet && !isOldCCRuntimeLibcall(Info.Callee);
+  int SRetFI = -1;
+  Register SRetAddrVReg;
+  if (UseSret) {
+    LLT PtrLLT = LLT::pointer(0, 16);
+    uint64_t RetSize = DL.getTypeStoreSize(Info.OrigRet.Ty).getKnownMinValue();
+    SRetFI = MF.getFrameInfo().CreateStackObject(RetSize, Align(1),
+                                                 /*isSpillSlot=*/false);
+    auto FIReg = MIRBuilder.buildFrameIndex(PtrLLT, SRetFI);
+    SRetAddrVReg = FIReg.getReg(0);
+    Type *PtrTy = PointerType::get(Info.OrigRet.Ty->getContext(), 0);
+    ArgInfo SRetArg(SRetAddrVReg, PtrTy, /*OrigArgIndex=*/~0u);
+    adjustArgFlags(SRetArg, PtrLLT);
+    SRetArg.Flags[0].setSRet();
+    OutArgs.insert(OutArgs.begin(), SRetArg);
+  }
+
   SmallVector<ArgInfo, 8> InArgs;
-  if (!Info.OrigRet.Ty->isVoidTy())
+  if (!Info.OrigRet.Ty->isVoidTy() && !UseSret)
     splitToValueTypes(Info.OrigRet, InArgs, DL);
 
   // Copy arguments from virtual registers to their real physical locations.
@@ -395,7 +494,19 @@ bool MC6809CallLowering::lowerCall(MachineIRBuilder &MIRBuilder, CallLoweringInf
 
   uint64_t StackSize = ArgsAssigner.StackSize;
 
-  if (!Info.OrigRet.Ty->isVoidTy()) {
+  if (UseSret) {
+    // Load the result back from the sret buffer into the call's
+    // original return-value vreg(s). For a single-vreg return (the
+    // common case for i32/i64), this is one G_LOAD; the legalizer
+    // will narrow it as needed.
+    assert(Info.OrigRet.Regs.size() == 1 &&
+           "multi-vreg sret returns not yet supported");
+    LLT RetLLT = MRI.getType(Info.OrigRet.Regs[0]);
+    auto *MMO = MF.getMachineMemOperand(
+        MachinePointerInfo::getFixedStack(MF, SRetFI),
+        MachineMemOperand::MOLoad, RetLLT, Align(1));
+    MIRBuilder.buildLoad(Info.OrigRet.Regs[0], SRetAddrVReg, *MMO);
+  } else if (!Info.OrigRet.Ty->isVoidTy()) {
     // Copy the return value from its physical location into a virtual register.
     MC6809IncomingReturnHandler RetHandler(MIRBuilder, MRI, Call);
     MC6809ValueAssigner RetAssigner(/*IsIncoming=*/true, MRI, MF, /*IsReturn=*/true);

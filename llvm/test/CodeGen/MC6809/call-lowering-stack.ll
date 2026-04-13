@@ -152,37 +152,30 @@ define [1 x double] @args_arr([1 x double] %d0) {
   ; CHECK-MC6809: bb.1 (%ir-block.0):
   ; CHECK-MC6809-NEXT:   liveins: $ix
   ; CHECK-MC6809-NEXT: {{  $}}
-  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.5
-  ; CHECK-MC6809-NEXT:   [[LOAD:%[0-9]+]]:_(s16) = G_LOAD [[FRAME_INDEX]](p0) :: (invariant load (s16) from %fixed-stack.5, align 1)
-  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX1:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.4
-  ; CHECK-MC6809-NEXT:   [[LOAD1:%[0-9]+]]:_(s16) = G_LOAD [[FRAME_INDEX1]](p0) :: (invariant load (s16) from %fixed-stack.4, align 1)
-  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX2:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.3
-  ; CHECK-MC6809-NEXT:   [[LOAD2:%[0-9]+]]:_(s16) = G_LOAD [[FRAME_INDEX2]](p0) :: (invariant load (s16) from %fixed-stack.3, align 1)
-  ; CHECK-MC6809-NEXT:   [[COPY:%[0-9]+]]:_(s16) = COPY $ix
-  ; CHECK-MC6809-NEXT:   [[MV:%[0-9]+]]:_(s64) = G_MERGE_VALUES [[LOAD]](s16), [[LOAD1]](s16), [[LOAD2]](s16), [[COPY]](s16)
-  ; CHECK-MC6809-NEXT:   [[UV:%[0-9]+]]:_(s16), [[UV1:%[0-9]+]]:_(s16), [[UV2:%[0-9]+]]:_(s16), [[UV3:%[0-9]+]]:_(s16) = G_UNMERGE_VALUES [[MV]](s64)
-  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX3:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.2
-  ; CHECK-MC6809-NEXT:   G_STORE [[UV]](s16), [[FRAME_INDEX3]](p0) :: (store (s16) into %fixed-stack.2, align 1)
-  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX4:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.1
-  ; CHECK-MC6809-NEXT:   G_STORE [[UV1]](s16), [[FRAME_INDEX4]](p0) :: (store (s16) into %fixed-stack.1, align 1)
-  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX5:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.0
-  ; CHECK-MC6809-NEXT:   G_STORE [[UV2]](s16), [[FRAME_INDEX5]](p0) :: (store (s16) into %fixed-stack.0, align 1)
-  ; CHECK-MC6809-NEXT:   $ix = COPY [[UV3]](s16)
-  ; CHECK-MC6809-NEXT:   RTSr implicit $ix
+  ; CHECK-MC6809-NEXT:   [[COPY:%[0-9]+]]:_(p0) = COPY $ix
+  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.3
+  ; CHECK-MC6809-NEXT:   [[LOAD:%[0-9]+]]:_(s16) = G_LOAD [[FRAME_INDEX]](p0) :: (invariant load (s16) from %fixed-stack.3, align 1)
+  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX1:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.2
+  ; CHECK-MC6809-NEXT:   [[LOAD1:%[0-9]+]]:_(s16) = G_LOAD [[FRAME_INDEX1]](p0) :: (invariant load (s16) from %fixed-stack.2, align 1)
+  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX2:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.1
+  ; CHECK-MC6809-NEXT:   [[LOAD2:%[0-9]+]]:_(s16) = G_LOAD [[FRAME_INDEX2]](p0) :: (invariant load (s16) from %fixed-stack.1, align 1)
+  ; CHECK-MC6809-NEXT:   [[FRAME_INDEX3:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.0
+  ; CHECK-MC6809-NEXT:   [[LOAD3:%[0-9]+]]:_(s16) = G_LOAD [[FRAME_INDEX3]](p0) :: (invariant load (s16) from %fixed-stack.0, align 1)
+  ; CHECK-MC6809-NEXT:   [[MV:%[0-9]+]]:_(s64) = G_MERGE_VALUES [[LOAD]](s16), [[LOAD1]](s16), [[LOAD2]](s16), [[LOAD3]](s16)
+  ; CHECK-MC6809-NEXT:   G_STORE [[MV]](s64), [[COPY]](p0) :: (store (s64), align 1)
+  ; CHECK-MC6809-NEXT:   RTSr
   ;
   ; CHECK-HD6309-LABEL: name: args_arr
   ; CHECK-HD6309: bb.1 (%ir-block.0):
-  ; CHECK-HD6309-NEXT:   liveins: $aq
+  ; CHECK-HD6309-NEXT:   liveins: $aq, $ix
   ; CHECK-HD6309-NEXT: {{  $}}
-  ; CHECK-HD6309-NEXT:   [[FRAME_INDEX:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.1
-  ; CHECK-HD6309-NEXT:   [[LOAD:%[0-9]+]]:_(s32) = G_LOAD [[FRAME_INDEX]](p0) :: (invariant load (s32) from %fixed-stack.1, align 1)
-  ; CHECK-HD6309-NEXT:   [[COPY:%[0-9]+]]:_(s32) = COPY $aq
-  ; CHECK-HD6309-NEXT:   [[MV:%[0-9]+]]:_(s64) = G_MERGE_VALUES [[LOAD]](s32), [[COPY]](s32)
-  ; CHECK-HD6309-NEXT:   [[UV:%[0-9]+]]:_(s32), [[UV1:%[0-9]+]]:_(s32) = G_UNMERGE_VALUES [[MV]](s64)
-  ; CHECK-HD6309-NEXT:   [[FRAME_INDEX1:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.0
-  ; CHECK-HD6309-NEXT:   G_STORE [[UV]](s32), [[FRAME_INDEX1]](p0) :: (store (s32) into %fixed-stack.0, align 1)
-  ; CHECK-HD6309-NEXT:   $aq = COPY [[UV1]](s32)
-  ; CHECK-HD6309-NEXT:   RTSr implicit $aq
+  ; CHECK-HD6309-NEXT:   [[COPY:%[0-9]+]]:_(p0) = COPY $ix
+  ; CHECK-HD6309-NEXT:   [[FRAME_INDEX:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.0
+  ; CHECK-HD6309-NEXT:   [[LOAD:%[0-9]+]]:_(s32) = G_LOAD [[FRAME_INDEX]](p0) :: (invariant load (s32) from %fixed-stack.0, align 1)
+  ; CHECK-HD6309-NEXT:   [[COPY1:%[0-9]+]]:_(s32) = COPY $aq
+  ; CHECK-HD6309-NEXT:   [[MV:%[0-9]+]]:_(s64) = G_MERGE_VALUES [[LOAD]](s32), [[COPY1]](s32)
+  ; CHECK-HD6309-NEXT:   G_STORE [[MV]](s64), [[COPY]](p0) :: (store (s64), align 1)
+  ; CHECK-HD6309-NEXT:   RTSr
   ret [1 x double] %d0
 }
 
