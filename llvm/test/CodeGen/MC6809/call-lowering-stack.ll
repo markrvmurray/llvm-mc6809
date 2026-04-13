@@ -198,57 +198,53 @@ define void @test_varargs() {
   ; CHECK-MC6809-NEXT:   [[C5:%[0-9]+]]:_(s16) = G_CONSTANT i16 4
   ; CHECK-MC6809-NEXT:   [[C6:%[0-9]+]]:_(s32) = G_FCONSTANT float 1.000000e+00
   ; CHECK-MC6809-NEXT:   [[C7:%[0-9]+]]:_(s64) = G_FCONSTANT double 2.000000e+00
-  ; CHECK-MC6809-NEXT:   ADJCALLSTACKDOWN 28, 0, implicit-def $ss, implicit $ss
-  ; CHECK-MC6809-NEXT:   [[COPY:%[0-9]+]]:_(p0) = COPY $ss
-  ; CHECK-MC6809-NEXT:   [[C8:%[0-9]+]]:_(s16) = G_CONSTANT i16 0
-  ; CHECK-MC6809-NEXT:   [[PTR_ADD:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C8]](s16)
-  ; CHECK-MC6809-NEXT:   G_STORE [[C]](s16), [[PTR_ADD]](p0) :: (store (s16) into stack, align 1)
+  ; CHECK-MC6809-NEXT:   ADJCALLSTACKDOWN 25, 0, implicit-def $ss, implicit $ss
   ; CHECK-MC6809-NEXT:   [[UV:%[0-9]+]]:_(s16), [[UV1:%[0-9]+]]:_(s16), [[UV2:%[0-9]+]]:_(s16), [[UV3:%[0-9]+]]:_(s16) = G_UNMERGE_VALUES [[C1]](s64)
-  ; CHECK-MC6809-NEXT:   [[C9:%[0-9]+]]:_(s16) = G_CONSTANT i16 8
+  ; CHECK-MC6809-NEXT:   [[COPY:%[0-9]+]]:_(p0) = COPY $ss
+  ; CHECK-MC6809-NEXT:   [[C8:%[0-9]+]]:_(s16) = G_CONSTANT i16 6
+  ; CHECK-MC6809-NEXT:   [[PTR_ADD:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C8]](s16)
+  ; CHECK-MC6809-NEXT:   G_STORE [[UV]](s16), [[PTR_ADD]](p0) :: (store (s16) into stack + 6, align 1)
+  ; CHECK-MC6809-NEXT:   [[C9:%[0-9]+]]:_(s16) = G_CONSTANT i16 4
   ; CHECK-MC6809-NEXT:   [[PTR_ADD1:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C9]](s16)
-  ; CHECK-MC6809-NEXT:   G_STORE [[UV]](s16), [[PTR_ADD1]](p0) :: (store (s16) into stack + 8, align 1)
-  ; CHECK-MC6809-NEXT:   [[C10:%[0-9]+]]:_(s16) = G_CONSTANT i16 6
+  ; CHECK-MC6809-NEXT:   G_STORE [[UV1]](s16), [[PTR_ADD1]](p0) :: (store (s16) into stack + 4, align 1)
+  ; CHECK-MC6809-NEXT:   [[C10:%[0-9]+]]:_(s16) = G_CONSTANT i16 2
   ; CHECK-MC6809-NEXT:   [[PTR_ADD2:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C10]](s16)
-  ; CHECK-MC6809-NEXT:   G_STORE [[UV1]](s16), [[PTR_ADD2]](p0) :: (store (s16) into stack + 6, align 1)
-  ; CHECK-MC6809-NEXT:   [[C11:%[0-9]+]]:_(s16) = G_CONSTANT i16 4
+  ; CHECK-MC6809-NEXT:   G_STORE [[UV2]](s16), [[PTR_ADD2]](p0) :: (store (s16) into stack + 2, align 1)
+  ; CHECK-MC6809-NEXT:   [[C11:%[0-9]+]]:_(s16) = G_CONSTANT i16 0
   ; CHECK-MC6809-NEXT:   [[PTR_ADD3:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C11]](s16)
-  ; CHECK-MC6809-NEXT:   G_STORE [[UV2]](s16), [[PTR_ADD3]](p0) :: (store (s16) into stack + 4, align 1)
-  ; CHECK-MC6809-NEXT:   [[C12:%[0-9]+]]:_(s16) = G_CONSTANT i16 2
+  ; CHECK-MC6809-NEXT:   G_STORE [[UV3]](s16), [[PTR_ADD3]](p0) :: (store (s16) into stack, align 1)
+  ; CHECK-MC6809-NEXT:   [[C12:%[0-9]+]]:_(s16) = G_CONSTANT i16 9
   ; CHECK-MC6809-NEXT:   [[PTR_ADD4:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C12]](s16)
-  ; CHECK-MC6809-NEXT:   G_STORE [[UV3]](s16), [[PTR_ADD4]](p0) :: (store (s16) into stack + 2, align 1)
+  ; CHECK-MC6809-NEXT:   G_STORE [[C3]](s8), [[PTR_ADD4]](p0) :: (store (s8) into stack + 9)
+  ; CHECK-MC6809-NEXT:   [[PTR_ADD5:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C12]](s16)
+  ; CHECK-MC6809-NEXT:   G_STORE [[C4]](s16), [[PTR_ADD5]](p0) :: (store (s16) into stack + 9, align 1)
   ; CHECK-MC6809-NEXT:   [[C13:%[0-9]+]]:_(s16) = G_CONSTANT i16 11
-  ; CHECK-MC6809-NEXT:   [[PTR_ADD5:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C13]](s16)
-  ; CHECK-MC6809-NEXT:   G_STORE [[C2]](s8), [[PTR_ADD5]](p0) :: (store (s8) into stack + 11)
-  ; CHECK-MC6809-NEXT:   [[C14:%[0-9]+]]:_(s16) = G_CONSTANT i16 12
-  ; CHECK-MC6809-NEXT:   [[PTR_ADD6:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C14]](s16)
-  ; CHECK-MC6809-NEXT:   G_STORE [[C3]](s8), [[PTR_ADD6]](p0) :: (store (s8) into stack + 12)
-  ; CHECK-MC6809-NEXT:   [[PTR_ADD7:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C14]](s16)
-  ; CHECK-MC6809-NEXT:   G_STORE [[C4]](s16), [[PTR_ADD7]](p0) :: (store (s16) into stack + 12, align 1)
-  ; CHECK-MC6809-NEXT:   [[C15:%[0-9]+]]:_(s16) = G_CONSTANT i16 14
-  ; CHECK-MC6809-NEXT:   [[PTR_ADD8:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C15]](s16)
-  ; CHECK-MC6809-NEXT:   G_STORE [[C5]](s16), [[PTR_ADD8]](p0) :: (store (s16) into stack + 14, align 1)
+  ; CHECK-MC6809-NEXT:   [[PTR_ADD6:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C13]](s16)
+  ; CHECK-MC6809-NEXT:   G_STORE [[C5]](s16), [[PTR_ADD6]](p0) :: (store (s16) into stack + 11, align 1)
   ; CHECK-MC6809-NEXT:   [[UV4:%[0-9]+]]:_(s16), [[UV5:%[0-9]+]]:_(s16) = G_UNMERGE_VALUES [[C6]](s32)
-  ; CHECK-MC6809-NEXT:   [[C16:%[0-9]+]]:_(s16) = G_CONSTANT i16 18
-  ; CHECK-MC6809-NEXT:   [[PTR_ADD9:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C16]](s16)
-  ; CHECK-MC6809-NEXT:   G_STORE [[UV4]](s16), [[PTR_ADD9]](p0) :: (store (s16) into stack + 18, align 1)
-  ; CHECK-MC6809-NEXT:   [[C17:%[0-9]+]]:_(s16) = G_CONSTANT i16 16
-  ; CHECK-MC6809-NEXT:   [[PTR_ADD10:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C17]](s16)
-  ; CHECK-MC6809-NEXT:   G_STORE [[UV5]](s16), [[PTR_ADD10]](p0) :: (store (s16) into stack + 16, align 1)
+  ; CHECK-MC6809-NEXT:   [[C14:%[0-9]+]]:_(s16) = G_CONSTANT i16 15
+  ; CHECK-MC6809-NEXT:   [[PTR_ADD7:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C14]](s16)
+  ; CHECK-MC6809-NEXT:   G_STORE [[UV4]](s16), [[PTR_ADD7]](p0) :: (store (s16) into stack + 15, align 1)
+  ; CHECK-MC6809-NEXT:   [[C15:%[0-9]+]]:_(s16) = G_CONSTANT i16 13
+  ; CHECK-MC6809-NEXT:   [[PTR_ADD8:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C15]](s16)
+  ; CHECK-MC6809-NEXT:   G_STORE [[UV5]](s16), [[PTR_ADD8]](p0) :: (store (s16) into stack + 13, align 1)
   ; CHECK-MC6809-NEXT:   [[UV6:%[0-9]+]]:_(s16), [[UV7:%[0-9]+]]:_(s16), [[UV8:%[0-9]+]]:_(s16), [[UV9:%[0-9]+]]:_(s16) = G_UNMERGE_VALUES [[C7]](s64)
-  ; CHECK-MC6809-NEXT:   [[C18:%[0-9]+]]:_(s16) = G_CONSTANT i16 26
+  ; CHECK-MC6809-NEXT:   [[C16:%[0-9]+]]:_(s16) = G_CONSTANT i16 23
+  ; CHECK-MC6809-NEXT:   [[PTR_ADD9:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C16]](s16)
+  ; CHECK-MC6809-NEXT:   G_STORE [[UV6]](s16), [[PTR_ADD9]](p0) :: (store (s16) into stack + 23, align 1)
+  ; CHECK-MC6809-NEXT:   [[C17:%[0-9]+]]:_(s16) = G_CONSTANT i16 21
+  ; CHECK-MC6809-NEXT:   [[PTR_ADD10:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C17]](s16)
+  ; CHECK-MC6809-NEXT:   G_STORE [[UV7]](s16), [[PTR_ADD10]](p0) :: (store (s16) into stack + 21, align 1)
+  ; CHECK-MC6809-NEXT:   [[C18:%[0-9]+]]:_(s16) = G_CONSTANT i16 19
   ; CHECK-MC6809-NEXT:   [[PTR_ADD11:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C18]](s16)
-  ; CHECK-MC6809-NEXT:   G_STORE [[UV6]](s16), [[PTR_ADD11]](p0) :: (store (s16) into stack + 26, align 1)
-  ; CHECK-MC6809-NEXT:   [[C19:%[0-9]+]]:_(s16) = G_CONSTANT i16 24
+  ; CHECK-MC6809-NEXT:   G_STORE [[UV8]](s16), [[PTR_ADD11]](p0) :: (store (s16) into stack + 19, align 1)
+  ; CHECK-MC6809-NEXT:   [[C19:%[0-9]+]]:_(s16) = G_CONSTANT i16 17
   ; CHECK-MC6809-NEXT:   [[PTR_ADD12:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C19]](s16)
-  ; CHECK-MC6809-NEXT:   G_STORE [[UV7]](s16), [[PTR_ADD12]](p0) :: (store (s16) into stack + 24, align 1)
-  ; CHECK-MC6809-NEXT:   [[C20:%[0-9]+]]:_(s16) = G_CONSTANT i16 22
-  ; CHECK-MC6809-NEXT:   [[PTR_ADD13:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C20]](s16)
-  ; CHECK-MC6809-NEXT:   G_STORE [[UV8]](s16), [[PTR_ADD13]](p0) :: (store (s16) into stack + 22, align 1)
-  ; CHECK-MC6809-NEXT:   [[C21:%[0-9]+]]:_(s16) = G_CONSTANT i16 20
-  ; CHECK-MC6809-NEXT:   [[PTR_ADD14:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C21]](s16)
-  ; CHECK-MC6809-NEXT:   G_STORE [[UV9]](s16), [[PTR_ADD14]](p0) :: (store (s16) into stack + 20, align 1)
-  ; CHECK-MC6809-NEXT:   BranchSubroutine @varargs, CustomRegMask($iy,$su,$spill_a0,$spill_a1,$spill_a2,$spill_a3,$spill_a4,$spill_a5,$spill_a6,$spill_a7,$spill_b0,$spill_b1,$spill_b2,$spill_b3,$spill_b4,$spill_b5,$spill_b6,$spill_b7,$spill_d0,$spill_d1,$spill_d2,$spill_d3,$spill_d4,$spill_d5,$spill_d6,$spill_d7,$spill_a0lsb,$spill_a1lsb,$spill_a2lsb,$spill_a3lsb,$spill_a4lsb,$spill_a5lsb,$spill_a6lsb,$spill_a7lsb,$spill_b0lsb,$spill_b1lsb,$spill_b2lsb,$spill_b3lsb,$spill_b4lsb,$spill_b5lsb,$spill_b6lsb,$spill_b7lsb)
-  ; CHECK-MC6809-NEXT:   ADJCALLSTACKUP 28, 0, implicit-def $ss, implicit $ss
+  ; CHECK-MC6809-NEXT:   G_STORE [[UV9]](s16), [[PTR_ADD12]](p0) :: (store (s16) into stack + 17, align 1)
+  ; CHECK-MC6809-NEXT:   $ix = COPY [[C]](s16)
+  ; CHECK-MC6809-NEXT:   $ab = COPY [[C2]](s8)
+  ; CHECK-MC6809-NEXT:   LongBranchSubroutine @varargs, CustomRegMask($iy,$su,$spill_a0,$spill_a1,$spill_a2,$spill_a3,$spill_a4,$spill_a5,$spill_a6,$spill_a7,$spill_b0,$spill_b1,$spill_b2,$spill_b3,$spill_b4,$spill_b5,$spill_b6,$spill_b7,$spill_d0,$spill_d1,$spill_d2,$spill_d3,$spill_d4,$spill_d5,$spill_d6,$spill_d7,$spill_a0lsb,$spill_a1lsb,$spill_a2lsb,$spill_a3lsb,$spill_a4lsb,$spill_a5lsb,$spill_a6lsb,$spill_a7lsb,$spill_b0lsb,$spill_b1lsb,$spill_b2lsb,$spill_b3lsb,$spill_b4lsb,$spill_b5lsb,$spill_b6lsb,$spill_b7lsb), implicit $ix, implicit $ab
+  ; CHECK-MC6809-NEXT:   ADJCALLSTACKUP 25, 0, implicit-def $ss, implicit $ss
   ; CHECK-MC6809-NEXT:   RTSr
   ;
   ; CHECK-HD6309-LABEL: name: test_varargs
@@ -261,41 +257,37 @@ define void @test_varargs() {
   ; CHECK-HD6309-NEXT:   [[C5:%[0-9]+]]:_(s16) = G_CONSTANT i16 4
   ; CHECK-HD6309-NEXT:   [[C6:%[0-9]+]]:_(s32) = G_FCONSTANT float 1.000000e+00
   ; CHECK-HD6309-NEXT:   [[C7:%[0-9]+]]:_(s64) = G_FCONSTANT double 2.000000e+00
-  ; CHECK-HD6309-NEXT:   ADJCALLSTACKDOWN 28, 0, implicit-def $ss, implicit $ss
+  ; CHECK-HD6309-NEXT:   ADJCALLSTACKDOWN 23, 0, implicit-def $ss, implicit $ss
+  ; CHECK-HD6309-NEXT:   [[UV:%[0-9]+]]:_(s32), [[UV1:%[0-9]+]]:_(s32) = G_UNMERGE_VALUES [[C1]](s64)
   ; CHECK-HD6309-NEXT:   [[COPY:%[0-9]+]]:_(p0) = COPY $ss
   ; CHECK-HD6309-NEXT:   [[C8:%[0-9]+]]:_(s16) = G_CONSTANT i16 0
   ; CHECK-HD6309-NEXT:   [[PTR_ADD:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C8]](s16)
-  ; CHECK-HD6309-NEXT:   G_STORE [[C]](s16), [[PTR_ADD]](p0) :: (store (s16) into stack, align 1)
-  ; CHECK-HD6309-NEXT:   [[UV:%[0-9]+]]:_(s32), [[UV1:%[0-9]+]]:_(s32) = G_UNMERGE_VALUES [[C1]](s64)
-  ; CHECK-HD6309-NEXT:   [[C9:%[0-9]+]]:_(s16) = G_CONSTANT i16 6
+  ; CHECK-HD6309-NEXT:   G_STORE [[UV]](s32), [[PTR_ADD]](p0) :: (store (s32) into stack, align 1)
+  ; CHECK-HD6309-NEXT:   [[C9:%[0-9]+]]:_(s16) = G_CONSTANT i16 5
   ; CHECK-HD6309-NEXT:   [[PTR_ADD1:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C9]](s16)
-  ; CHECK-HD6309-NEXT:   G_STORE [[UV]](s32), [[PTR_ADD1]](p0) :: (store (s32) into stack + 6, align 1)
-  ; CHECK-HD6309-NEXT:   [[C10:%[0-9]+]]:_(s16) = G_CONSTANT i16 2
+  ; CHECK-HD6309-NEXT:   G_STORE [[C2]](s8), [[PTR_ADD1]](p0) :: (store (s8) into stack + 5)
+  ; CHECK-HD6309-NEXT:   [[C10:%[0-9]+]]:_(s16) = G_CONSTANT i16 7
   ; CHECK-HD6309-NEXT:   [[PTR_ADD2:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C10]](s16)
-  ; CHECK-HD6309-NEXT:   G_STORE [[UV1]](s32), [[PTR_ADD2]](p0) :: (store (s32) into stack + 2, align 1)
-  ; CHECK-HD6309-NEXT:   [[C11:%[0-9]+]]:_(s16) = G_CONSTANT i16 11
-  ; CHECK-HD6309-NEXT:   [[PTR_ADD3:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C11]](s16)
-  ; CHECK-HD6309-NEXT:   G_STORE [[C2]](s8), [[PTR_ADD3]](p0) :: (store (s8) into stack + 11)
-  ; CHECK-HD6309-NEXT:   [[C12:%[0-9]+]]:_(s16) = G_CONSTANT i16 12
-  ; CHECK-HD6309-NEXT:   [[PTR_ADD4:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C12]](s16)
-  ; CHECK-HD6309-NEXT:   G_STORE [[C3]](s8), [[PTR_ADD4]](p0) :: (store (s8) into stack + 12)
+  ; CHECK-HD6309-NEXT:   G_STORE [[C3]](s8), [[PTR_ADD2]](p0) :: (store (s8) into stack + 7)
+  ; CHECK-HD6309-NEXT:   [[PTR_ADD3:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C10]](s16)
+  ; CHECK-HD6309-NEXT:   G_STORE [[C4]](s16), [[PTR_ADD3]](p0) :: (store (s16) into stack + 7, align 1)
+  ; CHECK-HD6309-NEXT:   [[C11:%[0-9]+]]:_(s16) = G_CONSTANT i16 9
+  ; CHECK-HD6309-NEXT:   [[PTR_ADD4:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C11]](s16)
+  ; CHECK-HD6309-NEXT:   G_STORE [[C5]](s16), [[PTR_ADD4]](p0) :: (store (s16) into stack + 9, align 1)
+  ; CHECK-HD6309-NEXT:   [[C12:%[0-9]+]]:_(s16) = G_CONSTANT i16 11
   ; CHECK-HD6309-NEXT:   [[PTR_ADD5:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C12]](s16)
-  ; CHECK-HD6309-NEXT:   G_STORE [[C4]](s16), [[PTR_ADD5]](p0) :: (store (s16) into stack + 12, align 1)
-  ; CHECK-HD6309-NEXT:   [[C13:%[0-9]+]]:_(s16) = G_CONSTANT i16 14
-  ; CHECK-HD6309-NEXT:   [[PTR_ADD6:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C13]](s16)
-  ; CHECK-HD6309-NEXT:   G_STORE [[C5]](s16), [[PTR_ADD6]](p0) :: (store (s16) into stack + 14, align 1)
-  ; CHECK-HD6309-NEXT:   [[C14:%[0-9]+]]:_(s16) = G_CONSTANT i16 16
-  ; CHECK-HD6309-NEXT:   [[PTR_ADD7:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C14]](s16)
-  ; CHECK-HD6309-NEXT:   G_STORE [[C6]](s32), [[PTR_ADD7]](p0) :: (store (s32) into stack + 16, align 1)
+  ; CHECK-HD6309-NEXT:   G_STORE [[C6]](s32), [[PTR_ADD5]](p0) :: (store (s32) into stack + 11, align 1)
   ; CHECK-HD6309-NEXT:   [[UV2:%[0-9]+]]:_(s32), [[UV3:%[0-9]+]]:_(s32) = G_UNMERGE_VALUES [[C7]](s64)
-  ; CHECK-HD6309-NEXT:   [[C15:%[0-9]+]]:_(s16) = G_CONSTANT i16 24
-  ; CHECK-HD6309-NEXT:   [[PTR_ADD8:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C15]](s16)
-  ; CHECK-HD6309-NEXT:   G_STORE [[UV2]](s32), [[PTR_ADD8]](p0) :: (store (s32) into stack + 24, align 1)
-  ; CHECK-HD6309-NEXT:   [[C16:%[0-9]+]]:_(s16) = G_CONSTANT i16 20
-  ; CHECK-HD6309-NEXT:   [[PTR_ADD9:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C16]](s16)
-  ; CHECK-HD6309-NEXT:   G_STORE [[UV3]](s32), [[PTR_ADD9]](p0) :: (store (s32) into stack + 20, align 1)
-  ; CHECK-HD6309-NEXT:   BranchSubroutine @varargs, CustomRegMask($iy,$su,$spill_a0,$spill_a1,$spill_a2,$spill_a3,$spill_a4,$spill_a5,$spill_a6,$spill_a7,$spill_b0,$spill_b1,$spill_b2,$spill_b3,$spill_b4,$spill_b5,$spill_b6,$spill_b7,$spill_d0,$spill_d1,$spill_d2,$spill_d3,$spill_d4,$spill_d5,$spill_d6,$spill_d7,$spill_a0lsb,$spill_a1lsb,$spill_a2lsb,$spill_a3lsb,$spill_a4lsb,$spill_a5lsb,$spill_a6lsb,$spill_a7lsb,$spill_b0lsb,$spill_b1lsb,$spill_b2lsb,$spill_b3lsb,$spill_b4lsb,$spill_b5lsb,$spill_b6lsb,$spill_b7lsb)
-  ; CHECK-HD6309-NEXT:   ADJCALLSTACKUP 28, 0, implicit-def $ss, implicit $ss
+  ; CHECK-HD6309-NEXT:   [[C13:%[0-9]+]]:_(s16) = G_CONSTANT i16 19
+  ; CHECK-HD6309-NEXT:   [[PTR_ADD6:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C13]](s16)
+  ; CHECK-HD6309-NEXT:   G_STORE [[UV2]](s32), [[PTR_ADD6]](p0) :: (store (s32) into stack + 19, align 1)
+  ; CHECK-HD6309-NEXT:   [[C14:%[0-9]+]]:_(s16) = G_CONSTANT i16 15
+  ; CHECK-HD6309-NEXT:   [[PTR_ADD7:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C14]](s16)
+  ; CHECK-HD6309-NEXT:   G_STORE [[UV3]](s32), [[PTR_ADD7]](p0) :: (store (s32) into stack + 15, align 1)
+  ; CHECK-HD6309-NEXT:   $ix = COPY [[C]](s16)
+  ; CHECK-HD6309-NEXT:   $aq = COPY [[UV1]](s32)
+  ; CHECK-HD6309-NEXT:   LongBranchSubroutine @varargs, CustomRegMask($iy,$su,$spill_a0,$spill_a1,$spill_a2,$spill_a3,$spill_a4,$spill_a5,$spill_a6,$spill_a7,$spill_b0,$spill_b1,$spill_b2,$spill_b3,$spill_b4,$spill_b5,$spill_b6,$spill_b7,$spill_d0,$spill_d1,$spill_d2,$spill_d3,$spill_d4,$spill_d5,$spill_d6,$spill_d7,$spill_a0lsb,$spill_a1lsb,$spill_a2lsb,$spill_a3lsb,$spill_a4lsb,$spill_a5lsb,$spill_a6lsb,$spill_a7lsb,$spill_b0lsb,$spill_b1lsb,$spill_b2lsb,$spill_b3lsb,$spill_b4lsb,$spill_b5lsb,$spill_b6lsb,$spill_b7lsb), implicit $ix, implicit $aq
+  ; CHECK-HD6309-NEXT:   ADJCALLSTACKUP 23, 0, implicit-def $ss, implicit $ss
   ; CHECK-HD6309-NEXT:   RTSr
   call void(i16, double, i8, ...) @varargs(i16 42, double 1.0, i8 12, i8 3, i16 1, i16 4, float 1.0, double 2.0)
   ret void
@@ -338,7 +330,7 @@ define void @test_stack_ext_needed() {
   ; CHECK-MC6809-NEXT:   [[PTR_ADD7:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C8]](s16)
   ; CHECK-MC6809-NEXT:   G_STORE [[C]](s8), [[PTR_ADD7]](p0) :: (store (s8) into stack + 15)
   ; CHECK-MC6809-NEXT:   $ab = COPY [[DEF]](s8)
-  ; CHECK-MC6809-NEXT:   BranchSubroutine @stack_ext_needed, CustomRegMask($iy,$su,$spill_a0,$spill_a1,$spill_a2,$spill_a3,$spill_a4,$spill_a5,$spill_a6,$spill_a7,$spill_b0,$spill_b1,$spill_b2,$spill_b3,$spill_b4,$spill_b5,$spill_b6,$spill_b7,$spill_d0,$spill_d1,$spill_d2,$spill_d3,$spill_d4,$spill_d5,$spill_d6,$spill_d7,$spill_a0lsb,$spill_a1lsb,$spill_a2lsb,$spill_a3lsb,$spill_a4lsb,$spill_a5lsb,$spill_a6lsb,$spill_a7lsb,$spill_b0lsb,$spill_b1lsb,$spill_b2lsb,$spill_b3lsb,$spill_b4lsb,$spill_b5lsb,$spill_b6lsb,$spill_b7lsb), implicit $ab
+  ; CHECK-MC6809-NEXT:   LongBranchSubroutine @stack_ext_needed, CustomRegMask($iy,$su,$spill_a0,$spill_a1,$spill_a2,$spill_a3,$spill_a4,$spill_a5,$spill_a6,$spill_a7,$spill_b0,$spill_b1,$spill_b2,$spill_b3,$spill_b4,$spill_b5,$spill_b6,$spill_b7,$spill_d0,$spill_d1,$spill_d2,$spill_d3,$spill_d4,$spill_d5,$spill_d6,$spill_d7,$spill_a0lsb,$spill_a1lsb,$spill_a2lsb,$spill_a3lsb,$spill_a4lsb,$spill_a5lsb,$spill_a6lsb,$spill_a7lsb,$spill_b0lsb,$spill_b1lsb,$spill_b2lsb,$spill_b3lsb,$spill_b4lsb,$spill_b5lsb,$spill_b6lsb,$spill_b7lsb), implicit $ab
   ; CHECK-MC6809-NEXT:   ADJCALLSTACKUP 16, 0, implicit-def $ss, implicit $ss
   ; CHECK-MC6809-NEXT:   RTSr
   ;
@@ -373,7 +365,7 @@ define void @test_stack_ext_needed() {
   ; CHECK-HD6309-NEXT:   [[PTR_ADD7:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C8]](s16)
   ; CHECK-HD6309-NEXT:   G_STORE [[C]](s8), [[PTR_ADD7]](p0) :: (store (s8) into stack + 15)
   ; CHECK-HD6309-NEXT:   $ab = COPY [[DEF]](s8)
-  ; CHECK-HD6309-NEXT:   BranchSubroutine @stack_ext_needed, CustomRegMask($iy,$su,$spill_a0,$spill_a1,$spill_a2,$spill_a3,$spill_a4,$spill_a5,$spill_a6,$spill_a7,$spill_b0,$spill_b1,$spill_b2,$spill_b3,$spill_b4,$spill_b5,$spill_b6,$spill_b7,$spill_d0,$spill_d1,$spill_d2,$spill_d3,$spill_d4,$spill_d5,$spill_d6,$spill_d7,$spill_a0lsb,$spill_a1lsb,$spill_a2lsb,$spill_a3lsb,$spill_a4lsb,$spill_a5lsb,$spill_a6lsb,$spill_a7lsb,$spill_b0lsb,$spill_b1lsb,$spill_b2lsb,$spill_b3lsb,$spill_b4lsb,$spill_b5lsb,$spill_b6lsb,$spill_b7lsb), implicit $ab
+  ; CHECK-HD6309-NEXT:   LongBranchSubroutine @stack_ext_needed, CustomRegMask($iy,$su,$spill_a0,$spill_a1,$spill_a2,$spill_a3,$spill_a4,$spill_a5,$spill_a6,$spill_a7,$spill_b0,$spill_b1,$spill_b2,$spill_b3,$spill_b4,$spill_b5,$spill_b6,$spill_b7,$spill_d0,$spill_d1,$spill_d2,$spill_d3,$spill_d4,$spill_d5,$spill_d6,$spill_d7,$spill_a0lsb,$spill_a1lsb,$spill_a2lsb,$spill_a3lsb,$spill_a4lsb,$spill_a5lsb,$spill_a6lsb,$spill_a7lsb,$spill_b0lsb,$spill_b1lsb,$spill_b2lsb,$spill_b3lsb,$spill_b4lsb,$spill_b5lsb,$spill_b6lsb,$spill_b7lsb), implicit $ab
   ; CHECK-HD6309-NEXT:   ADJCALLSTACKUP 16, 0, implicit-def $ss, implicit $ss
   ; CHECK-HD6309-NEXT:   RTSr
   call void @stack_ext_needed([8 x i8] undef, i8 signext 42)
@@ -431,7 +423,7 @@ define i8 @i8i16caller() nounwind readnone {
   ; CHECK-MC6809-NEXT:   G_STORE [[C11]](s8), [[PTR_ADD9]](p0) :: (store (s8) into stack + 19)
   ; CHECK-MC6809-NEXT:   $ab = COPY [[C]](s8)
   ; CHECK-MC6809-NEXT:   $ix = COPY [[C4]](s16)
-  ; CHECK-MC6809-NEXT:   BranchSubroutine @i8i16callee, CustomRegMask($iy,$su,$spill_a0,$spill_a1,$spill_a2,$spill_a3,$spill_a4,$spill_a5,$spill_a6,$spill_a7,$spill_b0,$spill_b1,$spill_b2,$spill_b3,$spill_b4,$spill_b5,$spill_b6,$spill_b7,$spill_d0,$spill_d1,$spill_d2,$spill_d3,$spill_d4,$spill_d5,$spill_d6,$spill_d7,$spill_a0lsb,$spill_a1lsb,$spill_a2lsb,$spill_a3lsb,$spill_a4lsb,$spill_a5lsb,$spill_a6lsb,$spill_a7lsb,$spill_b0lsb,$spill_b1lsb,$spill_b2lsb,$spill_b3lsb,$spill_b4lsb,$spill_b5lsb,$spill_b6lsb,$spill_b7lsb), implicit $ab, implicit $ix, implicit-def $ix
+  ; CHECK-MC6809-NEXT:   LongBranchSubroutine @i8i16callee, CustomRegMask($iy,$su,$spill_a0,$spill_a1,$spill_a2,$spill_a3,$spill_a4,$spill_a5,$spill_a6,$spill_a7,$spill_b0,$spill_b1,$spill_b2,$spill_b3,$spill_b4,$spill_b5,$spill_b6,$spill_b7,$spill_d0,$spill_d1,$spill_d2,$spill_d3,$spill_d4,$spill_d5,$spill_d6,$spill_d7,$spill_a0lsb,$spill_a1lsb,$spill_a2lsb,$spill_a3lsb,$spill_a4lsb,$spill_a5lsb,$spill_a6lsb,$spill_a7lsb,$spill_b0lsb,$spill_b1lsb,$spill_b2lsb,$spill_b3lsb,$spill_b4lsb,$spill_b5lsb,$spill_b6lsb,$spill_b7lsb), implicit $ab, implicit $ix, implicit-def $ix
   ; CHECK-MC6809-NEXT:   [[COPY1:%[0-9]+]]:_(s16) = COPY $ix
   ; CHECK-MC6809-NEXT:   ADJCALLSTACKUP 20, 0, implicit-def $ss, implicit $ss
   ; CHECK-MC6809-NEXT:   [[TRUNC:%[0-9]+]]:_(s8) = G_TRUNC [[COPY1]](s16)
@@ -486,7 +478,7 @@ define i8 @i8i16caller() nounwind readnone {
   ; CHECK-HD6309-NEXT:   G_STORE [[C11]](s8), [[PTR_ADD9]](p0) :: (store (s8) into stack + 19)
   ; CHECK-HD6309-NEXT:   $ab = COPY [[C]](s8)
   ; CHECK-HD6309-NEXT:   $ix = COPY [[C4]](s16)
-  ; CHECK-HD6309-NEXT:   BranchSubroutine @i8i16callee, CustomRegMask($iy,$su,$spill_a0,$spill_a1,$spill_a2,$spill_a3,$spill_a4,$spill_a5,$spill_a6,$spill_a7,$spill_b0,$spill_b1,$spill_b2,$spill_b3,$spill_b4,$spill_b5,$spill_b6,$spill_b7,$spill_d0,$spill_d1,$spill_d2,$spill_d3,$spill_d4,$spill_d5,$spill_d6,$spill_d7,$spill_a0lsb,$spill_a1lsb,$spill_a2lsb,$spill_a3lsb,$spill_a4lsb,$spill_a5lsb,$spill_a6lsb,$spill_a7lsb,$spill_b0lsb,$spill_b1lsb,$spill_b2lsb,$spill_b3lsb,$spill_b4lsb,$spill_b5lsb,$spill_b6lsb,$spill_b7lsb), implicit $ab, implicit $ix, implicit-def $ix
+  ; CHECK-HD6309-NEXT:   LongBranchSubroutine @i8i16callee, CustomRegMask($iy,$su,$spill_a0,$spill_a1,$spill_a2,$spill_a3,$spill_a4,$spill_a5,$spill_a6,$spill_a7,$spill_b0,$spill_b1,$spill_b2,$spill_b3,$spill_b4,$spill_b5,$spill_b6,$spill_b7,$spill_d0,$spill_d1,$spill_d2,$spill_d3,$spill_d4,$spill_d5,$spill_d6,$spill_d7,$spill_a0lsb,$spill_a1lsb,$spill_a2lsb,$spill_a3lsb,$spill_a4lsb,$spill_a5lsb,$spill_a6lsb,$spill_a7lsb,$spill_b0lsb,$spill_b1lsb,$spill_b2lsb,$spill_b3lsb,$spill_b4lsb,$spill_b5lsb,$spill_b6lsb,$spill_b7lsb), implicit $ab, implicit $ix, implicit-def $ix
   ; CHECK-HD6309-NEXT:   [[COPY1:%[0-9]+]]:_(s16) = COPY $ix
   ; CHECK-HD6309-NEXT:   ADJCALLSTACKUP 20, 0, implicit-def $ss, implicit $ss
   ; CHECK-HD6309-NEXT:   [[TRUNC:%[0-9]+]]:_(s8) = G_TRUNC [[COPY1]](s16)
