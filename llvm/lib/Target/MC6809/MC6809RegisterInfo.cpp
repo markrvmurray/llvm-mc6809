@@ -371,6 +371,11 @@ MC6809InstrCost MC6809RegisterInfo::copyCost(Register DestReg, Register SrcReg, 
   if (AreClasses(MC6809::ACC16RegClass, MC6809::Imag16RegClass)) {
     return MC6809InstrCost(2, 4);
   }
+  if (AreClasses(MC6809::Imag16RegClass, MC6809::INDEX16RegClass) ||
+      AreClasses(MC6809::INDEX16RegClass, MC6809::Imag16RegClass)) {
+    // INDEX16 → Imag16: TFR IX/IY,D + STD dp  (or reverse: LDD dp + TFR D,IX/IY)
+    return TransferCost + MC6809InstrCost(2, 4);
+  }
   if (AreClasses(MC6809::Imag8RegClass, MC6809::Imag8RegClass)) {
     return Push8Cost + Pop8Cost + copyCost(DestReg, MC6809::AA, STI) + copyCost(MC6809::AA, SrcReg, STI);
   }
