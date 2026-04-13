@@ -1,11 +1,17 @@
 ;;; divsi.inc — 32-bit signed/unsigned division and remainder
 ;;;
-;;; Convention (same as __mulsi3):
-;;;   Input:  X = a_hi, 2,s = a_lo, 4,s = b_hi, 6,s = b_lo
-;;;   Output: X = result_hi, result_lo written to 2,s
-;;;   Clobbers: D.  Preserves: Y, U.
+;;; ABI (gcc6809 sret-style, ABI #4):
+;;;   IX        = sret pointer (caller-allocated 4-byte buffer)
+;;;   2,s..3,s  = a_hi (dividend high half)
+;;;   4,s..5,s  = a_lo (dividend low half)
+;;;   6,s..7,s  = b_hi (divisor high half)
+;;;   8,s..9,s  = b_lo (divisor low half)
+;;; Result is written through IX (hi at IX+0, lo at IX+2; big-endian).
+;;; Clobbers: D. Preserves: Y, U.
 ;;;
 ;;; Algorithm: restoring division (shift-and-subtract), 32 iterations.
+;;; Workspace holds quotient + remainder + counter; the result (quotient
+;;; for div, remainder for mod) is copied to [IX..IX+3] before return.
 
 ;;; ============================================================
 ;;; __udivsi3 — unsigned 32-bit division (returns quotient)
@@ -13,21 +19,24 @@
 	.globl	__udivsi3
 	.type	__udivsi3,@function
 __udivsi3:
-	pshs	y
+	pshs	y		; preserve callee-saved Y (workspace alignment)
 	leas	-9,s		; workspace: quot(4) + rem(4) + counter(1)
-	; S+0..3  = quotient (= dividend initially)
-	; S+4..7  = remainder (= 0 initially)
-	; S+8     = counter
-	; S+9,10  = saved Y
-	; S+11,12 = return addr
-	; S+13,14 = a_lo
-	; S+15,16 = b_hi (divisor)
-	; S+17,18 = b_lo
+	; Frame layout (relative to S):
+	;   S+0..3   = quotient workspace
+	;   S+4..7   = remainder workspace
+	;   S+8      = counter
+	;   S+9..10  = saved Y
+	;   S+11..12 = return addr
+	;   S+13..14 = a_hi
+	;   S+15..16 = a_lo
+	;   S+17..18 = b_hi
+	;   S+19..20 = b_lo
 
-	; Init quotient = dividend (a_hi:a_lo)
-	stx	,s		; quotient hi = a_hi
+	; Init quotient = a (dividend)
 	ldd	13,s
-	std	2,s		; quotient lo = a_lo
+	std	,s
+	ldd	15,s
+	std	2,s
 
 	; Init remainder = 0
 	ldd	#0
@@ -53,23 +62,22 @@ __udivsi3:
 
 	; Compare remainder with divisor (32-bit unsigned)
 	ldd	4,s		; remainder hi
-	cmpd	15,s		; vs divisor hi
+	cmpd	17,s		; vs divisor hi
 	bhi	.Lud32_sub
 	blo	.Lud32_skip
 	ldd	6,s		; remainder lo
-	cmpd	17,s		; vs divisor lo
+	cmpd	19,s		; vs divisor lo
 	blo	.Lud32_skip
 
 .Lud32_sub:
-	; remainder -= divisor (32-bit)
 	ldd	6,s		; remainder lo
-	subd	17,s		; - divisor lo
+	subd	19,s		; - divisor lo
 	std	6,s
 	lda	5,s
-	sbca	16,s
+	sbca	18,s
 	sta	5,s
 	lda	4,s
-	sbca	15,s
+	sbca	17,s
 	sta	4,s
 
 	; Set quotient bit 0
@@ -81,12 +89,14 @@ __udivsi3:
 	dec	8,s
 	bne	.Lud32_loop
 
-	; Return quotient: X = hi, 2,s = lo
-	ldx	,s		; result hi
-	ldd	2,s		; result lo
+	; Copy quotient to caller's sret buffer
+	ldd	,s
+	std	,x
+	ldd	2,s
+	std	2,x
+
 	leas	9,s
 	puls	y
-	std	2,s		; write lo to caller slot
 	rts
 
 ;;; ============================================================
@@ -98,8 +108,9 @@ __umodsi3:
 	pshs	y
 	leas	-9,s
 
-	stx	,s
 	ldd	13,s
+	std	,s
+	ldd	15,s
 	std	2,s
 
 	ldd	#0
@@ -121,22 +132,22 @@ __umodsi3:
 	rol	4,s
 
 	ldd	4,s
-	cmpd	15,s
+	cmpd	17,s
 	bhi	.Lum32_sub
 	blo	.Lum32_skip
 	ldd	6,s
-	cmpd	17,s
+	cmpd	19,s
 	blo	.Lum32_skip
 
 .Lum32_sub:
 	ldd	6,s
-	subd	17,s
+	subd	19,s
 	std	6,s
 	lda	5,s
-	sbca	16,s
+	sbca	18,s
 	sta	5,s
 	lda	4,s
-	sbca	15,s
+	sbca	17,s
 	sta	4,s
 
 	lda	3,s
@@ -147,12 +158,14 @@ __umodsi3:
 	dec	8,s
 	bne	.Lum32_loop
 
-	; Return remainder: X = hi, 2,s = lo
-	ldx	4,s		; remainder hi
-	ldd	6,s		; remainder lo
+	; Copy remainder to caller's sret buffer
+	ldd	4,s
+	std	,x
+	ldd	6,s
+	std	2,x
+
 	leas	9,s
 	puls	y
-	std	2,s
 	rts
 
 ;;; ============================================================
@@ -164,25 +177,28 @@ __umodsi3:
 __divsi3:
 	pshs	y
 	leas	-10,s		; quot(4) + rem(4) + counter(1) + sign(1)
-	; S+0..3  = quotient
-	; S+4..7  = remainder
-	; S+8     = counter
-	; S+9     = sign flag
-	; S+10,11 = saved Y
-	; S+12,13 = return addr
-	; S+14,15 = a_lo
-	; S+16,17 = b_hi
-	; S+18,19 = b_lo
+	; Frame layout (relative to S):
+	;   S+0..3   = quotient
+	;   S+4..7   = remainder
+	;   S+8      = counter
+	;   S+9      = sign flag
+	;   S+10..11 = saved Y
+	;   S+12..13 = return addr
+	;   S+14..15 = a_hi
+	;   S+16..17 = a_lo
+	;   S+18..19 = b_hi
+	;   S+20..21 = b_lo
 
-	; Determine sign: XOR high bytes of a and b
-	tfr	x,d		; A = a_hi high byte
-	eora	16,s		; XOR with b_hi high byte
+	; Determine sign: XOR high bytes of a_hi and b_hi
+	lda	14,s		; a_hi high byte
+	eora	18,s		; XOR b_hi high byte
 	sta	9,s		; save sign flag
 
 	; Copy dividend to quotient workspace
-	stx	,s		; quotient hi = a_hi
 	ldd	14,s
-	std	2,s		; quotient lo = a_lo
+	std	,s
+	ldd	16,s
+	std	2,s
 
 	; Make a (quotient) positive if needed
 	tst	,s		; test MSB of a_hi
@@ -202,21 +218,20 @@ __divsi3:
 	std	,s
 .Lsd32_a_pos:
 
-	; Make b (divisor) positive if needed
-	tst	16,s		; test MSB of b_hi
+	; Make b (divisor) positive if needed (in place on stack args)
+	tst	18,s		; test MSB of b_hi
 	bpl	.Lsd32_b_pos
-	; Negate divisor in-place on stack
-	ldd	18,s		; b_lo
+	ldd	20,s		; b_lo
 	coma
 	comb
 	addd	#1
-	std	18,s
-	ldd	16,s		; b_hi
+	std	20,s
+	ldd	18,s		; b_hi
 	eora	#0xFF
 	eorb	#0xFF
 	adcb	#0
 	adca	#0
-	std	16,s
+	std	18,s
 .Lsd32_b_pos:
 
 	; Init remainder = 0
@@ -240,22 +255,22 @@ __divsi3:
 	rol	4,s
 
 	ldd	4,s
-	cmpd	16,s		; divisor hi (may have been negated)
+	cmpd	18,s
 	bhi	.Lsd32_sub
 	blo	.Lsd32_skip
 	ldd	6,s
-	cmpd	18,s		; divisor lo
+	cmpd	20,s
 	blo	.Lsd32_skip
 
 .Lsd32_sub:
 	ldd	6,s
-	subd	18,s
+	subd	20,s
 	std	6,s
 	lda	5,s
-	sbca	17,s
+	sbca	19,s
 	sta	5,s
 	lda	4,s
-	sbca	16,s
+	sbca	18,s
 	sta	4,s
 
 	lda	3,s
@@ -282,11 +297,14 @@ __divsi3:
 	std	,s
 .Lsd32_pos:
 
-	ldx	,s		; result hi
-	ldd	2,s		; result lo
+	; Copy quotient to caller's sret buffer
+	ldd	,s
+	std	,x
+	ldd	2,s
+	std	2,x
+
 	leas	10,s
 	puls	y
-	std	2,s
 	rts
 
 ;;; ============================================================
@@ -298,23 +316,26 @@ __divsi3:
 __modsi3:
 	pshs	y
 	leas	-10,s
-	; S+0..3  = quotient
-	; S+4..7  = remainder
-	; S+8     = counter
-	; S+9     = sign flag (sign of a)
-	; S+10,11 = saved Y
-	; S+12,13 = return addr
-	; S+14,15 = a_lo
-	; S+16,17 = b_hi
-	; S+18,19 = b_lo
+	; Frame layout (relative to S):
+	;   S+0..3   = quotient
+	;   S+4..7   = remainder
+	;   S+8      = counter
+	;   S+9      = sign flag (sign of a)
+	;   S+10..11 = saved Y
+	;   S+12..13 = return addr
+	;   S+14..15 = a_hi
+	;   S+16..17 = a_lo
+	;   S+18..19 = b_hi
+	;   S+20..21 = b_lo
 
 	; Save sign of a (remainder follows dividend sign)
-	tfr	x,d
-	sta	9,s		; A = high byte of a_hi
+	lda	14,s		; a_hi high byte
+	sta	9,s
 
 	; Copy dividend to quotient workspace
-	stx	,s
 	ldd	14,s
+	std	,s
+	ldd	16,s
 	std	2,s
 
 	; Make a positive if needed
@@ -334,19 +355,19 @@ __modsi3:
 .Lsm32_a_pos:
 
 	; Make b positive if needed
-	tst	16,s
+	tst	18,s
 	bpl	.Lsm32_b_pos
-	ldd	18,s
+	ldd	20,s
 	coma
 	comb
 	addd	#1
-	std	18,s
-	ldd	16,s
+	std	20,s
+	ldd	18,s
 	eora	#0xFF
 	eorb	#0xFF
 	adcb	#0
 	adca	#0
-	std	16,s
+	std	18,s
 .Lsm32_b_pos:
 
 	ldd	#0
@@ -368,22 +389,22 @@ __modsi3:
 	rol	4,s
 
 	ldd	4,s
-	cmpd	16,s
+	cmpd	18,s
 	bhi	.Lsm32_sub
 	blo	.Lsm32_skip
 	ldd	6,s
-	cmpd	18,s
+	cmpd	20,s
 	blo	.Lsm32_skip
 
 .Lsm32_sub:
 	ldd	6,s
-	subd	18,s
+	subd	20,s
 	std	6,s
 	lda	5,s
-	sbca	17,s
+	sbca	19,s
 	sta	5,s
 	lda	4,s
-	sbca	16,s
+	sbca	18,s
 	sta	4,s
 
 	lda	3,s
@@ -410,9 +431,12 @@ __modsi3:
 	std	4,s
 .Lsm32_pos:
 
-	ldx	4,s		; remainder hi
-	ldd	6,s		; remainder lo
+	; Copy remainder to caller's sret buffer
+	ldd	4,s
+	std	,x
+	ldd	6,s
+	std	2,x
+
 	leas	10,s
 	puls	y
-	std	2,s
 	rts

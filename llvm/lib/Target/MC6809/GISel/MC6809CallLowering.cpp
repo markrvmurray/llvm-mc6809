@@ -250,30 +250,6 @@ bool isLargeReturnType(const Type *Ty, const DataLayout &DL) {
   return DL.getTypeStoreSize(const_cast<Type *>(Ty)).getKnownMinValue() > 2;
 }
 
-/// Returns true if the given call's callee is a runtime libcall (compiler-rt
-/// helper) whose hand-written assembly still uses the OLD i32 calling
-/// convention (X = a_hi, stack = a_lo/b_hi/b_lo, X = result_hi, stack =
-/// result_lo). These functions live in `lib/Target/MC6809/Runtime/*.inc` and
-/// will be rewritten to the new sret convention in a follow-up commit. Until
-/// then, lowerCall must NOT apply the sret transformation when calling them,
-/// otherwise LLVM-compiled callers and the hand-written runtime asm would
-/// disagree on the layout.
-///
-/// Conventionally, all compiler-rt helpers begin with `__` (e.g. `__mulsi3`,
-/// `__udivsi3`, `__ashlsi3`). The MC6809 indirect-call thunk `__call_indir`
-/// also matches but is harmless because it returns void.
-///
-/// TODO(ABI #4 step 2): delete this helper and its callers once
-/// mulsi3.inc / divsi.inc / shiftsi3.inc are rewritten for the sret CC.
-bool isOldCCRuntimeLibcall(const MachineOperand &Callee) {
-  StringRef Name;
-  if (Callee.isGlobal())
-    Name = Callee.getGlobal()->getName();
-  else if (Callee.isSymbol())
-    Name = Callee.getSymbolName();
-  return Name.starts_with("__");
-}
-
 } // namespace
 
 bool MC6809CallLowering::lowerReturn(MachineIRBuilder &MIRBuilder, const Value *Val, ArrayRef<Register> VRegs, FunctionLoweringInfo &FLI) const {
@@ -451,14 +427,8 @@ bool MC6809CallLowering::lowerCall(MachineIRBuilder &MIRBuilder, CallLoweringInf
   // pointer arg in IX, and the callee writes the result through that
   // pointer. After the call, we G_LOAD the result back from the buffer
   // into the original return-value vreg.
-  //
-  // Libcall exclusion: the runtime helpers in lib/Target/MC6809/Runtime/
-  // (mulsi3.inc, divsi.inc, shiftsi3.inc) still hardcode the OLD i32
-  // return convention (X = result_hi, stack = result_lo). Until they are
-  // rewritten in a follow-up commit, leave libcalls on the old path.
-  bool LargeRet = !Info.OrigRet.Ty->isVoidTy() &&
-                  isLargeReturnType(Info.OrigRet.Ty, DL);
-  bool UseSret = LargeRet && !isOldCCRuntimeLibcall(Info.Callee);
+  bool UseSret = !Info.OrigRet.Ty->isVoidTy() &&
+                 isLargeReturnType(Info.OrigRet.Ty, DL);
   int SRetFI = -1;
   Register SRetAddrVReg;
   if (UseSret) {

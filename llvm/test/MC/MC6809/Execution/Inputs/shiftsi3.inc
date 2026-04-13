@@ -1,93 +1,88 @@
 ;;; shiftsi3.inc — 32-bit variable shift library functions
 ;;;
-;;; ABI (codegen convention): X = a_hi, 2,s = a_lo, B = shift count (0-31)
-;;; Returns: X = result_hi, result_lo written to 2,s.
-;;; Clobbers: D.  Preserves: Y, U.
+;;; ABI (gcc6809 sret-style, ABI #4):
+;;;   IX        = sret pointer (caller-allocated 4-byte buffer)
+;;;   2,s..3,s  = value high half
+;;;   4,s..5,s  = value low half
+;;;   B         = shift count (i8; high bits ignored)
+;;; Result is written through IX: hi at IX+0, lo at IX+2 (big-endian).
+;;; Clobbers: D. Preserves: Y, U.
 ;;;
-;;; All three functions arrange the 32-bit value in a contiguous 4-byte
-;;; workspace on the stack and shift all 4 bytes through carry.
+;;; The shift is performed in place at [IX..IX+3]. The destination
+;;; buffer is the workspace, so no stack frame is needed.
+
+;;; Copy the input value (2,s..5,s) into [IX..IX+3] using A only,
+;;; preserving B (which holds the shift count). LDD would clobber B.
+;;; Macro-style sequence used by all three shift functions.
 
 ;;; __ashlsi3 — 32-bit left shift
 	.globl	__ashlsi3
 	.type	__ashlsi3,@function
 __ashlsi3:
-	pshs	y
-	leas	-4,s		; workspace for 32-bit value
-	; S+0..3=workspace  S+4,5=Y  S+6,7=ret  S+8,9=a_lo
-	stx	,s		; workspace[0,1] = a_hi (MSB)
-	lda	8,s
-	sta	2,s
-	lda	9,s
-	sta	3,s		; workspace[2,3] = a_lo (LSB)
-	tstb			; shift count in B
+	lda	2,s		; copy value_hi byte 0
+	sta	,x
+	lda	3,s		; copy value_hi byte 1
+	sta	1,x
+	lda	4,s		; copy value_lo byte 0
+	sta	2,x
+	lda	5,s		; copy value_lo byte 1
+	sta	3,x
+	tstb			; shift count in B (preserved)
 	beq	.Lshl32_done
 .Lshl32_loop:
-	asl	3,s		; shift byte 3 (LSB) left
-	rol	2,s
-	rol	1,s
-	rol	,s		; shift byte 0 (MSB) left
+	asl	3,x		; shift LSB byte left
+	rol	2,x
+	rol	1,x
+	rol	,x		; shift MSB byte left
 	decb
 	bne	.Lshl32_loop
 .Lshl32_done:
-	ldx	,s		; X = result_hi
-	ldd	2,s		; D = result_lo
-	leas	4,s		; drop workspace
-	puls	y
-	std	2,s		; write result_lo to return slot
 	rts
 
 ;;; __lshrsi3 — 32-bit logical right shift
 	.globl	__lshrsi3
 	.type	__lshrsi3,@function
 __lshrsi3:
-	pshs	y
-	leas	-4,s
-	stx	,s
-	lda	8,s
-	sta	2,s
-	lda	9,s
-	sta	3,s
+	lda	2,s
+	sta	,x
+	lda	3,s
+	sta	1,x
+	lda	4,s
+	sta	2,x
+	lda	5,s
+	sta	3,x
 	tstb
 	beq	.Llsr32_done
 .Llsr32_loop:
-	lsr	,s		; shift byte 0 (MSB) right
-	ror	1,s
-	ror	2,s
-	ror	3,s		; shift byte 3 (LSB) right
+	lsr	,x		; shift MSB byte right (zero-fill)
+	ror	1,x
+	ror	2,x
+	ror	3,x		; shift LSB byte right
 	decb
 	bne	.Llsr32_loop
 .Llsr32_done:
-	ldx	,s		; X = result_hi
-	ldd	2,s		; D = result_lo
-	leas	4,s
-	puls	y
-	std	2,s		; write result_lo to return slot
 	rts
 
-;;; __ashrsi3 — 32-bit arithmetic right shift
+;;; __ashrsi3 — 32-bit arithmetic right shift (sign-preserving)
 	.globl	__ashrsi3
 	.type	__ashrsi3,@function
 __ashrsi3:
-	pshs	y
-	leas	-4,s
-	stx	,s
-	lda	8,s
-	sta	2,s
-	lda	9,s
-	sta	3,s
+	lda	2,s
+	sta	,x
+	lda	3,s
+	sta	1,x
+	lda	4,s
+	sta	2,x
+	lda	5,s
+	sta	3,x
 	tstb
 	beq	.Lasr32_done
 .Lasr32_loop:
-	asr	,s		; arithmetic shift byte 0 (MSB): sign preserved
-	ror	1,s
-	ror	2,s
-	ror	3,s
+	asr	,x		; arithmetic shift MSB byte right
+	ror	1,x
+	ror	2,x
+	ror	3,x
 	decb
 	bne	.Lasr32_loop
 .Lasr32_done:
-	ldx	,s		; X = result_hi
-	ldd	2,s		; D = result_lo
-	leas	4,s
-	puls	y
-	std	2,s		; write result_lo to return slot
 	rts
