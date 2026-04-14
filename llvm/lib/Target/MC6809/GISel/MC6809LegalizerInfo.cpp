@@ -765,12 +765,25 @@ bool MC6809LegalizerInfo::legalizeExtractInsert(LegalizerHelper &Helper, Machine
 
 bool MC6809LegalizerInfo::legalizeFConstant(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const {
   assert(MI.getOpcode() == G_FCONSTANT && "Unexpected opcode");
-  Helper.Observer.changingInstr(MI);
-  MI.setDesc(Helper.MIRBuilder.getTII().get(G_CONSTANT));
-  MachineOperand &Imm = MI.getOperand(1);
-  const ConstantFP *FPImm = Imm.getFPImm();
-  Imm.ChangeToImmediate(FPImm->getValueAPF().bitcastToAPInt().getZExtValue());
-  Helper.Observer.changedInstr(MI);
+  // Rewrite G_FCONSTANT into an integer G_CONSTANT carrying the bit
+  // pattern of the FP value. The original code mutated the opcode in
+  // place and called ChangeToImmediate, which sets an Imm operand —
+  // but G_CONSTANT's operand must be a CImm (ConstantInt*), and
+  // downstream narrow/widen helpers crash calling getCImm() on a
+  // plain Imm. Build a fresh G_CONSTANT via MIRBuilder instead so the
+  // operand kind is correct, and retype the destination register to
+  // the matching integer LLT.
+  MachineIRBuilder &B = Helper.MIRBuilder;
+  Register DstReg = MI.getOperand(0).getReg();
+  LLT DstTy = MRI.getType(DstReg);
+  const ConstantFP *FPImm = MI.getOperand(1).getFPImm();
+  const APInt AsInt = FPImm->getValueAPF().bitcastToAPInt();
+  LLT IntTy = LLT::scalar(DstTy.getSizeInBits());
+  MRI.setType(DstReg, IntTy);
+  LLVMContext &Ctx = B.getMF().getFunction().getContext();
+  B.setInstrAndDebugLoc(MI);
+  B.buildConstant(DstReg, *ConstantInt::get(Ctx, AsInt));
+  MI.eraseFromParent();
   return LegalizerHelper::Legalized;
 }
 
