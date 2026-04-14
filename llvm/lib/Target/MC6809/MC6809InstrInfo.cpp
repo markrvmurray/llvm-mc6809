@@ -599,17 +599,30 @@ bool MC6809InstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock *&
     if (isFusedCompareBranch(I->getOpcode()))
       return true;
 
+    // Operand layout differs by branch kind:
+    //   Unconditional (BRAb, LBRAlb, BranchRelative, ...):  (MBB)
+    //   Conditional   (Bbc, LBlbc, ConditionalBranchRelative, ...): (CondImm, MBB)
+    // Map operand count → MBB operand index. Anything else is opaque.
+    unsigned NumOps = I->getNumExplicitOperands();
+    unsigned MBBOpIdx;
+    if (NumOps == 1)
+      MBBOpIdx = 0;
+    else if (NumOps == 2)
+      MBBOpIdx = 1;
+    else
+      return true;
+
     // Cannot handle branches that don't branch to a block.
-    if (!I->getOperand(0).isMBB()) {
+    if (!I->getOperand(MBBOpIdx).isMBB()) {
       return true;
     }
 
     // Handle unconditional branches.
-    if (I->getNumExplicitOperands() == 1) {
+    if (NumOps == 1) {
       UnCondBrIter = I;
 
       if (!AllowModify) {
-        TBB = I->getOperand(0).getMBB();
+        TBB = I->getOperand(MBBOpIdx).getMBB();
         continue;
       }
 
@@ -620,7 +633,7 @@ bool MC6809InstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock *&
       FBB = nullptr;
 
       // Delete the unconditional branch if it's equivalent to a fall-through.
-      if (MBB.isLayoutSuccessor(I->getOperand(0).getMBB())) {
+      if (MBB.isLayoutSuccessor(I->getOperand(MBBOpIdx).getMBB())) {
         TBB = nullptr;
         I->eraseFromParent();
         I = MBB.end();
@@ -629,17 +642,18 @@ bool MC6809InstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock *&
       }
 
       // TBB is used to indicate the unconditional destination.
-      TBB = I->getOperand(0).getMBB();
+      TBB = I->getOperand(MBBOpIdx).getMBB();
       continue;
     }
 
-    // Handle conditional branches.
-    assert(I->getNumExplicitOperands() == 2 && "Invalid conditional branch");
-    MC6809CC::CondCode CC = I->getNumExplicitOperands() < 2 ? MC6809CC::INVALID : MC6809CC::CondCode(I->getOperand(1).getImm());
+    // Handle conditional branches: operand 0 is the condition code immediate,
+    // operand 1 is the target MBB.
+    assert(NumOps == 2 && "Invalid conditional branch");
+    MC6809CC::CondCode CC = MC6809CC::CondCode(I->getOperand(0).getImm());
 
     // Working from the bottom, handle the first conditional branch.
     if (Cond.empty()) {
-      MachineBasicBlock *TargetBB = I->getOperand(0).getMBB();
+      MachineBasicBlock *TargetBB = I->getOperand(MBBOpIdx).getMBB();
       if (CC != MC6809CC::INVALID && AllowModify && UnCondBrIter != MBB.end() && MBB.isLayoutSuccessor(TargetBB)) {
         // If we can modify the code and it ends in something like:
         //
@@ -675,7 +689,7 @@ bool MC6809InstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock *&
       }
 
       FBB = TBB;
-      TBB = I->getOperand(0).getMBB();
+      TBB = I->getOperand(MBBOpIdx).getMBB();
       Cond.push_back(MachineOperand::CreateImm(CC));
       continue;
     }
