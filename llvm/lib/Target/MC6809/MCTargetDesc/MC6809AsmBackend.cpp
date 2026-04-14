@@ -85,11 +85,20 @@ void MC6809AsmBackend::applyFixup(const MCFragment &F, const MCFixup &Fixup,
     break;
   }
 
+  // Rel5 is a 5-bit signed indexed offset packed into the low 5 bits of a
+  // postbyte; the upper 3 bits (5-bit-form marker + 2-bit register selector)
+  // must be preserved.
+  if (Kind == MC6809::Rel5) {
+    Data[0] = (Data[0] & 0xE0) | (Value & 0x1F);
+    return;
+  }
+
   unsigned int Bytes = 0;
   switch (Kind) {
   case MC6809::Imm8:
   case MC6809::Addr8:
   case MC6809::PCRel8:
+  case MC6809::Rel8:
   case FK_Data_1:
     Bytes = 1;
     break;
@@ -97,6 +106,7 @@ void MC6809AsmBackend::applyFixup(const MCFragment &F, const MCFixup &Fixup,
   case MC6809::Imm16:
   case MC6809::Addr16:
   case MC6809::PCRel16:
+  case MC6809::Rel16:
     Bytes = 2;
     break;
   case FK_Data_4:

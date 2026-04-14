@@ -86,6 +86,23 @@ void MC6809::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
     // relative convention.
     write16be(loc, static_cast<unsigned short>(val - 2));
     break;
+  case R_MC6809_OFFSET_5:
+    // 5-bit signed indexed offset, packed into the low 5 bits of the
+    // postbyte at *loc. The upper 3 bits (5-bit-form marker + 2-bit
+    // register selector) must be preserved.
+    checkInt(ctx, loc, val, 5, rel);
+    *loc = (*loc & 0xE0) | (static_cast<unsigned char>(val) & 0x1F);
+    break;
+  case R_MC6809_OFFSET_8:
+    // 8-bit signed indexed offset. Whole byte at *loc.
+    checkInt(ctx, loc, val, 8, rel);
+    *loc = static_cast<unsigned char>(val);
+    break;
+  case R_MC6809_OFFSET_16:
+    // 16-bit signed indexed offset (big-endian). Full 6809 address
+    // space fits, so no bounds check.
+    write16be(loc, static_cast<unsigned short>(val));
+    break;
   case R_MC6809_FK_DATA_4:
     write32be(loc, static_cast<unsigned long>(val));
     break;

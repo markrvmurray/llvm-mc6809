@@ -69,6 +69,12 @@ unsigned MC6809ELFObjectWriter::getRelocType(const MCFixup &Fixup,
     return ELF::R_MC6809_PCREL_8;
   case MC6809::PCRel16:
     return ELF::R_MC6809_PCREL_16;
+  case MC6809::Rel5:
+    return ELF::R_MC6809_OFFSET_5;
+  case MC6809::Rel8:
+    return ELF::R_MC6809_OFFSET_8;
+  case MC6809::Rel16:
+    return ELF::R_MC6809_OFFSET_16;
   case FK_Data_4:
     return ELF::R_MC6809_FK_DATA_4;
   case FK_Data_8:
