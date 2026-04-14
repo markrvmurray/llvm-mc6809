@@ -544,7 +544,12 @@ void InlineSpiller::eliminateRedundantSpills(LiveInterval &SLI, VNInfo *VNI) {
         LLVM_DEBUG(dbgs() << "Redundant spill " << Idx << '\t' << MI);
         // eliminateDeadDefs won't normally remove stores, so switch opcode.
         MI.setDesc(TII.get(TargetOpcode::KILL));
-        for (MachineOperand &MO : MI.defs())
+        // Mark every def (explicit *and* implicit) dead. Targets whose
+        // store instructions carry implicit defs of flag registers
+        // (e.g. MC6809's STX/STY setting NZ/V) otherwise leave those
+        // implicit defs live, and eliminateDeadDef's allDefsAreDead
+        // assertion fires.
+        for (MachineOperand &MO : MI.all_defs())
           MO.setIsDead();
         DeadDefs.push_back(&MI);
         ++NumSpillsRemoved;
