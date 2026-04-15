@@ -1,119 +1,65 @@
-;
 ; RUN: llc -global-isel -global-isel-abort=1 -O0 -mtriple=mc6809 \
 ; RUN:   %S/Inputs/codegen-globals.ll -o %t-raw.s 2>/dev/null
-; RUN: sed 's/bsr/lbsr/g' %t-raw.s | grep -v '\.directpage' > %t-funcs.s
-; RUN: cat %s %t-funcs.s | llvm-mc -triple=mc6809 -I %S/Inputs \
-; RUN:   --filetype=obj -o %t.o
+; RUN: grep -v '\.directpage' %t-raw.s > %t-funcs.s
+; RUN: %gcc6809 -S -Os -o %t-harness-raw.s %S/Inputs/harness-globals.c
+; RUN: %S/Inputs/sdcc2gas.sh < %t-harness-raw.s > %t-harness.s
+; RUN: echo '.include "runtime.inc"' > %t-all.s
+; RUN: echo '.include "mc6809rt.s"' >> %t-all.s
+; RUN: cat %t-harness.s %t-funcs.s >> %t-all.s
+; RUN: llvm-mc -triple=mc6809 -I %S/Inputs --filetype=obj -o %t.o %t-all.s
 ; RUN: ld.lld -T %S/Inputs/link.ld %t.o -o %t.elf
 ; RUN: llvm-objcopy -O ihex %t.elf %t.hex
 ; RUN: %usim09batch --timeout=500000 %t.hex | FileCheck %s
 ;
 ; RUN: llc -global-isel -global-isel-abort=1 -O1 -mtriple=mc6809 \
 ; RUN:   %S/Inputs/codegen-globals.ll -o %t-raw.s 2>/dev/null
-; RUN: sed 's/bsr/lbsr/g' %t-raw.s | grep -v '\.directpage' > %t-funcs.s
-; RUN: cat %s %t-funcs.s | llvm-mc -triple=mc6809 -I %S/Inputs \
-; RUN:   --filetype=obj -o %t.o
+; RUN: grep -v '\.directpage' %t-raw.s > %t-funcs.s
+; RUN: %gcc6809 -S -Os -o %t-harness-raw.s %S/Inputs/harness-globals.c
+; RUN: %S/Inputs/sdcc2gas.sh < %t-harness-raw.s > %t-harness.s
+; RUN: echo '.include "runtime.inc"' > %t-all.s
+; RUN: echo '.include "mc6809rt.s"' >> %t-all.s
+; RUN: cat %t-harness.s %t-funcs.s >> %t-all.s
+; RUN: llvm-mc -triple=mc6809 -I %S/Inputs --filetype=obj -o %t.o %t-all.s
 ; RUN: ld.lld -T %S/Inputs/link.ld %t.o -o %t.elf
 ; RUN: llvm-objcopy -O ihex %t.elf %t.hex
 ; RUN: %usim09batch --timeout=500000 %t.hex | FileCheck %s
 ;
 ; RUN: llc -global-isel -global-isel-abort=1 -O2 -mtriple=mc6809 \
 ; RUN:   %S/Inputs/codegen-globals.ll -o %t-raw.s 2>/dev/null
-; RUN: sed 's/bsr/lbsr/g' %t-raw.s | grep -v '\.directpage' > %t-funcs.s
-; RUN: cat %s %t-funcs.s | llvm-mc -triple=mc6809 -I %S/Inputs \
-; RUN:   --filetype=obj -o %t.o
+; RUN: grep -v '\.directpage' %t-raw.s > %t-funcs.s
+; RUN: %gcc6809 -S -Os -o %t-harness-raw.s %S/Inputs/harness-globals.c
+; RUN: %S/Inputs/sdcc2gas.sh < %t-harness-raw.s > %t-harness.s
+; RUN: echo '.include "runtime.inc"' > %t-all.s
+; RUN: echo '.include "mc6809rt.s"' >> %t-all.s
+; RUN: cat %t-harness.s %t-funcs.s >> %t-all.s
+; RUN: llvm-mc -triple=mc6809 -I %S/Inputs --filetype=obj -o %t.o %t-all.s
 ; RUN: ld.lld -T %S/Inputs/link.ld %t.o -o %t.elf
 ; RUN: llvm-objcopy -O ihex %t.elf %t.hex
 ; RUN: %usim09batch --timeout=500000 %t.hex | FileCheck %s
 ;
 ; RUN: llc -global-isel -global-isel-abort=1 -O3 -mtriple=mc6809 \
 ; RUN:   %S/Inputs/codegen-globals.ll -o %t-raw.s 2>/dev/null
-; RUN: sed 's/bsr/lbsr/g' %t-raw.s | grep -v '\.directpage' > %t-funcs.s
-; RUN: cat %s %t-funcs.s | llvm-mc -triple=mc6809 -I %S/Inputs \
-; RUN:   --filetype=obj -o %t.o
+; RUN: grep -v '\.directpage' %t-raw.s > %t-funcs.s
+; RUN: %gcc6809 -S -Os -o %t-harness-raw.s %S/Inputs/harness-globals.c
+; RUN: %S/Inputs/sdcc2gas.sh < %t-harness-raw.s > %t-harness.s
+; RUN: echo '.include "runtime.inc"' > %t-all.s
+; RUN: echo '.include "mc6809rt.s"' >> %t-all.s
+; RUN: cat %t-harness.s %t-funcs.s >> %t-all.s
+; RUN: llvm-mc -triple=mc6809 -I %S/Inputs --filetype=obj -o %t.o %t-all.s
 ; RUN: ld.lld -T %S/Inputs/link.ld %t.o -o %t.elf
 ; RUN: llvm-objcopy -O ihex %t.elf %t.hex
 ; RUN: %usim09batch --timeout=500000 %t.hex | FileCheck %s
-; REQUIRES: usim
+; REQUIRES: usim, gcc6809
 ;
-; Codegen execution test: global variable access (load, store, increment).
+; Codegen execution test: global variable access (load / store /
+; increment) for i8, i16 and i32 globals. The harness
+; (Inputs/harness-globals.c) is compiled by gcc6809 and the
+; functions under test (Inputs/codegen-globals.ll) by LLVM-MC6809.
 
-.include "runtime.inc"
-
-	.section .rom,"ax",@progbits
-
-;;; putx — print X as 4 hex digits (preserves X)
-putx:
-	pshs	x
-	tfr	x,d
-	tfr	a,b
-	tfr	b,a
-	jsr	puthex
-	puls	x
-	pshs	x
-	tfr	x,d
-	tfr	b,a
-	jsr	puthex
-	puls	x
-	rts
-
-	.globl	test_main
-test_main:
-
-	;; get_counter() initially = 0
-	jsr	get_counter
-	jsr	putx
-	jsr	putnl
 ; CHECK: 0000
-
-	;; set_counter(0x1234)
-	ldx	#0x1234
-	jsr	set_counter
-	;; get_counter() = 0x1234
-	jsr	get_counter
-	jsr	putx
-	jsr	putnl
 ; CHECK-NEXT: 1234
-
-	;; inc_counter() → 0x1235
-	jsr	inc_counter
-	jsr	get_counter
-	jsr	putx
-	jsr	putnl
 ; CHECK-NEXT: 1235
-
-	;; inc_counter() twice → 0x1237
-	jsr	inc_counter
-	jsr	inc_counter
-	jsr	get_counter
-	jsr	putx
-	jsr	putnl
 ; CHECK-NEXT: 1237
-
-	;; get_value() = 0 (uninitialized .bss global)
-	jsr	get_value
-	tfr	b,a
-	jsr	puthex
-	jsr	putnl
 ; CHECK-NEXT: 00
-
-	;; ===== i32 globals =====
-	;; inc_counter32() 3 times, then check via direct memory read
-
-	jsr	inc_counter32
-	jsr	inc_counter32
-	jsr	inc_counter32
-
-	;; Read counter32 directly from memory (bypass CC issues)
-	ldx	#counter32
-	ldd	,x		; hi word
-	tfr	d,x
-	jsr	putx
-	ldx	#counter32
-	ldd	2,x		; lo word
-	tfr	d,x
-	jsr	putx
-	jsr	putnl
 ; CHECK-NEXT: 00000003
-
-	jsr	halt
+; CHECK-NEXT: CAFEBABE
