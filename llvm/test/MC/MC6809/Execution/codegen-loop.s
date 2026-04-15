@@ -1,9 +1,12 @@
-;
 ; RUN: llc -global-isel -global-isel-abort=1 -O0 -mtriple=mc6809 \
 ; RUN:   %S/Inputs/codegen-loop.ll -o %t-raw.s 2>/dev/null
 ; RUN: grep -v '\.directpage' %t-raw.s > %t-funcs.s
-; RUN: cat %s %t-funcs.s | llvm-mc -triple=mc6809 -I %S/Inputs \
-; RUN:   --filetype=obj -o %t.o
+; RUN: %gcc6809 -S -Os -o %t-harness-raw.s %S/Inputs/harness-loop.c
+; RUN: %S/Inputs/sdcc2gas.sh < %t-harness-raw.s > %t-harness.s
+; RUN: echo '.include "runtime.inc"' > %t-all.s
+; RUN: echo '.include "mc6809rt.s"' >> %t-all.s
+; RUN: cat %t-harness.s %t-funcs.s >> %t-all.s
+; RUN: llvm-mc -triple=mc6809 -I %S/Inputs --filetype=obj -o %t.o %t-all.s
 ; RUN: ld.lld -T %S/Inputs/link.ld %t.o -o %t.elf
 ; RUN: llvm-objcopy -O ihex %t.elf %t.hex
 ; RUN: %usim09batch --timeout=500000 %t.hex | FileCheck %s
@@ -11,8 +14,12 @@
 ; RUN: llc -global-isel -global-isel-abort=1 -O1 -mtriple=mc6809 \
 ; RUN:   %S/Inputs/codegen-loop.ll -o %t-raw.s 2>/dev/null
 ; RUN: grep -v '\.directpage' %t-raw.s > %t-funcs.s
-; RUN: cat %s %t-funcs.s | llvm-mc -triple=mc6809 -I %S/Inputs \
-; RUN:   --filetype=obj -o %t.o
+; RUN: %gcc6809 -S -Os -o %t-harness-raw.s %S/Inputs/harness-loop.c
+; RUN: %S/Inputs/sdcc2gas.sh < %t-harness-raw.s > %t-harness.s
+; RUN: echo '.include "runtime.inc"' > %t-all.s
+; RUN: echo '.include "mc6809rt.s"' >> %t-all.s
+; RUN: cat %t-harness.s %t-funcs.s >> %t-all.s
+; RUN: llvm-mc -triple=mc6809 -I %S/Inputs --filetype=obj -o %t.o %t-all.s
 ; RUN: ld.lld -T %S/Inputs/link.ld %t.o -o %t.elf
 ; RUN: llvm-objcopy -O ihex %t.elf %t.hex
 ; RUN: %usim09batch --timeout=500000 %t.hex | FileCheck %s
@@ -20,8 +27,12 @@
 ; RUN: llc -global-isel -global-isel-abort=1 -O2 -mtriple=mc6809 \
 ; RUN:   %S/Inputs/codegen-loop.ll -o %t-raw.s 2>/dev/null
 ; RUN: grep -v '\.directpage' %t-raw.s > %t-funcs.s
-; RUN: cat %s %t-funcs.s | llvm-mc -triple=mc6809 -I %S/Inputs \
-; RUN:   --filetype=obj -o %t.o
+; RUN: %gcc6809 -S -Os -o %t-harness-raw.s %S/Inputs/harness-loop.c
+; RUN: %S/Inputs/sdcc2gas.sh < %t-harness-raw.s > %t-harness.s
+; RUN: echo '.include "runtime.inc"' > %t-all.s
+; RUN: echo '.include "mc6809rt.s"' >> %t-all.s
+; RUN: cat %t-harness.s %t-funcs.s >> %t-all.s
+; RUN: llvm-mc -triple=mc6809 -I %S/Inputs --filetype=obj -o %t.o %t-all.s
 ; RUN: ld.lld -T %S/Inputs/link.ld %t.o -o %t.elf
 ; RUN: llvm-objcopy -O ihex %t.elf %t.hex
 ; RUN: %usim09batch --timeout=500000 %t.hex | FileCheck %s
@@ -29,108 +40,29 @@
 ; RUN: llc -global-isel -global-isel-abort=1 -O3 -mtriple=mc6809 \
 ; RUN:   %S/Inputs/codegen-loop.ll -o %t-raw.s 2>/dev/null
 ; RUN: grep -v '\.directpage' %t-raw.s > %t-funcs.s
-; RUN: cat %s %t-funcs.s | llvm-mc -triple=mc6809 -I %S/Inputs \
-; RUN:   --filetype=obj -o %t.o
+; RUN: %gcc6809 -S -Os -o %t-harness-raw.s %S/Inputs/harness-loop.c
+; RUN: %S/Inputs/sdcc2gas.sh < %t-harness-raw.s > %t-harness.s
+; RUN: echo '.include "runtime.inc"' > %t-all.s
+; RUN: echo '.include "mc6809rt.s"' >> %t-all.s
+; RUN: cat %t-harness.s %t-funcs.s >> %t-all.s
+; RUN: llvm-mc -triple=mc6809 -I %S/Inputs --filetype=obj -o %t.o %t-all.s
 ; RUN: ld.lld -T %S/Inputs/link.ld %t.o -o %t.elf
 ; RUN: llvm-objcopy -O ihex %t.elf %t.hex
 ; RUN: %usim09batch --timeout=500000 %t.hex | FileCheck %s
-; REQUIRES: usim
+; REQUIRES: usim, gcc6809
 ;
-; Codegen execution test: loop control flow (PHI, back-edge, exit).
-; Tests single-value (countdown) and multi-value (sum) loops.
+; Codegen execution test: loop control flow (PHI, back-edge, exit
+; blocks). Single- and multi-value loops. The harness
+; (Inputs/harness-loop.c) is compiled by gcc6809 and the
+; functions under test (Inputs/codegen-loop.ll) by LLVM-MC6809.
 
-.include "runtime.inc"
-
-	.section .rom,"ax",@progbits
-
-;;; putx — print X as 4 hex digits (preserves X)
-putx:
-	pshs	x
-	tfr	x,d
-	tfr	a,b
-	tfr	b,a
-	jsr	puthex
-	puls	x
-	pshs	x
-	tfr	x,d
-	tfr	b,a
-	jsr	puthex
-	puls	x
-	rts
-
-	.globl	test_main
-test_main:
-
-	;; countdown(5) = 5 (loops 5 times, returns original n)
-	ldx	#5
-	jsr	countdown
-	jsr	putx
-	jsr	putnl
 ; CHECK: 0005
-
-	;; countdown(1) = 1 (loops once)
-	ldx	#1
-	jsr	countdown
-	jsr	putx
-	jsr	putnl
 ; CHECK-NEXT: 0001
-
-	;; countdown(0) = 0 (loop body never executes)
-	ldx	#0
-	jsr	countdown
-	jsr	putx
-	jsr	putnl
 ; CHECK-NEXT: 0000
-
-	;; countdown(256) = 256 (tests larger iteration count)
-	ldx	#256
-	jsr	countdown
-	jsr	putx
-	jsr	putnl
 ; CHECK-NEXT: 0100
-
-	;; countdown(-1) = -1 = 0xFFFF (n <= 0, loop body skipped)
-	ldx	#0xFFFF
-	jsr	countdown
-	jsr	putx
-	jsr	putnl
 ; CHECK-NEXT: FFFF
-
-	;; ===== sum_to_n: multi-value loop (sum + counter) =====
-
-	;; sum_to_n(3) = 1+2+3 = 6
-	ldx	#3
-	jsr	sum_to_n
-	jsr	putx
-	jsr	putnl
 ; CHECK-NEXT: 0006
-
-	;; sum_to_n(10) = 55 = 0x0037
-	ldx	#10
-	jsr	sum_to_n
-	jsr	putx
-	jsr	putnl
 ; CHECK-NEXT: 0037
-
-	;; sum_to_n(0) = 0 (loop skipped)
-	ldx	#0
-	jsr	sum_to_n
-	jsr	putx
-	jsr	putnl
 ; CHECK-NEXT: 0000
-
-	;; sum_to_n(1) = 1
-	ldx	#1
-	jsr	sum_to_n
-	jsr	putx
-	jsr	putnl
 ; CHECK-NEXT: 0001
-
-	;; sum_to_n(100) = 5050 = 0x13BA
-	ldx	#100
-	jsr	sum_to_n
-	jsr	putx
-	jsr	putnl
 ; CHECK-NEXT: 13BA
-
-	jsr	halt
