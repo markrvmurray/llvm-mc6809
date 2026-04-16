@@ -235,8 +235,25 @@ public:
     if (mi_match(SrcReg, MRI,
                  m_all_of(m_MInstr(ExtMI), m_any_of(m_GZExt(m_Reg(ExtSrc)),
                                                     m_GSExt(m_Reg(ExtSrc)))))) {
+      // Don't refold an ext-of-ext chain whose collapsed form is either:
+      //   - Custom: the target chose to chain explicitly through the
+      //     intermediate type. Folding back recreates the very shape the
+      //     custom rule is trying to expand → infinite legalize loop.
+      //   - Unsupported: the collapsed shape has no rule at all. Folding
+      //     produces something that fails to legalize.
+      // Folding to a Legal / Lower / Libcall shape is fine — those are
+      // the cases where the legalizer can take it from here.
+      // Same trap class as the trunc(trunc) refold (see tryCombineTrunc).
+      const LLT FoldDstTy = MRI.getType(DstReg);
+      const LLT ExtSrcTy = MRI.getType(ExtSrc);
+      const unsigned NewExtOpc = ExtMI->getOpcode();
+      const auto FoldAction =
+          LI.getAction({NewExtOpc, {FoldDstTy, ExtSrcTy}}).Action;
+      if (FoldAction == LegalizeActions::Custom ||
+          FoldAction == LegalizeActions::Unsupported)
+        return false;
       LLVM_DEBUG(dbgs() << ".. sext(zext x) -> (zext x)  or  sext(sext x) -> (sext x) : Combine MI: " << MI);
-      Builder.buildInstr(ExtMI->getOpcode(), {DstReg}, {ExtSrc});
+      Builder.buildInstr(NewExtOpc, {DstReg}, {ExtSrc});
       UpdatedDefs.push_back(DstReg);
       markInstAndDefDead(MI, *MRI.getVRegDef(SrcReg), DeadInsts);
       return true;
