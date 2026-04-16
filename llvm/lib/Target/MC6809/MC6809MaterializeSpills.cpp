@@ -762,6 +762,42 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
           if (!OtherMO.isReg() || !OtherMO.isUse()) continue;
           if (isAnySpillReg(OtherMO.getReg())) continue;
           if (OtherMO.getReg() != RealReg) continue;
+          // Bug #116: this conflict-resolution block assumed RealReg is
+          // an 8-bit accumulator (AA/AB). For INDEX spills (SPILL_X*),
+          // getRealReg returns IY — a 16-bit register. The 8-bit save
+          // path silently emitted ill-formed `Store_i8_Mem $iy, ...`
+          // and ended up rewriting OtherMO to AB, which downstream
+          // resolved to STBi_o0 (byte store) on what should have been
+          // a `(store (p0))` (pointer store). Only the high byte of
+          // the pointer got written; callees that followed the
+          // resulting function pointer jumped into RAM.
+          //
+          // Handle the INDEX case explicitly: save as a 2-byte iPtr,
+          // restore into the OTHER index register (IX↔IY), and
+          // redirect OtherMO to that alt index.
+          if (RealReg == MC6809::IY || RealReg == MC6809::IX) {
+            int SaveFI = MF.getFrameInfo().CreateStackObject(
+                2, Align(1), /*isSpillSlot=*/false);
+            BuildMI(MBB, MI, DL, TII.get(MC6809::Store_iPtr_Mem))
+                .addReg(RealReg)
+                .addFrameIndex(SaveFI)
+                .addImm(0);
+            Register AltReg =
+                (RealReg == MC6809::IY) ? MC6809::IX : MC6809::IY;
+            if (OtherMO.isTied()) {
+              // Tied case: defer the reload, leave the spill for the
+              // expansion to read U-relative. Matches the 8-bit tied
+              // behaviour below.
+              SkipSpillLoad.insert(OpIdx);
+            } else {
+              BuildMI(MBB, MI, DL, TII.get(MC6809::Load_iPtr_Mem))
+                  .addReg(AltReg, RegState::Define)
+                  .addFrameIndex(SaveFI)
+                  .addImm(0);
+              OtherMO.setReg(AltReg);
+            }
+            break;
+          }
           if (OtherMO.isTied()) {
             // Case 2: RHS spill would clobber tied LHS. Same fix as
             // Case 1: save the live value to a fresh slot, load into
