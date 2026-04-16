@@ -8029,6 +8029,37 @@ LegalizerHelper::LegalizeResult LegalizerHelper::lowerEXT(MachineInstr &MI) {
       !isPowerOf2_32(SrcTyScalarSize))
     return UnableToLegalize;
 
+  // Base case for scalar extends where the destination is exactly twice
+  // the source size: build the high half explicitly and merge.
+  //   G_SEXT  → high = ASHR(src, SrcSize - 1)
+  //   G_ZEXT  → high = 0
+  //   G_ANYEXT → high = undef
+  // followed by a single G_MERGE_VALUES of (src, high). This gives small
+  // 16-bit / register-poor targets a way to widen by one step without
+  // having to provide a custom legalizer rule for every (s2N, sN) pair.
+  if (DstTy.isScalar() && SrcTyScalarSize * 2 == DstTyScalarSize) {
+    Register HighReg;
+    switch (MI.getOpcode()) {
+    case TargetOpcode::G_ZEXT:
+      HighReg = MIRBuilder.buildConstant(SrcTy, 0).getReg(0);
+      break;
+    case TargetOpcode::G_ANYEXT:
+      HighReg = MIRBuilder.buildUndef(SrcTy).getReg(0);
+      break;
+    case TargetOpcode::G_SEXT: {
+      auto ShiftAmt =
+          MIRBuilder.buildConstant(SrcTy, SrcTyScalarSize - 1);
+      HighReg = MIRBuilder.buildAShr(SrcTy, Src, ShiftAmt).getReg(0);
+      break;
+    }
+    default:
+      llvm_unreachable("lowerEXT called for non-extend opcode");
+    }
+    MIRBuilder.buildMergeLikeInstr(Dst, {Src, HighReg});
+    MI.eraseFromParent();
+    return Legalized;
+  }
+
   // The step between extend is too large, split it by creating an intermediate
   // extend instruction
   if (SrcTyScalarSize * 2 < DstTyScalarSize) {
