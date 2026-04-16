@@ -354,9 +354,18 @@ public:
     // trunc(trunc) -> trunc
     Register TruncSrc;
     if (mi_match(SrcReg, MRI, m_GTrunc(m_Reg(TruncSrc)))) {
-      // Always combine trunc(trunc) since the eventual resulting trunc must be
-      // legal anyway as it must be legal for all outputs of the consumer type
-      // set.
+      // Combining trunc(trunc) is usually safe because the resulting trunc
+      // must be legal for all outputs of the consumer type set. There is
+      // however one trap: if the target uses a `customFor` rule on the
+      // resulting (DstTy, TruncSrcTy) pair, the legalizer's custom hook may
+      // re-expand it into chained truncs again — and the next iteration of
+      // this combine will fold them back, producing an infinite loop. So
+      // when the resulting trunc would re-trigger custom legalization, bail
+      // out and let the original two-step trunc reach the selector.
+      LLT TruncSrcTy = MRI.getType(TruncSrc);
+      if (isInstCustom({TargetOpcode::G_TRUNC, {DstTy, TruncSrcTy}}))
+        return false;
+
       LLVM_DEBUG(dbgs() << ".. Combine G_TRUNC(G_TRUNC): " << MI);
 
       Builder.buildTrunc(DstReg, TruncSrc);
@@ -1631,6 +1640,15 @@ private:
 
   bool isInstLegal(const LegalityQuery &Query) const {
     return LI.getAction(Query).Action == LegalizeActions::Legal;
+  }
+
+  /// Returns true if the target requested a custom legalization for the
+  /// query. Combines that re-create such instructions need to bail out,
+  /// because the custom rule may transform the instruction back into the
+  /// shape the combiner just produced — causing an infinite loop in the
+  /// legalizer/combiner ping-pong.
+  bool isInstCustom(const LegalityQuery &Query) const {
+    return LI.getAction(Query).Action == LegalizeActions::Custom;
   }
 
   bool isConstantUnsupported(LLT Ty) const {
