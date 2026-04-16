@@ -101,11 +101,19 @@ void MC6809RegisterBankInfo::getInstrPartialMappingIdxs(const MachineInstr &MI, 
   unsigned NumOperands = MI.getNumOperands();
   for (unsigned Idx = 0; Idx < NumOperands; ++Idx) {
     auto &MO = MI.getOperand(Idx);
-    // Skip non-register operands (metadata, immediates, FI, ...) and
-    // register operands that name no register (e.g. the $noreg slot in
-    // DBG_VALUE meta-instructions). MRI.getType() on a null register
-    // returns an invalid LLT, which would crash getPartialMappingIdx.
-    if (!MO.isReg() || !MO.getReg())
+    // Skip operands we cannot meaningfully type-query:
+    //   - non-register operands (metadata, immediates, FI, ...)
+    //   - register operands naming no register ($noreg, e.g. the
+    //     middle slot in DBG_VALUE)
+    //   - physical-register operands ($ix, $ab, ...) — MRI.getType()
+    //     only returns a meaningful LLT for virtual registers; for
+    //     physregs it returns a default-constructed (invalid) LLT,
+    //     which would crash getPartialMappingIdx -> getElementCount.
+    //
+    // Surfaced by picolibc -g builds where DBG_VALUE references the
+    // incoming-arg physreg directly, e.g.
+    //   DBG_VALUE $ix, $noreg, !"locale", !DIExpression()
+    if (!MO.isReg() || !MO.getReg() || MO.getReg().isPhysical())
       OpRegBankIdx[Idx] = PMI_None;
     else
       OpRegBankIdx[Idx] = getPartialMappingIdx(MRI.getType(MO.getReg()));
