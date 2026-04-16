@@ -122,8 +122,20 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   getActionDefinitionsBuilder({G_SEXTLOAD, G_ZEXTLOAD})
       .custom();
 
+  // G_TRUNC: the selector has patterns for `(s1, s8)` (AND #1), and
+  // for `(s8, s16)` (extract low byte). For `(s1, s16)` there is no
+  // direct pattern — but we cannot lower it via two chained truncs
+  // because LegalizationArtifactCombiner::tryCombineTrunc folds
+  // adjacent truncs into a single trunc, re-creating the original
+  // and causing infinite recursion in the legalizer.
+  //
+  // Workaround: pre-mask the i16 source with `& 1` and then chain
+  // the truncs. The G_AND in the middle is not a trunc, so the
+  // combiner does NOT fold it away.
   getActionDefinitionsBuilder(G_TRUNC)
-      .legalForCartesianProduct(NotMaxWithOne, LegalScalars)
+      .legalForCartesianProduct({s8}, LegalScalars)
+      .legalFor({{s1, s8}})
+      .customFor({{s1, s16}})
       .clampScalar(1, *LegalScalars.begin(), *std::prev(LegalScalars.end()))
       .clampScalar(0, *NotMaxWithOne.begin(), *std::prev(NotMaxWithOne.end()));
 
@@ -363,6 +375,29 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
       B.buildMergeValues(DstReg, {Ext8.getReg(0), Zero8.getReg(0),
                                    Zero8b.getReg(0), Zero8c.getReg(0)});
     }
+    MI.eraseFromParent();
+    return true;
+  }
+  case G_TRUNC: {
+    // s1 from s16: lower via an intermediate s8 trunc, since the
+    // selector only has patterns for the s1-from-s8 trunc (which
+    // becomes a single AND #1).
+    //
+    // The artifact combiner's `trunc(trunc) -> trunc` rule used to
+    // refold this back into the original (s1, s16) trunc, causing
+    // an infinite loop in the legalizer. The combiner now bails on
+    // that fold when the resulting trunc has a customFor rule —
+    // see the matching change in
+    // include/llvm/CodeGen/GlobalISel/LegalizationArtifactCombiner.h.
+    Register DstReg = MI.getOperand(0).getReg();
+    Register SrcReg = MI.getOperand(1).getReg();
+    LLT DstTy = MRI.getType(DstReg);
+    LLT SrcTy = MRI.getType(SrcReg);
+    if (DstTy != LLT::scalar(1) || SrcTy != LLT::scalar(16))
+      return false;
+    MachineIRBuilder &B = Helper.MIRBuilder;
+    auto Tmp8 = B.buildTrunc(LLT::scalar(8), SrcReg);
+    B.buildTrunc(DstReg, Tmp8);
     MI.eraseFromParent();
     return true;
   }
