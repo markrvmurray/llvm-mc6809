@@ -110,15 +110,14 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
       .clampScalar(1, *NotMaxWithOne.begin(), *std::prev(NotMaxWithOne.end()));
 
   // G_SEXT: native form is SEX (s8 B → s16 D); SEXW exists only on HD6309.
-  // For s16 → s32 on plain 6809 there's no instruction, so we custom-lower
-  // it as: dst_s32 = MERGE_VALUES(src, ASHR(src, 15)). The ASHR-by-15 of an
-  // s16 produces 0x0000 or 0xFFFF, exactly the sign-extension upper word.
-  // Discovered while building test_printf — `(long)int_var` from any
-  // ordinary C source hits this path. Without the custom case the
-  // legalizer reports "unable to legalize G_SEXT".
+  // For s16 → s32 on plain 6809 there's no instruction, so we just lower
+  // via the upstream LegalizerHelper::lowerEXT path, which (since the
+  // lib/CodeGen/GlobalISel/LegalizerHelper.cpp fix that added the
+  // SrcSize*2 == DstSize base case) emits the same MERGE_VALUES(src,
+  // ASHR(src, 15)) sequence we previously did inline here.
   getActionDefinitionsBuilder(G_SEXT)
       .legalForCartesianProduct(LegalScalars, LegalShortScalars)
-      .customFor({{s32, s16}});
+      .lowerFor({{s32, s16}});
 
   getActionDefinitionsBuilder({G_SEXTLOAD, G_ZEXTLOAD})
       .custom();
@@ -364,27 +363,6 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
       B.buildMergeValues(DstReg, {Ext8.getReg(0), Zero8.getReg(0),
                                    Zero8b.getReg(0), Zero8c.getReg(0)});
     }
-    MI.eraseFromParent();
-    return true;
-  }
-  case G_SEXT: {
-    // s16 → s32 sign extension. There's no SEXW on plain 6809, so
-    // synthesize the upper word as `src ASHR 15` (which is 0x0000 if
-    // src ≥ 0 or 0xFFFF if src < 0) and merge it above the original
-    // src word. The ASHR-by-15 is further legalized via the existing
-    // i16 shift path (selectShift16 in the isel emits a tight loop).
-    Register DstReg = MI.getOperand(0).getReg();
-    Register SrcReg = MI.getOperand(1).getReg();
-    LLT DstTy = MRI.getType(DstReg);
-    LLT SrcTy = MRI.getType(SrcReg);
-    LLT S16 = LLT::scalar(16);
-    LLT S8 = LLT::scalar(8);
-    if (DstTy != LLT::scalar(32) || SrcTy != S16)
-      return false;
-    MachineIRBuilder &B = Helper.MIRBuilder;
-    auto Fifteen = B.buildConstant(S8, 15);
-    auto SignWord = B.buildAShr(S16, SrcReg, Fifteen);
-    B.buildMergeValues(DstReg, {SrcReg, SignWord.getReg(0)});
     MI.eraseFromParent();
     return true;
   }
