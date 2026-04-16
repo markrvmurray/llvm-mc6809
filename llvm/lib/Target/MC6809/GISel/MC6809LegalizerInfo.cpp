@@ -110,14 +110,19 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
       .clampScalar(1, *NotMaxWithOne.begin(), *std::prev(NotMaxWithOne.end()));
 
   // G_SEXT: native form is SEX (s8 B → s16 D); SEXW exists only on HD6309.
-  // For s16 → s32 on plain 6809 there's no instruction, so we just lower
-  // via the upstream LegalizerHelper::lowerEXT path, which (since the
-  // lib/CodeGen/GlobalISel/LegalizerHelper.cpp fix that added the
-  // SrcSize*2 == DstSize base case) emits the same MERGE_VALUES(src,
-  // ASHR(src, 15)) sequence we previously did inline here.
+  // The instruction selector has patterns for two shapes only:
+  //   (s8, s1)  via SEX8Implicit
+  //   (s16, s8) via SEX16Implicit (the native SEX)
+  // Wider widenings go through libcall-style lowering via lowerEXT.
+  //
+  // (s16, s1) and (s32, s1) need explicit chaining through the available
+  // intermediates — the selector does not synthesise multi-step extends
+  // by itself. Both are custom-lowered below. Closes bug #82a — picolibc
+  // ftell.c / ftello.c.
   getActionDefinitionsBuilder(G_SEXT)
-      .legalForCartesianProduct(LegalScalars, LegalShortScalars)
-      .lowerFor({{s32, s16}});
+      .legalFor({{s8, s1}, {s16, s8}})
+      .lowerFor({{s32, s16}})
+      .customFor({{s16, s1}, {s32, s1}});
 
   getActionDefinitionsBuilder({G_SEXTLOAD, G_ZEXTLOAD})
       .custom();
@@ -456,6 +461,38 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
     B.buildTrunc(DstReg, Tmp8);
     MI.eraseFromParent();
     return true;
+  }
+  case G_SEXT: {
+    // The MC6809 selector has patterns only for the native sext shapes
+    // (s8, s1) (SEX8Implicit) and (s16, s8) (SEX16Implicit). Wider
+    // widenings have to be chained explicitly. Two cases here:
+    //
+    //   (s16, s1): s1 → s8 → s16
+    //   (s32, s1): s1 → s8 → s16 → s32
+    //                            ^^ this last step lowers via lowerFor
+    //
+    // Both surface in picolibc ftell.c / ftello.c (bug #82a).
+    Register DstReg = MI.getOperand(0).getReg();
+    Register SrcReg = MI.getOperand(1).getReg();
+    LLT DstTy = MRI.getType(DstReg);
+    LLT SrcTy = MRI.getType(SrcReg);
+    if (SrcTy != LLT::scalar(1))
+      return false;
+    MachineIRBuilder &B = Helper.MIRBuilder;
+    if (DstTy == LLT::scalar(16)) {
+      auto Tmp8 = B.buildSExt(LLT::scalar(8), SrcReg);
+      B.buildSExt(DstReg, Tmp8);
+      MI.eraseFromParent();
+      return true;
+    }
+    if (DstTy == LLT::scalar(32)) {
+      auto Tmp8 = B.buildSExt(LLT::scalar(8), SrcReg);
+      auto Tmp16 = B.buildSExt(LLT::scalar(16), Tmp8);
+      B.buildSExt(DstReg, Tmp16);
+      MI.eraseFromParent();
+      return true;
+    }
+    return false;
   }
   case G_SELECT: {
     // Decompose i32 select into two INDEPENDENT i16 selects.
