@@ -62,6 +62,28 @@ struct MC6809ValueAssigner : CallLowering::ValueAssigner {
     for (Register R : Reserved.set_bits())
       State.AllocateReg(R);
 
+    // gcc6809 byval convention: the struct's bytes are placed on the
+    // outgoing arg stack as a contiguous block of ByValSize bytes,
+    // bypassing IX entirely (the byval pointer is NOT passed in a
+    // register; the bytes themselves are pushed). On the callee side
+    // the formal pointer parameter resolves to a frame-index pointer
+    // into that in-frame block.
+    //
+    // We intercept byval before the regular CC table because the .td
+    // rules would otherwise route the byval ptr through CCIfPtr →
+    // CCAssignToReg<[IX]>, which is the wrong layout.
+    if (Flags.isByVal()) {
+      unsigned ByValSize = Flags.getByValSize();
+      // gcc6809 uses 1-byte alignment for everything on the stack
+      // (STRUCTURE_SIZE_BOUNDARY 8 in m6809.h).
+      Align ByValAlign(1);
+      unsigned Offset = State.AllocateStack(ByValSize, ByValAlign);
+      State.addLoc(CCValAssign::getMem(ValNo, ValVT, Offset, LocVT,
+                                       CCValAssign::Full));
+      StackSize = State.getStackSize();
+      return false;
+    }
+
     // gcc6809's __gcccall variadic ABI puts ALL args (including the
     // named ones like printf's fmt) on the stack. The variadic CC
     // table CC_MC6809_VarArgs is `CCAssignToStack<0,1>` for all
@@ -125,6 +147,54 @@ struct MC6809OutgoingArgsHandler : MC6809OutgoingValueHandler {
     auto OffsetReg = MIRBuilder.buildConstant(LLT::scalar(16), Offset).getReg(0);
     return MIRBuilder.buildPtrAdd(P, SPReg, OffsetReg).getReg(0);
   }
+
+  // Bring the base-class single-vreg overload into scope so the override
+  // below can fall through to it for non-byval args.
+  using MC6809OutgoingValueHandler::assignValueToAddress;
+
+  // gcc6809 byval convention: the caller copies the struct's bytes
+  // directly into the outgoing arg stack region. The byval pointer
+  // (Arg.Regs[ValRegIndex]) names the source struct in the caller's
+  // own frame; Addr is the destination stack slot inside the call's
+  // outgoing args region.
+  //
+  // We emit a byte-wise copy loop unrolled inline. For the small
+  // structs typical of MC6809 code (4-16 bytes) this is fine; for
+  // larger byval blobs a memcpy libcall would be more compact, but
+  // none of our tests exercise that case yet.
+  void assignValueToAddress(const CallLowering::ArgInfo &Arg,
+                            unsigned ValRegIndex, Register Addr, LLT MemTy,
+                            const MachinePointerInfo &MPO,
+                            const CCValAssign &VA) override {
+    if (Arg.Flags[ValRegIndex].isByVal()) {
+      MachineFunction &MF = MIRBuilder.getMF();
+      uint64_t Size = Arg.Flags[ValRegIndex].getByValSize();
+      Register SrcPtr = Arg.Regs[ValRegIndex];
+      LLT i8Ty = LLT::scalar(8);
+      LLT PtrTy = LLT::pointer(0, 16);
+      LLT OffTy = LLT::scalar(16);
+
+      for (uint64_t i = 0; i < Size; ++i) {
+        Register OffsetReg =
+            MIRBuilder.buildConstant(OffTy, i).getReg(0);
+        Register CurSrc =
+            MIRBuilder.buildPtrAdd(PtrTy, SrcPtr, OffsetReg).getReg(0);
+        Register CurDst =
+            MIRBuilder.buildPtrAdd(PtrTy, Addr, OffsetReg).getReg(0);
+        auto *SrcMMO = MF.getMachineMemOperand(MachinePointerInfo(),
+                                               MachineMemOperand::MOLoad,
+                                               i8Ty, Align(1));
+        auto *DstMMO = MF.getMachineMemOperand(MPO,
+                                               MachineMemOperand::MOStore,
+                                               i8Ty, Align(1));
+        Register Byte = MIRBuilder.buildLoad(i8Ty, CurSrc, *SrcMMO).getReg(0);
+        MIRBuilder.buildStore(Byte, CurDst, *DstMMO);
+      }
+      return;
+    }
+    // Non-byval: defer to the single-vreg overload above.
+    assignValueToAddress(Arg.Regs[ValRegIndex], Addr, MemTy, MPO, VA);
+  }
 };
 
 struct MC6809OutgoingReturnHandler : MC6809OutgoingValueHandler {
@@ -173,7 +243,14 @@ struct MC6809IncomingArgsHandler : public MC6809IncomingValueHandler {
     // gcc6809 convention: i8 stack args occupy 1-byte slots. The CC
     // table allocates 1 byte per i8 arg via CCAssignToStack<1,1>, so
     // Offset already points at the value byte. No padding to a word.
-    int FI = MFI.CreateFixedObject(Size, Offset, true);
+    //
+    // Byval args occupy ByValSize bytes (not pointer-sized). The CC
+    // already advanced the cumulative offset by ByValSize in
+    // MC6809ValueAssigner::assignArg, but the Size param passed in
+    // here reflects the CCValAssign's LocVT (= pointer width = 2),
+    // so we have to consult Flags directly to size the FixedObject.
+    uint64_t ObjSize = Flags.isByVal() ? Flags.getByValSize() : Size;
+    int FI = MFI.CreateFixedObject(ObjSize, Offset, true);
     MPO = MachinePointerInfo::getFixedStack(MIRBuilder.getMF(), FI);
     auto AddrReg = MIRBuilder.buildFrameIndex(LLT::pointer(0, 16), FI);
     return AddrReg.getReg(0);
@@ -185,6 +262,26 @@ struct MC6809IncomingArgsHandler : public MC6809IncomingValueHandler {
 
     auto *MMO = MF.getMachineMemOperand(MPO, MachineMemOperand::MOLoad | MachineMemOperand::MOInvariant, ValTy, inferAlignFromPtrInfo(MF, MPO));
     MIRBuilder.buildLoad(ValVReg, Addr, *MMO);
+  }
+
+  // Bring the base-class single-vreg overload into scope.
+  using MC6809IncomingValueHandler::assignValueToAddress;
+
+  // gcc6809 byval convention (callee side): the struct's bytes are
+  // already on the stack at the FixedObject created in getStackAddress
+  // above. The IR-level formal parameter is a pointer to the struct,
+  // and the natural value of that pointer is the frame-index pointer
+  // returned by getStackAddress (i.e. Addr). No load is needed —
+  // the formal vreg simply takes the address.
+  void assignValueToAddress(const CallLowering::ArgInfo &Arg,
+                            unsigned ValRegIndex, Register Addr, LLT MemTy,
+                            const MachinePointerInfo &MPO,
+                            const CCValAssign &VA) override {
+    if (Arg.Flags[ValRegIndex].isByVal()) {
+      MIRBuilder.buildCopy(Arg.Regs[ValRegIndex], Addr);
+      return;
+    }
+    assignValueToAddress(Arg.Regs[ValRegIndex], Addr, MemTy, MPO, VA);
   }
 
   void makeLive(Register PhysReg) override { MIRBuilder.getMBB().addLiveIn(PhysReg); }
