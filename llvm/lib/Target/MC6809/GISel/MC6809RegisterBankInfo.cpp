@@ -101,7 +101,11 @@ void MC6809RegisterBankInfo::getInstrPartialMappingIdxs(const MachineInstr &MI, 
   unsigned NumOperands = MI.getNumOperands();
   for (unsigned Idx = 0; Idx < NumOperands; ++Idx) {
     auto &MO = MI.getOperand(Idx);
-    if (!MO.isReg())
+    // Skip non-register operands (metadata, immediates, FI, ...) and
+    // register operands that name no register (e.g. the $noreg slot in
+    // DBG_VALUE meta-instructions). MRI.getType() on a null register
+    // returns an invalid LLT, which would crash getPartialMappingIdx.
+    if (!MO.isReg() || !MO.getReg())
       OpRegBankIdx[Idx] = PMI_None;
     else
       OpRegBankIdx[Idx] = getPartialMappingIdx(MRI.getType(MO.getReg()));
@@ -112,6 +116,12 @@ bool MC6809RegisterBankInfo::getInstrValueMapping(const MachineInstr &MI, const 
   unsigned NumOperands = MI.getNumOperands();
   for (unsigned Idx = 0; Idx < NumOperands; ++Idx) {
     if (!MI.getOperand(Idx).isReg())
+      continue;
+    // PMI_None marks a register operand we have no bank for (e.g. the
+    // empty $noreg slot in DBG_VALUE / DBG_INSTR_REF). Leave its
+    // OpdsMapping entry as the default-initialised nullptr; RegBankSelect
+    // ignores null entries in operand-mapping arrays.
+    if (OpRegBankIdx[Idx] == PMI_None)
       continue;
 
     auto Mapping = getValueMapping(OpRegBankIdx[Idx], 1);
