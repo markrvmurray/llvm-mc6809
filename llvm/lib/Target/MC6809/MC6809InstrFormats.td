@@ -58,7 +58,7 @@ def imm16 : Operand<i32> {
 def pcrel8 : Operand<i32> {
   let ParserMatchClass = PCRelativeOperand<"PCRel8">;
   let EncoderMethod = "encodeImm<MC6809::PCRel8, 1>";
-  let PrintMethod = "printBranchOperand";
+  let PrintMethod = "printBranchOperand8";
   let OperandType = "OPERAND_PCREL";
 }
 
@@ -77,21 +77,21 @@ def pcrel8 : Operand<i32> {
 def pcrel8_idx : Operand<i32> {
   let ParserMatchClass = PCRelativeOperand<"PCRel8Idx">;
   let EncoderMethod = "encodeImm<MC6809::PCRel8, 2>";
-  let PrintMethod = "printBranchOperand";
+  let PrintMethod = "printBranchOperand8";
   let OperandType = "OPERAND_PCREL";
 }
 
 def pcrel16 : Operand<i32> {
   let ParserMatchClass = PCRelativeOperand<"PCRel16">;
   let EncoderMethod = "encodeImm<MC6809::PCRel16, 1>";
-  let PrintMethod = "printBranchOperand";
+  let PrintMethod = "printBranchOperand16";
   let OperandType = "OPERAND_PCREL";
 }
 
 def pcrel16_idx : Operand<i32> {
   let ParserMatchClass = PCRelativeOperand<"PCRel16">;
   let EncoderMethod = "encodeImm<MC6809::PCRel16, 2>";
-  let PrintMethod = "printBranchOperand";
+  let PrintMethod = "printBranchOperand16";
   let OperandType = "OPERAND_PCREL";
 }
 
@@ -101,14 +101,14 @@ def pcrel16_idx : Operand<i32> {
 def pcrel8_imm_idx : Operand<i32> {
   let ParserMatchClass = PCRelativeOperand<"PCRel8Idx">;
   let EncoderMethod = "encodeImm<MC6809::PCRel8, 3>";
-  let PrintMethod = "printBranchOperand";
+  let PrintMethod = "printBranchOperand8";
   let OperandType = "OPERAND_PCREL";
 }
 
 def pcrel16_imm_idx : Operand<i32> {
   let ParserMatchClass = PCRelativeOperand<"PCRel16">;
   let EncoderMethod = "encodeImm<MC6809::PCRel16, 3>";
-  let PrintMethod = "printBranchOperand";
+  let PrintMethod = "printBranchOperand16";
   let OperandType = "OPERAND_PCREL";
 }
 

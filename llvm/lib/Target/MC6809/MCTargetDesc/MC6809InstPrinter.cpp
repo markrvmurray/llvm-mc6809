@@ -90,12 +90,46 @@ void MC6809InstPrinter::printCondCode(const MCInst *MI, unsigned OpNo, raw_ostre
   O << MC6809CC::getCCString(CC);
 }
 
-void MC6809InstPrinter::printBranchOperand(const MCInst *MI, uint64_t Address, unsigned OpNo, raw_ostream &O) {
+// Print a PC-relative branch target whose displacement is signed 8-bit.
+// Used by short-branch operands (pcrel8) and the 8-bit variants of the
+// indexed PC-relative addressing modes (pcrel8_idx, pcrel8_imm_idx).
+// The absolute target shown in stream-disassembler mode is computed
+// against PC-after-the-whole-instruction, so we consult MCInstrDesc for
+// the real instruction size rather than hardcoding it — the old `+ 2`
+// was correct only for the 2-byte short-branch encoding and produced
+// off-by-(Size-2) numeric targets for everything else (bug #120).
+void MC6809InstPrinter::printBranchOperand8(const MCInst *MI, uint64_t Address, unsigned OpNo, raw_ostream &O) {
   const MCOperand &Op = MI->getOperand(OpNo);
   if (!Op.isImm())
     return printOperand(MI, OpNo, O);
-  uint64_t Target = Op.getImm();
-  O << formatImm(PrintBranchImmAsAddress ? (int8_t)Target + Address + 2 : Target);
+  int64_t Displacement = (int8_t)Op.getImm();
+  if (PrintBranchImmAsAddress) {
+    uint64_t InstSize = MII.get(MI->getOpcode()).getSize();
+    O << formatImm(Displacement + Address + InstSize);
+  } else {
+    O << formatImm(Displacement);
+  }
+}
+
+// Print a PC-relative branch target whose displacement is signed 16-bit.
+// Used by long-branch operands (pcrel16) and the 16-bit variants of the
+// indexed PC-relative addressing modes. The previous shared
+// `printBranchOperand` truncated 16-bit displacements to `(int8_t)`,
+// which silently mis-printed any long-branch target whose offset didn't
+// happen to fit in a signed byte (bug #120). Instruction size is taken
+// from MCInstrDesc so the arithmetic is correct for every encoding
+// (LBRA: 3 bytes, LBcc: 4 bytes, indexed long-branch variants: 4-5).
+void MC6809InstPrinter::printBranchOperand16(const MCInst *MI, uint64_t Address, unsigned OpNo, raw_ostream &O) {
+  const MCOperand &Op = MI->getOperand(OpNo);
+  if (!Op.isImm())
+    return printOperand(MI, OpNo, O);
+  int64_t Displacement = (int16_t)Op.getImm();
+  if (PrintBranchImmAsAddress) {
+    uint64_t InstSize = MII.get(MI->getOpcode()).getSize();
+    O << formatImm(Displacement + Address + InstSize);
+  } else {
+    O << formatImm(Displacement);
+  }
 }
 
 format_object<int64_t> MC6809InstPrinter::formatHex(int64_t Value) const {
