@@ -345,13 +345,15 @@ def ACC16 : MC6809Reg16Class<(add AD, AW, SPILL_D0, SPILL_D1, SPILL_D2, SPILL_D3
     let AltOrders = [(add AD, SPILL_D0, SPILL_D1, SPILL_D2, SPILL_D3, SPILL_D4, SPILL_D5, SPILL_D6, SPILL_D7, RS0, RS1, RS2, RS3)];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
 }
-// ACC16_D: the single-AD class. Used by HD6309's BitTest_i16.
-// Typed as i16 (not i8) because AD IS a 16-bit register — the
-// previous i8 typing created a pathological acc16_and_acc16_d
-// intersection class (1 register) that the instruction selector
-// chose over the wider acc16_with_sub_hi_byte (13 registers) when
-// RS had sub-regs, causing massive regalloc degradation.
-def ACC16_D : MC6809Reg16Class<(add AD)>;
+// ACC16_D removed 2026-04-16 as the Layer-2 regalloc experiment (bug #118).
+// The coalescer was tightening i16 vregs to this 1-register class when
+// eliminating `COPY $ad`, producing a regalloc bottleneck on any function
+// with multiple simultaneously-live i16 values. With ACC16_D gone, the
+// smallest subset of ACC16 containing AD is now ADc (13 regs: AD +
+// SPILL_D0..7 + RS0..3) — the coalescer can still tighten but the result
+// is no longer a 1-register class. See project_regalloc_two_layer_bottleneck.md.
+// The single in-source user (HD6309 BitTest_i16) switched to ACC16;
+// frame lowering switched to direct physreg $ad copies.
 def ACC32 : MC6809Reg32Class<(add AQ)> {
     let AltOrders = [(add)];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];

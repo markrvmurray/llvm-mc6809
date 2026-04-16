@@ -680,7 +680,13 @@ multiclass MC6809BitTest<ValueType vtype, RegisterClass reg> {
 
 defm BitTest_i8 : MC6809BitTest<i8, ACC8_AB>;
 let Predicates = [IsHD6309] in {
-  defm BitTest_i16 : MC6809BitTest<i16, ACC16_D>;
+  // Was ACC16_D (1-register = {AD}) before the Layer-2 regalloc experiment
+  // (bug #118). See `project_regalloc_two_layer_bottleneck.md`: the real
+  // D-specific constraint is handled by the post-RA expansion routing
+  // through AD, not by pinning the operand class. Using ACC16 here lets
+  // the regalloc pick any 16-bit imaginary register and relieves the
+  // coalescer's tightening to a 1-register intersection.
+  defm BitTest_i16 : MC6809BitTest<i16, ACC16>;
 }
 
 // --- Concrete instructions (register-specific, assembler/disassembler) ---

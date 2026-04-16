@@ -85,9 +85,6 @@ bool MC6809FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB, Mach
   MachineInstrSpan MIS(MI, &MBB);
   const MC6809Subtarget &STI = MBB.getParent()->getSubtarget<MC6809Subtarget>();
   const TargetInstrInfo &TII = *STI.getInstrInfo();
-  // Use ACC16_D (just {AD}) — not ACC16 which includes spill registers
-  // that the scavenger could pick as intermediates.
-  const TargetRegisterClass &StackRegClass = MC6809::ACC16_DRegClass;
   const auto &FuncInfo = MBB.getParent()->getInfo<MC6809FunctionInfo>();
 
   // There are intentionally very few CSRs, few enough to place on the hard
@@ -95,6 +92,13 @@ bool MC6809FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB, Mach
   // the compiler uses the hard stack, since the free CSRs can then be used
   // with impunity. This is slightly more expensive than saving/resting values
   // directly on the hard stack, but it's significantly simpler.
+  //
+  // Non-INDEX16 non-AD/AW CSRs are routed through physreg $ad: COPY $ad, Reg
+  // then PSHS D. We target $ad directly (not a virtual register in some
+  // tightly-typed class) because (a) frame lowering runs post-regalloc so
+  // physreg manipulation is the natural form and (b) avoiding a 1-register
+  // vreg class here cooperates with the Layer-2 regalloc fix (bug #118):
+  // no 1-register class exists for the coalescer to tighten i16 vregs to.
   for (const CalleeSavedInfo &CI : CSI) {
     Register Reg = CI.getReg();
     if (!CI.isTargetSpilled() || FuncInfo->CSRDPOffsets.count(Reg))
@@ -104,17 +108,15 @@ bool MC6809FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB, Mach
     // is set up, and avoids the scavenger picking spill pseudo-registers.
     if (MC6809::INDEX16RegClass.contains(Reg)) {
       Builder.buildInstr(MC6809::PSHSs, {}, {Reg});
-    } else if (!StackRegClass.contains(Reg)) {
-      Reg = Builder.buildCopy(&StackRegClass, Reg).getReg(0);
-      if (Reg == MC6809::AW)
-        Builder.buildInstr(MC6809::PSHSWx, {}, {});
-      else
-        Builder.buildInstr(MC6809::PSHSs, {}, {Reg});
+    } else if (Reg == MC6809::AW) {
+      // Push W directly — HD6309 has a dedicated PSHSWx instruction.
+      Builder.buildInstr(MC6809::PSHSWx, {}, {});
+    } else if (Reg != MC6809::AD) {
+      // Route non-AD 16-bit CSRs through $ad before PSHS.
+      Builder.buildCopy(Register(MC6809::AD), Reg);
+      Builder.buildInstr(MC6809::PSHSs, {}, {Register(MC6809::AD)});
     } else {
-      if (Reg == MC6809::AW)
-        Builder.buildInstr(MC6809::PSHSWx, {}, {});
-      else
-        Builder.buildInstr(MC6809::PSHSs, {}, {Reg});
+      Builder.buildInstr(MC6809::PSHSs, {}, {Reg});
     }
   }
 
@@ -158,10 +160,10 @@ bool MC6809FrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB, Ma
   MachineIRBuilder Builder(MBB, MI);
   const MC6809Subtarget &STI = MBB.getParent()->getSubtarget<MC6809Subtarget>();
   const TargetInstrInfo &TII = *STI.getInstrInfo();
-  // Use ACC16_D (just {AD}) — not ACC16 which includes spill registers
-  // that the scavenger could pick as intermediates.
-  const TargetRegisterClass &StackRegClass = MC6809::ACC16_DRegClass;
   const auto &FuncInfo = MBB.getParent()->getInfo<MC6809FunctionInfo>();
+  // Mirror of spillCalleeSavedRegisters: non-INDEX16 non-AW CSRs are
+  // routed through physreg $ad (PULS D → COPY CSR, $ad). See the note
+  // on the spill side for why we target $ad directly.
 
   for (const CalleeSavedInfo &CI : reverse(CSI)) {
     Register Reg = CI.getReg();
@@ -177,27 +179,22 @@ bool MC6809FrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB, Ma
   MachineInstrSpan MIS(MI, &MBB);
 
   for (const CalleeSavedInfo &CI : reverse(CSI)) {
-    Register Reg = CI.getReg();
-    if (!CI.isTargetSpilled() || FuncInfo->CSRDPOffsets.count(Reg))
+    Register CSR = CI.getReg();
+    if (!CI.isTargetSpilled() || FuncInfo->CSRDPOffsets.count(CSR))
       continue;
-    // INDEX16 registers can be pulled directly.
-    if (MC6809::INDEX16RegClass.contains(Reg)) {
-      Builder.buildInstr(MC6809::PULSs, {Reg}, {});
-    } else if (!StackRegClass.contains(Reg)) {
-      Register OrigReg = Reg;
-      Reg = Builder.getMRI()->createVirtualRegister(&StackRegClass);
-      if (OrigReg == MC6809::AW)
-        Builder.buildInstr(MC6809::PULSWx, {}, {});
-      else
-        Builder.buildInstr(MC6809::PULSs, {Reg}, {});
+    // INDEX16 registers (X, Y, U, S) can be pulled directly.
+    if (MC6809::INDEX16RegClass.contains(CSR)) {
+      Builder.buildInstr(MC6809::PULSs, {CSR}, {});
+    } else if (CSR == MC6809::AW) {
+      // PULSWx pops into W directly — no need to route through AD.
+      Builder.buildInstr(MC6809::PULSWx, {}, {});
+    } else if (CSR != MC6809::AD) {
+      // Pull into $ad then copy to the CSR.
+      Builder.buildInstr(MC6809::PULSs, {Register(MC6809::AD)}, {});
+      Builder.buildCopy(CSR, Register(MC6809::AD));
     } else {
-      if (Reg == MC6809::AW)
-        Builder.buildInstr(MC6809::PULSWx, {}, {});
-      else
-        Builder.buildInstr(MC6809::PULSs, {Reg}, {});
+      Builder.buildInstr(MC6809::PULSs, {CSR}, {});
     }
-    if (Reg != CI.getReg())
-      Builder.buildCopy(Register(CI.getReg()), Reg);
   }
 
   // Mark the CSRs as used by the return to ensure Machine Copy Propagation
