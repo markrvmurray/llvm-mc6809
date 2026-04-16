@@ -240,9 +240,15 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
       .custom();
 
   getActionDefinitionsBuilder(
-      {G_INTRINSIC_TRUNC, G_INTRINSIC_ROUND, G_INTRINSIC_ROUNDEVEN, G_FADD, G_FSUB, G_FMUL, G_FMA, G_FMAD, G_FDIV, G_FREM, G_FPOW, G_FEXP, G_FEXP2, G_FLOG, G_FLOG2, G_FLOG10, G_FNEG, G_FABS, G_FMINNUM, G_FMAXNUM, G_FCEIL, G_FCOS, G_FSIN, G_FSQRT,
+      {G_INTRINSIC_TRUNC, G_INTRINSIC_ROUND, G_INTRINSIC_ROUNDEVEN, G_FADD, G_FSUB, G_FMUL, G_FMA, G_FMAD, G_FDIV, G_FREM, G_FPOW, G_FEXP, G_FEXP2, G_FLOG, G_FLOG2, G_FLOG10, G_FNEG, G_FMINNUM, G_FMAXNUM, G_FCEIL, G_FCOS, G_FSIN, G_FSQRT,
        G_FFLOOR,          G_FRINT,           G_FNEARBYINT})
       .libcallFor({s32, s64});
+
+  // G_FABS is just clearing the sign bit — much cheaper than a libcall.
+  // The upstream LegalizerHelper::lowerFAbs builds an AND with the
+  // signed-max mask; we then narrow the AND down to byte ops.
+  getActionDefinitionsBuilder(G_FABS)
+      .lowerFor({s32, s64});
 
   getActionDefinitionsBuilder({G_INTRINSIC_LRINT, G_LROUND})
       .libcallForCartesianProduct({s32}, {s32, s64});
