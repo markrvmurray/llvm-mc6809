@@ -40,15 +40,19 @@ static void initImag8SymbolNames(const MC6809RegisterInfo &TRI,
                                   std::unique_ptr<std::string[]> &Names) {
   Names.reset(new std::string[TRI.getNumRegs()]);
   for (unsigned Reg : seq(0u, TRI.getNumRegs())) {
-    // 16-bit imaginary registers are referred to by their low byte.
-    unsigned R = Reg;
-    if (MC6809::Imag16RegClass.contains(R))
-      R = TRI.getSubReg(R, MC6809::sub_lo_byte);
-    if (!MC6809::Imag8RegClass.contains(R))
+    // Generate `__<lowercase_name>` for every imaginary register
+    // (RC0..RC7 in Imag8, RS0..RS3 in Imag16). The linker script
+    // assigns each symbol a direct-page address (1 byte for Imag8,
+    // 2 contiguous bytes for Imag16). 16-bit imaginary registers
+    // are NOT decomposed via sub_lo_byte because the .td defines
+    // them as standalone with no sub-register aliasing — see the
+    // MC6809ImagReg16 class comment about regalloc pressure.
+    if (!MC6809::Imag16RegClass.contains(Reg) &&
+        !MC6809::Imag8RegClass.contains(Reg))
       continue;
     std::string &Str = Names[Reg];
     Str = "__";
-    Str += TRI.getName(R);
+    Str += TRI.getName(Reg);
     std::transform(Str.begin(), Str.end(), Str.begin(), ::tolower);
   }
 }
