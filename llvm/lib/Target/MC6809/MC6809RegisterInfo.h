@@ -50,6 +50,10 @@ public:
 
   const TargetRegisterClass *getCrossCopyRegClass(const TargetRegisterClass *RC) const override;
 
+  const TargetRegisterClass *
+  getSubClassWithSubReg(const TargetRegisterClass *RC,
+                        unsigned Idx) const override;
+
 #if 0
   unsigned getCSRFirstUseCost(const MachineFunction &MF) const override;
 #endif /* 0 */

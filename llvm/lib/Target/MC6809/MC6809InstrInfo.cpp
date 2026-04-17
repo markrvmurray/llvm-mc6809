@@ -1041,8 +1041,45 @@ static MachineInstrBuilder emitSpillStore(MachineIRBuilder &Builder,
 
 /// Check if a register needs materialization (spill or imaginary — not a real
 /// hardware register that can be used directly in instructions).
+/// Check if Reg is a byte sub-register of an RS imaginary 16-bit register.
+/// These are RS0HI..RS3HI (high bytes) and RS0LO..RS3LO (low bytes), added
+/// to AAc/ABc so that TableGen-synthesised intersection classes include
+/// RS0..RS3 in ACC16_with_sub_hi_byte_in_AAc etc.
+static bool isImag16ByteSubReg(Register Reg) {
+  switch (Reg.id()) {
+  case MC6809::RS0HI: case MC6809::RS0LO:
+  case MC6809::RS1HI: case MC6809::RS1LO:
+  case MC6809::RS2HI: case MC6809::RS2LO:
+  case MC6809::RS3HI: case MC6809::RS3LO:
+    return true;
+  default: return false;
+  }
+}
+
+/// Get the parent Imag16 register for an RS byte sub-register.
+static Register getImag16Parent(Register Reg) {
+  switch (Reg.id()) {
+  case MC6809::RS0HI: case MC6809::RS0LO: return MC6809::RS0;
+  case MC6809::RS1HI: case MC6809::RS1LO: return MC6809::RS1;
+  case MC6809::RS2HI: case MC6809::RS2LO: return MC6809::RS2;
+  case MC6809::RS3HI: case MC6809::RS3LO: return MC6809::RS3;
+  default: llvm_unreachable("not an RS byte sub-reg");
+  }
+}
+
+/// True if Reg is the HI (high) byte of its parent RS register.
+static bool isImag16HiByte(Register Reg) {
+  switch (Reg.id()) {
+  case MC6809::RS0HI: case MC6809::RS1HI:
+  case MC6809::RS2HI: case MC6809::RS3HI:
+    return true;
+  default: return false;
+  }
+}
+
 static bool needsMaterialization(Register Reg) {
   if (isSpillReg(Reg)) return true;
+  if (isImag16ByteSubReg(Reg)) return true;
   return Reg.isPhysical() &&
          (MC6809::Imag8RegClass.contains(Reg) ||
           MC6809::Imag16RegClass.contains(Reg));
@@ -1052,6 +1089,8 @@ static bool needsMaterialization(Register Reg) {
 static Register getPhysRegFor(Register Reg) {
   if (isSpillReg(Reg))
     return getRealRegForSpill(Reg);
+  if (isImag16ByteSubReg(Reg))
+    return isImag16HiByte(Reg) ? MC6809::AA : MC6809::AB;
   if (Reg.isPhysical() && MC6809::Imag8RegClass.contains(Reg))
     return MC6809::AB;
   if (Reg.isPhysical() && MC6809::Imag16RegClass.contains(Reg))
@@ -1068,6 +1107,14 @@ static Register materializeReg(MachineIRBuilder &Builder, Register Reg,
   Register PhysReg = getPhysRegFor(Reg);
   if (isSpillReg(Reg)) {
     emitSpillLoad(Builder, PhysReg, Reg, MF);
+  } else if (isImag16ByteSubReg(Reg)) {
+    // Load a single byte from the RS slot using the sub-reg's own symbol.
+    // Big-endian: HI byte symbol resolves to the base address (__rsNhi),
+    // LO byte symbol resolves to base+1 (__rsNlo). We must NOT use LDD
+    // of the parent — that clobbers the other half of D.
+    unsigned Opc = isImag16HiByte(Reg) ? MC6809::LDAd : MC6809::LDBd;
+    Builder.buildInstr(Opc).addReg(Reg);
+    // After LDD: A=hi byte, B=lo byte. PhysReg is AA or AB as appropriate.
   } else if (MC6809::Imag8RegClass.contains(Reg)) {
     unsigned Opc = (PhysReg == MC6809::AA) ? MC6809::LDAd : MC6809::LDBd;
     Builder.buildInstr(Opc).addReg(Reg);
@@ -1085,6 +1132,10 @@ static void dematerializeReg(MachineIRBuilder &Builder, Register PhysReg,
     return;
   if (isSpillReg(OrigReg)) {
     emitSpillStore(Builder, PhysReg, OrigReg, MF);
+  } else if (isImag16ByteSubReg(OrigReg)) {
+    // Store a single byte back to the RS slot using the sub-reg's own symbol.
+    unsigned Opc = isImag16HiByte(OrigReg) ? MC6809::STAd : MC6809::STBd;
+    Builder.buildInstr(Opc).addReg(OrigReg);
   } else if (MC6809::Imag8RegClass.contains(OrigReg)) {
     unsigned Opc = (PhysReg == MC6809::AA) ? MC6809::STAd : MC6809::STBd;
     Builder.buildInstr(Opc).addReg(OrigReg);

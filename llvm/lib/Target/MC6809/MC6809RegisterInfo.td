@@ -145,8 +145,44 @@ foreach I = 0...!add(MaxImag8Regs, -1) in {
   defm RC#I: MC6809ImagReg8<!add(!shl(I,1), Imag8RegsOffset), "rc"#!cast<string>(I)>;
 }
 
-// Imaginary 16-bit registers, starting with the prefix rs
-foreach I = 0...!add(MaxImag16Regs, -1) in {
+// Imaginary 16-bit registers, starting with the prefix rs.
+//
+// RS0..RS3 (the registers actually in allocation classes ACC16/ADc)
+// have byte-level sub-register structure so that TableGen-synthesised
+// intersection classes like ACC16_with_sub_hi_byte include them.
+// Without sub_hi_byte, the regalloc silently excludes RS from any
+// instruction that extracts a byte half — the entire 32-bit arithmetic
+// path. This was the Layer 1 root cause of regalloc-pressure bugs
+// #82b/#85b.
+//
+// The sub-regs are NOT in any allocatable 8-bit class (ACC8, AAc, ABc).
+// They exist only as metadata for TableGen's constraint-class synthesis.
+// The regalloc never assigns vregs to them directly — it assigns to
+// RS0..RS3 at the 16-bit level, and the existing materializeReg/
+// dematerializeReg handles those via LDD/STD to the direct-page symbol.
+
+// Byte sub-registers for RS0..RS3. Plain MC6809Reg — NOT in any
+// 8-bit allocatable class. Adding RS bytes to ACC8/AAc/ABc
+// destabilises the greedy regalloc's heuristics system-wide
+// (different allocation choices → cascade → miscompiles at O1+).
+// The sub-regs exist ONLY to give RS sub_hi_byte/sub_lo_byte indices.
+def RS0HI : MC6809Reg<0x3000, "rs0hi">;
+def RS0LO : MC6809Reg<0x3001, "rs0lo">;
+def RS1HI : MC6809Reg<0x3002, "rs1hi">;
+def RS1LO : MC6809Reg<0x3003, "rs1lo">;
+def RS2HI : MC6809Reg<0x3004, "rs2hi">;
+def RS2LO : MC6809Reg<0x3005, "rs2lo">;
+def RS3HI : MC6809Reg<0x3006, "rs3hi">;
+def RS3LO : MC6809Reg<0x3007, "rs3lo">;
+
+// RS0..RS3: composed from byte sub-regs, matching the AD/SPILL_D pattern.
+def RS0 : MC6809Reg16<Imag16RegsOffset,         "rs0", [RS0LO, RS0HI], [sub_lo_byte, sub_hi_byte]>;
+def RS1 : MC6809Reg16<!add(Imag16RegsOffset, 1), "rs1", [RS1LO, RS1HI], [sub_lo_byte, sub_hi_byte]>;
+def RS2 : MC6809Reg16<!add(Imag16RegsOffset, 2), "rs2", [RS2LO, RS2HI], [sub_lo_byte, sub_hi_byte]>;
+def RS3 : MC6809Reg16<!add(Imag16RegsOffset, 3), "rs3", [RS3LO, RS3HI], [sub_lo_byte, sub_hi_byte]>;
+
+// RS4+ remain standalone (not in constrained allocation classes).
+foreach I = 4...!add(MaxImag16Regs, -1) in {
   def RS#I: MC6809ImagReg16<!add(I, Imag16RegsOffset), "rs"#!cast<string>(I)>;
 }
 
@@ -300,7 +336,13 @@ def ACC16 : MC6809Reg16Class<(add AD, AW, SPILL_D0, SPILL_D1, SPILL_D2, SPILL_D3
     let AltOrders = [(add AD, SPILL_D0, SPILL_D1, SPILL_D2, SPILL_D3, SPILL_D4, SPILL_D5, SPILL_D6, SPILL_D7, RS0, RS1, RS2, RS3)];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
 }
-def ACC16_D : MC6809Reg8Class<(add AD)>;
+// ACC16_D: the single-AD class. Used by HD6309's BitTest_i16.
+// Typed as i16 (not i8) because AD IS a 16-bit register — the
+// previous i8 typing created a pathological acc16_and_acc16_d
+// intersection class (1 register) that the instruction selector
+// chose over the wider acc16_with_sub_hi_byte (13 registers) when
+// RS had sub-regs, causing massive regalloc degradation.
+def ACC16_D : MC6809Reg16Class<(add AD)>;
 def ACC32 : MC6809Reg32Class<(add AQ)> {
     let AltOrders = [(add)];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
@@ -343,7 +385,7 @@ let isAllocatable = false in {
     def ABc : MC6809Reg8Class<(add AB, SPILL_B0, SPILL_B1, SPILL_B2, SPILL_B3, SPILL_B4, SPILL_B5, SPILL_B6, SPILL_B7)>;
     def ABLSBc : MC6809Reg1Class<(add ABLSB, SPILL_B0LSB, SPILL_B1LSB, SPILL_B2LSB, SPILL_B3LSB, SPILL_B4LSB, SPILL_B5LSB, SPILL_B6LSB, SPILL_B7LSB)>;
     let isPressureFineGrained = true in
-    def ADc : MC6809Reg16Class<(add AD, SPILL_D0, SPILL_D1, SPILL_D2, SPILL_D3, SPILL_D4, SPILL_D5, SPILL_D6, SPILL_D7)>;
+    def ADc : MC6809Reg16Class<(add AD, SPILL_D0, SPILL_D1, SPILL_D2, SPILL_D3, SPILL_D4, SPILL_D5, SPILL_D6, SPILL_D7, RS0, RS1, RS2, RS3)>;
     def AEc : MC6809Reg8Class<(add AE)>;
     def AELSBc : MC6809Reg1Class<(add AELSB)>;
     def AFc : MC6809Reg8Class<(add AF)>;

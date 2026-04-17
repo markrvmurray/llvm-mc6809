@@ -242,7 +242,7 @@ define void @test_varargs() {
   ; CHECK-MC6809-NEXT:   [[C22:%[0-9]+]]:_(s16) = G_CONSTANT i16 20
   ; CHECK-MC6809-NEXT:   [[PTR_ADD14:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C22]](s16)
   ; CHECK-MC6809-NEXT:   G_STORE [[UV9]](s16), [[PTR_ADD14]](p0) :: (store (s16) into stack + 20, align 1)
-  ; CHECK-MC6809-NEXT:   LongBranchSubroutine @varargs, CustomRegMask($iy,$su,$spill_a0,$spill_a1,$spill_a2,$spill_a3,$spill_a4,$spill_a5,$spill_a6,$spill_a7,$spill_b0,$spill_b1,$spill_b2,$spill_b3,$spill_b4,$spill_b5,$spill_b6,$spill_b7,$spill_d0,$spill_d1,$spill_d2,$spill_d3,$spill_d4,$spill_d5,$spill_d6,$spill_d7,$spill_a0lsb,$spill_a1lsb,$spill_a2lsb,$spill_a3lsb,$spill_a4lsb,$spill_a5lsb,$spill_a6lsb,$spill_a7lsb,$spill_b0lsb,$spill_b1lsb,$spill_b2lsb,$spill_b3lsb,$spill_b4lsb,$spill_b5lsb,$spill_b6lsb,$spill_b7lsb)
+  ; CHECK-MC6809-NEXT:   LongBranchSubroutine @varargs, CustomRegMask($iy,$su,$rs0,$rs1,$rs2,$rs3,$spill_a0,$spill_a1,$spill_a2,$spill_a3,$spill_a4,$spill_a5,$spill_a6,$spill_a7,$spill_b0,$spill_b1,$spill_b2,$spill_b3,$spill_b4,$spill_b5,$spill_b6,$spill_b7,$spill_d0,$spill_d1,$spill_d2,$spill_d3,$spill_d4,$spill_d5,$spill_d6,$spill_d7,$rs0hi,$rs1hi,$rs2hi,$rs3hi,$rs0lo,$rs1lo,$rs2lo,$rs3lo,$spill_a0lsb,$spill_a1lsb,$spill_a2lsb,$spill_a3lsb,$spill_a4lsb,$spill_a5lsb,$spill_a6lsb,$spill_a7lsb,$spill_b0lsb,$spill_b1lsb,$spill_b2lsb,$spill_b3lsb,$spill_b4lsb,$spill_b5lsb,$spill_b6lsb,$spill_b7lsb)
   ; CHECK-MC6809-NEXT:   ADJCALLSTACKUP 28, 0, implicit-def $ss, implicit $ss
   ; CHECK-MC6809-NEXT:   RTSr
   ;
@@ -290,7 +290,7 @@ define void @test_varargs() {
   ; CHECK-HD6309-NEXT:   [[C17:%[0-9]+]]:_(s16) = G_CONSTANT i16 20
   ; CHECK-HD6309-NEXT:   [[PTR_ADD9:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C17]](s16)
   ; CHECK-HD6309-NEXT:   G_STORE [[UV3]](s32), [[PTR_ADD9]](p0) :: (store (s32) into stack + 20, align 1)
-  ; CHECK-HD6309-NEXT:   LongBranchSubroutine @varargs, CustomRegMask($iy,$su,$spill_a0,$spill_a1,$spill_a2,$spill_a3,$spill_a4,$spill_a5,$spill_a6,$spill_a7,$spill_b0,$spill_b1,$spill_b2,$spill_b3,$spill_b4,$spill_b5,$spill_b6,$spill_b7,$spill_d0,$spill_d1,$spill_d2,$spill_d3,$spill_d4,$spill_d5,$spill_d6,$spill_d7,$spill_a0lsb,$spill_a1lsb,$spill_a2lsb,$spill_a3lsb,$spill_a4lsb,$spill_a5lsb,$spill_a6lsb,$spill_a7lsb,$spill_b0lsb,$spill_b1lsb,$spill_b2lsb,$spill_b3lsb,$spill_b4lsb,$spill_b5lsb,$spill_b6lsb,$spill_b7lsb)
+  ; CHECK-HD6309-NEXT:   LongBranchSubroutine @varargs, CustomRegMask($iy,$su,$rs0,$rs1,$rs2,$rs3,$spill_a0,$spill_a1,$spill_a2,$spill_a3,$spill_a4,$spill_a5,$spill_a6,$spill_a7,$spill_b0,$spill_b1,$spill_b2,$spill_b3,$spill_b4,$spill_b5,$spill_b6,$spill_b7,$spill_d0,$spill_d1,$spill_d2,$spill_d3,$spill_d4,$spill_d5,$spill_d6,$spill_d7,$rs0hi,$rs1hi,$rs2hi,$rs3hi,$rs0lo,$rs1lo,$rs2lo,$rs3lo,$spill_a0lsb,$spill_a1lsb,$spill_a2lsb,$spill_a3lsb,$spill_a4lsb,$spill_a5lsb,$spill_a6lsb,$spill_a7lsb,$spill_b0lsb,$spill_b1lsb,$spill_b2lsb,$spill_b3lsb,$spill_b4lsb,$spill_b5lsb,$spill_b6lsb,$spill_b7lsb)
   ; CHECK-HD6309-NEXT:   ADJCALLSTACKUP 28, 0, implicit-def $ss, implicit $ss
   ; CHECK-HD6309-NEXT:   RTSr
   call void(i16, double, i8, ...) @varargs(i16 42, double 1.0, i8 12, i8 3, i16 1, i16 4, float 1.0, double 2.0)
@@ -334,7 +334,7 @@ define void @test_stack_ext_needed() {
   ; CHECK-MC6809-NEXT:   [[PTR_ADD7:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C8]](s16)
   ; CHECK-MC6809-NEXT:   G_STORE [[C]](s8), [[PTR_ADD7]](p0) :: (store (s8) into stack + 7)
   ; CHECK-MC6809-NEXT:   $ab = COPY [[DEF]](s8)
-  ; CHECK-MC6809-NEXT:   LongBranchSubroutine @stack_ext_needed, CustomRegMask($iy,$su,$spill_a0,$spill_a1,$spill_a2,$spill_a3,$spill_a4,$spill_a5,$spill_a6,$spill_a7,$spill_b0,$spill_b1,$spill_b2,$spill_b3,$spill_b4,$spill_b5,$spill_b6,$spill_b7,$spill_d0,$spill_d1,$spill_d2,$spill_d3,$spill_d4,$spill_d5,$spill_d6,$spill_d7,$spill_a0lsb,$spill_a1lsb,$spill_a2lsb,$spill_a3lsb,$spill_a4lsb,$spill_a5lsb,$spill_a6lsb,$spill_a7lsb,$spill_b0lsb,$spill_b1lsb,$spill_b2lsb,$spill_b3lsb,$spill_b4lsb,$spill_b5lsb,$spill_b6lsb,$spill_b7lsb), implicit $ab
+  ; CHECK-MC6809-NEXT:   LongBranchSubroutine @stack_ext_needed, CustomRegMask($iy,$su,$rs0,$rs1,$rs2,$rs3,$spill_a0,$spill_a1,$spill_a2,$spill_a3,$spill_a4,$spill_a5,$spill_a6,$spill_a7,$spill_b0,$spill_b1,$spill_b2,$spill_b3,$spill_b4,$spill_b5,$spill_b6,$spill_b7,$spill_d0,$spill_d1,$spill_d2,$spill_d3,$spill_d4,$spill_d5,$spill_d6,$spill_d7,$rs0hi,$rs1hi,$rs2hi,$rs3hi,$rs0lo,$rs1lo,$rs2lo,$rs3lo,$spill_a0lsb,$spill_a1lsb,$spill_a2lsb,$spill_a3lsb,$spill_a4lsb,$spill_a5lsb,$spill_a6lsb,$spill_a7lsb,$spill_b0lsb,$spill_b1lsb,$spill_b2lsb,$spill_b3lsb,$spill_b4lsb,$spill_b5lsb,$spill_b6lsb,$spill_b7lsb), implicit $ab
   ; CHECK-MC6809-NEXT:   ADJCALLSTACKUP 8, 0, implicit-def $ss, implicit $ss
   ; CHECK-MC6809-NEXT:   RTSr
   ;
@@ -369,7 +369,7 @@ define void @test_stack_ext_needed() {
   ; CHECK-HD6309-NEXT:   [[PTR_ADD7:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C8]](s16)
   ; CHECK-HD6309-NEXT:   G_STORE [[C]](s8), [[PTR_ADD7]](p0) :: (store (s8) into stack + 7)
   ; CHECK-HD6309-NEXT:   $ab = COPY [[DEF]](s8)
-  ; CHECK-HD6309-NEXT:   LongBranchSubroutine @stack_ext_needed, CustomRegMask($iy,$su,$spill_a0,$spill_a1,$spill_a2,$spill_a3,$spill_a4,$spill_a5,$spill_a6,$spill_a7,$spill_b0,$spill_b1,$spill_b2,$spill_b3,$spill_b4,$spill_b5,$spill_b6,$spill_b7,$spill_d0,$spill_d1,$spill_d2,$spill_d3,$spill_d4,$spill_d5,$spill_d6,$spill_d7,$spill_a0lsb,$spill_a1lsb,$spill_a2lsb,$spill_a3lsb,$spill_a4lsb,$spill_a5lsb,$spill_a6lsb,$spill_a7lsb,$spill_b0lsb,$spill_b1lsb,$spill_b2lsb,$spill_b3lsb,$spill_b4lsb,$spill_b5lsb,$spill_b6lsb,$spill_b7lsb), implicit $ab
+  ; CHECK-HD6309-NEXT:   LongBranchSubroutine @stack_ext_needed, CustomRegMask($iy,$su,$rs0,$rs1,$rs2,$rs3,$spill_a0,$spill_a1,$spill_a2,$spill_a3,$spill_a4,$spill_a5,$spill_a6,$spill_a7,$spill_b0,$spill_b1,$spill_b2,$spill_b3,$spill_b4,$spill_b5,$spill_b6,$spill_b7,$spill_d0,$spill_d1,$spill_d2,$spill_d3,$spill_d4,$spill_d5,$spill_d6,$spill_d7,$rs0hi,$rs1hi,$rs2hi,$rs3hi,$rs0lo,$rs1lo,$rs2lo,$rs3lo,$spill_a0lsb,$spill_a1lsb,$spill_a2lsb,$spill_a3lsb,$spill_a4lsb,$spill_a5lsb,$spill_a6lsb,$spill_a7lsb,$spill_b0lsb,$spill_b1lsb,$spill_b2lsb,$spill_b3lsb,$spill_b4lsb,$spill_b5lsb,$spill_b6lsb,$spill_b7lsb), implicit $ab
   ; CHECK-HD6309-NEXT:   ADJCALLSTACKUP 8, 0, implicit-def $ss, implicit $ss
   ; CHECK-HD6309-NEXT:   RTSr
   call void @stack_ext_needed([8 x i8] undef, i8 signext 42)
@@ -427,7 +427,7 @@ define i8 @i8i16caller() nounwind readnone {
   ; CHECK-MC6809-NEXT:   G_STORE [[C11]](s8), [[PTR_ADD9]](p0) :: (store (s8) into stack + 10)
   ; CHECK-MC6809-NEXT:   $ab = COPY [[C]](s8)
   ; CHECK-MC6809-NEXT:   $ix = COPY [[C4]](s16)
-  ; CHECK-MC6809-NEXT:   LongBranchSubroutine @i8i16callee, CustomRegMask($iy,$su,$spill_a0,$spill_a1,$spill_a2,$spill_a3,$spill_a4,$spill_a5,$spill_a6,$spill_a7,$spill_b0,$spill_b1,$spill_b2,$spill_b3,$spill_b4,$spill_b5,$spill_b6,$spill_b7,$spill_d0,$spill_d1,$spill_d2,$spill_d3,$spill_d4,$spill_d5,$spill_d6,$spill_d7,$spill_a0lsb,$spill_a1lsb,$spill_a2lsb,$spill_a3lsb,$spill_a4lsb,$spill_a5lsb,$spill_a6lsb,$spill_a7lsb,$spill_b0lsb,$spill_b1lsb,$spill_b2lsb,$spill_b3lsb,$spill_b4lsb,$spill_b5lsb,$spill_b6lsb,$spill_b7lsb), implicit $ab, implicit $ix, implicit-def $ix
+  ; CHECK-MC6809-NEXT:   LongBranchSubroutine @i8i16callee, CustomRegMask($iy,$su,$rs0,$rs1,$rs2,$rs3,$spill_a0,$spill_a1,$spill_a2,$spill_a3,$spill_a4,$spill_a5,$spill_a6,$spill_a7,$spill_b0,$spill_b1,$spill_b2,$spill_b3,$spill_b4,$spill_b5,$spill_b6,$spill_b7,$spill_d0,$spill_d1,$spill_d2,$spill_d3,$spill_d4,$spill_d5,$spill_d6,$spill_d7,$rs0hi,$rs1hi,$rs2hi,$rs3hi,$rs0lo,$rs1lo,$rs2lo,$rs3lo,$spill_a0lsb,$spill_a1lsb,$spill_a2lsb,$spill_a3lsb,$spill_a4lsb,$spill_a5lsb,$spill_a6lsb,$spill_a7lsb,$spill_b0lsb,$spill_b1lsb,$spill_b2lsb,$spill_b3lsb,$spill_b4lsb,$spill_b5lsb,$spill_b6lsb,$spill_b7lsb), implicit $ab, implicit $ix, implicit-def $ix
   ; CHECK-MC6809-NEXT:   [[COPY1:%[0-9]+]]:_(s16) = COPY $ix
   ; CHECK-MC6809-NEXT:   ADJCALLSTACKUP 11, 0, implicit-def $ss, implicit $ss
   ; CHECK-MC6809-NEXT:   [[TRUNC:%[0-9]+]]:_(s8) = G_TRUNC [[COPY1]](s16)
@@ -482,7 +482,7 @@ define i8 @i8i16caller() nounwind readnone {
   ; CHECK-HD6309-NEXT:   G_STORE [[C11]](s8), [[PTR_ADD9]](p0) :: (store (s8) into stack + 10)
   ; CHECK-HD6309-NEXT:   $ab = COPY [[C]](s8)
   ; CHECK-HD6309-NEXT:   $ix = COPY [[C4]](s16)
-  ; CHECK-HD6309-NEXT:   LongBranchSubroutine @i8i16callee, CustomRegMask($iy,$su,$spill_a0,$spill_a1,$spill_a2,$spill_a3,$spill_a4,$spill_a5,$spill_a6,$spill_a7,$spill_b0,$spill_b1,$spill_b2,$spill_b3,$spill_b4,$spill_b5,$spill_b6,$spill_b7,$spill_d0,$spill_d1,$spill_d2,$spill_d3,$spill_d4,$spill_d5,$spill_d6,$spill_d7,$spill_a0lsb,$spill_a1lsb,$spill_a2lsb,$spill_a3lsb,$spill_a4lsb,$spill_a5lsb,$spill_a6lsb,$spill_a7lsb,$spill_b0lsb,$spill_b1lsb,$spill_b2lsb,$spill_b3lsb,$spill_b4lsb,$spill_b5lsb,$spill_b6lsb,$spill_b7lsb), implicit $ab, implicit $ix, implicit-def $ix
+  ; CHECK-HD6309-NEXT:   LongBranchSubroutine @i8i16callee, CustomRegMask($iy,$su,$rs0,$rs1,$rs2,$rs3,$spill_a0,$spill_a1,$spill_a2,$spill_a3,$spill_a4,$spill_a5,$spill_a6,$spill_a7,$spill_b0,$spill_b1,$spill_b2,$spill_b3,$spill_b4,$spill_b5,$spill_b6,$spill_b7,$spill_d0,$spill_d1,$spill_d2,$spill_d3,$spill_d4,$spill_d5,$spill_d6,$spill_d7,$rs0hi,$rs1hi,$rs2hi,$rs3hi,$rs0lo,$rs1lo,$rs2lo,$rs3lo,$spill_a0lsb,$spill_a1lsb,$spill_a2lsb,$spill_a3lsb,$spill_a4lsb,$spill_a5lsb,$spill_a6lsb,$spill_a7lsb,$spill_b0lsb,$spill_b1lsb,$spill_b2lsb,$spill_b3lsb,$spill_b4lsb,$spill_b5lsb,$spill_b6lsb,$spill_b7lsb), implicit $ab, implicit $ix, implicit-def $ix
   ; CHECK-HD6309-NEXT:   [[COPY1:%[0-9]+]]:_(s16) = COPY $ix
   ; CHECK-HD6309-NEXT:   ADJCALLSTACKUP 11, 0, implicit-def $ss, implicit $ss
   ; CHECK-HD6309-NEXT:   [[TRUNC:%[0-9]+]]:_(s8) = G_TRUNC [[COPY1]](s16)

@@ -36,19 +36,30 @@
 
 using namespace llvm;
 
+/// Map from RS byte sub-reg to its parent RS register, or 0 if not a sub-reg.
+static unsigned getImag16ParentForSymbol(unsigned Reg) {
+  switch (Reg) {
+  case MC6809::RS0HI: case MC6809::RS0LO: return MC6809::RS0;
+  case MC6809::RS1HI: case MC6809::RS1LO: return MC6809::RS1;
+  case MC6809::RS2HI: case MC6809::RS2LO: return MC6809::RS2;
+  case MC6809::RS3HI: case MC6809::RS3LO: return MC6809::RS3;
+  default: return 0;
+  }
+}
+
 static void initImag8SymbolNames(const MC6809RegisterInfo &TRI,
                                   std::unique_ptr<std::string[]> &Names) {
   Names.reset(new std::string[TRI.getNumRegs()]);
   for (unsigned Reg : seq(0u, TRI.getNumRegs())) {
     // Generate `__<lowercase_name>` for every imaginary register
-    // (RC0..RC7 in Imag8, RS0..RS3 in Imag16). The linker script
-    // assigns each symbol a direct-page address (1 byte for Imag8,
-    // 2 contiguous bytes for Imag16). 16-bit imaginary registers
-    // are NOT decomposed via sub_lo_byte because the .td defines
-    // them as standalone with no sub-register aliasing — see the
-    // MC6809ImagReg16 class comment about regalloc pressure.
+    // (RC0..RC7 in Imag8, RS0..RS3 in Imag16) and for the RS byte
+    // sub-registers (RS0HI..RS3LO). The linker script assigns each
+    // symbol a direct-page address. For the byte sub-regs, the
+    // linker defines: __rs0hi = __rs0 (high byte at base address,
+    // big-endian) and __rs0lo = __rs0 + 1.
     if (!MC6809::Imag16RegClass.contains(Reg) &&
-        !MC6809::Imag8RegClass.contains(Reg))
+        !MC6809::Imag8RegClass.contains(Reg) &&
+        !getImag16ParentForSymbol(Reg))
       continue;
     std::string &Str = Names[Reg];
     Str = "__";
@@ -119,12 +130,34 @@ const uint32_t *MC6809RegisterInfo::getCallPreservedMask(const MachineFunction &
                           MC6809::SPILL_A0, MC6809::SPILL_A1, MC6809::SPILL_A2, MC6809::SPILL_A3, MC6809::SPILL_A4, MC6809::SPILL_A5, MC6809::SPILL_A6, MC6809::SPILL_A7,
                           MC6809::SPILL_B0, MC6809::SPILL_B1, MC6809::SPILL_B2, MC6809::SPILL_B3, MC6809::SPILL_B4, MC6809::SPILL_B5, MC6809::SPILL_B6, MC6809::SPILL_B7,
                           MC6809::SPILL_A0LSB, MC6809::SPILL_A1LSB, MC6809::SPILL_A2LSB, MC6809::SPILL_A3LSB, MC6809::SPILL_A4LSB, MC6809::SPILL_A5LSB, MC6809::SPILL_A6LSB, MC6809::SPILL_A7LSB,
-                          MC6809::SPILL_B0LSB, MC6809::SPILL_B1LSB, MC6809::SPILL_B2LSB, MC6809::SPILL_B3LSB, MC6809::SPILL_B4LSB, MC6809::SPILL_B5LSB, MC6809::SPILL_B6LSB, MC6809::SPILL_B7LSB}) {
+                          MC6809::SPILL_B0LSB, MC6809::SPILL_B1LSB, MC6809::SPILL_B2LSB, MC6809::SPILL_B3LSB, MC6809::SPILL_B4LSB, MC6809::SPILL_B5LSB, MC6809::SPILL_B6LSB, MC6809::SPILL_B7LSB,
+                          // RS imaginary 16-bit regs and their byte sub-regs (memory-backed = call-preserved)
+                          MC6809::RS0, MC6809::RS1, MC6809::RS2, MC6809::RS3,
+                          MC6809::RS0HI, MC6809::RS0LO, MC6809::RS1HI, MC6809::RS1LO,
+                          MC6809::RS2HI, MC6809::RS2LO, MC6809::RS3HI, MC6809::RS3LO}) {
       SpillPreservedMask[Reg / 32] |= (1u << (Reg % 32));
     }
     Initialized = true;
   }
   return SpillPreservedMask;
+}
+
+const TargetRegisterClass *
+MC6809RegisterInfo::getSubClassWithSubReg(const TargetRegisterClass *RC,
+                                           unsigned Idx) const {
+  // Override tablegen's sub-class-with-subreg for ACC16 and ADc.
+  // When RS imaginary byte sub-regs are in 8-bit allocatable classes
+  // (AAc/ABc), tablegen's lattice algorithm tightens the sub_lo_byte
+  // extraction from acc8 (26+ regs) to acc8_ab (2 regs), causing
+  // cascading regalloc degradation. Fix: for ACC16/ADc, return the
+  // class itself for byte-related sub-reg indices, preserving the
+  // wide allocation pool.
+  if (RC == &MC6809::ACC16RegClass || RC == &MC6809::ADcRegClass) {
+    if (Idx == MC6809::sub_lo_byte || Idx == MC6809::sub_hi_byte ||
+        Idx == MC6809::sub_lsb)
+      return RC;
+  }
+  return MC6809GenRegisterInfo::getSubClassWithSubReg(RC, Idx);
 }
 
 const TargetRegisterClass *MC6809RegisterInfo::getCrossCopyRegClass(const TargetRegisterClass *RC) const {
