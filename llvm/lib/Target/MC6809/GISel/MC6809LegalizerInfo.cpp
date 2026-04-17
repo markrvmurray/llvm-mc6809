@@ -232,6 +232,12 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // into shift-by-1 chains (G_SHLE/G_LSHRE) and routes variables to libcalls.
   // selectShift16 in the isel handles i16 constant shifts directly via
   // LSL_i16_Reg loops (ASLB+ROLA / LSRA+RORB byte pairs).
+  // TODO: i64 shifts should route to libcalls (__ashldi3, __ashrdi3,
+  // __lshrdi3) because the inline narrowScalar decomposition creates
+  // too much register pressure. The hand-written __ashrdi3 assembly
+  // exists in compiler-rt/lib/builtins/mc6809/ashrdi3.S but the
+  // legalizer routing needs work to avoid regressing existing tests.
+  // For now, i64 shifts narrow to s32 pairs (which may blow regalloc).
   getActionDefinitionsBuilder({G_SHL, G_LSHR, G_ASHR, G_ROTR, G_ROTL})
       .legalForCartesianProduct(LegalScalars, {s1})
       .customForCartesianProduct(LegalScalars, {s8})
@@ -1503,11 +1509,27 @@ bool MC6809LegalizerInfo::shiftRotateLibcall(LegalizerHelper &Helper, MachineReg
   auto Libcall = Helper.getRTLibDesc(MI.getOpcode(), Size);
 
   Type *HLTy = IntegerType::get(Ctx, Size);
-  Type *HLAmtTy = IntegerType::get(Ctx, 8);
+  // The shift amount matches the C runtime signature's `int` type.
+  // For i64 shifts (when enabled), this is i16 so the amount goes
+  // on the stack (B gets clobbered by the i64 arg stack setup).
+  // For <= i32 shifts, i8 is fine (amount in B, no conflict).
+  unsigned AmtBits = (Size > 32) ? 16 : 8;
+  Type *HLAmtTy = IntegerType::get(Ctx, AmtBits);
+
+  // For i64 shifts, the amount is declared as i16 (on the stack)
+  // because B gets clobbered by the i64 arg setup. Widen the s8
+  // vreg to match. For ≤ 32-bit shifts the amount stays i8 (in B).
+  MachineIRBuilder &B = Helper.MIRBuilder;
+  Register AmtReg = MI.getOperand(2).getReg();
+  if (AmtBits > 8) {
+    LLT AmtLLT = MRI.getType(AmtReg);
+    if (AmtLLT.getSizeInBits() < AmtBits)
+      AmtReg = B.buildZExt(LLT::scalar(AmtBits), AmtReg).getReg(0);
+  }
 
   SmallVector<CallLowering::ArgInfo, 3> Args;
   Args.push_back({MI.getOperand(1).getReg(), HLTy, 0});
-  Args.push_back({MI.getOperand(2).getReg(), HLAmtTy, 1});
+  Args.push_back({AmtReg, HLAmtTy, 1});
   if (!Helper.createLibcall(Libcall, {MI.getOperand(0).getReg(), HLTy, 0}, Args, LocObserver))
     return false;
 

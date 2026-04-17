@@ -827,7 +827,6 @@ list(REMOVE_ITEM mc6809_SOURCES
   # Generic C implementations that compile OK are left in GENERIC_SOURCES.
   # The ones below exhaust registers or hit legalizer gaps; they need
   # hand-written assembly in mc6809/ per the libcall-first strategy.
-  ashrdi3.c
   divdi3.c moddi3.c udivdi3.c umoddi3.c
   divmoddi4.c udivmoddi4.c
   mulvdi3.c mulodi4.c
@@ -865,6 +864,7 @@ list(REMOVE_ITEM mc6809_SOURCES
 # Hand-written assembly uses exactly the registers it needs and saves
 # the callee-saved ones explicitly via PSHS/PULS.
 list(APPEND mc6809_SOURCES
+  mc6809/ashrdi3.S
   mc6809/ctzhi2.S
 )
 

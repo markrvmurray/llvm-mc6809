@@ -35,3 +35,7 @@ define dso_local void @sub64_w(ptr %result, ptr %a, ptr %b) {
   store i64 %r, ptr %result, align 1
   ret void
 }
+
+; TODO: ashr64_w wrapper removed — i64 shifts blow regalloc inline
+; because the legalizer doesn't yet route them to __ashrdi3 libcalls.
+; See shiftdi3.inc and compiler-rt/lib/builtins/mc6809/ashrdi3.S.

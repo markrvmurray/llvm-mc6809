@@ -32,3 +32,6 @@
 
 ;; 32-bit division and modulo (signed + unsigned)
 .include "divsi.inc"
+
+;; 64-bit shifts
+.include "shiftdi3.inc"
