@@ -232,13 +232,20 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // into shift-by-1 chains (G_SHLE/G_LSHRE) and routes variables to libcalls.
   // selectShift16 in the isel handles i16 constant shifts directly via
   // LSL_i16_Reg loops (ASLB+ROLA / LSRA+RORB byte pairs).
-  // TODO: i64 shifts should route to libcalls (__ashldi3, __ashrdi3,
-  // __lshrdi3) because the inline narrowScalar decomposition creates
-  // too much register pressure. The hand-written __ashrdi3 assembly
-  // exists in compiler-rt/lib/builtins/mc6809/ashrdi3.S but the
-  // legalizer routing needs work to avoid regressing existing tests.
-  // For now, i64 shifts narrow to s32 pairs (which may blow regalloc).
-  getActionDefinitionsBuilder({G_SHL, G_LSHR, G_ASHR, G_ROTR, G_ROTL})
+  // i64 shifts route to libcalls (__ashldi3/__ashrdi3/__lshrdi3) via
+  // the custom handler (shiftRotateLibcall). The rule fires after
+  // clampScalar(1) narrows the amount from s64 to s8 — the legalizer
+  // retries the chain and customFor({s64},{s8}) matches BEFORE
+  // clampScalar(0) can narrow the value from s64 to s32.
+  // Rotates don't have i64 libcalls, so they stay on the old path.
+  getActionDefinitionsBuilder({G_SHL, G_LSHR, G_ASHR})
+      .customForCartesianProduct({s64}, {s8})
+      .legalForCartesianProduct(LegalScalars, {s1})
+      .customForCartesianProduct(LegalScalars, {s8})
+      .customForCartesianProduct({s32}, {s8})
+      .clampScalar(1, s1, s8)
+      .clampScalar(0, s8, s32);
+  getActionDefinitionsBuilder({G_ROTR, G_ROTL})
       .legalForCartesianProduct(LegalScalars, {s1})
       .customForCartesianProduct(LegalScalars, {s8})
       .customForCartesianProduct({s32}, {s8})
