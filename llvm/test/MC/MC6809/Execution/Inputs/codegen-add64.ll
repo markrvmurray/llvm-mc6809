@@ -36,6 +36,13 @@ define dso_local void @sub64_w(ptr %result, ptr %a, ptr %b) {
   ret void
 }
 
-; TODO: ashr64_w wrapper removed — i64 shifts blow regalloc inline
-; because the legalizer doesn't yet route them to __ashrdi3 libcalls.
-; See shiftdi3.inc and compiler-rt/lib/builtins/mc6809/ashrdi3.S.
+; Wrapper: void ashr64_w(i8* result, i8* a, i16 count)
+; Exercises __ashrdi3 libcall (i64 shifts route to libcall via
+; customForCartesianProduct({s64}, {s8}) in the legalizer).
+define dso_local void @ashr64_w(ptr %result, ptr %a, i16 %count) {
+  %av = load i64, ptr %a, align 1
+  %ext = zext i16 %count to i64
+  %r = ashr i64 %av, %ext
+  store i64 %r, ptr %result, align 1
+  ret void
+}
