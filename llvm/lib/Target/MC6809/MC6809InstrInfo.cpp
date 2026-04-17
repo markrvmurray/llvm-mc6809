@@ -3296,7 +3296,8 @@ void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI
 // Forward declarations for 6809 register-to-memory helpers.
 static void emit6809RegByteFromMem(MachineIRBuilder &Builder,
                                    Register LHS, Register RHS,
-                                   unsigned Opc_o8, unsigned Opc_o5);
+                                   unsigned Opc_o8, unsigned Opc_o5,
+                                   unsigned Opc_o16 = 0);
 static void emit6809RegPairFromMem(MachineIRBuilder &Builder,
                                    Register LHS, Register RHS,
                                    unsigned OpcB_o8, unsigned OpcA_o8,
@@ -3540,6 +3541,21 @@ static void getByteOpcodes(Register LHS,
   Opc_o5 = UseA ? OpcA_o5 : OpcB_o5;
 }
 
+/// Extended version that also selects the _o16 variant for large
+/// frame offsets (bug #122: offsets >127 need 16-bit encoding).
+static void getByteOpcodes(Register LHS,
+                           unsigned OpcA_o8, unsigned OpcB_o8,
+                           unsigned OpcA_o5, unsigned OpcB_o5,
+                           unsigned OpcA_o16, unsigned OpcB_o16,
+                           unsigned &Opc_o8, unsigned &Opc_o5,
+                           unsigned &Opc_o16) {
+  Register RealLHS = needsMaterialization(LHS) ? getPhysRegFor(LHS) : LHS;
+  bool UseA = (RealLHS == MC6809::AA || RealLHS == MC6809::AALSB);
+  Opc_o8 = UseA ? OpcA_o8 : OpcB_o8;
+  Opc_o5 = UseA ? OpcA_o5 : OpcB_o5;
+  Opc_o16 = UseA ? OpcA_o16 : OpcB_o16;
+}
+
 void MC6809InstrInfo::expandAddSetCarryByteReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
   assert(MI.getOperand(0).getReg() == MI.getOperand(2).getReg());
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
@@ -3550,12 +3566,14 @@ void MC6809InstrInfo::expandAddSetCarryByteReg(MachineIRBuilder &Builder, Machin
         .addUse(MI.getOperand(2).getReg())
         .addUse(MI.getOperand(3).getReg());
   } else {
-    unsigned Opc_o8, Opc_o5;
+    unsigned Opc_o8, Opc_o5, Opc_o16;
     getByteOpcodes(MI.getOperand(0).getReg(),
                    MC6809::ADDAi_o8, MC6809::ADDBi_o8,
-                   MC6809::ADDAi_o5, MC6809::ADDBi_o5, Opc_o8, Opc_o5);
+                   MC6809::ADDAi_o5, MC6809::ADDBi_o5,
+                   MC6809::ADDAi_o16, MC6809::ADDBi_o16,
+                   Opc_o8, Opc_o5, Opc_o16);
     emit6809RegByteFromMem(Builder, MI.getOperand(0).getReg(),
-                           MI.getOperand(3).getReg(), Opc_o8, Opc_o5);
+                           MI.getOperand(3).getReg(), Opc_o8, Opc_o5, Opc_o16);
   }
   MI.eraseFromParent();
 }
@@ -3571,12 +3589,14 @@ void MC6809InstrInfo::expandAddSetCarryUseByteReg(MachineIRBuilder &Builder, Mac
         .addUse(MI.getOperand(3).getReg(), RegState::Implicit)
         .addUse(MI.getOperand(4).getReg());
   } else {
-    unsigned Opc_o8, Opc_o5;
+    unsigned Opc_o8, Opc_o5, Opc_o16;
     getByteOpcodes(MI.getOperand(0).getReg(),
                    MC6809::ADCAi_o8, MC6809::ADCBi_o8,
-                   MC6809::ADCAi_o5, MC6809::ADCBi_o5, Opc_o8, Opc_o5);
+                   MC6809::ADCAi_o5, MC6809::ADCBi_o5,
+                   MC6809::ADCAi_o16, MC6809::ADCBi_o16,
+                   Opc_o8, Opc_o5, Opc_o16);
     emit6809RegByteFromMem(Builder, MI.getOperand(0).getReg(),
-                           MI.getOperand(4).getReg(), Opc_o8, Opc_o5);
+                           MI.getOperand(4).getReg(), Opc_o8, Opc_o5, Opc_o16);
   }
   MI.eraseFromParent();
 }
@@ -3591,12 +3611,14 @@ void MC6809InstrInfo::expandSubSetCarryByteReg(MachineIRBuilder &Builder, Machin
         .addUse(MI.getOperand(2).getReg())
         .addUse(MI.getOperand(3).getReg());
   } else {
-    unsigned Opc_o8, Opc_o5;
+    unsigned Opc_o8, Opc_o5, Opc_o16;
     getByteOpcodes(MI.getOperand(0).getReg(),
                    MC6809::SUBAi_o8, MC6809::SUBBi_o8,
-                   MC6809::SUBAi_o5, MC6809::SUBBi_o5, Opc_o8, Opc_o5);
+                   MC6809::SUBAi_o5, MC6809::SUBBi_o5,
+                   MC6809::SUBAi_o16, MC6809::SUBBi_o16,
+                   Opc_o8, Opc_o5, Opc_o16);
     emit6809RegByteFromMem(Builder, MI.getOperand(0).getReg(),
-                           MI.getOperand(3).getReg(), Opc_o8, Opc_o5);
+                           MI.getOperand(3).getReg(), Opc_o8, Opc_o5, Opc_o16);
   }
   MI.eraseFromParent();
 }
@@ -3612,12 +3634,14 @@ void MC6809InstrInfo::expandSubSetCarryUseByteReg(MachineIRBuilder &Builder, Mac
         .addUse(MI.getOperand(3).getReg(), RegState::Implicit)
         .addUse(MI.getOperand(2).getReg());
   } else {
-    unsigned Opc_o8, Opc_o5;
+    unsigned Opc_o8, Opc_o5, Opc_o16;
     getByteOpcodes(MI.getOperand(0).getReg(),
                    MC6809::SBCAi_o8, MC6809::SBCBi_o8,
-                   MC6809::SBCAi_o5, MC6809::SBCBi_o5, Opc_o8, Opc_o5);
+                   MC6809::SBCAi_o5, MC6809::SBCBi_o5,
+                   MC6809::SBCAi_o16, MC6809::SBCBi_o16,
+                   Opc_o8, Opc_o5, Opc_o16);
     emit6809RegByteFromMem(Builder, MI.getOperand(0).getReg(),
-                           MI.getOperand(4).getReg(), Opc_o8, Opc_o5);
+                           MI.getOperand(4).getReg(), Opc_o8, Opc_o5, Opc_o16);
   }
   MI.eraseFromParent();
 }
@@ -3700,7 +3724,8 @@ static unsigned getDirectPageOpcode(unsigned IdxOpc) {
 ///       to deallocate. Imaginary regs are materialized first.
 static void emit6809RegByteFromMem(MachineIRBuilder &Builder,
                                    Register LHS, Register RHS,
-                                   unsigned Opc_o8, unsigned Opc_o5) {
+                                   unsigned Opc_o8, unsigned Opc_o5,
+                                   unsigned Opc_o16) {
   MachineFunction &MF = Builder.getMF();
   Register OrigLHS = LHS;
   Register RealLHS = needsMaterialization(LHS) ? getPhysRegFor(LHS) : LHS;
@@ -3732,7 +3757,13 @@ static void emit6809RegByteFromMem(MachineIRBuilder &Builder,
     int ByteOffset = computeSpillStackOffset(RHS, MF);
     LLVM_DEBUG(dbgs() << "emit6809RegByteFromMem: path(a) RHS="
                << printReg(RHS) << " offset=" << ByteOffset << "\n");
-    Builder.buildInstr(Opc_o8)
+    // Bug #122: for large stack frames (>127 bytes), the spill offset
+    // may exceed the 8-bit signed range (-128..+127). Use the _o16
+    // opcode variant for large offsets — _o8 wraps >127 to negative,
+    // reading from below the frame.
+    bool Fits8 = (ByteOffset >= -128 && ByteOffset <= 127);
+    unsigned Opc = (Fits8 || !Opc_o16) ? Opc_o8 : Opc_o16;
+    Builder.buildInstr(Opc)
         .addDef(AccReg, RegState::Implicit)
         .addImm(ByteOffset).addReg(MC6809::SU);
   } else if (RHS.isPhysical() && MC6809::Imag8RegClass.contains(RHS)) {
@@ -3925,12 +3956,14 @@ void MC6809InstrInfo::expandSubByteReg(MachineIRBuilder &Builder, MachineInstr &
         .addUse(MI.getOperand(2).getReg())
         .addUse(MI.getOperand(1).getReg());
   } else {
-    unsigned Opc_o8, Opc_o5;
+    unsigned Opc_o8, Opc_o5, Opc_o16;
     getByteOpcodes(MI.getOperand(0).getReg(),
                    MC6809::SUBAi_o8, MC6809::SUBBi_o8,
-                   MC6809::SUBAi_o5, MC6809::SUBBi_o5, Opc_o8, Opc_o5);
+                   MC6809::SUBAi_o5, MC6809::SUBBi_o5,
+                   MC6809::SUBAi_o16, MC6809::SUBBi_o16,
+                   Opc_o8, Opc_o5, Opc_o16);
     emit6809RegByteFromMem(Builder, MI.getOperand(0).getReg(),
-                           MI.getOperand(2).getReg(), Opc_o8, Opc_o5);
+                           MI.getOperand(2).getReg(), Opc_o8, Opc_o5, Opc_o16);
   }
   MI.eraseFromParent();
 }
