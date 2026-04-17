@@ -113,12 +113,19 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // The instruction selector has patterns for two shapes only:
   //   (s8, s1)  via SEX8Implicit
   //   (s16, s8) via SEX16Implicit (the native SEX)
-  // Wider widenings go through libcall-style lowering via lowerEXT.
   //
-  // (s16, s1) and (s32, s1) need explicit chaining through the available
-  // intermediates — the selector does not synthesise multi-step extends
-  // by itself. Both are custom-lowered below. Closes bug #82a — picolibc
-  // ftell.c / ftello.c.
+  // For s1-source extends to wider types (s16, s32), we use the MOS-proven
+  // pattern (MOSLegalizerInfo.cpp:596-639): emit a G_SELECT on constants
+  // `select s1, -1, 0` at the destination width. This completely avoids
+  // the chained-sext and upstream lowerEXT's MERGE_VALUES(src, ASHR_HI)
+  // pattern that keeps multiple i16 vregs live simultaneously — the #82b
+  // regalloc-pressure root cause. The select lowers via MC6809LowerSelect
+  // into a branch + constant-materialization diamond, which uses only ONE
+  // i16 register (D) at any point.
+  //
+  // (s32, s16) still uses upstream lowerEXT — both halves are live at the
+  // merge point, but that's only 2 simultaneous vregs, which fits in the
+  // available pool. The s1-source case was the problematic one.
   getActionDefinitionsBuilder(G_SEXT)
       .legalFor({{s8, s1}, {s16, s8}})
       .lowerFor({{s32, s16}})
@@ -463,15 +470,14 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
     return true;
   }
   case G_SEXT: {
-    // The MC6809 selector has patterns only for the native sext shapes
-    // (s8, s1) (SEX8Implicit) and (s16, s8) (SEX16Implicit). Wider
-    // widenings have to be chained explicitly. Two cases here:
-    //
-    //   (s16, s1): s1 → s8 → s16
-    //   (s32, s1): s1 → s8 → s16 → s32
-    //                            ^^ this last step lowers via lowerFor
-    //
-    // Both surface in picolibc ftell.c / ftello.c (bug #82a).
+    // (sN, s1) where N > 1: emit `select s1, -1, 0` at the destination
+    // width. This is the MOS-proven pattern (MOSLegalizerInfo.cpp:596)
+    // that completely avoids the chained-sext and upstream lowerEXT's
+    // MERGE_VALUES(src, ASHR_HI) pattern. The select lowers via
+    // MC6809LowerSelect into a branch + constant-materialization diamond,
+    // which uses ONE i16 register (D) at any point — eliminating the
+    // 5-simultaneous-vreg pressure spike that was bug #82b's root cause.
+    // Surfaces in picolibc ftell.c / ftello.c.
     Register DstReg = MI.getOperand(0).getReg();
     Register SrcReg = MI.getOperand(1).getReg();
     LLT DstTy = MRI.getType(DstReg);
@@ -479,20 +485,11 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
     if (SrcTy != LLT::scalar(1))
       return false;
     MachineIRBuilder &B = Helper.MIRBuilder;
-    if (DstTy == LLT::scalar(16)) {
-      auto Tmp8 = B.buildSExt(LLT::scalar(8), SrcReg);
-      B.buildSExt(DstReg, Tmp8);
-      MI.eraseFromParent();
-      return true;
-    }
-    if (DstTy == LLT::scalar(32)) {
-      auto Tmp8 = B.buildSExt(LLT::scalar(8), SrcReg);
-      auto Tmp16 = B.buildSExt(LLT::scalar(16), Tmp8);
-      B.buildSExt(DstReg, Tmp16);
-      MI.eraseFromParent();
-      return true;
-    }
-    return false;
+    auto NegOne = B.buildConstant(DstTy, -1);
+    auto Zero = B.buildConstant(DstTy, 0);
+    B.buildSelect(DstReg, SrcReg, NegOne, Zero);
+    MI.eraseFromParent();
+    return true;
   }
   case G_SELECT: {
     // Decompose i32 select into two INDEPENDENT i16 selects.
