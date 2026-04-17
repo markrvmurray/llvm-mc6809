@@ -6,23 +6,24 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This pass strenuously objects to any short-branch instruction reaching the
-// late pipeline. The MC6809 backend's policy is to emit only LONG branches
-// until a future relaxation pass is written that can safely promote them to
-// short branches when the offset is provably in range.
+// This pass strenuously objects to two classes of encoding error reaching the
+// late pipeline:
 //
-// Why: short branches use an 8-bit signed offset (-128..+127). When the
-// branch target is further away than that, the offset wraps and the CPU
-// silently jumps to a wrong address. This caused bug #58 (test_strstr stack
-// corruption at -O0): a `bra .LBB_2` was emitted with a -142 offset, the
-// short-branch encoding truncated it to +114, and execution wandered into
-// unrelated code.
+// 1. SHORT BRANCHES (bug #58): short branches use an 8-bit signed offset
+//    (-128..+127). When the branch target is further away, the offset wraps
+//    and the CPU silently jumps to a wrong address.
 //
-// To prevent regressions, this pass runs in addPreEmitPass right after the
-// LLVM BranchRelaxation pass. If any short-branch opcode reaches it, the
-// pass aborts with a fatal error naming the offending instruction. When the
-// future relaxation pass lands, this guard can be loosened to only check
-// after that pass has run.
+// 2. INDEXED OFFSET OVERFLOW (bug #122): _o8 indexed instructions use an
+//    8-bit signed offset from U or S. When the frame is larger than 127
+//    bytes and an expansion emits _o8 for a slot beyond that range, the
+//    offset wraps to negative and the instruction reads/writes from below
+//    the frame, silently corrupting data. Similarly, _o5 instructions use
+//    a 5-bit signed offset (-16..+15).
+//
+// Both checks run in addPreEmitPass. They are safety nets — the correct
+// fix for each case is to emit the right encoding in the first place. But
+// silent wrong-code from offset truncation is catastrophic, so these
+// guards catch any regressions immediately.
 //
 //===----------------------------------------------------------------------===//
 
@@ -34,6 +35,7 @@
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
+#include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -57,6 +59,8 @@ public:
 
 private:
   static bool isShortBranch(unsigned Opcode);
+  static void checkIndexedOffsetRange(const MachineInstr &MI,
+                                      const MachineFunction &MF);
 };
 
 bool MC6809NoShortBranches::isShortBranch(unsigned Opcode) {
@@ -80,6 +84,46 @@ bool MC6809NoShortBranches::isShortBranch(unsigned Opcode) {
   }
 }
 
+/// Check that any _o8 or _o5 indexed instruction's immediate offset fits
+/// the encoding range. An out-of-range offset wraps via signed truncation,
+/// silently accessing the wrong memory address (was bug #122).
+void MC6809NoShortBranches::checkIndexedOffsetRange(
+    const MachineInstr &MI, const MachineFunction &MF) {
+  const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
+  StringRef Name = TII.getName(MI.getOpcode());
+
+  int Lo, Hi;
+  const char *Form;
+  if (Name.ends_with("_o8")) {
+    Lo = -128; Hi = 127; Form = "_o8 (8-bit signed)";
+  } else if (Name.ends_with("_o5")) {
+    Lo = -16; Hi = 15; Form = "_o5 (5-bit signed)";
+  } else {
+    return; // Not a short-offset indexed instruction.
+  }
+
+  // The immediate offset is the first operand that is an immediate.
+  // _o8/_o5 instructions have layout: (implicit def), imm, reg.
+  for (const MachineOperand &MO : MI.operands()) {
+    if (!MO.isImm())
+      continue;
+    int64_t Offset = MO.getImm();
+    if (Offset < Lo || Offset > Hi) {
+      std::string Msg;
+      raw_string_ostream OS(Msg);
+      OS << "MC6809: indexed offset " << Offset << " out of range ["
+         << Lo << ".." << Hi << "] for " << Form
+         << " instruction in function '" << MF.getName()
+         << "': ";
+      MI.print(OS);
+      OS << "The expansion that produced this instruction should have "
+            "used the _o16 variant for large offsets (was bug #122).";
+      report_fatal_error(StringRef(Msg));
+    }
+    break; // Only check the first immediate (the offset).
+  }
+}
+
 bool MC6809NoShortBranches::runOnMachineFunction(MachineFunction &MF) {
   for (const MachineBasicBlock &MBB : MF) {
     for (const MachineInstr &MI : MBB) {
@@ -94,6 +138,7 @@ bool MC6809NoShortBranches::runOnMachineFunction(MachineFunction &MF) {
               "bug #58).";
         report_fatal_error(StringRef(Msg));
       }
+      checkIndexedOffsetRange(MI, MF);
     }
   }
   return false;
