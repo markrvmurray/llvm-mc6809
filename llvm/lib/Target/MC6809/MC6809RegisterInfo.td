@@ -286,11 +286,16 @@ def ACC8 : MC6809Reg8Class<(add AB, AA, AF, AE, SPILL_B0, SPILL_B1, SPILL_B2, SP
     // AE and AF are HD6309-only. Exclude from allocation on 6809.
     let AltOrders = [(add AB, AA, SPILL_B0, SPILL_B1, SPILL_B2, SPILL_B3, SPILL_B4, SPILL_B5, SPILL_B6, SPILL_B7, SPILL_A0, SPILL_A1, SPILL_A2, SPILL_A3, SPILL_A4, SPILL_A5, SPILL_A6, SPILL_A7, RC0, RC1, RC2, RC3, RC4, RC5, RC6, RC7)];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
-    let AltOrders = [(add AB, AA, SPILL_B0, SPILL_B1, SPILL_B2, SPILL_B3, SPILL_B4, SPILL_B5, SPILL_B6, SPILL_B7, SPILL_A0, SPILL_A1, SPILL_A2, SPILL_A3, SPILL_A4, SPILL_A5, SPILL_A6, SPILL_A7, RC0, RC1, RC2, RC3, RC4, RC5, RC6, RC7)];
-    let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
 }
 def ACC8_AB : MC6809Reg8Class<(add AB, AA)>;
 def BIT8 : MC6809Reg8Class<(add AA, AB, CC)>; // Valid registers for BAND, BEOR, BOR, BIAND, BIEOR, BIOR, LDBT, STBT
+// Enable fine-grained pressure tracking on constrained i16 classes.
+// On basic 6809, ACC16 has 1 real physreg (AD) + 8 stack-backed spills +
+// 4 imaginary = 13 total, but the D-only ALU constraint means instructions
+// often need the ADc intersection (9 slots). Fine-grained tracking lets
+// the scheduler see per-class pressure and avoid peaks that blow regalloc.
+// Follows the MOS pattern (MOSRegisterInfo.td:165-188).
+let isPressureFineGrained = true in
 def ACC16 : MC6809Reg16Class<(add AD, AW, SPILL_D0, SPILL_D1, SPILL_D2, SPILL_D3, SPILL_D4, SPILL_D5, SPILL_D6, SPILL_D7, RS0, RS1, RS2, RS3)> {
     let AltOrders = [(add AD, SPILL_D0, SPILL_D1, SPILL_D2, SPILL_D3, SPILL_D4, SPILL_D5, SPILL_D6, SPILL_D7, RS0, RS1, RS2, RS3)];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
@@ -307,6 +312,7 @@ def REGPAIR16 : MC6809Reg16Class<(add AD, IX, IY, SU, SS, PC, AW, AV)>; // Regis
 def REGTFM : MC6809Reg16Class<(add AD, IX, IY, SU, SS)>; // Registers for TFM
 
 // Pointer and stack registers
+let isPressureFineGrained = true in
 def INDEX16 : MC6809Reg16Class<(add IX, IY, SPILL_X0, SPILL_X1, SPILL_X2, SPILL_X3, SU, SS)>;
 
 // Stack registers for internal push/pull operations.
@@ -336,6 +342,7 @@ let isAllocatable = false in {
     def AALSBc : MC6809Reg1Class<(add AALSB, SPILL_A0LSB, SPILL_A1LSB, SPILL_A2LSB, SPILL_A3LSB, SPILL_A4LSB, SPILL_A5LSB, SPILL_A6LSB, SPILL_A7LSB)>;
     def ABc : MC6809Reg8Class<(add AB, SPILL_B0, SPILL_B1, SPILL_B2, SPILL_B3, SPILL_B4, SPILL_B5, SPILL_B6, SPILL_B7)>;
     def ABLSBc : MC6809Reg1Class<(add ABLSB, SPILL_B0LSB, SPILL_B1LSB, SPILL_B2LSB, SPILL_B3LSB, SPILL_B4LSB, SPILL_B5LSB, SPILL_B6LSB, SPILL_B7LSB)>;
+    let isPressureFineGrained = true in
     def ADc : MC6809Reg16Class<(add AD, SPILL_D0, SPILL_D1, SPILL_D2, SPILL_D3, SPILL_D4, SPILL_D5, SPILL_D6, SPILL_D7)>;
     def AEc : MC6809Reg8Class<(add AE)>;
     def AELSBc : MC6809Reg1Class<(add AELSB)>;
@@ -343,7 +350,9 @@ let isAllocatable = false in {
     def AFLSBc : MC6809Reg1Class<(add AFLSB)>;
     def AWc : MC6809Reg16Class<(add AW)>;
     def AQc : MC6809Reg32Class<(add AQ)>;
+    let isPressureFineGrained = true in
     def IXc : MC6809Reg16Class<(add IX)>;
+    let isPressureFineGrained = true in
     def IYc : MC6809Reg16Class<(add IY)>;
     def SUc : MC6809Reg16Class<(add SU)>;
     def SSc : MC6809Reg16Class<(add SS)>;
