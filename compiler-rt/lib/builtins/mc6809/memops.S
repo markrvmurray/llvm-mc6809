@@ -6,23 +6,21 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// __memset -- the LLVM intrinsic version of memset for MC6809.
+// __memset -- LLVM intrinsic memset for MC6809.
 //
-// memset(void *s, int c, size_t n)    -- C library, c is 16-bit int
-// __memset(void *s, char c, size_t n) -- LLVM intrinsic, c is 8-bit
+// The LLVM backend lowers llvm.memset to __memset. The intrinsic
+// defines c as i8, which the MC6809 calling convention passes in
+// register B (first i8 arg). The count n goes on the stack as i16.
 //
-// These differ in how c is passed on the stack: memset passes c as a
-// 2-byte int (low byte at 3,S), while __memset passes c as a 1-byte
-// char (value at 2,S). The backend emits __memset for llvm.memset
-// intrinsic calls and memset for explicit C calls.
+// Bug #125: the previous version read c from the stack, but the
+// compiler passes c in B. Reading from the stack got the high byte
+// of the count (0x00) instead of the fill byte.
 //
-// We only provide __memset here. The plain memset is provided by the
-// C library (picolibc, newlib, etc.) since it's a standard libc
-// function. Standalone programs without a libc use the test runtime's
-// memops.inc.
-//
-// gcc6809 ABI v1: IX = s, 2,S = c (1 byte), 3,S = n (2 bytes).
-// Returns IX = s. Clobbers: D.
+// Calling convention:
+//   IX = s (destination pointer)
+//   B  = c (fill byte, i8 in register)
+//   2,S = n (count, i16 on stack)
+// Returns IX = s. Clobbers: D, Y.
 //
 //===----------------------------------------------------------------------===//
 
@@ -32,8 +30,8 @@
 	.type	__memset,@function
 __memset:
 	pshs	x		// save s for return
-	ldb	4,s		// c byte (+2 saved X, +2 retaddr)
-	ldy	5,s		// n (+2 saved X, +2 retaddr, +1 c)
+	// B already holds the fill byte (passed in register by the compiler)
+	ldy	4,s		// n (+2 saved X, +2 retaddr)
 	beq	.L__memset_done
 .L__memset_loop:
 	stb	,x+

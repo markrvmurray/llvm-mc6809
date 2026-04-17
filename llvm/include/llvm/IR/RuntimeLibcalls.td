@@ -3680,7 +3680,8 @@ def isMC6809 : RuntimeLibcallPredicate<"TT.getArch() == Triple::mc6809">;
 // The memset intrinsic takes a char, while the C memset takes an int. These
 // are different in the MC6809 calling convention, since arguments are not
 // automatically promoted to int. "memset" is the C version, and "__memset" is
-// the intrinsic version.
+// the intrinsic version. The backend passes c in register B (as i8), so
+// __memset reads it from B. See bug #125 and memops.S.
 def MC6809SystemLibrary
     : SystemRuntimeLibrary<
           isMC6809,

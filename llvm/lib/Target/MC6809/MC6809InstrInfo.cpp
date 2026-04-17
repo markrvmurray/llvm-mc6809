@@ -4343,6 +4343,9 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
   MI.eraseFromParent();
 }
 
+
+
+
 void MC6809InstrInfo::expandComparePull(MachineIRBuilder &Builder, MachineInstr &MI) const {
   // Compare_*_Pull: compare register with value pushed on S stack.
   // Push_i16 already pushed the second operand. We compare the first
