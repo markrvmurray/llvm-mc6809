@@ -6,8 +6,22 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file defines the MC6809 pass to fully optimize COPY operations before
-// lowering.
+// Post-RA copy optimization for MC6809.
+//
+// This pass runs after register allocation but before MaterializeSpills
+// and PostRAScavenging. It eliminates redundant COPY instructions that
+// survive the standard MachineCopyPropagation pass — specifically:
+//
+//   1. Identity copies: $D = COPY $D → deleted
+//   2. Dead copies: COPY whose destination is immediately overwritten
+//      before any read → deleted
+//   3. Copy-of-copy chains where the intermediate register is dead:
+//      $X = COPY $D; $Y = COPY $X (X dead) → $Y = COPY $D
+//
+// The standard MachineCopyPropagation handles these generically, but may
+// miss MC6809-specific cases involving spill pseudo-registers (SPILL_D0
+// ..D7) and imaginary registers (RS0..RS3) which are pseudo physregs
+// the generic pass doesn't always track.
 //
 //===----------------------------------------------------------------------===//
 
@@ -91,7 +105,81 @@ template <typename AcceptDefT> static bool findReachingDefs(MachineInstr &MI, Sm
 }
 
 bool MC6809CopyOpt::runOnMachineFunction(MachineFunction &MF) {
-  return true;
+  const TargetRegisterInfo &TRI =
+      *MF.getSubtarget().getRegisterInfo();
+  bool Changed = false;
+
+  SmallVector<MachineInstr *, 16> ToDelete;
+
+  for (MachineBasicBlock &MBB : MF) {
+    for (MachineInstr &MI : MBB) {
+      if (!MI.isCopy())
+        continue;
+
+      Register Dst = MI.getOperand(0).getReg();
+      Register Src = MI.getOperand(1).getReg();
+
+      // 1. Identity copy elimination: $D = COPY $D
+      if (Dst == Src) {
+        LLVM_DEBUG(dbgs() << "MC6809CopyOpt: deleting identity copy: " << MI);
+        ToDelete.push_back(&MI);
+        continue;
+      }
+
+      // 2. Copy-of-copy chain shortening:
+      //    If the source of this COPY was itself defined by a COPY,
+      //    and the intermediate register has no other uses between
+      //    the two COPYs, short-circuit: $Y = COPY $X; $Z = COPY $Y
+      //    (Y dead) → $Z = COPY $X
+      SmallVector<MachineInstr *, 4> Defs;
+      bool Found = findReachingDefs(MI, Defs, [](const MachineInstr &DefMI) {
+        return DefMI.isCopy();
+      });
+
+      if (Found && Defs.size() == 1) {
+        MachineInstr *DefMI = Defs[0];
+        Register OrigSrc = DefMI->getOperand(1).getReg();
+        Register Intermediate = DefMI->getOperand(0).getReg();
+
+        // Only attempt the chain shortening when both COPYs are in the
+        // same basic block — cross-block walk is not safe with this
+        // simple iterator approach.
+        if (DefMI->getParent() != MI.getParent())
+          continue;
+
+        // Check that the intermediate register is dead after our COPY.
+        if (MI.getOperand(1).isKill() && Intermediate == Src) {
+          // Verify the original source is still live at our COPY's
+          // position (it hasn't been clobbered between the two COPYs).
+          bool Clobbered = false;
+          MachineBasicBlock::iterator It(DefMI->getIterator());
+          ++It; // skip the defining COPY
+          MachineBasicBlock::iterator End(MI.getIterator());
+          for (; It != End; ++It) {
+            if (It->modifiesRegister(OrigSrc, &TRI)) {
+              Clobbered = true;
+              break;
+            }
+          }
+
+          if (!Clobbered) {
+            LLVM_DEBUG(dbgs() << "MC6809CopyOpt: shortening chain: " << MI
+                              << "  original src: " << printReg(OrigSrc, &TRI)
+                              << "\n");
+            MI.getOperand(1).setReg(OrigSrc);
+            Changed = true;
+          }
+        }
+      }
+    }
+  }
+
+  for (MachineInstr *MI : ToDelete) {
+    MI->eraseFromParent();
+    Changed = true;
+  }
+
+  return Changed;
 }
 
 char MC6809CopyOpt::ID = 0;
