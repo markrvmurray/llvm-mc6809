@@ -342,15 +342,8 @@ let isAllocatable = false in {
     def AALSBc : MC6809Reg1Class<(add AALSB, SPILL_A0LSB, SPILL_A1LSB, SPILL_A2LSB, SPILL_A3LSB, SPILL_A4LSB, SPILL_A5LSB, SPILL_A6LSB, SPILL_A7LSB)>;
     def ABc : MC6809Reg8Class<(add AB, SPILL_B0, SPILL_B1, SPILL_B2, SPILL_B3, SPILL_B4, SPILL_B5, SPILL_B6, SPILL_B7)>;
     def ABLSBc : MC6809Reg1Class<(add ABLSB, SPILL_B0LSB, SPILL_B1LSB, SPILL_B2LSB, SPILL_B3LSB, SPILL_B4LSB, SPILL_B5LSB, SPILL_B6LSB, SPILL_B7LSB)>;
-    // ADc: the D-accumulator class. Instructions constrained to this class
-    // can only use AD (the sole 16-bit ALU target) or its stack/imaginary
-    // aliases. Adding the RS imaginary registers (RS0..RS3) here grows the
-    // effective pool from 9 to 13, matching ACC16's capacity. The post-RA
-    // materializeReg/dematerializeReg API already handles imaginary regs —
-    // it loads them into AD before the ALU op and stores back afterwards.
-    // Phase 3.1 of the regalloc-pressure plan.
     let isPressureFineGrained = true in
-    def ADc : MC6809Reg16Class<(add AD, SPILL_D0, SPILL_D1, SPILL_D2, SPILL_D3, SPILL_D4, SPILL_D5, SPILL_D6, SPILL_D7, RS0, RS1, RS2, RS3)>;
+    def ADc : MC6809Reg16Class<(add AD, SPILL_D0, SPILL_D1, SPILL_D2, SPILL_D3, SPILL_D4, SPILL_D5, SPILL_D6, SPILL_D7)>;
     def AEc : MC6809Reg8Class<(add AE)>;
     def AELSBc : MC6809Reg1Class<(add AELSB)>;
     def AFc : MC6809Reg8Class<(add AF)>;
