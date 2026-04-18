@@ -99,8 +99,10 @@ def CC_MC6809 : CallingConv<[
   CCAssignToStack<0, 1>,
 ]>;
 
-// Calling convention for the variable section of a variadic function call.
-// Named arguments in such functions still use the above calling convention.
+// Variadic calling convention (gcc6809 __gcccall): EVERY argument —
+// including the named ones like printf's fmt — goes on the stack.
+// This table is dispatched when State.isVarArg() is true; see
+// MC6809CallLowering::MC6809ValueAssigner::assignArg.
 let Entry = 1 in
 def CC_MC6809_VarArgs : CallingConv<[
   CCAssignToStack<0, 1>,
