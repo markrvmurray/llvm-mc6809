@@ -504,16 +504,27 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
       bool NeedD = false, NeedIY = false;
       bool NeedA = false, NeedB = false;
 
+      // LivePhysRegs::contains(R) returns true if R or any sub-reg was added
+      // to the live set, but NOT if only a super-reg was added (addReg adds
+      // sub-regs only). When a byte-level value (e.g. AALSB) is the only
+      // thing live, we still need to treat its parent byte (AA) as live —
+      // clobbering AA destroys AALSB. Walk sub-regs explicitly.
+      auto anySubRegLive = [&](MCPhysReg Reg) {
+        if (LPR.contains(Reg))
+          return true;
+        for (MCPhysReg Sub : TRI.subregs(Reg))
+          if (LPR.contains(Sub))
+            return true;
+        return false;
+      };
+
       if (willClobberD(MI, TRI)) {
-        bool DLive = LPR.contains(MC6809::AD) ||
-                     LPR.contains(MC6809::AA) ||
-                     LPR.contains(MC6809::AB);
-        if (DLive)
+        if (anySubRegLive(MC6809::AD))
           NeedD = true;
       }
 
       if (willClobberIY(MI, TRI)) {
-        if (LPR.contains(MC6809::IY))
+        if (anySubRegLive(MC6809::IY))
           NeedIY = true;
       }
 
@@ -571,10 +582,10 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
           return false;
         };
         if ((SpillClobbersB || Case1NeedsAltB) &&
-            LPR.contains(MC6809::AB) && !hasDirectOperand(MC6809::AB))
+            anySubRegLive(MC6809::AB) && !hasDirectOperand(MC6809::AB))
           NeedB = true;
         if ((SpillClobbersA || Case1NeedsAltA) &&
-            LPR.contains(MC6809::AA) && !hasDirectOperand(MC6809::AA))
+            anySubRegLive(MC6809::AA) && !hasDirectOperand(MC6809::AA))
           NeedA = true;
       }
 
