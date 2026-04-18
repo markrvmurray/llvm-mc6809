@@ -891,6 +891,68 @@ static int computeSpillStackOffset(MCPhysReg SpillReg, MachineFunction &MF) {
   return Offset;
 }
 
+/// For the backward-scan spill peephole in expandTestReg / expandCompareIdx:
+/// returns true if MI is a store that could overwrite bytes in the range
+/// [SpillOffset, SpillOffset + SpillSize) of the S-frame. Conservative —
+/// returns true for any mayStore whose target bytes can't be proven disjoint
+/// (unknown opcode, non-immediate offset).
+///
+/// The peephole's premise is "the matching STX/STY wrote this spill slot and
+/// nothing has clobbered it since, so IX/IY still mirrors the slot". Byte-level
+/// rewrites of the slot (e.g. SubSetCarry_i8_Reg on the sub-byte spill alias)
+/// break that premise without redefining IX/IY, so the scan must notice them.
+static bool storeOverlapsSpillSlot(const MachineInstr &MI, int SpillOffset,
+                                   unsigned SpillSize) {
+  if (!MI.mayStore()) return false;
+  unsigned StoreBytes = 0;
+  int StoreOff = 0;
+  bool HasExplicitOffset = true;
+  switch (MI.getOpcode()) {
+  case MC6809::STAi_o0: case MC6809::STBi_o0: case MC6809::STEi_o0:
+  case MC6809::STFi_o0:
+    StoreBytes = 1; HasExplicitOffset = false; break;
+  case MC6809::STAi_o5: case MC6809::STAi_o8: case MC6809::STAi_o16:
+  case MC6809::STBi_o5: case MC6809::STBi_o8: case MC6809::STBi_o16:
+  case MC6809::STEi_o5: case MC6809::STEi_o8: case MC6809::STEi_o16:
+  case MC6809::STFi_o5: case MC6809::STFi_o8: case MC6809::STFi_o16:
+    StoreBytes = 1; break;
+  case MC6809::STDi_o0: case MC6809::STXi_o0: case MC6809::STYi_o0:
+  case MC6809::STWi_o0: case MC6809::STUi_o0: case MC6809::STSi_o0:
+    StoreBytes = 2; HasExplicitOffset = false; break;
+  case MC6809::STDi_o5: case MC6809::STDi_o8: case MC6809::STDi_o16:
+  case MC6809::STXi_o5: case MC6809::STXi_o8: case MC6809::STXi_o16:
+  case MC6809::STYi_o5: case MC6809::STYi_o8: case MC6809::STYi_o16:
+  case MC6809::STWi_o5: case MC6809::STWi_o8: case MC6809::STWi_o16:
+  case MC6809::STUi_o5: case MC6809::STUi_o8: case MC6809::STUi_o16:
+  case MC6809::STSi_o5: case MC6809::STSi_o8: case MC6809::STSi_o16:
+    StoreBytes = 2; break;
+  case MC6809::STQi_o0:
+    StoreBytes = 4; HasExplicitOffset = false; break;
+  case MC6809::STQi_o5: case MC6809::STQi_o8: case MC6809::STQi_o16:
+    StoreBytes = 4; break;
+  default:
+    // Unknown store (e.g. register-offset indexed store or a memcpy pseudo).
+    // Can't prove it misses the spill slot, so bail conservatively.
+    return true;
+  }
+  // Index of the base-register operand: operand after the offset imm for
+  // non-o0 forms, or operand 0 for the o0 forms.
+  unsigned BaseOpIdx = 0;
+  if (HasExplicitOffset) {
+    if (!MI.getOperand(0).isImm()) return true;
+    StoreOff = MI.getOperand(0).getImm();
+    BaseOpIdx = 1;
+  }
+  // Only stores on the frame base ($su) can hit our spill slot. Non-SU base
+  // stores (e.g. via IX, IY) address unrelated memory — ignore them.
+  if (MI.getNumOperands() <= BaseOpIdx || !MI.getOperand(BaseOpIdx).isReg() ||
+      MI.getOperand(BaseOpIdx).getReg() != MC6809::SU)
+    return false;
+  int SpillEnd = SpillOffset + (int)SpillSize;
+  int StoreEnd = StoreOff + (int)StoreBytes;
+  return StoreOff < SpillEnd && StoreEnd > SpillOffset;
+}
+
 /// Pick the right indexed load opcode for a given register and offset.
 static unsigned getLoadIdxOpcode(Register Reg, int Offset) {
   bool Is8 = (Offset >= -128 && Offset <= 127);
@@ -4299,25 +4361,32 @@ void MC6809InstrInfo::expandCompareIdx(MachineIRBuilder &Builder, MachineInstr &
     // (Imaginary registers are direct-page based, not stack-based, so skip scan.)
     if (isSpillReg(SrcReg)) {
       int SpillOffset = computeSpillStackOffset(SrcReg, MF);
+      unsigned SpillSize = getSpillRegSize(SrcReg);
       MachineBasicBlock &MBB = *MI.getParent();
       for (auto It = MachineBasicBlock::reverse_iterator(MI.getIterator());
            It != MBB.rend(); ++It) {
         unsigned Opc = It->getOpcode();
-        if ((Opc == MC6809::STXi_o5 || Opc == MC6809::STXi_o8 || Opc == MC6809::STXi_o16) &&
-            It->getOperand(0).isImm() &&
-            It->getOperand(0).getImm() == SpillOffset) {
+        auto IsMatchingIndexStore = [&](unsigned O5, unsigned O8, unsigned O16) {
+          return (Opc == O5 || Opc == O8 || Opc == O16) &&
+                 It->getNumOperands() >= 2 &&
+                 It->getOperand(0).isImm() &&
+                 It->getOperand(0).getImm() == SpillOffset &&
+                 It->getOperand(1).isReg() &&
+                 It->getOperand(1).getReg() == MC6809::SU;
+        };
+        if (IsMatchingIndexStore(MC6809::STXi_o5, MC6809::STXi_o8, MC6809::STXi_o16)) {
           IndexSrc = MC6809::IX;
           break;
         }
-        if ((Opc == MC6809::STYi_o5 || Opc == MC6809::STYi_o8 || Opc == MC6809::STYi_o16) &&
-            It->getOperand(0).isImm() &&
-            It->getOperand(0).getImm() == SpillOffset) {
+        if (IsMatchingIndexStore(MC6809::STYi_o5, MC6809::STYi_o8, MC6809::STYi_o16)) {
           IndexSrc = MC6809::IY;
           break;
         }
-        if (It->mayStore() && !It->definesRegister(MC6809::IX, /*TRI=*/nullptr) &&
-            !It->definesRegister(MC6809::IY, /*TRI=*/nullptr))
-          continue;
+        // Bail if an intervening store overwrote any byte of our spill slot —
+        // the IX/IY value no longer mirrors the slot even if IX/IY itself is
+        // still live (bug #125: SubSetCarry_i8_Reg writes spill_b/_a in place).
+        if (storeOverlapsSpillSlot(*It, SpillOffset, SpillSize))
+          break;
         if (It->definesRegister(MC6809::IX, /*TRI=*/nullptr) ||
             It->definesRegister(MC6809::IY, /*TRI=*/nullptr))
           break;
@@ -4412,25 +4481,32 @@ void MC6809InstrInfo::expandTestReg(MachineIRBuilder &Builder, MachineInstr &MI)
     // (Imaginary registers are direct-page based, not stack-based, so skip scan.)
     if (isSpillReg(SrcReg)) {
       int SpillOffset = computeSpillStackOffset(SrcReg, MF);
+      unsigned SpillSize = getSpillRegSize(SrcReg);
       MachineBasicBlock &MBB = *MI.getParent();
       for (auto It = MachineBasicBlock::reverse_iterator(MI.getIterator());
            It != MBB.rend(); ++It) {
         unsigned Opc = It->getOpcode();
-        if ((Opc == MC6809::STXi_o5 || Opc == MC6809::STXi_o8 || Opc == MC6809::STXi_o16) &&
-            It->getOperand(0).isImm() &&
-            It->getOperand(0).getImm() == SpillOffset) {
+        auto IsMatchingIndexStore = [&](unsigned O5, unsigned O8, unsigned O16) {
+          return (Opc == O5 || Opc == O8 || Opc == O16) &&
+                 It->getNumOperands() >= 2 &&
+                 It->getOperand(0).isImm() &&
+                 It->getOperand(0).getImm() == SpillOffset &&
+                 It->getOperand(1).isReg() &&
+                 It->getOperand(1).getReg() == MC6809::SU;
+        };
+        if (IsMatchingIndexStore(MC6809::STXi_o5, MC6809::STXi_o8, MC6809::STXi_o16)) {
           IndexSrc = MC6809::IX;
           break;
         }
-        if ((Opc == MC6809::STYi_o5 || Opc == MC6809::STYi_o8 || Opc == MC6809::STYi_o16) &&
-            It->getOperand(0).isImm() &&
-            It->getOperand(0).getImm() == SpillOffset) {
+        if (IsMatchingIndexStore(MC6809::STYi_o5, MC6809::STYi_o8, MC6809::STYi_o16)) {
           IndexSrc = MC6809::IY;
           break;
         }
-        if (It->mayStore() && !It->definesRegister(MC6809::IX, /*TRI=*/nullptr) &&
-            !It->definesRegister(MC6809::IY, /*TRI=*/nullptr))
-          continue;
+        // Bail if an intervening store overwrote any byte of our spill slot —
+        // the IX/IY value no longer mirrors the slot even if IX/IY itself is
+        // still live (bug #125: SubSetCarry_i8_Reg writes spill_b/_a in place).
+        if (storeOverlapsSpillSlot(*It, SpillOffset, SpillSize))
+          break;
         if (It->definesRegister(MC6809::IX, /*TRI=*/nullptr) ||
             It->definesRegister(MC6809::IY, /*TRI=*/nullptr))
           break;
