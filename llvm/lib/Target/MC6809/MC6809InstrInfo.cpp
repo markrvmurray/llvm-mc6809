@@ -3366,6 +3366,16 @@ static void emit6809RegPairFromMem(MachineIRBuilder &Builder,
                                    unsigned OpcB_o5, unsigned OpcA_o0,
                                    unsigned OpcB_o16 = 0,
                                    unsigned OpcA_o16 = 0);
+static void getByteOpcodes(Register LHS,
+                           unsigned OpcA_o8, unsigned OpcB_o8,
+                           unsigned OpcA_o5, unsigned OpcB_o5,
+                           unsigned &Opc_o8, unsigned &Opc_o5);
+static void getByteOpcodes(Register LHS,
+                           unsigned OpcA_o8, unsigned OpcB_o8,
+                           unsigned OpcA_o5, unsigned OpcB_o5,
+                           unsigned OpcA_o16, unsigned OpcB_o16,
+                           unsigned &Opc_o8, unsigned &Opc_o5,
+                           unsigned &Opc_o16);
 
 void MC6809InstrInfo::expandANDReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
   assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg() && "Dest and Source must be same for ANDReg");
@@ -3383,10 +3393,15 @@ void MC6809InstrInfo::expandANDReg(MachineIRBuilder &Builder, MachineInstr &MI) 
                            MC6809::ANDBi_o5, MC6809::ANDAi_o0,
                            MC6809::ANDBi_o16, MC6809::ANDAi_o16);
   } else {
+    unsigned Opc_o8, Opc_o5, Opc_o16;
+    getByteOpcodes(MI.getOperand(0).getReg(),
+                   MC6809::ANDAi_o8,  MC6809::ANDBi_o8,
+                   MC6809::ANDAi_o5,  MC6809::ANDBi_o5,
+                   MC6809::ANDAi_o16, MC6809::ANDBi_o16,
+                   Opc_o8, Opc_o5, Opc_o16);
     emit6809RegByteFromMem(Builder,
                            MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
-                           MC6809::ANDBi_o8, MC6809::ANDBi_o5,
-                           MC6809::ANDBi_o16);
+                           Opc_o8, Opc_o5, Opc_o16);
   }
   MI.eraseFromParent();
 }
@@ -3495,10 +3510,15 @@ void MC6809InstrInfo::expandORReg(MachineIRBuilder &Builder, MachineInstr &MI) c
                            MC6809::ORBi_o5, MC6809::ORAi_o0,
                            MC6809::ORBi_o16, MC6809::ORAi_o16);
   } else {
+    unsigned Opc_o8, Opc_o5, Opc_o16;
+    getByteOpcodes(MI.getOperand(0).getReg(),
+                   MC6809::ORAi_o8,  MC6809::ORBi_o8,
+                   MC6809::ORAi_o5,  MC6809::ORBi_o5,
+                   MC6809::ORAi_o16, MC6809::ORBi_o16,
+                   Opc_o8, Opc_o5, Opc_o16);
     emit6809RegByteFromMem(Builder,
                            MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
-                           MC6809::ORBi_o8, MC6809::ORBi_o5,
-                           MC6809::ORBi_o16);
+                           Opc_o8, Opc_o5, Opc_o16);
   }
   MI.eraseFromParent();
 }
@@ -3516,10 +3536,15 @@ void MC6809InstrInfo::expandXORReg(MachineIRBuilder &Builder, MachineInstr &MI) 
                            MC6809::EORBi_o5, MC6809::EORAi_o0,
                            MC6809::EORBi_o16, MC6809::EORAi_o16);
   } else {
+    unsigned Opc_o8, Opc_o5, Opc_o16;
+    getByteOpcodes(MI.getOperand(0).getReg(),
+                   MC6809::EORAi_o8,  MC6809::EORBi_o8,
+                   MC6809::EORAi_o5,  MC6809::EORBi_o5,
+                   MC6809::EORAi_o16, MC6809::EORBi_o16,
+                   Opc_o8, Opc_o5, Opc_o16);
     emit6809RegByteFromMem(Builder,
                            MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
-                           MC6809::EORBi_o8, MC6809::EORBi_o5,
-                           MC6809::EORBi_o16);
+                           Opc_o8, Opc_o5, Opc_o16);
   }
   MI.eraseFromParent();
 }
@@ -3534,10 +3559,15 @@ void MC6809InstrInfo::expandAddReg(MachineIRBuilder &Builder, MachineInstr &MI) 
         .addUse(MI.getOperand(2).getReg())
         .addUse(MI.getOperand(1).getReg());
   } else if (MI.getOpcode() == MC6809::Add_i8_Reg) {
+    unsigned Opc_o8, Opc_o5, Opc_o16;
+    getByteOpcodes(MI.getOperand(0).getReg(),
+                   MC6809::ADDAi_o8,  MC6809::ADDBi_o8,
+                   MC6809::ADDAi_o5,  MC6809::ADDBi_o5,
+                   MC6809::ADDAi_o16, MC6809::ADDBi_o16,
+                   Opc_o8, Opc_o5, Opc_o16);
     emit6809RegByteFromMem(Builder,
                            MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
-                           MC6809::ADDBi_o8, MC6809::ADDBi_o5,
-                           MC6809::ADDBi_o16);
+                           Opc_o8, Opc_o5, Opc_o16);
   } else {
     // i16 reg-reg add: low byte ADDB sets carry, high byte ADCA must
     // consume it. Earlier code used ADDA for the high byte and silently
@@ -3637,6 +3667,10 @@ static void getByteOpcodes(Register LHS,
 
 /// Extended version that also selects the _o16 variant for large
 /// frame offsets (bug #122: offsets >127 need 16-bit encoding).
+///
+/// Every `expand*Reg` expansion that emits via `emit6809RegByteFromMem`
+/// MUST route the opcode pick through this helper — hardcoding `B`
+/// variants is silently wrong when the LHS maps to AA (bug #130).
 static void getByteOpcodes(Register LHS,
                            unsigned OpcA_o8, unsigned OpcB_o8,
                            unsigned OpcA_o5, unsigned OpcB_o5,
