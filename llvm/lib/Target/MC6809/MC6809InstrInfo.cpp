@@ -3356,20 +3356,23 @@ void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI
 }
 
 // Forward declarations for 6809 register-to-memory helpers.
+//
+// Bug #122 / #130: every caller MUST pass the `_o16` opcode explicitly.
+// A `0` `_o16` silently falls back to the `_o8` form inside the helpers,
+// which wraps offsets >127 to negative — a wrong-code class of bug. The
+// parameter is required (no default) so the compiler refuses any new
+// caller that forgets it. The relaxation pass TODO is the long-term fix;
+// this is the short-term footgun-removal.
 static void emit6809RegByteFromMem(MachineIRBuilder &Builder,
                                    Register LHS, Register RHS,
                                    unsigned Opc_o8, unsigned Opc_o5,
-                                   unsigned Opc_o16 = 0);
+                                   unsigned Opc_o16);
 static void emit6809RegPairFromMem(MachineIRBuilder &Builder,
                                    Register LHS, Register RHS,
                                    unsigned OpcB_o8, unsigned OpcA_o8,
                                    unsigned OpcB_o5, unsigned OpcA_o0,
-                                   unsigned OpcB_o16 = 0,
-                                   unsigned OpcA_o16 = 0);
-static void getByteOpcodes(Register LHS,
-                           unsigned OpcA_o8, unsigned OpcB_o8,
-                           unsigned OpcA_o5, unsigned OpcB_o5,
-                           unsigned &Opc_o8, unsigned &Opc_o5);
+                                   unsigned OpcB_o16,
+                                   unsigned OpcA_o16);
 static void getByteOpcodes(Register LHS,
                            unsigned OpcA_o8, unsigned OpcB_o8,
                            unsigned OpcA_o5, unsigned OpcB_o5,
@@ -3654,19 +3657,8 @@ void MC6809InstrInfo::expandAddSetCarryReg(MachineIRBuilder &Builder, MachineIns
 // Same operand layout as the i16 variant (4 operands: dst, carry, src, src2),
 // but uses emit6809RegByteFromMem instead of emit6809RegPairFromMem.
 /// Determine the correct A or B opcode variant for a byte-level
-/// carry chain operation based on which accumulator the LHS maps to.
-static void getByteOpcodes(Register LHS,
-                           unsigned OpcA_o8, unsigned OpcB_o8,
-                           unsigned OpcA_o5, unsigned OpcB_o5,
-                           unsigned &Opc_o8, unsigned &Opc_o5) {
-  Register RealLHS = needsMaterialization(LHS) ? getPhysRegFor(LHS) : LHS;
-  bool UseA = (RealLHS == MC6809::AA || RealLHS == MC6809::AALSB);
-  Opc_o8 = UseA ? OpcA_o8 : OpcB_o8;
-  Opc_o5 = UseA ? OpcA_o5 : OpcB_o5;
-}
-
-/// Extended version that also selects the _o16 variant for large
-/// frame offsets (bug #122: offsets >127 need 16-bit encoding).
+/// carry chain operation based on which accumulator the LHS maps to,
+/// including the `_o16` variant for large frame offsets (bug #122).
 ///
 /// Every `expand*Reg` expansion that emits via `emit6809RegByteFromMem`
 /// MUST route the opcode pick through this helper — hardcoding `B`
@@ -3854,6 +3846,10 @@ static void emit6809RegByteFromMem(MachineIRBuilder &Builder,
                                    Register LHS, Register RHS,
                                    unsigned Opc_o8, unsigned Opc_o5,
                                    unsigned Opc_o16) {
+  assert(Opc_o16 != 0 &&
+         "emit6809RegByteFromMem: _o16 opcode is required (bug #122/#130). "
+         "A 0 here silently falls back to _o8 and wraps offsets >127 to "
+         "negative. Pass the correct *i_o16 variant explicitly.");
   MachineFunction &MF = Builder.getMF();
   Register OrigLHS = LHS;
   Register RealLHS = needsMaterialization(LHS) ? getPhysRegFor(LHS) : LHS;
@@ -3987,6 +3983,10 @@ static void emit6809RegPairFromMem(MachineIRBuilder &Builder,
                                    unsigned OpcB_o5, unsigned OpcA_o0,
                                    unsigned OpcB_o16,
                                    unsigned OpcA_o16) {
+  assert(OpcB_o16 != 0 && OpcA_o16 != 0 &&
+         "emit6809RegPairFromMem: _o16 opcodes are required (bug #122/#130). "
+         "A 0 here silently falls back to _o8 and wraps offsets >127 to "
+         "negative. Pass the correct *i_o16 variants explicitly.");
   MachineFunction &MF = Builder.getMF();
   Register OrigLHS = LHS;
   // Load LHS into D if it's a spill or imaginary register. After
