@@ -3301,7 +3301,9 @@ static void emit6809RegByteFromMem(MachineIRBuilder &Builder,
 static void emit6809RegPairFromMem(MachineIRBuilder &Builder,
                                    Register LHS, Register RHS,
                                    unsigned OpcB_o8, unsigned OpcA_o8,
-                                   unsigned OpcB_o5, unsigned OpcA_o0);
+                                   unsigned OpcB_o5, unsigned OpcA_o0,
+                                   unsigned OpcB_o16 = 0,
+                                   unsigned OpcA_o16 = 0);
 
 void MC6809InstrInfo::expandANDReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
   assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg() && "Dest and Source must be same for ANDReg");
@@ -3316,11 +3318,13 @@ void MC6809InstrInfo::expandANDReg(MachineIRBuilder &Builder, MachineInstr &MI) 
     emit6809RegPairFromMem(Builder,
                            MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
                            MC6809::ANDBi_o8, MC6809::ANDAi_o8,
-                           MC6809::ANDBi_o5, MC6809::ANDAi_o0);
+                           MC6809::ANDBi_o5, MC6809::ANDAi_o0,
+                           MC6809::ANDBi_o16, MC6809::ANDAi_o16);
   } else {
     emit6809RegByteFromMem(Builder,
                            MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
-                           MC6809::ANDBi_o8, MC6809::ANDBi_o5);
+                           MC6809::ANDBi_o8, MC6809::ANDBi_o5,
+                           MC6809::ANDBi_o16);
   }
   MI.eraseFromParent();
 }
@@ -3405,11 +3409,13 @@ void MC6809InstrInfo::expandORReg(MachineIRBuilder &Builder, MachineInstr &MI) c
     emit6809RegPairFromMem(Builder,
                            MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
                            MC6809::ORBi_o8, MC6809::ORAi_o8,
-                           MC6809::ORBi_o5, MC6809::ORAi_o0);
+                           MC6809::ORBi_o5, MC6809::ORAi_o0,
+                           MC6809::ORBi_o16, MC6809::ORAi_o16);
   } else {
     emit6809RegByteFromMem(Builder,
                            MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
-                           MC6809::ORBi_o8, MC6809::ORBi_o5);
+                           MC6809::ORBi_o8, MC6809::ORBi_o5,
+                           MC6809::ORBi_o16);
   }
   MI.eraseFromParent();
 }
@@ -3424,11 +3430,13 @@ void MC6809InstrInfo::expandXORReg(MachineIRBuilder &Builder, MachineInstr &MI) 
     emit6809RegPairFromMem(Builder,
                            MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
                            MC6809::EORBi_o8, MC6809::EORAi_o8,
-                           MC6809::EORBi_o5, MC6809::EORAi_o0);
+                           MC6809::EORBi_o5, MC6809::EORAi_o0,
+                           MC6809::EORBi_o16, MC6809::EORAi_o16);
   } else {
     emit6809RegByteFromMem(Builder,
                            MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
-                           MC6809::EORBi_o8, MC6809::EORBi_o5);
+                           MC6809::EORBi_o8, MC6809::EORBi_o5,
+                           MC6809::EORBi_o16);
   }
   MI.eraseFromParent();
 }
@@ -3445,7 +3453,8 @@ void MC6809InstrInfo::expandAddReg(MachineIRBuilder &Builder, MachineInstr &MI) 
   } else if (MI.getOpcode() == MC6809::Add_i8_Reg) {
     emit6809RegByteFromMem(Builder,
                            MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
-                           MC6809::ADDBi_o8, MC6809::ADDBi_o5);
+                           MC6809::ADDBi_o8, MC6809::ADDBi_o5,
+                           MC6809::ADDBi_o16);
   } else {
     // i16 reg-reg add: low byte ADDB sets carry, high byte ADCA must
     // consume it. Earlier code used ADDA for the high byte and silently
@@ -3458,7 +3467,8 @@ void MC6809InstrInfo::expandAddReg(MachineIRBuilder &Builder, MachineInstr &MI) 
     emit6809RegPairFromMem(Builder,
                            MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
                            MC6809::ADDBi_o8, MC6809::ADCAi_o8,
-                           MC6809::ADDBi_o5, MC6809::ADCAi_o0);
+                           MC6809::ADDBi_o5, MC6809::ADCAi_o0,
+                           MC6809::ADDBi_o16, MC6809::ADCAi_o16);
   }
   MI.eraseFromParent();
 }
@@ -3521,7 +3531,8 @@ void MC6809InstrInfo::expandAddSetCarryReg(MachineIRBuilder &Builder, MachineIns
                            MI.getOperand(0).getReg(),  // LHS = dst (== src by tie)
                            MI.getOperand(3).getReg(),  // RHS = src2  (op3)
                            MC6809::ADDBi_o8, MC6809::ADCAi_o8,
-                           MC6809::ADDBi_o5, MC6809::ADCAi_o0);
+                           MC6809::ADDBi_o5, MC6809::ADCAi_o0,
+                           MC6809::ADDBi_o16, MC6809::ADCAi_o16);
   }
   MI.eraseFromParent();
 }
@@ -3856,7 +3867,9 @@ static void emit6809RegByteFromMem(MachineIRBuilder &Builder,
 static void emit6809RegPairFromMem(MachineIRBuilder &Builder,
                                    Register LHS, Register RHS,
                                    unsigned OpcB_o8, unsigned OpcA_o8,
-                                   unsigned OpcB_o5, unsigned OpcA_o0) {
+                                   unsigned OpcB_o5, unsigned OpcA_o0,
+                                   unsigned OpcB_o16,
+                                   unsigned OpcA_o16) {
   MachineFunction &MF = Builder.getMF();
   Register OrigLHS = LHS;
   // Load LHS into D if it's a spill or imaginary register. After
@@ -3868,12 +3881,20 @@ static void emit6809RegPairFromMem(MachineIRBuilder &Builder,
     // Path (a): read RHS bytes directly from its U-relative spill
     // slot. Byte order: hi at slot+0, lo at slot+1.
     int Offset = computeSpillStackOffset(RHS, MF);
+    // Bug #122 / #125: for large stack frames (>127 bytes), the spill
+    // offset may exceed the 8-bit signed range (-128..+127). Use the
+    // _o16 opcode variant for large offsets — _o8 wraps >127 to
+    // negative, reading from below the frame. Note: Offset+1 (the low
+    // byte) overflows first, so check that.
+    bool Fits8 = (Offset >= -128 && (Offset + 1) <= 127);
+    unsigned OpcB = (Fits8 || !OpcB_o16) ? OpcB_o8 : OpcB_o16;
+    unsigned OpcA = (Fits8 || !OpcA_o16) ? OpcA_o8 : OpcA_o16;
     // Low byte first — sets CC.C if this op carries.
-    Builder.buildInstr(OpcB_o8)
+    Builder.buildInstr(OpcB)
         .addDef(MC6809::AB, RegState::Implicit)
         .addImm(Offset + 1).addReg(MC6809::SU);
     // High byte second — uses (and possibly sets) CC.C from the low op.
-    Builder.buildInstr(OpcA_o8)
+    Builder.buildInstr(OpcA)
         .addDef(MC6809::AA, RegState::Implicit)
         .addImm(Offset).addReg(MC6809::SU);
   } else {
@@ -3920,7 +3941,8 @@ void MC6809InstrInfo::expandAddSetCarryUseReg(MachineIRBuilder &Builder, Machine
     emit6809RegPairFromMem(Builder,
                            MI.getOperand(0).getReg(), MI.getOperand(4).getReg(),
                            MC6809::ADCBi_o8, MC6809::ADCAi_o8,
-                           MC6809::ADCBi_o5, MC6809::ADCAi_o0);
+                           MC6809::ADCBi_o5, MC6809::ADCAi_o0,
+                           MC6809::ADCBi_o16, MC6809::ADCAi_o16);
   }
   MI.eraseFromParent();
 }
@@ -3938,7 +3960,8 @@ void MC6809InstrInfo::expandSubReg(MachineIRBuilder &Builder, MachineInstr &MI) 
     emit6809RegPairFromMem(Builder,
                            MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
                            MC6809::SUBBi_o8, MC6809::SBCAi_o8,
-                           MC6809::SUBBi_o5, MC6809::SBCAi_o0);
+                           MC6809::SUBBi_o5, MC6809::SBCAi_o0,
+                           MC6809::SUBBi_o16, MC6809::SBCAi_o16);
   }
   MI.eraseFromParent();
 }
@@ -3992,7 +4015,8 @@ void MC6809InstrInfo::expandSubSetCarryReg(MachineIRBuilder &Builder, MachineIns
                            MI.getOperand(0).getReg(),  // LHS = dst (== src by tie)
                            MI.getOperand(3).getReg(),  // RHS = src2  (op3)
                            MC6809::SUBBi_o8, MC6809::SBCAi_o8,
-                           MC6809::SUBBi_o5, MC6809::SBCAi_o0);
+                           MC6809::SUBBi_o5, MC6809::SBCAi_o0,
+                           MC6809::SUBBi_o16, MC6809::SBCAi_o16);
   }
   MI.eraseFromParent();
 }
@@ -4013,7 +4037,8 @@ void MC6809InstrInfo::expandSubSetCarryUseReg(MachineIRBuilder &Builder, Machine
     emit6809RegPairFromMem(Builder,
                            MI.getOperand(0).getReg(), MI.getOperand(4).getReg(),
                            MC6809::SBCBi_o8, MC6809::SBCAi_o8,
-                           MC6809::SBCBi_o5, MC6809::SBCAi_o0);
+                           MC6809::SBCBi_o5, MC6809::SBCAi_o0,
+                           MC6809::SBCBi_o16, MC6809::SBCAi_o16);
   }
   MI.eraseFromParent();
 }
