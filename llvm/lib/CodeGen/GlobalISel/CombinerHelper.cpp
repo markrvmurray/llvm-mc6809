@@ -965,6 +965,13 @@ bool CombinerHelper::matchCombineLoadWithAndMask(MachineInstr &MI,
   if (MaskSizeBits < 8 || !isPowerOf2_32(MaskSizeBits))
     return false;
 
+  // On big-endian targets the masked low byte(s) live at the tail of the
+  // wider load, so narrowing to the SAME pointer would read the head
+  // (high) bytes. Bail out rather than emit a wrong-byte load. TODO:
+  // adjust PtrReg by (LoadSize - MaskSize)/8 to keep the optimisation.
+  if (MI.getMF()->getDataLayout().isBigEndian())
+    return false;
+
   const MachineMemOperand &MMO = LoadMI->getMMO();
   LegalityQuery::MemDesc MemDesc(MMO);
 
