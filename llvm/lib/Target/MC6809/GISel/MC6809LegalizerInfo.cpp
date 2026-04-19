@@ -801,11 +801,15 @@ bool MC6809LegalizerInfo::legalizeVAStart(LegalizerHelper &Helper, MachineRegist
 
 bool MC6809LegalizerInfo::legalizeVAArg(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const {
   // G_VAARG: %val = G_VAARG %ap_ptr, align
-  // Decompose to: load current ap, load value from ap, bump ap, store ap back.
+  // Decompose to: load current ap, bump+store ap, then load the value.
   //   ap_val = load ap_ptr       ; current va_list pointer
-  //   val = load ap_val          ; load the argument
   //   ap_val += sizeof(type)     ; advance (always rounded up to 2 bytes)
   //   store ap_val to ap_ptr     ; write back
+  //   val = load ap_val          ; load the argument LAST
+  // Loading val LAST keeps DstReg's live range short and disjoint from the
+  // store-back temporaries — otherwise regalloc can clobber DstReg with the
+  // bumped ap (see picolibc bug #126b: %s in vfprintf miscompiled because
+  // X held both the loaded char* arg and the new ap).
   MachineIRBuilder &Builder = Helper.MIRBuilder;
   LLT ValTy = MRI.getType(MI.getOperand(0).getReg());
   LLT P = LLT::pointer(0, 16);
@@ -818,15 +822,16 @@ bool MC6809LegalizerInfo::legalizeVAArg(LegalizerHelper &Helper, MachineRegister
   // Load current ap value (pointer to next vararg)
   auto APVal = Builder.buildLoad(P, APPtr, MachinePointerInfo(), Align(1));
 
-  // Load the argument value from the current ap
-  Builder.buildLoad(DstReg, APVal, MachinePointerInfo(), Align(1));
-
   // Bump ap past this argument
   auto Bump = Builder.buildConstant(LLT::scalar(16), ArgSize);
   auto NewAP = Builder.buildPtrAdd(P, APVal, Bump);
 
   // Store updated ap back
   Builder.buildStore(NewAP, APPtr, MachinePointerInfo(), Align(1));
+
+  // Load the argument value LAST — DstReg is now live only forward to its
+  // consumer, so regalloc won't reuse its register for store-back temps.
+  Builder.buildLoad(DstReg, APVal, MachinePointerInfo(), Align(1));
 
   MI.eraseFromParent();
   return true;
