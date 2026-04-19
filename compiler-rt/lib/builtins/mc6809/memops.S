@@ -20,7 +20,7 @@
 //   IX = s (destination pointer)
 //   B  = c (fill byte, i8 in register)
 //   2,S = n (count, i16 on stack)
-// Returns IX = s. Clobbers: D, Y.
+// Returns IX = s. Clobbers: D. IY is callee-saved per MC6809_CSR.
 //
 //===----------------------------------------------------------------------===//
 
@@ -29,13 +29,13 @@
 	.globl	__memset
 	.type	__memset,@function
 __memset:
-	pshs	x		// save s for return
+	pshs	x,y		// save x for return; preserve y (callee-saved per MC6809_CSR)
 	// B already holds the fill byte (passed in register by the compiler)
-	ldy	4,s		// n (+2 saved X, +2 retaddr)
+	ldy	6,s		// n (+2 saved Y, +2 saved X, +2 retaddr)
 	beq	.L__memset_done
 .L__memset_loop:
 	stb	,x+
 	leay	-1,y
 	bne	.L__memset_loop
 .L__memset_done:
-	puls	x,pc
+	puls	x,y,pc
