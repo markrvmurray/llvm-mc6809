@@ -339,8 +339,11 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
 
   // On 6809, s32 load/store has no instruction — narrow to s16 pairs.
   // HD6309 has native 32-bit load/store via Q register.
+  // s1 loads/stores: lower sub-byte memory accesses to byte-aligned
+  // operations (the MC6809 has no sub-byte memory access).
   getActionDefinitionsBuilder({G_LOAD, G_STORE})
       .legalForCartesianProduct(LegalTypes, {p})
+      .lowerIfMemSizeNotByteSizePow2()
       .clampScalar(0, s8, sMax);
 
   getActionDefinitionsBuilder({G_FRAME_INDEX, G_GLOBAL_VALUE, G_BRINDIRECT, G_JUMP_TABLE})
