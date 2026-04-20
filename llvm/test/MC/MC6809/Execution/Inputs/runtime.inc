@@ -2,17 +2,12 @@
 ;; runtime.inc — shared test runtime for MC6809 execution tests
 ;;
 ;; Memory map (matches usim09batch):
-;;   0x0000-0x7fff  RAM (32KB)
-;;   0xbf00         ACIA status register
-;;   0xbf01         ACIA data register
-;;   0xbf02         Halt device (write any value to halt CPU)
-;;   0xc000-0xffef  ROM (code, 16KB)
+;;   0x0000-0xbfff  RAM (48KB)
+;;   0xc000         ACIA status register (overlays ROM)
+;;   0xc001         ACIA data register
+;;   0xc002         Halt/exit device (written value = exit code)
+;;   0xc003-0xffef  ROM (code)
 ;;   0xfff0-0xffff  Vectors
-;;
-;; History: ACIA was at 0xc000-0xc001 and halt at 0xbf00 until
-;; ROM was extended down to 0xc000 to fit larger picolibc tests.
-;; The two devices were swapped into the 0xbf00 area so the ROM
-;; range stays contiguous.
 ;;
 
 ;; ===== Entry point =====
@@ -20,9 +15,15 @@
 	.section .rom,"ax",@progbits
 	.globl	_start
 _start:
-	lds	#0x8000		; stack at top of RAM
+	lds	#0xc000		; stack at top of RAM (48KB)
 	clra
 	tfr	a,dp		; DP=0 (direct page at $0000)
+
+	;; Initialise MC6850 ACIA (required by MAME; USim ignores this).
+	lda	#0x03		; master reset
+	sta	0xc000
+	lda	#0x15		; /16, 8N1, no IRQ
+	sta	0xc000
 
 	;; Copy .data initial values from ROM (LMA) to RAM (VMA).
 	ldx	#__data_load	; ROM source
@@ -56,10 +57,10 @@ _hang:
 putchar:
 	pshs	b
 .Lputchar_wait:
-	ldb	0xbf00		; ACIA status
+	ldb	0xc000		; ACIA status
 	bitb	#0x02		; TDRE
 	beq	.Lputchar_wait
-	sta	0xbf01		; ACIA data
+	sta	0xc001		; ACIA data
 	puls	b,pc
 
 ;; ===== puthex =====
@@ -117,7 +118,7 @@ putnl:
 
 halt:
 	clra
-	sta	0xbf02
+	sta	0xc002
 	rts
 
 ;; ===== Vector table =====

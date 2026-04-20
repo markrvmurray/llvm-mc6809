@@ -16,16 +16,16 @@
  * test link directly against the harness with no ABI shim.
  *
  * Memory map (matches Inputs/runtime.inc):
- *   0xBF00  ACIA status register (TDRE bit = 0x02)
- *   0xBF01  ACIA data register
- *   0xBF02  halt device
+ *   0xC000  ACIA status register (TDRE bit = 0x02)
+ *   0xC001  ACIA data register
+ *   0xC002  halt/exit device
  */
 
 #ifndef HARNESS_COMMON_H
 #define HARNESS_COMMON_H
 
-#define ACIA_STATUS (*(volatile unsigned char *)0xBF00)
-#define ACIA_DATA   (*(volatile unsigned char *)0xBF01)
+#define ACIA_STATUS (*(volatile unsigned char *)0xC000)
+#define ACIA_DATA   (*(volatile unsigned char *)0xC001)
 
 /* Spin until the ACIA is ready, then write one byte. */
 static void h_putc(unsigned char c) {

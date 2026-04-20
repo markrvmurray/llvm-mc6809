@@ -1142,14 +1142,14 @@ entry:
   br label %while.cond
 
 while.cond:                                       ; preds = %while.cond, %entry
-  %0 = load volatile i8, ptr inttoptr (i16 -16640 to ptr), align 256, !tbaa !7
+  %0 = load volatile i8, ptr inttoptr (i16 -16384 to ptr), align 256, !tbaa !7
   %1 = and i8 %0, 2
   %cmp = icmp eq i8 %1, 0
   br i1 %cmp, label %while.cond, label %while.end, !llvm.loop !41
 
 while.end:                                        ; preds = %while.cond
   %conv2 = trunc i16 %c to i8
-  store volatile i8 %conv2, ptr inttoptr (i16 -16639 to ptr), align 1, !tbaa !7
+  store volatile i8 %conv2, ptr inttoptr (i16 -16383 to ptr), align 1, !tbaa !7
   ret i16 %c
 }
 
@@ -1170,14 +1170,14 @@ while.cond:                                       ; preds = %while.cond.backedge
   ]
 
 while.cond.i:                                     ; preds = %while.cond, %while.cond.i
-  %1 = load volatile i8, ptr inttoptr (i16 -16640 to ptr), align 256, !tbaa !7
+  %1 = load volatile i8, ptr inttoptr (i16 -16384 to ptr), align 256, !tbaa !7
   %2 = and i8 %1, 2
   %cmp.i = icmp eq i8 %2, 0
   br i1 %cmp.i, label %while.cond.i, label %test_putchar.exit, !llvm.loop !41
 
 test_putchar.exit:                                ; preds = %while.cond.i
   %incdec.ptr = getelementptr inbounds nuw i8, ptr %fmt.addr.0, i16 1
-  store volatile i8 %0, ptr inttoptr (i16 -16639 to ptr), align 1, !tbaa !7
+  store volatile i8 %0, ptr inttoptr (i16 -16383 to ptr), align 1, !tbaa !7
   br label %while.cond.backedge
 
 while.cond.backedge:                              ; preds = %test_putchar.exit, %if.end66
@@ -1203,13 +1203,13 @@ if.then7:                                         ; preds = %if.end
   br i1 %cmp8, label %while.cond.i86, label %if.end12
 
 while.cond.i86:                                   ; preds = %if.then7, %while.cond.i86
-  %5 = load volatile i8, ptr inttoptr (i16 -16640 to ptr), align 256, !tbaa !7
+  %5 = load volatile i8, ptr inttoptr (i16 -16384 to ptr), align 256, !tbaa !7
   %6 = and i8 %5, 2
   %cmp.i87 = icmp eq i8 %6, 0
   br i1 %cmp.i87, label %while.cond.i86, label %test_putchar.exit88, !llvm.loop !41
 
 test_putchar.exit88:                              ; preds = %while.cond.i86
-  store volatile i8 45, ptr inttoptr (i16 -16639 to ptr), align 1, !tbaa !7
+  store volatile i8 45, ptr inttoptr (i16 -16383 to ptr), align 1, !tbaa !7
   %sub = sub nsw i16 0, %4
   br label %if.end12
 
@@ -1245,14 +1245,14 @@ while.body39:                                     ; preds = %if.then35, %test_pu
   br label %while.cond.i89
 
 while.cond.i89:                                   ; preds = %while.cond.i89, %while.body39
-  %13 = load volatile i8, ptr inttoptr (i16 -16640 to ptr), align 256, !tbaa !7
+  %13 = load volatile i8, ptr inttoptr (i16 -16384 to ptr), align 256, !tbaa !7
   %14 = and i8 %13, 2
   %cmp.i90 = icmp eq i8 %14, 0
   br i1 %cmp.i90, label %while.cond.i89, label %test_putchar.exit91, !llvm.loop !41
 
 test_putchar.exit91:                              ; preds = %while.cond.i89
   %incdec.ptr40 = getelementptr inbounds nuw i8, ptr %s.0106, i16 1
-  store volatile i8 %12, ptr inttoptr (i16 -16639 to ptr), align 1, !tbaa !7
+  store volatile i8 %12, ptr inttoptr (i16 -16383 to ptr), align 1, !tbaa !7
   %15 = load i8, ptr %incdec.ptr40, align 1, !tbaa !7
   %tobool38.not = icmp eq i8 %15, 0
   br i1 %tobool38.not, label %if.end66, label %while.body39, !llvm.loop !43
@@ -1262,45 +1262,45 @@ if.then47:                                        ; preds = %if.end
   br label %while.cond.i92
 
 while.cond.i92:                                   ; preds = %while.cond.i92, %if.then47
-  %17 = load volatile i8, ptr inttoptr (i16 -16640 to ptr), align 256, !tbaa !7
+  %17 = load volatile i8, ptr inttoptr (i16 -16384 to ptr), align 256, !tbaa !7
   %18 = and i8 %17, 2
   %cmp.i93 = icmp eq i8 %18, 0
   br i1 %cmp.i93, label %while.cond.i92, label %test_putchar.exit94, !llvm.loop !41
 
 test_putchar.exit94:                              ; preds = %while.cond.i92
   %conv2.i = trunc i16 %16 to i8
-  store volatile i8 %conv2.i, ptr inttoptr (i16 -16639 to ptr), align 1, !tbaa !7
+  store volatile i8 %conv2.i, ptr inttoptr (i16 -16383 to ptr), align 1, !tbaa !7
   br label %if.end66
 
 while.cond.i95:                                   ; preds = %if.end, %while.cond.i95
-  %19 = load volatile i8, ptr inttoptr (i16 -16640 to ptr), align 256, !tbaa !7
+  %19 = load volatile i8, ptr inttoptr (i16 -16384 to ptr), align 256, !tbaa !7
   %20 = and i8 %19, 2
   %cmp.i96 = icmp eq i8 %20, 0
   br i1 %cmp.i96, label %while.cond.i95, label %test_putchar.exit97, !llvm.loop !41
 
 test_putchar.exit97:                              ; preds = %while.cond.i95
-  store volatile i8 37, ptr inttoptr (i16 -16639 to ptr), align 1, !tbaa !7
+  store volatile i8 37, ptr inttoptr (i16 -16383 to ptr), align 1, !tbaa !7
   br label %if.end66
 
 while.cond.i98:                                   ; preds = %if.end, %while.cond.i98
-  %21 = load volatile i8, ptr inttoptr (i16 -16640 to ptr), align 256, !tbaa !7
+  %21 = load volatile i8, ptr inttoptr (i16 -16384 to ptr), align 256, !tbaa !7
   %22 = and i8 %21, 2
   %cmp.i99 = icmp eq i8 %22, 0
   br i1 %cmp.i99, label %while.cond.i98, label %test_putchar.exit100, !llvm.loop !41
 
 test_putchar.exit100:                             ; preds = %while.cond.i98
-  store volatile i8 37, ptr inttoptr (i16 -16639 to ptr), align 1, !tbaa !7
+  store volatile i8 37, ptr inttoptr (i16 -16383 to ptr), align 1, !tbaa !7
   %23 = load i8, ptr %incdec.ptr3, align 1, !tbaa !7
   br label %while.cond.i101
 
 while.cond.i101:                                  ; preds = %while.cond.i101, %test_putchar.exit100
-  %24 = load volatile i8, ptr inttoptr (i16 -16640 to ptr), align 256, !tbaa !7
+  %24 = load volatile i8, ptr inttoptr (i16 -16384 to ptr), align 256, !tbaa !7
   %25 = and i8 %24, 2
   %cmp.i102 = icmp eq i8 %25, 0
   br i1 %cmp.i102, label %while.cond.i101, label %test_putchar.exit104, !llvm.loop !41
 
 test_putchar.exit104:                             ; preds = %while.cond.i101
-  store volatile i8 %23, ptr inttoptr (i16 -16639 to ptr), align 1, !tbaa !7
+  store volatile i8 %23, ptr inttoptr (i16 -16383 to ptr), align 1, !tbaa !7
   br label %if.end66
 
 if.end66:                                         ; preds = %test_putchar.exit91, %if.then35, %if.then17, %if.then29, %test_putchar.exit94, %test_putchar.exit104, %test_putchar.exit97, %if.then23, %if.end12
@@ -1330,13 +1330,13 @@ while.cond.preheader:                             ; preds = %entry
   br label %while.body
 
 while.cond.i:                                     ; preds = %entry, %while.cond.i
-  %0 = load volatile i8, ptr inttoptr (i16 -16640 to ptr), align 256, !tbaa !7
+  %0 = load volatile i8, ptr inttoptr (i16 -16384 to ptr), align 256, !tbaa !7
   %1 = and i8 %0, 2
   %cmp.i = icmp eq i8 %1, 0
   br i1 %cmp.i, label %while.cond.i, label %test_putchar.exit, !llvm.loop !41
 
 test_putchar.exit:                                ; preds = %while.cond.i
-  store volatile i8 48, ptr inttoptr (i16 -16639 to ptr), align 1, !tbaa !7
+  store volatile i8 48, ptr inttoptr (i16 -16383 to ptr), align 1, !tbaa !7
   br label %cleanup
 
 while.body:                                       ; preds = %while.cond.preheader, %cond.end
@@ -1374,13 +1374,13 @@ while.body7:                                      ; preds = %cond.end, %test_put
   br label %while.cond.i21
 
 while.cond.i21:                                   ; preds = %while.cond.i21, %while.body7
-  %4 = load volatile i8, ptr inttoptr (i16 -16640 to ptr), align 256, !tbaa !7
+  %4 = load volatile i8, ptr inttoptr (i16 -16384 to ptr), align 256, !tbaa !7
   %5 = and i8 %4, 2
   %cmp.i22 = icmp eq i8 %5, 0
   br i1 %cmp.i22, label %while.cond.i21, label %test_putchar.exit23, !llvm.loop !41
 
 test_putchar.exit23:                              ; preds = %while.cond.i21
-  store volatile i8 %3, ptr inttoptr (i16 -16639 to ptr), align 1, !tbaa !7
+  store volatile i8 %3, ptr inttoptr (i16 -16383 to ptr), align 1, !tbaa !7
   %tobool6.not = icmp eq i16 %dec, 0
   br i1 %tobool6.not, label %cleanup, label %while.body7, !llvm.loop !45
 

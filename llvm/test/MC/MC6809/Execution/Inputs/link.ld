@@ -1,19 +1,12 @@
 /* link.ld — linker script for MC6809 execution tests */
 
 MEMORY {
-    RAM (rwx) : ORIGIN = 0x0000, LENGTH = 0x8000
-    /* IO map (matches usim09batch — see runtime.inc):
-         0xBF00-0xBF01  ACIA (status/data)
-         0xBF02         halt device
-       The IO region declaration here is informational only —
-       nothing is actually placed in it by SECTIONS below. */
-    IO  (rw)  : ORIGIN = 0xBF00, LENGTH = 0x0003
-    /* ROM extended from 0xE000 to 0xC000 (8 KiB → 16 KiB) so
-       larger picolibc tests fit. The ACIA and halt device used to
-       be inside this range; they were moved into the 0xBF00 area
-       (see usim09batch's main09batch.cpp) so the ROM range stays
-       contiguous. */
-    ROM (rx)  : ORIGIN = 0xC000, LENGTH = 0x3FF0
+    RAM (rwx) : ORIGIN = 0x0000, LENGTH = 0xC000
+    /* IO devices overlay 0xC000-0xC002 (matches usim09batch):
+         0xC000-0xC001  ACIA (status/data)
+         0xC002         Halt/exit device (written value = exit code)
+       Code starts at 0xC003 to avoid the IO overlay. */
+    ROM (rx)  : ORIGIN = 0xC003, LENGTH = 0x3FED
     VEC (r)   : ORIGIN = 0xFFF0, LENGTH = 0x0010
 }
 
@@ -52,8 +45,16 @@ SECTIONS {
         *(.ram)
     } > RAM
 
-    /* .data lives in RAM (VMA) but initial values are stored in ROM (LMA).
-       The crt0 in runtime.inc copies from ROM to RAM at startup. */
+    .rom : {
+        *(.rom)
+        *(.text)
+        *(.text.*)
+        *(.rodata)
+        *(.rodata.*)
+    } > ROM
+
+    /* .data lives in RAM (VMA) but initial values are stored in ROM (LMA)
+       AFTER the code. The crt0 copies from ROM to RAM at startup. */
     .data : {
         __data_start = .;
         *(.data)
@@ -68,14 +69,6 @@ SECTIONS {
         *(COMMON)
         __bss_end = .;
     } > RAM
-
-    .rom : {
-        *(.rom)
-        *(.text)
-        *(.text.*)
-        *(.rodata)
-        *(.rodata.*)
-    } > ROM
 
     .vectors : {
         *(.vectors)

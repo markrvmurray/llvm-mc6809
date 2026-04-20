@@ -4,8 +4,8 @@
  * Compiled with gcc6809, linked with LLVM-compiled functions under test.
  */
 
-#define ACIA_STATUS (*(volatile unsigned char *)0xBF00)
-#define ACIA_DATA   (*(volatile unsigned char *)0xBF01)
+#define ACIA_STATUS (*(volatile unsigned char *)0xC000)
+#define ACIA_DATA   (*(volatile unsigned char *)0xC001)
 
 static void h_putc(unsigned char c) {
     while (!(ACIA_STATUS & 0x02)) ;
