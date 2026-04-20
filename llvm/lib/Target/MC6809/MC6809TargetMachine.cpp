@@ -44,6 +44,7 @@
 #include "MC6809BundleCC.h"
 #include "MC6809LateOptimization.h"
 #include "MC6809PostRASpillOpt.h"
+#include "MC6809PreCGPFreeze.h"
 #include "MC6809LowerSelect.h"
 #include "MC6809MachineFunctionInfo.h"
 #include "MC6809MachineScheduler.h"
@@ -75,6 +76,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMC6809Target() {
   initializeMC6809NonReentrantPass(PR);
   initializeMC6809PostRAScavengingPass(PR);
   initializeMC6809PostRASpillOptPass(PR);
+  initializeMC6809PreCGPFreezePass(PR);
   initializeMC6809MaterializeSpillsPass(PR);
   initializeMC6809ShiftRotateChainPass(PR);
   initializeMC6809DirectPageAllocPass(PR);
@@ -206,6 +208,11 @@ void MC6809PassConfig::addIRPasses() {
   // Clean up after LSR in particular.
   if (getOptLevel() != CodeGenOptLevel::None)
     addPass(createInstructionCombiningPass());
+  // Pre-freeze icmps that have multiple select users so CodeGenPrepare's
+  // per-select freeze expansion does not introduce independent poison
+  // resolutions (bug #136). Must be the last IR-level MC6809 pass so it
+  // runs immediately before addCodeGenPrepare().
+  addPass(createMC6809PreCGPFreezePass());
 }
 
 bool MC6809PassConfig::addPreISel() { return false; }
