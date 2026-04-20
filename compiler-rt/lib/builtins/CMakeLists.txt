@@ -867,6 +867,7 @@ list(APPEND mc6809_SOURCES
   mc6809/ashldi3.S
   mc6809/ashrdi3.S
   mc6809/lshrdi3.S
+  mc6809/udivmoddi4.S
   mc6809/ctzhi2.S
 )
 
