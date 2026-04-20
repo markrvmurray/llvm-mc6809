@@ -1737,21 +1737,26 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     MI.removeOperand(1);
     MI.removeOperand(0);
     break;
-  case MC6809::ZEX8Implicit:
+  case MC6809::ZEX8Implicit: {
     unsigned Opcode;
     switch (MI.getOperand(1).getReg()) {
+    case MC6809::AA:
     case MC6809::AALSB:
       Opcode = MC6809::ANDAi8;
       break;
+    case MC6809::AB:
     case MC6809::ABLSB:
       Opcode = MC6809::ANDBi8;
       break;
+    default:
+      llvm_unreachable("ZEX8Implicit: unexpected source register");
     }
     MI.setDesc(Builder.getTII().get(Opcode));
     MI.removeOperand(1);
     MI.removeOperand(0);
     MI.addOperand(MachineOperand::CreateImm(1));
     break;
+  }
   case MC6809::ZEX16Implicit:
     MI.setDesc(Builder.getTII().get(MC6809::CLRAa));
     MI.removeOperand(1);
