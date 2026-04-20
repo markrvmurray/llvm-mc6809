@@ -39,7 +39,7 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
 
   LLT p = LLT::pointer(0, 16);
   LLT s1 = LLT::scalar(1);
-  LLT s3 = LLT::scalar(3);
+  // LLT s3 = LLT::scalar(3);
   LLT s8 = LLT::scalar(8);
   LLT s16 = LLT::scalar(16);
   LLT s32 = LLT::scalar(32);
@@ -62,7 +62,7 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   auto LegalScalars = IsHD6309 ? LegalScalars32 : LegalScalars16;
   auto LegalShortScalars32 = {s1, s8, s16};
   auto LegalShortScalars16 = {s1, s8};
-  auto LegalShortScalars = IsHD6309 ? LegalShortScalars32 : LegalShortScalars16;
+  // auto LegalShortScalars = IsHD6309 ? LegalShortScalars32 : LegalShortScalars16;
   auto LegalLibcallScalars32 = {s16, s32, s64};
   auto LegalLibcallScalars16 = {s16, s32, s64};
   auto LegalLibcallScalars = IsHD6309 ? LegalLibcallScalars32 : LegalLibcallScalars16;

@@ -300,7 +300,7 @@ void MC6809FrameLowering::processFunctionBeforeFrameFinalized(MachineFunction &M
   // Allocate stack slots for used spill pseudo-registers.
   // Only allocate slots for SPILL_D registers that are actually used.
   // SPILL_A/SPILL_B share the same stack bytes via sub-register relationships.
-  MachineRegisterInfo &MRI = MF.getRegInfo();
+  //MachineRegisterInfo &MRI = MF.getRegInfo();
   MachineFrameInfo &MFI = MF.getFrameInfo();
   auto &FuncInfo = *MF.getInfo<MC6809FunctionInfo>();
   static const MCPhysReg SpillDRegs[] = {

@@ -3222,7 +3222,7 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
   // Use IY if the dest operand is IX (avoid conflict), otherwise IX.
   if (isIndexSpillReg(MI.getOperand(1).getReg())) {
     Register SpillReg = MI.getOperand(1).getReg();
-    Register DestReg = MI.getOperand(0).getReg();
+    //Register DestReg = MI.getOperand(0).getReg();
     Register StageReg = MC6809::IY;  // Prefer IY (callee-saved)
     MachineFunction &MF = *MI.getMF();
     int SpillOff = computeSpillStackOffset(SpillReg, MF);
@@ -3303,7 +3303,7 @@ void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI
   // Use IY if the source operand is IX (avoid conflict), otherwise IX.
   if (isIndexSpillReg(MI.getOperand(1).getReg())) {
     Register SpillReg = MI.getOperand(1).getReg();
-    Register SrcReg = MI.getOperand(0).getReg();
+    //Register SrcReg = MI.getOperand(0).getReg();
     Register StageReg = MC6809::IY;  // Prefer IY (callee-saved)
     MachineFunction &MF = *MI.getMF();
     int SpillOff = computeSpillStackOffset(SpillReg, MF);
