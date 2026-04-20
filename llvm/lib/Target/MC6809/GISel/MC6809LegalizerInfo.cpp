@@ -131,7 +131,7 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // available pool. The s1-source case was the problematic one.
   getActionDefinitionsBuilder(G_SEXT)
       .legalFor({{s8, s1}, {s16, s8}})
-      .lowerFor({{s32, s16}, {s64, s32}})
+      .lowerFor({{s32, s16}, {s32, s8}, {s64, s32}, {s64, s16}, {s64, s8}})
       .customFor({{s16, s1}, {s32, s1}, {s64, s1}});
 
   getActionDefinitionsBuilder({G_SEXTLOAD, G_ZEXTLOAD})
@@ -246,10 +246,17 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
       .customForCartesianProduct({s32}, {s8})
       .clampScalar(1, s1, s8)
       .clampScalar(0, s8, s32);
+  // Rotates: s8/s16 by 1 = legal (native ROL/ROR). s8/s16 by s8 =
+  // custom (legalizeShiftRotate). s32 = lower to FSHL/FSHR (which
+  // the G_FSHL/G_FSHR custom handler decomposes to shifts + OR).
+  // Using .lower for s32 avoids narrowScalar on the rotate amount
+  // which the upstream LegalizerHelper doesn't support.
   getActionDefinitionsBuilder({G_ROTR, G_ROTL})
       .legalForCartesianProduct(LegalScalars, {s1})
       .customForCartesianProduct(LegalScalars, {s8})
-      .customForCartesianProduct({s32}, {s8})
+      .lowerIf([=](const LegalityQuery &Q) {
+        return Q.Types[0].getSizeInBits() >= 32;
+      })
       .clampScalar(1, s1, s8)
       .clampScalar(0, s8, s32);
 
@@ -1270,6 +1277,8 @@ bool MC6809LegalizerInfo::legalizeShiftRotate(LegalizerHelper &Helper, MachineRe
     if (Ty.getSizeInBits() > 64) {
       return IsRotate ? Helper.lowerRotate(MI) : Helper.narrowScalar(MI, 0, LLT::scalar(64));
     }
+    if (IsRotate)
+      return legalizeFunnelShift(Helper, MRI, MI, LocObserver);
     LLT AmtTy = MRI.getType(AmtReg);
     if (AmtTy != S8)
       MI.getOperand(2).setReg(Builder.buildTrunc(S8, AmtReg).getReg(0));

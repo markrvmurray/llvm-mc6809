@@ -188,6 +188,8 @@ void MC6809TargetInfo::getTargetDefines(const LangOptions &Opts,
   Builder.defineMacro("__motorola__");
   Builder.defineMacro("__ELF__");
   Builder.defineMacro("__SOFTFP__");
+  Builder.defineMacro("__mc6809__");
+  Builder.defineMacro("__MC6809__");
 
   // Generate instruction feature set macros.
   const auto &CPUDefines =
