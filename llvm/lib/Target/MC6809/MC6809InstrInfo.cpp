@@ -994,8 +994,8 @@ static Register getLsbSpillByteHalf(Register Reg) {
 /// Which ACC8 byte (AA or AB) does a real BIT1 register live in?
 /// AALSB ↔ AA, ABLSB ↔ AB.
 static Register getBit1ByteHalf(Register Reg) {
-  if (Reg == MC6809::AALSB) return MC6809::AA;
-  if (Reg == MC6809::ABLSB) return MC6809::AB;
+  if (Reg == MC6809::AA || Reg == MC6809::AALSB) return MC6809::AA;
+  if (Reg == MC6809::AB || Reg == MC6809::ABLSB) return MC6809::AB;
   llvm_unreachable("Not a BIT1 hardware register");
 }
 
@@ -1738,19 +1738,21 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     MI.removeOperand(0);
     break;
   case MC6809::ZEX8Implicit: {
+    Register SrcReg = MI.getOperand(1).getReg();
     unsigned Opcode;
-    switch (MI.getOperand(1).getReg()) {
-    case MC6809::AA:
-    case MC6809::AALSB:
-      Opcode = MC6809::ANDAi8;
-      break;
-    case MC6809::AB:
-    case MC6809::ABLSB:
-      Opcode = MC6809::ANDBi8;
-      break;
-    default:
+    // Determine whether the source is in the A or B half.
+    // Handles real registers (AA, AB), their LSB sub-registers (AALSB, ABLSB),
+    // and spill LSB pseudo-registers (SPILL_A*LSB → AA, SPILL_B*LSB → AB).
+    Register ByteHalf;
+    if (SrcReg == MC6809::AA || SrcReg == MC6809::AALSB)
+      ByteHalf = MC6809::AA;
+    else if (SrcReg == MC6809::AB || SrcReg == MC6809::ABLSB)
+      ByteHalf = MC6809::AB;
+    else if (isLsbSpillReg(SrcReg))
+      ByteHalf = getLsbSpillByteHalf(SrcReg);
+    else
       llvm_unreachable("ZEX8Implicit: unexpected source register");
-    }
+    Opcode = (ByteHalf == MC6809::AA) ? MC6809::ANDAi8 : MC6809::ANDBi8;
     MI.setDesc(Builder.getTII().get(Opcode));
     MI.removeOperand(1);
     MI.removeOperand(0);
