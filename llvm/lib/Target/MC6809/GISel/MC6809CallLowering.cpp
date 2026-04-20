@@ -521,6 +521,13 @@ bool MC6809CallLowering::lowerCall(MachineIRBuilder &MIRBuilder, CallLoweringInf
 
   bool IsIndirect = Info.Callee.isReg();
   if (IsIndirect) {
+    // Save the target function pointer in RS7 (a direct-page imaginary
+    // register) before the call. __call_indir reads from RS7 via
+    // `jmp [__rs7]` to transfer control to the target. Doing this before
+    // argument lowering gives the scheduler freedom to interleave the copy
+    // with other work.
+    MIRBuilder.buildCopy(MC6809::RS7, Info.Callee);
+
     // Call __call_indir to execute the indirect call.
     Info.Callee.ChangeToES("__call_indir");
   }
@@ -532,6 +539,10 @@ bool MC6809CallLowering::lowerCall(MachineIRBuilder &MIRBuilder, CallLoweringInf
   auto CallSeqStart = MIRBuilder.buildInstr(MC6809::ADJCALLSTACKDOWN);
 
   auto Call = MIRBuilder.buildInstrNoInsert(MC6809::LongBranchSubroutine).add(Info.Callee).addRegMask(TRI.getCallPreservedMask(MF, Info.CallConv));
+
+  // Indirect calls use the callee saved in RS7.
+  if (IsIndirect)
+    Call.addUse(MC6809::RS7, RegState::Implicit);
 
   SmallVector<ArgInfo, 8> OutArgs;
   for (auto &OrigArg : Info.OrigArgs) {
