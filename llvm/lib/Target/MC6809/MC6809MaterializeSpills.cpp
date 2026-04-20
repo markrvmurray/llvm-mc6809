@@ -528,10 +528,17 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
           }
         }
         if (!Has8BitSpill) {
-          // Check if D is live with a value that would be clobbered.
-          bool DLive = LPR.contains(MC6809::AD) ||
-                       LPR.contains(MC6809::AA) ||
-                       LPR.contains(MC6809::AB);
+          // Check if D (or any sub-reg) is live with a value that would be
+          // clobbered. Bug #136: LivePhysRegs::contains(R) only matches if
+          // R itself or a reg that addReg(super) walked into was inserted.
+          // A BIT1 vreg allocated to AALSB/ABLSB is added as the LSB only,
+          // so contains(AD/AA/AB) all return false even though the LDD in
+          // the spill materialization WILL clobber that LSB. Walk sub-regs
+          // of AD explicitly to match the NeedSaveD path's anySubRegLive.
+          bool DLive = LPR.contains(MC6809::AD);
+          if (!DLive)
+            for (MCPhysReg Sub : TRI.subregs(MC6809::AD))
+              if (LPR.contains(Sub)) { DLive = true; break; }
           if (!DLive)
             continue; // Safe to skip — D isn't live, expansion won't lose anything.
         }
