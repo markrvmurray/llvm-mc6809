@@ -79,7 +79,8 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   const auto ChangeToSameSizeScalar = [](unsigned TypeIdx, unsigned SizeTypeIdx) { return [=](const LegalityQuery &Query) { return std::make_pair(TypeIdx, LLT::scalar(Query.Types[SizeTypeIdx].getSizeInBits())); }; };
 
   getActionDefinitionsBuilder(G_IMPLICIT_DEF)
-      .legalFor(LegalTypesWithOne);
+      .legalFor(LegalTypesWithOne)
+      .legalFor({s64});
 
   getActionDefinitionsBuilder(G_MERGE_VALUES)
       .legalForCartesianProduct({s16, s32, s64}, {s8, s16, s32});
@@ -260,7 +261,14 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   getActionDefinitionsBuilder(G_ABS)
       .customFor({s8, s16, s32, s64});
 
-  getActionDefinitionsBuilder({G_FSHL, G_FSHR, G_UMULFIX, G_SMULFIX, G_SMULFIXSAT, G_UMULFIXSAT, G_UDIVFIX, G_SDIVFIX, G_SDIVFIXSAT, G_UDIVFIXSAT, G_FCANONICALIZE})
+  // G_FSHL/G_FSHR: decompose to two shifts + OR via legalizeFunnelShift.
+  // The custom handler produces G_SHL + G_LSHR + G_OR, all of which
+  // bottom out in existing legal/libcall rules. Used by compiler-rt's
+  // udivdi3/umoddi3/udivmoddi4 long-division algorithms.
+  getActionDefinitionsBuilder({G_FSHL, G_FSHR})
+      .custom();
+
+  getActionDefinitionsBuilder({G_UMULFIX, G_SMULFIX, G_SMULFIXSAT, G_UMULFIXSAT, G_UDIVFIX, G_SDIVFIX, G_SDIVFIXSAT, G_UDIVFIXSAT, G_FCANONICALIZE})
       .libcall();
 
   // G_UMULO uses our custom legalizeMultiplyWithOverflow handler, which
