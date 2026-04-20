@@ -175,8 +175,11 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
       .legalFor({{p, s16}, {p, s8}})
       .clampScalar(1, s16, s16);
 
+  // G_PTRMASK (p0, s16): decompose to PTRTOINT + AND + INTTOPTR.
+  // legalFor uses a single type list — must not accidentally match on
+  // just type[0]=p0 while ignoring type[1]. Use customIf for the
+  // equal-size case (p0, s16) which decomposes in legalizeCustom.
   getActionDefinitionsBuilder(G_PTRMASK)
-      .legalFor({p, s8})
       .customIf(IsScalarPointer(1, 0, std::equal_to<>{}))
       .widenScalarIf(IsScalarPointer(1, 0, std::less<>{}), ChangeToSameSizeScalar(1, 0))
       .narrowScalarIf(IsScalarPointer(1, 0, std::greater<>{}), ChangeToSameSizeScalar(1, 0));
@@ -551,6 +554,19 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
     return legalizeExtractInsert(Helper, MRI, MI, LocObserver);
   case G_FCONSTANT:
     return legalizeFConstant(Helper, MRI, MI, LocObserver);
+  case G_PTRMASK: {
+    // Decompose G_PTRMASK (p0, s16) → PTRTOINT + AND + INTTOPTR.
+    Register DstReg = MI.getOperand(0).getReg();
+    Register PtrReg = MI.getOperand(1).getReg();
+    Register MaskReg = MI.getOperand(2).getReg();
+    MachineIRBuilder &B = Helper.MIRBuilder;
+    LLT MaskTy = MRI.getType(MaskReg);
+    auto AsInt = B.buildPtrToInt(MaskTy, PtrReg);
+    auto Masked = B.buildAnd(MaskTy, AsInt, MaskReg);
+    B.buildIntToPtr(DstReg, Masked);
+    MI.eraseFromParent();
+    return true;
+  }
   case G_VASTART:
     return legalizeVAStart(Helper, MRI, MI, LocObserver);
   case G_VAARG:
