@@ -520,17 +520,6 @@ bool MC6809CallLowering::lowerCall(MachineIRBuilder &MIRBuilder, CallLoweringInf
   const TargetRegisterInfo &TRI = *STI.getRegisterInfo();
 
   bool IsIndirect = Info.Callee.isReg();
-  if (IsIndirect) {
-    // Save the target function pointer in RS7 (a direct-page imaginary
-    // register) before the call. __call_indir reads from RS7 via
-    // `jmp [__rs7]` to transfer control to the target. Doing this before
-    // argument lowering gives the scheduler freedom to interleave the copy
-    // with other work.
-    MIRBuilder.buildCopy(MC6809::RS7, Info.Callee);
-
-    // Call __call_indir to execute the indirect call.
-    Info.Callee.ChangeToES("__call_indir");
-  }
 
   // Generate the setup call frame pseudo instruction. This will record the size
   // of the outgoing stack frame once it's known. Usually, all such pseudos can
@@ -538,11 +527,19 @@ bool MC6809CallLowering::lowerCall(MachineIRBuilder &MIRBuilder, CallLoweringInf
   // additional code.
   auto CallSeqStart = MIRBuilder.buildInstr(MC6809::ADJCALLSTACKDOWN);
 
-  auto Call = MIRBuilder.buildInstrNoInsert(MC6809::LongBranchSubroutine).add(Info.Callee).addRegMask(TRI.getCallPreservedMask(MF, Info.CallConv));
-
-  // Indirect calls use the callee saved in RS7.
-  if (IsIndirect)
-    Call.addUse(MC6809::RS7, RegState::Implicit);
+  // For direct calls, emit LBSR <symbol> (3 bytes).
+  // For indirect calls, emit JSR ,REG where REG is one of X/Y/U
+  // and holds the function pointer value (2 bytes, postbyte selects
+  // the register). The MC6809 backend's JSRi_o0 form constrains the
+  // operand to INDEX16 so the regalloc picks an available index
+  // register; if none is free at the call site it spills as usual.
+  // (NOT JSRi_o0I — that's the indirect form jsr [,REG] which
+  // would treat REG as a pointer to the function pointer rather
+  // than the function pointer itself.)
+  auto Call = MIRBuilder.buildInstrNoInsert(IsIndirect ? MC6809::JSRi_o0
+                                                        : MC6809::LongBranchSubroutine)
+                  .add(Info.Callee)
+                  .addRegMask(TRI.getCallPreservedMask(MF, Info.CallConv));
 
   SmallVector<ArgInfo, 8> OutArgs;
   for (auto &OrigArg : Info.OrigArgs) {
