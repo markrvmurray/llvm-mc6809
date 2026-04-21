@@ -24,8 +24,12 @@ OUTPUT_DIR = os.path.join(REPO_ROOT, 'test', 'MC', 'MC6809')
 OUTPUT_6809 = os.path.join(OUTPUT_DIR, 'asm-6809.s')
 OUTPUT_6309 = os.path.join(OUTPUT_DIR, 'asm-6309.s')
 
-# Instructions to skip (not assemblable).
-SKIP_MNEMONICS = {'hcf', 'reset'}
+# Instructions to skip (not assemblable). Currently empty — both hcf
+# (0x15, "Halt and Catch Fire", undocumented 6800-family folklore) and
+# reset (0x3E, undocumented CPU reset) are defined in the .td and round-
+# trip cleanly. Kept as a set in case some pathological encoding shows
+# up later.
+SKIP_MNEMONICS = set()
 
 # Branch instructions — need special handling with labels.
 BRANCH_MNEMONICS = {

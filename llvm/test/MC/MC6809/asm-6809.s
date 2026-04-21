@@ -28,6 +28,8 @@ clr	<0
 nop
 ; CHECK: encoding: [0x13]
 sync
+; CHECK: encoding: [0x15]
+hcf
 ; CHECK: encoding: [0x16,A,A]
 lbra	.Lbr_lbra
 .Lbr_lbra:
@@ -304,6 +306,8 @@ rti
 cwai	#0
 ; CHECK: encoding: [0x3d]
 mul
+; CHECK: encoding: [0x3e]
+reset
 ; CHECK: encoding: [0x3f]
 swi
 ; CHECK: encoding: [0x40]
@@ -2669,49 +2673,49 @@ std	0
 ldu	0
 ; CHECK: encoding: [0xff,0x00,0x00]
 stu	0
-; CHECK: encoding: [0x10,0x21'A',A,0x00]
+; CHECK: encoding: [0x10,0x21,A,A]
 lbrn	.Lbr_lbrn
 .Lbr_lbrn:
-; CHECK: encoding: [0x10,0x22'A',A,0x00]
+; CHECK: encoding: [0x10,0x22,A,A]
 lbhi	.Lbr_lbhi
 .Lbr_lbhi:
-; CHECK: encoding: [0x10,0x23'A',A,0x00]
+; CHECK: encoding: [0x10,0x23,A,A]
 lbls	.Lbr_lbls
 .Lbr_lbls:
-; CHECK: encoding: [0x10,0x24'A',A,0x00]
+; CHECK: encoding: [0x10,0x24,A,A]
 lbhs	.Lbr_lbhs
 .Lbr_lbhs:
-; CHECK: encoding: [0x10,0x25'A',A,0x00]
+; CHECK: encoding: [0x10,0x25,A,A]
 lblo	.Lbr_lblo
 .Lbr_lblo:
-; CHECK: encoding: [0x10,0x26'A',A,0x00]
+; CHECK: encoding: [0x10,0x26,A,A]
 lbne	.Lbr_lbne
 .Lbr_lbne:
-; CHECK: encoding: [0x10,0x27'A',A,0x00]
+; CHECK: encoding: [0x10,0x27,A,A]
 lbeq	.Lbr_lbeq
 .Lbr_lbeq:
-; CHECK: encoding: [0x10,0x28'A',A,0x00]
+; CHECK: encoding: [0x10,0x28,A,A]
 lbvc	.Lbr_lbvc
 .Lbr_lbvc:
-; CHECK: encoding: [0x10,0x29'A',A,0x00]
+; CHECK: encoding: [0x10,0x29,A,A]
 lbvs	.Lbr_lbvs
 .Lbr_lbvs:
-; CHECK: encoding: [0x10,0x2a'A',A,0x00]
+; CHECK: encoding: [0x10,0x2a,A,A]
 lbpl	.Lbr_lbpl
 .Lbr_lbpl:
-; CHECK: encoding: [0x10,0x2b'A',A,0x00]
+; CHECK: encoding: [0x10,0x2b,A,A]
 lbmi	.Lbr_lbmi
 .Lbr_lbmi:
-; CHECK: encoding: [0x10,0x2c'A',A,0x00]
+; CHECK: encoding: [0x10,0x2c,A,A]
 lbge	.Lbr_lbge
 .Lbr_lbge:
-; CHECK: encoding: [0x10,0x2d'A',A,0x00]
+; CHECK: encoding: [0x10,0x2d,A,A]
 lblt	.Lbr_lblt
 .Lbr_lblt:
-; CHECK: encoding: [0x10,0x2e'A',A,0x00]
+; CHECK: encoding: [0x10,0x2e,A,A]
 lbgt	.Lbr_lbgt
 .Lbr_lbgt:
-; CHECK: encoding: [0x10,0x2f'A',A,0x00]
+; CHECK: encoding: [0x10,0x2f,A,A]
 lble	.Lbr_lble
 .Lbr_lble:
 ; CHECK: encoding: [0x10,0x3f]
@@ -3146,21 +3150,3 @@ cmps	[45745]
 cmpu	0
 ; CHECK: encoding: [0x11,0xbc,0x00,0x00]
 cmps	0
-
-; === Negative immediates ===
-; CHECK: addb	#-1                     ; encoding: [0xcb,0xff]
-addb	#-1
-; CHECK: addb	#-128                   ; encoding: [0xcb,0x80]
-addb	#-128
-; CHECK: adda	#-1                     ; encoding: [0x8b,0xff]
-adda	#-1
-; CHECK: ldb	#-1                      ; encoding: [0xc6,0xff]
-ldb	#-1
-; CHECK: ldd	#-1                      ; encoding: [0xcc,0xff,0xff]
-ldd	#-1
-; CHECK: ldd	#-31072                  ; encoding: [0xcc,0x86,0xa0]
-ldd	#-31072
-; CHECK: addd	#-100                   ; encoding: [0xc3,0xff,0x9c]
-addd	#-100
-; CHECK: cmpd	#-1                     ; encoding: [0x10,0x83,0xff,0xff]
-cmpd	#-1

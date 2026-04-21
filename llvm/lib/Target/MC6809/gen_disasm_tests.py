@@ -23,8 +23,9 @@ OUTPUT_DIR = os.path.join(REPO_ROOT, 'test', 'MC', 'Disassembler', 'MC6809')
 OUTPUT_6809 = os.path.join(OUTPUT_DIR, 'disasm-6809.txt')
 OUTPUT_6309 = os.path.join(OUTPUT_DIR, 'disasm-6309.txt')
 
-# Instructions to skip.
-SKIP_MNEMONICS = {'hcf', 'reset'}
+# Instructions to skip. Currently empty — both hcf and reset are now
+# defined in the .td and disassemble cleanly.
+SKIP_MNEMONICS = set()
 
 
 def parse_line(line):

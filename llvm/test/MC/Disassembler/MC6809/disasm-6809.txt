@@ -42,6 +42,9 @@
 # CHECK: sync
 0x13
 
+# CHECK: hcf
+0x15
+
 # CHECK: lbra	0
 0x16 0x00 0x00
 
@@ -428,6 +431,9 @@
 
 # CHECK: mul
 0x3d
+
+# CHECK: reset
+0x3e
 
 # CHECK: swi
 0x3f
