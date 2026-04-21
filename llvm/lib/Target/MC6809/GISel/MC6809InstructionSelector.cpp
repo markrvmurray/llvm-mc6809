@@ -138,6 +138,38 @@ void MC6809InstructionSelector::setupMF(MachineFunction &MF,
   }
 }
 
+// Returns true for pseudos (and their generic predecessors) whose BIT1
+// carry-out vreg is a SCHEDULING PHANTOM — the real carry lives in CC.C,
+// not in the allocated byte-LSB. Used by the G_ANYEXT s1→s8 selector to
+// route those through MaterializeCarryToByte_i8 (bug #140), and by the
+// G_BRCOND handler to short-circuit to CC.C-based branching (bug #115).
+// Keep this list in sync with the expansions in MC6809InstrInfo.cpp.
+static bool isCarryPhantomPseudo(unsigned Opc) {
+  switch (Opc) {
+  case TargetOpcode::G_USUBO:
+  case TargetOpcode::G_UADDO:
+  case TargetOpcode::G_USUBE:
+  case TargetOpcode::G_UADDE:
+  case MC6809::SubSetCarry_i8_Imm:     case MC6809::SubSetCarry_i16_Imm:
+  case MC6809::SubSetCarry_i8_Mem:     case MC6809::SubSetCarry_i16_Mem:
+  case MC6809::SubSetCarry_i8_Pull:    case MC6809::SubSetCarry_i16_Pull:
+  case MC6809::SubSetCarry_i8_Reg:     case MC6809::SubSetCarry_i16_Reg:
+  case MC6809::AddSetCarry_i8_Imm:     case MC6809::AddSetCarry_i16_Imm:
+  case MC6809::AddSetCarry_i8_Mem:     case MC6809::AddSetCarry_i16_Mem:
+  case MC6809::AddSetCarry_i8_Pull:    case MC6809::AddSetCarry_i16_Pull:
+  case MC6809::AddSetCarry_i8_Reg:     case MC6809::AddSetCarry_i16_Reg:
+  case MC6809::SubSetCarryUse_i8_Imm:  case MC6809::SubSetCarryUse_i16_Imm:
+  case MC6809::SubSetCarryUse_i8_Mem:  case MC6809::SubSetCarryUse_i16_Mem:
+  case MC6809::SubSetCarryUse_i8_Reg:  case MC6809::SubSetCarryUse_i16_Reg:
+  case MC6809::AddSetCarryUse_i8_Imm:  case MC6809::AddSetCarryUse_i16_Imm:
+  case MC6809::AddSetCarryUse_i8_Mem:  case MC6809::AddSetCarryUse_i16_Mem:
+  case MC6809::AddSetCarryUse_i8_Reg:  case MC6809::AddSetCarryUse_i16_Reg:
+    return true;
+  default:
+    return false;
+  }
+}
+
 } // namespace
 
 #define GET_GLOBALISEL_IMPL
@@ -443,8 +475,34 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     LLT DstTy = MRI->getType(DstReg);
     LLT SrcTy = MRI->getType(SrcReg);
     if (DstTy == LLT::scalar(8) && SrcTy == LLT::scalar(1)) {
-      // anyext i1→i8: both live in ACC8 (BIT1 is a sub-register of ACC8).
-      // Just COPY — the value is already in the right register.
+      // Bug #140: the BIT1 vreg carry-out of AddSetCarry*/SubSetCarry*/
+      // AddSetCarryUse*/SubSetCarryUse* is a SCHEDULING PHANTOM — the real
+      // carry lives in CC.C, not in the allocated byte-LSB (see the long
+      // comment on MC6809ArithmeticBaseCarry in MC6809InstrFamilies.td).
+      // A plain COPY here reads whichever byte-LSB regalloc picked, which
+      // is unrelated to CC.C; the result only happens to be right when
+      // the byte containing the LSB coincidentally holds 0 or 1 matching
+      // the carry. Step 3 of bug #118 Layer 1 perturbed regalloc enough
+      // to expose the miscompile in picolibc test-uchar (j+1==0 exit).
+      //
+      // Honest materialisation: emit MaterializeCarryToByte_i8, which
+      // post-RA expands to `LDB #0; ADCB #0` — reads CC.C authoritatively
+      // and writes it into $dst as a 0/1 byte. The scheduling barrier on
+      // both the SetCarry* producer and this pseudo keeps CC.C alive
+      // across the gap.
+      MachineInstr *Def = MRI->getVRegDef(SrcReg);
+      if (Def && isCarryPhantomPseudo(Def->getOpcode())) {
+        MRI->setRegClass(DstReg, &MC6809::ABcRegClass);
+        MachineIRBuilder B(MI);
+        auto I = B.buildInstr(MC6809::MaterializeCarryToByte_i8)
+                     .addDef(DstReg)
+                     .addUse(SrcReg);
+        constrainSelectedInstRegOperands(*I, TII, TRI, RBI);
+        MI.eraseFromParent();
+        return true;
+      }
+      // Byte-LSB-backed BIT1 (from Load_i1_Imm, Seq/CondSet, etc.):
+      // anyext is a plain COPY since the LSB is the value.
       MRI->setRegClass(DstReg, &MC6809::ACC8RegClass);
       if (!MRI->getRegClassOrNull(SrcReg))
         MRI->setRegClass(SrcReg, &MC6809::ACC8RegClass);
@@ -610,31 +668,8 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     //   - Limited to the unsigned ops because their s1 corresponds to
     //     the C flag (1 = borrow / carry). G_SSUBO/G_SADDO use V; not
     //     handled here yet.
-    auto IsCarryProducer = [](unsigned Opc) {
-      switch (Opc) {
-      case TargetOpcode::G_USUBO:
-      case TargetOpcode::G_UADDO:
-      case TargetOpcode::G_USUBE:
-      case TargetOpcode::G_UADDE:
-      case MC6809::SubSetCarry_i8_Imm:  case MC6809::SubSetCarry_i16_Imm:
-      case MC6809::SubSetCarry_i8_Mem:  case MC6809::SubSetCarry_i16_Mem:
-      case MC6809::SubSetCarry_i8_Pull: case MC6809::SubSetCarry_i16_Pull:
-      case MC6809::SubSetCarry_i8_Reg:  case MC6809::SubSetCarry_i16_Reg:
-      case MC6809::AddSetCarry_i8_Imm:  case MC6809::AddSetCarry_i16_Imm:
-      case MC6809::AddSetCarry_i8_Mem:  case MC6809::AddSetCarry_i16_Mem:
-      case MC6809::AddSetCarry_i8_Pull: case MC6809::AddSetCarry_i16_Pull:
-      case MC6809::AddSetCarry_i8_Reg:  case MC6809::AddSetCarry_i16_Reg:
-      case MC6809::SubSetCarryUse_i8_Imm:  case MC6809::SubSetCarryUse_i16_Imm:
-      case MC6809::SubSetCarryUse_i8_Mem:  case MC6809::SubSetCarryUse_i16_Mem:
-      case MC6809::SubSetCarryUse_i8_Reg:  case MC6809::SubSetCarryUse_i16_Reg:
-      case MC6809::AddSetCarryUse_i8_Imm:  case MC6809::AddSetCarryUse_i16_Imm:
-      case MC6809::AddSetCarryUse_i8_Mem:  case MC6809::AddSetCarryUse_i16_Mem:
-      case MC6809::AddSetCarryUse_i8_Reg:  case MC6809::AddSetCarryUse_i16_Reg:
-        return true;
-      default:
-        return false;
-      }
-    };
+    // Phantom-BIT1 producer list is shared with G_ANYEXT s1→s8 (bug #140);
+    // see isCarryPhantomPseudo at the top of this file.
 
     // Walk through G_FREEZE / COPY to find the real defining instruction.
     // `freeze i1 %cmp` is commonly inserted by InstCombine between an
@@ -845,7 +880,7 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
 
     bool UseCarryFlag = false;
     if (CondDef && CondDef->getParent() == MBB &&
-        IsCarryProducer(CondDef->getOpcode())) {
+        isCarryPhantomPseudo(CondDef->getOpcode())) {
       // For G_U(SUB|ADD)O/E the s1 is operand 1; for the SetCarry pseudos
       // it's also operand 1. Make sure CondReg really is that operand —
       // not the data result (which is operand 0).

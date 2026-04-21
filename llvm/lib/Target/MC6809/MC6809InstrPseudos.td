@@ -151,3 +151,35 @@ let Defs = [NZ, V] in {
   }
 }
 
+// Materialise the CC.C flag into byte 0/1. Used when a phantom BIT1 vreg
+// (the carry-out of an AddSetCarry*/SubSetCarry*/AddSetCarryUse*/
+// SubSetCarryUse* pseudo) must be consumed AS A BYTE by a subsequent
+// anyext / zext / sext / test, not as another carry-in.
+//
+// The BIT1 vreg from those pseudos is a scheduling phantom — see the long
+// comment on MC6809ArithmeticBaseCarry in MC6809InstrFamilies.td. The
+// physical byte-LSB allocated to the vreg does NOT hold the carry bit;
+// the only authoritative source is CC.C. Consumers that read byte-LSB
+// (copyPhysReg BIT1→ACC8, SEX8Implicit, TableGen anyext BIT1→i8 patterns)
+// therefore emit wrong code for phantom BIT1; they work only by accident
+// when regalloc happens to pick an LSB whose byte value matches the carry.
+//
+// This pseudo is the honest materialisation: post-RA it expands to
+// `LDB #0; ADCB #0`, which reads CC.C (produced by the phantom's
+// expansion) and deposits it in $dst as a proper 0/1 byte.
+//
+// Defs=[NZ,V,C] + hasSideEffects=1: the pseudo reads CC.C, so a
+// scheduling barrier is needed to prevent any C-clobbering instruction
+// from being moved between the phantom producer and this materialisation.
+// The same hasSideEffects barrier on the SetCarry/SetCarryUse pseudos
+// pins the other side of the gap (bug #57 mechanism).
+//
+// $dst constrained to ABc so the expansion is always LDB/ADCB and never
+// needs a staging TFR (6309's AE/AF have no ADCE/ADCF instruction).
+def MaterializeCarryToByte_i8 : MC6809Pseudo {
+  dag OutOperandList = (outs ABc:$dst);
+  dag InOperandList  = (ins BIT1:$src);
+  let Defs = [NZ, V, C];
+  let hasSideEffects = 1;
+}
+

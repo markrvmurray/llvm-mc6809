@@ -1916,6 +1916,39 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     MI.eraseFromParent();
     return true;
   }
+  case MC6809::MaterializeCarryToByte_i8: {
+    // Bug #140: the BIT1 src is a scheduling phantom; CC.C (not the
+    // allocated byte-LSB) holds the carry bit. Materialise it honestly
+    // by reading CC.C into a zero byte via ADC. $dst is constrained to
+    // ABc, so after regalloc $dst is always $ab or an AB-spill; the
+    // $ab path expands to `LDB #0; ADCB #0`, and the spill path routes
+    // through $ab via materialize/dematerialize in the usual way.
+    //
+    // The BIT1 src operand carries no runtime value — its sole purpose
+    // is to keep the phantom producer's vreg live across this point.
+    // Drop it after expansion.
+    MachineFunction &MF = *MI.getMF();
+    Register DstReg = MI.getOperand(0).getReg();
+    Register RealDst = DstReg;
+    Register OrigDst = DstReg;
+    if (needsMaterialization(DstReg)) {
+      RealDst = materializeReg(Builder, DstReg, MF);
+    }
+    // RealDst must be $ab (ABc ⇒ AB + AB-spills). Assert so future class
+    // widening catches missing expansion paths.
+    assert(RealDst == MC6809::AB &&
+           "MaterializeCarryToByte_i8 expects ABc-allocated destination");
+    Builder.buildInstr(MC6809::LDBi8).addDef(MC6809::AB, RegState::Implicit).addImm(0);
+    Builder.buildInstr(MC6809::ADCBi8).addDef(MC6809::AB, RegState::Implicit).addImm(0);
+    if (needsMaterialization(OrigDst)) {
+      MachineBasicBlock &MBB = *MI.getParent();
+      auto NextIt = std::next(MachineBasicBlock::iterator(MI));
+      MachineIRBuilder StoreBuilder(MBB, NextIt);
+      dematerializeReg(StoreBuilder, RealDst, OrigDst, MF);
+    }
+    MI.eraseFromParent();
+    return true;
+  }
   case MC6809::ANYEXT_i8_to_i16: {
     // i8→i16 anyext pseudo. Only the low byte is defined; high byte is
     // don't-care. Emit the low-byte copy (dst's lo-byte sub-physreg ←
