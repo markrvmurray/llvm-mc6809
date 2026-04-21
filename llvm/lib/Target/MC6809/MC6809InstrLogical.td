@@ -220,9 +220,9 @@ def LongBranchSubroutine : MC6809Subroutine, PseudoInstExpansion<(LBSRlb pcrel16
 
 def JumpSubroutine : MC6809Subroutine, PseudoInstExpansion<(JSRi_o8PC pcrel8_idx:$tgt)>;
 def LongJumpSubroutine : MC6809Subroutine, PseudoInstExpansion<(JSRi_o16PC pcrel16_idx:$tgt)>;
-def IndirectJumpSubroutine : MC6809Subroutine, PseudoInstExpansion<(JSRi_eI addr16:$tgt)> {
+def IndirectJumpSubroutine : MC6809Subroutine, PseudoInstExpansion<(JSRi_eI addr16_o2:$tgt)> {
   let isIndirectBranch = true;
-  dag InOperandList = (ins addr16:$tgt);
+  dag InOperandList = (ins addr16_o2:$tgt);
 }
 
 class MC6809Return<Instruction Opcode> : MC6809LogicalInstr, PseudoInstExpansion<(Opcode)> {
@@ -239,7 +239,7 @@ def ReturnIRQImplicit : MC6809Return<RTIr>;
 def JumpAbsolute : MC6809UnconditionalBranch, PseudoInstExpansion<(JMPe addr16:$tgt)> {
   let InOperandList = (ins label:$tgt);
 }
-def JumpIndir : MC6809UnconditionalBranch, PseudoInstExpansion<(JMPi_eI addr16:$tgt)> {
+def JumpIndir : MC6809UnconditionalBranch, PseudoInstExpansion<(JMPi_eI addr16_o2:$tgt)> {
   let isIndirectBranch = true;
   let InOperandList = (ins label:$tgt);
 }

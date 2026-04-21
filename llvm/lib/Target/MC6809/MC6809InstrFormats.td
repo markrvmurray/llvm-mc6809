@@ -137,10 +137,40 @@ def addr8 : Operand<i32> {
   let OperandNamespace = "MC6809Op";
   let Type = i8;
 }
+// Variant for formats where the 8-bit DP address is at byte 2
+// (e.g. BitDirect, ImmediateDirect: [opc][postbyte/val][addr]).
+def addr8_o2 : Operand<i32> {
+  let ParserMatchClass = Addr8Operand<"Addr8">;
+  let EncoderMethod = "encodeImm<MC6809::Addr8, 2>";
+  let OperandType = "OPERAND_ADDR8";
+  let OperandNamespace = "MC6809Op";
+  let Type = i8;
+}
 
 def addr16 : Operand<i32> {
   let ParserMatchClass = Addr16Operand<"Addr16">;
   let EncoderMethod = "encodeImm<MC6809::Addr16, 1>";
+  let OperandType = "OPERAND_ADDR16";
+  let OperandNamespace = "MC6809Op";
+  let Type = i16;
+}
+// Variants for instruction formats where the 16-bit address is at a
+// byte offset other than 1 (directly after the opcode). The encoder
+// uses the offset to place the relocation fixup at the right byte;
+// getting this wrong produces a silent miscompile where the linker
+// writes the address over some other instruction field (e.g. a
+// postbyte or a separate 8-bit immediate). Mirrors the pattern used
+// by pcrel8/pcrel16 with their _1/_2/_3 variants.
+def addr16_o2 : Operand<i32> {
+  let ParserMatchClass = Addr16Operand<"Addr16">;
+  let EncoderMethod = "encodeImm<MC6809::Addr16, 2>";
+  let OperandType = "OPERAND_ADDR16";
+  let OperandNamespace = "MC6809Op";
+  let Type = i16;
+}
+def addr16_o3 : Operand<i32> {
+  let ParserMatchClass = Addr16Operand<"Addr16">;
+  let EncoderMethod = "encodeImm<MC6809::Addr16, 3>";
   let OperandType = "OPERAND_ADDR16";
   let OperandNamespace = "MC6809Op";
   let Type = i16;
@@ -293,7 +323,8 @@ class BitDirect<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opcode> {
   let Mode = "bd";
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
-  let InOperandList = (ins bit8register:$reg, imm3:$dstbit, imm3:$srcbit, addr8:$addr);
+  // Byte layout (page 1): [opc][reg/bits postbyte][addr] — address at offset 2.
+  let InOperandList = (ins bit8register:$reg, imm3:$dstbit, imm3:$srcbit, addr8_o2:$addr);
   let AsmString = !strconcat(mnemonic, " $dst , $srcbit , $dstbit , < $addr");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
@@ -428,7 +459,8 @@ class ImmediateDirect<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opc
   let Mode = "id";
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
-  let InOperandList = (ins addr8:$addr, i8imm:$val);
+  // Byte layout (page 1): [opc][val][addr] — address at offset 2.
+  let InOperandList = (ins addr8_o2:$addr, i8imm:$val);
   let AsmString = !strconcat(mnemonic, " # $val ,< $addr");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
@@ -442,7 +474,8 @@ class ImmediateExtended<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, o
   let Mode = "ie";
   let OperandSize = 3;
   let Size = !add(OperandSize, OpcodeSize);
-  let InOperandList = (ins addr16:$addr, i8imm:$val);
+  // Byte layout (page 1): [opc][val][addr_hi][addr_lo] — address at offset 2.
+  let InOperandList = (ins addr16_o2:$addr, i8imm:$val);
   let AsmString = !strconcat(mnemonic, " # $val ,$addr");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
@@ -524,7 +557,8 @@ class ImmediateIndexedExtendedInd<string mnemonic, Opcode opcode> : MC6809Inst<m
   let Mode = "ii_eI";
   let OperandSize = 4;
   let Size = !add(OperandSize, OpcodeSize);
-  let InOperandList = (ins i8imm:$val, addr16:$addr);
+  // Byte layout (page 1): [opc][val][postbyte=9f][addr_hi][addr_lo] — address at offset 3.
+  let InOperandList = (ins i8imm:$val, addr16_o3:$addr);
   let AsmString = !strconcat(mnemonic, " $val ,[ $addr ]");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
@@ -1049,7 +1083,8 @@ class IndexedExtendedInd<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, 
   let Mode = "i_eI";
   let OperandSize = 3;
   let Size = !add(OperandSize, OpcodeSize);
-  let InOperandList = (ins addr16:$addr);
+  // Byte layout (page 1): [opc][postbyte=9f][addr_hi][addr_lo] — address at offset 2.
+  let InOperandList = (ins addr16_o2:$addr);
   let AsmString = !strconcat(mnemonic, " [ $addr ]");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
