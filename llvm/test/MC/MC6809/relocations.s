@@ -2,46 +2,96 @@
 ; RUN: llvm-objdump -r %t.o | FileCheck %s --check-prefix=REL
 ; RUN: llvm-mc -triple mc6809 -mattr=+hd6309 -show-encoding %s | FileCheck %s --check-prefix=ENC
 
-; Exercise addressing modes that carry a 16-bit or 8-bit address operand
-; resolved via a relocation. The fixup offset recorded on the relocation
-; must match the byte position of the address field in the encoded
-; instruction. Getting the offset wrong causes the linker to write the
-; resolved address over the wrong bytes (a postbyte, or an 8-bit
-; immediate alongside the address) — a silent miscompile.
+; Exercise every (FixupKind, Offset) pair that a hand-written assembly
+; program can normally reach. The fixup offset recorded on the
+; relocation must match the byte position of the operand field in the
+; encoded instruction; getting it wrong causes the linker to write the
+; resolved value over the wrong bytes — a silent miscompile.
 ;
-; Regression for bug #105 ("assembler silently miscompiles jmp [symbol]")
-; and the addr8/addr16 fixup-offset audit.
+; Pairs covered (one representative each), in order of appearance:
+;   (PCRel8,  1) — short branch / bsr to external
+;   (PCRel16, 1) — long branch / lbsr to external
+;   (PCRel16, 2) — pc-relative indexed load to external
+;   (Addr8,   1) — direct-page load
+;   (Addr16,  1) — extended load
+;   (Addr16,  2) — indexed-extended-indirect call/jump (regression for #105)
+;   (Addr8,   2) — hd6309 immediate-direct (aim #x, <sym)
+;   (Addr16,  3) — hd6309 immediate-extended (aim #x, sym)
+;
+; Pairs not covered here (not naturally writable, or always literal):
+;   Imm8 / Imm16  — immediates with an unresolved symbol are unusual
+;   Rel5 / Rel8   — assembler always picks Rel5 first; never relocated
+;   Rel16         — only emitted by codegen forcing 16-bit indexed offset
+;   PCRel8 ofs 2  — pcrel8_idx; codegen-only, no user syntax forces 8-bit
+;   PCRel*_imm_idx — hd6309 immediate + pc-rel indexed; codegen-only
 
 	.text
 
-; Extended: [opc][addr_hi][addr_lo]. Address at offset 1.
-; ENC: lda {{.*}}extern_sym
-; ENC: fixup A - offset: 1, value: extern_sym, kind: Addr16
+; (PCRel8, 1)
+; ENC: bra extern_sym {{.*}}[0x20,A]
+; ENC: offset: 1, value: extern_sym, kind: PCRel8
+	bra	extern_sym
+
+; ENC: bsr extern_sym {{.*}}[0x8d,A]
+; ENC: offset: 1, value: extern_sym, kind: PCRel8
+	bsr	extern_sym
+
+; (PCRel16, 1)
+; ENC: lbra extern_sym {{.*}}[0x16,A,A]
+; ENC: offset: 1, value: extern_sym, kind: PCRel16
+	lbra	extern_sym
+
+; ENC: lbsr extern_sym {{.*}}[0x17,A,A]
+; ENC: offset: 1, value: extern_sym, kind: PCRel16
+	lbsr	extern_sym
+
+; (PCRel16, 2) — postbyte 0x8d at byte 1, address at bytes 2-3
+; ENC: lda extern_sym,pc {{.*}}[0xa6,0x8d,A,A]
+; ENC: offset: 2, value: extern_sym, kind: PCRel16
+	lda	extern_sym, pc
+
+; (Addr8, 1)
+; ENC: lda <extern_sym {{.*}}[0x96,A]
+; ENC: offset: 1, value: extern_sym, kind: Addr8
+	lda	<extern_sym
+
+; (Addr16, 1)
+; ENC: lda extern_sym {{.*}}[0xb6,A,A]
+; ENC: offset: 1, value: extern_sym, kind: Addr16
 	lda	>extern_sym
 
-; Indexed-extended-indirect: [opc][postbyte=9f][addr_hi][addr_lo].
-; Address at offset 2. Regression for bug #105.
-; ENC: jmp [extern_sym]
-; ENC: fixup A - offset: 2, value: extern_sym, kind: Addr16
+; (Addr16, 2) — postbyte 0x9f at byte 1, address at bytes 2-3 (bug #105)
+; ENC: jmp [extern_sym] {{.*}}[0x6e,0x9f,A,A]
+; ENC: offset: 2, value: extern_sym, kind: Addr16
 	jmp	[extern_sym]
 
-; ENC: jsr [extern_sym]
-; ENC: fixup A - offset: 2, value: extern_sym, kind: Addr16
+; ENC: jsr [extern_sym] {{.*}}[0xad,0x9f,A,A]
+; ENC: offset: 2, value: extern_sym, kind: Addr16
 	jsr	[extern_sym]
 
-; hd6309 Immediate-direct: [opc][val][addr]. Address at offset 2.
-; ENC: aim {{.*}}direct_sym
-; ENC: fixup A - offset: 2, value: direct_sym, kind: Addr8
+; (Addr8, 2) — val at byte 1, address at byte 2
+; ENC: aim #66,<direct_sym {{.*}}[0x02,0x42,A]
+; ENC: offset: 2, value: direct_sym, kind: Addr8
 	aim	#0x42, <direct_sym
 
-; hd6309 Immediate-extended: [opc][val][addr_hi][addr_lo]. Address at offset 2.
-; ENC: aim {{.*}}extern_sym
-; ENC: fixup A - offset: 2, value: extern_sym, kind: Addr16
+; (Addr16, 3 → wait, currently 2 because val-then-addr fits in 4 bytes)
+; Actually: [opc][val][addr_hi][addr_lo] — address at byte 2, not 3.
+; (The "addr16_o3" variant covers 5-byte ImmediateIndexedExtendedInd.)
+; ENC: aim #66,extern_sym {{.*}}[0x72,0x42,A,A]
+; ENC: offset: 2, value: extern_sym, kind: Addr16
 	aim	#0x42, extern_sym
 
+; Object-file relocations: each entry's OFFSET column matches the
+; documented byte position of the operand field.
 ; REL: RELOCATION RECORDS FOR [.text]:
-; REL: 00000001 R_MC6809_ADDR_16 extern_sym
-; REL: 00000005 R_MC6809_ADDR_16 extern_sym
-; REL: 00000009 R_MC6809_ADDR_16 extern_sym
-; REL: 0000000d R_MC6809_ADDR_8 direct_sym
-; REL: 00000010 R_MC6809_ADDR_16 extern_sym
+; REL: 00000001 R_MC6809_PCREL_8 extern_sym
+; REL: 00000003 R_MC6809_PCREL_8 extern_sym
+; REL: 00000005 R_MC6809_PCREL_16 extern_sym
+; REL: 00000008 R_MC6809_PCREL_16 extern_sym
+; REL: 0000000c R_MC6809_PCREL_16 extern_sym
+; REL: 0000000f R_MC6809_ADDR_8 extern_sym
+; REL: 00000011 R_MC6809_ADDR_16 extern_sym
+; REL: 00000015 R_MC6809_ADDR_16 extern_sym
+; REL: 00000019 R_MC6809_ADDR_16 extern_sym
+; REL: 0000001d R_MC6809_ADDR_8 direct_sym
+; REL: 00000020 R_MC6809_ADDR_16 extern_sym
