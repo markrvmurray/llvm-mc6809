@@ -129,6 +129,15 @@ def offset16 : Operand<i32> {
   let EncoderMethod = "encodeImm<MC6809::Rel16, 1>";
   let DecoderMethod = "DecodeSImm<16>";
 }
+// Variant for IndexedOffset16 / IndexedOffset16Ind: layout puts the
+// 16-bit offset at byte 2 (after opcode + postbyte), so the encoder
+// must place the fixup at offset 2. Same bug class as the addr16_o2
+// fix for IndexedExtendedInd (bug #105).
+def offset16_o2 : Operand<i32> {
+  let ParserMatchClass = RelativeOperand<"Rel16">;
+  let EncoderMethod = "encodeImm<MC6809::Rel16, 2>";
+  let DecoderMethod = "DecodeSImm<16>";
+}
 
 def addr8 : Operand<i32> {
   let ParserMatchClass = Addr8Operand<"Addr8">;
@@ -1211,7 +1220,8 @@ class IndexedOffset16<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opc
   let Mode = "i_o16";
   let OperandSize = 3;
   let Size = !add(OperandSize, OpcodeSize);
-  let InOperandList = (ins offset16:$offset, INDEX16:$ireg);
+  // Byte layout (page 1): [opc][postbyte][offset_hi][offset_lo] — offset at byte 2.
+  let InOperandList = (ins offset16_o2:$offset, INDEX16:$ireg);
   let AsmString = !strconcat(mnemonic, " $offset , $ireg");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }
@@ -1225,7 +1235,8 @@ class IndexedOffset16Ind<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, 
   let Mode = "i_o16I";
   let OperandSize = 3;
   let Size = !add(OperandSize, OpcodeSize);
-  let InOperandList = (ins offset16:$offset, INDEX16:$ireg);
+  // Byte layout (page 1): [opc][postbyte][offset_hi][offset_lo] — offset at byte 2.
+  let InOperandList = (ins offset16_o2:$offset, INDEX16:$ireg);
   let AsmString = !strconcat(mnemonic, " [ $offset , $ireg ]");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
 }

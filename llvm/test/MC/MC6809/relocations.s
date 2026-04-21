@@ -81,6 +81,16 @@
 ; ENC: offset: 2, value: extern_sym, kind: Addr16
 	aim	#0x42, extern_sym
 
+; (Rel16, 2) — IndexedOffset16: [opc][postbyte][offset_hi][offset_lo].
+; The assembler always picks Rel5 (smallest) for an external symbol
+; in ``extern_sym, x`` syntax, so we can't trigger Rel16 with a
+; relocation here. Verify the literal-offset encoding instead — the
+; offset bytes land at byte positions 2-3, after the postbyte. If
+; the encoder ever places a Rel16 fixup for this format (e.g. from
+; codegen), it must use offset 2 (offset16_o2). Defensive fix only.
+; ENC: lda 1000,x {{.*}}[0xa6,0x89,0x03,0xe8]
+	lda	1000, x
+
 ; Object-file relocations: each entry's OFFSET column matches the
 ; documented byte position of the operand field.
 ; REL: RELOCATION RECORDS FOR [.text]:
