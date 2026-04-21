@@ -875,7 +875,6 @@ list(APPEND mc6809_SOURCES
   mc6809/lshrdi3.S
   mc6809/udivmoddi4.S
   mc6809/ctzhi2.S
-  mc6809/call_indir.S
   mc6809/mulhi3.S
   mc6809/mulsi3.S
   mc6809/divhi.S
