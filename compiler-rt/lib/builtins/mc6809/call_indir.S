@@ -21,8 +21,9 @@
 // approach.
 //
 // LBSR pushed the return address before arriving here, so JMP [__rs7]
-// transfers control to the target function. When the target executes
-// RTS, it returns directly to the original caller (not to __call_indir).
+// (4 bytes: opcode 6E, postbyte 9F, 16-bit address of __rs7) transfers
+// control to the target function. When the target executes RTS, it
+// returns directly to the original caller (not to __call_indir).
 //
 //===----------------------------------------------------------------------===//
 
@@ -31,10 +32,4 @@
 	.globl	__call_indir
 	.type	__call_indir,@function
 __call_indir:
-	// Workaround for MC6809 assembler bug: `jmp [__rs7]` (extended
-	// indirect with relocated symbol) silently miscompiles to
-	// `jmp $0,x` -- the 16-bit relocation gets written into a
-	// 2-byte instruction.
-	// Indirect-indexed via X works correctly:
-	ldx	#__rs7
-	jmp	[,x]
+	jmp	[__rs7]
