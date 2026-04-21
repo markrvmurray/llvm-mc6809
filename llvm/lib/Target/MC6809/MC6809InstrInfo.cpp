@@ -1288,6 +1288,23 @@ static void dematerializeReg(MachineIRBuilder &Builder, Register PhysReg,
             .addUse(SrcReg, RegState::Implicit)
             .addImm(Offset)
             .addReg(MC6809::SU);
+      } else if (MC6809::Imag16RegClass.contains(DestReg) &&
+                 (SrcReg == MC6809::IX || SrcReg == MC6809::IY ||
+                  SrcReg == MC6809::SU || SrcReg == MC6809::SS)) {
+        // INDEX/STACK → Imag16: store the source register directly to the
+        // direct-page slot using STX/STY/STU/STS. Avoids the TFR-to-D + STD
+        // sequence that would clobber AA/AB and silently corrupt anything
+        // live there (e.g. an outgoing call argument being prepared by
+        // CallLowering for an indirect call via __rs7).
+        unsigned Opc;
+        switch (SrcReg) {
+        case MC6809::IX: Opc = MC6809::STXd; break;
+        case MC6809::IY: Opc = MC6809::STYd; break;
+        case MC6809::SU: Opc = MC6809::STUd; break;
+        case MC6809::SS: Opc = MC6809::STSd; break;
+        default: llvm_unreachable("unreachable");
+        }
+        Builder.buildInstr(Opc).addReg(DestReg).addUse(SrcReg, RegState::Implicit);
       } else {
         Register RealAcc = getPhysRegFor(DestReg);
         if (SrcReg != RealAcc)
@@ -1315,6 +1332,20 @@ static void dematerializeReg(MachineIRBuilder &Builder, Register PhysReg,
             .addDef(DestReg, RegState::Implicit)
             .addImm(Offset)
             .addReg(MC6809::SU);
+      } else if (MC6809::Imag16RegClass.contains(SrcReg) &&
+                 (DestReg == MC6809::IX || DestReg == MC6809::IY ||
+                  DestReg == MC6809::SU || DestReg == MC6809::SS)) {
+        // Imag16 → INDEX/STACK: load directly with LDX/LDY/LDU/LDS.
+        // Avoids the LDD + TFR sequence that would clobber AA/AB.
+        unsigned Opc;
+        switch (DestReg) {
+        case MC6809::IX: Opc = MC6809::LDXd; break;
+        case MC6809::IY: Opc = MC6809::LDYd; break;
+        case MC6809::SU: Opc = MC6809::LDUd; break;
+        case MC6809::SS: Opc = MC6809::LDSd; break;
+        default: llvm_unreachable("unreachable");
+        }
+        Builder.buildInstr(Opc).addDef(DestReg, RegState::Implicit).addReg(SrcReg);
       } else {
         Register RealAcc = materializeReg(Builder, SrcReg, MF);
         if (DestReg != RealAcc)
@@ -1427,14 +1458,38 @@ static void dematerializeReg(MachineIRBuilder &Builder, Register PhysReg,
     Builder.buildInstr(MC6809::STDd).addReg(DestReg);
   } else if (AreClasses(MC6809::Imag16RegClass, MC6809::INDEX16RegClass) ||
              AreClasses(MC6809::Imag16RegClass, MC6809::STACK16RegClass)) {
-    // INDEX16/STACK16 → Imag16: TFR to D, store D.
-    Builder.buildInstr(MC6809::TFRp).addDef(MC6809::AD).addUse(SrcReg);
-    Builder.buildInstr(MC6809::STDd).addReg(DestReg);
+    // INDEX16/STACK16 → Imag16: store the source register directly to the
+    // direct-page slot. Each 16-bit hardware register has its own STxd
+    // (direct-page) opcode, so we don't need to route through D — that
+    // would clobber AA/AB and silently corrupt anything live there
+    // (e.g. an outgoing call argument being prepared by CallLowering).
+    unsigned Opc;
+    switch (SrcReg) {
+    case MC6809::IX: Opc = MC6809::STXd; break;
+    case MC6809::IY: Opc = MC6809::STYd; break;
+    case MC6809::SU: Opc = MC6809::STUd; break;
+    case MC6809::SS: Opc = MC6809::STSd; break;
+    default:
+      Builder.buildInstr(MC6809::TFRp).addDef(MC6809::AD).addUse(SrcReg);
+      Builder.buildInstr(MC6809::STDd).addReg(DestReg);
+      return;
+    }
+    Builder.buildInstr(Opc).addReg(DestReg).addUse(SrcReg, RegState::Implicit);
   } else if (AreClasses(MC6809::INDEX16RegClass, MC6809::Imag16RegClass) ||
              AreClasses(MC6809::STACK16RegClass, MC6809::Imag16RegClass)) {
-    // Imag16 → INDEX16/STACK16: load D, TFR to dest.
-    Builder.buildInstr(MC6809::LDDd).addReg(SrcReg);
-    Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(MC6809::AD);
+    // Imag16 → INDEX16/STACK16: load directly into the destination.
+    unsigned Opc;
+    switch (DestReg) {
+    case MC6809::IX: Opc = MC6809::LDXd; break;
+    case MC6809::IY: Opc = MC6809::LDYd; break;
+    case MC6809::SU: Opc = MC6809::LDUd; break;
+    case MC6809::SS: Opc = MC6809::LDSd; break;
+    default:
+      Builder.buildInstr(MC6809::LDDd).addReg(SrcReg);
+      Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(MC6809::AD);
+      return;
+    }
+    Builder.buildInstr(Opc).addDef(DestReg, RegState::Implicit).addReg(SrcReg);
   } else
     llvm_unreachable("Unexpected physical register copy.");
 }
