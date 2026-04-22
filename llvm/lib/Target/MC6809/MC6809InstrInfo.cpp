@@ -649,6 +649,11 @@ bool MC6809InstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock *&
     // Handle conditional branches: operand 0 is the condition code immediate,
     // operand 1 is the target MBB.
     assert(NumOps == 2 && "Invalid conditional branch");
+    // Guard against generic MIR instructions (G_BRCOND) where operand 0
+    // is a virtual register, not an immediate condition code. These appear
+    // before instruction selection and are opaque to branch analysis.
+    if (!I->getOperand(0).isImm())
+      return true;
     MC6809CC::CondCode CC = MC6809CC::CondCode(I->getOperand(0).getImm());
 
     // Working from the bottom, handle the first conditional branch.
