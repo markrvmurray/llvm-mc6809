@@ -1,0 +1,72 @@
+; RUN: llc -global-isel -global-isel-abort=1 -O0 -mtriple=mc6809 \
+; RUN:   %S/Inputs/codegen-icmp-brcond.ll -o %t-raw.s 2>/dev/null
+; RUN: grep -v '\.directpage' %t-raw.s > %t-funcs.s
+; RUN: %clang6809 -Oz -c -o %t-harness.o %S/Inputs/harness-icmp-brcond.c
+; RUN: echo '.include "runtime.inc"' > %t-all.s
+; RUN: echo '.include "mc6809rt.s"' >> %t-all.s
+; RUN: cat %t-funcs.s >> %t-all.s
+; RUN: llvm-mc -triple=mc6809 -I %S/Inputs --filetype=obj -o %t.o %t-all.s
+; RUN: ld.lld -T %S/Inputs/link.ld %t.o %t-harness.o -o %t.elf
+; RUN: llvm-objcopy -O ihex %t.elf %t.hex
+; RUN: %usim09batch --timeout=500000 %t.hex | FileCheck %s
+;
+; RUN: llc -global-isel -global-isel-abort=1 -O1 -mtriple=mc6809 \
+; RUN:   %S/Inputs/codegen-icmp-brcond.ll -o %t-raw.s 2>/dev/null
+; RUN: grep -v '\.directpage' %t-raw.s > %t-funcs.s
+; RUN: %clang6809 -Oz -c -o %t-harness.o %S/Inputs/harness-icmp-brcond.c
+; RUN: echo '.include "runtime.inc"' > %t-all.s
+; RUN: echo '.include "mc6809rt.s"' >> %t-all.s
+; RUN: cat %t-funcs.s >> %t-all.s
+; RUN: llvm-mc -triple=mc6809 -I %S/Inputs --filetype=obj -o %t.o %t-all.s
+; RUN: ld.lld -T %S/Inputs/link.ld %t.o %t-harness.o -o %t.elf
+; RUN: llvm-objcopy -O ihex %t.elf %t.hex
+; RUN: %usim09batch --timeout=500000 %t.hex | FileCheck %s
+;
+; RUN: llc -global-isel -global-isel-abort=1 -O2 -mtriple=mc6809 \
+; RUN:   %S/Inputs/codegen-icmp-brcond.ll -o %t-raw.s 2>/dev/null
+; RUN: grep -v '\.directpage' %t-raw.s > %t-funcs.s
+; RUN: %clang6809 -Oz -c -o %t-harness.o %S/Inputs/harness-icmp-brcond.c
+; RUN: echo '.include "runtime.inc"' > %t-all.s
+; RUN: echo '.include "mc6809rt.s"' >> %t-all.s
+; RUN: cat %t-funcs.s >> %t-all.s
+; RUN: llvm-mc -triple=mc6809 -I %S/Inputs --filetype=obj -o %t.o %t-all.s
+; RUN: ld.lld -T %S/Inputs/link.ld %t.o %t-harness.o -o %t.elf
+; RUN: llvm-objcopy -O ihex %t.elf %t.hex
+; RUN: %usim09batch --timeout=500000 %t.hex | FileCheck %s
+;
+; RUN: llc -global-isel -global-isel-abort=1 -O3 -mtriple=mc6809 \
+; RUN:   %S/Inputs/codegen-icmp-brcond.ll -o %t-raw.s 2>/dev/null
+; RUN: grep -v '\.directpage' %t-raw.s > %t-funcs.s
+; RUN: %clang6809 -Oz -c -o %t-harness.o %S/Inputs/harness-icmp-brcond.c
+; RUN: echo '.include "runtime.inc"' > %t-all.s
+; RUN: echo '.include "mc6809rt.s"' >> %t-all.s
+; RUN: cat %t-funcs.s >> %t-all.s
+; RUN: llvm-mc -triple=mc6809 -I %S/Inputs --filetype=obj -o %t.o %t-all.s
+; RUN: ld.lld -T %S/Inputs/link.ld %t.o %t-harness.o -o %t.elf
+; RUN: llvm-objcopy -O ihex %t.elf %t.hex
+; RUN: %usim09batch --timeout=500000 %t.hex | FileCheck %s
+; REQUIRES: usim
+;
+; Codegen execution test for icmp+brcond on i16 (bug #114). Validates
+; that all unsigned and equality comparisons consumed by an i16 select
+; return the correct boolean for both small-vs-big and "high bytes
+; differ" inputs (the original failing case in __ssp_overlap).
+
+; CHECK: 0001
+; CHECK-NEXT: 0000
+; CHECK-NEXT: 0001
+; CHECK-NEXT: 0000
+; CHECK-NEXT: 0000
+; CHECK-NEXT: 0000
+; CHECK-NEXT: 0001
+; CHECK-NEXT: 0000
+; CHECK-NEXT: 0001
+; CHECK-NEXT: 0000
+; CHECK-NEXT: 0001
+; CHECK-NEXT: 0000
+; CHECK-NEXT: 0001
+; CHECK-NEXT: 0001
+; CHECK-NEXT: 0001
+; CHECK-NEXT: 0000
+; CHECK-NEXT: 0000
+; CHECK-NEXT: 0001

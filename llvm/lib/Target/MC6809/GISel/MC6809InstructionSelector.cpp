@@ -638,7 +638,213 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
       }
     };
 
-    MachineInstr *CondDef = MRI->getVRegDef(CondReg);
+    // Walk through G_FREEZE / COPY to find the real defining instruction.
+    // `freeze i1 %cmp` is commonly inserted by InstCombine between an
+    // icmp and a brcond consumer; treating it as a barrier would defeat
+    // the optimisation below.
+    Register WalkReg = CondReg;
+    MachineInstr *CondDef = MRI->getVRegDef(WalkReg);
+    while (CondDef && (CondDef->getOpcode() == TargetOpcode::G_FREEZE ||
+                       CondDef->getOpcode() == TargetOpcode::COPY)) {
+      Register NextReg = CondDef->getOperand(1).getReg();
+      if (!NextReg.isVirtual())
+        break;
+      WalkReg = NextReg;
+      CondDef = MRI->getVRegDef(WalkReg);
+    }
+
+    // Map a condition code to the set of CC sub-flags it actually reads.
+    // The conditional branch only cares about these bits; intervening
+    // instructions are free to modify other flag bits without invalidating
+    // the optimisation.
+    //
+    // 6809 condition encoding (per datasheet):
+    //   HS/CC = !C       LO/CS = C
+    //   HI    = !C & !Z  LS    = C | Z
+    //   PL    = !N       MI    = N
+    //   VC    = !V       VS    = V
+    //   NE    = !Z       EQ    = Z
+    //   GE    = !(N^V)   LT    = N^V
+    //   GT    = !Z & !(N^V)   LE = Z | (N^V)
+    //   RA    = always   RN    = never
+    auto FlagsReadBy = [](int64_t cc) {
+      SmallVector<MCPhysReg, 3> Out;
+      switch (cc) {
+      case MC6809CC::CC: case MC6809CC::CS:
+        Out.push_back(MC6809::C); break;
+      case MC6809CC::HI: case MC6809CC::LS:
+        Out.push_back(MC6809::C); Out.push_back(MC6809::Z); break;
+      case MC6809CC::EQ: case MC6809CC::NE:
+        Out.push_back(MC6809::Z); break;
+      case MC6809CC::VC: case MC6809CC::VS:
+        Out.push_back(MC6809::V); break;
+      case MC6809CC::PL: case MC6809CC::MI:
+        Out.push_back(MC6809::N); break;
+      case MC6809CC::GE: case MC6809CC::LT:
+        Out.push_back(MC6809::N); Out.push_back(MC6809::V); break;
+      case MC6809CC::GT: case MC6809CC::LE:
+        Out.push_back(MC6809::N); Out.push_back(MC6809::V);
+        Out.push_back(MC6809::Z); break;
+      default: break; // RA/RN/INVALID — no flags consulted
+      }
+      return Out;
+    };
+
+    // Helper: walk from `From` (exclusive) up to BRCOND (exclusive) and
+    // check that no instruction between modifies any of the CC bits the
+    // branch will consult. Returns true if safe to use the live CC.
+    auto CCBitsSurvive = [&](MachineInstr *From, ArrayRef<MCPhysReg> Bits) {
+      for (auto It = std::next(MachineBasicBlock::iterator(From)),
+                End = MachineBasicBlock::iterator(&MI);
+           It != End; ++It) {
+        for (MCPhysReg Bit : Bits)
+          if (It->modifiesRegister(Bit, &TRI))
+            return false;
+      }
+      return true;
+    };
+
+    // Bug #114 optimization: if the s1 condition is the BIT1 produced by a
+    // `ConditionalImm cc, Compare/Test, 1, 0` (which is what every `setcc`
+    // tablegen pattern emits to materialise an i1 result), bypass the
+    // diamond-CFG materialisation and branch directly on CC using the same
+    // condition code that ConditionalImm was about to test.
+    //
+    // Without this, the asm pattern is:
+    //
+    //   cmpd ,s              ; Compare sets CC
+    //   <ConditionalImm diamond: lda #0/#1 to materialise BIT1>
+    //   ldd #trueval         ; setup of any later D-typed value (PHI, etc.)
+    //                        ;   — this clobbers A, killing the BIT1 LSB
+    //   tsta                 ; reads A, now garbage
+    //   lbne <target>        ; branch never taken
+    //
+    // The BIT1 phantom lives in the LSB of an ACC8 (often AALSB ⊂ AA ⊂ AD),
+    // and any intervening i16 def into AD destroys it. Bypassing the
+    // materialisation entirely sidesteps the whole class of regalloc
+    // collisions on the BIT1 phantom.
+    //
+    // Operand layout of ConditionalImm:
+    //   op0: BIT1 def
+    //   op1: condcode imm (CC)
+    //   op2: CCond use (from Compare/Test)
+    //   op3: i1 imm (true value, conventionally 1)
+    //   op4: i1 imm (false value, conventionally 0)
+    //
+    // We only fire when (true,false) == (1,0); other orderings would invert
+    // the branch sense and aren't worth the complication right now.
+    // Map a CmpInst predicate to the matching MC6809 condition code.
+    auto PredToCC = [](CmpInst::Predicate Pred) -> std::optional<unsigned> {
+      switch (Pred) {
+      case CmpInst::ICMP_EQ:  return MC6809CC::EQ;
+      case CmpInst::ICMP_NE:  return MC6809CC::NE;
+      case CmpInst::ICMP_UGT: return MC6809CC::HI;
+      case CmpInst::ICMP_UGE: return MC6809CC::HS;
+      case CmpInst::ICMP_ULT: return MC6809CC::LO;
+      case CmpInst::ICMP_ULE: return MC6809CC::LS;
+      case CmpInst::ICMP_SGT: return MC6809CC::GT;
+      case CmpInst::ICMP_SGE: return MC6809CC::GE;
+      case CmpInst::ICMP_SLT: return MC6809CC::LT;
+      case CmpInst::ICMP_SLE: return MC6809CC::LE;
+      default: return std::nullopt;
+      }
+    };
+
+    // Bug #114 optimization: if the s1 condition is the result of a same-MBB
+    // G_ICMP whose only consumer is this BRCOND, bypass the materialise-then-
+    // test path entirely. Emit `Compare_*` (or `Test_*`) then `LBlbc <cc>`
+    // directly, picking the cc from the icmp's predicate. The classic
+    // diamond-CFG materialisation (lda #0 / lda #1 / tsta / lbne) is broken
+    // because any intervening i16 def into AD clobbers the bool LSB sitting
+    // inside AALSB or ABLSB — see #114 in the bug tracker for the full
+    // analysis and a 3-line repro.
+    //
+    // Conditions to fire:
+    //   - CondDef is G_ICMP in the same MBB as the BRCOND.
+    //   - The G_ICMP's s1 result has exactly one non-debug use (the path
+    //     from icmp to brcond may go through G_FREEZE or COPY, which we
+    //     already walked through above to find CondDef).
+    //   - The predicate is one we can map to an MC6809 CC.
+    //   - Operand types are scalar i8 or i16 (other widths legalize away).
+    //   - Operands are register/register; complex addressing modes fall
+    //     through to the existing path.
+    //   - Operand banks are ACCUM (so ACC8/ACC16 register classes apply;
+    //     INDEX/STACK banks need the ptr/STACK16 variants and aren't
+    //     covered yet — those would be needed for pointer comparisons,
+    //     which currently route through a different ICMP form).
+    if (CondDef && CondDef->getOpcode() == TargetOpcode::G_ICMP &&
+        CondDef->getParent() == MBB &&
+        MRI->hasOneNonDBGUse(CondDef->getOperand(0).getReg())) {
+      auto Pred = (CmpInst::Predicate)CondDef->getOperand(1).getPredicate();
+      Register Lhs = CondDef->getOperand(2).getReg();
+      Register Rhs = CondDef->getOperand(3).getReg();
+      LLT Ty = MRI->getType(Lhs);
+      auto CCOpt = PredToCC(Pred);
+      const RegisterBank *LBank = RBI.getRegBank(Lhs, *MRI, TRI);
+      const RegisterBank *RBank = RBI.getRegBank(Rhs, *MRI, TRI);
+      bool BothAccum = LBank && RBank &&
+                       LBank->getID() == MC6809::ACCUMRegBankID &&
+                       RBank->getID() == MC6809::ACCUMRegBankID;
+      unsigned PushOpc = 0;
+      unsigned CmpBrPullOpc = 0;
+      const TargetRegisterClass *RC = nullptr;
+      if (BothAccum && CCOpt) {
+        if (Ty == LLT::scalar(8)) {
+          PushOpc = MC6809::Push_i8;
+          CmpBrPullOpc = MC6809::CompareBranch_i8_Pull;
+          RC = &MC6809::ACC8RegClass;
+        } else if (Ty == LLT::scalar(16)) {
+          PushOpc = MC6809::Push_i16;
+          CmpBrPullOpc = MC6809::CompareBranch_i16_Pull;
+          RC = &MC6809::ACC16RegClass;
+        }
+      }
+      if (CmpBrPullOpc && CCOpt) {
+        // Constrain operand classes for the CompareBranch pseudo. G_ICMP
+        // operands are bank-selected but may not yet have a register class
+        // pinned, so we use constrainGenericRegister.
+        if (RBI.constrainGenericRegister(Lhs, *RC, *MRI) &&
+            RBI.constrainGenericRegister(Rhs, *RC, *MRI)) {
+          // Follow the same shape the tablegen `_Push_Pull` pattern uses
+          // for non-HD6309: push RHS, then CompareBranch_*_Pull reads it
+          // off the stack (the `Reg` variant would expand to CMPR which
+          // is HD6309-only).
+          Register Pushed =
+              MRI->createVirtualRegister(&MC6809::STACK16RegClass);
+          BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(PushOpc), Pushed)
+              .addReg(Rhs);
+          // CompareBranch_*_Pull operand layout: cc, src, idx(STACK16), tgt.
+          BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(CmpBrPullOpc))
+              .addImm(*CCOpt)
+              .addReg(Lhs)
+              .addReg(Pushed)
+              .addMBB(TargetMBB);
+          // Remove G_ICMP first (its only use was this BRCOND) and then BRCOND.
+          CondDef->eraseFromParent();
+          MI.eraseFromParent();
+          return true;
+        }
+      }
+    }
+
+    if (CondDef && CondDef->getOpcode() == MC6809::ConditionalImm &&
+        CondDef->getParent() == MBB) {
+      int64_t CC = CondDef->getOperand(1).getImm();
+      int64_t TrueVal = CondDef->getOperand(3).getImm();
+      int64_t FalseVal = CondDef->getOperand(4).getImm();
+      if (TrueVal == 1 && FalseVal == 0 &&
+          CCBitsSurvive(CondDef, FlagsReadBy(CC))) {
+        BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(MC6809::LBlbc))
+            .addImm(CC)
+            .addMBB(TargetMBB);
+        MI.eraseFromParent();
+        // Leave the now-dead ConditionalImm for DCE; it has no other users
+        // because we just consumed its only consumer (the BRCOND), but other
+        // passes may yet hold references.
+        return true;
+      }
+    }
+
     bool UseCarryFlag = false;
     if (CondDef && CondDef->getParent() == MBB &&
         IsCarryProducer(CondDef->getOpcode())) {
@@ -648,16 +854,9 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
       if (CondDef->getNumOperands() >= 2 &&
           CondDef->getOperand(1).isReg() &&
           CondDef->getOperand(1).getReg() == CondReg) {
-        // Verify nothing between the producer and the BRCOND clobbers CC.
-        UseCarryFlag = true;
-        for (auto It = std::next(MachineBasicBlock::iterator(CondDef)),
-                  End = MachineBasicBlock::iterator(&MI);
-             It != End; ++It) {
-          if (It->modifiesRegister(MC6809::CC, &TRI)) {
-            UseCarryFlag = false;
-            break;
-          }
-        }
+        // Verify nothing between the producer and the BRCOND clobbers C
+        // (we'll branch on CS which only consults the carry bit).
+        UseCarryFlag = CCBitsSurvive(CondDef, {MC6809::C});
       }
     }
 
