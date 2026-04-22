@@ -1872,13 +1872,20 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     MI.setDesc(Builder.getTII().get(MC6809::LBRAlb));
     break;
   case MC6809::ConditionalBranchRelative:
-    // Default to long conditional branches (was bug #58).
-    MI.setDesc(Builder.getTII().get(MC6809::LBlbc));
-    MI.removeOperand(2);
-    break;
   case MC6809::ConditionalLongBranchRelative:
+    // Default to long conditional branches (was bug #58). Strip the
+    // pseudo's CCond:$bits operand — the assembler encoding has no
+    // register field — and replace it with the implicit Uses on N/Z/V/C
+    // declared by Bbc/LBlbc (bug #137). Without these implicit uses the
+    // post-RA MachineInstr would lack any CC dependency at all and the
+    // scheduler would freely insert flag-clobbering instructions between
+    // the cmp and this branch.
     MI.setDesc(Builder.getTII().get(MC6809::LBlbc));
     MI.removeOperand(2);
+    MI.addOperand(MachineOperand::CreateReg(MC6809::N, /*isDef=*/false, /*isImp=*/true));
+    MI.addOperand(MachineOperand::CreateReg(MC6809::Z, /*isDef=*/false, /*isImp=*/true));
+    MI.addOperand(MachineOperand::CreateReg(MC6809::V, /*isDef=*/false, /*isImp=*/true));
+    MI.addOperand(MachineOperand::CreateReg(MC6809::C, /*isDef=*/false, /*isImp=*/true));
     break;
   case MC6809::ReturnImplicit:
     MI.setDesc(Builder.getTII().get(MC6809::RTSr));

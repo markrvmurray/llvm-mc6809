@@ -505,9 +505,25 @@ let mayLoad = false, mayStore = false, isBranch = false, isTerminator = false in
 }
 
 // Conditional: short (Bcc) + long (LBcc). Condition encoded in operand.
+// Bug #137: Uses=[N,Z,V,C] is mandatory. Without it the post-RA scheduler
+// will happily insert flag-clobbering instructions (LDD, ANDA, NEG, etc.)
+// between the CMP that sets the flags and the conditional branch that
+// reads them. Pre-RA the dependency rides through a CCond:$bits virtual-
+// register operand on the ConditionalBranchRelative pseudo, but
+// expandPostRAPseudo strips that operand (it's not part of the assembler
+// encoding) — so the post-RA MachineInstr must declare the implicit CC
+// reads here, otherwise the scheduler sees a "free" branch.
+//
+// The union of all condition codes' flag dependencies is N, Z, V, C —
+// equivalently the composite NZVC register. Declaring the union here
+// (not the per-condition subset) is intentional: $cond is an immediate
+// operand whose value the scheduler can't see at instruction-info-class
+// granularity, and overconstraining is strictly safer than under-
+// constraining (worst case we lose a per-condition reordering opportunity
+// the scheduler had no business taking).
 let mayLoad = false, mayStore = false, isBranch = true, isTerminator = true in {
-  def Bbc   : MC6809ShortConditionalBranch_P1<(outs), "b$cond",  Opcode<0x02,1>, [], []>;
-  def LBlbc : MC6809LongConditionalBranch_P2<(outs),  "lb$cond", Opcode<0x02,2>, [], []>;
+  def Bbc   : MC6809ShortConditionalBranch_P1<(outs), "b$cond",  Opcode<0x02,1>, [], [N, Z, V, C]>;
+  def LBlbc : MC6809LongConditionalBranch_P2<(outs),  "lb$cond", Opcode<0x02,2>, [], [N, Z, V, C]>;
 }
 
 // Subroutine call: short (BSR) + long (LBSR).
