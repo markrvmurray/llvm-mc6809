@@ -11,12 +11,21 @@ set(LLVM_ENABLE_LIBXML2 "OFF" CACHE STRING "")
 set(LLVM_ENABLE_ZLIB "OFF" CACHE STRING "")
 set(LLVM_ENABLE_ZSTD "OFF" CACHE STRING "")
 
-set(LLVM_ENABLE_RUNTIMES compiler-rt CACHE STRING "")
+# LLVM_ENABLE_RUNTIMES gates the `runtimes` external sub-project that
+# builds compiler-rt's sanitizers, XRay, profile, etc. None of those
+# target bare-metal MC6809 — their feature-detection probes try
+# `-arch x86_64h`, `-miphoneos-version-min=…`, `-g` (link-required)
+# through our cross-clang, all of which fail. Force this empty so the
+# `runtimes` sub-project is never generated and `cmake --build . --target
+# all` succeeds. Builtins use a SEPARATE path below (LLVM_BUILTIN_TARGETS)
+# and remain unaffected — `get_compiler_rt_path` falls back to the source
+# tree when LLVM_BUILTIN_TARGETS is set, so builtins still build.
+# FORCE here overrides whatever CLion's project setup tries to set.
+set(LLVM_ENABLE_RUNTIMES "" CACHE STRING "" FORCE)
+set(LLVM_RUNTIME_TARGETS "" CACHE STRING "" FORCE)
 
 # RT library / builtins cross-compilation for bare-metal MC6809.
 set(LLVM_BUILTIN_TARGETS mc6809-unknown-unknown CACHE STRING "")
-# No full runtimes (sanitizers etc.) for bare-metal MC6809 — only builtins.
-# set(LLVM_RUNTIME_TARGETS mc6809-unknown-unknown CACHE STRING "")
 set(BUILTINS_mc6809-unknown-unknown_COMPILER_RT_BAREMETAL_BUILD ON CACHE BOOL "")
 set(BUILTINS_mc6809-unknown-unknown_COMPILER_RT_BUILTINS_ENABLE_PIC OFF CACHE BOOL "")
 set(BUILTINS_mc6809-unknown-unknown_CMAKE_BUILD_TYPE MinSizeRel CACHE STRING "")
