@@ -10,6 +10,14 @@ MEMORY {
     VEC (r)   : ORIGIN = 0xFFF0, LENGTH = 0x0010
 }
 
+/* IO device symbols — the single source of truth for the memory map.
+   IR under test (codegen-picolibc.ll) references these as externals
+   instead of hardcoding 0xC000/0xC001 inline (bug #102). Change the
+   map here and everything follows; no per-test patching required. */
+__acia_status = 0xC000;
+__acia_data   = 0xC001;
+__halt        = 0xC002;
+
 SECTIONS {
     /* Imaginary registers — direct page (DP=0, addresses 0x00-0xFF).
        8-bit (RC) and 16-bit (RS) pools are non-overlapping. */
