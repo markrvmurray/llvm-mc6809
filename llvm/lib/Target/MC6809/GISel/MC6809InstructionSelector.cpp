@@ -590,6 +590,85 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     // (was bug #59).
     Register CondReg = MI.getOperand(0).getReg();
     MachineBasicBlock *TargetMBB = MI.getOperand(1).getMBB();
+
+    // Bug #115 optimization: if the s1 condition is the carry-out of an
+    // unsigned add/sub-with-carry-out (G_USUBO/G_UADDO/G_USUBE/G_UADDE,
+    // either generic or already selected to the corresponding SubSetCarry
+    // / AddSetCarry pseudo), skip the materialise-then-test sequence and
+    // branch directly on CC.C.
+    //
+    // The materialise path is broken when the BIT1 carry vreg has been
+    // allocated to a sub-register of the SetCarry's `dst` (which the
+    // regalloc allows because for arithmetic chains the BIT1 LSB is
+    // never read — the chain consumes the carry via CC.C). Reading the
+    // BIT1 LSB then yields a stray bit of the result, not the carry.
+    // Going directly to BCS keeps the carry flag from the producer in
+    // CC.C right through to the conditional long branch — no s1
+    // materialisation needed.
+    //
+    // Restrictions:
+    //   - The producer must be in the same MBB as the BRCOND, with no
+    //     CC-clobbering instructions between (anything that defs CC).
+    //   - Limited to the unsigned ops because their s1 corresponds to
+    //     the C flag (1 = borrow / carry). G_SSUBO/G_SADDO use V; not
+    //     handled here yet.
+    auto IsCarryProducer = [](unsigned Opc) {
+      switch (Opc) {
+      case TargetOpcode::G_USUBO:
+      case TargetOpcode::G_UADDO:
+      case TargetOpcode::G_USUBE:
+      case TargetOpcode::G_UADDE:
+      case MC6809::SubSetCarry_i8_Imm:  case MC6809::SubSetCarry_i16_Imm:
+      case MC6809::SubSetCarry_i8_Mem:  case MC6809::SubSetCarry_i16_Mem:
+      case MC6809::SubSetCarry_i8_Pull: case MC6809::SubSetCarry_i16_Pull:
+      case MC6809::SubSetCarry_i8_Reg:  case MC6809::SubSetCarry_i16_Reg:
+      case MC6809::AddSetCarry_i8_Imm:  case MC6809::AddSetCarry_i16_Imm:
+      case MC6809::AddSetCarry_i8_Mem:  case MC6809::AddSetCarry_i16_Mem:
+      case MC6809::AddSetCarry_i8_Pull: case MC6809::AddSetCarry_i16_Pull:
+      case MC6809::AddSetCarry_i8_Reg:  case MC6809::AddSetCarry_i16_Reg:
+      case MC6809::SubSetCarryUse_i8_Imm:  case MC6809::SubSetCarryUse_i16_Imm:
+      case MC6809::SubSetCarryUse_i8_Mem:  case MC6809::SubSetCarryUse_i16_Mem:
+      case MC6809::SubSetCarryUse_i8_Reg:  case MC6809::SubSetCarryUse_i16_Reg:
+      case MC6809::AddSetCarryUse_i8_Imm:  case MC6809::AddSetCarryUse_i16_Imm:
+      case MC6809::AddSetCarryUse_i8_Mem:  case MC6809::AddSetCarryUse_i16_Mem:
+      case MC6809::AddSetCarryUse_i8_Reg:  case MC6809::AddSetCarryUse_i16_Reg:
+        return true;
+      default:
+        return false;
+      }
+    };
+
+    MachineInstr *CondDef = MRI->getVRegDef(CondReg);
+    bool UseCarryFlag = false;
+    if (CondDef && CondDef->getParent() == MBB &&
+        IsCarryProducer(CondDef->getOpcode())) {
+      // For G_U(SUB|ADD)O/E the s1 is operand 1; for the SetCarry pseudos
+      // it's also operand 1. Make sure CondReg really is that operand —
+      // not the data result (which is operand 0).
+      if (CondDef->getNumOperands() >= 2 &&
+          CondDef->getOperand(1).isReg() &&
+          CondDef->getOperand(1).getReg() == CondReg) {
+        // Verify nothing between the producer and the BRCOND clobbers CC.
+        UseCarryFlag = true;
+        for (auto It = std::next(MachineBasicBlock::iterator(CondDef)),
+                  End = MachineBasicBlock::iterator(&MI);
+             It != End; ++It) {
+          if (It->modifiesRegister(MC6809::CC, &TRI)) {
+            UseCarryFlag = false;
+            break;
+          }
+        }
+      }
+    }
+
+    if (UseCarryFlag) {
+      BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(MC6809::LBlbc))
+          .addImm(MC6809CC::CS)
+          .addMBB(TargetMBB);
+      MI.eraseFromParent();
+      return true;
+    }
+
     // TestBranch_i8_Reg's source is constrained to ACC8.
     MRI->setRegClass(CondReg, &MC6809::ACC8RegClass);
     // Branch if non-zero (NE).
