@@ -242,9 +242,16 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // HD6309 uses native ANDD/ORD/EORD. i32 uses custom legalization
   // that sequences the Store between the two i16 ANDs (avoids ACC16
   // register pressure from having both results live in D simultaneously).
+  //
+  // Bug #137 prerequisite (2026-04-22): handle s1 via customFor, mirroring
+  // MOS at MOSLegalizerInfo.cpp:155-160. The i16 G_ICMP narrowing (#137
+  // phase 1) produces i1 bool-combines from byte-compare results, so
+  // s1 G_AND/G_OR/G_XOR must have a clean lowering path. The custom
+  // handler widens to s8 via G_ZEXT, performs the bitwise op, and
+  // truncates back to s1.
   getActionDefinitionsBuilder({G_AND, G_OR, G_XOR})
       .legalFor({s8, s16})
-      .customFor({s32})
+      .customFor({s1, s32})
       .clampScalar(0, s8, s16);
 
   // Shifts/rotates: shift-by-1 is a native instruction (ASL/LSR/ASR).
@@ -757,8 +764,28 @@ MC6809LegalizerInfo::legalizeBitwise(LegalizerHelper &Helper,
     LostDebugLocObserver &LocObserver) const {
   unsigned Opc = MI.getOpcode();
   assert((Opc == G_AND || Opc == G_OR || Opc == G_XOR) && "Unexpected opcode");
-  assert(MRI.getType(MI.getOperand(0).getReg()) == LLT::scalar(32) && "Expected s32");
   MachineIRBuilder &B = Helper.MIRBuilder;
+  LLT Ty = MRI.getType(MI.getOperand(0).getReg());
+
+  // Bug #137 prerequisite: s1 G_AND/G_OR/G_XOR lowers to
+  //    trunc(<op>(zext(a, s8), zext(b, s8)), s1).
+  // MC6809 has no native 1-bit bitwise op; do it at byte width and
+  // truncate the result back. Mirrors MOS's customFor({S1}) path at
+  // MOSLegalizerInfo.cpp:155-160.
+  if (Ty == LLT::scalar(1)) {
+    Register Dst = MI.getOperand(0).getReg();
+    Register A   = MI.getOperand(1).getReg();
+    Register B2  = MI.getOperand(2).getReg();
+    LLT S8 = LLT::scalar(8);
+    auto AExt = B.buildZExt(S8, A);
+    auto BExt = B.buildZExt(S8, B2);
+    auto Op8  = B.buildInstr(Opc, {S8}, {AExt, BExt});
+    B.buildTrunc(Dst, Op8);
+    MI.eraseFromParent();
+    return true;
+  }
+
+  assert(Ty == LLT::scalar(32) && "Expected s1 or s32");
   LLT S16 = LLT::scalar(16);
   auto BuildOp = [&](Register L, Register R) {
     return B.buildInstr(Opc, {S16}, {L, R});
