@@ -76,6 +76,23 @@ static bool isIndexedStore(unsigned Opc) {
   }
 }
 
+/// Returns true if the opcode is an indexed store of a non-accumulator
+/// register (STY/STX/STU). These don't define any accumulator we track,
+/// but they DO overwrite a slot's contents — so any earlier accumulator-
+/// to-slot mapping must be invalidated when one of these stores hits the
+/// same slot. Without this, the pass thinks (e.g.) slot 8 still holds D's
+/// value after `STY 8,s`, and falsely deletes a subsequent `LDD 8,s`.
+static bool isIndexedNonAccStore(unsigned Opc) {
+  switch (Opc) {
+  case MC6809::STYi_o0: case MC6809::STYi_o5: case MC6809::STYi_o8: case MC6809::STYi_o16:
+  case MC6809::STXi_o0: case MC6809::STXi_o5: case MC6809::STXi_o8: case MC6809::STXi_o16:
+  case MC6809::STUi_o0: case MC6809::STUi_o5: case MC6809::STUi_o8: case MC6809::STUi_o16:
+    return true;
+  default:
+    return false;
+  }
+}
+
 /// Returns true if the opcode is an indexed load.
 static bool isIndexedLoad(unsigned Opc) {
   switch (Opc) {
@@ -289,6 +306,26 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
             Lo->WasRead = true;
         }
         setSlot(Key, AccReg, &MI);
+        continue;
+      }
+
+      if (isIndexedNonAccStore(Opc)) {
+        // STY/STX/STU writes 2 bytes to the slot. The slot no longer
+        // matches any tracked accumulator value — invalidate the
+        // accumulator mapping for [offset, offset+1] so later loads
+        // from those slots are not falsely treated as redundant.
+        SlotKey Key = getSlotKey(MI);
+        SlotKey LoKey = {Key.BaseReg, Key.Offset + 1};
+        if (auto *Hi = findSlot(Key)) {
+          Hi->Reg = Register();
+          Hi->StoreInstr = nullptr;
+          Hi->WasRead = true;
+        }
+        if (auto *Lo = findSlot(LoKey)) {
+          Lo->Reg = Register();
+          Lo->StoreInstr = nullptr;
+          Lo->WasRead = true;
+        }
         continue;
       }
 
