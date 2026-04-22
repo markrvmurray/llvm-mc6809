@@ -768,17 +768,29 @@ MC6809LegalizerInfo::legalizeBitwise(LegalizerHelper &Helper,
   LLT Ty = MRI.getType(MI.getOperand(0).getReg());
 
   // Bug #137 prerequisite: s1 G_AND/G_OR/G_XOR lowers to
-  //    trunc(<op>(zext(a, s8), zext(b, s8)), s1).
+  //    trunc(<op>(anyext(a, s8), anyext(b, s8)), s1).
   // MC6809 has no native 1-bit bitwise op; do it at byte width and
   // truncate the result back. Mirrors MOS's customFor({S1}) path at
   // MOSLegalizerInfo.cpp:155-160.
+  //
+  // Bug #148: use ANYEXT, not ZEXT. ZEXT s1→s8 selects to ZEX8Implicit,
+  // whose expansion (`ANDB #1`) reads the BIT1 vreg's parent byte's LSB.
+  // For BIT1 vregs from carry-phantom pseudos (G_UADDO/G_UADDE/G_USUBO/
+  // G_USUBE — see `isCarryPhantomPseudo` in MC6809InstructionSelector.cpp
+  // and the bug #57 design), that LSB holds garbage; the real carry
+  // lives only in CC.C. ANYEXT routes through the selector's G_ANYEXT
+  // s1→s8 custom path (MC6809InstructionSelector.cpp:472-510), which
+  // detects carry-phantom sources and emits MaterializeCarryToByte_i8
+  // (`LDB #0; ADCB #0`, reading CC.C honestly). For non-phantom BIT1s
+  // the path becomes a COPY — upper bits are garbage but our final
+  // G_TRUNC discards them.
   if (Ty == LLT::scalar(1)) {
     Register Dst = MI.getOperand(0).getReg();
     Register A   = MI.getOperand(1).getReg();
     Register B2  = MI.getOperand(2).getReg();
     LLT S8 = LLT::scalar(8);
-    auto AExt = B.buildZExt(S8, A);
-    auto BExt = B.buildZExt(S8, B2);
+    auto AExt = B.buildAnyExt(S8, A);
+    auto BExt = B.buildAnyExt(S8, B2);
     auto Op8  = B.buildInstr(Opc, {S8}, {AExt, BExt});
     B.buildTrunc(Dst, Op8);
     MI.eraseFromParent();
