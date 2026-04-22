@@ -3641,6 +3641,7 @@ static unsigned getDirectPageOpcode(unsigned IdxOpc) {
   case MC6809::ADDAi_o8: case MC6809::ADDAi_o0: return MC6809::ADDAd;
   case MC6809::ADCAi_o8: case MC6809::ADCAi_o0: return MC6809::ADCAd;
   case MC6809::ADCBi_o8: case MC6809::ADCBi_o5: return MC6809::ADCBd;
+  case MC6809::SUBAi_o8: case MC6809::SUBAi_o0: return MC6809::SUBAd;
   case MC6809::SUBBi_o8: case MC6809::SUBBi_o5: return MC6809::SUBBd;
   case MC6809::SBCAi_o8: case MC6809::SBCAi_o0: return MC6809::SBCAd;
   case MC6809::SBCBi_o8: case MC6809::SBCBi_o5: return MC6809::SBCBd;
