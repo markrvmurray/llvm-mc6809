@@ -138,38 +138,6 @@ void MC6809InstructionSelector::setupMF(MachineFunction &MF,
   }
 }
 
-// Returns true for pseudos (and their generic predecessors) whose BIT1
-// carry-out vreg is a SCHEDULING PHANTOM — the real carry lives in CC.C,
-// not in the allocated byte-LSB. Used by the G_ANYEXT s1→s8 selector to
-// route those through MaterializeCarryToByte_i8 (bug #140), and by the
-// G_BRCOND handler to short-circuit to CC.C-based branching (bug #115).
-// Keep this list in sync with the expansions in MC6809InstrInfo.cpp.
-static bool isCarryPhantomPseudo(unsigned Opc) {
-  switch (Opc) {
-  case TargetOpcode::G_USUBO:
-  case TargetOpcode::G_UADDO:
-  case TargetOpcode::G_USUBE:
-  case TargetOpcode::G_UADDE:
-  case MC6809::SubSetCarry_i8_Imm:     case MC6809::SubSetCarry_i16_Imm:
-  case MC6809::SubSetCarry_i8_Mem:     case MC6809::SubSetCarry_i16_Mem:
-  case MC6809::SubSetCarry_i8_Pull:    case MC6809::SubSetCarry_i16_Pull:
-  case MC6809::SubSetCarry_i8_Reg:     case MC6809::SubSetCarry_i16_Reg:
-  case MC6809::AddSetCarry_i8_Imm:     case MC6809::AddSetCarry_i16_Imm:
-  case MC6809::AddSetCarry_i8_Mem:     case MC6809::AddSetCarry_i16_Mem:
-  case MC6809::AddSetCarry_i8_Pull:    case MC6809::AddSetCarry_i16_Pull:
-  case MC6809::AddSetCarry_i8_Reg:     case MC6809::AddSetCarry_i16_Reg:
-  case MC6809::SubSetCarryUse_i8_Imm:  case MC6809::SubSetCarryUse_i16_Imm:
-  case MC6809::SubSetCarryUse_i8_Mem:  case MC6809::SubSetCarryUse_i16_Mem:
-  case MC6809::SubSetCarryUse_i8_Reg:  case MC6809::SubSetCarryUse_i16_Reg:
-  case MC6809::AddSetCarryUse_i8_Imm:  case MC6809::AddSetCarryUse_i16_Imm:
-  case MC6809::AddSetCarryUse_i8_Mem:  case MC6809::AddSetCarryUse_i16_Mem:
-  case MC6809::AddSetCarryUse_i8_Reg:  case MC6809::AddSetCarryUse_i16_Reg:
-    return true;
-  default:
-    return false;
-  }
-}
-
 // Bug #152 — unified phantom-BIT1 query.
 //
 // Follow a chain of G_FREEZE / COPY from \p SrcReg back to its ultimate
@@ -249,43 +217,6 @@ getPhantomBit1Flag(Register SrcReg, const MachineRegisterInfo &MRI) {
     }
   }
   return std::nullopt;
-}
-
-// Bug #147 sibling of isCarryPhantomPseudo: returns true for pseudos
-// whose BIT1 phantom represents the V (signed-overflow) flag rather
-// than C (carry). Used by selectBrCond to dispatch to BVS instead of
-// BCS. Source IR is G_SADDO/G_SSUBO/G_SADDE/G_SSUBE; the post-selection
-// pseudos are AddSetOverflow_*/SubSetOverflow_* (same MC expansion as
-// the SetCarry siblings — only the s1 semantic differs).
-//
-// Thin wrapper kept around isCarryPhantomPseudo / isOverflowPhantomPseudo
-// because selectBrCond's existing logic does a same-MBB CondDef
-// opcode check; the per-opcode helpers are convenient there. New
-// code should prefer getPhantomBit1Flag which walks COPY/G_FREEZE.
-static bool isOverflowPhantomPseudo(unsigned Opc) {
-  switch (Opc) {
-  case TargetOpcode::G_SSUBO:
-  case TargetOpcode::G_SADDO:
-  case TargetOpcode::G_SSUBE:
-  case TargetOpcode::G_SADDE:
-  case MC6809::SubSetOverflow_i8_Imm:     case MC6809::SubSetOverflow_i16_Imm:
-  case MC6809::SubSetOverflow_i8_Mem:     case MC6809::SubSetOverflow_i16_Mem:
-  case MC6809::SubSetOverflow_i8_Pull:    case MC6809::SubSetOverflow_i16_Pull:
-  case MC6809::SubSetOverflow_i8_Reg:     case MC6809::SubSetOverflow_i16_Reg:
-  case MC6809::AddSetOverflow_i8_Imm:     case MC6809::AddSetOverflow_i16_Imm:
-  case MC6809::AddSetOverflow_i8_Mem:     case MC6809::AddSetOverflow_i16_Mem:
-  case MC6809::AddSetOverflow_i8_Pull:    case MC6809::AddSetOverflow_i16_Pull:
-  case MC6809::AddSetOverflow_i8_Reg:     case MC6809::AddSetOverflow_i16_Reg:
-  case MC6809::SubSetOverflowUse_i8_Imm:  case MC6809::SubSetOverflowUse_i16_Imm:
-  case MC6809::SubSetOverflowUse_i8_Mem:  case MC6809::SubSetOverflowUse_i16_Mem:
-  case MC6809::SubSetOverflowUse_i8_Reg:  case MC6809::SubSetOverflowUse_i16_Reg:
-  case MC6809::AddSetOverflowUse_i8_Imm:  case MC6809::AddSetOverflowUse_i16_Imm:
-  case MC6809::AddSetOverflowUse_i8_Mem:  case MC6809::AddSetOverflowUse_i16_Mem:
-  case MC6809::AddSetOverflowUse_i8_Reg:  case MC6809::AddSetOverflowUse_i16_Reg:
-    return true;
-  default:
-    return false;
-  }
 }
 
 } // namespace
@@ -667,27 +598,16 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
       // and writes it into $dst as a 0/1 byte. The scheduling barrier on
       // both the SetCarry* producer and this pseudo keeps CC.C alive
       // across the gap.
-      MachineInstr *Def = MRI->getVRegDef(SrcReg);
-      if (Def && isCarryPhantomPseudo(Def->getOpcode())) {
+      // Bug #152 phase 2 refactor: single dispatch via getPhantomBit1Flag.
+      // Carry producers → LDB #0; ADCB #0 (reads CC.C).
+      // Overflow producers → TFR CC,B; LSRB; ANDB #1 (reads CC.V).
+      if (auto Flag = getPhantomBit1Flag(SrcReg, *MRI)) {
         MRI->setRegClass(DstReg, &MC6809::ABcRegClass);
         MachineIRBuilder B(MI);
-        auto I = B.buildInstr(MC6809::MaterializeCarryToByte_i8)
-                     .addDef(DstReg)
-                     .addUse(SrcReg);
-        constrainSelectedInstRegOperands(*I, TII, TRI, RBI);
-        MI.eraseFromParent();
-        return true;
-      }
-      // Bug #147 sibling: V-flag-bearing phantoms (G_SADDO/G_SSUBO/etc.
-      // and the AddSetOverflow*/SubSetOverflow* pseudos) materialise via
-      // MaterializeOverflowToByte_i8 — same shape as the carry path,
-      // different post-RA expansion (TFR CC,B; LSRB; ANDB #1 reads V).
-      if (Def && isOverflowPhantomPseudo(Def->getOpcode())) {
-        MRI->setRegClass(DstReg, &MC6809::ABcRegClass);
-        MachineIRBuilder B(MI);
-        auto I = B.buildInstr(MC6809::MaterializeOverflowToByte_i8)
-                     .addDef(DstReg)
-                     .addUse(SrcReg);
+        unsigned Opc = (*Flag == MC6809::C)
+                           ? MC6809::MaterializeCarryToByte_i8
+                           : MC6809::MaterializeOverflowToByte_i8;
+        auto I = B.buildInstr(Opc).addDef(DstReg).addUse(SrcReg);
         constrainSelectedInstRegOperands(*I, TII, TRI, RBI);
         MI.eraseFromParent();
         return true;
@@ -860,7 +780,7 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     //     the C flag (1 = borrow / carry). G_SSUBO/G_SADDO use V; not
     //     handled here yet.
     // Phantom-BIT1 producer list is shared with G_ANYEXT s1→s8 (bug #140);
-    // see isCarryPhantomPseudo at the top of this file.
+    // see getPhantomBit1Flag at the top of this file.
 
     // Walk through G_FREEZE / COPY to find the real defining instruction.
     // `freeze i1 %cmp` is commonly inserted by InstCombine between an
@@ -1075,19 +995,19 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     //   - neither → fall through to TestBranch_i8_Reg
     // Bug #115 introduced the carry path; bug #147 added the overflow
     // path so __builtin_add_overflow + if() works for signed inputs.
+    // Bug #152 phase 2 refactor: use getPhantomBit1Flag for the
+    // producer classification. The same-MBB + CCBitsSurvive checks
+    // still live here (they're consumer-site-specific; the helper is
+    // purely "identify the flag a given vreg represents").
     enum { PhantomNone, PhantomCarry, PhantomOverflow } Phantom = PhantomNone;
     if (CondDef && CondDef->getParent() == MBB &&
         CondDef->getNumOperands() >= 2 &&
         CondDef->getOperand(1).isReg() &&
         CondDef->getOperand(1).getReg() == CondReg) {
-      // For G_U/SADD/SUB/E and the *SetCarry/*SetOverflow pseudos the s1 is
-      // operand 1; checked above. (Operand 0 is the data result.)
-      if (isCarryPhantomPseudo(CondDef->getOpcode())) {
-        if (CCBitsSurvive(CondDef, {MC6809::C}))
-          Phantom = PhantomCarry;
-      } else if (isOverflowPhantomPseudo(CondDef->getOpcode())) {
-        if (CCBitsSurvive(CondDef, {MC6809::V}))
-          Phantom = PhantomOverflow;
+      if (auto Flag = getPhantomBit1Flag(CondReg, *MRI)) {
+        MCPhysReg CCBit = *Flag;  // MC6809::C or MC6809::V
+        if (CCBitsSurvive(CondDef, {CCBit}))
+          Phantom = (CCBit == MC6809::C) ? PhantomCarry : PhantomOverflow;
       }
     }
 
