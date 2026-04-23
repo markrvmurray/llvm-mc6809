@@ -209,9 +209,17 @@ class MC6809Subroutine : MC6809LogicalInstr {
 // to pick IX/IY, and the expansion blindly shifted whatever D held.
 // Not marked isBranch to avoid branch relaxation analysis (which
 // can't handle indirect branches with no single destination).
+// Defs matches what the ASLB+ROLA+LEAX+LDD+JMP expansion in
+// MC6809AsmPrinter actually clobbers. Without this, regalloc
+// treats D as preserved across the dispatch and extends live
+// ranges into the jump-table successors — the "preserved" value
+// in landing pads is then the jump offset, not the source value.
+// Bug #127c (2026-04-20): __i_vfprintf's `c` variable was being
+// overwritten by 0xF111 (a jump offset) via a spill cascade.
 let isBranch = false, isTerminator = true, isBarrier = true in
 def BranchJumpTable : MC6809LogicalInstr {
   let isIndirectBranch = true;
+  let Defs = [AA, AB, AD, AQ, IX, NZ, N, Z, V, C];
   dag InOperandList = (ins ADc:$idx, unknown:$jti);
 }
 
