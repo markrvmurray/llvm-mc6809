@@ -47,9 +47,11 @@ public:
 };
 
 bool MC6809InsertCopies::runOnMachineFunction(MachineFunction &MF) {
-  if (skipFunction(MF.getFunction()))
-    return false;
-
+  // Do not gate on skipFunction: at -O0 clang stamps optnone on every
+  // function, which would skip this pass and leave STACK16 vregs intact.
+  // STACK16 has no allocatable register (SU+SS both reserved), so regalloc
+  // aborts with "no registers from class available" on any Push_i16 /
+  // CompareBranch_i16_Pull pair. This rewrite is required for correctness.
   MachineRegisterInfo &MRI = MF.getRegInfo();
   bool Changed = false;
 
