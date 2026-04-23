@@ -2330,6 +2330,10 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::Test_i16_Reg:
     expandTestReg(Builder, MI);
     break;
+  case MC6809::Test_i8_Mem:
+  case MC6809::Test_i16_Mem:
+    expandTestMem(Builder, MI);
+    break;
   // Fused test-and-branch: split into Test + ConditionalLongBranchRelative.
   case MC6809::TestBranch_i8_Reg:
   case MC6809::TestBranch_i16_Reg:
@@ -4761,6 +4765,70 @@ void MC6809InstrInfo::expandTestReg(MachineIRBuilder &Builder, MachineInstr &MI)
   MI.eraseFromParent();
 }
 
+void MC6809InstrInfo::expandTestMem(MachineIRBuilder &Builder, MachineInstr &MI) const {
+  // Operand layout (see MC6809InstrFamilies.td defm Test_i8/_i16):
+  //   op 0: CC (def, $dst)
+  //   op 1: condition code (i8imm, unused by Test itself; artefact of fusion)
+  //   op 2: INDEX16:$idx
+  //   op 3: $offset (imm or reg)
+  assert(MI.getOperand(2).isReg() && "Test_Mem: index must be a register");
+  auto IndexOp = MI.getOperand(2);
+  auto OffsetOp = MI.getOperand(3);
+  int OffsetSize = offsetSizeInBits(OffsetOp);
+  bool IsI16 = (MI.getOpcode() == MC6809::Test_i16_Mem);
+
+  unsigned Opcode = 0;
+  if (IsI16) {
+    // No memory-form TSTD exists on MC6809 or HD6309 (TSTDa is accumulator-only).
+    // Use LDD to set N/Z and clear V. AD is declared as a Def of the
+    // Test_i16_Mem / TestBranch_i16_Mem pseudos so RA knows about the clobber.
+    if (OffsetSize >= 0) {
+      RegPlusOffsetLen Lookup{MC6809::AD, OffsetSize};
+      auto OpcodePair = LoadIdxImmOpcode.find(Lookup);
+      if (OpcodePair == LoadIdxImmOpcode.end())
+        llvm_unreachable("Test_i16_Mem: unexpected immediate offset size.");
+      Opcode = OpcodePair->getSecond();
+    } else if (OffsetOp.isReg()) {
+      RegPlusReg Lookup{MC6809::AD, OffsetOp.getReg()};
+      auto OpcodePair = LoadIdxRegOpcode.find(Lookup);
+      if (OpcodePair == LoadIdxRegOpcode.end())
+        llvm_unreachable("Test_i16_Mem: unexpected register offset.");
+      Opcode = OpcodePair->getSecond();
+    } else
+      llvm_unreachable("Test_i16_Mem: unknown offset type.");
+  } else {
+    // Test_i8_Mem: TST mem directly. TST sets N/Z, clears V; no register clobber.
+    if (OffsetSize >= 0) {
+      switch (OffsetSize) {
+      case 0:  Opcode = MC6809::TSTi_o0;  break;
+      case 5:  Opcode = MC6809::TSTi_o5;  break;
+      case 8:  Opcode = MC6809::TSTi_o8;  break;
+      case 16: Opcode = MC6809::TSTi_o16; break;
+      default: llvm_unreachable("Test_i8_Mem: unexpected imm offset size");
+      }
+    } else if (OffsetOp.isReg()) {
+      Register R = OffsetOp.getReg();
+      if      (R == MC6809::AA) Opcode = MC6809::TSTi_oA;
+      else if (R == MC6809::AB) Opcode = MC6809::TSTi_oB;
+      else if (R == MC6809::AD) Opcode = MC6809::TSTi_oD;
+      else if (R == MC6809::AE) Opcode = MC6809::TSTi_oE;
+      else if (R == MC6809::AF) Opcode = MC6809::TSTi_oF;
+      else if (R == MC6809::AW) Opcode = MC6809::TSTi_oW;
+      else llvm_unreachable("Test_i8_Mem: unexpected reg offset");
+    } else
+      llvm_unreachable("Test_i8_Mem: unknown offset type.");
+  }
+
+  // Indexed-operand layout (see MC6809InstrFormats.td):
+  //   _o0, _oA, _oB, _oD, _oE, _oF, _oW:  (ins INDEX16:$ireg)               — index only
+  //   _o5, _o8, _o16:                     (ins offsetN:$offset, INDEX16:$ireg)
+  auto NewMI = Builder.buildInstr(Opcode);
+  if (OffsetSize > 0)
+    NewMI.add(OffsetOp);
+  NewMI.add(IndexOp);
+  MI.eraseFromParent();
+}
+
 bool MC6809InstrInfo::reverseBranchCondition(SmallVectorImpl<MachineOperand> &Cond) const {
   assert(Cond.size() == 1);
   switch (Cond[0].getImm()) {
@@ -4837,10 +4905,12 @@ void MC6809InstrInfo::expandFusedCompareBranch(MachineIRBuilder &Builder, Machin
   //   CompareBranch_*_Mem:  (cc, src, idx, offset, tgt)
   //   CompareBranch_*_Pull: (cc, src, stack, tgt)
   //
-  // The last operand is always the branch target MBB.
+  // The last EXPLICIT operand is always the branch target MBB. (Use the
+  // explicit-operand count so that implicit defs like TestBranch_i16_Mem's
+  // AD clobber don't shift the target index.)
 
   unsigned Opc = MI.getOpcode();
-  unsigned NumOps = MI.getNumOperands();
+  unsigned NumOps = MI.getNumExplicitOperands();
   MachineBasicBlock *TargetMBB = MI.getOperand(NumOps - 1).getMBB();
   unsigned CC = MI.getOperand(0).getImm();
 

@@ -568,16 +568,18 @@ class MC6809TestBase<dag operand> : MC6809LogicalInstr {
   let isCompare = true;
 }
 
-multiclass MC6809Test<RegisterClass reg> {
+multiclass MC6809Test<RegisterClass reg, list<Register> MemDefs = []> {
   def _Reg : MC6809TestBase<(ins reg:$src)>;
-  let mayLoad = true in {
+  let mayLoad = true, Defs = MemDefs in {
     def _Mem : MC6809TestBase<(ins INDEX16:$idx, unknown:$offset)>;
   }
 }
 
 defm Test_i8 : MC6809Test<ACC8>;
 let Predicates = [IsHD6309] in {
-  defm Test_i16 : MC6809Test<ACC16>;
+  // Test_i16_Mem expansion (see MC6809InstrInfo.cpp:expandTestMem) uses LDD,
+  // since no TST-memory-16 exists on MC6809 or HD6309. AD is clobbered.
+  defm Test_i16 : MC6809Test<ACC16, [AD]>;
 }
 
 // --- Fused compare-and-branch pseudos (bug #42 fix) ---
@@ -594,15 +596,17 @@ class MC6809TestBranchBase<dag operand> : MC6809LogicalInstr {
   let isTerminator = true;
 }
 
-multiclass MC6809TestBranch<RegisterClass reg> {
+multiclass MC6809TestBranch<RegisterClass reg, list<Register> MemDefs = []> {
   def _Reg : MC6809TestBranchBase<(ins reg:$src)>;
-  let mayLoad = true in {
+  let mayLoad = true, Defs = MemDefs in {
     def _Mem : MC6809TestBranchBase<(ins INDEX16:$idx, unknown:$offset)>;
   }
 }
 
 defm TestBranch_i8 : MC6809TestBranch<ACC8>;
-defm TestBranch_i16 : MC6809TestBranch<ACC16>;
+// TestBranch_i16_Mem splits (post-RA) into Test_i16_Mem + LBxx, and
+// Test_i16_Mem expands to LDD on both MC6809 and HD6309 — hence AD clobber.
+defm TestBranch_i16 : MC6809TestBranch<ACC16, [AD]>;
 
 class MC6809CompareBranchBase<RegisterClass reg, dag operand> : MC6809LogicalInstr {
   dag OutOperandList = (outs);
