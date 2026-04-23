@@ -463,19 +463,17 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
   case TargetOpcode::G_TRUNC: {
     // Hand-select G_TRUNC when the imported pattern doesn't match (e.g.,
     // when imaginary registers in ACC16 cause a synthesized 'accum' class).
-    // trunc i16→i8: EXTRACT_SUBREG sub_lo_byte (for real registers) or
-    // COPY with class constraint (for imaginary/spill).
+    // trunc i16→i8: emit the EXTRACT_LO_i16 pseudo, which expands post-RA
+    // (bug #118 Layer 1, approach b). This avoids the sub_lo_byte COPY
+    // edge that the coalescer would tighten into regalloc failures.
     Register DstReg = MI.getOperand(0).getReg();
     Register SrcReg = MI.getOperand(1).getReg();
     LLT DstTy = MRI->getType(DstReg);
     LLT SrcTy = MRI->getType(SrcReg);
     if (DstTy == LLT::scalar(8) && SrcTy == LLT::scalar(16)) {
       MRI->setRegClass(DstReg, &MC6809::ACC8RegClass);
-      // Use ADc (AD + SPILL_D), not ACC16, because sub_lo_byte requires
-      // registers that have sub-register structure (RS0-RS3 don't).
       MRI->setRegClass(SrcReg, &MC6809::ADcRegClass);
-      MI.setDesc(TII.get(TargetOpcode::COPY));
-      MI.getOperand(1).setSubReg(MC6809::sub_lo_byte);
+      MI.setDesc(TII.get(MC6809::EXTRACT_LO_i16));
       constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
       return true;
     }
@@ -1116,13 +1114,28 @@ bool MC6809InstructionSelector::selectMergeValues(MachineInstr &MI) {
     MI.eraseFromParent();
     return true;
   }
-  auto RegSeq = Builder.buildInstr(MC6809::REG_SEQUENCE).addDef(Dst);
-  if (Size == 16)
-    RegSeq.addUse(Lo).addImm(MC6809::sub_lo_byte).addUse(Hi).addImm(MC6809::sub_hi_byte);
-  else
+  if (Size == 16) {
+    // s8×2 → s16: emit MERGE_LOHI_i16 pseudo, which expands post-RA and
+    // avoids sub-register COPY edges between ACC8 and ACC16 in the vreg
+    // graph (bug #118 Layer 1, approach b).
+    MRI->setRegClass(Dst, &MC6809::ADcRegClass);
+    if (!MRI->getRegClassOrNull(Lo))
+      MRI->setRegClass(Lo, &MC6809::ACC8RegClass);
+    if (!MRI->getRegClassOrNull(Hi))
+      MRI->setRegClass(Hi, &MC6809::ACC8RegClass);
+    auto Merge = Builder.buildInstr(MC6809::MERGE_LOHI_i16)
+                     .addDef(Dst)
+                     .addUse(Lo)
+                     .addUse(Hi);
+    constrainSelectedInstRegOperands(*Merge, TII, TRI, RBI);
+  } else {
+    // s8×2 → s32 path on HD6309 still uses REG_SEQUENCE with word sub-regs
+    // on AQ, which is not part of the Layer-1 bottleneck.
+    auto RegSeq = Builder.buildInstr(MC6809::REG_SEQUENCE).addDef(Dst);
     RegSeq.addUse(Lo).addImm(MC6809::sub_lo_word).addUse(Hi).addImm(MC6809::sub_hi_word);
-  RegSeq->addImplicitDefUseOperands(*MF);
-  constrainGenericOp(*RegSeq);
+    RegSeq->addImplicitDefUseOperands(*MF);
+    constrainGenericOp(*RegSeq);
+  }
   MI.eraseFromParent();
   return true;
 }
@@ -1613,19 +1626,32 @@ bool MC6809InstructionSelector::selectUnMergeValues(MachineInstr &MI) {
   LLT SrcTy = MRI->getType(Src);
   assert((SrcTy == S16 || SrcTy == S32) && "The Src of G_UNMERGE_VALUES must be S16 or S32");
 
-  MachineInstrBuilder LoCopy;
-  MachineInstrBuilder HiCopy;
-  LoCopy = Builder.buildCopy(Lo, Src);
-  HiCopy = Builder.buildCopy(Hi, Src);
   if (SrcTy == S16) {
-    LoCopy->getOperand(1).setSubReg(MC6809::sub_lo_byte);
-    HiCopy->getOperand(1).setSubReg(MC6809::sub_hi_byte);
+    // s16 → s8×2: emit EXTRACT_LO_i16 + EXTRACT_HI_i16 pseudos instead of
+    // sub-register COPYs (bug #118 Layer 1, approach b).
+    MRI->setRegClass(Src, &MC6809::ADcRegClass);
+    if (!MRI->getRegClassOrNull(Lo))
+      MRI->setRegClass(Lo, &MC6809::ACC8RegClass);
+    if (!MRI->getRegClassOrNull(Hi))
+      MRI->setRegClass(Hi, &MC6809::ACC8RegClass);
+    auto LoExt = Builder.buildInstr(MC6809::EXTRACT_LO_i16)
+                     .addDef(Lo)
+                     .addUse(Src);
+    auto HiExt = Builder.buildInstr(MC6809::EXTRACT_HI_i16)
+                     .addDef(Hi)
+                     .addUse(Src);
+    constrainSelectedInstRegOperands(*LoExt, TII, TRI, RBI);
+    constrainSelectedInstRegOperands(*HiExt, TII, TRI, RBI);
   } else {
+    // s32 → s16×2 on HD6309 still uses the word sub-reg path on AQ; that
+    // structure is not part of the Layer-1 bottleneck.
+    MachineInstrBuilder LoCopy = Builder.buildCopy(Lo, Src);
+    MachineInstrBuilder HiCopy = Builder.buildCopy(Hi, Src);
     LoCopy->getOperand(1).setSubReg(MC6809::sub_lo_word);
     HiCopy->getOperand(1).setSubReg(MC6809::sub_hi_word);
+    constrainGenericOp(*LoCopy);
+    constrainGenericOp(*HiCopy);
   }
-  constrainGenericOp(*LoCopy);
-  constrainGenericOp(*HiCopy);
   MI.eraseFromParent();
   return true;
 }
