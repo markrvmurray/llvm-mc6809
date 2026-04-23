@@ -193,7 +193,13 @@ bool MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int
   int FrameIndex = MI.getOperand(FIOperandNum).getIndex();
   unsigned BasePtr = (TFI->hasFP(MF) ? MC6809::SU : MC6809::SS);
   const MachineFrameInfo &MFI = MF.getFrameInfo();
-  int Offset = MFI.getObjectOffset(FrameIndex);
+  // Bug #153/#154: include the FI operand's own byte offset.
+  // foldMemoryOperandImpl uses `.addFrameIndex(FI, ByteOffset)` to encode
+  // sub-slot byte addressing (e.g. +1 for the low half of a big-endian
+  // i16 spill consumed by EXTRACT_LO_i16). Without this term, the +1
+  // is silently dropped and the load fetches the high byte instead.
+  int Offset = MFI.getObjectOffset(FrameIndex)
+             + MI.getOperand(FIOperandNum).getOffset();
 
   // Fixed stack objects (args, positive offset) are above the return
   // address on the stack. Local objects (spills, negative offset) are
