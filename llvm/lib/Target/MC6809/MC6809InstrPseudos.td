@@ -81,3 +81,73 @@ def ConditionalImm : MC6809Pseudo {
   let usesCustomInserter = true;
 }
 
+//===---------------------------------------------------------------------===//
+// Byte/word composition pseudos (bug #118 Layer 1, approach b).
+//
+// These replace virtual-register sub-register COPY edges between ACC16 and
+// ACC8 that would otherwise be emitted as INSERT_SUBREG/EXTRACT_SUBREG or
+// REG_SEQUENCE. Using opaque pseudos means the coalescer never sees a
+// cross-class sub-register edge — it can only be rewritten post-RA, which
+// is safe because regalloc has already chosen physical registers.
+//
+// Operand classes carry no sub-reg indices. Expansion in
+// MC6809InstrInfo.cpp::expandPostRAPseudo resolves the 16-bit operand's
+// byte halves via TRI->getSubReg and emits LDA/LDB/TFR as needed.
+//===---------------------------------------------------------------------===//
+
+// Defs cover CC-flag side effects of the LDA/LDB used during materialisation.
+// AA/AB are NOT listed here even though the post-RA expansion may stage
+// through them, because they are members of the out-operand classes
+// (ACC8 / ADc). Listing them as implicit defs while also declaring the
+// out in the same register set double-counts the class's pressure delta,
+// which trips the pre-RA MachineScheduler's RegisterPressure invariant
+// (RegisterPressure.cpp:1172 "PSet overflow/underflow"). Post-RA, the
+// expanded sequence carries its own explicit Defs on LDA/LDB/TFR/etc.,
+// so correctness is maintained after expansion.
+let Defs = [NZ, V] in {
+  // $dst constrained to ABc so, when $src is allocated to AD, the extract
+  // maps to AD's natural low-byte sub-register AB and expansion is a no-op.
+  // Without this, regalloc may pick $dst in AAc (= AD's hi half); expansion
+  // then emits `TFR A,B` which overwrites the low byte we still need for a
+  // sibling EXTRACT_HI_i16 of the same AD. (bug #118 Layer 1, approach b;
+  // failure seen at -Oz in picolibc test-strchr where `ptr - haystack`
+  // compiled as `ptr - ptr` because haystack_lo was clobbered between
+  // EXTRACT_HI and EXTRACT_LO of the same source AD.)
+  def EXTRACT_LO_i16 : MC6809Pseudo {
+    dag OutOperandList = (outs ABc:$dst);
+    dag InOperandList  = (ins ADc:$src);
+    let isAsCheapAsAMove = true;
+  }
+
+  // Symmetric: $dst in AAc so, when $src = AD, extract maps to AD's hi half
+  // AA and expansion is a no-op. See EXTRACT_LO_i16 comment above.
+  def EXTRACT_HI_i16 : MC6809Pseudo {
+    dag OutOperandList = (outs AAc:$dst);
+    dag InOperandList  = (ins ADc:$src);
+    let isAsCheapAsAMove = true;
+  }
+
+  // $lo constrained to ABc (AB-half + B-spills), $hi to AAc (AA-half +
+  // A-spills) so regalloc cannot collapse both inputs into the same
+  // physical byte register. Without this, it will happily allocate both
+  // to $ab, then emit reloads that overwrite each other before MERGE
+  // expansion runs — the resulting code loses the low byte entirely.
+  // (bug #118 Layer 1, approach b; failure seen in picolibc's memcpy at
+  // -Oz where the i16 counter increment split into byte halves merged
+  // back through two AB reloads.)
+  def MERGE_LOHI_i16 : MC6809Pseudo {
+    dag OutOperandList = (outs ADc:$dst);
+    dag InOperandList  = (ins ABc:$lo, AAc:$hi);
+    let isAsCheapAsAMove = true;
+  }
+
+  // The source byte becomes the low byte of the i16 result; high byte is
+  // left undefined. Constrain to ABc so the byte naturally lives in the
+  // low half of AD without a staging TFR in the common case.
+  def ANYEXT_i8_to_i16 : MC6809Pseudo {
+    dag OutOperandList = (outs ADc:$dst);
+    dag InOperandList  = (ins ABc:$src);
+    let isAsCheapAsAMove = true;
+  }
+}
+

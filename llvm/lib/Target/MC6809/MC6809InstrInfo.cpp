@@ -1158,6 +1158,41 @@ static bool isImag16HiByte(Register Reg) {
   }
 }
 
+/// Emit code that places SrcReg's byte value into the real accumulator half
+/// Target (MC6809::AA or MC6809::AB), WITHOUT touching the other real half.
+/// Used by the byte-merge/byte-extract pseudo expansions (bug #118 Layer 1,
+/// approach b) to stage values into AD with strict separation between the
+/// two halves.
+///
+/// SrcReg must be a member of the ACC8 class: real AA/AB/AE/AF, a SPILL_A*/
+/// SPILL_B* byte spill, an Imag8 (RC*) direct-page byte, or (post-step-5) an
+/// RS byte half (RS*HI/RS*LO).
+static void loadByteInto(MachineIRBuilder &Builder, MCPhysReg Target,
+                         Register SrcReg, MachineFunction &MF) {
+  assert((Target == MC6809::AA || Target == MC6809::AB) &&
+         "loadByteInto target must be AA or AB");
+  if (SrcReg == Target)
+    return;
+  // Real byte registers — direct TFR, no staging through the other half.
+  if (SrcReg == MC6809::AA || SrcReg == MC6809::AB ||
+      SrcReg == MC6809::AE || SrcReg == MC6809::AF) {
+    Builder.buildInstr(MC6809::TFRp).addDef(Target).addUse(SrcReg);
+    return;
+  }
+  // Byte spill slots — LDA/LDB at the spill offset, Target chooses A vs B.
+  if (isSpillReg(SrcReg)) {
+    emitSpillLoad(Builder, Target, SrcReg, MF);
+    return;
+  }
+  // Direct-page bytes (Imag8 RC* or RS byte halves) — LDAd/LDBd by Target.
+  if (MC6809::Imag8RegClass.contains(SrcReg) || isImag16ByteSubReg(SrcReg)) {
+    unsigned Opc = (Target == MC6809::AA) ? MC6809::LDAd : MC6809::LDBd;
+    Builder.buildInstr(Opc).addReg(SrcReg);
+    return;
+  }
+  llvm_unreachable("loadByteInto: unexpected source register class");
+}
+
 static bool needsMaterialization(Register Reg) {
   if (isSpillReg(Reg)) return true;
   if (isImag16ByteSubReg(Reg)) return true;
@@ -1809,6 +1844,96 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     MI.setDesc(Builder.getTII().get(MC6809::RTIr));
     MI.removeOperand(0);
     break;
+  case MC6809::EXTRACT_LO_i16:
+  case MC6809::EXTRACT_HI_i16: {
+    // Byte-extract pseudo (bug #118 Layer 1). After regalloc, resolve the
+    // 16-bit source to its physical register, pick the relevant byte
+    // sub-physreg (AB/AA for AD, SPILL_B*/SPILL_A* for SPILL_D*, RS*LO/HI
+    // for RS*), and route that byte to the 8-bit destination via
+    // copyPhysReg. All routing — materialise, dematerialise, TFR cross-half
+    // — is already handled inside copyPhysReg.
+    MachineFunction &MF = *MI.getMF();
+    const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
+    Register DstReg = MI.getOperand(0).getReg();
+    Register SrcReg = MI.getOperand(1).getReg();
+    unsigned SubIdx = (MI.getOpcode() == MC6809::EXTRACT_LO_i16)
+                        ? MC6809::sub_lo_byte
+                        : MC6809::sub_hi_byte;
+    Register SrcByte = TRI->getSubReg(SrcReg, SubIdx);
+    // Bug #118 Layer 1 (approach b): MaterializeSpills may have pre-routed
+    // the src to its byte staging register (e.g. rewrote SPILL_D0 src → $ab
+    // for EXTRACT_LO, loading just the relevant byte from the spill slot to
+    // avoid the LDD clobber). In that case SrcReg is already the 8-bit
+    // staging byte and getSubReg returns 0. Fall back to SrcReg itself.
+    if (!SrcByte)
+      SrcByte = SrcReg;
+    copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
+                DstReg, SrcByte, /*KillSrc=*/false);
+    MI.eraseFromParent();
+    return true;
+  }
+  case MC6809::ANYEXT_i8_to_i16: {
+    // i8→i16 anyext pseudo. Only the low byte is defined; high byte is
+    // don't-care. Emit the low-byte copy (dst's lo-byte sub-physreg ←
+    // SrcReg); leave the high byte whatever regalloc/prior code left
+    // there.
+    MachineFunction &MF = *MI.getMF();
+    const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
+    Register DstReg = MI.getOperand(0).getReg();
+    Register SrcReg = MI.getOperand(1).getReg();
+    Register DstLo = TRI->getSubReg(DstReg, MC6809::sub_lo_byte);
+    assert(DstLo && "16-bit dest must have byte sub-registers");
+    copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
+                DstLo, SrcReg, /*KillSrc=*/false);
+    MI.eraseFromParent();
+    return true;
+  }
+  case MC6809::MERGE_LOHI_i16: {
+    // Merge two i8s into an i16 (bug #118 Layer 1). Strategy: stage HiReg
+    // into AA and LoReg into AB so AD now holds the merged value, then
+    // dematerialise AD into DstReg (single STD if dst is imag/spill, no-op
+    // if dst is AD itself, TFR if dst is another Imag16).
+    //
+    // The two byte loads use loadByteInto, which guarantees that loading
+    // a byte into AA never touches AB (and vice versa). The only remaining
+    // hazard is when loading HiReg→AA destroys LoReg's value because
+    // LoReg == AA. Symmetric considerations cover HiReg == AB.
+    MachineFunction &MF = *MI.getMF();
+    Register DstReg = MI.getOperand(0).getReg();
+    Register LoReg  = MI.getOperand(1).getReg();
+    Register HiReg  = MI.getOperand(2).getReg();
+
+    if (LoReg == MC6809::AA && HiReg == MC6809::AB) {
+      // Full swap of the real pair. EXG A,B is the cheapest route.
+      Builder.buildInstr(MC6809::EXGp)
+          .addDef(MC6809::AA).addDef(MC6809::AB)
+          .addUse(MC6809::AA).addUse(MC6809::AB);
+    } else if (LoReg == MC6809::AA) {
+      // Loading HiReg→AA would clobber LoReg's value first. Do the lo
+      // copy first (TFR A,B preserves AA), then load HiReg into AA.
+      loadByteInto(Builder, MC6809::AB, LoReg, MF);
+      loadByteInto(Builder, MC6809::AA, HiReg, MF);
+    } else {
+      // Default order — hi then lo. Safe because loadByteInto(AA, HiReg)
+      // never touches AB; the subsequent loadByteInto(AB, LoReg) reads
+      // LoReg (which by the above branch is not AA) and writes only AB.
+      // Edge case HiReg == AB: TFR B,A reads AB without modifying it,
+      // then loadByteInto(AB, LoReg) overwrites AB with LoReg — correct.
+      loadByteInto(Builder, MC6809::AA, HiReg, MF);
+      loadByteInto(Builder, MC6809::AB, LoReg, MF);
+    }
+    // AD now holds {hi:AA, lo:AB}. Route to DstReg.
+    dematerializeReg(Builder, MC6809::AD, DstReg, MF);
+    if (DstReg != MC6809::AD && !needsMaterialization(DstReg)) {
+      // DstReg is a real Imag16-class register that isn't AD itself
+      // (e.g. AW on HD6309 paths in future) — needs an explicit TFR.
+      // Today ADc only contains AD + spills + RS, so this branch is
+      // unreachable in MC6809; kept for safety if ADc grows.
+      Builder.buildInstr(MC6809::TFRp).addDef(DstReg).addUse(MC6809::AD);
+    }
+    MI.eraseFromParent();
+    return true;
+  }
   case MC6809::SEX8Implicit: {
     // Sign-extend the LSB of an 8-bit register ($aalsb/$ablsb) to 8 bits.
     // Bug #90: previously missing from expandPostRAPseudo, causing llc to
