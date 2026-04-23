@@ -287,6 +287,41 @@ static bool willClobberIY(const MachineInstr &MI,
   return true;
 }
 
+/// Bug #127b: Check if this instruction will trigger the conflict-resolution
+/// path that routes a spill operand through IX as the "alt" register (the
+/// block near the `RealReg == MC6809::IY || RealReg == MC6809::IX` case
+/// below). That path does `LDX SaveSlot` which clobbers IX. If IX is
+/// externally live (e.g., holds a function argument) we must preserve it.
+///
+/// Triggered when: a spill operand with RealReg=IY conflicts with a
+/// non-spill operand in the same MI that directly uses $iy. In that
+/// situation the fixer saves IY, loads the saved value into IX, and
+/// redirects the non-spill operand to IX.
+static bool willClobberIX(const MachineInstr &MI,
+                          const TargetRegisterInfo &TRI) {
+  for (unsigned I = 0; I < MI.getNumOperands(); ++I) {
+    const MachineOperand &SpillMO = MI.getOperand(I);
+    if (!SpillMO.isReg() || !SpillMO.getReg().isPhysical()) continue;
+    if (!isIndexSpillReg(SpillMO.getReg())) continue;
+    if (!SpillMO.isUse() && !(SpillMO.isDef() && SpillMO.isTied())) continue;
+    // This spill materializes through IY. A non-spill use of IY in the
+    // same MI will force the conflict-resolution path → AltReg = IX.
+    for (unsigned J = 0; J < MI.getNumOperands(); ++J) {
+      if (J == I) continue;
+      const MachineOperand &OtherMO = MI.getOperand(J);
+      if (!OtherMO.isReg() || !OtherMO.isUse()) continue;
+      if (!OtherMO.getReg().isPhysical()) continue;
+      if (isAnySpillReg(OtherMO.getReg())) continue;
+      if (OtherMO.getReg() != MC6809::IY) continue;
+      // Tied conflicts take the SkipSpillLoad path (no IX load); only
+      // untied conflicts emit `LDX SaveSlot`.
+      if (SpillMO.isTied()) continue;
+      return true;
+    }
+  }
+  return false;
+}
+
 namespace {
 
 class MC6809MaterializeSpills : public MachineFunctionPass {
@@ -384,6 +419,7 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
     struct SpillInfo {
       bool NeedSaveD;
       bool NeedSaveIY;
+      bool NeedSaveIX;
       bool NeedSaveA;
       bool NeedSaveB;
     };
@@ -501,7 +537,7 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
         }
       }
 
-      bool NeedD = false, NeedIY = false;
+      bool NeedD = false, NeedIY = false, NeedIX = false;
       bool NeedA = false, NeedB = false;
 
       // LivePhysRegs::contains(R) returns true if R or any sub-reg was added
@@ -526,6 +562,14 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
       if (willClobberIY(MI, TRI)) {
         if (anySubRegLive(MC6809::IY))
           NeedIY = true;
+      }
+
+      // Bug #127b: same logic for IX, which the conflict-resolution path
+      // uses as the alt register. Without this, an externally-live IX
+      // (e.g., a function-arg pointer) is silently overwritten.
+      if (willClobberIX(MI, TRI)) {
+        if (anySubRegLive(MC6809::IX))
+          NeedIX = true;
       }
 
       // Bug #89: an 8-bit ACC spill operand is materialized via LDA/LDB,
@@ -589,7 +633,7 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
           NeedA = true;
       }
 
-      NeedSave[&MI] = {NeedD, NeedIY, NeedA, NeedB};
+      NeedSave[&MI] = {NeedD, NeedIY, NeedIX, NeedA, NeedB};
     }
 
     // Forward pass: materialize spill operands.
@@ -604,6 +648,7 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
       DebugLoc DL = MI.getDebugLoc();
 
       int IYSaveSlot = -1;
+      int IXSaveSlot = -1;
 
       int DSaveSlot = -1;
       int ASaveSlot = -1;
@@ -641,6 +686,15 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
         BuildMI(MBB, MI, DL, TII.get(MC6809::Store_iPtr_Mem))
             .addReg(MC6809::IY)
             .addFrameIndex(IYSaveSlot)
+            .addImm(0);
+      }
+
+      // Bug #127b: Save IX if the conflict-resolution path will overwrite it.
+      if (Info.NeedSaveIX) {
+        IXSaveSlot = MFI.CreateStackObject(2, Align(1), true);
+        BuildMI(MBB, MI, DL, TII.get(MC6809::Store_iPtr_Mem))
+            .addReg(MC6809::IX)
+            .addFrameIndex(IXSaveSlot)
             .addImm(0);
       }
 
@@ -969,6 +1023,12 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
               .addFrameIndex(IYSaveSlot)
               .addImm(0);
         }
+        if (IXSaveSlot >= 0) {
+          BuildMI(MBB, After, DL, TII.get(MC6809::Load_iPtr_Mem))
+              .addReg(MC6809::IX, RegState::Define)
+              .addFrameIndex(IXSaveSlot)
+              .addImm(0);
+        }
         if (DSaveSlot >= 0) {
           BuildMI(MBB, After, DL, TII.get(MC6809::Load_i16_Mem))
               .addReg(MC6809::AD, RegState::Define)
@@ -1042,6 +1102,16 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
               BuildMI(*Succ, Succ->begin(), DL, TII.get(MC6809::Load_iPtr_Mem))
                   .addReg(MC6809::IY, RegState::Define)
                   .addFrameIndex(IYSaveSlot)
+                  .addImm(0);
+            }
+          }
+        }
+        if (MI.isTerminator() && IXSaveSlot >= 0) {
+          for (MachineBasicBlock *Succ : MBB.successors()) {
+            if (Succ->pred_size() == 1) {
+              BuildMI(*Succ, Succ->begin(), DL, TII.get(MC6809::Load_iPtr_Mem))
+                  .addReg(MC6809::IX, RegState::Define)
+                  .addFrameIndex(IXSaveSlot)
                   .addImm(0);
             }
           }
