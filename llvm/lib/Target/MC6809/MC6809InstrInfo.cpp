@@ -1808,6 +1808,50 @@ void MC6809InstrInfo::loadStoreRegStackSlot(MachineBasicBlock &MBB, MachineBasic
   });
 }
 
+MachineInstr *MC6809InstrInfo::foldMemoryOperandImpl(
+    MachineFunction &MF, MachineInstr &MI, ArrayRef<unsigned> Ops,
+    MachineBasicBlock::iterator InsertPt, int FrameIndex,
+    LiveIntervals * /*LIS*/, VirtRegMap * /*VRM*/) const {
+  // Bug #118 Layer 1, approach (b): fold a reload of the 16-bit source of
+  // EXTRACT_LO_i16 / EXTRACT_HI_i16 into a direct one-byte frame load.
+  //
+  // Without this fold, when regalloc spills the 16-bit source vreg to a
+  // frame slot, the spiller inserts `LDD FrameIndex,u` (defs AA+AB) right
+  // before the pseudo's expansion. That clobbers the AB output of any
+  // *other* EXTRACT_LO_i16 that happens to share the destination byte
+  // register — which is exactly what the earlier ABc/AAc out-class
+  // constraint fix permits (both extracts legally landing in AB). The
+  // miscompile was observed in test-strchr at -Oz, where `ptr - haystack`
+  // compiled as `ptr - ptr` because haystack's low byte was destroyed
+  // between its extract and the subtraction.
+  //
+  // A narrow LDA/LDB of just the wanted byte eliminates the AD clobber on
+  // the spill-to-frame path. DP-backed SPILL_D / RS paths are unaffected
+  // and remain handled by post-RA materialisation.
+  unsigned Opc = MI.getOpcode();
+  if (Opc != MC6809::EXTRACT_LO_i16 && Opc != MC6809::EXTRACT_HI_i16)
+    return nullptr;
+
+  // Only fold the source operand (index 1). Folding a spilled def would
+  // need a separate extract-into-scratch-then-store, which is not a
+  // single memory-operand fold; let the spiller handle that path.
+  if (Ops.size() != 1 || Ops[0] != 1)
+    return nullptr;
+
+  // MC6809 is big-endian within the D pair: AA is the high byte (offset 0)
+  // and AB is the low byte (offset +1) of a 2-byte frame slot.
+  int ByteOffset = (Opc == MC6809::EXTRACT_LO_i16) ? 1 : 0;
+
+  MachineBasicBlock &MBB = *MI.getParent();
+  const MachineOperand &Dst = MI.getOperand(0);
+  MachineInstr *NewMI = BuildMI(MBB, InsertPt, MI.getDebugLoc(),
+                                get(MC6809::Load_i8_Mem))
+                            .add(Dst)
+                            .addFrameIndex(FrameIndex, ByteOffset)
+                            .addImm(0);
+  return NewMI;
+}
+
 bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   MachineIRBuilder Builder(MI);
 

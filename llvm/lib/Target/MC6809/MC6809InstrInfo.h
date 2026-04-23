@@ -118,6 +118,13 @@ public:
 
   bool expandPostRAPseudo(MachineInstr &MI) const override;
 
+  MachineInstr *foldMemoryOperandImpl(MachineFunction &MF, MachineInstr &MI,
+                                      ArrayRef<unsigned> Ops,
+                                      MachineBasicBlock::iterator InsertPt,
+                                      int FrameIndex,
+                                      LiveIntervals *LIS = nullptr,
+                                      VirtRegMap *VRM = nullptr) const override;
+
   bool reverseBranchCondition(SmallVectorImpl<MachineOperand> &Cond) const override;
 
   std::pair<unsigned, unsigned> decomposeMachineOperandsTargetFlags(unsigned TF) const override;
