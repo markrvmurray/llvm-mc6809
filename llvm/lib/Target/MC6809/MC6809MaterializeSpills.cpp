@@ -201,6 +201,15 @@ static bool isWideAccSpillReg(Register Reg) {
 /// during materialization. Mirrors SpillDSaveRestore's willClobberD logic.
 static bool willClobberD(const MachineInstr &MI,
                          const TargetRegisterInfo &TRI) {
+  // Bug #118 Layer 1 (approach b): EXTRACT_{LO,HI}_i16 with a SPILL_D* src
+  // is byte-folded in the forward pass — only the staging byte (AB for LO,
+  // AA for HI) is touched, never LDD. Wrapping it with STD/LDD would UNDO
+  // the extract (the restore clobbers the byte we just loaded). Let the
+  // narrower NeedSaveA/NeedSaveB logic preserve the OTHER half if needed.
+  if (MI.getOpcode() == MC6809::EXTRACT_LO_i16 ||
+      MI.getOpcode() == MC6809::EXTRACT_HI_i16)
+    return false;
+
   bool HasWideAccSpill = false;
 
   // Multi-INDEX-spill case: when 2 distinct SPILL_X operands appear, the
@@ -924,6 +933,28 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
 
         Register RealReg = getRealReg(SpillReg);
         auto [FI, ByteOffset] = getSpillSlot(SpillReg, FuncInfo);
+
+        // Bug #118 Layer 1 (approach b): EXTRACT_{LO,HI}_i16 with SPILL_D*
+        // src. Default path would emit Load_i16_Mem → $ad (LDD), which
+        // clobbers both halves of D and destroys any sibling extract
+        // result already staged in the other byte. Load just the byte we
+        // need, directly into the staging byte register. Big-endian:
+        // HI at slot+0, LO at slot+1. EXTRACT_LO_i16's dst class (ABc)
+        // guarantees staging through AB aligns with dst; EXTRACT_HI_i16's
+        // dst class (AAc) guarantees staging through AA aligns with dst.
+        if ((MI.getOpcode() == MC6809::EXTRACT_LO_i16 ||
+             MI.getOpcode() == MC6809::EXTRACT_HI_i16) &&
+            isWideAccSpillReg(SpillReg)) {
+          bool IsLo = (MI.getOpcode() == MC6809::EXTRACT_LO_i16);
+          Register StageReg = IsLo ? MC6809::AB : MC6809::AA;
+          int ByteOff = ByteOffset + (IsLo ? 1 : 0);
+          BuildMI(MBB, MI, DL, TII.get(MC6809::Load_i8_Mem))
+              .addReg(StageReg, RegState::Define)
+              .addFrameIndex(FI)
+              .addImm(ByteOff);
+          MO.setReg(StageReg);
+          continue;
+        }
 
         // Sub-register extraction from a spilled i16: load only the
         // requested byte instead of the full i16. On big-endian MC6809:
