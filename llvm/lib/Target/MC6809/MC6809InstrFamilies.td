@@ -723,23 +723,21 @@ class MC6809MultiplyD : MC6809LogicalInstr {
 def MUL_D : MC6809MultiplyD;
 
 // --- 8-bit multiply patterns ---
-// Pack two i8 operands into D via REG_SEQUENCE, multiply, extract result.
-// mul  → low byte (B = sub_lo_byte)
-// mulhu/mulhs → high byte (A = sub_hi_byte)
+// Pack two i8 operands into D via MERGE_LOHI_i16, multiply (MUL_D reads
+// and writes AD — constrained to ADc), extract result via EXTRACT_LO/HI_i16.
+// Going through the byte-composition pseudos avoids sub-register COPY edges
+// between ACC8 and ACC16 in the virtual-register graph — bug #118 Layer 1,
+// approach b.
+// mul  → low byte of the product
+// mulhu/mulhs → high byte of the product
 def MulPat_i8 : Pat<(i8 (mul ACC8:$b, ACC8:$a)),
-  (EXTRACT_SUBREG
-    (MUL_D (REG_SEQUENCE ADc, ACC8:$b, sub_lo_byte, ACC8:$a, sub_hi_byte)),
-    sub_lo_byte)>;
+  (EXTRACT_LO_i16 (MUL_D (MERGE_LOHI_i16 ACC8:$b, ACC8:$a)))>;
 
 def MulHUPat_i8 : Pat<(i8 (mulhu ACC8:$b, ACC8:$a)),
-  (EXTRACT_SUBREG
-    (MUL_D (REG_SEQUENCE ADc, ACC8:$b, sub_lo_byte, ACC8:$a, sub_hi_byte)),
-    sub_hi_byte)>;
+  (EXTRACT_HI_i16 (MUL_D (MERGE_LOHI_i16 ACC8:$b, ACC8:$a)))>;
 
 def MulHSPat_i8 : Pat<(i8 (mulhs ACC8:$b, ACC8:$a)),
-  (EXTRACT_SUBREG
-    (MUL_D (REG_SEQUENCE ADc, ACC8:$b, sub_lo_byte, ACC8:$a, sub_hi_byte)),
-    sub_hi_byte)>;
+  (EXTRACT_HI_i16 (MUL_D (MERGE_LOHI_i16 ACC8:$b, ACC8:$a)))>;
 
 // --- 16-bit multiply pseudo-instructions (6309 only) ---
 

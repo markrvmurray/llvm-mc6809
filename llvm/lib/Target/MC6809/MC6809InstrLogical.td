@@ -349,10 +349,15 @@ def ZEX32Implicit : MC6809LogicalInstr {
 
 def : Pat<(i8 (anyext BIT1:$bit)), (INSERT_SUBREG (IMPLICIT_DEF), BIT1:$bit, sub_lsb)>;
 def : Pat<(i8 (zext CARRY:$bit)), (INSERT_SUBREG (IMPLICIT_DEF), CARRY:$bit, sub_lsb)>;
-def : Pat<(i16 (anyext ACC8:$byte)), (INSERT_SUBREG (IMPLICIT_DEF), ACC8:$byte, sub_lo_byte)>;
-def : Pat<(i16 (anyext BIT1:$bit)), (INSERT_SUBREG (IMPLICIT_DEF), (INSERT_SUBREG (i8 (IMPLICIT_DEF)), BIT1:$bit, sub_lsb), sub_lo_byte)>;
+// i16 anyext from i8 / BIT1 — go through ANYEXT_i8_to_i16 pseudo so the
+// coalescer never sees a sub_lo_byte COPY edge between ACC8 and ACC16.
+// Bug #118 Layer 1, approach b.
+def : Pat<(i16 (anyext ACC8:$byte)), (ANYEXT_i8_to_i16 ACC8:$byte)>;
+def : Pat<(i16 (anyext BIT1:$bit)),
+          (ANYEXT_i8_to_i16 (INSERT_SUBREG (i8 (IMPLICIT_DEF)), BIT1:$bit, sub_lsb))>;
 
-def : Pat<(i8 (trunc ACC16:$word)), (EXTRACT_SUBREG ACC16:$word, sub_lo_byte)>;
+// i8 trunc from i16 — go through EXTRACT_LO_i16 pseudo, same reason.
+def : Pat<(i8 (trunc ADc:$word)), (EXTRACT_LO_i16 ADc:$word)>;
 let Predicates = [IsHD6309] in {
   def : Pat<(i16 (trunc ACC32:$dword)), (EXTRACT_SUBREG ACC32:$dword, sub_lo_word)>;
 }
