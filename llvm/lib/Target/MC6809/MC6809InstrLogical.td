@@ -305,19 +305,36 @@ def LEA_Ptr_Reg16 : MC6809LoadEffectiveAddress<INDEX16, (ins ACC16:$offset)>;
 // Integer Extension/Truncation Patterns
 //===---------------------------------------------------------------------===//
 
+// Bug #142: every ZEX*Implicit / SEX*Implicit pseudo expands post-RA to a
+// real instruction that touches CC. Declaring those Defs (and hasSideEffects)
+// is required by the rule "a pseudo's Defs must cover every reg/CC its
+// expansion clobbers" — see MC6809InstrFamilies.td:234-279 (bug #57 design)
+// for why the carry-chain pseudos rely on hasSideEffects barriers, and
+// what happens when an extend sneaks between chain MIs without one.
+
 def SEX8Implicit : MC6809LogicalInstr {
+  // Expansion: AND[A|B] #1 + NEG[A|B] (or TFR + …).  NEG sets NZVC.
+  let Defs = [NZ, V, C];
+  let hasSideEffects = 1;
   dag InOperandList = (ins BIT1:$src);
   dag OutOperandList = (outs ACC8:$dst);
   let Pattern = [(set ACC8:$dst, (sext BIT1:$src))];
 }
 
 def SEX16Implicit : MC6809LogicalInstr {
+  // Expansion: SEX.  Sets NZ; V undefined on 6809, cleared on 6309 —
+  // declare V for safety (no-wrong-code if hardware leaves V untouched).
+  let Defs = [NZ, V];
+  let hasSideEffects = 1;
   dag InOperandList = (ins ABc:$src);
   dag OutOperandList = (outs ADc:$dst);
   let Pattern = [(set ADc:$dst, (sext ABc:$src))];
 }
 
 def SEX32Implicit : MC6809LogicalInstr {
+  // Expansion: SEXW (HD6309).  Sets NZ; V cleared.
+  let Defs = [NZ, V];
+  let hasSideEffects = 1;
   dag InOperandList = (ins AWc:$src);
   dag OutOperandList = (outs ACC32:$dst);
   let Pattern = [(set ACC32:$dst, (sext AWc:$src))];
@@ -325,18 +342,31 @@ def SEX32Implicit : MC6809LogicalInstr {
 }
 
 def ZEX8Implicit : MC6809LogicalInstr {
+  // Expansion: AND[A|B] #1.  AND[A|B] sets NZ and clears V; C unchanged.
+  let Defs = [NZ, V];
+  let hasSideEffects = 1;
   dag InOperandList = (ins ABLSBc:$src);
   dag OutOperandList = (outs ABc:$dst);
   let Pattern = [(set ABc:$dst, (zext ABLSBc:$src))];
 }
 
 def ZEX16Implicit : MC6809LogicalInstr {
+  // Expansion: CLRA.  Sets N=0 Z=1 V=0 C=0.  Without these Defs (and
+  // hasSideEffects) the pre-RA scheduler reorders ZEX16Implicit into
+  // the middle of a Sub*Carry chain, post-RA CLRA clears CC.C between
+  // two SBCAs, and the high-byte borrow vanishes — bug #142.
+  let Defs = [NZ, V, C];
+  let hasSideEffects = 1;
   dag InOperandList = (ins ABc:$src);
   dag OutOperandList = (outs ACC16:$dst);
   let Pattern = [(set ACC16:$dst, (zext ABc:$src))];
 }
 
 def ZEX32Implicit : MC6809LogicalInstr {
+  // Expansion: CLRD (HD6309).  Sets N=0 Z=1 V=0 C=0.  Same hazard as
+  // ZEX16Implicit above, just for the 32-bit-result case.
+  let Defs = [NZ, V, C];
+  let hasSideEffects = 1;
   dag InOperandList = (ins AWc:$src);
   dag OutOperandList = (outs ACC32:$dst);
   let Pattern = [(set ACC32:$dst, (zext AWc:$src))];
