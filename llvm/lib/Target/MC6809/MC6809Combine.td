@@ -120,21 +120,9 @@ def narrow_i16_eq_ne_icmp : GICombineRule<
           [{ return matchNarrowI16EqNeICmp(*${root}, ${matchinfo}); }]),
   (apply [{ Helper.applyBuildFn(*${root}, ${matchinfo}); }])>;
 
-// Bug #158: short-circuit `br i1 (and/or i1 a, b)` into two sequential
-// branches so each G_BRCOND fuses natively with its compare. Placed after
-// narrow_i16_eq_ne_icmp so narrowing gets a chance to produce clean
-// operand-level i16 EQ/NE compares first.
-def brcond_and_or_shortcircuit_matchdata : GIDefMatchData<"MachineInstr *">;
-def brcond_and_or_shortcircuit : GICombineRule<
-  (defs root:$root, brcond_and_or_shortcircuit_matchdata:$matchinfo),
-  (match (wip_match_opcode G_BRCOND):$root,
-          [{ return matchBrCondAndOrShortCircuit(*${root}, ${matchinfo}); }]),
-  (apply [{ applyBrCondAndOrShortCircuit(*${root}, ${matchinfo}); }])>;
-
 def MC6809Combiner : GICombiner<"MC6809CombinerImpl", [
     mc6809_all_combines,
     narrow_i16_eq_ne_icmp,
-    brcond_and_or_shortcircuit,
     // unmerge_high_from_load,
     // unmerge_low_from_load,
     // fold_global_offset,

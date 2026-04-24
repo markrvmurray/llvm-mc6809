@@ -117,13 +117,6 @@ public:
 
   bool matchNarrowI16EqNeICmp(MachineInstr &MI, BuildFnTy &MatchInfo) const;
 
-  // Bug #158: short-circuit `br i1 (and/or i1 a, b), %then, %else` into two
-  // sequential branches, one per operand, so each G_BRCOND trivially fuses
-  // into CompareBranch_i{8,16}_* via selectBrCond's existing paths. The
-  // MatchInfo carries the G_AND / G_OR instruction to rewrite around.
-  bool matchBrCondAndOrShortCircuit(MachineInstr &MI, MachineInstr *&AndOr) const;
-  void applyBrCondAndOrShortCircuit(MachineInstr &MI, MachineInstr *&AndOr) const;
-
   APInt getDemandedBits(Register R) const;
   APInt getDemandedBits(Register R, DenseMap<Register, APInt> &Cache) const;
 
@@ -518,161 +511,6 @@ bool MC6809CombinerImpl::matchNarrowI16EqNeICmp(MachineInstr &MI,
   return true;
 }
 
-// Bug #158: `br i1 (and/or i1 a, b), %then, %else` → two sequential branches,
-// one per operand, so each G_BRCOND fuses natively with its compare via
-// selectBrCond's existing paths. Skips the G_AND/G_OR materialisation into a
-// byte-AND/OR + spill + TestBranch diamond, which regalloc can fragment with
-// CC-clobbering STY/LDY spills between the byte op and the test.
-bool MC6809CombinerImpl::matchBrCondAndOrShortCircuit(MachineInstr &MI,
-                                                     MachineInstr *&AndOr) const {
-  if (!Helper.isPreLegalize())
-    return false;
-  assert(MI.getOpcode() == TargetOpcode::G_BRCOND);
-  MachineBasicBlock *HeadMBB = MI.getParent();
-
-  // IRTranslator emits G_BRCOND immediately followed by an unconditional G_BR
-  // to the fallthrough target. Bail if the shape is anything else — we rely
-  // on that G_BR to wire up the second-branch fallthrough cleanly.
-  //
-  // NOTE: in practice the IRTranslator's findMergedConditions ALREADY
-  // short-circuits `br i1 (and/or i1 a, b)` into two sequential G_BRCONDs
-  // before we ever see the MIR, so this match is defensive — the G_AND
-  // on s1 pattern it guards against doesn't currently arise in picolibc.
-  // Leaving the combine in place because (a) it's correct, (b) it catches
-  // the pattern if a future IR pass regresses the short-circuiting, and
-  // (c) it makes the fallback route explicit rather than silently absent.
-  auto NextIt = std::next(MachineBasicBlock::iterator(MI));
-  if (NextIt == HeadMBB->end() || NextIt->getOpcode() != TargetOpcode::G_BR)
-    return false;
-
-  Register CondReg = MI.getOperand(0).getReg();
-  MachineInstr *CondDef = getDefIgnoringCopies(CondReg, MRI);
-  if (!CondDef || CondDef->getParent() != HeadMBB)
-    return false;
-  if (CondDef->getOpcode() != TargetOpcode::G_AND &&
-      CondDef->getOpcode() != TargetOpcode::G_OR)
-    return false;
-
-  // Must be an i1 AND/OR — i8/i16 bitwise ANDs aren't branch conditions.
-  if (MRI.getType(CondDef->getOperand(0).getReg()) != LLT::scalar(1))
-    return false;
-
-  // Result must feed only our BRCOND, else we can't erase the AND/OR.
-  if (!MRI.hasOneNonDBGUse(CondDef->getOperand(0).getReg()))
-    return false;
-
-  AndOr = CondDef;
-  return true;
-}
-
-void MC6809CombinerImpl::applyBrCondAndOrShortCircuit(MachineInstr &MI,
-                                                    MachineInstr *&AndOr) const {
-  MachineBasicBlock *HeadMBB = MI.getParent();
-  MachineFunction &MF = *HeadMBB->getParent();
-  DebugLoc DL = MI.getDebugLoc();
-
-  MachineBasicBlock *ThenMBB = MI.getOperand(1).getMBB();
-  auto BrIt = std::next(MachineBasicBlock::iterator(MI));
-  assert(BrIt != HeadMBB->end() && BrIt->getOpcode() == TargetOpcode::G_BR &&
-         "matchBrCondAndOrShortCircuit should have bailed on non-standard exit");
-  MachineBasicBlock *ElseMBB = BrIt->getOperand(0).getMBB();
-
-  bool IsAnd = AndOr->getOpcode() == TargetOpcode::G_AND;
-  Register AOp = AndOr->getOperand(1).getReg();
-  Register BOp = AndOr->getOperand(2).getReg();
-
-  // Create ContMBB and splice it in after HeadMBB.
-  MachineBasicBlock *ContMBB =
-      MF.CreateMachineBasicBlock(HeadMBB->getBasicBlock());
-  MF.insert(std::next(HeadMBB->getIterator()), ContMBB);
-
-  MachineIRBuilder &B = Helper.getBuilder();
-  LLT S1 = LLT::scalar(1);
-
-  // Helper: emit a branch condition derived from Cond. When inverted and
-  // Cond's def is a G_ICMP in HeadMBB, clone the ICMP with the inverse
-  // predicate so selectBrCond's fusion paths still see a direct G_ICMP. When
-  // inverted but Cond is not a G_ICMP (e.g. a memory bool), fall back to
-  // G_XOR with 1 — correct but will land on the TestBranch_i8_Reg path,
-  // which is no worse than today's behaviour for that shape.
-  auto EmitMaybeInverted = [&](Register Cond, bool Invert) -> Register {
-    if (!Invert)
-      return Cond;
-    MachineInstr *CondICmp = getDefIgnoringCopies(Cond, MRI);
-    // Pre-legalise: vregs have no register bank yet (RegBankSelect runs
-    // later), so we just create fresh generic vregs without bank-tagging.
-    if (CondICmp && CondICmp->getOpcode() == TargetOpcode::G_ICMP &&
-        CondICmp->getParent() == HeadMBB) {
-      auto Pred = (CmpInst::Predicate)CondICmp->getOperand(1).getPredicate();
-      Register Inv = MRI.createGenericVirtualRegister(S1);
-      B.buildICmp(CmpInst::getInversePredicate(Pred), Inv,
-                  CondICmp->getOperand(2).getReg(),
-                  CondICmp->getOperand(3).getReg());
-      return Inv;
-    }
-    // Generic inversion.
-    auto One = B.buildConstant(S1, 1);
-    Register Inv = MRI.createGenericVirtualRegister(S1);
-    B.buildXor(Inv, Cond, One);
-    return Inv;
-  };
-
-  // HeadMBB: replace the original G_BRCOND.
-  //   AND: first branch tests !A → %else; fall through (via existing G_BR,
-  //        retargeted to ContMBB) to the second test.
-  //   OR:  first branch tests  A → %then; fall through to the second test.
-  B.setInsertPt(*HeadMBB, MI.getIterator());
-  B.setDebugLoc(DL);
-  if (IsAnd) {
-    Register NotA = EmitMaybeInverted(AOp, /*Invert=*/true);
-    B.buildBrCond(NotA, *ElseMBB);
-  } else {
-    B.buildBrCond(AOp, *ThenMBB);
-  }
-  // Retarget the trailing G_BR to fall through to ContMBB.
-  BrIt->getOperand(0).setMBB(ContMBB);
-  MI.eraseFromParent();
-
-  // ContMBB: second test.
-  B.setInsertPt(*ContMBB, ContMBB->end());
-  B.setDebugLoc(DL);
-  if (IsAnd)
-    B.buildBrCond(BOp, *ThenMBB);
-  else
-    B.buildBrCond(BOp, *ThenMBB);
-  // Fallthrough to the "other" target: for AND, %else; for OR, %else too
-  // (OR falls through to %else when both operands are false).
-  B.buildBr(*ElseMBB);
-
-  // CFG wiring. HeadMBB already had {ThenMBB, ElseMBB} as successors; swap
-  // one of them for ContMBB depending on the AND/OR polarity.
-  if (IsAnd) {
-    // Head now: !A → ElseMBB, fallthrough → ContMBB.
-    HeadMBB->removeSuccessor(ThenMBB);
-  } else {
-    // Head now: A → ThenMBB, fallthrough → ContMBB.
-    HeadMBB->removeSuccessor(ElseMBB);
-  }
-  HeadMBB->addSuccessor(ContMBB);
-  ContMBB->addSuccessor(ThenMBB);
-  ContMBB->addSuccessor(ElseMBB);
-
-  // Patch PHIs in the target block whose HeadMBB-predecessor edge is now
-  // through ContMBB. Only one of {ThenMBB, ElseMBB} needs patching — the
-  // one that lost its direct HeadMBB edge.
-  MachineBasicBlock *PatchMBB = IsAnd ? ThenMBB : ElseMBB;
-  for (MachineInstr &Phi : PatchMBB->phis()) {
-    for (unsigned i = 1; i < Phi.getNumOperands(); i += 2) {
-      if (Phi.getOperand(i + 1).isMBB() &&
-          Phi.getOperand(i + 1).getMBB() == HeadMBB)
-        Phi.getOperand(i + 1).setMBB(ContMBB);
-    }
-  }
-
-  // The AND/OR result is now dead (we checked single-use at match time).
-  AndOr->eraseFromParent();
-}
-
 APInt MC6809CombinerImpl::getDemandedBits(Register R) const {
   DenseMap<Register, APInt> Cache;
   return getDemandedBits(R, Cache);
@@ -758,10 +596,7 @@ public:
 
 void MC6809Combiner::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetPassConfig>();
-  // NOTE: no setPreservesCFG() — the brcond_and_or_shortcircuit rule splits
-  // the MBB, creating a fresh continuation block and rewriting successor
-  // edges (bug #158). The only downstream pre-legalise MC6809 pass is the
-  // legalizer itself, which tolerates arbitrary CFG.
+  AU.setPreservesCFG();
   getSelectionDAGFallbackAnalysisUsage(AU);
   AU.addRequired<GISelValueTrackingAnalysisLegacy>();
   AU.addPreserved<GISelValueTrackingAnalysisLegacy>();
