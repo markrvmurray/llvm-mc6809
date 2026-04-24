@@ -999,6 +999,83 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
         R = Next;
       }
     };
+    // Helper to detect a constant RHS (generic G_CONSTANT or already-
+    // selected Load_i{8,16,Ptr}_Imm), walking through COPY/G_FREEZE.
+    auto FindImmRhs = [&](Register R) -> std::optional<int64_t> {
+      Register Cur = R;
+      while (true) {
+        if (auto C = getIConstantVRegValWithLookThrough(Cur, *MRI))
+          return C->Value.getSExtValue();
+        MachineInstr *D = MRI->getVRegDef(Cur);
+        if (!D) return std::nullopt;
+        unsigned Op = D->getOpcode();
+        if (Op == TargetOpcode::COPY || Op == TargetOpcode::G_FREEZE) {
+          Register N = D->getOperand(1).getReg();
+          if (!N.isVirtual()) return std::nullopt;
+          Cur = N;
+          continue;
+        }
+        if (Op == MC6809::Load_i8_Imm || Op == MC6809::Load_i16_Imm ||
+            Op == MC6809::Load_iPtr_Imm)
+          return D->getOperand(1).getImm();
+        return std::nullopt;
+      }
+    };
+
+    // Immediate-RHS compare→branch fusion, multi-use-tolerant.
+    //
+    // When G_BRCOND's CondDef is a G_ICMP whose RHS is a constant, we
+    // can emit CompareBranch_i{8,16}_Imm EVEN IF the G_ICMP has other
+    // users: duplicating an immediate compare costs a few bytes and no
+    // CPU overhead, and the other users will get their own comparison
+    // from the unselected G_ICMP. This is load-bearing for bug #158's
+    // post-libcall compare — the first user gets fused (no CC-spill
+    // gap), the second user materialises the bool as before.
+    //
+    // ChainAllSingleUse is enforced by the later fusion path because
+    // duplicating a REGISTER-RHS compare would mean re-reading RHS,
+    // which may have been killed. Immediate RHS sidesteps that.
+    if (CondDef && CondDef->getOpcode() == TargetOpcode::G_ICMP &&
+        CondDef->getParent() == MBB) {
+      auto Pred = (CmpInst::Predicate)CondDef->getOperand(1).getPredicate();
+      Register Lhs = CondDef->getOperand(2).getReg();
+      Register Rhs = CondDef->getOperand(3).getReg();
+      LLT Ty = MRI->getType(Lhs);
+      auto CCOpt = PredToCC(Pred);
+      const RegisterBank *LBank = RBI.getRegBank(Lhs, *MRI, TRI);
+      bool LhsAccum = LBank &&
+                      LBank->getID() == MC6809::ACCUMRegBankID;
+      unsigned CmpBrImmOpc = 0;
+      const TargetRegisterClass *RC = nullptr;
+      if (LhsAccum && CCOpt) {
+        if (Ty == LLT::scalar(8)) {
+          CmpBrImmOpc = MC6809::CompareBranch_i8_Imm;
+          RC = &MC6809::ACC8RegClass;
+        } else if (Ty == LLT::scalar(16)) {
+          CmpBrImmOpc = MC6809::CompareBranch_i16_Imm;
+          RC = &MC6809::ACC16RegClass;
+        }
+      }
+      if (CmpBrImmOpc && CCOpt) {
+        if (auto Imm = FindImmRhs(Rhs);
+            Imm && RBI.constrainGenericRegister(Lhs, *RC, *MRI)) {
+          BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(CmpBrImmOpc))
+              .addImm(*CCOpt)
+              .addReg(Lhs)
+              .addImm(*Imm)
+              .addMBB(TargetMBB);
+          // Erase the G_ICMP only if it has no remaining users after
+          // we've taken ours (the BRCOND below). Otherwise leave it for
+          // the select / other consumer to emit their own comparison.
+          Register ICmpDst = CondDef->getOperand(0).getReg();
+          MI.eraseFromParent();
+          if (MRI->use_nodbg_empty(ICmpDst))
+            CondDef->eraseFromParent();
+          return true;
+        }
+      }
+    }
+
     if (CondDef && CondDef->getOpcode() == TargetOpcode::G_ICMP &&
         CondDef->getParent() == MBB &&
         ChainAllSingleUse()) {
@@ -1061,6 +1138,50 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
       int64_t FalseVal = CondDef->getOperand(4).getImm();
       if (TrueVal == 1 && FalseVal == 0 &&
           CCBitsSurvive(CondDef, FlagsReadBy(CC))) {
+        // Bug #158 re-fusion: when the ConditionalImm's CCond source is
+        // a Compare_i{8,16}_Imm in the same MBB, re-fuse into a
+        // CompareBranch_i{8,16}_Imm that post-RA expands to an adjacent
+        // CMP+LBcc pair. Without this, regalloc can slot CC-clobbering
+        // spills between the Compare and the LBlbc emitted below,
+        // silently taking the wrong branch.
+        //
+        // CCBitsSurvive already checks CC-clobbering instructions
+        // CURRENTLY between CondDef and the BRCOND — but regalloc
+        // inserts STY/LDY spills AFTER selection, which CCBitsSurvive
+        // can't foresee. Fusion eliminates the gap by construction.
+        Register CCondReg = CondDef->getOperand(2).getReg();
+        MachineInstr *CmpDef = MRI->getVRegDef(CCondReg);
+        if (CmpDef && CmpDef->getParent() == MBB) {
+          unsigned CmpOpc = CmpDef->getOpcode();
+          unsigned FusedOpc = 0;
+          if (CmpOpc == MC6809::Compare_i8_Imm)
+            FusedOpc = MC6809::CompareBranch_i8_Imm;
+          else if (CmpOpc == MC6809::Compare_i16_Imm)
+            FusedOpc = MC6809::CompareBranch_i16_Imm;
+          if (FusedOpc) {
+            // Compare_i*_Imm operand layout: (cc_out CCond, cc imm,
+            // src reg, imm). CompareBranch_i*_Imm layout: (cc imm,
+            // src reg, imm, branch target).
+            int64_t CmpCC = CmpDef->getOperand(1).getImm();
+            Register Src = CmpDef->getOperand(2).getReg();
+            int64_t Imm = CmpDef->getOperand(3).getImm();
+            // Re-fusion picks the ConditionalImm's CC (i.e. what the
+            // branch actually consumes), not the Compare's CC — they're
+            // usually the same but not guaranteed identical.
+            (void)CmpCC;
+            BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(FusedOpc))
+                .addImm(CC)
+                .addReg(Src)
+                .addImm(Imm)
+                .addMBB(TargetMBB);
+            MI.eraseFromParent();
+            // Leave Compare + ConditionalImm for DCE — they feed the
+            // original i1 materialisation for any OTHER user (e.g. a
+            // select). If this BRCOND was the sole consumer, they'll
+            // get DCE'd later.
+            return true;
+          }
+        }
         BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(MC6809::LBlbc))
             .addImm(CC)
             .addMBB(TargetMBB);

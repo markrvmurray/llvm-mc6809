@@ -392,9 +392,16 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   getActionDefinitionsBuilder(G_VAARG)
       .customForCartesianProduct({p, s8, s16, s32, s64}, {p});
 
+  // G_ICMP: s8/s16 native; pointer via custom; s32/s64 via libcall to
+  // __{u,}cmp{s,d}i2. Inline i32/i64 compare decomposes into a multi-
+  // instruction CC-setting sequence with a conditional-branch tail that
+  // regalloc's spill placer can cleave with STY/LDY, clobbering CC.Z and
+  // corrupting the branch at runtime (bug #158). Routing to a libcall
+  // replaces that whole sequence with one LBSR, which is a hard barrier
+  // against regalloc inserting spills in the compare→branch gap.
   getActionDefinitionsBuilder(G_ICMP)
       .legalForCartesianProduct({s1}, {s8, s16})
-      .customForCartesianProduct({s1}, {p})
+      .customForCartesianProduct({s1}, {p, s32, s64})
       .clampScalar(1, s8, s16);
 
   getActionDefinitionsBuilder(G_FCMP)
@@ -470,21 +477,115 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
   case G_XOR:
     return legalizeBitwise(Helper, MRI, MI, LocObserver);
   case G_ICMP: {
-    // Pointer compare: convert ptr operands to s16 via G_PTRTOINT and reuse
-    // the existing s16 G_ICMP patterns. The hardware CMPD/CMPX instructions
-    // don't distinguish pointers from integers; this just keeps the imported
-    // selection patterns happy.
     Register Dst = MI.getOperand(0).getReg();
     auto Pred = (CmpInst::Predicate)MI.getOperand(1).getPredicate();
     Register Lhs = MI.getOperand(2).getReg();
     Register Rhs = MI.getOperand(3).getReg();
     MachineIRBuilder &B = Helper.MIRBuilder;
     LLT S16 = LLT::scalar(16);
-    auto LhsInt = B.buildPtrToInt(S16, Lhs);
-    auto RhsInt = B.buildPtrToInt(S16, Rhs);
-    B.buildICmp(Pred, Dst, LhsInt, RhsInt);
-    MI.eraseFromParent();
-    return true;
+    LLT OpTy = MRI.getType(Lhs);
+
+    // Pointer compare: convert ptr operands to s16 via G_PTRTOINT and reuse
+    // the existing s16 G_ICMP patterns. The hardware CMPD/CMPX instructions
+    // don't distinguish pointers from integers; this just keeps the imported
+    // selection patterns happy.
+    if (OpTy.isPointer()) {
+      auto LhsInt = B.buildPtrToInt(S16, Lhs);
+      auto RhsInt = B.buildPtrToInt(S16, Rhs);
+      B.buildICmp(Pred, Dst, LhsInt, RhsInt);
+      MI.eraseFromParent();
+      return true;
+    }
+
+    // i32/i64 compare via libcall to __{u,}cmp{s,d}i2 (bug #158).
+    //
+    // Inline compare at these widths decomposes into a multi-instruction
+    // CC-setting sequence whose trailing conditional branch is exposed
+    // to a regalloc race: the spill placer doesn't see CC as live across
+    // the gap (the Compare pseudo carries the dep via a virtual CCond
+    // output, not via physical CC reg Defs), so STY/LDY can land in the
+    // middle and clobber CC.Z. A libcall collapses the whole sequence
+    // into one LBSR, which IS a hard barrier for the spill placer —
+    // closes the class of bugs by construction.
+    //
+    // compiler-rt ABI: __cmpXi2 and __ucmpXi2 return 0 if a<b, 1 if
+    // a==b, 2 if a>b. We post-process with an i32 icmp against the
+    // appropriate constant:
+    //
+    //    lt/ult   →  eq result, 0
+    //    le/ule   →  ne result, 2
+    //    gt/ugt   →  eq result, 2
+    //    ge/uge   →  ne result, 0
+    //    eq       →  eq result, 1
+    //    ne       →  ne result, 1
+    if (OpTy == LLT::scalar(32) || OpTy == LLT::scalar(64)) {
+      bool IsUnsigned = CmpInst::isUnsigned(Pred) || Pred == CmpInst::ICMP_EQ ||
+                        Pred == CmpInst::ICMP_NE;
+      const char *Name;
+      if (OpTy == LLT::scalar(32))
+        Name = IsUnsigned ? "__ucmpsi2" : "__cmpsi2";
+      else
+        Name = IsUnsigned ? "__ucmpdi2" : "__cmpdi2";
+
+      auto &Ctx = MI.getMF()->getFunction().getContext();
+      Type *OpC = OpTy == LLT::scalar(32) ? (Type *)Type::getInt32Ty(Ctx)
+                                          : (Type *)Type::getInt64Ty(Ctx);
+      Type *RetC = Type::getInt32Ty(Ctx);  // compiler-rt cmpXi2 returns i32
+
+      LLT Ret32 = LLT::scalar(32);
+      Register Ret32Reg = MRI.createGenericVirtualRegister(Ret32);
+
+      SmallVector<CallLowering::ArgInfo, 2> Args;
+      Args.push_back({Lhs, OpC, 0});
+      Args.push_back({Rhs, OpC, 1});
+      if (!Helper.createLibcall(Name, {Ret32Reg, RetC, 0}, Args,
+                                CallingConv::C, LocObserver))
+        return false;
+
+      // Post-call comparison on i8: the libcall result is always in
+      // {0, 1, 2}, which fits in a byte. i8 avoids re-entering this same
+      // custom rule (observed as a hang when I first tried i32 here, and
+      // i16 would emit `cmpd #imm16` where only 8 bits are meaningful).
+      // Comparing on i8 also opens up CompareBranch_i8_Imm fusion in
+      // selectBrCond — the whole point of the libcall fix is to get a
+      // single-MI compare→branch at the point where the result is
+      // consumed.
+      LLT Ret8 = LLT::scalar(8);
+      auto Ret8Reg = B.buildTrunc(Ret8, Ret32Reg);
+
+      // Map the original predicate to (newPred, compareConst) on Ret16Reg.
+      CmpInst::Predicate NewPred;
+      int64_t CmpVal;
+      switch (Pred) {
+      case CmpInst::ICMP_EQ:
+        NewPred = CmpInst::ICMP_EQ; CmpVal = 1; break;
+      case CmpInst::ICMP_NE:
+        NewPred = CmpInst::ICMP_NE; CmpVal = 1; break;
+      case CmpInst::ICMP_SLT:
+      case CmpInst::ICMP_ULT:
+        NewPred = CmpInst::ICMP_EQ; CmpVal = 0; break;
+      case CmpInst::ICMP_SLE:
+      case CmpInst::ICMP_ULE:
+        NewPred = CmpInst::ICMP_NE; CmpVal = 2; break;
+      case CmpInst::ICMP_SGT:
+      case CmpInst::ICMP_UGT:
+        NewPred = CmpInst::ICMP_EQ; CmpVal = 2; break;
+      case CmpInst::ICMP_SGE:
+      case CmpInst::ICMP_UGE:
+        NewPred = CmpInst::ICMP_NE; CmpVal = 0; break;
+      default:
+        return false;
+      }
+
+      auto CmpConst = B.buildConstant(Ret8, CmpVal);
+      B.buildICmp(NewPred, Dst, Ret8Reg, CmpConst);
+      MI.eraseFromParent();
+      return true;
+    }
+
+    // Unreachable — other widths should be covered by the legalForCartesianProduct
+    // / clampScalar rules above.
+    return false;
   }
   case G_ZEXT:
   case G_ANYEXT: {
