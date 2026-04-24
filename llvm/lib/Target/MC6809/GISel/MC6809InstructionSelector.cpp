@@ -35,6 +35,8 @@
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/RegisterBankInfo.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
+#include "llvm/IR/DebugInfoMetadata.h"
+#include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/Support/ErrorHandling.h"
 
 using namespace llvm;
@@ -622,6 +624,33 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     }
   }
 
+  // Bug #144 follow-on: intercept G_CONSTANT s32 with all-debug uses
+  // BEFORE selectImpl matches it to Load_i32_Imm (which produces an
+  // ACC32 vreg from the 1-reg {AQ} class — overflows at -Og). The
+  // value can be recovered from the original source; FAKE_USE alone
+  // doesn't carry information.
+  if (MI.getOpcode() == TargetOpcode::G_CONSTANT) {
+    Register DstReg = MI.getOperand(0).getReg();
+    if (MRI->getType(DstReg) == LLT::scalar(32)) {
+      bool AllUsesAreDebug = true;
+      for (auto &Use : MRI->use_instructions(DstReg)) {
+        if (!Use.isDebugInstr() && Use.getOpcode() != TargetOpcode::FAKE_USE) {
+          AllUsesAreDebug = false;
+          break;
+        }
+      }
+      if (AllUsesAreDebug) {
+        SmallVector<MachineInstr *, 4> Uses;
+        for (auto &U : MRI->use_instructions(DstReg))
+          Uses.push_back(&U);
+        for (MachineInstr *Use : Uses)
+          Use->eraseFromParent();
+        MI.eraseFromParent();
+        return true;
+      }
+    }
+  }
+
   if (selectImpl(MI, *CoverageInfo))
     return true;
 
@@ -685,7 +714,33 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     // Pointer constants (e.g., NULL) aren't covered by imported patterns
     // because they have p0 type, not s16. Hand-select to LDX #imm.
     Register DstReg = MI.getOperand(0).getReg();
-    if (!MRI->getType(DstReg).isPointer())
+    LLT DstTy = MRI->getType(DstReg);
+    // Bug #144 follow-on: G_CONSTANT s32 selects to Load_i32_Imm with
+    // ACC32 dst (1-reg class {AQ}). At -Og some constants are kept
+    // alive only by FAKE_USE for debug observability. Materialising
+    // them in AQ overflows the class. If there are no real users
+    // (only FAKE_USE / DBG_VALUE), delete the constant and its
+    // debug consumers — there is no information loss because the
+    // value can be recovered from the original source.
+    if (DstTy == LLT::scalar(32)) {
+      bool AllUsesAreDebug = true;
+      for (auto &Use : MRI->use_instructions(DstReg)) {
+        if (!Use.isDebugInstr() && Use.getOpcode() != TargetOpcode::FAKE_USE) {
+          AllUsesAreDebug = false;
+          break;
+        }
+      }
+      if (AllUsesAreDebug) {
+        SmallVector<MachineInstr *, 4> Uses;
+        for (auto &U : MRI->use_instructions(DstReg))
+          Uses.push_back(&U);
+        for (MachineInstr *Use : Uses)
+          Use->eraseFromParent();
+        MI.eraseFromParent();
+        return true;
+      }
+    }
+    if (!DstTy.isPointer())
       return false;
     MRI->setRegClass(DstReg, &MC6809::INDEX16RegClass);
     MI.setDesc(TII.get(MC6809::Load_iPtr_Imm));
@@ -1253,7 +1308,21 @@ bool MC6809InstructionSelector::selectMergeValues(MachineInstr &MI) {
   auto LoConst = getIConstantVRegValWithLookThrough(Lo, *MRI);
   auto HiConst = getIConstantVRegValWithLookThrough(Hi, *MRI);
   const unsigned Size = MRI->getType(Dst).getSizeInBits();
-  if (LoConst && HiConst) {
+  // Bug #144: skip the constant-fold path for s32 dst when all uses
+  // are debug — Load_i32_Imm produces an ACC32 vreg ({AQ}, 1 reg)
+  // that overflows at -Og. Fall through to the per-half path below
+  // so the merge-values handler's debug-only rewrite catches it.
+  bool S32AllDebug = false;
+  if (Size == 32) {
+    S32AllDebug = true;
+    for (auto &Use : MRI->use_instructions(Dst)) {
+      if (!Use.isDebugInstr() && Use.getOpcode() != TargetOpcode::FAKE_USE) {
+        S32AllDebug = false;
+        break;
+      }
+    }
+  }
+  if (LoConst && HiConst && !S32AllDebug) {
     if (Size == 16) {
       uint64_t Val = HiConst->Value.getZExtValue() << 8 | LoConst->Value.getZExtValue();
       auto Instr = Builder.buildInstr(MC6809::Load_i16_Imm).addDef(Dst).addImm(Val);
@@ -1283,8 +1352,66 @@ bool MC6809InstructionSelector::selectMergeValues(MachineInstr &MI) {
                      .addUse(Hi);
     constrainSelectedInstRegOperands(*Merge, TII, TRI, RBI);
   } else {
-    // s8×2 → s32 path on HD6309 still uses REG_SEQUENCE with word sub-regs
-    // on AQ, which is not part of the Layer-1 bottleneck.
+    // Bug #144: s16×2 → s32 G_MERGE_VALUES. The natural lowering is
+    // REG_SEQUENCE producing an ACC32 vreg, but ACC32 is a 1-register
+    // class ({AQ}) and at -Og this routinely overflows when an i32
+    // local is kept alive purely so the debugger can present it as a
+    // single value. Detect that case (all uses are DBG_VALUE / FAKE_USE)
+    // and rewrite the debug consumers to read the constituent halves
+    // via DW_OP_LLVM_fragment, dropping the REG_SEQUENCE entirely.
+    bool AllUsesAreDebug = true;
+    for (auto &Use : MRI->use_instructions(Dst)) {
+      if (!Use.isDebugInstr() && Use.getOpcode() != TargetOpcode::FAKE_USE) {
+        AllUsesAreDebug = false;
+        break;
+      }
+    }
+    if (AllUsesAreDebug) {
+      LLVMContext &Ctx = MF->getFunction().getContext();
+      // Iterate via SmallVector copy because we erase as we go.
+      SmallVector<MachineInstr *, 4> Uses;
+      for (auto &U : MRI->use_instructions(Dst))
+        Uses.push_back(&U);
+      for (MachineInstr *Use : Uses) {
+        if (Use->getOpcode() == TargetOpcode::FAKE_USE) {
+          // FAKE_USE just keeps a value live; replace the i32 operand
+          // with the two i16 halves so neither dies prematurely.
+          MachineInstrBuilder NewFU = BuildMI(*Use->getParent(), Use,
+              Use->getDebugLoc(), TII.get(TargetOpcode::FAKE_USE))
+              .addUse(Lo).addUse(Hi);
+          (void)NewFU;
+          Use->eraseFromParent();
+          continue;
+        }
+        // DBG_VALUE / DBG_VALUE_LIST: split into two fragments.
+        // Original DIExpression() (empty) describes the full s32 value;
+        // we replace each with a DW_OP_LLVM_fragment(offset, 16).
+        assert(Use->isDebugValue());
+        auto MakeFragment = [&](unsigned OffsetBits) {
+          const DIExpression *OldExpr = Use->getDebugExpression();
+          SmallVector<uint64_t, 4> Ops;
+          if (OldExpr)
+            Ops.append(OldExpr->elements_begin(), OldExpr->elements_end());
+          return DIExpression::appendOpsToArg(
+              DIExpression::get(Ctx, Ops), {dwarf::DW_OP_LLVM_fragment,
+                                              OffsetBits, 16}, 0,
+              /*StackValue=*/false);
+        };
+        const DILocalVariable *Var = Use->getDebugVariable();
+        const DebugLoc &DL = Use->getDebugLoc();
+        BuildMI(*Use->getParent(), Use, DL, TII.get(TargetOpcode::DBG_VALUE))
+            .addReg(Lo).addReg(0).addMetadata(Var).addMetadata(MakeFragment(0));
+        BuildMI(*Use->getParent(), Use, DL, TII.get(TargetOpcode::DBG_VALUE))
+            .addReg(Hi).addReg(0).addMetadata(Var).addMetadata(MakeFragment(16));
+        Use->eraseFromParent();
+      }
+      MI.eraseFromParent();
+      return true;
+    }
+    // Real i32 consumers (HD6309 ALU ops, Store_i32, etc.): emit
+    // REG_SEQUENCE with word sub-regs on AQ. Plain MC6809 should not
+    // hit this path — if it does, the legalizer should have decomposed
+    // earlier and the resulting ACC32 vreg WILL fail regalloc.
     auto RegSeq = Builder.buildInstr(MC6809::REG_SEQUENCE).addDef(Dst);
     RegSeq.addUse(Lo).addImm(MC6809::sub_lo_word).addUse(Hi).addImm(MC6809::sub_hi_word);
     RegSeq->addImplicitDefUseOperands(*MF);
