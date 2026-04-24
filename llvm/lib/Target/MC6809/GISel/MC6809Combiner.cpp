@@ -115,6 +115,8 @@ public:
 
   bool matchShiftUnusedCarryIn(MachineInstr &MI, BuildFnTy &MatchInfo) const;
 
+  bool matchNarrowI16EqNeICmp(MachineInstr &MI, BuildFnTy &MatchInfo) const;
+
   APInt getDemandedBits(Register R) const;
   APInt getDemandedBits(Register R, DenseMap<Register, APInt> &Cache) const;
 
@@ -473,6 +475,38 @@ bool MC6809CombinerImpl::matchShiftUnusedCarryIn(MachineInstr &MI, BuildFnTy &Ma
     Observer.changingInstr(MI);
     MI.getOperand(3).setReg(B.buildConstant(LLT::scalar(1), 0).getReg(0));
     Observer.changedInstr(MI);
+  };
+  return true;
+}
+
+// Bug #137: narrow i16 EQ/NE against constant-zero RHS to byte-pair.
+bool MC6809CombinerImpl::matchNarrowI16EqNeICmp(MachineInstr &MI,
+                                                 BuildFnTy &MatchInfo) const {
+  if (!Helper.isPreLegalize())
+    return false;
+  auto Pred = (CmpInst::Predicate)MI.getOperand(1).getPredicate();
+  if (Pred != CmpInst::ICMP_EQ && Pred != CmpInst::ICMP_NE)
+    return false;
+  Register Lhs = MI.getOperand(2).getReg();
+  Register Rhs = MI.getOperand(3).getReg();
+  LLT LhsTy = MRI.getType(Lhs);
+  if (LhsTy != LLT::scalar(16))
+    return false;
+  auto RhsConst = getIConstantVRegValWithLookThrough(Rhs, MRI);
+  if (!RhsConst || !RhsConst->Value.isZero())
+    return false;
+  Register Dst = MI.getOperand(0).getReg();
+  MatchInfo = [=](MachineIRBuilder &B) {
+    LLT S1 = LLT::scalar(1);
+    LLT S8 = LLT::scalar(8);
+    auto LhsU = B.buildUnmerge(S8, Lhs);
+    auto Zero = B.buildConstant(S8, 0);
+    auto LoCmp = B.buildICmp(Pred, S1, LhsU.getReg(0), Zero);
+    auto HiCmp = B.buildICmp(Pred, S1, LhsU.getReg(1), Zero);
+    if (Pred == CmpInst::ICMP_EQ)
+      B.buildAnd(Dst, LoCmp, HiCmp);
+    else
+      B.buildOr(Dst, LoCmp, HiCmp);
   };
   return true;
 }

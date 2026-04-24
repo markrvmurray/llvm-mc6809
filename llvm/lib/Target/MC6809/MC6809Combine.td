@@ -107,8 +107,15 @@ def mc6809_all_combines : GICombineGroup<[integer_reassoc_combines,
     truncsat_combines, lshr_of_trunc_of_lshr, ctls_combines, add_shift,
     sub_one_from_sub]>;
 
+def narrow_i16_eq_ne_icmp : GICombineRule<
+  (defs root:$root, build_fn_matchinfo:$matchinfo),
+  (match (wip_match_opcode G_ICMP):$root,
+          [{ return matchNarrowI16EqNeICmp(*${root}, ${matchinfo}); }]),
+  (apply [{ Helper.applyBuildFn(*${root}, ${matchinfo}); }])>;
+
 def MC6809Combiner : GICombiner<"MC6809CombinerImpl", [
     mc6809_all_combines,
+    narrow_i16_eq_ne_icmp,
     // unmerge_high_from_load,
     // unmerge_low_from_load,
     // fold_global_offset,
