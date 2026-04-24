@@ -4528,65 +4528,6 @@ void MC6809InstrInfo::expandCompareImm(MachineIRBuilder &Builder, MachineInstr &
       if (IndexSrc.isValid()) {
         SrcReg = IndexSrc;
         LDDInstr->eraseFromParent();
-      } else {
-        // Bug #137 path D: the STX/STY scan above didn't find a matching
-        // store, so we can't reuse a still-live IX/IY value. But if IX or
-        // IY is *dead* at this point, we can load the slot directly via
-        // LDX/LDY and emit CMPX/CMPY against the immediate — bypassing
-        // the AD pressure trap entirely. The trap is that
-        // `materializeReg` placed an LDD into $ad, and a sibling vreg's
-        // spill reload also targets $ad and lands between cmp and
-        // branch, clobbering NZ. Substituting CMPX/CMPY removes the AD
-        // demand on this cmp so the conflicting reload no longer
-        // overlaps.
-        const TargetRegisterInfo *TRI =
-            MF.getSubtarget().getRegisterInfo();
-        Register IdxCand;
-        unsigned LdOpc = 0, CmpOpc = 0;
-        for (Register C : {Register(MC6809::IX), Register(MC6809::IY)}) {
-          if (MBB.computeRegisterLiveness(TRI, C, MI) ==
-              MachineBasicBlock::LQR_Dead) {
-            IdxCand = C;
-            break;
-          }
-        }
-        if (IdxCand.isValid()) {
-          switch (LDDInstr->getOpcode()) {
-          case MC6809::LDDi_o0:
-            LdOpc = (IdxCand == MC6809::IX) ? MC6809::LDXi_o0
-                                            : MC6809::LDYi_o0;
-            break;
-          case MC6809::LDDi_o5:
-            LdOpc = (IdxCand == MC6809::IX) ? MC6809::LDXi_o5
-                                            : MC6809::LDYi_o5;
-            break;
-          case MC6809::LDDi_o8:
-            LdOpc = (IdxCand == MC6809::IX) ? MC6809::LDXi_o8
-                                            : MC6809::LDYi_o8;
-            break;
-          case MC6809::LDDi_o16:
-            LdOpc = (IdxCand == MC6809::IX) ? MC6809::LDXi_o16
-                                            : MC6809::LDYi_o16;
-            break;
-          default:
-            LdOpc = 0;
-            break;
-          }
-          CmpOpc = (IdxCand == MC6809::IX) ? MC6809::CMPXi16
-                                           : MC6809::CMPYi16;
-          if (LdOpc) {
-            // Replace LDD with LDX/LDY at the same position; emit
-            // CMPX/CMPY where the original Compare_*_Imm sits.
-            MachineIRBuilder LdBuilder(*LDDInstr);
-            LdBuilder.buildInstr(LdOpc)
-                .addImm(LoadOffset)
-                .addReg(MC6809::SU);
-            LDDInstr->eraseFromParent();
-            Builder.buildInstr(CmpOpc).add(MI.getOperand(3));
-            MI.eraseFromParent();
-            return;
-          }
-        }
       }
     }
   }
