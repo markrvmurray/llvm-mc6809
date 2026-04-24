@@ -77,9 +77,17 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
 
   const auto ChangeToSameSizeScalar = [](unsigned TypeIdx, unsigned SizeTypeIdx) { return [=](const LegalityQuery &Query) { return std::make_pair(TypeIdx, LLT::scalar(Query.Types[SizeTypeIdx].getSizeInBits())); }; };
 
+  // Bug #138 mode 1: s32 must be legal on plain 6809 too. The IR optimiser
+  // strips most G_IMPLICIT_DEF on s32 at -O1+, but -Og deliberately keeps
+  // them around for the debugger. Without this, picolibc TUs `str2sig`,
+  // `fgetws`, `__bufio_flush_locked`, `hash_seq`, `__big_split` (and any
+  // future s32 dead-value site) abort the backend with
+  // "unable to legalize instruction: %X:_(s32) = G_IMPLICIT_DEF".
+  // s64 is treated the same way — both sit above the per-target
+  // `LegalTypesWithOne` ceiling but are required for picolibc compilation.
   getActionDefinitionsBuilder(G_IMPLICIT_DEF)
       .legalFor(LegalTypesWithOne)
-      .legalFor({s64});
+      .legalFor({s32, s64});
 
   getActionDefinitionsBuilder(G_MERGE_VALUES)
       .legalForCartesianProduct({s16, s32, s64}, {s8, s16, s32});
