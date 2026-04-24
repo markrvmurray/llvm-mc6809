@@ -831,6 +831,11 @@ list(REMOVE_ITEM mc6809_SOURCES
   divmoddi4.c udivmoddi4.c
   mulvdi3.c mulodi4.c
   paritydi2.c popcountdi2.c
+  # cmpdi2 / ucmpdi2 upstream bodies compare i32 halves, which on MC6809
+  # would recurse into (broken) inline i32 compare — see bug #158. Replaced
+  # with mc6809/cmpdi2.c + mc6809/ucmpdi2.c, which decompose all the way
+  # to i16 so only native compares are used.
+  cmpdi2.c ucmpdi2.c
   # 128-bit arithmetic
   ashlti3.c ashrti3.c lshrti3.c
   divti3.c modti3.c udivti3.c umodti3.c multi3.c
@@ -881,6 +886,19 @@ list(APPEND mc6809_SOURCES
   mc6809/divsi.S
   mc6809/memops.S
   mc6809/shiftqi3.S
+  # Integer-compare libcalls used by MC6809LegalizerInfo to route G_ICMP
+  # s32/s64 → libcall. Bug #158 — inline i32/i64 compare codegen is
+  # exposed to a regalloc/CC-preservation race; libcall sidesteps the
+  # whole class of races by collapsing the compare into a single LBSR.
+  # Written in hand asm because a C implementation gets miscompiled into
+  # a recursive call to itself: any mid-end pass that introduces an i32
+  # compare in the C body (even for loop bounds or bool materialisation)
+  # hits the same libcall rule and the emitted code calls the libcall
+  # from within its own body → unbounded stack growth at runtime.
+  mc6809/cmpsi2.S
+  mc6809/ucmpsi2.S
+  mc6809/cmpdi2.S
+  mc6809/ucmpdi2.S
 )
 
 set(mos_SOURCES ${GENERIC_SOURCES})
