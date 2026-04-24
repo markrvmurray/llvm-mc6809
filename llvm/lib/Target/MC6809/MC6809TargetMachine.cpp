@@ -39,6 +39,7 @@
 #include "MC6809IncDecPhi.h"
 #include "MC6809IndexIV.h"
 #include "MC6809InsertCopies.h"
+#include "MC6809SanitiseDebugInfo.h"
 #include "MC6809NoShortBranches.h"
 #include "MC6809Internalize.h"
 #include "MC6809BundleCC.h"
@@ -78,6 +79,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMC6809Target() {
   initializeMC6809PostRASpillOptPass(PR);
   initializeMC6809PreCGPFreezePass(PR);
   initializeMC6809MaterializeSpillsPass(PR);
+  initializeMC6809SanitiseDebugInfoPass(PR);
   initializeMC6809ShiftRotateChainPass(PR);
   initializeMC6809DirectPageAllocPass(PR);
 }
@@ -259,6 +261,11 @@ bool MC6809PassConfig::addGlobalInstructionSelect() {
   // Post-ISel cleanup (STACK16 vreg → $ss). Must run before RA at all opt
   // levels — see MC6809InsertCopies.cpp.
   addPass(createMC6809InsertCopiesPass());
+  // Bug #156: drop dangling DBG_VALUE register operands (vregs with no
+  // producer, e.g. clang's widened-i32 debug refs for i16 rsize_t locals).
+  // Otherwise LiveVariables asserts at CodeGen/LiveVariables.cpp:159. Must
+  // run before LiveVariables (which is scheduled in addOptimizedRegAlloc).
+  addPass(createMC6809SanitiseDebugInfoPass());
   return false;
 }
 

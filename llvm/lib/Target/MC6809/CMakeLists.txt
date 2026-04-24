@@ -50,6 +50,7 @@ add_llvm_target(MC6809CodeGen
   MC6809PreCGPFreeze.cpp
   MC6809MaterializeSpills.cpp
   MC6809RegisterInfo.cpp
+  MC6809SanitiseDebugInfo.cpp
   MC6809ShiftRotateChain.cpp
   MC6809Subtarget.cpp
   MC6809TargetMachine.cpp

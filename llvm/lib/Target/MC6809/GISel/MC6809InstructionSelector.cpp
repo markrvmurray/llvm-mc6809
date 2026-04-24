@@ -971,9 +971,37 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     //     INDEX/STACK banks need the ptr/STACK16 variants and aren't
     //     covered yet — those would be needed for pointer comparisons,
     //     which currently route through a different ICMP form).
+    // Bug #156: walk the FREEZE/COPY chain from CondReg back to the G_ICMP
+    // and require EVERY vreg along the way to have exactly one non-debug
+    // use. The original `hasOneNonDBGUse(CondDef def)` check missed the
+    // case where the chain head (e.g. G_ICMP %12) has one user (a FREEZE)
+    // but the FREEZE result %13 has multiple users (e.g. cross-BB BRCONDs).
+    // Per-iteration use counts are racy because earlier fusions in the
+    // same selection batch delete the chain head; counting the WHOLE chain
+    // up front is the robust check. Multi-consumer chains fall through to
+    // the materialise+TestBranch_i8_Reg path.
+    auto ChainAllSingleUse = [&]() {
+      Register R = CondReg;
+      while (true) {
+        if (!MRI->hasOneNonDBGUse(R))
+          return false;
+        MachineInstr *D = MRI->getVRegDef(R);
+        if (!D)
+          return false;
+        if (D == CondDef)
+          return true;
+        if (D->getOpcode() != TargetOpcode::G_FREEZE &&
+            D->getOpcode() != TargetOpcode::COPY)
+          return false;
+        Register Next = D->getOperand(1).getReg();
+        if (!Next.isVirtual())
+          return false;
+        R = Next;
+      }
+    };
     if (CondDef && CondDef->getOpcode() == TargetOpcode::G_ICMP &&
         CondDef->getParent() == MBB &&
-        MRI->hasOneNonDBGUse(CondDef->getOperand(0).getReg())) {
+        ChainAllSingleUse()) {
       auto Pred = (CmpInst::Predicate)CondDef->getOperand(1).getPredicate();
       Register Lhs = CondDef->getOperand(2).getReg();
       Register Rhs = CondDef->getOperand(3).getReg();
@@ -1075,8 +1103,28 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
       return true;
     }
 
-    // TestBranch_i8_Reg's source is constrained to ACC8.
+    // TestBranch_i8_Reg's source is constrained to ACC8. Bug #156: also
+    // set the class on every vreg in the FREEZE/COPY chain back to the
+    // BIT1 producer, since post-selection passes may eliminate the
+    // intermediate COPYs and rewrite uses of CondReg back to one of the
+    // earlier vregs in the chain. If those earlier vregs still have class
+    // BIT1, the regalloc's SplitEditor crashes on a class-constraint
+    // mismatch (no convertible class between BIT1 and ACC8 at split time).
     MRI->setRegClass(CondReg, &MC6809::ACC8RegClass);
+    {
+      Register R = CondReg;
+      while (true) {
+        MachineInstr *Def = MRI->getVRegDef(R);
+        if (!Def || (Def->getOpcode() != TargetOpcode::G_FREEZE &&
+                     Def->getOpcode() != TargetOpcode::COPY))
+          break;
+        Register Src = Def->getOperand(1).getReg();
+        if (!Src.isVirtual())
+          break;
+        MRI->setRegClass(Src, &MC6809::ACC8RegClass);
+        R = Src;
+      }
+    }
     // Branch if non-zero (NE).
     BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(MC6809::TestBranch_i8_Reg))
         .addImm(MC6809CC::NE)
