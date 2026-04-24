@@ -170,12 +170,98 @@ static bool isCarryPhantomPseudo(unsigned Opc) {
   }
 }
 
+// Bug #152 — unified phantom-BIT1 query.
+//
+// Follow a chain of G_FREEZE / COPY from \p SrcReg back to its ultimate
+// producer. If that producer leaves the s1 vreg's runtime value in a
+// specific CC bit rather than in the allocated byte-LSB (per bug #57's
+// scheduling-phantom design), return the CC physreg holding the real
+// value:
+//   - MC6809::C  for unsigned carry-out producers (G_U*ADD/SUB*O/E,
+//                 AddSetCarry*/SubSetCarry* pseudos + *Use variants).
+//   - MC6809::V  for signed overflow-out producers (G_S*ADD/SUB*O/E,
+//                 AddSetOverflow*/SubSetOverflow* + *Use).
+// Returns std::nullopt for real-byte s1 values (from G_ICMP,
+// ConditionalImm 0/1, G_CONSTANT, G_LOAD bool, etc.).
+//
+// Consumer sites use this to decide whether to emit a flag-reading
+// sequence (true phantom) or a byte-LSB-reading sequence (real byte).
+// Centralising the producer enumeration eliminates the duplicated
+// dispatch in selectBrCond / G_ANYEXT / G_ZEXT / G_SELECT / G_PHI.
+static std::optional<MCPhysReg>
+getPhantomBit1Flag(Register SrcReg, const MachineRegisterInfo &MRI) {
+  Register Cur = SrcReg;
+  while (Cur.isVirtual()) {
+    MachineInstr *Def = MRI.getVRegDef(Cur);
+    if (!Def) return std::nullopt;
+    unsigned Op = Def->getOpcode();
+    // Walk through transparent pass-throughs.
+    if (Op == TargetOpcode::G_FREEZE || Op == TargetOpcode::COPY) {
+      if (!Def->getOperand(1).isReg()) return std::nullopt;
+      Cur = Def->getOperand(1).getReg();
+      continue;
+    }
+    // Phantom-BIT1 producers. Keep in sync with MC6809InstrInfo.cpp
+    // expansions for each SetCarry / SetOverflow family.
+    switch (Op) {
+    // Carry producers.
+    case TargetOpcode::G_USUBO:
+    case TargetOpcode::G_UADDO:
+    case TargetOpcode::G_USUBE:
+    case TargetOpcode::G_UADDE:
+    case MC6809::SubSetCarry_i8_Imm:    case MC6809::SubSetCarry_i16_Imm:
+    case MC6809::SubSetCarry_i8_Mem:    case MC6809::SubSetCarry_i16_Mem:
+    case MC6809::SubSetCarry_i8_Pull:   case MC6809::SubSetCarry_i16_Pull:
+    case MC6809::SubSetCarry_i8_Reg:    case MC6809::SubSetCarry_i16_Reg:
+    case MC6809::AddSetCarry_i8_Imm:    case MC6809::AddSetCarry_i16_Imm:
+    case MC6809::AddSetCarry_i8_Mem:    case MC6809::AddSetCarry_i16_Mem:
+    case MC6809::AddSetCarry_i8_Pull:   case MC6809::AddSetCarry_i16_Pull:
+    case MC6809::AddSetCarry_i8_Reg:    case MC6809::AddSetCarry_i16_Reg:
+    case MC6809::SubSetCarryUse_i8_Imm: case MC6809::SubSetCarryUse_i16_Imm:
+    case MC6809::SubSetCarryUse_i8_Mem: case MC6809::SubSetCarryUse_i16_Mem:
+    case MC6809::SubSetCarryUse_i8_Reg: case MC6809::SubSetCarryUse_i16_Reg:
+    case MC6809::AddSetCarryUse_i8_Imm: case MC6809::AddSetCarryUse_i16_Imm:
+    case MC6809::AddSetCarryUse_i8_Mem: case MC6809::AddSetCarryUse_i16_Mem:
+    case MC6809::AddSetCarryUse_i8_Reg: case MC6809::AddSetCarryUse_i16_Reg:
+      return MC6809::C;
+    // Overflow producers.
+    case TargetOpcode::G_SSUBO:
+    case TargetOpcode::G_SADDO:
+    case TargetOpcode::G_SSUBE:
+    case TargetOpcode::G_SADDE:
+    case MC6809::SubSetOverflow_i8_Imm:     case MC6809::SubSetOverflow_i16_Imm:
+    case MC6809::SubSetOverflow_i8_Mem:     case MC6809::SubSetOverflow_i16_Mem:
+    case MC6809::SubSetOverflow_i8_Pull:    case MC6809::SubSetOverflow_i16_Pull:
+    case MC6809::SubSetOverflow_i8_Reg:     case MC6809::SubSetOverflow_i16_Reg:
+    case MC6809::AddSetOverflow_i8_Imm:     case MC6809::AddSetOverflow_i16_Imm:
+    case MC6809::AddSetOverflow_i8_Mem:     case MC6809::AddSetOverflow_i16_Mem:
+    case MC6809::AddSetOverflow_i8_Pull:    case MC6809::AddSetOverflow_i16_Pull:
+    case MC6809::AddSetOverflow_i8_Reg:     case MC6809::AddSetOverflow_i16_Reg:
+    case MC6809::SubSetOverflowUse_i8_Imm:  case MC6809::SubSetOverflowUse_i16_Imm:
+    case MC6809::SubSetOverflowUse_i8_Mem:  case MC6809::SubSetOverflowUse_i16_Mem:
+    case MC6809::SubSetOverflowUse_i8_Reg:  case MC6809::SubSetOverflowUse_i16_Reg:
+    case MC6809::AddSetOverflowUse_i8_Imm:  case MC6809::AddSetOverflowUse_i16_Imm:
+    case MC6809::AddSetOverflowUse_i8_Mem:  case MC6809::AddSetOverflowUse_i16_Mem:
+    case MC6809::AddSetOverflowUse_i8_Reg:  case MC6809::AddSetOverflowUse_i16_Reg:
+      return MC6809::V;
+    default:
+      return std::nullopt;
+    }
+  }
+  return std::nullopt;
+}
+
 // Bug #147 sibling of isCarryPhantomPseudo: returns true for pseudos
 // whose BIT1 phantom represents the V (signed-overflow) flag rather
 // than C (carry). Used by selectBrCond to dispatch to BVS instead of
 // BCS. Source IR is G_SADDO/G_SSUBO/G_SADDE/G_SSUBE; the post-selection
 // pseudos are AddSetOverflow_*/SubSetOverflow_* (same MC expansion as
 // the SetCarry siblings — only the s1 semantic differs).
+//
+// Thin wrapper kept around isCarryPhantomPseudo / isOverflowPhantomPseudo
+// because selectBrCond's existing logic does a same-MBB CondDef
+// opcode check; the per-opcode helpers are convenient there. New
+// code should prefer getPhantomBit1Flag which walks COPY/G_FREEZE.
 static bool isOverflowPhantomPseudo(unsigned Opc) {
   switch (Opc) {
   case TargetOpcode::G_SSUBO:
@@ -496,6 +582,65 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
       break;
     default:
       break;
+    }
+  }
+
+  // Bug #152 phase 3: intercept G_ZEXT s1→s8 with phantom-BIT1 source.
+  // G_ZEXT is otherwise pattern-selected (no hand path) and reads the
+  // allocated byte-LSB — which for a phantom-BIT1 is the parent byte's
+  // LSB (garbage). Route through MaterializeCarry/OverflowToByte_i8.
+  //
+  // CRITICAL: insert the materialisation IMMEDIATELY AFTER the phantom
+  // producer, NOT at the G_ZEXT use site. CC.C / CC.V are clobbered by
+  // any arithmetic or memory store between producer and use (e.g. STD
+  // sets V=0). Capturing the flag into a byte right after the producer
+  // is the only way to plumb the value across intervening ops. The
+  // materialised byte vreg is then live from producer to use, and any
+  // CC-clobbering instructions in between don't affect correctness.
+  //
+  // Empirically, inserting at the G_ZEXT position failed the
+  // `probe_zext(MAX,1)` test because G_STORE(data) runs between G_SADDO
+  // and G_ZEXT(ovf) in IR order, and STD sets V=0 before the
+  // materialisation could read it.
+  if (MI.getOpcode() == TargetOpcode::G_ZEXT) {
+    Register DstReg = MI.getOperand(0).getReg();
+    Register SrcReg = MI.getOperand(1).getReg();
+    LLT DstTy = MRI->getType(DstReg);
+    LLT SrcTy = MRI->getType(SrcReg);
+    if (DstTy == LLT::scalar(8) && SrcTy == LLT::scalar(1)) {
+      if (auto Flag = getPhantomBit1Flag(SrcReg, *MRI)) {
+        // Locate the producer MI by walking COPY/G_FREEZE (same chain
+        // getPhantomBit1Flag walked). Insert the materialisation right
+        // after it.
+        Register Cur = SrcReg;
+        MachineInstr *ProdDef = nullptr;
+        while (Cur.isVirtual()) {
+          ProdDef = MRI->getVRegDef(Cur);
+          if (!ProdDef) break;
+          unsigned Op = ProdDef->getOpcode();
+          if (Op == TargetOpcode::G_FREEZE || Op == TargetOpcode::COPY) {
+            Cur = ProdDef->getOperand(1).getReg();
+            continue;
+          }
+          break;
+        }
+        if (ProdDef) {
+          unsigned Opc = (*Flag == MC6809::C)
+                             ? MC6809::MaterializeCarryToByte_i8
+                             : MC6809::MaterializeOverflowToByte_i8;
+          // Insert MaterializeByte right after the producer MI so CC
+          // hasn't been clobbered yet. Byte vreg is the G_ZEXT's dst.
+          MRI->setRegClass(DstReg, &MC6809::ABcRegClass);
+          MachineBasicBlock &ProdMBB = *ProdDef->getParent();
+          auto InsertIt = std::next(MachineBasicBlock::iterator(ProdDef));
+          MachineIRBuilder B(ProdMBB, InsertIt);
+          auto I = B.buildInstr(Opc).addDef(DstReg).addUse(SrcReg);
+          constrainSelectedInstRegOperands(*I, TII, TRI, RBI);
+          MI.eraseFromParent();
+          return true;
+        }
+      }
+      // Fall through to TableGen patterns for non-phantom G_ZEXT s1→s8.
     }
   }
 
