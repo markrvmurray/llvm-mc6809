@@ -242,11 +242,29 @@ void MC6809AsmPrinter::emitJumpTableInfo() {
 
     // Emit an array of offsets from the table base (PIC).
     // Each entry is (target - table_base), so JMP D,X reaches the target.
+    //
+    // Bug #145: mask the difference with 0xFFFF. The runtime dispatch
+    // (`JMP D,X` with D = JT[idx], X = table base) computes
+    //   PC = (X + D) mod 2^16
+    // so any value congruent to (target - table_base) mod 2^16 is
+    // correct — including negative values when the target sits below
+    // the table base in the linker layout. The MC encoder's range
+    // check in MCObjectStreamer::emitValueImpl rejects diffs whose
+    // signed value is outside [-32768, 32767] AND whose unsigned
+    // value is outside [0, 65535]; for backward jumps spanning
+    // > 32 KB the int64 difference is negative and out-of-range,
+    // failing the check. Masking to uint16 keeps the assembled byte
+    // pair identical (since `JMP D,X` ignores any high bits) while
+    // landing the encoder check in [0, 65535]. Manifested at -Og in
+    // strftime — at higher opt levels the function shrinks enough
+    // that the target/base distance stays inside signed-16 range.
     const MCExpr *TableBase = MCSymbolRefExpr::create(JTISymbol, OutContext);
+    const MCExpr *Mask = MCConstantExpr::create(0xFFFF, OutContext);
     for (const MachineBasicBlock *JTBB : JTBBs) {
       const MCExpr *Target = MCSymbolRefExpr::create(JTBB->getSymbol(), OutContext);
       const MCExpr *Diff = MCBinaryExpr::createSub(Target, TableBase, OutContext);
-      OutStreamer->emitValue(Diff, 2);
+      const MCExpr *Masked = MCBinaryExpr::createAnd(Diff, Mask, OutContext);
+      OutStreamer->emitValue(Masked, 2);
     }
   }
   OutStreamer->emitDataRegion(MCDR_DataRegionEnd);
