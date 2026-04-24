@@ -127,11 +127,6 @@ void MC6809AsmBackend::applyFixup(const MCFragment &F, const MCFixup &Fixup,
   }
 }
 
-bool MC6809AsmBackend::fixupNeedsRelaxation(const MCFixup &Fixup,
-                                         uint64_t Value) const {
-  return true;
-}
-
 static cl::opt<bool> ForcePCRelReloc(
     "mc6809-force-pcrel-reloc",
     cl::desc("Force relocation entries to be emitted for PCREL fixups."),

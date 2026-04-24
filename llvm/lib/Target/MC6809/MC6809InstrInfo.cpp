@@ -365,7 +365,7 @@ Register MC6809InstrInfo::isStoreToStackSlot(const MachineInstr &MI, int &FrameI
   return 0;
 }
 
-void MC6809InstrInfo::reMaterialize(MachineBasicBlock &MBB, MachineBasicBlock::iterator I, Register DestReg, unsigned SubIdx, const MachineInstr &Orig) const {
+void MC6809InstrInfo::reMaterialize(MachineBasicBlock &MBB, MachineBasicBlock::iterator I, Register DestReg, unsigned SubIdx, const MachineInstr &Orig, LaneBitmask UsedLanes) const {
   auto opcode = Orig.getOpcode();
   if (opcode == MC6809::Load_i8_Imm || opcode == MC6809::Load_i16_Imm || opcode == MC6809::Load_i32_Imm) {
     const TargetRegisterInfo &TRI = getRegisterInfo();
@@ -375,7 +375,7 @@ void MC6809InstrInfo::reMaterialize(MachineBasicBlock &MBB, MachineBasicBlock::i
     MI->setDesc(get(opcode));
     MBB.insert(I, MI);
   } else {
-    TargetInstrInfo::reMaterialize(MBB, I, DestReg, SubIdx, Orig);
+    TargetInstrInfo::reMaterialize(MBB, I, DestReg, SubIdx, Orig, UsedLanes);
   }
 }
 
@@ -1811,7 +1811,8 @@ void MC6809InstrInfo::loadStoreRegStackSlot(MachineBasicBlock &MBB, MachineBasic
 MachineInstr *MC6809InstrInfo::foldMemoryOperandImpl(
     MachineFunction &MF, MachineInstr &MI, ArrayRef<unsigned> Ops,
     MachineBasicBlock::iterator InsertPt, int FrameIndex,
-    LiveIntervals * /*LIS*/, VirtRegMap * /*VRM*/) const {
+    MachineInstr *& /*CopyMI*/, LiveIntervals * /*LIS*/,
+    VirtRegMap * /*VRM*/) const {
   // Bug #118 Layer 1, approach (b): fold a reload of the 16-bit source of
   // EXTRACT_LO_i16 / EXTRACT_HI_i16 into a direct one-byte frame load.
   //

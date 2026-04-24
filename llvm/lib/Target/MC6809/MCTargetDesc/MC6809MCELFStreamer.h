@@ -26,7 +26,7 @@ public:
   MC6809MCELFStreamer(MCContext &Context, std::unique_ptr<MCAsmBackend> TAB, std::unique_ptr<MCObjectWriter> OW, std::unique_ptr<MCCodeEmitter> Emitter)
       : MCELFStreamer(Context, std::move(TAB), std::move(OW), std::move(Emitter)), MCII(createMC6809MCInstrInfo()) {}
 
-  void initSections(bool NoExecStack, const MCSubtargetInfo &STI) override;
+  void initSections(const MCSubtargetInfo &STI) override;
   void changeSection(MCSection *Section, uint32_t Subsection = 0) override;
 
   void emitInstruction(const MCInst &Inst, const MCSubtargetInfo &STI) override;

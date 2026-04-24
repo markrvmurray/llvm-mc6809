@@ -31,15 +31,12 @@ using namespace llvm;
 
 namespace llvm {
 
-void MC6809MCELFStreamer::initSections(bool NoExecStack, const MCSubtargetInfo &STI) {
+void MC6809MCELFStreamer::initSections(const MCSubtargetInfo &STI) {
   Has6309Instructions = STI.hasFeature(MC6809::Feature6309);
 
   MCContext &Ctx = getContext();
   switchSection(Ctx.getObjectFileInfo()->getTextSection());
   emitCodeAlignment(Align(1), &STI);
-
-  if (NoExecStack)
-    switchSection(Ctx.getAsmInfo()->getStackSection(Ctx, false));
 }
 
 static bool HasPrefix(StringRef Name, StringRef Prefix) {
