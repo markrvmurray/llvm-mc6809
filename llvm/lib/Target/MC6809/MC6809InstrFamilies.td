@@ -307,6 +307,17 @@ let isAdd = true in {
 defm SubSetCarry_i8 : MC6809ArithmeticCarry<i8, ACC8, BIT1, ACC8>;
 defm SubSetCarry_i16 : MC6809ArithmeticCarry<i16, ACC16, BIT1, ACC16>;
 
+// Bug #147: parallel pseudos for *signed* G_SADDO / G_SSUBO. Same machine
+// expansion as SetCarry (same ADD/SUB/ADC/SBC instructions), but the s1
+// result represents the V flag (signed overflow) rather than C (carry).
+// selectBrCond dispatches on the pseudo opcode to emit BVS instead of BCS.
+let isAdd = true in {
+  defm AddSetOverflow_i8  : MC6809ArithmeticCarry<i8,  ACC8,  BIT1, ACC8>;
+  defm AddSetOverflow_i16 : MC6809ArithmeticCarry<i16, ACC16, BIT1, ACC16>;
+}
+defm SubSetOverflow_i8  : MC6809ArithmeticCarry<i8,  ACC8,  BIT1, ACC8>;
+defm SubSetOverflow_i16 : MC6809ArithmeticCarry<i16, ACC16, BIT1, ACC16>;
+
 // --- Carry-using variants ---
 //
 // Bug #57 fix: same hasSideEffects barrier as the SetCarry variants
@@ -346,6 +357,18 @@ let isAdd = true in {
 
 defm SubSetCarryUse_i8 : MC6809ArithmeticCarryUse<i8, ACC8, ACC8>;
 defm SubSetCarryUse_i16 : MC6809ArithmeticCarryUse<i16, ACC16, ACC16>;
+
+// Bug #147: chain-extend variants for *signed* G_SADDE / G_SSUBE.
+// Same MC expansion as the SetCarryUse siblings (same ADCA/ADCB/SBCA/SBCB);
+// the s1 carry-out represents the V (signed-overflow) flag rather than C.
+// Used as the FINAL stage of an i16+ signed overflow chain whose tail
+// carries the overall signed-overflow result.
+let isAdd = true in {
+  defm AddSetOverflowUse_i8  : MC6809ArithmeticCarryUse<i8,  ACC8,  ACC8>;
+  defm AddSetOverflowUse_i16 : MC6809ArithmeticCarryUse<i16, ACC16, ACC16>;
+}
+defm SubSetOverflowUse_i8  : MC6809ArithmeticCarryUse<i8,  ACC8,  ACC8>;
+defm SubSetOverflowUse_i16 : MC6809ArithmeticCarryUse<i16, ACC16, ACC16>;
 
 // --- Concrete instructions (register-specific, assembler/disassembler) ---
 // Concrete arithmetic instructions (ADDA, ADDB, ADDD, SUBA, SUBB, SUBD, etc.)

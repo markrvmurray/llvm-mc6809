@@ -1956,6 +1956,41 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     MI.eraseFromParent();
     return true;
   }
+  case MC6809::MaterializeOverflowToByte_i8: {
+    // Bug #147 sibling of MaterializeCarryToByte_i8 (above). Reads CC.V
+    // (signed overflow) into a 0/1 byte via TFR CC,B; LSRB; ANDB #1.
+    // The BIT1 src is a scheduling phantom whose runtime value is CC.V,
+    // set by AddSetOverflow*/SubSetOverflow* expansion. $dst constrained
+    // to ABc.
+    MachineFunction &MF = *MI.getMF();
+    Register DstReg = MI.getOperand(0).getReg();
+    Register RealDst = DstReg;
+    Register OrigDst = DstReg;
+    if (needsMaterialization(DstReg)) {
+      RealDst = materializeReg(Builder, DstReg, MF);
+    }
+    assert(RealDst == MC6809::AB &&
+           "MaterializeOverflowToByte_i8 expects ABc-allocated destination");
+    // TFR CC,B — copy CC into B (no flag effects).
+    Builder.buildInstr(MC6809::TFRp)
+        .addDef(MC6809::AB)
+        .addUse(MC6809::CC);
+    // LSRB — shift right; CC.V (bit 1) → bit 0; old bit 0 → C flag.
+    // CC layout (msb→lsb): E F H I N Z V C — V is bit 1.
+    Builder.buildInstr(MC6809::LSRBa).addDef(MC6809::AB, RegState::Implicit);
+    // ANDB #1 — mask everything but bit 0 (the shifted-down V).
+    Builder.buildInstr(MC6809::ANDBi8)
+        .addDef(MC6809::AB, RegState::Implicit)
+        .addImm(1);
+    if (needsMaterialization(OrigDst)) {
+      MachineBasicBlock &MBB = *MI.getParent();
+      auto NextIt = std::next(MachineBasicBlock::iterator(MI));
+      MachineIRBuilder StoreBuilder(MBB, NextIt);
+      dematerializeReg(StoreBuilder, RealDst, OrigDst, MF);
+    }
+    MI.eraseFromParent();
+    return true;
+  }
   case MC6809::ANYEXT_i8_to_i16: {
     // i8→i16 anyext pseudo. Only the low byte is defined; high byte is
     // don't-care. Emit the low-byte copy (dst's lo-byte sub-physreg ←
@@ -2258,24 +2293,36 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     break;
   case MC6809::AddSetCarry_i8_Imm:
   case MC6809::AddSetCarry_i16_Imm:
+  // Bug #147: AddSetOverflow_* shares the AddSetCarry expansion (same
+  // ADDA/ADDB/ADDD instructions). The pseudo opcode is preserved only as
+  // metadata for selectBrCond's V-vs-C dispatch; here we just lower to
+  // the same MC instructions.
+  case MC6809::AddSetOverflow_i8_Imm:
+  case MC6809::AddSetOverflow_i16_Imm:
     expandImm(AddSetCarryImm, Builder, MI);
     break;
   case MC6809::AddSetCarryUse_i8_Imm:
+  case MC6809::AddSetOverflowUse_i8_Imm:    // bug #147
     expandImm(AddCarryImm, Builder, MI);
     break;
   case MC6809::AddSetCarryUse_i16_Imm:
+  case MC6809::AddSetOverflowUse_i16_Imm:   // bug #147
     expandCarryImm16(true, Builder, MI);
     break;
   case MC6809::Add_i8_Mem:
   case MC6809::Add_i16_Mem:
   case MC6809::AddSetCarry_i8_Mem:
   case MC6809::AddSetCarry_i16_Mem:
+  case MC6809::AddSetOverflow_i8_Mem:    // bug #147
+  case MC6809::AddSetOverflow_i16_Mem:
     expandIdxImm(AddIdxImm, Builder, MI);
     break;
   case MC6809::AddSetCarryUse_i8_Mem:
+  case MC6809::AddSetOverflowUse_i8_Mem:    // bug #147
     expandIdxImm(AddCarryIdxImm, Builder, MI);
     break;
   case MC6809::AddSetCarryUse_i16_Mem:
+  case MC6809::AddSetOverflowUse_i16_Mem:   // bug #147
     expandCarryMem16(true, Builder, MI);
     break;
   case MC6809::Add_i8_Reg:
@@ -2283,15 +2330,19 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     expandAddReg(Builder, MI);
     break;
   case MC6809::AddSetCarry_i8_Reg:
+  case MC6809::AddSetOverflow_i8_Reg:    // bug #147
     expandAddSetCarryByteReg(Builder, MI);
     break;
   case MC6809::AddSetCarry_i16_Reg:
+  case MC6809::AddSetOverflow_i16_Reg:   // bug #147
     expandAddSetCarryReg(Builder, MI);
     break;
   case MC6809::AddSetCarryUse_i8_Reg:
+  case MC6809::AddSetOverflowUse_i8_Reg:    // bug #147
     expandAddSetCarryUseByteReg(Builder, MI);
     break;
   case MC6809::AddSetCarryUse_i16_Reg:
+  case MC6809::AddSetOverflowUse_i16_Reg:   // bug #147
     expandAddSetCarryUseReg(Builder, MI);
     break;
   case MC6809::Sub_i8_Imm:
@@ -2300,18 +2351,24 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     break;
   case MC6809::SubSetCarry_i8_Imm:
   case MC6809::SubSetCarry_i16_Imm:
+  case MC6809::SubSetOverflow_i8_Imm:    // bug #147
+  case MC6809::SubSetOverflow_i16_Imm:
     expandImm(SubSetCarryImm, Builder, MI);
     break;
   case MC6809::SubSetCarryUse_i8_Imm:
+  case MC6809::SubSetOverflowUse_i8_Imm:    // bug #147
     expandImm(SubBorrowImm, Builder, MI);
     break;
   case MC6809::SubSetCarryUse_i16_Imm:
+  case MC6809::SubSetOverflowUse_i16_Imm:   // bug #147
     expandCarryImm16(false, Builder, MI);
     break;
   case MC6809::Sub_i8_Mem:
   case MC6809::Sub_i16_Mem:
   case MC6809::SubSetCarry_i8_Mem:
   case MC6809::SubSetCarry_i16_Mem:
+  case MC6809::SubSetOverflow_i8_Mem:    // bug #147
+  case MC6809::SubSetOverflow_i16_Mem:
     expandIdxImm(SubIdxImm, Builder, MI);
     break;
   case MC6809::Sub_i8_Reg:
@@ -2321,21 +2378,27 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     expandSubReg(Builder, MI);
     break;
   case MC6809::SubSetCarry_i8_Reg:
+  case MC6809::SubSetOverflow_i8_Reg:    // bug #147
     expandSubSetCarryByteReg(Builder, MI);
     break;
   case MC6809::SubSetCarry_i16_Reg:
+  case MC6809::SubSetOverflow_i16_Reg:   // bug #147
     expandSubSetCarryReg(Builder, MI);
     break;
   case MC6809::SubSetCarryUse_i8_Mem:
+  case MC6809::SubSetOverflowUse_i8_Mem:    // bug #147
     expandIdxImm(SubBorrowIdxImm, Builder, MI);
     break;
   case MC6809::SubSetCarryUse_i16_Mem:
+  case MC6809::SubSetOverflowUse_i16_Mem:   // bug #147
     expandCarryMem16(false, Builder, MI);
     break;
   case MC6809::SubSetCarryUse_i8_Reg:
+  case MC6809::SubSetOverflowUse_i8_Reg:    // bug #147
     expandSubSetCarryUseByteReg(Builder, MI);
     break;
   case MC6809::SubSetCarryUse_i16_Reg:
+  case MC6809::SubSetOverflowUse_i16_Reg:   // bug #147
     expandSubSetCarryUseReg(Builder, MI);
     break;
   case MC6809::Add_i8_Pull:

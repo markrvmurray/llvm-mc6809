@@ -183,3 +183,16 @@ def MaterializeCarryToByte_i8 : MC6809Pseudo {
   let hasSideEffects = 1;
 }
 
+// Bug #147 sibling of MaterializeCarryToByte_i8: materialise the V flag
+// (signed overflow) into a 0/1 byte. The BIT1 src is a scheduling phantom
+// whose runtime value is in CC.V — set by AddSetOverflow*/SubSetOverflow*
+// pseudos (same MC expansion as the SetCarry siblings; only the s1 semantic
+// differs — V vs C). $dst constrained to ABc so the expansion always lands
+// in $ab. Post-RA expansion: TFR CC,B; LSRB; ANDB #1 — branch-free.
+def MaterializeOverflowToByte_i8 : MC6809Pseudo {
+  dag OutOperandList = (outs ABc:$dst);
+  dag InOperandList  = (ins BIT1:$src);
+  let Defs = [NZ, V, C];
+  let hasSideEffects = 1;
+}
+
