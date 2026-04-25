@@ -405,12 +405,22 @@ let isCompare = true in {
 }
 
 // LEA: indexed only (Page 1).
+//
+// CC-clobber asymmetry (Motorola MC6809E spec): LEAX and LEAY set Z based
+// on the computed effective address (Z=1 iff result is zero, else Z=0);
+// N, V, C are unchanged. LEAS and LEAU intentionally do NOT touch any
+// condition codes — that asymmetry is what lets the stack pointers be
+// updated without disturbing surrounding flag state. Reflecting this in
+// Defs lets the scheduler see the Z-clobber on LEAX/LEAY (so a LEAX
+// between a compare and a Z-reading branch can no longer be moved into
+// the gap), while leaving LEAS/LEAU as scheduling-free address moves.
+// (bug #165 phase A1)
 multiclass LEAConcrete<string Mnem, Opcode IdxOpc, list<Register> Defs> {
   defm i : MC6809Indexed_P1<Mnem, IdxOpc, (outs), Defs, []>;
 }
 
-defm LEAX : LEAConcrete<"leax", Opcode<0x30,1>, [IX]>;
-defm LEAY : LEAConcrete<"leay", Opcode<0x31,1>, [IY]>;
+defm LEAX : LEAConcrete<"leax", Opcode<0x30,1>, [IX, Z]>;
+defm LEAY : LEAConcrete<"leay", Opcode<0x31,1>, [IY, Z]>;
 defm LEAS : LEAConcrete<"leas", Opcode<0x32,1>, [SS]>;
 defm LEAU : LEAConcrete<"leau", Opcode<0x33,1>, [SU]>;
 
