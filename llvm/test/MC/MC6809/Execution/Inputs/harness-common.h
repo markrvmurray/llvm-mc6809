@@ -15,17 +15,19 @@
  * convention LLVM-MC6809 emits, so the LLVM-compiled functions under
  * test link directly against the harness with no ABI shim.
  *
- * Memory map (matches Inputs/runtime.inc):
- *   0xC000  ACIA status register (TDRE bit = 0x02)
- *   0xC001  ACIA data register
- *   0xC002  halt/exit device
+ * Memory map (matches Inputs/runtime.inc — usim09batch as of usim
+ * commit fa2af824, "relocate IO and vector ROM to bottom of address
+ * space"):
+ *   0xFFD0  ACIA status register (TDRE bit = 0x02)
+ *   0xFFD1  ACIA data register
+ *   0xFFD2  halt/exit device
  */
 
 #ifndef HARNESS_COMMON_H
 #define HARNESS_COMMON_H
 
-#define ACIA_STATUS (*(volatile unsigned char *)0xC000)
-#define ACIA_DATA   (*(volatile unsigned char *)0xC001)
+#define ACIA_STATUS (*(volatile unsigned char *)0xFFD0)
+#define ACIA_DATA   (*(volatile unsigned char *)0xFFD1)
 
 /* Spin until the ACIA is ready, then write one byte. */
 static void h_putc(unsigned char c) {

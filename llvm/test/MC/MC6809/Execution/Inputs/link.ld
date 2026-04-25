@@ -1,22 +1,33 @@
-/* link.ld — linker script for MC6809 execution tests */
+/* link.ld — linker script for MC6809 execution tests.
+ *
+ * usim09batch (after commit fa2af824, "relocate IO and vector ROM to
+ * bottom of address space") presents a single unified RAM region with
+ * a small IO slab + vector ROM at the top.
+ *
+ * Even though the emulated machine no longer has a ROM/RAM split, we
+ * keep the legacy code/data partition virtually in this script so the
+ * test inputs (many of which assume $0100-area is free data memory,
+ * e.g. arithmetic.s's `sta $0100`) keep working. Code lives high
+ * ($C003-$FFCF, mirroring the old ROM range), data/.bss/heap live
+ * low ($0000-$BFFF). The runtime initialises the stack just below
+ * the code region so push-down doesn't collide with code bytes.
+ */
 
 MEMORY {
-    RAM (rwx) : ORIGIN = 0x0000, LENGTH = 0xC000
-    /* IO devices overlay 0xC000-0xC002 (matches usim09batch):
-         0xC000-0xC001  ACIA (status/data)
-         0xC002         Halt/exit device (written value = exit code)
-       Code starts at 0xC003 to avoid the IO overlay. */
-    ROM (rx)  : ORIGIN = 0xC003, LENGTH = 0x3FED
-    VEC (r)   : ORIGIN = 0xFFF0, LENGTH = 0x0010
+    DRAM (rwx) : ORIGIN = 0x0000, LENGTH = 0xC000
+    /* Code partition: $C003-$FFCF. Top end stops before the IO slab
+     * at $FFD0-$FFEF (ACIA at $FFD0/$FFD1, halt at $FFD2). */
+    CRAM (rwx) : ORIGIN = 0xC003, LENGTH = 0x3FCD
+    VEC  (r)   : ORIGIN = 0xFFF0, LENGTH = 0x0010
 }
 
 /* IO device symbols — the single source of truth for the memory map.
    IR under test (codegen-picolibc.ll) references these as externals
-   instead of hardcoding 0xC000/0xC001 inline (bug #102). Change the
-   map here and everything follows; no per-test patching required. */
-__acia_status = 0xC000;
-__acia_data   = 0xC001;
-__halt        = 0xC002;
+   instead of hardcoding addresses inline (bug #102). Change the map
+   here and everything follows; no per-test patching required. */
+__acia_status = 0xFFD0;
+__acia_data   = 0xFFD1;
+__halt        = 0xFFD2;
 
 SECTIONS {
     /* Imaginary registers — direct page (DP=0, addresses 0x00-0xFF).
@@ -47,11 +58,11 @@ SECTIONS {
            emit6809RegByteFromMem — replaces PSHS/op/LEAS triple). */
         __scratch = .; . += 1;
         *(.directpage)
-    } > RAM
+    } > DRAM
 
     .ram (NOLOAD) : {
         *(.ram)
-    } > RAM
+    } > DRAM
 
     .rom : {
         *(.rom)
@@ -59,16 +70,14 @@ SECTIONS {
         *(.text.*)
         *(.rodata)
         *(.rodata.*)
-    } > ROM
+    } > CRAM
 
-    /* .data lives in RAM (VMA) but initial values are stored in ROM (LMA)
-       AFTER the code. The crt0 copies from ROM to RAM at startup. */
     .data : {
         __data_start = .;
         *(.data)
         *(.data.*)
         __data_end = .;
-    } > RAM AT> ROM
+    } > DRAM
 
     .bss (NOLOAD) : {
         __bss_start = .;
@@ -76,11 +85,9 @@ SECTIONS {
         *(.bss.*)
         *(COMMON)
         __bss_end = .;
-    } > RAM
+    } > DRAM
 
     .vectors : {
         *(.vectors)
     } > VEC
-
-    __data_load = LOADADDR(.data);
 }

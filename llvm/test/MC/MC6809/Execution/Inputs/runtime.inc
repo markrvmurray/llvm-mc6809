@@ -1,13 +1,14 @@
 ;;
 ;; runtime.inc — shared test runtime for MC6809 execution tests
 ;;
-;; Memory map (matches usim09batch):
-;;   0x0000-0xbfff  RAM (48KB)
-;;   0xc000         ACIA status register (overlays ROM)
-;;   0xc001         ACIA data register
-;;   0xc002         Halt/exit device (written value = exit code)
-;;   0xc003-0xffef  ROM (code)
-;;   0xfff0-0xffff  Vectors
+;; Memory map (matches usim09batch as of usim commit fa2af824,
+;; "relocate IO and vector ROM to bottom of address space"):
+;;   0x0000-0xffcf  RAM (single unified region, ~64 KB)
+;;   0xffd0         ACIA status register
+;;   0xffd1         ACIA data register
+;;   0xffd2         Halt/exit device (written value = exit code)
+;;   0xffd3-0xffef  reserved IO
+;;   0xfff0-0xffff  Vectors (vector ROM)
 ;;
 
 ;; ===== Entry point =====
@@ -15,26 +16,9 @@
 	.section .rom,"ax",@progbits
 	.globl	_start
 _start:
-	lds	#0xc000		; stack at top of RAM (48KB)
+	lds	#0xc000		; stack at top of low-RAM data region
 	clra
 	tfr	a,dp		; DP=0 (direct page at $0000)
-
-	;; Initialise MC6850 ACIA (required by MAME; USim ignores this).
-	lda	#0x03		; master reset
-	sta	0xc000
-	lda	#0x15		; /16, 8N1, no IRQ
-	sta	0xc000
-
-	;; Copy .data initial values from ROM (LMA) to RAM (VMA).
-	ldx	#__data_load	; ROM source
-	ldy	#__data_start	; RAM dest
-.Ldata_copy:
-	cmpy	#__data_end
-	beq	.Ldata_done
-	lda	,x+
-	sta	,y+
-	bra	.Ldata_copy
-.Ldata_done:
 
 	;; Zero .bss
 	ldx	#__bss_start
@@ -57,10 +41,10 @@ _hang:
 putchar:
 	pshs	b
 .Lputchar_wait:
-	ldb	0xc000		; ACIA status
+	ldb	0xffd0		; ACIA status
 	bitb	#0x02		; TDRE
 	beq	.Lputchar_wait
-	sta	0xc001		; ACIA data
+	sta	0xffd1		; ACIA data
 	puls	b,pc
 
 ;; ===== puthex =====
@@ -118,7 +102,7 @@ putnl:
 
 halt:
 	clra
-	sta	0xc002
+	sta	0xffd2
 	rts
 
 ;; ===== Vector table =====
