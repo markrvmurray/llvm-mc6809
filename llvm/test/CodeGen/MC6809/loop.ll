@@ -163,18 +163,17 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; MC6809-O1-NEXT:    std 14,u
 ; MC6809-O1-NEXT:    leax 2,x
 ; MC6809-O1-NEXT:    ldb 9,u
+; MC6809-O1-NEXT:    stb 13,u
 ; MC6809-O1-NEXT:    lda 8,u
-; MC6809-O1-NEXT:    sta 12,u
 ; MC6809-O1-NEXT:    addb #-1
-; MC6809-O1-NEXT:    lda 12,u
+; MC6809-O1-NEXT:    stb 13,u
 ; MC6809-O1-NEXT:    adca #-1
-; MC6809-O1-NEXT:    sta 12,u
 ; MC6809-O1-NEXT:    std 2,u
+; MC6809-O1-NEXT:    ldb 13,u
 ; MC6809-O1-NEXT:    std 8,u
-; MC6809-O1-NEXT:    pshs a
-; MC6809-O1-NEXT:    orb ,s
-; MC6809-O1-NEXT:    leas 1,s
-; MC6809-O1-NEXT:    tstb
+; MC6809-O1-NEXT:    ldd 2,u
+; MC6809-O1-NEXT:    ldd 8,u
+; MC6809-O1-NEXT:    cmpd #0
 ; MC6809-O1-NEXT:    lbne .LBB0_2
 ; MC6809-O1-NEXT:  .LBB0_3: ; %for.end
 ; MC6809-O1-NEXT:    ldx 14,u
@@ -222,18 +221,17 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; MC6809-O2-NEXT:    std 14,u
 ; MC6809-O2-NEXT:    leax 2,x
 ; MC6809-O2-NEXT:    ldb 9,u
+; MC6809-O2-NEXT:    stb 13,u
 ; MC6809-O2-NEXT:    lda 8,u
-; MC6809-O2-NEXT:    sta 12,u
 ; MC6809-O2-NEXT:    addb #-1
-; MC6809-O2-NEXT:    lda 12,u
+; MC6809-O2-NEXT:    stb 13,u
 ; MC6809-O2-NEXT:    adca #-1
-; MC6809-O2-NEXT:    sta 12,u
 ; MC6809-O2-NEXT:    std 2,u
+; MC6809-O2-NEXT:    ldb 13,u
 ; MC6809-O2-NEXT:    std 8,u
-; MC6809-O2-NEXT:    pshs a
-; MC6809-O2-NEXT:    orb ,s
-; MC6809-O2-NEXT:    leas 1,s
-; MC6809-O2-NEXT:    tstb
+; MC6809-O2-NEXT:    ldd 2,u
+; MC6809-O2-NEXT:    ldd 8,u
+; MC6809-O2-NEXT:    cmpd #0
 ; MC6809-O2-NEXT:    lbne .LBB0_2
 ; MC6809-O2-NEXT:  .LBB0_3: ; %for.end
 ; MC6809-O2-NEXT:    ldx 14,u
@@ -281,18 +279,17 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; MC6809-O3-NEXT:    std 14,u
 ; MC6809-O3-NEXT:    leax 2,x
 ; MC6809-O3-NEXT:    ldb 9,u
+; MC6809-O3-NEXT:    stb 13,u
 ; MC6809-O3-NEXT:    lda 8,u
-; MC6809-O3-NEXT:    sta 12,u
 ; MC6809-O3-NEXT:    addb #-1
-; MC6809-O3-NEXT:    lda 12,u
+; MC6809-O3-NEXT:    stb 13,u
 ; MC6809-O3-NEXT:    adca #-1
-; MC6809-O3-NEXT:    sta 12,u
 ; MC6809-O3-NEXT:    std 2,u
+; MC6809-O3-NEXT:    ldb 13,u
 ; MC6809-O3-NEXT:    std 8,u
-; MC6809-O3-NEXT:    pshs a
-; MC6809-O3-NEXT:    orb ,s
-; MC6809-O3-NEXT:    leas 1,s
-; MC6809-O3-NEXT:    tstb
+; MC6809-O3-NEXT:    ldd 2,u
+; MC6809-O3-NEXT:    ldd 8,u
+; MC6809-O3-NEXT:    cmpd #0
 ; MC6809-O3-NEXT:    lbne .LBB0_2
 ; MC6809-O3-NEXT:  .LBB0_3: ; %for.end
 ; MC6809-O3-NEXT:    ldx 14,u
@@ -303,87 +300,71 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ;
 ; HD6309-LABEL: loop:
 ; HD6309:       ; %bb.0: ; %entry
-; HD6309-NEXT:    leas -27,s
+; HD6309-NEXT:    leas -24,s
 ; HD6309-NEXT:    pshs u
 ; HD6309-NEXT:    tfr s,u
-; HD6309-NEXT:    std 19,u
+; HD6309-NEXT:    std 16,u
 ; HD6309-NEXT:    ldd #0
-; HD6309-NEXT:    std 25,u
-; HD6309-NEXT:    ldd 19,u
+; HD6309-NEXT:    std 22,u
+; HD6309-NEXT:    ldd 16,u
 ; HD6309-NEXT:    tstb
-; HD6309-NEXT:    lble .LBB0_5
+; HD6309-NEXT:    lble .LBB0_3
 ; HD6309-NEXT:  ; %bb.1: ; %for.body.preheader
 ; HD6309-NEXT:    clra
-; HD6309-NEXT:    std 17,u
+; HD6309-NEXT:    std 14,u
 ; HD6309-NEXT:    ldd #0
-; HD6309-NEXT:    std 25,u
-; HD6309-NEXT:    ldd 17,u
+; HD6309-NEXT:    std 22,u
+; HD6309-NEXT:    ldd 14,u
 ; HD6309-NEXT:  .LBB0_2: ; %for.body
 ; HD6309-NEXT:    ; =>This Inner Loop Header: Depth=1
-; HD6309-NEXT:    std 15,u
+; HD6309-NEXT:    std 12,u
 ; HD6309-NEXT:    ldd ,x
-; HD6309-NEXT:    std 23,u
-; HD6309-NEXT:    ldd 15,u
-; HD6309-NEXT:    stb 14,u
-; HD6309-NEXT:    ldb 24,u
-; HD6309-NEXT:    stb 22,u
-; HD6309-NEXT:    ldb 14,u
-; HD6309-NEXT:    sta 13,u
-; HD6309-NEXT:    lda 23,u
-; HD6309-NEXT:    sta 23,u
-; HD6309-NEXT:    lda 13,u
-; HD6309-NEXT:    stb 12,u
-; HD6309-NEXT:    ldb 26,u
-; HD6309-NEXT:    stb 24,u
-; HD6309-NEXT:    ldb 12,u
-; HD6309-NEXT:    sta 11,u
-; HD6309-NEXT:    lda 25,u
-; HD6309-NEXT:    sta 25,u
-; HD6309-NEXT:    lda 11,u
-; HD6309-NEXT:    stb 10,u
-; HD6309-NEXT:    ldb 22,u
+; HD6309-NEXT:    std 20,u
+; HD6309-NEXT:    ldd 12,u
+; HD6309-NEXT:    stb 11,u
+; HD6309-NEXT:    ldb 21,u
+; HD6309-NEXT:    stb 19,u
+; HD6309-NEXT:    ldb 11,u
+; HD6309-NEXT:    sta 10,u
+; HD6309-NEXT:    lda 20,u
+; HD6309-NEXT:    sta 20,u
+; HD6309-NEXT:    lda 10,u
+; HD6309-NEXT:    stb 9,u
+; HD6309-NEXT:    ldb 23,u
+; HD6309-NEXT:    stb 21,u
+; HD6309-NEXT:    ldb 9,u
+; HD6309-NEXT:    sta 8,u
+; HD6309-NEXT:    lda 22,u
+; HD6309-NEXT:    sta 22,u
+; HD6309-NEXT:    lda 8,u
+; HD6309-NEXT:    stb 7,u
+; HD6309-NEXT:    ldb 19,u
 ; HD6309-NEXT:    addr b,spill_b1
-; HD6309-NEXT:    stb 22,u
-; HD6309-NEXT:    ldb 10,u
-; HD6309-NEXT:    sta 9,u
-; HD6309-NEXT:    lda 23,u
-; HD6309-NEXT:    adcr a,spill_a0
-; HD6309-NEXT:    sta 23,u
-; HD6309-NEXT:    lda 9,u
-; HD6309-NEXT:    std 7,u
-; HD6309-NEXT:    ldb 22,u
-; HD6309-NEXT:    lda 23,u
-; HD6309-NEXT:    std 25,u
-; HD6309-NEXT:    ldd 7,u
-; HD6309-NEXT:    leax 2,x
-; HD6309-NEXT:    stb 24,u
-; HD6309-NEXT:    sta 23,u
-; HD6309-NEXT:    addb #-1
-; HD6309-NEXT:    stb 24,u
-; HD6309-NEXT:    lda 23,u
-; HD6309-NEXT:    adca #-1
-; HD6309-NEXT:    sta 23,u
-; HD6309-NEXT:    ldb 24,u
+; HD6309-NEXT:    stb 19,u
+; HD6309-NEXT:    ldb 7,u
 ; HD6309-NEXT:    sta 6,u
-; HD6309-NEXT:    stb 5,u
-; HD6309-NEXT:    orr a,b
-; HD6309-NEXT:    stb 24,u
-; HD6309-NEXT:    ldb 5,u
-; HD6309-NEXT:    stb 4,u
-; HD6309-NEXT:    ldb 24,u
-; HD6309-NEXT:    tstb
-; HD6309-NEXT:    lbeq .LBB0_4
-; HD6309-NEXT:  ; %bb.3: ; %for.body
-; HD6309-NEXT:    ; in Loop: Header=BB0_2 Depth=1
-; HD6309-NEXT:    ldb 4,u
-; HD6309-NEXT:    lbra .LBB0_2
-; HD6309-NEXT:  .LBB0_4: ; %for.body
-; HD6309-NEXT:    ldb 4,u
-; HD6309-NEXT:  .LBB0_5: ; %for.end
-; HD6309-NEXT:    ldx 25,u
+; HD6309-NEXT:    lda 20,u
+; HD6309-NEXT:    adcr a,spill_a0
+; HD6309-NEXT:    sta 20,u
+; HD6309-NEXT:    lda 6,u
+; HD6309-NEXT:    std 4,u
+; HD6309-NEXT:    ldb 19,u
+; HD6309-NEXT:    lda 20,u
+; HD6309-NEXT:    std 22,u
+; HD6309-NEXT:    ldd 4,u
+; HD6309-NEXT:    leax 2,x
+; HD6309-NEXT:    stb 21,u
+; HD6309-NEXT:    addb #-1
+; HD6309-NEXT:    stb 21,u
+; HD6309-NEXT:    adca #-1
+; HD6309-NEXT:    ldb 21,u
+; HD6309-NEXT:    tstd
+; HD6309-NEXT:    lbne .LBB0_2
+; HD6309-NEXT:  .LBB0_3: ; %for.end
+; HD6309-NEXT:    ldx 22,u
 ; HD6309-NEXT:    tfr u,s
 ; HD6309-NEXT:    puls u
-; HD6309-NEXT:    leas 27,s
+; HD6309-NEXT:    leas 24,s
 ; HD6309-NEXT:    rts
 entry:
   %cmp6 = icmp sgt i8 %n, 0
