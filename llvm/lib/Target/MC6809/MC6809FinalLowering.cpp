@@ -353,7 +353,84 @@ bool MC6809FinalLowering::elideLeafFrame(MachineFunction &MF) {
 }
 
 bool MC6809FinalLowering::foldAdjacentInc(MachineFunction &MF) {
-  return false;
+  // Fold adjacent same-opcode immediate-arithmetic instructions:
+  //
+  //   ADDB #M
+  //   ADDB #N      ->  ADDB #(M + N)
+  //
+  // Same for ADDA / ADDD / ADDE / ADDF / ADDW (and 6309 forms),
+  // and SUBA / SUBB / SUBD.
+  //
+  // Conservative on CC: skip the fold when the combined immediate would
+  // signed-overflow the operand width. Keeping the result in-range
+  // preserves V exactly across the fold (V=0 in both the original
+  // sequence's last add and the merged single add); other CC bits
+  // (N/Z/C) are also identical because the final value is the same.
+  //
+  // We only consider strictly adjacent MIs (no intervening MI between
+  // them) so the first MI's CC defs are immediately overwritten by the
+  // second's — no liveness scan needed.
+  //
+  // We deliberately don't fold cross-opcode pairs (ADD then SUB, INC
+  // then ADD, etc.) because their CC effects differ in subtle ways
+  // (e.g. INC doesn't touch C, ADD does). Same-opcode + same dest is
+  // the safe minimal cut.
+
+  struct OpcodeInfo {
+    unsigned Opc;
+    unsigned BitWidth; // 8 or 16
+    bool IsSub;        // true if SUB-family (immediate is subtracted)
+  };
+  static const OpcodeInfo Foldable[] = {
+    {MC6809::ADDAi8,  8,  false}, {MC6809::ADDBi8,  8,  false},
+    {MC6809::ADDEi8,  8,  false}, {MC6809::ADDFi8,  8,  false},
+    {MC6809::ADDDi16, 16, false}, {MC6809::ADDWi16, 16, false},
+    {MC6809::SUBAi8,  8,  true},  {MC6809::SUBBi8,  8,  true},
+    {MC6809::SUBDi16, 16, false}, // SUBD's immediate adds for fold purposes
+  };
+
+  auto findInfo = [](unsigned Opc) -> const OpcodeInfo * {
+    for (const OpcodeInfo &I : Foldable)
+      if (I.Opc == Opc)
+        return &I;
+    return nullptr;
+  };
+
+  auto fitsSigned = [](int64_t V, unsigned Bits) {
+    int64_t Lo = -(1LL << (Bits - 1));
+    int64_t Hi = (1LL << (Bits - 1)) - 1;
+    return V >= Lo && V <= Hi;
+  };
+
+  bool Changed = false;
+  for (MachineBasicBlock &MBB : MF) {
+    auto It = MBB.begin();
+    while (It != MBB.end()) {
+      auto Next = std::next(It);
+      if (Next == MBB.end()) break;
+      const OpcodeInfo *Info = findInfo(It->getOpcode());
+      if (!Info || It->getOpcode() != Next->getOpcode() ||
+          It->getNumOperands() == 0 || Next->getNumOperands() == 0 ||
+          !It->getOperand(0).isImm() || !Next->getOperand(0).isImm()) {
+        ++It;
+        continue;
+      }
+      int64_t M = It->getOperand(0).getImm();
+      int64_t N = Next->getOperand(0).getImm();
+      int64_t Combined = M + N;
+      if (!fitsSigned(Combined, Info->BitWidth)) {
+        ++It;
+        continue;
+      }
+      // Fold: rewrite imm in It, erase Next. Don't advance It; another
+      // adjacent MI of the same opcode might now be foldable.
+      It->getOperand(0).setImm(Combined);
+      Next->eraseFromParent();
+      ++NumAdjIncsFolded;
+      Changed = true;
+    }
+  }
+  return Changed;
 }
 
 bool MC6809FinalLowering::elideDupStores(MachineFunction &MF) {
