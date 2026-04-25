@@ -71,6 +71,14 @@ public:
 
   bool enableMachineScheduler() const override { return true; }
   bool enableSubRegLiveness() const override { return true; }
+  // Bug #165 Phase D: enable post-RA scheduling. The legacy list scheduler
+  // (PostRASchedulerID, gated by enablePostRAScheduler) is sufficient — we
+  // rely on accurate per-instruction CC clobbers (audited clean in #165
+  // phase A2) for the compare→branch dependency edge, not on a full
+  // SchedMachineModel WriteRes/ProcResource cost model. The new
+  // MachineScheduler pipeline (PostMachineSchedulerID) requires that
+  // model and isn't worth the .td build-out for our use case.
+  bool enablePostRAScheduler() const override { return true; }
 
   void overrideSchedPolicy(MachineSchedPolicy &Policy, const SchedRegion &Region) const override;
 

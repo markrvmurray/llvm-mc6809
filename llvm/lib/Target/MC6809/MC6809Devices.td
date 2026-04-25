@@ -50,6 +50,15 @@ def MC6809SchedModel : SchedMachineModel {
   // scheduling strategy.
   let MicroOpBufferSize = 1;
   let CompleteModel = false;
+  // Bug #165 Phase D: enable the LEGACY post-RA list scheduler. The existing
+  // branch instructions already carry `Uses = [N, Z, V, C]` (per bug #137's
+  // load-bearing fix at MC6809InstrInfo.td:507-526), and the per-instruction
+  // CC clobbers were audited clean in #165 phase A2. So the scheduler has
+  // accurate dataflow on the compare→branch dependency edge without needing
+  // a full Lanai-style WriteRes / ProcResource model. If reordering reveals
+  // missing CC annotations in practice, those will surface as bench
+  // regressions and can be fixed point-wise.
+  let PostRAScheduler = 1;
 }
 
 class Device<string Name, Family Fam,

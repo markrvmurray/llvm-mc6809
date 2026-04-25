@@ -42,9 +42,17 @@ public:
 
   TargetPassConfig *createPassConfig(PassManagerBase &PM) override;
 
-  // The 6502 has only register-related scheduling concerns, so disable PostRA
-  // scheduling by claiming to emit it ourselves, then never doing so.
-  bool targetSchedulesPostRAScheduling() const override { return true; };
+  // Bug #165 Phase D: let LLVM's standard machinery add the post-RA
+  // scheduler in TargetPassConfig::addMachinePasses (right after
+  // addPreSched2 returns, so MC6809PostRASpillOpt and
+  // MC6809LateOptimization have already run — see the
+  // pipeline-ordering comment in MC6809TargetMachine.cpp's
+  // addPreSched2 body, added by #165 phase B1). Was previously
+  // `true` since `6a573828ff47` (2022-01-30), inherited verbatim
+  // from the llvm-mos template ("disable PostRA scheduling by
+  // claiming to emit it ourselves, then never doing so") — a
+  // historical no-op that we're now flipping to enable scheduling.
+  bool targetSchedulesPostRAScheduling() const override { return false; };
 
   StringRef getSectionPrefix(const GlobalObject *GO) const override;
 
