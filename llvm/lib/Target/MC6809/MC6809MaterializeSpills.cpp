@@ -1134,25 +1134,54 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
             }
           }
         }
-        if (MI.isTerminator() && IYSaveSlot >= 0) {
-          for (MachineBasicBlock *Succ : MBB.successors()) {
+        // IY/IX restores into successors after a terminator. Symmetric
+        // with the D-restore block above and the A/B-restore lambda
+        // below: single-predecessor successors get the restore at the
+        // entry; multi-predecessor (critical-edge) successors require
+        // a new restore block on the edge so that the OTHER predecessors
+        // don't inherit the restore unintentionally.
+        //
+        // Pre-2026-04-25 these two handlers were the ONLY ones missing
+        // critical-edge handling — D had it (lines above), A/B had it
+        // (commit a15e6822d693), but IY/IX silently skipped the
+        // critical-edge case. Latent bug surfaced during rebase
+        // investigation when looking for a related D-spill issue.
+        auto insertPtrRestoreInSuccessors = [&](int SaveSlot, Register PtrReg) {
+          if (SaveSlot < 0) return;
+          for (MachineBasicBlock *Succ : llvm::to_vector(MBB.successors())) {
             if (Succ->pred_size() == 1) {
               BuildMI(*Succ, Succ->begin(), DL, TII.get(MC6809::Load_iPtr_Mem))
-                  .addReg(MC6809::IY, RegState::Define)
-                  .addFrameIndex(IYSaveSlot)
+                  .addReg(PtrReg, RegState::Define)
+                  .addFrameIndex(SaveSlot)
                   .addImm(0);
+            } else {
+              // Critical edge: split by inserting a new block.
+              MachineBasicBlock *RestoreBB =
+                  MF.CreateMachineBasicBlock(MBB.getBasicBlock());
+              MF.insert(std::next(MBB.getIterator()), RestoreBB);
+              RestoreBB->addSuccessor(Succ);
+              MBB.replaceSuccessor(Succ, RestoreBB);
+              for (MachineInstr &Term : MBB.terminators())
+                for (MachineOperand &MO : Term.operands())
+                  if (MO.isMBB() && MO.getMBB() == Succ)
+                    MO.setMBB(RestoreBB);
+              for (const auto &LI : Succ->liveins())
+                if (!RestoreBB->isLiveIn(LI.PhysReg))
+                  RestoreBB->addLiveIn(LI.PhysReg);
+              BuildMI(*RestoreBB, RestoreBB->end(), DL,
+                      TII.get(MC6809::Load_iPtr_Mem))
+                  .addReg(PtrReg, RegState::Define)
+                  .addFrameIndex(SaveSlot)
+                  .addImm(0);
+              BuildMI(*RestoreBB, RestoreBB->end(), DL,
+                      TII.get(MC6809::LBRAlb))
+                  .addMBB(Succ);
             }
           }
-        }
-        if (MI.isTerminator() && IXSaveSlot >= 0) {
-          for (MachineBasicBlock *Succ : MBB.successors()) {
-            if (Succ->pred_size() == 1) {
-              BuildMI(*Succ, Succ->begin(), DL, TII.get(MC6809::Load_iPtr_Mem))
-                  .addReg(MC6809::IX, RegState::Define)
-                  .addFrameIndex(IXSaveSlot)
-                  .addImm(0);
-            }
-          }
+        };
+        if (MI.isTerminator()) {
+          insertPtrRestoreInSuccessors(IYSaveSlot, MC6809::IY);
+          insertPtrRestoreInSuccessors(IXSaveSlot, MC6809::IX);
         }
         // Bug #89 fix completion: A/B saves also need restoration in
         // successors when the instruction is a terminator. Without this,
