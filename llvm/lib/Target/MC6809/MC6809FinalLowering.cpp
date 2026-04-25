@@ -667,12 +667,17 @@ bool MC6809FinalLowering::elideStoreReload(MachineFunction &MF) {
     };
     auto invalidateAll = [&]() { Slots.clear(); };
     auto invalidateReg = [&](Register R) {
-      // Drop any slot whose tracked data reg overlaps R (sub/super
-      // register aliasing — see comment on TRI above).
+      // Drop any slot whose tracked DATA reg OR BASE reg overlaps R.
+      // The base-reg case matters for stack-pointer adjustments
+      // (LEAS -2,S changes $ss, so any "slot N from $ss" tracked
+      // before the LEAS now refers to a different memory location).
+      // Frame-pointer ($su) base is stable within a function body
+      // by construction, but we treat it uniformly for safety.
       Slots.erase(
           std::remove_if(Slots.begin(), Slots.end(),
                          [&, R](const std::pair<SlotKey, Register> &P) {
-                           return TRI->regsOverlap(P.second, R);
+                           return TRI->regsOverlap(P.second, R) ||
+                                  TRI->regsOverlap(P.first.Base, R);
                          }),
           Slots.end());
     };
@@ -714,12 +719,35 @@ bool MC6809FinalLowering::elideStoreReload(MachineFunction &MF) {
         continue;
       }
 
+      // Only track loads/stores whose base is the canonical frame pointer
+      // ($su) or stack pointer ($ss). Anything with a dynamic base
+      // register (X/Y/U used as a generic pointer via LEA/etc.) might
+      // alias an $su-relative slot — we can't prove non-aliasing without
+      // pointer analysis, so a tracked store through such a base is
+      // treated as an opaque mayStore (invalidateAll), and a tracked load
+      // through it is treated as opaque mayLoad (invalidateAll). This
+      // gives up some elision opportunities but is necessary for
+      // correctness — see the qsort failure traced to STD ,Y aliasing
+      // with STY $399,u in the swapfunc loop.
+      if (K.Base != MC6809::SU && K.Base != MC6809::SS) {
+        invalidateAll();
+        continue;
+      }
+
+      // Conservative invariant: AT MOST ONE slot tracks a given data
+      // register at any time. On every tracked store or load (whether
+      // elided or not), invalidate any prior slot tracking this data
+      // reg before recording the new slot. Reasoning: keeping multiple
+      // slots tracked under the same data reg is correct in principle
+      // (their contents are equal at the moment of recording), but
+      // creates fragile state — any subsequent partial invalidation
+      // (sub-reg aliasing, base-reg moves, dynamic-base writes) has
+      // multiple slots to invalidate, each with its own subtle rules,
+      // and we've already burned several bug-fix cycles on edge cases.
+      // Single-slot tracking gives up some elision opportunities but
+      // is dramatically simpler to reason about.
       if (Cls->IsStore) {
-        // The store WRITES the slot from DataReg. Record what's now in
-        // the slot, AND invalidate any slot pointing to the same DataReg
-        // since other slots tracked under that reg may differ from it
-        // now (the store doesn't change the reg, so they're still valid;
-        // skip invalidation here).
+        invalidateReg(Cls->DataReg);
         recordSlot(K, Cls->DataReg);
       } else {
         // Load: if the slot is currently tracked AND already in DataReg,
@@ -729,12 +757,17 @@ bool MC6809FinalLowering::elideStoreReload(MachineFunction &MF) {
             MI.eraseFromParent();
             ++NumStoreReloadsElided;
             Changed = true;
+            // Even though elided, normalize tracking to single-slot
+            // invariant. The slot already tracks DataReg, so this is
+            // mostly a no-op, but it ensures any earlier-recorded
+            // duplicate-tracking (from the time before this fix) gets
+            // cleaned up.
+            invalidateReg(Cls->DataReg);
+            recordSlot(K, Cls->DataReg);
             continue;
           }
         }
-        // Otherwise the load brings a fresh value into DataReg. Update
-        // the slot tracking, and invalidate other slots that pointed
-        // to DataReg since DataReg now has a different value.
+        // Otherwise the load brings a fresh value into DataReg.
         invalidateReg(Cls->DataReg);
         recordSlot(K, Cls->DataReg);
       }
