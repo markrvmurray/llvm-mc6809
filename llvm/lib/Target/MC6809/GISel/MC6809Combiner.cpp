@@ -480,6 +480,24 @@ bool MC6809CombinerImpl::matchShiftUnusedCarryIn(MachineInstr &MI, BuildFnTy &Ma
 }
 
 // Bug #137: narrow i16 EQ/NE against constant-zero RHS to byte-pair.
+//
+// Same-BB guard (rebase 2026-04-25): only fire when the LHS i16's
+// defining instruction is in the same basic block as this G_ICMP.
+// The unmerge created here splits the i16 into two i8 vregs; if the
+// original i16 was defined in a different BB, the unmerged bytes
+// inherit a cross-block live range that, combined with the byte-AND
+// /OR result feeding a G_BRCOND, gives the post-rebase upstream
+// regalloc-greedy enough byte-level pressure to make split-around-
+// region decisions that mishandle multi-input join points (vfprintf's
+// ++stream_len corruption at vfprintf_str.c:101:30 / 143:9 —
+// see project_rebase_2026_04_24.md).
+//
+// Restricting to same-BB lets the combine still fire for the common
+// bug-#137 shape (a freshly-computed i16 immediately tested against
+// 0 in the same block) without producing cross-block byte halves.
+// Tested earlier and weaker variant (`hasOneNonDBGUse`) was too
+// strict and re-broke 8 -Og `*_s` tests; this should be the right
+// balance.
 bool MC6809CombinerImpl::matchNarrowI16EqNeICmp(MachineInstr &MI,
                                                  BuildFnTy &MatchInfo) const {
   if (!Helper.isPreLegalize())
@@ -494,6 +512,9 @@ bool MC6809CombinerImpl::matchNarrowI16EqNeICmp(MachineInstr &MI,
     return false;
   auto RhsConst = getIConstantVRegValWithLookThrough(Rhs, MRI);
   if (!RhsConst || !RhsConst->Value.isZero())
+    return false;
+  MachineInstr *LhsDef = MRI.getVRegDef(Lhs);
+  if (!LhsDef || LhsDef->getParent() != MI.getParent())
     return false;
   Register Dst = MI.getOperand(0).getReg();
   MatchInfo = [=](MachineIRBuilder &B) {
