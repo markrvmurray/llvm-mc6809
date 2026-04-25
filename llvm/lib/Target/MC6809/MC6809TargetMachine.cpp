@@ -307,6 +307,17 @@ void MC6809PassConfig::addPreSched2() {
   addPass(createMC6809PostRAScavengingPass());
 
   // Eliminate redundant spill loads/stores from post-RA expansion.
+  //
+  // Pipeline-ordering note (bug #165 phase B1): if/when a post-RA
+  // MachineScheduler is enabled here (deferred Phase D — see plan), it
+  // MUST be added AFTER this SpillOpt pass, not before. SpillOpt is a
+  // linear-scan slot-tracker (MC6809PostRASpillOpt.cpp:241-369) that
+  // walks each MBB once and deletes redundant load/store pairs whose
+  // slots can be proven equivalent — its analysis is invariant to
+  // scheduler-induced reordering of *unrelated* loads/stores within the
+  // block, but a scheduler running BEFORE it can interleave new
+  // load/store pairs that defeat its slot-equivalence detection. Run
+  // SpillOpt first (smaller / safer instruction stream), then schedule.
   if (getOptLevel() != CodeGenOptLevel::None)
     addPass(createMC6809PostRASpillOptPass());
 
