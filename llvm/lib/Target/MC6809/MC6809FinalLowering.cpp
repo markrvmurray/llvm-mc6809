@@ -27,6 +27,7 @@
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
+#include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/CommandLine.h"
@@ -563,7 +564,183 @@ bool MC6809FinalLowering::elideDupStores(MachineFunction &MF) {
 }
 
 bool MC6809FinalLowering::elideStoreReload(MachineFunction &MF) {
-  return false;
+  // Eliminate redundant reloads of unmodified spill slots:
+  //
+  //   std 24,u      ; spill D to slot 24 (data register = $ad)
+  //   ; ... no MI writes $ad and no MI writes slot 24 ...
+  //   ldd 24,u      ; reload — but $ad still holds the same value.
+  //
+  // Erase the LDD (already-in-register).
+  //
+  // Per-MBB linear scan: track slotMap[(family, offset, base)] -> data
+  // register currently holding the slot's value. On any clobber of a
+  // data register OR a write to the slot, invalidate the corresponding
+  // entries.
+  //
+  // Conservative invalidations:
+  //   - any call: clear all entries (callees may clobber any caller-save
+  //     reg AND may write through the stack)
+  //   - inline-asm / barriers / branches: clear all
+  //   - any unrecognised mayLoad / mayStore: clear all
+  //
+  // Family-based matching (STA<->LDA, STB<->LDB, STD<->LDD, etc.) means
+  // we don't try to fold cross-width cases (e.g. STD followed by LDA of
+  // the high byte). Strictly the safe MVP.
+
+  // Map an opcode to (family-tag, data-register) iff it is a tracked
+  // store or load. Family tag is the data-register itself (which is
+  // unique per family).
+  struct StoreOrLoad {
+    bool IsStore;
+    Register DataReg; // family tag + actual data reg
+  };
+  auto classify = [](unsigned Opc) -> std::optional<StoreOrLoad> {
+#define STORE_FAMILY(R, A, B, C, D)                                            \
+  if (Opc == MC6809::A || Opc == MC6809::B || Opc == MC6809::C ||              \
+      Opc == MC6809::D)                                                        \
+    return StoreOrLoad{true, MC6809::R};
+#define LOAD_FAMILY(R, A, B, C, D)                                             \
+  if (Opc == MC6809::A || Opc == MC6809::B || Opc == MC6809::C ||              \
+      Opc == MC6809::D)                                                        \
+    return StoreOrLoad{false, MC6809::R};
+    STORE_FAMILY(AA, STAi_o0, STAi_o5, STAi_o8, STAi_o16)
+    STORE_FAMILY(AB, STBi_o0, STBi_o5, STBi_o8, STBi_o16)
+    STORE_FAMILY(AD, STDi_o0, STDi_o5, STDi_o8, STDi_o16)
+    STORE_FAMILY(AE, STEi_o0, STEi_o5, STEi_o8, STEi_o16)
+    STORE_FAMILY(AF, STFi_o0, STFi_o5, STFi_o8, STFi_o16)
+    STORE_FAMILY(AW, STWi_o0, STWi_o5, STWi_o8, STWi_o16)
+    STORE_FAMILY(AQ, STQi_o0, STQi_o5, STQi_o8, STQi_o16)
+    STORE_FAMILY(IX, STXi_o0, STXi_o5, STXi_o8, STXi_o16)
+    STORE_FAMILY(IY, STYi_o0, STYi_o5, STYi_o8, STYi_o16)
+    STORE_FAMILY(SU, STUi_o0, STUi_o5, STUi_o8, STUi_o16)
+    STORE_FAMILY(SS, STSi_o0, STSi_o5, STSi_o8, STSi_o16)
+    LOAD_FAMILY(AA, LDAi_o0, LDAi_o5, LDAi_o8, LDAi_o16)
+    LOAD_FAMILY(AB, LDBi_o0, LDBi_o5, LDBi_o8, LDBi_o16)
+    LOAD_FAMILY(AD, LDDi_o0, LDDi_o5, LDDi_o8, LDDi_o16)
+    LOAD_FAMILY(AE, LDEi_o0, LDEi_o5, LDEi_o8, LDEi_o16)
+    LOAD_FAMILY(AF, LDFi_o0, LDFi_o5, LDFi_o8, LDFi_o16)
+    LOAD_FAMILY(AW, LDWi_o0, LDWi_o5, LDWi_o8, LDWi_o16)
+    LOAD_FAMILY(AQ, LDQi_o0, LDQi_o5, LDQi_o8, LDQi_o16)
+    LOAD_FAMILY(IX, LDXi_o0, LDXi_o5, LDXi_o8, LDXi_o16)
+    LOAD_FAMILY(IY, LDYi_o0, LDYi_o5, LDYi_o8, LDYi_o16)
+    LOAD_FAMILY(SU, LDUi_o0, LDUi_o5, LDUi_o8, LDUi_o16)
+    LOAD_FAMILY(SS, LDSi_o0, LDSi_o5, LDSi_o8, LDSi_o16)
+#undef STORE_FAMILY
+#undef LOAD_FAMILY
+    return std::nullopt;
+  };
+
+  // Slot key: (data-reg-family-tag, offset, base-reg). Storing 0
+  // implicit for the _o0 form.
+  struct SlotKey {
+    Register Family;
+    int64_t Offset;
+    Register Base;
+    bool operator==(const SlotKey &O) const {
+      return Family == O.Family && Offset == O.Offset && Base == O.Base;
+    }
+  };
+
+  // For sub-register aliasing: AA/AB are sub-regs of AD; AE/AF of AW;
+  // AA/AB/AE/AF/AW of AQ. A write to AA leaves AD's low byte (AB)
+  // intact but invalidates the "AD as a whole holds slot X" tracking.
+  // TargetRegisterInfo::regsOverlap captures this correctly across all
+  // 8/16/32-bit family relationships including the 6309 wider forms.
+  const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
+
+  bool Changed = false;
+  for (MachineBasicBlock &MBB : MF) {
+    SmallVector<std::pair<SlotKey, Register>, 8> Slots;
+
+    auto findSlot = [&](const SlotKey &K) -> Register * {
+      for (auto &P : Slots)
+        if (P.first == K)
+          return &P.second;
+      return nullptr;
+    };
+    auto recordSlot = [&](const SlotKey &K, Register DataReg) {
+      if (auto *S = findSlot(K)) {
+        *S = DataReg;
+        return;
+      }
+      Slots.push_back({K, DataReg});
+    };
+    auto invalidateAll = [&]() { Slots.clear(); };
+    auto invalidateReg = [&](Register R) {
+      // Drop any slot whose tracked data reg overlaps R (sub/super
+      // register aliasing — see comment on TRI above).
+      Slots.erase(
+          std::remove_if(Slots.begin(), Slots.end(),
+                         [&, R](const std::pair<SlotKey, Register> &P) {
+                           return TRI->regsOverlap(P.second, R);
+                         }),
+          Slots.end());
+    };
+
+    for (MachineInstr &MI : llvm::make_early_inc_range(MBB)) {
+      if (MI.isCall() || MI.isInlineAsm() || MI.isReturn() ||
+          MI.isBranch() || MI.isTerminator()) {
+        invalidateAll();
+        continue;
+      }
+
+      auto Cls = classify(MI.getOpcode());
+      if (!Cls) {
+        // Untracked: invalidate everything if it could touch memory or
+        // any tracked data register.
+        if (MI.mayLoad() || MI.mayStore()) {
+          invalidateAll();
+          continue;
+        }
+        // Otherwise, invalidate only tracked-data-reg defs.
+        for (const MachineOperand &MO : MI.operands()) {
+          if (MO.isReg() && MO.isDef() && MO.getReg().isPhysical())
+            invalidateReg(MO.getReg());
+        }
+        continue;
+      }
+
+      // Build slot key.
+      SlotKey K{Cls->DataReg, 0, Register()};
+      if (MI.getNumOperands() >= 2 && MI.getOperand(0).isImm() &&
+          MI.getOperand(1).isReg()) {
+        K.Offset = MI.getOperand(0).getImm();
+        K.Base = MI.getOperand(1).getReg();
+      } else if (MI.getNumOperands() >= 1 && MI.getOperand(0).isReg()) {
+        K.Offset = 0;
+        K.Base = MI.getOperand(0).getReg();
+      } else {
+        invalidateAll();
+        continue;
+      }
+
+      if (Cls->IsStore) {
+        // The store WRITES the slot from DataReg. Record what's now in
+        // the slot, AND invalidate any slot pointing to the same DataReg
+        // since other slots tracked under that reg may differ from it
+        // now (the store doesn't change the reg, so they're still valid;
+        // skip invalidation here).
+        recordSlot(K, Cls->DataReg);
+      } else {
+        // Load: if the slot is currently tracked AND already in DataReg,
+        // the load is redundant.
+        if (Register *Existing = findSlot(K)) {
+          if (*Existing == Cls->DataReg) {
+            MI.eraseFromParent();
+            ++NumStoreReloadsElided;
+            Changed = true;
+            continue;
+          }
+        }
+        // Otherwise the load brings a fresh value into DataReg. Update
+        // the slot tracking, and invalidate other slots that pointed
+        // to DataReg since DataReg now has a different value.
+        invalidateReg(Cls->DataReg);
+        recordSlot(K, Cls->DataReg);
+      }
+    }
+  }
+  return Changed;
 }
 
 char MC6809FinalLowering::ID = 0;
