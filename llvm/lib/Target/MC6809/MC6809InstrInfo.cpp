@@ -2575,6 +2575,65 @@ int MC6809InstrInfo::offsetSizeInBits(MachineOperand &OffsetOp) {
   return offsetSizeInBitsForValue(Offset);
 }
 
+// Bug #149 Phase 1: shrink an indexed-immediate opcode to its narrowest
+// valid form for the given offset. Iterates the eight (Reg, OffsetLen)
+// → Opcode tables; for any table containing CurrentOpcode at some
+// (Reg, CurLen), tries CandidateLen in {0, 5, 8} (each only if it both
+// fits the offset value and is strictly smaller than CurLen) and returns
+// the first hit. Cost is O(N) per call across ~640 entries, but the call
+// site (MC6809FinalLowering::relaxOffsets) only triggers on indexed MIs.
+std::pair<unsigned, int>
+MC6809InstrInfo::getRelaxedIdxOpcode(unsigned CurrentOpcode,
+                                     int64_t Offset) const {
+  // The eight tables that share the {Reg, OffsetLen} -> Opcode shape.
+  // Order matches MC6809InstrInfo's constructor.
+  const DenseMap<RegPlusOffsetLen, unsigned> *Tables[] = {
+      &LEAPtrAddImmOpcode,    &LoadIdxImmOpcode,       &StoreIdxImmOpcode,
+      &AddIdxImmOpcode,       &AddCarryIdxImmOpcode,   &SubIdxImmOpcode,
+      &SubBorrowIdxImmOpcode, &CompareIdxImmOpcode,
+  };
+
+  // Required size to encode the offset (0 / 5 / 8 / 16 / 256-too-big).
+  int Need = offsetSizeInBitsForValue(Offset);
+  if (Need < 0 || Need > 16)
+    return {0, -1};
+
+  for (const auto *Table : Tables) {
+    // Find which (Reg, CurLen) maps to CurrentOpcode in this table.
+    Register Reg;
+    int CurLen = -2;
+    for (const auto &KV : *Table) {
+      if (KV.second == CurrentOpcode) {
+        Reg = KV.first.Reg;
+        CurLen = KV.first.OffsetLen;
+        break;
+      }
+    }
+    if (CurLen == -2)
+      continue;
+
+    // The "-1" key in these tables is a fallback alias for the _o16
+    // entry (see MC6809InstrInfo ctor). Treat it as 16 for comparison
+    // so we don't try to "relax" downward FROM the fallback.
+    int EffCur = (CurLen < 0) ? 16 : CurLen;
+
+    // Try strictly smaller candidates that fit the offset.
+    static const int Candidates[] = {0, 5, 8};
+    for (int Cand : Candidates) {
+      if (Cand >= EffCur)
+        break;
+      if (Need > Cand)
+        continue;
+      auto It = Table->find({Reg, Cand});
+      if (It != Table->end())
+        return {It->second, Cand};
+    }
+    // Found the table but no smaller form available: nothing to do.
+    return {0, -1};
+  }
+  return {0, -1};
+}
+
 void MC6809InstrInfo::expandCallRelative(MachineIRBuilder &Builder, MachineInstr &MI) const {
   MI.setDesc(Builder.getTII().get(MC6809::BSRb));
 }

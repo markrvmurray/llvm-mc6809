@@ -17,11 +17,14 @@
 #include "MC6809FinalLowering.h"
 
 #include "MC6809.h"
+#include "MC6809InstrInfo.h"
 #include "MC6809Subtarget.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
 
 #include "llvm/ADT/Statistic.h"
+#include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunction.h"
+#include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/CommandLine.h"
@@ -128,7 +131,56 @@ bool MC6809FinalLowering::runOnMachineFunction(MachineFunction &MF) {
 // each function with the real transform and bump the matching STATISTIC.
 
 bool MC6809FinalLowering::relaxOffsets(MachineFunction &MF) {
-  return false;
+  // Walk every MI; for any indexed-immediate opcode whose offset value
+  // fits a narrower encoding, switch to the narrower opcode and (when
+  // shrinking to the _o0 form) drop the offset operand.
+  //
+  // Operand layout for indexed-immediate instructions in this backend
+  // (post-ExpandPostRAPseudos; see InstrInfo's expandLoadIdx for the
+  // ground truth on construction):
+  //
+  //   _o5/_o8/_o16: <maybe-implicit data reg> + offset imm + base index reg
+  //   _o0:          <maybe-implicit data reg> + base index reg (no offset)
+  //
+  // The data register may be implicit-def (for loads/LEA), implicit-use
+  // (for stores), or absent (for the LEA destination encoded in opcode).
+  // To find the offset robustly, we just scan operands for the first
+  // immediate operand and treat that as the offset. The opcode-table
+  // lookup in getRelaxedIdxOpcode is the source of truth for whether
+  // the instruction is actually an indexed-imm form.
+  const auto *TII = static_cast<const MC6809InstrInfo *>(
+      MF.getSubtarget().getInstrInfo());
+
+  bool Changed = false;
+  for (MachineBasicBlock &MBB : MF) {
+    for (MachineInstr &MI : MBB) {
+      // Find the first immediate operand (= offset for indexed-imm forms).
+      int OffsetIdx = -1;
+      for (unsigned I = 0, E = MI.getNumOperands(); I != E; ++I) {
+        if (MI.getOperand(I).isImm()) {
+          OffsetIdx = I;
+          break;
+        }
+      }
+      if (OffsetIdx < 0)
+        continue;
+
+      int64_t Offset = MI.getOperand(OffsetIdx).getImm();
+      auto [NewOpc, NewLen] = TII->getRelaxedIdxOpcode(MI.getOpcode(),
+                                                       Offset);
+      if (NewOpc == 0)
+        continue;
+
+      MI.setDesc(TII->get(NewOpc));
+      if (NewLen == 0) {
+        // Shrinking to _o0 — drop the (now redundant) offset operand.
+        MI.removeOperand(OffsetIdx);
+      }
+      ++NumOffsetsRelaxed;
+      Changed = true;
+    }
+  }
+  return Changed;
 }
 
 bool MC6809FinalLowering::elideLeafFrame(MachineFunction &MF) {
