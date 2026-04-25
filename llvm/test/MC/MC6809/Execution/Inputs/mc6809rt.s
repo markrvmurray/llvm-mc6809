@@ -39,5 +39,9 @@
 ;; 64-bit division and modulo (signed + unsigned)
 .include "divdi.inc"
 
+;; 64-bit signed and unsigned compare
+.include "cmpdi2.inc"
+.include "ucmpdi2.inc"
+
 ;; memcpy / memmove / memset — required by clang for struct copies
 .include "memops.inc"
