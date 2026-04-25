@@ -41,7 +41,7 @@ MC6809::MC6809(Ctx &ctx) : TargetInfo(ctx) {
 }
 
 static uint32_t getEFlags(InputFile *file) {
-  return cast<ObjFile<ELF32LE>>(file)->getObj().getHeader().e_flags;
+  return cast<ObjFile<ELF32BE>>(file)->getObj().getHeader().e_flags;
 }
 
 uint32_t MC6809::calcEFlags() const {
