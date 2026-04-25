@@ -434,7 +434,132 @@ bool MC6809FinalLowering::foldAdjacentInc(MachineFunction &MF) {
 }
 
 bool MC6809FinalLowering::elideDupStores(MachineFunction &MF) {
-  return false;
+  // Eliminate dead duplicate stores to the same spill slot:
+  //
+  //   stb $21,u
+  //   andb #$3        ; modifies B but doesn't touch memory
+  //   stb $21,u       ; overwrites the first store, no intervening read
+  //
+  // Per-MBB linear scan: track the most recent store to each
+  // (opcode, offset, base) triple. When another store to the same
+  // triple is reached without an intervening MI that could read the
+  // slot, the prior store is dead — erase it.
+  //
+  // Conservative invalidations (clear the entire tracking map):
+  //   - any MI with mayLoad (loads might read the slot we wrote)
+  //   - any MI with mayStore that we don't recognize as a tracked
+  //     store opcode (it might write to overlapping memory)
+  //   - any call (callees may read the caller's stack)
+  //   - any inline-asm or barrier
+  //
+  // Intra-MBB only — cross-block tracking would require a forward
+  // dataflow that's well outside the scope of a final-lowering pass.
+
+  auto isTrackedStore = [](const MachineInstr &MI) {
+    // Indexed-immediate store opcodes (post-expansion forms only —
+    // _o0/_o5/_o8/_o16 across STA/STB/STD/STE/STF/STW/STQ/
+    // STX/STY/STU/STS).
+    static const unsigned Ops[] = {
+      MC6809::STAi_o0, MC6809::STAi_o5, MC6809::STAi_o8, MC6809::STAi_o16,
+      MC6809::STBi_o0, MC6809::STBi_o5, MC6809::STBi_o8, MC6809::STBi_o16,
+      MC6809::STDi_o0, MC6809::STDi_o5, MC6809::STDi_o8, MC6809::STDi_o16,
+      MC6809::STEi_o0, MC6809::STEi_o5, MC6809::STEi_o8, MC6809::STEi_o16,
+      MC6809::STFi_o0, MC6809::STFi_o5, MC6809::STFi_o8, MC6809::STFi_o16,
+      MC6809::STWi_o0, MC6809::STWi_o5, MC6809::STWi_o8, MC6809::STWi_o16,
+      MC6809::STQi_o0, MC6809::STQi_o5, MC6809::STQi_o8, MC6809::STQi_o16,
+      MC6809::STXi_o0, MC6809::STXi_o5, MC6809::STXi_o8, MC6809::STXi_o16,
+      MC6809::STYi_o0, MC6809::STYi_o5, MC6809::STYi_o8, MC6809::STYi_o16,
+      MC6809::STUi_o0, MC6809::STUi_o5, MC6809::STUi_o8, MC6809::STUi_o16,
+      MC6809::STSi_o0, MC6809::STSi_o5, MC6809::STSi_o8, MC6809::STSi_o16,
+    };
+    unsigned Opc = MI.getOpcode();
+    for (unsigned O : Ops)
+      if (O == Opc)
+        return true;
+    return false;
+  };
+
+  // Slot key = (opcode, offset_imm, base_reg). A store with _o0 form
+  // has offset=0 implicitly (no explicit operand), so we treat its
+  // offset key as 0.
+  struct SlotKey {
+    unsigned Opcode;
+    int64_t Offset;
+    Register Base;
+    bool operator==(const SlotKey &O) const {
+      return Opcode == O.Opcode && Offset == O.Offset && Base == O.Base;
+    }
+  };
+
+  bool Changed = false;
+  for (MachineBasicBlock &MBB : MF) {
+    SmallVector<std::pair<SlotKey, MachineInstr *>, 8> RecentStores;
+
+    auto invalidateAll = [&]() { RecentStores.clear(); };
+    auto findStore = [&](const SlotKey &K) -> MachineInstr ** {
+      for (auto &P : RecentStores)
+        if (P.first == K)
+          return &P.second;
+      return nullptr;
+    };
+    auto recordStore = [&](const SlotKey &K, MachineInstr *MI) {
+      if (auto **Slot = findStore(K)) {
+        *Slot = MI;
+        return;
+      }
+      RecentStores.push_back({K, MI});
+    };
+
+    for (MachineInstr &MI : llvm::make_early_inc_range(MBB)) {
+      // First: cheap structural classifications.
+      if (MI.isCall() || MI.isInlineAsm() || MI.isReturn() ||
+          MI.isBranch() || MI.isTerminator()) {
+        invalidateAll();
+        continue;
+      }
+
+      bool Tracked = isTrackedStore(MI);
+
+      if (!Tracked) {
+        // Untracked memory access invalidates everything.
+        if (MI.mayLoad() || MI.mayStore())
+          invalidateAll();
+        continue;
+      }
+
+      // Build the slot key. For _o0 forms, no offset operand exists;
+      // for _o5/_o8/_o16, operand[0] is the offset and operand[1] is
+      // the base register (post-expansion shape).
+      SlotKey K{MI.getOpcode(), 0, Register()};
+      if (MI.getNumOperands() >= 2 && MI.getOperand(0).isImm() &&
+          MI.getOperand(1).isReg()) {
+        K.Offset = MI.getOperand(0).getImm();
+        K.Base = MI.getOperand(1).getReg();
+      } else if (MI.getNumOperands() >= 1 && MI.getOperand(0).isReg()) {
+        // _o0 form: only the base register, no offset operand.
+        K.Offset = 0;
+        K.Base = MI.getOperand(0).getReg();
+      } else {
+        // Unexpected operand shape — be safe.
+        invalidateAll();
+        continue;
+      }
+
+      // If we already have a recorded store to this slot, the prior
+      // one is dead.
+      if (auto **Prior = findStore(K)) {
+        if (*Prior) {
+          (*Prior)->eraseFromParent();
+          ++NumDupStoresElided;
+          Changed = true;
+        }
+        *Prior = &MI;
+      } else {
+        recordStore(K, &MI);
+      }
+    }
+  }
+  return Changed;
 }
 
 bool MC6809FinalLowering::elideStoreReload(MachineFunction &MF) {

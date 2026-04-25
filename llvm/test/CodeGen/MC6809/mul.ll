@@ -76,7 +76,6 @@ define dso_local signext i8 @mul_s_i8(i8 noundef signext %a, i8 noundef signext 
 ; O2-NEXT:    tfr b,a
 ; O2-NEXT:    ldb 12,u
 ; O2-NEXT:    std 4,u
-; O2-NEXT:    std 6,u
 ; O2-NEXT:    mul
 ; O2-NEXT:    std 6,u
 ; O2-NEXT:    ldb 7,u
@@ -93,7 +92,6 @@ define dso_local signext i8 @mul_s_i8(i8 noundef signext %a, i8 noundef signext 
 ; O3-NEXT:    tfr b,a
 ; O3-NEXT:    ldb 12,u
 ; O3-NEXT:    std 4,u
-; O3-NEXT:    std 6,u
 ; O3-NEXT:    mul
 ; O3-NEXT:    std 6,u
 ; O3-NEXT:    ldb 7,u
@@ -353,7 +351,6 @@ define dso_local signext i8 @mul_s_i8_consts(i8 noundef signext %a, i8 noundef s
 ; O2-NEXT:    sta 10,u
 ; O2-NEXT:    lda #12
 ; O2-NEXT:    std 6,u
-; O2-NEXT:    std 8,u
 ; O2-NEXT:    mul
 ; O2-NEXT:    std 8,u
 ; O2-NEXT:    ldb 9,u
@@ -379,7 +376,6 @@ define dso_local signext i8 @mul_s_i8_consts(i8 noundef signext %a, i8 noundef s
 ; O3-NEXT:    sta 10,u
 ; O3-NEXT:    lda #12
 ; O3-NEXT:    std 6,u
-; O3-NEXT:    std 8,u
 ; O3-NEXT:    mul
 ; O3-NEXT:    std 8,u
 ; O3-NEXT:    ldb 9,u
@@ -473,7 +469,6 @@ define dso_local zeroext i8 @mul_u_i8(i8 noundef zeroext %a, i8 noundef zeroext 
 ; O2-NEXT:    tfr b,a
 ; O2-NEXT:    ldb 12,u
 ; O2-NEXT:    std 4,u
-; O2-NEXT:    std 6,u
 ; O2-NEXT:    mul
 ; O2-NEXT:    std 6,u
 ; O2-NEXT:    ldb 7,u
@@ -490,7 +485,6 @@ define dso_local zeroext i8 @mul_u_i8(i8 noundef zeroext %a, i8 noundef zeroext 
 ; O3-NEXT:    tfr b,a
 ; O3-NEXT:    ldb 12,u
 ; O3-NEXT:    std 4,u
-; O3-NEXT:    std 6,u
 ; O3-NEXT:    mul
 ; O3-NEXT:    std 6,u
 ; O3-NEXT:    ldb 7,u
@@ -749,7 +743,6 @@ define dso_local zeroext i8 @mul_u_i8_consts(i8 noundef zeroext %a, i8 noundef z
 ; O2-NEXT:    sta 10,u
 ; O2-NEXT:    lda #13
 ; O2-NEXT:    std 6,u
-; O2-NEXT:    std 8,u
 ; O2-NEXT:    mul
 ; O2-NEXT:    std 8,u
 ; O2-NEXT:    ldb 9,u
@@ -775,7 +768,6 @@ define dso_local zeroext i8 @mul_u_i8_consts(i8 noundef zeroext %a, i8 noundef z
 ; O3-NEXT:    sta 10,u
 ; O3-NEXT:    lda #13
 ; O3-NEXT:    std 6,u
-; O3-NEXT:    std 8,u
 ; O3-NEXT:    mul
 ; O3-NEXT:    std 8,u
 ; O3-NEXT:    ldb 9,u
