@@ -33,6 +33,7 @@ InstructionSelector *createMC6809InstructionSelector(const MC6809TargetMachine &
 void initializeMC6809BundleCCPass(PassRegistry &);
 void initializeMC6809CombinerPass(PassRegistry &);
 void initializeMC6809CopyOptPass(PassRegistry &);
+void initializeMC6809FinalLoweringPass(PassRegistry &);
 void initializeMC6809IncDecPhiPass(PassRegistry &);
 void initializeMC6809IndexIVPass(PassRegistry &);
 void initializeMC6809InsertCopiesPass(PassRegistry &);

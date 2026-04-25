@@ -30,6 +30,7 @@ add_llvm_target(MC6809CodeGen
   MC6809CallGraphUtils.cpp
   MC6809CallingConv.cpp
   MC6809CopyOpt.cpp
+  MC6809FinalLowering.cpp
   MC6809FrameLowering.cpp
   MC6809ISelLowering.cpp
   MC6809IncDecPhi.cpp
