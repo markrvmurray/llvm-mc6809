@@ -43,5 +43,8 @@
 .include "cmpdi2.inc"
 .include "ucmpdi2.inc"
 
+;; 64-bit truncated multiply (replaces broken compiler-rt C __muldi3 — bug #173)
+.include "muldi3.inc"
+
 ;; memcpy / memmove / memset — required by clang for struct copies
 .include "memops.inc"

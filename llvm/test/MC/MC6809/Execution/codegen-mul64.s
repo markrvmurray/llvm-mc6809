@@ -1,10 +1,9 @@
-; XFAIL: *
-;
-; Bug #171 (`62acf48`): __muldi3 (compiler-rt C version, built into
-; libclang_rt.builtins.a by clang -target mc6809) returns wrong
-; answers for several non-trivial i64 multiply inputs. See the bug
-; for the per-row diagnosis. This test is left in place so a future
-; __muldi3 fix surfaces as an unexpected pass.
+; Bug #173 (`62acf48`) closer: this test exercises __muldi3, the
+; 64-bit truncated multiply libcall. The previous compiler-rt C
+; version returned wrong answers for non-trivial inputs (rows 2,
+; 3, 5 below); replaced with hand-asm muldi3.inc / muldi3.S
+; (mirror pair, same pattern as cmpdi2.inc / cmpdi2.S). Test now
+; passes at all four optimisation levels.
 ;
 ; RUN: llc -global-isel -global-isel-abort=1 -O0 -mtriple=mc6809 \
 ; RUN:   %S/Inputs/codegen-mul64.ll -o %t-raw.s 2>/dev/null

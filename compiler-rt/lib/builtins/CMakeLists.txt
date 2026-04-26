@@ -857,6 +857,12 @@ list(REMOVE_ITEM mc6809_SOURCES
   divmoddi4.c udivmoddi4.c
   mulvdi3.c mulodi4.c
   paritydi2.c popcountdi2.c
+  # muldi3 — the upstream C version's __muldsi3 32x32->64 helper has
+  # a partial-product alignment bug for the big-endian + int=i16 +
+  # long=i32 + long long=i64 combination MC6809 has, returning wrong
+  # answers for several inputs (bug #173). Replaced with hand-asm
+  # mc6809/muldi3.S below.
+  muldi3.c
   # cmpdi2 / ucmpdi2 upstream bodies compare i32 halves, which on MC6809
   # would recurse into (broken) inline i32 compare — see bug #158. Replaced
   # with mc6809/cmpdi2.c + mc6809/ucmpdi2.c, which decompose all the way
@@ -925,6 +931,8 @@ list(APPEND mc6809_SOURCES
   mc6809/ucmpsi2.S
   mc6809/cmpdi2.S
   mc6809/ucmpdi2.S
+  # 64-bit multiply (truncated) — see muldi3.c REMOVE_ITEM above.
+  mc6809/muldi3.S
 )
 
 set(mos_SOURCES ${GENERIC_SOURCES})
