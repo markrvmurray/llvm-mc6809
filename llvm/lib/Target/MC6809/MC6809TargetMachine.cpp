@@ -326,17 +326,21 @@ void MC6809PassConfig::addPreSched2() {
 }
 
 void MC6809PassConfig::addPreEmitPass() {
-  addPass(&BranchRelaxationPassID);
-  // MC6809FinalLowering (bug #149): host for late-stage transforms gated
-  // per-class at >= -O2 by default. Inserted AFTER BranchRelaxation so
-  // long/short branch decisions are stable for size-driven passes.
-  //
-  // Encoding-overflow safety nets that historically lived in a dedicated
-  // post-pass (MC6809NoShortBranches) have moved into
-  // MC6809AsmBackend::applyFixup — PCRel8 (was bug #58), Rel8 (was
-  // bug #122 _o8 truncation) and Rel5 (was bug #122 _o5 truncation) all
-  // get range-checked there at MC fixup time.
+  // MC6809FinalLowering (bug #149) MUST run BEFORE BranchRelaxation.
+  // Several of its classes (Class 1 offset-relax, Class 4 dup-store,
+  // Class 5 store-reload, Class 6 branch-over-branch, Class 7 LEA-
+  // pointer-spill) DELETE or SHRINK MachineInstrs. If BranchRelaxation
+  // runs first, its block-size accounting (via getInstSizeInBytes) is
+  // computed against the pre-shrink layout; downstream shrinks then
+  // make the actual emit positions differ from BranchRelaxation's
+  // bookkeeping by the size of every elided MI.
   addPass(createMC6809FinalLoweringPass());
+  addPass(&BranchRelaxationPassID);
+  // Encoding-overflow safety nets that historically lived in a dedicated
+  // post-pass (MC6809NoShortBranches, retired in commit 2bf4696c62d7) have
+  // moved into MC6809AsmBackend::applyFixup — PCRel8 (was bug #58), Rel8
+  // (was bug #122 _o8 truncation) and Rel5 (was bug #122 _o5 truncation)
+  // all get range-checked there at MC fixup time.
 }
 
 ScheduleDAGInstrs *MC6809TargetMachine::createMachineScheduler(MachineSchedContext *C) const {

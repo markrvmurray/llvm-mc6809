@@ -195,7 +195,7 @@ define i32 @phi_i32(i1 %c, i32 %a, i32 %b) {
 ; O2-NEXT:    tfr s,u
 ; O2-NEXT:    andb #1
 ; O2-NEXT:    tstb
-; O2-NEXT:    lbeq .LBB1_2
+; O2-NEXT:    beq .LBB1_2
 ; O2-NEXT:  ; %bb.1: ; %then
 ; O2-NEXT:    ldd 26,u
 ; O2-NEXT:    stb 19,u
@@ -227,7 +227,7 @@ define i32 @phi_i32(i1 %c, i32 %a, i32 %b) {
 ; O2-NEXT:    lda 16,u
 ; O2-NEXT:    std 18,u
 ; O2-NEXT:    ldd 9,u
-; O2-NEXT:    lbra .LBB1_3
+; O2-NEXT:    bra .LBB1_3
 ; O2-NEXT:  .LBB1_2: ; %else
 ; O2-NEXT:    ldd 30,u
 ; O2-NEXT:    stb 19,u
@@ -359,7 +359,7 @@ define i32 @select_chain(i1 %c1, i1 %c2, i32 %a, i32 %b, i32 %d) {
 ; O2-NEXT:    std 12,u
 ; O2-NEXT:    ldd 8,u
 ; O2-NEXT:    tstb
-; O2-NEXT:    lbne .LBB2_2
+; O2-NEXT:    bne .LBB2_2
 ; O2-NEXT:  ; %bb.1: ; %select.false
 ; O2-NEXT:    std 6,u
 ; O2-NEXT:    ldd 27,u
@@ -371,7 +371,7 @@ define i32 @select_chain(i1 %c1, i1 %c2, i32 %a, i32 %b, i32 %d) {
 ; O2-NEXT:    ldd 4,u
 ; O2-NEXT:  .LBB2_2: ; %select.end
 ; O2-NEXT:    tsta
-; O2-NEXT:    lbne .LBB2_4
+; O2-NEXT:    bne .LBB2_4
 ; O2-NEXT:  ; %bb.3: ; %select.false2
 ; O2-NEXT:    ldd 31,u
 ; O2-NEXT:    std 14,u

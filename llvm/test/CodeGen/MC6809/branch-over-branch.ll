@@ -63,7 +63,7 @@ define i16 @cond_skip_join(i16 %x, i16 %a, i16 %b) {
 ; O2-NEXT:    leas 1,s
 ; O2-NEXT:    stb 5,u
 ; O2-NEXT:    tstb
-; O2-NEXT:    lbne .LBB0_2
+; O2-NEXT:    bne .LBB0_2
 ; O2-NEXT:  ; %bb.1: ; %if.then
 ; O2-NEXT:    ldd 12,u
 ; O2-NEXT:    tfr d,x

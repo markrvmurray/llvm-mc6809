@@ -483,6 +483,27 @@ unsigned MC6809InstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
     // If this machine instr is an inline asm, measure it.
     return getInlineAsmLength(MI.getOperand(0).getSymbolName(), *MAI);
   }
+  // PseudoInstExpansion-based pseudos (defined in MC6809InstrLogical.td)
+  // expand at AsmPrinter time — they are NOT lowered by ExpandPostRAPseudos
+  // and remain in the MIR through BranchRelaxation. Their MCID size defaults
+  // to 0, which would silently undercount block sizes for any pass that
+  // sums getInstSizeInBytes (notably BranchRelaxation). Return the size of
+  // the EXPANDED concrete form so block accounting is correct for branch
+  // offset decisions (was bug #174 strategy 1 root cause: BranchRelaxation
+  // undercounted bb.0 of __file_wstr_get by sizes-of-expanded-LBSR pseudos
+  // that survived into the relaxation pass).
+  case MC6809::BranchSubroutine:           return 2; // → BSRb
+  case MC6809::LongBranchSubroutine:       return 3; // → LBSRlb
+  case MC6809::JumpSubroutine:             return 3; // → JSRi_o8PC
+  case MC6809::LongJumpSubroutine:         return 4; // → JSRi_o16PC
+  case MC6809::IndirectJumpSubroutine:     return 4; // → JSRi_eI
+  case MC6809::JumpAbsolute:               return 3; // → JMPe ($7E + addr16)
+  case MC6809::JumpIndir:                  return 4; // → JMPi_eI
+  case MC6809::TailJump:                   return 3; // → LBRAlb
+  // MC6809Return<Opcode> family expands to single-byte returns (RTS=$39,
+  // RTI=$3B). One byte each.
+  case MC6809::ReturnImplicit:             return 1; // → RTSr
+  case MC6809::ReturnIRQImplicit:          return 1; // → RTIr
   }
 }
 
@@ -691,9 +712,12 @@ bool MC6809InstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock *&
         CC = getOppositeCondition(CC);
         MachineBasicBlock::iterator OldInst = I;
 
-        // Always emit long branches; relaxation to short happens later.
-        BuildMI(MBB, UnCondBrIter, MBB.findDebugLoc(I), get(MC6809::LBlbc)).addImm(CC).addMBB(UnCondBrIter->getOperand(0).getMBB());
-        BuildMI(MBB, UnCondBrIter, MBB.findDebugLoc(I), get(MC6809::LBRAlb)).addMBB(TargetBB);
+        // Emit short by default; standard LLVM BranchRelaxation widens
+        // via CFG-split + insertIndirectBranch when the displacement is
+        // out of int8 range (bug #174). BuildMI auto-attaches the
+        // implicit Uses on N/Z/V/C declared by Bbc's MCInstrDesc.
+        BuildMI(MBB, UnCondBrIter, MBB.findDebugLoc(I), get(MC6809::Bbc)).addImm(CC).addMBB(UnCondBrIter->getOperand(0).getMBB());
+        BuildMI(MBB, UnCondBrIter, MBB.findDebugLoc(I), get(MC6809::BRAb)).addMBB(TargetBB);
 
         OldInst->eraseFromParent();
         UnCondBrIter->eraseFromParent();
@@ -748,19 +772,22 @@ unsigned MC6809InstrInfo::insertBranch(MachineBasicBlock &MBB, MachineBasicBlock
   unsigned Count = 0;
 
   if (Cond.empty()) {
-    // Unconditional branch?
+    // Unconditional branch — emit short by default. Standard LLVM
+    // BranchRelaxation widens via insertIndirectBranch when out of int8
+    // range (bug #174).
     assert(!FBB && "Unconditional branch with multiple successors!");
-    Bytes += getInstSizeInBytes(*BuildMI(&MBB, DL, get(MC6809::LBRAlb)).addMBB(TBB));
+    Bytes += getInstSizeInBytes(*BuildMI(&MBB, DL, get(MC6809::BRAb)).addMBB(TBB));
     ++Count;
   } else {
-    // Conditional branch.
-    Bytes += getInstSizeInBytes(*BuildMI(&MBB, DL, get(MC6809::LBlbc)).add(Cond[0]).addMBB(TBB));
+    // Conditional branch — emit short by default. BranchRelaxation
+    // widens via CFG-split + insertIndirectBranch as needed (bug #174).
+    Bytes += getInstSizeInBytes(*BuildMI(&MBB, DL, get(MC6809::Bbc)).add(Cond[0]).addMBB(TBB));
     ++Count;
 
     // If FBB is null, it is implied to be a fall-through block.
     if (FBB) {
-      // Two-way Conditional branch. Insert the second branch.
-      Bytes += getInstSizeInBytes(*BuildMI(&MBB, DL, get(MC6809::LBRAlb)).addMBB(FBB));
+      // Two-way Conditional branch. Insert the second branch (short).
+      Bytes += getInstSizeInBytes(*BuildMI(&MBB, DL, get(MC6809::BRAb)).addMBB(FBB));
       ++Count;
     }
   }
@@ -1876,22 +1903,36 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     Changed = false;
     break;
   case MC6809::BranchRelative:
-    // Default to long branches (was bug #58). A future relaxation pass
-    // will promote to short BRA when the offset fits.
-    MI.setDesc(Builder.getTII().get(MC6809::LBRAlb));
+    // Emit short by default; standard LLVM BranchRelaxation widens to
+    // LBRA via insertIndirectBranch when the displacement is out of
+    // int8 range (bug #174).
+    MI.setDesc(Builder.getTII().get(MC6809::BRAb));
     break;
   case MC6809::LongBranchRelative:
+    // Explicit long pseudo — escape hatch for callers that want to
+    // force a long branch regardless of distance.
     MI.setDesc(Builder.getTII().get(MC6809::LBRAlb));
     break;
   case MC6809::ConditionalBranchRelative:
+    // Emit short by default. Strip the pseudo's CCond:$bits operand —
+    // the assembler encoding has no register field — and replace it
+    // with the implicit Uses on N/Z/V/C declared by Bbc (bug #137).
+    // Without these implicit uses the post-RA MachineInstr would lack
+    // any CC dependency at all and the scheduler would freely insert
+    // flag-clobbering instructions between the cmp and this branch.
+    // BranchRelaxation widens to LBlbc via CFG-split + insertBranch +
+    // insertIndirectBranch when the displacement is out of int8 range
+    // (bug #174).
+    MI.setDesc(Builder.getTII().get(MC6809::Bbc));
+    MI.removeOperand(2);
+    MI.addOperand(MachineOperand::CreateReg(MC6809::N, /*isDef=*/false, /*isImp=*/true));
+    MI.addOperand(MachineOperand::CreateReg(MC6809::Z, /*isDef=*/false, /*isImp=*/true));
+    MI.addOperand(MachineOperand::CreateReg(MC6809::V, /*isDef=*/false, /*isImp=*/true));
+    MI.addOperand(MachineOperand::CreateReg(MC6809::C, /*isDef=*/false, /*isImp=*/true));
+    break;
   case MC6809::ConditionalLongBranchRelative:
-    // Default to long conditional branches (was bug #58). Strip the
-    // pseudo's CCond:$bits operand — the assembler encoding has no
-    // register field — and replace it with the implicit Uses on N/Z/V/C
-    // declared by Bbc/LBlbc (bug #137). Without these implicit uses the
-    // post-RA MachineInstr would lack any CC dependency at all and the
-    // scheduler would freely insert flag-clobbering instructions between
-    // the cmp and this branch.
+    // Explicit long conditional pseudo — escape hatch. Same operand
+    // shape transformation as the short form above.
     MI.setDesc(Builder.getTII().get(MC6809::LBlbc));
     MI.removeOperand(2);
     MI.addOperand(MachineOperand::CreateReg(MC6809::N, /*isDef=*/false, /*isImp=*/true));

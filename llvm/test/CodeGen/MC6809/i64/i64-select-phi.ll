@@ -361,8 +361,10 @@ define i64 @phi_i64(i1 %c, i64 %a, i64 %b) {
 ; O2-NEXT:    tfr s,u
 ; O2-NEXT:    andb #1
 ; O2-NEXT:    tstb
-; O2-NEXT:    lbeq .LBB1_2
-; O2-NEXT:  ; %bb.1: ; %then
+; O2-NEXT:    bne .LBB1_1
+; O2-NEXT:  ; %bb.6: ; %entry
+; O2-NEXT:    lbra .LBB1_2
+; O2-NEXT:  .LBB1_1: ; %then
 ; O2-NEXT:    ldd 64,u
 ; O2-NEXT:    stb 53,u
 ; O2-NEXT:    addb #1
@@ -444,6 +446,7 @@ define i64 @phi_i64(i1 %c, i64 %a, i64 %b) {
 ; O2-NEXT:    lda 48,u
 ; O2-NEXT:    std 48,u
 ; O2-NEXT:    ldd 23,u
+; O2-NEXT:  ; %bb.4: ; %then
 ; O2-NEXT:    lbra .LBB1_3
 ; O2-NEXT:  .LBB1_2: ; %else
 ; O2-NEXT:    ldd 72,u
@@ -699,7 +702,7 @@ define i64 @select_chain(i1 %c1, i1 %c2, i64 %a, i64 %b, i64 %d) {
 ; O2-NEXT:    std 18,u
 ; O2-NEXT:    ldd 10,u
 ; O2-NEXT:    tstb
-; O2-NEXT:    lbne .LBB2_2
+; O2-NEXT:    bne .LBB2_2
 ; O2-NEXT:  ; %bb.1: ; %select.false
 ; O2-NEXT:    std 8,u
 ; O2-NEXT:    ldd 45,u
@@ -719,7 +722,7 @@ define i64 @select_chain(i1 %c1, i1 %c2, i64 %a, i64 %b, i64 %d) {
 ; O2-NEXT:    ldd 2,u
 ; O2-NEXT:  .LBB2_2: ; %select.end
 ; O2-NEXT:    tsta
-; O2-NEXT:    lbne .LBB2_4
+; O2-NEXT:    bne .LBB2_4
 ; O2-NEXT:  ; %bb.3: ; %select.false2
 ; O2-NEXT:    ldd 53,u
 ; O2-NEXT:    std 24,u
