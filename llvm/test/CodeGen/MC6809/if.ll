@@ -27,8 +27,7 @@ define dso_local signext i8 @if_s8(i8 noundef signext %a, i8 noundef signext %b)
 ; O0-NEXT:    ldb 4,s
 ; O0-NEXT:    tsta
 ; O0-NEXT:    lbgt .LBB0_2
-; O0-NEXT:    lbra .LBB0_1
-; O0-NEXT:  .LBB0_1: ; %if.end
+; O0-NEXT:  ; %bb.1: ; %if.end
 ; O0-NEXT:    ldb #0
 ; O0-NEXT:    subb 4,s
 ; O0-NEXT:    lbra .LBB0_2
@@ -117,9 +116,8 @@ define dso_local zeroext i8 @if_u8(i8 noundef zeroext %a, i8 noundef zeroext %b)
 ; O0-NEXT:    tfr b,a
 ; O0-NEXT:    ldb 4,s
 ; O0-NEXT:    tsta
-; O0-NEXT:    lbeq .LBB1_1
-; O0-NEXT:    lbra .LBB1_2
-; O0-NEXT:  .LBB1_1: ; %if.end
+; O0-NEXT:    lbne .LBB1_2
+; O0-NEXT:  ; %bb.1: ; %if.end
 ; O0-NEXT:    ldb #-1
 ; O0-NEXT:    eorb 4,s
 ; O0-NEXT:    lbra .LBB1_2
@@ -224,9 +222,8 @@ define dso_local i16 @if_s16(i16 noundef %a, i16 noundef %b) local_unnamed_addr 
 ; O0-NEXT:    std 4,u
 ; O0-NEXT:    ldd 6,u
 ; O0-NEXT:    cmpd #0
-; O0-NEXT:    lbgt .LBB2_1
-; O0-NEXT:    lbra .LBB2_2
-; O0-NEXT:  .LBB2_1: ; %entry
+; O0-NEXT:    lble .LBB2_2
+; O0-NEXT:  ; %bb.1: ; %entry
 ; O0-NEXT:    ldd 4,u
 ; O0-NEXT:    lbra .LBB2_3
 ; O0-NEXT:  .LBB2_2: ; %if.end
@@ -388,8 +385,7 @@ define dso_local i16 @if_u16(i16 noundef %a, i16 noundef %b) local_unnamed_addr 
 ; O0-NEXT:    ldd 6,u
 ; O0-NEXT:    cmpd #0
 ; O0-NEXT:    lbeq .LBB3_2
-; O0-NEXT:    lbra .LBB3_1
-; O0-NEXT:  .LBB3_1: ; %entry
+; O0-NEXT:  ; %bb.1: ; %entry
 ; O0-NEXT:    ldd 4,u
 ; O0-NEXT:    lbra .LBB3_3
 ; O0-NEXT:  .LBB3_2: ; %if.end
@@ -640,8 +636,7 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O0-NEXT:    leas 8,s
 ; O0-NEXT:    cmpb #2
 ; O0-NEXT:    lbeq .LBB4_2
-; O0-NEXT:    lbra .LBB4_1
-; O0-NEXT:  .LBB4_1: ; %if.end
+; O0-NEXT:  ; %bb.1: ; %if.end
 ; O0-NEXT:    ldd #0
 ; O0-NEXT:    std 27,u
 ; O0-NEXT:    ldb 28,u
@@ -1042,9 +1037,8 @@ define dso_local i32 @if_u32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O0-NEXT:    ldd 2,y
 ; O0-NEXT:    leas 8,s
 ; O0-NEXT:    cmpb #1
-; O0-NEXT:    lbeq .LBB5_1
-; O0-NEXT:    lbra .LBB5_2
-; O0-NEXT:  .LBB5_1: ; %if.end
+; O0-NEXT:    lbne .LBB5_2
+; O0-NEXT:  ; %bb.1: ; %if.end
 ; O0-NEXT:    ldd #-1
 ; O0-NEXT:    std 22,u
 ; O0-NEXT:    ldd 22,u

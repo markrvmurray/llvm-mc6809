@@ -19,9 +19,8 @@ define i32 @select_i32(i1 %c, i32 %a, i32 %b) {
 ; O0-NEXT:    tfr s,u
 ; O0-NEXT:    andb #1
 ; O0-NEXT:    tstb
-; O0-NEXT:    lbne .LBB0_1
-; O0-NEXT:    lbra .LBB0_2
-; O0-NEXT:  .LBB0_1:
+; O0-NEXT:    lbeq .LBB0_2
+; O0-NEXT:  ; %bb.1:
 ; O0-NEXT:    std 8,u
 ; O0-NEXT:    ldd 18,u
 ; O0-NEXT:    std 10,u
@@ -35,9 +34,8 @@ define i32 @select_i32(i1 %c, i32 %a, i32 %b) {
 ; O0-NEXT:    lbra .LBB0_3
 ; O0-NEXT:  .LBB0_3:
 ; O0-NEXT:    tstb
-; O0-NEXT:    lbne .LBB0_4
-; O0-NEXT:    lbra .LBB0_5
-; O0-NEXT:  .LBB0_4:
+; O0-NEXT:    lbeq .LBB0_5
+; O0-NEXT:  ; %bb.4:
 ; O0-NEXT:    ldd 16,u
 ; O0-NEXT:    lbra .LBB0_6
 ; O0-NEXT:  .LBB0_5:
@@ -112,9 +110,8 @@ define i32 @phi_i32(i1 %c, i32 %a, i32 %b) {
 ; O0-NEXT:    std 24,u
 ; O0-NEXT:    ldd 12,u
 ; O0-NEXT:    tstb
-; O0-NEXT:    lbne .LBB1_1
-; O0-NEXT:    lbra .LBB1_2
-; O0-NEXT:  .LBB1_1: ; %then
+; O0-NEXT:    lbeq .LBB1_2
+; O0-NEXT:  ; %bb.1: ; %then
 ; O0-NEXT:    ldb 23,u
 ; O0-NEXT:    lda 22,u
 ; O0-NEXT:    sta 24,u
@@ -293,13 +290,11 @@ define i32 @select_chain(i1 %c1, i1 %c2, i32 %a, i32 %b, i32 %d) {
 ; O0-NEXT:    lda 18,u
 ; O0-NEXT:    anda #1
 ; O0-NEXT:    tsta
-; O0-NEXT:    lbne .LBB2_1
-; O0-NEXT:    lbra .LBB2_5
-; O0-NEXT:  .LBB2_1:
+; O0-NEXT:    lbeq .LBB2_5
+; O0-NEXT:  ; %bb.1:
 ; O0-NEXT:    tstb
-; O0-NEXT:    lbne .LBB2_2
-; O0-NEXT:    lbra .LBB2_3
-; O0-NEXT:  .LBB2_2:
+; O0-NEXT:    lbeq .LBB2_3
+; O0-NEXT:  ; %bb.2:
 ; O0-NEXT:    std 10,u
 ; O0-NEXT:    ldd 21,u
 ; O0-NEXT:    std 12,u
@@ -321,13 +316,11 @@ define i32 @select_chain(i1 %c1, i1 %c2, i32 %a, i32 %b, i32 %d) {
 ; O0-NEXT:    lbra .LBB2_6
 ; O0-NEXT:  .LBB2_6:
 ; O0-NEXT:    tsta
-; O0-NEXT:    lbne .LBB2_7
-; O0-NEXT:    lbra .LBB2_11
-; O0-NEXT:  .LBB2_7:
+; O0-NEXT:    lbeq .LBB2_11
+; O0-NEXT:  ; %bb.7:
 ; O0-NEXT:    tstb
-; O0-NEXT:    lbne .LBB2_8
-; O0-NEXT:    lbra .LBB2_9
-; O0-NEXT:  .LBB2_8:
+; O0-NEXT:    lbeq .LBB2_9
+; O0-NEXT:  ; %bb.8:
 ; O0-NEXT:    ldd 19,u
 ; O0-NEXT:    lbra .LBB2_10
 ; O0-NEXT:  .LBB2_9:
