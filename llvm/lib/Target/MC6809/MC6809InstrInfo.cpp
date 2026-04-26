@@ -473,37 +473,19 @@ unsigned MC6809InstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
 
   switch (MI.getOpcode()) {
   default:
-    // Return the size specified in .td file. If there's none, return 0, as we
-    // can't define a default size.
+    // Return the size declared in .td. PseudoInstExpansion-based pseudos
+    // (BranchSubroutine, JumpAbsolute, ReturnImplicit, etc.) carry an
+    // explicit `let Size = N;` matching their post-expansion concrete form,
+    // so this returns correct values for them too. New pseudos that omit
+    // `let Size` will fall through bug #183's MaxInstLength fallback (added
+    // separately) instead of silently returning 0.
     return MCID.getSize();
   case TargetOpcode::BUNDLE:
     return getInstBundleLength(MI);
   case MC6809::INLINEASM:
-  case MC6809::INLINEASM_BR: {
+  case MC6809::INLINEASM_BR:
     // If this machine instr is an inline asm, measure it.
     return getInlineAsmLength(MI.getOperand(0).getSymbolName(), *MAI);
-  }
-  // PseudoInstExpansion-based pseudos (defined in MC6809InstrLogical.td)
-  // expand at AsmPrinter time — they are NOT lowered by ExpandPostRAPseudos
-  // and remain in the MIR through BranchRelaxation. Their MCID size defaults
-  // to 0, which would silently undercount block sizes for any pass that
-  // sums getInstSizeInBytes (notably BranchRelaxation). Return the size of
-  // the EXPANDED concrete form so block accounting is correct for branch
-  // offset decisions (was bug #174 strategy 1 root cause: BranchRelaxation
-  // undercounted bb.0 of __file_wstr_get by sizes-of-expanded-LBSR pseudos
-  // that survived into the relaxation pass).
-  case MC6809::BranchSubroutine:           return 2; // → BSRb
-  case MC6809::LongBranchSubroutine:       return 3; // → LBSRlb
-  case MC6809::JumpSubroutine:             return 3; // → JSRi_o8PC
-  case MC6809::LongJumpSubroutine:         return 4; // → JSRi_o16PC
-  case MC6809::IndirectJumpSubroutine:     return 4; // → JSRi_eI
-  case MC6809::JumpAbsolute:               return 3; // → JMPe ($7E + addr16)
-  case MC6809::JumpIndir:                  return 4; // → JMPi_eI
-  case MC6809::TailJump:                   return 3; // → LBRAlb
-  // MC6809Return<Opcode> family expands to single-byte returns (RTS=$39,
-  // RTI=$3B). One byte each.
-  case MC6809::ReturnImplicit:             return 1; // → RTSr
-  case MC6809::ReturnIRQImplicit:          return 1; // → RTIr
   }
 }
 

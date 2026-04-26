@@ -223,20 +223,36 @@ def BranchJumpTable : MC6809LogicalInstr {
   dag InOperandList = (ins ADc:$idx, unknown:$jti);
 }
 
-def BranchSubroutine : MC6809Subroutine, PseudoInstExpansion<(BSRb pcrel8:$tgt)>;
-def LongBranchSubroutine : MC6809Subroutine, PseudoInstExpansion<(LBSRlb pcrel16:$tgt)>;
+// PseudoInstExpansion-based pseudos: their MCID size defaults to 0
+// because TableGen doesn't infer a size from the expansion target.
+// Declare it explicitly so getInstSizeInBytes returns the real
+// post-expansion byte length, which BranchRelaxation needs to size
+// blocks correctly. Was bug #174 / #183: undeclared sizes silently
+// undercounted block sizes during BR.
+def BranchSubroutine : MC6809Subroutine, PseudoInstExpansion<(BSRb pcrel8:$tgt)> {
+  let Size = 2; // → BSRb
+}
+def LongBranchSubroutine : MC6809Subroutine, PseudoInstExpansion<(LBSRlb pcrel16:$tgt)> {
+  let Size = 3; // → LBSRlb
+}
 
-def JumpSubroutine : MC6809Subroutine, PseudoInstExpansion<(JSRi_o8PC pcrel8_idx:$tgt)>;
-def LongJumpSubroutine : MC6809Subroutine, PseudoInstExpansion<(JSRi_o16PC pcrel16_idx:$tgt)>;
+def JumpSubroutine : MC6809Subroutine, PseudoInstExpansion<(JSRi_o8PC pcrel8_idx:$tgt)> {
+  let Size = 3; // → JSRi_o8PC
+}
+def LongJumpSubroutine : MC6809Subroutine, PseudoInstExpansion<(JSRi_o16PC pcrel16_idx:$tgt)> {
+  let Size = 4; // → JSRi_o16PC
+}
 def IndirectJumpSubroutine : MC6809Subroutine, PseudoInstExpansion<(JSRi_eI addr16_o2:$tgt)> {
   let isIndirectBranch = true;
   dag InOperandList = (ins addr16_o2:$tgt);
+  let Size = 4; // → JSRi_eI
 }
 
 class MC6809Return<Instruction Opcode> : MC6809LogicalInstr, PseudoInstExpansion<(Opcode)> {
   let isBarrier = true;
   let isReturn = true;
   let isTerminator = true;
+  let Size = 1; // → RTSr ($39) / RTIr ($3B), both single-byte
 }
 
 def ReturnImplicit : MC6809Return<RTSr>;
@@ -246,10 +262,12 @@ def ReturnIRQImplicit : MC6809Return<RTIr>;
 
 def JumpAbsolute : MC6809UnconditionalBranch, PseudoInstExpansion<(JMPe addr16:$tgt)> {
   let InOperandList = (ins label:$tgt);
+  let Size = 3; // → JMPe ($7E + addr16)
 }
 def JumpIndir : MC6809UnconditionalBranch, PseudoInstExpansion<(JMPi_eI addr16_o2:$tgt)> {
   let isIndirectBranch = true;
   let InOperandList = (ins label:$tgt);
+  let Size = 4; // → JMPi_eI
 }
 
 def TailJump : MC6809LogicalInstr, PseudoInstExpansion<(LBRAlb pcrel16:$tgt)> {
@@ -257,6 +275,7 @@ def TailJump : MC6809LogicalInstr, PseudoInstExpansion<(LBRAlb pcrel16:$tgt)> {
   let isBarrier = true;
   let isTerminator = true;
   let isCall = true;
+  let Size = 3; // → LBRAlb
   let isReturn = true;
 }
 
