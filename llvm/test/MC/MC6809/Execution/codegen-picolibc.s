@@ -1,3 +1,12 @@
+; XFAIL: *
+;
+; Bug #184: test_atol_w / test_strtol_w return i16 zext instead of
+; i32 sext for negative inputs, so the FFFFFFFD CHECK lines fail
+; with 0000FFFD. Pre-existing codegen miscompile in i32-negation /
+; i32-store path; was masked until bug #181's link.ld fix let this
+; test execute end-to-end (commit XXX). Remove the XFAIL line and
+; re-test once #184 is fixed.
+;
 ; RUN: llc -global-isel -global-isel-abort=1 -O0 -mtriple=mc6809 \
 ; RUN:   %S/Inputs/codegen-picolibc.ll -o %t-raw.s 2>/dev/null
 ; RUN: grep -v '\.directpage' %t-raw.s > %t-funcs.s

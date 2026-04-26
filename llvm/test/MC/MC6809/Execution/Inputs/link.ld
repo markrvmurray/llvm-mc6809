@@ -5,19 +5,28 @@
  * a small IO slab + vector ROM at the top.
  *
  * Even though the emulated machine no longer has a ROM/RAM split, we
- * keep the legacy code/data partition virtually in this script so the
- * test inputs (many of which assume $0100-area is free data memory,
- * e.g. arithmetic.s's `sta $0100`) keep working. Code lives high
- * ($C003-$FFCF, mirroring the old ROM range), data/.bss/heap live
- * low ($0000-$BFFF). The runtime initialises the stack just below
- * the code region so push-down doesn't collide with code bytes.
+ * keep a virtual code/data partition in this script so test inputs
+ * that assume $0100-area is free data memory (e.g. arithmetic.s's
+ * `sta $0100`) keep working. Data/.bss/heap live low; code lives
+ * high. The runtime initialises the stack just below the code region
+ * so push-down doesn't collide with code bytes.
+ *
+ * Bug #181 (2026-04-26): the previous DRAM=$0000-$BFFF / CRAM=$C003-
+ * $FFCF split capped code at ~16 KB. codegen-picolibc.s now needs
+ * ~18.5 KB. Since the hardware no longer has a ROM/RAM split, the
+ * legacy 16 KB code cap is artificial — we just need DRAM to cover
+ * the $0100-area data tests. Shifting the boundary to $4000 gives
+ * data tests 16 KB (more than enough) and code ~48 KB.
  */
 
 MEMORY {
-    DRAM (rwx) : ORIGIN = 0x0000, LENGTH = 0xC000
-    /* Code partition: $C003-$FFCF. Top end stops before the IO slab
-     * at $FFD0-$FFEF (ACIA at $FFD0/$FFD1, halt at $FFD2). */
-    CRAM (rwx) : ORIGIN = 0xC003, LENGTH = 0x3FCD
+    /* Data partition: $0000-$3FFF (16 KB). Covers .directpage at
+     * $00-$FF, the $0100-area scratch that arithmetic.s and friends
+     * write to, plus .data/.bss/heap. */
+    DRAM (rwx) : ORIGIN = 0x0000, LENGTH = 0x4000
+    /* Code partition: $4000-$FFCF (~48 KB). Top end stops before the
+     * IO slab at $FFD0-$FFEF (ACIA at $FFD0/$FFD1, halt at $FFD2). */
+    CRAM (rwx) : ORIGIN = 0x4000, LENGTH = 0xBFD0
     VEC  (r)   : ORIGIN = 0xFFF0, LENGTH = 0x0010
 }
 

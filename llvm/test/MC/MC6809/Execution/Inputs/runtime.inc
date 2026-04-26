@@ -16,7 +16,11 @@
 	.section .rom,"ax",@progbits
 	.globl	_start
 _start:
-	lds	#0xc000		; stack at top of low-RAM data region
+	;; Stack at top of DRAM (data region). Bug #181: previous value
+	;; was $C000, matching the old DRAM=$0000-$BFFF / CRAM=$C003-$FFCF
+	;; split. After the split moved to $0000-$3FFF / $4000-$FFCF,
+	;; the stack starts at $4000 and grows down into DRAM.
+	lds	#0x4000		; stack at top of low-RAM data region
 	clra
 	tfr	a,dp		; DP=0 (direct page at $0000)
 
