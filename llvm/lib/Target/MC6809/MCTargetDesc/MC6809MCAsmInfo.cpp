@@ -22,7 +22,13 @@ MC6809MCAsmInfo::MC6809MCAsmInfo(const Triple &TT, const MCTargetOptions &Option
   SeparatorString = "\n";
   CommentString = ";";
   UseMotorolaIntegers = true;
-  MaxInstLength = 3;
+  // Real MC6809 / HD6309 ceiling is 5 bytes:
+  //   - page-1 immediate-indexed, 16-bit offset, W-register postbyte
+  //     (1 opcode + 1 postbyte + 2 offset + 1 immediate-byte) = 5
+  //   - HD6309 LDQ #imm32: 1 opcode + 4 immediate = 5
+  // No instruction in the .td reaches 6 bytes, so MC6809 and HD6309
+  // share this ceiling and no subtarget override is needed.
+  MaxInstLength = 5;
   SupportsDebugInformation = true;
 }
 

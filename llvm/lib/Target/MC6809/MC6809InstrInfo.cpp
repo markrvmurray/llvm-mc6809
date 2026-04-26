@@ -30,6 +30,7 @@
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
+#include "llvm/MC/MCAsmInfo.h"
 #include "llvm/Support/ErrorHandling.h"
 
 using namespace llvm;
@@ -465,6 +466,11 @@ MachineInstr *MC6809InstrInfo::commuteInstructionImpl(MachineInstr &MI, bool New
 }
 
 unsigned MC6809InstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
+  // Meta instructions (BUNDLE handled separately, KILL, IMPLICIT_DEF,
+  // DBG_VALUE, DBG_LABEL, etc.) emit no bytes.
+  if (MI.isMetaInstruction() && MI.getOpcode() != TargetOpcode::BUNDLE)
+    return 0;
+
   const MachineBasicBlock &MBB = *MI.getParent();
   const MachineFunction *MF = MBB.getParent();
   const MCAsmInfo *MAI = MF->getTarget().getMCAsmInfo();
@@ -472,14 +478,25 @@ unsigned MC6809InstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
   const MCInstrDesc &MCID = MI.getDesc();
 
   switch (MI.getOpcode()) {
-  default:
-    // Return the size declared in .td. PseudoInstExpansion-based pseudos
-    // (BranchSubroutine, JumpAbsolute, ReturnImplicit, etc.) carry an
-    // explicit `let Size = N;` matching their post-expansion concrete form,
-    // so this returns correct values for them too. New pseudos that omit
-    // `let Size` will fall through bug #183's MaxInstLength fallback (added
-    // separately) instead of silently returning 0.
-    return MCID.getSize();
+  default: {
+    // Default branch: TableGen-declared `let Size = N` is authoritative.
+    // PseudoInstExpansion-based pseudos (BranchSubroutine, JumpAbsolute,
+    // ReturnImplicit, etc.) carry explicit `let Size` matching their
+    // post-expansion concrete form (bug #183 commit 1).
+    //
+    // Fallback: if a pseudo ships without `let Size`, return MaxInstLength
+    // (5) so BranchRelaxation conservatively OVERESTIMATES the block size
+    // and widens borderline branches that might otherwise overflow. The
+    // alternative — silently returning 0 — caused bug #174's PCRel8
+    // fixup overflow in __file_wstr_get when LongBranchSubroutine pseudos
+    // contributed 0 to BR's accounting (commit 1 fixed those specifically;
+    // this fallback ensures the next undeclared pseudo fails safe instead
+    // of repeating that class of bug).
+    unsigned Size = MCID.getSize();
+    if (!Size)
+      Size = MAI->getMaxInstLength(&MF->getSubtarget());
+    return Size;
+  }
   case TargetOpcode::BUNDLE:
     return getInstBundleLength(MI);
   case MC6809::INLINEASM:
