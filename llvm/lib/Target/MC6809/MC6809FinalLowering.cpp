@@ -47,6 +47,9 @@ STATISTIC(NumDupStoresElided,   "Number of dead duplicate stores to the same "
                                 "slot elided");
 STATISTIC(NumStoreReloadsElided,"Number of redundant reloads of unmodified "
                                 "spill slots elided");
+STATISTIC(NumBranchOverBranchFolded, "Number of branch-over-branch pairs "
+                                     "(cond + uncond) folded into a single "
+                                     "branch (bug #179)");
 
 namespace {
 
@@ -77,6 +80,13 @@ static cl::opt<int> StoreReloadMinO(
     "mc6809-fl-store-reload-min-O", cl::init(2), cl::Hidden,
     cl::desc("Minimum -O level (0..3) to enable store+reload elimination "
              "in MC6809FinalLowering. 99 disables. Default: 2."));
+static cl::opt<int> BranchOverBranchMinO(
+    "mc6809-fl-branch-over-branch-min-O", cl::init(0), cl::Hidden,
+    cl::desc("Minimum -O level (0..3) to enable branch-over-branch folding "
+             "in MC6809FinalLowering (bug #179). 99 disables. Default: 0 "
+             "(always on; transform is purely local and never enlarges code, "
+             "and BranchFolderPass doesn't run at -O0 to do this work for "
+             "us)."));
 
 class MC6809FinalLowering : public MachineFunctionPass {
 public:
@@ -99,6 +109,7 @@ private:
   bool foldAdjacentInc(MachineFunction &MF);
   bool elideDupStores(MachineFunction &MF);
   bool elideStoreReload(MachineFunction &MF);
+  bool foldBranchOverBranch(MachineFunction &MF);
 
   // True if the current -O level (from MF.getTarget()) >= MinO.
   // MinO == 99 means "disabled by CL flag".
@@ -113,10 +124,23 @@ private:
 } // namespace
 
 bool MC6809FinalLowering::runOnMachineFunction(MachineFunction &MF) {
-  if (skipFunction(MF.getFunction()))
-    return false;
-
   bool Changed = false;
+
+  // Class 6 (branch-over-branch fold) runs FIRST and is NOT gated by
+  // skipFunction. Reason: at -O0, every function carries the `optnone`
+  // attribute, which makes skipFunction return true and short-circuit
+  // the whole pass. But Class 6's whole purpose is to backstop
+  // BranchFolderPass at -O0 (where BranchFolderPass doesn't run); if we
+  // skipped on optnone, Class 6 would never fire on its primary target.
+  // The transform is purely local code-shape cleanup that never enlarges
+  // code or changes semantics, so running it under optnone is safe.
+  if (enabled(MF, BranchOverBranchMinO))
+    Changed |= foldBranchOverBranch(MF);
+
+  // Classes 1-5 are size/speed optimisations and respect optnone.
+  if (skipFunction(MF.getFunction()))
+    return Changed;
+
   if (enabled(MF, RelaxOffsetsMinO))
     Changed |= relaxOffsets(MF);
   if (enabled(MF, LeafFrameMinO))
@@ -772,6 +796,124 @@ bool MC6809FinalLowering::elideStoreReload(MachineFunction &MF) {
         recordSlot(K, Cls->DataReg);
       }
     }
+  }
+  return Changed;
+}
+
+// Class 6 — Branch-over-branch fold (bug #179).
+//
+// Pattern in real picolibc output (especially at -O0 where
+// BranchFolderPass doesn't run, but also a small residual at -O2+):
+//
+//     LBlbc cc, L1     ; conditional branch
+//     LBRAlb L2        ; unconditional branch
+//   <next_block>:
+//
+// If `next_block == L1` (the conditional target IS the layout
+// successor), invert the condition and retarget to L2, then drop the
+// unconditional. Result:
+//
+//     LBlbc !cc, L2
+//   L1:                ; (fall through)
+//
+// If `next_block == L2` (the unconditional's target IS the layout
+// successor), the unconditional is purely redundant — drop it. The
+// conditional stays unchanged. Result:
+//
+//     LBlbc cc, L1
+//   L2:                ; (fall through; the conditional falls through
+//                       ; to L2 when condition is false)
+//
+// If neither is the layout successor, the pair genuinely needs both
+// branches and we leave it alone. (Such cases at -O2+ are
+// MachineBlockPlacement-fundamental — they'd require deeper layout
+// intervention to address. Out of scope here.)
+//
+// LLVM-standard equivalent: lib/CodeGen/BranchFolding.cpp does this
+// fold at -O>=1, AND the analyzeBranch hook at MC6809InstrInfo.cpp:662
+// implements the same shape inside the analysis itself when called
+// with AllowModify=true. Both paths skip -O0, hence the need for this
+// safety net here. Per-class gating defaults to min-O=0 so this fires
+// at every -O level — duplicating BranchFolder's work at -O>=1 is
+// harmless (we just no-op when nothing's left to fold) and provides
+// defence-in-depth.
+bool MC6809FinalLowering::foldBranchOverBranch(MachineFunction &MF) {
+  const auto *TII = static_cast<const MC6809InstrInfo *>(
+      MF.getSubtarget().getInstrInfo());
+
+  auto isCondBranch = [](unsigned Opc) {
+    return Opc == MC6809::Bbc || Opc == MC6809::LBlbc ||
+           Opc == MC6809::ConditionalBranchRelative ||
+           Opc == MC6809::ConditionalLongBranchRelative;
+  };
+  auto isUncondBranch = [](unsigned Opc) {
+    return Opc == MC6809::BRAb || Opc == MC6809::LBRAlb ||
+           Opc == MC6809::BranchRelative ||
+           Opc == MC6809::LongBranchRelative;
+  };
+
+  bool Changed = false;
+  for (MachineBasicBlock &MBB : MF) {
+    // Find the last terminator (uncond branch) and the one before it
+    // (must be a conditional branch). Skip blocks that don't end in
+    // exactly this two-terminator shape.
+    auto It = MBB.getLastNonDebugInstr();
+    if (It == MBB.end() || !isUncondBranch(It->getOpcode()))
+      continue;
+    MachineBasicBlock::iterator UncondMI = It;
+
+    // Walk back over any debug values to find the previous instruction.
+    auto Prev = UncondMI;
+    if (Prev == MBB.begin())
+      continue;
+    --Prev;
+    while (Prev != MBB.begin() && Prev->isDebugInstr())
+      --Prev;
+    if (Prev->isDebugInstr() || !isCondBranch(Prev->getOpcode()))
+      continue;
+    MachineBasicBlock::iterator CondMI = Prev;
+
+    // Operand layout (verified against analyzeBranch at line 602-613):
+    //   Conditional: operand 0 = CC immediate, operand 1 = MBB target.
+    //   Unconditional: operand 0 = MBB target.
+    if (CondMI->getNumExplicitOperands() != 2 ||
+        !CondMI->getOperand(0).isImm() || !CondMI->getOperand(1).isMBB() ||
+        UncondMI->getNumExplicitOperands() != 1 ||
+        !UncondMI->getOperand(0).isMBB())
+      continue;
+
+    MachineBasicBlock *L1 = CondMI->getOperand(1).getMBB();    // cond target
+    MachineBasicBlock *L2 = UncondMI->getOperand(0).getMBB();  // uncond target
+    MachineBasicBlock *LayoutNext = MBB.getNextNode();
+    if (LayoutNext == nullptr)
+      continue;
+
+    if (LayoutNext == L2) {
+      // Uncond goes to the next block — purely redundant. Drop it.
+      UncondMI->eraseFromParent();
+      ++NumBranchOverBranchFolded;
+      Changed = true;
+    } else if (LayoutNext == L1) {
+      // Cond targets the next block — invert the CC, retarget the cond
+      // to L2, drop the uncond. Use the existing getOppositeCondition
+      // helper (see MC6809.h) which is already tested by analyzeBranch's
+      // early-fold path.
+      MC6809CC::CondCode CC =
+          MC6809CC::CondCode(CondMI->getOperand(0).getImm());
+      MC6809CC::CondCode Inverted = MC6809CC::getOppositeCondition(CC);
+      // INVALID is the bail-out sentinel; if any branch we recognise
+      // somehow has it, leave alone rather than miscompiling.
+      if (Inverted == MC6809CC::INVALID)
+        continue;
+      CondMI->getOperand(0).setImm(Inverted);
+      CondMI->getOperand(1).setMBB(L2);
+      UncondMI->eraseFromParent();
+      ++NumBranchOverBranchFolded;
+      Changed = true;
+    }
+    // else: neither target is the layout successor — leave as-is.
+
+    (void)TII;  // unused for now; held for future symmetry with other classes.
   }
   return Changed;
 }
