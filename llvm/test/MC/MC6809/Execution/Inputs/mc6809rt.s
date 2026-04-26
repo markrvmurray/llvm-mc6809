@@ -39,6 +39,10 @@
 ;; 64-bit division and modulo (signed + unsigned)
 .include "divdi.inc"
 
+;; 32-bit signed and unsigned compare (bug #180)
+.include "cmpsi2.inc"
+.include "ucmpsi2.inc"
+
 ;; 64-bit signed and unsigned compare
 .include "cmpdi2.inc"
 .include "ucmpdi2.inc"
