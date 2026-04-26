@@ -43,7 +43,6 @@ add_llvm_target(MC6809CodeGen
   MC6809LateOptimization.cpp
   MC6809LowerSelect.cpp
   MC6809MCInstLower.cpp
-  MC6809NoShortBranches.cpp
   MC6809MachineScheduler.cpp
   MC6809NonReentrant.cpp
   MC6809PostRAScavenging.cpp

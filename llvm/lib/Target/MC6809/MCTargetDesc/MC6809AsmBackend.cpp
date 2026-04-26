@@ -85,18 +85,51 @@ void MC6809AsmBackend::applyFixup(const MCFragment &F, const MCFixup &Fixup,
     break;
   }
 
-  // Defensive: a resolved short-branch fixup must fit int8. Without this
-  // check, an out-of-range PCRel8 silently truncates to its low byte and
-  // the CPU jumps to the wrong address (the failure mode of bug #174's
-  // first attempted fix). For unresolved fixups the linker writes the
-  // final bytes — skip the check there.
-  if (IsResolved && Kind == MC6809::PCRel8 &&
-      !isInt<8>(static_cast<int64_t>(Value))) {
-    std::string Msg;
-    raw_string_ostream OS(Msg);
-    OS << "MC6809: PCRel8 fixup value " << static_cast<int64_t>(Value)
-       << " out of int8 range — short branch slipped past relaxation";
-    report_fatal_error(StringRef(Msg));
+  // Defensive: a resolved short fixup whose value exceeds its encoding
+  // range silently truncates to the low N bits, producing wrong code.
+  // Catch this loudly here at the earliest possible moment. For
+  // unresolved fixups the linker writes the final bytes — skip the
+  // check there.
+  //
+  // Three short forms all require range guards:
+  //
+  //   - PCRel8 — 8-bit signed branch displacement. Was bug #58 (silent
+  //     short-branch truncation) and the failure mode of bug #174's
+  //     first attempted fix; widening is the responsibility of
+  //     `BranchRelaxation` and `MC6809InstrInfo::insertIndirectBranch`.
+  //
+  //   - Rel8 — 8-bit signed indexed offset (`_o8`). Was bug #122
+  //     (silent indexed-offset truncation when an expansion picked _o8
+  //     for a frame slot beyond ±127); the correct fix is for the
+  //     expansion to pick _o16 for large offsets.
+  //
+  //   - Rel5 — 5-bit signed indexed offset (`_o5`). Same class as
+  //     Rel8, narrower range. Same expectation: expansion picks _o8
+  //     or _o16 for offsets outside ±15.
+  //
+  // (Historically the indexed-offset checks lived in a dedicated
+  // late-pipeline pass `MC6809NoShortBranches`. After bug #174 the
+  // pass became indexed-only, and during its retire it was folded
+  // into this fixup-time guard for consistency with the PCRel8 check.
+  // One safety net at the same layer for every short-encoding fixup.)
+  if (IsResolved) {
+    auto SignedValue = static_cast<int64_t>(Value);
+    auto fail = [&](const char *Name, int64_t Lo, int64_t Hi) {
+      std::string Msg;
+      raw_string_ostream OS(Msg);
+      OS << "MC6809: " << Name << " fixup value " << SignedValue
+         << " out of [" << Lo << ".." << Hi << "] — encoding would "
+            "silently truncate; the producer (ISel / expandPostRAPseudo "
+            "/ BranchRelaxation / Class 1 offset relax) should have "
+            "chosen a wider form";
+      report_fatal_error(StringRef(Msg));
+    };
+    if (Kind == MC6809::PCRel8 && !isInt<8>(SignedValue))
+      fail("PCRel8", -128, 127);
+    if (Kind == MC6809::Rel8   && !isInt<8>(SignedValue))
+      fail("Rel8 (_o8 indexed offset)", -128, 127);
+    if (Kind == MC6809::Rel5   && !isInt<5>(SignedValue))
+      fail("Rel5 (_o5 indexed offset)", -16, 15);
   }
 
   // Rel5 is a 5-bit signed indexed offset packed into the low 5 bits of a

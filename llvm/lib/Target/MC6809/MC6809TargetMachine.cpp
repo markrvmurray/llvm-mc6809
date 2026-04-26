@@ -41,7 +41,6 @@
 #include "MC6809IndexIV.h"
 #include "MC6809InsertCopies.h"
 #include "MC6809SanitiseDebugInfo.h"
-#include "MC6809NoShortBranches.h"
 #include "MC6809Internalize.h"
 #include "MC6809BundleCC.h"
 #include "MC6809LateOptimization.h"
@@ -72,7 +71,6 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMC6809Target() {
   initializeMC6809FinalLoweringPass(PR);
   initializeMC6809IncDecPhiPass(PR);
   initializeMC6809InsertCopiesPass(PR);
-  initializeMC6809NoShortBranchesPass(PR);
   initializeMC6809InternalizePass(PR);
   initializeMC6809LateOptimizationPass(PR);
   initializeMC6809LowerSelectPass(PR);
@@ -330,13 +328,15 @@ void MC6809PassConfig::addPreSched2() {
 void MC6809PassConfig::addPreEmitPass() {
   addPass(&BranchRelaxationPassID);
   // MC6809FinalLowering (bug #149): host for late-stage transforms gated
-  // per-class at >= -O2 by default. Inserted AFTER BranchRelaxation (so
-  // long/short branch decisions are stable) and BEFORE NoShortBranches
-  // (so its offset-range validation runs on the post-shrink form).
+  // per-class at >= -O2 by default. Inserted AFTER BranchRelaxation so
+  // long/short branch decisions are stable for size-driven passes.
+  //
+  // Encoding-overflow safety nets that historically lived in a dedicated
+  // post-pass (MC6809NoShortBranches) have moved into
+  // MC6809AsmBackend::applyFixup — PCRel8 (was bug #58), Rel8 (was
+  // bug #122 _o8 truncation) and Rel5 (was bug #122 _o5 truncation) all
+  // get range-checked there at MC fixup time.
   addPass(createMC6809FinalLoweringPass());
-  // After relaxation, no short branches should remain. This pass enforces
-  // that — see MC6809NoShortBranches.cpp.
-  addPass(createMC6809NoShortBranchesPass());
 }
 
 ScheduleDAGInstrs *MC6809TargetMachine::createMachineScheduler(MachineSchedContext *C) const {

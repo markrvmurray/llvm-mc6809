@@ -42,7 +42,6 @@ void initializeMC6809LateOptimizationPass(PassRegistry &);
 void initializeMC6809LowerSelectPass(PassRegistry &);
 void initializeMC6809NonReentrantPass(PassRegistry &);
 void initializeMC6809PreCGPFreezePass(PassRegistry &);
-void initializeMC6809NoShortBranchesPass(PassRegistry &);
 void initializeMC6809PostRAScavengingPass(PassRegistry &);
 void initializeMC6809MaterializeSpillsPass(PassRegistry &);
 void initializeMC6809SanitiseDebugInfoPass(PassRegistry &);
