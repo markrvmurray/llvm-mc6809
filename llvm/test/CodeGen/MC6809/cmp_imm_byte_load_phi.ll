@@ -57,18 +57,14 @@ define dso_local i16 @cmp_imm_byte_load_phi_no_wrap(ptr noundef readonly capture
 ; CHECK-NEXT:    stb 12,u
 ; CHECK-NEXT:    ldd #0
 ; CHECK-NEXT:    std 9,u
-; CHECK-NEXT:    pshs d
 ; CHECK-NEXT:    ldb 12,u
 ; CHECK-NEXT:    cmpb #10
-; CHECK-NEXT:    puls d
 ; CHECK-NEXT:    lbhs .LBB0_9
 ; CHECK-NEXT:  ; %bb.4: ; %while.body.preheader
 ; CHECK-NEXT:    ldd #2
 ; CHECK-NEXT:    stb 6,u
-; CHECK-NEXT:    pshs d
 ; CHECK-NEXT:    ldb 16,u
 ; CHECK-NEXT:    cmpb #45
-; CHECK-NEXT:    puls d
 ; CHECK-NEXT:    lbne .LBB0_6
 ; CHECK-NEXT:  ; %bb.5: ; %while.body.preheader
 ; CHECK-NEXT:    ldb 6,u
@@ -112,9 +108,7 @@ define dso_local i16 @cmp_imm_byte_load_phi_no_wrap(ptr noundef readonly capture
 ; CHECK-NEXT:    ldy 7,u
 ; CHECK-NEXT:    leay 1,y
 ; CHECK-NEXT:    sty 7,u
-; CHECK-NEXT:    pshs d
 ; CHECK-NEXT:    cmpb #10
-; CHECK-NEXT:    puls d
 ; CHECK-NEXT:    lblo .LBB0_8
 ; CHECK-NEXT:  .LBB0_9: ; %while.end
 ; CHECK-NEXT:    lda #0
@@ -133,10 +127,8 @@ define dso_local i16 @cmp_imm_byte_load_phi_no_wrap(ptr noundef readonly capture
 ; CHECK-NEXT:    sta 15,u
 ; CHECK-NEXT:    ldb 12,u
 ; CHECK-NEXT:    std 13,u
-; CHECK-NEXT:    pshs d
 ; CHECK-NEXT:    ldb 16,u
 ; CHECK-NEXT:    cmpb #45
-; CHECK-NEXT:    puls d
 ; CHECK-NEXT:    lbeq .LBB0_11
 ; CHECK-NEXT:  ; %bb.10: ; %select.false3
 ; CHECK-NEXT:    ldd 9,u

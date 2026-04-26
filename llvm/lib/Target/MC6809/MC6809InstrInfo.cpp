@@ -4655,105 +4655,15 @@ void MC6809InstrInfo::expandCompareImm(MachineIRBuilder &Builder, MachineInstr &
     }
   }
 
-  // Bug #49 fix part 2: 8-bit compare where the byte load (LDA/LDB) clobbered
-  // a live D value (PHI copy). Wrap the byte load + compare with PSHS D / PULS D
-  // to preserve D across the condition evaluation. PSHS/PULS don't affect CC.
-  if (SrcReg == MC6809::AB || SrcReg == MC6809::AA) {
-    MachineBasicBlock &MBB = *MI.getParent();
-    MachineInstr *ByteLoad = nullptr;
-
-    // Find the byte load that defined the source register.
-    for (auto It = MachineBasicBlock::reverse_iterator(MI.getIterator());
-         It != MBB.rend(); ++It) {
-      unsigned Opc = It->getOpcode();
-      bool IsLDB = (Opc == MC6809::LDBi_o0 || Opc == MC6809::LDBi_o5 ||
-                    Opc == MC6809::LDBi_o8 || Opc == MC6809::LDBi_o16);
-      bool IsLDA = (Opc == MC6809::LDAi_o0 || Opc == MC6809::LDAi_o5 ||
-                    Opc == MC6809::LDAi_o8 || Opc == MC6809::LDAi_o16);
-      if ((SrcReg == MC6809::AB && IsLDB) || (SrcReg == MC6809::AA && IsLDA)) {
-        if (It->getNumOperands() >= 2 && It->getOperand(1).isReg() &&
-            It->getOperand(1).getReg() == MC6809::SU) {
-          ByteLoad = &*It;
-        }
-        break;
-      }
-      if (It->definesRegister(SrcReg, /*TRI=*/nullptr))
-        break;
-    }
-
-    if (ByteLoad) {
-      // Check if D was defined before the byte load (a PHI value being clobbered).
-      bool DDefinedBefore = false;
-      for (auto It = MachineBasicBlock::reverse_iterator(ByteLoad->getIterator());
-           It != MBB.rend(); ++It) {
-        if (It->definesRegister(MC6809::AD, /*TRI=*/nullptr)) {
-          DDefinedBefore = true;
-          break;
-        }
-      }
-
-      // Safety: ensure no S-based indexing between ByteLoad and the compare,
-      // since PSHS shifts S by 2.
-      bool SSUsed = false;
-      if (DDefinedBefore) {
-        for (auto It = ByteLoad->getIterator(); It != MI.getIterator(); ++It) {
-          for (unsigned I = 0; I < It->getNumOperands(); ++I) {
-            if (It->getOperand(I).isReg() &&
-                It->getOperand(I).getReg() == MC6809::SS && It->getOperand(I).isUse())
-              SSUsed = true;
-          }
-        }
-      }
-
-      // Bug #159: the PSHS/PULS wrap preserves the PRE-load D, but that
-      // means PULS restores SrcReg (= AB or AA) to its pre-load value,
-      // throwing away the ByteLoad's output. If SrcReg is used AFTER the
-      // compare in this MBB (without being redefined), or is live-out
-      // into a successor, we mustn't wrap — the downstream consumer
-      // needs the loaded value, not the saved one. strtol's sign
-      // detection hits this: `cmpb #'+'` in one MBB is followed by
-      // `cmpb #'-'` in the fallthrough successor, both reading B.
-      bool SrcUsedAfter = false;
-      if (DDefinedBefore && !SSUsed) {
-        // Scan the rest of the MBB after the compare.
-        for (auto It = std::next(MachineBasicBlock::iterator(MI));
-             It != MBB.end(); ++It) {
-          if (It->readsRegister(SrcReg, /*TRI=*/nullptr)) {
-            SrcUsedAfter = true;
-            break;
-          }
-          if (It->definesRegister(SrcReg, /*TRI=*/nullptr))
-            break;
-        }
-        // Check if SrcReg is live into any successor.
-        if (!SrcUsedAfter) {
-          for (MachineBasicBlock *Succ : MBB.successors()) {
-            if (Succ->isLiveIn(SrcReg)) {
-              SrcUsedAfter = true;
-              break;
-            }
-          }
-        }
-      }
-
-      if (DDefinedBefore && !SSUsed && !SrcUsedAfter) {
-        // Insert PSHS D before the byte load.
-        MachineIRBuilder PreBuilder(*ByteLoad);
-        PreBuilder.buildInstr(MC6809::PSHSs, {}, {Register(MC6809::AD)});
-
-        // Emit the compare.
-        auto OpcodePair = CompareImmediateOpcode.find(SrcReg);
-        assert(OpcodePair != CompareImmediateOpcode.end());
-        Builder.buildInstr(OpcodePair->getSecond()).add(MI.getOperand(3));
-
-        // Insert PULS D after the compare (CC preserved).
-        Builder.buildInstr(MC6809::PULSs, {}, {Register(MC6809::AD)});
-
-        MI.eraseFromParent();
-        return;
-      }
-    }
-  }
+  // (Bug #49 fix part 2 once lived here — a custom PSHS-D / byte-load /
+  // CMPB / PULS-D wrap intended to preserve a PHI-carried D value across
+  // the byte load that would otherwise clobber D's low byte. Bug #159
+  // narrowed the wrap with a live-out gate. Bug #166's spike removed the
+  // wrap entirely after confirming the underlying PHI clobber no longer
+  // reproduces — regalloc / spill placer handle the D-preservation now.
+  // Codegen-shape sentinel: `test/CodeGen/MC6809/cmp_imm_byte_load_phi.ll`.
+  // Semantic sentinel: `test_atoi_neg("-3")` in
+  // `test/MC/MC6809/Execution/codegen-stdlib-ctype.s`.)
 
   auto OpcodePair = CompareImmediateOpcode.find(SrcReg);
   if (OpcodePair == CompareImmediateOpcode.end())
