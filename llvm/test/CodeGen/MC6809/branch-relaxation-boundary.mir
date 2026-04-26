@@ -165,12 +165,16 @@ body: |
   ; CHECK-NEXT:   NOPx
   ; CHECK-NEXT: {{  $}}
   ; CHECK-NEXT: bb.1:
-  ; CHECK-NEXT:   successors: %bb.0(0x40000000), %bb.2(0x40000000)
+  ; CHECK-NEXT:   successors: %bb.3(0x40000000), %bb.2(0x40000000)
   ; CHECK-NEXT:   liveins: $n, $z, $v, $c
   ; CHECK-NEXT: {{  $}}
   ; CHECK-NEXT:   NOPx
   ; CHECK-NEXT:   NOPx
-  ; CHECK-NEXT:   LBlbc 7, %bb.2, implicit $n, implicit $z, implicit $v, implicit $c
+  ; CHECK-NEXT:   Bbc 7, %bb.2, implicit $n, implicit $z, implicit $v, implicit $c
+  ; CHECK-NEXT: {{  $}}
+  ; CHECK-NEXT: bb.3:
+  ; CHECK-NEXT:   successors: %bb.0(0x80000000)
+  ; CHECK-NEXT: {{  $}}
   ; CHECK-NEXT:   LBRAlb %bb.0
   ; CHECK-NEXT: {{  $}}
   ; CHECK-NEXT: bb.2:

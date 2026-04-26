@@ -41,7 +41,7 @@ define dso_local i16 @cmp_imm_byte_load_phi_no_wrap(ptr noundef readonly capture
 ; CHECK-NEXT:    lbeq .LBB0_2
 ; CHECK-NEXT:  ; %bb.1: ; %entry
 ; CHECK-NEXT:    ldb #0
-; CHECK-NEXT:    lbra .LBB0_3
+; CHECK-NEXT:    bra .LBB0_3
 ; CHECK-NEXT:  .LBB0_2: ; %entry
 ; CHECK-NEXT:    ldb #1
 ; CHECK-NEXT:  .LBB0_3: ; %entry
@@ -59,16 +59,16 @@ define dso_local i16 @cmp_imm_byte_load_phi_no_wrap(ptr noundef readonly capture
 ; CHECK-NEXT:    std 9,u
 ; CHECK-NEXT:    ldb 12,u
 ; CHECK-NEXT:    cmpb #10
-; CHECK-NEXT:    lbhs .LBB0_9
+; CHECK-NEXT:    bhs .LBB0_9
 ; CHECK-NEXT:  ; %bb.4: ; %while.body.preheader
 ; CHECK-NEXT:    ldd #2
 ; CHECK-NEXT:    stb 6,u
 ; CHECK-NEXT:    ldb 16,u
 ; CHECK-NEXT:    cmpb #45
-; CHECK-NEXT:    lbne .LBB0_6
+; CHECK-NEXT:    bne .LBB0_6
 ; CHECK-NEXT:  ; %bb.5: ; %while.body.preheader
 ; CHECK-NEXT:    ldb 6,u
-; CHECK-NEXT:    lbra .LBB0_7
+; CHECK-NEXT:    bra .LBB0_7
 ; CHECK-NEXT:  .LBB0_6: ; %select.false
 ; CHECK-NEXT:    ldb 6,u
 ; CHECK-NEXT:    ldd #1
@@ -129,7 +129,7 @@ define dso_local i16 @cmp_imm_byte_load_phi_no_wrap(ptr noundef readonly capture
 ; CHECK-NEXT:    std 13,u
 ; CHECK-NEXT:    ldb 16,u
 ; CHECK-NEXT:    cmpb #45
-; CHECK-NEXT:    lbeq .LBB0_11
+; CHECK-NEXT:    beq .LBB0_11
 ; CHECK-NEXT:  ; %bb.10: ; %select.false3
 ; CHECK-NEXT:    ldd 9,u
 ; CHECK-NEXT:    std 13,u
