@@ -501,19 +501,30 @@ bool MC6809InstrInfo::isBranchOffsetInRange(unsigned BranchOpc, int64_t BrOffset
   // Returning true unconditionally was a stub — it disabled relaxation and
   // caused short branches with out-of-range offsets to silently truncate
   // their offset bytes, jumping to wrong addresses (was bug #58).
+  //
+  // Bug #182 fix: BR's BrOffset is the raw start-to-start distance
+  // (per `BranchRelaxation::isBlockInRange` => `DestOffset - BrOffset`).
+  // The encoded displacement byte is `target - (PC after instruction)`
+  // = `BrOffset - <instruction size>`. Subtract the size here so the
+  // `isInt<N>` check evaluates the value that will actually be encoded.
+  // Without the subtraction the short forms boundary-fail at raw disp
+  // ∈ [-128..-126] (backward) or [127..129] (forward): BR concludes
+  // "in range" but the assembler emits a -130/+130-style fixup, which
+  // the AsmBackend PCRel8 guard rejects.
   switch (BranchOpc) {
   case MC6809::BranchRelative:
   case MC6809::ConditionalBranchRelative:
   case MC6809::JumpRelative:
   case MC6809::BRAb:
   case MC6809::Bbc:
-    return isInt<8>(BrOffset);
+    return isInt<8>(BrOffset - 2);   // 2-byte short forms
   case MC6809::LongBranchRelative:
-  case MC6809::ConditionalLongBranchRelative:
   case MC6809::LongJumpRelative:
   case MC6809::LBRAlb:
+    return isInt<16>(BrOffset - 3);  // 3-byte page-1 long
+  case MC6809::ConditionalLongBranchRelative:
   case MC6809::LBlbc:
-    return isInt<16>(BrOffset);
+    return isInt<16>(BrOffset - 4);  // 4-byte page-2 long
   default:
     // Unknown branch opcode — be conservative and say it's in range so we
     // don't break anything that doesn't follow the BRA/LBRA pattern.
