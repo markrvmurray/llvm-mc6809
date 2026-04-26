@@ -6,24 +6,28 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This pass strenuously objects to two classes of encoding error reaching the
-// late pipeline:
+// This pass enforces one encoding-correctness invariant at the late pipeline:
 //
-// 1. SHORT BRANCHES (bug #58): short branches use an 8-bit signed offset
-//    (-128..+127). When the branch target is further away, the offset wraps
-//    and the CPU silently jumps to a wrong address.
+//   INDEXED OFFSET OVERFLOW (bug #122): _o8 indexed instructions use an
+//   8-bit signed offset from U or S. When the frame is larger than 127
+//   bytes and an expansion emits _o8 for a slot beyond that range, the
+//   offset wraps to negative and the instruction reads/writes from below
+//   the frame, silently corrupting data. Similarly, _o5 instructions use
+//   a 5-bit signed offset (-16..+15).
 //
-// 2. INDEXED OFFSET OVERFLOW (bug #122): _o8 indexed instructions use an
-//    8-bit signed offset from U or S. When the frame is larger than 127
-//    bytes and an expansion emits _o8 for a slot beyond that range, the
-//    offset wraps to negative and the instruction reads/writes from below
-//    the frame, silently corrupting data. Similarly, _o5 instructions use
-//    a 5-bit signed offset (-16..+15).
+// (Originally this pass also rejected short branches reaching the late
+// pipeline — see bug #58. Bug #174 flipped ISel to emit short branches by
+// default and rely on standard LLVM `BranchRelaxation` to widen out-of-
+// range cases via `MC6809InstrInfo::insertIndirectBranch`. Short branches
+// are now legal here. The defensive PCRel8 range guard in
+// `MC6809AsmBackend::applyFixup` catches any short branch with an out-of-
+// range displacement that somehow slipped past relaxation, replacing the
+// historical bug-#58 protection.)
 //
-// Both checks run in addPreEmitPass. They are safety nets — the correct
-// fix for each case is to emit the right encoding in the first place. But
-// silent wrong-code from offset truncation is catastrophic, so these
-// guards catch any regressions immediately.
+// The check runs in addPreEmitPass. It is a safety net — the correct fix
+// is to emit the right encoding in the first place. But silent wrong-code
+// from offset truncation is catastrophic, so this guard catches any
+// regression immediately.
 //
 //===----------------------------------------------------------------------===//
 
@@ -58,31 +62,9 @@ public:
   bool runOnMachineFunction(MachineFunction &MF) override;
 
 private:
-  static bool isShortBranch(unsigned Opcode);
   static void checkIndexedOffsetRange(const MachineInstr &MI,
                                       const MachineFunction &MF);
 };
-
-bool MC6809NoShortBranches::isShortBranch(unsigned Opcode) {
-  switch (Opcode) {
-  // Short unconditional branch and never-branch (NOP-like).
-  case MC6809::BRAb:
-  case MC6809::BRNb:
-  // Short conditional branch.
-  case MC6809::Bbc:
-  // Short subroutine call.
-  case MC6809::BSRb:
-  // The pseudo forms — we never expect to see these in late pipeline either,
-  // because expandPostRAPseudo has already converted them to LBRA/LBcc.
-  // List them anyway so we catch any pseudo that escapes expansion.
-  case MC6809::BranchRelative:
-  case MC6809::ConditionalBranchRelative:
-  case MC6809::JumpRelative:
-    return true;
-  default:
-    return false;
-  }
-}
 
 /// Check that any _o8 or _o5 indexed instruction's immediate offset fits
 /// the encoding range. An out-of-range offset wraps via signed truncation,
@@ -127,17 +109,6 @@ void MC6809NoShortBranches::checkIndexedOffsetRange(
 bool MC6809NoShortBranches::runOnMachineFunction(MachineFunction &MF) {
   for (const MachineBasicBlock &MBB : MF) {
     for (const MachineInstr &MI : MBB) {
-      if (isShortBranch(MI.getOpcode())) {
-        std::string Msg;
-        raw_string_ostream OS(Msg);
-        OS << "MC6809: short branch reached late pipeline in function '"
-           << MF.getName() << "' (BB " << MBB.getNumber() << "): ";
-        MI.print(OS);
-        OS << "MC6809 emits only long branches until a relaxation pass is "
-              "written. Short branches risk silent offset truncation (was "
-              "bug #58).";
-        report_fatal_error(StringRef(Msg));
-      }
       checkIndexedOffsetRange(MI, MF);
     }
   }
