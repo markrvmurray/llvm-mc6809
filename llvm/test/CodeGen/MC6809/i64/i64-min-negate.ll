@@ -201,8 +201,7 @@ define i64 @mul_neg1(i64 %x) {
 ; O0-LABEL: mul_neg1:
 ; O0:       ; %bb.0:
 ; O0-NEXT:    leas -34,s
-; O0-NEXT:    pshs y
-; O0-NEXT:    pshs u
+; O0-NEXT:    pshs u,y
 ; O0-NEXT:    tfr s,u
 ; O0-NEXT:    tfr x,y
 ; O0-NEXT:    sty 20,u
@@ -266,8 +265,7 @@ define i64 @mul_neg1(i64 %x) {
 ; O0-NEXT:    ldy 20,u
 ; O0-NEXT:    std ,y
 ; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u
-; O0-NEXT:    puls y
+; O0-NEXT:    puls u,y
 ; O0-NEXT:    leas 34,s
 ; O0-NEXT:    rts
 ;

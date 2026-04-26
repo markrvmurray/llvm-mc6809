@@ -35,8 +35,7 @@ define void @fold_through_y(i16 %v, i16 %w) {
 ; O0-LABEL: fold_through_y:
 ; O0:       ; %bb.0: ; %entry
 ; O0-NEXT:    leas -18,s
-; O0-NEXT:    pshs y
-; O0-NEXT:    pshs u
+; O0-NEXT:    pshs u,y
 ; O0-NEXT:    tfr s,u
 ; O0-NEXT:    ldd 24,u
 ; O0-NEXT:    leay 12,u
@@ -55,8 +54,7 @@ define void @fold_through_y(i16 %v, i16 %w) {
 ; O0-NEXT:    tfr y,x
 ; O0-NEXT:    lbsr sink
 ; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u
-; O0-NEXT:    puls y
+; O0-NEXT:    puls u,y
 ; O0-NEXT:    leas 18,s
 ; O0-NEXT:    rts
 ;

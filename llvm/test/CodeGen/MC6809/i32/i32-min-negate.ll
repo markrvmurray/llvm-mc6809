@@ -112,8 +112,7 @@ define i32 @mul_neg1(i32 %x) {
 ; O0-LABEL: mul_neg1:
 ; O0:       ; %bb.0:
 ; O0-NEXT:    leas -18,s
-; O0-NEXT:    pshs y
-; O0-NEXT:    pshs u
+; O0-NEXT:    pshs u,y
 ; O0-NEXT:    tfr s,u
 ; O0-NEXT:    tfr x,y
 ; O0-NEXT:    sty 12,u
@@ -147,8 +146,7 @@ define i32 @mul_neg1(i32 %x) {
 ; O0-NEXT:    ldy 12,u
 ; O0-NEXT:    std ,y
 ; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u
-; O0-NEXT:    puls y
+; O0-NEXT:    puls u,y
 ; O0-NEXT:    leas 18,s
 ; O0-NEXT:    rts
 ;

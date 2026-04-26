@@ -17,8 +17,7 @@ define i32 @sdiv_i32_2(i32 %x) {
 ; O0-LABEL: sdiv_i32_2:
 ; O0:       ; %bb.0:
 ; O0-NEXT:    leas -26,s
-; O0-NEXT:    pshs y
-; O0-NEXT:    pshs u
+; O0-NEXT:    pshs u,y
 ; O0-NEXT:    tfr s,u
 ; O0-NEXT:    tfr x,y
 ; O0-NEXT:    sty 18,u
@@ -61,16 +60,14 @@ define i32 @sdiv_i32_2(i32 %x) {
 ; O0-NEXT:    ldy 18,u
 ; O0-NEXT:    std ,y
 ; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u
-; O0-NEXT:    puls y
+; O0-NEXT:    puls u,y
 ; O0-NEXT:    leas 26,s
 ; O0-NEXT:    rts
 ;
 ; O2-LABEL: sdiv_i32_2:
 ; O2:       ; %bb.0:
 ; O2-NEXT:    leas -37,s
-; O2-NEXT:    pshs y
-; O2-NEXT:    pshs u
+; O2-NEXT:    pshs u,y
 ; O2-NEXT:    tfr s,u
 ; O2-NEXT:    tfr x,y
 ; O2-NEXT:    sty 19,u
@@ -157,8 +154,7 @@ define i32 @sdiv_i32_2(i32 %x) {
 ; O2-NEXT:    ldy 19,u
 ; O2-NEXT:    std ,y
 ; O2-NEXT:    tfr u,s
-; O2-NEXT:    puls u
-; O2-NEXT:    puls y
+; O2-NEXT:    puls u,y
 ; O2-NEXT:    leas 37,s
 ; O2-NEXT:    rts
   %r = sdiv i32 %x, 2
@@ -169,8 +165,7 @@ define i32 @udiv_i32_4(i32 %x) {
 ; O0-LABEL: udiv_i32_4:
 ; O0:       ; %bb.0:
 ; O0-NEXT:    leas -24,s
-; O0-NEXT:    pshs y
-; O0-NEXT:    pshs u
+; O0-NEXT:    pshs u,y
 ; O0-NEXT:    tfr s,u
 ; O0-NEXT:    tfr x,y
 ; O0-NEXT:    sty 18,u
@@ -213,16 +208,14 @@ define i32 @udiv_i32_4(i32 %x) {
 ; O0-NEXT:    ldy 18,u
 ; O0-NEXT:    std ,y
 ; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u
-; O0-NEXT:    puls y
+; O0-NEXT:    puls u,y
 ; O0-NEXT:    leas 24,s
 ; O0-NEXT:    rts
 ;
 ; O2-LABEL: udiv_i32_4:
 ; O2:       ; %bb.0:
 ; O2-NEXT:    leas -22,s
-; O2-NEXT:    pshs y
-; O2-NEXT:    pshs u
+; O2-NEXT:    pshs u,y
 ; O2-NEXT:    tfr s,u
 ; O2-NEXT:    tfr x,y
 ; O2-NEXT:    sty 14,u
@@ -258,8 +251,7 @@ define i32 @udiv_i32_4(i32 %x) {
 ; O2-NEXT:    ldy 14,u
 ; O2-NEXT:    std ,y
 ; O2-NEXT:    tfr u,s
-; O2-NEXT:    puls u
-; O2-NEXT:    puls y
+; O2-NEXT:    puls u,y
 ; O2-NEXT:    leas 22,s
 ; O2-NEXT:    rts
   %r = udiv i32 %x, 4
@@ -270,8 +262,7 @@ define i32 @ashr_i32_1(i32 %x) {
 ; O0-LABEL: ashr_i32_1:
 ; O0:       ; %bb.0:
 ; O0-NEXT:    leas -24,s
-; O0-NEXT:    pshs y
-; O0-NEXT:    pshs u
+; O0-NEXT:    pshs u,y
 ; O0-NEXT:    tfr s,u
 ; O0-NEXT:    tfr x,y
 ; O0-NEXT:    sty 16,u
@@ -315,16 +306,14 @@ define i32 @ashr_i32_1(i32 %x) {
 ; O0-NEXT:    ldy 16,u
 ; O0-NEXT:    std ,y
 ; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u
-; O0-NEXT:    puls y
+; O0-NEXT:    puls u,y
 ; O0-NEXT:    leas 24,s
 ; O0-NEXT:    rts
 ;
 ; O2-LABEL: ashr_i32_1:
 ; O2:       ; %bb.0:
 ; O2-NEXT:    leas -18,s
-; O2-NEXT:    pshs y
-; O2-NEXT:    pshs u
+; O2-NEXT:    pshs u,y
 ; O2-NEXT:    tfr s,u
 ; O2-NEXT:    tfr x,y
 ; O2-NEXT:    sty 12,u
@@ -356,8 +345,7 @@ define i32 @ashr_i32_1(i32 %x) {
 ; O2-NEXT:    ldy 12,u
 ; O2-NEXT:    std ,y
 ; O2-NEXT:    tfr u,s
-; O2-NEXT:    puls u
-; O2-NEXT:    puls y
+; O2-NEXT:    puls u,y
 ; O2-NEXT:    leas 18,s
 ; O2-NEXT:    rts
   %r = ashr i32 %x, 1
@@ -368,8 +356,7 @@ define i32 @lshr_i32_2(i32 %x) {
 ; O0-LABEL: lshr_i32_2:
 ; O0:       ; %bb.0:
 ; O0-NEXT:    leas -24,s
-; O0-NEXT:    pshs y
-; O0-NEXT:    pshs u
+; O0-NEXT:    pshs u,y
 ; O0-NEXT:    tfr s,u
 ; O0-NEXT:    tfr x,y
 ; O0-NEXT:    sty 16,u
@@ -413,16 +400,14 @@ define i32 @lshr_i32_2(i32 %x) {
 ; O0-NEXT:    ldy 16,u
 ; O0-NEXT:    std ,y
 ; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u
-; O0-NEXT:    puls y
+; O0-NEXT:    puls u,y
 ; O0-NEXT:    leas 24,s
 ; O0-NEXT:    rts
 ;
 ; O2-LABEL: lshr_i32_2:
 ; O2:       ; %bb.0:
 ; O2-NEXT:    leas -22,s
-; O2-NEXT:    pshs y
-; O2-NEXT:    pshs u
+; O2-NEXT:    pshs u,y
 ; O2-NEXT:    tfr s,u
 ; O2-NEXT:    tfr x,y
 ; O2-NEXT:    sty 14,u
@@ -458,8 +443,7 @@ define i32 @lshr_i32_2(i32 %x) {
 ; O2-NEXT:    ldy 14,u
 ; O2-NEXT:    std ,y
 ; O2-NEXT:    tfr u,s
-; O2-NEXT:    puls u
-; O2-NEXT:    puls y
+; O2-NEXT:    puls u,y
 ; O2-NEXT:    leas 22,s
 ; O2-NEXT:    rts
   %r = lshr i32 %x, 2
@@ -470,8 +454,7 @@ define i32 @shl_i32_3(i32 %x) {
 ; O0-LABEL: shl_i32_3:
 ; O0:       ; %bb.0:
 ; O0-NEXT:    leas -24,s
-; O0-NEXT:    pshs y
-; O0-NEXT:    pshs u
+; O0-NEXT:    pshs u,y
 ; O0-NEXT:    tfr s,u
 ; O0-NEXT:    tfr x,y
 ; O0-NEXT:    sty 16,u
@@ -515,16 +498,14 @@ define i32 @shl_i32_3(i32 %x) {
 ; O0-NEXT:    ldy 16,u
 ; O0-NEXT:    std ,y
 ; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u
-; O0-NEXT:    puls y
+; O0-NEXT:    puls u,y
 ; O0-NEXT:    leas 24,s
 ; O0-NEXT:    rts
 ;
 ; O2-LABEL: shl_i32_3:
 ; O2:       ; %bb.0:
 ; O2-NEXT:    leas -18,s
-; O2-NEXT:    pshs y
-; O2-NEXT:    pshs u
+; O2-NEXT:    pshs u,y
 ; O2-NEXT:    tfr s,u
 ; O2-NEXT:    tfr x,y
 ; O2-NEXT:    sty 12,u
@@ -556,8 +537,7 @@ define i32 @shl_i32_3(i32 %x) {
 ; O2-NEXT:    ldy 12,u
 ; O2-NEXT:    std ,y
 ; O2-NEXT:    tfr u,s
-; O2-NEXT:    puls u
-; O2-NEXT:    puls y
+; O2-NEXT:    puls u,y
 ; O2-NEXT:    leas 18,s
 ; O2-NEXT:    rts
   %r = shl i32 %x, 3

@@ -17,8 +17,7 @@ define i1 @eq_i32_sext_i16(i32 %a, i16 %b) {
 ; O0-LABEL: eq_i32_sext_i16:
 ; O0:       ; %bb.0:
 ; O0-NEXT:    leas -18,s
-; O0-NEXT:    pshs y
-; O0-NEXT:    pshs u
+; O0-NEXT:    pshs u,y
 ; O0-NEXT:    tfr s,u
 ; O0-NEXT:    ldd 26,u
 ; O0-NEXT:    std 12,u
@@ -68,16 +67,14 @@ define i1 @eq_i32_sext_i16(i32 %a, i16 %b) {
 ; O0-NEXT:    tfr a,b
 ; O0-NEXT:    andb #1
 ; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u
-; O0-NEXT:    puls y
+; O0-NEXT:    puls u,y
 ; O0-NEXT:    leas 18,s
 ; O0-NEXT:    rts
 ;
 ; O2-LABEL: eq_i32_sext_i16:
 ; O2:       ; %bb.0:
 ; O2-NEXT:    leas -18,s
-; O2-NEXT:    pshs y
-; O2-NEXT:    pshs u
+; O2-NEXT:    pshs u,y
 ; O2-NEXT:    tfr s,u
 ; O2-NEXT:    ldd 26,u
 ; O2-NEXT:    std 12,u
@@ -126,8 +123,7 @@ define i1 @eq_i32_sext_i16(i32 %a, i16 %b) {
 ; O2-NEXT:    tfr a,b
 ; O2-NEXT:    andb #1
 ; O2-NEXT:    tfr u,s
-; O2-NEXT:    puls u
-; O2-NEXT:    puls y
+; O2-NEXT:    puls u,y
 ; O2-NEXT:    leas 18,s
 ; O2-NEXT:    rts
   %nn = sext i16 %b to i32
@@ -139,8 +135,7 @@ define i1 @ult_i32_zext_i8(i32 %a, i8 %b) {
 ; O0-LABEL: ult_i32_zext_i8:
 ; O0:       ; %bb.0:
 ; O0-NEXT:    leas -24,s
-; O0-NEXT:    pshs y
-; O0-NEXT:    pshs u
+; O0-NEXT:    pshs u,y
 ; O0-NEXT:    tfr s,u
 ; O0-NEXT:    std 14,u
 ; O0-NEXT:    ldd 32,u
@@ -186,16 +181,14 @@ define i1 @ult_i32_zext_i8(i32 %a, i8 %b) {
 ; O0-NEXT:    tfr a,b
 ; O0-NEXT:    andb #1
 ; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u
-; O0-NEXT:    puls y
+; O0-NEXT:    puls u,y
 ; O0-NEXT:    leas 24,s
 ; O0-NEXT:    rts
 ;
 ; O2-LABEL: ult_i32_zext_i8:
 ; O2:       ; %bb.0:
 ; O2-NEXT:    leas -22,s
-; O2-NEXT:    pshs y
-; O2-NEXT:    pshs u
+; O2-NEXT:    pshs u,y
 ; O2-NEXT:    tfr s,u
 ; O2-NEXT:    std 12,u
 ; O2-NEXT:    ldd 30,u
@@ -236,8 +229,7 @@ define i1 @ult_i32_zext_i8(i32 %a, i8 %b) {
 ; O2-NEXT:    tfr a,b
 ; O2-NEXT:    andb #1
 ; O2-NEXT:    tfr u,s
-; O2-NEXT:    puls u
-; O2-NEXT:    puls y
+; O2-NEXT:    puls u,y
 ; O2-NEXT:    leas 22,s
 ; O2-NEXT:    rts
   %nn = zext i8 %b to i32
@@ -249,8 +241,7 @@ define i1 @sgt_i32_sext_i8(i32 %a, i8 %b) {
 ; O0-LABEL: sgt_i32_sext_i8:
 ; O0:       ; %bb.0:
 ; O0-NEXT:    leas -26,s
-; O0-NEXT:    pshs y
-; O0-NEXT:    pshs u
+; O0-NEXT:    pshs u,y
 ; O0-NEXT:    tfr s,u
 ; O0-NEXT:    std 14,u
 ; O0-NEXT:    ldd 34,u
@@ -311,16 +302,14 @@ define i1 @sgt_i32_sext_i8(i32 %a, i8 %b) {
 ; O0-NEXT:    tfr a,b
 ; O0-NEXT:    andb #1
 ; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u
-; O0-NEXT:    puls y
+; O0-NEXT:    puls u,y
 ; O0-NEXT:    leas 26,s
 ; O0-NEXT:    rts
 ;
 ; O2-LABEL: sgt_i32_sext_i8:
 ; O2:       ; %bb.0:
 ; O2-NEXT:    leas -30,s
-; O2-NEXT:    pshs y
-; O2-NEXT:    pshs u
+; O2-NEXT:    pshs u,y
 ; O2-NEXT:    tfr s,u
 ; O2-NEXT:    std 18,u
 ; O2-NEXT:    ldd 38,u
@@ -381,8 +370,7 @@ define i1 @sgt_i32_sext_i8(i32 %a, i8 %b) {
 ; O2-NEXT:    tfr a,b
 ; O2-NEXT:    andb #1
 ; O2-NEXT:    tfr u,s
-; O2-NEXT:    puls u
-; O2-NEXT:    puls y
+; O2-NEXT:    puls u,y
 ; O2-NEXT:    leas 30,s
 ; O2-NEXT:    rts
   %nn = sext i8 %b to i32
@@ -394,8 +382,7 @@ define i1 @ne_i32_zext_i16(i32 %a, i16 %b) {
 ; O0-LABEL: ne_i32_zext_i16:
 ; O0:       ; %bb.0:
 ; O0-NEXT:    leas -16,s
-; O0-NEXT:    pshs y
-; O0-NEXT:    pshs u
+; O0-NEXT:    pshs u,y
 ; O0-NEXT:    tfr s,u
 ; O0-NEXT:    ldd 24,u
 ; O0-NEXT:    std 8,u
@@ -431,16 +418,14 @@ define i1 @ne_i32_zext_i16(i32 %a, i16 %b) {
 ; O0-NEXT:    tfr a,b
 ; O0-NEXT:    andb #1
 ; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u
-; O0-NEXT:    puls y
+; O0-NEXT:    puls u,y
 ; O0-NEXT:    leas 16,s
 ; O0-NEXT:    rts
 ;
 ; O2-LABEL: ne_i32_zext_i16:
 ; O2:       ; %bb.0:
 ; O2-NEXT:    leas -14,s
-; O2-NEXT:    pshs y
-; O2-NEXT:    pshs u
+; O2-NEXT:    pshs u,y
 ; O2-NEXT:    tfr s,u
 ; O2-NEXT:    ldd 22,u
 ; O2-NEXT:    std 6,u
@@ -473,8 +458,7 @@ define i1 @ne_i32_zext_i16(i32 %a, i16 %b) {
 ; O2-NEXT:    tfr a,b
 ; O2-NEXT:    andb #1
 ; O2-NEXT:    tfr u,s
-; O2-NEXT:    puls u
-; O2-NEXT:    puls y
+; O2-NEXT:    puls u,y
 ; O2-NEXT:    leas 14,s
 ; O2-NEXT:    rts
   %nn = zext i16 %b to i32

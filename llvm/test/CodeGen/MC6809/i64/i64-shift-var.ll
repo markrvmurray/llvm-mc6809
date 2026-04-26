@@ -16,8 +16,7 @@ define i64 @shl_i64_by_i8(i64 %x, i8 %n) {
 ; O0-LABEL: shl_i64_by_i8:
 ; O0:       ; %bb.0:
 ; O0-NEXT:    leas -44,s
-; O0-NEXT:    pshs y
-; O0-NEXT:    pshs u
+; O0-NEXT:    pshs u,y
 ; O0-NEXT:    tfr s,u
 ; O0-NEXT:    tfr x,y
 ; O0-NEXT:    sty 28,u
@@ -90,16 +89,14 @@ define i64 @shl_i64_by_i8(i64 %x, i8 %n) {
 ; O0-NEXT:    ldy 28,u
 ; O0-NEXT:    std ,y
 ; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u
-; O0-NEXT:    puls y
+; O0-NEXT:    puls u,y
 ; O0-NEXT:    leas 44,s
 ; O0-NEXT:    rts
 ;
 ; O2-LABEL: shl_i64_by_i8:
 ; O2:       ; %bb.0:
 ; O2-NEXT:    leas -44,s
-; O2-NEXT:    pshs y
-; O2-NEXT:    pshs u
+; O2-NEXT:    pshs u,y
 ; O2-NEXT:    tfr s,u
 ; O2-NEXT:    tfr x,y
 ; O2-NEXT:    sty 28,u
@@ -171,8 +168,7 @@ define i64 @shl_i64_by_i8(i64 %x, i8 %n) {
 ; O2-NEXT:    ldy 28,u
 ; O2-NEXT:    std ,y
 ; O2-NEXT:    tfr u,s
-; O2-NEXT:    puls u
-; O2-NEXT:    puls y
+; O2-NEXT:    puls u,y
 ; O2-NEXT:    leas 44,s
 ; O2-NEXT:    rts
   %nn = zext i8 %n to i64
@@ -184,8 +180,7 @@ define i64 @lshr_i64_by_i16(i64 %x, i16 %n) {
 ; O0-LABEL: lshr_i64_by_i16:
 ; O0:       ; %bb.0:
 ; O0-NEXT:    leas -38,s
-; O0-NEXT:    pshs y
-; O0-NEXT:    pshs u
+; O0-NEXT:    pshs u,y
 ; O0-NEXT:    tfr s,u
 ; O0-NEXT:    tfr x,y
 ; O0-NEXT:    sty 22,u
@@ -257,16 +252,14 @@ define i64 @lshr_i64_by_i16(i64 %x, i16 %n) {
 ; O0-NEXT:    ldy 22,u
 ; O0-NEXT:    std ,y
 ; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u
-; O0-NEXT:    puls y
+; O0-NEXT:    puls u,y
 ; O0-NEXT:    leas 38,s
 ; O0-NEXT:    rts
 ;
 ; O2-LABEL: lshr_i64_by_i16:
 ; O2:       ; %bb.0:
 ; O2-NEXT:    leas -38,s
-; O2-NEXT:    pshs y
-; O2-NEXT:    pshs u
+; O2-NEXT:    pshs u,y
 ; O2-NEXT:    tfr s,u
 ; O2-NEXT:    tfr x,y
 ; O2-NEXT:    sty 22,u
@@ -336,8 +329,7 @@ define i64 @lshr_i64_by_i16(i64 %x, i16 %n) {
 ; O2-NEXT:    ldy 22,u
 ; O2-NEXT:    std ,y
 ; O2-NEXT:    tfr u,s
-; O2-NEXT:    puls u
-; O2-NEXT:    puls y
+; O2-NEXT:    puls u,y
 ; O2-NEXT:    leas 38,s
 ; O2-NEXT:    rts
   %nn = zext i16 %n to i64
@@ -349,8 +341,7 @@ define i64 @ashr_i64_by_i32(i64 %x, i32 %n) {
 ; O0-LABEL: ashr_i64_by_i32:
 ; O0:       ; %bb.0:
 ; O0-NEXT:    leas -38,s
-; O0-NEXT:    pshs y
-; O0-NEXT:    pshs u
+; O0-NEXT:    pshs u,y
 ; O0-NEXT:    tfr s,u
 ; O0-NEXT:    tfr x,y
 ; O0-NEXT:    sty 22,u
@@ -422,16 +413,14 @@ define i64 @ashr_i64_by_i32(i64 %x, i32 %n) {
 ; O0-NEXT:    ldy 22,u
 ; O0-NEXT:    std ,y
 ; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u
-; O0-NEXT:    puls y
+; O0-NEXT:    puls u,y
 ; O0-NEXT:    leas 38,s
 ; O0-NEXT:    rts
 ;
 ; O2-LABEL: ashr_i64_by_i32:
 ; O2:       ; %bb.0:
 ; O2-NEXT:    leas -38,s
-; O2-NEXT:    pshs y
-; O2-NEXT:    pshs u
+; O2-NEXT:    pshs u,y
 ; O2-NEXT:    tfr s,u
 ; O2-NEXT:    tfr x,y
 ; O2-NEXT:    sty 22,u
@@ -501,8 +490,7 @@ define i64 @ashr_i64_by_i32(i64 %x, i32 %n) {
 ; O2-NEXT:    ldy 22,u
 ; O2-NEXT:    std ,y
 ; O2-NEXT:    tfr u,s
-; O2-NEXT:    puls u
-; O2-NEXT:    puls y
+; O2-NEXT:    puls u,y
 ; O2-NEXT:    leas 38,s
 ; O2-NEXT:    rts
   %nn = zext i32 %n to i64
@@ -514,8 +502,7 @@ define i64 @shl_i64_by_i32_sext(i64 %x, i32 %n) {
 ; O0-LABEL: shl_i64_by_i32_sext:
 ; O0:       ; %bb.0:
 ; O0-NEXT:    leas -46,s
-; O0-NEXT:    pshs y
-; O0-NEXT:    pshs u
+; O0-NEXT:    pshs u,y
 ; O0-NEXT:    tfr s,u
 ; O0-NEXT:    tfr x,y
 ; O0-NEXT:    sty 24,u
@@ -599,16 +586,14 @@ define i64 @shl_i64_by_i32_sext(i64 %x, i32 %n) {
 ; O0-NEXT:    ldy 24,u
 ; O0-NEXT:    std ,y
 ; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u
-; O0-NEXT:    puls y
+; O0-NEXT:    puls u,y
 ; O0-NEXT:    leas 46,s
 ; O0-NEXT:    rts
 ;
 ; O2-LABEL: shl_i64_by_i32_sext:
 ; O2:       ; %bb.0:
 ; O2-NEXT:    leas -38,s
-; O2-NEXT:    pshs y
-; O2-NEXT:    pshs u
+; O2-NEXT:    pshs u,y
 ; O2-NEXT:    tfr s,u
 ; O2-NEXT:    tfr x,y
 ; O2-NEXT:    sty 22,u
@@ -678,8 +663,7 @@ define i64 @shl_i64_by_i32_sext(i64 %x, i32 %n) {
 ; O2-NEXT:    ldy 22,u
 ; O2-NEXT:    std ,y
 ; O2-NEXT:    tfr u,s
-; O2-NEXT:    puls u
-; O2-NEXT:    puls y
+; O2-NEXT:    puls u,y
 ; O2-NEXT:    leas 38,s
 ; O2-NEXT:    rts
   %nn = sext i32 %n to i64
