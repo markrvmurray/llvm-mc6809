@@ -85,6 +85,20 @@ void MC6809AsmBackend::applyFixup(const MCFragment &F, const MCFixup &Fixup,
     break;
   }
 
+  // Defensive: a resolved short-branch fixup must fit int8. Without this
+  // check, an out-of-range PCRel8 silently truncates to its low byte and
+  // the CPU jumps to the wrong address (the failure mode of bug #174's
+  // first attempted fix). For unresolved fixups the linker writes the
+  // final bytes — skip the check there.
+  if (IsResolved && Kind == MC6809::PCRel8 &&
+      !isInt<8>(static_cast<int64_t>(Value))) {
+    std::string Msg;
+    raw_string_ostream OS(Msg);
+    OS << "MC6809: PCRel8 fixup value " << static_cast<int64_t>(Value)
+       << " out of int8 range — short branch slipped past relaxation";
+    report_fatal_error(StringRef(Msg));
+  }
+
   // Rel5 is a 5-bit signed indexed offset packed into the low 5 bits of a
   // postbyte; the upper 3 bits (5-bit-form marker + 2-bit register selector)
   // must be preserved.
