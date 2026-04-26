@@ -99,26 +99,65 @@ bool MC6809FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB, Mach
   // physreg manipulation is the natural form and (b) avoiding a 1-register
   // vreg class here cooperates with the Layer-2 regalloc fix (bug #118):
   // no 1-register class exists for the coalescer to tighten i16 vregs to.
+  //
+  // Bug #175: bucket directly-pushable CSRs (INDEX16 + AD) into a SINGLE
+  // fused PSHS — same encoding bytes either way (one opcode + one mask
+  // byte regardless of how many regs are in the mask), but saves a whole
+  // 2-byte PSHS per fused register. Hardware pushes high-mask-bit-first
+  // (PC=0x80, S/U=0x40, Y=0x20, X=0x10, DP=0x08, B=0x04, A=0x02, CC=0x01;
+  // AD = A+B = 0x06), so the fused encoding produces the SAME byte layout
+  // as separate `pshs y; pshs x; pshs d` would have (Y at high addr, X
+  // below, AD bytes at SP) — PEI-computed SP-relative offsets stay valid.
+  // Non-fusible CSRs (those routed through AD, plus AW) emit individually.
+  SmallVector<Register, 4> Fusible;
+  SmallVector<Register, 4> AdRouted;
+  bool HaveAW = false;
   for (const CalleeSavedInfo &CI : CSI) {
     Register Reg = CI.getReg();
     if (!CI.isTargetSpilled() || FuncInfo->CSRDPOffsets.count(Reg))
       continue;
-    // INDEX16 registers (X, Y, U, S) can be pushed directly — no need to
-    // copy through D. This avoids frame references before the frame pointer
-    // is set up, and avoids the scavenger picking spill pseudo-registers.
-    if (MC6809::INDEX16RegClass.contains(Reg)) {
-      Builder.buildInstr(MC6809::PSHSs, {}, {Reg});
+    if (MC6809::INDEX16RegClass.contains(Reg) || Reg == MC6809::AD) {
+      Fusible.push_back(Reg);
     } else if (Reg == MC6809::AW) {
-      // Push W directly — HD6309 has a dedicated PSHSWx instruction.
-      Builder.buildInstr(MC6809::PSHSWx, {}, {});
-    } else if (Reg != MC6809::AD) {
-      // Route non-AD 16-bit CSRs through $ad before PSHS.
-      Builder.buildCopy(Register(MC6809::AD), Reg);
-      Builder.buildInstr(MC6809::PSHSs, {}, {Register(MC6809::AD)});
+      HaveAW = true;
     } else {
-      Builder.buildInstr(MC6809::PSHSs, {}, {Reg});
+      AdRouted.push_back(Reg);
     }
   }
+
+  // Sort Fusible by hardware-mask-descending so the source-list order
+  // matches the order PSHS would push them. (Operand order in the MI
+  // doesn't actually affect the encoded bitmask — the encoder just OR-s
+  // bits — but keeping the source list sorted is good hygiene and
+  // matches how the disassembler will print the fused form.)
+  auto pshsMask = [](Register R) -> unsigned {
+    switch (R) {
+    case MC6809::SU: case MC6809::SS: return 0x40;  // S/U
+    case MC6809::IY: return 0x20;
+    case MC6809::IX: return 0x10;
+    case MC6809::DP: return 0x08;
+    case MC6809::AB: return 0x04;
+    case MC6809::AA: return 0x02;
+    case MC6809::AD: return 0x06;
+    case MC6809::CC: return 0x01;
+    default: return 0;
+    }
+  };
+  llvm::sort(Fusible, [&](Register A, Register B) {
+    return pshsMask(A) > pshsMask(B);
+  });
+
+  if (!Fusible.empty()) {
+    auto MIB = Builder.buildInstr(MC6809::PSHSs);
+    for (Register R : Fusible)
+      MIB.addUse(R);
+  }
+  for (Register R : AdRouted) {
+    Builder.buildCopy(Register(MC6809::AD), R);
+    Builder.buildInstr(MC6809::PSHSs, {}, {Register(MC6809::AD)});
+  }
+  if (HaveAW)
+    Builder.buildInstr(MC6809::PSHSWx, {}, {});
 
   // Record that the frame pointer is killed by these instructions.
   for (auto &MI : make_range(MIS.begin(), MIS.getInitial()))
@@ -178,23 +217,67 @@ bool MC6809FrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB, Ma
   // CSR restores are emitted.
   MachineInstrSpan MIS(MI, &MBB);
 
-  for (const CalleeSavedInfo &CI : reverse(CSI)) {
-    Register CSR = CI.getReg();
-    if (!CI.isTargetSpilled() || FuncInfo->CSRDPOffsets.count(CSR))
+  // Bug #175: mirror of the spill-side fusion. Bucket the same way and
+  // emit one fused PULS for the directly-pullable CSRs. The reverse
+  // ordering (vs. the spill side) is purely cosmetic — PULS pops in
+  // hardware-mask-ascending order regardless of source-list operand
+  // order, so the encoded mask determines the layout. The original loop
+  // walked `reverse(CSI)` so individual `puls reg` instructions came in
+  // the reverse order of the spill `pshs reg` sequence; we preserve that
+  // for the AdRouted (un-fusible) bucket so SP-relative offsets resolve
+  // correctly during the unwind. The fused PULS comes out in one
+  // instruction, after the AdRouted unwind completes.
+  SmallVector<Register, 4> Fusible;
+  SmallVector<Register, 4> AdRouted;
+  bool HaveAW = false;
+  for (const CalleeSavedInfo &CI : CSI) {
+    Register Reg = CI.getReg();
+    if (!CI.isTargetSpilled() || FuncInfo->CSRDPOffsets.count(Reg))
       continue;
-    // INDEX16 registers (X, Y, U, S) can be pulled directly.
-    if (MC6809::INDEX16RegClass.contains(CSR)) {
-      Builder.buildInstr(MC6809::PULSs, {CSR}, {});
-    } else if (CSR == MC6809::AW) {
-      // PULSWx pops into W directly — no need to route through AD.
-      Builder.buildInstr(MC6809::PULSWx, {}, {});
-    } else if (CSR != MC6809::AD) {
-      // Pull into $ad then copy to the CSR.
-      Builder.buildInstr(MC6809::PULSs, {Register(MC6809::AD)}, {});
-      Builder.buildCopy(CSR, Register(MC6809::AD));
+    if (MC6809::INDEX16RegClass.contains(Reg) || Reg == MC6809::AD) {
+      Fusible.push_back(Reg);
+    } else if (Reg == MC6809::AW) {
+      HaveAW = true;
     } else {
-      Builder.buildInstr(MC6809::PULSs, {CSR}, {});
+      AdRouted.push_back(Reg);
     }
+  }
+
+  // Restore order is the inverse of spill: AW (was last to push) first,
+  // then AdRouted in REVERSE (each was a `copy ad,csr; pshs ad`, unwind
+  // is `puls ad; copy csr,ad`), then the fused PULS for the
+  // directly-pushable bucket (was first to push, so last to pop).
+  if (HaveAW)
+    Builder.buildInstr(MC6809::PULSWx, {}, {});
+  for (Register R : reverse(AdRouted)) {
+    Builder.buildInstr(MC6809::PULSs, {Register(MC6809::AD)}, {});
+    Builder.buildCopy(R, Register(MC6809::AD));
+  }
+  if (!Fusible.empty()) {
+    // Build the PULS with all Fusible regs as DEFs (unlike PSHS, which
+    // takes them as USEs). The encoder iterates explicit operands and
+    // OR-s bitmask bits regardless of def/use status, so source-list
+    // order doesn't affect the encoded mask — but we keep the same
+    // mask-descending sort as the spill side for output consistency.
+    auto pshsMask = [](Register R) -> unsigned {
+      switch (R) {
+      case MC6809::SU: case MC6809::SS: return 0x40;
+      case MC6809::IY: return 0x20;
+      case MC6809::IX: return 0x10;
+      case MC6809::DP: return 0x08;
+      case MC6809::AB: return 0x04;
+      case MC6809::AA: return 0x02;
+      case MC6809::AD: return 0x06;
+      case MC6809::CC: return 0x01;
+      default: return 0;
+      }
+    };
+    llvm::sort(Fusible, [&](Register A, Register B) {
+      return pshsMask(A) > pshsMask(B);
+    });
+    auto MIB = Builder.buildInstr(MC6809::PULSs);
+    for (Register R : Fusible)
+      MIB.addDef(R);
   }
 
   // Mark the CSRs as used by the return to ensure Machine Copy Propagation
