@@ -8,7 +8,7 @@
 //
 // This file declares the MC6809 final-lowering pass (bug #149). The pass
 // runs in addPreEmitPass between BranchRelaxation and NoShortBranches and
-// hosts six independently-gated late-stage transforms:
+// hosts seven independently-gated late-stage transforms:
 //
 //   1. Indexed-offset relaxation (_o16 -> _o8 -> _o5 -> _o0)
 //   2. Leaf-frame elision        (drop pshs u/tfr s,u where unused)
@@ -19,11 +19,18 @@
 //                                 target is the layout successor; fixes
 //                                 bug #179, especially at -O0 where
 //                                 BranchFolderPass doesn't run)
+//   7. LEA-pointer-spill fold    (rewrite ldy <slot>,u; OP <op_off>,y
+//                                 into OP (lea_off+op_off),u when the
+//                                 slot is known to hold a U/S-relative
+//                                 LEA-computed address; fixes bug #176,
+//                                 dominant at -O0 where regalloc spills
+//                                 frame-pointer-relative addresses
+//                                 instead of rematerialising them)
 //
 // Each class has its own minimum -O level (default >= -O2 for size/speed
-// optimisations; Class 6 defaults to -O0 since it's a pure code-shape
-// cleanup that never enlarges code) and its own STATISTIC counter so we
-// can see which classes fire on which workloads.
+// optimisations; Classes 6 and 7 default to -O0 since they're pure
+// code-shape cleanups that never enlarge code) and its own STATISTIC
+// counter so we can see which classes fire on which workloads.
 //
 //===----------------------------------------------------------------------===//
 

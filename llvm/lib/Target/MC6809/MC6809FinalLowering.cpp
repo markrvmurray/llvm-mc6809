@@ -50,6 +50,9 @@ STATISTIC(NumStoreReloadsElided,"Number of redundant reloads of unmodified "
 STATISTIC(NumBranchOverBranchFolded, "Number of branch-over-branch pairs "
                                      "(cond + uncond) folded into a single "
                                      "branch (bug #179)");
+STATISTIC(NumLEAPointerSpillFolded, "Number of LEAY/STY/.../LDY,OP chains "
+                                    "folded into direct OP off,U/S "
+                                    "addressing (bug #176)");
 
 namespace {
 
@@ -87,6 +90,13 @@ static cl::opt<int> BranchOverBranchMinO(
              "(always on; transform is purely local and never enlarges code, "
              "and BranchFolderPass doesn't run at -O0 to do this work for "
              "us)."));
+static cl::opt<int> LEAPointerSpillMinO(
+    "mc6809-fl-lea-pointer-spill-min-O", cl::init(0), cl::Hidden,
+    cl::desc("Minimum -O level (0..3) to enable LEA-pointer-spill folding "
+             "in MC6809FinalLowering (bug #176). 99 disables. Default: 0 "
+             "(always on; transform is purely local and never enlarges code; "
+             "primary win is at -O0 where regalloc spills LEA-computed "
+             "pointers instead of rematerialising them)."));
 
 class MC6809FinalLowering : public MachineFunctionPass {
 public:
@@ -110,6 +120,7 @@ private:
   bool elideDupStores(MachineFunction &MF);
   bool elideStoreReload(MachineFunction &MF);
   bool foldBranchOverBranch(MachineFunction &MF);
+  bool foldLEAPointerSpill(MachineFunction &MF);
 
   // True if the current -O level (from MF.getTarget()) >= MinO.
   // MinO == 99 means "disabled by CL flag".
@@ -126,16 +137,26 @@ private:
 bool MC6809FinalLowering::runOnMachineFunction(MachineFunction &MF) {
   bool Changed = false;
 
-  // Class 6 (branch-over-branch fold) runs FIRST and is NOT gated by
-  // skipFunction. Reason: at -O0, every function carries the `optnone`
-  // attribute, which makes skipFunction return true and short-circuit
-  // the whole pass. But Class 6's whole purpose is to backstop
-  // BranchFolderPass at -O0 (where BranchFolderPass doesn't run); if we
-  // skipped on optnone, Class 6 would never fire on its primary target.
-  // The transform is purely local code-shape cleanup that never enlarges
-  // code or changes semantics, so running it under optnone is safe.
+  // Classes 6 and 7 run FIRST and are NOT gated by skipFunction. Reason:
+  // at -O0, every function carries the `optnone` attribute, which makes
+  // skipFunction return true and short-circuit the whole pass. But
+  // Classes 6 and 7 are purely local code-shape cleanups (never enlarge
+  // code, never change semantics) whose primary value is at -O0:
+  //   - Class 6 backstops BranchFolderPass (which doesn't run at -O0).
+  //   - Class 7 cleans up LEA-pointer-spill chains that regalloc creates
+  //     at -O0 because rematerialisation isn't aggressive enough there.
+  // If we skipped on optnone, neither class would fire on its primary
+  // target.
+  //
+  // Class 7 runs BEFORE Class 1 (offset relaxation) so Class 1 can narrow
+  // the _o16 forms Class 7 emits down to _o5/_o8/_o0 where they fit.
+  // (Class 1 itself respects optnone, so at -O0 Class 7's _o16 emissions
+  // remain wide. That's a small bytes/cycle hit but still a net win
+  // versus the ldy+OP pair we eliminated.)
   if (enabled(MF, BranchOverBranchMinO))
     Changed |= foldBranchOverBranch(MF);
+  if (enabled(MF, LEAPointerSpillMinO))
+    Changed |= foldLEAPointerSpill(MF);
 
   // Classes 1-5 are size/speed optimisations and respect optnone.
   if (skipFunction(MF.getFunction()))
@@ -914,6 +935,548 @@ bool MC6809FinalLowering::foldBranchOverBranch(MachineFunction &MF) {
     // else: neither target is the layout successor — leave as-is.
 
     (void)TII;  // unused for now; held for future symmetry with other classes.
+  }
+  return Changed;
+}
+
+// Class 7 — LEA-pointer-spill fold (bug #176).
+//
+// Pattern, dominant at -O0 across real picolibc output:
+//
+//     LEAY  off, U/S          ; compute frame-relative address
+//     STY   slot, U/S         ; spill it (regalloc didn't rematerialise)
+//     ; ... other code, no def of Y, no overwrite of slot, no def of U/S ...
+//     LDY   slot, U/S         ; reload it
+//     OP    op_off, Y         ; use it indirectly
+//
+// folds to
+//
+//     LEAY  off, U/S          ; (left in place — see "what this doesn't do")
+//     STY   slot, U/S         ; (left in place — see "what this doesn't do")
+//     ; ... other code unchanged ...
+//     OP    (off + op_off), U/S
+//
+// The win is the LDY and the indirection. The LEAY+STY pair is left
+// for a later DSE pass to clean up if the slot/Y become entirely dead;
+// neither hurts much (LEAY = 4 cyc, STY = 5+1 = 6 cyc with _o5 form).
+//
+// Per-MBB algorithm (mirrors Class 5's structural shape — same kind of
+// per-MBB cross-instruction tracking, different state):
+//
+//   - YAddr  : (IndexBase, Offset) currently held in IY, or unknown.
+//   - Slots  : map (DataReg, slot_off, slot_base) -> (IndexBase, Offset)
+//              for spill slots whose contents are a tracked LEA address.
+//
+// Walk each MI in order:
+//   * LEAYi_oN whose base is SU or SS  -> set YAddr.
+//   * STYi_oN whose base is SU or SS, when YAddr is known -> record slot.
+//   * LDYi_oN whose base is SU or SS, when slot is recorded -> set YAddr,
+//     remember the LDY MI as "pending delete" (collapse if the next
+//     non-debug MI rewrites successfully).
+//   * Indexed-immediate OP whose base register operand is IY, when YAddr
+//     is known -> rewrite OP to use IndexBase as base and (off + op_off)
+//     as offset; delete the pending-LDY if it was the immediately
+//     previous non-debug MI.
+//   * Any other def of IY -> invalidate YAddr.
+//   * Any def of SU/SS    -> invalidate everything.
+//   * Any other store to a tracked slot -> invalidate that slot only.
+//   * Any call/inline-asm/return/branch/terminator -> invalidate
+//     everything (calls clobber via the ABI; barriers / terminators
+//     end intra-MBB tracking).
+//   * Any unrecognised mayLoad/mayStore -> conservatively invalidate
+//     all slots (it might write through the spill slot).
+//
+// Cross-MBB tracking is not attempted (would need proper dataflow). At
+// MBB boundaries everything resets.
+//
+// X variant (LEAX/STX/LDX/OP ,X) is structurally identical but real
+// picolibc output shows zero occurrences of the X case (everything goes
+// through Y). Implemented for symmetry / future-proofing — the cost is
+// trivial, the win is non-negative.
+bool MC6809FinalLowering::foldLEAPointerSpill(MachineFunction &MF) {
+  const auto *TII = static_cast<const MC6809InstrInfo *>(
+      MF.getSubtarget().getInstrInfo());
+  const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
+
+  struct AddrValue {
+    Register IndexBase;  // SU or SS
+    int64_t Offset;
+  };
+
+  // Map an indexed-immediate opcode to its _o16 form (the widest valid
+  // representation for any in-range offset). Class 1 (offset relaxation)
+  // will narrow back to _o5/_o8/_o0 if the new offset fits, so we only
+  // need the widest form here.
+  auto getO16Form = [](unsigned Opc) -> unsigned {
+#define INDEXED_FAMILY(BASE)                                                   \
+  case MC6809::BASE##i_o0:                                                     \
+  case MC6809::BASE##i_o5:                                                     \
+  case MC6809::BASE##i_o8:                                                     \
+  case MC6809::BASE##i_o16:                                                    \
+    return MC6809::BASE##i_o16;
+    switch (Opc) {
+      INDEXED_FAMILY(LDA)
+      INDEXED_FAMILY(LDB)
+      INDEXED_FAMILY(LDD)
+      INDEXED_FAMILY(LDX)
+      INDEXED_FAMILY(LDY)
+      INDEXED_FAMILY(LDU)
+      INDEXED_FAMILY(STA)
+      INDEXED_FAMILY(STB)
+      INDEXED_FAMILY(STD)
+      INDEXED_FAMILY(STX)
+      INDEXED_FAMILY(STY)
+      INDEXED_FAMILY(STU)
+      INDEXED_FAMILY(CMPA)
+      INDEXED_FAMILY(CMPB)
+      INDEXED_FAMILY(CMPD)
+      INDEXED_FAMILY(CMPX)
+      INDEXED_FAMILY(CMPY)
+      INDEXED_FAMILY(CMPU)
+      INDEXED_FAMILY(INC)
+      INDEXED_FAMILY(DEC)
+      INDEXED_FAMILY(NEG)
+      INDEXED_FAMILY(COM)
+      INDEXED_FAMILY(CLR)
+      INDEXED_FAMILY(TST)
+      INDEXED_FAMILY(ASL)
+      INDEXED_FAMILY(LSR)
+      INDEXED_FAMILY(ROL)
+      INDEXED_FAMILY(ROR)
+      INDEXED_FAMILY(ASR)
+      // 6309 wider data-reg forms.
+      INDEXED_FAMILY(LDE)
+      INDEXED_FAMILY(LDF)
+      INDEXED_FAMILY(LDW)
+      INDEXED_FAMILY(LDQ)
+      INDEXED_FAMILY(STE)
+      INDEXED_FAMILY(STF)
+      INDEXED_FAMILY(STW)
+      INDEXED_FAMILY(STQ)
+      default:
+        return 0;
+    }
+#undef INDEXED_FAMILY
+  };
+
+  // For an indexed-immediate MI (any of the _oN forms), return the
+  // (offset, base-reg-operand-index) pair. _o0 has no immediate, just
+  // a base reg at operand 0; the others have (imm at op 0, base at op 1).
+  // Returns nullopt for opcodes we don't recognise as indexed-imm.
+  auto getOffsetAndBaseIdx = [&getO16Form](const MachineInstr &MI)
+      -> std::optional<std::pair<int64_t, unsigned>> {
+    unsigned Opc = MI.getOpcode();
+    if (getO16Form(Opc) == 0)
+      return std::nullopt;
+    // _o0: operand 0 = base. Heuristic: if operand 0 is a register and
+    // operand 1 is NOT an immediate, treat as _o0.
+    if (MI.getNumExplicitOperands() < 2 ||
+        !MI.getOperand(0).isImm() || !MI.getOperand(1).isReg()) {
+      // _o0 form (or unexpected) — base at operand 0.
+      if (MI.getNumExplicitOperands() >= 1 && MI.getOperand(0).isReg())
+        return std::make_pair(int64_t{0}, 0u);
+      return std::nullopt;
+    }
+    return std::make_pair(MI.getOperand(0).getImm(), 1u);
+  };
+
+  // LEAY recognition: returns the AddrValue iff this is a LEAY whose
+  // base is SU or SS. (LEAX symmetric — handled via LeaOpc parameter.)
+  auto recogniseLEA = [&](const MachineInstr &MI, unsigned LeaO0,
+                          unsigned LeaO5, unsigned LeaO8,
+                          unsigned LeaO16) -> std::optional<AddrValue> {
+    unsigned Opc = MI.getOpcode();
+    if (Opc == LeaO0) {
+      if (MI.getNumExplicitOperands() < 1 || !MI.getOperand(0).isReg())
+        return std::nullopt;
+      Register Base = MI.getOperand(0).getReg();
+      if (Base != MC6809::SU && Base != MC6809::SS)
+        return std::nullopt;
+      return AddrValue{Base, 0};
+    }
+    if (Opc == LeaO5 || Opc == LeaO8 || Opc == LeaO16) {
+      if (MI.getNumExplicitOperands() < 2 || !MI.getOperand(0).isImm() ||
+          !MI.getOperand(1).isReg())
+        return std::nullopt;
+      Register Base = MI.getOperand(1).getReg();
+      if (Base != MC6809::SU && Base != MC6809::SS)
+        return std::nullopt;
+      return AddrValue{Base, MI.getOperand(0).getImm()};
+    }
+    return std::nullopt;
+  };
+
+  // STY/STX recognition (and LDY/LDX): returns (slot_offset, slot_base)
+  // iff this is a STY/STX/LDY/LDX targeting a slot in U or S.
+  auto recogniseStLd = [&getOffsetAndBaseIdx](
+      const MachineInstr &MI, unsigned StO0, unsigned StO5, unsigned StO8,
+      unsigned StO16) -> std::optional<std::pair<int64_t, Register>> {
+    unsigned Opc = MI.getOpcode();
+    if (Opc != StO0 && Opc != StO5 && Opc != StO8 && Opc != StO16)
+      return std::nullopt;
+    auto OB = getOffsetAndBaseIdx(MI);
+    if (!OB)
+      return std::nullopt;
+    Register Base = MI.getOperand(OB->second).getReg();
+    if (Base != MC6809::SU && Base != MC6809::SS)
+      return std::nullopt;
+    return std::make_pair(OB->first, Base);
+  };
+
+  // SlotKey: (DataReg, slot_offset, slot_base).
+  struct SlotKey {
+    Register DataReg;
+    int64_t Offset;
+    Register Base;
+    bool operator==(const SlotKey &O) const {
+      return DataReg == O.DataReg && Offset == O.Offset && Base == O.Base;
+    }
+  };
+
+  bool Changed = false;
+  for (MachineBasicBlock &MBB : MF) {
+    AddrValue YAddr{Register(), 0};
+    bool YKnown = false;
+    AddrValue XAddr{Register(), 0};
+    bool XKnown = false;
+    SmallVector<std::pair<SlotKey, AddrValue>, 8> Slots;
+    MachineInstr *PendingLDY = nullptr;
+    MachineInstr *PendingLDX = nullptr;
+
+    auto findSlot = [&](const SlotKey &K) -> AddrValue * {
+      for (auto &P : Slots)
+        if (P.first == K)
+          return &P.second;
+      return nullptr;
+    };
+    auto recordSlot = [&](const SlotKey &K, AddrValue V) {
+      if (auto *P = findSlot(K)) {
+        *P = V;
+        return;
+      }
+      Slots.push_back({K, V});
+    };
+    auto invalidateSlot = [&](const SlotKey &K) {
+      Slots.erase(
+          std::remove_if(Slots.begin(), Slots.end(),
+                         [&](const std::pair<SlotKey, AddrValue> &P) {
+                           return P.first == K;
+                         }),
+          Slots.end());
+    };
+    auto invalidateAll = [&]() {
+      Slots.clear();
+      YKnown = false;
+      XKnown = false;
+      PendingLDY = nullptr;
+      PendingLDX = nullptr;
+    };
+    auto invalidateBase = [&](Register R) {
+      // SU or SS write → all our tracking (relative to that base) is
+      // invalid.
+      Slots.erase(
+          std::remove_if(Slots.begin(), Slots.end(),
+                         [&](const std::pair<SlotKey, AddrValue> &P) {
+                           return TRI->regsOverlap(P.first.Base, R) ||
+                                  TRI->regsOverlap(P.second.IndexBase, R);
+                         }),
+          Slots.end());
+      if (YKnown && TRI->regsOverlap(YAddr.IndexBase, R))
+        YKnown = false;
+      if (XKnown && TRI->regsOverlap(XAddr.IndexBase, R))
+        XKnown = false;
+    };
+
+    for (MachineInstr &MI : llvm::make_early_inc_range(MBB)) {
+      // Barriers — clear everything.
+      if (MI.isCall() || MI.isInlineAsm() || MI.isReturn() ||
+          MI.isBranch() || MI.isTerminator()) {
+        invalidateAll();
+        continue;
+      }
+
+      // Step 1: LEAY / LEAX.
+      if (auto V = recogniseLEA(MI, MC6809::LEAYi_o0, MC6809::LEAYi_o5,
+                                MC6809::LEAYi_o8, MC6809::LEAYi_o16)) {
+        YAddr = *V;
+        YKnown = true;
+        PendingLDY = nullptr;
+        continue;
+      }
+      if (auto V = recogniseLEA(MI, MC6809::LEAXi_o0, MC6809::LEAXi_o5,
+                                MC6809::LEAXi_o8, MC6809::LEAXi_o16)) {
+        XAddr = *V;
+        XKnown = true;
+        PendingLDX = nullptr;
+        continue;
+      }
+
+      // Step 2: STY / STX into a U/S-relative slot.
+      if (auto SB = recogniseStLd(MI, MC6809::STYi_o0, MC6809::STYi_o5,
+                                  MC6809::STYi_o8, MC6809::STYi_o16)) {
+        if (YKnown)
+          recordSlot({MC6809::IY, SB->first, SB->second}, YAddr);
+        else
+          invalidateSlot({MC6809::IY, SB->first, SB->second});
+        PendingLDY = nullptr;
+        continue;
+      }
+      if (auto SB = recogniseStLd(MI, MC6809::STXi_o0, MC6809::STXi_o5,
+                                  MC6809::STXi_o8, MC6809::STXi_o16)) {
+        if (XKnown)
+          recordSlot({MC6809::IX, SB->first, SB->second}, XAddr);
+        else
+          invalidateSlot({MC6809::IX, SB->first, SB->second});
+        PendingLDX = nullptr;
+        continue;
+      }
+
+      // Step 3: LDY / LDX from a U/S-relative slot.
+      if (auto SB = recogniseStLd(MI, MC6809::LDYi_o0, MC6809::LDYi_o5,
+                                  MC6809::LDYi_o8, MC6809::LDYi_o16)) {
+        SlotKey K{MC6809::IY, SB->first, SB->second};
+        if (auto *V = findSlot(K)) {
+          YAddr = *V;
+          YKnown = true;
+          PendingLDY = &MI;
+        } else {
+          YKnown = false;
+          PendingLDY = nullptr;
+        }
+        continue;
+      }
+      if (auto SB = recogniseStLd(MI, MC6809::LDXi_o0, MC6809::LDXi_o5,
+                                  MC6809::LDXi_o8, MC6809::LDXi_o16)) {
+        SlotKey K{MC6809::IX, SB->first, SB->second};
+        if (auto *V = findSlot(K)) {
+          XAddr = *V;
+          XKnown = true;
+          PendingLDX = &MI;
+        } else {
+          XKnown = false;
+          PendingLDX = nullptr;
+        }
+        continue;
+      }
+
+      // Step 4: indexed-immediate OP whose base is IY (or IX) — the
+      // candidate for direct-addressing rewrite.
+      auto OB = getOffsetAndBaseIdx(MI);
+      if (OB) {
+        Register IdxReg = MI.getOperand(OB->second).getReg();
+        bool DidRewrite = false;
+        AddrValue *Addr = nullptr;
+        MachineInstr **Pending = nullptr;
+        if (IdxReg == MC6809::IY && YKnown) {
+          Addr = &YAddr;
+          Pending = &PendingLDY;
+        } else if (IdxReg == MC6809::IX && XKnown) {
+          Addr = &XAddr;
+          Pending = &PendingLDX;
+        }
+        // CRITICAL: gate the entire fold attempt on PendingLDY/LDX
+        // being live. Without this, the candidate MI (which may
+        // itself be a STY/STX/STD that stores through Y/X — a
+        // mayStore that should invalidate tracked slots via the
+        // bottom-of-loop clear) would be recognised as a fold
+        // candidate, and the conservative-bail would `continue`
+        // and skip the mayStore-clear, leaving stale slot tracking.
+        // The varargs codegen-varargs.s test surfaced this exactly:
+        // an `sty ,x` with stale XKnown was treated as a Step-4
+        // candidate, the bail-`continue` skipped the slot-clear,
+        // and a later `ldy 21,u; ldd ,y` mis-folded using stale
+        // tracking that should have been invalidated.
+        bool HavePending = (Addr == &YAddr ? PendingLDY : PendingLDX) != nullptr;
+        if (Addr && HavePending) {
+          int64_t NewOff = Addr->Offset + OB->first;
+          unsigned O16 = getO16Form(MI.getOpcode());
+          if (O16 != 0 && isInt<16>(NewOff)) {
+            // Self-guard: this transform must NEVER enlarge code. At
+            // -O0, Class 1 (offset relaxation) doesn't run, so naively
+            // emitting the _o16 form would grow the encoding (e.g.
+            // _o5 was 2 bytes, _o16 is 4). We use the same helper
+            // Class 1 uses to pick the narrowest valid form for
+            // NewOff right here. If after narrowing the new MI is
+            // strictly larger than the old one — AND we're not also
+            // deleting a PendingLDY — bail.
+            auto [NarrowOpc, NarrowLen] =
+                TII->getRelaxedIdxOpcode(O16, NewOff);
+            if (NarrowOpc == 0)
+              NarrowOpc = O16;  // Fall back if relax helper says no.
+            // Conservative: only fold when we'll delete a PendingLDY.
+            // That's the canonical bug-#176 pattern from the body
+            // (`leay 18,u; sty 34,u; ldy 34,u; std ,y` — LDY is
+            // PendingLDY) and is guaranteed to save bytes (the LDY's
+            // 3 bytes go away). The "YKnown is set from a prior
+            // LEAY but no LDY immediately precedes" case is more
+            // subtle: rewriting `OP <off>,Y` → `OP <newoff>,U/S`
+            // changes the post-byte from 1 byte (5-bit signed) to
+            // potentially 3 bytes (16-bit signed) without an
+            // accompanying LDY removal — net code growth at -O0
+            // where Class 1 doesn't run to narrow. Foregoing this
+            // case is conservative; with NarrowOpc selecting the
+            // smallest valid form we COULD allow it when NarrowLen
+            // <= original-post-byte-len, but we don't have a clean
+            // way to query the original post-byte length here. Leave
+            // the optimization on the table for a follow-up.
+            // Rewrite by mutating the existing operands rather than
+            // rebuilding. _o0 form has only the base register as
+            // explicit operand 0; _o5/_o8/_o16 forms have (imm, base)
+            // as explicit operands 0 and 1. After rewrite the layout
+            // matches NarrowOpc's expected operand shape.
+            if (OB->second == 0) {
+              // Was _o0 (1 explicit operand at index 0 = base).
+              // For _o0 narrowing target: just mutate base. For _oN
+              // (N>0) narrowing target: convert operand 0 to imm,
+              // insert new base at index 1.
+              if (NarrowLen == 0) {
+                MI.getOperand(0).setReg(Addr->IndexBase);
+                MI.setDesc(TII->get(NarrowOpc));
+              } else {
+                MI.getOperand(0).ChangeToImmediate(NewOff);
+                MI.setDesc(TII->get(NarrowOpc));
+                MI.insert(MI.operands().begin() + 1,
+                          MachineOperand::CreateReg(Addr->IndexBase,
+                                                    /*IsDef=*/false));
+              }
+            } else {
+              // Was _o5/_o8/_o16: (imm at 0, base at 1).
+              if (NarrowLen == 0) {
+                // Narrowing to _o0 — drop the imm operand, keep base.
+                MI.removeOperand(0);
+                MI.getOperand(0).setReg(Addr->IndexBase);
+                MI.setDesc(TII->get(NarrowOpc));
+              } else {
+                MI.getOperand(0).setImm(NewOff);
+                MI.getOperand(1).setReg(Addr->IndexBase);
+                MI.setDesc(TII->get(NarrowOpc));
+              }
+            }
+            // Drop the now-redundant LDY/LDX (PendingLDY/X is non-null
+            // by the entry guard).
+            (*Pending)->eraseFromParent();
+            *Pending = nullptr;
+            ++NumLEAPointerSpillFolded;
+            Changed = true;
+            DidRewrite = true;
+          }
+        }
+        // Whether or not we rewrote, fall through to the def-of-Y/X
+        // handler below. CRITICAL: when we DID rewrite, the new MI
+        // may itself define Y/X (e.g. we rewrote `ldy ,y` into
+        // `ldy <off>,u` — the new instruction loads Y from memory,
+        // so YKnown must be cleared). If we ALSO `continue`d here,
+        // YKnown would stay stale and the next fold would mis-use
+        // the old YAddr (this exact bug surfaced as a codegen-add64
+        // miscompile during this session's first attempt).
+      }
+
+      // Any other def of IY/IX/SU/SS clears our tracking. Defs of the
+      // spill data reg (IY for STY-tracked slots, etc.) are already
+      // covered by re-recording in steps 2/3.
+      bool ClearedY = false, ClearedX = false;
+      for (const MachineOperand &MO : MI.operands()) {
+        if (!MO.isReg() || !MO.isDef() || !MO.getReg().isPhysical())
+          continue;
+        Register R = MO.getReg();
+        if (TRI->regsOverlap(R, MC6809::IY) && !ClearedY) {
+          YKnown = false;
+          PendingLDY = nullptr;
+          ClearedY = true;
+        }
+        if (TRI->regsOverlap(R, MC6809::IX) && !ClearedX) {
+          XKnown = false;
+          PendingLDX = nullptr;
+          ClearedX = true;
+        }
+        if (TRI->regsOverlap(R, MC6809::SU) ||
+            TRI->regsOverlap(R, MC6809::SS)) {
+          invalidateBase(R);
+        }
+      }
+      // Range-aware mayStore invalidation. Stores to U/S with a known
+      // offset only alias slots whose [off, off+slotLen) range overlaps
+      // the store's [storeOff, storeOff+storeLen) range. Stores via a
+      // dynamic base (X/Y holding an unknown pointer) might alias any
+      // U/S slot, so they invalidate everything.
+      if (MI.mayStore()) {
+        // Look up the store's data length by opcode. If we don't
+        // recognise it, fall back to clear-all (safe).
+        auto storeBytes = [](unsigned Opc) -> int {
+          switch (Opc) {
+          case MC6809::STAi_o0: case MC6809::STAi_o5:
+          case MC6809::STAi_o8: case MC6809::STAi_o16:
+          case MC6809::STBi_o0: case MC6809::STBi_o5:
+          case MC6809::STBi_o8: case MC6809::STBi_o16:
+          case MC6809::STEi_o0: case MC6809::STEi_o5:
+          case MC6809::STEi_o8: case MC6809::STEi_o16:
+          case MC6809::STFi_o0: case MC6809::STFi_o5:
+          case MC6809::STFi_o8: case MC6809::STFi_o16:
+            return 1;
+          case MC6809::STDi_o0: case MC6809::STDi_o5:
+          case MC6809::STDi_o8: case MC6809::STDi_o16:
+          case MC6809::STWi_o0: case MC6809::STWi_o5:
+          case MC6809::STWi_o8: case MC6809::STWi_o16:
+          case MC6809::STXi_o0: case MC6809::STXi_o5:
+          case MC6809::STXi_o8: case MC6809::STXi_o16:
+          case MC6809::STYi_o0: case MC6809::STYi_o5:
+          case MC6809::STYi_o8: case MC6809::STYi_o16:
+          case MC6809::STUi_o0: case MC6809::STUi_o5:
+          case MC6809::STUi_o8: case MC6809::STUi_o16:
+            return 2;
+          case MC6809::STQi_o0: case MC6809::STQi_o5:
+          case MC6809::STQi_o8: case MC6809::STQi_o16:
+            return 4;
+          default:
+            return -1;  // Unknown — caller treats as clear-all.
+          }
+        };
+        // Slot data length: IY/IX always 2 bytes (we only track
+        // those today).
+        constexpr int SlotLen = 2;
+
+        int Bytes = storeBytes(MI.getOpcode());
+        auto SOB = getOffsetAndBaseIdx(MI);
+        if (Bytes < 0 || !SOB) {
+          // Unknown shape — be safe.
+          Slots.clear();
+        } else {
+          Register StoreBase = MI.getOperand(SOB->second).getReg();
+          int64_t StoreOff = SOB->first;
+          if (StoreBase != MC6809::SU && StoreBase != MC6809::SS) {
+            // Dynamic base — any U/S slot could alias.
+            Slots.clear();
+          } else {
+            int64_t StoreLo = StoreOff;
+            int64_t StoreHi = StoreOff + Bytes;  // exclusive
+            Slots.erase(
+                std::remove_if(
+                    Slots.begin(), Slots.end(),
+                    [&](const std::pair<SlotKey, AddrValue> &P) {
+                      // Different bases are independent address spaces
+                      // (U vs S). Per project_codegen_audit, we never
+                      // mix U/S in a single function frame, so this
+                      // is safe.
+                      if (P.first.Base != StoreBase)
+                        return false;
+                      int64_t SlotLo = P.first.Offset;
+                      int64_t SlotHi = P.first.Offset + SlotLen;
+                      // Overlap iff StoreLo < SlotHi && SlotLo < StoreHi.
+                      return StoreLo < SlotHi && SlotLo < StoreHi;
+                    }),
+                Slots.end());
+          }
+        }
+      }
+      // Reset pending-delete markers — only the immediately-following
+      // MI gets the chance to consume them.
+      // (PendingLDY/X above may still be set because steps 2/3
+      // consumed/cleared them; only intermediate non-LD MIs reach here.
+      // If we got here without hitting step 4's rewrite path, the
+      // pending LDY/X is stale.)
+      PendingLDY = nullptr;
+      PendingLDX = nullptr;
+    }
   }
   return Changed;
 }
