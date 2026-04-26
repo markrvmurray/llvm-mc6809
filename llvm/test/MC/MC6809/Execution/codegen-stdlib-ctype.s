@@ -1,3 +1,13 @@
+; This test runs `Inputs/codegen-stdlib-ctype.ll` end-to-end on USim
+; with the harness in `Inputs/harness-stdlib-ctype.c`. Among other
+; things, it exercises `test_atoi_neg` — the historical repro for
+; bugs #49 / #159 / #166 (silent PHI-D-clobber across an i8 byte
+; load + i8 compare). If `test_atoi_neg("-3")` returns anything
+; other than -3, that PHI-D-clobber concern has reappeared. The
+; codegen-shape-level sentinel for the same concern is
+; `test/CodeGen/MC6809/cmp_imm_byte_load_phi.ll` — keep both in
+; sync if you ever need to refactor either.
+;
 ; RUN: llc -global-isel -global-isel-abort=1 -O0 -mtriple=mc6809 \
 ; RUN:   %S/Inputs/codegen-stdlib-ctype.ll -o %t-raw.s 2>/dev/null
 ; RUN: grep -v '\.directpage' %t-raw.s > %t-funcs.s
