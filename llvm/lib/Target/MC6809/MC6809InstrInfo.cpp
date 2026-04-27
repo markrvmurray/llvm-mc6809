@@ -4043,28 +4043,21 @@ void MC6809InstrInfo::expandAddReg(MachineIRBuilder &Builder, MachineInstr &MI) 
 // has 5 operands and op4 IS its src2 — the bug came from copying
 // the Use-variant code without adjusting the index. Fixed.
 void MC6809InstrInfo::expandAddSetCarryReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  assert(MI.getOperand(0).getReg() == MI.getOperand(2).getReg() && "Dest and Source must be same for AddSetCarryReg");
+  // Bug #186 v5: pseudo operand layout shifted (no carry-out at op 1).
+  // New layout: dst (op 0), src tied (op 1), src2 (op 2).
+  // CC.C/V write is implicit via Defs=[NZ,V,C].
+  assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg() && "Dest and Source must be same for AddSetCarryReg");
 
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   if (STI.has6309()) {
-    // 6309 has a true register-to-register add: ADDR. The pseudo
-    // operands map directly: dst, src (tied), src2 → ADDR dst, src, src2.
-    // Carry-out is implicit on the carry def operand.
     Builder.buildInstr(MC6809::ADDRp)
         .addDef(MI.getOperand(0).getReg())                         // dst
-        .addDef(MI.getOperand(1).getReg(), RegState::Implicit)     // carry out
-        .addUse(MI.getOperand(2).getReg())                         // src
-        .addUse(MI.getOperand(3).getReg());                        // src2  (op3, NOT op4)
+        .addUse(MI.getOperand(1).getReg())                         // src
+        .addUse(MI.getOperand(2).getReg());                        // src2
   } else {
-    // Plain 6809: no register-register add. Route through the
-    // emit6809RegPairFromMem helper which loads LHS into D and either
-    // reads RHS from its U-relative spill slot or pushes RHS to S
-    // and reads from there. ADDB/ADCA chain handles the carry between
-    // the low and high bytes of the i16 add and produces a final
-    // carry-out for the upper half of an i32 add to consume.
     emit6809RegPairFromMem(Builder,
                            MI.getOperand(0).getReg(),  // LHS = dst (== src by tie)
-                           MI.getOperand(3).getReg(),  // RHS = src2  (op3)
+                           MI.getOperand(2).getReg(),  // RHS = src2
                            MC6809::ADDBi_o8, MC6809::ADCAi_o8,
                            MC6809::ADDBi_o5, MC6809::ADCAi_o0,
                            MC6809::ADDBi_o16, MC6809::ADCAi_o16);
@@ -4095,15 +4088,20 @@ static void getByteOpcodes(Register LHS,
   Opc_o16 = UseA ? OpcA_o16 : OpcB_o16;
 }
 
+// Bug #186 v5: all SetCarry/SetCarryUse expansions migrate to the new
+// operand layout (no explicit carry operand). Layouts:
+//   SetCarry:    op 0 = dst, op 1 = src tied, op 2 = src2
+//   SetCarryUse: op 0 = dst, op 1 = src tied, op 2 = src2  (carry-in
+//                read implicitly via Uses=[C])
+// CC.C/V write is implicit via Defs=[NZ,V,C].
 void MC6809InstrInfo::expandAddSetCarryByteReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  assert(MI.getOperand(0).getReg() == MI.getOperand(2).getReg());
+  assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg());
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   if (STI.has6309()) {
     Builder.buildInstr(MC6809::ADDRp)
         .addDef(MI.getOperand(0).getReg())
-        .addDef(MI.getOperand(1).getReg(), RegState::Implicit)
-        .addUse(MI.getOperand(2).getReg())
-        .addUse(MI.getOperand(3).getReg());
+        .addUse(MI.getOperand(1).getReg())
+        .addUse(MI.getOperand(2).getReg());
   } else {
     unsigned Opc_o8, Opc_o5, Opc_o16;
     getByteOpcodes(MI.getOperand(0).getReg(),
@@ -4112,21 +4110,19 @@ void MC6809InstrInfo::expandAddSetCarryByteReg(MachineIRBuilder &Builder, Machin
                    MC6809::ADDAi_o16, MC6809::ADDBi_o16,
                    Opc_o8, Opc_o5, Opc_o16);
     emit6809RegByteFromMem(Builder, MI.getOperand(0).getReg(),
-                           MI.getOperand(3).getReg(), Opc_o8, Opc_o5, Opc_o16);
+                           MI.getOperand(2).getReg(), Opc_o8, Opc_o5, Opc_o16);
   }
   MI.eraseFromParent();
 }
 
 void MC6809InstrInfo::expandAddSetCarryUseByteReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  assert(MI.getOperand(0).getReg() == MI.getOperand(2).getReg());
+  assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg());
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   if (STI.has6309()) {
     Builder.buildInstr(MC6809::ADCRp)
         .addDef(MI.getOperand(0).getReg())
-        .addDef(MI.getOperand(1).getReg(), RegState::Implicit)
-        .addUse(MI.getOperand(2).getReg())
-        .addUse(MI.getOperand(3).getReg(), RegState::Implicit)
-        .addUse(MI.getOperand(4).getReg());
+        .addUse(MI.getOperand(1).getReg())
+        .addUse(MI.getOperand(2).getReg());
   } else {
     unsigned Opc_o8, Opc_o5, Opc_o16;
     getByteOpcodes(MI.getOperand(0).getReg(),
@@ -4135,20 +4131,19 @@ void MC6809InstrInfo::expandAddSetCarryUseByteReg(MachineIRBuilder &Builder, Mac
                    MC6809::ADCAi_o16, MC6809::ADCBi_o16,
                    Opc_o8, Opc_o5, Opc_o16);
     emit6809RegByteFromMem(Builder, MI.getOperand(0).getReg(),
-                           MI.getOperand(4).getReg(), Opc_o8, Opc_o5, Opc_o16);
+                           MI.getOperand(2).getReg(), Opc_o8, Opc_o5, Opc_o16);
   }
   MI.eraseFromParent();
 }
 
 void MC6809InstrInfo::expandSubSetCarryByteReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  assert(MI.getOperand(0).getReg() == MI.getOperand(2).getReg());
+  assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg());
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   if (STI.has6309()) {
     Builder.buildInstr(MC6809::SUBRp)
         .addDef(MI.getOperand(0).getReg())
-        .addDef(MI.getOperand(1).getReg(), RegState::Implicit)
-        .addUse(MI.getOperand(2).getReg())
-        .addUse(MI.getOperand(3).getReg());
+        .addUse(MI.getOperand(1).getReg())
+        .addUse(MI.getOperand(2).getReg());
   } else {
     unsigned Opc_o8, Opc_o5, Opc_o16;
     getByteOpcodes(MI.getOperand(0).getReg(),
@@ -4157,20 +4152,18 @@ void MC6809InstrInfo::expandSubSetCarryByteReg(MachineIRBuilder &Builder, Machin
                    MC6809::SUBAi_o16, MC6809::SUBBi_o16,
                    Opc_o8, Opc_o5, Opc_o16);
     emit6809RegByteFromMem(Builder, MI.getOperand(0).getReg(),
-                           MI.getOperand(3).getReg(), Opc_o8, Opc_o5, Opc_o16);
+                           MI.getOperand(2).getReg(), Opc_o8, Opc_o5, Opc_o16);
   }
   MI.eraseFromParent();
 }
 
 void MC6809InstrInfo::expandSubSetCarryUseByteReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  assert(MI.getOperand(0).getReg() == MI.getOperand(2).getReg());
+  assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg());
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   if (STI.has6309()) {
     Builder.buildInstr(MC6809::SBCRp)
         .addDef(MI.getOperand(0).getReg())
-        .addDef(MI.getOperand(1).getReg(), RegState::Implicit)
-        .addUse(MI.getOperand(4).getReg())
-        .addUse(MI.getOperand(3).getReg(), RegState::Implicit)
+        .addUse(MI.getOperand(1).getReg())
         .addUse(MI.getOperand(2).getReg());
   } else {
     unsigned Opc_o8, Opc_o5, Opc_o16;
@@ -4180,7 +4173,7 @@ void MC6809InstrInfo::expandSubSetCarryUseByteReg(MachineIRBuilder &Builder, Mac
                    MC6809::SBCAi_o16, MC6809::SBCBi_o16,
                    Opc_o8, Opc_o5, Opc_o16);
     emit6809RegByteFromMem(Builder, MI.getOperand(0).getReg(),
-                           MI.getOperand(4).getReg(), Opc_o8, Opc_o5, Opc_o16);
+                           MI.getOperand(2).getReg(), Opc_o8, Opc_o5, Opc_o16);
   }
   MI.eraseFromParent();
 }
@@ -4462,20 +4455,19 @@ static void emit6809RegPairFromMem(MachineIRBuilder &Builder,
 }
 
 void MC6809InstrInfo::expandAddSetCarryUseReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  assert(MI.getOperand(0).getReg() == MI.getOperand(2).getReg() && "Dest and Source 2 must be same for AddSetCarryUseReg");
-  assert(MI.getOperand(1).getReg() == MI.getOperand(3).getReg() && "Carry and Carry_in must be same for AddSetCarryUseReg");
+  // Bug #186 v5: 3-op layout (no carry def/use operand).
+  assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg() && "Dest and Source must be same for AddSetCarryUseReg");
 
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   if (STI.has6309()) {
+    // Bug #186 v5: 3-op layout, carry-in implicit via Uses=[C].
     Builder.buildInstr(MC6809::ADCRp)
         .addDef(MI.getOperand(0).getReg())
-        .addDef(MI.getOperand(1).getReg(), RegState::Implicit)
-        .addUse(MI.getOperand(2).getReg())
-        .addUse(MI.getOperand(3).getReg(), RegState::Implicit)
-        .addUse(MI.getOperand(4).getReg());
+        .addUse(MI.getOperand(1).getReg())
+        .addUse(MI.getOperand(2).getReg());
   } else {
     emit6809RegPairFromMem(Builder,
-                           MI.getOperand(0).getReg(), MI.getOperand(4).getReg(),
+                           MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
                            MC6809::ADCBi_o8, MC6809::ADCAi_o8,
                            MC6809::ADCBi_o5, MC6809::ADCAi_o0,
                            MC6809::ADCBi_o16, MC6809::ADCAi_o16);
@@ -4534,22 +4526,19 @@ void MC6809InstrInfo::expandSubByteReg(MachineIRBuilder &Builder, MachineInstr &
 // above (4 operands: dst, carry, src(==dst), src2). RHS lives at
 // op3, NOT op4. See expandAddSetCarryReg for the full write-up.
 void MC6809InstrInfo::expandSubSetCarryReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  assert(MI.getOperand(0).getReg() == MI.getOperand(2).getReg() && "Dest and Source must be same for SubSetCarryReg");
+  // Bug #186 v5: 3-op layout (no carry def operand).
+  assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg() && "Dest and Source must be same for SubSetCarryReg");
 
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   if (STI.has6309()) {
-    // 6309 register-register subtract: SUBR dst, src, src2.
     Builder.buildInstr(MC6809::SUBRp)
-        .addDef(MI.getOperand(0).getReg())                         // dst
-        .addDef(MI.getOperand(1).getReg(), RegState::Implicit)     // borrow out
-        .addUse(MI.getOperand(2).getReg())                         // src
-        .addUse(MI.getOperand(3).getReg());                        // src2  (op3, NOT op4)
+        .addDef(MI.getOperand(0).getReg())
+        .addUse(MI.getOperand(1).getReg())
+        .addUse(MI.getOperand(2).getReg());
   } else {
-    // Plain 6809: route through the byte-pair helper. SUBB/SBCA
-    // chain handles the borrow propagation.
     emit6809RegPairFromMem(Builder,
-                           MI.getOperand(0).getReg(),  // LHS = dst (== src by tie)
-                           MI.getOperand(3).getReg(),  // RHS = src2  (op3)
+                           MI.getOperand(0).getReg(),
+                           MI.getOperand(2).getReg(),
                            MC6809::SUBBi_o8, MC6809::SBCAi_o8,
                            MC6809::SUBBi_o5, MC6809::SBCAi_o0,
                            MC6809::SUBBi_o16, MC6809::SBCAi_o16);
@@ -4558,20 +4547,18 @@ void MC6809InstrInfo::expandSubSetCarryReg(MachineIRBuilder &Builder, MachineIns
 }
 
 void MC6809InstrInfo::expandSubSetCarryUseReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  assert(MI.getOperand(0).getReg() == MI.getOperand(2).getReg() && "Dest and Source must be same for SubSetCarryUseReg");
-  assert(MI.getOperand(1).getReg() == MI.getOperand(3).getReg() && "Carry and Carry_in must be same for SubSetCarryUseReg");
+  // Bug #186 v5: 3-op layout (no carry def/use operand).
+  assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg() && "Dest and Source must be same for SubSetCarryUseReg");
 
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   if (STI.has6309()) {
     Builder.buildInstr(MC6809::SBCRp)
         .addDef(MI.getOperand(0).getReg())
-        .addDef(MI.getOperand(1).getReg(), RegState::Implicit)
-        .addUse(MI.getOperand(4).getReg())
-        .addUse(MI.getOperand(3).getReg(), RegState::Implicit)
+        .addUse(MI.getOperand(1).getReg())
         .addUse(MI.getOperand(2).getReg());
   } else {
     emit6809RegPairFromMem(Builder,
-                           MI.getOperand(0).getReg(), MI.getOperand(4).getReg(),
+                           MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
                            MC6809::SBCBi_o8, MC6809::SBCAi_o8,
                            MC6809::SBCBi_o5, MC6809::SBCAi_o0,
                            MC6809::SBCBi_o16, MC6809::SBCAi_o16);

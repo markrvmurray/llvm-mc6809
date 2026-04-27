@@ -278,45 +278,53 @@ defm Sub_i16 : MC6809Arithmetic<i16, ACC16, ACC16>;
 // complained at -O0 about $c not being live-in to bb.13. Reverted
 // the Uses=[C] half.
 
-class MC6809ArithmeticBaseCarry<RegisterClass dst, RegisterClass carry, RegisterClass src, dag operand> : MC6809LogicalInstr {
+// Bug #186 v5 (2026-04-27): drop the explicit BIT1 carry-out operand.
+// The IR-level carry vreg is tracked SELECTOR-side via
+// `CCFlagChainTracker` in MC6809InstructionSelector.cpp; the pseudo's
+// CC.C write is declared via Defs=[NZ, V, C] only. Mirrors X86's
+// EFLAGS pattern (implicit-only flag tracking). Same base class still
+// shared with SetOverflow because the hardware expansion is identical
+// — only the IR vreg's semantic flag (C vs V) differs, and the
+// tracker records that.
+class MC6809ArithmeticBaseCarry<RegisterClass dst, RegisterClass src, dag operand> : MC6809LogicalInstr {
   let Defs = [NZ, V, C];
   // bug #57: scheduling barrier — see the long comment above.
   let hasSideEffects = 1;
-  dag OutOperandList = (outs dst:$dst, carry:$carry);
+  dag OutOperandList = (outs dst:$dst);
   dag InOperandList = !con((ins src:$src), operand);
   let Constraints = "$dst = $src";
 }
 
-multiclass MC6809ArithmeticCarry<ValueType vtype, RegisterClass dst, RegisterClass carry, RegisterClass src> {
+multiclass MC6809ArithmeticCarry<ValueType vtype, RegisterClass dst, RegisterClass src> {
   let isAsCheapAsAMove = true in {
-    def _Imm : MC6809ArithmeticBaseCarry<dst, carry, src, (ins !cast<Operand>(vtype#"imm"):$val)>;
+    def _Imm : MC6809ArithmeticBaseCarry<dst, src, (ins !cast<Operand>(vtype#"imm"):$val)>;
   }
   let mayLoad = true in {
-    def _Mem : MC6809ArithmeticBaseCarry<dst, carry, src, (ins INDEX16:$idx, unknown:$offset)>;
-    def _Pull : MC6809ArithmeticBaseCarry<dst, carry, src, (ins STACK16:$idx)>;
+    def _Mem : MC6809ArithmeticBaseCarry<dst, src, (ins INDEX16:$idx, unknown:$offset)>;
+    def _Pull : MC6809ArithmeticBaseCarry<dst, src, (ins STACK16:$idx)>;
     let Predicates = [IsHD6309] in {
-      def _Reg : MC6809ArithmeticBaseCarry<dst, carry, src, (ins src:$src2)>;
+      def _Reg : MC6809ArithmeticBaseCarry<dst, src, (ins src:$src2)>;
     }
   }
 }
 
 let isAdd = true in {
-  defm AddSetCarry_i8 : MC6809ArithmeticCarry<i8, ACC8, BIT1, ACC8>;
-  defm AddSetCarry_i16 : MC6809ArithmeticCarry<i16, ACC16, BIT1, ACC16>;
+  defm AddSetCarry_i8 : MC6809ArithmeticCarry<i8, ACC8, ACC8>;
+  defm AddSetCarry_i16 : MC6809ArithmeticCarry<i16, ACC16, ACC16>;
 }
-defm SubSetCarry_i8 : MC6809ArithmeticCarry<i8, ACC8, BIT1, ACC8>;
-defm SubSetCarry_i16 : MC6809ArithmeticCarry<i16, ACC16, BIT1, ACC16>;
+defm SubSetCarry_i8 : MC6809ArithmeticCarry<i8, ACC8, ACC8>;
+defm SubSetCarry_i16 : MC6809ArithmeticCarry<i16, ACC16, ACC16>;
 
 // Bug #147: parallel pseudos for *signed* G_SADDO / G_SSUBO. Same machine
-// expansion as SetCarry (same ADD/SUB/ADC/SBC instructions), but the s1
-// result represents the V flag (signed overflow) rather than C (carry).
-// selectBrCond dispatches on the pseudo opcode to emit BVS instead of BCS.
+// expansion as SetCarry (same ADD/SUB/ADC/SBC instructions); the IR
+// vreg's value semantically represents the V flag rather than C. The
+// selector's CCFlagChainTracker records `Flag = MC6809::V` for these.
 let isAdd = true in {
-  defm AddSetOverflow_i8  : MC6809ArithmeticCarry<i8,  ACC8,  BIT1, ACC8>;
-  defm AddSetOverflow_i16 : MC6809ArithmeticCarry<i16, ACC16, BIT1, ACC16>;
+  defm AddSetOverflow_i8  : MC6809ArithmeticCarry<i8,  ACC8,  ACC8>;
+  defm AddSetOverflow_i16 : MC6809ArithmeticCarry<i16, ACC16, ACC16>;
 }
-defm SubSetOverflow_i8  : MC6809ArithmeticCarry<i8,  ACC8,  BIT1, ACC8>;
-defm SubSetOverflow_i16 : MC6809ArithmeticCarry<i16, ACC16, BIT1, ACC16>;
+defm SubSetOverflow_i8  : MC6809ArithmeticCarry<i8,  ACC8,  ACC8>;
+defm SubSetOverflow_i16 : MC6809ArithmeticCarry<i16, ACC16, ACC16>;
 
 // --- Carry-using variants ---
 //
@@ -329,23 +337,50 @@ defm SubSetOverflow_i16 : MC6809ArithmeticCarry<i16, ACC16, BIT1, ACC16>;
 // which it isn't (the BIT1 phantom is used precisely because $c
 // doesn't survive cross-BB transitions).
 
-class MC6809ArithmeticBaseCarryUse<RegisterClass dst, RegisterClass src, dag operand> : MC6809LogicalInstr {
+// Bug #186 v5 (2026-04-27): drop explicit BIT1 carry-in/out operands.
+// Reads CC.C (or CC.V) implicitly via Uses=[C] / Uses=[V]. Selector
+// emits the consumer adjacent to its producer (same BB) or inserts
+// byte-intermediate via MaterializeCarryToByte_i8 when crossing BBs
+// or CC clobbers. SPLIT base classes — SetCarryUse needs Uses=[C],
+// SetOverflowUse needs Uses=[V].
+class MC6809ArithmeticBaseSetCarryUse<RegisterClass dst, RegisterClass src, dag operand> : MC6809LogicalInstr {
   let Defs = [NZ, V, C];
-  // bug #57: scheduling barrier — see MC6809ArithmeticBaseCarry above.
+  let Uses = [C];
   let hasSideEffects = 1;
-  dag OutOperandList = (outs dst:$dst, BIT1:$carry);
-  dag InOperandList = !con((ins src:$src, BIT1:$carry_in), operand);
-  let Constraints = "$dst = $src, $carry = $carry_in";
+  dag OutOperandList = (outs dst:$dst);
+  dag InOperandList = !con((ins src:$src), operand);
+  let Constraints = "$dst = $src";
+}
+
+class MC6809ArithmeticBaseSetOverflowUse<RegisterClass dst, RegisterClass src, dag operand> : MC6809LogicalInstr {
+  let Defs = [NZ, V, C];
+  let Uses = [V];
+  let hasSideEffects = 1;
+  dag OutOperandList = (outs dst:$dst);
+  dag InOperandList = !con((ins src:$src), operand);
+  let Constraints = "$dst = $src";
 }
 
 multiclass MC6809ArithmeticCarryUse<ValueType vtype, RegisterClass dst, RegisterClass src> {
   let isAsCheapAsAMove = true in {
-    def _Imm : MC6809ArithmeticBaseCarryUse<dst, src, (ins !cast<Operand>(vtype#"imm"):$val)>;
+    def _Imm : MC6809ArithmeticBaseSetCarryUse<dst, src, (ins !cast<Operand>(vtype#"imm"):$val)>;
   }
   let mayLoad = true in {
-    def _Mem : MC6809ArithmeticBaseCarryUse<dst, src, (ins INDEX16:$idx, unknown:$offset)>;
+    def _Mem : MC6809ArithmeticBaseSetCarryUse<dst, src, (ins INDEX16:$idx, unknown:$offset)>;
     let Predicates = [IsHD6309] in {
-      def _Reg : MC6809ArithmeticBaseCarryUse<dst, src, (ins src:$src2)>;
+      def _Reg : MC6809ArithmeticBaseSetCarryUse<dst, src, (ins src:$src2)>;
+    }
+  }
+}
+
+multiclass MC6809ArithmeticOverflowUse<ValueType vtype, RegisterClass dst, RegisterClass src> {
+  let isAsCheapAsAMove = true in {
+    def _Imm : MC6809ArithmeticBaseSetOverflowUse<dst, src, (ins !cast<Operand>(vtype#"imm"):$val)>;
+  }
+  let mayLoad = true in {
+    def _Mem : MC6809ArithmeticBaseSetOverflowUse<dst, src, (ins INDEX16:$idx, unknown:$offset)>;
+    let Predicates = [IsHD6309] in {
+      def _Reg : MC6809ArithmeticBaseSetOverflowUse<dst, src, (ins src:$src2)>;
     }
   }
 }
@@ -359,16 +394,13 @@ defm SubSetCarryUse_i8 : MC6809ArithmeticCarryUse<i8, ACC8, ACC8>;
 defm SubSetCarryUse_i16 : MC6809ArithmeticCarryUse<i16, ACC16, ACC16>;
 
 // Bug #147: chain-extend variants for *signed* G_SADDE / G_SSUBE.
-// Same MC expansion as the SetCarryUse siblings (same ADCA/ADCB/SBCA/SBCB);
-// the s1 carry-out represents the V (signed-overflow) flag rather than C.
-// Used as the FINAL stage of an i16+ signed overflow chain whose tail
-// carries the overall signed-overflow result.
+// Uses=[V] on the *Use base class.
 let isAdd = true in {
-  defm AddSetOverflowUse_i8  : MC6809ArithmeticCarryUse<i8,  ACC8,  ACC8>;
-  defm AddSetOverflowUse_i16 : MC6809ArithmeticCarryUse<i16, ACC16, ACC16>;
+  defm AddSetOverflowUse_i8  : MC6809ArithmeticOverflowUse<i8,  ACC8,  ACC8>;
+  defm AddSetOverflowUse_i16 : MC6809ArithmeticOverflowUse<i16, ACC16, ACC16>;
 }
-defm SubSetOverflowUse_i8  : MC6809ArithmeticCarryUse<i8,  ACC8,  ACC8>;
-defm SubSetOverflowUse_i16 : MC6809ArithmeticCarryUse<i16, ACC16, ACC16>;
+defm SubSetOverflowUse_i8  : MC6809ArithmeticOverflowUse<i8,  ACC8,  ACC8>;
+defm SubSetOverflowUse_i16 : MC6809ArithmeticOverflowUse<i16, ACC16, ACC16>;
 
 // --- Concrete instructions (register-specific, assembler/disassembler) ---
 // Concrete arithmetic instructions (ADDA, ADDB, ADDD, SUBA, SUBB, SUBD, etc.)
