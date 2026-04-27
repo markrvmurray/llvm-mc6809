@@ -4645,7 +4645,38 @@ void MC6809InstrInfo::expandCompareImm(MachineIRBuilder &Builder, MachineInstr &
         }
       }
 
+      // Bug #159: the PSHS/PULS wrap preserves the PRE-load D, but that
+      // means PULS restores SrcReg (= AB or AA) to its pre-load value,
+      // throwing away the ByteLoad's output. If SrcReg is used AFTER the
+      // compare in this MBB (without being redefined), or is live-out
+      // into a successor, we mustn't wrap — the downstream consumer
+      // needs the loaded value, not the saved one. strtol's sign
+      // detection hits this: `cmpb #'+'` in one MBB is followed by
+      // `cmpb #'-'` in the fallthrough successor, both reading B.
+      bool SrcUsedAfter = false;
       if (DDefinedBefore && !SSUsed) {
+        // Scan the rest of the MBB after the compare.
+        for (auto It = std::next(MachineBasicBlock::iterator(MI));
+             It != MBB.end(); ++It) {
+          if (It->readsRegister(SrcReg, /*TRI=*/nullptr)) {
+            SrcUsedAfter = true;
+            break;
+          }
+          if (It->definesRegister(SrcReg, /*TRI=*/nullptr))
+            break;
+        }
+        // Check if SrcReg is live into any successor.
+        if (!SrcUsedAfter) {
+          for (MachineBasicBlock *Succ : MBB.successors()) {
+            if (Succ->isLiveIn(SrcReg)) {
+              SrcUsedAfter = true;
+              break;
+            }
+          }
+        }
+      }
+
+      if (DDefinedBefore && !SSUsed && !SrcUsedAfter) {
         // Insert PSHS D before the byte load.
         MachineIRBuilder PreBuilder(*ByteLoad);
         PreBuilder.buildInstr(MC6809::PSHSs, {}, {Register(MC6809::AD)});
