@@ -216,10 +216,22 @@ class MC6809Subroutine : MC6809LogicalInstr {
 // in landing pads is then the jump offset, not the source value.
 // Bug #127c (2026-04-20): __i_vfprintf's `c` variable was being
 // overwritten by 0xF111 (a jump offset) via a spill cascade.
+//
+// Bug #187 (2026-04-27): explicit `let Size = 10` so BranchRelaxation
+// accounts for the AsmPrinter expansion's true byte length:
+//   ASLB(1) + ROLA(1) + LEAXi_o16PC(4) + LDDi_oD(2) + JMPi_oD(2) = 10
+// Without this, MCID.getSize() returned 0 and getInstSizeInBytes
+// fell back to MaxInstLength (5), under-counting every BJT by 5
+// bytes. BR's block-size accounting then concluded short branches
+// across BJT-containing blocks were in range when they weren't,
+// emitting Bbc that overflowed the PCRel8 fixup at MC encoding
+// time. Surfaced first by vfprintf_s.c at -O2 where a Bbc landed
+// at exactly +128 encoded displacement (one byte over).
 let isBranch = false, isTerminator = true, isBarrier = true in
 def BranchJumpTable : MC6809LogicalInstr {
   let isIndirectBranch = true;
   let Defs = [AA, AB, AD, AQ, IX, NZ, N, Z, V, C];
+  let Size = 10; // ASLB+ROLA+LEAX+LDD+JMP — see MC6809AsmPrinter::emitInstruction
   dag InOperandList = (ins ADc:$idx, unknown:$jti);
 }
 
