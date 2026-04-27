@@ -90,7 +90,14 @@ def mc6809_all_combines : GICombineGroup<[integer_reassoc_combines,
     shl_ashr_to_sext_inreg, neg_and_one_to_sext_inreg, sext_inreg_of_load,
     width_reduction_combines, select_combines,
     known_bits_simplifications, trunc_shift,
-    not_cmp_fold, opt_brcond_by_inverting_cond,
+    not_cmp_fold, /* opt_brcond_by_inverting_cond, */
+    // opt_brcond_by_inverting_cond rewrites `G_BRCOND %c, bb.T; G_BR
+    // bb.F` into `G_BRCOND !%c, bb.F; G_BR bb.T` when bb.T is the
+    // layout-successor — it's a branch-prediction optimisation. On
+    // MC6809 there is no branch predictor, and the inversion introduces
+    // a `G_TRUNC(G_XOR(G_ANYEXT %c, -1))` chain that breaks the
+    // CompareBranch fusion paths in `selectBrCond`. Disabled per
+    // bug #158.
     const_combines, xor_of_and_with_same_reg, ptr_add_with_zero,
     shift_immed_chain, shift_of_shifted_logic_chain, load_or_combine,
     div_rem_to_divrem, funnel_shift_combines, bitreverse_shift, commute_shift,
@@ -113,9 +120,21 @@ def narrow_i16_eq_ne_icmp : GICombineRule<
           [{ return matchNarrowI16EqNeICmp(*${root}, ${matchinfo}); }]),
   (apply [{ Helper.applyBuildFn(*${root}, ${matchinfo}); }])>;
 
+// Bug #158: short-circuit `br i1 (and/or i1 a, b)` into two sequential
+// branches so each G_BRCOND fuses natively with its compare. Placed after
+// narrow_i16_eq_ne_icmp so narrowing gets a chance to produce clean
+// operand-level i16 EQ/NE compares first.
+def brcond_and_or_shortcircuit_matchdata : GIDefMatchData<"MachineInstr *">;
+def brcond_and_or_shortcircuit : GICombineRule<
+  (defs root:$root, brcond_and_or_shortcircuit_matchdata:$matchinfo),
+  (match (wip_match_opcode G_BRCOND):$root,
+          [{ return matchBrCondAndOrShortCircuit(*${root}, ${matchinfo}); }]),
+  (apply [{ applyBrCondAndOrShortCircuit(*${root}, ${matchinfo}); }])>;
+
 def MC6809Combiner : GICombiner<"MC6809CombinerImpl", [
     mc6809_all_combines,
     narrow_i16_eq_ne_icmp,
+    brcond_and_or_shortcircuit,
     // unmerge_high_from_load,
     // unmerge_low_from_load,
     // fold_global_offset,

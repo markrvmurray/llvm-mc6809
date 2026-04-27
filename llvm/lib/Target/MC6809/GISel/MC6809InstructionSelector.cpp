@@ -1022,21 +1022,25 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
       }
     };
 
-    // Immediate-RHS compare→branch fusion, multi-use-tolerant.
+    // Immediate-RHS compare→branch fusion, multi-use-tolerant and
+    // cross-MBB-tolerant.
     //
     // When G_BRCOND's CondDef is a G_ICMP whose RHS is a constant, we
-    // can emit CompareBranch_i{8,16}_Imm EVEN IF the G_ICMP has other
-    // users: duplicating an immediate compare costs a few bytes and no
-    // CPU overhead, and the other users will get their own comparison
-    // from the unselected G_ICMP. This is load-bearing for bug #158's
-    // post-libcall compare — the first user gets fused (no CC-spill
-    // gap), the second user materialises the bool as before.
+    // can emit CompareBranch_i{8,16}_Imm EVEN IF:
+    //   - the G_ICMP has other users (select, etc.) — duplicating an
+    //     immediate compare costs a few bytes and no CPU overhead, and
+    //     the other users will get their own comparison from the
+    //     unselected G_ICMP,
+    //   - the G_ICMP is in a predecessor MBB — we emit a FRESH compare
+    //     at the BRCOND site, so CC surviving from CondDef's MBB is
+    //     irrelevant. The G_ICMP's LHS must still be live into MBB
+    //     which it is by construction (or the BRCOND couldn't consume
+    //     the G_ICMP's result).
     //
-    // ChainAllSingleUse is enforced by the later fusion path because
-    // duplicating a REGISTER-RHS compare would mean re-reading RHS,
-    // which may have been killed. Immediate RHS sidesteps that.
-    if (CondDef && CondDef->getOpcode() == TargetOpcode::G_ICMP &&
-        CondDef->getParent() == MBB) {
+    // Both relaxations are load-bearing for bug #158's post-libcall
+    // compare: the G_ICMP ends up one MBB back and has two consumers
+    // (select for flags masking, and our BRCOND).
+    if (CondDef && CondDef->getOpcode() == TargetOpcode::G_ICMP) {
       auto Pred = (CmpInst::Predicate)CondDef->getOperand(1).getPredicate();
       Register Lhs = CondDef->getOperand(2).getReg();
       Register Rhs = CondDef->getOperand(3).getReg();
