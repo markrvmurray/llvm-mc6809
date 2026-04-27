@@ -2043,6 +2043,29 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     MI.eraseFromParent();
     return true;
   }
+  case MC6809::MaterializeByteToCarry_i8: {
+    // Bug #184 inverse of MaterializeCarryToByte_i8: restore CC.C from a
+    // 0/1 byte that was previously frozen via MaterializeCarryToByte_i8.
+    // Used to preserve a SubSetCarry chain's borrow across a CC-clobbering
+    // region. Single LSRB shifts bit 0 of B into CC.C; B is dead after.
+    //
+    // $src constrained to ABc, so after regalloc $src is always $ab or
+    // an AB-spill; the spill path materialises into $ab via the usual
+    // mechanism, then LSRB.
+    MachineFunction &MF = *MI.getMF();
+    Register SrcReg = MI.getOperand(0).getReg();
+    Register RealSrc = SrcReg;
+    if (needsMaterialization(SrcReg)) {
+      RealSrc = materializeReg(Builder, SrcReg, MF);
+    }
+    assert(RealSrc == MC6809::AB &&
+           "MaterializeByteToCarry_i8 expects ABc-allocated source");
+    // LSRB sets CC.C = (original bit 0 of B) AND clears N, V; sets Z if
+    // result (B>>1) == 0. We only care about CC.C; downstream sub uses it.
+    Builder.buildInstr(MC6809::LSRBa).addDef(MC6809::AB, RegState::Implicit);
+    MI.eraseFromParent();
+    return true;
+  }
   case MC6809::ANYEXT_i8_to_i16: {
     // i8→i16 anyext pseudo. Only the low byte is defined; high byte is
     // don't-care. Emit the low-byte copy (dst's lo-byte sub-physreg ←

@@ -196,3 +196,23 @@ def MaterializeOverflowToByte_i8 : MC6809Pseudo {
   let hasSideEffects = 1;
 }
 
+// Bug #184 inverse of MaterializeCarryToByte_i8: restore CC.C from a 0/1
+// byte that was previously frozen via MaterializeCarryToByte_i8. Used to
+// preserve a SubSetCarry chain's borrow across a CC-clobbering region
+// (e.g. a CompareBranch or any other MI that clobbers C between a
+// SubSetCarry producer and its SubSetCarryUse consumer).
+//
+// $src constrained to ABc so the expansion is always LSRB on $ab —
+// LSRB shifts bit 0 of B into CC.C and zeroes B (we don't care, B's value
+// is consumed here).
+//
+// Defs=[NZ,V,C] + hasSideEffects=1: same scheduling barrier as the
+// to-byte sibling — pin the restoration to its MIR position so no
+// further C-clobber slips between this and the consuming SubSetCarryUse.
+def MaterializeByteToCarry_i8 : MC6809Pseudo {
+  dag OutOperandList = (outs);
+  dag InOperandList  = (ins ABc:$src);
+  let Defs = [NZ, V, C];
+  let hasSideEffects = 1;
+}
+

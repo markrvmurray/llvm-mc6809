@@ -221,6 +221,79 @@ getPhantomBit1Flag(Register SrcReg, const MachineRegisterInfo &MRI) {
   return std::nullopt;
 }
 
+/// Bug #184: when an SubSetCarryUse / AddSetCarryUse consumer's carry-in
+/// is a phantom-BIT1 whose producer lives in a DIFFERENT basic block, any
+/// CC.C-clobbering MI between producer and consumer (CompareBranch, Test,
+/// CMP, byte loads, ...) silently breaks the borrow chain. Regalloc tracks
+/// the carry as a BIT1 vreg but its physical realisation is CC.C — and
+/// the existing pseudos for CC-clobbering MIs don't currently declare C
+/// as a Def, so regalloc thinks CC.C survives.
+///
+/// The fix mirrors the bug #152 phase 3 phantom-BIT1 design rule
+/// (`feedback_phantom_bit1_materialise_at_producer.md`): freeze CC.C
+/// into a byte right after the producer, restore it right before the
+/// consumer. The byte vreg crosses blocks naturally as a regular
+/// ABc value.
+///
+/// Same-block case is left alone: SubSetCarry pseudos are typically
+/// adjacent within a block and no CC-clobbering MI gets interposed by
+/// scheduling (their `hasSideEffects = 1` pins them). The intra-block
+/// gap is technically a tech-debt window but no current case exposes it.
+/// Filed separately as the BIT1↔CARRY redesign bug.
+static void
+ensureCarryAcrossBlocks(MachineInstr &Consumer, Register CarryIn,
+                        MachineRegisterInfo &MRI, const TargetInstrInfo &TII,
+                        const TargetRegisterInfo &TRI,
+                        const RegisterBankInfo &RBI) {
+  auto Flag = getPhantomBit1Flag(CarryIn, MRI);
+  if (!Flag || *Flag != MC6809::C)
+    return;
+
+  // Walk back through COPY / G_FREEZE to find the actual producer MI.
+  Register Cur = CarryIn;
+  MachineInstr *Producer = nullptr;
+  while (Cur.isVirtual()) {
+    MachineInstr *Def = MRI.getVRegDef(Cur);
+    if (!Def)
+      return;
+    unsigned Op = Def->getOpcode();
+    if (Op == TargetOpcode::G_FREEZE || Op == TargetOpcode::COPY) {
+      if (!Def->getOperand(1).isReg())
+        return;
+      Cur = Def->getOperand(1).getReg();
+      continue;
+    }
+    Producer = Def;
+    break;
+  }
+  if (!Producer)
+    return;
+
+  // Same-block: leave alone. Cross-block: insert materialise + restore pair.
+  if (Producer->getParent() == Consumer.getParent())
+    return;
+
+  // Allocate a bridging byte vreg in ABc to carry the bit between blocks.
+  Register ByteVReg = MRI.createVirtualRegister(&MC6809::ABcRegClass);
+
+  // Insert MaterializeCarryToByte_i8 immediately after the producer.
+  MachineBasicBlock &PMBB = *Producer->getParent();
+  auto AfterProducer = std::next(MachineBasicBlock::iterator(*Producer));
+  MachineIRBuilder ProducerB(PMBB, AfterProducer);
+  auto MtoB = ProducerB.buildInstr(MC6809::MaterializeCarryToByte_i8)
+                  .addDef(ByteVReg)
+                  .addUse(CarryIn);  // BIT1 phantom kept live across the gap
+  constrainSelectedInstRegOperands(*MtoB, TII, TRI, RBI);
+
+  // Insert MaterializeByteToCarry_i8 immediately before the consumer.
+  // The LSRB it expands to restores CC.C from the byte's bit 0 right
+  // before the consumer's SBC reads CC.C.
+  MachineIRBuilder ConsumerB(Consumer);
+  auto BtoC = ConsumerB.buildInstr(MC6809::MaterializeByteToCarry_i8)
+                  .addUse(ByteVReg);
+  constrainSelectedInstRegOperands(*BtoC, TII, TRI, RBI);
+}
+
 } // namespace
 
 #define GET_GLOBALISEL_IMPL
@@ -1883,6 +1956,11 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
   Register Reg;
   unsigned Opcode = 0;
 
+  // Bug #184 (sibling of selectSubE's fix): cross-block carry-in
+  // freezing/restoring for ADD chains. Same mechanism, mirrored here for
+  // symmetry — i32 add chains can also split across blocks.
+  ensureCarryAcrossBlocks(MI, MI.getOperand(4).getReg(), *MRI, TII, TRI, RBI);
+
   // Bug #147: G_SADDE's s1 result is V (signed-overflow); G_UADDE's is C.
   // Same MC expansion (ADCA/ADCB), different pseudo opcode so selectBrCond
   // can dispatch BVS vs BCS.
@@ -2019,6 +2097,12 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
   unsigned Opcode = 0;
 
   CarryOut = MI.getOperand(1).getReg();
+
+  // Bug #184: if the carry-in is a phantom-BIT1 from a different basic
+  // block, freeze CC.C into a byte at the producer and restore before
+  // this consumer. Done before the matchers so the rewrite happens
+  // regardless of which immediate / mem / reg shape matches below.
+  ensureCarryAcrossBlocks(MI, MI.getOperand(4).getReg(), *MRI, TII, TRI, RBI);
 
   // Bug #147: G_SSUBE's s1 is V (signed-overflow); G_USUBE's is C.
   bool IsSigned = MI.getOpcode() == TargetOpcode::G_SSUBE;
