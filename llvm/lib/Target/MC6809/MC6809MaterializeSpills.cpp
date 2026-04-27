@@ -900,19 +900,36 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
             // skip the spill load.
             SkipSpillLoad.insert(OpIdx);
           } else {
-            // Case 1: LHS spill would clobber physical RHS.
-            int SaveFI = MF.getFrameInfo().CreateStackObject(
-                2, Align(1), /*isSpillSlot=*/false);
-            int SaveOff = (RealReg == MC6809::AB) ? 1 : 0;
-            BuildMI(MBB, MI, DL, TII.get(MC6809::Store_i8_Mem))
-                .addReg(RealReg)
-                .addFrameIndex(SaveFI)
-                .addImm(SaveOff);
+            // Case 1: LHS spill would clobber physical RHS. Save RealReg
+            // (which currently holds OtherMO's value), redirect OtherMO
+            // to the alt half via the saved value.
+            //
+            // Bug #184: previously this saved RealReg to a fresh stack
+            // slot but never restored it after the MI ran. The spill
+            // load + SUB then left the SUB result in RealReg, and any
+            // later MI that expected RealReg to still hold the original
+            // operand value (per regalloc's plan) read garbage. To fix,
+            // route the save through ASaveSlot/BSaveSlot so the existing
+            // post-MI restore mechanism (at the end of this iteration)
+            // reloads RealReg with the saved value.
             Register AltReg = (RealReg == MC6809::AB) ? MC6809::AA : MC6809::AB;
+            int &SaveSlotRef = (RealReg == MC6809::AB) ? BSaveSlot : ASaveSlot;
+            if (SaveSlotRef < 0) {
+              // No NeedSaveB/A was scheduled for this MI; allocate now.
+              // Existing NeedSaveB save (if any) already stored RealReg
+              // to BSaveSlot at the top of this iteration; in that case
+              // we reuse it and skip our redundant save below.
+              SaveSlotRef = MFI.CreateStackObject(
+                  1, Align(1), /*isSpillSlot=*/true);
+              BuildMI(MBB, MI, DL, TII.get(MC6809::Store_i8_Mem))
+                  .addReg(RealReg)
+                  .addFrameIndex(SaveSlotRef)
+                  .addImm(0);
+            }
             BuildMI(MBB, MI, DL, TII.get(MC6809::Load_i8_Mem))
                 .addReg(AltReg, RegState::Define)
-                .addFrameIndex(SaveFI)
-                .addImm(SaveOff);
+                .addFrameIndex(SaveSlotRef)
+                .addImm(0);
             OtherMO.setReg(AltReg);
           }
           break;
