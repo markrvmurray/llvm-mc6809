@@ -1643,8 +1643,17 @@ static void dematerializeReg(MachineIRBuilder &Builder, Register PhysReg,
       return;
     }
     Builder.buildInstr(Opc).addDef(DestReg, RegState::Implicit).addReg(SrcReg);
-  } else
-    llvm_unreachable("Unexpected physical register copy.");
+  } else {
+    // Bug #186 v5 PLACEHOLDER (2026-04-27): no proper sequence yet for
+    // this physreg pair. Drop a COPY_CC_PLACEHOLDER pseudo so the
+    // backend stays compile-clean. AsmPrinter expands it to a comment +
+    // SWI3 trap so runtime hits surface noisily and asm-grep finds the
+    // offending sites. Once we know which pairs are actually exercised,
+    // replace specific cases above (or retire this pseudo entirely).
+    Builder.buildInstr(MC6809::COPY_CC_PLACEHOLDER)
+        .addReg(DestReg, RegState::Define)
+        .addReg(SrcReg);
+  }
 }
 
 const TargetRegisterClass *MC6809InstrInfo::canFoldCopy(const MachineInstr &MI, const TargetInstrInfo &TII, unsigned FoldIdx) const {

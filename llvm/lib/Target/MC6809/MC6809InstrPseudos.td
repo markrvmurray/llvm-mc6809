@@ -216,3 +216,24 @@ def MaterializeByteToCarry_i8 : MC6809Pseudo {
   let hasSideEffects = 1;
 }
 
+// Bug #186 v5 PLACEHOLDER (2026-04-27): catch-all COPY for register
+// pairs that copyPhysReg does not yet have a proper sequence for —
+// chiefly $c↔byte / $v↔byte / cross-flag pairs that emerge from
+// regalloc once SetCarry/SetCarryUse drop their explicit operand and
+// the carry vreg gets allocated to whatever copyPhysReg-able physreg
+// regalloc chooses.
+//
+// Polymorphic operand types (`unknown`) so the same pseudo serves
+// any class pair. AsmPrinter expands to a comment + SWI3 trap so
+// runtime hits surface noisily and asm-grep finds the offending sites.
+//
+// Once we know which class pairs are actually exercised by real
+// codegen, replace the placeholder with proper lowerings in
+// copyPhysReg (and probably retire this pseudo entirely).
+def COPY_CC_PLACEHOLDER : MC6809Pseudo {
+  dag OutOperandList = (outs);
+  dag InOperandList  = (ins unknown:$dst, unknown:$src);
+  let hasSideEffects = 1;
+  let isCodeGenOnly = 1;
+}
+

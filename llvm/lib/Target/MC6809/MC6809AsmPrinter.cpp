@@ -80,6 +80,25 @@ void MC6809AsmPrinter::EmitToStreamer(MCStreamer &S, MCInst &Inst) {
 }
 
 void MC6809AsmPrinter::emitInstruction(const MachineInstr *MI) {
+  // Bug #186 v5 PLACEHOLDER (2026-04-27): COPY_CC_PLACEHOLDER expands
+  // to a comment + SWI3 trap. Emitted by copyPhysReg's fallback path
+  // for register pairs we don't have a proper sequence for yet
+  // (chiefly $c↔byte / $v↔byte / cross-flag pairs). Runtime hits
+  // surface noisily via SWI3; asm-grep on `; PLACEHOLDER COPY` finds
+  // every emission site so we can decide which class pairs to wire up
+  // properly in copyPhysReg.
+  if (MI->getOpcode() == MC6809::COPY_CC_PLACEHOLDER) {
+    const TargetRegisterInfo *TRI =
+        MI->getMF()->getSubtarget().getRegisterInfo();
+    std::string Dst = TRI->getName(MI->getOperand(0).getReg());
+    std::string Src = TRI->getName(MI->getOperand(1).getReg());
+    OutStreamer->AddComment("PLACEHOLDER COPY $" + Dst + " <- $" + Src
+                            + " (bug #186 v5)");
+    MCInst SWI;
+    SWI.setOpcode(MC6809::SWI3x);
+    EmitToStreamer(*OutStreamer, SWI);
+    return;
+  }
   // Do any auto-generated pseudo lowerings.
   if (MCInst OutInst; lowerPseudoInstExpansion(MI, OutInst)) {
     EmitToStreamer(*OutStreamer, OutInst);
