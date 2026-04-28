@@ -579,12 +579,22 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
     }
   }
 
-  // Stage 5 (bug #185): fold PSHS reg / op ,S / LEAS N,S triplets into
-  // PSHS reg / op ,S{+,++}, eliminating the LEAS. Saves 2 bytes and
-  // 5 cycles per occurrence. Match the strict adjacent triplet only;
-  // TODO Phase 2: relax MI1→MI2 gap with an S-clobber scan to capture
-  // the ~71 additional sites where PSHS and op are separated by other
-  // MIs (per pre-implementation exploration).
+  // Stage 5 (bug #185): fold PSHS reg / ... / op ,S / LEAS N,S into
+  // PSHS reg / ... / op ,S{+,++}, eliminating the LEAS. Saves 2 bytes
+  // and 3 cycles per occurrence (post-inc adds +2 cycles vs no-offset;
+  // LEAS costs 5).
+  //
+  // Phase 1 (commit e8eade87251b) handled the strict adjacent triplet
+  // (MI2 = std::next(MI1)). Phase 2 relaxes that: up to MaxGap MIs are
+  // permitted between MI1 (PSHS) and MI2 (op ,S), guarded by a per-MI
+  // `modifiesRegister(SS)` abort so an intervening PSHS/PULS/LEAS/etc
+  // can't shift the slot offset out from under us. MI3 (LEAS) must
+  // still be std::next(MI2) — no gap on that side.
+  //
+  // TODO Phase 3: an unbounded scan (until the first SS-clobber or BB
+  // end) is a clean further extension if a future codegen change
+  // starts producing gaps > 3 MIs. MaxGap=3 matches all observed
+  // -Os codegen as of 2026-04-28 (per project_bug185_closed.md).
   for (MachineBasicBlock &MBB : MF) {
     for (auto It = MBB.begin(); It != MBB.end(); ) {
       MachineInstr &MI1 = *It++;
@@ -610,20 +620,49 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
       else
         continue; // X/Y/U/CC/etc. not handled here.
 
-      // MI2: op on ,S with offset 0 — either *i_o0 (no imm operand) or
-      // *i_o5 with imm=0. Must be a recognised byte/word op matching
-      // PushWidth.
-      if (It == MBB.end()) continue;
-      MachineInstr &MI2 = *It;
-      unsigned NewOpc = getPostIncOpcodeForOffset0(MI2.getOpcode(), PushWidth);
-      if (!NewOpc) continue;
-      SlotKey Slot = getSlotKey(MI2);
-      if (Slot.BaseReg != MC6809::SS || Slot.Offset != 0) continue;
+      // MI2: op on ,S with offset 0 (either *i_o0 or *i_o5 with imm=0)
+      // matching PushWidth. Scan forward up to MaxGap MIs past MI1;
+      // each intervening MI must NOT modify SS, otherwise the `,S`
+      // in MI2 would refer to a different slot than what MI1 pushed.
+      // MaxGap=3 matches the observed maximum in -Os bench output;
+      // see Stage 5 header comment.
+      constexpr unsigned MaxGap = 3;
+      auto It2 = It;
+      unsigned NewOpc = 0;
+      for (unsigned Gap = 0; Gap <= MaxGap && It2 != MBB.end();
+           ++Gap, ++It2) {
+        MachineInstr &Cand = *It2;
 
-      // MI3: LEAS PushWidth,S (the small-offset _o5 form is what
-      // codegen emits for ±1/±2; the larger forms are never picked
-      // for these tiny values).
-      auto It3 = std::next(It);
+        // Skip debug instructions — they don't generate code,
+        // shouldn't count toward the gap budget, and can't modify SS.
+        if (Cand.isDebugInstr()) {
+          --Gap; // don't charge debug MIs against the budget
+          continue;
+        }
+
+        // Is this the op we're looking for?
+        if (unsigned Opc = getPostIncOpcodeForOffset0(Cand.getOpcode(),
+                                                     PushWidth)) {
+          SlotKey Slot = getSlotKey(Cand);
+          if (Slot.BaseReg == MC6809::SS && Slot.Offset == 0) {
+            NewOpc = Opc;
+            break; // MI2 found
+          }
+        }
+
+        // Not MI2 — must not disturb SS (catches PSHS/PULS/LEAS/TFR
+        // S/calls and any explicit `implicit-def $ss`).
+        if (Cand.modifiesRegister(MC6809::SS, &TRI))
+          break; // safety abort
+      }
+      if (!NewOpc) continue;
+      MachineInstr &MI2 = *It2;
+
+      // MI3: LEAS PushWidth,S, immediately after MI2 (no gap on the
+      // op→LEAS side). The small-offset _o5 form is what codegen
+      // emits for ±1/±2; the larger forms are never picked for
+      // these tiny values.
+      auto It3 = std::next(It2);
       if (It3 == MBB.end()) continue;
       MachineInstr &MI3 = *It3;
       if (MI3.getOpcode() != MC6809::LEASi_o5) continue;

@@ -21,12 +21,25 @@
 #   * `negative_wrong_imm` — PSHS A / ORA 0,S / LEAS 2,S — must NOT
 #     fold (LEAS imm doesn't match push width); MC6809PostRASpillOpt
 #     must leave the triplet alone.
+#
+# Phase 2 (bug #185 follow-up): MaxGap=3 intervening MIs allowed
+# between PSHS and op, provided none modify SS.
+#   * `fold_with_gap1` — PSHS B / LDB 5,u / ORB ,S / LEAS 1,S
+#     → ORB folds; LDB stays put.
+#   * `fold_with_gap3` — PSHS A / LDA / STB / LDB / ORA ,S / LEAS 1,S
+#     → ORA folds; three intervening frame ops stay put.
+#   * `negative_s_clobber` — PSHS A / PSHS B / ORA ,S / LEAS 1,S —
+#     must NOT fold (the second PSHS modifies SS, so the slot has
+#     shifted; safety abort fires and the four MIs all remain).
 
 --- |
   define void @fold_orb_byte() { ret void }
   define void @fold_ora_byte() { ret void }
   define void @fold_cmpd_word() { ret void }
   define void @negative_wrong_imm() { ret void }
+  define void @fold_with_gap1() { ret void }
+  define void @fold_with_gap3() { ret void }
+  define void @negative_s_clobber() { ret void }
 ...
 
 ---
@@ -98,6 +111,73 @@ body: |
     ; CHECK-NEXT: RTSr
     PSHSs $aa, implicit-def $ss, implicit $ss
     ORAi_o5 0, $ss, implicit-def $aa, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ad, implicit-def $aq, implicit $aa
+    LEASi_o5 2, $ss, implicit-def $ss, implicit $ss
+    RTSr
+...
+
+---
+name: fold_with_gap1
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ab, $su
+    ; CHECK-LABEL: name: fold_with_gap1
+    ; CHECK: liveins: $ab, $su
+    ; CHECK-NEXT: {{  $}}
+    ; CHECK-NEXT: PSHSs $ab, implicit-def $ss, implicit $ss
+    ; CHECK-NEXT: LDBi_o5 5, $su, implicit-def $ab, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ad, implicit-def $aq
+    ; CHECK-NEXT: ORBi_Inc1 $ss, implicit-def $ab, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ad, implicit-def $aq, implicit $ab
+    ; CHECK-NEXT: RTSr
+    PSHSs $ab, implicit-def $ss, implicit $ss
+    LDBi_o5 5, $su, implicit-def $ab, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ad, implicit-def $aq
+    ORBi_o5 0, $ss, implicit-def $ab, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ad, implicit-def $aq, implicit $ab
+    LEASi_o5 1, $ss, implicit-def $ss, implicit $ss
+    RTSr
+...
+
+---
+name: fold_with_gap3
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $aa, $ab, $su
+    ; CHECK-LABEL: name: fold_with_gap3
+    ; CHECK: liveins: $aa, $ab, $su
+    ; CHECK-NEXT: {{  $}}
+    ; CHECK-NEXT: PSHSs $aa, implicit-def $ss, implicit $ss
+    ; CHECK-NEXT: LDAi_o5 5, $su, implicit-def $aa, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ad, implicit-def $aq
+    ; CHECK-NEXT: STBi_o5 4, $su, implicit $ab, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    ; CHECK-NEXT: LDBi_o5 6, $su, implicit-def $ab, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ad, implicit-def $aq
+    ; CHECK-NEXT: ORAi_Inc1 $ss, implicit-def $aa, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ad, implicit-def $aq, implicit $aa
+    ; CHECK-NEXT: RTSr
+    PSHSs $aa, implicit-def $ss, implicit $ss
+    LDAi_o5 5, $su, implicit-def $aa, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ad, implicit-def $aq
+    STBi_o5 4, $su, implicit $ab, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    LDBi_o5 6, $su, implicit-def $ab, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ad, implicit-def $aq
+    ORAi_o5 0, $ss, implicit-def $aa, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ad, implicit-def $aq, implicit $aa
+    LEASi_o5 1, $ss, implicit-def $ss, implicit $ss
+    RTSr
+...
+
+---
+name: negative_s_clobber
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $aa, $ab
+    ; A second PSHS in the gap modifies SS — fold MUST abort. The
+    ; four MIs all stay put.
+    ; CHECK-LABEL: name: negative_s_clobber
+    ; CHECK: liveins: $aa, $ab
+    ; CHECK-NEXT: {{  $}}
+    ; CHECK-NEXT: PSHSs $aa, implicit-def $ss, implicit $ss
+    ; CHECK-NEXT: PSHSs $ab, implicit-def $ss, implicit $ss
+    ; CHECK-NEXT: ORAi_o5 1, $ss, implicit-def $aa, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ad, implicit-def $aq, implicit $aa
+    ; CHECK-NEXT: LEASi_o5 2, $ss, implicit-def $ss, implicit $ss
+    ; CHECK-NEXT: RTSr
+    PSHSs $aa, implicit-def $ss, implicit $ss
+    PSHSs $ab, implicit-def $ss, implicit $ss
+    ORAi_o5 1, $ss, implicit-def $aa, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ad, implicit-def $aq, implicit $aa
     LEASi_o5 2, $ss, implicit-def $ss, implicit $ss
     RTSr
 ...
