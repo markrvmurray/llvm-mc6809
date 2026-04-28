@@ -2075,6 +2075,41 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     MI.eraseFromParent();
     return true;
   }
+  case MC6809::MaterializeByteToOverflow_i8: {
+    // Bug #186 follow-up Phase 5 (2026-04-28): V-flag mirror of
+    // MaterializeByteToCarry_i8. Restore CC.V from a 0/1 byte that was
+    // previously frozen via MaterializeOverflowToByte_i8. Used to
+    // preserve a SubSetOverflowUse chain's V across a CC-clobbering
+    // region (cross-BB or same-BB with intervening CMP/TST/BIT).
+    //
+    // $src constrained to ABc; after regalloc $src is always $ab or
+    // an AB-spill; spill path materialises into $ab as usual.
+    //
+    // Expansion:
+    //   ANDB #1     ; ensure B ∈ {0,1} (defensive; producer guarantees
+    //                 this but spilling-through-byte-then-restoring may
+    //                 in theory reload garbage, so be safe)
+    //   ADDB #0x7F  ; signed-overflow if B = 1 (since 0x7F + 0x01 =
+    //                 0x80 — pos+pos→neg). CC.V = (B was 1).
+    // Other CC bits clobbered, but the immediately-following
+    // SubSetOverflowUse will overwrite them.
+    MachineFunction &MF = *MI.getMF();
+    Register SrcReg = MI.getOperand(0).getReg();
+    Register RealSrc = SrcReg;
+    if (needsMaterialization(SrcReg)) {
+      RealSrc = materializeReg(Builder, SrcReg, MF);
+    }
+    assert(RealSrc == MC6809::AB &&
+           "MaterializeByteToOverflow_i8 expects ABc-allocated source");
+    Builder.buildInstr(MC6809::ANDBi8)
+        .addDef(MC6809::AB, RegState::Implicit)
+        .addImm(1);
+    Builder.buildInstr(MC6809::ADDBi8)
+        .addDef(MC6809::AB, RegState::Implicit)
+        .addImm(0x7F);
+    MI.eraseFromParent();
+    return true;
+  }
   case MC6809::ANYEXT_i8_to_i16: {
     // i8→i16 anyext pseudo. Only the low byte is defined; high byte is
     // don't-care. Emit the low-byte copy (dst's lo-byte sub-physreg ←

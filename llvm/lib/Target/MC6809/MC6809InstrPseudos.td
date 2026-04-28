@@ -216,6 +216,31 @@ def MaterializeByteToCarry_i8 : MC6809Pseudo {
   let hasSideEffects = 1;
 }
 
+// Bug #186 follow-up Phase 5 (2026-04-28) — V-flag mirror of
+// `MaterializeByteToCarry_i8`. Restore CC.V from a 0/1 byte that was
+// previously frozen via `MaterializeOverflowToByte_i8`. Used to
+// preserve a SubSetOverflowUse chain's V-flag across a CC-clobbering
+// region in same-BB or cross-BB chains.
+//
+// Expansion (`ANDB #1; ADDB #0x7F`):
+//   ANDB #1     ; ensure B ∈ {0, 1}
+//   ADDB #0x7F  ; sets CC.V = 1 iff B was 1 (0x7F + 1 = 0x80 overflows
+//                 signed). Other CC bits are clobbered, but the
+//                 immediately-following SubSetOverflowUse will
+//                 overwrite them anyway.
+//
+// $src constrained to ABc so the expansion is always on $ab.
+//
+// Defs=[NZ,V,C] + hasSideEffects=1: same scheduling barrier as the
+// C-flag sibling — pin restoration to its MIR position so no further
+// V-clobber slips between this and the consuming SubSetOverflowUse.
+def MaterializeByteToOverflow_i8 : MC6809Pseudo {
+  dag OutOperandList = (outs);
+  dag InOperandList  = (ins ABc:$src);
+  let Defs = [NZ, V, C];
+  let hasSideEffects = 1;
+}
+
 // Bug #186 v5 PLACEHOLDER (2026-04-27): catch-all COPY for register
 // pairs that copyPhysReg does not yet have a proper sequence for —
 // chiefly $c↔byte / $v↔byte / cross-flag pairs that emerge from
@@ -235,5 +260,13 @@ def COPY_CC_PLACEHOLDER : MC6809Pseudo {
   dag InOperandList  = (ins unknown:$dst, unknown:$src);
   let hasSideEffects = 1;
   let isCodeGenOnly = 1;
+  // Bug #186 follow-up Phase 4 (2026-04-28): AsmPrinter expands to a
+  // single SWI3 trap (1 byte). Without `let Size`, getInstSizeInBytes
+  // falls back to MaxInstLength = 5, over-counting BR's accounting by
+  // 4 bytes per emission. Currently no codegen path emits this pseudo
+  // — the over-count is harmless today (extra widening only) — but
+  // declaring the honest size prevents a future bug class if a new
+  // copyPhysReg gap surfaces and the pseudo starts firing.
+  let Size = 1;
 }
 

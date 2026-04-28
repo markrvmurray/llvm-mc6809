@@ -266,20 +266,22 @@ getPhantomBit1Flag(Register SrcReg, const MachineRegisterInfo &MRI,
   return std::nullopt;
 }
 
-/// Bug #186 follow-up Phase 2a (2026-04-28): does this MI clobber CC.C?
+/// Bug #186 follow-up Phase 2a / Phase 5 (2026-04-28): does this MI
+/// clobber the given CC bit (MC6809::C or MC6809::V)?
 ///
 /// Generic check via MachineInstr::modifiesRegister — covers explicit Defs,
-/// implicit Defs, and tied operands. Self-updating when new CC.C-clobbering
+/// implicit Defs, and tied operands. Self-updating when new CC-clobbering
 /// pseudos appear in TableGen; no hardcoded opcode list to maintain.
 ///
 /// Fast paths skip MIs that obviously can't touch a physreg they don't
 /// declare (COPY/PHI/IMPLICIT_DEF/DBG_VALUE).
-static bool clobbersCarryC(const MachineInstr &MI,
-                           const TargetRegisterInfo &TRI) {
+static bool clobbersCCFlag(const MachineInstr &MI,
+                           const TargetRegisterInfo &TRI,
+                           MCPhysReg Flag) {
   if (MI.isCopyLike() || MI.isPHI() || MI.isImplicitDef() ||
       MI.isDebugInstr())
     return false;
-  return MI.modifiesRegister(MC6809::C, &TRI);
+  return MI.modifiesRegister(Flag, &TRI);
 }
 
 /// Bug #186 follow-up Phase 2a (2026-04-28): formerly
@@ -323,8 +325,19 @@ ensureCarryChainIntegrity(MachineInstr &Consumer, Register CarryIn,
                           const DenseMap<Register, MCPhysReg> *CarryFlagOf,
                           DenseMap<MachineInstr *, Register> &BridgedByteFor) {
   auto Flag = getPhantomBit1Flag(CarryIn, MRI, CarryFlagOf);
-  if (!Flag || *Flag != MC6809::C)
+  if (!Flag || (*Flag != MC6809::C && *Flag != MC6809::V))
     return;
+
+  // Phase 5 (2026-04-28): pick the right materialise pair for the
+  // flag we're bridging. C uses LDB#0;ADCB#0 / LSRB; V uses
+  // TFR-CC,B; LSRB; ANDB#1 / ANDB#1; ADDB#0x7F. See the four pseudo
+  // definitions in MC6809InstrPseudos.td.
+  unsigned ToBytePseudo = (*Flag == MC6809::C)
+      ? MC6809::MaterializeCarryToByte_i8
+      : MC6809::MaterializeOverflowToByte_i8;
+  unsigned ToCCPseudo = (*Flag == MC6809::C)
+      ? MC6809::MaterializeByteToCarry_i8
+      : MC6809::MaterializeByteToOverflow_i8;
 
   // Walk back through COPY / G_FREEZE to find the actual producer MI.
   // Bug #186 v5/1a: the chain may go through IMPLICIT_DEF placeholders
@@ -371,7 +384,7 @@ ensureCarryChainIntegrity(MachineInstr &Consumer, Register CarryIn,
     auto BBEnd = Producer->getParent()->end();
     bool Found = false;
     for (auto It = std::next(PIt); It != BBEnd && It != CIt; ++It) {
-      if (clobbersCarryC(*It, TRI)) {
+      if (clobbersCCFlag(*It, TRI, *Flag)) {
         NeedsBridge = true;
         Found = true;
         break;
@@ -382,27 +395,27 @@ ensureCarryChainIntegrity(MachineInstr &Consumer, Register CarryIn,
                // adjacency is enough.
   }
 
-  // Producer-side byte (emit MaterializeCarryToByte_i8 only once per
-  // producer; cache the byte vreg).
+  // Producer-side byte (emit ToBytePseudo only once per producer; cache
+  // the byte vreg).
   Register ByteVReg;
   auto CacheIt = BridgedByteFor.find(Producer);
   if (CacheIt != BridgedByteFor.end()) {
     ByteVReg = CacheIt->second;
   } else {
     // Defensive fallback: if the very next MI after Producer is already
-    // a MaterializeCarryToByte_i8 (from a prior call that for some reason
+    // the right ToBytePseudo (from a prior call that for some reason
     // didn't populate the cache — shouldn't happen, but be safe), reuse
     // its dest vreg.
     auto AfterProducer = std::next(MachineBasicBlock::iterator(*Producer));
     MachineBasicBlock &PMBB = *Producer->getParent();
     if (AfterProducer != PMBB.end() &&
-        AfterProducer->getOpcode() == MC6809::MaterializeCarryToByte_i8) {
+        AfterProducer->getOpcode() == ToBytePseudo) {
       ByteVReg = AfterProducer->getOperand(0).getReg();
     } else {
-      // Fresh: allocate byte vreg and emit MaterializeCarryToByte_i8.
+      // Fresh: allocate byte vreg and emit ToBytePseudo.
       ByteVReg = MRI.createVirtualRegister(&MC6809::ABcRegClass);
       MachineIRBuilder ProducerB(PMBB, AfterProducer);
-      auto MtoB = ProducerB.buildInstr(MC6809::MaterializeCarryToByte_i8)
+      auto MtoB = ProducerB.buildInstr(ToBytePseudo)
                       .addDef(ByteVReg)
                       .addUse(CarryIn);
       constrainSelectedInstRegOperands(*MtoB, TII, TRI, RBI);
@@ -410,10 +423,10 @@ ensureCarryChainIntegrity(MachineInstr &Consumer, Register CarryIn,
     BridgedByteFor[Producer] = ByteVReg;
   }
 
-  // Consumer-side restore: emit MaterializeByteToCarry_i8 immediately
-  // before this Consumer. Each consumer needs its own restore.
+  // Consumer-side restore: emit ToCCPseudo immediately before this
+  // Consumer. Each consumer needs its own restore.
   MachineIRBuilder ConsumerB(Consumer);
-  auto BtoC = ConsumerB.buildInstr(MC6809::MaterializeByteToCarry_i8)
+  auto BtoC = ConsumerB.buildInstr(ToCCPseudo)
                   .addUse(ByteVReg);
   constrainSelectedInstRegOperands(*BtoC, TII, TRI, RBI);
 }
