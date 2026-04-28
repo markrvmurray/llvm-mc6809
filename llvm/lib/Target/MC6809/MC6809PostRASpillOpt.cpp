@@ -271,6 +271,11 @@ static unsigned getIndirectIndexedOpcode(unsigned SrcOpc, int Offset) {
   // Word ALU on D
   IND_VARIANT(ADDDi) IND_VARIANT(SUBDi)
   IND_VARIANT(CMPDi)
+  // 16-bit index-register loads — enable bug #190 load-through-self
+  // (`LDY n,u; LDY ,Y → LDY [n,u]`) plus the cross-register path
+  // (`LDY n,u; LDX ,Y → LDX [n,u]`) via the standard #189 dead-after
+  // liveness check.
+  IND_VARIANT(LDXi) IND_VARIANT(LDYi) IND_VARIANT(LDUi)
   default: return 0;
   }
 #undef IND_VARIANT
@@ -840,6 +845,36 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
       }
       if (!NewOpc) continue;
       MachineInstr &MI2 = *It2;
+
+      // Bug #190 special case: load-through-self pattern. MI2 is
+      // `LDY ,Y` / `LDX ,X` / `LDU ,U` — it reads through LoadedReg
+      // AND re-defines it. The post-MI2 liveness check below would
+      // wrongly reject the fold (LoadedReg is live because MI2 just
+      // defined it), but it's actually safe: whatever uses LoadedReg
+      // after MI2 sees the doubly-dereferenced value, which the
+      // rewritten MI1 (now `LDY [n,u]`) also produces. Mutate MI1 to
+      // its indirect variant via setDesc (operand layout invariant
+      // for LDY/LDX/LDU `_oN` → `_oNI`); erase MI2.
+      bool IsLoadThroughSelf =
+          (MI2.getOpcode() == MC6809::LDYi_o0 && LoadedReg == MC6809::IY) ||
+          (MI2.getOpcode() == MC6809::LDXi_o0 && LoadedReg == MC6809::IX) ||
+          (MI2.getOpcode() == MC6809::LDUi_o0 && LoadedReg == MC6809::SU);
+      if (IsLoadThroughSelf) {
+        unsigned NewMI1Opc = getIndirectIndexedOpcode(MI1.getOpcode(),
+                                                     Offset);
+        if (!NewMI1Opc) continue; // shouldn't happen for LDY/LDX/LDU
+                                  // but guard.
+        LLVM_DEBUG(dbgs() << "  SpillOpt Stage 6 (#190): folding "
+                          << "LDY/LDY,Y → LDY[n,u]:\n"
+                          << "    " << MI1
+                          << "    " << MI2);
+        MI1.setDesc(TII.get(NewMI1Opc));
+        MI2.eraseFromParent();
+        // Continue scanning past MI1 (the rewritten indirect load).
+        It = std::next(MI1.getIterator());
+        Changed = true;
+        continue;
+      }
 
       // Liveness: LoadedReg must be dead at the program point
       // immediately after MI2. Bound the scan at 16 MIs to keep it

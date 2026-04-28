@@ -33,6 +33,10 @@
   define void @fold_with_gap3() { ret void }
   define void @negative_y_reused() { ret void }
   define void @negative_y_clobbered_in_gap() { ret void }
+  define void @fold_load_through_self_y() { ret void }
+  define void @fold_load_through_self_x() { ret void }
+  define void @fold_cross_register_y_dead() { ret void }
+  define void @negative_cross_register_y_live() { ret void }
 ...
 
 ---
@@ -144,5 +148,92 @@ body: |
     LDYi_o5 5, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
     LDYi_o5 6, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
     ORBi_o0 $iy, implicit-def $ab, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ad, implicit-def $aq, implicit $ab
+    RTSr
+...
+
+# ----------------------------------------------------------------------
+# Bug #190 cases — load-through-self and cross-register variants.
+# ----------------------------------------------------------------------
+
+---
+name: fold_load_through_self_y
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su
+    ; LDY 5,u / LDY ,Y / STY 5,u  →  LDY [5,u] / STY 5,u.
+    ; #190 path: mutate MI1 to LDYi_o8I; erase MI2 (LDYi_o0). MI3
+    ; (STY) is unchanged. Y is re-defined by MI2, so the standard
+    ; #189 dead-after liveness check is skipped.
+    ; CHECK-LABEL: name: fold_load_through_self_y
+    ; CHECK: liveins: $su
+    ; CHECK-NEXT: {{  $}}
+    ; CHECK-NEXT: LDYi_o8I 5, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    ; CHECK-NEXT: STYi_o5 5, $su, implicit $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    ; CHECK-NEXT: RTSr
+    LDYi_o5 5, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    LDYi_o0 $iy, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    STYi_o5 5, $su, implicit $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    RTSr
+...
+
+---
+name: fold_load_through_self_x
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su
+    ; Same shape but with X instead of Y.
+    ; CHECK-LABEL: name: fold_load_through_self_x
+    ; CHECK: liveins: $su
+    ; CHECK-NEXT: {{  $}}
+    ; CHECK-NEXT: LDXi_o8I 7, $su, implicit-def $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    ; CHECK-NEXT: STXi_o5 7, $su, implicit $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    ; CHECK-NEXT: RTSr
+    LDXi_o5 7, $su, implicit-def $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    LDXi_o0 $ix, implicit-def $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    STXi_o5 7, $su, implicit $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    RTSr
+...
+
+---
+name: fold_cross_register_y_dead
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su
+    ; LDY 9,u / LDX ,Y where Y is dead after LDX.
+    ; This is the cross-register case — handled by the standard
+    ; #189 path with the dead-after liveness check (Y is dead, so
+    ; it folds). MI2 is mutated; MI1 is erased.
+    ; CHECK-LABEL: name: fold_cross_register_y_dead
+    ; CHECK: liveins: $su
+    ; CHECK-NEXT: {{  $}}
+    ; CHECK-NEXT: LDXi_o8I 9, $su, implicit-def $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    ; CHECK-NEXT: RTSr
+    LDYi_o5 9, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    LDXi_o0 $iy, implicit-def $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    RTSr
+...
+
+---
+name: negative_cross_register_y_live
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su
+    ; LDY 9,u / LDX ,Y / TFR Y,U — Y is read past MI2 by TFR, so
+    ; the standard #189 dead-after liveness check fires and the
+    ; fold MUST abort. All 3 MIs remain.
+    ; CHECK-LABEL: name: negative_cross_register_y_live
+    ; CHECK: liveins: $su
+    ; CHECK-NEXT: {{  $}}
+    ; CHECK-NEXT: LDYi_o5 9, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    ; CHECK-NEXT: LDXi_o0 $iy, implicit-def $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    ; CHECK-NEXT: $su = TFRp $iy, implicit-def $nz
+    ; CHECK-NEXT: RTSr
+    LDYi_o5 9, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    LDXi_o0 $iy, implicit-def $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    $su = TFRp $iy, implicit-def $nz
     RTSr
 ...
