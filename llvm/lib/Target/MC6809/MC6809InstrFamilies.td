@@ -552,7 +552,20 @@ defm LSR_Pat_i16 : MC6809ShiftPat<srl, i16, ADc, "LSR">;
 // --- Pseudo-instructions (register-agnostic, GlobalISel) ---
 
 class MC6809CompareBase<RegisterClass reg, dag operand> : MC6809LogicalInstr {
-  //let Defs = [NZVC, NZ, N, Z, V, C];
+  // Bug #186 follow-up Phase 2b NOTE (2026-04-28): the CC.C clobber on
+  // CMP/CMPB/CMPD/etc. is INTENTIONALLY NOT declared via `let Defs`
+  // here, because the explicit `outs CCond:$dst` already represents
+  // the new value of CC. Declaring Defs=[NZ,V,C] on top double-counts:
+  // regalloc tries to allocate the CCond vreg to $cc and trips on
+  // the now-imaginary implicit-def of the same physregs at the same
+  // MI ("Some interferences are not with virtual registers" → "ran
+  // out of registers" at -O1+). The CCond output IS the honest
+  // declaration of CC clobber for these forms.
+  //
+  // The fused compare-branch / test-branch forms (CompareBranchBase,
+  // TestBranchBase) DO have explicit Defs=[NZ,V,C] — they have no
+  // CCond output, so the Defs are the only way to declare the CMP
+  // clobber. See those classes.
   dag OutOperandList = (outs CCond:$dst);
   dag InOperandList = !con((ins i8imm:$cc, reg:$src), operand);
   let isCompare = true;
@@ -617,7 +630,7 @@ defm SetIfCompPat_NE : MC6809SetIfCompCondPat<SETNE, 6>;
 // --- Pseudo-instructions (register-agnostic, GlobalISel) ---
 
 class MC6809TestBase<dag operand> : MC6809LogicalInstr {
-  //let Defs = [NZVC, NZ, N, Z, V, C];
+  // CCond output represents CC clobber — see MC6809CompareBase note.
   dag OutOperandList = (outs CCond:$dst);
   dag InOperandList = !con((ins i8imm:$cc), operand);
   let isCompare = true;
@@ -645,6 +658,10 @@ let Predicates = [IsHD6309] in {
 // Expanded post-RA into separate Compare/Test + ConditionalBranchRelative.
 
 class MC6809TestBranchBase<dag operand> : MC6809LogicalInstr {
+  // Bug #186 follow-up Phase 2b (2026-04-28): honest CC.C clobber.
+  // The TST at the front of the fused test-branch writes
+  // CC.{N,Z,V,C}. See MC6809CompareBase for the rationale.
+  let Defs = [NZ, V, C];
   dag OutOperandList = (outs);
   dag InOperandList = !con((ins condcode:$cc), operand, (ins label:$tgt));
   let isBranch = true;
@@ -664,6 +681,10 @@ defm TestBranch_i8 : MC6809TestBranch<ACC8>;
 defm TestBranch_i16 : MC6809TestBranch<ACC16, [AD]>;
 
 class MC6809CompareBranchBase<RegisterClass reg, dag operand> : MC6809LogicalInstr {
+  // Bug #186 follow-up Phase 2b (2026-04-28): honest CC.C clobber.
+  // The CMP at the front of the fused compare-branch writes
+  // CC.{N,Z,V,C}. See MC6809CompareBase for the rationale.
+  let Defs = [NZ, V, C];
   dag OutOperandList = (outs);
   dag InOperandList = !con((ins condcode:$cc, reg:$src), operand, (ins label:$tgt));
   let isBranch = true;
@@ -721,7 +742,7 @@ defm TestPat_NE : MC6809TestCondPat<SETNE, 6>;
 // --- Pseudo-instructions (register-agnostic, GlobalISel) ---
 
 class MC6809BitTestBase<RegisterClass reg, dag operand> : MC6809LogicalInstr {
-  //let Defs = [NZVC, NZ, N, Z, V, C];
+  // CCond output represents CC clobber — see MC6809CompareBase note.
   dag OutOperandList = (outs CCond:$dst);
   dag InOperandList = !con((ins i8imm:$cc, reg:$src), operand);
   let isCompare = true;

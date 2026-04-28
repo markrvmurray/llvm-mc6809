@@ -109,6 +109,17 @@ private:
   //
   // Cleared per-function in setupMF.
   DenseMap<Register, MCPhysReg> CarryFlagOf;
+
+  // Bug #186 follow-up Phase 2a (2026-04-28): cache for the byte-bridging
+  // workaround. Maps a SetCarry/SetCarryUse producer MI to the ABc byte
+  // vreg holding its CC.C value (frozen via MaterializeCarryToByte_i8
+  // immediately after the producer). Multiple consumers reading the same
+  // producer's CC.C share this byte — `MaterializeCarryToByte_i8` is
+  // emitted exactly ONCE per producer (it reads CC.C, which is only
+  // valid right after the producer); each consumer emits its own
+  // `MaterializeByteToCarry_i8` (LSRB) right before its use.
+  // Cleared per-function in setupMF.
+  DenseMap<MachineInstr *, Register> BridgedByteFor;
   ComplexRendererFns selectLSIndexedImmOffset(MachineOperand &Root) const;
   ComplexRendererFns selectLSUnmergeIndexedImmOffset(MachineOperand &Root) const;
   ComplexRendererFns selectLSFrameIndex(MachineOperand &Root) const;
@@ -134,6 +145,8 @@ void MC6809InstructionSelector::setupMF(MachineFunction &MF,
 
   // Bug #186 v5: per-function carry/overflow flag tracking.
   CarryFlagOf.clear();
+  // Bug #186 follow-up Phase 2a: per-function byte-bridge cache.
+  BridgedByteFor.clear();
 
   // The machine verifier doesn't allow COPY instructions to have differing
   // types, but the various GlobalISel utilities used in the instruction
@@ -253,42 +266,70 @@ getPhantomBit1Flag(Register SrcReg, const MachineRegisterInfo &MRI,
   return std::nullopt;
 }
 
-/// Bug #184: when an SubSetCarryUse / AddSetCarryUse consumer's carry-in
-/// is a phantom-BIT1 whose producer lives in a DIFFERENT basic block, any
-/// CC.C-clobbering MI between producer and consumer (CompareBranch, Test,
-/// CMP, byte loads, ...) silently breaks the borrow chain. Regalloc tracks
-/// the carry as a BIT1 vreg but its physical realisation is CC.C — and
-/// the existing pseudos for CC-clobbering MIs don't currently declare C
-/// as a Def, so regalloc thinks CC.C survives.
+/// Bug #186 follow-up Phase 2a (2026-04-28): does this MI clobber CC.C?
 ///
-/// The fix mirrors the bug #152 phase 3 phantom-BIT1 design rule
-/// (`feedback_phantom_bit1_materialise_at_producer.md`): freeze CC.C
-/// into a byte right after the producer, restore it right before the
-/// consumer. The byte vreg crosses blocks naturally as a regular
-/// ABc value.
+/// Generic check via MachineInstr::modifiesRegister — covers explicit Defs,
+/// implicit Defs, and tied operands. Self-updating when new CC.C-clobbering
+/// pseudos appear in TableGen; no hardcoded opcode list to maintain.
 ///
-/// Same-block case is left alone: SubSetCarry pseudos are typically
-/// adjacent within a block and no CC-clobbering MI gets interposed by
-/// scheduling (their `hasSideEffects = 1` pins them). The intra-block
-/// gap is technically a tech-debt window but no current case exposes it.
-/// Filed separately as the BIT1↔CARRY redesign bug.
+/// Fast paths skip MIs that obviously can't touch a physreg they don't
+/// declare (COPY/PHI/IMPLICIT_DEF/DBG_VALUE).
+static bool clobbersCarryC(const MachineInstr &MI,
+                           const TargetRegisterInfo &TRI) {
+  if (MI.isCopyLike() || MI.isPHI() || MI.isImplicitDef() ||
+      MI.isDebugInstr())
+    return false;
+  return MI.modifiesRegister(MC6809::C, &TRI);
+}
+
+/// Bug #186 follow-up Phase 2a (2026-04-28): formerly
+/// `ensureCarryAcrossBlocks` (cross-BB only); now handles BOTH cross-BB
+/// AND same-BB cases where a CC.C-clobbering MI sits between a SetCarry/
+/// SetCarryUse producer and a SubSetCarryUse / AddSetCarryUse consumer.
+///
+/// Background: regalloc tracks the carry as an IR vreg, but its physical
+/// realisation is CC.C. Without honest `Defs = [NZ, V, C]` on every CC.C-
+/// clobbering MI (CMP/TST/BIT etc.), regalloc thinks CC.C survives those
+/// instructions — and silently breaks the borrow chain when an intervening
+/// CMP overwrites it.
+///
+/// The fix (v5+1a-compatible): freeze CC.C into a byte vreg via
+/// `MaterializeCarryToByte_i8` (LDB #0; ADCB #0) immediately after the
+/// producer, then restore CC.C from the byte's LSB via
+/// `MaterializeByteToCarry_i8` (LSRB) immediately before each consumer.
+/// The byte vreg is a regular ABc — regalloc tracks it like any other byte
+/// value, no $c spilling needed. Mirrors how X86 / AArch64 handle EFLAGS
+/// / NZCV: they don't spill the flag physreg either; either the chain is
+/// adjacent or it's bridged through normal regs.
+///
+/// Multi-consumer cache: i32+ chains have several SubSetCarryUse pseudos
+/// hanging off one SetCarry. The producer-side `MaterializeCarryToByte_i8`
+/// is emitted EXACTLY ONCE per producer (it reads CC.C, which is only
+/// valid right after the producer). Each consumer emits its own
+/// `MaterializeByteToCarry_i8` and reuses the cached byte vreg.
+///
+/// Cross-BB chains: always bridge (any cross-BB path crosses unknown
+/// CC-clobbering code; safer to assume).
+/// Same-BB chains: scan MIs strictly between producer and consumer for
+/// any clobbersCarryC. Only bridge if at least one is found —
+/// preserves Phase 1a's wins on chains where the SetCarry/SetCarryUse
+/// pair is adjacent (the common case, pinned by hasSideEffects).
 static void
-ensureCarryAcrossBlocks(MachineInstr &Consumer, Register CarryIn,
-                        MachineRegisterInfo &MRI, const TargetInstrInfo &TII,
-                        const TargetRegisterInfo &TRI,
-                        const RegisterBankInfo &RBI,
-                        const DenseMap<Register, MCPhysReg> *CarryFlagOf = nullptr) {
+ensureCarryChainIntegrity(MachineInstr &Consumer, Register CarryIn,
+                          MachineRegisterInfo &MRI,
+                          const TargetInstrInfo &TII,
+                          const TargetRegisterInfo &TRI,
+                          const RegisterBankInfo &RBI,
+                          const DenseMap<Register, MCPhysReg> *CarryFlagOf,
+                          DenseMap<MachineInstr *, Register> &BridgedByteFor) {
   auto Flag = getPhantomBit1Flag(CarryIn, MRI, CarryFlagOf);
   if (!Flag || *Flag != MC6809::C)
     return;
 
   // Walk back through COPY / G_FREEZE to find the actual producer MI.
-  // Bug #186 v5: with the carry-out operand dropped from SetCarry/
-  // SetCarryUse, the chain may end at an IMPLICIT_DEF placeholder
-  // (the orphan vreg left by selectAddO/SubO/AddE/SubE). In that
-  // case, the producer (the actual SetCarry pseudo MI) is wherever
-  // the IMPLICIT_DEF was inserted — adjacent in the MI stream. Walk
-  // by MI position rather than vreg-def for the IMPLICIT_DEF case.
+  // Bug #186 v5/1a: the chain may go through IMPLICIT_DEF placeholders
+  // (legacy v5 path) OR end at a SetCarry pseudo with implicit-def of
+  // %CarryOut directly (Phase 1a). Both cases handled below.
   Register Cur = CarryIn;
   MachineInstr *Producer = nullptr;
   while (Cur.isVirtual()) {
@@ -303,9 +344,9 @@ ensureCarryAcrossBlocks(MachineInstr &Consumer, Register CarryIn,
       continue;
     }
     if (Op == TargetOpcode::IMPLICIT_DEF) {
-      // The real producer is the SetCarry/SetCarryUse pseudo emitted
-      // immediately before this IMPLICIT_DEF (selector inserts them
-      // adjacently). Step back one MI.
+      // Legacy v5 path (pre-Phase-1a): the real producer is the
+      // SetCarry/SetCarryUse pseudo emitted immediately before this
+      // IMPLICIT_DEF. Step back one MI.
       auto It = MachineBasicBlock::iterator(*Def);
       if (It == Def->getParent()->begin())
         return;
@@ -319,25 +360,58 @@ ensureCarryAcrossBlocks(MachineInstr &Consumer, Register CarryIn,
   if (!Producer)
     return;
 
-  // Same-block: leave alone. Cross-block: insert materialise + restore pair.
-  if (Producer->getParent() == Consumer.getParent())
-    return;
+  // Decide whether to bridge:
+  //  - Cross-BB: always bridge (any cross-BB path crosses unknown CC clobbers).
+  //  - Same-BB: scan for an intervening CC-clobbering MI; bridge only if found.
+  bool NeedsBridge = (Producer->getParent() != Consumer.getParent());
+  if (!NeedsBridge) {
+    // Producer must precede Consumer in the same BB. Defensive guard:
+    auto PIt = MachineBasicBlock::iterator(*Producer);
+    auto CIt = MachineBasicBlock::iterator(Consumer);
+    auto BBEnd = Producer->getParent()->end();
+    bool Found = false;
+    for (auto It = std::next(PIt); It != BBEnd && It != CIt; ++It) {
+      if (clobbersCarryC(*It, TRI)) {
+        NeedsBridge = true;
+        Found = true;
+        break;
+      }
+    }
+    if (!Found && !NeedsBridge)
+      return;  // No intervening clobber — Phase 1a's hasSideEffects
+               // adjacency is enough.
+  }
 
-  // Allocate a bridging byte vreg in ABc to carry the bit between blocks.
-  Register ByteVReg = MRI.createVirtualRegister(&MC6809::ABcRegClass);
+  // Producer-side byte (emit MaterializeCarryToByte_i8 only once per
+  // producer; cache the byte vreg).
+  Register ByteVReg;
+  auto CacheIt = BridgedByteFor.find(Producer);
+  if (CacheIt != BridgedByteFor.end()) {
+    ByteVReg = CacheIt->second;
+  } else {
+    // Defensive fallback: if the very next MI after Producer is already
+    // a MaterializeCarryToByte_i8 (from a prior call that for some reason
+    // didn't populate the cache — shouldn't happen, but be safe), reuse
+    // its dest vreg.
+    auto AfterProducer = std::next(MachineBasicBlock::iterator(*Producer));
+    MachineBasicBlock &PMBB = *Producer->getParent();
+    if (AfterProducer != PMBB.end() &&
+        AfterProducer->getOpcode() == MC6809::MaterializeCarryToByte_i8) {
+      ByteVReg = AfterProducer->getOperand(0).getReg();
+    } else {
+      // Fresh: allocate byte vreg and emit MaterializeCarryToByte_i8.
+      ByteVReg = MRI.createVirtualRegister(&MC6809::ABcRegClass);
+      MachineIRBuilder ProducerB(PMBB, AfterProducer);
+      auto MtoB = ProducerB.buildInstr(MC6809::MaterializeCarryToByte_i8)
+                      .addDef(ByteVReg)
+                      .addUse(CarryIn);
+      constrainSelectedInstRegOperands(*MtoB, TII, TRI, RBI);
+    }
+    BridgedByteFor[Producer] = ByteVReg;
+  }
 
-  // Insert MaterializeCarryToByte_i8 immediately after the producer.
-  MachineBasicBlock &PMBB = *Producer->getParent();
-  auto AfterProducer = std::next(MachineBasicBlock::iterator(*Producer));
-  MachineIRBuilder ProducerB(PMBB, AfterProducer);
-  auto MtoB = ProducerB.buildInstr(MC6809::MaterializeCarryToByte_i8)
-                  .addDef(ByteVReg)
-                  .addUse(CarryIn);  // BIT1 phantom kept live across the gap
-  constrainSelectedInstRegOperands(*MtoB, TII, TRI, RBI);
-
-  // Insert MaterializeByteToCarry_i8 immediately before the consumer.
-  // The LSRB it expands to restores CC.C from the byte's bit 0 right
-  // before the consumer's SBC reads CC.C.
+  // Consumer-side restore: emit MaterializeByteToCarry_i8 immediately
+  // before this Consumer. Each consumer needs its own restore.
   MachineIRBuilder ConsumerB(Consumer);
   auto BtoC = ConsumerB.buildInstr(MC6809::MaterializeByteToCarry_i8)
                   .addUse(ByteVReg);
@@ -2028,12 +2102,11 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
   Register Reg;
   unsigned Opcode = 0;
 
-  // Bug #184 cross-BB carry-in freezing/restoring kept for now —
-  // bug #186 v5 may revisit but the byte-intermediate workaround is
-  // still load-bearing for cross-BB carries that can't ride $c
-  // through scheduling/regalloc.
-  ensureCarryAcrossBlocks(MI, MI.getOperand(4).getReg(), *MRI, TII,
-                          TRI, RBI, &CarryFlagOf);
+  // Bug #184 + bug #186 follow-up Phase 2a: cross-BB AND same-BB
+  // (with intervening CC.C-clobber) carry-in freezing/restoring.
+  // See ensureCarryChainIntegrity comment for the rationale.
+  ensureCarryChainIntegrity(MI, MI.getOperand(4).getReg(), *MRI, TII,
+                            TRI, RBI, &CarryFlagOf, BridgedByteFor);
 
   // Bug #147: G_SADDE's s1 result is V (signed-overflow); G_UADDE's is C.
   bool IsSigned = MI.getOpcode() == TargetOpcode::G_SADDE;
@@ -2170,9 +2243,11 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
 
   CarryOut = MI.getOperand(1).getReg();
 
-  // Bug #184: cross-BB carry-in workaround kept for now (see selectAddE).
-  ensureCarryAcrossBlocks(MI, MI.getOperand(4).getReg(), *MRI, TII,
-                          TRI, RBI, &CarryFlagOf);
+  // Bug #184 + bug #186 follow-up Phase 2a: cross-BB AND same-BB
+  // (with intervening CC.C-clobber) carry-in freezing/restoring.
+  // See ensureCarryChainIntegrity comment for the rationale.
+  ensureCarryChainIntegrity(MI, MI.getOperand(4).getReg(), *MRI, TII,
+                            TRI, RBI, &CarryFlagOf, BridgedByteFor);
 
   // Bug #147: G_SSUBE's s1 is V (signed-overflow); G_USUBE's is C.
   bool IsSigned = MI.getOpcode() == TargetOpcode::G_SSUBE;
