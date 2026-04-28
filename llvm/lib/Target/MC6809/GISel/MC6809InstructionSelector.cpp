@@ -861,6 +861,84 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     }
   }
 
+  // Bug #178: select G_LOAD / G_STORE on a p1 (addrspace(1) = direct
+  // page) global to the DP-mode opcode (LDAd/STAd/LDDd/STDd) with the
+  // global symbol as the addr8 operand. The MC layer emits a single-
+  // byte fixup; the linker assigns the global a DP address ($00-$FF).
+  // The pattern is:
+  //
+  //   %addr:_(p1) = G_GLOBAL_VALUE @g
+  //   %v:_(s8) = G_LOAD %addr        →     $aa = LDAd @g; %v = COPY $aa
+  //   G_STORE %v:_(s8), %addr        →     $aa = COPY %v; STAd @g
+  //
+  // Width selects opcode and accumulator: s8 → LDAd/STAd/$aa,
+  // s16 → LDDd/STDd/$ad. We mutate the G_GLOBAL_VALUE only if it has
+  // no other uses (always true for a use-once temporary today; future
+  // pointer-arithmetic on DP pointers would need to relax this).
+  if (MI.getOpcode() == TargetOpcode::G_LOAD ||
+      MI.getOpcode() == TargetOpcode::G_STORE) {
+    bool IsLoad = MI.getOpcode() == TargetOpcode::G_LOAD;
+    Register AddrReg = MI.getOperand(IsLoad ? 1 : 1).getReg();
+    LLT AddrTy = MRI->getType(AddrReg);
+    if (AddrTy.isPointer() && AddrTy.getAddressSpace() == 1) {
+      // Walk to the G_GLOBAL_VALUE producer.
+      MachineInstr *GV = MRI->getVRegDef(AddrReg);
+      while (GV && (GV->getOpcode() == TargetOpcode::COPY ||
+                    GV->getOpcode() == TargetOpcode::G_FREEZE)) {
+        Register Src = GV->getOperand(1).getReg();
+        if (!Src.isVirtual()) break;
+        GV = MRI->getVRegDef(Src);
+      }
+      if (!GV || GV->getOpcode() != TargetOpcode::G_GLOBAL_VALUE)
+        return false; // unsupported p1 addressing form
+      Register ValReg = MI.getOperand(0).getReg();
+      LLT ValTy = MRI->getType(ValReg);
+      unsigned Opc;
+      MCRegister AccReg;
+      const TargetRegisterClass *AccRC;
+      if (ValTy == LLT::scalar(8)) {
+        Opc = IsLoad ? MC6809::LDAd : MC6809::STAd;
+        AccReg = MC6809::AA;
+        AccRC = &MC6809::AAcRegClass;
+      } else if (ValTy == LLT::scalar(16)) {
+        Opc = IsLoad ? MC6809::LDDd : MC6809::STDd;
+        AccReg = MC6809::AD;
+        AccRC = &MC6809::ADcRegClass;
+      } else {
+        return false; // unsupported width (s32 etc. — narrowed earlier)
+      }
+      const MachineOperand &GVOp = GV->getOperand(1);
+      if (IsLoad) {
+        // $aa = LDAd @g
+        BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(Opc))
+            .add(GVOp)
+            .addDef(AccReg, RegState::Implicit);
+        // %v = COPY $aa
+        BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(TargetOpcode::COPY),
+                ValReg)
+            .addReg(AccReg);
+        if (!MRI->getRegClassOrNull(ValReg))
+          MRI->setRegClass(ValReg, AccRC);
+      } else {
+        // $aa = COPY %v
+        BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(TargetOpcode::COPY),
+                AccReg)
+            .addReg(ValReg);
+        // STAd @g
+        BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(Opc))
+            .add(GVOp)
+            .addUse(AccReg, RegState::Implicit);
+        if (!MRI->getRegClassOrNull(ValReg))
+          MRI->setRegClass(ValReg, AccRC);
+      }
+      MI.eraseFromParent();
+      // Erase the G_GLOBAL_VALUE if it has no remaining uses.
+      if (MRI->use_empty(GV->getOperand(0).getReg()))
+        GV->eraseFromParent();
+      return true;
+    }
+  }
+
   if (selectImpl(MI, *CoverageInfo))
     return true;
 

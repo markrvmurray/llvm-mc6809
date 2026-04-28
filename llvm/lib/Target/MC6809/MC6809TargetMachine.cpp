@@ -85,7 +85,10 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMC6809Target() {
 }
 
 // MC6809 is big-endian (Motorola byte order).
-static const char *MC6809DataLayout = "E-p:16:8-S8-m:e-i1:8-i8:8-i16:8-i32:8-i64:8-f32:8-f64:8-a:0-n8:16";
+// Address space 1 is the direct page ($0000-$00FF): 8-bit pointers,
+// since the high byte is implicit in the DP register. Bug #178 user
+// `__attribute__((directpage))` globals live here.
+static const char *MC6809DataLayout = "E-p:16:8-p1:8:8-S8-m:e-i1:8-i8:8-i16:8-i32:8-i64:8-f32:8-f64:8-a:0-n8:16";
 
 /// Processes a CPU name.
 static StringRef getCPU(StringRef CPU) { return (CPU.empty() || CPU == "generic") ? "mc6809" : CPU; }

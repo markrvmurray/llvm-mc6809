@@ -38,6 +38,7 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   bool IsHD6309 = Subtarget.has6309();
 
   LLT p = LLT::pointer(0, 16);
+  LLT p1 = LLT::pointer(1, 8); // direct page, bug #178
   LLT s1 = LLT::scalar(1);
   // LLT s3 = LLT::scalar(3);
   LLT s8 = LLT::scalar(8);
@@ -371,13 +372,18 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // HD6309 has native 32-bit load/store via Q register.
   // s1 loads/stores: lower sub-byte memory accesses to byte-aligned
   // operations (the MC6809 has no sub-byte memory access).
+  // Bug #178: addrspace(1) (= direct page, p1) load/store legal too;
+  // isel selects the DP-mode opcode (LDAd/STAd/LDDd/STDd).
   getActionDefinitionsBuilder({G_LOAD, G_STORE})
-      .legalForCartesianProduct(LegalTypes, {p})
+      .legalForCartesianProduct(LegalTypes, {p, p1})
       .lowerIfMemSizeNotByteSizePow2()
       .clampScalar(0, s8, sMax);
 
+  // G_GLOBAL_VALUE may produce a p1 pointer (addrspace(1) global);
+  // legalize that too so the address can be materialised before the
+  // load/store consumes it.
   getActionDefinitionsBuilder({G_FRAME_INDEX, G_GLOBAL_VALUE, G_BRINDIRECT, G_JUMP_TABLE})
-      .legalFor({p});
+      .legalFor({p, p1});
 
   getActionDefinitionsBuilder(G_VASTART).customFor({p});
   // G_VAARG: dst type can be anything the va_list might hold. The custom

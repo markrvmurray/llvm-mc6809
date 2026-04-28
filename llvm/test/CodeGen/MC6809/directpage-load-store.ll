@@ -1,0 +1,49 @@
+; NOTE: Hand-authored — do not autogen. The CHECK lines pin specific
+; DP-mode opcodes (LDAd/STAd/LDDd/STDd) that the bug #178 selection
+; produces; an autogen run might smuggle in alternative spellings.
+; RUN: llc -mtriple=mc6809 -O0 -filetype=asm -o - %s | FileCheck %s
+
+; Regression sentinel for bug #178 (Stage 6 of MC6809InstructionSelector).
+;
+; addrspace(1) = direct page on MC6809. Loads/stores of an addrspace(1)
+; global must select to the DP-mode opcode (LDAd/STAd/LDDd/STDd) with
+; the global symbol as a single-byte addr8 operand. The linker
+; resolves the symbol to a DP address ($00-$FF).
+;
+; Without the bug-#178 isel path the legalizer aborts with
+; "unable to legalize instruction" on G_LOAD/G_STORE of a p1 pointer.
+
+@g_byte = addrspace(1) global i8 0, align 1
+@g_word = addrspace(1) global i16 0, align 1
+
+define i8 @load_byte() {
+; CHECK-LABEL: load_byte:
+; CHECK:    lda <mc6809_8(g_byte)
+; CHECK:    rts
+  %v = load i8, ptr addrspace(1) @g_byte, align 1
+  ret i8 %v
+}
+
+define void @store_byte(i8 %v) {
+; CHECK-LABEL: store_byte:
+; CHECK:    sta <mc6809_8(g_byte)
+; CHECK:    rts
+  store i8 %v, ptr addrspace(1) @g_byte, align 1
+  ret void
+}
+
+define i16 @load_word() {
+; CHECK-LABEL: load_word:
+; CHECK:    ldd <mc6809_8(g_word)
+; CHECK:    rts
+  %v = load i16, ptr addrspace(1) @g_word, align 1
+  ret i16 %v
+}
+
+define void @store_word(i16 %v) {
+; CHECK-LABEL: store_word:
+; CHECK:    std <mc6809_8(g_word)
+; CHECK:    rts
+  store i16 %v, ptr addrspace(1) @g_word, align 1
+  ret void
+}
