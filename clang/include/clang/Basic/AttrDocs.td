@@ -3194,6 +3194,55 @@ Interrupt handler functions defined with the signal attribute do not re-enable i
 }];
 }
 
+def MC6809DirectPageDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "directpage (MC6809)";
+  let Content = [{
+Clang supports the ``__attribute__((directpage))`` attribute on MC6809
+targets. The attribute places the decorated variable in the MC6809 direct
+page (memory addresses ``$0000-$00FF``). Direct-page accesses use a
+shorter encoding (single-byte address operand instead of two bytes) and
+fewer cycles than the equivalent extended/indexed access, making the
+attribute valuable for hot 1- and 2-byte globals.
+
+The attribute is exposed at LLVM IR level as address space 1: a global
+carrying ``__attribute__((directpage))`` is emitted as
+``@var = addrspace(1) global ...`` and the MC6809 backend selects
+direct-page load/store opcodes (``LDA <symbol>``, ``STA <symbol>``,
+``LDD <symbol>``, ``STD <symbol>``) for it. The linker assigns the
+final 8-bit DP address.
+
+For convenience, the ``__directpage`` macro expands to
+``__attribute__((directpage))``.
+
+Constraints
+^^^^^^^^^^^
+
+- The attribute may only appear on variables (function declarations are
+  rejected).
+- Variables carrying the attribute MUST have **static storage duration**
+  — file-scope ``static`` or function-local ``static``. Variables with
+  external linkage and automatic-storage variables are rejected.
+- Pointer arithmetic on a ``__directpage`` pointer is not supported in
+  this initial implementation; cast to ``(volatile uint8_t *)`` to take
+  the address explicitly (which falls back to extended addressing).
+
+Example
+^^^^^^^
+
+.. code-block:: c
+
+  static __directpage int counter;          // OK
+  static int flag __attribute__((directpage));  // OK (equivalent)
+
+  __directpage int g;            // ERROR (extern linkage)
+  void f(void) {
+    __directpage int local;      // ERROR (automatic storage)
+  }
+  __directpage void f2(void);    // ERROR (function decl)
+}];
+}
+
 def TargetDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{

@@ -7603,6 +7603,9 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
   case ParsedAttr::AT_MC6809NoISR:
     S.MC6809().handleInterruptNoISRAttr(D, AL);
     break;
+  case ParsedAttr::AT_MC6809DirectPage:
+    S.MC6809().handleDirectPageAttr(D, AL);
+    break;
   case ParsedAttr::AT_MOSInterruptNorecurse:
     S.MOS().handleInterruptNorecurseAttr(D, AL);
     break;

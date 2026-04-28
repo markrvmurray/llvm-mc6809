@@ -26,6 +26,7 @@ public:
   void handleInterruptAttr(Decl *D, const ParsedAttr &AL);
   void handleInterruptNorecurseAttr(Decl *D, const ParsedAttr &AL);
   void handleInterruptNoISRAttr(Decl *D, const ParsedAttr &AL);
+  void handleDirectPageAttr(Decl *D, const ParsedAttr &AL);
 };
 
 } // namespace clang

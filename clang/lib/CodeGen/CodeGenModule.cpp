@@ -134,6 +134,9 @@ createTargetCodeGenInfo(CodeGenModule &CGM) {
   case llvm::Triple::mos:
     return createMOSTargetCodeGenInfo(CGM);
 
+  case llvm::Triple::mc6809:
+    return createMC6809TargetCodeGenInfo(CGM);
+
   case llvm::Triple::avr: {
     // For passing parameters, R8~R25 are used on avr, and R18~R25 are used
     // on avrtiny. For passing return value, R18~R25 are used on avr, and

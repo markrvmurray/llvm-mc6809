@@ -13,6 +13,7 @@
 #include "clang/Sema/SemaMC6809.h"
 
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/Decl.h"
 #include "clang/Sema/Attr.h"
 
 using namespace llvm;
@@ -53,6 +54,28 @@ void SemaMC6809::handleInterruptNoISRAttr(Decl *D, const ParsedAttr &AL) {
     return;
 
   handleSimpleAttribute<MC6809NoISRAttr>(*this, D, AL);
+}
+
+// Bug #178: __attribute__((directpage)) → addrspace(1) global on
+// MC6809 direct page ($00-$FF). Subjects=[Var] in Attr.td already
+// restricts to variables; here we additionally enforce that the
+// variable has static storage duration. Cross-TU sharing would
+// complicate the link-time DP allocation model and isn't supported.
+void SemaMC6809::handleDirectPageAttr(Decl *D, const ParsedAttr &AL) {
+  if (!AL.checkExactlyNumArgs(SemaRef, 0))
+    return;
+  const auto *VD = dyn_cast<VarDecl>(D);
+  if (!VD) {
+    Diag(D->getLocation(), diag::warn_attribute_wrong_decl_type)
+        << "'directpage'" << ExpectedVariable;
+    return;
+  }
+  if (VD->getStorageClass() != SC_Static) {
+    Diag(D->getLocation(), diag::err_attribute_requires_static_storage)
+        << AL << AL.getRange();
+    return;
+  }
+  handleSimpleAttribute<MC6809DirectPageAttr>(*this, D, AL);
 }
 
 SemaMC6809::SemaMC6809(Sema &S) : SemaBase(S) {}

@@ -204,6 +204,11 @@ void MC6809TargetInfo::getTargetDefines(const LangOptions &Opts,
     Builder.defineMacro("__" + CPUDefine + "__");
   }
 
-  Builder.defineMacro("__dp", "__attribute__((__address_space__(1)))");
-  Builder.defineMacro("__deropage", "__attribute__((__address_space__(1)))");
+  // Bug #178: convenience macros for the directpage attribute. Both
+  // expand to the dedicated __attribute__((directpage)) (which Sema
+  // validates is only on static-storage variables); the macro names
+  // are a backward-compat surface plus the canonical short alias.
+  // The earlier `__deropage` macro was a typo and is removed.
+  Builder.defineMacro("__directpage", "__attribute__((directpage))");
+  Builder.defineMacro("__dp", "__attribute__((directpage))");
 }

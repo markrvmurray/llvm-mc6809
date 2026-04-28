@@ -2289,6 +2289,12 @@ def MC6809NoISR : InheritableAttr, TargetSpecificAttr<TargetMC6809> {
   let Documentation = [Undocumented];
 }
 
+def MC6809DirectPage : InheritableAttr, TargetSpecificAttr<TargetMC6809> {
+  let Spellings = [GCC<"directpage">];
+  let Subjects = SubjectList<[Var]>;
+  let Documentation = [MC6809DirectPageDocs];
+}
+
 def MOSInterrupt : InheritableAttr, TargetSpecificAttr<TargetMOS> {
   let Spellings = [GCC<"interrupt">];
   let Subjects = SubjectList<[Function]>;
