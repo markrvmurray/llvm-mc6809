@@ -126,8 +126,7 @@ define void @sext_i32_to_i64_then_store(ptr %out, i32 %x) {
 ; CHECK-NEXT:    ldy 23,u
 ; CHECK-NEXT:    std 2,y
 ; CHECK-NEXT:    ldd 4,u
-; CHECK-NEXT:    ldy 23,u
-; CHECK-NEXT:    std ,y
+; CHECK-NEXT:    std [23,u]
 ; CHECK-NEXT:    tfr u,s
 ; CHECK-NEXT:    puls u,y
 ; CHECK-NEXT:    leas 37,s

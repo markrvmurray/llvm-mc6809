@@ -225,6 +225,58 @@ static unsigned getOpcodeForOffsetSize(unsigned OrigOpc, int NewOffset) {
 }
 
 /// For an `*i_o0` or `*i_o5` (with offset 0) opcode that reads/writes
+/// `,reg`, return the corresponding *indirect-indexed* opcode for the
+/// pattern `LDY n,u; op ,Y → op [n,u]` (bug #189). The target opcode
+/// is selected by the LDY-side offset:
+///   Offset == 0          → `*i_o0I`  (no offset operand)
+///   Offset ∈ [-128, 127] → `*i_o8I`  (8-bit offset)
+///   else                  → `*i_o16I` (16-bit offset)
+/// MC6809 has no 5-bit indirect form, so 5-bit-fitting offsets
+/// promote to `_o8I`. Returns 0 if the source op has no indirect
+/// variant family (force skip).
+static unsigned getIndirectIndexedOpcode(unsigned SrcOpc, int Offset) {
+  // Pick the variant suffix once based on offset size.
+  enum Variant { V_O0I, V_O8I, V_O16I };
+  Variant V = (Offset == 0)                          ? V_O0I
+            : (Offset >= -128 && Offset <= 127)      ? V_O8I
+                                                     : V_O16I;
+
+#define IND_VARIANT(BASE)                                                      \
+  case MC6809::BASE##_o0: case MC6809::BASE##_o5:                              \
+    switch (V) {                                                               \
+    case V_O0I:  return MC6809::BASE##_o0I;                                    \
+    case V_O8I:  return MC6809::BASE##_o8I;                                    \
+    default:     return MC6809::BASE##_o16I;                                   \
+    }
+
+  switch (SrcOpc) {
+  // Byte loads/stores
+  IND_VARIANT(LDAi)
+  IND_VARIANT(LDBi)
+  IND_VARIANT(STAi)
+  IND_VARIANT(STBi)
+  // Byte ALU on A
+  IND_VARIANT(ADDAi) IND_VARIANT(ADCAi)
+  IND_VARIANT(SUBAi) IND_VARIANT(SBCAi)
+  IND_VARIANT(ANDAi) IND_VARIANT(ORAi) IND_VARIANT(EORAi)
+  IND_VARIANT(CMPAi) IND_VARIANT(BITAi)
+  // Byte ALU on B
+  IND_VARIANT(ADDBi) IND_VARIANT(ADCBi)
+  IND_VARIANT(SUBBi) IND_VARIANT(SBCBi)
+  IND_VARIANT(ANDBi) IND_VARIANT(ORBi) IND_VARIANT(EORBi)
+  IND_VARIANT(CMPBi) IND_VARIANT(BITBi)
+  // Word loads/stores
+  IND_VARIANT(LDDi)
+  IND_VARIANT(STDi)
+  // Word ALU on D
+  IND_VARIANT(ADDDi) IND_VARIANT(SUBDi)
+  IND_VARIANT(CMPDi)
+  default: return 0;
+  }
+#undef IND_VARIANT
+}
+
+/// For an `*i_o0` or `*i_o5` (with offset 0) opcode that reads/writes
 /// `,S`, return the corresponding post-increment opcode that absorbs a
 /// following `LEAS PushWidth,S`. PushWidth must be 1 (byte ops on AA/AB,
 /// returns the `*i_Inc1` variant) or 2 (word ops on AD, returns
@@ -700,6 +752,134 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
       MI3.eraseFromParent();
 
       // Advance past the rewritten MI2 to continue scanning.
+      It = std::next(MI2.getIterator());
+      Changed = true;
+    }
+  }
+
+  // Stage 6 (bug #189): fold LDY/LDX/LDU n,u; (gap); op ,Y/X/U into
+  // op [n,u] using indirect-indexed addressing. Saves 2-3 bytes
+  // (the LDY) and ~3-6 cycles per fold. Same shape as Stage 5 but
+  // for indirect-indexed addressing rather than post-increment.
+  //
+  // Match shape: LDY n,BaseReg / ... up to MaxGap MIs ... / op ,Y
+  // where Y is dead immediately after the op. Each intervening MI
+  // must NOT touch (read or write) Y — reading would observe MI1's
+  // value and break when we erase MI1; writing would change what
+  // op,Y reads. Liveness past the op is checked via
+  // `MachineBasicBlock::computeRegisterLiveness` requiring LQR_Dead
+  // (LQR_Live and LQR_Unknown both abort; we choose correctness
+  // over the unknown cases).
+  //
+  // MaxGap=5 covers ~78% of foldable sites in -Os bench (per the
+  // bug #189 pre-implementation explore, gap-1=36%, gap-3=19%,
+  // gap-5 cumulative=78.6%). The gap-6+ tail (~21%) is left for
+  // a follow-up Phase 2 with an unbounded scan; the limiting
+  // factor there is that `computeRegisterLiveness` more often
+  // returns LQR_Unknown over longer scans.
+  //
+  // TODO Phase 2: relax MaxGap (or go unbounded) once we have a
+  // bench data point on how often LQR_Unknown bites in practice.
+  for (MachineBasicBlock &MBB : MF) {
+    for (auto It = MBB.begin(); It != MBB.end(); ) {
+      MachineInstr &MI1 = *It++;
+
+      // MI1: LDY/LDX/LDU from a (Offset, BaseReg) memory operand.
+      // The destination register is implicit-def'd by the load; we
+      // know which one it is from the opcode family.
+      Register LoadedReg;
+      switch (MI1.getOpcode()) {
+      case MC6809::LDYi_o0: case MC6809::LDYi_o5:
+      case MC6809::LDYi_o8: case MC6809::LDYi_o16:
+        LoadedReg = MC6809::IY; break;
+      case MC6809::LDXi_o0: case MC6809::LDXi_o5:
+      case MC6809::LDXi_o8: case MC6809::LDXi_o16:
+        LoadedReg = MC6809::IX; break;
+      case MC6809::LDUi_o0: case MC6809::LDUi_o5:
+      case MC6809::LDUi_o8: case MC6809::LDUi_o16:
+        LoadedReg = MC6809::SU; break;
+      default:
+        continue;
+      }
+      SlotKey M1Slot = getSlotKey(MI1);
+      Register BaseReg = M1Slot.BaseReg;
+      int Offset = M1Slot.Offset;
+      if (!BaseReg.isValid()) continue;
+      // Skip if BaseReg is the same as LoadedReg (`LDY ,Y` etc.) —
+      // the indirect form would self-reference, and the existing
+      // value of Y is what we'd be folding away.
+      if (BaseReg == LoadedReg) continue;
+
+      // Forward scan for MI2 (op ,LoadedReg with offset 0).
+      constexpr unsigned MaxGap = 5;
+      auto It2 = It;
+      unsigned NewOpc = 0;
+      for (unsigned Gap = 0; Gap <= MaxGap && It2 != MBB.end();
+           ++Gap, ++It2) {
+        MachineInstr &Cand = *It2;
+
+        if (Cand.isDebugInstr()) {
+          --Gap; // don't charge debug MIs against the budget
+          continue;
+        }
+
+        // Try to match as MI2.
+        if (unsigned Opc = getIndirectIndexedOpcode(Cand.getOpcode(),
+                                                   Offset)) {
+          SlotKey CandSlot = getSlotKey(Cand);
+          if (CandSlot.BaseReg == LoadedReg && CandSlot.Offset == 0) {
+            NewOpc = Opc;
+            break; // MI2 found
+          }
+        }
+
+        // Not MI2 — must not touch LoadedReg.
+        if (Cand.readsRegister(LoadedReg, &TRI) ||
+            Cand.modifiesRegister(LoadedReg, &TRI))
+          break; // safety abort
+      }
+      if (!NewOpc) continue;
+      MachineInstr &MI2 = *It2;
+
+      // Liveness: LoadedReg must be dead at the program point
+      // immediately after MI2. Bound the scan at 16 MIs to keep it
+      // cheap.
+      auto AfterMI2 = std::next(It2);
+      auto LR = MBB.computeRegisterLiveness(&TRI, LoadedReg, AfterMI2,
+                                            /*Neighborhood=*/16);
+      if (LR != MachineBasicBlock::LQR_Dead) continue;
+
+      LLVM_DEBUG(dbgs() << "  SpillOpt Stage 6: folding LDY/op,Y "
+                        << "→ op[n,u]:\n"
+                        << "    " << MI1
+                        << "    " << MI2);
+
+      // Operand surgery on MI2:
+      //   1. Save implicit operands.
+      //   2. Remove all operands.
+      //   3. Set new descriptor.
+      //   4. Add new explicit operands (imm + base) per the new desc.
+      //   5. Re-add the saved implicit operands.
+      SmallVector<MachineOperand, 8> Implicits;
+      unsigned OldNumExplicit = MI2.getNumExplicitOperands();
+      for (unsigned i = OldNumExplicit, e = MI2.getNumOperands();
+           i < e; ++i)
+        Implicits.push_back(MI2.getOperand(i));
+      while (MI2.getNumOperands() > 0)
+        MI2.removeOperand(0);
+      MI2.setDesc(TII.get(NewOpc));
+      MachineInstrBuilder MIB(MF, &MI2);
+      // The _o0I form takes (base) only; _o8I/_o16I take (imm, base).
+      if (MI2.getDesc().getNumOperands() == 2)
+        MIB.addImm(Offset);
+      MIB.addReg(BaseReg);
+      for (auto &MO : Implicits)
+        MI2.addOperand(MO);
+
+      // Erase MI1 (the LDY).
+      MI1.eraseFromParent();
+
+      // Continue from MI2+1.
       It = std::next(MI2.getIterator());
       Changed = true;
     }

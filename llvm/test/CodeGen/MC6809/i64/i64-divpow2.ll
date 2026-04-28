@@ -269,8 +269,7 @@ define i64 @sdiv_i64_2(i64 %x) {
 ; O2-NEXT:    ldy 36,u
 ; O2-NEXT:    std 2,y
 ; O2-NEXT:    ldd 44,u
-; O2-NEXT:    ldy 36,u
-; O2-NEXT:    std ,y
+; O2-NEXT:    std [36,u]
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u,y
 ; O2-NEXT:    leas 72,s
@@ -428,8 +427,7 @@ define i64 @udiv_i64_4(i64 %x) {
 ; O2-NEXT:    ldy 24,u
 ; O2-NEXT:    std 2,y
 ; O2-NEXT:    ldd 26,u
-; O2-NEXT:    ldy 24,u
-; O2-NEXT:    std ,y
+; O2-NEXT:    std [24,u]
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u,y
 ; O2-NEXT:    leas 38,s
@@ -578,8 +576,7 @@ define i64 @ashr_i64_1(i64 %x) {
 ; O2-NEXT:    ldy 20,u
 ; O2-NEXT:    std 2,y
 ; O2-NEXT:    ldd 22,u
-; O2-NEXT:    ldy 20,u
-; O2-NEXT:    std ,y
+; O2-NEXT:    std [20,u]
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u,y
 ; O2-NEXT:    leas 34,s
@@ -732,8 +729,7 @@ define i64 @lshr_i64_2(i64 %x) {
 ; O2-NEXT:    ldy 24,u
 ; O2-NEXT:    std 2,y
 ; O2-NEXT:    ldd 26,u
-; O2-NEXT:    ldy 24,u
-; O2-NEXT:    std ,y
+; O2-NEXT:    std [24,u]
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u,y
 ; O2-NEXT:    leas 38,s
@@ -882,8 +878,7 @@ define i64 @shl_i64_3(i64 %x) {
 ; O2-NEXT:    ldy 20,u
 ; O2-NEXT:    std 2,y
 ; O2-NEXT:    ldd 22,u
-; O2-NEXT:    ldy 20,u
-; O2-NEXT:    std ,y
+; O2-NEXT:    std [20,u]
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u,y
 ; O2-NEXT:    leas 34,s

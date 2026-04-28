@@ -849,8 +849,7 @@ define dso_local i32 @div_s_i32(i32 %a, i32 %b) {
 ; O1-NEXT:    ldy 16,u
 ; O1-NEXT:    std 2,y
 ; O1-NEXT:    ldd 22,u
-; O1-NEXT:    ldy 16,u
-; O1-NEXT:    std ,y
+; O1-NEXT:    std [16,u]
 ; O1-NEXT:    tfr u,s
 ; O1-NEXT:    puls u,y
 ; O1-NEXT:    leas 26,s
@@ -898,8 +897,7 @@ define dso_local i32 @div_s_i32(i32 %a, i32 %b) {
 ; O2-NEXT:    ldy 16,u
 ; O2-NEXT:    std 2,y
 ; O2-NEXT:    ldd 22,u
-; O2-NEXT:    ldy 16,u
-; O2-NEXT:    std ,y
+; O2-NEXT:    std [16,u]
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u,y
 ; O2-NEXT:    leas 26,s
@@ -947,8 +945,7 @@ define dso_local i32 @div_s_i32(i32 %a, i32 %b) {
 ; O3-NEXT:    ldy 16,u
 ; O3-NEXT:    std 2,y
 ; O3-NEXT:    ldd 22,u
-; O3-NEXT:    ldy 16,u
-; O3-NEXT:    std ,y
+; O3-NEXT:    std [16,u]
 ; O3-NEXT:    tfr u,s
 ; O3-NEXT:    puls u,y
 ; O3-NEXT:    leas 26,s
@@ -1052,8 +1049,7 @@ define dso_local i32 @div_u_i32(i32 %a, i32 %b) {
 ; O1-NEXT:    ldy 16,u
 ; O1-NEXT:    std 2,y
 ; O1-NEXT:    ldd 22,u
-; O1-NEXT:    ldy 16,u
-; O1-NEXT:    std ,y
+; O1-NEXT:    std [16,u]
 ; O1-NEXT:    tfr u,s
 ; O1-NEXT:    puls u,y
 ; O1-NEXT:    leas 26,s
@@ -1101,8 +1097,7 @@ define dso_local i32 @div_u_i32(i32 %a, i32 %b) {
 ; O2-NEXT:    ldy 16,u
 ; O2-NEXT:    std 2,y
 ; O2-NEXT:    ldd 22,u
-; O2-NEXT:    ldy 16,u
-; O2-NEXT:    std ,y
+; O2-NEXT:    std [16,u]
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u,y
 ; O2-NEXT:    leas 26,s
@@ -1150,8 +1145,7 @@ define dso_local i32 @div_u_i32(i32 %a, i32 %b) {
 ; O3-NEXT:    ldy 16,u
 ; O3-NEXT:    std 2,y
 ; O3-NEXT:    ldd 22,u
-; O3-NEXT:    ldy 16,u
-; O3-NEXT:    std ,y
+; O3-NEXT:    std [16,u]
 ; O3-NEXT:    tfr u,s
 ; O3-NEXT:    puls u,y
 ; O3-NEXT:    leas 26,s
@@ -1255,8 +1249,7 @@ define dso_local i32 @mod_s_i32(i32 %a, i32 %b) {
 ; O1-NEXT:    ldy 16,u
 ; O1-NEXT:    std 2,y
 ; O1-NEXT:    ldd 22,u
-; O1-NEXT:    ldy 16,u
-; O1-NEXT:    std ,y
+; O1-NEXT:    std [16,u]
 ; O1-NEXT:    tfr u,s
 ; O1-NEXT:    puls u,y
 ; O1-NEXT:    leas 26,s
@@ -1304,8 +1297,7 @@ define dso_local i32 @mod_s_i32(i32 %a, i32 %b) {
 ; O2-NEXT:    ldy 16,u
 ; O2-NEXT:    std 2,y
 ; O2-NEXT:    ldd 22,u
-; O2-NEXT:    ldy 16,u
-; O2-NEXT:    std ,y
+; O2-NEXT:    std [16,u]
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u,y
 ; O2-NEXT:    leas 26,s
@@ -1353,8 +1345,7 @@ define dso_local i32 @mod_s_i32(i32 %a, i32 %b) {
 ; O3-NEXT:    ldy 16,u
 ; O3-NEXT:    std 2,y
 ; O3-NEXT:    ldd 22,u
-; O3-NEXT:    ldy 16,u
-; O3-NEXT:    std ,y
+; O3-NEXT:    std [16,u]
 ; O3-NEXT:    tfr u,s
 ; O3-NEXT:    puls u,y
 ; O3-NEXT:    leas 26,s
@@ -1458,8 +1449,7 @@ define dso_local i32 @mod_u_i32(i32 %a, i32 %b) {
 ; O1-NEXT:    ldy 16,u
 ; O1-NEXT:    std 2,y
 ; O1-NEXT:    ldd 22,u
-; O1-NEXT:    ldy 16,u
-; O1-NEXT:    std ,y
+; O1-NEXT:    std [16,u]
 ; O1-NEXT:    tfr u,s
 ; O1-NEXT:    puls u,y
 ; O1-NEXT:    leas 26,s
@@ -1507,8 +1497,7 @@ define dso_local i32 @mod_u_i32(i32 %a, i32 %b) {
 ; O2-NEXT:    ldy 16,u
 ; O2-NEXT:    std 2,y
 ; O2-NEXT:    ldd 22,u
-; O2-NEXT:    ldy 16,u
-; O2-NEXT:    std ,y
+; O2-NEXT:    std [16,u]
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u,y
 ; O2-NEXT:    leas 26,s
@@ -1556,8 +1545,7 @@ define dso_local i32 @mod_u_i32(i32 %a, i32 %b) {
 ; O3-NEXT:    ldy 16,u
 ; O3-NEXT:    std 2,y
 ; O3-NEXT:    ldd 22,u
-; O3-NEXT:    ldy 16,u
-; O3-NEXT:    std ,y
+; O3-NEXT:    std [16,u]
 ; O3-NEXT:    tfr u,s
 ; O3-NEXT:    puls u,y
 ; O3-NEXT:    leas 26,s
@@ -1741,8 +1729,7 @@ define dso_local i64 @div_s_i64(i64 %a, i64 %b) {
 ; O1-NEXT:    ldy 26,u
 ; O1-NEXT:    std 2,y
 ; O1-NEXT:    ldd 36,u
-; O1-NEXT:    ldy 26,u
-; O1-NEXT:    std ,y
+; O1-NEXT:    std [26,u]
 ; O1-NEXT:    tfr u,s
 ; O1-NEXT:    puls u,y
 ; O1-NEXT:    leas 48,s
@@ -1830,8 +1817,7 @@ define dso_local i64 @div_s_i64(i64 %a, i64 %b) {
 ; O2-NEXT:    ldy 26,u
 ; O2-NEXT:    std 2,y
 ; O2-NEXT:    ldd 36,u
-; O2-NEXT:    ldy 26,u
-; O2-NEXT:    std ,y
+; O2-NEXT:    std [26,u]
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u,y
 ; O2-NEXT:    leas 48,s
@@ -1919,8 +1905,7 @@ define dso_local i64 @div_s_i64(i64 %a, i64 %b) {
 ; O3-NEXT:    ldy 26,u
 ; O3-NEXT:    std 2,y
 ; O3-NEXT:    ldd 36,u
-; O3-NEXT:    ldy 26,u
-; O3-NEXT:    std ,y
+; O3-NEXT:    std [26,u]
 ; O3-NEXT:    tfr u,s
 ; O3-NEXT:    puls u,y
 ; O3-NEXT:    leas 48,s
@@ -2104,8 +2089,7 @@ define dso_local i64 @div_u_i64(i64 %a, i64 %b) {
 ; O1-NEXT:    ldy 26,u
 ; O1-NEXT:    std 2,y
 ; O1-NEXT:    ldd 36,u
-; O1-NEXT:    ldy 26,u
-; O1-NEXT:    std ,y
+; O1-NEXT:    std [26,u]
 ; O1-NEXT:    tfr u,s
 ; O1-NEXT:    puls u,y
 ; O1-NEXT:    leas 48,s
@@ -2193,8 +2177,7 @@ define dso_local i64 @div_u_i64(i64 %a, i64 %b) {
 ; O2-NEXT:    ldy 26,u
 ; O2-NEXT:    std 2,y
 ; O2-NEXT:    ldd 36,u
-; O2-NEXT:    ldy 26,u
-; O2-NEXT:    std ,y
+; O2-NEXT:    std [26,u]
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u,y
 ; O2-NEXT:    leas 48,s
@@ -2282,8 +2265,7 @@ define dso_local i64 @div_u_i64(i64 %a, i64 %b) {
 ; O3-NEXT:    ldy 26,u
 ; O3-NEXT:    std 2,y
 ; O3-NEXT:    ldd 36,u
-; O3-NEXT:    ldy 26,u
-; O3-NEXT:    std ,y
+; O3-NEXT:    std [26,u]
 ; O3-NEXT:    tfr u,s
 ; O3-NEXT:    puls u,y
 ; O3-NEXT:    leas 48,s
@@ -2467,8 +2449,7 @@ define dso_local i64 @mod_s_i64(i64 %a, i64 %b) {
 ; O1-NEXT:    ldy 26,u
 ; O1-NEXT:    std 2,y
 ; O1-NEXT:    ldd 36,u
-; O1-NEXT:    ldy 26,u
-; O1-NEXT:    std ,y
+; O1-NEXT:    std [26,u]
 ; O1-NEXT:    tfr u,s
 ; O1-NEXT:    puls u,y
 ; O1-NEXT:    leas 48,s
@@ -2556,8 +2537,7 @@ define dso_local i64 @mod_s_i64(i64 %a, i64 %b) {
 ; O2-NEXT:    ldy 26,u
 ; O2-NEXT:    std 2,y
 ; O2-NEXT:    ldd 36,u
-; O2-NEXT:    ldy 26,u
-; O2-NEXT:    std ,y
+; O2-NEXT:    std [26,u]
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u,y
 ; O2-NEXT:    leas 48,s
@@ -2645,8 +2625,7 @@ define dso_local i64 @mod_s_i64(i64 %a, i64 %b) {
 ; O3-NEXT:    ldy 26,u
 ; O3-NEXT:    std 2,y
 ; O3-NEXT:    ldd 36,u
-; O3-NEXT:    ldy 26,u
-; O3-NEXT:    std ,y
+; O3-NEXT:    std [26,u]
 ; O3-NEXT:    tfr u,s
 ; O3-NEXT:    puls u,y
 ; O3-NEXT:    leas 48,s
@@ -2830,8 +2809,7 @@ define dso_local i64 @mod_u_i64(i64 %a, i64 %b) {
 ; O1-NEXT:    ldy 26,u
 ; O1-NEXT:    std 2,y
 ; O1-NEXT:    ldd 36,u
-; O1-NEXT:    ldy 26,u
-; O1-NEXT:    std ,y
+; O1-NEXT:    std [26,u]
 ; O1-NEXT:    tfr u,s
 ; O1-NEXT:    puls u,y
 ; O1-NEXT:    leas 48,s
@@ -2919,8 +2897,7 @@ define dso_local i64 @mod_u_i64(i64 %a, i64 %b) {
 ; O2-NEXT:    ldy 26,u
 ; O2-NEXT:    std 2,y
 ; O2-NEXT:    ldd 36,u
-; O2-NEXT:    ldy 26,u
-; O2-NEXT:    std ,y
+; O2-NEXT:    std [26,u]
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u,y
 ; O2-NEXT:    leas 48,s
@@ -3008,8 +2985,7 @@ define dso_local i64 @mod_u_i64(i64 %a, i64 %b) {
 ; O3-NEXT:    ldy 26,u
 ; O3-NEXT:    std 2,y
 ; O3-NEXT:    ldd 36,u
-; O3-NEXT:    ldy 26,u
-; O3-NEXT:    std ,y
+; O3-NEXT:    std [26,u]
 ; O3-NEXT:    tfr u,s
 ; O3-NEXT:    puls u,y
 ; O3-NEXT:    leas 48,s
