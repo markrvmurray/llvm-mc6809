@@ -59,349 +59,244 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ;
 ; MC6809-O0-LABEL: loop:
 ; MC6809-O0:       ; %bb.0: ; %entry
-; MC6809-O0-NEXT:    leas -24,s
+; MC6809-O0-NEXT:    leas -16,s
 ; MC6809-O0-NEXT:    pshs u
 ; MC6809-O0-NEXT:    tfr s,u
-; MC6809-O0-NEXT:    std 16,u
+; MC6809-O0-NEXT:    std 6,u
 ; MC6809-O0-NEXT:    ldd #0
-; MC6809-O0-NEXT:    std 22,u
-; MC6809-O0-NEXT:    ldd 16,u
+; MC6809-O0-NEXT:    std 14,u
+; MC6809-O0-NEXT:    ldd 6,u
 ; MC6809-O0-NEXT:    tstb
 ; MC6809-O0-NEXT:    lble .LBB0_3
 ; MC6809-O0-NEXT:  ; %bb.1: ; %for.body.preheader
+; MC6809-O0-NEXT:    std 4,u
 ; MC6809-O0-NEXT:    clra
-; MC6809-O0-NEXT:    std 14,u
+; MC6809-O0-NEXT:    std 8,u
+; MC6809-O0-NEXT:    ldd 4,u
 ; MC6809-O0-NEXT:    ldd #0
-; MC6809-O0-NEXT:    std 22,u
-; MC6809-O0-NEXT:    ldd 14,u
+; MC6809-O0-NEXT:    std 14,u
 ; MC6809-O0-NEXT:    lbra .LBB0_2
 ; MC6809-O0-NEXT:  .LBB0_2: ; %for.body
 ; MC6809-O0-NEXT:    ; =>This Inner Loop Header: Depth=1
-; MC6809-O0-NEXT:    std 12,u
 ; MC6809-O0-NEXT:    ldd ,x
-; MC6809-O0-NEXT:    std 20,u
-; MC6809-O0-NEXT:    ldd 12,u
+; MC6809-O0-NEXT:    std 12,u
+; MC6809-O0-NEXT:    ldb 13,u
 ; MC6809-O0-NEXT:    stb 11,u
-; MC6809-O0-NEXT:    ldb 21,u
-; MC6809-O0-NEXT:    stb 19,u
+; MC6809-O0-NEXT:    lda 12,u
+; MC6809-O0-NEXT:    sta 12,u
+; MC6809-O0-NEXT:    ldb 15,u
+; MC6809-O0-NEXT:    stb 13,u
+; MC6809-O0-NEXT:    lda 14,u
+; MC6809-O0-NEXT:    sta 14,u
 ; MC6809-O0-NEXT:    ldb 11,u
-; MC6809-O0-NEXT:    sta 10,u
-; MC6809-O0-NEXT:    lda 20,u
-; MC6809-O0-NEXT:    sta 20,u
-; MC6809-O0-NEXT:    lda 10,u
-; MC6809-O0-NEXT:    stb 9,u
-; MC6809-O0-NEXT:    ldb 23,u
-; MC6809-O0-NEXT:    stb 21,u
-; MC6809-O0-NEXT:    ldb 9,u
-; MC6809-O0-NEXT:    sta 8,u
-; MC6809-O0-NEXT:    lda 22,u
-; MC6809-O0-NEXT:    sta 22,u
-; MC6809-O0-NEXT:    lda 8,u
-; MC6809-O0-NEXT:    stb 7,u
-; MC6809-O0-NEXT:    ldb 19,u
-; MC6809-O0-NEXT:    ldb 19,u
-; MC6809-O0-NEXT:    addb 21,u
-; MC6809-O0-NEXT:    stb 19,u
-; MC6809-O0-NEXT:    ldb 7,u
-; MC6809-O0-NEXT:    sta 6,u
-; MC6809-O0-NEXT:    lda 20,u
-; MC6809-O0-NEXT:    lda 20,u
-; MC6809-O0-NEXT:    adca 22,u
-; MC6809-O0-NEXT:    sta 20,u
-; MC6809-O0-NEXT:    lda 6,u
-; MC6809-O0-NEXT:    std 4,u
-; MC6809-O0-NEXT:    ldb 19,u
-; MC6809-O0-NEXT:    lda 20,u
-; MC6809-O0-NEXT:    std 22,u
-; MC6809-O0-NEXT:    ldd 4,u
+; MC6809-O0-NEXT:    ldb 11,u
+; MC6809-O0-NEXT:    addb 13,u
+; MC6809-O0-NEXT:    stb 11,u
+; MC6809-O0-NEXT:    lda 12,u
+; MC6809-O0-NEXT:    lda 12,u
+; MC6809-O0-NEXT:    adca 14,u
+; MC6809-O0-NEXT:    sta 12,u
+; MC6809-O0-NEXT:    ldb 11,u
+; MC6809-O0-NEXT:    lda 12,u
+; MC6809-O0-NEXT:    std 14,u
 ; MC6809-O0-NEXT:    leax 2,x
-; MC6809-O0-NEXT:    stb 21,u
-; MC6809-O0-NEXT:    ldb 21,u
-; MC6809-O0-NEXT:    ldb 21,u
+; MC6809-O0-NEXT:    ldb 9,u
+; MC6809-O0-NEXT:    stb 13,u
+; MC6809-O0-NEXT:    lda 8,u
+; MC6809-O0-NEXT:    ldb 13,u
+; MC6809-O0-NEXT:    ldb 13,u
 ; MC6809-O0-NEXT:    addb #255
-; MC6809-O0-NEXT:    stb 21,u
+; MC6809-O0-NEXT:    stb 13,u
 ; MC6809-O0-NEXT:    adca #255
-; MC6809-O0-NEXT:    ldb 21,u
+; MC6809-O0-NEXT:    std 2,u
+; MC6809-O0-NEXT:    ldb 13,u
+; MC6809-O0-NEXT:    std 8,u
+; MC6809-O0-NEXT:    ldd 2,u
+; MC6809-O0-NEXT:    ldd 8,u
 ; MC6809-O0-NEXT:    cmpd #0
 ; MC6809-O0-NEXT:    lbne .LBB0_2
 ; MC6809-O0-NEXT:  .LBB0_3: ; %for.end
-; MC6809-O0-NEXT:    ldx 22,u
+; MC6809-O0-NEXT:    ldx 14,u
 ; MC6809-O0-NEXT:    tfr u,s
 ; MC6809-O0-NEXT:    puls u
-; MC6809-O0-NEXT:    leas 24,s
+; MC6809-O0-NEXT:    leas 16,s
 ; MC6809-O0-NEXT:    rts
 ;
 ; MC6809-O1-LABEL: loop:
 ; MC6809-O1:       ; %bb.0: ; %entry
-; MC6809-O1-NEXT:    leas -27,s
+; MC6809-O1-NEXT:    leas -16,s
 ; MC6809-O1-NEXT:    pshs u
 ; MC6809-O1-NEXT:    tfr s,u
-; MC6809-O1-NEXT:    std 19,u
+; MC6809-O1-NEXT:    std 6,u
 ; MC6809-O1-NEXT:    ldd #0
-; MC6809-O1-NEXT:    std 25,u
-; MC6809-O1-NEXT:    ldd 19,u
+; MC6809-O1-NEXT:    std 14,u
+; MC6809-O1-NEXT:    ldd 6,u
 ; MC6809-O1-NEXT:    tstb
-; MC6809-O1-NEXT:    bgt .LBB0_1
-; MC6809-O1-NEXT:  ; %bb.8: ; %entry
-; MC6809-O1-NEXT:    lbra .LBB0_5
-; MC6809-O1-NEXT:  .LBB0_1: ; %for.body.preheader
+; MC6809-O1-NEXT:    ble .LBB0_3
+; MC6809-O1-NEXT:  ; %bb.1: ; %for.body.preheader
+; MC6809-O1-NEXT:    std 4,u
 ; MC6809-O1-NEXT:    clra
-; MC6809-O1-NEXT:    std 17,u
+; MC6809-O1-NEXT:    std 8,u
 ; MC6809-O1-NEXT:    ldd #0
-; MC6809-O1-NEXT:    std 25,u
-; MC6809-O1-NEXT:    ldd 17,u
+; MC6809-O1-NEXT:    std 14,u
 ; MC6809-O1-NEXT:  .LBB0_2: ; %for.body
 ; MC6809-O1-NEXT:    ; =>This Inner Loop Header: Depth=1
-; MC6809-O1-NEXT:    std 15,u
 ; MC6809-O1-NEXT:    ldd ,x
-; MC6809-O1-NEXT:    std 23,u
-; MC6809-O1-NEXT:    ldd 15,u
-; MC6809-O1-NEXT:    stb 14,u
-; MC6809-O1-NEXT:    ldb 24,u
-; MC6809-O1-NEXT:    stb 22,u
-; MC6809-O1-NEXT:    ldb 14,u
-; MC6809-O1-NEXT:    sta 13,u
-; MC6809-O1-NEXT:    lda 23,u
-; MC6809-O1-NEXT:    sta 23,u
-; MC6809-O1-NEXT:    lda 13,u
-; MC6809-O1-NEXT:    stb 12,u
-; MC6809-O1-NEXT:    ldb 26,u
-; MC6809-O1-NEXT:    stb 24,u
-; MC6809-O1-NEXT:    ldb 12,u
-; MC6809-O1-NEXT:    sta 11,u
-; MC6809-O1-NEXT:    lda 25,u
-; MC6809-O1-NEXT:    sta 25,u
-; MC6809-O1-NEXT:    lda 11,u
-; MC6809-O1-NEXT:    stb 10,u
-; MC6809-O1-NEXT:    ldb 22,u
-; MC6809-O1-NEXT:    addb 24,u
-; MC6809-O1-NEXT:    stb 22,u
-; MC6809-O1-NEXT:    ldb 10,u
-; MC6809-O1-NEXT:    sta 9,u
-; MC6809-O1-NEXT:    lda 23,u
-; MC6809-O1-NEXT:    adca 25,u
-; MC6809-O1-NEXT:    sta 23,u
-; MC6809-O1-NEXT:    lda 9,u
-; MC6809-O1-NEXT:    std 7,u
-; MC6809-O1-NEXT:    ldb 22,u
-; MC6809-O1-NEXT:    lda 23,u
-; MC6809-O1-NEXT:    std 25,u
-; MC6809-O1-NEXT:    ldd 7,u
+; MC6809-O1-NEXT:    std 12,u
+; MC6809-O1-NEXT:    ldb 13,u
+; MC6809-O1-NEXT:    stb 11,u
+; MC6809-O1-NEXT:    lda 12,u
+; MC6809-O1-NEXT:    sta 12,u
+; MC6809-O1-NEXT:    ldb 15,u
+; MC6809-O1-NEXT:    stb 13,u
+; MC6809-O1-NEXT:    lda 14,u
+; MC6809-O1-NEXT:    sta 14,u
+; MC6809-O1-NEXT:    ldb 11,u
+; MC6809-O1-NEXT:    addb 13,u
+; MC6809-O1-NEXT:    stb 11,u
+; MC6809-O1-NEXT:    lda 12,u
+; MC6809-O1-NEXT:    adca 14,u
+; MC6809-O1-NEXT:    sta 12,u
+; MC6809-O1-NEXT:    ldb 11,u
+; MC6809-O1-NEXT:    std 14,u
 ; MC6809-O1-NEXT:    leax 2,x
-; MC6809-O1-NEXT:    stb 24,u
-; MC6809-O1-NEXT:    sta 23,u
+; MC6809-O1-NEXT:    ldb 9,u
+; MC6809-O1-NEXT:    lda 8,u
+; MC6809-O1-NEXT:    sta 12,u
 ; MC6809-O1-NEXT:    addb #-1
-; MC6809-O1-NEXT:    stb 24,u
-; MC6809-O1-NEXT:    lda 23,u
+; MC6809-O1-NEXT:    lda 12,u
 ; MC6809-O1-NEXT:    adca #-1
-; MC6809-O1-NEXT:    sta 23,u
-; MC6809-O1-NEXT:    ldb 24,u
-; MC6809-O1-NEXT:    sta 6,u
+; MC6809-O1-NEXT:    sta 12,u
+; MC6809-O1-NEXT:    std 2,u
+; MC6809-O1-NEXT:    std 8,u
 ; MC6809-O1-NEXT:    pshs a
-; MC6809-O1-NEXT:    stb 5,u
 ; MC6809-O1-NEXT:    orb ,s
 ; MC6809-O1-NEXT:    leas 1,s
-; MC6809-O1-NEXT:    stb 24,u
-; MC6809-O1-NEXT:    ldb 5,u
-; MC6809-O1-NEXT:    stb 4,u
-; MC6809-O1-NEXT:    ldb 24,u
 ; MC6809-O1-NEXT:    tstb
-; MC6809-O1-NEXT:    lbeq .LBB0_4
-; MC6809-O1-NEXT:  ; %bb.3: ; %for.body
-; MC6809-O1-NEXT:    ; in Loop: Header=BB0_2 Depth=1
-; MC6809-O1-NEXT:    ldb 4,u
-; MC6809-O1-NEXT:  ; %bb.6: ; %for.body
-; MC6809-O1-NEXT:    ; in Loop: Header=BB0_2 Depth=1
-; MC6809-O1-NEXT:    lbra .LBB0_2
-; MC6809-O1-NEXT:  .LBB0_4: ; %for.body
-; MC6809-O1-NEXT:    ldb 4,u
-; MC6809-O1-NEXT:  .LBB0_5: ; %for.end
-; MC6809-O1-NEXT:    ldx 25,u
+; MC6809-O1-NEXT:    bne .LBB0_2
+; MC6809-O1-NEXT:  .LBB0_3: ; %for.end
+; MC6809-O1-NEXT:    ldx 14,u
 ; MC6809-O1-NEXT:    tfr u,s
 ; MC6809-O1-NEXT:    puls u
-; MC6809-O1-NEXT:    leas 27,s
+; MC6809-O1-NEXT:    leas 16,s
 ; MC6809-O1-NEXT:    rts
 ;
 ; MC6809-O2-LABEL: loop:
 ; MC6809-O2:       ; %bb.0: ; %entry
-; MC6809-O2-NEXT:    leas -27,s
+; MC6809-O2-NEXT:    leas -16,s
 ; MC6809-O2-NEXT:    pshs u
 ; MC6809-O2-NEXT:    tfr s,u
-; MC6809-O2-NEXT:    std 19,u
+; MC6809-O2-NEXT:    std 6,u
 ; MC6809-O2-NEXT:    ldd #0
-; MC6809-O2-NEXT:    std 25,u
-; MC6809-O2-NEXT:    ldd 19,u
+; MC6809-O2-NEXT:    std 14,u
+; MC6809-O2-NEXT:    ldd 6,u
 ; MC6809-O2-NEXT:    tstb
-; MC6809-O2-NEXT:    bgt .LBB0_1
-; MC6809-O2-NEXT:  ; %bb.8: ; %entry
-; MC6809-O2-NEXT:    lbra .LBB0_5
-; MC6809-O2-NEXT:  .LBB0_1: ; %for.body.preheader
+; MC6809-O2-NEXT:    ble .LBB0_3
+; MC6809-O2-NEXT:  ; %bb.1: ; %for.body.preheader
+; MC6809-O2-NEXT:    std 4,u
 ; MC6809-O2-NEXT:    clra
-; MC6809-O2-NEXT:    std 17,u
+; MC6809-O2-NEXT:    std 8,u
 ; MC6809-O2-NEXT:    ldd #0
-; MC6809-O2-NEXT:    std 25,u
-; MC6809-O2-NEXT:    ldd 17,u
+; MC6809-O2-NEXT:    std 14,u
 ; MC6809-O2-NEXT:  .LBB0_2: ; %for.body
 ; MC6809-O2-NEXT:    ; =>This Inner Loop Header: Depth=1
-; MC6809-O2-NEXT:    std 15,u
 ; MC6809-O2-NEXT:    ldd ,x
-; MC6809-O2-NEXT:    std 23,u
-; MC6809-O2-NEXT:    ldd 15,u
-; MC6809-O2-NEXT:    stb 14,u
-; MC6809-O2-NEXT:    ldb 24,u
-; MC6809-O2-NEXT:    stb 22,u
-; MC6809-O2-NEXT:    ldb 14,u
-; MC6809-O2-NEXT:    sta 13,u
-; MC6809-O2-NEXT:    lda 23,u
-; MC6809-O2-NEXT:    sta 23,u
-; MC6809-O2-NEXT:    lda 13,u
-; MC6809-O2-NEXT:    stb 12,u
-; MC6809-O2-NEXT:    ldb 26,u
-; MC6809-O2-NEXT:    stb 24,u
-; MC6809-O2-NEXT:    ldb 12,u
-; MC6809-O2-NEXT:    sta 11,u
-; MC6809-O2-NEXT:    lda 25,u
-; MC6809-O2-NEXT:    sta 25,u
-; MC6809-O2-NEXT:    lda 11,u
-; MC6809-O2-NEXT:    stb 10,u
-; MC6809-O2-NEXT:    ldb 22,u
-; MC6809-O2-NEXT:    addb 24,u
-; MC6809-O2-NEXT:    stb 22,u
-; MC6809-O2-NEXT:    ldb 10,u
-; MC6809-O2-NEXT:    sta 9,u
-; MC6809-O2-NEXT:    lda 23,u
-; MC6809-O2-NEXT:    adca 25,u
-; MC6809-O2-NEXT:    sta 23,u
-; MC6809-O2-NEXT:    lda 9,u
-; MC6809-O2-NEXT:    std 7,u
-; MC6809-O2-NEXT:    ldb 22,u
-; MC6809-O2-NEXT:    lda 23,u
-; MC6809-O2-NEXT:    std 25,u
-; MC6809-O2-NEXT:    ldd 7,u
+; MC6809-O2-NEXT:    std 12,u
+; MC6809-O2-NEXT:    ldb 13,u
+; MC6809-O2-NEXT:    stb 11,u
+; MC6809-O2-NEXT:    lda 12,u
+; MC6809-O2-NEXT:    sta 12,u
+; MC6809-O2-NEXT:    ldb 15,u
+; MC6809-O2-NEXT:    stb 13,u
+; MC6809-O2-NEXT:    lda 14,u
+; MC6809-O2-NEXT:    sta 14,u
+; MC6809-O2-NEXT:    ldb 11,u
+; MC6809-O2-NEXT:    addb 13,u
+; MC6809-O2-NEXT:    stb 11,u
+; MC6809-O2-NEXT:    lda 12,u
+; MC6809-O2-NEXT:    adca 14,u
+; MC6809-O2-NEXT:    sta 12,u
+; MC6809-O2-NEXT:    ldb 11,u
+; MC6809-O2-NEXT:    std 14,u
 ; MC6809-O2-NEXT:    leax 2,x
-; MC6809-O2-NEXT:    stb 24,u
-; MC6809-O2-NEXT:    sta 23,u
+; MC6809-O2-NEXT:    ldb 9,u
+; MC6809-O2-NEXT:    lda 8,u
+; MC6809-O2-NEXT:    sta 12,u
 ; MC6809-O2-NEXT:    addb #-1
-; MC6809-O2-NEXT:    stb 24,u
-; MC6809-O2-NEXT:    lda 23,u
+; MC6809-O2-NEXT:    lda 12,u
 ; MC6809-O2-NEXT:    adca #-1
-; MC6809-O2-NEXT:    sta 23,u
-; MC6809-O2-NEXT:    ldb 24,u
-; MC6809-O2-NEXT:    sta 6,u
+; MC6809-O2-NEXT:    sta 12,u
+; MC6809-O2-NEXT:    std 2,u
+; MC6809-O2-NEXT:    std 8,u
 ; MC6809-O2-NEXT:    pshs a
-; MC6809-O2-NEXT:    stb 5,u
 ; MC6809-O2-NEXT:    orb ,s
 ; MC6809-O2-NEXT:    leas 1,s
-; MC6809-O2-NEXT:    stb 24,u
-; MC6809-O2-NEXT:    ldb 5,u
-; MC6809-O2-NEXT:    stb 4,u
-; MC6809-O2-NEXT:    ldb 24,u
 ; MC6809-O2-NEXT:    tstb
-; MC6809-O2-NEXT:    lbeq .LBB0_4
-; MC6809-O2-NEXT:  ; %bb.3: ; %for.body
-; MC6809-O2-NEXT:    ; in Loop: Header=BB0_2 Depth=1
-; MC6809-O2-NEXT:    ldb 4,u
-; MC6809-O2-NEXT:  ; %bb.6: ; %for.body
-; MC6809-O2-NEXT:    ; in Loop: Header=BB0_2 Depth=1
-; MC6809-O2-NEXT:    lbra .LBB0_2
-; MC6809-O2-NEXT:  .LBB0_4: ; %for.body
-; MC6809-O2-NEXT:    ldb 4,u
-; MC6809-O2-NEXT:  .LBB0_5: ; %for.end
-; MC6809-O2-NEXT:    ldx 25,u
+; MC6809-O2-NEXT:    bne .LBB0_2
+; MC6809-O2-NEXT:  .LBB0_3: ; %for.end
+; MC6809-O2-NEXT:    ldx 14,u
 ; MC6809-O2-NEXT:    tfr u,s
 ; MC6809-O2-NEXT:    puls u
-; MC6809-O2-NEXT:    leas 27,s
+; MC6809-O2-NEXT:    leas 16,s
 ; MC6809-O2-NEXT:    rts
 ;
 ; MC6809-O3-LABEL: loop:
 ; MC6809-O3:       ; %bb.0: ; %entry
-; MC6809-O3-NEXT:    leas -27,s
+; MC6809-O3-NEXT:    leas -16,s
 ; MC6809-O3-NEXT:    pshs u
 ; MC6809-O3-NEXT:    tfr s,u
-; MC6809-O3-NEXT:    std 19,u
+; MC6809-O3-NEXT:    std 6,u
 ; MC6809-O3-NEXT:    ldd #0
-; MC6809-O3-NEXT:    std 25,u
-; MC6809-O3-NEXT:    ldd 19,u
+; MC6809-O3-NEXT:    std 14,u
+; MC6809-O3-NEXT:    ldd 6,u
 ; MC6809-O3-NEXT:    tstb
-; MC6809-O3-NEXT:    bgt .LBB0_1
-; MC6809-O3-NEXT:  ; %bb.8: ; %entry
-; MC6809-O3-NEXT:    lbra .LBB0_5
-; MC6809-O3-NEXT:  .LBB0_1: ; %for.body.preheader
+; MC6809-O3-NEXT:    ble .LBB0_3
+; MC6809-O3-NEXT:  ; %bb.1: ; %for.body.preheader
+; MC6809-O3-NEXT:    std 4,u
 ; MC6809-O3-NEXT:    clra
-; MC6809-O3-NEXT:    std 17,u
+; MC6809-O3-NEXT:    std 8,u
 ; MC6809-O3-NEXT:    ldd #0
-; MC6809-O3-NEXT:    std 25,u
-; MC6809-O3-NEXT:    ldd 17,u
+; MC6809-O3-NEXT:    std 14,u
 ; MC6809-O3-NEXT:  .LBB0_2: ; %for.body
 ; MC6809-O3-NEXT:    ; =>This Inner Loop Header: Depth=1
-; MC6809-O3-NEXT:    std 15,u
 ; MC6809-O3-NEXT:    ldd ,x
-; MC6809-O3-NEXT:    std 23,u
-; MC6809-O3-NEXT:    ldd 15,u
-; MC6809-O3-NEXT:    stb 14,u
-; MC6809-O3-NEXT:    ldb 24,u
-; MC6809-O3-NEXT:    stb 22,u
-; MC6809-O3-NEXT:    ldb 14,u
-; MC6809-O3-NEXT:    sta 13,u
-; MC6809-O3-NEXT:    lda 23,u
-; MC6809-O3-NEXT:    sta 23,u
-; MC6809-O3-NEXT:    lda 13,u
-; MC6809-O3-NEXT:    stb 12,u
-; MC6809-O3-NEXT:    ldb 26,u
-; MC6809-O3-NEXT:    stb 24,u
-; MC6809-O3-NEXT:    ldb 12,u
-; MC6809-O3-NEXT:    sta 11,u
-; MC6809-O3-NEXT:    lda 25,u
-; MC6809-O3-NEXT:    sta 25,u
-; MC6809-O3-NEXT:    lda 11,u
-; MC6809-O3-NEXT:    stb 10,u
-; MC6809-O3-NEXT:    ldb 22,u
-; MC6809-O3-NEXT:    addb 24,u
-; MC6809-O3-NEXT:    stb 22,u
-; MC6809-O3-NEXT:    ldb 10,u
-; MC6809-O3-NEXT:    sta 9,u
-; MC6809-O3-NEXT:    lda 23,u
-; MC6809-O3-NEXT:    adca 25,u
-; MC6809-O3-NEXT:    sta 23,u
-; MC6809-O3-NEXT:    lda 9,u
-; MC6809-O3-NEXT:    std 7,u
-; MC6809-O3-NEXT:    ldb 22,u
-; MC6809-O3-NEXT:    lda 23,u
-; MC6809-O3-NEXT:    std 25,u
-; MC6809-O3-NEXT:    ldd 7,u
+; MC6809-O3-NEXT:    std 12,u
+; MC6809-O3-NEXT:    ldb 13,u
+; MC6809-O3-NEXT:    stb 11,u
+; MC6809-O3-NEXT:    lda 12,u
+; MC6809-O3-NEXT:    sta 12,u
+; MC6809-O3-NEXT:    ldb 15,u
+; MC6809-O3-NEXT:    stb 13,u
+; MC6809-O3-NEXT:    lda 14,u
+; MC6809-O3-NEXT:    sta 14,u
+; MC6809-O3-NEXT:    ldb 11,u
+; MC6809-O3-NEXT:    addb 13,u
+; MC6809-O3-NEXT:    stb 11,u
+; MC6809-O3-NEXT:    lda 12,u
+; MC6809-O3-NEXT:    adca 14,u
+; MC6809-O3-NEXT:    sta 12,u
+; MC6809-O3-NEXT:    ldb 11,u
+; MC6809-O3-NEXT:    std 14,u
 ; MC6809-O3-NEXT:    leax 2,x
-; MC6809-O3-NEXT:    stb 24,u
-; MC6809-O3-NEXT:    sta 23,u
+; MC6809-O3-NEXT:    ldb 9,u
+; MC6809-O3-NEXT:    lda 8,u
+; MC6809-O3-NEXT:    sta 12,u
 ; MC6809-O3-NEXT:    addb #-1
-; MC6809-O3-NEXT:    stb 24,u
-; MC6809-O3-NEXT:    lda 23,u
+; MC6809-O3-NEXT:    lda 12,u
 ; MC6809-O3-NEXT:    adca #-1
-; MC6809-O3-NEXT:    sta 23,u
-; MC6809-O3-NEXT:    ldb 24,u
-; MC6809-O3-NEXT:    sta 6,u
+; MC6809-O3-NEXT:    sta 12,u
+; MC6809-O3-NEXT:    std 2,u
+; MC6809-O3-NEXT:    std 8,u
 ; MC6809-O3-NEXT:    pshs a
-; MC6809-O3-NEXT:    stb 5,u
 ; MC6809-O3-NEXT:    orb ,s
 ; MC6809-O3-NEXT:    leas 1,s
-; MC6809-O3-NEXT:    stb 24,u
-; MC6809-O3-NEXT:    ldb 5,u
-; MC6809-O3-NEXT:    stb 4,u
-; MC6809-O3-NEXT:    ldb 24,u
 ; MC6809-O3-NEXT:    tstb
-; MC6809-O3-NEXT:    lbeq .LBB0_4
-; MC6809-O3-NEXT:  ; %bb.3: ; %for.body
-; MC6809-O3-NEXT:    ; in Loop: Header=BB0_2 Depth=1
-; MC6809-O3-NEXT:    ldb 4,u
-; MC6809-O3-NEXT:  ; %bb.6: ; %for.body
-; MC6809-O3-NEXT:    ; in Loop: Header=BB0_2 Depth=1
-; MC6809-O3-NEXT:    lbra .LBB0_2
-; MC6809-O3-NEXT:  .LBB0_4: ; %for.body
-; MC6809-O3-NEXT:    ldb 4,u
-; MC6809-O3-NEXT:  .LBB0_5: ; %for.end
-; MC6809-O3-NEXT:    ldx 25,u
+; MC6809-O3-NEXT:    bne .LBB0_2
+; MC6809-O3-NEXT:  .LBB0_3: ; %for.end
+; MC6809-O3-NEXT:    ldx 14,u
 ; MC6809-O3-NEXT:    tfr u,s
 ; MC6809-O3-NEXT:    puls u
-; MC6809-O3-NEXT:    leas 27,s
+; MC6809-O3-NEXT:    leas 16,s
 ; MC6809-O3-NEXT:    rts
 ;
 ; HD6309-LABEL: loop:

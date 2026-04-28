@@ -189,9 +189,13 @@ getPhantomBit1Flag(Register SrcReg, const MachineRegisterInfo &MRI,
     MachineInstr *Def = MRI.getVRegDef(Cur);
     if (!Def) return std::nullopt;
     unsigned Op = Def->getOpcode();
-    // IMPLICIT_DEF placeholders inserted by v5 selectors for the orphan
-    // carry vregs left behind by erased G_USUBO/G_UADDO/etc. — fall
-    // through; the tracker should have answered above.
+    // Bug #186 follow-up Phase 1a (2026-04-28): the v5 IMPLICIT_DEF
+    // placeholder is gone — selectAddO/SubO/AddE/SubE now attach an
+    // implicit-def of the IR carry vreg directly onto the SetCarry/
+    // SetOverflow pseudo, so MRI->getVRegDef returns the producing
+    // pseudo and the switch below recognises it. This branch only
+    // fires for genuinely undef carry vregs (legalizer artefacts);
+    // safe to terminate the walk.
     if (Op == TargetOpcode::IMPLICIT_DEF) return std::nullopt;
     // Walk through transparent pass-throughs.
     if (Op == TargetOpcode::G_FREEZE || Op == TargetOpcode::COPY) {
@@ -1739,16 +1743,22 @@ bool MC6809InstructionSelector::selectAddO(MachineInstr &MI) {
     return IsSigned ? OverflowOpc : CarryOpc;
   };
 
-  // Bug #186 v5: SetCarry/SetOverflow pseudos no longer have an
-  // explicit carry-out operand. Register the IR carry vreg in the
-  // tracker so consumers can find which CC bit it represents, and
-  // IMPLICIT_DEF it so the verifier sees a def in the MIR. The
-  // AddSetCarry pseudo's expansion physically writes CC.C/V via
-  // implicit Defs=[NZ,V,C].
+  // Bug #186 follow-up Phase 1a (2026-04-28): instead of emitting a
+  // separate IMPLICIT_DEF placeholder for the IR carry vreg, attach
+  // an implicit-def of CarryOut DIRECTLY onto the SetCarry/SetOverflow
+  // pseudo (via .addDef(CarryOut, RegState::ImplicitDefine) below).
+  // The vreg's def is then literally the producing MI; no MI can
+  // slide between the vreg-def and the CC.C/V write because they ARE
+  // the same instruction. Combined with honest Defs=[NZ,V,C] on
+  // Compare/Test/BitTest (Phase 2), regalloc can track CC.C across
+  // intervening clobbers without the bug #184 byte-intermediate
+  // workaround. The CarryFlagOf[] cache is still populated for the
+  // cross-BB scenario where COPY/G_FREEZE renames the vreg between
+  // producer and consumer; getPhantomBit1Flag walks the chain and
+  // recognizes the producing pseudo's opcode directly.
   CarryFlagOf[CarryOut] = IsSigned ? MC6809::V : MC6809::C;
   if (!MRI->getRegClassOrNull(CarryOut))
     MRI->setRegClass(CarryOut, &MC6809::BIT1RegClass);
-  Builder.buildInstr(TargetOpcode::IMPLICIT_DEF, {CarryOut}, {});
 
   std::optional<ValueAndVReg> ValReg;
   int64_t Value;
@@ -1762,7 +1772,8 @@ bool MC6809InstructionSelector::selectAddO(MachineInstr &MI) {
     Instr = Builder.buildInstr(Opcode)
                      .addDef(Dst)
                      .addUse(Reg)
-                     .addImm(Value);
+                     .addImm(Value)
+                     .addDef(CarryOut, RegState::ImplicitDefine);
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
     return true;
@@ -1783,7 +1794,8 @@ bool MC6809InstructionSelector::selectAddO(MachineInstr &MI) {
       Instr = Builder.buildInstr(Opcode)
                        .addDef(Dst)
                        .addUse(UnmReg)
-                       .addImm(ByteVal);
+                       .addImm(ByteVal)
+                       .addDef(CarryOut, RegState::ImplicitDefine);
       constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
       MI.eraseFromParent();
       return true;
@@ -1803,6 +1815,7 @@ bool MC6809InstructionSelector::selectAddO(MachineInstr &MI) {
                      .addUse(Reg)
                      .add(Ptr)
                      .add(Offset)
+                     .addDef(CarryOut, RegState::ImplicitDefine)
                      .cloneMemRefs(*Ptr.getParent());
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
@@ -1819,7 +1832,8 @@ bool MC6809InstructionSelector::selectAddO(MachineInstr &MI) {
     Instr = Builder.buildInstr(Opcode)
                 .addDef(Dst)
                 .addUse(LHS)
-                .addUse(RHS);
+                .addUse(RHS)
+                .addDef(CarryOut, RegState::ImplicitDefine);
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
     return true;
@@ -1901,11 +1915,10 @@ bool MC6809InstructionSelector::selectSubO(MachineInstr &MI) {
     return IsSigned ? OverflowOpc : CarryOpc;
   };
 
-  // Bug #186 v5: see selectAddO comment.
+  // Bug #186 follow-up Phase 1a (2026-04-28): see selectAddO above.
   CarryFlagOf[CarryOut] = IsSigned ? MC6809::V : MC6809::C;
   if (!MRI->getRegClassOrNull(CarryOut))
     MRI->setRegClass(CarryOut, &MC6809::BIT1RegClass);
-  Builder.buildInstr(TargetOpcode::IMPLICIT_DEF, {CarryOut}, {});
 
   std::optional<ValueAndVReg> ValReg;
   int64_t Value;
@@ -1921,7 +1934,8 @@ bool MC6809InstructionSelector::selectSubO(MachineInstr &MI) {
     Instr = Builder.buildInstr(Opcode)
                      .addDef(Dst)
                      .addUse(Reg)
-                     .addImm(Value);
+                     .addImm(Value)
+                     .addDef(CarryOut, RegState::ImplicitDefine);
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
     return true;
@@ -1942,7 +1956,8 @@ bool MC6809InstructionSelector::selectSubO(MachineInstr &MI) {
       Instr = Builder.buildInstr(Opcode)
                        .addDef(Dst)
                        .addUse(UnmReg)
-                       .addImm(ByteVal);
+                       .addImm(ByteVal)
+                       .addDef(CarryOut, RegState::ImplicitDefine);
       constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
       MI.eraseFromParent();
       return true;
@@ -1966,6 +1981,7 @@ bool MC6809InstructionSelector::selectSubO(MachineInstr &MI) {
                      .addUse(Reg)
                      .add(Ptr)
                      .add(Offset)
+                     .addDef(CarryOut, RegState::ImplicitDefine)
                      .cloneMemRefs(*Ptr.getParent());
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
@@ -1982,7 +1998,8 @@ bool MC6809InstructionSelector::selectSubO(MachineInstr &MI) {
     Instr = Builder.buildInstr(Opcode)
                 .addDef(Dst)
                 .addUse(LHS)
-                .addUse(RHS);
+                .addUse(RHS)
+                .addDef(CarryOut, RegState::ImplicitDefine);
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
     return true;
@@ -2024,11 +2041,10 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
     return IsSigned ? OverflowOpc : CarryOpc;
   };
 
-  // Bug #186 v5: see selectAddO comment.
+  // Bug #186 follow-up Phase 1a (2026-04-28): see selectAddO above.
   CarryFlagOf[CarryOut] = IsSigned ? MC6809::V : MC6809::C;
   if (!MRI->getRegClassOrNull(CarryOut))
     MRI->setRegClass(CarryOut, &MC6809::BIT1RegClass);
-  Builder.buildInstr(TargetOpcode::IMPLICIT_DEF, {CarryOut}, {});
 
   std::optional<ValueAndVReg> ValReg;
   int64_t Value;
@@ -2042,7 +2058,8 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
     Instr = Builder.buildInstr(Opcode)
                      .addDef(Dst)
                      .addUse(Reg)
-                     .addImm(Value);
+                     .addImm(Value)
+                     .addDef(CarryOut, RegState::ImplicitDefine);
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
     return true;
@@ -2061,7 +2078,8 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
       Instr = Builder.buildInstr(Opcode)
                        .addDef(Dst)
                        .addUse(UnmReg)
-                       .addImm(ByteVal);
+                       .addImm(ByteVal)
+                       .addDef(CarryOut, RegState::ImplicitDefine);
       constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
       MI.eraseFromParent();
       return true;
@@ -2079,6 +2097,7 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
                      .addUse(Reg)
                      .add(Ptr)
                      .add(Offset)
+                     .addDef(CarryOut, RegState::ImplicitDefine)
                      .cloneMemRefs(*Ptr.getParent());
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
@@ -2094,6 +2113,7 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
                      .addUse(Reg)
                      .add(Ptr)
                      .add(Offset)
+                     .addDef(CarryOut, RegState::ImplicitDefine)
                      .cloneMemRefs(*Ptr.getParent());
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
@@ -2110,7 +2130,8 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
     Instr = Builder.buildInstr(Opcode)
                 .addDef(Dst)
                 .addUse(LHS)
-                .addUse(RHS);
+                .addUse(RHS)
+                .addDef(CarryOut, RegState::ImplicitDefine);
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
     return true;
@@ -2159,11 +2180,10 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
     return IsSigned ? OverflowOpc : CarryOpc;
   };
 
-  // Bug #186 v5: see selectAddO comment.
+  // Bug #186 follow-up Phase 1a (2026-04-28): see selectAddO above.
   CarryFlagOf[CarryOut] = IsSigned ? MC6809::V : MC6809::C;
   if (!MRI->getRegClassOrNull(CarryOut))
     MRI->setRegClass(CarryOut, &MC6809::BIT1RegClass);
-  Builder.buildInstr(TargetOpcode::IMPLICIT_DEF, {CarryOut}, {});
 
   std::optional<ValueAndVReg> ValReg;
   int64_t Value;
@@ -2179,7 +2199,8 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
     Instr = Builder.buildInstr(Opcode)
                      .addDef(Dst)
                      .addUse(Reg)
-                     .addImm(Value);
+                     .addImm(Value)
+                     .addDef(CarryOut, RegState::ImplicitDefine);
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
     return true;
@@ -2200,7 +2221,8 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
       Instr = Builder.buildInstr(Opcode)
                        .addDef(Dst)
                        .addUse(UnmReg)
-                       .addImm(ByteVal);
+                       .addImm(ByteVal)
+                       .addDef(CarryOut, RegState::ImplicitDefine);
       constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
       MI.eraseFromParent();
       return true;
@@ -2218,6 +2240,7 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
                      .addUse(Reg)
                      .add(Ptr)
                      .add(Offset)
+                     .addDef(CarryOut, RegState::ImplicitDefine)
                      .cloneMemRefs(*Ptr.getParent());
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
@@ -2235,6 +2258,7 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
                      .addUse(Reg)
                      .add(Ptr)
                      .add(Offset)
+                     .addDef(CarryOut, RegState::ImplicitDefine)
                      .cloneMemRefs(*Ptr.getParent());
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
@@ -2249,7 +2273,8 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
     Instr = Builder.buildInstr(Opcode)
                 .addDef(Dst)
                 .addUse(LHS)
-                .addUse(RHS);
+                .addUse(RHS)
+                .addDef(CarryOut, RegState::ImplicitDefine);
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
     return true;
