@@ -642,16 +642,15 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
   // LEAS costs 5).
   //
   // Phase 1 (commit e8eade87251b) handled the strict adjacent triplet
-  // (MI2 = std::next(MI1)). Phase 2 relaxes that: up to MaxGap MIs are
-  // permitted between MI1 (PSHS) and MI2 (op ,S), guarded by a per-MI
-  // `modifiesRegister(SS)` abort so an intervening PSHS/PULS/LEAS/etc
-  // can't shift the slot offset out from under us. MI3 (LEAS) must
+  // (MI2 = std::next(MI1)). Phase 2 (commit 8380663fe2c4) relaxed
+  // that with a bounded forward scan. Phase 3 (this commit) lifts
+  // the cap entirely: walk until MI2 is found, an intervening MI
+  // modifies SS (the safety abort), or the BB ends. MI3 (LEAS) must
   // still be std::next(MI2) — no gap on that side.
   //
-  // TODO Phase 3: an unbounded scan (until the first SS-clobber or BB
-  // end) is a clean further extension if a future codegen change
-  // starts producing gaps > 3 MIs. MaxGap=3 matches all observed
-  // -Os codegen as of 2026-04-28 (per project_bug185_closed.md).
+  // The `modifiesRegister(SS)` safety check naturally terminates the
+  // scan in pathological cases (any PSHS/PULS/LEAS/TFR S/call has
+  // implicit-def $ss).
   for (MachineBasicBlock &MBB : MF) {
     for (auto It = MBB.begin(); It != MBB.end(); ) {
       MachineInstr &MI1 = *It++;
@@ -678,24 +677,19 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         continue; // X/Y/U/CC/etc. not handled here.
 
       // MI2: op on ,S with offset 0 (either *i_o0 or *i_o5 with imm=0)
-      // matching PushWidth. Scan forward up to MaxGap MIs past MI1;
-      // each intervening MI must NOT modify SS, otherwise the `,S`
-      // in MI2 would refer to a different slot than what MI1 pushed.
-      // MaxGap=3 matches the observed maximum in -Os bench output;
-      // see Stage 5 header comment.
-      constexpr unsigned MaxGap = 3;
+      // matching PushWidth. Scan forward unbounded; each intervening
+      // MI must NOT modify SS, otherwise the `,S` in MI2 would refer
+      // to a different slot than what MI1 pushed. The
+      // `modifiesRegister(SS)` safety check naturally terminates the
+      // scan in pathological cases.
       auto It2 = It;
       unsigned NewOpc = 0;
-      for (unsigned Gap = 0; Gap <= MaxGap && It2 != MBB.end();
-           ++Gap, ++It2) {
+      for (; It2 != MBB.end(); ++It2) {
         MachineInstr &Cand = *It2;
 
-        // Skip debug instructions — they don't generate code,
-        // shouldn't count toward the gap budget, and can't modify SS.
-        if (Cand.isDebugInstr()) {
-          --Gap; // don't charge debug MIs against the budget
-          continue;
-        }
+        // Skip debug instructions — they don't generate code and
+        // can't modify SS.
+        if (Cand.isDebugInstr()) continue;
 
         // Is this the op we're looking for?
         if (unsigned Opc = getPostIncOpcodeForOffset0(Cand.getOpcode(),
@@ -767,24 +761,28 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
   // (the LDY) and ~3-6 cycles per fold. Same shape as Stage 5 but
   // for indirect-indexed addressing rather than post-increment.
   //
-  // Match shape: LDY n,BaseReg / ... up to MaxGap MIs ... / op ,Y
-  // where Y is dead immediately after the op. Each intervening MI
-  // must NOT touch (read or write) Y — reading would observe MI1's
-  // value and break when we erase MI1; writing would change what
-  // op,Y reads. Liveness past the op is checked via
+  // Match shape: LDY n,BaseReg / ... any number of intervening MIs
+  // that don't touch LoadedReg ... / op ,Y where Y is dead
+  // immediately after the op. Each intervening MI must NOT touch
+  // (read or write) LoadedReg — reading would observe MI1's value
+  // and break when we erase MI1; writing would change what op,Y
+  // reads. Liveness past the op is checked via
   // `MachineBasicBlock::computeRegisterLiveness` requiring LQR_Dead
   // (LQR_Live and LQR_Unknown both abort; we choose correctness
   // over the unknown cases).
   //
-  // MaxGap=5 covers ~78% of foldable sites in -Os bench (per the
-  // bug #189 pre-implementation explore, gap-1=36%, gap-3=19%,
-  // gap-5 cumulative=78.6%). The gap-6+ tail (~21%) is left for
-  // a follow-up Phase 2 with an unbounded scan; the limiting
-  // factor there is that `computeRegisterLiveness` more often
-  // returns LQR_Unknown over longer scans.
+  // The scan walks until it finds MI2, hits an MI that touches
+  // LoadedReg, or reaches the BB end. No artificial gap cap —
+  // earlier #189 versions used MaxGap=5 (covering ~78% of
+  // foldable sites per pre-implementation explore); the
+  // unbounded scan picks up the remaining ~22% (gap-6 to
+  // gap->10 tail). The intervening-touch check naturally
+  // terminates the scan in pathological cases (calls almost
+  // always touch LoadedReg via the call-clobber list).
   //
-  // TODO Phase 2: relax MaxGap (or go unbounded) once we have a
-  // bench data point on how often LQR_Unknown bites in practice.
+  // `computeRegisterLiveness` Neighborhood=32 keeps the LQR_Unknown
+  // rate low across the longer post-MI2 scans the unbounded matcher
+  // can reach.
   for (MachineBasicBlock &MBB : MF) {
     for (auto It = MBB.begin(); It != MBB.end(); ) {
       MachineInstr &MI1 = *It++;
@@ -815,18 +813,15 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
       // value of Y is what we'd be folding away.
       if (BaseReg == LoadedReg) continue;
 
-      // Forward scan for MI2 (op ,LoadedReg with offset 0).
-      constexpr unsigned MaxGap = 5;
+      // Forward scan for MI2 (op ,LoadedReg with offset 0). Walk
+      // until MI2 is found, an intervening MI touches LoadedReg,
+      // or the BB ends — no artificial gap cap.
       auto It2 = It;
       unsigned NewOpc = 0;
-      for (unsigned Gap = 0; Gap <= MaxGap && It2 != MBB.end();
-           ++Gap, ++It2) {
+      for (; It2 != MBB.end(); ++It2) {
         MachineInstr &Cand = *It2;
 
-        if (Cand.isDebugInstr()) {
-          --Gap; // don't charge debug MIs against the budget
-          continue;
-        }
+        if (Cand.isDebugInstr()) continue;
 
         // Try to match as MI2.
         if (unsigned Opc = getIndirectIndexedOpcode(Cand.getOpcode(),
@@ -877,11 +872,12 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
       }
 
       // Liveness: LoadedReg must be dead at the program point
-      // immediately after MI2. Bound the scan at 16 MIs to keep it
-      // cheap.
+      // immediately after MI2. Neighborhood=32 keeps the LQR_Unknown
+      // rate low across the longer post-MI2 scans the unbounded
+      // matcher can reach.
       auto AfterMI2 = std::next(It2);
       auto LR = MBB.computeRegisterLiveness(&TRI, LoadedReg, AfterMI2,
-                                            /*Neighborhood=*/16);
+                                            /*Neighborhood=*/32);
       if (LR != MachineBasicBlock::LQR_Dead) continue;
 
       LLVM_DEBUG(dbgs() << "  SpillOpt Stage 6: folding LDY/op,Y "
