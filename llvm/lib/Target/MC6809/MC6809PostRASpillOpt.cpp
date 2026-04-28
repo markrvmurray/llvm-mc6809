@@ -224,6 +224,54 @@ static unsigned getOpcodeForOffsetSize(unsigned OrigOpc, int NewOffset) {
 #undef OFFSET_VARIANT
 }
 
+/// For an `*i_o0` or `*i_o5` (with offset 0) opcode that reads/writes
+/// `,S`, return the corresponding post-increment opcode that absorbs a
+/// following `LEAS PushWidth,S`. PushWidth must be 1 (byte ops on AA/AB,
+/// returns the `*i_Inc1` variant) or 2 (word ops on AD, returns
+/// `*i_Inc2`). Returns 0 if the opcode is not a recognised offset-0
+/// indexed ALU/load/store op or the width doesn't match the op's
+/// natural accumulator size.
+///
+/// Used by Stage 5 of the spill-opt pass to fold the
+/// `PSHS / op ,S / LEAS N,S` triplet into `PSHS / op ,S{+,++}` (bug #185).
+static unsigned getPostIncOpcodeForOffset0(unsigned OrigOpc, int PushWidth) {
+  // Byte ops (AA/AB) — PushWidth must be 1.
+#define BYTE_VARIANT(BASE)                                                     \
+  case MC6809::BASE##_o0: case MC6809::BASE##_o5:                              \
+    return PushWidth == 1 ? MC6809::BASE##_Inc1 : 0;
+  // Word ops (AD) — PushWidth must be 2.
+#define WORD_VARIANT(BASE)                                                     \
+  case MC6809::BASE##_o0: case MC6809::BASE##_o5:                              \
+    return PushWidth == 2 ? MC6809::BASE##_Inc2 : 0;
+
+  switch (OrigOpc) {
+  // Byte loads/stores
+  BYTE_VARIANT(LDAi)
+  BYTE_VARIANT(LDBi)
+  BYTE_VARIANT(STAi)
+  BYTE_VARIANT(STBi)
+  // Byte ALU on A
+  BYTE_VARIANT(ADDAi) BYTE_VARIANT(ADCAi)
+  BYTE_VARIANT(SUBAi) BYTE_VARIANT(SBCAi)
+  BYTE_VARIANT(ANDAi) BYTE_VARIANT(ORAi) BYTE_VARIANT(EORAi)
+  BYTE_VARIANT(CMPAi) BYTE_VARIANT(BITAi)
+  // Byte ALU on B
+  BYTE_VARIANT(ADDBi) BYTE_VARIANT(ADCBi)
+  BYTE_VARIANT(SUBBi) BYTE_VARIANT(SBCBi)
+  BYTE_VARIANT(ANDBi) BYTE_VARIANT(ORBi) BYTE_VARIANT(EORBi)
+  BYTE_VARIANT(CMPBi) BYTE_VARIANT(BITBi)
+  // Word loads/stores
+  WORD_VARIANT(LDDi)
+  WORD_VARIANT(STDi)
+  // Word ALU on D
+  WORD_VARIANT(ADDDi) WORD_VARIANT(SUBDi)
+  WORD_VARIANT(CMPDi)
+  default: return 0;
+  }
+#undef BYTE_VARIANT
+#undef WORD_VARIANT
+}
+
 class MC6809PostRASpillOpt : public MachineFunctionPass {
 public:
   static char ID;
@@ -527,6 +575,93 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
       Push.eraseFromParent();
       // It now points past the deleted Push; LoadImm and ArithPull are still valid.
       It = It2; // resume from LoadImm (which we keep)
+      Changed = true;
+    }
+  }
+
+  // Stage 5 (bug #185): fold PSHS reg / op ,S / LEAS N,S triplets into
+  // PSHS reg / op ,S{+,++}, eliminating the LEAS. Saves 2 bytes and
+  // 5 cycles per occurrence. Match the strict adjacent triplet only;
+  // TODO Phase 2: relax MI1→MI2 gap with an S-clobber scan to capture
+  // the ~71 additional sites where PSHS and op are separated by other
+  // MIs (per pre-implementation exploration).
+  for (MachineBasicBlock &MBB : MF) {
+    for (auto It = MBB.begin(); It != MBB.end(); ) {
+      MachineInstr &MI1 = *It++;
+
+      // MI1: PSHS pushing exactly one accumulator (AA, AB, or AD).
+      if (MI1.getOpcode() != MC6809::PSHSs)
+        continue;
+      Register PushedReg;
+      bool BadMask = false;
+      for (const MachineOperand &MO : MI1.explicit_operands()) {
+        if (!MO.isReg() || !MO.isUse())
+          continue;
+        if (PushedReg.isValid()) { BadMask = true; break; }
+        PushedReg = MO.getReg();
+      }
+      if (BadMask || !PushedReg.isValid())
+        continue;
+      int PushWidth;
+      if (PushedReg == MC6809::AA || PushedReg == MC6809::AB)
+        PushWidth = 1;
+      else if (PushedReg == MC6809::AD)
+        PushWidth = 2;
+      else
+        continue; // X/Y/U/CC/etc. not handled here.
+
+      // MI2: op on ,S with offset 0 — either *i_o0 (no imm operand) or
+      // *i_o5 with imm=0. Must be a recognised byte/word op matching
+      // PushWidth.
+      if (It == MBB.end()) continue;
+      MachineInstr &MI2 = *It;
+      unsigned NewOpc = getPostIncOpcodeForOffset0(MI2.getOpcode(), PushWidth);
+      if (!NewOpc) continue;
+      SlotKey Slot = getSlotKey(MI2);
+      if (Slot.BaseReg != MC6809::SS || Slot.Offset != 0) continue;
+
+      // MI3: LEAS PushWidth,S (the small-offset _o5 form is what
+      // codegen emits for ±1/±2; the larger forms are never picked
+      // for these tiny values).
+      auto It3 = std::next(It);
+      if (It3 == MBB.end()) continue;
+      MachineInstr &MI3 = *It3;
+      if (MI3.getOpcode() != MC6809::LEASi_o5) continue;
+      Register MI3Base;
+      int MI3Imm;
+      if (!getBaseAndOffset(MI3, MI3Base, MI3Imm)) continue;
+      if (MI3Base != MC6809::SS || MI3Imm != PushWidth) continue;
+
+      LLVM_DEBUG(dbgs() << "  SpillOpt Stage 5: folding PSHS/op/LEAS "
+                        << "triplet:\n"
+                        << "    " << MI1
+                        << "    " << MI2
+                        << "    " << MI3);
+
+      // Rewrite MI2 to the post-increment opcode. Both _o0 and
+      // _Inc1/_Inc2 take a single $ireg operand; _o5 takes (imm,
+      // $ireg). If MI2 was the _o5 variant, drop the imm operand
+      // first so the operand list matches the new descriptor.
+      bool WasO5 = MI2.getNumExplicitOperands() == 2;
+      MI2.setDesc(TII.get(NewOpc));
+      if (WasO5) {
+        // The first explicit operand is the imm; remove it.
+        for (unsigned i = 0, e = MI2.getNumExplicitOperands(); i != e; ++i) {
+          if (MI2.getOperand(i).isImm()) {
+            MI2.removeOperand(i);
+            break;
+          }
+        }
+      }
+
+      // Erase only MI3 (LEAS). MI1 (PSHS) MUST remain — it produces
+      // the value at `,S` that the rewritten post-increment op reads.
+      // Net SS effect is unchanged: PSHS decrements by PushWidth; the
+      // rewritten op's post-increment re-adds the same PushWidth.
+      MI3.eraseFromParent();
+
+      // Advance past the rewritten MI2 to continue scanning.
+      It = std::next(MI2.getIterator());
       Changed = true;
     }
   }

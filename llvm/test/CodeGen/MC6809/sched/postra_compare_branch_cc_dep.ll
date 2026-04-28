@@ -29,8 +29,7 @@ define i16 @cmp_eq_branch(i16 %x, i16 %y, i16 %z) {
 ; MC6809-O2-NEXT:    tfr x,d
 ; MC6809-O2-NEXT:    stb 5,u
 ; MC6809-O2-NEXT:    pshs a
-; MC6809-O2-NEXT:    orb ,s
-; MC6809-O2-NEXT:    leas 1,s
+; MC6809-O2-NEXT:    orb ,s+
 ; MC6809-O2-NEXT:    stb 5,u
 ; MC6809-O2-NEXT:    tstb
 ; MC6809-O2-NEXT:    beq .LBB0_2

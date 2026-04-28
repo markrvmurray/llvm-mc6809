@@ -170,8 +170,7 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; MC6809-O1-NEXT:    std 2,u
 ; MC6809-O1-NEXT:    std 8,u
 ; MC6809-O1-NEXT:    pshs a
-; MC6809-O1-NEXT:    orb ,s
-; MC6809-O1-NEXT:    leas 1,s
+; MC6809-O1-NEXT:    orb ,s+
 ; MC6809-O1-NEXT:    tstb
 ; MC6809-O1-NEXT:    bne .LBB0_2
 ; MC6809-O1-NEXT:  .LBB0_3: ; %for.end
@@ -229,8 +228,7 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; MC6809-O2-NEXT:    std 2,u
 ; MC6809-O2-NEXT:    std 8,u
 ; MC6809-O2-NEXT:    pshs a
-; MC6809-O2-NEXT:    orb ,s
-; MC6809-O2-NEXT:    leas 1,s
+; MC6809-O2-NEXT:    orb ,s+
 ; MC6809-O2-NEXT:    tstb
 ; MC6809-O2-NEXT:    bne .LBB0_2
 ; MC6809-O2-NEXT:  .LBB0_3: ; %for.end
@@ -288,8 +286,7 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; MC6809-O3-NEXT:    std 2,u
 ; MC6809-O3-NEXT:    std 8,u
 ; MC6809-O3-NEXT:    pshs a
-; MC6809-O3-NEXT:    orb ,s
-; MC6809-O3-NEXT:    leas 1,s
+; MC6809-O3-NEXT:    orb ,s+
 ; MC6809-O3-NEXT:    tstb
 ; MC6809-O3-NEXT:    bne .LBB0_2
 ; MC6809-O3-NEXT:  .LBB0_3: ; %for.end
