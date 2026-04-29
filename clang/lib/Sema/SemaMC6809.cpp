@@ -15,6 +15,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/Sema/Attr.h"
+#include "clang/Sema/Sema.h"
 
 using namespace llvm;
 
@@ -64,7 +65,7 @@ void SemaMC6809::handleInterruptNoISRAttr(Decl *D, const ParsedAttr &AL) {
 void SemaMC6809::handleDirectPageAttr(Decl *D, const ParsedAttr &AL) {
   if (!AL.checkExactlyNumArgs(SemaRef, 0))
     return;
-  const auto *VD = dyn_cast<VarDecl>(D);
+  auto *VD = dyn_cast<VarDecl>(D);
   if (!VD) {
     Diag(D->getLocation(), diag::warn_attribute_wrong_decl_type)
         << "'directpage'" << ExpectedVariable;
@@ -75,6 +76,24 @@ void SemaMC6809::handleDirectPageAttr(Decl *D, const ParsedAttr &AL) {
         << AL << AL.getRange();
     return;
   }
+
+  // Bug #192 follow-up: also stamp the variable's TYPE with the
+  // addrspace(1) qualifier — without this, the global itself lives
+  // in addrspace(1) but every load/store gets an addrspacecast back
+  // to addrspace(0) (Clang's default). The MC6809 backend can't
+  // legalize G_ADDRSPACE_CAST p1→p0, and even if it could, the cast
+  // would lose the information that the access should select the
+  // DP-mode opcode (LDAd/STAd/LDDd/STDd). Stamping the QualType
+  // makes loads/stores emit directly in addrspace(1).
+  QualType OrigTy = VD->getType();
+  LangAS DPAddrSpace = getLangASFromTargetAS(1);
+  if (OrigTy.getAddressSpace() != DPAddrSpace) {
+    QualType NewTy = SemaRef.Context.getAddrSpaceQualType(OrigTy, DPAddrSpace);
+    VD->setType(NewTy);
+    if (TypeSourceInfo *TSI = VD->getTypeSourceInfo())
+      VD->setTypeSourceInfo(SemaRef.Context.CreateTypeSourceInfo(NewTy));
+  }
+
   handleSimpleAttribute<MC6809DirectPageAttr>(*this, D, AL);
 }
 
