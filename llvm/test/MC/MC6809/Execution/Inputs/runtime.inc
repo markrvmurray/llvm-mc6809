@@ -33,10 +33,31 @@ _start:
 	bra	.Lbss_zero
 .Lbss_done:
 
+	jsr	_acia_init
 	jsr	test_main
 	jsr	halt
 _hang:
 	bra	_hang
+
+;; ===== _acia_init =====
+;; Initialise the MC6850 ACIA so that putchar's TDRE poll succeeds.
+;; usim09batch's emulated ACIA asserts TDRE from boot regardless, so
+;; this is a no-op on usim. MAME's HD6309 SBC (`mamellvm6309`) requires
+;; an explicit master-reset ($03 → control) followed by an operating-
+;; mode write ($15 = /16 clock, 8N1, no IRQ, RTS=low) before TDRE will
+;; assert; without this, every putchar polls $FFD0 forever and the
+;; test hits its runaway timeout.
+;; Called unconditionally by _start so every test that calls into the
+;; runtime is portable across both simulators.
+;; Preserves all registers.
+
+_acia_init:
+	pshs	a
+	lda	#0x03		; master reset
+	sta	0xffd0
+	lda	#0x15		; /16 clock, 8N1, no IRQ, RTS=low
+	sta	0xffd0
+	puls	a,pc
 
 ;; ===== putchar =====
 ;; Write the byte in A to the ACIA.
