@@ -33,6 +33,9 @@
 #include "llvm/CodeGen/TargetFrameLowering.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
+#include "llvm/MC/MCContext.h"
+#include "llvm/MC/MCDwarf.h"
+#include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
 
@@ -456,9 +459,27 @@ MachineBasicBlock::iterator MC6809FrameLowering::eliminateCallFramePseudoInstr(M
   return MBB.erase(MI);
 }
 
+// Bug #164 Tier 2: emit a CFI_INSTRUCTION MI at position I in MBB.
+// Mirrors the MSP430 / AArch64 pattern: add the MCCFIInstruction to the
+// MachineFunction's frame-instruction table, then build a meta-MI that
+// carries the index.  The base-class AsmPrinter::emitFunctionBody switch
+// dispatches CFI_INSTRUCTION to AsmPrinter::emitCFIInstruction which
+// calls OutStreamer->emitCFI*(…).
+static void BuildCFI(MachineBasicBlock &MBB, MachineBasicBlock::iterator I,
+                     const DebugLoc &DL, const MCCFIInstruction &CFIInst,
+                     MachineInstr::MIFlag Flag = MachineInstr::FrameSetup) {
+  MachineFunction &MF = *MBB.getParent();
+  unsigned CFIIndex = MF.addFrameInst(CFIInst);
+  BuildMI(MBB, I, DL,
+          MF.getSubtarget().getInstrInfo()->get(TargetOpcode::CFI_INSTRUCTION))
+      .addCFIIndex(CFIIndex)
+      .setMIFlag(Flag);
+}
+
 void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) const {
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   const TargetRegisterInfo &TRI = *MF.getRegInfo().getTargetRegisterInfo();
+  const MCRegisterInfo *MRI = MF.getContext().getRegisterInfo();
   MachineIRBuilder Builder(MBB, MBB.begin());
 
   int64_t StackSize = MFI.getStackSize();
@@ -469,6 +490,19 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &M
   // cost of dealing with this atomicity problem.
   if (isISR(MF))
     StackSize += 256;
+
+  // Bug #164 Tier 2: initial CFI.  At function entry (just after the caller's
+  // JSR/BSR has pushed the 2-byte return address) the canonical frame address
+  // (CFA) is S + 2.  The return PC lives at CFA - 2.
+  // We emit these before any SP-adjusting instructions so the unwinder's PC
+  // table row for address 0 (the function entry) is correct.
+  unsigned SPDwarf = MRI->getDwarfRegNum(MC6809::SS, /*isEH=*/true);
+  unsigned PCDwarf = MRI->getDwarfRegNum(MC6809::PC, /*isEH=*/true);
+  auto EntryMBBI = MBB.begin();
+  BuildCFI(MBB, EntryMBBI, {},
+           MCCFIInstruction::cfiDefCfa(nullptr, SPDwarf, 2));
+  BuildCFI(MBB, EntryMBBI, {},
+           MCCFIInstruction::createOffset(nullptr, PCDwarf, -2));
 
   if (StackSize)
     offsetSP(Builder, -StackSize);
@@ -487,6 +521,30 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &M
   Register FPReg = TRI.getFrameRegister(MF);
   Builder.buildInstr(MC6809::TFRp).addDef(FPReg).addUse(MC6809::SS);
 
+  // Bug #164 Tier 2: after TFR S,U the frame pointer is valid.  Switch the
+  // CFA to U-based.  Total offset from U to caller's SP:
+  //   StackSize (locals) + callee-saved bytes + 2 (return address)
+  // = exactly what MFI reports once all frame slots are laid out.
+  // We compute CSR bytes from CalleeSavedInfo rather than relying on
+  // MFI.getStackSize() which only covers locals.
+  int64_t CSRBytes = 0;
+  for (const CalleeSavedInfo &CSI : MFI.getCalleeSavedInfo())
+    if (CSI.isTargetSpilled())
+      CSRBytes += MFI.getObjectSize(CSI.getFrameIdx());
+  int64_t TotalOffset = StackSize + CSRBytes + 2;
+
+  unsigned FPDwarf = MRI->getDwarfRegNum(FPReg, /*isEH=*/true);
+  // Insert CFI immediately before the first instruction that follows the TFR
+  // we just built (= Builder.getInsertPt()).  Do NOT use std::next() here —
+  // getInsertPt() already points one past the TFR; stepping again lands on
+  // MBB.end() when TFR is the last non-terminator, causing BuildCFI to insert
+  // the directive after the block's branch terminator.  That makes the
+  // AsmPrinter skip the successor BB label, producing an "Undefined temporary
+  // symbol" assembler error (fixed for bug #164 Tier 2 regression).
+  auto AfterTFR = Builder.getInsertPt();
+  BuildCFI(MBB, AfterTFR, {},
+           MCCFIInstruction::cfiDefCfa(nullptr, FPDwarf, TotalOffset));
+
   // Add frame pointer to liveins of all blocks so the machine verifier
   // doesn't flag it as used-without-definition (bug #16).
   for (MachineBasicBlock &Block : MF)
@@ -497,6 +555,7 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &M
 void MC6809FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const {
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   const TargetRegisterInfo &TRI = *MF.getRegInfo().getTargetRegisterInfo();
+  const MCRegisterInfo *MRI = MF.getContext().getRegisterInfo();
   MachineIRBuilder Builder(MBB, MBB.getFirstTerminator());
 
   // Restore the stack pointer from the frame pointer.
@@ -518,6 +577,16 @@ void MC6809FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &M
   // If soft stack is used, increase the soft stack pointer SP.
   if (StackSize)
     offsetSP(Builder, StackSize);
+
+  // Bug #164 Tier 2: restore SP-based CFA for the unwinder at the point of
+  // the return instruction.  After the epilogue unwinds the frame, CFA is
+  // back to SP + 2 (just the return address remains).
+  if (hasFP(MF) || StackSize) {
+    unsigned SPDwarf = MRI->getDwarfRegNum(MC6809::SS, /*isEH=*/true);
+    BuildCFI(MBB, MBB.getFirstTerminator(), {},
+             MCCFIInstruction::cfiDefCfa(nullptr, SPDwarf, 2),
+             MachineInstr::FrameDestroy);
+  }
 }
 
 bool MC6809FrameLowering::hasFP(const MachineFunction &MF) const {

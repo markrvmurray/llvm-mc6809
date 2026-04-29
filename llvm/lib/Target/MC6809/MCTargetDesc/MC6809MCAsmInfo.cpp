@@ -18,7 +18,14 @@ namespace llvm {
 MC6809MCAsmInfo::MC6809MCAsmInfo(const Triple &TT, const MCTargetOptions &Options) {
   IsLittleEndian = false;
   CodePointerSize = 2;
-  CalleeSaveStackSlotSize = 0;
+  // MC6809 is byte-addressable; the stack slot unit is 1 byte.
+  // This drives getDataAlignmentFactor() = -1 in the CIE, which lets
+  // DW_CFA_offset for the return PC encode correctly as factored
+  // offset = (byte_offset / -1).  The original 0 prevented the generic
+  // callee-save slot allocator from meddling, but MC6809 overrides
+  // assignCalleeSavedSpillSlots entirely so the slot size doesn't affect
+  // frame layout — only the DWARF CIE data alignment factor.
+  CalleeSaveStackSlotSize = 1;
   SeparatorString = "\n";
   CommentString = ";";
   UseMotorolaIntegers = true;
@@ -30,6 +37,11 @@ MC6809MCAsmInfo::MC6809MCAsmInfo(const Triple &TT, const MCTargetOptions &Option
   // share this ceiling and no subtarget override is needed.
   MaxInstLength = 5;
   SupportsDebugInformation = true;
+  // Bug #164 Tier 2: enable .cfi_startproc / .cfi_endproc and
+  // .debug_frame emission without EH support.  Without this, lldb's
+  // DwarfCFIException decides shouldEmitCFI = false and no frame
+  // unwind information is produced even when -g is active.
+  UsesCFIWithoutEH = true;
 }
 
 } //  namespace llvm
