@@ -465,7 +465,16 @@ multiclass MC6809Bitwise<ValueType vtype, RegisterClass reg> {
   let isAsCheapAsAMove = true in {
     def _Imm : MC6809BitwiseBase<reg, (ins !cast<Operand>(vtype#"imm"):$imm)>;
   }
+  // Bug #196: AND/OR/XOR are mathematically commutative; the post-RA
+  // expander (expandANDReg/expandORReg/expandXORReg in
+  // MC6809InstrInfo.cpp) always picks op2 as the memory-resident
+  // source, so swapping op1<->op2 cleanly flips which source becomes
+  // accumulator-bound vs. memory-resident. This lets
+  // TwoAddressInstructionPass commute when one operand is easier to
+  // keep in the accumulator across uses than the other.
+  let isCommutable = 1 in {
     def _Reg : MC6809BitwiseBase<reg, (ins reg:$src2)>;
+  }
   let mayLoad = true in {
     def _Mem : MC6809BitwiseBase<reg, (ins INDEX16:$idx, unknown:$offset)>;
     def _Pull : MC6809BitwiseBase<reg, (ins STACK16:$idx)>;

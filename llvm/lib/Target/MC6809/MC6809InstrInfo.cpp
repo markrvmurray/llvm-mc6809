@@ -563,14 +563,14 @@ unsigned MC6809InstrInfo::getInstBundleLength(const MachineInstr &MI) const {
   return Size;
 }
 
-// 6809 instructions aren't as regular as most commutable instructions, so this
-// routine determines the commutable operands manually.
-bool MC6809InstrInfo::findCommutedOpIndices(const MachineInstr &MI, unsigned &SrcOpIdx1, unsigned &SrcOpIdx2) const {
-  assert(!MI.isBundle() && "MC6809InstrInfo::findCommutedOpIndices() can't handle bundles");
-
-  // XXXX: FIXME: MarkM - Find and commute the 6809 instructions
-  return false;
-}
+// Bug #196: findCommutedOpIndices is no longer overridden — the
+// base-class TargetInstrInfo::findCommutedOpIndices uses the
+// TableGen-generated `isCommutable` flag to recognise commutable
+// pseudos and returns the standard {1, 2} operand pair. Per the
+// AArch64 reference (which also doesn't override), this is the
+// simplest design. Add `let isCommutable = 1` to TableGen multiclass
+// bodies (e.g. MC6809Bitwise._Reg in MC6809InstrFamilies.td) to
+// enrol new commute targets.
 
 MachineBasicBlock *MC6809InstrInfo::getBranchDestBlock(const MachineInstr &MI) const {
   switch (MI.getOpcode()) {

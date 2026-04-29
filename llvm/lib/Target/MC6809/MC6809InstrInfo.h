@@ -88,7 +88,9 @@ public:
 
   unsigned getInstBundleLength(const MachineInstr &MI) const;
 
-  bool findCommutedOpIndices(const MachineInstr &MI, unsigned &SrcOpIdx1, unsigned &SrcOpIdx2) const override;
+  // Bug #196: findCommutedOpIndices not overridden — inherit base
+  // TargetInstrInfo behaviour which uses TableGen-generated
+  // `isCommutable` flags. Same approach as AArch64.
 
 #if 0
   bool isBranchOffsetInRange(unsigned BranchOpc, int64_t BrOffset) const override;

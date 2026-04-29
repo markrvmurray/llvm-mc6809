@@ -363,21 +363,21 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; HD6309-NEXT:    ldb 24,u
 ; HD6309-NEXT:    sta 6,u
 ; HD6309-NEXT:    stb 5,u
-; HD6309-NEXT:    orr a,b
-; HD6309-NEXT:    stb 24,u
-; HD6309-NEXT:    ldb 5,u
-; HD6309-NEXT:    stb 4,u
-; HD6309-NEXT:    ldb 24,u
-; HD6309-NEXT:    tstb
+; HD6309-NEXT:    orr b,a
+; HD6309-NEXT:    sta 23,u
+; HD6309-NEXT:    lda 6,u
+; HD6309-NEXT:    sta 4,u
+; HD6309-NEXT:    lda 23,u
+; HD6309-NEXT:    tsta
 ; HD6309-NEXT:    lbeq .LBB0_4
 ; HD6309-NEXT:  ; %bb.3: ; %for.body
 ; HD6309-NEXT:    ; in Loop: Header=BB0_2 Depth=1
-; HD6309-NEXT:    ldb 4,u
+; HD6309-NEXT:    lda 4,u
 ; HD6309-NEXT:  ; %bb.6: ; %for.body
 ; HD6309-NEXT:    ; in Loop: Header=BB0_2 Depth=1
 ; HD6309-NEXT:    lbra .LBB0_2
 ; HD6309-NEXT:  .LBB0_4: ; %for.body
-; HD6309-NEXT:    ldb 4,u
+; HD6309-NEXT:    lda 4,u
 ; HD6309-NEXT:  .LBB0_5: ; %for.end
 ; HD6309-NEXT:    ldx 25,u
 ; HD6309-NEXT:    tfr u,s
