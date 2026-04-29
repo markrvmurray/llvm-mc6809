@@ -9,3 +9,7 @@ foreach(target AArch64 ARM ARC Hexagon LoongArch Mips MSP430 PowerPC RISCV Syste
     add_subdirectory(${target})
   endif()
 endforeach()
+
+# MC6809 is an experimental target in this fork; include its ABI
+# plugin unconditionally so lldb can attach to MC6809/HD6309 processes.
+add_subdirectory(MC6809)

@@ -183,6 +183,8 @@ public:
     eCore_mips64r5el,
     eCore_mips64r6el,
 
+    eCore_mc6809,
+
     eCore_msp430,
 
     eCore_ppc_generic,

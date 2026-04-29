@@ -159,6 +159,10 @@ static constexpr const CoreDefinition g_core_definitions[] = {
     {eByteOrderLittle, 8, 2, 4, llvm::Triple::mips64el,
      ArchSpec::eCore_mips64r6el, "mips64r6el"},
 
+    // MC6809 / HD6309
+    {eByteOrderBig, 2, 1, 2, llvm::Triple::mc6809, ArchSpec::eCore_mc6809,
+     "mc6809"},
+
     // MSP430
     {eByteOrderLittle, 2, 2, 4, llvm::Triple::msp430, ArchSpec::eCore_msp430,
      "msp430"},

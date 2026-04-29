@@ -816,6 +816,11 @@ ByteOrder ObjectFileELF::GetByteOrder() const {
 }
 
 uint32_t ObjectFileELF::GetAddressByteSize() const {
+  // MC6809 is an ELF32 target but has 16-bit (2-byte) native pointers. Override
+  // so that DWARF parsing uses the correct address size and avoids the
+  // ELF32-vs-DWARF-address-size consistency assertion in DWARFDebugLine.
+  if (m_header.e_machine == EM_MC6809)
+    return 2;
   return m_data_nsp->GetAddressByteSize();
 }
 
@@ -3986,7 +3991,17 @@ size_t ObjectFileELF::ReadSectionData(Section *section,
     return section->GetObjectFile()->ReadSectionData(section, section_data);
 
   size_t result = ObjectFile::ReadSectionData(section, section_data);
-  if (result == 0 || !(section->Get() & llvm::ELF::SHF_COMPRESSED))
+  if (result == 0)
+    return result;
+
+  // Override the DataExtractor's address byte size with the actual target
+  // pointer width. For targets like MC6809 (ELF32 but 16-bit native
+  // pointers), the base class initialises the extractor with ELF32's
+  // address size (4), but the DWARF content uses the target's 2-byte
+  // addresses; this mismatch fires the DWARFDebugLine consistency assert.
+  section_data.SetAddressByteSize(GetAddressByteSize());
+
+  if (!(section->Get() & llvm::ELF::SHF_COMPRESSED))
     return result;
 
   auto Decompressor = llvm::object::Decompressor::create(
