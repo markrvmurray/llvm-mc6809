@@ -23,30 +23,6 @@
 
 namespace llvm {
 
-#if 0
-static inline unsigned getIncPseudoOpcode(const MachineIRBuilder &Builder) {
-  const MC6809Subtarget &STI = Builder.getMF().getSubtarget<MC6809Subtarget>();
-  return MC6809::INCAa;
-}
-
-static inline unsigned getDecPseudoOpcode(const MachineIRBuilder &Builder) {
-  const MC6809Subtarget &STI = Builder.getMF().getSubtarget<MC6809Subtarget>();
-  return MC6809::DECAa;
-}
-
-static inline MachineInstrBuilder buildLdImm(MachineIRBuilder &Builder, DstOp Dest) {
-  const MC6809Subtarget &STI = Builder.getMF().getSubtarget<MC6809Subtarget>();
-  LLT DestType = Dest.getLLTTy(*Builder.getMRI());
-  assert(DestType.isByteSized() && DestType.getScalarSizeInBits() <= 16);
-
-  if (DestType.getScalarSizeInBits() == 32)
-    return Builder.buildInstr(MC6809::Load_i32_Imm, {Dest, &MC6809::ACC32RegClass}, {});
-  else if (DestType.getScalarSizeInBits() == 16)
-    return Builder.buildInstr(MC6809::Load_i16_Imm, {Dest, &MC6809::ACC16RegClass}, {});
-  else
-    return Builder.buildInstr(MC6809::Load_i8_Imm, {Dest, &MC6809::ACC8RegClass}, {});
-}
-#endif
 
 } // end namespace llvm
 

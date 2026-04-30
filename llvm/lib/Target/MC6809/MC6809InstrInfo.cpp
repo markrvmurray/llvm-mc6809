@@ -4213,20 +4213,6 @@ void MC6809InstrInfo::expandSubSetCarryUseByteReg(MachineIRBuilder &Builder, Mac
   MI.eraseFromParent();
 }
 
-/// Pick the direct-page store opcode that writes the given real byte
-/// register to memory. Used by path (c) of emit6809RegByteFromMem to
-/// park a live RHS value in the DP `__scratch` byte, so the byte-ALU
-/// operation can then read it via a direct-page opcode instead of the
-/// 3-instruction PSHS/op/LEAS triple. Returns 0 if the register has no
-/// direct-page store variant (AE/AF on 6309) — callers fall back to PSHS.
-static unsigned getStoreDPOpcode(Register Reg) {
-  switch (Reg) {
-  case MC6809::AA: return MC6809::STAd;
-  case MC6809::AB: return MC6809::STBd;
-  default: return 0;
-  }
-}
-
 /// Map an indexed opcode (e.g. ADDBi_o8) to its direct-page variant
 /// (e.g. ADDBd). Used when RHS is an Imag8 register — the imaginary
 /// regs live in the direct page and can be addressed with the shorter

@@ -76,11 +76,6 @@ private:
   const MCInstrInfo &MCII;
   // MCContext &Ctx;
 
-#if 0
-  void
-  verifyInstructionPredicates(const MCInst &MI,
-                              const FeatureBitset &AvailableFeatures) const;
-#endif
 };
 
 } // namespace llvm

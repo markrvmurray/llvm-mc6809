@@ -73,9 +73,6 @@ public:
   ///
   const MC6809RegisterInfo &getRegisterInfo() const { return RI; }
 
-#if 0
-  bool isReallyTriviallyReMaterializable(const MachineInstr &MI, AAResults *AA) const override;
-#endif
   Register isLoadFromStackSlot(const MachineInstr &MI, int &FrameIndex) const override;
 
   Register isStoreToStackSlot(const MachineInstr &MI, int &FrameIndex) const override;
@@ -92,9 +89,6 @@ public:
   // TargetInstrInfo behaviour which uses TableGen-generated
   // `isCommutable` flags. Same approach as AArch64.
 
-#if 0
-  bool isBranchOffsetInRange(unsigned BranchOpc, int64_t BrOffset) const override;
-#endif
 
   MachineBasicBlock *getBranchDestBlock(const MachineInstr &MI) const override;
 

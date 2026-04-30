@@ -214,7 +214,6 @@ bool MC6809AsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNo, co
 bool MC6809AsmPrinter::PrintAsmMemoryOperand(const MachineInstr *MI, unsigned OpNo, const char *ExtraCode, raw_ostream &OS) {
   // Memory operands are simply stored in pointer registers; no extra work is
   // required.
-  // XXXX: FIXME: MarkM - Really? I'll be the judge of that.
   return PrintAsmOperand(MI, OpNo, ExtraCode, OS);
 }
 
@@ -223,12 +222,6 @@ void MC6809AsmPrinter::emitStartOfAsmFile(Module &M) {
   // by the GlobalISel backend. Emitting .directpage directives for them
   // crashes the ELF streamer (MCSymbolELF::setOther assertion). Disabled
   // until the direct page allocator pass is implemented.
-#if 0
-  auto &MTS =
-      *static_cast<MC6809TargetStreamer *>(OutStreamer->getTargetStreamer());
-  for (int I = 0; I < 32; I++)
-    MTS.emitDirectiveDirectPage(OutContext.getOrCreateSymbol("__rc" + Twine(I)));
-#endif
 }
 
 void MC6809AsmPrinter::emitJumpTableInfo() {
