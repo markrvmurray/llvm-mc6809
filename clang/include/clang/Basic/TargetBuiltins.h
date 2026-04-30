@@ -442,6 +442,16 @@ namespace clang {
     };
   }
 
+  /// MC6809 builtins
+  namespace MC6809 {
+    enum {
+      LastTIBuiltin = clang::Builtin::FirstTSBuiltin - 1,
+#define BUILTIN(ID, TYPE, ATTRS) BI##ID,
+#include "clang/Basic/BuiltinsMC6809.def"
+      LastTSBuiltin
+    };
+  }
+
   /// XCore builtins
   namespace XCore {
     enum {

@@ -1,0 +1,50 @@
+//===--- BuiltinsMC6809.def - MC6809 Builtin function database --*- C++ -*-===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+//
+// This file defines the MC6809-specific builtin function database.
+// The format matches clang/Basic/Builtins.def.
+//
+// Bug #199: __builtin_mc6809_* intrinsics for bare-metal / OS-level C code.
+// These follow gcc6809 inline asm conventions but expose them as named builtins
+// with proper type checking and compile-time-constant enforcement for cwai.
+//
+//===----------------------------------------------------------------------===//
+
+#if defined(BUILTIN) && !defined(TARGET_BUILTIN)
+#  define TARGET_BUILTIN(ID, TYPE, ATTRS, FEATURE) BUILTIN(ID, TYPE, ATTRS)
+#endif
+
+// CC register manipulation — set/clear interrupt mask and arbitrary bits.
+BUILTIN(__builtin_mc6809_sei,    "v",     "n")   // ORCC  #0x10 (set I flag)
+BUILTIN(__builtin_mc6809_cli,    "v",     "n")   // ANDCC #0xEF (clear I flag)
+BUILTIN(__builtin_mc6809_orcc,   "vUc",   "n")   // ORCC  #mask (set CC bits)
+BUILTIN(__builtin_mc6809_andcc,  "vUc",   "n")   // ANDCC #mask (clear CC bits)
+
+// CPU synchronisation and no-operation.
+BUILTIN(__builtin_mc6809_nop,    "v",     "n")   // NOP
+BUILTIN(__builtin_mc6809_sync,   "v",     "n")   // SYNC  (halt until IRQ/NMI/FIRQ)
+BUILTIN(__builtin_mc6809_cwai,   "vUc",   "n")   // CWAI  #mask — mask MUST be a
+                                                  // compile-time constant (Sema check)
+
+// Software interrupts.
+BUILTIN(__builtin_mc6809_swi,    "v",     "n")   // SWI
+BUILTIN(__builtin_mc6809_swi2,   "v",     "n")   // SWI2 (OS-9 system call)
+BUILTIN(__builtin_mc6809_swi3,   "v",     "n")   // SWI3
+
+// Direct memory-mapped I/O — volatile byte and word peek/poke.
+BUILTIN(__builtin_mc6809_peek,   "UcUs",  "n")   // *(volatile uint8_t *)(addr)
+BUILTIN(__builtin_mc6809_poke,   "vUsUc", "n")   // *(volatile uint8_t *)(addr) = val
+BUILTIN(__builtin_mc6809_peekw,  "UsUs",  "n")   // *(volatile uint16_t *)(addr)
+BUILTIN(__builtin_mc6809_pokew,  "vUsUs", "n")   // *(volatile uint16_t *)(addr) = val
+
+// DP register access.
+BUILTIN(__builtin_mc6809_set_dp, "vUc",   "n")   // TFR A,DP  (set direct-page register)
+BUILTIN(__builtin_mc6809_get_dp, "Uc",    "nc")  // TFR DP,A  (read direct-page register)
+
+#undef TARGET_BUILTIN
+#undef BUILTIN

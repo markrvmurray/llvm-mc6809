@@ -123,6 +123,7 @@ add_clang_library(clangCodeGen
   TargetBuiltins/AMDGPU.cpp
   TargetBuiltins/DirectX.cpp
   TargetBuiltins/Hexagon.cpp
+  TargetBuiltins/MC6809.cpp
   TargetBuiltins/NVPTX.cpp
   TargetBuiltins/PPC.cpp
   TargetBuiltins/RISCV.cpp

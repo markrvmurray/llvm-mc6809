@@ -51,6 +51,7 @@ module Clang_Basic {
   textual header "clang/Basic/BuiltinsVE.def"
   textual header "clang/Basic/BuiltinsVEVL.gen.def"
   textual header "clang/Basic/BuiltinsWebAssembly.def"
+  textual header "clang/Basic/BuiltinsMC6809.def"
   textual header "clang/Basic/BuiltinsXCore.def"
   textual header "clang/Basic/CFProtectionOptions.def"
   textual header "clang/Basic/CodeGenOptions.def"

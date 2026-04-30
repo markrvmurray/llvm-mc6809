@@ -14,6 +14,8 @@
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
+#include "clang/Basic/TargetBuiltins.h"
+#include "llvm/ADT/APSInt.h"
 #include "clang/Sema/Attr.h"
 #include "clang/Sema/Sema.h"
 
@@ -98,5 +100,24 @@ void SemaMC6809::handleDirectPageAttr(Decl *D, const ParsedAttr &AL) {
 }
 
 SemaMC6809::SemaMC6809(Sema &S) : SemaBase(S) {}
+
+bool SemaMC6809::CheckMC6809BuiltinFunctionCall(unsigned BuiltinID,
+                                                 CallExpr *TheCall) {
+  switch (BuiltinID) {
+  default:
+    return false;
+  case MC6809::BI__builtin_mc6809_cwai: {
+    // CWAI takes an 8-bit immediate that is ANDed with CC before the CPU
+    // halts waiting for an interrupt.  The MC6809 hardware only supports an
+    // immediate operand, so the argument must be a compile-time constant.
+    // The unsigned char parameter type already constrains the value to 8 bits;
+    // BuiltinConstantArgRange with [0,255] mishandles values ≥128 because the
+    // APSInt for an 8-bit unsigned char is sign-extended to negative, so use
+    // BuiltinConstantArg (checks constness only — range is type-enforced).
+    llvm::APSInt Val;
+    return SemaRef.BuiltinConstantArg(TheCall, 0, Val);
+  }
+  }
+}
 
 } // namespace clang

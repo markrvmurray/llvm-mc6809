@@ -11,10 +11,33 @@
 //===----------------------------------------------------------------------===//
 
 #include "MC6809.h"
+#include "clang/Basic/Builtins.h"
 #include "clang/Basic/MacroBuilder.h"
+#include "clang/Basic/TargetBuiltins.h"
 #include "clang/Basic/TargetInfo.h"
 
+using namespace clang;
 using namespace clang::targets;
+
+static constexpr int NumMC6809Builtins =
+    MC6809::LastTSBuiltin - Builtin::FirstTSBuiltin;
+
+static constexpr llvm::StringTable MC6809BuiltinStrings =
+    CLANG_BUILTIN_STR_TABLE_START
+#define BUILTIN CLANG_BUILTIN_STR_TABLE
+#include "clang/Basic/BuiltinsMC6809.def"
+    ;
+
+static constexpr auto MC6809BuiltinInfos =
+    Builtin::MakeInfos<NumMC6809Builtins>({
+#define BUILTIN CLANG_BUILTIN_ENTRY
+#include "clang/Basic/BuiltinsMC6809.def"
+    });
+
+llvm::SmallVector<Builtin::InfosShard>
+MC6809TargetInfo::getTargetBuiltins() const {
+  return {{&MC6809BuiltinStrings, MC6809BuiltinInfos}};
+}
 
 MC6809TargetInfo::MC6809TargetInfo(const llvm::Triple &Triple, const TargetOptions &)
     : TargetInfo(Triple) {

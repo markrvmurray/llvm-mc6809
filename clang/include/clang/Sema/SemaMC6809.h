@@ -27,6 +27,9 @@ public:
   void handleInterruptNorecurseAttr(Decl *D, const ParsedAttr &AL);
   void handleInterruptNoISRAttr(Decl *D, const ParsedAttr &AL);
   void handleDirectPageAttr(Decl *D, const ParsedAttr &AL);
+
+  // Bug #199: validate MC6809-specific builtin calls (e.g. cwai constant arg).
+  bool CheckMC6809BuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall);
 };
 
 } // namespace clang

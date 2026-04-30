@@ -69,6 +69,7 @@
 #include "clang/Sema/SemaHLSL.h"
 #include "clang/Sema/SemaHexagon.h"
 #include "clang/Sema/SemaLoongArch.h"
+#include "clang/Sema/SemaMC6809.h"
 #include "clang/Sema/SemaMIPS.h"
 #include "clang/Sema/SemaNVPTX.h"
 #include "clang/Sema/SemaObjC.h"
@@ -2177,6 +2178,8 @@ bool Sema::CheckTSBuiltinFunctionCall(const TargetInfo &TI, unsigned BuiltinID,
   case llvm::Triple::nvptx:
   case llvm::Triple::nvptx64:
     return NVPTX().CheckNVPTXBuiltinFunctionCall(TI, BuiltinID, TheCall);
+  case llvm::Triple::mc6809:
+    return MC6809().CheckMC6809BuiltinFunctionCall(BuiltinID, TheCall);
   }
 }
 
