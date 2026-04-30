@@ -12,6 +12,14 @@
 ;;
 
 ;; ===== Entry point =====
+;;
+;; Wrapped in `.ifndef __runtime_skip_start` so a sibling include like
+;; `runtime6309.inc` can replace the prologue (e.g. to inject `LDMD #1`
+;; for HD6309 native mode) without text-duplicating the helpers below.
+;; When `__runtime_skip_start` is undefined, `_start` is emitted as
+;; before — bytes-for-bytes identical to the pre-#194 layout.
+
+.ifndef __runtime_skip_start
 
 	.section .rom,"ax",@progbits
 	.globl	_start
@@ -38,6 +46,8 @@ _start:
 	jsr	halt
 _hang:
 	bra	_hang
+
+.endif
 
 ;; ===== _acia_init =====
 ;; Initialise the MC6850 ACIA so that putchar's TDRE poll succeeds.
