@@ -29,13 +29,16 @@ protected:
 
 public:
   bool isPICDefault() const override { return false; }
+  // Bug #197 v2: PIE is the default. Pure PCR-relative globals (LEAX
+  // label,PCR + R_MC6809_PCREL_16) make the code section position-
+  // independent, so binaries built with default flags load at any
+  // address — fits the OS-9 module model and ROMs that float across
+  // boards. PIC (full GOT/PLT) is NOT the default and not implemented;
+  // -fno-pie / -static still produces the absolute LDX #addr form for
+  // ROMs hard-coded to a single load address.
   bool isPIEDefault(const llvm::opt::ArgList &Args) const override {
-    return false;
+    return true;
   }
-  // Bug #197 v1: PIC mode is now opt-in via -fPIC / -fPIE. Default
-  // remains -fno-PIC so non-PIC builds are byte-identical to the pre-
-  // #197 era. We don't FORCE -fno-PIC any more; the user can request
-  // PIE (no GOT/PLT — see plan: pure PCR-relative globals).
   bool isPICDefaultForced() const override { return false; }
 
   bool HasNativeLLVMSupport() const override { return true; }
