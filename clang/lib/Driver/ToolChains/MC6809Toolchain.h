@@ -32,7 +32,11 @@ public:
   bool isPIEDefault(const llvm::opt::ArgList &Args) const override {
     return false;
   }
-  bool isPICDefaultForced() const override { return true; }
+  // Bug #197 v1: PIC mode is now opt-in via -fPIC / -fPIE. Default
+  // remains -fno-PIC so non-PIC builds are byte-identical to the pre-
+  // #197 era. We don't FORCE -fno-PIC any more; the user can request
+  // PIE (no GOT/PLT — see plan: pure PCR-relative globals).
+  bool isPICDefaultForced() const override { return false; }
 
   bool HasNativeLLVMSupport() const override { return true; }
   bool IsIntegratedAssemblerDefault() const override { return true; }
