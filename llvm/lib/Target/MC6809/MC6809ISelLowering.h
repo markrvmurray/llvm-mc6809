@@ -14,6 +14,7 @@
 #ifndef LLVM_LIB_TARGET_MC6809_MC6809ISELLOWERING_H
 #define LLVM_LIB_TARGET_MC6809_MC6809ISELLOWERING_H
 
+#include "llvm/CodeGen/MachineJumpTableInfo.h"
 #include "llvm/CodeGen/TargetLowering.h"
 
 #include "llvm/Target/TargetMachine.h"
@@ -36,6 +37,21 @@ public:
   bool isIntDivCheap(EVT VT, AttributeList Attr) const override { return true; }
 
   bool areJTsAllowed(const Function *Fn) const override { return !Fn->getFnAttribute("no-jump-tables").getValueAsBool(); }
+
+  // Bug #197: jump tables on MC6809 are *always* emitted as 16-bit
+  // (Target − TableBase) label differences via MC6809AsmPrinter::
+  // emitJumpTableInfo (regardless of relocation model — the dispatch
+  // sequence `LEAX JT,PCR; LDD D,X; JMP D,X` consumes 16-bit
+  // relative offsets in both Static and PIC builds). LLVM's default
+  // `getJumpTableEncoding` flips to `EK_LabelDifference32` under PIC,
+  // which doesn't match what the AsmPrinter actually emits and trips
+  // the `EK_BlockAddress` assertion in `emitJumpTableInfo`. Pin the
+  // entry kind to `EK_BlockAddress` — it's the kind the rest of the
+  // backend has always assumed and the actual layout of the emitted
+  // bytes is unaffected by the kind label.
+  unsigned getJumpTableEncoding() const override {
+    return MachineJumpTableInfo::EK_BlockAddress;
+  }
 
   unsigned getNumRegistersForInlineAsm(LLVMContext &Context, EVT VT) const override;
 
