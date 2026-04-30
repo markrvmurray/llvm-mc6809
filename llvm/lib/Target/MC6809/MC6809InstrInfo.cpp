@@ -1547,7 +1547,19 @@ static void dematerializeReg(MachineIRBuilder &Builder, Register PhysReg,
   } else if (AreClasses(MC6809::ACC8RegClass, MC6809::CCondRegClass) || AreClasses(MC6809::CCondRegClass, MC6809::ACC8RegClass)) {
     Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(SrcReg);
   } else if (AreClasses(MC6809::BIT1RegClass, MC6809::BIT1RegClass)) {
-    Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(SrcReg);
+    // BIT1 → BIT1: the value lives in bit 0 of the parent byte register
+    // (AA for AALSB, AB for ABLSB). TFR is a hardware instruction that
+    // can only address architectural registers, not LSB sub-registers,
+    // so we must transfer the parent bytes — not the BIT1 sub-registers
+    // themselves. Emitting `TFRp` with raw BIT1 operands produced
+    // garbage encodings (asm printed "tfr aLSB,bLSB" which the assembler
+    // can't parse; obj output fell through encodeRegOpValue's default
+    // branch and emitted bogus 4-bit postbytes — sometimes 0x24 = "tfr y,s"
+    // — which corrupt SP at run-time, see bug #200).
+    Register DestByte = getBit1ByteHalf(DestReg);
+    Register SrcByte = getBit1ByteHalf(SrcReg);
+    if (DestByte != SrcByte)
+      Builder.buildInstr(MC6809::TFRp).addDef(DestByte).addUse(SrcByte);
   } else if (AreClasses(MC6809::ACC8RegClass, MC6809::BIT1RegClass)) {
     // BIT1 → ACC8: the boolean value is in the LSB of an ACC8 register.
     // Copy the byte and mask to ensure only bit 0 is set.
