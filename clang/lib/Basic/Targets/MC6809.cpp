@@ -62,17 +62,17 @@ bool MC6809TargetInfo::validateAsmConstraint(
   switch (*Name) {
   default:
     return false;
-  // The A, X, or Y registers.
-  case 'a':
-  case 'x':
-  case 'y':
-  // Any of A, X, or Y.
-  case 'R':
-  // The index (X or Y) registers.
-  case 'd':
-  // The C and V flags.
-  case 'c':
-  case 'v':
+  case 'r':  // gcc6809 GENERAL_REGS: any reg, size-dependent (INDEX16 or ACC8)
+  case 'q':  // gcc6809 Q_REGS: 8-bit byte registers (A or B)
+  case 'A':  // gcc6809 ACC_A_REGS: A register (8-bit, high byte of D)
+  case 'B':  // gcc6809 ACC_B_REGS: B register (8-bit, low byte of D)
+  case 'a':  // gcc6809 A_REGS: 16-bit address registers (X, Y, U, S)
+  case 'x':  // X index register (16-bit)
+  case 'y':  // Y index register (16-bit)
+  case 'R':  // any general register
+  case 'd':  // gcc6809 D_REGS: D register (16-bit accumulator A:B)
+  case 'c':  // carry flag (CC.C)
+  case 'v':  // overflow flag (CC.V)
     Info.setAllowsRegister();
     return true;
   }
@@ -100,14 +100,12 @@ bool MC6809TargetInfo::validateOperandSize(const llvm::StringMap<bool> &FeatureM
   switch (Constraint[0]) {
   default:
     return true;
-  case 'a':
-  case 'x':
-  case 'y':
-  case 'R':
-  case 'd':
-  case 'c':
-  case 'v':
+  // 8-bit-only constraints: individual A/B registers, q (A or B), CC flags
+  case 'A': case 'B': case 'q': case 'c': case 'v':
     return Size <= 8;
+  // 16-bit-max constraints: D accumulator, address regs (X/Y/U/S), general
+  case 'd': case 'a': case 'x': case 'y': case 'R': case 'r':
+    return Size <= 16;
   }
 }
 
