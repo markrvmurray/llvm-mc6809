@@ -145,6 +145,11 @@ void MC6809TargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
     return false;
   });
 
+  PB.registerFullLinkTimeOptimizationLastEPCallback(
+      [](ModulePassManager &MPM, OptimizationLevel Level) {
+        MPM.addPass(MC6809NonReentrantPass());
+      });
+
   PB.registerLateLoopOptimizationsEPCallback([](LoopPassManager &PM, OptimizationLevel Level) {
     if (Level != OptimizationLevel::O0) {
       PM.addPass(MC6809IndexIV());
