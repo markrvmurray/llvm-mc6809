@@ -1,0 +1,58 @@
+; RUN: llc -mtriple=mc6809 -O2 -filetype=asm < %s | FileCheck --check-prefix=STATIC %s
+; RUN: llc -mtriple=mc6809 -O2 -filetype=asm --relocation-model=pic < %s | FileCheck --check-prefix=PIC %s
+; RUN: llc -mtriple=mc6809 -O2 -filetype=obj %s -o %t.o
+; RUN: llvm-readobj -r %t.o | FileCheck --check-prefix=STATIC-RELOC %s
+; RUN: llc -mtriple=mc6809 -O2 -filetype=obj --relocation-model=pic %s -o %t.pic.o
+; RUN: llvm-readobj -r %t.pic.o | FileCheck --check-prefix=PIC-RELOC %s
+
+; Bug #197: under -fPIC / -fPIE, the MC6809 backend lowers
+; G_GLOBAL_VALUE via LEAX label,PCR (encoded by LEAXi_o16PC) instead
+; of LDX #addr (Load_iPtr_Imm). The MC layer emits R_MC6809_PCREL_16
+; against the global so the linker can fix it up at static-link time
+; — the resulting .text bytes work at any load address.
+;
+; Default relocation model is unchanged (`Static`), so non-PIC builds
+; are byte-identical to the pre-#197 codegen.
+
+@x = external global i8
+
+define i8 @load_x() {
+; STATIC-LABEL: load_x:
+; STATIC:       ldx #x
+; STATIC-NEXT:  ldb ,x
+; STATIC-NEXT:  rts
+;
+; PIC-LABEL: load_x:
+; PIC:       leax x,pc
+; PIC-NEXT:  ldb ,x
+; PIC-NEXT:  rts
+  %v = load i8, ptr @x
+  ret i8 %v
+}
+
+define void @store_x(i8 %v) {
+; STATIC-LABEL: store_x:
+; STATIC:       ldx #x
+; STATIC:       stb ,x
+;
+; PIC-LABEL: store_x:
+; PIC:       leax x,pc
+; PIC:       stb ,x
+  store i8 %v, ptr @x
+  ret void
+}
+
+define ptr @addr_x() {
+; STATIC-LABEL: addr_x:
+; STATIC:       ldx #x
+;
+; PIC-LABEL: addr_x:
+; PIC:       leax x,pc
+  ret ptr @x
+}
+
+; STATIC-RELOC: R_MC6809_ADDR_16 x
+; STATIC-RELOC-NOT: R_MC6809_PCREL_16
+
+; PIC-RELOC: R_MC6809_PCREL_16 x
+; PIC-RELOC-NOT: R_MC6809_ADDR_16

@@ -1037,9 +1037,36 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
   }
 
   case TargetOpcode::G_GLOBAL_VALUE: {
-    // Load the address of a global into an index register (LDX #addr).
+    // Load the address of a global into an index register.
     Register DstReg = MI.getOperand(0).getReg();
     MRI->setRegClass(DstReg, &MC6809::INDEX16RegClass);
+
+    // Bug #197: under -fPIC / -fPIE, materialise the address PC-relatively
+    // via LEAX label,PCR. The MC layer emits R_MC6809_PCREL_16 against the
+    // global at the postbyte's offset slot; the linker resolves it at
+    // static-link time so the resulting bytes are correct regardless of
+    // the program's load address.
+    //
+    // Non-PIC keeps the absolute LDX #addr form (R_MC6809_ADDR_16) for
+    // smallest code where the binary is hard-coded to a single load
+    // address — the pre-#197 default behaviour, byte-identical to before.
+    //
+    // We always pick LEAX (and copy to DstReg) rather than emitting per-
+    // regclass variants because (a) the JT dispatch already establishes
+    // LEAX as the canonical PCR-load idiom (MC6809AsmPrinter.cpp), and
+    // (b) the COPY is trivially eliminated by the register allocator
+    // when DstReg is itself IX, leaving a single LEAX in the common
+    // case.
+    if (MF->getTarget().isPositionIndependent()) {
+      MachineOperand &GlobalOp = MI.getOperand(1);
+      BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(MC6809::LEAXi_o16PC))
+          .add(GlobalOp);
+      BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(TargetOpcode::COPY), DstReg)
+          .addReg(MC6809::IX);
+      MI.eraseFromParent();
+      return true;
+    }
+
     MI.setDesc(TII.get(MC6809::Load_iPtr_Imm));
     constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
     return true;
