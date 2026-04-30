@@ -93,8 +93,8 @@ define void @sext_i32_to_i64_then_store(ptr %out, i32 %x) {
 ; CHECK-NEXT:    sbcb 32,u
 ; CHECK-NEXT:    stb 26,u
 ; CHECK-NEXT:    ldb 32,u
-; CHECK-NEXT:    stb <__scratch
-; CHECK-NEXT:    sbca <__scratch
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    sbca ,s+
 ; CHECK-NEXT:    std 14,u
 ; CHECK-NEXT:    ldb 34,u
 ; CHECK-NEXT:    lda 33,u

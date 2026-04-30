@@ -436,8 +436,9 @@ define i64 @double_neg(i64 %x) {
 ; O0-NEXT:    lda 8,u
 ; O0-NEXT:    ldb 20,u
 ; O0-NEXT:    ldb 20,u
-; O0-NEXT:    sta <__scratch
-; O0-NEXT:    sbcb <__scratch
+; O0-NEXT:    pshs a
+; O0-NEXT:    sbcb 0,s
+; O0-NEXT:    leas 1,s
 ; O0-NEXT:    stb 20,u
 ; O0-NEXT:    ldb 8,u
 ; O0-NEXT:    lda 27,u

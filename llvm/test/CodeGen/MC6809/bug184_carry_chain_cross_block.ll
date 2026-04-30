@@ -169,8 +169,9 @@ define void @atol_like(ptr %out, ptr %s) {
 ; CHECK-NEXT:    lda 19,u
 ; CHECK-NEXT:    ldb 45,u
 ; CHECK-NEXT:    ldb 45,u
-; CHECK-NEXT:    sta <__scratch
-; CHECK-NEXT:    subb <__scratch
+; CHECK-NEXT:    pshs a
+; CHECK-NEXT:    subb 0,s
+; CHECK-NEXT:    leas 1,s
 ; CHECK-NEXT:    stb 45,u
 ; CHECK-NEXT:    lda 20,u
 ; CHECK-NEXT:    ldb 19,u

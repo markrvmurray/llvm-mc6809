@@ -383,7 +383,10 @@ def STACK16 : MC6809Reg16Class<(add SU, SS)>;
 
 def CCond : MC6809Reg8Class<(add CC)>;
 
-def Imag8 : MC6809Reg8Class<(add (sequence "RC%u", 0, !add(MaxImag8Regs, -1)), SCRATCH)>;
+// SCRATCH removed from Imag8: path (c) of emit6809RegByteFromMem now uses
+// PSHS/op 0,S/LEAS (folded to PSHS/op ,S+ by Stage 5 SpillOpt), so __scratch
+// is no longer needed as a DP temp and should not be allocated.
+def Imag8 : MC6809Reg8Class<(add (sequence "RC%u", 0, !add(MaxImag8Regs, -1)))>;
 def Imag16 : MC6809Reg16Class<(sequence "RS%u", 0, !add(MaxImag16Regs, -1))>;
 def Imag32 : MC6809Reg32Class<(sequence "RW%u", 0, !add(MaxImag32Regs, -1))>;
 

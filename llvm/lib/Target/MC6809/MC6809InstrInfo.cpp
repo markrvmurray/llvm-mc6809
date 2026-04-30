@@ -4354,27 +4354,18 @@ static void emit6809RegByteFromMem(MachineIRBuilder &Builder,
     Builder.buildInstr(MC6809::LEASi_o5)
         .addImm(1).addReg(MC6809::SS);
   } else {
-    // Path (c): park RHS in the DP __scratch byte, operate via
-    // direct-page addressing. 2 instructions instead of the old
-    // PSHS/op/LEAS triple, and S is left untouched. STAd/STBd leave
-    // the carry flag intact, so multi-byte carry chains are safe.
+    // Path (c): PSHS RealRHS; op 0,S; LEAS 1,S.
+    // Stage 5 of MC6809PostRASpillOpt (bug #185) folds this triple to
+    // PSHS RealRHS; op ,S+ — saving the LEAS at any optimisation level
+    // where the pass fires.  Using the stack avoids the __scratch DP byte.
     if (needsMaterialization(RHS))
       RealRHS = materializeReg(Builder, RHS, MF);
-    if (unsigned StoreOpc = getStoreDPOpcode(RealRHS)) {
-      Builder.buildInstr(StoreOpc).addReg(MC6809::SCRATCH);
-      unsigned DPOpc = getDirectPageOpcode(Opc_o8);
-      Builder.buildInstr(DPOpc)
-          .addDef(AccReg, RegState::Implicit)
-          .addReg(MC6809::SCRATCH);
-    } else {
-      // Fallback for registers without a DP store variant (AE/AF on 6309).
-      Builder.buildInstr(MC6809::PSHSs, {}, {RealRHS});
-      Builder.buildInstr(Opc_o5)
-          .addDef(AccReg, RegState::Implicit)
-          .addImm(0).addReg(MC6809::SS);
-      Builder.buildInstr(MC6809::LEASi_o5)
-          .addImm(1).addReg(MC6809::SS);
-    }
+    Builder.buildInstr(MC6809::PSHSs, {}, {RealRHS});
+    Builder.buildInstr(Opc_o5)
+        .addDef(AccReg, RegState::Implicit)
+        .addImm(0).addReg(MC6809::SS);
+    Builder.buildInstr(MC6809::LEASi_o5)
+        .addImm(1).addReg(MC6809::SS);
   }
   if (needsMaterialization(OrigLHS))
     dematerializeReg(Builder, RealLHS, OrigLHS, MF);
