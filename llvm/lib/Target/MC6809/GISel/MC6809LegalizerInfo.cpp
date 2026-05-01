@@ -1483,14 +1483,19 @@ bool MC6809LegalizerInfo::tryTFMBlockCopy(LegalizerHelper &Helper, MachineRegist
     } else {
       llvm_unreachable("Unsupported count operand type");
     }
-    // Emit TFM with the implicit AW use/def. TFM0pp = inc/inc,
-    // TFM1pp = dec/dec.
+    // Emit TFM. TFM0pp = inc/inc, TFM1pp = dec/dec. The implicit AW
+    // use/def is contributed automatically by the TableGen
+    // Defs=[AW] / Uses=[AW] on TFM[0123]pp — do NOT add it again
+    // here. Doubled implicit operands confuse MachineScheduler's
+    // register-pressure tracker, which asserts in
+    // getUpwardPressureDelta when computing the pressure delta
+    // across a duplicated def/use pair (manifested as the
+    // test-strcat_s / test-wctomb / test-uchar /
+    // libc-testsuite:string compile failures).
     unsigned TFMOpc = DoDescending ? MC6809::TFM1pp : MC6809::TFM0pp;
     Builder.buildInstr(TFMOpc)
         .addUse(MC6809::IX, RegState::Kill)
         .addUse(MC6809::IY, RegState::Kill)
-        .addDef(MC6809::AW, RegState::Implicit | RegState::Dead)
-        .addUse(MC6809::AW, RegState::Implicit | RegState::Kill)
         .addMemOperand(MF.getMachineMemOperand(SrcPI, MachineMemOperand::MOLoad, 1, Align(1)))
         .addMemOperand(MF.getMachineMemOperand(DstPI, MachineMemOperand::MOStore, 1, Align(1)));
   };
