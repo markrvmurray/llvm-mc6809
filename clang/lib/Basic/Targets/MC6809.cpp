@@ -188,8 +188,15 @@ uint64_t MC6809TargetInfo::getPointerWidthV(LangAS AddrSpace) const {
   }
 }
 
+// Bug #161: keep these CPU names in lockstep with the `def : Device<...>`
+// list in `llvm/lib/Target/MC6809/MC6809Devices.td`. The clang driver
+// validates here; the LLVM backend resolves the same string against
+// the Device list. A mismatch silently routes the user back to the
+// default `mc6809` device with no HD6309 features set, hiding the
+// entire HD6309 codegen path. The `getTargetDefines` switch below
+// (line ~220) must use the same spellings for `__6309__` to be set.
 static constexpr llvm::StringLiteral ValidCPUNames[] = {
-    {"mc6809"},    {"6309"}};
+    {"mc6809"},    {"hd6309"}};
 
 bool MC6809TargetInfo::isValidCPUName(StringRef Name) const {
   return llvm::find(ValidCPUNames, Name) != std::end(ValidCPUNames);
