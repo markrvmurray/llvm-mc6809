@@ -388,15 +388,18 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
       .libcallFor({{s32, s32}, {s64, s64}});
 
   // On 6809, s32 load/store has no instruction — narrow to s16 pairs.
-  // HD6309 has native 32-bit load/store via Q register.
-  // s1 loads/stores: lower sub-byte memory accesses to byte-aligned
-  // operations (the MC6809 has no sub-byte memory access).
-  // Bug #178: addrspace(1) (= direct page, p1) load/store legal too;
-  // isel selects the DP-mode opcode (LDAd/STAd/LDDd/STDd).
+  // Bug #161 round 10: also narrow s32 load/store under HD6309. LDQ/STQ
+  // exist as instructions but every i32 load/store creates an ACC32 vreg
+  // (= AQ allocation slot) and the regalloc has only one such slot — 6+
+  // simultaneously-live i32 vregs (common in real C with int = 16, long =
+  // 32) starve regalloc and trip "ran out of registers". Narrowing to
+  // s16 pairs reuses the ACC16 spill pool (13 slots) and matches the plain
+  // 6809 path. Costs: 1 LDQ ($1029=8B) → 2 LDD ($D6 X 2=10B), but the
+  // regalloc is no longer brittle.
   getActionDefinitionsBuilder({G_LOAD, G_STORE})
-      .legalForCartesianProduct(LegalTypes, {p, p1})
+      .legalForCartesianProduct(LegalTypes16, {p, p1})
       .lowerIfMemSizeNotByteSizePow2()
-      .clampScalar(0, s8, sMax);
+      .clampScalar(0, s8, s16);
 
   // G_GLOBAL_VALUE may produce a p1 pointer (addrspace(1) global);
   // legalize that too so the address can be materialised before the
