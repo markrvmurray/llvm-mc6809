@@ -3552,15 +3552,17 @@ void MC6809InstrInfo::expandMulH16IdxReg(MachineIRBuilder &Builder, MachineInstr
 void MC6809InstrInfo::expandMul16Reg(MachineIRBuilder &Builder, MachineInstr &MI) const {
   assert(((MI.getOperand(0).getReg() == MC6809::AW && MI.getOperand(1).getReg() == MC6809::AD) || (MI.getOperand(0).getReg() == MC6809::AD && MI.getOperand(1).getReg() == MC6809::AW)) && "Results must be in AW and AD");
   auto Reg = MI.getOperand(3).getReg();
-  MachineBasicBlock::iterator B, E;
-  MachineBasicBlock &MBB = Builder.getMBB();
-  B = Builder.buildInstr(MC6809::Push_i16).addReg(Reg);
-  E = Builder.buildInstr(MC6809::MULDi_Inc2).addReg(MC6809::SS);
-  auto Bundler = MIBundleBuilder(MBB, B, ++E);
-  LLVM_DEBUG(for (auto &I
-                  : Bundler) {
-    I.dump();
-  });
+  // Bug #161 round 7: emit Push_i16 + MULDi_Inc2 as plain serial MIs.
+  // The previous code constructed `MIBundleBuilder(MBB, B, ++E)` but
+  // never called finalizeBundle on it — so no BUNDLE wrapper was
+  // ever created, yet MULDi_Inc2 ended up flagged isBundledWithPred()
+  // (likely inherited via the buildInstr context). The result was an
+  // orphaned half-bundle that diverges MachineBasicBlock::size() from
+  // the bundle-aware iterator count and trips the post-RA scheduler's
+  // Count == 0 mismatch assertion. The two MIs chain through implicit
+  // SS def/use and the inc2 addressing mode — no bundle needed.
+  Builder.buildInstr(MC6809::Push_i16).addReg(Reg);
+  Builder.buildInstr(MC6809::MULDi_Inc2).addReg(MC6809::SS);
   MI.eraseFromParent();
 }
 
@@ -3569,14 +3571,11 @@ void MC6809InstrInfo::expandMulH16Reg(MachineIRBuilder &Builder, MachineInstr &M
   // as expandMul16Reg (push the register operand, MULD ,S++); MULD
   // natively places the high half in D and the low half in W. The
   // pseudo's `Defs = [NZ, AW]` already lists W as clobbered, so the
-  // dst (AD = high half) is just D after the MULD.
+  // dst (AD = high half) is just D after the MULD. Plain serial MIs
+  // (no MIBundleBuilder) — see expandMul16Reg comment for why.
   auto Reg = MI.getOperand(MI.getNumExplicitOperands() - 1).getReg();
-  MachineBasicBlock::iterator B, E;
-  MachineBasicBlock &MBB = Builder.getMBB();
-  B = Builder.buildInstr(MC6809::Push_i16).addReg(Reg);
-  E = Builder.buildInstr(MC6809::MULDi_Inc2).addReg(MC6809::SS);
-  auto Bundler = MIBundleBuilder(MBB, B, ++E);
-  LLVM_DEBUG(for (auto &I : Bundler) { I.dump(); });
+  Builder.buildInstr(MC6809::Push_i16).addReg(Reg);
+  Builder.buildInstr(MC6809::MULDi_Inc2).addReg(MC6809::SS);
   MI.eraseFromParent();
 }
 

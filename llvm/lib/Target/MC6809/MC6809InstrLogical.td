@@ -56,10 +56,21 @@ class MC6809BlockTransfer<dag ins, dag outs, string constraints = ""> : MC6809Lo
   let Predicates = [IsHD6309];
 }
 
-def BlockCopy_Inc_Inc : MC6809Transfer<(ins REGTFM:$src1, REGTFM:$dst1, AWc:$count), (outs REGTFM:$src2, REGTFM:$dst2, AWc:$count1), "$dst1 = $dst2, $src1 = $src2, $count = $count1">;
-def BlockCopy_Dec_Dec : MC6809Transfer<(ins REGTFM:$src1, REGTFM:$dst1, AWc:$count), (outs REGTFM:$src2, REGTFM:$dst2, AWc:$count1), "$dst1 = $dst2, $src1 = $src2, $count = $count1">;
-def BlockCopy_Inc_Stay : MC6809Transfer<(ins REGTFM:$src1, REGTFM:$dst, AWc:$count), (outs REGTFM:$src2, AWc:$count1), "$src1 = $src2, $count = $count1">;
-def BlockCopy_Stay_Inc : MC6809Transfer<(ins REGTFM:$src, REGTFM:$dst1, AWc:$count), (outs REGTFM:$dst2, AWc:$count1), "$dst1 = $dst2, $count = $count1">;
+// Bug #161 round 7: BlockCopy_* are emitted by the legalizer
+// (MC6809LegalizerInfo::legalizeMemcpy) with 3 explicit operands
+// (src, dst, count) and AW used in-place. Modelling them as
+// MC6809BlockTransfer (which puts AW under Defs/Uses) keeps the
+// MachineInstr layout aligned with what the legalizer adds — the
+// previous MC6809Transfer-based shape declared 3 ties between
+// 3 outs and 3 ins, leaving the first 3 operand slots empty
+// when only 3 ins were added. That made `MI.defs()` index into
+// the unfilled out-slots, producing non-register operand 0 when
+// the legalizer's first .add() placed a global / stack reference
+// into what TableGen thought was REGTFM:$src2.
+def BlockCopy_Inc_Inc : MC6809BlockTransfer<(ins REGTFM:$src, REGTFM:$dst, AWc:$count), (outs)>;
+def BlockCopy_Dec_Dec : MC6809BlockTransfer<(ins REGTFM:$src, REGTFM:$dst, AWc:$count), (outs)>;
+def BlockCopy_Inc_Stay : MC6809BlockTransfer<(ins REGTFM:$src, REGTFM:$dst, AWc:$count), (outs)>;
+def BlockCopy_Stay_Inc : MC6809BlockTransfer<(ins REGTFM:$src, REGTFM:$dst, AWc:$count), (outs)>;
 
 //===---------------------------------------------------------------------===//
 // Stack instructions. These will be squashed together later.
