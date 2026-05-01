@@ -1461,6 +1461,15 @@ bool MC6809LegalizerInfo::tryTFMBlockCopy(LegalizerHelper &Helper, MachineRegist
   auto emitTFM = [&](Register SrcVreg, Register DstVreg,
                      const MachineOperand &CountMO, bool DoDescending,
                      MachinePointerInfo SrcPI, MachinePointerInfo DstPI) {
+    // TFM hardware uses fixed register pairs from REGTFM (D, X, Y, U, S).
+    // Pin to IX (src) and IY (dst) — the canonical pointer regs — via
+    // COPY into physregs, so the TFM's anyregister operand class doesn't
+    // leak generic-class vregs through to the MachineScheduler (the
+    // register-pressure tracker asserts when a TFM operand vreg has
+    // neither bank nor class — see test-strcat_s / test-wctomb /
+    // test-uchar / libc-testsuite:string regressions).
+    Builder.buildCopy(Register(MC6809::IX), SrcVreg);
+    Builder.buildCopy(Register(MC6809::IY), DstVreg);
     // Load count into AW.
     if (CountMO.isImm()) {
       Builder.buildInstr(MC6809::LDWi16)
@@ -1478,8 +1487,8 @@ bool MC6809LegalizerInfo::tryTFMBlockCopy(LegalizerHelper &Helper, MachineRegist
     // TFM1pp = dec/dec.
     unsigned TFMOpc = DoDescending ? MC6809::TFM1pp : MC6809::TFM0pp;
     Builder.buildInstr(TFMOpc)
-        .addUse(SrcVreg)
-        .addUse(DstVreg)
+        .addUse(MC6809::IX, RegState::Kill)
+        .addUse(MC6809::IY, RegState::Kill)
         .addDef(MC6809::AW, RegState::Implicit | RegState::Dead)
         .addUse(MC6809::AW, RegState::Implicit | RegState::Kill)
         .addMemOperand(MF.getMachineMemOperand(SrcPI, MachineMemOperand::MOLoad, 1, Align(1)))
