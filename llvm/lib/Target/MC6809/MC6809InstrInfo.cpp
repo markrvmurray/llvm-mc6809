@@ -5193,22 +5193,30 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
     return;
   }
 
-  // Same-physreg collision. Three sub-cases:
+  // Same-physreg collision. CMPRp's TableGen semantics are
+  // `cmpr reg1, reg2 → flags = reg2 - reg1`. The non-collision path
+  // above emits `addUse(Src1).addUse(Src2)`, mapping Src1→reg1 and
+  // Src2→reg2, so the resulting flags are `Src2 - Src1`. Every
+  // collision fallback below MUST preserve that direction —
+  // i.e. flags = (op2 - op3) using MIR convention, which is
+  // `physreg(=Src2) - mem(=Src1)` in CMPx-from-spill form.
   //
-  //   (i)  Src2 is a SPILL_* (Src1 already in physreg): read Src2
-  //        U-relative from its slot using the page-1 indexed CMP
-  //        variant. No PSHS, no clobber — Src1 stays put.
+  // Three sub-cases:
   //
-  //   (ii) Src1 is a SPILL_* (Src2 already in physreg): we must
-  //        compute Src1 - Src2 with D=Src1 at the CMP. Push Src2,
-  //        load Src1 into the physreg, CMP against [0,S], pop.
+  //   (i)  Src2 is a SPILL_* (Src1 already in physreg, with the same
+  //        physreg the spill would materialize into). PSHS Src1's
+  //        value to free the physreg, then load Src2 into the
+  //        physreg, then `CMPx 0,$ss` so the compare is
+  //        physreg(=Src2) - mem(=Src1). LEAS to clean up.
+  //
+  //   (ii) Src1 is a SPILL_* (Src2 already in physreg). Src2 is in
+  //        the right place already; emit `CMPx Src1_offset, $su`
+  //        directly so flags = physreg(=Src2) - mem(=Src1). No
+  //        PSHS needed.
   //
   //   (iii) Both already physical AND identical (regalloc coalesced
   //         them). The value really is the same, so equal is correct
   //         — emit CMPRp.
-  //
-  // Pick CMP opcodes based on Src1's phys (which is the same as
-  // Src2Phys here — used as a proxy for operand width).
   unsigned MIOpc = MI.getOpcode();
   auto pickCmpO8O16 = [&](Register PhysReg, unsigned ByteOffset,
                           unsigned &OpcOut) {
@@ -5229,24 +5237,27 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
   };
 
   if (isSpillReg(Src2)) {
-    int ByteOffset = computeSpillStackOffset(Src2, MF);
-    unsigned CmpOpc;
-    pickCmpO8O16(Src1Phys, ByteOffset, CmpOpc);
+    // Src2 is the spill, Src1 is in physreg. Push Src1 to stack, load
+    // Src2 into the physreg (its RealReg matches Src1Phys), CMP
+    // physreg-vs-stack so flags = Src2 - Src1.
     if (needsMaterialization(Src1)) Src1 = materializeReg(Builder, Src1, MF);
-    Builder.buildInstr(CmpOpc).addImm(ByteOffset).addReg(MC6809::SU);
+    int LeasImm = (MIOpc == MC6809::Compare_i8_Reg) ? 1 : 2;
+    Builder.buildInstr(MC6809::PSHSs, {}, {Src1Phys});
+    Register Src2Real = materializeReg(Builder, Src2, MF);
+    unsigned CmpOpc;
+    pickCmpO8O16(Src2Real, 0, CmpOpc);
+    Builder.buildInstr(CmpOpc).addImm(0).addReg(MC6809::SS);
+    Builder.buildInstr(MC6809::LEASi_o5).addImm(LeasImm).addReg(MC6809::SS);
     MI.eraseFromParent();
     return;
   }
   if (isSpillReg(Src1)) {
-    // Src2 is in Src2Phys (=== Src1Phys), Src1 is on the spill stack.
-    // PSHS Src2, then load Src1 into Src1Phys, then CMP against [0,S].
-    int LeasImm = (MIOpc == MC6809::Compare_i8_Reg) ? 1 : 2;
-    Builder.buildInstr(MC6809::PSHSs, {}, {Src2Phys});
-    materializeReg(Builder, Src1, MF);
+    // Src1 is the spill, Src2 is in physreg. Read Src1 directly from
+    // its U-relative slot — flags = physreg(=Src2) - mem(=Src1).
+    int ByteOffset = computeSpillStackOffset(Src1, MF);
     unsigned CmpOpc;
-    pickCmpO8O16(Src1Phys, 0, CmpOpc);
-    Builder.buildInstr(CmpOpc).addImm(0).addReg(MC6809::SS);
-    Builder.buildInstr(MC6809::LEASi_o5).addImm(LeasImm).addReg(MC6809::SS);
+    pickCmpO8O16(Src2Phys, ByteOffset, CmpOpc);
+    Builder.buildInstr(CmpOpc).addImm(ByteOffset).addReg(MC6809::SU);
     MI.eraseFromParent();
     return;
   }
