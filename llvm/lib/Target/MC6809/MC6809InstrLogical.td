@@ -436,6 +436,11 @@ def : Pat<(i16 (anyext BIT1:$bit)),
 def : Pat<(i8 (trunc ADc:$word)), (EXTRACT_LO_i16 ADc:$word)>;
 let Predicates = [IsHD6309] in {
   def : Pat<(i16 (trunc ACC32:$dword)), (EXTRACT_SUBREG ACC32:$dword, sub_lo_word)>;
+  // Bug #161: i32 anyext from i16 — INSERT_SUBREG into an undef i32.
+  // The upper word's contents are don't-care, so an IMPLICIT_DEF source
+  // is correct. Mirrors the i8 anyext patterns above.
+  def : Pat<(i32 (anyext ACC16:$word)),
+            (INSERT_SUBREG (i32 (IMPLICIT_DEF)), ACC16:$word, sub_lo_word)>;
 }
 
 //===---------------------------------------------------------------------===//
