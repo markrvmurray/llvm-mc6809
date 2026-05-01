@@ -155,9 +155,20 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // Workaround: pre-mask the i16 source with `& 1` and then chain
   // the truncs. The G_AND in the middle is not a trunc, so the
   // combiner does NOT fold it away.
-  getActionDefinitionsBuilder(G_TRUNC)
+  // Bug #161: under HD6309, s32 (= AQ) is a legal type, so G_TRUNC s32→s16
+  // appears in real picolibc code (e.g. nl_langinfo's `(int16_t)((int32_t)x)`
+  // patterns, strcmp's signed-difference compute, signal/sig2str range
+  // checks). The existing SDAG pattern in MC6809InstrLogical.td:423
+  // `(i16 (trunc ACC32)) → (EXTRACT_SUBREG ..., sub_lo_word)` handles
+  // this once it reaches selection — we just have to mark it legal.
+  // Legalizer-side: add `(s16, s32)` to the legal set; selector picks
+  // the sub-register extract for free.
+  auto &TruncBuilder = getActionDefinitionsBuilder(G_TRUNC)
       .legalForCartesianProduct({s8}, LegalScalars)
-      .legalFor({{s1, s8}})
+      .legalFor({{s1, s8}});
+  if (IsHD6309)
+    TruncBuilder.legalFor({{s16, s32}});
+  TruncBuilder
       .customFor({{s1, s16}})
       .clampScalar(1, *LegalScalars.begin(), *std::prev(LegalScalars.end()))
       .clampScalar(0, *NotMaxWithOne.begin(), *std::prev(NotMaxWithOne.end()));
