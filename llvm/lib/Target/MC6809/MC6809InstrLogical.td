@@ -396,11 +396,15 @@ def ZEX16Implicit : MC6809LogicalInstr {
 def ZEX32Implicit : MC6809LogicalInstr {
   // Expansion: CLRD (HD6309).  Sets N=0 Z=1 V=0 C=0.  Same hazard as
   // ZEX16Implicit above, just for the 32-bit-result case.
+  // Bug #161: widen $src from AWc to ACC16 so an i16 produced by
+  // unrelated codegen (e.g. MERGE_LOHI_i16 in ADc) can feed this
+  // pseudo. The post-RA expansion adds a TFR D,W when src is AD
+  // before the CLRDa, so AQ ends up as (D=0 | W=src) in either case.
   let Defs = [NZ, V, C];
   let hasSideEffects = 1;
-  dag InOperandList = (ins AWc:$src);
+  dag InOperandList = (ins ACC16:$src);
   dag OutOperandList = (outs ACC32:$dst);
-  let Pattern = [(set ACC32:$dst, (zext AWc:$src))];
+  let Pattern = [(set ACC32:$dst, (zext ACC16:$src))];
   let Predicates = [IsHD6309];
 }
 

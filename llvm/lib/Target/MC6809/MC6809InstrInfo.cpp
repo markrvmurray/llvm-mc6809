@@ -2293,11 +2293,18 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     MI.removeOperand(1);
     MI.removeOperand(0);
     break;
-  case MC6809::ZEX32Implicit:
+  case MC6809::ZEX32Implicit: {
+    // Bug #161: source may be in AD or AW (post-class widening). After
+    // expansion AQ should hold (D=0 | W=src). If the regalloc-resolved
+    // source is AD, copy it to W first via TFR D,W; then CLRDa zeros D.
+    Register SrcReg = MI.getOperand(1).getReg();
+    if (SrcReg == MC6809::AD)
+      Builder.buildInstr(MC6809::TFRp).addDef(MC6809::AW).addUse(MC6809::AD);
     MI.setDesc(Builder.getTII().get(MC6809::CLRDa));
     MI.removeOperand(1);
     MI.removeOperand(0);
     break;
+  }
   case MC6809::Load_i1_Imm:
     expandLoad1Imm(Builder, MI);
     break;
