@@ -544,7 +544,12 @@ let mayLoad = false, mayStore = false, isCall = true in {
 
 // Block transfer modes (Page 3, HD6309).
 // TFM r0+,r1+ (copy), r0-,r1- (reverse copy), r0+,r1 (fill), r0,r1+ (read)
-let Predicates = [IsHD6309] in {
+// TFM uses W as count and reads/writes memory until W reaches 0; mark
+// it accordingly so dead-MI-elim doesn't drop it and so the verifier
+// is happy when a memoperand is attached.
+let Predicates = [IsHD6309], mayLoad = true, mayStore = true,
+    hasSideEffects = true, isReMaterializable = false,
+    Defs = [AW], Uses = [AW] in {
   def TFM0pp : MC6809BlockRegisterPair0_P3<(outs), "tfm", Opcode<0x38,3>, [], []>;
   def TFM1pp : MC6809BlockRegisterPair1_P3<(outs), "tfm", Opcode<0x39,3>, [], []>;
   def TFM2pp : MC6809BlockRegisterPair2_P3<(outs), "tfm", Opcode<0x3A,3>, [], []>;
