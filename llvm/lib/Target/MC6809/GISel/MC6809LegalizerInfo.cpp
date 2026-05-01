@@ -109,12 +109,20 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
 
   // G_ZEXT/G_ANYEXT: (s16/s32, s1) has no selection pattern — custom
   // decompose to s1→s8 (AND #1) then merge with zero bytes.
-  getActionDefinitionsBuilder({G_ZEXT, G_ANYEXT})
+  // Bug #161: under HD6309, (s32, s8) and (s32, s16) need lowering
+  // (chain through the s16 step) — the selector has patterns for s8→s16
+  // and s16→s32 but not the direct s8→s32 jump. lowerFor must come
+  // BEFORE legalForCartesianProduct so the pair-specific rule wins
+  // over the generic legal cartesian product.
+  auto &ZExtBuilder = getActionDefinitionsBuilder({G_ZEXT, G_ANYEXT})
       .customIf([=](const LegalityQuery &Query) {
         return Query.Types[1] == s1 &&
                (Query.Types[0] == s16 || Query.Types[0] == s32 ||
                 Query.Types[0] == s64);
-      })
+      });
+  if (IsHD6309)
+    ZExtBuilder.lowerFor({{s32, s8}});
+  ZExtBuilder
       .legalForCartesianProduct(LegalScalars, NotMaxWithOne)
       .lowerFor({{s64, s32}})
       .clampScalar(0, *LegalScalars.begin(), *std::prev(LegalScalars.end()))

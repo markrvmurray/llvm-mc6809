@@ -963,6 +963,26 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
       constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
       return true;
     }
+    // Bug #161: trunc i32→i8 — chain via the low word of AQ. Get the
+    // s16 sub_lo_word (an AD vreg via a sub-register COPY), then run
+    // the existing EXTRACT_LO_i16 pseudo on it. Same shape the trunc
+    // i32→i16 SDAG pattern uses (MC6809InstrLogical.td:423), one step
+    // further down.
+    if (DstTy == LLT::scalar(8) && SrcTy == LLT::scalar(32)) {
+      MRI->setRegClass(DstReg, &MC6809::ACC8RegClass);
+      MRI->setRegClass(SrcReg, &MC6809::ACC32RegClass);
+      MachineIRBuilder Builder(MI);
+      Register WordLo = MRI->createVirtualRegister(&MC6809::ADcRegClass);
+      auto Copy = Builder.buildCopy(WordLo, SrcReg);
+      Copy->getOperand(1).setSubReg(MC6809::sub_lo_word);
+      constrainGenericOp(*Copy);
+      auto Ext = Builder.buildInstr(MC6809::EXTRACT_LO_i16)
+                     .addDef(DstReg)
+                     .addUse(WordLo);
+      constrainSelectedInstRegOperands(*Ext, TII, TRI, RBI);
+      MI.eraseFromParent();
+      return true;
+    }
     // trunc i8→i1: extract bit 0 with AND #1. We can't use COPY with
     // sub_lsb because the register coalescer eliminates it, losing the
     // bit extraction (e.g., XOR -1 gives 0xFE which tests as non-zero).
@@ -2482,10 +2502,57 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
 }
 
 bool MC6809InstructionSelector::selectUnMergeValues(MachineInstr &MI) {
-  auto [Lo, Hi, Src] = MI.getFirst3Regs();
+  // Operand layout: [def0, def1, ..., defN-1, src]. The original code
+  // unconditionally took the first 3 regs as (Lo, Hi, Src), which is
+  // wrong for the 4-way s32 → 4×s8 case (5 operands, src at index 4).
+  // Bug #161: detect the s32 → 4×s8 case explicitly. Picolibc's i32
+  // path (now reachable after the -mcpu=hd6309 typo fix in 013cdad0)
+  // routinely produces this shape via the legalizer's narrow chain,
+  // and the selector hand-path needs to cover it.
+  unsigned NumDefs = MI.getNumOperands() - 1;
+  Register Src = MI.getOperand(NumDefs).getReg();
+  LLT SrcTy = MRI->getType(Src);
 
   MachineIRBuilder Builder(MI);
-  LLT SrcTy = MRI->getType(Src);
+
+  // s32 → 4×s8: chain via two s16 sub-register extracts (lo_word /
+  // hi_word) followed by EXTRACT_LO_i16 / EXTRACT_HI_i16 on each.
+  if (SrcTy == S32 && NumDefs == 4) {
+    Register D0 = MI.getOperand(0).getReg();
+    Register D1 = MI.getOperand(1).getReg();
+    Register D2 = MI.getOperand(2).getReg();
+    Register D3 = MI.getOperand(3).getReg();
+    MRI->setRegClass(Src, &MC6809::ACC32RegClass);
+    for (Register R : {D0, D1, D2, D3})
+      if (!MRI->getRegClassOrNull(R))
+        MRI->setRegClass(R, &MC6809::ACC8RegClass);
+
+    // Two intermediate s16 vregs: low word (D0/D1 source) and high word
+    // (D2/D3 source).
+    Register WordLo = MRI->createVirtualRegister(&MC6809::ADcRegClass);
+    Register WordHi = MRI->createVirtualRegister(&MC6809::ADcRegClass);
+    auto LoCopy = Builder.buildCopy(WordLo, Src);
+    LoCopy->getOperand(1).setSubReg(MC6809::sub_lo_word);
+    auto HiCopy = Builder.buildCopy(WordHi, Src);
+    HiCopy->getOperand(1).setSubReg(MC6809::sub_hi_word);
+    constrainGenericOp(*LoCopy);
+    constrainGenericOp(*HiCopy);
+
+    auto E0 = Builder.buildInstr(MC6809::EXTRACT_LO_i16).addDef(D0).addUse(WordLo);
+    auto E1 = Builder.buildInstr(MC6809::EXTRACT_HI_i16).addDef(D1).addUse(WordLo);
+    auto E2 = Builder.buildInstr(MC6809::EXTRACT_LO_i16).addDef(D2).addUse(WordHi);
+    auto E3 = Builder.buildInstr(MC6809::EXTRACT_HI_i16).addDef(D3).addUse(WordHi);
+    constrainSelectedInstRegOperands(*E0, TII, TRI, RBI);
+    constrainSelectedInstRegOperands(*E1, TII, TRI, RBI);
+    constrainSelectedInstRegOperands(*E2, TII, TRI, RBI);
+    constrainSelectedInstRegOperands(*E3, TII, TRI, RBI);
+    MI.eraseFromParent();
+    return true;
+  }
+
+  // Otherwise we expect the original 3-operand (1 src + 2 dsts) shape.
+  Register Lo = MI.getOperand(0).getReg();
+  Register Hi = MI.getOperand(1).getReg();
   assert((SrcTy == S16 || SrcTy == S32) && "The Src of G_UNMERGE_VALUES must be S16 or S32");
 
   if (SrcTy == S16) {
