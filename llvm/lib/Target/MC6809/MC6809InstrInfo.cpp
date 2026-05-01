@@ -2211,26 +2211,44 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     if (needsMaterialization(DstReg))
       DstReg = materializeReg(Builder, DstReg, MF);
 
-    // Map the BIT1 source to its parent byte register.
+    // Map the BIT1 source to its parent byte register. Bug #161: under
+    // HD6309, regalloc may also produce AELSB/AFLSB (sub-bits of E/F);
+    // map those to E/F. The AND/NEG step still has to land on A or B
+    // because hardware has no ANDE/NEGE/ANDF/NEGF, so route via TFR.
     Register SrcByte;
     switch (SrcReg) {
     case MC6809::AALSB: SrcByte = MC6809::AA; break;
     case MC6809::ABLSB: SrcByte = MC6809::AB; break;
+    case MC6809::AELSB: SrcByte = MC6809::AE; break;
+    case MC6809::AFLSB: SrcByte = MC6809::AF; break;
     default:
-      llvm_unreachable("SEX8Implicit: BIT1 source must be AALSB or ABLSB");
+      llvm_unreachable("SEX8Implicit: BIT1 source must be AALSB/ABLSB/AELSB/AFLSB");
     }
 
-    // If src and dst live in different halves of D, copy the byte first.
-    // TFR preserves the LSB we care about.
-    if (SrcByte != DstReg)
-      Builder.buildInstr(MC6809::TFRp).addDef(DstReg).addUse(SrcByte);
+    // Resolve which page-1 byte register actually does the AND+NEG. The
+    // dest may be E/F under HD6309, but AND/NEG only exist for A/B, so
+    // pick the closest A or B target.
+    Register WorkReg = DstReg;
+    if (DstReg == MC6809::AE) WorkReg = MC6809::AA;
+    else if (DstReg == MC6809::AF) WorkReg = MC6809::AB;
+
+    // If src and work-reg live in different halves of D (or the src is
+    // an HD6309 byte), copy the byte first. TFR preserves the LSB we
+    // care about.
+    if (SrcByte != WorkReg)
+      Builder.buildInstr(MC6809::TFRp).addDef(WorkReg).addUse(SrcByte);
 
     // Extract the LSB and sign-extend via two's-complement negation.
-    bool DstIsA = (DstReg == MC6809::AA);
+    bool DstIsA = (WorkReg == MC6809::AA);
     unsigned AndOpc = DstIsA ? MC6809::ANDAi8 : MC6809::ANDBi8;
     unsigned NegOpc = DstIsA ? MC6809::NEGAa  : MC6809::NEGBa;
     Builder.buildInstr(AndOpc).addImm(1);
     Builder.buildInstr(NegOpc);
+
+    // If the original dest was an HD6309 byte register, copy the
+    // sign-extended result back from WorkReg to DstReg.
+    if (WorkReg != DstReg)
+      Builder.buildInstr(MC6809::TFRp).addDef(DstReg).addUse(WorkReg);
 
     if (needsMaterialization(OrigDst))
       dematerializeReg(Builder, DstReg, OrigDst, MF);
@@ -2876,22 +2894,34 @@ void MC6809InstrInfo::expandImm(ContextImmediate Context, MachineIRBuilder &Buil
   if (Context.NeverSkip || Val != Context.IdentityValue) {
     auto OpcodePair = Context.Opcode->find(DestReg);
     if (OpcodePair == Context.Opcode->end()) {
-      if (DestReg == MC6809::AW) {
-        // Now we cheat!
-        OpcodePair = Context.Opcode->find(MC6809::AD);
-        assert((OpcodePair != Context.Opcode->end()) && "This should not be reached! We have the D register available.");
+      // HD6309 cheat path: hardware has no AND/OR/XOR/SBC variants for the
+      // page-3 sub-registers (E/F/W). When regalloc picks AE/AF/AW for one
+      // of those ops, route through the corresponding page-1 register via
+      // an EXG bracket. AE↔AA (byte halves of AW), AF↔AB likewise; AW↔AD
+      // for the 16-bit case that was already handled. Bug #161.
+      Register CheatReg = MC6809::NoRegister;
+      switch (DestReg) {
+      case MC6809::AE: CheatReg = MC6809::AA; break;
+      case MC6809::AF: CheatReg = MC6809::AB; break;
+      case MC6809::AW: CheatReg = MC6809::AD; break;
+      default: break;
+      }
+      if (CheatReg != MC6809::NoRegister) {
+        OpcodePair = Context.Opcode->find(CheatReg);
+        assert((OpcodePair != Context.Opcode->end()) && "Cheat-target register lacks an immediate-form opcode");
         MachineBasicBlock &MBB = *MI.getParent();
         MachineBasicBlock::iterator B, E;
-        B = Builder.buildInstr(MC6809::EXGp).addDef(MC6809::AD).addDef(DestReg).addUse(MC6809::AD).addUse(DestReg);
-        Builder.buildInstr(OpcodePair->getSecond()).addDef(MC6809::AD, RegState::Implicit).addImm(Val);
-        E = Builder.buildInstr(MC6809::EXGp).addDef(DestReg).addDef(MC6809::AD).addUse(DestReg).addUse(MC6809::AD);
+        B = Builder.buildInstr(MC6809::EXGp).addDef(CheatReg).addDef(DestReg).addUse(CheatReg).addUse(DestReg);
+        Builder.buildInstr(OpcodePair->getSecond()).addDef(CheatReg, RegState::Implicit).addImm(Val);
+        E = Builder.buildInstr(MC6809::EXGp).addDef(DestReg).addDef(CheatReg).addUse(DestReg).addUse(CheatReg);
         auto Bundler = MIBundleBuilder(MBB, B, ++E);
         finalizeBundle(MBB, Bundler.begin(), Bundler.end());
         LLVM_DEBUG(for (auto &I : Bundler) {
           I.dump();
         });
-      } else
+      } else {
         llvm_unreachable("Cannot find machine instruction with this immediate operand");
+      }
     } else {
       Builder.buildInstr(OpcodePair->getSecond()).addDef(DestReg, RegState::Implicit).addImm(Val);
     }
@@ -3527,7 +3557,19 @@ void MC6809InstrInfo::expandMul16Reg(MachineIRBuilder &Builder, MachineInstr &MI
 }
 
 void MC6809InstrInfo::expandMulH16Reg(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  llvm_unreachable("Write me!");
+  // Bug #161: i16 mulh — high-16 of (D)*(src2) on HD6309. Same expansion
+  // as expandMul16Reg (push the register operand, MULD ,S++); MULD
+  // natively places the high half in D and the low half in W. The
+  // pseudo's `Defs = [NZ, AW]` already lists W as clobbered, so the
+  // dst (AD = high half) is just D after the MULD.
+  auto Reg = MI.getOperand(MI.getNumExplicitOperands() - 1).getReg();
+  MachineBasicBlock::iterator B, E;
+  MachineBasicBlock &MBB = Builder.getMBB();
+  B = Builder.buildInstr(MC6809::Push_i16).addReg(Reg);
+  E = Builder.buildInstr(MC6809::MULDi_Inc2).addReg(MC6809::SS);
+  auto Bundler = MIBundleBuilder(MBB, B, ++E);
+  LLVM_DEBUG(for (auto &I : Bundler) { I.dump(); });
+  MI.eraseFromParent();
 }
 
 void MC6809InstrInfo::expandLoad1Imm(MachineIRBuilder &Builder, MachineInstr &MI) const {
