@@ -2279,11 +2279,17 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
     Opcode = DstSize == 8
                  ? PickOpc(MC6809::AddSetCarryUse_i8_Imm,  MC6809::AddSetOverflowUse_i8_Imm)
                  : PickOpc(MC6809::AddSetCarryUse_i16_Imm, MC6809::AddSetOverflowUse_i16_Imm);
+    // Bug #161 round 12: keep the carry-IN BIT1 vreg as an implicit-use
+    // so DCE can't remove the upstream AddSetCarry when its non-carry
+    // byte result is dead (e.g. multi-byte multiply chains where only
+    // the high half is kept). Without this, the implicit $c use here
+    // dangles (no upstream define) and the verifier rejects the MIR.
     Instr = Builder.buildInstr(Opcode)
                      .addDef(Dst)
                      .addUse(Reg)
                      .addImm(Value)
-                     .addDef(CarryOut, RegState::ImplicitDefine);
+                     .addDef(CarryOut, RegState::ImplicitDefine)
+                     .addUse(Carry, RegState::Implicit);
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
     return true;
@@ -2303,7 +2309,8 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
                        .addDef(Dst)
                        .addUse(UnmReg)
                        .addImm(ByteVal)
-                       .addDef(CarryOut, RegState::ImplicitDefine);
+                       .addDef(CarryOut, RegState::ImplicitDefine)
+                       .addUse(Carry, RegState::Implicit);
       constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
       MI.eraseFromParent();
       return true;
@@ -2322,6 +2329,7 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
                      .add(Ptr)
                      .add(Offset)
                      .addDef(CarryOut, RegState::ImplicitDefine)
+                     .addUse(Carry, RegState::Implicit)
                      .cloneMemRefs(*Ptr.getParent());
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
@@ -2338,6 +2346,7 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
                      .add(Ptr)
                      .add(Offset)
                      .addDef(CarryOut, RegState::ImplicitDefine)
+                     .addUse(Carry, RegState::Implicit)
                      .cloneMemRefs(*Ptr.getParent());
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
@@ -2355,7 +2364,8 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
                 .addDef(Dst)
                 .addUse(LHS)
                 .addUse(RHS)
-                .addDef(CarryOut, RegState::ImplicitDefine);
+                .addDef(CarryOut, RegState::ImplicitDefine)
+                .addUse(Carry, RegState::Implicit);
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
     return true;
@@ -2422,11 +2432,14 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
     Opcode = DstSize == 8
                  ? PickOpc(MC6809::SubSetCarryUse_i8_Imm,  MC6809::SubSetOverflowUse_i8_Imm)
                  : PickOpc(MC6809::SubSetCarryUse_i16_Imm, MC6809::SubSetOverflowUse_i16_Imm);
+    // Bug #161 round 12: keep the carry-IN BIT1 vreg as an implicit-use
+    // (see selectAddE for the full rationale).
     Instr = Builder.buildInstr(Opcode)
                      .addDef(Dst)
                      .addUse(Reg)
                      .addImm(Value)
-                     .addDef(CarryOut, RegState::ImplicitDefine);
+                     .addDef(CarryOut, RegState::ImplicitDefine)
+                     .addUse(Carry, RegState::Implicit);
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
     return true;
@@ -2448,7 +2461,8 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
                        .addDef(Dst)
                        .addUse(UnmReg)
                        .addImm(ByteVal)
-                       .addDef(CarryOut, RegState::ImplicitDefine);
+                       .addDef(CarryOut, RegState::ImplicitDefine)
+                       .addUse(Carry, RegState::Implicit);
       constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
       MI.eraseFromParent();
       return true;
@@ -2461,12 +2475,14 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
             mi_match(Dst, *MRI, m_GUSubE(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)), m_Reg(Carry)));
   if (Success) {
     Opcode = DstSize == 8 ? PickOpc(MC6809::SubSetCarryUse_i8_Mem, MC6809::SubSetOverflowUse_i8_Mem) : PickOpc(MC6809::SubSetCarryUse_i16_Mem, MC6809::SubSetOverflowUse_i16_Mem);
+    // Bug #161 round 12: carry-IN BIT1 implicit-use (see selectAddE).
     Instr = Builder.buildInstr(Opcode)
                      .addDef(Dst)
                      .addUse(Reg)
                      .add(Ptr)
                      .add(Offset)
                      .addDef(CarryOut, RegState::ImplicitDefine)
+                     .addUse(Carry, RegState::Implicit)
                      .cloneMemRefs(*Ptr.getParent());
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
@@ -2479,12 +2495,14 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
             mi_match(Dst, *MRI, m_GUSubE(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)), m_Reg(Carry)));
   if (Success) {
     Opcode = DstSize == 8 ? PickOpc(MC6809::SubSetCarryUse_i8_Mem, MC6809::SubSetOverflowUse_i8_Mem) : PickOpc(MC6809::SubSetCarryUse_i16_Mem, MC6809::SubSetOverflowUse_i16_Mem);
+    // Bug #161 round 12: carry-IN BIT1 implicit-use (see selectAddE).
     Instr = Builder.buildInstr(Opcode)
                      .addDef(Dst)
                      .addUse(Reg)
                      .add(Ptr)
                      .add(Offset)
                      .addDef(CarryOut, RegState::ImplicitDefine)
+                     .addUse(Carry, RegState::Implicit)
                      .cloneMemRefs(*Ptr.getParent());
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
@@ -2496,11 +2514,13 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
             mi_match(Dst, *MRI, m_GUSubE(m_Reg(LHS), m_Reg(RHS), m_Reg(Carry)));
   if (Success) {
     Opcode = DstSize == 8 ? PickOpc(MC6809::SubSetCarryUse_i8_Reg, MC6809::SubSetOverflowUse_i8_Reg) : PickOpc(MC6809::SubSetCarryUse_i16_Reg, MC6809::SubSetOverflowUse_i16_Reg);
+    // Bug #161 round 12: carry-IN BIT1 implicit-use (see selectAddE).
     Instr = Builder.buildInstr(Opcode)
                 .addDef(Dst)
                 .addUse(LHS)
                 .addUse(RHS)
-                .addDef(CarryOut, RegState::ImplicitDefine);
+                .addDef(CarryOut, RegState::ImplicitDefine)
+                .addUse(Carry, RegState::Implicit);
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
     return true;
