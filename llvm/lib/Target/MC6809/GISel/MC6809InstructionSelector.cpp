@@ -1607,9 +1607,22 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
 
   case TargetOpcode::G_FREEZE: {
     // G_FREEZE is a no-op (marks value as non-poison). Lower to COPY.
+    // Bug #161 round 6: prefer the tighter of (dst class, src class) so
+    // we don't widen ADc → ACC16 just because the other side hadn't been
+    // selected yet (bottom-up isel order). The widening cascades through
+    // the COPY and lands as `%X:acc16 = COPY %Y:adc` which subsequent
+    // EXTRACT_LO_i16 / EXTRACT_HI_i16 (ADc-only inputs) reject as a
+    // verifier-class mismatch and downstream as PostRA scheduler "Count
+    // == 0" assertions.
     Register DstReg = MI.getOperand(0).getReg();
     Register SrcReg = MI.getOperand(1).getReg();
-    const TargetRegisterClass *RC = MRI->getRegClassOrNull(SrcReg);
+    const TargetRegisterClass *DstRC = MRI->getRegClassOrNull(DstReg);
+    const TargetRegisterClass *SrcRC = MRI->getRegClassOrNull(SrcReg);
+    const TargetRegisterClass *RC = nullptr;
+    if (DstRC && SrcRC)
+      RC = TRI.getCommonSubClass(DstRC, SrcRC);
+    if (!RC)
+      RC = SrcRC ? SrcRC : DstRC;
     if (!RC) {
       LLT Ty = MRI->getType(SrcReg);
       if (Ty == LLT::scalar(1))

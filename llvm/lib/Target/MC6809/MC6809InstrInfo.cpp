@@ -2916,16 +2916,17 @@ void MC6809InstrInfo::expandImm(ContextImmediate Context, MachineIRBuilder &Buil
       if (CheatReg != MC6809::NoRegister) {
         OpcodePair = Context.Opcode->find(CheatReg);
         assert((OpcodePair != Context.Opcode->end()) && "Cheat-target register lacks an immediate-form opcode");
-        MachineBasicBlock &MBB = *MI.getParent();
-        MachineBasicBlock::iterator B, E;
-        B = Builder.buildInstr(MC6809::EXGp).addDef(CheatReg).addDef(DestReg).addUse(CheatReg).addUse(DestReg);
+        // Bug #161 round 6: emit the EXG-cheat as plain serial MIs (no
+        // BUNDLE wrap). The original AW-only path used finalizeBundle
+        // for atomicity, but that diverges MachineBasicBlock::size()
+        // (instr-based) from the post-RA scheduler's bundle-aware
+        // iteration count, surfacing as the Count == 0 mismatch
+        // assertion in PostRASchedulerList.cpp:341. The implicit-defs
+        // of CheatReg / DestReg already chain the three MIs through
+        // liveness without needing the bundle: nothing reorders them.
+        Builder.buildInstr(MC6809::EXGp).addDef(CheatReg).addDef(DestReg).addUse(CheatReg).addUse(DestReg);
         Builder.buildInstr(OpcodePair->getSecond()).addDef(CheatReg, RegState::Implicit).addImm(Val);
-        E = Builder.buildInstr(MC6809::EXGp).addDef(DestReg).addDef(CheatReg).addUse(DestReg).addUse(CheatReg);
-        auto Bundler = MIBundleBuilder(MBB, B, ++E);
-        finalizeBundle(MBB, Bundler.begin(), Bundler.end());
-        LLVM_DEBUG(for (auto &I : Bundler) {
-          I.dump();
-        });
+        Builder.buildInstr(MC6809::EXGp).addDef(DestReg).addDef(CheatReg).addUse(DestReg).addUse(CheatReg);
       } else {
         llvm_unreachable("Cannot find machine instruction with this immediate operand");
       }
