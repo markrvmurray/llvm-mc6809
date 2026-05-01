@@ -227,16 +227,9 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // i16 legality) needs a different solution: either making BIT1
   // spillable or using a targeted libcall for the `sub i16 (zext i8),
   // (zext i8)` pattern. See the strategy discussion in the bug tracker.
-  // Bug #161: under HD6309, also accept s16 G_ADD/G_SUB. The narrowing
-  // of i32 G_MUL/G_UMULH (legal for {s8, s16}) introduces fresh i16 SUB
-  // ops mid-legalization that the s8-only clampScalar can't legalize on
-  // its own. Plain 6809 keeps the original i8-only carry-chain path
-  // (the i16 selector path was reverted at bug #85b).
-  auto &AddSubBuilder = getActionDefinitionsBuilder({G_ADD, G_SUB});
-  if (IsHD6309)
-    AddSubBuilder.legalFor({s8, s16}).clampScalar(0, s8, s16);
-  else
-    AddSubBuilder.legalFor({s8}).clampScalar(0, s8, s8);
+  getActionDefinitionsBuilder({G_ADD, G_SUB})
+      .legalFor({s8})
+      .clampScalar(0, s8, s8);
 
   getActionDefinitionsBuilder({G_UADDO, G_UADDE, G_USUBO, G_USUBE, G_SADDO, G_SADDE, G_SSUBO, G_SSUBE})
       .legalForCartesianProduct({s8}, {s1, s16})
