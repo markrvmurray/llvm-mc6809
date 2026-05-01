@@ -2635,6 +2635,33 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
       Register RealReg = materializeReg(PreBuilder, PushReg, MF);
       MI.getOperand(1).setReg(RealReg);
     }
+    // Bug #161 round 11: page-1 PSHS doesn't accept AW (HD6309 W) or AQ
+    // (HD6309 Q = D:W). Use PSHSWx for AW; for AQ emit PSHSWx + PSHS D
+    // (W is the low half, D the high half — push high last so the stack
+    // lands as D:W with D at lower addresses, big-endian on the stack
+    // matches the AQ register layout). Mirror image of the Pull_* case
+    // below at lines 2654-2662.
+    {
+      Register PushedReg = MI.getOperand(1).getReg();
+      if (PushedReg == MC6809::AQ) {
+        // Push W first, then D — final stack layout: D at lower (S+0..1),
+        // W at higher (S+2..3) — matches AQ memory layout (D:W = high:low).
+        Builder.buildInstr(MC6809::PSHSWx);
+        MI.setDesc(Builder.getTII().get(MC6809::PSHSs));
+        MI.getOperand(0).setReg(MC6809::SS);
+        MI.getOperand(0).setImplicit();
+        MI.getOperand(1).setReg(MC6809::AD);
+        break;
+      }
+      if (PushedReg == MC6809::AW) {
+        MI.setDesc(Builder.getTII().get(MC6809::PSHSWx));
+        // PSHSWx is page-2 inherent — no operand list. Drop the
+        // explicit AW operand and the implicit-def SS operand.
+        while (MI.getNumOperands() > 0)
+          MI.removeOperand(MI.getNumOperands() - 1);
+        break;
+      }
+    }
     MI.setDesc(Builder.getTII().get(MC6809::PSHSs));
     MI.getOperand(0).setReg(MC6809::SS);
     MI.getOperand(0).setImplicit();
@@ -4407,12 +4434,26 @@ static void emit6809RegByteFromMem(MachineIRBuilder &Builder,
     // where the pass fires.  Using the stack avoids the __scratch DP byte.
     if (needsMaterialization(RHS))
       RealRHS = materializeReg(Builder, RHS, MF);
-    Builder.buildInstr(MC6809::PSHSs, {}, {RealRHS});
-    Builder.buildInstr(Opc_o5)
-        .addDef(AccReg, RegState::Implicit)
-        .addImm(0).addReg(MC6809::SS);
-    Builder.buildInstr(MC6809::LEASi_o5)
-        .addImm(1).addReg(MC6809::SS);
+    // Bug #161 round 11: AE / AF (HD6309 byte sub-regs of AW) can't be
+    // pushed by page-1 PSHS. Use page-2 PSHSWx which pushes W (E:F)
+    // as 2 bytes (E at 0,S, F at 1,S, big-endian). For AE the op reads
+    // 0,S; for AF it reads 1,S. LEAS pops 2 bytes either way.
+    if (RealRHS == MC6809::AE || RealRHS == MC6809::AF) {
+      Builder.buildInstr(MC6809::PSHSWx);
+      int ByteOff = (RealRHS == MC6809::AE) ? 0 : 1;
+      Builder.buildInstr(Opc_o5)
+          .addDef(AccReg, RegState::Implicit)
+          .addImm(ByteOff).addReg(MC6809::SS);
+      Builder.buildInstr(MC6809::LEASi_o5)
+          .addImm(2).addReg(MC6809::SS);
+    } else {
+      Builder.buildInstr(MC6809::PSHSs, {}, {RealRHS});
+      Builder.buildInstr(Opc_o5)
+          .addDef(AccReg, RegState::Implicit)
+          .addImm(0).addReg(MC6809::SS);
+      Builder.buildInstr(MC6809::LEASi_o5)
+          .addImm(1).addReg(MC6809::SS);
+    }
   }
   if (needsMaterialization(OrigLHS))
     dematerializeReg(Builder, RealLHS, OrigLHS, MF);
@@ -4504,12 +4545,20 @@ static void emit6809RegPairFromMem(MachineIRBuilder &Builder,
     if (needsMaterialization(RHS))
       RealRHS = materializeReg(Builder, RHS, MF);
 
+    // Bug #161 round 11: page-1 PSHS doesn't accept the HD6309 W
+    // register. Use the page-2 PSHSWx (which pushes W = E:F as 2 bytes
+    // onto SS, big-endian: E at offset 0, F at offset 1) when RealRHS
+    // is AW. Same stack layout as `PSHS D` (A at 0, B at 1) so the
+    // downstream OpcA/OpcB at 0,S and 1,S reads work unchanged.
     // Bug #65: see emit6809RegByteFromMem for the full explanation
     // of why we use the (opc, defs, srcs) buildInstr form here. TL;DR:
     // the chained .addUse(..., Implicit) form leaves RealRHS off the
     // printed register list and the asm printer emits garbage like
     // "pshs s,s".
-    Builder.buildInstr(MC6809::PSHSs, {}, {RealRHS});
+    if (RealRHS == MC6809::AW)
+      Builder.buildInstr(MC6809::PSHSWx);
+    else
+      Builder.buildInstr(MC6809::PSHSs, {}, {RealRHS});
     // Low byte at S+1, high byte at S+0 (big-endian on the stack).
     Builder.buildInstr(OpcB_o5)
         .addDef(MC6809::AB, RegState::Implicit)
