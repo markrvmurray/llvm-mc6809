@@ -1642,11 +1642,45 @@ static bool emitHD6309RegRegOp(MachineIRBuilder &Builder, MachineInstr &MI,
   } else if (AreClasses(MC6809::ACC16RegClass, MC6809::ACC8RegClass)) {
     if (AreClasses(MC6809::ADcRegClass, MC6809::ABcRegClass) || AreClasses(MC6809::AWcRegClass, MC6809::AFcRegClass))
       return;
-    Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(SrcReg);
+    // Bug #161 round 18 follow-up #2: HD6309's TFR with size mismatch
+    // (8-bit src → 16-bit dst) BYTE-REPLICATES the source into both
+    // halves of the destination — it does NOT zero-extend. So the
+    // bare TFRp emitted here was producing `tfr b,w` ⇒ W=B:B (e.g.
+    // 0x2A2A for value 42) instead of W=0:B. Caught via the rc=1
+    // `_s` test cluster: vfprintf's signed-i16→i32 sign-extend path
+    // relied on this COPY to zero-extend each half, and the resulting
+    // i32 had the LO byte duplicated where the HI byte should have
+    // been — printing "Test 257 Passed" instead of "Test 1 Passed".
+    //
+    // Emit an explicit zero-extend: 8-bit transfer to the matching
+    // half-byte of the 16-bit dest, then clear the unused half.
+    if (DestReg == MC6809::AD) {
+      // AD = AA(hi):AB(lo). Move src into AB, clear AA.
+      if (SrcReg != MC6809::AB)
+        Builder.buildInstr(MC6809::TFRp).addDef(MC6809::AB).addUse(SrcReg);
+      Builder.buildInstr(MC6809::CLRAa);
+    } else if (DestReg == MC6809::AW) {
+      // AW = AE(hi):AF(lo). Move src into AF, clear AE.
+      if (SrcReg != MC6809::AF)
+        Builder.buildInstr(MC6809::TFRp).addDef(MC6809::AF).addUse(SrcReg);
+      Builder.buildInstr(MC6809::CLREa);
+    } else {
+      Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(SrcReg);
+    }
   } else if (AreClasses(MC6809::ACC8RegClass, MC6809::ACC16RegClass)) {
     if (AreClasses(MC6809::ABcRegClass, MC6809::ADcRegClass) || AreClasses(MC6809::AFcRegClass, MC6809::AWcRegClass))
       return;
-    Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(SrcReg);
+    // Symmetric to the 8→16 case above: HD6309's TFR with 16-bit src
+    // and 8-bit dst takes the LOW byte of the source (E or B), not
+    // the HIGH byte. For copies that don't share a sub-reg (e.g.
+    // AD → AF, AW → AB), emit an 8-bit transfer from the source's
+    // low byte to the destination.
+    Register SrcLo;
+    if      (SrcReg == MC6809::AD) SrcLo = MC6809::AB;
+    else if (SrcReg == MC6809::AW) SrcLo = MC6809::AF;
+    else                            SrcLo = SrcReg;
+    if (DestReg != SrcLo)
+      Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(SrcLo);
   } else if (AreClasses(MC6809::ACC16RegClass, MC6809::ACC16RegClass) || AreClasses(MC6809::ACC16RegClass, MC6809::INDEX16RegClass) || AreClasses(MC6809::INDEX16RegClass, MC6809::ACC16RegClass) ||
              AreClasses(MC6809::INDEX16RegClass, MC6809::INDEX16RegClass) ||
              AreClasses(MC6809::STACK16RegClass, MC6809::STACK16RegClass) ||
