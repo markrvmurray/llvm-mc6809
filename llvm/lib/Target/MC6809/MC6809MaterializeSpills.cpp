@@ -74,8 +74,8 @@ static bool isAnySpillReg(Register Reg) {
   return isAccSpillReg(Reg) || isIndexSpillReg(Reg);
 }
 
-/// Bug #63 support: opcodes whose expansion runs through
-/// emit6809Reg{Byte,Pair}FromMem (in MC6809InstrInfo.cpp).
+/// Bug #63 support: opcodes that need second-ACC-spill skipping so
+/// their expansion's U-relative spill path can fire.
 ///
 /// What this is for
 /// ----------------
@@ -91,14 +91,16 @@ static bool isAnySpillReg(Register Reg) {
 ///
 /// How we work around it
 /// ---------------------
-/// `emit6809Reg{Byte,Pair}FromMem` already has a U-relative spill path
-/// for the RHS that reads the spill slot directly without going through
-/// D. That path was previously dead code because MaterializeSpills
-/// always rewrote spill operands BEFORE expansion ran. We re-enable
-/// it by teaching MaterializeSpills to LEAVE THE SECOND DISTINCT ACC
-/// SPILL alone for these specific opcodes — the operand stays as a
-/// spill register, the expansion sees it as a spill, and the
-/// U-relative path takes over naturally.
+/// The expansion paths for these opcodes already have a U-relative
+/// spill path that reads the spill slot directly without going through
+/// D — `emit6809Reg{Byte,Pair}FromMem` for Add/Sub/Bitwise, the
+/// page-1 CMP-from-spill fallback inside `expandCompareReg` for
+/// Compare/CompareBranch. That path was previously dead code because
+/// MaterializeSpills always rewrote spill operands BEFORE expansion
+/// ran. We re-enable it by teaching MaterializeSpills to LEAVE THE
+/// SECOND DISTINCT ACC SPILL alone for these specific opcodes — the
+/// operand stays as a spill register, the expansion sees it as a
+/// spill, and the U-relative path takes over naturally.
 ///
 /// Tied operands stay together
 /// ---------------------------
@@ -110,13 +112,13 @@ static bool isAnySpillReg(Register Reg) {
 ///
 /// Why this list and not "all _Reg pseudos with two ACC operands"?
 /// --------------------------------------------------------------
-/// Only opcodes whose expansion path includes the U-relative spill
-/// fallback can benefit. emit6809Reg{Byte,Pair}FromMem is the helper
-/// that has it; instructions whose expansion uses a different helper
-/// would need a separate fix. The opcodes below all dispatch through
-/// expandAddReg/expandSubReg/expand{Add,Sub}SetCarryReg/
-/// expand{Add,Sub}SetCarryUseReg, which all call into the helper.
-static bool isAddSubFamilyReg(unsigned Opcode) {
+/// Only opcodes whose expansion path includes a U-relative spill
+/// fallback can benefit. Instructions whose expansion has no such
+/// fallback would need a separate fix. The list grew in round 18 to
+/// cover Compare_*_Reg, CompareBranch_*_Reg, and the bitwise reg-reg
+/// pseudos — all routed through the same MaterializeSpills skip plus
+/// a matching expansion-time U-relative path.
+static bool needsSecondAccSpillSkip(unsigned Opcode) {
   switch (Opcode) {
   case MC6809::Add_i8_Reg:
   case MC6809::Add_i16_Reg:
@@ -788,11 +790,11 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
       // Bug #63 special-case
       // ====================
       // For Add/Sub/SetCarry binary _Reg pseudos that expand via
-      // emit6809Reg{Byte,Pair}FromMem (see isAddSubFamilyReg), we
+      // emit6809Reg{Byte,Pair}FromMem (see needsSecondAccSpillSkip), we
       // SKIP the SECOND-and-later distinct ACC spill operand here.
       // Those operands stay in the MI as spill regs, and the expansion
       // handles them via its U-relative spill path. See the long
-      // comment on isAddSubFamilyReg for the full rationale.
+      // comment on needsSecondAccSpillSkip for the full rationale.
       //
       // Tied dst+src referencing the SAME SPILL_D both stay in SpillOps
       // (because they hash to the same entry in SeenAccSpillsForSkip
@@ -818,14 +820,14 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
       // as $spill_d1. The expansion's U-relative path then reads
       // spill_d1 as `adcb d1+1,u; adca d1+0,u`. No clash.
       SmallVector<std::pair<unsigned, Register>, 4> SpillOps;
-      const bool IsAddSubReg = isAddSubFamilyReg(MI.getOpcode());
+      const bool NeedsAccSpillSkip = needsSecondAccSpillSkip(MI.getOpcode());
       llvm::SmallSet<Register, 4> SeenAccSpillsForSkip;
       for (unsigned I = 0; I < MI.getNumOperands(); ++I) {
         MachineOperand &MO = MI.getOperand(I);
         if (!MO.isReg() || !MO.getReg().isPhysical() ||
             !isAnySpillReg(MO.getReg()))
           continue;
-        if (IsAddSubReg && isAccSpillReg(MO.getReg())) {
+        if (NeedsAccSpillSkip && isAccSpillReg(MO.getReg())) {
           // Track unique ACC spill registers seen so far. The first
           // unique one is added to SpillOps as normal. The second
           // (and beyond) are SKIPPED — they survive into expansion
