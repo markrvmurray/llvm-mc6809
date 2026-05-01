@@ -54,6 +54,22 @@ class MC6809BlockTransfer<dag ins, dag outs, string constraints = ""> : MC6809Lo
   let Uses = [AW];
   let Constraints = constraints;
   let Predicates = [IsHD6309];
+  // The TFM block transfer copies memory; the only register def the
+  // pseudo carries is the count register (AW), and that's not used
+  // downstream. Without overriding MC6809LogicalInstr's
+  // hasSideEffects/mayLoad/mayStore=false defaults,
+  // DeadMachineInstructionElim concludes the BlockCopy is dead and
+  // removes it — silently breaking every memcpy lowered via
+  // tryTFMBlockCopy. The companion legalizer change
+  // (MC6809LegalizerInfo::tryTFMBlockCopy) ensures src/dst arrive
+  // as INDEX16 vregs so PEI's eliminateFrameIndex doesn't trip on
+  // the operand layout.
+  let hasSideEffects = true;
+  let mayLoad = true;
+  let mayStore = true;
+  // Re-emitting a BlockCopy elsewhere would re-execute the memory
+  // transfer — definitely not safe to rematerialize.
+  let isReMaterializable = false;
 }
 
 // Bug #161 round 7: BlockCopy_* are emitted by the legalizer

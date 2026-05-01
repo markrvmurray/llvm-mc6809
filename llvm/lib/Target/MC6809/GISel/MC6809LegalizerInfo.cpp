@@ -1401,31 +1401,109 @@ bool MC6809LegalizerInfo::tryTFMBlockCopy(LegalizerHelper &Helper, MachineRegist
     KnownLen -= 1;
   }
 
+  // Bug #161 round 18 follow-up #3: keep the legalizer-emitted
+  // sequence simple and verifier-friendly. The BlockCopy_* pseudo
+  // had four problems with the previous design:
+  //   - hasSideEffects=false default → DeadMachineInstructionElim
+  //     dropped it entirely (silent miscompile of every memcpy);
+  //   - REGTFM-class operand expectations didn't match the
+  //     FrameIndex / GlobalAddress / Immediate operands the legalizer
+  //     fed in (PEI eliminateFrameIndex assert);
+  //   - count modeled as AWc-class register but legalizer passed an
+  //     immediate (verifier "Expected a register operand");
+  //   - implicit $aw use without prior $aw def (verifier "undefined
+  //     physical register").
+  //
+  // Cleanest fix: stop emitting the BlockCopy_* pseudo. Lower
+  // tryTFMBlockCopy directly to (LDW count) + (TFM src,dst). Each
+  // address-typed operand (FI / GA / Imm / Reg) gets materialized
+  // into an INDEX16 vreg up front so the TFM gets clean register
+  // operands that flow normally through regbank-select / isel.
+  LLT P = LLT::pointer(0, 16);
+  LLT S16 = LLT::scalar(16);
+  auto materializeAddrIntoReg = [&](const MachineOperand &MO,
+                                     int64_t ExtraOffset) -> Register {
+    Register Vreg = MRI.createGenericVirtualRegister(P);
+    if (MO.isReg()) {
+      if (ExtraOffset == 0) {
+        Builder.buildCopy(Vreg, MO.getReg());
+      } else {
+        auto Cst = Builder.buildConstant(S16, ExtraOffset);
+        Builder.buildPtrAdd(Vreg, MO.getReg(), Cst);
+      }
+      return Vreg;
+    }
+    if (MO.isImm()) {
+      Builder.buildConstant(Vreg, MO.getImm() + ExtraOffset);
+      return Vreg;
+    }
+    if (MO.isGlobal()) {
+      Builder.buildInstr(TargetOpcode::G_GLOBAL_VALUE)
+          .addDef(Vreg)
+          .addGlobalAddress(MO.getGlobal(), MO.getOffset() + ExtraOffset);
+      return Vreg;
+    }
+    if (MO.isFI()) {
+      Register FIReg = MRI.createGenericVirtualRegister(P);
+      Builder.buildInstr(TargetOpcode::G_FRAME_INDEX)
+          .addDef(FIReg)
+          .addFrameIndex(MO.getIndex());
+      int64_t Total = MO.getOffset() + ExtraOffset;
+      if (Total == 0)
+        return FIReg;
+      auto Cst = Builder.buildConstant(S16, Total);
+      Builder.buildPtrAdd(Vreg, FIReg, Cst);
+      return Vreg;
+    }
+    llvm_unreachable("Unexpected operand type from matchAbsoluteAddressing");
+  };
+
+  auto emitTFM = [&](Register SrcVreg, Register DstVreg,
+                     const MachineOperand &CountMO, bool DoDescending,
+                     MachinePointerInfo SrcPI, MachinePointerInfo DstPI) {
+    // Load count into AW.
+    if (CountMO.isImm()) {
+      Builder.buildInstr(MC6809::LDWi16)
+          .addDef(MC6809::AW, RegState::Implicit)
+          .addImm(CountMO.getImm());
+    } else if (CountMO.isReg()) {
+      if (CountMO.getReg() != MC6809::AW)
+        Builder.buildInstr(MC6809::TFRp)
+            .addDef(MC6809::AW)
+            .addUse(CountMO.getReg());
+    } else {
+      llvm_unreachable("Unsupported count operand type");
+    }
+    // Emit TFM with the implicit AW use/def. TFM0pp = inc/inc,
+    // TFM1pp = dec/dec.
+    unsigned TFMOpc = DoDescending ? MC6809::TFM1pp : MC6809::TFM0pp;
+    Builder.buildInstr(TFMOpc)
+        .addUse(SrcVreg)
+        .addUse(DstVreg)
+        .addDef(MC6809::AW, RegState::Implicit | RegState::Dead)
+        .addUse(MC6809::AW, RegState::Implicit | RegState::Kill)
+        .addMemOperand(MF.getMachineMemOperand(SrcPI, MachineMemOperand::MOLoad, 1, Align(1)))
+        .addMemOperand(MF.getMachineMemOperand(DstPI, MachineMemOperand::MOStore, 1, Align(1)));
+  };
+
   // Note that Descending transfers must be done in backwards order.
   if (KnownLen <= BytesPerTransfer) {
     uint64_t AdjOfs = Descending ? (KnownLen - 1) : 0;
-    Builder.buildInstr(Descending ? MC6809::BlockCopy_Inc_Inc : MC6809::BlockCopy_Dec_Dec)
-        .add(offsetMachineOperand(Src.value(), AdjOfs))
-        .add(offsetMachineOperand(Dst.value(), AdjOfs))
-        .add(Len.value())
-        .addMemOperand(MF.getMachineMemOperand(SrcPointerInfo, MachineMemOperand::MOLoad, 1, Align(1)))
-        .addMemOperand(MF.getMachineMemOperand(DstPointerInfo, MachineMemOperand::MOStore, 1, Align(1)));
+    Register SrcVreg = materializeAddrIntoReg(Src.value(), AdjOfs);
+    Register DstVreg = materializeAddrIntoReg(Dst.value(), AdjOfs);
+    emitTFM(SrcVreg, DstVreg, Len.value(), Descending,
+            SrcPointerInfo, DstPointerInfo);
   } else {
-    // Transfer Offset
     for (uint64_t TOfs = 0; TOfs < KnownLen; TOfs += BytesPerTransfer) {
-      // Transfer Length
       uint64_t TLen = std::min(KnownLen - TOfs, BytesPerTransfer);
-      // Adjusted Transfer Offset (opcode)
       uint64_t AdjTOfs = Descending ? (KnownLen - TOfs - 1) : TOfs;
-      // Adjusted Transfer Offset (memory)
       uint64_t AdjTOfsMO = Descending ? (KnownLen - TOfs - TLen) : TOfs;
-      Builder.buildInstr(Descending ? MC6809::BlockCopy_Inc_Inc : MC6809::BlockCopy_Dec_Dec)
-          .add(offsetMachineOperand(Src.value(), AdjTOfs))
-          .add(offsetMachineOperand(Dst.value(), AdjTOfs))
-          .add(MachineOperand::CreateImm(TLen))
-          .addImm(Descending)
-          .addMemOperand(MF.getMachineMemOperand(SrcPointerInfo.getWithOffset(AdjTOfsMO), MachineMemOperand::MOLoad, 1, Align(1)))
-          .addMemOperand(MF.getMachineMemOperand(DstPointerInfo.getWithOffset(AdjTOfsMO), MachineMemOperand::MOStore, 1, Align(1)));
+      Register SrcVreg = materializeAddrIntoReg(Src.value(), AdjTOfs);
+      Register DstVreg = materializeAddrIntoReg(Dst.value(), AdjTOfs);
+      MachineOperand TLenMO = MachineOperand::CreateImm(TLen);
+      emitTFM(SrcVreg, DstVreg, TLenMO, Descending,
+              SrcPointerInfo.getWithOffset(AdjTOfsMO),
+              DstPointerInfo.getWithOffset(AdjTOfsMO));
     }
   }
 

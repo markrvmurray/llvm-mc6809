@@ -2849,6 +2849,45 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::Copy16:
     MI.setDesc(Builder.getTII().get(MC6809::TFRp));
     break;
+  case MC6809::BlockCopy_Inc_Inc:
+  case MC6809::BlockCopy_Dec_Dec:
+  case MC6809::BlockCopy_Inc_Stay:
+  case MC6809::BlockCopy_Stay_Inc: {
+    // Bug #161 round 18 follow-up #3: expand the legalizer's BlockCopy_*
+    // pseudo into the real HD6309 TFM instruction it represents.
+    // Operand layout (set by tryTFMBlockCopy): src(REGTFM), dst(REGTFM),
+    // count(AWc as imm or reg), implicit-def AW, implicit-use AW.
+    //
+    // TFM hardware reads count from W and post-increments / -decrements
+    // the source/dest registers per byte. We have to load count into AW
+    // first, then emit the TFM with src and dst as the only explicit
+    // operands.
+    Register Src = MI.getOperand(0).getReg();
+    Register Dst = MI.getOperand(1).getReg();
+    const MachineOperand &CountMO = MI.getOperand(2);
+    if (CountMO.isImm()) {
+      Builder.buildInstr(MC6809::LDWi16)
+          .addDef(MC6809::AW, RegState::Implicit)
+          .addImm(CountMO.getImm());
+    } else {
+      assert(CountMO.isReg() && "BlockCopy count must be imm or reg");
+      if (CountMO.getReg() != MC6809::AW)
+        Builder.buildInstr(MC6809::TFRp)
+            .addDef(MC6809::AW)
+            .addUse(CountMO.getReg());
+    }
+    unsigned TFMOpc;
+    switch (MI.getOpcode()) {
+    case MC6809::BlockCopy_Inc_Inc:  TFMOpc = MC6809::TFM0pp; break;
+    case MC6809::BlockCopy_Dec_Dec:  TFMOpc = MC6809::TFM1pp; break;
+    case MC6809::BlockCopy_Inc_Stay: TFMOpc = MC6809::TFM2pp; break;
+    case MC6809::BlockCopy_Stay_Inc: TFMOpc = MC6809::TFM3pp; break;
+    default: llvm_unreachable("unreachable");
+    }
+    Builder.buildInstr(TFMOpc).addUse(Src).addUse(Dst);
+    MI.eraseFromParent();
+    return true;
+  }
   case MC6809::Push_i8:
   case MC6809::Push_i16:
   case MC6809::Push_Ptr: {
