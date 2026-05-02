@@ -1,0 +1,36 @@
+# RUN: llc -mtriple=mc6809 -mcpu=hd6309 -run-pass=postrapseudos \
+# RUN:   -verify-machineinstrs %s -o - 2>&1 | FileCheck %s
+
+# Bug #205: expandFusedCompareBranch used to add `dead $cc` to the
+# Compare def. CC's sub-registers $n/$z/$v/$c were therefore
+# immediately dead via super-register dead-marking — every LBlbc
+# downstream reported `Using an undefined physical register` for each
+# of its 4 implicit-Uses on real HD6309 codegen.
+#
+# Fix: drop RegState::Dead so the CC def is live; sub-register reads
+# in the LBlbc see live defs. Test: feed a fused
+# CompareBranch_i16_Imm through postrapseudos and assert the verifier
+# stays clean.
+
+# CHECK-LABEL: name: lblbc_after_compare_imm
+# CHECK-NOT: undefined physical register
+# CHECK-NOT: Bad machine code
+
+---
+name: lblbc_after_compare_imm
+tracksRegLiveness: true
+body: |
+  bb.0:
+    successors: %bb.1, %bb.2
+    liveins: $ad
+    CompareBranch_i16_Imm 7, $ad, 1, %bb.1, implicit-def $nz, implicit-def $v, implicit-def $c
+    LongBranchRelative %bb.2
+
+  bb.1:
+    liveins: $ad
+    RTSr
+
+  bb.2:
+    liveins: $ad
+    RTSr
+...

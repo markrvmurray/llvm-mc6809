@@ -5610,8 +5610,19 @@ void MC6809InstrInfo::expandFusedCompareBranch(MachineIRBuilder &Builder, Machin
 
   // Emit the compare/test — all operands except the last (branch target).
   // The compare defines CC as an implicit physical register.
+  //
+  // Bug #205: $cc is added as a LIVE def (not RegState::Dead). The CC
+  // register has $n/$z/$v/$c as sub-registers (see MC6809RegisterInfo.td:
+  // 'let CoveredBySubRegs = true'); dead-marking the super-reg propagates
+  // to mark all sub-registers immediately dead. The LBlbc emitted just
+  // below declares Uses=[N,Z,V,C], so the verifier reported each of those
+  // 4 implicit-Uses as "Using an undefined physical register" on every
+  // HD6309 long-conditional branch (1-24 errors per real picolibc TU under
+  // -mllvm -verify-machineinstrs). Keeping the def live lets the verifier
+  // see the sub-register defs as live; the LBlbc's killed-markers handle
+  // liveness termination cleanly.
   auto CmpMI = Builder.buildInstr(CmpOpc);
-  CmpMI.addDef(MC6809::CC, RegState::Dead);
+  CmpMI.addDef(MC6809::CC);
   for (unsigned I = 0; I < NumOps - 1; ++I)
     CmpMI.add(MI.getOperand(I));
 

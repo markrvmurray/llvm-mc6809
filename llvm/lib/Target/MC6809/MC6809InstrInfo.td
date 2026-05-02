@@ -482,7 +482,12 @@ let Predicates = [IsHD6309] in {
     def ORRp  : MC6809RegisterPairArithmetic_P2<(outs anyregister:$dst), "orr",  Opcode<0x35,2>, [NZ,N,Z,V], []>;
     def EORRp : MC6809RegisterPairArithmetic_P2<(outs anyregister:$dst), "eorr", Opcode<0x36,2>, [NZ,N,Z,V], []>;
   }
-  def CMPRp : MC6809RegisterPairCompare_P2<(outs), "cmpr", Opcode<0x37,2>, [NZ,N,Z,V], []> { let isCompare = true; }
+  // Bug #205: CMPR is a subtraction-based compare and DOES affect carry
+  // (matches every other CMPx in this file: CMPA/B/D/X/Y/U/S/W/E/F all
+  // declare [NZ,N,Z,V,C]). The previous [NZ,N,Z,V] omitted C, leading
+  // the verifier to flag $c as "undefined" at any LBlbc downstream of
+  // CMPRp.
+  def CMPRp : MC6809RegisterPairCompare_P2<(outs), "cmpr", Opcode<0x37,2>, [NZ,N,Z,V,C], []> { let isCompare = true; }
 }
 
 // JMP: direct/indexed/extended (Page 1). Unconditional jump.

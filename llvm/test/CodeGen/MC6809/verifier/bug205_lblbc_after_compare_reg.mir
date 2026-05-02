@@ -1,0 +1,31 @@
+# RUN: llc -mtriple=mc6809 -mcpu=hd6309 -run-pass=postrapseudos \
+# RUN:   -verify-machineinstrs %s -o - 2>&1 | FileCheck %s
+
+# Bug #205: same-shape regression as bug205_lblbc_after_compare_imm.mir
+# but exercising the Compare_i16_Reg path (which lowers to CMPRp on
+# HD6309). Verifies the dead-$cc fix and that the Compare_i16_Reg
+# successor in the post-postrapseudos MIR has live sub-bit defs that
+# satisfy the LBlbc's Uses=[N,Z,V,C].
+
+# CHECK-LABEL: name: lblbc_after_compare_reg
+# CHECK-NOT: undefined physical register
+# CHECK-NOT: Bad machine code
+
+---
+name: lblbc_after_compare_reg
+tracksRegLiveness: true
+body: |
+  bb.0:
+    successors: %bb.1, %bb.2
+    liveins: $ad, $aw
+    CompareBranch_i16_Reg 7, $ad, $aw, %bb.1, implicit-def $nz, implicit-def $v, implicit-def $c
+    LongBranchRelative %bb.2
+
+  bb.1:
+    liveins: $ad
+    RTSr
+
+  bb.2:
+    liveins: $ad
+    RTSr
+...
