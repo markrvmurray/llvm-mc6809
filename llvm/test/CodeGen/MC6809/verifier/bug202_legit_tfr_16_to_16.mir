@@ -1,0 +1,20 @@
+# RUN: llc -mtriple=mc6809 -mcpu=hd6309 -run-pass=none \
+# RUN:   -verify-machineinstrs %s -o - 2>&1 | FileCheck %s
+
+# Bug #202 negative sentinel: TFRp $ix, $iy is a legitimate 16-bit copy
+# (size-matched, distinct registers). Must NOT trigger the verifier's
+# size-mismatch check.
+
+# CHECK-LABEL: name: legit_tfr_x_to_y
+# CHECK: TFRp $ix
+# CHECK-NOT: Bad machine code
+
+---
+name: legit_tfr_x_to_y
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ix
+    $iy = TFRp $ix
+    RTSr
+...

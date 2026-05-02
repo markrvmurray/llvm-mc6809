@@ -124,6 +124,14 @@ public:
 
   bool reverseBranchCondition(SmallVectorImpl<MachineOperand> &Cond) const override;
 
+  /// Bug #202: target-specific MIR verification. Catches structural
+  /// MIR shapes that round-17/18 of bug #161 hit four times in a row
+  /// (degenerate `op X,X` postbytes on HD6309 page-3 reg-reg ops, plus
+  /// HD6309 TFR with size-mismatched operands which byte-replicates).
+  /// Invoked by MachineVerifier when -verify-machineinstrs is on.
+  bool verifyInstruction(const MachineInstr &MI,
+                         StringRef &ErrInfo) const override;
+
   std::pair<unsigned, unsigned> decomposeMachineOperandsTargetFlags(unsigned TF) const override;
 
   ArrayRef<std::pair<unsigned, const char *>> getSerializableDirectMachineOperandTargetFlags() const override;

@@ -1,0 +1,24 @@
+# RUN: llc -mtriple=mc6809 -mcpu=hd6309 -run-pass=none \
+# RUN:   -verify-machineinstrs %s -o - 2>&1 | FileCheck %s
+
+# Bug #202 negative sentinel: ADDRp is COMMUTATIVE.  `addr B, B` is the
+# legitimate `B = B + B` (i.e. `B << 1`) and must NOT trigger the
+# verifier's same-reg postbyte check. If it does, the verifier is too
+# aggressive and false-positiving on legal codegen.
+#
+# Same applies to ADCRp / ANDRp / ORRp (commutative variants of the
+# same family) — only checking ADDRp here as a representative.
+
+# CHECK-LABEL: name: legit_addr_b_b
+# CHECK: ADDRp $ab
+# CHECK-NOT: Bad machine code
+
+---
+name: legit_addr_b_b
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ab
+    $ab = ADDRp $ab, $ab, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $c
+    RTSr
+...

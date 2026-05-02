@@ -1,0 +1,19 @@
+# RUN: not --crash llc -mtriple=mc6809 -mcpu=hd6309 -run-pass=none \
+# RUN:   -verify-machineinstrs %s -o /dev/null 2>&1 | FileCheck %s
+
+# Bug #202: SBCRp $aa, $aa is degenerate (`sbcr A, A` propagates only the
+# borrow — typically a same-half collision after a spill materialise that
+# should have been split). The verifier must flag it.
+
+# CHECK: Bad machine code: HD6309 non-commutative reg-reg op with degenerate same-reg postbyte
+# CHECK: SBCRp
+
+---
+name: bad_sbcr_a_a
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $aa, $c
+    $aa = SBCRp $aa, $aa, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $c, implicit $c
+    RTSr
+...

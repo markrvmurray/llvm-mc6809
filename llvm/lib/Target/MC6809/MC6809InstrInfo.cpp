@@ -5622,3 +5622,120 @@ void MC6809InstrInfo::expandFusedCompareBranch(MachineIRBuilder &Builder, Machin
 
   MI.eraseFromParent();
 }
+
+//===----------------------------------------------------------------------===//
+// Bug #202 — target-specific MIR verification
+//
+// Catches structural MIR shapes that round-17/18 of bug #161 hit four times
+// in a row (commits 0b00909dd3b4, 9b925cc7ad67, 41a6ab7fddd1; the 4th —
+// 5c2af2d12411 — was a semantic operand-order inversion not catchable by a
+// structural verifier and is out of scope here).
+//
+// The check fires only on the actual page-3 reg-reg machine opcodes
+// (ADDRp/ADCRp/SUBRp/SBCRp/ANDRp/ORRp/EORRp/CMPRp/TFRp), which are
+// IsHD6309-only — there is nothing to verify on plain MC6809 codegen.
+//===----------------------------------------------------------------------===//
+
+namespace {
+// The set of physical registers that the HD6309 page-3 reg-reg postbyte can
+// name. If both source operands resolve to the same one of these, the
+// postbyte degenerates to `op X,X`. Mirrors (and consolidates) the inline
+// guards in `emitHD6309RegRegOp` and `expandCompareReg`'s collision
+// fallback.
+bool isHD6309RegRegPostbyteReg(Register R) {
+  return R == MC6809::AA || R == MC6809::AB || R == MC6809::AD ||
+         R == MC6809::AW || R == MC6809::AE || R == MC6809::AF ||
+         R == MC6809::IX || R == MC6809::IY || R == MC6809::SU ||
+         R == MC6809::SS;
+}
+
+// Byte-size of a physical register named by an HD6309 page-1/2/3 reg-reg
+// postbyte. Used to flag size-mismatched TFRp which on HD6309 byte-replicates
+// (0x002A → 0x2A2A) instead of zero/sign-extending.
+unsigned regByteSize(Register R) {
+  switch (R) {
+  case MC6809::AA: case MC6809::AB:
+  case MC6809::AE: case MC6809::AF:
+    return 1;
+  case MC6809::AD: case MC6809::AW:
+  case MC6809::IX: case MC6809::IY:
+  case MC6809::SU: case MC6809::SS:
+  case MC6809::PC: case MC6809::AV:
+    return 2;
+  default:
+    return 0; // unknown — verifier will not flag
+  }
+}
+} // end anonymous namespace
+
+bool MC6809InstrInfo::verifyInstruction(const MachineInstr &MI,
+                                        StringRef &ErrInfo) const {
+  unsigned Opc = MI.getOpcode();
+
+  // Check A — same-physreg postbyte on non-commutative HD6309 page-3 ops.
+  //
+  // ADDRp/ADCRp/ANDRp/ORRp are commutative; `op X,X` is legitimate (e.g.
+  // `ANDR X,X` is identity, `ADDR X,X` is `X<<1`) and is NOT flagged.
+  //
+  // Operand layout (per MC6809InstrFormats.td: RegisterPairArithmetic /
+  // RegisterPairCompare):
+  //   ADDRp/ADCRp/SUBRp/SBCRp/ANDRp/ORRp/EORRp:
+  //     op0 = $dst (def, tied to $reg2), op1 = $reg1 (use), op2 = $reg2 (use)
+  //   CMPRp:
+  //     op0 = $reg1 (use), op1 = $reg2 (use)
+  switch (Opc) {
+  case MC6809::SUBRp:
+  case MC6809::SBCRp:
+  case MC6809::EORRp: {
+    Register R1 = MI.getOperand(1).getReg();
+    Register R2 = MI.getOperand(2).getReg();
+    if (R1 == R2 && isHD6309RegRegPostbyteReg(R1)) {
+      ErrInfo = "HD6309 non-commutative reg-reg op with degenerate "
+                "same-reg postbyte (op X,X is always 0 / always equal)";
+      return false;
+    }
+    break;
+  }
+  case MC6809::CMPRp: {
+    Register R1 = MI.getOperand(0).getReg();
+    Register R2 = MI.getOperand(1).getReg();
+    if (R1 == R2 && isHD6309RegRegPostbyteReg(R1)) {
+      ErrInfo = "HD6309 CMPR with degenerate same-reg postbyte "
+                "(CMPR X,X is always equal — flags = 0,1,0,0)";
+      return false;
+    }
+    break;
+  }
+
+  // Check B — TFRp with size-mismatched operands.
+  //
+  // HD6309 byte-replicates on size mismatch (e.g. `tfr B,W` with B=0x2A
+  // gives W=0x2A2A, not W=0x002A). Bug #161 round 18 follow-up #2
+  // (41a6ab7fddd1) fixed copyPhysReg to wrap with explicit zero-extend
+  // (CLRA/CLRE) for ACC8↔ACC16 transfers. Any future regression that
+  // re-emits a bare size-mismatched TFRp would be caught here.
+  //
+  // Operand layout: op0 = $reg2 (def), op1 = $reg1 (use). Both must be
+  // physregs in the verifier's window (post-ISel onward).
+  case MC6809::TFRp: {
+    Register Dst = MI.getOperand(0).getReg();
+    Register Src = MI.getOperand(1).getReg();
+    if (Dst.isPhysical() && Src.isPhysical()) {
+      unsigned DstBytes = regByteSize(Dst);
+      unsigned SrcBytes = regByteSize(Src);
+      if (DstBytes && SrcBytes && DstBytes != SrcBytes) {
+        ErrInfo = "HD6309 TFR with size-mismatched operands "
+                  "byte-replicates on hardware; wrap with explicit "
+                  "zero-extend (TFR + CLRA/CLRE) or sign-extend";
+        return false;
+      }
+    }
+    break;
+  }
+
+  default:
+    break;
+  }
+
+  return true;
+}

@@ -1,0 +1,23 @@
+# RUN: not --crash llc -mtriple=mc6809 -mcpu=hd6309 -run-pass=none \
+# RUN:   -verify-machineinstrs %s -o /dev/null 2>&1 | FileCheck %s
+
+# Bug #202 / round 18 follow-up #2 (commit 41a6ab7fddd1): bare
+# `tfr B, W` (8→16) on HD6309 byte-replicates the source (B=0x2A
+# becomes W=0x2A2A, NOT 0x002A). copyPhysReg now wraps these with
+# explicit zero-extend (TFR + CLRA / CLRE). The verifier must flag
+# any future regression that re-emits a bare size-mismatched TFRp.
+#
+# TFRp operand layout: op0 = $reg2 (def), op1 = $reg1 (use).
+
+# CHECK: Bad machine code: HD6309 TFR with size-mismatched operands byte-replicates
+# CHECK: TFRp
+
+---
+name: bad_tfr_b_to_w
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ab
+    $aw = TFRp $ab
+    RTSr
+...

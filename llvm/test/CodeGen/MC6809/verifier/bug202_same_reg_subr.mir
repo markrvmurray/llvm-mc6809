@@ -1,0 +1,20 @@
+# RUN: not --crash llc -mtriple=mc6809 -mcpu=hd6309 -run-pass=none \
+# RUN:   -verify-machineinstrs %s -o /dev/null 2>&1 | FileCheck %s
+
+# Bug #202: SUBRp $ab, $ab is a degenerate same-reg postbyte
+# (`subr B, B` always computes 0 — masquerading as a clear when
+# the operand was meant to be from somewhere else). The verifier
+# must flag it.
+
+# CHECK: Bad machine code: HD6309 non-commutative reg-reg op with degenerate same-reg postbyte
+# CHECK: SUBRp
+
+---
+name: bad_subr_b_b
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ab
+    $ab = SUBRp $ab, $ab, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $c
+    RTSr
+...
