@@ -421,12 +421,18 @@ def ZEX16Implicit : MC6809LogicalInstr {
 }
 
 def ZEX32Implicit : MC6809LogicalInstr {
-  // Expansion: CLRD (HD6309).  Sets N=0 Z=1 V=0 C=0.  Same hazard as
-  // ZEX16Implicit above, just for the 32-bit-result case.
-  // Bug #161: widen $src from AWc to ACC16 so an i16 produced by
-  // unrelated codegen (e.g. MERGE_LOHI_i16 in ADc) can feed this
-  // pseudo. The post-RA expansion adds a TFR D,W when src is AD
-  // before the CLRDa, so AQ ends up as (D=0 | W=src) in either case.
+  // Expansion: CLRD (HD6309), preceded by a copyPhysReg that lands the
+  // i16 source in AW unless it is already there.  Sets N=0 Z=1 V=0 C=0.
+  // Same scheduler hazard as ZEX16Implicit above, just for the 32-bit
+  // case.
+  // Bug #161: widened $src to ACC16 so an i16 produced by unrelated
+  // codegen (e.g. MERGE_LOHI_i16 in ADc) can feed this pseudo.
+  // Bug #208: the post-RA expansion routes every non-AW source (AD,
+  // RS0..RS3, and any future ACC16 member that survives
+  // MaterializeSpills) through copyPhysReg before CLRDa, so AQ always
+  // ends up as (D=0 | W=src).  The earlier code only handled AD and
+  // silently corrupted the low half whenever regalloc placed the
+  // source in an RSn imaginary register.
   let Defs = [NZ, V, C];
   let hasSideEffects = 1;
   dag InOperandList = (ins ACC16:$src);

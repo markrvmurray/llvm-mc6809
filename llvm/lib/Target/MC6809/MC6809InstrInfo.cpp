@@ -2570,12 +2570,20 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     MI.removeOperand(0);
     break;
   case MC6809::ZEX32Implicit: {
-    // Bug #161: source may be in AD or AW (post-class widening). After
-    // expansion AQ should hold (D=0 | W=src). If the regalloc-resolved
-    // source is AD, copy it to W first via TFR D,W; then CLRDa zeros D.
+    // Source may be AD, AW, or any other ACC16 member that survives
+    // MaterializeSpills (notably the imaginary direct-page RS0..RS3).
+    // After expansion AQ must hold (D=0 | W=src). Anything other than
+    // an AW source needs an explicit copy into AW before CLRDa fires;
+    // otherwise CLRDa runs against whatever stale AW contents the
+    // prior codegen left, silently corrupting the low half of the i32
+    // result. Route through copyPhysReg so every ACC16↔ACC16 case
+    // (TFR D,W for AD; LDD <__rsN+TFR D,W for RSn; load-from-spill
+    // for SPILL_D* if it ever leaks past MaterializeSpills) is
+    // handled uniformly.
     Register SrcReg = MI.getOperand(1).getReg();
-    if (SrcReg == MC6809::AD)
-      Builder.buildInstr(MC6809::TFRp).addDef(MC6809::AW).addUse(MC6809::AD);
+    if (SrcReg != MC6809::AW)
+      copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
+                  MC6809::AW, SrcReg, /*KillSrc=*/true);
     MI.setDesc(Builder.getTII().get(MC6809::CLRDa));
     MI.removeOperand(1);
     MI.removeOperand(0);
