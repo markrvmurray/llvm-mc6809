@@ -1,0 +1,45 @@
+# RUN: llc -mtriple=mc6809 -mcpu=hd6309 -O2 -run-pass=instruction-select \
+# RUN:     -verify-machineinstrs %s -o - 2>&1 | FileCheck %s
+
+# Bug #208: variable-arity G_MERGE_VALUES s32 ← (s8, s8, s8, s8) was
+# being claimed by the TableGen-imported selector pattern, which
+# emits REG_SEQUENCE with operands 1..2 placed at AQ's
+# sub_lo_word/sub_hi_word slots — silently dropping operands 3..4.
+# Under HD6309 the legalizer narrows i32 add to a 4-byte UADDO/UADDE
+# chain whose merge takes exactly this shape; the dropped operands
+# trigger DCE of the upper byte adds and the matching post-call sret
+# HIGH-half load.
+#
+# Fix: intercept G_MERGE_VALUES with NumOperands==5 and DstSize==32
+# before selectImpl, route to the custom selectMergeValues which now
+# pairs bytes 0/1 → lo16 via MERGE_LOHI_i16, bytes 2/3 → hi16, then
+# REG_SEQUENCE the two i16s into the i32. AQ has no byte sub-regs, so
+# this pair-then-merge is the only honest path.
+
+# CHECK-LABEL: name: merge_4_bytes_to_i32
+# All four input bytes must reach the final i32 via the
+# MERGE_LOHI_i16 + REG_SEQUENCE pair emitted by the custom
+# selectMergeValues path; before the fix, the imported pattern
+# silently dropped operands 3..4 and produced a single REG_SEQUENCE
+# of two i8s into AQ's i16 sub-reg slots.
+# CHECK:      MERGE_LOHI_i16
+# CHECK-NEXT: MERGE_LOHI_i16
+# CHECK-NEXT: REG_SEQUENCE {{.*}}, %subreg.sub_lo_word, {{.*}}, %subreg.sub_hi_word
+# CHECK-NOT:  G_MERGE_VALUES
+
+---
+name: merge_4_bytes_to_i32
+legalized: true
+regBankSelected: true
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $aa, $ab, $ae, $af
+    %0:accum(s8) = COPY $aa
+    %1:accum(s8) = COPY $ab
+    %2:accum(s8) = COPY $ae
+    %3:accum(s8) = COPY $af
+    %4:accum(s32) = G_MERGE_VALUES %0(s8), %1(s8), %2(s8), %3(s8)
+    $aq = COPY %4(s32)
+    RTSr implicit $aq
+...

@@ -728,6 +728,21 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     }
   }
 
+  // Bug #208: intercept variable-arity G_MERGE_VALUES → s32 before
+  // selectImpl. The TableGen-imported pattern matches `s32 ← MERGE(s8, s8,
+  // s8, s8)` and emits a REG_SEQUENCE that places the first two byte
+  // operands at AQ's `sub_lo_word`/`sub_hi_word` slots — silently dropping
+  // operands 3 and 4. Under HD6309 the legalizer narrows i32 add to a
+  // 4-byte UADDO/UADDE chain whose merge takes this shape; the dropped
+  // operands trigger DCE of the upstream byte-2/3 adds and the matching
+  // post-call sret HIGH-half load, miscompiling every i32 add of a value
+  // returned via sret (strtol's `acc * base + digit` accumulator being
+  // the case that surfaced this bug).
+  if (MI.getOpcode() == TargetOpcode::G_MERGE_VALUES &&
+      MRI->getType(MI.getOperand(0).getReg()) == LLT::scalar(32) &&
+      MI.getNumOperands() == 5)
+    return selectMergeValues(MI);
+
   // Bug #152 phase 3: intercept G_ZEXT s1→s8 with phantom-BIT1 source.
   // G_ZEXT is otherwise pattern-selected (no hand path) and reads the
   // allocated byte-LSB — which for a phantom-BIT1 is the parent byte's
@@ -1945,8 +1960,42 @@ bool MC6809InstructionSelector::selectMergeValues(MachineInstr &MI) {
     // REG_SEQUENCE with word sub-regs on AQ. The debug-only case
     // is handled by the WideAllDebug rewrite above, so by here
     // the consumers are real and need a materialised wide vreg.
+    //
+    // G_MERGE_VALUES is variable-arity: legalizer narrowing of i32 add
+    // chains produces (s32) ← MERGE(s8 b0, s8 b1, s8 b2, s8 b3), while
+    // 2-input MERGE(s16 lo, s16 hi) → s32 also occurs naturally.
+    // AQ's only sub-regs are sub_lo_word / sub_hi_word (i16), so for
+    // 4 × s8 we first pair the bytes into i16s via MERGE_LOHI_i16 and
+    // then REG_SEQUENCE the two i16s into AQ. Bug #208: the previous
+    // code unconditionally took operands 1..2 as Lo/Hi, silently
+    // dropping operands 3..4 of a 4-byte chain — every i32 add
+    // including the post-__mulsi3 sret-return + digit accumulation in
+    // strtol lost its high 16 bits.
+    Register Lo16 = Lo, Hi16 = Hi;
+    if (MI.getNumOperands() == 5) {
+      Register B0 = MI.getOperand(1).getReg();
+      Register B1 = MI.getOperand(2).getReg();
+      Register B2 = MI.getOperand(3).getReg();
+      Register B3 = MI.getOperand(4).getReg();
+      if (!MRI->getRegClassOrNull(B0))
+        MRI->setRegClass(B0, &MC6809::ACC8RegClass);
+      if (!MRI->getRegClassOrNull(B1))
+        MRI->setRegClass(B1, &MC6809::ACC8RegClass);
+      if (!MRI->getRegClassOrNull(B2))
+        MRI->setRegClass(B2, &MC6809::ACC8RegClass);
+      if (!MRI->getRegClassOrNull(B3))
+        MRI->setRegClass(B3, &MC6809::ACC8RegClass);
+      Lo16 = MRI->createVirtualRegister(&MC6809::ADcRegClass);
+      Hi16 = MRI->createVirtualRegister(&MC6809::ADcRegClass);
+      auto MLo = Builder.buildInstr(MC6809::MERGE_LOHI_i16)
+                     .addDef(Lo16).addUse(B0).addUse(B1);
+      auto MHi = Builder.buildInstr(MC6809::MERGE_LOHI_i16)
+                     .addDef(Hi16).addUse(B2).addUse(B3);
+      constrainSelectedInstRegOperands(*MLo, TII, TRI, RBI);
+      constrainSelectedInstRegOperands(*MHi, TII, TRI, RBI);
+    }
     auto RegSeq = Builder.buildInstr(MC6809::REG_SEQUENCE).addDef(Dst);
-    RegSeq.addUse(Lo).addImm(MC6809::sub_lo_word).addUse(Hi).addImm(MC6809::sub_hi_word);
+    RegSeq.addUse(Lo16).addImm(MC6809::sub_lo_word).addUse(Hi16).addImm(MC6809::sub_hi_word);
     RegSeq->addImplicitDefUseOperands(*MF);
     constrainGenericOp(*RegSeq);
   }
