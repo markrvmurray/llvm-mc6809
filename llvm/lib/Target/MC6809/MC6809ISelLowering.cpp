@@ -287,11 +287,82 @@ static MachineBasicBlock *emitConditionalImm(MachineInstr &MI, MachineBasicBlock
     IfTrueMBB->addLiveIn(LiveIn);
   Builder.setInsertPt(*HeadMBB, MI.getIterator());
 
-  // Insert branch.
-  Builder.buildInstr(MC6809::ConditionalLongBranchRelative)
-      .addImm(Condition)
-      .addMBB(IfTrueMBB)
-      .addUse(Flag);
+  // Bug a5bb42f Option A: route long-branch through the existing fused
+  // CompareBranch_*_* / TestBranch_*_* pseudo whenever possible.
+  //
+  // Without this, we emit a separated `Compare_*_* %ccvreg + ...
+  // ConditionalLongBranchRelative %ccvreg` pair. The CCond vreg
+  // tracks the dependency at the vreg level, but no physreg-level
+  // flag dependency is declared between the two MIs — so a
+  // flag-clobbering load (which has implicit-def $nz/$v) can be
+  // wedged in between by the regalloc/scheduler. After post-RA
+  // expansion the resulting `cmpd / ldd / lbgt` reads stale flags.
+  //
+  // Symmetric to bug #186 phase 2 which fixed this for the directly-
+  // selected fused short-branch path; here we fuse at the lowering
+  // emission site so the same atomicity property holds for the
+  // i1-materialisation diamond.
+  //
+  // The fused pseudo is a single MachineInstr until expandFusedCompareBranch
+  // runs at postrapseudos — which happens AFTER regalloc and the scheduler.
+  // No spill, reload, or scheduling op can wedge inside a single MI.
+  // expandFusedCompareBranch already produces `CMP / LBlbc` adjacent
+  // (long-branch form), so the only difference vs. the short-branch path
+  // is the encoded branch range — exactly what Option A asked for.
+  MachineRegisterInfo *MFRMRI = &MRI;
+  auto tryEmitFusedCompareBranch = [&]() -> bool {
+    if (!Flag.isVirtual())
+      return false;
+    if (!MFRMRI->hasOneNonDBGUse(Flag))
+      return false;
+    MachineInstr *Def = MFRMRI->getVRegDef(Flag);
+    if (!Def || Def->getParent() != HeadMBB)
+      return false;
+    unsigned Opc = Def->getOpcode();
+    unsigned FusedOpc = 0;
+    switch (Opc) {
+    case MC6809::Compare_i8_Imm:   FusedOpc = MC6809::CompareBranch_i8_Imm;  break;
+    case MC6809::Compare_i16_Imm:  FusedOpc = MC6809::CompareBranch_i16_Imm; break;
+    case MC6809::Compare_i8_Reg:   FusedOpc = MC6809::CompareBranch_i8_Reg;  break;
+    case MC6809::Compare_i16_Reg:  FusedOpc = MC6809::CompareBranch_i16_Reg; break;
+    case MC6809::Compare_i8_Mem:   FusedOpc = MC6809::CompareBranch_i8_Mem;  break;
+    case MC6809::Compare_i16_Mem:  FusedOpc = MC6809::CompareBranch_i16_Mem; break;
+    case MC6809::Compare_i8_Pull:  FusedOpc = MC6809::CompareBranch_i8_Pull; break;
+    case MC6809::Compare_i16_Pull: FusedOpc = MC6809::CompareBranch_i16_Pull;break;
+    case MC6809::Test_i8_Reg:      FusedOpc = MC6809::TestBranch_i8_Reg;     break;
+    case MC6809::Test_i16_Reg:     FusedOpc = MC6809::TestBranch_i16_Reg;    break;
+    case MC6809::Test_i8_Mem:      FusedOpc = MC6809::TestBranch_i8_Mem;     break;
+    case MC6809::Test_i16_Mem:     FusedOpc = MC6809::TestBranch_i16_Mem;    break;
+    default: return false;
+    }
+    // Compare/Test pseudo operand layout is:
+    //   (outs CCond:$dst), (ins condcode:$cc, ...src/imm/mem/pull...)
+    // The fused CompareBranch/TestBranch operand layout is:
+    //   (outs), (ins condcode:$cc, ...src/imm/mem/pull..., label:$tgt)
+    // So we drop the CCond output, keep all explicit input operands,
+    // override the condcode immediate with the consumer's (the
+    // ConditionalImm's) Condition, and append the branch target.
+    auto FusedMI = Builder.buildInstr(FusedOpc);
+    FusedMI.addImm(Condition);
+    // Skip operand 0 (CCond def) and operand 1 (the original cc imm).
+    for (unsigned I = 2, E = Def->getNumExplicitOperands(); I < E; ++I)
+      FusedMI.add(Def->getOperand(I));
+    FusedMI.addMBB(IfTrueMBB);
+    Def->eraseFromParent();
+    return true;
+  };
+
+  if (!tryEmitFusedCompareBranch()) {
+    // Fallback: emit the separated ConditionalLongBranchRelative.
+    // This path remains vulnerable to mid-window flag clobbers, but
+    // the only producers that reach it are non-Compare/Test sources
+    // (e.g. truly synthesised CCond vregs), where there is no
+    // adjacency to preserve.
+    Builder.buildInstr(MC6809::ConditionalLongBranchRelative)
+        .addImm(Condition)
+        .addMBB(IfTrueMBB)
+        .addUse(Flag);
+  }
   HeadMBB->addSuccessor(IfTrueMBB);
 
   Builder.setInsertPt(*IfTrueMBB, IfTrueMBB->begin());

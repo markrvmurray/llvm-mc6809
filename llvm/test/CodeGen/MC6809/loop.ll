@@ -93,7 +93,6 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; MC6809-O0-NEXT:    addb 13,u
 ; MC6809-O0-NEXT:    stb 11,u
 ; MC6809-O0-NEXT:    lda 12,u
-; MC6809-O0-NEXT:    lda 12,u
 ; MC6809-O0-NEXT:    adca 14,u
 ; MC6809-O0-NEXT:    sta 12,u
 ; MC6809-O0-NEXT:    ldb 11,u
@@ -339,12 +338,12 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; HD6309-NEXT:    lda 11,u
 ; HD6309-NEXT:    stb 10,u
 ; HD6309-NEXT:    ldb 22,u
-; HD6309-NEXT:    addr b,spill_b1
+; HD6309-NEXT:    addb 24,u
 ; HD6309-NEXT:    stb 22,u
 ; HD6309-NEXT:    ldb 10,u
 ; HD6309-NEXT:    sta 9,u
 ; HD6309-NEXT:    lda 23,u
-; HD6309-NEXT:    adcr a,spill_a0
+; HD6309-NEXT:    adca 25,u
 ; HD6309-NEXT:    sta 23,u
 ; HD6309-NEXT:    lda 9,u
 ; HD6309-NEXT:    std 7,u
