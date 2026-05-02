@@ -2572,21 +2572,30 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::ZEX32Implicit: {
     // Source may be AD, AW, or any other ACC16 member that survives
     // MaterializeSpills (notably the imaginary direct-page RS0..RS3).
-    // After expansion AQ must hold (D=0 | W=src). Anything other than
-    // an AW source needs an explicit copy into AW before CLRDa fires;
-    // otherwise CLRDa runs against whatever stale AW contents the
-    // prior codegen left, silently corrupting the low half of the i32
-    // result. Route through copyPhysReg so every ACC16↔ACC16 case
-    // (TFR D,W for AD; LDD <__rsN+TFR D,W for RSn; load-from-spill
-    // for SPILL_D* if it ever leaks past MaterializeSpills) is
-    // handled uniformly.
+    // Destination may be AQ or a SPILL_Q* spill slot (regalloc picks
+    // freely from the ACC32 class). After expansion the dst register
+    // must hold (D=0 | W=src). Steps:
+    //   1. If src != AW, copy src → AW (covers AD via TFR D,W,
+    //      RSn via LDD<rsN+TFR, etc. — copyPhysReg knows the
+    //      sequences; AD's intermediate clobber is safe since CLRDa
+    //      will overwrite it next).
+    //   2. CLRDa zeros AD. AQ now holds (AD=0):(AW=src).
+    //   3. If dst is a SPILL_Q*, store AQ to the spill slot via
+    //      dematerializeReg — without this, the spill slot is never
+    //      written and downstream EXTRACT_HI_word_i32 / byte-add
+    //      consumers read uninitialised stack memory (bug #208 round
+    //      2: ZEX32 dst landed in $spill_q0 and the missing STQ
+    //      let strtol's `acc * base + digit` accumulator read garbage
+    //      for the digit's high bytes).
+    Register DstReg = MI.getOperand(0).getReg();
     Register SrcReg = MI.getOperand(1).getReg();
     if (SrcReg != MC6809::AW)
       copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
                   MC6809::AW, SrcReg, /*KillSrc=*/true);
-    MI.setDesc(Builder.getTII().get(MC6809::CLRDa));
-    MI.removeOperand(1);
-    MI.removeOperand(0);
+    Builder.buildInstr(MC6809::CLRDa);
+    if (DstReg != MC6809::AQ)
+      dematerializeReg(Builder, MC6809::AQ, DstReg, *MI.getMF());
+    MI.eraseFromParent();
     break;
   }
   case MC6809::Load_i1_Imm:
