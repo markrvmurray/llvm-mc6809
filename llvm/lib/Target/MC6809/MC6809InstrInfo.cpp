@@ -2532,16 +2532,30 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     MI.eraseFromParent();
     return true;
   }
-  case MC6809::SEX16Implicit:
-    MI.setDesc(Builder.getTII().get(MC6809::SEXx));
-    MI.removeOperand(1);
-    MI.removeOperand(0);
+  case MC6809::SEX16Implicit: {
+    // Same SPILL_D* concern as ZEX32Implicit (bug #208 round 2): the
+    // SEXx hardware instruction writes AD (sign-extends AB into AA),
+    // but if regalloc placed the dst in a SPILL_D* slot it must be
+    // dematerialized via STD afterwards or downstream byte consumers
+    // see uninitialised stack memory.
+    Register DstReg = MI.getOperand(0).getReg();
+    Builder.buildInstr(MC6809::SEXx);
+    if (DstReg != MC6809::AD)
+      dematerializeReg(Builder, MC6809::AD, DstReg, *MI.getMF());
+    MI.eraseFromParent();
     break;
-  case MC6809::SEX32Implicit:
-    MI.setDesc(Builder.getTII().get(MC6809::SEXWx));
-    MI.removeOperand(1);
-    MI.removeOperand(0);
+  }
+  case MC6809::SEX32Implicit: {
+    // Same SPILL_Q* concern as ZEX32Implicit (bug #208 round 2):
+    // SEXWx sign-extends AW into AD, leaving AQ correct, but a
+    // SPILL_Q* dst needs an explicit STQ.
+    Register DstReg = MI.getOperand(0).getReg();
+    Builder.buildInstr(MC6809::SEXWx);
+    if (DstReg != MC6809::AQ)
+      dematerializeReg(Builder, MC6809::AQ, DstReg, *MI.getMF());
+    MI.eraseFromParent();
     break;
+  }
   case MC6809::ZEX8Implicit: {
     Register SrcReg = MI.getOperand(1).getReg();
     unsigned Opcode;
