@@ -1,0 +1,44 @@
+# RUN: llc -mtriple=mc6809 -mcpu=hd6309 -O2 -run-pass=mc6809-final-lowering \
+# RUN:   -mc6809-fl-store-reload-min-O=0 \
+# RUN:   -verify-machineinstrs %s -o - 2>&1 | FileCheck %s
+
+# Bug #207: when MC6809FinalLowering::elideStoreReload deletes a
+# redundant LDY whose `implicit-def $iy` was the redefinition that
+# justified an earlier `killed $iy` flag (set by post-RA scheduler),
+# the kill flag becomes load-bearing wrong — it tells the verifier
+# `$iy` is dead before any subsequent use, breaking the chain.
+#
+# Fix: walk backwards from the elided LDY clearing `kill` flags on
+# uses of the data register until we hit a previous def or the
+# start of the BB. The slot tracking guarantees the data register
+# value is unchanged across this window, so the kills were only
+# valid because the elided LDY would re-define the register —
+# without it, they're stale.
+
+# CHECK-LABEL: name: elide_clears_kill_iy
+# CHECK-NOT: undefined physical register
+# CHECK-NOT: Bad machine code
+# Elision fires (no LDY @ 16 in the result):
+# CHECK: LDYi_o8 18, $su, implicit-def $iy
+# The STY's $iy use must NOT be `killed` (or the subsequent LEAY
+# would read a dead register). The match below uses `implicit $iy`
+# without `killed` — CHECK-SAME ensures we don't accidentally
+# match a `killed` form.
+# CHECK-NEXT: STYi_o8 16, $su, implicit $iy
+# CHECK-SAME: implicit-def $nz
+# After the elided LDY @ 16: the LEAY directly follows the STY.
+# CHECK-NEXT: LEAYi_o5 3, killed $iy, implicit-def $iy
+
+---
+name: elide_clears_kill_iy
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su, $iy
+    LDYi_o8 18, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    STYi_o8 16, $su, implicit killed $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    LDYi_o8 16, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    nuw nusw inbounds LEAYi_o5 3, killed $iy, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    STYi_o8 0, $iy, implicit killed $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    RTSr
+...

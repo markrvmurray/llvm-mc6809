@@ -799,6 +799,47 @@ bool MC6809FinalLowering::elideStoreReload(MachineFunction &MF) {
         // the load is redundant.
         if (Register *Existing = findSlot(K)) {
           if (*Existing == Cls->DataReg) {
+            // Bug #207: clear stale `killed` flags on uses of DataReg
+            // (or any sub/super-register that overlaps DataReg) that
+            // sit between the matching store and the about-to-be-erased
+            // load. The post-RA scheduler may have set those kill
+            // markers under the assumption that this LDY would re-define
+            // the register; with the LDY going away, the kills become
+            // load-bearing wrong — they tell the verifier that DataReg
+            // is dead before any subsequent use, which would break the
+            // chain.
+            //
+            // Walk backward from MI's predecessor, clearing kill flags
+            // on uses of DataReg/aliased regs. Stop at any earlier def
+            // (that's a fresh independent live range whose kills are
+            // unrelated) or at the start of the BB. Skip non-real
+            // instructions (DBG_VALUE/CFI/etc.).
+            for (auto It = std::prev(MI.getIterator()),
+                      Begin = MBB.instr_begin();;) {
+              if (It->isDebugInstr() || It->isPosition()) {
+                if (It == Begin) break;
+                --It;
+                continue;
+              }
+              bool DefsDataReg = false;
+              for (MachineOperand &MO : It->operands()) {
+                if (!MO.isReg() || !MO.getReg().isPhysical())
+                  continue;
+                if (!TRI->regsOverlap(MO.getReg(), Cls->DataReg))
+                  continue;
+                if (MO.isDef()) {
+                  DefsDataReg = true;
+                  // Don't clear kills on the def's own MI, but the def
+                  // itself bounds the walk — kills before this point
+                  // belong to a prior live range.
+                } else if (MO.isKill()) {
+                  MO.setIsKill(false);
+                }
+              }
+              if (DefsDataReg) break;
+              if (It == Begin) break;
+              --It;
+            }
             MI.eraseFromParent();
             ++NumStoreReloadsElided;
             Changed = true;
