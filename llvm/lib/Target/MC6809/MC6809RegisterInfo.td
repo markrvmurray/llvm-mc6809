@@ -181,10 +181,22 @@ def RS1 : MC6809Reg16<!add(Imag16RegsOffset, 1), "rs1", [RS1LO, RS1HI], [sub_lo_
 def RS2 : MC6809Reg16<!add(Imag16RegsOffset, 2), "rs2", [RS2LO, RS2HI], [sub_lo_byte, sub_hi_byte]>;
 def RS3 : MC6809Reg16<!add(Imag16RegsOffset, 3), "rs3", [RS3LO, RS3HI], [sub_lo_byte, sub_hi_byte]>;
 
-// RS4+ remain standalone (not in constrained allocation classes).
-foreach I = 4...!add(MaxImag16Regs, -1) in {
-  def RS#I: MC6809ImagReg16<!add(I, Imag16RegsOffset), "rs"#!cast<string>(I)>;
-}
+// Bug-#207 follow-up audit (2026-05-02): RS4..RS127 were trimmed
+// after llvm-readelf across 564 .o files (full picolibc HD6309 -Oz
+// libc.a + semihost + every test binary) showed ZERO references to
+// any `__rs4`..`__rs127` symbol. The pool was sized for round-14
+// worst-case pressure (i64-multiply chains) which the subsequent
+// fused-cmp-branch and TFM work has materially relieved. Trimming
+// reclaims ~248 bytes of direct-page address space for user code
+// (`__attribute__((directpage))` per bugs #178/#192/#193).
+//
+// RS0..RS3 are kept: they have byte sub-regs the EXTRACT_LO/HI_i16
+// pseudo expansions and the ADc class still depend on, and several
+// .cpp source sites enumerate them by name (sub-reg-parent map,
+// SpillPreservedMask, MaterializeSpills' IdxReg classifier).
+//
+// To restore the larger pool if needed: re-add the foreach below
+// AND add the names back to ACC16's `add`+`AltOrders` lists below.
 
 // Imaginary 32-bit registers, starting with the prefix rw
 foreach I = 0...!add(MaxImag32Regs, -1) in {
@@ -357,27 +369,22 @@ def BIT8 : MC6809Reg8Class<(add AA, AB, CC)>; // Valid registers for BAND, BEOR,
 // often need the ADc intersection (9 slots). Fine-grained tracking lets
 // the scheduler see per-class pressure and avoid peaks that blow regalloc.
 // Follows the MOS pattern (MOSRegisterInfo.td:165-188).
-// Bug #161 round 14: extend ACC16 with RS4..63 (60 more imaginary 16-bit
-// regs, no byte sub-regs — whole-word access only via the existing
-// LDDd/STDd Imag16 path in materializeReg/dematerializeReg). Expands
-// the ACC16 pool from 14 → 74 slots so i64-multiply-heavy functions
-// (lldiv, strtoull, mktime_utc, tzset etc.) which produce many
-// partial-product i16 vregs simultaneously can fit without exhausting
-// the pool. RS4..63 lack sub_lo_byte / sub_hi_byte, but no in-source
-// pseudo expansion forces byte-extract of an arbitrary ACC16 reg —
-// EXTRACT_LO_i16 / EXTRACT_HI_i16 input is constrained to ADc, which
-// excludes RS4+ by construction.
+//
+// History: Bug #161 round 14 grew the ACC16 pool from 14 → 74 slots
+// by adding RS4..RS63 (60 imaginary 16-bit regs, no byte sub-regs)
+// to absorb partial-product pressure from i64-multiply-heavy
+// functions. Bug-#207 follow-up audit (2026-05-02) showed
+// llvm-readelf across 564 .o files (full picolibc HD6309 -Oz
+// libc.a + semihost + every test binary) found ZERO references to
+// `__rs4`..`__rs63`. The fused-cmp-branch (#203) and TFM work
+// since round 14 cut pressure enough that RS4+ have become pure
+// pool padding. Trimmed back to RS0..RS3 to reclaim ~120 bytes of
+// direct-page address space for user `__attribute__((directpage))`.
 let isPressureFineGrained = true in
 def ACC16 : MC6809Reg16Class<(add AD, AW, SPILL_D0, SPILL_D1, SPILL_D2, SPILL_D3, SPILL_D4, SPILL_D5, SPILL_D6, SPILL_D7,
-  RS0, RS1, RS2, RS3, RS4, RS5, RS6, RS7, RS8, RS9, RS10, RS11, RS12, RS13, RS14, RS15,
-  RS16, RS17, RS18, RS19, RS20, RS21, RS22, RS23, RS24, RS25, RS26, RS27, RS28, RS29, RS30, RS31,
-  RS32, RS33, RS34, RS35, RS36, RS37, RS38, RS39, RS40, RS41, RS42, RS43, RS44, RS45, RS46, RS47,
-  RS48, RS49, RS50, RS51, RS52, RS53, RS54, RS55, RS56, RS57, RS58, RS59, RS60, RS61, RS62, RS63)> {
+  RS0, RS1, RS2, RS3)> {
     let AltOrders = [(add AD, SPILL_D0, SPILL_D1, SPILL_D2, SPILL_D3, SPILL_D4, SPILL_D5, SPILL_D6, SPILL_D7,
-      RS0, RS1, RS2, RS3, RS4, RS5, RS6, RS7, RS8, RS9, RS10, RS11, RS12, RS13, RS14, RS15,
-      RS16, RS17, RS18, RS19, RS20, RS21, RS22, RS23, RS24, RS25, RS26, RS27, RS28, RS29, RS30, RS31,
-      RS32, RS33, RS34, RS35, RS36, RS37, RS38, RS39, RS40, RS41, RS42, RS43, RS44, RS45, RS46, RS47,
-      RS48, RS49, RS50, RS51, RS52, RS53, RS54, RS55, RS56, RS57, RS58, RS59, RS60, RS61, RS62, RS63)];
+      RS0, RS1, RS2, RS3)];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
 }
 // ACC16_D removed 2026-04-16 as the Layer-2 regalloc experiment (bug #118).
@@ -425,7 +432,9 @@ def STACK16 : MC6809Reg16Class<(add SU, SS)>;
 def CCond : MC6809Reg8Class<(add CC)>;
 
 def Imag8 : MC6809Reg8Class<(add (sequence "RC%u", 0, !add(MaxImag8Regs, -1)))>;
-def Imag16 : MC6809Reg16Class<(sequence "RS%u", 0, !add(MaxImag16Regs, -1))>;
+// Imag16 enumerates the existing RS regs only. Trimmed to RS0..RS3
+// (was RS0..RS127) per the bug-#207 follow-up audit; see ACC16 above.
+def Imag16 : MC6809Reg16Class<(add RS0, RS1, RS2, RS3)>;
 def Imag32 : MC6809Reg32Class<(sequence "RW%u", 0, !add(MaxImag32Regs, -1))>;
 
 def AllCCFlag : MC6809Reg1Class<(add E, F, H, I, N, Z, V, C)>;
