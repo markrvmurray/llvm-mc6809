@@ -2578,11 +2578,18 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     MI.addOperand(MachineOperand::CreateImm(1));
     break;
   }
-  case MC6809::ZEX16Implicit:
-    MI.setDesc(Builder.getTII().get(MC6809::CLRAa));
-    MI.removeOperand(1);
-    MI.removeOperand(0);
+  case MC6809::ZEX16Implicit: {
+    // Same SPILL_D* concern as ZEX32Implicit (bug #208 round 2): CLRAa
+    // zeros AA leaving AB = src, so AD holds the correct (0:src) i16
+    // — but if regalloc allocated the dst to a SPILL_D* slot the
+    // result must be STD'd to it before downstream consumers read.
+    Register DstReg = MI.getOperand(0).getReg();
+    Builder.buildInstr(MC6809::CLRAa);
+    if (DstReg != MC6809::AD)
+      dematerializeReg(Builder, MC6809::AD, DstReg, *MI.getMF());
+    MI.eraseFromParent();
     break;
+  }
   case MC6809::ZEX32Implicit: {
     // Source may be AD, AW, or any other ACC16 member that survives
     // MaterializeSpills (notably the imaginary direct-page RS0..RS3).
