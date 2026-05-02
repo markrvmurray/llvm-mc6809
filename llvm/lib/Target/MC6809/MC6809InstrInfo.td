@@ -539,6 +539,19 @@ let mayLoad = false, mayStore = false, isBranch = false, isTerminator = false in
 let mayLoad = false, mayStore = false, isBranch = true, isTerminator = true in {
   def Bbc   : MC6809ShortConditionalBranch_P1<(outs), "b$cond",  Opcode<0x02,1>, [], [N, Z, V, C]>;
   def LBlbc : MC6809LongConditionalBranch_P2<(outs),  "lb$cond", Opcode<0x02,2>, [], [N, Z, V, C]>;
+
+  // Bug #206: NoC variants for cc values that don't actually consume C
+  // at runtime ({EQ, NE, VC, VS, PL, MI, GE, LT, GT, LE, RA, RN}).
+  // Encoding-equivalent to Bbc/LBlbc (same opcode byte, same cc-immediate
+  // encoding); marked `isCodeGenOnly = 1` so the disassembler always
+  // produces the canonical Bbc/LBlbc, not these variants. The verifier
+  // sees the tighter Uses = [N, Z, V] and stops complaining about $c
+  // being undefined after a TST predecessor (which sets N/Z/V but
+  // hardware-preserves C).
+  let isCodeGenOnly = 1 in {
+    def Bbc_NoC   : MC6809ShortConditionalBranch_P1<(outs), "b$cond",  Opcode<0x02,1>, [], [N, Z, V]>;
+    def LBlbc_NoC : MC6809LongConditionalBranch_P2<(outs),  "lb$cond", Opcode<0x02,2>, [], [N, Z, V]>;
+  }
 }
 
 // Subroutine call: short (BSR) + long (LBSR).

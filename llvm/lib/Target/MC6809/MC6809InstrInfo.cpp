@@ -317,9 +317,32 @@ static bool isFusedCompareBranch(unsigned Opc) {
   }
 }
 
+// Bug #206: select the verifier-friendly Bbc/LBlbc variant. The _NoC
+// variants are encoding-equivalent codegen-only opcodes that declare
+// `Uses = [N, Z, V]` (no C); used when the cc immediate doesn't read
+// C at runtime. The canonical Bbc/LBlbc keeps the union `Uses =
+// [N, Z, V, C]`. Predicate lives in MC6809.h:MC6809CC::doesNotReadCarry
+// so the same logic is reused by the GISel selector.
+static unsigned pickBbcVariant(int64_t CC) {
+  return MC6809CC::doesNotReadCarry(CC) ? MC6809::Bbc_NoC : MC6809::Bbc;
+}
+
+static unsigned pickLBlbcVariant(int64_t CC) {
+  return MC6809CC::doesNotReadCarry(CC) ? MC6809::LBlbc_NoC : MC6809::LBlbc;
+}
+
+// Bug #206: classify Bbc / Bbc_NoC / LBlbc / LBlbc_NoC uniformly.
+// All four are the same hardware instruction with different LLVM-side
+// metadata (the _NoC variants declare a tighter Uses set so the
+// verifier doesn't false-positive on TST + branch pairs).
+static bool isBbcOrLBlbc(unsigned Opc) {
+  return Opc == MC6809::Bbc || Opc == MC6809::Bbc_NoC ||
+         Opc == MC6809::LBlbc || Opc == MC6809::LBlbc_NoC;
+}
+
 bool MC6809InstrInfo::isCondBranch(const MachineBasicBlock::instr_iterator &I) const {
   if (I->isBranch()) {
-    if (I->getOpcode() == MC6809::Bbc || I->getOpcode() == MC6809::LBlbc)
+    if (isBbcOrLBlbc(I->getOpcode()))
       return I->getOperand(0).getImm() != MC6809CC::RA;
     if (isFusedCompareBranch(I->getOpcode()))
       return true;
@@ -330,7 +353,7 @@ bool MC6809InstrInfo::isCondBranch(const MachineBasicBlock::instr_iterator &I) c
 
 bool MC6809InstrInfo::isUnCondBranch(const MachineBasicBlock::instr_iterator &I) const {
   if (I->isBranch()) {
-    if (I->getOpcode() == MC6809::Bbc || I->getOpcode() == MC6809::LBlbc)
+    if (isBbcOrLBlbc(I->getOpcode()))
       return I->getOperand(0).getImm() == MC6809CC::RA;
     return I->isUnconditionalBranch();
   }
@@ -340,7 +363,7 @@ bool MC6809InstrInfo::isUnCondBranch(const MachineBasicBlock::instr_iterator &I)
 MachineBasicBlock *MC6809InstrInfo::getBB(const MachineBasicBlock::instr_iterator &I) const {
   if (I->getOpcode() == TargetOpcode::G_BR || I->getOpcode() == MC6809::BranchRelative || I->getOpcode() == MC6809::LongBranchRelative || I->getOpcode() == MC6809::JMPe || I->getOpcode() == MC6809::JMPi_o16PC)
     return I->getOperand(0).getMBB();
-  if (I->getOpcode() == TargetOpcode::G_BRCOND || I->getOpcode() == MC6809::ConditionalBranchRelative || I->getOpcode() == MC6809::ConditionalLongBranchRelative || I->getOpcode() == MC6809::Bbc || I->getOpcode() == MC6809::LBlbc)
+  if (I->getOpcode() == TargetOpcode::G_BRCOND || I->getOpcode() == MC6809::ConditionalBranchRelative || I->getOpcode() == MC6809::ConditionalLongBranchRelative || isBbcOrLBlbc(I->getOpcode()))
     return I->getOperand(1).getMBB();
   // Fused compare-and-branch: target MBB is the last operand.
   if (isFusedCompareBranch(I->getOpcode()))
@@ -537,6 +560,7 @@ bool MC6809InstrInfo::isBranchOffsetInRange(unsigned BranchOpc, int64_t BrOffset
   case MC6809::JumpRelative:
   case MC6809::BRAb:
   case MC6809::Bbc:
+  case MC6809::Bbc_NoC: // bug #206: encoding-equivalent variant
     return isInt<8>(BrOffset - 2);   // 2-byte short forms
   case MC6809::LongBranchRelative:
   case MC6809::LongJumpRelative:
@@ -544,6 +568,7 @@ bool MC6809InstrInfo::isBranchOffsetInRange(unsigned BranchOpc, int64_t BrOffset
     return isInt<16>(BrOffset - 3);  // 3-byte page-1 long
   case MC6809::ConditionalLongBranchRelative:
   case MC6809::LBlbc:
+  case MC6809::LBlbc_NoC: // bug #206: encoding-equivalent variant
     return isInt<16>(BrOffset - 4);  // 4-byte page-2 long
   default:
     // Unknown branch opcode — be conservative and say it's in range so we
@@ -587,7 +612,9 @@ MachineBasicBlock *MC6809InstrInfo::getBranchDestBlock(const MachineInstr &MI) c
   case TargetOpcode::G_BR:
     return MI.getOperand(0).getMBB();
   case MC6809::Bbc:
+  case MC6809::Bbc_NoC: // bug #206
   case MC6809::LBlbc:
+  case MC6809::LBlbc_NoC: // bug #206
   case MC6809::ConditionalBranchRelative:
   case MC6809::ConditionalLongBranchRelative:
   case TargetOpcode::G_BRCOND:
@@ -714,8 +741,10 @@ bool MC6809InstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock *&
         // Emit short by default; standard LLVM BranchRelaxation widens
         // via CFG-split + insertIndirectBranch when the displacement is
         // out of int8 range (bug #174). BuildMI auto-attaches the
-        // implicit Uses on N/Z/V/C declared by Bbc's MCInstrDesc.
-        BuildMI(MBB, UnCondBrIter, MBB.findDebugLoc(I), get(MC6809::Bbc)).addImm(CC).addMBB(UnCondBrIter->getOperand(0).getMBB());
+        // implicit Uses declared by the chosen Bbc/Bbc_NoC MCInstrDesc
+        // (bug #206 picker — _NoC drops C from Uses for cc that doesn't
+        // consume it).
+        BuildMI(MBB, UnCondBrIter, MBB.findDebugLoc(I), get(pickBbcVariant(CC))).addImm(CC).addMBB(UnCondBrIter->getOperand(0).getMBB());
         BuildMI(MBB, UnCondBrIter, MBB.findDebugLoc(I), get(MC6809::BRAb)).addMBB(TargetBB);
 
         OldInst->eraseFromParent();
@@ -780,7 +809,10 @@ unsigned MC6809InstrInfo::insertBranch(MachineBasicBlock &MBB, MachineBasicBlock
   } else {
     // Conditional branch — emit short by default. BranchRelaxation
     // widens via CFG-split + insertIndirectBranch as needed (bug #174).
-    Bytes += getInstSizeInBytes(*BuildMI(&MBB, DL, get(MC6809::Bbc)).add(Cond[0]).addMBB(TBB));
+    // Bug #206: pickBbcVariant selects Bbc_NoC for cc that doesn't
+    // consume C — verifier-friendly, encoding-equivalent.
+    int64_t CC = Cond[0].getImm();
+    Bytes += getInstSizeInBytes(*BuildMI(&MBB, DL, get(pickBbcVariant(CC))).add(Cond[0]).addMBB(TBB));
     ++Count;
 
     // If FBB is null, it is implied to be a fall-through block.
@@ -2082,33 +2114,41 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     // force a long branch regardless of distance.
     MI.setDesc(Builder.getTII().get(MC6809::LBRAlb));
     break;
-  case MC6809::ConditionalBranchRelative:
+  case MC6809::ConditionalBranchRelative: {
     // Emit short by default. Strip the pseudo's CCond:$bits operand —
     // the assembler encoding has no register field — and replace it
-    // with the implicit Uses on N/Z/V/C declared by Bbc (bug #137).
-    // Without these implicit uses the post-RA MachineInstr would lack
-    // any CC dependency at all and the scheduler would freely insert
-    // flag-clobbering instructions between the cmp and this branch.
-    // BranchRelaxation widens to LBlbc via CFG-split + insertBranch +
-    // insertIndirectBranch when the displacement is out of int8 range
-    // (bug #174).
-    MI.setDesc(Builder.getTII().get(MC6809::Bbc));
+    // with the implicit Uses on N/Z/V(/C) declared by Bbc/Bbc_NoC
+    // (bug #137 + bug #206). Without these implicit uses the post-RA
+    // MachineInstr would lack any CC dependency at all and the
+    // scheduler would freely insert flag-clobbering instructions
+    // between the cmp and this branch. BranchRelaxation widens to
+    // LBlbc via CFG-split + insertBranch + insertIndirectBranch when
+    // the displacement is out of int8 range (bug #174).
+    int64_t CC = MI.getOperand(0).getImm();
+    bool NoC = MC6809CC::doesNotReadCarry(CC); // bug #206
+    MI.setDesc(Builder.getTII().get(NoC ? MC6809::Bbc_NoC : MC6809::Bbc));
     MI.removeOperand(2);
     MI.addOperand(MachineOperand::CreateReg(MC6809::N, /*isDef=*/false, /*isImp=*/true));
     MI.addOperand(MachineOperand::CreateReg(MC6809::Z, /*isDef=*/false, /*isImp=*/true));
     MI.addOperand(MachineOperand::CreateReg(MC6809::V, /*isDef=*/false, /*isImp=*/true));
-    MI.addOperand(MachineOperand::CreateReg(MC6809::C, /*isDef=*/false, /*isImp=*/true));
+    if (!NoC)
+      MI.addOperand(MachineOperand::CreateReg(MC6809::C, /*isDef=*/false, /*isImp=*/true));
     break;
-  case MC6809::ConditionalLongBranchRelative:
+  }
+  case MC6809::ConditionalLongBranchRelative: {
     // Explicit long conditional pseudo — escape hatch. Same operand
-    // shape transformation as the short form above.
-    MI.setDesc(Builder.getTII().get(MC6809::LBlbc));
+    // shape transformation as the short form above (bug #206 picker).
+    int64_t CC = MI.getOperand(0).getImm();
+    bool NoC = MC6809CC::doesNotReadCarry(CC); // bug #206
+    MI.setDesc(Builder.getTII().get(NoC ? MC6809::LBlbc_NoC : MC6809::LBlbc));
     MI.removeOperand(2);
     MI.addOperand(MachineOperand::CreateReg(MC6809::N, /*isDef=*/false, /*isImp=*/true));
     MI.addOperand(MachineOperand::CreateReg(MC6809::Z, /*isDef=*/false, /*isImp=*/true));
     MI.addOperand(MachineOperand::CreateReg(MC6809::V, /*isDef=*/false, /*isImp=*/true));
-    MI.addOperand(MachineOperand::CreateReg(MC6809::C, /*isDef=*/false, /*isImp=*/true));
+    if (!NoC)
+      MI.addOperand(MachineOperand::CreateReg(MC6809::C, /*isDef=*/false, /*isImp=*/true));
     break;
+  }
   case MC6809::ReturnImplicit:
     MI.setDesc(Builder.getTII().get(MC6809::RTSr));
     MI.removeOperand(0);
@@ -5626,8 +5666,10 @@ void MC6809InstrInfo::expandFusedCompareBranch(MachineIRBuilder &Builder, Machin
   for (unsigned I = 0; I < NumOps - 1; ++I)
     CmpMI.add(MI.getOperand(I));
 
-  // Emit the conditional branch.
-  Builder.buildInstr(MC6809::LBlbc)
+  // Emit the conditional branch — bug #206 picker selects LBlbc_NoC
+  // when the cc doesn't actually consume $c, so the verifier doesn't
+  // false-positive on TST-style predecessors.
+  Builder.buildInstr(pickLBlbcVariant(CC))
       .addImm(CC)
       .addMBB(TargetMBB);
 

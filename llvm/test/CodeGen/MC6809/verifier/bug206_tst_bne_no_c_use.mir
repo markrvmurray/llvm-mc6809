@@ -1,0 +1,38 @@
+# RUN: llc -mtriple=mc6809 -mcpu=hd6309 -run-pass=none \
+# RUN:   -verify-machineinstrs %s -o - 2>&1 | FileCheck %s
+
+# Bug #206: TST sets N/Z, clears V, hardware-preserves C. The
+# canonical LBlbc declares Uses=[N,Z,V,C] (union over all cc immediates
+# it might carry). For cc=NE, only $z is actually consumed at runtime
+# — the $c read is a verifier-noise artifact of the union declaration.
+#
+# Fix: introduce LBlbc_NoC, encoding-equivalent to LBlbc but declaring
+# Uses=[N,Z,V] (no C). Picker selects this variant for cc that doesn't
+# need C. This regression test asserts the verifier accepts the
+# TST + LBlbc_NoC sequence (which prior to the fix, with LBlbc's
+# Uses=[N,Z,V,C], would fire 'Using an undefined physical register'
+# on $c).
+
+# CHECK-LABEL: name: tst_bne_uses_nzv_only
+# CHECK-NOT: undefined physical register
+# CHECK-NOT: Bad machine code
+
+---
+name: tst_bne_uses_nzv_only
+tracksRegLiveness: true
+body: |
+  bb.0:
+    successors: %bb.1, %bb.2
+    liveins: $ab
+    TSTBa implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ab
+    LBlbc_NoC 6, %bb.1, implicit $n, implicit $z, implicit $v
+    BRAb %bb.2
+
+  bb.1:
+    liveins: $ab
+    RTSr
+
+  bb.2:
+    liveins: $ab
+    RTSr
+...

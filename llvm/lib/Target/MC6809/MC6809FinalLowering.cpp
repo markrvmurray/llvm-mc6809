@@ -863,7 +863,10 @@ bool MC6809FinalLowering::foldBranchOverBranch(MachineFunction &MF) {
       MF.getSubtarget().getInstrInfo());
 
   auto isCondBranch = [](unsigned Opc) {
-    return Opc == MC6809::Bbc || Opc == MC6809::LBlbc ||
+    // Bug #206: Bbc_NoC and LBlbc_NoC are encoding-equivalent codegen-only
+    // variants that just declare a tighter Uses set; treat identically.
+    return Opc == MC6809::Bbc || Opc == MC6809::Bbc_NoC ||
+           Opc == MC6809::LBlbc || Opc == MC6809::LBlbc_NoC ||
            Opc == MC6809::ConditionalBranchRelative ||
            Opc == MC6809::ConditionalLongBranchRelative;
   };

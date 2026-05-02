@@ -148,6 +148,26 @@ inline static CondCode getOppositeCondition(CondCode CC) {
   }
 }
 
+/// Bug #206: condition codes that don't actually read $c at runtime.
+/// Used by the Bbc/Bbc_NoC and LBlbc/LBlbc_NoC variant pickers — the
+/// _NoC variants declare a tighter `Uses = [N, Z, V]` so the verifier
+/// doesn't false-positive on TST + branch pairs (TST sets N/Z/V and
+/// hardware-preserves C; the canonical Bbc/LBlbc declares the union
+/// `[N, Z, V, C]` per design).
+inline static bool doesNotReadCarry(int64_t CC) {
+  switch (CC) {
+  case EQ: case NE:
+  case VC: case VS:
+  case PL: case MI:
+  case GE: case LT:
+  case GT: case LE:
+  case RA: case INVALID: // RN aliases INVALID
+    return true;
+  default: // HS/CC, LO/CS, HI, LS — these consume C
+    return false;
+  }
+}
+
 /// getSwappedCondition - assume the flags are set by MI(a,b), return
 /// the condition code if we modify the instructions such that flags are
 /// set by MI(b,a).

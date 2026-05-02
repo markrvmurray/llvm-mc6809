@@ -1521,7 +1521,12 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
             return true;
           }
         }
-        BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(MC6809::LBlbc))
+        // Bug #206: pick LBlbc_NoC for cc that doesn't actually consume
+        // C — keeps the verifier happy when the compare predecessor
+        // doesn't define C (e.g. TST family).
+        unsigned LBlbcOpc = MC6809CC::doesNotReadCarry(CC) ?
+            MC6809::LBlbc_NoC : MC6809::LBlbc;
+        BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(LBlbcOpc))
             .addImm(CC)
             .addMBB(TargetMBB);
         MI.eraseFromParent();
@@ -1556,7 +1561,12 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
 
     if (Phantom != PhantomNone) {
       unsigned CC = (Phantom == PhantomCarry) ? MC6809CC::CS : MC6809CC::VS;
-      BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(MC6809::LBlbc))
+      // Bug #206: VS doesn't consume C (PhantomOverflow path) so we can
+      // emit LBlbc_NoC; CS does consume C (PhantomCarry) and needs the
+      // canonical LBlbc.
+      unsigned LBlbcOpc = (Phantom == PhantomCarry) ?
+          MC6809::LBlbc : MC6809::LBlbc_NoC;
+      BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(LBlbcOpc))
           .addImm(CC)
           .addMBB(TargetMBB);
       MI.eraseFromParent();

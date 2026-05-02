@@ -1,0 +1,31 @@
+# RUN: llc -mtriple=mc6809 -mcpu=hd6309 -run-pass=postrapseudos \
+# RUN:   -verify-machineinstrs %s -o - 2>&1 | FileCheck %s
+
+# Bug #206 negative sentinel: when the cc DOES consume C (HS, LO, HI,
+# LS, CS, CC), the picker must select the canonical LBlbc, not the
+# _NoC variant. Test cc=HS (4) which is the unsigned-higher-or-same
+# comparison and reads C.
+
+# CHECK-LABEL: name: cmp_hs_canonical_lblbc
+# CHECK-NOT: undefined physical register
+# CHECK-NOT: Bad machine code
+# CHECK-NOT: LBlbc_NoC
+
+---
+name: cmp_hs_canonical_lblbc
+tracksRegLiveness: true
+body: |
+  bb.0:
+    successors: %bb.1, %bb.2
+    liveins: $ad
+    CompareBranch_i16_Imm 4, $ad, 1, %bb.1, implicit-def $nz, implicit-def $v, implicit-def $c
+    LongBranchRelative %bb.2
+
+  bb.1:
+    liveins: $ad
+    RTSr
+
+  bb.2:
+    liveins: $ad
+    RTSr
+...
