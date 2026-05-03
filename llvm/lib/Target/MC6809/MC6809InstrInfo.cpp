@@ -1071,6 +1071,9 @@ static unsigned getLoadIdxOpcode(Register Reg, int Offset) {
   if (Reg == MC6809::AA) return Is8 ? MC6809::LDAi_o8 : MC6809::LDAi_o16;
   if (Reg == MC6809::AB) return Is8 ? MC6809::LDBi_o8 : MC6809::LDBi_o16;
   if (Reg == MC6809::AD) return Is8 ? MC6809::LDDi_o8 : MC6809::LDDi_o16;
+  if (Reg == MC6809::AE) return Is8 ? MC6809::LDEi_o8 : MC6809::LDEi_o16;
+  if (Reg == MC6809::AF) return Is8 ? MC6809::LDFi_o8 : MC6809::LDFi_o16;
+  if (Reg == MC6809::AW) return Is8 ? MC6809::LDWi_o8 : MC6809::LDWi_o16;
   if (Reg == MC6809::IX) return Is8 ? MC6809::LDXi_o8 : MC6809::LDXi_o16;
   if (Reg == MC6809::IY) return Is8 ? MC6809::LDYi_o8 : MC6809::LDYi_o16;
   if (Reg == MC6809::AQ) return Is8 ? MC6809::LDQi_o8 : MC6809::LDQi_o16;
@@ -1083,6 +1086,9 @@ static unsigned getStoreIdxOpcode(Register Reg, int Offset) {
   if (Reg == MC6809::AA) return Is8 ? MC6809::STAi_o8 : MC6809::STAi_o16;
   if (Reg == MC6809::AB) return Is8 ? MC6809::STBi_o8 : MC6809::STBi_o16;
   if (Reg == MC6809::AD) return Is8 ? MC6809::STDi_o8 : MC6809::STDi_o16;
+  if (Reg == MC6809::AE) return Is8 ? MC6809::STEi_o8 : MC6809::STEi_o16;
+  if (Reg == MC6809::AF) return Is8 ? MC6809::STFi_o8 : MC6809::STFi_o16;
+  if (Reg == MC6809::AW) return Is8 ? MC6809::STWi_o8 : MC6809::STWi_o16;
   if (Reg == MC6809::IX) return Is8 ? MC6809::STXi_o8 : MC6809::STXi_o16;
   if (Reg == MC6809::IY) return Is8 ? MC6809::STYi_o8 : MC6809::STYi_o16;
   if (Reg == MC6809::AQ) return Is8 ? MC6809::STQi_o8 : MC6809::STQi_o16;
