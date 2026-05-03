@@ -155,7 +155,16 @@ defm Store_i8 : MC6809Store<ACC8>;
 defm Store_i16 : MC6809Store<ACC16>;
 defm Store_iPtr : MC6809Store<INDEX16>;
 let Predicates = [IsHD6309] in {
-  defm Store_i32 : MC6809Store<ACC32>;
+  // Bug #208 follow-up: same idea as Load_i32 -- src constrained to
+  // AQc (= just AQ) instead of ACC32 (= AQ + SPILL_Q0..3). When src
+  // is in SPILL_Q*, expandStoreIdx stages via AQ (LDQ from slot, STQ
+  // to memory); the LDQ clobbers AA/AB/AE/AF/AD/AW (sub-regs of AQ)
+  // which the pseudo's NZ/V-only Defs list hides from regalloc.
+  // Constraining src to AQc lets sub-reg aliasing expose the clobber;
+  // a SPILL_Q*-resident value gets a normal `$aq = COPY $spill_q*`
+  // (LDQ from slot into AQ) inserted by regalloc which then sees the
+  // clobber properly.
+  defm Store_i32 : MC6809Store<AQc>;
 }
 
 // --- Concrete instructions (register-specific, assembler/disassembler) ---
@@ -202,7 +211,8 @@ defm StorePat_i8 : MC6809StorePat<i8, ACC8>;
 defm StorePat_i16 : MC6809StorePat<i16, ACC16>;
 defm StorePat_iPtr : MC6809StorePat<i16, INDEX16>;
 let Predicates = [IsHD6309] in {
-  defm StorePat_i32 : MC6809StorePat<i32, ACC32>;
+  // Match the Store_i32 pseudo's AQc src class (bug #208 follow-up).
+  defm StorePat_i32 : MC6809StorePat<i32, AQc>;
 }
 
 //===----------------------------------------------------------------------===//
