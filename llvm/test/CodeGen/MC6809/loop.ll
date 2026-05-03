@@ -136,6 +136,7 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; MC6809-O1-NEXT:    std 4,u
 ; MC6809-O1-NEXT:    clra
 ; MC6809-O1-NEXT:    std 8,u
+; MC6809-O1-NEXT:    ldd 4,u
 ; MC6809-O1-NEXT:    ldd #0
 ; MC6809-O1-NEXT:    std 14,u
 ; MC6809-O1-NEXT:  .LBB0_2: ; %for.body
@@ -194,6 +195,7 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; MC6809-O2-NEXT:    std 4,u
 ; MC6809-O2-NEXT:    clra
 ; MC6809-O2-NEXT:    std 8,u
+; MC6809-O2-NEXT:    ldd 4,u
 ; MC6809-O2-NEXT:    ldd #0
 ; MC6809-O2-NEXT:    std 14,u
 ; MC6809-O2-NEXT:  .LBB0_2: ; %for.body
@@ -252,6 +254,7 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; MC6809-O3-NEXT:    std 4,u
 ; MC6809-O3-NEXT:    clra
 ; MC6809-O3-NEXT:    std 8,u
+; MC6809-O3-NEXT:    ldd 4,u
 ; MC6809-O3-NEXT:    ldd #0
 ; MC6809-O3-NEXT:    std 14,u
 ; MC6809-O3-NEXT:  .LBB0_2: ; %for.body
