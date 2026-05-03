@@ -1186,11 +1186,15 @@ static Register getLsbSpillByteHalf(Register Reg) {
   }
 }
 
-/// Which ACC8 byte (AA or AB) does a real BIT1 register live in?
-/// AALSB ↔ AA, ABLSB ↔ AB.
+/// Which ACC8 byte (AA, AB, AE, AF) does a real BIT1 register live in?
+/// AALSB ↔ AA, ABLSB ↔ AB, AELSB ↔ AE, AFLSB ↔ AF (HD6309 page-3 sub-bytes).
+/// BIT1 has 4 members; if a copy reaches here with one of the page-3 LSBs,
+/// route through the corresponding parent byte register.
 static Register getBit1ByteHalf(Register Reg) {
   if (Reg == MC6809::AA || Reg == MC6809::AALSB) return MC6809::AA;
   if (Reg == MC6809::AB || Reg == MC6809::ABLSB) return MC6809::AB;
+  if (Reg == MC6809::AE || Reg == MC6809::AELSB) return MC6809::AE;
+  if (Reg == MC6809::AF || Reg == MC6809::AFLSB) return MC6809::AF;
   llvm_unreachable("Not a BIT1 hardware register");
 }
 
