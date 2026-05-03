@@ -40,7 +40,16 @@ defm Load_i8 : MC6809Load<ACC8, i8>;
 defm Load_i16 : MC6809Load<ACC16, i16>;
 defm Load_iPtr : MC6809Load<INDEX16, i16>;
 let Predicates = [IsHD6309] in {
-  defm Load_i32 : MC6809Load<ACC32, i32>;
+  // Bug #208 round 4: dst constrained to AQc (= just AQ) instead of
+  // the wider ACC32 (= AQ + SPILL_Q0..3). expandLoadImm's SPILL_Q*
+  // path stages through AQ via LDQ, which clobbers AA/AB/AE/AF/AD/AW
+  // (sub-regs of AQ). Constraining to AQc forces regalloc to know the
+  // result lives in AQ; sub-reg aliasing then prevents it from
+  // keeping AA/etc. live across the pseudo. If a downstream consumer
+  // wants the value in a SPILL_Q* slot, regalloc inserts a normal
+  // ACC32 → SPILL_Q* COPY whose own clobber set (just an STQ, no
+  // LDQ) is bounded.
+  defm Load_i32 : MC6809Load<AQc, i32>;
 }
 
 // Loads a boolean value into a NZVC bit or an ACC8 LSB
