@@ -5730,3 +5730,19 @@
 # CHECK: addf	0
 0x11 0xfb 0x00 0x00
 
+# Bug #212 — HD6309 TFR/EXG postbyte: code 6 = W, code 7 = V.
+# RegDecoderTable in MC6809Disassembler.cpp had AV/AW swapped at
+# indices 6/7 until the fix; verify all four round-trip cases.
+
+# CHECK: tfr	d,w
+0x1f 0x06
+
+# CHECK: tfr	d,v
+0x1f 0x07
+
+# CHECK: exg	w,d
+0x1e 0x60
+
+# CHECK: exg	v,d
+0x1e 0x70
+

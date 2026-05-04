@@ -120,7 +120,19 @@ static DecodeStatus DecodeRegListOperand(MCInst &MI, uint64_t Bits, uint64_t Add
   return MCDisassembler::Success;
 }
 
-static const unsigned RegDecoderTable[] = {MC6809::AD, MC6809::IX, MC6809::IY, MC6809::SU, MC6809::SS, MC6809::PC, MC6809::AV, MC6809::AW, MC6809::AA, MC6809::AB, MC6809::CC, MC6809::DP, MC6809::A0, MC6809::A0, MC6809::AE, MC6809::AF};
+// Bug #212 (disassembler half): the HD6309 TFR/EXG postbyte spec
+// assigns code 6 to W (16-bit accumulator E:F) and code 7 to V
+// (16-bit user register). The encoder at MC6809MCCodeEmitter.cpp:176
+// gets this right (AW→6, AV→7), and the AsmParser does too. Until
+// this fix the disassembler had AV/AW swapped at indices 6/7 in
+// RegDecoderTable, so `1f 06` (codegen-emitted `tfr d,w`) rendered
+// as `tfr d,v` in llvm-objdump. Cosmetic only — the binary running
+// on real HD6309 / MAME was always correct — but the misrendering
+// made bug #212's earlier asm-level diagnosis look more alarming
+// than it was (the apparent `tfr d,v` followed by `stw 6,y`
+// suggested a value-routing miscompile when it's actually a
+// preserve-D-into-W ahead of an unrelated B reload).
+static const unsigned RegDecoderTable[] = {MC6809::AD, MC6809::IX, MC6809::IY, MC6809::SU, MC6809::SS, MC6809::PC, MC6809::AW, MC6809::AV, MC6809::AA, MC6809::AB, MC6809::CC, MC6809::DP, MC6809::A0, MC6809::A0, MC6809::AE, MC6809::AF};
 
 static DecodeStatus DecodeRegOperand(MCInst &MI, uint64_t RegNo, uint64_t Address, const MCDisassembler *Decoder) {
   if (RegNo > 15)
