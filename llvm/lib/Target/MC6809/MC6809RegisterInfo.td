@@ -293,6 +293,28 @@ def SPILL_X1 : MC6809Reg16<0x2012, "spill_x1">;
 def SPILL_X2 : MC6809Reg16<0x2014, "spill_x2">;
 def SPILL_X3 : MC6809Reg16<0x2016, "spill_x3">;
 
+// ACC32 spill pseudo-registers (HD6309 only — backed by 4-byte stack slots,
+// expanded via LDQ/STQ). Bug #161 round 14: each SPILL_Q has dummy half-
+// word sub-registers (SPILL_QnHI / SPILL_QnLO, big-endian: HI at +0, LO
+// at +2 in the slot). The half-word sub-regs are NOT in any allocatable
+// class — they only exist so the VirtRegMap rewriter can substitute
+// sub_lo_word / sub_hi_word indices to a valid PhysReg. The post-RA
+// expansion of EXTRACT_LO/HI_word_i32 (and any other sub-reg user)
+// detects these sub-regs and reads from the right offset of the
+// dedicated SPILL_Q stack slot.
+def SPILL_Q0HI : MC6809Reg<0x2030, "spill_q0_hi">;
+def SPILL_Q0LO : MC6809Reg<0x2031, "spill_q0_lo">;
+def SPILL_Q1HI : MC6809Reg<0x2032, "spill_q1_hi">;
+def SPILL_Q1LO : MC6809Reg<0x2033, "spill_q1_lo">;
+def SPILL_Q2HI : MC6809Reg<0x2034, "spill_q2_hi">;
+def SPILL_Q2LO : MC6809Reg<0x2035, "spill_q2_lo">;
+def SPILL_Q3HI : MC6809Reg<0x2036, "spill_q3_hi">;
+def SPILL_Q3LO : MC6809Reg<0x2037, "spill_q3_lo">;
+def SPILL_Q0 : MC6809Reg32<0x2018, "spill_q0", [SPILL_Q0LO, SPILL_Q0HI], [sub_lo_word, sub_hi_word]>;
+def SPILL_Q1 : MC6809Reg32<0x201C, "spill_q1", [SPILL_Q1LO, SPILL_Q1HI], [sub_lo_word, sub_hi_word]>;
+def SPILL_Q2 : MC6809Reg32<0x2020, "spill_q2", [SPILL_Q2LO, SPILL_Q2HI], [sub_lo_word, sub_hi_word]>;
+def SPILL_Q3 : MC6809Reg32<0x2024, "spill_q3", [SPILL_Q3LO, SPILL_Q3HI], [sub_lo_word, sub_hi_word]>;
+
 //===----------------------------------------------------------------------===//
 //  Register classes
 //===----------------------------------------------------------------------===//
@@ -332,9 +354,27 @@ def BIT8 : MC6809Reg8Class<(add AA, AB, CC)>; // Valid registers for BAND, BEOR,
 // often need the ADc intersection (9 slots). Fine-grained tracking lets
 // the scheduler see per-class pressure and avoid peaks that blow regalloc.
 // Follows the MOS pattern (MOSRegisterInfo.td:165-188).
+// Bug #161 round 14: extend ACC16 with RS4..63 (60 more imaginary 16-bit
+// regs, no byte sub-regs — whole-word access only via the existing
+// LDDd/STDd Imag16 path in materializeReg/dematerializeReg). Expands
+// the ACC16 pool from 14 → 74 slots so i64-multiply-heavy functions
+// (lldiv, strtoull, mktime_utc, tzset etc.) which produce many
+// partial-product i16 vregs simultaneously can fit without exhausting
+// the pool. RS4..63 lack sub_lo_byte / sub_hi_byte, but no in-source
+// pseudo expansion forces byte-extract of an arbitrary ACC16 reg —
+// EXTRACT_LO_i16 / EXTRACT_HI_i16 input is constrained to ADc, which
+// excludes RS4+ by construction.
 let isPressureFineGrained = true in
-def ACC16 : MC6809Reg16Class<(add AD, AW, SPILL_D0, SPILL_D1, SPILL_D2, SPILL_D3, SPILL_D4, SPILL_D5, SPILL_D6, SPILL_D7, RS0, RS1, RS2, RS3)> {
-    let AltOrders = [(add AD, SPILL_D0, SPILL_D1, SPILL_D2, SPILL_D3, SPILL_D4, SPILL_D5, SPILL_D6, SPILL_D7, RS0, RS1, RS2, RS3)];
+def ACC16 : MC6809Reg16Class<(add AD, AW, SPILL_D0, SPILL_D1, SPILL_D2, SPILL_D3, SPILL_D4, SPILL_D5, SPILL_D6, SPILL_D7,
+  RS0, RS1, RS2, RS3, RS4, RS5, RS6, RS7, RS8, RS9, RS10, RS11, RS12, RS13, RS14, RS15,
+  RS16, RS17, RS18, RS19, RS20, RS21, RS22, RS23, RS24, RS25, RS26, RS27, RS28, RS29, RS30, RS31,
+  RS32, RS33, RS34, RS35, RS36, RS37, RS38, RS39, RS40, RS41, RS42, RS43, RS44, RS45, RS46, RS47,
+  RS48, RS49, RS50, RS51, RS52, RS53, RS54, RS55, RS56, RS57, RS58, RS59, RS60, RS61, RS62, RS63)> {
+    let AltOrders = [(add AD, SPILL_D0, SPILL_D1, SPILL_D2, SPILL_D3, SPILL_D4, SPILL_D5, SPILL_D6, SPILL_D7,
+      RS0, RS1, RS2, RS3, RS4, RS5, RS6, RS7, RS8, RS9, RS10, RS11, RS12, RS13, RS14, RS15,
+      RS16, RS17, RS18, RS19, RS20, RS21, RS22, RS23, RS24, RS25, RS26, RS27, RS28, RS29, RS30, RS31,
+      RS32, RS33, RS34, RS35, RS36, RS37, RS38, RS39, RS40, RS41, RS42, RS43, RS44, RS45, RS46, RS47,
+      RS48, RS49, RS50, RS51, RS52, RS53, RS54, RS55, RS56, RS57, RS58, RS59, RS60, RS61, RS62, RS63)];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
 }
 // ACC16_D removed 2026-04-16 as the Layer-2 regalloc experiment (bug #118).
@@ -346,7 +386,13 @@ def ACC16 : MC6809Reg16Class<(add AD, AW, SPILL_D0, SPILL_D1, SPILL_D2, SPILL_D3
 // is no longer a 1-register class. See project_regalloc_two_layer_bottleneck.md.
 // The single in-source user (HD6309 BitTest_i16) switched to ACC16;
 // frame lowering switched to direct physreg $ad copies.
-def ACC32 : MC6809Reg32Class<(add AQ)> {
+// Bug #161 round 14: ACC32 includes 4 stack-backed SPILL_Q* slots so
+// multiple simultaneously-live i32 vregs don't all collide on AQ. Pure
+// regalloc spill targets — the materialize path emits a single LDQ/STQ
+// from a dedicated 4-byte stack slot. EXTRACT_SUBREG sub_lo_word /
+// sub_hi_word from a SPILL_Q is unsupported, but round 10's i32→i16
+// narrowing of G_LOAD/G_STORE eliminated nearly all such patterns.
+def ACC32 : MC6809Reg32Class<(add AQ, SPILL_Q0, SPILL_Q1, SPILL_Q2, SPILL_Q3)> {
     let AltOrders = [(add)];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
 }

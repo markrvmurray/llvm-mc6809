@@ -830,10 +830,16 @@ def MulHSPat_i8 : Pat<(i8 (mulhs ACC8:$b, ACC8:$a)),
 
 // --- 16-bit multiply pseudo-instructions (6309 only) ---
 
+// Bug #161 round 14: widen $dst from AWc to ACC16 so back-to-back
+// multiplies in i64 multiply chains don't all collide on the single AW
+// allocation slot. Post-RA expansion emits a TFR W,<dst> after the MULD
+// when the regalloc-assigned dst isn't AW. Defs already lists AD as
+// clobbered (MULD writes the high half there); $dst lives in the full
+// ACC16 pool (74 slots in round 14).
 class MC6809MultiplyBase<dag operand> : MC6809LogicalInstr {
   let Defs = [NZ, AD];
   dag InOperandList = !con((ins ADc:$src), operand);
-  dag OutOperandList = (outs AWc:$dst);
+  dag OutOperandList = (outs ACC16:$dst);
 }
 
 multiclass MC6809Multiply {

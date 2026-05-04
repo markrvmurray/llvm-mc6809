@@ -963,19 +963,19 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
       constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
       return true;
     }
-    // Bug #161: trunc i32→i8 — chain via the low word of AQ. Get the
-    // s16 sub_lo_word (an AD vreg via a sub-register COPY), then run
-    // the existing EXTRACT_LO_i16 pseudo on it. Same shape the trunc
-    // i32→i16 SDAG pattern uses (MC6809InstrLogical.td:423), one step
-    // further down.
+    // Bug #161: trunc i32→i8 — chain via EXTRACT_LO_word_i32 pseudo
+    // (handles both AQ and SPILL_Q sources, round 14) followed by
+    // EXTRACT_LO_i16 on the resulting AD vreg. Direct sub_lo_word
+    // sub-register COPY would break on SPILL_Q sources.
     if (DstTy == LLT::scalar(8) && SrcTy == LLT::scalar(32)) {
       MRI->setRegClass(DstReg, &MC6809::ACC8RegClass);
       MRI->setRegClass(SrcReg, &MC6809::ACC32RegClass);
       MachineIRBuilder Builder(MI);
       Register WordLo = MRI->createVirtualRegister(&MC6809::ADcRegClass);
-      auto Copy = Builder.buildCopy(WordLo, SrcReg);
-      Copy->getOperand(1).setSubReg(MC6809::sub_lo_word);
-      constrainGenericOp(*Copy);
+      auto WordExt = Builder.buildInstr(MC6809::EXTRACT_LO_word_i32)
+                        .addDef(WordLo)
+                        .addUse(SrcReg);
+      constrainSelectedInstRegOperands(*WordExt, TII, TRI, RBI);
       auto Ext = Builder.buildInstr(MC6809::EXTRACT_LO_i16)
                      .addDef(DstReg)
                      .addUse(WordLo);
@@ -2561,15 +2561,15 @@ bool MC6809InstructionSelector::selectUnMergeValues(MachineInstr &MI) {
         MRI->setRegClass(R, &MC6809::ACC8RegClass);
 
     // Two intermediate s16 vregs: low word (D0/D1 source) and high word
-    // (D2/D3 source).
+    // (D2/D3 source). Bug #161 round 14: use EXTRACT_LO/HI_word_i32
+    // pseudos so SPILL_Q sources work (sub_lo_word / sub_hi_word
+    // sub-register COPYs only work for AQ).
     Register WordLo = MRI->createVirtualRegister(&MC6809::ADcRegClass);
     Register WordHi = MRI->createVirtualRegister(&MC6809::ADcRegClass);
-    auto LoCopy = Builder.buildCopy(WordLo, Src);
-    LoCopy->getOperand(1).setSubReg(MC6809::sub_lo_word);
-    auto HiCopy = Builder.buildCopy(WordHi, Src);
-    HiCopy->getOperand(1).setSubReg(MC6809::sub_hi_word);
-    constrainGenericOp(*LoCopy);
-    constrainGenericOp(*HiCopy);
+    auto LoWord = Builder.buildInstr(MC6809::EXTRACT_LO_word_i32).addDef(WordLo).addUse(Src);
+    auto HiWord = Builder.buildInstr(MC6809::EXTRACT_HI_word_i32).addDef(WordHi).addUse(Src);
+    constrainSelectedInstRegOperands(*LoWord, TII, TRI, RBI);
+    constrainSelectedInstRegOperands(*HiWord, TII, TRI, RBI);
 
     auto E0 = Builder.buildInstr(MC6809::EXTRACT_LO_i16).addDef(D0).addUse(WordLo);
     auto E1 = Builder.buildInstr(MC6809::EXTRACT_HI_i16).addDef(D1).addUse(WordLo);
@@ -2605,14 +2605,18 @@ bool MC6809InstructionSelector::selectUnMergeValues(MachineInstr &MI) {
     constrainSelectedInstRegOperands(*LoExt, TII, TRI, RBI);
     constrainSelectedInstRegOperands(*HiExt, TII, TRI, RBI);
   } else {
-    // s32 → s16×2 on HD6309 still uses the word sub-reg path on AQ; that
-    // structure is not part of the Layer-1 bottleneck.
-    MachineInstrBuilder LoCopy = Builder.buildCopy(Lo, Src);
-    MachineInstrBuilder HiCopy = Builder.buildCopy(Hi, Src);
-    LoCopy->getOperand(1).setSubReg(MC6809::sub_lo_word);
-    HiCopy->getOperand(1).setSubReg(MC6809::sub_hi_word);
-    constrainGenericOp(*LoCopy);
-    constrainGenericOp(*HiCopy);
+    // s32 → s16×2: bug #161 round 14 — use EXTRACT_LO/HI_word_i32 pseudos
+    // so SPILL_Q sources work (sub_lo_word / sub_hi_word sub-register
+    // COPYs only work for AQ).
+    MRI->setRegClass(Src, &MC6809::ACC32RegClass);
+    if (!MRI->getRegClassOrNull(Lo))
+      MRI->setRegClass(Lo, &MC6809::ADcRegClass);
+    if (!MRI->getRegClassOrNull(Hi))
+      MRI->setRegClass(Hi, &MC6809::ADcRegClass);
+    auto LoWord = Builder.buildInstr(MC6809::EXTRACT_LO_word_i32).addDef(Lo).addUse(Src);
+    auto HiWord = Builder.buildInstr(MC6809::EXTRACT_HI_word_i32).addDef(Hi).addUse(Src);
+    constrainSelectedInstRegOperands(*LoWord, TII, TRI, RBI);
+    constrainSelectedInstRegOperands(*HiWord, TII, TRI, RBI);
   }
   MI.eraseFromParent();
   return true;

@@ -432,6 +432,22 @@ void MC6809FrameLowering::processFunctionBeforeFrameFinalized(MachineFunction &M
       AnySpillUsed = true;
     }
   }
+  // Bug #161 round 14: allocate 4-byte stack slots for ACC32 (Q) spill
+  // registers (SPILL_Q0..Q3, HD6309 only). Standalone — they don't share
+  // storage with SPILL_D pairs.
+  static const MCPhysReg SpillQRegsEmit[] = {
+    MC6809::SPILL_Q0, MC6809::SPILL_Q1, MC6809::SPILL_Q2, MC6809::SPILL_Q3
+  };
+  for (MCPhysReg Reg : SpillQRegsEmit) {
+    if (FuncInfo.SpillRegFrameIndices.count(Reg) == 0 &&
+        isSpillUsedInFunction(Reg)) {
+      int FI = MFI.CreateStackObject(4, Align(1), false);
+      FuncInfo.SpillRegFrameIndices[Reg] = FI;
+      AnySpillUsed = true;
+    } else if (FuncInfo.SpillRegFrameIndices.count(Reg)) {
+      AnySpillUsed = true;
+    }
+  }
   // Always allocate SPILL_D3 as a scratch save slot for accumulator
   // save/restore during spill expansion, even if not used for allocation.
   if (AnySpillUsed) {

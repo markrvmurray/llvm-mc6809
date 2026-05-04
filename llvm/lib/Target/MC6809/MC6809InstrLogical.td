@@ -435,7 +435,12 @@ def : Pat<(i16 (anyext BIT1:$bit)),
 // i8 trunc from i16 — go through EXTRACT_LO_i16 pseudo, same reason.
 def : Pat<(i8 (trunc ADc:$word)), (EXTRACT_LO_i16 ADc:$word)>;
 let Predicates = [IsHD6309] in {
-  def : Pat<(i16 (trunc ACC32:$dword)), (EXTRACT_SUBREG ACC32:$dword, sub_lo_word)>;
+  // Bug #161 round 14: i16 trunc from i32 — go through EXTRACT_LO_word_i32
+  // pseudo (post-RA expansion handles AQ via TFR W,D and SPILL_Q via
+  // LDD slot+2,U). The EXTRACT_SUBREG SDAG pattern this replaces broke
+  // when ACC32 was widened to include SPILL_Q (which has no sub-reg
+  // structure).
+  def : Pat<(i16 (trunc ACC32:$dword)), (EXTRACT_LO_word_i32 ACC32:$dword)>;
   // Bug #161: i32 anyext from i16 — INSERT_SUBREG into an undef i32.
   // The upper word's contents are don't-care, so an IMPLICIT_DEF source
   // is correct. Mirrors the i8 anyext patterns above.

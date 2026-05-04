@@ -149,6 +149,26 @@ let Defs = [NZ, V] in {
     dag InOperandList  = (ins ABc:$src);
     let isAsCheapAsAMove = true;
   }
+
+  // Bug #161 round 14: extract the low word (sub_lo_word) of an ACC32
+  // value into ADc. Replaces the SDAG `(EXTRACT_SUBREG ACC32, sub_lo_word)`
+  // pattern, which works for AQ but cannot extract from SPILL_Q* (no
+  // sub-register structure). Post-RA expansion: AQ source → TFR W,D;
+  // SPILL_Q source → LDD slot+2,U (big-endian: D at +0, W at +2 in the
+  // dedicated 4-byte stack slot).
+  def EXTRACT_LO_word_i32 : MC6809Pseudo {
+    dag OutOperandList = (outs ADc:$dst);
+    dag InOperandList  = (ins ACC32:$src);
+    let isAsCheapAsAMove = true;
+  }
+
+  // Symmetric: extract the high word (sub_hi_word = D for AQ; offset 0
+  // for SPILL_Q big-endian).
+  def EXTRACT_HI_word_i32 : MC6809Pseudo {
+    dag OutOperandList = (outs ADc:$dst);
+    dag InOperandList  = (ins ACC32:$src);
+    let isAsCheapAsAMove = true;
+  }
 }
 
 // Materialise the CC.C flag into byte 0/1. Used when a phantom BIT1 vreg
