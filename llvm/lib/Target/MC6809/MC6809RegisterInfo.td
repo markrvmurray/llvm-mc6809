@@ -380,6 +380,18 @@ def ACC8_AB : MC6809Reg8Class<(add AB, AA)>;
 def ACC8_Bonly : MC6809Reg8Class<(add AB, SPILL_B0, SPILL_B1, SPILL_B2,
                                        SPILL_B3, SPILL_B4, SPILL_B5,
                                        SPILL_B6, SPILL_B7)>;
+
+// Bug #221 Phase A — A-half mirror of ACC8_Bonly. Used by the parallel
+// `_RegA` byte-arithmetic pseudos so the selector can route specific
+// MIs through the A-half routing when the upstream value naturally
+// lives in AA (avoiding the COPY $ab,$aa that bug #221 reported as
+// 134x cycles in test-fmemopen at Os-hd6309-mame). Phase A introduces
+// the class without yet wiring the selector — `_RegA` pseudos exist
+// but no path emits them, so the binary is byte-identical to today.
+// Phase B wires the selector heuristic.
+def ACC8_Aonly : MC6809Reg8Class<(add AA, SPILL_A0, SPILL_A1, SPILL_A2,
+                                       SPILL_A3, SPILL_A4, SPILL_A5,
+                                       SPILL_A6, SPILL_A7)>;
 def BIT8 : MC6809Reg8Class<(add AA, AB, CC)>; // Valid registers for BAND, BEOR, BOR, BIAND, BIEOR, BIOR, LDBT, STBT
 // Enable fine-grained pressure tracking on constrained i16 classes.
 // On basic 6809, ACC16 has 1 real physreg (AD) + 8 stack-backed spills +

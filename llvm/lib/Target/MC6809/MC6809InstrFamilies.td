@@ -245,6 +245,20 @@ class MC6809ArithmeticBaseRegByteB<dag operand> : MC6809LogicalInstr {
   let Constraints = "$dst = $src";
 }
 
+// Bug #221 Phase A — A-half mirror of MC6809ArithmeticBaseRegByteB.
+// Constrains dst to ACC8_Aonly (AA + SPILL_A*) and declares Defs += AA
+// only. Used by the parallel `_RegA` pseudos defined alongside the
+// `_RegB` ones; Phase B wires the selector to choose between them
+// based on the upstream value's natural half. Phase A introduces the
+// pseudo without selector wiring — `_RegA` exists but no emission
+// path uses it, so the binary is byte-identical to today.
+class MC6809ArithmeticBaseRegByteA<dag operand> : MC6809LogicalInstr {
+  let Defs = [NZ, V, C, AA];
+  dag OutOperandList = (outs ACC8_Aonly:$dst);
+  dag InOperandList = !con((ins ACC8_Aonly:$src), operand);
+  let Constraints = "$dst = $src";
+}
+
 multiclass MC6809Arithmetic<ValueType vtype, RegisterClass dst, RegisterClass src, bit IsByte = 0> {
   let isAsCheapAsAMove = true in {
     def _Imm : MC6809ArithmeticBase<dst, src, (ins !cast<Operand>(vtype#"imm"):$val)>;
@@ -254,7 +268,14 @@ multiclass MC6809Arithmetic<ValueType vtype, RegisterClass dst, RegisterClass sr
     def _Pull : MC6809ArithmeticBase<dst, src, (ins STACK16:$idx)>;
     let Predicates = [IsHD6309] in {
       if !eq(IsByte, 1) then {
-        def _Reg : MC6809ArithmeticBaseRegByteB<(ins ACC8_Bonly:$src2)>;
+        // Bug #214/#217 default: B-half routing. `_Reg` keeps the
+        // current emission path so existing C++ refs to
+        // MC6809::<X>_i8_Reg remain valid and unchanged.
+        def _Reg  : MC6809ArithmeticBaseRegByteB<(ins ACC8_Bonly:$src2)>;
+        // Bug #221 Phase A: parallel A-half pseudo. Phase B's selector
+        // heuristic will choose between _RegA and _Reg (= _RegB) based
+        // on the upstream value's natural half. Currently unused.
+        def _RegA : MC6809ArithmeticBaseRegByteA<(ins ACC8_Aonly:$src2)>;
       } else {
         def _Reg : MC6809ArithmeticBase<dst, src, (ins src:$src2)>;
       }
@@ -346,6 +367,15 @@ class MC6809ArithmeticBaseCarryRegByteB<dag operand> : MC6809LogicalInstr {
   let Constraints = "$dst = $src";
 }
 
+// Bug #221 Phase A — A-half mirror of the SetCarry byte _Reg variant.
+class MC6809ArithmeticBaseCarryRegByteA<dag operand> : MC6809LogicalInstr {
+  let Defs = [NZ, V, C, AA];
+  let hasSideEffects = 1;
+  dag OutOperandList = (outs ACC8_Aonly:$dst);
+  dag InOperandList = !con((ins ACC8_Aonly:$src), operand);
+  let Constraints = "$dst = $src";
+}
+
 multiclass MC6809ArithmeticCarry<ValueType vtype, RegisterClass dst, RegisterClass src, bit IsByte = 0> {
   let isAsCheapAsAMove = true in {
     def _Imm : MC6809ArithmeticBaseCarry<dst, src, (ins !cast<Operand>(vtype#"imm"):$val)>;
@@ -355,7 +385,9 @@ multiclass MC6809ArithmeticCarry<ValueType vtype, RegisterClass dst, RegisterCla
     def _Pull : MC6809ArithmeticBaseCarry<dst, src, (ins STACK16:$idx)>;
     let Predicates = [IsHD6309] in {
       if !eq(IsByte, 1) then {
-        def _Reg : MC6809ArithmeticBaseCarryRegByteB<(ins ACC8_Bonly:$src2)>;
+        def _Reg  : MC6809ArithmeticBaseCarryRegByteB<(ins ACC8_Bonly:$src2)>;
+        // Bug #221 Phase A: parallel A-half pseudo (currently unused).
+        def _RegA : MC6809ArithmeticBaseCarryRegByteA<(ins ACC8_Aonly:$src2)>;
       } else {
         def _Reg : MC6809ArithmeticBaseCarry<dst, src, (ins src:$src2)>;
       }
@@ -436,6 +468,28 @@ class MC6809ArithmeticBaseSetOverflowUseRegByteB<dag operand> : MC6809LogicalIns
   let Constraints = "$dst = $src";
 }
 
+// Bug #221 Phase A — A-half mirrors of the SetCarryUse / SetOverflowUse
+// byte _Reg variants. Carry-in / overflow-in flag flow declared via
+// Uses=[C] / Uses=[V] (same as the B-half variants); the only delta is
+// dst class + Defs += AA.
+class MC6809ArithmeticBaseSetCarryUseRegByteA<dag operand> : MC6809LogicalInstr {
+  let Defs = [NZ, V, C, AA];
+  let Uses = [C];
+  let hasSideEffects = 1;
+  dag OutOperandList = (outs ACC8_Aonly:$dst);
+  dag InOperandList = !con((ins ACC8_Aonly:$src), operand);
+  let Constraints = "$dst = $src";
+}
+
+class MC6809ArithmeticBaseSetOverflowUseRegByteA<dag operand> : MC6809LogicalInstr {
+  let Defs = [NZ, V, C, AA];
+  let Uses = [V];
+  let hasSideEffects = 1;
+  dag OutOperandList = (outs ACC8_Aonly:$dst);
+  dag InOperandList = !con((ins ACC8_Aonly:$src), operand);
+  let Constraints = "$dst = $src";
+}
+
 multiclass MC6809ArithmeticCarryUse<ValueType vtype, RegisterClass dst, RegisterClass src, bit IsByte = 0> {
   let isAsCheapAsAMove = true in {
     def _Imm : MC6809ArithmeticBaseSetCarryUse<dst, src, (ins !cast<Operand>(vtype#"imm"):$val)>;
@@ -444,7 +498,9 @@ multiclass MC6809ArithmeticCarryUse<ValueType vtype, RegisterClass dst, Register
     def _Mem : MC6809ArithmeticBaseSetCarryUse<dst, src, (ins INDEX16:$idx, unknown:$offset)>;
     let Predicates = [IsHD6309] in {
       if !eq(IsByte, 1) then {
-        def _Reg : MC6809ArithmeticBaseSetCarryUseRegByteB<(ins ACC8_Bonly:$src2)>;
+        def _Reg  : MC6809ArithmeticBaseSetCarryUseRegByteB<(ins ACC8_Bonly:$src2)>;
+        // Bug #221 Phase A: parallel A-half pseudo (currently unused).
+        def _RegA : MC6809ArithmeticBaseSetCarryUseRegByteA<(ins ACC8_Aonly:$src2)>;
       } else {
         def _Reg : MC6809ArithmeticBaseSetCarryUse<dst, src, (ins src:$src2)>;
       }
@@ -460,7 +516,9 @@ multiclass MC6809ArithmeticOverflowUse<ValueType vtype, RegisterClass dst, Regis
     def _Mem : MC6809ArithmeticBaseSetOverflowUse<dst, src, (ins INDEX16:$idx, unknown:$offset)>;
     let Predicates = [IsHD6309] in {
       if !eq(IsByte, 1) then {
-        def _Reg : MC6809ArithmeticBaseSetOverflowUseRegByteB<(ins ACC8_Bonly:$src2)>;
+        def _Reg  : MC6809ArithmeticBaseSetOverflowUseRegByteB<(ins ACC8_Bonly:$src2)>;
+        // Bug #221 Phase A: parallel A-half pseudo (currently unused).
+        def _RegA : MC6809ArithmeticBaseSetOverflowUseRegByteA<(ins ACC8_Aonly:$src2)>;
       } else {
         def _Reg : MC6809ArithmeticBaseSetOverflowUse<dst, src, (ins src:$src2)>;
       }

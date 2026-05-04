@@ -2822,11 +2822,18 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     expandCarryMem16(true, Builder, MI);
     break;
   case MC6809::Add_i8_Reg:
+  // Bug #221 Phase A: parallel A-half pseudo routes through the same
+  // helper. getByteOpcodes() picks A-half opcodes when RealLHS == AA
+  // (which is enforced by the _RegA pseudo's ACC8_Aonly dst class),
+  // so no helper change needed.
+  case MC6809::Add_i8_RegA:
   case MC6809::Add_i16_Reg:
     expandAddReg(Builder, MI);
     break;
   case MC6809::AddSetCarry_i8_Reg:
-  case MC6809::AddSetOverflow_i8_Reg:    // bug #147
+  case MC6809::AddSetCarry_i8_RegA:        // bug #221 Phase A
+  case MC6809::AddSetOverflow_i8_Reg:      // bug #147
+  case MC6809::AddSetOverflow_i8_RegA:     // bug #221 Phase A
     expandAddSetCarryByteReg(Builder, MI);
     break;
   case MC6809::AddSetCarry_i16_Reg:
@@ -2834,7 +2841,9 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     expandAddSetCarryReg(Builder, MI);
     break;
   case MC6809::AddSetCarryUse_i8_Reg:
-  case MC6809::AddSetOverflowUse_i8_Reg:    // bug #147
+  case MC6809::AddSetCarryUse_i8_RegA:     // bug #221 Phase A
+  case MC6809::AddSetOverflowUse_i8_Reg:   // bug #147
+  case MC6809::AddSetOverflowUse_i8_RegA:  // bug #221 Phase A
     expandAddSetCarryUseByteReg(Builder, MI);
     break;
   case MC6809::AddSetCarryUse_i16_Reg:
@@ -2868,13 +2877,16 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     expandIdxImm(SubIdxImm, Builder, MI);
     break;
   case MC6809::Sub_i8_Reg:
+  case MC6809::Sub_i8_RegA:                // bug #221 Phase A
     expandSubByteReg(Builder, MI);
     break;
   case MC6809::Sub_i16_Reg:
     expandSubReg(Builder, MI);
     break;
   case MC6809::SubSetCarry_i8_Reg:
-  case MC6809::SubSetOverflow_i8_Reg:    // bug #147
+  case MC6809::SubSetCarry_i8_RegA:        // bug #221 Phase A
+  case MC6809::SubSetOverflow_i8_Reg:      // bug #147
+  case MC6809::SubSetOverflow_i8_RegA:     // bug #221 Phase A
     expandSubSetCarryByteReg(Builder, MI);
     break;
   case MC6809::SubSetCarry_i16_Reg:
@@ -2890,7 +2902,9 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     expandCarryMem16(false, Builder, MI);
     break;
   case MC6809::SubSetCarryUse_i8_Reg:
-  case MC6809::SubSetOverflowUse_i8_Reg:    // bug #147
+  case MC6809::SubSetCarryUse_i8_RegA:     // bug #221 Phase A
+  case MC6809::SubSetOverflowUse_i8_Reg:   // bug #147
+  case MC6809::SubSetOverflowUse_i8_RegA:  // bug #221 Phase A
     expandSubSetCarryUseByteReg(Builder, MI);
     break;
   case MC6809::SubSetCarryUse_i16_Reg:
