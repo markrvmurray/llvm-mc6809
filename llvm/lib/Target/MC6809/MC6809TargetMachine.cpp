@@ -28,6 +28,7 @@
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Support/CodeGen.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Scalar/IndVarSimplify.h"
 #include "llvm/Transforms/Utils.h"
@@ -214,6 +215,29 @@ TargetPassConfig *MC6809TargetMachine::createPassConfig(PassManagerBase &PM) { r
 void MC6809PassConfig::addIRPasses() {
   if (getOptLevel() != CodeGenOptLevel::None)
     addPass(createMC6809NonReentrantPass());
+
+  // Bug #209: Loop Strength Reduction creates IR patterns
+  // (`%a = sub i16 0, %iv` paired with `%b = add i16 %base, %iv`) that
+  // the MC6809 backend's byte-level decomposition mishandles, computing
+  // `%a` as `-(%base + %iv)` instead of `-%iv`. The miscompile only
+  // surfaces under aggressive LTO inlining (test-getopt, Os-lto +
+  // Os-hd6309-mame) where regalloc spills %iv and %base near each
+  // other on the frame; a real fix lives in the byte-pair lowering.
+  // Until that is in place, force `-disable-lsr` so the wrong-result
+  // IR pattern never reaches isel. LSR offers little on MC6809 (only a
+  // handful of registers, induction-variable strength reduction
+  // rarely pays off).
+  static bool DisableLSRForced = false;
+  if (!DisableLSRForced) {
+    auto &Opts = cl::getRegisteredOptions();
+    auto It = Opts.find("disable-lsr");
+    if (It != Opts.end()) {
+      auto *Opt = static_cast<cl::opt<bool> *>(It->second);
+      Opt->setValue(true);
+    }
+    DisableLSRForced = true;
+  }
+
   TargetPassConfig::addIRPasses();
   // Clean up after LSR in particular.
   if (getOptLevel() != CodeGenOptLevel::None)
