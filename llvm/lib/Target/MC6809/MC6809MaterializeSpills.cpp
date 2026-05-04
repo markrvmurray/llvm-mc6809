@@ -130,6 +130,31 @@ static bool isAddSubFamilyReg(unsigned Opcode) {
   case MC6809::AddSetCarryUse_i16_Reg:
   case MC6809::SubSetCarryUse_i8_Reg:
   case MC6809::SubSetCarryUse_i16_Reg:
+  // Bug #161 round 18: Compare_*_Reg has the same "two ACC spills
+  // both want the same physical register" problem as the arithmetic
+  // family. Without skip-second-spill, MaterializeSpills emits two
+  // back-to-back LDDs (or LDB+LDB) into AD/AB, the second clobbering
+  // the first, and the resulting CMPR/CMPRp degenerates to "X,X".
+  // Routing the second operand through the U-relative spill slot via
+  // expandCompareReg's collision fallback (which emits a direct
+  // CMPB/CMPD n,U) avoids the clobber.
+  case MC6809::Compare_i8_Reg:
+  case MC6809::Compare_i16_Reg:
+  case MC6809::Compare_ptr_Reg:
+  // Fused compare-and-branch pseudos with two register operands —
+  // get split back into Compare_*_Reg + LBlbc by expandPostRAPseudo,
+  // but MaterializeSpills runs BEFORE that split, so the skip needs
+  // to apply at the fused level too.
+  case MC6809::CompareBranch_i8_Reg:
+  case MC6809::CompareBranch_i16_Reg:
+  // Bitwise reg-reg ops have the same shape as Add/Sub (in-place
+  // dst==src1 plus a second source). Same skip logic, same payoff.
+  case MC6809::AND_i8_Reg:
+  case MC6809::AND_i16_Reg:
+  case MC6809::OR_i8_Reg:
+  case MC6809::OR_i16_Reg:
+  case MC6809::XOR_i8_Reg:
+  case MC6809::XOR_i16_Reg:
     return true;
   default:
     return false;
@@ -807,13 +832,37 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
           // as spill regs and the expansion's U-relative path
           // handles them. Same-spill repeats (tied dst+src) don't
           // count toward the limit because they don't grow the set.
+          //
+          // Bug #161 round 18: also skip if a NON-spill physical-reg
+          // operand of this MI already occupies the same hardware
+          // register that this spill would materialize into. Without
+          // this, the spill load (LDD/LDB) clobbers the live phys-reg
+          // operand; the expansion then produces a degenerate
+          // `CMPR X,X` / `SUBR X,X` because both operands resolve to
+          // the same physreg. Leaving the spill as-is lets the
+          // expansion's U-relative path read it directly.
+          Register RealReg = getRealReg(MO.getReg());
+          bool PhysCollision = false;
+          for (unsigned J = 0; J < MI.getNumOperands(); ++J) {
+            if (J == I) continue;
+            const MachineOperand &OtherMO = MI.getOperand(J);
+            if (!OtherMO.isReg() || !OtherMO.getReg().isPhysical()) continue;
+            if (isAnySpillReg(OtherMO.getReg())) continue;
+            if (TRI.regsOverlap(OtherMO.getReg(), RealReg)) {
+              PhysCollision = true;
+              break;
+            }
+          }
           if (!SeenAccSpillsForSkip.contains(MO.getReg())) {
             SeenAccSpillsForSkip.insert(MO.getReg());
-            if (SeenAccSpillsForSkip.size() > 1) {
-              // 2nd+ unique ACC spill — leave it for the expansion's
-              // U-relative spill path. See the worked example above.
+            if (SeenAccSpillsForSkip.size() > 1 || PhysCollision) {
+              // 2nd+ unique ACC spill, or first spill colliding with a
+              // physical operand — leave it for the expansion's
+              // U-relative spill path.
               continue;
             }
+          } else if (PhysCollision) {
+            continue;
           }
         }
         SpillOps.push_back({I, MO.getReg()});

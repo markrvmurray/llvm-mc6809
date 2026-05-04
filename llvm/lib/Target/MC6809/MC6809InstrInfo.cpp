@@ -1353,19 +1353,63 @@ static void dematerializeReg(MachineIRBuilder &Builder, Register PhysReg,
 // The bug surfaced as test-dp-loop FAILing with MAME "Unexpected
 // exception" — the loop body's `eorr spill_b1, b` emitted bytes
 // `10 36 a9` which round-trips through the disassembler as <unknown>.
-static void emitHD6309RegRegOp(MachineIRBuilder &Builder, MachineInstr &MI,
+// Returns true if the HD6309 page-3 reg-reg expansion was emitted.
+// Returns false when Src1 and Src2 would land in the same hardware
+// byte half of D — in that case Src2's load would clobber Src1's
+// value, and the caller MUST fall back to the 6809 page-1 path
+// (which reads RHS directly from the U-relative spill slot, so no
+// second-half register is needed at all). The page-1 path is
+// strictly bigger but safe — collision is an exceptional case.
+static bool emitHD6309RegRegOp(MachineIRBuilder &Builder, MachineInstr &MI,
                                 unsigned Opcode) {
   MachineFunction &MF = *MI.getMF();
   Register Dst = MI.getOperand(0).getReg();
   Register Src1 = MI.getOperand(1).getReg();
   Register Src2 = MI.getOperand(2).getReg();
   Register OrigDst = Dst;
+
+  // Bug #161 round 18: detect Src1/Src2 same-half collision and bail.
+  // Two flavours both produce a degenerate `SUBR B,B`-style postbyte:
+  //
+  // (a) Bug-#63 "skip second ACC spill" — Src1 has already been
+  //     materialized to AB by MaterializeSpills and Src2 is still a
+  //     SPILL_B* that this helper would materialize here, so the
+  //     helper's LDB would overwrite the pre-MI LDB.
+  //
+  // (b) Regalloc collapsed both operands to the same physical AB/AA
+  //     (e.g. coalesced into one byte-sized live range), so Src1Phys
+  //     == Src2Phys with NO materialization on either side. The
+  //     resulting `SUBR B,B` is `B = B - B = 0`, garbage data.
+  //
+  // We can't safely TFR or use the alt half because MaterializeSpills
+  // may have set up the alt half with an unrelated value live across
+  // this MI. Bail in both cases and let the 6809 page-1 fallback
+  // (which reads RHS from the U-relative spill slot directly) handle
+  // it. The fallback is bigger but correct.
+  auto effectivePhys = [](Register R) -> Register {
+    return needsMaterialization(R) ? getPhysRegFor(R) : R;
+  };
+  Register Src1Phys = effectivePhys(Src1);
+  Register Src2Phys = effectivePhys(Src2);
+  // Same-physreg collision applies to every register the page-3
+  // reg-reg ops can name: byte halves AA/AB (8-bit ops), AD (16-bit
+  // ops), IX/IY/SU/SS/PC and HD6309 W/V/E/F (16- or 8-bit). The
+  // postbyte folds them into reg1==reg2 → degenerate `op X,X`.
+  if (Src1Phys == Src2Phys &&
+      (Src1Phys == MC6809::AA || Src1Phys == MC6809::AB ||
+       Src1Phys == MC6809::AD || Src1Phys == MC6809::AW ||
+       Src1Phys == MC6809::AE || Src1Phys == MC6809::AF ||
+       Src1Phys == MC6809::IX || Src1Phys == MC6809::IY ||
+       Src1Phys == MC6809::SU || Src1Phys == MC6809::SS))
+    return false;
+
   if (needsMaterialization(Src1)) Src1 = materializeReg(Builder, Src1, MF);
   if (needsMaterialization(Src2)) Src2 = materializeReg(Builder, Src2, MF);
   if (needsMaterialization(Dst))  Dst  = materializeReg(Builder, Dst,  MF);
   Builder.buildInstr(Opcode).addDef(Dst).addUse(Src2).addUse(Src1);
   if (needsMaterialization(OrigDst))
     dematerializeReg(Builder, Dst, OrigDst, MF);
+  return true;
 }
 
  void  MC6809InstrInfo::copyPhysReg(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, const DebugLoc &DL, Register DestReg, Register SrcReg, bool KillSrc, bool RenamableDest, bool RenamableSrc) const {
@@ -4123,8 +4167,8 @@ void MC6809InstrInfo::expandANDReg(MachineIRBuilder &Builder, MachineInstr &MI) 
   assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg() && "Dest and Source must be same for ANDReg");
 
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
-  if (STI.has6309()) {
-    emitHD6309RegRegOp(Builder, MI, MC6809::ANDRp);
+  if (STI.has6309() && emitHD6309RegRegOp(Builder, MI, MC6809::ANDRp)) {
+    // page-3 reg-reg path emitted
   } else if (MI.getOpcode() == MC6809::AND_i16_Reg) {
     emit6809RegPairFromMem(Builder,
                            MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
@@ -4240,8 +4284,8 @@ void MC6809InstrInfo::expandORReg(MachineIRBuilder &Builder, MachineInstr &MI) c
   assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg() && "Dest and Source 1 must be same for ORReg");
 
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
-  if (STI.has6309()) {
-    emitHD6309RegRegOp(Builder, MI, MC6809::ORRp);
+  if (STI.has6309() && emitHD6309RegRegOp(Builder, MI, MC6809::ORRp)) {
+    // page-3 reg-reg path emitted
   } else if (MI.getOpcode() == MC6809::OR_i16_Reg) {
     emit6809RegPairFromMem(Builder,
                            MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
@@ -4266,8 +4310,8 @@ void MC6809InstrInfo::expandXORReg(MachineIRBuilder &Builder, MachineInstr &MI) 
   assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg() && "Dest and Source 1 must be same for XORReg");
 
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
-  if (STI.has6309()) {
-    emitHD6309RegRegOp(Builder, MI, MC6809::EORRp);
+  if (STI.has6309() && emitHD6309RegRegOp(Builder, MI, MC6809::EORRp)) {
+    // page-3 reg-reg path emitted
   } else if (MI.getOpcode() == MC6809::XOR_i16_Reg) {
     emit6809RegPairFromMem(Builder,
                            MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
@@ -4292,8 +4336,8 @@ void MC6809InstrInfo::expandAddReg(MachineIRBuilder &Builder, MachineInstr &MI) 
   assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg() && "Dest and Source 1 must be same for AddReg");
 
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
-  if (STI.has6309()) {
-    emitHD6309RegRegOp(Builder, MI, MC6809::ADDRp);
+  if (STI.has6309() && emitHD6309RegRegOp(Builder, MI, MC6809::ADDRp)) {
+    // page-3 reg-reg path emitted
   } else if (MI.getOpcode() == MC6809::Add_i8_Reg) {
     unsigned Opc_o8, Opc_o5, Opc_o16;
     getByteOpcodes(MI.getOperand(0).getReg(),
@@ -4363,8 +4407,8 @@ void MC6809InstrInfo::expandAddSetCarryReg(MachineIRBuilder &Builder, MachineIns
   assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg() && "Dest and Source must be same for AddSetCarryReg");
 
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
-  if (STI.has6309()) {
-    emitHD6309RegRegOp(Builder, MI, MC6809::ADDRp);
+  if (STI.has6309() && emitHD6309RegRegOp(Builder, MI, MC6809::ADDRp)) {
+    // page-3 reg-reg path emitted
   } else {
     emit6809RegPairFromMem(Builder,
                            MI.getOperand(0).getReg(),  // LHS = dst (== src by tie)
@@ -4408,8 +4452,8 @@ static void getByteOpcodes(Register LHS,
 void MC6809InstrInfo::expandAddSetCarryByteReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
   assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg());
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
-  if (STI.has6309()) {
-    emitHD6309RegRegOp(Builder, MI, MC6809::ADDRp);
+  if (STI.has6309() && emitHD6309RegRegOp(Builder, MI, MC6809::ADDRp)) {
+    // page-3 reg-reg path emitted
   } else {
     unsigned Opc_o8, Opc_o5, Opc_o16;
     getByteOpcodes(MI.getOperand(0).getReg(),
@@ -4426,8 +4470,8 @@ void MC6809InstrInfo::expandAddSetCarryByteReg(MachineIRBuilder &Builder, Machin
 void MC6809InstrInfo::expandAddSetCarryUseByteReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
   assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg());
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
-  if (STI.has6309()) {
-    emitHD6309RegRegOp(Builder, MI, MC6809::ADCRp);
+  if (STI.has6309() && emitHD6309RegRegOp(Builder, MI, MC6809::ADCRp)) {
+    // page-3 reg-reg path emitted
   } else {
     unsigned Opc_o8, Opc_o5, Opc_o16;
     getByteOpcodes(MI.getOperand(0).getReg(),
@@ -4444,8 +4488,8 @@ void MC6809InstrInfo::expandAddSetCarryUseByteReg(MachineIRBuilder &Builder, Mac
 void MC6809InstrInfo::expandSubSetCarryByteReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
   assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg());
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
-  if (STI.has6309()) {
-    emitHD6309RegRegOp(Builder, MI, MC6809::SUBRp);
+  if (STI.has6309() && emitHD6309RegRegOp(Builder, MI, MC6809::SUBRp)) {
+    // page-3 reg-reg path emitted
   } else {
     unsigned Opc_o8, Opc_o5, Opc_o16;
     getByteOpcodes(MI.getOperand(0).getReg(),
@@ -4462,8 +4506,8 @@ void MC6809InstrInfo::expandSubSetCarryByteReg(MachineIRBuilder &Builder, Machin
 void MC6809InstrInfo::expandSubSetCarryUseByteReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
   assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg());
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
-  if (STI.has6309()) {
-    emitHD6309RegRegOp(Builder, MI, MC6809::SBCRp);
+  if (STI.has6309() && emitHD6309RegRegOp(Builder, MI, MC6809::SBCRp)) {
+    // page-3 reg-reg path emitted
   } else {
     unsigned Opc_o8, Opc_o5, Opc_o16;
     getByteOpcodes(MI.getOperand(0).getReg(),
@@ -4757,8 +4801,8 @@ void MC6809InstrInfo::expandAddSetCarryUseReg(MachineIRBuilder &Builder, Machine
   assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg() && "Dest and Source must be same for AddSetCarryUseReg");
 
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
-  if (STI.has6309()) {
-    emitHD6309RegRegOp(Builder, MI, MC6809::ADCRp);
+  if (STI.has6309() && emitHD6309RegRegOp(Builder, MI, MC6809::ADCRp)) {
+    // page-3 reg-reg path emitted
   } else {
     emit6809RegPairFromMem(Builder,
                            MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
@@ -4773,8 +4817,8 @@ void MC6809InstrInfo::expandSubReg(MachineIRBuilder &Builder, MachineInstr &MI) 
   assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg() && "Dest and Source must be same for SubReg");
 
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
-  if (STI.has6309()) {
-    emitHD6309RegRegOp(Builder, MI, MC6809::SUBRp);
+  if (STI.has6309() && emitHD6309RegRegOp(Builder, MI, MC6809::SUBRp)) {
+    // page-3 reg-reg path emitted
   } else {
     emit6809RegPairFromMem(Builder,
                            MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
@@ -4792,8 +4836,8 @@ void MC6809InstrInfo::expandSubReg(MachineIRBuilder &Builder, MachineInstr &MI) 
 void MC6809InstrInfo::expandSubByteReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
   assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg());
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
-  if (STI.has6309()) {
-    emitHD6309RegRegOp(Builder, MI, MC6809::SUBRp);
+  if (STI.has6309() && emitHD6309RegRegOp(Builder, MI, MC6809::SUBRp)) {
+    // page-3 reg-reg path emitted
   } else {
     unsigned Opc_o8, Opc_o5, Opc_o16;
     getByteOpcodes(MI.getOperand(0).getReg(),
@@ -4818,8 +4862,8 @@ void MC6809InstrInfo::expandSubSetCarryReg(MachineIRBuilder &Builder, MachineIns
   assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg() && "Dest and Source must be same for SubSetCarryReg");
 
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
-  if (STI.has6309()) {
-    emitHD6309RegRegOp(Builder, MI, MC6809::SUBRp);
+  if (STI.has6309() && emitHD6309RegRegOp(Builder, MI, MC6809::SUBRp)) {
+    // page-3 reg-reg path emitted
   } else {
     emit6809RegPairFromMem(Builder,
                            MI.getOperand(0).getReg(),
@@ -4836,8 +4880,8 @@ void MC6809InstrInfo::expandSubSetCarryUseReg(MachineIRBuilder &Builder, Machine
   assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg() && "Dest and Source must be same for SubSetCarryUseReg");
 
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
-  if (STI.has6309()) {
-    emitHD6309RegRegOp(Builder, MI, MC6809::SBCRp);
+  if (STI.has6309() && emitHD6309RegRegOp(Builder, MI, MC6809::SBCRp)) {
+    // page-3 reg-reg path emitted
   } else {
     emit6809RegPairFromMem(Builder,
                            MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
@@ -5120,12 +5164,96 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
   // register codes in its postbyte; raw SPILL_* operands collapse the
   // postbyte to 0x00 (= CMPR D,D = always Z=1), breaking the test-strncpy
   // and similar inner-loop comparisons.
+  //
+  // Bug #161 round 18: when both sources resolve to the same physical
+  // register (commonly because both were SPILL_D* and materialize to
+  // AD), CMPRp X,X always sets Z=1 / N,V,C=0 — wrong for any non-equal
+  // source pair. Detect that and fall back to a 6809-style compare via
+  // PSHS / CMPx 0,S / LEAS so the SPILL operand is read separately.
   MachineFunction &MF = *MI.getMF();
   Register Src1 = MI.getOperand(3).getReg();
   Register Src2 = MI.getOperand(2).getReg();
-  if (needsMaterialization(Src1)) Src1 = materializeReg(Builder, Src1, MF);
-  if (needsMaterialization(Src2)) Src2 = materializeReg(Builder, Src2, MF);
-  Builder.buildInstr(MC6809::CMPRp).addUse(Src1).addUse(Src2);
+  auto effectivePhys = [](Register R) -> Register {
+    return needsMaterialization(R) ? getPhysRegFor(R) : R;
+  };
+  Register Src1Phys = effectivePhys(Src1);
+  Register Src2Phys = effectivePhys(Src2);
+  bool SameHalf = Src1Phys == Src2Phys &&
+      (Src1Phys == MC6809::AA || Src1Phys == MC6809::AB ||
+       Src1Phys == MC6809::AD || Src1Phys == MC6809::AW ||
+       Src1Phys == MC6809::AE || Src1Phys == MC6809::AF ||
+       Src1Phys == MC6809::IX || Src1Phys == MC6809::IY ||
+       Src1Phys == MC6809::SU || Src1Phys == MC6809::SS);
+
+  if (!SameHalf) {
+    if (needsMaterialization(Src1)) Src1 = materializeReg(Builder, Src1, MF);
+    if (needsMaterialization(Src2)) Src2 = materializeReg(Builder, Src2, MF);
+    Builder.buildInstr(MC6809::CMPRp).addUse(Src1).addUse(Src2);
+    MI.eraseFromParent();
+    return;
+  }
+
+  // Same-physreg collision. Three sub-cases:
+  //
+  //   (i)  Src2 is a SPILL_* (Src1 already in physreg): read Src2
+  //        U-relative from its slot using the page-1 indexed CMP
+  //        variant. No PSHS, no clobber — Src1 stays put.
+  //
+  //   (ii) Src1 is a SPILL_* (Src2 already in physreg): we must
+  //        compute Src1 - Src2 with D=Src1 at the CMP. Push Src2,
+  //        load Src1 into the physreg, CMP against [0,S], pop.
+  //
+  //   (iii) Both already physical AND identical (regalloc coalesced
+  //         them). The value really is the same, so equal is correct
+  //         — emit CMPRp.
+  //
+  // Pick CMP opcodes based on Src1's phys (which is the same as
+  // Src2Phys here — used as a proxy for operand width).
+  unsigned MIOpc = MI.getOpcode();
+  auto pickCmpO8O16 = [&](Register PhysReg, unsigned ByteOffset,
+                          unsigned &OpcOut) {
+    bool Fits8 = (int(ByteOffset) >= -128 && int(ByteOffset) <= 127);
+    if (MIOpc == MC6809::Compare_i8_Reg) {
+      if (PhysReg == MC6809::AA)
+        OpcOut = Fits8 ? MC6809::CMPAi_o8 : MC6809::CMPAi_o16;
+      else
+        OpcOut = Fits8 ? MC6809::CMPBi_o8 : MC6809::CMPBi_o16;
+    } else {
+      if      (PhysReg == MC6809::AD) OpcOut = Fits8 ? MC6809::CMPDi_o8 : MC6809::CMPDi_o16;
+      else if (PhysReg == MC6809::IX) OpcOut = Fits8 ? MC6809::CMPXi_o8 : MC6809::CMPXi_o16;
+      else if (PhysReg == MC6809::IY) OpcOut = Fits8 ? MC6809::CMPYi_o8 : MC6809::CMPYi_o16;
+      else if (PhysReg == MC6809::SU) OpcOut = Fits8 ? MC6809::CMPUi_o8 : MC6809::CMPUi_o16;
+      else if (PhysReg == MC6809::SS) OpcOut = Fits8 ? MC6809::CMPSi_o8 : MC6809::CMPSi_o16;
+      else                             OpcOut = Fits8 ? MC6809::CMPDi_o8 : MC6809::CMPDi_o16;
+    }
+  };
+
+  if (isSpillReg(Src2)) {
+    int ByteOffset = computeSpillStackOffset(Src2, MF);
+    unsigned CmpOpc;
+    pickCmpO8O16(Src1Phys, ByteOffset, CmpOpc);
+    if (needsMaterialization(Src1)) Src1 = materializeReg(Builder, Src1, MF);
+    Builder.buildInstr(CmpOpc).addImm(ByteOffset).addReg(MC6809::SU);
+    MI.eraseFromParent();
+    return;
+  }
+  if (isSpillReg(Src1)) {
+    // Src2 is in Src2Phys (=== Src1Phys), Src1 is on the spill stack.
+    // PSHS Src2, then load Src1 into Src1Phys, then CMP against [0,S].
+    int LeasImm = (MIOpc == MC6809::Compare_i8_Reg) ? 1 : 2;
+    Builder.buildInstr(MC6809::PSHSs, {}, {Src2Phys});
+    materializeReg(Builder, Src1, MF);
+    unsigned CmpOpc;
+    pickCmpO8O16(Src1Phys, 0, CmpOpc);
+    Builder.buildInstr(CmpOpc).addImm(0).addReg(MC6809::SS);
+    Builder.buildInstr(MC6809::LEASi_o5).addImm(LeasImm).addReg(MC6809::SS);
+    MI.eraseFromParent();
+    return;
+  }
+  // Both Src1 and Src2 are already physical, same physreg, no spill on
+  // either side: regalloc literally coalesced them. Comparison is
+  // trivially equal — emit CMPRp so the CC flags are defined.
+  Builder.buildInstr(MC6809::CMPRp).addUse(Src1Phys).addUse(Src2Phys);
   MI.eraseFromParent();
 }
 
