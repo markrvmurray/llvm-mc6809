@@ -49,6 +49,12 @@ let Predicates = [IsHD6309] in {
   // wants the value in a SPILL_Q* slot, regalloc inserts a normal
   // ACC32 → SPILL_Q* COPY whose own clobber set (just an STQ, no
   // LDQ) is bounded.
+  // Bug #210 round 5 (2026-05-04): kept AQc despite hash.c starvation
+  // pressure — the libcall-based G_AND/G_OR/G_XOR i32 (in
+  // legalizeBitwise → __andsi3 / __orsi3 / __xorsi3) eliminates the
+  // in-line UNMERGE/MERGE artifacts that previously starved
+  // __call_hash. The AQc constraint stays load-bearing for
+  // strtol/snprintf/asctime correctness (bug #208).
   defm Load_i32 : MC6809Load<AQc, i32>;
 }
 
@@ -155,15 +161,11 @@ defm Store_i8 : MC6809Store<ACC8>;
 defm Store_i16 : MC6809Store<ACC16>;
 defm Store_iPtr : MC6809Store<INDEX16>;
 let Predicates = [IsHD6309] in {
-  // Bug #208 follow-up: same idea as Load_i32 -- src constrained to
-  // AQc (= just AQ) instead of ACC32 (= AQ + SPILL_Q0..3). When src
-  // is in SPILL_Q*, expandStoreIdx stages via AQ (LDQ from slot, STQ
-  // to memory); the LDQ clobbers AA/AB/AE/AF/AD/AW (sub-regs of AQ)
-  // which the pseudo's NZ/V-only Defs list hides from regalloc.
-  // Constraining src to AQc lets sub-reg aliasing expose the clobber;
-  // a SPILL_Q*-resident value gets a normal `$aq = COPY $spill_q*`
-  // (LDQ from slot into AQ) inserted by regalloc which then sees the
-  // clobber properly.
+  // Bug #208 follow-up: src constrained to AQc — same rationale as
+  // Load_i32. Bug #210 round 5 kept this constraint because the
+  // libcall-based bitwise-i32 (legalizeBitwise → __andsi3 / __orsi3
+  // / __xorsi3) eliminates hash.c's aqc starvation without needing
+  // the wider class.
   defm Store_i32 : MC6809Store<AQc>;
 }
 
@@ -211,7 +213,7 @@ defm StorePat_i8 : MC6809StorePat<i8, ACC8>;
 defm StorePat_i16 : MC6809StorePat<i16, ACC16>;
 defm StorePat_iPtr : MC6809StorePat<i16, INDEX16>;
 let Predicates = [IsHD6309] in {
-  // Match the Store_i32 pseudo's AQc src class (bug #208 follow-up).
+  // Match the Store_i32 pseudo's AQc src class (bug #208).
   defm StorePat_i32 : MC6809StorePat<i32, AQc>;
 }
 

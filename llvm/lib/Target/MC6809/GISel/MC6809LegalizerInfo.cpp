@@ -396,14 +396,17 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
       .libcallFor({{s32, s32}, {s64, s64}});
 
   // On 6809, s32 load/store has no instruction — narrow to s16 pairs.
-  // Bug #161 round 10: also narrow s32 load/store under HD6309. LDQ/STQ
-  // exist as instructions but every i32 load/store creates an ACC32 vreg
-  // (= AQ allocation slot) and the regalloc has only one such slot — 6+
-  // simultaneously-live i32 vregs (common in real C with int = 16, long =
-  // 32) starve regalloc and trip "ran out of registers". Narrowing to
-  // s16 pairs reuses the ACC16 spill pool (13 slots) and matches the plain
-  // 6809 path. Costs: 1 LDQ ($1029=8B) → 2 LDD ($D6 X 2=10B), but the
-  // regalloc is no longer brittle.
+  // Bug #161 round 10 (2026-04) extended the narrowing to HD6309 too
+  // because every i32 load/store creates an ACC32 vreg (= AQ slot)
+  // and the regalloc has only one such slot — 6+ simultaneously-live
+  // i32 vregs starved regalloc. Bug #210 round 5 (2026-05-04) tried
+  // reverting the HD6309 narrowing for G_LOAD (single LDQ) but found
+  // it broke strtol — the LDQ-clobbers-AA/AB chain at high pressure
+  // confused __mulsi3 calling convention. Bug #210 was instead closed
+  // by routing G_AND/G_OR/G_XOR i32 to libcalls (legalizeBitwise →
+  // __andsi3 / __orsi3 / __xorsi3); the in-line UNMERGE/MERGE chain
+  // was the actual aqc-creating path. Narrowing stays on both
+  // G_LOAD and G_STORE for both targets.
   getActionDefinitionsBuilder({G_LOAD, G_STORE})
       .legalForCartesianProduct(LegalTypes16, {p, p1})
       .lowerIfMemSizeNotByteSizePow2()
@@ -935,11 +938,33 @@ MC6809LegalizerInfo::legalizeBitwise(LegalizerHelper &Helper,
   }
 
   assert(Ty == LLT::scalar(32) && "Expected s1 or s32");
-  LLT S16 = LLT::scalar(16);
-  auto BuildOp = [&](Register L, Register R) {
-    return B.buildInstr(Opc, {S16}, {L, R});
-  };
-  return legalizeI32BinaryOp(B, MRI, MI, BuildOp, BuildOp);
+
+  // Bug #210 round 5 (2026-05-04): route i32 G_AND/G_OR/G_XOR to libcalls
+  // (`__andsi3`/`__orsi3`/`__xorsi3` — implemented in compiler-rt).
+  // The previous in-line decomposition (legalizeI32BinaryOp) emitted
+  // G_UNMERGE_VALUES + 2x i16 op + G_MERGE_VALUES, which the selector
+  // turned into EXTRACT/sub-reg-write artifacts that synth-collapse the
+  // parent vreg to aqc (1 register). Hash.c's __call_hash had 7 such
+  // aqc vregs from i32 mask AND chains — same starvation as the load
+  // pattern Round 5 fixed earlier. Routing to a libcall pushes the
+  // i32 work entirely outside the function; no in-line decomposition,
+  // no aqc vregs, no starvation.
+  Register DstReg = MI.getOperand(0).getReg();
+  Register Lhs = MI.getOperand(1).getReg();
+  Register Rhs = MI.getOperand(2).getReg();
+  auto &Ctx = MI.getMF()->getFunction().getContext();
+  Type *I32Ty = Type::getInt32Ty(Ctx);
+  const char *Name = (Opc == G_AND) ? "__andsi3"
+                   : (Opc == G_OR)  ? "__orsi3"
+                                    : "__xorsi3";
+  SmallVector<CallLowering::ArgInfo, 2> Args;
+  Args.push_back({Lhs, I32Ty, 0});
+  Args.push_back({Rhs, I32Ty, 1});
+  if (!Helper.createLibcall(Name, {DstReg, I32Ty, 0}, Args,
+                            CallingConv::C, LocObserver))
+    return false;
+  MI.eraseFromParent();
+  return true;
 }
 
 bool MC6809LegalizerInfo::legalizeExtractInsert(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const {
