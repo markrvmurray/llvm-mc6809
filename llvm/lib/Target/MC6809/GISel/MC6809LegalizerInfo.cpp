@@ -243,8 +243,16 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // imaginary registers). The __mulhi3 libcall path requires calling
   // convention work before it can replace narrowScalar.
   if (IsHD6309) {
+    // Bug #161 round 16: keep s8/s16 native (MUL / MULD) but route s32/s64
+    // back to libcalls (__mulsi3 / __mulhi3 / __mulqi3 etc.). The
+    // narrowScalar of G_UMULH from s32 was creating fresh s16 G_SUB ops
+    // mid-legalization (rand_r) that the s8-only G_SUB clampScalar can't
+    // process — without an explicit narrow rule, the backend aborts with
+    // "instruction is not legal: G_SUB s16". The wider chains have no
+    // native HD6309 instruction sequence shorter than the libcall anyway.
     getActionDefinitionsBuilder({G_MUL, G_UMULH, G_SMULH})
         .legalFor(LegalAccumulators)
+        .libcallFor({s32, s64})
         .clampScalar(0, s1, sMaxLogic);
   } else {
     getActionDefinitionsBuilder({G_MUL, G_UMULH, G_SMULH})
