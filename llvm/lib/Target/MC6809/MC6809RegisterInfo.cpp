@@ -117,6 +117,18 @@ BitVector MC6809RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
     Reserved.set(MC6809::MD);
   }
 
+  // Bug #161 round 15: SPILL_QnHI/LO are sub-registers of SPILL_Q*
+  // (HD6309 32-bit spill regs) — they exist only so the TableGen
+  // intersection-class synthesis includes SPILL_Q in the AQc-equivalent
+  // class for sub_lo_word/sub_hi_word ACC32 vregs. The regalloc must
+  // never place a vreg directly in them; the post-RA expansion of
+  // EXTRACT_LO/HI_word_i32 + the COPY handler in expandPostRAPseudo
+  // recognise these sub-regs and emit the correct LDD slot read.
+  Reserved.set(MC6809::SPILL_Q0HI); Reserved.set(MC6809::SPILL_Q0LO);
+  Reserved.set(MC6809::SPILL_Q1HI); Reserved.set(MC6809::SPILL_Q1LO);
+  Reserved.set(MC6809::SPILL_Q2HI); Reserved.set(MC6809::SPILL_Q2LO);
+  Reserved.set(MC6809::SPILL_Q3HI); Reserved.set(MC6809::SPILL_Q3LO);
+
   return Reserved;
 }
 

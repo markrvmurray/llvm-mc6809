@@ -294,14 +294,17 @@ def SPILL_X2 : MC6809Reg16<0x2014, "spill_x2">;
 def SPILL_X3 : MC6809Reg16<0x2016, "spill_x3">;
 
 // ACC32 spill pseudo-registers (HD6309 only — backed by 4-byte stack slots,
-// expanded via LDQ/STQ). Bug #161 round 14: each SPILL_Q has dummy half-
-// word sub-registers (SPILL_QnHI / SPILL_QnLO, big-endian: HI at +0, LO
-// at +2 in the slot). The half-word sub-regs are NOT in any allocatable
-// class — they only exist so the VirtRegMap rewriter can substitute
-// sub_lo_word / sub_hi_word indices to a valid PhysReg. The post-RA
-// expansion of EXTRACT_LO/HI_word_i32 (and any other sub-reg user)
-// detects these sub-regs and reads from the right offset of the
-// dedicated SPILL_Q stack slot.
+// expanded via LDQ/STQ). Bug #161 round 14: each SPILL_Q has half-word
+// sub-registers (SPILL_QnHI / SPILL_QnLO, big-endian: HI at +0, LO at +2
+// in the slot). The half-word sub-regs sit in their own size-16 class
+// (declared as MC6809Reg16) so the TableGen-synthesised intersection
+// class for "ACC32 reg with sub_lo_word/hi_word in ACC16" includes
+// SPILL_Q*; without that, the synthesis collapses to AQ-only (= AQc),
+// reintroducing the regalloc bottleneck. Round 15: marked isAllocatable
+// = false so the regalloc never places a vreg directly in SPILL_QnLO/HI;
+// the post-RA expansion of EXTRACT_LO/HI_word_i32 + the COPY handler
+// in expandPostRAPseudo recognise these sub-regs and emit the correct
+// LDD slot read.
 def SPILL_Q0HI : MC6809Reg<0x2030, "spill_q0_hi">;
 def SPILL_Q0LO : MC6809Reg<0x2031, "spill_q0_lo">;
 def SPILL_Q1HI : MC6809Reg<0x2032, "spill_q1_hi">;

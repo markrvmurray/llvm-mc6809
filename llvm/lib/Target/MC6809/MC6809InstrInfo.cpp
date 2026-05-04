@@ -2775,6 +2775,12 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     // lands as D:W with D at lower addresses, big-endian on the stack
     // matches the AQ register layout). Mirror image of the Pull_* case
     // below at lines 2654-2662.
+    // Bug #161 round 15: also handle byte pushes of AE/AF. Page-1 PSHS
+    // doesn't accept E or F. TFR the byte into AA / AB respectively
+    // (whichever has no live LHS in the current carry-chain context),
+    // then PSHS that. The TFR clobbers the page-1 byte register; this
+    // is acceptable for Push_i8 because nothing on the byte side is
+    // live across the push (it's a calling-convention or emit6809 path).
     {
       Register PushedReg = MI.getOperand(1).getReg();
       if (PushedReg == MC6809::AQ) {
@@ -2794,6 +2800,23 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
         while (MI.getNumOperands() > 0)
           MI.removeOperand(MI.getNumOperands() - 1);
         break;
+      }
+      if (PushedReg == MC6809::AE || PushedReg == MC6809::AF) {
+        // HD6309 page-3 STE / STF can store the byte directly to a
+        // stack slot. Emit `LEAS -1,S; STE 0,S` (or STF) — equivalent
+        // to a single-byte PSHS for stack-delta semantics, but without
+        // clobbering AA/AB (which TFR E,A would). Erase the original
+        // Push_i8 since we've replaced its expansion entirely.
+        unsigned StoreOpc = (PushedReg == MC6809::AE) ? MC6809::STEi_o0
+                                                     : MC6809::STFi_o0;
+        Builder.buildInstr(MC6809::LEASi_o5)
+            .addImm(-1).addReg(MC6809::SS, RegState::Define)
+            .addReg(MC6809::SS);
+        Builder.buildInstr(StoreOpc)
+            .addUse(PushedReg, RegState::Implicit)
+            .addReg(MC6809::SS);
+        MI.eraseFromParent();
+        return true;
       }
     }
     MI.setDesc(Builder.getTII().get(MC6809::PSHSs));
