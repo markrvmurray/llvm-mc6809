@@ -914,6 +914,13 @@ list(APPEND mc6809_SOURCES
   mc6809/ctzhi2.S
   mc6809/mulhi3.S
   mc6809/mulsi3.S
+  # Bug #210 round 5: 32-bit bitwise libcalls. The legalizer routes
+  # G_AND/G_OR/G_XOR i32 here on HD6309 (and 6809) instead of in-line
+  # decomposing into 2x i16 ops + REG_SEQUENCE — that pattern created
+  # AQc-class vregs in __call_hash that starved regalloc.
+  mc6809/andsi3.S
+  mc6809/orsi3.S
+  mc6809/xorsi3.S
   mc6809/divhi.S
   mc6809/divsi.S
   mc6809/memops.S
