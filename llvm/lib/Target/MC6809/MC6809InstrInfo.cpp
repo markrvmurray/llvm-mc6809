@@ -1344,6 +1344,30 @@ static void dematerializeReg(MachineIRBuilder &Builder, Register PhysReg,
   }
 }
 
+// Bug #161 round 17: materialize spill / imaginary operands into real
+// hardware registers before emitting any HD6309 page-3 register-pair
+// instruction (ADDR / ADCR / SUBR / SBCR / ANDR / ORR / EORR / etc).
+// These opcodes encode 4-bit hardware register codes in their postbyte
+// — a raw SPILL_* (DwarfRegNum 0x2000+) operand encodes as garbage that
+// MAME / real silicon decodes as a different (or invalid) instruction.
+// The bug surfaced as test-dp-loop FAILing with MAME "Unexpected
+// exception" — the loop body's `eorr spill_b1, b` emitted bytes
+// `10 36 a9` which round-trips through the disassembler as <unknown>.
+static void emitHD6309RegRegOp(MachineIRBuilder &Builder, MachineInstr &MI,
+                                unsigned Opcode) {
+  MachineFunction &MF = *MI.getMF();
+  Register Dst = MI.getOperand(0).getReg();
+  Register Src1 = MI.getOperand(1).getReg();
+  Register Src2 = MI.getOperand(2).getReg();
+  Register OrigDst = Dst;
+  if (needsMaterialization(Src1)) Src1 = materializeReg(Builder, Src1, MF);
+  if (needsMaterialization(Src2)) Src2 = materializeReg(Builder, Src2, MF);
+  if (needsMaterialization(Dst))  Dst  = materializeReg(Builder, Dst,  MF);
+  Builder.buildInstr(Opcode).addDef(Dst).addUse(Src2).addUse(Src1);
+  if (needsMaterialization(OrigDst))
+    dematerializeReg(Builder, Dst, OrigDst, MF);
+}
+
  void  MC6809InstrInfo::copyPhysReg(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, const DebugLoc &DL, Register DestReg, Register SrcReg, bool KillSrc, bool RenamableDest, bool RenamableSrc) const {
   MachineIRBuilder Builder(MBB, MI);
   if (DestReg == SrcReg)
@@ -4100,10 +4124,7 @@ void MC6809InstrInfo::expandANDReg(MachineIRBuilder &Builder, MachineInstr &MI) 
 
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   if (STI.has6309()) {
-    Builder.buildInstr(MC6809::ANDRp)
-        .addDef(MI.getOperand(0).getReg())
-        .addUse(MI.getOperand(2).getReg())
-        .addUse(MI.getOperand(1).getReg());
+    emitHD6309RegRegOp(Builder, MI, MC6809::ANDRp);
   } else if (MI.getOpcode() == MC6809::AND_i16_Reg) {
     emit6809RegPairFromMem(Builder,
                            MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
@@ -4220,7 +4241,7 @@ void MC6809InstrInfo::expandORReg(MachineIRBuilder &Builder, MachineInstr &MI) c
 
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   if (STI.has6309()) {
-    Builder.buildInstr(MC6809::ORRp).addDef(MI.getOperand(0).getReg()).addUse(MI.getOperand(2).getReg()).addUse(MI.getOperand(1).getReg());
+    emitHD6309RegRegOp(Builder, MI, MC6809::ORRp);
   } else if (MI.getOpcode() == MC6809::OR_i16_Reg) {
     emit6809RegPairFromMem(Builder,
                            MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
@@ -4246,7 +4267,7 @@ void MC6809InstrInfo::expandXORReg(MachineIRBuilder &Builder, MachineInstr &MI) 
 
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   if (STI.has6309()) {
-    Builder.buildInstr(MC6809::EORRp).addDef(MI.getOperand(0).getReg()).addUse(MI.getOperand(2).getReg()).addUse(MI.getOperand(1).getReg());
+    emitHD6309RegRegOp(Builder, MI, MC6809::EORRp);
   } else if (MI.getOpcode() == MC6809::XOR_i16_Reg) {
     emit6809RegPairFromMem(Builder,
                            MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
@@ -4272,10 +4293,7 @@ void MC6809InstrInfo::expandAddReg(MachineIRBuilder &Builder, MachineInstr &MI) 
 
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   if (STI.has6309()) {
-    Builder.buildInstr(MC6809::ADDRp)
-        .addDef(MI.getOperand(0).getReg())
-        .addUse(MI.getOperand(2).getReg())
-        .addUse(MI.getOperand(1).getReg());
+    emitHD6309RegRegOp(Builder, MI, MC6809::ADDRp);
   } else if (MI.getOpcode() == MC6809::Add_i8_Reg) {
     unsigned Opc_o8, Opc_o5, Opc_o16;
     getByteOpcodes(MI.getOperand(0).getReg(),
@@ -4346,10 +4364,7 @@ void MC6809InstrInfo::expandAddSetCarryReg(MachineIRBuilder &Builder, MachineIns
 
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   if (STI.has6309()) {
-    Builder.buildInstr(MC6809::ADDRp)
-        .addDef(MI.getOperand(0).getReg())                         // dst
-        .addUse(MI.getOperand(1).getReg())                         // src
-        .addUse(MI.getOperand(2).getReg());                        // src2
+    emitHD6309RegRegOp(Builder, MI, MC6809::ADDRp);
   } else {
     emit6809RegPairFromMem(Builder,
                            MI.getOperand(0).getReg(),  // LHS = dst (== src by tie)
@@ -4394,10 +4409,7 @@ void MC6809InstrInfo::expandAddSetCarryByteReg(MachineIRBuilder &Builder, Machin
   assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg());
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   if (STI.has6309()) {
-    Builder.buildInstr(MC6809::ADDRp)
-        .addDef(MI.getOperand(0).getReg())
-        .addUse(MI.getOperand(1).getReg())
-        .addUse(MI.getOperand(2).getReg());
+    emitHD6309RegRegOp(Builder, MI, MC6809::ADDRp);
   } else {
     unsigned Opc_o8, Opc_o5, Opc_o16;
     getByteOpcodes(MI.getOperand(0).getReg(),
@@ -4415,10 +4427,7 @@ void MC6809InstrInfo::expandAddSetCarryUseByteReg(MachineIRBuilder &Builder, Mac
   assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg());
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   if (STI.has6309()) {
-    Builder.buildInstr(MC6809::ADCRp)
-        .addDef(MI.getOperand(0).getReg())
-        .addUse(MI.getOperand(1).getReg())
-        .addUse(MI.getOperand(2).getReg());
+    emitHD6309RegRegOp(Builder, MI, MC6809::ADCRp);
   } else {
     unsigned Opc_o8, Opc_o5, Opc_o16;
     getByteOpcodes(MI.getOperand(0).getReg(),
@@ -4436,10 +4445,7 @@ void MC6809InstrInfo::expandSubSetCarryByteReg(MachineIRBuilder &Builder, Machin
   assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg());
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   if (STI.has6309()) {
-    Builder.buildInstr(MC6809::SUBRp)
-        .addDef(MI.getOperand(0).getReg())
-        .addUse(MI.getOperand(1).getReg())
-        .addUse(MI.getOperand(2).getReg());
+    emitHD6309RegRegOp(Builder, MI, MC6809::SUBRp);
   } else {
     unsigned Opc_o8, Opc_o5, Opc_o16;
     getByteOpcodes(MI.getOperand(0).getReg(),
@@ -4457,10 +4463,7 @@ void MC6809InstrInfo::expandSubSetCarryUseByteReg(MachineIRBuilder &Builder, Mac
   assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg());
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   if (STI.has6309()) {
-    Builder.buildInstr(MC6809::SBCRp)
-        .addDef(MI.getOperand(0).getReg())
-        .addUse(MI.getOperand(1).getReg())
-        .addUse(MI.getOperand(2).getReg());
+    emitHD6309RegRegOp(Builder, MI, MC6809::SBCRp);
   } else {
     unsigned Opc_o8, Opc_o5, Opc_o16;
     getByteOpcodes(MI.getOperand(0).getReg(),
@@ -4755,11 +4758,7 @@ void MC6809InstrInfo::expandAddSetCarryUseReg(MachineIRBuilder &Builder, Machine
 
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   if (STI.has6309()) {
-    // Bug #186 v5: 3-op layout, carry-in implicit via Uses=[C].
-    Builder.buildInstr(MC6809::ADCRp)
-        .addDef(MI.getOperand(0).getReg())
-        .addUse(MI.getOperand(1).getReg())
-        .addUse(MI.getOperand(2).getReg());
+    emitHD6309RegRegOp(Builder, MI, MC6809::ADCRp);
   } else {
     emit6809RegPairFromMem(Builder,
                            MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
@@ -4775,10 +4774,7 @@ void MC6809InstrInfo::expandSubReg(MachineIRBuilder &Builder, MachineInstr &MI) 
 
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   if (STI.has6309()) {
-    Builder.buildInstr(MC6809::SUBRp)
-        .addDef(MI.getOperand(0).getReg())
-        .addUse(MI.getOperand(2).getReg())
-        .addUse(MI.getOperand(1).getReg());
+    emitHD6309RegRegOp(Builder, MI, MC6809::SUBRp);
   } else {
     emit6809RegPairFromMem(Builder,
                            MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
@@ -4797,10 +4793,7 @@ void MC6809InstrInfo::expandSubByteReg(MachineIRBuilder &Builder, MachineInstr &
   assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg());
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   if (STI.has6309()) {
-    Builder.buildInstr(MC6809::SUBRp)
-        .addDef(MI.getOperand(0).getReg())
-        .addUse(MI.getOperand(2).getReg())
-        .addUse(MI.getOperand(1).getReg());
+    emitHD6309RegRegOp(Builder, MI, MC6809::SUBRp);
   } else {
     unsigned Opc_o8, Opc_o5, Opc_o16;
     getByteOpcodes(MI.getOperand(0).getReg(),
@@ -4826,10 +4819,7 @@ void MC6809InstrInfo::expandSubSetCarryReg(MachineIRBuilder &Builder, MachineIns
 
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   if (STI.has6309()) {
-    Builder.buildInstr(MC6809::SUBRp)
-        .addDef(MI.getOperand(0).getReg())
-        .addUse(MI.getOperand(1).getReg())
-        .addUse(MI.getOperand(2).getReg());
+    emitHD6309RegRegOp(Builder, MI, MC6809::SUBRp);
   } else {
     emit6809RegPairFromMem(Builder,
                            MI.getOperand(0).getReg(),
@@ -4847,10 +4837,7 @@ void MC6809InstrInfo::expandSubSetCarryUseReg(MachineIRBuilder &Builder, Machine
 
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   if (STI.has6309()) {
-    Builder.buildInstr(MC6809::SBCRp)
-        .addDef(MI.getOperand(0).getReg())
-        .addUse(MI.getOperand(1).getReg())
-        .addUse(MI.getOperand(2).getReg());
+    emitHD6309RegRegOp(Builder, MI, MC6809::SBCRp);
   } else {
     emit6809RegPairFromMem(Builder,
                            MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
@@ -5128,9 +5115,17 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
   assert(MI.getOperand(2).isReg() && "The 2nd source of register tests must be a register");
   assert(MI.getOperand(3).isReg() && "The 1st source of register tests must be a register");
 
-  Builder.buildInstr(MC6809::CMPRp)
-      .addUse(MI.getOperand(3).getReg())
-      .addUse(MI.getOperand(2).getReg());
+  // Bug #161 round 17: materialize spill / imaginary operands into real
+  // hardware registers before emitting CMPR. CMPR encodes 4-bit hardware
+  // register codes in its postbyte; raw SPILL_* operands collapse the
+  // postbyte to 0x00 (= CMPR D,D = always Z=1), breaking the test-strncpy
+  // and similar inner-loop comparisons.
+  MachineFunction &MF = *MI.getMF();
+  Register Src1 = MI.getOperand(3).getReg();
+  Register Src2 = MI.getOperand(2).getReg();
+  if (needsMaterialization(Src1)) Src1 = materializeReg(Builder, Src1, MF);
+  if (needsMaterialization(Src2)) Src2 = materializeReg(Builder, Src2, MF);
+  Builder.buildInstr(MC6809::CMPRp).addUse(Src1).addUse(Src2);
   MI.eraseFromParent();
 }
 
