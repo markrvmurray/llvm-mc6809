@@ -216,28 +216,20 @@ void MC6809PassConfig::addIRPasses() {
   if (getOptLevel() != CodeGenOptLevel::None)
     addPass(createMC6809NonReentrantPass());
 
-  // Bug #209: Loop Strength Reduction creates IR patterns
-  // (`%a = sub i16 0, %iv` paired with `%b = add i16 %base, %iv`) that
-  // the MC6809 backend's byte-level decomposition mishandles, computing
-  // `%a` as `-(%base + %iv)` instead of `-%iv`. The miscompile only
-  // surfaces under aggressive LTO inlining (test-getopt, Os-lto +
-  // Os-hd6309-mame) where regalloc spills %iv and %base near each
-  // other on the frame; a real fix lives in the byte-pair lowering.
-  // Until that is in place, force `-disable-lsr` so the wrong-result
-  // IR pattern never reaches isel. LSR offers little on MC6809 (only a
-  // handful of registers, induction-variable strength reduction
-  // rarely pays off).
-  static bool DisableLSRForced = false;
-  if (!DisableLSRForced) {
-    auto &Opts = cl::getRegisteredOptions();
-    auto It = Opts.find("disable-lsr");
-    if (It != Opts.end()) {
-      auto *Opt = static_cast<cl::opt<bool> *>(It->second);
-      Opt->setValue(true);
-    }
-    DisableLSRForced = true;
-  }
-
+  // Bug #214 / Bug #217: LSR was previously force-disabled here
+  // (commit d357062e38a9, bug #209 Os-lto leg) to dodge a byte-pair
+  // miscompile in `sub i16 0, %iv` paired with `add i16 %base, %iv`.
+  // The real fix retired the workaround:
+  //
+  //   * Bug #214 made the AccReg-clobber explicit on byte-arithmetic
+  //     _Reg pseudos via TableGen Defs.
+  //   * Bug #217 routed dst through ACC8_Bonly (B-half only) so the
+  //     Defs declaration shrinks to `Defs += AB` — regalloc commits
+  //     to B-half pre-RA, sees precise per-half pressure, and can
+  //     absorb the clobber without the union-claim that broke
+  //     non-LTO opt levels.
+  //
+  // LSR runs at all opt levels.
   TargetPassConfig::addIRPasses();
   // Clean up after LSR in particular.
   if (getOptLevel() != CodeGenOptLevel::None)

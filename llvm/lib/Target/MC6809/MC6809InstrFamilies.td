@@ -230,7 +230,22 @@ class MC6809ArithmeticBase<RegisterClass dst, RegisterClass src, dag operand> : 
   let Constraints = "$dst = $src";
 }
 
-multiclass MC6809Arithmetic<ValueType vtype, RegisterClass dst, RegisterClass src> {
+// Bug #214 / Bug #217 — per-half byte _Reg variant.
+// path-(c) of emit6809RegByteFromMem clobbers the hardware accumulator
+// half used by LHS and to host the result. To declare this honestly to
+// regalloc WITHOUT the union-claim that broke #217 at non-LTO opt
+// levels: dst is constrained to ACC8_Bonly (AB + SPILL_B*) so regalloc
+// commits to B-half pre-RA, and Defs declares only AB clobbered.
+// AA-half is untouched; values in AA are preserved without
+// regalloc-inserted save/restore.
+class MC6809ArithmeticBaseRegByteB<dag operand> : MC6809LogicalInstr {
+  let Defs = [NZ, V, C, AB];
+  dag OutOperandList = (outs ACC8_Bonly:$dst);
+  dag InOperandList = !con((ins ACC8_Bonly:$src), operand);
+  let Constraints = "$dst = $src";
+}
+
+multiclass MC6809Arithmetic<ValueType vtype, RegisterClass dst, RegisterClass src, bit IsByte = 0> {
   let isAsCheapAsAMove = true in {
     def _Imm : MC6809ArithmeticBase<dst, src, (ins !cast<Operand>(vtype#"imm"):$val)>;
   }
@@ -238,16 +253,20 @@ multiclass MC6809Arithmetic<ValueType vtype, RegisterClass dst, RegisterClass sr
     def _Mem : MC6809ArithmeticBase<dst, src, (ins INDEX16:$idx, unknown:$offset)>;
     def _Pull : MC6809ArithmeticBase<dst, src, (ins STACK16:$idx)>;
     let Predicates = [IsHD6309] in {
-      def _Reg : MC6809ArithmeticBase<dst, src, (ins src:$src2)>;
+      if !eq(IsByte, 1) then {
+        def _Reg : MC6809ArithmeticBaseRegByteB<(ins ACC8_Bonly:$src2)>;
+      } else {
+        def _Reg : MC6809ArithmeticBase<dst, src, (ins src:$src2)>;
+      }
     }
   }
 }
 
 let isAdd = true in {
-  defm Add_i8 : MC6809Arithmetic<i8, ACC8, ACC8>;
+  defm Add_i8 : MC6809Arithmetic<i8, ACC8, ACC8, /*IsByte=*/1>;
   defm Add_i16 : MC6809Arithmetic<i16, ACC16, ACC16>;
 }
-defm Sub_i8 : MC6809Arithmetic<i8, ACC8, ACC8>;
+defm Sub_i8 : MC6809Arithmetic<i8, ACC8, ACC8, /*IsByte=*/1>;
 defm Sub_i16 : MC6809Arithmetic<i16, ACC16, ACC16>;
 
 // --- Carry-setting variants ---
@@ -316,7 +335,18 @@ class MC6809ArithmeticBaseCarry<RegisterClass dst, RegisterClass src, dag operan
   let Constraints = "$dst = $src";
 }
 
-multiclass MC6809ArithmeticCarry<ValueType vtype, RegisterClass dst, RegisterClass src> {
+// Bug #214 / Bug #217 — per-half byte SetCarry _Reg variant.
+// See MC6809ArithmeticBaseRegByteB for the rationale. Carries the
+// hasSideEffects scheduling barrier (bug #57).
+class MC6809ArithmeticBaseCarryRegByteB<dag operand> : MC6809LogicalInstr {
+  let Defs = [NZ, V, C, AB];
+  let hasSideEffects = 1;
+  dag OutOperandList = (outs ACC8_Bonly:$dst);
+  dag InOperandList = !con((ins ACC8_Bonly:$src), operand);
+  let Constraints = "$dst = $src";
+}
+
+multiclass MC6809ArithmeticCarry<ValueType vtype, RegisterClass dst, RegisterClass src, bit IsByte = 0> {
   let isAsCheapAsAMove = true in {
     def _Imm : MC6809ArithmeticBaseCarry<dst, src, (ins !cast<Operand>(vtype#"imm"):$val)>;
   }
@@ -324,16 +354,20 @@ multiclass MC6809ArithmeticCarry<ValueType vtype, RegisterClass dst, RegisterCla
     def _Mem : MC6809ArithmeticBaseCarry<dst, src, (ins INDEX16:$idx, unknown:$offset)>;
     def _Pull : MC6809ArithmeticBaseCarry<dst, src, (ins STACK16:$idx)>;
     let Predicates = [IsHD6309] in {
-      def _Reg : MC6809ArithmeticBaseCarry<dst, src, (ins src:$src2)>;
+      if !eq(IsByte, 1) then {
+        def _Reg : MC6809ArithmeticBaseCarryRegByteB<(ins ACC8_Bonly:$src2)>;
+      } else {
+        def _Reg : MC6809ArithmeticBaseCarry<dst, src, (ins src:$src2)>;
+      }
     }
   }
 }
 
 let isAdd = true in {
-  defm AddSetCarry_i8 : MC6809ArithmeticCarry<i8, ACC8, ACC8>;
+  defm AddSetCarry_i8 : MC6809ArithmeticCarry<i8, ACC8, ACC8, /*IsByte=*/1>;
   defm AddSetCarry_i16 : MC6809ArithmeticCarry<i16, ACC16, ACC16>;
 }
-defm SubSetCarry_i8 : MC6809ArithmeticCarry<i8, ACC8, ACC8>;
+defm SubSetCarry_i8 : MC6809ArithmeticCarry<i8, ACC8, ACC8, /*IsByte=*/1>;
 defm SubSetCarry_i16 : MC6809ArithmeticCarry<i16, ACC16, ACC16>;
 
 // Bug #147: parallel pseudos for *signed* G_SADDO / G_SSUBO. Same machine
@@ -341,10 +375,10 @@ defm SubSetCarry_i16 : MC6809ArithmeticCarry<i16, ACC16, ACC16>;
 // vreg's value semantically represents the V flag rather than C. The
 // selector's CCFlagChainTracker records `Flag = MC6809::V` for these.
 let isAdd = true in {
-  defm AddSetOverflow_i8  : MC6809ArithmeticCarry<i8,  ACC8,  ACC8>;
+  defm AddSetOverflow_i8  : MC6809ArithmeticCarry<i8,  ACC8,  ACC8, /*IsByte=*/1>;
   defm AddSetOverflow_i16 : MC6809ArithmeticCarry<i16, ACC16, ACC16>;
 }
-defm SubSetOverflow_i8  : MC6809ArithmeticCarry<i8,  ACC8,  ACC8>;
+defm SubSetOverflow_i8  : MC6809ArithmeticCarry<i8,  ACC8,  ACC8, /*IsByte=*/1>;
 defm SubSetOverflow_i16 : MC6809ArithmeticCarry<i16, ACC16, ACC16>;
 
 // --- Carry-using variants ---
@@ -382,45 +416,73 @@ class MC6809ArithmeticBaseSetOverflowUse<RegisterClass dst, RegisterClass src, d
   let Constraints = "$dst = $src";
 }
 
-multiclass MC6809ArithmeticCarryUse<ValueType vtype, RegisterClass dst, RegisterClass src> {
+// Bug #214 / Bug #217 — per-half byte SetCarryUse / SetOverflowUse _Reg
+// variants. See MC6809ArithmeticBaseRegByteB for the rationale.
+class MC6809ArithmeticBaseSetCarryUseRegByteB<dag operand> : MC6809LogicalInstr {
+  let Defs = [NZ, V, C, AB];
+  let Uses = [C];
+  let hasSideEffects = 1;
+  dag OutOperandList = (outs ACC8_Bonly:$dst);
+  dag InOperandList = !con((ins ACC8_Bonly:$src), operand);
+  let Constraints = "$dst = $src";
+}
+
+class MC6809ArithmeticBaseSetOverflowUseRegByteB<dag operand> : MC6809LogicalInstr {
+  let Defs = [NZ, V, C, AB];
+  let Uses = [V];
+  let hasSideEffects = 1;
+  dag OutOperandList = (outs ACC8_Bonly:$dst);
+  dag InOperandList = !con((ins ACC8_Bonly:$src), operand);
+  let Constraints = "$dst = $src";
+}
+
+multiclass MC6809ArithmeticCarryUse<ValueType vtype, RegisterClass dst, RegisterClass src, bit IsByte = 0> {
   let isAsCheapAsAMove = true in {
     def _Imm : MC6809ArithmeticBaseSetCarryUse<dst, src, (ins !cast<Operand>(vtype#"imm"):$val)>;
   }
   let mayLoad = true in {
     def _Mem : MC6809ArithmeticBaseSetCarryUse<dst, src, (ins INDEX16:$idx, unknown:$offset)>;
     let Predicates = [IsHD6309] in {
-      def _Reg : MC6809ArithmeticBaseSetCarryUse<dst, src, (ins src:$src2)>;
+      if !eq(IsByte, 1) then {
+        def _Reg : MC6809ArithmeticBaseSetCarryUseRegByteB<(ins ACC8_Bonly:$src2)>;
+      } else {
+        def _Reg : MC6809ArithmeticBaseSetCarryUse<dst, src, (ins src:$src2)>;
+      }
     }
   }
 }
 
-multiclass MC6809ArithmeticOverflowUse<ValueType vtype, RegisterClass dst, RegisterClass src> {
+multiclass MC6809ArithmeticOverflowUse<ValueType vtype, RegisterClass dst, RegisterClass src, bit IsByte = 0> {
   let isAsCheapAsAMove = true in {
     def _Imm : MC6809ArithmeticBaseSetOverflowUse<dst, src, (ins !cast<Operand>(vtype#"imm"):$val)>;
   }
   let mayLoad = true in {
     def _Mem : MC6809ArithmeticBaseSetOverflowUse<dst, src, (ins INDEX16:$idx, unknown:$offset)>;
     let Predicates = [IsHD6309] in {
-      def _Reg : MC6809ArithmeticBaseSetOverflowUse<dst, src, (ins src:$src2)>;
+      if !eq(IsByte, 1) then {
+        def _Reg : MC6809ArithmeticBaseSetOverflowUseRegByteB<(ins ACC8_Bonly:$src2)>;
+      } else {
+        def _Reg : MC6809ArithmeticBaseSetOverflowUse<dst, src, (ins src:$src2)>;
+      }
     }
   }
 }
 
 let isAdd = true in {
-  defm AddSetCarryUse_i8 : MC6809ArithmeticCarryUse<i8, ACC8, ACC8>;
+  defm AddSetCarryUse_i8 : MC6809ArithmeticCarryUse<i8, ACC8, ACC8, /*IsByte=*/1>;
   defm AddSetCarryUse_i16 : MC6809ArithmeticCarryUse<i16, ACC16, ACC16>;
 }
 
-defm SubSetCarryUse_i8 : MC6809ArithmeticCarryUse<i8, ACC8, ACC8>;
+defm SubSetCarryUse_i8 : MC6809ArithmeticCarryUse<i8, ACC8, ACC8, /*IsByte=*/1>;
 defm SubSetCarryUse_i16 : MC6809ArithmeticCarryUse<i16, ACC16, ACC16>;
 
 // Bug #147: chain-extend variants for *signed* G_SADDE / G_SSUBE.
 // Uses=[V] on the *Use base class.
 let isAdd = true in {
-  defm AddSetOverflowUse_i8  : MC6809ArithmeticOverflowUse<i8,  ACC8,  ACC8>;
+  defm AddSetOverflowUse_i8  : MC6809ArithmeticOverflowUse<i8,  ACC8,  ACC8, /*IsByte=*/1>;
   defm AddSetOverflowUse_i16 : MC6809ArithmeticOverflowUse<i16, ACC16, ACC16>;
 }
-defm SubSetOverflowUse_i8  : MC6809ArithmeticOverflowUse<i8,  ACC8,  ACC8>;
+defm SubSetOverflowUse_i8  : MC6809ArithmeticOverflowUse<i8,  ACC8,  ACC8, /*IsByte=*/1>;
 defm SubSetOverflowUse_i16 : MC6809ArithmeticOverflowUse<i16, ACC16, ACC16>;
 
 // --- Concrete instructions (register-specific, assembler/disassembler) ---

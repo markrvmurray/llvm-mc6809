@@ -362,6 +362,24 @@ def ACC8 : MC6809Reg8Class<(add AB, AA, AF, AE, SPILL_B0, SPILL_B1, SPILL_B2, SP
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
 }
 def ACC8_AB : MC6809Reg8Class<(add AB, AA)>;
+
+// Bug #217: per-half byte register class for the _Reg variants of
+// MC6809Arithmetic{Base,Carry,SetCarryUse,SetOverflowUse}. The byte
+// _Reg expansion via emit6809RegByteFromMem clobbers ONE accumulator
+// half (whichever half the LHS lands in). Constraining dst to the
+// B-half resources (AB + SPILL_B*) means regalloc commits up-front to
+// AB; the pseudo's Defs can then declare ONLY $ab as clobbered,
+// instead of the union $aa+$ab. Halves the over-claim and recovers
+// the regalloc pressure that bug #217 reported as catastrophic across
+// non-LTO opt levels.
+//
+// AB is the historical default for byte arithmetic on the 6809 (most
+// of the byte ALU ops have B variants). Forcing dst to B is a
+// reasonable convention: regalloc inserts COPY $ab, $aa when
+// upstream values live in A.
+def ACC8_Bonly : MC6809Reg8Class<(add AB, SPILL_B0, SPILL_B1, SPILL_B2,
+                                       SPILL_B3, SPILL_B4, SPILL_B5,
+                                       SPILL_B6, SPILL_B7)>;
 def BIT8 : MC6809Reg8Class<(add AA, AB, CC)>; // Valid registers for BAND, BEOR, BOR, BIAND, BIEOR, BIOR, LDBT, STBT
 // Enable fine-grained pressure tracking on constrained i16 classes.
 // On basic 6809, ACC16 has 1 real physreg (AD) + 8 stack-backed spills +
