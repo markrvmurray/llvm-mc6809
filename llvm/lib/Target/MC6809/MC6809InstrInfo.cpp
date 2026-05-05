@@ -3078,9 +3078,27 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
         return true;
       }
     }
+    // Sibling of bug #161: the original general-case lowering did
+    //     setDesc(PSHSs); operand[0]=SS; setImplicit(); break;
+    // which converted the existing operand-0 stack-def into an
+    // implicit-def-of-SS, leaving the value-source register at
+    // operand[1]. PSHSs's MCInstrDesc has no defs and one explicit
+    // input (`reglist:$regs`) at position 0 — `encodeRegListOpValue`
+    // iterates from position 0 OR-ing a postbyte bit per register
+    // operand. Implicit operands are not counted as the explicit
+    // reg-list, so the encoder saw no operands and produced
+    // postbyte 0x00 — `pshs (empty)`, a 4-cycle no-op. MULD ,S++
+    // then read whatever stale 16 bits sat at the top of the
+    // stack — the i16-multiply miscompile surfaced by
+    // test-mc6809-mul-corners.
+    //
+    // Fix: remove the operand-0 stack-def entirely. The
+    // value-source register (originally at operand[1]) shifts down
+    // to position 0, where PSHSs expects its `reglist:$regs`. SS
+    // preservation is declared via PSHSs's td-side
+    // `Defs = [SS]` / `Uses = [SS]`; no explicit SS operand needed.
     MI.setDesc(Builder.getTII().get(MC6809::PSHSs));
-    MI.getOperand(0).setReg(MC6809::SS);
-    MI.getOperand(0).setImplicit();
+    MI.removeOperand(0);
     break;
   }
   case MC6809::Pull_i8:
@@ -4015,9 +4033,18 @@ void MC6809InstrInfo::expandMul16Reg(MachineIRBuilder &Builder, MachineInstr &MI
   // else (AD, an SPILL_D, an RS imag reg, etc.) emit a TFR W,<dst> via
   // copyPhysReg. AD is also clobbered by MULD (high-half product) — Defs
   // already lists it.
+  //
   Register Dst = MI.getOperand(0).getReg();
   Register Reg = MI.getOperand(MI.getNumExplicitOperands() - 1).getReg();
-  Builder.buildInstr(MC6809::Push_i16).addReg(Reg);
+  // PSHS encodes reg-list bits for CC/A/B/D/DP/X/Y/U/PC only; pushing AW
+  // (or any reg outside that set) needs the HD6309 PSHSW (page-2 0x10 0x38).
+  // Dispatch by source-reg class. Both push 2 bytes big-endian onto S, so
+  // the following MULDi_Inc2 with `,S++` works identically.
+  if (Reg == MC6809::AW) {
+    Builder.buildInstr(MC6809::PSHSWx);
+  } else {
+    Builder.buildInstr(MC6809::PSHSs).addReg(Reg);
+  }
   Builder.buildInstr(MC6809::MULDi_Inc2).addReg(MC6809::SS);
   if (Dst != MC6809::AW)
     copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(), Dst, MC6809::AW,
@@ -4033,7 +4060,12 @@ void MC6809InstrInfo::expandMulH16Reg(MachineIRBuilder &Builder, MachineInstr &M
   // dst (AD = high half) is just D after the MULD. Plain serial MIs
   // (no MIBundleBuilder) — see expandMul16Reg comment for why.
   auto Reg = MI.getOperand(MI.getNumExplicitOperands() - 1).getReg();
-  Builder.buildInstr(MC6809::Push_i16).addReg(Reg);
+  // See expandMul16Reg for rationale; AW needs PSHSW, others use PSHS.
+  if (Reg == MC6809::AW) {
+    Builder.buildInstr(MC6809::PSHSWx);
+  } else {
+    Builder.buildInstr(MC6809::PSHSs).addReg(Reg);
+  }
   Builder.buildInstr(MC6809::MULDi_Inc2).addReg(MC6809::SS);
   MI.eraseFromParent();
 }
