@@ -1,0 +1,66 @@
+# RUN: llc -mtriple=mc6809 -mcpu=hd6309 -run-pass=postrapseudos \
+# RUN:     -verify-machineinstrs %s -o - 2>&1 | FileCheck %s
+
+# Bug #211 (and the HD6309 leg of bug #209).
+#
+# ZEX16Implicit's expansion is `CLRA` — it zero-extends the byte in
+# AB into AD, leaving the i16 result in (A=0 : B=src) = AD. On
+# HD6309 the ACC16 register class includes BOTH AD and AW (the
+# HD6309 alternative 16-bit accumulator). When the regalloc places
+# the ZEX16Implicit destination in AW, the expansion previously
+# emitted ONLY `CLRA` and trusted `dematerializeReg` to STD the
+# result to the spill slot — but AW is a real architectural
+# register, not a spill, so dematerializeReg silently did nothing.
+# AW retained whatever stale (E:F) the prior code left in it. A
+# downstream STW consumer then wrote that garbage to memory.
+#
+# In picolibc's getopt_internal at -Oz -mcpu=hd6309 this corrupted
+# `data->optopt = *cp;` (line 347) — STW stored (stale_E : stale_F)
+# instead of (0 : *cp), and the function returned the wrong char on
+# every short-option call.
+#
+# Fix: in MC6809InstrInfo::expandPostRAPseudo's ZEX16Implicit case,
+# when the dst is not AD, route via copyPhysReg if the dst is an
+# architectural register (AW etc.), or via dematerializeReg if it
+# is a SPILL_*. Mirrors ZEX32Implicit's pre-CLRDa src→AW copy.
+
+# CHECK-LABEL: name: zex16_to_aw
+# Destination in $aw → expansion must follow CLRA with TFR D,W so AW
+# carries the (0:src) result. copyPhysReg's ACC16↔ACC16 branch emits
+# a single TFRp.
+# CHECK:      CLRAa
+# CHECK-NEXT: $aw = TFRp $ad
+# CHECK-NOT:  ZEX16Implicit
+---
+name: zex16_to_aw
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ab
+    $aw = ZEX16Implicit $ab, implicit-def $nz, implicit-def $v, implicit-def $c
+    RTSr implicit $aw
+...
+
+# CHECK-LABEL: name: zex16_to_ad
+# Destination in $ad — the pre-existing common case. CLRAa alone is
+# the entire expansion (AD already holds (0:src) after CLRA), and no
+# TFR/copy must be emitted.
+# CHECK:      CLRAa
+# CHECK-NOT:  TFRp
+# CHECK-NOT:  ZEX16Implicit
+---
+name: zex16_to_ad
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ab
+    $ad = ZEX16Implicit $ab, implicit-def $nz, implicit-def $v, implicit-def $c
+    RTSr implicit $ad
+...
+
+# Note: the SPILL_D* destination case exercises a different branch
+# (dematerializeReg → emitSpillStore) that requires real frame info
+# to compute the spill offset; not covered here. The picolibc
+# bench-parallel sweep (with several test functions producing the
+# spill-class destination at high opt levels) is the runtime
+# coverage for that path.

@@ -2593,10 +2593,26 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     // zeros AA leaving AB = src, so AD holds the correct (0:src) i16
     // — but if regalloc allocated the dst to a SPILL_D* slot the
     // result must be STD'd to it before downstream consumers read.
+    //
+    // Bug #209 HD6309 leg / bug #211: on HD6309 the ACC16 register
+    // class includes BOTH AD and AW. If the regalloc places the dst
+    // in AW (the HD6309 alternative 16-bit accumulator), CLRAa still
+    // computes the value in AD — but AW is left holding stale data
+    // (whatever the prior code put in E:F). A downstream STW reads
+    // the stale W and writes garbage to memory. Fix: when the dst is
+    // AW (or any non-AD architectural ACC16), copy AD → DstReg via
+    // copyPhysReg so the correct (0:src) value lands where the
+    // regalloc expects it. Mirrors ZEX32Implicit's pre-CLRDa src→AW
+    // copy.
     Register DstReg = MI.getOperand(0).getReg();
     Builder.buildInstr(MC6809::CLRAa);
-    if (DstReg != MC6809::AD)
-      dematerializeReg(Builder, MC6809::AD, DstReg, *MI.getMF());
+    if (DstReg != MC6809::AD) {
+      if (needsMaterialization(DstReg))
+        dematerializeReg(Builder, MC6809::AD, DstReg, *MI.getMF());
+      else
+        copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
+                    DstReg, MC6809::AD, /*KillSrc=*/true);
+    }
     MI.eraseFromParent();
     break;
   }
