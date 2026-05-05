@@ -19,6 +19,12 @@
 //
 // Algorithm: restoring division (shift-and-subtract), 32 iterations.
 //
+// HD6309 (`__6309__`): unsigned variants take a fast path when the
+// divisor's high half is zero AND the low half is in the signed-DIVQ-
+// safe range [2, 0x7FFF]. Long-division by a 16-bit divisor uses two
+// DIVQ instructions: ~80 cycles vs ~600 for the 32-iteration loop,
+// ~7-8x speedup. Bug #161 Phase 3.
+//
 //===----------------------------------------------------------------------===//
 
 	.section .text,"ax",@progbits
@@ -29,6 +35,42 @@
 	.globl	__udivsi3
 	.type	__udivsi3,@function
 __udivsi3:
+#ifdef __6309__
+	// HD6309 fast path test (pre-mutation offsets):
+	//   0..1=ret, 2..3=a_hi, 4..5=a_lo, 6..7=b_hi, 8..9=b_lo
+	ldd	6,s		// b_hi == 0?
+	bne	.Lud32_slow	// no → 6809 loop
+	ldd	8,s		// b_lo
+	beq	.Lud32_slow	// b_lo == 0 → loop (undefined behavior)
+	bmi	.Lud32_slow	// b_lo high bit set → loop (signed-DIVQ safety)
+	cmpd	#1
+	beq	.Lud32_div_by_1
+	// Fast path. b_lo ∈ [2, 0x7FFF].
+	// Phase 1: Q = (0 : a_hi); DIVQ b_lo → W = q_hi, D = remainder
+	ldd	#0
+	ldw	2,s		// W = a_hi
+	divq	8,s		// → W = q_hi, D = remainder ∈ [0, b_lo-1]
+	pshsw			// save q_hi (W) — note: 'PSHS W' is invalid;
+				//   HD6309 W needs the dedicated PSHSW opcode
+	// S: 0..1=q_hi, 2..3=ret, 4..5=a_hi, 6..7=a_lo, 8..9=b_hi, 10..11=b_lo
+	ldw	6,s		// W = a_lo (Phase 2 input; D still has remainder)
+	divq	10,s		// Q = (rem:a_lo) ÷ b_lo → W = q_lo, D = final rem
+	ldd	,s		// D = q_hi
+	std	,x		// *X (high 16) = q_hi
+	stw	2,x		// *(X+2) (low 16) = q_lo
+	leas	2,s		// pop saved q_hi
+	rts
+
+.Lud32_div_by_1:
+	// quotient = dividend; copy a → *X
+	ldd	2,s		// a_hi
+	std	,x
+	ldd	4,s		// a_lo
+	std	2,x
+	rts
+
+.Lud32_slow:
+#endif
 	pshs	y		// preserve callee-saved Y
 	leas	-9,s		// workspace: quot(4) + rem(4) + counter(1)
 	// Frame layout (relative to S):
@@ -115,6 +157,38 @@ __udivsi3:
 	.globl	__umodsi3
 	.type	__umodsi3,@function
 __umodsi3:
+#ifdef __6309__
+	ldd	6,s		// b_hi == 0?
+	bne	.Lum32_slow
+	ldd	8,s
+	beq	.Lum32_slow	// b_lo == 0 → loop
+	bmi	.Lum32_slow	// b_lo ≥ 0x8000 → loop
+	cmpd	#1
+	beq	.Lum32_div_by_1
+	// Fast path. Same two-DIVQ scheme; we only need the final
+	// 16-bit remainder (the high 16 of the 32-bit remainder is
+	// always zero because b_lo ≤ 0x7FFF means remainder ≤ 0x7FFE).
+	ldd	#0
+	ldw	2,s		// W = a_hi
+	divq	8,s		// → W = q_hi (discard), D = remainder
+	ldw	4,s		// W = a_lo (Phase 2 input)
+	divq	8,s		// → W = q_lo (discard), D = final remainder
+	pshs	d		// save remainder
+	ldd	#0
+	std	,x		// *X (high 16) = 0
+	puls	d
+	std	2,x		// *(X+2) (low 16) = remainder
+	rts
+
+.Lum32_div_by_1:
+	// remainder = 0; write zeros to *X
+	ldd	#0
+	std	,x
+	std	2,x
+	rts
+
+.Lum32_slow:
+#endif
 	pshs	y
 	leas	-9,s
 

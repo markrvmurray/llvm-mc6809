@@ -13,6 +13,23 @@
 //
 // Algorithm: restoring division (shift-and-subtract), 16 iterations.
 //
+// HD6309 (`__6309__`): the unsigned variants take a fast path when the
+// divisor fits in the signed-DIVD-safe range. Long-division by an
+// 8-bit divisor uses two DIVD instructions: ~50 cycles vs ~400 for the
+// 16-iteration loop, ~8x speedup. Bug #161 Phase 3.
+//
+// DIVD semantics on HD6309: D ÷ src8 (both signed) → B = quotient,
+// A = remainder; V flag set on overflow. The fast path constrains
+// divisor ∈ [2, 127] so:
+//   - the first DIVD with D = (0:dividend.hi) sees a non-negative
+//     dividend (high bit of A clear) and the quotient never exceeds
+//     127 (since 255/2 = 127, fits in i8 signed);
+//   - the remainder ≤ divisor-1 ≤ 126 (high bit clear), so the
+//     second DIVD with D = (remainder:dividend.lo) is also signed-safe.
+// divisor=1 is handled separately (return X unchanged; quotient = a).
+// divisor=0 falls through to the loop (undefined behavior; matches
+// existing semantics).
+//
 //===----------------------------------------------------------------------===//
 
 	.section .text,"ax",@progbits
@@ -23,6 +40,43 @@
 	.globl	__udivhi3
 	.type	__udivhi3,@function
 __udivhi3:
+#ifdef __6309__
+	// HD6309 fast path test — runs before any stack mutation, so
+	// divisor (the 2nd arg) sits at S+2..3 and dividend is in X.
+	ldd	2,s		// D = divisor (A=hi, B=lo)
+	tsta			// divisor.hi == 0 ?
+	bne	.Lud_slow	// no → loop path
+	tstb
+	beq	.Lud_slow	// divisor == 0 → loop (undefined-behavior match)
+	bmi	.Lud_slow	// divisor.lo ≥ 128 → loop (signed-DIVD safety;
+				//   must test before CMPB which would clobber N)
+	cmpb	#1
+	beq	.Lud_div_by_1	// divisor == 1 → quotient = dividend
+	// divisor ∈ [2, 127], in B. X = dividend.
+	pshs	y		// save callee-saved Y
+	pshs	b		// push divisor8 at S+0
+	// S: 0=divisor8, 1..2=Y, 3..4=ret, 5..6=divisor16
+	tfr	x,d		// D = dividend (A=hi, B=lo)
+	pshs	b		// save dividend.lo at S+0
+	// S: 0=dividend.lo, 1=divisor8, 2..3=Y, 4..5=ret, 6..7=divisor16
+	tfr	a,b		// B = dividend.hi
+	clra			// A = 0 → D = (0 : dividend.hi), unsigned 0..255
+	divd	1,s		// D / divisor8 → B=q_hi, A=remainder ∈ [0,126]
+	pshs	b		// save q_hi at S+0
+	// S: 0=q_hi, 1=dividend.lo, 2=divisor8, 3..4=Y, 5..6=ret, 7..8=divisor16
+	ldb	1,s		// B = dividend.lo (A still has remainder, hi-bit clear)
+	divd	2,s		// D / divisor8 → B=q_lo, A=final remainder
+	lda	,s		// A = q_hi (overwriting remainder)
+	tfr	d,x		// X = quotient (A:B = q_hi:q_lo)
+	leas	3,s		// pop q_hi, dividend.lo, divisor8
+	puls	y
+	rts
+
+.Lud_div_by_1:
+	rts			// X already = dividend = quotient
+
+.Lud_slow:
+#endif
 	pshs	y		// save callee-saved Y
 	// stack: [Y:2][ret:2][divisor:2]  offsets 0,2,4
 	tfr	x,d		// D = dividend (becomes quotient)
@@ -55,6 +109,40 @@ __udivhi3:
 	.globl	__umodhi3
 	.type	__umodhi3,@function
 __umodhi3:
+#ifdef __6309__
+	// Same divisor-range test as __udivhi3, but return remainder.
+	ldd	2,s		// D = divisor
+	tsta
+	bne	.Lum_slow
+	tstb
+	beq	.Lum_slow	// divisor == 0 → loop
+	bmi	.Lum_slow	// divisor.lo ≥ 128 → loop (test before CMPB)
+	cmpb	#1
+	beq	.Lum_div_by_1	// divisor == 1 → remainder = 0
+	pshs	y
+	pshs	b		// divisor8 at S+0
+	// S: 0=divisor8, 1..2=Y, 3..4=ret, 5..6=divisor16
+	tfr	x,d
+	pshs	b		// dividend.lo at S+0
+	// S: 0=dividend.lo, 1=divisor8, 2..3=Y, 4..5=ret, 6..7=divisor16
+	tfr	a,b
+	clra
+	divd	1,s		// (0:hi)/divisor → B=q_hi, A=remainder
+	ldb	,s		// B = dividend.lo (A still has remainder, hi-bit clear)
+	divd	1,s		// (rem:lo)/divisor → B=q_lo, A=final remainder
+	tfr	a,b		// B = remainder
+	clra			// A = 0 → D = (0 : remainder)
+	tfr	d,x		// X = remainder
+	leas	2,s		// pop dividend.lo, divisor8
+	puls	y
+	rts
+
+.Lum_div_by_1:
+	ldx	#0		// remainder = 0
+	rts
+
+.Lum_slow:
+#endif
 	pshs	y
 	tfr	x,d
 	ldy	#0
