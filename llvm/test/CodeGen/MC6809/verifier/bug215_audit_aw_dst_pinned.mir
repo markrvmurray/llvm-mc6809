@@ -1,0 +1,114 @@
+# RUN: llc -mtriple=mc6809 -mcpu=hd6309 -run-pass=postrapseudos \
+# RUN:     -verify-machineinstrs %s -o - 2>&1 | FileCheck %s
+
+# Bug #215 audit sentinel — pins the multi-arch-reg dst routing
+# correctness for every post-RA pseudo expansion handler whose
+# destination operand class allows AW (the HD6309 alternative
+# 16-bit accumulator) on top of AD.
+#
+# Two earlier bugs (#208 round 2 = ZEX32Implicit, #211 = ZEX16Implicit)
+# uncovered the bug class: a handler computes its result in one
+# specific physical register but the regalloc may have placed the
+# dst in another arch reg in the same class (typically AD vs AW on
+# HD6309). The fix template:
+#
+#   - When the expansion's instruction writes to a fixed phys reg,
+#     emit copyPhysReg(DstReg, ComputeReg) when the regalloc-assigned
+#     DstReg differs and is itself a real arch reg (NOT a SPILL_*).
+#   - dematerializeReg silently does nothing for arch-reg dst, so
+#     the handler MUST split-route via needsMaterialization(DstReg).
+#
+# Bug #215 audit (memory: project_bug215_audit.md) checked every
+# multi-arch-reg dst handler and found them all already correct.
+# This test pins those handlers' AW-routing so a future refactor
+# that breaks the pattern catches the regression here, not in a
+# real workload at high register pressure.
+#
+# ZEX16Implicit AW-routing is pinned by bug211_zex16_to_aw.mir.
+# ZEX32Implicit src-side routing is pinned by
+# bug208_zex32_implicit_from_rsN.mir.
+# This test covers Negate_i16 (in-place per-arch-reg compute) and
+# Multiply_i16_Imm (post-MULDi16 copyPhysReg(Dst, AW) when needed).
+
+# CHECK-LABEL: name: negate_i16_to_aw
+# Negate_i16 with dst in $aw on HD6309 — expansion emits the in-place
+# W-register sequence: COMWa to ones-complement W, then ADCRp $aw,$a0,$aw
+# to add 1 (with carry from the implicit C). No TFR is needed because
+# the compute register IS the dst.
+# CHECK:      COMWa
+# CHECK:      $aw = ADCRp $a0, $aw
+# CHECK-NOT:  Negate_i16
+---
+name: negate_i16_to_aw
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $aw
+    $aw = Negate_i16 $aw, implicit-def dead $nz, implicit-def dead $c, implicit-def dead $v
+    RTSr implicit $aw
+...
+
+# CHECK-LABEL: name: negate_i16_to_ad
+# Negate_i16 with dst in $ad on HD6309 — expansion emits a single
+# NEGDa (HD6309 native two's-complement-of-D). No COMWa, no TFRp.
+# CHECK:      NEGDa
+# CHECK-NOT:  COMWa
+# CHECK-NOT:  TFRp
+# CHECK-NOT:  Negate_i16
+---
+name: negate_i16_to_ad
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ad
+    $ad = Negate_i16 $ad, implicit-def dead $nz, implicit-def dead $c, implicit-def dead $v
+    RTSr implicit $ad
+...
+
+# CHECK-LABEL: name: multiply_i16_imm_to_aw
+# Multiply_i16_Imm computes (D * imm) → W natively on HD6309 (MULDi16
+# implicitly defines AW). When the regalloc-assigned dst IS $aw, the
+# value is already in place; the expansion must NOT emit a redundant
+# copyPhysReg.
+# CHECK:      MULDi16 5
+# CHECK-NEXT: RTSr
+# CHECK-NOT:  TFRp
+# CHECK-NOT:  Multiply_i16_Imm
+---
+name: multiply_i16_imm_to_aw
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ad
+    $aw = Multiply_i16_Imm $ad, 5, implicit-def dead $nz, implicit-def dead $ad
+    RTSr implicit $aw
+...
+
+# CHECK-LABEL: name: multiply_i16_imm_to_ad
+# Same MULDi16 lands the product in AW; if the regalloc-assigned dst
+# is $ad, the expansion MUST emit copyPhysReg(AD, AW) — that's TFRp
+# $aw → $ad on HD6309. Without it, AD would still hold the high half
+# (which MULDi16 also writes to) instead of the low half product the
+# user expects.
+# CHECK:      MULDi16 5
+# CHECK-NEXT: $ad = TFRp $aw
+# CHECK-NOT:  Multiply_i16_Imm
+---
+name: multiply_i16_imm_to_ad
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ad
+    $ad = Multiply_i16_Imm $ad, 5, implicit-def dead $nz, implicit-def dead $ad
+    RTSr implicit $ad
+...
+
+# Note: the SPILL_D* dst case for both Negate_i16 and
+# Multiply_i16_Imm exercises the dematerializeReg / copyPhysReg
+# branches that need real frame info to compute spill offsets;
+# that path is covered at runtime by the bench-parallel sweep
+# (the picolibc HD6309-mame bench at high register pressure).
+#
+# MERGE_LOHI_i16, ANYEXT_i8_to_i16, EXTRACT_LO_word_i32, and
+# EXTRACT_HI_word_i32 all use ADc (single-arch) for their dst,
+# so AW is not allocatable for them — no sentinel needed.
