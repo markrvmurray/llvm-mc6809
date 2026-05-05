@@ -175,6 +175,84 @@ __umodhi3:
 	.globl	__divhi3
 	.type	__divhi3,@function
 __divhi3:
+#ifdef __6309__
+	// HD6309 fast path: if |b| ∈ [2, 127] use two-DIVD long-division
+	// (same constraint as __udivhi3; DIVD is signed so we do abs(a)/abs(b)
+	// then fix the quotient sign).
+	// Pre-pshs frame: X=a, S+0..1=ret, S+2..3=b.
+	tfr	x,d		// D = a: need a.hi to compute sign_q below.
+	eora	2,s		// A.bit7 = sign(a) XOR sign(b) = sign_q (other bits irrelevant).
+	ldd	2,s		// D = b; N = sign(b).
+	bpl	.Lsd6_pos	// b ≥ 0
+	negd			// D = |b|  (HD6309 NEGD; V set on -32768)
+	bvs	.Lsd6_slow	// b == -32768 → |b| overflows to 0x8000 → slow
+	bra	.Lsd6_check
+.Lsd6_pos:
+	tstd
+	beq	.Lsd6_slow	// b == 0 → undefined, slow
+.Lsd6_check:
+	// D = |b|. Verify A (=|b|.hi) == 0 and B (=|b|.lo) ∈ [2, 127].
+	tsta
+	bne	.Lsd6_slow	// |b| ≥ 256
+	cmpb	#128
+	bhs	.Lsd6_slow	// |b| ≥ 128
+	cmpb	#1
+	beq	.Lsd6_one	// |b| == 1 → quotient = ±a
+	// B = |b| ∈ [2, 127]. Hold sign_q in Y (not on stack) to avoid a
+	// MAME CC-flag interaction with the `tst ,s` / `leas` sequence.
+	// Y is callee-saved; we save old Y, use it as a sign flag, restore.
+	pshs	y		// save callee-saved Y. S: 0..1=Y, 2..3=ret, 4..5=b.
+	pshs	b		// push |b|. S: 0=|b|, 1..2=Y, 3..4=ret, 5..6=b.
+	// Compute sign_q = sign(a) XOR sign(b) → Y (0xFFFF=negative, 0x0000=positive).
+	// SEX extends B's sign into A only; B unchanged. Two-step to get 0x0000/0xFFFF:
+	//   step1: tfr a,b; sex → A=sign_ext(B.bit7), B=original_B
+	//   step2: tfr a,b; sex → A=sign_ext(A.bit7) = same, B=0x00 or 0xFF → D=0x0000 or 0xFFFF
+	tfr	x,d		// D = a; A = a.hi.
+	eora	5,s		// A.bit7 = sign(a) XOR sign(b); b_orig at S+5.
+	tfr	a,b		// B = sign_q byte.
+	sex			// A = 0x00 or 0xFF (extended from B.bit7); B = original sign_q byte.
+	tfr	a,b		// B = extended sign (0x00 or 0xFF).
+	sex			// D = (0x0000) or (0xFFFF).
+	tfr	d,y		// Y = sign_q indicator: 0x0000 or 0xFFFF.
+	// Compute |a|. TFR does NOT update CC; TSTA sets N = sign(a).
+	tfr	x,d		// D = a.
+	tsta			// N = a.hi.bit7 = sign(a). (Needed: double-sex above left N from sign_q.)
+	bpl	.Lsd6_a_pos
+	negd			// D = |a|
+.Lsd6_a_pos:
+	// D = |a|. Two-DIVD long-division with |b| at S+1.
+	pshs	b		// push |a|.lo. S: 0=|a|.lo, 1=|b|, 2..3=Y, 4..5=ret, 6..7=b.
+	tfr	a,b		// B = |a|.hi
+	clra
+	divd	1,s		// (0:|a|.hi) / |b| → B=q_hi, A=rem; |b| at S+1.
+	pshs	b		// push q_hi. S: 0=q_hi, 1=|a|.lo, 2=|b|, 3..4=Y, 5..6=ret, 7..8=b.
+	ldb	1,s		// B = |a|.lo; A = rem from Phase 1.
+	divd	2,s		// (rem:|a|.lo) / |b| → B=q_lo, A=final_rem; |b| at S+2.
+	lda	,s		// A = q_hi.
+	// D = |quotient|. Apply sign from Y.
+	leas	2,s		// pop q_hi, |a|.lo. S: 0=|b|, 1..2=Y, 3..4=ret, 5..6=b.
+	cmpy	#0		// sign_q == 0 → positive quotient
+	beq	.Lsd6_q_done
+	negd			// D = signed quotient.
+.Lsd6_q_done:
+	tfr	d,x		// X = quotient.
+	leas	1,s		// pop |b|. S: 0..1=Y, 2..3=ret, 4..5=b.
+	puls	y
+	rts
+
+.Lsd6_one:
+	// |b| == 1: quotient = a if b=1, or -a if b=-1.
+	// No stack mutation in this path.
+	ldd	2,s		// reload original b.
+	bpl	.Lsd6_one_rts	// b=1 → quotient = a = X.
+	tfr	x,d		// b=-1 → quotient = -a.
+	negd
+	tfr	d,x
+.Lsd6_one_rts:
+	rts
+
+.Lsd6_slow:
+#endif
 	pshs	y
 	// [Y:2][ret:2][b:2]  offsets 0,2,4
 	// Determine result sign: XOR high bytes of a and b
@@ -241,6 +319,67 @@ __divhi3:
 	.globl	__modhi3
 	.type	__modhi3,@function
 __modhi3:
+#ifdef __6309__
+	// Same fast path as __divhi3 but return remainder.
+	// sign_r = sign(a); no need to XOR with sign(b).
+	// Pre-pshs frame: X=a, S+0..1=ret, S+2..3=b.
+	ldd	2,s		// D = b; N = sign(b).
+	bpl	.Lsm6_pos
+	negd			// D = |b|
+	bvs	.Lsm6_slow
+	bra	.Lsm6_check
+.Lsm6_pos:
+	tstd
+	beq	.Lsm6_slow
+.Lsm6_check:
+	tsta
+	bne	.Lsm6_slow
+	cmpb	#128
+	bhs	.Lsm6_slow
+	cmpb	#1
+	beq	.Lsm6_one	// |b| == 1 → remainder = 0
+	// B = |b| ∈ [2, 127]. Hold sign_r in Y to avoid tst ,s / leas MAME bug.
+	pshs	y		// save old Y. S: 0..1=Y, 2..3=ret, 4..5=b.
+	pshs	b		// push |b|. S: 0=|b|, 1..2=Y, 3..4=ret, 5..6=b.
+	// sign_r = sign(a) → Y (0xFFFF or 0x0000). Same two-step SEX.
+	tfr	x,d		// D = a; A = a.hi; N = sign(a).
+	tfr	a,b		// B = a.hi.
+	sex			// A = 0x00 or 0xFF.
+	tfr	a,b		// B = extended sign.
+	sex			// D = 0x0000 or 0xFFFF.
+	tfr	d,y		// Y = sign_r indicator.
+	// Compute |a|. Use TSTA to set N = sign(a) (double-sex may have left N wrong).
+	tfr	x,d		// D = a.
+	tsta			// N = a.hi.bit7 = sign(a).
+	bpl	.Lsm6_a_pos
+	negd			// D = |a|
+.Lsm6_a_pos:
+	// D = |a|. Two-DIVD long-division with |b| at S+1.
+	pshs	b		// push |a|.lo. S: 0=|a|.lo, 1=|b|, 2..3=Y, 4..5=ret, 6..7=b.
+	tfr	a,b
+	clra
+	divd	1,s		// (0:|a|.hi) / |b| → B=q_hi, A=rem; |b| at S+1.
+	ldb	,s		// B = |a|.lo; A = rem.
+	divd	1,s		// (rem:|a|.lo) / |b| → B=q_lo, A=|remainder|; |b| at S+1.
+	// A = |remainder|. Apply sign from Y.
+	tfr	a,b		// B = |remainder|.
+	leas	1,s		// pop |a|.lo. S: 0=|b|, 1..2=Y, 3..4=ret, 5..6=b.
+	cmpy	#0		// sign_r == 0 → positive remainder
+	beq	.Lsm6_r_done
+	negb			// B = -|remainder|
+.Lsm6_r_done:
+	sex			// sign-extend B into D.
+	tfr	d,x		// X = i16 remainder.
+	leas	1,s		// pop |b|. S: 0..1=Y, 2..3=ret, 4..5=b.
+	puls	y
+	rts
+
+.Lsm6_one:
+	ldx	#0		// |b|=1 → remainder = 0.
+	rts
+
+.Lsm6_slow:
+#endif
 	pshs	y
 	// [Y:2][ret:2][b:2]
 	// Save sign of a (remainder follows dividend sign)
