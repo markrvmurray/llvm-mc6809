@@ -4179,6 +4179,62 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
       PostBuilder.buildInstr(StoreOpc)
           .addUse(StageReg, RegState::Implicit)
           .addImm(SpillOff).addReg(MC6809::SU);
+    } else if (isQSpillReg(DestRegOp.getReg())) {
+      // Bug #221: Q-spill destination — DON'T stage through physical AQ
+      // (which would require LDQ to load and STQ to spill back; the LDQ
+      // physically clobbers AW, AD, and all sub-registers, possibly
+      // breaking unrelated live values that regalloc placed in those
+      // sub-registers without conflict because $spill_q* is an
+      // imaginary reg distinct from physical AQ).
+      //
+      // Instead, copy the i32 source via TWO LDD (16-bit) loads — one
+      // for each half of the dest spill slot. This touches only AD
+      // (which is the SpillDSaveRestore pass's responsibility — it
+      // saves/restores AD around any expansion that needs it). AW
+      // and the other AQ sub-registers stay untouched, preserving any
+      // live value regalloc allocated there.
+      //
+      // Big-endian layout: dst[0..1] = HI word, dst[2..3] = LO word.
+      // Source (the original Load_i32_Mem operand) is also a 4-byte
+      // BE i32 at IndexReg+OffsetOp.
+      auto SrcIndex = MI.getOperand(1);
+      auto SrcOffset = MI.getOperand(2);
+      int DstSpillOff = computeSpillStackOffset(DestRegOp.getReg(), MF);
+
+      auto emitHalf = [&](int HalfOffset) {
+        // Load src+HalfOffset → AD via LDD (handles 5-bit, 8-bit, 16-bit
+        // offsets through getLoadIdxOpcode).
+        int SrcOffsetBytes = SrcOffset.isImm()
+                                 ? int(SrcOffset.getImm()) + HalfOffset
+                                 : HalfOffset;
+        unsigned LdOpc = getLoadIdxOpcode(MC6809::AD, SrcOffsetBytes);
+        Builder.buildInstr(LdOpc)
+            .addDef(MC6809::AD, RegState::Implicit)
+            .addImm(SrcOffsetBytes)
+            .addReg(SrcIndex.getReg());
+        // Store AD → dst spill slot + HalfOffset via STD.
+        unsigned StOpc =
+            getStoreIdxOpcode(MC6809::AD, DstSpillOff + HalfOffset);
+        Builder.buildInstr(StOpc)
+            .addUse(MC6809::AD, RegState::Implicit)
+            .addImm(DstSpillOff + HalfOffset)
+            .addReg(MC6809::SU);
+      };
+      if (SrcOffset.isImm()) {
+        emitHalf(0);  // HI word
+        emitHalf(2);  // LO word
+        MI.eraseFromParent();
+        return;
+      }
+      // Reg-offset source path: fall through to the generic Q-via-AQ
+      // approach below (rare; correctness over generality).
+      Register RealReg = getPhysRegFor(DestRegOp.getReg());
+      MI.getOperand(0).setReg(RealReg);
+      expandLoadIdx(Builder, MI);
+      MachineBasicBlock::iterator InsertPt = MI.getIterator();
+      ++InsertPt;
+      MachineIRBuilder PostBuilder(*MI.getParent(), InsertPt);
+      dematerializeReg(PostBuilder, RealReg, DestRegOp.getReg(), MF);
     } else {
       // ACC spill or imaginary dest: load into real accumulator, then store back.
       Register RealReg = getPhysRegFor(DestRegOp.getReg());
