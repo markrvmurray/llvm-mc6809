@@ -80,6 +80,26 @@ void mc6809::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   if (!D.SysRoot.empty())
     CmdArgs.push_back(Args.MakeArgString("--sysroot=" + D.SysRoot));
 
+  // Bug #161 Phase 1.5: when targeting HD6309, prepend the multilib
+  // subdirectory holding the HD6309-optimised compiler-rt builtins.
+  // compiler-rt builds two variants of libclang_rt.builtins.a; the
+  // HD6309 copy is staged at <resourcedir>/lib/<triple>/hd6309/. By
+  // prepending -L for that subdir BEFORE the default library paths,
+  // any subsequent `-lclang_rt.builtins` (including the one picolibc
+  // emits inside its --start-group block) resolves to the HD6309
+  // version first. The fallback library is unchanged for plain 6809
+  // builds.
+  {
+    StringRef CPU = Args.getLastArgValue(options::OPT_mcpu_EQ);
+    if (CPU == "hd6309" || CPU == "6309") {
+      SmallString<128> HD6309LibPath(D.ResourceDir);
+      llvm::sys::path::append(HD6309LibPath, "lib",
+                              TC.getTriple().getTriple(), "hd6309");
+      CmdArgs.push_back(
+          Args.MakeArgString(Twine("-L") + HD6309LibPath.str()));
+    }
+  }
+
   TC.AddFilePathLibArgs(Args, CmdArgs);
   Args.addAllArgs(CmdArgs, {options::OPT_L, options::OPT_T_Group,
                             options::OPT_e, options::OPT_s, options::OPT_t,

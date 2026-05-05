@@ -1206,6 +1206,54 @@ else ()
                               CXX_STANDARD 17
                               PARENT_TARGET builtins)
 
+      # Bug #161 Phase 1.5: for mc6809, also build an HD6309-optimised
+      # variant of the builtins. The HD6309 .S files use #ifdef __6309__
+      # to provide single-instruction MULD / DIVD / DIVQ / TFM paths
+      # that are dramatically faster than the 6809 schoolbook fallback.
+      #
+      # Multilib layout: the HD6309 library has the SAME filename
+      # (libclang_rt.builtins.a) but sits in a `hd6309/` subdirectory
+      # alongside the default library. The MC6809 clang driver
+      # prepends `-L .../hd6309` to the link command when -mcpu=hd6309
+      # is set, so picolibc's existing `-lclang_rt.builtins` (inside
+      # its --start-group block) resolves to the HD6309 version first.
+      if (${arch} STREQUAL "mc6809")
+        # The library is built under the alternate name
+        # libclang_rt.builtins-hd6309.a (so its target name doesn't
+        # collide with the default builtins target). It's then copied
+        # to <output>/hd6309/libclang_rt.builtins.a so the MC6809 clang
+        # driver can resolve picolibc's -lclang_rt.builtins to the
+        # HD6309 version simply by prepending -L .../hd6309.
+        add_compiler_rt_runtime(clang_rt.builtins-hd6309
+                                STATIC
+                                ARCHS ${arch}
+                                DEPS ${deps_${arch}}
+                                SOURCES ${${arch}_SOURCES}
+                                DEFS ${BUILTIN_DEFS}
+                                CFLAGS ${BUILTIN_CFLAGS_${arch}} -mcpu=hd6309
+                                C_STANDARD 11
+                                CXX_STANDARD 17
+                                PARENT_TARGET builtins)
+        get_compiler_rt_output_dir(${arch} _MC6809_LIB_OUTPUT_DIR)
+        set(_MC6809_HD6309_SRC
+          "${_MC6809_LIB_OUTPUT_DIR}/libclang_rt.builtins-hd6309.a")
+        set(_MC6809_HD6309_DST_DIR "${_MC6809_LIB_OUTPUT_DIR}/hd6309")
+        set(_MC6809_HD6309_DST
+          "${_MC6809_HD6309_DST_DIR}/libclang_rt.builtins.a")
+        add_custom_command(
+          OUTPUT "${_MC6809_HD6309_DST}"
+          COMMAND ${CMAKE_COMMAND} -E make_directory
+                  "${_MC6809_HD6309_DST_DIR}"
+          COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                  "${_MC6809_HD6309_SRC}" "${_MC6809_HD6309_DST}"
+          DEPENDS "${_MC6809_HD6309_SRC}"
+          COMMENT "Stage HD6309 builtins to hd6309/ multilib subdir"
+        )
+        add_custom_target(clang_rt.builtins-hd6309-multilib ALL
+          DEPENDS "${_MC6809_HD6309_DST}")
+        add_dependencies(builtins clang_rt.builtins-hd6309-multilib)
+      endif ()
+
       # Write out the sources that were used to compile the builtins so that tests can be run in
       # an independent compiler-rt build (see: compiler-rt/test/builtins/CMakeLists.txt)
       get_compiler_rt_output_dir(${arch} BUILTIN_LIB_OUTPUT_DIR)
