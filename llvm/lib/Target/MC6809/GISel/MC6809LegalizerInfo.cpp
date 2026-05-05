@@ -129,9 +129,10 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
       .clampScalar(1, *NotMaxWithOne.begin(), *std::prev(NotMaxWithOne.end()));
 
   // G_SEXT: native form is SEX (s8 B → s16 D); SEXW exists only on HD6309.
-  // The instruction selector has patterns for two shapes only:
+  // The instruction selector has patterns for three shapes:
   //   (s8, s1)  via SEX8Implicit
   //   (s16, s8) via SEX16Implicit (the native SEX)
+  //   (s32, s16) via SEX32Implicit (HD6309 only — SEXW: AW → AQ in one insn)
   //
   // For s1-source extends to wider types (s16, s32), we use the MOS-proven
   // pattern (MOSLegalizerInfo.cpp:596-639): emit a G_SELECT on constants
@@ -142,13 +143,16 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // into a branch + constant-materialization diamond, which uses only ONE
   // i16 register (D) at any point.
   //
-  // (s32, s16) still uses upstream lowerEXT — both halves are live at the
-  // merge point, but that's only 2 simultaneous vregs, which fits in the
-  // available pool. The s1-source case was the problematic one.
-  getActionDefinitionsBuilder(G_SEXT)
-      .legalFor({{s8, s1}, {s16, s8}})
-      .lowerFor({{s32, s16}, {s32, s8}, {s64, s32}, {s64, s16}, {s64, s8}})
-      .customFor({{s16, s1}, {s32, s1}, {s64, s1}});
+  // (s32, s16) on HD6309 is legal (SEXW replaces the 4-instr diamond);
+  // on plain 6809 it still uses upstream lowerEXT.
+  {
+    auto &B = getActionDefinitionsBuilder(G_SEXT)
+        .legalFor({{s8, s1}, {s16, s8}});
+    if (IsHD6309)
+      B.legalFor({{s32, s16}});  // Bug #161 Phase 4: SEXW single instruction
+    B.lowerFor({{s32, s16}, {s32, s8}, {s64, s32}, {s64, s16}, {s64, s8}})
+        .customFor({{s16, s1}, {s32, s1}, {s64, s1}});
+  }
 
   getActionDefinitionsBuilder({G_SEXTLOAD, G_ZEXTLOAD})
       .custom();
