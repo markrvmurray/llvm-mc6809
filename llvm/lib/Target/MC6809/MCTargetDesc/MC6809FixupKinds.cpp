@@ -34,8 +34,7 @@ const MCFixupKindInfo &MC6809FixupKinds::getFixupKindInfo(const MC6809::Fixups K
   if (Kind < static_cast<MC6809::Fixups>(FirstTargetFixupKind)) {
     assert(Alternative &&
            "Alternative MC6809 backend expected, but none was given!");
-    const MCFixupKindInfo &Info = Alternative->getFixupKindInfo(static_cast<MCFixupKind>(Kind));
-    return Info;
+    return Alternative->getFixupKindInfo(static_cast<MCFixupKind>(Kind));
   }
   assert(unsigned(Kind - FirstTargetFixupKind) <
              MC6809::Fixups::NumTargetFixupKinds &&

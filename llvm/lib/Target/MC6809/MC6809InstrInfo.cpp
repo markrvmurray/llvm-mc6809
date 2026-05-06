@@ -1263,17 +1263,6 @@ static bool isImag16ByteSubReg(Register Reg) {
   }
 }
 
-/// Get the parent Imag16 register for an RS byte sub-register.
-static Register getImag16Parent(Register Reg) {
-  switch (Reg.id()) {
-  case MC6809::RS0HI: case MC6809::RS0LO: return MC6809::RS0;
-  case MC6809::RS1HI: case MC6809::RS1LO: return MC6809::RS1;
-  case MC6809::RS2HI: case MC6809::RS2LO: return MC6809::RS2;
-  case MC6809::RS3HI: case MC6809::RS3LO: return MC6809::RS3;
-  default: llvm_unreachable("not an RS byte sub-reg");
-  }
-}
-
 /// True if Reg is the HI (high) byte of its parent RS register.
 static bool isImag16HiByte(Register Reg) {
   switch (Reg.id()) {

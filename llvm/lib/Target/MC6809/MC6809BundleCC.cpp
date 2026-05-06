@@ -33,26 +33,6 @@
 
 using namespace llvm;
 
-/// Check if this instruction clobbers any condition code flags.
-static bool clobbersCC(const MachineInstr &MI, const TargetRegisterInfo &TRI) {
-  for (const MachineOperand &MO : MI.operands()) {
-    if (!MO.isReg() || !MO.isDef())
-      continue;
-    if (TRI.regsOverlap(MO.getReg(), MC6809::CC) ||
-        TRI.regsOverlap(MO.getReg(), MC6809::NZ))
-      return true;
-  }
-  // Also check implicit defs.
-  for (const MachineOperand &MO : MI.implicit_operands()) {
-    if (!MO.isReg() || !MO.isDef())
-      continue;
-    if (TRI.regsOverlap(MO.getReg(), MC6809::CC) ||
-        TRI.regsOverlap(MO.getReg(), MC6809::NZ))
-      return true;
-  }
-  return false;
-}
-
 namespace {
 
 class MC6809BundleCC : public MachineFunctionPass {

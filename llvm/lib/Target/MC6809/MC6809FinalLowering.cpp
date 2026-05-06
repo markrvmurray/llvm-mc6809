@@ -1308,7 +1308,6 @@ bool MC6809FinalLowering::foldLEAPointerSpill(MachineFunction &MF) {
       auto OB = getOffsetAndBaseIdx(MI);
       if (OB) {
         Register IdxReg = MI.getOperand(OB->second).getReg();
-        bool DidRewrite = false;
         AddrValue *Addr = nullptr;
         MachineInstr **Pending = nullptr;
         if (IdxReg == MC6809::IY && YKnown) {
@@ -1402,7 +1401,6 @@ bool MC6809FinalLowering::foldLEAPointerSpill(MachineFunction &MF) {
             *Pending = nullptr;
             ++NumLEAPointerSpillFolded;
             Changed = true;
-            DidRewrite = true;
           }
         }
         // Whether or not we rewrote, fall through to the def-of-Y/X

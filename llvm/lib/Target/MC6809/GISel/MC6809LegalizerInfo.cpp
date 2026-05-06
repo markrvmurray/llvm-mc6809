@@ -61,9 +61,6 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   auto LegalScalars32 = {s8, s16, s32};
   auto LegalScalars16 = {s8, s16};
   auto LegalScalars = IsHD6309 ? LegalScalars32 : LegalScalars16;
-  auto LegalShortScalars32 = {s1, s8, s16};
-  auto LegalShortScalars16 = {s1, s8};
-  // auto LegalShortScalars = IsHD6309 ? LegalShortScalars32 : LegalShortScalars16;
   auto LegalLibcallScalars32 = {s16, s32, s64};
   auto LegalLibcallScalars16 = {s16, s32, s64};
   auto LegalLibcallScalars = IsHD6309 ? LegalLibcallScalars32 : LegalLibcallScalars16;
@@ -833,74 +830,6 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
   return false;
 }
 
-/// Generalized i32 binary operation legalization helper.
-/// Decomposes an i32 binary op into two i16 ops, interleaving a Store
-/// between them when feeding a return chain (UNMERGE → Store lo + COPY hi).
-/// This avoids ACC16 register pressure: D holds only one i16 at a time.
-///
-/// buildLoOp/buildHiOp: callbacks that create the lo/hi i16 operations
-/// given the lo/hi parts of both operands.
-static bool legalizeI32BinaryOp(
-    MachineIRBuilder &B, MachineRegisterInfo &MRI,
-    MachineInstr &MI,
-    function_ref<MachineInstrBuilder(Register, Register)> BuildLoOp,
-    function_ref<MachineInstrBuilder(Register, Register)> BuildHiOp) {
-  Register DstReg = MI.getOperand(0).getReg();
-  Register LHSReg = MI.getOperand(1).getReg();
-  Register RHSReg = MI.getOperand(2).getReg();
-  LLT S16 = LLT::scalar(16);
-
-  // Unmerge both i32 operands into i16 lo/hi
-  auto LHSParts = B.buildUnmerge(S16, LHSReg);
-  auto RHSParts = B.buildUnmerge(S16, RHSReg);
-
-  // Find the UNMERGE + Store + COPY return chain
-  MachineInstr *Unmerge = nullptr;
-  for (auto &Use : MRI.use_instructions(DstReg))
-    if (Use.getOpcode() == TargetOpcode::G_UNMERGE_VALUES)
-      { Unmerge = &Use; break; }
-
-  if (Unmerge) {
-    Register LoUse = Unmerge->getOperand(0).getReg();
-    Register HiUse = Unmerge->getOperand(1).getReg();
-
-    // Detect return chain: LoUse → G_STORE, HiUse → COPY to phys reg
-    MachineInstr *LoStore = nullptr;
-    bool IsReturnChain = false;
-    for (auto &Use : MRI.use_instructions(LoUse))
-      if (Use.getOpcode() == TargetOpcode::G_STORE) { LoStore = &Use; break; }
-    if (LoStore)
-      for (auto &Use : MRI.use_instructions(HiUse))
-        if (Use.getOpcode() == TargetOpcode::COPY && Use.getOperand(0).isReg()
-            && Use.getOperand(0).getReg().isPhysical())
-          { IsReturnChain = true; break; }
-
-    if (IsReturnChain) {
-      // Compute lo, store immediately, compute hi, replace consumers
-      auto ResLo = BuildLoOp(LHSParts.getReg(0), RHSParts.getReg(0));
-      Register Addr = LoStore->getOperand(1).getReg();
-      MachineInstr *AddrDef = MRI.getVRegDef(Addr);
-      auto NewAddr = B.buildFrameIndex(MRI.getType(Addr),
-          AddrDef->getOperand(1).getIndex());
-      B.buildStore(ResLo, NewAddr, **LoStore->memoperands_begin());
-      LoStore->eraseFromParent();
-      if (MRI.use_empty(Addr))
-        AddrDef->eraseFromParent();
-      auto ResHi = BuildHiOp(LHSParts.getReg(1), RHSParts.getReg(1));
-      MRI.replaceRegWith(HiUse, ResHi.getReg(0));
-      Unmerge->eraseFromParent();
-      MI.eraseFromParent();
-      return true;
-    }
-  }
-
-  // Fallback: use G_MERGE (may hit regalloc pressure for complex patterns)
-  auto ResLo = BuildLoOp(LHSParts.getReg(0), RHSParts.getReg(0));
-  auto ResHi = BuildHiOp(LHSParts.getReg(1), RHSParts.getReg(1));
-  B.buildMergeValues(DstReg, {ResLo.getReg(0), ResHi.getReg(0)});
-  MI.eraseFromParent();
-  return true;
-}
 
 bool
 MC6809LegalizerInfo::legalizeBitwise(LegalizerHelper &Helper,
