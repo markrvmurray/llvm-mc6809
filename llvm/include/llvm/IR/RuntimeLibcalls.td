@@ -3677,6 +3677,9 @@ def __notsi2 : RuntimeLibcallImpl<NOT_I32>;
 def __notdi2 : RuntimeLibcallImpl<NOT_I64>;
 def __notti2 : RuntimeLibcallImpl<NOT_I128>;
 
+def __sqrtsf2 : RuntimeLibcallImpl<SQRT_F32>;
+def __sqrtdf2 : RuntimeLibcallImpl<SQRT_F64>;
+
 def isMC6809 : RuntimeLibcallPredicate<"TT.getArch() == Triple::mc6809">;
 
 // The memset intrinsic takes a char, while the C memset takes an int. These
@@ -3687,7 +3690,7 @@ def isMC6809 : RuntimeLibcallPredicate<"TT.getArch() == Triple::mc6809">;
 def MC6809SystemLibrary
     : SystemRuntimeLibrary<
           isMC6809,
-          (add (sub DefaultRuntimeLibcallImpls, memset),
+          (add (sub DefaultRuntimeLibcallImpls, memset, sqrtf, sqrt),
           __addqi3, __addhi3, __addsi3, __adddi3, __addti3,
           __subqi3, __subhi3, __subsi3, __subdi3, __subti3,
           __andqi3, __andhi3, __andsi3, __anddi3, __andti3,
@@ -3704,6 +3707,7 @@ def MC6809SystemLibrary
           __udivmodqi4, __udivmodhi4, __udivmodsi4, __udivmoddi4,
           __divmodqi4, __divmodhi4, __divmodsi4, __divmoddi4,
           __memset,
+          __sqrtsf2, __sqrtdf2,
           abort)>;
 
 //===----------------------------------------------------------------------===//

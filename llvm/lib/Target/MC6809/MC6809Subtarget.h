@@ -84,6 +84,8 @@ public:
 
   bool useAA() const override { return true; }
 
+  void initLibcallLoweringInfo(LibcallLoweringInfo &Info) const override;
+
   MC6809Subtarget &initializeSubtargetDependencies(StringRef CPU, StringRef FS, const TargetMachine &TM);
 
   /// Parses a subtarget feature string, setting appropriate options.

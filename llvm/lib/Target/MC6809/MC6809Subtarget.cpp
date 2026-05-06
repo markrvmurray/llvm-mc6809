@@ -13,6 +13,7 @@
 #include "MC6809Subtarget.h"
 
 #include "llvm/BinaryFormat/ELF.h"
+#include "llvm/CodeGen/LibcallLoweringInfo.h"
 #include "llvm/CodeGen/GlobalISel/CallLowering.h"
 #include "llvm/CodeGen/GlobalISel/InstructionSelector.h"
 #include "llvm/CodeGen/GlobalISel/Utils.h"
@@ -67,4 +68,13 @@ void MC6809Subtarget::overrideSchedPolicy(MachineSchedPolicy &Policy, const Sche
 
   Policy.OnlyBottomUp = false;
   Policy.OnlyTopDown = false;
+}
+
+void MC6809Subtarget::initLibcallLoweringInfo(LibcallLoweringInfo &Info) const {
+  // RTLIB::SQRT_F32 defaults to "sqrtf" (libm name). We provide __sqrtsf2
+  // and __sqrtdf2 wrappers around the MC6839 FP ROM — override here so the
+  // name is correct regardless of whether the legacy-PM or new-PM
+  // RuntimeLibraryAnalysis was initialised with the right target triple.
+  Info.setLibcallImpl(RTLIB::SQRT_F32, RTLIB::impl___sqrtsf2);
+  Info.setLibcallImpl(RTLIB::SQRT_F64, RTLIB::impl___sqrtdf2);
 }
