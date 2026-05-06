@@ -944,6 +944,12 @@ list(APPEND mc6809_SOURCES
   # position-independent OS-9 module; it lands wherever the linker places
   # the .mc6839_rom section (alongside .text). Exports __fpreg / __fpstak.
   mc6809/mc6839_rom.S
+  # MC6839 FP wrappers — translate LLVM soft-float libcall ABI to MC6839
+  # register ABI. See fp_arith.S / fp_conv.S / fp_cmp.S for details.
+  mc6809/fp_data.S
+  mc6809/fp_arith.S
+  mc6809/fp_conv.S
+  mc6809/fp_cmp.S
 )
 
 set(mos_SOURCES ${GENERIC_SOURCES})
