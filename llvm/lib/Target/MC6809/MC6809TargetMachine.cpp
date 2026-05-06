@@ -103,6 +103,10 @@ MC6809TargetMachine::MC6809TargetMachine(const Target &T, const Triple &TT, Stri
 
   initAsmInfo();
 
+  // MC6809 has no FP registers — always soft-float.
+  if (this->Options.FloatABIType == FloatABI::Default)
+    this->Options.FloatABIType = FloatABI::Soft;
+
   setGlobalISel(true);
   // Prevents fallback to SelectionDAG by allowing direct aborts.
   setGlobalISelAbort(GlobalISelAbortMode::Enable);

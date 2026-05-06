@@ -444,9 +444,11 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
       .customForCartesianProduct({s1}, {p, s32, s64})
       .clampScalar(1, s8, s16);
 
+  // G_FCMP: no native FP compare — lower to GNU comparison libcalls
+  // (__cmpsf2/__cmpdf2 and predicate variants). LegalizerHelper::libcall()
+  // handles the return-int-then-compare-to-zero pattern.
   getActionDefinitionsBuilder(G_FCMP)
-      .legalForCartesianProduct({s1}, {s32, s64});
-  //.customForCartesianProduct({s1}, {s32, s64});
+      .libcallForCartesianProduct({s1}, {s32, s64});
 
   getActionDefinitionsBuilder(G_BRCOND)
       .legalFor({s1});
