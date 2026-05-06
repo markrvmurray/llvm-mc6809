@@ -940,6 +940,10 @@ list(APPEND mc6809_SOURCES
   mc6809/ucmpdi2.S
   # 64-bit multiply (truncated) — see muldi3.c REMOVE_ITEM above.
   mc6809/muldi3.S
+  # MC6839 FP ROM image — embedded as a relocatable blob. The MC6839 is a
+  # position-independent OS-9 module; it lands wherever the linker places
+  # the .mc6839_rom section (alongside .text). Exports __fpreg / __fpstak.
+  mc6809/mc6839_rom.S
 )
 
 set(mos_SOURCES ${GENERIC_SOURCES})
@@ -1189,6 +1193,12 @@ else ()
 
       if (${arch} STREQUAL "mc6809__disabled")
         list(APPEND BUILTIN_CFLAGS_${arch} -flto)
+      endif()
+
+      if (${arch} STREQUAL "mc6809")
+        # mc6839_rom.S uses .incbin "Float09.bin"; the assembler's .incbin
+        # searches -I directories, so add the mc6809 source dir to the path.
+        list(APPEND BUILTIN_CFLAGS_${arch} -I${CMAKE_CURRENT_SOURCE_DIR}/mc6809)
       endif()
 
       if (${arch} STREQUAL "mos")
