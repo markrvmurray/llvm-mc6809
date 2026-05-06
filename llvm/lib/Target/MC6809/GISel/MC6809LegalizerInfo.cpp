@@ -369,9 +369,9 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
        G_FFLOOR,          G_FRINT,           G_FNEARBYINT})
       .libcallFor({s32, s64});
 
-  // G_FABS and G_FNEG are just sign-bit operations — much cheaper than a
-  // libcall. LegalizerHelper::lowerFAbs (clear bit) and lowerFNeg (flip bit)
-  // build AND/XOR with the sign-bit mask; we narrow to byte ops downstream.
+  // G_FABS, G_FNEG, G_FCOPYSIGN are all sign-bit operations — much cheaper
+  // than libcalls. LegalizerHelper lowers them to AND/XOR/OR on the integer
+  // representation of the float; we narrow to byte ops downstream.
   getActionDefinitionsBuilder(G_FABS)
       .lowerFor({s32, s64});
   getActionDefinitionsBuilder(G_FNEG)
@@ -396,7 +396,12 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
       .libcallForCartesianProduct({s32, s64}, {s32, s64}).clampScalar(1, s32, s64);
 
   getActionDefinitionsBuilder(G_FCOPYSIGN)
-      .libcallFor({{s32, s32}, {s64, s64}});
+      .lowerFor({{s32, s32}, {s64, s64}});
+
+  // G_IS_FPCLASS: float classification (isnan, isinf, isfinite, etc.).
+  // No MC6839 equivalent; lower to comparisons via LegalizerHelper.
+  getActionDefinitionsBuilder(G_IS_FPCLASS)
+      .lowerFor({{s1, s32}, {s1, s64}});
 
   // On 6809, s32 load/store has no instruction — narrow to s16 pairs.
   // Bug #161 round 10 (2026-04) extended the narrowing to HD6309 too
