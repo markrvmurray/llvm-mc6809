@@ -912,6 +912,11 @@ list(APPEND mc6809_SOURCES
   mc6809/lshrdi3.S
   mc6809/udivmoddi4.S
   mc6809/ctzhi2.S
+  # __clzsi2: 32-bit count-leading-zeros. Excluded from GENERIC_SOURCES
+  # for register-pressure reasons (see clzsi2.c REMOVE_ITEM above), but
+  # __clzdi2.c IS shipped and transitively calls it via __builtin_clz.
+  # Bug #225: hand-written byte-scan version replaces the missing C body.
+  mc6809/clzsi2.S
   mc6809/mulhi3.S
   mc6809/mulsi3.S
   # Bug #210 round 5: 32-bit bitwise libcalls. The legalizer routes
