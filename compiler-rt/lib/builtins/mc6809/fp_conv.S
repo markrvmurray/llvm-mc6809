@@ -16,7 +16,7 @@
 FPOP_FADD       = 0x00
 FPOP_FFIXD      = 0x18
 FPOP_FFLTD      = 0x26
-FPOP_FMOV       = 0x96
+FPOP_FMOV       = 0x9A
 
 ; ---- precision conversion (FMOV; U = precision word) ----------------------
 
