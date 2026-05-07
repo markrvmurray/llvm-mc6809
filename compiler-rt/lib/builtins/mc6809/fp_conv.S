@@ -1,148 +1,156 @@
 ; MC6839 FP — type conversion wrappers
 ;
-; Precision conversion (FMOV, opcode 0x96):
-;   U = precision parameter word:  bits[6:4]=src  bits[2:0]=dst
-;   Single=0, Double=1.
-;   extendsfdf2: U=(single_src<<4)|double_dst = 0x01
-;   truncdfsf2:  U=(double_src<<4)|single_dst = 0x10
+; All wrappers follow the textbook register-ABI pattern: pshs u,y at entry,
+; puls u,y; rts after the FPOP byte.  After pshs u,y (4 bytes), the arg
+; shifts from [S+2..N] to [S+6..N+4].
 ;
-; Integer conversions:
-;   FFLTD (0x26): signed i32 → float.  Y→i32 arg, X→float result.
-;   FFIXD (0x18): float → signed i32.  Y→float arg, X→i32 result.
+; FMOV (precision conversion) is the only operation here that uses U as
+; data (a precision parameter word), not as an arg pointer.  We still save
+; the caller's U via pshs first, then ldu the precision word.
 ;
-; i64 conversions (__floatdisf, __floatdidf, __fixsfdi, __fixdfdi):
-;   The MC6839 has no native 64-bit integer path. These are approximations:
-;   convert the low 32 bits only (correct for |val| < 2^31, otherwise loses
-;   precision). TODO: implement correctly via two-step conversion.
+; FFLTD/FFIXD are monadic: only Y points to the arg.  U is unused by the
+; ROM for these.
 
         .text
 
+FPOP_FADD       = 0x00
 FPOP_FFIXD      = 0x18
-FPOP_FMOV       = 0x96
 FPOP_FFLTD      = 0x26
+FPOP_FMOV       = 0x96
 
-; ---- Precision conversion ---------------------------------------------------
+; ---- precision conversion (FMOV; U = precision word) ----------------------
 
         .global __extendsfdf2
 __extendsfdf2:
-        ; f32 → f64: src=single(0), dst=double(1)  U=0x01
-        ; Entry: X=f64 result(8B), [S+2..5]=f32 arg
+        ; f32 → f64.  Precision word: src=single(0), dst=double(1) → U=0x01.
+        pshs    u,y
         ldu     #0x01
-        leay    2,s
+        leay    6,s
         ldd     #__mc6839_fpcb_f64
         lbsr    __fpreg
         .byte   FPOP_FMOV
+        puls    u,y
         rts
 
         .global __truncdfsf2
 __truncdfsf2:
-        ; f64 → f32: src=double(1), dst=single(0)  U=0x10
-        ; Entry: X=f32 result(4B), [S+2..9]=f64 arg
+        ; f64 → f32.  Precision word: src=double(1), dst=single(0) → U=0x10.
+        pshs    u,y
         ldu     #0x10
-        leay    2,s
+        leay    6,s
         ldd     #__mc6839_fpcb_f32
         lbsr    __fpreg
         .byte   FPOP_FMOV
+        puls    u,y
         rts
 
-; ---- Signed integer → float -------------------------------------------------
+; ---- signed integer → float (FFLTD) ---------------------------------------
 
         .global __floatsisf
 __floatsisf:
-        ; signed i32 → f32.  Entry: X=f32 result(4B), [S+2..5]=i32
-        leay    2,s
+        ; signed i32 → f32.  Y → i32 arg.
+        pshs    u,y
+        leay    6,s
         ldd     #__mc6839_fpcb_f32
         lbsr    __fpreg
         .byte   FPOP_FFLTD
+        puls    u,y
         rts
 
         .global __floatsidf
 __floatsidf:
-        ; signed i32 → f64.  Entry: X=f64 result(8B), [S+2..5]=i32
-        leay    2,s
+        ; signed i32 → f64.
+        pshs    u,y
+        leay    6,s
         ldd     #__mc6839_fpcb_f64
         lbsr    __fpreg
         .byte   FPOP_FFLTD
+        puls    u,y
         rts
 
         .global __floatdisf
 __floatdisf:
-        ; signed i64 → f32.  Entry: X=f32 result(4B), [S+2..9]=i64
-        ; TODO: two-step conversion for |val| >= 2^31. For now uses low 32 bits.
-        leay    6,s
+        ; signed i64 → f32.  TODO: full i64 range.  For now uses low 32 bits.
+        pshs    u,y
+        leay    10,s
         ldd     #__mc6839_fpcb_f32
         lbsr    __fpreg
         .byte   FPOP_FFLTD
+        puls    u,y
         rts
 
         .global __floatdidf
 __floatdidf:
-        ; signed i64 → f64.  Entry: X=f64 result(8B), [S+2..9]=i64
-        ; TODO: two-step conversion for |val| >= 2^31.
-        leay    6,s
+        ; signed i64 → f64.  TODO: full i64 range.
+        pshs    u,y
+        leay    10,s
         ldd     #__mc6839_fpcb_f64
         lbsr    __fpreg
         .byte   FPOP_FFLTD
+        puls    u,y
         rts
 
-; ---- Unsigned integer → float -----------------------------------------------
-; FFLTD treats its argument as signed. For unsigned i32 values with bit 31 set
-; (val ≥ 2^31): clear bit 31, convert to float, then add 2^31.
+; ---- unsigned integer → float ---------------------------------------------
+; FFLTD treats input as signed.  For u32 with bit31 set we clear bit31,
+; convert, then add 2^31.  Allocates a scratch buffer on the stack.
 
         .global __floatunsisf
 __floatunsisf:
-        ; unsigned i32 → f32.  Entry: X=f32 result(4B), [S+2..5]=u32
-        tst     2,s                 ; test MSB of u32
-        bpl     .Lfunsisf_simple    ; bit 31 clear → same as signed
-        ; bit 31 set: copy arg to scratch, clear bit 31, convert, then add 2^31
-        leas    -4,s                ; scratch slot at [S+0..3] (arg now at [S+6..9])
-        ldd     6,s                 ; high 2 bytes of u32
-        anda    #0x7F               ; clear bit 31
+        ; u32 → f32.  Entry: X=f32 result(4B), [S+2..5]=u32.
+        pshs    u,y                 ; arg now at [S+6..9]
+        tst     6,s
+        bpl     .Lfunsisf_simple
+        ; bit31 set: scratch slot at [S+0..3]; arg now at [S+10..13]
+        leas    -4,s
+        ldd     10,s
+        anda    #0x7F
         std     ,s
-        ldd     8,s                 ; low 2 bytes of u32
+        ldd     12,s
         std     2,s
-        leay    ,s                  ; Y → scratch (modified i32)
+        leay    ,s
         ldd     #__mc6839_fpcb_f32
-        lbsr    __fpreg             ; FFLTD: scratch → f32 at *X
+        lbsr    __fpreg
         .byte   FPOP_FFLTD
-        ; Reuse scratch for 2^31 = 0x4F000000 (IEEE 754 single).
-        ; Then FADD: *X (current result) + 2^31 → *X.
-        ldd     #0x4F00             ; 2^31 f32: high 2 bytes = 0x4F00
+        ; result now in *X.  Add 2^31 = 0x4F000000.
+        ldd     #0x4F00
         std     ,s
         clra
         clrb
-        std     2,s                 ; low 2 bytes = 0x0000
-        leau    ,x                  ; U → *X (current result = FADD arg1)
-        leay    ,s                  ; Y → 2^31 constant on stack
+        std     2,s
+        leau    ,x                  ; U → *X (FADD arg1)
+        leay    ,s                  ; Y → 2^31 constant
         ldd     #__mc6839_fpcb_f32
         lbsr    __fpreg
-        .byte   0x00                ; FPOP_FADD
+        .byte   FPOP_FADD
         leas    4,s
+        puls    u,y
         rts
 .Lfunsisf_simple:
-        leay    2,s
+        leay    6,s
         ldd     #__mc6839_fpcb_f32
         lbsr    __fpreg
         .byte   FPOP_FFLTD
+        puls    u,y
         rts
 
         .global __floatunsidf
 __floatunsidf:
-        ; unsigned i32 → f64.  Entry: X=f64 result(8B), [S+2..5]=u32
-        tst     2,s
+        ; u32 → f64.  Entry: X=f64 result(8B), [S+2..5]=u32.
+        pshs    u,y
+        tst     6,s
         bpl     .Lfunsidf_simple
-        ; Allocate 12 bytes: 4 for modified i32 + 8 for f64 constant
-        leas    -12,s               ; arg now at [S+14..17]
-        ldd     14,s                ; high 2 bytes of u32
-        anda    #0x7F               ; clear bit 31
+        ; scratch i32(4) + f64 const(8) = 12 bytes; arg now at [S+18..21]
+        leas    -12,s
+        ldd     18,s
+        anda    #0x7F
         std     ,s
-        ldd     16,s                ; low 2 bytes
+        ldd     20,s
         std     2,s
-        leay    ,s                  ; Y → modified i32
+        leay    ,s
         ldd     #__mc6839_fpcb_f64
         lbsr    __fpreg
-        .byte   FPOP_FFLTD          ; scratch i32 → f64 at *X
-        ; Write 2^31 = 0x41E0000000000000 into scratch+4..11
+        .byte   FPOP_FFLTD
+        ; 2^31 as f64 = 0x41E0000000000000
         ldd     #0x41E0
         std     4,s
         clra
@@ -150,75 +158,86 @@ __floatunsidf:
         std     6,s
         std     8,s
         std     10,s
-        leau    ,x                  ; U → *X (FADD arg1)
-        leay    4,s                 ; Y → 2^31 f64 constant
+        leau    ,x
+        leay    4,s
         ldd     #__mc6839_fpcb_f64
         lbsr    __fpreg
-        .byte   0x00                ; FPOP_FADD
+        .byte   FPOP_FADD
         leas    12,s
+        puls    u,y
         rts
 .Lfunsidf_simple:
-        leay    2,s
+        leay    6,s
         ldd     #__mc6839_fpcb_f64
         lbsr    __fpreg
         .byte   FPOP_FFLTD
+        puls    u,y
         rts
 
         .global __floatundisf
 __floatundisf:
-        ; unsigned i64 → f32.  TODO: implement properly.
-        ; Approximation: use low 32 bits only.
-        leay    6,s
+        ; u64 → f32.  TODO: full range.  For now uses low 32 bits, signed-only.
+        pshs    u,y
+        leay    10,s
         ldd     #__mc6839_fpcb_f32
         lbsr    __fpreg
         .byte   FPOP_FFLTD
+        puls    u,y
         rts
 
         .global __floatundidf
 __floatundidf:
-        ; unsigned i64 → f64.  TODO: implement properly.
-        leay    6,s
+        ; u64 → f64.  TODO: full range.
+        pshs    u,y
+        leay    10,s
         ldd     #__mc6839_fpcb_f64
         lbsr    __fpreg
         .byte   FPOP_FFLTD
+        puls    u,y
         rts
 
-; ---- Float → signed integer -------------------------------------------------
+; ---- float → signed integer (FFIXD; truncation toward zero) ---------------
 
         .global __fixsfsi
 __fixsfsi:
-        ; f32 → signed i32.  Entry: X=i32 result(4B), [S+2..5]=f32
-        leay    2,s
-        ldd     #__mc6839_fpcb_f32
+        ; f32 → signed i32.
+        pshs    u,y
+        leay    6,s
+        ldd     #__mc6839_fpcb_f32_trunc
         lbsr    __fpreg
         .byte   FPOP_FFIXD
+        puls    u,y
         rts
 
         .global __fixdfsi
 __fixdfsi:
-        ; f64 → signed i32.  Entry: X=i32 result(4B), [S+2..9]=f64
-        leay    2,s
-        ldd     #__mc6839_fpcb_f64
+        ; f64 → signed i32.
+        pshs    u,y
+        leay    6,s
+        ldd     #__mc6839_fpcb_f64_trunc
         lbsr    __fpreg
         .byte   FPOP_FFIXD
+        puls    u,y
         rts
 
         .global __fixsfdi
 __fixsfdi:
-        ; f32 → signed i64.  Entry: X=i64 result(8B), [S+2..5]=f32
-        ; TODO: implement i64 result. For now writes i32 into low 4 bytes of result.
-        leay    2,s
-        ldd     #__mc6839_fpcb_f32
+        ; f32 → signed i64.  TODO: full range.  Writes i32 to low 4 bytes.
+        pshs    u,y
+        leay    6,s
+        ldd     #__mc6839_fpcb_f32_trunc
         lbsr    __fpreg
         .byte   FPOP_FFIXD
+        puls    u,y
         rts
 
         .global __fixdfdi
 __fixdfdi:
-        ; f64 → signed i64.  Entry: X=i64 result(8B), [S+2..9]=f64
-        ; TODO: implement i64 result.
-        leay    2,s
-        ldd     #__mc6839_fpcb_f64
+        ; f64 → signed i64.  TODO: full range.
+        pshs    u,y
+        leay    6,s
+        ldd     #__mc6839_fpcb_f64_trunc
         lbsr    __fpreg
         .byte   FPOP_FFIXD
+        puls    u,y
         rts

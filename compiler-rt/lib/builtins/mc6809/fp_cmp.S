@@ -1,140 +1,130 @@
 ; MC6839 FP — comparison wrappers
 ;
-; FCMP (opcode 0x8A) sets the MC6809 CC register:
-;   Z=1        : arg1 == arg2
-;   N≠V (BLT)  : arg1 < arg2
-;   Z=0, N=V (BGT): arg1 > arg2
-;   otherwise  : unordered (NaN operand)
+; FPOP_FCMP (0x8A) has the M (mixed-precision) bit set, so X is a
+; "parameter word" specifying the precisions of arg1 and arg2:
 ;
-; GNU soft-float comparison convention: each predicate wrapper returns an i32
-; result through *X. The backend then compares that int to 0 to test the
-; predicate. All predicate wrappers return the same -1/0/+1 value:
-;   a <  b → -1      a == b → 0      a > b → +1      unordered → 1
+;   bits 4-6 : arg1 precision (0 = single, 1 = double)
+;   bits 0-2 : arg2 precision
+;   bit  7   : reserved (0)
 ;
-; Since all six predicate wrappers (__eqsf2, __ltsf2, etc.) produce the same
-; value and the backend checks the correct condition, they share one body.
+; For our wrappers:
+;   f32-vs-f32 compare → X = 0x0000
+;   f64-vs-f64 compare → X = 0x0011
 ;
-; Calling convention:
-;   X  = i32 result buffer (4 bytes), set by caller
-;   [S+2..5]  = f32 arg1   [S+6..9]  = f32 arg2
-;   [S+2..9]  = f64 arg1   [S+10..17]= f64 arg2
+; CMPST2 in compare.s encodes the comparison result into the saved-CC
+; byte at [CCREG,U]. RDYXIT runs PULS CC,…,PC which restores the modified
+; CC; PC is restored to FPOP+1 (the dispatch overwrote the lbsr ret addr
+; slot via STY SIZREG,S).  At FPOP+1 the CC bits are:
 ;
-; FCMP does not write to X — result is only in CC. We save X, call FCMP,
-; then convert CC to -1/0/+1 and write through the saved X.
+;   Z=1  : a == b      (CCEQ)
+;   N=1  : a < b       (CCLT)
+;   C=1  : unordered   (CCUN, NaN operand)
+;   none : a > b       (CCGT)
+;
+; All six predicate wrappers share one body returning -1/0/+1/+1
+; (less/equal/greater/unordered) per libgcc convention.  LLVM applies
+; the predicate-specific ICMP_<pred>(result, 0) in createFCMPLibcall.
+; Unordered → +1 makes OLT/OLE/OEQ correctly false; OGT/OGE/ONE inherit
+; libgcc's known NaN imprecision.
+;
+; The wrapper saves the caller's U, Y, AND the result-buffer X via
+; pshs u,y,x — we cannot pass X = result buffer to FPREG because FCMP
+; uses X as the parameter word.  After PULS lands at FPOP+1, we capture
+; CC, reload X from the saved slot, write the i32 result, then unwind.
 
         .text
 
-FPOP_FCMP       = 0x8A          ; FPOP_FREM+2+FPOP_M (mixed-precision flag)
+FPOP_FCMP       = 0x8A
 
-; ---- f32 comparison ---------------------------------------------------------
-; All six predicate wrappers share __cmpsf2's body.
+; ---- f32 comparison --------------------------------------------------------
 
-        .global __eqsf2
-        .global __nesf2
+        .global __cmpsf2
         .global __ltsf2
         .global __lesf2
         .global __gtsf2
         .global __gesf2
-        .global __cmpsf2
-__eqsf2:
-__nesf2:
+        .global __eqsf2
+        .global __nesf2
+__cmpsf2:
 __ltsf2:
 __lesf2:
 __gtsf2:
 __gesf2:
-__cmpsf2:
-        ; Entry: X=i32 result(4B), [S+2..5]=arg1(f32), [S+6..9]=arg2(f32)
-        leau    2,s
-        leay    6,s
-        ldd     #__mc6839_fpcb_f32
-        pshs    x                   ; FCMP doesn't use X; save for result write
+__eqsf2:
+__nesf2:
+        pshs    u,y,x               ; save callee-saved U,Y + result buffer X
+        leau    8,s                 ; U = &arg1
+        leay    12,s                ; Y = &arg2
+        ldd     #__mc6839_fpcb_f32  ; D = &fpcb
+        ldx     #0x0000             ; parameter word: single, single
         lbsr    __fpreg
-        .byte   FPOP_FCMP           ; sets CC: N/Z/V reflect arg1 vs arg2
-        beq     .Lcmpsf2_equal      ; Z=1 → equal
-        blt     .Lcmpsf2_less       ; N≠V → less than
-        bgt     .Lcmpsf2_greater    ; Z=0, N=V → greater
-        ; unordered (NaN): return 1 (non-zero, ≠ the "equal" sentinel)
-        puls    x
-        clra
-        clrb
-        std     ,x                  ; result[0..1] = 0x0000
-        ldd     #1
-        std     2,x                 ; result[2..3] = 0x0001  → i32 = +1
-        rts
-.Lcmpsf2_equal:
-        puls    x
-        clra
-        clrb
-        std     ,x
-        std     2,x                 ; i32 = 0
-        rts
-.Lcmpsf2_less:
-        puls    x
-        ldd     #0xFFFF
-        std     ,x
-        std     2,x                 ; i32 = -1 = 0xFFFFFFFF
-        rts
-.Lcmpsf2_greater:
-        puls    x
-        clra
-        clrb
-        std     ,x
-        ldd     #1
-        std     2,x                 ; i32 = +1
-        rts
+        .byte   FPOP_FCMP
+        bra     .Lcmp_cleanup       ; (BRA preserves CC)
 
-; ---- f64 comparison ---------------------------------------------------------
+; ---- f64 comparison --------------------------------------------------------
 
-        .global __eqdf2
-        .global __nedf2
+        .global __cmpdf2
         .global __ltdf2
         .global __ledf2
         .global __gtdf2
         .global __gedf2
-        .global __cmpdf2
-__eqdf2:
-__nedf2:
+        .global __eqdf2
+        .global __nedf2
+__cmpdf2:
 __ltdf2:
 __ledf2:
 __gtdf2:
 __gedf2:
-__cmpdf2:
-        ; Entry: X=i32 result(4B), [S+2..9]=arg1(f64), [S+10..17]=arg2(f64)
-        leau    2,s
-        leay    10,s
+__eqdf2:
+__nedf2:
+        pshs    u,y,x
+        leau    8,s
+        leay    16,s                ; f64 arg2 starts 8 bytes higher
         ldd     #__mc6839_fpcb_f64
-        pshs    x
+        ldx     #0x0011             ; parameter word: double, double
         lbsr    __fpreg
         .byte   FPOP_FCMP
-        beq     .Lcmpdf2_equal
-        blt     .Lcmpdf2_less
-        bgt     .Lcmpdf2_greater
-        ; unordered
-        puls    x
+        ; fall through
+
+; ---- shared cleanup --------------------------------------------------------
+; On entry: CC = comparison result; X = parameter word (= 0 or 0x0011).
+; Saved X (result buffer) at [S+0..1]; saved Y at [S+2..3]; saved U at [S+4..5].
+; Capture CC into A first, then reload X from the saved slot.
+
+.Lcmp_cleanup:
+        tfr     cc,a                ; A = CC byte (TFR doesn't modify CC)
+        ldx     ,s                  ; X = saved result buffer (LDX modifies CC; OK)
+        bita    #0x04               ; Z?
+        bne     .Lcmp_eq
+        bita    #0x01               ; C?
+        bne     .Lcmp_uo
+        bita    #0x08               ; N?
+        bne     .Lcmp_lt
+        ; fall through: a > b → +1
         clra
         clrb
         std     ,x
         ldd     #1
         std     2,x
-        rts
-.Lcmpdf2_equal:
-        puls    x
-        clra
-        clrb
-        std     ,x
-        std     2,x
-        rts
-.Lcmpdf2_less:
-        puls    x
+        bra     .Lcmp_ret
+.Lcmp_lt:
         ldd     #0xFFFF
         std     ,x
-        std     2,x
-        rts
-.Lcmpdf2_greater:
-        puls    x
+        std     2,x                 ; i32 = -1
+        bra     .Lcmp_ret
+.Lcmp_uo:
         clra
         clrb
         std     ,x
         ldd     #1
-        std     2,x
+        std     2,x                 ; i32 = +1 (libgcc unordered)
+        bra     .Lcmp_ret
+.Lcmp_eq:
+        clra
+        clrb
+        std     ,x
+        std     2,x                 ; i32 = 0
+.Lcmp_ret:
+        leas    2,s                 ; pop the saved-X slot
+        puls    y,u                 ; restore caller's U and Y
         rts
