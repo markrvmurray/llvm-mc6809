@@ -89,12 +89,19 @@ def CC_MC6809 : CallingConv<[
   CCIfType<[i8],  CCAssignToStack<1, 1>>,
   // Pieces of a split i32 (or larger) → always stack. The first
   // piece carries ArgFlags.isSplit() and the last piece carries
-  // ArgFlags.isSplitEnd(). For i64 → 4*i16, middle pieces get
-  // neither flag from upstream; MC6809ValueAssigner::assignArg
-  // tracks split state and sets isSplit on them so CCIfSplit
-  // catches all non-final pieces.
-  CCIfSplit<CCAssignToStack<2, 1>>,
-  CCIf<"ArgFlags.isSplitEnd()", CCAssignToStack<2, 1>>,
+  // ArgFlags.isSplitEnd(). For i64 → 4*i16 (6809) or 2*i32 (HD6309),
+  // middle pieces get neither flag from upstream;
+  // MC6809ValueAssigner::assignArg tracks split state and sets
+  // isSplit on them so CCIfSplit catches all non-final pieces.
+  //
+  // Bug #229: slot size is `0` (= use the value type's natural size),
+  // not a hard-coded 2. On 6809 each piece is i16 → 2 bytes; on
+  // HD6309 each piece may be i32 → 4 bytes. Hard-coding 2 here would
+  // under-allocate the call frame on HD6309 and the wrapper would
+  // read garbage from the caller's locals where the second arg's
+  // bytes should have been.
+  CCIfSplit<CCAssignToStack<0, 1>>,
+  CCIf<"ArgFlags.isSplitEnd()", CCAssignToStack<0, 1>>,
   CCIfType<[i16], CCAssignToReg<[IX]>>,
   CCAssignToStack<0, 1>,
 ]>;
