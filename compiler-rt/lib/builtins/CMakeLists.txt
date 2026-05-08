@@ -917,6 +917,11 @@ list(APPEND mc6809_SOURCES
   # __clzdi2.c IS shipped and transitively calls it via __builtin_clz.
   # Bug #225: hand-written byte-scan version replaces the missing C body.
   mc6809/clzsi2.S
+  # Bug #230: BINDEC/DECBIN wrappers exposed for picolibc's
+  # MC6839-backed float-string engines (atof/atod/ftoa/dtoa
+  # _engine_mc6809.c). One file, both f32 and f64 variants
+  # of each ROM op.
+  mc6809/fp_bcd.S
   mc6809/mulhi3.S
   mc6809/mulsi3.S
   # Bug #210 round 5: 32-bit bitwise libcalls. The legalizer routes
