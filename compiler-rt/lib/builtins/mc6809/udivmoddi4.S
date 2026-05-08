@@ -20,6 +20,39 @@
 	.globl __udivdi3
 	.type  __udivdi3,@function
 __udivdi3:
+#ifdef __6309__
+	// HD6309 fast path — Bug f98d69f.
+	// Eligibility: divisor's high 48 bits == 0 AND low 16 in [1, 0x7FFF].
+	// 4-step long division by 16-bit divisor: Q = prev_rem:chunk, DIVQ
+	// produces W = quotient chunk, D = new remainder.  prev_rem < divisor
+	// guarantees no quotient overflow and Q stays positive-signed.
+	ldd	10,s			// b[0..1]
+	bne	.Ludivdi3_slow
+	ldd	12,s			// b[2..3]
+	bne	.Ludivdi3_slow
+	ldd	14,s			// b[4..5]
+	bne	.Ludivdi3_slow
+	ldd	16,s			// b[6..7]
+	beq	.Ludivdi3_slow		// div-by-zero
+	bmi	.Ludivdi3_slow		// b >= 0x8000 → signed-DIVQ unsafe
+
+	ldd	#0			// initial remainder = 0
+	ldw	2,s			// a[0..1] (MSB chunk)
+	divq	16,s
+	stw	,x
+	ldw	4,s			// a[2..3]
+	divq	16,s
+	stw	2,x
+	ldw	6,s			// a[4..5]
+	divq	16,s
+	stw	4,x
+	ldw	8,s			// a[6..7] (LSB chunk)
+	divq	16,s
+	stw	6,x
+	rts
+
+.Ludivdi3_slow:
+#endif
 	pshs	y
 	tfr	x,y		// Y = sret pointer
 	leas	-17,s		// workspace: 8 quot + 8 rem + 1 counter
@@ -62,6 +95,36 @@ __udivdi3:
 	.globl __umoddi3
 	.type  __umoddi3,@function
 __umoddi3:
+#ifdef __6309__
+	// HD6309 fast path — see __udivdi3 above.
+	ldd	10,s
+	bne	.Lumoddi3_slow
+	ldd	12,s
+	bne	.Lumoddi3_slow
+	ldd	14,s
+	bne	.Lumoddi3_slow
+	ldd	16,s
+	beq	.Lumoddi3_slow
+	bmi	.Lumoddi3_slow
+
+	ldd	#0
+	ldw	2,s
+	divq	16,s
+	ldw	4,s
+	divq	16,s
+	ldw	6,s
+	divq	16,s
+	ldw	8,s
+	divq	16,s			// final D = 16-bit remainder
+	std	6,x			// rem[6..7] = D
+	ldd	#0
+	std	,x			// rem[0..1] = 0
+	std	2,x			// rem[2..3] = 0
+	std	4,x			// rem[4..5] = 0
+	rts
+
+.Lumoddi3_slow:
+#endif
 	pshs	y
 	tfr	x,y
 	leas	-17,s
@@ -101,6 +164,45 @@ __umoddi3:
 	.globl __udivmoddi4
 	.type  __udivmoddi4,@function
 __udivmoddi4:
+#ifdef __6309__
+	// HD6309 fast path — see __udivdi3 above.
+	ldd	10,s
+	bne	.Ludivmoddi4_slow
+	ldd	12,s
+	bne	.Ludivmoddi4_slow
+	ldd	14,s
+	bne	.Ludivmoddi4_slow
+	ldd	16,s
+	beq	.Ludivmoddi4_slow
+	bmi	.Ludivmoddi4_slow
+
+	ldd	#0
+	ldw	2,s
+	divq	16,s
+	stw	,x
+	ldw	4,s
+	divq	16,s
+	stw	2,x
+	ldw	6,s
+	divq	16,s
+	stw	4,x
+	ldw	8,s
+	divq	16,s			// D = remainder
+	stw	6,x
+	// Write *rem_ptr (NULL skip).  Reload X with rem_ptr — quotient
+	// is fully written through the original X, no longer needed.
+	ldx	18,s
+	beq	.Ludivmoddi4_fast_done
+	std	6,x
+	ldd	#0
+	std	,x
+	std	2,x
+	std	4,x
+.Ludivmoddi4_fast_done:
+	rts
+
+.Ludivmoddi4_slow:
+#endif
 	pshs	y
 	tfr	x,y
 	leas	-17,s
