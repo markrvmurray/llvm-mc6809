@@ -389,6 +389,17 @@ defm ASR : UnaryAcc8_AB<"asra", Opcode<0x47,1>, [AA,NZ,N,Z,C,AA,AD,AQ], [AA,C],
                          "asrb", Opcode<0x57,1>, [AB,NZ,N,Z,C,AB,AD,AQ], [AB,C]>;
 defm ASL : UnaryAcc8_AB<"asla", Opcode<0x48,1>, [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA],
                          "aslb", Opcode<0x58,1>, [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB]>;
+// Bug #227: LSL is the same encoding as ASL on MC6809/HD6309 (opcode 0x58
+// for accumulator B, 0x08/0x68/0x78 for memory). Both spellings appear in
+// hand-written sources and external assemblers (lwasm, asm6809) accept
+// each. MnemonicAlias rewrites the input mnemonic before instruction
+// matching, so all addressing-mode variants are covered without touching
+// the per-form record names.
+def : MnemonicAlias<"lsla", "asla">;
+def : MnemonicAlias<"lslb", "aslb">;
+def : MnemonicAlias<"lsl",  "asl">;
+// HD6309 D-register variant. (HD6309 has no ASL/LSL on W or E/F.)
+def : MnemonicAlias<"lsld", "asld">;
 defm ROL : UnaryAcc8_AB<"rola", Opcode<0x49,1>, [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA,C],
                          "rolb", Opcode<0x59,1>, [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB,C]>;
 defm DEC : UnaryAcc8_AB<"deca", Opcode<0x4A,1>, [AA,NZ,N,Z,V,AA,AD,AQ], [AA],

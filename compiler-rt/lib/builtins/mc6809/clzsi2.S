@@ -61,7 +61,7 @@ __clzsi2:
 .Lclzsi2_count:
 	tstb
 	bmi	.Lclzsi2_done
-	aslb				// LSL and ASL are aliases on MC6809; our assembler accepts ASL
+	lslb
 	leax	1,x
 	bra	.Lclzsi2_count
 .Lclzsi2_done:
