@@ -43,6 +43,168 @@
 	.globl __muldi3
 	.type  __muldi3,@function
 __muldi3:
+#ifdef __6309__
+	// HD6309 fast path — Bug aacd0b7.
+	//
+	// 64x64->64 truncated multiply via 10 16x16 MULD partials.
+	// a = A0:A1:A2:A3 (A0 = MSB pair) at S+2..9
+	// b = B0:B1:B2:B3 (B0 = MSB pair) at S+10..17
+	// Result IX+0..7, IX+0 = MSB pair.
+	//
+	// MULD is signed 16x16->32 (Q = D:W = high:low). For unsigned
+	// correction, when an operand's bit 15 is set, add the OTHER
+	// operand to the high word D.  Same trick as Bug #161 Phase 1
+	// __mulsi3.  i+j=3 partials don't need correction — their D
+	// half falls off the top of the 64-bit result.
+	//
+	// Partial weight = 2^(16*(6-i-j)).
+	//   i+j=3 (4 partials): W -> IX+0..1, D dropped.
+	//   i+j=4 (3 partials): W -> IX+2..3, D -> IX+0..1, carry off-top.
+	//   i+j=5 (2 partials): W -> IX+4..5, D -> IX+2..3, carry -> IX+0..1.
+	//   i+j=6 (1 partial):  W -> IX+6..7, D -> IX+4..5, carry -> IX+0..3.
+
+	// Zero result buffer (LDQ + 2*STQ beats 8*CLR — ~21 vs ~48 cy).
+	ldq	#0
+	stq	,x
+	stq	4,x
+
+	// ===== i+j = 3 (low-only, no unsigned correction) =====
+	// A3*B0 (first partial — buffer is zero, plain STW)
+	ldd	8,s
+	muld	10,s
+	stw	,x
+
+	// A2*B1
+	ldd	6,s
+	muld	12,s
+	addw	,x
+	stw	,x
+
+	// A1*B2
+	ldd	4,s
+	muld	14,s
+	addw	,x
+	stw	,x
+
+	// A0*B3
+	ldd	2,s
+	muld	16,s
+	addw	,x
+	stw	,x
+
+	// ===== i+j = 4 (full 32-bit, carry off-top) =====
+	// A3*B1
+	ldd	8,s
+	muld	12,s
+	tst	8,s
+	bpl	.Lmd_4_31a
+	addd	12,s
+.Lmd_4_31a:
+	tst	12,s
+	bpl	.Lmd_4_31b
+	addd	8,s
+.Lmd_4_31b:
+	addw	2,x
+	stw	2,x
+	adcd	,x
+	std	,x
+
+	// A2*B2
+	ldd	6,s
+	muld	14,s
+	tst	6,s
+	bpl	.Lmd_4_22a
+	addd	14,s
+.Lmd_4_22a:
+	tst	14,s
+	bpl	.Lmd_4_22b
+	addd	6,s
+.Lmd_4_22b:
+	addw	2,x
+	stw	2,x
+	adcd	,x
+	std	,x
+
+	// A1*B3
+	ldd	4,s
+	muld	16,s
+	tst	4,s
+	bpl	.Lmd_4_13a
+	addd	16,s
+.Lmd_4_13a:
+	tst	16,s
+	bpl	.Lmd_4_13b
+	addd	4,s
+.Lmd_4_13b:
+	addw	2,x
+	stw	2,x
+	adcd	,x
+	std	,x
+
+	// ===== i+j = 5 (carry up to IX+0..1) =====
+	// A3*B2
+	ldd	8,s
+	muld	14,s
+	tst	8,s
+	bpl	.Lmd_5_32a
+	addd	14,s
+.Lmd_5_32a:
+	tst	14,s
+	bpl	.Lmd_5_32b
+	addd	8,s
+.Lmd_5_32b:
+	addw	4,x
+	stw	4,x
+	adcd	2,x
+	std	2,x
+	ldd	,x
+	adcd	#0
+	std	,x
+
+	// A2*B3
+	ldd	6,s
+	muld	16,s
+	tst	6,s
+	bpl	.Lmd_5_23a
+	addd	16,s
+.Lmd_5_23a:
+	tst	16,s
+	bpl	.Lmd_5_23b
+	addd	6,s
+.Lmd_5_23b:
+	addw	4,x
+	stw	4,x
+	adcd	2,x
+	std	2,x
+	ldd	,x
+	adcd	#0
+	std	,x
+
+	// ===== i+j = 6 (carry through IX+0..3) =====
+	// A3*B3
+	ldd	8,s
+	muld	16,s
+	tst	8,s
+	bpl	.Lmd_6_33a
+	addd	16,s
+.Lmd_6_33a:
+	tst	16,s
+	bpl	.Lmd_6_33b
+	addd	8,s
+.Lmd_6_33b:
+	addw	6,x
+	stw	6,x
+	adcd	4,x
+	std	4,x
+	ldd	2,x
+	adcd	#0
+	std	2,x
+	ldd	,x
+	adcd	#0
+	std	,x
+
+	rts
+#endif
 	// Initialize result buffer to zero (8 bytes at IX..IX+7).
 	clr	,x
 	clr	1,x
