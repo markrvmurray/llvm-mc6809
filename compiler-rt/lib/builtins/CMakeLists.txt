@@ -857,6 +857,11 @@ list(REMOVE_ITEM mc6809_SOURCES
   divmoddi4.c udivmoddi4.c
   mulvdi3.c mulodi4.c
   paritydi2.c popcountdi2.c
+  # Bug #246: ctzdi2.c / clzdi2.c return int via X register (gcc6809 v1)
+  # but LLVM-MC6809's libcall lowering for `__builtin_*ll` expects an
+  # 8-byte sret return (low 16 bits at *(X+6)). Replaced by hand-written
+  # mc6809/ctzdi2.S and mc6809/clzdi2.S below.
+  ctzdi2.c clzdi2.c
   # muldi3 — the upstream C version's __muldsi3 32x32->64 helper has
   # a partial-product alignment bug for the big-endian + int=i16 +
   # long=i32 + long long=i64 combination MC6809 has, returning wrong
@@ -921,6 +926,16 @@ list(APPEND mc6809_SOURCES
   # ctzsi2.c is excluded for register pressure but __ctzdi2.c (shipped)
   # references it. Bug #245.
   mc6809/ctzsi2.S
+  # Bug #246: hand-written i64-sret variants of the count/parity libcalls.
+  # LLVM-MC6809's libcall lowering for `__builtin_*ll` (G_CTTZ/G_CTLZ/
+  # G_CTPOP/etc at s64) emits an 8-byte sret return convention; the
+  # compiler-rt C bodies return int via X register, which silently
+  # miscompiles every caller. These four .S files override the C
+  # versions with the i64-sret ABI the legalizer actually expects.
+  mc6809/ctzdi2.S
+  mc6809/clzdi2.S
+  mc6809/popcountdi2.S
+  mc6809/paritydi2.S
   # Bug #230: BINDEC/DECBIN wrappers exposed for picolibc's
   # MC6839-backed float-string engines (atof/atod/ftoa/dtoa
   # _engine_mc6809.c). One file, both f32 and f64 variants
