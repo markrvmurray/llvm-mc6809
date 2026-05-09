@@ -177,14 +177,16 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
       .legalFor({{s1, s8}});
   if (IsHD6309)
     TruncBuilder.legalFor({{s16, s32}});
+  TruncBuilder.customFor({{s1, s16}});
+  if (IsHD6309)
+    TruncBuilder.customFor({{s1, s32}});  // Bug #243 Class B
   TruncBuilder
-      .customFor({{s1, s16}})
       .clampScalar(1, *LegalScalars.begin(), *std::prev(LegalScalars.end()))
       .clampScalar(0, *NotMaxWithOne.begin(), *std::prev(NotMaxWithOne.end()));
 
   getActionDefinitionsBuilder({G_FREEZE, G_CONSTANT})
       .legalFor(LegalTypesWithOne)
-      .clampScalar(0, s8, sMax);
+      .clampScalar(0, s8, s16);  // Bug #243 Class B: same rationale as G_PHI
 
   // Bug #239: narrow G_PHI to s16 even on HD6309. The legalizer
   // otherwise keeps i32 PHIs in ACC32, which has only 5 physical
@@ -678,13 +680,25 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
     // that fold when the resulting trunc has a customFor rule —
     // see the matching change in
     // include/llvm/CodeGen/GlobalISel/LegalizationArtifactCombiner.h.
+    // Bug #243 (Class B): also handle (s1, s32) on HD6309. s32 reaches
+    // here in __big_split (hash_bigkey.c) at -Og where loop-carried i32
+    // collapses to s1 for a comparison. Chain s32 → s16 → s1.
     Register DstReg = MI.getOperand(0).getReg();
     Register SrcReg = MI.getOperand(1).getReg();
     LLT DstTy = MRI.getType(DstReg);
     LLT SrcTy = MRI.getType(SrcReg);
-    if (DstTy != LLT::scalar(1) || SrcTy != LLT::scalar(16))
+    if (DstTy != LLT::scalar(1))
       return false;
     MachineIRBuilder &B = Helper.MIRBuilder;
+    if (SrcTy == LLT::scalar(32)) {
+      auto Tmp16 = B.buildTrunc(LLT::scalar(16), SrcReg);
+      auto Tmp8 = B.buildTrunc(LLT::scalar(8), Tmp16);
+      B.buildTrunc(DstReg, Tmp8);
+      MI.eraseFromParent();
+      return true;
+    }
+    if (SrcTy != LLT::scalar(16))
+      return false;
     auto Tmp8 = B.buildTrunc(LLT::scalar(8), SrcReg);
     B.buildTrunc(DstReg, Tmp8);
     MI.eraseFromParent();
