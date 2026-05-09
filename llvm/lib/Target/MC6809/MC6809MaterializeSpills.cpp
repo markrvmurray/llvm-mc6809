@@ -602,6 +602,37 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
           NeedD = true;
       }
 
+      // Bug #242: when MI has an explicit, non-dead, tied DEF of $ad
+      // (e.g. AND_i16_Reg / OR_i16_Reg / XOR_i16_Reg / Add_i16_Reg /
+      // Sub_i16_Reg / AddSetCarry*_i16_Reg with $ad as op0), the new
+      // value of $ad IS the result we want propagated. Wrapping such
+      // an MI with STD-before / LDD-after would unconditionally restore
+      // the PRE-MI value of $ad, destroying the def. The "needs save"
+      // intuition assumes a side-effect clobber; tied-defs are NOT
+      // side-effect clobbers — they ARE the operation's intended output.
+      //
+      // Concrete bug repro at -Os HD6309 (LTO and non-LTO both):
+      //   $ad = AND_i16_Reg killed $ad(tied-def 0), killed $spill_d0
+      //   $ix = COPY $ad
+      // MaterializeSpills inserted STD/LDD around the AND, leaving the
+      // COPY reading the pre-AND value. Test-malloc-stress at
+      // Os-lto-hd6309-mame returns LSB-set "unaligned" addresses for
+      // every memalign call as a result.
+      if (NeedD) {
+        for (const MachineOperand &MO : MI.operands()) {
+          if (!MO.isReg() || !MO.isDef() || MO.isImplicit() || MO.isDead())
+            continue;
+          if (!MO.getReg().isPhysical())
+            continue;
+          if (!TRI.regsOverlap(MO.getReg(), MC6809::AD))
+            continue;
+          if (!MO.isTied())
+            continue;
+          NeedD = false;
+          break;
+        }
+      }
+
       if (willClobberIY(MI, TRI)) {
         if (anySubRegLive(MC6809::IY))
           NeedIY = true;

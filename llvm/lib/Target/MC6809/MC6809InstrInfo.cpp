@@ -5003,14 +5003,16 @@ static void emit6809RegPairFromMem(MachineIRBuilder &Builder,
          "negative. Pass the correct *i_o16 variants explicitly.");
   MachineFunction &MF = Builder.getMF();
   Register OrigLHS = LHS;
-  // Load LHS into D if it's a spill or imaginary register. After
-  // this, AA/AB are the operands the 8-bit ops will work on.
-  if (needsMaterialization(LHS))
-    materializeReg(Builder, LHS, MF);
   Register RealRHS = RHS;
+
   if (isSpillReg(RHS)) {
     // Path (a): read RHS bytes directly from its U-relative spill
     // slot. Byte order: hi at slot+0, lo at slot+1.
+    // LHS materialization can happen now — RHS reads from memory and
+    // doesn't need a register.
+    if (needsMaterialization(LHS))
+      materializeReg(Builder, LHS, MF);
+
     int Offset = computeSpillStackOffset(RHS, MF);
     // Bug #122 / #125: for large stack frames (>127 bytes), the spill
     // offset may exceed the 8-bit signed range (-128..+127). Use the
@@ -5030,6 +5032,15 @@ static void emit6809RegPairFromMem(MachineIRBuilder &Builder,
         .addImm(Offset).addReg(MC6809::SU);
   } else {
     // Path (b): push RHS onto S, operate from 0,s and 1,s, then LEAS.
+    //
+    // Bug #242: we MUST push RHS BEFORE materializing LHS. If LHS is a
+    // spill (needs LDD into AD) and RHS == $ad (the typical case for
+    // ALU16 ops where the regalloc kept one operand in AD and spilled
+    // the other), the LHS materialization clobbers AD — so RHS's value
+    // is lost before we push it. The push then captures the post-LDD
+    // AD (= LHS), the AND becomes `LHS AND LHS = LHS` (wrong).
+    //
+    // Push the (still-correct) RHS first, then materialize LHS into AD.
     if (needsMaterialization(RHS))
       RealRHS = materializeReg(Builder, RHS, MF);
 
@@ -5047,6 +5058,12 @@ static void emit6809RegPairFromMem(MachineIRBuilder &Builder,
       Builder.buildInstr(MC6809::PSHSWx);
     else
       Builder.buildInstr(MC6809::PSHSs, {}, {RealRHS});
+
+    // Now LHS materialization is safe — RHS is captured on the stack.
+    if (needsMaterialization(LHS))
+      materializeReg(Builder, LHS, MF);
+
+    // PSHS pushed 2 bytes; SS is now 2 lower than at the LHS load.
     // Low byte at S+1, high byte at S+0 (big-endian on the stack).
     Builder.buildInstr(OpcB_o5)
         .addDef(MC6809::AB, RegState::Implicit)
