@@ -378,9 +378,22 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   getActionDefinitionsBuilder({G_MEMCPY, G_MEMCPY_INLINE, G_MEMMOVE, G_MEMSET})
       .custom();
 
+  // Bug #241: extended set covering the full <math.h> trig / hyperbolic /
+  // inverse-trig / exp / mod family. Picolibc provides every libcall here
+  // (sinhf/sinh, atanf/atan, etc.). Without these the legalizer aborts at
+  // -Og / -Ofast where less inlining preserves the bare opcode.
   getActionDefinitionsBuilder(
-      {G_INTRINSIC_TRUNC, G_INTRINSIC_ROUND, G_INTRINSIC_ROUNDEVEN, G_FADD, G_FSUB, G_FMUL, G_FMA, G_FMAD, G_FDIV, G_FREM, G_FPOW, G_FEXP, G_FEXP2, G_FLOG, G_FLOG2, G_FLOG10, G_FMINNUM, G_FMAXNUM, G_FCEIL, G_FCOS, G_FSIN, G_FSQRT,
-       G_FFLOOR,          G_FRINT,           G_FNEARBYINT})
+      {G_INTRINSIC_TRUNC, G_INTRINSIC_ROUND, G_INTRINSIC_ROUNDEVEN,
+       G_FADD, G_FSUB, G_FMUL, G_FMA, G_FMAD, G_FDIV, G_FREM, G_FMODF,
+       G_FPOW,
+       G_FEXP, G_FEXP2,
+       G_FLOG, G_FLOG2, G_FLOG10,
+       G_FMINNUM, G_FMAXNUM,
+       G_FCEIL, G_FFLOOR, G_FRINT, G_FNEARBYINT,
+       G_FSQRT,
+       G_FCOS, G_FSIN, G_FTAN, G_FSINCOS,
+       G_FACOS, G_FASIN, G_FATAN, G_FATAN2,
+       G_FCOSH, G_FSINH, G_FTANH})
       .libcallFor({s32, s64});
 
   // G_FABS, G_FNEG, G_FCOPYSIGN are all sign-bit operations — much cheaper
