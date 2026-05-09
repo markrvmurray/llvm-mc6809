@@ -950,6 +950,9 @@ list(APPEND mc6809_SOURCES
   mc6809/ucmpdi2.S
   # 64-bit multiply (truncated) — see muldi3.c REMOVE_ITEM above.
   mc6809/muldi3.S
+  # 64-bit unsigned multiply with overflow (Bug #239) — relieves
+  # ACC32 regalloc pressure that otherwise wipes out HD6309 -O2/-Og.
+  mc6809/umulodi4.S
   # MC6839 FP ROM image — embedded as a relocatable blob. The MC6839 is a
   # position-independent OS-9 module; it lands wherever the linker places
   # the .mc6839_rom section (alongside .text). Exports __fpreg / __fpstak.

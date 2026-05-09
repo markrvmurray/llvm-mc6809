@@ -1140,6 +1140,60 @@ bool MC6809LegalizerInfo::legalizeMultiplyWithOverflow(LegalizerHelper &Helper, 
   Register LHSReg = MI.getOperand(2).getReg();
   Register RHSReg = MI.getOperand(3).getReg();
 
+  if (Ty == LLT::scalar(64)) {
+    // Bug #239: i64 G_UMULO inline-decomposed into G_MUL + G_UDIV +
+    // G_UMAX + G_ICMP exhausts the 5-slot ACC32 register class on
+    // HD6309 -O2/-Og — strtoull / strtoumax / mktime_utc all fail
+    // regalloc. Route to compiler-rt's __umulodi4 (fused 64x64 -> 128
+    // schoolbook with overflow detection on the high half), so the
+    // intermediate i64 vregs live inside the library frame and never
+    // reach the caller's regalloc.
+    //
+    // C signature of __umulodi4:
+    //   uint64_t __umulodi4(uint64_t a, uint64_t b, int *overflow);
+    // returning the low 64 bits via sret-IX and writing the overflow
+    // flag (0 or 1) through the int* arg.
+    MachineFunction &MF = *MI.getMF();
+    auto &Ctx = MF.getFunction().getContext();
+    const DataLayout &DL = MIRBuilder.getDataLayout();
+    unsigned AddrSpace = DL.getAllocaAddrSpace();
+
+    // Allocate a stack temporary for the overflow flag. MC6809 'int'
+    // is 16 bits; the runtime writes both bytes via STD. Load back as
+    // s16 then truncate to s1 (= OverflowReg's expected type).
+    LLT TempLLT = LLT::scalar(16);
+    int MemSize = TempLLT.getSizeInBytes();
+    Align Alignment = Helper.getStackTemporaryAlignment(TempLLT);
+    MachinePointerInfo PtrInfo;
+    Register StackPtrOf =
+        Helper.createStackTemporary(TypeSize::getFixed(MemSize), Alignment,
+                                    PtrInfo).getReg(0);
+
+    Type *I64Ty = Type::getInt64Ty(Ctx);
+    auto LibcallResult = Helper.createLibcall(
+        "__umulodi4",
+        {MulReg, I64Ty, 0},
+        {{LHSReg, I64Ty, 0},
+         {RHSReg, I64Ty, 1},
+         {StackPtrOf, PointerType::get(Ctx, AddrSpace), 2}},
+        CallingConv::C, LocObserver, &MI);
+
+    if (LibcallResult != LegalizerHelper::Legalized)
+      return false;
+
+    // Load the overflow flag back as i16, truncate to s1.
+    MachineMemOperand *LoadMMO = MF.getMachineMemOperand(
+        PtrInfo, MachineMemOperand::MOLoad, MemSize, Alignment);
+    auto LoadedOf16 = MIRBuilder.buildLoad(TempLLT, StackPtrOf, *LoadMMO);
+    MIRBuilder.buildTrunc(OverflowReg, LoadedOf16);
+
+    MI.eraseFromParent();
+    return LegalizerHelper::Legalized;
+  }
+
+  // s8 / s16 / s32 — keep the existing inline 4-op decomposition.
+  // Those widths fit comfortably in ACC8 / ACC16; the regalloc
+  // pressure problem is i64-specific.
   MIRBuilder.buildMul(MulReg, LHSReg, RHSReg);
 
   auto One = MIRBuilder.buildConstant(Ty, 1);
