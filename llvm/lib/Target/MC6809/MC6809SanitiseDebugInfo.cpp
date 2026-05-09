@@ -26,6 +26,20 @@
 // on the narrow producer that does have a def; only the widened debugger
 // view is sacrificed.
 //
+// Bug #243 (2026-05-09): the pass also erases DBG_VALUEs whose
+// DIExpression contains DW_OP_LLVM_fragment. Bug #239's G_PHI s16 clamp
+// on HD6309 causes the legalizer's narrowScalar to split a wide producer
+// (G_ABS s64, G_MERGE_VALUES s64) that had a surviving DBG_VALUE,
+// emitting fragment-bearing DBG_VALUEs that are valid at legalize time
+// but later trip LiveDebugVariables::UserValue::insertDebugValue (called
+// from VirtRegRewriter): the recombined expression fails the upstream
+// `cast<DIExpression>(Expr)->isValid()` assert at MachineInstr.cpp:2414.
+// Affects -Og -g HD6309 builds — eight picolibc functions (llabs,
+// lldiv, imaxabs, imaxdiv, flsll, difftime, ubsan_val_to_imax,
+// ubsan_val_to_umax) regain the ability to build at all; debug-info for
+// the wide local is "optimised out" at the affected scope. Plain MC6809
+// is unaffected because s64 already narrows long before #239's clamp.
+//
 //===----------------------------------------------------------------------===//
 
 #include "MC6809SanitiseDebugInfo.h"
@@ -33,6 +47,7 @@
 #include "MC6809.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
 
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
@@ -63,10 +78,28 @@ bool MC6809SanitiseDebugInfo::runOnMachineFunction(MachineFunction &MF) {
   MachineRegisterInfo &MRI = MF.getRegInfo();
   bool Changed = false;
 
+  SmallVector<MachineInstr *, 8> ToErase;
   for (MachineBasicBlock &MBB : MF) {
     for (MachineInstr &MI : MBB) {
       if (!MI.isDebugValue() && !MI.isDebugValueList())
         continue;
+      // Bug #243: erase DBG_VALUEs whose DIExpression contains
+      // DW_OP_LLVM_fragment. These are emitted by the legalizer's
+      // narrowScalar when it splits a wide producer (G_ABS s64,
+      // G_MERGE_VALUES s64) that had a surviving DBG_VALUE. The fragments
+      // themselves are valid at legalize time, but LiveDebugVariables's
+      // UserValue::insertDebugValue (called from VirtRegRewriter) later
+      // builds a recombined expression that fails the upstream
+      // `cast<DIExpression>(Expr)->isValid()` assert at MachineInstr.cpp.
+      // Affects -Og -g HD6309 builds (Bug #239's G_PHI s16 clamp surfaced
+      // it). The narrowed runtime values still live in their narrow
+      // producer registers; only the fragmented DWARF view is sacrificed.
+      if (const DIExpression *Expr = MI.getDebugExpression()) {
+        if (Expr->isFragment()) {
+          ToErase.push_back(&MI);
+          continue;
+        }
+      }
       for (MachineOperand &MO : MI.debug_operands()) {
         if (!MO.isReg())
           continue;
@@ -79,6 +112,10 @@ bool MC6809SanitiseDebugInfo::runOnMachineFunction(MachineFunction &MF) {
         }
       }
     }
+  }
+  for (MachineInstr *MI : ToErase) {
+    MI->eraseFromParent();
+    Changed = true;
   }
 
   return Changed;
