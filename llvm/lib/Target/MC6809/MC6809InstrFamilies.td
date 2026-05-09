@@ -986,7 +986,7 @@ def MulHSPat_i8 : Pat<(i8 (mulhs ACC8:$b, ACC8:$a)),
 // written LOW product instead of `elem`, calloc(SIZE_MAX, SIZE_MAX) no
 // longer detects overflow.
 class MC6809MultiplyBase<dag operand> : MC6809LogicalInstr {
-  let Defs = [NZ, AD, AW, AQ, AA, AB, AE, AF];
+  let Defs = [NZ, AD, AW];
   dag InOperandList = !con((ins ADc:$src), operand);
   dag OutOperandList = (outs ACC16:$dst);
 }
@@ -1008,7 +1008,7 @@ let Predicates = [IsHD6309] in {
 // Bug #251: same Defs widening as MC6809MultiplyBase — MULD clobbers
 // both halves of the AQ register file.
 class MC6809MultiplyHighBase<dag operand> : MC6809LogicalInstr {
-  let Defs = [NZ, AD, AW, AQ, AA, AB, AE, AF];
+  let Defs = [NZ, AD, AW];
   dag OutOperandList = (outs ADc:$dst);
   dag InOperandList = !con((ins ADc:$src), operand);
 }
