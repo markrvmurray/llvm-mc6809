@@ -917,6 +917,10 @@ list(APPEND mc6809_SOURCES
   # __clzdi2.c IS shipped and transitively calls it via __builtin_clz.
   # Bug #225: hand-written byte-scan version replaces the missing C body.
   mc6809/clzsi2.S
+  # __ctzsi2: 32-bit count-trailing-zeros. Same story as clzsi2 above —
+  # ctzsi2.c is excluded for register pressure but __ctzdi2.c (shipped)
+  # references it. Bug #245.
+  mc6809/ctzsi2.S
   # Bug #230: BINDEC/DECBIN wrappers exposed for picolibc's
   # MC6839-backed float-string engines (atof/atod/ftoa/dtoa
   # _engine_mc6809.c). One file, both f32 and f64 variants
