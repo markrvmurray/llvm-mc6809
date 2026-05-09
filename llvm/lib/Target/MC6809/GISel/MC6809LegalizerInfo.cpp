@@ -182,9 +182,21 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
       .clampScalar(1, *LegalScalars.begin(), *std::prev(LegalScalars.end()))
       .clampScalar(0, *NotMaxWithOne.begin(), *std::prev(NotMaxWithOne.end()));
 
-  getActionDefinitionsBuilder({G_FREEZE, G_PHI, G_CONSTANT})
+  getActionDefinitionsBuilder({G_FREEZE, G_CONSTANT})
       .legalFor(LegalTypesWithOne)
       .clampScalar(0, s8, sMax);
+
+  // Bug #239: narrow G_PHI to s16 even on HD6309. The legalizer
+  // otherwise keeps i32 PHIs in ACC32, which has only 5 physical
+  // slots (AQ + 4 SPILL_Q). Loop-carried i64 values become 2× i32
+  // PHIs each; a few of those will exhaust ACC32 well before the
+  // function's allocation completes — strtoull/strtoumax fail this
+  // way at -O2/-Og. Narrowing PHIs to s16 routes them through ACC16
+  // (which has many more slots: AD/AW + 8 SPILL_D + ...). 2× the PHI
+  // count but a much larger pool.
+  getActionDefinitionsBuilder(G_PHI)
+      .legalFor({p, s1, s8, s16})
+      .clampScalar(0, s8, s16);
 
   getActionDefinitionsBuilder(G_FCONSTANT)
       .customFor({s32, s64});
