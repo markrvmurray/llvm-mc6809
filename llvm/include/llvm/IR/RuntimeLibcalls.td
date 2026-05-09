@@ -143,11 +143,12 @@ foreach FPTy = ["F32", "F64", "F80", "F128", "PPCF128"] in {
   def SQRT_#FPTy : RuntimeLibcall;
   def FAST_SQRT_#FPTy : RuntimeLibcall;
 
-  // Scalar FABS libcall — used by targets without an efficient inline
-  // bit-clear sequence (e.g., MC6809, where the default lowerFor produces
-  // a heavy __andsi3 i32 libcall). Vector forms are defined separately
-  // below in the F32/F64VectorSuffixes loop.
+  // Scalar FABS / FNEG libcalls — used by targets without an efficient
+  // inline bit-clear / bit-flip sequence (e.g., MC6809, where the default
+  // lowerFor produces a heavy __andsi3 / __xorsi3 i32 libcall). Vector
+  // forms are defined separately below in the F32/F64VectorSuffixes loop.
   def FABS_#FPTy : RuntimeLibcall;
+  def FNEG_#FPTy : RuntimeLibcall;
 
   def CBRT_#FPTy : RuntimeLibcall;
   def LOG_#FPTy : RuntimeLibcall;
@@ -3686,11 +3687,14 @@ def __notti2 : RuntimeLibcallImpl<NOT_I128>;
 def __sqrtsf2 : RuntimeLibcallImpl<SQRT_F32>;
 def __sqrtdf2 : RuntimeLibcallImpl<SQRT_F64>;
 
-// MC6839 FABS wrappers (Bug #254 follow-up). Replace the default
-// G_FABS lowering (bit-AND with 0x7FFFFFFF that on MC6809 narrows
-// to a heavy __andsi3/__anddi3 libcall) with a single ROM dispatch.
+// MC6839 FABS / FNEG wrappers (Bug #254 follow-up). Replace the default
+// G_FABS / G_FNEG lowerings (bit-AND with 0x7FFFFFFF / bit-XOR with the
+// sign bit, which on MC6809 narrow to heavy __andsi3 / __xorsi3 libcalls)
+// with a single ROM dispatch.
 def __abssf2 : RuntimeLibcallImpl<FABS_F32>;
 def __absdf2 : RuntimeLibcallImpl<FABS_F64>;
+def __negsf2 : RuntimeLibcallImpl<FNEG_F32>;
+def __negdf2 : RuntimeLibcallImpl<FNEG_F64>;
 
 def isMC6809 : RuntimeLibcallPredicate<"TT.getArch() == Triple::mc6809">;
 
@@ -3721,6 +3725,7 @@ def MC6809SystemLibrary
           __memset,
           __sqrtsf2, __sqrtdf2,
           __abssf2, __absdf2,
+          __negsf2, __negdf2,
           abort)>;
 
 //===----------------------------------------------------------------------===//

@@ -167,3 +167,29 @@ __absdf2:
         .byte   FPOP_FABS
         puls    u,y
         rts
+
+; ---- negation (monadic; Y → arg) -------------------------------------------
+;
+; Mirrors __abssf2/__absdf2. Replaces clang's default lowering of
+; llvm.fneg.f32 / .f64 (bit-XOR with 0x80000000 / 0x8000000000000000) which
+; on MC6809 narrows to an i32/i64 __xorsi3/__xordi3 libcall.
+
+        .global __negsf2
+__negsf2:
+        pshs    u,y
+        leay    6,s
+        ldd     #__mc6839_fpcb_f32
+        lbsr    __fpreg
+        .byte   FPOP_FNEG
+        puls    u,y
+        rts
+
+        .global __negdf2
+__negdf2:
+        pshs    u,y
+        leay    6,s
+        ldd     #__mc6839_fpcb_f64
+        lbsr    __fpreg
+        .byte   FPOP_FNEG
+        puls    u,y
+        rts

@@ -396,16 +396,18 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
        G_FCOSH, G_FSINH, G_FTANH})
       .libcallFor({s32, s64});
 
-  // G_FABS goes via the MC6839 ROM FABS dispatcher (Bug #254 follow-up):
-  // the default `lowerFor` produces a bit-AND with 0x7FFFFFFF that on MC6809
-  // narrows to a heavy __andsi3/__anddi3 libcall (~30 bytes per call site).
-  // The ROM-backed __abssf2/__absdf2 wrappers are a single ~5-byte LBSR.
+  // G_FABS / G_FNEG go via the MC6839 ROM dispatchers (Bug #254 follow-up):
+  // the default `lowerFor` produces a bit-AND with 0x7FFFFFFF / a bit-XOR
+  // with the sign bit, both of which on MC6809 narrow to heavy __andsi3 /
+  // __xorsi3 libcalls (~30 bytes per call site). The ROM-backed
+  // __abssf2/__absdf2 / __negsf2/__negdf2 wrappers are each a single
+  // ~5-byte LBSR.
   getActionDefinitionsBuilder(G_FABS)
       .libcallFor({s32, s64});
-  // G_FNEG and G_FCOPYSIGN remain bit-XOR/OR lowerings for now (no MC6839
-  // FNEG wrapper yet — see compiler-rt fp_arith.S FPOP_FNEG comment).
   getActionDefinitionsBuilder(G_FNEG)
-      .lowerFor({s32, s64});
+      .libcallFor({s32, s64});
+  // G_FCOPYSIGN remains on the standard bit-OR lowering — MC6839 has no
+  // FCOPYSIGN op exposed.
 
   getActionDefinitionsBuilder({G_INTRINSIC_LRINT, G_LROUND})
       .libcallForCartesianProduct({s32}, {s32, s64});
