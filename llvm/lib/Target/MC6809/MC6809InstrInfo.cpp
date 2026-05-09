@@ -5526,13 +5526,21 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
     // Src2 into the physreg (its RealReg matches Src1Phys), CMP
     // physreg-vs-stack so flags = Src2 - Src1.
     if (needsMaterialization(Src1)) Src1 = materializeReg(Builder, Src1, MF);
-    int LeasImm = (MIOpc == MC6809::Compare_i8_Reg) ? 1 : 2;
     Builder.buildInstr(MC6809::PSHSs, {}, {Src1Phys});
     Register Src2Real = materializeReg(Builder, Src2, MF);
     unsigned CmpOpc;
     pickCmpO8O16(Src2Real, 0, CmpOpc);
     Builder.buildInstr(CmpOpc).addImm(0).addReg(MC6809::SS);
-    Builder.buildInstr(MC6809::LEASi_o5).addImm(LeasImm).addReg(MC6809::SS);
+    // Bug #257: PULS Src1Phys instead of LEAS to RESTORE Src1's value.
+    // The materializeReg(Src2) above loaded Src2's value into Src1Phys
+    // (because SameHalf collision routed both through the same physreg).
+    // Without restoring, successor BBs that have Src1Phys as a livein
+    // see the wrong value. memcmp's byte-loop hit this: $ab held *s2
+    // pre-compare, the load clobbered it with *s1, and the mismatch
+    // BB then computed *s1 - *s1 = 0 (returning equal-on-mismatch).
+    // Cycle cost: PULS B = 6 cy vs LEAS 1,$ss = 5 cy (+1 cy);
+    // PULS D = 7 cy vs LEAS 2,$ss = 5 cy (+2 cy). Same byte count.
+    Builder.buildInstr(MC6809::PULSs, {Src1Phys}, {});
     MI.eraseFromParent();
     return;
   }
