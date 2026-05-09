@@ -150,6 +150,58 @@
 	leax	[1000, pc]
 
 ;----------------------------------------------------------------------
+; Section 4: codegen-only (FixupKind, Offset) pair coverage (bug #111).
+; The HD6309 ImmediateIndexed* family — aim/oim/eim/tim with indexed
+; addressing — lays out as [opc][val][postbyte][offset]. The offset is
+; at byte 3 (after opc+val+postbyte), which is one position later than
+; the regular indexed forms. Each operand class has its own encoder
+; offset constant; without a regression test, a drift in any of these
+; constants would silently miscompile.
+;
+; (FixupKind, Offset) pairs covered below:
+;   (Rel5,    2)  via offset5_o2   in ImmediateIndexedOffset5
+;   (Rel8,    3)  via offset8_o3   in ImmediateIndexedOffset8
+;   (Rel16,   3)  via offset16_o3  in ImmediateIndexedOffset16
+;   (PCRel8,  3)  via pcrel8_imm_idx  in ImmediateIndexedOffset8PC
+;   (PCRel16, 3)  via pcrel16_imm_idx in ImmediateIndexedOffset16PC
+;----------------------------------------------------------------------
+
+; (Rel5, 2) — 5-bit offset packed into postbyte at byte 2.
+; ENC: aim #66,5,x {{.*}}[0x62,0x42,0x05]
+	aim	#0x42, 5, x
+
+; ENC: oim #128,-1,y {{.*}}[0x61,0x80,0x3f]
+	oim	#0x80, -1, y
+
+; (Rel8, 3) — 8-bit offset at byte 3 (after opc+val+postbyte=88).
+; ENC: aim #66,100,x {{.*}}[0x62,0x42,0x88,0x64]
+	aim	#0x42, 100, x
+
+; ENC: eim #85,[100,u] {{.*}}[0x65,0x55,0xd8,0x64]
+	eim	#0x55, [100, u]
+
+; (Rel16, 3) — 16-bit offset at byte 3 (after opc+val+postbyte=89).
+; ENC: aim #66,1000,x {{.*}}[0x62,0x42,0x89,0x03,0xe8]
+	aim	#0x42, 1000, x
+
+; ENC: tim #1,[1000,y] {{.*}}[0x6b,0x01,0xb9,0x03,0xe8]
+	tim	#0x01, [1000, y]
+
+; (PCRel8, 3) — 8-bit pc-relative at byte 3.
+; ENC: aim #66,5,pc {{.*}}[0x62,0x42,0x8c,0x05]
+	aim	#0x42, 5, pc
+
+; ENC: oim #128,[10,pc] {{.*}}[0x61,0x80,0x9c,0x0a]
+	oim	#0x80, [10, pc]
+
+; (PCRel16, 3) — 16-bit pc-relative at byte 3.
+; ENC: aim #66,1000,pc {{.*}}[0x62,0x42,0x8d,0x03,0xe8]
+	aim	#0x42, 1000, pc
+
+; ENC: eim #85,[1000,pc] {{.*}}[0x65,0x55,0x9d,0x03,0xe8]
+	eim	#0x55, [1000, pc]
+
+;----------------------------------------------------------------------
 ; Section 3: relocation-record cross-check.
 ; Each external-symbol fixup recorded in section 1 must end up with
 ; an OFFSET column matching the documented byte position.
