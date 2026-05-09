@@ -936,6 +936,10 @@ list(APPEND mc6809_SOURCES
   mc6809/clzdi2.S
   mc6809/popcountdi2.S
   mc6809/paritydi2.S
+  # Bug #242 (partial): __popcounthi2 needed by picolibc memalign/hcreate_r
+  # at non-LTO HD6309 (and probably mc6809 too). Compiler-rt has no
+  # popcounthi2.c upstream — fill the gap with a hand-written byte loop.
+  mc6809/popcounthi2.S
   # Bug #230: BINDEC/DECBIN wrappers exposed for picolibc's
   # MC6839-backed float-string engines (atof/atod/ftoa/dtoa
   # _engine_mc6809.c). One file, both f32 and f64 variants
