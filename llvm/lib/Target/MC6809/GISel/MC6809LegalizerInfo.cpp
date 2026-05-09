@@ -396,11 +396,14 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
        G_FCOSH, G_FSINH, G_FTANH})
       .libcallFor({s32, s64});
 
-  // G_FABS, G_FNEG, G_FCOPYSIGN are all sign-bit operations — much cheaper
-  // than libcalls. LegalizerHelper lowers them to AND/XOR/OR on the integer
-  // representation of the float; we narrow to byte ops downstream.
+  // G_FABS goes via the MC6839 ROM FABS dispatcher (Bug #254 follow-up):
+  // the default `lowerFor` produces a bit-AND with 0x7FFFFFFF that on MC6809
+  // narrows to a heavy __andsi3/__anddi3 libcall (~30 bytes per call site).
+  // The ROM-backed __abssf2/__absdf2 wrappers are a single ~5-byte LBSR.
   getActionDefinitionsBuilder(G_FABS)
-      .lowerFor({s32, s64});
+      .libcallFor({s32, s64});
+  // G_FNEG and G_FCOPYSIGN remain bit-XOR/OR lowerings for now (no MC6839
+  // FNEG wrapper yet — see compiler-rt fp_arith.S FPOP_FNEG comment).
   getActionDefinitionsBuilder(G_FNEG)
       .lowerFor({s32, s64});
 

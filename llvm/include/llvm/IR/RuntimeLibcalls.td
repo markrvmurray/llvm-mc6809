@@ -143,6 +143,12 @@ foreach FPTy = ["F32", "F64", "F80", "F128", "PPCF128"] in {
   def SQRT_#FPTy : RuntimeLibcall;
   def FAST_SQRT_#FPTy : RuntimeLibcall;
 
+  // Scalar FABS libcall — used by targets without an efficient inline
+  // bit-clear sequence (e.g., MC6809, where the default lowerFor produces
+  // a heavy __andsi3 i32 libcall). Vector forms are defined separately
+  // below in the F32/F64VectorSuffixes loop.
+  def FABS_#FPTy : RuntimeLibcall;
+
   def CBRT_#FPTy : RuntimeLibcall;
   def LOG_#FPTy : RuntimeLibcall;
   def LOG_FINITE_#FPTy : RuntimeLibcall;
@@ -3680,6 +3686,12 @@ def __notti2 : RuntimeLibcallImpl<NOT_I128>;
 def __sqrtsf2 : RuntimeLibcallImpl<SQRT_F32>;
 def __sqrtdf2 : RuntimeLibcallImpl<SQRT_F64>;
 
+// MC6839 FABS wrappers (Bug #254 follow-up). Replace the default
+// G_FABS lowering (bit-AND with 0x7FFFFFFF that on MC6809 narrows
+// to a heavy __andsi3/__anddi3 libcall) with a single ROM dispatch.
+def __abssf2 : RuntimeLibcallImpl<FABS_F32>;
+def __absdf2 : RuntimeLibcallImpl<FABS_F64>;
+
 def isMC6809 : RuntimeLibcallPredicate<"TT.getArch() == Triple::mc6809">;
 
 // The memset intrinsic takes a char, while the C memset takes an int. These
@@ -3708,6 +3720,7 @@ def MC6809SystemLibrary
           __divmodqi4, __divmodhi4, __divmodsi4, __divmoddi4,
           __memset,
           __sqrtsf2, __sqrtdf2,
+          __abssf2, __absdf2,
           abort)>;
 
 //===----------------------------------------------------------------------===//

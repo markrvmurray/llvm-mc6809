@@ -525,6 +525,8 @@ RTLIB::Libcall LegalizerHelper::getRTLibDesc(unsigned Opcode,
     RTLIBCASE(FMAXIMUM_NUM_F);
   case TargetOpcode::G_FSQRT:
     RTLIBCASE(SQRT_F);
+  case TargetOpcode::G_FABS:
+    RTLIBCASE(FABS_F);
   case TargetOpcode::G_FRINT:
     RTLIBCASE(RINT_F);
   case TargetOpcode::G_FNEARBYINT:
@@ -1390,6 +1392,7 @@ LegalizerHelper::libcall(MachineInstr &MI, LostDebugLocObserver &LocObserver) {
   case TargetOpcode::G_FMINIMUMNUM:
   case TargetOpcode::G_FMAXIMUMNUM:
   case TargetOpcode::G_FSQRT:
+  case TargetOpcode::G_FABS:
   case TargetOpcode::G_FRINT:
   case TargetOpcode::G_FNEARBYINT:
   case TargetOpcode::G_INTRINSIC_TRUNC:

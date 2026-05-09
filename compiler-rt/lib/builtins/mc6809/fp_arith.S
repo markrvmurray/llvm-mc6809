@@ -24,6 +24,8 @@ FPOP_FSUB       = 0x02
 FPOP_FMUL       = 0x04
 FPOP_FDIV       = 0x06
 FPOP_FSQRT      = 0x12
+FPOP_FABS       = 0x1E    ; FCAB = FCBNDC+2 in MC6839 equates.s
+FPOP_FNEG       = 0x20    ; FCNEG = FCAB+2
 
 ; ---- f32 dyadic -------------------------------------------------------------
 
@@ -136,5 +138,32 @@ __sqrtdf2:
         ldd     #__mc6839_fpcb_f64
         lbsr    __fpreg
         .byte   FPOP_FSQRT
+        puls    u,y
+        rts
+
+; ---- absolute value (monadic; Y → arg) -------------------------------------
+;
+; Replaces clang's default lowering of llvm.fabs.f32 / .f64 (bit-AND with
+; 0x7FFFFFFF / 0x7FFFFFFFFFFFFFFF) which on MC6809 narrows to an i32/i64
+; __andsi3/__anddi3 libcall — ~30 bytes per call site. The MC6839 FABS path
+; is ~8 bytes per call, single ROM dispatch.
+
+        .global __abssf2
+__abssf2:
+        pshs    u,y
+        leay    6,s
+        ldd     #__mc6839_fpcb_f32
+        lbsr    __fpreg
+        .byte   FPOP_FABS
+        puls    u,y
+        rts
+
+        .global __absdf2
+__absdf2:
+        pshs    u,y
+        leay    6,s
+        ldd     #__mc6839_fpcb_f64
+        lbsr    __fpreg
+        .byte   FPOP_FABS
         puls    u,y
         rts
