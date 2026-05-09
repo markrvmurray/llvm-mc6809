@@ -974,11 +974,19 @@ def MulHSPat_i8 : Pat<(i8 (mulhs ACC8:$b, ACC8:$a)),
 // Bug #161 round 14: widen $dst from AWc to ACC16 so back-to-back
 // multiplies in i64 multiply chains don't all collide on the single AW
 // allocation slot. Post-RA expansion emits a TFR W,<dst> after the MULD
-// when the regalloc-assigned dst isn't AW. Defs already lists AD as
-// clobbered (MULD writes the high half there); $dst lives in the full
-// ACC16 pool (74 slots in round 14).
+// when the regalloc-assigned dst isn't AW.
+//
+// Bug #251 (2026-05-09): MULD on HD6309 clobbers BOTH AD (high half) and
+// AW (low half = the multiply result). Defs must list AW too, otherwise
+// regalloc may keep an unrelated acc16 value in AW across the pseudo and
+// silently lose it when MULD overwrites AW with the LOW product.
+// Concrete case: picolibc's calloc has `elem` (the second arg of
+// __builtin_mul_overflow) regalloc'd to AW; MULD destroys it; the
+// subsequent `max(elem, 1)` overflow-check divisor reads the freshly-
+// written LOW product instead of `elem`, calloc(SIZE_MAX, SIZE_MAX) no
+// longer detects overflow.
 class MC6809MultiplyBase<dag operand> : MC6809LogicalInstr {
-  let Defs = [NZ, AD];
+  let Defs = [NZ, AD, AW, AQ, AA, AB, AE, AF];
   dag InOperandList = !con((ins ADc:$src), operand);
   dag OutOperandList = (outs ACC16:$dst);
 }
@@ -997,8 +1005,10 @@ let Predicates = [IsHD6309] in {
   defm Multiply_i16 : MC6809Multiply;
 }
 
+// Bug #251: same Defs widening as MC6809MultiplyBase — MULD clobbers
+// both halves of the AQ register file.
 class MC6809MultiplyHighBase<dag operand> : MC6809LogicalInstr {
-  let Defs = [NZ, AW];
+  let Defs = [NZ, AD, AW, AQ, AA, AB, AE, AF];
   dag OutOperandList = (outs ADc:$dst);
   dag InOperandList = !con((ins ADc:$src), operand);
 }
