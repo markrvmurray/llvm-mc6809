@@ -6,37 +6,40 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// int __ctzsi2(uint32_t a) — count trailing zeros in a 32-bit value.
+// __ctzsi2(uint32_t a) — count trailing zeros in a 32-bit value.
 //
-// Precondition: a != 0 (matches the upstream contract from ctzsi2.c).
-// On a == 0 the result is 32 (defensive — upstream is undefined here).
+// Bug #255 (post-bench 2026-05-09): LLVM-MC6809's libcall lowering for
+// G_CTTZ at s32 emits a 4-byte sret call: caller passes a 4-byte buffer
+// pointer in X, reads the result from offset 2 (low 16 bits of the
+// big-endian zero-extended count). picolibc's ffsl was getting wrong
+// answers for every non-zero input because Bug #245's earlier ctzsi2.S
+// used the gcc6809-v1 "return in X register" convention — incompatible
+// with the libcall ABI clang emits via `__builtin_ctzl`.
 //
-// gcc6809 ABI v1:
+// Same family as Bug #246's i64 fix; this is the i32 analogue.
+//
+// LLVM-MC6809 i32-sret libcall ABI (matches __ucmpsi2.S):
 //   2,s..5,s  = uint32_t a (big-endian: MSB at 2,s, LSB at 5,s)
-// Return: int in X
+//   X         = pointer to caller-allocated 4-byte result buffer
+// Return: store count (i16, range 0..32) zero-extended to i32 at *X:
+//   0,x..1,x  = 0
+//   2,x..3,x  = count (big-endian)
 //
-// NOTE: `__builtin_ctzll` lowers via the LLVM-MC6809 libcall path which
-// uses a wider i64-sret return — the compiler-rt C-compiled `__ctzdi2`
-// is incompatible with that convention. That ABI mismatch is filed
-// separately; this file is the narrow `int __ctzsi2(uint32_t)` fix
-// (Bug #245), exactly mirroring clzsi2.S so direct C-ABI callers work.
+// Direct C-ABI callers (declared `extern int __ctzsi2(uint32_t)`) get
+// gcc6809 v1 behaviour at the call site (clang emits a single lbsr with
+// arg on stack and reads result from X register). Those callers are now
+// BROKEN by this ABI change — the result-via-X pattern doesn't match
+// our new sret-via-X. Workaround: wrap such callers in a libcall-style
+// call (via `__builtin_ctz` instead of explicit `__ctzsi2(x)`) or
+// re-export under a different symbol name. The picolibc test suite
+// migrated where needed.
 //
-// Bug #245: __ctzdi2 (which IS shipped from compiler-rt's generic build)
-// references __ctzsi2 internally; without this stub any executable that
-// pulls in __ctzdi2 (e.g. via __builtin_ctzll) fails to link. The C
-// version of __ctzsi2 is excluded from mc6809_SOURCES because the byte-
-// level decomposition produces too much register pressure (CMakeLists.txt
-// :893-896, alongside __clzsi2 which Bug #225 likewise replaced with a
-// hand-written byte scan). This file mirrors clzsi2.S — same shape, MSB
-// scan reversed to LSB scan, lslb→lsrb in the bit-count loop.
+// Strategy: scan the 4 input bytes from LSB upward; count trailing
+// zeros within the first non-zero byte by right-shifting until the LSB
+// is 1. Y holds the count so X stays as the sret pointer throughout.
 //
-// Strategy: scan the 4 input bytes from LSB upward to find the first
-// non-zero byte, then count trailing zeros within that byte by right-
-// shifting until the LSB is 1. B holds the current byte, X the running
-// count.
-//
-// Worst case (input = 0x80000000) is 4 byte-tests + 7 bit-shifts ≈ 150 cy.
-// Best case (input has bit 0 set)   is 1 byte-test + 0 shifts ≈ 12 cy.
+// Worst case (input = 0x80000000) is 4 byte-tests + 7 bit-shifts ≈ 160 cy.
+// Best case (input has bit 0 set)   is 1 byte-test + 0 shifts ≈ 14 cy.
 //
 //===----------------------------------------------------------------------===//
 
@@ -53,29 +56,33 @@ __ctzsi2:
 	bne	.Lctzsi2_byte2
 	ldb	2,s			// MSB
 	bne	.Lctzsi2_byte3
-	ldx	#32			// a == 0 → 32 trailing zeros (defensive)
-	rts
+	ldy	#32			// a == 0 → 32 (defensive)
+	bra	.Lctzsi2_store
 
 .Lctzsi2_byte3:
-	ldx	#24
+	ldy	#24
 	bra	.Lctzsi2_count
 .Lctzsi2_byte2:
-	ldx	#16
+	ldy	#16
 	bra	.Lctzsi2_count
 .Lctzsi2_byte1:
-	ldx	#8
+	ldy	#8
 	bra	.Lctzsi2_count
 .Lctzsi2_byte0:
-	ldx	#0
+	ldy	#0
 	// fall through
 
-// On entry: B != 0, X = 8 * (number of trailing zero bytes).
-// Shift B right until the bit shifted out is 1; X counts zero shifts.
+// On entry: B != 0, Y = 8 * (number of trailing zero bytes), X = sret ptr.
 .Lctzsi2_count:
 	lsrb
-	bcs	.Lctzsi2_done
-	leax	1,x
+	bcs	.Lctzsi2_store
+	leay	1,y
 	bra	.Lctzsi2_count
-.Lctzsi2_done:
+
+// Y = count (0..32). Write 4-byte zero-extended big-endian result.
+.Lctzsi2_store:
+	ldd	#0
+	std	,x			// bytes 0..1 = 0
+	sty	2,x			// bytes 2..3 = count
 	rts
 	.size	__ctzsi2, . - __ctzsi2
