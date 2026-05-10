@@ -5883,6 +5883,36 @@ void MC6809InstrInfo::expandFusedCompareBranch(MachineIRBuilder &Builder, Machin
       .addImm(CC)
       .addMBB(TargetMBB);
 
+  // Bug #271 (cat-5): the fused pseudo had two CFG successors —
+  // TargetMBB (the conditional target) and the implicit fallthrough.
+  // After expansion the LBlbc above is a single-target conditional
+  // branch whose not-taken arm falls through to layout-next. If the
+  // CFG-fallthrough is a DIFFERENT MBB than layout-next, the BB now
+  // has a CFG successor that no terminator reaches — verifier flags
+  // it as 'MBB has unexpected successors'. Concrete site:
+  // __ubsan_val_to_imax / __ubsan_val_to_umax in libc/ubsan/ at
+  // -Og hd6309. Insert a LongBranchRelative to the CFG-fallthrough
+  // when layout doesn't already provide it.
+  //
+  // Critical guard: if MI is NOT the last instruction in the BB,
+  // there's already an unconditional branch (placed by insertBranch
+  // when CFG-fallthrough != layout-next pre-expansion). Don't
+  // duplicate it; insertBranch's LongBranchRelative will handle the
+  // fallthrough. Adding another would produce dead duplicate branch
+  // instructions (loop.ll regressed under that interpretation).
+  if (MI.getNextNode() == nullptr) {
+    MachineBasicBlock *MBB = MI.getParent();
+    MachineBasicBlock *FallthroughMBB = nullptr;
+    for (MachineBasicBlock *Succ : MBB->successors()) {
+      if (Succ != TargetMBB) {
+        FallthroughMBB = Succ;
+        break;
+      }
+    }
+    if (FallthroughMBB && FallthroughMBB != MBB->getNextNode())
+      Builder.buildInstr(MC6809::LongBranchRelative).addMBB(FallthroughMBB);
+  }
+
   MI.eraseFromParent();
 }
 
