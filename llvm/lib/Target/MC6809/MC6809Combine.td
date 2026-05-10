@@ -120,9 +120,17 @@ def narrow_i16_eq_ne_icmp : GICombineRule<
           [{ return matchNarrowI16EqNeICmp(*${root}, ${matchinfo}); }]),
   (apply [{ Helper.applyBuildFn(*${root}, ${matchinfo}); }])>;
 
+// Bug #247: narrow `G_TRUNC s32 (G_MUL s64 X, K)` -> i32 mul when K < 2^32.
+def narrow_mul_i64_trunc_to_i32 : GICombineRule<
+  (defs root:$root, build_fn_matchinfo:$matchinfo),
+  (match (wip_match_opcode G_TRUNC):$root,
+          [{ return matchNarrowMulI64TruncToI32(*${root}, ${matchinfo}); }]),
+  (apply [{ Helper.applyBuildFn(*${root}, ${matchinfo}); }])>;
+
 def MC6809Combiner : GICombiner<"MC6809CombinerImpl", [
     mc6809_all_combines,
     narrow_i16_eq_ne_icmp,
+    narrow_mul_i64_trunc_to_i32,
     // unmerge_high_from_load,
     // unmerge_low_from_load,
     // fold_global_offset,

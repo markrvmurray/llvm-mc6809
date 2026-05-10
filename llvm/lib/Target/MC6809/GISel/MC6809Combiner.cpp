@@ -117,6 +117,12 @@ public:
 
   bool matchNarrowI16EqNeICmp(MachineInstr &MI, BuildFnTy &MatchInfo) const;
 
+  // Bug #247: Narrow `G_TRUNC s32 (G_MUL s64 X, K)` -> `G_MUL s32 trunc(X), trunc(K)`
+  // when K's high 32 bits are zero. The i64 mul lowers to __muldi3 which
+  // (under LTO -O2 cross-TU inlining + HD6309 codegen) hits a wrong-answer
+  // bug; the i32 mul lowers via a much smaller __mulsi3 path that doesn't.
+  bool matchNarrowMulI64TruncToI32(MachineInstr &MI, BuildFnTy &MatchInfo) const;
+
   APInt getDemandedBits(Register R) const;
   APInt getDemandedBits(Register R, DenseMap<Register, APInt> &Cache) const;
 
@@ -528,6 +534,89 @@ bool MC6809CombinerImpl::matchNarrowI16EqNeICmp(MachineInstr &MI,
       B.buildAnd(Dst, LoCmp, HiCmp);
     else
       B.buildOr(Dst, LoCmp, HiCmp);
+  };
+  return true;
+}
+
+// Bug #247: narrow s64 → s32 for the
+//
+//   trunc s32 (add s64 (mul s64 X, K), Y)
+//
+// pattern when K is constant with high 32 bits zero. Mathematically:
+//   low32((X * K) + Y) = low32(low32(X) * low32(K) + low32(Y))   when K < 2^32
+//
+// On MC6809, this swaps a __muldi3 + 8-byte i64 add chain for a __mulsi3 +
+// 4-byte i32 add. The i64 path under LTO -O2 cross-TU inlining + heavy
+// regalloc pressure on HD6309 produces wrong-answer code (the suspect
+// late-InstCombine-induced shape from #247's bisect); the i32 path
+// sidesteps it.
+//
+// Also matches the simpler `trunc s32 (mul s64 X, K)` shape (no add) for
+// completeness.
+bool MC6809CombinerImpl::matchNarrowMulI64TruncToI32(MachineInstr &MI,
+                                                     BuildFnTy &MatchInfo) const {
+  if (!Helper.isPreLegalize())
+    return false;
+  if (MI.getOpcode() != MC6809::G_TRUNC)
+    return false;
+  Register Dst = MI.getOperand(0).getReg();
+  Register Src = MI.getOperand(1).getReg();
+  LLT DstTy = MRI.getType(Dst);
+  LLT SrcTy = MRI.getType(Src);
+  if (DstTy != LLT::scalar(32) || SrcTy != LLT::scalar(64))
+    return false;
+  if (!MRI.hasOneNonDBGUse(Src))
+    return false;
+
+  MachineInstr *Inner = MRI.getVRegDef(Src);
+  if (!Inner)
+    return false;
+
+  // Look through one G_ADD to find the G_MUL.
+  Register MulReg;
+  Register OtherReg; // the addend (Y); empty if no add
+  if (Inner->getOpcode() == MC6809::G_ADD) {
+    Register A = Inner->getOperand(1).getReg();
+    Register B = Inner->getOperand(2).getReg();
+    MachineInstr *AD = MRI.getVRegDef(A);
+    MachineInstr *BD = MRI.getVRegDef(B);
+    if (AD && AD->getOpcode() == MC6809::G_MUL && MRI.hasOneNonDBGUse(A)) {
+      MulReg = A; OtherReg = B;
+    } else if (BD && BD->getOpcode() == MC6809::G_MUL && MRI.hasOneNonDBGUse(B)) {
+      MulReg = B; OtherReg = A;
+    } else {
+      return false;
+    }
+  } else if (Inner->getOpcode() == MC6809::G_MUL) {
+    MulReg = Src;
+  } else {
+    return false;
+  }
+
+  MachineInstr *MulMI = MRI.getVRegDef(MulReg);
+  Register MulLhs = MulMI->getOperand(1).getReg();
+  Register MulRhs = MulMI->getOperand(2).getReg();
+  auto RhsConst = getIConstantVRegValWithLookThrough(MulRhs, MRI);
+  if (!RhsConst)
+    return false;
+  // Require K's high 32 bits to be zero — otherwise narrowing would change
+  // the low 32 bits of the product (high half of K cross-multiplies in).
+  APInt K = RhsConst->Value;
+  if (K.getActiveBits() > 32)
+    return false;
+  uint64_t KLow = K.getZExtValue() & 0xFFFFFFFFULL;
+
+  MatchInfo = [=, this](MachineIRBuilder &B) {
+    LLT S32 = LLT::scalar(32);
+    auto NarrowLhs = B.buildTrunc(S32, MulLhs);
+    auto NarrowK = B.buildConstant(S32, KLow);
+    if (OtherReg) {
+      auto NarrowMul = B.buildMul(S32, NarrowLhs, NarrowK);
+      auto NarrowOther = B.buildTrunc(S32, OtherReg);
+      B.buildAdd(Dst, NarrowMul, NarrowOther);
+    } else {
+      B.buildMul(Dst, NarrowLhs, NarrowK);
+    }
   };
   return true;
 }
