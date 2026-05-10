@@ -2032,33 +2032,6 @@ void MC6809InstrInfo::loadStoreRegStackSlot(MachineBasicBlock &MBB, MachineBasic
     // verifier-clean. No sub-reg index is involved (the load/store
     // operates on the full 16-bit value).
     loadStoreRegisterStaticStackSlot(Builder, MachineOperand::CreateReg(Reg, IsLoad), FrameIndex, 0, MF.getMachineMemOperand(MMO, 0, 2));
-  } else if ((Reg.isPhysical() && MC6809::ACC32RegClass.contains(Reg)) ||
-             (Reg.isVirtual() && MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::ACC32RegClass))) {
-    // Bug #271 cat-3: Store/Load_i32_Mem accept operand class AQc
-    // (singleton AQ — required by the strtol / snprintf / asctime
-    // correctness paths from bug #208 / #210). The default fallthrough
-    // below would hand them a vreg constrained to ACC32 (= AQ +
-    // SPILL_Q0..3), which the verifier flags as
-    // "Illegal virtual register for instruction".
-    //
-    // Mirror the ACC16 pattern just above: create a fresh AQc-class
-    // vreg local to this spill site, copy the original ACC32 vreg
-    // into it (or out of it for loads), and let the generic Store_i32_Mem
-    // / Load_i32_Mem see only an AQc operand. The COPY between the
-    // original vreg (potentially bound to SPILL_Q*) and the new
-    // AQc-bound vreg is resolved post-RA by `copyPhysReg`, which
-    // already routes SPILL_Q ↔ AQ via the LDQ / STQ
-    // materialize/dematerialize machinery.
-    Register Tmp = Reg;
-    if (!Reg.isPhysical()) {
-      assert(Reg.isVirtual());
-      Tmp = MRI.createVirtualRegister(&MC6809::AQcRegClass);
-    }
-    if (!IsLoad && Tmp != Reg)
-      Builder.buildCopy(Tmp, Reg);
-    loadStoreRegisterStaticStackSlot(Builder, MachineOperand::CreateReg(Tmp, IsLoad), FrameIndex, 0, MF.getMachineMemOperand(MMO, 0, 4));
-    if (IsLoad && Tmp != Reg)
-      Builder.buildCopy(Reg, Tmp);
   } else {
     loadStoreRegisterStaticStackSlot(Builder, MachineOperand::CreateReg(Reg, IsLoad), FrameIndex, 0, MMO);
   }
