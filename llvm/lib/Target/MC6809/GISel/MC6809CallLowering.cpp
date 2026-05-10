@@ -536,6 +536,18 @@ bool MC6809CallLowering::lowerCall(MachineIRBuilder &MIRBuilder, CallLoweringInf
   // (NOT JSRi_o0I — that's the indirect form jsr [,REG] which
   // would treat REG as a pointer to the function pointer rather
   // than the function pointer itself.)
+  //
+  // Bug #268: pre-constrain the callee vreg to INDEX16 so it has a
+  // register class by the time the verifier sees the JSRi_o0. Without
+  // this, the vreg arrives as a generic (no-class) reg from the
+  // pointer-typed function-pointer operand, and -verify-machineinstrs
+  // flags it as "Expect register class INDEX16 but got nothing".
+  // The setRegClass call is safe regardless of the vreg's prior state:
+  // for a generic vreg it assigns the class; for an already-classed
+  // vreg setRegClass would be too aggressive, so we check first.
+  if (IsIndirect && Info.Callee.getReg().isVirtual() &&
+      MRI.getRegClassOrNull(Info.Callee.getReg()) == nullptr)
+    MRI.setRegClass(Info.Callee.getReg(), &MC6809::INDEX16RegClass);
   auto Call = MIRBuilder.buildInstrNoInsert(IsIndirect ? MC6809::JSRi_o0
                                                         : MC6809::LongBranchSubroutine)
                   .add(Info.Callee)
