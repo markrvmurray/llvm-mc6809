@@ -1041,6 +1041,18 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
         // HI at slot+0, LO at slot+1. EXTRACT_LO_i16's dst class (ABc)
         // guarantees staging through AB aligns with dst; EXTRACT_HI_i16's
         // dst class (AAc) guarantees staging through AA aligns with dst.
+        //
+        // Bug #267: rewriting MO.setReg(StageReg) leaves an EXTRACT pseudo
+        // whose source operand class (ADc) doesn't match the new operand
+        // ($ab/$aa, 8-bit) — -verify-machineinstrs flags it. When dst is
+        // also the staging byte (the typical case per the dst-class
+        // constraint above), the EXTRACT is a self-copy after the rewrite
+        // and the Load_i8_Mem already produced the result in dst directly,
+        // so we can just queue the EXTRACT for erase. When dst differs
+        // (e.g. allocated to a SPILL_B*), keep the EXTRACT in place — the
+        // post-RA expansion's byte-pre-routed path (see
+        // MC6809InstrInfo.cpp::expandPostRAPseudo around line 2180)
+        // handles it correctly via copyPhysReg(dst, $ab/$aa).
         if ((MI.getOpcode() == MC6809::EXTRACT_LO_i16 ||
              MI.getOpcode() == MC6809::EXTRACT_HI_i16) &&
             isWideAccSpillReg(SpillReg)) {
@@ -1052,6 +1064,11 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
               .addFrameIndex(FI)
               .addImm(ByteOff);
           MO.setReg(StageReg);
+          // If dst is the same staging reg, the EXTRACT is now a no-op.
+          // Defer erase to the end of BB processing so we don't invalidate
+          // operand iterators or downstream loops in this MI.
+          if (MI.getOperand(0).getReg() == StageReg)
+            ToErase.push_back(&MI);
           continue;
         }
 
