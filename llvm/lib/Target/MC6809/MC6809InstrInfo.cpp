@@ -3717,17 +3717,31 @@ void MC6809InstrInfo::expandShiftLeft(MachineIRBuilder &Builder, MachineInstr &M
     dematerializeReg(Builder, Reg, OrigReg, MF);
     return;
   }
+  // Bug #271 (category 4): LSL_i8/i16_Reg has THREE operands per its
+  // TableGen def — (outs reg:$dst), (ins reg:$src, i8imm:$val) — with
+  // $dst tied to $src. The pseudo represents "shift $src by $val into
+  // $dst", but post-RA expansion always emits a single ASL[A|B|D]a (the
+  // hardware shift-by-1). Removing only operands 0 and 1 leaves the
+  // i8imm $val as a stranded explicit operand on the now-zero-arity
+  // ASL[A|B|D]a — verifier flags it as "Extra explicit operand on
+  // non-variadic instruction" (9 hits in libc memmem at -Og hd6309).
+  // Fix: remove operand 2 first so all three explicit operands are
+  // gone before the ASLBa setDesc + addImplicitDefUseOperands. The
+  // 6809-AD case (ASLB+ROLA) already MI.eraseFromParent() so it isn't
+  // affected by the off-by-one removal.
   switch (Reg) {
   default:
     llvm_unreachable("Illegal register for ASL/LSL");
   case MC6809::AA:
     MI.setDesc(Builder.getTII().get(MC6809::ASLAa));
+    MI.removeOperand(2);
     MI.removeOperand(1);
     MI.removeOperand(0);
     MI.addImplicitDefUseOperands(*MI.getMF());
     break;
   case MC6809::AB:
     MI.setDesc(Builder.getTII().get(MC6809::ASLBa));
+    MI.removeOperand(2);
     MI.removeOperand(1);
     MI.removeOperand(0);
     MI.addImplicitDefUseOperands(*MI.getMF());
@@ -3736,6 +3750,7 @@ void MC6809InstrInfo::expandShiftLeft(MachineIRBuilder &Builder, MachineInstr &M
     const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
     if (STI.has6309()) {
       MI.setDesc(Builder.getTII().get(MC6809::ASLDa));
+      MI.removeOperand(2);
       MI.removeOperand(1);
       MI.removeOperand(0);
       MI.addImplicitDefUseOperands(*MI.getMF());
@@ -3794,8 +3809,18 @@ void MC6809InstrInfo::expandShiftRight(MachineIRBuilder &Builder, MachineInstr &
   }
   }
   MI.setDesc(Builder.getTII().get(Opcode));
-  MI.removeOperand(1); // remove immediate
-  MI.removeOperand(0); // remove register (now implicit)
+  // Bug #271 (category 4): same off-by-one as expandShiftLeft (above).
+  // The MC6809ShiftBase pseudo has 3 explicit operands — (dst, src, val);
+  // the original code only removed operands 1 (src) and 0 (dst), leaving
+  // operand 2 (the i8imm shift count) stranded as an explicit arg on the
+  // now-zero-arity ASR/LSR[A|B|D]a. The misleading "// remove immediate"
+  // comment on the removeOperand(1) line referred to the OTHER pseudo
+  // shape; for MC6809ShiftBase, operand 1 is the src register, not the
+  // immediate. Remove operand 2 first so all three explicit operands
+  // are gone before addImplicitDefUseOperands.
+  MI.removeOperand(2); // remove immediate (the i8imm shift count)
+  MI.removeOperand(1); // remove src register (now implicit)
+  MI.removeOperand(0); // remove dst register (now implicit)
   MI.addImplicitDefUseOperands(*MI.getMF());
 }
 
@@ -3825,8 +3850,13 @@ void MC6809InstrInfo::expandRotate(MachineIRBuilder &Builder, MachineInstr &MI, 
     break;
   }
   MI.setDesc(Builder.getTII().get(Opcode));
-  MI.removeOperand(1);
-  MI.removeOperand(0);
+  // Bug #271 (category 4): same off-by-one as expandShiftLeft /
+  // expandShiftRight. ROL_i8 / ROR_i8 use MC6809Shift<ACC8_AB> too,
+  // i.e. (outs reg:$dst), (ins reg:$src, i8imm:$val) — three explicit
+  // operands. Remove operand 2 (the i8imm shift count) first.
+  MI.removeOperand(2); // remove immediate (the i8imm shift count)
+  MI.removeOperand(1); // remove src register (now implicit)
+  MI.removeOperand(0); // remove dst register (now implicit)
   MI.addImplicitDefUseOperands(*MI.getMF());
 }
 
