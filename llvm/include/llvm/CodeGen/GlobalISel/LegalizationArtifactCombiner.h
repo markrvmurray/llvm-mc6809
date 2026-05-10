@@ -671,7 +671,19 @@ public:
                                     SmallVectorImpl<Register> &UpdatedDefs,
                                     GISelChangeObserver &Observer) {
     if (!llvm::canReplaceReg(DstReg, SrcReg, MRI)) {
-      Builder.buildCopy(DstReg, SrcReg);
+      // If both registers are virtual but have different LLT types,
+      // emitting a bare COPY produces invalid GMIR
+      // (`-verify-machineinstrs` flags it as a sub-register copy
+      // missing a sub-reg index). Emit a typed G_TRUNC / G_ANYEXT
+      // instead, mirroring the pattern already used in
+      // `tryCombineSExt`. When either register is physical (e.g.
+      // ABI-mandated) or only the register class/bank differs, fall
+      // back to the original COPY behaviour.
+      if (!DstReg.isPhysical() && !SrcReg.isPhysical() &&
+          MRI.getType(DstReg) != MRI.getType(SrcReg))
+        Builder.buildAnyExtOrTrunc(DstReg, SrcReg);
+      else
+        Builder.buildCopy(DstReg, SrcReg);
       UpdatedDefs.push_back(DstReg);
       return;
     }
