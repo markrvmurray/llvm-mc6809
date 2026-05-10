@@ -2020,21 +2020,18 @@ void MC6809InstrInfo::loadStoreRegStackSlot(MachineBasicBlock &MBB, MachineBasic
     MIB.addReg(Reg, getDefRegState(IsLoad) | getKillRegState(IsKill && !IsLoad));
     MIB.addFrameIndex(FrameIndex).addImm(0).addMemOperand(MMO);
   } else if ((Reg.isPhysical() && MC6809::ACC16RegClass.contains(Reg)) || (Reg.isVirtual() && MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::ACC16RegClass))) {
-    Register Tmp = Reg;
-    if (!Reg.isPhysical()) {
-      assert(Reg.isVirtual());
-      // Live intervals for the original virtual register will already have
-      // been computed by this point. Since this code introduces
-      // subregisters, these must be using a new virtual register; otherwise
-      // there would be no subregister live ranges for the new instructions.
-      // This can cause VirtRegMap to fail.
-      Tmp = MRI.createVirtualRegister(&MC6809::ACC16RegClass);
-    }
-    if (!IsLoad && Tmp != Reg)
-      Builder.buildCopy(Tmp, Reg);
-    loadStoreRegisterStaticStackSlot(Builder, MachineOperand::CreateReg(Tmp, IsLoad), FrameIndex, 0, MF.getMachineMemOperand(MMO, 0, 2));
-    if (IsLoad && Tmp != Reg)
-      Builder.buildCopy(Reg, Tmp);
+    // Bug #271 cat-2: pass Reg directly to Store_i16_Mem / Load_i16_Mem.
+    // The historical fresh-vreg + COPY pattern (whose comment claimed
+    // "this code introduces subregisters") was leaving 96 verifier hits
+    // at -Og hd6309 mame: the Store's operand was the fresh vreg but
+    // greedy's spill bookkeeping recorded the live segment as belonging
+    // to the original Reg, so the verifier flagged "Instruction ending
+    // live segment doesn't read the register" on every 16-bit spill.
+    // Reg's class is already a subclass of ACC16 — the operand class
+    // of Store_i16_Mem / Load_i16_Mem — so going direct is also
+    // verifier-clean. No sub-reg index is involved (the load/store
+    // operates on the full 16-bit value).
+    loadStoreRegisterStaticStackSlot(Builder, MachineOperand::CreateReg(Reg, IsLoad), FrameIndex, 0, MF.getMachineMemOperand(MMO, 0, 2));
   } else if ((Reg.isPhysical() && MC6809::ACC32RegClass.contains(Reg)) ||
              (Reg.isVirtual() && MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::ACC32RegClass))) {
     // Bug #271 cat-3: Store/Load_i32_Mem accept operand class AQc
