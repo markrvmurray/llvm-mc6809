@@ -907,7 +907,19 @@ def NOPx : MC6809Inherent_P1<(outs), "nop", Opcode<0x12,1>, [], []>;
 
 def SYNCx : MC6809Inherent_P1<(outs), "sync", Opcode<0x13,1>, [], []>;
 
-def SEXWx : MC6809Inherent_P1<(outs), "sexw", Opcode<0x14,1>, [NZ,N,Z,AA,AB,AD,AE,AF,AW,AQ], [AD]> {
+// Bug #247: SEXW sign-extends W into D — it READS AW and WRITES AD.
+// Old definition listed Uses=[AD], which told regalloc SEXW *consumed*
+// AD's current value. With AD already holding an in-flight value (e.g.,
+// the `actual` operand of an i16 != i16 compare in test-timegm), regalloc
+// thought it was safe to schedule SEXW there: the value would be
+// "consumed" by the read. But SEXW actually clobbers AD with sign(W).
+// The prior value was lost, downstream compare/printf saw 0 instead of
+// the real value -> "got 0 want 43" pattern across all of test-timegm's
+// h/m/s checks. Fix: Uses=[AW] (the real input). Defs trimmed to what
+// SEXW actually clobbers: NZ + N + Z + V + (AA, AB, AD) = D's pieces.
+// W (AE, AF, AW) is preserved by hardware; listing it in Defs was both
+// wrong and obstructed regalloc.
+def SEXWx : MC6809Inherent_P1<(outs), "sexw", Opcode<0x14,1>, [NZ,N,Z,V,AA,AB,AD], [AW]> {
   let Predicates = [IsHD6309];
 }
 

@@ -390,8 +390,22 @@ def SEX16Implicit : MC6809LogicalInstr {
 }
 
 def SEX32Implicit : MC6809LogicalInstr {
-  // Expansion: SEXW (HD6309).  Sets NZ; V cleared.
-  let Defs = [NZ, V];
+  // Expansion: SEXW (HD6309).  Sets NZ; V cleared.  Hardware SEXW
+  // sign-extends AW into AD, so the expansion physically clobbers
+  // AD (and AA/AB via subreg hierarchy).
+  // Bug #247 (same shape as #208 round 2 / #211 for ZEX16Implicit /
+  // ZEX32Implicit): when regalloc binds dst to a SPILL_Q* slot the
+  // OutOperand only marks the spill slot as written — physical AD
+  // is not covered.  An i16 value live in AD across this pseudo
+  // (e.g. test-timegm's `actual` operand of an i16 != i16 compare)
+  // would survive the pseudo per regalloc's view, then get
+  // overwritten by SEXW with sign(W), so the downstream cmpr saw 0
+  // instead of the real value -> "got 0 want N" across all
+  // tm_h/m/s checks.  Fix: list AD in Defs so regalloc spills any
+  // live AD value across this pseudo regardless of dst binding.
+  // (When dst lands in AQ the OutOperand already covers AD via
+  // class hierarchy; the explicit Defs entry is a no-op then.)
+  let Defs = [NZ, V, AD];
   let hasSideEffects = 1;
   dag InOperandList = (ins AWc:$src);
   dag OutOperandList = (outs ACC32:$dst);
