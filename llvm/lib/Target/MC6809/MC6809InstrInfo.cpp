@@ -3401,9 +3401,16 @@ void MC6809InstrInfo::expandImm(ContextImmediate Context, MachineIRBuilder &Buil
         // assertion in PostRASchedulerList.cpp:341. The implicit-defs
         // of CheatReg / DestReg already chain the three MIs through
         // liveness without needing the bundle: nothing reorders them.
-        Builder.buildInstr(MC6809::EXGp).addDef(CheatReg).addDef(DestReg).addUse(CheatReg).addUse(DestReg);
+        // Bug #271 cat-1: the cheat scratch register (AA / AB / AD)
+        // holds no meaningful value before the first EXG — only DestReg
+        // is live. Mark the scratch read as RegState::Undef so the
+        // verifier doesn't flag it as "Using an undefined physical
+        // register". After the first EXG and the operation, DestReg
+        // is the scratch side and is undef going into the second EXG;
+        // mark its read Undef there too.
+        Builder.buildInstr(MC6809::EXGp).addDef(CheatReg).addDef(DestReg).addUse(CheatReg, RegState::Undef).addUse(DestReg);
         Builder.buildInstr(OpcodePair->getSecond()).addDef(CheatReg, RegState::Implicit).addImm(Val);
-        Builder.buildInstr(MC6809::EXGp).addDef(DestReg).addDef(CheatReg).addUse(DestReg).addUse(CheatReg);
+        Builder.buildInstr(MC6809::EXGp).addDef(DestReg).addDef(CheatReg).addUse(DestReg, RegState::Undef).addUse(CheatReg);
       } else {
         llvm_unreachable("Cannot find machine instruction with this immediate operand");
       }
@@ -3451,13 +3458,18 @@ void MC6809InstrInfo::expandIdxImm(ContextIndexImmediate Context, MachineIRBuild
       assert((OpcodePair != Context.Opcode->end()) && "This should not be reached! We have the D register available.");
       MachineBasicBlock &MBB = *MI.getParent();
       MachineBasicBlock::iterator B, E;
-      B = Builder.buildInstr(MC6809::EXGp).addDef(MC6809::AD).addDef(DestReg).addUse(MC6809::AD).addUse(DestReg);
+      // Bug #271 cat-1: AD is the cheat-scratch register here, holding
+      // no meaningful value before the first EXG. Mark the AD read Undef
+      // so the verifier doesn't flag it. After the first EXG + the
+      // indexed op, DestReg is the scratch side; mark its read Undef
+      // on the second EXG too.
+      B = Builder.buildInstr(MC6809::EXGp).addDef(MC6809::AD).addDef(DestReg).addUse(MC6809::AD, RegState::Undef).addUse(DestReg);
       auto Instr = Builder.buildInstr(OpcodePair->getSecond()).addDef(MC6809::AD, RegState::Implicit);
       if (OffsetSize == 0)
         Instr.addReg(IndexReg);
       else
         Instr.addImm(Offset).addReg(IndexReg);
-      E = Builder.buildInstr(MC6809::EXGp).addDef(DestReg).addDef(MC6809::AD).addUse(DestReg).addUse(MC6809::AD);
+      E = Builder.buildInstr(MC6809::EXGp).addDef(DestReg).addDef(MC6809::AD).addUse(DestReg, RegState::Undef).addUse(MC6809::AD);
       auto Bundler = MIBundleBuilder(MBB, B, ++E);
       finalizeBundle(MBB, Bundler.begin(), Bundler.end());
       LLVM_DEBUG(for (auto &I : Bundler) {
