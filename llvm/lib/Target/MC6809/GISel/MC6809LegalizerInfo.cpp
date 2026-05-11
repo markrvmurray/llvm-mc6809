@@ -1277,6 +1277,81 @@ bool MC6809LegalizerInfo::legalizeMemOp(LegalizerHelper &Helper, MachineRegister
 
   bool IsSet = MI.getOpcode() == MC6809::G_MEMSET;
   bool IsInline = MI.getOpcode() == MC6809::G_MEMCPY_INLINE;
+
+  // Bug #276: G_MEM{CPY,SET,MOVE} sitting between an ADJCALLSTACKDOWN
+  // and its matching ADJCALLSTACKUP cannot legalize to a libcall — the
+  // libcall would emit its own nested ADJCALLSTACK pair and LLVM's
+  // MachineVerifier rejects nested call-frame setups (see
+  // MachineVerifier::verifyStackFrame). Detect that case and emit a
+  // hand-rolled byte-by-byte inline copy/set/move, bypassing
+  // LegalizerHelper::findGISelOptimalMemOpLowering (which defers to
+  // MaxStoresPerMemcpy + allowsMisalignedMemoryAccesses and rejects
+  // common shapes at -Og + align=1).
+  //
+  // Typical surface: byval struct args at IR level whose copy ends up
+  // > SizeLimit. CallLowering wraps the G_MEMCPY in the outer call's
+  // ADJCALLSTACKDOWN/UP so $ss is valid as the dst base; the memop
+  // must therefore stay inline.
+  bool InsideCallFrame = false;
+  {
+    const MachineBasicBlock *MBB = MI.getParent();
+    int FrameSetupOpc =
+        Builder.getMF().getSubtarget().getInstrInfo()->getCallFrameSetupOpcode();
+    int FrameDestroyOpc =
+        Builder.getMF().getSubtarget().getInstrInfo()->getCallFrameDestroyOpcode();
+    for (auto It = MachineBasicBlock::const_reverse_iterator(MI);
+         It != MBB->rend(); ++It) {
+      if ((int)It->getOpcode() == FrameDestroyOpc) {
+        // A matched DOWN/UP pair before us — not inside.
+        break;
+      }
+      if ((int)It->getOpcode() == FrameSetupOpc) {
+        InsideCallFrame = true;
+        break;
+      }
+    }
+  }
+  if (InsideCallFrame && !IsInline) {
+    // Constant-length only (variable-length would need a hardware
+    // copy loop, which we can't synthesise without spare regs at
+    // this point in the pipeline). All known byval-args produce a
+    // constant length, so this should always hit.
+    Register Dst = MI.getOperand(0).getReg();
+    Register Src = IsSet ? Register() : MI.getOperand(1).getReg();
+    Register LenReg = IsSet ? MI.getOperand(2).getReg()
+                            : MI.getOperand(2).getReg();
+    auto LenVal = getIConstantVRegValWithLookThrough(LenReg, MRI);
+    if (LenVal) {
+      uint64_t N = LenVal->Value.getZExtValue();
+      LLT I8 = LLT::scalar(8);
+      LLT PtrTy = LLT::pointer(0, 16);
+      LLT OffTy = LLT::scalar(16);
+      MachineFunction *MF = MI.getParent()->getParent();
+      auto *DstMMO0 = *MI.memoperands_begin();
+      auto *SrcMMO0 = IsSet ? nullptr : *std::next(MI.memoperands_begin());
+      Register SetVal = IsSet ? MI.getOperand(1).getReg() : Register();
+      for (uint64_t i = 0; i < N; ++i) {
+        Register Off = Builder.buildConstant(OffTy, i).getReg(0);
+        Register CurDst = Builder.buildPtrAdd(PtrTy, Dst, Off).getReg(0);
+        auto *DstMMO = MF->getMachineMemOperand(DstMMO0, i, I8);
+        Register Byte;
+        if (IsSet) {
+          Byte = SetVal;  // i8 fill byte (already legal as scalar(8))
+        } else {
+          Register CurSrc = Builder.buildPtrAdd(PtrTy, Src, Off).getReg(0);
+          auto *SrcMMO = MF->getMachineMemOperand(SrcMMO0, i, I8);
+          Byte = Builder.buildLoad(I8, CurSrc, *SrcMMO).getReg(0);
+        }
+        Builder.buildStore(Byte, CurDst, *DstMMO);
+      }
+      MI.eraseFromParent();
+      return true;
+    }
+    // Fall through to libcall (and report failure) if length not
+    // constant. The verifier will then surface it loudly rather than
+    // silently emitting a nested ADJCALLSTACK.
+  }
+
   uint32_t SizeLimit;
   if (IsInline) {
     SizeLimit = UINT16_MAX;
