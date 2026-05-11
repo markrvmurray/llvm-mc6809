@@ -227,7 +227,7 @@ void MC6809PassConfig::addIRPasses() {
   //
   //   * Bug #214 made the AccReg-clobber explicit on byte-arithmetic
   //     _Reg pseudos via TableGen Defs.
-  //   * Bug #217 routed dst through ACC8_Bonly (B-half only) so the
+  //   * Bug #217 routed dst through ABc (B-half only) so the
   //     Defs declaration shrinks to `Defs += AB` — regalloc commits
   //     to B-half pre-RA, sees precise per-half pressure, and can
   //     absorb the clobber without the union-claim that broke

@@ -2866,7 +2866,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::Add_i8_Reg:
   // Bug #221 Phase A: parallel A-half pseudo routes through the same
   // helper. getByteOpcodes() picks A-half opcodes when RealLHS == AA
-  // (which is enforced by the _RegA pseudo's ACC8_Aonly dst class),
+  // (which is enforced by the _RegA pseudo's AAc dst class),
   // so no helper change needed.
   case MC6809::Add_i8_RegA:
   case MC6809::Add_i16_Reg:
