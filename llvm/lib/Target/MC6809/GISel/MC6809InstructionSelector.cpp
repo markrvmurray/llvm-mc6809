@@ -2341,6 +2341,40 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
             mi_match(Dst, *MRI, m_GUAddE(m_Reg(Reg), m_GCst(ValReg), m_Reg(Carry)));
   if (Success) {
     Value = ValReg->Value.getSExtValue();
+    // Bug #271 cat-1 residual: if the carry-IN is a known constant
+    // (either still-G_CONSTANT or already-selected Load_i1_Imm), the
+    // SetCarryUse pseudo's `Uses = [C]` declaration is a runtime
+    // hole — there's no producer of $c upstream, so the read is
+    // verifier-undefined AND functionally wrong (ADCB consumes the
+    // hardware CC.C, which has no connection to the BIT1 vreg's
+    // value). Fold the constant carry into the immediate operand
+    // and emit the AddSetCarry sibling (no Use). The carry-OUT
+    // BIT1 vreg is still produced for downstream chain users.
+    int64_t CarryVal = 0;
+    bool CarryIsConst = false;
+    if (auto CC = getIConstantVRegSExtVal(Carry, *MRI)) {
+      CarryVal = *CC & 1;
+      CarryIsConst = true;
+    } else if (MachineInstr *CarryDef = MRI->getVRegDef(Carry)) {
+      if (CarryDef->getOpcode() == MC6809::Load_i1_Imm &&
+          CarryDef->getOperand(1).isImm()) {
+        CarryVal = CarryDef->getOperand(1).getImm() & 1;
+        CarryIsConst = true;
+      }
+    }
+    if (CarryIsConst) {
+      Opcode = DstSize == 8
+                   ? PickOpc(MC6809::AddSetCarry_i8_Imm, MC6809::AddSetOverflow_i8_Imm)
+                   : PickOpc(MC6809::AddSetCarry_i16_Imm, MC6809::AddSetOverflow_i16_Imm);
+      Instr = Builder.buildInstr(Opcode)
+                       .addDef(Dst)
+                       .addUse(Reg)
+                       .addImm(Value + CarryVal)
+                       .addDef(CarryOut, RegState::ImplicitDefine);
+      constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
+      MI.eraseFromParent();
+      return true;
+    }
     Opcode = DstSize == 8
                  ? PickOpc(MC6809::AddSetCarryUse_i8_Imm,  MC6809::AddSetOverflowUse_i8_Imm)
                  : PickOpc(MC6809::AddSetCarryUse_i16_Imm, MC6809::AddSetOverflowUse_i16_Imm);
