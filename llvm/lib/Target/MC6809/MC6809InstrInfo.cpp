@@ -4458,6 +4458,55 @@ void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI
         .addDef(MC6809::IY, RegState::Implicit)
         .addImm(SpillOff).addReg(MC6809::SU);
     MI.getOperand(0).setReg(MC6809::IY);
+  } else if (isQSpillReg(MI.getOperand(0).getReg())) {
+    // Bug #274 / mirror of Bug #221's expandLoadIdx Q-spill DEST path:
+    // Q-spill SOURCE means the i32 to store lives in $spill_q*'s stack
+    // slot. Going through physical AQ via LDQ is wrong twofold:
+    // (1) LDQ clobbers AW, AD, AA, AB, AE, AF (all AQ sub-regs), which
+    //     can stomp regalloc-assigned values living in those sub-regs
+    //     because $spill_q* is an imaginary reg distinct from AQ.
+    // (2) The emergency-save-AD step below reads $ad even when $ad is
+    //     dead — -verify-machineinstrs flags it as an undef use.
+    // Slot-to-slot two-LDD pattern: LDD spill_slot+H → AD; STD AD →
+    // dst+H for H in {0, 2}.  Only AD is clobbered.
+    auto SrcSpill = MI.getOperand(0);
+    auto DstIndex = MI.getOperand(1);
+    auto DstOffset = MI.getOperand(2);
+    MachineFunction &MF = *MI.getMF();
+    int SrcSpillOff = computeSpillStackOffset(SrcSpill.getReg(), MF);
+
+    if (DstOffset.isImm()) {
+      int DstOffBytes = int(DstOffset.getImm());
+      auto emitHalf = [&](int HalfOffset) {
+        unsigned LdOpc = getLoadIdxOpcode(MC6809::AD, SrcSpillOff + HalfOffset);
+        Builder.buildInstr(LdOpc)
+            .addDef(MC6809::AD, RegState::Implicit)
+            .addImm(SrcSpillOff + HalfOffset)
+            .addReg(MC6809::SU);
+        unsigned StOpc = getStoreIdxOpcode(MC6809::AD, DstOffBytes + HalfOffset);
+        Builder.buildInstr(StOpc)
+            .addUse(MC6809::AD, RegState::Implicit)
+            .addImm(DstOffBytes + HalfOffset)
+            .addReg(DstIndex.getReg());
+      };
+      emitHalf(0);  // HI word
+      emitHalf(2);  // LO word
+      MI.eraseFromParent();
+      return;
+    }
+    // Reg-offset dst path: fall through to the generic
+    // emergency-save + materialise approach (rare; correctness over
+    // generality).
+    MachineIRBuilder LoadBuilder(*MI.getParent(), MI.getIterator());
+    int EmergencyFI = MF.getFrameInfo().CreateStackObject(2, Align(1), true);
+    EmergencyOffset = MF.getFrameInfo().getObjectOffset(EmergencyFI);
+    LoadBuilder.buildInstr(MC6809::STDi_o8)
+        .addUse(MC6809::AD, RegState::Implicit)
+        .addImm(EmergencyOffset)
+        .addReg(MC6809::SU);
+    Register RealReg = materializeReg(LoadBuilder, SrcSpill.getReg(), MF);
+    MI.getOperand(0).setReg(RealReg);
+    NeedRestore = true;
   } else if (needsMaterialization(MI.getOperand(0).getReg())) {
     Register SrcReg = MI.getOperand(0).getReg();
     MachineFunction &MF = *MI.getMF();
