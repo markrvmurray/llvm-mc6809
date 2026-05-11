@@ -1,0 +1,49 @@
+# RUN: llc -mtriple=mc6809 -mcpu=hd6309 -run-pass=mc6809-spill-opt \
+# RUN:   -verify-machineinstrs %s -o - 2>&1 | FileCheck %s
+
+# Bug #271 cat-1 (closed 2026-05-11): MC6809PostRASpillOpt's slot
+# tracker used to delete `LDA slot,$su → $aa` when a preceding
+# `STA $aa → slot,$su, implicit killed $aa` had recorded the slot's
+# value as held in $aa. The kill flag on the STA meant $aa was DEAD
+# after the store; the LDA was reloading $aa to re-establish its
+# live range for a downstream user (e.g. `$ab = TFRp $aa`). Deleting
+# the LDA left $aa dead at the downstream use, which the verifier
+# correctly flagged as "Using an undefined physical register".
+#
+# Fix: track `SourceKilled` on each SlotInfo entry; gate the redundant-
+# load deletion on `!Info->SourceKilled`. The LDA is preserved when
+# the store killed its source register; codegen is correct; verifier
+# is clean.
+#
+# Captured from getopt_internal at -Og (libc/stdlib/getopt.c) and
+# the rand48 family — the most reduced shape that still triggers
+# the original misoptimization. The TFRp ensures the post-LDA $aa
+# use is visible; without it the LDA would be reordered/dropped by
+# DCE.
+
+# CHECK-LABEL: name: spillopt_source_killed
+# CHECK-NOT: undefined physical register
+# CHECK-NOT: Bad machine code
+# Confirm the LDA survives the spill-opt pass:
+# CHECK: LDAi_o16
+# CHECK: TFRp $aa
+
+---
+name: spillopt_source_killed
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $aa, $ab, $su
+
+    ; Store $aa to slot 678,$su; the STA's `implicit killed $aa` says
+    ; $aa is dead after the store.
+    STAi_o16 678, $su, implicit killed renamable $aa, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+
+    ; Reload $aa from the same slot — re-establishes its live range
+    ; for the downstream TFRp.
+    LDAi_o16 678, $su, implicit-def renamable $aa, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ad, implicit-def $aq
+
+    ; Use $aa. Without the LDA above, this would read a dead $aa.
+    $ab = TFRp $aa
+    RTSr
+...

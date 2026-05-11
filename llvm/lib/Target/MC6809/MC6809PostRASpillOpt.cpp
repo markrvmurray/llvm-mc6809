@@ -350,6 +350,17 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
       Register Reg;
       MachineInstr *StoreInstr = nullptr; // null if value came from a load
       bool WasRead = false;               // true if slot was read since store
+      // Bug #271 cat-1: true when the STA/STB/STD that established this
+      // slot mapping also killed its source register (e.g.
+      // `STAi_o16 678,$su, implicit killed $aa`). After such a store,
+      // the slot has the value but the SOURCE register is DEAD. A
+      // subsequent reload (`LDAi_o16 678,$su → $aa, implicit-def $aa`)
+      // is NOT redundant — it re-establishes the register's live range
+      // for downstream use. Without this flag, spill-opt would delete
+      // the reload and any downstream `TFRp $aa` / `$ab = TFR $aa`
+      // would read a dead register, triggering verifier
+      // "Using an undefined physical register" complaints.
+      bool SourceKilled = false;
     };
     SmallVector<std::pair<SlotKey, SlotInfo>, 8> Slots;
 
@@ -362,7 +373,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
     };
 
     auto setSlot = [&](const SlotKey &Key, Register Reg,
-                        MachineInstr *Store) {
+                        MachineInstr *Store, bool SourceKilled = false) {
       for (auto &E : Slots) {
         if (E.first == Key) {
           // Stage 2: if previous store was never read, it's dead — but only
@@ -375,11 +386,11 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
             E.second.StoreInstr->eraseFromParent();
             Changed = true;
           }
-          E.second = {Reg, Store, false};
+          E.second = {Reg, Store, false, SourceKilled};
           return;
         }
       }
-      Slots.push_back({Key, {Reg, Store, false}});
+      Slots.push_back({Key, {Reg, Store, false, SourceKilled}});
     };
 
     auto markRead = [&](const SlotKey &Key) {
@@ -410,7 +421,11 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
           if (auto *Lo = findSlot(LoKey))
             Lo->WasRead = true;
         }
-        setSlot(Key, AccReg, &MI);
+        // Bug #271 cat-1: capture whether this store also killed its
+        // source register. If yes, the slot has the value but the
+        // register is dead — see SlotInfo::SourceKilled.
+        bool SourceKilled = MI.killsRegister(AccReg, &TRI);
+        setSlot(Key, AccReg, &MI, SourceKilled);
         continue;
       }
 
@@ -438,7 +453,11 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         Register AccReg = getAccRegForOpcode(Opc);
         SlotKey Key = getSlotKey(MI);
         SlotInfo *Info = findSlot(Key);
-        if (Info && Info->Reg == AccReg) {
+        // Bug #271 cat-1: the SourceKilled gate. When the establishing
+        // store killed its source register, the load is re-establishing
+        // the register's live range and must NOT be deleted, even
+        // though the slot's "value" matches the load's destination.
+        if (Info && Info->Reg == AccReg && !Info->SourceKilled) {
           // The register already holds this slot's value → delete the load.
           LLVM_DEBUG(dbgs() << "  SpillOpt: deleting redundant load: " << MI);
           MI.eraseFromParent();
