@@ -188,6 +188,7 @@ define i1 @eq_i64_sext_i32(i64 %a, i32 %b) {
 ; O2-NEXT:    std 32,u
 ; O2-NEXT:    std 4,u
 ; O2-NEXT:    std 10,s
+; O2-NEXT:    ldd 4,u
 ; O2-NEXT:    std 8,s
 ; O2-NEXT:    leay 38,u
 ; O2-NEXT:    sty 20,u
@@ -484,6 +485,7 @@ define i1 @sgt_i64_sext_i8(i64 %a, i8 %b) {
 ; O2-NEXT:    std 44,u
 ; O2-NEXT:    std 12,u
 ; O2-NEXT:    std 14,s
+; O2-NEXT:    ldd 12,u
 ; O2-NEXT:    std 10,u
 ; O2-NEXT:    ldb 37,u
 ; O2-NEXT:    std 44,u

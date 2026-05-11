@@ -426,6 +426,24 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         // register is dead — see SlotInfo::SourceKilled.
         bool SourceKilled = MI.killsRegister(AccReg, &TRI);
         setSlot(Key, AccReg, &MI, SourceKilled);
+        // Bug #271 cat-1 (cross-store kill): when this store kills its
+        // source register, ALL prior slots that recorded `Reg == AccReg`
+        // become stale from a liveness perspective — the register is now
+        // dead, even though those slots' value is still on the stack. A
+        // subsequent reload from any of those slots is re-establishing
+        // the register's live range and must NOT be deleted. Clear the
+        // Reg field on those slots; the just-set slot keeps its
+        // SourceKilled bit so dead-store detection on the same slot
+        // still works.
+        if (SourceKilled) {
+          for (auto &E : Slots) {
+            if (E.first == Key)
+              continue;
+            if (E.second.Reg.isValid() &&
+                TRI.regsOverlap(E.second.Reg, AccReg))
+              E.second.Reg = Register();
+          }
+        }
         continue;
       }
 
@@ -457,6 +475,10 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         // store killed its source register, the load is re-establishing
         // the register's live range and must NOT be deleted, even
         // though the slot's "value" matches the load's destination.
+        // The cross-store-kill clearing (in the indexedStore branch
+        // above) clears Info->Reg in OTHER slots whose source register
+        // gets killed at a later store, so this same check also
+        // covers the tzcalc-style "kill at later store" cases.
         if (Info && Info->Reg == AccReg && !Info->SourceKilled) {
           // The register already holds this slot's value → delete the load.
           LLVM_DEBUG(dbgs() << "  SpillOpt: deleting redundant load: " << MI);

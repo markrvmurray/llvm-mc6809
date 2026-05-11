@@ -1,0 +1,57 @@
+# RUN: llc -mtriple=mc6809 -mcpu=hd6309 -run-pass=mc6809-spill-opt \
+# RUN:   -verify-machineinstrs %s -o - 2>&1 | FileCheck %s
+
+# Bug #271 cat-1 cross-store kill (closed 2026-05-11): the
+# MC6809PostRASpillOpt SourceKilled gate at the recording store
+# handles the simple `STA $aa,slot, killed $aa` / `LDA slot,$aa`
+# case (see bug271_cat1_spillopt_source_killed.mir), but not the
+# tzcalc-style pattern where the kill happens at a LATER store
+# than the slot recording:
+#
+#   STD $ad → slot_115   (no kill — slot_115.Reg = $ad)
+#   STD $ad → stack+4, killed $ad   (kills $ad LATER)
+#   LDD slot_115 → $ad   ; would have been deleted as "redundant"
+#   STD $ad → slot_113   ; uses $ad — verifier complaint if reload deleted
+#
+# Without cross-store-kill clearing: slot_115.Reg stays = $ad with
+# SourceKilled=false; the LDD candidate matches `Info->Reg ==
+# AccReg && !Info->SourceKilled` and is deleted. The subsequent
+# STD then reads dead $ad → verifier flags it.
+#
+# Fix: when a store kills its source register, walk all OTHER
+# tracked slots and clear `Info->Reg` for those whose source
+# register matches the killed register. The just-set slot keeps
+# its own SourceKilled bit so dead-store detection still works
+# for future stores to the same slot.
+
+# CHECK-LABEL: name: spillopt_cross_store_kill
+# CHECK-NOT: Bad machine code
+# The LDD slot 115 reload must survive — without it the subsequent
+# STD reads dead $ad.
+# CHECK: LDDi_o8 115
+
+---
+name: spillopt_cross_store_kill
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ad, $su, $ss
+
+    ; Store $ad to slot 115. No kill — $ad stays live with the value.
+    STDi_o8 115, $su, implicit renamable $ad, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+
+    ; Now kill $ad with a different store. This is the cross-store kill:
+    ; $ad's prior slot mapping (slot_115) becomes stale.
+    STDi_o5 i16 4, $ss, implicit killed renamable $ad, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+
+    ; Reload $ad from slot 115. Without the cross-store-kill clearing,
+    ; this would be deleted as "redundant" — but $ad is dead at this
+    ; point, so the reload is re-establishing the live range.
+    LDDi_o8 115, $su, implicit-def renamable $ad, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $aq
+
+    ; Use $ad. If the LDD above was deleted, this would read a dead
+    ; register and the verifier would flag it.
+    STDi_o8 113, $su, implicit renamable $ad, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+
+    RTSr
+...

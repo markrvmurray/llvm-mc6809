@@ -3876,18 +3876,21 @@ define dso_local i64 @sub_s_i64(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O1-NEXT:    stb 58,u
 ; O1-NEXT:    stb 20,u
 ; O1-NEXT:    stb 59,u ; 1-byte Folded Spill
+; O1-NEXT:    ldb 20,u
 ; O1-NEXT:    tfr a,b
 ; O1-NEXT:    stb 46,u
 ; O1-NEXT:    ldd 74,u
 ; O1-NEXT:    stb 58,u
 ; O1-NEXT:    stb 19,u
 ; O1-NEXT:    stb 60,u ; 1-byte Folded Spill
+; O1-NEXT:    ldb 19,u
 ; O1-NEXT:    tfr a,b
 ; O1-NEXT:    stb 58,u
 ; O1-NEXT:    ldd 72,u
 ; O1-NEXT:    stb 52,u
 ; O1-NEXT:    stb 18,u
 ; O1-NEXT:    stb 61,u ; 1-byte Folded Spill
+; O1-NEXT:    ldb 18,u
 ; O1-NEXT:    tfr a,b
 ; O1-NEXT:    stb 48,u
 ; O1-NEXT:    ldb 67,u ; 1-byte Folded Reload
@@ -4145,17 +4148,21 @@ define dso_local i64 @sub_s_i64(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O2-NEXT:    stb 58,u
 ; O2-NEXT:    stb 20,u
 ; O2-NEXT:    stb 59,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 20,u
 ; O2-NEXT:    tfr a,b
 ; O2-NEXT:    stb 46,u
 ; O2-NEXT:    ldd 74,u
+; O2-NEXT:    stb 58,u
 ; O2-NEXT:    stb 19,u
 ; O2-NEXT:    stb 60,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 19,u
 ; O2-NEXT:    tfr a,b
 ; O2-NEXT:    stb 58,u
 ; O2-NEXT:    ldd 72,u
 ; O2-NEXT:    stb 52,u
 ; O2-NEXT:    stb 18,u
 ; O2-NEXT:    stb 61,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 18,u
 ; O2-NEXT:    tfr a,b
 ; O2-NEXT:    stb 48,u
 ; O2-NEXT:    ldb 67,u ; 1-byte Folded Reload
@@ -4413,17 +4420,21 @@ define dso_local i64 @sub_s_i64(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O3-NEXT:    stb 58,u
 ; O3-NEXT:    stb 20,u
 ; O3-NEXT:    stb 59,u ; 1-byte Folded Spill
+; O3-NEXT:    ldb 20,u
 ; O3-NEXT:    tfr a,b
 ; O3-NEXT:    stb 46,u
 ; O3-NEXT:    ldd 74,u
+; O3-NEXT:    stb 58,u
 ; O3-NEXT:    stb 19,u
 ; O3-NEXT:    stb 60,u ; 1-byte Folded Spill
+; O3-NEXT:    ldb 19,u
 ; O3-NEXT:    tfr a,b
 ; O3-NEXT:    stb 58,u
 ; O3-NEXT:    ldd 72,u
 ; O3-NEXT:    stb 52,u
 ; O3-NEXT:    stb 18,u
 ; O3-NEXT:    stb 61,u ; 1-byte Folded Spill
+; O3-NEXT:    ldb 18,u
 ; O3-NEXT:    tfr a,b
 ; O3-NEXT:    stb 48,u
 ; O3-NEXT:    ldb 67,u ; 1-byte Folded Reload
@@ -6362,18 +6373,21 @@ define dso_local i64 @sub_u_i64(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O1-NEXT:    stb 58,u
 ; O1-NEXT:    stb 20,u
 ; O1-NEXT:    stb 59,u ; 1-byte Folded Spill
+; O1-NEXT:    ldb 20,u
 ; O1-NEXT:    tfr a,b
 ; O1-NEXT:    stb 46,u
 ; O1-NEXT:    ldd 74,u
 ; O1-NEXT:    stb 58,u
 ; O1-NEXT:    stb 19,u
 ; O1-NEXT:    stb 60,u ; 1-byte Folded Spill
+; O1-NEXT:    ldb 19,u
 ; O1-NEXT:    tfr a,b
 ; O1-NEXT:    stb 58,u
 ; O1-NEXT:    ldd 72,u
 ; O1-NEXT:    stb 52,u
 ; O1-NEXT:    stb 18,u
 ; O1-NEXT:    stb 61,u ; 1-byte Folded Spill
+; O1-NEXT:    ldb 18,u
 ; O1-NEXT:    tfr a,b
 ; O1-NEXT:    stb 48,u
 ; O1-NEXT:    ldb 67,u ; 1-byte Folded Reload
@@ -6631,17 +6645,21 @@ define dso_local i64 @sub_u_i64(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O2-NEXT:    stb 58,u
 ; O2-NEXT:    stb 20,u
 ; O2-NEXT:    stb 59,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 20,u
 ; O2-NEXT:    tfr a,b
 ; O2-NEXT:    stb 46,u
 ; O2-NEXT:    ldd 74,u
+; O2-NEXT:    stb 58,u
 ; O2-NEXT:    stb 19,u
 ; O2-NEXT:    stb 60,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 19,u
 ; O2-NEXT:    tfr a,b
 ; O2-NEXT:    stb 58,u
 ; O2-NEXT:    ldd 72,u
 ; O2-NEXT:    stb 52,u
 ; O2-NEXT:    stb 18,u
 ; O2-NEXT:    stb 61,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 18,u
 ; O2-NEXT:    tfr a,b
 ; O2-NEXT:    stb 48,u
 ; O2-NEXT:    ldb 67,u ; 1-byte Folded Reload
@@ -6899,17 +6917,21 @@ define dso_local i64 @sub_u_i64(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O3-NEXT:    stb 58,u
 ; O3-NEXT:    stb 20,u
 ; O3-NEXT:    stb 59,u ; 1-byte Folded Spill
+; O3-NEXT:    ldb 20,u
 ; O3-NEXT:    tfr a,b
 ; O3-NEXT:    stb 46,u
 ; O3-NEXT:    ldd 74,u
+; O3-NEXT:    stb 58,u
 ; O3-NEXT:    stb 19,u
 ; O3-NEXT:    stb 60,u ; 1-byte Folded Spill
+; O3-NEXT:    ldb 19,u
 ; O3-NEXT:    tfr a,b
 ; O3-NEXT:    stb 58,u
 ; O3-NEXT:    ldd 72,u
 ; O3-NEXT:    stb 52,u
 ; O3-NEXT:    stb 18,u
 ; O3-NEXT:    stb 61,u ; 1-byte Folded Spill
+; O3-NEXT:    ldb 18,u
 ; O3-NEXT:    tfr a,b
 ; O3-NEXT:    stb 48,u
 ; O3-NEXT:    ldb 67,u ; 1-byte Folded Reload

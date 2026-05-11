@@ -350,6 +350,7 @@ define i1 @sgt_i32_sext_i8(i32 %a, i8 %b) {
 ; O2-NEXT:    std 26,u
 ; O2-NEXT:    std 6,u
 ; O2-NEXT:    std 6,s
+; O2-NEXT:    ldd 6,u
 ; O2-NEXT:    ldb 23,u
 ; O2-NEXT:    std 4,s
 ; O2-NEXT:    leay 28,u
