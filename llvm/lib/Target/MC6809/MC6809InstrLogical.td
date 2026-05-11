@@ -405,11 +405,16 @@ def SEX32Implicit : MC6809LogicalInstr {
   // live AD value across this pseudo regardless of dst binding.
   // (When dst lands in AQ the OutOperand already covers AD via
   // class hierarchy; the explicit Defs entry is a no-op then.)
+  // Bug #274: widened $src to ACC16 (mirroring ZEX32Implicit per
+  // Bug #161) so an i16 produced by unrelated codegen — typically
+  // MERGE_LOHI_i16 landing in ADc — can feed this pseudo without
+  // tripping -verify-machineinstrs. The expansion routes every
+  // non-AW source through copyPhysReg before SEXWx.
   let Defs = [NZ, V, AD];
   let hasSideEffects = 1;
-  dag InOperandList = (ins AWc:$src);
+  dag InOperandList = (ins ACC16:$src);
   dag OutOperandList = (outs ACC32:$dst);
-  let Pattern = [(set ACC32:$dst, (sext AWc:$src))];
+  let Pattern = [(set ACC32:$dst, (sext ACC16:$src))];
   let Predicates = [IsHD6309];
 }
 

@@ -2601,7 +2601,19 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     // Same SPILL_Q* concern as ZEX32Implicit (bug #208 round 2):
     // SEXWx sign-extends AW into AD, leaving AQ correct, but a
     // SPILL_Q* dst needs an explicit STQ.
+    //
+    // Bug #274: source may be AD, AW, or any other ACC16 member that
+    // survives MaterializeSpills (notably the imaginary direct-page
+    // RS0..RS3, or AD when fed from a MERGE_LOHI_i16). After expansion
+    // AQ must hold (AD=sign(src) | AW=src), which is what SEXWx does
+    // — but only when src is already in AW. Route every non-AW source
+    // through copyPhysReg before SEXWx (mirrors ZEX32Implicit's pre-
+    // CLRDa src→AW copy).
     Register DstReg = MI.getOperand(0).getReg();
+    Register SrcReg = MI.getOperand(1).getReg();
+    if (SrcReg != MC6809::AW)
+      copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
+                  MC6809::AW, SrcReg, /*KillSrc=*/true);
     Builder.buildInstr(MC6809::SEXWx);
     if (DstReg != MC6809::AQ)
       dematerializeReg(Builder, MC6809::AQ, DstReg, *MI.getMF());
