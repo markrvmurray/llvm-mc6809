@@ -1662,7 +1662,20 @@ LegalizerHelper::LegalizeResult LegalizerHelper::narrowScalar(MachineInstr &MI,
     }
 
     auto Unmerge = MIRBuilder.buildUnmerge(NarrowTy, MI.getOperand(1));
-    MIRBuilder.buildCopy(MI.getOperand(0), Unmerge.getReg(0));
+    // llvm-mc6809 Bug #271 cat-1 residual: when the original G_TRUNC's
+    // destination is NARROWER than NarrowTy (e.g. G_TRUNC s8 ← s32
+    // narrowed via NarrowTy = s16, dst is s8), emitting a bare COPY
+    // here produces a type-mismatched COPY (s8 ← s16) that the
+    // verifier flags as "Copy Instruction is illegal with mismatching
+    // types". Use buildAnyExtOrTrunc to emit a typed narrowing
+    // instruction when sizes differ, falling back to COPY only when
+    // they match.
+    Register DstReg = MI.getOperand(0).getReg();
+    LLT DstTy = MRI.getType(DstReg);
+    if (DstTy != NarrowTy)
+      MIRBuilder.buildAnyExtOrTrunc(DstReg, Unmerge.getReg(0));
+    else
+      MIRBuilder.buildCopy(DstReg, Unmerge.getReg(0));
     MI.eraseFromParent();
     return Legalized;
   }
