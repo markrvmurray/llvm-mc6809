@@ -4339,7 +4339,7 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
       auto SrcOffset = MI.getOperand(2);
       int DstSpillOff = computeSpillStackOffset(DestRegOp.getReg(), MF);
 
-      auto emitHalf = [&](int HalfOffset) {
+      auto emitHalf = [&](int HalfOffset, bool LastHalf) {
         // Load src+HalfOffset → AD via LDD (handles 5-bit, 8-bit, 16-bit
         // offsets through getLoadIdxOpcode).
         int SrcOffsetBytes = SrcOffset.isImm()
@@ -4353,14 +4353,23 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
         // Store AD → dst spill slot + HalfOffset via STD.
         unsigned StOpc =
             getStoreIdxOpcode(MC6809::AD, DstSpillOff + HalfOffset);
-        Builder.buildInstr(StOpc)
+        auto St = Builder.buildInstr(StOpc)
             .addUse(MC6809::AD, RegState::Implicit)
             .addImm(DstSpillOff + HalfOffset)
             .addReg(MC6809::SU);
+        // Bug #274: mark the final half-store as the implicit-def of the
+        // SPILL_Q* destination. Without this annotation any later
+        // FAKE_USE or otherwise opaque consumer of the SPILL_Q* reg
+        // (e.g. clang's `-fextend-lifetimes` debug intrinsics) sees an
+        // undefined physical register and -verify-machineinstrs flags
+        // it. The slot DOES hold the value after the two-LDD copy; we
+        // are merely telling the verifier so.
+        if (LastHalf)
+          St.addDef(DestRegOp.getReg(), RegState::Implicit);
       };
       if (SrcOffset.isImm()) {
-        emitHalf(0);  // HI word
-        emitHalf(2);  // LO word
+        emitHalf(0, /*LastHalf=*/false);  // HI word
+        emitHalf(2, /*LastHalf=*/true);   // LO word
         MI.eraseFromParent();
         return;
       }
