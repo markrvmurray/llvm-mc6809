@@ -317,27 +317,41 @@ static bool isFusedCompareBranch(unsigned Opc) {
   }
 }
 
-// Bug #206: select the verifier-friendly Bbc/LBlbc variant. The _NoC
-// variants are encoding-equivalent codegen-only opcodes that declare
-// `Uses = [N, Z, V]` (no C); used when the cc immediate doesn't read
-// C at runtime. The canonical Bbc/LBlbc keeps the union `Uses =
-// [N, Z, V, C]`. Predicate lives in MC6809.h:MC6809CC::doesNotReadCarry
-// so the same logic is reused by the GISel selector.
+// Bug #206 + #271 cat-1: select the verifier-friendly Bbc/LBlbc variant.
+// The _NoC variants are encoding-equivalent codegen-only opcodes that
+// declare `Uses = [N, Z, V]` (no C); used when the cc immediate doesn't
+// read C at runtime. The _OnlyC variants declare `Uses = [C]`; used
+// when only C matters (cc=HS/CC=4, LO/CS=5). The canonical Bbc/LBlbc
+// keeps the union `Uses = [N, Z, V, C]` for cc values that read more
+// than one bit (HI/LS, GE/LT, GT/LE etc.). Predicates live in
+// MC6809.h:MC6809CC::doesNotReadCarry / doesOnlyReadCarry so the
+// same logic is reused by the GISel selector.
 static unsigned pickBbcVariant(int64_t CC) {
-  return MC6809CC::doesNotReadCarry(CC) ? MC6809::Bbc_NoC : MC6809::Bbc;
+  if (MC6809CC::doesNotReadCarry(CC))
+    return MC6809::Bbc_NoC;
+  if (MC6809CC::doesOnlyReadCarry(CC))
+    return MC6809::Bbc_OnlyC;
+  return MC6809::Bbc;
 }
 
 static unsigned pickLBlbcVariant(int64_t CC) {
-  return MC6809CC::doesNotReadCarry(CC) ? MC6809::LBlbc_NoC : MC6809::LBlbc;
+  if (MC6809CC::doesNotReadCarry(CC))
+    return MC6809::LBlbc_NoC;
+  if (MC6809CC::doesOnlyReadCarry(CC))
+    return MC6809::LBlbc_OnlyC;
+  return MC6809::LBlbc;
 }
 
-// Bug #206: classify Bbc / Bbc_NoC / LBlbc / LBlbc_NoC uniformly.
-// All four are the same hardware instruction with different LLVM-side
-// metadata (the _NoC variants declare a tighter Uses set so the
-// verifier doesn't false-positive on TST + branch pairs).
+// Bug #206 + #271 cat-1: classify Bbc / Bbc_NoC / Bbc_OnlyC / LBlbc /
+// LBlbc_NoC / LBlbc_OnlyC uniformly. All six are the same hardware
+// instruction with different LLVM-side metadata (the _NoC / _OnlyC
+// variants declare a tighter Uses set so the verifier doesn't
+// false-positive on TST + branch / CarrySet + Store + branch pairs).
 static bool isBbcOrLBlbc(unsigned Opc) {
   return Opc == MC6809::Bbc || Opc == MC6809::Bbc_NoC ||
-         Opc == MC6809::LBlbc || Opc == MC6809::LBlbc_NoC;
+         Opc == MC6809::Bbc_OnlyC ||
+         Opc == MC6809::LBlbc || Opc == MC6809::LBlbc_NoC ||
+         Opc == MC6809::LBlbc_OnlyC;
 }
 
 bool MC6809InstrInfo::isCondBranch(const MachineBasicBlock::instr_iterator &I) const {
@@ -560,7 +574,8 @@ bool MC6809InstrInfo::isBranchOffsetInRange(unsigned BranchOpc, int64_t BrOffset
   case MC6809::JumpRelative:
   case MC6809::BRAb:
   case MC6809::Bbc:
-  case MC6809::Bbc_NoC: // bug #206: encoding-equivalent variant
+  case MC6809::Bbc_NoC:    // bug #206: encoding-equivalent variant
+  case MC6809::Bbc_OnlyC:  // bug #271 cat-1: encoding-equivalent variant
     return isInt<8>(BrOffset - 2);   // 2-byte short forms
   case MC6809::LongBranchRelative:
   case MC6809::LongJumpRelative:
@@ -568,7 +583,8 @@ bool MC6809InstrInfo::isBranchOffsetInRange(unsigned BranchOpc, int64_t BrOffset
     return isInt<16>(BrOffset - 3);  // 3-byte page-1 long
   case MC6809::ConditionalLongBranchRelative:
   case MC6809::LBlbc:
-  case MC6809::LBlbc_NoC: // bug #206: encoding-equivalent variant
+  case MC6809::LBlbc_NoC:    // bug #206: encoding-equivalent variant
+  case MC6809::LBlbc_OnlyC:  // bug #271 cat-1: encoding-equivalent variant
     return isInt<16>(BrOffset - 4);  // 4-byte page-2 long
   default:
     // Unknown branch opcode — be conservative and say it's in range so we
@@ -612,9 +628,11 @@ MachineBasicBlock *MC6809InstrInfo::getBranchDestBlock(const MachineInstr &MI) c
   case TargetOpcode::G_BR:
     return MI.getOperand(0).getMBB();
   case MC6809::Bbc:
-  case MC6809::Bbc_NoC: // bug #206
+  case MC6809::Bbc_NoC:    // bug #206
+  case MC6809::Bbc_OnlyC:  // bug #271 cat-1
   case MC6809::LBlbc:
-  case MC6809::LBlbc_NoC: // bug #206
+  case MC6809::LBlbc_NoC:    // bug #206
+  case MC6809::LBlbc_OnlyC:  // bug #271 cat-1
   case MC6809::ConditionalBranchRelative:
   case MC6809::ConditionalLongBranchRelative:
   case TargetOpcode::G_BRCOND:
@@ -2141,36 +2159,46 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::ConditionalBranchRelative: {
     // Emit short by default. Strip the pseudo's CCond:$bits operand —
     // the assembler encoding has no register field — and replace it
-    // with the implicit Uses on N/Z/V(/C) declared by Bbc/Bbc_NoC
-    // (bug #137 + bug #206). Without these implicit uses the post-RA
+    // with the implicit Uses on N/Z/V(/C) declared by the chosen
+    // Bbc / Bbc_NoC / Bbc_OnlyC variant (bug #137, bug #206,
+    // bug #271 cat-1). Without these implicit uses the post-RA
     // MachineInstr would lack any CC dependency at all and the
     // scheduler would freely insert flag-clobbering instructions
     // between the cmp and this branch. BranchRelaxation widens to
     // LBlbc via CFG-split + insertBranch + insertIndirectBranch when
     // the displacement is out of int8 range (bug #174).
     int64_t CC = MI.getOperand(0).getImm();
-    bool NoC = MC6809CC::doesNotReadCarry(CC); // bug #206
-    MI.setDesc(Builder.getTII().get(NoC ? MC6809::Bbc_NoC : MC6809::Bbc));
+    MI.setDesc(Builder.getTII().get(pickBbcVariant(CC)));
     MI.removeOperand(2);
-    MI.addOperand(MachineOperand::CreateReg(MC6809::N, /*isDef=*/false, /*isImp=*/true));
-    MI.addOperand(MachineOperand::CreateReg(MC6809::Z, /*isDef=*/false, /*isImp=*/true));
-    MI.addOperand(MachineOperand::CreateReg(MC6809::V, /*isDef=*/false, /*isImp=*/true));
-    if (!NoC)
+    if (MC6809CC::doesOnlyReadCarry(CC)) {
+      // OnlyC variant: just $c.
       MI.addOperand(MachineOperand::CreateReg(MC6809::C, /*isDef=*/false, /*isImp=*/true));
+    } else {
+      // Bbc and Bbc_NoC both read N/Z/V; Bbc additionally reads C.
+      MI.addOperand(MachineOperand::CreateReg(MC6809::N, /*isDef=*/false, /*isImp=*/true));
+      MI.addOperand(MachineOperand::CreateReg(MC6809::Z, /*isDef=*/false, /*isImp=*/true));
+      MI.addOperand(MachineOperand::CreateReg(MC6809::V, /*isDef=*/false, /*isImp=*/true));
+      if (!MC6809CC::doesNotReadCarry(CC))
+        MI.addOperand(MachineOperand::CreateReg(MC6809::C, /*isDef=*/false, /*isImp=*/true));
+    }
     break;
   }
   case MC6809::ConditionalLongBranchRelative: {
     // Explicit long conditional pseudo — escape hatch. Same operand
-    // shape transformation as the short form above (bug #206 picker).
+    // shape transformation as the short form above (bug #206 picker
+    // + bug #271 cat-1 OnlyC variant).
     int64_t CC = MI.getOperand(0).getImm();
-    bool NoC = MC6809CC::doesNotReadCarry(CC); // bug #206
-    MI.setDesc(Builder.getTII().get(NoC ? MC6809::LBlbc_NoC : MC6809::LBlbc));
+    MI.setDesc(Builder.getTII().get(pickLBlbcVariant(CC)));
     MI.removeOperand(2);
-    MI.addOperand(MachineOperand::CreateReg(MC6809::N, /*isDef=*/false, /*isImp=*/true));
-    MI.addOperand(MachineOperand::CreateReg(MC6809::Z, /*isDef=*/false, /*isImp=*/true));
-    MI.addOperand(MachineOperand::CreateReg(MC6809::V, /*isDef=*/false, /*isImp=*/true));
-    if (!NoC)
+    if (MC6809CC::doesOnlyReadCarry(CC)) {
       MI.addOperand(MachineOperand::CreateReg(MC6809::C, /*isDef=*/false, /*isImp=*/true));
+    } else {
+      MI.addOperand(MachineOperand::CreateReg(MC6809::N, /*isDef=*/false, /*isImp=*/true));
+      MI.addOperand(MachineOperand::CreateReg(MC6809::Z, /*isDef=*/false, /*isImp=*/true));
+      MI.addOperand(MachineOperand::CreateReg(MC6809::V, /*isDef=*/false, /*isImp=*/true));
+      if (!MC6809CC::doesNotReadCarry(CC))
+        MI.addOperand(MachineOperand::CreateReg(MC6809::C, /*isDef=*/false, /*isImp=*/true));
+    }
     break;
   }
   case MC6809::ReturnImplicit:

@@ -562,6 +562,16 @@ let mayLoad = false, mayStore = false, isBranch = true, isTerminator = true in {
   let isCodeGenOnly = 1 in {
     def Bbc_NoC   : MC6809ShortConditionalBranch_P1<(outs), "b$cond",  Opcode<0x02,1>, [], [N, Z, V]>;
     def LBlbc_NoC : MC6809LongConditionalBranch_P2<(outs),  "lb$cond", Opcode<0x02,2>, [], [N, Z, V]>;
+
+    // Bug #271 cat-1 residual: OnlyC variants for cc values that consume
+    // ONLY $c at runtime ({HS/CC=4, LO/CS=5}). Encoding-equivalent to
+    // Bbc/LBlbc; the verifier sees the tighter Uses = [C] and stops
+    // complaining about $n/$z/$v being undefined after a producer chain
+    // that includes an intervening Store_i*_Mem (which sets $nz/$v via
+    // hardware side-effect but preserves $c). Pattern from
+    // c8rtomb / strftime / xdr at -Og.
+    def Bbc_OnlyC   : MC6809ShortConditionalBranch_P1<(outs), "b$cond",  Opcode<0x02,1>, [], [C]>;
+    def LBlbc_OnlyC : MC6809LongConditionalBranch_P2<(outs),  "lb$cond", Opcode<0x02,2>, [], [C]>;
   }
 }
 

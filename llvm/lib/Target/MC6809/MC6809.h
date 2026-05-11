@@ -168,6 +168,22 @@ inline static bool doesNotReadCarry(int64_t CC) {
   }
 }
 
+/// Bug #271 cat-1 residual: condition codes that consume ONLY $c at
+/// runtime. Used by the Bbc/Bbc_OnlyC and LBlbc/LBlbc_OnlyC variant
+/// pickers — the _OnlyC variants declare a tighter `Uses = [C]` so
+/// the verifier doesn't false-positive on (CarrySetter + Store +
+/// branch) sequences where the Store sets $nz/$v as hardware side-
+/// effect but the carry-setter has long ago published $c. Pattern
+/// from c8rtomb / strftime / xdr at -Og.
+inline static bool doesOnlyReadCarry(int64_t CC) {
+  switch (CC) {
+  case HS: case LO: // CC/CS aliases — only C
+    return true;
+  default:
+    return false;
+  }
+}
+
 /// getSwappedCondition - assume the flags are set by MI(a,b), return
 /// the condition code if we modify the instructions such that flags are
 /// set by MI(b,a).

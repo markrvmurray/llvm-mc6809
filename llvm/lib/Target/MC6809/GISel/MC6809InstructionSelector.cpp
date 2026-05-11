@@ -1536,11 +1536,17 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
             return true;
           }
         }
-        // Bug #206: pick LBlbc_NoC for cc that doesn't actually consume
-        // C — keeps the verifier happy when the compare predecessor
-        // doesn't define C (e.g. TST family).
-        unsigned LBlbcOpc = MC6809CC::doesNotReadCarry(CC) ?
-            MC6809::LBlbc_NoC : MC6809::LBlbc;
+        // Bug #206 + #271 cat-1: pick the verifier-friendliest LBlbc
+        // variant. _NoC for cc that doesn't read C; _OnlyC for cc that
+        // reads only C (HS/CS); canonical LBlbc for cc that reads
+        // multiple flags (HI/LS/GE/LT/GT/LE).
+        unsigned LBlbcOpc;
+        if (MC6809CC::doesNotReadCarry(CC))
+          LBlbcOpc = MC6809::LBlbc_NoC;
+        else if (MC6809CC::doesOnlyReadCarry(CC))
+          LBlbcOpc = MC6809::LBlbc_OnlyC;
+        else
+          LBlbcOpc = MC6809::LBlbc;
         BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(LBlbcOpc))
             .addImm(CC)
             .addMBB(TargetMBB);
@@ -1576,11 +1582,11 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
 
     if (Phantom != PhantomNone) {
       unsigned CC = (Phantom == PhantomCarry) ? MC6809CC::CS : MC6809CC::VS;
-      // Bug #206: VS doesn't consume C (PhantomOverflow path) so we can
-      // emit LBlbc_NoC; CS does consume C (PhantomCarry) and needs the
-      // canonical LBlbc.
+      // Bug #206 + #271 cat-1: PhantomCarry → CS, which reads ONLY C
+      // (LBlbc_OnlyC); PhantomOverflow → VS, which reads ONLY V and
+      // doesn't read C (LBlbc_NoC).
       unsigned LBlbcOpc = (Phantom == PhantomCarry) ?
-          MC6809::LBlbc : MC6809::LBlbc_NoC;
+          MC6809::LBlbc_OnlyC : MC6809::LBlbc_NoC;
       BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(LBlbcOpc))
           .addImm(CC)
           .addMBB(TargetMBB);
