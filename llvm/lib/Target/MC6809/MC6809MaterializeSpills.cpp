@@ -731,8 +731,34 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
       // Save D if needed.
       if (Info.NeedSaveD) {
         DSaveSlot = MFI.CreateStackObject(2, Align(1), true);
+        // Bug #275: NeedSaveD's backward LPR analysis treats $ad as
+        // live whenever any super-reg of $ad (e.g. $aq) is live —
+        // because LivePhysRegs::addReg(super) adds all sub-regs into
+        // the set. In that case the save preserves $ad's bits as part
+        // of the super-reg's value, but $ad's value AT THE SAVE POINT
+        // may not be reachable from a direct $ad def upstream. The
+        // verifier then flags the save's $ad use as an undefined
+        // physical register. Probe true liveness via
+        // computeRegisterLiveness; if $ad isn't definitely live,
+        // mark the save's $ad operand Undef so the bits are still
+        // round-tripped (preserving the super-reg's value) without
+        // tripping the verifier.
+        // Use Undef when the save is at MBB.begin() and $ad isn't a
+        // direct MBB live-in. Critical-edge splitter BBs created later
+        // would otherwise need to propagate $ad's liveness through
+        // synthetic predecessors that don't have it, and the verifier
+        // is unforgiving about that. We still emit the STD so $ad's
+        // bits are preserved across the upcoming clobber (super-reg
+        // value-preservation semantics); the Undef flag merely says
+        // "we know the read may be undef".
+        RegState SrcFlags = RegState(0);
+        bool AdDirectLiveIn = MBB.isLiveIn(MC6809::AD);
+        for (MCPhysReg Sub : TRI.subregs(MC6809::AD))
+          AdDirectLiveIn = AdDirectLiveIn || MBB.isLiveIn(Sub);
+        if (MachineBasicBlock::iterator(MI) == MBB.begin() && !AdDirectLiveIn)
+          SrcFlags = RegState::Undef;
         BuildMI(MBB, MI, DL, TII.get(MC6809::Store_i16_Mem))
-            .addReg(MC6809::AD)
+            .addReg(MC6809::AD, SrcFlags)
             .addFrameIndex(DSaveSlot)
             .addImm(0);
       }
