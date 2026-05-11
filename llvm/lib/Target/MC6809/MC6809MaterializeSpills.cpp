@@ -892,9 +892,23 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
               // 2nd+ unique ACC spill, or first spill colliding with a
               // physical operand — leave it for the expansion's
               // U-relative spill path.
+              //
+              // Bug #271 cat-1 residual: the SPILL_* operand survives
+              // post-MaterializeSpills with no visible def (the def was
+              // a Store_i8_Mem to the U-relative slot, not a phys-reg
+              // def). The verifier flags this as "Using an undefined
+              // physical register" because SPILL_* phys regs don't
+              // model the slot-as-storage. Mark the use as Undef so
+              // the verifier skips its liveness check; ExpandPostRAPseudo
+              // still reads the SPILL_* reg identity to compute the
+              // U-relative offset, so codegen is unaffected.
+              if (MO.isUse())
+                MO.setIsUndef(true);
               continue;
             }
           } else if (PhysCollision) {
+            if (MO.isUse())
+              MO.setIsUndef(true);
             continue;
           }
         }
