@@ -1835,6 +1835,34 @@ static bool emitHD6309RegRegOp(MachineIRBuilder &Builder, MachineInstr &MI,
       return;
     }
     Builder.buildInstr(Opc).addDef(DestReg, RegState::Implicit).addReg(SrcReg);
+  } else if (AreClasses(MC6809::ACC16RegClass, MC6809::ACC32RegClass)) {
+    // Bug #266 root cause (2026-05-10): ACC32 → ACC16 sub-register
+    // extraction. AQ = AD:AW (sub_hi_word=AD, sub_lo_word=AW). The
+    // hardware Q register physically aliases AD + AW — extracting
+    // either half is a NO-OP because the bits already live in the
+    // destination physreg. A COPY without an explicit sub-reg index
+    // here is the regalloc's way of renaming the value; no instruction
+    // emission needed.
+    //
+    // For other ACC16 destinations (RS imag regs, SPILL_D*), we route
+    // through AD by first claiming AD as the "HI half" of AQ (no
+    // instruction), then dematerialising AD to the actual destination
+    // via the existing imaginary/spill machinery (TFR or STD as
+    // appropriate).
+    //
+    // Discovered via MAME debugger session on test-ffs at
+    // -Og hd6309 mame: the previous COPY_CC_PLACEHOLDER fallthrough
+    // emitted SWI3 here, which trapped to an uninitialised vector at
+    // $FFF2 and effectively turned the test into an infinite loop.
+    if (DestReg == MC6809::AD || DestReg == MC6809::AW)
+      return;
+    // Other ACC16 destination (Imag16, SPILL_D*): route through AD then
+    // store/transfer to the real destination via the existing AD-source
+    // copyPhysReg path.
+    if (SrcReg != MC6809::AQ)
+      return; // unexpected ACC32 src
+    // Recurse with src=AD to reuse the AD→ImagXX/spill paths above.
+    copyPhysReg(MBB, MI, DL, DestReg, MC6809::AD, KillSrc, RenamableDest, RenamableSrc);
   } else {
     // Bug #186 v5 PLACEHOLDER (2026-04-27): no proper sequence yet for
     // this physreg pair. Drop a COPY_CC_PLACEHOLDER pseudo so the
