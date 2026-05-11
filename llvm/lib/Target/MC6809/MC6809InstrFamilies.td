@@ -56,6 +56,24 @@ let Predicates = [IsHD6309] in {
   // __call_hash. The AQc constraint stays load-bearing for
   // strtol/snprintf/asctime correctness (bug #208).
   defm Load_i32 : MC6809Load<AQc, i32>;
+
+  // Bug #271 cat-3: spill-framework-only i32 load with ACC32 operand
+  // class. The narrow AQc constraint on Load_i32 above is load-bearing
+  // for user codegen (Bug #208 round 4 sub-reg aliasing), but the spill
+  // framework's `loadStoreRegStackSlot` emits with the original spilled
+  // vreg whose class is ACC32 (= AQ + SPILL_Q0..3) — a non-subclass of
+  // AQc, which -verify-machineinstrs flags. This variant accepts ACC32
+  // directly; its post-RA expansion is identical to Load_i32_Mem (both
+  // route to `expandLoadIdx`, which already handles SPILL_Q* dests via
+  // the Bug #221 two-LDD path with no LDQ sub-reg clobber). Explicit
+  // Defs list the AQ sub-reg clobber set so regalloc gets the same
+  // worst-case clobber info that AQc-as-dst would have inferred via
+  // class hierarchy.
+  let mayLoad = true, Defs = [NZ, V, AA, AB, AE, AF, AD, AW] in
+    def SpillLoad_i32_Mem : MC6809LogicalInstr {
+      dag OutOperandList = (outs ACC32:$dst);
+      dag InOperandList = (ins INDEX16:$idx, unknown:$offset);
+    }
 }
 
 // Loads a boolean value into a NZVC bit or an ACC8 LSB
@@ -167,6 +185,18 @@ let Predicates = [IsHD6309] in {
   // / __xorsi3) eliminates hash.c's aqc starvation without needing
   // the wider class.
   defm Store_i32 : MC6809Store<AQc>;
+
+  // Bug #271 cat-3: spill-framework-only i32 store with ACC32 operand
+  // class. Mirrors SpillLoad_i32_Mem above. Defs covers the worst-case
+  // AQ sub-reg clobber when the spilled vreg ends up in AQ (LDQ-based
+  // materialise); the SPILL_Q* case uses two-LDD slot-to-slot (Bug
+  // #221) which clobbers only AD/AA/AB, but we over-claim to keep
+  // verifier/regalloc reasoning unambiguous.
+  let mayStore = true, Defs = [NZ, V, AA, AB, AE, AF, AD, AW] in
+    def SpillStore_i32_Mem : MC6809LogicalInstr {
+      dag OutOperandList = (outs);
+      dag InOperandList = (ins ACC32:$src, INDEX16:$idx, unknown:$offset);
+    }
 }
 
 // --- Concrete instructions (register-specific, assembler/disassembler) ---

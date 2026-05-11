@@ -1986,7 +1986,15 @@ static void loadStoreRegisterStaticStackSlot(MachineIRBuilder &Builder, MachineO
         opcode = MO.isDef() ? MC6809::Load_i16_Mem : MC6809::Store_i16_Mem;
       break;
     case 32:
-      opcode = MO.isDef() ? MC6809::Load_i32_Mem : MC6809::Store_i32_Mem;
+      // Bug #271 cat-3: use SpillLoad_i32_Mem / SpillStore_i32_Mem,
+      // whose operand class is ACC32 (= AQ + SPILL_Q0..3). The plain
+      // Load_i32_Mem / Store_i32_Mem are AQc-constrained for Bug #208
+      // round 4 sub-reg-aliasing reasons in user codegen, but the
+      // spill framework passes the original ACC32-class vreg directly
+      // — a class mismatch against AQc that -verify-machineinstrs
+      // would flag. The Spill variants share their post-RA expander,
+      // so codegen is unchanged.
+      opcode = MO.isDef() ? MC6809::SpillLoad_i32_Mem : MC6809::SpillStore_i32_Mem;
       break;
     }
     Builder.buildInstr(opcode).add(MO).addFrameIndex(FrameIndex, Offset).addImm(0).addMemOperand(MMO);
@@ -2767,12 +2775,14 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::Load_i8_Mem:
   case MC6809::Load_i16_Mem:
   case MC6809::Load_i32_Mem:
+  case MC6809::SpillLoad_i32_Mem:
   case MC6809::Load_iPtr_Mem:
     expandLoadIdx(Builder, MI);
     break;
   case MC6809::Store_i8_Mem:
   case MC6809::Store_i16_Mem:
   case MC6809::Store_i32_Mem:
+  case MC6809::SpillStore_i32_Mem:
   case MC6809::Store_iPtr_Mem:
     expandStoreIdx(Builder, MI);
     break;
