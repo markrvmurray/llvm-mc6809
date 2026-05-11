@@ -798,6 +798,27 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
           return true;
         }
       }
+      // Bug #274: non-phantom G_ZEXT s1→s8 whose source is the output
+      // of G_TRUNC s8→s1 (line 1004 selects it to AND_i8_Imm tied,
+      // forcing the vreg into ACC8 class). The imported ZEX8Implicit
+      // pattern expects ABLSBc — constrain silently demotes, and
+      // -verify-machineinstrs flags the class mismatch. GISel isel is
+      // bottom-up so the producer hasn't been selected yet here; detect
+      // the upcoming AND_i8_Imm by walking SrcReg's defining MI.
+      // Replace G_ZEXT with a direct AND_i8_Imm tied form — AND #1 of a
+      // value already in {0,1} is idempotent and the resulting MIR
+      // matches the byte-source consumer's class hierarchy.
+      MachineInstr *Def = MRI->getVRegDef(SrcReg);
+      if (Def && Def->getOpcode() == TargetOpcode::G_TRUNC &&
+          MRI->getType(Def->getOperand(1).getReg()) == LLT::scalar(8)) {
+        MRI->setRegClass(DstReg, &MC6809::ACC8RegClass);
+        MRI->setRegClass(SrcReg, &MC6809::ACC8RegClass);
+        MI.setDesc(TII.get(MC6809::AND_i8_Imm));
+        MI.getOperand(1).setIsUse();
+        MI.tieOperands(0, 1);
+        MI.addOperand(MachineOperand::CreateImm(1));
+        return true;
+      }
       // Fall through to TableGen patterns for non-phantom G_ZEXT s1→s8.
     }
   }
