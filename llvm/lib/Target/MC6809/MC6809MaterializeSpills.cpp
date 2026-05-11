@@ -1132,6 +1132,13 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
         Register RealReg = getRealReg(SpillReg);
         auto [FI, ByteOffset] = getSpillSlot(SpillReg, FuncInfo);
 
+        // Bug #274: the DEF was inherited from the original spill-class
+        // def (e.g. `dead $spill_b0 = EXTRACT_LO_i16 ...`). If it was
+        // marked dead, the flag is stale once we emit a Store_i8_Mem
+        // below that reads this def — clear it so the verifier sees a
+        // live def → store edge.
+        MO.setIsDead(false);
+
         // Sub-register store: write only the byte to the correct
         // position within the i16 spill slot.
         unsigned SubReg = MO.getSubReg();
