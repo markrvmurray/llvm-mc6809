@@ -873,6 +873,14 @@ list(REMOVE_ITEM mc6809_SOURCES
   # with mc6809/cmpdi2.c + mc6809/ucmpdi2.c, which decompose all the way
   # to i16 so only native compares are used.
   cmpdi2.c ucmpdi2.c
+  # Bug #264: bswapsi2.c / bswapdi2.c use the canonical shift-and-mask
+  # byte-swap idiom that LLVM's middle-end recognises as llvm.bswap.{i32,i64}.
+  # MC6809 has no native i32/i64 bswap, so the backend legalises G_BSWAP
+  # at those widths to a libcall — to __bswapsi2 / __bswapdi2 themselves,
+  # creating infinite self-recursion. Surface: picolibc test-rand at Os-fp /
+  # Os-lto-fp where arc4random's _rs_init calls __bswapsi2 to seed-byte-swap.
+  # Replaced with hand-written mc6809/bswapsi2.S + mc6809/bswapdi2.S below.
+  bswapsi2.c bswapdi2.c
   # 128-bit arithmetic
   ashlti3.c ashrti3.c lshrti3.c
   divti3.c modti3.c udivti3.c umodti3.c multi3.c
@@ -971,6 +979,11 @@ list(APPEND mc6809_SOURCES
   mc6809/ucmpsi2.S
   mc6809/cmpdi2.S
   mc6809/ucmpdi2.S
+  # Bug #264: hand-asm replacements for bswapsi2.c / bswapdi2.c. The C
+  # versions self-recurse via the libcall-emitted-from-within-itself
+  # pattern (same family as cmpdi2.c above). 4 / 8 LDA/STA pairs each.
+  mc6809/bswapsi2.S
+  mc6809/bswapdi2.S
   # 64-bit multiply (truncated) — see muldi3.c REMOVE_ITEM above.
   mc6809/muldi3.S
   # 64-bit unsigned multiply with overflow (Bug #239) — relieves
