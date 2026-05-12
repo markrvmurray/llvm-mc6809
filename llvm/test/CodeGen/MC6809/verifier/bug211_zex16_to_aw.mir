@@ -37,7 +37,7 @@ tracksRegLiveness: true
 body: |
   bb.0:
     liveins: $ab
-    $aw = ZEX16Implicit $ab, implicit-def $nz, implicit-def $v, implicit-def $c
+    $aw = ZEX16Implicit $ab, implicit-def $nz, implicit-def $v, implicit-def $c, implicit-def $aa
     RTSr implicit $aw
 ...
 
@@ -54,7 +54,7 @@ tracksRegLiveness: true
 body: |
   bb.0:
     liveins: $ab
-    $ad = ZEX16Implicit $ab, implicit-def $nz, implicit-def $v, implicit-def $c
+    $ad = ZEX16Implicit $ab, implicit-def $nz, implicit-def $v, implicit-def $c, implicit-def $aa
     RTSr implicit $ad
 ...
 

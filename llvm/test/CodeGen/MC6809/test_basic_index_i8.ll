@@ -10,39 +10,78 @@ define i8 @foo0(i8* nocapture noundef readonly %a, i8 noundef zeroext %b) #0 {
 ;
 ; MC6809-O0-LABEL: foo0:
 ; MC6809-O0:       ; %bb.0: ; %entry
-; MC6809-O0-NEXT:    leas -2,s
+; MC6809-O0-NEXT:    leas -8,s
+; MC6809-O0-NEXT:    pshs u
+; MC6809-O0-NEXT:    tfr s,u
+; MC6809-O0-NEXT:    std 4,u
 ; MC6809-O0-NEXT:    clra
+; MC6809-O0-NEXT:    std 6,u
+; MC6809-O0-NEXT:    ldd 4,u
+; MC6809-O0-NEXT:    ldd 6,u
 ; MC6809-O0-NEXT:    leax d,x
 ; MC6809-O0-NEXT:    ldb ,x
-; MC6809-O0-NEXT:    leas 2,s
+; MC6809-O0-NEXT:    tfr u,s
+; MC6809-O0-NEXT:    puls u
+; MC6809-O0-NEXT:    leas 8,s
 ; MC6809-O0-NEXT:    rts
 ;
 ; MC6809-O1-LABEL: foo0:
 ; MC6809-O1:       ; %bb.0: ; %entry
+; MC6809-O1-NEXT:    leas -8,s
+; MC6809-O1-NEXT:    pshs u
+; MC6809-O1-NEXT:    tfr s,u
+; MC6809-O1-NEXT:    std 4,u
 ; MC6809-O1-NEXT:    clra
+; MC6809-O1-NEXT:    std 6,u
+; MC6809-O1-NEXT:    ldd 4,u
+; MC6809-O1-NEXT:    ldd 6,u
 ; MC6809-O1-NEXT:    leax d,x
 ; MC6809-O1-NEXT:    ldb ,x
+; MC6809-O1-NEXT:    tfr u,s
+; MC6809-O1-NEXT:    puls u
+; MC6809-O1-NEXT:    leas 8,s
 ; MC6809-O1-NEXT:    rts
 ;
 ; MC6809-O2-LABEL: foo0:
 ; MC6809-O2:       ; %bb.0: ; %entry
+; MC6809-O2-NEXT:    leas -8,s
+; MC6809-O2-NEXT:    pshs u
+; MC6809-O2-NEXT:    tfr s,u
+; MC6809-O2-NEXT:    std 4,u
 ; MC6809-O2-NEXT:    clra
+; MC6809-O2-NEXT:    std 6,u
+; MC6809-O2-NEXT:    ldd 4,u
+; MC6809-O2-NEXT:    ldd 6,u
 ; MC6809-O2-NEXT:    leax d,x
 ; MC6809-O2-NEXT:    ldb ,x
+; MC6809-O2-NEXT:    tfr u,s
+; MC6809-O2-NEXT:    puls u
+; MC6809-O2-NEXT:    leas 8,s
 ; MC6809-O2-NEXT:    rts
 ;
 ; MC6809-O3-LABEL: foo0:
 ; MC6809-O3:       ; %bb.0: ; %entry
+; MC6809-O3-NEXT:    leas -8,s
+; MC6809-O3-NEXT:    pshs u
+; MC6809-O3-NEXT:    tfr s,u
+; MC6809-O3-NEXT:    std 4,u
 ; MC6809-O3-NEXT:    clra
+; MC6809-O3-NEXT:    std 6,u
+; MC6809-O3-NEXT:    ldd 4,u
+; MC6809-O3-NEXT:    ldd 6,u
 ; MC6809-O3-NEXT:    leax d,x
 ; MC6809-O3-NEXT:    ldb ,x
+; MC6809-O3-NEXT:    tfr u,s
+; MC6809-O3-NEXT:    puls u
+; MC6809-O3-NEXT:    leas 8,s
 ; MC6809-O3-NEXT:    rts
 ;
 ; HD6309-LABEL: foo0:
 ; HD6309:       ; %bb.0: ; %entry
 ; HD6309-NEXT:    leas -2,s
 ; HD6309-NEXT:    clra
-; HD6309-NEXT:    leax d,x
+; HD6309-NEXT:    tfr d,w
+; HD6309-NEXT:    leax w,x
 ; HD6309-NEXT:    ldb ,x
 ; HD6309-NEXT:    leas 2,s
 ; HD6309-NEXT:    rts

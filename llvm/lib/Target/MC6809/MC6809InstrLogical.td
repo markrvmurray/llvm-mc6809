@@ -428,11 +428,24 @@ def ZEX8Implicit : MC6809LogicalInstr {
 }
 
 def ZEX16Implicit : MC6809LogicalInstr {
-  // Expansion: CLRA.  Sets N=0 Z=1 V=0 C=0.  Without these Defs (and
-  // hasSideEffects) the pre-RA scheduler reorders ZEX16Implicit into
-  // the middle of a Sub*Carry chain, post-RA CLRA clears CC.C between
-  // two SBCAs, and the high-byte borrow vanishes — bug #142.
-  let Defs = [NZ, V, C];
+  // Expansion: CLRA.  Sets N=0 Z=1 V=0 C=0 AND writes AA=0.
+  //
+  // Without these Defs (and hasSideEffects) the pre-RA scheduler
+  // reorders ZEX16Implicit into the middle of a Sub*Carry chain,
+  // post-RA CLRA clears CC.C between two SBCAs, and the high-byte
+  // borrow vanishes — bug #142.
+  //
+  // Bug #283: AA must be in Defs too. The expansion emits CLRAa
+  // which clobbers AA. Without AA listed, the register allocator
+  // could leave AA live across this pseudo with an unrelated value
+  // (e.g. the high byte of a function argument loaded into D, where
+  // only the low byte AB is consumed by ZEX16Implicit's $src). The
+  // post-RA CLRA then silently destroys that value, corrupting
+  // downstream uses. Manifest at -O2 + -mcpu=hd6309 in memmem's
+  // `if (ne_len == 1) return memchr(hs, ne[0], hs_len);` codegen —
+  // hs_len's high byte was held in AA across the ZEX16Implicit of
+  // ne[0] and got zeroed, passing memchr a truncated length.
+  let Defs = [NZ, V, C, AA];
   let hasSideEffects = 1;
   dag InOperandList = (ins ABc:$src);
   dag OutOperandList = (outs ACC16:$dst);

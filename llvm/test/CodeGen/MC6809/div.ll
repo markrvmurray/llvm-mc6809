@@ -135,22 +135,21 @@ define dso_local zeroext i8 @div_u_i8(i8 zeroext %a, i8 zeroext %b) {
 ; O0-NEXT:    leas -11,s
 ; O0-NEXT:    pshs u
 ; O0-NEXT:    tfr s,u
-; O0-NEXT:    stb 8,u
+; O0-NEXT:    stb 6,u
 ; O0-NEXT:    ldb 15,u
 ; O0-NEXT:    stb 10,u
-; O0-NEXT:    ldb 8,u
+; O0-NEXT:    ldb 6,u
+; O0-NEXT:    std 4,u
 ; O0-NEXT:    clra
-; O0-NEXT:    std 6,u
+; O0-NEXT:    std 7,u
+; O0-NEXT:    ldd 4,u
 ; O0-NEXT:    ldb 10,u
 ; O0-NEXT:    clra
 ; O0-NEXT:    std 9,u
-; O0-NEXT:    ldd 6,u
 ; O0-NEXT:    leas -2,s
-; O0-NEXT:    std 4,u
 ; O0-NEXT:    ldd 9,u
 ; O0-NEXT:    std ,s
-; O0-NEXT:    ldd 4,u
-; O0-NEXT:    tfr d,x
+; O0-NEXT:    ldx 7,u
 ; O0-NEXT:    lbsr __udivhi3
 ; O0-NEXT:    leas 2,s
 ; O0-NEXT:    tfr x,d
@@ -164,22 +163,20 @@ define dso_local zeroext i8 @div_u_i8(i8 zeroext %a, i8 zeroext %b) {
 ; O1-NEXT:    leas -11,s
 ; O1-NEXT:    pshs u
 ; O1-NEXT:    tfr s,u
-; O1-NEXT:    stb 8,u
+; O1-NEXT:    stb 6,u
 ; O1-NEXT:    ldb 15,u
 ; O1-NEXT:    stb 10,u
-; O1-NEXT:    ldb 8,u
+; O1-NEXT:    ldb 6,u
+; O1-NEXT:    std 4,u
 ; O1-NEXT:    clra
-; O1-NEXT:    std 6,u
+; O1-NEXT:    std 7,u
+; O1-NEXT:    ldd 4,u
 ; O1-NEXT:    ldb 10,u
 ; O1-NEXT:    clra
 ; O1-NEXT:    std 9,u
-; O1-NEXT:    ldd 6,u
 ; O1-NEXT:    leas -2,s
-; O1-NEXT:    std 4,u
-; O1-NEXT:    ldd 9,u
 ; O1-NEXT:    std ,s
-; O1-NEXT:    ldd 4,u
-; O1-NEXT:    tfr d,x
+; O1-NEXT:    ldx 7,u
 ; O1-NEXT:    lbsr __udivhi3
 ; O1-NEXT:    leas 2,s
 ; O1-NEXT:    tfr x,d
@@ -193,22 +190,20 @@ define dso_local zeroext i8 @div_u_i8(i8 zeroext %a, i8 zeroext %b) {
 ; O2-NEXT:    leas -11,s
 ; O2-NEXT:    pshs u
 ; O2-NEXT:    tfr s,u
-; O2-NEXT:    stb 8,u
+; O2-NEXT:    stb 6,u
 ; O2-NEXT:    ldb 15,u
 ; O2-NEXT:    stb 10,u
-; O2-NEXT:    ldb 8,u
+; O2-NEXT:    ldb 6,u
+; O2-NEXT:    std 4,u
 ; O2-NEXT:    clra
-; O2-NEXT:    std 6,u
+; O2-NEXT:    std 7,u
+; O2-NEXT:    ldd 4,u
 ; O2-NEXT:    ldb 10,u
 ; O2-NEXT:    clra
 ; O2-NEXT:    std 9,u
-; O2-NEXT:    ldd 6,u
 ; O2-NEXT:    leas -2,s
-; O2-NEXT:    std 4,u
-; O2-NEXT:    ldd 9,u
 ; O2-NEXT:    std ,s
-; O2-NEXT:    ldd 4,u
-; O2-NEXT:    tfr d,x
+; O2-NEXT:    ldx 7,u
 ; O2-NEXT:    lbsr __udivhi3
 ; O2-NEXT:    leas 2,s
 ; O2-NEXT:    tfr x,d
@@ -222,22 +217,20 @@ define dso_local zeroext i8 @div_u_i8(i8 zeroext %a, i8 zeroext %b) {
 ; O3-NEXT:    leas -11,s
 ; O3-NEXT:    pshs u
 ; O3-NEXT:    tfr s,u
-; O3-NEXT:    stb 8,u
+; O3-NEXT:    stb 6,u
 ; O3-NEXT:    ldb 15,u
 ; O3-NEXT:    stb 10,u
-; O3-NEXT:    ldb 8,u
+; O3-NEXT:    ldb 6,u
+; O3-NEXT:    std 4,u
 ; O3-NEXT:    clra
-; O3-NEXT:    std 6,u
+; O3-NEXT:    std 7,u
+; O3-NEXT:    ldd 4,u
 ; O3-NEXT:    ldb 10,u
 ; O3-NEXT:    clra
 ; O3-NEXT:    std 9,u
-; O3-NEXT:    ldd 6,u
 ; O3-NEXT:    leas -2,s
-; O3-NEXT:    std 4,u
-; O3-NEXT:    ldd 9,u
 ; O3-NEXT:    std ,s
-; O3-NEXT:    ldd 4,u
-; O3-NEXT:    tfr d,x
+; O3-NEXT:    ldx 7,u
 ; O3-NEXT:    lbsr __udivhi3
 ; O3-NEXT:    leas 2,s
 ; O3-NEXT:    tfr x,d
@@ -380,22 +373,21 @@ define dso_local zeroext i8 @mod_u_i8(i8 zeroext %a, i8 zeroext %b) {
 ; O0-NEXT:    leas -11,s
 ; O0-NEXT:    pshs u
 ; O0-NEXT:    tfr s,u
-; O0-NEXT:    stb 8,u
+; O0-NEXT:    stb 6,u
 ; O0-NEXT:    ldb 15,u
 ; O0-NEXT:    stb 10,u
-; O0-NEXT:    ldb 8,u
+; O0-NEXT:    ldb 6,u
+; O0-NEXT:    std 4,u
 ; O0-NEXT:    clra
-; O0-NEXT:    std 6,u
+; O0-NEXT:    std 7,u
+; O0-NEXT:    ldd 4,u
 ; O0-NEXT:    ldb 10,u
 ; O0-NEXT:    clra
 ; O0-NEXT:    std 9,u
-; O0-NEXT:    ldd 6,u
 ; O0-NEXT:    leas -2,s
-; O0-NEXT:    std 4,u
 ; O0-NEXT:    ldd 9,u
 ; O0-NEXT:    std ,s
-; O0-NEXT:    ldd 4,u
-; O0-NEXT:    tfr d,x
+; O0-NEXT:    ldx 7,u
 ; O0-NEXT:    lbsr __umodhi3
 ; O0-NEXT:    leas 2,s
 ; O0-NEXT:    tfr x,d
@@ -409,22 +401,20 @@ define dso_local zeroext i8 @mod_u_i8(i8 zeroext %a, i8 zeroext %b) {
 ; O1-NEXT:    leas -11,s
 ; O1-NEXT:    pshs u
 ; O1-NEXT:    tfr s,u
-; O1-NEXT:    stb 8,u
+; O1-NEXT:    stb 6,u
 ; O1-NEXT:    ldb 15,u
 ; O1-NEXT:    stb 10,u
-; O1-NEXT:    ldb 8,u
+; O1-NEXT:    ldb 6,u
+; O1-NEXT:    std 4,u
 ; O1-NEXT:    clra
-; O1-NEXT:    std 6,u
+; O1-NEXT:    std 7,u
+; O1-NEXT:    ldd 4,u
 ; O1-NEXT:    ldb 10,u
 ; O1-NEXT:    clra
 ; O1-NEXT:    std 9,u
-; O1-NEXT:    ldd 6,u
 ; O1-NEXT:    leas -2,s
-; O1-NEXT:    std 4,u
-; O1-NEXT:    ldd 9,u
 ; O1-NEXT:    std ,s
-; O1-NEXT:    ldd 4,u
-; O1-NEXT:    tfr d,x
+; O1-NEXT:    ldx 7,u
 ; O1-NEXT:    lbsr __umodhi3
 ; O1-NEXT:    leas 2,s
 ; O1-NEXT:    tfr x,d
@@ -438,22 +428,20 @@ define dso_local zeroext i8 @mod_u_i8(i8 zeroext %a, i8 zeroext %b) {
 ; O2-NEXT:    leas -11,s
 ; O2-NEXT:    pshs u
 ; O2-NEXT:    tfr s,u
-; O2-NEXT:    stb 8,u
+; O2-NEXT:    stb 6,u
 ; O2-NEXT:    ldb 15,u
 ; O2-NEXT:    stb 10,u
-; O2-NEXT:    ldb 8,u
+; O2-NEXT:    ldb 6,u
+; O2-NEXT:    std 4,u
 ; O2-NEXT:    clra
-; O2-NEXT:    std 6,u
+; O2-NEXT:    std 7,u
+; O2-NEXT:    ldd 4,u
 ; O2-NEXT:    ldb 10,u
 ; O2-NEXT:    clra
 ; O2-NEXT:    std 9,u
-; O2-NEXT:    ldd 6,u
 ; O2-NEXT:    leas -2,s
-; O2-NEXT:    std 4,u
-; O2-NEXT:    ldd 9,u
 ; O2-NEXT:    std ,s
-; O2-NEXT:    ldd 4,u
-; O2-NEXT:    tfr d,x
+; O2-NEXT:    ldx 7,u
 ; O2-NEXT:    lbsr __umodhi3
 ; O2-NEXT:    leas 2,s
 ; O2-NEXT:    tfr x,d
@@ -467,22 +455,20 @@ define dso_local zeroext i8 @mod_u_i8(i8 zeroext %a, i8 zeroext %b) {
 ; O3-NEXT:    leas -11,s
 ; O3-NEXT:    pshs u
 ; O3-NEXT:    tfr s,u
-; O3-NEXT:    stb 8,u
+; O3-NEXT:    stb 6,u
 ; O3-NEXT:    ldb 15,u
 ; O3-NEXT:    stb 10,u
-; O3-NEXT:    ldb 8,u
+; O3-NEXT:    ldb 6,u
+; O3-NEXT:    std 4,u
 ; O3-NEXT:    clra
-; O3-NEXT:    std 6,u
+; O3-NEXT:    std 7,u
+; O3-NEXT:    ldd 4,u
 ; O3-NEXT:    ldb 10,u
 ; O3-NEXT:    clra
 ; O3-NEXT:    std 9,u
-; O3-NEXT:    ldd 6,u
 ; O3-NEXT:    leas -2,s
-; O3-NEXT:    std 4,u
-; O3-NEXT:    ldd 9,u
 ; O3-NEXT:    std ,s
-; O3-NEXT:    ldd 4,u
-; O3-NEXT:    tfr d,x
+; O3-NEXT:    ldx 7,u
 ; O3-NEXT:    lbsr __umodhi3
 ; O3-NEXT:    leas 2,s
 ; O3-NEXT:    tfr x,d
