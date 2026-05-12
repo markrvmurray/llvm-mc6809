@@ -699,11 +699,93 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
           }
           return false;
         };
+
+        // Bug #256: when MI is a same-half SPILL→SPILL COPY (SPILL_B↔SPILL_B
+        // or SPILL_A↔SPILL_A) and the "live" half-register value can be
+        // proven garbage — coming from an upstream wide-acc-spill load
+        // (`SpillLoad_i32_Mem`) whose super-register was subsequently killed
+        // by a `FAKE_USE` (the `-fextend-lifetimes` pattern active at -Og)
+        // — the pre-MI save/restore preserves nonsense. Worse, when this
+        // wrap is nested inside an outer SaveD wrap (around an immediately-
+        // preceding wide-acc-spill instruction in the same MBB), the inner
+        // restore overwrites the outer materialisation's freshly-loaded
+        // value, propagating garbage to the next consumer.
+        //
+        // Detect the exact pattern: scan backward in this MBB for the
+        // closest def of the half-register. If that def is a
+        // `SpillLoad_i32_Mem`-class implicit-def AND there is a
+        // `FAKE_USE killed` of $aq (or a SPILL_Q*) between that def and
+        // this MI, the live value at this MI's pre-state is regalloc-dead
+        // garbage. Skip the save/restore in that case only — the COPY's
+        // materialisation produces the value the consumer actually wants
+        // (the loaded source-slot byte).
+        auto isSameHalfSpillCopy = [&](Register Half) {
+          if (!MI.isCopy()) return false;
+          Register DstReg = MI.getOperand(0).getReg();
+          Register SrcReg = MI.getOperand(1).getReg();
+          if (!isAccSpillReg(DstReg) || !isAccSpillReg(SrcReg))
+            return false;
+          return getRealReg(DstReg) == Half && getRealReg(SrcReg) == Half;
+        };
+        auto preMIHalfIsGarbage = [&](Register Half) -> bool {
+          // Walk backwards from MI in this MBB. We need the SEQUENCE:
+          // SpillLoad_i32_Mem (implicit-def Half) ... FAKE_USE killed
+          // $aq/$spill_q* ... [no other def of Half] ... MI.
+          // If we find that shape, the live Half is garbage.
+          bool SawFakeUseKill = false;
+          MachineBasicBlock::iterator It(MI);
+          while (It != MBB.begin()) {
+            --It;
+            const MachineInstr &Prev = *It;
+            // FAKE_USE killed of $aq or SPILL_Q* (the wide-acc-spill super)?
+            if (Prev.getOpcode() == TargetOpcode::FAKE_USE) {
+              for (const MachineOperand &MO : Prev.operands()) {
+                if (!MO.isReg() || !MO.isKill()) continue;
+                if (!MO.getReg().isPhysical()) continue;
+                Register R = MO.getReg();
+                // Match $aq directly, or a SPILL_Q[0-3] 32-bit spill
+                // placeholder (the slot-backed wide-acc-spill).
+                if (R == MC6809::AQ ||
+                    R == MC6809::SPILL_Q0 || R == MC6809::SPILL_Q1 ||
+                    R == MC6809::SPILL_Q2 || R == MC6809::SPILL_Q3) {
+                  SawFakeUseKill = true;
+                  break;
+                }
+              }
+              continue;
+            }
+            // Any other def of Half? If yes, the live value is NOT garbage
+            // (it was defined after any FAKE_USE killed sequence).
+            bool DefsHalf = false;
+            bool IsSpillLoad32 =
+                Prev.getOpcode() == MC6809::SpillLoad_i32_Mem;
+            for (const MachineOperand &MO : Prev.operands()) {
+              if (!MO.isReg() || !MO.isDef()) continue;
+              if (!MO.getReg().isPhysical()) continue;
+              if (!TRI.regsOverlap(MO.getReg(), Half)) continue;
+              DefsHalf = true;
+              break;
+            }
+            if (!DefsHalf) continue;
+            // Found a def. If this is a SpillLoad_i32_Mem AND we already
+            // saw a FAKE_USE kill of the super-reg, the value is garbage.
+            if (SawFakeUseKill && IsSpillLoad32)
+              return true;
+            // Any other def shape: the live value is real, preserve it.
+            return false;
+          }
+          return false;
+        };
+
         if ((SpillClobbersB || Case1NeedsAltB) &&
-            anySubRegLive(MC6809::AB) && !hasDirectOperand(MC6809::AB))
+            anySubRegLive(MC6809::AB) && !hasDirectOperand(MC6809::AB) &&
+            !(isSameHalfSpillCopy(MC6809::AB) &&
+              preMIHalfIsGarbage(MC6809::AB)))
           NeedB = true;
         if ((SpillClobbersA || Case1NeedsAltA) &&
-            anySubRegLive(MC6809::AA) && !hasDirectOperand(MC6809::AA))
+            anySubRegLive(MC6809::AA) && !hasDirectOperand(MC6809::AA) &&
+            !(isSameHalfSpillCopy(MC6809::AA) &&
+              preMIHalfIsGarbage(MC6809::AA)))
           NeedA = true;
       }
 
