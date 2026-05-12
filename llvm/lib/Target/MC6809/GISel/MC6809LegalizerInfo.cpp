@@ -147,8 +147,8 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
         .legalFor({{s8, s1}, {s16, s8}});
     if (IsHD6309)
       B.legalFor({{s32, s16}});  // Bug #161 Phase 4: SEXW single instruction
-    B.lowerFor({{s32, s16}, {s32, s8}, {s64, s32}, {s64, s16}, {s64, s8}})
-        .customFor({{s16, s1}, {s32, s1}, {s64, s1}});
+    B.lowerFor({{s32, s16}, {s32, s8}, {s64, s16}, {s64, s8}})
+        .customFor({{s16, s1}, {s32, s1}, {s64, s1}, {s64, s32}});
   }
 
   getActionDefinitionsBuilder({G_SEXTLOAD, G_ZEXTLOAD})
@@ -734,6 +734,12 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
     return true;
   }
   case G_SEXT: {
+    Register DstReg = MI.getOperand(0).getReg();
+    Register SrcReg = MI.getOperand(1).getReg();
+    LLT DstTy = MRI.getType(DstReg);
+    LLT SrcTy = MRI.getType(SrcReg);
+    MachineIRBuilder &B = Helper.MIRBuilder;
+
     // (sN, s1) where N > 1: emit `select s1, -1, 0` at the destination
     // width. This is the MOS-proven pattern (MOSLegalizerInfo.cpp:596)
     // that completely avoids the chained-sext and upstream lowerEXT's
@@ -742,18 +748,119 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
     // which uses ONE i16 register (D) at any point — eliminating the
     // 5-simultaneous-vreg pressure spike that was bug #82b's root cause.
     // Surfaces in picolibc ftell.c / ftello.c.
-    Register DstReg = MI.getOperand(0).getReg();
-    Register SrcReg = MI.getOperand(1).getReg();
-    LLT DstTy = MRI.getType(DstReg);
-    LLT SrcTy = MRI.getType(SrcReg);
-    if (SrcTy != LLT::scalar(1))
-      return false;
-    MachineIRBuilder &B = Helper.MIRBuilder;
-    auto NegOne = B.buildConstant(DstTy, -1);
-    auto Zero = B.buildConstant(DstTy, 0);
-    B.buildSelect(DstReg, SrcReg, NegOne, Zero);
-    MI.eraseFromParent();
-    return true;
+    if (SrcTy == LLT::scalar(1)) {
+      auto NegOne = B.buildConstant(DstTy, -1);
+      auto Zero = B.buildConstant(DstTy, 0);
+      B.buildSelect(DstReg, SrcReg, NegOne, Zero);
+      MI.eraseFromParent();
+      return true;
+    }
+
+    // Bug #282: G_SEXT (s64, s32) — byte-level lowering with the
+    // sign-fill computation deliberately emitted AFTER any enclosing
+    // ADJCALLSTACKUP.
+    //
+    // Surface: `sext i32-call-result to i64` in tiny wrappers like
+    // picolibc test-math `test_lrint_zero`. IRTranslator places the
+    // G_SEXT AFTER the call's ADJCALLSTACKUP — but combiner merges
+    // G_LOAD + G_SEXT into G_SEXTLOAD at the G_LOAD's position
+    // (INSIDE the call frame, because the sret slot must be read
+    // before frame teardown). G_SEXTLOAD's legalizeLoad then splits
+    // back into G_LOAD + G_SEXT at the inside-frame position, so my
+    // G_SEXT custom inherits that position too.
+    //
+    // Multiple pitfalls compound when the G_SEXT lowering is emitted
+    // inside the outer ADJCALLSTACK pair:
+    //   1. G_ICMP s32 → `__cmpsi2` libcall (custom rule at line
+    //      ~613) — nests an inner ADJCALLSTACK pair (verifier:
+    //      "FrameSetup is after another FrameSetup").
+    //   2. G_ICMP s8 → i1 vreg materialised via PHI of Load_i1_Imm-
+    //      0/1 in a branch diamond — splits the BB so the outer
+    //      ADJCALLSTACK pair spans multiple BBs (verifier: "Call
+    //      frame size on entry does not match value computed from
+    //      predecessor"). The phantom-BIT1 fast path cannot reliably
+    //      avoid this when consumer ordering forces materialization.
+    //   3. G_ASHR s8 by 7 widens via shouldOverCorrect to s16, which
+    //      then routes to `__ashlhi3` + `__lshrhi3` libcalls —
+    //      Pitfall 1 family.
+    //
+    // Fix: walk forward from MI looking for the enclosing
+    // ADJCALLSTACKUP (the call's frame teardown). If found, set the
+    // MIRBuilder insertion point to AFTER it before emitting the
+    // sign-derive sequence and the final merge. This re-establishes
+    // the IRTranslator's original position for the G_SEXT (= outside
+    // the frame), where the i1 diamond materialization is harmless
+    // and any libcall would be properly sequenced.
+    //
+    // The sign-fill itself: `0 - zext(slt(MSB, 0))`. Each component
+    // is single-MI native MC6809:
+    //   - G_ICMP slt(s8,s8) → CMPB + Bcc (legal per
+    //     legalForCartesianProduct({s1}, {s8, s16})).
+    //   - G_ZEXT s8←s1 → MaterializeCarryToByte_i8 (phantom-BIT1
+    //     fast path) OR Bug #281's AND_i8_Imm tied form.
+    //   - G_SUB s8 → SUBB / SUBA.
+    if (DstTy == LLT::scalar(64) && SrcTy == LLT::scalar(32)) {
+      LLT S1 = LLT::scalar(1);
+      LLT S8 = LLT::scalar(8);
+
+      // Walk forward looking for the enclosing ADJCALLSTACKUP. If
+      // found AND no use of DstReg appears before it, override the
+      // MIRBuilder insertion point to AFTER it. The use-presence
+      // check distinguishes:
+      //   - `sext i32-call-result to i64` consumed by a sret store
+      //     OUTSIDE the call frame (test_lrint_zero shape): move
+      //     past ADJCALLSTACKUP so the diamond doesn't split the
+      //     frame.
+      //   - `sext i32 to i64` consumed by argument stores for a
+      //     later libcall like __ucmpdi2 INSIDE the same frame
+      //     (eq_i64_sext_i32 shape): the SEXT's result must be
+      //     ready before the stores; moving past ADJCALLSTACKUP
+      //     would orphan those stores from the SEXT's defs.
+      // Otherwise leave the default insertion point (BEFORE MI) in
+      // place.
+      MachineBasicBlock &MBB = *MI.getParent();
+      unsigned FrameDestroyOpc = B.getTII().getCallFrameDestroyOpcode();
+      MachineBasicBlock::iterator FrameUp = MBB.end();
+      for (auto It = std::next(MI.getIterator()); It != MBB.end(); ++It) {
+        if (It->getOpcode() == FrameDestroyOpc) {
+          FrameUp = It;
+          break;
+        }
+      }
+      bool UseBeforeFrameUp = false;
+      if (FrameUp != MBB.end()) {
+        for (const MachineInstr &User : MRI.use_instructions(DstReg)) {
+          if (User.getParent() != &MBB)
+            continue;  // Cross-MBB uses are naturally after FrameUp.
+          for (auto It = std::next(MI.getIterator()); It != FrameUp; ++It) {
+            if (&*It == &User) {
+              UseBeforeFrameUp = true;
+              break;
+            }
+          }
+          if (UseBeforeFrameUp)
+            break;
+        }
+      }
+      if (FrameUp != MBB.end() && !UseBeforeFrameUp)
+        B.setInsertPt(MBB, std::next(FrameUp));
+
+      auto Unmerge = B.buildUnmerge(S8, SrcReg);
+      SmallVector<Register, 8> Bytes;
+      for (unsigned I = 0; I < 4; ++I)
+        Bytes.push_back(Unmerge.getReg(I));
+      auto Zero = B.buildConstant(S8, 0);
+      auto SignI1 = B.buildICmp(CmpInst::ICMP_SLT, S1, Bytes.back(), Zero);
+      auto SignByte = B.buildZExt(S8, SignI1);
+      Register Fill = B.buildSub(S8, Zero, SignByte).getReg(0);
+      while (Bytes.size() < 8)
+        Bytes.push_back(Fill);
+      B.buildMergeLikeInstr(DstReg, Bytes);
+      MI.eraseFromParent();
+      return true;
+    }
+
+    return false;
   }
   case G_SELECT: {
     // Decompose wide select into pairs of half-width selects.
