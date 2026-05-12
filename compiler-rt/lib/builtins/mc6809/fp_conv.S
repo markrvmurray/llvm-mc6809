@@ -68,27 +68,8 @@ __floatsidf:
         puls    u,y
         rts
 
-        .global __floatdisf
-__floatdisf:
-        ; signed i64 → f32.  TODO: full i64 range.  For now uses low 32 bits.
-        pshs    u,y
-        leay    10,s
-        ldd     #__mc6839_fpcb_f32
-        lbsr    __fpreg
-        .byte   FPOP_FFLTD
-        puls    u,y
-        rts
-
-        .global __floatdidf
-__floatdidf:
-        ; signed i64 → f64.  TODO: full i64 range.
-        pshs    u,y
-        leay    10,s
-        ldd     #__mc6839_fpcb_f64
-        lbsr    __fpreg
-        .byte   FPOP_FFLTD
-        puls    u,y
-        rts
+        ; __floatdisf / __floatdidf moved to mc6809/floatdi.S
+        ; (Bug #286: full i64 range via hi*2^32 + lo composition.)
 
 ; ---- unsigned integer → float ---------------------------------------------
 ; FFLTD treats input as signed.  For u32 with bit31 set we clear bit31,
@@ -174,24 +155,9 @@ __floatunsidf:
         puls    u,y
         rts
 
-        .global __floatundisf
-__floatundisf:
-        ; u64 → f32.  TODO: full range.  For now uses low 32 bits, signed-only.
-        pshs    u,y
-        leay    10,s
-        ldd     #__mc6839_fpcb_f32
-        lbsr    __fpreg
-        .byte   FPOP_FFLTD
-        puls    u,y
-        rts
-
-        ; __floatundidf moved to mc6809/floatundi.c — Bug #264:
-        ; arc4random's u64→f64 path needs full-range conversion,
-        ; not the low-32-bits truncation that the FFLTD wrapper
-        ; gave.  The other three siblings (__floatdisf, __floatdidf,
-        ; __floatundisf) retain the TODO/truncation behaviour for
-        ; size reasons — restoring them as C wrappers tripped
-        ; Os-lto-hd6309-mame-fp over its .bss-vs-.stack budget.
+        ; __floatundisf / __floatundidf moved to mc6809/floatdi.S
+        ; (Bug #286: full u64 range; supersedes the Bug #264 C
+        ; wrapper in mc6809/floatundi.c which has been removed.)
 
 ; ---- float → signed integer (FFIXD; truncation toward zero) ---------------
 

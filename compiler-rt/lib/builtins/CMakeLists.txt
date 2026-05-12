@@ -984,19 +984,15 @@ list(APPEND mc6809_SOURCES
   # pattern (same family as cmpdi2.c above). 4 / 8 LDA/STA pairs each.
   mc6809/bswapsi2.S
   mc6809/bswapdi2.S
-  # Bug #264: __floatundidf (u64 → f64) replacement. The prior asm
-  # wrapper in mc6809/fp_conv.S called MC6839's FFLTD as if the input
-  # were i32, silently truncating the high 32 bits and dropping the
-  # sign on the low half (the file carried "TODO: full range" comments).
-  # Surface: picolibc test-rand at all FP levels — arc4random_double's
-  # (double)bits / (double)UINT64_MAX collapsed to nonsense.  This C
-  # wrapper expresses the conversion as hi*2^32 + lo using the existing
-  # (correct) __floatunsidf + f64 multiply/add helpers.  The signed
-  # i64 and f32 siblings (__floatdidf / __floatdisf / __floatundisf)
-  # keep their TODO/truncation behaviour in fp_conv.S — restoring all
-  # four as C tripped the Os-lto-hd6309-mame-fp link over its
-  # .bss-vs-.stack budget; tracked as follow-up.
-  mc6809/floatundi.c
+  # Bug #286: full-range i64/u64 → f64/f32 conversion wrappers.
+  # Supersedes the four "TODO: full range" wrappers that used to live
+  # in fp_conv.S (and the interim mc6809/floatundi.c C wrapper from
+  # Bug #264).  Each wrapper composes hi*2^32 + lo using direct
+  # MC6839 ROM ops (FFLTD / FMUL / FADD) — no compiler-rt sub-calls,
+  # no __lshrdi3 pull-in, no FPU bit-trick.  ~600 bytes total for
+  # all four (vs ~900 bytes for the equivalent C wrappers, which
+  # tripped Os-lto-hd6309-mame-fp's .bss-vs-.stack budget).
+  mc6809/floatdi.S
   # 64-bit multiply (truncated) — see muldi3.c REMOVE_ITEM above.
   mc6809/muldi3.S
   # 64-bit unsigned multiply with overflow (Bug #239) — relieves
