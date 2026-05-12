@@ -183,24 +183,5 @@ __fixdfsi:
         puls    u,y
         rts
 
-        .global __fixsfdi
-__fixsfdi:
-        ; f32 → signed i64.  TODO: full range.  Writes i32 to low 4 bytes.
-        pshs    u,y
-        leay    6,s
-        ldd     #__mc6839_fpcb_f32_trunc
-        lbsr    __fpreg
-        .byte   FPOP_FFIXD
-        puls    u,y
-        rts
-
-        .global __fixdfdi
-__fixdfdi:
-        ; f64 → signed i64.  TODO: full range.
-        pshs    u,y
-        leay    6,s
-        ldd     #__mc6839_fpcb_f64_trunc
-        lbsr    __fpreg
-        .byte   FPOP_FFIXD
-        puls    u,y
-        rts
+        ; __fixsfdi / __fixdfdi moved to mc6809/floatdi.S — Bug #286
+        ; part 2: full i64 range via hi*2^32 + lo decomposition.

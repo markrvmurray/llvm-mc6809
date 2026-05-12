@@ -24,7 +24,9 @@
         .text
 
 FPOP_FADD       = 0x00
+FPOP_FSUB       = 0x02
 FPOP_FMUL       = 0x04
+FPOP_FFIXD      = 0x18
 FPOP_FFLTD      = 0x26
 
 ; ===========================================================================
@@ -54,6 +56,7 @@ FPOP_FFLTD      = 0x26
 ;   [S+14..21] 2^31 const (only when bit31 is set; computed in place)
 ; ---------------------------------------------------------------------------
 
+        .section .text.__floatundidf,"ax",@progbits
         .global __floatundidf
 __floatundidf:
         pshs    u,y                  ; arg now at [S+6..13]
@@ -166,6 +169,7 @@ __floatundidf:
 ; (after sign-extension is folded into the high half).
 ; ---------------------------------------------------------------------------
 
+        .section .text.__floatdidf,"ax",@progbits
         .global __floatdidf
 __floatdidf:
         pshs    u,y                  ; arg now at [S+6..13]
@@ -250,6 +254,7 @@ __floatdidf:
 ; (After pshs u,y; leas -14,s.)
 ; ---------------------------------------------------------------------------
 
+        .section .text.__floatundisf,"ax",@progbits
         .global __floatundisf
 __floatundisf:
         pshs    u,y                  ; arg [S+6..13]
@@ -347,6 +352,7 @@ __floatundisf:
 ;   Same shape as __floatundisf with signed-hi handling.
 ; ---------------------------------------------------------------------------
 
+        .section .text.__floatdisf,"ax",@progbits
         .global __floatdisf
 __floatdisf:
         pshs    u,y
@@ -410,3 +416,384 @@ __floatdisf:
         puls    u,y
         rts
         .size __floatdisf, . - __floatdisf
+
+; ===========================================================================
+;
+;   __fixdfdi(double a) → i64 at *X
+;
+; Entry: X = sret (8B), [S+2..9] = f64 arg.
+;
+; Plan (mirroring the i64→f64 algorithm in reverse):
+;   1. |a| via sign-bit clear; remember sign.
+;   2. scratch = |a| * 2^-32           (FMUL by 2^-32 const)
+;   3. hi_i32  = FFIXD_trunc(scratch)  (4-byte i32, in [0, 2^31))
+;   4. scratch = (double)hi_i32         (FFLTD; reverse hi to f64)
+;   5. scratch *= 2^32
+;   6. scratch = |a| - scratch         (FSUB; now residual in [0, 2^32))
+;   7. If residual >= 2^31:
+;        scratch -= 2^31; lo_i32 = FFIXD_trunc(scratch); lo_u32 = lo_i32 | 0x80000000
+;      Else:
+;        lo_u32 = FFIXD_trunc(scratch)
+;   8. Write hi_i32 to sret[0..3], lo_u32 to sret[4..7].
+;   9. If sign negative: two's complement negate the 8 bytes.
+;
+; Layout (40 bytes locals after pshs u,y):
+;   [S+0..1]   saved sret X
+;   [S+2]      sign flag (1 byte)
+;   [S+4..11]  |a| f64
+;   [S+12..15] hi_i32 buffer
+;   [S+16..19] lo_u32 buffer
+;   [S+20..27] scratch f64
+;   [S+28..35] const buf (8 bytes; reused for 2^-32 / 2^32 / 2^31)
+;
+; arg now at [S+46..53] (after leas -40,s).
+; ---------------------------------------------------------------------------
+
+        .section .text.__fixdfdi,"ax",@progbits
+        .global __fixdfdi
+__fixdfdi:
+        pshs    u,y
+        leas    -40,s                ; arg now at [S+46..53]
+        stx     ,s                   ; save sret
+
+        ; ----- step 1: sign flag + |a| at [S+4..11] -----
+        clr     2,s
+        lda     46,s                 ; high byte of f64
+        bpl     .Lfdd_pos
+        inc     2,s                  ; sign = 1
+        anda    #0x7F                ; clear sign bit
+.Lfdd_pos:
+        sta     4,s
+        ldb     47,s
+        stb     5,s
+        ldd     48,s
+        std     6,s
+        ldd     50,s
+        std     8,s
+        ldd     52,s
+        std     10,s
+
+        ; ----- step 2: scratch = |a| * 2^-32 -----
+        ldd     #0x3DF0              ; 2^-32 high word
+        std     28,s
+        clra
+        clrb
+        std     30,s
+        std     32,s
+        std     34,s
+        leax    20,s                 ; X = scratch
+        leau    4,s                  ; U = |a|
+        leay    28,s                 ; Y = 2^-32
+        ldd     #__mc6839_fpcb_f64
+        lbsr    __fpreg
+        .byte   FPOP_FMUL
+
+        ; ----- step 3: hi_i32 = FFIXD_trunc(scratch) -----
+        leax    12,s                 ; X = hi_i32 buf
+        leay    20,s                 ; Y = scratch
+        ldd     #__mc6839_fpcb_f64_trunc
+        lbsr    __fpreg
+        .byte   FPOP_FFIXD
+
+        ; ----- step 4: scratch = (double)hi_i32 -----
+        leax    20,s                 ; X = scratch
+        leay    12,s                 ; Y = hi_i32 buf
+        ldd     #__mc6839_fpcb_f64
+        lbsr    __fpreg
+        .byte   FPOP_FFLTD
+
+        ; ----- step 5: scratch *= 2^32 -----
+        ldd     #0x41F0
+        std     28,s
+        clra
+        clrb
+        std     30,s
+        std     32,s
+        std     34,s
+        leax    20,s
+        leau    20,s
+        leay    28,s
+        ldd     #__mc6839_fpcb_f64
+        lbsr    __fpreg
+        .byte   FPOP_FMUL
+
+        ; ----- step 6: scratch = |a| - scratch  (residual) -----
+        leax    20,s
+        leau    4,s                  ; U = |a|
+        leay    20,s                 ; Y = scratch (current = hi*2^32)
+        ldd     #__mc6839_fpcb_f64
+        lbsr    __fpreg
+        .byte   FPOP_FSUB            ; scratch = |a| - hi*2^32 = residual
+
+        ; ----- step 7: split lo on residual < or >= 2^31 -----
+        ldd     20,s                 ; top 2 bytes of residual
+        cmpd    #0x41E0
+        bhs     .Lfdd_bit31
+
+        ; Simple: lo_u32 = FFIXD_trunc(residual). X = &lo_u32, Y = residual.
+        leax    16,s
+        leay    20,s
+        ldd     #__mc6839_fpcb_f64_trunc
+        lbsr    __fpreg
+        .byte   FPOP_FFIXD
+        bra     .Lfdd_compose
+
+.Lfdd_bit31:
+        ; residual -= 2^31, FFIXD, then OR bit 31 of low byte 0.
+        ldd     #0x41E0              ; 2^31 const
+        std     28,s
+        clra
+        clrb
+        std     30,s
+        std     32,s
+        std     34,s
+        leax    20,s
+        leau    20,s
+        leay    28,s
+        ldd     #__mc6839_fpcb_f64
+        lbsr    __fpreg
+        .byte   FPOP_FSUB            ; scratch -= 2^31, now in [0, 2^31)
+        leax    16,s                 ; X = lo_u32 buf
+        leay    20,s
+        ldd     #__mc6839_fpcb_f64_trunc
+        lbsr    __fpreg
+        .byte   FPOP_FFIXD
+        ; OR bit 31 of the high byte: set bit 7 of [S+16].
+        lda     16,s
+        ora     #0x80
+        sta     16,s
+
+.Lfdd_compose:
+        ; Write hi_i32 to sret[0..3], lo_u32 to sret[4..7].
+        ldx     ,s                   ; X = sret
+        ldd     12,s
+        std     ,x
+        ldd     14,s
+        std     2,x
+        ldd     16,s
+        std     4,x
+        ldd     18,s
+        std     6,x
+
+        ; ----- step 9: if sign negative, two's complement negate -----
+        tst     2,s
+        beq     .Lfdd_done
+        ; negate 8-byte i64: invert all bytes, then add 1.
+        ldd     ,x
+        coma
+        comb
+        std     ,x
+        ldd     2,x
+        coma
+        comb
+        std     2,x
+        ldd     4,x
+        coma
+        comb
+        std     4,x
+        ldd     6,x
+        coma
+        comb
+        std     6,x
+        ; add 1 to LSB (with carry propagation)
+        ldd     6,x
+        addd    #1
+        std     6,x
+        bcc     .Lfdd_done
+        ldd     4,x
+        addd    #1
+        std     4,x
+        bcc     .Lfdd_done
+        ldd     2,x
+        addd    #1
+        std     2,x
+        bcc     .Lfdd_done
+        ldd     ,x
+        addd    #1
+        std     ,x
+
+.Lfdd_done:
+        leas    40,s
+        puls    u,y
+        rts
+        .size __fixdfdi, . - __fixdfdi
+
+; ===========================================================================
+;
+;   __fixsfdi(float a) → i64 at *X
+;
+; Entry: X = sret (8B), [S+2..5] = f32 arg.
+;
+; Same algorithm as __fixdfdi but with f32 arithmetic.  The f32
+; mantissa is only 24 bits, so anything beyond 2^24 has its low
+; bits zero — but the arithmetic still produces a correct
+; rounded i64 (within f32 precision).
+;
+; 2^-32 as f32 = 0x2F800000.
+; 2^32  as f32 = 0x4F800000.
+; 2^31  as f32 = 0x4F000000.
+;
+; Layout (32 bytes locals after pshs u,y):
+;   [S+0..1]   saved sret X
+;   [S+2]      sign flag
+;   [S+4..7]   |a| f32
+;   [S+12..15] hi_i32 buffer
+;   [S+16..19] lo_u32 buffer
+;   [S+20..23] scratch f32
+;   [S+24..27] const f32 (4 bytes; reused)
+;
+; arg now at [S+34..37] after leas -32,s.
+; ---------------------------------------------------------------------------
+
+        .section .text.__fixsfdi,"ax",@progbits
+        .global __fixsfdi
+__fixsfdi:
+        pshs    u,y
+        leas    -32,s                ; arg now at [S+38..41]
+        stx     ,s
+
+        ; sign flag + |a|
+        clr     2,s
+        lda     38,s
+        bpl     .Lfsd_pos
+        inc     2,s
+        anda    #0x7F
+.Lfsd_pos:
+        sta     4,s
+        ldb     39,s
+        stb     5,s
+        ldd     40,s
+        std     6,s                  ; |a| at [S+4..7]
+
+        ; scratch = |a| * 2^-32. 2^-32 f32 = 0x2F800000.
+        ldd     #0x2F80
+        std     24,s
+        clra
+        clrb
+        std     26,s
+        leax    20,s
+        leau    4,s
+        leay    24,s
+        ldd     #__mc6839_fpcb_f32
+        lbsr    __fpreg
+        .byte   FPOP_FMUL
+
+        ; hi_i32 = FFIXD_trunc(scratch)
+        leax    12,s
+        leay    20,s
+        ldd     #__mc6839_fpcb_f32_trunc
+        lbsr    __fpreg
+        .byte   FPOP_FFIXD
+
+        ; scratch = (float)hi_i32
+        leax    20,s
+        leay    12,s
+        ldd     #__mc6839_fpcb_f32
+        lbsr    __fpreg
+        .byte   FPOP_FFLTD
+
+        ; scratch *= 2^32. 2^32 f32 = 0x4F800000.
+        ldd     #0x4F80
+        std     24,s
+        clra
+        clrb
+        std     26,s
+        leax    20,s
+        leau    20,s
+        leay    24,s
+        ldd     #__mc6839_fpcb_f32
+        lbsr    __fpreg
+        .byte   FPOP_FMUL
+
+        ; scratch = |a| - scratch
+        leax    20,s
+        leau    4,s
+        leay    20,s
+        ldd     #__mc6839_fpcb_f32
+        lbsr    __fpreg
+        .byte   FPOP_FSUB
+
+        ; Check residual >= 2^31? Top 2 bytes >= 0x4F00?
+        ldd     20,s
+        cmpd    #0x4F00
+        bhs     .Lfsd_bit31
+
+        leax    16,s
+        leay    20,s
+        ldd     #__mc6839_fpcb_f32_trunc
+        lbsr    __fpreg
+        .byte   FPOP_FFIXD
+        bra     .Lfsd_compose
+
+.Lfsd_bit31:
+        ; residual -= 2^31. 2^31 f32 = 0x4F000000.
+        ldd     #0x4F00
+        std     24,s
+        clra
+        clrb
+        std     26,s
+        leax    20,s
+        leau    20,s
+        leay    24,s
+        ldd     #__mc6839_fpcb_f32
+        lbsr    __fpreg
+        .byte   FPOP_FSUB
+        leax    16,s
+        leay    20,s
+        ldd     #__mc6839_fpcb_f32_trunc
+        lbsr    __fpreg
+        .byte   FPOP_FFIXD
+        lda     16,s
+        ora     #0x80
+        sta     16,s
+
+.Lfsd_compose:
+        ldx     ,s
+        ldd     12,s
+        std     ,x
+        ldd     14,s
+        std     2,x
+        ldd     16,s
+        std     4,x
+        ldd     18,s
+        std     6,x
+
+        tst     2,s
+        beq     .Lfsd_done
+        ldd     ,x
+        coma
+        comb
+        std     ,x
+        ldd     2,x
+        coma
+        comb
+        std     2,x
+        ldd     4,x
+        coma
+        comb
+        std     4,x
+        ldd     6,x
+        coma
+        comb
+        std     6,x
+        ldd     6,x
+        addd    #1
+        std     6,x
+        bcc     .Lfsd_done
+        ldd     4,x
+        addd    #1
+        std     4,x
+        bcc     .Lfsd_done
+        ldd     2,x
+        addd    #1
+        std     2,x
+        bcc     .Lfsd_done
+        ldd     ,x
+        addd    #1
+        std     ,x
+
+.Lfsd_done:
+        leas    32,s
+        puls    u,y
+        rts
+        .size __fixsfdi, . - __fixsfdi
