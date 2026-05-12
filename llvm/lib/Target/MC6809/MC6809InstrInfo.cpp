@@ -1257,10 +1257,21 @@ static MachineInstrBuilder emitSpillStore(MachineIRBuilder &Builder,
                      ? Register(MC6809::AD)
                      : RealReg;
   unsigned Opcode = getStoreIdxOpcode(Reg, Offset);
+  // Bug #285: this store fills the imaginary spill slot, so it models
+  // a write of the SpillReg pseudo-register. Without an explicit
+  // implicit-def, callers that erase the originating pseudo (e.g.
+  // ZEX32Implicit, SEX32Implicit, *_i32_Mem spill helpers) leave the
+  // SPILL_* destination with no visible def in the final MIR.
+  // -fextend-lifetimes' FAKE_USE references (-Og) then fail with
+  // "Using an undefined physical register" at the post-postrapseudos
+  // verifier. Manifest at Og-hd6309-mame on hash_buf.c __get_buf
+  // after Bug #284's wider ZEX32Implicit Defs caused regalloc to
+  // prefer $spill_q0 over $aq.
   auto MI = Builder.buildInstr(Opcode)
       .addUse(Reg, RegState::Implicit)
       .addImm(Offset)
-      .addReg(MC6809::SU);  // Frame pointer — stable across PSHS/PULS
+      .addReg(MC6809::SU)  // Frame pointer — stable across PSHS/PULS
+      .addReg(Register(SpillReg), RegState::ImplicitDefine);
   return MI;
 }
 
