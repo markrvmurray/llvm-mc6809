@@ -5498,6 +5498,22 @@ void MC6809InstrInfo::expandCompareImm(MachineIRBuilder &Builder, MachineInstr &
         int Off = 0, Sz = 0;
         if (IsStoreToSU(*It, Off, Sz) && OverlapsSlot(Off, Sz))
           break;
+        // Bug #263: bail on any call. Calls clobber IX (caller-saved per
+        // the MC6809 ABI; only IY and SU are in MC6809_CSR). The slot's
+        // bytes survive the call (it's a frame-local slot the callee
+        // can't touch), but the IX register does NOT — so the
+        // "compare via IX" optimization is unsafe when a call sits
+        // between the STX and the LDD. Specifically, this manifested at
+        // -*-lto levels in picolibc's muld_neg60_probe: a printf call
+        // between the STX (saving sec_calc's i16 return) and the LDD
+        // (reloading for an `if (v != 43)` check) clobbered IX, so the
+        // resulting `cmpx #43` compared printf's return value instead
+        // of sec_calc's. The regmask on the call DOES list IX as
+        // clobbered, but `definesRegister` with TRI=nullptr doesn't
+        // consult the regmask. Using `MI.isCall()` is the robust
+        // catch-all: any call invalidates the index-source assumption.
+        if (It->isCall())
+          break;
         // If X or Y is redefined before we find the store, stop.
         if (It->definesRegister(MC6809::IX, /*TRI=*/nullptr) ||
             It->definesRegister(MC6809::IY, /*TRI=*/nullptr))
@@ -5574,6 +5590,11 @@ void MC6809InstrInfo::expandCompareIdx(MachineIRBuilder &Builder, MachineInstr &
         // the IX/IY value no longer mirrors the slot even if IX/IY itself is
         // still live (bug #125: SubSetCarry_i8_Reg writes spill_b/_a in place).
         if (storeOverlapsSpillSlot(*It, SpillOffset, SpillSize))
+          break;
+        // Bug #263: bail on any call. Calls clobber IX (caller-saved
+        // per the MC6809 ABI) via the regmask, which
+        // `definesRegister(_, TRI=nullptr)` doesn't consult.
+        if (It->isCall())
           break;
         if (It->definesRegister(MC6809::IX, /*TRI=*/nullptr) ||
             It->definesRegister(MC6809::IY, /*TRI=*/nullptr))
@@ -5805,6 +5826,11 @@ void MC6809InstrInfo::expandTestReg(MachineIRBuilder &Builder, MachineInstr &MI)
         // the IX/IY value no longer mirrors the slot even if IX/IY itself is
         // still live (bug #125: SubSetCarry_i8_Reg writes spill_b/_a in place).
         if (storeOverlapsSpillSlot(*It, SpillOffset, SpillSize))
+          break;
+        // Bug #263: bail on any call. Calls clobber IX (caller-saved
+        // per the MC6809 ABI) via the regmask, which
+        // `definesRegister(_, TRI=nullptr)` doesn't consult.
+        if (It->isCall())
           break;
         if (It->definesRegister(MC6809::IX, /*TRI=*/nullptr) ||
             It->definesRegister(MC6809::IY, /*TRI=*/nullptr))
