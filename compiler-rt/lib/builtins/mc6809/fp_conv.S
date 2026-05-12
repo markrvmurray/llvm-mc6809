@@ -185,16 +185,13 @@ __floatundisf:
         puls    u,y
         rts
 
-        .global __floatundidf
-__floatundidf:
-        ; u64 → f64.  TODO: full range.
-        pshs    u,y
-        leay    10,s
-        ldd     #__mc6839_fpcb_f64
-        lbsr    __fpreg
-        .byte   FPOP_FFLTD
-        puls    u,y
-        rts
+        ; __floatundidf moved to mc6809/floatundi.c — Bug #264:
+        ; arc4random's u64→f64 path needs full-range conversion,
+        ; not the low-32-bits truncation that the FFLTD wrapper
+        ; gave.  The other three siblings (__floatdisf, __floatdidf,
+        ; __floatundisf) retain the TODO/truncation behaviour for
+        ; size reasons — restoring them as C wrappers tripped
+        ; Os-lto-hd6309-mame-fp over its .bss-vs-.stack budget.
 
 ; ---- float → signed integer (FFIXD; truncation toward zero) ---------------
 
