@@ -372,7 +372,17 @@ def LEA_Ptr_Reg16 : MC6809LoadEffectiveAddress<INDEX16, (ins ACC16:$offset)>;
 
 def SEX8Implicit : MC6809LogicalInstr {
   // Expansion: AND[A|B] #1 + NEG[A|B] (or TFR + …).  NEG sets NZVC.
-  let Defs = [NZ, V, C];
+  //
+  // Bug #283-shape audit (Bug #284): on HD6309 the dst class ACC8
+  // includes AE/AF. When dst = AE/AF, the expansion forces a WorkReg
+  // = AA/AB (because AND/NEG only exist on A/B), runs AND+NEG on the
+  // WorkReg, then TFR WorkReg → dst. The WorkReg (AA or AB) IS
+  // clobbered as scratch — but the OutOperand only covers AE/AF
+  // (the dst). Without AA/AB in Defs the regalloc could leave a
+  // live unrelated value in AA or AB across this pseudo and the
+  // expansion would destroy it. AD covers AA + AB via class
+  // hierarchy.
+  let Defs = [NZ, V, C, AD];
   let hasSideEffects = 1;
   dag InOperandList = (ins BIT1:$src);
   dag OutOperandList = (outs ACC8:$dst);
@@ -382,7 +392,16 @@ def SEX8Implicit : MC6809LogicalInstr {
 def SEX16Implicit : MC6809LogicalInstr {
   // Expansion: SEX.  Sets NZ; V undefined on 6809, cleared on 6309 —
   // declare V for safety (no-wrong-code if hardware leaves V untouched).
-  let Defs = [NZ, V];
+  //
+  // Bug #283-shape audit (Bug #284): the SEXx hardware instruction
+  // sign-extends AB into AA, producing the i16 result in AD. The
+  // physical AD register IS the destination computation path, even
+  // when regalloc binds $dst to a SPILL_D* slot (in which case the
+  // post-RA expansion does an STD from AD to the spill slot after
+  // SEXx). If AD isn't listed in Defs, regalloc could leave AD live
+  // with an unrelated value across this pseudo and SEXx would
+  // silently destroy it. Mirrors the SEX32Implicit fix (Bug #247).
+  let Defs = [NZ, V, AD];
   let hasSideEffects = 1;
   dag InOperandList = (ins ABc:$src);
   dag OutOperandList = (outs ADc:$dst);
@@ -410,7 +429,13 @@ def SEX32Implicit : MC6809LogicalInstr {
   // MERGE_LOHI_i16 landing in ADc — can feed this pseudo without
   // tripping -verify-machineinstrs. The expansion routes every
   // non-AW source through copyPhysReg before SEXWx.
-  let Defs = [NZ, V, AD];
+  //
+  // Bug #283-shape audit (Bug #284): the expansion ALSO clobbers AW
+  // when the source isn't already in AW (via the pre-SEXWx
+  // copyPhysReg call). Without AW in Defs the regalloc could leave
+  // AW live with an unrelated value across this pseudo, and the
+  // src→AW copy would destroy it.
+  let Defs = [NZ, V, AD, AW];
   let hasSideEffects = 1;
   dag InOperandList = (ins ACC16:$src);
   dag OutOperandList = (outs ACC32:$dst);
@@ -465,7 +490,14 @@ def ZEX32Implicit : MC6809LogicalInstr {
   // ends up as (D=0 | W=src).  The earlier code only handled AD and
   // silently corrupted the low half whenever regalloc placed the
   // source in an RSn imaginary register.
-  let Defs = [NZ, V, C];
+  //
+  // Bug #283-shape audit (Bug #284): expansion clobbers AD via CLRDa
+  // AND AW via the src→AW copyPhysReg (when src != AW). The
+  // OutOperand only covers AQ (and AD/AW via super-reg) when dst=AQ;
+  // for SPILL_Q* dst the OutOperand covers only the spill slot. Add
+  // AD and AW to Defs so regalloc spills any live values in those
+  // physical registers across this pseudo.
+  let Defs = [NZ, V, C, AD, AW];
   let hasSideEffects = 1;
   dag InOperandList = (ins ACC16:$src);
   dag OutOperandList = (outs ACC32:$dst);

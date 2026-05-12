@@ -11,22 +11,21 @@ define dso_local signext i8 @div_s_i8(i8 signext %a, i8 signext %b) {
 ; O0-NEXT:    leas -11,s
 ; O0-NEXT:    pshs u
 ; O0-NEXT:    tfr s,u
-; O0-NEXT:    stb 8,u
+; O0-NEXT:    stb 6,u
 ; O0-NEXT:    ldb 15,u
 ; O0-NEXT:    stb 10,u
-; O0-NEXT:    ldb 8,u
+; O0-NEXT:    ldb 6,u
+; O0-NEXT:    std 4,u
 ; O0-NEXT:    sex
-; O0-NEXT:    std 6,u
+; O0-NEXT:    std 7,u
+; O0-NEXT:    ldd 4,u
 ; O0-NEXT:    ldb 10,u
 ; O0-NEXT:    sex
 ; O0-NEXT:    std 9,u
-; O0-NEXT:    ldd 6,u
 ; O0-NEXT:    leas -2,s
-; O0-NEXT:    std 4,u
 ; O0-NEXT:    ldd 9,u
 ; O0-NEXT:    std ,s
-; O0-NEXT:    ldd 4,u
-; O0-NEXT:    tfr d,x
+; O0-NEXT:    ldx 7,u
 ; O0-NEXT:    lbsr __divhi3
 ; O0-NEXT:    leas 2,s
 ; O0-NEXT:    tfr x,d
@@ -37,89 +36,80 @@ define dso_local signext i8 @div_s_i8(i8 signext %a, i8 signext %b) {
 ;
 ; O1-LABEL: div_s_i8:
 ; O1:       ; %bb.0: ; %entry
-; O1-NEXT:    leas -11,s
+; O1-NEXT:    leas -10,s
 ; O1-NEXT:    pshs u
 ; O1-NEXT:    tfr s,u
-; O1-NEXT:    stb 8,u
-; O1-NEXT:    ldb 15,u
-; O1-NEXT:    stb 10,u
-; O1-NEXT:    ldb 8,u
-; O1-NEXT:    std 6,u
-; O1-NEXT:    ldb 10,u
-; O1-NEXT:    sex
-; O1-NEXT:    std 9,u
-; O1-NEXT:    ldd 6,u
-; O1-NEXT:    sex
-; O1-NEXT:    leas -2,s
+; O1-NEXT:    stb 9,u
+; O1-NEXT:    ldb 14,u
 ; O1-NEXT:    std 4,u
-; O1-NEXT:    ldd 9,u
-; O1-NEXT:    std ,s
+; O1-NEXT:    sex
+; O1-NEXT:    std 6,u
 ; O1-NEXT:    ldd 4,u
-; O1-NEXT:    tfr d,x
+; O1-NEXT:    ldb 9,u
+; O1-NEXT:    sex
+; O1-NEXT:    std 8,u
+; O1-NEXT:    leas -2,s
+; O1-NEXT:    ldd 6,u
+; O1-NEXT:    std ,s
+; O1-NEXT:    ldx 8,u
 ; O1-NEXT:    lbsr __divhi3
 ; O1-NEXT:    leas 2,s
 ; O1-NEXT:    tfr x,d
 ; O1-NEXT:    tfr u,s
 ; O1-NEXT:    puls u
-; O1-NEXT:    leas 11,s
+; O1-NEXT:    leas 10,s
 ; O1-NEXT:    rts
 ;
 ; O2-LABEL: div_s_i8:
 ; O2:       ; %bb.0: ; %entry
-; O2-NEXT:    leas -11,s
+; O2-NEXT:    leas -10,s
 ; O2-NEXT:    pshs u
 ; O2-NEXT:    tfr s,u
-; O2-NEXT:    stb 8,u
-; O2-NEXT:    ldb 15,u
-; O2-NEXT:    stb 10,u
-; O2-NEXT:    ldb 8,u
-; O2-NEXT:    std 6,u
-; O2-NEXT:    ldb 10,u
-; O2-NEXT:    sex
-; O2-NEXT:    std 9,u
-; O2-NEXT:    ldd 6,u
-; O2-NEXT:    sex
-; O2-NEXT:    leas -2,s
+; O2-NEXT:    stb 9,u
+; O2-NEXT:    ldb 14,u
 ; O2-NEXT:    std 4,u
-; O2-NEXT:    ldd 9,u
-; O2-NEXT:    std ,s
+; O2-NEXT:    sex
+; O2-NEXT:    std 6,u
 ; O2-NEXT:    ldd 4,u
-; O2-NEXT:    tfr d,x
+; O2-NEXT:    ldb 9,u
+; O2-NEXT:    sex
+; O2-NEXT:    std 8,u
+; O2-NEXT:    leas -2,s
+; O2-NEXT:    ldd 6,u
+; O2-NEXT:    std ,s
+; O2-NEXT:    ldx 8,u
 ; O2-NEXT:    lbsr __divhi3
 ; O2-NEXT:    leas 2,s
 ; O2-NEXT:    tfr x,d
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u
-; O2-NEXT:    leas 11,s
+; O2-NEXT:    leas 10,s
 ; O2-NEXT:    rts
 ;
 ; O3-LABEL: div_s_i8:
 ; O3:       ; %bb.0: ; %entry
-; O3-NEXT:    leas -11,s
+; O3-NEXT:    leas -10,s
 ; O3-NEXT:    pshs u
 ; O3-NEXT:    tfr s,u
-; O3-NEXT:    stb 8,u
-; O3-NEXT:    ldb 15,u
-; O3-NEXT:    stb 10,u
-; O3-NEXT:    ldb 8,u
-; O3-NEXT:    std 6,u
-; O3-NEXT:    ldb 10,u
-; O3-NEXT:    sex
-; O3-NEXT:    std 9,u
-; O3-NEXT:    ldd 6,u
-; O3-NEXT:    sex
-; O3-NEXT:    leas -2,s
+; O3-NEXT:    stb 9,u
+; O3-NEXT:    ldb 14,u
 ; O3-NEXT:    std 4,u
-; O3-NEXT:    ldd 9,u
-; O3-NEXT:    std ,s
+; O3-NEXT:    sex
+; O3-NEXT:    std 6,u
 ; O3-NEXT:    ldd 4,u
-; O3-NEXT:    tfr d,x
+; O3-NEXT:    ldb 9,u
+; O3-NEXT:    sex
+; O3-NEXT:    std 8,u
+; O3-NEXT:    leas -2,s
+; O3-NEXT:    ldd 6,u
+; O3-NEXT:    std ,s
+; O3-NEXT:    ldx 8,u
 ; O3-NEXT:    lbsr __divhi3
 ; O3-NEXT:    leas 2,s
 ; O3-NEXT:    tfr x,d
 ; O3-NEXT:    tfr u,s
 ; O3-NEXT:    puls u
-; O3-NEXT:    leas 11,s
+; O3-NEXT:    leas 10,s
 ; O3-NEXT:    rts
 entry:
   %conv = sext i8 %a to i16
@@ -249,22 +239,21 @@ define dso_local signext i8 @mod_s_i8(i8 signext %a, i8 signext %b) {
 ; O0-NEXT:    leas -11,s
 ; O0-NEXT:    pshs u
 ; O0-NEXT:    tfr s,u
-; O0-NEXT:    stb 8,u
+; O0-NEXT:    stb 6,u
 ; O0-NEXT:    ldb 15,u
 ; O0-NEXT:    stb 10,u
-; O0-NEXT:    ldb 8,u
+; O0-NEXT:    ldb 6,u
+; O0-NEXT:    std 4,u
 ; O0-NEXT:    sex
-; O0-NEXT:    std 6,u
+; O0-NEXT:    std 7,u
+; O0-NEXT:    ldd 4,u
 ; O0-NEXT:    ldb 10,u
 ; O0-NEXT:    sex
 ; O0-NEXT:    std 9,u
-; O0-NEXT:    ldd 6,u
 ; O0-NEXT:    leas -2,s
-; O0-NEXT:    std 4,u
 ; O0-NEXT:    ldd 9,u
 ; O0-NEXT:    std ,s
-; O0-NEXT:    ldd 4,u
-; O0-NEXT:    tfr d,x
+; O0-NEXT:    ldx 7,u
 ; O0-NEXT:    lbsr __modhi3
 ; O0-NEXT:    leas 2,s
 ; O0-NEXT:    tfr x,d
@@ -275,89 +264,80 @@ define dso_local signext i8 @mod_s_i8(i8 signext %a, i8 signext %b) {
 ;
 ; O1-LABEL: mod_s_i8:
 ; O1:       ; %bb.0: ; %entry
-; O1-NEXT:    leas -11,s
+; O1-NEXT:    leas -10,s
 ; O1-NEXT:    pshs u
 ; O1-NEXT:    tfr s,u
-; O1-NEXT:    stb 8,u
-; O1-NEXT:    ldb 15,u
-; O1-NEXT:    stb 10,u
-; O1-NEXT:    ldb 8,u
-; O1-NEXT:    std 6,u
-; O1-NEXT:    ldb 10,u
-; O1-NEXT:    sex
-; O1-NEXT:    std 9,u
-; O1-NEXT:    ldd 6,u
-; O1-NEXT:    sex
-; O1-NEXT:    leas -2,s
+; O1-NEXT:    stb 9,u
+; O1-NEXT:    ldb 14,u
 ; O1-NEXT:    std 4,u
-; O1-NEXT:    ldd 9,u
-; O1-NEXT:    std ,s
+; O1-NEXT:    sex
+; O1-NEXT:    std 6,u
 ; O1-NEXT:    ldd 4,u
-; O1-NEXT:    tfr d,x
+; O1-NEXT:    ldb 9,u
+; O1-NEXT:    sex
+; O1-NEXT:    std 8,u
+; O1-NEXT:    leas -2,s
+; O1-NEXT:    ldd 6,u
+; O1-NEXT:    std ,s
+; O1-NEXT:    ldx 8,u
 ; O1-NEXT:    lbsr __modhi3
 ; O1-NEXT:    leas 2,s
 ; O1-NEXT:    tfr x,d
 ; O1-NEXT:    tfr u,s
 ; O1-NEXT:    puls u
-; O1-NEXT:    leas 11,s
+; O1-NEXT:    leas 10,s
 ; O1-NEXT:    rts
 ;
 ; O2-LABEL: mod_s_i8:
 ; O2:       ; %bb.0: ; %entry
-; O2-NEXT:    leas -11,s
+; O2-NEXT:    leas -10,s
 ; O2-NEXT:    pshs u
 ; O2-NEXT:    tfr s,u
-; O2-NEXT:    stb 8,u
-; O2-NEXT:    ldb 15,u
-; O2-NEXT:    stb 10,u
-; O2-NEXT:    ldb 8,u
-; O2-NEXT:    std 6,u
-; O2-NEXT:    ldb 10,u
-; O2-NEXT:    sex
-; O2-NEXT:    std 9,u
-; O2-NEXT:    ldd 6,u
-; O2-NEXT:    sex
-; O2-NEXT:    leas -2,s
+; O2-NEXT:    stb 9,u
+; O2-NEXT:    ldb 14,u
 ; O2-NEXT:    std 4,u
-; O2-NEXT:    ldd 9,u
-; O2-NEXT:    std ,s
+; O2-NEXT:    sex
+; O2-NEXT:    std 6,u
 ; O2-NEXT:    ldd 4,u
-; O2-NEXT:    tfr d,x
+; O2-NEXT:    ldb 9,u
+; O2-NEXT:    sex
+; O2-NEXT:    std 8,u
+; O2-NEXT:    leas -2,s
+; O2-NEXT:    ldd 6,u
+; O2-NEXT:    std ,s
+; O2-NEXT:    ldx 8,u
 ; O2-NEXT:    lbsr __modhi3
 ; O2-NEXT:    leas 2,s
 ; O2-NEXT:    tfr x,d
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u
-; O2-NEXT:    leas 11,s
+; O2-NEXT:    leas 10,s
 ; O2-NEXT:    rts
 ;
 ; O3-LABEL: mod_s_i8:
 ; O3:       ; %bb.0: ; %entry
-; O3-NEXT:    leas -11,s
+; O3-NEXT:    leas -10,s
 ; O3-NEXT:    pshs u
 ; O3-NEXT:    tfr s,u
-; O3-NEXT:    stb 8,u
-; O3-NEXT:    ldb 15,u
-; O3-NEXT:    stb 10,u
-; O3-NEXT:    ldb 8,u
-; O3-NEXT:    std 6,u
-; O3-NEXT:    ldb 10,u
-; O3-NEXT:    sex
-; O3-NEXT:    std 9,u
-; O3-NEXT:    ldd 6,u
-; O3-NEXT:    sex
-; O3-NEXT:    leas -2,s
+; O3-NEXT:    stb 9,u
+; O3-NEXT:    ldb 14,u
 ; O3-NEXT:    std 4,u
-; O3-NEXT:    ldd 9,u
-; O3-NEXT:    std ,s
+; O3-NEXT:    sex
+; O3-NEXT:    std 6,u
 ; O3-NEXT:    ldd 4,u
-; O3-NEXT:    tfr d,x
+; O3-NEXT:    ldb 9,u
+; O3-NEXT:    sex
+; O3-NEXT:    std 8,u
+; O3-NEXT:    leas -2,s
+; O3-NEXT:    ldd 6,u
+; O3-NEXT:    std ,s
+; O3-NEXT:    ldx 8,u
 ; O3-NEXT:    lbsr __modhi3
 ; O3-NEXT:    leas 2,s
 ; O3-NEXT:    tfr x,d
 ; O3-NEXT:    tfr u,s
 ; O3-NEXT:    puls u
-; O3-NEXT:    leas 11,s
+; O3-NEXT:    leas 10,s
 ; O3-NEXT:    rts
 entry:
   %conv = sext i8 %a to i16

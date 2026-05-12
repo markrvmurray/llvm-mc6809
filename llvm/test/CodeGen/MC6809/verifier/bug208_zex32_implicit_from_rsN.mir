@@ -26,7 +26,7 @@ tracksRegLiveness: true
 body: |
   bb.0:
     liveins: $rs0
-    $aq = ZEX32Implicit $rs0, implicit-def $nz, implicit-def $v, implicit-def $c
+    $aq = ZEX32Implicit $rs0, implicit-def $nz, implicit-def $v, implicit-def $c, implicit-def $ad, implicit-def $aw
     RTSr implicit $aq
 ...
 
@@ -43,7 +43,7 @@ tracksRegLiveness: true
 body: |
   bb.0:
     liveins: $rs2
-    $aq = ZEX32Implicit $rs2, implicit-def $nz, implicit-def $v, implicit-def $c
+    $aq = ZEX32Implicit $rs2, implicit-def $nz, implicit-def $v, implicit-def $c, implicit-def $ad, implicit-def $aw
     RTSr implicit $aq
 ...
 
@@ -61,7 +61,7 @@ tracksRegLiveness: true
 body: |
   bb.0:
     liveins: $ad
-    $aq = ZEX32Implicit $ad, implicit-def $nz, implicit-def $v, implicit-def $c
+    $aq = ZEX32Implicit $ad, implicit-def $nz, implicit-def $v, implicit-def $c, implicit-def $ad, implicit-def $aw
     RTSr implicit $aq
 ...
 
@@ -78,6 +78,6 @@ tracksRegLiveness: true
 body: |
   bb.0:
     liveins: $aw
-    $aq = ZEX32Implicit $aw, implicit-def $nz, implicit-def $v, implicit-def $c
+    $aq = ZEX32Implicit $aw, implicit-def $nz, implicit-def $v, implicit-def $c, implicit-def $ad, implicit-def $aw
     RTSr implicit $aq
 ...
