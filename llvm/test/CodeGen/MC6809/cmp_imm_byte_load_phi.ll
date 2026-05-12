@@ -40,11 +40,13 @@ define dso_local i16 @cmp_imm_byte_load_phi_no_wrap(ptr noundef readonly capture
 ; CHECK-NEXT:    cmpb #45
 ; CHECK-NEXT:    lbeq .LBB0_2
 ; CHECK-NEXT:  ; %bb.1: ; %entry
-; CHECK-NEXT:    ldb #0
+; CHECK-NEXT:    lda #0
 ; CHECK-NEXT:    bra .LBB0_3
 ; CHECK-NEXT:  .LBB0_2: ; %entry
-; CHECK-NEXT:    ldb #1
+; CHECK-NEXT:    lda #1
 ; CHECK-NEXT:  .LBB0_3: ; %entry
+; CHECK-NEXT:    tfr a,b
+; CHECK-NEXT:    andb #1
 ; CHECK-NEXT:    andb #1
 ; CHECK-NEXT:    clra
 ; CHECK-NEXT:    ldy 10,u

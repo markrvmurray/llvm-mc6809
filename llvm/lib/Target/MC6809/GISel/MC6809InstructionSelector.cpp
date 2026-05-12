@@ -798,28 +798,50 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
           return true;
         }
       }
-      // Bug #274: non-phantom G_ZEXT s1→s8 whose source is the output
-      // of G_TRUNC s8→s1 (line 1004 selects it to AND_i8_Imm tied,
-      // forcing the vreg into ACC8 class). The imported ZEX8Implicit
-      // pattern expects ABLSBc — constrain silently demotes, and
-      // -verify-machineinstrs flags the class mismatch. GISel isel is
-      // bottom-up so the producer hasn't been selected yet here; detect
-      // the upcoming AND_i8_Imm by walking SrcReg's defining MI.
-      // Replace G_ZEXT with a direct AND_i8_Imm tied form — AND #1 of a
-      // value already in {0,1} is idempotent and the resulting MIR
-      // matches the byte-source consumer's class hierarchy.
-      MachineInstr *Def = MRI->getVRegDef(SrcReg);
-      if (Def && Def->getOpcode() == TargetOpcode::G_TRUNC &&
-          MRI->getType(Def->getOperand(1).getReg()) == LLT::scalar(8)) {
-        MRI->setRegClass(DstReg, &MC6809::ACC8RegClass);
-        MRI->setRegClass(SrcReg, &MC6809::ACC8RegClass);
-        MI.setDesc(TII.get(MC6809::AND_i8_Imm));
-        MI.getOperand(1).setIsUse();
-        MI.tieOperands(0, 1);
-        MI.addOperand(MachineOperand::CreateImm(1));
-        return true;
-      }
-      // Fall through to TableGen patterns for non-phantom G_ZEXT s1→s8.
+      // Bug #274 + Bug #281: route all remaining (non-phantom)
+      // G_ZEXT s1→s8 through AND_i8_Imm tied form rather than the
+      // imported ZEX8Implicit TableGen pattern.
+      //
+      // ZEX8Implicit's `InOperandList = (ins ABLSBc:$src)` is a 1-bit
+      // sub-register class disjoint from ACC8 (which holds full
+      // bytes). When the source vreg ends up in ACC8 via any of:
+      //   - Bug #274 G_TRUNC s8→s1 producer (selected to AND_i8_Imm
+      //     tied → ACC8);
+      //   - Bug #281 G_PHI whose inputs are themselves G_TRUNC
+      //     outputs (PHI inherits ACC8);
+      //   - any future producer pattern that emits into ACC8;
+      // the class-constrain machinery cannot bridge ABLSBc ↔ ACC8
+      // (the intersection is empty — different virtual classes on
+      // the same physreg) and -verify-machineinstrs flags
+      // `%dst:abc = ZEX8Implicit %src:acc8`. GISel runs bottom-up so
+      // we cannot reliably detect "source is in ACC8" at G_ZEXT
+      // selection time — the producer's class may still be unset or
+      // not yet forced (it gets forced when a later-selected
+      // consumer pins it). A class-or-producer-based check misses
+      // these timing-dependent cases.
+      //
+      // The unconditional route is safe because AND_i8_Imm tied
+      // with immediate 1 expands to `AND[A|B] #1`, which is exactly
+      // ZEX8Implicit's own post-RA expansion. AND #1 against an
+      // i1-bounded value is idempotent, so chaining doesn't break
+      // semantics. ABc is the narrowest class that satisfies both
+      // AND_i8_Imm and downstream consumers like ZEX16Implicit
+      // (`InOperandList = (ins ABc:$src)`); the wider ACC8 leaves
+      // ZEX16Implicit's class-strict mismatch unsatisfied.
+      //
+      // The unconditional route can produce an extra `AND[A|B] #1`
+      // at -O0 when a producer also emits AND #1 (e.g., a G_ICMP
+      // selection that materialises the i1 already-masked). This is
+      // a code-size wart at -O0 only; instruction-level optimisers
+      // at -O1+ fold the redundant mask. The semantic correctness of
+      // AND #1 idempotency makes this safe.
+      MRI->setRegClass(DstReg, &MC6809::ABcRegClass);
+      MRI->setRegClass(SrcReg, &MC6809::ABcRegClass);
+      MI.setDesc(TII.get(MC6809::AND_i8_Imm));
+      MI.getOperand(1).setIsUse();
+      MI.tieOperands(0, 1);
+      MI.addOperand(MachineOperand::CreateImm(1));
+      return true;
     }
   }
 

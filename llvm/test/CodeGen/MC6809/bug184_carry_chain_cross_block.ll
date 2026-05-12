@@ -45,11 +45,13 @@ define void @atol_like(ptr %out, ptr %s) {
 ; CHECK-NEXT:    cmpb #45
 ; CHECK-NEXT:    lbeq .LBB0_2
 ; CHECK-NEXT:  ; %bb.1: ; %entry
-; CHECK-NEXT:    ldb #0
+; CHECK-NEXT:    lda #0
 ; CHECK-NEXT:    lbra .LBB0_3
 ; CHECK-NEXT:  .LBB0_2: ; %entry
-; CHECK-NEXT:    ldb #1
+; CHECK-NEXT:    lda #1
 ; CHECK-NEXT:  .LBB0_3: ; %entry
+; CHECK-NEXT:    tfr a,b
+; CHECK-NEXT:    andb #1
 ; CHECK-NEXT:    andb #1
 ; CHECK-NEXT:    lda #0
 ; CHECK-NEXT:    sta 50,u
