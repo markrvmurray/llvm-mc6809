@@ -1908,6 +1908,19 @@ void LiveIntervals::addInstructionDefsToRegUnits(MachineInstr &MI) {
       LiveRange *LR = getCachedRegUnit(Unit);
       if (!LR)
         continue;
+      // MC6809 Bug #291: skip if the slot is already covered by an
+      // existing segment in this regunit's LiveRange.  This happens
+      // at LTO codegen where EnablePrecomputePhysRegs + extendToUses
+      // can produce segments spanning many instructions before the
+      // spiller runs; createDeadDef would assert "Already live at
+      // def" (LiveInterval.cpp:114) because Pos is inside the
+      // segment, not at its start.  The covering segment already
+      // constrains any vreg assigned to a physreg containing this
+      // regunit at Pos, so no additional dead-def is needed — and
+      // no Bug #290 delegate fire (the constraint was already known
+      // to greedy via the pre-existing segment).
+      if (LR->liveAt(Pos))
+        continue;
       // createDeadDef is idempotent.
       LR->createDeadDef(Pos, getVNInfoAllocator());
       ++RegUnitFixedTags[static_cast<unsigned>(Unit)];
