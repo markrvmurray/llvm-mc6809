@@ -76,6 +76,15 @@ class LLVM_LIBRARY_VISIBILITY InterferenceCache {
       /// Tag of the LIU last time we looked.
       unsigned VirtTag;
 
+      /// MC6809 Bug #256: Tag of the fixed-interference LiveRange
+      /// (LiveIntervals::getRegUnitFixedTag) last time we cached the
+      /// `Fixed` pointer and its iterator below.  When this differs
+      /// from the current tag, the spiller (or any other mutator) has
+      /// modified the regunit range, so we must re-fetch both `Fixed`
+      /// and `FixedI` before consulting them — the cached pointer may
+      /// even point to deleted memory (see `LIS.removeRegUnit`).
+      unsigned FixedTag = 0;
+
       /// Fixed interference in RegUnit.
       LiveRange *Fixed = nullptr;
 

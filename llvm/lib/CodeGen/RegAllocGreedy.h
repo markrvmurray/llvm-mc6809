@@ -308,6 +308,9 @@ private:
   bool LRE_CanEraseVirtReg(Register) override;
   void LRE_WillShrinkVirtReg(Register) override;
   void LRE_DidCloneVirtReg(Register, Register) override;
+  // MC6809 Bug #256: retract any physreg implicit-defs the MI carried
+  // from LiveIntervals' regunit ranges before it disappears.
+  void LRE_WillEraseInstruction(MachineInstr *MI) override;
   void enqueue(PQueue &CurQueue, const LiveInterval *LI);
   const LiveInterval *dequeue(PQueue &CurQueue);
 

@@ -74,6 +74,13 @@ bool RABasic::LRE_CanEraseVirtReg(Register VirtReg) {
   return false;
 }
 
+// MC6809 Bug #256: see RAGreedy::LRE_WillEraseInstruction.
+void RABasic::LRE_WillEraseInstruction(MachineInstr *MI) {
+  if (!MI)
+    return;
+  LIS->removeInstructionDefsFromRegUnits(*MI);
+}
+
 void RABasic::LRE_WillShrinkVirtReg(Register VirtReg) {
   if (!VRM->hasPhys(VirtReg))
     return;

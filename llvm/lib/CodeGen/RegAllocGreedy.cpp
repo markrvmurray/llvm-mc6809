@@ -401,6 +401,17 @@ void RAGreedy::LRE_DidCloneVirtReg(Register New, Register Old) {
   ExtraInfo->LRE_DidCloneVirtReg(New, Old);
 }
 
+// MC6809 Bug #256: LiveRangeEdit::eliminateDeadDefs fires this hook
+// just before erasing an instruction.  Retract any physreg implicit-
+// defs the MI carried (e.g. a spiller-inserted SpillLoad_i32_Mem with
+// its NZ/V/AD descriptor clobbers) from LiveIntervals' regunit ranges
+// so we do not leave orphan VNInfo defs at the soon-to-be-empty slot.
+void RAGreedy::LRE_WillEraseInstruction(MachineInstr *MI) {
+  if (!MI)
+    return;
+  LIS->removeInstructionDefsFromRegUnits(*MI);
+}
+
 void RAGreedy::ExtraRegInfo::LRE_DidCloneVirtReg(Register New, Register Old) {
   // Cloning a register we haven't even heard about yet?  Just ignore it.
   if (!Info.inBounds(Old))

@@ -84,7 +84,9 @@ InterferenceCache::Entry *InterferenceCache::get(MCRegister PhysReg) {
   llvm_unreachable("Ran out of interference cache entries.");
 }
 
-/// revalidate - LIU contents have changed, update tags.
+/// revalidate - LIU or fixed-interference contents have changed; update tags
+/// and re-fetch the regunit `Fixed` pointer (which may have been deleted by
+/// `LIS::removeRegUnit` between caching and now).
 void InterferenceCache::Entry::revalidate(LiveIntervalUnion *LIUArray,
                                           const TargetRegisterInfo *TRI) {
   // Invalidate all block entries.
@@ -92,8 +94,16 @@ void InterferenceCache::Entry::revalidate(LiveIntervalUnion *LIUArray,
   // Invalidate all iterators.
   PrevPos = SlotIndex();
   unsigned i = 0;
-  for (MCRegUnit Unit : TRI->regunits(PhysReg))
-    RegUnits[i++].VirtTag = LIUArray[static_cast<unsigned>(Unit)].getTag();
+  for (MCRegUnit Unit : TRI->regunits(PhysReg)) {
+    RegUnits[i].VirtTag = LIUArray[static_cast<unsigned>(Unit)].getTag();
+    // MC6809 Bug #256: re-fetch `Fixed` and capture the current
+    // fixed-interference tag.  If the regunit range was deleted and
+    // recreated since reset(), the previous pointer is dangling.
+    RegUnits[i].Fixed = &LIS->getRegUnit(Unit);
+    RegUnits[i].FixedI = LiveInterval::iterator();
+    RegUnits[i].FixedTag = LIS->getRegUnitFixedTag(Unit);
+    ++i;
+  }
 }
 
 void InterferenceCache::Entry::reset(MCRegister physReg,
@@ -112,6 +122,10 @@ void InterferenceCache::Entry::reset(MCRegister physReg,
   for (MCRegUnit Unit : TRI->regunits(PhysReg)) {
     RegUnits.push_back(LIUArray[static_cast<unsigned>(Unit)]);
     RegUnits.back().Fixed = &LIS->getRegUnit(Unit);
+    // MC6809 Bug #256: snapshot the fixed-interference version so
+    // subsequent `valid()` calls can detect mid-regalloc mutations
+    // (e.g. spiller-inserted MIs with physreg implicit-defs).
+    RegUnits.back().FixedTag = LIS->getRegUnitFixedTag(Unit);
   }
 }
 
@@ -122,6 +136,10 @@ bool InterferenceCache::Entry::valid(LiveIntervalUnion *LIUArray,
     if (i == e)
       return false;
     if (LIUArray[static_cast<unsigned>(Unit)].changedSince(RegUnits[i].VirtTag))
+      return false;
+    // MC6809 Bug #256: fixed-interference range may have been mutated
+    // (e.g. dead-def added for a spiller-inserted MI's implicit-def).
+    if (LIS->getRegUnitFixedTag(Unit) != RegUnits[i].FixedTag)
       return false;
     ++i;
   }

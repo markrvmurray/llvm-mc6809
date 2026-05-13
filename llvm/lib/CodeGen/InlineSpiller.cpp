@@ -144,6 +144,10 @@ public:
   void hoistAllSpills();
   bool LRE_CanEraseVirtReg(Register) override;
   void LRE_DidCloneVirtReg(Register, Register) override;
+  // MC6809 Bug #256: retract any physreg implicit-defs from
+  // LiveIntervals' regunit ranges before the MI is erased — see
+  // matching overrides in RAGreedy/RABasic.
+  void LRE_WillEraseInstruction(MachineInstr *MI) override;
 };
 
 class InlineSpiller : public Spiller {
@@ -479,8 +483,11 @@ bool InlineSpiller::hoistSpillInsideBB(LiveInterval &SpillLI,
   TII.storeRegToStackSlot(*MBB, MII, SrcReg, false, StackSlot,
                           MRI.getRegClass(SrcReg), Register());
   LIS.InsertMachineInstrRangeInMaps(MIS.begin(), MII);
-  for (const MachineInstr &MI : make_range(MIS.begin(), MII))
+  for (MachineInstr &MI : make_range(MIS.begin(), MII)) {
     getVDefInterval(MI, LIS);
+    // MC6809 Bug #256: see matching call in insertSpill.
+    LIS.addInstructionDefsToRegUnits(MI);
+  }
   --MII; // Point to store instruction.
   LLVM_DEBUG(dbgs() << "\thoisted: " << SrcVNI->def << '\t' << *MII);
 
@@ -890,6 +897,10 @@ bool InlineSpiller::coalesceStackAccess(MachineInstr *MI, Register Reg) {
     HSpiller.rmFromMergeableSpills(*MI, StackSlot);
 
   LLVM_DEBUG(dbgs() << "Coalescing stack access: " << *MI);
+  // MC6809 Bug #256: retract any physreg implicit-defs before the MI's
+  // slot is unmapped (`RemoveMachineInstrFromMaps` nullifies the MI
+  // pointer; orphan VNInfo defs survive otherwise).
+  LIS.removeInstructionDefsFromRegUnits(*MI);
   LIS.RemoveMachineInstrFromMaps(*MI);
   MI->eraseFromParent();
 
@@ -1111,8 +1122,13 @@ foldMemoryOperand(ArrayRef<std::pair<MachineInstr *, unsigned>> Ops,
   // Insert any new instructions other than FoldMI into the LIS maps.
   assert(!MIS.empty() && "Unexpected empty span of instructions!");
   for (MachineInstr &MI : MIS)
-    if (&MI != FoldMI && &MI != CopyMI)
+    if (&MI != FoldMI && &MI != CopyMI) {
       LIS.InsertMachineInstrInMaps(MI);
+      // MC6809 Bug #256: foldMemoryOperand may emit auxiliary MIs
+      // (e.g. address adjustments) that carry physreg implicit-defs.
+      // Propagate them into regunit ranges.
+      LIS.addInstructionDefsToRegUnits(MI);
+    }
 
   if (CopyMI) {
     Register R = CopyMI->getOperand(1).getReg();
@@ -1161,6 +1177,13 @@ void InlineSpiller::insertReload(Register NewVReg,
 
   LIS.InsertMachineInstrRangeInMaps(MIS.begin(), MI);
 
+  // MC6809 Bug #256: propagate any physreg implicit-defs the reload
+  // MI(s) declared (e.g. SpillLoad_i32_Mem's NZ/V/AD clobbers) into
+  // LiveIntervals' regunit ranges so greedy's interference query sees
+  // the clobber on subsequent vreg assignments.
+  for (MachineInstr &NewMI : make_range(MIS.begin(), MI))
+    LIS.addInstructionDefsToRegUnits(NewMI);
+
   LLVM_DEBUG(dumpMachineInstrRangeWithSlotIndex(MIS.begin(), MI, LIS, "reload",
                                                 NewVReg));
   ++NumReloads;
@@ -1204,8 +1227,11 @@ void InlineSpiller::insertSpill(Register NewVReg, bool isKill,
 
   MachineBasicBlock::iterator Spill = std::next(MI);
   LIS.InsertMachineInstrRangeInMaps(Spill, MIS.end());
-  for (const MachineInstr &MI : make_range(Spill, MIS.end()))
-    getVDefInterval(MI, LIS);
+  for (MachineInstr &NewMI : make_range(Spill, MIS.end())) {
+    getVDefInterval(NewMI, LIS);
+    // MC6809 Bug #256: see matching call in insertReload.
+    LIS.addInstructionDefsToRegUnits(NewMI);
+  }
 
   LLVM_DEBUG(
       dumpMachineInstrRangeWithSlotIndex(Spill, MIS.end(), LIS, "spill"));
@@ -1778,14 +1804,22 @@ void HoistSpillHelper::hoistAllSpills() {
       TII.storeRegToStackSlot(*BB, MII, LiveReg, false, Slot,
                               MRI.getRegClass(LiveReg), Register());
       LIS.InsertMachineInstrRangeInMaps(MIS.begin(), MII);
-      for (const MachineInstr &MI : make_range(MIS.begin(), MII))
+      for (MachineInstr &MI : make_range(MIS.begin(), MII)) {
         getVDefInterval(MI, LIS);
+        // MC6809 Bug #256: see matching call in insertSpill.
+        LIS.addInstructionDefsToRegUnits(MI);
+      }
       ++NumSpills;
     }
 
     // Remove redundant spills or change them to dead instructions.
     NumSpills -= SpillsToRm.size();
     for (auto *const RMEnt : SpillsToRm) {
+      // MC6809 Bug #256: before rewriting to KILL and stripping
+      // implicit physreg defs, retract this MI's def operands from
+      // regunit ranges so we do not leave orphan VNInfo defs at the
+      // slot (the MI persists but its declared clobbers go away).
+      LIS.removeInstructionDefsFromRegUnits(*RMEnt);
       RMEnt->setDesc(TII.get(TargetOpcode::KILL));
       for (unsigned i = RMEnt->getNumOperands(); i; --i) {
         MachineOperand &MO = RMEnt->getOperand(i - 1);
@@ -1798,6 +1832,17 @@ void HoistSpillHelper::hoistAllSpills() {
 }
 
 /// Called before a virtual register is erased from LiveIntervals.
+// MC6809 Bug #256: see RAGreedy::LRE_WillEraseInstruction.  The
+// HoistSpillHelper runs its own LiveRangeEdit-driven eliminateDeadDefs
+// for hoisted spill stores; this hook ensures any physreg implicit-
+// defs on the erased MI are retracted from LiveIntervals' regunit
+// ranges before the slot's MI pointer is nulled.
+void HoistSpillHelper::LRE_WillEraseInstruction(MachineInstr *MI) {
+  if (!MI)
+    return;
+  LIS.removeInstructionDefsFromRegUnits(*MI);
+}
+
 /// Forcibly remove the register from LiveRegMatrix before it's deleted,
 /// preventing dangling pointers.
 bool HoistSpillHelper::LRE_CanEraseVirtReg(Register VirtReg) {

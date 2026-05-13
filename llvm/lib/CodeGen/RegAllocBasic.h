@@ -56,6 +56,9 @@ class LLVM_LIBRARY_VISIBILITY RABasic : public MachineFunctionPass,
 
   bool LRE_CanEraseVirtReg(Register) override;
   void LRE_WillShrinkVirtReg(Register) override;
+  // MC6809 Bug #256: retract any physreg implicit-defs from
+  // LiveIntervals' regunit ranges before the MI is erased.
+  void LRE_WillEraseInstruction(MachineInstr *MI) override;
 
 public:
   RABasic(const RegAllocFilterFunc F = nullptr);

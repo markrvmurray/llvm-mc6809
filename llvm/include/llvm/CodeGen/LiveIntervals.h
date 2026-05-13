@@ -98,6 +98,16 @@ class LiveIntervals {
   /// interference.
   SmallVector<LiveRange *, 0> RegUnitRanges;
 
+  /// MC6809 Bug #256: per-regunit version counter, bumped whenever the
+  /// corresponding entry of RegUnitRanges is mutated.  Parallel to
+  /// RegUnitRanges (same indexing).  Consumed by InterferenceCache so
+  /// that cached LiveRange* pointers and segment cursors can be
+  /// invalidated when the underlying fixed-interference range changes
+  /// mid-regalloc (e.g. the spiller inserts a new MI with physreg
+  /// implicit-defs).  Tag value 0 is the initial state; consumers
+  /// re-fetch when the tag they cached differs from the current tag.
+  SmallVector<unsigned, 0> RegUnitFixedTags;
+
   // Can only be created from pass manager.
   LiveIntervals() = default;
   LiveIntervals(MachineFunction &MF, SlotIndexes &SI, MachineDominatorTree &DT)
@@ -426,6 +436,10 @@ public:
       RegUnitRanges[static_cast<unsigned>(Unit)] = LR =
           new LiveRange(UseSegmentSetForPhysRegs);
       computeRegUnitRange(*LR, Unit);
+      // MC6809 Bug #256: bump the version tag so any consumer that
+      // cached a previous nullptr or stale pointer for this regunit
+      // re-fetches before its next interference query.
+      ++RegUnitFixedTags[static_cast<unsigned>(Unit)];
     }
     return *LR;
   }
@@ -440,11 +454,22 @@ public:
     return RegUnitRanges[static_cast<unsigned>(Unit)];
   }
 
+  /// MC6809 Bug #256: Return the current version tag for the
+  /// fixed-interference range of regunit \p Unit.  Consumers should
+  /// cache this alongside any cached `LiveRange*` for the unit and
+  /// re-fetch when the tag they observe differs from the current value.
+  unsigned getRegUnitFixedTag(MCRegUnit Unit) const {
+    return RegUnitFixedTags[static_cast<unsigned>(Unit)];
+  }
+
   /// Remove computed live range for register unit \p Unit. Subsequent uses
   /// should rely on on-demand recomputation.
   void removeRegUnit(MCRegUnit Unit) {
     delete RegUnitRanges[static_cast<unsigned>(Unit)];
     RegUnitRanges[static_cast<unsigned>(Unit)] = nullptr;
+    // MC6809 Bug #256: bump version tag — any consumer holding the
+    // deleted pointer must invalidate before its next access.
+    ++RegUnitFixedTags[static_cast<unsigned>(Unit)];
   }
 
   /// Remove associated live ranges for the register units associated with \p
@@ -460,6 +485,39 @@ public:
   /// \p Pos that are part of any liverange of physical register \p Reg or one
   /// of its subregisters.
   LLVM_ABI void removePhysRegDefAt(MCRegister Reg, SlotIndex Pos);
+
+  /// MC6809 Bug #256: walk the physreg def operands of \p MI (explicit
+  /// AND implicit) and record a dead-def at MI's slot in each affected
+  /// regunit's `LiveRange`, but only if that regunit's range is already
+  /// cached.  If the range hasn't been computed yet, lazy computation
+  /// will pick up the def via `LICalc::createDeadDefs` walking
+  /// `MRI->def_operands`, so no explicit action is required.  The
+  /// per-regunit version tag is bumped on every modification so that
+  /// `InterferenceCache::Entry` invalidates its cached `Fixed` pointer
+  /// at next interference query.
+  ///
+  /// Pre-condition: \p MI has already been inserted via
+  /// `InsertMachineInstrInMaps` so its SlotIndex is valid.
+  ///
+  /// Spiller-facing API: called by `InlineSpiller::insertReload` and
+  /// `insertSpill` so spills with physreg implicit-defs (e.g. MC6809's
+  /// `SpillLoad_i32_Mem` clobber set) are visible to the greedy
+  /// allocator's interference query.
+  LLVM_ABI void addInstructionDefsToRegUnits(MachineInstr &MI);
+
+  /// MC6809 Bug #256: symmetric counterpart to
+  /// `addInstructionDefsToRegUnits`.  Remove any value at MI's slot
+  /// from each affected regunit's cached `LiveRange`, bumping the
+  /// per-regunit version tag.  Must be called BEFORE
+  /// `RemoveMachineInstrFromMaps` (the SlotIndex must still resolve).
+  ///
+  /// Spiller-facing API: called from `LRE_WillEraseInstruction` on the
+  /// three `LiveRangeEdit::Delegate` implementers (`RAGreedy`,
+  /// `RABasic`, `HoistSpillHelper`) so any spiller-introduced physreg
+  /// def is retracted before the MI vanishes — otherwise orphan
+  /// VNInfo defs would survive at slots whose MI was erased
+  /// (`-verify-machineinstrs` rejects this state).
+  LLVM_ABI void removeInstructionDefsFromRegUnits(MachineInstr &MI);
 
   /// Remove value number and related live segments of \p LI and its subranges
   /// that start at position \p Pos.

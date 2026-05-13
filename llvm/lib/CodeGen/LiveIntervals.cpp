@@ -151,6 +151,7 @@ void LiveIntervals::clear() {
   for (LiveRange *LR : RegUnitRanges)
     delete LR;
   RegUnitRanges.clear();
+  RegUnitFixedTags.clear();
 
   // Release VNInfo memory regions, VNInfo objects don't need to be dtor'd.
   VNInfoAllocator.Reset();
@@ -354,6 +355,8 @@ void LiveIntervals::computeRegUnitRange(LiveRange &LR, MCRegUnit Unit) {
 /// entering the entry block or a landing pad.
 void LiveIntervals::computeLiveInRegUnits() {
   RegUnitRanges.resize(TRI->getNumRegUnits());
+  // MC6809 Bug #256: keep RegUnitFixedTags sized in lockstep.
+  RegUnitFixedTags.assign(TRI->getNumRegUnits(), 0u);
   LLVM_DEBUG(dbgs() << "Computing live-in reg-units in ABI blocks.\n");
 
   // Keep track of the live range sets allocated.
@@ -376,6 +379,10 @@ void LiveIntervals::computeLiveInRegUnits() {
           LR = RegUnitRanges[static_cast<unsigned>(Unit)] =
               new LiveRange(UseSegmentSetForPhysRegs);
           NewRanges.push_back(Unit);
+          // MC6809 Bug #256: range created here; bump tag once at
+          // first-touch so any consumer that previously cached a
+          // nullptr re-fetches.
+          ++RegUnitFixedTags[static_cast<unsigned>(Unit)];
         }
         VNInfo *VNI = LR->createDeadDef(Begin, getVNInfoAllocator());
         (void)VNI;
@@ -1779,8 +1786,173 @@ LiveIntervals::repairIntervalsInRange(MachineBasicBlock *MBB,
 void LiveIntervals::removePhysRegDefAt(MCRegister Reg, SlotIndex Pos) {
   for (MCRegUnit Unit : TRI->regunits(Reg)) {
     if (LiveRange *LR = getCachedRegUnit(Unit))
-      if (VNInfo *VNI = LR->getVNInfoAt(Pos))
+      if (VNInfo *VNI = LR->getVNInfoAt(Pos)) {
         LR->removeValNo(VNI);
+        // MC6809 Bug #256: regunit range mutated — bump tag.
+        ++RegUnitFixedTags[static_cast<unsigned>(Unit)];
+      }
+  }
+}
+
+// MC6809 Bug #256: walk a newly-inserted MI's physreg def operands
+// (explicit and implicit) and propagate the implicit clobbers into
+// any already-computed regunit LiveRange.  Bumping the per-regunit
+// version tag invalidates any InterferenceCache::Entry that cached a
+// stale `Fixed` pointer for this unit, forcing it to re-fetch on the
+// next interference query.
+//
+// If a regunit's range has not been lazily computed yet, we skip it:
+// the eventual `getRegUnit(Unit)` call will invoke `computeRegUnitRange`
+// which walks `MRI->def_operands` (which already includes the new
+// implicit-defs since `BuildMI` attached them).  This avoids
+// double-recording in cases where lazy compute would have picked the
+// def up itself.
+//
+// Two complications to handle:
+//
+//  (a) False self-conflict when the implicit-def's regunits are
+//      sub-regs of EVERY physreg in an explicit vreg-def's regclass.
+//      Example: `%vreg:AQc = SpillLoad ..., implicit-def $ad`.  AQc =
+//      {$aq}; $aq's sub-reg tree contains $ad.  So whichever physreg
+//      greedy assigns to %vreg, $ad is auto-clobbered by that
+//      assignment.  Adding a separate dead-def for $ad at the same
+//      slot would make greedy reject %vreg's only valid assignment.
+//      Skip these implicit-defs.
+//
+//  (b) The mixed case: dst's regclass contains some physregs that
+//      cover the implicit-def AND some that don't (e.g. ACC32 =
+//      {AQ, SPILL_Q0..3}: AQ covers $ad's regunits, SPILL_Q* doesn't).
+//      The clobber is REAL when greedy picks a non-covering physreg
+//      (SPILL_Q*), so we MUST propagate.  Greedy's interference query
+//      against the AQ-covered side will reject AQ (false conflict),
+//      forcing greedy to choose SPILL_Q* — which is actually fine if
+//      that's a valid option, but pessimal otherwise.  This is the
+//      irreducible architectural tension; we accept the pessimization
+//      to keep the SPILL_Q*-dst miscompile (Bug #256) closed.
+//
+//  Heuristic: skip only when ALL physregs in the explicit vreg-def's
+//  regclass cover the implicit-def's regunits.  In any other case
+//  propagate.
+void LiveIntervals::addInstructionDefsToRegUnits(MachineInstr &MI) {
+  if (MI.isMetaInstruction())
+    return;
+  SlotIndex BaseIdx = getInstructionIndex(MI);
+
+  // Collect per-explicit-vreg-def regclasses, so we can test each
+  // implicit-def against ALL physregs in the dst class.
+  SmallVector<const TargetRegisterClass *, 2> DstClasses;
+  for (const MachineOperand &MO : mi_bundle_ops(MI)) {
+    if (!MO.isReg() || !MO.isDef() || !MO.getReg().isVirtual())
+      continue;
+    if (const TargetRegisterClass *RC = MRI->getRegClassOrNull(MO.getReg()))
+      DstClasses.push_back(RC);
+  }
+
+  // Build the set of regunits that every physreg in every dst class
+  // already covers.  An implicit-def whose regunits are a subset of
+  // this set is fully shadowed by the dst's assignment, regardless of
+  // which physreg greedy picks.
+  SmallSet<MCRegUnit, 16> UniversallyCoveredUnits;
+  bool FirstClass = true;
+  for (const TargetRegisterClass *RC : DstClasses) {
+    SmallSet<MCRegUnit, 16> ThisClassUnits;
+    bool FirstPhys = true;
+    for (MCPhysReg PR : *RC) {
+      SmallSet<MCRegUnit, 16> PhysUnits;
+      for (MCRegUnit U : TRI->regunits(PR))
+        PhysUnits.insert(U);
+      if (FirstPhys) {
+        ThisClassUnits = PhysUnits;
+        FirstPhys = false;
+      } else {
+        // Intersect: only units covered by THIS physreg too.
+        SmallSet<MCRegUnit, 16> Inter;
+        for (MCRegUnit U : ThisClassUnits)
+          if (PhysUnits.count(U))
+            Inter.insert(U);
+        ThisClassUnits = Inter;
+      }
+    }
+    if (FirstClass) {
+      UniversallyCoveredUnits = ThisClassUnits;
+      FirstClass = false;
+    } else {
+      // Multiple dst operands: only units covered by ALL of them.
+      SmallSet<MCRegUnit, 16> Inter;
+      for (MCRegUnit U : UniversallyCoveredUnits)
+        if (ThisClassUnits.count(U))
+          Inter.insert(U);
+      UniversallyCoveredUnits = Inter;
+    }
+  }
+
+  for (const MachineOperand &MO : mi_bundle_ops(MI)) {
+    if (!MO.isReg() || !MO.isDef())
+      continue;
+    Register R = MO.getReg();
+    if (!R.isPhysical())
+      continue;
+    // (a) Skip "dst-universally-covered" implicit-defs.
+    bool CoveredByEveryDst = !DstClasses.empty();
+    for (MCRegUnit U : TRI->regunits(R.asMCReg())) {
+      if (!UniversallyCoveredUnits.count(U)) {
+        CoveredByEveryDst = false;
+        break;
+      }
+    }
+    if (CoveredByEveryDst)
+      continue;
+    SlotIndex Pos =
+        MO.isEarlyClobber() ? BaseIdx.getRegSlot(true) : BaseIdx.getRegSlot();
+    for (MCRegUnit Unit : TRI->regunits(R.asMCReg())) {
+      LiveRange *LR = getCachedRegUnit(Unit);
+      if (!LR)
+        continue;
+      // createDeadDef is idempotent.
+      LR->createDeadDef(Pos, getVNInfoAllocator());
+      ++RegUnitFixedTags[static_cast<unsigned>(Unit)];
+    }
+  }
+}
+
+// MC6809 Bug #256: symmetric to addInstructionDefsToRegUnits.  Called
+// BEFORE the MI is removed from slot-index maps (so the SlotIndex
+// still resolves), this retracts any value at MI's slot from each
+// affected regunit's cached LiveRange and bumps the version tag.
+//
+// Required because `SlotIndexes::removeMachineInstrFromMaps` only
+// nulls the MI pointer on the index entry — the slot itself persists.
+// Without this cleanup, orphan VNInfo defs would survive at slots
+// whose MI vanished; the MachineVerifier rejects this state with
+// "No instruction at VNInfo def index".
+void LiveIntervals::removeInstructionDefsFromRegUnits(MachineInstr &MI) {
+  if (MI.isMetaInstruction())
+    return;
+  if (!Indexes->hasIndex(MI))
+    return; // Defensive: caller may pass already-unmapped MIs.
+  SlotIndex BaseIdx = getInstructionIndex(MI);
+  for (const MachineOperand &MO : mi_bundle_ops(MI)) {
+    if (!MO.isReg() || !MO.isDef())
+      continue;
+    Register R = MO.getReg();
+    if (!R.isPhysical())
+      continue;
+    SlotIndex Pos =
+        MO.isEarlyClobber() ? BaseIdx.getRegSlot(true) : BaseIdx.getRegSlot();
+    for (MCRegUnit Unit : TRI->regunits(R.asMCReg())) {
+      LiveRange *LR = getCachedRegUnit(Unit);
+      if (!LR)
+        continue;
+      if (VNInfo *VNI = LR->getVNInfoAt(Pos)) {
+        // Only retract if this VNI is defined exactly at Pos by THIS
+        // MI's def slot — other MIs may share a regunit value here
+        // (rare but defensible).
+        if (VNI->def == Pos) {
+          LR->removeValNo(VNI);
+          ++RegUnitFixedTags[static_cast<unsigned>(Unit)];
+        }
+      }
+    }
   }
 }
 
