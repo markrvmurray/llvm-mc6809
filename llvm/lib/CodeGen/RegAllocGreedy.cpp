@@ -412,6 +412,97 @@ void RAGreedy::LRE_WillEraseInstruction(MachineInstr *MI) {
   LIS->removeInstructionDefsFromRegUnits(*MI);
 }
 
+// MC6809 Bug #290: companion to LRE_WillEraseInstruction (which
+// handles MI *removal*).  This handler reacts to MI *insertion* with
+// a physreg implicit-def the spiller just propagated into the cached
+// regunit LiveRange for `Unit` at slot `Pos`.  Any vreg currently
+// assigned to a physreg containing Unit whose live range covers Pos
+// has been silently invalidated; re-enqueue it so greedy's main loop
+// re-allocates it through the full selectOrSplit pipeline.
+//
+// Critical: route through RegAllocBase::enqueue (not just push to
+// NewVRegs) so tryAssign → tryEvict → trySplit → tryInstructionSplit
+// → spill all get a chance.  The previous Bug #290 attempt
+// (commit-but-reverted) hand-rolled the eviction at spiller time
+// and bypassed trySplit, which made tight functions like
+// libm's nextafterf BUILDFAIL.
+cl::opt<bool> EnableMC6809ClobberReEval(
+    "mc6809-greedy-clobber-reeval", cl::init(true), cl::Hidden,
+    cl::desc("Bug #290: route spiller-driven physreg clobbers through "
+             "greedy's selectOrSplit pipeline for already-assigned vregs"));
+
+// Return true iff \p LI should be re-evaluated given that a new
+// clobber on regunit \p Unit was just added at MI's slot.
+static bool greedyShouldReEvaluate(const LiveInterval &LI, MachineInstr &MI,
+                                   MCRegUnit Unit,
+                                   const TargetRegisterInfo &TRI,
+                                   const VirtRegMap &VRM,
+                                   const RAGreedy::ExtraRegInfo &ExtraInfo) {
+  // Skip if this vreg appears as an operand of MI itself — evicting
+  // it would force greedy to reassign just to feed the same MI that
+  // clobbers it, which is self-defeating (the ffsl.c-style case).
+  Register VReg = LI.reg();
+  for (const MachineOperand &MO : MI.operands())
+    if (MO.isReg() && MO.getReg() == VReg)
+      return false;
+  // Skip if the vreg's CURRENT physreg's regunits do not include
+  // Unit.  The LIU walk should imply this, but defensive against
+  // any LIU staleness.
+  if (!VRM.hasPhys(VReg))
+    return false;
+  bool PhysContainsUnit = false;
+  for (MCRegUnit U : TRI.regunits(VRM.getPhys(VReg))) {
+    if (U == Unit) {
+      PhysContainsUnit = true;
+      break;
+    }
+  }
+  if (!PhysContainsUnit)
+    return false;
+  // Skip vregs already past RS_Done — re-enqueueing them would loop
+  // greedy into the same failure that put them there.
+  if (ExtraInfo.getStage(LI) >= RS_Done)
+    return false;
+  return true;
+}
+
+void RAGreedy::clobberPropagatedToRegUnit(MachineInstr &MI, MCRegUnit Unit,
+                                          SlotIndex Pos) {
+  if (!EnableMC6809ClobberReEval)
+    return;
+  if (!Matrix)
+    return;
+  LiveIntervalUnion &LIU =
+      Matrix->getLiveUnions()[static_cast<unsigned>(Unit)];
+  // LIU segments are disjoint within a single regunit, so at most one
+  // vreg covers any specific slot.  But find()'s pre-condition is
+  // start <= x < stop on the returned iterator if valid.
+  auto It = LIU.find(Pos);
+  while (It.valid() && It.start() <= Pos) {
+    const LiveInterval *LI = It.value();
+    SlotIndex SegStop = It.stop();
+    ++It;
+    if (!LI || !LI->liveAt(Pos))
+      continue;
+    if (!greedyShouldReEvaluate(*LI, MI, Unit, *TRI, *VRM, *ExtraInfo))
+      continue;
+    LLVM_DEBUG(dbgs() << "  Bug #290: re-evaluating "
+                      << printReg(LI->reg(), TRI) << " across new clobber at "
+                      << Pos << " (unit " << printRegUnit(Unit, TRI) << ")\n");
+    Matrix->unassign(*LI);
+    // Assign a fresh cascade so subsequent eviction attempts treat
+    // this re-allocated vreg as a peer (same protective mechanism
+    // greedy uses in evictInterference).
+    ExtraInfo->getOrAssignNewCascade(LI->reg());
+    // Reset to RS_Assign so the full selectOrSplit pipeline runs
+    // (tryAssign → tryEvict → trySplit → ... → spill) rather than
+    // jumping straight to the stage the vreg was previously at.
+    ExtraInfo->setStage(*LI, RS_Assign);
+    RegAllocBase::enqueue(LI);
+    (void)SegStop;
+  }
+}
+
 void RAGreedy::ExtraRegInfo::LRE_DidCloneVirtReg(Register New, Register Old) {
   // Cloning a register we haven't even heard about yet?  Just ignore it.
   if (!Info.inBounds(Old))
@@ -3002,8 +3093,17 @@ bool RAGreedy::run(MachineFunction &mf) {
   GlobalCand.resize(32);  // This will grow as needed.
   SetOfBrokenHints.clear();
 
+  // MC6809 Bug #290: register as LiveIntervals clobber delegate so
+  // spiller-driven physreg clobbers re-enqueue already-assigned
+  // vregs through selectOrSplit.
+  LIS->setClobberDelegate(this);
+
   allocatePhysRegs();
   tryHintsRecoloring();
+
+  // MC6809 Bug #290: clear before MF state is released so the
+  // dangling-pointer hazard from a subsequent LIS pass is avoided.
+  LIS->clearClobberDelegate();
 
   if (VerifyEnabled)
     MF->verify(LIS, Indexes, "Before post optimization", &errs());

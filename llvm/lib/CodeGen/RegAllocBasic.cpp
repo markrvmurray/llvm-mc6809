@@ -81,6 +81,54 @@ void RABasic::LRE_WillEraseInstruction(MachineInstr *MI) {
   LIS->removeInstructionDefsFromRegUnits(*MI);
 }
 
+// MC6809 Bug #290: see RAGreedy::clobberPropagatedToRegUnit.  Simpler
+// here — RABasic has no cascade machinery or stages, so we just
+// unassign + enqueue.  The same `mc6809-greedy-clobber-reeval` cl::opt
+// gates both implementations.
+extern cl::opt<bool> EnableMC6809ClobberReEval; // defined in RegAllocGreedy.cpp
+
+void RABasic::clobberPropagatedToRegUnit(MachineInstr &MI, MCRegUnit Unit,
+                                         SlotIndex Pos) {
+  if (!EnableMC6809ClobberReEval || !Matrix)
+    return;
+  LiveIntervalUnion &LIU =
+      Matrix->getLiveUnions()[static_cast<unsigned>(Unit)];
+  auto It = LIU.find(Pos);
+  while (It.valid() && It.start() <= Pos) {
+    const LiveInterval *LI = It.value();
+    ++It;
+    if (!LI || !LI->liveAt(Pos))
+      continue;
+    Register VReg = LI->reg();
+    // Skip if vreg is an operand of MI itself.
+    bool IsOperand = false;
+    for (const MachineOperand &MO : MI.operands())
+      if (MO.isReg() && MO.getReg() == VReg) {
+        IsOperand = true;
+        break;
+      }
+    if (IsOperand)
+      continue;
+    // Skip if vreg's current physreg doesn't include Unit.
+    if (!VRM->hasPhys(VReg))
+      continue;
+    bool PhysContainsUnit = false;
+    for (MCRegUnit U : TRI->regunits(VRM->getPhys(VReg))) {
+      if (U == Unit) {
+        PhysContainsUnit = true;
+        break;
+      }
+    }
+    if (!PhysContainsUnit)
+      continue;
+    LLVM_DEBUG(dbgs() << "  Bug #290: re-evaluating "
+                      << printReg(VReg, TRI) << " across new clobber at "
+                      << Pos << " (unit " << printRegUnit(Unit, TRI) << ")\n");
+    Matrix->unassign(*LI);
+    enqueue(LI);
+  }
+}
+
 void RABasic::LRE_WillShrinkVirtReg(Register VirtReg) {
   if (!VRM->hasPhys(VirtReg))
     return;
@@ -247,7 +295,14 @@ bool RABasic::runOnMachineFunction(MachineFunction &mf) {
   SpillerInstance.reset(
       createInlineSpiller({*LIS, LiveStks, MDT, MBFI}, *MF, *VRM, VRAI));
 
+  // MC6809 Bug #290: register as LiveIntervals clobber delegate.
+  LIS->setClobberDelegate(this);
+
   allocatePhysRegs();
+
+  // MC6809 Bug #290: clear before postOptimization / releaseMemory.
+  LIS->clearClobberDelegate();
+
   postOptimization();
 
   // Diagnostic output before rewriting

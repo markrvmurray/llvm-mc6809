@@ -24,6 +24,7 @@
 #include "llvm/CodeGen/CalcSpillWeights.h"
 #include "llvm/CodeGen/LiveDebugVariables.h"
 #include "llvm/CodeGen/LiveInterval.h"
+#include "llvm/CodeGen/LiveIntervals.h"
 #include "llvm/CodeGen/LiveRangeEdit.h"
 #include "llvm/CodeGen/LiveStacks.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -57,7 +58,8 @@ class TargetInstrInfo;
 class VirtRegMap;
 
 class LLVM_LIBRARY_VISIBILITY RAGreedy : public RegAllocBase,
-                                         private LiveRangeEdit::Delegate {
+                                         private LiveRangeEdit::Delegate,
+                                         private LiveIntervals::ClobberDelegate {
 public:
   struct RequiredAnalyses;
 
@@ -311,6 +313,10 @@ private:
   // MC6809 Bug #256: retract any physreg implicit-defs the MI carried
   // from LiveIntervals' regunit ranges before it disappears.
   void LRE_WillEraseInstruction(MachineInstr *MI) override;
+  // MC6809 Bug #290: re-enqueue any already-assigned vreg whose
+  // physreg is now invalidated by a spiller-driven new clobber.
+  void clobberPropagatedToRegUnit(MachineInstr &MI, MCRegUnit Unit,
+                                  SlotIndex Pos) override;
   void enqueue(PQueue &CurQueue, const LiveInterval *LI);
   const LiveInterval *dequeue(PQueue &CurQueue);
 

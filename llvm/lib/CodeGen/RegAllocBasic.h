@@ -16,6 +16,7 @@
 #define LLVM_CODEGEN_REGALLOCBASIC_H
 
 #include "RegAllocBase.h"
+#include "llvm/CodeGen/LiveIntervals.h"
 #include "llvm/CodeGen/LiveRangeEdit.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/Spiller.h"
@@ -40,7 +41,8 @@ struct CompSpillWeight {
 /// the speed of the basic algorithm against other styles of allocators.
 class LLVM_LIBRARY_VISIBILITY RABasic : public MachineFunctionPass,
                                         public RegAllocBase,
-                                        private LiveRangeEdit::Delegate {
+                                        private LiveRangeEdit::Delegate,
+                                        private LiveIntervals::ClobberDelegate {
   // context
   MachineFunction *MF = nullptr;
 
@@ -59,6 +61,10 @@ class LLVM_LIBRARY_VISIBILITY RABasic : public MachineFunctionPass,
   // MC6809 Bug #256: retract any physreg implicit-defs from
   // LiveIntervals' regunit ranges before the MI is erased.
   void LRE_WillEraseInstruction(MachineInstr *MI) override;
+  // MC6809 Bug #290: re-enqueue any already-assigned vreg whose
+  // physreg is now invalidated by a spiller-driven new clobber.
+  void clobberPropagatedToRegUnit(MachineInstr &MI, MCRegUnit Unit,
+                                  SlotIndex Pos) override;
 
 public:
   RABasic(const RegAllocFilterFunc F = nullptr);

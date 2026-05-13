@@ -56,6 +56,33 @@ class LiveIntervals {
   friend class LiveIntervalsAnalysis;
   friend class LiveIntervalsWrapperPass;
 
+public:
+  /// MC6809 Bug #290: hook for register allocators to react to
+  /// spiller-driven physreg clobbers added mid-pass.  Bug #256 Fix B's
+  /// `addInstructionDefsToRegUnits` propagates a new MI's implicit-defs
+  /// into the affected regunits' cached LiveRanges; vregs already
+  /// assigned to physregs containing those regunits whose live range
+  /// crosses the new MI's slot now have an invalid assignment.
+  /// Greedy needs to re-evaluate them, but greedy's main loop only
+  /// processes unassigned vregs.  This delegate is fired once per
+  /// (Unit, Slot) where a new dead-def was recorded so the allocator
+  /// can re-enqueue the affected assigned vregs through its own
+  /// selectOrSplit pipeline.
+  class ClobberDelegate {
+  public:
+    virtual ~ClobberDelegate() = default;
+    /// Called when a new dead-def has been recorded in the cached
+    /// regunit LiveRange for \p Unit at slot \p Pos by an MI \p MI
+    /// that the spiller (or any other mid-pass mutator) just
+    /// inserted via addInstructionDefsToRegUnits.  Implementations
+    /// should walk LiveRegMatrix's LIU at Unit and re-enqueue any
+    /// assigned vregs whose live range covers Pos.
+    virtual void clobberPropagatedToRegUnit(MachineInstr &MI,
+                                            MCRegUnit Unit,
+                                            SlotIndex Pos) = 0;
+  };
+
+private:
   MachineFunction *MF = nullptr;
   MachineRegisterInfo *MRI = nullptr;
   const TargetRegisterInfo *TRI = nullptr;
@@ -107,6 +134,14 @@ class LiveIntervals {
   /// implicit-defs).  Tag value 0 is the initial state; consumers
   /// re-fetch when the tag they cached differs from the current tag.
   SmallVector<unsigned, 0> RegUnitFixedTags;
+
+  /// MC6809 Bug #290: optional delegate for the register allocator
+  /// to react to spiller-driven physreg clobbers (see
+  /// `addInstructionDefsToRegUnits`).  Set by RegAllocGreedy / RABasic
+  /// at run() entry; cleared at exit.  nullptr is the default state
+  /// (no notification fired — safe pre/post regalloc and outside any
+  /// allocator pass).
+  ClobberDelegate *ClobberCallback = nullptr;
 
   // Can only be created from pass manager.
   LiveIntervals() = default;
@@ -461,6 +496,16 @@ public:
   unsigned getRegUnitFixedTag(MCRegUnit Unit) const {
     return RegUnitFixedTags[static_cast<unsigned>(Unit)];
   }
+
+  /// MC6809 Bug #290: register a delegate to be notified when
+  /// `addInstructionDefsToRegUnits` propagates a new dead-def into a
+  /// cached regunit LiveRange.  The register allocator (RAGreedy /
+  /// RABasic) registers itself here so it can re-enqueue already-
+  /// assigned vregs whose physreg is now invalidated by the new
+  /// clobber.  Pass nullptr (or call clearClobberDelegate) to
+  /// disable notification.
+  void setClobberDelegate(ClobberDelegate *D) { ClobberCallback = D; }
+  void clearClobberDelegate() { ClobberCallback = nullptr; }
 
   /// Remove computed live range for register unit \p Unit. Subsequent uses
   /// should rely on on-demand recomputation.

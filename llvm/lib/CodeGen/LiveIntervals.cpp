@@ -1911,6 +1911,18 @@ void LiveIntervals::addInstructionDefsToRegUnits(MachineInstr &MI) {
       // createDeadDef is idempotent.
       LR->createDeadDef(Pos, getVNInfoAllocator());
       ++RegUnitFixedTags[static_cast<unsigned>(Unit)];
+      // MC6809 Bug #290: notify the regalloc that a new clobber has
+      // been recorded at (Unit, Pos).  The allocator's delegate can
+      // re-enqueue any already-assigned vreg whose physreg covers
+      // Unit and whose live range crosses Pos, sending it through
+      // selectOrSplit (tryAssign → tryEvict → trySplit → spill) for
+      // re-allocation.  Only fires for regunits whose LiveRange was
+      // already cached AND not covered by the explicit vreg-def
+      // class above; the universal-cover skip earlier in this
+      // function ensures the dst's own auto-clobber doesn't trigger
+      // false re-evals.
+      if (ClobberCallback)
+        ClobberCallback->clobberPropagatedToRegUnit(MI, Unit, Pos);
     }
   }
 }
