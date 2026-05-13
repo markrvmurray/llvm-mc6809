@@ -27,7 +27,10 @@ set(LLVM_RUNTIME_TARGETS "" CACHE STRING "" FORCE)
 # RT library / builtins cross-compilation for bare-metal MC6809.
 set(LLVM_BUILTIN_TARGETS mc6809-unknown-unknown CACHE STRING "")
 set(BUILTINS_mc6809-unknown-unknown_COMPILER_RT_BAREMETAL_BUILD ON CACHE BOOL "")
-set(BUILTINS_mc6809-unknown-unknown_COMPILER_RT_BUILTINS_ENABLE_PIC OFF CACHE BOOL "")
+# Bug #295: PIE end-to-end. The hand-written FP wrapper .S files now use
+# PCR-relative loads (R_MC6809_PCREL_16) for the FPCB pointer; the C-built
+# builtins are PIE-clean too. Compiler-rt builds with -fPIC enabled.
+set(BUILTINS_mc6809-unknown-unknown_COMPILER_RT_BUILTINS_ENABLE_PIC ON CACHE BOOL "")
 set(BUILTINS_mc6809-unknown-unknown_CMAKE_BUILD_TYPE MinSizeRel CACHE STRING "")
 set(BUILTINS_mc6809-unknown-unknown_CMAKE_SYSTEM_NAME Generic CACHE STRING "")
 
