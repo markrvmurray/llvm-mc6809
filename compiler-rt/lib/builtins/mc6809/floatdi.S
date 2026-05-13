@@ -23,11 +23,9 @@
 
         .text
 
-FPOP_FADD       = 0x00
-FPOP_FSUB       = 0x02
-FPOP_FMUL       = 0x04
-FPOP_FFIXD      = 0x18
-FPOP_FFLTD      = 0x26
+; Bug #287: opcodes + IEEE 754 high-half constants from shared headers.
+.include "mc6839_fpops.inc"
+.include "mc6839_abi.inc"
 
 ; ===========================================================================
 ;
@@ -85,7 +83,7 @@ __floatundidf:
         lbsr    __fpreg
         .byte   FPOP_FFLTD           ; *X = (double)(hi & 0x7FFFFFFF)
         ; add 2^31 = 0x41E0_0000_0000_0000 to *X
-        ldd     #0x41E0
+        ldd     #F64_TWOP31_HI
         std     14,s
         clra
         clrb
@@ -99,7 +97,7 @@ __floatundidf:
         .byte   FPOP_FADD            ; *sret += 2^31
 .Lfundidf_hi_mul:
         ; ----- step 2: *X *= 2^32  (= 0x41F0_0000_0000_0000) -----
-        ldd     #0x41F0
+        ldd     #F64_TWOP32_HI
         std     2,s
         clra
         clrb
@@ -134,7 +132,7 @@ __floatundidf:
         lbsr    __fpreg
         .byte   FPOP_FFLTD           ; lo_f64 = (lo & 0x7FFFFFFF)
         ; 2^31 const at [S+14..21]
-        ldd     #0x41E0
+        ldd     #F64_TWOP31_HI
         std     14,s
         clra
         clrb
@@ -181,7 +179,7 @@ __floatdidf:
         lbsr    __fpreg
         .byte   FPOP_FFLTD
         ; ----- step 2: *X *= 2^32 -----
-        ldd     #0x41F0
+        ldd     #F64_TWOP32_HI
         std     2,s
         clra
         clrb
@@ -214,7 +212,7 @@ __floatdidf:
         ldd     #__mc6839_fpcb_f64
         lbsr    __fpreg
         .byte   FPOP_FFLTD
-        ldd     #0x41E0
+        ldd     #F64_TWOP31_HI
         std     14,s
         clra
         clrb
@@ -280,7 +278,7 @@ __floatundisf:
         lbsr    __fpreg
         .byte   FPOP_FFLTD
         ; 2^31 as f32 = 0x4F00_0000
-        ldd     #0x4F00
+        ldd     #F32_TWOP31_HI
         std     10,s
         clra
         clrb
@@ -292,7 +290,7 @@ __floatundisf:
         .byte   FPOP_FADD
 .Lfundisf_hi_mul:
         ; *X *= 2^32 as f32 = 0x4F80_0000
-        ldd     #0x4F80
+        ldd     #F32_TWOP32_HI
         std     2,s
         clra
         clrb
@@ -323,7 +321,7 @@ __floatundisf:
         ldd     #__mc6839_fpcb_f32
         lbsr    __fpreg
         .byte   FPOP_FFLTD
-        ldd     #0x4F00
+        ldd     #F32_TWOP31_HI
         std     10,s
         clra
         clrb
@@ -364,7 +362,7 @@ __floatdisf:
         lbsr    __fpreg
         .byte   FPOP_FFLTD
         ; *X *= 2^32
-        ldd     #0x4F80
+        ldd     #F32_TWOP32_HI
         std     2,s
         clra
         clrb
@@ -395,7 +393,7 @@ __floatdisf:
         ldd     #__mc6839_fpcb_f32
         lbsr    __fpreg
         .byte   FPOP_FFLTD
-        ldd     #0x4F00
+        ldd     #F32_TWOP31_HI
         std     10,s
         clra
         clrb
@@ -474,7 +472,7 @@ __fixdfdi:
         std     10,s
 
         ; ----- step 2: scratch = |a| * 2^-32 -----
-        ldd     #0x3DF0              ; 2^-32 high word
+        ldd     #F64_TWOP_NEG_32_HI              ; 2^-32 high word
         std     28,s
         clra
         clrb
@@ -503,7 +501,7 @@ __fixdfdi:
         .byte   FPOP_FFLTD
 
         ; ----- step 5: scratch *= 2^32 -----
-        ldd     #0x41F0
+        ldd     #F64_TWOP32_HI
         std     28,s
         clra
         clrb
@@ -527,7 +525,7 @@ __fixdfdi:
 
         ; ----- step 7: split lo on residual < or >= 2^31 -----
         ldd     20,s                 ; top 2 bytes of residual
-        cmpd    #0x41E0
+        cmpd    #F64_TWOP31_HI
         bhs     .Lfdd_bit31
 
         ; Simple: lo_u32 = FFIXD_trunc(residual). X = &lo_u32, Y = residual.
@@ -540,7 +538,7 @@ __fixdfdi:
 
 .Lfdd_bit31:
         ; residual -= 2^31, FFIXD, then OR bit 31 of low byte 0.
-        ldd     #0x41E0              ; 2^31 const
+        ldd     #F64_TWOP31_HI              ; 2^31 const
         std     28,s
         clra
         clrb
@@ -666,7 +664,7 @@ __fixsfdi:
         std     6,s                  ; |a| at [S+4..7]
 
         ; scratch = |a| * 2^-32. 2^-32 f32 = 0x2F800000.
-        ldd     #0x2F80
+        ldd     #F32_TWOP_NEG_32_HI
         std     24,s
         clra
         clrb
@@ -693,7 +691,7 @@ __fixsfdi:
         .byte   FPOP_FFLTD
 
         ; scratch *= 2^32. 2^32 f32 = 0x4F800000.
-        ldd     #0x4F80
+        ldd     #F32_TWOP32_HI
         std     24,s
         clra
         clrb
@@ -715,7 +713,7 @@ __fixsfdi:
 
         ; Check residual >= 2^31? Top 2 bytes >= 0x4F00?
         ldd     20,s
-        cmpd    #0x4F00
+        cmpd    #F32_TWOP31_HI
         bhs     .Lfsd_bit31
 
         leax    16,s
@@ -727,7 +725,7 @@ __fixsfdi:
 
 .Lfsd_bit31:
         ; residual -= 2^31. 2^31 f32 = 0x4F000000.
-        ldd     #0x4F00
+        ldd     #F32_TWOP31_HI
         std     24,s
         clra
         clrb

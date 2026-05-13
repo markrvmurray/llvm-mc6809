@@ -13,18 +13,17 @@
 
         .text
 
-FPOP_FADD       = 0x00
-FPOP_FFIXD      = 0x18
-FPOP_FFLTD      = 0x26
-FPOP_FMOV       = 0x9A
+; Bug #287: opcodes + FMOV/IEEE constants from shared headers.
+.include "mc6839_fpops.inc"
+.include "mc6839_abi.inc"
 
 ; ---- precision conversion (FMOV; U = precision word) ----------------------
 
         .global __extendsfdf2
 __extendsfdf2:
-        ; f32 → f64.  Precision word: src=single(0), dst=double(1) → U=0x01.
+        ; f32 → f64.  Precision word: src=single(0), dst=double(1).
         pshs    u,y
-        ldu     #0x01
+        ldu     #FMOV_S_TO_D
         leay    6,s
         ldd     #__mc6839_fpcb_f64
         lbsr    __fpreg
@@ -34,9 +33,9 @@ __extendsfdf2:
 
         .global __truncdfsf2
 __truncdfsf2:
-        ; f64 → f32.  Precision word: src=double(1), dst=single(0) → U=0x10.
+        ; f64 → f32.  Precision word: src=double(1), dst=single(0).
         pshs    u,y
-        ldu     #0x10
+        ldu     #FMOV_D_TO_S
         leay    6,s
         ldd     #__mc6839_fpcb_f32
         lbsr    __fpreg
@@ -93,7 +92,7 @@ __floatunsisf:
         lbsr    __fpreg
         .byte   FPOP_FFLTD
         ; result now in *X.  Add 2^31 = 0x4F000000.
-        ldd     #0x4F00
+        ldd     #F32_TWOP31_HI
         std     ,s
         clra
         clrb
@@ -132,7 +131,7 @@ __floatunsidf:
         lbsr    __fpreg
         .byte   FPOP_FFLTD
         ; 2^31 as f64 = 0x41E0000000000000
-        ldd     #0x41E0
+        ldd     #F64_TWOP31_HI
         std     4,s
         clra
         clrb

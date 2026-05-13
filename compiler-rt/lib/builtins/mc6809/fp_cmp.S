@@ -34,7 +34,9 @@
 
         .text
 
-FPOP_FCMP       = 0x8A
+; Bug #287: opcodes + parameter-word constants from shared headers.
+.include "mc6839_fpops.inc"
+.include "mc6839_abi.inc"
 
 ; ---- f32 comparison --------------------------------------------------------
 
@@ -56,7 +58,7 @@ __nesf2:
         leau    8,s                 ; U = &arg1
         leay    12,s                ; Y = &arg2
         ldd     #__mc6839_fpcb_f32  ; D = &fpcb
-        ldx     #0x0000             ; parameter word: single, single
+        ldx     #FCMP_S_S           ; parameter word: single, single
         lbsr    __fpreg
         .byte   FPOP_FCMP
         bra     .Lcmp_cleanup       ; (BRA preserves CC)
@@ -81,7 +83,7 @@ __nedf2:
         leau    8,s
         leay    16,s                ; f64 arg2 starts 8 bytes higher
         ldd     #__mc6839_fpcb_f64
-        ldx     #0x0011             ; parameter word: double, double
+        ldx     #FCMP_D_D           ; parameter word: double, double
         lbsr    __fpreg
         .byte   FPOP_FCMP
         ; fall through

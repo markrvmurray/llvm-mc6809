@@ -23,20 +23,23 @@
 ; __mc6839_fpcb_f32_trunc: CTL=0x0A: single/toward-zero/+normalize.
 ; __mc6839_fpcb_f64_trunc: CTL=0x2A: double/toward-zero/+normalize.
 
+; Bug #287: FP_CTRL_* bitfield constants from shared header.
+.include "mc6839_abi.inc"
+
         .data
         .global __mc6839_fpcb_f32
 __mc6839_fpcb_f32:
-        .byte   0x08, 0, 0, 0, 0, 0   ; CTL=0x08: single/nearest/+NRM
+        .byte   FP_CTRL_SINGLE | FP_CTRL_NRM | FP_CTRL_RN, 0, 0, 0, 0, 0
 
         .global __mc6839_fpcb_f64
 __mc6839_fpcb_f64:
-        .byte   0x28, 0, 0, 0, 0, 0   ; CTL=0x28: double/nearest/+NRM
+        .byte   FP_CTRL_DOUBLE | FP_CTRL_NRM | FP_CTRL_RN, 0, 0, 0, 0, 0
 
         .global __mc6839_fpcb_f32_trunc
 __mc6839_fpcb_f32_trunc:
-        .byte   0x0A, 0, 0, 0, 0, 0   ; CTL=0x0A: single/toward-zero/+NRM
+        .byte   FP_CTRL_SINGLE | FP_CTRL_NRM | FP_CTRL_RZ, 0, 0, 0, 0, 0
 
         .global __mc6839_fpcb_f64_trunc
 __mc6839_fpcb_f64_trunc:
-        .byte   0x2A, 0, 0, 0, 0, 0   ; CTL=0x2A: double/toward-zero/+NRM
+        .byte   FP_CTRL_DOUBLE | FP_CTRL_NRM | FP_CTRL_RZ, 0, 0, 0, 0, 0
 

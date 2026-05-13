@@ -34,8 +34,8 @@
 
         .text
 
-FPOP_BINDEC     = 0x1C
-FPOP_DECBIN     = 0x22
+; Bug #287: opcodes from shared header (single source of truth).
+.include "mc6839_fpops.inc"
 
 ; ---- BINDEC --------------------------------------------------------------
 ;

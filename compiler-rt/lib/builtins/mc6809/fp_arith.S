@@ -19,13 +19,8 @@
 
         .text
 
-FPOP_FADD       = 0x00
-FPOP_FSUB       = 0x02
-FPOP_FMUL       = 0x04
-FPOP_FDIV       = 0x06
-FPOP_FSQRT      = 0x12
-FPOP_FABS       = 0x1E    ; FCAB = FCBNDC+2 in MC6839 equates.s
-FPOP_FNEG       = 0x20    ; FCNEG = FCAB+2
+; Bug #287: opcodes from shared header (single source of truth).
+.include "mc6839_fpops.inc"
 
 ; ---- f32 dyadic -------------------------------------------------------------
 
