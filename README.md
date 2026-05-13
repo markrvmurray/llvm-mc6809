@@ -7,6 +7,19 @@ This is a project done in my own time for education and entertainment purposes.
 I use CLion as my development environment  - its great! My main development
 machine is a laptop running macOS Sequoia.
 
+## Design highlights
+
+- **Position-independent by default (`-fPIE`)** — binaries built with default
+  flags use PCR-relative globals (`R_MC6809_PCREL_16`) and load at any
+  address. Designed for OS-9 / NitrOS-9 modules, ROMs that float across
+  boards, and relocatable embedded use. Pass `-fno-pie` (or `-static`) to
+  opt out for fixed-address ROMs. The compiler-rt runtime is being brought
+  to the same posture so the entire toolchain ships PIE end-to-end; the
+  integer helpers are already PIE-clean and the floating-point wrappers
+  are next.
+
+## Build instructions
+
 To configure and build, try:
 
 ```
