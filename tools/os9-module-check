@@ -1,0 +1,286 @@
+#!/usr/bin/env python3
+"""
+os9-module-check — validate an OS-9 / NitrOS-9 program module.
+
+Reads a .os9 / .mod (or extension-less) module file and reports whether it
+is structurally valid: sync bytes, header parity, declared module size,
+trailing CRC.  Decodes the type / language / attribute bytes into human-
+readable form.
+
+Exit code: 0 on a valid module, non-zero on any failure.  When called from
+LLVM tests or `lld`'s post-link verification, use --quiet to suppress the
+human-friendly summary; rely on the exit code.
+
+This tool is the validation gold standard for Bug #163 Phase 1.  The
+linker's output is diff'd against this checker.
+
+Cross-references:
+  llvm/lib/Target/MC6809/nitros9-fmt.h           — constants (must agree)
+  llvm/docs/MC6809-OS9.md                        — design doc
+  ~/Documents/NitrOS-9/nitros9/defs/os9.d        — original spec
+  ~/Documents/NitrOS-9/nitros9/level1/modules/kernel/fcrc.asm   — CRC alg
+  ~/Documents/NitrOS-9/nitros9/level1/modules/kernel/fvmodul.asm — validation
+  ~/Documents/lwtools/lwlink/output.c            — emission reference
+
+The crc_step() function below mirrors lwlink's os9crc() byte-for-byte; the
+"3 trailing CRC bytes = ~body_CRC" rule is the same trick lwlink uses
+(see do_output_os9, lwlink/output.c:559-561).
+
+Usage:
+    os9-module-check [--quiet] FILE [FILE ...]
+"""
+
+import argparse
+import os
+import sys
+
+
+SYNC0 = 0x87
+SYNC1 = 0xCD
+CRC_INIT = 0xFFFFFF
+CRC_VALID_MAGIC = 0x800FE3
+
+# Type byte high-nibble → name
+TYPE_NAMES = {
+    0x10: "Prgrm",
+    0x20: "Sbrtn",
+    0x30: "Multi",
+    0x40: "Data",
+    0xB0: "TrapLib",
+    0xC0: "Systm",
+    0xD0: "FlMgr",
+    0xE0: "Drivr",
+    0xF0: "Devic",
+}
+
+# Language low-nibble → name
+LANG_NAMES = {
+    0x01: "Objct",
+    0x02: "ICode",
+    0x03: "PCode",
+    0x04: "CCode",
+    0x05: "CblCode",
+    0x06: "FrtnCode",
+    0x07: "Obj6309",
+}
+
+ATTR_BITS = [
+    (0x80, "ReEnt"),
+    (0x40, "ModProt"),
+    (0x20, "ModNat"),
+    (0x10, "BufWrits"),
+]
+
+
+def crc_step(crc, b):
+    """One byte through the OS-9 CRC-24, mirrors fcrc.asm CRCAlgo."""
+    c0 = (crc >> 16) & 0xFF
+    c1 = (crc >> 8) & 0xFF
+    c2 = crc & 0xFF
+    b ^= c0
+    c0 = c1
+    c1 = c2
+    c1 ^= (b >> 7) & 0xFF
+    c2 = (b << 1) & 0xFF
+    c1 ^= (b >> 2) & 0xFF
+    c2 ^= (b << 6) & 0xFF
+    b = (b ^ (b << 1)) & 0xFF
+    b = (b ^ (b << 2)) & 0xFF
+    b = (b ^ (b << 4)) & 0xFF
+    if b & 0x80:
+        c0 ^= 0x80
+        c2 ^= 0x21
+    return ((c0 << 16) | (c1 << 8) | c2) & 0xFFFFFF
+
+
+def crc_compute(data):
+    """Run the OS-9 CRC over a byte sequence."""
+    c = CRC_INIT
+    for b in data:
+        c = crc_step(c, b)
+    return c
+
+
+def parity_compute(header_bytes):
+    """XOR of the first 9 header bytes.  Valid header => 0xFF."""
+    acc = 0
+    for b in header_bytes[:9]:
+        acc ^= b
+    return acc
+
+
+def read_be16(data, offset):
+    return (data[offset] << 8) | data[offset + 1]
+
+
+def decode_type_lang(b):
+    type_nibble = b & 0xF0
+    lang_nibble = b & 0x0F
+    type_name = TYPE_NAMES.get(type_nibble, f"unknown(${type_nibble:02X})")
+    lang_name = LANG_NAMES.get(lang_nibble, f"unknown(${lang_nibble:02X})")
+    return f"{type_name}|{lang_name}"
+
+
+def decode_attr_rev(b):
+    attr = b & 0xF0
+    rev = b & 0x0F
+    attr_set = [name for mask, name in ATTR_BITS if attr & mask]
+    attr_str = "|".join(attr_set) if attr_set else "none"
+    return f"{attr_str}, rev={rev}"
+
+
+def find_name_string(data, name_offset):
+    """Read the fcs-style module name string starting at name_offset.
+    fcs strings have the high bit set on the LAST character; or are 0-terminated.
+    Returns the decoded name, or '<bad name>'."""
+    if name_offset >= len(data):
+        return "<offset out of range>"
+    chars = []
+    for i in range(min(64, len(data) - name_offset)):
+        b = data[name_offset + i]
+        if b == 0:
+            return "".join(chars) if chars else "<empty>"
+        if b & 0x80:
+            # fcs terminator: include this byte stripped of bit-7
+            chars.append(chr(b & 0x7F))
+            return "".join(chars)
+        if b < 0x20 or b > 0x7E:
+            return f"<non-ASCII at +{i}>"
+        chars.append(chr(b))
+    return "<unterminated>"
+
+
+class Result:
+    def __init__(self):
+        self.ok = True
+        self.problems = []
+        self.notes = []
+
+    def fail(self, msg):
+        self.ok = False
+        self.problems.append(msg)
+
+    def note(self, msg):
+        self.notes.append(msg)
+
+
+def check(data, path):
+    r = Result()
+    if len(data) < 13 + 3:
+        r.fail(f"file too short to be a module ({len(data)} bytes)")
+        return r
+
+    # Sync bytes
+    if data[0] != SYNC0 or data[1] != SYNC1:
+        r.fail(f"bad sync: got ${data[0]:02X}{data[1]:02X}, "
+               f"want $87CD")
+
+    # Module size
+    size = read_be16(data, 2)
+    if size > len(data):
+        r.fail(f"declared size ${size:04X} ({size}) exceeds file size "
+               f"({len(data)})")
+    elif size < len(data):
+        r.note(f"file has {len(data) - size} trailing byte(s) beyond declared "
+               f"module size ${size:04X}")
+
+    # We validate the first `size` bytes
+    module = data[:size]
+    if len(module) < 13 + 3:
+        r.fail(f"declared module is too short ({len(module)} bytes)")
+        return r
+
+    # Name offset (must be inside module)
+    name_off = read_be16(module, 4)
+    if name_off >= len(module):
+        r.fail(f"name offset ${name_off:04X} is outside the module")
+
+    # Type/Language + Attribute/Revision (informational)
+    type_lang = module[6]
+    attr_rev = module[7]
+    r.note(f"type/lang: ${type_lang:02X} ({decode_type_lang(type_lang)})")
+    r.note(f"attr/rev:  ${attr_rev:02X} ({decode_attr_rev(attr_rev)})")
+
+    # Header parity: XOR of bytes [0..8] must be 0xFF
+    par = 0
+    for b in module[:9]:
+        par ^= b
+    if par != 0xFF:
+        r.fail(f"header parity mismatch: XOR=${par:02X}, want $FF")
+
+    # Program-module-specific fields (offsets 9 / 11)
+    if (type_lang & 0xF0) in (0x10, 0x20, 0x30):  # Prgrm/Sbrtn/Multi
+        if len(module) < 13:
+            r.fail("module too short for program-module header (exec/mem)")
+        else:
+            exec_off = read_be16(module, 9)
+            mem_size = read_be16(module, 11)
+            r.note(f"exec offset: ${exec_off:04X} ({exec_off})")
+            r.note(f"mem size:    ${mem_size:04X} ({mem_size})")
+            if exec_off >= len(module):
+                r.fail(f"exec offset ${exec_off:04X} is outside the module")
+
+    # Name decoding
+    if 0 < name_off < len(module):
+        name = find_name_string(module, name_off)
+        r.note(f"name: \"{name}\" (at +${name_off:04X})")
+
+    # CRC over the entire declared module must end at $800FE3
+    full_crc = crc_compute(module)
+    if full_crc != CRC_VALID_MAGIC:
+        r.fail(f"CRC validation failed: got ${full_crc:06X}, "
+               f"want ${CRC_VALID_MAGIC:06X}")
+        # For diagnostic: also compute the body-only CRC, and what the CRC
+        # bytes SHOULD have been (bitwise complement of body CRC).
+        body_crc = crc_compute(module[:-3])
+        expected_tail = (~body_crc) & 0xFFFFFF
+        actual_tail = (module[-3] << 16) | (module[-2] << 8) | module[-1]
+        r.fail(f"body CRC = ${body_crc:06X}; "
+               f"expected tail bytes = ${expected_tail:06X}; "
+               f"actual tail = ${actual_tail:06X}")
+    else:
+        r.note(f"CRC: valid (full CRC = ${full_crc:06X})")
+        # Show the tail bytes for reference
+        tail = (module[-3] << 16) | (module[-2] << 8) | module[-1]
+        r.note(f"tail bytes: ${tail:06X}")
+
+    return r
+
+
+def main():
+    ap = argparse.ArgumentParser(
+        description="Validate OS-9 / NitrOS-9 program modules.",
+        epilog="Exit code 0 = all modules valid; 1 = at least one failure.")
+    ap.add_argument("files", nargs="+", metavar="FILE",
+                    help="module file(s) to validate")
+    ap.add_argument("-q", "--quiet", action="store_true",
+                    help="suppress per-module details; only print failures")
+    args = ap.parse_args()
+
+    overall_ok = True
+    for path in args.files:
+        try:
+            with open(path, "rb") as f:
+                data = f.read()
+        except OSError as e:
+            print(f"{path}: cannot read: {e}", file=sys.stderr)
+            overall_ok = False
+            continue
+
+        r = check(data, path)
+        label = "OK" if r.ok else "FAIL"
+        if not r.ok or not args.quiet:
+            print(f"{path}: {label} ({len(data)} bytes)")
+            if not args.quiet:
+                for n in r.notes:
+                    print(f"  {n}")
+            for p in r.problems:
+                print(f"  PROBLEM: {p}")
+        if not r.ok:
+            overall_ok = False
+
+    return 0 if overall_ok else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
