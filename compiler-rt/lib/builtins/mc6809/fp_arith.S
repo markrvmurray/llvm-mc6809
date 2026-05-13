@@ -16,6 +16,12 @@
 ; The ROM's RDYXIT exit lands PULS PC at FPOP+1 (the byte after the
 ; FPOP byte, where the dispatch's STY SIZREG,S re-points the saved
 ; PC).  Our `puls u,y; rts` lives at FPOP+1 and runs as the cleanup.
+;
+; Bug #295: FPCB pointer load is PIE — `leay __sym,pc; tfr y,d` puts
+; the FPCB address in D via Y (X must be preserved as the sret result
+; buffer for >2-byte returns).  The Y-as-scratch pattern is placed
+; BEFORE the final `leay N,s` so Y ends up holding arg2 at the ROM
+; call.
 
         .text
 
@@ -28,8 +34,9 @@
 __addsf3:
         pshs    u,y
         leau    6,s
+        leay    __mc6839_fpcb_f32,pc
+        tfr     y,d
         leay    10,s
-        ldd     #__mc6839_fpcb_f32
         lbsr    __fpreg
         .byte   FPOP_FADD
         puls    u,y
@@ -39,8 +46,9 @@ __addsf3:
 __subsf3:
         pshs    u,y
         leau    6,s
+        leay    __mc6839_fpcb_f32,pc
+        tfr     y,d
         leay    10,s
-        ldd     #__mc6839_fpcb_f32
         lbsr    __fpreg
         .byte   FPOP_FSUB
         puls    u,y
@@ -50,8 +58,9 @@ __subsf3:
 __mulsf3:
         pshs    u,y
         leau    6,s
+        leay    __mc6839_fpcb_f32,pc
+        tfr     y,d
         leay    10,s
-        ldd     #__mc6839_fpcb_f32
         lbsr    __fpreg
         .byte   FPOP_FMUL
         puls    u,y
@@ -61,8 +70,9 @@ __mulsf3:
 __divsf3:
         pshs    u,y
         leau    6,s
+        leay    __mc6839_fpcb_f32,pc
+        tfr     y,d
         leay    10,s
-        ldd     #__mc6839_fpcb_f32
         lbsr    __fpreg
         .byte   FPOP_FDIV
         puls    u,y
@@ -74,8 +84,9 @@ __divsf3:
 __adddf3:
         pshs    u,y
         leau    6,s
+        leay    __mc6839_fpcb_f64,pc
+        tfr     y,d
         leay    14,s
-        ldd     #__mc6839_fpcb_f64
         lbsr    __fpreg
         .byte   FPOP_FADD
         puls    u,y
@@ -85,8 +96,9 @@ __adddf3:
 __subdf3:
         pshs    u,y
         leau    6,s
+        leay    __mc6839_fpcb_f64,pc
+        tfr     y,d
         leay    14,s
-        ldd     #__mc6839_fpcb_f64
         lbsr    __fpreg
         .byte   FPOP_FSUB
         puls    u,y
@@ -96,8 +108,9 @@ __subdf3:
 __muldf3:
         pshs    u,y
         leau    6,s
+        leay    __mc6839_fpcb_f64,pc
+        tfr     y,d
         leay    14,s
-        ldd     #__mc6839_fpcb_f64
         lbsr    __fpreg
         .byte   FPOP_FMUL
         puls    u,y
@@ -107,8 +120,9 @@ __muldf3:
 __divdf3:
         pshs    u,y
         leau    6,s
+        leay    __mc6839_fpcb_f64,pc
+        tfr     y,d
         leay    14,s
-        ldd     #__mc6839_fpcb_f64
         lbsr    __fpreg
         .byte   FPOP_FDIV
         puls    u,y
@@ -119,8 +133,9 @@ __divdf3:
         .global __sqrtsf2
 __sqrtsf2:
         pshs    u,y
+        leay    __mc6839_fpcb_f32,pc
+        tfr     y,d
         leay    6,s
-        ldd     #__mc6839_fpcb_f32
         lbsr    __fpreg
         .byte   FPOP_FSQRT
         puls    u,y
@@ -129,8 +144,9 @@ __sqrtsf2:
         .global __sqrtdf2
 __sqrtdf2:
         pshs    u,y
+        leay    __mc6839_fpcb_f64,pc
+        tfr     y,d
         leay    6,s
-        ldd     #__mc6839_fpcb_f64
         lbsr    __fpreg
         .byte   FPOP_FSQRT
         puls    u,y
@@ -146,8 +162,9 @@ __sqrtdf2:
         .global __abssf2
 __abssf2:
         pshs    u,y
+        leay    __mc6839_fpcb_f32,pc
+        tfr     y,d
         leay    6,s
-        ldd     #__mc6839_fpcb_f32
         lbsr    __fpreg
         .byte   FPOP_FABS
         puls    u,y
@@ -156,8 +173,9 @@ __abssf2:
         .global __absdf2
 __absdf2:
         pshs    u,y
+        leay    __mc6839_fpcb_f64,pc
+        tfr     y,d
         leay    6,s
-        ldd     #__mc6839_fpcb_f64
         lbsr    __fpreg
         .byte   FPOP_FABS
         puls    u,y
@@ -172,8 +190,9 @@ __absdf2:
         .global __negsf2
 __negsf2:
         pshs    u,y
+        leay    __mc6839_fpcb_f32,pc
+        tfr     y,d
         leay    6,s
-        ldd     #__mc6839_fpcb_f32
         lbsr    __fpreg
         .byte   FPOP_FNEG
         puls    u,y
@@ -182,8 +201,9 @@ __negsf2:
         .global __negdf2
 __negdf2:
         pshs    u,y
+        leay    __mc6839_fpcb_f64,pc
+        tfr     y,d
         leay    6,s
-        ldd     #__mc6839_fpcb_f64
         lbsr    __fpreg
         .byte   FPOP_FNEG
         puls    u,y

@@ -1,0 +1,67 @@
+# Bug #295 PIE sentinel: enforce that compiler-rt FP wrappers use the
+# PCR-relative form (leay __sym,pc; tfr y,d) and NEVER the absolute
+# immediate form (ldd #__sym).
+#
+# The MC6809 toolchain ships -fPIE by default (README "Design highlights").
+# When this sentinel was written, all 76 compiler-rt FP wrapper sites
+# loaded the FPCB pointer via PCR.  If a future contributor regresses to
+# the absolute form by copying old code or adding a new wrapper without
+# care, this test fails immediately.
+#
+# Two assertions, both source-level (no archive dependency):
+#
+# 1. The actual hand-written .S files under
+#    compiler-rt/lib/builtins/mc6809/ must contain ZERO absolute
+#    `ldd #__mc6839_fpcb_*` patterns.  If grep finds any, fail.
+#
+# 2. The expected PCR pattern `leay __mc6839_fpcb_*,pc; tfr y,d` must
+#    appear at least once in EACH of the 5 FP wrapper files (fp_arith.S,
+#    fp_bcd.S, fp_cmp.S, fp_conv.S, floatdi.S).  If any file is missing
+#    the pattern, fail.
+#
+# Why not check exact counts?  Counts will drift legitimately as we add
+# or remove wrappers.  The sentinel guards against the *pattern*
+# regression, not the count.
+#
+# Why not also test the assembled object?  The assemble-and-grep is
+# done by Bug #295's CI / bench: any miscompile would show up there.
+# This sentinel is a pre-commit-friendly source check.
+
+# Assertion 1: NO absolute ldd #__mc6839_fpcb_* anywhere.
+# (`not` inverts the exit code; `grep -l` lists matching files.)
+RUN: not grep -lE "ldd[[:space:]]+#__mc6839_fpcb_" \
+RUN:   %S/../../../../compiler-rt/lib/builtins/mc6809/*.S
+
+# Assertion 2: each FP wrapper file uses the PCR pattern.
+RUN: grep -lE "leay[[:space:]]+__mc6839_fpcb_[a-z0-9_]+,pc" \
+RUN:   %S/../../../../compiler-rt/lib/builtins/mc6809/fp_arith.S
+RUN: grep -lE "leay[[:space:]]+__mc6839_fpcb_[a-z0-9_]+,pc" \
+RUN:   %S/../../../../compiler-rt/lib/builtins/mc6809/fp_bcd.S
+RUN: grep -lE "leay[[:space:]]+__mc6839_fpcb_[a-z0-9_]+,pc" \
+RUN:   %S/../../../../compiler-rt/lib/builtins/mc6809/fp_cmp.S
+RUN: grep -lE "leay[[:space:]]+__mc6839_fpcb_[a-z0-9_]+,pc" \
+RUN:   %S/../../../../compiler-rt/lib/builtins/mc6809/fp_conv.S
+RUN: grep -lE "leay[[:space:]]+__mc6839_fpcb_[a-z0-9_]+,pc" \
+RUN:   %S/../../../../compiler-rt/lib/builtins/mc6809/floatdi.S
+
+# Assertion 3 (hermetic): the PCR pattern itself assembles to a
+# R_MC6809_PCREL_16 relocation (not an absolute one).  This catches
+# any future MC layer regression that breaks PCR encoding for these
+# specific symbols.
+RUN: echo '        .data'                                 >  %t.s
+RUN: echo '        .global __mc6839_fpcb_test'            >> %t.s
+RUN: echo '__mc6839_fpcb_test:'                            >> %t.s
+RUN: echo '        .byte 0x08, 0x00, 0x00, 0x00, 0x00, 0x00' >> %t.s
+RUN: echo ''                                               >> %t.s
+RUN: echo '        .text'                                  >> %t.s
+RUN: echo '        .global pie_pattern_probe'              >> %t.s
+RUN: echo 'pie_pattern_probe:'                             >> %t.s
+RUN: echo '        leay    __mc6839_fpcb_test,pc'          >> %t.s
+RUN: echo '        tfr     y,d'                            >> %t.s
+RUN: echo '        rts'                                    >> %t.s
+RUN: llvm-mc -triple=mc6809 --filetype=obj %t.s -o %t.o
+RUN: llvm-objdump -r %t.o | FileCheck %s
+
+# CHECK: R_MC6809_PCREL_16{{.*}}__mc6839_fpcb_test
+# CHECK-NOT: R_MC6809_ABS_16{{.*}}__mc6839_fpcb_test
+# CHECK-NOT: R_MC6809_ADDR_16{{.*}}__mc6839_fpcb_test

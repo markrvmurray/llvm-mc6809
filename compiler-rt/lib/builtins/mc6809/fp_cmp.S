@@ -56,8 +56,9 @@ __eqsf2:
 __nesf2:
         pshs    u,y,x               ; save callee-saved U,Y + result buffer X
         leau    8,s                 ; U = &arg1
+        leay    __mc6839_fpcb_f32,pc ; Bug #295: PCR-load &fpcb (X is sret buffer)
+        tfr     y,d                 ; D = &fpcb (ROM ABI)
         leay    12,s                ; Y = &arg2
-        ldd     #__mc6839_fpcb_f32  ; D = &fpcb
         ldx     #FCMP_S_S           ; parameter word: single, single
         lbsr    __fpreg
         .byte   FPOP_FCMP
@@ -81,8 +82,9 @@ __eqdf2:
 __nedf2:
         pshs    u,y,x
         leau    8,s
-        leay    16,s                ; f64 arg2 starts 8 bytes higher
-        ldd     #__mc6839_fpcb_f64
+        leay    __mc6839_fpcb_f64,pc ; Bug #295: PCR-load &fpcb (X is sret buffer)
+        tfr     y,d                 ; D = &fpcb (ROM ABI)
+        leay    16,s                ; Y = &arg2 (f64 arg2 starts 8 bytes higher)
         ldx     #FCMP_D_D           ; parameter word: double, double
         lbsr    __fpreg
         .byte   FPOP_FCMP

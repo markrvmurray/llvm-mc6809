@@ -10,6 +10,11 @@
 ;
 ; FFLTD/FFIXD are monadic: only Y points to the arg.  U is unused by the
 ; ROM for these.
+;
+; Bug #295: FPCB pointer load is PIE — `leay __sym,pc; tfr y,d` puts
+; the FPCB address in D via Y (X must be preserved as the sret buffer
+; for >2-byte returns).  The Y-as-scratch pattern is placed BEFORE the
+; final `leay N,s` so Y ends up holding the arg pointer at the ROM call.
 
         .text
 
@@ -24,8 +29,9 @@ __extendsfdf2:
         ; f32 → f64.  Precision word: src=single(0), dst=double(1).
         pshs    u,y
         ldu     #FMOV_S_TO_D
+        leay    __mc6839_fpcb_f64,pc
+        tfr     y,d
         leay    6,s
-        ldd     #__mc6839_fpcb_f64
         lbsr    __fpreg
         .byte   FPOP_FMOV
         puls    u,y
@@ -36,8 +42,9 @@ __truncdfsf2:
         ; f64 → f32.  Precision word: src=double(1), dst=single(0).
         pshs    u,y
         ldu     #FMOV_D_TO_S
+        leay    __mc6839_fpcb_f32,pc
+        tfr     y,d
         leay    6,s
-        ldd     #__mc6839_fpcb_f32
         lbsr    __fpreg
         .byte   FPOP_FMOV
         puls    u,y
@@ -49,8 +56,9 @@ __truncdfsf2:
 __floatsisf:
         ; signed i32 → f32.  Y → i32 arg.
         pshs    u,y
+        leay    __mc6839_fpcb_f32,pc
+        tfr     y,d
         leay    6,s
-        ldd     #__mc6839_fpcb_f32
         lbsr    __fpreg
         .byte   FPOP_FFLTD
         puls    u,y
@@ -60,8 +68,9 @@ __floatsisf:
 __floatsidf:
         ; signed i32 → f64.
         pshs    u,y
+        leay    __mc6839_fpcb_f64,pc
+        tfr     y,d
         leay    6,s
-        ldd     #__mc6839_fpcb_f64
         lbsr    __fpreg
         .byte   FPOP_FFLTD
         puls    u,y
@@ -87,8 +96,9 @@ __floatunsisf:
         std     ,s
         ldd     12,s
         std     2,s
+        leay    __mc6839_fpcb_f32,pc
+        tfr     y,d
         leay    ,s
-        ldd     #__mc6839_fpcb_f32
         lbsr    __fpreg
         .byte   FPOP_FFLTD
         ; result now in *X.  Add 2^31 = 0x4F000000.
@@ -98,16 +108,18 @@ __floatunsisf:
         clrb
         std     2,s
         leau    ,x                  ; U → *X (FADD arg1)
+        leay    __mc6839_fpcb_f32,pc
+        tfr     y,d
         leay    ,s                  ; Y → 2^31 constant
-        ldd     #__mc6839_fpcb_f32
         lbsr    __fpreg
         .byte   FPOP_FADD
         leas    4,s
         puls    u,y
         rts
 .Lfunsisf_simple:
+        leay    __mc6839_fpcb_f32,pc
+        tfr     y,d
         leay    6,s
-        ldd     #__mc6839_fpcb_f32
         lbsr    __fpreg
         .byte   FPOP_FFLTD
         puls    u,y
@@ -126,8 +138,9 @@ __floatunsidf:
         std     ,s
         ldd     20,s
         std     2,s
+        leay    __mc6839_fpcb_f64,pc
+        tfr     y,d
         leay    ,s
-        ldd     #__mc6839_fpcb_f64
         lbsr    __fpreg
         .byte   FPOP_FFLTD
         ; 2^31 as f64 = 0x41E0000000000000
@@ -139,16 +152,18 @@ __floatunsidf:
         std     8,s
         std     10,s
         leau    ,x
+        leay    __mc6839_fpcb_f64,pc
+        tfr     y,d
         leay    4,s
-        ldd     #__mc6839_fpcb_f64
         lbsr    __fpreg
         .byte   FPOP_FADD
         leas    12,s
         puls    u,y
         rts
 .Lfunsidf_simple:
+        leay    __mc6839_fpcb_f64,pc
+        tfr     y,d
         leay    6,s
-        ldd     #__mc6839_fpcb_f64
         lbsr    __fpreg
         .byte   FPOP_FFLTD
         puls    u,y
@@ -164,8 +179,9 @@ __floatunsidf:
 __fixsfsi:
         ; f32 → signed i32.
         pshs    u,y
+        leay    __mc6839_fpcb_f32_trunc,pc
+        tfr     y,d
         leay    6,s
-        ldd     #__mc6839_fpcb_f32_trunc
         lbsr    __fpreg
         .byte   FPOP_FFIXD
         puls    u,y
@@ -175,8 +191,9 @@ __fixsfsi:
 __fixdfsi:
         ; f64 → signed i32.
         pshs    u,y
+        leay    __mc6839_fpcb_f64_trunc,pc
+        tfr     y,d
         leay    6,s
-        ldd     #__mc6839_fpcb_f64_trunc
         lbsr    __fpreg
         .byte   FPOP_FFIXD
         puls    u,y
