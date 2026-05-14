@@ -205,3 +205,57 @@ expansion-code issue.
     `expandLoadIdx` SPILL_Q* dst branch.
   - Bug #290 — the deliberate trim of `SpillLoad_i32_Mem` /
     `SpillStore_i32_Mem` `Defs` to `[NZ, V, AD]`.
+
+## Addendum 2026-05-14 (late): Phase 2a attempted, hypothesis falsified
+
+The Phase 2a hypothesis above ("add `AD` to `Load_i32_Imm` /
+`Load_i32_Mem` / `Store_i32_Imm` / `Store_i32_Mem` `Defs`")
+**does not hold** as a standalone change.  Empirical result:
+
+  - With AQc still AQ-only (pre-widening), adding `implicit-def
+    dead $ad` to `Load_i32_Imm`'s post-isel MIR breaks the
+    downstream `EXTRACT_LO_word_i32 %1:aqc` consumer.  At -O0
+    FastRegAlloc reports "ran out of registers" for the simplest
+    possible function (`define i32 @foo() { ret i32 12345678 }`).
+
+The root cause is more subtle than the audit captured: the
+OutOperand `$dst:AQc = $aq` makes `$ad` live across the
+instruction (via sub-register aliasing of `$aq`), but adding
+`implicit-def dead $ad` creates a competing "dead at this point"
+live-range for `$ad`.  The two declarations contradict each other.
+For dst=AQ specifically, **`$ad` is live (because it's part of
+`$aq`)**, not dead.  Listing it in `Defs` with the "dead" flag
+(which LLVM infers from "no live use") is wrong for this case.
+
+When AQc widens to include SPILL_Q*N (the Phase B core change),
+dst=SPILL_Q*N would have no sub-register aliasing with `$ad`, so
+the dead-`$ad` annotation would NOT conflict for that case.  But
+the AQ-direct case remains broken.
+
+**Implication**: Phase 2a cannot stand alone.  Phase B's three
+changes (legalizer + AQc widening + Defs extension) might still
+land together — but if even the post-widening AQ case suffers
+the same dead-vs-live contradiction, the fix isn't a pseudo-level
+`Defs` extension at all.
+
+### Better hypothesis (untested as of this addendum)
+
+Drop the pseudo-level Defs change entirely.  Move the `$ad`
+clobber annotation to the **post-RA expansion code** in
+`MC6809InstrInfo.cpp::expandLoadIdx` /
+`expandStoreIdx`'s SPILL_Q*N branch.  The expansion emits the
+two-LDD path; those individual LDD/STD MIs already write `$ad`
+naturally.  The verifier error in
+`bug274_loadi32_qspill_dst_implicit_def.ll` might be fixable by
+adjusting how the expansion chains implicit-defs across the
+emitted MIs, not by changing the pseudo's `Defs`.
+
+This is now the next-session starting point.  The diagnosis lands
+in this doc; the implementation is a separate, more careful
+session focused on `expandLoadIdx` / `expandStoreIdx` internals.
+
+### What was committed in this attempt
+
+- Audit doc itself (`e4bb9960278d`).
+- Phase 2a TableGen change (Defs extension) was reverted before
+  commit; no working-tree residue.
