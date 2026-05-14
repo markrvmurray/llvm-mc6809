@@ -21,16 +21,13 @@
 //
 // REQUIRES: mc6809-registered-target
 //
-// Build pipeline (manual chain).  The driver auto-enables
-// -fdollars-in-identifiers for the OS-9 triple so the C source below
-// can use the native NitrOS-9 syscall name `I$Write` via <os9.h>.
-// RUN: %clang -target mc6809-unknown-os9 \
-// RUN:   -I %S/../../../compiler-rt/lib/builtins/mc6809-os9/include \
-// RUN:   -Wl,-L,%S/../../../compiler-rt/lib/builtins/mc6809-os9 \
-// RUN:   %s \
-// RUN:   %S/../../../compiler-rt/lib/builtins/mc6809-os9/crt0.S \
-// RUN:   %S/../../../compiler-rt/lib/builtins/mc6809-os9/syscalls.S \
-// RUN:   -o %t.body
+// ONE-SHOT build.  After mc6809-os9-runtime is staged into the
+// resource dir (libclang_rt.os9.a + mc6809-os9.lds + os9.h), the
+// driver auto-finds the header via -isystem, the linker script
+// + archive via the auto-added -L, and pulls in -lclang_rt.os9 to
+// satisfy _start (crt0.o) and I$Write (syscalls.o).
+//
+// RUN: %clang -target mc6809-unknown-os9 %s -o %t.body
 //
 // RUN: %S/../../../tools/os9-link %t.body \
 // RUN:   --name hello --exec 13 --mem 1024 -o %t.os9

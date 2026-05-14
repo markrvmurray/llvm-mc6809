@@ -1326,6 +1326,12 @@ else ()
         add_custom_target(clang_rt.builtins-hd6309-multilib ALL
           DEPENDS "${_MC6809_HD6309_DST}")
         add_dependencies(builtins clang_rt.builtins-hd6309-multilib)
+
+        # Bug #163 Phase 2: build OS-9 / NitrOS-9 startup files
+        # (crt0.o + syscalls.o) bundled into libclang_rt.os9.a, plus
+        # stage the linker script + os9.h header into the resourcedir.
+        # See compiler-rt/lib/builtins/mc6809-os9/CMakeLists.txt.
+        add_subdirectory(mc6809-os9)
       endif ()
 
       # Write out the sources that were used to compile the builtins so that tests can be run in

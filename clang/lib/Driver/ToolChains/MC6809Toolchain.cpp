@@ -37,6 +37,11 @@ void MC6809ToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
     SmallString<128> Dir(getDriver().ResourceDir);
     llvm::sys::path::append(Dir, "include");
     addSystemInclude(DriverArgs, CC1Args, Dir.str());
+    // Bug #163 Phase 2: for the OS-9 triple, the resourcedir's
+    // `include/` already holds os9.h (staged by the
+    // mc6809-os9-runtime target).  The addSystemInclude above is
+    // enough to make `#include <os9.h>` resolve from
+    // <resourcedir>/include/.  No extra path needed.
   }
 }
 
@@ -171,6 +176,19 @@ void mc6809::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   // -nostdlib or an explicit -T suppresses both.
   if (!Args.hasArg(options::OPT_T, options::OPT_nostdlib))
     CmdArgs.push_back(IsOS9 ? "-Tmc6809-os9.lds" : "-Tlink.ld");
+
+  // For OS-9, prepend the resourcedir's per-triple library directory
+  // so lld finds mc6809-os9.lds AND libclang_rt.os9.a.  Then pull in
+  // libclang_rt.os9 (forces crt0.o + syscalls.o into the link) unless
+  // the user opted out via -nostartfiles/-nostdlib.
+  if (IsOS9) {
+    SmallString<128> OS9LibPath(D.ResourceDir);
+    llvm::sys::path::append(OS9LibPath, "lib", "mc6809-unknown-os9");
+    CmdArgs.push_back(Args.MakeArgString(Twine("-L") + OS9LibPath.str()));
+
+    if (!Args.hasArg(options::OPT_nostartfiles, options::OPT_nostdlib))
+      CmdArgs.push_back("-lclang_rt.os9");
+  }
 
   CmdArgs.push_back("-o");
   CmdArgs.push_back(Output.getFilename());
