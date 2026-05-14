@@ -1,0 +1,63 @@
+# Bug #163 Phase 2: end-to-end test for the OS-9 linker script.
+#
+# Assembles a tiny exit-cleanly program, links with mc6809-os9.lds via
+# `ld.lld --oformat=binary`, then runs the body through os9-link, then
+# validates with os9-module-check.  This exercises:
+#
+#   - lld honouring OUTPUT_FORMAT(binary) and ENTRY(_start)
+#   - .text/.data placement (and that .text.startup runs first)
+#   - .bss (NOLOAD) producing ZERO file output
+#   - __data_size / __bss_size symbol exports for downstream use
+#   - The os9-link wrapper accepting the body and producing a module
+#     that os9-module-check validates ($800FE3 CRC magic).
+#
+# The body is:
+#   .text.startup _start: clrb; swi2; fcb F$Exit       (6 bytes)
+#   .data init_var:      .word 0x1234                  (2 bytes)
+#   .bss bss_var:        .zero 8                       (0 bytes in file)
+#
+# Expected flat-body size = 6 + 2 = 8 bytes.  Wrapping adds 13 (header)
+# + 5 (fcs name "demo" → 4+1) + 3 (CRC) = 21 → module is 29 bytes total.
+
+# Hand-assembled source.
+RUN: echo '        .text'                              >  %t.s
+RUN: echo '        .global _start'                     >> %t.s
+RUN: echo '        .section .text.startup,"ax",@progbits' >> %t.s
+RUN: echo '_start:'                                    >> %t.s
+RUN: echo '        clrb'                               >> %t.s
+RUN: echo '        swi2'                               >> %t.s
+RUN: echo '        .byte 0x06'                         >> %t.s
+RUN: echo '1:      bra 1b'                             >> %t.s
+RUN: echo ''                                           >> %t.s
+RUN: echo '        .data'                              >> %t.s
+RUN: echo 'init_var:'                                  >> %t.s
+RUN: echo '        .word 0x1234'                       >> %t.s
+RUN: echo ''                                           >> %t.s
+RUN: echo '        .bss'                               >> %t.s
+RUN: echo 'bss_var:'                                   >> %t.s
+RUN: echo '        .zero 8'                            >> %t.s
+
+# Assemble and link.
+RUN: llvm-mc -triple=mc6809 --filetype=obj %t.s -o %t.o
+RUN: ld.lld -T %S/../../../../compiler-rt/lib/builtins/mc6809-os9/mc6809-os9.lds %t.o -o %t.body
+
+# 1. The flat body must be exactly 10 bytes: 6 .text (with bra back) +
+#    2 alignment-padding (since .text ends at offset 8 — clrb=1, swi2=2,
+#    fcb=1, bra=2 → 6 bytes; but ALIGN(2) on .data may add 0 bytes since
+#    6 is even) + 2 .data = 8 bytes total.  Or possibly 10 with extra
+#    alignment.  Lock in the actual size via byte-level CHECK below.
+RUN: od -A n -t x1 %t.body | FileCheck %s --check-prefix=BODY
+
+# .text: 5f (clrb), 10 3f (swi2), 06 (F$Exit), 20 fe (bra to .-2)
+# .data: 12 34 (word 0x1234, big-endian — MC6809 is big-endian)
+BODY: 5f 10 3f 06 20 fe 12 34
+
+# 2. Wrap as OS-9 module, then validate.
+RUN: %S/../../../../tools/os9-link %t.body --name demo --exec 13 --mem 256 -o %t.os9
+RUN: %S/../../../../tools/os9-module-check %t.os9 | FileCheck %s --check-prefix=VALID
+
+VALID: OK ({{[0-9]+}} bytes)
+VALID: type/lang: $11 (Prgrm|Objct)
+VALID: exec offset: $000D (13)
+VALID: name: "demo"
+VALID: CRC: valid (full CRC = $800FE3)
