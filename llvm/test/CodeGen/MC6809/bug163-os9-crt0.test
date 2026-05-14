@@ -1,0 +1,59 @@
+# Bug #163 Phase 2: end-to-end CRT0 test.
+#
+# Builds crt0.S + a minimal user main(), links with mc6809-os9.lds,
+# wraps with os9-link, validates with os9-module-check.  The whole
+# Phase 2 pipeline runs in this one test (assembler → linker →
+# wrapper → validator).
+#
+# User stub:  main: ldb #42; rts        // return 42 as exit status
+#
+# Body layout (no .data, no .bss → CRT collapses both copy loops via
+# the BEQ-on-zero guards):
+#   _start (in .text.startup) → jsr main → swi2 → fcb $06
+#   main   (in .text)         → ldb #42; rts
+#
+# We don't byte-pin the entire body (encoding details may shift), but
+# we DO pin three things:
+#   1. _start MUST be at body offset 0 (so M$Exec = 13).
+#      Asserted by checking the first 3 bytes are `cc 00 00`
+#      (LDD #__data_size, with __data_size resolved to 0).
+#   2. Body must contain the F$Exit syscall sequence `10 3f 06`.
+#   3. os9-module-check accepts the wrapped module.
+
+# Assemble a stub main().
+RUN: echo '        .text'              >  %t-main.s
+RUN: echo '        .globl main'        >> %t-main.s
+RUN: echo 'main:'                      >> %t-main.s
+RUN: echo '        ldb #42'            >> %t-main.s
+RUN: echo '        rts'                >> %t-main.s
+
+RUN: llvm-mc -triple=mc6809 --filetype=obj \
+RUN:   %S/../../../../compiler-rt/lib/builtins/mc6809-os9/crt0.S -o %t-crt0.o
+RUN: llvm-mc -triple=mc6809 --filetype=obj %t-main.s -o %t-main.o
+
+RUN: ld.lld -T %S/../../../../compiler-rt/lib/builtins/mc6809-os9/mc6809-os9.lds \
+RUN:   %t-crt0.o %t-main.o -o %t.body
+
+# Flatten the body to one continuous hex line via xxd (-w on od is
+# GNU-only; xxd is portable across macOS and Linux distros).
+RUN: xxd -p -c 256 %t.body > %t.body.hex
+
+# 1. _start at offset 0 — first instruction is LDD #__data_size (=0).
+#    Opcode bytes: cc 00 00.  Anchored to start of line.
+RUN: FileCheck %s --check-prefix=PROLOGUE < %t.body.hex
+PROLOGUE: {{^cc0000}}
+
+# 2. Body must contain the F$Exit syscall sequence (10 3f 06).
+RUN: FileCheck %s --check-prefix=EXITSEQ < %t.body.hex
+EXITSEQ: 103f06
+
+# 3. Wrap and validate.  Use --mem 1024 (data 0 + bss 0 + heap 1024 +
+#    stack 0 in a stripped-down test; reality is __mem_size symbol-fed,
+#    but for the test the value doesn't have to match a real allocation).
+RUN: %S/../../../../tools/os9-link %t.body --name crt0test --exec 13 --mem 1024 -o %t.os9
+RUN: %S/../../../../tools/os9-module-check %t.os9 | FileCheck %s --check-prefix=VALID
+
+VALID: OK ({{[0-9]+}} bytes)
+VALID: exec offset: $000D (13)
+VALID: name: "crt0test"
+VALID: CRC: valid (full CRC = $800FE3)
