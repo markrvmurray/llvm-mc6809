@@ -606,7 +606,10 @@ bool MC6809CombinerImpl::matchNarrowMulI64TruncToI32(MachineInstr &MI,
     return false;
   uint64_t KLow = K.getZExtValue() & 0xFFFFFFFFULL;
 
-  MatchInfo = [=, this](MachineIRBuilder &B) {
+  // C++17: [=] implicitly captures *this when needed.  The explicit
+  // ", this" spelling is a C++20 extension and trips -Wc++20-extensions
+  // on the project's current standard.
+  MatchInfo = [=](MachineIRBuilder &B) {
     LLT S32 = LLT::scalar(32);
     auto NarrowLhs = B.buildTrunc(S32, MulLhs);
     auto NarrowK = B.buildConstant(S32, KLow);

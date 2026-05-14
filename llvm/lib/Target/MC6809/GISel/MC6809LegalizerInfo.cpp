@@ -53,7 +53,9 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   auto LegalTypes16 = {p, s8, s16};
   // LegalAccumulators: kept at {s8, s16} for HD6309 G_MUL (MULD needs s16).
   // G_ADD/G_SUB use s8-only rules — see the byte-decomposition comment below.
-  auto LegalAccumulators = {s8, s16};
+  // [[maybe_unused]] preserves the constant for upcoming work without
+  // tripping -Wunused-variable on the current rule set.
+  [[maybe_unused]] auto LegalAccumulators = {s8, s16};
   auto LegalTypes = IsHD6309 ? LegalTypes32 : LegalTypes16;
   auto LegalTypesWithOne32 = {p, s1, s8, s16, s32};
   auto LegalTypesWithOne16 = {p, s1, s8, s16};

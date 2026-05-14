@@ -45,7 +45,11 @@ namespace fixups {} // end of namespace fixups
 
 class MC6809FixupKinds {
 public:
-  const static MCFixupKindInfo &getFixupKindInfo(const MC6809::Fixups Kind, const MCAsmBackend *Alternative);
+  // Returns by value (not by reference) so the Alternative branch — which
+  // delegates to MCAsmBackend::getFixupKindInfo, a by-value virtual — does
+  // not return a reference to a temporary.  The MCFixupKindInfo struct is
+  // small (name pointer + 3 ints) so copying is essentially free.
+  static MCFixupKindInfo getFixupKindInfo(const MC6809::Fixups Kind, const MCAsmBackend *Alternative);
 };
 } // namespace llvm
 

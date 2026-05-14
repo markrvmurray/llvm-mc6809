@@ -15,7 +15,7 @@
 #include "llvm/MC/MCAsmBackend.h"
 
 namespace llvm {
-const MCFixupKindInfo &MC6809FixupKinds::getFixupKindInfo(const MC6809::Fixups Kind, const MCAsmBackend *Alternative) {
+MCFixupKindInfo MC6809FixupKinds::getFixupKindInfo(const MC6809::Fixups Kind, const MCAsmBackend *Alternative) {
   const static MCFixupKindInfo Infos[MC6809::NumTargetFixupKinds] = {
       // This table *must* be in same the order of fixup_* kinds in
       // MC6809FixupKinds.h.
