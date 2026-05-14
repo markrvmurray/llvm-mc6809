@@ -54,7 +54,10 @@ autoconf/autom4te.cache
 /.idea
 /cmake-build*
 # Coding assistants' stuff
-/CLAUDE.md
+# (CLAUDE.md is covered by the user's global ~/.gitignore_global; the
+# per-repo entry was redundant.  Removing it lets a future contributor
+# intentionally track a CLAUDE.md if they choose, while the global rule
+# continues to keep each developer's local CLAUDE.md ignored.)
 /instructions.md
 .claude/
 /GEMINI.md
