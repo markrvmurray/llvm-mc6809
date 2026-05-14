@@ -7,14 +7,34 @@ with no header, no CRC), prepends the 13-byte OS-9 program-module header,
 appends the fcs-terminated module name and 3-byte CRC, computes header
 parity, and writes a valid `.os9` module.
 
-This is the proof-of-concept emitter for Bug #163 Phase 2.  Once Phase 3
-lands native lld OS-9 output, this tool becomes a cross-checker.
+ROLE POST-PHASE-3 (2026-05-14): This tool is no longer the canonical
+production path.  `ld.lld --oformat=os9-program-module` (or the
+mc6809-os9.lds linker script's `OUTPUT_FORMAT(os9-program-module)`)
+produces a complete .os9 module directly.  os9-link is retained as:
+
+  - The REFERENCE IMPLEMENTATION for the algorithm — Python is easier
+    to read and audit than C++, and the lld writer was developed by
+    porting from this file line-by-line.  When in doubt about the
+    algorithm, this is the source of truth.
+
+  - A BYTE-EXACT CROSS-CHECKER.  lit/lld/ELF/mc6809-os9-vs-os9link.s
+    pipes the same .o through both paths and asserts a byte-identical
+    diff.  Any divergence between the implementations fails CI.
+
+  - The OFFLINE WRAPPER for users who can't or don't want to use lld
+    (e.g., building an OS-9 module from a flat binary produced by
+    a non-LLVM toolchain).
+
+The Python implementation will track any future algorithm tweaks in
+lockstep with the lld writer.
 
 Cross-references:
   llvm/lib/Target/MC6809/nitros9-fmt.h           — constants (must agree)
-  tools/os9-module-check                         — validator (round-trip pair)
+  tools/os9-module-check                         — validator
+  lld/ELF/Writer.cpp                             — native lld implementation
+      (assignFileOffsetsBinary OS-9 branch + writeOS9Wrap)
   llvm/docs/MC6809-OS9.md                        — design doc
-  ~/Documents/lwtools/lwlink/output.c            — emission reference
+  ~/Documents/lwtools/lwlink/output.c            — original C reference
       (do_output_os9, lwlink/output.c:457-563)
 
 Algorithm mirrors lwlink's do_output_os9() byte-for-byte:
