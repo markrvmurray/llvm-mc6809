@@ -252,8 +252,19 @@ bool MC6809DirectPageAlloc::runOnModule(Module &M) {
   if (!DPAvail)
     return false;
 
-  // The frontend should report this error on the corresponding option.
-  assert(DPAvail <= 256 - 32 && "There must be room for the imaginary registers.");
+  // Bug #296 Phase 5: the prior `DPAvail <= 256 - 32` assertion
+  // reserved 32 bytes of DP for "imaginary registers" — but the
+  // imaginary-reg DP-symbol emission path is currently disabled
+  // (see MC6809AsmPrinter.cpp:220-225, "Direct page pseudo-registers
+  // (__rc0..__rc31) are not currently used by the GlobalISel
+  // backend").  Imaginary regs are fully allocated to real physregs
+  // upstream of AsmPrinter and never reach the lowering that would
+  // emit DP-relative symbols.  The reservation was defensive dead
+  // code; dropping it recovers ~32 bytes of DP for user
+  // `__attribute__((directpage))` storage.  If the underlying
+  // invariant ever breaks, the resulting failure is loud (the
+  // MCSymbolELF::setOther assertion the AsmPrinter comment cites,
+  // not this assert).
 
   ModuleDPAvail = DPAvail;
   for (GlobalVariable &GV : M.globals()) {
