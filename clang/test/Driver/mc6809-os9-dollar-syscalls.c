@@ -52,7 +52,9 @@ void use_posix(void) {
 // DEFS-DAG: FUNC{{.+}}I$Read
 
 // 4. Linking pulls in syscalls.o cleanly — both call sites resolve.
+//    Override the script's OS-9 default with --oformat=binary; this
+//    test is checking symbol resolution, not the module wrapper.
 // RUN: ld.lld -T %S/../../../compiler-rt/lib/builtins/mc6809-os9/mc6809-os9.lds \
-// RUN:   --defsym=_start=use_posix \
+// RUN:   --oformat=binary --defsym=_start=use_posix \
 // RUN:   %t.o %t.syscalls.o -o %t.body
 // RUN: test -s %t.body

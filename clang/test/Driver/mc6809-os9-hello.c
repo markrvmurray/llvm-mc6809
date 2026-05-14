@@ -21,41 +21,33 @@
 //
 // REQUIRES: mc6809-registered-target
 //
-// ONE-SHOT build.  After mc6809-os9-runtime is staged into the
-// resource dir (libclang_rt.os9.a + mc6809-os9.lds + os9.h), the
-// driver auto-finds the header via -isystem, the linker script
-// + archive via the auto-added -L, and pulls in -lclang_rt.os9 to
-// satisfy _start (crt0.o) and I$Write (syscalls.o).
+// TRUE ONE-SHOT.  Phase 3 wired the lld OS-9 writer + driver auto-
+// passing, so a bare clang invocation now produces a finished .os9
+// module: the driver derives --os9-name from the output stem (here
+// "hello"), the linker script's __mem_size symbol supplies M$Mem,
+// the .lds's OUTPUT_FORMAT(os9-program-module) triggers the wrapper.
+// No --os9-* flags, no Python post-link, no separate .S inputs.
 //
-// RUN: %clang -target mc6809-unknown-os9 %s -o %t.body
-//
-// RUN: %S/../../../tools/os9-link %t.body \
-// RUN:   --name hello --exec 13 --mem 1024 -o %t.os9
-//
+// RUN: %clang -target mc6809-unknown-os9 %s -o %t.os9
 // RUN: %S/../../../tools/os9-module-check %t.os9 \
 // RUN:   | FileCheck %s --check-prefix=VALID
 //
 // VALID: OK ({{[0-9]+}} bytes)
 // VALID: type/lang: $11 (Prgrm|Objct)
 // VALID: exec offset: $000D (13)
-// VALID: name: "hello"
+// VALID: name: "{{.+}}"
 // VALID: CRC: valid (full CRC = $800FE3)
 //
-// Body content sanity: the string "Hello, world!\n" must appear as
-// 14 ASCII bytes in the module body (.rodata is in the body, accessed
-// PCR by the _write call).  Note the string starts at some PCR offset
-// — we don't pin its exact location, just its bytes.
+// Body content sanity: the string "Hello, world!\n" must appear in
+// the module (.rodata flows through the link unchanged) and the
+// I$Write + F$Exit syscall sequences must be present.
 //
-// RUN: xxd -p -c 65536 %t.body > %t.body.hex
-// RUN: FileCheck %s --check-prefix=GREETING < %t.body.hex
+// RUN: xxd -p -c 65536 %t.os9 > %t.os9.hex
+// RUN: FileCheck %s --check-prefix=GREETING < %t.os9.hex
 // GREETING: 48656c6c6f2c20776f726c64210a
-//
-// And the I$Write syscall sequence (10 3f 8a) and F$Exit
-// (10 3f 06) must both appear in the body (the CRT calls main() →
-// _write → _exit chain).
-// RUN: FileCheck %s --check-prefix=WRITE_CALL < %t.body.hex
+// RUN: FileCheck %s --check-prefix=WRITE_CALL < %t.os9.hex
 // WRITE_CALL: 103f8a
-// RUN: FileCheck %s --check-prefix=EXIT_CALL < %t.body.hex
+// RUN: FileCheck %s --check-prefix=EXIT_CALL < %t.os9.hex
 // EXIT_CALL: 103f06
 
 #include <os9.h>

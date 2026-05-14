@@ -188,6 +188,33 @@ void mc6809::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
     if (!Args.hasArg(options::OPT_nostartfiles, options::OPT_nostdlib))
       CmdArgs.push_back("-lclang_rt.os9");
+
+    // Bug #163 Phase 3: derive --os9-name from the output file's stem
+    // (basename minus extension) unless the user already passed it.
+    // mc6809-os9.lds defaults OUTPUT_FORMAT to os9-program-module, so
+    // the linker will demand a name and emit a wrapped module.
+    bool UserGaveName = false;
+    for (const char *A : CmdArgs) {
+      StringRef SA(A);
+      if (SA.starts_with("--os9-name") ||
+          SA.starts_with("-Wl,--os9-name")) {
+        UserGaveName = true;
+        break;
+      }
+    }
+    if (!UserGaveName) {
+      StringRef Stem = llvm::sys::path::stem(Output.getFilename());
+      if (!Stem.empty())
+        CmdArgs.push_back(
+            Args.MakeArgString(Twine("--os9-name=") + Stem));
+    }
+
+    // HD6309-native modules use Prgrm|Obj6309 ($17); plain 6809 uses
+    // Prgrm|Objct ($11).  --os9-type defaults to $11 in lld, so we
+    // only need to override for HD6309.
+    StringRef CPU = Args.getLastArgValue(options::OPT_mcpu_EQ);
+    if (CPU == "hd6309" || CPU == "6309")
+      CmdArgs.push_back("--os9-type=0x17");
   }
 
   CmdArgs.push_back("-o");

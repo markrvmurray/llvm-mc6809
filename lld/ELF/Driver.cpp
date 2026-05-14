@@ -847,7 +847,15 @@ static Target2Policy getTarget2(Ctx &ctx, opt::InputArgList &args) {
 }
 
 static bool isOutputFormatBinary(Ctx &ctx, opt::InputArgList &args) {
-  StringRef s = args.getLastArgValue(OPT_oformat, "elf");
+  auto *arg = args.getLastArg(OPT_oformat);
+  StringRef s = arg ? StringRef(arg->getValue()) : "elf";
+  // When --oformat was passed on the CLI, also pin bfdname so a later
+  // OUTPUT_FORMAT() in a linker script doesn't override the user's
+  // explicit choice.  (Pre-#163-Phase-3 this only ever toggled
+  // oFormatBinary, so an `OUTPUT_FORMAT(elf-*)` later was harmless;
+  // with the OS-9 variant landed, CLI vs. script precedence matters.)
+  if (arg)
+    ctx.arg.bfdname = s;
   if (s == "binary")
     return true;
   // Bug #163 Phase 3: os9-program-module is binary-flavoured (no ELF

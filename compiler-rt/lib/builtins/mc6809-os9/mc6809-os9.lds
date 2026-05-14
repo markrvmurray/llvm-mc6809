@@ -42,7 +42,16 @@
  *   __stack_size  (default 0x0200 = 512 B)
  */
 
-OUTPUT_FORMAT(binary)
+/*
+ * OUTPUT_FORMAT(os9-program-module) tells ld.lld to wrap the flat body
+ * we lay out below in the 13-byte OS-9 header + fcs name + 3-byte CRC
+ * trailer.  The clang driver auto-passes --os9-name; the writer reads
+ * __mem_size (defined at the end of this script) for M$Mem.
+ *
+ * The legacy two-step path (--oformat=binary + tools/os9-link) is still
+ * supported — pass --oformat=binary on the command line to override.
+ */
+OUTPUT_FORMAT(os9-program-module)
 ENTRY(_start)
 
 PROVIDE(__heap_size  = 0x0400);

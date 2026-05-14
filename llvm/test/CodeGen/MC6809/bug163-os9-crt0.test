@@ -32,6 +32,7 @@ RUN:   %S/../../../../compiler-rt/lib/builtins/mc6809-os9/crt0.S -o %t-crt0.o
 RUN: llvm-mc -triple=mc6809 --filetype=obj %t-main.s -o %t-main.o
 
 RUN: ld.lld -T %S/../../../../compiler-rt/lib/builtins/mc6809-os9/mc6809-os9.lds \
+RUN:   --oformat=binary \
 RUN:   %t-crt0.o %t-main.o -o %t.body
 
 # Flatten the body to one continuous hex line via xxd (-w on od is

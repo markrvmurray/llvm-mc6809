@@ -2685,9 +2685,20 @@ template <class ELFT> void Writer<ELFT>::assignFileOffsetsBinary() {
   if (ctx.arg.oFormatOS9) {
     if (ctx.arg.os9Name.empty())
       ErrAlways(ctx) << "OS-9 program-module output requires --os9-name=<name>";
+
+    // Phase 3 commit 2: when --os9-mem isn't on the command line, fall
+    // back to the linker symbol __mem_size (the canonical name our
+    // mc6809-os9.lds exports for data+bss+heap+stack).  This lets the
+    // clang driver leave --os9-mem off and the linker script compute it.
+    if (ctx.arg.os9Mem == 0) {
+      if (Symbol *s = ctx.symtab->find("__mem_size")) {
+        if (auto *d = dyn_cast<Defined>(s))
+          ctx.arg.os9Mem = static_cast<uint32_t>(d->value);
+      }
+    }
     if (ctx.arg.os9Mem == 0)
       ErrAlways(ctx) << "OS-9 program-module output requires --os9-mem=<bytes> "
-                     << "(M$Mem allocation: data+bss+heap+stack)";
+                     << "(or a linker-defined __mem_size symbol)";
 
     const uint64_t headerSize = 13;
     const uint64_t crcSize = 3;

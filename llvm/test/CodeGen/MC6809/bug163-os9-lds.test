@@ -39,7 +39,7 @@ RUN: echo '        .zero 8'                            >> %t.s
 
 # Assemble and link.
 RUN: llvm-mc -triple=mc6809 --filetype=obj %t.s -o %t.o
-RUN: ld.lld -T %S/../../../../compiler-rt/lib/builtins/mc6809-os9/mc6809-os9.lds %t.o -o %t.body
+RUN: ld.lld -T %S/../../../../compiler-rt/lib/builtins/mc6809-os9/mc6809-os9.lds --oformat=binary %t.o -o %t.body
 
 # 1. The flat body must be exactly 10 bytes: 6 .text (with bra back) +
 #    2 alignment-padding (since .text ends at offset 8 — clrb=1, swi2=2,
