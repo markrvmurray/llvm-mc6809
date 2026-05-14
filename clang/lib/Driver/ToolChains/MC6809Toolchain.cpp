@@ -105,7 +105,25 @@ void mc6809::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                             options::OPT_e, options::OPT_s, options::OPT_t,
                             options::OPT_Z_Flag, options::OPT_r});
 
-  if (!Args.hasArg(options::OPT_nostartfiles, options::OPT_nostdlib)) {
+  // Bug #163 Phase 2: when the OS in the triple is OS-9 (NitrOS-9),
+  // diverge from the bare-metal default link line:
+  //   - skip the bare-metal startup libs (crt0, crt, c, mc6809rt) —
+  //     the OS-9 CRT lives in compiler-rt/lib/builtins/mc6809-os9/
+  //     and the picolibc-on-OS9 port (Phase 4) will provide an
+  //     OS-9-aware libc.  At Phase 2 PoC the user passes objects
+  //     directly (crt0.o + syscalls.o + their main).
+  //   - use mc6809-os9.lds (flat OUTPUT_FORMAT(binary) body) instead
+  //     of link.ld (which assumes a flash/RAM split irrelevant to OS-9
+  //     module loading).
+  //   - the OS-9 module body still needs the os9-link post-link
+  //     wrapper to prepend the header + append CRC; the driver does
+  //     NOT auto-invoke os9-link yet — that lands with the end-to-end
+  //     `hello.c` commit, which threads __mem_size out of the link
+  //     into the os9-link --mem argument.
+  const bool IsOS9 = TC.getTriple().isOSOS9();
+
+  if (!IsOS9 &&
+      !Args.hasArg(options::OPT_nostartfiles, options::OPT_nostdlib)) {
     // Prefixing a colon causes GNU LD-like linkers to search for this filename
     // as-is. This contains the minimum necessary startup library.
     CmdArgs.push_back("-l:crt0.o");
@@ -113,28 +131,32 @@ void mc6809::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     // libcrt0.a contains optional startup objects that are only pulled in if
     // referenced.
     CmdArgs.push_back("-lcrt0");
-  } else if (!Args.hasArg(options::OPT_e)) {
+  } else if (!IsOS9 && !Args.hasArg(options::OPT_e)) {
     // No crt0 means no _start. Set a dummy entry point to suppress
     // the "cannot find entry symbol" linker warning.
     CmdArgs.push_back("-e0");
   }
 
-  if (!Args.hasArg(options::OPT_nodefaultlibs, options::OPT_nostdlib))
+  if (!IsOS9 &&
+      !Args.hasArg(options::OPT_nodefaultlibs, options::OPT_nostdlib))
     CmdArgs.push_back("-lcrt");
 
-  if (!Args.hasArg(options::OPT_nodefaultlibs, options::OPT_nolibc,
+  if (!IsOS9 &&
+      !Args.hasArg(options::OPT_nodefaultlibs, options::OPT_nolibc,
                    options::OPT_nostdlib))
     CmdArgs.push_back("-lc");
 
   // MC6809 runtime library: hand-written assembly builtins for shift, multiply,
   // divide operations that the hardware can't do natively.
-  if (!Args.hasArg(options::OPT_nodefaultlibs, options::OPT_nostdlib))
+  if (!IsOS9 &&
+      !Args.hasArg(options::OPT_nodefaultlibs, options::OPT_nostdlib))
     CmdArgs.push_back("-lmc6809rt");
 
-  // Use "link.ld" as default linker script unless one is specified or
-  // -nostdlib is active (which means the caller provides their own).
+  // Default linker script.  Bare-metal uses link.ld; OS-9 uses
+  // mc6809-os9.lds (the script landed alongside the OS-9 CRT).
+  // -nostdlib or an explicit -T suppresses both.
   if (!Args.hasArg(options::OPT_T, options::OPT_nostdlib))
-    CmdArgs.push_back("-Tlink.ld");
+    CmdArgs.push_back(IsOS9 ? "-Tmc6809-os9.lds" : "-Tlink.ld");
 
   CmdArgs.push_back("-o");
   CmdArgs.push_back(Output.getFilename());

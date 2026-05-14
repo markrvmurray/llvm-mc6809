@@ -262,7 +262,8 @@ public:
     ChipStar,
     Firmware,
     QURT,
-    LastOSType = QURT
+    OS9, // Microware OS-9 / NitrOS-9 (MC6809/HD6309) — Bug #163
+    LastOSType = OS9
   };
   enum EnvironmentType {
     UnknownEnvironment,
@@ -686,6 +687,9 @@ public:
 
   /// Tests whether the OS is Haiku.
   bool isOSHaiku() const { return getOS() == Triple::Haiku; }
+
+  /// Tests whether the OS is Microware OS-9 / NitrOS-9 (Bug #163).
+  bool isOSOS9() const { return getOS() == Triple::OS9; }
 
   /// Tests whether the OS is UEFI.
   bool isUEFI() const { return getOS() == Triple::UEFI; }
