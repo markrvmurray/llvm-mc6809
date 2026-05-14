@@ -1,0 +1,46 @@
+# Bug #163 Phase 2: round-trip test for the os9-link post-link emitter.
+#
+# Asserts that:
+#   1. os9-link wraps a hand-crafted flat binary into a valid OS-9 module.
+#   2. os9-module-check (the Phase 1 validator) accepts that module.
+#   3. Specific bytes of the produced module are correct — guards against
+#      any silent algorithm drift (header parity, CRC trailer, fcs name
+#      encoding).
+#
+# The pair os9-link + os9-module-check is meant to round-trip: a change
+# that breaks os9-link's header layout, parity, or CRC will fail at the
+# validator step, and a change that loosens os9-module-check's checks
+# will fail at the byte-level FileCheck stage below.
+
+# Hand-craft a minimal program-module body that just exits:
+#   ldb #0    ; $C6 $00
+#   swi2      ; $10 $3F
+#   fcb $06   ; F$Exit
+# (`printf '\xNN'` is non-portable across lit's shell, so use python3.)
+RUN: python3 -c "import sys; sys.stdout.buffer.write(bytes([0xc6,0x00,0x10,0x3f,0x06]))" > %t.bin
+
+# Wrap as an OS-9 program module.  Name "hello", exec at +13 (the first
+# body byte), 256-byte M$Mem allocation.
+RUN: %S/../../../../tools/os9-link %t.bin --name hello --exec 13 --mem 256 -o %t.os9
+
+# The Phase 1 validator must accept the result.
+RUN: %S/../../../../tools/os9-module-check %t.os9 | FileCheck %s --check-prefix=VALIDATOR
+
+# Byte-exact assertion on the produced module.  Layout (26 bytes total):
+#   00..0C  13-byte header: 87 cd 00 1a 00 12 11 a0 0c 00 0d 01 00
+#                           |sync|size|name_off|type|attr|par|exec|mem|
+#   0D..11   5-byte body: c6 00 10 3f 06
+#   12..16   5-byte fcs name "hell" + 'o' with bit-7 set (ef = 6f|80)
+#   17..19   3-byte CRC: 42 e4 a1  (~body_CRC; full module CRC = $800FE3)
+RUN: od -A n -t x1 %t.os9 | FileCheck %s --check-prefix=BYTES
+
+VALIDATOR: OK ({{[0-9]+}} bytes)
+VALIDATOR: type/lang: $11 (Prgrm|Objct)
+VALIDATOR: attr/rev:  $A0 (ReEnt|ModNat, rev=0)
+VALIDATOR: exec offset: $000D (13)
+VALIDATOR: mem size:    $0100 (256)
+VALIDATOR: name: "hello"
+VALIDATOR: CRC: valid (full CRC = $800FE3)
+
+BYTES: 87 cd 00 1a 00 12 11 a0 0c 00 0d 01 00 c6 00 10
+BYTES: 3f 06 68 65 6c 6c ef 42 e4 a1

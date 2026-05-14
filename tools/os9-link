@@ -1,0 +1,221 @@
+#!/usr/bin/env python3
+"""
+os9-link — post-link wrapper that turns a flat binary into an OS-9 module.
+
+Reads a flat binary (the linker's `--oformat=binary` output: pure code+data
+with no header, no CRC), prepends the 13-byte OS-9 program-module header,
+appends the fcs-terminated module name and 3-byte CRC, computes header
+parity, and writes a valid `.os9` module.
+
+This is the proof-of-concept emitter for Bug #163 Phase 2.  Once Phase 3
+lands native lld OS-9 output, this tool becomes a cross-checker.
+
+Cross-references:
+  llvm/lib/Target/MC6809/nitros9-fmt.h           — constants (must agree)
+  tools/os9-module-check                         — validator (round-trip pair)
+  llvm/docs/MC6809-OS9.md                        — design doc
+  ~/Documents/lwtools/lwlink/output.c            — emission reference
+      (do_output_os9, lwlink/output.c:457-563)
+
+Algorithm mirrors lwlink's do_output_os9() byte-for-byte:
+  1. Compute total module size = 13 (header) + len(body) + len(name) + 3 (CRC)
+     (plus 1 byte if --edition is set).
+  2. Fill header bytes [0..12]; compute parity at [8] so XOR of [0..8] = $FF.
+  3. CRC-stream every byte we write EXCEPT the final 3 CRC bytes.
+  4. Tail CRC = ~body_CRC (bitwise complement of the streaming CRC value).
+
+Usage:
+    os9-link BODY.bin \\
+        --name NAME --type Prgrm --lang Objct \\
+        --exec 13 --mem 256 \\
+        -o module.os9
+"""
+
+import argparse
+import os
+import sys
+
+
+SYNC0 = 0x87
+SYNC1 = 0xCD
+CRC_INIT = 0xFFFFFF
+
+TYPE_VALUES = {
+    "Prgrm":   0x10,
+    "Sbrtn":   0x20,
+    "Multi":   0x30,
+    "Data":    0x40,
+    "TrapLib": 0xB0,
+    "Systm":   0xC0,
+    "FlMgr":   0xD0,
+    "Drivr":   0xE0,
+    "Devic":   0xF0,
+}
+
+LANG_VALUES = {
+    "Objct":    0x01,
+    "ICode":    0x02,
+    "PCode":    0x03,
+    "CCode":    0x04,
+    "CblCode":  0x05,
+    "FrtnCode": 0x06,
+    "Obj6309":  0x07,
+}
+
+
+def crc_step(crc, b):
+    """One byte through the OS-9 CRC-24, mirrors lwlink os9crc()."""
+    c0 = (crc >> 16) & 0xFF
+    c1 = (crc >> 8) & 0xFF
+    c2 = crc & 0xFF
+    b ^= c0
+    c0 = c1
+    c1 = c2
+    c1 ^= (b >> 7) & 0xFF
+    c2 = (b << 1) & 0xFF
+    c1 ^= (b >> 2) & 0xFF
+    c2 ^= (b << 6) & 0xFF
+    b = (b ^ (b << 1)) & 0xFF
+    b = (b ^ (b << 2)) & 0xFF
+    b = (b ^ (b << 4)) & 0xFF
+    if b & 0x80:
+        c0 ^= 0x80
+        c2 ^= 0x21
+    return ((c0 << 16) | (c1 << 8) | c2) & 0xFFFFFF
+
+
+def encode_name(name):
+    """fcs-style encoding: ASCII bytes with bit 7 set on the LAST byte."""
+    if not name:
+        raise ValueError("module name must be non-empty")
+    raw = name.encode("ascii")
+    return bytes(raw[:-1]) + bytes([raw[-1] | 0x80])
+
+
+def build_module(body, *, name, modtype, lang, attr_rev, exec_off, mem_size,
+                 edition=None):
+    name_bytes = encode_name(name)
+    has_edition = 1 if edition is not None else 0
+
+    size = 13 + len(body) + len(name_bytes) + has_edition + 3
+    if size > 0xFFFF:
+        raise ValueError(
+            f"module size {size} exceeds 16-bit field max 65535")
+    name_off = 13 + len(body)  # name lives right after body
+
+    header = bytearray(13)
+    header[0] = SYNC0
+    header[1] = SYNC1
+    header[2] = (size >> 8) & 0xFF
+    header[3] = size & 0xFF
+    header[4] = (name_off >> 8) & 0xFF
+    header[5] = name_off & 0xFF
+    header[6] = (modtype & 0xF0) | (lang & 0x0F)
+    header[7] = attr_rev & 0xFF
+    # parity byte chosen so XOR of [0..8] == $FF
+    par_xor = 0
+    for b in header[:8]:
+        par_xor ^= b
+    header[8] = par_xor ^ 0xFF
+    header[9]  = (exec_off >> 8) & 0xFF
+    header[10] = exec_off & 0xFF
+    header[11] = (mem_size >> 8) & 0xFF
+    header[12] = mem_size & 0xFF
+
+    # Stream-CRC everything except the final 3 CRC bytes.
+    crc = CRC_INIT
+    for b in header:
+        crc = crc_step(crc, b)
+    for b in body:
+        crc = crc_step(crc, b)
+    for b in name_bytes:
+        crc = crc_step(crc, b)
+    if has_edition:
+        crc = crc_step(crc, edition & 0xFF)
+    tail = (~crc) & 0xFFFFFF
+
+    out = bytearray()
+    out += header
+    out += body
+    out += name_bytes
+    if has_edition:
+        out.append(edition & 0xFF)
+    out += bytes([(tail >> 16) & 0xFF,
+                  (tail >> 8) & 0xFF,
+                  tail & 0xFF])
+    return bytes(out)
+
+
+def auto_int(x):
+    return int(x, 0)
+
+
+def main():
+    ap = argparse.ArgumentParser(
+        description="Wrap a flat binary as an OS-9 / NitrOS-9 program module.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "The flat binary should be the linker's --oformat=binary output:\n"
+            "pure code+data starting at offset 0 of the module's body.\n"
+            "The output module file is `.os9` by convention but on-disk\n"
+            "OS-9 systems carry no extension."))
+    ap.add_argument("body", metavar="BODY.bin",
+                    help="flat binary (linker --oformat=binary output)")
+    ap.add_argument("-o", "--output", metavar="FILE", required=True,
+                    help="output module file")
+    ap.add_argument("--name", required=True,
+                    help="module name string (becomes fcs-terminated)")
+    ap.add_argument("--type", dest="modtype", default="Prgrm",
+                    choices=sorted(TYPE_VALUES),
+                    help="module type (default: Prgrm)")
+    ap.add_argument("--lang", default="Objct",
+                    choices=sorted(LANG_VALUES),
+                    help="module language (default: Objct; use Obj6309 for HD6309)")
+    ap.add_argument("--attr-rev", type=auto_int, default=0xA0, metavar="BYTE",
+                    help="attribute|revision byte; default $A0 = ReEnt|ModNat, rev 0")
+    ap.add_argument("--exec", dest="exec_off", type=auto_int, default=13,
+                    metavar="OFFSET",
+                    help="exec offset (from module start); default 13 "
+                         "(first byte after header)")
+    ap.add_argument("--mem", dest="mem_size", type=auto_int, required=True,
+                    metavar="SIZE",
+                    help="M$Mem bytes the OS should allocate for the process "
+                         "data area (BSS + heap + stack)")
+    ap.add_argument("--edition", type=auto_int, default=None,
+                    help="optional edition byte (added after name)")
+    args = ap.parse_args()
+
+    try:
+        with open(args.body, "rb") as f:
+            body = f.read()
+    except OSError as e:
+        print(f"{args.body}: cannot read: {e}", file=sys.stderr)
+        return 1
+
+    try:
+        module = build_module(
+            body,
+            name=args.name,
+            modtype=TYPE_VALUES[args.modtype],
+            lang=LANG_VALUES[args.lang],
+            attr_rev=args.attr_rev,
+            exec_off=args.exec_off,
+            mem_size=args.mem_size,
+            edition=args.edition,
+        )
+    except ValueError as e:
+        print(f"os9-link: {e}", file=sys.stderr)
+        return 1
+
+    try:
+        with open(args.output, "wb") as f:
+            f.write(module)
+    except OSError as e:
+        print(f"{args.output}: cannot write: {e}", file=sys.stderr)
+        return 1
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
