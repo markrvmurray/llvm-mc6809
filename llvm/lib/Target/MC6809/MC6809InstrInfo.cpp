@@ -865,7 +865,14 @@ static bool isSpillReg(Register Reg) {
   case MC6809::SPILL_B0: case MC6809::SPILL_B1: case MC6809::SPILL_B2: case MC6809::SPILL_B3: case MC6809::SPILL_B4: case MC6809::SPILL_B5: case MC6809::SPILL_B6: case MC6809::SPILL_B7:
   case MC6809::SPILL_D0: case MC6809::SPILL_D1: case MC6809::SPILL_D2: case MC6809::SPILL_D3: case MC6809::SPILL_D4: case MC6809::SPILL_D5: case MC6809::SPILL_D6: case MC6809::SPILL_D7:
   case MC6809::SPILL_X0: case MC6809::SPILL_X1: case MC6809::SPILL_X2: case MC6809::SPILL_X3:
-  case MC6809::SPILL_Q0: case MC6809::SPILL_Q1: case MC6809::SPILL_Q2: case MC6809::SPILL_Q3:
+  case MC6809::SPILL_Q0:  case MC6809::SPILL_Q1:  case MC6809::SPILL_Q2:  case MC6809::SPILL_Q3:
+  case MC6809::SPILL_Q4:  case MC6809::SPILL_Q5:  case MC6809::SPILL_Q6:  case MC6809::SPILL_Q7:
+  case MC6809::SPILL_Q8:  case MC6809::SPILL_Q9:  case MC6809::SPILL_Q10: case MC6809::SPILL_Q11:
+  case MC6809::SPILL_Q12: case MC6809::SPILL_Q13: case MC6809::SPILL_Q14: case MC6809::SPILL_Q15:
+  case MC6809::SPILL_Q16: case MC6809::SPILL_Q17: case MC6809::SPILL_Q18: case MC6809::SPILL_Q19:
+  case MC6809::SPILL_Q20: case MC6809::SPILL_Q21: case MC6809::SPILL_Q22: case MC6809::SPILL_Q23:
+  case MC6809::SPILL_Q24: case MC6809::SPILL_Q25: case MC6809::SPILL_Q26: case MC6809::SPILL_Q27:
+  case MC6809::SPILL_Q28: case MC6809::SPILL_Q29: case MC6809::SPILL_Q30: case MC6809::SPILL_Q31:
     return true;
   default:
     return false;
@@ -887,10 +894,38 @@ static MCPhysReg getSpillDParent(Register Reg) {
   case MC6809::SPILL_X1: return MC6809::SPILL_X1;
   case MC6809::SPILL_X2: return MC6809::SPILL_X2;
   case MC6809::SPILL_X3: return MC6809::SPILL_X3;
-  case MC6809::SPILL_Q0: return MC6809::SPILL_Q0;
-  case MC6809::SPILL_Q1: return MC6809::SPILL_Q1;
-  case MC6809::SPILL_Q2: return MC6809::SPILL_Q2;
-  case MC6809::SPILL_Q3: return MC6809::SPILL_Q3;
+  case MC6809::SPILL_Q0:  return MC6809::SPILL_Q0;
+  case MC6809::SPILL_Q1:  return MC6809::SPILL_Q1;
+  case MC6809::SPILL_Q2:  return MC6809::SPILL_Q2;
+  case MC6809::SPILL_Q3:  return MC6809::SPILL_Q3;
+  case MC6809::SPILL_Q4:  return MC6809::SPILL_Q4;
+  case MC6809::SPILL_Q5:  return MC6809::SPILL_Q5;
+  case MC6809::SPILL_Q6:  return MC6809::SPILL_Q6;
+  case MC6809::SPILL_Q7:  return MC6809::SPILL_Q7;
+  case MC6809::SPILL_Q8:  return MC6809::SPILL_Q8;
+  case MC6809::SPILL_Q9:  return MC6809::SPILL_Q9;
+  case MC6809::SPILL_Q10: return MC6809::SPILL_Q10;
+  case MC6809::SPILL_Q11: return MC6809::SPILL_Q11;
+  case MC6809::SPILL_Q12: return MC6809::SPILL_Q12;
+  case MC6809::SPILL_Q13: return MC6809::SPILL_Q13;
+  case MC6809::SPILL_Q14: return MC6809::SPILL_Q14;
+  case MC6809::SPILL_Q15: return MC6809::SPILL_Q15;
+  case MC6809::SPILL_Q16: return MC6809::SPILL_Q16;
+  case MC6809::SPILL_Q17: return MC6809::SPILL_Q17;
+  case MC6809::SPILL_Q18: return MC6809::SPILL_Q18;
+  case MC6809::SPILL_Q19: return MC6809::SPILL_Q19;
+  case MC6809::SPILL_Q20: return MC6809::SPILL_Q20;
+  case MC6809::SPILL_Q21: return MC6809::SPILL_Q21;
+  case MC6809::SPILL_Q22: return MC6809::SPILL_Q22;
+  case MC6809::SPILL_Q23: return MC6809::SPILL_Q23;
+  case MC6809::SPILL_Q24: return MC6809::SPILL_Q24;
+  case MC6809::SPILL_Q25: return MC6809::SPILL_Q25;
+  case MC6809::SPILL_Q26: return MC6809::SPILL_Q26;
+  case MC6809::SPILL_Q27: return MC6809::SPILL_Q27;
+  case MC6809::SPILL_Q28: return MC6809::SPILL_Q28;
+  case MC6809::SPILL_Q29: return MC6809::SPILL_Q29;
+  case MC6809::SPILL_Q30: return MC6809::SPILL_Q30;
+  case MC6809::SPILL_Q31: return MC6809::SPILL_Q31;
   default: llvm_unreachable("Not a spill register");
   }
 }
@@ -907,7 +942,14 @@ static int getSpillByteOffset(Register Reg) {
     return 1; // Low byte (big-endian)
   case MC6809::SPILL_X0: case MC6809::SPILL_X1: case MC6809::SPILL_X2: case MC6809::SPILL_X3:
     return 0; // Full 16-bit, offset 0
-  case MC6809::SPILL_Q0: case MC6809::SPILL_Q1: case MC6809::SPILL_Q2: case MC6809::SPILL_Q3:
+  case MC6809::SPILL_Q0:  case MC6809::SPILL_Q1:  case MC6809::SPILL_Q2:  case MC6809::SPILL_Q3:
+  case MC6809::SPILL_Q4:  case MC6809::SPILL_Q5:  case MC6809::SPILL_Q6:  case MC6809::SPILL_Q7:
+  case MC6809::SPILL_Q8:  case MC6809::SPILL_Q9:  case MC6809::SPILL_Q10: case MC6809::SPILL_Q11:
+  case MC6809::SPILL_Q12: case MC6809::SPILL_Q13: case MC6809::SPILL_Q14: case MC6809::SPILL_Q15:
+  case MC6809::SPILL_Q16: case MC6809::SPILL_Q17: case MC6809::SPILL_Q18: case MC6809::SPILL_Q19:
+  case MC6809::SPILL_Q20: case MC6809::SPILL_Q21: case MC6809::SPILL_Q22: case MC6809::SPILL_Q23:
+  case MC6809::SPILL_Q24: case MC6809::SPILL_Q25: case MC6809::SPILL_Q26: case MC6809::SPILL_Q27:
+  case MC6809::SPILL_Q28: case MC6809::SPILL_Q29: case MC6809::SPILL_Q30: case MC6809::SPILL_Q31:
     return 0; // Full 32-bit, offset 0
   default: llvm_unreachable("Not a spill register");
   }
@@ -924,7 +966,14 @@ static Register getRealRegForSpill(Register Reg) {
     return MC6809::AD;
   case MC6809::SPILL_X0: case MC6809::SPILL_X1: case MC6809::SPILL_X2: case MC6809::SPILL_X3:
     return MC6809::IX;
-  case MC6809::SPILL_Q0: case MC6809::SPILL_Q1: case MC6809::SPILL_Q2: case MC6809::SPILL_Q3:
+  case MC6809::SPILL_Q0:  case MC6809::SPILL_Q1:  case MC6809::SPILL_Q2:  case MC6809::SPILL_Q3:
+  case MC6809::SPILL_Q4:  case MC6809::SPILL_Q5:  case MC6809::SPILL_Q6:  case MC6809::SPILL_Q7:
+  case MC6809::SPILL_Q8:  case MC6809::SPILL_Q9:  case MC6809::SPILL_Q10: case MC6809::SPILL_Q11:
+  case MC6809::SPILL_Q12: case MC6809::SPILL_Q13: case MC6809::SPILL_Q14: case MC6809::SPILL_Q15:
+  case MC6809::SPILL_Q16: case MC6809::SPILL_Q17: case MC6809::SPILL_Q18: case MC6809::SPILL_Q19:
+  case MC6809::SPILL_Q20: case MC6809::SPILL_Q21: case MC6809::SPILL_Q22: case MC6809::SPILL_Q23:
+  case MC6809::SPILL_Q24: case MC6809::SPILL_Q25: case MC6809::SPILL_Q26: case MC6809::SPILL_Q27:
+  case MC6809::SPILL_Q28: case MC6809::SPILL_Q29: case MC6809::SPILL_Q30: case MC6809::SPILL_Q31:
     return MC6809::AQ;
   default: llvm_unreachable("Not a spill register");
   }
@@ -945,7 +994,14 @@ static bool isIndexSpillReg(Register Reg) {
 /// AD-staged 16-bit path.
 static bool isQSpillReg(Register Reg) {
   switch (Reg) {
-  case MC6809::SPILL_Q0: case MC6809::SPILL_Q1: case MC6809::SPILL_Q2: case MC6809::SPILL_Q3:
+  case MC6809::SPILL_Q0:  case MC6809::SPILL_Q1:  case MC6809::SPILL_Q2:  case MC6809::SPILL_Q3:
+  case MC6809::SPILL_Q4:  case MC6809::SPILL_Q5:  case MC6809::SPILL_Q6:  case MC6809::SPILL_Q7:
+  case MC6809::SPILL_Q8:  case MC6809::SPILL_Q9:  case MC6809::SPILL_Q10: case MC6809::SPILL_Q11:
+  case MC6809::SPILL_Q12: case MC6809::SPILL_Q13: case MC6809::SPILL_Q14: case MC6809::SPILL_Q15:
+  case MC6809::SPILL_Q16: case MC6809::SPILL_Q17: case MC6809::SPILL_Q18: case MC6809::SPILL_Q19:
+  case MC6809::SPILL_Q20: case MC6809::SPILL_Q21: case MC6809::SPILL_Q22: case MC6809::SPILL_Q23:
+  case MC6809::SPILL_Q24: case MC6809::SPILL_Q25: case MC6809::SPILL_Q26: case MC6809::SPILL_Q27:
+  case MC6809::SPILL_Q28: case MC6809::SPILL_Q29: case MC6809::SPILL_Q30: case MC6809::SPILL_Q31:
     return true;
   default:
     return false;
@@ -968,6 +1024,62 @@ static bool isQSpillHalfReg(Register Reg, MCPhysReg &Parent, bool &IsLo) {
   case MC6809::SPILL_Q2HI: Parent = MC6809::SPILL_Q2; IsLo = false; return true;
   case MC6809::SPILL_Q3LO: Parent = MC6809::SPILL_Q3; IsLo = true;  return true;
   case MC6809::SPILL_Q3HI: Parent = MC6809::SPILL_Q3; IsLo = false; return true;
+  case MC6809::SPILL_Q4LO: Parent = MC6809::SPILL_Q4; IsLo = true;  return true;
+  case MC6809::SPILL_Q4HI: Parent = MC6809::SPILL_Q4; IsLo = false; return true;
+  case MC6809::SPILL_Q5LO: Parent = MC6809::SPILL_Q5; IsLo = true;  return true;
+  case MC6809::SPILL_Q5HI: Parent = MC6809::SPILL_Q5; IsLo = false; return true;
+  case MC6809::SPILL_Q6LO: Parent = MC6809::SPILL_Q6; IsLo = true;  return true;
+  case MC6809::SPILL_Q6HI: Parent = MC6809::SPILL_Q6; IsLo = false; return true;
+  case MC6809::SPILL_Q7LO: Parent = MC6809::SPILL_Q7; IsLo = true;  return true;
+  case MC6809::SPILL_Q7HI: Parent = MC6809::SPILL_Q7; IsLo = false; return true;
+  case MC6809::SPILL_Q8LO: Parent = MC6809::SPILL_Q8; IsLo = true;  return true;
+  case MC6809::SPILL_Q8HI: Parent = MC6809::SPILL_Q8; IsLo = false; return true;
+  case MC6809::SPILL_Q9LO: Parent = MC6809::SPILL_Q9; IsLo = true;  return true;
+  case MC6809::SPILL_Q9HI: Parent = MC6809::SPILL_Q9; IsLo = false; return true;
+  case MC6809::SPILL_Q10LO: Parent = MC6809::SPILL_Q10; IsLo = true;  return true;
+  case MC6809::SPILL_Q10HI: Parent = MC6809::SPILL_Q10; IsLo = false; return true;
+  case MC6809::SPILL_Q11LO: Parent = MC6809::SPILL_Q11; IsLo = true;  return true;
+  case MC6809::SPILL_Q11HI: Parent = MC6809::SPILL_Q11; IsLo = false; return true;
+  case MC6809::SPILL_Q12LO: Parent = MC6809::SPILL_Q12; IsLo = true;  return true;
+  case MC6809::SPILL_Q12HI: Parent = MC6809::SPILL_Q12; IsLo = false; return true;
+  case MC6809::SPILL_Q13LO: Parent = MC6809::SPILL_Q13; IsLo = true;  return true;
+  case MC6809::SPILL_Q13HI: Parent = MC6809::SPILL_Q13; IsLo = false; return true;
+  case MC6809::SPILL_Q14LO: Parent = MC6809::SPILL_Q14; IsLo = true;  return true;
+  case MC6809::SPILL_Q14HI: Parent = MC6809::SPILL_Q14; IsLo = false; return true;
+  case MC6809::SPILL_Q15LO: Parent = MC6809::SPILL_Q15; IsLo = true;  return true;
+  case MC6809::SPILL_Q15HI: Parent = MC6809::SPILL_Q15; IsLo = false; return true;
+  case MC6809::SPILL_Q16LO: Parent = MC6809::SPILL_Q16; IsLo = true;  return true;
+  case MC6809::SPILL_Q16HI: Parent = MC6809::SPILL_Q16; IsLo = false; return true;
+  case MC6809::SPILL_Q17LO: Parent = MC6809::SPILL_Q17; IsLo = true;  return true;
+  case MC6809::SPILL_Q17HI: Parent = MC6809::SPILL_Q17; IsLo = false; return true;
+  case MC6809::SPILL_Q18LO: Parent = MC6809::SPILL_Q18; IsLo = true;  return true;
+  case MC6809::SPILL_Q18HI: Parent = MC6809::SPILL_Q18; IsLo = false; return true;
+  case MC6809::SPILL_Q19LO: Parent = MC6809::SPILL_Q19; IsLo = true;  return true;
+  case MC6809::SPILL_Q19HI: Parent = MC6809::SPILL_Q19; IsLo = false; return true;
+  case MC6809::SPILL_Q20LO: Parent = MC6809::SPILL_Q20; IsLo = true;  return true;
+  case MC6809::SPILL_Q20HI: Parent = MC6809::SPILL_Q20; IsLo = false; return true;
+  case MC6809::SPILL_Q21LO: Parent = MC6809::SPILL_Q21; IsLo = true;  return true;
+  case MC6809::SPILL_Q21HI: Parent = MC6809::SPILL_Q21; IsLo = false; return true;
+  case MC6809::SPILL_Q22LO: Parent = MC6809::SPILL_Q22; IsLo = true;  return true;
+  case MC6809::SPILL_Q22HI: Parent = MC6809::SPILL_Q22; IsLo = false; return true;
+  case MC6809::SPILL_Q23LO: Parent = MC6809::SPILL_Q23; IsLo = true;  return true;
+  case MC6809::SPILL_Q23HI: Parent = MC6809::SPILL_Q23; IsLo = false; return true;
+  case MC6809::SPILL_Q24LO: Parent = MC6809::SPILL_Q24; IsLo = true;  return true;
+  case MC6809::SPILL_Q24HI: Parent = MC6809::SPILL_Q24; IsLo = false; return true;
+  case MC6809::SPILL_Q25LO: Parent = MC6809::SPILL_Q25; IsLo = true;  return true;
+  case MC6809::SPILL_Q25HI: Parent = MC6809::SPILL_Q25; IsLo = false; return true;
+  case MC6809::SPILL_Q26LO: Parent = MC6809::SPILL_Q26; IsLo = true;  return true;
+  case MC6809::SPILL_Q26HI: Parent = MC6809::SPILL_Q26; IsLo = false; return true;
+  case MC6809::SPILL_Q27LO: Parent = MC6809::SPILL_Q27; IsLo = true;  return true;
+  case MC6809::SPILL_Q27HI: Parent = MC6809::SPILL_Q27; IsLo = false; return true;
+  case MC6809::SPILL_Q28LO: Parent = MC6809::SPILL_Q28; IsLo = true;  return true;
+  case MC6809::SPILL_Q28HI: Parent = MC6809::SPILL_Q28; IsLo = false; return true;
+  case MC6809::SPILL_Q29LO: Parent = MC6809::SPILL_Q29; IsLo = true;  return true;
+  case MC6809::SPILL_Q29HI: Parent = MC6809::SPILL_Q29; IsLo = false; return true;
+  case MC6809::SPILL_Q30LO: Parent = MC6809::SPILL_Q30; IsLo = true;  return true;
+  case MC6809::SPILL_Q30HI: Parent = MC6809::SPILL_Q30; IsLo = false; return true;
+  case MC6809::SPILL_Q31LO: Parent = MC6809::SPILL_Q31; IsLo = true;  return true;
+  case MC6809::SPILL_Q31HI: Parent = MC6809::SPILL_Q31; IsLo = false; return true;
   default: return false;
   }
 }
@@ -981,7 +1093,14 @@ static unsigned getSpillRegSize(Register Reg) {
   case MC6809::SPILL_D0: case MC6809::SPILL_D1: case MC6809::SPILL_D2: case MC6809::SPILL_D3: case MC6809::SPILL_D4: case MC6809::SPILL_D5: case MC6809::SPILL_D6: case MC6809::SPILL_D7:
   case MC6809::SPILL_X0: case MC6809::SPILL_X1: case MC6809::SPILL_X2: case MC6809::SPILL_X3:
     return 2;
-  case MC6809::SPILL_Q0: case MC6809::SPILL_Q1: case MC6809::SPILL_Q2: case MC6809::SPILL_Q3:
+  case MC6809::SPILL_Q0:  case MC6809::SPILL_Q1:  case MC6809::SPILL_Q2:  case MC6809::SPILL_Q3:
+  case MC6809::SPILL_Q4:  case MC6809::SPILL_Q5:  case MC6809::SPILL_Q6:  case MC6809::SPILL_Q7:
+  case MC6809::SPILL_Q8:  case MC6809::SPILL_Q9:  case MC6809::SPILL_Q10: case MC6809::SPILL_Q11:
+  case MC6809::SPILL_Q12: case MC6809::SPILL_Q13: case MC6809::SPILL_Q14: case MC6809::SPILL_Q15:
+  case MC6809::SPILL_Q16: case MC6809::SPILL_Q17: case MC6809::SPILL_Q18: case MC6809::SPILL_Q19:
+  case MC6809::SPILL_Q20: case MC6809::SPILL_Q21: case MC6809::SPILL_Q22: case MC6809::SPILL_Q23:
+  case MC6809::SPILL_Q24: case MC6809::SPILL_Q25: case MC6809::SPILL_Q26: case MC6809::SPILL_Q27:
+  case MC6809::SPILL_Q28: case MC6809::SPILL_Q29: case MC6809::SPILL_Q30: case MC6809::SPILL_Q31:
     return 4;
   default: llvm_unreachable("Not a spill register");
   }

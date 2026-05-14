@@ -433,10 +433,20 @@ void MC6809FrameLowering::processFunctionBeforeFrameFinalized(MachineFunction &M
     }
   }
   // Bug #161 round 14: allocate 4-byte stack slots for ACC32 (Q) spill
-  // registers (SPILL_Q0..Q3, HD6309 only). Standalone — they don't share
-  // storage with SPILL_D pairs.
+  // registers (SPILL_Q0..Q31, HD6309 only — bumped from 4 to 32 in Bug
+  // #296 to remove the artificial ACC32 capacity ceiling).  Standalone
+  // — they don't share storage with SPILL_D pairs.  Slots are only
+  // allocated when the function actually uses them; unused SPILL_Q*N
+  // cost zero stack frame.
   static const MCPhysReg SpillQRegsEmit[] = {
-    MC6809::SPILL_Q0, MC6809::SPILL_Q1, MC6809::SPILL_Q2, MC6809::SPILL_Q3
+    MC6809::SPILL_Q0,  MC6809::SPILL_Q1,  MC6809::SPILL_Q2,  MC6809::SPILL_Q3,
+    MC6809::SPILL_Q4,  MC6809::SPILL_Q5,  MC6809::SPILL_Q6,  MC6809::SPILL_Q7,
+    MC6809::SPILL_Q8,  MC6809::SPILL_Q9,  MC6809::SPILL_Q10, MC6809::SPILL_Q11,
+    MC6809::SPILL_Q12, MC6809::SPILL_Q13, MC6809::SPILL_Q14, MC6809::SPILL_Q15,
+    MC6809::SPILL_Q16, MC6809::SPILL_Q17, MC6809::SPILL_Q18, MC6809::SPILL_Q19,
+    MC6809::SPILL_Q20, MC6809::SPILL_Q21, MC6809::SPILL_Q22, MC6809::SPILL_Q23,
+    MC6809::SPILL_Q24, MC6809::SPILL_Q25, MC6809::SPILL_Q26, MC6809::SPILL_Q27,
+    MC6809::SPILL_Q28, MC6809::SPILL_Q29, MC6809::SPILL_Q30, MC6809::SPILL_Q31
   };
   for (MCPhysReg Reg : SpillQRegsEmit) {
     if (FuncInfo.SpillRegFrameIndices.count(Reg) == 0 &&

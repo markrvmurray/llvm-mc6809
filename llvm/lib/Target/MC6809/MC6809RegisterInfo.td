@@ -330,6 +330,25 @@ def SPILL_Q1 : MC6809Reg32<0x201C, "spill_q1", [SPILL_Q1LO, SPILL_Q1HI], [sub_lo
 def SPILL_Q2 : MC6809Reg32<0x2020, "spill_q2", [SPILL_Q2LO, SPILL_Q2HI], [sub_lo_word, sub_hi_word]>;
 def SPILL_Q3 : MC6809Reg32<0x2024, "spill_q3", [SPILL_Q3LO, SPILL_Q3HI], [sub_lo_word, sub_hi_word]>;
 
+// Bug #265 / Bug #296 Phase 2: extend SPILL_Q* from 4 slots to 32 to
+// remove the artificial ACC32 capacity ceiling that the optimizer's
+// word-loop patterns can overflow (memccpy / rawmemchr at HD6309 -O2
+// being the manifest).  The new entries use TableGen IDs in a clean
+// non-colliding range ($2100+ for main 32-bit slots, $2200+ for HI/LO
+// halves) — the existing Q0..3 keep their original IDs so any code that
+// happens to depend on them stays put.  Slots are stack-backed like
+// the original four (see expandLoadIdx / expandStoreIdx), so adding
+// more costs zero DP and no per-function memory unless regalloc
+// actually spills to them.
+foreach I = 4...31 in {
+  def SPILL_Q#I#HI : MC6809Reg<!add(0x2200, !mul(I, 2)), "spill_q"#I#"_hi">;
+  def SPILL_Q#I#LO : MC6809Reg<!add(0x2201, !mul(I, 2)), "spill_q"#I#"_lo">;
+  def SPILL_Q#I : MC6809Reg32<!add(0x2100, !shl(I, 2)),
+      "spill_q"#I,
+      [!cast<Register>("SPILL_Q"#I#"LO"), !cast<Register>("SPILL_Q"#I#"HI")],
+      [sub_lo_word, sub_hi_word]>;
+}
+
 //===----------------------------------------------------------------------===//
 //  Register classes
 //===----------------------------------------------------------------------===//
@@ -427,7 +446,8 @@ def ACC16 : MC6809Reg16Class<(add AD, AW, SPILL_D0, SPILL_D1, SPILL_D2, SPILL_D3
 // from a dedicated 4-byte stack slot. EXTRACT_SUBREG sub_lo_word /
 // sub_hi_word from a SPILL_Q is unsupported, but round 10's i32→i16
 // narrowing of G_LOAD/G_STORE eliminated nearly all such patterns.
-def ACC32 : MC6809Reg32Class<(add AQ, SPILL_Q0, SPILL_Q1, SPILL_Q2, SPILL_Q3)> {
+def ACC32 : MC6809Reg32Class<(add AQ, SPILL_Q0, SPILL_Q1, SPILL_Q2, SPILL_Q3,
+                                  (sequence "SPILL_Q%u", 4, 31))> {
     let AltOrders = [(add)];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
 }
