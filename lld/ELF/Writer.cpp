@@ -86,6 +86,10 @@ private:
   void writeSectionsBinary();
   void writeCustomOutputFormat();
   void writeBuildId();
+  // Bug #163 Phase 3: wrap a flat body in an OS-9 / NitrOS-9 program
+  // module — write the 13-byte header at file offset 0, append the
+  // fcs-encoded name + 3-byte CRC tail after the body.
+  void writeOS9Wrap();
 
   Ctx &ctx;
   std::unique_ptr<FileOutputBuffer> &buffer;
@@ -390,6 +394,11 @@ template <class ELFT> void Writer<ELFT>::run() {
       writeSections();
     } else {
       writeSectionsBinary();
+      // Bug #163 Phase 3: wrap the flat body in an OS-9 module if
+      // --oformat=os9-program-module (equivalently OUTPUT_FORMAT(...))
+      // selected the variant.
+      if (ctx.arg.oFormatOS9)
+        writeOS9Wrap();
     }
 
     // Backfill .note.gnu.build-id section content. This is done at last
@@ -2667,6 +2676,62 @@ template <class ELFT> void Writer<ELFT>::assignFileOffsetsBinary() {
       sec->offset -= minAddr;
       fileSize = std::max(fileSize, sec->offset + sec->size);
     }
+
+  // Bug #163 Phase 3: when emitting an OS-9 program module, reserve
+  // 13 bytes at the start of the file for the module header and shift
+  // every section's offset by +13.  The fcs-encoded module name and
+  // 3-byte CRC tail are budgeted at the end.  writeOS9Wrap() populates
+  // those regions after writeSectionsBinary().
+  if (ctx.arg.oFormatOS9) {
+    if (ctx.arg.os9Name.empty())
+      ErrAlways(ctx) << "OS-9 program-module output requires --os9-name=<name>";
+    if (ctx.arg.os9Mem == 0)
+      ErrAlways(ctx) << "OS-9 program-module output requires --os9-mem=<bytes> "
+                     << "(M$Mem allocation: data+bss+heap+stack)";
+
+    const uint64_t headerSize = 13;
+    const uint64_t crcSize = 3;
+    // fcs name encoding: ASCII bytes, last byte has bit 7 set.  Total
+    // bytes = name length (the high-bit flip is in-place, not extra).
+    const uint64_t nameSize = ctx.arg.os9Name.size();
+
+    // Shift body sections to land after the header.
+    for (OutputSection *sec : ctx.outputSections)
+      if (needsOffset(*sec))
+        sec->offset += headerSize;
+
+    // Total file = header + body + name + crc.
+    fileSize += headerSize;
+    fileSize += nameSize + crcSize;
+
+    if (fileSize > 0xFFFF)
+      ErrAlways(ctx) << "OS-9 module size " << fileSize
+                     << " exceeds 16-bit M$Size field (max 65535)";
+  }
+}
+
+// Bug #163 Phase 3: one byte through the OS-9 CRC-24, mirroring
+// lwlink's os9crc() (lwtools/lwlink/output.c:437) and
+// tools/os9-module-check's Python crc_step().
+static uint32_t os9CrcStep(uint32_t crc, uint8_t b) {
+  uint8_t c0 = (crc >> 16) & 0xFF;
+  uint8_t c1 = (crc >> 8) & 0xFF;
+  uint8_t c2 = crc & 0xFF;
+  b ^= c0;
+  c0 = c1;
+  c1 = c2;
+  c1 ^= b >> 7;
+  c2 = (uint8_t)(b << 1);
+  c1 ^= b >> 2;
+  c2 ^= (uint8_t)(b << 6);
+  b ^= (uint8_t)(b << 1);
+  b ^= (uint8_t)(b << 2);
+  b ^= (uint8_t)(b << 4);
+  if (b & 0x80) {
+    c0 ^= 0x80;
+    c2 ^= 0x21;
+  }
+  return ((uint32_t)c0 << 16) | ((uint32_t)c1 << 8) | c2;
 }
 
 static std::string rangeToString(uint64_t addr, uint64_t len) {
@@ -2978,6 +3043,70 @@ template <class ELFT> void Writer<ELFT>::writeSectionsBinary() {
   for (OutputSection *sec : ctx.outputSections)
     if (sec->flags & SHF_ALLOC)
       sec->writeTo<ELFT>(ctx, ctx.bufferStart + sec->offset, tg);
+}
+
+// Bug #163 Phase 3: after writeSectionsBinary() has populated the body
+// at file offsets [13..bodyEnd-1], lay down the 13-byte OS-9 module
+// header, append the fcs-encoded module name, and finally compute and
+// store the 3-byte CRC tail.  Layout (per llvm/docs/MC6809-OS9.md):
+//
+//   [0..1]   sync ($87, $CD)
+//   [2..3]   total module size, big-endian
+//   [4..5]   name offset within module, big-endian
+//   [6]      type/lang byte (high nibble = type, low = language)
+//   [7]      attr/revision byte
+//   [8]      header parity (XOR of bytes [0..8] must equal $FF)
+//   [9..10]  exec offset (entry-point offset within module), big-endian
+//   [11..12] M$Mem allocation (data+bss+heap+stack), big-endian
+//   [13..N-nameSize-3-1]  body (sections laid out by writeSectionsBinary)
+//   [N-nameSize-3..N-4]   fcs name (last byte | 0x80)
+//   [N-3..N-1]            CRC-24 over [0..N-4] inverted; tail bytes
+//                         chosen so the full-module CRC ends at $800FE3
+template <class ELFT> void Writer<ELFT>::writeOS9Wrap() {
+  uint8_t *base = ctx.bufferStart;
+  const uint16_t totalSize = static_cast<uint16_t>(fileSize);
+  const uint16_t nameLen = ctx.arg.os9Name.size();
+  const uint16_t nameOffset = totalSize - 3 - nameLen;
+
+  // Header bytes 0..7.
+  base[0]  = 0x87;
+  base[1]  = 0xCD;
+  base[2]  = totalSize >> 8;
+  base[3]  = totalSize & 0xFF;
+  base[4]  = nameOffset >> 8;
+  base[5]  = nameOffset & 0xFF;
+  base[6]  = ctx.arg.os9Type;
+  base[7]  = ctx.arg.os9AttrRev;
+
+  // Header parity: chosen so XOR of bytes [0..8] == $FF.
+  uint8_t parity = 0;
+  for (int i = 0; i < 8; ++i)
+    parity ^= base[i];
+  base[8] = parity ^ 0xFF;
+
+  base[9]  = ctx.arg.os9Exec >> 8;
+  base[10] = ctx.arg.os9Exec & 0xFF;
+  base[11] = ctx.arg.os9Mem >> 8;
+  base[12] = ctx.arg.os9Mem & 0xFF;
+
+  // fcs-encoded name (high bit of last byte set).
+  uint8_t *namePtr = base + nameOffset;
+  for (size_t i = 0; i < ctx.arg.os9Name.size(); ++i)
+    namePtr[i] = static_cast<uint8_t>(ctx.arg.os9Name[i]);
+  if (nameLen > 0)
+    namePtr[nameLen - 1] |= 0x80;
+
+  // CRC-24 over [0..totalSize-4] (everything except the trailing 3
+  // CRC bytes themselves).  Result is inverted before storage so the
+  // full-module-CRC arithmetic lands on the canonical $800FE3 magic.
+  uint32_t crc = 0xFFFFFF;
+  for (uint64_t i = 0; i + 3 < totalSize; ++i)
+    crc = os9CrcStep(crc, base[i]);
+  crc = (~crc) & 0xFFFFFF;
+
+  base[totalSize - 3] = (crc >> 16) & 0xFF;
+  base[totalSize - 2] = (crc >> 8) & 0xFF;
+  base[totalSize - 1] = crc & 0xFF;
 }
 
 template <class ELFT> void Writer<ELFT>::writeCustomOutputFormat() {

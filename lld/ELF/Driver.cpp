@@ -850,9 +850,33 @@ static bool isOutputFormatBinary(Ctx &ctx, opt::InputArgList &args) {
   StringRef s = args.getLastArgValue(OPT_oformat, "elf");
   if (s == "binary")
     return true;
+  // Bug #163 Phase 3: os9-program-module is binary-flavoured (no ELF
+  // headers, no phdrs) — we'll wrap the body with OS-9 module bits in
+  // the writer.  Treat it as binary at this gate so the rest of the
+  // binary-mode plumbing kicks in.
+  if (s == "os9-program-module") {
+    ctx.arg.oFormatOS9 = true;
+    return true;
+  }
   if (!s.starts_with("elf"))
     ErrAlways(ctx) << "unknown --oformat value: " << s;
   return false;
+}
+
+// Bug #163 Phase 3: parse 0xNN / 0NN / decimal, with a fallback if the
+// user typed something unparseable.
+static uint32_t parseByteArg(Ctx &ctx, opt::InputArgList &args, int id,
+                             uint32_t defaultValue, const char *flagName) {
+  auto *a = args.getLastArg(id);
+  if (!a)
+    return defaultValue;
+  StringRef s = a->getValue();
+  uint32_t v;
+  if (s.getAsInteger(0, v)) {
+    ErrAlways(ctx) << "invalid value for " << flagName << ": " << s;
+    return defaultValue;
+  }
+  return v;
 }
 
 static DiscardPolicy getDiscard(opt::InputArgList &args) {
@@ -1562,6 +1586,18 @@ static void readConfigs(Ctx &ctx, opt::InputArgList &args) {
   ctx.arg.od65Path = args.getLastArgValue(OPT_od65_path);
   ctx.arg.cc65Launcher = args.getLastArgValue(OPT_cc65_launcher);
   ctx.arg.oFormatBinary = isOutputFormatBinary(ctx, args);
+  // Bug #163 Phase 3: OS-9 module-emit parameters.  Only consulted when
+  // ctx.arg.oFormatOS9 is set (which isOutputFormatBinary turned on
+  // above for --oformat=os9-program-module; the script parser also sets
+  // it for OUTPUT_FORMAT(os9-program-module)).
+  ctx.arg.os9Name = args.getLastArgValue(OPT_os9_name);
+  ctx.arg.os9Type =
+      parseByteArg(ctx, args, OPT_os9_type, 0x11, "--os9-type") & 0xFF;
+  ctx.arg.os9AttrRev =
+      parseByteArg(ctx, args, OPT_os9_attr_rev, 0xA0, "--os9-attr-rev") & 0xFF;
+  ctx.arg.os9Exec =
+      parseByteArg(ctx, args, OPT_os9_exec, 13, "--os9-exec") & 0xFFFF;
+  ctx.arg.os9Mem = parseByteArg(ctx, args, OPT_os9_mem, 0, "--os9-mem");
   ctx.arg.omagic = args.hasFlag(OPT_omagic, OPT_no_omagic, false);
   ctx.arg.optRemarksFilename = args.getLastArgValue(OPT_opt_remarks_filename);
   ctx.arg.optStatsFilename = args.getLastArgValue(OPT_plugin_opt_stats_file);

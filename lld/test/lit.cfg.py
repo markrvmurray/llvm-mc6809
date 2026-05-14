@@ -91,6 +91,7 @@ llvm_config.feature_config(
                 "AVR": "avr",
                 "Hexagon": "hexagon",
                 "LoongArch": "loongarch",
+                "MC6809": "mc6809",
                 "Mips": "mips",
                 "MOS": "mos",
                 "MSP430": "msp430",

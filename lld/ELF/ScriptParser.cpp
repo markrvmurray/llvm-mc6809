@@ -505,6 +505,16 @@ void ScriptParser::readOutputFormat() {
     return;
   }
 
+  // Bug #163 Phase 3: OS-9 / NitrOS-9 program-module output.  Implies
+  // binary-flavoured section layout; the actual module header + parity
+  // + CRC tail are added in Writer.cpp.  Module parameters travel via
+  // --os9-name / --os9-type / --os9-attr-rev / --os9-exec / --os9-mem.
+  if (s == "os9-program-module") {
+    ctx.arg.oFormatBinary = true;
+    ctx.arg.oFormatOS9 = true;
+    return;
+  }
+
   if (s.consume_back("-freebsd"))
     ctx.arg.osabi = ELFOSABI_FREEBSD;
 

@@ -370,7 +370,35 @@ defm od65_path: Eq<"od65-path", "Path to od65 object file dump utility">, MetaVa
 defm cc65_launcher: Eq<"cc65-launcher", "Test-only launcher for cc65 utilities">, Flags<[HelpHidden]>;
 
 defm oformat: EEq<"oformat", "Specify the binary format for the output object file">,
-  MetaVarName<"[elf,binary]">;
+  MetaVarName<"[elf,binary,os9-program-module]">;
+
+// Bug #163 Phase 3: parameters for the OS-9 / NitrOS-9 program-module
+// output format.  These are only consulted when --oformat=os9-program-module
+// (equivalently OUTPUT_FORMAT(os9-program-module) in the linker script).
+// The five params replace the Python os9-link tool's CLI flags
+// (see tools/os9-link) and let lld emit a finished .os9 module directly.
+defm os9_name:
+  EEq<"os9-name",
+      "OS-9 module name (fcs-encoded into the module's name field; "
+      "high bit of the final byte is set automatically)">,
+  MetaVarName<"<name>">;
+defm os9_type:
+  EEq<"os9-type",
+      "OS-9 module type+language byte (default 0x11 = Prgrm|Objct; "
+      "use 0x17 for HD6309-native Prgrm|Obj6309)">,
+  MetaVarName<"<byte>">;
+defm os9_attr_rev:
+  EEq<"os9-attr-rev",
+      "OS-9 module attr+revision byte (default 0xA0 = ReEnt|ModNat, rev 0)">,
+  MetaVarName<"<byte>">;
+defm os9_exec:
+  EEq<"os9-exec",
+      "OS-9 M$Exec offset (default 13 = first byte after header)">,
+  MetaVarName<"<offset>">;
+defm os9_mem:
+  EEq<"os9-mem",
+      "OS-9 M$Mem allocation in bytes (data + bss + heap + stack)">,
+  MetaVarName<"<bytes>">;
 
 def omagic: FF<"omagic">, MetaVarName<"<magic>">,
   HelpText<"Set the text and data sections to be readable and writable, do not page align sections, link against static libraries">;

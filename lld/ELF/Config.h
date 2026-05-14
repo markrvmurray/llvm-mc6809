@@ -355,6 +355,15 @@ struct Config {
   bool noinhibitExec;
   bool nostdlib;
   bool oFormatBinary;
+  // Bug #163 Phase 3: when set, also implies oFormatBinary.  Triggers the
+  // OS-9 / NitrOS-9 program-module wrapping in Writer.cpp.  Parameters
+  // travel in os9Name/Type/AttrRev/Exec/Mem below.
+  bool oFormatOS9 = false;
+  llvm::StringRef os9Name;
+  uint8_t os9Type = 0x11;     // Prgrm|Objct (use 0x17 for HD6309 Prgrm|Obj6309)
+  uint8_t os9AttrRev = 0xA0;  // ReEnt|ModNat, rev 0
+  uint16_t os9Exec = 13;      // module-offset of _start; 13 = first body byte
+  uint32_t os9Mem = 0;        // M$Mem allocation; must be specified when oFormatOS9
   bool omagic;
   bool optEB = false;
   bool optEL = false;
