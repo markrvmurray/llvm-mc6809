@@ -259,3 +259,92 @@ session focused on `expandLoadIdx` / `expandStoreIdx` internals.
 - Audit doc itself (`e4bb9960278d`).
 - Phase 2a TableGen change (Defs extension) was reverted before
   commit; no working-tree residue.
+
+## Addendum 3 — LDD/STD `Defs = [..., AQ]` over-claim (2026-05-14 PM)
+
+After Phase 2a falsified, re-applied the two-piece Phase B
+working-set (legalizer flip to allow s32 G_LOAD/G_STORE + AQc
+widened to include `SPILL_Q0..31`), rebuilt, and reproduced the
+verifier failure on
+`test/CodeGen/MC6809/verifier/bug274_loadi32_qspill_dst_implicit_def.ll`.
+
+The verifier complaint is `Using an undefined physical register
+$ad` on a `STDi_o8` whose preceding LDD's $ad-def was killed —
+not by an intervening sub-reg write, but by an intervening
+`STQi_o5 ..., implicit killed renamable $aq` (which kills `$aq`
+and transitively kills `$ad` as a sub-register).
+
+Tracing the MIR before regalloc revealed the actual structural
+flaw, and it is **not** in `expandLoadIdx` / `expandStoreIdx`.
+It is in the pseudo-level `Defs` list of the natural LDD
+instruction itself:
+
+```
+defm LDD : Load16Concrete<"ldd", ..., [NZ,N,Z,V,AA,AB,AD,AQ]>;
+                                                           ^^^
+```
+
+LDD's Defs list claims that LDD writes `AQ` (the full 32-bit
+register).  This is **physically wrong**.  LDD writes `AA:AB`
+(= `AD`, the low 16-bit half of `AQ`).  The high half (`AW =
+AE:AF`) is preserved.  Listing `AQ` in LDD's Defs makes the
+live-range tracker treat every LDD as a **full kill** of any
+unrelated value being kept in `AQ`.
+
+### Why the over-claim was there
+
+Almost certainly a conservative annotation predating Phase B —
+when the only allocatable wider-than-`AD` class was `AD` itself,
+claiming `AQ` was a free safety net.  But once Phase B widens
+`AQc` to be a real allocation target for i32, the over-claim
+becomes load-bearing: regalloc can't keep an i32 in `$aq`
+across **any** LDD-using path (which is most of the codegen),
+because every LDD claims to invalidate $aq.
+
+### Why this defeats every Phase B path tried so far
+
+- Probe 1 (legalizer flip alone): regalloc surrenders ("ran out
+  of registers") because almost no MBB has a long enough
+  LDD-free run to keep $aq live.
+- Probe 2 + AQc widening: regalloc accepts the spill, but
+  emits interleaved two-LDD spill expansions whose `$ad`
+  threads through the same physical register that the LDD's
+  `AQ` over-claim says is fully redefined.
+- Phase 2a (`Defs = [NZ, V, AD]` on Load_i32 / Store_i32): the
+  pseudo-level change can't fix the natural-LDD over-claim;
+  the verifier still trips downstream.
+
+### Next-session starting point (supersedes Addendum 2)
+
+The right fix is **at the pseudo's Defs list, not at the
+expansion code**: remove `AQ` from LDD's Defs (and mirror
+the change on STD, plus any other 16-bit op that lists `AQ`
+in its Defs as an over-claim — audit needed).  LDD's natural
+operand `AD` already implies `$aa, $ab` via sub-reg aliasing;
+that's sufficient.
+
+This is invasive — touches every consumer of LDD — and needs
+its own validation:
+
+1. Audit `MC6809InstrFamilies.td` and any other `.td` that
+   lists `AQ` (and `IX`, `IY`, `SU`, `SS` — same potential
+   shape for 16-bit pointer loads) in a 16-bit op's Defs.
+   Catalog which are correct (physically write the full
+   register) and which are over-claims.
+2. Drop only the over-claims.
+3. Run lit 105/105 + full bench.  Watch especially for
+   regalloc churn in the HD6309-mame matrix where the wider
+   accumulator hierarchy was load-bearing on the over-claim.
+4. THEN return to Phase B legalizer flip + AQc widening as
+   the second piece.
+
+It is a two-piece change of "first un-over-claim, then widen
+the class" — same structural pattern as Bug #290 (greedy hook)
++ Bug #291 (LiveIntervals plumbing).  Each piece must land
+clean on its own.
+
+### What was committed in this attempt (Addendum 3)
+
+- This addendum itself.
+- All experimental changes (legalizer flip, AQc widening)
+  reverted before commit.  Working tree clean.
