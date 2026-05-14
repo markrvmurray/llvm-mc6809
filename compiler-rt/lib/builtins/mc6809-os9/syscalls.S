@@ -116,3 +116,22 @@ _read:
 	ldx	#-1
 	rts
 	.size	_read, .-_read
+
+
+//===----------------------------------------------------------------------===//
+// NitrOS-9-native aliases.
+//
+// The OS-9 ecosystem refers to these syscalls as `F$Exit`, `I$Read`,
+// `I$Write` — same address, just the native name.  Ported NitrOS-9
+// source can use these names verbatim.  Requires the C consumer to
+// have `-fdollars-in-identifiers` enabled (the mc6809-unknown-os9
+// driver auto-enables it; see clang/lib/Driver/ToolChains/
+// MC6809Toolchain.cpp).
+//===----------------------------------------------------------------------===//
+
+	.globl	F$Exit
+	.set	F$Exit, _exit
+	.globl	I$Write
+	.set	I$Write, _write
+	.globl	I$Read
+	.set	I$Read, _read

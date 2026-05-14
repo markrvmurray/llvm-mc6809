@@ -46,6 +46,20 @@ void MC6809ToolChain::addClangTargetOptions(const ArgList &DriverArgs,
   CC1Args.push_back("-nostdsysteminc");
   // Not yet implemented for GlobalISel.
   CC1Args.push_back("-fexperimental-assignment-tracking=disabled");
+
+  // Bug #163 Phase 2: OS-9 / NitrOS-9 syscalls and library functions
+  // traditionally use `$` in identifiers (F$Exit, I$Read, I$Write, …).
+  // The MC6809 assembler tokenises a `$` inside an identifier
+  // context as part of the name (only a leading `$` is the hex
+  // prefix), and gcc6809 has had `-fdollars-in-identifiers` enabled
+  // for OS-9 builds forever.  Match that posture for the OS-9 triple
+  // so ports of existing NitrOS-9 code work without per-file flags.
+  //
+  // Pushed BEFORE the user's own args end up on the cc1 line, so a
+  // user-supplied `-fno-dollars-in-identifiers` still wins via
+  // last-occurrence override.
+  if (getTriple().isOSOS9())
+    CC1Args.push_back("-fdollars-in-identifiers");
 }
 
 static bool hasLTOEmitAsm(const ArgList &Args) {

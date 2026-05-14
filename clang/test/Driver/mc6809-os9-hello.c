@@ -21,8 +21,11 @@
 //
 // REQUIRES: mc6809-registered-target
 //
-// Build pipeline (manual chain):
+// Build pipeline (manual chain).  The driver auto-enables
+// -fdollars-in-identifiers for the OS-9 triple so the C source below
+// can use the native NitrOS-9 syscall name `I$Write` via <os9.h>.
 // RUN: %clang -target mc6809-unknown-os9 \
+// RUN:   -I %S/../../../compiler-rt/lib/builtins/mc6809-os9/include \
 // RUN:   -Wl,-L,%S/../../../compiler-rt/lib/builtins/mc6809-os9 \
 // RUN:   %s \
 // RUN:   %S/../../../compiler-rt/lib/builtins/mc6809-os9/crt0.S \
@@ -58,9 +61,12 @@
 // RUN: FileCheck %s --check-prefix=EXIT_CALL < %t.body.hex
 // EXIT_CALL: 103f06
 
-extern int _write(int fd, const char *buf, int n);
+#include <os9.h>
 
 int main(void) {
-    _write(1, "Hello, world!\n", 14);
+    /* Using the native NitrOS-9 syscall name via <os9.h>.  The same
+       call could be spelled `_write(...)` — both resolve to the same
+       SWI2/I$Write stub via the .set aliases in syscalls.S. */
+    I$Write(1, "Hello, world!\n", 14);
     return 0;
 }
