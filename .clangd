@@ -1,0 +1,48 @@
+# clangd config for llvm-mc6809.  Picked up automatically by IDE
+# integrations (CLion, VS Code, Helix, Emacs eglot, ...) when the
+# editor is rooted at this repo.
+#
+# The cmake-generated compile_commands.json at the path below has
+# every -I, -D, and -Wflag the actual build uses.  Without pointing
+# clangd at this, every #include shows red.
+
+CompileFlags:
+  CompilationDatabase: llvm/cmake-build-debug-system
+
+Index:
+  # Build a tree-wide index in the background.  Required for
+  # cross-TU "go to definition" / "find references".  Initial pass
+  # on llvm-mc6809 takes 1-2 min and caches under ~/Library/Caches.
+  Background: Build
+  StandardLibrary: Yes
+
+Diagnostics:
+  # Run clang-tidy in-editor.  The checks themselves come from the
+  # project's per-directory .clang-tidy files (the root one applies
+  # broadly; subdirs like llvm/lib/Target/MC6809 inherit and may add).
+  ClangTidy:
+    FastCheckFilter: Strict
+
+  # Tablegen .inc files appear in many #includes (MC6809GenGICombiner.inc,
+  # MC6809GenInstrInfo.inc, ...).  They are produced by the build,
+  # not in-tree.  Suppress the "file not found" diagnostic for these
+  # so the editor doesn't paint half the file red between builds.
+  Suppress:
+    - pp_file_not_found
+
+# Per-file overrides.  Empty for now; add If: blocks as the project
+# accumulates conventions.
+
+---
+
+# llvm/lib/Target/MC6809/nitros9-fmt.h has Microware-spec constant
+# names (F_Exit, I_Read, ...) that intentionally don't follow LLVM
+# camelCase.  The header carries NOLINTBEGIN/END markers, but the
+# YAML below is here as documentation in case future config wants
+# a path-scoped override.
+#
+# If:
+#   PathMatch: .*nitros9-fmt\.h
+# Diagnostics:
+#   ClangTidy:
+#     Remove: readability-identifier-naming
