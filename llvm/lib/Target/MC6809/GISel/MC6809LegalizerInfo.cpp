@@ -460,6 +460,23 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // __andsi3 / __orsi3 / __xorsi3); the in-line UNMERGE/MERGE chain
   // was the actual aqc-creating path. Narrowing stays on both
   // G_LOAD and G_STORE for both targets.
+  //
+  // Bug #272 Phase B retry 2026-05-14 (after Bug #296 SPILL_Q 4→32
+  // raised ACC32 capacity to 33): tried again to enable native s32
+  // load/store on HD6309 so LDQ/STQ would be emitted directly.  The
+  // capacity bump fixed Bug #265's manifest but NOT Bug #272 Phase
+  // B's blocker — the issue is structural, not capacity: AQ
+  // overlaps AD/AW/AE/AF, so an LDQ-into-AQ clobbers ALL four
+  // halves regardless of how many SPILL_Q slots exist.  Bug #221
+  // documented this: when LDQ runs, it clobbers AW even if AW holds
+  // an unrelated live i16 value.  Simple test sext_arg(i16 %x) →
+  // i32 hits "ran out of registers" because SEXW writes AQ
+  // (clobbering AD/AW), and the return-i32-via-AQ requirement
+  // conflicts with any other live i16.  A real Phase B fix would
+  // need either a peephole combining adjacent i16 loads into LDQ
+  // where AW is provably dead, or a regalloc-aware s32 lowering.
+  // Both are substantial work beyond the scope of #272 Phase B's
+  // "just remove the narrowing" framing.  Narrowing remains.
   getActionDefinitionsBuilder({G_LOAD, G_STORE})
       .legalForCartesianProduct(LegalTypes16, {p, p1})
       .lowerIfMemSizeNotByteSizePow2()
