@@ -3554,6 +3554,38 @@ void MC6809InstrInfo::expandImm(ContextImmediate Context, MachineIRBuilder &Buil
     Val = ValOp.isImm() ? ValOp.getImm() : ValOp.getCImm()->getSExtValue();
   else
     llvm_unreachable("Unable to determine immediate value");
+  // Bug #272 Phase B Scope A followup: AND with 0 is an annihilator, not an
+  // identity — `X & 0 == 0` regardless of X.  ANDA/ANDB #0 emits an
+  // implicit USE of $aa / $ab that the post-Scope-A/B/C verifier can flag
+  // as undef-reading (because the dst's prior value isn't actually
+  // reachable in all paths).  CLRA / CLRB is strictly better: same NZV
+  // result, 1 byte instead of 2, and no read of the input register.
+  // Manifest at test-double-free.c:133 -Og on the high-byte clear of an
+  // i8-zext-to-i16 return value.
+  if (Context.Opcode == &ANDImmediateOpcode && Val == 0) {
+    unsigned ClrOpc = 0;
+    switch (DestReg) {
+    case MC6809::AA: case MC6809::AALSB: ClrOpc = MC6809::CLRAa; break;
+    case MC6809::AB: case MC6809::ABLSB: ClrOpc = MC6809::CLRBa; break;
+    case MC6809::AE: ClrOpc = MC6809::CLREa; break;
+    case MC6809::AF: ClrOpc = MC6809::CLRFa; break;
+    case MC6809::AD: ClrOpc = MC6809::CLRDa; break;
+    case MC6809::AW: ClrOpc = MC6809::CLRWa; break;
+    default: break;
+    }
+    if (ClrOpc != 0) {
+      Builder.buildInstr(ClrOpc).addDef(DestReg, RegState::Implicit);
+      // Store result back BEFORE erasing MI (same as the post-op path).
+      if (needsMaterialization(OrigDest)) {
+        MachineBasicBlock &MBB = *MI.getParent();
+        auto NextIt = std::next(MachineBasicBlock::iterator(MI));
+        MachineIRBuilder StoreBuilder(MBB, NextIt);
+        emitSpillStore(StoreBuilder, DestReg, OrigDest, MF);
+      }
+      MI.eraseFromParent();
+      return;
+    }
+  }
   if (Context.NeverSkip || Val != Context.IdentityValue) {
     auto OpcodePair = Context.Opcode->find(DestReg);
     if (OpcodePair == Context.Opcode->end()) {
@@ -3768,10 +3800,23 @@ void MC6809InstrInfo::expandBitwiseImm16(ContextImmediate Context, unsigned OpcA
   int Val = ValOp.isImm() ? ValOp.getImm() : ValOp.getCImm()->getSExtValue();
   int Lo = Val & 0xFF;
   int Hi = (Val >> 8) & 0xFF;
-  if (Lo != Context.IdentityValue)
-    Builder.buildInstr(OpcB).addDef(MC6809::AB, RegState::Implicit).addImm(Lo);
-  if (Hi != Context.IdentityValue)
-    Builder.buildInstr(OpcA).addDef(MC6809::AA, RegState::Implicit).addImm(Hi);
+  // Bug #272 Phase B Scope A followup: AND with 0 is an annihilator; emit
+  // CLRA/CLRB instead of ANDA/ANDB #0 to avoid the implicit USE of the
+  // accumulator (which the post-Scope-A/B/C verifier flags as undef-read
+  // when the byte's value isn't reachable on all paths).
+  bool IsAND = (Context.Opcode == &ANDImmediateOpcode);
+  if (Lo != Context.IdentityValue) {
+    if (IsAND && Lo == 0)
+      Builder.buildInstr(MC6809::CLRBa).addDef(MC6809::AB, RegState::Implicit);
+    else
+      Builder.buildInstr(OpcB).addDef(MC6809::AB, RegState::Implicit).addImm(Lo);
+  }
+  if (Hi != Context.IdentityValue) {
+    if (IsAND && Hi == 0)
+      Builder.buildInstr(MC6809::CLRAa).addDef(MC6809::AA, RegState::Implicit);
+    else
+      Builder.buildInstr(OpcA).addDef(MC6809::AA, RegState::Implicit).addImm(Hi);
+  }
   if (needsMaterialization(OrigDest)) {
     dematerializeReg(Builder, DestReg, OrigDest, MF);
     Builder.buildInstr(MC6809::PULSs, {}, {Register(MC6809::AD)});

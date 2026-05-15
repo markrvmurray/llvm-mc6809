@@ -44,12 +44,49 @@ public:
 
   bool runOnMachineFunction(MachineFunction &MF) override;
   bool tailJMP(MachineBasicBlock &MBB) const;
+  bool simplifyAndZero(MachineBasicBlock &MBB) const;
 };
 
 bool MC6809LateOptimization::runOnMachineFunction(MachineFunction &MF) {
   bool Changed = false;
   for (MachineBasicBlock &MBB : MF) {
     Changed |= tailJMP(MBB);
+    Changed |= simplifyAndZero(MBB);
+  }
+  return Changed;
+}
+
+// Bug #272 Phase B Scope A followup: convert `ANDA #0` / `ANDB #0` to
+// `CLRA` / `CLRB`.  AND with immediate 0 always produces 0 regardless of
+// the input, so the implicit USE of the accumulator is unnecessary —
+// CLR is strictly better: 1 byte instead of 2, identical NZ/V/C flags,
+// and no read of the (possibly undef) accumulator value.  Surfaced as
+// a Og verifier hit at test-double-free.c:133 where the codegen emits
+// `ANDA #0` to zero the high byte of a returned i16 / i8-zext value;
+// post-Scope-A the implicit $aa read was no longer covered by the AQ
+// over-claim and the verifier tripped on the undef read.
+bool MC6809LateOptimization::simplifyAndZero(MachineBasicBlock &MBB) const {
+  bool Changed = false;
+  const TargetInstrInfo &TII =
+      *MBB.getParent()->getSubtarget().getInstrInfo();
+  for (auto It = MBB.begin(); It != MBB.end(); ) {
+    auto NextIt = std::next(It);
+    unsigned Opc = It->getOpcode();
+    unsigned NewOpc = 0;
+    if (Opc == MC6809::ANDAi8 && It->getOperand(0).isImm() &&
+        It->getOperand(0).getImm() == 0)
+      NewOpc = MC6809::CLRAa;
+    else if (Opc == MC6809::ANDBi8 && It->getOperand(0).isImm() &&
+             It->getOperand(0).getImm() == 0)
+      NewOpc = MC6809::CLRBa;
+    if (NewOpc != 0) {
+      MachineInstr &MI = *It;
+      DebugLoc DL = MI.getDebugLoc();
+      BuildMI(MBB, MI, DL, TII.get(NewOpc));
+      MI.eraseFromParent();
+      Changed = true;
+    }
+    It = NextIt;
   }
   return Changed;
 }
