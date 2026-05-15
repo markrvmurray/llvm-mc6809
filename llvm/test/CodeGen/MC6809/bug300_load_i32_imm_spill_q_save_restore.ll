@@ -41,9 +41,9 @@ entry:
 ; (HIGH) i32 value — i.e. 0x89ABCDEF never appeared anywhere in
 ; the asm.
 
-; Low-32 of i64 must appear (either as ldq #2309737967 in Phase B
-; path or split as ldd #X / ldd #Y in narrowed path).  The split-
-; into-i16 path emits ldd #-30293 (= $89ab signed) and ldd #-12817
-; (= $cdef signed).  At least one of these markers must be
-; present in the output.
-; CHECK: -30293
+; Low-32 of i64 must appear.  Either lowering path produces a
+; distinctive marker:
+;   - Phase B path: `ldq #2309737967` (= 0x89ABCDEF).
+;   - Narrowed-to-i16 path: `ldd #-30293` (= 0x89AB signed).
+; At least one of these markers must be present.
+; CHECK: {{2309737967|-30293}}
