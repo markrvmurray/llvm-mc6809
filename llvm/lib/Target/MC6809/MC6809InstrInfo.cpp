@@ -4005,25 +4005,42 @@ void MC6809InstrInfo::expandAddSub_i32_Imm(MachineIRBuilder &Builder,
 // HD6309 has no direct AQ-AQ register-level i32 ADD/SUB op (ADCR/SBCR
 // exist but only at i8/i16 register pairs).  Strategy:
 //
-//   1. Save the current $aq value to a fresh 4-byte emergency stack
-//      slot.  This unconditionally costs an STQ; the alternative is a
-//      conditional save that pessimises the common case (both operands
-//      in SPILL_Q*N) but optimises the AQ-source case, and the
-//      complexity isn't worth the savings.
+//   1. Allocate a 4-byte emergency slot on the hard stack via `LEAS
+//      -4,S` and save the current $aq value to it via `STQ ,S`.  This
+//      unconditionally costs an STQ; the alternative is a conditional
+//      save that pessimises the common case (both operands in
+//      SPILL_Q*N) but optimises the AQ-source case, and the complexity
+//      isn't worth the savings.
 //   2. Materialize $dst (which is also $src via tying) into physical
 //      AQ.  If $dst was in SPILL_Q*N, materializeReg emits LDQ from its
-//      slot.  If $dst was already in AQ, the materialise is a no-op
-//      (but the previous STQ saved that very value to the emergency
-//      slot, which is harmless dead-store).
+//      slot using U-relative addressing (U is the stable frame ptr).
+//      If $dst was already in AQ, the materialise is a no-op (but the
+//      previous STQ saved that very value to the emergency slot, which
+//      is harmless dead-store).
 //   3. Compute the stack offset of $src2's operand:
-//        - SPILL_Q*N: use computeSpillStackOffset (its own slot).
-//        - AQ: use the emergency slot (we just stashed it there).
-//   4. Call into the _Mem-style emission: ADDW <off+2>, $su / ADCD
-//      <off+0>, $su (or SUBW / SBCD).
+//        - SPILL_Q*N: use computeSpillStackOffset (its own U-relative slot).
+//        - AQ: use the emergency slot (we just stashed it there, S-relative).
+//   4. Emit ADDW <off+2>, <base> / ADCD <off+0>, <base> (or SUBW/SBCD).
+//      Base is U for SPILL_Q*N slot, S for the emergency slot.
 //   5. Dematerialize $dst back to its origin if needed.
+//   6. Release the emergency slot via `LEAS 4,S`.
 //
-// The emergency slot is `isSpillSlot=true` so frame-lowering treats it
-// as a regalloc spill — no impact on stack layout decisions.
+// Bug #298 fix 2026-05-15: the previous implementation used
+// `MFI.CreateStackObject` + `getObjectOffset` to allocate the emergency
+// slot.  That's broken because expandPostRAPseudo runs AFTER PEI — the
+// freshly-created stack object never gets laid out, so getObjectOffset
+// returns 0.  An emergency-slot offset of 0 from U collides with the
+// pshs-saved Y/U area at the head of every function with a `pshs y,u;
+// tfr s,u` prologue.  The wild `stq ,u` overwrote the saved registers,
+// corrupting the function's epilogue puls/rts chain (manifest:
+// muld_neg60_probe at Os-lto-hd6309-mame hung because vfprintf's saved
+// Y/U slot got overwritten with the i32 value -1740 during `%d`
+// processing).
+//
+// LEAS-based push/pop avoids the FI mechanism entirely.  S is moved
+// down 4, the emergency value lives at [S+0..3], and S is restored
+// before MI.eraseFromParent().  Intermediate materialize/dematerialize
+// uses U-relative addressing which is stable across S-manipulations.
 void MC6809InstrInfo::expandAddSub_i32_Reg(MachineIRBuilder &Builder,
                                             MachineInstr &MI,
                                             bool IsAdd) const {
@@ -4036,41 +4053,38 @@ void MC6809InstrInfo::expandAddSub_i32_Reg(MachineIRBuilder &Builder,
   Register Src2Reg = MI.getOperand(2).getReg();
   Register OrigDest = DestReg;
   MachineFunction &MF = *MI.getMF();
-  MachineFrameInfo &MFI = MF.getFrameInfo();
 
-  // Step 1: STQ AQ → emergency slot.  Unconditional save (see header
-  // comment for the why-not-conditional rationale).
-  int EmergencyFI = MFI.CreateStackObject(4, Align(1), /*isSpillSlot=*/true);
-  int EmergencyOff = MFI.getObjectOffset(EmergencyFI);
-  int EmergencyOffSize = offsetSizeInBitsForValue(EmergencyOff);
-  auto &StoreMap = StoreIdxImmOpcode;
-  auto StoreLookup = StoreMap.find({MC6809::AQ, EmergencyOffSize});
-  assert(StoreLookup != StoreMap.end() &&
-         "Bug #297: missing STQ opcode for emergency slot offset");
-  auto StoreInstr =
-      Builder.buildInstr(StoreLookup->getSecond())
-          .addUse(MC6809::AQ, RegState::Implicit);
-  if (EmergencyOffSize == 0)
-    StoreInstr.addReg(MC6809::SU);
-  else
-    StoreInstr.addImm(EmergencyOff).addReg(MC6809::SU);
+  // Step 1a: LEAS -4,S — allocate 4 bytes on the hard stack.
+  Builder.buildInstr(MC6809::LEASi_o5)
+      .addImm(-4)
+      .addReg(MC6809::SS);
 
-  // Step 2: materialize $dst into AQ.
+  // Step 1b: STQ AQ → emergency slot at [S+0..3].
+  Builder.buildInstr(MC6809::STQi_o0)
+      .addUse(MC6809::AQ, RegState::Implicit)
+      .addReg(MC6809::SS);
+
+  // Step 2: materialize $dst into AQ.  Uses U-relative addressing for
+  // SPILL_Q*N → AQ; U is unchanged by our LEAS on S.
   if (needsMaterialization(DestReg))
     DestReg = materializeReg(Builder, DestReg, MF);
   assert(DestReg == MC6809::AQ &&
          "Bug #297: i32 ADD/SUB Reg requires AQ for the ALU-side ops");
 
-  // Step 3: pick $src2's stack offset.
-  int Src2Off = isQSpillReg(Src2Reg)
-                    ? computeSpillStackOffset(Src2Reg, MF)
-                    : EmergencyOff;
+  // Step 3: pick $src2's stack offset + base register.
+  //   SPILL_Q*N → computeSpillStackOffset (U-relative)
+  //   AQ        → emergency slot at S+0 (S-relative)
+  bool Src2InEmergency = !isQSpillReg(Src2Reg);
+  int Src2Off = Src2InEmergency
+                    ? 0
+                    : computeSpillStackOffset(Src2Reg, MF);
   int Src2OffLo = Src2Off + 2;
   int Src2OffHi = Src2Off;
   int Src2OffLoSize = offsetSizeInBitsForValue(Src2OffLo);
   int Src2OffHiSize = offsetSizeInBitsForValue(Src2OffHi);
+  Register Src2BaseReg = Src2InEmergency ? MC6809::SS : MC6809::SU;
 
-  // Step 4: emit ADDW/SUBW + ADCD/SBCD pair against $su (frame).
+  // Step 4: emit ADDW/SUBW + ADCD/SBCD pair against $src2's base.
   auto &LowMap = IsAdd ? AddIdxImmOpcode : SubIdxImmOpcode;
   auto &HighMap = IsAdd ? AddCarryIdxImmOpcode : SubBorrowIdxImmOpcode;
   auto LowLookup = LowMap.find({MC6809::AW, Src2OffLoSize});
@@ -4082,21 +4096,28 @@ void MC6809InstrInfo::expandAddSub_i32_Reg(MachineIRBuilder &Builder,
       Builder.buildInstr(LowLookup->getSecond())
           .addDef(MC6809::AW, RegState::Implicit);
   if (Src2OffLoSize == 0)
-    LowInstr.addReg(MC6809::SU);
+    LowInstr.addReg(Src2BaseReg);
   else
-    LowInstr.addImm(Src2OffLo).addReg(MC6809::SU);
+    LowInstr.addImm(Src2OffLo).addReg(Src2BaseReg);
 
   auto HighInstr =
       Builder.buildInstr(HighLookup->getSecond())
           .addDef(MC6809::AD, RegState::Implicit);
   if (Src2OffHiSize == 0)
-    HighInstr.addReg(MC6809::SU);
+    HighInstr.addReg(Src2BaseReg);
   else
-    HighInstr.addImm(Src2OffHi).addReg(MC6809::SU);
+    HighInstr.addImm(Src2OffHi).addReg(Src2BaseReg);
 
-  // Step 5: dematerialize $dst back if it was spilled.
+  // Step 5: dematerialize $dst back if it was spilled.  U-relative
+  // addressing; safe across the in-progress S-displacement.
   if (needsMaterialization(OrigDest))
     dematerializeReg(Builder, DestReg, OrigDest, MF);
+
+  // Step 6: LEAS 4,S — release the emergency slot.
+  Builder.buildInstr(MC6809::LEASi_o5)
+      .addImm(4)
+      .addReg(MC6809::SS);
+
   MI.eraseFromParent();
 }
 
