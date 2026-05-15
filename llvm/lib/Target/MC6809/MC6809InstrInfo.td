@@ -295,49 +295,49 @@ multiclass ALU16Concrete<string Mnem, Opcode ImmOpc, Opcode DirOpc,
 
 // 8-bit ALU: A accumulator (Page 1)
 defm SUBA : ALU8Concrete<"suba", Opcode<0x80,1>, Opcode<0x90,1>, Opcode<0xA0,1>, Opcode<0xB0,1>,
-                          [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA]>;
+                          [AA,NZ,N,Z,V,C,AA,AD], [AA]>;
 defm CMPA : ALU8Concrete<"cmpa", Opcode<0x81,1>, Opcode<0x91,1>, Opcode<0xA1,1>, Opcode<0xB1,1>,
                           [NZ,N,Z,V,C], [AA], /*IsCompare=*/1>;
 defm SBCA : ALU8Concrete<"sbca", Opcode<0x82,1>, Opcode<0x92,1>, Opcode<0xA2,1>, Opcode<0xB2,1>,
-                          [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA,C]>;
+                          [AA,NZ,N,Z,V,C,AA,AD], [AA,C]>;
 defm ANDA : ALU8Concrete<"anda", Opcode<0x84,1>, Opcode<0x94,1>, Opcode<0xA4,1>, Opcode<0xB4,1>,
-                          [AA,NZ,N,Z,V,AA,AD,AQ], [AA]>;
+                          [AA,NZ,N,Z,V,AA,AD], [AA]>;
 defm BITA : ALU8Concrete<"bita", Opcode<0x85,1>, Opcode<0x95,1>, Opcode<0xA5,1>, Opcode<0xB5,1>,
                           [NZ,N,Z,V], [AA], /*IsCompare=*/1>;
 defm EORA : ALU8Concrete<"eora", Opcode<0x88,1>, Opcode<0x98,1>, Opcode<0xA8,1>, Opcode<0xB8,1>,
-                          [AA,NZ,N,Z,V,AA,AD,AQ], [AA]>;
+                          [AA,NZ,N,Z,V,AA,AD], [AA]>;
 defm ADCA : ALU8Concrete<"adca", Opcode<0x89,1>, Opcode<0x99,1>, Opcode<0xA9,1>, Opcode<0xB9,1>,
-                          [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA,C], /*IsCompare=*/0, /*IsAdd=*/1>;
+                          [AA,NZ,N,Z,V,C,AA,AD], [AA,C], /*IsCompare=*/0, /*IsAdd=*/1>;
 defm ORA  : ALU8Concrete<"ora",  Opcode<0x8A,1>, Opcode<0x9A,1>, Opcode<0xAA,1>, Opcode<0xBA,1>,
-                          [AA,NZ,N,Z,V,AA,AD,AQ], [AA]>;
+                          [AA,NZ,N,Z,V,AA,AD], [AA]>;
 defm ADDA : ALU8Concrete<"adda", Opcode<0x8B,1>, Opcode<0x9B,1>, Opcode<0xAB,1>, Opcode<0xBB,1>,
-                          [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA], /*IsCompare=*/0, /*IsAdd=*/1>;
+                          [AA,NZ,N,Z,V,C,AA,AD], [AA], /*IsCompare=*/0, /*IsAdd=*/1>;
 
 // 8-bit ALU: B accumulator (Page 1)
 defm SUBB : ALU8Concrete<"subb", Opcode<0xC0,1>, Opcode<0xD0,1>, Opcode<0xE0,1>, Opcode<0xF0,1>,
-                          [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB]>;
+                          [AB,NZ,N,Z,V,C,AB,AD], [AB]>;
 defm CMPB : ALU8Concrete<"cmpb", Opcode<0xC1,1>, Opcode<0xD1,1>, Opcode<0xE1,1>, Opcode<0xF1,1>,
                           [NZ,N,Z,V,C], [AB], /*IsCompare=*/1>;
 defm SBCB : ALU8Concrete<"sbcb", Opcode<0xC2,1>, Opcode<0xD2,1>, Opcode<0xE2,1>, Opcode<0xF2,1>,
-                          [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB,C]>;
+                          [AB,NZ,N,Z,V,C,AB,AD], [AB,C]>;
 defm ANDB : ALU8Concrete<"andb", Opcode<0xC4,1>, Opcode<0xD4,1>, Opcode<0xE4,1>, Opcode<0xF4,1>,
-                          [AB,NZ,N,Z,V,AB,AD,AQ], [AB]>;
+                          [AB,NZ,N,Z,V,AB,AD], [AB]>;
 defm BITB : ALU8Concrete<"bitb", Opcode<0xC5,1>, Opcode<0xD5,1>, Opcode<0xE5,1>, Opcode<0xF5,1>,
                           [NZ,N,Z,V], [AB], /*IsCompare=*/1>;
 defm EORB : ALU8Concrete<"eorb", Opcode<0xC8,1>, Opcode<0xD8,1>, Opcode<0xE8,1>, Opcode<0xF8,1>,
-                          [AB,NZ,N,Z,V,AB,AD,AQ], [AB]>;
+                          [AB,NZ,N,Z,V,AB,AD], [AB]>;
 defm ADCB : ALU8Concrete<"adcb", Opcode<0xC9,1>, Opcode<0xD9,1>, Opcode<0xE9,1>, Opcode<0xF9,1>,
-                          [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB,C], /*IsCompare=*/0, /*IsAdd=*/1>;
+                          [AB,NZ,N,Z,V,C,AB,AD], [AB,C], /*IsCompare=*/0, /*IsAdd=*/1>;
 defm ORB  : ALU8Concrete<"orb",  Opcode<0xCA,1>, Opcode<0xDA,1>, Opcode<0xEA,1>, Opcode<0xFA,1>,
-                          [AB,NZ,N,Z,V,AB,AD,AQ], [AB]>;
+                          [AB,NZ,N,Z,V,AB,AD], [AB]>;
 defm ADDB : ALU8Concrete<"addb", Opcode<0xCB,1>, Opcode<0xDB,1>, Opcode<0xEB,1>, Opcode<0xFB,1>,
-                          [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB], /*IsCompare=*/0, /*IsAdd=*/1>;
+                          [AB,NZ,N,Z,V,C,AB,AD], [AB], /*IsCompare=*/0, /*IsAdd=*/1>;
 
 // 16-bit ALU: D accumulator (Page 1)
 defm SUBD : ALU16Concrete<"subd", Opcode<0x83,1>, Opcode<0x93,1>, Opcode<0xA3,1>, Opcode<0xB3,1>,
-                           [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], [AD]>;
+                           [AD,NZ,N,Z,V,C,AA,AB,AD], [AD]>;
 defm ADDD : ALU16Concrete<"addd", Opcode<0xC3,1>, Opcode<0xD3,1>, Opcode<0xE3,1>, Opcode<0xF3,1>,
-                           [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], [AD], /*IsCompare=*/0, /*IsAdd=*/1>;
+                           [AD,NZ,N,Z,V,C,AA,AB,AD], [AD], /*IsCompare=*/0, /*IsAdd=*/1>;
 
 // 16-bit CMP: X, Y, U, S (Page 1 and 2)
 defm CMPX : ALU16Concrete<"cmpx", Opcode<0x8C,1>, Opcode<0x9C,1>, Opcode<0xAC,1>, Opcode<0xBC,1>,
@@ -377,18 +377,18 @@ defm CLR : Unary1Concrete<"clr", Opcode<0x0F,1>, Opcode<0x6F,1>, Opcode<0x7F,1>,
 
 // Accumulator unary ops (Page 1): A and B forms
 // Same defm prefix as memory ops — no conflict since suffixes differ (Aa/Ba vs d/i/e)
-defm NEG : UnaryAcc8_AB<"nega", Opcode<0x40,1>, [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA],
-                         "negb", Opcode<0x50,1>, [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB]>;
-defm COM : UnaryAcc8_AB<"coma", Opcode<0x43,1>, [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA],
-                         "comb", Opcode<0x53,1>, [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB]>;
-defm LSR : UnaryAcc8_AB<"lsra", Opcode<0x44,1>, [AA,NZ,N,Z,C,AA,AD,AQ], [AA],
-                         "lsrb", Opcode<0x54,1>, [AB,NZ,N,Z,C,AB,AD,AQ], [AB]>;
-defm ROR : UnaryAcc8_AB<"rora", Opcode<0x46,1>, [AA,NZ,N,Z,C,AA,AD,AQ], [AA,C],
-                         "rorb", Opcode<0x56,1>, [AB,NZ,N,Z,C,AB,AD,AQ], [AB,C]>;
-defm ASR : UnaryAcc8_AB<"asra", Opcode<0x47,1>, [AA,NZ,N,Z,C,AA,AD,AQ], [AA,C],
-                         "asrb", Opcode<0x57,1>, [AB,NZ,N,Z,C,AB,AD,AQ], [AB,C]>;
-defm ASL : UnaryAcc8_AB<"asla", Opcode<0x48,1>, [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA],
-                         "aslb", Opcode<0x58,1>, [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB]>;
+defm NEG : UnaryAcc8_AB<"nega", Opcode<0x40,1>, [AA,NZ,N,Z,V,C,AA,AD], [AA],
+                         "negb", Opcode<0x50,1>, [AB,NZ,N,Z,V,C,AB,AD], [AB]>;
+defm COM : UnaryAcc8_AB<"coma", Opcode<0x43,1>, [AA,NZ,N,Z,V,C,AA,AD], [AA],
+                         "comb", Opcode<0x53,1>, [AB,NZ,N,Z,V,C,AB,AD], [AB]>;
+defm LSR : UnaryAcc8_AB<"lsra", Opcode<0x44,1>, [AA,NZ,N,Z,C,AA,AD], [AA],
+                         "lsrb", Opcode<0x54,1>, [AB,NZ,N,Z,C,AB,AD], [AB]>;
+defm ROR : UnaryAcc8_AB<"rora", Opcode<0x46,1>, [AA,NZ,N,Z,C,AA,AD], [AA,C],
+                         "rorb", Opcode<0x56,1>, [AB,NZ,N,Z,C,AB,AD], [AB,C]>;
+defm ASR : UnaryAcc8_AB<"asra", Opcode<0x47,1>, [AA,NZ,N,Z,C,AA,AD], [AA,C],
+                         "asrb", Opcode<0x57,1>, [AB,NZ,N,Z,C,AB,AD], [AB,C]>;
+defm ASL : UnaryAcc8_AB<"asla", Opcode<0x48,1>, [AA,NZ,N,Z,V,C,AA,AD], [AA],
+                         "aslb", Opcode<0x58,1>, [AB,NZ,N,Z,V,C,AB,AD], [AB]>;
 // Bug #227: LSL is the same encoding as ASL on MC6809/HD6309 (opcode 0x58
 // for accumulator B, 0x08/0x68/0x78 for memory). Both spellings appear in
 // hand-written sources and external assemblers (lwasm, asm6809) accept
@@ -400,14 +400,14 @@ def : MnemonicAlias<"lslb", "aslb">;
 def : MnemonicAlias<"lsl",  "asl">;
 // HD6309 D-register variant. (HD6309 has no ASL/LSL on W or E/F.)
 def : MnemonicAlias<"lsld", "asld">;
-defm ROL : UnaryAcc8_AB<"rola", Opcode<0x49,1>, [AA,NZ,N,Z,V,C,AA,AD,AQ], [AA,C],
-                         "rolb", Opcode<0x59,1>, [AB,NZ,N,Z,V,C,AB,AD,AQ], [AB,C]>;
-defm DEC : UnaryAcc8_AB<"deca", Opcode<0x4A,1>, [AA,NZ,N,Z,V,AA,AD,AQ], [AA],
-                         "decb", Opcode<0x5A,1>, [AB,NZ,N,Z,V,AB,AD,AQ], [AB]>;
-defm INC : UnaryAcc8_AB<"inca", Opcode<0x4C,1>, [AA,NZ,N,Z,V,AA,AD,AQ], [AA],
-                         "incb", Opcode<0x5C,1>, [AB,NZ,N,Z,V,AB,AD,AQ], [AB]>;
-defm CLR : UnaryAcc8_AB<"clra", Opcode<0x4F,1>, [AA,NZ,N,Z,V,C,AA,AD,AQ], [],
-                         "clrb", Opcode<0x5F,1>, [AB,NZ,N,Z,V,C,AB,AD,AQ], []>;
+defm ROL : UnaryAcc8_AB<"rola", Opcode<0x49,1>, [AA,NZ,N,Z,V,C,AA,AD], [AA,C],
+                         "rolb", Opcode<0x59,1>, [AB,NZ,N,Z,V,C,AB,AD], [AB,C]>;
+defm DEC : UnaryAcc8_AB<"deca", Opcode<0x4A,1>, [AA,NZ,N,Z,V,AA,AD], [AA],
+                         "decb", Opcode<0x5A,1>, [AB,NZ,N,Z,V,AB,AD], [AB]>;
+defm INC : UnaryAcc8_AB<"inca", Opcode<0x4C,1>, [AA,NZ,N,Z,V,AA,AD], [AA],
+                         "incb", Opcode<0x5C,1>, [AB,NZ,N,Z,V,AB,AD], [AB]>;
+defm CLR : UnaryAcc8_AB<"clra", Opcode<0x4F,1>, [AA,NZ,N,Z,V,C,AA,AD], [],
+                         "clrb", Opcode<0x5F,1>, [AB,NZ,N,Z,V,C,AB,AD], []>;
 
 // TST accumulator forms — separate because isCompare = true and defs differ.
 let isCompare = true in {
@@ -837,80 +837,80 @@ defm CMPS : ALU16Concrete_P2<"cmps", Opcode<0x8C,3>, Opcode<0x9C,3>, Opcode<0xAC
 // 16-bit ALU: D register (Page 2, HD6309)
 let Predicates = [IsHD6309] in {
   defm SBCD : ALU16Concrete_P2<"sbcd", Opcode<0x82,2>, Opcode<0x92,2>, Opcode<0xA2,2>, Opcode<0xB2,2>,
-                                [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], [AD,C]>;
+                                [AD,NZ,N,Z,V,C,AA,AB,AD], [AD,C]>;
   defm ANDD : ALU16Concrete_P2<"andd", Opcode<0x84,2>, Opcode<0x94,2>, Opcode<0xA4,2>, Opcode<0xB4,2>,
-                                [AD,NZ,N,Z,V,AA,AB,AD,AQ], [AD]>;
+                                [AD,NZ,N,Z,V,AA,AB,AD], [AD]>;
   defm BITD : ALU16Concrete_P2<"bitd", Opcode<0x85,2>, Opcode<0x95,2>, Opcode<0xA5,2>, Opcode<0xB5,2>,
                                 [NZ,N,Z,V], [AD], /*IsCompare=*/1>;
   defm EORD : ALU16Concrete_P2<"eord", Opcode<0x88,2>, Opcode<0x98,2>, Opcode<0xA8,2>, Opcode<0xB8,2>,
-                                [AD,NZ,N,Z,V,AA,AB,AD,AQ], [AD]>;
+                                [AD,NZ,N,Z,V,AA,AB,AD], [AD]>;
   defm ADCD : ALU16Concrete_P2<"adcd", Opcode<0x89,2>, Opcode<0x99,2>, Opcode<0xA9,2>, Opcode<0xB9,2>,
-                                [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], [AD,C], /*IsCompare=*/0, /*IsAdd=*/1>;
+                                [AD,NZ,N,Z,V,C,AA,AB,AD], [AD,C], /*IsCompare=*/0, /*IsAdd=*/1>;
   defm ORD  : ALU16Concrete_P2<"ord",  Opcode<0x8A,2>, Opcode<0x9A,2>, Opcode<0xAA,2>, Opcode<0xBA,2>,
-                                [AD,NZ,N,Z,V,AA,AB,AD,AQ], [AD]>;
+                                [AD,NZ,N,Z,V,AA,AB,AD], [AD]>;
 }
 
 // 16-bit ALU: W register (Page 2, HD6309)
 let Predicates = [IsHD6309] in {
   defm SUBW : ALU16Concrete_P2<"subw", Opcode<0x80,2>, Opcode<0x90,2>, Opcode<0xA0,2>, Opcode<0xB0,2>,
-                                [AW,NZ,N,Z,V,C,AE,AF,AW,AQ], [AW]>;
+                                [AW,NZ,N,Z,V,C,AE,AF,AW], [AW]>;
   defm CMPW : ALU16Concrete_P2<"cmpw", Opcode<0x81,2>, Opcode<0x91,2>, Opcode<0xA1,2>, Opcode<0xB1,2>,
                                 [NZ,N,Z,V,C], [AW], /*IsCompare=*/1>;
   defm ADDW : ALU16Concrete_P2<"addw", Opcode<0x8B,2>, Opcode<0x9B,2>, Opcode<0xAB,2>, Opcode<0xBB,2>,
-                                [AW,NZ,N,Z,V,C,AE,AF,AW,AQ], [AW], /*IsCompare=*/0, /*IsAdd=*/1>;
+                                [AW,NZ,N,Z,V,C,AE,AF,AW], [AW], /*IsCompare=*/0, /*IsAdd=*/1>;
 }
 
 // 8-bit ALU: E accumulator (Page 3, HD6309)
 defm SUBE : ALU8Concrete_P3<"sube", Opcode<0x80,3>, Opcode<0x90,3>, Opcode<0xA0,3>, Opcode<0xB0,3>,
-                             [AE,NZ,N,Z,V,C,AE,AW,AQ], [AE]>;
+                             [AE,NZ,N,Z,V,C,AE,AW], [AE]>;
 defm CMPE : ALU8Concrete_P3<"cmpe", Opcode<0x81,3>, Opcode<0x91,3>, Opcode<0xA1,3>, Opcode<0xB1,3>,
                              [NZ,N,Z,V,C], [AE], /*IsCompare=*/1>;
 defm ADDE : ALU8Concrete_P3<"adde", Opcode<0x8B,3>, Opcode<0x9B,3>, Opcode<0xAB,3>, Opcode<0xBB,3>,
-                             [AE,NZ,N,Z,V,C,AE,AW,AQ], [AE], /*IsCompare=*/0, /*IsAdd=*/1>;
+                             [AE,NZ,N,Z,V,C,AE,AW], [AE], /*IsCompare=*/0, /*IsAdd=*/1>;
 
 // 8-bit ALU: F accumulator (Page 3, HD6309)
 defm SUBF : ALU8Concrete_P3<"subf", Opcode<0xC0,3>, Opcode<0xD0,3>, Opcode<0xE0,3>, Opcode<0xF0,3>,
-                             [AF,NZ,N,Z,V,C,AF,AW,AQ], [AF]>;
+                             [AF,NZ,N,Z,V,C,AF,AW], [AF]>;
 defm CMPF : ALU8Concrete_P3<"cmpf", Opcode<0xC1,3>, Opcode<0xD1,3>, Opcode<0xE1,3>, Opcode<0xF1,3>,
                              [NZ,N,Z,V,C], [AF], /*IsCompare=*/1>;
 defm ADDF : ALU8Concrete_P3<"addf", Opcode<0xCB,3>, Opcode<0xDB,3>, Opcode<0xEB,3>, Opcode<0xFB,3>,
-                             [AF,NZ,N,Z,V,C,AF,AW,AQ], [AF], /*IsCompare=*/0, /*IsAdd=*/1>;
+                             [AF,NZ,N,Z,V,C,AF,AW], [AF], /*IsCompare=*/0, /*IsAdd=*/1>;
 
 // Unary accumulator ops: D and W registers (Page 2, HD6309)
 let Predicates = [IsHD6309] in {
-  def NEGDa : MC6809Accumulator_P2<(outs), "negd", Opcode<0x40,2>, [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], [AD]>;
-  def COMDa : MC6809Accumulator_P2<(outs), "comd", Opcode<0x43,2>, [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], [AD]>;
-  def LSRDa : MC6809Accumulator_P2<(outs), "lsrd", Opcode<0x44,2>, [AD,NZ,N,Z,C,AA,AB,AD,AQ], [AD]>;
-  def RORDa : MC6809Accumulator_P2<(outs), "rord", Opcode<0x46,2>, [AD,NZ,N,Z,C,AA,AB,AD,AQ], [AD,C]>;
-  def ASRDa : MC6809Accumulator_P2<(outs), "asrd", Opcode<0x47,2>, [AD,NZ,N,Z,C,AA,AB,AD,AQ], [AD,C]>;
-  def ASLDa : MC6809Accumulator_P2<(outs), "asld", Opcode<0x48,2>, [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], [AD]>;
-  def ROLDa : MC6809Accumulator_P2<(outs), "rold", Opcode<0x49,2>, [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], [AD,C]>;
-  def DECDa : MC6809Accumulator_P2<(outs), "decd", Opcode<0x4A,2>, [AD,NZ,N,Z,V,AA,AB,AD,AQ], [AD]>;
-  def INCDa : MC6809Accumulator_P2<(outs), "incd", Opcode<0x4C,2>, [AD,NZ,N,Z,V,AA,AB,AD,AQ], [AD]>;
+  def NEGDa : MC6809Accumulator_P2<(outs), "negd", Opcode<0x40,2>, [AD,NZ,N,Z,V,C,AA,AB,AD], [AD]>;
+  def COMDa : MC6809Accumulator_P2<(outs), "comd", Opcode<0x43,2>, [AD,NZ,N,Z,V,C,AA,AB,AD], [AD]>;
+  def LSRDa : MC6809Accumulator_P2<(outs), "lsrd", Opcode<0x44,2>, [AD,NZ,N,Z,C,AA,AB,AD], [AD]>;
+  def RORDa : MC6809Accumulator_P2<(outs), "rord", Opcode<0x46,2>, [AD,NZ,N,Z,C,AA,AB,AD], [AD,C]>;
+  def ASRDa : MC6809Accumulator_P2<(outs), "asrd", Opcode<0x47,2>, [AD,NZ,N,Z,C,AA,AB,AD], [AD,C]>;
+  def ASLDa : MC6809Accumulator_P2<(outs), "asld", Opcode<0x48,2>, [AD,NZ,N,Z,V,C,AA,AB,AD], [AD]>;
+  def ROLDa : MC6809Accumulator_P2<(outs), "rold", Opcode<0x49,2>, [AD,NZ,N,Z,V,C,AA,AB,AD], [AD,C]>;
+  def DECDa : MC6809Accumulator_P2<(outs), "decd", Opcode<0x4A,2>, [AD,NZ,N,Z,V,AA,AB,AD], [AD]>;
+  def INCDa : MC6809Accumulator_P2<(outs), "incd", Opcode<0x4C,2>, [AD,NZ,N,Z,V,AA,AB,AD], [AD]>;
   def TSTDa : MC6809Accumulator_P2<(outs), "tstd", Opcode<0x4D,2>, [NZ,N,Z,V], [AD]>;
-  def CLRDa : MC6809Accumulator_P2<(outs), "clrd", Opcode<0x4F,2>, [AD,NZ,N,Z,V,C,AA,AB,AD,AQ], []>;
-  def COMWa : MC6809Accumulator_P2<(outs), "comw", Opcode<0x53,2>, [AW,NZ,N,Z,V,C,AE,AF,AW,AQ], [AW]>;
-  def LSRWa : MC6809Accumulator_P2<(outs), "lsrw", Opcode<0x54,2>, [AW,NZ,N,Z,C,AE,AF,AW,AQ], [AW]>;
-  def RORWa : MC6809Accumulator_P2<(outs), "rorw", Opcode<0x56,2>, [AW,NZ,N,Z,C,AE,AF,AW,AQ], [AW,C]>;
-  def ROLWa : MC6809Accumulator_P2<(outs), "rolw", Opcode<0x59,2>, [AW,NZ,N,Z,V,C,AE,AF,AW,AQ], [AW,C]>;
-  def DECWa : MC6809Accumulator_P2<(outs), "decw", Opcode<0x5A,2>, [AW,NZ,N,Z,V,AE,AF,AW,AQ], [AW]>;
-  def INCWa : MC6809Accumulator_P2<(outs), "incw", Opcode<0x5C,2>, [AW,NZ,N,Z,V,AE,AF,AW,AQ], [AW]>;
+  def CLRDa : MC6809Accumulator_P2<(outs), "clrd", Opcode<0x4F,2>, [AD,NZ,N,Z,V,C,AA,AB,AD], []>;
+  def COMWa : MC6809Accumulator_P2<(outs), "comw", Opcode<0x53,2>, [AW,NZ,N,Z,V,C,AE,AF,AW], [AW]>;
+  def LSRWa : MC6809Accumulator_P2<(outs), "lsrw", Opcode<0x54,2>, [AW,NZ,N,Z,C,AE,AF,AW], [AW]>;
+  def RORWa : MC6809Accumulator_P2<(outs), "rorw", Opcode<0x56,2>, [AW,NZ,N,Z,C,AE,AF,AW], [AW,C]>;
+  def ROLWa : MC6809Accumulator_P2<(outs), "rolw", Opcode<0x59,2>, [AW,NZ,N,Z,V,C,AE,AF,AW], [AW,C]>;
+  def DECWa : MC6809Accumulator_P2<(outs), "decw", Opcode<0x5A,2>, [AW,NZ,N,Z,V,AE,AF,AW], [AW]>;
+  def INCWa : MC6809Accumulator_P2<(outs), "incw", Opcode<0x5C,2>, [AW,NZ,N,Z,V,AE,AF,AW], [AW]>;
   def TSTWa : MC6809Accumulator_P2<(outs), "tstw", Opcode<0x5D,2>, [NZ,N,Z,V], [AW]>;
-  def CLRWa : MC6809Accumulator_P2<(outs), "clrw", Opcode<0x5F,2>, [AW,NZ,N,Z,V,C,AE,AF,AW,AQ], []>;
+  def CLRWa : MC6809Accumulator_P2<(outs), "clrw", Opcode<0x5F,2>, [AW,NZ,N,Z,V,C,AE,AF,AW], []>;
 }
 
 // Unary accumulator ops: E and F registers (Page 3, HD6309)
 let Predicates = [IsHD6309] in {
-  def COMEa : MC6809Accumulator_P3<(outs), "come", Opcode<0x43,3>, [AE,NZ,N,Z,V,C,AE,AW,AQ], [AE]>;
-  def DECEa : MC6809Accumulator_P3<(outs), "dece", Opcode<0x4A,3>, [AE,NZ,N,Z,V,AE,AW,AQ], [AE]>;
-  def INCEa : MC6809Accumulator_P3<(outs), "ince", Opcode<0x4C,3>, [AE,NZ,N,Z,V,AE,AW,AQ], [AE]>;
+  def COMEa : MC6809Accumulator_P3<(outs), "come", Opcode<0x43,3>, [AE,NZ,N,Z,V,C,AE,AW], [AE]>;
+  def DECEa : MC6809Accumulator_P3<(outs), "dece", Opcode<0x4A,3>, [AE,NZ,N,Z,V,AE,AW], [AE]>;
+  def INCEa : MC6809Accumulator_P3<(outs), "ince", Opcode<0x4C,3>, [AE,NZ,N,Z,V,AE,AW], [AE]>;
   def TSTEa : MC6809Accumulator_P3<(outs), "tste", Opcode<0x4D,3>, [NZ,N,Z,V], [AE]>;
-  def CLREa : MC6809Accumulator_P3<(outs), "clre", Opcode<0x4F,3>, [AE,NZ,N,Z,V,C,AE,AW,AQ], []>;
-  def COMFa : MC6809Accumulator_P3<(outs), "comf", Opcode<0x53,3>, [AF,NZ,N,Z,V,C,AF,AW,AQ], [AF]>;
-  def DECFa : MC6809Accumulator_P3<(outs), "decf", Opcode<0x5A,3>, [AF,NZ,N,Z,V,AF,AW,AQ], [AF]>;
-  def INCFa : MC6809Accumulator_P3<(outs), "incf", Opcode<0x5C,3>, [AF,NZ,N,Z,V,AF,AW,AQ], [AF]>;
+  def CLREa : MC6809Accumulator_P3<(outs), "clre", Opcode<0x4F,3>, [AE,NZ,N,Z,V,C,AE,AW], []>;
+  def COMFa : MC6809Accumulator_P3<(outs), "comf", Opcode<0x53,3>, [AF,NZ,N,Z,V,C,AF,AW], [AF]>;
+  def DECFa : MC6809Accumulator_P3<(outs), "decf", Opcode<0x5A,3>, [AF,NZ,N,Z,V,AF,AW], [AF]>;
+  def INCFa : MC6809Accumulator_P3<(outs), "incf", Opcode<0x5C,3>, [AF,NZ,N,Z,V,AF,AW], [AF]>;
   def TSTFa : MC6809Accumulator_P3<(outs), "tstf", Opcode<0x5D,3>, [NZ,N,Z,V], [AF]>;
-  def CLRFa : MC6809Accumulator_P3<(outs), "clrf", Opcode<0x5F,3>, [AF,NZ,N,Z,V,C,AF,AW,AQ], []>;
+  def CLRFa : MC6809Accumulator_P3<(outs), "clrf", Opcode<0x5F,3>, [AF,NZ,N,Z,V,C,AF,AW], []>;
 }
 
 def NOPx : MC6809Inherent_P1<(outs), "nop", Opcode<0x12,1>, [], []>;
@@ -935,13 +935,13 @@ def SEXWx : MC6809Inherent_P1<(outs), "sexw", Opcode<0x14,1>, [NZ,N,Z,V,AA,AB,AD
 
 def HCFx : MC6809Inherent_P1<(outs), "hcf", Opcode<0x15,1>, [], []>;
 
-def DAAx : MC6809Inherent_P1<(outs), "daa", Opcode<0x19,1>, [AA,NZ,N,Z,C,AA,AD,AQ], [AA]>;
+def DAAx : MC6809Inherent_P1<(outs), "daa", Opcode<0x19,1>, [AA,NZ,N,Z,C,AA,AD], [AA]>;
 
 def ORCCi8 : MC6809Immediate8Bit_P1<(outs), "orcc", Opcode<0x1A,1>, [NZ,N,Z,V,C], [NZ,N,Z,V,C]>;
 
 def ANDCCi8 : MC6809Immediate8Bit_P1<(outs), "andcc", Opcode<0x1C,1>, [NZ,N,Z,V,C], [NZ,N,Z,V,C]>;
 
-def SEXx : MC6809Inherent_P1<(outs), "sex", Opcode<0x1D,1>, [NZ,N,Z,AA,AB,AD,AQ], [AB]>;
+def SEXx : MC6809Inherent_P1<(outs), "sex", Opcode<0x1D,1>, [NZ,N,Z,AA,AB,AD], [AB]>;
 
 def RTSr : MC6809Return_P1<(outs), "rts", Opcode<0x39,1>, [], []> {
   let mayLoad = false;
@@ -963,7 +963,7 @@ def RTIr : MC6809Return_P1<(outs), "rti", Opcode<0x3B,1>, [], []> {
 
 def CWAIi8 : MC6809Immediate8Bit_P1<(outs), "cwai", Opcode<0x3C,1>, [], []>;
 
-def MULx : MC6809Inherent_P1<(outs), "mul", Opcode<0x3D,1>, [Z,C,AA,AB,AD,AQ], [AA,AB]>;
+def MULx : MC6809Inherent_P1<(outs), "mul", Opcode<0x3D,1>, [Z,C,AA,AB,AD], [AA,AB]>;
 
 def RESETx : MC6809Inherent_P1<(outs), "reset", Opcode<0x3E,1>, [], []>;
 
@@ -983,7 +983,7 @@ def LDMDi8 : MC6809Immediate8Bit_P3<(outs), "ldmd", Opcode<0x3D,3>, [], []> {
 
 def SWI3x : MC6809Inherent_P3<(outs), "swi3", Opcode<0x3F,3>, [], []>;
 
-def DIVDi8 : MC6809Immediate8Bit_P3<(outs), "divd", Opcode<0x8D,3>, [NZ,N,Z,V,C,AA,AB,AD,AQ], [AD]> {
+def DIVDi8 : MC6809Immediate8Bit_P3<(outs), "divd", Opcode<0x8D,3>, [NZ,N,Z,V,C,AA,AB,AD], [AD]> {
   let Predicates = [IsHD6309];
   let mayLoad = true;
 }
@@ -998,7 +998,7 @@ def MULDi16 : MC6809Immediate16Bit_P3<(outs), "muld", Opcode<0x8F,3>, [NZ,N,Z,AA
   let mayLoad = true;
 }
 
-def DIVDd : MC6809Direct_P3<(outs), "divd", Opcode<0x9D,3>, [NZ,N,Z,V,C,AA,AB,AD,AQ], [AD]> {
+def DIVDd : MC6809Direct_P3<(outs), "divd", Opcode<0x9D,3>, [NZ,N,Z,V,C,AA,AB,AD], [AD]> {
   let Predicates = [IsHD6309];
   let mayLoad = true;
 }
@@ -1014,7 +1014,7 @@ def MULDd : MC6809Direct_P3<(outs), "muld", Opcode<0x9F,3>, [NZ,N,Z,AA,AB,AD,AE,
 }
 
 let Predicates = [IsHD6309], mayLoad = true in {
-  defm DIVDi : MC6809Indexed_P3<"divd", Opcode<0xAD, 3>, (outs), [NZ,N,Z,V,C,AA,AB,AD,AQ], [AD]>;
+  defm DIVDi : MC6809Indexed_P3<"divd", Opcode<0xAD, 3>, (outs), [NZ,N,Z,V,C,AA,AB,AD], [AD]>;
 }
 
 let Predicates = [IsHD6309], mayLoad = true in {
@@ -1025,7 +1025,7 @@ let Predicates = [IsHD6309], mayLoad = true in {
   defm MULDi : MC6809Indexed_P3<"muld", Opcode<0xAF, 3>, (outs), [NZ,N,Z,AA,AB,AD,AE,AF,AW,AQ], [AD]>;
 }
 
-def DIVDe : MC6809Extended_P3<(outs), "divd", Opcode<0xBD,3>, [NZ,N,Z,V,C,AA,AB,AD,AQ], [AD]> {
+def DIVDe : MC6809Extended_P3<(outs), "divd", Opcode<0xBD,3>, [NZ,N,Z,V,C,AA,AB,AD], [AD]> {
   let Predicates = [IsHD6309];
   let mayLoad = true;
 }

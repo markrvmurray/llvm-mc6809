@@ -257,7 +257,7 @@ class MC6809Subroutine : MC6809LogicalInstr {
 let isBranch = false, isTerminator = true, isBarrier = true in
 def BranchJumpTable : MC6809LogicalInstr {
   let isIndirectBranch = true;
-  let Defs = [AA, AB, AD, AQ, IX, NZ, N, Z, V, C];
+  let Defs = [AA, AB, AD, IX, NZ, N, Z, V, C];
   let Size = 10; // ASLB+ROLA+LEAX+LDD+JMP — see MC6809AsmPrinter::emitInstruction
   dag InOperandList = (ins ADc:$idx, unknown:$jti);
 }
