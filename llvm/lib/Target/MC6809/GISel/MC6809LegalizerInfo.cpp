@@ -467,20 +467,22 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // capacity bump fixed Bug #265's manifest but NOT Bug #272 Phase
   // B's blocker — the issue is structural, not capacity: AQ
   // overlaps AD/AW/AE/AF, so an LDQ-into-AQ clobbers ALL four
-  // halves regardless of how many SPILL_Q slots exist.  Bug #221
-  // documented this: when LDQ runs, it clobbers AW even if AW holds
-  // an unrelated live i16 value.  Simple test sext_arg(i16 %x) →
-  // i32 hits "ran out of registers" because SEXW writes AQ
-  // (clobbering AD/AW), and the return-i32-via-AQ requirement
-  // conflicts with any other live i16.  A real Phase B fix would
-  // need either a peephole combining adjacent i16 loads into LDQ
-  // where AW is provably dead, or a regalloc-aware s32 lowering.
-  // Both are substantial work beyond the scope of #272 Phase B's
-  // "just remove the narrowing" framing.  Narrowing remains.
+  // Bug #272 Phase B core change (2026-05-15): s32 G_LOAD / G_STORE
+  // are now legal directly (instead of being narrowed to two s16
+  // operations through clampScalar(0, s8, s16)).  The preconditions:
+  //   - Scope A/B/C (commits 8091e9..b654c3): accumulator-hierarchy
+  //     Defs cleanup so LDD no longer over-claims AQ.  Regalloc can
+  //     now keep an i32 in $aq across LDD-using paths.
+  //   - AQc widening (this commit, MC6809RegisterInfo.td): AQc now
+  //     includes SPILL_Q0..31 so regalloc can spill i32 values.
+  //   - Bug #275/befa58c9 Undef-protection on byte-spill stores so
+  //     the post-RA verifier doesn't trip on transient sub-reg kills.
+  // Together these unblock HD6309 i32 codegen directly through
+  // LDQ/STQ rather than the two-LDD slot-to-slot fallback.
   getActionDefinitionsBuilder({G_LOAD, G_STORE})
-      .legalForCartesianProduct(LegalTypes16, {p, p1})
+      .legalForCartesianProduct(LegalTypes, {p, p1})
       .lowerIfMemSizeNotByteSizePow2()
-      .clampScalar(0, s8, s16);
+      .clampScalar(0, s8, sMax);
 
   // G_GLOBAL_VALUE may produce a p1 pointer (addrspace(1) global);
   // legalize that too so the address can be materialised before the

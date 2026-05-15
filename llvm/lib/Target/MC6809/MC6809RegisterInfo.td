@@ -504,7 +504,14 @@ let isAllocatable = false in {
     def AFc : MC6809Reg8Class<(add AF)>;
     def AFLSBc : MC6809Reg1Class<(add AFLSB)>;
     def AWc : MC6809Reg16Class<(add AW)>;
-    def AQc : MC6809Reg32Class<(add AQ)>;
+    // Bug #272 Phase B (2026-05-15): widened from {AQ} to include
+    // SPILL_Q0..31 so regalloc can spill i32 values when AQ is
+    // contested.  Preconditions: Scope A/B/C Defs cleanup
+    // (8091e9../b654c3..) so LDD no longer over-claims AQ; the
+    // legalizer's s32 G_LOAD/G_STORE rule (above) routes i32 ops
+    // directly to LDQ/STQ rather than two-LDD slot-to-slot fallback.
+    def AQc : MC6809Reg32Class<(add AQ, SPILL_Q0, SPILL_Q1, SPILL_Q2, SPILL_Q3,
+                                    (sequence "SPILL_Q%u", 4, 31))>;
     let isPressureFineGrained = true in
     def IXc : MC6809Reg16Class<(add IX)>;
     let isPressureFineGrained = true in

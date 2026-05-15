@@ -4515,12 +4515,18 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
       auto SrcOffset = MI.getOperand(2);
       int DstSpillOff = computeSpillStackOffset(DestRegOp.getReg(), MF);
 
+      // Bug #272 Phase B core: accept CImm offsets too (see expandStoreIdx).
+      bool SrcOffIsImmediate = SrcOffset.isImm() || SrcOffset.isCImm();
       auto emitHalf = [&](int HalfOffset, bool LastHalf) {
         // Load src+HalfOffset → AD via LDD (handles 5-bit, 8-bit, 16-bit
         // offsets through getLoadIdxOpcode).
-        int SrcOffsetBytes = SrcOffset.isImm()
-                                 ? int(SrcOffset.getImm()) + HalfOffset
-                                 : HalfOffset;
+        int SrcOffsetBytes =
+            SrcOffIsImmediate
+                ? (SrcOffset.isImm()
+                       ? int(SrcOffset.getImm())
+                       : int(SrcOffset.getCImm()->getSExtValue())) +
+                      HalfOffset
+                : HalfOffset;
         unsigned LdOpc = getLoadIdxOpcode(MC6809::AD, SrcOffsetBytes);
         Builder.buildInstr(LdOpc)
             .addDef(MC6809::AD, RegState::Implicit)
@@ -4543,7 +4549,7 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
         if (LastHalf)
           St.addDef(DestRegOp.getReg(), RegState::Implicit);
       };
-      if (SrcOffset.isImm()) {
+      if (SrcOffIsImmediate) {
         emitHalf(0, /*LastHalf=*/false);  // HI word
         emitHalf(2, /*LastHalf=*/true);   // LO word
         MI.eraseFromParent();
@@ -4651,8 +4657,19 @@ void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI
     MachineFunction &MF = *MI.getMF();
     int SrcSpillOff = computeSpillStackOffset(SrcSpill.getReg(), MF);
 
-    if (DstOffset.isImm()) {
-      int DstOffBytes = int(DstOffset.getImm());
+    // Bug #272 Phase B core change (2026-05-15): Store_i32_Mem may carry
+    // its offset as a CImm (e.g. `i16 4`, `i16 8`) when the pseudo was
+    // built by GISel patterns with typed immediates rather than the
+    // plain `imm` form (raw Imm).  The pre-Phase-B path only checked
+    // isImm() and fell through to the emergency-save path for CImm
+    // offsets — which read `$ad` even when dead (the AQc widening lets
+    // an STQ kill $aq → $ad just before this store, leaving the
+    // emergency-save's $ad-read undefined).  Accept both Imm and CImm.
+    bool DstOffIsImmediate = DstOffset.isImm() || DstOffset.isCImm();
+    if (DstOffIsImmediate) {
+      int DstOffBytes = DstOffset.isImm()
+                            ? int(DstOffset.getImm())
+                            : int(DstOffset.getCImm()->getSExtValue());
       auto emitHalf = [&](int HalfOffset) {
         unsigned LdOpc = getLoadIdxOpcode(MC6809::AD, SrcSpillOff + HalfOffset);
         Builder.buildInstr(LdOpc)

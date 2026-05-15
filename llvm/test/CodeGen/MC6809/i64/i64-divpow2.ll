@@ -478,7 +478,7 @@ define i64 @ashr_i64_1(i64 %x) {
 ; O0-NEXT:    ldd 24,u
 ; O0-NEXT:    ldd 24,u
 ; O0-NEXT:    andb #255
-; O0-NEXT:    anda #0
+; O0-NEXT:    clra
 ; O0-NEXT:    std 24,u
 ; O0-NEXT:    ldd 10,u
 ; O0-NEXT:    leas -10,s
@@ -627,7 +627,7 @@ define i64 @lshr_i64_2(i64 %x) {
 ; O0-NEXT:    ldd 24,u
 ; O0-NEXT:    ldd 24,u
 ; O0-NEXT:    andb #255
-; O0-NEXT:    anda #0
+; O0-NEXT:    clra
 ; O0-NEXT:    std 24,u
 ; O0-NEXT:    ldd 10,u
 ; O0-NEXT:    leas -10,s
@@ -780,7 +780,7 @@ define i64 @shl_i64_3(i64 %x) {
 ; O0-NEXT:    ldd 24,u
 ; O0-NEXT:    ldd 24,u
 ; O0-NEXT:    andb #255
-; O0-NEXT:    anda #0
+; O0-NEXT:    clra
 ; O0-NEXT:    std 24,u
 ; O0-NEXT:    ldd 10,u
 ; O0-NEXT:    leas -10,s

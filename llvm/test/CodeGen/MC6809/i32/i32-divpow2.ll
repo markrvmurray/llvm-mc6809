@@ -275,7 +275,7 @@ define i32 @ashr_i32_1(i32 %x) {
 ; O0-NEXT:    ldd 18,u
 ; O0-NEXT:    ldd 18,u
 ; O0-NEXT:    andb #255
-; O0-NEXT:    anda #0
+; O0-NEXT:    clra
 ; O0-NEXT:    std 18,u
 ; O0-NEXT:    ldd 8,u
 ; O0-NEXT:    leas -6,s
@@ -368,7 +368,7 @@ define i32 @lshr_i32_2(i32 %x) {
 ; O0-NEXT:    ldd 18,u
 ; O0-NEXT:    ldd 18,u
 ; O0-NEXT:    andb #255
-; O0-NEXT:    anda #0
+; O0-NEXT:    clra
 ; O0-NEXT:    std 18,u
 ; O0-NEXT:    ldd 8,u
 ; O0-NEXT:    leas -6,s
@@ -465,7 +465,7 @@ define i32 @shl_i32_3(i32 %x) {
 ; O0-NEXT:    ldd 18,u
 ; O0-NEXT:    ldd 18,u
 ; O0-NEXT:    andb #255
-; O0-NEXT:    anda #0
+; O0-NEXT:    clra
 ; O0-NEXT:    std 18,u
 ; O0-NEXT:    ldd 8,u
 ; O0-NEXT:    leas -6,s
