@@ -44,10 +44,22 @@ define i32 @foo() {
 ;
 ; HD6309-LABEL: foo:
 ; HD6309:       ; %bb.0: ; %entry
-; HD6309-NEXT:    leas -2,s
+; HD6309-NEXT:    leas -10,s
+; HD6309-NEXT:    pshs u
+; HD6309-NEXT:    tfr s,u
 ; HD6309-NEXT:    ldq #12345678
-; HD6309-NEXT:    stq ,x
-; HD6309-NEXT:    leas 2,s
+; HD6309-NEXT:    std 6,u
+; HD6309-NEXT:    tfr w,d
+; HD6309-NEXT:    std 8,u
+; HD6309-NEXT:    ldd 6,u
+; HD6309-NEXT:    std 4,u
+; HD6309-NEXT:    ldd 8,u
+; HD6309-NEXT:    std 2,x
+; HD6309-NEXT:    ldd 4,u
+; HD6309-NEXT:    std ,x
+; HD6309-NEXT:    tfr u,s
+; HD6309-NEXT:    puls u
+; HD6309-NEXT:    leas 10,s
 ; HD6309-NEXT:    rts
 entry:
   ret i32 12345678

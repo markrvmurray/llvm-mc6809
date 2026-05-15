@@ -504,18 +504,7 @@ let isAllocatable = false in {
     def AFc : MC6809Reg8Class<(add AF)>;
     def AFLSBc : MC6809Reg1Class<(add AFLSB)>;
     def AWc : MC6809Reg16Class<(add AW)>;
-    // Bug #272 Phase B core re-land via Bug #297 (2026-05-15): AQc
-    // widened from {AQ} to AQ + SPILL_Q0..31 so regalloc can spill i32
-    // values when AQ is contested.  Preconditions: Scope A/B/C Defs
-    // cleanup (8091e9../b654c3..) so LDD no longer over-claims AQ; the
-    // legalizer's s32 G_LOAD/G_STORE rule (MC6809LegalizerInfo.cpp)
-    // routes i32 memory ops directly to LDQ/STQ rather than two-LDD
-    // slot-to-slot fallback; native i32 ADD/SUB landed via Bug #297
-    // commits 1-4 keeps the i32 value in AQ/SPILL_Q*N throughout the
-    // arithmetic chain, so the byte-decompose pathology that bit the
-    // first Phase B core attempt (9e782ca31fec) no longer manifests.
-    def AQc : MC6809Reg32Class<(add AQ, SPILL_Q0, SPILL_Q1, SPILL_Q2, SPILL_Q3,
-                                    (sequence "SPILL_Q%u", 4, 31))>;
+    def AQc : MC6809Reg32Class<(add AQ)>;
     let isPressureFineGrained = true in
     def IXc : MC6809Reg16Class<(add IX)>;
     let isPressureFineGrained = true in

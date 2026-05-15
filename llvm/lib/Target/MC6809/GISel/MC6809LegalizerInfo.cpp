@@ -228,22 +228,12 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
       .widenScalarIf(IsScalarPointer(1, 0, std::less<>{}), ChangeToSameSizeScalar(1, 0))
       .narrowScalarIf(IsScalarPointer(1, 0, std::greater<>{}), ChangeToSameSizeScalar(1, 0));
 
-  // G_ADD / G_SUB legalisation.
-  //
-  // Plain MC6809: s8 legal, wider types narrow to s8 carry chains
-  // (G_UADDO s8 + G_UADDE s8) via the upstream narrowScalarAddSub.
+  // Byte-level decomposition: only s8 is legal for G_ADD/G_SUB. i16 adds
+  // narrow to i8 carry chains (G_UADDO s8 + G_UADDE s8) via the upstream
+  // narrowScalarAddSub. This eliminates ADDD/SUBD, moving regalloc
+  // pressure from ACC16_D (1 register) to ACC8 (26 registers).
   // MaterializeSpills handles sub-register byte extraction from spilled
   // i16 values (loads from the correct byte offset within the i16 slot).
-  //
-  // HD6309 (Bug #297, 2026-05-15): s8 + s32 legal, s16 still narrows.
-  // The s32 path uses the native page-2 carry chain (ADDW + ADCD /
-  // SUBW + SBCD) emitted by expandAddSub_i32_{Mem,Imm,Reg} (commits
-  // 2 + 2.1 of Bug #297).  The i32 value lives in physical AQ or a
-  // SPILL_Q*N slot (AQc widening above) and the regbank firewall
-  // (commit 3, MC6809RegisterBankInfo.cpp) forces ACCUM bank
-  // unconditionally so cross-bank phi-handling cannot recur at i32
-  // width — addressing the Bug #85b atoi failure shape one level
-  // wider.
   //
   // NOTE (bug #85b strategy session, 2026-04-12): making i16 legal here
   // was attempted and reverted. The i16 path through the instruction
@@ -253,21 +243,10 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // i8 carry-chain path. The underlying BIT1 exhaustion (which motivates
   // i16 legality) needs a different solution: either making BIT1
   // spillable or using a targeted libcall for the `sub i16 (zext i8),
-  // (zext i8)` pattern.  Bug #297's HD6309 s32 path avoids the i16
-  // hazard entirely because i32 stays in ACCUM bank by construction
-  // (no INDEX-bank 32-bit reg exists), and i16 G_ADD/G_SUB still
-  // narrows on both subtargets so the cmp_imm_byte_load_phi.ll atoi
-  // sentinel codegen is unchanged.
-  if (IsHD6309)
-    getActionDefinitionsBuilder({G_ADD, G_SUB})
-        .legalFor({s8, s32})
-        .narrowScalarIf(LegalityPredicates::typeIs(0, s16),
-                        LegalizeMutations::changeTo(0, s8))
-        .clampScalar(0, s8, s32);
-  else
-    getActionDefinitionsBuilder({G_ADD, G_SUB})
-        .legalFor({s8})
-        .clampScalar(0, s8, s8);
+  // (zext i8)` pattern. See the strategy discussion in the bug tracker.
+  getActionDefinitionsBuilder({G_ADD, G_SUB})
+      .legalFor({s8})
+      .clampScalar(0, s8, s8);
 
   getActionDefinitionsBuilder({G_UADDO, G_UADDE, G_USUBO, G_USUBE, G_SADDO, G_SADDE, G_SSUBO, G_SSUBE})
       .legalForCartesianProduct({s8}, {s1, s16})
@@ -482,20 +461,26 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // was the actual aqc-creating path. Narrowing stays on both
   // G_LOAD and G_STORE for both targets.
   //
-  // Bug #272 Phase B retry via Bug #297 (2026-05-15): s32 G_LOAD /
-  // G_STORE are now legal directly on HD6309.  An i32 load lands
-  // straight in an ACC32 vreg (AQ or SPILL_Q*N) and is consumed by
-  // native ADDW+ADCD / SUBW+SBCD pairs from commits 1-4.  No more
-  // narrowing-to-s16 + G_MERGE_VALUES + REG_SEQUENCE chain — that
-  // chain was the structural blocker for the earlier Phase B core
-  // attempt (`9e782ca31fec`, partial-reverted in `ef11452cc49d`)
-  // because REG_SEQUENCE constrained the acc32 vreg to AQ-only
-  // allocation, exhausting register supply at >1 live i32 value.
-  // Plain MC6809 still narrows (no LDQ instruction).
+  // Bug #272 Phase B retry 2026-05-14 (after Bug #296 SPILL_Q 4→32
+  // raised ACC32 capacity to 33): tried again to enable native s32
+  // load/store on HD6309 so LDQ/STQ would be emitted directly.  The
+  // capacity bump fixed Bug #265's manifest but NOT Bug #272 Phase
+  // B's blocker — the issue is structural, not capacity: AQ
+  // overlaps AD/AW/AE/AF, so an LDQ-into-AQ clobbers ALL four
+  // halves regardless of how many SPILL_Q slots exist.  Bug #221
+  // documented this: when LDQ runs, it clobbers AW even if AW holds
+  // an unrelated live i16 value.  Simple test sext_arg(i16 %x) →
+  // i32 hits "ran out of registers" because SEXW writes AQ
+  // (clobbering AD/AW), and the return-i32-via-AQ requirement
+  // conflicts with any other live i16.  A real Phase B fix would
+  // need either a peephole combining adjacent i16 loads into LDQ
+  // where AW is provably dead, or a regalloc-aware s32 lowering.
+  // Both are substantial work beyond the scope of #272 Phase B's
+  // "just remove the narrowing" framing.  Narrowing remains.
   getActionDefinitionsBuilder({G_LOAD, G_STORE})
-      .legalForCartesianProduct(LegalTypes, {p, p1})
+      .legalForCartesianProduct(LegalTypes16, {p, p1})
       .lowerIfMemSizeNotByteSizePow2()
-      .clampScalar(0, s8, sMax);
+      .clampScalar(0, s8, s16);
 
   // G_GLOBAL_VALUE may produce a p1 pointer (addrspace(1) global);
   // legalize that too so the address can be materialised before the
