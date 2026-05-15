@@ -222,7 +222,17 @@ let Predicates = [IsHD6309] in {
   // libcall-based bitwise-i32 (legalizeBitwise → __andsi3 / __orsi3
   // / __xorsi3) eliminates hash.c's aqc starvation without needing
   // the wider class.
-  defm Store_i32 : MC6809Store<AQc>;
+  //
+  // Bug #300 (2026-05-15): symmetric to the Bug #299 Load_i32_Mem
+  // fix.  Store_i32_Mem with src=SPILL_Q*N expands (via Bug #221's
+  // two-LDD-slot-to-slot pattern, mirrored on the store side) to
+  // a pair of LDD + STD instructions that transiently write AD.
+  // Without AD in the pseudo's Defs, the regalloc doesn't see the
+  // conflict with a *different* vreg live in $aq across the pseudo
+  // — the LDDs silently corrupt $aq's high half.  Matches the
+  // existing `SpillStore_i32_Mem` Defs (Bug #290).
+  let mayStore = true, Defs = [NZ, V, AD] in
+    def Store_i32_Mem : MC6809StoreBase<AQc, (ins INDEX16:$idx, unknown:$offset)>;
 
   // Bug #271 cat-3: spill-framework-only i32 store with ACC32 operand
   // class.  Mirrors SpillLoad_i32_Mem above.
