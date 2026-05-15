@@ -25,6 +25,7 @@
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
+#include "llvm/CodeGen/LivePhysRegs.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
@@ -4674,6 +4675,52 @@ void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI
   auto SrcRegOp = MI.getOperand(0); // re-read AFTER spill fix
   auto IndexRegOp = MI.getOperand(1);
   auto OffsetOp = MI.getOperand(2);
+
+  // Bug #272 Phase B Scope A followup: probe true liveness of the source
+  // register at this MI. If it isn't definitely live (LQR_Live), mark the
+  // expanded implicit-use Undef so the verifier accepts the read. The
+  // accumulator-hierarchy Defs cleanup (Scope A/B/C) made regalloc more
+  // aggressive about sub-register packing, surfacing cases where a vreg
+  // assigned to (e.g.) $aa appears in a spill store after the byte's value
+  // has been killed via super-reg containment — the verifier sees a bare
+  // `implicit $aa` and trips.  Same Undef-protection shape as Bug #275 /
+  // the MS-pass fix at the save-emission sites, applied at the expansion
+  // layer so it also covers regalloc-emitted spills (not just MS-pass
+  // saves).
+  // Bug #272 Phase B Scope A followup: probe true liveness of the source
+  // operand using a LivePhysRegs walk from MBB.begin() — matches the
+  // analysis the post-RA verifier uses.  computeRegisterLiveness with a
+  // bounded neighborhood mis-classifies cases where the search window
+  // doesn't reach a def/kill (returns LQR_Unknown) and also sees the MI's
+  // own explicit USE as a "live" signal.
+  //
+  // The accumulator-hierarchy Defs cleanup (Scope A/B/C) made regalloc
+  // more aggressive about byte-granular packing and surfaced cases where
+  // a vreg assigned to (e.g.) $aa appears in a spill store after the
+  // byte's value was killed via super-reg containment — the verifier
+  // sees a bare `implicit $aa` read and trips.  Mark Undef when our
+  // walked-from-livein analysis agrees with the verifier that the
+  // source is dead.
+  Register SrcReg = SrcRegOp.getReg();
+  const TargetRegisterInfo &TRI =
+      *Builder.getMF().getSubtarget().getRegisterInfo();
+  bool IsAccByte = SrcReg.isPhysical() &&
+      (SrcReg == MC6809::AA || SrcReg == MC6809::AB ||
+       SrcReg == MC6809::AE || SrcReg == MC6809::AF ||
+       SrcReg == MC6809::AD || SrcReg == MC6809::AW);
+  bool SrcIsImpliedUndef = false;
+  if (IsAccByte) {
+    MachineBasicBlock *MBB = MI.getParent();
+    LivePhysRegs LiveRegs(TRI);
+    LiveRegs.addLiveIns(*MBB);
+    SmallVector<std::pair<MCPhysReg, const MachineOperand *>, 4> Clobbers;
+    for (auto It = MBB->begin(); It != MI.getIterator(); ++It) {
+      Clobbers.clear();
+      LiveRegs.stepForward(*It, Clobbers);
+    }
+    SrcIsImpliedUndef = !LiveRegs.contains(SrcReg);
+  }
+
   MI.removeOperand(2);
   MI.removeOperand(1);
 
@@ -4685,6 +4732,8 @@ void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI
       llvm_unreachable("Unexpected operand(s).");
     MI.setDesc(Builder.getTII().get(OpcodePair->getSecond()));
     MI.getOperand(0).setImplicit();
+    if (SrcIsImpliedUndef)
+      MI.getOperand(0).setIsUndef(true);
     if (OffsetSize > 0)
       MI.addOperand(OffsetOp);
     MI.addOperand(IndexRegOp);
@@ -4695,6 +4744,8 @@ void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI
       llvm_unreachable("Unexpected operand(s).");
     MI.setDesc(Builder.getTII().get(OpcodePair->getSecond()));
     MI.getOperand(0).setImplicit();
+    if (SrcIsImpliedUndef)
+      MI.getOperand(0).setIsUndef(true);
     MI.getOperand(2).setImplicit();
   } else
     llvm_unreachable("Unknown offset type for StoreIdx");
