@@ -327,9 +327,18 @@ multiclass MC6809Arithmetic<ValueType vtype, RegisterClass dst, RegisterClass sr
 let isAdd = true in {
   defm Add_i8 : MC6809Arithmetic<i8, ACC8, ACC8, /*IsByte=*/1>;
   defm Add_i16 : MC6809Arithmetic<i16, ACC16, ACC16>;
+  // Bug #297 (2026-05-15): native HD6309 i32 ADD via page-2 ADDW (low
+  // word in AW) + ADCD (high word in AD, carry-in). Pseudos are dead
+  // code at this commit — no selector or expander references them yet;
+  // selector wiring and legalizer flip land in later #297 commits.
+  let Predicates = [IsHD6309] in
+    defm Add_i32 : MC6809Arithmetic<i32, ACC32, ACC32>;
 }
 defm Sub_i8 : MC6809Arithmetic<i8, ACC8, ACC8, /*IsByte=*/1>;
 defm Sub_i16 : MC6809Arithmetic<i16, ACC16, ACC16>;
+// Bug #297: native HD6309 i32 SUB via page-2 SUBW + SBCD.
+let Predicates = [IsHD6309] in
+  defm Sub_i32 : MC6809Arithmetic<i32, ACC32, ACC32>;
 
 // --- Carry-setting variants ---
 //
@@ -439,9 +448,15 @@ multiclass MC6809ArithmeticCarry<ValueType vtype, RegisterClass dst, RegisterCla
 let isAdd = true in {
   defm AddSetCarry_i8 : MC6809ArithmeticCarry<i8, ACC8, ACC8, /*IsByte=*/1>;
   defm AddSetCarry_i16 : MC6809ArithmeticCarry<i16, ACC16, ACC16>;
+  // Bug #297: i32 carry-out variant. Used by G_UADDO i32 selector
+  // (commit 4); currently dormant.
+  let Predicates = [IsHD6309] in
+    defm AddSetCarry_i32 : MC6809ArithmeticCarry<i32, ACC32, ACC32>;
 }
 defm SubSetCarry_i8 : MC6809ArithmeticCarry<i8, ACC8, ACC8, /*IsByte=*/1>;
 defm SubSetCarry_i16 : MC6809ArithmeticCarry<i16, ACC16, ACC16>;
+let Predicates = [IsHD6309] in
+  defm SubSetCarry_i32 : MC6809ArithmeticCarry<i32, ACC32, ACC32>;
 
 // Bug #147: parallel pseudos for *signed* G_SADDO / G_SSUBO. Same machine
 // expansion as SetCarry (same ADD/SUB/ADC/SBC instructions); the IR
@@ -450,9 +465,14 @@ defm SubSetCarry_i16 : MC6809ArithmeticCarry<i16, ACC16, ACC16>;
 let isAdd = true in {
   defm AddSetOverflow_i8  : MC6809ArithmeticCarry<i8,  ACC8,  ACC8, /*IsByte=*/1>;
   defm AddSetOverflow_i16 : MC6809ArithmeticCarry<i16, ACC16, ACC16>;
+  // Bug #297: i32 signed-overflow variant.
+  let Predicates = [IsHD6309] in
+    defm AddSetOverflow_i32 : MC6809ArithmeticCarry<i32, ACC32, ACC32>;
 }
 defm SubSetOverflow_i8  : MC6809ArithmeticCarry<i8,  ACC8,  ACC8, /*IsByte=*/1>;
 defm SubSetOverflow_i16 : MC6809ArithmeticCarry<i16, ACC16, ACC16>;
+let Predicates = [IsHD6309] in
+  defm SubSetOverflow_i32 : MC6809ArithmeticCarry<i32, ACC32, ACC32>;
 
 // --- Carry-using variants ---
 //
@@ -570,19 +590,30 @@ multiclass MC6809ArithmeticOverflowUse<ValueType vtype, RegisterClass dst, Regis
 let isAdd = true in {
   defm AddSetCarryUse_i8 : MC6809ArithmeticCarryUse<i8, ACC8, ACC8, /*IsByte=*/1>;
   defm AddSetCarryUse_i16 : MC6809ArithmeticCarryUse<i16, ACC16, ACC16>;
+  // Bug #297: i32 carry-in chain participant. Used by G_UADDE i32
+  // selector (commit 4) to model the second word's add-with-carry.
+  let Predicates = [IsHD6309] in
+    defm AddSetCarryUse_i32 : MC6809ArithmeticCarryUse<i32, ACC32, ACC32>;
 }
 
 defm SubSetCarryUse_i8 : MC6809ArithmeticCarryUse<i8, ACC8, ACC8, /*IsByte=*/1>;
 defm SubSetCarryUse_i16 : MC6809ArithmeticCarryUse<i16, ACC16, ACC16>;
+let Predicates = [IsHD6309] in
+  defm SubSetCarryUse_i32 : MC6809ArithmeticCarryUse<i32, ACC32, ACC32>;
 
 // Bug #147: chain-extend variants for *signed* G_SADDE / G_SSUBE.
 // Uses=[V] on the *Use base class.
 let isAdd = true in {
   defm AddSetOverflowUse_i8  : MC6809ArithmeticOverflowUse<i8,  ACC8,  ACC8, /*IsByte=*/1>;
   defm AddSetOverflowUse_i16 : MC6809ArithmeticOverflowUse<i16, ACC16, ACC16>;
+  // Bug #297: i32 signed-overflow chain participant.
+  let Predicates = [IsHD6309] in
+    defm AddSetOverflowUse_i32 : MC6809ArithmeticOverflowUse<i32, ACC32, ACC32>;
 }
 defm SubSetOverflowUse_i8  : MC6809ArithmeticOverflowUse<i8,  ACC8,  ACC8, /*IsByte=*/1>;
 defm SubSetOverflowUse_i16 : MC6809ArithmeticOverflowUse<i16, ACC16, ACC16>;
+let Predicates = [IsHD6309] in
+  defm SubSetOverflowUse_i32 : MC6809ArithmeticOverflowUse<i32, ACC32, ACC32>;
 
 // --- Concrete instructions (register-specific, assembler/disassembler) ---
 // Concrete arithmetic instructions (ADDA, ADDB, ADDD, SUBA, SUBB, SUBD, etc.)
