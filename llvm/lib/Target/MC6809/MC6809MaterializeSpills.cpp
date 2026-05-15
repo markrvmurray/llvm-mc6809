@@ -861,17 +861,45 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
 
       // Bug #89: save just $aa or $ab (not both) around an 8-bit spill-
       // operand instruction whose expansion uses that half as a scratch.
+      //
+      // Bug #272 Phase B Scope A fallout: when the accumulator-hierarchy
+      // Defs lists were cleaned up to drop the AQ/AD/AW over-claim, the
+      // regalloc gained byte-granular packing freedom and surfaced
+      // pre-existing cases where $aa / $ab is reachable as part of a live
+      // super-reg (e.g. $aq) but is NOT a direct live-in / live-here. The
+      // reverse-pass anySubRegLive(AA) check still marks NeedSaveA in such
+      // cases — and rightly so, the save preserves the byte's bits as part
+      // of the super-reg's value — but at the forward-pass save site the
+      // verifier sees `implicit $aa` reading an undefined physical reg and
+      // trips. Same shape as the AD case in Bug #275 (see above), one
+      // level finer.
+      //
+      // Fix: probe true liveness at the save insertion point via
+      // MachineBasicBlock::computeRegisterLiveness. If $aa / $ab is
+      // definitely dead, mark the save's source operand Undef. The bits
+      // are still round-tripped (the STA writes whatever is currently in
+      // $aa and the matching LDA later reads it back), so the super-reg's
+      // logical value is preserved across the upcoming clobber, and the
+      // verifier is satisfied.
       if (Info.NeedSaveA) {
         ASaveSlot = MFI.CreateStackObject(1, Align(1), true);
+        RegState SrcFlags = RegState(0);
+        if (MBB.computeRegisterLiveness(&TRI, MC6809::AA, MI) !=
+            MachineBasicBlock::LQR_Live)
+          SrcFlags = RegState::Undef;
         BuildMI(MBB, MI, DL, TII.get(MC6809::Store_i8_Mem))
-            .addReg(MC6809::AA)
+            .addReg(MC6809::AA, SrcFlags)
             .addFrameIndex(ASaveSlot)
             .addImm(0);
       }
       if (Info.NeedSaveB) {
         BSaveSlot = MFI.CreateStackObject(1, Align(1), true);
+        RegState SrcFlags = RegState(0);
+        if (MBB.computeRegisterLiveness(&TRI, MC6809::AB, MI) !=
+            MachineBasicBlock::LQR_Live)
+          SrcFlags = RegState::Undef;
         BuildMI(MBB, MI, DL, TII.get(MC6809::Store_i8_Mem))
-            .addReg(MC6809::AB)
+            .addReg(MC6809::AB, SrcFlags)
             .addFrameIndex(BSaveSlot)
             .addImm(0);
       }
@@ -1106,8 +1134,15 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
                 2, Align(1), /*isSpillSlot=*/false);
             int SaveOff = (RealReg == MC6809::AB) ? 1 : 0;
             // Save the LHS (tied) value currently in the register.
+            // Bug #272 Phase B Scope A fallout: probe true liveness — see
+            // NeedSaveA/B notes above. Mark Undef when the byte is dead at
+            // the save site.
+            RegState SrcFlags = RegState(0);
+            if (MBB.computeRegisterLiveness(&TRI, RealReg, MI) !=
+                MachineBasicBlock::LQR_Live)
+              SrcFlags = RegState::Undef;
             BuildMI(MBB, MI, DL, TII.get(MC6809::Store_i8_Mem))
-                .addReg(RealReg)
+                .addReg(RealReg, SrcFlags)
                 .addFrameIndex(SaveFI)
                 .addImm(SaveOff);
             // After the spill load clobbers the register with the RHS,
@@ -1139,8 +1174,13 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
               // we reuse it and skip our redundant save below.
               SaveSlotRef = MFI.CreateStackObject(
                   1, Align(1), /*isSpillSlot=*/true);
+              // Bug #272 Phase B Scope A fallout — see NeedSaveA/B notes.
+              RegState SrcFlags = RegState(0);
+              if (MBB.computeRegisterLiveness(&TRI, RealReg, MI) ==
+                  MachineBasicBlock::LQR_Dead)
+                SrcFlags = RegState::Undef;
               BuildMI(MBB, MI, DL, TII.get(MC6809::Store_i8_Mem))
-                  .addReg(RealReg)
+                  .addReg(RealReg, SrcFlags)
                   .addFrameIndex(SaveSlotRef)
                   .addImm(0);
             }
