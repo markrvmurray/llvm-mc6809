@@ -4775,6 +4775,27 @@ void MC6809InstrInfo::expandLoadImm(MachineIRBuilder &Builder, MachineInstr &MI)
                                                            : getPhysRegFor(DestRegOp.getReg());
     MachineFunction &MF = Builder.getMF();
     auto ValOp = MI.getOperand(1);
+    // Bug #300 residue (2026-05-15): for SPILL_Q*N (i32) dst, the
+    // staging through physical $aq via LDQ silently clobbers any
+    // other vreg currently live in $aq.  The pseudo's Defs don't
+    // declare AD (adding it regresses test_return_i32_constant), and
+    // the dst class AQc is widened to include SPILL_Q*N (Phase B),
+    // so regalloc may legitimately place a different vreg in $aq
+    // across this pseudo.  Bracket the LDQ + STQ with a LEAS-based
+    // save/restore of $aq on the hard stack to preserve the live
+    // value.  Cost: 4 extra instructions per i32-Imm-to-spill load.
+    bool IsQSpill = !isIndexSpillReg(DestRegOp.getReg()) &&
+                    RealReg == MC6809::AQ;
+    if (IsQSpill) {
+      // LEAS -4, $ss
+      Builder.buildInstr(MC6809::LEASi_o5)
+          .addImm(-4)
+          .addReg(MC6809::SS);
+      // STQ ,$ss — save current $aq
+      Builder.buildInstr(MC6809::STQi_o0)
+          .addUse(MC6809::AQ, RegState::Implicit)
+          .addReg(MC6809::SS);
+    }
     // Load immediate into staging register, then store to spill/imaginary slot.
     auto OpcodePair = LoadImmediateOpcode.find(RealReg);
     assert(OpcodePair != LoadImmediateOpcode.end());
@@ -4794,6 +4815,16 @@ void MC6809InstrInfo::expandLoadImm(MachineIRBuilder &Builder, MachineInstr &MI)
           .addImm(SpillOff).addReg(MC6809::SU);
     } else {
       dematerializeReg(Builder, RealReg, DestRegOp.getReg(), MF);
+    }
+    if (IsQSpill) {
+      // LDQ ,$ss — restore $aq
+      Builder.buildInstr(MC6809::LDQi_o0)
+          .addDef(MC6809::AQ, RegState::Implicit)
+          .addReg(MC6809::SS);
+      // LEAS 4, $ss
+      Builder.buildInstr(MC6809::LEASi_o5)
+          .addImm(4)
+          .addReg(MC6809::SS);
     }
     MI.removeFromParent();
     return;
