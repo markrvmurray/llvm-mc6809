@@ -55,7 +55,26 @@ let Predicates = [IsHD6309] in {
   // in-line UNMERGE/MERGE artifacts that previously starved
   // __call_hash. The AQc constraint stays load-bearing for
   // strtol/snprintf/asctime correctness (bug #208).
-  defm Load_i32 : MC6809Load<AQc, i32>;
+  //
+  // Bug #299 (2026-05-15): split _Imm and _Mem variants because
+  // they have different sub-reg clobber footprints:
+  //
+  //  - Load_i32_Imm lowers to `LDQ #imm` which writes AQ wholly.
+  //    The explicit dst=AQc operand expresses this — no extra
+  //    implicit-defs needed.
+  //
+  //  - Load_i32_Mem with dst=SPILL_Q*N expands via Bug #221's
+  //    two-LDD path, transiently writing AD.  Without AD in the
+  //    pseudo's Defs, the regalloc doesn't see the conflict with
+  //    a *different* vreg live in $aq across this pseudo; the
+  //    LDDs silently corrupt $aq's high half (Bug #299 manifest
+  //    at divsi_signed_probe).  Mirrors SpillLoad_i32_Mem's Defs
+  //    pattern (Bug #290) — AD sub-reg-aliases AQ so super-reg
+  //    aliasing propagates the conflict to AQ-allocated vregs.
+  let isAsCheapAsAMove = true, isMoveImm = true, mayLoad = true in
+    def Load_i32_Imm : MC6809LoadBase<AQc, (ins i32imm:$imm)>;
+  let mayLoad = true, Defs = [NZ, V, AD] in
+    def Load_i32_Mem : MC6809LoadBase<AQc, (ins INDEX16:$idx, unknown:$offset)>;
 
   // Bug #271 cat-3: spill-framework-only i32 load with ACC32 operand
   // class. The narrow AQc constraint on Load_i32 above is load-bearing
@@ -105,9 +124,18 @@ defm LDB : Load8Concrete<"ldb", Opcode<0xC6,1>, Opcode<0xD6,1>,
                           [NZ,N,Z,V,AB]>;
 
 // 16-bit loads: LDD/LDX/LDU (6809 Page 1)
+//
+// Bug #299 (2026-05-15): LDD's Defs lists AQ because AD is the
+// sub_hi_word of AQ.  Without AQ in Defs the regalloc may keep
+// an i32 live in AQ (Phase B LDQ-loaded) across an unrelated LDD,
+// silently corrupting AQ's high half (the i32's high 16 bits).
+// Bug #272 Phase B Scope A previously dropped AQ from this list as
+// an over-claim — correct pre-Phase-B (no i32-in-AQ live ranges),
+// undercoverage post-Phase-B.  Re-add the conservative AQ claim
+// to force regalloc to evict any vreg currently in AQ before LDD.
 defm LDD : Load16Concrete<"ldd", Opcode<0xCC,1>, Opcode<0xDC,1>,
                            Opcode<0xEC,1>, Opcode<0xFC,1>,
-                           [NZ,N,Z,V,AA,AB,AD]>;
+                           [NZ,N,Z,V,AA,AB,AD,AQ]>;
 defm LDX : Load16Concrete<"ldx", Opcode<0x8E,1>, Opcode<0x9E,1>,
                            Opcode<0xAE,1>, Opcode<0xBE,1>,
                            [NZ,N,Z,V,IX]>;
