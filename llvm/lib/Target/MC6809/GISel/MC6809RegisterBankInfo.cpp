@@ -178,9 +178,26 @@ const RegisterBankInfo::InstructionMapping &MC6809RegisterBankInfo::getInstrMapp
   switch (Opc) {
   case TargetOpcode::G_ADD:
   case TargetOpcode::G_SUB: {
+    LLT Ty = MRI.getType(MI.getOperand(0).getReg());
+
+    // Bug #297 firewall (2026-05-15, commit 3/6): for i32 G_ADD/G_SUB,
+    // force ACCUM (PMI_ACC32) bank mapping unconditionally — no
+    // INDEX-bank fallback.  The 32-bit AQ register is ACCUM-only; there
+    // is no 32-bit INDEX register, so promoting i32 ALU into INDEX
+    // would create the same cross-bank phi-handling hazard that bit
+    // Bug #85b at i16 (where the INDEX-bank LEA + ACCUM-bank ADDD path
+    // miscompiled atoi("42") to 52 at -O0).  HD6309-only path
+    // structurally; on plain MC6809 the legalizer narrows i32 ADD/SUB
+    // to the s8 byte chain before this point.  Dormant until commit
+    // 5's legalizer flip allows G_ADD/G_SUB s32 to reach RegBank
+    // selection unwidened.
+    if (Ty.getSizeInBits() == 32 && !Ty.isPointer()) {
+      auto Mapping = getValueMapping(PMI_ACC32, 3);
+      return getInstructionMapping(DefaultMappingID, 1, Mapping, NumOperands);
+    }
+
     // For i16 add/sub: if an operand is in INDEX bank (X/Y from CC or
     // pointer ops), keep the operation in INDEX and use LEA.
-    LLT Ty = MRI.getType(MI.getOperand(0).getReg());
     if (Ty.getSizeInBits() == 16 && !Ty.isPointer()) {
       Register Src1 = MI.getOperand(1).getReg();
       const RegisterBank *RB1 = MRI.getRegBankOrNull(Src1);
