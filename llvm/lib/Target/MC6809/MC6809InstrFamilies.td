@@ -657,6 +657,39 @@ defm AddPat_ii6 : MC6809ArithPat<add, i16, ACC16, "Add">;
 defm SubPat_ii6 : MC6809ArithPat<sub, i16, ACC16, "Sub">;
 defm SubRevPat_ii6 : MC6809ArithRevPat<sub, i16, ACC16, "Sub">;
 
+// Bug #297 commit 4/6 (2026-05-15): native HD6309 i32 ADD/SUB pattern
+// instantiation, inline (i.e. NOT via MC6809ArithPat).  The shared
+// multiclass would reference `Push_i32` for the _Push_Pull NotHD6309
+// arm, but native i32 arith is HD6309-only — defining Push_i32 just to
+// satisfy TableGen's eager `!cast` would create a never-selected
+// 32-bit-to-stack pseudo with no meaningful semantics on plain MC6809.
+// Inline patterns sidestep the issue and keep the surface minimal:
+// only the forms a legalizer-flipped G_ADD/G_SUB s32 will produce.
+// Carry-out / carry-in chain patterns (AddSetCarry_i32 etc.) are
+// emitted by the C++ selector in selectAddO / selectAddE (commit 4),
+// not by these patterns.
+let Predicates = [IsHD6309] in {
+  // G_ADD i32 → Add_i32_*
+  def AddPat_i32_Imm : Pat<(i32 (add ACC32:$src, imm:$val)),
+                            (Add_i32_Imm ACC32:$src, imm:$val)>;
+  def AddPat_i32_Idx_Imm : Pat<(i32 (add ACC32:$src,
+                                      (am_indexed_imm_offset INDEX16:$idx,
+                                                             i16imm:$offset))),
+                                (Add_i32_Mem ACC32:$src, INDEX16:$idx, imm:$offset)>;
+  def AddPat_i32_Reg : Pat<(i32 (add ACC32:$src, ACC32:$src2)),
+                            (Add_i32_Reg ACC32:$src, ACC32:$src2)>;
+
+  // G_SUB i32 → Sub_i32_*
+  def SubPat_i32_Imm : Pat<(i32 (sub ACC32:$src, imm:$val)),
+                            (Sub_i32_Imm ACC32:$src, imm:$val)>;
+  def SubPat_i32_Idx_Imm : Pat<(i32 (sub ACC32:$src,
+                                      (am_indexed_imm_offset INDEX16:$idx,
+                                                             i16imm:$offset))),
+                                (Sub_i32_Mem ACC32:$src, INDEX16:$idx, imm:$offset)>;
+  def SubPat_i32_Reg : Pat<(i32 (sub ACC32:$src, ACC32:$src2)),
+                            (Sub_i32_Reg ACC32:$src, ACC32:$src2)>;
+}
+
 // LEA-based i16 add/sub for INDEX registers is handled in
 // MC6809InstructionSelector.cpp (hand-lowering required for GlobalISel
 // because constants are in registers, not bare immediates).
