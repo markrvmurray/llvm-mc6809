@@ -56,7 +56,6 @@ define void @sext_i32_to_i64_then_store(ptr %out, i32 %x) {
 ; CHECK-NEXT:    lda 27,u
 ; CHECK-NEXT:    sbca 35,u
 ; CHECK-NEXT:    sta 27,u
-; CHECK-NEXT:    ldb 28,u
 ; CHECK-NEXT:    stb 22,u
 ; CHECK-NEXT:    sbcb 34,u
 ; CHECK-NEXT:    stb 22,u
@@ -68,7 +67,6 @@ define void @sext_i32_to_i64_then_store(ptr %out, i32 %x) {
 ; CHECK-NEXT:    lda 25,u
 ; CHECK-NEXT:    sbca 33,u
 ; CHECK-NEXT:    sta 25,u
-; CHECK-NEXT:    ldb 28,u
 ; CHECK-NEXT:    stb 20,u
 ; CHECK-NEXT:    stb 18,u
 ; CHECK-NEXT:    sbcb 26,u

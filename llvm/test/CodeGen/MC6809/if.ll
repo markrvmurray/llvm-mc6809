@@ -266,7 +266,6 @@ define dso_local i16 @if_s16(i16 noundef %a, i16 noundef %b) local_unnamed_addr 
 ; O1-NEXT:    subb 13,u
 ; O1-NEXT:    stb 7,u
 ; O1-NEXT:    sbca 12,u
-; O1-NEXT:    ldb 7,u
 ; O1-NEXT:  .LBB2_3: ; %return
 ; O1-NEXT:    tfr d,x
 ; O1-NEXT:    tfr u,s
@@ -296,7 +295,6 @@ define dso_local i16 @if_s16(i16 noundef %a, i16 noundef %b) local_unnamed_addr 
 ; O2-NEXT:    subb 13,u
 ; O2-NEXT:    stb 7,u
 ; O2-NEXT:    sbca 12,u
-; O2-NEXT:    ldb 7,u
 ; O2-NEXT:  .LBB2_3: ; %return
 ; O2-NEXT:    tfr d,x
 ; O2-NEXT:    tfr u,s
@@ -326,7 +324,6 @@ define dso_local i16 @if_s16(i16 noundef %a, i16 noundef %b) local_unnamed_addr 
 ; O3-NEXT:    subb 13,u
 ; O3-NEXT:    stb 7,u
 ; O3-NEXT:    sbca 12,u
-; O3-NEXT:    ldb 7,u
 ; O3-NEXT:  .LBB2_3: ; %return
 ; O3-NEXT:    tfr d,x
 ; O3-NEXT:    tfr u,s

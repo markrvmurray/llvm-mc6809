@@ -73,7 +73,6 @@ define void @sext_i16_to_i32_then_store(ptr %out, i16 %x) {
 ; CHECK-NEXT:    lda 13,u
 ; CHECK-NEXT:    sbca 19,u
 ; CHECK-NEXT:    sta 13,u
-; CHECK-NEXT:    ldb 12,u
 ; CHECK-NEXT:    stb 8,u
 ; CHECK-NEXT:    sbcb 14,u
 ; CHECK-NEXT:    stb 8,u

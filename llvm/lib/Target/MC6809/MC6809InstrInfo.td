@@ -295,43 +295,43 @@ multiclass ALU16Concrete<string Mnem, Opcode ImmOpc, Opcode DirOpc,
 
 // 8-bit ALU: A accumulator (Page 1)
 defm SUBA : ALU8Concrete<"suba", Opcode<0x80,1>, Opcode<0x90,1>, Opcode<0xA0,1>, Opcode<0xB0,1>,
-                          [AA,NZ,N,Z,V,C,AA,AD], [AA]>;
+                          [AA,NZ,N,Z,V,C,AA], [AA]>;
 defm CMPA : ALU8Concrete<"cmpa", Opcode<0x81,1>, Opcode<0x91,1>, Opcode<0xA1,1>, Opcode<0xB1,1>,
                           [NZ,N,Z,V,C], [AA], /*IsCompare=*/1>;
 defm SBCA : ALU8Concrete<"sbca", Opcode<0x82,1>, Opcode<0x92,1>, Opcode<0xA2,1>, Opcode<0xB2,1>,
-                          [AA,NZ,N,Z,V,C,AA,AD], [AA,C]>;
+                          [AA,NZ,N,Z,V,C,AA], [AA,C]>;
 defm ANDA : ALU8Concrete<"anda", Opcode<0x84,1>, Opcode<0x94,1>, Opcode<0xA4,1>, Opcode<0xB4,1>,
-                          [AA,NZ,N,Z,V,AA,AD], [AA]>;
+                          [AA,NZ,N,Z,V,AA], [AA]>;
 defm BITA : ALU8Concrete<"bita", Opcode<0x85,1>, Opcode<0x95,1>, Opcode<0xA5,1>, Opcode<0xB5,1>,
                           [NZ,N,Z,V], [AA], /*IsCompare=*/1>;
 defm EORA : ALU8Concrete<"eora", Opcode<0x88,1>, Opcode<0x98,1>, Opcode<0xA8,1>, Opcode<0xB8,1>,
-                          [AA,NZ,N,Z,V,AA,AD], [AA]>;
+                          [AA,NZ,N,Z,V,AA], [AA]>;
 defm ADCA : ALU8Concrete<"adca", Opcode<0x89,1>, Opcode<0x99,1>, Opcode<0xA9,1>, Opcode<0xB9,1>,
-                          [AA,NZ,N,Z,V,C,AA,AD], [AA,C], /*IsCompare=*/0, /*IsAdd=*/1>;
+                          [AA,NZ,N,Z,V,C,AA], [AA,C], /*IsCompare=*/0, /*IsAdd=*/1>;
 defm ORA  : ALU8Concrete<"ora",  Opcode<0x8A,1>, Opcode<0x9A,1>, Opcode<0xAA,1>, Opcode<0xBA,1>,
-                          [AA,NZ,N,Z,V,AA,AD], [AA]>;
+                          [AA,NZ,N,Z,V,AA], [AA]>;
 defm ADDA : ALU8Concrete<"adda", Opcode<0x8B,1>, Opcode<0x9B,1>, Opcode<0xAB,1>, Opcode<0xBB,1>,
-                          [AA,NZ,N,Z,V,C,AA,AD], [AA], /*IsCompare=*/0, /*IsAdd=*/1>;
+                          [AA,NZ,N,Z,V,C,AA], [AA], /*IsCompare=*/0, /*IsAdd=*/1>;
 
 // 8-bit ALU: B accumulator (Page 1)
 defm SUBB : ALU8Concrete<"subb", Opcode<0xC0,1>, Opcode<0xD0,1>, Opcode<0xE0,1>, Opcode<0xF0,1>,
-                          [AB,NZ,N,Z,V,C,AB,AD], [AB]>;
+                          [AB,NZ,N,Z,V,C,AB], [AB]>;
 defm CMPB : ALU8Concrete<"cmpb", Opcode<0xC1,1>, Opcode<0xD1,1>, Opcode<0xE1,1>, Opcode<0xF1,1>,
                           [NZ,N,Z,V,C], [AB], /*IsCompare=*/1>;
 defm SBCB : ALU8Concrete<"sbcb", Opcode<0xC2,1>, Opcode<0xD2,1>, Opcode<0xE2,1>, Opcode<0xF2,1>,
-                          [AB,NZ,N,Z,V,C,AB,AD], [AB,C]>;
+                          [AB,NZ,N,Z,V,C,AB], [AB,C]>;
 defm ANDB : ALU8Concrete<"andb", Opcode<0xC4,1>, Opcode<0xD4,1>, Opcode<0xE4,1>, Opcode<0xF4,1>,
-                          [AB,NZ,N,Z,V,AB,AD], [AB]>;
+                          [AB,NZ,N,Z,V,AB], [AB]>;
 defm BITB : ALU8Concrete<"bitb", Opcode<0xC5,1>, Opcode<0xD5,1>, Opcode<0xE5,1>, Opcode<0xF5,1>,
                           [NZ,N,Z,V], [AB], /*IsCompare=*/1>;
 defm EORB : ALU8Concrete<"eorb", Opcode<0xC8,1>, Opcode<0xD8,1>, Opcode<0xE8,1>, Opcode<0xF8,1>,
-                          [AB,NZ,N,Z,V,AB,AD], [AB]>;
+                          [AB,NZ,N,Z,V,AB], [AB]>;
 defm ADCB : ALU8Concrete<"adcb", Opcode<0xC9,1>, Opcode<0xD9,1>, Opcode<0xE9,1>, Opcode<0xF9,1>,
-                          [AB,NZ,N,Z,V,C,AB,AD], [AB,C], /*IsCompare=*/0, /*IsAdd=*/1>;
+                          [AB,NZ,N,Z,V,C,AB], [AB,C], /*IsCompare=*/0, /*IsAdd=*/1>;
 defm ORB  : ALU8Concrete<"orb",  Opcode<0xCA,1>, Opcode<0xDA,1>, Opcode<0xEA,1>, Opcode<0xFA,1>,
-                          [AB,NZ,N,Z,V,AB,AD], [AB]>;
+                          [AB,NZ,N,Z,V,AB], [AB]>;
 defm ADDB : ALU8Concrete<"addb", Opcode<0xCB,1>, Opcode<0xDB,1>, Opcode<0xEB,1>, Opcode<0xFB,1>,
-                          [AB,NZ,N,Z,V,C,AB,AD], [AB], /*IsCompare=*/0, /*IsAdd=*/1>;
+                          [AB,NZ,N,Z,V,C,AB], [AB], /*IsCompare=*/0, /*IsAdd=*/1>;
 
 // 16-bit ALU: D accumulator (Page 1)
 defm SUBD : ALU16Concrete<"subd", Opcode<0x83,1>, Opcode<0x93,1>, Opcode<0xA3,1>, Opcode<0xB3,1>,
@@ -377,18 +377,18 @@ defm CLR : Unary1Concrete<"clr", Opcode<0x0F,1>, Opcode<0x6F,1>, Opcode<0x7F,1>,
 
 // Accumulator unary ops (Page 1): A and B forms
 // Same defm prefix as memory ops — no conflict since suffixes differ (Aa/Ba vs d/i/e)
-defm NEG : UnaryAcc8_AB<"nega", Opcode<0x40,1>, [AA,NZ,N,Z,V,C,AA,AD], [AA],
-                         "negb", Opcode<0x50,1>, [AB,NZ,N,Z,V,C,AB,AD], [AB]>;
-defm COM : UnaryAcc8_AB<"coma", Opcode<0x43,1>, [AA,NZ,N,Z,V,C,AA,AD], [AA],
-                         "comb", Opcode<0x53,1>, [AB,NZ,N,Z,V,C,AB,AD], [AB]>;
-defm LSR : UnaryAcc8_AB<"lsra", Opcode<0x44,1>, [AA,NZ,N,Z,C,AA,AD], [AA],
-                         "lsrb", Opcode<0x54,1>, [AB,NZ,N,Z,C,AB,AD], [AB]>;
-defm ROR : UnaryAcc8_AB<"rora", Opcode<0x46,1>, [AA,NZ,N,Z,C,AA,AD], [AA,C],
-                         "rorb", Opcode<0x56,1>, [AB,NZ,N,Z,C,AB,AD], [AB,C]>;
-defm ASR : UnaryAcc8_AB<"asra", Opcode<0x47,1>, [AA,NZ,N,Z,C,AA,AD], [AA,C],
-                         "asrb", Opcode<0x57,1>, [AB,NZ,N,Z,C,AB,AD], [AB,C]>;
-defm ASL : UnaryAcc8_AB<"asla", Opcode<0x48,1>, [AA,NZ,N,Z,V,C,AA,AD], [AA],
-                         "aslb", Opcode<0x58,1>, [AB,NZ,N,Z,V,C,AB,AD], [AB]>;
+defm NEG : UnaryAcc8_AB<"nega", Opcode<0x40,1>, [AA,NZ,N,Z,V,C,AA], [AA],
+                         "negb", Opcode<0x50,1>, [AB,NZ,N,Z,V,C,AB], [AB]>;
+defm COM : UnaryAcc8_AB<"coma", Opcode<0x43,1>, [AA,NZ,N,Z,V,C,AA], [AA],
+                         "comb", Opcode<0x53,1>, [AB,NZ,N,Z,V,C,AB], [AB]>;
+defm LSR : UnaryAcc8_AB<"lsra", Opcode<0x44,1>, [AA,NZ,N,Z,C,AA], [AA],
+                         "lsrb", Opcode<0x54,1>, [AB,NZ,N,Z,C,AB], [AB]>;
+defm ROR : UnaryAcc8_AB<"rora", Opcode<0x46,1>, [AA,NZ,N,Z,C,AA], [AA,C],
+                         "rorb", Opcode<0x56,1>, [AB,NZ,N,Z,C,AB], [AB,C]>;
+defm ASR : UnaryAcc8_AB<"asra", Opcode<0x47,1>, [AA,NZ,N,Z,C,AA], [AA,C],
+                         "asrb", Opcode<0x57,1>, [AB,NZ,N,Z,C,AB], [AB,C]>;
+defm ASL : UnaryAcc8_AB<"asla", Opcode<0x48,1>, [AA,NZ,N,Z,V,C,AA], [AA],
+                         "aslb", Opcode<0x58,1>, [AB,NZ,N,Z,V,C,AB], [AB]>;
 // Bug #227: LSL is the same encoding as ASL on MC6809/HD6309 (opcode 0x58
 // for accumulator B, 0x08/0x68/0x78 for memory). Both spellings appear in
 // hand-written sources and external assemblers (lwasm, asm6809) accept
@@ -400,14 +400,14 @@ def : MnemonicAlias<"lslb", "aslb">;
 def : MnemonicAlias<"lsl",  "asl">;
 // HD6309 D-register variant. (HD6309 has no ASL/LSL on W or E/F.)
 def : MnemonicAlias<"lsld", "asld">;
-defm ROL : UnaryAcc8_AB<"rola", Opcode<0x49,1>, [AA,NZ,N,Z,V,C,AA,AD], [AA,C],
-                         "rolb", Opcode<0x59,1>, [AB,NZ,N,Z,V,C,AB,AD], [AB,C]>;
-defm DEC : UnaryAcc8_AB<"deca", Opcode<0x4A,1>, [AA,NZ,N,Z,V,AA,AD], [AA],
-                         "decb", Opcode<0x5A,1>, [AB,NZ,N,Z,V,AB,AD], [AB]>;
-defm INC : UnaryAcc8_AB<"inca", Opcode<0x4C,1>, [AA,NZ,N,Z,V,AA,AD], [AA],
-                         "incb", Opcode<0x5C,1>, [AB,NZ,N,Z,V,AB,AD], [AB]>;
-defm CLR : UnaryAcc8_AB<"clra", Opcode<0x4F,1>, [AA,NZ,N,Z,V,C,AA,AD], [],
-                         "clrb", Opcode<0x5F,1>, [AB,NZ,N,Z,V,C,AB,AD], []>;
+defm ROL : UnaryAcc8_AB<"rola", Opcode<0x49,1>, [AA,NZ,N,Z,V,C,AA], [AA,C],
+                         "rolb", Opcode<0x59,1>, [AB,NZ,N,Z,V,C,AB], [AB,C]>;
+defm DEC : UnaryAcc8_AB<"deca", Opcode<0x4A,1>, [AA,NZ,N,Z,V,AA], [AA],
+                         "decb", Opcode<0x5A,1>, [AB,NZ,N,Z,V,AB], [AB]>;
+defm INC : UnaryAcc8_AB<"inca", Opcode<0x4C,1>, [AA,NZ,N,Z,V,AA], [AA],
+                         "incb", Opcode<0x5C,1>, [AB,NZ,N,Z,V,AB], [AB]>;
+defm CLR : UnaryAcc8_AB<"clra", Opcode<0x4F,1>, [AA,NZ,N,Z,V,C,AA], [],
+                         "clrb", Opcode<0x5F,1>, [AB,NZ,N,Z,V,C,AB], []>;
 
 // TST accumulator forms — separate because isCompare = true and defs differ.
 let isCompare = true in {
@@ -862,19 +862,19 @@ let Predicates = [IsHD6309] in {
 
 // 8-bit ALU: E accumulator (Page 3, HD6309)
 defm SUBE : ALU8Concrete_P3<"sube", Opcode<0x80,3>, Opcode<0x90,3>, Opcode<0xA0,3>, Opcode<0xB0,3>,
-                             [AE,NZ,N,Z,V,C,AE,AW], [AE]>;
+                             [AE,NZ,N,Z,V,C,AE], [AE]>;
 defm CMPE : ALU8Concrete_P3<"cmpe", Opcode<0x81,3>, Opcode<0x91,3>, Opcode<0xA1,3>, Opcode<0xB1,3>,
                              [NZ,N,Z,V,C], [AE], /*IsCompare=*/1>;
 defm ADDE : ALU8Concrete_P3<"adde", Opcode<0x8B,3>, Opcode<0x9B,3>, Opcode<0xAB,3>, Opcode<0xBB,3>,
-                             [AE,NZ,N,Z,V,C,AE,AW], [AE], /*IsCompare=*/0, /*IsAdd=*/1>;
+                             [AE,NZ,N,Z,V,C,AE], [AE], /*IsCompare=*/0, /*IsAdd=*/1>;
 
 // 8-bit ALU: F accumulator (Page 3, HD6309)
 defm SUBF : ALU8Concrete_P3<"subf", Opcode<0xC0,3>, Opcode<0xD0,3>, Opcode<0xE0,3>, Opcode<0xF0,3>,
-                             [AF,NZ,N,Z,V,C,AF,AW], [AF]>;
+                             [AF,NZ,N,Z,V,C,AF], [AF]>;
 defm CMPF : ALU8Concrete_P3<"cmpf", Opcode<0xC1,3>, Opcode<0xD1,3>, Opcode<0xE1,3>, Opcode<0xF1,3>,
                              [NZ,N,Z,V,C], [AF], /*IsCompare=*/1>;
 defm ADDF : ALU8Concrete_P3<"addf", Opcode<0xCB,3>, Opcode<0xDB,3>, Opcode<0xEB,3>, Opcode<0xFB,3>,
-                             [AF,NZ,N,Z,V,C,AF,AW], [AF], /*IsCompare=*/0, /*IsAdd=*/1>;
+                             [AF,NZ,N,Z,V,C,AF], [AF], /*IsCompare=*/0, /*IsAdd=*/1>;
 
 // Unary accumulator ops: D and W registers (Page 2, HD6309)
 let Predicates = [IsHD6309] in {
@@ -901,16 +901,16 @@ let Predicates = [IsHD6309] in {
 
 // Unary accumulator ops: E and F registers (Page 3, HD6309)
 let Predicates = [IsHD6309] in {
-  def COMEa : MC6809Accumulator_P3<(outs), "come", Opcode<0x43,3>, [AE,NZ,N,Z,V,C,AE,AW], [AE]>;
-  def DECEa : MC6809Accumulator_P3<(outs), "dece", Opcode<0x4A,3>, [AE,NZ,N,Z,V,AE,AW], [AE]>;
-  def INCEa : MC6809Accumulator_P3<(outs), "ince", Opcode<0x4C,3>, [AE,NZ,N,Z,V,AE,AW], [AE]>;
+  def COMEa : MC6809Accumulator_P3<(outs), "come", Opcode<0x43,3>, [AE,NZ,N,Z,V,C,AE], [AE]>;
+  def DECEa : MC6809Accumulator_P3<(outs), "dece", Opcode<0x4A,3>, [AE,NZ,N,Z,V,AE], [AE]>;
+  def INCEa : MC6809Accumulator_P3<(outs), "ince", Opcode<0x4C,3>, [AE,NZ,N,Z,V,AE], [AE]>;
   def TSTEa : MC6809Accumulator_P3<(outs), "tste", Opcode<0x4D,3>, [NZ,N,Z,V], [AE]>;
-  def CLREa : MC6809Accumulator_P3<(outs), "clre", Opcode<0x4F,3>, [AE,NZ,N,Z,V,C,AE,AW], []>;
-  def COMFa : MC6809Accumulator_P3<(outs), "comf", Opcode<0x53,3>, [AF,NZ,N,Z,V,C,AF,AW], [AF]>;
-  def DECFa : MC6809Accumulator_P3<(outs), "decf", Opcode<0x5A,3>, [AF,NZ,N,Z,V,AF,AW], [AF]>;
-  def INCFa : MC6809Accumulator_P3<(outs), "incf", Opcode<0x5C,3>, [AF,NZ,N,Z,V,AF,AW], [AF]>;
+  def CLREa : MC6809Accumulator_P3<(outs), "clre", Opcode<0x4F,3>, [AE,NZ,N,Z,V,C,AE], []>;
+  def COMFa : MC6809Accumulator_P3<(outs), "comf", Opcode<0x53,3>, [AF,NZ,N,Z,V,C,AF], [AF]>;
+  def DECFa : MC6809Accumulator_P3<(outs), "decf", Opcode<0x5A,3>, [AF,NZ,N,Z,V,AF], [AF]>;
+  def INCFa : MC6809Accumulator_P3<(outs), "incf", Opcode<0x5C,3>, [AF,NZ,N,Z,V,AF], [AF]>;
   def TSTFa : MC6809Accumulator_P3<(outs), "tstf", Opcode<0x5D,3>, [NZ,N,Z,V], [AF]>;
-  def CLRFa : MC6809Accumulator_P3<(outs), "clrf", Opcode<0x5F,3>, [AF,NZ,N,Z,V,C,AF,AW], []>;
+  def CLRFa : MC6809Accumulator_P3<(outs), "clrf", Opcode<0x5F,3>, [AF,NZ,N,Z,V,C,AF], []>;
 }
 
 def NOPx : MC6809Inherent_P1<(outs), "nop", Opcode<0x12,1>, [], []>;
@@ -935,13 +935,13 @@ def SEXWx : MC6809Inherent_P1<(outs), "sexw", Opcode<0x14,1>, [NZ,N,Z,V,AA,AB,AD
 
 def HCFx : MC6809Inherent_P1<(outs), "hcf", Opcode<0x15,1>, [], []>;
 
-def DAAx : MC6809Inherent_P1<(outs), "daa", Opcode<0x19,1>, [AA,NZ,N,Z,C,AA,AD], [AA]>;
+def DAAx : MC6809Inherent_P1<(outs), "daa", Opcode<0x19,1>, [AA,NZ,N,Z,C,AA], [AA]>;
 
 def ORCCi8 : MC6809Immediate8Bit_P1<(outs), "orcc", Opcode<0x1A,1>, [NZ,N,Z,V,C], [NZ,N,Z,V,C]>;
 
 def ANDCCi8 : MC6809Immediate8Bit_P1<(outs), "andcc", Opcode<0x1C,1>, [NZ,N,Z,V,C], [NZ,N,Z,V,C]>;
 
-def SEXx : MC6809Inherent_P1<(outs), "sex", Opcode<0x1D,1>, [NZ,N,Z,AA,AB,AD], [AB]>;
+def SEXx : MC6809Inherent_P1<(outs), "sex", Opcode<0x1D,1>, [NZ,N,Z,AA,AB], [AB]>;
 
 def RTSr : MC6809Return_P1<(outs), "rts", Opcode<0x39,1>, [], []> {
   let mayLoad = false;

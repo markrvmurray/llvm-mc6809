@@ -99,10 +99,10 @@ def Load_i1_Imm : MC6809LogicalInstr {
 // 8-bit loads: LDA/LDB (6809 Page 1)
 defm LDA : Load8Concrete<"lda", Opcode<0x86,1>, Opcode<0x96,1>,
                           Opcode<0xA6,1>, Opcode<0xB6,1>,
-                          [NZ,N,Z,V,AA,AD]>;
+                          [NZ,N,Z,V,AA]>;
 defm LDB : Load8Concrete<"ldb", Opcode<0xC6,1>, Opcode<0xD6,1>,
                           Opcode<0xE6,1>, Opcode<0xF6,1>,
-                          [NZ,N,Z,V,AB,AD]>;
+                          [NZ,N,Z,V,AB]>;
 
 // 16-bit loads: LDD/LDX/LDU (6809 Page 1)
 defm LDD : Load16Concrete<"ldd", Opcode<0xCC,1>, Opcode<0xDC,1>,
@@ -118,10 +118,10 @@ defm LDU : Load16Concrete<"ldu", Opcode<0xCE,1>, Opcode<0xDE,1>,
 // 8-bit loads: LDE/LDF (6309 Page 3)
 defm LDE : Load8Concrete_P3<"lde", Opcode<0x86,3>, Opcode<0x96,3>,
                              Opcode<0xA6,3>, Opcode<0xB6,3>,
-                             [NZ,N,Z,V,AE,AW]>;
+                             [NZ,N,Z,V,AE]>;
 defm LDF : Load8Concrete_P3<"ldf", Opcode<0xC6,3>, Opcode<0xD6,3>,
                              Opcode<0xE6,3>, Opcode<0xF6,3>,
-                             [NZ,N,Z,V,AF,AW]>;
+                             [NZ,N,Z,V,AF]>;
 
 // 16-bit loads: LDY/LDS (6809 Page 2), LDW (6309 Page 2)
 defm LDY : Load16Concrete_P2<"ldy", Opcode<0x8E,2>, Opcode<0x9E,2>,
