@@ -941,7 +941,7 @@ def ORCCi8 : MC6809Immediate8Bit_P1<(outs), "orcc", Opcode<0x1A,1>, [NZ,N,Z,V,C]
 
 def ANDCCi8 : MC6809Immediate8Bit_P1<(outs), "andcc", Opcode<0x1C,1>, [NZ,N,Z,V,C], [NZ,N,Z,V,C]>;
 
-def SEXx : MC6809Inherent_P1<(outs), "sex", Opcode<0x1D,1>, [NZ,N,Z,AA,AB], [AB]>;
+def SEXx : MC6809Inherent_P1<(outs), "sex", Opcode<0x1D,1>, [NZ,N,Z,AA], [AB]>;
 
 def RTSr : MC6809Return_P1<(outs), "rts", Opcode<0x39,1>, [], []> {
   let mayLoad = false;
