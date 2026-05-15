@@ -3137,24 +3137,37 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   // and the corresponding expanders are stubs.  An llvm_unreachable here
   // catches a future selector arm that accidentally emits a variant
   // before its expander is filled in.
+  // Bug #297 commit 2.1: i32 ADD/SUB _Imm and _Reg now have expanders.
   case MC6809::Add_i32_Imm:
-  case MC6809::Sub_i32_Imm:
   case MC6809::AddSetCarry_i32_Imm:
-  case MC6809::SubSetCarry_i32_Imm:
   case MC6809::AddSetOverflow_i32_Imm:
+    expandAddSub_i32_Imm(Builder, MI, /*IsAdd=*/true);
+    break;
+  case MC6809::Sub_i32_Imm:
+  case MC6809::SubSetCarry_i32_Imm:
   case MC6809::SubSetOverflow_i32_Imm:
+    expandAddSub_i32_Imm(Builder, MI, /*IsAdd=*/false);
+    break;
+  case MC6809::Add_i32_Reg:
+  case MC6809::AddSetCarry_i32_Reg:
+  case MC6809::AddSetOverflow_i32_Reg:
+    expandAddSub_i32_Reg(Builder, MI, /*IsAdd=*/true);
+    break;
+  case MC6809::Sub_i32_Reg:
+  case MC6809::SubSetCarry_i32_Reg:
+  case MC6809::SubSetOverflow_i32_Reg:
+    expandAddSub_i32_Reg(Builder, MI, /*IsAdd=*/false);
+    break;
+  // _Pull variants remain unreachable — no selector arm and no
+  // TableGen pattern emits them (the NotHD6309 _Push_Pull arm of
+  // MC6809ArithPat was intentionally omitted from the i32 patterns
+  // since native i32 arith is HD6309-only; see commit 4).
   case MC6809::Add_i32_Pull:
   case MC6809::Sub_i32_Pull:
   case MC6809::AddSetCarry_i32_Pull:
   case MC6809::SubSetCarry_i32_Pull:
   case MC6809::AddSetOverflow_i32_Pull:
   case MC6809::SubSetOverflow_i32_Pull:
-  case MC6809::Add_i32_Reg:
-  case MC6809::Sub_i32_Reg:
-  case MC6809::AddSetCarry_i32_Reg:
-  case MC6809::SubSetCarry_i32_Reg:
-  case MC6809::AddSetOverflow_i32_Reg:
-  case MC6809::SubSetOverflow_i32_Reg:
   case MC6809::AddSetCarryUse_i32_Imm:
   case MC6809::AddSetCarryUse_i32_Mem:
   case MC6809::AddSetCarryUse_i32_Reg:
@@ -3922,6 +3935,166 @@ void MC6809InstrInfo::expandAddSub_i32_Mem(MachineIRBuilder &Builder,
   else
     HighInstr.addImm(OffsetHi).addReg(IndexReg);
 
+  if (needsMaterialization(OrigDest))
+    dematerializeReg(Builder, DestReg, OrigDest, MF);
+  MI.eraseFromParent();
+}
+
+// Bug #297 commit 2.1/6 (2026-05-15): native HD6309 i32 ADD/SUB, _Imm form.
+//
+// Pseudo shape:
+//   %dst:ACC32 = Add_i32_Imm %src:ACC32(tied), i32imm:$val
+//
+// Lowering: split the 32-bit immediate into two 16-bit halves and emit
+//   ADDW #imm_lo  ; AW += low_word, sets CC.C
+//   ADCD #imm_hi  ; AD += high_word + CC.C
+// (SUBW + SBCD for IsAdd=false).
+//
+// Big-endian convention is irrelevant for immediates (no memory order);
+// arithmetic order is fixed: low 16 bits first to set carry, high 16
+// bits second to consume it.
+void MC6809InstrInfo::expandAddSub_i32_Imm(MachineIRBuilder &Builder,
+                                            MachineInstr &MI,
+                                            bool IsAdd) const {
+  const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
+  (void)STI;
+  assert(STI.has6309() &&
+         "Bug #297: i32 ADD/SUB expansion is HD6309-only");
+
+  Register DestReg = MI.getOperand(0).getReg();
+  Register OrigDest = DestReg;
+  MachineFunction &MF = *MI.getMF();
+  if (needsMaterialization(DestReg))
+    DestReg = materializeReg(Builder, DestReg, MF);
+  assert(DestReg == MC6809::AQ &&
+         "Bug #297: i32 ADD/SUB Imm requires AQ for the ALU-side ops");
+
+  unsigned NumOps = MI.getNumExplicitOperands();
+  MachineOperand ValOp = MI.getOperand(NumOps - 1);
+  int64_t Val = ValOp.isImm() ? ValOp.getImm()
+                              : ValOp.getCImm()->getSExtValue();
+  int Lo = int(Val & 0xFFFF);
+  int Hi = int((Val >> 16) & 0xFFFF);
+
+  // Low half opcode (ADDW / SUBW) — touches AW; sets CC.C.
+  auto LowMap = IsAdd ? AddImmediateOpcode : SubImmediateOpcode;
+  auto LowLookup = LowMap.find({MC6809::AW});
+  // High half opcode (ADCD / SBCD) — touches AD; consumes CC.C.
+  auto &HighMap = IsAdd ? AddCarryImmediateOpcode : SubBorrowImmediateOpcode;
+  auto HighLookup = HighMap.find({MC6809::AD});
+  assert(LowLookup != LowMap.end() && HighLookup != HighMap.end() &&
+         "Bug #297: missing ADDW/ADCD/SUBW/SBCD immediate opcode entry");
+
+  Builder.buildInstr(LowLookup->getSecond())
+      .addDef(MC6809::AW, RegState::Implicit)
+      .addImm(Lo);
+  Builder.buildInstr(HighLookup->getSecond())
+      .addDef(MC6809::AD, RegState::Implicit)
+      .addImm(Hi);
+
+  if (needsMaterialization(OrigDest))
+    dematerializeReg(Builder, DestReg, OrigDest, MF);
+  MI.eraseFromParent();
+}
+
+// Bug #297 commit 2.1/6 (2026-05-15): native HD6309 i32 ADD/SUB, _Reg form.
+//
+// Pseudo shape:
+//   %dst:ACC32 = Add_i32_Reg %src:ACC32(tied), %src2:ACC32
+//
+// HD6309 has no direct AQ-AQ register-level i32 ADD/SUB op (ADCR/SBCR
+// exist but only at i8/i16 register pairs).  Strategy:
+//
+//   1. Save the current $aq value to a fresh 4-byte emergency stack
+//      slot.  This unconditionally costs an STQ; the alternative is a
+//      conditional save that pessimises the common case (both operands
+//      in SPILL_Q*N) but optimises the AQ-source case, and the
+//      complexity isn't worth the savings.
+//   2. Materialize $dst (which is also $src via tying) into physical
+//      AQ.  If $dst was in SPILL_Q*N, materializeReg emits LDQ from its
+//      slot.  If $dst was already in AQ, the materialise is a no-op
+//      (but the previous STQ saved that very value to the emergency
+//      slot, which is harmless dead-store).
+//   3. Compute the stack offset of $src2's operand:
+//        - SPILL_Q*N: use computeSpillStackOffset (its own slot).
+//        - AQ: use the emergency slot (we just stashed it there).
+//   4. Call into the _Mem-style emission: ADDW <off+2>, $su / ADCD
+//      <off+0>, $su (or SUBW / SBCD).
+//   5. Dematerialize $dst back to its origin if needed.
+//
+// The emergency slot is `isSpillSlot=true` so frame-lowering treats it
+// as a regalloc spill — no impact on stack layout decisions.
+void MC6809InstrInfo::expandAddSub_i32_Reg(MachineIRBuilder &Builder,
+                                            MachineInstr &MI,
+                                            bool IsAdd) const {
+  const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
+  (void)STI;
+  assert(STI.has6309() &&
+         "Bug #297: i32 ADD/SUB expansion is HD6309-only");
+
+  Register DestReg = MI.getOperand(0).getReg();
+  Register Src2Reg = MI.getOperand(2).getReg();
+  Register OrigDest = DestReg;
+  MachineFunction &MF = *MI.getMF();
+  MachineFrameInfo &MFI = MF.getFrameInfo();
+
+  // Step 1: STQ AQ → emergency slot.  Unconditional save (see header
+  // comment for the why-not-conditional rationale).
+  int EmergencyFI = MFI.CreateStackObject(4, Align(1), /*isSpillSlot=*/true);
+  int EmergencyOff = MFI.getObjectOffset(EmergencyFI);
+  int EmergencyOffSize = offsetSizeInBitsForValue(EmergencyOff);
+  auto &StoreMap = StoreIdxImmOpcode;
+  auto StoreLookup = StoreMap.find({MC6809::AQ, EmergencyOffSize});
+  assert(StoreLookup != StoreMap.end() &&
+         "Bug #297: missing STQ opcode for emergency slot offset");
+  auto StoreInstr =
+      Builder.buildInstr(StoreLookup->getSecond())
+          .addUse(MC6809::AQ, RegState::Implicit);
+  if (EmergencyOffSize == 0)
+    StoreInstr.addReg(MC6809::SU);
+  else
+    StoreInstr.addImm(EmergencyOff).addReg(MC6809::SU);
+
+  // Step 2: materialize $dst into AQ.
+  if (needsMaterialization(DestReg))
+    DestReg = materializeReg(Builder, DestReg, MF);
+  assert(DestReg == MC6809::AQ &&
+         "Bug #297: i32 ADD/SUB Reg requires AQ for the ALU-side ops");
+
+  // Step 3: pick $src2's stack offset.
+  int Src2Off = isQSpillReg(Src2Reg)
+                    ? computeSpillStackOffset(Src2Reg, MF)
+                    : EmergencyOff;
+  int Src2OffLo = Src2Off + 2;
+  int Src2OffHi = Src2Off;
+  int Src2OffLoSize = offsetSizeInBitsForValue(Src2OffLo);
+  int Src2OffHiSize = offsetSizeInBitsForValue(Src2OffHi);
+
+  // Step 4: emit ADDW/SUBW + ADCD/SBCD pair against $su (frame).
+  auto &LowMap = IsAdd ? AddIdxImmOpcode : SubIdxImmOpcode;
+  auto &HighMap = IsAdd ? AddCarryIdxImmOpcode : SubBorrowIdxImmOpcode;
+  auto LowLookup = LowMap.find({MC6809::AW, Src2OffLoSize});
+  auto HighLookup = HighMap.find({MC6809::AD, Src2OffHiSize});
+  assert(LowLookup != LowMap.end() && HighLookup != HighMap.end() &&
+         "Bug #297: missing ADDW/ADCD/SUBW/SBCD opcode entry");
+
+  auto LowInstr =
+      Builder.buildInstr(LowLookup->getSecond())
+          .addDef(MC6809::AW, RegState::Implicit);
+  if (Src2OffLoSize == 0)
+    LowInstr.addReg(MC6809::SU);
+  else
+    LowInstr.addImm(Src2OffLo).addReg(MC6809::SU);
+
+  auto HighInstr =
+      Builder.buildInstr(HighLookup->getSecond())
+          .addDef(MC6809::AD, RegState::Implicit);
+  if (Src2OffHiSize == 0)
+    HighInstr.addReg(MC6809::SU);
+  else
+    HighInstr.addImm(Src2OffHi).addReg(MC6809::SU);
+
+  // Step 5: dematerialize $dst back if it was spilled.
   if (needsMaterialization(OrigDest))
     dematerializeReg(Builder, DestReg, OrigDest, MF);
   MI.eraseFromParent();

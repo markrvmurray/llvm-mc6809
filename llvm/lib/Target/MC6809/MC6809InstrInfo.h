@@ -209,9 +209,14 @@ private:
   void expandSubPull(MachineIRBuilder &Builder, MachineInstr &MI) const;
 
   // Bug #297: native HD6309 i32 ADD/SUB via page-2 ADDW+ADCD / SUBW+SBCD.
-  // _Mem variant only is implemented at commit 2/6; _Imm / _Pull / _Reg
-  // and the carry-Use variants llvm_unreachable until they're filled in.
+  // Three operand shapes — _Mem (commit 2/6), _Imm and _Reg (commit
+  // 2.1/6).  _Pull and the carry-Use variants stay llvm_unreachable
+  // (not reachable from any TableGen pattern or selector arm).
   void expandAddSub_i32_Mem(MachineIRBuilder &Builder, MachineInstr &MI,
+                            bool IsAdd) const;
+  void expandAddSub_i32_Imm(MachineIRBuilder &Builder, MachineInstr &MI,
+                            bool IsAdd) const;
+  void expandAddSub_i32_Reg(MachineIRBuilder &Builder, MachineInstr &MI,
                             bool IsAdd) const;
 
   void expandCompareImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
