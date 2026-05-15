@@ -3008,6 +3008,17 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::AddSetOverflow_i16_Mem:
     expandIdxImm(AddIdxImm, Builder, MI);
     break;
+  // Bug #297: i32 ADD _Mem family — emit ADDW <off+2>; ADCD <off+0>.
+  // AddSetCarry_i32_Mem and AddSetOverflow_i32_Mem share the emission
+  // with Add_i32_Mem (same hardware instructions; the pseudo opcode is
+  // preserved only as metadata for the CC.C / CC.V flag-chain tracker
+  // — see the long comment at MC6809InstrFamilies.td:336 for the bug
+  // #147 / #186 rationale).
+  case MC6809::Add_i32_Mem:
+  case MC6809::AddSetCarry_i32_Mem:
+  case MC6809::AddSetOverflow_i32_Mem:
+    expandAddSub_i32_Mem(Builder, MI, /*IsAdd=*/true);
+    break;
   case MC6809::AddSetCarryUse_i8_Mem:
   case MC6809::AddSetOverflowUse_i8_Mem:    // bug #147
     expandIdxImm(AddCarryIdxImm, Builder, MI);
@@ -3071,6 +3082,12 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::SubSetOverflow_i16_Mem:
     expandIdxImm(SubIdxImm, Builder, MI);
     break;
+  // Bug #297: i32 SUB _Mem family — emit SUBW <off+2>; SBCD <off+0>.
+  case MC6809::Sub_i32_Mem:
+  case MC6809::SubSetCarry_i32_Mem:
+  case MC6809::SubSetOverflow_i32_Mem:
+    expandAddSub_i32_Mem(Builder, MI, /*IsAdd=*/false);
+    break;
   case MC6809::Sub_i8_Reg:
   case MC6809::Sub_i8_RegA:                // bug #221 Phase A
     expandSubByteReg(Builder, MI);
@@ -3114,6 +3131,45 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::Sub_i16_Pull:
     expandSubPull(Builder, MI);
     break;
+  // Bug #297: i32 pseudos that are dormant pre-legalizer-flip (commit 5).
+  // Defined in MC6809InstrFamilies.td (commit 1) for completeness so the
+  // multiclass instantiations are well-formed, but no MI emits them yet
+  // and the corresponding expanders are stubs.  An llvm_unreachable here
+  // catches a future selector arm that accidentally emits a variant
+  // before its expander is filled in.
+  case MC6809::Add_i32_Imm:
+  case MC6809::Sub_i32_Imm:
+  case MC6809::AddSetCarry_i32_Imm:
+  case MC6809::SubSetCarry_i32_Imm:
+  case MC6809::AddSetOverflow_i32_Imm:
+  case MC6809::SubSetOverflow_i32_Imm:
+  case MC6809::Add_i32_Pull:
+  case MC6809::Sub_i32_Pull:
+  case MC6809::AddSetCarry_i32_Pull:
+  case MC6809::SubSetCarry_i32_Pull:
+  case MC6809::AddSetOverflow_i32_Pull:
+  case MC6809::SubSetOverflow_i32_Pull:
+  case MC6809::Add_i32_Reg:
+  case MC6809::Sub_i32_Reg:
+  case MC6809::AddSetCarry_i32_Reg:
+  case MC6809::SubSetCarry_i32_Reg:
+  case MC6809::AddSetOverflow_i32_Reg:
+  case MC6809::SubSetOverflow_i32_Reg:
+  case MC6809::AddSetCarryUse_i32_Imm:
+  case MC6809::AddSetCarryUse_i32_Mem:
+  case MC6809::AddSetCarryUse_i32_Reg:
+  case MC6809::SubSetCarryUse_i32_Imm:
+  case MC6809::SubSetCarryUse_i32_Mem:
+  case MC6809::SubSetCarryUse_i32_Reg:
+  case MC6809::AddSetOverflowUse_i32_Imm:
+  case MC6809::AddSetOverflowUse_i32_Mem:
+  case MC6809::AddSetOverflowUse_i32_Reg:
+  case MC6809::SubSetOverflowUse_i32_Imm:
+  case MC6809::SubSetOverflowUse_i32_Mem:
+  case MC6809::SubSetOverflowUse_i32_Reg:
+    llvm_unreachable("Bug #297: i32 ADD/SUB variant not yet implemented; "
+                     "should be dormant until selector wiring + legalizer "
+                     "flip land in later #297 commits");
   case MC6809::Compare_i8_Imm:
   case MC6809::Compare_i16_Imm:
   case MC6809::Compare_ptr_Imm:
@@ -3773,6 +3829,101 @@ void MC6809InstrInfo::expandCarryMem16(bool IsAdd, MachineIRBuilder &Builder,
   else
     InstrA.addImm(OffsetHi).addReg(IndexReg);
   dematerializeReg(Builder, DestReg, OrigDest, MF);
+  MI.eraseFromParent();
+}
+
+// Bug #297 (2026-05-15) commit 2/6: native HD6309 i32 ADD/SUB, _Mem form.
+//
+// Pseudo shape (from MC6809Arithmetic / MC6809ArithmeticCarry):
+//   %dst:ACC32 = Add_i32_Mem %src:ACC32(tied), INDEX16:$idx, unknown:$offset
+// The pseudo's `let Constraints = "$dst = $src"` makes operand 0 a tied
+// def-use; the explicit operands after $src are the index reg and the
+// offset (immediate, possibly typed as CImm by some patterns).
+//
+// HD6309 lowering (assumes the operand is materialised into physical AQ;
+// SPILL_Q*N sources go through materializeReg → emitSpillLoad which
+// emits LDQ from the slot, and dematerializeReg → emitSpillStore for the
+// store-back via STQ):
+//   ADDW <off+2>, $idx   ; low word (AW = sub_lo_word of AQ) + memory low
+//                          ; (in big-endian memory, low word is at
+//                          ; address+2..3); sets CC.C.
+//   ADCD <off+0>, $idx   ; high word (AD = sub_hi_word of AQ) + memory
+//                          ; high (at address+0..1) + carry-in from
+//                          ; ADDW.
+//
+// SubSetCarry_i32 and SubSetOverflow_i32 share the same emission as
+// Sub_i32 (mirrors the bug #147 sharing of AddSetCarry vs AddSetOverflow
+// for the i8/i16 dispatch — same hardware instructions; the pseudo
+// opcode is preserved only as metadata for the CC.C / CC.V flag-chain
+// tracker).
+void MC6809InstrInfo::expandAddSub_i32_Mem(MachineIRBuilder &Builder,
+                                            MachineInstr &MI,
+                                            bool IsAdd) const {
+  const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
+  (void)STI;
+  assert(STI.has6309() &&
+         "Bug #297: i32 ADD/SUB expansion is HD6309-only");
+
+  Register DestReg = MI.getOperand(0).getReg();
+  Register OrigDest = DestReg;
+  MachineFunction &MF = *MI.getMF();
+  if (needsMaterialization(DestReg))
+    DestReg = materializeReg(Builder, DestReg, MF);
+  // After materialisation the value lives in physical $aq (or its
+  // sub-regs AD high / AW low).  ACC32-class operands can ONLY be $aq
+  // post-Phase-B-revert (AQc is still `{AQ}`), but ACC32 itself
+  // includes SPILL_Q0..31 so a spilled value is loaded into AQ here.
+  assert(DestReg == MC6809::AQ &&
+         "Bug #297: i32 ADD/SUB requires AQ for the ALU-side operations");
+
+  // Operand layout for _Mem (after the tied $dst=$src pair which counts
+  // as one explicit operand):
+  //   op 0: $dst (def-use, tied — ACC32)
+  //   op 1: $idx (INDEX16 register)
+  //   op 2: $offset (immediate, possibly CImm — see Bug #272 Phase B
+  //                  CImm-vs-Imm note in expandStoreIdx/Load_i32_Mem).
+  unsigned NumOps = MI.getNumExplicitOperands();
+  Register IndexReg = MI.getOperand(NumOps - 2).getReg();
+  MachineOperand OffsetOp = MI.getOperand(NumOps - 1);
+  int Offset = OffsetOp.isImm() ? OffsetOp.getImm()
+                                : int(OffsetOp.getCImm()->getSExtValue());
+  // Big-endian i32 in memory: byte 0 = msb of high word (at offset+0),
+  // byte 2 = msb of low word (at offset+2).
+  int OffsetLo = Offset + 2;
+  int OffsetHi = Offset;
+  int OffsetLoSize = offsetSizeInBitsForValue(OffsetLo);
+  int OffsetHiSize = offsetSizeInBitsForValue(OffsetHi);
+
+  // Look up the page-2 16-bit opcodes:
+  //   IsAdd → ADDW (low, no carry-in) + ADCD (high, carry-in).
+  //   !IsAdd → SUBW (low, no borrow-in) + SBCD (high, borrow-in).
+  // The plain Add/SubIdxImmOpcode maps cover AW (ADDW/SUBW); the
+  // Carry/Borrow maps cover AD (ADCD/SBCD).
+  auto &LowMap = IsAdd ? AddIdxImmOpcode : SubIdxImmOpcode;
+  auto &HighMap = IsAdd ? AddCarryIdxImmOpcode : SubBorrowIdxImmOpcode;
+  auto LowLookup = LowMap.find({MC6809::AW, OffsetLoSize});
+  auto HighLookup = HighMap.find({MC6809::AD, OffsetHiSize});
+  assert(LowLookup != LowMap.end() && HighLookup != HighMap.end() &&
+         "Bug #297: missing ADDW/ADCD/SUBW/SBCD opcode entry");
+
+  auto LowInstr =
+      Builder.buildInstr(LowLookup->getSecond())
+          .addDef(MC6809::AW, RegState::Implicit);
+  if (OffsetLoSize == 0)
+    LowInstr.addReg(IndexReg);
+  else
+    LowInstr.addImm(OffsetLo).addReg(IndexReg);
+
+  auto HighInstr =
+      Builder.buildInstr(HighLookup->getSecond())
+          .addDef(MC6809::AD, RegState::Implicit);
+  if (OffsetHiSize == 0)
+    HighInstr.addReg(IndexReg);
+  else
+    HighInstr.addImm(OffsetHi).addReg(IndexReg);
+
+  if (needsMaterialization(OrigDest))
+    dematerializeReg(Builder, DestReg, OrigDest, MF);
   MI.eraseFromParent();
 }
 

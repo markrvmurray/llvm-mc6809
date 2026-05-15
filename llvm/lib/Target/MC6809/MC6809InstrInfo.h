@@ -199,9 +199,6 @@ private:
   void expandAddSetCarryByteReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandAddSetCarryUseReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandAddSetCarryUseByteReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandAdd32IdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  // void expandAdd32IdxReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
-
   void expandSubReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandSubByteReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   // void expandSubImmRev(MachineIRBuilder &Builder, MachineInstr &MI) const;
@@ -210,9 +207,12 @@ private:
   void expandSubSetCarryUseReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandSubSetCarryUseByteReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandSubPull(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandSub32IdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandSub32IdxReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  // void expandSub32Pop(MachineIRBuilder &Builder, MachineInstr &MI) const;
+
+  // Bug #297: native HD6309 i32 ADD/SUB via page-2 ADDW+ADCD / SUBW+SBCD.
+  // _Mem variant only is implemented at commit 2/6; _Imm / _Pull / _Reg
+  // and the carry-Use variants llvm_unreachable until they're filled in.
+  void expandAddSub_i32_Mem(MachineIRBuilder &Builder, MachineInstr &MI,
+                            bool IsAdd) const;
 
   void expandCompareImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandCompareIdx(MachineIRBuilder &Builder, MachineInstr &MI) const;
