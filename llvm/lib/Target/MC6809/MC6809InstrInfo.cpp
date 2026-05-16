@@ -2485,25 +2485,14 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
         .addDef(MC6809::AB, RegState::Implicit)
         .addImm(0);
 
-    // Step 4: COPY AB to Dst's parent byte register.  DstReg is a BIT1
-    // sub-reg (AALSB/ABLSB/AELSB/AFLSB); its parent is AA/AB/AE/AF.
-    // The coalescer may unify a BIT1 vreg with a downstream i8 consumer,
-    // leaving DstReg as the parent byte register itself — accept that
-    // case directly (LDB #0 + ADCB #0 clears the high 7 bits of AB, so
-    // writing the whole byte is semantically the same as writing the
-    // LSB sub-register).
-    Register DstParent;
-    switch (DstReg) {
-    case MC6809::AALSB: case MC6809::AA: DstParent = MC6809::AA; break;
-    case MC6809::ABLSB: case MC6809::AB: DstParent = MC6809::AB; break;
-    case MC6809::AELSB: case MC6809::AE: DstParent = MC6809::AE; break;
-    case MC6809::AFLSB: case MC6809::AF: DstParent = MC6809::AF; break;
-    default:
-      llvm_unreachable("SignTest_i32 dst must be AA/AB/AE/AF or their LSB");
-    }
-    if (DstParent != MC6809::AB) {
+    // Step 4: COPY AB to Dst (ACC8).  Phase D step 3.0 fix (2026-05-16
+    // night): Dst is ACC8 (the pseudo's output class — not BIT1, see
+    // MC6809InstrPseudos.td); after regalloc it lands in AA / AB / AE /
+    // AF (or a SPILL_A* / SPILL_B* slot which materialise/dematerialise
+    // handles via copyPhysReg).  Mirrors EqZero_i32's COPY-to-Dst step.
+    if (DstReg != MC6809::AB) {
       copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
-                  DstParent, MC6809::AB, /*KillSrc=*/true);
+                  DstReg, MC6809::AB, /*KillSrc=*/true);
     }
     MI.eraseFromParent();
     return true;

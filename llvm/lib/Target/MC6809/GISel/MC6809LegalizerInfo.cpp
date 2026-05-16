@@ -659,22 +659,27 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
           else if (Pred == CmpInst::ICMP_SGT) { IsSignTest = true; Invert = true; }
         }
         if (IsSignTest) {
-          // Emit SignTest_i32 producing the sign bit in a BIT1 vreg.
-          // For !Invert, the BIT1 result IS the Dst; for Invert, XOR
-          // it with constant 1 to flip the bit.
+          // Phase D step 3.0 fix (2026-05-16 night): SignTest_i32 now
+          // outputs ACC8 (not BIT1) — materialize via byte vreg + trunc
+          // to i1 for the G_ICMP Dst, mirroring the EqZero_i32 /
+          // EqConst_i32 hooks below.  For Invert (sge X, 0 / sgt X, -1),
+          // XOR the byte result with 1 before the trunc.
           LLT S1 = LLT::scalar(1);
+          LLT S8 = LLT::scalar(8);
           MRI.setRegClass(Lhs, &MC6809::ACC32RegClass);
+          Register SignByte = MRI.createGenericVirtualRegister(S8);
+          MRI.setRegClass(SignByte, &MC6809::ACC8RegClass);
+          B.buildInstr(MC6809::SignTest_i32, {SignByte}, {Lhs});
+          MRI.setRegClass(Dst, &MC6809::BIT1RegClass);
           if (Invert) {
-            Register SignBit = MRI.createGenericVirtualRegister(S1);
-            MRI.setRegClass(SignBit, &MC6809::BIT1RegClass);
-            B.buildInstr(MC6809::SignTest_i32, {SignBit}, {Lhs});
-            auto One = B.buildConstant(S1, 1);
-            B.buildXor(Dst, SignBit, One);
+            auto OneB = B.buildConstant(S8, 1);
+            auto XorB = B.buildXor(S8, SignByte, OneB);
+            B.buildTrunc(Dst, XorB);
           } else {
-            MRI.setRegClass(Dst, &MC6809::BIT1RegClass);
-            B.buildInstr(MC6809::SignTest_i32, {Dst}, {Lhs});
+            B.buildTrunc(Dst, SignByte);
           }
           MI.eraseFromParent();
+          (void)S1;
           return true;
         }
         // Bug #301 Phase D step 1 (2026-05-16): equal-to-zero fast path.

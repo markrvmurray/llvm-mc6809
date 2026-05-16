@@ -196,12 +196,23 @@ let Defs = [NZ, V] in {
   // expansion (in MC6809InstrInfo.cpp) handles the AQ-source and
   // SPILL_Q*N-source cases directly via TST on the MSByte (= AA for
   // AQ-source, or `TST <slot+0>,$su` for spill-source), then captures
-  // the sign bit into the BIT1 dst via the ASLB + LDB#0 + ADCB#0
+  // the sign bit into the ACC8 dst via the ASLB + LDB#0 + ADCB#0
   // pattern.
+  //
+  // Output class is ACC8 (not BIT1) — Phase D step 3.0 fix (2026-05-16
+  // night) for the latent class-mismatch bug exposed in fmemopen.c at
+  // -Og-hd6309-mame: the instruction selector's
+  // constrainSelectedInstRegOperands on a downstream G_SELECT consumer
+  // narrows the result vreg to ACC8, but the pseudo's TableGen
+  // declaration said BIT1 — the verifier rejected the pre-RA mismatch.
+  // The post-RA expansion already produces a 0/1 byte (high 7 bits
+  // cleared by LDB #0; only bit 0 set by ADCB), which is semantically
+  // identical to a BIT1 value when consumed as a byte.  Mirrors the
+  // EqZero_i32 / EqConst_i32 design from Phase D steps 1+2.
   //
   // Defs cover CC flag clobber (ASLB sets C; LDB/ADCB set NZ).
   def SignTest_i32 : MC6809Pseudo {
-    dag OutOperandList = (outs BIT1:$dst);
+    dag OutOperandList = (outs ACC8:$dst);
     dag InOperandList  = (ins ACC32:$src);
     let Defs = [NZ, V, C];
   }
