@@ -3474,6 +3474,52 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::CompareBranch_i16_Pull:
     expandFusedCompareBranch(Builder, MI);
     break;
+  case MC6809::CompareBranch_i32_Imm: {
+    // Bug #301 Phase D step 3.1 (2026-05-16 night): native HD6309 i32
+    // fused compare-and-branch.  Operand layout (per MC6809CompareBranchBase):
+    //   op 0 = i8imm:$cc  (condcode)
+    //   op 1 = ACC32:$src (LHS, in AQ or SPILL_Q*N post-RA)
+    //   op 2 = i32imm:$imm (RHS)
+    //   op 3 = label:$tgt (branch target)
+    //
+    // Expansion: ensure $aq holds X, then SUBW #lo16 + SBCD #hi16 +
+    // LB<cc> $tgt.  Single contiguous expansion — no scheduler can
+    // wedge a flag-clobber between the SBCD and the LB<cc> because
+    // they are emitted adjacent here and the BB has no other
+    // post-RA-expanded MIs scheduled between them.
+    MachineFunction &MF = *MI.getMF();
+    unsigned CC = MI.getOperand(0).getImm();
+    Register SrcReg = MI.getOperand(1).getReg();
+    int64_t K = MI.getOperand(2).getImm();
+    MachineBasicBlock *TgtMBB = MI.getOperand(3).getMBB();
+    uint16_t KLo = static_cast<uint16_t>(K & 0xFFFF);
+    uint16_t KHi = static_cast<uint16_t>((K >> 16) & 0xFFFF);
+
+    // Step 1: ensure LHS is in $aq.
+    if (isQSpillReg(SrcReg)) {
+      int Offset = computeSpillStackOffset(SrcReg, MF);
+      bool Fits8 = (Offset >= -128 && Offset <= 127);
+      unsigned Opc = Fits8 ? MC6809::LDQi_o8 : MC6809::LDQi_o16;
+      Builder.buildInstr(Opc)
+          .addDef(MC6809::AQ, RegState::Implicit)
+          .addImm(Offset).addReg(MC6809::SU);
+    } else if (SrcReg != MC6809::AQ) {
+      llvm_unreachable("CompareBranch_i32_Imm src must be AQ or SPILL_Q*N");
+    }
+
+    // Step 2: SUBW #KLo; SBCD #KHi — sets CC.{N,Z,V,C} for X - K.
+    Builder.buildInstr(MC6809::SUBWi16).addImm(KLo);
+    Builder.buildInstr(MC6809::SBCDi16).addImm(KHi);
+
+    // Step 3: LB<cc> $tgt — long conditional branch on the i32 result.
+    // pickLBlbcVariant chooses LBlbc / LBlbc_NoC / LBlbc_OnlyC based
+    // on which CC flags the condcode actually consumes (Bug #206).
+    Builder.buildInstr(pickLBlbcVariant(CC))
+        .addImm(CC)
+        .addMBB(TgtMBB);
+    MI.eraseFromParent();
+    return true;
+  }
   case MC6809::Copy8:
   case MC6809::Copy16:
     MI.setDesc(Builder.getTII().get(MC6809::TFRp));

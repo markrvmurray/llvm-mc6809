@@ -725,6 +725,59 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
           (void)S1; (void)S32;
           return true;
         }
+        // Bug #301 Phase D step 3.1 (2026-05-16 night): non-eq/ne i32
+        // ICMP against constant RHS, with a G_BRCOND-only consumer,
+        // lowers directly to the fused CompareBranch_i32_Imm pseudo.
+        // This is the most common shape in libc (`if (X < K) ...`).
+        //
+        // Why fused-direct (not Compare_i32_Imm + ConditionalImm)?  The
+        // reverted Phase D step 3 v1 attempt used the latter and broke
+        // 4 libc files: Compare_i32_Imm's CCond vreg gets DCE'd post
+        // expansion (LBlbc reads physregs, not the vreg), so the
+        // conditional branch reads undef CC flags.  The fused pseudo
+        // is isTerminator=true, can never be DCE'd as dead, and its
+        // SUBW+SBCD+LB<cc> expansion is emitted contiguously — no
+        // scheduler can wedge a flag-clobber between the SBCD and
+        // the LB<cc>.
+        //
+        // Restricted to: HD6309, constant RHS, non-eq/ne (eq/ne use
+        // EqZero/EqConst from steps 1+2), exactly one use of the i1
+        // Dst, that use is G_BRCOND in the same MBB.  Other shapes
+        // fall through to libcall.
+        unsigned CCImm = 0;
+        bool MappedPred = true;
+        switch (Pred) {
+        case CmpInst::ICMP_SLT: CCImm = MC6809CC::LT; break;
+        case CmpInst::ICMP_SLE: CCImm = MC6809CC::LE; break;
+        case CmpInst::ICMP_SGT: CCImm = MC6809CC::GT; break;
+        case CmpInst::ICMP_SGE: CCImm = MC6809CC::GE; break;
+        case CmpInst::ICMP_ULT: CCImm = MC6809CC::LO; break;
+        case CmpInst::ICMP_ULE: CCImm = MC6809CC::LS; break;
+        case CmpInst::ICMP_UGT: CCImm = MC6809CC::HI; break;
+        case CmpInst::ICMP_UGE: CCImm = MC6809CC::HS; break;
+        default: MappedPred = false; break;
+        }
+        if (MappedPred && MRI.hasOneNonDBGUse(Dst)) {
+          MachineInstr &UseMI = *MRI.use_instr_nodbg_begin(Dst);
+          if (UseMI.getOpcode() == TargetOpcode::G_BRCOND &&
+              UseMI.getParent() == MI.getParent()) {
+            // Emit the fused CompareBranch_i32_Imm and erase both
+            // G_ICMP and G_BRCOND.
+            MachineBasicBlock *TgtMBB = UseMI.getOperand(1).getMBB();
+            int64_t KSigned = RhsConst->Value.getSExtValue();
+            MRI.setRegClass(Lhs, &MC6809::ACC32RegClass);
+            // Insert before the G_BRCOND (which will be erased).
+            B.setInsertPt(*UseMI.getParent(), UseMI);
+            B.buildInstr(MC6809::CompareBranch_i32_Imm)
+                .addImm(CCImm)
+                .addUse(Lhs)
+                .addImm(KSigned)
+                .addMBB(TgtMBB);
+            UseMI.eraseFromParent();
+            MI.eraseFromParent();
+            return true;
+          }
+        }
       }
     }
 

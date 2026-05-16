@@ -996,6 +996,28 @@ multiclass MC6809CompareBranch<ValueType vtype, RegisterClass reg> {
 defm CompareBranch_i8 : MC6809CompareBranch<i8, ACC8>;
 defm CompareBranch_i16 : MC6809CompareBranch<i16, ACC16>;
 
+// Bug #301 Phase D step 3.1 (2026-05-16 night): native HD6309 i32
+// compare-and-branch fused pseudo.  Single MachineInstr covering
+// SUBW #low16 + SBCD #high16 + LB<cc> $tgt.  Mirrors the
+// MC6809CompareBranchBase shape for i16, just at i32 width.
+//
+// Why a SINGLE fused MI?  The reverted Phase D step 3 attempt
+// (Compare_i32_Imm + ConditionalImm + ConditionalLongBranchRelative)
+// triggered Bug A: the CCond vreg has no use after post-RA expansion
+// (LBlbc reads physregs, not vregs), so DCE/regalloc deleted
+// Compare_i32_Imm as dead — and the resulting LBlbc reads undef
+// $n/$z/$v/$c flags.  A single fused pseudo with isTerminator=true
+// cannot be DCE'd as dead, and its post-RA expansion emits the SUBW,
+// SBCD, and LBlbc adjacent (no scheduler can wedge a flag-clobber
+// between them).
+//
+// Only the _Imm form lands in step 3.1.  _Reg / _Mem / _Pull follow
+// in steps 5+6.
+let Predicates = [IsHD6309] in {
+  def CompareBranch_i32_Imm
+    : MC6809CompareBranchBase<ACC32, (ins i32imm:$imm)>;
+}
+
 // --- Concrete instructions (register-specific, assembler/disassembler) ---
 // Concrete test instructions (TSTA, TSTB, TSTD, etc.)
 // are defined in MC6809InstrInfo.td.
