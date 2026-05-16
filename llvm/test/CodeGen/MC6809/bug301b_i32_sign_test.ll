@@ -66,11 +66,14 @@ define i1 @i32_sle_minus_one(i32 %x) {
   ret i1 %cmp
 }
 
-; CHECK-LABEL: i32_slt_one_falls_through:
-define i1 @i32_slt_one_falls_through(i32 %x) {
-  ; NOT a sign test (constant 1, not 0 or -1).  Falls through to the
-  ; libcall path.  Proves the fast-path predicate doesn't over-trigger.
+; CHECK-LABEL: i32_slt_reg_falls_through:
+define i1 @i32_slt_reg_falls_through(i32 %x, i32 %y) {
+  ; Register-RHS i32 ICMP (not constant) — falls through to __cmpsi2
+  ; until Compare_i32_Reg / Compare_i32_Mem land in the register-RHS
+  ; and memory-RHS sub-steps.  Proves the sign-test fast path AND
+  ; the constant-RHS compare-and-set / compare-and-branch fast paths
+  ; don't over-trigger.
   ; CHECK: lbsr __cmpsi2
-  %cmp = icmp slt i32 %x, 1
+  %cmp = icmp slt i32 %x, %y
   ret i1 %cmp
 }

@@ -1018,6 +1018,32 @@ let Predicates = [IsHD6309] in {
     : MC6809CompareBranchBase<ACC32, (ins i32imm:$imm)>;
 }
 
+// Bug #301 (2026-05-16): native HD6309 i32 compare-and-set fused
+// pseudo.  Single MachineInstr covering SUBW #low16 + SBCD #high16
+// + per-predicate branch-free CC bit extraction to a 0/1 byte in
+// ACC8 $dst.  Mirrors the philosophy of X86's SETcc / AArch64's CSET
+// / ARM's MOVCC — every use site re-executes the compare, no
+// cross-BB CCond live range.
+//
+// Used when an i1 result of i32 G_ICMP (non-eq/ne, constant RHS) is
+// materialized (not branched/selected).  The CompareBranch_i32_Imm
+// fused-branch path above is preferred when available; this is the
+// fallback for G_STORE i1, G_TRUNC i1→byte, G_AND/OR/XOR i1,
+// G_ZEXT/SEXT i1→wider chains, or any other shape where the i1
+// value itself is consumed.
+//
+// Single fused MI like CompareBranch_i32_Imm — same DCE-immunity
+// properties (isCompare=true, can't be DCE'd as dead, SUBW+SBCD+
+// extraction emitted contiguously).
+let Predicates = [IsHD6309] in {
+  def CompareSet_i8_i32_Imm : MC6809Pseudo {
+    let isCompare = true;
+    dag OutOperandList = (outs ACC8:$dst);
+    dag InOperandList  = (ins condcode:$cc, ACC32:$src, i32imm:$imm);
+    let Defs = [NZ, V, C];
+  }
+}
+
 // --- Concrete instructions (register-specific, assembler/disassembler) ---
 // Concrete test instructions (TSTA, TSTB, TSTD, etc.)
 // are defined in MC6809InstrInfo.td.

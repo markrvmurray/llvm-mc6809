@@ -778,6 +778,66 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
             return true;
           }
         }
+        // Bug #301 (2026-05-16): non-brcond consumer fallback.
+        // When the fused-branch fast path above didn't fire (no
+        // brcond-only consumer in same MBB), materialize the i1
+        // result via the CompareSet_i8_i32_Imm fused compare-and-set
+        // pseudo (X86 SETcc / AArch64 CSET / ARM MOVCC shape).
+        // CompareSet emits SUBW + SBCD + per-predicate branch-free
+        // CC bit extraction into a 0/1 byte in ACC8.  Single fused
+        // MI — no cross-BB CCond live range, no DCE hazard.  Common
+        // shapes that reach this path: G_STORE i1, G_TRUNC i1→byte,
+        // G_AND/OR/XOR i1, G_ZEXT/SEXT i1→wider chains.
+        if (MappedPred) {
+          LLT S1 = LLT::scalar(1);
+          LLT S8 = LLT::scalar(8);
+          MRI.setRegClass(Lhs, &MC6809::ACC32RegClass);
+          int64_t KSigned = RhsConst->Value.getSExtValue();
+          Register ResultByte = MRI.createGenericVirtualRegister(S8);
+          MRI.setRegClass(ResultByte, &MC6809::ACC8RegClass);
+          B.buildInstr(MC6809::CompareSet_i8_i32_Imm, {ResultByte}, {})
+              .addImm(CCImm)
+              .addUse(Lhs)
+              .addImm(KSigned);
+          MRI.setRegClass(Dst, &MC6809::BIT1RegClass);
+          B.buildTrunc(Dst, ResultByte);
+          MI.eraseFromParent();
+          (void)S1;
+          return true;
+        }
+        // Bug #301 (2026-05-16): tripwire for the
+        // "G_SELECT-consumer-that-escaped-the-GISel-combiner" case.
+        // When the fused-branch fast path above didn't fire AND any
+        // use of the i1 Dst is G_SELECT, this is a candidate for a
+        // fused Select_i*_CC pseudo (X86 CMOV / ARM MOVCC /
+        // AArch64 CSEL shape).  The 2026-05-16 probe found that
+        // GISel's CombinerHelper converts every typical G_SELECT
+        // shape (constants, loaded values, computed values) to
+        // brcond+PHI BEFORE this legalizer runs (the fused-branch
+        // path above then catches them), so the Select_i*_CC pseudo
+        // was NOT implemented.  If this tripwire fires in a real
+        // build, that pseudo IS needed after all.  Print a marker
+        // that's grep-friendly in build logs and CI captures.
+        if (MappedPred) {
+          for (MachineInstr &U : MRI.use_nodbg_instructions(Dst)) {
+            if (U.getOpcode() == TargetOpcode::G_SELECT) {
+              static bool Warned = false;
+              if (!Warned) {
+                Warned = true;
+                errs() << "MC6809-BUG-301-SELECT-CANDIDATE: i32 "
+                       << "G_ICMP (non-eq/ne, constant RHS) with "
+                       << "G_SELECT consumer that escaped the GISel "
+                       << "combiner.  A fused Select_i*_CC pseudo "
+                       << "(X86 CMOV / ARM MOVCC / AArch64 CSEL "
+                       << "shape) was designed for this case but "
+                       << "not implemented since the 2026-05-16 "
+                       << "probe found no in-tree shapes that need "
+                       << "it.  File a follow-up bug.\n";
+              }
+              break;
+            }
+          }
+        }
       }
     }
 

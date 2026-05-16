@@ -3520,6 +3520,245 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     MI.eraseFromParent();
     return true;
   }
+  case MC6809::CompareSet_i8_i32_Imm: {
+    // Bug #301 (2026-05-16): native HD6309 i32 compare-and-set.
+    // Operand layout (per pseudo def in MC6809InstrFamilies.td):
+    //   op 0 = ACC8:$dst (the 0/1 byte result)
+    //   op 1 = condcode:$cc
+    //   op 2 = ACC32:$src (LHS, in AQ or SPILL_Q*N post-RA)
+    //   op 3 = i32imm:$imm (RHS)
+    //
+    // Expansion: ensure $aq holds X, then SUBW #lo16 + SBCD #hi16,
+    // then per-condcode branch-free CC bit extraction to AB, then
+    // COPY AB to Dst (Dst is ACC8 — AA/AB/AE/AF or SPILL_A*/SPILL_B*).
+    MachineFunction &MF = *MI.getMF();
+    Register DstReg = MI.getOperand(0).getReg();
+    unsigned CC = MI.getOperand(1).getImm();
+    Register SrcReg = MI.getOperand(2).getReg();
+    int64_t K = MI.getOperand(3).getImm();
+    uint16_t KLo = static_cast<uint16_t>(K & 0xFFFF);
+    uint16_t KHi = static_cast<uint16_t>((K >> 16) & 0xFFFF);
+
+    // Step 1: ensure LHS is in $aq.
+    if (isQSpillReg(SrcReg)) {
+      int Offset = computeSpillStackOffset(SrcReg, MF);
+      bool Fits8 = (Offset >= -128 && Offset <= 127);
+      unsigned LDQOpc = Fits8 ? MC6809::LDQi_o8 : MC6809::LDQi_o16;
+      Builder.buildInstr(LDQOpc)
+          .addDef(MC6809::AQ, RegState::Implicit)
+          .addImm(Offset).addReg(MC6809::SU);
+    } else if (SrcReg != MC6809::AQ) {
+      llvm_unreachable("CompareSet_i8_i32_Imm src must be AQ or SPILL_Q*N");
+    }
+
+    // Step 2: SUBW #KLo; SBCD #KHi — sets CC.{N,Z,V,C} for X - K.
+    Builder.buildInstr(MC6809::SUBWi16).addImm(KLo);
+    Builder.buildInstr(MC6809::SBCDi16).addImm(KHi);
+
+    // Step 3: per-condcode branch-free CC bit extraction into AB.
+    // CC byte layout: bit 7=E, 6=F, 5=H, 4=I, 3=N, 2=Z, 1=V, 0=C.
+    //
+    // For each predicate we build a sequence that ends with AB = 0 or
+    // 1 reflecting the truth of the predicate.  AA is used as scratch
+    // (TFR CC,A; ... ; TFR A,B at the end).
+    //
+    // Simple single-flag predicates (EQ/NE → Z, UGE/ULT → C):
+    //   TFR CC,A
+    //   ANDA #<mask>            ; isolate the flag bit
+    //   LSRA × N                ; shift to bit 0
+    //   [EORA #1]                ; optional invert for NE / UGE
+    //   TFR A,B
+    //
+    // Multi-flag predicates (ULE = C|Z; UGT = ~(C|Z); SLT = N^V;
+    //   SGE = ~(N^V); SLE = Z|(N^V); SGT = ~(Z|(N^V))):
+    //   need additional masking + combination logic.
+    Builder.buildInstr(MC6809::TFRp).addDef(MC6809::AA).addUse(MC6809::CC);
+    auto andai = [&](uint8_t m) {
+      Builder.buildInstr(MC6809::ANDAi8)
+          .addDef(MC6809::AA, RegState::Implicit)
+          .addUse(MC6809::AA, RegState::Implicit)
+          .addImm(m);
+    };
+    auto lsraN = [&](int n) {
+      for (int i = 0; i < n; ++i)
+        Builder.buildInstr(MC6809::LSRAa)
+            .addDef(MC6809::AA, RegState::Implicit)
+            .addUse(MC6809::AA, RegState::Implicit);
+    };
+    auto eorai = [&](uint8_t m) {
+      Builder.buildInstr(MC6809::EORAi8)
+          .addDef(MC6809::AA, RegState::Implicit)
+          .addUse(MC6809::AA, RegState::Implicit)
+          .addImm(m);
+    };
+    switch (CC) {
+    case MC6809CC::EQ:  // Z=1
+      andai(0x04); lsraN(2); break;
+    case MC6809CC::NE:  // Z=0
+      andai(0x04); lsraN(2); eorai(0x01); break;
+    case MC6809CC::CS:  // C=1 (also ULO)
+      andai(0x01); break;
+    case MC6809CC::CC:  // C=0 (also UHS)
+      andai(0x01); eorai(0x01); break;
+    case MC6809CC::LS: {
+      // C | Z — OR bit 0 (C) with bit 2 (Z>>2).  Build via:
+      //   B := A;  B>>=2;  B|=A;  B&=1
+      // (HD6309 ORR is reg-to-reg.)
+      Builder.buildInstr(MC6809::TFRp).addDef(MC6809::AB).addUse(MC6809::AA);
+      Builder.buildInstr(MC6809::LSRBa)
+          .addDef(MC6809::AB, RegState::Implicit)
+          .addUse(MC6809::AB, RegState::Implicit);
+      Builder.buildInstr(MC6809::LSRBa)
+          .addDef(MC6809::AB, RegState::Implicit)
+          .addUse(MC6809::AB, RegState::Implicit);
+      Builder.buildInstr(MC6809::ORRp)
+          .addDef(MC6809::AA)
+          .addUse(MC6809::AB).addUse(MC6809::AA);
+      andai(0x01);
+      break;
+    }
+    case MC6809CC::HI: {
+      // NOT (C | Z) — same as LS then EOR #1
+      Builder.buildInstr(MC6809::TFRp).addDef(MC6809::AB).addUse(MC6809::AA);
+      Builder.buildInstr(MC6809::LSRBa)
+          .addDef(MC6809::AB, RegState::Implicit)
+          .addUse(MC6809::AB, RegState::Implicit);
+      Builder.buildInstr(MC6809::LSRBa)
+          .addDef(MC6809::AB, RegState::Implicit)
+          .addUse(MC6809::AB, RegState::Implicit);
+      Builder.buildInstr(MC6809::ORRp)
+          .addDef(MC6809::AA)
+          .addUse(MC6809::AB).addUse(MC6809::AA);
+      andai(0x01); eorai(0x01);
+      break;
+    }
+    case MC6809CC::LT: {
+      // N XOR V — N is bit 3, V is bit 1.  Mask both, shift V to bit
+      // 2 alignment, XOR, shift to bit 0:
+      //   AA = CC; AA &= 0x0A;  (keeps N at bit 3, V at bit 1)
+      //   B := A; B>>=2;  (B now has N at bit 1, V at bit -1 = lost)
+      //   Hmm — different approach: align both to bit 0 first.
+      //   A := CC; A &= 0x0A;  A>>=1;  (V now at bit 0, N at bit 2)
+      //   B := A; B>>=2;  (B now has N at bit 0)
+      //   A ^= B;  A &= 1;  (bit 0 = V^N)
+      andai(0x0A); lsraN(1);
+      Builder.buildInstr(MC6809::TFRp).addDef(MC6809::AB).addUse(MC6809::AA);
+      Builder.buildInstr(MC6809::LSRBa)
+          .addDef(MC6809::AB, RegState::Implicit)
+          .addUse(MC6809::AB, RegState::Implicit);
+      Builder.buildInstr(MC6809::LSRBa)
+          .addDef(MC6809::AB, RegState::Implicit)
+          .addUse(MC6809::AB, RegState::Implicit);
+      Builder.buildInstr(MC6809::EORRp)
+          .addDef(MC6809::AA)
+          .addUse(MC6809::AB).addUse(MC6809::AA);
+      andai(0x01);
+      break;
+    }
+    case MC6809CC::GE: {
+      // NOT (N XOR V) — same as LT then EOR #1
+      andai(0x0A); lsraN(1);
+      Builder.buildInstr(MC6809::TFRp).addDef(MC6809::AB).addUse(MC6809::AA);
+      Builder.buildInstr(MC6809::LSRBa)
+          .addDef(MC6809::AB, RegState::Implicit)
+          .addUse(MC6809::AB, RegState::Implicit);
+      Builder.buildInstr(MC6809::LSRBa)
+          .addDef(MC6809::AB, RegState::Implicit)
+          .addUse(MC6809::AB, RegState::Implicit);
+      Builder.buildInstr(MC6809::EORRp)
+          .addDef(MC6809::AA)
+          .addUse(MC6809::AB).addUse(MC6809::AA);
+      andai(0x01); eorai(0x01);
+      break;
+    }
+    case MC6809CC::LE: {
+      // Z | (N XOR V) — combine LT logic with Z bit.
+      //   AA = CC; B := CC;
+      //   AA &= 0x0A;  AA>>=1;   ; A: bit2=N, bit0=V
+      //   tmp := A; tmp>>=2;     ; tmp bit0=N
+      //   A ^= tmp;  A &= 1;     ; A bit0 = N^V
+      //   B &= 0x04; B>>=2;      ; B bit0 = Z
+      //   A |= B;  A &= 1;
+      // Using TFRp to copy CC into both A and B at start:
+      Builder.buildInstr(MC6809::TFRp).addDef(MC6809::AB).addUse(MC6809::CC);
+      andai(0x0A); lsraN(1);
+      // tmp via stack (no third byte reg accessible without clobbering).
+      // Simpler: re-use B by saving it before.  Save B to AE temporarily?
+      // AE only exists on HD6309 — fine.
+      Builder.buildInstr(MC6809::TFRp).addDef(MC6809::AE).addUse(MC6809::AA);
+      Builder.buildInstr(MC6809::LSRAa)
+          .addDef(MC6809::AA, RegState::Implicit)
+          .addUse(MC6809::AA, RegState::Implicit);
+      Builder.buildInstr(MC6809::LSRAa)
+          .addDef(MC6809::AA, RegState::Implicit)
+          .addUse(MC6809::AA, RegState::Implicit);
+      // AA bit 0 = N (shifted from bit 2 of the AND-masked CC>>1).
+      // Use EORR to XOR AE (bit 0=V) into AA.
+      Builder.buildInstr(MC6809::EORRp)
+          .addDef(MC6809::AA)
+          .addUse(MC6809::AE).addUse(MC6809::AA);
+      andai(0x01);
+      // Now AA bit 0 = N^V.  AB still has CC.  Mask Z out of B and shift.
+      Builder.buildInstr(MC6809::ANDBi8)
+          .addDef(MC6809::AB, RegState::Implicit)
+          .addUse(MC6809::AB, RegState::Implicit)
+          .addImm(0x04);
+      Builder.buildInstr(MC6809::LSRBa)
+          .addDef(MC6809::AB, RegState::Implicit)
+          .addUse(MC6809::AB, RegState::Implicit);
+      Builder.buildInstr(MC6809::LSRBa)
+          .addDef(MC6809::AB, RegState::Implicit)
+          .addUse(MC6809::AB, RegState::Implicit);
+      Builder.buildInstr(MC6809::ORRp)
+          .addDef(MC6809::AA)
+          .addUse(MC6809::AB).addUse(MC6809::AA);
+      andai(0x01);
+      break;
+    }
+    case MC6809CC::GT: {
+      // NOT (Z | (N XOR V)) — same as LE then EOR #1
+      Builder.buildInstr(MC6809::TFRp).addDef(MC6809::AB).addUse(MC6809::CC);
+      andai(0x0A); lsraN(1);
+      Builder.buildInstr(MC6809::TFRp).addDef(MC6809::AE).addUse(MC6809::AA);
+      Builder.buildInstr(MC6809::LSRAa)
+          .addDef(MC6809::AA, RegState::Implicit)
+          .addUse(MC6809::AA, RegState::Implicit);
+      Builder.buildInstr(MC6809::LSRAa)
+          .addDef(MC6809::AA, RegState::Implicit)
+          .addUse(MC6809::AA, RegState::Implicit);
+      Builder.buildInstr(MC6809::EORRp)
+          .addDef(MC6809::AA)
+          .addUse(MC6809::AE).addUse(MC6809::AA);
+      andai(0x01);
+      Builder.buildInstr(MC6809::ANDBi8)
+          .addDef(MC6809::AB, RegState::Implicit)
+          .addUse(MC6809::AB, RegState::Implicit)
+          .addImm(0x04);
+      Builder.buildInstr(MC6809::LSRBa)
+          .addDef(MC6809::AB, RegState::Implicit)
+          .addUse(MC6809::AB, RegState::Implicit);
+      Builder.buildInstr(MC6809::LSRBa)
+          .addDef(MC6809::AB, RegState::Implicit)
+          .addUse(MC6809::AB, RegState::Implicit);
+      Builder.buildInstr(MC6809::ORRp)
+          .addDef(MC6809::AA)
+          .addUse(MC6809::AB).addUse(MC6809::AA);
+      andai(0x01); eorai(0x01);
+      break;
+    }
+    default:
+      llvm_unreachable("CompareSet_i8_i32_Imm: unhandled condcode");
+    }
+
+    // Step 4: TFR A,B then COPY B to Dst.
+    Builder.buildInstr(MC6809::TFRp).addDef(MC6809::AB).addUse(MC6809::AA);
+    if (DstReg != MC6809::AB) {
+      copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
+                  DstReg, MC6809::AB, /*KillSrc=*/true);
+    }
+    MI.eraseFromParent();
+    return true;
+  }
   case MC6809::Copy8:
   case MC6809::Copy16:
     MI.setDesc(Builder.getTII().get(MC6809::TFRp));

@@ -42,15 +42,13 @@ define i1 @i32_ne_zero(i32 %x) {
   ret i1 %cmp
 }
 
-; CHECK-LABEL: i32_slt_one_falls_through:
-define i1 @i32_slt_one_falls_through(i32 %x) {
-  ; NOT a zero-test predicate (slt, not eq/ne).  Falls through to the
-  ; libcall.  Proves the fast-path predicate doesn't over-trigger.
-  ; (Phase D step 2 catches eq/ne against any constant, including 1 —
-  ; so the old "K=1 fall-through" test no longer applies.  Use slt
-  ; against a non-zero/non-(-1) constant instead, which is also
-  ; outside Phase B's sign-test fast path.)
+; CHECK-LABEL: i32_slt_reg_falls_through:
+define i1 @i32_slt_reg_falls_through(i32 %x, i32 %y) {
+  ; Register-RHS i32 ICMP (not constant) — falls through to __cmpsi2
+  ; until Compare_i32_Reg / Compare_i32_Mem land in the register-RHS
+  ; and memory-RHS sub-steps.  Proves the constant-RHS fast paths
+  ; don't over-trigger.
   ; CHECK: lbsr __cmpsi2
-  %cmp = icmp slt i32 %x, 1
+  %cmp = icmp slt i32 %x, %y
   ret i1 %cmp
 }
