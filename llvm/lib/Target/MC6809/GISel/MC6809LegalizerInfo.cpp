@@ -623,54 +623,6 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
       return true;
     }
 
-    // Bug #301b (2026-05-16): sign-test fast path for the four
-    // equivalent "is X negative / non-negative" shapes at i32/i64 width:
-    //
-    //    icmp slt X, 0    →  X negative      (canonical "X < 0")
-    //    icmp sge X, 0    →  X non-negative  (canonical "X >= 0")
-    //    icmp sgt X, -1   →  X non-negative  (optimizer-normalised form)
-    //    icmp sle X, -1   →  X negative      (optimizer-normalised form)
-    //
-    // The general libcall path below uses __cmpsi2 + trunc i32→i8 +
-    // icmp eq 0, and the post-RA spill placer reuses the memory slot
-    // holding cmpsi2's return value, OVERWRITING it before the trunc
-    // consumes it — the resulting `stb` ends up storing a stale byte
-    // (typically the comparand's low byte), and inputs where that
-    // byte is 0 trigger a spurious BEQ.  gmtime_r's `if (rem < 0)`
-    // post-mod adjust was the manifest (hour off by +24 for ~1/256
-    // of inputs).
-    //
-    // For a sign test against constant 0 / -1, we don't need the
-    // libcall — the sign bit is bit 31 of the i32 (or bit 63 of i64)
-    // = bit 7 of the most-significant byte.  Splitting the operand
-    // and doing an i16 G_ICMP slt/sge on the high word lowers to a
-    // single TST on the high byte + a B{MI,PL} branch — both faster
-    // and not exposed to the spill bug.  i64 splits to 2× i32; the
-    // recursive G_ICMP on the high i32 re-enters this rule and
-    // reduces further to i16.
-    if (OpTy == LLT::scalar(32) || OpTy == LLT::scalar(64)) {
-      auto RhsConst = getIConstantVRegValWithLookThrough(Rhs, MRI);
-      if (RhsConst) {
-        CmpInst::Predicate NormPred = CmpInst::BAD_ICMP_PREDICATE;
-        if (RhsConst->Value == 0) {
-          if (Pred == CmpInst::ICMP_SLT) NormPred = CmpInst::ICMP_SLT;
-          else if (Pred == CmpInst::ICMP_SGE) NormPred = CmpInst::ICMP_SGE;
-        } else if (RhsConst->Value.isAllOnes()) {
-          if (Pred == CmpInst::ICMP_SGT) NormPred = CmpInst::ICMP_SGE;
-          else if (Pred == CmpInst::ICMP_SLE) NormPred = CmpInst::ICMP_SLT;
-        }
-        if (NormPred != CmpInst::BAD_ICMP_PREDICATE) {
-          LLT HalfTy = (OpTy == LLT::scalar(32)) ? S16 : LLT::scalar(32);
-          auto Unmerge = B.buildUnmerge({HalfTy, HalfTy}, Lhs);
-          Register HiHalf = Unmerge.getReg(1);
-          auto ZeroHalf = B.buildConstant(HalfTy, 0);
-          B.buildICmp(NormPred, Dst, HiHalf, ZeroHalf.getReg(0));
-          MI.eraseFromParent();
-          return true;
-        }
-      }
-    }
-
     // i32/i64 compare via libcall to __{u,}cmp{s,d}i2 (bug #158).
     //
     // Inline compare at these widths decomposes into a multi-instruction
