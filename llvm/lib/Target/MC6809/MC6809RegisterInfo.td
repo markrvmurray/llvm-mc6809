@@ -317,32 +317,73 @@ def SPILL_X3 : MC6809Reg16<0x2016, "spill_x3">;
 // the post-RA expansion of EXTRACT_LO/HI_word_i32 + the COPY handler
 // in expandPostRAPseudo recognise these sub-regs and emit the correct
 // LDD slot read.
-def SPILL_Q0HI : MC6809Reg<0x2030, "spill_q0_hi">;
-def SPILL_Q0LO : MC6809Reg<0x2031, "spill_q0_lo">;
-def SPILL_Q1HI : MC6809Reg<0x2032, "spill_q1_hi">;
-def SPILL_Q1LO : MC6809Reg<0x2033, "spill_q1_lo">;
-def SPILL_Q2HI : MC6809Reg<0x2034, "spill_q2_hi">;
-def SPILL_Q2LO : MC6809Reg<0x2035, "spill_q2_lo">;
-def SPILL_Q3HI : MC6809Reg<0x2036, "spill_q3_hi">;
-def SPILL_Q3LO : MC6809Reg<0x2037, "spill_q3_lo">;
-def SPILL_Q0 : MC6809Reg32<0x2018, "spill_q0", [SPILL_Q0LO, SPILL_Q0HI], [sub_lo_word, sub_hi_word]>;
-def SPILL_Q1 : MC6809Reg32<0x201C, "spill_q1", [SPILL_Q1LO, SPILL_Q1HI], [sub_lo_word, sub_hi_word]>;
-def SPILL_Q2 : MC6809Reg32<0x2020, "spill_q2", [SPILL_Q2LO, SPILL_Q2HI], [sub_lo_word, sub_hi_word]>;
-def SPILL_Q3 : MC6809Reg32<0x2024, "spill_q3", [SPILL_Q3LO, SPILL_Q3HI], [sub_lo_word, sub_hi_word]>;
+// Bug #301 Phase C Path C (2026-05-16): each SPILL_Q*HI/LO half gets a
+// sub_lo_byte / sub_hi_byte chain (4 byte sub-regs per Q slot, 128
+// total) — mirroring the existing RS0HI/LO + sub-byte pattern (lines
+// 149-180 above).  Reasons:
+// - lets Path A (SPILL_Q*HI/LO added to ADc/AWc) NOT cascade into
+//   EXTRACT_LO_i16 / CompareBranch_i16_Imm / Store_i16_Mem failures
+//   (their post-RA expansions call getSubReg(SrcReg, sub_lo_byte) and
+//   need a real sub-byte to land on);
+// - makes the TableGen-synthesised intersection class
+//   `ACC32_with_sub_hi_byte` include SPILL_Q*N (because
+//   SPILL_Q*N.sub_hi_word = SPILL_Q*HI which now has sub_hi_byte),
+//   structurally closing Bug #301a's class-collapse manifest.
+//
+// Big-endian Q-slot layout (bytes 0..3 of the 4-byte slot):
+//   byte 0 = SPILL_Q*HI.sub_hi_byte = SPILL_Q*HIHI (the sign byte)
+//   byte 1 = SPILL_Q*HI.sub_lo_byte = SPILL_Q*HILO
+//   byte 2 = SPILL_Q*LO.sub_hi_byte = SPILL_Q*LOHI
+//   byte 3 = SPILL_Q*LO.sub_lo_byte = SPILL_Q*LOLO
+// All 128 byte sub-regs are plain MC6809Reg — NOT in any allocatable
+// 8-bit class.  The COPY handler at expandPostRAPseudo recognises them
+// and emits LDB at slot+0/+1/+2/+3,$su.  All Reserved (see
+// MC6809RegisterInfo.cpp).
+//
+// The byte sub-regs are defined in one foreach pass over 0..31 so they
+// occupy a single contiguous enum range (SPILL_Q0HIHI..SPILL_Q31LOLO)
+// for clean range-loop reservation in MC6809RegisterInfo.cpp.
+foreach I = 0...31 in {
+  def SPILL_Q#I#HIHI : MC6809Reg<!add(0x2400, !mul(I, 4)),          "spill_q"#I#"_hi_hi">;
+  def SPILL_Q#I#HILO : MC6809Reg<!add(!add(0x2400, !mul(I, 4)), 1), "spill_q"#I#"_hi_lo">;
+  def SPILL_Q#I#LOHI : MC6809Reg<!add(!add(0x2400, !mul(I, 4)), 2), "spill_q"#I#"_lo_hi">;
+  def SPILL_Q#I#LOLO : MC6809Reg<!add(!add(0x2400, !mul(I, 4)), 3), "spill_q"#I#"_lo_lo">;
+}
+
+// Bug #161 round 14: SPILL_Q* have half-word sub-registers (SPILL_QnHI
+// / SPILL_QnLO, big-endian: HI at +0, LO at +2 in the slot).  Round 15:
+// isAllocatable = false so regalloc never places a vreg directly in
+// SPILL_QnLO/HI; the post-RA expansion of EXTRACT_LO/HI_word_i32 + the
+// COPY handler in expandPostRAPseudo recognise these sub-regs and emit
+// the correct LDD slot read.  Phase C Path C (2026-05-16): now MC6809Reg16
+// with sub_lo_byte / sub_hi_byte SubRegIndices pointing at the byte
+// sub-regs defined above.  Original Q0..3 keep their pre-Phase-C HI/LO
+// IDs ($2030..$2037) so any external code that hashed on them stays put.
+foreach I = 0...3 in {
+  def SPILL_Q#I#HI : MC6809Reg16<!add(0x2030, !mul(I, 2)),     "spill_q"#I#"_hi",
+      [!cast<Register>("SPILL_Q"#I#"HILO"), !cast<Register>("SPILL_Q"#I#"HIHI")],
+      [sub_lo_byte, sub_hi_byte]>;
+  def SPILL_Q#I#LO : MC6809Reg16<!add(0x2031, !mul(I, 2)),     "spill_q"#I#"_lo",
+      [!cast<Register>("SPILL_Q"#I#"LOLO"), !cast<Register>("SPILL_Q"#I#"LOHI")],
+      [sub_lo_byte, sub_hi_byte]>;
+  def SPILL_Q#I : MC6809Reg32<!add(0x2018, !shl(I, 2)), "spill_q"#I,
+      [!cast<Register>("SPILL_Q"#I#"LO"), !cast<Register>("SPILL_Q"#I#"HI")],
+      [sub_lo_word, sub_hi_word]>;
+}
 
 // Bug #265 / Bug #296 Phase 2: extend SPILL_Q* from 4 slots to 32 to
 // remove the artificial ACC32 capacity ceiling that the optimizer's
 // word-loop patterns can overflow (memccpy / rawmemchr at HD6309 -O2
-// being the manifest).  The new entries use TableGen IDs in a clean
-// non-colliding range ($2100+ for main 32-bit slots, $2200+ for HI/LO
-// halves) — the existing Q0..3 keep their original IDs so any code that
-// happens to depend on them stays put.  Slots are stack-backed like
-// the original four (see expandLoadIdx / expandStoreIdx), so adding
-// more costs zero DP and no per-function memory unless regalloc
-// actually spills to them.
+// being the manifest).  Slots are stack-backed like the original four
+// (see expandLoadIdx / expandStoreIdx), so adding more costs zero DP
+// and no per-function memory unless regalloc actually spills to them.
 foreach I = 4...31 in {
-  def SPILL_Q#I#HI : MC6809Reg<!add(0x2200, !mul(I, 2)), "spill_q"#I#"_hi">;
-  def SPILL_Q#I#LO : MC6809Reg<!add(0x2201, !mul(I, 2)), "spill_q"#I#"_lo">;
+  def SPILL_Q#I#HI : MC6809Reg16<!add(0x2200, !mul(I, 2)), "spill_q"#I#"_hi",
+      [!cast<Register>("SPILL_Q"#I#"HILO"), !cast<Register>("SPILL_Q"#I#"HIHI")],
+      [sub_lo_byte, sub_hi_byte]>;
+  def SPILL_Q#I#LO : MC6809Reg16<!add(0x2201, !mul(I, 2)), "spill_q"#I#"_lo",
+      [!cast<Register>("SPILL_Q"#I#"LOLO"), !cast<Register>("SPILL_Q"#I#"LOHI")],
+      [sub_lo_byte, sub_hi_byte]>;
   def SPILL_Q#I : MC6809Reg32<!add(0x2100, !shl(I, 2)),
       "spill_q"#I,
       [!cast<Register>("SPILL_Q"#I#"LO"), !cast<Register>("SPILL_Q"#I#"HI")],

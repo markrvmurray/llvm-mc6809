@@ -134,6 +134,16 @@ BitVector MC6809RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
     Reserved.set(R);
   for (unsigned R = MC6809::SPILL_Q0LO; R <= MC6809::SPILL_Q31LO; ++R)
     Reserved.set(R);
+  // Bug #301 Phase C Path C (2026-05-16): SPILL_Q*HI/LO each gained a
+  // sub-byte chain — SPILL_Q*HIHI, SPILL_Q*HILO, SPILL_Q*LOHI, SPILL_Q*LOLO
+  // for each of 32 slots = 128 byte sub-regs.  All Reserved (regalloc must
+  // never place a vreg in any of them; they exist only as metadata for
+  // TableGen's intersection-class synthesis and for the EXTRACT_LO/HI_i16
+  // expansion path's getSubReg lookups).  Enum layout (per TableGen
+  // foreach 0..31): for Q[I], the 4 byte sub-regs are consecutive in the
+  // enum at 4*I .. 4*I+3 within the SPILL_Q*HIHI..SPILL_Q31LOLO range.
+  for (unsigned R = MC6809::SPILL_Q0HIHI; R <= MC6809::SPILL_Q31LOLO; ++R)
+    Reserved.set(R);
 
   return Reserved;
 }

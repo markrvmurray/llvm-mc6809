@@ -981,6 +981,22 @@ static bool isQSpillHalfReg(Register Reg, MCPhysReg &Parent, bool &IsLo) {
   return false;
 }
 
+/// Bug #301 Phase C Path C (2026-05-16): SPILL_Q byte sub-register predicate.
+/// Each of the 32 SPILL_Q slots has 4 byte sub-registers in enum order:
+/// SPILL_QnHIHI (slot+0), SPILL_QnHILO (slot+1), SPILL_QnLOHI (slot+2),
+/// SPILL_QnLOLO (slot+3).  Returns true and outputs the parent SPILL_Q +
+/// the byte offset within the 4-byte slot.
+static bool isQSpillByteReg(Register Reg, MCPhysReg &Parent,
+                             unsigned &ByteOffset) {
+  if (Reg >= MC6809::SPILL_Q0HIHI && Reg <= MC6809::SPILL_Q31LOLO) {
+    unsigned Idx = Reg - MC6809::SPILL_Q0HIHI;
+    Parent = MC6809::SPILL_Q0 + (Idx / 4);
+    ByteOffset = Idx % 4;
+    return true;
+  }
+  return false;
+}
+
 /// Get the size in bytes of a spill register (1 for A/B, 2 for D/X, 4 for Q).
 static unsigned getSpillRegSize(Register Reg) {
   switch (Reg) {
@@ -2355,6 +2371,29 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     // staging byte and getSubReg returns 0. Fall back to SrcReg itself.
     if (!SrcByte)
       SrcByte = SrcReg;
+    // Bug #301 Phase C Path C (2026-05-16): SrcByte may be a SPILL_Q byte
+    // sub-register (SPILL_QnHIHI/HILO/LOHI/LOLO).  copyPhysReg can't route
+    // a stack-slot byte to an accumulator byte — emit LDB at slot+offset
+    // directly here.  needsMaterialization/dematerialize on DstReg are
+    // handled the same way as the COPY-from-SPILL_QnHI/LO case below.
+    MCPhysReg QParent = 0;
+    unsigned ByteOffset = 0;
+    if (isQSpillByteReg(SrcByte, QParent, ByteOffset)) {
+      Register OrigDst = DstReg;
+      Register RealDst = needsMaterialization(DstReg)
+                             ? materializeReg(Builder, DstReg, MF)
+                             : DstReg;
+      int Offset = computeSpillStackOffset(QParent, MF) + ByteOffset;
+      bool Fits8 = (Offset >= -128 && Offset <= 127);
+      unsigned Opc = Fits8 ? MC6809::LDBi_o8 : MC6809::LDBi_o16;
+      Builder.buildInstr(Opc)
+          .addDef(RealDst, RegState::Implicit)
+          .addImm(Offset).addReg(MC6809::SU);
+      if (needsMaterialization(OrigDst))
+        dematerializeReg(Builder, RealDst, OrigDst, MF);
+      MI.eraseFromParent();
+      return true;
+    }
     copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
                 DstReg, SrcByte, /*KillSrc=*/false);
     MI.eraseFromParent();
