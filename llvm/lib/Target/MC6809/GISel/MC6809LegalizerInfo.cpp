@@ -683,33 +683,41 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
         // Lowers to a 4-byte OR-chain that sets CC.Z if all bytes were 0,
         // then materialises Z as a 0/1 byte.  Replaces __cmpsi2 + trunc +
         // icmp eq 0 for this very common shape.
-        if (RhsConst->Value == 0 &&
-            (Pred == CmpInst::ICMP_EQ || Pred == CmpInst::ICMP_NE)) {
-          // EqZero_i32's output class is ACC8 (a 0/1 byte).  For NE we
-          // need an i1 invert via XOR-with-1, but we materialise the
-          // intermediate as a byte (ACC8) and convert at the boundary.
+        if (Pred == CmpInst::ICMP_EQ || Pred == CmpInst::ICMP_NE) {
+          // EqZero_i32 / EqConst_i32 path.  Output is a 0/1 byte (ACC8)
+          // truncated back to i1 for the G_ICMP Dst.  For NE we XOR
+          // with 1 before the trunc.  (Step 1: K=0 → EqZero_i32; step 2:
+          // K!=0 → EqConst_i32 with SUBW+SBCD chain.)
           LLT S1 = LLT::scalar(1);
           LLT S8 = LLT::scalar(8);
+          LLT S32 = LLT::scalar(32);
           MRI.setRegClass(Lhs, &MC6809::ACC32RegClass);
           bool InvertEq = (Pred == CmpInst::ICMP_NE);
+          bool IsKZero = (RhsConst->Value == 0);
+          Register IsEqByte = MRI.createGenericVirtualRegister(S8);
+          MRI.setRegClass(IsEqByte, &MC6809::ACC8RegClass);
+          if (IsKZero) {
+            B.buildInstr(MC6809::EqZero_i32, {IsEqByte}, {Lhs});
+          } else {
+            // EqConst_i32 takes the i32 constant as an immediate operand.
+            // buildInstr's {dst}/{src} variadic form doesn't accept
+            // immediates, so use the explicit operand-by-operand form.
+            int64_t KSigned = RhsConst->Value.getSExtValue();
+            B.buildInstr(MC6809::EqConst_i32, {IsEqByte}, {})
+                .addUse(Lhs)
+                .addImm(KSigned);
+          }
           if (InvertEq) {
-            Register IsZeroByte = MRI.createGenericVirtualRegister(S8);
-            MRI.setRegClass(IsZeroByte, &MC6809::ACC8RegClass);
-            B.buildInstr(MC6809::EqZero_i32, {IsZeroByte}, {Lhs});
             auto OneB = B.buildConstant(S8, 1);
-            auto XorB = B.buildXor(S8, IsZeroByte, OneB);
-            // Trunc the i8 result back to i1 for the G_ICMP Dst type.
+            auto XorB = B.buildXor(S8, IsEqByte, OneB);
             MRI.setRegClass(Dst, &MC6809::BIT1RegClass);
             B.buildTrunc(Dst, XorB);
           } else {
-            // EQ: byte result truncs to i1 for the Dst.
-            Register IsZeroByte = MRI.createGenericVirtualRegister(S8);
-            MRI.setRegClass(IsZeroByte, &MC6809::ACC8RegClass);
-            B.buildInstr(MC6809::EqZero_i32, {IsZeroByte}, {Lhs});
             MRI.setRegClass(Dst, &MC6809::BIT1RegClass);
-            B.buildTrunc(Dst, IsZeroByte);
+            B.buildTrunc(Dst, IsEqByte);
           }
           MI.eraseFromParent();
+          (void)S1; (void)S32;
           return true;
         }
       }

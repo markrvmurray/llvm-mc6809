@@ -232,6 +232,29 @@ let Defs = [NZ, V] in {
     dag InOperandList  = (ins ACC32:$src);
     let Defs = [NZ, V, C];
   }
+
+  // Bug #301 Phase D step 2 (2026-05-16): native HD6309 i32 equal-to-
+  // const test for non-zero constant.  Produces an i1 (encoded as 0/1
+  // byte) whose value is 1 if the i32 is equal to the const, else 0.
+  //
+  // Replaces __cmpsi2 + trunc i32→i8 + icmp eq 0 for:
+  //   icmp eq X, K   →  EqConst_i32 X, K
+  //   icmp ne X, K   →  XOR (EqConst_i32 X, K) 1
+  // where K is a non-zero i32 constant.  (K=0 uses EqZero_i32 above.)
+  //
+  // Post-RA expansion: SUBW #low16(K); SBCD #high16(K).  This computes
+  // X - K and sets CC.Z if X == K.  Then CC.Z is extracted to a 0/1
+  // byte via TFR CC,A; ANDA #4; LSRA; LSRA; TFR A,B (same as EqZero_i32).
+  // CLOBBERS $aq's AB byte (AQ-source) or all of $aq (SPILL_Q*N-source
+  // path which must LDQ first) — same dead-LHS caveat as EqZero_i32.
+  //
+  // RHS is a 32-bit immediate, split into two 16-bit halves at
+  // expansion time.  Defs cover CC clobber (SUBW/SBCD both set NZVC).
+  def EqConst_i32 : MC6809Pseudo {
+    dag OutOperandList = (outs ACC8:$dst);
+    dag InOperandList  = (ins ACC32:$src, i32imm:$rhs);
+    let Defs = [NZ, V, C];
+  }
 }
 
 // Materialise the CC.C flag into byte 0/1. Used when a phantom BIT1 vreg

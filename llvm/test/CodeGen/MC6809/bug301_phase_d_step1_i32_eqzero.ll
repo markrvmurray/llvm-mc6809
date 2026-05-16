@@ -42,13 +42,15 @@ define i1 @i32_ne_zero(i32 %x) {
   ret i1 %cmp
 }
 
-; CHECK-LABEL: i32_eq_one_falls_through:
-define i1 @i32_eq_one_falls_through(i32 %x) {
-  ; NOT a zero-test (constant 1, not 0).  Falls through to the libcall.
-  ; Proves the fast-path predicate doesn't over-trigger.  (Optimiser
-  ; selects __ucmpsi2 over __cmpsi2 for the EQ predicate since
-  ; signedness doesn't matter for equality.)
-  ; CHECK: lbsr __{{u?}}cmpsi2
-  %cmp = icmp eq i32 %x, 1
+; CHECK-LABEL: i32_slt_one_falls_through:
+define i1 @i32_slt_one_falls_through(i32 %x) {
+  ; NOT a zero-test predicate (slt, not eq/ne).  Falls through to the
+  ; libcall.  Proves the fast-path predicate doesn't over-trigger.
+  ; (Phase D step 2 catches eq/ne against any constant, including 1 —
+  ; so the old "K=1 fall-through" test no longer applies.  Use slt
+  ; against a non-zero/non-(-1) constant instead, which is also
+  ; outside Phase B's sign-test fast path.)
+  ; CHECK: lbsr __cmpsi2
+  %cmp = icmp slt i32 %x, 1
   ret i1 %cmp
 }

@@ -2606,6 +2606,71 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     MI.eraseFromParent();
     return true;
   }
+  case MC6809::EqConst_i32: {
+    // Bug #301 Phase D step 2 (2026-05-16): native HD6309 i32 equal-to-
+    // constant test.  Strategy: compute X - K via SUBW+SBCD, which sets
+    // CC.Z if X == K, then extract Z as a 0/1 byte (same as EqZero_i32).
+    //
+    // AQ source: $aq already holds X.
+    //   SUBW #low16(K)   ; AW = AW - low16(K), sets C
+    //   SBCD #high16(K)  ; AD = AD - high16(K) - C, sets NZ
+    //                    ; CC.Z = 1 iff X == K
+    //
+    // SPILL_Q*N source: load Q first (clobbers $aq — assumed safe since
+    // regalloc spilled the i32 to a slot, meaning $aq is free here).
+    //   LDQ <slot>,$su
+    //   SUBW #low16(K)
+    //   SBCD #high16(K)
+    //
+    // CC.Z → bit 0 of AB (same idiom as EqZero_i32):
+    //   TFR CC,A; ANDA #4; LSRA; LSRA; TFR A,B
+    MachineFunction &MF = *MI.getMF();
+    Register DstReg = MI.getOperand(0).getReg();
+    Register SrcReg = MI.getOperand(1).getReg();
+    int64_t K = MI.getOperand(2).getImm();
+    uint16_t KLo = static_cast<uint16_t>(K & 0xFFFF);
+    uint16_t KHi = static_cast<uint16_t>((K >> 16) & 0xFFFF);
+
+    // Step 1: ensure X is in $aq.
+    if (isQSpillReg(SrcReg)) {
+      int Offset = computeSpillStackOffset(SrcReg, MF);
+      bool Fits8 = (Offset >= -128 && Offset <= 127);
+      unsigned Opc = Fits8 ? MC6809::LDQi_o8 : MC6809::LDQi_o16;
+      Builder.buildInstr(Opc)
+          .addDef(MC6809::AQ, RegState::Implicit)
+          .addImm(Offset).addReg(MC6809::SU);
+    } else if (SrcReg != MC6809::AQ) {
+      llvm_unreachable("EqConst_i32 src must be AQ or SPILL_Q*N");
+    }
+
+    // Step 2: SUBW #KLo; SBCD #KHi — sets CC.Z = (X == K).
+    Builder.buildInstr(MC6809::SUBWi16).addImm(KLo);
+    Builder.buildInstr(MC6809::SBCDi16).addImm(KHi);
+
+    // Step 3: extract CC.Z into bit 0 of AB.
+    Builder.buildInstr(MC6809::TFRp)
+        .addDef(MC6809::AA).addUse(MC6809::CC);
+    Builder.buildInstr(MC6809::ANDAi8)
+        .addDef(MC6809::AA, RegState::Implicit)
+        .addUse(MC6809::AA, RegState::Implicit)
+        .addImm(4);
+    Builder.buildInstr(MC6809::LSRAa)
+        .addDef(MC6809::AA, RegState::Implicit)
+        .addUse(MC6809::AA, RegState::Implicit);
+    Builder.buildInstr(MC6809::LSRAa)
+        .addDef(MC6809::AA, RegState::Implicit)
+        .addUse(MC6809::AA, RegState::Implicit);
+    Builder.buildInstr(MC6809::TFRp)
+        .addDef(MC6809::AB).addUse(MC6809::AA);
+
+    // Step 4: COPY AB to Dst (ACC8).
+    if (DstReg != MC6809::AB) {
+      copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
+                  DstReg, MC6809::AB, /*KillSrc=*/true);
+    }
+    MI.eraseFromParent();
+    return true;
+  }
   case TargetOpcode::COPY: {
     // Bug #161 round 14: handle a COPY whose source is one of the SPILL_Q
     // half-word sub-registers (SPILL_QnLO / SPILL_QnHI). The VirtRegMap
