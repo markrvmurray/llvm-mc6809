@@ -127,38 +127,13 @@ BitVector MC6809RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   // Bug #296 Phase 2: bumped from Q0..3 to Q0..31.  HI/LO sub-regs for
   // every SPILL_Q*N must be reserved; the regalloc must never place a
   // vreg directly in any of them.
-  Reserved.set(MC6809::SPILL_Q0HI);  Reserved.set(MC6809::SPILL_Q0LO);
-  Reserved.set(MC6809::SPILL_Q1HI);  Reserved.set(MC6809::SPILL_Q1LO);
-  Reserved.set(MC6809::SPILL_Q2HI);  Reserved.set(MC6809::SPILL_Q2LO);
-  Reserved.set(MC6809::SPILL_Q3HI);  Reserved.set(MC6809::SPILL_Q3LO);
-  Reserved.set(MC6809::SPILL_Q4HI);  Reserved.set(MC6809::SPILL_Q4LO);
-  Reserved.set(MC6809::SPILL_Q5HI);  Reserved.set(MC6809::SPILL_Q5LO);
-  Reserved.set(MC6809::SPILL_Q6HI);  Reserved.set(MC6809::SPILL_Q6LO);
-  Reserved.set(MC6809::SPILL_Q7HI);  Reserved.set(MC6809::SPILL_Q7LO);
-  Reserved.set(MC6809::SPILL_Q8HI);  Reserved.set(MC6809::SPILL_Q8LO);
-  Reserved.set(MC6809::SPILL_Q9HI);  Reserved.set(MC6809::SPILL_Q9LO);
-  Reserved.set(MC6809::SPILL_Q10HI); Reserved.set(MC6809::SPILL_Q10LO);
-  Reserved.set(MC6809::SPILL_Q11HI); Reserved.set(MC6809::SPILL_Q11LO);
-  Reserved.set(MC6809::SPILL_Q12HI); Reserved.set(MC6809::SPILL_Q12LO);
-  Reserved.set(MC6809::SPILL_Q13HI); Reserved.set(MC6809::SPILL_Q13LO);
-  Reserved.set(MC6809::SPILL_Q14HI); Reserved.set(MC6809::SPILL_Q14LO);
-  Reserved.set(MC6809::SPILL_Q15HI); Reserved.set(MC6809::SPILL_Q15LO);
-  Reserved.set(MC6809::SPILL_Q16HI); Reserved.set(MC6809::SPILL_Q16LO);
-  Reserved.set(MC6809::SPILL_Q17HI); Reserved.set(MC6809::SPILL_Q17LO);
-  Reserved.set(MC6809::SPILL_Q18HI); Reserved.set(MC6809::SPILL_Q18LO);
-  Reserved.set(MC6809::SPILL_Q19HI); Reserved.set(MC6809::SPILL_Q19LO);
-  Reserved.set(MC6809::SPILL_Q20HI); Reserved.set(MC6809::SPILL_Q20LO);
-  Reserved.set(MC6809::SPILL_Q21HI); Reserved.set(MC6809::SPILL_Q21LO);
-  Reserved.set(MC6809::SPILL_Q22HI); Reserved.set(MC6809::SPILL_Q22LO);
-  Reserved.set(MC6809::SPILL_Q23HI); Reserved.set(MC6809::SPILL_Q23LO);
-  Reserved.set(MC6809::SPILL_Q24HI); Reserved.set(MC6809::SPILL_Q24LO);
-  Reserved.set(MC6809::SPILL_Q25HI); Reserved.set(MC6809::SPILL_Q25LO);
-  Reserved.set(MC6809::SPILL_Q26HI); Reserved.set(MC6809::SPILL_Q26LO);
-  Reserved.set(MC6809::SPILL_Q27HI); Reserved.set(MC6809::SPILL_Q27LO);
-  Reserved.set(MC6809::SPILL_Q28HI); Reserved.set(MC6809::SPILL_Q28LO);
-  Reserved.set(MC6809::SPILL_Q29HI); Reserved.set(MC6809::SPILL_Q29LO);
-  Reserved.set(MC6809::SPILL_Q30HI); Reserved.set(MC6809::SPILL_Q30LO);
-  Reserved.set(MC6809::SPILL_Q31HI); Reserved.set(MC6809::SPILL_Q31LO);
+  // Phase A consolidation 2026-05-16: SPILL_Q*HI[0..31] (enum 697..728)
+  // and SPILL_Q*LO[0..31] (enum 729..760) are consecutive — range
+  // loops replace the 32-pair case list.
+  for (unsigned R = MC6809::SPILL_Q0HI; R <= MC6809::SPILL_Q31HI; ++R)
+    Reserved.set(R);
+  for (unsigned R = MC6809::SPILL_Q0LO; R <= MC6809::SPILL_Q31LO; ++R)
+    Reserved.set(R);
 
   return Reserved;
 }

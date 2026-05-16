@@ -745,23 +745,11 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
                 Register R = MO.getReg();
                 // Match $aq directly, or a SPILL_Q[0-3] 32-bit spill
                 // placeholder (the slot-backed wide-acc-spill).
+                // Phase A consolidation 2026-05-16: SPILL_Q[0..31]
+                // enum values are consecutive (verified in
+                // MC6809GenRegisterInfoEnums.inc: 381..412).
                 if (R == MC6809::AQ ||
-                    R == MC6809::SPILL_Q0  || R == MC6809::SPILL_Q1  ||
-                    R == MC6809::SPILL_Q2  || R == MC6809::SPILL_Q3  ||
-                    R == MC6809::SPILL_Q4  || R == MC6809::SPILL_Q5  ||
-                    R == MC6809::SPILL_Q6  || R == MC6809::SPILL_Q7  ||
-                    R == MC6809::SPILL_Q8  || R == MC6809::SPILL_Q9  ||
-                    R == MC6809::SPILL_Q10 || R == MC6809::SPILL_Q11 ||
-                    R == MC6809::SPILL_Q12 || R == MC6809::SPILL_Q13 ||
-                    R == MC6809::SPILL_Q14 || R == MC6809::SPILL_Q15 ||
-                    R == MC6809::SPILL_Q16 || R == MC6809::SPILL_Q17 ||
-                    R == MC6809::SPILL_Q18 || R == MC6809::SPILL_Q19 ||
-                    R == MC6809::SPILL_Q20 || R == MC6809::SPILL_Q21 ||
-                    R == MC6809::SPILL_Q22 || R == MC6809::SPILL_Q23 ||
-                    R == MC6809::SPILL_Q24 || R == MC6809::SPILL_Q25 ||
-                    R == MC6809::SPILL_Q26 || R == MC6809::SPILL_Q27 ||
-                    R == MC6809::SPILL_Q28 || R == MC6809::SPILL_Q29 ||
-                    R == MC6809::SPILL_Q30 || R == MC6809::SPILL_Q31) {
+                    (R >= MC6809::SPILL_Q0 && R <= MC6809::SPILL_Q31)) {
                   SawFakeUseKill = true;
                   break;
                 }

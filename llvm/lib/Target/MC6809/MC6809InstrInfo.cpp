@@ -860,27 +860,29 @@ void MC6809InstrInfo::insertIndirectBranch(MachineBasicBlock &MBB, MachineBasicB
 }
 
 /// Check if a register is a stack-backed spill pseudo-register.
+/// Phase A 2026-05-16: SPILL_Q[0..31] enum values are consecutive
+/// (verified via MC6809GenRegisterInfoEnums.inc: SPILL_Q0 = 381,
+/// SPILL_Q31 = 412), so range checks replace the 32-entry case lists
+/// that were previously hand-spelled across 5 sites in this file.
+/// Same for SPILL_Q*HI (697..728) and SPILL_Q*LO (729..760).
+static bool isInSpillQ(Register Reg) {
+  return Reg >= MC6809::SPILL_Q0 && Reg <= MC6809::SPILL_Q31;
+}
+
 static bool isSpillReg(Register Reg) {
   switch (Reg) {
   case MC6809::SPILL_A0: case MC6809::SPILL_A1: case MC6809::SPILL_A2: case MC6809::SPILL_A3: case MC6809::SPILL_A4: case MC6809::SPILL_A5: case MC6809::SPILL_A6: case MC6809::SPILL_A7:
   case MC6809::SPILL_B0: case MC6809::SPILL_B1: case MC6809::SPILL_B2: case MC6809::SPILL_B3: case MC6809::SPILL_B4: case MC6809::SPILL_B5: case MC6809::SPILL_B6: case MC6809::SPILL_B7:
   case MC6809::SPILL_D0: case MC6809::SPILL_D1: case MC6809::SPILL_D2: case MC6809::SPILL_D3: case MC6809::SPILL_D4: case MC6809::SPILL_D5: case MC6809::SPILL_D6: case MC6809::SPILL_D7:
   case MC6809::SPILL_X0: case MC6809::SPILL_X1: case MC6809::SPILL_X2: case MC6809::SPILL_X3:
-  case MC6809::SPILL_Q0:  case MC6809::SPILL_Q1:  case MC6809::SPILL_Q2:  case MC6809::SPILL_Q3:
-  case MC6809::SPILL_Q4:  case MC6809::SPILL_Q5:  case MC6809::SPILL_Q6:  case MC6809::SPILL_Q7:
-  case MC6809::SPILL_Q8:  case MC6809::SPILL_Q9:  case MC6809::SPILL_Q10: case MC6809::SPILL_Q11:
-  case MC6809::SPILL_Q12: case MC6809::SPILL_Q13: case MC6809::SPILL_Q14: case MC6809::SPILL_Q15:
-  case MC6809::SPILL_Q16: case MC6809::SPILL_Q17: case MC6809::SPILL_Q18: case MC6809::SPILL_Q19:
-  case MC6809::SPILL_Q20: case MC6809::SPILL_Q21: case MC6809::SPILL_Q22: case MC6809::SPILL_Q23:
-  case MC6809::SPILL_Q24: case MC6809::SPILL_Q25: case MC6809::SPILL_Q26: case MC6809::SPILL_Q27:
-  case MC6809::SPILL_Q28: case MC6809::SPILL_Q29: case MC6809::SPILL_Q30: case MC6809::SPILL_Q31:
     return true;
   default:
-    return false;
+    return isInSpillQ(Reg);
   }
 }
 
-/// Get the SPILL_D parent register for any spill register.
+/// Get the SPILL_D parent register for any spill register.  SPILL_Q*N
+/// is its own parent (Phase A consolidation; see isInSpillQ).
 static MCPhysReg getSpillDParent(Register Reg) {
   switch (Reg) {
   case MC6809::SPILL_A0: case MC6809::SPILL_B0: case MC6809::SPILL_D0: return MC6809::SPILL_D0;
@@ -895,45 +897,17 @@ static MCPhysReg getSpillDParent(Register Reg) {
   case MC6809::SPILL_X1: return MC6809::SPILL_X1;
   case MC6809::SPILL_X2: return MC6809::SPILL_X2;
   case MC6809::SPILL_X3: return MC6809::SPILL_X3;
-  case MC6809::SPILL_Q0:  return MC6809::SPILL_Q0;
-  case MC6809::SPILL_Q1:  return MC6809::SPILL_Q1;
-  case MC6809::SPILL_Q2:  return MC6809::SPILL_Q2;
-  case MC6809::SPILL_Q3:  return MC6809::SPILL_Q3;
-  case MC6809::SPILL_Q4:  return MC6809::SPILL_Q4;
-  case MC6809::SPILL_Q5:  return MC6809::SPILL_Q5;
-  case MC6809::SPILL_Q6:  return MC6809::SPILL_Q6;
-  case MC6809::SPILL_Q7:  return MC6809::SPILL_Q7;
-  case MC6809::SPILL_Q8:  return MC6809::SPILL_Q8;
-  case MC6809::SPILL_Q9:  return MC6809::SPILL_Q9;
-  case MC6809::SPILL_Q10: return MC6809::SPILL_Q10;
-  case MC6809::SPILL_Q11: return MC6809::SPILL_Q11;
-  case MC6809::SPILL_Q12: return MC6809::SPILL_Q12;
-  case MC6809::SPILL_Q13: return MC6809::SPILL_Q13;
-  case MC6809::SPILL_Q14: return MC6809::SPILL_Q14;
-  case MC6809::SPILL_Q15: return MC6809::SPILL_Q15;
-  case MC6809::SPILL_Q16: return MC6809::SPILL_Q16;
-  case MC6809::SPILL_Q17: return MC6809::SPILL_Q17;
-  case MC6809::SPILL_Q18: return MC6809::SPILL_Q18;
-  case MC6809::SPILL_Q19: return MC6809::SPILL_Q19;
-  case MC6809::SPILL_Q20: return MC6809::SPILL_Q20;
-  case MC6809::SPILL_Q21: return MC6809::SPILL_Q21;
-  case MC6809::SPILL_Q22: return MC6809::SPILL_Q22;
-  case MC6809::SPILL_Q23: return MC6809::SPILL_Q23;
-  case MC6809::SPILL_Q24: return MC6809::SPILL_Q24;
-  case MC6809::SPILL_Q25: return MC6809::SPILL_Q25;
-  case MC6809::SPILL_Q26: return MC6809::SPILL_Q26;
-  case MC6809::SPILL_Q27: return MC6809::SPILL_Q27;
-  case MC6809::SPILL_Q28: return MC6809::SPILL_Q28;
-  case MC6809::SPILL_Q29: return MC6809::SPILL_Q29;
-  case MC6809::SPILL_Q30: return MC6809::SPILL_Q30;
-  case MC6809::SPILL_Q31: return MC6809::SPILL_Q31;
-  default: llvm_unreachable("Not a spill register");
+  default:
+    if (isInSpillQ(Reg)) return Reg;
+    llvm_unreachable("Not a spill register");
   }
 }
 
-/// Get byte offset within the 2-byte SPILL_D frame object.
+/// Get byte offset within the SPILL_D / SPILL_X / SPILL_Q frame object.
 /// Big-endian: A (high byte) at offset 0, B (low byte) at offset 1.
+/// SPILL_Q*N is at offset 0 (full 32-bit) — Phase A consolidation.
 static int getSpillByteOffset(Register Reg) {
+  if (isInSpillQ(Reg)) return 0;  // Full 32-bit
   switch (Reg) {
   case MC6809::SPILL_D0: case MC6809::SPILL_D1: case MC6809::SPILL_D2: case MC6809::SPILL_D3: case MC6809::SPILL_D4: case MC6809::SPILL_D5: case MC6809::SPILL_D6: case MC6809::SPILL_D7:
     return 0; // Full 16-bit, offset 0
@@ -943,21 +917,14 @@ static int getSpillByteOffset(Register Reg) {
     return 1; // Low byte (big-endian)
   case MC6809::SPILL_X0: case MC6809::SPILL_X1: case MC6809::SPILL_X2: case MC6809::SPILL_X3:
     return 0; // Full 16-bit, offset 0
-  case MC6809::SPILL_Q0:  case MC6809::SPILL_Q1:  case MC6809::SPILL_Q2:  case MC6809::SPILL_Q3:
-  case MC6809::SPILL_Q4:  case MC6809::SPILL_Q5:  case MC6809::SPILL_Q6:  case MC6809::SPILL_Q7:
-  case MC6809::SPILL_Q8:  case MC6809::SPILL_Q9:  case MC6809::SPILL_Q10: case MC6809::SPILL_Q11:
-  case MC6809::SPILL_Q12: case MC6809::SPILL_Q13: case MC6809::SPILL_Q14: case MC6809::SPILL_Q15:
-  case MC6809::SPILL_Q16: case MC6809::SPILL_Q17: case MC6809::SPILL_Q18: case MC6809::SPILL_Q19:
-  case MC6809::SPILL_Q20: case MC6809::SPILL_Q21: case MC6809::SPILL_Q22: case MC6809::SPILL_Q23:
-  case MC6809::SPILL_Q24: case MC6809::SPILL_Q25: case MC6809::SPILL_Q26: case MC6809::SPILL_Q27:
-  case MC6809::SPILL_Q28: case MC6809::SPILL_Q29: case MC6809::SPILL_Q30: case MC6809::SPILL_Q31:
-    return 0; // Full 32-bit, offset 0
   default: llvm_unreachable("Not a spill register");
   }
 }
 
 /// Get the corresponding real hardware register for a spill register.
+/// SPILL_Q*N → AQ (Phase A consolidation; see isInSpillQ).
 static Register getRealRegForSpill(Register Reg) {
+  if (isInSpillQ(Reg)) return MC6809::AQ;
   switch (Reg) {
   case MC6809::SPILL_A0: case MC6809::SPILL_A1: case MC6809::SPILL_A2: case MC6809::SPILL_A3: case MC6809::SPILL_A4: case MC6809::SPILL_A5: case MC6809::SPILL_A6: case MC6809::SPILL_A7:
     return MC6809::AA;
@@ -967,15 +934,6 @@ static Register getRealRegForSpill(Register Reg) {
     return MC6809::AD;
   case MC6809::SPILL_X0: case MC6809::SPILL_X1: case MC6809::SPILL_X2: case MC6809::SPILL_X3:
     return MC6809::IX;
-  case MC6809::SPILL_Q0:  case MC6809::SPILL_Q1:  case MC6809::SPILL_Q2:  case MC6809::SPILL_Q3:
-  case MC6809::SPILL_Q4:  case MC6809::SPILL_Q5:  case MC6809::SPILL_Q6:  case MC6809::SPILL_Q7:
-  case MC6809::SPILL_Q8:  case MC6809::SPILL_Q9:  case MC6809::SPILL_Q10: case MC6809::SPILL_Q11:
-  case MC6809::SPILL_Q12: case MC6809::SPILL_Q13: case MC6809::SPILL_Q14: case MC6809::SPILL_Q15:
-  case MC6809::SPILL_Q16: case MC6809::SPILL_Q17: case MC6809::SPILL_Q18: case MC6809::SPILL_Q19:
-  case MC6809::SPILL_Q20: case MC6809::SPILL_Q21: case MC6809::SPILL_Q22: case MC6809::SPILL_Q23:
-  case MC6809::SPILL_Q24: case MC6809::SPILL_Q25: case MC6809::SPILL_Q26: case MC6809::SPILL_Q27:
-  case MC6809::SPILL_Q28: case MC6809::SPILL_Q29: case MC6809::SPILL_Q30: case MC6809::SPILL_Q31:
-    return MC6809::AQ;
   default: llvm_unreachable("Not a spill register");
   }
 }
@@ -992,21 +950,10 @@ static bool isIndexSpillReg(Register Reg) {
 
 /// Bug #161 round 14: Q (32-bit) spill register predicate. Used to route
 /// emitSpillLoad / emitSpillStore through LDQ / STQ rather than the
-/// AD-staged 16-bit path.
+/// AD-staged 16-bit path.  Phase A consolidation 2026-05-16: just a
+/// thin wrapper around isInSpillQ.
 static bool isQSpillReg(Register Reg) {
-  switch (Reg) {
-  case MC6809::SPILL_Q0:  case MC6809::SPILL_Q1:  case MC6809::SPILL_Q2:  case MC6809::SPILL_Q3:
-  case MC6809::SPILL_Q4:  case MC6809::SPILL_Q5:  case MC6809::SPILL_Q6:  case MC6809::SPILL_Q7:
-  case MC6809::SPILL_Q8:  case MC6809::SPILL_Q9:  case MC6809::SPILL_Q10: case MC6809::SPILL_Q11:
-  case MC6809::SPILL_Q12: case MC6809::SPILL_Q13: case MC6809::SPILL_Q14: case MC6809::SPILL_Q15:
-  case MC6809::SPILL_Q16: case MC6809::SPILL_Q17: case MC6809::SPILL_Q18: case MC6809::SPILL_Q19:
-  case MC6809::SPILL_Q20: case MC6809::SPILL_Q21: case MC6809::SPILL_Q22: case MC6809::SPILL_Q23:
-  case MC6809::SPILL_Q24: case MC6809::SPILL_Q25: case MC6809::SPILL_Q26: case MC6809::SPILL_Q27:
-  case MC6809::SPILL_Q28: case MC6809::SPILL_Q29: case MC6809::SPILL_Q30: case MC6809::SPILL_Q31:
-    return true;
-  default:
-    return false;
-  }
+  return isInSpillQ(Reg);
 }
 
 /// Bug #161 round 14: SPILL_Q half-word sub-register predicate. The
@@ -1015,74 +962,23 @@ static bool isQSpillReg(Register Reg) {
 /// is rewritten. Returns true and outputs the parent SPILL_Q + which
 /// half (true = LO = stack offset +2, false = HI = offset +0,
 /// big-endian Q layout).
+///
+/// Phase A consolidation 2026-05-16: SPILL_Q*HI[N] and SPILL_Q*LO[N]
+/// are consecutive in the enum (HI: 697..728, LO: 729..760, per
+/// MC6809GenRegisterInfoEnums.inc) and parallel to SPILL_Q[N] (381..412).
+/// Two range checks replace the 64-entry case list.
 static bool isQSpillHalfReg(Register Reg, MCPhysReg &Parent, bool &IsLo) {
-  switch (Reg) {
-  case MC6809::SPILL_Q0LO: Parent = MC6809::SPILL_Q0; IsLo = true;  return true;
-  case MC6809::SPILL_Q0HI: Parent = MC6809::SPILL_Q0; IsLo = false; return true;
-  case MC6809::SPILL_Q1LO: Parent = MC6809::SPILL_Q1; IsLo = true;  return true;
-  case MC6809::SPILL_Q1HI: Parent = MC6809::SPILL_Q1; IsLo = false; return true;
-  case MC6809::SPILL_Q2LO: Parent = MC6809::SPILL_Q2; IsLo = true;  return true;
-  case MC6809::SPILL_Q2HI: Parent = MC6809::SPILL_Q2; IsLo = false; return true;
-  case MC6809::SPILL_Q3LO: Parent = MC6809::SPILL_Q3; IsLo = true;  return true;
-  case MC6809::SPILL_Q3HI: Parent = MC6809::SPILL_Q3; IsLo = false; return true;
-  case MC6809::SPILL_Q4LO: Parent = MC6809::SPILL_Q4; IsLo = true;  return true;
-  case MC6809::SPILL_Q4HI: Parent = MC6809::SPILL_Q4; IsLo = false; return true;
-  case MC6809::SPILL_Q5LO: Parent = MC6809::SPILL_Q5; IsLo = true;  return true;
-  case MC6809::SPILL_Q5HI: Parent = MC6809::SPILL_Q5; IsLo = false; return true;
-  case MC6809::SPILL_Q6LO: Parent = MC6809::SPILL_Q6; IsLo = true;  return true;
-  case MC6809::SPILL_Q6HI: Parent = MC6809::SPILL_Q6; IsLo = false; return true;
-  case MC6809::SPILL_Q7LO: Parent = MC6809::SPILL_Q7; IsLo = true;  return true;
-  case MC6809::SPILL_Q7HI: Parent = MC6809::SPILL_Q7; IsLo = false; return true;
-  case MC6809::SPILL_Q8LO: Parent = MC6809::SPILL_Q8; IsLo = true;  return true;
-  case MC6809::SPILL_Q8HI: Parent = MC6809::SPILL_Q8; IsLo = false; return true;
-  case MC6809::SPILL_Q9LO: Parent = MC6809::SPILL_Q9; IsLo = true;  return true;
-  case MC6809::SPILL_Q9HI: Parent = MC6809::SPILL_Q9; IsLo = false; return true;
-  case MC6809::SPILL_Q10LO: Parent = MC6809::SPILL_Q10; IsLo = true;  return true;
-  case MC6809::SPILL_Q10HI: Parent = MC6809::SPILL_Q10; IsLo = false; return true;
-  case MC6809::SPILL_Q11LO: Parent = MC6809::SPILL_Q11; IsLo = true;  return true;
-  case MC6809::SPILL_Q11HI: Parent = MC6809::SPILL_Q11; IsLo = false; return true;
-  case MC6809::SPILL_Q12LO: Parent = MC6809::SPILL_Q12; IsLo = true;  return true;
-  case MC6809::SPILL_Q12HI: Parent = MC6809::SPILL_Q12; IsLo = false; return true;
-  case MC6809::SPILL_Q13LO: Parent = MC6809::SPILL_Q13; IsLo = true;  return true;
-  case MC6809::SPILL_Q13HI: Parent = MC6809::SPILL_Q13; IsLo = false; return true;
-  case MC6809::SPILL_Q14LO: Parent = MC6809::SPILL_Q14; IsLo = true;  return true;
-  case MC6809::SPILL_Q14HI: Parent = MC6809::SPILL_Q14; IsLo = false; return true;
-  case MC6809::SPILL_Q15LO: Parent = MC6809::SPILL_Q15; IsLo = true;  return true;
-  case MC6809::SPILL_Q15HI: Parent = MC6809::SPILL_Q15; IsLo = false; return true;
-  case MC6809::SPILL_Q16LO: Parent = MC6809::SPILL_Q16; IsLo = true;  return true;
-  case MC6809::SPILL_Q16HI: Parent = MC6809::SPILL_Q16; IsLo = false; return true;
-  case MC6809::SPILL_Q17LO: Parent = MC6809::SPILL_Q17; IsLo = true;  return true;
-  case MC6809::SPILL_Q17HI: Parent = MC6809::SPILL_Q17; IsLo = false; return true;
-  case MC6809::SPILL_Q18LO: Parent = MC6809::SPILL_Q18; IsLo = true;  return true;
-  case MC6809::SPILL_Q18HI: Parent = MC6809::SPILL_Q18; IsLo = false; return true;
-  case MC6809::SPILL_Q19LO: Parent = MC6809::SPILL_Q19; IsLo = true;  return true;
-  case MC6809::SPILL_Q19HI: Parent = MC6809::SPILL_Q19; IsLo = false; return true;
-  case MC6809::SPILL_Q20LO: Parent = MC6809::SPILL_Q20; IsLo = true;  return true;
-  case MC6809::SPILL_Q20HI: Parent = MC6809::SPILL_Q20; IsLo = false; return true;
-  case MC6809::SPILL_Q21LO: Parent = MC6809::SPILL_Q21; IsLo = true;  return true;
-  case MC6809::SPILL_Q21HI: Parent = MC6809::SPILL_Q21; IsLo = false; return true;
-  case MC6809::SPILL_Q22LO: Parent = MC6809::SPILL_Q22; IsLo = true;  return true;
-  case MC6809::SPILL_Q22HI: Parent = MC6809::SPILL_Q22; IsLo = false; return true;
-  case MC6809::SPILL_Q23LO: Parent = MC6809::SPILL_Q23; IsLo = true;  return true;
-  case MC6809::SPILL_Q23HI: Parent = MC6809::SPILL_Q23; IsLo = false; return true;
-  case MC6809::SPILL_Q24LO: Parent = MC6809::SPILL_Q24; IsLo = true;  return true;
-  case MC6809::SPILL_Q24HI: Parent = MC6809::SPILL_Q24; IsLo = false; return true;
-  case MC6809::SPILL_Q25LO: Parent = MC6809::SPILL_Q25; IsLo = true;  return true;
-  case MC6809::SPILL_Q25HI: Parent = MC6809::SPILL_Q25; IsLo = false; return true;
-  case MC6809::SPILL_Q26LO: Parent = MC6809::SPILL_Q26; IsLo = true;  return true;
-  case MC6809::SPILL_Q26HI: Parent = MC6809::SPILL_Q26; IsLo = false; return true;
-  case MC6809::SPILL_Q27LO: Parent = MC6809::SPILL_Q27; IsLo = true;  return true;
-  case MC6809::SPILL_Q27HI: Parent = MC6809::SPILL_Q27; IsLo = false; return true;
-  case MC6809::SPILL_Q28LO: Parent = MC6809::SPILL_Q28; IsLo = true;  return true;
-  case MC6809::SPILL_Q28HI: Parent = MC6809::SPILL_Q28; IsLo = false; return true;
-  case MC6809::SPILL_Q29LO: Parent = MC6809::SPILL_Q29; IsLo = true;  return true;
-  case MC6809::SPILL_Q29HI: Parent = MC6809::SPILL_Q29; IsLo = false; return true;
-  case MC6809::SPILL_Q30LO: Parent = MC6809::SPILL_Q30; IsLo = true;  return true;
-  case MC6809::SPILL_Q30HI: Parent = MC6809::SPILL_Q30; IsLo = false; return true;
-  case MC6809::SPILL_Q31LO: Parent = MC6809::SPILL_Q31; IsLo = true;  return true;
-  case MC6809::SPILL_Q31HI: Parent = MC6809::SPILL_Q31; IsLo = false; return true;
-  default: return false;
+  if (Reg >= MC6809::SPILL_Q0HI && Reg <= MC6809::SPILL_Q31HI) {
+    Parent = MC6809::SPILL_Q0 + (Reg - MC6809::SPILL_Q0HI);
+    IsLo = false;
+    return true;
   }
+  if (Reg >= MC6809::SPILL_Q0LO && Reg <= MC6809::SPILL_Q31LO) {
+    Parent = MC6809::SPILL_Q0 + (Reg - MC6809::SPILL_Q0LO);
+    IsLo = true;
+    return true;
+  }
+  return false;
 }
 
 /// Get the size in bytes of a spill register (1 for A/B, 2 for D/X, 4 for Q).
@@ -1393,6 +1289,94 @@ static MachineInstrBuilder emitSpillStore(MachineIRBuilder &Builder,
       .addReg(MC6809::SU)  // Frame pointer — stable across PSHS/PULS
       .addReg(Register(SpillReg), RegState::ImplicitDefine);
   return MI;
+}
+
+/// Bug #298 / #300 (consolidated Phase A 2026-05-16): bracket a body
+/// of post-RA MIs with a 4-byte hard-stack scratch slot that holds
+/// $aq's pre-body value.  Two variants:
+///
+///  - `emitAQOnHardStackScratch` saves $aq into the scratch and
+///    releases the slot after body, but DOES NOT restore $aq.  Use
+///    when body destroys $aq deliberately (e.g. body IS the i32
+///    arithmetic whose result becomes the new $aq).  Body can read
+///    the saved $aq via $ss + 0..3 indexing.  Origin:
+///    `expandAddSub_i32_Reg` (Bug #298), where SRC2 is in $aq and is
+///    read via $ss+0..3 while DST $aq is overwritten with ADDW+ADCD's
+///    result.
+///
+///  - `emitAQPreservedOverHardStackScratch` saves $aq into the
+///    scratch, runs body (which may transiently clobber $aq), then
+///    restores $aq from the scratch and releases.  Use when body's
+///    side-effect on $aq must be hidden from the caller.  Origin:
+///    `expandLoadImm` SPILL_Q*N branch (Bug #300), where LDQ #imm
+///    transiently stages through $aq before STQ-to-spill-slot.
+///
+/// Both helpers emit the same `LEAS -4,$ss; STQ ,$ss; <body>;
+/// [LDQ ,$ss;] LEAS 4,$ss` shape.  Per
+/// `feedback_leas_save_restore_not_for_common_pseudos.md`, only the
+/// existing call sites should use these — adding to common pseudos
+/// (e.g. Add/Sub_i32_Mem) blows past the 64KB cart limit.
+static void emitAQOnHardStackScratch(MachineIRBuilder &Builder,
+                                      llvm::function_ref<void()> Body) {
+  Builder.buildInstr(MC6809::LEASi_o5).addImm(-4).addReg(MC6809::SS);
+  Builder.buildInstr(MC6809::STQi_o0)
+      .addUse(MC6809::AQ, RegState::Implicit)
+      .addReg(MC6809::SS);
+  Body();
+  Builder.buildInstr(MC6809::LEASi_o5).addImm(4).addReg(MC6809::SS);
+}
+
+static void emitAQPreservedOverHardStackScratch(
+    MachineIRBuilder &Builder, llvm::function_ref<void()> Body) {
+  Builder.buildInstr(MC6809::LEASi_o5).addImm(-4).addReg(MC6809::SS);
+  Builder.buildInstr(MC6809::STQi_o0)
+      .addUse(MC6809::AQ, RegState::Implicit)
+      .addReg(MC6809::SS);
+  Body();
+  Builder.buildInstr(MC6809::LDQi_o0)
+      .addDef(MC6809::AQ, RegState::Implicit)
+      .addReg(MC6809::SS);
+  Builder.buildInstr(MC6809::LEASi_o5).addImm(4).addReg(MC6809::SS);
+}
+
+// Forward declarations needed by emitTwoLDDSlotCopy.
+static unsigned getLoadIdxOpcode(Register Reg, int Offset);
+static unsigned getStoreIdxOpcode(Register Reg, int Offset);
+
+/// Bug #221 / #274 (consolidated Phase A 2026-05-16): copy a 4-byte
+/// i32 from one indexed address to another using two LDD/STD pairs,
+/// avoiding LDQ/STQ.  LDQ/STQ would clobber AQ's sub-registers
+/// (AW, AD, AA, AB, AE, AF) and risk corrupting regalloc-assigned
+/// values living in those sub-registers — `$spill_q*` is an
+/// imaginary reg distinct from physical $aq, so the regalloc treats
+/// them independently and may legitimately place an unrelated vreg
+/// in $aw / $ad across the Q-spill access.
+///
+/// Big-endian Q layout: byte 0..1 = HI word, byte 2..3 = LO word.
+/// Emits HI half first (offset 0), then LO half (offset 2).
+/// Only $ad is clobbered.
+///
+/// If `MarkerReg` is non-null, the LAST STD gets `implicit-def
+/// <MarkerReg>` — used by `expandLoadIdx` SPILL_Q*N dst (Bug #274)
+/// so downstream FAKE_USE / opaque consumers see the slot defined
+/// for `-verify-machineinstrs`.
+static void emitTwoLDDSlotCopy(MachineIRBuilder &Builder,
+                                int SrcOff, Register SrcBase,
+                                int DstOff, Register DstBase,
+                                Register MarkerReg = Register()) {
+  for (int H : {0, 2}) {
+    bool LastHalf = (H == 2);
+    unsigned LdOpc = getLoadIdxOpcode(MC6809::AD, SrcOff + H);
+    Builder.buildInstr(LdOpc)
+        .addDef(MC6809::AD, RegState::Implicit)
+        .addImm(SrcOff + H).addReg(SrcBase);
+    unsigned StOpc = getStoreIdxOpcode(MC6809::AD, DstOff + H);
+    auto St = Builder.buildInstr(StOpc)
+        .addUse(MC6809::AD, RegState::Implicit)
+        .addImm(DstOff + H).addReg(DstBase);
+    if (LastHalf && MarkerReg.isValid())
+      St.addDef(MarkerReg, RegState::Implicit);
+  }
 }
 
 /// Check if a register needs materialization (spill or imaginary — not a real
@@ -4054,69 +4038,60 @@ void MC6809InstrInfo::expandAddSub_i32_Reg(MachineIRBuilder &Builder,
   Register OrigDest = DestReg;
   MachineFunction &MF = *MI.getMF();
 
-  // Step 1a: LEAS -4,S — allocate 4 bytes on the hard stack.
-  Builder.buildInstr(MC6809::LEASi_o5)
-      .addImm(-4)
-      .addReg(MC6809::SS);
+  // The body of the helper saves $aq into a 4-byte hard-stack scratch
+  // slot (so SRC2-in-AQ is readable via $ss+0..3) and DOES NOT restore
+  // $aq after the body — the body's ADDW+ADCD result becomes the new
+  // $aq, which is the DST.
+  emitAQOnHardStackScratch(Builder, [&]() {
+    // Step 1: materialize $dst into AQ.  Uses U-relative addressing
+    // for SPILL_Q*N → AQ; U is unchanged by the LEAS on S.
+    if (needsMaterialization(DestReg))
+      DestReg = materializeReg(Builder, DestReg, MF);
+    assert(DestReg == MC6809::AQ &&
+           "Bug #297: i32 ADD/SUB Reg requires AQ for the ALU-side ops");
 
-  // Step 1b: STQ AQ → emergency slot at [S+0..3].
-  Builder.buildInstr(MC6809::STQi_o0)
-      .addUse(MC6809::AQ, RegState::Implicit)
-      .addReg(MC6809::SS);
+    // Step 2: pick $src2's stack offset + base register.
+    //   SPILL_Q*N → computeSpillStackOffset (U-relative)
+    //   AQ        → emergency slot at S+0 (S-relative)
+    bool Src2InEmergency = !isQSpillReg(Src2Reg);
+    int Src2Off = Src2InEmergency
+                      ? 0
+                      : computeSpillStackOffset(Src2Reg, MF);
+    int Src2OffLo = Src2Off + 2;
+    int Src2OffHi = Src2Off;
+    int Src2OffLoSize = offsetSizeInBitsForValue(Src2OffLo);
+    int Src2OffHiSize = offsetSizeInBitsForValue(Src2OffHi);
+    Register Src2BaseReg = Src2InEmergency ? MC6809::SS : MC6809::SU;
 
-  // Step 2: materialize $dst into AQ.  Uses U-relative addressing for
-  // SPILL_Q*N → AQ; U is unchanged by our LEAS on S.
-  if (needsMaterialization(DestReg))
-    DestReg = materializeReg(Builder, DestReg, MF);
-  assert(DestReg == MC6809::AQ &&
-         "Bug #297: i32 ADD/SUB Reg requires AQ for the ALU-side ops");
+    // Step 3: emit ADDW/SUBW + ADCD/SBCD pair against $src2's base.
+    auto &LowMap = IsAdd ? AddIdxImmOpcode : SubIdxImmOpcode;
+    auto &HighMap = IsAdd ? AddCarryIdxImmOpcode : SubBorrowIdxImmOpcode;
+    auto LowLookup = LowMap.find({MC6809::AW, Src2OffLoSize});
+    auto HighLookup = HighMap.find({MC6809::AD, Src2OffHiSize});
+    assert(LowLookup != LowMap.end() && HighLookup != HighMap.end() &&
+           "Bug #297: missing ADDW/ADCD/SUBW/SBCD opcode entry");
 
-  // Step 3: pick $src2's stack offset + base register.
-  //   SPILL_Q*N → computeSpillStackOffset (U-relative)
-  //   AQ        → emergency slot at S+0 (S-relative)
-  bool Src2InEmergency = !isQSpillReg(Src2Reg);
-  int Src2Off = Src2InEmergency
-                    ? 0
-                    : computeSpillStackOffset(Src2Reg, MF);
-  int Src2OffLo = Src2Off + 2;
-  int Src2OffHi = Src2Off;
-  int Src2OffLoSize = offsetSizeInBitsForValue(Src2OffLo);
-  int Src2OffHiSize = offsetSizeInBitsForValue(Src2OffHi);
-  Register Src2BaseReg = Src2InEmergency ? MC6809::SS : MC6809::SU;
+    auto LowInstr =
+        Builder.buildInstr(LowLookup->getSecond())
+            .addDef(MC6809::AW, RegState::Implicit);
+    if (Src2OffLoSize == 0)
+      LowInstr.addReg(Src2BaseReg);
+    else
+      LowInstr.addImm(Src2OffLo).addReg(Src2BaseReg);
 
-  // Step 4: emit ADDW/SUBW + ADCD/SBCD pair against $src2's base.
-  auto &LowMap = IsAdd ? AddIdxImmOpcode : SubIdxImmOpcode;
-  auto &HighMap = IsAdd ? AddCarryIdxImmOpcode : SubBorrowIdxImmOpcode;
-  auto LowLookup = LowMap.find({MC6809::AW, Src2OffLoSize});
-  auto HighLookup = HighMap.find({MC6809::AD, Src2OffHiSize});
-  assert(LowLookup != LowMap.end() && HighLookup != HighMap.end() &&
-         "Bug #297: missing ADDW/ADCD/SUBW/SBCD opcode entry");
+    auto HighInstr =
+        Builder.buildInstr(HighLookup->getSecond())
+            .addDef(MC6809::AD, RegState::Implicit);
+    if (Src2OffHiSize == 0)
+      HighInstr.addReg(Src2BaseReg);
+    else
+      HighInstr.addImm(Src2OffHi).addReg(Src2BaseReg);
 
-  auto LowInstr =
-      Builder.buildInstr(LowLookup->getSecond())
-          .addDef(MC6809::AW, RegState::Implicit);
-  if (Src2OffLoSize == 0)
-    LowInstr.addReg(Src2BaseReg);
-  else
-    LowInstr.addImm(Src2OffLo).addReg(Src2BaseReg);
-
-  auto HighInstr =
-      Builder.buildInstr(HighLookup->getSecond())
-          .addDef(MC6809::AD, RegState::Implicit);
-  if (Src2OffHiSize == 0)
-    HighInstr.addReg(Src2BaseReg);
-  else
-    HighInstr.addImm(Src2OffHi).addReg(Src2BaseReg);
-
-  // Step 5: dematerialize $dst back if it was spilled.  U-relative
-  // addressing; safe across the in-progress S-displacement.
-  if (needsMaterialization(OrigDest))
-    dematerializeReg(Builder, DestReg, OrigDest, MF);
-
-  // Step 6: LEAS 4,S — release the emergency slot.
-  Builder.buildInstr(MC6809::LEASi_o5)
-      .addImm(4)
-      .addReg(MC6809::SS);
+    // Step 4: dematerialize $dst back if it was spilled.  U-relative
+    // addressing; safe across the in-progress S-displacement.
+    if (needsMaterialization(OrigDest))
+      dematerializeReg(Builder, DestReg, OrigDest, MF);
+  });
 
   MI.eraseFromParent();
 }
@@ -4786,45 +4761,33 @@ void MC6809InstrInfo::expandLoadImm(MachineIRBuilder &Builder, MachineInstr &MI)
     // value.  Cost: 4 extra instructions per i32-Imm-to-spill load.
     bool IsQSpill = !isIndexSpillReg(DestRegOp.getReg()) &&
                     RealReg == MC6809::AQ;
+    auto Body = [&]() {
+      // Load immediate into staging register, then store to spill/
+      // imaginary slot.
+      auto OpcodePair = LoadImmediateOpcode.find(RealReg);
+      assert(OpcodePair != LoadImmediateOpcode.end());
+      auto NewMI = Builder.buildInstr(OpcodePair->getSecond()).addDef(RealReg, RegState::Implicit);
+      if (ValOp.isGlobal())
+        NewMI.addGlobalAddress(ValOp.getGlobal(), ValOp.getOffset(), ValOp.getTargetFlags());
+      else {
+        int64_t Val = ValOp.isImm() ? ValOp.getImm() : ValOp.getCImm()->getSExtValue();
+        NewMI.addImm(Val);
+      }
+      // Store to spill slot (use STY for INDEX spills) or dematerialize.
+      if (isIndexSpillReg(DestRegOp.getReg())) {
+        int SpillOff = computeSpillStackOffset(DestRegOp.getReg(), MF);
+        unsigned StoreOpc = getStoreIdxOpcode(MC6809::IY, SpillOff);
+        Builder.buildInstr(StoreOpc)
+            .addUse(MC6809::IY, RegState::Implicit)
+            .addImm(SpillOff).addReg(MC6809::SU);
+      } else {
+        dematerializeReg(Builder, RealReg, DestRegOp.getReg(), MF);
+      }
+    };
     if (IsQSpill) {
-      // LEAS -4, $ss
-      Builder.buildInstr(MC6809::LEASi_o5)
-          .addImm(-4)
-          .addReg(MC6809::SS);
-      // STQ ,$ss — save current $aq
-      Builder.buildInstr(MC6809::STQi_o0)
-          .addUse(MC6809::AQ, RegState::Implicit)
-          .addReg(MC6809::SS);
-    }
-    // Load immediate into staging register, then store to spill/imaginary slot.
-    auto OpcodePair = LoadImmediateOpcode.find(RealReg);
-    assert(OpcodePair != LoadImmediateOpcode.end());
-    auto NewMI = Builder.buildInstr(OpcodePair->getSecond()).addDef(RealReg, RegState::Implicit);
-    if (ValOp.isGlobal())
-      NewMI.addGlobalAddress(ValOp.getGlobal(), ValOp.getOffset(), ValOp.getTargetFlags());
-    else {
-      int64_t Val = ValOp.isImm() ? ValOp.getImm() : ValOp.getCImm()->getSExtValue();
-      NewMI.addImm(Val);
-    }
-    // Store to spill slot (use STY for INDEX spills) or dematerialize.
-    if (isIndexSpillReg(DestRegOp.getReg())) {
-      int SpillOff = computeSpillStackOffset(DestRegOp.getReg(), MF);
-      unsigned StoreOpc = getStoreIdxOpcode(MC6809::IY, SpillOff);
-      Builder.buildInstr(StoreOpc)
-          .addUse(MC6809::IY, RegState::Implicit)
-          .addImm(SpillOff).addReg(MC6809::SU);
+      emitAQPreservedOverHardStackScratch(Builder, Body);
     } else {
-      dematerializeReg(Builder, RealReg, DestRegOp.getReg(), MF);
-    }
-    if (IsQSpill) {
-      // LDQ ,$ss — restore $aq
-      Builder.buildInstr(MC6809::LDQi_o0)
-          .addDef(MC6809::AQ, RegState::Implicit)
-          .addReg(MC6809::SS);
-      // LEAS 4, $ss
-      Builder.buildInstr(MC6809::LEASi_o5)
-          .addImm(4)
-          .addReg(MC6809::SS);
+      Body();
     }
     MI.removeFromParent();
     return;
@@ -4893,41 +4856,12 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
 
       // Bug #272 Phase B core: accept CImm offsets too (see expandStoreIdx).
       bool SrcOffIsImmediate = SrcOffset.isImm() || SrcOffset.isCImm();
-      auto emitHalf = [&](int HalfOffset, bool LastHalf) {
-        // Load src+HalfOffset → AD via LDD (handles 5-bit, 8-bit, 16-bit
-        // offsets through getLoadIdxOpcode).
-        int SrcOffsetBytes =
-            SrcOffIsImmediate
-                ? (SrcOffset.isImm()
-                       ? int(SrcOffset.getImm())
-                       : int(SrcOffset.getCImm()->getSExtValue())) +
-                      HalfOffset
-                : HalfOffset;
-        unsigned LdOpc = getLoadIdxOpcode(MC6809::AD, SrcOffsetBytes);
-        Builder.buildInstr(LdOpc)
-            .addDef(MC6809::AD, RegState::Implicit)
-            .addImm(SrcOffsetBytes)
-            .addReg(SrcIndex.getReg());
-        // Store AD → dst spill slot + HalfOffset via STD.
-        unsigned StOpc =
-            getStoreIdxOpcode(MC6809::AD, DstSpillOff + HalfOffset);
-        auto St = Builder.buildInstr(StOpc)
-            .addUse(MC6809::AD, RegState::Implicit)
-            .addImm(DstSpillOff + HalfOffset)
-            .addReg(MC6809::SU);
-        // Bug #274: mark the final half-store as the implicit-def of the
-        // SPILL_Q* destination. Without this annotation any later
-        // FAKE_USE or otherwise opaque consumer of the SPILL_Q* reg
-        // (e.g. clang's `-fextend-lifetimes` debug intrinsics) sees an
-        // undefined physical register and -verify-machineinstrs flags
-        // it. The slot DOES hold the value after the two-LDD copy; we
-        // are merely telling the verifier so.
-        if (LastHalf)
-          St.addDef(DestRegOp.getReg(), RegState::Implicit);
-      };
       if (SrcOffIsImmediate) {
-        emitHalf(0, /*LastHalf=*/false);  // HI word
-        emitHalf(2, /*LastHalf=*/true);   // LO word
+        int SrcOffBytes = SrcOffset.isImm()
+                              ? int(SrcOffset.getImm())
+                              : int(SrcOffset.getCImm()->getSExtValue());
+        emitTwoLDDSlotCopy(Builder, SrcOffBytes, SrcIndex.getReg(),
+                           DstSpillOff, MC6809::SU, DestRegOp.getReg());
         MI.eraseFromParent();
         return;
       }
@@ -5046,20 +4980,8 @@ void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI
       int DstOffBytes = DstOffset.isImm()
                             ? int(DstOffset.getImm())
                             : int(DstOffset.getCImm()->getSExtValue());
-      auto emitHalf = [&](int HalfOffset) {
-        unsigned LdOpc = getLoadIdxOpcode(MC6809::AD, SrcSpillOff + HalfOffset);
-        Builder.buildInstr(LdOpc)
-            .addDef(MC6809::AD, RegState::Implicit)
-            .addImm(SrcSpillOff + HalfOffset)
-            .addReg(MC6809::SU);
-        unsigned StOpc = getStoreIdxOpcode(MC6809::AD, DstOffBytes + HalfOffset);
-        Builder.buildInstr(StOpc)
-            .addUse(MC6809::AD, RegState::Implicit)
-            .addImm(DstOffBytes + HalfOffset)
-            .addReg(DstIndex.getReg());
-      };
-      emitHalf(0);  // HI word
-      emitHalf(2);  // LO word
+      emitTwoLDDSlotCopy(Builder, SrcSpillOff, MC6809::SU,
+                         DstOffBytes, DstIndex.getReg());
       MI.eraseFromParent();
       return;
     }
