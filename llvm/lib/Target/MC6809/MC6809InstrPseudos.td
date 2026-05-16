@@ -205,6 +205,33 @@ let Defs = [NZ, V] in {
     dag InOperandList  = (ins ACC32:$src);
     let Defs = [NZ, V, C];
   }
+
+  // Bug #301 Phase D step 1 (2026-05-16): native HD6309 i32 equal-to-zero
+  // test.  Produces an i1 whose value is 1 if the i32 is zero, else 0.
+  //
+  // Replaces __cmpsi2 + trunc i32→i8 + icmp eq 0 for the two zero-test
+  // predicates:
+  //   icmp eq X, 0    →  EqZero_i32 X
+  //   icmp ne X, 0    →  XOR (EqZero_i32 X) 1
+  //
+  // Post-RA expansion (in MC6809InstrInfo.cpp): OR the 4 source bytes
+  // through AB then extract CC.Z into bit 0 of AB (TFR CC,B; ANDB #4;
+  // LSRB; LSRB). AQ source uses the byte chain AA:AB:AE:AF via
+  // LEAS-bracket PSHS+ORA-chain; SPILL_Q*N source reads the 4 slot bytes
+  // directly with LDA + 3× ORA.  No EXTRACT_*_word_i32 emission —
+  // bypasses Bug #301a's intersection-class collapse like SignTest_i32.
+  //
+  // Defs cover CC clobber.
+  // Output class is ACC8 (not BIT1) so the instruction selector's
+  // constrainSelectedInstRegOperands on a downstream G_SELECT consumer
+  // doesn't narrow the result vreg below ACC8.  The post-RA expansion
+  // produces a 0/1 byte (high 7 bits cleared), which is semantically
+  // identical to a BIT1 value when consumed as a byte.
+  def EqZero_i32 : MC6809Pseudo {
+    dag OutOperandList = (outs ACC8:$dst);
+    dag InOperandList  = (ins ACC32:$src);
+    let Defs = [NZ, V, C];
+  }
 }
 
 // Materialise the CC.C flag into byte 0/1. Used when a phantom BIT1 vreg

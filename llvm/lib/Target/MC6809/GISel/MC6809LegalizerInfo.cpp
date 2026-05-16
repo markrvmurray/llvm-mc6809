@@ -677,6 +677,41 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
           MI.eraseFromParent();
           return true;
         }
+        // Bug #301 Phase D step 1 (2026-05-16): equal-to-zero fast path.
+        //   icmp eq X, 0  →  EqZero_i32 X
+        //   icmp ne X, 0  →  XOR (EqZero_i32 X) 1
+        // Lowers to a 4-byte OR-chain that sets CC.Z if all bytes were 0,
+        // then materialises Z as a 0/1 byte.  Replaces __cmpsi2 + trunc +
+        // icmp eq 0 for this very common shape.
+        if (RhsConst->Value == 0 &&
+            (Pred == CmpInst::ICMP_EQ || Pred == CmpInst::ICMP_NE)) {
+          // EqZero_i32's output class is ACC8 (a 0/1 byte).  For NE we
+          // need an i1 invert via XOR-with-1, but we materialise the
+          // intermediate as a byte (ACC8) and convert at the boundary.
+          LLT S1 = LLT::scalar(1);
+          LLT S8 = LLT::scalar(8);
+          MRI.setRegClass(Lhs, &MC6809::ACC32RegClass);
+          bool InvertEq = (Pred == CmpInst::ICMP_NE);
+          if (InvertEq) {
+            Register IsZeroByte = MRI.createGenericVirtualRegister(S8);
+            MRI.setRegClass(IsZeroByte, &MC6809::ACC8RegClass);
+            B.buildInstr(MC6809::EqZero_i32, {IsZeroByte}, {Lhs});
+            auto OneB = B.buildConstant(S8, 1);
+            auto XorB = B.buildXor(S8, IsZeroByte, OneB);
+            // Trunc the i8 result back to i1 for the G_ICMP Dst type.
+            MRI.setRegClass(Dst, &MC6809::BIT1RegClass);
+            B.buildTrunc(Dst, XorB);
+          } else {
+            // EQ: byte result truncs to i1 for the Dst.
+            Register IsZeroByte = MRI.createGenericVirtualRegister(S8);
+            MRI.setRegClass(IsZeroByte, &MC6809::ACC8RegClass);
+            B.buildInstr(MC6809::EqZero_i32, {IsZeroByte}, {Lhs});
+            MRI.setRegClass(Dst, &MC6809::BIT1RegClass);
+            B.buildTrunc(Dst, IsZeroByte);
+          }
+          MI.eraseFromParent();
+          return true;
+        }
       }
     }
 

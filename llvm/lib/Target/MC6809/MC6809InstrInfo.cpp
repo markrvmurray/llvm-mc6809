@@ -2508,6 +2508,104 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     MI.eraseFromParent();
     return true;
   }
+  case MC6809::EqZero_i32: {
+    // Bug #301 Phase D step 1 (2026-05-16): native HD6309 i32 equal-to-zero.
+    // Strategy: OR all 4 source bytes into AB, then extract CC.Z into AB.
+    // Result i1 = 1 if i32 was zero, 0 otherwise.
+    //
+    // CAVEAT: this expansion CLOBBERS $aq's AB byte (AQ-source path) or
+    // leaves $aq untouched but clobbers $ab (SPILL_Q*N-source path).
+    // The legalizer/regalloc must treat the LHS i32 vreg as dead post-
+    // EqZero_i32 — same effective constraint as the __cmpsi2 libcall this
+    // replaces (which clobbers all caller-save regs via the call).
+    //
+    // AQ source (HD6309 has reg-to-reg OR via ORRp):
+    //   ORR A,B    ; B = B | A
+    //   ORR E,B    ; B = B | E
+    //   ORR F,B    ; B = B | F  — CC.Z set iff all 4 bytes were 0
+    //
+    // SPILL_Q*N source (4 bytes at slot+0..3 in big-endian Q layout):
+    //   LDB <slot+0>,$su
+    //   ORB <slot+1>,$su
+    //   ORB <slot+2>,$su
+    //   ORB <slot+3>,$su   ; CC.Z set iff all bytes were 0
+    //
+    // Then CC.Z → bit 0 of AB:
+    //   TFR CC,A     ; A = CC
+    //   ANDA #4      ; A = Z bit (0x04 or 0)
+    //   LSRA         ; A = 0x02 or 0
+    //   LSRA         ; A = 0x01 or 0
+    //   TFR A,B      ; B = 0x01 or 0
+    //
+    // Finally COPY B to Dst's parent byte (coalescer-tolerant dispatch
+    // mirrors SignTest_i32).
+    MachineFunction &MF = *MI.getMF();
+    Register DstReg = MI.getOperand(0).getReg();
+    Register SrcReg = MI.getOperand(1).getReg();
+
+    // Step 1: OR all 4 bytes into AB.
+    if (SrcReg == MC6809::AQ) {
+      // ORR A,B; ORR E,B; ORR F,B  → B = A|B|E|F, CC.Z set if all 0.
+      Builder.buildInstr(MC6809::ORRp)
+          .addDef(MC6809::AB)
+          .addUse(MC6809::AA).addUse(MC6809::AB);
+      Builder.buildInstr(MC6809::ORRp)
+          .addDef(MC6809::AB)
+          .addUse(MC6809::AE).addUse(MC6809::AB);
+      Builder.buildInstr(MC6809::ORRp)
+          .addDef(MC6809::AB)
+          .addUse(MC6809::AF).addUse(MC6809::AB);
+    } else if (isQSpillReg(SrcReg)) {
+      int Offset = computeSpillStackOffset(SrcReg, MF);
+      auto pickLD = [](int Off) {
+        return (Off >= -128 && Off <= 127) ? MC6809::LDBi_o8 : MC6809::LDBi_o16;
+      };
+      auto pickOR = [](int Off) {
+        return (Off >= -128 && Off <= 127) ? MC6809::ORBi_o8 : MC6809::ORBi_o16;
+      };
+      // LDB slot+0,$su
+      Builder.buildInstr(pickLD(Offset))
+          .addDef(MC6809::AB, RegState::Implicit)
+          .addImm(Offset).addReg(MC6809::SU);
+      // 3× ORB slot+N,$su
+      for (int N = 1; N <= 3; ++N) {
+        Builder.buildInstr(pickOR(Offset + N))
+            .addDef(MC6809::AB, RegState::Implicit)
+            .addUse(MC6809::AB, RegState::Implicit)
+            .addImm(Offset + N).addReg(MC6809::SU);
+      }
+    } else {
+      llvm_unreachable("EqZero_i32 src must be AQ or SPILL_Q*N");
+    }
+
+    // Step 2: extract CC.Z into bit 0 of AB.
+    //   TFR CC,A; ANDA #4; LSRA; LSRA; TFR A,B
+    Builder.buildInstr(MC6809::TFRp)
+        .addDef(MC6809::AA).addUse(MC6809::CC);
+    Builder.buildInstr(MC6809::ANDAi8)
+        .addDef(MC6809::AA, RegState::Implicit)
+        .addUse(MC6809::AA, RegState::Implicit)
+        .addImm(4);
+    Builder.buildInstr(MC6809::LSRAa)
+        .addDef(MC6809::AA, RegState::Implicit)
+        .addUse(MC6809::AA, RegState::Implicit);
+    Builder.buildInstr(MC6809::LSRAa)
+        .addDef(MC6809::AA, RegState::Implicit)
+        .addUse(MC6809::AA, RegState::Implicit);
+    Builder.buildInstr(MC6809::TFRp)
+        .addDef(MC6809::AB).addUse(MC6809::AA);
+
+    // Step 3: COPY AB to Dst's actual byte register.  Dst is ACC8 (the
+    // pseudo's output class — not BIT1, see MC6809InstrPseudos.td); after
+    // regalloc it lands in AA / AB / AE / AF (or a SPILL_A* / SPILL_B*
+    // slot which materialise/dematerialise handles via copyPhysReg).
+    if (DstReg != MC6809::AB) {
+      copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
+                  DstReg, MC6809::AB, /*KillSrc=*/true);
+    }
+    MI.eraseFromParent();
+    return true;
+  }
   case TargetOpcode::COPY: {
     // Bug #161 round 14: handle a COPY whose source is one of the SPILL_Q
     // half-word sub-registers (SPILL_QnLO / SPILL_QnHI). The VirtRegMap
