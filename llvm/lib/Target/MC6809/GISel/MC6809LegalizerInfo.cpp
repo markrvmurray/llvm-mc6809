@@ -623,7 +623,7 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
       return true;
     }
 
-    // Bug #301b Phase B (2026-05-16): native HD6309 i32 sign-test
+    // Bug #301b (2026-05-16): native HD6309 i32 sign-test
     // fast path.  Replaces __cmpsi2 + trunc + icmp eq 0 for the four
     // sign-test shapes:
     //
@@ -641,8 +641,8 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
     // attempt (`33cfce2ecc7f`).
     //
     // Restricted to HD6309 (the only subtarget where i32 G_LOAD/STORE
-    // is native — see Phase B re-land) and i32 width.  i64 is deferred
-    // to Phase E.
+    // is native — see the Bug #297 re-land) and i32 width.  i64 is
+    // deferred to a future Bug #301c follow-up.
     const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
     if (STI.has6309() && OpTy == LLT::scalar(32)) {
       auto RhsConst = getIConstantVRegValWithLookThrough(Rhs, MRI);
@@ -659,11 +659,11 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
           else if (Pred == CmpInst::ICMP_SGT) { IsSignTest = true; Invert = true; }
         }
         if (IsSignTest) {
-          // Phase D step 3.0 fix (2026-05-16 night): SignTest_i32 now
-          // outputs ACC8 (not BIT1) — materialize via byte vreg + trunc
-          // to i1 for the G_ICMP Dst, mirroring the EqZero_i32 /
-          // EqConst_i32 hooks below.  For Invert (sge X, 0 / sgt X, -1),
-          // XOR the byte result with 1 before the trunc.
+          // Bug #301 follow-up (2026-05-16): SignTest_i32 now outputs
+          // ACC8 (not BIT1) — materialize via byte vreg + trunc to i1
+          // for the G_ICMP Dst, mirroring the EqZero_i32 / EqConst_i32
+          // hooks below.  For Invert (sge X, 0 / sgt X, -1), XOR the
+          // byte result with 1 before the trunc.
           LLT S1 = LLT::scalar(1);
           LLT S8 = LLT::scalar(8);
           MRI.setRegClass(Lhs, &MC6809::ACC32RegClass);
@@ -682,7 +682,7 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
           (void)S1;
           return true;
         }
-        // Bug #301 Phase D step 1 (2026-05-16): equal-to-zero fast path.
+        // Bug #301 (2026-05-16): equal-to-zero fast path.
         //   icmp eq X, 0  →  EqZero_i32 X
         //   icmp ne X, 0  →  XOR (EqZero_i32 X) 1
         // Lowers to a 4-byte OR-chain that sets CC.Z if all bytes were 0,
@@ -691,8 +691,9 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
         if (Pred == CmpInst::ICMP_EQ || Pred == CmpInst::ICMP_NE) {
           // EqZero_i32 / EqConst_i32 path.  Output is a 0/1 byte (ACC8)
           // truncated back to i1 for the G_ICMP Dst.  For NE we XOR
-          // with 1 before the trunc.  (Step 1: K=0 → EqZero_i32; step 2:
-          // K!=0 → EqConst_i32 with SUBW+SBCD chain.)
+          // with 1 before the trunc.  K=0 routes to EqZero_i32 (OR-chain
+          // + Z extraction); K!=0 routes to EqConst_i32 (SUBW+SBCD chain
+          // + Z extraction).
           LLT S1 = LLT::scalar(1);
           LLT S8 = LLT::scalar(8);
           LLT S32 = LLT::scalar(32);
@@ -725,23 +726,24 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
           (void)S1; (void)S32;
           return true;
         }
-        // Bug #301 Phase D step 3.1 (2026-05-16 night): non-eq/ne i32
-        // ICMP against constant RHS, with a G_BRCOND-only consumer,
-        // lowers directly to the fused CompareBranch_i32_Imm pseudo.
-        // This is the most common shape in libc (`if (X < K) ...`).
+        // Bug #301 (2026-05-16): non-eq/ne i32 ICMP against constant
+        // RHS, with a G_BRCOND-only consumer, lowers directly to the
+        // fused CompareBranch_i32_Imm pseudo.  This is the most common
+        // shape in libc (`if (X < K) ...`).
         //
-        // Why fused-direct (not Compare_i32_Imm + ConditionalImm)?  The
-        // reverted Phase D step 3 v1 attempt used the latter and broke
-        // 4 libc files: Compare_i32_Imm's CCond vreg gets DCE'd post
-        // expansion (LBlbc reads physregs, not the vreg), so the
-        // conditional branch reads undef CC flags.  The fused pseudo
-        // is isTerminator=true, can never be DCE'd as dead, and its
+        // Why fused-direct (not a separated compare + conditional-
+        // branch pair)?  A previously-attempted design used a separated
+        // Compare_i32_Imm (CCond output) + ConditionalImm pseudo that
+        // broke 4 libc files: the CCond vreg gets DCE'd post-expansion
+        // (LBlbc reads physregs, not the vreg), so the conditional
+        // branch reads undef CC flags.  The fused pseudo is
+        // isTerminator=true, can never be DCE'd as dead, and its
         // SUBW+SBCD+LB<cc> expansion is emitted contiguously — no
         // scheduler can wedge a flag-clobber between the SBCD and
         // the LB<cc>.
         //
         // Restricted to: HD6309, constant RHS, non-eq/ne (eq/ne use
-        // EqZero/EqConst from steps 1+2), exactly one use of the i1
+        // EqZero_i32/EqConst_i32 above), exactly one use of the i1
         // Dst, that use is G_BRCOND in the same MBB.  Other shapes
         // fall through to libcall.
         unsigned CCImm = 0;

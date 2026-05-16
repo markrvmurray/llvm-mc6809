@@ -1,6 +1,6 @@
 ; RUN: llc -global-isel -global-isel-abort=1 -mtriple=mc6809 -mcpu=hd6309 -O2 %s -o - | FileCheck %s
 ;
-; Bug #301b Phase B (2026-05-16): the four "is X negative / non-
+; Bug #301b (2026-05-16): the four "is X negative / non-
 ; negative" predicates at i32 width must lower via the SignTest_i32
 ; pseudo (which post-RA-expands to ASLB + LDB #0 + ADCB #0 — capturing
 ; the sign bit via CC.C) NOT via the __cmpsi2 libcall.

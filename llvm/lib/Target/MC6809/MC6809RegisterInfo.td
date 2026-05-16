@@ -317,7 +317,7 @@ def SPILL_X3 : MC6809Reg16<0x2016, "spill_x3">;
 // the post-RA expansion of EXTRACT_LO/HI_word_i32 + the COPY handler
 // in expandPostRAPseudo recognise these sub-regs and emit the correct
 // LDD slot read.
-// Bug #301 Phase C Path C (2026-05-16): each SPILL_Q*HI/LO half gets a
+// Bug #301a (2026-05-16): each SPILL_Q*HI/LO half gets a
 // sub_lo_byte / sub_hi_byte chain (4 byte sub-regs per Q slot, 128
 // total) — mirroring the existing RS0HI/LO + sub-byte pattern (lines
 // 149-180 above).  Reasons:
@@ -355,7 +355,7 @@ foreach I = 0...31 in {
 // isAllocatable = false so regalloc never places a vreg directly in
 // SPILL_QnLO/HI; the post-RA expansion of EXTRACT_LO/HI_word_i32 + the
 // COPY handler in expandPostRAPseudo recognise these sub-regs and emit
-// the correct LDD slot read.  Phase C Path C (2026-05-16): now MC6809Reg16
+// the correct LDD slot read.  Bug #301a (2026-05-16): now MC6809Reg16
 // with sub_lo_byte / sub_hi_byte SubRegIndices pointing at the byte
 // sub-regs defined above.  Original Q0..3 keep their pre-Phase-C HI/LO
 // IDs ($2030..$2037) so any external code that hashed on them stays put.

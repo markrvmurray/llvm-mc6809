@@ -1,6 +1,6 @@
 ; RUN: llc -global-isel -global-isel-abort=1 -mtriple=mc6809 -mcpu=hd6309 -O2 %s -o - | FileCheck %s
 ;
-; Bug #301 Phase D step 1 (2026-05-16): the two "is X zero / non-zero"
+; Bug #301 (2026-05-16): the two "is X zero / non-zero"
 ; predicates at i32 width must lower via the EqZero_i32 pseudo (which
 ; post-RA-expands to an ORR-chain or LDB+3xORB chain + CC.Z extraction)
 ; NOT via the __cmpsi2 libcall.

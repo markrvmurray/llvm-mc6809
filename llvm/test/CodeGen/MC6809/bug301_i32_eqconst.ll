@@ -1,6 +1,6 @@
 ; RUN: llc -global-isel -global-isel-abort=1 -mtriple=mc6809 -mcpu=hd6309 -O2 %s -o - | FileCheck %s
 ;
-; Bug #301 Phase D step 2 (2026-05-16): the two "is X equal-to-K /
+; Bug #301 (2026-05-16): the two "is X equal-to-K /
 ; not-equal-to-K" predicates at i32 width for non-zero constant K must
 ; lower via the EqConst_i32 pseudo (which post-RA-expands to SUBW #lo +
 ; SBCD #hi + CC.Z extraction) NOT via the __cmpsi2 libcall.

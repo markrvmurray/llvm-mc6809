@@ -2485,8 +2485,8 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
         .addDef(MC6809::AB, RegState::Implicit)
         .addImm(0);
 
-    // Step 4: COPY AB to Dst (ACC8).  Phase D step 3.0 fix (2026-05-16
-    // night): Dst is ACC8 (the pseudo's output class — not BIT1, see
+    // Step 4: COPY AB to Dst (ACC8).  Bug #301 follow-up (2026-05-16):
+    // Dst is ACC8 (the pseudo's output class — not BIT1, see
     // MC6809InstrPseudos.td); after regalloc it lands in AA / AB / AE /
     // AF (or a SPILL_A* / SPILL_B* slot which materialise/dematerialise
     // handles via copyPhysReg).  Mirrors EqZero_i32's COPY-to-Dst step.
@@ -2498,7 +2498,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     return true;
   }
   case MC6809::EqZero_i32: {
-    // Bug #301 Phase D step 1 (2026-05-16): native HD6309 i32 equal-to-zero.
+    // Bug #301 (2026-05-16): native HD6309 i32 equal-to-zero.
     // Strategy: OR all 4 source bytes into AB, then extract CC.Z into AB.
     // Result i1 = 1 if i32 was zero, 0 otherwise.
     //
@@ -2596,7 +2596,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     return true;
   }
   case MC6809::EqConst_i32: {
-    // Bug #301 Phase D step 2 (2026-05-16): native HD6309 i32 equal-to-
+    // Bug #301 (2026-05-16): native HD6309 i32 equal-to-
     // constant test.  Strategy: compute X - K via SUBW+SBCD, which sets
     // CC.Z if X == K, then extract Z as a 0/1 byte (same as EqZero_i32).
     //
@@ -3475,8 +3475,8 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     expandFusedCompareBranch(Builder, MI);
     break;
   case MC6809::CompareBranch_i32_Imm: {
-    // Bug #301 Phase D step 3.1 (2026-05-16 night): native HD6309 i32
-    // fused compare-and-branch.  Operand layout (per MC6809CompareBranchBase):
+    // Bug #301 (2026-05-16): native HD6309 i32 fused compare-and-branch.
+    // Operand layout (per MC6809CompareBranchBase):
     //   op 0 = i8imm:$cc  (condcode)
     //   op 1 = ACC32:$src (LHS, in AQ or SPILL_Q*N post-RA)
     //   op 2 = i32imm:$imm (RHS)

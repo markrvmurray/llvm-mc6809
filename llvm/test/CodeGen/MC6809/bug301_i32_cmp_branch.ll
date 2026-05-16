@@ -1,12 +1,12 @@
 ; RUN: llc -global-isel -global-isel-abort=1 -mtriple=mc6809 -mcpu=hd6309 -O2 %s -o - | FileCheck %s
 ;
-; Bug #301 Phase D step 3.1 (2026-05-16 night): signed/unsigned i32
+; Bug #301 (2026-05-16): signed/unsigned i32
 ; ICMP against a constant RHS with a G_BRCOND consumer must lower
 ; via the fused CompareBranch_i32_Imm pseudo (post-RA-expanding to
 ; SUBW #lo + SBCD #hi + LB<cc>) NOT via the __cmpsi2 libcall.
 ;
 ; This is THE critical foundation step that fixes Bug A from the
-; reverted Phase D step 3 attempt — without the fused pseudo, the
+; previously-reverted attempt that lacked the fused pseudo — the
 ; separated Compare_i32_Imm + ConditionalImm path leaves CCond dead
 ; and the conditional branch reads undef CC flags.
 

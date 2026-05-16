@@ -127,14 +127,14 @@ BitVector MC6809RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   // Bug #296 Phase 2: bumped from Q0..3 to Q0..31.  HI/LO sub-regs for
   // every SPILL_Q*N must be reserved; the regalloc must never place a
   // vreg directly in any of them.
-  // Phase A consolidation 2026-05-16: SPILL_Q*HI[0..31] (enum 697..728)
+  // Bug #301 cleanup 2026-05-16: SPILL_Q*HI[0..31] (enum 697..728)
   // and SPILL_Q*LO[0..31] (enum 729..760) are consecutive — range
   // loops replace the 32-pair case list.
   for (unsigned R = MC6809::SPILL_Q0HI; R <= MC6809::SPILL_Q31HI; ++R)
     Reserved.set(R);
   for (unsigned R = MC6809::SPILL_Q0LO; R <= MC6809::SPILL_Q31LO; ++R)
     Reserved.set(R);
-  // Bug #301 Phase C Path C (2026-05-16): SPILL_Q*HI/LO each gained a
+  // Bug #301a (2026-05-16): SPILL_Q*HI/LO each gained a
   // sub-byte chain — SPILL_Q*HIHI, SPILL_Q*HILO, SPILL_Q*LOHI, SPILL_Q*LOLO
   // for each of 32 slots = 128 byte sub-regs.  All Reserved (regalloc must
   // never place a vreg in any of them; they exist only as metadata for

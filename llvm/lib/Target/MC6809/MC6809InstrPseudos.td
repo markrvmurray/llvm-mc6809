@@ -199,16 +199,16 @@ let Defs = [NZ, V] in {
   // the sign bit into the ACC8 dst via the ASLB + LDB#0 + ADCB#0
   // pattern.
   //
-  // Output class is ACC8 (not BIT1) — Phase D step 3.0 fix (2026-05-16
-  // night) for the latent class-mismatch bug exposed in fmemopen.c at
-  // -Og-hd6309-mame: the instruction selector's
+  // Output class is ACC8 (not BIT1) — Bug #301 follow-up fix
+  // (2026-05-16) for the latent class-mismatch bug exposed in
+  // fmemopen.c at -Og-hd6309-mame: the instruction selector's
   // constrainSelectedInstRegOperands on a downstream G_SELECT consumer
   // narrows the result vreg to ACC8, but the pseudo's TableGen
   // declaration said BIT1 — the verifier rejected the pre-RA mismatch.
   // The post-RA expansion already produces a 0/1 byte (high 7 bits
   // cleared by LDB #0; only bit 0 set by ADCB), which is semantically
   // identical to a BIT1 value when consumed as a byte.  Mirrors the
-  // EqZero_i32 / EqConst_i32 design from Phase D steps 1+2.
+  // EqZero_i32 / EqConst_i32 design below.
   //
   // Defs cover CC flag clobber (ASLB sets C; LDB/ADCB set NZ).
   def SignTest_i32 : MC6809Pseudo {
@@ -217,8 +217,8 @@ let Defs = [NZ, V] in {
     let Defs = [NZ, V, C];
   }
 
-  // Bug #301 Phase D step 1 (2026-05-16): native HD6309 i32 equal-to-zero
-  // test.  Produces an i1 whose value is 1 if the i32 is zero, else 0.
+  // Bug #301 (2026-05-16): native HD6309 i32 equal-to-zero test.
+  // Produces an i1 whose value is 1 if the i32 is zero, else 0.
   //
   // Replaces __cmpsi2 + trunc i32→i8 + icmp eq 0 for the two zero-test
   // predicates:
@@ -244,7 +244,7 @@ let Defs = [NZ, V] in {
     let Defs = [NZ, V, C];
   }
 
-  // Bug #301 Phase D step 2 (2026-05-16): native HD6309 i32 equal-to-
+  // Bug #301 (2026-05-16): native HD6309 i32 equal-to-
   // const test for non-zero constant.  Produces an i1 (encoded as 0/1
   // byte) whose value is 1 if the i32 is equal to the const, else 0.
   //
