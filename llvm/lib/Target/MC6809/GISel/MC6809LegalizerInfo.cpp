@@ -623,6 +623,63 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
       return true;
     }
 
+    // Bug #301b Phase B (2026-05-16): native HD6309 i32 sign-test
+    // fast path.  Replaces __cmpsi2 + trunc + icmp eq 0 for the four
+    // sign-test shapes:
+    //
+    //   icmp slt i32 X, 0    →  SignTest_i32 X
+    //   icmp sle i32 X, -1   →  SignTest_i32 X       (slt-0 normalised)
+    //   icmp sge i32 X, 0    →  XOR (SignTest_i32 X) 1
+    //   icmp sgt i32 X, -1   →  XOR (SignTest_i32 X) 1   (sge-0 normalised)
+    //
+    // SignTest_i32 is a target-specific pseudo (MC6809InstrPseudos.td)
+    // whose post-RA expansion tests the i32's MSByte directly via a
+    // sub-register read of $aq.MSByte (= $aa) for AQ-allocated src or
+    // a direct byte-load `TST <slot+0>,$su` for SPILL_Q*N src.  Bypasses
+    // the EXTRACT_*_word_i32 + ACC32_with_sub_hi_byte synthesised-class
+    // collapse that triggered Bug #301a in the reverted Option C
+    // attempt (`33cfce2ecc7f`).
+    //
+    // Restricted to HD6309 (the only subtarget where i32 G_LOAD/STORE
+    // is native — see Phase B re-land) and i32 width.  i64 is deferred
+    // to Phase E.
+    const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
+    if (STI.has6309() && OpTy == LLT::scalar(32)) {
+      auto RhsConst = getIConstantVRegValWithLookThrough(Rhs, MRI);
+      if (RhsConst) {
+        // Normalise the four equivalent shapes into a single "sign-bit
+        // result + optional invert" pair.
+        bool Invert = false;
+        bool IsSignTest = false;
+        if (RhsConst->Value == 0) {
+          if (Pred == CmpInst::ICMP_SLT) { IsSignTest = true; Invert = false; }
+          else if (Pred == CmpInst::ICMP_SGE) { IsSignTest = true; Invert = true; }
+        } else if (RhsConst->Value.isAllOnes()) {
+          if (Pred == CmpInst::ICMP_SLE) { IsSignTest = true; Invert = false; }
+          else if (Pred == CmpInst::ICMP_SGT) { IsSignTest = true; Invert = true; }
+        }
+        if (IsSignTest) {
+          // Emit SignTest_i32 producing the sign bit in a BIT1 vreg.
+          // For !Invert, the BIT1 result IS the Dst; for Invert, XOR
+          // it with constant 1 to flip the bit.
+          LLT S1 = LLT::scalar(1);
+          MRI.setRegClass(Lhs, &MC6809::ACC32RegClass);
+          if (Invert) {
+            Register SignBit = MRI.createGenericVirtualRegister(S1);
+            MRI.setRegClass(SignBit, &MC6809::BIT1RegClass);
+            B.buildInstr(MC6809::SignTest_i32, {SignBit}, {Lhs});
+            auto One = B.buildConstant(S1, 1);
+            B.buildXor(Dst, SignBit, One);
+          } else {
+            MRI.setRegClass(Dst, &MC6809::BIT1RegClass);
+            B.buildInstr(MC6809::SignTest_i32, {Dst}, {Lhs});
+          }
+          MI.eraseFromParent();
+          return true;
+        }
+      }
+    }
+
     // i32/i64 compare via libcall to __{u,}cmp{s,d}i2 (bug #158).
     //
     // Inline compare at these widths decomposes into a multi-instruction

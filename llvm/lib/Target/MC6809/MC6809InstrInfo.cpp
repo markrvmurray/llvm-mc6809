@@ -2397,6 +2397,78 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     MI.eraseFromParent();
     return true;
   }
+  case MC6809::SignTest_i32: {
+    // Bug #301b Phase B (2026-05-16): native HD6309 i32 sign test.
+    // Dst is BIT1 (allocated to AALSB/ABLSB/AELSB/AFLSB; parent byte
+    // determines the LSB-of register).  Src is ACC32 (allocated to AQ
+    // or SPILL_Q*N).
+    //
+    // Strategy: load the MSByte (= sign byte, big-endian byte 0 of i32)
+    // into AB, ASLB to shift its bit-7 into CC.C, then LDB #0; ADCB #0
+    // to materialise C as a 0/1 byte in AB.  Finally COPY AB to Dst's
+    // parent byte register.  No EXTRACT_*_word_i32 emission — bypasses
+    // the Bug #301a class-collapse path entirely.
+    MachineFunction &MF = *MI.getMF();
+    Register DstReg = MI.getOperand(0).getReg();
+    Register SrcReg = MI.getOperand(1).getReg();
+
+    // Step 1: get MSByte into AB.
+    if (SrcReg == MC6809::AQ) {
+      // AQ.MSByte = AA (AQ.sub_hi_word.sub_hi_byte).  TFR copies AA→AB
+      // without touching the rest of AQ.
+      Builder.buildInstr(MC6809::TFRp)
+          .addDef(MC6809::AB)
+          .addUse(MC6809::AA);
+    } else if (isQSpillReg(SrcReg)) {
+      // SPILL_Q*N: load MSByte from slot+0,$su into AB.
+      int Offset = computeSpillStackOffset(SrcReg, MF);
+      unsigned Opc = (Offset >= -128 && Offset <= 127)
+                         ? MC6809::LDBi_o8 : MC6809::LDBi_o16;
+      Builder.buildInstr(Opc)
+          .addDef(MC6809::AB, RegState::Implicit)
+          .addImm(Offset).addReg(MC6809::SU);
+    } else {
+      llvm_unreachable("SignTest_i32 src must be AQ or SPILL_Q*N");
+    }
+
+    // Step 2: ASLB shifts AB left, putting bit 7 (= sign bit) into CC.C
+    // and clearing AB's bit 0.  AB's other bits become irrelevant; we'll
+    // overwrite AB in step 3.
+    Builder.buildInstr(MC6809::ASLBa)
+        .addDef(MC6809::AB, RegState::Implicit)
+        .addUse(MC6809::AB, RegState::Implicit);
+
+    // Step 3: LDB #0 ; ADCB #0 — AB = 0 + 0 + CC.C = sign bit (0 or 1).
+    Builder.buildInstr(MC6809::LDBi8)
+        .addDef(MC6809::AB, RegState::Implicit)
+        .addImm(0);
+    Builder.buildInstr(MC6809::ADCBi8)
+        .addDef(MC6809::AB, RegState::Implicit)
+        .addImm(0);
+
+    // Step 4: COPY AB to Dst's parent byte register.  DstReg is a BIT1
+    // sub-reg (AALSB/ABLSB/AELSB/AFLSB); its parent is AA/AB/AE/AF.
+    // The coalescer may unify a BIT1 vreg with a downstream i8 consumer,
+    // leaving DstReg as the parent byte register itself — accept that
+    // case directly (LDB #0 + ADCB #0 clears the high 7 bits of AB, so
+    // writing the whole byte is semantically the same as writing the
+    // LSB sub-register).
+    Register DstParent;
+    switch (DstReg) {
+    case MC6809::AALSB: case MC6809::AA: DstParent = MC6809::AA; break;
+    case MC6809::ABLSB: case MC6809::AB: DstParent = MC6809::AB; break;
+    case MC6809::AELSB: case MC6809::AE: DstParent = MC6809::AE; break;
+    case MC6809::AFLSB: case MC6809::AF: DstParent = MC6809::AF; break;
+    default:
+      llvm_unreachable("SignTest_i32 dst must be AA/AB/AE/AF or their LSB");
+    }
+    if (DstParent != MC6809::AB) {
+      copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
+                  DstParent, MC6809::AB, /*KillSrc=*/true);
+    }
+    MI.eraseFromParent();
+    return true;
+  }
   case TargetOpcode::COPY: {
     // Bug #161 round 14: handle a COPY whose source is one of the SPILL_Q
     // half-word sub-registers (SPILL_QnLO / SPILL_QnHI). The VirtRegMap

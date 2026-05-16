@@ -169,6 +169,42 @@ let Defs = [NZ, V] in {
     dag InOperandList  = (ins ACC32:$src);
     let isAsCheapAsAMove = true;
   }
+
+  // Bug #301b Phase B (2026-05-16): native HD6309 i32 sign test.
+  // Produces an i1 whose value is the sign bit of the i32 input
+  // (1 if negative, 0 if non-negative).
+  //
+  // Replaces the __cmpsi2 + trunc i32→i8 + icmp eq 0 lowering for the
+  // four sign-test predicates:
+  //   icmp slt X, 0    →  SignTest_i32 X
+  //   icmp sge X, 0    →  XOR (SignTest_i32 X) 1
+  //   icmp sgt X, -1   →  XOR (SignTest_i32 X) 1     (sge-0 normalised)
+  //   icmp sle X, -1   →  SignTest_i32 X             (slt-0 normalised)
+  //
+  // Why a target-specific pseudo instead of generic IR (G_UNMERGE_VALUES
+  // + G_ICMP_i16 on the high half, attempted in the reverted Bug #301
+  // fix attempt 2026-05-16): the generic-IR path selects to
+  // EXTRACT_HI_word_i32 + CompareBranch_i16, which reads $aq's sub_hi_word
+  // through the TableGen-synthesised ACC32_with_sub_hi_byte intersection
+  // class.  When $src is allocated to a SPILL_Q*N (rather than $aq), the
+  // intersection class collapses to {$aq} only (SPILL_Q*N lacks sub-byte
+  // metadata — see feedback-bug301-option-a-dead-end), and the post-RA
+  // verifier rejects the resulting MIR at -Og (91 failures at
+  // Og-hd6309-mame in the reverted attempt).
+  //
+  // This pseudo bypasses the entire EXTRACT_*_word_i32 path: post-RA
+  // expansion (in MC6809InstrInfo.cpp) handles the AQ-source and
+  // SPILL_Q*N-source cases directly via TST on the MSByte (= AA for
+  // AQ-source, or `TST <slot+0>,$su` for spill-source), then captures
+  // the sign bit into the BIT1 dst via the ASLB + LDB#0 + ADCB#0
+  // pattern.
+  //
+  // Defs cover CC flag clobber (ASLB sets C; LDB/ADCB set NZ).
+  def SignTest_i32 : MC6809Pseudo {
+    dag OutOperandList = (outs BIT1:$dst);
+    dag InOperandList  = (ins ACC32:$src);
+    let Defs = [NZ, V, C];
+  }
 }
 
 // Materialise the CC.C flag into byte 0/1. Used when a phantom BIT1 vreg
