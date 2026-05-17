@@ -402,6 +402,64 @@ foreach I = 4...31 in {
 }
 
 //===----------------------------------------------------------------------===//
+//  Bug #302 follow-up: PHANTOM_CARRY physregs
+//===----------------------------------------------------------------------===//
+//
+// These eight 1-bit "registers" exist purely as regalloc bookkeeping slots
+// for the scheduling-phantom carry-out vregs of the SetCarry / SetCarryUse /
+// SetOverflow / SetOverflowUse pseudos.  Pre-#302 the phantoms lived in BIT1
+// whose members (AALSB / ABLSB / AELSB / AFLSB) were sub-registers of byte
+// accumulators via sub_lsb — that sub-register chain was what TableGen
+// propagated up through ACC8 -> ADc -> AQ to synthesise the
+// `acc32_with_sub_lsb` intersection class that exhausted vfprintf's regalloc
+// at -Og-lto-hd6309-mame-fp.
+//
+// Post-#302, MVT::i1 binds to ACC8 (correct structural fix), but that puts
+// phantom carry-out vregs in the same regalloc pool as the byte results of
+// their own producer MI — they compete for AA/AB, regalloc spills the loser,
+// and i32/i64 add chains grow ~50%.  The phantoms have no runtime value
+// (CC.C/V is the source of truth; see Bug #186 v5 long comment on
+// MC6809ArithmeticBaseCarry in MC6809InstrFamilies.td); their only job is
+// to thread a producer->consumer SSA dependency that survives regalloc and
+// scheduling.
+//
+// PHANTOM_CARRY_0..PHANTOM_CARRY_7 satisfy that need without competing with
+// any real allocation pool: no sub-register relationships, no hardware
+// encoding, no MC instruction takes them as an operand.  AsmPrinter ignores
+// implicit operands at MCInst conversion, so they never appear in the
+// emitted asm.  Eight phantoms is generous — even an i64 add chain has at
+// most 1 live at a time per chain (consecutive *CarryUse_* consume their
+// predecessor's phantom and produce a new one); multiple chains in the same
+// BB push to 2-3.
+//
+// CRITICAL INVARIANT — DO NOT REFERENCE PHANTOM_CARRY IN ANY (ins ...) OR
+// (outs ...) LIST OF ANY PSEUDO / INSTRUCTION.  The only valid way for a
+// phantom to enter MIR is via the selector's hand-written
+// `.addDef(CarryOut, RegState::ImplicitDefine)` / `.addUse(Carry,
+// RegState::Implicit)` calls in selectAddO / selectSubO / selectAddE /
+// selectSubE.  An explicit operand of PHANTOM_CARRY class would cause
+// PHANTOM_CARRY to leak into emission paths.  The late
+// MC6809PhantomCarryGuard pass (added in this same change) walks every MI
+// after MaterializeSpills and aborts compilation with a clear diagnostic
+// if any explicit PHANTOM_CARRY operand is seen — see
+// MC6809PhantomCarryGuard.cpp.
+//
+// DWARF / HWEncoding numbers in 0x3F00..0x3F07 -- well outside the real
+// MC6809 register encoding space (0..63) and the spill / imaginary ranges
+// (0x1000+, 0x2000+).  HWEncoding must fit in bits<16>.  Any accidental
+// debug-info or MC-emission reference will land on a deliberately
+// suggestive number (0x3FXX -- a "phantom" looking address) that is easy
+// to spot in disassembly or DWARF dumps.
+def PHANTOM_CARRY_0 : MC6809Reg1<0x3F00, "phantom_carry_0">;
+def PHANTOM_CARRY_1 : MC6809Reg1<0x3F01, "phantom_carry_1">;
+def PHANTOM_CARRY_2 : MC6809Reg1<0x3F02, "phantom_carry_2">;
+def PHANTOM_CARRY_3 : MC6809Reg1<0x3F03, "phantom_carry_3">;
+def PHANTOM_CARRY_4 : MC6809Reg1<0x3F04, "phantom_carry_4">;
+def PHANTOM_CARRY_5 : MC6809Reg1<0x3F05, "phantom_carry_5">;
+def PHANTOM_CARRY_6 : MC6809Reg1<0x3F06, "phantom_carry_6">;
+def PHANTOM_CARRY_7 : MC6809Reg1<0x3F07, "phantom_carry_7">;
+
+//===----------------------------------------------------------------------===//
 //  Register classes
 //===----------------------------------------------------------------------===//
 
@@ -423,6 +481,15 @@ class MC6809Reg64Class<dag RegList> : MC6809RegClass<[i64], 8, RegList>;
 
 // Register grouping classes.
 def CARRY : MC6809Reg1Class<(add C)>;
+
+// Bug #302 follow-up: PHANTOM_CARRY is the regalloc home for the
+// scheduling-phantom carry-out vregs produced by SetCarry / SetCarryUse /
+// SetOverflow / SetOverflowUse.  See the long comment block at the
+// PHANTOM_CARRY_0..7 physreg definitions above for the invariant.
+def PHANTOM_CARRY : MC6809Reg1Class<(add PHANTOM_CARRY_0, PHANTOM_CARRY_1,
+                                          PHANTOM_CARRY_2, PHANTOM_CARRY_3,
+                                          PHANTOM_CARRY_4, PHANTOM_CARRY_5,
+                                          PHANTOM_CARRY_6, PHANTOM_CARRY_7)>;
 // Bug #302 BIT1 elimination probe: BIT1's members are now byte physregs
 // (AA / AB / AE / AF) -- the same as ACC8 minus the spill members.  i1
 // values share storage with i8 (per the MVT::i1 -> ACC8 binding in

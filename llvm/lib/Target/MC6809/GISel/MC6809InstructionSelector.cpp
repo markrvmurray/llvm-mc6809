@@ -2136,11 +2136,20 @@ bool MC6809InstructionSelector::selectAddO(MachineInstr &MI) {
   // recognizes the producing pseudo's opcode directly.
   CarryFlagOf[CarryOut] = IsSigned ? MC6809::V : MC6809::C;
   if (!MRI->getRegClassOrNull(CarryOut))
-    // Bug #302 BIT1 elimination: phantom-BIT1 carry-outs live in a
-    // byte (ACC8 -- bit 0 is the value).  getPhantomBit1Flag /
-    // CCFlagChainTracker recognize the producer by opcode, not by
-    // class, so this is a vreg-class-only change.
-    MRI->setRegClass(CarryOut, &MC6809::ACC8RegClass);
+    // Bug #302 follow-up: phantom-carry vregs live in PHANTOM_CARRY -- a
+    // disjoint regalloc pool with synthetic 1-bit physregs
+    // (PHANTOM_CARRY_0..PHANTOM_CARRY_7).  Pre-#302 they went to BIT1's
+    // AALSB/ABLSB members; the initial post-#302 fix bound MVT::i1 to ACC8
+    // which put them in the byte pool where they competed with byte results
+    // and forced spills (+47-60% codegen size on i32/i64 add chains).
+    // PHANTOM_CARRY recreates the pre-#302 regalloc invariant without
+    // bringing back the sub_lsb chain that drove `acc32_with_sub_lsb`.
+    // The phantom physreg has no hardware backing; AsmPrinter ignores it at
+    // MCInst conversion (only explicit operands cross into MC).  See
+    // MC6809PhantomCarryGuard.cpp for the late-pass safety net.
+    // getPhantomBit1Flag / CCFlagChainTracker recognise the producer by
+    // opcode, not by class, so this is a vreg-class-only change.
+    MRI->setRegClass(CarryOut, &MC6809::PHANTOM_CARRYRegClass);
 
   std::optional<ValueAndVReg> ValReg;
   int64_t Value;
@@ -2300,11 +2309,20 @@ bool MC6809InstructionSelector::selectSubO(MachineInstr &MI) {
   // Bug #186 follow-up Phase 1a (2026-04-28): see selectAddO above.
   CarryFlagOf[CarryOut] = IsSigned ? MC6809::V : MC6809::C;
   if (!MRI->getRegClassOrNull(CarryOut))
-    // Bug #302 BIT1 elimination: phantom-BIT1 carry-outs live in a
-    // byte (ACC8 -- bit 0 is the value).  getPhantomBit1Flag /
-    // CCFlagChainTracker recognize the producer by opcode, not by
-    // class, so this is a vreg-class-only change.
-    MRI->setRegClass(CarryOut, &MC6809::ACC8RegClass);
+    // Bug #302 follow-up: phantom-carry vregs live in PHANTOM_CARRY -- a
+    // disjoint regalloc pool with synthetic 1-bit physregs
+    // (PHANTOM_CARRY_0..PHANTOM_CARRY_7).  Pre-#302 they went to BIT1's
+    // AALSB/ABLSB members; the initial post-#302 fix bound MVT::i1 to ACC8
+    // which put them in the byte pool where they competed with byte results
+    // and forced spills (+47-60% codegen size on i32/i64 add chains).
+    // PHANTOM_CARRY recreates the pre-#302 regalloc invariant without
+    // bringing back the sub_lsb chain that drove `acc32_with_sub_lsb`.
+    // The phantom physreg has no hardware backing; AsmPrinter ignores it at
+    // MCInst conversion (only explicit operands cross into MC).  See
+    // MC6809PhantomCarryGuard.cpp for the late-pass safety net.
+    // getPhantomBit1Flag / CCFlagChainTracker recognise the producer by
+    // opcode, not by class, so this is a vreg-class-only change.
+    MRI->setRegClass(CarryOut, &MC6809::PHANTOM_CARRYRegClass);
 
   std::optional<ValueAndVReg> ValReg;
   int64_t Value;
@@ -2429,11 +2447,20 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
   // Bug #186 follow-up Phase 1a (2026-04-28): see selectAddO above.
   CarryFlagOf[CarryOut] = IsSigned ? MC6809::V : MC6809::C;
   if (!MRI->getRegClassOrNull(CarryOut))
-    // Bug #302 BIT1 elimination: phantom-BIT1 carry-outs live in a
-    // byte (ACC8 -- bit 0 is the value).  getPhantomBit1Flag /
-    // CCFlagChainTracker recognize the producer by opcode, not by
-    // class, so this is a vreg-class-only change.
-    MRI->setRegClass(CarryOut, &MC6809::ACC8RegClass);
+    // Bug #302 follow-up: phantom-carry vregs live in PHANTOM_CARRY -- a
+    // disjoint regalloc pool with synthetic 1-bit physregs
+    // (PHANTOM_CARRY_0..PHANTOM_CARRY_7).  Pre-#302 they went to BIT1's
+    // AALSB/ABLSB members; the initial post-#302 fix bound MVT::i1 to ACC8
+    // which put them in the byte pool where they competed with byte results
+    // and forced spills (+47-60% codegen size on i32/i64 add chains).
+    // PHANTOM_CARRY recreates the pre-#302 regalloc invariant without
+    // bringing back the sub_lsb chain that drove `acc32_with_sub_lsb`.
+    // The phantom physreg has no hardware backing; AsmPrinter ignores it at
+    // MCInst conversion (only explicit operands cross into MC).  See
+    // MC6809PhantomCarryGuard.cpp for the late-pass safety net.
+    // getPhantomBit1Flag / CCFlagChainTracker recognise the producer by
+    // opcode, not by class, so this is a vreg-class-only change.
+    MRI->setRegClass(CarryOut, &MC6809::PHANTOM_CARRYRegClass);
 
   std::optional<ValueAndVReg> ValReg;
   int64_t Value;
@@ -2618,11 +2645,20 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
   // Bug #186 follow-up Phase 1a (2026-04-28): see selectAddO above.
   CarryFlagOf[CarryOut] = IsSigned ? MC6809::V : MC6809::C;
   if (!MRI->getRegClassOrNull(CarryOut))
-    // Bug #302 BIT1 elimination: phantom-BIT1 carry-outs live in a
-    // byte (ACC8 -- bit 0 is the value).  getPhantomBit1Flag /
-    // CCFlagChainTracker recognize the producer by opcode, not by
-    // class, so this is a vreg-class-only change.
-    MRI->setRegClass(CarryOut, &MC6809::ACC8RegClass);
+    // Bug #302 follow-up: phantom-carry vregs live in PHANTOM_CARRY -- a
+    // disjoint regalloc pool with synthetic 1-bit physregs
+    // (PHANTOM_CARRY_0..PHANTOM_CARRY_7).  Pre-#302 they went to BIT1's
+    // AALSB/ABLSB members; the initial post-#302 fix bound MVT::i1 to ACC8
+    // which put them in the byte pool where they competed with byte results
+    // and forced spills (+47-60% codegen size on i32/i64 add chains).
+    // PHANTOM_CARRY recreates the pre-#302 regalloc invariant without
+    // bringing back the sub_lsb chain that drove `acc32_with_sub_lsb`.
+    // The phantom physreg has no hardware backing; AsmPrinter ignores it at
+    // MCInst conversion (only explicit operands cross into MC).  See
+    // MC6809PhantomCarryGuard.cpp for the late-pass safety net.
+    // getPhantomBit1Flag / CCFlagChainTracker recognise the producer by
+    // opcode, not by class, so this is a vreg-class-only change.
+    MRI->setRegClass(CarryOut, &MC6809::PHANTOM_CARRYRegClass);
 
   std::optional<ValueAndVReg> ValReg;
   int64_t Value;
