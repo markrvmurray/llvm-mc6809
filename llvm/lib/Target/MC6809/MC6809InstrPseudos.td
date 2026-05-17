@@ -390,6 +390,79 @@ def MaterializeOverflowToByte_i8 : MC6809Pseudo {
   let hasSideEffects = 1;
 }
 
+// Bug #302 redesign Phase 3 Stage 3.a (2026-05-17): MaterializeCC
+// family — read a CC flag bit directly and deposit as a 0/1 byte in
+// $ab.  No BIT1 input operand; the CC bit is the only source of
+// truth.  Replaces MaterializeCarryToByte_i8 /
+// MaterializeOverflowToByte_i8 (which take BIT1 vreg inputs) once
+// Stage 3.b switches consumer sites.
+//
+// The BIT1 vreg fed to the existing Materialize*_i8 pseudos has
+// always been a phantom — Bug #186 v5 (2026-04-27) noted:
+//   "THE BIT1 VREG IS A PHANTOM. The actual hardware ADC
+//    instruction reads CC.C, not the BIT1 reg."
+// (see MC6809InstrFamilies.td:389-398).  The BIT1 vreg's only
+// purpose was to thread the IR-level carry vreg between producer
+// (AddSetCarry/SubSetCarry) and consumer (MaterializeCarryToByte)
+// so the pre-RA scheduler kept them adjacent.  Stage 3.b retires
+// that role by tracking the IR carry on the selector side (via
+// the existing CCFlagChainTracker mechanism) and consumers emit
+// the new MaterializeCC_* pseudos with no BIT1 input.
+//
+// Why this matters for Bug #302: the BIT1 register class uses
+// AALSB/ABLSB/AELSB/AFLSB physregs, which are `sub_lsb`
+// sub-registers of AA/AB/AE/AF.  That sub_lsb chain is what
+// TableGen propagates back into ACC32 vregs through cross-class
+// aliasing, producing the `acc32_with_sub_lsb` intersection class
+// that collapses to `{AQ}` (because SPILL_Q*N lacks the deep
+// sub-register metadata) and breaks vfprintf's LTO codegen.
+// Stage 3.c drops the sub_lsb SubRegIndex from Reg8 (along with
+// AALSB/etc. physregs and the BIT1 class) — but that's only safe
+// once Stage 3.b has switched every BIT1 producer/consumer to the
+// new MaterializeCC_* pseudos.
+//
+// Stage 3.a (this commit): pseudos defined, inert.  No consumer
+// emits them yet.  Tests stay green.
+//
+// Post-RA expansion (in MC6809InstrInfo.cpp):
+//   C: LDB #0; ADCB #0       (deposit CC.C in AB bit 0)
+//   V: TFR CC,B; LSRB; ANDB #1   (CC.V = bit 1, shift to bit 0)
+//   Z: TFR CC,B; LSRB; LSRB; ANDB #1  (CC.Z = bit 2)
+//   N: TFR CC,B; LSRB×3; ANDB #1     (CC.N = bit 3)
+// CC layout (msb→lsb): E F H I N Z V C.
+//
+// hasSideEffects=1 keeps the same scheduling barrier as the
+// existing Materialize* pseudos — the producer's CC bit must
+// not be clobbered between its write and this materialise.
+def MaterializeCC_C_to_byte : MC6809Pseudo {
+  dag OutOperandList = (outs ABc:$dst);
+  dag InOperandList  = (ins);
+  let Uses = [C];
+  let Defs = [NZ, V, C];
+  let hasSideEffects = 1;
+}
+def MaterializeCC_V_to_byte : MC6809Pseudo {
+  dag OutOperandList = (outs ABc:$dst);
+  dag InOperandList  = (ins);
+  let Uses = [V];
+  let Defs = [NZ, V, C];
+  let hasSideEffects = 1;
+}
+def MaterializeCC_Z_to_byte : MC6809Pseudo {
+  dag OutOperandList = (outs ABc:$dst);
+  dag InOperandList  = (ins);
+  let Uses = [Z];
+  let Defs = [NZ, V, C];
+  let hasSideEffects = 1;
+}
+def MaterializeCC_N_to_byte : MC6809Pseudo {
+  dag OutOperandList = (outs ABc:$dst);
+  dag InOperandList  = (ins);
+  let Uses = [N];
+  let Defs = [NZ, V, C];
+  let hasSideEffects = 1;
+}
+
 // Bug #184 inverse of MaterializeCarryToByte_i8: restore CC.C from a 0/1
 // byte that was previously frozen via MaterializeCarryToByte_i8. Used to
 // preserve a SubSetCarry chain's borrow across a CC-clobbering region

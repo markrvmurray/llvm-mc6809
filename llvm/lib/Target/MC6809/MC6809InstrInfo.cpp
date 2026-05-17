@@ -2928,6 +2928,68 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     MI.eraseFromParent();
     return true;
   }
+  case MC6809::MaterializeCC_C_to_byte:
+  case MC6809::MaterializeCC_V_to_byte:
+  case MC6809::MaterializeCC_Z_to_byte:
+  case MC6809::MaterializeCC_N_to_byte: {
+    // Bug #302 redesign Phase 3 Stage 3.a (2026-05-17): read a CC
+    // flag bit and deposit as a 0/1 byte in $ab.  No BIT1 input
+    // operand — the CC bit is the source of truth.  Stage 3.b
+    // switches consumers to these pseudos; Stage 3.c drops the
+    // BIT1 register class + sub_lsb chain that the existing
+    // Materialize*_i8 pseudos depend on.
+    //
+    // CC bit layout (msb→lsb): E F H I N Z V C.  Extraction:
+    //   C: LDB #0 ; ADCB #0     (cleanest — uses ADC's carry-in)
+    //   V: TFR CC,B ; LSRB ; ANDB #1
+    //   Z: TFR CC,B ; LSRB ; LSRB ; ANDB #1
+    //   N: TFR CC,B ; LSRB×3 ; ANDB #1
+    MachineFunction &MF = *MI.getMF();
+    Register DstReg = MI.getOperand(0).getReg();
+    Register RealDst = DstReg;
+    Register OrigDst = DstReg;
+    if (needsMaterialization(DstReg)) {
+      RealDst = materializeReg(Builder, DstReg, MF);
+    }
+    assert(RealDst == MC6809::AB &&
+           "MaterializeCC_*_to_byte expects ABc-allocated destination");
+
+    unsigned Opcode = MI.getOpcode();
+    if (Opcode == MC6809::MaterializeCC_C_to_byte) {
+      // LDB #0 ; ADCB #0 — fastest path for the C bit.
+      Builder.buildInstr(MC6809::LDBi8)
+          .addDef(MC6809::AB, RegState::Implicit).addImm(0);
+      Builder.buildInstr(MC6809::ADCBi8)
+          .addDef(MC6809::AB, RegState::Implicit).addImm(0);
+    } else {
+      // TFR CC,B ; LSRB×N ; ANDB #1.
+      unsigned NShifts = 0;
+      switch (Opcode) {
+      case MC6809::MaterializeCC_V_to_byte: NShifts = 1; break;
+      case MC6809::MaterializeCC_Z_to_byte: NShifts = 2; break;
+      case MC6809::MaterializeCC_N_to_byte: NShifts = 3; break;
+      default: llvm_unreachable("unreachable");
+      }
+      Builder.buildInstr(MC6809::TFRp)
+          .addDef(MC6809::AB)
+          .addUse(MC6809::CC);
+      for (unsigned I = 0; I < NShifts; ++I) {
+        Builder.buildInstr(MC6809::LSRBa)
+            .addDef(MC6809::AB, RegState::Implicit);
+      }
+      Builder.buildInstr(MC6809::ANDBi8)
+          .addDef(MC6809::AB, RegState::Implicit).addImm(1);
+    }
+
+    if (needsMaterialization(OrigDst)) {
+      MachineBasicBlock &MBB = *MI.getParent();
+      auto NextIt = std::next(MachineBasicBlock::iterator(MI));
+      MachineIRBuilder StoreBuilder(MBB, NextIt);
+      dematerializeReg(StoreBuilder, RealDst, OrigDst, MF);
+    }
+    MI.eraseFromParent();
+    return true;
+  }
   case MC6809::MaterializeByteToCarry_i8: {
     // Bug #184 inverse of MaterializeCarryToByte_i8: restore CC.C from a
     // 0/1 byte that was previously frozen via MaterializeCarryToByte_i8.
