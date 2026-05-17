@@ -3306,8 +3306,9 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::Store_iPtr_Mem:
     expandStoreIdx(Builder, MI);
     break;
-  case MC6809::AND_i1_Imm:
   case MC6809::AND_i8_Imm:
+    // Bug #302 BIT1 elimination: AND_i1_Imm retired; AND on i1
+    // values uses AND_i8_Imm with a 1-bounded byte source.
     expandImm(ANDImm, Builder, MI);
     break;
   case MC6809::AND_i16_Imm:

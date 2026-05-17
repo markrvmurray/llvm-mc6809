@@ -773,9 +773,13 @@ multiclass MC6809Bitwise<ValueType vtype, RegisterClass reg> {
   }
 }
 
-defm AND_i1 : MC6809Bitwise<i8, BIT1>;
-defm OR_i1 : MC6809Bitwise<i8, BIT1>;
-defm XOR_i1 : MC6809Bitwise<i8, BIT1>;
+// Bug #302 BIT1 elimination: AND_i1 / OR_i1 / XOR_i1 are removed.
+// i1 values now live in ACC8 (per the MVT::i1 -> ACC8 binding in
+// ISelLowering), so G_AND / G_OR / G_XOR on i1 maps to the i8 byte
+// pseudos below; the AND[A|B] / OR[A|B] / EOR[A|B] hardware ops
+// trivially mask on bit 0 if higher bits are already 0 (the value
+// is i1-bounded).  No caller of the _i1 pseudos exists in the
+// backend, so removal is mechanical.
 defm AND_i8 : MC6809Bitwise<i8, ACC8>;
 defm OR_i8 : MC6809Bitwise<i8, ACC8>;
 defm XOR_i8 : MC6809Bitwise<i8, ACC8>;

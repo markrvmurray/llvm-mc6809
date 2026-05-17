@@ -385,6 +385,12 @@ def SEX8Implicit : MC6809LogicalInstr {
   // hierarchy.
   let Defs = [NZ, V, C, AD];
   let hasSideEffects = 1;
+  // Bug #302 BIT1 elimination: $src stays in BIT1 for now -- the
+  // TableGen-imported pattern matcher binds the sext pattern by
+  // value type, and explicit (i1 ACC8) / (i8 ACC8) annotations
+  // produce "Type set is empty" errors when both value types live
+  // on the same RegisterClass.  Group D drops SEX8Implicit / BIT1
+  // together; until then the source class stays.
   dag InOperandList = (ins BIT1:$src);
   dag OutOperandList = (outs ACC8:$dst);
   let Pattern = [(set ACC8:$dst, (sext BIT1:$src))];
@@ -446,6 +452,9 @@ def SEX32Implicit : MC6809LogicalInstr {
 
 def ZEX8Implicit : MC6809LogicalInstr {
   // Expansion: AND[A|B] #1.  AND[A|B] sets NZ and clears V; C unchanged.
+  // Bug #302 BIT1 elimination: $src stays in ABLSBc for now -- same
+  // TableGen i1/i8 type-binding issue as SEX8Implicit above.  Group
+  // D retires ABLSBc + this pseudo together.
   let Defs = [NZ, V];
   let hasSideEffects = 1;
   dag InOperandList = (ins ABLSBc:$src);
