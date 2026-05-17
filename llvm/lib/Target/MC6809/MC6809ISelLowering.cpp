@@ -39,7 +39,14 @@ using namespace llvm;
 #define DEBUG_TYPE "mc6809-isellowering"
 
 MC6809TargetLowering::MC6809TargetLowering(const MC6809TargetMachine &TM, const MC6809Subtarget &STI) : TargetLowering(TM, STI) {
-  addRegisterClass(MVT::i1, &MC6809::BIT1RegClass);
+  // Bug #302 BIT1 elimination: i1 values live in byte-class vregs;
+  // bit 0 of the byte carries the value (which is what the hardware
+  // does anyway -- the BIT1 1-bit sub-registers were a regalloc
+  // fiction).  Use ACC8 (the same class as MVT::i8) so the regalloc
+  // sees the same allocatable byte pool for both types, mirroring
+  // BIT1's old AltOrder which spanned AALSB+ABLSB (the LSBs of AA
+  // and AB).  See plan at ~/.claude/plans/bit1-elimination-bug-302.md.
+  addRegisterClass(MVT::i1, &MC6809::ACC8RegClass);
   addRegisterClass(MVT::i8, &MC6809::ACC8RegClass);
   addRegisterClass(MVT::i16, &MC6809::ACC16RegClass);
   if (STI.has6309())
@@ -242,9 +249,12 @@ static MachineBasicBlock *emitConditionalImm(MachineInstr &MI, MachineBasicBlock
   unsigned Opcode;
   Register Dst0;
   Register Dst1;
-  Opcode = MC6809::Load_i1_Imm;
-  Dst0 = MRI.createVirtualRegister(&MC6809::BIT1RegClass);
-  Dst1 = MRI.createVirtualRegister(&MC6809::BIT1RegClass);
+  // Bug #302 BIT1 elimination: i1 vregs now live in byte-class storage
+  // (ACC8 -- same pool as MVT::i8).  The LDImm lambda below routes to
+  // Load_i8_Imm via the ACC8RegClass.contains check.
+  Opcode = MC6809::Load_i8_Imm;
+  Dst0 = MRI.createVirtualRegister(&MC6809::ACC8RegClass);
+  Dst1 = MRI.createVirtualRegister(&MC6809::ACC8RegClass);
 
   // Split out all instructions after MI into a new basic block, updating
   // liveins.
