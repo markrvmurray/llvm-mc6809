@@ -335,6 +335,20 @@ bool MC6809RegisterInfo::getRegAllocationHints(Register VirtReg, ArrayRef<MCPhys
   return false;
 }
 
+// BIT1-member (AALSB/ABLSB/AELSB/AFLSB) -> parent ACC8 byte (AA/AB/AE/AF).
+// Mirrors getBit1ByteHalf in MC6809InstrInfo.cpp; duplicated here so the
+// copyCost reasoning is expressed in terms of the explicit byte-half
+// mapping rather than via getMatchingSuperReg(sub_lsb).
+static Register bit1ByteParent(Register R) {
+  switch (R) {
+  case MC6809::AALSB: return MC6809::AA;
+  case MC6809::ABLSB: return MC6809::AB;
+  case MC6809::AELSB: return MC6809::AE;
+  case MC6809::AFLSB: return MC6809::AF;
+  default:            return Register();
+  }
+}
+
 MC6809InstrCost MC6809RegisterInfo::copyCost(Register DestReg, Register SrcReg, const MC6809Subtarget &STI) const {
   if (DestReg == SrcReg)
     return MC6809InstrCost();
@@ -447,8 +461,8 @@ MC6809InstrCost MC6809RegisterInfo::copyCost(Register DestReg, Register SrcReg, 
     return MC6809InstrCost(0, 0);
   }
   if (AreClasses(MC6809::BIT1RegClass, MC6809::BIT1RegClass)) {
-    Register SrcReg8 = getMatchingSuperReg(SrcReg, MC6809::sub_lsb, &MC6809::ACC8RegClass);
-    Register DestReg8 = getMatchingSuperReg(DestReg, MC6809::sub_lsb, &MC6809::ACC8RegClass);
+    Register SrcReg8 = bit1ByteParent(SrcReg);
+    Register DestReg8 = bit1ByteParent(DestReg);
     auto BitCost = MC6809InstrCost(3, 4);
 
     if (SrcReg8) {

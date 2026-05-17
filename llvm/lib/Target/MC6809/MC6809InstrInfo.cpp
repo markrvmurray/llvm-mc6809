@@ -1891,18 +1891,16 @@ static bool emitHD6309RegRegOp(MachineIRBuilder &Builder, MachineInstr &MI,
       Builder.buildInstr(MC6809::TFRp).addDef(DestByte).addUse(SrcByte);
   } else if (AreClasses(MC6809::ACC8RegClass, MC6809::BIT1RegClass)) {
     // BIT1 → ACC8: the boolean value is in the LSB of an ACC8 register.
-    // Copy the byte and mask to ensure only bit 0 is set.
-    const TargetRegisterInfo *TRI = Builder.getMRI()->getTargetRegisterInfo();
-    SrcReg = TRI->getMatchingSuperReg(SrcReg, MC6809::sub_lsb, &MC6809::ACC8RegClass);
-    if (!SrcReg) SrcReg = MI->getOperand(1).getReg(); // fallback
+    // Copy the byte and mask to ensure only bit 0 is set.  BIT1 members
+    // (AALSB/ABLSB/AELSB/AFLSB) map to their parent byte (AA/AB/AE/AF)
+    // via getBit1ByteHalf — no longer routes through sub_lsb.
+    SrcReg = getBit1ByteHalf(SrcReg);
     if (DestReg != SrcReg)
       Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(SrcReg);
     Builder.buildInstr(MC6809::AND_i8_Imm).addDef(DestReg).addUse(DestReg).addImm(1);
   } else if (AreClasses(MC6809::BIT1RegClass, MC6809::ACC8RegClass)) {
     // ACC8 → BIT1: just copy the byte (the LSB is the boolean).
-    const TargetRegisterInfo *TRI = Builder.getMRI()->getTargetRegisterInfo();
-    DestReg = TRI->getMatchingSuperReg(DestReg, MC6809::sub_lsb, &MC6809::ACC8RegClass);
-    if (!DestReg) DestReg = MI->getOperand(0).getReg();
+    DestReg = getBit1ByteHalf(DestReg);
     if (DestReg != SrcReg)
       Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(SrcReg);
   } else if (AreClasses(MC6809::Imag8RegClass, MC6809::ACC8RegClass)) {
@@ -2051,7 +2049,6 @@ void MC6809InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB, MachineBasicB
 // Load or store one register from/to a location on the static stack.
 static void loadStoreRegisterStaticStackSlot(MachineIRBuilder &Builder, MachineOperand MO, int FrameIndex, int64_t Offset, MachineMemOperand *MMO) {
   const MachineRegisterInfo &MRI = *Builder.getMRI();
-  const TargetRegisterInfo &TRI = *Builder.getMF().getSubtarget().getRegisterInfo();
 
   Register Reg = MO.getReg();
   unsigned Size = 0;
@@ -2090,9 +2087,10 @@ static void loadStoreRegisterStaticStackSlot(MachineIRBuilder &Builder, MachineO
   }
   assert(Size != 0);
 
-  // Convert bit to byte if directly possible.
+  // Convert bit to byte if directly possible.  BIT1 members
+  // (AALSB/ABLSB/AELSB/AFLSB) map to their parent byte (AA/AB/AE/AF).
   if (Reg.isPhysical() && MC6809::BIT1RegClass.contains(Reg)) {
-    Reg = TRI.getMatchingSuperReg(Reg, MC6809::sub_lsb, &MC6809::ACC8RegClass);
+    Reg = getBit1ByteHalf(Reg);
     MO.setReg(Reg);
   }
 
@@ -5371,8 +5369,8 @@ void MC6809InstrInfo::expandLoad1Imm(MachineIRBuilder &Builder, MachineInstr &MI
   unsigned Opcode;
   switch (DestReg) {
   default: {
-    DestReg = Builder.getMF().getSubtarget().getRegisterInfo()->getMatchingSuperReg(DestReg, MC6809::sub_lsb, &MC6809::ACC8RegClass);
-    assert(DestReg && "Unexpected destination for LDImm1");
+    // BIT1 dst → emit byte load into the parent byte (AA/AB/AE/AF).
+    DestReg = getBit1ByteHalf(DestReg);
     assert(MC6809::ACC8RegClass.contains(DestReg));
     Opcode = MC6809::Load_i8_Imm;
     MI.getOperand(0).setReg(DestReg);
