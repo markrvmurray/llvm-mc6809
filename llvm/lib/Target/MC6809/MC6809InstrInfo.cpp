@@ -2495,29 +2495,92 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
           .addUse(MC6809::AD, RegState::Implicit)
           .addImm(Offset).addReg(MC6809::SU);
     } else {
-      // AQ destination: marshal hi into AD, lo into AW.  copyPhysReg
-      // emits TFR for in-class moves and handles the AD/AW pair
-      // correctly even if the inputs collide (one of them is already
-      // in AD or AW).
-      // Hi first: if Hi is in AW, copy to AD via TFR W,D (which would
-      // clobber AD's existing content — but Hi → AD is what we want).
-      // If Hi is already in AD, no-op.  If Hi is in some other ADc
-      // member (SPILL_D*N etc.), copyPhysReg handles materialisation.
+      // AQ destination: marshal hi into AD, lo into AW.
+      //
+      // Bug #302 redesign Phase 2 fixup (2026-05-17): the Build32 MI
+      // declares an explicit `$aq` def (its OutOperandList is ACC32).
+      // When we erase the MI, the def goes with it — and downstream
+      // sub-register accesses ($ab, $aa, etc.) see $aq as undefined
+      // even though our copyPhysReg stages the data into $ad and $aw
+      // correctly.  Hit on labs / fseek / fseeko / imaxdiv / lldiv /
+      // arc4random / vfprintf_s / hash_func at -Og-hd6309-mame in the
+      // Phase 2 attempt (`Using an undefined physical register: $ab`
+      // on a downstream Store_i8_Mem).
+      //
+      // Fix: after staging, attach `implicit-def $aq` to the last
+      // emitted instruction so the verifier sees a continuous chain
+      // of $aq defs.  If we emitted nothing (both inputs already in
+      // place), insert an explicit COPY $aq, $aq as the marker —
+      // CopyPropagation eliminates it but the verifier accepts it.
+      //
+      // Cross-conflict (hi=$aw, lo=$ad) isn't handled here yet — if
+      // regalloc picks that shape, the second copyPhysReg's TFR W,D
+      // would clobber $ad after the first copy, producing wrong
+      // data.  Phase 3 rewrites this expansion to be sub-reg-
+      // independent and the collision-handling will be revisited
+      // there.
+      MachineBasicBlock &MBB = *MI.getParent();
+      MachineBasicBlock::iterator InsertBefore = MI;
+      MachineBasicBlock::iterator BeforeFirstCopy = MBB.end();
+      if (InsertBefore != MBB.begin())
+        BeforeFirstCopy = std::prev(InsertBefore);
+
       if (HiReg != MC6809::AD) {
-        copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
+        copyPhysReg(MBB, InsertBefore, MI.getDebugLoc(),
                     MC6809::AD, HiReg, /*KillSrc=*/false);
       }
-      // Then lo: if Lo is already in AW, no-op.  If Lo is in AD,
-      // problem — AD was just overwritten by Hi.  This is the input-
-      // collision case that the regalloc should have avoided by
-      // tying or by class hints; copyPhysReg will at least emit a
-      // valid (if wrong-valued) instruction sequence and the
-      // verifier will catch the case in development.  For now, trust
-      // regalloc to pick non-colliding inputs; if a real testcase
-      // surfaces, add explicit conflict handling here.
       if (LoReg != MC6809::AW) {
-        copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
+        copyPhysReg(MBB, InsertBefore, MI.getDebugLoc(),
                     MC6809::AW, LoReg, /*KillSrc=*/false);
+      }
+
+      // Find the last instruction we emitted (immediately before MI).
+      MachineBasicBlock::iterator LastEmitted = std::prev(InsertBefore);
+      bool EmittedSomething = (LastEmitted != BeforeFirstCopy);
+      if (EmittedSomething) {
+        // Add implicit-def $aq to the last emitted MI so the
+        // verifier sees $aq freshly defined here.
+        LastEmitted->addOperand(MachineOperand::CreateReg(
+            MC6809::AQ, /*isDef=*/true, /*isImp=*/true));
+      } else {
+        // Both inputs already in place; emit a self-COPY as the
+        // verifier marker.  CopyPropagation will eliminate it.
+        Builder.buildInstr(TargetOpcode::COPY)
+            .addDef(MC6809::AQ)
+            .addUse(MC6809::AQ);
+      }
+    }
+    MI.eraseFromParent();
+    return true;
+  }
+  case MC6809::AnyExt32_i16: {
+    // Bug #302 redesign Phase 2 (2026-05-17): i16 → i32 anyext.
+    // Move the i16 source into the low half of the i32 destination
+    // (= AW for AQ-dest, = slot+2 for SPILL_Q*N-dest).  High half
+    // is undefined — the IR's anyext semantics make the upper bits
+    // don't-care.
+    MachineFunction &MF = *MI.getMF();
+    Register DstReg = MI.getOperand(0).getReg();
+    Register SrcReg = MI.getOperand(1).getReg();
+    if (isQSpillReg(DstReg)) {
+      // SPILL_Q*N destination: STD <src>,slot+2,$su.  Move src
+      // through AD if not already there (STD only writes from AD).
+      int Offset = computeSpillStackOffset(DstReg, MF);
+      bool Fits8 = ((Offset + 2) >= -128 && (Offset + 2) <= 127);
+      unsigned Opc = Fits8 ? MC6809::STDi_o8 : MC6809::STDi_o16;
+      if (SrcReg != MC6809::AD) {
+        copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
+                    MC6809::AD, SrcReg, /*KillSrc=*/false);
+      }
+      Builder.buildInstr(Opc)
+          .addUse(MC6809::AD, RegState::Implicit)
+          .addImm(Offset + 2).addReg(MC6809::SU);
+    } else {
+      // AQ destination: AW (AQ.sub_lo_word) ← src.  copyPhysReg
+      // elides when src is already AW.
+      if (SrcReg != MC6809::AW) {
+        copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
+                    MC6809::AW, SrcReg, /*KillSrc=*/false);
       }
     }
     MI.eraseFromParent();

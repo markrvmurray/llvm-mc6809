@@ -226,6 +226,27 @@ let Defs = [NZ, V] in {
     let isAsCheapAsAMove = true;
   }
 
+  // Bug #302 redesign Phase 2 (2026-05-17): anyext i16 → i32.  i16
+  // input becomes the low word of the i32 result; the high word is
+  // undefined.  Replaces the `INSERT_SUBREG (i32 (IMPLICIT_DEF)),
+  // ACC16:$word, sub_lo_word` TableGen pattern that references AQ's
+  // sub_lo_word index — that reference goes away when Phase 3 drops
+  // AQ's sub-register hierarchy.
+  //
+  // Input class is ACC16 (wider than ADc — accepts AW too) because
+  // the upstream G_ANYEXT may land its source in any ACC16-class
+  // register.  Output is opaque ACC32 — same no-sub-word-constraint
+  // property as Build32_i16i16.
+  //
+  // Post-RA expansion: AQ-dest → copyPhysReg($aw, $src) for the low
+  // half; high word ($ad) stays undefined.  SPILL_Q*N-dest → STD
+  // $src,slot+2,$su for the low half; slot+0 stays undefined.
+  def AnyExt32_i16 : MC6809Pseudo {
+    dag OutOperandList = (outs ACC32:$dst);
+    dag InOperandList  = (ins ACC16:$src);
+    let isAsCheapAsAMove = true;
+  }
+
   // Bug #301b Phase B (2026-05-16): native HD6309 i32 sign test.
   // Produces an i1 whose value is the sign bit of the i32 input
   // (1 if negative, 0 if non-negative).

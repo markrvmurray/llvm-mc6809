@@ -1021,16 +1021,23 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
       constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
       return true;
     }
-    // Bug #161: trunc i32→i8 — chain via EXTRACT_LO_word_i32 pseudo
-    // (handles both AQ and SPILL_Q sources, round 14) followed by
-    // EXTRACT_LO_i16 on the resulting AD vreg. Direct sub_lo_word
-    // sub-register COPY would break on SPILL_Q sources.
+    // Bug #161: trunc i32→i8 — chain via Extract16_i32_lo pseudo
+    // (handles both AQ and SPILL_Q sources via its post-RA
+    // expansion: TFR W,D for AQ, LDD slot+2,$su for SPILL_Q*N)
+    // followed by EXTRACT_LO_i16 on the resulting AD vreg.
+    //
+    // Bug #302 redesign Phase 2 (2026-05-17): switched from
+    // EXTRACT_LO_word_i32 to Extract16_i32_lo (Phase 1's parallel
+    // replacement pseudo).  Same operand shape, same post-RA
+    // expansion semantics; the rename is preparation for Phase 3+,
+    // which drops AQ's sub-register hierarchy and rewrites the
+    // expansion to be sub-reg-independent.
     if (DstTy == LLT::scalar(8) && SrcTy == LLT::scalar(32)) {
       MRI->setRegClass(DstReg, &MC6809::ACC8RegClass);
       MRI->setRegClass(SrcReg, &MC6809::ACC32RegClass);
       MachineIRBuilder Builder(MI);
       Register WordLo = MRI->createVirtualRegister(&MC6809::ADcRegClass);
-      auto WordExt = Builder.buildInstr(MC6809::EXTRACT_LO_word_i32)
+      auto WordExt = Builder.buildInstr(MC6809::Extract16_i32_lo)
                         .addDef(WordLo)
                         .addUse(SrcReg);
       constrainSelectedInstRegOperands(*WordExt, TII, TRI, RBI);
@@ -2043,10 +2050,23 @@ bool MC6809InstructionSelector::selectMergeValues(MachineInstr &MI) {
       constrainSelectedInstRegOperands(*MLo, TII, TRI, RBI);
       constrainSelectedInstRegOperands(*MHi, TII, TRI, RBI);
     }
-    auto RegSeq = Builder.buildInstr(MC6809::REG_SEQUENCE).addDef(Dst);
-    RegSeq.addUse(Lo16).addImm(MC6809::sub_lo_word).addUse(Hi16).addImm(MC6809::sub_hi_word);
-    RegSeq->addImplicitDefUseOperands(*MF);
-    constrainGenericOp(*RegSeq);
+    // Bug #302 redesign Phase 2 (2026-05-17): switched from
+    // REG_SEQUENCE-with-sub_lo_word/sub_hi_word destination-assembly
+    // to Build32_i16i16 (Phase 1's parallel replacement pseudo).
+    // The REG_SEQUENCE pattern was the structural root cause of
+    // Bug #302: writes to a vreg's sub-word slots leaked
+    // intersection-class demand from downstream consumers into
+    // the destination vreg, producing `acc32_with_sub_lsb` =
+    // {AQ} only collapses that broke vfprintf's LTO codegen.
+    // Build32_i16i16's opaque ACC32 destination has no sub-word
+    // constraint, eliminating the leak.
+    Register DstAcc32 = Dst;
+    MRI->setRegClass(DstAcc32, &MC6809::ACC32RegClass);
+    auto Build = Builder.buildInstr(MC6809::Build32_i16i16)
+                     .addDef(DstAcc32)
+                     .addUse(Lo16)
+                     .addUse(Hi16);
+    constrainSelectedInstRegOperands(*Build, TII, TRI, RBI);
   }
   MI.eraseFromParent();
   return true;
@@ -2703,13 +2723,14 @@ bool MC6809InstructionSelector::selectUnMergeValues(MachineInstr &MI) {
         MRI->setRegClass(R, &MC6809::ACC8RegClass);
 
     // Two intermediate s16 vregs: low word (D0/D1 source) and high word
-    // (D2/D3 source). Bug #161 round 14: use EXTRACT_LO/HI_word_i32
-    // pseudos so SPILL_Q sources work (sub_lo_word / sub_hi_word
-    // sub-register COPYs only work for AQ).
+    // (D2/D3 source).  Bug #302 redesign Phase 2 (2026-05-17): switched
+    // from EXTRACT_LO/HI_word_i32 to Extract16_i32_lo/hi (Phase 1's
+    // parallel replacement pseudos).  Same operand shape and post-RA
+    // expansion semantics; preparation for Phase 3+.
     Register WordLo = MRI->createVirtualRegister(&MC6809::ADcRegClass);
     Register WordHi = MRI->createVirtualRegister(&MC6809::ADcRegClass);
-    auto LoWord = Builder.buildInstr(MC6809::EXTRACT_LO_word_i32).addDef(WordLo).addUse(Src);
-    auto HiWord = Builder.buildInstr(MC6809::EXTRACT_HI_word_i32).addDef(WordHi).addUse(Src);
+    auto LoWord = Builder.buildInstr(MC6809::Extract16_i32_lo).addDef(WordLo).addUse(Src);
+    auto HiWord = Builder.buildInstr(MC6809::Extract16_i32_hi).addDef(WordHi).addUse(Src);
     constrainSelectedInstRegOperands(*LoWord, TII, TRI, RBI);
     constrainSelectedInstRegOperands(*HiWord, TII, TRI, RBI);
 
@@ -2747,16 +2768,17 @@ bool MC6809InstructionSelector::selectUnMergeValues(MachineInstr &MI) {
     constrainSelectedInstRegOperands(*LoExt, TII, TRI, RBI);
     constrainSelectedInstRegOperands(*HiExt, TII, TRI, RBI);
   } else {
-    // s32 → s16×2: bug #161 round 14 — use EXTRACT_LO/HI_word_i32 pseudos
-    // so SPILL_Q sources work (sub_lo_word / sub_hi_word sub-register
-    // COPYs only work for AQ).
+    // s32 → s16×2: Bug #302 redesign Phase 2 (2026-05-17) — switched
+    // from EXTRACT_LO/HI_word_i32 to Extract16_i32_lo/hi (Phase 1's
+    // parallel replacement pseudos).  Same operand shape and post-RA
+    // expansion semantics.
     MRI->setRegClass(Src, &MC6809::ACC32RegClass);
     if (!MRI->getRegClassOrNull(Lo))
       MRI->setRegClass(Lo, &MC6809::ADcRegClass);
     if (!MRI->getRegClassOrNull(Hi))
       MRI->setRegClass(Hi, &MC6809::ADcRegClass);
-    auto LoWord = Builder.buildInstr(MC6809::EXTRACT_LO_word_i32).addDef(Lo).addUse(Src);
-    auto HiWord = Builder.buildInstr(MC6809::EXTRACT_HI_word_i32).addDef(Hi).addUse(Src);
+    auto LoWord = Builder.buildInstr(MC6809::Extract16_i32_lo).addDef(Lo).addUse(Src);
+    auto HiWord = Builder.buildInstr(MC6809::Extract16_i32_hi).addDef(Hi).addUse(Src);
     constrainSelectedInstRegOperands(*LoWord, TII, TRI, RBI);
     constrainSelectedInstRegOperands(*HiWord, TII, TRI, RBI);
   }

@@ -18,13 +18,21 @@
 
 # CHECK-LABEL: name: merge_4_bytes_to_i32
 # All four input bytes must reach the final i32 via the
-# MERGE_LOHI_i16 + REG_SEQUENCE pair emitted by the custom
-# selectMergeValues path; before the fix, the imported pattern
-# silently dropped operands 3..4 and produced a single REG_SEQUENCE
-# of two i8s into AQ's i16 sub-reg slots.
+# MERGE_LOHI_i16 + Build32_i16i16 pair emitted by the custom
+# selectMergeValues path; before the original Bug #208 fix, the
+# imported pattern silently dropped operands 3..4 and produced a
+# single REG_SEQUENCE of two i8s into AQ's i16 sub-reg slots.
+#
+# Bug #302 redesign Phase 2 (2026-05-17): the REG_SEQUENCE-via-
+# sub_lo_word/sub_hi_word destination assembly was switched to the
+# new Build32_i16i16 pseudo (Phase 1's parallel replacement) — same
+# data flow (two i16 halves into an i32 destination) but opaque
+# ACC32 output with no sub-word constraint, eliminating the
+# intersection-class leak that broke vfprintf at -Og+LTO+HD6309+FP.
 # CHECK:      MERGE_LOHI_i16
 # CHECK-NEXT: MERGE_LOHI_i16
-# CHECK-NEXT: REG_SEQUENCE {{.*}}, %subreg.sub_lo_word, {{.*}}, %subreg.sub_hi_word
+# CHECK-NEXT: Build32_i16i16
+# CHECK-NOT:  REG_SEQUENCE {{.*}}, %subreg.sub_lo_word
 # CHECK-NOT:  G_MERGE_VALUES
 
 ---
