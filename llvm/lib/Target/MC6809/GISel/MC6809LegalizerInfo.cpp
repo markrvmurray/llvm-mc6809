@@ -670,7 +670,12 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
           Register SignByte = MRI.createGenericVirtualRegister(S8);
           MRI.setRegClass(SignByte, &MC6809::ACC8RegClass);
           B.buildInstr(MC6809::SignTest_i32, {SignByte}, {Lhs});
-          MRI.setRegClass(Dst, &MC6809::BIT1RegClass);
+          // Bug #302 BIT1 elimination: the byte already holds the 0/1
+          // value (SignTest_i32 / EqZero_i32 / EqConst_i32 /
+          // CompareSet_i8_i32_Imm all output ACC8); the trunc to i1
+          // just narrows the LLT.  Dst's class is ACC8, matching the
+          // new MVT::i1 binding in ISelLowering.
+          MRI.setRegClass(Dst, &MC6809::ACC8RegClass);
           if (Invert) {
             auto OneB = B.buildConstant(S8, 1);
             auto XorB = B.buildXor(S8, SignByte, OneB);
@@ -716,10 +721,20 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
           if (InvertEq) {
             auto OneB = B.buildConstant(S8, 1);
             auto XorB = B.buildXor(S8, IsEqByte, OneB);
-            MRI.setRegClass(Dst, &MC6809::BIT1RegClass);
+            // Bug #302 BIT1 elimination: the byte already holds the 0/1
+          // value (SignTest_i32 / EqZero_i32 / EqConst_i32 /
+          // CompareSet_i8_i32_Imm all output ACC8); the trunc to i1
+          // just narrows the LLT.  Dst's class is ACC8, matching the
+          // new MVT::i1 binding in ISelLowering.
+          MRI.setRegClass(Dst, &MC6809::ACC8RegClass);
             B.buildTrunc(Dst, XorB);
           } else {
-            MRI.setRegClass(Dst, &MC6809::BIT1RegClass);
+            // Bug #302 BIT1 elimination: the byte already holds the 0/1
+          // value (SignTest_i32 / EqZero_i32 / EqConst_i32 /
+          // CompareSet_i8_i32_Imm all output ACC8); the trunc to i1
+          // just narrows the LLT.  Dst's class is ACC8, matching the
+          // new MVT::i1 binding in ISelLowering.
+          MRI.setRegClass(Dst, &MC6809::ACC8RegClass);
             B.buildTrunc(Dst, IsEqByte);
           }
           MI.eraseFromParent();
@@ -801,7 +816,12 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
               .addImm(CCImm)
               .addUse(Lhs)
               .addImm(KSigned);
-          MRI.setRegClass(Dst, &MC6809::BIT1RegClass);
+          // Bug #302 BIT1 elimination: the byte already holds the 0/1
+          // value (SignTest_i32 / EqZero_i32 / EqConst_i32 /
+          // CompareSet_i8_i32_Imm all output ACC8); the trunc to i1
+          // just narrows the LLT.  Dst's class is ACC8, matching the
+          // new MVT::i1 binding in ISelLowering.
+          MRI.setRegClass(Dst, &MC6809::ACC8RegClass);
           B.buildTrunc(Dst, ResultByte);
           MI.eraseFromParent();
           (void)S1;
