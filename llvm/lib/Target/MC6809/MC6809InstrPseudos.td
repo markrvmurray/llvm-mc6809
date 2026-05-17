@@ -434,31 +434,42 @@ def MaterializeOverflowToByte_i8 : MC6809Pseudo {
 // hasSideEffects=1 keeps the same scheduling barrier as the
 // existing Materialize* pseudos — the producer's CC bit must
 // not be clobbered between its write and this materialise.
+//
+// Asymmetric Defs-but-no-Uses (mirrors Bug #186 v5's
+// MC6809ArithmeticBaseCarry choice — see the long comment block
+// in MC6809InstrFamilies.td:380-445).  Adding `Uses=[C]`/`[V]`/
+// etc. tells MachineVerifier that the named physreg must be
+// live-in to every BB containing this MI; verifier fails when an
+// intervening MI declares the flag dead (e.g.
+// `Store_i16_Mem ..., implicit-def dead $v` interposed between
+// AddSetOverflowUse and the consumer).  Post-RA expansion still
+// reads CC honestly via `TFR CC,B` (or `ADCB #0` reading CC.C),
+// which is correct because $cc is always live in MC6809 — we
+// just suppress the verifier's flag-tracking check.
+// hasSideEffects + same-BB insertion right after the producer
+// preserves the ordering invariant the dropped Uses was a proxy
+// for.
 def MaterializeCC_C_to_byte : MC6809Pseudo {
   dag OutOperandList = (outs ABc:$dst);
   dag InOperandList  = (ins);
-  let Uses = [C];
   let Defs = [NZ, V, C];
   let hasSideEffects = 1;
 }
 def MaterializeCC_V_to_byte : MC6809Pseudo {
   dag OutOperandList = (outs ABc:$dst);
   dag InOperandList  = (ins);
-  let Uses = [V];
   let Defs = [NZ, V, C];
   let hasSideEffects = 1;
 }
 def MaterializeCC_Z_to_byte : MC6809Pseudo {
   dag OutOperandList = (outs ABc:$dst);
   dag InOperandList  = (ins);
-  let Uses = [Z];
   let Defs = [NZ, V, C];
   let hasSideEffects = 1;
 }
 def MaterializeCC_N_to_byte : MC6809Pseudo {
   dag OutOperandList = (outs ABc:$dst);
   dag InOperandList  = (ins);
-  let Uses = [N];
   let Defs = [NZ, V, C];
   let hasSideEffects = 1;
 }

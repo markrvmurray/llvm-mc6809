@@ -332,9 +332,18 @@ ensureCarryChainIntegrity(MachineInstr &Consumer, Register CarryIn,
   // flag we're bridging. C uses LDB#0;ADCB#0 / LSRB; V uses
   // TFR-CC,B; LSRB; ANDB#1 / ANDB#1; ADDB#0x7F. See the four pseudo
   // definitions in MC6809InstrPseudos.td.
+  //
+  // Bug #302 redesign Phase 3 Stage 3.b (2026-05-17): switched to
+  // MaterializeCC_C_to_byte / MaterializeCC_V_to_byte — the new
+  // Stage 3.a pseudos with no BIT1 input.  CC.C/V is read directly
+  // via the Uses=[C]/Uses=[V] declaration; the BIT1 vreg input
+  // (which was a scheduling phantom) is dropped.  The inserted
+  // freeze still goes right after the producer in producer's MBB,
+  // so CC.C/V is live at the read.  hasSideEffects=1 on both
+  // producer and freeze keeps them ordered.
   unsigned ToBytePseudo = (*Flag == MC6809::C)
-      ? MC6809::MaterializeCarryToByte_i8
-      : MC6809::MaterializeOverflowToByte_i8;
+      ? MC6809::MaterializeCC_C_to_byte
+      : MC6809::MaterializeCC_V_to_byte;
   unsigned ToCCPseudo = (*Flag == MC6809::C)
       ? MC6809::MaterializeByteToCarry_i8
       : MC6809::MaterializeByteToOverflow_i8;
@@ -783,16 +792,24 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
           break;
         }
         if (ProdDef) {
+          // Bug #302 redesign Phase 3 Stage 3.b (2026-05-17): switched
+          // to MaterializeCC_C_to_byte / MaterializeCC_V_to_byte —
+          // the Stage 3.a pseudos with no BIT1 input.  CC.C/CC.V is
+          // read directly via Uses=[C]/Uses=[V]; the BIT1 vreg input
+          // (a scheduling phantom — see Bug #186 v5) is dropped, so
+          // there's nothing reading SrcReg anymore.  The
+          // hasSideEffects=1 on producer and freeze, plus same-BB
+          // placement right after the producer, preserves the CC
+          // liveness invariant the original BIT1 input was a proxy
+          // for.
           unsigned Opc = (*Flag == MC6809::C)
-                             ? MC6809::MaterializeCarryToByte_i8
-                             : MC6809::MaterializeOverflowToByte_i8;
-          // Insert MaterializeByte right after the producer MI so CC
-          // hasn't been clobbered yet. Byte vreg is the G_ZEXT's dst.
+                             ? MC6809::MaterializeCC_C_to_byte
+                             : MC6809::MaterializeCC_V_to_byte;
           MRI->setRegClass(DstReg, &MC6809::ABcRegClass);
           MachineBasicBlock &ProdMBB = *ProdDef->getParent();
           auto InsertIt = std::next(MachineBasicBlock::iterator(ProdDef));
           MachineIRBuilder B(ProdMBB, InsertIt);
-          auto I = B.buildInstr(Opc).addDef(DstReg).addUse(SrcReg);
+          auto I = B.buildInstr(Opc).addDef(DstReg);
           constrainSelectedInstRegOperands(*I, TII, TRI, RBI);
           MI.eraseFromParent();
           return true;
@@ -872,12 +889,17 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
       // Carry producers → LDB #0; ADCB #0 (reads CC.C).
       // Overflow producers → TFR CC,B; LSRB; ANDB #1 (reads CC.V).
       if (auto Flag = getPhantomBit1Flag(SrcReg, *MRI, &CarryFlagOf)) {
+        // Bug #302 redesign Phase 3 Stage 3.b (2026-05-17): switched
+        // to MaterializeCC_C_to_byte / MaterializeCC_V_to_byte (no
+        // BIT1 input).  Same rationale as the G_ZEXT site above: CC
+        // is the authoritative source; the dropped vreg input was a
+        // scheduling phantom.
         MRI->setRegClass(DstReg, &MC6809::ABcRegClass);
         MachineIRBuilder B(MI);
         unsigned Opc = (*Flag == MC6809::C)
-                           ? MC6809::MaterializeCarryToByte_i8
-                           : MC6809::MaterializeOverflowToByte_i8;
-        auto I = B.buildInstr(Opc).addDef(DstReg).addUse(SrcReg);
+                           ? MC6809::MaterializeCC_C_to_byte
+                           : MC6809::MaterializeCC_V_to_byte;
+        auto I = B.buildInstr(Opc).addDef(DstReg);
         constrainSelectedInstRegOperands(*I, TII, TRI, RBI);
         MI.eraseFromParent();
         return true;
