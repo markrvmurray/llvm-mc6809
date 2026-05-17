@@ -3067,19 +3067,10 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     if (needsMaterialization(DstReg))
       DstReg = materializeReg(Builder, DstReg, MF);
 
-    // Map the BIT1 source to its parent byte register. Bug #161: under
-    // HD6309, regalloc may also produce AELSB/AFLSB (sub-bits of E/F);
-    // map those to E/F. The AND/NEG step still has to land on A or B
-    // because hardware has no ANDE/NEGE/ANDF/NEGF, so route via TFR.
-    Register SrcByte;
-    switch (SrcReg) {
-    case MC6809::AALSB: SrcByte = MC6809::AA; break;
-    case MC6809::ABLSB: SrcByte = MC6809::AB; break;
-    case MC6809::AELSB: SrcByte = MC6809::AE; break;
-    case MC6809::AFLSB: SrcByte = MC6809::AF; break;
-    default:
-      llvm_unreachable("SEX8Implicit: BIT1 source must be AALSB/ABLSB/AELSB/AFLSB");
-    }
+    // Bug #302 BIT1 elimination: BIT1's members are now byte
+    // registers (AA / AB / AE / AF) directly -- no AALSB / ABLSB /
+    // AELSB / AFLSB to map back through.  SrcReg is the byte itself.
+    Register SrcByte = SrcReg;
 
     // Resolve which page-1 byte register actually does the AND+NEG. The
     // dest may be E/F under HD6309, but AND/NEG only exist for A/B, so
