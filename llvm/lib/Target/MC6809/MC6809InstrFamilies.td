@@ -105,7 +105,15 @@ let Predicates = [IsHD6309] in {
     }
 }
 
-// Loads a boolean value into a NZVC bit or an ACC8 LSB
+// Loads a boolean value into a NZVC bit or an ACC8 LSB.  Bug #302 BIT1
+// elimination: $dst stays in BIT1 for now -- this is a TableGen
+// instruction whose i1 type binding flows through pattern matching;
+// retargeting it requires the BIT1 class to remain a valid i1 home
+// until Group D drops the class entirely.  Runtime callers that
+// already pre-allocate the dst in ACC8 (ISelLowering's Load_i1_Imm
+// CustomInsert path post the previous commit, and any direct
+// `buildInstr(Load_i1_Imm)` site that hands an ACC8 dst) hit the
+// expandLoad1Imm switch's named-physreg arms unchanged.
 def Load_i1_Imm : MC6809LogicalInstr {
   dag OutOperandList = (outs BIT1:$dst);
   dag InOperandList = (ins i1imm:$val);

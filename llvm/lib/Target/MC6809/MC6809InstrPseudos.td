@@ -74,6 +74,12 @@ def SelectImm : MC6809Pseudo {
 
 // Use the diamond control flow pattern to load one of two immediates based on
 // the value of a conditional - same as is used in the Bbc $cond instruction..
+// Bug #302 BIT1 elimination: this pseudo's $dst stays in BIT1 for now --
+// the MC6809SetIfCondPat patterns in MC6809InstrFamilies.td:891-902 are
+// typed as `(i1 (setcc ...))` and TableGen needs the i1-only BIT1 binding
+// here to type the pattern result.  When those patterns retire (Group D)
+// or are reshaped to (i8 (anyext (i1 (setcc ...))) the dst can move to
+// ACC8 like the other producers.
 def ConditionalImm : MC6809Pseudo {
   dag OutOperandList = (outs BIT1:$dst);
   dag InOperandList = (ins condcode:$cc, CCond:$tst, i1imm:$true, i1imm:$false);

@@ -687,7 +687,8 @@ static const TargetRegisterClass &getRegClassForType(LLT Ty) {
     default:
       llvm_unreachable("Invalid type size.");
     case 1:
-      return MC6809::BIT1RegClass;
+      // Bug #302 BIT1 elimination: i1 values share the byte pool with i8.
+      return MC6809::ACC8RegClass;
     case 8:
       return MC6809::ACC8RegClass;
     case 16:
@@ -1089,7 +1090,9 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
   }
 
   case TargetOpcode::G_ANYEXT: {
-    // anyext i1→i8: insert sub_lsb into ACC8 (reverse of G_TRUNC s8→s1).
+    // anyext i1->i8: byte-to-byte COPY now that i1 lives in ACC8.
+    // Bug #302 BIT1 elimination: the sub_lsb-via-INSERT_SUBREG chain
+    // is retired; both operands are bytes and the value is in bit 0.
     Register DstReg = MI.getOperand(0).getReg();
     Register SrcReg = MI.getOperand(1).getReg();
     LLT DstTy = MRI->getType(DstReg);
@@ -1097,9 +1100,8 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     if (DstTy == LLT::scalar(8) && SrcTy == LLT::scalar(1)) {
       MRI->setRegClass(DstReg, &MC6809::ACC8RegClass);
       if (!MRI->getRegClassOrNull(SrcReg))
-        MRI->setRegClass(SrcReg, &MC6809::BIT1RegClass);
+        MRI->setRegClass(SrcReg, &MC6809::ACC8RegClass);
       MI.setDesc(TII.get(TargetOpcode::COPY));
-      MI.getOperand(1).setSubReg(MC6809::sub_lsb);
       return true;
     }
     return false;
@@ -1729,7 +1731,8 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     if (!RC) {
       LLT Ty = MRI->getType(SrcReg);
       if (Ty == LLT::scalar(1))
-        RC = &MC6809::BIT1RegClass;
+        // Bug #302 BIT1 elimination: i1 shares the byte pool with i8.
+        RC = &MC6809::ACC8RegClass;
       else if (Ty == LLT::scalar(8))
         RC = &MC6809::ACC8RegClass;
       else if (Ty == LLT::scalar(16) || Ty == LLT::pointer(0, 16))
@@ -2133,7 +2136,11 @@ bool MC6809InstructionSelector::selectAddO(MachineInstr &MI) {
   // recognizes the producing pseudo's opcode directly.
   CarryFlagOf[CarryOut] = IsSigned ? MC6809::V : MC6809::C;
   if (!MRI->getRegClassOrNull(CarryOut))
-    MRI->setRegClass(CarryOut, &MC6809::BIT1RegClass);
+    // Bug #302 BIT1 elimination: phantom-BIT1 carry-outs live in a
+    // byte (ACC8 -- bit 0 is the value).  getPhantomBit1Flag /
+    // CCFlagChainTracker recognize the producer by opcode, not by
+    // class, so this is a vreg-class-only change.
+    MRI->setRegClass(CarryOut, &MC6809::ACC8RegClass);
 
   std::optional<ValueAndVReg> ValReg;
   int64_t Value;
@@ -2293,7 +2300,11 @@ bool MC6809InstructionSelector::selectSubO(MachineInstr &MI) {
   // Bug #186 follow-up Phase 1a (2026-04-28): see selectAddO above.
   CarryFlagOf[CarryOut] = IsSigned ? MC6809::V : MC6809::C;
   if (!MRI->getRegClassOrNull(CarryOut))
-    MRI->setRegClass(CarryOut, &MC6809::BIT1RegClass);
+    // Bug #302 BIT1 elimination: phantom-BIT1 carry-outs live in a
+    // byte (ACC8 -- bit 0 is the value).  getPhantomBit1Flag /
+    // CCFlagChainTracker recognize the producer by opcode, not by
+    // class, so this is a vreg-class-only change.
+    MRI->setRegClass(CarryOut, &MC6809::ACC8RegClass);
 
   std::optional<ValueAndVReg> ValReg;
   int64_t Value;
@@ -2418,7 +2429,11 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
   // Bug #186 follow-up Phase 1a (2026-04-28): see selectAddO above.
   CarryFlagOf[CarryOut] = IsSigned ? MC6809::V : MC6809::C;
   if (!MRI->getRegClassOrNull(CarryOut))
-    MRI->setRegClass(CarryOut, &MC6809::BIT1RegClass);
+    // Bug #302 BIT1 elimination: phantom-BIT1 carry-outs live in a
+    // byte (ACC8 -- bit 0 is the value).  getPhantomBit1Flag /
+    // CCFlagChainTracker recognize the producer by opcode, not by
+    // class, so this is a vreg-class-only change.
+    MRI->setRegClass(CarryOut, &MC6809::ACC8RegClass);
 
   std::optional<ValueAndVReg> ValReg;
   int64_t Value;
@@ -2603,7 +2618,11 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
   // Bug #186 follow-up Phase 1a (2026-04-28): see selectAddO above.
   CarryFlagOf[CarryOut] = IsSigned ? MC6809::V : MC6809::C;
   if (!MRI->getRegClassOrNull(CarryOut))
-    MRI->setRegClass(CarryOut, &MC6809::BIT1RegClass);
+    // Bug #302 BIT1 elimination: phantom-BIT1 carry-outs live in a
+    // byte (ACC8 -- bit 0 is the value).  getPhantomBit1Flag /
+    // CCFlagChainTracker recognize the producer by opcode, not by
+    // class, so this is a vreg-class-only change.
+    MRI->setRegClass(CarryOut, &MC6809::ACC8RegClass);
 
   std::optional<ValueAndVReg> ValReg;
   int64_t Value;
