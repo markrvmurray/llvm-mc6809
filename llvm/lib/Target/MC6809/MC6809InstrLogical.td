@@ -205,9 +205,10 @@ def LongBranchRelative : MC6809UnconditionalBranch {
 def JumpRelative : MC6809UnconditionalBranch;
 def LongJumpRelative : MC6809UnconditionalBranch;
 
-// Branches to $tgt if $flag = $val.
+// Branches to $tgt if $flag = $val.  Bug #302 BIT1 elimination: $flag is
+// now an ACC8 byte holding 0/1; the post-RA expansion compares bit 0.
 def BranchFlagIs : MC6809Branch {
-  dag InOperandList = (ins label:$tgt, BIT1:$flag, i1imm:$val);
+  dag InOperandList = (ins label:$tgt, ACC8:$flag, i1imm:$val);
 }
 
 // Conditional relative branches
@@ -509,14 +510,19 @@ def ZEX32Implicit : MC6809LogicalInstr {
 // Integer Extension/Truncation Patterns
 //===---------------------------------------------------------------------===//
 
-def : Pat<(i8 (anyext BIT1:$bit)), (INSERT_SUBREG (IMPLICIT_DEF), BIT1:$bit, sub_lsb)>;
-def : Pat<(i8 (zext CARRY:$bit)), (INSERT_SUBREG (IMPLICIT_DEF), CARRY:$bit, sub_lsb)>;
-// i16 anyext from i8 / BIT1 — go through ANYEXT_i8_to_i16 pseudo so the
+// Bug #302 BIT1 elimination: the (i8/i16 anyext BIT1) and
+// (i8 zext CARRY) patterns via INSERT_SUBREG sub_lsb are removed.
+// G_ANYEXT s1->s8 / G_ZEXT s1->s8 from phantom-BIT1 producers
+// (carry/overflow chains) is routed by the selector via the
+// MaterializeCC_* pseudos; non-phantom s1->s8 from byte-LSB sources
+// is plain byte COPY since i1 now lives in ACC8 (see ISelLowering's
+// MVT::i1 binding).  TableGen no longer needs the sub_lsb-via-
+// INSERT_SUBREG chain.
+//
+// i16 anyext from i8 -- go through ANYEXT_i8_to_i16 pseudo so the
 // coalescer never sees a sub_lo_byte COPY edge between ACC8 and ACC16.
 // Bug #118 Layer 1, approach b.
 def : Pat<(i16 (anyext ACC8:$byte)), (ANYEXT_i8_to_i16 ACC8:$byte)>;
-def : Pat<(i16 (anyext BIT1:$bit)),
-          (ANYEXT_i8_to_i16 (INSERT_SUBREG (i8 (IMPLICIT_DEF)), BIT1:$bit, sub_lsb))>;
 
 // i8 trunc from i16 — go through EXTRACT_LO_i16 pseudo, same reason.
 def : Pat<(i8 (trunc ADc:$word)), (EXTRACT_LO_i16 ADc:$word)>;

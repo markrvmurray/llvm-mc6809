@@ -64,10 +64,12 @@ def ADJCALLSTACKDOWN : MC6809CallFramePseudo;
 def ADJCALLSTACKUP : MC6809CallFramePseudo;
 
 // Use the diamond control flow pattern to load one of two immediates based on
-// the value of a BIT1/Flag.
+// the value of a byte flag (bit 0 = condition).  Bug #302 BIT1 elimination:
+// $tst is now ACC8 -- the byte holds 0 or 1, the custom inserter tests bit 0
+// the same way the old BIT1 path did.
 def SelectImm : MC6809Pseudo {
   dag OutOperandList = (outs unknown:$dst);
-  dag InOperandList = (ins BIT1:$tst, i1imm:$true, i1imm:$false);
+  dag InOperandList = (ins ACC8:$tst, i1imm:$true, i1imm:$false);
 
   let usesCustomInserter = true;
 }
