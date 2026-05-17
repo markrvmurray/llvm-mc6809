@@ -76,6 +76,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMC6809Target() {
   initializeMC6809LateOptimizationPass(PR);
   initializeMC6809LowerSelectPass(PR);
   initializeMC6809NonReentrantPass(PR);
+  initializeMC6809PhantomCarryGuardPass(PR);
   initializeMC6809PostRAScavengingPass(PR);
   initializeMC6809PostRASpillOptPass(PR);
   initializeMC6809PreCGPFreezePass(PR);
@@ -369,6 +370,13 @@ void MC6809PassConfig::addPreEmitPass() {
   // moved into MC6809AsmBackend::applyFixup — PCRel8 (was bug #58), Rel8
   // (was bug #122 _o8 truncation) and Rel5 (was bug #122 _o5 truncation)
   // all get range-checked there at MC fixup time.
+
+  // Bug #302 follow-up: PHANTOM_CARRY invariant guard.  Runs last so it
+  // sees the MIR every preceding pass produces.  Aborts with a clear
+  // diagnostic if any PHANTOM_CARRY physreg leaks to an explicit operand,
+  // or if any pass inserts a $c-clobbering MI between a carry-chain
+  // producer and its consumer.  See MC6809PhantomCarryGuard.cpp.
+  addPass(createMC6809PhantomCarryGuardPass());
 }
 
 ScheduleDAGInstrs *MC6809TargetMachine::createMachineScheduler(MachineSchedContext *C) const {

@@ -47,6 +47,9 @@ void initializeMC6809MaterializeSpillsPass(PassRegistry &);
 void initializeMC6809SanitiseDebugInfoPass(PassRegistry &);
 void initializeMC6809ShiftRotateChainPass(PassRegistry &);
 void initializeMC6809DirectPageAllocPass(PassRegistry &);
+void initializeMC6809PhantomCarryGuardPass(PassRegistry &);
+
+FunctionPass *createMC6809PhantomCarryGuardPass();
 
 // Enums corresponding to MC6809 condition codes
 namespace MC6809CC {
