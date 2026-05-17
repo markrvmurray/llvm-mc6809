@@ -170,6 +170,62 @@ let Defs = [NZ, V] in {
     let isAsCheapAsAMove = true;
   }
 
+  // Bug #302 redesign Phase 1 (2026-05-17): new cross-width i32↔i16
+  // pseudos as replacements for EXTRACT_LO/HI_word_i32 and the
+  // REG_SEQUENCE-with-sub_lo_word/sub_hi_word destination-assembly
+  // pattern.  Same operand shape as the EXTRACT pseudos above —
+  // opaque ACC32:$src input, ADc:$dst output — but new opcodes so
+  // every emission site can be switched explicitly in Phase 2 (then
+  // the EXTRACT_LO/HI_word_i32 pseudos can be deleted in Phase 5).
+  //
+  // The structural goal of the redesign: stop modelling AQ as a
+  // sub-register-decomposable register in TableGen.  Cross-width
+  // data flow goes through these pseudos, which carry NO sub-
+  // register index in their operands.  After Phase 3 drops AQ's
+  // `sub_lo_word` / `sub_hi_word` SubRegIndices, the TableGen
+  // intersection-class synthesis stops producing the
+  // `ACC32_with_sub_*` classes that collapse to `{AQ}` only
+  // (Bug #302 mechanism).
+  //
+  // Phase 1 (this commit): pseudos defined, inert (no emission
+  // sites yet).  Post-RA expansion (in MC6809InstrInfo.cpp)
+  // initially mirrors EXTRACT_LO/HI_word_i32: AQ source → TFR
+  // W,D / no-op; SPILL_Q*N source → LDD slot+2/+0,$su.  Phase 3
+  // rewrites the expansion to use literal AD/AW physregs instead
+  // of `getSubReg(AQ, sub_lo_word)`.
+  def Extract16_i32_lo : MC6809Pseudo {
+    dag OutOperandList = (outs ADc:$dst);
+    dag InOperandList  = (ins ACC32:$src);
+    let isAsCheapAsAMove = true;
+  }
+  def Extract16_i32_hi : MC6809Pseudo {
+    dag OutOperandList = (outs ADc:$dst);
+    dag InOperandList  = (ins ACC32:$src);
+    let isAsCheapAsAMove = true;
+  }
+
+  // Build a 32-bit value from two 16-bit halves.  Replaces the
+  // REG_SEQUENCE-with-sub_lo_word/sub_hi_word destination-assembly
+  // pattern currently emitted in selectMerge for s32 ← MERGE(s16
+  // lo, s16 hi) and the 4-byte MERGE variant (which goes through
+  // MERGE_LOHI_i16 then this pseudo).
+  //
+  // Output is opaque ACC32 — the result vreg has no sub-word-
+  // touching constraints in its def chain.  This is the structural
+  // fix for the Bug #302 root cause: REG_SEQUENCE-style sub-word
+  // writes leak intersection-class demand onto the destination
+  // vreg; an opaque Build32_i16i16 pseudo doesn't.
+  //
+  // Post-RA expansion: AQ-dest → marshal lo into AW, hi into AD
+  // (via TFR or copyPhysReg).  SPILL_Q*N-dest → STD <lo>,slot+2,
+  // STD <hi>,slot+0.  The inputs may already be in AD or other
+  // ADc-class members; expansion handles the staging.
+  def Build32_i16i16 : MC6809Pseudo {
+    dag OutOperandList = (outs ACC32:$dst);
+    dag InOperandList  = (ins ADc:$lo, ADc:$hi);
+    let isAsCheapAsAMove = true;
+  }
+
   // Bug #301b Phase B (2026-05-16): native HD6309 i32 sign test.
   // Produces an i1 whose value is the sign bit of the i32 input
   // (1 if negative, 0 if non-negative).

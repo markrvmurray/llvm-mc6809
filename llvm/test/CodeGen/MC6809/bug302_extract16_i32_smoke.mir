@@ -1,0 +1,58 @@
+# RUN: llc -mtriple=mc6809 -mcpu=hd6309 -run-pass=postrapseudos \
+# RUN:     %s -o - 2>&1 | FileCheck %s
+
+# Bug #302 redesign Phase 1 (2026-05-17): smoke test for the new
+# cross-width i32↔i16 pseudos.
+#
+# Phase 1 introduces three new pseudos in MC6809InstrPseudos.td as
+# parallel replacements for the EXTRACT_LO/HI_word_i32 +
+# REG_SEQUENCE-via-sub_lo_word/sub_hi_word infrastructure:
+#
+#   - Extract16_i32_lo $dst:ADc, $src:ACC32  — take the low word
+#   - Extract16_i32_hi $dst:ADc, $src:ACC32  — take the high word
+#   - Build32_i16i16   $dst:ACC32, $lo:ADc, $hi:ADc  — assemble
+#
+# They are INERT in Phase 1 — no emission sites are switched yet, so
+# they appear only in this sentinel.  Phase 2 will switch the
+# selector emission sites; Phase 3 will rewrite the post-RA
+# expansion to not depend on AQ's sub-register hierarchy.
+#
+# This .mir test exercises the Extract16_i32_lo/hi post-RA
+# expansion when source is in $aq.  The Build32_i16i16 path
+# (which needs a frame slot for its SPILL_Q*N-dest variant) is
+# tested implicitly via libc.a builds once Phase 2 switches
+# emission sites.
+
+# CHECK-LABEL: name: extract16_lo_from_aq
+# Extract16_i32_lo with $aq source, $ad dest.
+# AQ = D:W (D high, W low).  sub_lo_word = AW; the expansion calls
+# copyPhysReg($ad, $aw) which emits `$ad = TFRp $aw`.
+# CHECK:     $ad = TFRp $aw
+# CHECK-NOT: Extract16_i32_lo
+
+---
+name: extract16_lo_from_aq
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $aq
+    $ad = Extract16_i32_lo $aq, implicit-def $nz, implicit-def $v
+    RTSr implicit $ad
+...
+
+# CHECK-LABEL: name: extract16_hi_from_aq
+# Extract16_i32_hi with $aq source, $ad dest.
+# AQ = D:W with sub_hi_word = AD.  The expansion calls
+# copyPhysReg($ad, $ad) which is a no-op (elided cleanly — no
+# TFR/COPY emitted), so the function body is just the RTSr.
+# CHECK-NOT: Extract16_i32_hi
+
+---
+name: extract16_hi_from_aq
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $aq
+    $ad = Extract16_i32_hi $aq, implicit-def $nz, implicit-def $v
+    RTSr implicit $ad
+...
