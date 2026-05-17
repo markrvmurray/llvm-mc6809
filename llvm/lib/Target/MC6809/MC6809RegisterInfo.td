@@ -70,11 +70,22 @@ class MC6809Reg8<bits<16> num, string name, list<Register> subregs = [], list<Su
     let CoveredBySubRegs = false;
 }
 
-// An 8-bit value register (GPR or imaginary). Contains a 1-bit LSB subregister
-// to allow them to store boolean values.
+// An 8-bit value register (GPR or imaginary).  Bug #302: AA / AB / AE / AF
+// and SPILL_A* / SPILL_B* no longer declare a sub_lsb sub-register.
+// The 1-bit LSB physregs (AALSB / ABLSB / AELSB / AFLSB and
+// SPILL_*LSB) are still defined alongside (so AALSBc / ABLSBc /
+// AELSBc / AFLSBc and the SPILL_*LSB helpers compile) but they no
+// longer alias the byte parents through sub_lsb -- the sub_lsb
+// chain through AA / AB / AE / AF into AD / AW / AQ was what drove
+// TableGen to synthesize the acc32_with_sub_lsb intersection class
+// (collapses to {AQ} because SPILL_Q*N have no sub-register metadata)
+// and exhaust vfprintf's regalloc at -Og-lto-hd6309-mame-fp.  i1
+// values live in ACC8 directly now (ISelLowering binds MVT::i1 to
+// ACC8RegClass; BIT1's members are the same byte parents, BIT1
+// surviving as a value-type-distinguishing alias for ACC8).
 multiclass MC6809Reg8<bits<16> num, string name> {
   def LSB : MC6809Reg1<!add(num, 128), name#"LSB">;
-  def NAME : MC6809Reg8<num, name, [!cast<Register>(NAME#LSB)], [sub_lsb]>;
+  def NAME : MC6809Reg8<num, name, [], []>;
 }
 
 class MC6809Reg16<bits<16> num, string name, list<Register> subregs = [], list<SubRegIndex> subregindices = []>
