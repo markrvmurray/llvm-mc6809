@@ -422,11 +422,32 @@ ensureCarryChainIntegrity(MachineInstr &Consumer, Register CarryIn,
       ByteVReg = AfterProducer->getOperand(0).getReg();
     } else {
       // Fresh: allocate byte vreg and emit ToBytePseudo.
+      //
+      // Bug #307 (2026-05-18): MaterializeCC_C_to_byte /
+      // MaterializeCC_V_to_byte are the Bug #302 Stage 3.a pseudos
+      // with `InOperandList = (ins)` — no explicit inputs.  CC.C/V
+      // is read directly via the pseudo's Uses=[C]/Uses=[V]
+      // declaration; the BIT1 vreg input (a scheduling phantom —
+      // see Bug #186 v5) was dropped from the explicit operand list.
+      // The two sibling emit sites at selectG_ZEXT and selectG_ANYEXT
+      // (lines ~810, ~903) were already updated to emit just
+      // `.addDef(DstReg)`.  This site was missed and continued
+      // `.addUse(CarryIn)` as an EXPLICIT operand, producing MIs
+      // that trip `-verify-machineinstrs` post-RA with
+      // "Extra explicit operand on non-variadic instruction" (2 hits
+      // at -Og-hd6309-mame: imaxabs, llabs).
+      //
+      // Fix: add CarryIn as an IMPLICIT use instead.  Implicit
+      // operands don't count against the pseudo's explicit operand
+      // list (verifier accepts) but they still extend CarryIn's
+      // live range across the bridge for regalloc bookkeeping —
+      // matching the pre-fix pressure shape and avoiding cascade
+      // effects on the phantom_carry vreg's spill decisions.
       ByteVReg = MRI.createVirtualRegister(&MC6809::ABcRegClass);
       MachineIRBuilder ProducerB(PMBB, AfterProducer);
       auto MtoB = ProducerB.buildInstr(ToBytePseudo)
                       .addDef(ByteVReg)
-                      .addUse(CarryIn);
+                      .addUse(CarryIn, RegState::Implicit);
       constrainSelectedInstRegOperands(*MtoB, TII, TRI, RBI);
     }
     BridgedByteFor[Producer] = ByteVReg;

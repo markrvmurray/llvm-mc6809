@@ -2055,6 +2055,14 @@ static void loadStoreRegisterStaticStackSlot(MachineIRBuilder &Builder, MachineO
   if (Reg.isPhysical()) {
     if (MC6809::BIT1RegClass.contains(Reg))
       Size = 1;
+    // Bug #307 (2026-05-18): PHANTOM_CARRY is an allocatable Reg1Class
+    // intended as scheduling-phantom bookkeeping (see Bug #302 follow-up
+    // comment at MC6809RegisterInfo.td:405).  The class isn't marked
+    // unspillable, so regalloc CAN choose to spill a phantom_carry
+    // vreg under register pressure.  Per `MC6809Reg1Class`'s RegInfo
+    // ("1-bit wide, but takes 8 bits to spill"), spill width is 8 bits.
+    else if (MC6809::PHANTOM_CARRYRegClass.contains(Reg))
+      Size = 8;
     else if (MC6809::CCFlagRegClass.contains(Reg) || MC6809::ACC8RegClass.contains(Reg))
       Size = 8;
     else if (MC6809::ACC16RegClass.contains(Reg) || MC6809::INDEX16RegClass.contains(Reg))
@@ -2068,6 +2076,11 @@ static void loadStoreRegisterStaticStackSlot(MachineIRBuilder &Builder, MachineO
   } else {
     if (MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::BIT1RegClass))
       Size = 1;
+    // Bug #307 (2026-05-18): see comment above for the physical-register
+    // branch.  Virtual phantom_carry vregs get this path during
+    // pressure-driven spill.
+    else if (MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::PHANTOM_CARRYRegClass))
+      Size = 8;
     else if (MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::CCFlagRegClass))
       Size = 8;
     else if (MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::CCondRegClass))
