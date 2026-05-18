@@ -2489,9 +2489,21 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
         copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
                     MC6809::AD, HiReg, /*KillSrc=*/false);
       }
+      // Bug #305 part 2 cluster A (2026-05-18): the source MI's
+      // explicit OutOperand (`$spill_q*`) is the only visible def of
+      // that imaginary register.  Erasing the MI without re-attaching
+      // a marker leaves downstream `FAKE_USE renamable $spill_q*`
+      // (emitted by -fextend-lifetimes at -Og) reading an undefined
+      // physical register — `-verify-machineinstrs` rejects this
+      // after postrapseudos (3 hits at -Og-hd6309-mame: __log2,
+      // __default_hash, __call_hash).  Attach `implicit-def $spill_q*`
+      // to the last STD as the visible def.  Mirrors the AQ-dest
+      // path's `implicit-def $aq` fixup already applied below for the
+      // same reason (Phase 2 fixup 2026-05-17).
       Builder.buildInstr(Opc)
           .addUse(MC6809::AD, RegState::Implicit)
-          .addImm(Offset).addReg(MC6809::SU);
+          .addImm(Offset).addReg(MC6809::SU)
+          .addReg(DstReg, RegState::ImplicitDefine);
     } else {
       // AQ destination: marshal hi into AD, lo into AW.
       //
