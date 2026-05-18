@@ -69,3 +69,31 @@ body: |
     renamable $spill_q0 = Load_i32_Imm 305419896, implicit-def $nz, implicit-def $v
     RTSr implicit $aq
 ...
+
+# Test 3 (Bug #305 v2 follow-up): only sub-reg $ad is live, not the
+# full $aq.  `LivePhysRegs::contains(AQ)` returns false in this case
+# (header docs: "Returns false if just some sub registers are live"),
+# so a bare contains(AQ) check would WRONGLY skip the save/restore,
+# letting the body's LDQ #imm clobber $ad.  Must iterate sub-regs.
+# CHECK-LABEL: name: loadimm_spillq_ad_live
+# CHECK:     LEASi_o5 -4, $ss
+# CHECK:     STQi_o0
+# CHECK-SAME: $ss
+# CHECK:     LDQi32 305419896
+# CHECK:     STQi
+# CHECK:     LDQi_o0 $ss
+# CHECK:     LEASi_o5 4, $ss
+---
+name: loadimm_spillq_ad_live
+tracksRegLiveness: true
+stack:
+  - { id: 0, name: '', type: spill-slot, offset: 0, size: 4, alignment: 1,
+      stack-id: default, callee-saved-register: '', callee-saved-restored: true,
+      debug-info-variable: '', debug-info-expression: '', debug-info-location: '' }
+body: |
+  bb.0:
+    liveins: $ad, $su
+    ; Only $ad in liveins -- $aq's sub-reg is live, save/restore required.
+    renamable $spill_q0 = Load_i32_Imm 305419896, implicit-def $nz, implicit-def $v
+    RTSr implicit $ad
+...

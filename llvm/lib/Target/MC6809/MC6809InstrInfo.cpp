@@ -5467,15 +5467,22 @@ void MC6809InstrInfo::expandLoadImm(MachineIRBuilder &Builder, MachineInstr &MI)
       }
     };
     if (IsQSpill) {
-      // Bug #305 (2026-05-18): only wrap in save/restore when $aq is
-      // actually live at this expansion point.  Bug #300's unconditional
-      // wrap emits `LEAS -4,$ss; STQ ,$ss; <body>; LDQ ,$ss; LEAS 4,$ss`
-      // whose save-STQ reads $aq.  When $aq is dead (typical after an
-      // LDD that legitimately killed it via Bug #299's AQ-in-Defs),
-      // that read is undefined and `-verify-machineinstrs` rejects it
-      // (61 hits across 7 functions at -Og-hd6309-mame).  Probe $aq's
-      // liveness using the same LivePhysRegs walk pattern as
-      // `expandStoreIdx`'s SrcIsImpliedUndef computation.
+      // Bug #305 (2026-05-18): only wrap in save/restore when $aq or
+      // any of its sub-registers ($ad, $aw, $aa, $ab, $ae, $af) is live
+      // at this expansion point.  Bug #300's unconditional wrap emits
+      // `LEAS -4,$ss; STQ ,$ss; <body>; LDQ ,$ss; LEAS 4,$ss` whose
+      // save-STQ reads $aq.  When the whole $aq family is dead
+      // (typical after an LDD that killed $aq via Bug #299's AQ-in-Defs
+      // with no surviving sub-reg consumer), the read is undefined and
+      // `-verify-machineinstrs` rejects it (61 hits across 7 functions
+      // at -Og-hd6309-mame).
+      //
+      // CRITICAL: `LivePhysRegs::contains(AQ)` returns false when only
+      // a sub-reg ($ad/$aw/etc.) is live (header comment: "Returns
+      // false if just some sub registers are live, use available() when
+      // searching a free register").  We must iterate sub-regs
+      // explicitly — skipping save/restore when $ad is live would let
+      // the body's LDQ #imm clobber the still-live sub-reg.
       MachineBasicBlock *MBB = MI.getParent();
       const TargetRegisterInfo &TRI =
           *Builder.getMF().getSubtarget().getRegisterInfo();
@@ -5486,8 +5493,13 @@ void MC6809InstrInfo::expandLoadImm(MachineIRBuilder &Builder, MachineInstr &MI)
         Clobbers.clear();
         LiveRegs.stepForward(*It, Clobbers);
       }
-      bool AqLive = LiveRegs.contains(MC6809::AQ);
-      if (AqLive)
+      bool AqFamilyLive = false;
+      for (MCPhysReg R : {MC6809::AQ, MC6809::AD, MC6809::AW,
+                          MC6809::AA, MC6809::AB,
+                          MC6809::AE, MC6809::AF}) {
+        if (LiveRegs.contains(R)) { AqFamilyLive = true; break; }
+      }
+      if (AqFamilyLive)
         emitAQPreservedOverHardStackScratch(Builder, Body);
       else
         Body();
