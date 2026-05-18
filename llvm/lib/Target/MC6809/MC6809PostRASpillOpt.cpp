@@ -506,6 +506,21 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
               E.second.Reg = Register();
           }
         }
+        // Bug #303: any instruction that KILLS a tracked register also
+        // invalidates the slot->register mapping.  FAKE_USE in particular
+        // marks `killed $ad` on a USE operand (not a def), so the
+        // isDef()-only branch above misses it.  Result without this
+        // clause: a load-store-FAKE_USE-load-store sequence where the
+        // second load reloads the SAME slot the first load read.  Without
+        // kill-aware invalidation, spill-opt treats the second load as
+        // redundant (slot's recorded register still matches $ad), deletes
+        // it, and the following store reads dead $ad -- verifier rejects.
+        // Manifests in libm/math/s_hypot.c at -Og-fp + libc time/efcvt
+        // shapes at -Os-lto-hd6309-mame-fp post-PHANTOM_CARRY (Bug #302
+        // follow-up commits d7b209e75f5e + 4e932bb52ba3).
+        if (MO.isReg() && MO.isKill() && MO.getReg().isPhysical()) {
+          clearReg(MO.getReg());
+        }
       }
 
       // Branches, calls, and other control flow invalidate everything.

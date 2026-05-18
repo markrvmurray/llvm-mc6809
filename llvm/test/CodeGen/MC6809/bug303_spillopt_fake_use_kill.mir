@@ -1,0 +1,51 @@
+# RUN: llc -mtriple=mc6809 -run-pass=mc6809-spill-opt \
+# RUN:     -verify-machineinstrs %s -o - 2>&1 | FileCheck %s
+
+# Bug #303: MC6809PostRASpillOpt's redundant-load elimination must respect
+# `FAKE_USE killed $reg`.  Without kill-aware invalidation, a sequence
+# like:
+#
+#   LDDi_o16 OFF, $su, implicit-def $ad      # load 1
+#   FAKE_USE killed $ad, $ad, $ad, $ad       # $ad dies (debug-info liveness)
+#   <some MIs that don't touch $ad>
+#   LDDi_o16 OFF, $su, implicit-def $ad      # load 2 -- legitimate reload
+#   STDi_o16 OFF2, $su, implicit $ad         # stores via load 2
+#
+# was getting "load 2" elided because spill-opt's slot tracker recorded
+# `slot OFF -> $ad` after load 1 and never noticed that FAKE_USE killed
+# $ad in between.  The following STDi_o16 then read dead $ad and the
+# MachineVerifier rejected with "Using an undefined physical register".
+#
+# Manifests in libm/math/s_hypot.c at -Og-fp + libc time/efcvt shapes at
+# -Os-lto-hd6309-mame-fp post-PHANTOM_CARRY (Bug #302 follow-up commits
+# d7b209e75f5e + 4e932bb52ba3).  Pre-PHANTOM_CARRY the regalloc shape
+# didn't hit this load-FAKE_USE-load-store pattern because the carry
+# phantom kept $ad live across the FAKE_USE point in a slightly
+# different way; the PHANTOM_CARRY regalloc shift exposed the
+# long-standing spill-opt bug.
+#
+# Fix: the "invalidate tracked registers" loop in
+# MC6809PostRASpillOpt::runOnMachineFunction also clears slot entries
+# when an MI's USE operand carries `isKill()`, not only when an MI's
+# DEF operand modifies a tracked register.
+
+# CHECK-LABEL: name: spillopt_kill_aware
+# Both LDDi_o16 loads MUST survive the pass -- the second is needed
+# because FAKE_USE killed $ad between them.
+# CHECK:      LDDi_o16 819
+# CHECK:      FAKE_USE killed $ad
+# CHECK:      LDDi_o16 819
+# CHECK-NEXT: STDi_o16 827
+
+---
+name: spillopt_kill_aware
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su
+    LDDi_o16 819, $su, implicit-def $ad, implicit-def $aa, implicit-def $ab, implicit-def $aq, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    FAKE_USE killed $ad, $ad, $ad, $ad
+    LDDi_o16 819, $su, implicit-def $ad, implicit-def $aa, implicit-def $ab, implicit-def $aq, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    STDi_o16 827, $su, implicit $ad, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    RTSr
+...
