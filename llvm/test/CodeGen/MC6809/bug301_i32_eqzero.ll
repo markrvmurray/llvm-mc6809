@@ -7,13 +7,20 @@
 
 ; CHECK-LABEL: i32_eq_zero:
 define i1 @i32_eq_zero(i32 %x) {
-  ; The EqZero_i32 expansion for SPILL_Q-source: ldb + 3x orb (4-byte
-  ; OR-chain) followed by tfr cc,a / anda #4 / lsra / lsra to
-  ; materialise CC.Z as a 0/1 byte.
-  ; CHECK: ldb {{[0-9]+}},u
-  ; CHECK: orb {{[0-9]+}},u
-  ; CHECK: orb {{[0-9]+}},u
-  ; CHECK: orb {{[0-9]+}},u
+  ; The EqZero_i32 expansion: 4-byte OR-chain followed by tfr cc,a /
+  ; anda #4 / lsra / lsra to materialise CC.Z as a 0/1 byte.
+  ;
+  ; Bug #308 (2026-05-19) sharpening: with the Q-spill source path now
+  ; using LDQ-via-$aq + AQ save/restore (instead of the old Bug #221
+  ; two-LDD-via-$ad path), the EqZero_i32 expansion now lands the i32
+  ; in $aq via LDQ and does the OR-chain as ORR a,b / ORR e,b / ORR
+  ; f,b (sub-byte register-to-register ORs).  This is a strict
+  ; codegen win over the old 4-byte-load + 3-byte-OR chain through
+  ; memory.
+  ; CHECK: ldq {{[0-9]+}},s
+  ; CHECK: orr a,b
+  ; CHECK: orr e,b
+  ; CHECK: orr f,b
   ; CHECK: tfr cc,a
   ; CHECK: anda #4
   ; CHECK: lsra
@@ -27,10 +34,11 @@ define i1 @i32_eq_zero(i32 %x) {
 ; CHECK-LABEL: i32_ne_zero:
 define i1 @i32_ne_zero(i32 %x) {
   ; NE = NOT EQ — EqZero_i32 + XOR with 1 (encoded as eorb #1).
-  ; CHECK: ldb {{[0-9]+}},u
-  ; CHECK: orb {{[0-9]+}},u
-  ; CHECK: orb {{[0-9]+}},u
-  ; CHECK: orb {{[0-9]+}},u
+  ; Same Bug #308 LDQ-via-$aq sharpening as i32_eq_zero above.
+  ; CHECK: ldq {{[0-9]+}},s
+  ; CHECK: orr a,b
+  ; CHECK: orr e,b
+  ; CHECK: orr f,b
   ; CHECK: tfr cc,a
   ; CHECK: anda #4
   ; CHECK: lsra

@@ -57,23 +57,28 @@ let Predicates = [IsHD6309] in {
   // strtol/snprintf/asctime correctness (bug #208).
   //
   // Bug #299 (2026-05-15): split _Imm and _Mem variants because
-  // they have different sub-reg clobber footprints:
+  // they have different sub-reg clobber footprints.
   //
-  //  - Load_i32_Imm lowers to `LDQ #imm` which writes AQ wholly.
-  //    The explicit dst=AQc operand expresses this — no extra
-  //    implicit-defs needed.
+  // Bug #308 (2026-05-19): the original Bug #221 two-LDD-via-$ad
+  // expansion in expandLoadIdx was replaced with LDQ-via-$aq
+  // bracketed by `emitAQPreservedOverHardStackScratch`.  The new
+  // expansion preserves the full AQ family at runtime, so
+  // cross-load AD-vregs survive correctly.  Therefore the pseudo's
+  // old `Defs = [NZ, V, AD]` is now actively harmful: it tells
+  // regalloc that AD is clobbered, which the dead-marking
+  // heuristic then turns into a zero-width interval that fails
+  // the verifier (Bug #308 manifest in `__split_page`, `wcrtomb`,
+  // `ffsll`, `flsl`, `flsll`).  Drop AD from Defs.
   //
-  //  - Load_i32_Mem with dst=SPILL_Q*N expands via Bug #221's
-  //    two-LDD path, transiently writing AD.  Without AD in the
-  //    pseudo's Defs, the regalloc doesn't see the conflict with
-  //    a *different* vreg live in $aq across this pseudo; the
-  //    LDDs silently corrupt $aq's high half (Bug #299 manifest
-  //    at divsi_signed_probe).  Mirrors SpillLoad_i32_Mem's Defs
-  //    pattern (Bug #290) — AD sub-reg-aliases AQ so super-reg
-  //    aliasing propagates the conflict to AQ-allocated vregs.
+  // For the AQ-dst case (no SPILL_Q* fallback): regalloc still
+  // gets AD-aliasing eviction protection via the explicit AQc dst
+  // operand (AD is a sub-reg of AQ).  After expandLoadIdx
+  // converts to the concrete LDQi_oN, that instruction's own
+  // Defs=[AA,AB,AD,AE,AF,AW,AQ] cover the full clobber for
+  // post-RA passes.
   let isAsCheapAsAMove = true, isMoveImm = true, mayLoad = true in
     def Load_i32_Imm : MC6809LoadBase<AQc, (ins i32imm:$imm)>;
-  let mayLoad = true, Defs = [NZ, V, AD] in
+  let mayLoad = true, Defs = [NZ, V] in
     def Load_i32_Mem : MC6809LoadBase<AQc, (ins INDEX16:$idx, unknown:$offset)>;
 
   // Bug #271 cat-3: spill-framework-only i32 load with ACC32 operand
@@ -98,7 +103,11 @@ let Predicates = [IsHD6309] in {
   // (which falls through to a full LDQ and would clobber the AQ
   // sub-reg tree) is unreachable for spill MIs because the spiller
   // always emits immediate frame-index offsets.
-  let mayLoad = true, Defs = [NZ, V, AD] in
+  // Bug #308 (2026-05-19): dropped AD from Defs (was [NZ, V, AD]) —
+  // same rationale as Load_i32_Mem above.  The two-LDD-via-$ad
+  // expansion was replaced with LDQ-via-$aq + save/restore, so AD
+  // is preserved across the pseudo at runtime.
+  let mayLoad = true, Defs = [NZ, V] in
     def SpillLoad_i32_Mem : MC6809LogicalInstr {
       dag OutOperandList = (outs ACC32:$dst);
       dag InOperandList = (ins INDEX16:$idx, unknown:$offset);
@@ -232,24 +241,20 @@ let Predicates = [IsHD6309] in {
   // the wider class.
   //
   // Bug #300 (2026-05-15): symmetric to the Bug #299 Load_i32_Mem
-  // fix.  Store_i32_Mem with src=SPILL_Q*N expands (via Bug #221's
-  // two-LDD-slot-to-slot pattern, mirrored on the store side) to
-  // a pair of LDD + STD instructions that transiently write AD.
-  // Without AD in the pseudo's Defs, the regalloc doesn't see the
-  // conflict with a *different* vreg live in $aq across the pseudo
-  // — the LDDs silently corrupt $aq's high half.  Matches the
-  // existing `SpillStore_i32_Mem` Defs (Bug #290).
-  let mayStore = true, Defs = [NZ, V, AD] in
+  // Bug #308 (2026-05-19): symmetric to Load_i32_Mem — the original
+  // Bug #221 two-LDD-slot-to-slot expansion in expandStoreIdx was
+  // replaced with LDQ-from-slot + STQ-to-dst via $aq bracketed by
+  // `emitAQPreservedOverHardStackScratch`.  Cross-pseudo AD-vregs
+  // survive correctly at runtime, so drop AD from Defs (it was
+  // dead-marked by regalloc anyway, producing the verifier hits
+  // Bug #308 catalogues).
+  let mayStore = true, Defs = [NZ, V] in
     def Store_i32_Mem : MC6809StoreBase<AQc, (ins INDEX16:$idx, unknown:$offset)>;
 
   // Bug #271 cat-3: spill-framework-only i32 store with ACC32 operand
-  // class.  Mirrors SpillLoad_i32_Mem above.
-  //
-  // Bug #290: trimmed Defs to `[NZ, V, AD]` (see SpillLoad_i32_Mem
-  // for full rationale).  The SPILL_Q* source path uses two-LDD
-  // slot-to-slot via $ad only; the real-AQ source path is just an
-  // STQ which doesn't clobber $aq's sub-regs (it reads them).
-  let mayStore = true, Defs = [NZ, V, AD] in
+  // class.  Mirrors SpillLoad_i32_Mem above.  Bug #308 dropped AD
+  // from Defs for the same reason as Store_i32_Mem above.
+  let mayStore = true, Defs = [NZ, V] in
     def SpillStore_i32_Mem : MC6809LogicalInstr {
       dag OutOperandList = (outs);
       dag InOperandList = (ins ACC32:$src, INDEX16:$idx, unknown:$offset);

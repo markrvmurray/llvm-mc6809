@@ -5575,35 +5575,112 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
           .addUse(StageReg, RegState::Implicit)
           .addImm(SpillOff).addReg(MC6809::SU);
     } else if (isQSpillReg(DestRegOp.getReg())) {
-      // Bug #221: Q-spill destination — DON'T stage through physical AQ
-      // (which would require LDQ to load and STQ to spill back; the LDQ
-      // physically clobbers AW, AD, and all sub-registers, possibly
-      // breaking unrelated live values that regalloc placed in those
-      // sub-registers without conflict because $spill_q* is an
-      // imaginary reg distinct from physical AQ).
+      // Bug #308 (2026-05-19): Q-spill destination — conditional
+      // expansion to balance Bug #308's correctness need against
+      // the cycle/byte cost of an unconditional save/restore wrap
+      // (catastrophic at LTO levels, +11% cycles).
       //
-      // Instead, copy the i32 source via TWO LDD (16-bit) loads — one
-      // for each half of the dest spill slot. This touches only AD
-      // (which is the SpillDSaveRestore pass's responsibility — it
-      // saves/restores AD around any expansion that needs it). AW
-      // and the other AQ sub-registers stay untouched, preserving any
-      // live value regalloc allocated there.
+      // - AD-family dead: use emitTwoLDDSlotCopy (the legacy Bug #221
+      //   path).  Cheap (8 bytes, only $ad clobbered).  No Bug #308
+      //   manifest because there's no AD-vreg to corrupt.
+      // - AD-family live: use LDQ + STQ through $aq, bracketed by
+      //   emitAQPreservedOverHardStackScratch (Bug #298/#300/#305
+      //   part 1 pattern).  Preserves all AQ sub-regs across the
+      //   load → correct cross-load behaviour.  Costs ~15 bytes,
+      //   but only in the cases where the OLD path would silently
+      //   miscompile.
       //
-      // Big-endian layout: dst[0..1] = HI word, dst[2..3] = LO word.
-      // Source (the original Load_i32_Mem operand) is also a 4-byte
-      // BE i32 at IndexReg+OffsetOp.
+      // History:
+      //   Bug #221 (pre-Phase-B era) avoided LDQ here because it
+      //   clobbers the full AQ family (AA/AB/AE/AF/AD/AW) — back when
+      //   $aq couldn't be safely save/restored, an unconditional LDQ
+      //   risked corrupting whatever vregs regalloc had placed in those
+      //   sub-regs.  The chosen alternative was `emitTwoLDDSlotCopy`
+      //   via $ad as transit — narrower clobber footprint.
+      //
+      //   But the two-LDD path has its own structural gap (Bug #308):
+      //   the pseudo's `Defs=[AD]` (Bug #299) gets dead-marked by
+      //   regalloc because no MI between this load and the next AD
+      //   def reads the LOADED $ad value (it goes to the spill slot
+      //   via STD).  Dead-marked = zero-width interval = doesn't
+      //   conflict with cross-load AD-vreg ranges → vregs in $ad
+      //   survive in regalloc's view while the runtime two-LDD
+      //   silently clobbers them.  Verifier rejects + runtime
+      //   miscompile.
+      //
+      //   Bug #297 (2026-05-15) closed and re-landed Phase B with
+      //   native HD6309 i32 G_ADD/G_SUB + LDQ/STQ for the AQ-dst
+      //   case, plus the `emitAQPreservedOverHardStackScratch`
+      //   infrastructure for safe AQ save/restore.  That's the
+      //   missing piece — with the wrap, the wider LDQ clobber is
+      //   fully transparent to surrounding code.
+      //
+      // Now: just use LDQ → AQ; STQ AQ → slot, bracketed when needed.
+      // When AQ-family is dead (typical, since cross-load values
+      // usually live in $ad — Bug #308's affected pattern), no wrap
+      // → 6 bytes (LDQ + STQ via Page 2).  When AQ-family is live,
+      // add 9-byte wrap → 15 bytes.  Compare: old two-LDD path was
+      // 8 bytes always, but silently miscompiled the cross-load
+      // case.
       auto SrcIndex = MI.getOperand(1);
       auto SrcOffset = MI.getOperand(2);
       int DstSpillOff = computeSpillStackOffset(DestRegOp.getReg(), MF);
+      Register DstSpillReg = DestRegOp.getReg();
 
-      // Bug #272 Phase B core: accept CImm offsets too (see expandStoreIdx).
+      // Bug #272 Phase B core: accept CImm offsets too.
       bool SrcOffIsImmediate = SrcOffset.isImm() || SrcOffset.isCImm();
       if (SrcOffIsImmediate) {
         int SrcOffBytes = SrcOffset.isImm()
                               ? int(SrcOffset.getImm())
                               : int(SrcOffset.getCImm()->getSExtValue());
-        emitTwoLDDSlotCopy(Builder, SrcOffBytes, SrcIndex.getReg(),
-                           DstSpillOff, MC6809::SU, DestRegOp.getReg());
+
+        // AD-family liveness gate — narrower than AQ-family because
+        // emitTwoLDDSlotCopy only clobbers AD (and via sub-reg
+        // aliasing AA/AB).  AW/AE/AF being live alone doesn't
+        // require the save/restore wrap.
+        MachineBasicBlock *MBB = MI.getParent();
+        const TargetRegisterInfo &TRI =
+            *Builder.getMF().getSubtarget().getRegisterInfo();
+        LivePhysRegs LiveRegs(TRI);
+        LiveRegs.addLiveIns(*MBB);
+        SmallVector<std::pair<MCPhysReg, const MachineOperand *>, 4>
+            Clobbers;
+        for (auto It = MBB->begin(); It != MI.getIterator(); ++It) {
+          Clobbers.clear();
+          LiveRegs.stepForward(*It, Clobbers);
+        }
+        bool AdFamilyLive = false;
+        for (MCPhysReg R : {MC6809::AD, MC6809::AA, MC6809::AB}) {
+          if (LiveRegs.contains(R)) { AdFamilyLive = true; break; }
+        }
+
+        if (AdFamilyLive) {
+          // Cross-load AD-vreg is live → use LDQ + STQ via $aq,
+          // bracketed by AQ save/restore so AD's value is preserved
+          // at runtime.  Bug #305 part 2 cluster A: add
+          // `implicit-def $spill_q*` on the STQ to keep downstream
+          // FAKE_USE / consumers happy.
+          auto Body = [&]() {
+            unsigned LdOpc =
+                getLoadIdxOpcode(MC6809::AQ, SrcOffBytes);
+            Builder.buildInstr(LdOpc)
+                .addDef(MC6809::AQ, RegState::Implicit)
+                .addImm(SrcOffBytes)
+                .addReg(SrcIndex.getReg());
+            unsigned StOpc =
+                getStoreIdxOpcode(MC6809::AQ, DstSpillOff);
+            Builder.buildInstr(StOpc)
+                .addUse(MC6809::AQ, RegState::Implicit)
+                .addImm(DstSpillOff)
+                .addReg(MC6809::SU)
+                .addDef(DstSpillReg, RegState::Implicit);
+          };
+          emitAQPreservedOverHardStackScratch(Builder, Body);
+        } else {
+          // AD-family dead → legacy two-LDD path is safe and cheap.
+          emitTwoLDDSlotCopy(Builder, SrcOffBytes, SrcIndex.getReg(),
+                             DstSpillOff, MC6809::SU, DstSpillReg);
+        }
         MI.eraseFromParent();
         return;
       }
@@ -5693,37 +5770,67 @@ void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI
         .addImm(SpillOff).addReg(MC6809::SU);
     MI.getOperand(0).setReg(MC6809::IY);
   } else if (isQSpillReg(MI.getOperand(0).getReg())) {
-    // Bug #274 / mirror of Bug #221's expandLoadIdx Q-spill DEST path:
-    // Q-spill SOURCE means the i32 to store lives in $spill_q*'s stack
-    // slot. Going through physical AQ via LDQ is wrong twofold:
-    // (1) LDQ clobbers AW, AD, AA, AB, AE, AF (all AQ sub-regs), which
-    //     can stomp regalloc-assigned values living in those sub-regs
-    //     because $spill_q* is an imaginary reg distinct from AQ.
-    // (2) The emergency-save-AD step below reads $ad even when $ad is
-    //     dead — -verify-machineinstrs flags it as an undef use.
-    // Slot-to-slot two-LDD pattern: LDD spill_slot+H → AD; STD AD →
-    // dst+H for H in {0, 2}.  Only AD is clobbered.
+    // Bug #308 (2026-05-19): symmetric to expandLoadIdx's Q-spill
+    // DEST path — switch from the AD-transit two-LDD slot-to-slot
+    // approach (which has the regalloc-dead-marks-AD-def gap) to
+    // LDQ-from-slot + STQ-to-dst via $aq, bracketed by
+    // `emitAQPreservedOverHardStackScratch` when AQ-family is live.
+    // See the long comment block in expandLoadIdx's Q-spill DEST
+    // path for the full design rationale.
     auto SrcSpill = MI.getOperand(0);
     auto DstIndex = MI.getOperand(1);
     auto DstOffset = MI.getOperand(2);
     MachineFunction &MF = *MI.getMF();
     int SrcSpillOff = computeSpillStackOffset(SrcSpill.getReg(), MF);
 
-    // Bug #272 Phase B core change (2026-05-15): Store_i32_Mem may carry
-    // its offset as a CImm (e.g. `i16 4`, `i16 8`) when the pseudo was
-    // built by GISel patterns with typed immediates rather than the
-    // plain `imm` form (raw Imm).  The pre-Phase-B path only checked
-    // isImm() and fell through to the emergency-save path for CImm
-    // offsets — which read `$ad` even when dead (the AQc widening lets
-    // an STQ kill $aq → $ad just before this store, leaving the
-    // emergency-save's $ad-read undefined).  Accept both Imm and CImm.
+    // Bug #272 Phase B core: accept CImm offsets too.
     bool DstOffIsImmediate = DstOffset.isImm() || DstOffset.isCImm();
     if (DstOffIsImmediate) {
       int DstOffBytes = DstOffset.isImm()
                             ? int(DstOffset.getImm())
                             : int(DstOffset.getCImm()->getSExtValue());
-      emitTwoLDDSlotCopy(Builder, SrcSpillOff, MC6809::SU,
-                         DstOffBytes, DstIndex.getReg());
+
+      // AD-family liveness gate (same conditional as expandLoadIdx
+      // Q-spill DST above — narrower than AQ-family to minimise LTO
+      // overhead; emitTwoLDDSlotCopy only clobbers AD/AA/AB so
+      // AW/AE/AF being live alone doesn't require save/restore).
+      MachineBasicBlock *MBB = MI.getParent();
+      const TargetRegisterInfo &TRI =
+          *Builder.getMF().getSubtarget().getRegisterInfo();
+      LivePhysRegs LiveRegs(TRI);
+      LiveRegs.addLiveIns(*MBB);
+      SmallVector<std::pair<MCPhysReg, const MachineOperand *>, 4>
+          Clobbers;
+      for (auto It = MBB->begin(); It != MI.getIterator(); ++It) {
+        Clobbers.clear();
+        LiveRegs.stepForward(*It, Clobbers);
+      }
+      bool AdFamilyLive = false;
+      for (MCPhysReg R : {MC6809::AD, MC6809::AA, MC6809::AB}) {
+        if (LiveRegs.contains(R)) { AdFamilyLive = true; break; }
+      }
+
+      if (AdFamilyLive) {
+        // Use LDQ + STQ via $aq + save/restore — preserves AD-family
+        // across the two-LDD's transient clobber.
+        auto Body = [&]() {
+          unsigned LdOpc = getLoadIdxOpcode(MC6809::AQ, SrcSpillOff);
+          Builder.buildInstr(LdOpc)
+              .addDef(MC6809::AQ, RegState::Implicit)
+              .addImm(SrcSpillOff)
+              .addReg(MC6809::SU);
+          unsigned StOpc = getStoreIdxOpcode(MC6809::AQ, DstOffBytes);
+          Builder.buildInstr(StOpc)
+              .addUse(MC6809::AQ, RegState::Implicit)
+              .addImm(DstOffBytes)
+              .addReg(DstIndex.getReg());
+        };
+        emitAQPreservedOverHardStackScratch(Builder, Body);
+      } else {
+        // AD-family dead → legacy two-LDD path is safe and cheap.
+        emitTwoLDDSlotCopy(Builder, SrcSpillOff, MC6809::SU,
+                           DstOffBytes, DstIndex.getReg());
+      }
       MI.eraseFromParent();
       return;
     }
