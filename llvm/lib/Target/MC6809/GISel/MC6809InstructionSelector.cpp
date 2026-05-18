@@ -316,7 +316,22 @@ static bool clobbersCCFlag(const MachineInstr &MI,
 /// any clobbersCarryC. Only bridge if at least one is found —
 /// preserves Phase 1a's wins on chains where the SetCarry/SetCarryUse
 /// pair is adjacent (the common case, pinned by hasSideEffects).
-static void
+/// Returns true if the carry was bridged through a byte vreg.  When this
+/// returns true, the *caller* should NOT add CarryIn as an implicit-use
+/// on the new pseudo it builds — the bridge has decoupled the
+/// phantom_carry data flow from the Consumer (the actual carry value
+/// flows via CC.C, set by the `ToCCPseudo` emitted right before the
+/// Consumer's position).  Keeping the implicit-use would force regalloc
+/// to keep the phantom_carry vreg alive across the bridge, which it
+/// can't do across calls or cross-BB paths (phantom physregs are
+/// caller-clobbered and have no real spill storage).
+///
+/// Returns false if no bridge was needed (adjacent producer-consumer
+/// with no intervening CC clobber).  In that case the caller's
+/// `.addUse(CarryIn, RegState::Implicit)` is still required for DCE
+/// protection (Bug #161 round 12 — keeps the upstream alive when its
+/// non-carry byte result is dead).
+static bool
 ensureCarryChainIntegrity(MachineInstr &Consumer, Register CarryIn,
                           MachineRegisterInfo &MRI,
                           const TargetInstrInfo &TII,
@@ -326,7 +341,7 @@ ensureCarryChainIntegrity(MachineInstr &Consumer, Register CarryIn,
                           DenseMap<MachineInstr *, Register> &BridgedByteFor) {
   auto Flag = getPhantomBit1Flag(CarryIn, MRI, CarryFlagOf);
   if (!Flag || (*Flag != MC6809::C && *Flag != MC6809::V))
-    return;
+    return false;
 
   // Phase 5 (2026-04-28): pick the right materialise pair for the
   // flag we're bridging. C uses LDB#0;ADCB#0 / LSRB; V uses
@@ -357,11 +372,11 @@ ensureCarryChainIntegrity(MachineInstr &Consumer, Register CarryIn,
   while (Cur.isVirtual()) {
     MachineInstr *Def = MRI.getVRegDef(Cur);
     if (!Def)
-      return;
+      return false;
     unsigned Op = Def->getOpcode();
     if (Op == TargetOpcode::G_FREEZE || Op == TargetOpcode::COPY) {
       if (!Def->getOperand(1).isReg())
-        return;
+        return false;
       Cur = Def->getOperand(1).getReg();
       continue;
     }
@@ -371,7 +386,7 @@ ensureCarryChainIntegrity(MachineInstr &Consumer, Register CarryIn,
       // IMPLICIT_DEF. Step back one MI.
       auto It = MachineBasicBlock::iterator(*Def);
       if (It == Def->getParent()->begin())
-        return;
+        return false;
       --It;
       Producer = &*It;
       break;
@@ -380,7 +395,7 @@ ensureCarryChainIntegrity(MachineInstr &Consumer, Register CarryIn,
     break;
   }
   if (!Producer)
-    return;
+    return false;
 
   // Decide whether to bridge:
   //  - Cross-BB: always bridge (any cross-BB path crosses unknown CC clobbers).
@@ -400,8 +415,9 @@ ensureCarryChainIntegrity(MachineInstr &Consumer, Register CarryIn,
       }
     }
     if (!Found && !NeedsBridge)
-      return;  // No intervening clobber — Phase 1a's hasSideEffects
-               // adjacency is enough.
+      return false;  // No intervening clobber — Phase 1a's hasSideEffects
+                     // adjacency is enough.  Caller's implicit-use
+                     // of CarryIn on the new pseudo is still wanted.
   }
 
   // Producer-side byte (emit ToBytePseudo only once per producer; cache
@@ -459,6 +475,20 @@ ensureCarryChainIntegrity(MachineInstr &Consumer, Register CarryIn,
   auto BtoC = ConsumerB.buildInstr(ToCCPseudo)
                   .addUse(ByteVReg);
   constrainSelectedInstRegOperands(*BtoC, TII, TRI, RBI);
+
+  // Bug #307 round 2 (2026-05-18): signal to the caller that the
+  // bridge fired.  The caller must NOT add CarryIn as an implicit-use
+  // on the new pseudo it builds (which replaces `Consumer`).  Keeping
+  // the implicit-use would force regalloc to keep the phantom_carry
+  // vreg alive across the bridge — which across calls means
+  // regalloc has to spill/COPY a phantom_carry physreg (caller-
+  // clobbered, no real storage to spill TO) and hits
+  // `loadStoreRegisterStaticStackSlot`'s "Unexpected virtual
+  // register class" crash (or, in pre-fix builds, the verifier
+  // rejected `COPY_CC_PLACEHOLDER` from copyPhysReg's fallback).
+  // The actual carry value now flows via CC.C, set by the
+  // `ToCCPseudo` we just emitted right before the Consumer.
+  return true;
 }
 
 } // namespace
@@ -2456,8 +2486,15 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
   // Bug #184 + bug #186 follow-up Phase 2a: cross-BB AND same-BB
   // (with intervening CC.C-clobber) carry-in freezing/restoring.
   // See ensureCarryChainIntegrity comment for the rationale.
-  ensureCarryChainIntegrity(MI, MI.getOperand(4).getReg(), *MRI, TII,
-                            TRI, RBI, &CarryFlagOf, BridgedByteFor);
+  // Bug #307 round 2 (2026-05-18): when the bridge fires, the new
+  // pseudo we build below must NOT carry the phantom_carry implicit-
+  // use — otherwise regalloc keeps the phantom_carry vreg alive
+  // across the bridge and triggers cross-call spill that has no
+  // valid lowering.  See ensureCarryChainIntegrity's return-value
+  // comment.
+  bool Bridged =
+      ensureCarryChainIntegrity(MI, MI.getOperand(4).getReg(), *MRI, TII,
+                                TRI, RBI, &CarryFlagOf, BridgedByteFor);
 
   // Bug #147: G_SADDE's s1 result is V (signed-overflow); G_UADDE's is C.
   bool IsSigned = MI.getOpcode() == TargetOpcode::G_SADDE;
@@ -2535,8 +2572,9 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
                      .addDef(Dst)
                      .addUse(Reg)
                      .addImm(Value)
-                     .addDef(CarryOut, RegState::ImplicitDefine)
-                     .addUse(Carry, RegState::Implicit);
+                     .addDef(CarryOut, RegState::ImplicitDefine);
+    if (!Bridged)
+      Instr.addUse(Carry, RegState::Implicit);
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
     return true;
@@ -2556,8 +2594,9 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
                        .addDef(Dst)
                        .addUse(UnmReg)
                        .addImm(ByteVal)
-                       .addDef(CarryOut, RegState::ImplicitDefine)
-                       .addUse(Carry, RegState::Implicit);
+                       .addDef(CarryOut, RegState::ImplicitDefine);
+      if (!Bridged)
+        Instr.addUse(Carry, RegState::Implicit);
       constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
       MI.eraseFromParent();
       return true;
@@ -2575,9 +2614,10 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
                      .addUse(Reg)
                      .add(Ptr)
                      .add(Offset)
-                     .addDef(CarryOut, RegState::ImplicitDefine)
-                     .addUse(Carry, RegState::Implicit)
-                     .cloneMemRefs(*Ptr.getParent());
+                     .addDef(CarryOut, RegState::ImplicitDefine);
+    if (!Bridged)
+      Instr.addUse(Carry, RegState::Implicit);
+    Instr.cloneMemRefs(*Ptr.getParent());
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
     return true;
@@ -2592,9 +2632,10 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
                      .addUse(Reg)
                      .add(Ptr)
                      .add(Offset)
-                     .addDef(CarryOut, RegState::ImplicitDefine)
-                     .addUse(Carry, RegState::Implicit)
-                     .cloneMemRefs(*Ptr.getParent());
+                     .addDef(CarryOut, RegState::ImplicitDefine);
+    if (!Bridged)
+      Instr.addUse(Carry, RegState::Implicit);
+    Instr.cloneMemRefs(*Ptr.getParent());
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
     return true;
@@ -2611,8 +2652,9 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
                 .addDef(Dst)
                 .addUse(LHS)
                 .addUse(RHS)
-                .addDef(CarryOut, RegState::ImplicitDefine)
-                .addUse(Carry, RegState::Implicit);
+                .addDef(CarryOut, RegState::ImplicitDefine);
+    if (!Bridged)
+      Instr.addUse(Carry, RegState::Implicit);
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
     return true;
@@ -2654,8 +2696,12 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
   // Bug #184 + bug #186 follow-up Phase 2a: cross-BB AND same-BB
   // (with intervening CC.C-clobber) carry-in freezing/restoring.
   // See ensureCarryChainIntegrity comment for the rationale.
-  ensureCarryChainIntegrity(MI, MI.getOperand(4).getReg(), *MRI, TII,
-                            TRI, RBI, &CarryFlagOf, BridgedByteFor);
+  // Bug #307 round 2 (2026-05-18): when the bridge fires, the new
+  // pseudo we build below must NOT carry the phantom_carry implicit-
+  // use — same reasoning as selectAddE.
+  bool Bridged =
+      ensureCarryChainIntegrity(MI, MI.getOperand(4).getReg(), *MRI, TII,
+                                TRI, RBI, &CarryFlagOf, BridgedByteFor);
 
   // Bug #147: G_SSUBE's s1 is V (signed-overflow); G_USUBE's is C.
   bool IsSigned = MI.getOpcode() == TargetOpcode::G_SSUBE;
@@ -2698,8 +2744,9 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
                      .addDef(Dst)
                      .addUse(Reg)
                      .addImm(Value)
-                     .addDef(CarryOut, RegState::ImplicitDefine)
-                     .addUse(Carry, RegState::Implicit);
+                     .addDef(CarryOut, RegState::ImplicitDefine);
+    if (!Bridged)
+      Instr.addUse(Carry, RegState::Implicit);
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
     return true;
@@ -2721,8 +2768,9 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
                        .addDef(Dst)
                        .addUse(UnmReg)
                        .addImm(ByteVal)
-                       .addDef(CarryOut, RegState::ImplicitDefine)
-                       .addUse(Carry, RegState::Implicit);
+                       .addDef(CarryOut, RegState::ImplicitDefine);
+      if (!Bridged)
+        Instr.addUse(Carry, RegState::Implicit);
       constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
       MI.eraseFromParent();
       return true;
@@ -2741,9 +2789,10 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
                      .addUse(Reg)
                      .add(Ptr)
                      .add(Offset)
-                     .addDef(CarryOut, RegState::ImplicitDefine)
-                     .addUse(Carry, RegState::Implicit)
-                     .cloneMemRefs(*Ptr.getParent());
+                     .addDef(CarryOut, RegState::ImplicitDefine);
+    if (!Bridged)
+      Instr.addUse(Carry, RegState::Implicit);
+    Instr.cloneMemRefs(*Ptr.getParent());
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
     return true;
@@ -2761,9 +2810,10 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
                      .addUse(Reg)
                      .add(Ptr)
                      .add(Offset)
-                     .addDef(CarryOut, RegState::ImplicitDefine)
-                     .addUse(Carry, RegState::Implicit)
-                     .cloneMemRefs(*Ptr.getParent());
+                     .addDef(CarryOut, RegState::ImplicitDefine);
+    if (!Bridged)
+      Instr.addUse(Carry, RegState::Implicit);
+    Instr.cloneMemRefs(*Ptr.getParent());
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
     return true;
@@ -2779,8 +2829,9 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
                 .addDef(Dst)
                 .addUse(LHS)
                 .addUse(RHS)
-                .addDef(CarryOut, RegState::ImplicitDefine)
-                .addUse(Carry, RegState::Implicit);
+                .addDef(CarryOut, RegState::ImplicitDefine);
+    if (!Bridged)
+      Instr.addUse(Carry, RegState::Implicit);
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     MI.eraseFromParent();
     return true;
