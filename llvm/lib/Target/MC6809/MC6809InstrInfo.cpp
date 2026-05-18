@@ -5660,12 +5660,25 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
           // at runtime.  Bug #305 part 2 cluster A: add
           // `implicit-def $spill_q*` on the STQ to keep downstream
           // FAKE_USE / consumers happy.
-          auto Body = [&]() {
+          //
+          // Wrapper does `LEAS -4,$ss` before body and `LEAS 4,$ss`
+          // after.  If the body's LDQ uses $ss as its base register
+          // (typical when the function has no frame pointer — common
+          // after LTO inlining at -Os), the saved offset is now off
+          // by 4 because $ss has been bumped down by 4.  Compensate
+          // by adding 4 to the source offset when the base is $ss.
+          // The U-relative STQ to the spill slot is unaffected (the
+          // wrapper does not touch $su).
+          int AdjSrcOff =
+              (SrcIndex.getReg() == MC6809::SS)
+                  ? SrcOffBytes + 4
+                  : SrcOffBytes;
+          auto Body = [&, AdjSrcOff]() {
             unsigned LdOpc =
-                getLoadIdxOpcode(MC6809::AQ, SrcOffBytes);
+                getLoadIdxOpcode(MC6809::AQ, AdjSrcOff);
             Builder.buildInstr(LdOpc)
                 .addDef(MC6809::AQ, RegState::Implicit)
-                .addImm(SrcOffBytes)
+                .addImm(AdjSrcOff)
                 .addReg(SrcIndex.getReg());
             unsigned StOpc =
                 getStoreIdxOpcode(MC6809::AQ, DstSpillOff);
@@ -5813,16 +5826,29 @@ void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI
       if (AdFamilyLive) {
         // Use LDQ + STQ via $aq + save/restore — preserves AD-family
         // across the two-LDD's transient clobber.
-        auto Body = [&]() {
+        //
+        // Wrapper does `LEAS -4,$ss` before body and `LEAS 4,$ss`
+        // after.  If the body's STQ uses $ss as its base register
+        // (typical when the function has no frame pointer — common
+        // after LTO inlining at -Os), the saved offset is now off by
+        // 4 because $ss has been bumped down by 4.  Compensate by
+        // adding 4 to the destination offset when the base is $ss.
+        // The U-relative LDQ from the spill slot is unaffected (the
+        // wrapper does not touch $su).
+        int AdjDstOff =
+            (DstIndex.getReg() == MC6809::SS)
+                ? DstOffBytes + 4
+                : DstOffBytes;
+        auto Body = [&, AdjDstOff]() {
           unsigned LdOpc = getLoadIdxOpcode(MC6809::AQ, SrcSpillOff);
           Builder.buildInstr(LdOpc)
               .addDef(MC6809::AQ, RegState::Implicit)
               .addImm(SrcSpillOff)
               .addReg(MC6809::SU);
-          unsigned StOpc = getStoreIdxOpcode(MC6809::AQ, DstOffBytes);
+          unsigned StOpc = getStoreIdxOpcode(MC6809::AQ, AdjDstOff);
           Builder.buildInstr(StOpc)
               .addUse(MC6809::AQ, RegState::Implicit)
-              .addImm(DstOffBytes)
+              .addImm(AdjDstOff)
               .addReg(DstIndex.getReg());
         };
         emitAQPreservedOverHardStackScratch(Builder, Body);
