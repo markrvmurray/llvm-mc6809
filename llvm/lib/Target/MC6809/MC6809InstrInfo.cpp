@@ -5467,7 +5467,30 @@ void MC6809InstrInfo::expandLoadImm(MachineIRBuilder &Builder, MachineInstr &MI)
       }
     };
     if (IsQSpill) {
-      emitAQPreservedOverHardStackScratch(Builder, Body);
+      // Bug #305 (2026-05-18): only wrap in save/restore when $aq is
+      // actually live at this expansion point.  Bug #300's unconditional
+      // wrap emits `LEAS -4,$ss; STQ ,$ss; <body>; LDQ ,$ss; LEAS 4,$ss`
+      // whose save-STQ reads $aq.  When $aq is dead (typical after an
+      // LDD that legitimately killed it via Bug #299's AQ-in-Defs),
+      // that read is undefined and `-verify-machineinstrs` rejects it
+      // (61 hits across 7 functions at -Og-hd6309-mame).  Probe $aq's
+      // liveness using the same LivePhysRegs walk pattern as
+      // `expandStoreIdx`'s SrcIsImpliedUndef computation.
+      MachineBasicBlock *MBB = MI.getParent();
+      const TargetRegisterInfo &TRI =
+          *Builder.getMF().getSubtarget().getRegisterInfo();
+      LivePhysRegs LiveRegs(TRI);
+      LiveRegs.addLiveIns(*MBB);
+      SmallVector<std::pair<MCPhysReg, const MachineOperand *>, 4> Clobbers;
+      for (auto It = MBB->begin(); It != MI.getIterator(); ++It) {
+        Clobbers.clear();
+        LiveRegs.stepForward(*It, Clobbers);
+      }
+      bool AqLive = LiveRegs.contains(MC6809::AQ);
+      if (AqLive)
+        emitAQPreservedOverHardStackScratch(Builder, Body);
+      else
+        Body();
     } else {
       Body();
     }
