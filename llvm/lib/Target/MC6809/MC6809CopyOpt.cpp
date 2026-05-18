@@ -162,7 +162,35 @@ bool MC6809CopyOpt::runOnMachineFunction(MachineFunction &MF) {
             }
           }
 
-          if (!Clobbered) {
+          // Bug #307 round 2 (2026-05-18): the chain shortening
+          // transfers the `kill` flag from $Intermediate onto
+          // $OrigSrc.  This is only safe if $OrigSrc has no other
+          // uses after MI — otherwise we'd prematurely kill a
+          // value that's still live (e.g. the InstructionSelector's
+          // `MaterializeCC_C_to_byte` bridge MI in imaxabs/llabs at
+          // -Og-hd6309-mame has an implicit use of $phantom_carry_1
+          // a few MIs after this COPY chain).
+          //
+          // Scan forward from MI to the end of the MBB looking for
+          // any use of OrigSrc.  Abort the chain shortening if we
+          // find one.  (Cross-MBB liveness conservatively assumed
+          // alive — the cross-block walk is gated above anyway.)
+          bool OrigSrcUsedLater = false;
+          MachineBasicBlock::iterator ScanIt = std::next(MI.getIterator());
+          MachineBasicBlock::iterator ScanEnd = MI.getParent()->end();
+          for (; ScanIt != ScanEnd; ++ScanIt) {
+            if (ScanIt->readsRegister(OrigSrc, &TRI)) {
+              OrigSrcUsedLater = true;
+              break;
+            }
+            // If $OrigSrc gets re-defined between MI and ScanIt,
+            // any further uses read the new value, not the one we'd
+            // be killing — so the kill flag transfer is safe.
+            if (ScanIt->modifiesRegister(OrigSrc, &TRI))
+              break;
+          }
+
+          if (!Clobbered && !OrigSrcUsedLater) {
             LLVM_DEBUG(dbgs() << "MC6809CopyOpt: shortening chain: " << MI
                               << "  original src: " << printReg(OrigSrc, &TRI)
                               << "\n");
