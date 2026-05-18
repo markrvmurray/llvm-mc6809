@@ -89,59 +89,26 @@ define i16 @sub_zext_i8(i8 %a, i8 %b) {
 ;
 ; O1-LABEL: sub_zext_i8:
 ; O1:       ; %bb.0: ; %entry
-; O1-NEXT:    leas -7,s
-; O1-NEXT:    pshs u
-; O1-NEXT:    tfr s,u
-; O1-NEXT:    subb 11,u
-; O1-NEXT:    sta 4,u
+; O1-NEXT:    subb 2,s
 ; O1-NEXT:    lda #0
-; O1-NEXT:    sta 5,u
-; O1-NEXT:    lda 4,u
-; O1-NEXT:    lda 5,u
 ; O1-NEXT:    sbca #0
-; O1-NEXT:    sta 5,u
 ; O1-NEXT:    tfr d,x
-; O1-NEXT:    tfr u,s
-; O1-NEXT:    puls u
-; O1-NEXT:    leas 7,s
 ; O1-NEXT:    rts
 ;
 ; O2-LABEL: sub_zext_i8:
 ; O2:       ; %bb.0: ; %entry
-; O2-NEXT:    leas -7,s
-; O2-NEXT:    pshs u
-; O2-NEXT:    tfr s,u
-; O2-NEXT:    subb 11,u
-; O2-NEXT:    sta 4,u
+; O2-NEXT:    subb 2,s
 ; O2-NEXT:    lda #0
-; O2-NEXT:    sta 5,u
-; O2-NEXT:    lda 4,u
-; O2-NEXT:    lda 5,u
 ; O2-NEXT:    sbca #0
-; O2-NEXT:    sta 5,u
 ; O2-NEXT:    tfr d,x
-; O2-NEXT:    tfr u,s
-; O2-NEXT:    puls u
-; O2-NEXT:    leas 7,s
 ; O2-NEXT:    rts
 ;
 ; O3-LABEL: sub_zext_i8:
 ; O3:       ; %bb.0: ; %entry
-; O3-NEXT:    leas -7,s
-; O3-NEXT:    pshs u
-; O3-NEXT:    tfr s,u
-; O3-NEXT:    subb 11,u
-; O3-NEXT:    sta 4,u
+; O3-NEXT:    subb 2,s
 ; O3-NEXT:    lda #0
-; O3-NEXT:    sta 5,u
-; O3-NEXT:    lda 4,u
-; O3-NEXT:    lda 5,u
 ; O3-NEXT:    sbca #0
-; O3-NEXT:    sta 5,u
 ; O3-NEXT:    tfr d,x
-; O3-NEXT:    tfr u,s
-; O3-NEXT:    puls u
-; O3-NEXT:    leas 7,s
 ; O3-NEXT:    rts
 entry:
   %conv_a = zext i8 %a to i16
@@ -207,59 +174,26 @@ define i16 @add_zext_i8(i8 %a, i8 %b) {
 ;
 ; O1-LABEL: add_zext_i8:
 ; O1:       ; %bb.0: ; %entry
-; O1-NEXT:    leas -7,s
-; O1-NEXT:    pshs u
-; O1-NEXT:    tfr s,u
-; O1-NEXT:    addb 11,u
-; O1-NEXT:    sta 4,u
+; O1-NEXT:    addb 2,s
 ; O1-NEXT:    lda #0
-; O1-NEXT:    sta 5,u
-; O1-NEXT:    lda 4,u
-; O1-NEXT:    lda 5,u
 ; O1-NEXT:    adca #0
-; O1-NEXT:    sta 5,u
 ; O1-NEXT:    tfr d,x
-; O1-NEXT:    tfr u,s
-; O1-NEXT:    puls u
-; O1-NEXT:    leas 7,s
 ; O1-NEXT:    rts
 ;
 ; O2-LABEL: add_zext_i8:
 ; O2:       ; %bb.0: ; %entry
-; O2-NEXT:    leas -7,s
-; O2-NEXT:    pshs u
-; O2-NEXT:    tfr s,u
-; O2-NEXT:    addb 11,u
-; O2-NEXT:    sta 4,u
+; O2-NEXT:    addb 2,s
 ; O2-NEXT:    lda #0
-; O2-NEXT:    sta 5,u
-; O2-NEXT:    lda 4,u
-; O2-NEXT:    lda 5,u
 ; O2-NEXT:    adca #0
-; O2-NEXT:    sta 5,u
 ; O2-NEXT:    tfr d,x
-; O2-NEXT:    tfr u,s
-; O2-NEXT:    puls u
-; O2-NEXT:    leas 7,s
 ; O2-NEXT:    rts
 ;
 ; O3-LABEL: add_zext_i8:
 ; O3:       ; %bb.0: ; %entry
-; O3-NEXT:    leas -7,s
-; O3-NEXT:    pshs u
-; O3-NEXT:    tfr s,u
-; O3-NEXT:    addb 11,u
-; O3-NEXT:    sta 4,u
+; O3-NEXT:    addb 2,s
 ; O3-NEXT:    lda #0
-; O3-NEXT:    sta 5,u
-; O3-NEXT:    lda 4,u
-; O3-NEXT:    lda 5,u
 ; O3-NEXT:    adca #0
-; O3-NEXT:    sta 5,u
 ; O3-NEXT:    tfr d,x
-; O3-NEXT:    tfr u,s
-; O3-NEXT:    puls u
-; O3-NEXT:    leas 7,s
 ; O3-NEXT:    rts
 entry:
   %conv_a = zext i8 %a to i16

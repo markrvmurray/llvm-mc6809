@@ -30,110 +30,107 @@
 define dso_local i16 @cmp_imm_byte_load_phi_no_wrap(ptr noundef readonly captures(none) %s) local_unnamed_addr {
 ; CHECK-LABEL: cmp_imm_byte_load_phi_no_wrap:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -22,s
+; CHECK-NEXT:    leas -24,s
 ; CHECK-NEXT:    pshs u,y
 ; CHECK-NEXT:    tfr s,u
 ; CHECK-NEXT:    tfr x,y
-; CHECK-NEXT:    sty 12,u
+; CHECK-NEXT:    sty 14,u
 ; CHECK-NEXT:    ldb ,x
-; CHECK-NEXT:    stb 23,u
+; CHECK-NEXT:    stb 25,u
 ; CHECK-NEXT:    cmpb #45
 ; CHECK-NEXT:    lbeq .LBB0_2
 ; CHECK-NEXT:  ; %bb.1: ; %entry
-; CHECK-NEXT:    lda #0
+; CHECK-NEXT:    ldb #0
 ; CHECK-NEXT:    bra .LBB0_3
 ; CHECK-NEXT:  .LBB0_2: ; %entry
-; CHECK-NEXT:    lda #1
+; CHECK-NEXT:    ldb #1
 ; CHECK-NEXT:  .LBB0_3: ; %entry
-; CHECK-NEXT:    tfr a,b
 ; CHECK-NEXT:    andb #1
-; CHECK-NEXT:    andb #1
-; CHECK-NEXT:    ldy 12,u
+; CHECK-NEXT:    ldy 14,u
 ; CHECK-NEXT:    tfr y,x
-; CHECK-NEXT:    std 10,u
+; CHECK-NEXT:    std 12,u
 ; CHECK-NEXT:    clra
-; CHECK-NEXT:    std 20,u
-; CHECK-NEXT:    ldd 10,u
-; CHECK-NEXT:    ldd 20,u
+; CHECK-NEXT:    std 22,u
+; CHECK-NEXT:    ldd 12,u
+; CHECK-NEXT:    ldd 22,u
 ; CHECK-NEXT:    leax d,x
 ; CHECK-NEXT:    ldb ,x
-; CHECK-NEXT:    stb 21,u
+; CHECK-NEXT:    stb 23,u
 ; CHECK-NEXT:    addb #-48
-; CHECK-NEXT:    std 8,u
+; CHECK-NEXT:    std 10,u
 ; CHECK-NEXT:    ldd #0
-; CHECK-NEXT:    std 18,u
-; CHECK-NEXT:    ldd 8,u
+; CHECK-NEXT:    std 20,u
+; CHECK-NEXT:    ldd 10,u
 ; CHECK-NEXT:    cmpb #10
 ; CHECK-NEXT:    bhs .LBB0_9
 ; CHECK-NEXT:  ; %bb.4: ; %while.body.preheader
 ; CHECK-NEXT:    ldd #2
-; CHECK-NEXT:    stb 7,u
-; CHECK-NEXT:    ldb 23,u
+; CHECK-NEXT:    stb 9,u
+; CHECK-NEXT:    ldb 25,u
 ; CHECK-NEXT:    cmpb #45
 ; CHECK-NEXT:    bne .LBB0_6
 ; CHECK-NEXT:  ; %bb.5: ; %while.body.preheader
-; CHECK-NEXT:    ldb 7,u
+; CHECK-NEXT:    ldb 9,u
 ; CHECK-NEXT:    bra .LBB0_7
 ; CHECK-NEXT:  .LBB0_6: ; %select.false
-; CHECK-NEXT:    ldb 7,u
+; CHECK-NEXT:    ldb 9,u
 ; CHECK-NEXT:    ldd #1
 ; CHECK-NEXT:  .LBB0_7: ; %select.end
-; CHECK-NEXT:    ldy 12,u
+; CHECK-NEXT:    ldy 14,u
 ; CHECK-NEXT:    leay d,y
-; CHECK-NEXT:    sty 12,u
+; CHECK-NEXT:    sty 14,u
 ; CHECK-NEXT:    ldd #0
-; CHECK-NEXT:    std 18,u
+; CHECK-NEXT:    std 20,u
 ; CHECK-NEXT:  .LBB0_8: ; %while.body
 ; CHECK-NEXT:    ; =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    leas -2,s
 ; CHECK-NEXT:    ldd #10
 ; CHECK-NEXT:    std ,s
-; CHECK-NEXT:    ldx 18,u
+; CHECK-NEXT:    ldx 20,u
 ; CHECK-NEXT:    lbsr __mulhi3
 ; CHECK-NEXT:    leas 2,s
-; CHECK-NEXT:    ldb 21,u
+; CHECK-NEXT:    ldb 23,u
 ; CHECK-NEXT:    addb #-48
-; CHECK-NEXT:    stb 21,u
+; CHECK-NEXT:    stb 23,u
 ; CHECK-NEXT:    tfr x,d
-; CHECK-NEXT:    stb 19,u
-; CHECK-NEXT:    sta 22,u
-; CHECK-NEXT:    addb 21,u
-; CHECK-NEXT:    stb 19,u
-; CHECK-NEXT:    adca #0
-; CHECK-NEXT:    sta 22,u
-; CHECK-NEXT:    std 18,u
-; CHECK-NEXT:    ldb [12,u]
 ; CHECK-NEXT:    stb 21,u
+; CHECK-NEXT:    addb 23,u
+; CHECK-NEXT:    stb 21,u
+; CHECK-NEXT:    adca #0
+; CHECK-NEXT:    std 7,u
+; CHECK-NEXT:    std 20,u
+; CHECK-NEXT:    ldb [14,u]
+; CHECK-NEXT:    stb 23,u
 ; CHECK-NEXT:    addb #-48
-; CHECK-NEXT:    ldy 12,u
+; CHECK-NEXT:    ldy 14,u
 ; CHECK-NEXT:    leay 1,y
-; CHECK-NEXT:    sty 12,u
+; CHECK-NEXT:    sty 14,u
 ; CHECK-NEXT:    cmpb #10
 ; CHECK-NEXT:    lblo .LBB0_8
 ; CHECK-NEXT:  .LBB0_9: ; %while.end
 ; CHECK-NEXT:    ldb #0
-; CHECK-NEXT:    stb 21,u
-; CHECK-NEXT:    ldb 19,u
-; CHECK-NEXT:    lda 18,u
+; CHECK-NEXT:    stb 23,u
+; CHECK-NEXT:    ldb 21,u
+; CHECK-NEXT:    lda 20,u
 ; CHECK-NEXT:    stb 6,u
 ; CHECK-NEXT:    tfr a,b
-; CHECK-NEXT:    stb 17,u
+; CHECK-NEXT:    stb 19,u
 ; CHECK-NEXT:    ldb 6,u
 ; CHECK-NEXT:    stb 5,u
-; CHECK-NEXT:    ldb 21,u
-; CHECK-NEXT:    stb 15,u
+; CHECK-NEXT:    ldb 23,u
+; CHECK-NEXT:    stb 17,u
 ; CHECK-NEXT:    ldb 5,u
 ; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 15,u
+; CHECK-NEXT:    ldb 17,u
 ; CHECK-NEXT:    subb ,s+
-; CHECK-NEXT:    stb 15,u
-; CHECK-NEXT:    ldb 21,u
-; CHECK-NEXT:    sbcb 17,u
-; CHECK-NEXT:    stb 21,u
-; CHECK-NEXT:    tfr b,a
-; CHECK-NEXT:    ldb 15,u
-; CHECK-NEXT:    stb 4,u
+; CHECK-NEXT:    stb 17,u
 ; CHECK-NEXT:    ldb 23,u
+; CHECK-NEXT:    sbcb 19,u
+; CHECK-NEXT:    stb 23,u
+; CHECK-NEXT:    tfr b,a
+; CHECK-NEXT:    ldb 17,u
+; CHECK-NEXT:    stb 4,u
+; CHECK-NEXT:    ldb 25,u
 ; CHECK-NEXT:    cmpb #45
 ; CHECK-NEXT:    bne .LBB0_11
 ; CHECK-NEXT:  ; %bb.10: ; %while.end
@@ -141,12 +138,12 @@ define dso_local i16 @cmp_imm_byte_load_phi_no_wrap(ptr noundef readonly capture
 ; CHECK-NEXT:    bra .LBB0_12
 ; CHECK-NEXT:  .LBB0_11: ; %select.false3
 ; CHECK-NEXT:    ldb 4,u
-; CHECK-NEXT:    ldd 18,u
+; CHECK-NEXT:    ldd 20,u
 ; CHECK-NEXT:  .LBB0_12: ; %select.end2
 ; CHECK-NEXT:    tfr d,x
 ; CHECK-NEXT:    tfr u,s
 ; CHECK-NEXT:    puls u,y
-; CHECK-NEXT:    leas 22,s
+; CHECK-NEXT:    leas 24,s
 ; CHECK-NEXT:    rts
 entry:
   %0 = load i8, ptr %s, align 1
