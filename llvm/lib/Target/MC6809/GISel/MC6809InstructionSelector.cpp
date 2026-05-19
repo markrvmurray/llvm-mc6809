@@ -400,7 +400,8 @@ ensureCarryChainIntegrity(MachineInstr &Consumer, Register CarryIn,
   // Decide whether to bridge:
   //  - Cross-BB: always bridge (any cross-BB path crosses unknown CC clobbers).
   //  - Same-BB: scan for an intervening CC-clobbering MI; bridge only if found.
-  bool NeedsBridge = (Producer->getParent() != Consumer.getParent());
+  bool CrossBB = (Producer->getParent() != Consumer.getParent());
+  bool NeedsBridge = CrossBB;
   if (!NeedsBridge) {
     // Producer must precede Consumer in the same BB. Defensive guard:
     auto PIt = MachineBasicBlock::iterator(*Producer);
@@ -477,18 +478,30 @@ ensureCarryChainIntegrity(MachineInstr &Consumer, Register CarryIn,
   constrainSelectedInstRegOperands(*BtoC, TII, TRI, RBI);
 
   // Bug #307 round 2 (2026-05-18): signal to the caller that the
-  // bridge fired.  The caller must NOT add CarryIn as an implicit-use
-  // on the new pseudo it builds (which replaces `Consumer`).  Keeping
-  // the implicit-use would force regalloc to keep the phantom_carry
-  // vreg alive across the bridge — which across calls means
-  // regalloc has to spill/COPY a phantom_carry physreg (caller-
-  // clobbered, no real storage to spill TO) and hits
-  // `loadStoreRegisterStaticStackSlot`'s "Unexpected virtual
-  // register class" crash (or, in pre-fix builds, the verifier
-  // rejected `COPY_CC_PLACEHOLDER` from copyPhysReg's fallback).
-  // The actual carry value now flows via CC.C, set by the
-  // `ToCCPseudo` we just emitted right before the Consumer.
-  return true;
+  // bridge fired AND requires dropping the phantom_carry implicit-
+  // use on the new pseudo.  This is only correct for CROSS-BB
+  // bridges — where Carry would otherwise have to survive a call /
+  // an unknown CC-clobbering region.  In those cases keeping the
+  // implicit-use would force regalloc to keep the phantom_carry
+  // vreg alive across the bridge — which is impossible (phantom
+  // physregs are caller-clobbered, phantom vregs have no spill
+  // storage) and triggers `loadStoreRegisterStaticStackSlot`'s
+  // "Unexpected virtual register class" crash (or pre-fix the
+  // verifier rejected `COPY_CC_PLACEHOLDER` from copyPhysReg's
+  // fallback).
+  //
+  // Narrowed gate (2026-05-19): for SAME-BB CC-clobber bridges
+  // (Producer and Consumer in the same MBB, intervening CC clobber
+  // between them), Carry CAN stay alive in phantom physregs across
+  // the bridge — there's no call involved.  The full bench at
+  // 65bb11c2d5ec showed that dropping the implicit-use in the
+  // same-BB-clobber case spread Bug #309's failure family to all
+  // non-LTO HD6309-mame levels (~140 regressed tests).  Returning
+  // `true` only for cross-BB bridges keeps the imaxabs/llabs fix
+  // (the original Bug #307 round 2 manifest is cross-BB) while
+  // preserving the implicit-use's role for same-BB CC-clobber
+  // bridges (DCE protection, regalloc liveness signal, etc.).
+  return CrossBB;
 }
 
 } // namespace
