@@ -510,18 +510,28 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // G_ZEXT cleanly).
   getActionDefinitionsBuilder({G_LOAD, G_STORE})
       .customIf([=](const LegalityQuery &Query) {
-        // Only fires for G_LOAD with scalar dst and a typed MMO
-        // smaller than the dst type.  G_STORE doesn't have this
-        // shape (truncating stores are not currently exercised);
-        // restrict the customIf to G_LOAD by virtue of the size
-        // mismatch only occurring there.
+        // Bug #310 (2026-05-19) narrowed gate (2026-05-19 PM):
+        // the original gate `MemSize < TypeSize` over-fired on
+        // many shapes downstream codegen expected to handle
+        // natively — caused catastrophic regressions across
+        // HD6309-mame levels at the first full bench (175 OK
+        // regressed across 5 levels).
+        //
+        // Restrict to the exact shape seen in vfprintf_s:
+        //   %dst:s32 = G_LOAD %ptr(p0), :: (load (s16))
+        // (4-byte type, 2-byte MMO).  This is the va_arg-related
+        // pattern that hits "cannot select" at the selector —
+        // narrower than the original gate and avoids the
+        // downstream codegen interactions that broke other
+        // tests.  If other partial-width-load shapes surface,
+        // add them explicitly rather than re-broadening.
         if (Query.MMODescrs.empty())
           return false;
         if (!Query.Types[0].isScalar())
           return false;
         uint64_t TypeSize = Query.Types[0].getSizeInBits();
         uint64_t MemSize = Query.MMODescrs[0].MemoryTy.getSizeInBits();
-        return MemSize > 0 && MemSize < TypeSize;
+        return TypeSize == 32 && MemSize == 16;
       })
       .legalForCartesianProduct(LegalTypes, {p, p1})
       .lowerIfMemSizeNotByteSizePow2()
