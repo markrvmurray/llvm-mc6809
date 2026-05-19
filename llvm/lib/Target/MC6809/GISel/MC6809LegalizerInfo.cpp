@@ -492,7 +492,37 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // because REG_SEQUENCE constrained the acc32 vreg to AQ-only
   // allocation, exhausting register supply at >1 live i32 value.
   // Plain MC6809 still narrows (no LDQ instruction).
+  // Bug #310 (2026-05-19): G_LOAD with type-size > MMO-size (a
+  // partial-width load) has no isel pattern.  Surfaces in
+  // vfprintf_s at -Og-hd6309-mame as
+  //   %dst:acc32(s32) = G_LOAD %ptr(p0), :: (load (s16), align 1)
+  // followed by G_TRUNC %dst back to s16 — only the low 16 bits
+  // are used, but the IR generator produced an s32-typed G_LOAD
+  // pointing at an s16 MMO.  The legalizer's existing
+  // legalForCartesianProduct didn't check MMO size, so the MI
+  // sneaked through and the selector hit "cannot select".
+  //
+  // Route these to `legalizeLoad` (which already handles
+  // G_SEXTLOAD/G_ZEXTLOAD by splitting into G_LOAD of MMO-size +
+  // S/ZExt to the dst size).  An `anyext`-shaped lowering is
+  // sufficient here because the consumer truncates anyway —
+  // emit G_ZEXT for safety (defined high bytes; selector handles
+  // G_ZEXT cleanly).
   getActionDefinitionsBuilder({G_LOAD, G_STORE})
+      .customIf([=](const LegalityQuery &Query) {
+        // Only fires for G_LOAD with scalar dst and a typed MMO
+        // smaller than the dst type.  G_STORE doesn't have this
+        // shape (truncating stores are not currently exercised);
+        // restrict the customIf to G_LOAD by virtue of the size
+        // mismatch only occurring there.
+        if (Query.MMODescrs.empty())
+          return false;
+        if (!Query.Types[0].isScalar())
+          return false;
+        uint64_t TypeSize = Query.Types[0].getSizeInBits();
+        uint64_t MemSize = Query.MMODescrs[0].MemoryTy.getSizeInBits();
+        return MemSize > 0 && MemSize < TypeSize;
+      })
       .legalForCartesianProduct(LegalTypes, {p, p1})
       .lowerIfMemSizeNotByteSizePow2()
       .clampScalar(0, s8, sMax);
@@ -597,6 +627,13 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
     return false;
   case G_SEXTLOAD:
   case G_ZEXTLOAD:
+    return legalizeLoad(Helper, MRI, cast<GAnyLoad>(MI), LocObserver);
+  case G_LOAD:
+    // Bug #310 (2026-05-19): a G_LOAD whose dst type is larger
+    // than its MMO memory type (partial-width load) reaches the
+    // customIf gate above.  Handle by routing to legalizeLoad,
+    // which already knows how to split G_LOAD/G_*EXTLOAD into a
+    // G_LOAD of MMO-size + an extension to the dst size.
     return legalizeLoad(Helper, MRI, cast<GAnyLoad>(MI), LocObserver);
   case G_AND:
   case G_OR:
@@ -2394,12 +2431,25 @@ bool MC6809LegalizerInfo::legalizeLoad(LegalizerHelper &Helper, MachineRegisterI
     Tmp = MRI.createGenericVirtualRegister(MMO.getType());
     Builder.buildZExt(MI.getDstReg(), Tmp);
     break;
-  default:
+  default: {
     auto DstType = MRI.getType(MI.getDstReg());
-    assert(DstType.isPointer());
-    Tmp = MRI.createGenericVirtualRegister(LLT::scalar(DstType.getScalarSizeInBits()));
-    Builder.buildIntToPtr(MI.getDstReg(), Tmp);
+    if (DstType.isPointer()) {
+      Tmp = MRI.createGenericVirtualRegister(LLT::scalar(DstType.getScalarSizeInBits()));
+      Builder.buildIntToPtr(MI.getDstReg(), Tmp);
+    } else {
+      // Bug #310 (2026-05-19): scalar G_LOAD with dst type wider
+      // than the MMO memory type (partial-width load).  Split into
+      // a G_LOAD of MMO-size followed by a G_ZEXT to the dst type.
+      // Defined-zero high bytes are sufficient for all observed
+      // shapes (the typical consumer is a G_TRUNC back down to
+      // mem-size width, which doesn't read the high bytes anyway).
+      assert(DstType.isScalar() &&
+             "legalizeLoad default branch expects pointer or scalar dst");
+      Tmp = MRI.createGenericVirtualRegister(MMO.getType());
+      Builder.buildZExt(MI.getDstReg(), Tmp);
+    }
     break;
+  }
   }
   Helper.Observer.changingInstr(MI);
   MI.setDesc(Builder.getTII().get(G_LOAD));
