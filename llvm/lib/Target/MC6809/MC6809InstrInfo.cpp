@@ -6830,6 +6830,7 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
   // source pair. Detect that and fall back to a 6809-style compare via
   // PSHS / CMPx 0,S / LEAS so the SPILL operand is read separately.
   MachineFunction &MF = *MI.getMF();
+  const MC6809Subtarget &STI = MF.getSubtarget<MC6809Subtarget>();
   Register Src1 = MI.getOperand(3).getReg();
   Register Src2 = MI.getOperand(2).getReg();
   auto effectivePhys = [](Register R) -> Register {
@@ -6844,7 +6845,12 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
        Src1Phys == MC6809::IX || Src1Phys == MC6809::IY ||
        Src1Phys == MC6809::SU || Src1Phys == MC6809::SS);
 
-  if (!SameHalf) {
+  // Bug #312: CMPRp is HD6309-only.  On plain MC6809 take the same
+  // PSHS / CMPx 0,$ss / LEAS sequence the SameHalf collision-fallback
+  // uses below — it works for the general non-SameHalf case too, just
+  // costs one stack round-trip.  pickCmpO8O16 (defined further down)
+  // picks the right CMPx variant for Src2's physreg.
+  if (!SameHalf && STI.has6309()) {
     if (needsMaterialization(Src1)) Src1 = materializeReg(Builder, Src1, MF);
     if (needsMaterialization(Src2)) Src2 = materializeReg(Builder, Src2, MF);
     Builder.buildInstr(MC6809::CMPRp).addUse(Src1).addUse(Src2);
@@ -6928,10 +6934,21 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
     MI.eraseFromParent();
     return;
   }
-  // Both Src1 and Src2 are already physical, same physreg, no spill on
-  // either side: regalloc literally coalesced them. Comparison is
-  // trivially equal — emit CMPRp so the CC flags are defined.
-  Builder.buildInstr(MC6809::CMPRp).addUse(Src1Phys).addUse(Src2Phys);
+  // Both Src1 and Src2 already physical, no spill on either side.
+  // HD6309: CMPRp regardless of whether Src1Phys == Src2Phys (regalloc
+  // coalesced) or not.  Plain MC6809 (Bug #312): emit PSHS Src1Phys ;
+  // CMPx Src2 vs 0,$ss ; PULS Src1Phys — same flag direction as CMPRp
+  // (Src2 - Src1), PULS restores Src1 per the Bug #257 fix above.
+  if (STI.has6309()) {
+    Builder.buildInstr(MC6809::CMPRp).addUse(Src1Phys).addUse(Src2Phys);
+    MI.eraseFromParent();
+    return;
+  }
+  Builder.buildInstr(MC6809::PSHSs, {}, {Src1Phys});
+  unsigned CmpOpc;
+  pickCmpO8O16(Src2Phys, 0, CmpOpc);
+  Builder.buildInstr(CmpOpc).addImm(0).addReg(MC6809::SS);
+  Builder.buildInstr(MC6809::PULSs, {Src1Phys}, {});
   MI.eraseFromParent();
 }
 
