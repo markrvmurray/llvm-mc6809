@@ -123,8 +123,12 @@ let Predicates = [IsHD6309] in {
 // CustomInsert path post the previous commit, and any direct
 // `buildInstr(Load_i1_Imm)` site that hands an ACC8 dst) hit the
 // expandLoad1Imm switch's named-physreg arms unchanged.
+// Bug #311 Phase 1 step 1.1 (2026-05-20): dst class moved from BIT1 to
+// ACC8.  ISelLowering binds MVT::i1 to ACC8RegClass; BIT1 was a stale
+// alias whose 4-member intersection with ACC8 (= {AA, AB, AE, AF}) was
+// causing regalloc starvation in zero-test sites.
 def Load_i1_Imm : MC6809LogicalInstr {
-  dag OutOperandList = (outs BIT1:$dst);
+  dag OutOperandList = (outs ACC8:$dst);
   dag InOperandList = (ins i1imm:$val);
   let isAsCheapAsAMove = true;
   let isMoveImm = true;
@@ -195,7 +199,9 @@ let Predicates = [IsHD6309], mayLoad = true in {
 
 // --- Patterns (connect LLVM IR to pseudo-instructions) ---
 
-def : Pat<(i1 imm:$s), (Load_i1_Imm imm:$s)>;
+// Bug #311 Phase 1 step 1.1 (2026-05-20): retired.  Load_i1_Imm's dst
+// moved to ACC8; legalizer extends G_CONSTANT i1 → G_CONSTANT i8 before
+// isel, so this pattern's `(i1 imm)` shape no longer appears.
 
 multiclass MC6809LoadPat<ValueType vtype> {
   def _#vtype#_Imm : Pat<(vtype imm:$val), (!cast<Instruction>("Load_"#vtype#"_Imm") imm:$val)>;

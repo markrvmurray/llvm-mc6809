@@ -468,12 +468,9 @@ static MachineBasicBlock *emitSelectImm(MachineInstr &MI, MachineBasicBlock *MBB
     Builder.setInsertPt(*HeadMBB, MI.getIterator());
   }
 
+  // Bug #311 Phase 1 step 1.1 (2026-05-20): Load_i1_Imm's dst is now
+  // ACC8 (same as Load_i8_Imm).  The BIT1 special-case branch is dead.
   const auto LDImm = [&Builder, &Dst](int64_t Val) {
-    if (MC6809::BIT1RegClass.contains(Dst)) {
-      Builder.buildInstr(MC6809::Load_i1_Imm, {Dst}, {Val});
-      return;
-    }
-
     assert(MC6809::ACC8RegClass.contains(Dst));
     Builder.buildInstr(MC6809::Load_i8_Imm, {Dst}, {Val});
   };
