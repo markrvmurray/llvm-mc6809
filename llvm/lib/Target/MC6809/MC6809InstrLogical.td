@@ -385,15 +385,14 @@ def SEX8Implicit : MC6809LogicalInstr {
   // hierarchy.
   let Defs = [NZ, V, C, AD];
   let hasSideEffects = 1;
-  // Bug #302 BIT1 elimination: $src stays in BIT1 for now -- the
-  // TableGen-imported pattern matcher binds the sext pattern by
-  // value type, and explicit (i1 ACC8) / (i8 ACC8) annotations
-  // produce "Type set is empty" errors when both value types live
-  // on the same RegisterClass.  Group D drops SEX8Implicit / BIT1
-  // together; until then the source class stays.
-  dag InOperandList = (ins BIT1:$src);
+  // Bug #311 Phase 1 step 1.2 (2026-05-20): $src moved from BIT1 to
+  // ACC8.  The byte's LSB carries the i1 value (same encoding BIT1
+  // used).  No SDAG Pattern — TableGen rejected `(i1 ACC8:$src)` with
+  // "Type set is empty" because both i1 and i8 live on the same
+  // RegisterClass.  G_SEXT s1→s8 is selected via a C++ intercept in
+  // MC6809InstructionSelector.
+  dag InOperandList = (ins ACC8:$src);
   dag OutOperandList = (outs ACC8:$dst);
-  let Pattern = [(set ACC8:$dst, (sext BIT1:$src))];
 }
 
 def SEX16Implicit : MC6809LogicalInstr {
@@ -455,11 +454,14 @@ def ZEX8Implicit : MC6809LogicalInstr {
   // Bug #302 BIT1 elimination: $src stays in ABLSBc for now -- same
   // TableGen i1/i8 type-binding issue as SEX8Implicit above.  Group
   // D retires ABLSBc + this pseudo together.
+  // Bug #311 Phase 1 step 1.2 (2026-05-20): $src moved from ABLSBc to
+  // ACC8; $dst widened to ACC8.  Same TableGen i1/i8 type-binding
+  // rejection as SEX8Implicit above — no SDAG Pattern.  G_ZEXT s1→s8
+  // is selected via a C++ intercept.
   let Defs = [NZ, V];
   let hasSideEffects = 1;
-  dag InOperandList = (ins ABLSBc:$src);
-  dag OutOperandList = (outs ABc:$dst);
-  let Pattern = [(set ABc:$dst, (zext ABLSBc:$src))];
+  dag InOperandList = (ins ACC8:$src);
+  dag OutOperandList = (outs ACC8:$dst);
 }
 
 def ZEX16Implicit : MC6809LogicalInstr {

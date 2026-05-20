@@ -927,6 +927,30 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     }
   }
 
+  // Bug #311 Phase 1 step 1.2 (2026-05-20): intercept G_SEXT s1→s8.
+  // The TableGen pattern for SEX8Implicit was retired because TableGen
+  // rejects `(i1 ACC8:$src)` when both i1 and i8 live on the same
+  // class.  Emit SEX8Implicit directly here.  Source class is ACC8
+  // (LSB carries the i1); destination class is ACC8 too.
+  if (MI.getOpcode() == TargetOpcode::G_SEXT) {
+    Register DstReg = MI.getOperand(0).getReg();
+    Register SrcReg = MI.getOperand(1).getReg();
+    LLT DstTy = MRI->getType(DstReg);
+    LLT SrcTy = MRI->getType(SrcReg);
+    if (DstTy == LLT::scalar(8) && SrcTy == LLT::scalar(1)) {
+      if (!MRI->getRegClassOrNull(SrcReg))
+        MRI->setRegClass(SrcReg, &MC6809::ACC8RegClass);
+      MRI->setRegClass(DstReg, &MC6809::ACC8RegClass);
+      MachineIRBuilder B(MI);
+      auto I = B.buildInstr(MC6809::SEX8Implicit)
+                   .addDef(DstReg)
+                   .addUse(SrcReg);
+      constrainSelectedInstRegOperands(*I, TII, TRI, RBI);
+      MI.eraseFromParent();
+      return true;
+    }
+  }
+
   // Bug #311 Phase 1 step 1.3 (2026-05-20): intercept G_ICMP with s1
   // result type at -O0.  The SetIfCondPat / TestPat patterns now match
   // `(i8 (anyext (i1 (setcc ...))))` — they need an enclosing G_ANYEXT
