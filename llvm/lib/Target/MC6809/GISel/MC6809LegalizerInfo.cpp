@@ -245,19 +245,15 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // width — addressing the Bug #85b atoi failure shape one level
   // wider.
   //
-  // NOTE (bug #85b strategy session, 2026-04-12): making i16 legal here
-  // was attempted and reverted. The i16 path through the instruction
+  // NOTE: making i16 legal at the selector level was attempted and
+  // reverted (Bug #85b strategy session).  The i16 path through the
   // selector (INDEX-bank LEA + ACCUM-bank ADDD) produced wrong results
-  // at -O0 for atoi-like functions — likely a reg-bank assignment or
-  // phi-handling issue in the i16 add path that doesn't exist for the
-  // i8 carry-chain path. The underlying BIT1 exhaustion (which motivates
-  // i16 legality) needs a different solution: either making BIT1
-  // spillable or using a targeted libcall for the `sub i16 (zext i8),
-  // (zext i8)` pattern.  Bug #297's HD6309 s32 path avoids the i16
-  // hazard entirely because i32 stays in ACCUM bank by construction
-  // (no INDEX-bank 32-bit reg exists), and i16 G_ADD/G_SUB still
-  // narrows on both subtargets so the cmp_imm_byte_load_phi.ll atoi
-  // sentinel codegen is unchanged.
+  // at -O0 for atoi-like functions — a reg-bank / phi-handling issue
+  // in the i16 add path that doesn't manifest in the i8 carry-chain.
+  // The HD6309 s32 path (Bug #297) sidesteps the issue because i32
+  // stays in ACCUM bank by construction (no INDEX-bank 32-bit reg
+  // exists), and i16 G_ADD/G_SUB still narrows on both subtargets so
+  // the cmp_imm_byte_load_phi.ll atoi sentinel codegen is unchanged.
   if (IsHD6309)
     getActionDefinitionsBuilder({G_ADD, G_SUB})
         .legalFor({s8, s32})
@@ -706,10 +702,9 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
           else if (Pred == CmpInst::ICMP_SGT) { IsSignTest = true; Invert = true; }
         }
         if (IsSignTest) {
-          // Bug #301 follow-up (2026-05-16): SignTest_i32 now outputs
-          // ACC8 (not BIT1) — materialize via byte vreg + trunc to i1
-          // for the G_ICMP Dst, mirroring the EqZero_i32 / EqConst_i32
-          // hooks below.  For Invert (sge X, 0 / sgt X, -1), XOR the
+          // SignTest_i32 outputs an ACC8 with the byte's LSB carrying
+          // the boolean.  Materialize via byte vreg + trunc to i1 for
+          // the G_ICMP Dst; for Invert (sge X, 0 / sgt X, -1), XOR the
           // byte result with 1 before the trunc.
           LLT S1 = LLT::scalar(1);
           LLT S8 = LLT::scalar(8);
@@ -717,11 +712,6 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
           Register SignByte = MRI.createGenericVirtualRegister(S8);
           MRI.setRegClass(SignByte, &MC6809::ACC8RegClass);
           B.buildInstr(MC6809::SignTest_i32, {SignByte}, {Lhs});
-          // Bug #302 BIT1 elimination: the byte already holds the 0/1
-          // value (SignTest_i32 / EqZero_i32 / EqConst_i32 /
-          // CompareSet_i8_i32_Imm all output ACC8); the trunc to i1
-          // just narrows the LLT.  Dst's class is ACC8, matching the
-          // new MVT::i1 binding in ISelLowering.
           MRI.setRegClass(Dst, &MC6809::ACC8RegClass);
           if (Invert) {
             auto OneB = B.buildConstant(S8, 1);
@@ -765,23 +755,15 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
                 .addUse(Lhs)
                 .addImm(KSigned);
           }
+          // The byte already holds the 0/1 value; the trunc to i1
+          // just narrows the LLT.  Dst is ACC8 (MVT::i1's class).
           if (InvertEq) {
             auto OneB = B.buildConstant(S8, 1);
             auto XorB = B.buildXor(S8, IsEqByte, OneB);
-            // Bug #302 BIT1 elimination: the byte already holds the 0/1
-          // value (SignTest_i32 / EqZero_i32 / EqConst_i32 /
-          // CompareSet_i8_i32_Imm all output ACC8); the trunc to i1
-          // just narrows the LLT.  Dst's class is ACC8, matching the
-          // new MVT::i1 binding in ISelLowering.
-          MRI.setRegClass(Dst, &MC6809::ACC8RegClass);
+            MRI.setRegClass(Dst, &MC6809::ACC8RegClass);
             B.buildTrunc(Dst, XorB);
           } else {
-            // Bug #302 BIT1 elimination: the byte already holds the 0/1
-          // value (SignTest_i32 / EqZero_i32 / EqConst_i32 /
-          // CompareSet_i8_i32_Imm all output ACC8); the trunc to i1
-          // just narrows the LLT.  Dst's class is ACC8, matching the
-          // new MVT::i1 binding in ISelLowering.
-          MRI.setRegClass(Dst, &MC6809::ACC8RegClass);
+            MRI.setRegClass(Dst, &MC6809::ACC8RegClass);
             B.buildTrunc(Dst, IsEqByte);
           }
           MI.eraseFromParent();
@@ -863,11 +845,8 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
               .addImm(CCImm)
               .addUse(Lhs)
               .addImm(KSigned);
-          // Bug #302 BIT1 elimination: the byte already holds the 0/1
-          // value (SignTest_i32 / EqZero_i32 / EqConst_i32 /
-          // CompareSet_i8_i32_Imm all output ACC8); the trunc to i1
-          // just narrows the LLT.  Dst's class is ACC8, matching the
-          // new MVT::i1 binding in ISelLowering.
+          // The byte already holds the 0/1 value; trunc to i1 just
+          // narrows the LLT.  Dst is ACC8 (MVT::i1's class).
           MRI.setRegClass(Dst, &MC6809::ACC8RegClass);
           B.buildTrunc(Dst, ResultByte);
           MI.eraseFromParent();
@@ -1099,7 +1078,7 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
     //      0/1 in a branch diamond — splits the BB so the outer
     //      ADJCALLSTACK pair spans multiple BBs (verifier: "Call
     //      frame size on entry does not match value computed from
-    //      predecessor"). The phantom-BIT1 fast path cannot reliably
+    //      predecessor"). The phantom-carry fast path cannot reliably
     //      avoid this when consumer ordering forces materialization.
     //   3. G_ASHR s8 by 7 widens via shouldOverCorrect to s16, which
     //      then routes to `__ashlhi3` + `__lshrhi3` libcalls —
@@ -1117,8 +1096,8 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
     // is single-MI native MC6809:
     //   - G_ICMP slt(s8,s8) → CMPB + Bcc (legal per
     //     legalForCartesianProduct({s1}, {s8, s16})).
-    //   - G_ZEXT s8←s1 → MaterializeCarryToByte_i8 (phantom-BIT1
-    //     fast path) OR Bug #281's AND_i8_Imm tied form.
+    //   - G_ZEXT s8←s1 → MaterializeCC_C_to_byte (phantom-carry
+    //     fast path) OR the AND_i8_Imm tied fallback for real-byte i1.
     //   - G_SUB s8 → SUBB / SUBA.
     if (DstTy == LLT::scalar(64) && SrcTy == LLT::scalar(32)) {
       LLT S1 = LLT::scalar(1);
@@ -1332,23 +1311,19 @@ MC6809LegalizerInfo::legalizeBitwise(LegalizerHelper &Helper,
   MachineIRBuilder &B = Helper.MIRBuilder;
   LLT Ty = MRI.getType(MI.getOperand(0).getReg());
 
-  // Bug #137 prerequisite: s1 G_AND/G_OR/G_XOR lowers to
+  // s1 G_AND/G_OR/G_XOR lowers to
   //    trunc(<op>(anyext(a, s8), anyext(b, s8)), s1).
   // MC6809 has no native 1-bit bitwise op; do it at byte width and
-  // truncate the result back. Mirrors MOS's customFor({S1}) path at
-  // MOSLegalizerInfo.cpp:155-160.
+  // truncate the result back.
   //
-  // Bug #148: use ANYEXT, not ZEXT. ZEXT s1→s8 selects to ZEX8Implicit,
-  // whose expansion (`ANDB #1`) reads the BIT1 vreg's parent byte's LSB.
-  // For BIT1 vregs from carry-phantom pseudos (G_UADDO/G_UADDE/G_USUBO/
-  // G_USUBE — see `getPhantomCarryFlag` in MC6809InstructionSelector.cpp
-  // and the bug #57 design), that LSB holds garbage; the real carry
-  // lives only in CC.C. ANYEXT routes through the selector's G_ANYEXT
-  // s1→s8 custom path (MC6809InstructionSelector.cpp:472-510), which
-  // detects carry-phantom sources and emits MaterializeCarryToByte_i8
-  // (`LDB #0; ADCB #0`, reading CC.C honestly). For non-phantom BIT1s
-  // the path becomes a COPY — upper bits are garbage but our final
-  // G_TRUNC discards them.
+  // Use ANYEXT (not ZEXT).  For carry-phantom s1 sources the byte's
+  // LSB the regalloc allocated is unrelated to the real value (which
+  // lives in CC.C), and ZEXT would mask off the wrong byte.  ANYEXT
+  // routes through the selector's G_ANYEXT s1→s8 custom path which
+  // detects carry-phantom sources and materialises CC.C → 0/1 byte
+  // (LDB #0 ; ADCB #0).  For real-byte i1 sources the path is a
+  // plain COPY — upper bits are garbage but the final G_TRUNC
+  // discards them.
   if (Ty == LLT::scalar(1)) {
     Register Dst = MI.getOperand(0).getReg();
     Register A   = MI.getOperand(1).getReg();
@@ -2173,14 +2148,14 @@ bool MC6809LegalizerInfo::legalizeShiftRotate(LegalizerHelper &Helper, MachineRe
   LLT S8 = LLT::scalar(8);
 
   // For i16, i32 and i64 shifts (non-rotates), always use libcalls
-  // regardless of whether the amount is constant. The constant-amount
-  // byte decomposition path below builds the result via byte-level
-  // operations that access sub-byte halves of an i16/i32/i64 parent
-  // vreg; combined with the BIT1 carry vreg from the carry chain, the
-  // coalescer is forced to tighten the parent's class to ACC16_D
-  // (1 register = AD), exhausting it for any function with multiple
-  // simultaneously-live shift operands. picolibc rand_r and
-  // ubsan_val_to_imax both fail this way.
+  // regardless of whether the amount is constant.  The constant-amount
+  // byte decomposition would build the result via byte-level ops that
+  // access sub-byte halves of the i16/i32/i64 parent vreg; combined
+  // with the carry chain's phantom-carry vreg, the coalescer is
+  // forced to tighten the parent's class to ACC16_D (= 1 register,
+  // AD), exhausting it for any function with multiple simultaneously
+  // live shift operands.  picolibc rand_r and ubsan_val_to_imax both
+  // fail that way.
   //
   // Treat i16 / i32 / i64 the same way: bytes for everything except
   // shifts, which go to hand-written assembly libcalls in

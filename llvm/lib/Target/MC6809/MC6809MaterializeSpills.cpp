@@ -564,13 +564,12 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
           }
         }
         if (!Has8BitSpill) {
-          // Check if D (or any sub-reg) is live with a value that would be
-          // clobbered. Bug #136: LivePhysRegs::contains(R) only matches if
-          // R itself or a reg that addReg(super) walked into was inserted.
-          // A BIT1 vreg allocated to AALSB/ABLSB is added as the LSB only,
-          // so contains(AD/AA/AB) all return false even though the LDD in
-          // the spill materialization WILL clobber that LSB. Walk sub-regs
-          // of AD explicitly to match the NeedSaveD path's anySubRegLive.
+          // Check if D (or any sub-reg) is live with a value that would
+          // be clobbered.  LivePhysRegs::contains(R) only matches if R
+          // itself (or a reg that addReg(super) walked into) was
+          // inserted, so an inserted sub-reg won't be found via the
+          // super.  Walk sub-regs of AD explicitly to match the
+          // NeedSaveD path's anySubRegLive.
           bool DLive = LPR.contains(MC6809::AD);
           if (!DLive)
             for (MCPhysReg Sub : TRI.subregs(MC6809::AD))
@@ -974,13 +973,13 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
       // with dst = $spill_d4 (tied to src) and src2 = $spill_d1:
       //
       //   op0 dst   = $spill_d4 (def, tied to op2)
-      //   op1 carry = $aalsb       (def, BIT1 — not in any spill set)
+      //   op1 carry = $phantom_carry_N (def, PHANTOM_CARRY — not a spill)
       //   op2 src   = $spill_d4 (use, tied — same reg as op0)
       //   op3 src2  = $spill_d1 (use)
       //
       // Iteration:
       //   op0: $spill_d4 not seen → seen={$spill_d4}, size=1 → push
-      //   op1: $aalsb not a spill → skip entirely
+      //   op1: $phantom_carry_N not a spill → skip entirely
       //   op2: $spill_d4 already seen → push (still size 1)
       //   op3: $spill_d1 not seen → seen={d4,d1}, size=2 → SKIP push
       //

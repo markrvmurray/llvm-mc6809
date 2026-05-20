@@ -50,8 +50,6 @@ MC6809RegisterBankInfo::MC6809RegisterBankInfo(/* const TargetRegisterInfo &TRI 
 }
 
 const RegisterBank &MC6809RegisterBankInfo::getRegBankFromRegClass(const TargetRegisterClass &RC, LLT) const {
-  // Bug #311 Phase 1 step 1.4 (2026-05-20): BIT1 / AALSBc / ABLSBc
-  // arms retired — no BIT1 vregs exist after step 1.1/1.2/1.3.
   if (MC6809::ACC8RegClass.hasSubClassEq(&RC) ||
       MC6809::ACC16RegClass.hasSubClassEq(&RC) ||
       MC6809::ACC32RegClass.hasSubClassEq(&RC) ||

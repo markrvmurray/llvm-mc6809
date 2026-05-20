@@ -114,19 +114,9 @@ let Predicates = [IsHD6309] in {
     }
 }
 
-// Loads a boolean value into a NZVC bit or an ACC8 LSB.  Bug #302 BIT1
-// elimination: $dst stays in BIT1 for now -- this is a TableGen
-// instruction whose i1 type binding flows through pattern matching;
-// retargeting it requires the BIT1 class to remain a valid i1 home
-// until Group D drops the class entirely.  Runtime callers that
-// already pre-allocate the dst in ACC8 (ISelLowering's Load_i1_Imm
-// CustomInsert path post the previous commit, and any direct
-// `buildInstr(Load_i1_Imm)` site that hands an ACC8 dst) hit the
-// expandLoad1Imm switch's named-physreg arms unchanged.
-// Bug #311 Phase 1 step 1.1 (2026-05-20): dst class moved from BIT1 to
-// ACC8.  ISelLowering binds MVT::i1 to ACC8RegClass; BIT1 was a stale
-// alias whose 4-member intersection with ACC8 (= {AA, AB, AE, AF}) was
-// causing regalloc starvation in zero-test sites.
+// Loads a 0/1 boolean into the LSB of an ACC8 byte (or directly into
+// a CC bit when the dst is a named NZVC physreg).  The expansion
+// dispatches on the chosen dst register.
 def Load_i1_Imm : MC6809LogicalInstr {
   dag OutOperandList = (outs ACC8:$dst);
   dag InOperandList = (ins i1imm:$val);
@@ -399,61 +389,24 @@ let Predicates = [IsHD6309] in
 
 // --- Carry-setting variants ---
 //
-// Bug #57 fix (2026-04-07): the i32 narrow into i16 add-with-carry uses
-// these pseudos for the lo half (here) paired with a SetCarryUse pseudo
-// (below) for the hi half. The two are connected by a BIT1 vreg that
-// represents the carry-out of the lo half flowing into the carry-in of
-// the hi half.
+// SetCarry / SetCarryUse pairs implement the lo/hi halves of an
+// i16-narrowed-from-i32 add-with-carry: SetCarry produces a carry-out
+// (a scheduling-phantom s1 vreg in PHANTOM_CARRY) and SetCarryUse
+// consumes it.  The vreg threads the SSA dependency producer→consumer;
+// the actual carry value flows through CC.C in the emitted hardware.
 //
-// THE BIT1 VREG IS A PHANTOM. The actual hardware ADC instruction reads
-// CC.C, not the BIT1 reg. The BIT1 vreg's allocation (AALSB or ABLSB)
-// has nothing to do with the resource the instruction actually touches.
+// Two invariants protect CC.C across the pair:
 //
-// Without further constraints, the pre-RA scheduler tracks the BIT1
-// vreg dependency between SetCarry and SetCarryUse, but doesn't see
-// that CC.C is a separate fragile resource. It happily schedules
-// other CC-clobbering instructions BETWEEN the producer and consumer,
-// breaking the carry chain. (Atol's loop body exposes this — see
-// the bug tracker for the symptom.)
+//   1. `Defs = [NZ, V, C]` — declare the CC.C clobber honestly.
+//   2. `hasSideEffects = 1` — make the pseudo a scheduling barrier so
+//      the pre-RA scheduler can't slip a CC-clobbering instruction
+//      between SetCarry and SetCarryUse.
 //
-// The fix:
-//   1. `Defs = [NZ, V, C]`     — be honest about touching CC.C.
-//      The plain MC6809ArithmeticBase already does this; the
-//      carry-aware variants should too.
-//   2. `hasSideEffects = 1`    — make these pseudos scheduling
-//      barriers. The pre-RA scheduler treats `hasSideEffects` as
-//      "this instruction has unmodelled effects" and creates Order
-//      edges from every preceding instruction into the pseudo and
-//      from the pseudo into every following instruction. Combined
-//      with the existing BIT1 vreg dependency that already forces
-//      SetCarry → SetCarryUse ordering, anything originally
-//      between them STAYS between them, but nothing else can be
-//      scheduled into the gap.
-//
-// Why not the obvious "switch BIT1 → CARRY class" approach?
-// ----------------------------------------------------------
-// Was tried (project_carry_class_attempt.md, 2026-04-06). Functionally
-// correct but caused a 75% stack frame growth in i32 add — greedy
-// regalloc made worse spill decisions with the smaller class. Reverted.
-//
-// Why not "Defs=[C] + Uses=[C] on SetCarryUse"?
-// ----------------------------------------------
-// Tried (2026-04-07, intermediate). Adding Uses=[C] tells the
-// verifier that $c must be live-in to every BB containing a
-// SetCarryUse. But the carry chain crosses BBs via the BIT1 vreg
-// PHI, NOT via $c — the BIT1 vreg gets allocated and copied, while
-// $c is destroyed by intervening branches/compares. Verifier
-// complained at -O0 about $c not being live-in to bb.13. Reverted
-// the Uses=[C] half.
-
-// Bug #186 v5 (2026-04-27): drop the explicit BIT1 carry-out operand.
-// The IR-level carry vreg is tracked SELECTOR-side via
-// `CCFlagChainTracker` in MC6809InstructionSelector.cpp; the pseudo's
-// CC.C write is declared via Defs=[NZ, V, C] only. Mirrors X86's
-// EFLAGS pattern (implicit-only flag tracking). Same base class still
-// shared with SetOverflow because the hardware expansion is identical
-// — only the IR vreg's semantic flag (C vs V) differs, and the
-// tracker records that.
+// The IR-level carry vreg is tracked selector-side via
+// CCFlagChainTracker in MC6809InstructionSelector.cpp.  Same base class
+// is shared with SetOverflow because the hardware expansion is identical
+// — only the IR vreg's semantic flag (C vs V) differs, recorded by the
+// tracker.
 class MC6809ArithmeticBaseCarry<RegisterClass dst, RegisterClass src, dag operand> : MC6809LogicalInstr {
   let Defs = [NZ, V, C];
   // bug #57: scheduling barrier — see the long comment above.
@@ -533,21 +486,14 @@ let Predicates = [IsHD6309] in
 
 // --- Carry-using variants ---
 //
-// Bug #57 fix: same hasSideEffects barrier as the SetCarry variants
-// above. NOTE: do NOT add `let Uses = [C];` here — see the long
-// comment on MC6809ArithmeticBaseCarry for why. The carry-in flow
-// goes through the BIT1 vreg ($carry_in) which crosses BB boundaries
-// via PHIs; adding C as a physical Use would force the verifier to
-// check that $c is live-in to every BB containing a SetCarryUse,
-// which it isn't (the BIT1 phantom is used precisely because $c
-// doesn't survive cross-BB transitions).
-
-// Bug #186 v5 (2026-04-27): drop explicit BIT1 carry-in/out operands.
-// Reads CC.C (or CC.V) implicitly via Uses=[C] / Uses=[V]. Selector
-// emits the consumer adjacent to its producer (same BB) or inserts
-// byte-intermediate via MaterializeCarryToByte_i8 when crossing BBs
-// or CC clobbers. SPLIT base classes — SetCarryUse needs Uses=[C],
-// SetOverflowUse needs Uses=[V].
+// SetCarryUse / SetOverflowUse pseudos consume the producer's
+// scheduling-phantom carry/overflow vreg AND read CC.C / CC.V
+// implicitly via Uses=[C] / Uses=[V].  Selector places the consumer
+// adjacent to its producer when possible; for cross-BB transitions or
+// CC-clobbering intermediates it inserts a byte materialise via
+// MaterializeCC_C_to_byte / MaterializeCC_V_to_byte so the value
+// survives the gap.  Base class is split (SetCarryUse / SetOverflowUse)
+// to keep the Uses list flag-specific.
 class MC6809ArithmeticBaseSetCarryUse<RegisterClass dst, RegisterClass src, dag operand> : MC6809LogicalInstr {
   let Defs = [NZ, V, C];
   let Uses = [C];
@@ -784,13 +730,10 @@ multiclass MC6809Bitwise<ValueType vtype, RegisterClass reg> {
   }
 }
 
-// Bug #302 BIT1 elimination: AND_i1 / OR_i1 / XOR_i1 are removed.
-// i1 values now live in ACC8 (per the MVT::i1 -> ACC8 binding in
-// ISelLowering), so G_AND / G_OR / G_XOR on i1 maps to the i8 byte
-// pseudos below; the AND[A|B] / OR[A|B] / EOR[A|B] hardware ops
-// trivially mask on bit 0 if higher bits are already 0 (the value
-// is i1-bounded).  No caller of the _i1 pseudos exists in the
-// backend, so removal is mechanical.
+// G_AND / G_OR / G_XOR on i1 lowers to the i8 byte pseudos below.
+// i1 values live in ACC8 with bit 0 carrying the boolean; the high
+// 7 bits are already 0 on a well-formed i1, so AND[A|B] / OR[A|B] /
+// EOR[A|B] act correctly on bit 0.
 defm AND_i8 : MC6809Bitwise<i8, ACC8>;
 defm OR_i8 : MC6809Bitwise<i8, ACC8>;
 defm XOR_i8 : MC6809Bitwise<i8, ACC8>;

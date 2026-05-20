@@ -347,7 +347,6 @@ void MC6809FrameLowering::determineCalleeSaves(MachineFunction &MF, BitVector &S
   // Clear them from SavedRegs even if the call-preserved mask includes them.
   for (MCPhysReg Reg : SpillDRegs)
     SavedRegs.reset(Reg);
-  // Bug #311: SPILL_*LSB rows removed (no longer defined post-BIT1).
   static const MCPhysReg SpillSubRegs[] = {
     MC6809::SPILL_A0, MC6809::SPILL_A1, MC6809::SPILL_A2, MC6809::SPILL_A3, MC6809::SPILL_A4, MC6809::SPILL_A5, MC6809::SPILL_A6, MC6809::SPILL_A7,
     MC6809::SPILL_B0, MC6809::SPILL_B1, MC6809::SPILL_B2, MC6809::SPILL_B3, MC6809::SPILL_B4, MC6809::SPILL_B5, MC6809::SPILL_B6, MC6809::SPILL_B7,

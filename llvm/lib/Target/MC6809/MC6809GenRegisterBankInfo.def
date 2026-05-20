@@ -13,14 +13,6 @@
 #ifdef GET_TARGET_REGBANK_INFO_IMPL
 RegisterBankInfo::PartialMapping MC6809GenRegisterBankInfo::PartMappings[]{
     /* StartIdx, Length, RegBank */
-    // ACC value
-    //{0, 8,  MC6809::ACCUMRegBank},  // :0
-    //{0, 16, MC6809::ACCUMRegBank},  // :1
-    //{0, 32, MC6809::ACCUMRegBank},  // :2
-    // ACC value
-    //{0, 16, MC6809::INDEXRegBank},  // :3
-    // BIT1 value
-    //{0, 8,  MC6809::ACCUMRegBank},  // :4
     /* StartIdx, Length, RegBank */
     // ACC value
     {0, 8,  MC6809::ACCUMRegBank},  // :0
@@ -30,7 +22,7 @@ RegisterBankInfo::PartialMapping MC6809GenRegisterBankInfo::PartMappings[]{
     {0, 64, MC6809::ACCUMRegBank},  // :3
     // INDEX value
     {0, 16, MC6809::INDEXRegBank},  // :4
-    // BIT1 value
+    // i1 value (lives in ACC8; byte's LSB carries the boolean)
     {0, 8,  MC6809::ACCUMRegBank},  // :5
 };
 #endif // GET_TARGET_REGBANK_INFO_IMPL

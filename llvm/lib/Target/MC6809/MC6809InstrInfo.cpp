@@ -127,8 +127,6 @@ MC6809InstrInfo::MC6809InstrInfo(const MC6809Subtarget &STI)
       {{MC6809::SS, MC6809::AW}, MC6809::STSi_oW},
   };
   AddImmediateOpcode = {
-      // Bug #311 Phase 1 step 1.5 (2026-05-20): *LSB entries retired
-      // (BIT1 / *LSB physregs no longer assignable to operands).
       {{MC6809::AA}, MC6809::ADDAi8}, {{MC6809::AB}, MC6809::ADDBi8},
       {{MC6809::AE}, MC6809::ADDEi8}, {{MC6809::AF}, MC6809::ADDFi8},    {{MC6809::AD}, MC6809::ADDDi16}, {{MC6809::AW}, MC6809::ADDWi16},
   };
@@ -1147,28 +1145,6 @@ static unsigned getStoreIdxOpcode(Register Reg, int Offset) {
   llvm_unreachable("Unexpected register for spill store");
 }
 
-/// Bug #311: SPILL_*LSB / BIT1 support retired.  The four helper
-/// functions below (isLsbSpillReg, getLsbSpillParent,
-/// getLsbSpillByteHalf, getBit1ByteHalf) and the SPILL_*LSB ↔ BIT1
-/// copy machinery they served are gone.  *LSB physregs and the
-/// sub_lsb SubRegIndex are still defined in MC6809RegisterInfo.td
-/// pending a follow-up sweep.
-///
-/// Historic note (Bug #62 / Bug #200): SPILL_*LSB was a regalloc
-/// fiction "the LSB of byte slot N at direct page address X" used
-/// when the four real BIT1 regs (AALSB/ABLSB/AELSB/AFLSB) were
-/// exhausted.  The byte's LSB carried the i1 value.  See
-/// MC6809RegisterInfo.td comments for the pre-Bug-#311 design.
-///
-/// (LEGACY DOCS BELOW)
-/// It's a regalloc fiction. The "value" lives in bit 0 of the
-/// corresponding byte slot at the parent SPILL_A*/SPILL_B*'s
-/// direct-page address. To USE one, load the parent byte; the LSB
-/// sub-register of the loaded byte then holds the value naturally
-/// Bug #311: helper functions isLsbSpillReg / getLsbSpillParent /
-/// getLsbSpillByteHalf / getBit1ByteHalf deleted along with their
-/// only caller (the SPILL_*LSB ↔ BIT1 copy block in copyPhysReg).
-
 /// Emit a concrete U-indexed (frame pointer) load from a spill register's
 /// stack slot. Uses U (not S) so PSHS/PULS don't invalidate offsets.
 static MachineInstrBuilder emitSpillLoad(MachineIRBuilder &Builder,
@@ -1512,10 +1488,6 @@ static bool emitHD6309RegRegOp(MachineIRBuilder &Builder, MachineInstr &MI,
   if (DestReg == SrcReg)
     return;
 
-  // Bug #311 Phase 1 step 1.5 (2026-05-20): the SPILL_*LSB ↔ BIT1
-  // copy machinery (originally Bug #62) is retired.  Post-step-1.4,
-  // BIT1 is gone and no path produces SPILL_*LSB vregs.
-
   // Handle copies involving spill pseudo-registers or imaginary registers.
   // Emit concrete S-indexed instructions (not pseudos with frame indices,
   // since PEI has already run by the time copyPhysReg is called).
@@ -1681,10 +1653,6 @@ static bool emitHD6309RegRegOp(MachineIRBuilder &Builder, MachineInstr &MI,
     Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(SrcReg);
   } else if (AreClasses(MC6809::ACC8RegClass, MC6809::CCondRegClass) || AreClasses(MC6809::CCondRegClass, MC6809::ACC8RegClass)) {
     Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(SrcReg);
-  // Bug #311 Phase 1 step 1.4 (2026-05-20): BIT1↔BIT1, ACC8↔BIT1,
-  // BIT1↔ACC8 copy arms retired.  Post-1.1/1.2/1.3, no BIT1-class
-  // vregs are created — i1 values live in ACC8 with the byte's LSB
-  // carrying the value.  ACC8↔ACC8 copies handle all i1 traffic.
   } else if (AreClasses(MC6809::Imag8RegClass, MC6809::ACC8RegClass)) {
     // ACC8 → Imag8: store accumulator to direct-page imaginary register.
     unsigned StoreOpc;
@@ -1809,8 +1777,6 @@ const TargetRegisterClass *MC6809InstrInfo::canFoldCopy(const MachineInstr &MI, 
   if (!MI.getMF()->getFunction().doesNotRecurse())
     return TargetInstrInfo::canFoldCopy(MI, TII, FoldIdx);
 
-  // Bug #311 Phase 1 step 1.4 (2026-05-20): BIT1RegClass branches
-  // retired — all i1 values live in ACC8 post-1.1/1.2/1.3.
   Register FoldReg = MI.getOperand(FoldIdx).getReg();
   if (MC6809::ACC8RegClass.contains(FoldReg))
     return TargetInstrInfo::canFoldCopy(MI, TII, FoldIdx);
@@ -1834,15 +1800,12 @@ void MC6809InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB, MachineBasicB
 static void loadStoreRegisterStaticStackSlot(MachineIRBuilder &Builder, MachineOperand MO, int FrameIndex, int64_t Offset, MachineMemOperand *MMO) {
   const MachineRegisterInfo &MRI = *Builder.getMRI();
 
-  // Bug #311 Phase 1 step 1.4 (2026-05-20): BIT1 branches retired.
   Register Reg = MO.getReg();
   unsigned Size = 0;
   if (Reg.isPhysical()) {
-    // Bug #307 (2026-05-18): PHANTOM_CARRY is an allocatable Reg1Class
-    // intended as scheduling-phantom bookkeeping.  The class isn't marked
-    // unspillable, so regalloc CAN choose to spill a phantom_carry
-    // vreg under register pressure.  Per `MC6809Reg1Class`'s RegInfo
-    // ("1-bit wide, but takes 8 bits to spill"), spill width is 8 bits.
+    // PHANTOM_CARRY is allocatable and may be spilled under pressure.
+    // Per MC6809Reg1Class's RegInfo ("1-bit wide, but takes 8 bits to
+    // spill"), spill width is 8 bits.
     if (MC6809::PHANTOM_CARRYRegClass.contains(Reg))
       Size = 8;
     else if (MC6809::CCFlagRegClass.contains(Reg) || MC6809::ACC8RegClass.contains(Reg))
@@ -2375,16 +2338,12 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     return true;
   }
   case MC6809::SignTest_i32: {
-    // Bug #301b Phase B (2026-05-16): native HD6309 i32 sign test.
-    // Dst is BIT1 (allocated to AALSB/ABLSB/AELSB/AFLSB; parent byte
-    // determines the LSB-of register).  Src is ACC32 (allocated to AQ
-    // or SPILL_Q*N).
+    // HD6309 native i32 sign test (Bug #301b).
+    // Dst is ACC8; Src is ACC32 (AQ or SPILL_Q*N).
     //
     // Strategy: load the MSByte (= sign byte, big-endian byte 0 of i32)
-    // into AB, ASLB to shift its bit-7 into CC.C, then LDB #0; ADCB #0
-    // to materialise C as a 0/1 byte in AB.  Finally COPY AB to Dst's
-    // parent byte register.  No EXTRACT_*_word_i32 emission — bypasses
-    // the Bug #301a class-collapse path entirely.
+    // into AB, ASLB to shift bit 7 into CC.C, then LDB #0 ; ADCB #0
+    // to materialise C as a 0/1 byte in AB.  COPY AB to Dst.
     MachineFunction &MF = *MI.getMF();
     Register DstReg = MI.getOperand(0).getReg();
     Register SrcReg = MI.getOperand(1).getReg();
@@ -2423,11 +2382,9 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
         .addDef(MC6809::AB, RegState::Implicit)
         .addImm(0);
 
-    // Step 4: COPY AB to Dst (ACC8).  Bug #301 follow-up (2026-05-16):
-    // Dst is ACC8 (the pseudo's output class — not BIT1, see
-    // MC6809InstrPseudos.td); after regalloc it lands in AA / AB / AE /
-    // AF (or a SPILL_A* / SPILL_B* slot which materialise/dematerialise
-    // handles via copyPhysReg).  Mirrors EqZero_i32's COPY-to-Dst step.
+    // Step 4: COPY AB to Dst (ACC8).  Dst lands in AA / AB / AE / AF
+    // or a SPILL_A* / SPILL_B* slot (materialise/dematerialise handles
+    // those via copyPhysReg).  Mirrors EqZero_i32's COPY-to-Dst step.
     if (DstReg != MC6809::AB) {
       copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
                   DstReg, MC6809::AB, /*KillSrc=*/true);
@@ -2522,10 +2479,9 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     Builder.buildInstr(MC6809::TFRp)
         .addDef(MC6809::AB).addUse(MC6809::AA);
 
-    // Step 3: COPY AB to Dst's actual byte register.  Dst is ACC8 (the
-    // pseudo's output class — not BIT1, see MC6809InstrPseudos.td); after
-    // regalloc it lands in AA / AB / AE / AF (or a SPILL_A* / SPILL_B*
-    // slot which materialise/dematerialise handles via copyPhysReg).
+    // Step 3: COPY AB to Dst's actual byte register.  Dst is ACC8
+    // and lands in AA / AB / AE / AF (or a SPILL_A* / SPILL_B* slot
+    // which materialise/dematerialise handles via copyPhysReg).
     if (DstReg != MC6809::AB) {
       copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
                   DstReg, MC6809::AB, /*KillSrc=*/true);
@@ -2652,15 +2608,11 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::MaterializeCC_V_to_byte:
   case MC6809::MaterializeCC_Z_to_byte:
   case MC6809::MaterializeCC_N_to_byte: {
-    // Bug #302 redesign Phase 3 Stage 3.a (2026-05-17): read a CC
-    // flag bit and deposit as a 0/1 byte in $ab.  No BIT1 input
-    // operand — the CC bit is the source of truth.  Stage 3.b
-    // switches consumers to these pseudos; Stage 3.c drops the
-    // BIT1 register class + sub_lsb chain that the existing
-    // Materialize*_i8 pseudos depend on.
+    // Read a single CC flag bit and deposit it as a 0/1 byte in $ab.
+    // The CC bit is the source of truth (no explicit input operand).
     //
     // CC bit layout (msb→lsb): E F H I N Z V C.  Extraction:
-    //   C: LDB #0 ; ADCB #0     (cleanest — uses ADC's carry-in)
+    //   C: LDB #0 ; ADCB #0       (cleanest — uses ADC's carry-in)
     //   V: TFR CC,B ; LSRB ; ANDB #1
     //   Z: TFR CC,B ; LSRB ; LSRB ; ANDB #1
     //   N: TFR CC,B ; LSRB×3 ; ANDB #1
@@ -2857,9 +2809,8 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     if (needsMaterialization(DstReg))
       DstReg = materializeReg(Builder, DstReg, MF);
 
-    // Bug #302 BIT1 elimination: BIT1's members are now byte
-    // registers (AA / AB / AE / AF) directly -- no AALSB / ABLSB /
-    // AELSB / AFLSB to map back through.  SrcReg is the byte itself.
+    // SrcReg is the full byte (i1 lives in an ACC8; the byte's LSB
+    // carries the boolean).
     Register SrcByte = SrcReg;
 
     // Resolve which page-1 byte register actually does the AND+NEG. The
@@ -3085,8 +3036,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     expandStoreIdx(Builder, MI);
     break;
   case MC6809::AND_i8_Imm:
-    // Bug #302 BIT1 elimination: AND_i1_Imm retired; AND on i1
-    // values uses AND_i8_Imm with a 1-bounded byte source.
+    // Also handles AND on i1 values (1-bounded byte source).
     expandImm(ANDImm, Builder, MI);
     break;
   case MC6809::AND_i16_Imm:
@@ -5149,7 +5099,7 @@ void MC6809InstrInfo::expandLoad1Imm(MachineIRBuilder &Builder, MachineInstr &MI
   unsigned Opcode;
   switch (DestReg) {
   default: {
-    // ACC8 dst is the only remaining default path (BIT1 retired).
+    // Default path: byte dst (the only non-CC bit destination).
     assert(MC6809::ACC8RegClass.contains(DestReg));
     Opcode = MC6809::Load_i8_Imm;
     MI.getOperand(1).setImm(!!Val);
@@ -6002,8 +5952,8 @@ void MC6809InstrInfo::expandAddReg(MachineIRBuilder &Builder, MachineInstr &MI) 
 //
 // Resulting MachineInstr operand indices:
 //
-//   op0 : dst    (def, BIT1's parent class) — tied to op2
-//   op1 : carry  (def, BIT1)
+//   op0 : dst    (def, ACC8 / ACC16 / ACC32) — tied to op2
+//   op1 : carry  (def, s1 vreg in PHANTOM_CARRY pool)
 //   op2 : src    (use, == op0 by tie)
 //   op3 : src2   (use)
 //
@@ -6994,7 +6944,6 @@ void MC6809InstrInfo::expandTestReg(MachineIRBuilder &Builder, MachineInstr &MI)
   assert(MI.getOperand(2).isReg() && "The source of register tests must be a register");
 
   auto SrcReg = MI.getOperand(2).getReg();
-  // Bug #311: BIT1 sub-reg promotion gone — sources are now ACC8.
   if (needsMaterialization(SrcReg)) {
     MachineFunction &MF = *MI.getMF();
     Register IndexSrc = Register();

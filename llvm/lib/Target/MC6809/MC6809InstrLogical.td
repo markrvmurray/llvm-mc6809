@@ -205,8 +205,8 @@ def LongBranchRelative : MC6809UnconditionalBranch {
 def JumpRelative : MC6809UnconditionalBranch;
 def LongJumpRelative : MC6809UnconditionalBranch;
 
-// Branches to $tgt if $flag = $val.  Bug #302 BIT1 elimination: $flag is
-// now an ACC8 byte holding 0/1; the post-RA expansion compares bit 0.
+// Branches to $tgt if $flag = $val.  $flag is an ACC8 byte holding
+// 0/1; the post-RA expansion compares bit 0.
 def BranchFlagIs : MC6809Branch {
   dag InOperandList = (ins label:$tgt, ACC8:$flag, i1imm:$val);
 }
@@ -385,12 +385,10 @@ def SEX8Implicit : MC6809LogicalInstr {
   // hierarchy.
   let Defs = [NZ, V, C, AD];
   let hasSideEffects = 1;
-  // Bug #311 Phase 1 step 1.2 (2026-05-20): $src moved from BIT1 to
-  // ACC8.  The byte's LSB carries the i1 value (same encoding BIT1
-  // used).  No SDAG Pattern — TableGen rejected `(i1 ACC8:$src)` with
-  // "Type set is empty" because both i1 and i8 live on the same
-  // RegisterClass.  G_SEXT s1→s8 is selected via a C++ intercept in
-  // MC6809InstructionSelector.
+  // $src is ACC8; the byte's LSB carries the i1 value.  No SDAG
+  // Pattern — TableGen rejects `(i1 ACC8:$src)` when i1 and i8 share
+  // a register class.  G_SEXT s1→s8 is selected via a C++ intercept
+  // in MC6809InstructionSelector.
   dag InOperandList = (ins ACC8:$src);
   dag OutOperandList = (outs ACC8:$dst);
 }
@@ -451,13 +449,8 @@ def SEX32Implicit : MC6809LogicalInstr {
 
 def ZEX8Implicit : MC6809LogicalInstr {
   // Expansion: AND[A|B] #1.  AND[A|B] sets NZ and clears V; C unchanged.
-  // Bug #302 BIT1 elimination: $src stays in ABLSBc for now -- same
-  // TableGen i1/i8 type-binding issue as SEX8Implicit above.  Group
-  // D retires ABLSBc + this pseudo together.
-  // Bug #311 Phase 1 step 1.2 (2026-05-20): $src moved from ABLSBc to
-  // ACC8; $dst widened to ACC8.  Same TableGen i1/i8 type-binding
-  // rejection as SEX8Implicit above — no SDAG Pattern.  G_ZEXT s1→s8
-  // is selected via a C++ intercept.
+  // No SDAG Pattern — same TableGen i1/i8 type-binding rejection as
+  // SEX8Implicit above.  G_ZEXT s1→s8 is selected via a C++ intercept.
   let Defs = [NZ, V];
   let hasSideEffects = 1;
   dag InOperandList = (ins ACC8:$src);
@@ -521,14 +514,11 @@ def ZEX32Implicit : MC6809LogicalInstr {
 // Integer Extension/Truncation Patterns
 //===---------------------------------------------------------------------===//
 
-// Bug #302 BIT1 elimination: the (i8/i16 anyext BIT1) and
-// (i8 zext CARRY) patterns via INSERT_SUBREG sub_lsb are removed.
-// G_ANYEXT s1->s8 / G_ZEXT s1->s8 from phantom-BIT1 producers
-// (carry/overflow chains) is routed by the selector via the
-// MaterializeCC_* pseudos; non-phantom s1->s8 from byte-LSB sources
-// is plain byte COPY since i1 now lives in ACC8 (see ISelLowering's
-// MVT::i1 binding).  TableGen no longer needs the sub_lsb-via-
-// INSERT_SUBREG chain.
+// i1 lives in ACC8 (the byte's LSB carries the value; see
+// MC6809ISelLowering's MVT::i1 binding).  G_ANYEXT s1→s8 / G_ZEXT
+// s1→s8 from phantom-carry producers (carry/overflow chains) is
+// routed by the selector via the MaterializeCC_* pseudos; non-
+// phantom s1→s8 from byte-LSB sources is a plain byte COPY.
 //
 // i16 anyext from i8 -- go through ANYEXT_i8_to_i16 pseudo so the
 // coalescer never sees a sub_lo_byte COPY edge between ACC8 and ACC16.

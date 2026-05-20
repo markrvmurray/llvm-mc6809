@@ -112,7 +112,6 @@ BitVector MC6809RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
     Reserved.set(MC6809::AF);
     Reserved.set(MC6809::AW);
     Reserved.set(MC6809::AQ);
-    // Bug #311: AELSB / AFLSB removed alongside BIT1.
     Reserved.set(MC6809::MD);
   }
 
@@ -163,7 +162,6 @@ const uint32_t *MC6809RegisterInfo::getCallPreservedMask(const MachineFunction &
     for (MCPhysReg Reg : {MC6809::SPILL_D0, MC6809::SPILL_D1, MC6809::SPILL_D2, MC6809::SPILL_D3, MC6809::SPILL_D4, MC6809::SPILL_D5, MC6809::SPILL_D6, MC6809::SPILL_D7,
                           MC6809::SPILL_A0, MC6809::SPILL_A1, MC6809::SPILL_A2, MC6809::SPILL_A3, MC6809::SPILL_A4, MC6809::SPILL_A5, MC6809::SPILL_A6, MC6809::SPILL_A7,
                           MC6809::SPILL_B0, MC6809::SPILL_B1, MC6809::SPILL_B2, MC6809::SPILL_B3, MC6809::SPILL_B4, MC6809::SPILL_B5, MC6809::SPILL_B6, MC6809::SPILL_B7,
-                          // Bug #311: SPILL_*LSB rows deleted along with BIT1.
                           // Bug #85b: SPILL_X0-X3 are stack-backed INDEX16 spill
                           // registers, exactly like SPILL_D0-D7 for ACC16. They
                           // must be marked call-preserved so the allocator knows
@@ -333,9 +331,6 @@ bool MC6809RegisterInfo::getRegAllocationHints(Register VirtReg, ArrayRef<MCPhys
   return false;
 }
 
-// Bug #311: bit1ByteParent retired alongside BIT1 / *LSB physregs.
-// Its sole caller (the BIT1↔BIT1 copyCost arm) was already removed.
-
 MC6809InstrCost MC6809RegisterInfo::copyCost(Register DestReg, Register SrcReg, const MC6809Subtarget &STI) const {
   if (DestReg == SrcReg)
     return MC6809InstrCost();
@@ -447,9 +442,6 @@ MC6809InstrCost MC6809RegisterInfo::copyCost(Register DestReg, Register SrcReg, 
   if (AreClasses(MC6809::CCondRegClass, MC6809::CCondRegClass)) {
     return MC6809InstrCost(0, 0);
   }
-  // Bug #311 Phase 1 step 1.4 (2026-05-20): BIT1↔BIT1 copy cost arm
-  // retired; no BIT1 vregs exist after step 1.1/1.2/1.3.
-
   // Guard: any remaining pair is impossible (size mismatch, nonsensical).
   return ImpossibleCost;
 }

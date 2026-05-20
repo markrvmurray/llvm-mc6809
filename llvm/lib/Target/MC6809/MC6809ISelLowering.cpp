@@ -39,13 +39,9 @@ using namespace llvm;
 #define DEBUG_TYPE "mc6809-isellowering"
 
 MC6809TargetLowering::MC6809TargetLowering(const MC6809TargetMachine &TM, const MC6809Subtarget &STI) : TargetLowering(TM, STI) {
-  // Bug #302 BIT1 elimination: i1 values live in byte-class vregs;
-  // bit 0 of the byte carries the value (which is what the hardware
-  // does anyway -- the BIT1 1-bit sub-registers were a regalloc
-  // fiction).  Use ACC8 (the same class as MVT::i8) so the regalloc
-  // sees the same allocatable byte pool for both types, mirroring
-  // BIT1's old AltOrder which spanned AALSB+ABLSB (the LSBs of AA
-  // and AB).  See plan at ~/.claude/plans/bit1-elimination-bug-302.md.
+  // i1 values share the byte allocation pool with i8.  Bit 0 of the
+  // byte carries the boolean value (which is also what the hardware
+  // sees — AND[A|B] #1, ADCB #0, etc.).
   addRegisterClass(MVT::i1, &MC6809::ACC8RegClass);
   addRegisterClass(MVT::i8, &MC6809::ACC8RegClass);
   addRegisterClass(MVT::i16, &MC6809::ACC16RegClass);
@@ -249,9 +245,8 @@ static MachineBasicBlock *emitConditionalImm(MachineInstr &MI, MachineBasicBlock
   unsigned Opcode;
   Register Dst0;
   Register Dst1;
-  // Bug #302 BIT1 elimination: i1 vregs now live in byte-class storage
-  // (ACC8 -- same pool as MVT::i8).  The LDImm lambda below routes to
-  // Load_i8_Imm via the ACC8RegClass.contains check.
+  // i1 vregs live in ACC8 (same pool as MVT::i8); the LDImm lambda
+  // routes to Load_i8_Imm via the ACC8RegClass.contains check.
   Opcode = MC6809::Load_i8_Imm;
   Dst0 = MRI.createVirtualRegister(&MC6809::ACC8RegClass);
   Dst1 = MRI.createVirtualRegister(&MC6809::ACC8RegClass);
@@ -468,8 +463,7 @@ static MachineBasicBlock *emitSelectImm(MachineInstr &MI, MachineBasicBlock *MBB
     Builder.setInsertPt(*HeadMBB, MI.getIterator());
   }
 
-  // Bug #311 Phase 1 step 1.1 (2026-05-20): Load_i1_Imm's dst is now
-  // ACC8 (same as Load_i8_Imm).  The BIT1 special-case branch is dead.
+  // Load_i1_Imm's dst is ACC8 (same as Load_i8_Imm).
   const auto LDImm = [&Builder, &Dst](int64_t Val) {
     assert(MC6809::ACC8RegClass.contains(Dst));
     Builder.buildInstr(MC6809::Load_i8_Imm, {Dst}, {Val});

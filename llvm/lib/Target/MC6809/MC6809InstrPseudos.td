@@ -63,10 +63,9 @@ def ADJCALLSTACKDOWN : MC6809CallFramePseudo;
 // Call frame destroy pseudo.
 def ADJCALLSTACKUP : MC6809CallFramePseudo;
 
-// Use the diamond control flow pattern to load one of two immediates based on
-// the value of a byte flag (bit 0 = condition).  Bug #302 BIT1 elimination:
-// $tst is now ACC8 -- the byte holds 0 or 1, the custom inserter tests bit 0
-// the same way the old BIT1 path did.
+// Use the diamond control flow pattern to load one of two immediates
+// based on the value of a byte flag.  $tst is ACC8 holding 0 or 1;
+// the custom inserter tests bit 0.
 def SelectImm : MC6809Pseudo {
   dag OutOperandList = (outs unknown:$dst);
   dag InOperandList = (ins ACC8:$tst, i1imm:$true, i1imm:$false);
@@ -74,22 +73,11 @@ def SelectImm : MC6809Pseudo {
   let usesCustomInserter = true;
 }
 
-// Use the diamond control flow pattern to load one of two immediates based on
-// the value of a conditional - same as is used in the Bbc $cond instruction..
-// Bug #302 BIT1 elimination: this pseudo's $dst stays in BIT1 for now --
-// the MC6809SetIfCondPat patterns in MC6809InstrFamilies.td:891-902 are
-// typed as `(i1 (setcc ...))` and TableGen needs the i1-only BIT1 binding
-// here to type the pattern result.  When those patterns retire (Group D)
-// or are reshaped to (i8 (anyext (i1 (setcc ...))) the dst can move to
-// ACC8 like the other producers.
-// Bug #311 Phase 1 step 1.3 WIP (2026-05-20): dst class moved from BIT1
-// to ACC8 alongside SetIfCondPat/TestPat patterns wrapping the pattern
-// result in (i8 (anyext ...)).  Builds clean; ~13 lit tests fail at -O0
-// with "cannot select: %N:bit1(s1) = G_ICMP" — GISel emits the s1
-// result directly without anyext, so the reshaped SDAG-style pattern
-// doesn't match.  Needs C++ selector arm in selectICmp for the
-// G_ICMP s1 → s8 direct lowering shape.  See plan
-// ~/.claude/plans/jiggly-orbiting-grove.md Phase 1 step 1.3 risk note.
+// Diamond control flow: load one of two immediates based on a
+// conditional (same conditional encoding as Bbc).  $dst is ACC8 with
+// the byte's LSB carrying the boolean result.  Bare G_ICMP s1
+// (which arrives at -O0 without an enclosing anyext) is intercepted
+// in the selector and lowered to this pseudo manually.
 def ConditionalImm : MC6809Pseudo {
   dag OutOperandList = (outs ACC8:$dst);
   dag InOperandList = (ins condcode:$cc, CCond:$tst, i1imm:$true, i1imm:$false);
@@ -292,16 +280,9 @@ let Defs = [NZ, V] in {
   // the sign bit into the ACC8 dst via the ASLB + LDB#0 + ADCB#0
   // pattern.
   //
-  // Output class is ACC8 (not BIT1) — Bug #301 follow-up fix
-  // (2026-05-16) for the latent class-mismatch bug exposed in
-  // fmemopen.c at -Og-hd6309-mame: the instruction selector's
-  // constrainSelectedInstRegOperands on a downstream G_SELECT consumer
-  // narrows the result vreg to ACC8, but the pseudo's TableGen
-  // declaration said BIT1 — the verifier rejected the pre-RA mismatch.
-  // The post-RA expansion already produces a 0/1 byte (high 7 bits
-  // cleared by LDB #0; only bit 0 set by ADCB), which is semantically
-  // identical to a BIT1 value when consumed as a byte.  Mirrors the
-  // EqZero_i32 / EqConst_i32 design below.
+  // Output is ACC8 with the byte's LSB carrying the boolean result;
+  // the post-RA expansion produces a 0/1 byte (high 7 bits cleared by
+  // LDB #0, bit 0 set by ADCB).
   //
   // Defs cover CC flag clobber (ASLB sets C; LDB/ADCB set NZ).
   def SignTest_i32 : MC6809Pseudo {
@@ -325,12 +306,9 @@ let Defs = [NZ, V] in {
   // directly with LDA + 3× ORA.  No EXTRACT_*_word_i32 emission —
   // bypasses Bug #301a's intersection-class collapse like SignTest_i32.
   //
+  // Output is ACC8 with the byte's LSB carrying the boolean result;
+  // the post-RA expansion produces a 0/1 byte (high 7 bits cleared).
   // Defs cover CC clobber.
-  // Output class is ACC8 (not BIT1) so the instruction selector's
-  // constrainSelectedInstRegOperands on a downstream G_SELECT consumer
-  // doesn't narrow the result vreg below ACC8.  The post-RA expansion
-  // produces a 0/1 byte (high 7 bits cleared), which is semantically
-  // identical to a BIT1 value when consumed as a byte.
   def EqZero_i32 : MC6809Pseudo {
     dag OutOperandList = (outs ACC8:$dst);
     dag InOperandList  = (ins ACC32:$src);

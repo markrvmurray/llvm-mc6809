@@ -166,24 +166,23 @@ void MC6809InstructionSelector::setupMF(MachineFunction &MF,
   }
 }
 
-// Bug #152 — unified phantom-BIT1 query.
+// Unified phantom-carry query.
 //
 // Follow a chain of G_FREEZE / COPY from \p SrcReg back to its ultimate
-// producer. If that producer leaves the s1 vreg's runtime value in a
-// specific CC bit rather than in the allocated byte-LSB (per bug #57's
-// scheduling-phantom design), return the CC physreg holding the real
-// value:
+// producer.  If that producer is one whose s1 result is a scheduling
+// phantom — i.e. the value really lives in a specific CC bit, not in
+// the byte the regalloc allocated — return the CC physreg holding the
+// real value:
 //   - MC6809::C  for unsigned carry-out producers (G_U*ADD/SUB*O/E,
 //                 AddSetCarry*/SubSetCarry* pseudos + *Use variants).
 //   - MC6809::V  for signed overflow-out producers (G_S*ADD/SUB*O/E,
 //                 AddSetOverflow*/SubSetOverflow* + *Use).
-// Returns std::nullopt for real-byte s1 values (from G_ICMP,
-// ConditionalImm 0/1, G_CONSTANT, G_LOAD bool, etc.).
+// Returns std::nullopt for genuine s1 byte values (from G_ICMP,
+// ConditionalImm 0/1, G_CONSTANT, G_LOAD bool, etc.) — the byte's
+// LSB carries the boolean directly.
 //
 // Consumer sites use this to decide whether to emit a flag-reading
 // sequence (true phantom) or a byte-LSB-reading sequence (real byte).
-// Centralising the producer enumeration eliminates the duplicated
-// dispatch in selectBrCond / G_ANYEXT / G_ZEXT / G_SELECT / G_PHI.
 static std::optional<MCPhysReg>
 getPhantomCarryFlag(Register SrcReg, const MachineRegisterInfo &MRI,
                    const DenseMap<Register, MCPhysReg> *CarryFlagOf = nullptr) {
@@ -216,7 +215,7 @@ getPhantomCarryFlag(Register SrcReg, const MachineRegisterInfo &MRI,
       Cur = Def->getOperand(1).getReg();
       continue;
     }
-    // Phantom-BIT1 producers. Keep in sync with MC6809InstrInfo.cpp
+    // Phantom-carry producers.  Keep in sync with MC6809InstrInfo.cpp
     // expansions for each SetCarry / SetOverflow family.
     switch (Op) {
     // Carry producers.
@@ -343,19 +342,16 @@ ensureCarryChainIntegrity(MachineInstr &Consumer, Register CarryIn,
   if (!Flag || (*Flag != MC6809::C && *Flag != MC6809::V))
     return false;
 
-  // Phase 5 (2026-04-28): pick the right materialise pair for the
-  // flag we're bridging. C uses LDB#0;ADCB#0 / LSRB; V uses
-  // TFR-CC,B; LSRB; ANDB#1 / ANDB#1; ADDB#0x7F. See the four pseudo
-  // definitions in MC6809InstrPseudos.td.
+  // Pick the right materialise pair for the flag we're bridging.
+  //   C: LDB #0 ; ADCB #0      (or LSRB to invert sense)
+  //   V: TFR CC,B ; LSRB ; ANDB #1   (or ANDB #1 ; ADDB #0x7F)
+  // See the pseudo definitions in MC6809InstrPseudos.td.
   //
-  // Bug #302 redesign Phase 3 Stage 3.b (2026-05-17): switched to
-  // MaterializeCC_C_to_byte / MaterializeCC_V_to_byte — the new
-  // Stage 3.a pseudos with no BIT1 input.  CC.C/V is read directly
-  // via the Uses=[C]/Uses=[V] declaration; the BIT1 vreg input
-  // (which was a scheduling phantom) is dropped.  The inserted
-  // freeze still goes right after the producer in producer's MBB,
-  // so CC.C/V is live at the read.  hasSideEffects=1 on both
-  // producer and freeze keeps them ordered.
+  // CC.C / CC.V is read directly via the pseudo's `Uses = [C]` /
+  // `Uses = [V]`.  The inserted freeze goes immediately after the
+  // producer in the producer's MBB, so the flag is live at the read.
+  // `hasSideEffects = 1` on both producer and freeze keeps them
+  // ordered through scheduling.
   unsigned ToBytePseudo = (*Flag == MC6809::C)
       ? MC6809::MaterializeCC_C_to_byte
       : MC6809::MaterializeCC_V_to_byte;
@@ -440,26 +436,16 @@ ensureCarryChainIntegrity(MachineInstr &Consumer, Register CarryIn,
     } else {
       // Fresh: allocate byte vreg and emit ToBytePseudo.
       //
-      // Bug #307 (2026-05-18): MaterializeCC_C_to_byte /
-      // MaterializeCC_V_to_byte are the Bug #302 Stage 3.a pseudos
-      // with `InOperandList = (ins)` — no explicit inputs.  CC.C/V
-      // is read directly via the pseudo's Uses=[C]/Uses=[V]
-      // declaration; the BIT1 vreg input (a scheduling phantom —
-      // see Bug #186 v5) was dropped from the explicit operand list.
-      // The two sibling emit sites at selectG_ZEXT and selectG_ANYEXT
-      // (lines ~810, ~903) were already updated to emit just
-      // `.addDef(DstReg)`.  This site was missed and continued
-      // `.addUse(CarryIn)` as an EXPLICIT operand, producing MIs
-      // that trip `-verify-machineinstrs` post-RA with
-      // "Extra explicit operand on non-variadic instruction" (2 hits
-      // at -Og-hd6309-mame: imaxabs, llabs).
-      //
-      // Fix: add CarryIn as an IMPLICIT use instead.  Implicit
-      // operands don't count against the pseudo's explicit operand
-      // list (verifier accepts) but they still extend CarryIn's
-      // live range across the bridge for regalloc bookkeeping —
-      // matching the pre-fix pressure shape and avoiding cascade
-      // effects on the phantom_carry vreg's spill decisions.
+      // MaterializeCC_C_to_byte / MaterializeCC_V_to_byte have no
+      // explicit input — CC.C / CC.V is read via the pseudo's
+      // `Uses = [C]` / `Uses = [V]`.  CarryIn is attached as an
+      // *implicit* use so it doesn't count against the pseudo's
+      // explicit operand list (verifier rejects extras on non-
+      // variadic MIs) but its live range still extends across the
+      // bridge for regalloc bookkeeping.  Bug #307 — without the
+      // implicit-use bookkeeping, the phantom_carry vreg's spill
+      // decisions cascaded incorrectly (imaxabs / llabs failures
+      // at -Og-hd6309-mame).
       ByteVReg = MRI.createVirtualRegister(&MC6809::ABcRegClass);
       MachineIRBuilder ProducerB(PMBB, AfterProducer);
       auto MtoB = ProducerB.buildInstr(ToBytePseudo)
@@ -751,7 +737,8 @@ static const TargetRegisterClass &getRegClassForType(LLT Ty) {
     default:
       llvm_unreachable("Invalid type size.");
     case 1:
-      // Bug #302 BIT1 elimination: i1 values share the byte pool with i8.
+      // i1 values share the byte pool with i8; the byte's LSB carries
+      // the boolean.
       return MC6809::ACC8RegClass;
     case 8:
       return MC6809::ACC8RegClass;
@@ -817,23 +804,20 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
       MI.getNumOperands() == 5)
     return selectMergeValues(MI);
 
-  // Bug #152 phase 3: intercept G_ZEXT s1→s8 with phantom-BIT1 source.
-  // G_ZEXT is otherwise pattern-selected (no hand path) and reads the
-  // allocated byte-LSB — which for a phantom-BIT1 is the parent byte's
-  // LSB (garbage). Route through MaterializeCarry/OverflowToByte_i8.
+  // Intercept G_ZEXT s1→s8 when the source is a phantom-carry vreg.
+  // G_ZEXT is otherwise pattern-selected and reads the allocated
+  // byte-LSB — which for a phantom-carry source is the parent byte's
+  // LSB (garbage, because the real value is in CC.C / CC.V).  Route
+  // through MaterializeCC_C_to_byte / MaterializeCC_V_to_byte.
   //
-  // CRITICAL: insert the materialisation IMMEDIATELY AFTER the phantom
-  // producer, NOT at the G_ZEXT use site. CC.C / CC.V are clobbered by
-  // any arithmetic or memory store between producer and use (e.g. STD
-  // sets V=0). Capturing the flag into a byte right after the producer
-  // is the only way to plumb the value across intervening ops. The
-  // materialised byte vreg is then live from producer to use, and any
-  // CC-clobbering instructions in between don't affect correctness.
-  //
-  // Empirically, inserting at the G_ZEXT position failed the
-  // `probe_zext(MAX,1)` test because G_STORE(data) runs between G_SADDO
-  // and G_ZEXT(ovf) in IR order, and STD sets V=0 before the
-  // materialisation could read it.
+  // CRITICAL: insert the materialisation IMMEDIATELY AFTER the
+  // phantom producer, NOT at the G_ZEXT use site.  CC.C / CC.V are
+  // clobbered by any arithmetic or memory store between producer and
+  // use (e.g. STD sets V=0).  Capturing the flag into a byte right
+  // after the producer is the only way to plumb the value across
+  // intervening ops.  The materialised byte vreg is then live from
+  // producer to use, and any CC-clobbering instructions in between
+  // don't affect correctness.
   if (MI.getOpcode() == TargetOpcode::G_ZEXT) {
     Register DstReg = MI.getOperand(0).getReg();
     Register SrcReg = MI.getOperand(1).getReg();
@@ -857,16 +841,11 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
           break;
         }
         if (ProdDef) {
-          // Bug #302 redesign Phase 3 Stage 3.b (2026-05-17): switched
-          // to MaterializeCC_C_to_byte / MaterializeCC_V_to_byte —
-          // the Stage 3.a pseudos with no BIT1 input.  CC.C/CC.V is
-          // read directly via Uses=[C]/Uses=[V]; the BIT1 vreg input
-          // (a scheduling phantom — see Bug #186 v5) is dropped, so
-          // there's nothing reading SrcReg anymore.  The
-          // hasSideEffects=1 on producer and freeze, plus same-BB
-          // placement right after the producer, preserves the CC
-          // liveness invariant the original BIT1 input was a proxy
-          // for.
+          // Emit MaterializeCC_C_to_byte / MaterializeCC_V_to_byte —
+          // the pseudo reads CC.C / CC.V directly via Uses=[C] / [V]
+          // (no explicit operand).  hasSideEffects=1 on producer and
+          // freeze, plus same-BB placement right after the producer,
+          // keeps CC live across the read.
           unsigned Opc = (*Flag == MC6809::C)
                              ? MC6809::MaterializeCC_C_to_byte
                              : MC6809::MaterializeCC_V_to_byte;
@@ -880,43 +859,17 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
           return true;
         }
       }
-      // Bug #274 + Bug #281: route all remaining (non-phantom)
-      // G_ZEXT s1→s8 through AND_i8_Imm tied form rather than the
-      // imported ZEX8Implicit TableGen pattern.
+      // Non-phantom G_ZEXT s1→s8: rewrite as `AND_i8_Imm $dst, $src, 1`
+      // tied (dst==src).  Expands post-RA to a single `AND[A|B] #1`,
+      // which is the correct i1→i8 zero-extension (mask off all but
+      // the LSB).  ABc is the narrowest class that satisfies both
+      // AND_i8_Imm and downstream consumers like ZEX16Implicit.
       //
-      // ZEX8Implicit's `InOperandList = (ins ABLSBc:$src)` is a 1-bit
-      // sub-register class disjoint from ACC8 (which holds full
-      // bytes). When the source vreg ends up in ACC8 via any of:
-      //   - Bug #274 G_TRUNC s8→s1 producer (selected to AND_i8_Imm
-      //     tied → ACC8);
-      //   - Bug #281 G_PHI whose inputs are themselves G_TRUNC
-      //     outputs (PHI inherits ACC8);
-      //   - any future producer pattern that emits into ACC8;
-      // the class-constrain machinery cannot bridge ABLSBc ↔ ACC8
-      // (the intersection is empty — different virtual classes on
-      // the same physreg) and -verify-machineinstrs flags
-      // `%dst:abc = ZEX8Implicit %src:acc8`. GISel runs bottom-up so
-      // we cannot reliably detect "source is in ACC8" at G_ZEXT
-      // selection time — the producer's class may still be unset or
-      // not yet forced (it gets forced when a later-selected
-      // consumer pins it). A class-or-producer-based check misses
-      // these timing-dependent cases.
-      //
-      // The unconditional route is safe because AND_i8_Imm tied
-      // with immediate 1 expands to `AND[A|B] #1`, which is exactly
-      // ZEX8Implicit's own post-RA expansion. AND #1 against an
-      // i1-bounded value is idempotent, so chaining doesn't break
-      // semantics. ABc is the narrowest class that satisfies both
-      // AND_i8_Imm and downstream consumers like ZEX16Implicit
-      // (`InOperandList = (ins ABc:$src)`); the wider ACC8 leaves
-      // ZEX16Implicit's class-strict mismatch unsatisfied.
-      //
-      // The unconditional route can produce an extra `AND[A|B] #1`
-      // at -O0 when a producer also emits AND #1 (e.g., a G_ICMP
-      // selection that materialises the i1 already-masked). This is
-      // a code-size wart at -O0 only; instruction-level optimisers
-      // at -O1+ fold the redundant mask. The semantic correctness of
-      // AND #1 idempotency makes this safe.
+      // Producing `AND[A|B] #1` unconditionally can leave a redundant
+      // mask at -O0 when the source was already known-LSB-only (a
+      // freshly-emitted G_ICMP result, say).  -O1+ instruction-level
+      // optimisers fold it.  AND #1 against an already-masked value
+      // is idempotent so chaining never breaks semantics.
       MRI->setRegClass(DstReg, &MC6809::ABcRegClass);
       MRI->setRegClass(SrcReg, &MC6809::ABcRegClass);
       MI.setDesc(TII.get(MC6809::AND_i8_Imm));
@@ -951,16 +904,14 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     }
   }
 
-  // Bug #311 Phase 1 step 1.3 (2026-05-20): intercept G_ICMP with s1
-  // result type at -O0.  The SetIfCondPat / TestPat patterns now match
-  // `(i8 (anyext (i1 (setcc ...))))` — they need an enclosing G_ANYEXT
-  // to fire.  At -O0 GISel emits a bare `G_ICMP s1` with no anyext
-  // wrap; without an arm here, selection fails with
-  //   LLVM ERROR: cannot select: %N:bit1(s1) = G_ICMP ...
-  // Manual lowering mirrors what the SetIfCondPat pattern would emit:
-  // Compare_iN_{Imm,Reg} → CC, then ConditionalImm(cc, CC, 1, 0) →
-  // ACC8 dst.  Bind the original s1 dst's class to ACC8 — the byte's
-  // LSB carries the boolean value (the same encoding BIT1 used).
+  // Intercept G_ICMP with an s1 result.  The SetIfCondPat / TestPat
+  // SDAG patterns match `(i8 (anyext (i1 (setcc ...))))` and rely on
+  // an enclosing G_ANYEXT; at -O0 GISel emits a bare G_ICMP s1 with
+  // no anyext wrap, leaving the pattern unfired.
+  //
+  // Manual lowering mirrors the SetIfCondPat shape:
+  //   Compare_iN_{Imm,Reg}  → CC
+  //   ConditionalImm(cc, CC, 1, 0) → ACC8 dst (LSB carries the bool).
   if (MI.getOpcode() == TargetOpcode::G_ICMP) {
     Register DstReg = MI.getOperand(0).getReg();
     LLT DstTy = MRI->getType(DstReg);
@@ -1050,30 +1001,20 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     LLT DstTy = MRI->getType(DstReg);
     LLT SrcTy = MRI->getType(SrcReg);
     if (DstTy == LLT::scalar(8) && SrcTy == LLT::scalar(1)) {
-      // Bug #140: the BIT1 vreg carry-out of AddSetCarry*/SubSetCarry*/
-      // AddSetCarryUse*/SubSetCarryUse* is a SCHEDULING PHANTOM — the real
-      // carry lives in CC.C, not in the allocated byte-LSB (see the long
-      // comment on MC6809ArithmeticBaseCarry in MC6809InstrFamilies.td).
-      // A plain COPY here reads whichever byte-LSB regalloc picked, which
-      // is unrelated to CC.C; the result only happens to be right when
-      // the byte containing the LSB coincidentally holds 0 or 1 matching
-      // the carry. Step 3 of bug #118 Layer 1 perturbed regalloc enough
-      // to expose the miscompile in picolibc test-uchar (j+1==0 exit).
+      // Phantom-carry source: the s1 carry-out vreg of an
+      // AddSetCarry* / SubSetCarry* family pseudo is a SCHEDULING
+      // PHANTOM — the real value lives in CC.C (or CC.V for
+      // overflow), not in the byte-LSB the regalloc allocated.  A
+      // plain COPY here would read whichever byte regalloc happened
+      // to pick (unrelated to CC.C).
       //
-      // Honest materialisation: emit MaterializeCarryToByte_i8, which
-      // post-RA expands to `LDB #0; ADCB #0` — reads CC.C authoritatively
-      // and writes it into $dst as a 0/1 byte. The scheduling barrier on
-      // both the SetCarry* producer and this pseudo keeps CC.C alive
-      // across the gap.
-      // Bug #152 phase 2 refactor: single dispatch via getPhantomCarryFlag.
-      // Carry producers → LDB #0; ADCB #0 (reads CC.C).
-      // Overflow producers → TFR CC,B; LSRB; ANDB #1 (reads CC.V).
+      // Emit MaterializeCC_C_to_byte / MaterializeCC_V_to_byte —
+      // post-RA they expand to
+      //   C:  LDB #0 ; ADCB #0     (reads CC.C → 0/1 byte)
+      //   V:  TFR CC,B ; LSRB ; ANDB #1
+      // and `hasSideEffects=1` on producer + materialise keeps the
+      // flag alive across the gap.
       if (auto Flag = getPhantomCarryFlag(SrcReg, *MRI, &CarryFlagOf)) {
-        // Bug #302 redesign Phase 3 Stage 3.b (2026-05-17): switched
-        // to MaterializeCC_C_to_byte / MaterializeCC_V_to_byte (no
-        // BIT1 input).  Same rationale as the G_ZEXT site above: CC
-        // is the authoritative source; the dropped vreg input was a
-        // scheduling phantom.
         MRI->setRegClass(DstReg, &MC6809::ABcRegClass);
         MachineIRBuilder B(MI);
         unsigned Opc = (*Flag == MC6809::C)
@@ -1084,8 +1025,9 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
         MI.eraseFromParent();
         return true;
       }
-      // Byte-LSB-backed BIT1 (from Load_i1_Imm, Seq/CondSet, etc.):
-      // anyext is a plain COPY since the LSB is the value.
+      // Source is a real-byte i1 (G_ICMP, Load_i1_Imm, Seq/CondSet,
+      // …): the byte's LSB already IS the boolean, so anyext s1→s8
+      // is a plain COPY.
       MRI->setRegClass(DstReg, &MC6809::ACC8RegClass);
       if (!MRI->getRegClassOrNull(SrcReg))
         MRI->setRegClass(SrcReg, &MC6809::ACC8RegClass);
@@ -1094,13 +1036,13 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     }
   }
 
-  // Bug #311: intercept G_CONSTANT s1 — Load_i1_Imm's SDAG `(i1 imm)`
-  // pattern was retired when its dst class moved to ACC8.  The
-  // legalizer normally widens G_CONSTANT i1 → G_CONSTANT i8 before
-  // isel, but the LTO link-time codegen path does NOT run the
-  // widener; bare `G_CONSTANT s1` reaches the selector at LTO and
-  // there is no pattern to match it.  Lower manually to Load_i8_Imm
-  // (0 or 1 in the byte's LSB — same encoding BIT1 used).
+  // Intercept G_CONSTANT s1.  The normal llc pipeline widens
+  // G_CONSTANT i1 → G_CONSTANT i8 in a pre-isel combiner, so this
+  // shape never reaches the selector via llc.  LLD's LTO link-time
+  // codegen pipeline does NOT run that widener — bare G_CONSTANT s1
+  // arrives at the selector intact at LTO.  Lower it to Load_i8_Imm
+  // with the LSB carrying the boolean (Bug #312 was the LTO link
+  // failure that surfaced this gap).
   if (MI.getOpcode() == TargetOpcode::G_CONSTANT) {
     Register DstReg = MI.getOperand(0).getReg();
     if (MRI->getType(DstReg) == LLT::scalar(1)) {
@@ -1291,9 +1233,9 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
   }
 
   case TargetOpcode::G_ANYEXT: {
-    // anyext i1->i8: byte-to-byte COPY now that i1 lives in ACC8.
-    // Bug #302 BIT1 elimination: the sub_lsb-via-INSERT_SUBREG chain
-    // is retired; both operands are bytes and the value is in bit 0.
+    // anyext i1→i8: byte-to-byte COPY.  i1 lives in ACC8 with bit 0
+    // carrying the value, so the high 7 bits are already the right
+    // shape for an anyext (don't-care).
     Register DstReg = MI.getOperand(0).getReg();
     Register SrcReg = MI.getOperand(1).getReg();
     LLT DstTy = MRI->getType(DstReg);
@@ -1438,29 +1380,26 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     Register CondReg = MI.getOperand(0).getReg();
     MachineBasicBlock *TargetMBB = MI.getOperand(1).getMBB();
 
-    // Bug #115 optimization: if the s1 condition is the carry-out of an
-    // unsigned add/sub-with-carry-out (G_USUBO/G_UADDO/G_USUBE/G_UADDE,
-    // either generic or already selected to the corresponding SubSetCarry
-    // / AddSetCarry pseudo), skip the materialise-then-test sequence and
-    // branch directly on CC.C.
+    // BRCOND-on-phantom-carry direct branch.
     //
-    // The materialise path is broken when the BIT1 carry vreg has been
-    // allocated to a sub-register of the SetCarry's `dst` (which the
-    // regalloc allows because for arithmetic chains the BIT1 LSB is
-    // never read — the chain consumes the carry via CC.C). Reading the
-    // BIT1 LSB then yields a stray bit of the result, not the carry.
-    // Going directly to BCS keeps the carry flag from the producer in
-    // CC.C right through to the conditional long branch — no s1
-    // materialisation needed.
+    // If the s1 condition is the carry-out of an unsigned
+    // add/sub-with-carry-out (G_USUBO/G_UADDO/G_USUBE/G_UADDE, either
+    // generic or already selected to a SubSetCarry / AddSetCarry
+    // pseudo), branch directly on CC.C instead of going through the
+    // materialise-CC-to-byte + test-byte path.  The phantom carry's
+    // "real" value lives in CC.C; reading the byte the regalloc
+    // allocated would yield garbage (the byte may be a sub-reg of
+    // some unrelated value).
     //
     // Restrictions:
     //   - The producer must be in the same MBB as the BRCOND, with no
     //     CC-clobbering instructions between (anything that defs CC).
-    //   - Limited to the unsigned ops because their s1 corresponds to
-    //     the C flag (1 = borrow / carry). G_SSUBO/G_SADDO use V; not
-    //     handled here yet.
-    // Phantom-BIT1 producer list is shared with G_ANYEXT s1→s8 (bug #140);
-    // see getPhantomCarryFlag at the top of this file.
+    //   - Unsigned ops only — their s1 corresponds to the C flag
+    //     (1 = borrow / carry).  G_SSUBO/G_SADDO use V; not handled
+    //     here yet.
+    //
+    // Producer enumeration is shared with G_ANYEXT s1→s8; see
+    // getPhantomCarryFlag at the top of this file.
 
     // Walk through G_FREEZE / COPY to find the real defining instruction.
     // `freeze i1 %cmp` is commonly inserted by InstCombine between an
@@ -1528,28 +1467,30 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
       return true;
     };
 
-    // Bug #114 optimization: if the s1 condition is the BIT1 produced by a
-    // `ConditionalImm cc, Compare/Test, 1, 0` (which is what every `setcc`
-    // tablegen pattern emits to materialise an i1 result), bypass the
-    // diamond-CFG materialisation and branch directly on CC using the same
-    // condition code that ConditionalImm was about to test.
+    // BRCOND-on-setcc direct branch.
+    //
+    // If the s1 condition is a `ConditionalImm cc, Compare/Test, 1, 0`
+    // (the shape every `setcc` pattern emits to materialise an i1
+    // result), bypass the diamond-CFG materialisation and branch
+    // directly on CC using the same condition code that
+    // ConditionalImm was about to test.
     //
     // Without this, the asm pattern is:
     //
     //   cmpd ,s              ; Compare sets CC
-    //   <ConditionalImm diamond: lda #0/#1 to materialise BIT1>
+    //   <ConditionalImm diamond: lda #0/#1 to materialise the byte>
     //   ldd #trueval         ; setup of any later D-typed value (PHI, etc.)
-    //                        ;   — this clobbers A, killing the BIT1 LSB
+    //                        ;   — this clobbers A, killing the byte's LSB
     //   tsta                 ; reads A, now garbage
     //   lbne <target>        ; branch never taken
     //
-    // The BIT1 phantom lives in the LSB of an ACC8 (often AALSB ⊂ AA ⊂ AD),
-    // and any intervening i16 def into AD destroys it. Bypassing the
-    // materialisation entirely sidesteps the whole class of regalloc
-    // collisions on the BIT1 phantom.
+    // The materialised byte lives in an ACC8 reg whose LSB carries
+    // the boolean; any intervening i16 def into AD destroys it.
+    // Bypassing materialisation entirely sidesteps the whole class
+    // of regalloc collisions.
     //
     // Operand layout of ConditionalImm:
-    //   op0: BIT1 def
+    //   op0: ACC8 def (the materialised 0/1 byte)
     //   op1: condcode imm (CC)
     //   op2: CCond use (from Compare/Test)
     //   op3: i1 imm (true value, conventionally 1)
@@ -1869,13 +1810,12 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
       return true;
     }
 
-    // TestBranch_i8_Reg's source is constrained to ACC8. Bug #156: also
-    // set the class on every vreg in the FREEZE/COPY chain back to the
-    // BIT1 producer, since post-selection passes may eliminate the
-    // intermediate COPYs and rewrite uses of CondReg back to one of the
-    // earlier vregs in the chain. If those earlier vregs still have class
-    // BIT1, the regalloc's SplitEditor crashes on a class-constraint
-    // mismatch (no convertible class between BIT1 and ACC8 at split time).
+    // TestBranch_i8_Reg's source is constrained to ACC8.  Also set
+    // ACC8 on every vreg in the FREEZE/COPY chain back to the
+    // producer — post-selection passes may eliminate the intermediate
+    // COPYs and rewrite uses of CondReg back to an earlier vreg;
+    // those earlier vregs must already be ACC8 or regalloc's
+    // SplitEditor trips a class-constraint mismatch.
     MRI->setRegClass(CondReg, &MC6809::ACC8RegClass);
     {
       Register R = CondReg;
@@ -1932,7 +1872,8 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     if (!RC) {
       LLT Ty = MRI->getType(SrcReg);
       if (Ty == LLT::scalar(1))
-        // Bug #302 BIT1 elimination: i1 shares the byte pool with i8.
+        // i1 shares the byte pool with i8; the byte's LSB carries
+        // the boolean.
         RC = &MC6809::ACC8RegClass;
       else if (Ty == LLT::scalar(8))
         RC = &MC6809::ACC8RegClass;
@@ -2337,19 +2278,14 @@ bool MC6809InstructionSelector::selectAddO(MachineInstr &MI) {
   // recognizes the producing pseudo's opcode directly.
   CarryFlagOf[CarryOut] = IsSigned ? MC6809::V : MC6809::C;
   if (!MRI->getRegClassOrNull(CarryOut))
-    // Bug #302 follow-up: phantom-carry vregs live in PHANTOM_CARRY -- a
-    // disjoint regalloc pool with synthetic 1-bit physregs
-    // (PHANTOM_CARRY_0..PHANTOM_CARRY_7).  Pre-#302 they went to BIT1's
-    // AALSB/ABLSB members; the initial post-#302 fix bound MVT::i1 to ACC8
-    // which put them in the byte pool where they competed with byte results
-    // and forced spills (+47-60% codegen size on i32/i64 add chains).
-    // PHANTOM_CARRY recreates the pre-#302 regalloc invariant without
-    // bringing back the sub_lsb chain that drove `acc32_with_sub_lsb`.
-    // The phantom physreg has no hardware backing; AsmPrinter ignores it at
-    // MCInst conversion (only explicit operands cross into MC).  See
+    // Phantom-carry vregs live in PHANTOM_CARRY — a disjoint regalloc
+    // pool with synthetic 1-bit physregs (PHANTOM_CARRY_0..7).  Keeping
+    // them off the byte pool means they don't compete with real byte
+    // results during regalloc (which used to force spills and cost
+    // +47-60% codegen size on i32/i64 add chains).  The phantom
+    // physreg has no hardware backing; AsmPrinter never emits it
+    // (only explicit operands cross into MC).  See
     // MC6809PhantomCarryGuard.cpp for the late-pass safety net.
-    // getPhantomCarryFlag / CCFlagChainTracker recognise the producer by
-    // opcode, not by class, so this is a vreg-class-only change.
     MRI->setRegClass(CarryOut, &MC6809::PHANTOM_CARRYRegClass);
 
   std::optional<ValueAndVReg> ValReg;
@@ -2510,19 +2446,14 @@ bool MC6809InstructionSelector::selectSubO(MachineInstr &MI) {
   // Bug #186 follow-up Phase 1a (2026-04-28): see selectAddO above.
   CarryFlagOf[CarryOut] = IsSigned ? MC6809::V : MC6809::C;
   if (!MRI->getRegClassOrNull(CarryOut))
-    // Bug #302 follow-up: phantom-carry vregs live in PHANTOM_CARRY -- a
-    // disjoint regalloc pool with synthetic 1-bit physregs
-    // (PHANTOM_CARRY_0..PHANTOM_CARRY_7).  Pre-#302 they went to BIT1's
-    // AALSB/ABLSB members; the initial post-#302 fix bound MVT::i1 to ACC8
-    // which put them in the byte pool where they competed with byte results
-    // and forced spills (+47-60% codegen size on i32/i64 add chains).
-    // PHANTOM_CARRY recreates the pre-#302 regalloc invariant without
-    // bringing back the sub_lsb chain that drove `acc32_with_sub_lsb`.
-    // The phantom physreg has no hardware backing; AsmPrinter ignores it at
-    // MCInst conversion (only explicit operands cross into MC).  See
+    // Phantom-carry vregs live in PHANTOM_CARRY — a disjoint regalloc
+    // pool with synthetic 1-bit physregs (PHANTOM_CARRY_0..7).  Keeping
+    // them off the byte pool means they don't compete with real byte
+    // results during regalloc (which used to force spills and cost
+    // +47-60% codegen size on i32/i64 add chains).  The phantom
+    // physreg has no hardware backing; AsmPrinter never emits it
+    // (only explicit operands cross into MC).  See
     // MC6809PhantomCarryGuard.cpp for the late-pass safety net.
-    // getPhantomCarryFlag / CCFlagChainTracker recognise the producer by
-    // opcode, not by class, so this is a vreg-class-only change.
     MRI->setRegClass(CarryOut, &MC6809::PHANTOM_CARRYRegClass);
 
   std::optional<ValueAndVReg> ValReg;
@@ -2655,19 +2586,14 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
   // Bug #186 follow-up Phase 1a (2026-04-28): see selectAddO above.
   CarryFlagOf[CarryOut] = IsSigned ? MC6809::V : MC6809::C;
   if (!MRI->getRegClassOrNull(CarryOut))
-    // Bug #302 follow-up: phantom-carry vregs live in PHANTOM_CARRY -- a
-    // disjoint regalloc pool with synthetic 1-bit physregs
-    // (PHANTOM_CARRY_0..PHANTOM_CARRY_7).  Pre-#302 they went to BIT1's
-    // AALSB/ABLSB members; the initial post-#302 fix bound MVT::i1 to ACC8
-    // which put them in the byte pool where they competed with byte results
-    // and forced spills (+47-60% codegen size on i32/i64 add chains).
-    // PHANTOM_CARRY recreates the pre-#302 regalloc invariant without
-    // bringing back the sub_lsb chain that drove `acc32_with_sub_lsb`.
-    // The phantom physreg has no hardware backing; AsmPrinter ignores it at
-    // MCInst conversion (only explicit operands cross into MC).  See
+    // Phantom-carry vregs live in PHANTOM_CARRY — a disjoint regalloc
+    // pool with synthetic 1-bit physregs (PHANTOM_CARRY_0..7).  Keeping
+    // them off the byte pool means they don't compete with real byte
+    // results during regalloc (which used to force spills and cost
+    // +47-60% codegen size on i32/i64 add chains).  The phantom
+    // physreg has no hardware backing; AsmPrinter never emits it
+    // (only explicit operands cross into MC).  See
     // MC6809PhantomCarryGuard.cpp for the late-pass safety net.
-    // getPhantomCarryFlag / CCFlagChainTracker recognise the producer by
-    // opcode, not by class, so this is a vreg-class-only change.
     MRI->setRegClass(CarryOut, &MC6809::PHANTOM_CARRYRegClass);
 
   std::optional<ValueAndVReg> ValReg;
@@ -2676,15 +2602,15 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
             mi_match(Dst, *MRI, m_GUAddE(m_Reg(Reg), m_GCst(ValReg), m_Reg(Carry)));
   if (Success) {
     Value = ValReg->Value.getSExtValue();
-    // Bug #271 cat-1 residual: if the carry-IN is a known constant
-    // (either still-G_CONSTANT or already-selected Load_i1_Imm), the
-    // SetCarryUse pseudo's `Uses = [C]` declaration is a runtime
-    // hole — there's no producer of $c upstream, so the read is
-    // verifier-undefined AND functionally wrong (ADCB consumes the
-    // hardware CC.C, which has no connection to the BIT1 vreg's
-    // value). Fold the constant carry into the immediate operand
-    // and emit the AddSetCarry sibling (no Use). The carry-OUT
-    // BIT1 vreg is still produced for downstream chain users.
+    // Constant-carry fold: if the carry-IN is a known constant
+    // (still-G_CONSTANT or already-selected Load_i1_Imm), the
+    // SetCarryUse pseudo's `Uses = [C]` is a runtime hole — no
+    // producer of CC.C upstream, so the read is verifier-undefined
+    // AND functionally wrong (ADCB consumes hardware CC.C, which
+    // has no connection to the constant's value).  Fold the
+    // constant carry into the immediate operand and emit the
+    // AddSetCarry sibling (no `Use`).  The carry-OUT vreg is still
+    // produced for downstream chain users.
     int64_t CarryVal = 0;
     bool CarryIsConst = false;
     if (auto CC = getIConstantVRegSExtVal(Carry, *MRI)) {
@@ -2713,11 +2639,11 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
     Opcode = DstSize == 8
                  ? PickOpc(MC6809::AddSetCarryUse_i8_Imm,  MC6809::AddSetOverflowUse_i8_Imm)
                  : PickOpc(MC6809::AddSetCarryUse_i16_Imm, MC6809::AddSetOverflowUse_i16_Imm);
-    // Bug #161 round 12: keep the carry-IN BIT1 vreg as an implicit-use
-    // so DCE can't remove the upstream AddSetCarry when its non-carry
-    // byte result is dead (e.g. multi-byte multiply chains where only
-    // the high half is kept). Without this, the implicit $c use here
-    // dangles (no upstream define) and the verifier rejects the MIR.
+    // Keep the carry-IN vreg as an implicit-use so DCE can't remove
+    // the upstream SetCarry when its non-carry byte result is dead
+    // (e.g. multi-byte multiply chains where only the high half is
+    // kept).  Without this, the implicit $c use here dangles (no
+    // upstream define) and the verifier rejects the MIR.
     Instr = Builder.buildInstr(Opcode)
                      .addDef(Dst)
                      .addUse(Reg)
@@ -2862,19 +2788,14 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
   // Bug #186 follow-up Phase 1a (2026-04-28): see selectAddO above.
   CarryFlagOf[CarryOut] = IsSigned ? MC6809::V : MC6809::C;
   if (!MRI->getRegClassOrNull(CarryOut))
-    // Bug #302 follow-up: phantom-carry vregs live in PHANTOM_CARRY -- a
-    // disjoint regalloc pool with synthetic 1-bit physregs
-    // (PHANTOM_CARRY_0..PHANTOM_CARRY_7).  Pre-#302 they went to BIT1's
-    // AALSB/ABLSB members; the initial post-#302 fix bound MVT::i1 to ACC8
-    // which put them in the byte pool where they competed with byte results
-    // and forced spills (+47-60% codegen size on i32/i64 add chains).
-    // PHANTOM_CARRY recreates the pre-#302 regalloc invariant without
-    // bringing back the sub_lsb chain that drove `acc32_with_sub_lsb`.
-    // The phantom physreg has no hardware backing; AsmPrinter ignores it at
-    // MCInst conversion (only explicit operands cross into MC).  See
+    // Phantom-carry vregs live in PHANTOM_CARRY — a disjoint regalloc
+    // pool with synthetic 1-bit physregs (PHANTOM_CARRY_0..7).  Keeping
+    // them off the byte pool means they don't compete with real byte
+    // results during regalloc (which used to force spills and cost
+    // +47-60% codegen size on i32/i64 add chains).  The phantom
+    // physreg has no hardware backing; AsmPrinter never emits it
+    // (only explicit operands cross into MC).  See
     // MC6809PhantomCarryGuard.cpp for the late-pass safety net.
-    // getPhantomCarryFlag / CCFlagChainTracker recognise the producer by
-    // opcode, not by class, so this is a vreg-class-only change.
     MRI->setRegClass(CarryOut, &MC6809::PHANTOM_CARRYRegClass);
 
   std::optional<ValueAndVReg> ValReg;
@@ -2888,7 +2809,7 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
     Opcode = DstSize == 8
                  ? PickOpc(MC6809::SubSetCarryUse_i8_Imm,  MC6809::SubSetOverflowUse_i8_Imm)
                  : PickOpc(MC6809::SubSetCarryUse_i16_Imm, MC6809::SubSetOverflowUse_i16_Imm);
-    // Bug #161 round 12: keep the carry-IN BIT1 vreg as an implicit-use
+    // Keep the carry-IN vreg as an implicit-use
     // (see selectAddE for the full rationale).
     Instr = Builder.buildInstr(Opcode)
                      .addDef(Dst)
@@ -2933,7 +2854,7 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
             mi_match(Dst, *MRI, m_GUSubE(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)), m_Reg(Carry)));
   if (Success) {
     Opcode = DstSize == 8 ? PickOpc(MC6809::SubSetCarryUse_i8_Mem, MC6809::SubSetOverflowUse_i8_Mem) : PickOpc(MC6809::SubSetCarryUse_i16_Mem, MC6809::SubSetOverflowUse_i16_Mem);
-    // Bug #161 round 12: carry-IN BIT1 implicit-use (see selectAddE).
+    // Carry-IN implicit-use (see selectAddE).
     Instr = Builder.buildInstr(Opcode)
                      .addDef(Dst)
                      .addUse(Reg)
@@ -2954,7 +2875,7 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
             mi_match(Dst, *MRI, m_GUSubE(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)), m_Reg(Carry)));
   if (Success) {
     Opcode = DstSize == 8 ? PickOpc(MC6809::SubSetCarryUse_i8_Mem, MC6809::SubSetOverflowUse_i8_Mem) : PickOpc(MC6809::SubSetCarryUse_i16_Mem, MC6809::SubSetOverflowUse_i16_Mem);
-    // Bug #161 round 12: carry-IN BIT1 implicit-use (see selectAddE).
+    // Carry-IN implicit-use (see selectAddE).
     Instr = Builder.buildInstr(Opcode)
                      .addDef(Dst)
                      .addUse(Reg)
@@ -2974,7 +2895,7 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
             mi_match(Dst, *MRI, m_GUSubE(m_Reg(LHS), m_Reg(RHS), m_Reg(Carry)));
   if (Success) {
     Opcode = DstSize == 8 ? PickOpc(MC6809::SubSetCarryUse_i8_Reg, MC6809::SubSetOverflowUse_i8_Reg) : PickOpc(MC6809::SubSetCarryUse_i16_Reg, MC6809::SubSetOverflowUse_i16_Reg);
-    // Bug #161 round 12: carry-IN BIT1 implicit-use (see selectAddE).
+    // Carry-IN implicit-use (see selectAddE).
     Instr = Builder.buildInstr(Opcode)
                 .addDef(Dst)
                 .addUse(LHS)

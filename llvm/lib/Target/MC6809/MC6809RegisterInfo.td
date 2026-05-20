@@ -39,8 +39,6 @@ def sub_nz_zero : MC6809SubRegIndex<1, 0>;
 // Bits of the 8-bit processor status register set by most instructions.
 def sub_nzvc : MC6809SubRegIndex<4, 0>;
 
-// Bug #311: sub_lsb SubRegIndex retired alongside BIT1.
-
 //===----------------------------------------------------------------------===//
 //  Real registers
 //===----------------------------------------------------------------------===//
@@ -67,15 +65,9 @@ class MC6809Reg8<bits<16> num, string name, list<Register> subregs = [], list<Su
     let CoveredBySubRegs = false;
 }
 
-// An 8-bit value register (GPR or imaginary).  Bug #302 + Bug #311:
-// the 1-bit `LSB` sub-def is gone — i1 values live in ACC8 directly
-// (ISelLowering binds MVT::i1 to ACC8RegClass); no producer emits a
-// 1-bit-typed vreg that would need a 1-bit physreg home.  The
-// historic chain (sub_lsb → BIT1 → AALSBc/ABLSBc/AELSBc/AFLSBc +
-// SPILL_*LSB) was what drove TableGen to synthesize
-// `acc32_with_sub_lsb` (collapses to {AQ} because SPILL_Q*N have no
-// sub-reg metadata) and exhaust vfprintf's regalloc at
-// -Og-lto-hd6309-mame-fp.
+// An 8-bit value register (GPR or imaginary).  i1 values live in
+// ACC8 directly — the byte's bit 0 carries the boolean.
+// MC6809ISelLowering binds MVT::i1 to ACC8RegClass.
 multiclass MC6809Reg8<bits<16> num, string name> {
   def NAME : MC6809Reg8<num, name, [], []>;
 }
@@ -399,21 +391,11 @@ foreach I = 4...31 in {
 //
 // These eight 1-bit "registers" exist purely as regalloc bookkeeping slots
 // for the scheduling-phantom carry-out vregs of the SetCarry / SetCarryUse /
-// SetOverflow / SetOverflowUse pseudos.  Pre-#302 the phantoms lived in BIT1
-// whose members (AALSB / ABLSB / AELSB / AFLSB) were sub-registers of byte
-// accumulators via sub_lsb — that sub-register chain was what TableGen
-// propagated up through ACC8 -> ADc -> AQ to synthesise the
-// `acc32_with_sub_lsb` intersection class that exhausted vfprintf's regalloc
-// at -Og-lto-hd6309-mame-fp.
-//
-// Post-#302, MVT::i1 binds to ACC8 (correct structural fix), but that puts
-// phantom carry-out vregs in the same regalloc pool as the byte results of
-// their own producer MI — they compete for AA/AB, regalloc spills the loser,
-// and i32/i64 add chains grow ~50%.  The phantoms have no runtime value
-// (CC.C/V is the source of truth; see Bug #186 v5 long comment on
-// MC6809ArithmeticBaseCarry in MC6809InstrFamilies.td); their only job is
-// to thread a producer->consumer SSA dependency that survives regalloc and
-// scheduling.
+// SetOverflow / SetOverflowUse pseudos.  The phantoms have no runtime
+// value — CC.C / CC.V is the source of truth (see the long comment on
+// MC6809ArithmeticBaseCarry in MC6809InstrFamilies.td).  Their job is to
+// thread a producer→consumer SSA dependency that survives regalloc and
+// scheduling without competing with real byte / word allocation.
 //
 // PHANTOM_CARRY_0..PHANTOM_CARRY_7 satisfy that need without competing with
 // any real allocation pool: no sub-register relationships, no hardware
@@ -482,14 +464,10 @@ def PHANTOM_CARRY : MC6809Reg1Class<(add PHANTOM_CARRY_0, PHANTOM_CARRY_1,
                                           PHANTOM_CARRY_2, PHANTOM_CARRY_3,
                                           PHANTOM_CARRY_4, PHANTOM_CARRY_5,
                                           PHANTOM_CARRY_6, PHANTOM_CARRY_7)>;
-// Bug #311 Phase 1 step 1.4 (2026-05-20): def BIT1 retired.  i1 values
-// live in ACC8; the LSB of the byte carries the boolean (same encoding
-// BIT1 used in practice).  AALSB/ABLSB/AELSB/AFLSB physregs, the
-// *LSBc classes, and the sub_lsb SubRegIndex are still in the .td but
-// no longer reachable through any producer/consumer path — they retire
-// in a subsequent sweep when the C++ helper functions (isSpillLsb /
-// getLsbSpillParent / getLsbSpillByteHalf / getBit1ByteHalf) are
-// pruned (the natural step 1.5 follow-up).
+// ACC8 — the byte allocation pool.  i1 values share this class with
+// i8: the byte's LSB carries the boolean.  Includes the four real
+// byte registers, 16 SPILL_*N slots, and 16 RC* imaginary (DP)
+// registers, all addressable as a single byte.
 def ACC8 : MC6809Reg8Class<(add AB, AA, AF, AE, SPILL_B0, SPILL_B1, SPILL_B2, SPILL_B3, SPILL_B4, SPILL_B5, SPILL_B6, SPILL_B7, SPILL_A0, SPILL_A1, SPILL_A2, SPILL_A3, SPILL_A4, SPILL_A5, SPILL_A6, SPILL_A7, RC0, RC1, RC2, RC3, RC4, RC5, RC6, RC7, RC8, RC9, RC10, RC11, RC12, RC13, RC14, RC15)> {
     // AE and AF are HD6309-only. Exclude from allocation on 6809.
     let AltOrders = [(add AB, AA, SPILL_B0, SPILL_B1, SPILL_B2, SPILL_B3, SPILL_B4, SPILL_B5, SPILL_B6, SPILL_B7, SPILL_A0, SPILL_A1, SPILL_A2, SPILL_A3, SPILL_A4, SPILL_A5, SPILL_A6, SPILL_A7, RC0, RC1, RC2, RC3, RC4, RC5, RC6, RC7, RC8, RC9, RC10, RC11, RC12, RC13, RC14, RC15)];
@@ -609,24 +587,17 @@ let isAllocatable = false in {
 
 // Single register classes.
     def AAc : MC6809Reg8Class<(add AA, SPILL_A0, SPILL_A1, SPILL_A2, SPILL_A3, SPILL_A4, SPILL_A5, SPILL_A6, SPILL_A7)>;
-    // Bug #311: AALSBc / ABLSBc / AELSBc / AFLSBc retired alongside
-    // BIT1 — no 1-bit physreg consumers remain.
     def ABc : MC6809Reg8Class<(add AB, SPILL_B0, SPILL_B1, SPILL_B2, SPILL_B3, SPILL_B4, SPILL_B5, SPILL_B6, SPILL_B7)>;
     let isPressureFineGrained = true in
     def ADc : MC6809Reg16Class<(add AD, SPILL_D0, SPILL_D1, SPILL_D2, SPILL_D3, SPILL_D4, SPILL_D5, SPILL_D6, SPILL_D7, RS0, RS1, RS2, RS3)>;
     def AEc : MC6809Reg8Class<(add AE)>;
     def AFc : MC6809Reg8Class<(add AF)>;
     def AWc : MC6809Reg16Class<(add AW)>;
-    // Bug #272 Phase B core re-land via Bug #297 (2026-05-15): AQc
-    // widened from {AQ} to AQ + SPILL_Q0..31 so regalloc can spill i32
-    // values when AQ is contested.  Preconditions: Scope A/B/C Defs
-    // cleanup (8091e9../b654c3..) so LDD no longer over-claims AQ; the
-    // legalizer's s32 G_LOAD/G_STORE rule (MC6809LegalizerInfo.cpp)
-    // routes i32 memory ops directly to LDQ/STQ rather than two-LDD
-    // slot-to-slot fallback; native i32 ADD/SUB landed via Bug #297
-    // commits 1-4 keeps the i32 value in AQ/SPILL_Q*N throughout the
-    // arithmetic chain, so the byte-decompose pathology that bit the
-    // first Phase B core attempt (9e782ca31fec) no longer manifests.
+    // AQc — i32 allocation pool: AQ + 32 SPILL_Q slots.  Spillable so
+    // regalloc has somewhere to put i32 values when AQ is contested
+    // by an enclosing call frame.  Accumulator Defs are scoped to
+    // only the half they actually clobber (LDD → AD, LDW → AW) so
+    // long-lived i32 values can sit in AQ across half-width ops.
     def AQc : MC6809Reg32Class<(add AQ, SPILL_Q0, SPILL_Q1, SPILL_Q2, SPILL_Q3,
                                     (sequence "SPILL_Q%u", 4, 31))>;
     let isPressureFineGrained = true in
