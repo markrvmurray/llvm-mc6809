@@ -460,42 +460,8 @@ MC6809InstrCost MC6809RegisterInfo::copyCost(Register DestReg, Register SrcReg, 
   if (AreClasses(MC6809::CCondRegClass, MC6809::CCondRegClass)) {
     return MC6809InstrCost(0, 0);
   }
-  if (AreClasses(MC6809::BIT1RegClass, MC6809::BIT1RegClass)) {
-    Register SrcReg8 = bit1ByteParent(SrcReg);
-    Register DestReg8 = bit1ByteParent(DestReg);
-    auto BitCost = MC6809InstrCost(3, 4);
-
-    if (SrcReg8) {
-      SrcReg = SrcReg8;
-      if (DestReg8) {
-        DestReg = DestReg8;
-        return copyCost(DestReg, SrcReg, STI);
-      }
-      if (DestReg == MC6809::C) {
-        MC6809InstrCost Cost = AluImm8Cost;
-        if (!MC6809::ACC8RegClass.contains(SrcReg))
-          Cost += copyCost(MC6809::AA, SrcReg, STI);
-        return Cost;
-      }
-
-      if (MC6809::ACC8RegClass.contains(SrcReg)) {
-        return Push8Cost + Pop8Cost + BranchCost + BitCost + JumpCost + ClVCost;
-      }
-      return copyCost(MC6809::AA, SrcReg, STI) + BranchCost + BitCost + JumpCost + ClVCost;
-    }
-    if (DestReg8) {
-      DestReg = DestReg8;
-
-      Register Tmp = DestReg;
-      if (!MC6809::ACC8RegClass.contains(Tmp))
-        Tmp = MC6809::AA;
-      MC6809InstrCost Cost = LoadImm8Cost * 2 + BranchCost;
-      if (Tmp != DestReg)
-        Cost += copyCost(DestReg, Tmp, STI);
-      return Cost;
-    }
-    return (Push8Cost + Pop8Cost) * 3 + AluImm8Cost + BranchCost + ClVCost;
-  }
+  // Bug #311 Phase 1 step 1.4 (2026-05-20): BIT1↔BIT1 copy cost arm
+  // retired; no BIT1 vregs exist after step 1.1/1.2/1.3.
 
   // Guard: any remaining pair is impossible (size mismatch, nonsensical).
   return ImpossibleCost;

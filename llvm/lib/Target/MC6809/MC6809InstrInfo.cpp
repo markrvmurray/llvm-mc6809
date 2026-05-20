@@ -1875,34 +1875,10 @@ static bool emitHD6309RegRegOp(MachineIRBuilder &Builder, MachineInstr &MI,
     Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(SrcReg);
   } else if (AreClasses(MC6809::ACC8RegClass, MC6809::CCondRegClass) || AreClasses(MC6809::CCondRegClass, MC6809::ACC8RegClass)) {
     Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(SrcReg);
-  } else if (AreClasses(MC6809::BIT1RegClass, MC6809::BIT1RegClass)) {
-    // BIT1 → BIT1: the value lives in bit 0 of the parent byte register
-    // (AA for AALSB, AB for ABLSB). TFR is a hardware instruction that
-    // can only address architectural registers, not LSB sub-registers,
-    // so we must transfer the parent bytes — not the BIT1 sub-registers
-    // themselves. Emitting `TFRp` with raw BIT1 operands produced
-    // garbage encodings (asm printed "tfr aLSB,bLSB" which the assembler
-    // can't parse; obj output fell through encodeRegOpValue's default
-    // branch and emitted bogus 4-bit postbytes — sometimes 0x24 = "tfr y,s"
-    // — which corrupt SP at run-time, see bug #200).
-    Register DestByte = getBit1ByteHalf(DestReg);
-    Register SrcByte = getBit1ByteHalf(SrcReg);
-    if (DestByte != SrcByte)
-      Builder.buildInstr(MC6809::TFRp).addDef(DestByte).addUse(SrcByte);
-  } else if (AreClasses(MC6809::ACC8RegClass, MC6809::BIT1RegClass)) {
-    // BIT1 → ACC8: the boolean value is in the LSB of an ACC8 register.
-    // Copy the byte and mask to ensure only bit 0 is set.  BIT1 members
-    // (AALSB/ABLSB/AELSB/AFLSB) map to their parent byte (AA/AB/AE/AF)
-    // via getBit1ByteHalf — no longer routes through sub_lsb.
-    SrcReg = getBit1ByteHalf(SrcReg);
-    if (DestReg != SrcReg)
-      Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(SrcReg);
-    Builder.buildInstr(MC6809::AND_i8_Imm).addDef(DestReg).addUse(DestReg).addImm(1);
-  } else if (AreClasses(MC6809::BIT1RegClass, MC6809::ACC8RegClass)) {
-    // ACC8 → BIT1: just copy the byte (the LSB is the boolean).
-    DestReg = getBit1ByteHalf(DestReg);
-    if (DestReg != SrcReg)
-      Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(SrcReg);
+  // Bug #311 Phase 1 step 1.4 (2026-05-20): BIT1↔BIT1, ACC8↔BIT1,
+  // BIT1↔ACC8 copy arms retired.  Post-1.1/1.2/1.3, no BIT1-class
+  // vregs are created — i1 values live in ACC8 with the byte's LSB
+  // carrying the value.  ACC8↔ACC8 copies handle all i1 traffic.
   } else if (AreClasses(MC6809::Imag8RegClass, MC6809::ACC8RegClass)) {
     // ACC8 → Imag8: store accumulator to direct-page imaginary register.
     unsigned StoreOpc;
@@ -2027,12 +2003,14 @@ const TargetRegisterClass *MC6809InstrInfo::canFoldCopy(const MachineInstr &MI, 
   if (!MI.getMF()->getFunction().doesNotRecurse())
     return TargetInstrInfo::canFoldCopy(MI, TII, FoldIdx);
 
+  // Bug #311 Phase 1 step 1.4 (2026-05-20): BIT1RegClass branches
+  // retired — all i1 values live in ACC8 post-1.1/1.2/1.3.
   Register FoldReg = MI.getOperand(FoldIdx).getReg();
-  if (MC6809::ACC8RegClass.contains(FoldReg) || MC6809::BIT1RegClass.contains(FoldReg))
+  if (MC6809::ACC8RegClass.contains(FoldReg))
     return TargetInstrInfo::canFoldCopy(MI, TII, FoldIdx);
   if (FoldReg.isVirtual()) {
     const auto *RC = MI.getMF()->getRegInfo().getRegClass(FoldReg);
-    if (RC == &MC6809::ACC8RegClass || RC == &MC6809::BIT1RegClass)
+    if (RC == &MC6809::ACC8RegClass)
       return TargetInstrInfo::canFoldCopy(MI, TII, FoldIdx);
   }
   return nullptr;
@@ -2050,18 +2028,16 @@ void MC6809InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB, MachineBasicB
 static void loadStoreRegisterStaticStackSlot(MachineIRBuilder &Builder, MachineOperand MO, int FrameIndex, int64_t Offset, MachineMemOperand *MMO) {
   const MachineRegisterInfo &MRI = *Builder.getMRI();
 
+  // Bug #311 Phase 1 step 1.4 (2026-05-20): BIT1 branches retired.
   Register Reg = MO.getReg();
   unsigned Size = 0;
   if (Reg.isPhysical()) {
-    if (MC6809::BIT1RegClass.contains(Reg))
-      Size = 1;
     // Bug #307 (2026-05-18): PHANTOM_CARRY is an allocatable Reg1Class
-    // intended as scheduling-phantom bookkeeping (see Bug #302 follow-up
-    // comment at MC6809RegisterInfo.td:405).  The class isn't marked
+    // intended as scheduling-phantom bookkeeping.  The class isn't marked
     // unspillable, so regalloc CAN choose to spill a phantom_carry
     // vreg under register pressure.  Per `MC6809Reg1Class`'s RegInfo
     // ("1-bit wide, but takes 8 bits to spill"), spill width is 8 bits.
-    else if (MC6809::PHANTOM_CARRYRegClass.contains(Reg))
+    if (MC6809::PHANTOM_CARRYRegClass.contains(Reg))
       Size = 8;
     else if (MC6809::CCFlagRegClass.contains(Reg) || MC6809::ACC8RegClass.contains(Reg))
       Size = 8;
@@ -2070,16 +2046,12 @@ static void loadStoreRegisterStaticStackSlot(MachineIRBuilder &Builder, MachineO
     else if (MC6809::ACC32RegClass.contains(Reg))
       Size = 32;
     else {
-      // LLVM_DEBUG(dbgs() << "OINQUUE DEBUG : " << __func__ << " : " );
       llvm_unreachable("Unexpected physical register class");
     }
   } else {
-    if (MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::BIT1RegClass))
-      Size = 1;
-    // Bug #307 (2026-05-18): see comment above for the physical-register
-    // branch.  Virtual phantom_carry vregs get this path during
+    // Bug #307: virtual phantom_carry vregs hit this path during
     // pressure-driven spill.
-    else if (MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::PHANTOM_CARRYRegClass))
+    if (MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::PHANTOM_CARRYRegClass))
       Size = 8;
     else if (MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::CCFlagRegClass))
       Size = 8;
@@ -2094,18 +2066,10 @@ static void loadStoreRegisterStaticStackSlot(MachineIRBuilder &Builder, MachineO
     else if (MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::ACC32RegClass))
       Size = 32;
     else {
-      // LLVM_DEBUG(dbgs() << "OINQUUE DEBUG : " << __func__ << " : " );
       llvm_unreachable("Unexpected virtual register class");
     }
   }
   assert(Size != 0);
-
-  // Convert bit to byte if directly possible.  BIT1 members
-  // (AALSB/ABLSB/AELSB/AFLSB) map to their parent byte (AA/AB/AE/AF).
-  if (Reg.isPhysical() && MC6809::BIT1RegClass.contains(Reg)) {
-    Reg = getBit1ByteHalf(Reg);
-    MO.setReg(Reg);
-  }
 
   // Emit directly through ACC or INDEX if possible.
   // INDEX16 uses Store/Load_iPtr_Mem (STX/LDX/STY/LDY) — no D clobber.
@@ -2144,7 +2108,11 @@ static void loadStoreRegisterStaticStackSlot(MachineIRBuilder &Builder, MachineO
   }
 
   // Emit via copy through ACC.
-  bool IsBit = (Reg.isPhysical() && MC6809::BIT1RegClass.contains(Reg)) || (Reg.isVirtual() && (MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::BIT1RegClass) || MO.getSubReg() == MC6809::sub_lsb));
+  // Bug #311 Phase 1 step 1.4 (2026-05-20): BIT1 / sub_lsb retired —
+  // IsBit is always false now; the branches that consumed it become
+  // dead code but are left in place to minimise diff churn (the next
+  // sweep can prune them).
+  bool IsBit = false;
   MachineOperand Tmp = MachineOperand::CreateReg(Builder.getMRI()->createVirtualRegister(&MC6809::ACC8RegClass), MO.isDef());
   if (Tmp.isUse()) {
     // Define the temporary register via copy from the MO.

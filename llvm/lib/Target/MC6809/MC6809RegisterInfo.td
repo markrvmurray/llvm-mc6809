@@ -490,18 +490,14 @@ def PHANTOM_CARRY : MC6809Reg1Class<(add PHANTOM_CARRY_0, PHANTOM_CARRY_1,
                                           PHANTOM_CARRY_2, PHANTOM_CARRY_3,
                                           PHANTOM_CARRY_4, PHANTOM_CARRY_5,
                                           PHANTOM_CARRY_6, PHANTOM_CARRY_7)>;
-// Bug #302 BIT1 elimination probe: BIT1's members are now byte physregs
-// (AA / AB / AE / AF) -- the same as ACC8 minus the spill members.  i1
-// values share storage with i8 (per the MVT::i1 -> ACC8 binding in
-// ISelLowering).  This makes BIT1 a value-type-distinguishing alias for
-// ACC8: same physregs, distinct class for pattern-match disambiguation
-// of (i1 ...) vs (i8 ...) terms in TableGen patterns.  AALSB/ABLSB/
-// AELSB/AFLSB and the sub_lsb SubRegIndex retire in subsequent
-// commits once no caller depends on them.
-def BIT1 : MC6809Reg1Class<(add AA, AB, AE, AF)> {
-    let AltOrders = [(add AA, AB)];
-    let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
-}
+// Bug #311 Phase 1 step 1.4 (2026-05-20): def BIT1 retired.  i1 values
+// live in ACC8; the LSB of the byte carries the boolean (same encoding
+// BIT1 used in practice).  AALSB/ABLSB/AELSB/AFLSB physregs, the
+// *LSBc classes, and the sub_lsb SubRegIndex are still in the .td but
+// no longer reachable through any producer/consumer path — they retire
+// in a subsequent sweep when the C++ helper functions (isSpillLsb /
+// getLsbSpillParent / getLsbSpillByteHalf / getBit1ByteHalf) are
+// pruned (the natural step 1.5 follow-up).
 def ACC8 : MC6809Reg8Class<(add AB, AA, AF, AE, SPILL_B0, SPILL_B1, SPILL_B2, SPILL_B3, SPILL_B4, SPILL_B5, SPILL_B6, SPILL_B7, SPILL_A0, SPILL_A1, SPILL_A2, SPILL_A3, SPILL_A4, SPILL_A5, SPILL_A6, SPILL_A7, RC0, RC1, RC2, RC3, RC4, RC5, RC6, RC7, RC8, RC9, RC10, RC11, RC12, RC13, RC14, RC15)> {
     // AE and AF are HD6309-only. Exclude from allocation on 6809.
     let AltOrders = [(add AB, AA, SPILL_B0, SPILL_B1, SPILL_B2, SPILL_B3, SPILL_B4, SPILL_B5, SPILL_B6, SPILL_B7, SPILL_A0, SPILL_A1, SPILL_A2, SPILL_A3, SPILL_A4, SPILL_A5, SPILL_A6, SPILL_A7, RC0, RC1, RC2, RC3, RC4, RC5, RC6, RC7, RC8, RC9, RC10, RC11, RC12, RC13, RC14, RC15)];
