@@ -6917,24 +6917,31 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
 
 void MC6809InstrInfo::expandComparePull(MachineIRBuilder &Builder, MachineInstr &MI) const {
   // Compare_*_Pull: compare register with value pushed on S stack.
-  // Push_i16 already pushed the second operand. We compare the first
-  // operand (in an accumulator) with [S], then clean up the stack.
+  // Push_i16 (or Push_i8) has pushed the second operand.  We compare
+  // the first operand (in an accumulator) with [S], then advance $ss
+  // past the pushed byte/word via the auto-increment indexed form so
+  // a separate LEAS cleanup is not needed.
+  //   byte (Size==1) :  CMP{A,B,E,F} ,s+      (1 instruction, 2 bytes)
+  //   word (Size==2) :  CMP{D,W,X,Y} ,s++
   // Operand 0 = CC (def), 1 = condition code, 2 = src register, 3 = stack reg
   assert(MI.getOperand(2).isReg() && "The source of pull compares must be a register");
 
   auto SrcReg = MI.getOperand(2).getReg();
   MachineFunction &MF = *MI.getMF();
   SrcReg = materializeReg(Builder, SrcReg, MF);
-  int Size = (SrcReg == MC6809::AA || SrcReg == MC6809::AB ||
-              SrcReg == MC6809::AE || SrcReg == MC6809::AF) ? 1 : 2;
-  // Compare with [S+0] (zero offset from stack pointer).
-  RegPlusOffsetLen Lookup{SrcReg, 0};
-  auto OpcodePair = CompareIdxImmOpcode.find(Lookup);
-  if (OpcodePair == CompareIdxImmOpcode.end())
-    llvm_unreachable("Unexpected register in Compare_Pull expansion.");
-  Builder.buildInstr(OpcodePair->getSecond()).addReg(MC6809::SS);
-  // Clean up the pushed value.
-  Builder.buildInstr(MC6809::LEASi_o5).addImm(Size).addReg(MC6809::SS);
+  unsigned IncOpc = 0;
+  switch (SrcReg) {
+  case MC6809::AA: IncOpc = MC6809::CMPAi_Inc1; break;
+  case MC6809::AB: IncOpc = MC6809::CMPBi_Inc1; break;
+  case MC6809::AE: IncOpc = MC6809::CMPEi_Inc1; break;
+  case MC6809::AF: IncOpc = MC6809::CMPFi_Inc1; break;
+  case MC6809::AD: IncOpc = MC6809::CMPDi_Inc2; break;
+  case MC6809::AW: IncOpc = MC6809::CMPWi_Inc2; break;
+  case MC6809::IX: IncOpc = MC6809::CMPXi_Inc2; break;
+  case MC6809::IY: IncOpc = MC6809::CMPYi_Inc2; break;
+  default: llvm_unreachable("Unexpected register in Compare_Pull expansion.");
+  }
+  Builder.buildInstr(IncOpc).addReg(MC6809::SS);
   MI.eraseFromParent();
 }
 
