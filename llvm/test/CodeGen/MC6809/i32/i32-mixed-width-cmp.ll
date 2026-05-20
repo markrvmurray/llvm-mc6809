@@ -27,23 +27,23 @@ define i1 @eq_i32_sext_i16(i32 %a, i16 %b) {
 ; O0-NEXT:    cmpd #0
 ; O0-NEXT:    lblt .LBB0_2
 ; O0-NEXT:  ; %bb.1:
-; O0-NEXT:    lda #0
+; O0-NEXT:    ldb #0
 ; O0-NEXT:    lbra .LBB0_3
 ; O0-NEXT:  .LBB0_2:
-; O0-NEXT:    lda #1
+; O0-NEXT:    ldb #1
 ; O0-NEXT:  .LBB0_3:
-; O0-NEXT:    tfr a,b
-; O0-NEXT:    andb #1
-; O0-NEXT:    negb
-; O0-NEXT:    stb 9,u
+; O0-NEXT:    tfr b,a
+; O0-NEXT:    anda #1
+; O0-NEXT:    nega
+; O0-NEXT:    sta 8,u
 ; O0-NEXT:    leas -8,s
 ; O0-NEXT:    ldd 12,u
 ; O0-NEXT:    std 2,s
 ; O0-NEXT:    ldd 10,u
 ; O0-NEXT:    std ,s
-; O0-NEXT:    ldb 9,u
-; O0-NEXT:    tfr b,a
-; O0-NEXT:    ldb 9,u
+; O0-NEXT:    lda 8,u
+; O0-NEXT:    lda 8,u
+; O0-NEXT:    tfr a,b
 ; O0-NEXT:    std 4,s
 ; O0-NEXT:    tfr x,d
 ; O0-NEXT:    std 6,s
@@ -81,22 +81,22 @@ define i1 @eq_i32_sext_i16(i32 %a, i16 %b) {
 ; O2-NEXT:    cmpd #0
 ; O2-NEXT:    lblt .LBB0_2
 ; O2-NEXT:  ; %bb.1:
-; O2-NEXT:    lda #0
+; O2-NEXT:    ldb #0
 ; O2-NEXT:    bra .LBB0_3
 ; O2-NEXT:  .LBB0_2:
-; O2-NEXT:    lda #1
+; O2-NEXT:    ldb #1
 ; O2-NEXT:  .LBB0_3:
-; O2-NEXT:    tfr a,b
-; O2-NEXT:    andb #1
-; O2-NEXT:    negb
-; O2-NEXT:    stb 9,u
+; O2-NEXT:    tfr b,a
+; O2-NEXT:    anda #1
+; O2-NEXT:    nega
+; O2-NEXT:    sta 8,u
 ; O2-NEXT:    leas -8,s
 ; O2-NEXT:    ldd 12,u
 ; O2-NEXT:    std 2,s
 ; O2-NEXT:    ldd 10,u
 ; O2-NEXT:    std ,s
-; O2-NEXT:    ldb 9,u
-; O2-NEXT:    tfr b,a
+; O2-NEXT:    lda 8,u
+; O2-NEXT:    tfr a,b
 ; O2-NEXT:    std 4,s
 ; O2-NEXT:    tfr x,d
 ; O2-NEXT:    std 6,s
@@ -233,45 +233,44 @@ define i1 @sgt_i32_sext_i8(i32 %a, i8 %b) {
 ; O0-NEXT:    pshs u,y
 ; O0-NEXT:    tfr s,u
 ; O0-NEXT:    stb 17,u
-; O0-NEXT:    std 6,u
+; O0-NEXT:    std 8,u
 ; O0-NEXT:    ldd 28,u
 ; O0-NEXT:    std 14,u
-; O0-NEXT:    ldd 6,u
-; O0-NEXT:    std 4,u
+; O0-NEXT:    ldd 8,u
+; O0-NEXT:    std 6,u
 ; O0-NEXT:    ldd 26,u
 ; O0-NEXT:    std 12,u
-; O0-NEXT:    ldd 4,u
+; O0-NEXT:    ldd 6,u
 ; O0-NEXT:    cmpb #0
 ; O0-NEXT:    lblt .LBB2_2
 ; O0-NEXT:  ; %bb.1:
-; O0-NEXT:    lda #0
+; O0-NEXT:    ldb #0
 ; O0-NEXT:    lbra .LBB2_3
 ; O0-NEXT:  .LBB2_2:
-; O0-NEXT:    lda #1
+; O0-NEXT:    ldb #1
 ; O0-NEXT:  .LBB2_3:
-; O0-NEXT:    tfr a,b
-; O0-NEXT:    andb #1
-; O0-NEXT:    negb
-; O0-NEXT:    stb 11,u
+; O0-NEXT:    tfr b,a
+; O0-NEXT:    anda #1
+; O0-NEXT:    nega
+; O0-NEXT:    sta 16,u
 ; O0-NEXT:    leas -8,s
 ; O0-NEXT:    ldd 14,u
 ; O0-NEXT:    std 2,s
 ; O0-NEXT:    ldd 12,u
 ; O0-NEXT:    std ,s
-; O0-NEXT:    ldb 11,u
-; O0-NEXT:    tfr b,a
 ; O0-NEXT:    ldb 17,u
+; O0-NEXT:    lda 16,u
 ; O0-NEXT:    std 6,s
-; O0-NEXT:    ldb 11,u
-; O0-NEXT:    tfr b,a
-; O0-NEXT:    ldb 11,u
+; O0-NEXT:    lda 16,u
+; O0-NEXT:    lda 16,u
+; O0-NEXT:    tfr a,b
 ; O0-NEXT:    std 4,s
 ; O0-NEXT:    leay 18,u
-; O0-NEXT:    sty 8,u
-; O0-NEXT:    ldy 8,u
+; O0-NEXT:    sty 10,u
+; O0-NEXT:    ldy 10,u
 ; O0-NEXT:    tfr y,x
 ; O0-NEXT:    lbsr __cmpsi2
-; O0-NEXT:    ldy 8,u
+; O0-NEXT:    ldy 10,u
 ; O0-NEXT:    ldd 2,y
 ; O0-NEXT:    leas 8,s
 ; O0-NEXT:    cmpb #2
@@ -289,52 +288,46 @@ define i1 @sgt_i32_sext_i8(i32 %a, i8 %b) {
 ;
 ; O2-LABEL: sgt_i32_sext_i8:
 ; O2:       ; %bb.0:
-; O2-NEXT:    leas -24,s
+; O2-NEXT:    leas -20,s
 ; O2-NEXT:    pshs u,y
 ; O2-NEXT:    tfr s,u
-; O2-NEXT:    stb 21,u
-; O2-NEXT:    std 10,u
-; O2-NEXT:    ldd 32,u
-; O2-NEXT:    std 18,u
-; O2-NEXT:    ldd 10,u
+; O2-NEXT:    stb 17,u
 ; O2-NEXT:    std 8,u
-; O2-NEXT:    ldd 30,u
-; O2-NEXT:    std 16,u
+; O2-NEXT:    ldd 28,u
+; O2-NEXT:    std 14,u
 ; O2-NEXT:    ldd 8,u
+; O2-NEXT:    std 6,u
+; O2-NEXT:    ldd 26,u
+; O2-NEXT:    std 12,u
+; O2-NEXT:    ldd 6,u
 ; O2-NEXT:    cmpb #0
 ; O2-NEXT:    lblt .LBB2_2
 ; O2-NEXT:  ; %bb.1:
-; O2-NEXT:    lda #0
+; O2-NEXT:    ldb #0
 ; O2-NEXT:    bra .LBB2_3
 ; O2-NEXT:  .LBB2_2:
-; O2-NEXT:    lda #1
+; O2-NEXT:    ldb #1
 ; O2-NEXT:  .LBB2_3:
-; O2-NEXT:    tfr a,b
-; O2-NEXT:    andb #1
-; O2-NEXT:    negb
-; O2-NEXT:    stb 15,u
-; O2-NEXT:    leas -8,s
-; O2-NEXT:    ldd 18,u
-; O2-NEXT:    std 2,s
-; O2-NEXT:    ldd 16,u
-; O2-NEXT:    std ,s
-; O2-NEXT:    ldb 15,u
 ; O2-NEXT:    tfr b,a
-; O2-NEXT:    std 6,u
-; O2-NEXT:    ldb 21,u
-; O2-NEXT:    std 20,u
-; O2-NEXT:    ldd 6,u
-; O2-NEXT:    std 4,u
-; O2-NEXT:    ldd 20,u
+; O2-NEXT:    anda #1
+; O2-NEXT:    nega
+; O2-NEXT:    sta 16,u
+; O2-NEXT:    leas -8,s
+; O2-NEXT:    ldd 14,u
+; O2-NEXT:    std 2,s
+; O2-NEXT:    ldd 12,u
+; O2-NEXT:    std ,s
+; O2-NEXT:    ldb 17,u
+; O2-NEXT:    lda 16,u
 ; O2-NEXT:    std 6,s
-; O2-NEXT:    ldd 4,u
-; O2-NEXT:    ldb 15,u
+; O2-NEXT:    lda 16,u
+; O2-NEXT:    tfr a,b
 ; O2-NEXT:    std 4,s
-; O2-NEXT:    leay 22,u
-; O2-NEXT:    sty 12,u
+; O2-NEXT:    leay 18,u
+; O2-NEXT:    sty 10,u
 ; O2-NEXT:    tfr y,x
 ; O2-NEXT:    lbsr __cmpsi2
-; O2-NEXT:    ldy 12,u
+; O2-NEXT:    ldy 10,u
 ; O2-NEXT:    ldd 2,y
 ; O2-NEXT:    leas 8,s
 ; O2-NEXT:    cmpb #2
@@ -347,7 +340,7 @@ define i1 @sgt_i32_sext_i8(i32 %a, i8 %b) {
 ; O2-NEXT:  .LBB2_6:
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u,y
-; O2-NEXT:    leas 24,s
+; O2-NEXT:    leas 20,s
 ; O2-NEXT:    rts
   %nn = sext i8 %b to i32
   %c = icmp sgt i32 %a, %nn

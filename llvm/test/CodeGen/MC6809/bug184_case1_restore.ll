@@ -51,12 +51,11 @@ define void @sext_i16_to_i32_then_store(ptr %out, i16 %x) {
 ; CHECK-NEXT:    cmpd #0
 ; CHECK-NEXT:    lblt .LBB0_2
 ; CHECK-NEXT:  ; %bb.1:
-; CHECK-NEXT:    lda #0
+; CHECK-NEXT:    ldb #0
 ; CHECK-NEXT:    bra .LBB0_3
 ; CHECK-NEXT:  .LBB0_2:
-; CHECK-NEXT:    lda #1
+; CHECK-NEXT:    ldb #1
 ; CHECK-NEXT:  .LBB0_3:
-; CHECK-NEXT:    tfr a,b
 ; CHECK-NEXT:    andb #1
 ; CHECK-NEXT:    negb
 ; CHECK-NEXT:    stb 12,u
