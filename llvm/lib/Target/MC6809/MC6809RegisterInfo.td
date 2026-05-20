@@ -39,10 +39,7 @@ def sub_nz_zero : MC6809SubRegIndex<1, 0>;
 // Bits of the 8-bit processor status register set by most instructions.
 def sub_nzvc : MC6809SubRegIndex<4, 0>;
 
-// Least-significant bit of an 8-bit register. Writes to this are considered to
-// write zeroes to the other bits (for now), so we can reduce LSB writes to
-// zero-extension.
-def sub_lsb : MC6809SubRegIndex<1>;
+// Bug #311: sub_lsb SubRegIndex retired alongside BIT1.
 
 //===----------------------------------------------------------------------===//
 //  Real registers
@@ -70,21 +67,16 @@ class MC6809Reg8<bits<16> num, string name, list<Register> subregs = [], list<Su
     let CoveredBySubRegs = false;
 }
 
-// An 8-bit value register (GPR or imaginary).  Bug #302: AA / AB / AE / AF
-// and SPILL_A* / SPILL_B* no longer declare a sub_lsb sub-register.
-// The 1-bit LSB physregs (AALSB / ABLSB / AELSB / AFLSB and
-// SPILL_*LSB) are still defined alongside (so AALSBc / ABLSBc /
-// AELSBc / AFLSBc and the SPILL_*LSB helpers compile) but they no
-// longer alias the byte parents through sub_lsb -- the sub_lsb
-// chain through AA / AB / AE / AF into AD / AW / AQ was what drove
-// TableGen to synthesize the acc32_with_sub_lsb intersection class
-// (collapses to {AQ} because SPILL_Q*N have no sub-register metadata)
-// and exhaust vfprintf's regalloc at -Og-lto-hd6309-mame-fp.  i1
-// values live in ACC8 directly now (ISelLowering binds MVT::i1 to
-// ACC8RegClass; BIT1's members are the same byte parents, BIT1
-// surviving as a value-type-distinguishing alias for ACC8).
+// An 8-bit value register (GPR or imaginary).  Bug #302 + Bug #311:
+// the 1-bit `LSB` sub-def is gone — i1 values live in ACC8 directly
+// (ISelLowering binds MVT::i1 to ACC8RegClass); no producer emits a
+// 1-bit-typed vreg that would need a 1-bit physreg home.  The
+// historic chain (sub_lsb → BIT1 → AALSBc/ABLSBc/AELSBc/AFLSBc +
+// SPILL_*LSB) was what drove TableGen to synthesize
+// `acc32_with_sub_lsb` (collapses to {AQ} because SPILL_Q*N have no
+// sub-reg metadata) and exhaust vfprintf's regalloc at
+// -Og-lto-hd6309-mame-fp.
 multiclass MC6809Reg8<bits<16> num, string name> {
-  def LSB : MC6809Reg1<!add(num, 128), name#"LSB">;
   def NAME : MC6809Reg8<num, name, [], []>;
 }
 
@@ -617,15 +609,13 @@ let isAllocatable = false in {
 
 // Single register classes.
     def AAc : MC6809Reg8Class<(add AA, SPILL_A0, SPILL_A1, SPILL_A2, SPILL_A3, SPILL_A4, SPILL_A5, SPILL_A6, SPILL_A7)>;
-    def AALSBc : MC6809Reg1Class<(add AALSB, SPILL_A0LSB, SPILL_A1LSB, SPILL_A2LSB, SPILL_A3LSB, SPILL_A4LSB, SPILL_A5LSB, SPILL_A6LSB, SPILL_A7LSB)>;
+    // Bug #311: AALSBc / ABLSBc / AELSBc / AFLSBc retired alongside
+    // BIT1 — no 1-bit physreg consumers remain.
     def ABc : MC6809Reg8Class<(add AB, SPILL_B0, SPILL_B1, SPILL_B2, SPILL_B3, SPILL_B4, SPILL_B5, SPILL_B6, SPILL_B7)>;
-    def ABLSBc : MC6809Reg1Class<(add ABLSB, SPILL_B0LSB, SPILL_B1LSB, SPILL_B2LSB, SPILL_B3LSB, SPILL_B4LSB, SPILL_B5LSB, SPILL_B6LSB, SPILL_B7LSB)>;
     let isPressureFineGrained = true in
     def ADc : MC6809Reg16Class<(add AD, SPILL_D0, SPILL_D1, SPILL_D2, SPILL_D3, SPILL_D4, SPILL_D5, SPILL_D6, SPILL_D7, RS0, RS1, RS2, RS3)>;
     def AEc : MC6809Reg8Class<(add AE)>;
-    def AELSBc : MC6809Reg1Class<(add AELSB)>;
     def AFc : MC6809Reg8Class<(add AF)>;
-    def AFLSBc : MC6809Reg1Class<(add AFLSB)>;
     def AWc : MC6809Reg16Class<(add AW)>;
     // Bug #272 Phase B core re-land via Bug #297 (2026-05-15): AQc
     // widened from {AQ} to AQ + SPILL_Q0..31 so regalloc can spill i32

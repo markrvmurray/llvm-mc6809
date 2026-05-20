@@ -112,8 +112,7 @@ BitVector MC6809RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
     Reserved.set(MC6809::AF);
     Reserved.set(MC6809::AW);
     Reserved.set(MC6809::AQ);
-    Reserved.set(MC6809::AELSB);
-    Reserved.set(MC6809::AFLSB);
+    // Bug #311: AELSB / AFLSB removed alongside BIT1.
     Reserved.set(MC6809::MD);
   }
 
@@ -164,8 +163,7 @@ const uint32_t *MC6809RegisterInfo::getCallPreservedMask(const MachineFunction &
     for (MCPhysReg Reg : {MC6809::SPILL_D0, MC6809::SPILL_D1, MC6809::SPILL_D2, MC6809::SPILL_D3, MC6809::SPILL_D4, MC6809::SPILL_D5, MC6809::SPILL_D6, MC6809::SPILL_D7,
                           MC6809::SPILL_A0, MC6809::SPILL_A1, MC6809::SPILL_A2, MC6809::SPILL_A3, MC6809::SPILL_A4, MC6809::SPILL_A5, MC6809::SPILL_A6, MC6809::SPILL_A7,
                           MC6809::SPILL_B0, MC6809::SPILL_B1, MC6809::SPILL_B2, MC6809::SPILL_B3, MC6809::SPILL_B4, MC6809::SPILL_B5, MC6809::SPILL_B6, MC6809::SPILL_B7,
-                          MC6809::SPILL_A0LSB, MC6809::SPILL_A1LSB, MC6809::SPILL_A2LSB, MC6809::SPILL_A3LSB, MC6809::SPILL_A4LSB, MC6809::SPILL_A5LSB, MC6809::SPILL_A6LSB, MC6809::SPILL_A7LSB,
-                          MC6809::SPILL_B0LSB, MC6809::SPILL_B1LSB, MC6809::SPILL_B2LSB, MC6809::SPILL_B3LSB, MC6809::SPILL_B4LSB, MC6809::SPILL_B5LSB, MC6809::SPILL_B6LSB, MC6809::SPILL_B7LSB,
+                          // Bug #311: SPILL_*LSB rows deleted along with BIT1.
                           // Bug #85b: SPILL_X0-X3 are stack-backed INDEX16 spill
                           // registers, exactly like SPILL_D0-D7 for ACC16. They
                           // must be marked call-preserved so the allocator knows
@@ -194,9 +192,9 @@ MC6809RegisterInfo::getSubClassWithSubReg(const TargetRegisterClass *RC,
   // cascading regalloc degradation. Fix: for ACC16/ADc, return the
   // class itself for byte-related sub-reg indices, preserving the
   // wide allocation pool.
+  // Bug #311: sub_lsb retired.
   if (RC == &MC6809::ACC16RegClass || RC == &MC6809::ADcRegClass) {
-    if (Idx == MC6809::sub_lo_byte || Idx == MC6809::sub_hi_byte ||
-        Idx == MC6809::sub_lsb)
+    if (Idx == MC6809::sub_lo_byte || Idx == MC6809::sub_hi_byte)
       return RC;
   }
   return MC6809GenRegisterInfo::getSubClassWithSubReg(RC, Idx);
@@ -335,19 +333,8 @@ bool MC6809RegisterInfo::getRegAllocationHints(Register VirtReg, ArrayRef<MCPhys
   return false;
 }
 
-// BIT1-member (AALSB/ABLSB/AELSB/AFLSB) -> parent ACC8 byte (AA/AB/AE/AF).
-// Mirrors getBit1ByteHalf in MC6809InstrInfo.cpp; duplicated here so the
-// copyCost reasoning is expressed in terms of the explicit byte-half
-// mapping rather than via getMatchingSuperReg(sub_lsb).
-static Register bit1ByteParent(Register R) {
-  switch (R) {
-  case MC6809::AALSB: return MC6809::AA;
-  case MC6809::ABLSB: return MC6809::AB;
-  case MC6809::AELSB: return MC6809::AE;
-  case MC6809::AFLSB: return MC6809::AF;
-  default:            return Register();
-  }
-}
+// Bug #311: bit1ByteParent retired alongside BIT1 / *LSB physregs.
+// Its sole caller (the BIT1↔BIT1 copyCost arm) was already removed.
 
 MC6809InstrCost MC6809RegisterInfo::copyCost(Register DestReg, Register SrcReg, const MC6809Subtarget &STI) const {
   if (DestReg == SrcReg)

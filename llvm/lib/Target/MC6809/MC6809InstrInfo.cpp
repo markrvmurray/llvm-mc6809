@@ -1147,116 +1147,27 @@ static unsigned getStoreIdxOpcode(Register Reg, int Offset) {
   llvm_unreachable("Unexpected register for spill store");
 }
 
-/// SPILL_*LSB pseudo-register support — bug #62.
+/// Bug #311: SPILL_*LSB / BIT1 support retired.  The four helper
+/// functions below (isLsbSpillReg, getLsbSpillParent,
+/// getLsbSpillByteHalf, getBit1ByteHalf) and the SPILL_*LSB ↔ BIT1
+/// copy machinery they served are gone.  *LSB physregs and the
+/// sub_lsb SubRegIndex are still defined in MC6809RegisterInfo.td
+/// pending a follow-up sweep.
 ///
-/// What SPILL_*LSB is
-/// ------------------
-/// The MC6809Reg8 multiclass in MC6809RegisterInfo.td declares both
-/// a byte register and a 1-bit sub-register for every spill byte:
+/// Historic note (Bug #62 / Bug #200): SPILL_*LSB was a regalloc
+/// fiction "the LSB of byte slot N at direct page address X" used
+/// when the four real BIT1 regs (AALSB/ABLSB/AELSB/AFLSB) were
+/// exhausted.  The byte's LSB carried the i1 value.  See
+/// MC6809RegisterInfo.td comments for the pre-Bug-#311 design.
 ///
-///     defm SPILL_B2 : MC6809Reg8<0x2005, "spill_b2">;
-///
-/// expands to:
-///
-///     def SPILL_B2LSB : MC6809Reg1<...>;       // 1-bit, the LSB
-///     def SPILL_B2 : MC6809Reg8<..., [SPILL_B2LSB], [sub_lsb]>;
-///
-/// The 1-bit pseudos are added to the AALSBc/ABLSBc register
-/// SUBclasses (alongside the real AALSB/ABLSB) so the regalloc has
-/// somewhere to spill BIT1 vregs when AALSB/ABLSB are otherwise live.
-///
-/// SPILL_*LSB doesn't exist in hardware
-/// ------------------------------------
+/// (LEGACY DOCS BELOW)
 /// It's a regalloc fiction. The "value" lives in bit 0 of the
 /// corresponding byte slot at the parent SPILL_A*/SPILL_B*'s
 /// direct-page address. To USE one, load the parent byte; the LSB
 /// sub-register of the loaded byte then holds the value naturally
-/// (because the regalloc only ever stores 0/1 there).
-///
-/// These helpers are used by copyPhysReg's SPILL_*LSB block (search
-/// for "Bug #62" near the top of copyPhysReg).
-///
-/// Why a separate isLsbSpillReg() and not a tweak to isSpillReg()?
-/// ---------------------------------------------------------------
-/// SPILL_*LSB doesn't go through MaterializeSpills (which only knows
-/// how to deal with byte/word spills, not 1-bit slices). Adding it
-/// to isSpillReg would push it through code paths that would try
-/// to load/store individual bits, which doesn't make sense. Keep it
-/// distinct so each consumer can decide whether to handle it.
-
-/// Returns true if `Reg` is one of the SPILL_*LSB 1-bit pseudo
-/// sub-registers of a spill byte (SPILL_A0LSB..SPILL_B7LSB).
-static bool isLsbSpillReg(Register Reg) {
-  switch (Reg) {
-  case MC6809::SPILL_A0LSB: case MC6809::SPILL_A1LSB:
-  case MC6809::SPILL_A2LSB: case MC6809::SPILL_A3LSB:
-  case MC6809::SPILL_A4LSB: case MC6809::SPILL_A5LSB:
-  case MC6809::SPILL_A6LSB: case MC6809::SPILL_A7LSB:
-  case MC6809::SPILL_B0LSB: case MC6809::SPILL_B1LSB:
-  case MC6809::SPILL_B2LSB: case MC6809::SPILL_B3LSB:
-  case MC6809::SPILL_B4LSB: case MC6809::SPILL_B5LSB:
-  case MC6809::SPILL_B6LSB: case MC6809::SPILL_B7LSB:
-    return true;
-  default:
-    return false;
-  }
-}
-
-/// Map a SPILL_*LSB to its parent SPILL_A* or SPILL_B* (the byte that
-/// contains it).
-static MCPhysReg getLsbSpillParent(Register Reg) {
-  switch (Reg) {
-  case MC6809::SPILL_A0LSB: return MC6809::SPILL_A0;
-  case MC6809::SPILL_A1LSB: return MC6809::SPILL_A1;
-  case MC6809::SPILL_A2LSB: return MC6809::SPILL_A2;
-  case MC6809::SPILL_A3LSB: return MC6809::SPILL_A3;
-  case MC6809::SPILL_A4LSB: return MC6809::SPILL_A4;
-  case MC6809::SPILL_A5LSB: return MC6809::SPILL_A5;
-  case MC6809::SPILL_A6LSB: return MC6809::SPILL_A6;
-  case MC6809::SPILL_A7LSB: return MC6809::SPILL_A7;
-  case MC6809::SPILL_B0LSB: return MC6809::SPILL_B0;
-  case MC6809::SPILL_B1LSB: return MC6809::SPILL_B1;
-  case MC6809::SPILL_B2LSB: return MC6809::SPILL_B2;
-  case MC6809::SPILL_B3LSB: return MC6809::SPILL_B3;
-  case MC6809::SPILL_B4LSB: return MC6809::SPILL_B4;
-  case MC6809::SPILL_B5LSB: return MC6809::SPILL_B5;
-  case MC6809::SPILL_B6LSB: return MC6809::SPILL_B6;
-  case MC6809::SPILL_B7LSB: return MC6809::SPILL_B7;
-  default: llvm_unreachable("Not an LSB spill register");
-  }
-}
-
-/// Which ACC8 byte (AA or AB) holds the LSB after loading the parent.
-/// SPILL_A* parents map to AA, SPILL_B* parents map to AB.
-static Register getLsbSpillByteHalf(Register Reg) {
-  switch (Reg) {
-  case MC6809::SPILL_A0LSB: case MC6809::SPILL_A1LSB:
-  case MC6809::SPILL_A2LSB: case MC6809::SPILL_A3LSB:
-  case MC6809::SPILL_A4LSB: case MC6809::SPILL_A5LSB:
-  case MC6809::SPILL_A6LSB: case MC6809::SPILL_A7LSB:
-    return MC6809::AA;
-  case MC6809::SPILL_B0LSB: case MC6809::SPILL_B1LSB:
-  case MC6809::SPILL_B2LSB: case MC6809::SPILL_B3LSB:
-  case MC6809::SPILL_B4LSB: case MC6809::SPILL_B5LSB:
-  case MC6809::SPILL_B6LSB: case MC6809::SPILL_B7LSB:
-    return MC6809::AB;
-  default: llvm_unreachable("Not an LSB spill register");
-  }
-}
-
-/// Which ACC8 byte (AA, AB, AE, AF) does a real BIT1 register live in?
-/// AALSB ↔ AA, ABLSB ↔ AB, AELSB ↔ AE, AFLSB ↔ AF (HD6309 page-3 sub-bytes).
-/// BIT1 has 4 members; if a copy reaches here with one of the page-3 LSBs,
-/// route through the corresponding parent byte register.
-static Register getBit1ByteHalf(Register Reg) {
-  // Bug #311 Phase 1 step 1.5 (2026-05-20): *LSB sub-reg comparisons
-  // retired (no *LSB physreg can appear as an operand post-BIT1).
-  if (Reg == MC6809::AA) return MC6809::AA;
-  if (Reg == MC6809::AB) return MC6809::AB;
-  if (Reg == MC6809::AE) return MC6809::AE;
-  if (Reg == MC6809::AF) return MC6809::AF;
-  llvm_unreachable("Not a BIT1 hardware register");
-}
+/// Bug #311: helper functions isLsbSpillReg / getLsbSpillParent /
+/// getLsbSpillByteHalf / getBit1ByteHalf deleted along with their
+/// only caller (the SPILL_*LSB ↔ BIT1 copy block in copyPhysReg).
 
 /// Emit a concrete U-indexed (frame pointer) load from a spill register's
 /// stack slot. Uses U (not S) so PSHS/PULS don't invalidate offsets.
@@ -1601,118 +1512,9 @@ static bool emitHD6309RegRegOp(MachineIRBuilder &Builder, MachineInstr &MI,
   if (DestReg == SrcReg)
     return;
 
-  // ===== Bug #62 fix: COPYs involving SPILL_*LSB pseudo-registers ====
-  //
-  // Background
-  // ----------
-  // The MC6809Reg8 multiclass declares each spill byte SPILL_A*/SPILL_B*
-  // alongside a 1-bit sub-register SPILL_*LSB. The 1-bit pseudos exist
-  // so the regalloc has somewhere to store BIT1 vregs (used to model
-  // the carry chain — see bug #57) when the real BIT1 registers
-  // (AALSB/ABLSB) are exhausted. They live in the AALSBc/ABLSBc
-  // register subclasses alongside the real BIT1 regs.
-  //
-  // SPILL_*LSB does not exist in hardware — it's a regalloc fiction
-  // meaning "the LSB of byte slot N at direct page address X". To
-  // USE the value, you have to load the whole parent byte; the loaded
-  // byte's LSB holds the 1-bit value naturally because the regalloc
-  // only ever stores values in the LSB position.
-  //
-  // What this block handles
-  // -----------------------
-  // PHI elimination and other post-RA passes can produce three shapes
-  // of COPY involving SPILL_*LSB. Each maps to a tiny instruction
-  // sequence:
-  //
-  //   1. SPILL_*LSB → BIT1   (load: e.g. `$ablsb = COPY $spill_b2lsb`)
-  //        emit:  LDB <spill slot>,U     ; AB now holds the byte
-  //               (TFR if dest is in the OTHER half of the byte pair)
-  //        After the LDB, ABLSB *is* the value — no further work.
-  //
-  //   2. BIT1 → SPILL_*LSB   (store: e.g. `$spill_b2lsb = COPY $ablsb`)
-  //        emit:  (TFR if source is in the OTHER half)
-  //               STB <spill slot>,U     ; AB written to the slot
-  //        The LSB rides along inside the byte store.
-  //
-  //   3. SPILL_*LSB → SPILL_*LSB   (spill-to-spill move)
-  //        emit:  LDB <src slot>,U
-  //               (TFR if src and dst halves differ)
-  //               STB <dst slot>,U
-  //
-  // The TFR in cases 1 and 3 handles the cross-half case: SPILL_A*LSB
-  // (parent SPILL_A*) lives in the A half (AA), SPILL_B*LSB lives in
-  // the B half (AB). If the dest BIT1 reg is in the OTHER half from
-  // the source byte we just loaded, we need a TFR A,B or TFR B,A
-  // before the LSB sub-register is in the right place.
-  //
-  // Why this is at the very top of copyPhysReg
-  // ------------------------------------------
-  // SPILL_*LSB doesn't satisfy `needsMaterialization()` because
-  // `isSpillReg()` only lists the byte/word spill registers, not
-  // their LSB sub-registers. So the existing materialization block
-  // below would fall through to the AreClasses chain, which doesn't
-  // have a case for BIT1 ↔ SPILL_*LSB either, and the function would
-  // hit `llvm_unreachable("Unexpected physical register copy.")`.
-  // Special-casing here, before the materialization check, keeps the
-  // existing logic untouched and avoids dragging SPILL_*LSB into the
-  // wider spill-handling machinery.
-  //
-  // Why not add SPILL_*LSB to isSpillReg() instead?
-  // -----------------------------------------------
-  // That would route SPILL_*LSB through MaterializeSpills, which
-  // doesn't know about 1-bit operands and would try to load them as
-  // bytes anyway — and would also try to dematerialize them as bytes
-  // on store-back. Cleaner to handle the small set of LSB COPY shapes
-  // here than to teach two passes about a pseudo that's only ever
-  // moved by COPYs.
-  if (isLsbSpillReg(SrcReg) || isLsbSpillReg(DestReg)) {
-    MachineFunction &MF = *MBB.getParent();
-
-    // Case 1: SPILL_*LSB → BIT1 (real). Load the parent byte; the
-    // LSB sub-register IS the destination value.
-    if (isLsbSpillReg(SrcReg) && !isLsbSpillReg(DestReg)) {
-      MCPhysReg Parent = getLsbSpillParent(SrcReg);  // SPILL_B2 from SPILL_B2LSB
-      Register SrcByte = getLsbSpillByteHalf(SrcReg);  // AA or AB
-      // emitSpillLoad picks LDA or LDB based on SrcByte and emits a
-      // U-relative load from the parent's frame slot. After this,
-      // AALSB or ABLSB (the LSB sub-register of SrcByte) holds the bit.
-      emitSpillLoad(Builder, SrcByte, Parent, MF);
-      Register DestByte = getBit1ByteHalf(DestReg);  // AA for AALSB, AB for ABLSB
-      // If the destination BIT1 lives in a different byte half from
-      // the one we loaded into, transfer the byte across. The LSB
-      // sub-register of the destination half then holds the value.
-      if (SrcByte != DestByte)
-        Builder.buildInstr(MC6809::TFRp).addDef(DestByte).addUse(SrcByte);
-      return;
-    }
-
-    // Case 2: BIT1 (real) → SPILL_*LSB. Store the parent byte; the
-    // LSB the source represents rides along in bit 0 of that byte.
-    if (!isLsbSpillReg(SrcReg) && isLsbSpillReg(DestReg)) {
-      MCPhysReg Parent = getLsbSpillParent(DestReg);
-      Register DestByte = getLsbSpillByteHalf(DestReg);  // AA for SPILL_A*LSB, AB for SPILL_B*LSB
-      Register SrcByte = getBit1ByteHalf(SrcReg);
-      // Move the byte holding the LSB into the byte half that the
-      // dest spill lives in (only needed when crossing AA↔AB).
-      if (SrcByte != DestByte)
-        Builder.buildInstr(MC6809::TFRp).addDef(DestByte).addUse(SrcByte);
-      // emitSpillStore picks STA/STB based on DestByte.
-      emitSpillStore(Builder, DestByte, Parent, MF);
-      return;
-    }
-
-    // Case 3: SPILL_*LSB → SPILL_*LSB. Load source's parent into a
-    // byte register, transfer halves if needed, store dest's parent.
-    MCPhysReg SrcParent = getLsbSpillParent(SrcReg);
-    MCPhysReg DestParent = getLsbSpillParent(DestReg);
-    Register SrcByte = getLsbSpillByteHalf(SrcReg);
-    Register DestByte = getLsbSpillByteHalf(DestReg);
-    emitSpillLoad(Builder, SrcByte, SrcParent, MF);
-    if (SrcByte != DestByte)
-      Builder.buildInstr(MC6809::TFRp).addDef(DestByte).addUse(SrcByte);
-    emitSpillStore(Builder, DestByte, DestParent, MF);
-    return;
-  }
+  // Bug #311 Phase 1 step 1.5 (2026-05-20): the SPILL_*LSB ↔ BIT1
+  // copy machinery (originally Bug #62) is retired.  Post-step-1.4,
+  // BIT1 is gone and no path produces SPILL_*LSB vregs.
 
   // Handle copies involving spill pseudo-registers or imaginary registers.
   // Emit concrete S-indexed instructions (not pseudos with frame indices,
@@ -2112,20 +1914,13 @@ static void loadStoreRegisterStaticStackSlot(MachineIRBuilder &Builder, MachineO
   }
 
   // Emit via copy through ACC.
-  // Bug #311 Phase 1 step 1.4 (2026-05-20): BIT1 / sub_lsb retired —
-  // IsBit is always false now; the branches that consumed it become
-  // dead code but are left in place to minimise diff churn (the next
-  // sweep can prune them).
-  bool IsBit = false;
+  // Bug #311: the IsBit / sub_lsb branches that used to live here are
+  // gone; ACC8 carries all values that need this fallback path.
   MachineOperand Tmp = MachineOperand::CreateReg(Builder.getMRI()->createVirtualRegister(&MC6809::ACC8RegClass), MO.isDef());
   if (Tmp.isUse()) {
     // Define the temporary register via copy from the MO.
     MachineOperand TmpDef = Tmp;
     TmpDef.setIsDef();
-    if (IsBit) {
-      TmpDef.setSubReg(MC6809::sub_lsb);
-      TmpDef.setIsUndef();
-    }
     Builder.buildInstr(MC6809::COPY).add(TmpDef).add(MO);
 
     loadStoreRegisterStaticStackSlot(Builder, Tmp, FrameIndex, Offset, MMO);
@@ -2137,8 +1932,6 @@ static void loadStoreRegisterStaticStackSlot(MachineIRBuilder &Builder, MachineO
     // Define the MO via copy from the temporary register.
     MachineOperand TmpUse = Tmp;
     TmpUse.setIsUse();
-    if (IsBit)
-      TmpUse.setSubReg(MC6809::sub_lsb);
     Builder.buildInstr(MC6809::COPY).add(MO).add(TmpUse);
   }
 }
@@ -5356,11 +5149,9 @@ void MC6809InstrInfo::expandLoad1Imm(MachineIRBuilder &Builder, MachineInstr &MI
   unsigned Opcode;
   switch (DestReg) {
   default: {
-    // BIT1 dst → emit byte load into the parent byte (AA/AB/AE/AF).
-    DestReg = getBit1ByteHalf(DestReg);
+    // ACC8 dst is the only remaining default path (BIT1 retired).
     assert(MC6809::ACC8RegClass.contains(DestReg));
     Opcode = MC6809::Load_i8_Imm;
-    MI.getOperand(0).setReg(DestReg);
     MI.getOperand(1).setImm(!!Val);
     break;
   }
@@ -7176,10 +6967,7 @@ void MC6809InstrInfo::expandTestReg(MachineIRBuilder &Builder, MachineInstr &MI)
   assert(MI.getOperand(2).isReg() && "The source of register tests must be a register");
 
   auto SrcReg = MI.getOperand(2).getReg();
-  // BIT1 sub-registers (AALSB, ABLSB) have no test instruction.
-  // Promote to parent ACC8 register — testing 8 bits includes the LSB.
-  if (SrcReg == MC6809::AALSB) SrcReg = MC6809::AA;
-  else if (SrcReg == MC6809::ABLSB) SrcReg = MC6809::AB;
+  // Bug #311: BIT1 sub-reg promotion gone — sources are now ACC8.
   if (needsMaterialization(SrcReg)) {
     MachineFunction &MF = *MI.getMF();
     Register IndexSrc = Register();
