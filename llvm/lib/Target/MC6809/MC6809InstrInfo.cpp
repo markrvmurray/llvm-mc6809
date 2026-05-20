@@ -6936,19 +6936,29 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
   }
   // Both Src1 and Src2 already physical, no spill on either side.
   // HD6309: CMPRp regardless of whether Src1Phys == Src2Phys (regalloc
-  // coalesced) or not.  Plain MC6809 (Bug #312): emit PSHS Src1Phys ;
-  // CMPx Src2 vs 0,$ss ; PULS Src1Phys — same flag direction as CMPRp
-  // (Src2 - Src1), PULS restores Src1 per the Bug #257 fix above.
+  // coalesced) or not.  Plain MC6809 (Bug #312): PSHS Src1Phys then
+  // CMPx Src2 ,$ss++ (post-increment indexed — pops the byte/word
+  // back off as part of the compare).  Same flag direction as CMPRp
+  // (Src2 - Src1).  PULS isn't needed for value preservation: the
+  // compare reads Src2Phys without writing it, and Src1Phys still
+  // holds its value (PSHS doesn't clear it, just stores a copy).
   if (STI.has6309()) {
     Builder.buildInstr(MC6809::CMPRp).addUse(Src1Phys).addUse(Src2Phys);
     MI.eraseFromParent();
     return;
   }
   Builder.buildInstr(MC6809::PSHSs, {}, {Src1Phys});
-  unsigned CmpOpc;
-  pickCmpO8O16(Src2Phys, 0, CmpOpc);
-  Builder.buildInstr(CmpOpc).addImm(0).addReg(MC6809::SS);
-  Builder.buildInstr(MC6809::PULSs, {Src1Phys}, {});
+  unsigned CmpIncOpc = 0;
+  if (MIOpc == MC6809::Compare_i8_Reg) {
+    CmpIncOpc = (Src2Phys == MC6809::AA) ? MC6809::CMPAi_Inc1
+                                         : MC6809::CMPBi_Inc1;
+  } else {
+    if      (Src2Phys == MC6809::AD) CmpIncOpc = MC6809::CMPDi_Inc2;
+    else if (Src2Phys == MC6809::IX) CmpIncOpc = MC6809::CMPXi_Inc2;
+    else if (Src2Phys == MC6809::IY) CmpIncOpc = MC6809::CMPYi_Inc2;
+    else                              CmpIncOpc = MC6809::CMPDi_Inc2;
+  }
+  Builder.buildInstr(CmpIncOpc).addReg(MC6809::SS);
   MI.eraseFromParent();
 }
 
