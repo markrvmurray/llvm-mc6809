@@ -37,6 +37,7 @@ define i64 @shl_i64_by_i8(i64 %x, i8 %n) {
 ; O0-NEXT:    std 30,u
 ; O0-NEXT:    ldd 18,u
 ; O0-NEXT:    lda #0
+; O0-NEXT:    tfr d,d
 ; O0-NEXT:    leas -10,s
 ; O0-NEXT:    std 16,u
 ; O0-NEXT:    ldd 36,u

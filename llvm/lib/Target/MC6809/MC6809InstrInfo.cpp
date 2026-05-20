@@ -2751,6 +2751,73 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     Register LoReg  = MI.getOperand(1).getReg();
     Register HiReg  = MI.getOperand(2).getReg();
 
+    // Bug #306: when LoReg == AB and HiReg == AA and DstReg == AD, the
+    // standard expansion below collapses to zero machine instructions
+    // (both loadByteInto calls early-return on SrcReg == Target, and
+    // the trailing dematerializeReg(AD, AD) is a no-op).  With no MI
+    // explicitly defining $ad in the merge's place, post-RA DCE can
+    // kill an upstream byte-def of $aa / $ab if that def is itself
+    // DCE-vulnerable (a load-immediate or clear with dead NZ side
+    // effects — typically `LDAi8 #0` zeroing the high byte for an
+    // i1→i16 zext, or its `CLRAa` peephole form).  The Store_i16_Mem
+    // $ad consumer then reads garbage in the killed half.
+    //
+    // Scoped fix: when in the zero-instruction shape AND the
+    // immediately upstream def of $aa or $ab is one of the DCE-
+    // vulnerable opcodes, emit a `$ad = TFRp $ad` self-transfer.  The
+    // explicit Def operand is honoured by LivePhysRegs::stepForward;
+    // a KILL with implicit-def is NOT.  Cost: 2 bytes / 6 cycles, but
+    // only when the bug shape is actually present (i1 / i8 zext to
+    // i16) — non-load-immediate upstreams (TFRp, ADDB, ANDB, etc.)
+    // are already kept alive by their own NZ side effects or their
+    // operand semantics, so the anchor isn't needed there.
+    if (LoReg == MC6809::AB && HiReg == MC6809::AA && DstReg == MC6809::AD) {
+      auto IsDCEVulnerable = [](unsigned Opc) {
+        switch (Opc) {
+        case MC6809::LDAi8:
+        case MC6809::LDBi8:
+        case MC6809::CLRAa:
+        case MC6809::CLRBa:
+        case MC6809::Load_i8_Imm:
+          return true;
+        default:
+          return false;
+        }
+      };
+      // Walk back from the MERGE.  The first instruction that touches
+      // $aa / $ab / $ad tells us whether DCE could kill the upstream:
+      //
+      //   - If it READS any of those regs, that read already anchors
+      //     the def above it — no anchor needed at MERGE.
+      //   - If it DEFINES $aa or $ab without reading, and the opcode
+      //     is one of the DCE-vulnerable patterns, the def has no
+      //     other consumer between itself and the (zero-MI) MERGE,
+      //     so DCE will kill it — anchor needed.
+      bool NeedsAnchor = false;
+      MachineBasicBlock &MBB = *MI.getParent();
+      for (auto It = MachineBasicBlock::reverse_iterator(MI.getIterator());
+           It != MBB.rend(); ++It) {
+        if (It->readsRegister(MC6809::AA, /*TRI=*/nullptr) ||
+            It->readsRegister(MC6809::AB, /*TRI=*/nullptr) ||
+            It->readsRegister(MC6809::AD, /*TRI=*/nullptr)) {
+          NeedsAnchor = false;
+          break;
+        }
+        if (It->modifiesRegister(MC6809::AA, /*TRI=*/nullptr) ||
+            It->modifiesRegister(MC6809::AB, /*TRI=*/nullptr)) {
+          NeedsAnchor = IsDCEVulnerable(It->getOpcode());
+          break;
+        }
+      }
+      if (NeedsAnchor) {
+        Builder.buildInstr(MC6809::TFRp)
+            .addDef(MC6809::AD)
+            .addUse(MC6809::AD);
+      }
+      MI.eraseFromParent();
+      return true;
+    }
+
     if (LoReg == MC6809::AA && HiReg == MC6809::AB) {
       // Full swap of the real pair. EXG A,B is the cheapest route.
       Builder.buildInstr(MC6809::EXGp)

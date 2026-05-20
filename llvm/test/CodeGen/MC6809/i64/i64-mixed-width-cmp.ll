@@ -510,6 +510,7 @@ define i1 @ne_i64_zext_i8(i64 %a, i8 %b) {
 ; O0-NEXT:    std 24,u
 ; O0-NEXT:    ldd 14,u
 ; O0-NEXT:    lda #0
+; O0-NEXT:    tfr d,d
 ; O0-NEXT:    leas -16,s
 ; O0-NEXT:    std 12,u
 ; O0-NEXT:    ldd 30,u

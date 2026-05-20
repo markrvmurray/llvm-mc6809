@@ -139,6 +139,7 @@ define i1 @ult_i32_zext_i8(i32 %a, i8 %b) {
 ; O0-NEXT:    std 18,u
 ; O0-NEXT:    ldd 12,u
 ; O0-NEXT:    lda #0
+; O0-NEXT:    tfr d,d
 ; O0-NEXT:    leas -8,s
 ; O0-NEXT:    std 10,u
 ; O0-NEXT:    ldd 20,u
