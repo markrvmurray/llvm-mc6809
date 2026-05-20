@@ -1341,7 +1341,7 @@ MC6809LegalizerInfo::legalizeBitwise(LegalizerHelper &Helper,
   // Bug #148: use ANYEXT, not ZEXT. ZEXT s1→s8 selects to ZEX8Implicit,
   // whose expansion (`ANDB #1`) reads the BIT1 vreg's parent byte's LSB.
   // For BIT1 vregs from carry-phantom pseudos (G_UADDO/G_UADDE/G_USUBO/
-  // G_USUBE — see `getPhantomBit1Flag` in MC6809InstructionSelector.cpp
+  // G_USUBE — see `getPhantomCarryFlag` in MC6809InstructionSelector.cpp
   // and the bug #57 design), that LSB holds garbage; the real carry
   // lives only in CC.C. ANYEXT routes through the selector's G_ANYEXT
   // s1→s8 custom path (MC6809InstructionSelector.cpp:472-510), which

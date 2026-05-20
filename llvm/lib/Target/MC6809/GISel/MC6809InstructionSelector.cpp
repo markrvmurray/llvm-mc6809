@@ -103,7 +103,7 @@ private:
   // vregs to the flag they semantically represent. Populated by
   // selectAddO/SubO/AddE/SubE when they emit SetCarry/SetCarryUse-family
   // pseudos (which no longer have an explicit carry-out operand —
-  // see MC6809InstrFamilies.td). Consulted by `getPhantomBit1Flag`
+  // see MC6809InstrFamilies.td). Consulted by `getPhantomCarryFlag`
   // before its old producer-walking heuristic so consumers know
   // which flag (C or V) the IR vreg is meant to be.
   //
@@ -185,7 +185,7 @@ void MC6809InstructionSelector::setupMF(MachineFunction &MF,
 // Centralising the producer enumeration eliminates the duplicated
 // dispatch in selectBrCond / G_ANYEXT / G_ZEXT / G_SELECT / G_PHI.
 static std::optional<MCPhysReg>
-getPhantomBit1Flag(Register SrcReg, const MachineRegisterInfo &MRI,
+getPhantomCarryFlag(Register SrcReg, const MachineRegisterInfo &MRI,
                    const DenseMap<Register, MCPhysReg> *CarryFlagOf = nullptr) {
   Register Cur = SrcReg;
   while (Cur.isVirtual()) {
@@ -339,7 +339,7 @@ ensureCarryChainIntegrity(MachineInstr &Consumer, Register CarryIn,
                           const RegisterBankInfo &RBI,
                           const DenseMap<Register, MCPhysReg> *CarryFlagOf,
                           DenseMap<MachineInstr *, Register> &BridgedByteFor) {
-  auto Flag = getPhantomBit1Flag(CarryIn, MRI, CarryFlagOf);
+  auto Flag = getPhantomCarryFlag(CarryIn, MRI, CarryFlagOf);
   if (!Flag || (*Flag != MC6809::C && *Flag != MC6809::V))
     return false;
 
@@ -840,9 +840,9 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     LLT DstTy = MRI->getType(DstReg);
     LLT SrcTy = MRI->getType(SrcReg);
     if (DstTy == LLT::scalar(8) && SrcTy == LLT::scalar(1)) {
-      if (auto Flag = getPhantomBit1Flag(SrcReg, *MRI, &CarryFlagOf)) {
+      if (auto Flag = getPhantomCarryFlag(SrcReg, *MRI, &CarryFlagOf)) {
         // Locate the producer MI by walking COPY/G_FREEZE (same chain
-        // getPhantomBit1Flag walked). Insert the materialisation right
+        // getPhantomCarryFlag walked). Insert the materialisation right
         // after it.
         Register Cur = SrcReg;
         MachineInstr *ProdDef = nullptr;
@@ -1065,10 +1065,10 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
       // and writes it into $dst as a 0/1 byte. The scheduling barrier on
       // both the SetCarry* producer and this pseudo keeps CC.C alive
       // across the gap.
-      // Bug #152 phase 2 refactor: single dispatch via getPhantomBit1Flag.
+      // Bug #152 phase 2 refactor: single dispatch via getPhantomCarryFlag.
       // Carry producers → LDB #0; ADCB #0 (reads CC.C).
       // Overflow producers → TFR CC,B; LSRB; ANDB #1 (reads CC.V).
-      if (auto Flag = getPhantomBit1Flag(SrcReg, *MRI, &CarryFlagOf)) {
+      if (auto Flag = getPhantomCarryFlag(SrcReg, *MRI, &CarryFlagOf)) {
         // Bug #302 redesign Phase 3 Stage 3.b (2026-05-17): switched
         // to MaterializeCC_C_to_byte / MaterializeCC_V_to_byte (no
         // BIT1 input).  Same rationale as the G_ZEXT site above: CC
@@ -1438,7 +1438,7 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     //     the C flag (1 = borrow / carry). G_SSUBO/G_SADDO use V; not
     //     handled here yet.
     // Phantom-BIT1 producer list is shared with G_ANYEXT s1→s8 (bug #140);
-    // see getPhantomBit1Flag at the top of this file.
+    // see getPhantomCarryFlag at the top of this file.
 
     // Walk through G_FREEZE / COPY to find the real defining instruction.
     // `freeze i1 %cmp` is commonly inserted by InstCombine between an
@@ -1817,7 +1817,7 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     //   - neither → fall through to TestBranch_i8_Reg
     // Bug #115 introduced the carry path; bug #147 added the overflow
     // path so __builtin_add_overflow + if() works for signed inputs.
-    // Bug #152 phase 2 refactor: use getPhantomBit1Flag for the
+    // Bug #152 phase 2 refactor: use getPhantomCarryFlag for the
     // producer classification. The same-MBB + CCBitsSurvive checks
     // still live here (they're consumer-site-specific; the helper is
     // purely "identify the flag a given vreg represents").
@@ -1826,7 +1826,7 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
         CondDef->getNumOperands() >= 2 &&
         CondDef->getOperand(1).isReg() &&
         CondDef->getOperand(1).getReg() == CondReg) {
-      if (auto Flag = getPhantomBit1Flag(CondReg, *MRI, &CarryFlagOf)) {
+      if (auto Flag = getPhantomCarryFlag(CondReg, *MRI, &CarryFlagOf)) {
         MCPhysReg CCBit = *Flag;  // MC6809::C or MC6809::V
         if (CCBitsSurvive(CondDef, {CCBit}))
           Phantom = (CCBit == MC6809::C) ? PhantomCarry : PhantomOverflow;
@@ -2311,7 +2311,7 @@ bool MC6809InstructionSelector::selectAddO(MachineInstr &MI) {
   // intervening clobbers without the bug #184 byte-intermediate
   // workaround. The CarryFlagOf[] cache is still populated for the
   // cross-BB scenario where COPY/G_FREEZE renames the vreg between
-  // producer and consumer; getPhantomBit1Flag walks the chain and
+  // producer and consumer; getPhantomCarryFlag walks the chain and
   // recognizes the producing pseudo's opcode directly.
   CarryFlagOf[CarryOut] = IsSigned ? MC6809::V : MC6809::C;
   if (!MRI->getRegClassOrNull(CarryOut))
@@ -2326,7 +2326,7 @@ bool MC6809InstructionSelector::selectAddO(MachineInstr &MI) {
     // The phantom physreg has no hardware backing; AsmPrinter ignores it at
     // MCInst conversion (only explicit operands cross into MC).  See
     // MC6809PhantomCarryGuard.cpp for the late-pass safety net.
-    // getPhantomBit1Flag / CCFlagChainTracker recognise the producer by
+    // getPhantomCarryFlag / CCFlagChainTracker recognise the producer by
     // opcode, not by class, so this is a vreg-class-only change.
     MRI->setRegClass(CarryOut, &MC6809::PHANTOM_CARRYRegClass);
 
@@ -2499,7 +2499,7 @@ bool MC6809InstructionSelector::selectSubO(MachineInstr &MI) {
     // The phantom physreg has no hardware backing; AsmPrinter ignores it at
     // MCInst conversion (only explicit operands cross into MC).  See
     // MC6809PhantomCarryGuard.cpp for the late-pass safety net.
-    // getPhantomBit1Flag / CCFlagChainTracker recognise the producer by
+    // getPhantomCarryFlag / CCFlagChainTracker recognise the producer by
     // opcode, not by class, so this is a vreg-class-only change.
     MRI->setRegClass(CarryOut, &MC6809::PHANTOM_CARRYRegClass);
 
@@ -2644,7 +2644,7 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
     // The phantom physreg has no hardware backing; AsmPrinter ignores it at
     // MCInst conversion (only explicit operands cross into MC).  See
     // MC6809PhantomCarryGuard.cpp for the late-pass safety net.
-    // getPhantomBit1Flag / CCFlagChainTracker recognise the producer by
+    // getPhantomCarryFlag / CCFlagChainTracker recognise the producer by
     // opcode, not by class, so this is a vreg-class-only change.
     MRI->setRegClass(CarryOut, &MC6809::PHANTOM_CARRYRegClass);
 
@@ -2851,7 +2851,7 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
     // The phantom physreg has no hardware backing; AsmPrinter ignores it at
     // MCInst conversion (only explicit operands cross into MC).  See
     // MC6809PhantomCarryGuard.cpp for the late-pass safety net.
-    // getPhantomBit1Flag / CCFlagChainTracker recognise the producer by
+    // getPhantomCarryFlag / CCFlagChainTracker recognise the producer by
     // opcode, not by class, so this is a vreg-class-only change.
     MRI->setRegClass(CarryOut, &MC6809::PHANTOM_CARRYRegClass);
 

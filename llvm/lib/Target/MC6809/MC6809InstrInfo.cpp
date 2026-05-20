@@ -127,11 +127,13 @@ MC6809InstrInfo::MC6809InstrInfo(const MC6809Subtarget &STI)
       {{MC6809::SS, MC6809::AW}, MC6809::STSi_oW},
   };
   AddImmediateOpcode = {
-      {{MC6809::AA}, MC6809::ADDAi8}, {{MC6809::AALSB}, MC6809::ADDAi8}, {{MC6809::AB}, MC6809::ADDBi8},  {{MC6809::ABLSB}, MC6809::ADDBi8},
+      // Bug #311 Phase 1 step 1.5 (2026-05-20): *LSB entries retired
+      // (BIT1 / *LSB physregs no longer assignable to operands).
+      {{MC6809::AA}, MC6809::ADDAi8}, {{MC6809::AB}, MC6809::ADDBi8},
       {{MC6809::AE}, MC6809::ADDEi8}, {{MC6809::AF}, MC6809::ADDFi8},    {{MC6809::AD}, MC6809::ADDDi16}, {{MC6809::AW}, MC6809::ADDWi16},
   };
   AddCarryImmediateOpcode = {
-      {{MC6809::AA}, MC6809::ADCAi8}, {{MC6809::AALSB}, MC6809::ADCAi8}, {{MC6809::AB}, MC6809::ADCBi8}, {{MC6809::ABLSB}, MC6809::ADCBi8}, {{MC6809::AD}, MC6809::ADCDi16},
+      {{MC6809::AA}, MC6809::ADCAi8}, {{MC6809::AB}, MC6809::ADCBi8}, {{MC6809::AD}, MC6809::ADCDi16},
   };
   AddIdxImmOpcode = {
       {{MC6809::AA, -1}, MC6809::ADDAi_o16}, {{MC6809::AA, 0}, MC6809::ADDAi_o0},   {{MC6809::AA, 5}, MC6809::ADDAi_o5},   {{MC6809::AA, 8}, MC6809::ADDAi_o8},   {{MC6809::AA, 16}, MC6809::ADDAi_o16}, {{MC6809::AB, -1}, MC6809::ADDBi_o16},
@@ -162,7 +164,7 @@ MC6809InstrInfo::MC6809InstrInfo(const MC6809Subtarget &STI)
       {{MC6809::AD, MC6809::AE}, MC6809::ADCDi_oE}, {{MC6809::AD, MC6809::AF}, MC6809::ADCDi_oF}, {{MC6809::AD, MC6809::AW}, MC6809::ADCDi_oW},
   };
   SubBorrowImmediateOpcode = {
-      {{MC6809::AA}, MC6809::SBCAi8}, {{MC6809::AALSB}, MC6809::SBCAi8}, {{MC6809::AB}, MC6809::SBCBi8}, {{MC6809::ABLSB}, MC6809::SBCBi8}, {{MC6809::AD}, MC6809::SBCDi16},
+      {{MC6809::AA}, MC6809::SBCAi8}, {{MC6809::AB}, MC6809::SBCBi8}, {{MC6809::AD}, MC6809::SBCDi16},
   };
   SubImmediateOpcode = {
       {{MC6809::AA}, MC6809::SUBAi8}, {{MC6809::AB}, MC6809::SUBBi8}, {{MC6809::AE}, MC6809::SUBEi8}, {{MC6809::AF}, MC6809::SUBFi8}, {{MC6809::AD}, MC6809::SUBDi16}, {{MC6809::AW}, MC6809::SUBWi16},
@@ -245,7 +247,7 @@ MC6809InstrInfo::MC6809InstrInfo(const MC6809Subtarget &STI)
       {{MC6809::AA}, MC6809::TSTAa}, {{MC6809::AB}, MC6809::TSTBa}, {{MC6809::AE}, MC6809::TSTEa}, {{MC6809::AF}, MC6809::TSTFa}, {{MC6809::AD}, MC6809::TSTDa}, {{MC6809::AW}, MC6809::TSTWa},
   };
   ANDImmediateOpcode = {
-      {{MC6809::AA}, MC6809::ANDAi8}, {{MC6809::AALSB}, MC6809::ANDAi8}, {{MC6809::AB}, MC6809::ANDBi8}, {{MC6809::ABLSB}, MC6809::ANDBi8}, {{MC6809::AD}, MC6809::ANDDi16},
+      {{MC6809::AA}, MC6809::ANDAi8}, {{MC6809::AB}, MC6809::ANDBi8}, {{MC6809::AD}, MC6809::ANDDi16},
   };
   ANDIdxImmOpcode = {
       {{MC6809::AA, -1}, MC6809::ANDAi_o16}, {{MC6809::AA, 0}, MC6809::ANDAi_o0}, {{MC6809::AA, 5}, MC6809::ANDAi_o5}, {{MC6809::AA, 8}, MC6809::ANDAi_o8}, {{MC6809::AA, 16}, MC6809::ANDAi_o16},
@@ -262,7 +264,7 @@ MC6809InstrInfo::MC6809InstrInfo(const MC6809Subtarget &STI)
       {{MC6809::AA}, MC6809::ANDAi_Inc1}, {{MC6809::AB}, MC6809::ANDBi_Inc1}, {{MC6809::AD}, MC6809::ANDDi_Inc2},
   };
   ORImmediateOpcode = {
-      {{MC6809::AA}, MC6809::ORAi8}, {{MC6809::AALSB}, MC6809::ORAi8}, {{MC6809::AB}, MC6809::ORBi8}, {{MC6809::ABLSB}, MC6809::ORBi8}, {{MC6809::AD}, MC6809::ORDi16},
+      {{MC6809::AA}, MC6809::ORAi8}, {{MC6809::AB}, MC6809::ORBi8}, {{MC6809::AD}, MC6809::ORDi16},
   };
   ORIdxImmOpcode = {
       {{MC6809::AA, -1}, MC6809::ORAi_o16}, {{MC6809::AA, 0}, MC6809::ORAi_o0}, {{MC6809::AA, 5}, MC6809::ORAi_o5}, {{MC6809::AA, 8}, MC6809::ORAi_o8}, {{MC6809::AA, 16}, MC6809::ORAi_o16},
@@ -1247,10 +1249,12 @@ static Register getLsbSpillByteHalf(Register Reg) {
 /// BIT1 has 4 members; if a copy reaches here with one of the page-3 LSBs,
 /// route through the corresponding parent byte register.
 static Register getBit1ByteHalf(Register Reg) {
-  if (Reg == MC6809::AA || Reg == MC6809::AALSB) return MC6809::AA;
-  if (Reg == MC6809::AB || Reg == MC6809::ABLSB) return MC6809::AB;
-  if (Reg == MC6809::AE || Reg == MC6809::AELSB) return MC6809::AE;
-  if (Reg == MC6809::AF || Reg == MC6809::AFLSB) return MC6809::AF;
+  // Bug #311 Phase 1 step 1.5 (2026-05-20): *LSB sub-reg comparisons
+  // retired (no *LSB physreg can appear as an operand post-BIT1).
+  if (Reg == MC6809::AA) return MC6809::AA;
+  if (Reg == MC6809::AB) return MC6809::AB;
+  if (Reg == MC6809::AE) return MC6809::AE;
+  if (Reg == MC6809::AF) return MC6809::AF;
   llvm_unreachable("Not a BIT1 hardware register");
 }
 
@@ -3135,18 +3139,15 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::ZEX8Implicit: {
     Register SrcReg = MI.getOperand(1).getReg();
     unsigned Opcode;
-    // Determine whether the source is in the A or B half.
-    // Handles real registers (AA, AB), their LSB sub-registers (AALSB, ABLSB),
-    // and spill LSB pseudo-registers (SPILL_A*LSB → AA, SPILL_B*LSB → AB).
+    // Bug #311 Phase 1 step 1.5 (2026-05-20): post-1.2 ZEX8Implicit
+    // input is ACC8; *LSB / SPILL_*LSB sources are no longer possible.
+    // ACC8 byte halves on HD6309 are AA, AB, AE, AF; non-A half routes
+    // to the B-side encoding (ANDB).
     Register ByteHalf;
-    if (SrcReg == MC6809::AA || SrcReg == MC6809::AALSB)
+    if (SrcReg == MC6809::AA || SrcReg == MC6809::AE)
       ByteHalf = MC6809::AA;
-    else if (SrcReg == MC6809::AB || SrcReg == MC6809::ABLSB)
-      ByteHalf = MC6809::AB;
-    else if (isLsbSpillReg(SrcReg))
-      ByteHalf = getLsbSpillByteHalf(SrcReg);
     else
-      llvm_unreachable("ZEX8Implicit: unexpected source register");
+      ByteHalf = MC6809::AB;
     Opcode = (ByteHalf == MC6809::AA) ? MC6809::ANDAi8 : MC6809::ANDBi8;
     MI.setDesc(Builder.getTII().get(Opcode));
     MI.removeOperand(1);
@@ -4293,8 +4294,9 @@ void MC6809InstrInfo::expandImm(ContextImmediate Context, MachineIRBuilder &Buil
   if (Context.Opcode == &ANDImmediateOpcode && Val == 0) {
     unsigned ClrOpc = 0;
     switch (DestReg) {
-    case MC6809::AA: case MC6809::AALSB: ClrOpc = MC6809::CLRAa; break;
-    case MC6809::AB: case MC6809::ABLSB: ClrOpc = MC6809::CLRBa; break;
+    // Bug #311 Phase 1 step 1.5: *LSB physregs retired.
+    case MC6809::AA: ClrOpc = MC6809::CLRAa; break;
+    case MC6809::AB: ClrOpc = MC6809::CLRBa; break;
     case MC6809::AE: ClrOpc = MC6809::CLREa; break;
     case MC6809::AF: ClrOpc = MC6809::CLRFa; break;
     case MC6809::AD: ClrOpc = MC6809::CLRDa; break;
@@ -6264,7 +6266,8 @@ static void getByteOpcodes(Register LHS,
                            unsigned &Opc_o8, unsigned &Opc_o5,
                            unsigned &Opc_o16) {
   Register RealLHS = needsMaterialization(LHS) ? getPhysRegFor(LHS) : LHS;
-  bool UseA = (RealLHS == MC6809::AA || RealLHS == MC6809::AALSB);
+  // Bug #311 Phase 1 step 1.5: AALSB retired.
+  bool UseA = (RealLHS == MC6809::AA);
   Opc_o8 = UseA ? OpcA_o8 : OpcB_o8;
   Opc_o5 = UseA ? OpcA_o5 : OpcB_o5;
   Opc_o16 = UseA ? OpcA_o16 : OpcB_o16;
@@ -6423,8 +6426,8 @@ static void emit6809RegByteFromMem(MachineIRBuilder &Builder,
   Register RealLHS = needsMaterialization(LHS) ? getPhysRegFor(LHS) : LHS;
   // The accumulator half (A or B) is determined by where LHS lives.
   // SPILL_A* / Imag8-A maps to AA; SPILL_B* / Imag8-B maps to AB.
-  Register AccReg = (RealLHS == MC6809::AA || RealLHS == MC6809::AALSB)
-                        ? MC6809::AA : MC6809::AB;
+  // Bug #311 Phase 1 step 1.5: AALSB retired.
+  Register AccReg = (RealLHS == MC6809::AA) ? MC6809::AA : MC6809::AB;
   // If the RHS is a physical register that's the SAME as the LHS
   // accumulator, push it BEFORE materializing the LHS. Otherwise
   // the LHS load clobbers the RHS value. This happens when the
