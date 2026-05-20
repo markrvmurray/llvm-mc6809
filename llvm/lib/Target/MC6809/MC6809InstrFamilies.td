@@ -908,17 +908,23 @@ defm Compare_ptr: MC6809Compare<i16, INDEX16>;
 
 // --- Patterns (connect LLVM IR to pseudo-instructions) ---
 
+// Bug #311 Phase 1 step 1.3 WIP (2026-05-20): pattern result reshaped
+// to (i8 (anyext (i1 (setcc ...)))) so ConditionalImm's new ACC8 dst
+// types cleanly.  Drops the standalone `(i1 (setcc ...))` shape — the
+// selector C++ arm (step 1.3 follow-up, not yet landed) handles that
+// shape for -O0 direct G_ICMP s1.  See plan
+// ~/.claude/plans/jiggly-orbiting-grove.md Phase 1 step 1.3.
 multiclass MC6809SetIfCondPat<CondCode CC, int cc, ValueType vtype, RegisterClass reg> {
-  def _i1_Imm : Pat<(i1 (setcc reg:$src, imm:$val, CC)), (ConditionalImm cc, (!cast<Instruction>("Compare_"#vtype#"_Imm") cc, reg:$src, imm:$val), 1, 0)>;
-  def _i1_Idx_Imm : Pat<(i1 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), (ConditionalImm cc, (!cast<Instruction>("Compare_"#vtype#"_Mem") cc, reg:$src, INDEX16:$idx, imm:$offset), 1, 0)>;
-  def _i1_Unmerge_Idx_Imm : Pat<(i1 (setcc reg:$src, (am_unmerge_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), (ConditionalImm cc, (!cast<Instruction>("Compare_"#vtype#"_Mem") cc, reg:$src, INDEX16:$idx, imm:$offset), 1, 0)>;
-  def _i1_Idx_Reg8 : Pat<(i1 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC8:$offset), CC)), (ConditionalImm cc, (!cast<Instruction>("Compare_"#vtype#"_Mem") cc, reg:$src, INDEX16:$idx, ACC8:$offset), 1, 0)>;
-  def _i1_Idx_Reg16 : Pat<(i1 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC16:$offset), CC)), (ConditionalImm cc, (!cast<Instruction>("Compare_"#vtype#"_Mem") cc, reg:$src, INDEX16:$idx, ACC16:$offset), 1, 0)>;
+  def _i8_Imm : Pat<(i8 (anyext (i1 (setcc reg:$src, imm:$val, CC)))), (ConditionalImm cc, (!cast<Instruction>("Compare_"#vtype#"_Imm") cc, reg:$src, imm:$val), 1, 0)>;
+  def _i8_Idx_Imm : Pat<(i8 (anyext (i1 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)))), (ConditionalImm cc, (!cast<Instruction>("Compare_"#vtype#"_Mem") cc, reg:$src, INDEX16:$idx, imm:$offset), 1, 0)>;
+  def _i8_Unmerge_Idx_Imm : Pat<(i8 (anyext (i1 (setcc reg:$src, (am_unmerge_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)))), (ConditionalImm cc, (!cast<Instruction>("Compare_"#vtype#"_Mem") cc, reg:$src, INDEX16:$idx, imm:$offset), 1, 0)>;
+  def _i8_Idx_Reg8 : Pat<(i8 (anyext (i1 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC8:$offset), CC)))), (ConditionalImm cc, (!cast<Instruction>("Compare_"#vtype#"_Mem") cc, reg:$src, INDEX16:$idx, ACC8:$offset), 1, 0)>;
+  def _i8_Idx_Reg16 : Pat<(i8 (anyext (i1 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC16:$offset), CC)))), (ConditionalImm cc, (!cast<Instruction>("Compare_"#vtype#"_Mem") cc, reg:$src, INDEX16:$idx, ACC16:$offset), 1, 0)>;
   let Predicates = [IsHD6309] in {
-    def _i1_Reg : Pat<(i1 (setcc reg:$src, reg:$src2, CC)), (ConditionalImm cc, (!cast<Instruction>("Compare_"#vtype#"_Reg") cc, reg:$src, reg:$src2), 1, 0)>;
+    def _i8_Reg : Pat<(i8 (anyext (i1 (setcc reg:$src, reg:$src2, CC)))), (ConditionalImm cc, (!cast<Instruction>("Compare_"#vtype#"_Reg") cc, reg:$src, reg:$src2), 1, 0)>;
   }
   let Predicates = [NotHD6309] in {
-    def _i1_Push_Pull : Pat<(i1 (setcc reg:$src, reg:$src2, CC)), (ConditionalImm cc, (!cast<Instruction>("Compare_"#vtype#"_Pull") cc, reg:$src, (!cast<Instruction>("Push_"#vtype) reg:$src2)), 1, 0)>;
+    def _i8_Push_Pull : Pat<(i8 (anyext (i1 (setcc reg:$src, reg:$src2, CC)))), (ConditionalImm cc, (!cast<Instruction>("Compare_"#vtype#"_Pull") cc, reg:$src, (!cast<Instruction>("Push_"#vtype) reg:$src2)), 1, 0)>;
   }
 }
 
@@ -1073,12 +1079,13 @@ let Predicates = [IsHD6309] in {
 
 // --- Patterns (connect LLVM IR to pseudo-instructions) ---
 
+// Bug #311 Phase 1 step 1.3 WIP (2026-05-20): see SetIfCondPat above.
 multiclass MC6809TestPat<CondCode CC, int cc, ValueType vtype, RegisterClass reg> {
-  def _Reg : Pat<(i1 (setcc (vtype 0), reg:$src, CC)), (ConditionalImm cc, (!cast<Instruction>("Test_"#vtype#"_Reg") cc, reg:$src), 1, 0)>;
-  def _Idx_Imm : Pat<(i1 (setcc (vtype 0), (am_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), (ConditionalImm cc, (!cast<Instruction>("Test_"#vtype#"_Mem") cc, INDEX16:$idx, i16imm:$offset), 1, 0)>;
-  def _Unmerge_Idx_Imm : Pat<(i1 (setcc (vtype 0), (am_unmerge_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), (ConditionalImm cc, (!cast<Instruction>("Test_"#vtype#"_Mem") cc, INDEX16:$idx, i16imm:$offset), 1, 0)>;
-  def _Idx_Reg8 : Pat<(i1 (setcc (vtype 0), (am_indexed_imm_offset INDEX16:$idx, ACC8:$offset), CC)), (ConditionalImm cc, (!cast<Instruction>("Test_"#vtype#"_Mem") cc, INDEX16:$idx, ACC8:$offset), 1, 0)>;
-  def _Idx_Reg16 : Pat<(i1 (setcc (vtype 0), (am_indexed_imm_offset INDEX16:$idx, ACC16:$offset), CC)), (ConditionalImm cc, (!cast<Instruction>("Test_"#vtype#"_Mem") cc, INDEX16:$idx, ACC16:$offset), 1, 0)>;
+  def _Reg : Pat<(i8 (anyext (i1 (setcc (vtype 0), reg:$src, CC)))), (ConditionalImm cc, (!cast<Instruction>("Test_"#vtype#"_Reg") cc, reg:$src), 1, 0)>;
+  def _Idx_Imm : Pat<(i8 (anyext (i1 (setcc (vtype 0), (am_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)))), (ConditionalImm cc, (!cast<Instruction>("Test_"#vtype#"_Mem") cc, INDEX16:$idx, i16imm:$offset), 1, 0)>;
+  def _Unmerge_Idx_Imm : Pat<(i8 (anyext (i1 (setcc (vtype 0), (am_unmerge_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)))), (ConditionalImm cc, (!cast<Instruction>("Test_"#vtype#"_Mem") cc, INDEX16:$idx, i16imm:$offset), 1, 0)>;
+  def _Idx_Reg8 : Pat<(i8 (anyext (i1 (setcc (vtype 0), (am_indexed_imm_offset INDEX16:$idx, ACC8:$offset), CC)))), (ConditionalImm cc, (!cast<Instruction>("Test_"#vtype#"_Mem") cc, INDEX16:$idx, ACC8:$offset), 1, 0)>;
+  def _Idx_Reg16 : Pat<(i8 (anyext (i1 (setcc (vtype 0), (am_indexed_imm_offset INDEX16:$idx, ACC16:$offset), CC)))), (ConditionalImm cc, (!cast<Instruction>("Test_"#vtype#"_Mem") cc, INDEX16:$idx, ACC16:$offset), 1, 0)>;
 }
 
 multiclass MC6809TestCondPat<CondCode CC, int ccode> {

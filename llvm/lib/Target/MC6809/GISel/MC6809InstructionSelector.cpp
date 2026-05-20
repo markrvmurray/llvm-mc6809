@@ -927,6 +927,97 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     }
   }
 
+  // Bug #311 Phase 1 step 1.3 (2026-05-20): intercept G_ICMP with s1
+  // result type at -O0.  The SetIfCondPat / TestPat patterns now match
+  // `(i8 (anyext (i1 (setcc ...))))` — they need an enclosing G_ANYEXT
+  // to fire.  At -O0 GISel emits a bare `G_ICMP s1` with no anyext
+  // wrap; without an arm here, selection fails with
+  //   LLVM ERROR: cannot select: %N:bit1(s1) = G_ICMP ...
+  // Manual lowering mirrors what the SetIfCondPat pattern would emit:
+  // Compare_iN_{Imm,Reg} → CC, then ConditionalImm(cc, CC, 1, 0) →
+  // ACC8 dst.  Bind the original s1 dst's class to ACC8 — the byte's
+  // LSB carries the boolean value (the same encoding BIT1 used).
+  if (MI.getOpcode() == TargetOpcode::G_ICMP) {
+    Register DstReg = MI.getOperand(0).getReg();
+    LLT DstTy = MRI->getType(DstReg);
+    if (DstTy == LLT::scalar(1)) {
+      auto PredToCC = [](CmpInst::Predicate Pred) -> std::optional<unsigned> {
+        switch (Pred) {
+        case CmpInst::ICMP_EQ:  return MC6809CC::EQ;
+        case CmpInst::ICMP_NE:  return MC6809CC::NE;
+        case CmpInst::ICMP_UGT: return MC6809CC::HI;
+        case CmpInst::ICMP_UGE: return MC6809CC::HS;
+        case CmpInst::ICMP_ULT: return MC6809CC::LO;
+        case CmpInst::ICMP_ULE: return MC6809CC::LS;
+        case CmpInst::ICMP_SGT: return MC6809CC::GT;
+        case CmpInst::ICMP_SGE: return MC6809CC::GE;
+        case CmpInst::ICMP_SLT: return MC6809CC::LT;
+        case CmpInst::ICMP_SLE: return MC6809CC::LE;
+        default: return std::nullopt;
+        }
+      };
+      auto Pred = (CmpInst::Predicate)MI.getOperand(1).getPredicate();
+      auto CCOpt = PredToCC(Pred);
+      if (CCOpt) {
+        Register LhsReg = MI.getOperand(2).getReg();
+        Register RhsReg = MI.getOperand(3).getReg();
+        LLT OpTy = MRI->getType(LhsReg);
+        // Pick width-specific Compare opcodes.  Detect a G_CONSTANT
+        // RHS so we emit Compare_iN_Imm (CMPB/D #imm) instead of
+        // Compare_iN_Reg (which would PSHS+CMPS on plain 6809).
+        unsigned CmpRegOpc = 0, CmpImmOpc = 0;
+        const TargetRegisterClass *LhsRC = nullptr;
+        if (OpTy == LLT::scalar(8)) {
+          CmpRegOpc = MC6809::Compare_i8_Reg;
+          CmpImmOpc = MC6809::Compare_i8_Imm;
+          LhsRC = &MC6809::ACC8RegClass;
+        } else if (OpTy == LLT::scalar(16)) {
+          CmpRegOpc = MC6809::Compare_i16_Reg;
+          CmpImmOpc = MC6809::Compare_i16_Imm;
+          LhsRC = &MC6809::ACC16RegClass;
+        }
+        if (CmpRegOpc) {
+          std::optional<int64_t> RhsImm;
+          if (auto *RhsDef = MRI->getVRegDef(RhsReg)) {
+            if (RhsDef->getOpcode() == TargetOpcode::G_CONSTANT)
+              RhsImm = RhsDef->getOperand(1).getCImm()->getSExtValue();
+          }
+          MachineIRBuilder B(MI);
+          if (!MRI->getRegClassOrNull(LhsReg))
+            MRI->setRegClass(LhsReg, LhsRC);
+          Register CCReg = MRI->createVirtualRegister(&MC6809::CCondRegClass);
+          MachineInstrBuilder Cmp;
+          if (RhsImm) {
+            Cmp = B.buildInstr(CmpImmOpc)
+                      .addDef(CCReg)
+                      .addImm(*CCOpt)
+                      .addUse(LhsReg)
+                      .addImm(*RhsImm);
+          } else {
+            if (!MRI->getRegClassOrNull(RhsReg))
+              MRI->setRegClass(RhsReg, LhsRC);
+            Cmp = B.buildInstr(CmpRegOpc)
+                      .addDef(CCReg)
+                      .addImm(*CCOpt)
+                      .addUse(LhsReg)
+                      .addUse(RhsReg);
+          }
+          constrainSelectedInstRegOperands(*Cmp, TII, TRI, RBI);
+          MRI->setRegClass(DstReg, &MC6809::ACC8RegClass);
+          auto Sel = B.buildInstr(MC6809::ConditionalImm)
+                         .addDef(DstReg)
+                         .addImm(*CCOpt)
+                         .addUse(CCReg)
+                         .addImm(1)
+                         .addImm(0);
+          constrainSelectedInstRegOperands(*Sel, TII, TRI, RBI);
+          MI.eraseFromParent();
+          return true;
+        }
+      }
+    }
+  }
+
   // Intercept G_ANYEXT s1→s8 before selectImpl — selectImpl creates a COPY
   // that leaves the destination without a register class (dangling MI issue).
   if (MI.getOpcode() == TargetOpcode::G_ANYEXT) {

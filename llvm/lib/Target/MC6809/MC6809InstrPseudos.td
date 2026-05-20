@@ -82,8 +82,16 @@ def SelectImm : MC6809Pseudo {
 // here to type the pattern result.  When those patterns retire (Group D)
 // or are reshaped to (i8 (anyext (i1 (setcc ...))) the dst can move to
 // ACC8 like the other producers.
+// Bug #311 Phase 1 step 1.3 WIP (2026-05-20): dst class moved from BIT1
+// to ACC8 alongside SetIfCondPat/TestPat patterns wrapping the pattern
+// result in (i8 (anyext ...)).  Builds clean; ~13 lit tests fail at -O0
+// with "cannot select: %N:bit1(s1) = G_ICMP" — GISel emits the s1
+// result directly without anyext, so the reshaped SDAG-style pattern
+// doesn't match.  Needs C++ selector arm in selectICmp for the
+// G_ICMP s1 → s8 direct lowering shape.  See plan
+// ~/.claude/plans/jiggly-orbiting-grove.md Phase 1 step 1.3 risk note.
 def ConditionalImm : MC6809Pseudo {
-  dag OutOperandList = (outs BIT1:$dst);
+  dag OutOperandList = (outs ACC8:$dst);
   dag InOperandList = (ins condcode:$cc, CCond:$tst, i1imm:$true, i1imm:$false);
 
   let usesCustomInserter = true;
