@@ -8,7 +8,7 @@
 ; RUN: echo '.include "mc6809rt.s"' >> %t-all.s
 ; RUN: cat %t-funcs.s >> %t-all.s
 ; RUN: llvm-mc -triple=mc6809 -I %S/Inputs --filetype=obj -o %t.o %t-all.s
-; RUN: ld.lld -T %S/Inputs/link.ld %t.o %t-harness.o -o %t.elf
+; RUN: ld.lld -T %S/Inputs/link.ld %t.o %t-harness.o %mc6809_builtins -o %t.elf
 ; RUN: llvm-objcopy -O ihex %t.elf %t.hex
 ; RUN: %usim09batch --timeout=5000000 %t.hex | FileCheck %s
 ;
@@ -20,7 +20,7 @@
 ; RUN: echo '.include "mc6809rt.s"' >> %t-all.s
 ; RUN: cat %t-funcs.s >> %t-all.s
 ; RUN: llvm-mc -triple=mc6809 -I %S/Inputs --filetype=obj -o %t.o %t-all.s
-; RUN: ld.lld -T %S/Inputs/link.ld %t.o %t-harness.o -o %t.elf
+; RUN: ld.lld -T %S/Inputs/link.ld %t.o %t-harness.o %mc6809_builtins -o %t.elf
 ; RUN: llvm-objcopy -O ihex %t.elf %t.hex
 ; RUN: %usim09batch --timeout=5000000 %t.hex | FileCheck %s
 ;
@@ -32,7 +32,7 @@
 ; RUN: echo '.include "mc6809rt.s"' >> %t-all.s
 ; RUN: cat %t-funcs.s >> %t-all.s
 ; RUN: llvm-mc -triple=mc6809 -I %S/Inputs --filetype=obj -o %t.o %t-all.s
-; RUN: ld.lld -T %S/Inputs/link.ld %t.o %t-harness.o -o %t.elf
+; RUN: ld.lld -T %S/Inputs/link.ld %t.o %t-harness.o %mc6809_builtins -o %t.elf
 ; RUN: llvm-objcopy -O ihex %t.elf %t.hex
 ; RUN: %usim09batch --timeout=5000000 %t.hex | FileCheck %s
 ;
@@ -44,7 +44,7 @@
 ; RUN: echo '.include "mc6809rt.s"' >> %t-all.s
 ; RUN: cat %t-funcs.s >> %t-all.s
 ; RUN: llvm-mc -triple=mc6809 -I %S/Inputs --filetype=obj -o %t.o %t-all.s
-; RUN: ld.lld -T %S/Inputs/link.ld %t.o %t-harness.o -o %t.elf
+; RUN: ld.lld -T %S/Inputs/link.ld %t.o %t-harness.o %mc6809_builtins -o %t.elf
 ; RUN: llvm-objcopy -O ihex %t.elf %t.hex
 ; RUN: %usim09batch --timeout=5000000 %t.hex | FileCheck %s
 ; REQUIRES: usim
