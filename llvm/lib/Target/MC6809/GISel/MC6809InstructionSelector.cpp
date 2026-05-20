@@ -1094,6 +1094,28 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     }
   }
 
+  // Bug #311: intercept G_CONSTANT s1 — Load_i1_Imm's SDAG `(i1 imm)`
+  // pattern was retired when its dst class moved to ACC8.  The
+  // legalizer normally widens G_CONSTANT i1 → G_CONSTANT i8 before
+  // isel, but the LTO link-time codegen path does NOT run the
+  // widener; bare `G_CONSTANT s1` reaches the selector at LTO and
+  // there is no pattern to match it.  Lower manually to Load_i8_Imm
+  // (0 or 1 in the byte's LSB — same encoding BIT1 used).
+  if (MI.getOpcode() == TargetOpcode::G_CONSTANT) {
+    Register DstReg = MI.getOperand(0).getReg();
+    if (MRI->getType(DstReg) == LLT::scalar(1)) {
+      int64_t Val = MI.getOperand(1).getCImm()->getSExtValue() & 1;
+      MRI->setRegClass(DstReg, &MC6809::ACC8RegClass);
+      MachineIRBuilder B(MI);
+      auto I = B.buildInstr(MC6809::Load_i8_Imm)
+                   .addDef(DstReg)
+                   .addImm(Val);
+      constrainSelectedInstRegOperands(*I, TII, TRI, RBI);
+      MI.eraseFromParent();
+      return true;
+    }
+  }
+
   // Bug #144 follow-on: intercept G_CONSTANT s32 with all-debug uses
   // BEFORE selectImpl matches it to Load_i32_Imm (which produces an
   // ACC32 vreg from the 1-reg {AQ} class — overflows at -Og). The
