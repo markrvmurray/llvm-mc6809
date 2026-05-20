@@ -218,6 +218,11 @@ private:
                             bool IsAdd) const;
   void expandAddSub_i32_Reg(MachineIRBuilder &Builder, MachineInstr &MI,
                             bool IsAdd) const;
+  // Bug #311 Phase 2: i32 add/sub with carry-IN.  Uses EXG-D,W to
+  // route W's bytes through ADCB/ADCA (HD6309 lacks ADCW); ADCD
+  // handles the D half.
+  void expandAddSubCarryUse_i32_Imm(MachineIRBuilder &Builder,
+                                    MachineInstr &MI, bool IsAdd) const;
 
   void expandCompareImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandCompareIdx(MachineIRBuilder &Builder, MachineInstr &MI) const;

@@ -3343,31 +3343,39 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::SubSetOverflow_i32_Reg:
     expandAddSub_i32_Reg(Builder, MI, /*IsAdd=*/false);
     break;
-  // _Pull variants remain unreachable — no selector arm and no
-  // TableGen pattern emits them (the NotHD6309 _Push_Pull arm of
-  // MC6809ArithPat was intentionally omitted from the i32 patterns
-  // since native i32 arith is HD6309-only; see commit 4).
+  // Bug #311 Phase 2 (2026-05-21): native HD6309 i32 ADD/SUB with
+  // carry-IN, _Imm form.  Used by the i32 G_*ADDE / G_*SUBE selector
+  // arms (see selectAddE / selectSubE) once the legalizer rule for
+  // s32 carry-out chains is widened.
+  case MC6809::AddSetCarryUse_i32_Imm:
+  case MC6809::AddSetOverflowUse_i32_Imm:
+    expandAddSubCarryUse_i32_Imm(Builder, MI, /*IsAdd=*/true);
+    break;
+  case MC6809::SubSetCarryUse_i32_Imm:
+  case MC6809::SubSetOverflowUse_i32_Imm:
+    expandAddSubCarryUse_i32_Imm(Builder, MI, /*IsAdd=*/false);
+    break;
+  // _Pull variants remain unreachable — plain MC6809 has no native
+  // i32 arith.  _Mem and _Reg Use variants are still pending (Phase 2
+  // follow-up commit) and stay dormant until both the expansion AND
+  // the legalizer rule widening land.
   case MC6809::Add_i32_Pull:
   case MC6809::Sub_i32_Pull:
   case MC6809::AddSetCarry_i32_Pull:
   case MC6809::SubSetCarry_i32_Pull:
   case MC6809::AddSetOverflow_i32_Pull:
   case MC6809::SubSetOverflow_i32_Pull:
-  case MC6809::AddSetCarryUse_i32_Imm:
   case MC6809::AddSetCarryUse_i32_Mem:
   case MC6809::AddSetCarryUse_i32_Reg:
-  case MC6809::SubSetCarryUse_i32_Imm:
   case MC6809::SubSetCarryUse_i32_Mem:
   case MC6809::SubSetCarryUse_i32_Reg:
-  case MC6809::AddSetOverflowUse_i32_Imm:
   case MC6809::AddSetOverflowUse_i32_Mem:
   case MC6809::AddSetOverflowUse_i32_Reg:
-  case MC6809::SubSetOverflowUse_i32_Imm:
   case MC6809::SubSetOverflowUse_i32_Mem:
   case MC6809::SubSetOverflowUse_i32_Reg:
-    llvm_unreachable("Bug #297: i32 ADD/SUB variant not yet implemented; "
-                     "should be dormant until selector wiring + legalizer "
-                     "flip land in later #297 commits");
+    llvm_unreachable("i32 ADD/SUB variant not yet implemented; "
+                     "should be dormant until selector + legalizer "
+                     "wiring lands in later Phase 2 commits");
   case MC6809::Compare_i8_Imm:
   case MC6809::Compare_i16_Imm:
   case MC6809::Compare_ptr_Imm:
@@ -4459,6 +4467,89 @@ void MC6809InstrInfo::expandAddSub_i32_Imm(MachineIRBuilder &Builder,
   Builder.buildInstr(LowLookup->getSecond())
       .addDef(MC6809::AW, RegState::Implicit)
       .addImm(Lo);
+  Builder.buildInstr(HighLookup->getSecond())
+      .addDef(MC6809::AD, RegState::Implicit)
+      .addImm(Hi);
+
+  if (needsMaterialization(OrigDest))
+    dematerializeReg(Builder, DestReg, OrigDest, MF);
+  MI.eraseFromParent();
+}
+
+// Bug #311 Phase 2 (2026-05-21): native HD6309 i32 ADD/SUB carry-USE
+// variant, _Imm form.  Same shape as expandAddSub_i32_Imm above but
+// the LOW half consumes CC.C as carry-in.
+//
+// HD6309 has ADCD/SBCD for D's i16 add-with-carry but NO equivalent
+// for W (no ADCW / SBCW exists).  To get a carry-in into the W half
+// without losing CC.C, we route W's bytes through D via EXG D,W:
+//
+//   EXG  D,W                ; D ↔ W, CC.C preserved
+//   ADCB lo16(value) & 0xFF ; D[lsb] = old W's F + value_lo_byte_lsb + Cin
+//   ADCA (lo16(value)>>8)   ; D[msb] = old W's E + value_lo_byte_msb + Cout
+//   EXG  D,W                ; swap back: W now holds new low result
+//   ADCD hi16(value)        ; D = old D + value_hi + Cout from above
+//
+// EXGp doesn't modify CC (per HD6309 datasheet), so CC.C threads
+// through both EXG instructions and the two ADCB/ADCA hops.  Net
+// behaviour: AQ = AQ_in + value + Cin, with carry-out in CC.C and
+// the IR's phantom carry-out vreg implicit-defined by the pseudo.
+//
+// Cost vs the non-Use form (ADDW + ADCD = 7 bytes / ~11 cycles):
+// 2× EXGp + ADCB + ADCA + ADCD = 2×2 + 2 + 2 + 3 = 11 bytes / ~14
+// cycles.  Only emitted when the IR's add/sub-with-carry chain
+// crosses an i32 boundary (Phase 2.4's i64 narrowing).
+void MC6809InstrInfo::expandAddSubCarryUse_i32_Imm(
+    MachineIRBuilder &Builder, MachineInstr &MI, bool IsAdd) const {
+  const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
+  (void)STI;
+  assert(STI.has6309() &&
+         "Bug #311 Phase 2: i32 carry-use expansion is HD6309-only");
+
+  Register DestReg = MI.getOperand(0).getReg();
+  Register OrigDest = DestReg;
+  MachineFunction &MF = *MI.getMF();
+  if (needsMaterialization(DestReg))
+    DestReg = materializeReg(Builder, DestReg, MF);
+  assert(DestReg == MC6809::AQ &&
+         "Bug #311 Phase 2: i32 carry-use Imm requires AQ for the ALU ops");
+
+  unsigned NumOps = MI.getNumExplicitOperands();
+  MachineOperand ValOp = MI.getOperand(NumOps - 1);
+  int64_t Val = ValOp.isImm() ? ValOp.getImm()
+                              : ValOp.getCImm()->getSExtValue();
+  int LoB0 = int(Val & 0xFF);
+  int LoB1 = int((Val >> 8) & 0xFF);
+  int Hi   = int((Val >> 16) & 0xFFFF);
+
+  // EXG D,W — swap; CC.C survives.
+  Builder.buildInstr(MC6809::EXGp)
+      .addDef(MC6809::AD).addDef(MC6809::AW)
+      .addUse(MC6809::AD).addUse(MC6809::AW);
+
+  // ADCB / SBCB on the lowest byte of value_lo, reading CC.C as Cin.
+  unsigned LowLowOpc = IsAdd ? MC6809::ADCBi8 : MC6809::SBCBi8;
+  Builder.buildInstr(LowLowOpc)
+      .addDef(MC6809::AB, RegState::Implicit)
+      .addImm(LoB0);
+
+  // ADCA / SBCA on the high byte of value_lo, reading CC.C from the
+  // previous op.
+  unsigned LowHighOpc = IsAdd ? MC6809::ADCAi8 : MC6809::SBCAi8;
+  Builder.buildInstr(LowHighOpc)
+      .addDef(MC6809::AA, RegState::Implicit)
+      .addImm(LoB1);
+
+  // EXG D,W — swap back; CC.C still survives.
+  Builder.buildInstr(MC6809::EXGp)
+      .addDef(MC6809::AD).addDef(MC6809::AW)
+      .addUse(MC6809::AD).addUse(MC6809::AW);
+
+  // ADCD / SBCD on value_hi, reading CC.C from the above.
+  auto &HighMap = IsAdd ? AddCarryImmediateOpcode : SubBorrowImmediateOpcode;
+  auto HighLookup = HighMap.find({MC6809::AD});
+  assert(HighLookup != HighMap.end() &&
+         "Bug #311 Phase 2: missing ADCD/SBCD immediate opcode entry");
   Builder.buildInstr(HighLookup->getSecond())
       .addDef(MC6809::AD, RegState::Implicit)
       .addImm(Hi);
