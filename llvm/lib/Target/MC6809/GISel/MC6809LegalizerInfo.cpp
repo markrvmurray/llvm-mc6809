@@ -265,9 +265,25 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
         .legalFor({s8})
         .clampScalar(0, s8, s8);
 
-  getActionDefinitionsBuilder({G_UADDO, G_UADDE, G_USUBO, G_USUBE, G_SADDO, G_SADDE, G_SSUBO, G_SSUBE})
-      .legalForCartesianProduct({s8}, {s1, s16})
-      .clampScalar(0, s1, s8);
+  // Bug #311 Phase 2: HD6309 has native ADDW+ADCD for i32 carry chains;
+  // selector + expander wire those up (see selectAddO/AddE/SubO/SubE and
+  // expandAddSub_i32_* / expandAddSubCarryUse_i32_*).  Making s32 legal
+  // here means i32 carry-overflow intrinsics (uadd.with.overflow.i32
+  // etc.) stay i32 through to native HD6309 codegen instead of being
+  // narrowed to 4 byte-level adds, and i64 G_ADD narrows to 2 i32
+  // sub-chains rather than 8 i8 ones.  s16 keeps the existing narrow-
+  // to-s8 rule (the i16 carry-chain hits Bug #85b-shape selector
+  // issues at -O0 that pre-date Phase 2).  Plain MC6809 unchanged.
+  if (IsHD6309)
+    getActionDefinitionsBuilder({G_UADDO, G_UADDE, G_USUBO, G_USUBE, G_SADDO, G_SADDE, G_SSUBO, G_SSUBE})
+        .legalForCartesianProduct({s8, s32}, {s1, s16})
+        .narrowScalarIf(LegalityPredicates::typeIs(0, s16),
+                        LegalizeMutations::changeTo(0, s8))
+        .clampScalar(0, s1, s32);
+  else
+    getActionDefinitionsBuilder({G_UADDO, G_UADDE, G_USUBO, G_USUBE, G_SADDO, G_SADDE, G_SSUBO, G_SSUBE})
+        .legalForCartesianProduct({s8}, {s1, s16})
+        .clampScalar(0, s1, s8);
 
   // MUL is 8x8→16 on standard 6809. 16x16 only on HD6309 (MULD).
   // On 6809, i8 mul is native (MUL instruction: A×B→D). Wider multiplies

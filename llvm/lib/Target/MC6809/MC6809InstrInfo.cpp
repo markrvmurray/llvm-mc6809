@@ -3344,9 +3344,9 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     expandAddSub_i32_Reg(Builder, MI, /*IsAdd=*/false);
     break;
   // Bug #311 Phase 2 (2026-05-21): native HD6309 i32 ADD/SUB with
-  // carry-IN, _Imm form.  Used by the i32 G_*ADDE / G_*SUBE selector
-  // arms (see selectAddE / selectSubE) once the legalizer rule for
-  // s32 carry-out chains is widened.
+  // carry-IN.  Used by the i32 G_*ADDE / G_*SUBE selector arms (see
+  // selectAddE / selectSubE) once the legalizer rule for s32
+  // carry-out chains is widened.
   case MC6809::AddSetCarryUse_i32_Imm:
   case MC6809::AddSetOverflowUse_i32_Imm:
     expandAddSubCarryUse_i32_Imm(Builder, MI, /*IsAdd=*/true);
@@ -3355,27 +3355,33 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::SubSetOverflowUse_i32_Imm:
     expandAddSubCarryUse_i32_Imm(Builder, MI, /*IsAdd=*/false);
     break;
+  case MC6809::AddSetCarryUse_i32_Mem:
+  case MC6809::AddSetOverflowUse_i32_Mem:
+    expandAddSubCarryUse_i32_Mem(Builder, MI, /*IsAdd=*/true);
+    break;
+  case MC6809::SubSetCarryUse_i32_Mem:
+  case MC6809::SubSetOverflowUse_i32_Mem:
+    expandAddSubCarryUse_i32_Mem(Builder, MI, /*IsAdd=*/false);
+    break;
+  case MC6809::AddSetCarryUse_i32_Reg:
+  case MC6809::AddSetOverflowUse_i32_Reg:
+    expandAddSubCarryUse_i32_Reg(Builder, MI, /*IsAdd=*/true);
+    break;
+  case MC6809::SubSetCarryUse_i32_Reg:
+  case MC6809::SubSetOverflowUse_i32_Reg:
+    expandAddSubCarryUse_i32_Reg(Builder, MI, /*IsAdd=*/false);
+    break;
   // _Pull variants remain unreachable — plain MC6809 has no native
-  // i32 arith.  _Mem and _Reg Use variants are still pending (Phase 2
-  // follow-up commit) and stay dormant until both the expansion AND
-  // the legalizer rule widening land.
+  // i32 arith.  The _Push_Pull SetIfCondPat arm is gated on IsHD6309.
   case MC6809::Add_i32_Pull:
   case MC6809::Sub_i32_Pull:
   case MC6809::AddSetCarry_i32_Pull:
   case MC6809::SubSetCarry_i32_Pull:
   case MC6809::AddSetOverflow_i32_Pull:
   case MC6809::SubSetOverflow_i32_Pull:
-  case MC6809::AddSetCarryUse_i32_Mem:
-  case MC6809::AddSetCarryUse_i32_Reg:
-  case MC6809::SubSetCarryUse_i32_Mem:
-  case MC6809::SubSetCarryUse_i32_Reg:
-  case MC6809::AddSetOverflowUse_i32_Mem:
-  case MC6809::AddSetOverflowUse_i32_Reg:
-  case MC6809::SubSetOverflowUse_i32_Mem:
-  case MC6809::SubSetOverflowUse_i32_Reg:
-    llvm_unreachable("i32 ADD/SUB variant not yet implemented; "
-                     "should be dormant until selector + legalizer "
-                     "wiring lands in later Phase 2 commits");
+    llvm_unreachable("Bug #297: i32 _Pull is HD6309-only and the "
+                     "_Push_Pull SetIfCondPat arm is gated; should "
+                     "be unreachable from any selector or pattern");
   case MC6809::Compare_i8_Imm:
   case MC6809::Compare_i16_Imm:
   case MC6809::Compare_ptr_Imm:
@@ -4556,6 +4562,159 @@ void MC6809InstrInfo::expandAddSubCarryUse_i32_Imm(
 
   if (needsMaterialization(OrigDest))
     dematerializeReg(Builder, DestReg, OrigDest, MF);
+  MI.eraseFromParent();
+}
+
+// Bug #311 Phase 2: native HD6309 i32 carry-USE _Mem form.
+//
+// Same EXG-D,W shape as the _Imm Use form, but the four 16-bit halves
+// of "value" come from memory bytes at offset+3, offset+2, offset+0
+// (big-endian i32 layout, same as expandAddSub_i32_Mem):
+//
+//   EXG  D,W
+//   ADCB <off+3>,<idx>    ; D[lsb] += byte_3 + Cin
+//   ADCA <off+2>,<idx>    ; D[msb] += byte_2 + Cout
+//   EXG  D,W
+//   ADCD <off+0>,<idx>    ; D = old D + hi word + Cout
+void MC6809InstrInfo::expandAddSubCarryUse_i32_Mem(
+    MachineIRBuilder &Builder, MachineInstr &MI, bool IsAdd) const {
+  const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
+  (void)STI;
+  assert(STI.has6309() &&
+         "Bug #311 Phase 2: i32 carry-use expansion is HD6309-only");
+
+  Register DestReg = MI.getOperand(0).getReg();
+  Register OrigDest = DestReg;
+  MachineFunction &MF = *MI.getMF();
+  if (needsMaterialization(DestReg))
+    DestReg = materializeReg(Builder, DestReg, MF);
+  assert(DestReg == MC6809::AQ &&
+         "Bug #311 Phase 2: i32 carry-use Mem requires AQ for the ALU ops");
+
+  // Operand layout (post-tied $dst=$src):
+  //   op 0: $dst (def-use, tied)
+  //   op 1: $idx (INDEX16)
+  //   op 2: $offset (imm or CImm)
+  unsigned NumOps = MI.getNumExplicitOperands();
+  Register IndexReg = MI.getOperand(NumOps - 2).getReg();
+  MachineOperand OffsetOp = MI.getOperand(NumOps - 1);
+  int Offset = OffsetOp.isImm() ? OffsetOp.getImm()
+                                : int(OffsetOp.getCImm()->getSExtValue());
+  int OffB3 = Offset + 3;
+  int OffB2 = Offset + 2;
+  int OffHi = Offset;
+  int OffB3Size = offsetSizeInBitsForValue(OffB3);
+  int OffB2Size = offsetSizeInBitsForValue(OffB2);
+  int OffHiSize = offsetSizeInBitsForValue(OffHi);
+
+  // EXG D,W — CC.C preserved.
+  Builder.buildInstr(MC6809::EXGp)
+      .addDef(MC6809::AD).addDef(MC6809::AW)
+      .addUse(MC6809::AD).addUse(MC6809::AW);
+
+  auto &ByteCarryMap = IsAdd ? AddCarryIdxImmOpcode : SubBorrowIdxImmOpcode;
+  auto LowLowLookup  = ByteCarryMap.find({MC6809::AB, OffB3Size});
+  auto LowHighLookup = ByteCarryMap.find({MC6809::AA, OffB2Size});
+  auto HighLookup    = ByteCarryMap.find({MC6809::AD, OffHiSize});
+  assert(LowLowLookup != ByteCarryMap.end() &&
+         LowHighLookup != ByteCarryMap.end() &&
+         HighLookup != ByteCarryMap.end() &&
+         "Bug #311 Phase 2: missing ADC[B/A/D] / SBC[B/A/D] indexed entry");
+
+  auto Emit = [&](unsigned Opc, MCPhysReg Reg, int Off, int OffSize) {
+    auto Inst = Builder.buildInstr(Opc).addDef(Reg, RegState::Implicit);
+    if (OffSize == 0)
+      Inst.addReg(IndexReg);
+    else
+      Inst.addImm(Off).addReg(IndexReg);
+  };
+  Emit(LowLowLookup->getSecond(),  MC6809::AB, OffB3, OffB3Size);
+  Emit(LowHighLookup->getSecond(), MC6809::AA, OffB2, OffB2Size);
+
+  // EXG D,W back.
+  Builder.buildInstr(MC6809::EXGp)
+      .addDef(MC6809::AD).addDef(MC6809::AW)
+      .addUse(MC6809::AD).addUse(MC6809::AW);
+
+  Emit(HighLookup->getSecond(), MC6809::AD, OffHi, OffHiSize);
+
+  if (needsMaterialization(OrigDest))
+    dematerializeReg(Builder, DestReg, OrigDest, MF);
+  MI.eraseFromParent();
+}
+
+// Bug #311 Phase 2: native HD6309 i32 carry-USE _Reg form.
+//
+// Same emergency-slot pattern as expandAddSub_i32_Reg (Bug #298): save
+// $aq to a hard-stack scratch slot, materialise $dst into $aq, then
+// read $src2's value via memory (S-relative for the scratch when src2
+// was pre-placed in $aq, U-relative when src2 is SPILL_Q*N).
+//
+// CC.C threads through LEAS / STQ / materialiseReg / EXG unchanged
+// (none of these ops modify the carry flag on HD6309).
+void MC6809InstrInfo::expandAddSubCarryUse_i32_Reg(
+    MachineIRBuilder &Builder, MachineInstr &MI, bool IsAdd) const {
+  const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
+  (void)STI;
+  assert(STI.has6309() &&
+         "Bug #311 Phase 2: i32 carry-use expansion is HD6309-only");
+
+  Register DestReg = MI.getOperand(0).getReg();
+  Register Src2Reg = MI.getOperand(2).getReg();
+  Register OrigDest = DestReg;
+  MachineFunction &MF = *MI.getMF();
+
+  emitAQOnHardStackScratch(Builder, [&]() {
+    if (needsMaterialization(DestReg))
+      DestReg = materializeReg(Builder, DestReg, MF);
+    assert(DestReg == MC6809::AQ &&
+           "Bug #311 Phase 2: i32 carry-use Reg requires AQ for the ALU ops");
+
+    bool Src2InEmergency = !isQSpillReg(Src2Reg);
+    int Src2Off = Src2InEmergency
+                      ? 0
+                      : computeSpillStackOffset(Src2Reg, MF);
+    int Src2OffB3 = Src2Off + 3;
+    int Src2OffB2 = Src2Off + 2;
+    int Src2OffHi = Src2Off;
+    int Src2OffB3Size = offsetSizeInBitsForValue(Src2OffB3);
+    int Src2OffB2Size = offsetSizeInBitsForValue(Src2OffB2);
+    int Src2OffHiSize = offsetSizeInBitsForValue(Src2OffHi);
+    Register Src2BaseReg = Src2InEmergency ? MC6809::SS : MC6809::SU;
+
+    Builder.buildInstr(MC6809::EXGp)
+        .addDef(MC6809::AD).addDef(MC6809::AW)
+        .addUse(MC6809::AD).addUse(MC6809::AW);
+
+    auto &ByteCarryMap = IsAdd ? AddCarryIdxImmOpcode : SubBorrowIdxImmOpcode;
+    auto LowLowLookup  = ByteCarryMap.find({MC6809::AB, Src2OffB3Size});
+    auto LowHighLookup = ByteCarryMap.find({MC6809::AA, Src2OffB2Size});
+    auto HighLookup    = ByteCarryMap.find({MC6809::AD, Src2OffHiSize});
+    assert(LowLowLookup != ByteCarryMap.end() &&
+           LowHighLookup != ByteCarryMap.end() &&
+           HighLookup != ByteCarryMap.end() &&
+           "Bug #311 Phase 2: missing ADC[B/A/D] / SBC[B/A/D] indexed entry");
+
+    auto Emit = [&](unsigned Opc, MCPhysReg Reg, int Off, int OffSize) {
+      auto Inst = Builder.buildInstr(Opc).addDef(Reg, RegState::Implicit);
+      if (OffSize == 0)
+        Inst.addReg(Src2BaseReg);
+      else
+        Inst.addImm(Off).addReg(Src2BaseReg);
+    };
+    Emit(LowLowLookup->getSecond(),  MC6809::AB, Src2OffB3, Src2OffB3Size);
+    Emit(LowHighLookup->getSecond(), MC6809::AA, Src2OffB2, Src2OffB2Size);
+
+    Builder.buildInstr(MC6809::EXGp)
+        .addDef(MC6809::AD).addDef(MC6809::AW)
+        .addUse(MC6809::AD).addUse(MC6809::AW);
+
+    Emit(HighLookup->getSecond(), MC6809::AD, Src2OffHi, Src2OffHiSize);
+
+    if (needsMaterialization(OrigDest))
+      dematerializeReg(Builder, DestReg, OrigDest, MF);
+  });
+
   MI.eraseFromParent();
 }
 

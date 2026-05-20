@@ -223,6 +223,10 @@ private:
   // handles the D half.
   void expandAddSubCarryUse_i32_Imm(MachineIRBuilder &Builder,
                                     MachineInstr &MI, bool IsAdd) const;
+  void expandAddSubCarryUse_i32_Mem(MachineIRBuilder &Builder,
+                                    MachineInstr &MI, bool IsAdd) const;
+  void expandAddSubCarryUse_i32_Reg(MachineIRBuilder &Builder,
+                                    MachineInstr &MI, bool IsAdd) const;
 
   void expandCompareImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandCompareIdx(MachineIRBuilder &Builder, MachineInstr &MI) const;
