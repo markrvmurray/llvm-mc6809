@@ -76,7 +76,35 @@ public:
 };
 } // namespace
 
-MCDisassembler *createMC6809Disassembler(const Target &T, const MCSubtargetInfo &STI, MCContext &Ctx) { return new MC6809Disassembler(STI, Ctx); }
+MCDisassembler *createMC6809Disassembler(const Target &T, const MCSubtargetInfo &STI, MCContext &Ctx) {
+  // Bug #314 (2026-05-21): the disassembler is asked to decode bytes
+  // whose origin we generally can't determine (`llvm-objdump -d` is
+  // the typical caller, and ELF flags don't currently identify the
+  // target subtarget for MC6809 ELF — Flags is always 0x0).  Without
+  // any hint, llvm-objdump defaults the subtarget to the base
+  // generic MC6809, which lacks the HD6309 page-2/page-3 instruction
+  // set — and so all HD6309 opcodes (LDQ, STQ, ADCD, etc.) decode as
+  // `<unknown>`.  This is hostile for our actual workflow where
+  // ~every production binary is HD6309.
+  //
+  // The fix: always force the HD6309 (`mc6809-insns-6309`) feature
+  // on for the disassembler-side STI.  HD6309 is a strict superset
+  // of MC6809 in encoding space, so this can NEVER cause a legitimate
+  // MC6809 binary to mis-decode — any byte sequence that's valid
+  // as MC6809 is also valid (and identically decoded) as HD6309.
+  // The only difference is that bytes that would have been `<unknown>`
+  // on plain MC6809 now decode as their HD6309 op.
+  //
+  // If the user wants to assert "this binary MUST be plain 6809 — flag
+  // any 6309 op as illegal," they can pass `--mcpu=mc6809` to
+  // llvm-objdump, which the disassembler honors via the existing
+  // STI.checkFeatures() path in the generated decode table.  This
+  // override only sets the default when the user doesn't specify.
+  MCSubtargetInfo OverriddenSTI = STI;
+  if (!OverriddenSTI.checkFeatures("+mc6809-insns-6309"))
+    OverriddenSTI.ApplyFeatureFlag("+mc6809-insns-6309");
+  return new MC6809Disassembler(OverriddenSTI, Ctx);
+}
 
 extern "C" void LLVM_EXTERNAL_VISIBILITY LLVMInitializeMC6809Disassembler() {
   // Register the disassembler.
