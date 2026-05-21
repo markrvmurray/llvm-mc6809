@@ -17,7 +17,13 @@ define i1 @i32_eq_zero(i32 %x) {
   ; f,b (sub-byte register-to-register ORs).  This is a strict
   ; codegen win over the old 4-byte-load + 3-byte-OR chain through
   ; memory.
-  ; CHECK: ldq {{[0-9]+}},s
+  ;
+  ; Bug #304 (2026-05-21) followup: EqZero_i32 now declares AQ in
+  ; its Defs (mirroring SignTest_i32's fix).  The regalloc emits a
+  ; U-frame-pointer save+materialise of the i32 source now that AQ
+  ; is known to be clobbered.  The LDQ source can be either S- or
+  ; U-relative depending on regalloc — accept either with [su].
+  ; CHECK: ldq {{[0-9]+}},{{[su]}}
   ; CHECK: orr a,b
   ; CHECK: orr e,b
   ; CHECK: orr f,b
@@ -35,7 +41,8 @@ define i1 @i32_eq_zero(i32 %x) {
 define i1 @i32_ne_zero(i32 %x) {
   ; NE = NOT EQ — EqZero_i32 + XOR with 1 (encoded as eorb #1).
   ; Same Bug #308 LDQ-via-$aq sharpening as i32_eq_zero above.
-  ; CHECK: ldq {{[0-9]+}},s
+  ; Same Bug #304 followup (S- or U-relative LDQ).
+  ; CHECK: ldq {{[0-9]+}},{{[su]}}
   ; CHECK: orr a,b
   ; CHECK: orr e,b
   ; CHECK: orr f,b

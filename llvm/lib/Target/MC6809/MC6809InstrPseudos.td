@@ -318,11 +318,21 @@ let Defs = [NZ, V] in {
   //
   // Output is ACC8 with the byte's LSB carrying the boolean result;
   // the post-RA expansion produces a 0/1 byte (high 7 bits cleared).
-  // Defs cover CC clobber.
+  //
+  // Defs cover CC clobber AND AQ — same reason as SignTest_i32
+  // (Bug #304): the AQ-source expansion path OR-chains AA:AB:AE:AF
+  // through AB (ORR A,B / ORR E,B / ORR F,B), clobbering AB and
+  // thus part of AQ.  Without declaring AQ in Defs, regalloc
+  // believed AQ was preserved and left live-range uses of the i32
+  // source vreg reading corrupted bytes after the test.  Even
+  // though no observed manifest existed when SignTest_i32 was
+  // fixed, the same shape applies here — declaring AQ as clobber
+  // forces regalloc to materialise a copy of src when needed past
+  // EqZero_i32.
   def EqZero_i32 : MC6809Pseudo {
     dag OutOperandList = (outs ACC8:$dst);
     dag InOperandList  = (ins ACC32:$src);
-    let Defs = [NZ, V, C];
+    let Defs = [NZ, V, C, AQ];
   }
 
   // Bug #301 (2026-05-16): native HD6309 i32 equal-to-
