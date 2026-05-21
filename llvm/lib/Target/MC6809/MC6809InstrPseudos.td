@@ -284,11 +284,21 @@ let Defs = [NZ, V] in {
   // the post-RA expansion produces a 0/1 byte (high 7 bits cleared by
   // LDB #0, bit 0 set by ADCB).
   //
-  // Defs cover CC flag clobber (ASLB sets C; LDB/ADCB set NZ).
+  // Defs cover CC flag clobber (ASLB sets C; LDB/ADCB set NZ) AND
+  // AQ — the AQ-source expansion path uses `TFR A,B` to bring the
+  // MSByte into AB for shifting, which CLOBBERS the AB sub-byte of
+  // AQ.  Without declaring AQ in Defs, regalloc believed AQ was
+  // preserved across SignTest_i32 and left live-range uses of the
+  // i32 source vreg reading the corrupted AQ — manifesting as Bug
+  // #304 (`fcvtf_r(-1.0)` returning "5039" instead of "10000",
+  // because __ftoa_engine's subsequent STQ of "val" to __negsf2's
+  // arg location stored corrupted bytes derived from the sign-bit
+  // extraction).  Declaring AQ as a clobber forces regalloc to
+  // materialise a copy of src when it's needed past SignTest_i32.
   def SignTest_i32 : MC6809Pseudo {
     dag OutOperandList = (outs ACC8:$dst);
     dag InOperandList  = (ins ACC32:$src);
-    let Defs = [NZ, V, C];
+    let Defs = [NZ, V, C, AQ];
   }
 
   // Bug #301 (2026-05-16): native HD6309 i32 equal-to-zero test.
