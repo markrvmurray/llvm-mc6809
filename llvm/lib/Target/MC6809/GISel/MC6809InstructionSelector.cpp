@@ -2283,6 +2283,14 @@ bool MC6809InstructionSelector::selectMergeValues(MachineInstr &MI) {
     // constraint, eliminating the leak.
     Register DstAcc32 = Dst;
     MRI->setRegClass(DstAcc32, &MC6809::ACC32RegClass);
+    // Bug #319 Stage 2 (2026-05-21): Build32_i16i16 takes ADc:$lo
+    // and ADc:$hi.  If either is in the broader ACC16 (the typical
+    // producer's output class), FAKE_USE at -Og blocks the
+    // constraint-shrink and the verifier complains.
+    if (hasFakeUse(MI)) {
+      Lo16 = narrowToClass(Builder, MRI, Lo16, &MC6809::ADcRegClass);
+      Hi16 = narrowToClass(Builder, MRI, Hi16, &MC6809::ADcRegClass);
+    }
     auto Build = Builder.buildInstr(MC6809::Build32_i16i16)
                      .addDef(DstAcc32)
                      .addUse(Lo16)
@@ -2422,6 +2430,13 @@ bool MC6809InstructionSelector::selectAddO(MachineInstr &MI) {
   Success = mi_match(Dst, *MRI, m_GSAddO(m_Reg(LHS), m_Reg(RHS))) ||
             mi_match(Dst, *MRI, m_GUAddO(m_Reg(LHS), m_Reg(RHS)));
   if (Success) {
+    // Bug #319 Stage 2 (2026-05-21): mirror selectAddE — i8 _Reg
+    // variant requires ABc operands; FAKE_USE at -Og blocks the
+    // automatic narrow.  See file-top helpers.
+    if (DstSize == 8 && hasFakeUse(MI)) {
+      LHS = narrowToClass(Builder, MRI, LHS, &MC6809::ABcRegClass);
+      RHS = narrowToClass(Builder, MRI, RHS, &MC6809::ABcRegClass);
+    }
     Opcode = PickByWidth(
         PickOpc(MC6809::AddSetCarry_i8_Reg,  MC6809::AddSetOverflow_i8_Reg),
         PickOpc(MC6809::AddSetCarry_i16_Reg, MC6809::AddSetOverflow_i16_Reg),
@@ -2609,6 +2624,11 @@ bool MC6809InstructionSelector::selectSubO(MachineInstr &MI) {
   Success = mi_match(Dst, *MRI, m_GSSubO(m_Reg(LHS), m_Reg(RHS))) ||
             mi_match(Dst, *MRI, m_GUSubO(m_Reg(LHS), m_Reg(RHS)));
   if (Success) {
+    // Bug #319 Stage 2 (2026-05-21): mirror selectAddO — see helpers.
+    if (DstSize == 8 && hasFakeUse(MI)) {
+      LHS = narrowToClass(Builder, MRI, LHS, &MC6809::ABcRegClass);
+      RHS = narrowToClass(Builder, MRI, RHS, &MC6809::ABcRegClass);
+    }
     Opcode = PickByWidth(
         PickOpc(MC6809::SubSetCarry_i8_Reg,  MC6809::SubSetOverflow_i8_Reg),
         PickOpc(MC6809::SubSetCarry_i16_Reg, MC6809::SubSetOverflow_i16_Reg),
