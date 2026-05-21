@@ -190,17 +190,34 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
       .legalFor(LegalTypesWithOne)
       .clampScalar(0, s8, s16);  // Bug #243 Class B: same rationale as G_PHI
 
-  // Bug #239: narrow G_PHI to s16 even on HD6309. The legalizer
-  // otherwise keeps i32 PHIs in ACC32, which has only 5 physical
-  // slots (AQ + 4 SPILL_Q). Loop-carried i64 values become 2× i32
-  // PHIs each; a few of those will exhaust ACC32 well before the
-  // function's allocation completes — strtoull/strtoumax fail this
-  // way at -O2/-Og. Narrowing PHIs to s16 routes them through ACC16
-  // (which has many more slots: AD/AW + 8 SPILL_D + ...). 2× the PHI
-  // count but a much larger pool.
-  getActionDefinitionsBuilder(G_PHI)
-      .legalFor({p, s1, s8, s16})
-      .clampScalar(0, s8, s16);
+  // Bug #239 / Bug #317 (2026-05-21): PHI legalisation.
+  //
+  // Bug #239's original behaviour was to narrow s32 G_PHIs to s16,
+  // citing ACC32 register-pool exhaustion (AQ + 4 SPILL_Q = 5 slots).
+  // That rationale was retired by Bug #296 (2026-05-14) which bumped
+  // SPILL_Q to 32 — ACC32 now has 33 slots, plenty for any realistic
+  // loop-carried-i64 shape.
+  //
+  // The narrowing also caused Bug #317 part 2 (Bug #318): on HD6309
+  // an s32 G_PHI got UNMERGEd into two s16 halves, each PHI'd
+  // separately, then re-MERGEd via Build32_i16i16.  Build32's
+  // operand class is ADc (single-register), so regalloc routinely
+  // assigned both halves to $ad and materialize-spills couldn't
+  // disentangle them — the Build32 expansion blindly emitted
+  // `tfr d,w`, byte-swapping the result.  Allowing s32 G_PHI
+  // directly avoids the unmerge/merge dance entirely.
+  //
+  // On HD6309 we allow s32 (and s64 narrowed-to-s32) PHIs natively.
+  // On plain MC6809 the s16-narrowing is kept because there's no
+  // ACC32 register class.
+  if (IsHD6309)
+    getActionDefinitionsBuilder(G_PHI)
+        .legalFor({p, s1, s8, s16, s32})
+        .clampScalar(0, s8, s32);
+  else
+    getActionDefinitionsBuilder(G_PHI)
+        .legalFor({p, s1, s8, s16})
+        .clampScalar(0, s8, s16);
 
   getActionDefinitionsBuilder(G_FCONSTANT)
       .customFor({s32, s64});
