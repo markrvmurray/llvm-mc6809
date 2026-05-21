@@ -46,6 +46,43 @@ using namespace MIPatternMatch;
 
 namespace {
 
+// Bug #319 (2026-05-21): narrow a vreg's class to a tighter target
+// class when the producer (e.g. ConditionalImm / SEX8Implicit /
+// ZEX8Implicit, post-BIT1-elimination) emits at the broader ACC8 but
+// the consumer pseudo (AddSetCarryUse_i8_Reg, MERGE_LOHI_i16, etc.)
+// requires a sub-class.
+//
+// At -O0/-O2/etc. the regalloc already narrows via
+// constrainSelectedInstRegOperands.  At -Og with -fextend-lifetimes
+// the FAKE_USE on the wider class blocks the narrow — verifier
+// rejects "Expected ABc, got ACC8" on hash_buf.c et al.
+//
+// hasFakeUse: returns true iff the surrounding MachineFunction has any
+// FAKE_USE — used as a heuristic to gate the narrowing logic so it
+// fires only when -fextend-lifetimes is active.
+static bool hasFakeUse(const MachineInstr &MI) {
+  for (const auto &BB : *MI.getMF())
+    for (const auto &Op : BB)
+      if (Op.getOpcode() == TargetOpcode::FAKE_USE)
+        return true;
+  return false;
+}
+
+// narrowToClass: returns a vreg of class `RC` holding the same value
+// as `R`.  If `R` is already in `RC`, returns `R` unchanged.
+// Otherwise emits a COPY to a fresh `RC`-classed vreg and returns
+// that.
+static Register narrowToClass(MachineIRBuilder &Builder,
+                              MachineRegisterInfo *MRI,
+                              Register R,
+                              const TargetRegisterClass *RC) {
+  if (MRI->getRegClassOrNull(R) == RC)
+    return R;
+  Register Copy = MRI->createVirtualRegister(RC);
+  Builder.buildCopy(Copy, R);
+  return Copy;
+}
+
 #define GET_GLOBALISEL_PREDICATE_BITSET
 #include "MC6809GenGlobalISel.inc"
 #undef GET_GLOBALISEL_PREDICATE_BITSET
@@ -2173,6 +2210,15 @@ bool MC6809InstructionSelector::selectMergeValues(MachineInstr &MI) {
       MRI->setRegClass(Lo, &MC6809::ACC8RegClass);
     if (!MRI->getRegClassOrNull(Hi))
       MRI->setRegClass(Hi, &MC6809::ACC8RegClass);
+    // Bug #319 (2026-05-21): MERGE_LOHI_i16's $lo input is ABc, $hi
+    // is AAc.  At -Og with -fextend-lifetimes, FAKE_USE blocks the
+    // class narrow that constrainSelectedInstRegOperands would
+    // normally do — verifier rejects the ACC8 operands.  Same shape
+    // as the AddSetCarryUse_i8_Reg fix below — see selectAddE.
+    if (hasFakeUse(MI)) {
+      Lo = narrowToClass(Builder, MRI, Lo, &MC6809::ABcRegClass);
+      Hi = narrowToClass(Builder, MRI, Hi, &MC6809::AAcRegClass);
+    }
     auto Merge = Builder.buildInstr(MC6809::MERGE_LOHI_i16)
                      .addDef(Dst)
                      .addUse(Lo)
@@ -2208,6 +2254,14 @@ bool MC6809InstructionSelector::selectMergeValues(MachineInstr &MI) {
         MRI->setRegClass(B2, &MC6809::ACC8RegClass);
       if (!MRI->getRegClassOrNull(B3))
         MRI->setRegClass(B3, &MC6809::ACC8RegClass);
+      // Bug #319 (2026-05-21): same narrow-to-ABc / narrow-to-AAc as
+      // the 2-input s8×2→s16 shape above when FAKE_USE is present.
+      if (hasFakeUse(MI)) {
+        B0 = narrowToClass(Builder, MRI, B0, &MC6809::ABcRegClass);
+        B1 = narrowToClass(Builder, MRI, B1, &MC6809::AAcRegClass);
+        B2 = narrowToClass(Builder, MRI, B2, &MC6809::ABcRegClass);
+        B3 = narrowToClass(Builder, MRI, B3, &MC6809::AAcRegClass);
+      }
       Lo16 = MRI->createVirtualRegister(&MC6809::ADcRegClass);
       Hi16 = MRI->createVirtualRegister(&MC6809::ADcRegClass);
       auto MLo = Builder.buildInstr(MC6809::MERGE_LOHI_i16)
@@ -2768,6 +2822,14 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
   Success = mi_match(Dst, *MRI, m_GSAddE(m_Reg(LHS), m_Reg(RHS), m_Reg(Carry))) ||
             mi_match(Dst, *MRI, m_GUAddE(m_Reg(LHS), m_Reg(RHS), m_Reg(Carry)));
   if (Success) {
+    // Bug #319 (2026-05-21): i8 _Reg variant requires ABc operands.
+    // Producer may be in ACC8 (broader); at -Og with -fextend-
+    // lifetimes the FAKE_USE blocks the narrow, tripping the
+    // verifier.  See file-top hasFakeUse / narrowToClass helpers.
+    if (DstSize == 8 && hasFakeUse(MI)) {
+      LHS = narrowToClass(Builder, MRI, LHS, &MC6809::ABcRegClass);
+      RHS = narrowToClass(Builder, MRI, RHS, &MC6809::ABcRegClass);
+    }
     Opcode = PickByWidth(
         PickOpc(MC6809::AddSetCarryUse_i8_Reg,  MC6809::AddSetOverflowUse_i8_Reg),
         PickOpc(MC6809::AddSetCarryUse_i16_Reg, MC6809::AddSetOverflowUse_i16_Reg),
@@ -2960,6 +3022,11 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
   Success = mi_match(Dst, *MRI, m_GSSubE(m_Reg(LHS), m_Reg(RHS), m_Reg(Carry))) ||
             mi_match(Dst, *MRI, m_GUSubE(m_Reg(LHS), m_Reg(RHS), m_Reg(Carry)));
   if (Success) {
+    // Bug #319 (2026-05-21): mirror selectAddE — see helper docs.
+    if (DstSize == 8 && hasFakeUse(MI)) {
+      LHS = narrowToClass(Builder, MRI, LHS, &MC6809::ABcRegClass);
+      RHS = narrowToClass(Builder, MRI, RHS, &MC6809::ABcRegClass);
+    }
     Opcode = PickByWidth(
         PickOpc(MC6809::SubSetCarryUse_i8_Reg,  MC6809::SubSetOverflowUse_i8_Reg),
         PickOpc(MC6809::SubSetCarryUse_i16_Reg, MC6809::SubSetOverflowUse_i16_Reg),
