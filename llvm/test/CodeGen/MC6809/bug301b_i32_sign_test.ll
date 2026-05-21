@@ -21,9 +21,11 @@
 ; CHECK-LABEL: i32_slt_zero:
 define i1 @i32_slt_zero(i32 %x) {
   ; The SignTest_i32 expansion: ASLB + LDB #0 + ADCB #0.  No __cmpsi2.
-  ; CHECK: aslb
-  ; CHECK: ldb #0
-  ; CHECK: adcb #0
+  ; Bug #304 followup (2026-05-21): SignTest_i32 now works in AA
+  ; (no longer TFR A,B first) to save the initial-TFR overhead.
+  ; CHECK: asla
+  ; CHECK: lda #0
+  ; CHECK: adca #0
   ; CHECK-NOT: __cmpsi2
   ; CHECK-NOT: __ucmpsi2
   %cmp = icmp slt i32 %x, 0
@@ -33,9 +35,11 @@ define i1 @i32_slt_zero(i32 %x) {
 ; CHECK-LABEL: i32_sge_zero:
 define i1 @i32_sge_zero(i32 %x) {
   ; sge X, 0 = NOT (slt X, 0).  Same SignTest_i32 + XOR with 1.
-  ; CHECK: aslb
-  ; CHECK: ldb #0
-  ; CHECK: adcb #0
+  ; Bug #304 followup (2026-05-21): SignTest_i32 now works in AA
+  ; (no longer TFR A,B first) to save the initial-TFR overhead.
+  ; CHECK: asla
+  ; CHECK: lda #0
+  ; CHECK: adca #0
   ; CHECK-NOT: __cmpsi2
   ; CHECK-NOT: __ucmpsi2
   %cmp = icmp sge i32 %x, 0
@@ -45,9 +49,11 @@ define i1 @i32_sge_zero(i32 %x) {
 ; CHECK-LABEL: i32_sgt_minus_one:
 define i1 @i32_sgt_minus_one(i32 %x) {
   ; Optimizer-normalised "X >= 0".  Same fast path.
-  ; CHECK: aslb
-  ; CHECK: ldb #0
-  ; CHECK: adcb #0
+  ; Bug #304 followup (2026-05-21): SignTest_i32 now works in AA
+  ; (no longer TFR A,B first) to save the initial-TFR overhead.
+  ; CHECK: asla
+  ; CHECK: lda #0
+  ; CHECK: adca #0
   ; CHECK-NOT: __cmpsi2
   ; CHECK-NOT: __ucmpsi2
   %cmp = icmp sgt i32 %x, -1
@@ -57,9 +63,11 @@ define i1 @i32_sgt_minus_one(i32 %x) {
 ; CHECK-LABEL: i32_sle_minus_one:
 define i1 @i32_sle_minus_one(i32 %x) {
   ; Optimizer-normalised "X < 0".  Same fast path.
-  ; CHECK: aslb
-  ; CHECK: ldb #0
-  ; CHECK: adcb #0
+  ; Bug #304 followup (2026-05-21): SignTest_i32 now works in AA
+  ; (no longer TFR A,B first) to save the initial-TFR overhead.
+  ; CHECK: asla
+  ; CHECK: lda #0
+  ; CHECK: adca #0
   ; CHECK-NOT: __cmpsi2
   ; CHECK-NOT: __ucmpsi2
   %cmp = icmp sle i32 %x, -1

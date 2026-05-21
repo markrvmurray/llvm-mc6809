@@ -2341,53 +2341,55 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     // HD6309 native i32 sign test (Bug #301b).
     // Dst is ACC8; Src is ACC32 (AQ or SPILL_Q*N).
     //
-    // Strategy: load the MSByte (= sign byte, big-endian byte 0 of i32)
-    // into AB, ASLB to shift bit 7 into CC.C, then LDB #0 ; ADCB #0
-    // to materialise C as a 0/1 byte in AB.  COPY AB to Dst.
+    // Strategy: get the MSByte (= sign byte, big-endian byte 0 of i32)
+    // into AA, ASLA to shift bit 7 into CC.C, then LDA #0 ; ADCA #0
+    // to materialise C as a 0/1 byte in AA.  COPY AA to Dst.
+    //
+    // Bug #304 followup (2026-05-21): work in AA, not AB.  For AQ-source
+    // the MSByte already IS AA (AQ.sub_hi_word.sub_hi_byte), so the
+    // initial TFR A,B that brought it into AB was pure overhead — 2
+    // bytes / 4 cycles per call.  Working in A directly saves that
+    // instruction.  Both A and B are part of AQ so the AQ clobber is
+    // unchanged (Defs already lists AQ — see Bug #304 fix).
     MachineFunction &MF = *MI.getMF();
     Register DstReg = MI.getOperand(0).getReg();
     Register SrcReg = MI.getOperand(1).getReg();
 
-    // Step 1: get MSByte into AB.
+    // Step 1: ensure MSByte is in AA.
     if (SrcReg == MC6809::AQ) {
-      // AQ.MSByte = AA (AQ.sub_hi_word.sub_hi_byte).  TFR copies AA→AB
-      // without touching the rest of AQ.
-      Builder.buildInstr(MC6809::TFRp)
-          .addDef(MC6809::AB)
-          .addUse(MC6809::AA);
+      // AQ.MSByte = AA — already where we need it.  No instruction.
     } else if (isQSpillReg(SrcReg)) {
-      // SPILL_Q*N: load MSByte from slot+0,$su into AB.
+      // SPILL_Q*N: load MSByte from slot+0,$su into AA.
       int Offset = computeSpillStackOffset(SrcReg, MF);
       unsigned Opc = (Offset >= -128 && Offset <= 127)
-                         ? MC6809::LDBi_o8 : MC6809::LDBi_o16;
+                         ? MC6809::LDAi_o8 : MC6809::LDAi_o16;
       Builder.buildInstr(Opc)
-          .addDef(MC6809::AB, RegState::Implicit)
+          .addDef(MC6809::AA, RegState::Implicit)
           .addImm(Offset).addReg(MC6809::SU);
     } else {
       llvm_unreachable("SignTest_i32 src must be AQ or SPILL_Q*N");
     }
 
-    // Step 2: ASLB shifts AB left, putting bit 7 (= sign bit) into CC.C
-    // and clearing AB's bit 0.  AB's other bits become irrelevant; we'll
-    // overwrite AB in step 3.
-    Builder.buildInstr(MC6809::ASLBa)
-        .addDef(MC6809::AB, RegState::Implicit)
-        .addUse(MC6809::AB, RegState::Implicit);
+    // Step 2: ASLA shifts AA left, putting bit 7 (= sign bit) into CC.C
+    // and clobbering AA's contents.  We'll overwrite AA in step 3.
+    Builder.buildInstr(MC6809::ASLAa)
+        .addDef(MC6809::AA, RegState::Implicit)
+        .addUse(MC6809::AA, RegState::Implicit);
 
-    // Step 3: LDB #0 ; ADCB #0 — AB = 0 + 0 + CC.C = sign bit (0 or 1).
-    Builder.buildInstr(MC6809::LDBi8)
-        .addDef(MC6809::AB, RegState::Implicit)
+    // Step 3: LDA #0 ; ADCA #0 — AA = 0 + 0 + CC.C = sign bit (0 or 1).
+    Builder.buildInstr(MC6809::LDAi8)
+        .addDef(MC6809::AA, RegState::Implicit)
         .addImm(0);
-    Builder.buildInstr(MC6809::ADCBi8)
-        .addDef(MC6809::AB, RegState::Implicit)
+    Builder.buildInstr(MC6809::ADCAi8)
+        .addDef(MC6809::AA, RegState::Implicit)
         .addImm(0);
 
-    // Step 4: COPY AB to Dst (ACC8).  Dst lands in AA / AB / AE / AF
+    // Step 4: COPY AA to Dst (ACC8).  Dst lands in AA / AB / AE / AF
     // or a SPILL_A* / SPILL_B* slot (materialise/dematerialise handles
-    // those via copyPhysReg).  Mirrors EqZero_i32's COPY-to-Dst step.
-    if (DstReg != MC6809::AB) {
+    // those via copyPhysReg).
+    if (DstReg != MC6809::AA) {
       copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
-                  DstReg, MC6809::AB, /*KillSrc=*/true);
+                  DstReg, MC6809::AA, /*KillSrc=*/true);
     }
     MI.eraseFromParent();
     return true;
@@ -2427,43 +2429,49 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     Register DstReg = MI.getOperand(0).getReg();
     Register SrcReg = MI.getOperand(1).getReg();
 
-    // Step 1: OR all 4 bytes into AB.
+    // Step 1: OR all 4 bytes into AA.
+    //
+    // Bug #304 followup (2026-05-21): work in AA, not AB.  Avoids the
+    // final TFR A,B that brought the extracted Z bit into AB for
+    // copying to Dst — Dst may be AA directly, in which case the TFR
+    // was pure overhead.  Both A and B are part of AQ so the AQ
+    // clobber declared in EqZero_i32's Defs covers either choice.
     if (SrcReg == MC6809::AQ) {
-      // ORR A,B; ORR E,B; ORR F,B  → B = A|B|E|F, CC.Z set if all 0.
+      // ORR B,A; ORR E,A; ORR F,A  → A = A|B|E|F, CC.Z set if all 0.
       Builder.buildInstr(MC6809::ORRp)
-          .addDef(MC6809::AB)
-          .addUse(MC6809::AA).addUse(MC6809::AB);
+          .addDef(MC6809::AA)
+          .addUse(MC6809::AB).addUse(MC6809::AA);
       Builder.buildInstr(MC6809::ORRp)
-          .addDef(MC6809::AB)
-          .addUse(MC6809::AE).addUse(MC6809::AB);
+          .addDef(MC6809::AA)
+          .addUse(MC6809::AE).addUse(MC6809::AA);
       Builder.buildInstr(MC6809::ORRp)
-          .addDef(MC6809::AB)
-          .addUse(MC6809::AF).addUse(MC6809::AB);
+          .addDef(MC6809::AA)
+          .addUse(MC6809::AF).addUse(MC6809::AA);
     } else if (isQSpillReg(SrcReg)) {
       int Offset = computeSpillStackOffset(SrcReg, MF);
       auto pickLD = [](int Off) {
-        return (Off >= -128 && Off <= 127) ? MC6809::LDBi_o8 : MC6809::LDBi_o16;
+        return (Off >= -128 && Off <= 127) ? MC6809::LDAi_o8 : MC6809::LDAi_o16;
       };
       auto pickOR = [](int Off) {
-        return (Off >= -128 && Off <= 127) ? MC6809::ORBi_o8 : MC6809::ORBi_o16;
+        return (Off >= -128 && Off <= 127) ? MC6809::ORAi_o8 : MC6809::ORAi_o16;
       };
-      // LDB slot+0,$su
+      // LDA slot+0,$su
       Builder.buildInstr(pickLD(Offset))
-          .addDef(MC6809::AB, RegState::Implicit)
+          .addDef(MC6809::AA, RegState::Implicit)
           .addImm(Offset).addReg(MC6809::SU);
-      // 3× ORB slot+N,$su
+      // 3× ORA slot+N,$su
       for (int N = 1; N <= 3; ++N) {
         Builder.buildInstr(pickOR(Offset + N))
-            .addDef(MC6809::AB, RegState::Implicit)
-            .addUse(MC6809::AB, RegState::Implicit)
+            .addDef(MC6809::AA, RegState::Implicit)
+            .addUse(MC6809::AA, RegState::Implicit)
             .addImm(Offset + N).addReg(MC6809::SU);
       }
     } else {
       llvm_unreachable("EqZero_i32 src must be AQ or SPILL_Q*N");
     }
 
-    // Step 2: extract CC.Z into bit 0 of AB.
-    //   TFR CC,A; ANDA #4; LSRA; LSRA; TFR A,B
+    // Step 2: extract CC.Z into bit 0 of AA.
+    //   TFR CC,A; ANDA #4; LSRA; LSRA
     Builder.buildInstr(MC6809::TFRp)
         .addDef(MC6809::AA).addUse(MC6809::CC);
     Builder.buildInstr(MC6809::ANDAi8)
@@ -2476,15 +2484,11 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     Builder.buildInstr(MC6809::LSRAa)
         .addDef(MC6809::AA, RegState::Implicit)
         .addUse(MC6809::AA, RegState::Implicit);
-    Builder.buildInstr(MC6809::TFRp)
-        .addDef(MC6809::AB).addUse(MC6809::AA);
 
-    // Step 3: COPY AB to Dst's actual byte register.  Dst is ACC8
-    // and lands in AA / AB / AE / AF (or a SPILL_A* / SPILL_B* slot
-    // which materialise/dematerialise handles via copyPhysReg).
-    if (DstReg != MC6809::AB) {
+    // Step 3: COPY AA to Dst's actual byte register.
+    if (DstReg != MC6809::AA) {
       copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
-                  DstReg, MC6809::AB, /*KillSrc=*/true);
+                  DstReg, MC6809::AA, /*KillSrc=*/true);
     }
     MI.eraseFromParent();
     return true;
@@ -2530,7 +2534,9 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     Builder.buildInstr(MC6809::SUBWi16).addImm(KLo);
     Builder.buildInstr(MC6809::SBCDi16).addImm(KHi);
 
-    // Step 3: extract CC.Z into bit 0 of AB.
+    // Step 3: extract CC.Z into bit 0 of AA.
+    // Bug #304 followup (2026-05-21): work in AA, not AB — avoids the
+    // final TFR A,B that's pure overhead when Dst happens to be AA.
     Builder.buildInstr(MC6809::TFRp)
         .addDef(MC6809::AA).addUse(MC6809::CC);
     Builder.buildInstr(MC6809::ANDAi8)
@@ -2543,13 +2549,11 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     Builder.buildInstr(MC6809::LSRAa)
         .addDef(MC6809::AA, RegState::Implicit)
         .addUse(MC6809::AA, RegState::Implicit);
-    Builder.buildInstr(MC6809::TFRp)
-        .addDef(MC6809::AB).addUse(MC6809::AA);
 
-    // Step 4: COPY AB to Dst (ACC8).
-    if (DstReg != MC6809::AB) {
+    // Step 4: COPY AA to Dst (ACC8).
+    if (DstReg != MC6809::AA) {
       copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
-                  DstReg, MC6809::AB, /*KillSrc=*/true);
+                  DstReg, MC6809::AA, /*KillSrc=*/true);
     }
     MI.eraseFromParent();
     return true;

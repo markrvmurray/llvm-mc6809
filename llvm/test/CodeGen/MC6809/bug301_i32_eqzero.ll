@@ -24,9 +24,12 @@ define i1 @i32_eq_zero(i32 %x) {
   ; is known to be clobbered.  The LDQ source can be either S- or
   ; U-relative depending on regalloc — accept either with [su].
   ; CHECK: ldq {{[0-9]+}},{{[su]}}
-  ; CHECK: orr a,b
-  ; CHECK: orr e,b
-  ; CHECK: orr f,b
+  ; Bug #304 followup (2026-05-21): EqZero_i32 now ORs into AA
+  ; (`orr b,a; orr e,a; orr f,a`) instead of AB, saving the final
+  ; TFR A,B that brought the extracted Z bit into AB.
+  ; CHECK: orr b,a
+  ; CHECK: orr e,a
+  ; CHECK: orr f,a
   ; CHECK: tfr cc,a
   ; CHECK: anda #4
   ; CHECK: lsra
@@ -43,9 +46,12 @@ define i1 @i32_ne_zero(i32 %x) {
   ; Same Bug #308 LDQ-via-$aq sharpening as i32_eq_zero above.
   ; Same Bug #304 followup (S- or U-relative LDQ).
   ; CHECK: ldq {{[0-9]+}},{{[su]}}
-  ; CHECK: orr a,b
-  ; CHECK: orr e,b
-  ; CHECK: orr f,b
+  ; Bug #304 followup (2026-05-21): EqZero_i32 now ORs into AA
+  ; (`orr b,a; orr e,a; orr f,a`) instead of AB, saving the final
+  ; TFR A,B that brought the extracted Z bit into AB.
+  ; CHECK: orr b,a
+  ; CHECK: orr e,a
+  ; CHECK: orr f,a
   ; CHECK: tfr cc,a
   ; CHECK: anda #4
   ; CHECK: lsra
