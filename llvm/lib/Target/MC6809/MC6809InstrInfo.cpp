@@ -4365,14 +4365,6 @@ void MC6809InstrInfo::expandAddSub_i32_Mem(MachineIRBuilder &Builder,
   Register DestReg = MI.getOperand(0).getReg();
   Register OrigDest = DestReg;
   MachineFunction &MF = *MI.getMF();
-  if (needsMaterialization(DestReg))
-    DestReg = materializeReg(Builder, DestReg, MF);
-  // After materialisation the value lives in physical $aq (or its
-  // sub-regs AD high / AW low).  ACC32-class operands can ONLY be $aq
-  // post-Phase-B-revert (AQc is still `{AQ}`), but ACC32 itself
-  // includes SPILL_Q0..31 so a spilled value is loaded into AQ here.
-  assert(DestReg == MC6809::AQ &&
-         "Bug #297: i32 ADD/SUB requires AQ for the ALU-side operations");
 
   // Operand layout for _Mem (after the tied $dst=$src pair which counts
   // as one explicit operand):
@@ -4392,36 +4384,58 @@ void MC6809InstrInfo::expandAddSub_i32_Mem(MachineIRBuilder &Builder,
   int OffsetLoSize = offsetSizeInBitsForValue(OffsetLo);
   int OffsetHiSize = offsetSizeInBitsForValue(OffsetHi);
 
-  // Look up the page-2 16-bit opcodes:
-  //   IsAdd → ADDW (low, no carry-in) + ADCD (high, carry-in).
-  //   !IsAdd → SUBW (low, no borrow-in) + SBCD (high, borrow-in).
-  // The plain Add/SubIdxImmOpcode maps cover AW (ADDW/SUBW); the
-  // Carry/Borrow maps cover AD (ADCD/SBCD).
-  auto &LowMap = IsAdd ? AddIdxImmOpcode : SubIdxImmOpcode;
-  auto &HighMap = IsAdd ? AddCarryIdxImmOpcode : SubBorrowIdxImmOpcode;
-  auto LowLookup = LowMap.find({MC6809::AW, OffsetLoSize});
-  auto HighLookup = HighMap.find({MC6809::AD, OffsetHiSize});
-  assert(LowLookup != LowMap.end() && HighLookup != HighMap.end() &&
-         "Bug #297: missing ADDW/ADCD/SUBW/SBCD opcode entry");
+  // Bug #311 Phase 2 follow-up: when DstIsSpill, materializeReg's LDQ
+  // overwrites the caller's $aq.  Wrap in
+  // emitAQPreservedOverHardStackScratch so the trailing LDQ restores
+  // it.  (See expandAddSubCarryUse_i32_Imm for the rationale.)
+  bool DstIsSpill = needsMaterialization(DestReg);
+  auto Body = [&]() {
+    if (DstIsSpill)
+      DestReg = materializeReg(Builder, DestReg, MF);
+    // After materialisation the value lives in physical $aq (or its
+    // sub-regs AD high / AW low).  ACC32-class operands can ONLY be
+    // $aq post-Phase-B-revert (AQc is still `{AQ}`), but ACC32 itself
+    // includes SPILL_Q0..31 so a spilled value is loaded into AQ here.
+    assert(DestReg == MC6809::AQ &&
+           "Bug #297: i32 ADD/SUB requires AQ for the ALU-side operations");
 
-  auto LowInstr =
-      Builder.buildInstr(LowLookup->getSecond())
-          .addDef(MC6809::AW, RegState::Implicit);
-  if (OffsetLoSize == 0)
-    LowInstr.addReg(IndexReg);
+    // Look up the page-2 16-bit opcodes:
+    //   IsAdd → ADDW (low, no carry-in) + ADCD (high, carry-in).
+    //   !IsAdd → SUBW (low, no borrow-in) + SBCD (high, borrow-in).
+    // The plain Add/SubIdxImmOpcode maps cover AW (ADDW/SUBW); the
+    // Carry/Borrow maps cover AD (ADCD/SBCD).
+    auto &LowMap = IsAdd ? AddIdxImmOpcode : SubIdxImmOpcode;
+    auto &HighMap = IsAdd ? AddCarryIdxImmOpcode : SubBorrowIdxImmOpcode;
+    auto LowLookup = LowMap.find({MC6809::AW, OffsetLoSize});
+    auto HighLookup = HighMap.find({MC6809::AD, OffsetHiSize});
+    assert(LowLookup != LowMap.end() && HighLookup != HighMap.end() &&
+           "Bug #297: missing ADDW/ADCD/SUBW/SBCD opcode entry");
+
+    auto LowInstr =
+        Builder.buildInstr(LowLookup->getSecond())
+            .addDef(MC6809::AW, RegState::Implicit);
+    if (OffsetLoSize == 0)
+      LowInstr.addReg(IndexReg);
+    else
+      LowInstr.addImm(OffsetLo).addReg(IndexReg);
+
+    auto HighInstr =
+        Builder.buildInstr(HighLookup->getSecond())
+            .addDef(MC6809::AD, RegState::Implicit);
+    if (OffsetHiSize == 0)
+      HighInstr.addReg(IndexReg);
+    else
+      HighInstr.addImm(OffsetHi).addReg(IndexReg);
+
+    if (DstIsSpill)
+      dematerializeReg(Builder, DestReg, OrigDest, MF);
+  };
+
+  if (DstIsSpill)
+    emitAQPreservedOverHardStackScratch(Builder, Body);
   else
-    LowInstr.addImm(OffsetLo).addReg(IndexReg);
+    Body();
 
-  auto HighInstr =
-      Builder.buildInstr(HighLookup->getSecond())
-          .addDef(MC6809::AD, RegState::Implicit);
-  if (OffsetHiSize == 0)
-    HighInstr.addReg(IndexReg);
-  else
-    HighInstr.addImm(OffsetHi).addReg(IndexReg);
-
-  if (needsMaterialization(OrigDest))
-    dematerializeReg(Builder, DestReg, OrigDest, MF);
   MI.eraseFromParent();
 }
 
@@ -4449,10 +4463,6 @@ void MC6809InstrInfo::expandAddSub_i32_Imm(MachineIRBuilder &Builder,
   Register DestReg = MI.getOperand(0).getReg();
   Register OrigDest = DestReg;
   MachineFunction &MF = *MI.getMF();
-  if (needsMaterialization(DestReg))
-    DestReg = materializeReg(Builder, DestReg, MF);
-  assert(DestReg == MC6809::AQ &&
-         "Bug #297: i32 ADD/SUB Imm requires AQ for the ALU-side ops");
 
   unsigned NumOps = MI.getNumExplicitOperands();
   MachineOperand ValOp = MI.getOperand(NumOps - 1);
@@ -4461,24 +4471,43 @@ void MC6809InstrInfo::expandAddSub_i32_Imm(MachineIRBuilder &Builder,
   int Lo = int(Val & 0xFFFF);
   int Hi = int((Val >> 16) & 0xFFFF);
 
-  // Low half opcode (ADDW / SUBW) — touches AW; sets CC.C.
-  auto LowMap = IsAdd ? AddImmediateOpcode : SubImmediateOpcode;
-  auto LowLookup = LowMap.find({MC6809::AW});
-  // High half opcode (ADCD / SBCD) — touches AD; consumes CC.C.
-  auto &HighMap = IsAdd ? AddCarryImmediateOpcode : SubBorrowImmediateOpcode;
-  auto HighLookup = HighMap.find({MC6809::AD});
-  assert(LowLookup != LowMap.end() && HighLookup != HighMap.end() &&
-         "Bug #297: missing ADDW/ADCD/SUBW/SBCD immediate opcode entry");
+  // Bug #311 Phase 2 follow-up: when DstIsSpill, materializeReg's LDQ
+  // overwrites the caller's $aq.  Wrap in emitAQPreservedOverHardStack-
+  // Scratch so the trailing LDQ restores it.  (See
+  // expandAddSubCarryUse_i32_Imm for the full rationale — Bug #311
+  // memcpy-1 regression at -O2-hd6309-mame was the surfacer.)
+  bool DstIsSpill = needsMaterialization(DestReg);
+  auto Body = [&]() {
+    if (DstIsSpill)
+      DestReg = materializeReg(Builder, DestReg, MF);
+    assert(DestReg == MC6809::AQ &&
+           "Bug #297: i32 ADD/SUB Imm requires AQ for the ALU-side ops");
 
-  Builder.buildInstr(LowLookup->getSecond())
-      .addDef(MC6809::AW, RegState::Implicit)
-      .addImm(Lo);
-  Builder.buildInstr(HighLookup->getSecond())
-      .addDef(MC6809::AD, RegState::Implicit)
-      .addImm(Hi);
+    // Low half opcode (ADDW / SUBW) — touches AW; sets CC.C.
+    auto LowMap = IsAdd ? AddImmediateOpcode : SubImmediateOpcode;
+    auto LowLookup = LowMap.find({MC6809::AW});
+    // High half opcode (ADCD / SBCD) — touches AD; consumes CC.C.
+    auto &HighMap = IsAdd ? AddCarryImmediateOpcode : SubBorrowImmediateOpcode;
+    auto HighLookup = HighMap.find({MC6809::AD});
+    assert(LowLookup != LowMap.end() && HighLookup != HighMap.end() &&
+           "Bug #297: missing ADDW/ADCD/SUBW/SBCD immediate opcode entry");
 
-  if (needsMaterialization(OrigDest))
-    dematerializeReg(Builder, DestReg, OrigDest, MF);
+    Builder.buildInstr(LowLookup->getSecond())
+        .addDef(MC6809::AW, RegState::Implicit)
+        .addImm(Lo);
+    Builder.buildInstr(HighLookup->getSecond())
+        .addDef(MC6809::AD, RegState::Implicit)
+        .addImm(Hi);
+
+    if (DstIsSpill)
+      dematerializeReg(Builder, DestReg, OrigDest, MF);
+  };
+
+  if (DstIsSpill)
+    emitAQPreservedOverHardStackScratch(Builder, Body);
+  else
+    Body();
+
   MI.eraseFromParent();
 }
 
@@ -4515,10 +4544,6 @@ void MC6809InstrInfo::expandAddSubCarryUse_i32_Imm(
   Register DestReg = MI.getOperand(0).getReg();
   Register OrigDest = DestReg;
   MachineFunction &MF = *MI.getMF();
-  if (needsMaterialization(DestReg))
-    DestReg = materializeReg(Builder, DestReg, MF);
-  assert(DestReg == MC6809::AQ &&
-         "Bug #311 Phase 2: i32 carry-use Imm requires AQ for the ALU ops");
 
   unsigned NumOps = MI.getNumExplicitOperands();
   MachineOperand ValOp = MI.getOperand(NumOps - 1);
@@ -4528,40 +4553,56 @@ void MC6809InstrInfo::expandAddSubCarryUse_i32_Imm(
   int LoB1 = int((Val >> 8) & 0xFF);
   int Hi   = int((Val >> 16) & 0xFFFF);
 
-  // EXG D,W — swap; CC.C survives.
-  Builder.buildInstr(MC6809::EXGp)
-      .addDef(MC6809::AD).addDef(MC6809::AW)
-      .addUse(MC6809::AD).addUse(MC6809::AW);
+  // Bug #311 Phase 2 follow-up: when DstIsSpill, materializeReg's LDQ
+  // overwrites $aq.  Without preserving the caller's prior $aq value
+  // (typically a downstream-live LO i32 result from the preceding
+  // AddSetCarry_i32_* op), the trailing Store_i32_Mem $aq writes the
+  // wrong half of the i64.  Use emitAQPreservedOverHardStackScratch
+  // so the LDQ trailer restores the caller's $aq before the body
+  // returns.  See expandAddSubCarryUse_i32_Reg for the full rationale.
+  bool DstIsSpill = needsMaterialization(DestReg);
+  auto Body = [&]() {
+    if (DstIsSpill)
+      DestReg = materializeReg(Builder, DestReg, MF);
+    assert(DestReg == MC6809::AQ &&
+           "Bug #311 Phase 2: i32 carry-use Imm requires AQ for the ALU ops");
 
-  // ADCB / SBCB on the lowest byte of value_lo, reading CC.C as Cin.
-  unsigned LowLowOpc = IsAdd ? MC6809::ADCBi8 : MC6809::SBCBi8;
-  Builder.buildInstr(LowLowOpc)
-      .addDef(MC6809::AB, RegState::Implicit)
-      .addImm(LoB0);
+    // EXG D,W — swap; CC.C survives.
+    Builder.buildInstr(MC6809::EXGp)
+        .addDef(MC6809::AD).addDef(MC6809::AW)
+        .addUse(MC6809::AD).addUse(MC6809::AW);
 
-  // ADCA / SBCA on the high byte of value_lo, reading CC.C from the
-  // previous op.
-  unsigned LowHighOpc = IsAdd ? MC6809::ADCAi8 : MC6809::SBCAi8;
-  Builder.buildInstr(LowHighOpc)
-      .addDef(MC6809::AA, RegState::Implicit)
-      .addImm(LoB1);
+    unsigned LowLowOpc = IsAdd ? MC6809::ADCBi8 : MC6809::SBCBi8;
+    Builder.buildInstr(LowLowOpc)
+        .addDef(MC6809::AB, RegState::Implicit)
+        .addImm(LoB0);
 
-  // EXG D,W — swap back; CC.C still survives.
-  Builder.buildInstr(MC6809::EXGp)
-      .addDef(MC6809::AD).addDef(MC6809::AW)
-      .addUse(MC6809::AD).addUse(MC6809::AW);
+    unsigned LowHighOpc = IsAdd ? MC6809::ADCAi8 : MC6809::SBCAi8;
+    Builder.buildInstr(LowHighOpc)
+        .addDef(MC6809::AA, RegState::Implicit)
+        .addImm(LoB1);
 
-  // ADCD / SBCD on value_hi, reading CC.C from the above.
-  auto &HighMap = IsAdd ? AddCarryImmediateOpcode : SubBorrowImmediateOpcode;
-  auto HighLookup = HighMap.find({MC6809::AD});
-  assert(HighLookup != HighMap.end() &&
-         "Bug #311 Phase 2: missing ADCD/SBCD immediate opcode entry");
-  Builder.buildInstr(HighLookup->getSecond())
-      .addDef(MC6809::AD, RegState::Implicit)
-      .addImm(Hi);
+    Builder.buildInstr(MC6809::EXGp)
+        .addDef(MC6809::AD).addDef(MC6809::AW)
+        .addUse(MC6809::AD).addUse(MC6809::AW);
 
-  if (needsMaterialization(OrigDest))
-    dematerializeReg(Builder, DestReg, OrigDest, MF);
+    auto &HighMap = IsAdd ? AddCarryImmediateOpcode : SubBorrowImmediateOpcode;
+    auto HighLookup = HighMap.find({MC6809::AD});
+    assert(HighLookup != HighMap.end() &&
+           "Bug #311 Phase 2: missing ADCD/SBCD immediate opcode entry");
+    Builder.buildInstr(HighLookup->getSecond())
+        .addDef(MC6809::AD, RegState::Implicit)
+        .addImm(Hi);
+
+    if (DstIsSpill)
+      dematerializeReg(Builder, DestReg, OrigDest, MF);
+  };
+
+  if (DstIsSpill)
+    emitAQPreservedOverHardStackScratch(Builder, Body);
+  else
+    Body();
+
   MI.eraseFromParent();
 }
 
@@ -4586,10 +4627,6 @@ void MC6809InstrInfo::expandAddSubCarryUse_i32_Mem(
   Register DestReg = MI.getOperand(0).getReg();
   Register OrigDest = DestReg;
   MachineFunction &MF = *MI.getMF();
-  if (needsMaterialization(DestReg))
-    DestReg = materializeReg(Builder, DestReg, MF);
-  assert(DestReg == MC6809::AQ &&
-         "Bug #311 Phase 2: i32 carry-use Mem requires AQ for the ALU ops");
 
   // Operand layout (post-tied $dst=$src):
   //   op 0: $dst (def-use, tied)
@@ -4607,39 +4644,52 @@ void MC6809InstrInfo::expandAddSubCarryUse_i32_Mem(
   int OffB2Size = offsetSizeInBitsForValue(OffB2);
   int OffHiSize = offsetSizeInBitsForValue(OffHi);
 
-  // EXG D,W — CC.C preserved.
-  Builder.buildInstr(MC6809::EXGp)
-      .addDef(MC6809::AD).addDef(MC6809::AW)
-      .addUse(MC6809::AD).addUse(MC6809::AW);
+  // See expandAddSubCarryUse_i32_Imm for the DstIsSpill rationale.
+  bool DstIsSpill = needsMaterialization(DestReg);
+  auto Body = [&]() {
+    if (DstIsSpill)
+      DestReg = materializeReg(Builder, DestReg, MF);
+    assert(DestReg == MC6809::AQ &&
+           "Bug #311 Phase 2: i32 carry-use Mem requires AQ for the ALU ops");
 
-  auto &ByteCarryMap = IsAdd ? AddCarryIdxImmOpcode : SubBorrowIdxImmOpcode;
-  auto LowLowLookup  = ByteCarryMap.find({MC6809::AB, OffB3Size});
-  auto LowHighLookup = ByteCarryMap.find({MC6809::AA, OffB2Size});
-  auto HighLookup    = ByteCarryMap.find({MC6809::AD, OffHiSize});
-  assert(LowLowLookup != ByteCarryMap.end() &&
-         LowHighLookup != ByteCarryMap.end() &&
-         HighLookup != ByteCarryMap.end() &&
-         "Bug #311 Phase 2: missing ADC[B/A/D] / SBC[B/A/D] indexed entry");
+    Builder.buildInstr(MC6809::EXGp)
+        .addDef(MC6809::AD).addDef(MC6809::AW)
+        .addUse(MC6809::AD).addUse(MC6809::AW);
 
-  auto Emit = [&](unsigned Opc, MCPhysReg Reg, int Off, int OffSize) {
-    auto Inst = Builder.buildInstr(Opc).addDef(Reg, RegState::Implicit);
-    if (OffSize == 0)
-      Inst.addReg(IndexReg);
-    else
-      Inst.addImm(Off).addReg(IndexReg);
+    auto &ByteCarryMap = IsAdd ? AddCarryIdxImmOpcode : SubBorrowIdxImmOpcode;
+    auto LowLowLookup  = ByteCarryMap.find({MC6809::AB, OffB3Size});
+    auto LowHighLookup = ByteCarryMap.find({MC6809::AA, OffB2Size});
+    auto HighLookup    = ByteCarryMap.find({MC6809::AD, OffHiSize});
+    assert(LowLowLookup != ByteCarryMap.end() &&
+           LowHighLookup != ByteCarryMap.end() &&
+           HighLookup != ByteCarryMap.end() &&
+           "Bug #311 Phase 2: missing ADC[B/A/D] / SBC[B/A/D] indexed entry");
+
+    auto Emit = [&](unsigned Opc, MCPhysReg Reg, int Off, int OffSize) {
+      auto Inst = Builder.buildInstr(Opc).addDef(Reg, RegState::Implicit);
+      if (OffSize == 0)
+        Inst.addReg(IndexReg);
+      else
+        Inst.addImm(Off).addReg(IndexReg);
+    };
+    Emit(LowLowLookup->getSecond(),  MC6809::AB, OffB3, OffB3Size);
+    Emit(LowHighLookup->getSecond(), MC6809::AA, OffB2, OffB2Size);
+
+    Builder.buildInstr(MC6809::EXGp)
+        .addDef(MC6809::AD).addDef(MC6809::AW)
+        .addUse(MC6809::AD).addUse(MC6809::AW);
+
+    Emit(HighLookup->getSecond(), MC6809::AD, OffHi, OffHiSize);
+
+    if (DstIsSpill)
+      dematerializeReg(Builder, DestReg, OrigDest, MF);
   };
-  Emit(LowLowLookup->getSecond(),  MC6809::AB, OffB3, OffB3Size);
-  Emit(LowHighLookup->getSecond(), MC6809::AA, OffB2, OffB2Size);
 
-  // EXG D,W back.
-  Builder.buildInstr(MC6809::EXGp)
-      .addDef(MC6809::AD).addDef(MC6809::AW)
-      .addUse(MC6809::AD).addUse(MC6809::AW);
+  if (DstIsSpill)
+    emitAQPreservedOverHardStackScratch(Builder, Body);
+  else
+    Body();
 
-  Emit(HighLookup->getSecond(), MC6809::AD, OffHi, OffHiSize);
-
-  if (needsMaterialization(OrigDest))
-    dematerializeReg(Builder, DestReg, OrigDest, MF);
   MI.eraseFromParent();
 }
 
@@ -4664,8 +4714,29 @@ void MC6809InstrInfo::expandAddSubCarryUse_i32_Reg(
   Register OrigDest = DestReg;
   MachineFunction &MF = *MI.getMF();
 
-  emitAQOnHardStackScratch(Builder, [&]() {
-    if (needsMaterialization(DestReg))
+  // Bug #311 Phase 2 follow-up: choose the right scratch primitive
+  // based on where the tied dst lives at expansion time.
+  //
+  //   - dst == $aq        — emitAQOnHardStackScratch.  The body
+  //     mutates $aq IN PLACE to become the result; the caller's
+  //     "OLD $aq" value (= the tied src) was overwritten by the body
+  //     anyway, so the LEAS-without-LDQ epilogue is correct.
+  //
+  //   - dst is SPILL_Q*N  — emitAQPreservedOverHardStackScratch.
+  //     The body uses $aq as a SCRATCH (loading dst's value into $aq,
+  //     computing the result, dematerialising back to dst's slot).
+  //     The caller's prior $aq value MUST survive — without the
+  //     trailing LDQ, an unrelated live value in $aq (e.g. a
+  //     previously-computed LO i32 result waiting for a downstream
+  //     store) gets silently destroyed.
+  //
+  // This is exactly the memcpy-1 / random() i64-add miscompile that
+  // Phase 2's first cut produced: the HIGH-i32 expansion clobbered
+  // the LOW-i32 result in $aq, and the trailing Store_i32_Mem $aq
+  // then wrote HIGH bytes to the LOW slot of the i64 return.
+  bool DstIsSpill = needsMaterialization(DestReg);
+  auto Body = [&]() {
+    if (DstIsSpill)
       DestReg = materializeReg(Builder, DestReg, MF);
     assert(DestReg == MC6809::AQ &&
            "Bug #311 Phase 2: i32 carry-use Reg requires AQ for the ALU ops");
@@ -4711,9 +4782,14 @@ void MC6809InstrInfo::expandAddSubCarryUse_i32_Reg(
 
     Emit(HighLookup->getSecond(), MC6809::AD, Src2OffHi, Src2OffHiSize);
 
-    if (needsMaterialization(OrigDest))
+    if (DstIsSpill)
       dematerializeReg(Builder, DestReg, OrigDest, MF);
-  });
+  };
+
+  if (DstIsSpill)
+    emitAQPreservedOverHardStackScratch(Builder, Body);
+  else
+    emitAQOnHardStackScratch(Builder, Body);
 
   MI.eraseFromParent();
 }
@@ -4775,14 +4851,20 @@ void MC6809InstrInfo::expandAddSub_i32_Reg(MachineIRBuilder &Builder,
   Register OrigDest = DestReg;
   MachineFunction &MF = *MI.getMF();
 
-  // The body of the helper saves $aq into a 4-byte hard-stack scratch
-  // slot (so SRC2-in-AQ is readable via $ss+0..3) and DOES NOT restore
-  // $aq after the body — the body's ADDW+ADCD result becomes the new
-  // $aq, which is the DST.
-  emitAQOnHardStackScratch(Builder, [&]() {
+  // Bug #311 Phase 2 follow-up: choose the scratch primitive based on
+  // where $dst lives.  When $dst is $aq, the body MUTATES $aq IN
+  // PLACE into the result, so emitAQOnHardStackScratch (no trailing
+  // LDQ) is correct.  When $dst is a SPILL_Q*N, the body uses $aq as
+  // a scratch (materialize → compute → dematerialize), and the
+  // caller's prior $aq value (typically a downstream-live LO i32
+  // result) must survive: use emitAQPreservedOverHardStackScratch.
+  // (See expandAddSubCarryUse_i32_Reg for the full memcpy-1 / random()
+  // root cause analysis.)
+  bool DstIsSpill = needsMaterialization(DestReg);
+  auto Body = [&]() {
     // Step 1: materialize $dst into AQ.  Uses U-relative addressing
     // for SPILL_Q*N → AQ; U is unchanged by the LEAS on S.
-    if (needsMaterialization(DestReg))
+    if (DstIsSpill)
       DestReg = materializeReg(Builder, DestReg, MF);
     assert(DestReg == MC6809::AQ &&
            "Bug #297: i32 ADD/SUB Reg requires AQ for the ALU-side ops");
@@ -4826,9 +4908,14 @@ void MC6809InstrInfo::expandAddSub_i32_Reg(MachineIRBuilder &Builder,
 
     // Step 4: dematerialize $dst back if it was spilled.  U-relative
     // addressing; safe across the in-progress S-displacement.
-    if (needsMaterialization(OrigDest))
+    if (DstIsSpill)
       dematerializeReg(Builder, DestReg, OrigDest, MF);
-  });
+  };
+
+  if (DstIsSpill)
+    emitAQPreservedOverHardStackScratch(Builder, Body);
+  else
+    emitAQOnHardStackScratch(Builder, Body);
 
   MI.eraseFromParent();
 }
