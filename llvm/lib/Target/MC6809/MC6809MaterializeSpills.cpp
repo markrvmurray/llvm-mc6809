@@ -430,6 +430,51 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
         AnySpillUsed = true;
       }
     }
+    // Bug #316 (2026-05-21): also flag SPILL_Q*N usage.  The previous
+    // version only checked SpillDRegs (i16-class) and SpillXRegs
+    // (i16-pointer) and missed SPILL_Q[0..31] (i32-class spills).
+    //
+    // Without this check, a function that uses ONLY SPILL_Q (e.g.
+    // picolibc's srandom, which does `_rand_next = seed` and needs an
+    // i64-from-i16 zero-extension stash) leaves UsesSpillRegisters
+    // false at determineCalleeSaves time.  hasFP then returns false
+    // (no calls + no other trigger), so SavedRegs.set(SU) is NOT
+    // called → PEI doesn't emit `pshs u`.  But emitPrologue later
+    // sees hasFP=true (something else flips it post-PEI) and emits
+    // `tfr s,u`, OVERWRITING caller's U without having saved it.
+    //
+    // The visible failure was Bug #315 (memcpy-1 SIGABRT at
+    // -O2-hd6309-mame): main calls srand → srand calls srandom →
+    // srandom corrupts U on return → cascades into main's U=0 →
+    // all U-relative locals access garbage → memcpy ptr-check
+    // fails → abort.
+    //
+    // SPILL_Q*N are 4 bytes each; the actual concrete frame slots
+    // are created by the post-RA expansion of the spill itself.
+    // Here we just need to flag SPILL_Q usage so UsesSpillRegisters
+    // becomes true at PEI time.
+    auto isSpillQUsedInFunction = [&]() -> bool {
+      for (const MachineBasicBlock &MBB : MF)
+        for (const MachineInstr &MI : MBB)
+          for (const MachineOperand &MO : MI.operands())
+            if (MO.isReg() && !MO.isImplicit() && MO.getReg().isPhysical()) {
+              MCPhysReg R = MO.getReg();
+              // 32-bit SPILL_Q full forms.
+              if (R >= MC6809::SPILL_Q0 && R <= MC6809::SPILL_Q31)
+                return true;
+              // 16-bit SPILL_Q half-word sub-regs (high then low).
+              if (R >= MC6809::SPILL_Q0HI && R <= MC6809::SPILL_Q31HI)
+                return true;
+              if (R >= MC6809::SPILL_Q0LO && R <= MC6809::SPILL_Q31LO)
+                return true;
+              // 8-bit SPILL_Q byte sub-regs (HI_HI .. LO_LO, 4 per slot).
+              if (R >= MC6809::SPILL_Q0HIHI && R <= MC6809::SPILL_Q31LOLO)
+                return true;
+            }
+      return false;
+    };
+    if (isSpillQUsedInFunction())
+      AnySpillUsed = true;
     if (AnySpillUsed)
       FuncInfo->UsesSpillRegisters = true;
   }
