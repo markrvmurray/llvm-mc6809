@@ -3463,6 +3463,38 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     Builder.buildInstr(MC6809::SUBWi16).addImm(KLo);
     Builder.buildInstr(MC6809::SBCDi16).addImm(KHi);
 
+    // Step 2b: Bug #317 fix (2026-05-21).  SUBW+SBCD on i32 leaves
+    // CC.C correctly reflecting the combined borrow, but CC.Z
+    // reflects ONLY SBCD's result (i.e., the high half of Q being
+    // zero), not the full 32-bit Q being zero.  For unsigned compare
+    // conditions that consume Z (HI / LS / EQ / NE), this corrupts
+    // the branch target.
+    //
+    // Manifest: picolibc's __ultoa_invert(40) returns wrong digit
+    // because `if (r > 9)` (where r is loaded into Q's low half =
+    // 10) compiles to SUBW #9 + SBCD #0 + BLS — and BLS reads
+    // (C | Z).  After SBCD #0 on D=0: Z=1 (D went from 0 to 0).
+    // BLS branches incorrectly, skipping the q++ adjustment.
+    //
+    // Fix: do a STQ-to-scratch (no LDQ needed).  STQ sets CC.N and
+    // CC.Z based on the full 32-bit Q (per HD6309 datasheet) and
+    // leaves CC.C unchanged.  We discard the stored bytes by
+    // releasing the scratch immediately after.  Net cost: 3
+    // instructions (LEAS −4, STQ, LEAS +4), no register pressure.
+    //
+    // Done only when the condcode actually consumes Z — HI / LS /
+    // EQ / NE.  Pure-C conditions (HS / LO / etc.) work fine off
+    // SBCD's C alone and don't need the fix.
+    bool NeedsZFix = (CC == MC6809CC::HI || CC == MC6809CC::LS ||
+                      CC == MC6809CC::EQ || CC == MC6809CC::NE);
+    if (NeedsZFix) {
+      Builder.buildInstr(MC6809::LEASi_o5).addImm(-4).addReg(MC6809::SS);
+      Builder.buildInstr(MC6809::STQi_o0)
+          .addUse(MC6809::AQ, RegState::Implicit)
+          .addReg(MC6809::SS);
+      Builder.buildInstr(MC6809::LEASi_o5).addImm(4).addReg(MC6809::SS);
+    }
+
     // Step 3: LB<cc> $tgt — long conditional branch on the i32 result.
     // pickLBlbcVariant chooses LBlbc / LBlbc_NoC / LBlbc_OnlyC based
     // on which CC flags the condcode actually consumes (Bug #206).
