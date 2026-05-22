@@ -2210,15 +2210,33 @@ bool MC6809InstructionSelector::selectMergeValues(MachineInstr &MI) {
       MRI->setRegClass(Lo, &MC6809::ACC8RegClass);
     if (!MRI->getRegClassOrNull(Hi))
       MRI->setRegClass(Hi, &MC6809::ACC8RegClass);
-    // Bug #319 (2026-05-21): MERGE_LOHI_i16's $lo input is ABc, $hi
-    // is AAc.  At -Og with -fextend-lifetimes, FAKE_USE blocks the
-    // class narrow that constrainSelectedInstRegOperands would
-    // normally do — verifier rejects the ACC8 operands.  Same shape
-    // as the AddSetCarryUse_i8_Reg fix below — see selectAddE.
-    if (hasFakeUse(MI)) {
-      Lo = narrowToClass(Builder, MRI, Lo, &MC6809::ABcRegClass);
-      Hi = narrowToClass(Builder, MRI, Hi, &MC6809::AAcRegClass);
-    }
+    // Bug #319 (2026-05-21, refined 2026-05-22): MERGE_LOHI_i16's $lo
+    // input is ABc, $hi is AAc.  When the operand vreg's class is
+    // broader (typically ACC8, from upstream BIT1-elim widening of
+    // ConditionalImm / SEX8Implicit / ZEX8Implicit), the autogen
+    // constrainSelectedInstRegOperands narrow can fail — verifier
+    // rejects the ACC8 operand.
+    //
+    // Stage 1's `hasFakeUse(MI)` gate was too tight: at -Og without
+    // -fextend-lifetimes there's no FAKE_USE, yet the bug still
+    // manifests (32 residual verifier hits at -Og tiers after Stage
+    // 1+2 — confirmed 2026-05-22).  Better gate: emit a narrowing
+    // COPY only when the operand has multiple uses.  Multi-use
+    // means another consumer also constrains the vreg's class, so
+    // constrainSelectedInstRegOperands' best-effort narrow can fail
+    // to find a class compatible with ALL uses.  Single-use is
+    // narrowable cleanly so the COPY would be redundant (and breaks
+    // -O0 lit asm CHECK strings, as observed 2026-05-22).
+    auto narrowIfMultiUse = [&](Register R,
+                                const TargetRegisterClass *RC) -> Register {
+      if (MRI->getRegClassOrNull(R) == RC)
+        return R;
+      if (!MRI->hasOneUse(R))
+        return narrowToClass(Builder, MRI, R, RC);
+      return R;
+    };
+    Lo = narrowIfMultiUse(Lo, &MC6809::ABcRegClass);
+    Hi = narrowIfMultiUse(Hi, &MC6809::AAcRegClass);
     auto Merge = Builder.buildInstr(MC6809::MERGE_LOHI_i16)
                      .addDef(Dst)
                      .addUse(Lo)
