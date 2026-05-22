@@ -2045,35 +2045,55 @@ bool MC6809LegalizerInfo::tryTFMBlockCopy(LegalizerHelper &Helper, MachineRegist
     llvm_unreachable("Unexpected operand type from matchAbsoluteAddressing");
   };
 
-  auto emitTFM = [&](Register SrcVreg, Register DstVreg,
+  // Bug #327 (2026-05-22): emit LEAX/LEAY directly to the canonical
+  // pointer physreg ($ix or $iy) for Global-address operands.  Bug #326's
+  // workaround swapped COPY-to-physreg order so regalloc could re-use
+  // $ix between dst and src materialization, but that still emitted a
+  // wasted `tfr x,y` for the dst (because the dst-side LEAX materialized
+  // into $ix then COPY $iy = vreg lowered to `tfr x,y`).
+  //
+  // By emitting LEAYi_o16PC directly with $iy as the implicit def, we
+  // produce the optimal `leay dst,pc; leax src,pc; ldw #N; tfm x+,y+`
+  // — saving 1 cycle + 2 bytes per TFM site.
+  //
+  // For non-Global shapes (FI / Imm / Reg), keep the materializeAddrIntoReg
+  // + buildCopy path — same regalloc benefits as Bug #326's fix (the
+  // dst path is materialized first, freeing $ix for src) and the FI case
+  // needs G_FRAME_INDEX so frame lowering can compute the FP-relative
+  // offset later.
+  auto materializeIntoPhysReg = [&](const MachineOperand &MO,
+                                     int64_t ExtraOffset,
+                                     Register PhysReg) {
+    assert((PhysReg == MC6809::IX || PhysReg == MC6809::IY) &&
+           "materializeIntoPhysReg supports IX/IY only");
+    if (MO.isGlobal()) {
+      unsigned LeaPCR16 = (PhysReg == MC6809::IY)
+          ? MC6809::LEAYi_o16PC
+          : MC6809::LEAXi_o16PC;
+      Builder.buildInstr(LeaPCR16)
+          .addGlobalAddress(MO.getGlobal(), MO.getOffset() + ExtraOffset);
+      return;
+    }
+    // Other shapes (Reg / Imm / FI): materialize via vreg, COPY to physreg.
+    Register Vreg = materializeAddrIntoReg(MO, ExtraOffset);
+    Builder.buildCopy(PhysReg, Vreg);
+  };
+
+  auto emitTFM = [&](const MachineOperand &SrcMO, const MachineOperand &DstMO,
+                     int64_t ExtraOffset,
                      const MachineOperand &CountMO, bool DoDescending,
                      MachinePointerInfo SrcPI, MachinePointerInfo DstPI) {
     // TFM hardware uses fixed register pairs from REGTFM (D, X, Y, U, S).
-    // Pin to IX (src) and IY (dst) — the canonical pointer regs — via
-    // COPY into physregs, so the TFM's anyregister operand class doesn't
-    // leak generic-class vregs through to the MachineScheduler (the
-    // register-pressure tracker asserts when a TFM operand vreg has
-    // neither bank nor class — see test-strcat_s / test-wctomb /
-    // test-uchar / libc-testsuite:string regressions).
+    // Pin to IX (src) and IY (dst) — the canonical pointer regs.  For
+    // Global-address operands, Bug #327 emits LEAX/LEAY directly to the
+    // physreg (no TFR shuffle).  For other shapes, the fallback path
+    // (Bug #326's order-swap) materializes via vreg + COPY.
     //
-    // Bug #326 (2026-05-22): emit COPY $iy = DstVreg BEFORE COPY $ix =
-    // SrcVreg.  Both DstVreg and SrcVreg are materialized via LEAX
-    // (default for G_GLOBAL_VALUE/G_FRAME_INDEX → INDEX16 class), so
-    // each materialization lands in X.  If we COPY $ix first then
-    // COPY $iy second, regalloc emits:
-    //   leax src,pc          ; SrcVreg materialized in X
-    //   leax dst,pc          ; DstVreg ALSO materialized in X (CLOBBERS!)
-    //   tfr x,y              ; COPY $iy = DstVreg
-    //   (no copy emitted for $ix — SrcVreg lifetime ended at COPY $ix,
-    //    which regalloc collapsed to nothing)
-    //   tfm x+,y+            ; X = dst, Y = dst — broken miscompile
-    // With the swap, regalloc sees DstVreg's lifetime end first
-    // (its COPY $iy comes first), so DstVreg gets materialized into
-    // X and TFR'd to Y while SrcVreg is still pending — then SrcVreg
-    // is materialized into X (the now-free reg) for the COPY $ix.
-    // Result: leax dst; tfr x,y; leax src; tfm x+,y+ — X=src, Y=dst.
-    Builder.buildCopy(Register(MC6809::IY), DstVreg);
-    Builder.buildCopy(Register(MC6809::IX), SrcVreg);
+    // Order matters: emit destination first so its scratch register is
+    // freed for the source materialization.  See materializeIntoPhysReg
+    // for the full reasoning.
+    materializeIntoPhysReg(DstMO, ExtraOffset, MC6809::IY);
+    materializeIntoPhysReg(SrcMO, ExtraOffset, MC6809::IX);
     // Load count into AW.
     if (CountMO.isImm()) {
       Builder.buildInstr(MC6809::LDWi16)
@@ -2107,19 +2127,15 @@ bool MC6809LegalizerInfo::tryTFMBlockCopy(LegalizerHelper &Helper, MachineRegist
   // Note that Descending transfers must be done in backwards order.
   if (KnownLen <= BytesPerTransfer) {
     uint64_t AdjOfs = Descending ? (KnownLen - 1) : 0;
-    Register SrcVreg = materializeAddrIntoReg(Src.value(), AdjOfs);
-    Register DstVreg = materializeAddrIntoReg(Dst.value(), AdjOfs);
-    emitTFM(SrcVreg, DstVreg, Len.value(), Descending,
+    emitTFM(Src.value(), Dst.value(), AdjOfs, Len.value(), Descending,
             SrcPointerInfo, DstPointerInfo);
   } else {
     for (uint64_t TOfs = 0; TOfs < KnownLen; TOfs += BytesPerTransfer) {
       uint64_t TLen = std::min(KnownLen - TOfs, BytesPerTransfer);
       uint64_t AdjTOfs = Descending ? (KnownLen - TOfs - 1) : TOfs;
       uint64_t AdjTOfsMO = Descending ? (KnownLen - TOfs - TLen) : TOfs;
-      Register SrcVreg = materializeAddrIntoReg(Src.value(), AdjTOfs);
-      Register DstVreg = materializeAddrIntoReg(Dst.value(), AdjTOfs);
       MachineOperand TLenMO = MachineOperand::CreateImm(TLen);
-      emitTFM(SrcVreg, DstVreg, TLenMO, Descending,
+      emitTFM(Src.value(), Dst.value(), AdjTOfs, TLenMO, Descending,
               SrcPointerInfo.getWithOffset(AdjTOfsMO),
               DstPointerInfo.getWithOffset(AdjTOfsMO));
     }
