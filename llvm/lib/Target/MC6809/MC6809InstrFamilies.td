@@ -986,8 +986,17 @@ defm CompareBranch_i16 : MC6809CompareBranch<i16, ACC16>;
 // Only the _Imm form lands in step 3.1.  _Reg / _Mem / _Pull follow
 // in steps 5+6.
 let Predicates = [IsHD6309] in {
-  def CompareBranch_i32_Imm
-    : MC6809CompareBranchBase<ACC32, (ins i32imm:$imm)>;
+  // Bug #321 (2026-05-22): override base's Defs=[NZ,V,C] with the
+  // wider [NZ,V,C,AQ] to capture the expansion's clobbers.  The
+  // post-RA expansion of this terminator emits LDQ (for SPILL_Q*N
+  // src) + SUBW + SBCD, writing AW and AD individually.  Without
+  // AQ in Defs, regalloc could place an unrelated vreg in $aq
+  // across this branch and the successor BBs would read the
+  // clobbered value — the Bug #311 pattern.  AQ as super-reg
+  // covers AD/AW/AA/AB/AE/AF.
+  let Defs = [NZ, V, C, AQ] in
+    def CompareBranch_i32_Imm
+      : MC6809CompareBranchBase<ACC32, (ins i32imm:$imm)>;
 }
 
 // Bug #301 (2026-05-16): native HD6309 i32 compare-and-set fused
@@ -1012,7 +1021,12 @@ let Predicates = [IsHD6309] in {
     let isCompare = true;
     dag OutOperandList = (outs ACC8:$dst);
     dag InOperandList  = (ins condcode:$cc, ACC32:$src, i32imm:$imm);
-    let Defs = [NZ, V, C];
+    // Bug #321 (2026-05-22): same AQ clobber as CompareBranch_i32_Imm
+    // / EqZero_i32 / SignTest_i32.  Expansion LDQs for spill src,
+    // SUBW+SBCD writes AW+AD, then TFR/ANDA/LSRA writes AA — all of
+    // these are sub-regs of AQ.  Without AQ in Defs, regalloc could
+    // leave an unrelated value live in $aq across this pseudo.
+    let Defs = [NZ, V, C, AQ];
   }
 }
 

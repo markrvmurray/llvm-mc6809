@@ -364,7 +364,15 @@ let Defs = [NZ, V] in {
   def EqConst_i32 : MC6809Pseudo {
     dag OutOperandList = (outs ACC8:$dst);
     dag InOperandList  = (ins ACC32:$src, i32imm:$rhs);
-    let Defs = [NZ, V, C];
+    // Bug #321 (2026-05-22): preventive AQ clobber declaration —
+    // same shape as EqZero_i32 (Bug #304) and SignTest_i32.  The
+    // expansion's SUBW + SBCD writes both AW and AD (subregs of AQ),
+    // and the SPILL_Q*N-source path LDQs into AQ.  Without AQ in
+    // Defs, regalloc could leave a live unrelated value in $aq
+    // across this pseudo and the expansion would silently destroy
+    // it — the Bug #311 pattern.  No observed manifest yet; this is
+    // a preventive fix from the Bug #321 audit.
+    let Defs = [NZ, V, C, AQ];
   }
 }
 
