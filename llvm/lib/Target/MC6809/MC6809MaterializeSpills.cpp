@@ -236,6 +236,17 @@ static bool isWideAccSpillReg(Register Reg) {
   }
 }
 
+/// Bug #301 (2026-05-22): return true if Reg is a 32-bit ACC spill
+/// (SPILL_Q0..Q31), whose materialization uses LDQ and therefore
+/// clobbers the entire $aq register (= $ad + $aw + their sub-bytes).
+/// Mirrors isWideAccSpillReg but for the wider $aq class.  Half-word
+/// (SPILL_Q*HI/LO) and byte (SPILL_Q*HIHI..LOLO) sub-reg forms are NOT
+/// included — those materialize via narrower loads (LDD/LDA/LDB) and
+/// are handled by the existing NeedSaveD/A/B paths.
+static bool isQSpillReg(Register Reg) {
+  return Reg >= MC6809::SPILL_Q0 && Reg <= MC6809::SPILL_Q31;
+}
+
 /// Check if this instruction's spill operands will cause D to be clobbered
 /// during materialization. Mirrors SpillDSaveRestore's willClobberD logic.
 static bool willClobberD(const MachineInstr &MI,
@@ -305,6 +316,45 @@ static bool willClobberD(const MachineInstr &MI,
     if (!isAccSpillReg(DstReg) && TRI.regsOverlap(DstReg, MC6809::AD))
       return false;
     if (!isAccSpillReg(SrcReg) && TRI.regsOverlap(SrcReg, MC6809::AD))
+      return false;
+  }
+
+  return true;
+}
+
+/// Bug #301 (2026-05-22): check if this instruction's spill operands
+/// will cause $aq to be clobbered during materialization.
+///
+/// SPILL_Q* operands materialize via LDQ to $aq, clobbering the entire
+/// 32-bit accumulator (and all its sub-regs $ad, $aw, $aa, $ab, $ae,
+/// $af).  When $aq has a live value at this MI's pre-state, the LDQ
+/// destroys it — Bug #301's root cause for the gmtime/timegm/ftello
+/// miscompiles.
+///
+/// COPYs to/from physical $aq don't add an extra LDQ (the COPY itself
+/// IS the materialization), so they're exempt — same logic as
+/// willClobberD's COPY carve-out.
+static bool willClobberQ(const MachineInstr &MI,
+                         const TargetRegisterInfo &TRI) {
+  bool HasQSpill = false;
+  for (const MachineOperand &MO : MI.operands()) {
+    if (!MO.isReg() || !MO.getReg().isPhysical())
+      continue;
+    if (isQSpillReg(MO.getReg()))
+      HasQSpill = true;
+  }
+  if (!HasQSpill)
+    return false;
+
+  // COPYs: $aq↔SPILL_Q* — $aq IS the intended operand, the COPY's
+  // materialization doesn't add an extra LDQ/STQ pair that wasn't
+  // already needed by the COPY itself.
+  if (MI.isCopy()) {
+    Register DstReg = MI.getOperand(0).getReg();
+    Register SrcReg = MI.getOperand(1).getReg();
+    if (!isQSpillReg(DstReg) && TRI.regsOverlap(DstReg, MC6809::AQ))
+      return false;
+    if (!isQSpillReg(SrcReg) && TRI.regsOverlap(SrcReg, MC6809::AQ))
       return false;
   }
 
@@ -515,6 +565,11 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
       bool NeedSaveIX;
       bool NeedSaveA;
       bool NeedSaveB;
+      // Bug #301 (2026-05-22): wider than NeedSaveD — saves the full
+      // $aq via STQ/LDQ when SPILL_Q* materialization clobbers $aq.
+      // NeedSaveD only preserves the AD sub-word (2 bytes); for SPILL_Q
+      // we need all 4 bytes preserved (AD + AW).
+      bool NeedSaveQ;
     };
     DenseMap<MachineInstr *, SpillInfo> NeedSave;
 
@@ -555,13 +610,29 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
       }
 
       bool HasSpill = false;
+      bool HasQSpillOnly = false;  // Bug #301
       for (const MachineOperand &MO : MI.operands()) {
-        if (MO.isReg() && MO.getReg().isPhysical() && isAnySpillReg(MO.getReg())) {
+        if (!MO.isReg() || !MO.getReg().isPhysical()) continue;
+        if (isAnySpillReg(MO.getReg())) {
           HasSpill = true;
           break;
         }
+        if (isQSpillReg(MO.getReg())) {
+          HasQSpillOnly = true;
+          // Don't break — keep scanning in case another operand is a
+          // regular spill (more general HasSpill takes precedence).
+        }
       }
-      if (!HasSpill)
+      // Bug #301 (2026-05-22): MIs with ONLY SPILL_Q* operands (no
+      // SPILL_A/B/D/X) aren't materialized by MaterializeSpills (the
+      // post-isel expansion handles SPILL_Q* via LDQ/STQ to the
+      // dedicated stack slot).  But the LDQ DOES clobber $aq — so we
+      // still need the backward-pass NeedSaveQ analysis to fire for
+      // these MIs.  Fall through to the rest of the loop for the save/
+      // restore brackets; the materialization code (SpillOps loop) is
+      // a no-op for SPILL_Q* operands since they don't match
+      // isAccSpillReg.
+      if (!HasSpill && !HasQSpillOnly)
         continue;
 
       // Handle COPY instructions specially to avoid going through D when
@@ -638,6 +709,7 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
 
       bool NeedD = false, NeedIY = false, NeedIX = false;
       bool NeedA = false, NeedB = false;
+      bool NeedQ = false;
 
       // LivePhysRegs::contains(R) returns true if R or any sub-reg was added
       // to the live set, but NOT if only a super-reg was added (addReg adds
@@ -653,7 +725,50 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
         return false;
       };
 
-      if (willClobberD(MI, TRI)) {
+      // Bug #301 (2026-05-22): SPILL_Q* materialization clobbers
+      // $aq via LDQ.  If $aq (or any of its 6 sub-regs $ad/$aw/$aa/
+      // $ab/$ae/$af) is live at the pre-state of this MI, the LDQ
+      // destroys the value — Bug #301's gmtime/timegm/ftello shape.
+      // Detect and request NeedSaveQ; the forward pass emits STQ/LDQ
+      // brackets around MI.
+      //
+      // NeedSaveQ subsumes NeedSaveD/A/B for this MI (the STQ/LDQ
+      // covers all sub-regs).  Skip the NeedD/A/B paths when NeedQ
+      // fires so we don't emit redundant save/restore pairs.
+      if (willClobberQ(MI, TRI)) {
+        // Discriminate against false-positive sub-reg liveness: the
+        // canonical Bug #301 shape has \$aq loaded as a unit (e.g.
+        // `\$aq = Load_i32_Mem ...`), so LPR.contains(AQ) is true at
+        // the pre-state.  Sub-reg-only liveness (e.g. \$ab live for an
+        // unrelated TestBranch consumer) shouldn't fire NeedQ because
+        // either the MI's own implicit-defs already account for the
+        // clobber (SpillLoad_i32_Mem), or the sub-reg's value is
+        // Bug #256-style garbage from an upstream SpillLoad killed by
+        // FAKE_USE.  Tightening to LPR.contains(AQ) avoids both.
+        if (LPR.contains(MC6809::AQ))
+          NeedQ = true;
+      }
+
+      // Bug #242-style exemption: tied-def of $aq is the intended
+      // output.  If $aq is a tied DEF on this MI, the new $aq value
+      // IS the result the consumer wants — wrapping with STQ/LDQ
+      // would restore the PRE-MI value and destroy the result.
+      if (NeedQ) {
+        for (const MachineOperand &MO : MI.operands()) {
+          if (!MO.isReg() || !MO.isDef() || MO.isImplicit() || MO.isDead())
+            continue;
+          if (!MO.getReg().isPhysical())
+            continue;
+          if (!TRI.regsOverlap(MO.getReg(), MC6809::AQ))
+            continue;
+          if (!MO.isTied())
+            continue;
+          NeedQ = false;
+          break;
+        }
+      }
+
+      if (willClobberD(MI, TRI) && !NeedQ) {
         // Bug #313 (2026-05-22): refine NeedD to byte-granular when
         // only one half of $ad is live.  Previously: any sub-reg of
         // $ad being live → NeedD (16-bit STD/LDD save+restore).  When
@@ -871,7 +986,7 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
           NeedA = true;
       }
 
-      NeedSave[&MI] = {NeedD, NeedIY, NeedIX, NeedA, NeedB};
+      NeedSave[&MI] = {NeedD, NeedIY, NeedIX, NeedA, NeedB, NeedQ};
     }
 
     // Forward pass: materialize spill operands.
@@ -891,6 +1006,30 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
       int DSaveSlot = -1;
       int ASaveSlot = -1;
       int BSaveSlot = -1;
+      int QSaveSlot = -1;  // Bug #301
+
+      // Bug #301 (2026-05-22): save Q (full $aq) if needed.  Emit
+      // STQ $aq → 4-byte stack slot before MI.  NeedSaveQ fires
+      // when MI's SPILL_Q* operand materialization (LDQ to $aq)
+      // would clobber a live $aq value.  Save is wider than NeedD
+      // — must be 4 bytes to capture all of $aq's sub-regs.
+      if (Info.NeedSaveQ) {
+        QSaveSlot = MFI.CreateStackObject(4, Align(1), true);
+        // Same Undef rationale as NeedSaveD (Bug #275): if $aq isn't
+        // directly live-in at MBB.begin(), the save reads bits that
+        // are part of a super-reg's value but not directly defined.
+        // Mark Undef so the verifier accepts the read.
+        RegState SrcFlags = RegState(0);
+        bool AqDirectLiveIn = MBB.isLiveIn(MC6809::AQ);
+        for (MCPhysReg Sub : TRI.subregs(MC6809::AQ))
+          AqDirectLiveIn = AqDirectLiveIn || MBB.isLiveIn(Sub);
+        if (MachineBasicBlock::iterator(MI) == MBB.begin() && !AqDirectLiveIn)
+          SrcFlags = RegState::Undef;
+        BuildMI(MBB, MI, DL, TII.get(MC6809::Store_i32_Mem))
+            .addReg(MC6809::AQ, SrcFlags)
+            .addFrameIndex(QSaveSlot)
+            .addImm(0);
+      }
 
       // Save D if needed.
       if (Info.NeedSaveD) {
@@ -1434,6 +1573,14 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
               .addFrameIndex(IXSaveSlot)
               .addImm(0);
         }
+        // Bug #301 (2026-05-22): restore Q if saved.  LDQ slot → $aq
+        // covers all sub-regs ($ad/$aw/$aa/$ab/$ae/$af).
+        if (QSaveSlot >= 0) {
+          BuildMI(MBB, After, DL, TII.get(MC6809::Load_i32_Mem))
+              .addReg(MC6809::AQ, RegState::Define)
+              .addFrameIndex(QSaveSlot)
+              .addImm(0);
+        }
         if (DSaveSlot >= 0) {
           BuildMI(MBB, After, DL, TII.get(MC6809::Load_i16_Mem))
               .addReg(MC6809::AD, RegState::Define)
@@ -1466,6 +1613,41 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
         //
         // For multi-predecessor successors (critical edges), split the
         // edge by inserting a new block for the restore.
+        // Bug #301 (2026-05-22): terminator-successor restore for Q.
+        // Same structure as the D path above — single-predecessor
+        // successors get the restore at the entry; critical-edge
+        // successors get a new restore block on the edge.
+        if (MI.isTerminator() && QSaveSlot >= 0) {
+          for (MachineBasicBlock *Succ : llvm::to_vector(MBB.successors())) {
+            if (Succ->pred_size() == 1) {
+              BuildMI(*Succ, Succ->begin(), DL, TII.get(MC6809::Load_i32_Mem))
+                  .addReg(MC6809::AQ, RegState::Define)
+                  .addFrameIndex(QSaveSlot)
+                  .addImm(0);
+            } else {
+              MachineBasicBlock *RestoreBB =
+                  MF.CreateMachineBasicBlock(MBB.getBasicBlock());
+              MF.insert(std::next(MBB.getIterator()), RestoreBB);
+              RestoreBB->addSuccessor(Succ);
+              MBB.replaceSuccessor(Succ, RestoreBB);
+              for (MachineInstr &Term : MBB.terminators())
+                for (MachineOperand &MO : Term.operands())
+                  if (MO.isMBB() && MO.getMBB() == Succ)
+                    MO.setMBB(RestoreBB);
+              for (const auto &LI : Succ->liveins())
+                if (!RestoreBB->isLiveIn(LI.PhysReg))
+                  RestoreBB->addLiveIn(LI.PhysReg);
+              BuildMI(*RestoreBB, RestoreBB->end(), DL,
+                      TII.get(MC6809::Load_i32_Mem))
+                  .addReg(MC6809::AQ, RegState::Define)
+                  .addFrameIndex(QSaveSlot)
+                  .addImm(0);
+              BuildMI(*RestoreBB, RestoreBB->end(), DL,
+                      TII.get(MC6809::LBRAlb))
+                  .addMBB(Succ);
+            }
+          }
+        }
         if (MI.isTerminator() && DSaveSlot >= 0) {
           for (MachineBasicBlock *Succ : llvm::to_vector(MBB.successors())) {
             if (Succ->pred_size() == 1) {
