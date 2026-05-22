@@ -654,8 +654,32 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
       };
 
       if (willClobberD(MI, TRI)) {
-        if (anySubRegLive(MC6809::AD))
+        // Bug #313 (2026-05-22): refine NeedD to byte-granular when
+        // only one half of $ad is live.  Previously: any sub-reg of
+        // $ad being live → NeedD (16-bit STD/LDD save+restore).  When
+        // only $ab is live (with an 8-bit value) and $aa is dead, the
+        // 16-bit save preserves garbage in $aa across the
+        // save/restore — latent vulnerability documented in Bug #313
+        // (i1 PHI → i16 store leaks $aa garbage to memory through the
+        // preservation slot).
+        //
+        // Discriminate: if both $aa and $ab are in the live set, save
+        // 16-bit (covers either two separate 8-bit values OR a 16-bit
+        // value).  If only one half is live, save just that half
+        // (NeedSaveA/NeedSaveB).  The byte-level save infrastructure
+        // is already in place (Bug #89 for SPILL_A/B operands); this
+        // change just routes NeedD's discovery into the same byte
+        // path when appropriate.
+        bool ALive = LPR.contains(MC6809::AA);
+        bool BLive = LPR.contains(MC6809::AB);
+        bool DLive = LPR.contains(MC6809::AD);
+        if (DLive || (ALive && BLive)) {
           NeedD = true;
+        } else if (ALive) {
+          NeedA = true;
+        } else if (BLive) {
+          NeedB = true;
+        }
       }
 
       // Bug #242: when MI has an explicit, non-dead, tied DEF of $ad
