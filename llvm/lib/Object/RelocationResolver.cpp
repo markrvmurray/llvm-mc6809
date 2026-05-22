@@ -155,6 +155,57 @@ static uint64_t resolveMips64(uint64_t Type, uint64_t Offset, uint64_t S,
   }
 }
 
+// Bug #294 (2026-05-22): the MC6809 relocation resolver mirrors MOS
+// below — both targets share the small-address-space ELF format and
+// emit FK_DATA_* fixups in DWARF sections.  Without this resolver,
+// llvm-dwarfdump emits "failed to compute relocation: R_MC6809_*"
+// warnings on every debug-info dump from .o files, and addresses
+// shown for debug entries come out as zero/raw rather than the
+// linked address.
+static bool supportsMC6809(uint64_t Type) {
+  switch (Type) {
+  case ELF::R_MC6809_IMM_8:
+  case ELF::R_MC6809_OFFSET_5:
+  case ELF::R_MC6809_OFFSET_8:
+  case ELF::R_MC6809_OFFSET_16:
+  case ELF::R_MC6809_ADDR_8:
+  case ELF::R_MC6809_ADDR_16:
+  case ELF::R_MC6809_PCREL_8:
+  case ELF::R_MC6809_PCREL_16:
+  case ELF::R_MC6809_FK_DATA_4:
+  case ELF::R_MC6809_FK_DATA_8:
+    return true;
+  default:
+    return false;
+  }
+}
+
+static uint64_t resolveMC6809(uint64_t Type, uint64_t Offset, uint64_t S,
+                              uint64_t /*LocData*/, int64_t Addend) {
+  switch (Type) {
+  case ELF::R_MC6809_IMM_8:
+  case ELF::R_MC6809_ADDR_8:
+    return (S + Addend) & 0xFF;
+  case ELF::R_MC6809_OFFSET_5:
+    return (S + Addend) & 0x1F;
+  case ELF::R_MC6809_OFFSET_8:
+    return (S + Addend) & 0xFF;
+  case ELF::R_MC6809_OFFSET_16:
+  case ELF::R_MC6809_ADDR_16:
+    return (S + Addend) & 0xFFFF;
+  case ELF::R_MC6809_PCREL_8:
+    return (S + Addend - Offset - 1) & 0xFF;
+  case ELF::R_MC6809_PCREL_16:
+    return (S + Addend - Offset - 2) & 0xFFFF;
+  case ELF::R_MC6809_FK_DATA_4:
+    return (S + Addend) & 0xFFFFFFFF;
+  case ELF::R_MC6809_FK_DATA_8:
+    return S + Addend;
+  default:
+    llvm_unreachable("Invalid relocation type");
+  }
+}
+
 static bool supportsMOS(uint64_t Type) {
   switch (Type) {
   case ELF::R_MOS_ADDR8:
@@ -901,6 +952,8 @@ getRelocationResolver(const ObjectFile &Obj) {
     case Triple::mipsel:
     case Triple::mips:
       return {supportsMips32, resolveMips32};
+    case Triple::mc6809:
+      return {supportsMC6809, resolveMC6809};
     case Triple::mos:
       return {supportsMOS, resolveMOS};
     case Triple::msp430:
