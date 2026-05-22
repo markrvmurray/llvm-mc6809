@@ -161,20 +161,17 @@ foreach I = 0...!add(MaxImag8Regs, -1) in {
 // destabilises the greedy regalloc's heuristics system-wide
 // (different allocation choices → cascade → miscompiles at O1+).
 // The sub-regs exist ONLY to give RS sub_hi_byte/sub_lo_byte indices.
-def RS0HI : MC6809Reg<0x3000, "rs0hi">;
-def RS0LO : MC6809Reg<0x3001, "rs0lo">;
-def RS1HI : MC6809Reg<0x3002, "rs1hi">;
-def RS1LO : MC6809Reg<0x3003, "rs1lo">;
-def RS2HI : MC6809Reg<0x3004, "rs2hi">;
-def RS2LO : MC6809Reg<0x3005, "rs2lo">;
-def RS3HI : MC6809Reg<0x3006, "rs3hi">;
-def RS3LO : MC6809Reg<0x3007, "rs3lo">;
-
-// RS0..RS3: composed from byte sub-regs, matching the AD/SPILL_D pattern.
-def RS0 : MC6809Reg16<Imag16RegsOffset,         "rs0", [RS0LO, RS0HI], [sub_lo_byte, sub_hi_byte]>;
-def RS1 : MC6809Reg16<!add(Imag16RegsOffset, 1), "rs1", [RS1LO, RS1HI], [sub_lo_byte, sub_hi_byte]>;
-def RS2 : MC6809Reg16<!add(Imag16RegsOffset, 2), "rs2", [RS2LO, RS2HI], [sub_lo_byte, sub_hi_byte]>;
-def RS3 : MC6809Reg16<!add(Imag16RegsOffset, 3), "rs3", [RS3LO, RS3HI], [sub_lo_byte, sub_hi_byte]>;
+//
+// Layout (interleaved hi/lo in DWARF numbering):
+//   RS{I}HI = 0x3000 + I*2,   RS{I}LO = 0x3001 + I*2
+//   RS{I}   = Imag16RegsOffset + I   (16-bit composed)
+foreach I = 0...3 in {
+  def RS#I#HI : MC6809Reg<!add(0x3000, !mul(I, 2)),     "rs"#I#"hi">;
+  def RS#I#LO : MC6809Reg<!add(0x3001, !mul(I, 2)),     "rs"#I#"lo">;
+  def RS#I    : MC6809Reg16<!add(Imag16RegsOffset, I),  "rs"#I,
+      [!cast<Register>("RS"#I#"LO"), !cast<Register>("RS"#I#"HI")],
+      [sub_lo_byte, sub_hi_byte]>;
+}
 
 // Bug-#207 follow-up audit (2026-05-02): RS4..RS127 were trimmed
 // after llvm-readelf across 564 .o files (full picolibc HD6309 -Oz
@@ -266,39 +263,24 @@ def MD : MC6809Reg8<17,  "md">;
 // Values assigned to spill registers are accessed via S-indexed loads/stores.
 // DWARF numbers in 0x2000+ range to avoid collision with imaginary regs.
 
-defm SPILL_A0 : MC6809Reg8<0x2000, "spill_a0">;
-defm SPILL_A1 : MC6809Reg8<0x2002, "spill_a1">;
-defm SPILL_A2 : MC6809Reg8<0x2004, "spill_a2">;
-defm SPILL_A3 : MC6809Reg8<0x2006, "spill_a3">;
-defm SPILL_A4 : MC6809Reg8<0x2008, "spill_a4">;
-defm SPILL_A5 : MC6809Reg8<0x200A, "spill_a5">;
-defm SPILL_A6 : MC6809Reg8<0x200C, "spill_a6">;
-defm SPILL_A7 : MC6809Reg8<0x200E, "spill_a7">;
-
-defm SPILL_B0 : MC6809Reg8<0x2001, "spill_b0">;
-defm SPILL_B1 : MC6809Reg8<0x2003, "spill_b1">;
-defm SPILL_B2 : MC6809Reg8<0x2005, "spill_b2">;
-defm SPILL_B3 : MC6809Reg8<0x2007, "spill_b3">;
-defm SPILL_B4 : MC6809Reg8<0x2009, "spill_b4">;
-defm SPILL_B5 : MC6809Reg8<0x200B, "spill_b5">;
-defm SPILL_B6 : MC6809Reg8<0x200D, "spill_b6">;
-defm SPILL_B7 : MC6809Reg8<0x200F, "spill_b7">;
-
-def SPILL_D0 : MC6809Reg16<0x2000, "spill_d0", [SPILL_B0, SPILL_A0], [sub_lo_byte, sub_hi_byte]>;
-def SPILL_D1 : MC6809Reg16<0x2002, "spill_d1", [SPILL_B1, SPILL_A1], [sub_lo_byte, sub_hi_byte]>;
-def SPILL_D2 : MC6809Reg16<0x2004, "spill_d2", [SPILL_B2, SPILL_A2], [sub_lo_byte, sub_hi_byte]>;
-def SPILL_D3 : MC6809Reg16<0x2006, "spill_d3", [SPILL_B3, SPILL_A3], [sub_lo_byte, sub_hi_byte]>;
-def SPILL_D4 : MC6809Reg16<0x2008, "spill_d4", [SPILL_B4, SPILL_A4], [sub_lo_byte, sub_hi_byte]>;
-def SPILL_D5 : MC6809Reg16<0x200A, "spill_d5", [SPILL_B5, SPILL_A5], [sub_lo_byte, sub_hi_byte]>;
-def SPILL_D6 : MC6809Reg16<0x200C, "spill_d6", [SPILL_B6, SPILL_A6], [sub_lo_byte, sub_hi_byte]>;
-def SPILL_D7 : MC6809Reg16<0x200E, "spill_d7", [SPILL_B7, SPILL_A7], [sub_lo_byte, sub_hi_byte]>;
+// SPILL_A{I}, SPILL_B{I}, SPILL_D{I} are interleaved in DWARF numbering
+// so the 16-bit SPILL_D{I} composes its bytes at adjacent addresses:
+//   SPILL_A{I} (= hi byte) = 0x2000 + I*2
+//   SPILL_B{I} (= lo byte) = 0x2001 + I*2
+//   SPILL_D{I} (= 16-bit)  = 0x2000 + I*2  (same DWARF num as its high byte)
+foreach I = 0...7 in {
+  defm SPILL_A#I : MC6809Reg8<!add(0x2000, !mul(I, 2)), "spill_a"#I>;
+  defm SPILL_B#I : MC6809Reg8<!add(0x2001, !mul(I, 2)), "spill_b"#I>;
+  def  SPILL_D#I : MC6809Reg16<!add(0x2000, !mul(I, 2)), "spill_d"#I,
+      [!cast<Register>("SPILL_B"#I), !cast<Register>("SPILL_A"#I)],
+      [sub_lo_byte, sub_hi_byte]>;
+}
 
 // INDEX16 spill pseudo-registers (backed by stack slots, expanded via LDX/STX).
 // These DON'T touch D during expansion, unlike ACC16 spills.
-def SPILL_X0 : MC6809Reg16<0x2010, "spill_x0">;
-def SPILL_X1 : MC6809Reg16<0x2012, "spill_x1">;
-def SPILL_X2 : MC6809Reg16<0x2014, "spill_x2">;
-def SPILL_X3 : MC6809Reg16<0x2016, "spill_x3">;
+foreach I = 0...3 in {
+  def SPILL_X#I : MC6809Reg16<!add(0x2010, !mul(I, 2)), "spill_x"#I>;
+}
 
 // ACC32 spill pseudo-registers (HD6309 only — backed by 4-byte stack slots,
 // expanded via LDQ/STQ). Bug #161 round 14: each SPILL_Q has half-word
@@ -352,35 +334,37 @@ foreach I = 0...31 in {
 // COPY handler in expandPostRAPseudo recognise these sub-regs and emit
 // the correct LDD slot read.  Bug #301a (2026-05-16): now MC6809Reg16
 // with sub_lo_byte / sub_hi_byte SubRegIndices pointing at the byte
-// sub-regs defined above.  Original Q0..3 keep their pre-Phase-C HI/LO
-// IDs ($2030..$2037) so any external code that hashed on them stays put.
-foreach I = 0...3 in {
-  def SPILL_Q#I#HI : MC6809Reg16<!add(0x2030, !mul(I, 2)),     "spill_q"#I#"_hi",
-      [!cast<Register>("SPILL_Q"#I#"HILO"), !cast<Register>("SPILL_Q"#I#"HIHI")],
-      [sub_lo_byte, sub_hi_byte]>;
-  def SPILL_Q#I#LO : MC6809Reg16<!add(0x2031, !mul(I, 2)),     "spill_q"#I#"_lo",
-      [!cast<Register>("SPILL_Q"#I#"LOLO"), !cast<Register>("SPILL_Q"#I#"LOHI")],
-      [sub_lo_byte, sub_hi_byte]>;
-  def SPILL_Q#I : MC6809Reg32<!add(0x2018, !shl(I, 2)), "spill_q"#I,
-      [!cast<Register>("SPILL_Q"#I#"LO"), !cast<Register>("SPILL_Q"#I#"HI")],
-      [sub_lo_word, sub_hi_word]>;
-}
-
+// sub-regs defined above.
+//
 // Bug #265 / Bug #296 Phase 2: extend SPILL_Q* from 4 slots to 32 to
 // remove the artificial ACC32 capacity ceiling that the optimizer's
 // word-loop patterns can overflow (memccpy / rawmemchr at HD6309 -O2
 // being the manifest).  Slots are stack-backed like the original four
 // (see expandLoadIdx / expandStoreIdx), so adding more costs zero DP
 // and no per-function memory unless regalloc actually spills to them.
-foreach I = 4...31 in {
-  def SPILL_Q#I#HI : MC6809Reg16<!add(0x2200, !mul(I, 2)), "spill_q"#I#"_hi",
+//
+// DWARF numbering ranges (kept distinct so the original Q0..3 retain
+// their pre-Phase-C IDs for any external code that hashed on them):
+//   Q0..Q3    HI/LO at $2030+I*2, $2031+I*2;   composed at $2018+I*4
+//   Q4..Q31   HI/LO at $2200+I*2, $2201+I*2;   composed at $2100+I*4
+defvar SpillQHiLoOffset = 0x2030;
+defvar SpillQHiLoOffsetExt = 0x2200;
+defvar SpillQOffset    = 0x2018;
+defvar SpillQOffsetExt = 0x2100;
+foreach I = 0...31 in {
+  defvar HiLoBase = !if(!lt(I, 4),
+                        !add(SpillQHiLoOffset,    !mul(I, 2)),
+                        !add(SpillQHiLoOffsetExt, !mul(I, 2)));
+  defvar QBase    = !if(!lt(I, 4),
+                        !add(SpillQOffset,    !shl(I, 2)),
+                        !add(SpillQOffsetExt, !shl(I, 2)));
+  def SPILL_Q#I#HI : MC6809Reg16<HiLoBase, "spill_q"#I#"_hi",
       [!cast<Register>("SPILL_Q"#I#"HILO"), !cast<Register>("SPILL_Q"#I#"HIHI")],
       [sub_lo_byte, sub_hi_byte]>;
-  def SPILL_Q#I#LO : MC6809Reg16<!add(0x2201, !mul(I, 2)), "spill_q"#I#"_lo",
+  def SPILL_Q#I#LO : MC6809Reg16<!add(HiLoBase, 1), "spill_q"#I#"_lo",
       [!cast<Register>("SPILL_Q"#I#"LOLO"), !cast<Register>("SPILL_Q"#I#"LOHI")],
       [sub_lo_byte, sub_hi_byte]>;
-  def SPILL_Q#I : MC6809Reg32<!add(0x2100, !shl(I, 2)),
-      "spill_q"#I,
+  def SPILL_Q#I   : MC6809Reg32<QBase, "spill_q"#I,
       [!cast<Register>("SPILL_Q"#I#"LO"), !cast<Register>("SPILL_Q"#I#"HI")],
       [sub_lo_word, sub_hi_word]>;
 }
@@ -424,14 +408,9 @@ foreach I = 4...31 in {
 // debug-info or MC-emission reference will land on a deliberately
 // suggestive number (0x3FXX -- a "phantom" looking address) that is easy
 // to spot in disassembly or DWARF dumps.
-def PHANTOM_CARRY_0 : MC6809Reg1<0x3F00, "phantom_carry_0">;
-def PHANTOM_CARRY_1 : MC6809Reg1<0x3F01, "phantom_carry_1">;
-def PHANTOM_CARRY_2 : MC6809Reg1<0x3F02, "phantom_carry_2">;
-def PHANTOM_CARRY_3 : MC6809Reg1<0x3F03, "phantom_carry_3">;
-def PHANTOM_CARRY_4 : MC6809Reg1<0x3F04, "phantom_carry_4">;
-def PHANTOM_CARRY_5 : MC6809Reg1<0x3F05, "phantom_carry_5">;
-def PHANTOM_CARRY_6 : MC6809Reg1<0x3F06, "phantom_carry_6">;
-def PHANTOM_CARRY_7 : MC6809Reg1<0x3F07, "phantom_carry_7">;
+foreach I = 0...7 in {
+  def PHANTOM_CARRY_#I : MC6809Reg1<!add(0x3F00, I), "phantom_carry_"#I>;
+}
 
 //===----------------------------------------------------------------------===//
 //  Register classes
@@ -460,17 +439,20 @@ def CARRY : MC6809Reg1Class<(add C)>;
 // scheduling-phantom carry-out vregs produced by SetCarry / SetCarryUse /
 // SetOverflow / SetOverflowUse.  See the long comment block at the
 // PHANTOM_CARRY_0..7 physreg definitions above for the invariant.
-def PHANTOM_CARRY : MC6809Reg1Class<(add PHANTOM_CARRY_0, PHANTOM_CARRY_1,
-                                          PHANTOM_CARRY_2, PHANTOM_CARRY_3,
-                                          PHANTOM_CARRY_4, PHANTOM_CARRY_5,
-                                          PHANTOM_CARRY_6, PHANTOM_CARRY_7)>;
+def PHANTOM_CARRY : MC6809Reg1Class<(sequence "PHANTOM_CARRY_%u", 0, 7)>;
 // ACC8 — the byte allocation pool.  i1 values share this class with
 // i8: the byte's LSB carries the boolean.  Includes the four real
 // byte registers, 16 SPILL_*N slots, and 16 RC* imaginary (DP)
 // registers, all addressable as a single byte.
-def ACC8 : MC6809Reg8Class<(add AB, AA, AF, AE, SPILL_B0, SPILL_B1, SPILL_B2, SPILL_B3, SPILL_B4, SPILL_B5, SPILL_B6, SPILL_B7, SPILL_A0, SPILL_A1, SPILL_A2, SPILL_A3, SPILL_A4, SPILL_A5, SPILL_A6, SPILL_A7, RC0, RC1, RC2, RC3, RC4, RC5, RC6, RC7, RC8, RC9, RC10, RC11, RC12, RC13, RC14, RC15)> {
+def ACC8 : MC6809Reg8Class<(add AB, AA, AF, AE,
+                                (sequence "SPILL_B%u", 0, 7),
+                                (sequence "SPILL_A%u", 0, 7),
+                                (sequence "RC%u",      0, 15))> {
     // AE and AF are HD6309-only. Exclude from allocation on 6809.
-    let AltOrders = [(add AB, AA, SPILL_B0, SPILL_B1, SPILL_B2, SPILL_B3, SPILL_B4, SPILL_B5, SPILL_B6, SPILL_B7, SPILL_A0, SPILL_A1, SPILL_A2, SPILL_A3, SPILL_A4, SPILL_A5, SPILL_A6, SPILL_A7, RC0, RC1, RC2, RC3, RC4, RC5, RC6, RC7, RC8, RC9, RC10, RC11, RC12, RC13, RC14, RC15)];
+    let AltOrders = [(add AB, AA,
+                         (sequence "SPILL_B%u", 0, 7),
+                         (sequence "SPILL_A%u", 0, 7),
+                         (sequence "RC%u",      0, 15))];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
 }
 def ACC8_AB : MC6809Reg8Class<(add AB, AA)>;
@@ -518,10 +500,12 @@ def BIT8 : MC6809Reg8Class<(add AA, AB, CC)>; // Valid registers for BAND, BEOR,
 // pool padding. Trimmed back to RS0..RS3 to reclaim ~120 bytes of
 // direct-page address space for user `__attribute__((directpage))`.
 let isPressureFineGrained = true in
-def ACC16 : MC6809Reg16Class<(add AD, AW, SPILL_D0, SPILL_D1, SPILL_D2, SPILL_D3, SPILL_D4, SPILL_D5, SPILL_D6, SPILL_D7,
-  RS0, RS1, RS2, RS3)> {
-    let AltOrders = [(add AD, SPILL_D0, SPILL_D1, SPILL_D2, SPILL_D3, SPILL_D4, SPILL_D5, SPILL_D6, SPILL_D7,
-      RS0, RS1, RS2, RS3)];
+def ACC16 : MC6809Reg16Class<(add AD, AW,
+                                  (sequence "SPILL_D%u", 0, 7),
+                                  (sequence "RS%u",      0, 3))> {
+    let AltOrders = [(add AD,
+                          (sequence "SPILL_D%u", 0, 7),
+                          (sequence "RS%u",      0, 3))];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
 }
 // ACC16_D removed 2026-04-16 as the Layer-2 regalloc experiment (bug #118).
@@ -539,8 +523,7 @@ def ACC16 : MC6809Reg16Class<(add AD, AW, SPILL_D0, SPILL_D1, SPILL_D2, SPILL_D3
 // from a dedicated 4-byte stack slot. EXTRACT_SUBREG sub_lo_word /
 // sub_hi_word from a SPILL_Q is unsupported, but round 10's i32→i16
 // narrowing of G_LOAD/G_STORE eliminated nearly all such patterns.
-def ACC32 : MC6809Reg32Class<(add AQ, SPILL_Q0, SPILL_Q1, SPILL_Q2, SPILL_Q3,
-                                  (sequence "SPILL_Q%u", 4, 31))> {
+def ACC32 : MC6809Reg32Class<(add AQ, (sequence "SPILL_Q%u", 0, 31))> {
     let AltOrders = [(add)];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
 }
@@ -559,7 +542,9 @@ def REGTFM : MC6809Reg16Class<(add AD, IX, IY, SU, SS)>; // Registers for TFM
 
 // Pointer and stack registers
 let isPressureFineGrained = true in
-def INDEX16 : MC6809Reg16Class<(add IX, IY, SPILL_X0, SPILL_X1, SPILL_X2, SPILL_X3, SU, SS)>;
+def INDEX16 : MC6809Reg16Class<(add IX, IY,
+                                    (sequence "SPILL_X%u", 0, 3),
+                                    SU, SS)>;
 
 // Stack registers for internal push/pull operations.
 // SU is always reserved (frame pointer), so only SS will be allocated.
@@ -586,10 +571,12 @@ let isAllocatable = false in {
 }
 
 // Single register classes.
-    def AAc : MC6809Reg8Class<(add AA, SPILL_A0, SPILL_A1, SPILL_A2, SPILL_A3, SPILL_A4, SPILL_A5, SPILL_A6, SPILL_A7)>;
-    def ABc : MC6809Reg8Class<(add AB, SPILL_B0, SPILL_B1, SPILL_B2, SPILL_B3, SPILL_B4, SPILL_B5, SPILL_B6, SPILL_B7)>;
+    def AAc : MC6809Reg8Class<(add AA, (sequence "SPILL_A%u", 0, 7))>;
+    def ABc : MC6809Reg8Class<(add AB, (sequence "SPILL_B%u", 0, 7))>;
     let isPressureFineGrained = true in
-    def ADc : MC6809Reg16Class<(add AD, SPILL_D0, SPILL_D1, SPILL_D2, SPILL_D3, SPILL_D4, SPILL_D5, SPILL_D6, SPILL_D7, RS0, RS1, RS2, RS3)>;
+    def ADc : MC6809Reg16Class<(add AD,
+                                    (sequence "SPILL_D%u", 0, 7),
+                                    (sequence "RS%u",      0, 3))>;
     def AEc : MC6809Reg8Class<(add AE)>;
     def AFc : MC6809Reg8Class<(add AF)>;
     def AWc : MC6809Reg16Class<(add AW)>;
@@ -598,8 +585,7 @@ let isAllocatable = false in {
     // by an enclosing call frame.  Accumulator Defs are scoped to
     // only the half they actually clobber (LDD → AD, LDW → AW) so
     // long-lived i32 values can sit in AQ across half-width ops.
-    def AQc : MC6809Reg32Class<(add AQ, SPILL_Q0, SPILL_Q1, SPILL_Q2, SPILL_Q3,
-                                    (sequence "SPILL_Q%u", 4, 31))>;
+    def AQc : MC6809Reg32Class<(add AQ, (sequence "SPILL_Q%u", 0, 31))>;
     let isPressureFineGrained = true in
     def IXc : MC6809Reg16Class<(add IX)>;
     let isPressureFineGrained = true in
