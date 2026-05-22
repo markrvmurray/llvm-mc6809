@@ -2270,19 +2270,91 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
       // data.  Phase 3 rewrites this expansion to be sub-reg-
       // independent and the collision-handling will be revisited
       // there.
+      // Bug #311 (2026-05-22): collision-aware expansion.  Five cases:
+      //
+      //   1. Cross-conflict (hi=$aw, lo=$ad): EXG D,W in one cycle.
+      //   2. Both SPILL_D: load lo→AD; TFR D,W; load hi→AD.
+      //   3. Only hi is SPILL_D: move lo→AW (preserve from LDD-
+      //      clobber); load hi→AD.  Common case after MaterializeSpills'
+      //      PhysCollision detection skips the $hi=$spill_d0 case
+      //      where $lo=$ad.
+      //   4. Only lo is SPILL_D AND hi is already in $ad: use LDW
+      //      (HD6309) to load lo into AW directly without touching AD.
+      //   5. Neither spilled (and not cross-conflict): existing
+      //      sequential copyPhysReg.
       MachineBasicBlock &MBB = *MI.getParent();
       MachineBasicBlock::iterator InsertBefore = MI;
       MachineBasicBlock::iterator BeforeFirstCopy = MBB.end();
       if (InsertBefore != MBB.begin())
         BeforeFirstCopy = std::prev(InsertBefore);
 
-      if (HiReg != MC6809::AD) {
+      bool LoIsSpill = isSpillReg(LoReg) && !isQSpillReg(LoReg);
+      bool HiIsSpill = isSpillReg(HiReg) && !isQSpillReg(HiReg);
+
+      auto LoadSpillIntoAD = [&](Register SpillReg) {
+        int Offset = computeSpillStackOffset(SpillReg, MF);
+        bool Fits8 = (Offset >= -128 && Offset <= 127);
+        unsigned Opcode = Fits8 ? MC6809::LDDi_o8 : MC6809::LDDi_o16;
+        Builder.buildInstr(Opcode)
+            .addDef(MC6809::AD, RegState::Implicit)
+            .addImm(Offset)
+            .addReg(MC6809::SU);
+      };
+      auto LoadSpillIntoAW = [&](Register SpillReg) {
+        // HD6309-only: LDW writes AW directly without touching AD.
+        int Offset = computeSpillStackOffset(SpillReg, MF);
+        bool Fits8 = (Offset >= -128 && Offset <= 127);
+        unsigned Opcode = Fits8 ? MC6809::LDWi_o8 : MC6809::LDWi_o16;
+        Builder.buildInstr(Opcode)
+            .addDef(MC6809::AW, RegState::Implicit)
+            .addImm(Offset)
+            .addReg(MC6809::SU);
+      };
+
+      if (HiReg == MC6809::AW && LoReg == MC6809::AD) {
+        // Case 1: cross-conflict — EXG D,W swaps in one cycle.
+        Builder.buildInstr(MC6809::EXGp)
+            .addDef(MC6809::AD).addDef(MC6809::AW)
+            .addUse(MC6809::AD).addUse(MC6809::AW);
+      } else if (LoIsSpill && HiIsSpill) {
+        // Case 2: both spilled.  LO first (LDD writes AD, then TFR
+        // moves it to AW), THEN HI into AD.
+        LoadSpillIntoAD(LoReg);
         copyPhysReg(MBB, InsertBefore, MI.getDebugLoc(),
-                    MC6809::AD, HiReg, /*KillSrc=*/false);
-      }
-      if (LoReg != MC6809::AW) {
-        copyPhysReg(MBB, InsertBefore, MI.getDebugLoc(),
-                    MC6809::AW, LoReg, /*KillSrc=*/false);
+                    MC6809::AW, MC6809::AD, /*KillSrc=*/false);
+        LoadSpillIntoAD(HiReg);
+      } else if (HiIsSpill) {
+        // Case 3: HI spilled.  Move LO to AW first (preserve before
+        // LDD clobbers AD), then load HI into AD.
+        if (LoReg != MC6809::AW) {
+          copyPhysReg(MBB, InsertBefore, MI.getDebugLoc(),
+                      MC6809::AW, LoReg, /*KillSrc=*/false);
+        }
+        LoadSpillIntoAD(HiReg);
+      } else if (LoIsSpill) {
+        // Case 4: LO spilled.  If HI already in AD, use LDW to load
+        // LO into AW without touching AD.  Otherwise normal sequence.
+        if (HiReg == MC6809::AD) {
+          LoadSpillIntoAW(LoReg);
+        } else {
+          LoadSpillIntoAD(LoReg);
+          copyPhysReg(MBB, InsertBefore, MI.getDebugLoc(),
+                      MC6809::AW, MC6809::AD, /*KillSrc=*/false);
+          if (HiReg != MC6809::AD) {
+            copyPhysReg(MBB, InsertBefore, MI.getDebugLoc(),
+                        MC6809::AD, HiReg, /*KillSrc=*/false);
+          }
+        }
+      } else {
+        // Case 5: neither spilled.  Existing sequential behavior.
+        if (HiReg != MC6809::AD) {
+          copyPhysReg(MBB, InsertBefore, MI.getDebugLoc(),
+                      MC6809::AD, HiReg, /*KillSrc=*/false);
+        }
+        if (LoReg != MC6809::AW) {
+          copyPhysReg(MBB, InsertBefore, MI.getDebugLoc(),
+                      MC6809::AW, LoReg, /*KillSrc=*/false);
+        }
       }
 
       // Find the last instruction we emitted (immediately before MI).

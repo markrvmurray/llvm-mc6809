@@ -157,6 +157,18 @@ static bool needsSecondAccSpillSkip(unsigned Opcode) {
   case MC6809::OR_i16_Reg:
   case MC6809::XOR_i8_Reg:
   case MC6809::XOR_i16_Reg:
+  // Bug #311 (2026-05-22): Build32_i16i16 takes two ADc operands
+  // ($lo, $hi) and assembles them into AQ.  LDD <slot>,$su to load
+  // a SPILL_D writes $ad — clobbering the OTHER operand if it was
+  // also in $ad (or resolved to $ad from another spill).  Skip ACC
+  // spills so they survive as SPILL_D into expandPostRAPseudo,
+  // which loads them via dedicated sequences that don't lose data.
+  //
+  // PhysCollision detection at lines 1059-1070 handles the case
+  // where $lo=$ad (non-spill) and $hi=$spill_d0: spill's RealReg
+  // collides with $lo's physreg → skip first spill.  The 2nd-
+  // distinct-spill skip handles the both-spilled case.
+  case MC6809::Build32_i16i16:
     return true;
   default:
     return false;

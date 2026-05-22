@@ -38,7 +38,7 @@ stack:
 body: |
   bb.0:
     liveins: $ad, $su
-    renamable $spill_q0 = Build32_i16i16 killed renamable $ad, killed renamable $ad, implicit-def dead $nz, implicit-def dead $v
+    renamable $spill_q0 = Build32_i16i16 killed renamable $ad, killed renamable $ad, implicit-def dead $nz, implicit-def dead $v, implicit-def dead $ad, implicit-def dead $aw
     FAKE_USE renamable $spill_q0
     RTSr
 ...

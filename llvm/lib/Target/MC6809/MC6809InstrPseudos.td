@@ -227,6 +227,15 @@ let Defs = [NZ, V] in {
   def Build32_i16i16 : MC6809Pseudo {
     dag OutOperandList = (outs ACC32:$dst);
     dag InOperandList  = (ins ADc:$lo, ADc:$hi);
+    // Bug #311 (2026-05-22): explicit Defs = [AD, AW] tells regalloc
+    // that the expansion CLOBBERS both halves of AQ as individual
+    // sub-registers, not just AQ as a whole.  Without this, regalloc
+    // can insert a spill-reload of $ad BETWEEN this pseudo and a
+    // downstream consumer of $aq, overwriting the expansion's result
+    // with a stale value.  Manifest at -O2-hd6309-mame-fp:
+    // umulodi4_probe / divdi_probe / __ucmpdi2-via-i64-!= return
+    // wrong values despite the printed-low-32 matching.
+    let Defs = [AD, AW];
     let isAsCheapAsAMove = true;
   }
 
