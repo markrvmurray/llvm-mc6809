@@ -2227,6 +2227,13 @@ bool MC6809InstructionSelector::selectMergeValues(MachineInstr &MI) {
     // to find a class compatible with ALL uses.  Single-use is
     // narrowable cleanly so the COPY would be redundant (and breaks
     // -O0 lit asm CHECK strings, as observed 2026-05-22).
+    //
+    // An attempt at a "tighter" gate that also caught cross-class
+    // single-use cases (ABc→AAc swap) cascaded into other passes'
+    // autogen-class assumptions and regressed non-Og tiers — the
+    // multi-use shape catches all -Og library-code occurrences,
+    // and the rare cross-class single-use cases in test binaries
+    // are left as known residue.
     auto narrowIfMultiUse = [&](Register R,
                                 const TargetRegisterClass *RC) -> Register {
       if (MRI->getRegClassOrNull(R) == RC)
