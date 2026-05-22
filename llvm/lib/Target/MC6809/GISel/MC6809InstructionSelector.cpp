@@ -1141,7 +1141,25 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     bool IsLoad = MI.getOpcode() == TargetOpcode::G_LOAD;
     Register AddrReg = MI.getOperand(IsLoad ? 1 : 1).getReg();
     LLT AddrTy = MRI->getType(AddrReg);
-    if (AddrTy.isPointer() && AddrTy.getAddressSpace() == 1) {
+    // Two paths handled here:
+    //   AS==1 (Bug #178): direct-page addressing, LDAd/STAd/LDDd/STDd
+    //   AS==0 (extended addressing, this commit): LDAe/STAe/LDDe/STDe/
+    //     LDQe/STQe/LDXe/STXe — fold G_GLOBAL_VALUE directly into the
+    //     load/store so the LEAX/LEAY + indexed-zero-offset pair becomes
+    //     a single extended-mode op.  Saves 4 bytes + 5 cycles per site.
+    //
+    // Extended-mode (AS==0) only fires under the STATIC relocation
+    // model.  Under PIC/PIE, globals must be addressed via LEAX label,pc
+    // so the linker can emit R_MC6809_PCREL_16 (per Bug #197); folding
+    // into extended-mode would emit an absolute-address relocation and
+    // break the position-independent contract.  Fall through to the
+    // existing G_GLOBAL_VALUE selectImpl path (which picks LEAXi_o16PC
+    // under PIC, see line ~1395) in that case.
+    bool IsPIC = MF->getTarget().isPositionIndependent();
+    if (AddrTy.isPointer() &&
+        (AddrTy.getAddressSpace() == 1 ||
+         (AddrTy.getAddressSpace() == 0 && !IsPIC))) {
+      bool IsDP = AddrTy.getAddressSpace() == 1;
       // Walk to the G_GLOBAL_VALUE producer.
       MachineInstr *GV = MRI->getVRegDef(AddrReg);
       while (GV && (GV->getOpcode() == TargetOpcode::COPY ||
@@ -1150,42 +1168,66 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
         if (!Src.isVirtual()) break;
         GV = MRI->getVRegDef(Src);
       }
-      if (!GV || GV->getOpcode() != TargetOpcode::G_GLOBAL_VALUE)
-        return false; // unsupported p1 addressing form
+      bool HaveGV = GV && GV->getOpcode() == TargetOpcode::G_GLOBAL_VALUE;
+      if (!HaveGV) {
+        if (IsDP)
+          return false; // unsupported p1 addressing form
+        // AS==0 without a G_GLOBAL_VALUE producer — fall through to
+        // selectImpl which handles indexed addressing via Load_*_Mem.
+        goto skip_globalvalue_fold;
+      }
       Register ValReg = MI.getOperand(0).getReg();
       LLT ValTy = MRI->getType(ValReg);
       unsigned Opc;
       MCRegister AccReg;
       const TargetRegisterClass *AccRC;
       if (ValTy == LLT::scalar(8)) {
-        Opc = IsLoad ? MC6809::LDAd : MC6809::STAd;
+        Opc = IsLoad ? (IsDP ? MC6809::LDAd : MC6809::LDAe)
+                     : (IsDP ? MC6809::STAd : MC6809::STAe);
         AccReg = MC6809::AA;
         AccRC = &MC6809::AAcRegClass;
       } else if (ValTy == LLT::scalar(16)) {
-        Opc = IsLoad ? MC6809::LDDd : MC6809::STDd;
+        Opc = IsLoad ? (IsDP ? MC6809::LDDd : MC6809::LDDe)
+                     : (IsDP ? MC6809::STDd : MC6809::STDe);
         AccReg = MC6809::AD;
         AccRC = &MC6809::ADcRegClass;
+      } else if (!IsDP && ValTy.isPointer() && ValTy.getSizeInBits() == 16) {
+        // Extended-mode pointer load/store: LDX/STX is the canonical
+        // 16-bit pointer load.  Regalloc may insert a COPY between the
+        // value reg and IX if the consumer / producer used IY or IU;
+        // that COPY becomes a TFR (2 bytes) — still smaller than the
+        // LEAX-then-indexed pair we avoid (6 bytes total).
+        Opc = IsLoad ? MC6809::LDXe : MC6809::STXe;
+        AccReg = MC6809::IX;
+        AccRC = &MC6809::IXcRegClass;
+      } else if (!IsDP && ValTy == LLT::scalar(32) && STI.has6309()) {
+        // Extended-mode i32 load/store: HD6309 LDQe/STQe in one op.
+        Opc = IsLoad ? MC6809::LDQe : MC6809::STQe;
+        AccReg = MC6809::AQ;
+        AccRC = &MC6809::AQcRegClass;
       } else {
-        return false; // unsupported width (s32 etc. — narrowed earlier)
+        if (IsDP)
+          return false; // unsupported width (s32 on plain 6809 etc.)
+        goto skip_globalvalue_fold;
       }
       const MachineOperand &GVOp = GV->getOperand(1);
       if (IsLoad) {
-        // $aa = LDAd @g
+        // $reg = LD*e @g  (or LD*d for DP)
         BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(Opc))
             .add(GVOp)
             .addDef(AccReg, RegState::Implicit);
-        // %v = COPY $aa
+        // %v = COPY $reg
         BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(TargetOpcode::COPY),
                 ValReg)
             .addReg(AccReg);
         if (!MRI->getRegClassOrNull(ValReg))
           MRI->setRegClass(ValReg, AccRC);
       } else {
-        // $aa = COPY %v
+        // $reg = COPY %v
         BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(TargetOpcode::COPY),
                 AccReg)
             .addReg(ValReg);
-        // STAd @g
+        // ST*e @g  (or ST*d for DP)
         BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(Opc))
             .add(GVOp)
             .addUse(AccReg, RegState::Implicit);
@@ -1199,6 +1241,7 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
       return true;
     }
   }
+skip_globalvalue_fold:
 
   // Bug #322 (2026-05-22): intercept G_MUL / G_UMULH / G_SMULH on i8
   // BEFORE selectImpl matches the TableGen MulPat_i8 / MulHUPat_i8 /

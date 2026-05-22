@@ -31,8 +31,7 @@ define i32 @bug221_load_i32_from_spill(i32 %x) #0 {
 ; CHECK-NEXT:    tfr s,u
 ; CHECK-NEXT:    tfr x,y
 ; CHECK-NEXT:    sty 6,u
-; CHECK-NEXT:    ldx #gptr
-; CHECK-NEXT:    ldx ,x
+; CHECK-NEXT:    ldx gptr
 ; CHECK-NEXT:    leas -2,s
 ; CHECK-NEXT:    stx ,s
 ; CHECK-NEXT:    leax 8,u
