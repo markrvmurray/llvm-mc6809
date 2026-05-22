@@ -150,7 +150,7 @@
 # CHECK: leax	,--y
 0x30 0xa3
 
-# CHECK: leax	194,pc
+# CHECK: leax	-62,pc
 0x30 0x8c 0xc2
 
 # CHECK: leax	21135,pc
@@ -183,7 +183,7 @@
 # CHECK: leax	[105,pc]
 0x30 0x9c 0x69
 
-# CHECK: leax	[42527,pc]
+# CHECK: leax	[-23009,pc]
 0x30 0x9d 0xa6 0x1f
 
 # CHECK: leax	[17287]
@@ -222,7 +222,7 @@
 # CHECK: leay	,--y
 0x31 0xa3
 
-# CHECK: leay	186,pc
+# CHECK: leay	-70,pc
 0x31 0x8c 0xba
 
 # CHECK: leay	29243,pc
@@ -252,10 +252,10 @@
 # CHECK: leay	[,--s]
 0x31 0xf3
 
-# CHECK: leay	[176,pc]
+# CHECK: leay	[-80,pc]
 0x31 0x9c 0xb0
 
-# CHECK: leay	[34085,pc]
+# CHECK: leay	[-31451,pc]
 0x31 0x9d 0x85 0x25
 
 # CHECK: leay	[57959]
@@ -294,10 +294,10 @@
 # CHECK: leas	,--x
 0x32 0x83
 
-# CHECK: leas	133,pc
+# CHECK: leas	-123,pc
 0x32 0x8c 0x85
 
-# CHECK: leas	33187,pc
+# CHECK: leas	-32349,pc
 0x32 0x8d 0x81 0xa3
 
 # CHECK: leas	[,y]
@@ -327,7 +327,7 @@
 # CHECK: leas	[35,pc]
 0x32 0x9c 0x23
 
-# CHECK: leas	[46585,pc]
+# CHECK: leas	[-18951,pc]
 0x32 0x9d 0xb5 0xf9
 
 # CHECK: leas	[46355]
@@ -366,10 +366,10 @@
 # CHECK: leau	,--x
 0x33 0x83
 
-# CHECK: leau	155,pc
+# CHECK: leau	-101,pc
 0x33 0x8c 0x9b
 
-# CHECK: leau	52536,pc
+# CHECK: leau	-13000,pc
 0x33 0x8d 0xcd 0x38
 
 # CHECK: leau	[,y]
@@ -396,10 +396,10 @@
 # CHECK: leau	[,--y]
 0x33 0xb3
 
-# CHECK: leau	[201,pc]
+# CHECK: leau	[-55,pc]
 0x33 0x9c 0xc9
 
-# CHECK: leau	[65445,pc]
+# CHECK: leau	[-91,pc]
 0x33 0x9d 0xff 0xa5
 
 # CHECK: leau	[36501]
@@ -537,10 +537,10 @@
 # CHECK: neg	,--x
 0x60 0x83
 
-# CHECK: neg	131,pc
+# CHECK: neg	-125,pc
 0x60 0x8c 0x83
 
-# CHECK: neg	63855,pc
+# CHECK: neg	-1681,pc
 0x60 0x8d 0xf9 0x6f
 
 # CHECK: neg	[,u]
@@ -609,7 +609,7 @@
 # CHECK: com	,--u
 0x63 0xc3
 
-# CHECK: com	230,pc
+# CHECK: com	-26,pc
 0x63 0x8c 0xe6
 
 # CHECK: com	23388,pc
@@ -642,7 +642,7 @@
 # CHECK: com	[72,pc]
 0x63 0x9c 0x48
 
-# CHECK: com	[48643,pc]
+# CHECK: com	[-16893,pc]
 0x63 0x9d 0xbe 0x03
 
 # CHECK: com	[32962]
@@ -681,7 +681,7 @@
 # CHECK: lsr	,--y
 0x64 0xa3
 
-# CHECK: lsr	136,pc
+# CHECK: lsr	-120,pc
 0x64 0x8c 0x88
 
 # CHECK: lsr	30745,pc
@@ -711,10 +711,10 @@
 # CHECK: lsr	[,--s]
 0x64 0xf3
 
-# CHECK: lsr	[136,pc]
+# CHECK: lsr	[-120,pc]
 0x64 0x9c 0x88
 
-# CHECK: lsr	[41729,pc]
+# CHECK: lsr	[-23807,pc]
 0x64 0x9d 0xa3 0x01
 
 # CHECK: lsr	[52569]
@@ -756,7 +756,7 @@
 # CHECK: ror	63,pc
 0x66 0x8c 0x3f
 
-# CHECK: ror	55489,pc
+# CHECK: ror	-10047,pc
 0x66 0x8d 0xd8 0xc1
 
 # CHECK: ror	[,y]
@@ -825,7 +825,7 @@
 # CHECK: asr	,--u
 0x67 0xc3
 
-# CHECK: asr	248,pc
+# CHECK: asr	-8,pc
 0x67 0x8c 0xf8
 
 # CHECK: asr	998,pc
@@ -855,7 +855,7 @@
 # CHECK: asr	[,--u]
 0x67 0xd3
 
-# CHECK: asr	[194,pc]
+# CHECK: asr	[-62,pc]
 0x67 0x9c 0xc2
 
 # CHECK: asr	[27297,pc]
@@ -999,7 +999,7 @@
 # CHECK: rol	[,--u]
 0x69 0xd3
 
-# CHECK: rol	[220,pc]
+# CHECK: rol	[-36,pc]
 0x69 0x9c 0xdc
 
 # CHECK: rol	[24861,pc]
@@ -1041,10 +1041,10 @@
 # CHECK: dec	,--x
 0x6a 0x83
 
-# CHECK: dec	252,pc
+# CHECK: dec	-4,pc
 0x6a 0x8c 0xfc
 
-# CHECK: dec	33502,pc
+# CHECK: dec	-32034,pc
 0x6a 0x8d 0x82 0xde
 
 # CHECK: dec	[,y]
@@ -1071,7 +1071,7 @@
 # CHECK: dec	[,--y]
 0x6a 0xb3
 
-# CHECK: dec	[144,pc]
+# CHECK: dec	[-112,pc]
 0x6a 0x9c 0x90
 
 # CHECK: dec	[18632,pc]
@@ -1113,7 +1113,7 @@
 # CHECK: inc	,--s
 0x6c 0xe3
 
-# CHECK: inc	188,pc
+# CHECK: inc	-68,pc
 0x6c 0x8c 0xbc
 
 # CHECK: inc	14032,pc
@@ -1143,7 +1143,7 @@
 # CHECK: inc	[,--x]
 0x6c 0x93
 
-# CHECK: inc	[214,pc]
+# CHECK: inc	[-42,pc]
 0x6c 0x9c 0xd6
 
 # CHECK: inc	[12322,pc]
@@ -1188,7 +1188,7 @@
 # CHECK: tst	42,pc
 0x6d 0x8c 0x2a
 
-# CHECK: tst	57899,pc
+# CHECK: tst	-7637,pc
 0x6d 0x8d 0xe2 0x2b
 
 # CHECK: tst	[,x]
@@ -1215,7 +1215,7 @@
 # CHECK: tst	[,--u]
 0x6d 0xd3
 
-# CHECK: tst	[205,pc]
+# CHECK: tst	[-51,pc]
 0x6d 0x9c 0xcd
 
 # CHECK: tst	[19173,pc]
@@ -1260,7 +1260,7 @@
 # CHECK: jmp	123,pc
 0x6e 0x8c 0x7b
 
-# CHECK: jmp	63504,pc
+# CHECK: jmp	-2032,pc
 0x6e 0x8d 0xf8 0x10
 
 # CHECK: jmp	[,s]
@@ -1290,7 +1290,7 @@
 # CHECK: jmp	[110,pc]
 0x6e 0x9c 0x6e
 
-# CHECK: jmp	[46834,pc]
+# CHECK: jmp	[-18702,pc]
 0x6e 0x9d 0xb6 0xf2
 
 # CHECK: jmp	[25980]
@@ -1329,7 +1329,7 @@
 # CHECK: clr	,--x
 0x6f 0x83
 
-# CHECK: clr	160,pc
+# CHECK: clr	-96,pc
 0x6f 0x8c 0xa0
 
 # CHECK: clr	18483,pc
@@ -1560,7 +1560,7 @@
 # CHECK: suba	[126,pc]
 0xa0 0x9c 0x7e
 
-# CHECK: suba	[62675,pc]
+# CHECK: suba	[-2861,pc]
 0xa0 0x9d 0xf4 0xd3
 
 # CHECK: suba	[41595]
@@ -1599,10 +1599,10 @@
 # CHECK: cmpa	,--u
 0xa1 0xc3
 
-# CHECK: cmpa	249,pc
+# CHECK: cmpa	-7,pc
 0xa1 0x8c 0xf9
 
-# CHECK: cmpa	44661,pc
+# CHECK: cmpa	-20875,pc
 0xa1 0x8d 0xae 0x75
 
 # CHECK: cmpa	[,u]
@@ -1629,10 +1629,10 @@
 # CHECK: cmpa	[,--u]
 0xa1 0xd3
 
-# CHECK: cmpa	[219,pc]
+# CHECK: cmpa	[-37,pc]
 0xa1 0x9c 0xdb
 
-# CHECK: cmpa	[41459,pc]
+# CHECK: cmpa	[-24077,pc]
 0xa1 0x9d 0xa1 0xf3
 
 # CHECK: cmpa	[27569]
@@ -1671,10 +1671,10 @@
 # CHECK: sbca	,--x
 0xa2 0x83
 
-# CHECK: sbca	190,pc
+# CHECK: sbca	-66,pc
 0xa2 0x8c 0xbe
 
-# CHECK: sbca	61893,pc
+# CHECK: sbca	-3643,pc
 0xa2 0x8d 0xf1 0xc5
 
 # CHECK: sbca	[,s]
@@ -1773,10 +1773,10 @@
 # CHECK: subd	[,--s]
 0xa3 0xf3
 
-# CHECK: subd	[158,pc]
+# CHECK: subd	[-98,pc]
 0xa3 0x9c 0x9e
 
-# CHECK: subd	[35369,pc]
+# CHECK: subd	[-30167,pc]
 0xa3 0x9d 0x8a 0x29
 
 # CHECK: subd	[59052]
@@ -1815,7 +1815,7 @@
 # CHECK: anda	,--y
 0xa4 0xa3
 
-# CHECK: anda	202,pc
+# CHECK: anda	-54,pc
 0xa4 0x8c 0xca
 
 # CHECK: anda	18819,pc
@@ -1845,7 +1845,7 @@
 # CHECK: anda	[,--u]
 0xa4 0xd3
 
-# CHECK: anda	[185,pc]
+# CHECK: anda	[-71,pc]
 0xa4 0x9c 0xb9
 
 # CHECK: anda	[29260,pc]
@@ -1887,10 +1887,10 @@
 # CHECK: bita	,--s
 0xa5 0xe3
 
-# CHECK: bita	234,pc
+# CHECK: bita	-22,pc
 0xa5 0x8c 0xea
 
-# CHECK: bita	33927,pc
+# CHECK: bita	-31609,pc
 0xa5 0x8d 0x84 0x87
 
 # CHECK: bita	[,u]
@@ -1917,10 +1917,10 @@
 # CHECK: bita	[,--x]
 0xa5 0x93
 
-# CHECK: bita	[162,pc]
+# CHECK: bita	[-94,pc]
 0xa5 0x9c 0xa2
 
-# CHECK: bita	[53645,pc]
+# CHECK: bita	[-11891,pc]
 0xa5 0x9d 0xd1 0x8d
 
 # CHECK: bita	[24669]
@@ -1959,10 +1959,10 @@
 # CHECK: lda	,--s
 0xa6 0xe3
 
-# CHECK: lda	158,pc
+# CHECK: lda	-98,pc
 0xa6 0x8c 0x9e
 
-# CHECK: lda	61571,pc
+# CHECK: lda	-3965,pc
 0xa6 0x8d 0xf0 0x83
 
 # CHECK: lda	[,x]
@@ -1989,10 +1989,10 @@
 # CHECK: lda	[,--u]
 0xa6 0xd3
 
-# CHECK: lda	[146,pc]
+# CHECK: lda	[-110,pc]
 0xa6 0x9c 0x92
 
-# CHECK: lda	[42798,pc]
+# CHECK: lda	[-22738,pc]
 0xa6 0x9d 0xa7 0x2e
 
 # CHECK: lda	[32716]
@@ -2031,10 +2031,10 @@
 # CHECK: sta	,--y
 0xa7 0xa3
 
-# CHECK: sta	172,pc
+# CHECK: sta	-84,pc
 0xa7 0x8c 0xac
 
-# CHECK: sta	59739,pc
+# CHECK: sta	-5797,pc
 0xa7 0x8d 0xe9 0x5b
 
 # CHECK: sta	[,y]
@@ -2103,7 +2103,7 @@
 # CHECK: eora	,--x
 0xa8 0x83
 
-# CHECK: eora	235,pc
+# CHECK: eora	-21,pc
 0xa8 0x8c 0xeb
 
 # CHECK: eora	9673,pc
@@ -2136,7 +2136,7 @@
 # CHECK: eora	[35,pc]
 0xa8 0x9c 0x23
 
-# CHECK: eora	[49913,pc]
+# CHECK: eora	[-15623,pc]
 0xa8 0x9d 0xc2 0xf9
 
 # CHECK: eora	[27818]
@@ -2175,10 +2175,10 @@
 # CHECK: adca	,--s
 0xa9 0xe3
 
-# CHECK: adca	181,pc
+# CHECK: adca	-75,pc
 0xa9 0x8c 0xb5
 
-# CHECK: adca	52346,pc
+# CHECK: adca	-13190,pc
 0xa9 0x8d 0xcc 0x7a
 
 # CHECK: adca	[,s]
@@ -2247,7 +2247,7 @@
 # CHECK: ora	,--u
 0xaa 0xc3
 
-# CHECK: ora	250,pc
+# CHECK: ora	-6,pc
 0xaa 0x8c 0xfa
 
 # CHECK: ora	8092,pc
@@ -2277,7 +2277,7 @@
 # CHECK: ora	[,--u]
 0xaa 0xd3
 
-# CHECK: ora	[198,pc]
+# CHECK: ora	[-58,pc]
 0xaa 0x9c 0xc6
 
 # CHECK: ora	[29128,pc]
@@ -2319,7 +2319,7 @@
 # CHECK: adda	,--s
 0xab 0xe3
 
-# CHECK: adda	253,pc
+# CHECK: adda	-3,pc
 0xab 0x8c 0xfd
 
 # CHECK: adda	12924,pc
@@ -2352,7 +2352,7 @@
 # CHECK: adda	[51,pc]
 0xab 0x9c 0x33
 
-# CHECK: adda	[47633,pc]
+# CHECK: adda	[-17903,pc]
 0xab 0x9d 0xba 0x11
 
 # CHECK: adda	[37129]
@@ -2391,10 +2391,10 @@
 # CHECK: cmpx	,--u
 0xac 0xc3
 
-# CHECK: cmpx	175,pc
+# CHECK: cmpx	-81,pc
 0xac 0x8c 0xaf
 
-# CHECK: cmpx	42939,pc
+# CHECK: cmpx	-22597,pc
 0xac 0x8d 0xa7 0xbb
 
 # CHECK: cmpx	[,y]
@@ -2463,7 +2463,7 @@
 # CHECK: jsr	,--s
 0xad 0xe3
 
-# CHECK: jsr	225,pc
+# CHECK: jsr	-31,pc
 0xad 0x8c 0xe1
 
 # CHECK: jsr	5628,pc
@@ -2493,10 +2493,10 @@
 # CHECK: jsr	[,--x]
 0xad 0x93
 
-# CHECK: jsr	[143,pc]
+# CHECK: jsr	[-113,pc]
 0xad 0x9c 0x8f
 
-# CHECK: jsr	[48635,pc]
+# CHECK: jsr	[-16901,pc]
 0xad 0x9d 0xbd 0xfb
 
 # CHECK: jsr	[40238]
@@ -2535,10 +2535,10 @@
 # CHECK: ldx	,--s
 0xae 0xe3
 
-# CHECK: ldx	207,pc
+# CHECK: ldx	-49,pc
 0xae 0x8c 0xcf
 
-# CHECK: ldx	36214,pc
+# CHECK: ldx	-29322,pc
 0xae 0x8d 0x8d 0x76
 
 # CHECK: ldx	[,y]
@@ -2607,7 +2607,7 @@
 # CHECK: stx	,--s
 0xaf 0xe3
 
-# CHECK: stx	223,pc
+# CHECK: stx	-33,pc
 0xaf 0x8c 0xdf
 
 # CHECK: stx	22921,pc
@@ -2637,10 +2637,10 @@
 # CHECK: stx	[,--x]
 0xaf 0x93
 
-# CHECK: stx	[241,pc]
+# CHECK: stx	[-15,pc]
 0xaf 0x9c 0xf1
 
-# CHECK: stx	[61226,pc]
+# CHECK: stx	[-4310,pc]
 0xaf 0x9d 0xef 0x2a
 
 # CHECK: stx	[36174]
@@ -2844,10 +2844,10 @@
 # CHECK: subb	[,--x]
 0xe0 0x93
 
-# CHECK: subb	[217,pc]
+# CHECK: subb	[-39,pc]
 0xe0 0x9c 0xd9
 
-# CHECK: subb	[48038,pc]
+# CHECK: subb	[-17498,pc]
 0xe0 0x9d 0xbb 0xa6
 
 # CHECK: subb	[65384]
@@ -2886,7 +2886,7 @@
 # CHECK: cmpb	,--x
 0xe1 0x83
 
-# CHECK: cmpb	139,pc
+# CHECK: cmpb	-117,pc
 0xe1 0x8c 0x8b
 
 # CHECK: cmpb	18924,pc
@@ -2916,7 +2916,7 @@
 # CHECK: cmpb	[,--x]
 0xe1 0x93
 
-# CHECK: cmpb	[134,pc]
+# CHECK: cmpb	[-122,pc]
 0xe1 0x9c 0x86
 
 # CHECK: cmpb	[32755,pc]
@@ -2958,10 +2958,10 @@
 # CHECK: sbcb	,--u
 0xe2 0xc3
 
-# CHECK: sbcb	160,pc
+# CHECK: sbcb	-96,pc
 0xe2 0x8c 0xa0
 
-# CHECK: sbcb	44676,pc
+# CHECK: sbcb	-20860,pc
 0xe2 0x8d 0xae 0x84
 
 # CHECK: sbcb	[,x]
@@ -3033,7 +3033,7 @@
 # CHECK: addd	120,pc
 0xe3 0x8c 0x78
 
-# CHECK: addd	39034,pc
+# CHECK: addd	-26502,pc
 0xe3 0x8d 0x98 0x7a
 
 # CHECK: addd	[,u]
@@ -3060,7 +3060,7 @@
 # CHECK: addd	[,--x]
 0xe3 0x93
 
-# CHECK: addd	[142,pc]
+# CHECK: addd	[-114,pc]
 0xe3 0x9c 0x8e
 
 # CHECK: addd	[23371,pc]
@@ -3105,7 +3105,7 @@
 # CHECK: andb	79,pc
 0xe4 0x8c 0x4f
 
-# CHECK: andb	63601,pc
+# CHECK: andb	-1935,pc
 0xe4 0x8d 0xf8 0x71
 
 # CHECK: andb	[,x]
@@ -3132,7 +3132,7 @@
 # CHECK: andb	[,--s]
 0xe4 0xf3
 
-# CHECK: andb	[208,pc]
+# CHECK: andb	[-48,pc]
 0xe4 0x9c 0xd0
 
 # CHECK: andb	[22123,pc]
@@ -3174,10 +3174,10 @@
 # CHECK: bitb	,--x
 0xe5 0x83
 
-# CHECK: bitb	175,pc
+# CHECK: bitb	-81,pc
 0xe5 0x8c 0xaf
 
-# CHECK: bitb	47613,pc
+# CHECK: bitb	-17923,pc
 0xe5 0x8d 0xb9 0xfd
 
 # CHECK: bitb	[,u]
@@ -3204,10 +3204,10 @@
 # CHECK: bitb	[,--x]
 0xe5 0x93
 
-# CHECK: bitb	[175,pc]
+# CHECK: bitb	[-81,pc]
 0xe5 0x9c 0xaf
 
-# CHECK: bitb	[51534,pc]
+# CHECK: bitb	[-14002,pc]
 0xe5 0x9d 0xc9 0x4e
 
 # CHECK: bitb	[13173]
@@ -3246,10 +3246,10 @@
 # CHECK: ldb	,--y
 0xe6 0xa3
 
-# CHECK: ldb	226,pc
+# CHECK: ldb	-30,pc
 0xe6 0x8c 0xe2
 
-# CHECK: ldb	49822,pc
+# CHECK: ldb	-15714,pc
 0xe6 0x8d 0xc2 0x9e
 
 # CHECK: ldb	[,s]
@@ -3276,10 +3276,10 @@
 # CHECK: ldb	[,--u]
 0xe6 0xd3
 
-# CHECK: ldb	[231,pc]
+# CHECK: ldb	[-25,pc]
 0xe6 0x9c 0xe7
 
-# CHECK: ldb	[34773,pc]
+# CHECK: ldb	[-30763,pc]
 0xe6 0x9d 0x87 0xd5
 
 # CHECK: ldb	[52450]
@@ -3351,7 +3351,7 @@
 # CHECK: stb	[74,pc]
 0xe7 0x9c 0x4a
 
-# CHECK: stb	[45917,pc]
+# CHECK: stb	[-19619,pc]
 0xe7 0x9d 0xb3 0x5d
 
 # CHECK: stb	[59048]
@@ -3393,7 +3393,7 @@
 # CHECK: eorb	104,pc
 0xe8 0x8c 0x68
 
-# CHECK: eorb	36147,pc
+# CHECK: eorb	-29389,pc
 0xe8 0x8d 0x8d 0x33
 
 # CHECK: eorb	[,y]
@@ -3465,7 +3465,7 @@
 # CHECK: adcb	81,pc
 0xe9 0x8c 0x51
 
-# CHECK: adcb	52631,pc
+# CHECK: adcb	-12905,pc
 0xe9 0x8d 0xcd 0x97
 
 # CHECK: adcb	[,y]
@@ -3534,7 +3534,7 @@
 # CHECK: orb	,--y
 0xea 0xa3
 
-# CHECK: orb	149,pc
+# CHECK: orb	-107,pc
 0xea 0x8c 0x95
 
 # CHECK: orb	5320,pc
@@ -3564,10 +3564,10 @@
 # CHECK: orb	[,--y]
 0xea 0xb3
 
-# CHECK: orb	[198,pc]
+# CHECK: orb	[-58,pc]
 0xea 0x9c 0xc6
 
-# CHECK: orb	[61051,pc]
+# CHECK: orb	[-4485,pc]
 0xea 0x9d 0xee 0x7b
 
 # CHECK: orb	[44402]
@@ -3639,7 +3639,7 @@
 # CHECK: addb	[112,pc]
 0xeb 0x9c 0x70
 
-# CHECK: addb	[41058,pc]
+# CHECK: addb	[-24478,pc]
 0xeb 0x9d 0xa0 0x62
 
 # CHECK: addb	[46577]
@@ -3678,7 +3678,7 @@
 # CHECK: ldd	,--u
 0xec 0xc3
 
-# CHECK: ldd	216,pc
+# CHECK: ldd	-40,pc
 0xec 0x8c 0xd8
 
 # CHECK: ldd	11819,pc
@@ -3750,10 +3750,10 @@
 # CHECK: std	,--s
 0xed 0xe3
 
-# CHECK: std	137,pc
+# CHECK: std	-119,pc
 0xed 0x8c 0x89
 
-# CHECK: std	61543,pc
+# CHECK: std	-3993,pc
 0xed 0x8d 0xf0 0x67
 
 # CHECK: std	[,u]
@@ -3780,7 +3780,7 @@
 # CHECK: std	[,--u]
 0xed 0xd3
 
-# CHECK: std	[219,pc]
+# CHECK: std	[-37,pc]
 0xed 0x9c 0xdb
 
 # CHECK: std	[28259,pc]
@@ -3822,10 +3822,10 @@
 # CHECK: ldu	,--u
 0xee 0xc3
 
-# CHECK: ldu	145,pc
+# CHECK: ldu	-111,pc
 0xee 0x8c 0x91
 
-# CHECK: ldu	32876,pc
+# CHECK: ldu	-32660,pc
 0xee 0x8d 0x80 0x6c
 
 # CHECK: ldu	[,u]
@@ -3894,10 +3894,10 @@
 # CHECK: stu	,--s
 0xef 0xe3
 
-# CHECK: stu	163,pc
+# CHECK: stu	-93,pc
 0xef 0x8c 0xa3
 
-# CHECK: stu	54820,pc
+# CHECK: stu	-10716,pc
 0xef 0x8d 0xd6 0x24
 
 # CHECK: stu	[,y]
@@ -3927,7 +3927,7 @@
 # CHECK: stu	[38,pc]
 0xef 0x9c 0x26
 
-# CHECK: stu	[64136,pc]
+# CHECK: stu	[-1400,pc]
 0xef 0x9d 0xfa 0x88
 
 # CHECK: stu	[10862]
@@ -4086,7 +4086,7 @@
 # CHECK: cmpd	,--s
 0x10 0xa3 0xe3
 
-# CHECK: cmpd	254,pc
+# CHECK: cmpd	-2,pc
 0x10 0xa3 0x8c 0xfe
 
 # CHECK: cmpd	7217,pc
@@ -4116,10 +4116,10 @@
 # CHECK: cmpd	[,--u]
 0x10 0xa3 0xd3
 
-# CHECK: cmpd	[194,pc]
+# CHECK: cmpd	[-62,pc]
 0x10 0xa3 0x9c 0xc2
 
-# CHECK: cmpd	[44550,pc]
+# CHECK: cmpd	[-20986,pc]
 0x10 0xa3 0x9d 0xae 0x06
 
 # CHECK: cmpd	[61676]
@@ -4188,7 +4188,7 @@
 # CHECK: cmpy	[,--y]
 0x10 0xac 0xb3
 
-# CHECK: cmpy	[230,pc]
+# CHECK: cmpy	[-26,pc]
 0x10 0xac 0x9c 0xe6
 
 # CHECK: cmpy	[975,pc]
@@ -4230,10 +4230,10 @@
 # CHECK: ldy	,--y
 0x10 0xae 0xa3
 
-# CHECK: ldy	209,pc
+# CHECK: ldy	-47,pc
 0x10 0xae 0x8c 0xd1
 
-# CHECK: ldy	56926,pc
+# CHECK: ldy	-8610,pc
 0x10 0xae 0x8d 0xde 0x5e
 
 # CHECK: ldy	[,s]
@@ -4260,7 +4260,7 @@
 # CHECK: ldy	[,--s]
 0x10 0xae 0xf3
 
-# CHECK: ldy	[144,pc]
+# CHECK: ldy	[-112,pc]
 0x10 0xae 0x9c 0x90
 
 # CHECK: ldy	[5899,pc]
@@ -4302,7 +4302,7 @@
 # CHECK: sty	,--x
 0x10 0xaf 0x83
 
-# CHECK: sty	166,pc
+# CHECK: sty	-90,pc
 0x10 0xaf 0x8c 0xa6
 
 # CHECK: sty	30378,pc
@@ -4332,10 +4332,10 @@
 # CHECK: sty	[,--y]
 0x10 0xaf 0xb3
 
-# CHECK: sty	[196,pc]
+# CHECK: sty	[-60,pc]
 0x10 0xaf 0x9c 0xc4
 
-# CHECK: sty	[64705,pc]
+# CHECK: sty	[-831,pc]
 0x10 0xaf 0x9d 0xfc 0xc1
 
 # CHECK: sty	[57763]
@@ -4395,7 +4395,7 @@
 # CHECK: lds	,--s
 0x10 0xee 0xe3
 
-# CHECK: lds	199,pc
+# CHECK: lds	-57,pc
 0x10 0xee 0x8c 0xc7
 
 # CHECK: lds	5646,pc
@@ -4425,10 +4425,10 @@
 # CHECK: lds	[,--x]
 0x10 0xee 0x93
 
-# CHECK: lds	[140,pc]
+# CHECK: lds	[-116,pc]
 0x10 0xee 0x9c 0x8c
 
-# CHECK: lds	[46849,pc]
+# CHECK: lds	[-18687,pc]
 0x10 0xee 0x9d 0xb7 0x01
 
 # CHECK: lds	[22897]
@@ -4497,7 +4497,7 @@
 # CHECK: sts	[,--y]
 0x10 0xef 0xb3
 
-# CHECK: sts	[177,pc]
+# CHECK: sts	[-79,pc]
 0x10 0xef 0x9c 0xb1
 
 # CHECK: sts	[12493,pc]
@@ -4563,7 +4563,7 @@
 # CHECK: cmpu	65,pc
 0x11 0xa3 0x8c 0x41
 
-# CHECK: cmpu	57460,pc
+# CHECK: cmpu	-8076,pc
 0x11 0xa3 0x8d 0xe0 0x74
 
 # CHECK: cmpu	[,x]
@@ -4590,10 +4590,10 @@
 # CHECK: cmpu	[,--u]
 0x11 0xa3 0xd3
 
-# CHECK: cmpu	[178,pc]
+# CHECK: cmpu	[-78,pc]
 0x11 0xa3 0x9c 0xb2
 
-# CHECK: cmpu	[51730,pc]
+# CHECK: cmpu	[-13806,pc]
 0x11 0xa3 0x9d 0xca 0x12
 
 # CHECK: cmpu	[33107]
@@ -4632,7 +4632,7 @@
 # CHECK: cmps	,--y
 0x11 0xac 0xa3
 
-# CHECK: cmps	150,pc
+# CHECK: cmps	-106,pc
 0x11 0xac 0x8c 0x96
 
 # CHECK: cmps	20246,pc
@@ -4662,10 +4662,10 @@
 # CHECK: cmps	[,--y]
 0x11 0xac 0xb3
 
-# CHECK: cmps	[132,pc]
+# CHECK: cmps	[-124,pc]
 0x11 0xac 0x9c 0x84
 
-# CHECK: cmps	[62635,pc]
+# CHECK: cmps	[-2901,pc]
 0x11 0xac 0x9d 0xf4 0xab
 
 # CHECK: cmps	[45745]
