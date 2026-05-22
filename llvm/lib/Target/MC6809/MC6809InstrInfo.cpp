@@ -2214,37 +2214,87 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     if (isQSpillReg(DstReg)) {
       // Stack-slot destination: STD each half.  STD only writes from
       // AD, so move each input through AD first if not already there.
+      //
+      // Bug #301 (2026-05-22) follow-up to Bug #311: collision-aware
+      // ordering.  Mirrors Bug #311's AQ-dst case but for the SPILL_Q
+      // destination.  Key insight: STORE first while $ad still holds
+      // the correct value, BEFORE any LDD-from-spill clobbers it.
+      //
+      // Four cases (LoIsSpill, HiIsSpill):
+      //  1. Both SPILL_D: LDD lo→AD; STD slot+2; LDD hi→AD; STD slot+0.
+      //  2. Only HI is SPILL_D, LoReg = $ad: STD slot+2 FIRST (while $ad
+      //     has LO); LDD hi→AD; STD slot+0.  This is the failing case
+      //     pre-fix — the old code did `LDD hi→AD` first (assuming "lo
+      //     already in $ad, just store"), but the lo→AD copy at the start
+      //     was a no-op so the next LDD clobbered the LO value before
+      //     it had been stored.
+      //  3. Only LO is SPILL_D, HiReg = $ad: STD slot+0 FIRST (while $ad
+      //     has HI); LDD lo→AD; STD slot+2.
+      //  4. Neither spilled: existing sequential copyPhysReg + STD.
+      //
+      // No cross-conflict case (Bug #311 case 1) — LoReg/HiReg are ADc
+      // here, no $aw involved.
       int Offset = computeSpillStackOffset(DstReg, MF);
       bool Fits8 = ((Offset + 2) >= -128 && (Offset + 2) <= 127);
       unsigned Opc = Fits8 ? MC6809::STDi_o8 : MC6809::STDi_o16;
-      // Lo half → slot+2,$su.
-      if (LoReg != MC6809::AD) {
-        copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
-                    MC6809::AD, LoReg, /*KillSrc=*/false);
+
+      bool LoIsSpill = isSpillReg(LoReg) && !isQSpillReg(LoReg);
+      bool HiIsSpill = isSpillReg(HiReg) && !isQSpillReg(HiReg);
+
+      auto LoadSpillIntoAD = [&](Register SpillReg) {
+        int Off = computeSpillStackOffset(SpillReg, MF);
+        bool F8 = (Off >= -128 && Off <= 127);
+        unsigned LdOpc = F8 ? MC6809::LDDi_o8 : MC6809::LDDi_o16;
+        Builder.buildInstr(LdOpc)
+            .addDef(MC6809::AD, RegState::Implicit)
+            .addImm(Off)
+            .addReg(MC6809::SU);
+      };
+
+      auto StoreToSlot = [&](int SlotOff, bool IsLast) {
+        // Bug #305 part 2 cluster A (2026-05-18): the source MI's
+        // explicit OutOperand ($spill_q*) is the only visible def of
+        // that imaginary register.  Attach implicit-def $spill_q* to
+        // the LAST STD so downstream FAKE_USE $spill_q* (from
+        // -fextend-lifetimes at -Og) doesn't read an undefined reg.
+        auto MIB = Builder.buildInstr(Opc)
+            .addUse(MC6809::AD, RegState::Implicit)
+            .addImm(SlotOff).addReg(MC6809::SU);
+        if (IsLast)
+          MIB.addReg(DstReg, RegState::ImplicitDefine);
+      };
+
+      if (LoIsSpill && HiIsSpill) {
+        // Case 1: both spilled.
+        LoadSpillIntoAD(LoReg);
+        StoreToSlot(Offset + 2, /*IsLast=*/false);
+        LoadSpillIntoAD(HiReg);
+        StoreToSlot(Offset, /*IsLast=*/true);
+      } else if (HiIsSpill && LoReg == MC6809::AD) {
+        // Case 2: HI spilled, LO already in $ad.  STORE LO FIRST.
+        StoreToSlot(Offset + 2, /*IsLast=*/false);
+        LoadSpillIntoAD(HiReg);
+        StoreToSlot(Offset, /*IsLast=*/true);
+      } else if (LoIsSpill && HiReg == MC6809::AD) {
+        // Case 3: LO spilled, HI already in $ad.  STORE HI FIRST.
+        StoreToSlot(Offset, /*IsLast=*/false);
+        LoadSpillIntoAD(LoReg);
+        StoreToSlot(Offset + 2, /*IsLast=*/true);
+      } else {
+        // Case 4: neither spilled (or one is in some non-$ad physreg).
+        // Existing sequential behavior: move LO→$ad, STD slot+2,
+        // move HI→$ad, STD slot+0.
+        if (LoReg != MC6809::AD) {
+          copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
+                      MC6809::AD, LoReg, /*KillSrc=*/false);
+        }
+        StoreToSlot(Offset + 2, /*IsLast=*/false);
+        if (HiReg != MC6809::AD) {
+          copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
+                      MC6809::AD, HiReg, /*KillSrc=*/false);
+        }
+        StoreToSlot(Offset, /*IsLast=*/true);
       }
-      Builder.buildInstr(Opc)
-          .addUse(MC6809::AD, RegState::Implicit)
-          .addImm(Offset + 2).addReg(MC6809::SU);
-      // Hi half → slot+0,$su.
-      if (HiReg != MC6809::AD) {
-        copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
-                    MC6809::AD, HiReg, /*KillSrc=*/false);
-      }
-      // Bug #305 part 2 cluster A (2026-05-18): the source MI's
-      // explicit OutOperand (`$spill_q*`) is the only visible def of
-      // that imaginary register.  Erasing the MI without re-attaching
-      // a marker leaves downstream `FAKE_USE renamable $spill_q*`
-      // (emitted by -fextend-lifetimes at -Og) reading an undefined
-      // physical register — `-verify-machineinstrs` rejects this
-      // after postrapseudos (3 hits at -Og-hd6309-mame: __log2,
-      // __default_hash, __call_hash).  Attach `implicit-def $spill_q*`
-      // to the last STD as the visible def.  Mirrors the AQ-dest
-      // path's `implicit-def $aq` fixup already applied below for the
-      // same reason (Phase 2 fixup 2026-05-17).
-      Builder.buildInstr(Opc)
-          .addUse(MC6809::AD, RegState::Implicit)
-          .addImm(Offset).addReg(MC6809::SU)
-          .addReg(DstReg, RegState::ImplicitDefine);
     } else {
       // AQ destination: marshal hi into AD, lo into AW.
       //
