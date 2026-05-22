@@ -49,10 +49,29 @@ static DecodeStatus DecodeBIT8RegisterClass(MCInst &MI, uint64_t RegNo, uint64_t
 
 namespace {
 /// A disassembler class for MC6809.
+///
+/// Bug #323 (2026-05-22): owns its `MCSubtargetInfo` via unique_ptr.
+/// The Bug #314 fix originally created an `OverriddenSTI` local in the
+/// factory and passed it by reference to `MCDisassembler(STI, Ctx)` —
+/// but `MCDisassembler` stores `const MCSubtargetInfo&` as a member
+/// (see `MCDisassembler.h:213`), so the reference dangled past factory
+/// return.  Reads from `STI.getFeatureBits()` then returned undefined
+/// data, which silently broke predicate-gated HD6309 instruction
+/// decoding (LDQ, STQ, SEXW, OIM/AIM/EIM/TIM, W-relative indexing,
+/// etc.) whenever the factory's `OverriddenSTI` stack frame was
+/// reused.  Hold the override in a unique_ptr so its lifetime matches
+/// the disassembler.
 class MC6809Disassembler : public MCDisassembler {
 public:
-  MC6809Disassembler(const MCSubtargetInfo &STI, MCContext &Ctx) : MCDisassembler(STI, Ctx) {}
+  MC6809Disassembler(std::unique_ptr<const MCSubtargetInfo> OwnedSTI,
+                     MCContext &Ctx)
+      : MCDisassembler(*OwnedSTI, Ctx), OwnedSTI(std::move(OwnedSTI)) {}
   DecodeStatus getInstruction(MCInst &Instr, uint64_t &Size, ArrayRef<uint8_t> Bytes, uint64_t Address, raw_ostream &CStream) const override;
+
+private:
+  std::unique_ptr<const MCSubtargetInfo> OwnedSTI;
+
+public:
 
   unsigned DecoderTableSize = 13;
   struct DecoderTableList {
@@ -100,10 +119,10 @@ MCDisassembler *createMC6809Disassembler(const Target &T, const MCSubtargetInfo 
   // llvm-objdump, which the disassembler honors via the existing
   // STI.checkFeatures() path in the generated decode table.  This
   // override only sets the default when the user doesn't specify.
-  MCSubtargetInfo OverriddenSTI = STI;
-  if (!OverriddenSTI.checkFeatures("+mc6809-insns-6309"))
-    OverriddenSTI.ApplyFeatureFlag("+mc6809-insns-6309");
-  return new MC6809Disassembler(OverriddenSTI, Ctx);
+  auto OverriddenSTI = std::make_unique<MCSubtargetInfo>(STI);
+  if (!OverriddenSTI->checkFeatures("+mc6809-insns-6309"))
+    OverriddenSTI->ApplyFeatureFlag("+mc6809-insns-6309");
+  return new MC6809Disassembler(std::move(OverriddenSTI), Ctx);
 }
 
 extern "C" void LLVM_EXTERNAL_VISIBILITY LLVMInitializeMC6809Disassembler() {
