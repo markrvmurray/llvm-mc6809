@@ -1200,6 +1200,52 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     }
   }
 
+  // Bug #322 (2026-05-22): intercept G_MUL / G_UMULH / G_SMULH on i8
+  // BEFORE selectImpl matches the TableGen MulPat_i8 / MulHUPat_i8 /
+  // MulHSPat_i8 patterns.  Those autogen-emit
+  // `MERGE_LOHI_i16 ACC8:$b, ACC8:$a` with the inputs in their
+  // existing classes — if both inputs happen to be in ABc (a common
+  // shape: EXTRACT_LO_i16 + PHI-of-ACC8 / SEX8Implicit outputs),
+  // constrainSelectedInstRegOperands can't narrow `$a` from ABc to
+  // AAc (disjoint sibling sub-classes) and the verifier rejects.
+  //
+  // Manifest at -Og-hd6309-mame: test-fread-fwrite fails to BUILD
+  // with `Expected a AAc register, but got a ABc register`.  Other
+  // tiers don't hit this because the producer-side class assignments
+  // come out differently under their pass pipelines.
+  //
+  // Fix: emit the MERGE+MUL+EXTRACT chain manually with explicit
+  // narrowing COPYs.  Bypasses the autogen pattern for the i8
+  // multiply shapes; semantically identical otherwise.
+  if (MI.getOpcode() == TargetOpcode::G_MUL ||
+      MI.getOpcode() == TargetOpcode::G_UMULH ||
+      MI.getOpcode() == TargetOpcode::G_SMULH) {
+    Register DstReg = MI.getOperand(0).getReg();
+    if (MRI->getType(DstReg) == LLT::scalar(8)) {
+      Register Lo = MI.getOperand(1).getReg();
+      Register Hi = MI.getOperand(2).getReg();
+      MachineIRBuilder Builder(MI);
+      Lo = narrowToClass(Builder, MRI, Lo, &MC6809::ABcRegClass);
+      Hi = narrowToClass(Builder, MRI, Hi, &MC6809::AAcRegClass);
+      Register Merged = MRI->createVirtualRegister(&MC6809::ADcRegClass);
+      Register Prod = MRI->createVirtualRegister(&MC6809::ADcRegClass);
+      auto MergeMI = Builder.buildInstr(MC6809::MERGE_LOHI_i16)
+                         .addDef(Merged).addUse(Lo).addUse(Hi);
+      auto MulMI = Builder.buildInstr(MC6809::MUL_D)
+                       .addDef(Prod).addUse(Merged);
+      unsigned ExtractOp = (MI.getOpcode() == TargetOpcode::G_MUL)
+                               ? MC6809::EXTRACT_LO_i16
+                               : MC6809::EXTRACT_HI_i16;
+      auto ExtractMI =
+          Builder.buildInstr(ExtractOp).addDef(DstReg).addUse(Prod);
+      constrainSelectedInstRegOperands(*MergeMI, TII, TRI, RBI);
+      constrainSelectedInstRegOperands(*MulMI, TII, TRI, RBI);
+      constrainSelectedInstRegOperands(*ExtractMI, TII, TRI, RBI);
+      MI.eraseFromParent();
+      return true;
+    }
+  }
+
   if (selectImpl(MI, *CoverageInfo))
     return true;
 
@@ -2228,22 +2274,39 @@ bool MC6809InstructionSelector::selectMergeValues(MachineInstr &MI) {
     // narrowable cleanly so the COPY would be redundant (and breaks
     // -O0 lit asm CHECK strings, as observed 2026-05-22).
     //
-    // An attempt at a "tighter" gate that also caught cross-class
-    // single-use cases (ABc→AAc swap) cascaded into other passes'
-    // autogen-class assumptions and regressed non-Og tiers — the
-    // multi-use shape catches all -Og library-code occurrences,
-    // and the rare cross-class single-use cases in test binaries
-    // are left as known residue.
-    auto narrowIfMultiUse = [&](Register R,
-                                const TargetRegisterClass *RC) -> Register {
-      if (MRI->getRegClassOrNull(R) == RC)
+    // Bug #322 (2026-05-22): also force a COPY when the operand's
+    // class is DISJOINT from the target class (e.g. ABc when we
+    // need AAc, or vice versa).  `getCommonSubClass` returns null
+    // when no register can satisfy both, which means
+    // constrainSelectedInstRegOperands has no class to constrain
+    // to and will fail.  This is the test-fread-fwrite shape: i1
+    // ZEX bytes get assigned to ABc (the natural class for
+    // SEX8Implicit / ZEX*Implicit outputs), but both bytes land
+    // in ABc for the SAME MERGE_LOHI_i16 — one as $lo (ABc, OK)
+    // and one as $hi (needs AAc, mismatch).
+    //
+    // Earlier attempt to use a broader "always COPY if class
+    // mismatch" gate regressed non-Og tiers because it inserted
+    // COPYs even for the broader→narrower single-use case where
+    // constrain DID work (and the redundant COPY broke -O0 lit
+    // CHECK strings).  The `getCommonSubClass` check is the
+    // surgical predicate: it ONLY fires when constrain can't
+    // succeed, preserving the working single-use narrow path.
+    auto narrowIfNeeded = [&](Register R,
+                              const TargetRegisterClass *RC) -> Register {
+      const TargetRegisterClass *Cur = MRI->getRegClassOrNull(R);
+      if (Cur == RC)
         return R;
       if (!MRI->hasOneUse(R))
         return narrowToClass(Builder, MRI, R, RC);
-      return R;
+      // Single-use: check if constrain can succeed.
+      if (!Cur || TRI.getCommonSubClass(Cur, RC))
+        return R;
+      // Disjoint classes — constrain can't bridge, must COPY.
+      return narrowToClass(Builder, MRI, R, RC);
     };
-    Lo = narrowIfMultiUse(Lo, &MC6809::ABcRegClass);
-    Hi = narrowIfMultiUse(Hi, &MC6809::AAcRegClass);
+    Lo = narrowIfNeeded(Lo, &MC6809::ABcRegClass);
+    Hi = narrowIfNeeded(Hi, &MC6809::AAcRegClass);
     auto Merge = Builder.buildInstr(MC6809::MERGE_LOHI_i16)
                      .addDef(Dst)
                      .addUse(Lo)
@@ -2279,14 +2342,27 @@ bool MC6809InstructionSelector::selectMergeValues(MachineInstr &MI) {
         MRI->setRegClass(B2, &MC6809::ACC8RegClass);
       if (!MRI->getRegClassOrNull(B3))
         MRI->setRegClass(B3, &MC6809::ACC8RegClass);
-      // Bug #319 (2026-05-21): same narrow-to-ABc / narrow-to-AAc as
-      // the 2-input s8×2→s16 shape above when FAKE_USE is present.
-      if (hasFakeUse(MI)) {
-        B0 = narrowToClass(Builder, MRI, B0, &MC6809::ABcRegClass);
-        B1 = narrowToClass(Builder, MRI, B1, &MC6809::AAcRegClass);
-        B2 = narrowToClass(Builder, MRI, B2, &MC6809::ABcRegClass);
-        B3 = narrowToClass(Builder, MRI, B3, &MC6809::AAcRegClass);
-      }
+      // Bug #319 (2026-05-21) / Bug #322 (2026-05-22): same
+      // narrowIfNeeded gate as the s8×2→s16 shape above.  Force a
+      // COPY when the operand has multiple uses (constrain can't
+      // satisfy all consumers) OR when the operand's class is
+      // disjoint from the target class (constrain has no common
+      // subclass to fall back to — e.g. ABc when we need AAc).
+      auto narrowIfNeeded = [&](Register R,
+                                const TargetRegisterClass *RC) -> Register {
+        const TargetRegisterClass *Cur = MRI->getRegClassOrNull(R);
+        if (Cur == RC)
+          return R;
+        if (!MRI->hasOneUse(R))
+          return narrowToClass(Builder, MRI, R, RC);
+        if (!Cur || TRI.getCommonSubClass(Cur, RC))
+          return R;
+        return narrowToClass(Builder, MRI, R, RC);
+      };
+      B0 = narrowIfNeeded(B0, &MC6809::ABcRegClass);
+      B1 = narrowIfNeeded(B1, &MC6809::AAcRegClass);
+      B2 = narrowIfNeeded(B2, &MC6809::ABcRegClass);
+      B3 = narrowIfNeeded(B3, &MC6809::AAcRegClass);
       Lo16 = MRI->createVirtualRegister(&MC6809::ADcRegClass);
       Hi16 = MRI->createVirtualRegister(&MC6809::ADcRegClass);
       auto MLo = Builder.buildInstr(MC6809::MERGE_LOHI_i16)
