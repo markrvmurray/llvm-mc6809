@@ -2055,8 +2055,25 @@ bool MC6809LegalizerInfo::tryTFMBlockCopy(LegalizerHelper &Helper, MachineRegist
     // register-pressure tracker asserts when a TFM operand vreg has
     // neither bank nor class — see test-strcat_s / test-wctomb /
     // test-uchar / libc-testsuite:string regressions).
-    Builder.buildCopy(Register(MC6809::IX), SrcVreg);
+    //
+    // Bug #326 (2026-05-22): emit COPY $iy = DstVreg BEFORE COPY $ix =
+    // SrcVreg.  Both DstVreg and SrcVreg are materialized via LEAX
+    // (default for G_GLOBAL_VALUE/G_FRAME_INDEX → INDEX16 class), so
+    // each materialization lands in X.  If we COPY $ix first then
+    // COPY $iy second, regalloc emits:
+    //   leax src,pc          ; SrcVreg materialized in X
+    //   leax dst,pc          ; DstVreg ALSO materialized in X (CLOBBERS!)
+    //   tfr x,y              ; COPY $iy = DstVreg
+    //   (no copy emitted for $ix — SrcVreg lifetime ended at COPY $ix,
+    //    which regalloc collapsed to nothing)
+    //   tfm x+,y+            ; X = dst, Y = dst — broken miscompile
+    // With the swap, regalloc sees DstVreg's lifetime end first
+    // (its COPY $iy comes first), so DstVreg gets materialized into
+    // X and TFR'd to Y while SrcVreg is still pending — then SrcVreg
+    // is materialized into X (the now-free reg) for the COPY $ix.
+    // Result: leax dst; tfr x,y; leax src; tfm x+,y+ — X=src, Y=dst.
     Builder.buildCopy(Register(MC6809::IY), DstVreg);
+    Builder.buildCopy(Register(MC6809::IX), SrcVreg);
     // Load count into AW.
     if (CountMO.isImm()) {
       Builder.buildInstr(MC6809::LDWi16)
