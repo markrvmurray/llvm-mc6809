@@ -31,6 +31,31 @@ FPCB_FP_SSTAT   = 3
 FPCB_FP_TRAPVEC = 4
 SIZEOF_FPCB     = 6
 
+; ---- FP_STAT byte bitfields (per nfp09-abi.s:516-540) ---------------
+; bit 0: IOP — invalid operation
+; bit 1: OVF — overflow
+; bit 2: UNF — underflow
+; bit 3: DZ  — division by zero
+; bit 4: UN  — unordered (MC6839 extension; no C99 equivalent)
+; bit 5: IOV — integer overflow (MC6839 extension)
+; bit 6: INX — inexact result
+; bit 7: reserved
+;
+; Bug #289 (2026-05-24): consumed by compiler-rt/lib/builtins/mc6809/fenv.c
+; which exposes these as the standard C99 FE_INVALID / FE_OVERFLOW etc.
+; macros via picolibc's machine/fenv.h.  Status is sticky — the ROM
+; never auto-clears; user code clears via feclearexcept().
+
+FP_STAT_IOP         = 0x01      ; invalid operation
+FP_STAT_OVF         = 0x02      ; overflow
+FP_STAT_UNF         = 0x04      ; underflow
+FP_STAT_DZ          = 0x08      ; division by zero
+FP_STAT_UN          = 0x10      ; unordered
+FP_STAT_IOV         = 0x20      ; integer overflow
+FP_STAT_INX         = 0x40      ; inexact result
+
+FP_STAT_ALL         = 0x7F      ; OR of all defined bits
+
 ; ---- FP_CTRL byte bitfields -----------------------------------------
 ; bits 7:5   precision    (0=single, 1=double, 2=extended, 3=extfs, 4=extfd)
 ; bit  4     reserved

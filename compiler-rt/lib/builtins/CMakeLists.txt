@@ -1008,6 +1008,13 @@ list(APPEND mc6809_SOURCES
   mc6809/fp_arith.S
   mc6809/fp_conv.S
   mc6809/fp_cmp.S
+  # Bug #289 (2026-05-24): fenv.c provides C99 <fenv.h> via direct FPCB
+  # byte access; fp_trampoline.S provides __fpreg / __fpstak as
+  # runtime-redirectable trampolines (replaces the link-time constants
+  # that used to live in mc6839_rom.S) so OS-9 crt0 can plug in the
+  # F$Link("Float09") result via __mc6839_set_rom_base().
+  mc6809/fp_trampoline.S
+  mc6809/fenv.c
 )
 
 set(mos_SOURCES ${GENERIC_SOURCES})
