@@ -115,8 +115,6 @@ public:
 
   bool matchShiftUnusedCarryIn(MachineInstr &MI, BuildFnTy &MatchInfo) const;
 
-  bool matchNarrowI16EqNeICmp(MachineInstr &MI, BuildFnTy &MatchInfo) const;
-
   // Bug #247: Narrow `G_TRUNC s32 (G_MUL s64 X, K)` -> `G_MUL s32 trunc(X), trunc(K)`
   // when K's high 32 bits are zero. The i64 mul lowers to __muldi3 which
   // (under LTO -O2 cross-TU inlining + HD6309 codegen) hits a wrong-answer
@@ -485,59 +483,6 @@ bool MC6809CombinerImpl::matchShiftUnusedCarryIn(MachineInstr &MI, BuildFnTy &Ma
   return true;
 }
 
-// Bug #137: narrow i16 EQ/NE against constant-zero RHS to byte-pair.
-//
-// Same-BB guard (rebase 2026-04-25): only fire when the LHS i16's
-// defining instruction is in the same basic block as this G_ICMP.
-// The unmerge created here splits the i16 into two i8 vregs; if the
-// original i16 was defined in a different BB, the unmerged bytes
-// inherit a cross-block live range that, combined with the byte-AND
-// /OR result feeding a G_BRCOND, gives the post-rebase upstream
-// regalloc-greedy enough byte-level pressure to make split-around-
-// region decisions that mishandle multi-input join points (vfprintf's
-// ++stream_len corruption at vfprintf_str.c:101:30 / 143:9 —
-// see project_rebase_2026_04_24.md).
-//
-// Restricting to same-BB lets the combine still fire for the common
-// bug-#137 shape (a freshly-computed i16 immediately tested against
-// 0 in the same block) without producing cross-block byte halves.
-// Tested earlier and weaker variant (`hasOneNonDBGUse`) was too
-// strict and re-broke 8 -Og `*_s` tests; this should be the right
-// balance.
-bool MC6809CombinerImpl::matchNarrowI16EqNeICmp(MachineInstr &MI,
-                                                 BuildFnTy &MatchInfo) const {
-  if (!Helper.isPreLegalize())
-    return false;
-  auto Pred = (CmpInst::Predicate)MI.getOperand(1).getPredicate();
-  if (Pred != CmpInst::ICMP_EQ && Pred != CmpInst::ICMP_NE)
-    return false;
-  Register Lhs = MI.getOperand(2).getReg();
-  Register Rhs = MI.getOperand(3).getReg();
-  LLT LhsTy = MRI.getType(Lhs);
-  if (LhsTy != LLT::scalar(16))
-    return false;
-  auto RhsConst = getIConstantVRegValWithLookThrough(Rhs, MRI);
-  if (!RhsConst || !RhsConst->Value.isZero())
-    return false;
-  MachineInstr *LhsDef = MRI.getVRegDef(Lhs);
-  if (!LhsDef || LhsDef->getParent() != MI.getParent())
-    return false;
-  Register Dst = MI.getOperand(0).getReg();
-  MatchInfo = [=](MachineIRBuilder &B) {
-    LLT S1 = LLT::scalar(1);
-    LLT S8 = LLT::scalar(8);
-    auto LhsU = B.buildUnmerge(S8, Lhs);
-    auto Zero = B.buildConstant(S8, 0);
-    auto LoCmp = B.buildICmp(Pred, S1, LhsU.getReg(0), Zero);
-    auto HiCmp = B.buildICmp(Pred, S1, LhsU.getReg(1), Zero);
-    if (Pred == CmpInst::ICMP_EQ)
-      B.buildAnd(Dst, LoCmp, HiCmp);
-    else
-      B.buildOr(Dst, LoCmp, HiCmp);
-  };
-  return true;
-}
-
 // Bug #247: narrow s64 → s32 for the
 //
 //   trunc s32 (add s64 (mul s64 X, K), Y)
@@ -722,7 +667,15 @@ void MC6809Combiner::getAnalysisUsage(AnalysisUsage &AU) const {
   MachineFunctionPass::getAnalysisUsage(AU);
 }
 
-MC6809Combiner::MC6809Combiner() : MachineFunctionPass(ID) { initializeMC6809CombinerPass(*PassRegistry::getPassRegistry()); }
+MC6809Combiner::MC6809Combiner() : MachineFunctionPass(ID) {
+  initializeMC6809CombinerPass(*PassRegistry::getPassRegistry());
+  // Honor -mc6809combiner-disable-rule / -mc6809combiner-only-enable-rule.
+  // The generated RuleConfig exposes these options but they were never
+  // parsed, so individual combine rules could not be toggled. Wiring this
+  // up makes per-rule bisection possible (it was how Bug #333 was found).
+  if (!RuleConfig.parseCommandLineOption())
+    report_fatal_error("Invalid rule identifier passed to MC6809Combiner");
+}
 
 bool MC6809Combiner::runOnMachineFunction(MachineFunction &MF) {
   if (MF.getProperties().hasProperty(MachineFunctionProperties::Property::FailedISel))

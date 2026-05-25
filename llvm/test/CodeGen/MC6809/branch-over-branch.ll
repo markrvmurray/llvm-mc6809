@@ -51,27 +51,23 @@ define i16 @cond_skip_join(i16 %x, i16 %a, i16 %b) {
 ;
 ; O2-LABEL: cond_skip_join:
 ; O2:       ; %bb.0: ; %entry
-; O2-NEXT:    leas -8,s
+; O2-NEXT:    leas -6,s
 ; O2-NEXT:    pshs u
 ; O2-NEXT:    tfr s,u
-; O2-NEXT:    ldd 14,u
-; O2-NEXT:    std 6,u
+; O2-NEXT:    ldd 12,u
+; O2-NEXT:    std 4,u
 ; O2-NEXT:    tfr x,d
-; O2-NEXT:    stb 5,u
-; O2-NEXT:    pshs a
-; O2-NEXT:    orb ,s+
-; O2-NEXT:    stb 5,u
-; O2-NEXT:    tstb
+; O2-NEXT:    cmpd #0
 ; O2-NEXT:    bne .LBB0_2
 ; O2-NEXT:  ; %bb.1: ; %if.then
-; O2-NEXT:    ldd 12,u
+; O2-NEXT:    ldd 10,u
 ; O2-NEXT:    tfr d,x
 ; O2-NEXT:    lbsr sink
 ; O2-NEXT:  .LBB0_2: ; %if.end
-; O2-NEXT:    ldx 6,u
+; O2-NEXT:    ldx 4,u
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u
-; O2-NEXT:    leas 8,s
+; O2-NEXT:    leas 6,s
 ; O2-NEXT:    rts
 entry:
   %t = icmp eq i16 %x, 0

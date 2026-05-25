@@ -129,7 +129,12 @@ def narrow_mul_i64_trunc_to_i32 : GICombineRule<
 
 def MC6809Combiner : GICombiner<"MC6809CombinerImpl", [
     mc6809_all_combines,
-    narrow_i16_eq_ne_icmp,
+    // Bug #333: narrow_i16_eq_ne_icmp removed. It rewrote `icmp eq/ne
+    // i16, 0` into two byte compares + AND/OR, which is both worse than
+    // the native 16-bit zero test (the Z flag already covers all 16
+    // bits after a 16-bit load/op) AND miscompiles the inlined scanf
+    // integer-accumulation loop under LTO (sscanf("18","%d") -> 8).
+    // narrow_i16_eq_ne_icmp,
     narrow_mul_i64_trunc_to_i32,
     // unmerge_high_from_load,
     // unmerge_low_from_load,

@@ -394,131 +394,80 @@ define dso_local i16 @if_u16(i16 noundef %a, i16 noundef %b) local_unnamed_addr 
 ;
 ; O1-LABEL: if_u16:
 ; O1:       ; %bb.0: ; %entry
-; O1-NEXT:    leas -13,s
+; O1-NEXT:    leas -8,s
 ; O1-NEXT:    pshs u
 ; O1-NEXT:    tfr s,u
-; O1-NEXT:    ldd 17,u
-; O1-NEXT:    stx 11,u
-; O1-NEXT:    stb 8,u
-; O1-NEXT:    ldb 12,u
-; O1-NEXT:    stb 10,u
-; O1-NEXT:    ldb 8,u
-; O1-NEXT:    sta 7,u
-; O1-NEXT:    lda 11,u
-; O1-NEXT:    sta 11,u
-; O1-NEXT:    lda 7,u
-; O1-NEXT:    sta 6,u
-; O1-NEXT:    lda 11,u
-; O1-NEXT:    pshs a
-; O1-NEXT:    lda 6,u
-; O1-NEXT:    stb 5,u
-; O1-NEXT:    ldb 10,u
-; O1-NEXT:    orb ,s+
-; O1-NEXT:    stb 10,u
-; O1-NEXT:    ldb 5,u
-; O1-NEXT:    stb 4,u
-; O1-NEXT:    ldb 10,u
-; O1-NEXT:    tstb
+; O1-NEXT:    ldd 12,u
+; O1-NEXT:    stx 6,u
+; O1-NEXT:    std 4,u
+; O1-NEXT:    ldd 6,u
+; O1-NEXT:    cmpd #0
 ; O1-NEXT:    lbeq .LBB3_2
 ; O1-NEXT:  ; %bb.1: ; %entry
-; O1-NEXT:    ldb 4,u
+; O1-NEXT:    ldd 4,u
 ; O1-NEXT:    bra .LBB3_3
 ; O1-NEXT:  .LBB3_2: ; %if.end
-; O1-NEXT:    ldb 4,u
+; O1-NEXT:    ldd 4,u
 ; O1-NEXT:    ldd #-1
-; O1-NEXT:    eorb 18,u
-; O1-NEXT:    eora 17,u
+; O1-NEXT:    eorb 13,u
+; O1-NEXT:    eora 12,u
 ; O1-NEXT:  .LBB3_3: ; %return
 ; O1-NEXT:    tfr d,x
 ; O1-NEXT:    tfr u,s
 ; O1-NEXT:    puls u
-; O1-NEXT:    leas 13,s
+; O1-NEXT:    leas 8,s
 ; O1-NEXT:    rts
 ;
 ; O2-LABEL: if_u16:
 ; O2:       ; %bb.0: ; %entry
-; O2-NEXT:    leas -13,s
+; O2-NEXT:    leas -8,s
 ; O2-NEXT:    pshs u
 ; O2-NEXT:    tfr s,u
-; O2-NEXT:    ldd 17,u
-; O2-NEXT:    stx 11,u
-; O2-NEXT:    stb 8,u
-; O2-NEXT:    ldb 12,u
-; O2-NEXT:    stb 10,u
-; O2-NEXT:    ldb 8,u
-; O2-NEXT:    sta 7,u
-; O2-NEXT:    lda 11,u
-; O2-NEXT:    sta 11,u
-; O2-NEXT:    lda 7,u
-; O2-NEXT:    sta 6,u
-; O2-NEXT:    lda 11,u
-; O2-NEXT:    pshs a
-; O2-NEXT:    lda 6,u
-; O2-NEXT:    stb 5,u
-; O2-NEXT:    ldb 10,u
-; O2-NEXT:    orb ,s+
-; O2-NEXT:    stb 10,u
-; O2-NEXT:    ldb 5,u
-; O2-NEXT:    stb 4,u
-; O2-NEXT:    ldb 10,u
-; O2-NEXT:    tstb
+; O2-NEXT:    ldd 12,u
+; O2-NEXT:    stx 6,u
+; O2-NEXT:    std 4,u
+; O2-NEXT:    ldd 6,u
+; O2-NEXT:    cmpd #0
 ; O2-NEXT:    lbeq .LBB3_2
 ; O2-NEXT:  ; %bb.1: ; %entry
-; O2-NEXT:    ldb 4,u
+; O2-NEXT:    ldd 4,u
 ; O2-NEXT:    bra .LBB3_3
 ; O2-NEXT:  .LBB3_2: ; %if.end
-; O2-NEXT:    ldb 4,u
+; O2-NEXT:    ldd 4,u
 ; O2-NEXT:    ldd #-1
-; O2-NEXT:    eorb 18,u
-; O2-NEXT:    eora 17,u
+; O2-NEXT:    eorb 13,u
+; O2-NEXT:    eora 12,u
 ; O2-NEXT:  .LBB3_3: ; %return
 ; O2-NEXT:    tfr d,x
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u
-; O2-NEXT:    leas 13,s
+; O2-NEXT:    leas 8,s
 ; O2-NEXT:    rts
 ;
 ; O3-LABEL: if_u16:
 ; O3:       ; %bb.0: ; %entry
-; O3-NEXT:    leas -13,s
+; O3-NEXT:    leas -8,s
 ; O3-NEXT:    pshs u
 ; O3-NEXT:    tfr s,u
-; O3-NEXT:    ldd 17,u
-; O3-NEXT:    stx 11,u
-; O3-NEXT:    stb 8,u
-; O3-NEXT:    ldb 12,u
-; O3-NEXT:    stb 10,u
-; O3-NEXT:    ldb 8,u
-; O3-NEXT:    sta 7,u
-; O3-NEXT:    lda 11,u
-; O3-NEXT:    sta 11,u
-; O3-NEXT:    lda 7,u
-; O3-NEXT:    sta 6,u
-; O3-NEXT:    lda 11,u
-; O3-NEXT:    pshs a
-; O3-NEXT:    lda 6,u
-; O3-NEXT:    stb 5,u
-; O3-NEXT:    ldb 10,u
-; O3-NEXT:    orb ,s+
-; O3-NEXT:    stb 10,u
-; O3-NEXT:    ldb 5,u
-; O3-NEXT:    stb 4,u
-; O3-NEXT:    ldb 10,u
-; O3-NEXT:    tstb
+; O3-NEXT:    ldd 12,u
+; O3-NEXT:    stx 6,u
+; O3-NEXT:    std 4,u
+; O3-NEXT:    ldd 6,u
+; O3-NEXT:    cmpd #0
 ; O3-NEXT:    lbeq .LBB3_2
 ; O3-NEXT:  ; %bb.1: ; %entry
-; O3-NEXT:    ldb 4,u
+; O3-NEXT:    ldd 4,u
 ; O3-NEXT:    bra .LBB3_3
 ; O3-NEXT:  .LBB3_2: ; %if.end
-; O3-NEXT:    ldb 4,u
+; O3-NEXT:    ldd 4,u
 ; O3-NEXT:    ldd #-1
-; O3-NEXT:    eorb 18,u
-; O3-NEXT:    eora 17,u
+; O3-NEXT:    eorb 13,u
+; O3-NEXT:    eora 12,u
 ; O3-NEXT:  .LBB3_3: ; %return
 ; O3-NEXT:    tfr d,x
 ; O3-NEXT:    tfr u,s
 ; O3-NEXT:    puls u
-; O3-NEXT:    leas 13,s
+; O3-NEXT:    leas 8,s
 ; O3-NEXT:    rts
 entry:
   %cmp.not = icmp eq i16 %a, 0
