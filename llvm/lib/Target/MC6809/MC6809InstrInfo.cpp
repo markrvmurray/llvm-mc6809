@@ -2652,9 +2652,19 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
       llvm_unreachable("EqConst_i32 src must be AQ or SPILL_Q*N");
     }
 
-    // Step 2: SUBW #KLo; SBCD #KHi — sets CC.Z = (X == K).
+    // Step 2: SUBW #KLo; SBCD #KHi — sets CC for X - K.
     Builder.buildInstr(MC6809::SUBWi16).addImm(KLo);
     Builder.buildInstr(MC6809::SBCDi16).addImm(KHi);
+
+    // Bug #346: SUBW/SBCD leave CC.Z reflecting only the high 16 bits, so
+    // X==K would be falsely reported whenever the halves differ only in the
+    // low word with no borrow. STQ-to-scratch sets N/Z from the full 32-bit
+    // Q (and leaves C), giving a correct CC.Z = (X == K) before extraction.
+    Builder.buildInstr(MC6809::LEASi_o5).addImm(-4).addReg(MC6809::SS);
+    Builder.buildInstr(MC6809::STQi_o0)
+        .addUse(MC6809::AQ, RegState::Implicit)
+        .addReg(MC6809::SS);
+    Builder.buildInstr(MC6809::LEASi_o5).addImm(4).addReg(MC6809::SS);
 
     // Step 3: extract CC.Z into bit 0 of AA.
     // Bug #304 followup (2026-05-21): work in AA, not AB — avoids the
@@ -3570,6 +3580,28 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     Register SrcReg = MI.getOperand(1).getReg();
     int64_t K = MI.getOperand(2).getImm();
     MachineBasicBlock *TgtMBB = MI.getOperand(3).getMBB();
+
+    // Bug #346: signed GT / LE consume BOTH Z and V (GT = Z==0 && N==V;
+    // LE = Z==1 || N!=V). The STQ Z-fix below sets Z from the full 32-bit
+    // Q, but a store also CLEARS V — which would corrupt the N==V test the
+    // signed conditions rely on. So GT/LE can't use that fix. Instead
+    // rewrite them to the equivalent GE/LT against K+1, which depend only
+    // on N==V (set correctly by SBCD's combined-borrow result) and need no
+    // Z fix at all:  X >s K <=> X >=s K+1 ;  X <=s K <=> X <s K+1.
+    // SUBW/SBCD leave Z reflecting only the high half, but GE/LT never read
+    // Z, so that staleness is harmless.
+    if (CC == MC6809CC::GT || CC == MC6809CC::LE) {
+      if (K == 0x7fffffff) {
+        // X >s INT32_MAX is always false; X <=s INT32_MAX is always true.
+        if (CC == MC6809CC::LE)
+          Builder.buildInstr(MC6809::LBRAlb).addMBB(TgtMBB);
+        MI.eraseFromParent();
+        return true;
+      }
+      K += 1;
+      CC = (CC == MC6809CC::GT) ? MC6809CC::GE : MC6809CC::LT;
+    }
+
     uint16_t KLo = static_cast<uint16_t>(K & 0xFFFF);
     uint16_t KHi = static_cast<uint16_t>((K >> 16) & 0xFFFF);
 
@@ -3646,6 +3678,28 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     unsigned CC = MI.getOperand(1).getImm();
     Register SrcReg = MI.getOperand(2).getReg();
     int64_t K = MI.getOperand(3).getImm();
+
+    // Bug #346: signed GT/LE consume both Z and V, but the STQ Z-fix below
+    // clears V. Rewrite them to GE/LT against K+1 (V/N-only, no Z fix),
+    // mirroring CompareBranch_i32_Imm. INT32_MAX edge: K+1 would wrap, so
+    // materialise the constant result directly (x >s MAX = 0; x <=s MAX = 1).
+    if (CC == MC6809CC::GT || CC == MC6809CC::LE) {
+      if (K == 0x7fffffff) {
+        uint8_t Val = (CC == MC6809CC::LE) ? 1 : 0;
+        Builder.buildInstr(MC6809::LDAi8)
+            .addDef(MC6809::AA, RegState::Implicit)
+            .addImm(Val);
+        Builder.buildInstr(MC6809::TFRp).addDef(MC6809::AB).addUse(MC6809::AA);
+        if (DstReg != MC6809::AB)
+          copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(), DstReg,
+                      MC6809::AB, /*KillSrc=*/true);
+        MI.eraseFromParent();
+        return true;
+      }
+      K += 1;
+      CC = (CC == MC6809CC::GT) ? MC6809CC::GE : MC6809CC::LT;
+    }
+
     uint16_t KLo = static_cast<uint16_t>(K & 0xFFFF);
     uint16_t KHi = static_cast<uint16_t>((K >> 16) & 0xFFFF);
 
@@ -3664,6 +3718,20 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     // Step 2: SUBW #KLo; SBCD #KHi — sets CC.{N,Z,V,C} for X - K.
     Builder.buildInstr(MC6809::SUBWi16).addImm(KLo);
     Builder.buildInstr(MC6809::SBCDi16).addImm(KHi);
+
+    // Bug #346: SUBW/SBCD leave CC.Z reflecting only the high 16 bits.
+    // Predicates that read Z (EQ/NE/LS/HI — GT/LE were rewritten above to
+    // GE/LT, which read only N/V) need a correct full-32 Z. STQ-to-scratch
+    // sets N/Z from the full 32-bit Q and leaves C; V is cleared but these
+    // predicates don't use V. Same fix as CompareBranch_i32_Imm.
+    if (CC == MC6809CC::EQ || CC == MC6809CC::NE || CC == MC6809CC::LS ||
+        CC == MC6809CC::HI) {
+      Builder.buildInstr(MC6809::LEASi_o5).addImm(-4).addReg(MC6809::SS);
+      Builder.buildInstr(MC6809::STQi_o0)
+          .addUse(MC6809::AQ, RegState::Implicit)
+          .addReg(MC6809::SS);
+      Builder.buildInstr(MC6809::LEASi_o5).addImm(4).addReg(MC6809::SS);
+    }
 
     // Step 3: per-condcode branch-free CC bit extraction into AB.
     // CC byte layout: bit 7=E, 6=F, 5=H, 4=I, 3=N, 2=Z, 1=V, 0=C.

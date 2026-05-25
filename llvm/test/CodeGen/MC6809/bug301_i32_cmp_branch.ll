@@ -48,10 +48,12 @@ iffalse:
 ; CHECK-LABEL: i32_sgt_big_brcond:
 define i16 @i32_sgt_big_brcond(i32 %x) {
 entry:
-  ; Large constant 0x12345678 = 305419896 splits to SUBW #0x5678 + SBCD #0x1234.
-  ; CHECK: subw #22136
+  ; Bug #346: signed GT is lowered as GE against K+1 (0x12345678+1 =
+  ; 0x12345679) so the branch reads only N/V (correct after SBCD) and not
+  ; the stale high-half Z. Low half becomes 0x5679 = 22137; high unchanged.
+  ; CHECK: subw #22137
   ; CHECK: sbcd #4660
-  ; CHECK: {{l?}}b{{(gt|le)}}
+  ; CHECK: {{l?}}b{{(ge|lt)}}
   ; CHECK-NOT: __cmpsi2
   ; CHECK-NOT: __ucmpsi2
   %cmp = icmp sgt i32 %x, 305419896
