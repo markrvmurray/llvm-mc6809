@@ -336,6 +336,13 @@ static bool willClobberD(const MachineInstr &MI,
 /// willClobberD's COPY carve-out.
 static bool willClobberQ(const MachineInstr &MI,
                          const TargetRegisterInfo &TRI) {
+  // FAKE_USE generates no code — it never materialises its $spill_q*
+  // operand into the physical $aq, so it clobbers nothing. (Bug #344:
+  // without this, the new sub-reg save path below wraps a FAKE_USE and
+  // re-breaks the Bug #256 garbage-liveness test.)
+  if (MI.getOpcode() == TargetOpcode::FAKE_USE)
+    return false;
+
   bool HasQSpill = false;
   for (const MachineOperand &MO : MI.operands()) {
     if (!MO.isReg() || !MO.getReg().isPhysical())
@@ -745,8 +752,23 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
         // clobber (SpillLoad_i32_Mem), or the sub-reg's value is
         // Bug #256-style garbage from an upstream SpillLoad killed by
         // FAKE_USE.  Tightening to LPR.contains(AQ) avoids both.
-        if (LPR.contains(MC6809::AQ))
+        if (LPR.contains(MC6809::AQ)) {
           NeedQ = true;
+        } else if (anySubRegLive(MC6809::AW) &&
+                   !MI.modifiesRegister(MC6809::AQ, &TRI)) {
+          // Bug #344 (2026-05-25): the full $aq isn't live, but a sub-reg
+          // HALF holds a live value the Q-clobber (LDQ into $aq) would
+          // destroy. The $ad half is preserved cheaply by the
+          // willClobberD/NeedD path below (now enabled for Q-clobbers);
+          // there is no narrow NeedSaveW path for the $aw half ($ae/$af),
+          // so fall back to a full NeedSaveQ when $aw is live (also covers
+          // the both-halves-live case). Manifested as strtol returning a
+          // NEGATED positive value: the conditional negate
+          // `if (flags&FLAG_NEG) val=-val` keeps `flags&1` in $ad while
+          // Sub_i32_Reg(spilled) materialises -val into $aq, and the
+          // TestBranch then reads the clobbered $ad.
+          NeedQ = true;
+        }
       }
 
       // Bug #242-style exemption: tied-def of $aq is the intended
@@ -768,7 +790,23 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
         }
       }
 
-      if (willClobberD(MI, TRI) && !NeedQ) {
+      // Bug #344 (2026-05-25): a Q-clobbering MI (Sub_i32_Reg etc. on
+      // spilled $spill_q* operands) materialises into the physical $aq,
+      // which clobbers the $ad half too. When only the $ad half holds a
+      // live value (full $aq not live, so NeedQ stayed false above), the
+      // cheap byte-granular STD/LDD save below preserves it — so run the
+      // D-save analysis for Q-clobbers as well as D-clobbers.
+      //
+      // The `!modifiesRegister(AQ)` gate is the discriminator vs. Bug
+      // #256: a MI that DECLARES it defs the $aq sub-regs (e.g.
+      // SpillLoad_i32_Mem's implicit-def $aa/$ab/$ad/$aw) has its clobber
+      // already accounted for by regalloc, so any sub-reg "liveness" past
+      // it is killed garbage — don't save. Sub_i32_Reg & friends do NOT
+      // declare the AQ scratch clobber (the root of #344), so a live
+      // sub-reg there is a genuine value that must be preserved.
+      bool QScratchClobber =
+          willClobberQ(MI, TRI) && !MI.modifiesRegister(MC6809::AQ, &TRI);
+      if ((willClobberD(MI, TRI) || QScratchClobber) && !NeedQ) {
         // Bug #313 (2026-05-22): refine NeedD to byte-granular when
         // only one half of $ad is live.  Previously: any sub-reg of
         // $ad being live → NeedD (16-bit STD/LDD save+restore).  When
