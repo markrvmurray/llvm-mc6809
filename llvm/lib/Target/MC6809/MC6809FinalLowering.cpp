@@ -537,11 +537,29 @@ bool MC6809FinalLowering::elideDupStores(MachineFunction &MF) {
     }
   };
 
+  // A store's (opcode, offset, base) key only identifies a fixed memory
+  // location while the base register holds a fixed value. The hardware
+  // stack pointer $ss is adjusted by LEAS during outgoing-argument setup,
+  // so two `STQi_o0 $ss` stores separated by a `LEAS N,$ss` address
+  // DIFFERENT memory (e.g. a scratch slot vs. a live call-argument slot).
+  // Any def of a tracked store's base register must therefore drop that
+  // entry, or we would elide a still-live store as a false duplicate.
+  // (The sibling elideStoreReload guards the same hazard.)
+  const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
+
   bool Changed = false;
   for (MachineBasicBlock &MBB : MF) {
     SmallVector<std::pair<SlotKey, MachineInstr *>, 8> RecentStores;
 
     auto invalidateAll = [&]() { RecentStores.clear(); };
+    auto invalidateReg = [&](Register R) {
+      RecentStores.erase(
+          std::remove_if(RecentStores.begin(), RecentStores.end(),
+                         [&, R](const std::pair<SlotKey, MachineInstr *> &P) {
+                           return TRI->regsOverlap(P.first.Base, R);
+                         }),
+          RecentStores.end());
+    };
     auto findStore = [&](const SlotKey &K) -> MachineInstr ** {
       for (auto &P : RecentStores)
         if (P.first == K)
@@ -568,8 +586,16 @@ bool MC6809FinalLowering::elideDupStores(MachineFunction &MF) {
 
       if (!Tracked) {
         // Untracked memory access invalidates everything.
-        if (MI.mayLoad() || MI.mayStore())
+        if (MI.mayLoad() || MI.mayStore()) {
           invalidateAll();
+          continue;
+        }
+        // A def of any tracked store's base register (e.g. LEAS adjusting
+        // $ss) changes which memory that store's key refers to — drop the
+        // affected entries so a later same-key store can't elide it.
+        for (const MachineOperand &MO : MI.operands())
+          if (MO.isReg() && MO.isDef() && MO.getReg().isPhysical())
+            invalidateReg(MO.getReg());
         continue;
       }
 
