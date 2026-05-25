@@ -132,6 +132,23 @@ static bool needsSecondAccSpillSkip(unsigned Opcode) {
   case MC6809::AddSetCarryUse_i16_Reg:
   case MC6809::SubSetCarryUse_i8_Reg:
   case MC6809::SubSetCarryUse_i16_Reg:
+  // Bug #350: the SetOverflow / SetOverflowUse reg variants share the
+  // AddSetCarry/SubSetCarry expansion (bug #147), so they have the same
+  // U-relative spill fallback — but they were missing from this skip
+  // list. Without the skip, MaterializeSpills loaded both distinct ACC
+  // spill operands of the carry-in high byte into the same accumulator
+  // (the second LDB clobbering the first), so e.g. the i16 add s = a + b
+  // expanded to "b_hi + b_hi" instead of "a_hi + b_hi". Manifested as a
+  // complex-divide miscompile (__divsc3/__divdc3) once scalbn fed a
+  // negated value into an i16 saddo under spill pressure.
+  case MC6809::AddSetOverflow_i8_Reg:
+  case MC6809::AddSetOverflow_i16_Reg:
+  case MC6809::SubSetOverflow_i8_Reg:
+  case MC6809::SubSetOverflow_i16_Reg:
+  case MC6809::AddSetOverflowUse_i8_Reg:
+  case MC6809::AddSetOverflowUse_i16_Reg:
+  case MC6809::SubSetOverflowUse_i8_Reg:
+  case MC6809::SubSetOverflowUse_i16_Reg:
   // Bug #161 round 18: Compare_*_Reg has the same "two ACC spills
   // both want the same physical register" problem as the arithmetic
   // family. Without skip-second-spill, MaterializeSpills emits two
