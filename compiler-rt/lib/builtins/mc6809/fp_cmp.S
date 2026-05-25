@@ -132,3 +132,57 @@ __nedf2:
         leas    2,s                 ; pop the saved-X slot
         puls    y,u                 ; restore caller's U and Y
         rts
+
+; ---- unordered predicate (Bug #337) ----------------------------------------
+; int __unordsf2(float, float) / int __unorddf2(double, double): return
+; nonzero iff either operand is NaN.  The MC6839 FCMP already reports this
+; via C=1 (CCUN) at FPOP+1 (see the header above).  These reuse the same
+; FCMP setup as __cmpXf2 but a cleanup that yields 1 for unordered, else 0.
+; Same i32-via-X-sret return convention as the compare wrappers.
+
+        .global __unordsf2
+__unordsf2:
+        pshs    u,y,x               ; save callee-saved U,Y + result buffer X
+        leau    8,s                 ; U = &arg1
+        leay    __mc6839_fpcb_f32,pc ; &fpcb (X is sret buffer)
+        tfr     y,d                 ; D = &fpcb (ROM ABI)
+        leay    12,s                ; Y = &arg2
+        ldx     #FCMP_S_S           ; parameter word: single, single
+        lbsr    __fpreg
+        .byte   FPOP_FCMP
+        bra     .Lunord_cleanup     ; (BRA preserves CC)
+
+        .global __unorddf2
+__unorddf2:
+        pshs    u,y,x
+        leau    8,s
+        leay    __mc6839_fpcb_f64,pc ; &fpcb (X is sret buffer)
+        tfr     y,d                 ; D = &fpcb (ROM ABI)
+        leay    16,s                ; Y = &arg2 (f64 arg2 starts 8 bytes higher)
+        ldx     #FCMP_D_D           ; parameter word: double, double
+        lbsr    __fpreg
+        .byte   FPOP_FCMP
+        ; fall through
+
+; On entry: CC = comparison result; X = parameter word. Saved result
+; buffer X at [S+0..1]; saved Y at [S+2..3]; saved U at [S+4..5].
+.Lunord_cleanup:
+        tfr     cc,a                ; A = CC byte (TFR doesn't modify CC)
+        ldx     ,s                  ; X = saved result buffer (LDX modifies CC; OK)
+        bita    #0x01               ; C = unordered (NaN)?  (A still holds CC)
+        bne     .Lunord_yes
+        clra                        ; ordered → i32 = 0
+        clrb
+        std     ,x
+        std     2,x
+        bra     .Lunord_ret
+.Lunord_yes:
+        clra
+        clrb
+        std     ,x                  ; high 16 bits = 0
+        ldd     #1
+        std     2,x                 ; unordered → i32 = 1
+.Lunord_ret:
+        leas    2,s                 ; pop the saved-X slot
+        puls    y,u                 ; restore caller's U and Y
+        rts
