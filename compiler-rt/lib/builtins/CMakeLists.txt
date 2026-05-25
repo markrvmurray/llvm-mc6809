@@ -896,7 +896,12 @@ list(REMOVE_ITEM mc6809_SOURCES
   floatsisf.c floatsidf.c floatdisf.c floatdidf.c
   floatunsisf.c floatunsidf.c floatundisf.c floatundidf.c
   powisf2.c powidf2.c
-  divsc3.c divdc3.c mulsc3.c muldc3.c
+  # NOTE: the complex helpers divsc3/divdc3/mulsc3/muldc3 are deliberately
+  # NOT removed (Bug #343). Unlike the scalar FP ops above (replaced by
+  # MC6839-backed asm in mc6809/), they are generic C wrappers over the
+  # soft-float libcalls plus the inline scaling helpers in fp_lib.h, so they
+  # build and link against what mc6809 already provides. They are not "FPU
+  # ops" — do not re-remove them under the no-FPU rationale.
   # Exception handling (not needed for bare-metal)
   gcc_personality_v0.c
   # 32-bit functions that exhaust registers on MC6809. The legalizer cycle
