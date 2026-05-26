@@ -2054,11 +2054,18 @@ __umulodi4:
 .Lno_overflow:
 	ldd	#0		// 16-bit zero
 .Lof_store:
-	// `int` on MC6809 is 2 bytes big-endian: STD writes high byte
-	// at *Y and low byte at *(Y+1).  Use Y (not X) because X holds
-	// the caller's sret pointer for the i64 result.
-	ldy	34,s
-	std	,y
+	// `int` on MC6809 is 2 bytes big-endian: STD writes high byte at
+	// *X and low byte at *(X+1).  Store through X, not Y: Y is
+	// callee-saved (MC6809 CSR = IY,SU) and this routine promises to
+	// preserve it (see header).  X held the sret pointer but is dead
+	// after the i64 result copy above and is caller-clobberable, so it
+	// is the correct scratch here.  Bug #351: the previous `ldy 34,s`
+	// silently clobbered the caller's Y; when the caller kept a live
+	// value in Y across this call (e.g. strtoull's loop pointer under
+	// greedy regalloc) the value was destroyed, yielding
+	// strtoull("ff",16)=0x0f instead of 0xff.
+	ldx	34,s
+	std	,x
 
 	leas	16,s
 	rts
