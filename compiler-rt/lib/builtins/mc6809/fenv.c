@@ -159,6 +159,64 @@ int feraiseexcept(int excepts) {
 }
 
 /* ------------------------------------------------------------------ */
+/* GNU extensions: FP exception trap enable/disable (Bug #341)        */
+/*                                                                    */
+/* FPCB byte FPCB_FP_TRAPEN (offset 1) holds the set of exceptions    */
+/* that vector through FPCB_FP_TRAPVEC.  Its bit layout matches       */
+/* FP_STAT — and hence the FE_* masks — so enable/disable/query are   */
+/* trivial OR/AND/read on byte 1 of every FPCB.                       */
+/*                                                                    */
+/* These manage only the enable bits.  For an enabled exception to    */
+/* actually deliver a trap, a handler must additionally be installed  */
+/* at FPCB_FP_TRAPVEC with the ROM invoked in trapping mode; no        */
+/* consumer on this target needs that, so it is intentionally not     */
+/* provided (the FP libcalls run the ROM in non-trapping mode and     */
+/* accumulate FP_STAT instead).                                       */
+/* ------------------------------------------------------------------ */
+
+/* OR of the four FPCBs' FP_TRAPEN bytes — the currently enabled set. */
+static unsigned char aggregate_trapen(void) {
+    return __mc6839_fpcb_f32[1]
+         | __mc6839_fpcb_f64[1]
+         | __mc6839_fpcb_f32_trunc[1]
+         | __mc6839_fpcb_f64_trunc[1];
+}
+
+static void set_trapen_bits(unsigned char mask) {
+    __mc6839_fpcb_f32[1]       |= mask;
+    __mc6839_fpcb_f64[1]       |= mask;
+    __mc6839_fpcb_f32_trunc[1] |= mask;
+    __mc6839_fpcb_f64_trunc[1] |= mask;
+}
+
+static void clear_trapen_bits(unsigned char mask) {
+    unsigned char keep = (unsigned char)~mask;
+    __mc6839_fpcb_f32[1]       &= keep;
+    __mc6839_fpcb_f64[1]       &= keep;
+    __mc6839_fpcb_f32_trunc[1] &= keep;
+    __mc6839_fpcb_f64_trunc[1] &= keep;
+}
+
+/* GNU semantics: feenableexcept / fedisableexcept return the set of
+ * exceptions that were enabled BEFORE the call; fegetexcept returns
+ * the currently enabled set. */
+int feenableexcept(int excepts) {
+    unsigned char prev = aggregate_trapen() & FE_ALL_EXCEPT;
+    set_trapen_bits((unsigned char)(excepts & FE_ALL_EXCEPT));
+    return prev;
+}
+
+int fedisableexcept(int excepts) {
+    unsigned char prev = aggregate_trapen() & FE_ALL_EXCEPT;
+    clear_trapen_bits((unsigned char)(excepts & FE_ALL_EXCEPT));
+    return prev;
+}
+
+int fegetexcept(void) {
+    return aggregate_trapen() & FE_ALL_EXCEPT;
+}
+
+/* ------------------------------------------------------------------ */
 /* C99 fenv rounding-mode control                                     */
 /* ------------------------------------------------------------------ */
 
