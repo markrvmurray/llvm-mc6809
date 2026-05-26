@@ -33,7 +33,9 @@
 //
 // Strategy: scan the 4 input bytes from MSB downward; count leading
 // zeros within the first non-zero byte by left-shifting until the MSB
-// is 1. Y holds the count so X stays as the sret pointer throughout.
+// is 1. A holds the count so X stays as the sret pointer throughout.
+// Bug #352: A (not Y) — Y is callee-saved on MC6809 (CSR = IY,SU) and a
+// runtime routine must not clobber it.
 //
 // Worst case (input = 0x00000001) is 4 byte-tests + 7 bit-shifts ≈ 160 cy.
 // Best case (high bit set)         is 1 byte-test + 0 shifts ≈ 14 cy.
@@ -53,34 +55,36 @@ __clzsi2:
 	bne	.Lclzsi2_byte2
 	ldb	5,s			// LSB
 	bne	.Lclzsi2_byte3
-	ldy	#32			// a == 0 → 32 leading zeros
+	lda	#32			// a == 0 → 32 leading zeros
 	bra	.Lclzsi2_store
 
 .Lclzsi2_byte3:
-	ldy	#24
+	lda	#24
 	bra	.Lclzsi2_count
 .Lclzsi2_byte2:
-	ldy	#16
+	lda	#16
 	bra	.Lclzsi2_count
 .Lclzsi2_byte1:
-	ldy	#8
+	lda	#8
 	bra	.Lclzsi2_count
 .Lclzsi2_byte0:
-	ldy	#0
+	lda	#0
 	// fall through
 
-// On entry: B != 0, Y = 8 * (number of leading zero bytes), X = sret ptr.
+// On entry: B != 0, A = 8 * (number of leading zero bytes), X = sret ptr.
 .Lclzsi2_count:
 	tstb
 	bmi	.Lclzsi2_store
 	lslb
-	leay	1,y
+	inca
 	bra	.Lclzsi2_count
 
-// Y = count (0..32). Write 4-byte zero-extended big-endian result.
+// A = count (0..32). Write 4-byte zero-extended big-endian result.
+// `clr` does not touch A, so the count survives to the final `sta`.
 .Lclzsi2_store:
-	ldd	#0
-	std	,x			// bytes 0..1 = 0
-	sty	2,x			// bytes 2..3 = count
+	clr	,x			// bytes 0..2 = 0
+	clr	1,x
+	clr	2,x
+	sta	3,x			// byte 3 = count (low byte; count <= 32)
 	rts
 	.size	__clzsi2, . - __clzsi2

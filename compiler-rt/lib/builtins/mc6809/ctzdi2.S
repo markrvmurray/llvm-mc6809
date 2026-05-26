@@ -50,47 +50,53 @@ __ctzdi2:
 	bne	.Lctzdi2_byte6
 	ldb	2,s			// MSB byte
 	bne	.Lctzdi2_byte7
-	ldy	#64			// a == 0 → 64 (defensive)
+	lda	#64			// a == 0 → 64 (defensive)
 	bra	.Lctzdi2_store
 
 .Lctzdi2_byte7:
-	ldy	#56
+	lda	#56
 	bra	.Lctzdi2_count
 .Lctzdi2_byte6:
-	ldy	#48
+	lda	#48
 	bra	.Lctzdi2_count
 .Lctzdi2_byte5:
-	ldy	#40
+	lda	#40
 	bra	.Lctzdi2_count
 .Lctzdi2_byte4:
-	ldy	#32
+	lda	#32
 	bra	.Lctzdi2_count
 .Lctzdi2_byte3:
-	ldy	#24
+	lda	#24
 	bra	.Lctzdi2_count
 .Lctzdi2_byte2:
-	ldy	#16
+	lda	#16
 	bra	.Lctzdi2_count
 .Lctzdi2_byte1:
-	ldy	#8
+	lda	#8
 	bra	.Lctzdi2_count
 .Lctzdi2_byte0:
-	ldy	#0
+	lda	#0
 	// fall through
 
-// On entry: B != 0, Y = 8 * (number of trailing zero bytes), X = sret ptr.
+// On entry: B != 0, A = 8 * (number of trailing zero bytes), X = sret ptr.
+// Bug #352: count is in A (caller-saved), not Y — Y is callee-saved
+// (MC6809 CSR = IY,SU) and a runtime routine must preserve it.
 .Lctzdi2_count:
 	lsrb
 	bcs	.Lctzdi2_store
-	leay	1,y
+	inca
 	bra	.Lctzdi2_count
 
-// Y = count (0..64). Write 8-byte zero-extended big-endian result.
+// A = count (0..64). Write 8-byte zero-extended big-endian result.
+// `clr` does not touch A, so the count survives to the final `sta`.
 .Lctzdi2_store:
-	ldd	#0
-	std	,x			// bytes 0..1
-	std	2,x			// bytes 2..3
-	std	4,x			// bytes 4..5
-	sty	6,x			// bytes 6..7 = count
+	clr	,x
+	clr	1,x
+	clr	2,x
+	clr	3,x
+	clr	4,x
+	clr	5,x
+	clr	6,x
+	sta	7,x			// byte 7 = count (low byte; count <= 64)
 	rts
 	.size	__ctzdi2, . - __ctzdi2

@@ -26,13 +26,15 @@
 	.globl	__popcountdi2
 	.type	__popcountdi2,@function
 __popcountdi2:
+	// Bug #352: Y is callee-saved (MC6809 CSR = IY,SU).  This routine
+	// uses Y as the i16 running total across the byte subroutine, so it
+	// must save/restore the caller's Y.  The `pshs y` shifts the input
+	// arguments down by 2 bytes (2,s..9,s -> 4,s..11,s); the bsr/rts to
+	// .Lpopdi2_byte balances, so the offsets are stable across the loop.
+	pshs	y
 	ldy	#0			// running total
 
-	ldb	2,s
-	bsr	.Lpopdi2_byte
-	ldb	3,s
-	bsr	.Lpopdi2_byte
-	ldb	4,s
+	ldb	4,s			// MSB (was 2,s)
 	bsr	.Lpopdi2_byte
 	ldb	5,s
 	bsr	.Lpopdi2_byte
@@ -44,6 +46,10 @@ __popcountdi2:
 	bsr	.Lpopdi2_byte
 	ldb	9,s
 	bsr	.Lpopdi2_byte
+	ldb	10,s
+	bsr	.Lpopdi2_byte
+	ldb	11,s			// LSB (was 9,s)
+	bsr	.Lpopdi2_byte
 
 	// Y = total popcount (0..64). Write 8-byte zero-extended result.
 	ldd	#0
@@ -51,6 +57,7 @@ __popcountdi2:
 	std	2,x
 	std	4,x
 	sty	6,x
+	puls	y			// restore caller's Y
 	rts
 
 // Subroutine: A = popcount(B); on exit Y += A. Clobbers A, B; preserves X.
