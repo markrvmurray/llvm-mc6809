@@ -225,10 +225,15 @@ int fegetround(void) {
 }
 
 int fesetround(int round) {
-    unsigned char r = (unsigned char)(round & FP_CTRL_ROUND_MASK);
-    if (r != FE_TONEAREST && r != FE_TOWARDZERO &&
-        r != FE_UPWARD    && r != FE_DOWNWARD)
+    /* Bug #354: validate the UNMASKED argument against the four legal
+     * mode values.  Masking first (round & FP_CTRL_ROUND_MASK) would let
+     * out-of-range inputs such as fesetround(FE_ALL_EXCEPT + 1) == 0x50
+     * alias to FE_TONEAREST and be wrongly accepted, clobbering the
+     * current mode. */
+    if (round != FE_TONEAREST && round != FE_TOWARDZERO &&
+        round != FE_UPWARD    && round != FE_DOWNWARD)
         return -1;   /* C99 says non-zero on failure */
+    unsigned char r = (unsigned char)round;
     /* Update FP_CTRL bits 2:1 in the f32 and f64 FPCBs; leave the
      * _trunc variants alone (they must always RZ — (int)x is
      * truncation regardless of fenv state). */
