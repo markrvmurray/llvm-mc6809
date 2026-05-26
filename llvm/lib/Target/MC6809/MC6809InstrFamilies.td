@@ -967,14 +967,6 @@ multiclass MC6809CompareBranch<ValueType vtype, RegisterClass reg> {
 
 defm CompareBranch_i8 : MC6809CompareBranch<i8, ACC8>;
 defm CompareBranch_i16 : MC6809CompareBranch<i16, ACC16>;
-// Bug #359: index-domain compare-branch against an immediate — selected by
-// the pointer-compare intercept in MC6809InstructionSelector so a pointer
-// null/constant check compares in place (CMPX/CMPY/CMPU #imm) instead of
-// moving into D. Only the immediate form is needed: the intercept builds it
-// directly with the literal RHS. Register/memory/pull pointer compares are
-// not yet routed here (the operands are accum-banked after the legalizer's
-// ptrtoint), so those forms are intentionally omitted.
-def CompareBranch_ptr_Imm : MC6809CompareBranchBase<INDEX16, (ins i16imm:$imm)>;
 
 // Bug #301 Phase D step 3.1 (2026-05-16 night): native HD6309 i32
 // compare-and-branch fused pseudo.  Single MachineInstr covering

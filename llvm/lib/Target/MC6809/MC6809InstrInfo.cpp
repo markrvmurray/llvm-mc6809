@@ -3560,7 +3560,6 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::CompareBranch_i16_Mem:
   case MC6809::CompareBranch_i8_Pull:
   case MC6809::CompareBranch_i16_Pull:
-  case MC6809::CompareBranch_ptr_Imm: // Bug #359: index-domain pointer compare.
     expandFusedCompareBranch(Builder, MI);
     break;
   case MC6809::CompareBranch_i32_Imm: {
@@ -7773,8 +7772,6 @@ void MC6809InstrInfo::expandFusedCompareBranch(MachineIRBuilder &Builder, Machin
   case MC6809::CompareBranch_i16_Mem: CmpOpc = MC6809::Compare_i16_Mem; break;
   case MC6809::CompareBranch_i8_Pull:  CmpOpc = MC6809::Compare_i8_Pull; break;
   case MC6809::CompareBranch_i16_Pull: CmpOpc = MC6809::Compare_i16_Pull; break;
-  // Bug #359: index-domain pointer compare-branch against an immediate.
-  case MC6809::CompareBranch_ptr_Imm:  CmpOpc = MC6809::Compare_ptr_Imm; break;
   default: llvm_unreachable("Unknown fused compare-branch opcode");
   }
 
