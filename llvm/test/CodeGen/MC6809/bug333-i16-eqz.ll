@@ -12,7 +12,9 @@
 
 define void @brz_i16(i16 %x, ptr %p) {
 ; CHECK-LABEL: brz_i16:
-; CHECK:       cmpd #0
+; A native 16-bit compare against zero — cmpd, or cmpx/cmpy when the value
+; is already in an index register (Bug #359) — never a byte split.
+; CHECK:       cmp{{[dxy]}} #0
 ; CHECK-NOT:   orb
 ; CHECK-NOT:   anda
 entry:
@@ -30,7 +32,7 @@ done:
 
 define void @brnz_i16(i16 %x, ptr %p) {
 ; CHECK-LABEL: brnz_i16:
-; CHECK:       cmpd #0
+; CHECK:       cmp{{[dxy]}} #0
 ; CHECK-NOT:   orb
 ; CHECK-NOT:   anda
 entry:

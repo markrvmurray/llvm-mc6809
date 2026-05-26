@@ -1289,6 +1289,96 @@ skip_globalvalue_fold:
     }
   }
 
+  // Bug #359: pointer compare against a constant (the common case being a
+  // null check) is legalized to G_PTRTOINT + s16 G_ICMP, which lands the
+  // value in the accumulator bank. selectImpl would then match the
+  // accumulator TestBranch/CompareBranch pattern, forcing `tfr x,d` ahead of
+  // CMPD. Intercept here, ahead of selectImpl, and emit an index-domain
+  // CompareBranch_ptr_Imm on the ORIGINAL index-banked pointer
+  // (CMPX/CMPY/CMPU #imm, including #0 for a null test). The immediate is
+  // passed directly, so no constant-fold matching is needed.
+  if (MI.getOpcode() == TargetOpcode::G_BRCOND) {
+    Register CondReg = MI.getOperand(0).getReg();
+    MachineBasicBlock *TargetMBB = MI.getOperand(1).getMBB();
+    MachineInstr *CondDef = MRI->getVRegDef(CondReg);
+    while (CondDef && (CondDef->getOpcode() == TargetOpcode::G_FREEZE ||
+                       CondDef->getOpcode() == TargetOpcode::COPY)) {
+      Register N = CondDef->getOperand(1).getReg();
+      if (!N.isVirtual())
+        break;
+      CondDef = MRI->getVRegDef(N);
+    }
+    if (CondDef && CondDef->getOpcode() == TargetOpcode::G_ICMP) {
+      auto Pred = (CmpInst::Predicate)CondDef->getOperand(1).getPredicate();
+      // Pointers compare unsigned; only handle eq/ne and unsigned orderings.
+      auto CCForPred = [](CmpInst::Predicate P) -> std::optional<int> {
+        switch (P) {
+        case CmpInst::ICMP_EQ:  return MC6809CC::EQ;
+        case CmpInst::ICMP_NE:  return MC6809CC::NE;
+        case CmpInst::ICMP_UGT: return MC6809CC::HI;
+        case CmpInst::ICMP_UGE: return MC6809CC::HS;
+        case CmpInst::ICMP_ULT: return MC6809CC::LO;
+        case CmpInst::ICMP_ULE: return MC6809CC::LS;
+        default:                return std::nullopt;
+        }
+      };
+      auto CCOpt = CCForPred(Pred);
+      Register Lhs = CondDef->getOperand(2).getReg();
+      Register Rhs = CondDef->getOperand(3).getReg();
+      // Trace through ptrtoint/inttoptr/copy/freeze to the first index-banked
+      // pointer (the LHS) and to a literal constant (the RHS).
+      auto findIndexPtr = [&](Register R) -> Register {
+        Register Cur = R;
+        for (int I = 0; I < 6 && Cur.isVirtual(); ++I) {
+          const RegisterBank *B = RBI.getRegBank(Cur, *MRI, TRI);
+          if (B && B->getID() == MC6809::INDEXRegBankID)
+            return Cur;
+          MachineInstr *D = MRI->getVRegDef(Cur);
+          if (!D)
+            break;
+          unsigned Op = D->getOpcode();
+          if (Op != TargetOpcode::G_PTRTOINT && Op != TargetOpcode::G_INTTOPTR &&
+              Op != TargetOpcode::COPY && Op != TargetOpcode::G_FREEZE)
+            break;
+          Cur = D->getOperand(1).getReg();
+        }
+        return Register();
+      };
+      auto findConst = [&](Register R) -> std::optional<int64_t> {
+        Register Cur = R;
+        for (int I = 0; I < 6 && Cur.isVirtual(); ++I) {
+          if (auto C = getIConstantVRegValWithLookThrough(Cur, *MRI))
+            return C->Value.getSExtValue();
+          MachineInstr *D = MRI->getVRegDef(Cur);
+          if (!D)
+            break;
+          unsigned Op = D->getOpcode();
+          if (Op != TargetOpcode::G_PTRTOINT && Op != TargetOpcode::G_INTTOPTR &&
+              Op != TargetOpcode::COPY && Op != TargetOpcode::G_FREEZE)
+            break;
+          Cur = D->getOperand(1).getReg();
+        }
+        return std::nullopt;
+      };
+      Register IdxLhs = CCOpt ? findIndexPtr(Lhs) : Register();
+      auto ImmRhs = IdxLhs ? findConst(Rhs) : std::nullopt;
+      if (IdxLhs && ImmRhs &&
+          RBI.constrainGenericRegister(IdxLhs, MC6809::INDEX16RegClass, *MRI)) {
+        BuildMI(*MBB, MI, MI.getDebugLoc(),
+                TII.get(MC6809::CompareBranch_ptr_Imm))
+            .addImm(*CCOpt)
+            .addReg(IdxLhs)
+            .addImm(*ImmRhs)
+            .addMBB(TargetMBB);
+        Register ICmpDst = CondDef->getOperand(0).getReg();
+        MI.eraseFromParent();
+        if (MRI->use_nodbg_empty(ICmpDst))
+          CondDef->eraseFromParent();
+        return true;
+      }
+    }
+  }
+
   if (selectImpl(MI, *CoverageInfo))
     return true;
 
