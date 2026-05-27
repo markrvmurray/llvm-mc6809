@@ -84,6 +84,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMC6809Target() {
   initializeMC6809SanitiseDebugInfoPass(PR);
   initializeMC6809ShiftRotateChainPass(PR);
   initializeMC6809DirectPageAllocPass(PR);
+  initializeMC6809FoldAddSub16Pass(PR);
 }
 
 // MC6809 is big-endian (Motorola byte order).
@@ -300,6 +301,10 @@ bool MC6809PassConfig::addGlobalInstructionSelect() {
 
 void MC6809PassConfig::addMachineSSAOptimization() {
   TargetPassConfig::addMachineSSAOptimization();
+  // Bug #360: refold byte-decomposed i16 add/sub of an immediate back into
+  // native ADDD/SUBD. Runs on selected SSA MIR (only at -O1+), after the
+  // generic SSA opts and before register allocation.
+  addPass(createMC6809FoldAddSub16Pass());
 }
 
 void MC6809PassConfig::addOptimizedRegAlloc() {
