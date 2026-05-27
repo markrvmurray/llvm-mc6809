@@ -12,7 +12,7 @@
 
 define void @brz_i16(i16 %x, ptr %p) {
 ; CHECK-LABEL: brz_i16:
-; CHECK:       cmpd #0
+; CHECK:       cmp{{[dx]}} #0
 ; CHECK-NOT:   orb
 ; CHECK-NOT:   anda
 entry:
@@ -30,7 +30,7 @@ done:
 
 define void @brnz_i16(i16 %x, ptr %p) {
 ; CHECK-LABEL: brnz_i16:
-; CHECK:       cmpd #0
+; CHECK:       cmp{{[dx]}} #0
 ; CHECK-NOT:   orb
 ; CHECK-NOT:   anda
 entry:

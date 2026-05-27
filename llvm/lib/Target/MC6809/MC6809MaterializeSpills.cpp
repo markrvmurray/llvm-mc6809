@@ -715,7 +715,26 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
               Has8BitSpill = true;
           }
         }
-        if (!Has8BitSpill) {
+        // Bug #359: an INDEX spill operand (SPILL_X*) must NOT take the
+        // D-only skip path below.  That path leaves the spill in place for
+        // the expansion, which is sound for SPILL_D operands (the Bug #49
+        // backward-scan rewrites the compare to CMPX/CMPY reading the STX'd
+        // slot, preserving D).  But expandCompareImm has no U-relative
+        // fallback for an index-immediate compare — it materialises the
+        // SPILL_X into IX (getRealRegForSpill), silently clobbering whatever
+        // lives in IX.  In __ascii_mbtowc the incoming pwc pointer lives in
+        // IX across the s==NULL check; loading s into IX for `cmpx #0`
+        // destroyed pwc, so the later `*pwc = c` store wrote through s and
+        // the converted character was lost.  Falling through to the main
+        // materialisation loop rewrites the operand to IY (leaving IX
+        // untouched), with willClobberIX/IY guarding any genuinely-live
+        // IX/IY.
+        bool HasIndexSpill = false;
+        for (const MachineOperand &MO : MI.operands())
+          if (MO.isReg() && MO.getReg().isPhysical() &&
+              isIndexSpillReg(MO.getReg()))
+            HasIndexSpill = true;
+        if (!Has8BitSpill && !HasIndexSpill) {
           // Check if D (or any sub-reg) is live with a value that would
           // be clobbered.  LivePhysRegs::contains(R) only matches if R
           // itself (or a reg that addReg(super) walked into) was

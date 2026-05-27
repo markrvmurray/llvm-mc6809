@@ -687,14 +687,44 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
     LLT S16 = LLT::scalar(16);
     LLT OpTy = MRI.getType(Lhs);
 
-    // Pointer compare: convert ptr operands to s16 via G_PTRTOINT and reuse
-    // the existing s16 G_ICMP patterns. The hardware CMPD/CMPX instructions
-    // don't distinguish pointers from integers; this just keeps the imported
-    // selection patterns happy.
+    // Pointer compare: convert ptr operands to s16 and reuse the s16 G_ICMP
+    // patterns. The hardware CMPD/CMPX instructions don't distinguish pointers
+    // from integers. Bug #359: fold a constant operand (the common case being
+    // a null check) to a direct s16 G_CONSTANT rather than G_PTRTOINT(const) —
+    // the immediate selection patterns (and the index-domain CMPX #imm path)
+    // need to recognise it as an immediate, which they can't do through a
+    // ptrtoint.
     if (OpTy.isPointer()) {
-      auto LhsInt = B.buildPtrToInt(S16, Lhs);
-      auto RhsInt = B.buildPtrToInt(S16, Rhs);
-      B.buildICmp(Pred, Dst, LhsInt, RhsInt);
+      auto toS16 = [&](Register R) -> Register {
+        // Look through G_PTRTOINT / G_INTTOPTR / COPY to find an underlying
+        // G_CONSTANT (a pointer constant such as null carries a p0 type, which
+        // getIConstantVRegValWithLookThrough won't treat as an integer
+        // constant). Re-materialise it as a plain s16 constant so the
+        // index-domain compare can fold it as a CMPX/CMPY #imm immediate.
+        Register Cur = R;
+        while (Cur.isVirtual()) {
+          MachineInstr *D = MRI.getVRegDef(Cur);
+          if (!D)
+            break;
+          unsigned Op = D->getOpcode();
+          if (Op == TargetOpcode::G_CONSTANT)
+            return B
+                .buildConstant(
+                    S16, D->getOperand(1).getCImm()->getZExtValue() & 0xffff)
+                .getReg(0);
+          if (Op == TargetOpcode::G_PTRTOINT || Op == TargetOpcode::G_INTTOPTR ||
+              Op == TargetOpcode::COPY) {
+            Register N = D->getOperand(1).getReg();
+            if (!N.isVirtual())
+              break;
+            Cur = N;
+            continue;
+          }
+          break;
+        }
+        return B.buildPtrToInt(S16, R).getReg(0);
+      };
+      B.buildICmp(Pred, Dst, toS16(Lhs), toS16(Rhs));
       MI.eraseFromParent();
       return true;
     }

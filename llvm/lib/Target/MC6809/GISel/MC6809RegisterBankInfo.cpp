@@ -17,7 +17,15 @@
 #include "llvm/CodeGen/RegisterBank.h"
 #include "llvm/CodeGen/RegisterBankInfo.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
+
+// Bug #359 debug knob: gate the index-domain pointer-compare banking so its
+// effect can be A/B-tested (diff codegen on vs off) without rebuilding.
+static llvm::cl::opt<bool> EnablePtrIndexCmp(
+    "mc6809-ptr-index-cmp", llvm::cl::init(true), llvm::cl::Hidden,
+    llvm::cl::desc("Bug #359: keep pointer compares in the INDEX bank "
+                   "(CMPX/CMPY) instead of moving into D"));
 
 #define DEBUG_TYPE "mc6809-registerbank"
 
@@ -209,9 +217,65 @@ const RegisterBankInfo::InstructionMapping &MC6809RegisterBankInfo::getInstrMapp
     }
     return getSameOperandsMapping(MI);
   }
-  // G_ICMP: INDEX-bank CMPX/CMPY would avoid D clobber, but the imported
-  // patterns use pointer type (p0) for INDEX16 whereas G_ICMP operands have
-  // s16 type, causing pattern mismatch. Fixed at spill expansion level instead.
+  case TargetOpcode::G_PTRTOINT: {
+    // Bug #359: keep a pointer (INDEX bank) in INDEX across a ptrtoint when
+    // the integer result is *only* compared, so the compare uses CMPX/CMPY
+    // instead of dragging the value into D (tfr x,d + CMPD).  Keep it on the
+    // type-based default when the result feeds anything else: AND/OR/XOR have
+    // no index-register form (accumulator only), and subtraction (p - q) is
+    // not a single LEA (LEA adds an {A,B,D} offset register, it does not
+    // subtract).  Restricting to comparison-only uses sidesteps both.
+    Register Src = MI.getOperand(1).getReg();
+    Register Dst = MI.getOperand(0).getReg();
+    const RegisterBank *SrcRB = MRI.getRegBankOrNull(Src);
+    if (EnablePtrIndexCmp && SrcRB &&
+        SrcRB->getID() == MC6809::INDEXRegBankID &&
+        !MRI.use_nodbg_empty(Dst)) {
+      bool OnlyCompares = true;
+      for (const MachineInstr &U : MRI.use_nodbg_instructions(Dst)) {
+        if (U.getOpcode() != TargetOpcode::G_ICMP) {
+          OnlyCompares = false;
+          break;
+        }
+      }
+      if (OnlyCompares) {
+        auto Mapping = getValueMapping(PMI_INDEX, NumOperands);
+        return getInstructionMapping(DefaultMappingID, 1, Mapping, NumOperands);
+      }
+    }
+    break;
+  }
+  case TargetOpcode::G_ICMP: {
+    // Bug #359: when a compared value is in the INDEX bank (a pointer, or a
+    // value derived from one through the bank-transparent G_PTRTOINT above),
+    // keep the compare in INDEX so it selects CMPX/CMPY #imm rather than
+    // moving into D.  Mirrors the G_ADD/G_SUB INDEX path above; the result
+    // (an s1) stays in its flags/COND bank.
+    Register Lhs = MI.getOperand(2).getReg();
+    Register Rhs = MI.getOperand(3).getReg();
+    const RegisterBank *LRB = MRI.getRegBankOrNull(Lhs);
+    const RegisterBank *RRB = MRI.getRegBankOrNull(Rhs);
+    bool LIdx = LRB && LRB->getID() == MC6809::INDEXRegBankID;
+    bool RIdx = RRB && RRB->getID() == MC6809::INDEXRegBankID;
+    if (EnablePtrIndexCmp && (LIdx || RIdx)) {
+      SmallVector<PartialMappingIdx, 4> OpRegBankIdx(NumOperands);
+      getInstrPartialMappingIdxs(MI, MRI, OpRegBankIdx);
+      // Only move the operand that is genuinely index-banked into INDEX.  A
+      // constant operand (e.g. the null in `p == 0`) must keep its default
+      // bank so it can still fold into the CMPX/CMPY #imm immediate field
+      // rather than being forced into an index register.
+      if (LIdx)
+        OpRegBankIdx[2] = PMI_INDEX;
+      if (RIdx)
+        OpRegBankIdx[3] = PMI_INDEX;
+      SmallVector<const ValueMapping *, 8> OpdsMapping(NumOperands);
+      if (!getInstrValueMapping(MI, OpRegBankIdx, OpdsMapping))
+        return getInvalidInstructionMapping();
+      return getInstructionMapping(DefaultMappingID, /* Cost */ 1,
+                                   getOperandsMapping(OpdsMapping), NumOperands);
+    }
+    break;
+  }
   case TargetOpcode::G_MUL:
   case TargetOpcode::G_AND:
   case TargetOpcode::G_OR:

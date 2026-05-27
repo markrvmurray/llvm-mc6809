@@ -967,6 +967,13 @@ multiclass MC6809CompareBranch<ValueType vtype, RegisterClass reg> {
 
 defm CompareBranch_i8 : MC6809CompareBranch<i8, ACC8>;
 defm CompareBranch_i16 : MC6809CompareBranch<i16, ACC16>;
+// Bug #359: index-domain fused compare-branch against an immediate. Selected
+// (via selectImpl) for a pointer compared against a constant once
+// RegisterBankInfo banks the operand INDEX, so it realises CMPX/CMPY/CMPU
+// #imm (including #0 for a null test) instead of moving into D. Only the
+// immediate form: register/memory pointer compares are rare and the _Reg /
+// _Pull forms have no Push_ptr / index reg-reg compare on base MC6809.
+def CompareBranch_ptr_Imm : MC6809CompareBranchBase<INDEX16, (ins i16imm:$imm)>;
 
 // Bug #301 Phase D step 3.1 (2026-05-16 night): native HD6309 i32
 // compare-and-branch fused pseudo.  Single MachineInstr covering
@@ -1247,6 +1254,14 @@ multiclass MC6809CompBraPat<CondCode CC, int cc, ValueType vtype, RegisterClass 
 multiclass MC6809CompBraCondPat<CondCode CC, int ccode> {
   defm _i8 : MC6809CompBraPat<CC, ccode, i8, ACC8>;
   defm _i16 : MC6809CompBraPat<CC, ccode, i16, ACC16>;
+  // Bug #359: index-domain pointer compare-branch, immediate RHS only.  Once
+  // RegisterBankInfo banks the pointer operand INDEX, the _i16 (ACC16) pattern
+  // can't match it, so this fires instead and realises CMPX/CMPY #imm.
+  // Written directly rather than via MC6809CompBraPat because that multiclass
+  // uses vtype for both the value type and the instruction-name suffix and so
+  // can't express an i16-typed operand with a ptr-named instruction.
+  def _ptr_Imm : Pat<(brcond (i1 (setcc INDEX16:$src, imm:$val, CC)), bb:$tgt),
+                     (CompareBranch_ptr_Imm ccode, INDEX16:$src, imm:$val, bb:$tgt)>;
 }
 
 defm CompBraPat_HI : MC6809CompBraCondPat<SETUGT, 2>;
