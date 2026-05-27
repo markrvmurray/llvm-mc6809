@@ -18,6 +18,7 @@ define i32 @select_i32(i1 %c, i32 %a, i32 %b) {
 ; O0-NEXT:    pshs u
 ; O0-NEXT:    tfr s,u
 ; O0-NEXT:    andb #1
+; O0-NEXT:    tstb
 ; O0-NEXT:    lbeq .LBB0_2
 ; O0-NEXT:  ; %bb.1:
 ; O0-NEXT:    stb 7,u
@@ -65,6 +66,7 @@ define i32 @select_i32(i1 %c, i32 %a, i32 %b) {
 ; O2-NEXT:    ldd 14,u
 ; O2-NEXT:    std 6,u
 ; O2-NEXT:    ldb 4,u
+; O2-NEXT:    tstb
 ; O2-NEXT:    lbne .LBB0_2
 ; O2-NEXT:  ; %bb.1: ; %select.false
 ; O2-NEXT:    ldd 20,u
@@ -107,6 +109,7 @@ define i32 @phi_i32(i1 %c, i32 %a, i32 %b) {
 ; O0-NEXT:    ldd 34,u
 ; O0-NEXT:    std 20,u
 ; O0-NEXT:    ldb 14,u
+; O0-NEXT:    tstb
 ; O0-NEXT:    lbeq .LBB1_2
 ; O0-NEXT:  ; %bb.1: ; %then
 ; O0-NEXT:    ldb 23,u
@@ -185,6 +188,7 @@ define i32 @phi_i32(i1 %c, i32 %a, i32 %b) {
 ; O2-NEXT:    pshs u
 ; O2-NEXT:    tfr s,u
 ; O2-NEXT:    andb #1
+; O2-NEXT:    tstb
 ; O2-NEXT:    beq .LBB1_2
 ; O2-NEXT:  ; %bb.1: ; %then
 ; O2-NEXT:    ldd 28,u
@@ -279,6 +283,7 @@ define i32 @select_chain(i1 %c1, i1 %c2, i32 %a, i32 %b, i32 %d) {
 ; O0-NEXT:    andb #1
 ; O0-NEXT:    lda 18,u
 ; O0-NEXT:    anda #1
+; O0-NEXT:    tsta
 ; O0-NEXT:    lbeq .LBB2_5
 ; O0-NEXT:  ; %bb.1:
 ; O0-NEXT:    tstb

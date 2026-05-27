@@ -74,53 +74,32 @@ bool MC6809LateOptimization::elideCompareZero(MachineBasicBlock &MBB) const {
   bool Changed = false;
   for (auto It = MBB.begin(); It != MBB.end();) {
     MachineInstr &MI = *It++;
-    // The redundant flag-setter: a CMPr #0 (immediate compare against zero,
-    // ACC or index) or a TSTr (an inherent compare-with-zero of its
-    // register). CmpReg is the register whose value the flags reflect.
+    unsigned Opc = MI.getOpcode();
     Register CmpReg;
-    bool IsTst = false;
-    switch (MI.getOpcode()) {
-    case MC6809::CMPDi16: CmpReg = MC6809::AD; break;
-    case MC6809::CMPWi16: CmpReg = MC6809::AW; break;
-    case MC6809::CMPXi16: CmpReg = MC6809::IX; break;
-    case MC6809::CMPYi16: CmpReg = MC6809::IY; break;
-    case MC6809::TSTAa: CmpReg = MC6809::AA; IsTst = true; break;
-    case MC6809::TSTBa: CmpReg = MC6809::AB; IsTst = true; break;
-    case MC6809::TSTDa: CmpReg = MC6809::AD; IsTst = true; break;
-    case MC6809::TSTWa: CmpReg = MC6809::AW; IsTst = true; break;
-    case MC6809::TSTEa: CmpReg = MC6809::AE; IsTst = true; break;
-    case MC6809::TSTFa: CmpReg = MC6809::AF; IsTst = true; break;
-    default: continue;
-    }
-    if (!IsTst &&
-        (!MI.getOperand(0).isImm() || MI.getOperand(0).getImm() != 0))
+    if (Opc == MC6809::CMPDi16)
+      CmpReg = MC6809::AD;
+    else if (Opc == MC6809::CMPWi16)
+      CmpReg = MC6809::AW;
+    else
+      continue;
+    if (!MI.getOperand(0).isImm() || MI.getOperand(0).getImm() != 0)
       continue;
     if (MI.getIterator() == MBB.begin())
       continue;
 
-    // Producer immediately before must define EXACTLY the compared register,
-    // so the N/Z flags it set reflect that value at the right width. A
-    // super-register def is unsafe: `ldd <16-bit>; tstb` defines AD ⊇ AB but
-    // LDD's flags are the 16-bit D's, not the 8-bit B's that TSTB tests
-    // (D=0x0100 -> D!=0 yet B==0). `definesRegister` would accept that; an
-    // exact-width def operand does not.
+    // Producer immediately before the compare must define both the compared
+    // register and its N/Z flags (so its flags equal what the compare would
+    // recompute). A CMP/TST/store doesn't define CmpReg, so it can't match.
     MachineInstr &Prev = *std::prev(MI.getIterator());
-    bool PrevDefsExact = false;
-    for (const MachineOperand &MO : Prev.operands())
-      if (MO.isReg() && MO.isDef() && MO.getReg() == CmpReg) {
-        PrevDefsExact = true;
-        break;
-      }
-    if (!PrevDefsExact)
+    if (!Prev.definesRegister(CmpReg, &TRI) ||
+        !Prev.definesRegister(MC6809::N, &TRI) ||
+        !Prev.definesRegister(MC6809::Z, &TRI))
       continue;
 
     // Consumer immediately after must be a conditional branch on an N/Z-only
-    // condition (EQ/NE test Z, MI/PL test N — exactly the flags a value op
-    // sets the same way a compare-with-0 would; V and C differ, so signed and
-    // unsigned conditions are excluded).
+    // condition, and must not consult C.
     auto NextIt = std::next(MI.getIterator());
-    if (NextIt == MBB.end() || NextIt->getNumOperands() == 0 ||
-        !NextIt->getOperand(0).isImm())
+    if (NextIt == MBB.end() || !NextIt->getOperand(0).isImm())
       continue;
     int64_t CC = NextIt->getOperand(0).getImm();
     if (CC != MC6809CC::EQ && CC != MC6809CC::NE && CC != MC6809CC::MI &&
@@ -129,33 +108,13 @@ bool MC6809LateOptimization::elideCompareZero(MachineBasicBlock &MBB) const {
     if (NextIt->readsRegister(MC6809::C, &TRI))
       continue;
 
-    // Every N/Z/V flag the branch reads must be (re)defined by the producer,
-    // so dropping the compare leaves no flag read undefined. (This is why a
-    // Z-only producer such as LEAX cannot feed a branch that also reads N/V.)
-    bool ProducerCoversFlags = true;
-    bool ReadsNZ = false;
-    for (const MachineOperand &MO : NextIt->operands()) {
-      if (!MO.isReg() || !MO.isUse())
-        continue;
-      Register R = MO.getReg();
-      if (R == MC6809::N || R == MC6809::Z)
-        ReadsNZ = true;
-      if ((R == MC6809::N || R == MC6809::Z || R == MC6809::V) &&
-          !Prev.definesRegister(R, &TRI)) {
-        ProducerCoversFlags = false;
-        break;
-      }
-    }
-    if (!ProducerCoversFlags || !ReadsNZ)
-      continue;
-
-    // The branch will now read the producer's flags; clear any stale dead
-    // markers (regalloc may have flagged them when the compare was the only
-    // flag consumer).
+    // The branch will now read the producer's flags; make sure those defs
+    // aren't marked dead (regalloc may have flagged them when the compare
+    // was the only flag consumer).
     for (MachineOperand &MO : Prev.operands())
       if (MO.isReg() && MO.isDef() &&
           (MO.getReg() == MC6809::N || MO.getReg() == MC6809::Z ||
-           MO.getReg() == MC6809::NZ || MO.getReg() == MC6809::V))
+           MO.getReg() == MC6809::NZ))
         MO.setIsDead(false);
 
     MI.eraseFromParent();

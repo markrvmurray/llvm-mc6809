@@ -72,26 +72,6 @@ exit:
   ret void
 }
 
-; TST elision: an ACC op (here ANDB) sets N/Z, so the following TSTB before a
-; Z/N-only branch is redundant and dropped. The ACC op must define the tested
-; register at its own width — a wider def (e.g. LDD before TSTB) is rejected,
-; since LDD's flags reflect the 16-bit value, not the byte TSTB tests.
-define void @tst_elide(i8 %a, i8 %b, ptr %p) {
-; CHECK-LABEL: tst_elide:
-; CHECK:       andb
-; CHECK-NOT:   tstb
-; CHECK:       lb{{eq|ne}}
-entry:
-  %x = and i8 %a, %b
-  %c = icmp ne i8 %x, 0
-  br i1 %c, label %nz, label %z
-nz:
-  store volatile i8 1, ptr %p
-  br label %z
-z:
-  ret void
-}
-
 ; Carry-propagation guard: a wider (i32) add must NOT be folded. Its low
 ; 16 bits' carry-out feeds the high half, and ADDD would not thread the
 ; imaginary carry register the next byte consumes — so no part of an i32
