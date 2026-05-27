@@ -354,9 +354,6 @@ void MC6809PassConfig::addPreSched2() {
   // SpillOpt first (smaller / safer instruction stream), then schedule.
   if (getOptLevel() != CodeGenOptLevel::None)
     addPass(createMC6809PostRASpillOptPass());
-
-  // This is currently mandatory, since it lowers CMPTermZ.
-  addPass(createMC6809LateOptimizationPass());
 }
 
 void MC6809PassConfig::addPreEmitPass() {
@@ -369,6 +366,22 @@ void MC6809PassConfig::addPreEmitPass() {
   // make the actual emit positions differ from BranchRelaxation's
   // bookkeeping by the size of every elided MI.
   addPass(createMC6809FinalLoweringPass());
+
+  // MC6809LateOptimization (tailJMP, simplifyAndZero, redundant compare-zero
+  // elision) runs HERE — after FinalLowering, before BranchRelaxation — not
+  // in addPreSched2. The compare-zero elision (Bug #360) drops a redundant
+  // CMP/TST #0 by letting the conditional branch read the producer's flags
+  // directly; that is only sound on the FINAL instruction stream. Run earlier
+  // (before FinalLowering), the elision removes the CMP and FinalLowering's
+  // store-reload / LEA-pointer-spill classes then delete the very load whose
+  // flags the branch now depends on (e.g. strrchr's `ldy slot; cmpy #0; bne`
+  // null-check reload), leaving the branch reading an adjacent LEAX's
+  // hardware Z — a miscompile (Bug #360 follow-up). Post-FinalLowering the
+  // producer immediately before the CMP is final, so the guards reflect
+  // reality. Must precede BranchRelaxation so block-size accounting sees the
+  // elided/tail-jumped instructions.
+  addPass(createMC6809LateOptimizationPass());
+
   addPass(&BranchRelaxationPassID);
   // Encoding-overflow safety nets that historically lived in a dedicated
   // post-pass (MC6809NoShortBranches, retired in commit 2bf4696c62d7) have
