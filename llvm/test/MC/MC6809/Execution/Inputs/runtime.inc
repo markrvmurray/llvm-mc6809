@@ -1,13 +1,14 @@
 ;;
 ;; runtime.inc — shared test runtime for MC6809 execution tests
 ;;
-;; Memory map (matches usim09batch as of usim commit fa2af824,
-;; "relocate IO and vector ROM to bottom of address space"):
-;;   0x0000-0xffcf  RAM (single unified region, ~64 KB)
-;;   0xffd0         ACIA status register
-;;   0xffd1         ACIA data register
-;;   0xffd2         Halt/exit device (written value = exit code)
-;;   0xffd3-0xffef  reserved IO
+;; Memory map (matches usim09batch as of usim commit 78a1fa4,
+;; "pico-thing alignment" — Bug #358; the IO slab moved down from
+;; $FFD0-$FFD2 to $FFC4-$FFCC):
+;;   0x0000-0xffc3  RAM (single unified region)
+;;   0xffc4         ACIA status register (bit 1 = TDRE, bit 0 = RDRF)
+;;   0xffc5         ACIA data register
+;;   0xffcb         TraceCtl (USim --brk-gated / --trace toggle)
+;;   0xffcc         Halt/exit device (written value = exit code)
 ;;   0xfff0-0xffff  Vectors (vector ROM)
 ;;
 
@@ -55,7 +56,7 @@ _hang:
 ;; this is a no-op on usim. MAME's HD6309 SBC (`mamellvm6309`) requires
 ;; an explicit master-reset ($03 → control) followed by an operating-
 ;; mode write ($15 = /16 clock, 8N1, no IRQ, RTS=low) before TDRE will
-;; assert; without this, every putchar polls $FFD0 forever and the
+;; assert; without this, every putchar polls $FFC4 forever and the
 ;; test hits its runaway timeout.
 ;; Called unconditionally by _start so every test that calls into the
 ;; runtime is portable across both simulators.
@@ -64,9 +65,9 @@ _hang:
 _acia_init:
 	pshs	a
 	lda	#0x03		; master reset
-	sta	0xffd0
+	sta	0xffc4
 	lda	#0x15		; /16 clock, 8N1, no IRQ, RTS=low
-	sta	0xffd0
+	sta	0xffc4
 	puls	a,pc
 
 ;; ===== putchar =====
@@ -76,10 +77,10 @@ _acia_init:
 putchar:
 	pshs	b
 .Lputchar_wait:
-	ldb	0xffd0		; ACIA status
+	ldb	0xffc4		; ACIA status
 	bitb	#0x02		; TDRE
 	beq	.Lputchar_wait
-	sta	0xffd1		; ACIA data
+	sta	0xffc5		; ACIA data
 	puls	b,pc
 
 ;; ===== puthex =====
@@ -137,7 +138,7 @@ putnl:
 
 halt:
 	clra
-	sta	0xffd2
+	sta	0xffcc
 	rts
 
 ;; ===== Vector table =====

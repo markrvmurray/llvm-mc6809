@@ -1,8 +1,8 @@
 /* link.ld — linker script for MC6809 execution tests.
  *
- * usim09batch (after commit fa2af824, "relocate IO and vector ROM to
- * bottom of address space") presents a single unified RAM region with
- * a small IO slab + vector ROM at the top.
+ * usim09batch (after commit 78a1fa4, "pico-thing alignment" — Bug #358;
+ * the IO slab moved down from $FFD0-$FFD2 to $FFC4-$FFCC) presents a
+ * single unified RAM region with a small IO slab + vector ROM at the top.
  *
  * Even though the emulated machine no longer has a ROM/RAM split, we
  * keep a virtual code/data partition in this script so test inputs
@@ -24,19 +24,20 @@ MEMORY {
      * $00-$FF, the $0100-area scratch that arithmetic.s and friends
      * write to, plus .data/.bss/heap. */
     DRAM (rwx) : ORIGIN = 0x0000, LENGTH = 0x4000
-    /* Code partition: $4000-$FFCF (~48 KB). Top end stops before the
-     * IO slab at $FFD0-$FFEF (ACIA at $FFD0/$FFD1, halt at $FFD2). */
-    CRAM (rwx) : ORIGIN = 0x4000, LENGTH = 0xBFD0
+    /* Code partition: $4000-$FFC3 (~48 KB). Top end stops before the
+     * IO slab at $FFC4-$FFCC (ACIA at $FFC4/$FFC5, halt at $FFCC). */
+    CRAM (rwx) : ORIGIN = 0x4000, LENGTH = 0xBFC4
     VEC  (r)   : ORIGIN = 0xFFF0, LENGTH = 0x0010
 }
 
 /* IO device symbols — the single source of truth for the memory map.
    IR under test (codegen-picolibc.ll) references these as externals
    instead of hardcoding addresses inline (bug #102). Change the map
-   here and everything follows; no per-test patching required. */
-__acia_status = 0xFFD0;
-__acia_data   = 0xFFD1;
-__halt        = 0xFFD2;
+   here and everything follows; no per-test patching required.
+   Bug #358: ACIA + halt moved down from $FFD0-$FFD2 to $FFC4-$FFCC. */
+__acia_status = 0xFFC4;
+__acia_data   = 0xFFC5;
+__halt        = 0xFFCC;
 
 SECTIONS {
     /* Imaginary registers — direct page (DP=0, addresses 0x00-0xFF).

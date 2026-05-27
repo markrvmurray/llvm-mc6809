@@ -16,18 +16,18 @@
  * test link directly against the harness with no ABI shim.
  *
  * Memory map (matches Inputs/runtime.inc — usim09batch as of usim
- * commit fa2af824, "relocate IO and vector ROM to bottom of address
- * space"):
- *   0xFFD0  ACIA status register (TDRE bit = 0x02)
- *   0xFFD1  ACIA data register
- *   0xFFD2  halt/exit device
+ * commit 78a1fa4, "pico-thing alignment" — Bug #358; the IO slab
+ * moved down from $FFD0-$FFD2 to $FFC4-$FFCC):
+ *   0xFFC4  ACIA status register (TDRE bit = 0x02)
+ *   0xFFC5  ACIA data register
+ *   0xFFCC  halt/exit device
  */
 
 #ifndef HARNESS_COMMON_H
 #define HARNESS_COMMON_H
 
-#define ACIA_STATUS (*(volatile unsigned char *)0xFFD0)
-#define ACIA_DATA   (*(volatile unsigned char *)0xFFD1)
+#define ACIA_STATUS (*(volatile unsigned char *)0xFFC4)
+#define ACIA_DATA   (*(volatile unsigned char *)0xFFC5)
 
 /* Spin until the ACIA is ready, then write one byte. */
 static void h_putc(unsigned char c) {
