@@ -376,10 +376,12 @@ void MC6809PassConfig::addPreEmitPass() {
   // store-reload / LEA-pointer-spill classes then delete the very load whose
   // flags the branch now depends on (e.g. strrchr's `ldy slot; cmpy #0; bne`
   // null-check reload), leaving the branch reading an adjacent LEAX's
-  // hardware Z — a miscompile (Bug #360 follow-up). Post-FinalLowering the
-  // producer immediately before the CMP is final, so the guards reflect
-  // reality. Must precede BranchRelaxation so block-size accounting sees the
-  // elided/tail-jumped instructions.
+  // hardware Z — a miscompile (Bug #360 follow-up). (LEAX's Z-clobber is now
+  // modelled in the MIR — Bug #365 — but this ordering is still required:
+  // FinalLowering deletes the reload the branch depends on regardless.)
+  // Post-FinalLowering the producer immediately before the CMP is final, so
+  // the guards reflect reality. Must precede BranchRelaxation so block-size
+  // accounting sees the elided/tail-jumped instructions.
   addPass(createMC6809LateOptimizationPass());
 
   addPass(&BranchRelaxationPassID);

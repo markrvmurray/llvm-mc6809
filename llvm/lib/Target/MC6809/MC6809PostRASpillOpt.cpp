@@ -183,9 +183,10 @@ static SlotKey getSlotKey(const MachineInstr &MI) {
 /// flags it sets are all provably dead immediately after the load within its
 /// block — i.e. the loaded value and flags are unused, so the load is dead.
 /// LQR_Unknown is treated as "not dead" (keep the load): correctness over
-/// coverage. The Bug #365 LEAX/LEAY-sets-Z hazard does not apply — we delete
-/// a load whose flags are unread, we do not make a branch read a producer's
-/// flags.
+/// coverage. (LEAX/LEAY now model their Z-clobber honestly — Bug #365 — so the
+/// N/Z/V liveness queries below see a downstream LEAX's Z def; this helper was
+/// already sound either way, since it deletes a load whose flags are unread and
+/// never makes a branch read a producer's flags.)
 static bool deadFrameLoadDest(MachineBasicBlock &MBB, MachineInstr &MI,
                               Register DestReg,
                               const TargetRegisterInfo &TRI) {

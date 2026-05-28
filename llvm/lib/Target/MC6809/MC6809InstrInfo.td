@@ -425,7 +425,10 @@ let isCompare = true in {
 // Defs lets the scheduler see the Z-clobber on LEAX/LEAY (so a LEAX
 // between a compare and a Z-reading branch can no longer be moved into
 // the gap), while leaving LEAS/LEAU as scheduling-free address moves.
-// (bug #165 phase A1)
+// (bug #165 phase A1) NOTE: most LEAX/LEAY reach the MC layer via the
+// LEAPtrAdd_* pseudo, whose expansion (expandLEAPtrAdd) uses setDesc — which
+// does NOT materialise these implicit Defs — so it re-adds implicit-def $z
+// itself (Bug #365).
 multiclass LEAConcrete<string Mnem, Opcode IdxOpc, list<Register> Defs> {
   defm i : MC6809Indexed_P1<Mnem, IdxOpc, (outs), Defs, []>;
 }

@@ -1,0 +1,33 @@
+# RUN: llc -mtriple=mc6809 -run-pass=postrapseudos -o - %s | FileCheck %s
+#
+# Bug #365: on MC6809 hardware LEAX and LEAY set the Z condition bit (Z=1 iff
+# the computed effective address is zero); LEAS and LEAU touch no flags. The
+# LEAPtrAdd_* pseudo (the dominant LEAX/LEAY emission path — pointer arithmetic
+# and frame offsets) is lowered with MI.setDesc(), which does NOT materialise
+# the concrete opcode's implicit operands, so the implicit-def $z that LEAX/
+# LEAY declare in their Defs was silently dropped — leaving flag-liveness blind
+# to the hardware Z-clobber. expandLEAPtrAdd now re-adds it, gated on the
+# concrete descriptor so the LEAS/LEAU (no-Z) asymmetry is preserved.
+
+--- |
+  define void @lea_z() { ret void }
+...
+---
+# CHECK-LABEL: name: lea_z
+# LEAX/LEAY must carry the hardware Z-clobber:
+# CHECK:      LEAXi_o5 5, $ix, implicit-def $ix, implicit-def $z
+# CHECK:      LEAYi_o5 5, $iy, implicit-def $iy, implicit-def $z
+# LEAU/LEAS must NOT define Z (line ends right after the stack-pointer def):
+# CHECK:      LEAUi_o5 5, $su, implicit-def $su{{$}}
+# CHECK:      LEASi_o5 5, $ss, implicit-def $ss{{$}}
+name: lea_z
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ix, $iy, $su, $ss
+    $ix = LEAPtrAdd_Imm $ix, 5
+    $iy = LEAPtrAdd_Imm $iy, 5
+    $su = LEAPtrAdd_Imm $su, 5
+    $ss = LEAPtrAdd_Imm $ss, 5
+    RTSr implicit $su
+...

@@ -4301,6 +4301,17 @@ void MC6809InstrInfo::expandLEAPtrAdd(MachineIRBuilder &Builder, MachineInstr &M
     llvm_unreachable("Unknown offset type for LEAPtrAdd");
   }
 
+  // Bug #365: setDesc swapped the opcode but does NOT materialise the new
+  // opcode's implicit operands, so the implicit-def $z that LEAX/LEAY declare
+  // (Defs = [I?, Z]) was dropped — leaving flag-liveness blind to the hardware
+  // Z-clobber. Re-add it. LEAS/LEAU declare no Z in their Defs, so gating on
+  // the concrete descriptor preserves the hardware asymmetry automatically.
+  // Not marked dead: deadness isn't known here, a non-dead def is always sound
+  // for liveness, and it lets elideCompareZero reuse a LEAX's Z for a BEQ/BNE.
+  if (MI.getDesc().hasImplicitDefOfPhysReg(MC6809::Z))
+    MI.addOperand(
+        MachineOperand::CreateReg(MC6809::Z, /*isDef=*/true, /*isImp=*/true));
+
   // If the original register was a spill, store staging reg back to spill slot.
   if (OrigSpillReg.isValid()) {
     Register StageReg = MC6809::IY;  // Must match the staging register above

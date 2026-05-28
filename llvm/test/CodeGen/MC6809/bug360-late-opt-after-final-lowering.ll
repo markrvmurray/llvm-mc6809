@@ -8,9 +8,11 @@
 ; the elision removes the CMP and FinalLowering's store-reload / LEA-pointer-
 ; spill classes then delete the very (redundant-reload) instruction whose
 ; flags the branch now depends on, leaving the branch reading an adjacent
-; LEAX's hardware Z (LEAX sets Z on hardware but carries no MIR flag def).
-; That mis-elided strrchr's `ldy slot; cmpy #0; bne` null-check into an
-; infinite loop (strchr called on a garbage pointer).
+; LEAX's hardware Z. (LEAX's Z-clobber is now modelled in the MIR — Bug #365 —
+; but the ordering is still required: FinalLowering deletes the reload the
+; branch depends on regardless.) That mis-elided strrchr's
+; `ldy slot; cmpy #0; bne` null-check into an infinite loop (strchr called on
+; a garbage pointer).
 ;
 ; The fix is purely pass placement: MC6809LateOptimization must run AFTER
 ; MC6809FinalLowering and BEFORE BranchRelaxation. This test pins that order
