@@ -1,26 +1,35 @@
-# RUN: llc -mtriple=mc6809 -run-pass=mc6809-spill-opt -o - %s | FileCheck %s
+# RUN: llc -mtriple=mc6809 -run-pass=mc6809-spill-opt -mc6809-index-reload-opt -o - %s | FileCheck %s
+# RUN: llc -mtriple=mc6809 -run-pass=mc6809-spill-opt -o - %s | FileCheck %s --check-prefix=OFF
 #
-# Bug #363: MC6809PostRASpillOpt now tracks INDEX-register spill traffic
-# (LDX/LDY/STX/STY), not just the D/A/B accumulator. The `ldy N,u` reload
-# family (getopt_internal reloaded single pointer slots up to 44x) is now
-# subject to the same redundant-reload / dead-store elimination as the
-# accumulator. Elimination fires only on an EXACT register match and only
-# while the holding register's mirror is still valid, so a pressure-forced
-# reload (the index reg was reused in between) is correctly retained.
+# Bug #363: MC6809PostRASpillOpt can eliminate redundant INDEX-register spill
+# reloads (the `ldy N,u` family — getopt_internal reloaded single pointer slots
+# up to 44x), mirroring the accumulator redundant-reload elimination. It fires
+# only on an EXACT register match and only while the holding register's mirror
+# is still valid, so a pressure-forced reload (the index reg was reused in
+# between) is correctly retained.
+#
+# The optimisation is gated behind -mc6809-index-reload-opt (DEFAULT OFF): it is
+# correct at -O0..-O3 but has an unresolved miscompile in the LTO codegen of
+# heavily-inlined functions. The OFF run below pins the default (no index reload
+# elimination) so a regression to default-on is caught.
 
 --- |
   define void @redundant_reload() { ret void }
   define void @clobbered_reload() { ret void }
-  define void @store_then_reload() { ret void }
 ...
 ---
-# A second `ldy 8,u` with IY unchanged since the first is redundant and is
-# deleted; the stores through Y remain.
+# With the flag on, a second `ldy 8,u` whose IY is unchanged since the first is
+# redundant and is deleted; the stores through Y remain. With the flag off
+# (default), both reloads are retained.
 # CHECK-LABEL: name: redundant_reload
 # CHECK:       LDYi_o8 8, $su
 # CHECK-NEXT:  STDi_o5 2, $iy
 # CHECK-NEXT:  STDi_o5 4, $iy
 # CHECK-NOT:   LDYi_o8 8, $su
+#
+# OFF-LABEL: name: redundant_reload
+# OFF:       LDYi_o8 8, $su
+# OFF:       LDYi_o8 8, $su
 name: redundant_reload
 tracksRegLiveness: true
 body: |
@@ -34,7 +43,7 @@ body: |
 ...
 ---
 # LEAY redefines IY between the two reloads, so the second `ldy 8,u` is a
-# genuine (pressure-forced) reload and MUST be retained.
+# genuine (pressure-forced) reload and MUST be retained even with the flag on.
 # CHECK-LABEL: name: clobbered_reload
 # CHECK:       LDYi_o8 8, $su
 # CHECK:       LEAYi
@@ -48,21 +57,5 @@ body: |
     LEAYi_o5 1, $iy, implicit-def $iy, implicit-def $z
     LDYi_o8 8, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
     STDi_o5 2, $iy, implicit $ad, implicit-def dead $nz, implicit-def dead $n, implicit-def dead $z, implicit-def dead $v
-    RTSr implicit $su
-...
----
-# A store establishes the slot->register mirror too: `sty 8,u; ldy 8,u`
-# reloads a value Y still holds, so the load is redundant and deleted.
-# CHECK-LABEL: name: store_then_reload
-# CHECK:       STYi_o8 8, $su
-# CHECK-NOT:   LDYi_o8 8, $su
-name: store_then_reload
-tracksRegLiveness: true
-body: |
-  bb.0:
-    liveins: $su, $iy
-    STYi_o8 8, $su, implicit $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
-    LDYi_o8 8, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
-    STYi_o8 10, $su, implicit $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
     RTSr implicit $su
 ...

@@ -29,11 +29,24 @@
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "mc6809-spill-opt"
 
 using namespace llvm;
+
+// Bug #363: the index-register redundant-reload elimination (`ldy N,u` reload
+// removal) is correct at -O0..-O3 but has an unresolved miscompile in the LTO
+// codegen of heavily-inlined functions (getopt at -flto). It is therefore
+// DEFAULT-OFF pending a fix: the tracking + self-base/overlap correctness work
+// stays in-tree for future debugging, but the elimination does not fire unless
+// explicitly enabled. The accumulator reload elimination and the dead
+// index-load DCE (Bug #362) are unaffected and stay active.
+static cl::opt<bool>
+    EnableIndexReload("mc6809-index-reload-opt", cl::init(false), cl::Hidden,
+                      cl::desc("Eliminate redundant index-register (X/Y) spill "
+                               "reloads (Bug #363; default off, LTO miscompile)"));
 
 namespace {
 
@@ -46,14 +59,18 @@ struct SlotKey {
   }
 };
 
-/// Returns the register loaded/stored for a given indexed load/store opcode,
-/// or Register() if not a recognized one. The tracked register may be an
-/// accumulator (AD/AA/AB) OR an index register (IX/IY). Index spills (the
-/// `ldy 192,u` reload family — Bug #363) are tracked symmetrically with
-/// accumulator spills: the per-slot mirror and redundant-reload elimination
-/// are register-generic, and elimination only fires on an EXACT register
-/// match, so a slot reused across register classes (stack-slot colouring)
-/// is never mis-elided.
+/// Returns the register loaded/stored for a given tracked indexed load/store
+/// opcode, or Register() otherwise. The tracked register may be an accumulator
+/// (AD/AA/AB, load+store) OR an index register (IX/IY, LOAD ONLY — Bug #363).
+///
+/// Index STORES (STY/STX) are deliberately NOT tracked here (they go through
+/// the invalidate-only isIndexedNonAccStore path): the conservative #363 cut
+/// only eliminates redundant index RELOADS whose mirror was established by a
+/// prior index LOAD, never by a store. This keeps the high-value `ldy N,u`
+/// reload-elimination win while staying sound by construction (no index
+/// dead-store elimination, the source of subtle LTO-codegen interactions).
+/// Elimination fires only on an EXACT register match, so a slot reused across
+/// register classes by stack-slot colouring is never mis-elided.
 static Register getAccRegForOpcode(unsigned Opc) {
   switch (Opc) {
   case MC6809::LDDi_o0: case MC6809::LDDi_o5: case MC6809::LDDi_o8: case MC6809::LDDi_o16:
@@ -66,10 +83,8 @@ static Register getAccRegForOpcode(unsigned Opc) {
   case MC6809::STBi_o0: case MC6809::STBi_o5: case MC6809::STBi_o8: case MC6809::STBi_o16:
     return MC6809::AB;
   case MC6809::LDXi_o0: case MC6809::LDXi_o5: case MC6809::LDXi_o8: case MC6809::LDXi_o16:
-  case MC6809::STXi_o0: case MC6809::STXi_o5: case MC6809::STXi_o8: case MC6809::STXi_o16:
     return MC6809::IX;
   case MC6809::LDYi_o0: case MC6809::LDYi_o5: case MC6809::LDYi_o8: case MC6809::LDYi_o16:
-  case MC6809::STYi_o0: case MC6809::STYi_o5: case MC6809::STYi_o8: case MC6809::STYi_o16:
     return MC6809::IY;
   default:
     return Register();
@@ -82,27 +97,30 @@ static bool isTracked16Bit(Register R) {
   return R == MC6809::AD || R == MC6809::IX || R == MC6809::IY;
 }
 
-/// Returns true if the opcode is an indexed store (accumulator or index reg).
+/// Returns true if the opcode is a tracked indexed store — accumulator only
+/// (STD/STA/STB). Index stores (STY/STX) are invalidate-only; see
+/// isIndexedNonAccStore and getAccRegForOpcode.
 static bool isIndexedStore(unsigned Opc) {
   switch (Opc) {
   case MC6809::STDi_o0: case MC6809::STDi_o5: case MC6809::STDi_o8: case MC6809::STDi_o16:
   case MC6809::STAi_o0: case MC6809::STAi_o5: case MC6809::STAi_o8: case MC6809::STAi_o16:
   case MC6809::STBi_o0: case MC6809::STBi_o5: case MC6809::STBi_o8: case MC6809::STBi_o16:
-  case MC6809::STXi_o0: case MC6809::STXi_o5: case MC6809::STXi_o8: case MC6809::STXi_o16:
-  case MC6809::STYi_o0: case MC6809::STYi_o5: case MC6809::STYi_o8: case MC6809::STYi_o16:
     return true;
   default:
     return false;
   }
 }
 
-/// Returns true if the opcode is an indexed store of a register we do NOT
-/// track as a slot value (STU — U is the reserved frame pointer, not a
-/// spilled value). It still overwrites two bytes of a slot, so any earlier
-/// mapping for that slot must be invalidated. STY/STX are now tracked
-/// (Bug #363) and handled by the isIndexedStore path instead.
+/// Returns true if the opcode is an indexed store we do NOT track as a
+/// deletable slot value (STY/STX/STU). STY/STX hold spilled pointers but the
+/// conservative #363 cut does not track index stores (no index dead-store
+/// elimination); STU stores the reserved frame pointer. All three overwrite
+/// two bytes of a slot, so any tracked slot mirror they overlap must be
+/// invalidated.
 static bool isIndexedNonAccStore(unsigned Opc) {
   switch (Opc) {
+  case MC6809::STYi_o0: case MC6809::STYi_o5: case MC6809::STYi_o8: case MC6809::STYi_o16:
+  case MC6809::STXi_o0: case MC6809::STXi_o5: case MC6809::STXi_o8: case MC6809::STXi_o16:
   case MC6809::STUi_o0: case MC6809::STUi_o5: case MC6809::STUi_o8: case MC6809::STUi_o16:
     return true;
   default:
@@ -445,6 +463,33 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
       }
     };
 
+    // Bug #363 follow-up: a store of StoredReg to bytes [Off, Off+Width) of a
+    // slot overwrites those bytes. Any tracked slot whose byte range overlaps
+    // and whose register does NOT share physical bits with StoredReg now holds
+    // a stale value — drop its mirror. (Slots whose register sub/super-overlaps
+    // StoredReg keep their mirror: the overwritten bytes are that register's
+    // own bytes, e.g. STB N+1 over an AD slot at N writes AD's low byte. For
+    // the accumulator this was already covered by clearReg on sub-register
+    // redefinition; index registers — IX/IY — share no bits with accumulators
+    // or each other, so an accumulator/byte store landing in an index slot's
+    // range must invalidate it, the case that broke getopt/memmem.)
+    auto slotWidth = [&](Register R) { return isTracked16Bit(R) ? 2 : 1; };
+    auto invalidateOverlap = [&](Register Base, int Off, int Width,
+                                 Register StoredReg) {
+      for (auto &E : Slots) {
+        if (E.first.BaseReg != Base || !E.second.Reg.isValid())
+          continue;
+        int M = E.first.Offset;
+        int WS = slotWidth(E.second.Reg);
+        if (M + WS <= Off || Off + Width <= M)
+          continue; // disjoint byte ranges
+        if (StoredReg.isValid() && TRI.regsOverlap(StoredReg, E.second.Reg))
+          continue; // overwritten bytes are this register's own bytes
+        E.second.Reg = Register();
+        E.second.WasRead = true;
+      }
+    };
+
     for (MachineInstr &MI : make_early_inc_range(MBB)) {
       unsigned Opc = MI.getOpcode();
 
@@ -463,6 +508,10 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
           if (auto *Lo = findSlot(LoKey))
             Lo->WasRead = true;
         }
+        // Bug #363 follow-up: drop the mirror of any other slot whose bytes
+        // this store overwrites with unrelated register bits (see the
+        // invalidateOverlap comment) — the getopt/memmem fix.
+        invalidateOverlap(Key.BaseReg, Key.Offset, slotWidth(AccReg), AccReg);
         // Bug #271 cat-1: capture whether this store also killed its
         // source register. If yes, the slot has the value but the
         // register is dead — see SlotInfo::SourceKilled.
@@ -490,29 +539,27 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
       }
 
       if (isIndexedNonAccStore(Opc)) {
-        // STY/STX/STU writes 2 bytes to the slot. The slot no longer
-        // matches any tracked accumulator value — invalidate the
-        // accumulator mapping for [offset, offset+1] so later loads
-        // from those slots are not falsely treated as redundant.
+        // STU writes 2 bytes of the (untracked) U register to the slot. No
+        // tracked register shares bits with U, so any tracked slot whose
+        // bytes overlap [offset, offset+2) is now stale — drop its mirror.
         SlotKey Key = getSlotKey(MI);
-        SlotKey LoKey = {Key.BaseReg, Key.Offset + 1};
-        if (auto *Hi = findSlot(Key)) {
-          Hi->Reg = Register();
-          Hi->StoreInstr = nullptr;
-          Hi->WasRead = true;
-        }
-        if (auto *Lo = findSlot(LoKey)) {
-          Lo->Reg = Register();
-          Lo->StoreInstr = nullptr;
-          Lo->WasRead = true;
-        }
+        invalidateOverlap(Key.BaseReg, Key.Offset, /*Width=*/2, getAccRegForOpcode(Opc));
         continue;
       }
 
       if (isIndexedLoad(Opc)) {
         Register AccReg = getAccRegForOpcode(Opc);
         SlotKey Key = getSlotKey(MI);
-        SlotInfo *Info = findSlot(Key);
+        // Bug #363 follow-up: a self-based index load (`ldy ,y` — base register
+        // IS the destination) is address-unstable: executing it changes the
+        // base, so the slot key `(IY,0)` names a different address before and
+        // after, and a prior `(IY,0)` mirror does NOT mean the value is already
+        // in IY. Never treat such a load as redundant, and never establish a
+        // mirror for it. (ACC loads never hit this — they are never based on
+        // the accumulator.) This was the getopt `ldy 18,u; ldy ,y` miscompile.
+        bool SelfBase = TRI.regsOverlap(Key.BaseReg, AccReg);
+        bool IsIndex = (AccReg == MC6809::IX || AccReg == MC6809::IY);
+        SlotInfo *Info = SelfBase ? nullptr : findSlot(Key);
         // Bug #271 cat-1: the SourceKilled gate. When the establishing
         // store killed its source register, the load is re-establishing
         // the register's live range and must NOT be deleted, even
@@ -521,7 +568,8 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         // above) clears Info->Reg in OTHER slots whose source register
         // gets killed at a later store, so this same check also
         // covers the tzcalc-style "kill at later store" cases.
-        if (Info && Info->Reg == AccReg && !Info->SourceKilled) {
+        if (Info && Info->Reg == AccReg && !Info->SourceKilled && !SelfBase &&
+            (!IsIndex || EnableIndexReload)) {
           // The register already holds this slot's value → delete the load.
           LLVM_DEBUG(dbgs() << "  SpillOpt: deleting redundant load: " << MI);
           MI.eraseFromParent();
@@ -558,7 +606,18 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         // Load defines the register — update tracking.
         markRead(Key);
         clearReg(AccReg);
-        setSlot(Key, AccReg, nullptr); // no store to delete
+        // The load redefines AccReg. If AccReg is an index register it may be
+        // the base of other tracked slots, whose addresses just changed — drop
+        // their mirrors (the generic def-loop below does this, but the load
+        // branch returns before reaching it). No-op for the accumulator, which
+        // is never a base register.
+        for (auto &E : Slots)
+          if (E.first.BaseReg.isValid() && TRI.regsOverlap(E.first.BaseReg, AccReg))
+            E.second.Reg = Register();
+        // Don't establish a mirror for a self-based load: the key is unstable
+        // (see SelfBase above).
+        if (!SelfBase)
+          setSlot(Key, AccReg, nullptr); // no store to delete
         continue;
       }
 
