@@ -153,6 +153,27 @@ static SlotKey getSlotKey(const MachineInstr &MI) {
   return {BaseReg, Offset};
 }
 
+/// Bug #362: true if an indexed load's destination register and the N/Z/V
+/// flags it sets are all provably dead immediately after the load within its
+/// block — i.e. the loaded value and flags are unused, so the load is dead.
+/// LQR_Unknown is treated as "not dead" (keep the load): correctness over
+/// coverage. The Bug #365 LEAX/LEAY-sets-Z hazard does not apply — we delete
+/// a load whose flags are unread, we do not make a branch read a producer's
+/// flags.
+static bool deadFrameLoadDest(MachineBasicBlock &MBB, MachineInstr &MI,
+                              Register DestReg,
+                              const TargetRegisterInfo &TRI) {
+  MachineBasicBlock::const_iterator After =
+      std::next(MachineBasicBlock::iterator(MI));
+  if (MBB.computeRegisterLiveness(&TRI, DestReg, After, /*Neighborhood=*/16) !=
+      MachineBasicBlock::LQR_Dead)
+    return false;
+  for (Register Flag : {MC6809::N, MC6809::Z, MC6809::V})
+    if (MBB.computeRegisterLiveness(&TRI, Flag, After, /*Neighborhood=*/16) !=
+        MachineBasicBlock::LQR_Dead)
+      return false;
+  return true;
+}
 
 /// Returns true if the opcode is a LEAS indexed instruction.
 static bool isLEAS(unsigned Opc) {
@@ -503,6 +524,33 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         if (Info && Info->Reg == AccReg && !Info->SourceKilled) {
           // The register already holds this slot's value → delete the load.
           LLVM_DEBUG(dbgs() << "  SpillOpt: deleting redundant load: " << MI);
+          MI.eraseFromParent();
+          Changed = true;
+          continue;
+        }
+        // Bug #362: dead frame/spill-slot load. A load from the U/S-relative
+        // frame (base SU/SS is stack memory, never volatile/MMIO) whose
+        // destination register and N/Z/V flags are all dead before the next
+        // definition is a pure dead load. Generic DeadMachineInstructionElim
+        // keeps it because it is mayLoad; delete it here. Leave the tracker
+        // state untouched (the deleted load never altered the register, so any
+        // prior slot mirror remains valid).
+        //
+        // Restricted to the INDEX registers (IX/IY), which are atomic 16-bit
+        // registers with no allocatable sub-registers. The D accumulator is
+        // excluded because its byte writes carry partial sub-register defs —
+        // `ldb N,u` is `implicit-def $ad` to mark that D's composite value
+        // changed, even though A (the high byte) is hardware-preserved. That
+        // makes computeRegisterLiveness report AA dead-then-redefined across
+        // an LDB when AA is in fact still live (Bug #184 shape:
+        // `lda 4,u; ldb 8,u; std 2,u` — the lda's A feeds the std's D), so a
+        // liveness-based dead-load test is unsound for accumulators. The
+        // motivating dead-load family (`ldy N,u` whose Y is overwritten before
+        // use) is index-register anyway.
+        if ((AccReg == MC6809::IX || AccReg == MC6809::IY) &&
+            (Key.BaseReg == MC6809::SU || Key.BaseReg == MC6809::SS) &&
+            deadFrameLoadDest(MBB, MI, AccReg, TRI)) {
+          LLVM_DEBUG(dbgs() << "  SpillOpt: deleting dead frame load: " << MI);
           MI.eraseFromParent();
           Changed = true;
           continue;

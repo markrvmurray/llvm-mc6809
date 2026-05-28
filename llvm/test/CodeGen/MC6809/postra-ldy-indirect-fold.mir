@@ -21,10 +21,14 @@
 #   * `fold_with_gap3`           — LDY 5,u / 3 frame ops / ORB ,Y → ORBi_o8I.
 #   * `negative_y_reused`        — LDY 5,u / ORB ,Y / TFRpp Y to X — must
 #                                  NOT fold (Y is read past MI2).
-#   * `negative_y_clobbered_in_gap` — LDY 5,u / LDY 6,u / ORB ,Y — first
-#                                  LDY must NOT fold (the second LDY
-#                                  redefines Y in the gap); the second
-#                                  LDY+ORB pair WILL fold.
+#   * `negative_y_clobbered_in_gap` — LDY 5,u / LDY 6,u / ORB ,Y — the first
+#                                  LDY is dead (Y redefined before use) so
+#                                  Bug #362 removes it, then the second
+#                                  LDY+ORB pair folds → one indirect ORB.
+#   * `negative_y_clobbered_live_first` — as above but the first LDY's value
+#                                  is used (STY), so #362 keeps it and only
+#                                  the second LDY+ORB folds (Stage 6 picks the
+#                                  adjacent LDY, never across the live clobber).
 
 --- |
   define void @fold_o0_byte() { ret void }
@@ -33,6 +37,7 @@
   define void @fold_with_gap3() { ret void }
   define void @negative_y_reused() { ret void }
   define void @negative_y_clobbered_in_gap() { ret void }
+  define void @negative_y_clobbered_live_first() { ret void }
   define void @fold_load_through_self_y() { ret void }
   define void @fold_load_through_self_x() { ret void }
   define void @fold_cross_register_y_dead() { ret void }
@@ -135,17 +140,42 @@ tracksRegLiveness: true
 body: |
   bb.0:
     liveins: $su, $ab
-    ; First LDY must NOT fold — the second LDY redefines Y in the
-    ; gap. The SECOND LDY+ORB pair WILL fold (Y is dead after the
-    ; ORB), so the first LDY remains and the second LDY is replaced
-    ; by the indirect ORB.
+    ; The second LDY redefines Y in the gap, so the first LDY's value is
+    ; never used: Bug #362 dead-load DCE removes it, and the SECOND LDY+ORB
+    ; then fold (Y dead after the ORB) — the whole thing collapses to one
+    ; indirect ORB. (See negative_y_clobbered_live_first for the case where
+    ; the first LDY is live and only the second folds.)
     ; CHECK-LABEL: name: negative_y_clobbered_in_gap
     ; CHECK: liveins: $su, $ab
     ; CHECK-NEXT: {{  $}}
-    ; CHECK-NEXT: LDYi_o5 5, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
     ; CHECK-NEXT: ORBi_o8I 6, $su, implicit-def $ab, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ad, implicit-def $aq, implicit $ab
     ; CHECK-NEXT: RTSr
     LDYi_o5 5, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    LDYi_o5 6, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    ORBi_o0 $iy, implicit-def $ab, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ad, implicit-def $aq, implicit $ab
+    RTSr
+...
+
+---
+name: negative_y_clobbered_live_first
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su, $ab
+    ; The first LDY's value IS used (stored via STY), so Bug #362 dead-load
+    ; DCE keeps it; the second LDY redefines Y and the second LDY+ORB still
+    ; fold (Stage 6). Verifies Stage 6 folds the LDY adjacent to the ORB,
+    ; never across the earlier (live) clobber — the Bug #189 discrimination
+    ; that #362 must not erode.
+    ; CHECK-LABEL: name: negative_y_clobbered_live_first
+    ; CHECK: liveins: $su, $ab
+    ; CHECK-NEXT: {{  $}}
+    ; CHECK-NEXT: LDYi_o5 5, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    ; CHECK-NEXT: STYi_o8 100, $su, implicit $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    ; CHECK-NEXT: ORBi_o8I 6, $su, implicit-def $ab, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ad, implicit-def $aq, implicit $ab
+    ; CHECK-NEXT: RTSr
+    LDYi_o5 5, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    STYi_o8 100, $su, implicit $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
     LDYi_o5 6, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
     ORBi_o0 $iy, implicit-def $ab, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ad, implicit-def $aq, implicit $ab
     RTSr

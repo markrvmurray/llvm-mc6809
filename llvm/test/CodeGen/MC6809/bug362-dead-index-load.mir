@@ -1,0 +1,82 @@
+# RUN: llc -mtriple=mc6809 -run-pass=mc6809-spill-opt -o - %s | FileCheck %s
+#
+# Bug #362: MC6809PostRASpillOpt deletes a dead load from a U/S-relative frame
+# slot — destination register and N/Z/V flags all dead before the next def —
+# that generic DeadMachineInstructionElim keeps because the load is mayLoad.
+#
+# Restricted to the INDEX registers (IX/IY): they are atomic 16-bit registers
+# with no allocatable sub-registers, so computeRegisterLiveness is sound for
+# them. The D accumulator is excluded because its byte writes carry partial
+# sub-register defs (`ldb` is implicit-def $ad even though A is preserved),
+# which makes a liveness-based dead-load test unsound (Bug #184 shape).
+
+--- |
+  define void @dead_ldy_removed() { ret void }
+  define void @live_ldy_kept() { ret void }
+  define void @acc_dead_load_kept() { ret void }
+  define void @non_frame_load_kept() { ret void }
+...
+---
+# `ldy 10,u` loads IY, which is overwritten by `ldy 22,u` before any use:
+# the first load is dead and removed. The live loads stay.
+# CHECK-LABEL: name: dead_ldy_removed
+# CHECK-NOT:   LDYi_o8 10, $su
+# CHECK:       LDXi_o8 8, $su
+# CHECK:       LDYi_o8 22, $su
+name: dead_ldy_removed
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su
+    LDYi_o8 10, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    LDXi_o8 8, $su, implicit-def $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    LDYi_o8 22, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    STYi_o8 4, $su, implicit $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    STXi_o8 6, $su, implicit $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    RTSr implicit $su
+...
+---
+# IY is used (stored) before any redefinition, so the load is live and kept.
+# CHECK-LABEL: name: live_ldy_kept
+# CHECK:       LDYi_o8 10, $su
+# CHECK-NEXT:  STYi_o8 4, $su
+name: live_ldy_kept
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su
+    LDYi_o8 10, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    STYi_o8 4, $su, implicit $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    RTSr implicit $su
+...
+---
+# A dead accumulator load (A overwritten before use) is RETAINED: #362
+# excludes the D accumulator because of partial sub-register defs.
+# CHECK-LABEL: name: acc_dead_load_kept
+# CHECK:       LDAi_o8 4, $su
+# CHECK:       LDAi_o8 6, $su
+name: acc_dead_load_kept
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su
+    LDAi_o8 4, $su, implicit-def $aa, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ad, implicit-def $aq
+    LDAi_o8 6, $su, implicit-def $aa, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ad, implicit-def $aq
+    STAi_o8 8, $su, implicit $aa, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    RTSr implicit $su
+...
+---
+# A dead load whose base is NOT the frame (here IX) is RETAINED: it may read
+# arbitrary/volatile memory, so it is not provably side-effect-free.
+# CHECK-LABEL: name: non_frame_load_kept
+# CHECK:       LDYi_o8 4, $ix
+name: non_frame_load_kept
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ix, $su
+    LDYi_o8 4, $ix, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    LDYi_o8 22, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    STYi_o8 6, $su, implicit $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    RTSr implicit $su
+...
