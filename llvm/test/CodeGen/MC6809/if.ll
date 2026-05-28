@@ -565,7 +565,6 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O1-NEXT:    std 4,s
 ; O1-NEXT:    leay 29,u
 ; O1-NEXT:    sty 19,u
-; O1-NEXT:    ldy 19,u
 ; O1-NEXT:    tfr y,x
 ; O1-NEXT:    lbsr __cmpsi2
 ; O1-NEXT:    ldy 19,u
@@ -605,7 +604,7 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O1-NEXT:    ldy 21,u
 ; O1-NEXT:    std 2,y
 ; O1-NEXT:    ldd 25,u
-; O1-NEXT:    std [21,u]
+; O1-NEXT:    std ,y
 ; O1-NEXT:    tfr u,s
 ; O1-NEXT:    puls u,y
 ; O1-NEXT:    leas 31,s
@@ -679,7 +678,7 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O2-NEXT:    ldy 21,u
 ; O2-NEXT:    std 2,y
 ; O2-NEXT:    ldd 25,u
-; O2-NEXT:    std [21,u]
+; O2-NEXT:    std ,y
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u,y
 ; O2-NEXT:    leas 31,s
@@ -753,7 +752,7 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O3-NEXT:    ldy 21,u
 ; O3-NEXT:    std 2,y
 ; O3-NEXT:    ldd 25,u
-; O3-NEXT:    std [21,u]
+; O3-NEXT:    std ,y
 ; O3-NEXT:    tfr u,s
 ; O3-NEXT:    puls u,y
 ; O3-NEXT:    leas 31,s
@@ -919,7 +918,6 @@ define dso_local i32 @if_u32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O1-NEXT:    std 4,s
 ; O1-NEXT:    leay 22,u
 ; O1-NEXT:    sty 12,u
-; O1-NEXT:    ldy 12,u
 ; O1-NEXT:    tfr y,x
 ; O1-NEXT:    lbsr __ucmpsi2
 ; O1-NEXT:    ldy 12,u
@@ -938,7 +936,6 @@ define dso_local i32 @if_u32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O1-NEXT:    ldd #-1
 ; O1-NEXT:    std 6,s
 ; O1-NEXT:    std 4,s
-; O1-NEXT:    ldy 12,u
 ; O1-NEXT:    tfr y,x
 ; O1-NEXT:    lbsr __xorsi3
 ; O1-NEXT:    ldy 12,u
@@ -952,7 +949,7 @@ define dso_local i32 @if_u32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O1-NEXT:    ldy 14,u
 ; O1-NEXT:    std 2,y
 ; O1-NEXT:    ldd 18,u
-; O1-NEXT:    std [14,u]
+; O1-NEXT:    std ,y
 ; O1-NEXT:    tfr u,s
 ; O1-NEXT:    puls u,y
 ; O1-NEXT:    leas 28,s
@@ -1005,7 +1002,6 @@ define dso_local i32 @if_u32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O2-NEXT:    ldd #-1
 ; O2-NEXT:    std 6,s
 ; O2-NEXT:    std 4,s
-; O2-NEXT:    ldy 12,u
 ; O2-NEXT:    tfr y,x
 ; O2-NEXT:    lbsr __xorsi3
 ; O2-NEXT:    ldy 12,u
@@ -1019,7 +1015,7 @@ define dso_local i32 @if_u32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O2-NEXT:    ldy 14,u
 ; O2-NEXT:    std 2,y
 ; O2-NEXT:    ldd 18,u
-; O2-NEXT:    std [14,u]
+; O2-NEXT:    std ,y
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u,y
 ; O2-NEXT:    leas 28,s
@@ -1072,7 +1068,6 @@ define dso_local i32 @if_u32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O3-NEXT:    ldd #-1
 ; O3-NEXT:    std 6,s
 ; O3-NEXT:    std 4,s
-; O3-NEXT:    ldy 12,u
 ; O3-NEXT:    tfr y,x
 ; O3-NEXT:    lbsr __xorsi3
 ; O3-NEXT:    ldy 12,u
@@ -1086,7 +1081,7 @@ define dso_local i32 @if_u32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O3-NEXT:    ldy 14,u
 ; O3-NEXT:    std 2,y
 ; O3-NEXT:    ldd 18,u
-; O3-NEXT:    std [14,u]
+; O3-NEXT:    std ,y
 ; O3-NEXT:    tfr u,s
 ; O3-NEXT:    puls u,y
 ; O3-NEXT:    leas 28,s

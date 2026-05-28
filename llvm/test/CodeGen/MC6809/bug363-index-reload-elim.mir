@@ -1,0 +1,68 @@
+# RUN: llc -mtriple=mc6809 -run-pass=mc6809-spill-opt -o - %s | FileCheck %s
+#
+# Bug #363: MC6809PostRASpillOpt now tracks INDEX-register spill traffic
+# (LDX/LDY/STX/STY), not just the D/A/B accumulator. The `ldy N,u` reload
+# family (getopt_internal reloaded single pointer slots up to 44x) is now
+# subject to the same redundant-reload / dead-store elimination as the
+# accumulator. Elimination fires only on an EXACT register match and only
+# while the holding register's mirror is still valid, so a pressure-forced
+# reload (the index reg was reused in between) is correctly retained.
+
+--- |
+  define void @redundant_reload() { ret void }
+  define void @clobbered_reload() { ret void }
+  define void @store_then_reload() { ret void }
+...
+---
+# A second `ldy 8,u` with IY unchanged since the first is redundant and is
+# deleted; the stores through Y remain.
+# CHECK-LABEL: name: redundant_reload
+# CHECK:       LDYi_o8 8, $su
+# CHECK-NEXT:  STDi_o5 2, $iy
+# CHECK-NEXT:  STDi_o5 4, $iy
+# CHECK-NOT:   LDYi_o8 8, $su
+name: redundant_reload
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su, $ad
+    LDYi_o8 8, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    STDi_o5 2, $iy, implicit $ad, implicit-def dead $nz, implicit-def dead $n, implicit-def dead $z, implicit-def dead $v
+    LDYi_o8 8, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    STDi_o5 4, $iy, implicit $ad, implicit-def dead $nz, implicit-def dead $n, implicit-def dead $z, implicit-def dead $v
+    RTSr implicit $su
+...
+---
+# LEAY redefines IY between the two reloads, so the second `ldy 8,u` is a
+# genuine (pressure-forced) reload and MUST be retained.
+# CHECK-LABEL: name: clobbered_reload
+# CHECK:       LDYi_o8 8, $su
+# CHECK:       LEAYi
+# CHECK:       LDYi_o8 8, $su
+name: clobbered_reload
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su, $ad
+    LDYi_o8 8, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    LEAYi_o5 1, $iy, implicit-def $iy, implicit-def $z
+    LDYi_o8 8, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    STDi_o5 2, $iy, implicit $ad, implicit-def dead $nz, implicit-def dead $n, implicit-def dead $z, implicit-def dead $v
+    RTSr implicit $su
+...
+---
+# A store establishes the slot->register mirror too: `sty 8,u; ldy 8,u`
+# reloads a value Y still holds, so the load is redundant and deleted.
+# CHECK-LABEL: name: store_then_reload
+# CHECK:       STYi_o8 8, $su
+# CHECK-NOT:   LDYi_o8 8, $su
+name: store_then_reload
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su, $iy
+    STYi_o8 8, $su, implicit $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    LDYi_o8 8, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    STYi_o8 10, $su, implicit $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    RTSr implicit $su
+...

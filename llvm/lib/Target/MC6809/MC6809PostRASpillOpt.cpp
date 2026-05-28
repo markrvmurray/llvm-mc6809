@@ -46,8 +46,14 @@ struct SlotKey {
   }
 };
 
-/// Returns the register loaded/stored (AD, AA, or AB) for a given opcode,
-/// or Register() if not a recognized indexed load/store.
+/// Returns the register loaded/stored for a given indexed load/store opcode,
+/// or Register() if not a recognized one. The tracked register may be an
+/// accumulator (AD/AA/AB) OR an index register (IX/IY). Index spills (the
+/// `ldy 192,u` reload family — Bug #363) are tracked symmetrically with
+/// accumulator spills: the per-slot mirror and redundant-reload elimination
+/// are register-generic, and elimination only fires on an EXACT register
+/// match, so a slot reused across register classes (stack-slot colouring)
+/// is never mis-elided.
 static Register getAccRegForOpcode(unsigned Opc) {
   switch (Opc) {
   case MC6809::LDDi_o0: case MC6809::LDDi_o5: case MC6809::LDDi_o8: case MC6809::LDDi_o16:
@@ -59,33 +65,44 @@ static Register getAccRegForOpcode(unsigned Opc) {
   case MC6809::LDBi_o0: case MC6809::LDBi_o5: case MC6809::LDBi_o8: case MC6809::LDBi_o16:
   case MC6809::STBi_o0: case MC6809::STBi_o5: case MC6809::STBi_o8: case MC6809::STBi_o16:
     return MC6809::AB;
+  case MC6809::LDXi_o0: case MC6809::LDXi_o5: case MC6809::LDXi_o8: case MC6809::LDXi_o16:
+  case MC6809::STXi_o0: case MC6809::STXi_o5: case MC6809::STXi_o8: case MC6809::STXi_o16:
+    return MC6809::IX;
+  case MC6809::LDYi_o0: case MC6809::LDYi_o5: case MC6809::LDYi_o8: case MC6809::LDYi_o16:
+  case MC6809::STYi_o0: case MC6809::STYi_o5: case MC6809::STYi_o8: case MC6809::STYi_o16:
+    return MC6809::IY;
   default:
     return Register();
   }
 }
 
-/// Returns true if the opcode is an indexed store.
+/// True for a tracked register that occupies two bytes (a 16-bit store/load
+/// covers offsets [N, N+1]). Covers the D accumulator and both index regs.
+static bool isTracked16Bit(Register R) {
+  return R == MC6809::AD || R == MC6809::IX || R == MC6809::IY;
+}
+
+/// Returns true if the opcode is an indexed store (accumulator or index reg).
 static bool isIndexedStore(unsigned Opc) {
   switch (Opc) {
   case MC6809::STDi_o0: case MC6809::STDi_o5: case MC6809::STDi_o8: case MC6809::STDi_o16:
   case MC6809::STAi_o0: case MC6809::STAi_o5: case MC6809::STAi_o8: case MC6809::STAi_o16:
   case MC6809::STBi_o0: case MC6809::STBi_o5: case MC6809::STBi_o8: case MC6809::STBi_o16:
+  case MC6809::STXi_o0: case MC6809::STXi_o5: case MC6809::STXi_o8: case MC6809::STXi_o16:
+  case MC6809::STYi_o0: case MC6809::STYi_o5: case MC6809::STYi_o8: case MC6809::STYi_o16:
     return true;
   default:
     return false;
   }
 }
 
-/// Returns true if the opcode is an indexed store of a non-accumulator
-/// register (STY/STX/STU). These don't define any accumulator we track,
-/// but they DO overwrite a slot's contents — so any earlier accumulator-
-/// to-slot mapping must be invalidated when one of these stores hits the
-/// same slot. Without this, the pass thinks (e.g.) slot 8 still holds D's
-/// value after `STY 8,s`, and falsely deletes a subsequent `LDD 8,s`.
+/// Returns true if the opcode is an indexed store of a register we do NOT
+/// track as a slot value (STU — U is the reserved frame pointer, not a
+/// spilled value). It still overwrites two bytes of a slot, so any earlier
+/// mapping for that slot must be invalidated. STY/STX are now tracked
+/// (Bug #363) and handled by the isIndexedStore path instead.
 static bool isIndexedNonAccStore(unsigned Opc) {
   switch (Opc) {
-  case MC6809::STYi_o0: case MC6809::STYi_o5: case MC6809::STYi_o8: case MC6809::STYi_o16:
-  case MC6809::STXi_o0: case MC6809::STXi_o5: case MC6809::STXi_o8: case MC6809::STXi_o16:
   case MC6809::STUi_o0: case MC6809::STUi_o5: case MC6809::STUi_o8: case MC6809::STUi_o16:
     return true;
   default:
@@ -93,12 +110,14 @@ static bool isIndexedNonAccStore(unsigned Opc) {
   }
 }
 
-/// Returns true if the opcode is an indexed load.
+/// Returns true if the opcode is an indexed load (accumulator or index reg).
 static bool isIndexedLoad(unsigned Opc) {
   switch (Opc) {
   case MC6809::LDDi_o0: case MC6809::LDDi_o5: case MC6809::LDDi_o8: case MC6809::LDDi_o16:
   case MC6809::LDAi_o0: case MC6809::LDAi_o5: case MC6809::LDAi_o8: case MC6809::LDAi_o16:
   case MC6809::LDBi_o0: case MC6809::LDBi_o5: case MC6809::LDBi_o8: case MC6809::LDBi_o16:
+  case MC6809::LDXi_o0: case MC6809::LDXi_o5: case MC6809::LDXi_o8: case MC6809::LDXi_o16:
+  case MC6809::LDYi_o0: case MC6809::LDYi_o5: case MC6809::LDYi_o8: case MC6809::LDYi_o16:
     return true;
   default:
     return false;
@@ -411,9 +430,11 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
       if (isIndexedStore(Opc)) {
         Register AccReg = getAccRegForOpcode(Opc);
         SlotKey Key = getSlotKey(MI);
-        // A 16-bit STD at offset N also invalidates any 8-bit STA at N
-        // or STB at N+1 (since STD covers both bytes).
-        if (AccReg == MC6809::AD) {
+        // A 16-bit store (STD/STX/STY) at offset N covers both bytes [N, N+1],
+        // so mark any tracked slot at N or N+1 as read to prevent a later
+        // store from being treated as a dead store of a value that was in
+        // fact partially overwritten here.
+        if (isTracked16Bit(AccReg)) {
           SlotKey HiKey = {Key.BaseReg, Key.Offset};
           SlotKey LoKey = {Key.BaseReg, Key.Offset + 1};
           if (auto *Hi = findSlot(HiKey))
