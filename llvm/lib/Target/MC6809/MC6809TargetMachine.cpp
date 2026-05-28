@@ -384,6 +384,17 @@ void MC6809PassConfig::addPreEmitPass() {
   // accounting sees the elided/tail-jumped instructions.
   addPass(createMC6809LateOptimizationPass());
 
+  // Bug #357: TFRp is now an isCopyInstr copy (MC6809InstrInfo::isCopyInstrImpl).
+  // Run MachineCopyPropagation HERE — after FinalLowering has materialised every
+  // TFRp (the two earlier machine-cp runs precede COPY->TFR expansion and never
+  // see a TFR), after LateOptimization's #360 compare-zero elision (which needs
+  // producer->branch adjacency a surviving TFR would already have blocked), and
+  // before BranchRelaxation so block-size accounting sees the removed copies.
+  // UseCopyInstr=true makes it consult the target hook. TFR sets no flags, so
+  // this never touches the phantom-carry chain.
+  if (getOptLevel() != CodeGenOptLevel::None)
+    addPass(createMachineCopyPropagationPass(/*UseCopyInstr=*/true));
+
   addPass(&BranchRelaxationPassID);
   // Encoding-overflow safety nets that historically lived in a dedicated
   // post-pass (MC6809NoShortBranches, retired in commit 2bf4696c62d7) have

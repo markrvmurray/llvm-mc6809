@@ -1483,6 +1483,40 @@ static bool emitHD6309RegRegOp(MachineIRBuilder &Builder, MachineInstr &MI,
   return true;
 }
 
+// Bug #357: report a TFRp as a copy so generic MachineCopyPropagation can
+// forward/eliminate the pervasive register moves TFRp produces — but ONLY for
+// the ATOMIC 16-bit registers IX/IY/SU/SS.
+//
+// The accumulator family (AA/AB/AD/AW/AE/AF) is deliberately EXCLUDED. Its
+// byte ops carry a partial-subregister def: `ldb N,u` is `implicit-def $ad`
+// (D's composite changed because its low byte B did, even though the high byte
+// A is hardware-preserved — the Bug #184 / #362 shape). MachineCopyPropagation
+// reads that as "$ad (hence AA) fully redefined", so it wrongly concludes a
+// prior `tfr b,a` def of A is dead and deletes it — losing A's value that a
+// later `std` reads as the high half of D. (This regressed test-getopt et al.
+// when ACC was admitted.) The same partial-def idiom is why #362 excluded the
+// accumulator from dead-load DCE. IX/IY/SU/SS are atomic (no allocatable
+// sub-registers, no partial-def idiom), so copy-propagation on them is sound.
+//
+// Atomic 16-bit also subsumes the earlier guards for free: it admits only
+// same-width transfers and never DP / CC / PC / spill / imaginary / mixed-size
+// (HD6309 byte-replicate) TFR.
+std::optional<DestSourcePair>
+MC6809InstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
+  if (MI.getOpcode() != MC6809::TFRp)
+    return std::nullopt;
+  // TFRp operand layout: op0 = DEST ($reg2), op1 = SRC ($reg1).
+  Register Dst = MI.getOperand(0).getReg();
+  Register Src = MI.getOperand(1).getReg();
+  auto IsAtomic16 = [](Register R) {
+    return MC6809::INDEX16RegClass.contains(R) ||
+           MC6809::STACK16RegClass.contains(R);
+  };
+  if (!IsAtomic16(Dst) || !IsAtomic16(Src))
+    return std::nullopt;
+  return DestSourcePair{MI.getOperand(0), MI.getOperand(1)};
+}
+
  void  MC6809InstrInfo::copyPhysReg(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, const DebugLoc &DL, Register DestReg, Register SrcReg, bool KillSrc, bool RenamableDest, bool RenamableSrc) const {
   MachineIRBuilder Builder(MBB, MI);
   if (DestReg == SrcReg)

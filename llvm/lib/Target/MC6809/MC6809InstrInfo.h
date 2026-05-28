@@ -154,6 +154,12 @@ public:
   std::pair<unsigned, int>
   getRelaxedIdxOpcode(unsigned CurrentOpcode, int64_t Offset) const;
 
+protected:
+  // Bug #357: report a value-preserving same-width TFRp as a copy so generic
+  // MachineCopyPropagation can forward/eliminate it.
+  std::optional<DestSourcePair>
+  isCopyInstrImpl(const MachineInstr &MI) const override;
+
 private:
   // const MC6809RegisterBankInfo &RBI;
 

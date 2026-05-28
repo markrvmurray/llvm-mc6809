@@ -1,0 +1,97 @@
+# RUN: llc -mtriple=mc6809 -run-pass=machine-cp -mcp-use-is-copy-instr -o - %s | FileCheck %s
+#
+# Bug #357: TFRp between the ATOMIC 16-bit registers IX/IY/SU/SS is reported as
+# a copy by MC6809InstrInfo::isCopyInstrImpl, so generic MachineCopyPropagation
+# eliminates the pervasive redundant transfers among them. The backend runs a
+# late MachineCopyPropagation (UseCopyInstr=true) after FinalLowering;
+# `-mcp-use-is-copy-instr` forces the hook on for this -run-pass test.
+#
+# The accumulator family (AA/AB/AD/AW/...) is EXCLUDED: its byte ops carry a
+# partial-subregister def (`ldb` is implicit-def $ad even though the high byte A
+# is hardware-preserved — Bug #184/#362), which makes liveness-based copy-prop
+# delete a still-needed `tfr b,a` and store garbage in D's high byte. Atomic
+# IX/IY/SU/SS have no sub-registers, so copy-prop on them is sound.
+
+--- |
+  define void @redundant_removed() { ret void }
+  define void @clobbered_survives() { ret void }
+  define void @acc16_not_a_copy() { ret void }
+  define void @acc8_not_a_copy() { ret void }
+  define void @dp_not_a_copy() { ret void }
+...
+---
+# Atomic index/stack: a second `tfr s,y` with Y still holding S is redundant and
+# is deleted; the first is kept (Y live-out).
+# CHECK-LABEL: name: redundant_removed
+# CHECK:       $iy = TFRp $ss
+# CHECK-NOT:   TFRp $ss
+name: redundant_removed
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ss
+    $iy = TFRp $ss
+    $iy = TFRp $ss
+    RTSr implicit $ss, implicit $iy
+...
+---
+# LEAY redefines Y between the two transfers, so the second is not redundant.
+# CHECK-LABEL: name: clobbered_survives
+# CHECK:       $iy = TFRp $ss
+# CHECK:       LEAYi_o5
+# CHECK:       $iy = TFRp $ss
+name: clobbered_survives
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ss
+    $iy = TFRp $ss
+    LEAYi_o5 1, $iy, implicit-def $iy, implicit-def $z
+    $iy = TFRp $ss
+    RTSr implicit $ss, implicit $iy
+...
+---
+# Accumulator DEST (AD) is excluded — the partial-subregister-def hazard. Both
+# `tfr x,d` are retained even though the second looks redundant.
+# CHECK-LABEL: name: acc16_not_a_copy
+# CHECK:       $ad = TFRp $ix
+# CHECK:       $ad = TFRp $ix
+name: acc16_not_a_copy
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ix
+    $ad = TFRp $ix
+    $ad = TFRp $ix
+    RTSr implicit $ss, implicit $ad
+...
+---
+# Accumulator byte DEST (AA) is excluded for the same reason — both `tfr b,a`
+# are retained.
+# CHECK-LABEL: name: acc8_not_a_copy
+# CHECK:       $aa = TFRp $ab
+# CHECK:       $aa = TFRp $ab
+name: acc8_not_a_copy
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ab
+    $aa = TFRp $ab
+    $aa = TFRp $ab
+    RTSr implicit $ss, implicit $aa
+...
+---
+# `tfr a,dp` writes the direct-page register (not an atomic value register) — it
+# is not a copy, so the "redundant" second transfer is retained.
+# CHECK-LABEL: name: dp_not_a_copy
+# CHECK:       $dp = TFRp $aa
+# CHECK:       $dp = TFRp $aa
+name: dp_not_a_copy
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $aa
+    $dp = TFRp $aa
+    $dp = TFRp $aa
+    RTSr implicit $ss, implicit $dp
+...
