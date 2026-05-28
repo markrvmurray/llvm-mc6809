@@ -21,11 +21,16 @@
 #include "MC6809.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
 
+#include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/GlobalValue.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
+#include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstr.h"
+#include "llvm/CodeGen/MachineMemOperand.h"
+#include "llvm/CodeGen/PseudoSourceValue.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
@@ -37,16 +42,19 @@
 using namespace llvm;
 
 // Bug #363: the index-register redundant-reload elimination (`ldy N,u` reload
-// removal) is correct at -O0..-O3 but has an unresolved miscompile in the LTO
-// codegen of heavily-inlined functions (getopt at -flto). It is therefore
-// DEFAULT-OFF pending a fix: the tracking + self-base/overlap correctness work
-// stays in-tree for future debugging, but the elimination does not fire unless
-// explicitly enabled. The accumulator reload elimination and the dead
-// index-load DCE (Bug #362) are unaffected and stay active.
+// removal). Default ON since Bug #366 closed the LTO unsoundness: a store
+// through a frame-address pointer (`std n,y` where Y holds a frame-local
+// address — MMO `into stack + N`, or `into %ir.NAME` for an inlined-local
+// alloca such as getopt's long_options/ap/data) writes a frame slot that the
+// (base,offset) slot tracker keyed on the index base could not relate to
+// SU/SS, so a later `ldy K,u` reload of that slot was wrongly elided.
+// mayStoreToStackFrame + invalidateFrameIndexMirrors now drop the aliased
+// SU/SS frame-slot index mirrors before such a store. The knob is retained
+// (default on) as a bisection escape hatch.
 static cl::opt<bool>
-    EnableIndexReload("mc6809-index-reload-opt", cl::init(false), cl::Hidden,
+    EnableIndexReload("mc6809-index-reload-opt", cl::init(true), cl::Hidden,
                       cl::desc("Eliminate redundant index-register (X/Y) spill "
-                               "reloads (Bug #363; default off, LTO miscompile)"));
+                               "reloads (Bug #363; default on since Bug #366)"));
 
 namespace {
 
@@ -191,6 +199,47 @@ static bool deadFrameLoadDest(MachineBasicBlock &MBB, MachineInstr &MI,
         MachineBasicBlock::LQR_Dead)
       return false;
   return true;
+}
+
+/// Bug #366: true if MI may write the function's own stack frame. Used to
+/// invalidate frame-slot index mirrors for a store through a frame-address
+/// pointer (`std n,y` where Y holds a frame-local address), which the
+/// (base,offset) slot tracker — keyed on the index base, not SU/SS — cannot
+/// relate to a frame slot.
+///
+/// CONSERVATIVE BY DEFAULT: a store may write the frame UNLESS its MMO proves
+/// otherwise. Only two footprints are provably non-frame (and so safe to skip,
+/// preserving the reload-elimination win):
+///   - a non-Stack/FixedStack PseudoSourceValue that does not may-alias the
+///     frame (GOT / JumpTable / ConstantPool / GlobalValue / CallEntry), or
+///   - an IR Value whose underlying object is a GlobalValue.
+/// Everything else — a Stack/FixedStack PSV, a no-MMO store, or a bare IR Value
+/// that is (or derives from) an alloca — may be the frame. Inlined locals like
+/// `long_options`/`ap`/`data` keep an `into %ir.NAME` alloca MMO post-LTO and
+/// are NOT lowered to a Stack/FixedStack PSV; classifying those as non-frame
+/// was the Bug #366 miscompile (test-getopt -flto: stale optarg pointer).
+static bool mayStoreToStackFrame(const MachineInstr &MI,
+                                 const MachineFrameInfo &MFI) {
+  if (!MI.mayStore())
+    return false;
+  if (MI.memoperands_empty())
+    return true; // unknown footprint — conservative
+  for (const MachineMemOperand *MMO : MI.memoperands()) {
+    if (!MMO->isStore())
+      continue;
+    if (const PseudoSourceValue *PSV = MMO->getPseudoValue()) {
+      if (PSV->isStack() || PSV->kind() == PseudoSourceValue::FixedStack ||
+          PSV->mayAlias(&MFI))
+        return true; // frame / spill / may-alias-frame PSV
+      continue;      // GOT / JumpTable / ConstantPool / GlobalValue / CallEntry
+    }
+    const Value *V = MMO->getValue();
+    if (!V)
+      return true; // neither PSV nor IR value — unknown, conservative
+    if (!isa<GlobalValue>(getUnderlyingObject(V)))
+      return true; // alloca / inttoptr / opaque pointer — may be the frame
+  }
+  return false;
 }
 
 /// Returns true if the opcode is a LEAS indexed instruction.
@@ -399,6 +448,7 @@ public:
 
 bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
   const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
+  const MachineFrameInfo &MFI = MF.getFrameInfo();
   bool Changed = false;
 
   for (MachineBasicBlock &MBB : MF) {
@@ -490,8 +540,42 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
       }
     };
 
+    // Bug #366: drop the mirror of every SU/SS frame slot whose value is held
+    // in an INDEX register (IX/IY). Used when an instruction may write the
+    // frame in a way the (base,offset) slot key does not capture — a store
+    // through a frame-address pointer (`std ,y`, MMO `into stack + N`), whose
+    // slot key is (indexreg,off) rather than (SU/SS,off). Index mirrors only:
+    // accumulator spill slots are compiler-private and never aliased by a
+    // store-through-pointer, so the accumulator reload elimination is untouched.
+    auto invalidateFrameIndexMirrors = [&]() {
+      for (auto &E : Slots) {
+        if ((E.first.BaseReg == MC6809::SU || E.first.BaseReg == MC6809::SS) &&
+            (E.second.Reg == MC6809::IX || E.second.Reg == MC6809::IY)) {
+          E.second.Reg = Register();
+          E.second.WasRead = true;
+        }
+      }
+    };
+
     for (MachineInstr &MI : make_early_inc_range(MBB)) {
       unsigned Opc = MI.getOpcode();
+
+      // Bug #366: a store that may write the stack frame through a pointer
+      // whose frame offset the tracker cannot relate to SU/SS (a `std ,y`
+      // where Y holds a frame-local address) aliases SU/SS frame slots that
+      // the slot key does not capture. Drop every index-held SU/SS frame
+      // mirror before the store branches run. Direct SU/SS-relative stores are
+      // excluded: invalidateOverlap already invalidates the precise
+      // overlapping slot for those (including index mirrors, since the stored
+      // accumulator shares no bits with IX/IY), so the blunt drop would only
+      // cost the #363 win.
+      bool DirectFrameStore = false;
+      if (isIndexedStore(Opc) || isIndexedNonAccStore(Opc)) {
+        Register B = getSlotKey(MI).BaseReg;
+        DirectFrameStore = (B == MC6809::SU || B == MC6809::SS);
+      }
+      if (!DirectFrameStore && mayStoreToStackFrame(MI, MFI))
+        invalidateFrameIndexMirrors();
 
       if (isIndexedStore(Opc)) {
         Register AccReg = getAccRegForOpcode(Opc);

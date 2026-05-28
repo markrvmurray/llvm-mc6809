@@ -1,0 +1,106 @@
+# RUN: llc -mtriple=mc6809 -run-pass=mc6809-spill-opt -mc6809-index-reload-opt -o - %s | FileCheck %s
+#
+# Bug #366: the index-register redundant-reload elimination (Bug #363) deletes a
+# `ldy N,u` reload when the slot (SU,N) is still mirrored in IY. A store THROUGH
+# a frame-address pointer — `std n,y` where Y holds a frame-local address, MMO
+# `into stack + K` — writes a frame slot, but its slot key is (IY,n) (the index
+# base), not (SU,N), so the (base,offset) tracker never saw it alias the frame.
+# A later `ldy N,u` was then wrongly elided against a stale mirror. This was the
+# getopt -flto miscompile. mayStoreToStackFrame + invalidateFrameIndexMirrors
+# now drop the aliased SU/SS index mirrors before such a store, keyed off the
+# store's MMO so a non-frame store (the getopt-O2 win) still elides the reload.
+#
+# (`std 2,y`/`std 4,y` — offset != 0 — are used rather than `std ,y` so the
+# Bug #189 `LDY n,u; op ,Y -> op [n,u]` indirect fold does not consume the
+# sequence; mayStoreToStackFrame is offset-agnostic, so this exercises the same
+# frame-aliasing mechanism the real `std ,y` bug did.)
+
+--- |
+  @g = external global i16
+  define void @stack_store_retains_reload() { ret void }
+  define void @no_mmo_store_retains_reload() { ret void }
+  define void @alloca_store_retains_reload() {
+    %buf = alloca [8 x i8]
+    ret void
+  }
+  define void @heap_store_elides_reload() { ret void }
+...
+---
+# A `std 2,y` whose MMO names the stack frame (Stack PSV) may alias the
+# (SU,8)->IY mirror, so the second `ldy 8,u` MUST be retained (it reloads a slot
+# the store may have overwritten). This is the literal getopt bug shape.
+# CHECK-LABEL: name: stack_store_retains_reload
+# CHECK:       LDYi_o8 8, $su
+# CHECK:       STDi_o5 2, $iy
+# CHECK:       LDYi_o8 8, $su
+name: stack_store_retains_reload
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su, $ad
+    LDYi_o8 8, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    STDi_o5 2, $iy, implicit $ad, implicit-def dead $nz, implicit-def dead $n, implicit-def dead $z, implicit-def dead $v :: (store (s16) into stack)
+    LDYi_o8 8, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    STDi_o5 4, $iy, implicit $ad, implicit-def dead $nz, implicit-def dead $n, implicit-def dead $z, implicit-def dead $v :: (store (s16) into stack)
+    RTSr implicit $su
+...
+---
+# A `std 2,y` with NO memory operand has an unknown footprint, so it is treated
+# conservatively as may-alias-frame and the second `ldy 8,u` is retained.
+# CHECK-LABEL: name: no_mmo_store_retains_reload
+# CHECK:       LDYi_o8 8, $su
+# CHECK:       STDi_o5 2, $iy
+# CHECK:       LDYi_o8 8, $su
+name: no_mmo_store_retains_reload
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su, $ad
+    LDYi_o8 8, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    STDi_o5 2, $iy, implicit $ad, implicit-def dead $nz, implicit-def dead $n, implicit-def dead $z, implicit-def dead $v
+    LDYi_o8 8, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    STDi_o5 4, $iy, implicit $ad, implicit-def dead $nz, implicit-def dead $n, implicit-def dead $z, implicit-def dead $v
+    RTSr implicit $su
+...
+---
+# A `std 2,y` whose MMO names an INLINED-LOCAL ALLOCA (`%ir.buf`) is frame
+# memory: post-LTO-inline allocas keep an `into %ir.NAME` MMO and are never
+# lowered to a Stack/FixedStack PSV, so getUnderlyingObject is the alloca (not a
+# GlobalValue) and the store is treated as may-alias-frame — the second
+# `ldy 8,u` is RETAINED. This is the literal Bug #366 root cause (getopt's
+# inlined long_options / ap / data locals carried exactly this MMO shape).
+# CHECK-LABEL: name: alloca_store_retains_reload
+# CHECK:       LDYi_o8 8, $su
+# CHECK:       STDi_o5 2, $iy
+# CHECK:       LDYi_o8 8, $su
+name: alloca_store_retains_reload
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su, $ad
+    LDYi_o8 8, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    STDi_o5 2, $iy, implicit $ad, implicit-def dead $nz, implicit-def dead $n, implicit-def dead $z, implicit-def dead $v :: (store (s16) into %ir.buf)
+    LDYi_o8 8, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    STDi_o5 4, $iy, implicit $ad, implicit-def dead $nz, implicit-def dead $n, implicit-def dead $z, implicit-def dead $v :: (store (s16) into %ir.buf)
+    RTSr implicit $su
+...
+---
+# A `std 2,y` whose MMO names a non-frame IR value (the global @g) does NOT
+# alias the frame, so the (SU,8)->IY mirror survives and the second `ldy 8,u`
+# is still eliminated — the getopt-O2 win is preserved.
+# CHECK-LABEL: name: heap_store_elides_reload
+# CHECK:       LDYi_o8 8, $su
+# CHECK-NEXT:  STDi_o5 2, $iy
+# CHECK-NEXT:  STDi_o5 4, $iy
+# CHECK-NOT:   LDYi_o8 8, $su
+name: heap_store_elides_reload
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su, $ad
+    LDYi_o8 8, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    STDi_o5 2, $iy, implicit $ad, implicit-def dead $nz, implicit-def dead $n, implicit-def dead $z, implicit-def dead $v :: (store (s16) into @g)
+    LDYi_o8 8, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    STDi_o5 4, $iy, implicit $ad, implicit-def dead $nz, implicit-def dead $n, implicit-def dead $z, implicit-def dead $v :: (store (s16) into @g)
+    RTSr implicit $su
+...

@@ -8,12 +8,20 @@
 # is still valid, so a pressure-forced reload (the index reg was reused in
 # between) is correctly retained.
 #
-# The optimisation is gated behind -mc6809-index-reload-opt (DEFAULT OFF): it is
-# correct at -O0..-O3 but has an unresolved miscompile in the LTO codegen of
-# heavily-inlined functions. The OFF run below pins the default (no index reload
-# elimination) so a regression to default-on is caught.
+# The optimisation is gated behind -mc6809-index-reload-opt (DEFAULT ON since
+# Bug #366 closed the LTO unsoundness). The OFF run below pins the
+# explicitly-disabled behaviour (no index reload elimination) so the knob keeps
+# working as a bisection escape hatch.
+#
+# Bug #366: the stores through Y below carry a NON-STACK MMO (`into @g`, a
+# global). mayStoreToStackFrame returns false for them, so they do NOT
+# invalidate the (SU,8)->IY frame mirror and the redundant reload is still
+# eliminated — this is the getopt-O2 win (`std n,y` into an option string).
+# A store with a Stack/FixedStack (or absent) MMO would instead retain the
+# reload; that case is covered by bug366-stack-aliasing-store.mir.
 
 --- |
+  @g = external global i16
   define void @redundant_reload() { ret void }
   define void @clobbered_reload() { ret void }
 ...
@@ -36,9 +44,9 @@ body: |
   bb.0:
     liveins: $su, $ad
     LDYi_o8 8, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
-    STDi_o5 2, $iy, implicit $ad, implicit-def dead $nz, implicit-def dead $n, implicit-def dead $z, implicit-def dead $v
+    STDi_o5 2, $iy, implicit $ad, implicit-def dead $nz, implicit-def dead $n, implicit-def dead $z, implicit-def dead $v :: (store (s16) into @g)
     LDYi_o8 8, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
-    STDi_o5 4, $iy, implicit $ad, implicit-def dead $nz, implicit-def dead $n, implicit-def dead $z, implicit-def dead $v
+    STDi_o5 4, $iy, implicit $ad, implicit-def dead $nz, implicit-def dead $n, implicit-def dead $z, implicit-def dead $v :: (store (s16) into @g)
     RTSr implicit $su
 ...
 ---
