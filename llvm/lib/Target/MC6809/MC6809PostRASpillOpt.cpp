@@ -202,6 +202,105 @@ static bool deadFrameLoadDest(MachineBasicBlock &MBB, MachineInstr &MI,
   return true;
 }
 
+/// Bug #367/#368: a 16-bit register with NO allocatable sub-registers — the
+/// INDEX (IX/IY) and STACK (SU/SS) families. These are immune to the
+/// accumulator partial-subregister hazard (#184/#362/#357), so liveness/transfer
+/// reasoning on them is sound. (Mirrors MC6809InstrInfo::isCopyInstrImpl's gate.)
+static bool isAtomic16(Register R) {
+  return R == MC6809::IX || R == MC6809::IY || R == MC6809::SU ||
+         R == MC6809::SS;
+}
+
+/// Bug #368: a 16-bit register that can be the source/dest of a same-width
+/// `tfr` reusing a 2-byte spill slot — the D accumulator and the two index
+/// registers. AD is admitted (not just the atomic IX/IY) because #368 relies on
+/// the per-BB slot MIRROR for "this register still holds the value", and the
+/// mirror is cleared by clearReg on ANY overlapping def — including the
+/// `implicit-def $ad` a byte write carries — so it is exact even for the
+/// accumulator (this is the "prove exact liveness" path, not the unsound
+/// computeRegisterLiveness query the partial-subreg hazard forbids).
+static bool is16BitXfer(Register R) {
+  return R == MC6809::AD || R == MC6809::IX || R == MC6809::IY;
+}
+
+/// Bug #368: the N/Z/V flags are all dead immediately after MI. A memory reload
+/// sets NZ; the `tfr` that replaces it sets NO flags, so the rewrite is only
+/// sound when no consumer reads the reload's flags. (Flags-only sibling of
+/// deadFrameLoadDest; LQR_Unknown ⇒ treat as live = keep the load.)
+static bool flagsDeadAfter(MachineBasicBlock &MBB, MachineInstr &MI,
+                           const TargetRegisterInfo &TRI) {
+  MachineBasicBlock::const_iterator After =
+      std::next(MachineBasicBlock::iterator(MI));
+  for (Register Flag : {MC6809::N, MC6809::Z, MC6809::V})
+    if (MBB.computeRegisterLiveness(&TRI, Flag, After, /*Neighborhood=*/16) !=
+        MachineBasicBlock::LQR_Dead)
+      return false;
+  return true;
+}
+
+/// Bug #367: the indexed-load opcode that loads a 16-bit register R (AD/IX/IY)
+/// from a U/S-relative slot at the given offset. Mirrors getLoadIdxOpcode's
+/// subset (o8 for an 8-bit displacement, o16 otherwise; the #149 offset
+/// relaxation later shrinks o8→o5/o0). 0 if R is not a 16-bit load register.
+static unsigned getIdxLoadOpcodeFor(Register R, int Offset) {
+  bool Is8 = (Offset >= -128 && Offset <= 127);
+  if (R == MC6809::AD) return Is8 ? MC6809::LDDi_o8 : MC6809::LDDi_o16;
+  if (R == MC6809::IX) return Is8 ? MC6809::LDXi_o8 : MC6809::LDXi_o16;
+  if (R == MC6809::IY) return Is8 ? MC6809::LDYi_o8 : MC6809::LDYi_o16;
+  return 0;
+}
+
+/// Bug #367: fold `ld R,mem; tfr R,R2 → ld R2,mem`. When an indexed load defines
+/// an ATOMIC register R (IX/IY — so the dead-check on R is sound, immune to the
+/// partial-subreg hazard) and is immediately followed by a `tfr R,R2` after
+/// which R is dead, load directly into R2 and drop both the original load and
+/// the transfer. Flag-transparent: the rewritten load reads the SAME memory, so
+/// it sets identical N/Z — and it even ENABLES the #360 compare-zero elision
+/// (the load now feeds the consumer's register, so a trailing `cmp #0` dies).
+/// Run before the slot-tracking loop so that loop sees the folded loads.
+static bool foldLoadIntoCopy(MachineBasicBlock &MBB,
+                             const TargetRegisterInfo &TRI,
+                             const TargetInstrInfo &TII) {
+  bool Changed = false;
+  for (MachineInstr &MI : make_early_inc_range(MBB)) {
+    if (MI.getOpcode() != MC6809::TFRp)
+      continue;
+    Register R2 = MI.getOperand(0).getReg(); // tfr dest (the consumer's reg)
+    Register R = MI.getOperand(1).getReg();  // tfr src = the load's dest
+    if (!isAtomic16(R) || !is16BitXfer(R2))
+      continue;
+    // The preceding (non-debug) instruction must be an indexed load that
+    // defines exactly R.
+    MachineInstr *Prev = MI.getPrevNode();
+    while (Prev && Prev->isDebugInstr())
+      Prev = Prev->getPrevNode();
+    if (!Prev || !isIndexedLoad(Prev->getOpcode()) ||
+        getAccRegForOpcode(Prev->getOpcode()) != R)
+      continue;
+    // R must be dead immediately after the transfer (the tfr was its last use).
+    // No flag check is needed — the rewritten load sets identical flags.
+    MachineBasicBlock::const_iterator After =
+        std::next(MachineBasicBlock::iterator(MI));
+    if (MBB.computeRegisterLiveness(&TRI, R, After, /*Neighborhood=*/16) !=
+        MachineBasicBlock::LQR_Dead)
+      continue;
+    SlotKey K = getSlotKey(*Prev);
+    unsigned NewOpc = getIdxLoadOpcodeFor(R2, K.Offset);
+    if (!NewOpc)
+      continue;
+    // Build the retargeted load via BuildMI so the new opcode's implicit defs
+    // (the value reg + N/Z/V, and for LDD the $aa/$ab/$aq sub-regs) are
+    // materialised — NOT a bare setDesc, which would drop them (the #365 trap).
+    BuildMI(MBB, *Prev, Prev->getDebugLoc(), TII.get(NewOpc))
+        .addImm(K.Offset)
+        .addReg(K.BaseReg);
+    Prev->eraseFromParent();
+    MI.eraseFromParent();
+    Changed = true;
+  }
+  return Changed;
+}
+
 /// Bug #366: true if MI may write the function's own stack frame. Used to
 /// invalidate frame-slot index mirrors for a store through a frame-address
 /// pointer (`std n,y` where Y holds a frame-local address), which the
@@ -453,6 +552,10 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
   bool Changed = false;
 
   for (MachineBasicBlock &MBB : MF) {
+    // Bug #367: fold `ld R,mem; tfr R,R2 → ld R2,mem` first, so the slot loop
+    // below (and #368) sees the cleaned-up loads.
+    Changed |= foldLoadIntoCopy(MBB, TRI, *MF.getSubtarget().getInstrInfo());
+
     // Track slot contents: {(base, offset)} → {register, store instruction}.
     // The store instruction is kept so we can delete dead stores (Stage 2).
     struct SlotInfo {
@@ -659,6 +762,43 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
           LLVM_DEBUG(dbgs() << "  SpillOpt: deleting redundant load: " << MI);
           MI.eraseFromParent();
           Changed = true;
+          continue;
+        }
+        // Bug #368: cross-register reload reuse. The slot is mirrored by a
+        // DIFFERENT 16-bit register (Info->Reg, still holding the value) than
+        // the one being reloaded — replace the 2-byte memory load with a
+        // register transfer `tfr Info->Reg, AccReg`. Both regs must be 16-bit
+        // transfer-compatible (AD/IX/IY); AD is admitted because the value-held
+        // guarantee comes from the slot MIRROR (cleared by clearReg on any
+        // overlapping def, incl. the implicit-def $ad of a byte write), NOT from
+        // computeRegisterLiveness — so the partial-subreg hazard does not apply
+        // (is16BitXfer comment). Requires N/Z/V dead after the load — `tfr` sets
+        // no flags, so a consumer of the reload's flags forbids the rewrite.
+        // !SourceKilled (Bug #271) ensures the source register is still live.
+        if (Info && Info->Reg.isValid() && Info->Reg != AccReg &&
+            !Info->SourceKilled && !SelfBase &&
+            (!IsIndex || EnableIndexReload) && is16BitXfer(Info->Reg) &&
+            is16BitXfer(AccReg) && flagsDeadAfter(MBB, MI, TRI)) {
+          LLVM_DEBUG(dbgs() << "  SpillOpt #368: reload -> tfr "
+                            << printReg(Info->Reg, &TRI) << " -> "
+                            << printReg(AccReg, &TRI) << ": " << MI);
+          BuildMI(MBB, MI, MI.getDebugLoc(),
+                  MF.getSubtarget().getInstrInfo()->get(MC6809::TFRp))
+              .addDef(AccReg)
+              .addUse(Info->Reg);
+          MI.eraseFromParent();
+          Changed = true;
+          // The TFR now defines AccReg with the slot value — replicate the load
+          // path's tracker update (the load that would have done it is gone):
+          // mark the slot read, drop AccReg's stale mirrors / any slot it bases,
+          // and establish AccReg as a fresh mirror of this slot.
+          markRead(Key);
+          clearReg(AccReg);
+          for (auto &E : Slots)
+            if (E.first.BaseReg.isValid() &&
+                TRI.regsOverlap(E.first.BaseReg, AccReg))
+              E.second.Reg = Register();
+          setSlot(Key, AccReg, nullptr);
           continue;
         }
         // Bug #362: dead frame/spill-slot load. A load from the U/S-relative

@@ -1,0 +1,63 @@
+# RUN: llc -mtriple=mc6809 -run-pass=mc6809-spill-opt -verify-machineinstrs -o - %s | FileCheck %s
+#
+# Bug #368: cross-register reload reuse. When a slot is already mirrored by a
+# 16-bit register (AD/IX/IY) and a DIFFERENT 16-bit register reloads it, replace
+# the 2-byte memory load with `tfr src,dst`. The "source still holds the value"
+# guarantee comes from the per-BB slot MIRROR (cleared by clearReg on any
+# overlapping def, including a byte write's implicit-def $ad) — not from
+# computeRegisterLiveness — so the accumulator (AD) source is sound here (the
+# "prove exact liveness" path, immune to the partial-subreg hazard). A flags-dead
+# check is required because `tfr` sets no flags whereas the reload set N/Z.
+
+--- |
+  define void @reuse_atomic_source() { ret void }
+  define void @reuse_acc_source() { ret void }
+  define void @no_reuse_flags_live() { ret void }
+...
+---
+# ldy 8,u (mirror IY); ldx 8,u  →  tfr y,x
+# CHECK-LABEL: name: reuse_atomic_source
+# CHECK:       LDYi_o8 8, $su
+# CHECK-NOT:   LDXi_o8 8, $su
+# CHECK:       $ix = TFRp $iy
+name: reuse_atomic_source
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su
+    LDYi_o8 8, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    LDXi_o8 8, $su, implicit-def $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    RTSr implicit $su, implicit $iy, implicit $ix
+...
+---
+# ldd 8,u (mirror AD); ldx 8,u  →  tfr d,x  (accumulator source, sound via the
+# mirror). The reload's flags are dead (overwritten/​unused), so the rewrite is OK.
+# CHECK-LABEL: name: reuse_acc_source
+# CHECK:       LDDi_o8 8, $su
+# CHECK-NOT:   LDXi_o8 8, $su
+# CHECK:       $ix = TFRp $ad
+name: reuse_acc_source
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su
+    LDDi_o8 8, $su, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit-def $aq
+    LDXi_o8 8, $su, implicit-def $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    RTSr implicit $su, implicit $ad, implicit $ix
+...
+---
+# Z is live after the reload (returned live) — `tfr` would not set it, so the
+# rewrite must NOT fire.
+# CHECK-LABEL: name: no_reuse_flags_live
+# CHECK:       LDYi_o8 8, $su
+# CHECK:       LDXi_o8 8, $su
+# CHECK-NOT:   TFRp
+name: no_reuse_flags_live
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su
+    LDYi_o8 8, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    LDXi_o8 8, $su, implicit-def $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    RTSr implicit $su, implicit $iy, implicit $ix, implicit $z
+...

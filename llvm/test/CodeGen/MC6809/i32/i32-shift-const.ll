@@ -84,7 +84,7 @@ define i32 @shl_i32_1(i32 %x) {
 ; O2-NEXT:    std 4,s
 ; O2-NEXT:    leay 16,u
 ; O2-NEXT:    sty 10,u
-; O2-NEXT:    tfr y,x
+; O2-NEXT:    ldx 10,u
 ; O2-NEXT:    lbsr __ashlsi3
 ; O2-NEXT:    ldy 10,u
 ; O2-NEXT:    ldd 2,y
@@ -177,7 +177,7 @@ define i32 @shl_i32_7(i32 %x) {
 ; O2-NEXT:    std 4,s
 ; O2-NEXT:    leay 16,u
 ; O2-NEXT:    sty 10,u
-; O2-NEXT:    tfr y,x
+; O2-NEXT:    ldx 10,u
 ; O2-NEXT:    lbsr __ashlsi3
 ; O2-NEXT:    ldy 10,u
 ; O2-NEXT:    ldd 2,y
@@ -270,7 +270,7 @@ define i32 @shl_i32_8(i32 %x) {
 ; O2-NEXT:    std 4,s
 ; O2-NEXT:    leay 16,u
 ; O2-NEXT:    sty 10,u
-; O2-NEXT:    tfr y,x
+; O2-NEXT:    ldx 10,u
 ; O2-NEXT:    lbsr __ashlsi3
 ; O2-NEXT:    ldy 10,u
 ; O2-NEXT:    ldd 2,y
@@ -363,7 +363,7 @@ define i32 @shl_i32_15(i32 %x) {
 ; O2-NEXT:    std 4,s
 ; O2-NEXT:    leay 16,u
 ; O2-NEXT:    sty 10,u
-; O2-NEXT:    tfr y,x
+; O2-NEXT:    ldx 10,u
 ; O2-NEXT:    lbsr __ashlsi3
 ; O2-NEXT:    ldy 10,u
 ; O2-NEXT:    ldd 2,y
@@ -456,7 +456,7 @@ define i32 @shl_i32_16(i32 %x) {
 ; O2-NEXT:    std 4,s
 ; O2-NEXT:    leay 16,u
 ; O2-NEXT:    sty 10,u
-; O2-NEXT:    tfr y,x
+; O2-NEXT:    ldx 10,u
 ; O2-NEXT:    lbsr __ashlsi3
 ; O2-NEXT:    ldy 10,u
 ; O2-NEXT:    ldd 2,y
@@ -549,7 +549,7 @@ define i32 @shl_i32_31(i32 %x) {
 ; O2-NEXT:    std 4,s
 ; O2-NEXT:    leay 16,u
 ; O2-NEXT:    sty 10,u
-; O2-NEXT:    tfr y,x
+; O2-NEXT:    ldx 10,u
 ; O2-NEXT:    lbsr __ashlsi3
 ; O2-NEXT:    ldy 10,u
 ; O2-NEXT:    ldd 2,y
@@ -642,7 +642,7 @@ define i32 @lshr_i32_1(i32 %x) {
 ; O2-NEXT:    std 4,s
 ; O2-NEXT:    leay 16,u
 ; O2-NEXT:    sty 10,u
-; O2-NEXT:    tfr y,x
+; O2-NEXT:    ldx 10,u
 ; O2-NEXT:    lbsr __lshrsi3
 ; O2-NEXT:    ldy 10,u
 ; O2-NEXT:    ldd 2,y
@@ -735,7 +735,7 @@ define i32 @lshr_i32_8(i32 %x) {
 ; O2-NEXT:    std 4,s
 ; O2-NEXT:    leay 16,u
 ; O2-NEXT:    sty 10,u
-; O2-NEXT:    tfr y,x
+; O2-NEXT:    ldx 10,u
 ; O2-NEXT:    lbsr __lshrsi3
 ; O2-NEXT:    ldy 10,u
 ; O2-NEXT:    ldd 2,y
@@ -828,7 +828,7 @@ define i32 @lshr_i32_16(i32 %x) {
 ; O2-NEXT:    std 4,s
 ; O2-NEXT:    leay 16,u
 ; O2-NEXT:    sty 10,u
-; O2-NEXT:    tfr y,x
+; O2-NEXT:    ldx 10,u
 ; O2-NEXT:    lbsr __lshrsi3
 ; O2-NEXT:    ldy 10,u
 ; O2-NEXT:    ldd 2,y
@@ -921,7 +921,7 @@ define i32 @lshr_i32_31(i32 %x) {
 ; O2-NEXT:    std 4,s
 ; O2-NEXT:    leay 16,u
 ; O2-NEXT:    sty 10,u
-; O2-NEXT:    tfr y,x
+; O2-NEXT:    ldx 10,u
 ; O2-NEXT:    lbsr __lshrsi3
 ; O2-NEXT:    ldy 10,u
 ; O2-NEXT:    ldd 2,y
@@ -1014,7 +1014,7 @@ define i32 @ashr_i32_1(i32 %x) {
 ; O2-NEXT:    std 4,s
 ; O2-NEXT:    leay 16,u
 ; O2-NEXT:    sty 10,u
-; O2-NEXT:    tfr y,x
+; O2-NEXT:    ldx 10,u
 ; O2-NEXT:    lbsr __ashrsi3
 ; O2-NEXT:    ldy 10,u
 ; O2-NEXT:    ldd 2,y
@@ -1107,7 +1107,7 @@ define i32 @ashr_i32_8(i32 %x) {
 ; O2-NEXT:    std 4,s
 ; O2-NEXT:    leay 16,u
 ; O2-NEXT:    sty 10,u
-; O2-NEXT:    tfr y,x
+; O2-NEXT:    ldx 10,u
 ; O2-NEXT:    lbsr __ashrsi3
 ; O2-NEXT:    ldy 10,u
 ; O2-NEXT:    ldd 2,y
@@ -1200,7 +1200,7 @@ define i32 @ashr_i32_16(i32 %x) {
 ; O2-NEXT:    std 4,s
 ; O2-NEXT:    leay 16,u
 ; O2-NEXT:    sty 10,u
-; O2-NEXT:    tfr y,x
+; O2-NEXT:    ldx 10,u
 ; O2-NEXT:    lbsr __ashrsi3
 ; O2-NEXT:    ldy 10,u
 ; O2-NEXT:    ldd 2,y
@@ -1293,7 +1293,7 @@ define i32 @ashr_i32_31(i32 %x) {
 ; O2-NEXT:    std 4,s
 ; O2-NEXT:    leay 16,u
 ; O2-NEXT:    sty 10,u
-; O2-NEXT:    tfr y,x
+; O2-NEXT:    ldx 10,u
 ; O2-NEXT:    lbsr __ashrsi3
 ; O2-NEXT:    ldy 10,u
 ; O2-NEXT:    ldd 2,y

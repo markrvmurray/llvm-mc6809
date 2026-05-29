@@ -31,13 +31,13 @@ define i16 @cmp_eq_branch(i16 %x, i16 %y, i16 %z) {
 ; MC6809-O2-NEXT:  ; %bb.1: ; %else
 ; MC6809-O2-NEXT:    ldd 12,u
 ; MC6809-O2-NEXT:    std 4,u
-; MC6809-O2-NEXT:    ldx 4,u
+; MC6809-O2-NEXT:    tfr d,x
 ; MC6809-O2-NEXT:    lbsr sink_b
 ; MC6809-O2-NEXT:    bra .LBB0_3
 ; MC6809-O2-NEXT:  .LBB0_2: ; %then
 ; MC6809-O2-NEXT:    ldd 10,u
 ; MC6809-O2-NEXT:    std 4,u
-; MC6809-O2-NEXT:    ldx 4,u
+; MC6809-O2-NEXT:    tfr d,x
 ; MC6809-O2-NEXT:    lbsr sink_a
 ; MC6809-O2-NEXT:  .LBB0_3: ; %then
 ; MC6809-O2-NEXT:    ldx 4,u

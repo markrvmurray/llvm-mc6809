@@ -1,0 +1,62 @@
+# RUN: llc -mtriple=mc6809 -run-pass=mc6809-spill-opt -verify-machineinstrs -o - %s | FileCheck %s
+#
+# Bug #367: fold `ld R,mem; tfr R,R2 → ld R2,mem`. When an indexed load defines
+# an ATOMIC index register R (IX/IY) and is immediately followed by `tfr R,R2`
+# after which R is dead, load directly into R2 and drop both the load and the
+# transfer. Flag-transparent (the rewritten load reads the same memory, so it
+# sets identical N/Z), so no flag-liveness check is needed; it even enables the
+# #360 compare-zero elision downstream. The dead-check on R is sound because R is
+# atomic (no partial-subregister hazard). v1 handles atomic SOURCES (the
+# accumulator-source lda→b / ldb→a cases are a follow-on).
+
+--- |
+  define void @fold_ldy_d() { ret void }
+  define void @fold_ldy_x() { ret void }
+  define void @no_fold_y_live() { ret void }
+...
+---
+# ldy 8,u; tfr y,d  →  ldd 8,u  (Y dead after the tfr). The rebuilt LDD carries
+# its full implicit-def chain ($aa/$ab/$ad/$aq + flags) — materialised by BuildMI.
+# CHECK-LABEL: name: fold_ldy_d
+# CHECK-NOT:   LDYi
+# CHECK-NOT:   TFRp
+# CHECK:       LDDi_o8 8, $su
+name: fold_ldy_d
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su
+    LDYi_o8 8, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    $ad = TFRp $iy
+    RTSr implicit $su, implicit $ad
+...
+---
+# ldy 8,u; tfr y,x  →  ldx 8,u
+# CHECK-LABEL: name: fold_ldy_x
+# CHECK-NOT:   LDYi
+# CHECK-NOT:   TFRp
+# CHECK:       LDXi_o8 8, $su
+name: fold_ldy_x
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su
+    LDYi_o8 8, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    $ix = TFRp $iy
+    RTSr implicit $su, implicit $ix
+...
+---
+# Y is live after the tfr (returned in $iy too) — the load still defines a
+# needed register, so the fold must NOT fire.
+# CHECK-LABEL: name: no_fold_y_live
+# CHECK:       LDYi_o8 8, $su
+# CHECK:       $ad = TFRp $iy
+name: no_fold_y_live
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su
+    LDYi_o8 8, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    $ad = TFRp $iy
+    RTSr implicit $su, implicit $ad, implicit $iy
+...
