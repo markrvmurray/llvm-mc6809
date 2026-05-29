@@ -395,6 +395,8 @@ struct ScalarEnumerationTraits<TargetStackID::Value> {
     IO.enumCase(ID, "wasm-local", TargetStackID::WasmLocal);
     IO.enumCase(ID, "mos-static", TargetStackID::MosStatic);
     IO.enumCase(ID, "mos-zero-page", TargetStackID::MosZeroPage);
+    IO.enumCase(ID, "mc6809-static", TargetStackID::Mc6809Static);
+    IO.enumCase(ID, "mc6809-direct-page", TargetStackID::Mc6809DirectPage);
     IO.enumCase(ID, "noalloc", TargetStackID::NoAlloc);
   }
 };
