@@ -54,3 +54,12 @@ binaries by absolute path; edit it to match your build directory.
 
 The port is incomplete — see the picolibc-related TODO bugs in
 the project bug tracker memory for the current bug list.
+
+### Bench & test harness
+
+The picolibc fork carries the MC6809/HD6309 benchmark + correctness harness
+that cross-builds picolibc with this compiler and runs the test suite on the
+usim/MAME emulators, recording per-test cycles and pass/fail to a SQLite
+ledger. See **`~/GitHub/picolibc/scripts/README-mc6809.md`**
+(`bench-parallel.sh` being the orchestrator; ledger at
+`~/Documents/mc6809-bench/results.sqlite`).
