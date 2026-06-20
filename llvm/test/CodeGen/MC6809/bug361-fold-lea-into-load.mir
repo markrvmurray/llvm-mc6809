@@ -1,0 +1,61 @@
+# RUN: llc -mtriple=mc6809 -run-pass=mc6809-late-opt -o - %s | FileCheck %s
+
+# Bug #361 increment 1: fold an index-LEA into the register-indirect load that
+# immediately dereferences it, for the always-safe dst==base shape
+# (`leaR <addr>; ldR ,R -> ldR <addr>`). The load reloads into the very register
+# the LEA computed, so the load overwrites the computed address and dropping the
+# LEA is unconditionally safe. dst != base (a surviving base) is NOT folded here
+# — that needs a dead-base proof (increment 2).
+
+# Constant offset where the LEA's input base (U) differs from the index register
+# (X): `leax 12,u; ldx ,x -> ldx 12,u`. The folded load's base must come from the
+# LEA's input (U), not the index register (X) — the regression this guards.
+# CHECK-LABEL: name: fold_const
+# CHECK:      LDXi_o8 12, $su
+# CHECK-NOT:  LEAXi_o8
+# CHECK-NOT:  LDXi_o0
+---
+name: fold_const
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su
+    LEAXi_o8 12, $su, implicit-def renamable $ix, implicit-def $z
+    LDXi_o0 killed renamable $ix, implicit-def renamable $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    RTSr implicit $ix
+...
+
+# Negative: dst != base (`leax 12,u; ldy ,x`, value reg Y, base X) must NOT fold
+# in increment 1 — the base X survives the load, so dropping the LEA could lose a
+# live pointer.
+# CHECK-LABEL: name: no_fold_dst_ne_base
+# CHECK:      LEAXi_o8 12, $su
+# CHECK:      LDYi_o0 killed renamable $ix
+---
+name: no_fold_dst_ne_base
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su
+    LEAXi_o8 12, $su, implicit-def renamable $ix, implicit-def $z
+    LDYi_o0 killed renamable $ix, implicit-def renamable $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    RTSr implicit $iy
+...
+
+# Negative: a non-adjacent load must NOT fold — an intervening instruction breaks
+# the LEA/load adjacency the fold requires.
+# CHECK-LABEL: name: no_fold_non_adjacent
+# CHECK:      LEAXi_o8 12, $su
+# CHECK:      LDAi_o8 43, $su
+# CHECK:      LDXi_o0 killed renamable $ix
+---
+name: no_fold_non_adjacent
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su
+    LEAXi_o8 12, $su, implicit-def renamable $ix, implicit-def $z
+    LDAi_o8 43, $su, implicit-def $aa, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    LDXi_o0 killed renamable $ix, implicit-def renamable $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    RTSr implicit $ix
+...

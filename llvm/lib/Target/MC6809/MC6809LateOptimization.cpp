@@ -46,6 +46,7 @@ public:
   bool tailJMP(MachineBasicBlock &MBB) const;
   bool simplifyAndZero(MachineBasicBlock &MBB) const;
   bool elideCompareZero(MachineBasicBlock &MBB) const;
+  bool foldLEAIntoLoad(MachineBasicBlock &MBB) const;
 };
 
 bool MC6809LateOptimization::runOnMachineFunction(MachineFunction &MF) {
@@ -54,6 +55,7 @@ bool MC6809LateOptimization::runOnMachineFunction(MachineFunction &MF) {
     Changed |= tailJMP(MBB);
     Changed |= simplifyAndZero(MBB);
     Changed |= elideCompareZero(MBB);
+    Changed |= foldLEAIntoLoad(MBB);
   }
   return Changed;
 }
@@ -159,6 +161,104 @@ bool MC6809LateOptimization::elideCompareZero(MachineBasicBlock &MBB) const {
         MO.setIsDead(false);
 
     MI.eraseFromParent();
+    Changed = true;
+  }
+  return Changed;
+}
+
+// Bug #361: map a foldable index-LEA opcode (LEAX/LEAY with a constant or
+// accumulator offset) to the load opcode that performs the SAME addressing for
+// that same index register, and report whether the addressing carries an
+// explicit immediate operand. Returns 0 for any LEA we don't fold (indirect
+// `…I`, auto inc/dec, PC-relative — handled later — and LEAS/LEAU). The
+// constant suffixes (o5/o8/o16) have an explicit (offset, base) operand pair;
+// the accumulator suffixes (oA/oB/oD and the HD6309 oE/oF/oW) have only the
+// base operand, with the accumulator carried as an implicit use by the desc.
+static unsigned getFoldedIndexLoadOpcode(unsigned LeaOpc) {
+  switch (LeaOpc) {
+  case MC6809::LEAXi_o5:  return MC6809::LDXi_o5;
+  case MC6809::LEAXi_o8:  return MC6809::LDXi_o8;
+  case MC6809::LEAXi_o16: return MC6809::LDXi_o16;
+  case MC6809::LEAXi_oA:  return MC6809::LDXi_oA;
+  case MC6809::LEAXi_oB:  return MC6809::LDXi_oB;
+  case MC6809::LEAXi_oD:  return MC6809::LDXi_oD;
+  case MC6809::LEAXi_oE:  return MC6809::LDXi_oE;
+  case MC6809::LEAXi_oF:  return MC6809::LDXi_oF;
+  case MC6809::LEAXi_oW:  return MC6809::LDXi_oW;
+  case MC6809::LEAYi_o5:  return MC6809::LDYi_o5;
+  case MC6809::LEAYi_o8:  return MC6809::LDYi_o8;
+  case MC6809::LEAYi_o16: return MC6809::LDYi_o16;
+  case MC6809::LEAYi_oA:  return MC6809::LDYi_oA;
+  case MC6809::LEAYi_oB:  return MC6809::LDYi_oB;
+  case MC6809::LEAYi_oD:  return MC6809::LDYi_oD;
+  case MC6809::LEAYi_oE:  return MC6809::LDYi_oE;
+  case MC6809::LEAYi_oF:  return MC6809::LDYi_oF;
+  case MC6809::LEAYi_oW:  return MC6809::LDYi_oW;
+  default: return 0;
+  }
+}
+
+// Bug #361 increment 1: fold an address-generating index-LEA into the
+// register-indirect load that immediately dereferences it, for the always-safe
+// `dst == base` shape:
+//     leax d,x ; ldx ,x   ->   ldx d,x
+//     leax 4,x ; ldx ,x   ->   ldx 4,x
+//     leay 4,y ; ldy ,y   ->   ldy 4,y
+// The load loads back into the very register the LEA computed (value reg ==
+// index reg == the load's base), so the load overwrites the computed address:
+// dropping the LEA is unconditionally safe — no liveness query needed. The
+// `dst != base` shapes (a surviving base, e.g. a walking pointer) need a
+// dead-base proof and are deferred to increment 2.
+bool MC6809LateOptimization::foldLEAIntoLoad(MachineBasicBlock &MBB) const {
+  const TargetInstrInfo &TII = *MBB.getParent()->getSubtarget().getInstrInfo();
+  bool Changed = false;
+  for (auto It = MBB.begin(); It != MBB.end();) {
+    MachineInstr &Lea = *It++;
+    unsigned FoldedOpc = getFoldedIndexLoadOpcode(Lea.getOpcode());
+    if (!FoldedOpc)
+      continue;
+
+    // The index register the LEA computes (X or Y) — its single INDEX16 def.
+    Register IndexReg;
+    for (const MachineOperand &MO : Lea.operands())
+      if (MO.isReg() && MO.isDef() &&
+          MC6809::INDEX16RegClass.contains(MO.getReg())) {
+        IndexReg = MO.getReg();
+        break;
+      }
+    if (!IndexReg)
+      continue;
+
+    // Consumer: the immediately-following (non-debug) zero-offset load into the
+    // SAME index register, based on it (dst == base). Adjacency means the load
+    // redefines N/Z/V right after the LEA, so the LEA's now-dropped Z def is
+    // dead and needs no preservation.
+    auto NextIt = std::next(Lea.getIterator());
+    while (NextIt != MBB.end() && NextIt->isDebugInstr())
+      ++NextIt;
+    if (NextIt == MBB.end())
+      continue;
+    MachineInstr &Load = *NextIt;
+    unsigned ExpectO0 =
+        (IndexReg == MC6809::IX) ? MC6809::LDXi_o0 : MC6809::LDYi_o0;
+    if (Load.getOpcode() != ExpectO0 || Load.getNumOperands() == 0 ||
+        !Load.getOperand(0).isReg() || Load.getOperand(0).getReg() != IndexReg)
+      continue;
+
+    // Build the folded load: the LEA's addressing, loading into IndexReg.
+    // Copy the LEA's explicit operands verbatim — they are exactly the load's
+    // addressing operands for the same suffix: (offset imm,) base register.
+    // Note the base register is the LEA's INPUT base (e.g. U in `leax 53,u`),
+    // not IndexReg. The value-reg def, N/Z/V defs, and any accumulator-offset
+    // implicit use are materialised from the new opcode's descriptor.
+    MachineInstrBuilder MIB =
+        BuildMI(MBB, Load, Load.getDebugLoc(), TII.get(FoldedOpc));
+    for (const MachineOperand &MO : Lea.explicit_operands())
+      MIB.add(MO);
+
+    Lea.eraseFromParent();
+    Load.eraseFromParent();
+    It = std::next(MIB->getIterator());
     Changed = true;
   }
   return Changed;
