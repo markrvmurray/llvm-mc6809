@@ -74,6 +74,23 @@ bool MC6809FrameLowering::assignCalleeSavedSpillSlots(MachineFunction &MF, const
   return true;
 }
 
+uint64_t MC6809FrameLowering::getHardStackCalleeSavedSize(const MachineFunction &MF) const {
+  const MachineFrameInfo &MFI = MF.getFrameInfo();
+  const TargetRegisterInfo *TRI = MF.getRegInfo().getTargetRegisterInfo();
+  const auto &FuncInfo = *MF.getInfo<MC6809FunctionInfo>();
+
+  uint64_t Size = 0;
+  for (const CalleeSavedInfo &CSI : MFI.getCalleeSavedInfo()) {
+    if (!CSI.isTargetSpilled())
+      continue;
+    if (FuncInfo.CSRDPOffsets.count(CSI.getReg()))
+      continue;
+    const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(CSI.getReg());
+    Size += TRI->getSpillSize(*RC);
+  }
+  return Size;
+}
+
 bool MC6809FrameLowering::enableShrinkWrapping(const MachineFunction &MF) const {
   // Shrink-wrapping moves the prologue (LEAS -n,S; PSHS U; TFR S,U) past
   // early-exit blocks. On the MC6809, frame-relative accesses (n,U) require
@@ -551,10 +568,7 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &M
   // = exactly what MFI reports once all frame slots are laid out.
   // We compute CSR bytes from CalleeSavedInfo rather than relying on
   // MFI.getStackSize() which only covers locals.
-  int64_t CSRBytes = 0;
-  for (const CalleeSavedInfo &CSI : MFI.getCalleeSavedInfo())
-    if (CSI.isTargetSpilled())
-      CSRBytes += MFI.getObjectSize(CSI.getFrameIdx());
+  int64_t CSRBytes = getHardStackCalleeSavedSize(MF);
   int64_t TotalOffset = StackSize + CSRBytes + 2;
 
   unsigned FPDwarf = MRI->getDwarfRegNum(FPReg, /*isEH=*/true);
