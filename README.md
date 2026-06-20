@@ -23,11 +23,13 @@ machine is a laptop running macOS Sequoia.
 To configure and build, try:
 
 ```
-$ cd ~/git/llvm-mc6809/llvm
+$ cd ~/git/llvm-mc6809
 $ mkdir -p build && cd build
 $ cmake -DCMAKE_BUILD_TYPE=Debug -C ../clang/cmake/caches/MC6809.cmake -G Ninja -S ../llvm -B .
-$ cmake --build . --target all -j 8
+$ cmake --build . --target all
 ```
+You'll need [Ninja](https://ninja-build.org/) and a recent CMake installed; the
+final link step is memory-hungry.
 
 ## picolibc port
 
