@@ -37,7 +37,7 @@
 //      this minimal Phase 2 PoC, main() takes (void) — param parsing
 //      will land with the picolibc syscall layer.
 //
-//   4. Call main().  Return value comes back in D; low byte (B) is
+//   4. Call main().  Return value comes back in X; low byte is
 //      the exit status per the C `int main(void)` convention.
 //
 //   5. Exit via F$Exit ($06) — does not return.
@@ -88,14 +88,15 @@ _start:
 	// lands, we'll tokenize X+D into argc/argv on the stack before
 	// jsr'ing main; for the Phase 2 PoC main() takes (void).
 
-	jsr	main
+	lbsr	main
 
 	// --- 5. Exit via F$Exit --------------------------------------------
 	//
-	// main() returned with the exit status in D (low byte = B per
-	// the LLVM-MC6809 ABI for `int`).  F$Exit consumes B as the
-	// status and never returns to us.
+	// main() returned with the exit status in X per the LLVM-MC6809
+	// ABI for `int`.  F$Exit consumes B as the status and never
+	// returns to us.
 
+	tfr	x,d
 	swi2
 	.byte	0x06			// F$Exit
 	.size	_start, .-_start
