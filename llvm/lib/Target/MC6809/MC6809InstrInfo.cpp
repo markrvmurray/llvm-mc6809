@@ -4077,9 +4077,13 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
         // Push_i8 since we've replaced its expansion entirely.
         unsigned StoreOpc = (PushedReg == MC6809::AE) ? MC6809::STEi_o0
                                                      : MC6809::STFi_o0;
+        // Bug #376: LEASi_o5's only explicit operands are (offset, base-use);
+        // its SS def is implicit (descriptor Defs). The stray explicit
+        // RegState::Define of SS made `leas -1,s` carry an extra def-marked
+        // operand that -verify-machineinstrs rejects (the even-offset paths use
+        // the plain `addImm(N).addReg(SS)` form below). Drop it.
         Builder.buildInstr(MC6809::LEASi_o5)
-            .addImm(-1).addReg(MC6809::SS, RegState::Define)
-            .addReg(MC6809::SS);
+            .addImm(-1).addReg(MC6809::SS);
         Builder.buildInstr(StoreOpc)
             .addUse(PushedReg, RegState::Implicit)
             .addReg(MC6809::SS);
