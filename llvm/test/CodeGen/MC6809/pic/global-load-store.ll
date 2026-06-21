@@ -26,8 +26,7 @@ define i8 @load_x() {
 ;
 ; PIC-LABEL: load_x:
 ; PIC:       ; %bb.0:
-; PIC-NEXT:    leax x,pc
-; PIC-NEXT:    ldb ,x
+; PIC-NEXT:    ldb x,pc
 ; PIC-NEXT:    rts
   %v = load i8, ptr @x
   ret i8 %v
