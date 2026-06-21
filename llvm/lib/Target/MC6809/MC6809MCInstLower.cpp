@@ -152,6 +152,11 @@ MCOperand MC6809MCInstLower::lowerSymbolOperand(const MachineOperand &MO, const 
     Expr = MCBinaryExpr::createAdd(Expr, MCConstantExpr::create(Table.MBBs.size(), Ctx), Ctx);
     break;
   }
+  case MC6809::MO_OS9_DATA:
+  case MC6809::MO_OS9_BSS:
+    Expr = MC6809MCExpr::create(MC6809MCExpr::VK_OS9_DATA_OFFSET, Expr,
+                                /*IsNegated=*/false, Ctx);
+    break;
   }
   return MCOperand::createExpr(Expr);
 }

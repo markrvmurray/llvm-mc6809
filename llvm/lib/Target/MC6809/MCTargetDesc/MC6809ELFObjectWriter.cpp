@@ -64,6 +64,8 @@ unsigned MC6809ELFObjectWriter::getRelocType(const MCFixup &Fixup,
     return ELF::R_MC6809_ADDR_8;
   case MC6809::Imm16:
   case MC6809::Addr16:
+    if (Specifier == MC6809MCExpr::VK_OS9_DATA_OFFSET)
+      return ELF::R_MC6809_OS9_OFFSET_16;
     return ELF::R_MC6809_ADDR_16;
   case MC6809::PCRel8:
     return ELF::R_MC6809_PCREL_8;
@@ -74,6 +76,8 @@ unsigned MC6809ELFObjectWriter::getRelocType(const MCFixup &Fixup,
   case MC6809::Rel8:
     return ELF::R_MC6809_OFFSET_8;
   case MC6809::Rel16:
+    if (Specifier == MC6809MCExpr::VK_OS9_DATA_OFFSET)
+      return ELF::R_MC6809_OS9_OFFSET_16;
     return ELF::R_MC6809_OFFSET_16;
   case FK_Data_4:
     return ELF::R_MC6809_FK_DATA_4;
