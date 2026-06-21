@@ -24,8 +24,9 @@
  *   .rodata   — read-only data; lives in the module body, accessed PCR.
  *   .data     — initialised data IMAGE in the body; CRT copies to U+0.
  *   .bss      — NOLOAD; CRT zeros at U + __data_size.
- *   .heap     — NOLOAD; reserved at U + (data+bss) for sbrk-style growth.
- *   .stack    — NOLOAD; reserved at U + (data+bss+heap), top = S = U + M$Mem.
+ *   .runtime  — NOLOAD; private compiler-rt process storage.
+ *   .heap     — NOLOAD; reserved after runtime storage for sbrk-style growth.
+ *   .stack    — NOLOAD; reserved after heap, top = S = U + M$Mem.
  *
  * Symbols exported (used by CRT and by build-system to pass --mem to
  * os9-link):
@@ -33,6 +34,7 @@
  *                                            (CRT references via PCR).
  *   __data_size                            — bytes to copy at startup.
  *   __bss_size                             — bytes to zero at startup.
+ *   __errno_offset                         — U-relative runtime errno slot.
  *   __heap_start, __heap_size              — heap region (U-relative).
  *   __stack_start, __stack_size            — stack region (U-relative).
  *   __mem_size                             — total M$Mem allocation.
@@ -99,6 +101,15 @@ SECTIONS {
     }
     __bss_size = __bss_image_end - __bss_image_start;
 
+    .runtime (NOLOAD) : ALIGN(2) {
+        __runtime_image_start = .;
+        __errno_image_start = .;
+        . += 2;
+        __errno_image_end = .;
+        __runtime_image_end = .;
+    }
+    __runtime_size = __runtime_image_end - __runtime_image_start;
+
     .heap (NOLOAD) : ALIGN(2) {
         __heap_image_start = .;
         . += __heap_size;
@@ -115,14 +126,17 @@ SECTIONS {
      * U-relative offsets (CRT consumes via immediate `#`):
      *   data lives at offset 0 in the process data area
      *   bss starts immediately after the data image
-     *   heap starts after bss
+     *   runtime storage starts after bss
+     *   heap starts after runtime storage
      *   stack starts after heap; S = U + __mem_size
      */
     __data_start  = 0;
     __bss_start   = __data_size;
-    __heap_start  = __data_size + __bss_size;
-    __stack_start = __data_size + __bss_size + __heap_size;
-    __mem_size    = __data_size + __bss_size + __heap_size + __stack_size;
+    __runtime_start = __data_size + __bss_size;
+    __errno_offset = __runtime_start;
+    __heap_start  = __runtime_start + __runtime_size;
+    __stack_start = __heap_start + __heap_size;
+    __mem_size    = __stack_start + __stack_size;
 
     /DISCARD/ : {
         *(.comment)

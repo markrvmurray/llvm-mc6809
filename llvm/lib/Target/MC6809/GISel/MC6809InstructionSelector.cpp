@@ -35,6 +35,7 @@
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/RegisterBankInfo.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -66,6 +67,23 @@ static bool hasFakeUse(const MachineInstr &MI) {
       if (Op.getOpcode() == TargetOpcode::FAKE_USE)
         return true;
   return false;
+}
+
+static unsigned getOS9WritableGlobalTargetFlags(const GlobalValue *GV) {
+  const auto *GVar = dyn_cast<GlobalVariable>(GV->getAliaseeObject());
+  if (!GVar || GVar->isConstant())
+    return MC6809::MO_NO_FLAGS;
+  if (GVar->isDeclaration())
+    return MC6809::MO_OS9_DATA;
+
+  StringRef Section = GVar->getSection();
+  if (Section.starts_with(".bss"))
+    return MC6809::MO_OS9_BSS;
+  if (Section.starts_with(".data"))
+    return MC6809::MO_OS9_DATA;
+
+  const Constant *Init = GVar->getInitializer();
+  return Init->isNullValue() ? MC6809::MO_OS9_BSS : MC6809::MO_OS9_DATA;
 }
 
 // narrowToClass: returns a vreg of class `RC` holding the same value
@@ -1437,6 +1455,23 @@ skip_globalvalue_fold:
     // case.
     if (MF->getTarget().isPositionIndependent()) {
       MachineOperand &GlobalOp = MI.getOperand(1);
+      if (MF->getTarget().getTargetTriple().isOSOS9()) {
+        unsigned OS9Flags = getOS9WritableGlobalTargetFlags(GlobalOp.getGlobal());
+        if (OS9Flags != MC6809::MO_NO_FLAGS) {
+          MachineOperand OS9GlobalOp = MachineOperand::CreateGA(
+              GlobalOp.getGlobal(), GlobalOp.getOffset(), OS9Flags);
+          if (!MBB->isLiveIn(MC6809::SU))
+            MBB->addLiveIn(MC6809::SU);
+          BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(MC6809::LEAXi_o16))
+              .add(OS9GlobalOp)
+              .addReg(MC6809::SU);
+          BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(TargetOpcode::COPY),
+                  DstReg)
+              .addReg(MC6809::IX);
+          MI.eraseFromParent();
+          return true;
+        }
+      }
       BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(MC6809::LEAXi_o16PC))
           .add(GlobalOp);
       BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(TargetOpcode::COPY), DstReg)

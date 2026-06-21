@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "InputFiles.h"
+#include "SymbolTable.h"
 #include "Symbols.h"
 #include "Target.h"
 #include "lld/Common/ErrorHandler.h"
@@ -66,6 +67,31 @@ RelExpr MC6809::getRelExpr(RelType type, const Symbol &s,
   }
 }
 
+static uint64_t getSymbolVA(Ctx &ctx, StringRef name) {
+  if (Symbol *s = ctx.symtab->find(name))
+    if (isa<Defined>(s))
+      return s->getVA(ctx);
+  ErrAlways(ctx) << "missing OS-9 linker symbol " << name;
+  return 0;
+}
+
+static uint64_t getOS9DataOffset(Ctx &ctx, const Relocation &rel,
+                                 uint64_t val) {
+  uint64_t dataStart = getSymbolVA(ctx, "__data_image_start");
+  uint64_t dataEnd = getSymbolVA(ctx, "__data_image_end");
+  uint64_t bssStart = getSymbolVA(ctx, "__bss_image_start");
+  uint64_t bssEnd = getSymbolVA(ctx, "__bss_image_end");
+  uint64_t dataSize = getSymbolVA(ctx, "__data_size");
+
+  if (dataStart <= val && val < dataEnd)
+    return val - dataStart;
+  if (bssStart <= val && val < bssEnd)
+    return dataSize + (val - bssStart);
+
+  ErrAlways(ctx) << "R_MC6809_OS9_OFFSET_16 target is outside .data/.bss";
+  return 0;
+}
+
 void MC6809::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
   switch (rel.type) {
   case R_MC6809_IMM_8:
@@ -102,6 +128,9 @@ void MC6809::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
     // 16-bit signed indexed offset (big-endian). Full 6809 address
     // space fits, so no bounds check.
     write16be(loc, static_cast<unsigned short>(val));
+    break;
+  case R_MC6809_OS9_OFFSET_16:
+    write16be(loc, static_cast<unsigned short>(getOS9DataOffset(ctx, rel, val)));
     break;
   case R_MC6809_FK_DATA_4:
     write32be(loc, static_cast<unsigned long>(val));

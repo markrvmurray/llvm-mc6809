@@ -628,6 +628,15 @@ void MC6809FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &M
 }
 
 bool MC6809FrameLowering::hasFP(const MachineFunction &MF) const {
+  if (MF.getTarget().getTargetTriple().isOSOS9()) {
+    if (MF.getFrameInfo().isFrameAddressTaken() ||
+        MF.getFrameInfo().hasVarSizedObjects())
+      report_fatal_error(
+          "OS-9 MC6809 does not support a U-based frame pointer; U is the "
+          "process data-area base");
+    return false;
+  }
+
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   if (MFI.isFrameAddressTaken() || MFI.hasVarSizedObjects())
     return true;
