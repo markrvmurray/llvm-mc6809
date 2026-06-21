@@ -18,8 +18,7 @@ define i8 @foo0(i8* nocapture noundef readonly %a, i8 noundef zeroext %b) #0 {
 ; MC6809-O0-NEXT:    std 5,u
 ; MC6809-O0-NEXT:    ldb 4,u
 ; MC6809-O0-NEXT:    ldd 5,u
-; MC6809-O0-NEXT:    leax d,x
-; MC6809-O0-NEXT:    ldb ,x
+; MC6809-O0-NEXT:    ldb d,x
 ; MC6809-O0-NEXT:    tfr u,s
 ; MC6809-O0-NEXT:    puls u
 ; MC6809-O0-NEXT:    leas 7,s
@@ -33,8 +32,7 @@ define i8 @foo0(i8* nocapture noundef readonly %a, i8 noundef zeroext %b) #0 {
 ; MC6809-O1-NEXT:    stb 4,u
 ; MC6809-O1-NEXT:    clra
 ; MC6809-O1-NEXT:    std 5,u
-; MC6809-O1-NEXT:    leax d,x
-; MC6809-O1-NEXT:    ldb ,x
+; MC6809-O1-NEXT:    ldb d,x
 ; MC6809-O1-NEXT:    tfr u,s
 ; MC6809-O1-NEXT:    puls u
 ; MC6809-O1-NEXT:    leas 7,s
@@ -48,8 +46,7 @@ define i8 @foo0(i8* nocapture noundef readonly %a, i8 noundef zeroext %b) #0 {
 ; MC6809-O2-NEXT:    stb 4,u
 ; MC6809-O2-NEXT:    clra
 ; MC6809-O2-NEXT:    std 5,u
-; MC6809-O2-NEXT:    leax d,x
-; MC6809-O2-NEXT:    ldb ,x
+; MC6809-O2-NEXT:    ldb d,x
 ; MC6809-O2-NEXT:    tfr u,s
 ; MC6809-O2-NEXT:    puls u
 ; MC6809-O2-NEXT:    leas 7,s
@@ -63,8 +60,7 @@ define i8 @foo0(i8* nocapture noundef readonly %a, i8 noundef zeroext %b) #0 {
 ; MC6809-O3-NEXT:    stb 4,u
 ; MC6809-O3-NEXT:    clra
 ; MC6809-O3-NEXT:    std 5,u
-; MC6809-O3-NEXT:    leax d,x
-; MC6809-O3-NEXT:    ldb ,x
+; MC6809-O3-NEXT:    ldb d,x
 ; MC6809-O3-NEXT:    tfr u,s
 ; MC6809-O3-NEXT:    puls u
 ; MC6809-O3-NEXT:    leas 7,s
@@ -75,8 +71,7 @@ define i8 @foo0(i8* nocapture noundef readonly %a, i8 noundef zeroext %b) #0 {
 ; HD6309-NEXT:    leas -2,s
 ; HD6309-NEXT:    clra
 ; HD6309-NEXT:    tfr d,w
-; HD6309-NEXT:    leax w,x
-; HD6309-NEXT:    ldb ,x
+; HD6309-NEXT:    ldb w,x
 ; HD6309-NEXT:    leas 2,s
 ; HD6309-NEXT:    rts
 entry:
@@ -98,8 +93,7 @@ define i8 @foo1(i8* nocapture noundef readonly %a, i8 noundef signext %b) #0 {
 ; MC6809-O0-NEXT:    std 5,u
 ; MC6809-O0-NEXT:    ldb 4,u
 ; MC6809-O0-NEXT:    ldd 5,u
-; MC6809-O0-NEXT:    leax d,x
-; MC6809-O0-NEXT:    ldb ,x
+; MC6809-O0-NEXT:    ldb d,x
 ; MC6809-O0-NEXT:    tfr u,s
 ; MC6809-O0-NEXT:    puls u
 ; MC6809-O0-NEXT:    leas 7,s
@@ -113,8 +107,7 @@ define i8 @foo1(i8* nocapture noundef readonly %a, i8 noundef signext %b) #0 {
 ; MC6809-O1-NEXT:    stb 4,u
 ; MC6809-O1-NEXT:    sex
 ; MC6809-O1-NEXT:    std 5,u
-; MC6809-O1-NEXT:    leax d,x
-; MC6809-O1-NEXT:    ldb ,x
+; MC6809-O1-NEXT:    ldb d,x
 ; MC6809-O1-NEXT:    tfr u,s
 ; MC6809-O1-NEXT:    puls u
 ; MC6809-O1-NEXT:    leas 7,s
@@ -128,8 +121,7 @@ define i8 @foo1(i8* nocapture noundef readonly %a, i8 noundef signext %b) #0 {
 ; MC6809-O2-NEXT:    stb 4,u
 ; MC6809-O2-NEXT:    sex
 ; MC6809-O2-NEXT:    std 5,u
-; MC6809-O2-NEXT:    leax d,x
-; MC6809-O2-NEXT:    ldb ,x
+; MC6809-O2-NEXT:    ldb d,x
 ; MC6809-O2-NEXT:    tfr u,s
 ; MC6809-O2-NEXT:    puls u
 ; MC6809-O2-NEXT:    leas 7,s
@@ -143,8 +135,7 @@ define i8 @foo1(i8* nocapture noundef readonly %a, i8 noundef signext %b) #0 {
 ; MC6809-O3-NEXT:    stb 4,u
 ; MC6809-O3-NEXT:    sex
 ; MC6809-O3-NEXT:    std 5,u
-; MC6809-O3-NEXT:    leax d,x
-; MC6809-O3-NEXT:    ldb ,x
+; MC6809-O3-NEXT:    ldb d,x
 ; MC6809-O3-NEXT:    tfr u,s
 ; MC6809-O3-NEXT:    puls u
 ; MC6809-O3-NEXT:    leas 7,s
@@ -160,8 +151,7 @@ define i8 @foo1(i8* nocapture noundef readonly %a, i8 noundef signext %b) #0 {
 ; HD6309-NEXT:    std 5,u
 ; HD6309-NEXT:    ldb 4,u
 ; HD6309-NEXT:    ldd 5,u
-; HD6309-NEXT:    leax d,x
-; HD6309-NEXT:    ldb ,x
+; HD6309-NEXT:    ldb d,x
 ; HD6309-NEXT:    tfr u,s
 ; HD6309-NEXT:    puls u
 ; HD6309-NEXT:    leas 7,s

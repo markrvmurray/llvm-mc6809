@@ -53,8 +53,7 @@ define void @atol_like(ptr %out, ptr %s) {
 ; CHECK-NEXT:    lda #0
 ; CHECK-NEXT:    sta 43,u
 ; CHECK-NEXT:    lda 43,u
-; CHECK-NEXT:    leax d,x
-; CHECK-NEXT:    ldb ,x
+; CHECK-NEXT:    ldb d,x
 ; CHECK-NEXT:    stb 38,u
 ; CHECK-NEXT:    ldd #0
 ; CHECK-NEXT:    stb 36,u
