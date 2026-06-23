@@ -76,6 +76,7 @@ _start:
 	lda	,x+
 	sta	,y+
 	leau	-1,u
+	cmpu	#0
 	bne	.Ldata_loop
 	puls	u
 .Ldata_done:
@@ -136,12 +137,16 @@ _start:
 
 	ldd	#__bss_size
 	beq	.Lbss_done
-	leay	__data_size,u		// Y = U + __data_size = bss start
+	pshs	d			// Save .bss byte count.
+	ldd	#__data_size
+	leay	d,u			// Y = U + __data_size = bss start
+	puls	d			// Restore .bss byte count.
 	pshs	u			// Save process data base.
 	tfr	d,u			// U = byte count
 .Lbss_loop:
 	clr	,y+
 	leau	-1,u
+	cmpu	#0
 	bne	.Lbss_loop
 	puls	u
 .Lbss_done:

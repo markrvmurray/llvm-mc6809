@@ -3,6 +3,7 @@
 // RUN: %run_os9_case %s OS9
 //
 // OS9: LLVM OS-9 global data OK
+// OS9: LLVM OS-9 global data OK
 
 #include <os9.h>
 

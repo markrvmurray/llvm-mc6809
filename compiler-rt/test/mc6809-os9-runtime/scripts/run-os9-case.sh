@@ -46,9 +46,7 @@ cp "$OS9_BOOT_DSK" "$disk"
   printf 'load utilpak1 %s\n' "$case_name"
   printf 'echo * %s *\n' "$case_name"
   printf 'shell %s >>>-%s.out\n' "$case_name" "$case_name"
-  if [ "${OS9_TEST_RUN_TWICE:-0}" = 1 ]; then
-    printf 'shell %s >>>+%s.out\n' "$case_name" "$case_name"
-  fi
+  printf 'shell %s >>>+%s.out\n' "$case_name" "$case_name"
   printf 'echo CIDONE >>>-zzdone.out\n'
 } >"$startup"
 

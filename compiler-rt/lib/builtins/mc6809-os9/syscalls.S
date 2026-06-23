@@ -54,7 +54,10 @@
 	.type	_oserr,@function
 _oserr:
 	clra				// D = OS-9 error byte from B
-	leax	__errno_offset,u
+	pshs	d			// Save errno while computing its U-relative slot.
+	ldd	#__errno_offset
+	leax	d,u
+	puls	d
 	std	,x
 	tfr	d,x			// Direct OS-9 wrappers return errno.
 	rts
@@ -72,7 +75,10 @@ _osret:
 	.type	_os9err,@function
 _os9err:
 	clra				// D = OS-9 error byte from B
-	leax	__errno_offset,u
+	pshs	d			// Save errno while computing its U-relative slot.
+	ldd	#__errno_offset
+	leax	d,u
+	puls	d
 	std	,x
 	ldx	#-1
 	rts
