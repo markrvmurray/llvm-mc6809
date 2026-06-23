@@ -1215,9 +1215,16 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
         // value reg and IX if the consumer / producer used IY or IU;
         // that COPY becomes a TFR (2 bytes) — still smaller than the
         // LEAX-then-indexed pair we avoid (6 bytes total).
+        // The value reg is INDEX16 (IX+IY+spill), NOT IXc (IX-only).
+        // LDXe/STXe physically use $ix (AccReg), and the COPY below bridges
+        // $ix <-> the value reg — but pinning the *value* to IX-only made
+        // pointer-heavy code (e.g. malloc's free-list walk, whose pointers
+        // are all loaded/stored from globals via this fold) keep many values
+        // in a 1-register class at once -> greedy regalloc "ran out of
+        // registers". INDEX16 lets them spill / use IY.
         Opc = IsLoad ? MC6809::LDXe : MC6809::STXe;
         AccReg = MC6809::IX;
-        AccRC = &MC6809::IXcRegClass;
+        AccRC = &MC6809::INDEX16RegClass;
       } else if (!IsDP && ValTy == LLT::scalar(32) && STI.has6309()) {
         // Extended-mode i32 load/store: HD6309 LDQe/STQe in one op.
         Opc = IsLoad ? MC6809::LDQe : MC6809::STQe;
