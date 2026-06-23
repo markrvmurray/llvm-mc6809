@@ -29,24 +29,32 @@
 //        dst: U+0 (process data area base)
 //        n  : __data_size (link-time constant)
 //
-//   2. Zero .bss at U + __data_size
+//   2. Relocate initialized pointers inside the copied .data image.
+//
+//      The .os9_reloc table is emitted by lld for address relocations
+//      whose storage lives in .data.  Each entry patches one copied word:
+//        kind 1: word is a module-body offset; add actual _start address
+//        kind 2: word is a .data image offset; convert to process .data
+//        kind 3: word is a .bss image offset; convert to process .bss
+//
+//   3. Zero .bss at U + __data_size
 //        dst: U + __data_size (= __bss_start)
 //        n  : __bss_size (link-time constant)
 //
-//   3. Save the param-string descriptor across the main() call.  At
+//   4. Save the param-string descriptor across the main() call.  At
 //      this minimal Phase 2 PoC, main() takes (void) — param parsing
 //      will land with the picolibc syscall layer.
 //
-//   4. Call main().  Return value comes back in X; low byte is
+//   5. Call main().  Return value comes back in X; low byte is
 //      the exit status per the C `int main(void)` convention.
 //
-//   5. Exit via F$Exit ($06) — does not return.
+//   6. Exit via F$Exit ($06) — does not return.
 //
 // Both the .data copy and .bss zero loops use simple byte-by-byte
-// LDA/STA with SUBD #1 decrement, BEQ guard at top to skip zero-byte
-// degenerate cases.  No HD6309-only TFM optimisation here — Phase 2
-// stays plain MC6809; a TFM variant can land as a later compiler-rt
-// CPU-tier file (mc6809-os9/hd6309/crt0.S) once the rest is stable.
+// operations with a 16-bit count held temporarily in U.  No HD6309-only
+// TFM optimisation here — Phase 2 stays plain MC6809; a TFM variant can
+// land as a later compiler-rt CPU-tier file (mc6809-os9/hd6309/crt0.S)
+// once the rest is stable.
 //
 //===----------------------------------------------------------------------===//
 
@@ -62,26 +70,83 @@ _start:
 	beq	.Ldata_done		// zero-sized .data: skip the loop entirely
 	leax	__data_image_start,pc	// X = PCR address of .data image in body
 	leay	0,u			// Y = U + 0 (destination = data-area base)
+	pshs	u			// Save process data base.
+	tfr	d,u			// U = byte count
 .Ldata_loop:
 	lda	,x+
 	sta	,y+
-	subd	#1
+	leau	-1,u
 	bne	.Ldata_loop
+	puls	u
 .Ldata_done:
 
-	// --- 2. Zero .bss at U + __data_size --------------------------------
+	// --- 2. Relocate initialized pointers in copied .data ----------------
+
+	ldd	#__os9_reloc_size
+	beq	.Lreloc_done
+	leax	__os9_reloc_start,pc
+.Lreloc_loop:
+	ldb	,x+			// B = relocation kind, 0 = sentinel
+	beq	.Lreloc_done
+	pshs	b
+	ldd	,x++			// D = U-relative offset of word to patch
+	leay	d,u			// Y = address of copied word in process data
+	puls	b
+	cmpb	#1
+	beq	.Lreloc_module
+	cmpb	#2
+	beq	.Lreloc_data
+	cmpb	#3
+	beq	.Lreloc_bss
+	bra	.Lreloc_loop
+
+.Lreloc_module:
+	ldd	,y			// D = module-body offset
+	pshs	x
+	leax	_start,pc		// X = actual module body base
+	leax	d,x
+	tfr	x,d
+	puls	x
+	std	,y
+	bra	.Lreloc_loop
+
+.Lreloc_data:
+	ldd	,y			// D = .data image offset
+	subd	#__data_image_start	// D = process-data offset
+	pshs	x
+	leax	d,u
+	tfr	x,d
+	puls	x
+	std	,y
+	bra	.Lreloc_loop
+
+.Lreloc_bss:
+	ldd	,y			// D = .bss image offset
+	subd	#__bss_image_start
+	addd	#__data_size		// D = process-bss offset
+	pshs	x
+	leax	d,u
+	tfr	x,d
+	puls	x
+	std	,y
+	bra	.Lreloc_loop
+.Lreloc_done:
+
+	// --- 3. Zero .bss at U + __data_size --------------------------------
 
 	ldd	#__bss_size
 	beq	.Lbss_done
 	leay	__data_size,u		// Y = U + __data_size = bss start
-	clra				// A = 0 (zero-fill byte)
+	pshs	u			// Save process data base.
+	tfr	d,u			// U = byte count
 .Lbss_loop:
-	sta	,y+
-	subd	#1
+	clr	,y+
+	leau	-1,u
 	bne	.Lbss_loop
+	puls	u
 .Lbss_done:
 
-	// --- 3-4. Call main() ----------------------------------------------
+	// --- 4-5. Call main() ----------------------------------------------
 	//
 	// Param-string pointer (X) and byte count (D) on entry are NOT
 	// preserved across this call.  Once the picolibc syscall layer
@@ -90,7 +155,7 @@ _start:
 
 	lbsr	main
 
-	// --- 5. Exit via F$Exit --------------------------------------------
+	// --- 6. Exit via F$Exit --------------------------------------------
 	//
 	// main() returned with the exit status in X per the LLVM-MC6809
 	// ABI for `int`.  F$Exit consumes B as the status and never

@@ -97,6 +97,9 @@ for env_name in [
     "OS9_BOOT_DSK",
     "MAME_SECONDS_TO_RUN",
     "MAME_AUTOBOOT_DELAY",
+    "MAME_VISIBLE",
+    "KEEP_OS9_TEST_WORKDIR",
+    "OS9_TEST_RUN_TWICE",
 ]:
     if env_name in os.environ:
         config.environment[env_name] = os.environ[env_name]

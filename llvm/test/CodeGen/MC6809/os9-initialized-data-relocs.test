@@ -1,0 +1,51 @@
+# OS-9 initialized static storage can contain addresses.  The module image
+# cannot know the process data-area base, so lld must emit a runtime relocation
+# table and crt0 must apply it after copying .data.
+
+REQUIRES: mc6809-registered-target
+
+RUN: llvm-mc -triple=mc6809 --filetype=obj \
+RUN:   %S/../../../../compiler-rt/lib/builtins/mc6809-os9/crt0.S -o %t-crt0.o
+
+RUN: echo '        .text'             >  %t.s
+RUN: echo '        .globl main'       >> %t.s
+RUN: echo 'main:'                     >> %t.s
+RUN: echo '        ldx #0'            >> %t.s
+RUN: echo '        rts'               >> %t.s
+RUN: echo ''                          >> %t.s
+RUN: echo '        .rodata'           >> %t.s
+RUN: echo 'ro_msg:'                   >> %t.s
+RUN: echo '        .asciz "ro"'       >> %t.s
+RUN: echo ''                          >> %t.s
+RUN: echo '        .data'             >> %t.s
+RUN: echo '        .globl init_var'   >> %t.s
+RUN: echo 'init_var:'                 >> %t.s
+RUN: echo '        .word 0x1234'      >> %t.s
+RUN: echo 'ptr_data:'                 >> %t.s
+RUN: echo '        .word init_var'    >> %t.s
+RUN: echo 'ptr_bss:'                  >> %t.s
+RUN: echo '        .word bss_var'     >> %t.s
+RUN: echo 'ptr_ro:'                   >> %t.s
+RUN: echo '        .word ro_msg'      >> %t.s
+RUN: echo ''                          >> %t.s
+RUN: echo '        .bss'              >> %t.s
+RUN: echo '        .globl bss_var'    >> %t.s
+RUN: echo 'bss_var:'                  >> %t.s
+RUN: echo '        .zero 2'           >> %t.s
+
+RUN: llvm-mc -triple=mc6809 --filetype=obj %t.s -o %t.o
+RUN: ld.lld -T %S/../../../../compiler-rt/lib/builtins/mc6809-os9/mc6809-os9.lds \
+RUN:   --os9-name=reloc %t-crt0.o %t.o -o %t.os9
+RUN: %S/../../../../tools/os9-module-check %t.os9 | FileCheck %s --check-prefix=VALID
+RUN: xxd -p -c 65536 %t.os9 > %t.hex
+RUN: FileCheck %s --check-prefix=RELOCS < %t.hex
+
+VALID: OK ({{[0-9]+}} bytes)
+VALID: CRC: valid (full CRC = $800FE3)
+
+# Table entries are kind,u16-data-offset:
+#   ptr_data at .data+2 -> kind 2 (add U-relative data base)
+#   ptr_bss  at .data+4 -> kind 3 (add U-relative bss base)
+#   ptr_ro   at .data+6 -> kind 1 (add module body base)
+# followed by a zero sentinel.
+RELOCS: 02000203000401000600
