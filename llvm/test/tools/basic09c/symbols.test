@@ -1,0 +1,88 @@
+# RUN: split-file %s %t
+# RUN: basic09c --analyze-only %t/good.b09
+# RUN: not basic09c --analyze-only %t/dups.b09 2>&1 | FileCheck %s --check-prefix=DUP
+# RUN: not basic09c --analyze-only %t/unknown.b09 2>&1 | FileCheck %s --check-prefix=UNKNOWN
+# RUN: not basic09c --analyze-only %t/missing-label.b09 2>&1 | FileCheck %s --check-prefix=LABEL
+# RUN: not basic09c --analyze-only %t/bad-next.b09 2>&1 | FileCheck %s --check-prefix=FORNEXT
+# RUN: not basic09c --analyze-only %t/unsupported.b09 2>&1 | FileCheck %s --check-prefix=UNSUP
+# RUN: basic09c --dump-symbols %t/good.b09 | FileCheck %s --check-prefix=GOOD
+# RUN: not basic09c --dump-symbols %t/dups.b09 2>&1 | FileCheck %s --check-prefix=DUP
+# RUN: not basic09c --dump-symbols %t/unknown.b09 2>&1 | FileCheck %s --check-prefix=UNKNOWN
+# RUN: not basic09c --dump-symbols %t/unsupported.b09 2>&1 | FileCheck %s --check-prefix=UNSUP --implicit-check-not=Procedure
+
+# GOOD: Type REGISTERS
+# GOOD-NEXT:   Field CC : BYTE
+# GOOD-NEXT:   Field A : BYTE
+# GOOD-NEXT:   Field B : BYTE
+# GOOD-NEXT:   Field DP : BYTE
+# GOOD-NEXT:   Field X : INTEGER
+# GOOD-NEXT:   Field Y : INTEGER
+# GOOD-NEXT:   Field U : INTEGER
+# GOOD-NEXT: Procedure DEMO
+# GOOD-NEXT:   Param P : REGISTERS
+# GOOD-NEXT:   Param COUNT : INTEGER
+# GOOD-NEXT:   Local REL : BYTE[$130]
+# GOOD-NEXT:   Local BOOT : BYTE[$1D0]
+# GOOD-NEXT:   Run HELPER
+# GOOD-NEXT:   Data 1
+# GOOD-NEXT:   Data 2
+# GOOD-NEXT:   Data "THREE"
+# GOOD-NEXT:   Label LN100
+# GOOD-NEXT:   Label LN200
+
+# DUP-DAG: error: line 1: duplicate field 'X'
+# DUP-DAG: error: line 4: duplicate local 'A'
+# DUP-DAG: error: line 7: duplicate label 'LN100'
+# DUP-DAG: error: line 9: duplicate procedure 'DUP'
+
+# UNKNOWN: error: line 2: unknown type 'MISSING' for 'P'
+
+# LABEL: error: line 2: unknown label 'LN999'
+
+# FORNEXT: error: line 5: NEXT variable 'J' does not match FOR variable 'I'
+
+# UNSUP: error: line 2: unsupported statement 'NONSENSE TOKEN'
+
+#--- good.b09
+TYPE registers=cc,a,b,dp:BYTE;x,y,u:INTEGER
+PROCEDURE demo
+PARAM p:registers; count:INTEGER
+DIM rel($130),boot($1D0):BYTE
+RUN helper(count)
+DATA 1,2,"THREE"
+GOTO 200
+100 PRINT count
+200 END
+
+#--- dups.b09
+TYPE pair=x:INTEGER;x:INTEGER
+PROCEDURE dup
+DIM a:INTEGER
+DIM a:REAL
+100 PRINT a
+100 END
+PROCEDURE dup
+END
+
+#--- unknown.b09
+PROCEDURE bad
+DIM p:missing
+END
+
+#--- missing-label.b09
+PROCEDURE badbranch
+GOSUB 999
+100 END
+
+#--- bad-next.b09
+PROCEDURE badnext
+DIM i,j:INTEGER
+FOR i=1 TO 2
+PRINT i
+NEXT j
+END
+
+#--- unsupported.b09
+PROCEDURE unsupported
+nonsense token
+END

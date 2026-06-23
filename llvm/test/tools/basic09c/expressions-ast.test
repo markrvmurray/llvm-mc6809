@@ -1,0 +1,36 @@
+# RUN: split-file %s %t
+# RUN: basic09c --dump-ast %t/input.b09 | FileCheck %s
+
+# CHECK: Assign "A := 1 + 2 * 3 ^ 4" @3
+# CHECK-NEXT: LHS "A" @3
+# CHECK-NEXT: RHS "1 + 2 * 3 ^ 4" @3
+# CHECK-NEXT: Binary "+" @3
+# CHECK-NEXT: Integer "1" @3
+# CHECK-NEXT: Binary "*" @3
+# CHECK-NEXT: Integer "2" @3
+# CHECK-NEXT: Binary "^" @3
+# CHECK-NEXT: Integer "3" @3
+# CHECK-NEXT: Integer "4" @3
+# CHECK: Assign "P.X := LEFT$(NAME$, 2) + STR$(A)" @4
+# CHECK: LHS "P.X" @4
+# CHECK: RHS "LEFT$(NAME$, 2) + STR$(A)" @4
+# CHECK: Binary "+" @4
+# CHECK-NEXT: Call "LEFT$" @4
+# CHECK-NEXT: Var "NAME$" @4
+# CHECK-NEXT: Integer "2" @4
+# CHECK-NEXT: Call "STR$" @4
+# CHECK-NEXT: Var "A" @4
+# CHECK: If "IF NOT P.X(1) >= 10 AND FLAG THEN" @5
+# CHECK-NEXT: Condition "NOT P.X(1) >= 10 AND FLAG" @5
+# CHECK-NEXT: Binary "AND" @5
+# CHECK-NEXT: Unary "NOT" @5
+
+#--- input.b09
+PROCEDURE exprs
+DIM a,flag:INTEGER
+a:=1+2*3^4
+p.x:=LEFT$(name$,2)+STR$(a)
+IF NOT p.x(1)>=10 AND flag THEN
+PRINT a
+ENDIF
+END

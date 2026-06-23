@@ -1,0 +1,77 @@
+# RUN: split-file %s %t
+# RUN: basic09c --syntax-only %t/inline.b09
+# RUN: basic09c --syntax-only %t/procedures.b09
+# RUN: basic09c --syntax-only %t/corpus-style.b09
+# RUN: basic09c --syntax-only %t/next-line-target.b09
+# RUN: basic09c --syntax-only %t/inline-block-if.b09
+# RUN: not basic09c --syntax-only %t/missing-endif.b09 2>&1 | FileCheck %s --check-prefix=ERR
+
+# ERR: error: expected ENDIF
+
+#--- inline.b09
+PROCEDURE inline
+DIM i,total:INTEGER
+IF i=1 THEN total:=total+1
+IF i=2 THEN PRINT "TWO" ELSE PRINT "OTHER"
+EXITIF total>10 THEN ENDEXIT
+END
+
+#--- procedures.b09
+PROCEDURE first
+PRINT "ONE"
+END
+PROCEDURE second
+PARAM p:INTEGER
+100 IF p THEN GOTO 200
+200 RETURN
+END
+
+#--- next-line-target.b09
+PROCEDURE branch
+IF x>0 THEN
+100
+PRINT x
+END
+
+#--- inline-block-if.b09
+PROCEDURE inline_block_if
+IF z<32 THEN b$:=" "
+ELSE
+IF z>57 THEN z:=z+8
+ENDIF
+IF z>90 THEN b$:="*"
+ELSE b$:=CHR$(z)
+ENDIF
+ENDIF
+
+#--- corpus-style.b09
+PROCEDURE kernel_style
+(* https://www.roug.org/retrocomputing/languages/basic/basic09/kernel_style
+TYPE registers=cc,a,b,dp:BYTE;x,y,u:INTEGER
+DIM regs:registers
+DIM rel($130),boot($1D0):BYTE
+DIM files(4):BYTE
+DIM option:INTEGER
+? CHR$(12);"Kernel track editor"
+OPEN #files(4),"kernel.track":UPDATE
+regs.x=ADDR(rel)
+regs.y=SIZE(rel)
+regs.a=files(4)
+RUN syscall($89,regs)
+IF LAND(regs.cc,1)<>0 THEN
+  PRINT "ERROR #";regs.b
+  END
+ENDIF
+IF option=1 THEN
+  CREATE #files(1),"new.track":WRITE
+  PUT #files(1),boot
+ELSE
+  CLOSE #files(4)
+ENDIF
+END
+
+#--- missing-endif.b09
+PROCEDURE bad
+IF 1 THEN
+PRINT "oops"
+END

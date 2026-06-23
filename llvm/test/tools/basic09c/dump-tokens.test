@@ -1,0 +1,38 @@
+# RUN: split-file %s %t
+# RUN: basic09c --dump-tokens %t/input.b09 | FileCheck %s
+# RUN: printf 'DIM a:INTEGER\rDIM b:REAL\r' > %t/cr.b09
+# RUN: basic09c --syntax-only %t/cr.b09
+
+# CHECK: 1:1: identifier "LN100"
+# CHECK-NEXT: 1:6: punctuation ":"
+# CHECK-NEXT: 1:7: newline "\n"
+# CHECK-NEXT: 2:1: identifier "PRINT"
+# CHECK-NEXT: 2:7: string ""hello rem""
+# CHECK-NEXT: 2:19: newline "\n"
+# CHECK-NEXT: 3:1: identifier "DIM"
+# CHECK-NEXT: 3:5: identifier "A$"
+# CHECK-NEXT: 3:7: punctuation ":"
+# CHECK-NEXT: 3:8: identifier "STRING"
+# CHECK-NEXT: 3:14: punctuation "["
+# CHECK-NEXT: 3:15: integer "20"
+# CHECK-NEXT: 3:17: punctuation "]"
+# CHECK-NEXT: 3:19: newline "\n"
+# CHECK-NEXT: 4:1: identifier "A$"
+# CHECK-NEXT: 4:3: punctuation ":="
+# CHECK-NEXT: 4:5: string ""x""
+# CHECK-NEXT: 4:8: newline "\n"
+# CHECK-NEXT: 5:1: identifier "PRINT"
+# CHECK-NEXT: 5:7: identifier "A$"
+# CHECK-NEXT: 5:9: newline "\n"
+# CHECK-NEXT: 6:1: identifier "PRINT"
+# CHECK-NEXT: 6:7: hex-integer "$FF"
+# CHECK-NEXT: 6:10: punctuation "+"
+# CHECK-NEXT: 6:11: real "1.5E-2"
+# CHECK-NEXT: 6:18: newline "\n"
+# CHECK-NEXT: 7:1: eof
+
+#--- input.b09
+100 PRINT "hello rem" REM comment
+dim a$:string[20] (* block comment *)
+a$:="x"\print a$
+print $ff+1.5e-2 // trailing comment

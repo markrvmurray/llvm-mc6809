@@ -1,0 +1,99 @@
+# RUN: split-file %s %t
+# RUN: basic09c --dump-ast %t/input.b09 | FileCheck %s
+
+# CHECK: Run "RUN SYSCALL($89, REGS)" @3
+# CHECK-NEXT: Call "SYSCALL($89, REGS)" @3
+# CHECK-NEXT: Call "SYSCALL" @3
+# CHECK-NEXT: HexInteger "$89" @3
+# CHECK-NEXT: Var "REGS" @3
+# CHECK: Print "PRINT "ERROR #"; REGS.B" @4
+# CHECK-NEXT: Item ""ERROR #"" @4
+# CHECK-NEXT: String ""ERROR #"" @4
+# CHECK-NEXT: Separator ";" @4
+# CHECK-NEXT: Item "REGS.B" @4
+# CHECK-NEXT: Var "REGS" @4
+# CHECK-NEXT: Field "B" @4
+# CHECK: PrintUsing "? USING "S6,H2", "CRC:$", REL($130)" @5
+# CHECK-NEXT: Format ""S6,H2"" @5
+# CHECK-NEXT: String ""S6,H2"" @5
+# CHECK-NEXT: Item ""CRC:$"" @5
+# CHECK-NEXT: String ""CRC:$"" @5
+# CHECK-NEXT: Item "REL($130)" @5
+# CHECK-NEXT: Call "REL" @5
+# CHECK-NEXT: HexInteger "$130" @5
+# CHECK: Input "INPUT "Select:"; OPTION" @6
+# CHECK-NEXT: Prompt ""Select:"" @6
+# CHECK-NEXT: String ""Select:"" @6
+# CHECK-NEXT: Target "OPTION" @6
+# CHECK: Data "DATA 1, 2, "THREE"" @7
+# CHECK-NEXT: Value "1" @7
+# CHECK-NEXT: Integer "1" @7
+# CHECK-NEXT: Value "2" @7
+# CHECK-NEXT: Integer "2" @7
+# CHECK-NEXT: Value ""THREE"" @7
+# CHECK-NEXT: String ""THREE"" @7
+# CHECK: Open "OPEN #FILES(4), "kernel.track": UPDATE" @9
+# CHECK-NEXT: Path "FILES(4)" @9
+# CHECK-NEXT: Call "FILES" @9
+# CHECK-NEXT: Integer "4" @9
+# CHECK-NEXT: FileName ""kernel.track"" @9
+# CHECK-NEXT: String ""kernel.track"" @9
+# CHECK-NEXT: Mode "UPDATE" @9
+# CHECK: Create "CREATE #FILES(1), "new.track": WRITE" @10
+# CHECK-NEXT: Path "FILES(1)" @10
+# CHECK-NEXT: Call "FILES" @10
+# CHECK-NEXT: Integer "1" @10
+# CHECK-NEXT: FileName ""new.track"" @10
+# CHECK-NEXT: String ""new.track"" @10
+# CHECK-NEXT: Mode "WRITE" @10
+# CHECK: WriteFile "WRITE #FILES(1), OPTION, "ok"" @13
+# CHECK-NEXT: Path "FILES(1)" @13
+# CHECK-NEXT: Call "FILES" @13
+# CHECK-NEXT: Integer "1" @13
+# CHECK-NEXT: Value "OPTION" @13
+# CHECK-NEXT: Var "OPTION" @13
+# CHECK-NEXT: Value ""ok"" @13
+# CHECK-NEXT: String ""ok"" @13
+# CHECK: OnGosub "ON OPTION GOSUB 100, 200" @15
+# CHECK-NEXT: Selector "OPTION" @15
+# CHECK-NEXT: Var "OPTION" @15
+# CHECK-NEXT: BranchTarget "LN100" @15
+# CHECK-NEXT: BranchTarget "LN200" @15
+# CHECK: OnErrorGoto "ON ERROR GOTO 200" @16
+# CHECK-NEXT: BranchTarget "LN200" @16
+# CHECK: OnError "ON ERROR" @17
+# CHECK: Poke "POKE $FEE0, PEEK(ADDR(OPTION))" @18
+# CHECK-NEXT: Address "$FEE0" @18
+# CHECK-NEXT: HexInteger "$FEE0" @18
+# CHECK-NEXT: Value "PEEK(ADDR(OPTION))" @18
+# CHECK-NEXT: Call "PEEK" @18
+# CHECK-NEXT: Call "ADDR" @18
+# CHECK-NEXT: Var "OPTION" @18
+# CHECK: Bye "BYE" @25
+
+#--- input.b09
+PROCEDURE io
+DIM files(4):BYTE
+RUN syscall($89,regs)
+PRINT "ERROR #";regs.b
+? USING "S6,H2","CRC:$",rel($130)
+INPUT "Select:";option
+DATA 1,2,"THREE"
+READ option,files(1)
+OPEN #files(4),"kernel.track":UPDATE
+CREATE #files(1),"new.track":WRITE
+GET #files(1),option
+PUT #files(1),rel
+WRITE #files(1),option,"ok"
+SEEK #files(1),0
+ON option GOSUB 100,200
+ON ERROR GOTO 200
+ON ERROR
+POKE $fee0,PEEK(ADDR(option))
+CLOSE #files(1)
+DELETE "old.track"
+CHD "/dd"
+SHELL "dir"
+100 RETURN
+BYE
+200 END

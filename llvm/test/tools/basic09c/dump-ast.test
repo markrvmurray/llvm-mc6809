@@ -1,0 +1,82 @@
+# RUN: split-file %s %t
+# RUN: basic09c --dump-ast %t/input.b09 | FileCheck %s
+# RUN: basic09c --dump-ast %t/inline-endif.b09 | FileCheck %s --check-prefix=ENDIF
+# RUN: basic09c --dump-ast %t/unsupported.b09 | FileCheck %s --check-prefix=UNSUP
+
+# CHECK: Program @1
+# CHECK:   Type "TYPE POINT = X: INTEGER; Y: INTEGER" @1
+# CHECK:   Procedure "PROCEDURE DEMO" @2
+# CHECK:       For "FOR I := 1 TO 3" @5
+# CHECK-NEXT:         Variable "I" @5
+# CHECK-NEXT:         Start "1" @5
+# CHECK-NEXT:           Integer "1" @5
+# CHECK-NEXT:         End "3" @5
+# CHECK-NEXT:           Integer "3" @5
+# CHECK:           If "IF I = 2 THEN" @6
+# CHECK-NEXT:             Condition "I = 2" @6
+# CHECK-NEXT:               Binary "=" @6
+# CHECK-NEXT:                 Var "I" @6
+# CHECK-NEXT:                 Integer "2" @6
+# CHECK:           Assign "TOTAL := TOTAL + I" @11
+# CHECK-NEXT:             LHS "TOTAL" @11
+# CHECK-NEXT:             RHS "TOTAL + I" @11
+# CHECK-NEXT:               Binary "+" @11
+# CHECK-NEXT:                 Var "TOTAL" @11
+# CHECK-NEXT:                 Var "I" @11
+# CHECK:         NextVariable "I" @12
+# CHECK:       While "WHILE TOTAL > 0 DO" @16
+# CHECK-NEXT:         Condition "TOTAL > 0" @16
+# CHECK-NEXT:           Binary ">" @16
+# CHECK-NEXT:             Var "TOTAL" @16
+# CHECK-NEXT:             Integer "0" @16
+# CHECK:           ExitIf "EXITIF TOTAL = 1 THEN" @17
+# CHECK-NEXT:             Condition "TOTAL = 1" @17
+# CHECK-NEXT:               Binary "=" @17
+
+#--- input.b09
+TYPE point=x:INTEGER; y:INTEGER
+PROCEDURE demo
+PARAM p:point
+DIM i,total:INTEGER
+FOR i:=1 TO 3
+IF i=2 THEN
+PRINT USING "I2", i
+ELSE
+PRINT i
+ENDIF
+total:=total+i
+NEXT i
+REPEAT
+total:=total-1
+UNTIL total=0
+WHILE total>0 DO
+EXITIF total=1 THEN
+PRINT "DONE"
+ENDEXIT
+total:=total-1
+ENDWHILE
+LOOP
+EXIT
+ENDLOOP
+DATA 1,2,3
+READ total
+ON total GOSUB 100,200
+100 RETURN
+200 END
+
+# ENDIF: If "IF TOTAL = 3 THEN PRINT "THREE"" @2
+# ENDIF: Print "PRINT "THREE"" @2
+# ENDIF: EndIf "ENDIF" @3
+
+#--- inline-endif.b09
+PROCEDURE inline_endif
+IF total=3 THEN PRINT "THREE"
+ENDIF
+END
+
+# UNSUP: Unsupported "NONSENSE TOKEN" @2
+
+#--- unsupported.b09
+PROCEDURE unsupported
+nonsense token
+END

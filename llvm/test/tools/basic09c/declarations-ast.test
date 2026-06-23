@@ -1,0 +1,44 @@
+# RUN: split-file %s %t
+# RUN: basic09c --dump-ast %t/input.b09 | FileCheck %s
+
+# CHECK: Type "TYPE REGISTERS = CC, A, B, DP: BYTE; X, Y, U: INTEGER; NAME(8): STRING[12]" @1
+# CHECK-NEXT: TypeName "REGISTERS" @1
+# CHECK-NEXT: Field "CC" @1
+# CHECK-NEXT: TypeName "BYTE" @1
+# CHECK: Field "NAME" @1
+# CHECK-NEXT: Bound "8" @1
+# CHECK-NEXT: Integer "8" @1
+# CHECK-NEXT: TypeName "STRING" @1
+# CHECK-NEXT: StringLength "12" @1
+# CHECK-NEXT: Integer "12" @1
+# CHECK: Param "PARAM P: REGISTERS; COUNT: INTEGER" @3
+# CHECK-NEXT: Decl "P" @3
+# CHECK-NEXT: TypeName "REGISTERS" @3
+# CHECK-NEXT: Decl "COUNT" @3
+# CHECK-NEXT: TypeName "INTEGER" @3
+# CHECK: Dim "DIM REL($130), BOOT($1D0): BYTE" @4
+# CHECK-NEXT: Decl "REL" @4
+# CHECK-NEXT: Bound "$130" @4
+# CHECK-NEXT: HexInteger "$130" @4
+# CHECK-NEXT: TypeName "BYTE" @4
+# CHECK-NEXT: Decl "BOOT" @4
+# CHECK-NEXT: Bound "$1D0" @4
+# CHECK-NEXT: HexInteger "$1D0" @4
+# CHECK-NEXT: TypeName "BYTE" @4
+# CHECK: Dim "DIM PROMPT, FILENAMES(4): STRING[256]" @5
+# CHECK: Decl "PROMPT" @5
+# CHECK-NEXT: TypeName "STRING" @5
+# CHECK-NEXT: StringLength "256" @5
+# CHECK-NEXT: Integer "256" @5
+# CHECK: Decl "FILENAMES" @5
+# CHECK-NEXT: Bound "4" @5
+# CHECK-NEXT: Integer "4" @5
+# CHECK-NEXT: TypeName "STRING" @5
+
+#--- input.b09
+TYPE registers=cc,a,b,dp:BYTE;x,y,u:INTEGER;name(8):STRING[12]
+PROCEDURE decls
+PARAM p:registers; count:INTEGER
+DIM rel($130),boot($1D0):BYTE
+DIM prompt,filenames(4):STRING[256]
+END
