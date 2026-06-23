@@ -23,10 +23,10 @@ machine is a laptop running macOS Sequoia.
 To configure and build, try:
 
 ```
-$ cd ~/git/llvm-mc6809
-$ mkdir -p build && cd build
-$ cmake -DCMAKE_BUILD_TYPE=Debug -C ../clang/cmake/caches/MC6809.cmake -G Ninja -S ../llvm -B .
-$ cmake --build . --target all
+cd ~/git/llvm-mc6809
+mkdir -p build && cd build
+cmake -DCMAKE_BUILD_TYPE=Debug -C ../../clang/cmake/caches/MC6809.cmake -G Ninja -S ../../llvm -B .
+cmake --build . --target all
 ```
 You'll need [Ninja](https://ninja-build.org/) and a recent CMake installed; the
 final link step is memory-hungry.
@@ -42,13 +42,13 @@ cross-file, a `picocrt/machine/mc6809/` startup stub, a
 big-endian. Build with:
 
 ```
-$ cd ~/GitHub/picolibc
-$ git checkout mc6809-port
-$ meson setup builddir-mc6809 \
+cd ~/GitHub/picolibc
+git checkout mc6809-port
+meson setup builddir-mc6809 \
     --cross-file scripts/cross-clang-mc6809-unknown-elf.txt \
     -Dmultilib=false -Dsemihost=false -Dfake-semihost=false \
     -Dformat-default=minimal
-$ ninja -C builddir-mc6809
+ninja -C builddir-mc6809
 ```
 
 The cross-file references the LLVM-MC6809 clang/llvm-ar/llvm-nm/llvm-strip
