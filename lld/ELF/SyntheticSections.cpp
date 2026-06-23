@@ -51,6 +51,7 @@ using namespace lld;
 using namespace lld::elf;
 
 using llvm::support::endian::read32le;
+using llvm::support::endian::write16be;
 using llvm::support::endian::write32le;
 using llvm::support::endian::write64le;
 
@@ -223,6 +224,96 @@ BssSection::BssSection(Ctx &ctx, StringRef name, uint64_t size,
                        alignment) {
   this->bss = true;
   this->size = size;
+}
+
+OS9RelocSection::OS9RelocSection(Ctx &ctx)
+    : SyntheticSection(ctx, ".os9_reloc", SHT_PROGBITS, SHF_ALLOC, 1) {}
+
+static bool isOS9RelocSource(const InputSection &sec) {
+  const OutputSection *os = sec.getOutputSection();
+  return os && os->name == ".data";
+}
+
+static bool isOS9PointerReloc(RelType type) {
+  return type == R_MC6809_ADDR_16;
+}
+
+static const OutputSection *getOS9RelocTargetOutputSection(const Symbol &sym) {
+  if (const auto *d = dyn_cast<Defined>(&sym))
+    return d->getOutputSection();
+  return nullptr;
+}
+
+static size_t countOS9RelocEntries(Ctx &ctx) {
+  size_t count = 0;
+  for (InputSectionBase *base : ctx.inputSections) {
+    auto *sec = dyn_cast<InputSection>(base);
+    if (!sec || !sec->isLive() || !isOS9RelocSource(*sec))
+      continue;
+    for (const Relocation &rel : sec->relocs())
+      if (isOS9PointerReloc(rel.type))
+        ++count;
+  }
+  return count;
+}
+
+void OS9RelocSection::buildEntries() const {
+  if (built)
+    return;
+  built = true;
+
+  for (InputSectionBase *base : ctx.inputSections) {
+    auto *sec = dyn_cast<InputSection>(base);
+    if (!sec || !sec->isLive() || !isOS9RelocSource(*sec))
+      continue;
+    for (const Relocation &rel : sec->relocs()) {
+      if (!isOS9PointerReloc(rel.type))
+        continue;
+
+      uint64_t dataOffset = sec->outSecOff + rel.offset;
+      if (dataOffset > 0xffff)
+        Err(ctx) << sec << ": OS-9 data relocation offset exceeds 16 bits";
+
+      const OutputSection *targetOut = getOS9RelocTargetOutputSection(*rel.sym);
+      if (!targetOut || !(targetOut->flags & SHF_ALLOC)) {
+        Err(ctx) << sec->getSrcMsg(*rel.sym, rel.offset)
+                 << ": OS-9 initialized data cannot relocate this target";
+        continue;
+      }
+
+      uint8_t kind = targetOut->name == ".data" ? 2
+                     : targetOut->name == ".bss" ? 3
+                                                  : 1;
+      entries.push_back({kind, static_cast<uint16_t>(dataOffset)});
+    }
+  }
+
+  llvm::sort(entries, [](const Entry &a, const Entry &b) {
+    return a.dataOffset < b.dataOffset || (a.dataOffset == b.dataOffset &&
+                                           a.kind < b.kind);
+  });
+}
+
+void OS9RelocSection::finalizeContents() { buildEntries(); }
+
+bool OS9RelocSection::isNeeded() const {
+  return countOS9RelocEntries(ctx) != 0;
+}
+
+size_t OS9RelocSection::getSize() const {
+  size_t count = built ? entries.size() : countOS9RelocEntries(ctx);
+  return count == 0 ? 0 : count * 3 + 1;
+}
+
+void OS9RelocSection::writeTo(uint8_t *buf) {
+  buildEntries();
+  for (const Entry &entry : entries) {
+    *buf++ = entry.kind;
+    write16be(buf, entry.dataOffset);
+    buf += 2;
+  }
+  if (!entries.empty())
+    *buf = 0;
 }
 
 EhFrameSection::EhFrameSection(Ctx &ctx)
@@ -4517,6 +4608,11 @@ template <class ELFT> void elf::createSyntheticSections(Ctx &ctx) {
   ctx.in.bssRelRo = std::make_unique<BssSection>(
       ctx, hasDataRelRo ? ".data.rel.ro.bss" : ".bss.rel.ro", 0, 1);
   add(*ctx.in.bssRelRo);
+
+  if (ctx.arg.oFormatOS9 && ctx.arg.emachine == EM_MC6809) {
+    ctx.in.os9Reloc = std::make_unique<OS9RelocSection>(ctx);
+    add(*ctx.in.os9Reloc);
+  }
 
   ctx.target->initTargetSpecificSections();
 

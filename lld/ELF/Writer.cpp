@@ -2131,6 +2131,7 @@ template <class ELFT> void Writer<ELFT>::finalizeSections() {
 
     finalizeSynthetic(ctx, ctx.in.bss.get());
     finalizeSynthetic(ctx, ctx.in.bssRelRo.get());
+    finalizeSynthetic(ctx, ctx.in.os9Reloc.get());
     finalizeSynthetic(ctx, ctx.in.symTabShndx.get());
     finalizeSynthetic(ctx, ctx.in.shStrTab.get());
     finalizeSynthetic(ctx, ctx.in.strTab.get());

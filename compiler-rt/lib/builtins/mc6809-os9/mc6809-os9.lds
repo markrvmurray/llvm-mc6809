@@ -23,6 +23,7 @@
  *   .text     — code; first byte MUST be `_start` (so exec offset = 13).
  *   .rodata   — read-only data; lives in the module body, accessed PCR.
  *   .data     — initialised data IMAGE in the body; CRT copies to U+0.
+ *   .os9_reloc — CRT relocation table for pointers inside copied .data.
  *   .bss      — NOLOAD; CRT zeros at U + __data_size.
  *   .runtime  — NOLOAD; private compiler-rt process storage.
  *   .heap     — NOLOAD; reserved after runtime storage for sbrk-style growth.
@@ -87,6 +88,18 @@ SECTIONS {
         __data_image_end = .;
     }
     __data_size = __data_image_end - __data_image_start;
+
+    /*
+     * Runtime relocation records for initialized pointers copied into
+     * process data.  This table remains in the module body and is consumed
+     * by crt0 after copying .data.
+     */
+    .os9_reloc : ALIGN(1) {
+        __os9_reloc_start = .;
+        KEEP(*(.os9_reloc))
+        __os9_reloc_end = .;
+    }
+    __os9_reloc_size = __os9_reloc_end - __os9_reloc_start;
 
     /*
      * .bss is NOLOAD: not in the file, but its size contributes to
