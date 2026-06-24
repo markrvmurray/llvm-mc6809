@@ -4,7 +4,7 @@
  * See https://llvm.org/LICENSE.txt for license information.
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
- * Bug #163 Phase 2: minimal OS-9 syscall surface.
+ * Minimal OS-9 syscall surface.
  *
  * Two name flavors per syscall are exported by the syscalls.S object;
  * the C consumer can use whichever reads more naturally:
@@ -23,10 +23,8 @@
  * you build for a different triple, pass -fdollars-in-identifiers
  * yourself, or use the POSIX-style names exclusively.
  *
- * errno wiring is NOT yet plumbed (Phase 2 PoC scope).  Error returns
- * surface as -1; the actual error code from the SWI2 trap exit is
- * currently discarded.  The picolibc-on-OS9 Phase 4 commit will wire
- * errno from the SWI2 B-register on CC.C=1.
+ * The POSIX-style wrappers return -1 on failure.  The direct _os_* wrappers
+ * return the OS-9 error code itself.
  *
  *===----------------------------------------------------------------------===*/
 
@@ -37,15 +35,25 @@
 extern "C" {
 #endif
 
-/*── POSIX-style names ────────────────────────────────────────────────*/
+/* POSIX-style names. */
 
 void _exit(int __status) __attribute__((__noreturn__));
 
 int  _write(int __fd, const char *__buf, int __n);
 int  _read(int __fd, void *__buf, int __n);
 
+/* Direct OS-9 wrappers.
+ *
+ * The count pointer receives the actual byte count on success.  Return
+ * value is 0 on success, or the OS-9 error code on failure.
+ */
 
-/*── NitrOS-9 native names ────────────────────────────────────────────*
+int  _os_write(int __fd, const void *__buf, int *__countp);
+int  _os_writeln(int __fd, const void *__buf, int *__countp);
+int  _os_read(int __fd, void *__buf, int *__countp);
+int  _os_readln(int __fd, void *__buf, int *__countp);
+
+/* NitrOS-9 native names.
  *
  * The dollar-named decls below require -fdollars-in-identifiers.  The
  * mc6809-unknown-os9 driver auto-enables it; consumers that explicitly

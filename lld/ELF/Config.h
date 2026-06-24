@@ -70,6 +70,7 @@ class PPC64LongBranchTargetSection;
 class PltSection;
 class RelocationBaseSection;
 class RelroPaddingSection;
+class OS9RelocSection;
 class StringTableSection;
 class SymbolTableBaseSection;
 class SymtabShndxSection;
@@ -595,6 +596,7 @@ struct InStruct {
   std::unique_ptr<PPC64LongBranchTargetSection> ppc64LongBranchTarget;
   std::unique_ptr<SyntheticSection> mipsAbiFlags;
   std::unique_ptr<MipsGotSection> mipsGot;
+  std::unique_ptr<OS9RelocSection> os9Reloc;
   std::unique_ptr<SyntheticSection> mipsOptions;
   std::unique_ptr<SyntheticSection> mipsReginfo;
   std::unique_ptr<SyntheticSection> mipsRldMap;

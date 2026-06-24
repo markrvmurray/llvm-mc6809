@@ -197,6 +197,30 @@ public:
   }
 };
 
+// Runtime relocation table for MC6809 OS-9 program modules. Each 3-byte entry
+// patches one initialized pointer copied into the process data area:
+//   byte 0: kind (1 = module body, 2 = .data, 3 = .bss)
+//   byte 1-2: offset within the copied .data area to patch.
+class OS9RelocSection final : public SyntheticSection {
+public:
+  OS9RelocSection(Ctx &);
+  void finalizeContents() override;
+  bool isNeeded() const override;
+  size_t getSize() const override;
+  void writeTo(uint8_t *buf) override;
+
+private:
+  struct Entry {
+    uint8_t kind;
+    uint16_t dataOffset;
+  };
+
+  void buildEntries() const;
+
+  mutable bool built = false;
+  mutable SmallVector<Entry, 0> entries;
+};
+
 class MipsGotSection final : public SyntheticSection {
 public:
   MipsGotSection(Ctx &);

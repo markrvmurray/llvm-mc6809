@@ -42,6 +42,10 @@ public:
   void emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
   bool hasFP(const MachineFunction &MF) const;
 
+  // Computes bytes occupied by callee-saved registers pushed on the hardware
+  // stack outside MachineFrameInfo's modeled stack objects.
+  uint64_t getHardStackCalleeSavedSize(const MachineFunction &MF) const;
+
   // Computes the size of the static stack.
   uint64_t staticSize(const MachineFrameInfo &MFI) const;
 

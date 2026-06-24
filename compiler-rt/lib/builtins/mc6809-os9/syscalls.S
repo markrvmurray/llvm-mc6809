@@ -6,49 +6,98 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// Bug #163 Phase 2: minimal syscall layer.
-//
-// Three core syscalls are landed here; this is enough for printf /
-// putchar / fputs (writes) and getchar / fread from stdin (reads),
-// plus clean process termination.  Follow-up commits will land:
-//
-//   - _sbrk         needs a saved data-area-base; will land with the
-//                   CRT/syscall layer that wires direct-page slots
-//                   reserved for OS-9 runtime state.
-//   - _gettimeofday needs F$Time (returns Y/M/D/H/M/S in a buffer) +
-//                   a Julian-day conversion to UNIX timestamp.
+// Minimal OS-9 syscall layer.
 //
 // LLVM-MC6809 C-ABI summary (per CC_MC6809 / RetCC_MC6809 in
 // MC6809CallingConv.td):
 //
-//   Pointers       → IX (first one)
-//   i16 (non-ptr)  → IX (first one; subsequent → stack)
-//   i8 / i1        → B  (first one; subsequent → stack)
-//   else / spilled → stack at offset N,s after the return address
+//   Pointers       -> IX (first one)
+//   i16 (non-ptr)  -> IX (first one; subsequent -> stack)
+//   i8 / i1        -> B  (first one; subsequent -> stack)
+//   else / spilled -> stack at offset N,s after the return address
 //
-//   Return: i16/ptr → IX,  i8 → B
+//   Return: i16/ptr -> IX,  i8 -> B
 //
-// OS-9 syscall ABI (per llvm/docs/MC6809-OS9.md §A.2):
+// OS-9 syscall ABI (per llvm/docs/MC6809-OS9.md):
 //
-//   Entry registers vary per syscall — see each stub below.
-//   Exit:  CC.C clear = success (return values in registers per call)
-//          CC.C set   = error, errno is in B
+//   Entry registers vary per syscall.
+//   Exit: CC.C clear = success, CC.C set = error with errno in B.
 //
-// errno wiring: NOT yet plumbed.  At this Phase 2 PoC, errors return
-// -1 in X (per picolibc's syscall convention) but the actual error
-// number is discarded.  Picolibc's errno will be wired in the
-// Phase 4 picolibc-on-OS9 commit.
+// Error helper conventions:
+//
+//   _osret/_oserr   Direct OS-9 wrapper convention used by the
+//                   Kreider/CMOC library layer: success returns 0,
+//                   failure returns the OS-9 error code and stores it in
+//                   the per-process runtime errno slot.
+//   _sysret/_os9err POSIX-style C wrapper convention: success returns 0 or
+//                   a syscall-specific value, failure returns -1 and stores
+//                   the OS-9 error code in the runtime errno slot.
 //
 //===----------------------------------------------------------------------===//
+
+	.set	F_Exit,   0x06
+	.set	I_Seek,   0x88
+	.set	I_Read,   0x89
+	.set	I_Write,  0x8A
+	.set	I_ReadLn, 0x8B
+	.set	I_WritLn,0x8C
+	.set	E_EOF,    0xD3
 
 	.section .text,"ax",@progbits
 
 
 //===----------------------------------------------------------------------===//
+// Shared error helpers.
+//===----------------------------------------------------------------------===//
+
+	.globl	_oserr
+	.type	_oserr,@function
+_oserr:
+	clra				// D = OS-9 error byte from B
+	pshs	d			// Save errno while computing its U-relative slot.
+	ldd	#__errno_offset
+	leax	d,u
+	puls	d
+	std	,x
+	tfr	d,x			// Direct OS-9 wrappers return errno.
+	rts
+	.size	_oserr, .-_oserr
+
+	.globl	_osret
+	.type	_osret,@function
+_osret:
+	bcs	_oserr
+	ldx	#0
+	rts
+	.size	_osret, .-_osret
+
+	.globl	_os9err
+	.type	_os9err,@function
+_os9err:
+	clra				// D = OS-9 error byte from B
+	pshs	d			// Save errno while computing its U-relative slot.
+	ldd	#__errno_offset
+	leax	d,u
+	puls	d
+	std	,x
+	ldx	#-1
+	rts
+	.size	_os9err, .-_os9err
+
+	.globl	_sysret
+	.type	_sysret,@function
+_sysret:
+	bcs	_os9err
+	ldx	#0
+	rts
+	.size	_sysret, .-_sysret
+
+
+//===----------------------------------------------------------------------===//
 // void _exit(int status) __attribute__((noreturn))
 //
-//   C-ABI:  status   → X
-//   OS-9:   F$Exit   → B = status byte
+//   C-ABI: status -> X
+//   OS-9:  F$Exit -> B = status byte
 //
 // F$Exit never returns.  We don't bother with the int-return register.
 //===----------------------------------------------------------------------===//
@@ -58,9 +107,8 @@
 _exit:
 	tfr	x,d			// D = status; B is low byte already
 	swi2
-	.byte	0x06			// F$Exit
-	// never reached; trap if it ever returns
-	bra	.
+	.byte	F_Exit			// F$Exit
+	bra	.			// Trap if F$Exit returns.
 	.size	_exit, .-_exit
 
 
@@ -81,12 +129,9 @@ _write:
 	ldx	2,s			// X = buf
 	ldy	4,s			// Y = nbytes
 	swi2
-	.byte	0x8A			// I$Write
-	bcs	.Lwrite_err
-	tfr	y,x			// X = bytes written (return value)
-	rts
-.Lwrite_err:
-	ldx	#-1
+	.byte	I_Write			// I$Write
+	bcs	_os9err
+	tfr	y,x			// X = bytes written
 	rts
 	.size	_write, .-_write
 
@@ -97,7 +142,7 @@ _write:
 //   C-ABI in:   X = fd,  2,s = buf,  4,s = n
 //   OS-9 entry: A = path#,  X = buf,  Y = nbytes
 //   OS-9 exit:  CC.C set = error (B = errno); else Y = bytes read
-//   Return:     X = bytes read (success) or -1 (error)
+//   Return:     X = bytes read (success), 0 on EOF, or -1 (error)
 //===----------------------------------------------------------------------===//
 
 	.globl	_read
@@ -108,14 +153,120 @@ _read:
 	ldx	2,s			// X = buf
 	ldy	4,s			// Y = nbytes
 	swi2
-	.byte	0x89			// I$Read
+	.byte	I_Read			// I$Read
 	bcs	.Lread_err
 	tfr	y,x
 	rts
 .Lread_err:
-	ldx	#-1
+	cmpb	#E_EOF			// EOF is a successful zero-byte read.
+	bne	_os9err
+	ldx	#0
 	rts
 	.size	_read, .-_read
+
+
+//===----------------------------------------------------------------------===//
+// Direct OS-9 I/O helpers from the Kreider/CMOC library shape.
+//
+// int _os_read(int fd, void *buf, int *countp)
+// int _os_readln(int fd, void *buf, int *countp)
+// int _os_write(int fd, const void *buf, int *countp)
+// int _os_writeln(int fd, const void *buf, int *countp)
+//
+//   C-ABI in:   X = fd,  2,s = buf,  4,s = countp
+//   Return:     X = 0 on success, OS-9 error code on failure
+//   Side effect: *countp is updated with the actual byte count on success.
+//
+// These are intentionally the low-level OS-9 convention.  Higher-level
+// POSIX-style wrappers (_read/_write) continue to return byte counts or -1.
+//===----------------------------------------------------------------------===//
+
+	.globl	_os_read
+	.type	_os_read,@function
+_os_read:
+	pshs	y
+	tfr	x,d
+	tfr	b,a			// A = fd
+	ldx	4,s			// X = buf
+	ldy	[6,s]			// Y = requested byte count
+	swi2
+	.byte	I_Read			// I$Read
+	bcs	.Los_read_err
+.Los_read_save:
+	ldx	6,s			// X = countp
+	sty	,x
+	puls	y
+	ldx	#0
+	rts
+.Los_read_err:
+	cmpb	#E_EOF
+	bne	.Los_read_oserr
+	ldy	#0
+	bra	.Los_read_save
+.Los_read_oserr:
+	puls	y
+	lbra	_oserr
+	.size	_os_read, .-_os_read
+
+	.globl	_os_readln
+	.type	_os_readln,@function
+_os_readln:
+	pshs	y
+	tfr	x,d
+	tfr	b,a			// A = fd
+	ldx	4,s			// X = buf
+	ldy	[6,s]			// Y = requested byte count
+	swi2
+	.byte	I_ReadLn		// I$ReadLn
+	bcs	.Los_read_err
+	bra	.Los_read_save
+	.size	_os_readln, .-_os_readln
+
+	.globl	_os_write
+	.type	_os_write,@function
+_os_write:
+	pshs	y
+	ldy	[6,s]			// Y = requested byte count
+	beq	.Los_write_success
+	tfr	x,d
+	tfr	b,a			// A = fd
+	ldx	4,s			// X = buf
+	swi2
+	.byte	I_Write			// I$Write
+	bcs	.Los_write_err
+	ldx	6,s			// X = countp
+	sty	,x
+.Los_write_success:
+	puls	y
+	ldx	#0
+	rts
+.Los_write_err:
+	puls	y
+	lbra	_oserr
+	.size	_os_write, .-_os_write
+
+	.globl	_os_writeln
+	.type	_os_writeln,@function
+_os_writeln:
+	pshs	y
+	ldy	[6,s]			// Y = requested byte count
+	beq	.Los_writeln_success
+	tfr	x,d
+	tfr	b,a			// A = fd
+	ldx	4,s			// X = buf
+	swi2
+	.byte	I_WritLn		// I$WritLn
+	bcs	.Los_writeln_err
+	ldx	6,s			// X = countp
+	sty	,x
+.Los_writeln_success:
+	puls	y
+	ldx	#0
+	rts
+.Los_writeln_err:
+	puls	y
+	lbra	_oserr
+	.size	_os_writeln, .-_os_writeln
 
 
 //===----------------------------------------------------------------------===//

@@ -29,6 +29,7 @@ const struct ModifierEntry {
     {"mc6809_16", MC6809MCExpr::VK_IMM16, true},
     {"mc6809_8", MC6809MCExpr::VK_ADDR8},
     {"mc6809_16", MC6809MCExpr::VK_ADDR16},
+    {"mc6809_os9_data", MC6809MCExpr::VK_OS9_DATA_OFFSET},
 };
 
 } // end of anonymous namespace
@@ -69,7 +70,10 @@ bool MC6809MCExpr::evaluateAsConstant(int64_t &Result) const {
 
 bool MC6809MCExpr::evaluateAsRelocatableImpl(MCValue &Result,
                                           const MCAssembler *Asm) const {
-  return SubExpr->evaluateAsRelocatable(Result, Asm);
+  if (!SubExpr->evaluateAsRelocatable(Result, Asm))
+    return false;
+  Result.setSpecifier(Kind);
+  return true;
 }
 
 int64_t MC6809MCExpr::evaluateAsInt64(int64_t Value) const {
@@ -84,6 +88,7 @@ int64_t MC6809MCExpr::evaluateAsInt64(int64_t Value) const {
     break;
   case MC6809MCExpr::VK_IMM16:
   case MC6809MCExpr::VK_ADDR16:
+  case MC6809MCExpr::VK_OS9_DATA_OFFSET:
     Value &= 0xffff;
     break;
 
@@ -107,6 +112,7 @@ MC6809::Fixups MC6809MCExpr::getFixupKind() const {
     Kind = MC6809::Addr8;
     break;
   case VK_ADDR16:
+  case VK_OS9_DATA_OFFSET:
     Kind = MC6809::Addr16;
     break;
   case VK_NONE:

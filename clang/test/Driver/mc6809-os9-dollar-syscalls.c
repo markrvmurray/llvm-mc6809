@@ -20,6 +20,16 @@ void use_posix(void) {
     _exit(0);
 }
 
+int use_direct(void) {
+    char buf[4];
+    int n = 2;
+    int err = _os_write(1, "hi", &n);
+    err += _os_writeln(1, "hi", &n);
+    err += _os_read(0, buf, &n);
+    err += _os_readln(0, buf, &n);
+    return err;
+}
+
 // 1. Driver passes -fdollars-in-identifiers to cc1 for the OS-9 triple.
 // RUN: %clang -### -target mc6809-unknown-os9 -c %s \
 // RUN:   -I %S/../../../compiler-rt/lib/builtins/mc6809-os9/include 2>&1 \
@@ -40,6 +50,10 @@ void use_posix(void) {
 // REFS-DAG: UND _write
 // REFS-DAG: UND F$Exit
 // REFS-DAG: UND I$Write
+// REFS-DAG: UND _os_write
+// REFS-DAG: UND _os_writeln
+// REFS-DAG: UND _os_read
+// REFS-DAG: UND _os_readln
 
 // 3. The syscalls.S object DEFINES both name flavors at the same
 //    addresses (the .set aliases).
@@ -50,6 +64,14 @@ void use_posix(void) {
 // DEFS-DAG: FUNC{{.+}}I$Write
 // DEFS-DAG: FUNC{{.+}}_read
 // DEFS-DAG: FUNC{{.+}}I$Read
+// DEFS-DAG: FUNC{{.+}}_os_write
+// DEFS-DAG: FUNC{{.+}}_os_writeln
+// DEFS-DAG: FUNC{{.+}}_os_read
+// DEFS-DAG: FUNC{{.+}}_os_readln
+// DEFS-DAG: FUNC{{.+}}_oserr
+// DEFS-DAG: FUNC{{.+}}_osret
+// DEFS-DAG: FUNC{{.+}}_os9err
+// DEFS-DAG: FUNC{{.+}}_sysret
 
 // 4. Linking pulls in syscalls.o cleanly — both call sites resolve.
 //    Override the script's OS-9 default with --oformat=binary; this

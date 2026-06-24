@@ -231,16 +231,9 @@ bool MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int
   if (Offset >= 0)
     Offset += 2; // Skip the saved PC (return address)
 
-  // Compute size of ALL callee-saved registers pushed onto the hard stack.
-  // These sit between the stack allocation and the return address.
-  // Count all CSRs regardless of isTargetSpilled() — the MC6809 backend
-  // pushes all CSRs to the hard stack via PSHS (even those with frame indices).
-  unsigned CalleeSavedSize = 0;
-  for (const auto &CSI : MFI.getCalleeSavedInfo()) {
-    const TargetRegisterInfo *TRI = MF.getRegInfo().getTargetRegisterInfo();
-    const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(CSI.getReg());
-    CalleeSavedSize += TRI->getSpillSize(*RC);
-  }
+  // Account for CSRs pushed on the hardware stack outside MFI's modeled stack.
+  // Soft-stack CSR slots are already included in MFI.getStackSize().
+  unsigned CalleeSavedSize = TFI->getHardStackCalleeSavedSize(MF);
 
   // The frame pointer (U) is set to S AFTER both stack allocation and
   // callee-saved pushes. So the offset from FP to args includes both.

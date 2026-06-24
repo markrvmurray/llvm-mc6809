@@ -7781,7 +7781,12 @@ bool MC6809InstrInfo::reverseBranchCondition(SmallVectorImpl<MachineOperand> &Co
 std::pair<unsigned, unsigned> MC6809InstrInfo::decomposeMachineOperandsTargetFlags(unsigned TF) const { return std::make_pair(TF, 0u); }
 
 ArrayRef<std::pair<unsigned, const char *>> MC6809InstrInfo::getSerializableDirectMachineOperandTargetFlags() const {
-  static const std::pair<unsigned, const char *> Flags[] = {{MC6809::MO_LO, "lo"}, {MC6809::MO_HI, "hi"}, {MC6809::MO_HI_JT, "hi-jt"}};
+  static const std::pair<unsigned, const char *> Flags[] = {
+      {MC6809::MO_LO, "lo"},
+      {MC6809::MO_HI, "hi"},
+      {MC6809::MO_HI_JT, "hi-jt"},
+      {MC6809::MO_OS9_DATA, "os9-data"},
+      {MC6809::MO_OS9_BSS, "os9-bss"}};
   return Flags;
 }
 

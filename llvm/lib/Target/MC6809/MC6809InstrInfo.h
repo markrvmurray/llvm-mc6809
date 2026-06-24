@@ -394,6 +394,8 @@ enum TOF {
   MO_LO,
   MO_HI,
   MO_HI_JT,
+  MO_OS9_DATA,
+  MO_OS9_BSS,
 };
 
 /// emitFrameOffset - Emit instructions as needed to set DestReg to SrcReg
