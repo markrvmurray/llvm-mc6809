@@ -234,6 +234,10 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
 
   getActionDefinitionsBuilder(G_PTR_ADD)
       .legalFor({{p, s16}, {p, s8}})
+      // A direct-page (p1) pointer add is an in-page index that never crosses
+      // the 256-byte page, so lower it to an 8-bit in-page add that keeps the
+      // result p1 (see legalizeCustom). The offset is clamped to s16 first.
+      .customFor({{p1, s16}})
       .clampScalar(1, s16, s16);
 
   // G_PTRMASK (p0, s16): decompose to PTRTOINT + AND + INTTOPTR.
@@ -1256,6 +1260,23 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
     return legalizeExtractInsert(Helper, MRI, MI, LocObserver);
   case G_FCONSTANT:
     return legalizeFConstant(Helper, MRI, MI, LocObserver);
+  case G_PTR_ADD: {
+    // Direct-page (p1) pointer add. A __directpage object lives wholly within
+    // the 256-byte page, so an in-page index never crosses it: do the address
+    // arithmetic in 8 bits and keep the result p1. G_PTRTOINT(p1)->s8 and
+    // G_INTTOPTR(s8)->p1 are legal (equal-size), and an 8-bit G_ADD is legal.
+    Register DstReg = MI.getOperand(0).getReg();
+    Register BaseReg = MI.getOperand(1).getReg();
+    Register OffReg = MI.getOperand(2).getReg();
+    MachineIRBuilder &B = Helper.MIRBuilder;
+    LLT S8 = LLT::scalar(8);
+    auto Base8 = B.buildPtrToInt(S8, BaseReg);
+    auto Off8 = B.buildTrunc(S8, OffReg);
+    auto Sum8 = B.buildAdd(S8, Base8, Off8);
+    B.buildIntToPtr(DstReg, Sum8);
+    MI.eraseFromParent();
+    return true;
+  }
   case G_PTRMASK: {
     // Decompose G_PTRMASK (p0, s16) → PTRTOINT + AND + INTTOPTR.
     Register DstReg = MI.getOperand(0).getReg();

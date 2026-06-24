@@ -1181,8 +1181,74 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
       }
       bool HaveGV = GV && GV->getOpcode() == TargetOpcode::G_GLOBAL_VALUE;
       if (!HaveGV) {
-        if (IsDP)
-          return false; // unsupported p1 addressing form
+        if (IsDP) {
+          // A computed direct-page address — a runtime-indexed __directpage
+          // object. Direct mode needs a constant 8-bit operand, so form the
+          // object's full 16-bit address (the linker-provided direct-page base
+          // __dp_base_addr plus the 8-bit in-page offset) and use ordinary
+          // indexed addressing.
+          Register ValReg = MI.getOperand(0).getReg();
+          LLT ValTy = MRI->getType(ValReg);
+          unsigned MemOpc;
+          const TargetRegisterClass *ValRC;
+          if (ValTy == LLT::scalar(8)) {
+            MemOpc = IsLoad ? MC6809::Load_i8_Mem : MC6809::Store_i8_Mem;
+            ValRC = &MC6809::ACC8RegClass;
+          } else if (ValTy == LLT::scalar(16)) {
+            MemOpc = IsLoad ? MC6809::Load_i16_Mem : MC6809::Store_i16_Mem;
+            ValRC = &MC6809::ACC16RegClass;
+          } else {
+            return false; // only byte/word direct-page objects
+          }
+          MachineBasicBlock &MBB = *MI.getParent();
+          const DebugLoc &DL = MI.getDebugLoc();
+          // Trace the computed p1 address back to its underlying integer (the
+          // 8-bit in-page offset). Sourcing from that leaves the p1
+          // G_INTTOPTR/COPY chain dead — 8-bit index-bank pointers have no
+          // register class — and the selector drops it as trivially dead.
+          Register InPageOff = AddrReg;
+          for (;;) {
+            MachineInstr *D = MRI->getVRegDef(InPageOff);
+            if (!D)
+              break;
+            if (D->isCopy() && D->getOperand(1).getReg().isVirtual()) {
+              InPageOff = D->getOperand(1).getReg();
+              continue;
+            }
+            if (D->getOpcode() == TargetOpcode::G_INTTOPTR) {
+              InPageOff = D->getOperand(1).getReg();
+              continue;
+            }
+            break;
+          }
+          if (MRI->getType(InPageOff) != LLT::scalar(8))
+            return false;
+          // The 8-bit in-page offset, in B to zero-extend.
+          Register Off8 = MRI->createVirtualRegister(&MC6809::ABcRegClass);
+          BuildMI(MBB, MI, DL, TII.get(TargetOpcode::COPY), Off8).addReg(InPageOff);
+          Register Off16 = MRI->createVirtualRegister(&MC6809::ACC16RegClass);
+          auto ZxMIB = BuildMI(MBB, MI, DL, TII.get(MC6809::ZEX16Implicit), Off16)
+                           .addReg(Off8);
+          // The direct-page base address into an index register.
+          Register Base = MRI->createVirtualRegister(&MC6809::INDEX16RegClass);
+          auto BaseMIB = BuildMI(MBB, MI, DL, TII.get(MC6809::Load_iPtr_Imm), Base)
+                             .addExternalSymbol("__dp_base_addr");
+          // Full address = base + in-page offset (LEAX D,X — no ABX).
+          Register Full = MRI->createVirtualRegister(&MC6809::INDEX16RegClass);
+          auto LeaMIB = BuildMI(MBB, MI, DL, TII.get(MC6809::LEAPtrAdd_Reg16), Full)
+                            .addReg(Base)
+                            .addReg(Off16);
+          // Rewrite the load/store as a zero-offset indexed access.
+          MRI->setRegClass(ValReg, ValRC);
+          MI.getOperand(1).setReg(Full);
+          MI.setDesc(TII.get(MemOpc));
+          MI.addOperand(MachineOperand::CreateImm(0));
+          constrainSelectedInstRegOperands(*ZxMIB, TII, TRI, RBI);
+          constrainSelectedInstRegOperands(*BaseMIB, TII, TRI, RBI);
+          constrainSelectedInstRegOperands(*LeaMIB, TII, TRI, RBI);
+          constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
+          return true;
+        }
         // AS==0 without a G_GLOBAL_VALUE producer — fall through to
         // selectImpl which handles indexed addressing via Load_*_Mem.
         goto skip_globalvalue_fold;
@@ -1445,7 +1511,15 @@ skip_globalvalue_fold:
     // model, Lea_iPtr_Sym (LEA{X,Y,U} sym,pc) for PIC/PIE — including read-only
     // OS9 globals, which are PC-reachable within the module. The address is
     // never pinned to IX, so there is no forced COPY/TFR when it wants IY/IU.
-    MI.setDesc(TII.get(MF->getTarget().isPositionIndependent()
+    //
+    // A direct-page (addrspace 1) global is the exception: its value is the
+    // 8-bit in-page offset, which is fixed at link time and so already
+    // position-independent. The PC-relative form would combine the DP-offset
+    // relocation with PCR (garbage), so always use the immediate form for it.
+    const MachineOperand &GVMO = MI.getOperand(1);
+    bool IsDPGlobal = GVMO.isGlobal() &&
+                      GVMO.getGlobal()->getAddressSpace() == MC6809::AS_DirectPage;
+    MI.setDesc(TII.get((MF->getTarget().isPositionIndependent() && !IsDPGlobal)
                            ? MC6809::Lea_iPtr_Sym
                            : MC6809::Load_iPtr_Imm));
     constrainSelectedInstRegOperands(MI, TII, TRI, RBI);

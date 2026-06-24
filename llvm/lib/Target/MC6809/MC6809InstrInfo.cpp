@@ -5840,6 +5840,8 @@ void MC6809InstrInfo::expandLoadImm(MachineIRBuilder &Builder, MachineInstr &MI)
       auto NewMI = Builder.buildInstr(OpcodePair->getSecond()).addDef(RealReg, RegState::Implicit);
       if (ValOp.isGlobal())
         NewMI.addGlobalAddress(ValOp.getGlobal(), ValOp.getOffset(), ValOp.getTargetFlags());
+      else if (ValOp.isSymbol())
+        NewMI.addExternalSymbol(ValOp.getSymbolName(), ValOp.getTargetFlags());
       else {
         int64_t Val = ValOp.isImm() ? ValOp.getImm() : ValOp.getCImm()->getSExtValue();
         NewMI.addImm(Val);
@@ -5904,9 +5906,11 @@ void MC6809InstrInfo::expandLoadImm(MachineIRBuilder &Builder, MachineInstr &MI)
   if (OpcodePair == LoadImmediateOpcode.end())
     llvm_unreachable("Unexpected LoadImm register.");
   auto NewMI = Builder.buildInstr(OpcodePair->getSecond()).addDef(DestRegOp.getReg(), RegState::Implicit);
-  // Preserve the operand type: integer immediate or global address reference.
+  // Preserve the operand type: integer immediate, global, or external symbol.
   if (ValOp.isGlobal())
     NewMI.addGlobalAddress(ValOp.getGlobal(), ValOp.getOffset(), ValOp.getTargetFlags());
+  else if (ValOp.isSymbol())
+    NewMI.addExternalSymbol(ValOp.getSymbolName(), ValOp.getTargetFlags());
   else {
     int64_t Val = ValOp.isImm() ? ValOp.getImm() : ValOp.getCImm()->getSExtValue();
     NewMI.addImm(Val);
