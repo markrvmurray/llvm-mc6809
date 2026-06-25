@@ -126,6 +126,7 @@ private:
   MachineIRBuilder MIB;
 
   // Post-tablegen selection functions. If these return false, it is an error.
+  bool tryFusePostModify(MachineInstr &MI) const;
   bool selectFrameIndex(MachineInstr &MI);
   bool selectMergeValues(MachineInstr &MI);
   bool selectUnMergeValues(MachineInstr &MI);
@@ -815,6 +816,135 @@ static const TargetRegisterClass &getRegClassForTypeOnBank(
   }
   return getRegClassForType(Ty);
 }
+// Fuse `%adv = G_PTR_ADD %base, ±N` with an adjacent same-pointer
+// `Load/Store_i*_Mem(p, 0)` of access-size N into an auto-increment / -decrement
+// post-modify pseudo: *p++ (PostInc: access *base, base += N) and *--p (PreDec:
+// base -= N, access *base). Runs before selectImpl, so the sibling access has
+// already been selected (it is later in program order, hence visited first by
+// the bottom-up selector) and can be safely erased.
+bool MC6809InstructionSelector::tryFusePostModify(MachineInstr &MI) const {
+  struct PM {
+    unsigned Mem, PostInc, PreDec;
+    bool IsLoad;
+    unsigned Size;
+  };
+  static const PM Table[] = {
+      {MC6809::Load_i8_Mem, MC6809::Load_i8_PostInc, MC6809::Load_i8_PreDec, true, 1},
+      {MC6809::Load_i16_Mem, MC6809::Load_i16_PostInc, MC6809::Load_i16_PreDec, true, 2},
+      {MC6809::Load_iPtr_Mem, MC6809::Load_iPtr_PostInc, MC6809::Load_iPtr_PreDec, true, 2},
+      {MC6809::Store_i8_Mem, MC6809::Store_i8_PostInc, MC6809::Store_i8_PreDec, false, 1},
+      {MC6809::Store_i16_Mem, MC6809::Store_i16_PostInc, MC6809::Store_i16_PreDec, false, 2},
+      {MC6809::Store_iPtr_Mem, MC6809::Store_iPtr_PostInc, MC6809::Store_iPtr_PreDec, false, 2},
+  };
+
+  Register Dst = MI.getOperand(0).getReg();
+  Register Base = MI.getOperand(1).getReg();
+  auto COff = getIConstantVRegValWithLookThrough(MI.getOperand(2).getReg(), *MRI);
+  if (!COff)
+    return false;
+  int64_t Off = COff->Value.getSExtValue();
+  bool IsInc = Off > 0;
+  unsigned Size = std::abs((int)Off);
+  if (Size != 1 && Size != 2)
+    return false;
+
+  // Both forms address Base: *p++ accesses Base at offset 0 and advances +size;
+  // *--p accesses Base at offset -size and advances -size (the loop-strength
+  // reducer lowers *--p to Load(p, -size) + p -= size, not Load(p-size, 0)).
+  int64_t AccessOff = IsInc ? 0 : Off;
+  auto Match = [&](MachineInstr *A) -> const PM * {
+    if (!A)
+      return nullptr;
+    for (const PM &E : Table) {
+      if (A->getOpcode() != E.Mem)
+        continue;
+      if (E.Size != Size)
+        return nullptr;
+      if (!A->getOperand(1).isReg() || A->getOperand(1).getReg() != Base)
+        return nullptr;
+      const MachineOperand &OffMO = A->getOperand(2);
+      int64_t OffVal;
+      if (OffMO.isImm())
+        OffVal = OffMO.getImm();
+      else if (OffMO.isCImm())
+        OffVal = OffMO.getCImm()->getSExtValue();
+      else
+        return nullptr;
+      if (OffVal != AccessOff)
+        return nullptr;
+      return &E;
+    }
+    return nullptr;
+  };
+
+  // Find the fusible access by use list (adjacency is unnecessary: the access
+  // stays put and only the pure-arithmetic advance is folded into it). Base's
+  // only non-debug users must be MI and that access.
+  MachineInstr *Access = nullptr;
+  for (MachineInstr &U : MRI->use_nodbg_instructions(Base)) {
+    if (&U == &MI)
+      continue;
+    if (Access)
+      return false;
+    Access = &U;
+  }
+  const PM *E = Match(Access);
+  if (!E)
+    return false;
+
+  // The fused op redefines the advanced pointer Dst at the access site, so no
+  // non-debug instruction between MI and the access may use Dst — otherwise that
+  // use is no longer dominated (e.g. the -O0 va_list pattern stores the advanced
+  // pointer back before the load). Debug uses are fine.
+  if (Access->getParent() != MI.getParent())
+    return false;
+  MachineBasicBlock *BB = MI.getParent();
+  bool AccessAfterMI = false;
+  for (auto It = std::next(MachineBasicBlock::iterator(MI)); It != BB->end(); ++It)
+    if (&*It == Access) {
+      AccessAfterMI = true;
+      break;
+    }
+  auto UsesDstBetween = [&](MachineBasicBlock::iterator From,
+                            MachineBasicBlock::iterator To) {
+    for (auto It = std::next(From); It != BB->end() && It != To; ++It) {
+      if (It->isDebugInstr())
+        continue;
+      for (const MachineOperand &MO : It->operands())
+        if (MO.isReg() && MO.getReg() == Dst)
+          return true;
+    }
+    return false;
+  };
+  if (AccessAfterMI ? UsesDstBetween(MI.getIterator(), Access->getIterator())
+                    : UsesDstBetween(Access->getIterator(), MI.getIterator()))
+    return false;
+
+  unsigned FusedOpc = IsInc ? E->PostInc : E->PreDec;
+  MachineBasicBlock &MBBlk = *Access->getParent();
+  const DebugLoc &DL = Access->getDebugLoc();
+  Register Val = Access->getOperand(0).getReg();
+  MachineInstrBuilder MIB;
+  if (E->IsLoad)
+    MIB = BuildMI(MBBlk, *Access, DL, TII.get(FusedOpc))
+              .addDef(Val)
+              .addDef(Dst)   // ptr_out (tied to ptr_in)
+              .addReg(Base); // ptr_in
+  else
+    MIB = BuildMI(MBBlk, *Access, DL, TII.get(FusedOpc))
+              .addDef(Dst)   // ptr_out (tied to ptr_in)
+              .addReg(Val)   // stored value
+              .addReg(Base); // ptr_in
+  for (MachineMemOperand *MMO : Access->memoperands())
+    MIB.addMemOperand(MMO);
+  MRI->setRegClass(Base, &MC6809::INDEX16RegClass);
+  MRI->setRegClass(Dst, &MC6809::INDEX16RegClass);
+  Access->eraseFromParent();
+  MI.eraseFromParent();
+  constrainSelectedInstRegOperands(*MIB, TII, TRI, RBI);
+  return true;
+}
+
 bool MC6809InstructionSelector::select(MachineInstr &MI) {
   assert(MI.getParent() && "Instruction should be in a basic block!");
   assert(MI.getParent()->getParent() && "Instruction should be in a function!");
@@ -1342,6 +1472,12 @@ skip_globalvalue_fold:
       return true;
     }
   }
+
+  // Fuse a pointer advance with an adjacent same-base load/store into an
+  // auto-increment / auto-decrement access (*p++ / *--p) before selectImpl
+  // turns the G_PTR_ADD into a plain LEA.
+  if (MI.getOpcode() == TargetOpcode::G_PTR_ADD && tryFusePostModify(MI))
+    return true;
 
   if (selectImpl(MI, *CoverageInfo))
     return true;

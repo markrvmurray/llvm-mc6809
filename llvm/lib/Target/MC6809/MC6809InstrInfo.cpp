@@ -3252,6 +3252,26 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::LEAPtrAdd_Reg16:
     expandLEAPtrAdd(Builder, MI);
     break;
+  case MC6809::Load_i8_PostInc:
+  case MC6809::Load_i16_PostInc:
+  case MC6809::Load_iPtr_PostInc:
+    expandLoadPostMod(Builder, MI, /*IsInc=*/true);
+    break;
+  case MC6809::Load_i8_PreDec:
+  case MC6809::Load_i16_PreDec:
+  case MC6809::Load_iPtr_PreDec:
+    expandLoadPostMod(Builder, MI, /*IsInc=*/false);
+    break;
+  case MC6809::Store_i8_PostInc:
+  case MC6809::Store_i16_PostInc:
+  case MC6809::Store_iPtr_PostInc:
+    expandStorePostMod(Builder, MI, /*IsInc=*/true);
+    break;
+  case MC6809::Store_i8_PreDec:
+  case MC6809::Store_i16_PreDec:
+  case MC6809::Store_iPtr_PreDec:
+    expandStorePostMod(Builder, MI, /*IsInc=*/false);
+    break;
   case MC6809::Load_i8_Imm:
   case MC6809::Load_i16_Imm:
   case MC6809::Load_iPtr_Imm:
@@ -6041,6 +6061,70 @@ void MC6809InstrInfo::expandStoreSym(MachineIRBuilder &Builder, MachineInstr &MI
   BuildMI(MBB, MI, MI.getDebugLoc(), get(Opc))
       .add(SymOp)
       .addUse(Src, RegState::Implicit);
+  MI.eraseFromParent();
+}
+
+// The indexed post-modify (,R+ / ,R++ / ,-R / ,--R) opcode for a value in Reg.
+// Element size (1 vs 2) is implied by the register, so Inc1/Dec1 for the 8-bit
+// accumulators and Inc2/Dec2 for the 16-bit ones.
+static unsigned getPostModOpcode(Register Val, bool IsInc, bool IsLoad) {
+  struct Row { unsigned R, LdI, LdD, StI, StD; };
+  static const Row T[] = {
+    {MC6809::AA, MC6809::LDAi_Inc1, MC6809::LDAi_Dec1, MC6809::STAi_Inc1, MC6809::STAi_Dec1},
+    {MC6809::AB, MC6809::LDBi_Inc1, MC6809::LDBi_Dec1, MC6809::STBi_Inc1, MC6809::STBi_Dec1},
+    {MC6809::AE, MC6809::LDEi_Inc1, MC6809::LDEi_Dec1, MC6809::STEi_Inc1, MC6809::STEi_Dec1},
+    {MC6809::AF, MC6809::LDFi_Inc1, MC6809::LDFi_Dec1, MC6809::STFi_Inc1, MC6809::STFi_Dec1},
+    {MC6809::AD, MC6809::LDDi_Inc2, MC6809::LDDi_Dec2, MC6809::STDi_Inc2, MC6809::STDi_Dec2},
+    {MC6809::AW, MC6809::LDWi_Inc2, MC6809::LDWi_Dec2, MC6809::STWi_Inc2, MC6809::STWi_Dec2},
+    {MC6809::IX, MC6809::LDXi_Inc2, MC6809::LDXi_Dec2, MC6809::STXi_Inc2, MC6809::STXi_Dec2},
+    {MC6809::IY, MC6809::LDYi_Inc2, MC6809::LDYi_Dec2, MC6809::STYi_Inc2, MC6809::STYi_Dec2},
+    {MC6809::SU, MC6809::LDUi_Inc2, MC6809::LDUi_Dec2, MC6809::STUi_Inc2, MC6809::STUi_Dec2},
+  };
+  for (const Row &E : T)
+    if (E.R == Val)
+      return IsLoad ? (IsInc ? E.LdI : E.LdD) : (IsInc ? E.StI : E.StD);
+  return 0;
+}
+
+void MC6809InstrInfo::expandLoadPostMod(MachineIRBuilder &Builder, MachineInstr &MI, bool IsInc) const {
+  // Pseudo: outs ($dst value, $ptr_out), in ($ptr_in); $ptr_in == $ptr_out.
+  MachineFunction &MF = *MI.getMF();
+  Register Val = MI.getOperand(0).getReg();
+  Register Ptr = MI.getOperand(2).getReg();
+  // A spilled pointer is staged into a hardware index register (advanced in
+  // place, written back); a spilled value is produced into its hardware
+  // register and stored to its slot. Non-spill operands pass straight through.
+  Register PtrReg = materializeReg(Builder, Ptr, MF);
+  Register ValReg = needsMaterialization(Val) ? getPhysRegFor(Val) : Val;
+  assert(ValReg != PtrReg && "post-modify value/pointer register conflict");
+  unsigned Opc = getPostModOpcode(ValReg, IsInc, /*IsLoad=*/true);
+  assert(Opc && "no post-modify load opcode for value register");
+  // The indexed opcode's $ireg is the pointer; the loaded value is in its
+  // implicit Defs. The index modification is NOT modelled by the opcode, so add
+  // an implicit def of the pointer to keep the advance visible post-expansion.
+  Builder.buildInstr(Opc).addUse(PtrReg).addDef(PtrReg, RegState::Implicit);
+  dematerializeReg(Builder, ValReg, Val, MF);
+  dematerializeReg(Builder, PtrReg, Ptr, MF);
+  MI.eraseFromParent();
+}
+
+void MC6809InstrInfo::expandStorePostMod(MachineIRBuilder &Builder, MachineInstr &MI, bool IsInc) const {
+  // Pseudo: outs ($ptr_out), in ($src value, $ptr_in); $ptr_in == $ptr_out.
+  MachineFunction &MF = *MI.getMF();
+  Register Val = MI.getOperand(1).getReg();
+  Register Ptr = MI.getOperand(2).getReg();
+  Register PtrReg = materializeReg(Builder, Ptr, MF);
+  Register ValReg = materializeReg(Builder, Val, MF);
+  assert(ValReg != PtrReg && "post-modify value/pointer register conflict");
+  unsigned Opc = getPostModOpcode(ValReg, IsInc, /*IsLoad=*/false);
+  assert(Opc && "no post-modify store opcode for value register");
+  // The store opcode models neither the value read nor the index advance, so
+  // add both explicitly: implicit use of the value, implicit def of the pointer.
+  Builder.buildInstr(Opc)
+      .addUse(PtrReg)
+      .addUse(ValReg, RegState::Implicit)
+      .addDef(PtrReg, RegState::Implicit);
+  dematerializeReg(Builder, PtrReg, Ptr, MF);
   MI.eraseFromParent();
 }
 

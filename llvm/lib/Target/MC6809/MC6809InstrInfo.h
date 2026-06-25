@@ -173,6 +173,8 @@ private:
   void expandLoadSym(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandStoreSym(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandLeaSym(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandLoadPostMod(MachineIRBuilder &Builder, MachineInstr &MI, bool IsInc) const;
+  void expandStorePostMod(MachineIRBuilder &Builder, MachineInstr &MI, bool IsInc) const;
   void expandLoadImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandLoad1Imm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   // void expandLDImmRemat(MachineIRBuilder &Builder) const;

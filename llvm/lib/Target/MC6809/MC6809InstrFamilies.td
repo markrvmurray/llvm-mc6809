@@ -242,6 +242,46 @@ defm Store_i8 : MC6809Store<ACC8>;
 defm Store_i16 : MC6809Store<ACC16>;
 defm Store_iPtr : MC6809Store<INDEX16>;
 
+//===----------------------------------------------------------------------===//
+// Post-modify (auto-increment / auto-decrement) Load/Store Family
+//===----------------------------------------------------------------------===//
+//
+// Fused at instruction selection from a Load/Store_*_Mem(p, 0) plus a pointer
+// advance of +/- the access size: *p++ -> PostInc (access *p, then p += N),
+// *--p -> PreDec (p -= N, then access *p). $ptr_out is tied to $ptr_in so the
+// allocator keeps the pointer in one index register across the advance. The
+// post-RA expander emits the ,R+ / ,R++ / ,-R / ,--R indexed encodings.
+
+class MC6809LoadPostMod<RegisterClass dst> : MC6809LogicalInstr {
+  let Defs = [NZ, V];
+  let mayLoad = true;
+  dag OutOperandList = (outs dst:$dst, INDEX16:$ptr_out);
+  dag InOperandList = (ins INDEX16:$ptr_in);
+  let Constraints = "$ptr_in = $ptr_out";
+}
+
+class MC6809StorePostMod<RegisterClass src> : MC6809LogicalInstr {
+  let Defs = [NZ, V];
+  let mayStore = true;
+  dag OutOperandList = (outs INDEX16:$ptr_out);
+  dag InOperandList = (ins src:$src, INDEX16:$ptr_in);
+  let Constraints = "$ptr_in = $ptr_out";
+}
+
+def Load_i8_PostInc   : MC6809LoadPostMod<ACC8>;
+def Load_i8_PreDec    : MC6809LoadPostMod<ACC8>;
+def Load_i16_PostInc  : MC6809LoadPostMod<ACC16>;
+def Load_i16_PreDec   : MC6809LoadPostMod<ACC16>;
+def Load_iPtr_PostInc : MC6809LoadPostMod<INDEX16>;
+def Load_iPtr_PreDec  : MC6809LoadPostMod<INDEX16>;
+
+def Store_i8_PostInc   : MC6809StorePostMod<ACC8>;
+def Store_i8_PreDec    : MC6809StorePostMod<ACC8>;
+def Store_i16_PostInc  : MC6809StorePostMod<ACC16>;
+def Store_i16_PreDec   : MC6809StorePostMod<ACC16>;
+def Store_iPtr_PostInc : MC6809StorePostMod<INDEX16>;
+def Store_iPtr_PreDec  : MC6809StorePostMod<INDEX16>;
+
 // Address of a global with the index register deferred to regalloc, for the
 // PIC/PIE G_GLOBAL_VALUE materialisation (the non-PIC case uses Load_iPtr_Imm's
 // absolute LDX #addr). expandLeaSym emits LEA{X,Y,U} sym,pc for the allocated
