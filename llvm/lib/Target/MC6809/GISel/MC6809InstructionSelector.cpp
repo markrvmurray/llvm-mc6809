@@ -1669,7 +1669,15 @@ skip_globalvalue_fold:
       return false;
     Register AddrReg = MI.getOperand(1).getReg();
     MRI->setRegClass(DstReg, &MC6809::INDEX16RegClass);
-    MRI->setRegClass(AddrReg, &MC6809::INDEX16RegClass);
+    // If the address is a frame index, fold it directly into the load (the
+    // scalar load patterns do this via selectAMIndexedImmOffset). Otherwise a
+    // separate LEA_Ptr_Imm materialises the frame address pointlessly.
+    if (MachineInstr *FI = getOpcodeDef(TargetOpcode::G_FRAME_INDEX, AddrReg, *MRI)) {
+      MI.getOperand(1).ChangeToFrameIndex(FI->getOperand(1).getIndex(),
+                                          FI->getOperand(1).getOffset());
+    } else {
+      MRI->setRegClass(AddrReg, &MC6809::INDEX16RegClass);
+    }
     MI.setDesc(TII.get(MC6809::Load_iPtr_Mem));
     MI.addOperand(MachineOperand::CreateImm(0));
     constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
@@ -1683,7 +1691,13 @@ skip_globalvalue_fold:
       return false;
     Register AddrReg = MI.getOperand(1).getReg();
     MRI->setRegClass(ValReg, &MC6809::INDEX16RegClass);
-    MRI->setRegClass(AddrReg, &MC6809::INDEX16RegClass);
+    // Fold a frame-index address directly into the store, as for G_LOAD above.
+    if (MachineInstr *FI = getOpcodeDef(TargetOpcode::G_FRAME_INDEX, AddrReg, *MRI)) {
+      MI.getOperand(1).ChangeToFrameIndex(FI->getOperand(1).getIndex(),
+                                          FI->getOperand(1).getOffset());
+    } else {
+      MRI->setRegClass(AddrReg, &MC6809::INDEX16RegClass);
+    }
     MI.setDesc(TII.get(MC6809::Store_iPtr_Mem));
     MI.addOperand(MachineOperand::CreateImm(0));
     constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
