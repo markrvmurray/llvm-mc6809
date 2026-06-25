@@ -85,6 +85,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMC6809Target() {
   initializeMC6809ShiftRotateChainPass(PR);
   initializeMC6809DirectPageAllocPass(PR);
   initializeMC6809FoldAddSub16Pass(PR);
+  initializeMC6809FoldCallThroughMemPass(PR);
 }
 
 // MC6809 is big-endian (Motorola byte order).
@@ -305,6 +306,10 @@ void MC6809PassConfig::addMachineSSAOptimization() {
   // native ADDD/SUBD. Runs on selected SSA MIR (only at -O1+), after the
   // generic SSA opts and before register allocation.
   addPass(createMC6809FoldAddSub16Pass());
+  // Fold an invariant function-pointer load into the indirect call that uses it
+  // (jsr [n,r]), freeing the index register the pointer would otherwise occupy
+  // across the call. Runs on selected SSA MIR before register allocation.
+  addPass(createMC6809FoldCallThroughMemPass());
 }
 
 void MC6809PassConfig::addOptimizedRegAlloc() {

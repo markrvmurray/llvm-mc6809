@@ -3285,6 +3285,9 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::Load_iPtr_Mem:
     expandLoadIdx(Builder, MI);
     break;
+  case MC6809::JSR_iPtr_Mem:
+    expandJsrIdx(Builder, MI);
+    break;
   case MC6809::Load_i8_Sym:
   case MC6809::Load_i16_Sym:
   case MC6809::Load_i32_Sym:
@@ -6125,6 +6128,30 @@ void MC6809InstrInfo::expandStorePostMod(MachineIRBuilder &Builder, MachineInstr
       .addUse(ValReg, RegState::Implicit)
       .addDef(PtrReg, RegState::Implicit);
   dematerializeReg(Builder, PtrReg, Ptr, MF);
+  MI.eraseFromParent();
+}
+
+void MC6809InstrInfo::expandJsrIdx(MachineIRBuilder &Builder, MachineInstr &MI) const {
+  // Pseudo: ins (idx base, offset imm), then the call's regmask + implicits.
+  // After PEI the frame-index base is resolved to U/S plus a concrete offset.
+  // Pick the indirect JSR opcode by the resolved offset width and emit it in the
+  // indexed-indirect operand order (offset, base) — note this is the reverse of
+  // the (base, offset) order the pseudo carried (which matched Load_iPtr_Mem so
+  // eliminateFrameIndex could resolve the frame index). There is no 5-bit
+  // indirect mode, so small offsets use the 8-bit form.
+  Register Base = MI.getOperand(0).getReg();
+  int64_t Offset = MI.getOperand(1).getImm();
+  unsigned Opc = Offset == 0      ? MC6809::JSRi_o0I
+                 : isInt<8>(Offset) ? MC6809::JSRi_o8I
+                                    : MC6809::JSRi_o16I;
+  MachineInstrBuilder MIB = Builder.buildInstr(Opc);
+  if (Opc != MC6809::JSRi_o0I)
+    MIB.addImm(Offset);
+  MIB.addReg(Base);
+  // Carry the call's register mask and implicit argument/clobber operands
+  // (everything after the base + offset).
+  for (unsigned I = 2, E = MI.getNumOperands(); I < E; ++I)
+    MIB.add(MI.getOperand(I));
   MI.eraseFromParent();
 }
 

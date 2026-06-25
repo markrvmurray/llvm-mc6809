@@ -242,6 +242,21 @@ defm Store_i8 : MC6809Store<ACC8>;
 defm Store_i16 : MC6809Store<ACC16>;
 defm Store_iPtr : MC6809Store<INDEX16>;
 
+// Indirect-through-memory call, fused pre-RA from a Load_iPtr_Mem whose loaded
+// function pointer is used only by indirect JSRi_o0 calls (e.g. qsort's
+// comparator argument). The pointer is read from [idx + offset] as part of the
+// call (MC6809 `jsr [n,r]`), so the separate register load is removed and no
+// index register is tied up across the call. The addressing operands mirror
+// Load_iPtr_Mem (idx, offset) so eliminateFrameIndex resolves a frame-index
+// base; expandJsrIdx then selects the JSRi_*I indirect opcode by the resolved
+// offset width. The call's register mask and implicit argument/clobber operands
+// are appended at fusion time.
+let isCall = true, mayLoad = true in
+def JSR_iPtr_Mem : MC6809LogicalInstr {
+  dag OutOperandList = (outs);
+  dag InOperandList = (ins INDEX16:$idx, unknown:$offset);
+}
+
 //===----------------------------------------------------------------------===//
 // Post-modify (auto-increment / auto-decrement) Load/Store Family
 //===----------------------------------------------------------------------===//
