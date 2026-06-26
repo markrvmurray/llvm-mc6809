@@ -388,7 +388,13 @@ MachineBasicBlock *MC6809InstrInfo::getBB(const MachineBasicBlock::instr_iterato
 
 Register MC6809InstrInfo::isLoadFromStackSlot(const MachineInstr &MI, int &FrameIndex) const {
   SmallVector<const MachineMemOperand *, 1> Accesses;
-  if (MI.mayLoad() && hasLoadFromStackSlot(MI, Accesses) && Accesses.size() == 1) {
+  // A compare/branch may read memory (e.g. Compare_ptr_Mem / CompareBranch_ptr_Mem,
+  // a pointer compared against a frame slot) but does not load a value into
+  // operand 0 — its operand 0 is the CCond def or the condition immediate, not
+  // the loaded register. Only a genuine load defines its loaded value there.
+  if (MI.mayLoad() && !MI.isCompare() && !MI.isBranch() &&
+      MI.getNumOperands() > 0 && MI.getOperand(0).isReg() &&
+      hasLoadFromStackSlot(MI, Accesses) && Accesses.size() == 1) {
     FrameIndex = cast<FixedStackPseudoSourceValue>(Accesses.front()->getPseudoValue())->getFrameIndex();
     return MI.getOperand(0).getReg();
   }
@@ -3633,6 +3639,8 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::CompareBranch_i8_Pull:
   case MC6809::CompareBranch_i16_Pull:
   case MC6809::CompareBranch_ptr_Imm: // Bug #359: index-domain pointer compare.
+  case MC6809::CompareBranch_ptr_Reg: // index-domain reg-reg pointer compare.
+  case MC6809::CompareBranch_ptr_Mem: // index-domain pointer-vs-memory compare.
     expandFusedCompareBranch(Builder, MI);
     break;
   case MC6809::CompareBranch_i32_Imm: {
@@ -7745,7 +7753,21 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
   // uses below — it works for the general non-SameHalf case too, just
   // costs one stack round-trip.  pickCmpO8O16 (defined further down)
   // picks the right CMPx variant for Src2's physreg.
-  if (!SameHalf && STI.has6309()) {
+  //
+  // An INDEX spill operand must NOT be materialized into a hardware index
+  // register here: MaterializeSpills deliberately leaves the second of
+  // two distinct index spills as a SPILL_X for the register-vs-slot path
+  // below (CMPY off,u), because materializing it into IX/IY would clobber
+  // whatever live value already occupies that register (e.g. a NULL
+  // return pointer held in IX across the compare). Loading a spill into
+  // IX here silently destroyed that value. So for the pointer compare,
+  // when a source is still a spill, fall through to the isSpillReg paths,
+  // which read it from its U-relative slot and touch only the other
+  // operand's register. (Accumulator compares are unaffected: their D
+  // spill is materialized with a D save/restore by MaterializeSpills.)
+  bool PtrSpill = MI.getOpcode() == MC6809::Compare_ptr_Reg &&
+                  (isSpillReg(Src1) || isSpillReg(Src2));
+  if (!SameHalf && STI.has6309() && !PtrSpill) {
     if (needsMaterialization(Src1)) Src1 = materializeReg(Builder, Src1, MF);
     if (needsMaterialization(Src2)) Src2 = materializeReg(Builder, Src2, MF);
     Builder.buildInstr(MC6809::CMPRp).addUse(Src1).addUse(Src2);
@@ -8135,6 +8157,8 @@ void MC6809InstrInfo::expandFusedCompareBranch(MachineIRBuilder &Builder, Machin
   case MC6809::CompareBranch_i8_Pull:  CmpOpc = MC6809::Compare_i8_Pull; break;
   case MC6809::CompareBranch_i16_Pull: CmpOpc = MC6809::Compare_i16_Pull; break;
   case MC6809::CompareBranch_ptr_Imm:  CmpOpc = MC6809::Compare_ptr_Imm; break; // Bug #359
+  case MC6809::CompareBranch_ptr_Reg:  CmpOpc = MC6809::Compare_ptr_Reg; break;
+  case MC6809::CompareBranch_ptr_Mem:  CmpOpc = MC6809::Compare_ptr_Mem; break;
   default: llvm_unreachable("Unknown fused compare-branch opcode");
   }
 

@@ -192,6 +192,27 @@ static bool needsSecondAccSpillSkip(unsigned Opcode) {
   }
 }
 
+/// The INDEX analog of needsSecondAccSpillSkip. Reg-reg index compares whose
+/// expansion (expandCompareReg) has a register-vs-spill fallback — PSHS one
+/// operand + CMPx ,s++, or CMPx off,$su against the slot. For these, a second
+/// distinct SPILL_X operand (or a SPILL_X that would materialise into IY while a
+/// live IY operand of the same compare occupies it) must be LEFT as a spill
+/// register so the expansion reads it from its slot. Otherwise both operands
+/// stage through IY (getRealReg → IY for every SPILL_X) and the second load
+/// clobbers the first, collapsing the compare to "$iy,$iy" (a value compared to
+/// itself). The index-IMMEDIATE compares (Compare_ptr_Imm / CompareBranch_ptr_Imm)
+/// are deliberately excluded: their expansion has no U-relative fallback
+/// (Bug #359), so their single SPILL_X must materialise into IY.
+static bool needsSecondIndexSpillSkip(unsigned Opcode) {
+  switch (Opcode) {
+  case MC6809::Compare_ptr_Reg:
+  case MC6809::CompareBranch_ptr_Reg:
+    return true;
+  default:
+    return false;
+  }
+}
+
 /// Get the real register to use for materialization.
 static Register getRealReg(Register SpillReg) {
   if (isIndexSpillReg(SpillReg))
@@ -1283,7 +1304,9 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
       // spill_d1 as `adcb d1+1,u; adca d1+0,u`. No clash.
       SmallVector<std::pair<unsigned, Register>, 4> SpillOps;
       const bool NeedsAccSpillSkip = needsSecondAccSpillSkip(MI.getOpcode());
+      const bool NeedsIndexSpillSkip = needsSecondIndexSpillSkip(MI.getOpcode());
       llvm::SmallSet<Register, 4> SeenAccSpillsForSkip;
+      llvm::SmallSet<Register, 4> SeenIndexSpillsForSkip;
       for (unsigned I = 0; I < MI.getNumOperands(); ++I) {
         MachineOperand &MO = MI.getOperand(I);
         if (!MO.isReg() || !MO.getReg().isPhysical() ||
@@ -1333,6 +1356,37 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
               // the verifier skips its liveness check; ExpandPostRAPseudo
               // still reads the SPILL_* reg identity to compute the
               // U-relative offset, so codegen is unaffected.
+              if (MO.isUse())
+                MO.setIsUndef(true);
+              continue;
+            }
+          } else if (PhysCollision) {
+            if (MO.isUse())
+              MO.setIsUndef(true);
+            continue;
+          }
+        }
+        // INDEX analog: every SPILL_X materialises into IY, so a second
+        // distinct SPILL_X — or one whose IY would clobber a live IY operand
+        // of this same compare — is left for expandCompareReg's register-vs-
+        // spill path instead of being staged into IY (which would collapse the
+        // compare to "$iy,$iy"). See needsSecondIndexSpillSkip.
+        if (NeedsIndexSpillSkip && isIndexSpillReg(MO.getReg())) {
+          Register RealReg = getRealReg(MO.getReg()); // IY
+          bool PhysCollision = false;
+          for (unsigned J = 0; J < MI.getNumOperands(); ++J) {
+            if (J == I) continue;
+            const MachineOperand &OtherMO = MI.getOperand(J);
+            if (!OtherMO.isReg() || !OtherMO.getReg().isPhysical()) continue;
+            if (isAnySpillReg(OtherMO.getReg())) continue;
+            if (TRI.regsOverlap(OtherMO.getReg(), RealReg)) {
+              PhysCollision = true;
+              break;
+            }
+          }
+          if (!SeenIndexSpillsForSkip.contains(MO.getReg())) {
+            SeenIndexSpillsForSkip.insert(MO.getReg());
+            if (SeenIndexSpillsForSkip.size() > 1 || PhysCollision) {
               if (MO.isUse())
                 MO.setIsUndef(true);
               continue;

@@ -1059,6 +1059,18 @@ defm CompareBranch_i16 : MC6809CompareBranch<i16, ACC16>;
 // immediate form: register/memory pointer compares are rare and the _Reg /
 // _Pull forms have no Push_ptr / index reg-reg compare on base MC6809.
 def CompareBranch_ptr_Imm : MC6809CompareBranchBase<INDEX16, (ins i16imm:$imm)>;
+// Index-domain fused compare-branch of two pointers. Keeps both pointers in
+// index registers so the compare is HD6309 CMPR X,Y (copy-free) or, on base
+// 6809, PSHS one + CMPX ,S++ — either way avoiding the bank-cross transfer to
+// D that an accumulator-bank reg-reg compare of two pointers would force.
+def CompareBranch_ptr_Reg : MC6809CompareBranchBase<INDEX16, (ins INDEX16:$src2)>;
+// Index-domain fused compare-branch of a pointer against a memory operand.
+// foldMemoryOperandImpl folds a spilled CompareBranch_ptr_Reg operand into this
+// form (CMPX/CMPY off,r vs the spill slot) so the compare needs only one index
+// register — avoiding the two-index-register pressure of CMPR that otherwise
+// reloads both spilled operands through the single IY staging register.
+let mayLoad = true in
+def CompareBranch_ptr_Mem : MC6809CompareBranchBase<INDEX16, (ins INDEX16:$idx, unknown:$offset)>;
 
 // Bug #301 Phase D step 3.1 (2026-05-16 night): native HD6309 i32
 // compare-and-branch fused pseudo.  Single MachineInstr covering
@@ -1322,17 +1334,32 @@ let Predicates = [IsHD6309] in {
 // Fused Compare/Branch Patterns
 //===----------------------------------------------------------------------===//
 
-multiclass MC6809CompBraPat<CondCode CC, int cc, ValueType vtype, RegisterClass reg> {
-  def _Imm : Pat<(brcond (i1 (setcc reg:$src, imm:$val, CC)), bb:$tgt), (!cast<Instruction>("CompareBranch_"#vtype#"_Imm") cc, reg:$src, imm:$val, bb:$tgt)>;
-  def _Idx_Imm : Pat<(brcond (i1 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), bb:$tgt), (!cast<Instruction>("CompareBranch_"#vtype#"_Mem") cc, reg:$src, INDEX16:$idx, i16imm:$offset, bb:$tgt)>;
-  def _Unmerge_Idx_Imm : Pat<(brcond (i1 (setcc reg:$src, (am_unmerge_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), bb:$tgt), (!cast<Instruction>("CompareBranch_"#vtype#"_Mem") cc, reg:$src, INDEX16:$idx, imm:$offset, bb:$tgt)>;
-  def _Idx_Reg8 : Pat<(brcond (i1 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC8:$offset), CC)), bb:$tgt), (!cast<Instruction>("CompareBranch_"#vtype#"_Mem") cc, reg:$src, INDEX16:$idx, ACC8:$offset, bb:$tgt)>;
-  def _Idx_Reg16 : Pat<(brcond (i1 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC16:$offset), CC)), bb:$tgt), (!cast<Instruction>("CompareBranch_"#vtype#"_Mem") cc, reg:$src, INDEX16:$idx, ACC16:$offset, bb:$tgt)>;
-  let Predicates = [IsHD6309] in {
-    def _Reg : Pat<(brcond (i1 (setcc reg:$src, reg:$src2, CC)), bb:$tgt), (!cast<Instruction>("CompareBranch_"#vtype#"_Reg") cc, reg:$src, reg:$src2, bb:$tgt)>;
-  }
-  let Predicates = [NotHD6309] in {
-    def _Push_Pull : Pat<(brcond (i1 (setcc reg:$src, reg:$src2, CC)), bb:$tgt), (!cast<Instruction>("CompareBranch_"#vtype#"_Pull") cc, reg:$src, (!cast<Instruction>("Push_"#vtype) reg:$src2), bb:$tgt)>;
+multiclass MC6809CompBraPat<CondCode CC, int cc, ValueType vtype, RegisterClass reg, bit IsIndex = 0> {
+  if !eq(IsIndex, 0) then {
+    def _Imm : Pat<(brcond (i1 (setcc reg:$src, imm:$val, CC)), bb:$tgt), (!cast<Instruction>("CompareBranch_"#vtype#"_Imm") cc, reg:$src, imm:$val, bb:$tgt)>;
+    def _Idx_Imm : Pat<(brcond (i1 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), bb:$tgt), (!cast<Instruction>("CompareBranch_"#vtype#"_Mem") cc, reg:$src, INDEX16:$idx, i16imm:$offset, bb:$tgt)>;
+    def _Unmerge_Idx_Imm : Pat<(brcond (i1 (setcc reg:$src, (am_unmerge_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), bb:$tgt), (!cast<Instruction>("CompareBranch_"#vtype#"_Mem") cc, reg:$src, INDEX16:$idx, imm:$offset, bb:$tgt)>;
+    def _Idx_Reg8 : Pat<(brcond (i1 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC8:$offset), CC)), bb:$tgt), (!cast<Instruction>("CompareBranch_"#vtype#"_Mem") cc, reg:$src, INDEX16:$idx, ACC8:$offset, bb:$tgt)>;
+    def _Idx_Reg16 : Pat<(brcond (i1 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC16:$offset), CC)), bb:$tgt), (!cast<Instruction>("CompareBranch_"#vtype#"_Mem") cc, reg:$src, INDEX16:$idx, ACC16:$offset, bb:$tgt)>;
+    let Predicates = [IsHD6309] in {
+      def _Reg : Pat<(brcond (i1 (setcc reg:$src, reg:$src2, CC)), bb:$tgt), (!cast<Instruction>("CompareBranch_"#vtype#"_Reg") cc, reg:$src, reg:$src2, bb:$tgt)>;
+    }
+    let Predicates = [NotHD6309] in {
+      def _Push_Pull : Pat<(brcond (i1 (setcc reg:$src, reg:$src2, CC)), bb:$tgt), (!cast<Instruction>("CompareBranch_"#vtype#"_Pull") cc, reg:$src, (!cast<Instruction>("Push_"#vtype) reg:$src2), bb:$tgt)>;
+    }
+  } else {
+    // Index/pointer compare-branch. Prefer folding a memory operand into the
+    // compare's own addressing mode (CMPX/CMPY off,r) — set up here at ISel so
+    // that operand never needs its own index register, keeping later register
+    // pressure low. Only when BOTH operands are live registers does it become
+    // CompareBranch_ptr_Reg (CMPR X,Y on HD6309, PSHS one + CMPX ,s++ on base
+    // 6809 via expandCompareReg) — one form for both CPUs, no _Pull.
+    def _Idx_Imm : Pat<(brcond (i1 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), bb:$tgt), (CompareBranch_ptr_Mem cc, reg:$src, INDEX16:$idx, i16imm:$offset, bb:$tgt)>;
+    def _Unmerge_Idx_Imm : Pat<(brcond (i1 (setcc reg:$src, (am_unmerge_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), bb:$tgt), (CompareBranch_ptr_Mem cc, reg:$src, INDEX16:$idx, imm:$offset, bb:$tgt)>;
+    def _Idx_Reg8 : Pat<(brcond (i1 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC8:$offset), CC)), bb:$tgt), (CompareBranch_ptr_Mem cc, reg:$src, INDEX16:$idx, ACC8:$offset, bb:$tgt)>;
+    def _Idx_Reg16 : Pat<(brcond (i1 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC16:$offset), CC)), bb:$tgt), (CompareBranch_ptr_Mem cc, reg:$src, INDEX16:$idx, ACC16:$offset, bb:$tgt)>;
+    def _Reg : Pat<(brcond (i1 (setcc reg:$src, reg:$src2, CC)), bb:$tgt),
+                   (CompareBranch_ptr_Reg cc, reg:$src, reg:$src2, bb:$tgt)>;
   }
 }
 
@@ -1347,6 +1374,10 @@ multiclass MC6809CompBraCondPat<CondCode CC, int ccode> {
   // can't express an i16-typed operand with a ptr-named instruction.
   def _ptr_Imm : Pat<(brcond (i1 (setcc INDEX16:$src, imm:$val, CC)), bb:$tgt),
                      (CompareBranch_ptr_Imm ccode, INDEX16:$src, imm:$val, bb:$tgt)>;
+  // Index-domain pointer compare-branch, register RHS: keeps both pointers in
+  // the index bank instead of bank-crossing into D. IsIndex=1 selects the
+  // CompareBranch_ptr_Reg form (vtype is unused in that path).
+  defm _ptr : MC6809CompBraPat<CC, ccode, i16, INDEX16, /*IsIndex=*/1>;
 }
 
 defm CompBraPat_HI : MC6809CompBraCondPat<SETUGT, 2>;
