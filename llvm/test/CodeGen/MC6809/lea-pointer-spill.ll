@@ -60,23 +60,21 @@ define void @fold_through_y(i16 %v, i16 %w) {
 ;
 ; O2-LABEL: fold_through_y:
 ; O2:       ; %bb.0: ; %entry
-; O2-NEXT:    leas -16,s
-; O2-NEXT:    pshs u
+; O2-NEXT:    leas -14,s
+; O2-NEXT:    pshs u,y
 ; O2-NEXT:    tfr s,u
 ; O2-NEXT:    ldd 20,u
-; O2-NEXT:    stx 6,u
-; O2-NEXT:    leax 8,u
-; O2-NEXT:    std 4,u
-; O2-NEXT:    ldd 6,u
-; O2-NEXT:    std 8,u
-; O2-NEXT:    ldd 4,u
-; O2-NEXT:    std 2,x
-; O2-NEXT:    ldd 6,u
-; O2-NEXT:    std 4,x
+; O2-NEXT:    leay 8,u
+; O2-NEXT:    sty 6,u
+; O2-NEXT:    stx 8,u
+; O2-NEXT:    std 2,y
+; O2-NEXT:    ldy 6,u
+; O2-NEXT:    stx 4,y
+; O2-NEXT:    ldx 6,u
 ; O2-NEXT:    lbsr sink
 ; O2-NEXT:    tfr u,s
-; O2-NEXT:    puls u
-; O2-NEXT:    leas 16,s
+; O2-NEXT:    puls u,y
+; O2-NEXT:    leas 14,s
 ; O2-NEXT:    rts
 entry:
   %a = alloca [4 x i16], align 1

@@ -281,8 +281,7 @@ define i1 @ult_i64_zext_i16(i64 %a, i16 %b) {
 ; O2-NEXT:    std 2,s
 ; O2-NEXT:    ldd 14,u
 ; O2-NEXT:    std ,s
-; O2-NEXT:    tfr x,d
-; O2-NEXT:    std 14,s
+; O2-NEXT:    stx 14,s
 ; O2-NEXT:    ldd #0
 ; O2-NEXT:    std 12,s
 ; O2-NEXT:    std 10,s

@@ -401,8 +401,7 @@ define i1 @ne_i32_zext_i16(i32 %a, i16 %b) {
 ; O2-NEXT:    std 2,s
 ; O2-NEXT:    ldd 10,u
 ; O2-NEXT:    std ,s
-; O2-NEXT:    tfr x,d
-; O2-NEXT:    std 6,s
+; O2-NEXT:    stx 6,s
 ; O2-NEXT:    ldd #0
 ; O2-NEXT:    std 4,s
 ; O2-NEXT:    leay 12,u
