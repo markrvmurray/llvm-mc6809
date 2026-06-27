@@ -2279,6 +2279,38 @@ bool MC6809LegalizerInfo::legalizeShiftRotate(LegalizerHelper &Helper, MachineRe
   // compiler-rt/lib/builtins/mc6809/ (__ashlhi3, __ashrhi3, __lshrhi3,
   // __ashlsi3, __ashrsi3, __lshrsi3, __ashldi3, __ashrdi3, __lshrdi3).
   if (Ty.getSizeInBits() >= 16 && !IsRotate) {
+    // Step 1: a constant SHL or *logical* SHR of an i16 by exactly one byte is
+    // a pure byte move -- the surviving byte changes position and the vacated
+    // byte is zeroed. Build it with G_MERGE_VALUES so it lowers to byte moves in
+    // place; do NOT use G_ZEXT/G_SEXT, which on base 6809 fall into a
+    // stack-frame spill sequence (undue register pressure). There is no carry
+    // chain and no sub-byte loop, so this never pins the value to the
+    // single-register ACC16_D class the way the < 8 decomposition does.
+    //
+    // Arithmetic >>8 needs a sign fill (multi-instruction on base 6809) and is
+    // rare, so it stays a libcall -- as do sub-byte / variable shifts and all
+    // i32/i64 shifts, the cases the ACC16_D trap actually applies to.
+    // SHL is clean on both CPUs. The logical-SHR merge moves the high byte down
+    // into the low position; the merge selector lowers that in-register on
+    // hd6309 but spills it through a stack frame on base 6809 (worse than the
+    // libcall), so only inline >>8 on hd6309 for now.
+    bool Has6309 = MI.getMF()->getSubtarget<MC6809Subtarget>().has6309();
+    if (Ty.getSizeInBits() == 16 &&
+        (MI.getOpcode() == G_SHL ||
+         (MI.getOpcode() == G_LSHR && Has6309))) {
+      if (auto CstAmt = getIConstantVRegValWithLookThrough(AmtReg, MRI)) {
+        if ((CstAmt->Value.getZExtValue() & 0xff) == 8) {
+          auto Bytes = Builder.buildUnmerge(S8, Src); // {lo, hi}
+          Register Zero = Builder.buildConstant(S8, 0).getReg(0);
+          if (MI.getOpcode() == G_SHL)
+            Builder.buildMergeLikeInstr(Dst, {Zero, Bytes.getReg(0)}); // lo << 8
+          else
+            Builder.buildMergeLikeInstr(Dst, {Bytes.getReg(1), Zero}); // x >> 8
+          MI.eraseFromParent();
+          return true;
+        }
+      }
+    }
     LLT AmtTy = MRI.getType(AmtReg);
     if (AmtTy != S8)
       MI.getOperand(2).setReg(Builder.buildTrunc(S8, AmtReg).getReg(0));
