@@ -301,6 +301,43 @@ static bool foldLoadIntoCopy(MachineBasicBlock &MBB,
   return Changed;
 }
 
+/// Correct-by-construction kill-flag repair after deleting a redundant reload.
+///
+/// When a redundant reload of \p Reg is removed, the register's value now flows
+/// from the earlier definition that established it, straight through to the uses
+/// that followed the reload. Any kill flag on \p Reg between that definition and
+/// the reload is now stale: it would tell the verifier (and later passes) that
+/// \p Reg died before a use that still reads it -- exactly the undefined-$ix use
+/// of Bug #380 (and the same defect class as the manual kill bookkeeping behind
+/// Bug #271/#363/#367/#368).
+///
+/// Rather than patch each shape by hand, walk back from the reload to the prior
+/// definition of \p Reg and clear every kill flag on \p Reg (or an overlapping
+/// sub-register). Clearing kill flags only ever lengthens a live range, so it is
+/// always conservatively safe; doing it unconditionally here makes the deletion
+/// sound for any surrounding code, not just the cases seen so far.
+static void clearKillsToPriorDef(MachineInstr &ReloadMI, Register Reg,
+                                 const TargetRegisterInfo &TRI) {
+  MachineBasicBlock &MBB = *ReloadMI.getParent();
+  for (auto It = std::next(ReloadMI.getReverseIterator()); It != MBB.rend();
+       ++It) {
+    bool DefsReg = false;
+    for (MachineOperand &MO : It->operands()) {
+      if (!MO.isReg() || !MO.getReg().isPhysical() ||
+          !TRI.regsOverlap(MO.getReg(), Reg))
+        continue;
+      if (MO.isUse() && MO.isKill())
+        MO.setIsKill(false);
+      if (MO.isDef())
+        DefsReg = true;
+    }
+    // Stop once we reach the definition that established Reg's value: kills
+    // before it belong to a different live range and must be left intact.
+    if (DefsReg)
+      break;
+  }
+}
+
 /// Bug #366: true if MI may write the function's own stack frame. Used to
 /// invalidate frame-slot index mirrors for a store through a frame-address
 /// pointer (`std n,y` where Y holds a frame-local address), which the
@@ -759,7 +796,10 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         if (Info && Info->Reg == AccReg && !Info->SourceKilled && !SelfBase &&
             (!IsIndex || EnableIndexReload)) {
           // The register already holds this slot's value → delete the load.
+          // The reload re-defined AccReg, so clear any now-stale kill of AccReg
+          // back to its prior definition before removing it (Bug #380).
           LLVM_DEBUG(dbgs() << "  SpillOpt: deleting redundant load: " << MI);
+          clearKillsToPriorDef(MI, AccReg, TRI);
           MI.eraseFromParent();
           Changed = true;
           continue;
