@@ -2229,8 +2229,16 @@ skip_globalvalue_fold:
         RC = &MC6809::ACC8RegClass;
       else if (Ty == LLT::scalar(8))
         RC = &MC6809::ACC8RegClass;
-      else if (Ty == LLT::scalar(16) || Ty == LLT::pointer(0, 16))
+      else if (Ty == LLT::scalar(16))
         RC = &MC6809::ACC16RegClass;
+      else if (Ty == LLT::pointer(0, 16))
+        // A pointer lives in the index bank -- NOT ACC16. Lumping it with
+        // scalar(16) forced the value into the accumulator bank, which then
+        // needed an index->acc->index round-trip back to the index domain
+        // (e.g. for an index-domain pointer compare or a pointer PHI). That
+        // bank-cross copy survives RA and post-RA copy-opt mis-propagated it
+        // across a kill, producing an undefined-$ix use (Bug #380).
+        RC = &MC6809::INDEX16RegClass;
       else if (Ty == LLT::scalar(32))
         RC = &MC6809::ACC32RegClass;
     }
