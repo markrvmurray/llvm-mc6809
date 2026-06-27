@@ -385,8 +385,12 @@ defm LSR : UnaryAcc8_AB<"lsra", Opcode<0x44,1>, [AA,NZ,N,Z,C,AA], [AA],
                          "lsrb", Opcode<0x54,1>, [AB,NZ,N,Z,C,AB], [AB]>;
 defm ROR : UnaryAcc8_AB<"rora", Opcode<0x46,1>, [AA,NZ,N,Z,C,AA], [AA,C],
                          "rorb", Opcode<0x56,1>, [AB,NZ,N,Z,C,AB], [AB,C]>;
-defm ASR : UnaryAcc8_AB<"asra", Opcode<0x47,1>, [AA,NZ,N,Z,C,AA], [AA,C],
-                         "asrb", Opcode<0x57,1>, [AB,NZ,N,Z,C,AB], [AB,C]>;
+// ASR is arithmetic: it fills bit 7 from the sign (bit 7), NOT from carry-in,
+// and shifts bit 0 out into carry. So it DEFs C but does not USE it. Modelling
+// a carry use here left the first ASRA of a multi-byte arithmetic right shift
+// reading an undefined $c (verifier error at -Og's -verify-machineinstrs).
+defm ASR : UnaryAcc8_AB<"asra", Opcode<0x47,1>, [AA,NZ,N,Z,C,AA], [AA],
+                         "asrb", Opcode<0x57,1>, [AB,NZ,N,Z,C,AB], [AB]>;
 defm ASL : UnaryAcc8_AB<"asla", Opcode<0x48,1>, [AA,NZ,N,Z,V,C,AA], [AA],
                          "aslb", Opcode<0x58,1>, [AB,NZ,N,Z,V,C,AB], [AB]>;
 // Bug #227: LSL is the same encoding as ASL on MC6809/HD6309 (opcode 0x58
@@ -885,7 +889,7 @@ let Predicates = [IsHD6309] in {
   def COMDa : MC6809Accumulator_P2<(outs), "comd", Opcode<0x43,2>, [AD,NZ,N,Z,V,C,AA,AB,AD], [AD]>;
   def LSRDa : MC6809Accumulator_P2<(outs), "lsrd", Opcode<0x44,2>, [AD,NZ,N,Z,C,AA,AB,AD], [AD]>;
   def RORDa : MC6809Accumulator_P2<(outs), "rord", Opcode<0x46,2>, [AD,NZ,N,Z,C,AA,AB,AD], [AD,C]>;
-  def ASRDa : MC6809Accumulator_P2<(outs), "asrd", Opcode<0x47,2>, [AD,NZ,N,Z,C,AA,AB,AD], [AD,C]>;
+  def ASRDa : MC6809Accumulator_P2<(outs), "asrd", Opcode<0x47,2>, [AD,NZ,N,Z,C,AA,AB,AD], [AD]>;  // arithmetic: defs C, does not use it (see ASR)
   def ASLDa : MC6809Accumulator_P2<(outs), "asld", Opcode<0x48,2>, [AD,NZ,N,Z,V,C,AA,AB,AD], [AD]>;
   def ROLDa : MC6809Accumulator_P2<(outs), "rold", Opcode<0x49,2>, [AD,NZ,N,Z,V,C,AA,AB,AD], [AD,C]>;
   def DECDa : MC6809Accumulator_P2<(outs), "decd", Opcode<0x4A,2>, [AD,NZ,N,Z,V,AA,AB,AD], [AD]>;

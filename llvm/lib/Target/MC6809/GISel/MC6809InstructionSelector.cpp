@@ -960,18 +960,18 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     return true;
   }
 
-  // Intercept i16 shifts on 6809 before selectImpl (no i16 shift pattern).
-  if (!STI.has6309()) {
-    switch (MI.getOpcode()) {
-    case TargetOpcode::G_SHL:
-    case TargetOpcode::G_LSHR:
-    case TargetOpcode::G_ASHR:
-      if (MRI->getType(MI.getOperand(0).getReg()) == LLT::scalar(16))
-        return selectShift16(MI);
-      break;
-    default:
-      break;
-    }
+  // Intercept i16 constant shifts before selectImpl (no i16 shift pattern).
+  // selectShift16 emits the native carry chain on both CPUs: ASLD/LSRD/ASRD on
+  // hd6309, ASLB+ROLA / LSRA+RORB / ASRA+RORB (or the in-memory chain) on 6809.
+  switch (MI.getOpcode()) {
+  case TargetOpcode::G_SHL:
+  case TargetOpcode::G_LSHR:
+  case TargetOpcode::G_ASHR:
+    if (MRI->getType(MI.getOperand(0).getReg()) == LLT::scalar(16))
+      return selectShift16(MI);
+    break;
+  default:
+    break;
   }
 
   // Bug #208: intercept variable-arity G_MERGE_VALUES → s32 before
@@ -3627,21 +3627,23 @@ bool MC6809InstructionSelector::selectShift16(MachineInstr &MI) {
   MachineBasicBlock &MBB = *MI.getParent();
   const DebugLoc &DL = MI.getDebugLoc();
 
-  // Copy source into ACC16 (D register) for shift
-  Register Cur = MRI->createVirtualRegister(&MC6809::ACC16RegClass);
+  // Copy source into the D register and shift it by ShiftAmt with a SINGLE
+  // count-carrying pseudo (operand $val = the count). The post-RA expander
+  // emits ShiftAmt single-bit shifts in place. Emitting one pseudo (rather than
+  // ShiftAmt separate ones) means a spilled value is loaded/stored once around
+  // the whole shift instead of per bit -- and lets foldMemoryOperandImpl fold
+  // the spill into an in-memory asl/rol chain on the stack slot.
+  //
+  // Use ADc (D + spill slots) -- the class LSL/LSR/ASR_i16_Reg are defined with
+  // (dst tied to src). ADc is spillable, and ADc ⊆ ACC16 so any consumer that
+  // accepts ACC16 also accepts the result.
+  Register Cur = MRI->createVirtualRegister(&MC6809::ADcRegClass);
   BuildMI(MBB, MI, DL, TII.get(TargetOpcode::COPY), Cur).addReg(SrcReg);
-
-  for (uint64_t I = 0; I < ShiftAmt; ++I) {
-    Register Next = (I == ShiftAmt - 1) ? DstReg
-        : MRI->createVirtualRegister(&MC6809::ACC16RegClass);
-    auto &Shift = *BuildMI(MBB, MI, DL, TII.get(ShiftOpc), Next)
-        .addReg(Cur)
-        .addImm(1);
-    constrainSelectedInstRegOperands(Shift, TII, TRI, RBI);
-    Cur = Next;
-  }
-
-  MRI->setRegClass(DstReg, &MC6809::ACC16RegClass);
+  auto &Shift = *BuildMI(MBB, MI, DL, TII.get(ShiftOpc), DstReg)
+      .addReg(Cur)
+      .addImm(ShiftAmt);
+  constrainSelectedInstRegOperands(Shift, TII, TRI, RBI);
+  MRI->setRegClass(DstReg, &MC6809::ADcRegClass);
   MI.eraseFromParent();
   return true;
 }

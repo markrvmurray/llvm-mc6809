@@ -5404,53 +5404,37 @@ void MC6809InstrInfo::expandShiftLeft(MachineIRBuilder &Builder, MachineInstr &M
     dematerializeReg(Builder, Reg, OrigReg, MF);
     return;
   }
-  // Bug #271 (category 4): LSL_i8/i16_Reg has THREE operands per its
-  // TableGen def — (outs reg:$dst), (ins reg:$src, i8imm:$val) — with
-  // $dst tied to $src. The pseudo represents "shift $src by $val into
-  // $dst", but post-RA expansion always emits a single ASL[A|B|D]a (the
-  // hardware shift-by-1). Removing only operands 0 and 1 leaves the
-  // i8imm $val as a stranded explicit operand on the now-zero-arity
-  // ASL[A|B|D]a — verifier flags it as "Extra explicit operand on
-  // non-variadic instruction" (9 hits in libc memmem at -Og hd6309).
-  // Fix: remove operand 2 first so all three explicit operands are
-  // gone before the ASLBa setDesc + addImplicitDefUseOperands. The
-  // 6809-AD case (ASLB+ROLA) already MI.eraseFromParent() so it isn't
-  // affected by the off-by-one removal.
-  switch (Reg) {
-  default:
-    llvm_unreachable("Illegal register for ASL/LSL");
-  case MC6809::AA:
-    MI.setDesc(Builder.getTII().get(MC6809::ASLAa));
-    MI.removeOperand(2);
-    MI.removeOperand(1);
-    MI.removeOperand(0);
-    MI.addImplicitDefUseOperands(*MI.getMF());
-    break;
-  case MC6809::AB:
-    MI.setDesc(Builder.getTII().get(MC6809::ASLBa));
-    MI.removeOperand(2);
-    MI.removeOperand(1);
-    MI.removeOperand(0);
-    MI.addImplicitDefUseOperands(*MI.getMF());
-    break;
-  case MC6809::AD: {
-    const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
-    if (STI.has6309()) {
-      MI.setDesc(Builder.getTII().get(MC6809::ASLDa));
-      MI.removeOperand(2);
-      MI.removeOperand(1);
-      MI.removeOperand(0);
-      MI.addImplicitDefUseOperands(*MI.getMF());
-    } else {
-      // 6809: ASLB then ROLA (carry from B propagates to A)
-      MachineFunction &MF = *MI.getMF();
-      Builder.buildInstr(MC6809::ASLBa)->addImplicitDefUseOperands(MF);
-      Builder.buildInstr(MC6809::ROLAa)->addImplicitDefUseOperands(MF);
-      MI.eraseFromParent();
+  // LSL_i8/i16_Reg is (outs reg:$dst), (ins reg:$src, i8imm:$val) with $dst
+  // tied to $src: "shift $src left by $val into $dst". Emit $val single-bit
+  // hardware shifts in place, then erase the pseudo. i8 (AA/AB) is one ASL per
+  // bit; i16 (AD) is ASLD per bit on hd6309, ASLB+ROLA per bit on base 6809.
+  uint64_t Count = MI.getOperand(2).getImm();
+  const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
+  // buildInstr already attaches the opcode's implicit defs/uses from its
+  // MCInstrDesc -- do NOT also call addImplicitDefUseOperands (that doubles
+  // them, leaving a stray undefined $c use the machine verifier rejects).
+  for (uint64_t I = 0; I < Count; ++I) {
+    switch (Reg) {
+    default:
+      llvm_unreachable("Illegal register for ASL/LSL");
+    case MC6809::AA:
+      Builder.buildInstr(MC6809::ASLAa);
+      break;
+    case MC6809::AB:
+      Builder.buildInstr(MC6809::ASLBa);
+      break;
+    case MC6809::AD:
+      if (STI.has6309()) {
+        Builder.buildInstr(MC6809::ASLDa);
+      } else {
+        // ASLB then ROLA (carry from B propagates into A).
+        Builder.buildInstr(MC6809::ASLBa);
+        Builder.buildInstr(MC6809::ROLAa);
+      }
+      break;
     }
-    break;
   }
-  }
+  MI.eraseFromParent();
 }
 
 void MC6809InstrInfo::expandShiftRight(MachineIRBuilder &Builder, MachineInstr &MI, bool Arithmetic) const {
@@ -5467,48 +5451,36 @@ void MC6809InstrInfo::expandShiftRight(MachineIRBuilder &Builder, MachineInstr &
     dematerializeReg(Builder, Reg, OrigReg, MF);
     return;
   }
-  unsigned Opcode;
-  switch (Reg) {
-  default:
-    llvm_unreachable("Illegal register for LSR/ASR");
-  case MC6809::AA:
-    Opcode = Arithmetic ? MC6809::ASRAa : MC6809::LSRAa;
-    break;
-  case MC6809::AB:
-    Opcode = Arithmetic ? MC6809::ASRBa : MC6809::LSRBa;
-    break;
-  case MC6809::AD: {
-    const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
-    if (STI.has6309()) {
-      Opcode = Arithmetic ? MC6809::ASRDa : MC6809::LSRDa;
-    } else {
-      // 6809: shift A right first, then ROR B (carry from A to B)
-      // LSHR: LSRA + RORB  (logical: 0 into A bit 7, carry into B bit 7)
-      // ASHR: ASRA + RORB  (arithmetic: sign preserved in A, carry into B)
-      unsigned FirstOpc = Arithmetic ? MC6809::ASRAa : MC6809::LSRAa;
-      MachineFunction &MF = *MI.getMF();
-      Builder.buildInstr(FirstOpc)->addImplicitDefUseOperands(MF);
-      Builder.buildInstr(MC6809::RORBa)->addImplicitDefUseOperands(MF);
-      MI.eraseFromParent();
-      return;
+  // Emit $val (operand 2) single-bit right shifts in place, then erase.
+  // i16 (AD): ASRD/LSRD per bit on hd6309; on base 6809 shift the high byte
+  // first (ASRA/LSRA, bit0 -> carry) then ROR the low byte (carry -> bit7).
+  uint64_t Count = MI.getOperand(2).getImm();
+  const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
+  // buildInstr already attaches each opcode's implicit defs/uses; don't add
+  // them again (see expandShiftLeft). For ASHR the high byte is shifted with
+  // ASRA/ASRD (arithmetic, sign-fill -- no carry-in), then the low byte rotates
+  // through the carry ASRA set.
+  for (uint64_t I = 0; I < Count; ++I) {
+    switch (Reg) {
+    default:
+      llvm_unreachable("Illegal register for LSR/ASR");
+    case MC6809::AA:
+      Builder.buildInstr(Arithmetic ? MC6809::ASRAa : MC6809::LSRAa);
+      break;
+    case MC6809::AB:
+      Builder.buildInstr(Arithmetic ? MC6809::ASRBa : MC6809::LSRBa);
+      break;
+    case MC6809::AD:
+      if (STI.has6309()) {
+        Builder.buildInstr(Arithmetic ? MC6809::ASRDa : MC6809::LSRDa);
+      } else {
+        Builder.buildInstr(Arithmetic ? MC6809::ASRAa : MC6809::LSRAa);
+        Builder.buildInstr(MC6809::RORBa);
+      }
+      break;
     }
-    break;
   }
-  }
-  MI.setDesc(Builder.getTII().get(Opcode));
-  // Bug #271 (category 4): same off-by-one as expandShiftLeft (above).
-  // The MC6809ShiftBase pseudo has 3 explicit operands — (dst, src, val);
-  // the original code only removed operands 1 (src) and 0 (dst), leaving
-  // operand 2 (the i8imm shift count) stranded as an explicit arg on the
-  // now-zero-arity ASR/LSR[A|B|D]a. The misleading "// remove immediate"
-  // comment on the removeOperand(1) line referred to the OTHER pseudo
-  // shape; for MC6809ShiftBase, operand 1 is the src register, not the
-  // immediate. Remove operand 2 first so all three explicit operands
-  // are gone before addImplicitDefUseOperands.
-  MI.removeOperand(2); // remove immediate (the i8imm shift count)
-  MI.removeOperand(1); // remove src register (now implicit)
-  MI.removeOperand(0); // remove dst register (now implicit)
-  MI.addImplicitDefUseOperands(*MI.getMF());
+  MI.eraseFromParent();
 }
 
 void MC6809InstrInfo::expandRotate(MachineIRBuilder &Builder, MachineInstr &MI, bool Left) const {

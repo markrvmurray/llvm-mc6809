@@ -2238,6 +2238,17 @@ static bool shouldOverCorrect(uint64_t Amt, LLT Ty, bool IsRotate) {
   if (IsRotate)
     return Amt > 4;
 
+  // Never over-correct an 8-bit shift. A constant i8 shift by 1..7 is at most
+  // 7 native single-byte instructions (aslb/lsrb/asrb chains via the single-bit
+  // G_SHLE/G_LSHRE path), so widening to 16 bits never pays. Worse, the widened
+  // path emits an i16 shl-8 + i16 lshr-(8-Amt); the i16 small-shift byte-algebra
+  // decomposition then emits an i8 shl-(8-N) cross term that widens straight
+  // back here -- an infinite mutual recursion. (Historically this path also
+  // routed i8 ashr-7 through __ashlhi3/__lshrhi3; see the ADJCALLSTACK pitfall
+  // note in legalizeSExt.)
+  if (Ty == LLT::scalar(8))
+    return false;
+
   // The over-correct path widens to Ty+8 bits. Only use it when the wider
   // type is a legal power-of-2 size (s8, s16, s32). Non-power-of-2 types
   // like s40 (from s32+8) can't be legalized and cause infinite cycles.
@@ -2264,53 +2275,25 @@ bool MC6809LegalizerInfo::legalizeShiftRotate(LegalizerHelper &Helper, MachineRe
   LLT S1 = LLT::scalar(1);
   LLT S8 = LLT::scalar(8);
 
-  // For i16, i32 and i64 shifts (non-rotates), always use libcalls
-  // regardless of whether the amount is constant.  The constant-amount
-  // byte decomposition would build the result via byte-level ops that
-  // access sub-byte halves of the i16/i32/i64 parent vreg; combined
-  // with the carry chain's phantom-carry vreg, the coalescer is
-  // forced to tighten the parent's class to ACC16_D (= 1 register,
-  // AD), exhausting it for any function with multiple simultaneously
-  // live shift operands.  picolibc rand_r and ubsan_val_to_imax both
-  // fail that way.
+  // i16 / i32 / i64 shifts (non-rotates).
   //
-  // Treat i16 / i32 / i64 the same way: bytes for everything except
-  // shifts, which go to hand-written assembly libcalls in
-  // compiler-rt/lib/builtins/mc6809/ (__ashlhi3, __ashrhi3, __lshrhi3,
-  // __ashlsi3, __ashrsi3, __lshrsi3, __ashldi3, __ashrdi3, __lshrdi3).
+  // A *constant*-amount i16 shl/lshr/ashr is left for the instruction selector:
+  // selectShift16 emits the native single-bit carry chain on the value's own
+  // 16-bit home -- ASLD/LSRD/ASRD on hd6309, and ASLB+ROLA / LSRA+RORB /
+  // ASRA+RORB on base 6809 (with the in-memory asl/rol chain when the value is
+  // spilled). The chain shifts D (or the spill slot) in place and uses no extra
+  // accumulator temporaries, so it does NOT hit the old ACC16_D pressure trap
+  // that a byte-level decomposition does -- and ACC16_D itself was removed
+  // (see MC6809RegisterInfo.td). That trap is the only reason this used to be a
+  // blanket libcall (it cost rand_r / ubsan_val_to_imax their allocation).
+  //
+  // Variable i16 shifts and all i32/i64 shifts still go to the hand-written
+  // assembly libcalls in compiler-rt/lib/builtins/mc6809/ (__ashlhi3,
+  // __ashrhi3, __lshrhi3, __ashlsi3, ..., __ashldi3, __ashrdi3, __lshrdi3).
   if (Ty.getSizeInBits() >= 16 && !IsRotate) {
-    // Step 1: a constant SHL or *logical* SHR of an i16 by exactly one byte is
-    // a pure byte move -- the surviving byte changes position and the vacated
-    // byte is zeroed. Build it with G_MERGE_VALUES so it lowers to byte moves in
-    // place; do NOT use G_ZEXT/G_SEXT, which on base 6809 fall into a
-    // stack-frame spill sequence (undue register pressure). There is no carry
-    // chain and no sub-byte loop, so this never pins the value to the
-    // single-register ACC16_D class the way the < 8 decomposition does.
-    //
-    // Arithmetic >>8 needs a sign fill (multi-instruction on base 6809) and is
-    // rare, so it stays a libcall -- as do sub-byte / variable shifts and all
-    // i32/i64 shifts, the cases the ACC16_D trap actually applies to.
-    // SHL is clean on both CPUs. The logical-SHR merge moves the high byte down
-    // into the low position; the merge selector lowers that in-register on
-    // hd6309 but spills it through a stack frame on base 6809 (worse than the
-    // libcall), so only inline >>8 on hd6309 for now.
-    bool Has6309 = MI.getMF()->getSubtarget<MC6809Subtarget>().has6309();
     if (Ty.getSizeInBits() == 16 &&
-        (MI.getOpcode() == G_SHL ||
-         (MI.getOpcode() == G_LSHR && Has6309))) {
-      if (auto CstAmt = getIConstantVRegValWithLookThrough(AmtReg, MRI)) {
-        if ((CstAmt->Value.getZExtValue() & 0xff) == 8) {
-          auto Bytes = Builder.buildUnmerge(S8, Src); // {lo, hi}
-          Register Zero = Builder.buildConstant(S8, 0).getReg(0);
-          if (MI.getOpcode() == G_SHL)
-            Builder.buildMergeLikeInstr(Dst, {Zero, Bytes.getReg(0)}); // lo << 8
-          else
-            Builder.buildMergeLikeInstr(Dst, {Bytes.getReg(1), Zero}); // x >> 8
-          MI.eraseFromParent();
-          return true;
-        }
-      }
-    }
+        getIConstantVRegValWithLookThrough(AmtReg, MRI))
+      return true; // selectShift16 handles constant i16 shifts
     LLT AmtTy = MRI.getType(AmtReg);
     if (AmtTy != S8)
       MI.getOperand(2).setReg(Builder.buildTrunc(S8, AmtReg).getReg(0));
