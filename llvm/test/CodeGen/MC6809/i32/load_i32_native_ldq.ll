@@ -18,7 +18,10 @@ define i32 @load_simple(i32* %p) {
 }
 
 ; HD6309-LABEL: load_simple:
-; HD6309:       ldq     ,
+; The i32* arg is passed on the stack (i32 return uses an sret pointer in X), so
+; *p is a double-deref that folds to a single indirect LDQ -- still native LDQ,
+; not the two-LDD decomposition this test guards against.
+; HD6309:       ldq     {{\[?}}
 ;
 ; MC6809-LABEL: load_simple:
 ; MC6809-NOT:   ldq

@@ -177,6 +177,7 @@ private:
   // Cleared per-function in setupMF.
   DenseMap<MachineInstr *, Register> BridgedByteFor;
   ComplexRendererFns selectLSIndexedImmOffset(MachineOperand &Root) const;
+  ComplexRendererFns selectLSIndexedIndirect(MachineOperand &Root) const;
   ComplexRendererFns selectLSUnmergeIndexedImmOffset(MachineOperand &Root) const;
   ComplexRendererFns selectLSFrameIndex(MachineOperand &Root) const;
   ComplexRendererFns selectAMImmediate(MachineOperand &Root) const;
@@ -564,6 +565,10 @@ MC6809InstructionSelector::MC6809InstructionSelector(const MC6809TargetMachine &
 {
 }
 
+// Defined below; used by selectLSIndexedIndirect.
+static bool shouldFoldMemAccess(const MachineInstr &Dst, const MachineInstr &Src,
+                                AAResults *AA);
+
 /// Select a "register plus signed immediate offset" address.
 InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectAMImmediate(MachineOperand &Root) const {
   MachineRegisterInfo &MRI = Root.getParent()->getParent()->getParent()->getRegInfo();
@@ -675,6 +680,65 @@ InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectLSFrame
   }
 
   return std::nullopt;
+}
+
+/// Select an indirect-indexed address: the consumer's pointer operand is itself
+/// a pointer that was loaded from memory at [idx + offset]. The 6809 indexed-
+/// indirect mode (`ld [offset,idx]`) reads that pointer and derefs through it in
+/// one instruction, so the explicit pointer-load -- and the scarce index
+/// register it would occupy -- both vanish. Returns the *inner* load's
+/// (idx, offset) for the indirect _MemIndirect pseudo.
+InstructionSelector::ComplexRendererFns
+MC6809InstructionSelector::selectLSIndexedIndirect(MachineOperand &Root) const {
+  MachineRegisterInfo &MRI = Root.getParent()->getParent()->getParent()->getRegInfo();
+  if (!Root.isReg())
+    return std::nullopt;
+
+  // The address operand must be a pointer that was itself loaded from memory...
+  MachineInstr *InnerLoad = MRI.getVRegDef(Root.getReg());
+  if (!InnerLoad || InnerLoad->getOpcode() != TargetOpcode::G_LOAD)
+    return std::nullopt;
+  // ...used only here, so folding the load away is a win, not a duplicate...
+  if (!MRI.hasOneNonDBGUse(Root.getReg()))
+    return std::nullopt;
+  // ...and safe to re-read at the consumer (no aliasing store, call, or ordered
+  // access between the inner load and this access -- same AA test the
+  // single-fold path uses).
+  if (!shouldFoldMemAccess(*Root.getParent(), *InnerLoad, AA))
+    return std::nullopt;
+
+  // Match the inner load's address: [base + const], else plain [base] (off 0).
+  MachineInstr *AddrDef = MRI.getVRegDef(InnerLoad->getOperand(1).getReg());
+  if (AddrDef && AddrDef->getOpcode() == TargetOpcode::G_PTR_ADD) {
+    MachineInstr *OffDef = MRI.getVRegDef(AddrDef->getOperand(2).getReg());
+    if (OffDef && OffDef->getOpcode() == TargetOpcode::G_CONSTANT) {
+      return {{
+          [=](MachineInstrBuilder &MIB) { MIB.add(AddrDef->getOperand(1)); },
+          [=](MachineInstrBuilder &MIB) { MIB.add(OffDef->getOperand(1)); },
+      }};
+    }
+    return std::nullopt;
+  }
+  // Pointer-to-pointer in a stack slot: pass the frame index through (exactly as
+  // selectLSFrameIndex does) so eliminateFrameIndex + the expander produce the
+  // U-relative indirect `ld [n,u]` directly -- no leax/leay to materialise the
+  // slot address, and the index register stays free. (The frame index lives in
+  // the base operand; PEI folds its resolved offset into the indirect offset.)
+  if (AddrDef && AddrDef->getOpcode() == TargetOpcode::G_FRAME_INDEX) {
+    return {{
+        [=](MachineInstrBuilder &MIB) { MIB.add(AddrDef->getOperand(1)); },
+        [=](MachineInstrBuilder &MIB) { MIB.addImm(0); },
+    }};
+  }
+  // A global-address pointer would need the extended-indirect `[sym]` form (a
+  // separate Sym expansion path); leave it for the non-indirect _Sym handling.
+  if (AddrDef && AddrDef->getOpcode() == TargetOpcode::G_GLOBAL_VALUE)
+    return std::nullopt;
+  // Plain register-based pointer: ld [,idx].
+  return {{
+      [=](MachineInstrBuilder &MIB) { MIB.add(InnerLoad->getOperand(1)); },
+      [=](MachineInstrBuilder &MIB) { MIB.addImm(0); },
+  }};
 }
 
 static bool shouldFoldMemAccess(const MachineInstr &Dst, const MachineInstr &Src, AAResults *AA) {

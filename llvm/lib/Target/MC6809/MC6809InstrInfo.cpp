@@ -3289,6 +3289,10 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::Load_i32_Mem:
   case MC6809::SpillLoad_i32_Mem:
   case MC6809::Load_iPtr_Mem:
+  case MC6809::Load_i8_MemIndirect:
+  case MC6809::Load_i16_MemIndirect:
+  case MC6809::Load_i32_MemIndirect:
+  case MC6809::Load_iPtr_MemIndirect:
     expandLoadIdx(Builder, MI);
     break;
   case MC6809::JSR_iPtr_Mem:
@@ -3314,6 +3318,10 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::Store_i32_Mem:
   case MC6809::SpillStore_i32_Mem:
   case MC6809::Store_iPtr_Mem:
+  case MC6809::Store_i8_MemIndirect:
+  case MC6809::Store_i16_MemIndirect:
+  case MC6809::Store_i32_MemIndirect:
+  case MC6809::Store_iPtr_MemIndirect:
     expandStoreIdx(Builder, MI);
     break;
   case MC6809::AND_i8_Imm:
@@ -6174,7 +6182,42 @@ void MC6809InstrInfo::expandLeaSym(MachineIRBuilder &Builder, MachineInstr &MI) 
   MI.eraseFromParent();
 }
 
+// Map a concrete indexed load/store opcode to its indirect-indexed (`[n,r]`)
+// sibling. The indirect addressing mode has no 5-bit-offset form, so an o5 pick
+// is promoted to o8I. Returns 0 if no indirect form exists.
+static unsigned indirectSiblingOf(unsigned Opc) {
+  switch (Opc) {
+#define IND3(R)                                                                 \
+  case MC6809::R##i_o0: return MC6809::R##i_o0I;                                \
+  case MC6809::R##i_o5: case MC6809::R##i_o8: return MC6809::R##i_o8I;          \
+  case MC6809::R##i_o16: return MC6809::R##i_o16I;
+  IND3(LDA) IND3(LDB) IND3(LDE) IND3(LDF) IND3(LDD) IND3(LDW) IND3(LDX) IND3(LDY)
+  IND3(STA) IND3(STB) IND3(STE) IND3(STF) IND3(STD) IND3(STW) IND3(STX) IND3(STY)
+  IND3(LDQ) IND3(STQ)
+#undef IND3
+  default: return 0;
+  }
+}
+
+// True if the pseudo is an indirect-indexed load/store variant (its concrete
+// opcode, once chosen, is swapped to the `[n,r]` indirect sibling).
+static bool isMemIndirectPseudo(unsigned Opc) {
+  switch (Opc) {
+  case MC6809::Load_i8_MemIndirect:  case MC6809::Load_i16_MemIndirect:
+  case MC6809::Load_i32_MemIndirect: case MC6809::Store_i32_MemIndirect:
+  case MC6809::Load_iPtr_MemIndirect:
+  case MC6809::Store_i8_MemIndirect: case MC6809::Store_i16_MemIndirect:
+  case MC6809::Store_iPtr_MemIndirect:
+    return true;
+  default:
+    return false;
+  }
+}
+
 void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI) const {
+  // Captured before any mutation: this expands the indirect-indexed pseudo, so
+  // the concrete opcode chosen below is swapped to its `[n,r]` sibling.
+  const bool Indirect = isMemIndirectPseudo(MI.getOpcode());
 
   auto DestRegOp = MI.getOperand(0);
 
@@ -6394,9 +6437,19 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
     MI.addOperand(IndexRegOp);
   } else
     llvm_unreachable("Unknown offset type for LoadIdx");
+
+  // The indirect-indexed form has identical operands -- only the postbyte (the
+  // indirect bit, baked into the opcode) differs -- so swap the concrete opcode
+  // for its `[n,r]` sibling.
+  if (Indirect) {
+    unsigned Ind = indirectSiblingOf(MI.getOpcode());
+    assert(Ind && "no indirect-indexed sibling for this load opcode");
+    MI.setDesc(Builder.getTII().get(Ind));
+  }
 }
 
 void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI) const {
+  const bool Indirect = isMemIndirectPseudo(MI.getOpcode());
 
   // If the source is a spill or imaginary register, materialize it.
   // INDEX spills use IY (avoids clobbering IX which may be the index base).
@@ -6620,6 +6673,13 @@ void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI
     MI.getOperand(2).setImplicit();
   } else
     llvm_unreachable("Unknown offset type for StoreIdx");
+
+  // Swap to the indirect-indexed sibling (same operands, indirect postbyte).
+  if (Indirect) {
+    unsigned Ind = indirectSiblingOf(MI.getOpcode());
+    assert(Ind && "no indirect-indexed sibling for this store opcode");
+    MI.setDesc(Builder.getTII().get(Ind));
+  }
 
   // Restore $ad from emergency spill slot
   if (NeedRestore) {

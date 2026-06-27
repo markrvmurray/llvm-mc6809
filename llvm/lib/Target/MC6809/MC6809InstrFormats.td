@@ -282,6 +282,11 @@ def DefaultOpcode : Opcode<0, 0>;
 // index + offset [-32768, 32767].
 def am_ls_indexed_imm_offset : ComplexPattern<iPTR, 2, "SelectLSIndexedImmOffset", []>;
 def gi_am_ls_indexed_imm_offset : GIComplexOperandMatcher<s16, "selectLSIndexedImmOffset">, GIComplexPatternEquiv<am_ls_indexed_imm_offset>;
+// Indirect-indexed: the address operand is itself a (OneUse) pointer loaded from
+// [idx + offset]. Matches that inner load and yields its (idx, offset) so the
+// consumer becomes a [n,r] indirect access (folding the pointer load away).
+def am_ls_indexed_indirect : ComplexPattern<iPTR, 2, "SelectLSIndexedIndirect", []>;
+def gi_am_ls_indexed_indirect : GIComplexOperandMatcher<s16, "selectLSIndexedIndirect">, GIComplexPatternEquiv<am_ls_indexed_indirect>;
 def am_ls_unmerge_indexed_imm_offset : ComplexPattern<iPTR, 2, "SelectLSUnmergeIndexedImmOffset", []>;
 def gi_am_ls_unmerge_indexed_imm_offset : GIComplexOperandMatcher<s16, "selectAMUnmergeIndexedImmOffset">, GIComplexPatternEquiv<am_ls_unmerge_indexed_imm_offset>;
 

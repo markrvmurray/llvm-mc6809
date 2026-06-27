@@ -33,6 +33,14 @@ multiclass MC6809Load<RegisterClass dst, ValueType vtype> {
   }
   let mayLoad = true in {
     def _Mem : MC6809LoadBase<dst, (ins INDEX16:$idx, unknown:$offset)>;
+    // Indirect-indexed load: dst = *(*(idx + offset)). The pointer itself lives
+    // in memory at [idx+offset]; the 6809 indexed-indirect mode reads it and
+    // derefs in one instruction, so the explicit pointer load AND the index
+    // register it would occupy both disappear. Selected by the am_ls_indexed_
+    // indirect pattern (a OneUse pointer-load folded into its deref); expanded
+    // post-PEI to the concrete [n,r] indirect opcode (same operands as _Mem,
+    // just the indirect postbyte). Two memory reads, so mayLoad only.
+    def _MemIndirect : MC6809LoadBase<dst, (ins INDEX16:$idx, unknown:$offset)>;
     // load of a global's address with the register choice deferred to
     // regalloc (dst is the class vreg). The post-RA expander (expandLoadSym)
     // picks the concrete reg-specific opcode and the addressing mode — direct
@@ -85,6 +93,11 @@ let Predicates = [IsHD6309] in {
     def Load_i32_Imm : MC6809LoadBase<AQc, (ins i32imm:$imm)>;
   let mayLoad = true, Defs = [NZ, V] in
     def Load_i32_Mem : MC6809LoadBase<AQc, (ins INDEX16:$idx, unknown:$offset)>;
+  // i32 indirect-indexed load: AQ = *(*(idx+offset)). Single LDQ [n,r] (the AQc
+  // dest never takes expandLoadIdx's SPILL_Q two-LDD path, which has no indirect
+  // composition). HD6309-only, like all i32.
+  let mayLoad = true, Defs = [NZ, V] in
+    def Load_i32_MemIndirect : MC6809LoadBase<AQc, (ins INDEX16:$idx, unknown:$offset)>;
   // i32 global load, register deferred (AQc), expanded by expandLoadSym.
   let mayLoad = true, Defs = [NZ, V] in
     def Load_i32_Sym : MC6809LoadBase<AQc, (ins unknown:$sym)>;
@@ -217,6 +230,20 @@ let Predicates = [IsHD6309] in {
   defm LoadPat_i32 : MC6809LoadPat<i32>;
 }
 
+// Indirect-indexed loads (i8/i16 only -- i32 has no _MemIndirect pseudo). Deref
+// a pointer that itself sits at [idx+offset] -> ld [offset,idx]. Higher
+// complexity than the plain deref patterns so it is tried first (it folds an
+// extra load away).
+multiclass MC6809LoadIndirectPat<ValueType vtype> {
+  let AddedComplexity = 20 in
+  def _#vtype#_Idx_Indirect : Pat<(vtype (load (am_ls_indexed_indirect INDEX16:$idx, i16imm:$offset))), (!cast<Instruction>("Load_"#vtype#"_MemIndirect") INDEX16:$idx, i16imm:$offset)>;
+}
+defm LoadIndirectPat_i8  : MC6809LoadIndirectPat<i8>;
+defm LoadIndirectPat_i16 : MC6809LoadIndirectPat<i16>;
+let Predicates = [IsHD6309] in {
+  defm LoadIndirectPat_i32 : MC6809LoadIndirectPat<i32>;
+}
+
 //===----------------------------------------------------------------------===//
 // Store Family
 //===----------------------------------------------------------------------===//
@@ -231,6 +258,11 @@ class MC6809StoreBase<RegisterClass src, dag operand> : MC6809LogicalInstr {
 }
 
 multiclass MC6809Store<RegisterClass src> {
+  let mayLoad = true in
+  // Indirect-indexed store: *(*(idx + offset)) = src. mayLoad too (it reads the
+  // in-memory pointer at [idx+offset] before storing through it). Same shape as
+  // _Mem; expanded to the [n,r] indirect store opcode.
+  def _MemIndirect : MC6809StoreBase<src, (ins INDEX16:$idx, unknown:$offset)>;
   def _Mem : MC6809StoreBase<src, (ins INDEX16:$idx, unknown:$offset)>;
   // store to a global's address, register choice deferred to regalloc
   // (src is the class vreg). expandStoreSym picks the concrete reg-specific
@@ -328,6 +360,10 @@ let Predicates = [IsHD6309] in {
   // Bug #308 catalogues).
   let mayStore = true, Defs = [NZ, V] in
     def Store_i32_Mem : MC6809StoreBase<AQc, (ins INDEX16:$idx, unknown:$offset)>;
+  // i32 indirect-indexed store: *(*(idx+offset)) = AQ -> STQ [n,r]. mayLoad too
+  // (reads the in-memory pointer first).
+  let mayStore = true, mayLoad = true, Defs = [NZ, V] in
+    def Store_i32_MemIndirect : MC6809StoreBase<AQc, (ins INDEX16:$idx, unknown:$offset)>;
   // i32 global store, register deferred (AQc), expanded by expandStoreSym.
   let mayStore = true, Defs = [NZ, V] in
     def Store_i32_Sym : MC6809StoreBase<AQc, (ins unknown:$sym)>;
@@ -388,6 +424,18 @@ defm StorePat_iPtr : MC6809StorePat<i16, INDEX16>;
 let Predicates = [IsHD6309] in {
   // Match the Store_i32 pseudo's AQc src class (bug #208).
   defm StorePat_i32 : MC6809StorePat<i32, AQc>;
+}
+
+// Indirect-indexed stores (i8/i16 only -- i32 has no _MemIndirect pseudo).
+// Store through a pointer that itself sits at [idx+offset] -> st [offset,idx].
+multiclass MC6809StoreIndirectPat<ValueType vtype, RegisterClass reg> {
+  let AddedComplexity = 20 in
+  def _#vtype#_Idx_Indirect : Pat<(store reg:$src, (am_ls_indexed_indirect INDEX16:$idx, i16imm:$offset)), (!cast<Instruction>("Store_"#vtype#"_MemIndirect") reg:$src, INDEX16:$idx, i16imm:$offset)>;
+}
+defm StoreIndirectPat_i8  : MC6809StoreIndirectPat<i8, ACC8>;
+defm StoreIndirectPat_i16 : MC6809StoreIndirectPat<i16, ACC16>;
+let Predicates = [IsHD6309] in {
+  defm StoreIndirectPat_i32 : MC6809StoreIndirectPat<i32, AQc>;
 }
 
 //===----------------------------------------------------------------------===//
