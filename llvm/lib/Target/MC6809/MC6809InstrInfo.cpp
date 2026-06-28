@@ -6094,7 +6094,14 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
     RegPlusOffsetLen Lookup{DestRegOp.getReg(), OffsetSize};
     auto OpcodePair = LoadIdxImmOpcode.find(Lookup);
     if (OpcodePair == LoadIdxImmOpcode.end())
-      llvm_unreachable("Unexpected LoadIdx numeric offset. Too large?");
+      // No (dest reg, offset width) entry. offsetSizeInBits returns >16 only
+      // for an offset outside the 16-bit range; otherwise the width is valid
+      // (o5/o8/o16) and the destination register simply has no indexed-load
+      // form in the table (e.g. a register class never expected here).
+      llvm_unreachable(OffsetSize > 16
+          ? "LoadIdx offset out of range for any indexed addressing form"
+          : "no LoadIdx opcode for this destination register at a valid offset "
+            "width (unmapped/unsupported destination register)");
     MI.setDesc(Builder.getTII().get(OpcodePair->getSecond()));
     MI.getOperand(0).setImplicit();
     if (OffsetSize > 0)
@@ -6313,7 +6320,12 @@ void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI
     RegPlusOffsetLen Lookup{SrcRegOp.getReg(), OffsetSize};
     auto OpcodePair = StoreIdxImmOpcode.find(Lookup);
     if (OpcodePair == StoreIdxImmOpcode.end())
-      llvm_unreachable("Unexpected operand(s).");
+      // Mirror of the LoadIdx case above: >16 means the offset is out of range,
+      // otherwise the source register has no indexed-store form in the table.
+      llvm_unreachable(OffsetSize > 16
+          ? "StoreIdx offset out of range for any indexed addressing form"
+          : "no StoreIdx opcode for this source register at a valid offset "
+            "width (unmapped/unsupported source register)");
     MI.setDesc(Builder.getTII().get(OpcodePair->getSecond()));
     MI.getOperand(0).setImplicit();
     if (SrcIsImpliedUndef)
