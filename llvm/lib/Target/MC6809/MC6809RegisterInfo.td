@@ -457,6 +457,18 @@ def ACC8 : MC6809Reg8Class<(add AB, AA, AF, AE,
 }
 def ACC8_AB : MC6809Reg8Class<(add AB, AA)>;
 
+// ACC8 minus the HD6309 E/F accumulators, but keeping the spill slots. The
+// byte memory-operand arith/logical ops (_Mem / _Pull -> ADDB/ANDB n,x etc.)
+// only have A/B (and D) indexed encodings on BOTH CPUs -- there is no
+// indexed ADDE/ANDF -- so their tied accumulator must never land in E/F.
+// Using this class for those operands keeps E/F out of the allocation order
+// while preserving spill capability (so allocation never fails). On 6809 it is
+// identical to ACC8's normal order (E/F already excluded there).
+def ACC8_AB_SP : MC6809Reg8Class<(add AB, AA,
+                                     (sequence "SPILL_B%u", 0, 7),
+                                     (sequence "SPILL_A%u", 0, 7),
+                                     (sequence "RC%u",      0, 15))>;
+
 // Bug #217: per-half byte register class for the _Reg variants of
 // MC6809Arithmetic{Base,Carry,SetCarryUse,SetOverflowUse}. The byte
 // _Reg expansion via emit6809RegByteFromMem clobbers ONE accumulator
