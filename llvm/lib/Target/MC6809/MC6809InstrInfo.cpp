@@ -3088,15 +3088,10 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     return true;
   }
   case MC6809::SEX16Implicit: {
-    // Same SPILL_D* concern as ZEX32Implicit (bug #208 round 2): the
-    // SEXx hardware instruction writes AD (sign-extends AB into AA),
-    // but if regalloc placed the dst in a SPILL_D* slot it must be
-    // dematerialized via STD afterwards or downstream byte consumers
-    // see uninitialised stack memory.
-    Register DstReg = MI.getOperand(0).getReg();
+    // Physreg form (2026-06-28): produces the result in physical AD; selection
+    // appended `%dst = COPY $ad`, so dst placement (incl. spill -> STD) is the
+    // COPY's job, not ours. We just emit the hardware sign-extend.
     Builder.buildInstr(MC6809::SEXx);
-    if (DstReg != MC6809::AD)
-      dematerializeReg(Builder, MC6809::AD, DstReg, *MI.getMF());
     MI.eraseFromParent();
     break;
   }
@@ -3158,15 +3153,10 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     // copyPhysReg so the correct (0:src) value lands where the
     // regalloc expects it. Mirrors ZEX32Implicit's pre-CLRDa src→AW
     // copy.
-    Register DstReg = MI.getOperand(0).getReg();
+    // Physreg form (2026-06-28): produces the result in physical AD (CLRA zeros
+    // AA; AB=src preserved). Selection appended `%dst = COPY $ad`, so dst
+    // placement (AD coalesce / AW copy / spill STD) is the COPY's job.
     Builder.buildInstr(MC6809::CLRAa);
-    if (DstReg != MC6809::AD) {
-      if (needsMaterialization(DstReg))
-        dematerializeReg(Builder, MC6809::AD, DstReg, *MI.getMF());
-      else
-        copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
-                    DstReg, MC6809::AD, /*KillSrc=*/true);
-    }
     MI.eraseFromParent();
     break;
   }
@@ -4535,6 +4525,22 @@ void MC6809InstrInfo::expandIdxImm(ContextIndexImmediate Context, MachineIRBuild
     if (operandCount >= 3 && MI.getOperand(1).isReg() && MI.getOperand(1).getReg() == DestReg)
       MI.getOperand(1).setReg(RealReg);
     DestReg = RealReg;
+  }
+  // Materialize a spilled index base into IY (the P3a consumer fold can keep the
+  // base pointer live to the arith op; under pressure it can spill to an
+  // index-spill reg, which has no real encoding). Mirrors expandStoreIdx /
+  // expandCompareIdx. DestReg is an accumulator here, so IY is free.
+  if (isIndexSpillReg(MI.getOperand(operandCount - 2).getReg())) {
+    Register SpillReg = MI.getOperand(operandCount - 2).getReg();
+    Register StageReg = MC6809::IY;
+    int SpillOff = computeSpillStackOffset(SpillReg, MF);
+    unsigned LoadOpc = getLoadIdxOpcode(StageReg, SpillOff);
+    MachineIRBuilder PreBuilder(*MI.getParent(), MI.getIterator());
+    PreBuilder.buildInstr(LoadOpc)
+        .addDef(StageReg, RegState::Implicit)
+        .addImm(SpillOff)
+        .addReg(MC6809::SU);
+    MI.getOperand(operandCount - 2).setReg(StageReg);
   }
   auto IndexReg = MI.getOperand(operandCount - 2).getReg();
   auto OffsetOp = MI.getOperand(operandCount - 1);
@@ -6430,11 +6436,18 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
     auto OpcodePair = LoadIdxRegOpcode.find(Lookup);
     if (OpcodePair == LoadIdxRegOpcode.end())
       llvm_unreachable("Unexpected LoadIdx register offset operand.");
+    // Accumulator-offset load (ld d,x / b,x): exactly like the immediate path
+    // above, but the offset rides a fixed accumulator (encoded by the opcode)
+    // and so is an IMPLICIT use, not an explicit operand. Only the base index
+    // is explicit; the value-def is operand 0 (made implicit). Adding the offset
+    // as an already-implicit operand avoids the explicit-before-implicit
+    // reordering that mis-marked it as a second explicit operand (the `d,d`
+    // mis-render). reg-offset never combines with the indirect swap below.
     MI.setDesc(Builder.getTII().get(OpcodePair->getSecond()));
     MI.getOperand(0).setImplicit();
-    MI.addOperand(OffsetOp);
-    MI.getOperand(1).setImplicit();
     MI.addOperand(IndexRegOp);
+    MI.addOperand(MachineOperand::CreateReg(OffsetOp.getReg(), /*isDef=*/false,
+                                            /*isImp=*/true, /*isKill=*/true));
   } else
     llvm_unreachable("Unknown offset type for LoadIdx");
 
@@ -6665,12 +6678,18 @@ void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI
     RegPlusReg Lookup{SrcRegOp.getReg(), OffsetOp.getReg()};
     auto OpcodePair = StoreIdxRegOpcode.find(Lookup);
     if (OpcodePair == StoreIdxRegOpcode.end())
-      llvm_unreachable("Unexpected operand(s).");
+      llvm_unreachable("Unexpected StoreIdx register offset operand.");
+    // Accumulator-offset store (st d,x / b,x): value (operand 0) is an implicit
+    // use, the base index is explicit, the offset accumulator is an implicit
+    // use. Operands 1 and 2 were removed above, so re-add them (the old code
+    // called getOperand(2) on the already-shortened operand list -> OOB crash).
     MI.setDesc(Builder.getTII().get(OpcodePair->getSecond()));
     MI.getOperand(0).setImplicit();
     if (SrcIsImpliedUndef)
       MI.getOperand(0).setIsUndef(true);
-    MI.getOperand(2).setImplicit();
+    MI.addOperand(IndexRegOp);
+    MI.addOperand(MachineOperand::CreateReg(OffsetOp.getReg(), /*isDef=*/false,
+                                            /*isImp=*/true, /*isKill=*/true));
   } else
     llvm_unreachable("Unknown offset type for StoreIdx");
 
@@ -7667,6 +7686,24 @@ void MC6809InstrInfo::expandCompareIdx(MachineIRBuilder &Builder, MachineInstr &
   assert((MI.getOperand(1).isImm() || MI.getOperand(1).isCImm()) && "The condition field of compares must be an immediate constant");
   assert(MI.getOperand(2).isReg() && "The source of compares must be a register");
   assert(MI.getOperand(3).isReg() && "The index operand of indexed compares must be a register");
+
+  // Materialize a spilled index base (operand 3) into IY, mirroring
+  // expandStoreIdx. The P3a consumer memory-fold keeps the base pointer live to
+  // the compare; under register pressure it can spill to an index-spill reg,
+  // which has no real encoding and would render as `,0` (the strcmp miscompile).
+  if (isIndexSpillReg(MI.getOperand(3).getReg())) {
+    Register SpillReg = MI.getOperand(3).getReg();
+    Register StageReg = MC6809::IY;  // callee-saved; avoids clobbering IX base
+    MachineFunction &MF = *MI.getMF();
+    int SpillOff = computeSpillStackOffset(SpillReg, MF);
+    unsigned LoadOpc = getLoadIdxOpcode(StageReg, SpillOff);
+    MachineIRBuilder PreBuilder(*MI.getParent(), MI.getIterator());
+    PreBuilder.buildInstr(LoadOpc)
+        .addDef(StageReg, RegState::Implicit)
+        .addImm(SpillOff)
+        .addReg(MC6809::SU);
+    MI.getOperand(3).setReg(StageReg);
+  }
 
   auto SrcReg = MI.getOperand(2).getReg();
   if (needsMaterialization(SrcReg)) {

@@ -1,66 +1,34 @@
 # RUN: llc -mtriple=mc6809 -mcpu=hd6309 -run-pass=postrapseudos \
 # RUN:     -verify-machineinstrs %s -o - 2>&1 | FileCheck %s
 
-# Bug #211 (and the HD6309 leg of bug #209).
+# Bug #211 (and the HD6309 leg of bug #209), re-expressed for the physreg-$ad
+# ZEX16Implicit form (2026-06-28).
 #
-# ZEX16Implicit's expansion is `CLRA` — it zero-extends the byte in
-# AB into AD, leaving the i16 result in (A=0 : B=src) = AD. On
-# HD6309 the ACC16 register class includes BOTH AD and AW (the
-# HD6309 alternative 16-bit accumulator). When the regalloc places
-# the ZEX16Implicit destination in AW, the expansion previously
-# emitted ONLY `CLRA` and trusted `dematerializeReg` to STD the
-# result to the spill slot — but AW is a real architectural
-# register, not a spill, so dematerializeReg silently did nothing.
-# AW retained whatever stale (E:F) the prior code left in it. A
-# downstream STW consumer then wrote that garbage to memory.
+# OLD model: ZEX16Implicit had a vreg dst (ACC16). On HD6309 ACC16 includes AW,
+# so regalloc could place the dst in AW; the expansion had to follow CLRA with a
+# TFR D,W or the result was lost (the Bug #211 corruption in getopt_internal).
+# That vreg-dst + implicit-AD form ALSO self-interfered with greedy (the AD def
+# vetoed assigning the dst to AD -> $spill_d0 -> MaterializeSpills stack churn on
+# a[i]).
 #
-# In picolibc's getopt_internal at -Oz -mcpu=hd6309 this corrupted
-# `data->optopt = *cp;` (line 347) — STW stored (stale_E : stale_F)
-# instead of (0 : *cp), and the function returned the wrong char on
-# every short-option call.
-#
-# Fix: in MC6809InstrInfo::expandPostRAPseudo's ZEX16Implicit case,
-# when the dst is not AD, route via copyPhysReg if the dst is an
-# architectural register (AW etc.), or via dematerializeReg if it
-# is a SPILL_*. Mirrors ZEX32Implicit's pre-CLRDa src→AW copy.
+# NEW model: ZEX16Implicit produces the result in PHYSICAL $ad (Uses=[AB],
+# Defs=[..,$ad]) and selection appends `%dst = COPY $ad`. The expansion is now
+# just CLRA. The AW-destination case (Bug #211) is handled by that COPY lowering
+# to TFR D,W -- it is no longer the expansion's concern, so there is no dst
+# variation here. Runtime coverage for the AW path: 6309 test-memmem / getopt at
+# -Oz (the original #211 repro). This test just pins the (trivial) expansion and
+# that it is verifier-clean in the physreg form.
 
-# CHECK-LABEL: name: zex16_to_aw
-# Destination in $aw → expansion must follow CLRA with TFR D,W so AW
-# carries the (0:src) result. copyPhysReg's ACC16↔ACC16 branch emits
-# a single TFRp.
+# CHECK-LABEL: name: zex16_implicit_expand
 # CHECK:      CLRAa
-# CHECK-NEXT: $aw = TFRp $ad
 # CHECK-NOT:  ZEX16Implicit
----
-name: zex16_to_aw
-tracksRegLiveness: true
-body: |
-  bb.0:
-    liveins: $ab
-    $aw = ZEX16Implicit $ab, implicit-def $nz, implicit-def $v, implicit-def $c, implicit-def $aa
-    RTSr implicit $aw
-...
-
-# CHECK-LABEL: name: zex16_to_ad
-# Destination in $ad — the pre-existing common case. CLRAa alone is
-# the entire expansion (AD already holds (0:src) after CLRA), and no
-# TFR/copy must be emitted.
-# CHECK:      CLRAa
 # CHECK-NOT:  TFRp
-# CHECK-NOT:  ZEX16Implicit
 ---
-name: zex16_to_ad
+name: zex16_implicit_expand
 tracksRegLiveness: true
 body: |
   bb.0:
     liveins: $ab
-    $ad = ZEX16Implicit $ab, implicit-def $nz, implicit-def $v, implicit-def $c, implicit-def $aa
+    ZEX16Implicit implicit $ab, implicit-def $ad, implicit-def dead $nz, implicit-def dead $v, implicit-def dead $c
     RTSr implicit $ad
 ...
-
-# Note: the SPILL_D* destination case exercises a different branch
-# (dematerializeReg → emitSpillStore) that requires real frame info
-# to compute the spill offset; not covered here. The picolibc
-# bench-parallel sweep (with several test functions producing the
-# spill-class destination at high opt levels) is the runtime
-# coverage for that path.

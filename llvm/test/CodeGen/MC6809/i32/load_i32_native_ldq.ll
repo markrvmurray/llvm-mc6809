@@ -43,5 +43,8 @@ define i32 @load_pair(i32* %p, i32* %q) {
 }
 
 ; HD6309-LABEL: load_pair:
+; The first i32 load is a native LDQ; the second operand of the add is folded
+; into the add itself (addd/addw straight from memory), so it is also native --
+; no two-LDD decomposition.
 ; HD6309:       ldq
-; HD6309:       ldq
+; HD6309:       add{{[dw]}}

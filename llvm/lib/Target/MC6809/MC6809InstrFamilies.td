@@ -219,8 +219,8 @@ multiclass MC6809LoadPat<ValueType vtype> {
   def _#vtype#_Idx_Zero : Pat<(vtype (load INDEX16:$idx)), (!cast<Instruction>("Load_"#vtype#"_Mem") INDEX16:$idx, (i16 0))>;
   def _#vtype#_Idx_Imm : Pat<(vtype (load (am_ls_indexed_imm_offset INDEX16:$idx, i16imm:$offset))), (!cast<Instruction>("Load_"#vtype#"_Mem") INDEX16:$idx, i16imm:$offset)>;
   def _#vtype#_Unmerge_Idx_Imm : Pat<(vtype (load (am_ls_unmerge_indexed_imm_offset INDEX16:$idx, i16imm:$offset))), (!cast<Instruction>("Load_"#vtype#"_Mem") INDEX16:$idx, i16imm:$offset)>;
-  def _#vtype#_Idx_Reg8 : Pat<(vtype (load (am_ls_indexed_imm_offset INDEX16:$idx, ACC8:$offset))), (!cast<Instruction>("Load_"#vtype#"_Mem") INDEX16:$idx, ACC8:$offset)>;
-  def _#vtype#_Idx_Reg16 : Pat<(vtype (load (am_ls_indexed_imm_offset INDEX16:$idx, ACC16:$offset))), (!cast<Instruction>("Load_"#vtype#"_Mem") INDEX16:$idx, ACC16:$offset)>;
+  def _#vtype#_Idx_Reg8 : Pat<(vtype (load (am_ls_indexed_reg_offset INDEX16:$idx, ACC8:$offset))), (!cast<Instruction>("Load_"#vtype#"_Mem") INDEX16:$idx, ACC8:$offset)>;
+  def _#vtype#_Idx_Reg16 : Pat<(vtype (load (am_ls_indexed_reg_offset INDEX16:$idx, ACC16:$offset))), (!cast<Instruction>("Load_"#vtype#"_Mem") INDEX16:$idx, ACC16:$offset)>;
   def _#vtype#_Frame_Index : Pat<(vtype (load (am_ls_frame_index INDEX16:$idx, i16imm:$offset))), (!cast<Instruction>("Load_"#vtype#"_Mem") INDEX16:$idx, i16imm:$offset)>;
 }
 
@@ -413,6 +413,13 @@ multiclass MC6809StorePat<ValueType vtype, RegisterClass reg> {
   def _#vtype#_Idx_Zero : Pat<(store reg:$src, INDEX16:$idx), (!cast<Instruction>("Store_"#vtype#"_Mem") reg:$src, INDEX16:$idx, (i16 0))>;
   def _#vtype#_Idx_Imm : Pat<(store reg:$src, (am_ls_indexed_imm_offset INDEX16:$idx, i16imm:$offset)), (!cast<Instruction>("Store_"#vtype#"_Mem") reg:$src, INDEX16:$idx, i16imm:$offset)>;
   def _#vtype#_Unmerge_Idx_Imm : Pat<(store reg:$src, (am_ls_unmerge_indexed_imm_offset INDEX16:$idx, i16imm:$offset)), (!cast<Instruction>("Store_"#vtype#"_Mem") reg:$src, INDEX16:$idx, i16imm:$offset)>;
+  // NOTE: register-offset STORES are deliberately NOT wired to
+  // am_ls_indexed_reg_offset yet. On this 2-accumulator target the store value
+  // and the offset both have to be READ, and a byte value is always a sub-reg
+  // of the only 16-bit offset (D = A:B), so `st<byte> d,x` aliases value and
+  // offset -> miscompile. An 8-bit (A/B) offset is only safe when offset != the
+  // value reg. Until that alias guard exists these stay on the (dead, constant-
+  // only) imm matcher so stores fall back to the correct LEAX + zero-offset form.
   def _#vtype#_Idx_Reg8 : Pat<(store reg:$src, (am_ls_indexed_imm_offset INDEX16:$idx, ACC8:$offset)), (!cast<Instruction>("Store_"#vtype#"_Mem") reg:$src, INDEX16:$idx, ACC8:$offset)>;
   def _#vtype#_Idx_Reg16 : Pat<(store reg:$src, (am_ls_indexed_imm_offset INDEX16:$idx, ACC16:$offset)), (!cast<Instruction>("Store_"#vtype#"_Mem") reg:$src, INDEX16:$idx, ACC16:$offset)>;
   def _#vtype#_Frame_Index : Pat<(store reg:$src, (am_ls_frame_index INDEX16:$idx, ACC16:$offset)), (!cast<Instruction>("Store_"#vtype#"_Mem") reg:$src, INDEX16:$idx, i16imm:$offset)>;

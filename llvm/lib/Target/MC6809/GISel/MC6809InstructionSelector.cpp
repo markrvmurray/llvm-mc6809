@@ -177,6 +177,7 @@ private:
   // Cleared per-function in setupMF.
   DenseMap<MachineInstr *, Register> BridgedByteFor;
   ComplexRendererFns selectLSIndexedImmOffset(MachineOperand &Root) const;
+  ComplexRendererFns selectLSIndexedRegOffset(MachineOperand &Root) const;
   ComplexRendererFns selectLSIndexedIndirect(MachineOperand &Root) const;
   ComplexRendererFns selectLSUnmergeIndexedImmOffset(MachineOperand &Root) const;
   ComplexRendererFns selectLSFrameIndex(MachineOperand &Root) const;
@@ -604,8 +605,44 @@ InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectAMIndex
     }
   }
 
-  if (!isBaseWithConstantOffset(Root, MRI))
-    return std::nullopt;
+  // Register-base memory fold (P3a): fold a single-use load of [base+const] or
+  // [base] into an arith/compare consumer, so e.g. `*p == x` -> `cmp ,p` and
+  // `p[k] == x` -> `cmp k,p` instead of materialising the loaded value into an
+  // accumulator first (the consumer's _Mem pseudo does the load itself). The
+  // base pointer stays in the index register it already occupies, and the
+  // accumulator that would have held the value is freed. Guarded by OneUse (so
+  // the standalone load is actually eliminated) + shouldFoldMemAccess (no
+  // aliasing store / call / ordered access between the load and the consumer) --
+  // the same safety regime the load/store indirect fold uses.
+  // Compare consumers (G_ICMP) are deferred: folding a register-base load into a
+  // compare/compare-branch exercises the long-dead Compare_*_Mem /
+  // CompareBranch_*_Mem expansion paths, which have multiple accumulated bugs
+  // (the o0-offset-operand `cmp ,0`, spilled-index bases, and others -- 5 libc
+  // tests regress even after the first two are fixed). The arith folds (add/sub/
+  // and/or/eor) are clean and shipped; the compare fold (and thus indirect CMP)
+  // needs a dedicated cleanup of those expanders. Until then, arith only.
+  if (RootDef->getOpcode() == TargetOpcode::G_LOAD &&
+      Root.getParent()->getOpcode() != TargetOpcode::G_ICMP &&
+      MRI.hasOneNonDBGUse(Root.getReg()) &&
+      shouldFoldMemAccess(*Root.getParent(), *RootDef, AA)) {
+    MachineInstr *AddrDef = MRI.getVRegDef(RootDef->getOperand(1).getReg());
+    if (AddrDef && AddrDef->getOpcode() == TargetOpcode::G_PTR_ADD) {
+      MachineInstr *OffDef = MRI.getVRegDef(AddrDef->getOperand(2).getReg());
+      if (OffDef && OffDef->getOpcode() == TargetOpcode::G_CONSTANT)
+        return {{
+            [=](MachineInstrBuilder &MIB) { MIB.add(AddrDef->getOperand(1)); },
+            [=](MachineInstrBuilder &MIB) { MIB.add(OffDef->getOperand(1)); },
+        }};
+    } else if (AddrDef &&
+               AddrDef->getOpcode() != TargetOpcode::G_FRAME_INDEX &&
+               AddrDef->getOpcode() != TargetOpcode::G_GLOBAL_VALUE) {
+      // Plain register pointer: cmp/add ,p
+      return {{
+          [=](MachineInstrBuilder &MIB) { MIB.add(RootDef->getOperand(1)); },
+          [=](MachineInstrBuilder &MIB) { MIB.addImm(0); },
+      }};
+    }
+  }
 
   return std::nullopt;
 }
@@ -660,6 +697,56 @@ InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectLSIndex
     }
   }
 
+  return std::nullopt;
+}
+
+/// Select a "base register plus register offset" address (6809 accumulator-
+/// offset indexed: ld/st d,x or b,x). Matches (G_PTR_ADD base, off) where off is
+/// a runtime value, yielding (base, off) so a[i] selects the register-offset
+/// form directly -- both loads AND stores, pre-RA. Returns:
+///  - an 8-bit (ACC8) offset register when off is a single-use G_SEXT of an i8
+///    (the 6809 A/B offset is hardware sign-extended, so this skips the explicit
+///    SEX -- e.g. signed a[i] -> `ldb b,x` rather than `sex; ldb d,x`);
+///  - otherwise the full 16-bit (ACC16) offset register (correct for a zero-
+///    extended unsigned index or a native i16 value -> `ld d,x`).
+/// Constant offsets fall through (handled by selectLSIndexedImmOffset).
+InstructionSelector::ComplexRendererFns
+MC6809InstructionSelector::selectLSIndexedRegOffset(MachineOperand &Root) const {
+  MachineRegisterInfo &MRI = Root.getParent()->getParent()->getParent()->getRegInfo();
+  if (!Root.isReg())
+    return std::nullopt;
+  MachineInstr *RootDef = MRI.getVRegDef(Root.getReg());
+  if (!RootDef || RootDef->getOpcode() != TargetOpcode::G_PTR_ADD)
+    return std::nullopt;
+  Register OffReg = RootDef->getOperand(2).getReg();
+  MachineInstr *OffDef = MRI.getVRegDef(OffReg);
+  if (!OffDef)
+    return std::nullopt;
+  // Constants are the imm matcher's job.
+  if (OffDef->getOpcode() == TargetOpcode::G_CONSTANT)
+    return std::nullopt;
+  // Sign-extend gate: a sole-use G_SEXT of an i8 rides the hardware-sign-
+  // extended 8-bit accumulator offset directly (ld b,x), eliding the explicit
+  // SEX. This is the one register-offset load the post-RA foldLEAIntoLoad pass
+  // cannot produce.
+  //
+  // We deliberately do NOT handle the 16-bit (D) offset case here: selecting
+  // `Load(idx, D-offset)` keeps the index live in D across the load, so the
+  // result (a sub-reg of D) clobbers the still-live offset -- regalloc does not
+  // always reconcile this (a memmem miscompile) -- and tying up D raises loop
+  // pressure (qsort/memmove timeouts). foldLEAIntoLoad already lowers the
+  // unsigned/native case to `ld d,x` correctly and with better pressure (the
+  // index dies at the leax), so leave those to it: return nullopt.
+  if (OffDef->getOpcode() == TargetOpcode::G_SEXT) {
+    Register X = OffDef->getOperand(1).getReg();
+    if (MRI.getType(X) == LLT::scalar(8) && MRI.hasOneNonDBGUse(OffReg) &&
+        MRI.hasOneNonDBGUse(X)) {
+      return {{
+          [=](MachineInstrBuilder &MIB) { MIB.add(RootDef->getOperand(1)); },
+          [=](MachineInstrBuilder &MIB) { MIB.addReg(X); },
+      }};
+    }
+  }
   return std::nullopt;
 }
 
@@ -1127,6 +1214,23 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
       MI.addOperand(MachineOperand::CreateImm(1));
       return true;
     }
+    // G_ZEXT i8->i16: physreg-$ad + COPY (2026-06-28). ZEX16Implicit produces
+    // the result in physical AD (CLRA zeros AA, AB=src preserved); the COPY
+    // moves it to the dst vreg, coalescing to AD when free (no spill / no a[i]
+    // churn) or lowering to one STD when contended. See ZEX16Implicit in
+    // MC6809InstrLogical.td for why this beats the old vreg-dst + implicit-AA
+    // form (self-interference -> $spill_d0 -> MaterializeSpills churn).
+    if (DstTy == LLT::scalar(16) && SrcTy == LLT::scalar(8)) {
+      if (!MRI->getRegClassOrNull(SrcReg))
+        MRI->setRegClass(SrcReg, &MC6809::ACC8RegClass);
+      MRI->setRegClass(DstReg, &MC6809::ADcRegClass);
+      MachineIRBuilder B(MI);
+      B.buildCopy(Register(MC6809::AB), SrcReg);
+      B.buildInstr(MC6809::ZEX16Implicit);
+      B.buildCopy(DstReg, Register(MC6809::AD));
+      MI.eraseFromParent();
+      return true;
+    }
   }
 
   // Bug #311 Phase 1 step 1.2 (2026-05-20): intercept G_SEXT s1→s8.
@@ -1148,6 +1252,20 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
                    .addDef(DstReg)
                    .addUse(SrcReg);
       constrainSelectedInstRegOperands(*I, TII, TRI, RBI);
+      MI.eraseFromParent();
+      return true;
+    }
+    // G_SEXT i8->i16: physreg-$ad + COPY (2026-06-28), mirroring the G_ZEXT
+    // i8->i16 case above. SEX16Implicit sign-extends AB into AA, producing AD;
+    // the COPY moves it to the dst vreg (coalesces to AD when free).
+    if (DstTy == LLT::scalar(16) && SrcTy == LLT::scalar(8)) {
+      if (!MRI->getRegClassOrNull(SrcReg))
+        MRI->setRegClass(SrcReg, &MC6809::ACC8RegClass);
+      MRI->setRegClass(DstReg, &MC6809::ADcRegClass);
+      MachineIRBuilder B(MI);
+      B.buildCopy(Register(MC6809::AB), SrcReg);
+      B.buildInstr(MC6809::SEX16Implicit);
+      B.buildCopy(DstReg, Register(MC6809::AD));
       MI.eraseFromParent();
       return true;
     }
@@ -1417,12 +1535,14 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
           }
           if (MRI->getType(InPageOff) != LLT::scalar(8))
             return false;
-          // The 8-bit in-page offset, in B to zero-extend.
-          Register Off8 = MRI->createVirtualRegister(&MC6809::ABcRegClass);
-          BuildMI(MBB, MI, DL, TII.get(TargetOpcode::COPY), Off8).addReg(InPageOff);
+          // The 8-bit in-page offset zero-extended via physical AD, then copied
+          // out (physreg-$ad ZEX16Implicit form): COPY $ab=off; ZEX16Implicit
+          // (CLRA -> $ad = 0:off); Off16 = COPY $ad.
+          BuildMI(MBB, MI, DL, TII.get(TargetOpcode::COPY), Register(MC6809::AB))
+              .addReg(InPageOff);
+          BuildMI(MBB, MI, DL, TII.get(MC6809::ZEX16Implicit));
           Register Off16 = MRI->createVirtualRegister(&MC6809::ACC16RegClass);
-          auto ZxMIB = BuildMI(MBB, MI, DL, TII.get(MC6809::ZEX16Implicit), Off16)
-                           .addReg(Off8);
+          BuildMI(MBB, MI, DL, TII.get(TargetOpcode::COPY), Off16).addReg(MC6809::AD);
           // The direct-page base address into an index register.
           Register Base = MRI->createVirtualRegister(&MC6809::INDEX16RegClass);
           auto BaseMIB = BuildMI(MBB, MI, DL, TII.get(MC6809::Load_iPtr_Imm), Base)
@@ -1437,7 +1557,6 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
           MI.getOperand(1).setReg(Full);
           MI.setDesc(TII.get(MemOpc));
           MI.addOperand(MachineOperand::CreateImm(0));
-          constrainSelectedInstRegOperands(*ZxMIB, TII, TRI, RBI);
           constrainSelectedInstRegOperands(*BaseMIB, TII, TRI, RBI);
           constrainSelectedInstRegOperands(*LeaMIB, TII, TRI, RBI);
           constrainSelectedInstRegOperands(MI, TII, TRI, RBI);

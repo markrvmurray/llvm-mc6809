@@ -177,34 +177,35 @@ define i1 @ult_i32_zext_i8(i32 %a, i8 %b) {
 ;
 ; O2-LABEL: ult_i32_zext_i8:
 ; O2:       ; %bb.0:
-; O2-NEXT:    leas -19,s
+; O2-NEXT:    leas -22,s
 ; O2-NEXT:    pshs u,y
 ; O2-NEXT:    tfr s,u
-; O2-NEXT:    stb 8,u
-; O2-NEXT:    ldd 27,u
-; O2-NEXT:    std 15,u
-; O2-NEXT:    ldb 8,u
-; O2-NEXT:    stb 7,u
-; O2-NEXT:    ldd 25,u
-; O2-NEXT:    std 13,u
-; O2-NEXT:    ldb 7,u
-; O2-NEXT:    stb 6,u
 ; O2-NEXT:    clra
-; O2-NEXT:    std 11,u
+; O2-NEXT:    std 12,u
+; O2-NEXT:    ldd 30,u
+; O2-NEXT:    std 18,u
+; O2-NEXT:    ldd 12,u
+; O2-NEXT:    std 10,u
+; O2-NEXT:    ldd 28,u
+; O2-NEXT:    std 16,u
+; O2-NEXT:    ldd 10,u
 ; O2-NEXT:    leas -8,s
-; O2-NEXT:    ldd 15,u
+; O2-NEXT:    std 8,u
+; O2-NEXT:    ldd 18,u
 ; O2-NEXT:    std 2,s
-; O2-NEXT:    ldd 13,u
+; O2-NEXT:    ldd 8,u
+; O2-NEXT:    std 6,u
+; O2-NEXT:    ldd 16,u
 ; O2-NEXT:    std ,s
-; O2-NEXT:    ldd 11,u
+; O2-NEXT:    ldd 6,u
 ; O2-NEXT:    std 6,s
 ; O2-NEXT:    ldd #0
 ; O2-NEXT:    std 4,s
-; O2-NEXT:    leay 17,u
-; O2-NEXT:    sty 9,u
-; O2-NEXT:    ldx 9,u
+; O2-NEXT:    leay 20,u
+; O2-NEXT:    sty 14,u
+; O2-NEXT:    ldx 14,u
 ; O2-NEXT:    lbsr __ucmpsi2
-; O2-NEXT:    ldy 9,u
+; O2-NEXT:    ldy 14,u
 ; O2-NEXT:    ldd 2,y
 ; O2-NEXT:    leas 8,s
 ; O2-NEXT:    cmpb #0
@@ -217,7 +218,7 @@ define i1 @ult_i32_zext_i8(i32 %a, i8 %b) {
 ; O2-NEXT:  .LBB1_3:
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u,y
-; O2-NEXT:    leas 19,s
+; O2-NEXT:    leas 22,s
 ; O2-NEXT:    rts
   %nn = zext i8 %b to i32
   %c = icmp ult i32 %a, %nn

@@ -287,6 +287,14 @@ def gi_am_ls_indexed_imm_offset : GIComplexOperandMatcher<s16, "selectLSIndexedI
 // consumer becomes a [n,r] indirect access (folding the pointer load away).
 def am_ls_indexed_indirect : ComplexPattern<iPTR, 2, "SelectLSIndexedIndirect", []>;
 def gi_am_ls_indexed_indirect : GIComplexOperandMatcher<s16, "selectLSIndexedIndirect">, GIComplexPatternEquiv<am_ls_indexed_indirect>;
+// Register-offset (accumulator-offset) indexed: (G_PTR_ADD base, reg) -> ld/st
+// d,x (or b,x). Yields (base, offset-reg) so a[i] selects the register-offset
+// form directly pre-RA instead of LEAPtrAdd + zero-offset load + post-RA fold
+// (and, unlike that load-only fold, it also covers stores). The offset reg is
+// 16-bit (D/W) for a correct signed-or-unsigned index; an 8-bit (A/B) offset is
+// only used when the index is a sign-extend (hardware sign-extends A/B).
+def am_ls_indexed_reg_offset : ComplexPattern<iPTR, 2, "SelectLSIndexedRegOffset", []>;
+def gi_am_ls_indexed_reg_offset : GIComplexOperandMatcher<s16, "selectLSIndexedRegOffset">, GIComplexPatternEquiv<am_ls_indexed_reg_offset>;
 def am_ls_unmerge_indexed_imm_offset : ComplexPattern<iPTR, 2, "SelectLSUnmergeIndexedImmOffset", []>;
 def gi_am_ls_unmerge_indexed_imm_offset : GIComplexOperandMatcher<s16, "selectAMUnmergeIndexedImmOffset">, GIComplexPatternEquiv<am_ls_unmerge_indexed_imm_offset>;
 

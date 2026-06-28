@@ -550,48 +550,53 @@ define i1 @ne_i64_zext_i8(i64 %a, i8 %b) {
 ;
 ; O2-LABEL: ne_i64_zext_i8:
 ; O2:       ; %bb.0:
-; O2-NEXT:    leas -23,s
+; O2-NEXT:    leas -32,s
 ; O2-NEXT:    pshs u,y
 ; O2-NEXT:    tfr s,u
-; O2-NEXT:    stb 8,u
-; O2-NEXT:    ldd 35,u
-; O2-NEXT:    std 19,u
-; O2-NEXT:    ldb 8,u
-; O2-NEXT:    stb 7,u
-; O2-NEXT:    ldd 33,u
-; O2-NEXT:    std 17,u
-; O2-NEXT:    ldb 7,u
-; O2-NEXT:    stb 6,u
-; O2-NEXT:    ldd 31,u
-; O2-NEXT:    std 15,u
-; O2-NEXT:    ldb 6,u
-; O2-NEXT:    stb 5,u
-; O2-NEXT:    ldd 29,u
-; O2-NEXT:    std 13,u
-; O2-NEXT:    ldb 5,u
-; O2-NEXT:    stb 4,u
 ; O2-NEXT:    clra
-; O2-NEXT:    std 11,u
+; O2-NEXT:    std 18,u
+; O2-NEXT:    ldd 44,u
+; O2-NEXT:    std 28,u
+; O2-NEXT:    ldd 18,u
+; O2-NEXT:    std 16,u
+; O2-NEXT:    ldd 42,u
+; O2-NEXT:    std 26,u
+; O2-NEXT:    ldd 16,u
+; O2-NEXT:    std 14,u
+; O2-NEXT:    ldd 40,u
+; O2-NEXT:    std 24,u
+; O2-NEXT:    ldd 14,u
+; O2-NEXT:    std 12,u
+; O2-NEXT:    ldd 38,u
+; O2-NEXT:    std 22,u
+; O2-NEXT:    ldd 12,u
 ; O2-NEXT:    leas -16,s
-; O2-NEXT:    ldd 19,u
+; O2-NEXT:    std 10,u
+; O2-NEXT:    ldd 28,u
 ; O2-NEXT:    std 6,s
-; O2-NEXT:    ldd 17,u
+; O2-NEXT:    ldd 10,u
+; O2-NEXT:    std 8,u
+; O2-NEXT:    ldd 26,u
 ; O2-NEXT:    std 4,s
-; O2-NEXT:    ldd 15,u
+; O2-NEXT:    ldd 8,u
+; O2-NEXT:    std 6,u
+; O2-NEXT:    ldd 24,u
 ; O2-NEXT:    std 2,s
-; O2-NEXT:    ldd 13,u
+; O2-NEXT:    ldd 6,u
+; O2-NEXT:    std 4,u
+; O2-NEXT:    ldd 22,u
 ; O2-NEXT:    std ,s
-; O2-NEXT:    ldd 11,u
+; O2-NEXT:    ldd 4,u
 ; O2-NEXT:    std 14,s
 ; O2-NEXT:    ldd #0
 ; O2-NEXT:    std 12,s
 ; O2-NEXT:    std 10,s
 ; O2-NEXT:    std 8,s
-; O2-NEXT:    leay 21,u
-; O2-NEXT:    sty 9,u
-; O2-NEXT:    ldx 9,u
+; O2-NEXT:    leay 30,u
+; O2-NEXT:    sty 20,u
+; O2-NEXT:    ldx 20,u
 ; O2-NEXT:    lbsr __ucmpdi2
-; O2-NEXT:    ldy 9,u
+; O2-NEXT:    ldy 20,u
 ; O2-NEXT:    ldd 2,y
 ; O2-NEXT:    leas 16,s
 ; O2-NEXT:    cmpb #1
@@ -604,7 +609,7 @@ define i1 @ne_i64_zext_i8(i64 %a, i8 %b) {
 ; O2-NEXT:  .LBB3_3:
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u,y
-; O2-NEXT:    leas 23,s
+; O2-NEXT:    leas 32,s
 ; O2-NEXT:    rts
   %nn = zext i8 %b to i64
   %c = icmp ne i64 %a, %nn

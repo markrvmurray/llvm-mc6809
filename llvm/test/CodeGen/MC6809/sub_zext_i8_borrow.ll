@@ -45,27 +45,26 @@ define i16 @sub_zext_i8(i8 %a, i8 %b) {
 ; O0-NEXT:    pshs u
 ; O0-NEXT:    tfr s,u
 ; O0-NEXT:    stb 14,u
-; O0-NEXT:    ldb 19,u
-; O0-NEXT:    stb 8,u
-; O0-NEXT:    ldb 14,u
 ; O0-NEXT:    clra
 ; O0-NEXT:    std 11,u
-; O0-NEXT:    ldb 8,u
-; O0-NEXT:    stb 7,u
+; O0-NEXT:    ldb 19,u
+; O0-NEXT:    clra
+; O0-NEXT:    stb 8,u
 ; O0-NEXT:    ldb 12,u
 ; O0-NEXT:    stb 10,u
-; O0-NEXT:    ldb 7,u
+; O0-NEXT:    ldb 8,u
+; O0-NEXT:    sta 7,u
 ; O0-NEXT:    lda 11,u
-; O0-NEXT:    stb 6,u
+; O0-NEXT:    sta 13,u
+; O0-NEXT:    lda 7,u
+; O0-NEXT:    sta 6,u
+; O0-NEXT:    stb 5,u
+; O0-NEXT:    lda 13,u
 ; O0-NEXT:    tfr a,b
 ; O0-NEXT:    stb 12,u
-; O0-NEXT:    ldb 6,u
-; O0-NEXT:    stb 5,u
-; O0-NEXT:    clra
-; O0-NEXT:    std 9,u
+; O0-NEXT:    lda 6,u
 ; O0-NEXT:    ldb 5,u
-; O0-NEXT:    ldb 10,u
-; O0-NEXT:    lda 9,u
+; O0-NEXT:    stb 10,u
 ; O0-NEXT:    tfr a,b
 ; O0-NEXT:    stb 4,u
 ; O0-NEXT:    ldb 14,u
@@ -130,27 +129,26 @@ define i16 @add_zext_i8(i8 %a, i8 %b) {
 ; O0-NEXT:    pshs u
 ; O0-NEXT:    tfr s,u
 ; O0-NEXT:    stb 14,u
-; O0-NEXT:    ldb 19,u
-; O0-NEXT:    stb 8,u
-; O0-NEXT:    ldb 14,u
 ; O0-NEXT:    clra
 ; O0-NEXT:    std 11,u
-; O0-NEXT:    ldb 8,u
-; O0-NEXT:    stb 7,u
+; O0-NEXT:    ldb 19,u
+; O0-NEXT:    clra
+; O0-NEXT:    stb 8,u
 ; O0-NEXT:    ldb 12,u
 ; O0-NEXT:    stb 10,u
-; O0-NEXT:    ldb 7,u
+; O0-NEXT:    ldb 8,u
+; O0-NEXT:    sta 7,u
 ; O0-NEXT:    lda 11,u
-; O0-NEXT:    stb 6,u
+; O0-NEXT:    sta 13,u
+; O0-NEXT:    lda 7,u
+; O0-NEXT:    sta 6,u
+; O0-NEXT:    stb 5,u
+; O0-NEXT:    lda 13,u
 ; O0-NEXT:    tfr a,b
 ; O0-NEXT:    stb 12,u
-; O0-NEXT:    ldb 6,u
-; O0-NEXT:    stb 5,u
-; O0-NEXT:    clra
-; O0-NEXT:    std 9,u
+; O0-NEXT:    lda 6,u
 ; O0-NEXT:    ldb 5,u
-; O0-NEXT:    ldb 10,u
-; O0-NEXT:    lda 9,u
+; O0-NEXT:    stb 10,u
 ; O0-NEXT:    tfr a,b
 ; O0-NEXT:    stb 4,u
 ; O0-NEXT:    ldb 14,u

@@ -405,11 +405,24 @@ def SEX16Implicit : MC6809LogicalInstr {
   // SEXx). If AD isn't listed in Defs, regalloc could leave AD live
   // with an unrelated value across this pseudo and SEXx would
   // silently destroy it. Mirrors the SEX32Implicit fix (Bug #247).
+  //
+  // 2026-06-28 (indexed-mode churn fix): produce the result in PHYSICAL $ad
+  // and let selection append `%dst = COPY $ad` (see the G_SEXT i8->i16 C++
+  // intercept). Previously a vreg dst (ADc) PLUS a separate implicit AD def:
+  // that implicit def is a fixed physical dead-def at the def slot, so greedy's
+  // interference check vetoes assigning the dst vreg to AD -> it parks the value
+  // in $spill_d0 -> MaterializeSpills turns it into real stack traffic (the a[i]
+  // churn). Defining $ad physically (a) makes the output ALWAYS cover AA, so the
+  // Bug #283/#284 unrelated-AA-clobber protection holds for every dst (verified:
+  // dropping the Defs without this breaks 6309 test-memmem), and (b) removes the
+  // self-interference. The COPY coalesces to AD when free (no spill) or lowers
+  // to a single STD when contended. Uses=[AB]: the src low byte is preserved as
+  // AD's low half (MOVZX-style super-reg def reading its own sub-reg).
   let Defs = [NZ, V, AD];
+  let Uses = [AB];
   let hasSideEffects = 1;
-  dag InOperandList = (ins ABc:$src);
-  dag OutOperandList = (outs ADc:$dst);
-  let Pattern = [(set ADc:$dst, (sext ABc:$src))];
+  dag InOperandList = (ins);
+  dag OutOperandList = (outs);
 }
 
 def SEX32Implicit : MC6809LogicalInstr {
@@ -475,11 +488,22 @@ def ZEX16Implicit : MC6809LogicalInstr {
   // `if (ne_len == 1) return memchr(hs, ne[0], hs_len);` codegen —
   // hs_len's high byte was held in AA across the ZEX16Implicit of
   // ne[0] and got zeroed, passing memchr a truncated length.
-  let Defs = [NZ, V, C, AA];
+  //
+  // 2026-06-28 (indexed-mode churn fix): produce the result in PHYSICAL $ad and
+  // let selection append `%dst = COPY $ad` (see the G_ZEXT i8->i16 C++ intercept).
+  // The old vreg dst (ACC16) + implicit AA def self-interfered: AA is a sub-reg
+  // of AD, so its fixed physical dead-def at the def slot made greedy veto
+  // assigning the dst vreg to AD -> $spill_d0 -> MaterializeSpills stack churn on
+  // a[i]. Defining $ad physically makes the output ALWAYS cover AA, so the Bug
+  // #283 protection (an unrelated AA value must not be left live across the CLRA)
+  // holds for EVERY dst -- not just dst==AD. (Verified necessary: merely dropping
+  // AA from Defs makes 6309 test-memmem fail again.) Uses=[AB]: src low byte is
+  // AD's low half. C kept for the Bug #142 scheduler hazard.
+  let Defs = [NZ, V, C, AD];
+  let Uses = [AB];
   let hasSideEffects = 1;
-  dag InOperandList = (ins ABc:$src);
-  dag OutOperandList = (outs ACC16:$dst);
-  let Pattern = [(set ACC16:$dst, (zext ABc:$src))];
+  dag InOperandList = (ins);
+  dag OutOperandList = (outs);
 }
 
 def ZEX32Implicit : MC6809LogicalInstr {
