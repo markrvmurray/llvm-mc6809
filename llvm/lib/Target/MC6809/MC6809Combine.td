@@ -96,7 +96,7 @@ def mc6809_all_combines : GICombineGroup<[integer_reassoc_combines,
     // layout-successor — it's a branch-prediction optimisation. On
     // MC6809 there is no branch predictor, and the inversion introduces
     // a `G_TRUNC(G_XOR(G_ANYEXT %c, -1))` chain that breaks the
-    // CompareBranch fusion paths in `selectBrCond`. Disabled per
+    // CompareBranch fusion paths in the selector's G_BRCOND case. Disabled per
     // bug #158.
     const_combines, xor_of_and_with_same_reg, ptr_add_with_zero,
     shift_immed_chain, shift_of_shifted_logic_chain, load_or_combine,

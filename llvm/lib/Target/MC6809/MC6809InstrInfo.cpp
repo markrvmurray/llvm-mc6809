@@ -3389,7 +3389,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::AddSetCarry_i16_Imm:
   // Bug #147: AddSetOverflow_* shares the AddSetCarry expansion (same
   // ADDA/ADDB/ADDD instructions). The pseudo opcode is preserved only as
-  // metadata for selectBrCond's V-vs-C dispatch; here we just lower to
+  // metadata for the selector's G_BRCOND-case V-vs-C dispatch; here we just lower to
   // the same MC instructions.
   case MC6809::AddSetOverflow_i8_Imm:
   case MC6809::AddSetOverflow_i16_Imm:

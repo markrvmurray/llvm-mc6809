@@ -1006,7 +1006,7 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
       // custom rule (observed as a hang when I first tried i32 here, and
       // i16 would emit `cmpd #imm16` where only 8 bits are meaningful).
       // Comparing on i8 also opens up CompareBranch_i8_Imm fusion in
-      // selectBrCond — the whole point of the libcall fix is to get a
+      // the selector's G_BRCOND case — the whole point of the libcall fix is to get a
       // single-MI compare→branch at the point where the result is
       // consumed.
       LLT Ret8 = LLT::scalar(8);

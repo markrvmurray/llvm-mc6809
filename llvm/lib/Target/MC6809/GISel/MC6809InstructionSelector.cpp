@@ -3009,8 +3009,8 @@ bool MC6809InstructionSelector::selectAddO(MachineInstr &MI) {
 
   // Bug #147: G_SADDO's s1 result represents the V (signed-overflow)
   // flag, while G_UADDO's represents C (carry). The MC expansion is
-  // identical (same ADDA/ADDB/ADDD), but selectBrCond needs to dispatch
-  // BVS vs BCS based on which flag the s1 phantom maps to. Carry the
+  // identical (same ADDA/ADDB/ADDD), but the selector's G_BRCOND case needs to
+  // dispatch BVS vs BCS based on which flag the s1 phantom maps to. Carry the
   // signedness in the pseudo opcode by emitting AddSetOverflow_* for
   // signed and AddSetCarry_* for unsigned.
   bool IsSigned = MI.getOpcode() == TargetOpcode::G_SADDO;
