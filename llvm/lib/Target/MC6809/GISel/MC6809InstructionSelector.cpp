@@ -613,16 +613,12 @@ InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectAMIndex
   // accumulator that would have held the value is freed. Guarded by OneUse (so
   // the standalone load is actually eliminated) + shouldFoldMemAccess (no
   // aliasing store / call / ordered access between the load and the consumer) --
-  // the same safety regime the load/store indirect fold uses.
-  // Compare consumers (G_ICMP) are deferred: folding a register-base load into a
-  // compare/compare-branch exercises the long-dead Compare_*_Mem /
-  // CompareBranch_*_Mem expansion paths, which have multiple accumulated bugs
-  // (the o0-offset-operand `cmp ,0`, spilled-index bases, and others -- 5 libc
-  // tests regress even after the first two are fixed). The arith folds (add/sub/
-  // and/or/eor) are clean and shipped; the compare fold (and thus indirect CMP)
-  // needs a dedicated cleanup of those expanders. Until then, arith only.
+  // the same safety regime the load/store indirect fold uses. Compare consumers
+  // (G_ICMP) fold too: expandCompareIdx materializes a spilled index base and
+  // (like the load expander) omits the offset operand for the o0 form, and the
+  // compare-branch's Compare_*_Mem is re-expanded through the same path -- so
+  // `*p == x` -> `cmp ,p`, `p[k] == x` -> `cmp k,p`.
   if (RootDef->getOpcode() == TargetOpcode::G_LOAD &&
-      Root.getParent()->getOpcode() != TargetOpcode::G_ICMP &&
       MRI.hasOneNonDBGUse(Root.getReg()) &&
       shouldFoldMemAccess(*Root.getParent(), *RootDef, AA)) {
     MachineInstr *AddrDef = MRI.getVRegDef(RootDef->getOperand(1).getReg());

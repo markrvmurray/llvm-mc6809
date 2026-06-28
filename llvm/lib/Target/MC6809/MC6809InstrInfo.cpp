@@ -7829,8 +7829,16 @@ void MC6809InstrInfo::expandCompareIdx(MachineIRBuilder &Builder, MachineInstr &
       llvm_unreachable("Unexpected operand(s) in compare indexed/register.");
   } else
     llvm_unreachable("Unknown offset type for CompareIdx");
-  Builder.buildInstr(Opcode)
-      .add(OffsetOp).add(IndexOp);
+  // The zero-offset form (CMPxi_o0) takes ONLY the base -- no offset operand --
+  // exactly like the LOAD expander's `if (OffsetSize > 0)` guard. Adding a `0`
+  // offset to the o0 form gives it a spurious operand and the printer renders
+  // `cmp ,0` (the strcmp register-base-compare miscompile). This path is only
+  // reached with offset 0 by the P3a register-base compare fold; existing
+  // frame-index compares resolve to non-zero (o8/o16) offsets post-PEI.
+  auto CmpB = Builder.buildInstr(Opcode);
+  if (OffsetSize > 0)
+    CmpB.add(OffsetOp);
+  CmpB.add(IndexOp);
   MI.eraseFromParent();
 }
 
