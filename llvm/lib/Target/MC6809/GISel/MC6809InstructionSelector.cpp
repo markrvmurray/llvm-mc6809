@@ -2177,6 +2177,87 @@ skip_globalvalue_fold:
       }
     }
 
+    // Memory-operand compare->branch fusion: if one G_ICMP operand is a
+    // single-use register-base load, fold it into CompareBranch_*_Mem
+    // (`cmp ,p; b<cc>`) rather than materialising it into an accumulator and
+    // taking the both-registers path below. The load may be on either side --
+    // `mem CC reg` == `reg swap(CC) mem` -- so swap the predicate when it is the
+    // LHS. This is the brcond sibling of the arith/compare consumer fold; the
+    // freeze between the icmp and this brcond was already walked above. (The
+    // foldable-load address is base[+const]; G_PTR_ADD-const or a plain pointer,
+    // never a frame index or global -- same shouldFoldMemAccess safety regime.)
+    if (CondDef && CondDef->getOpcode() == TargetOpcode::G_ICMP &&
+        CondDef->getParent() == MBB && ChainAllSingleUse()) {
+      auto Pred = (CmpInst::Predicate)CondDef->getOperand(1).getPredicate();
+      Register Lhs = CondDef->getOperand(2).getReg();
+      Register Rhs = CondDef->getOperand(3).getReg();
+      LLT Ty = MRI->getType(Lhs);
+      // Returns (base, offset) if V is a foldable single-use register-base load.
+      auto TryFoldLoad =
+          [&](Register V) -> std::optional<std::pair<Register, int64_t>> {
+        MachineInstr *LD = MRI->getVRegDef(V);
+        if (!LD || LD->getOpcode() != TargetOpcode::G_LOAD)
+          return std::nullopt;
+        if (!MRI->hasOneNonDBGUse(V) || !shouldFoldMemAccess(MI, *LD, AA))
+          return std::nullopt;
+        Register Addr = LD->getOperand(1).getReg();
+        MachineInstr *AD = MRI->getVRegDef(Addr);
+        if (AD && AD->getOpcode() == TargetOpcode::G_PTR_ADD) {
+          MachineInstr *OD = MRI->getVRegDef(AD->getOperand(2).getReg());
+          if (OD && OD->getOpcode() == TargetOpcode::G_CONSTANT)
+            return std::make_pair(AD->getOperand(1).getReg(),
+                                  OD->getOperand(1).getCImm()->getSExtValue());
+          return std::nullopt;
+        }
+        if (AD && (AD->getOpcode() == TargetOpcode::G_FRAME_INDEX ||
+                   AD->getOpcode() == TargetOpcode::G_GLOBAL_VALUE))
+          return std::nullopt;
+        return std::make_pair(Addr, (int64_t)0);
+      };
+
+      unsigned MemOpc = 0;
+      const TargetRegisterClass *RC = nullptr;
+      if (Ty == LLT::scalar(8)) {
+        MemOpc = MC6809::CompareBranch_i8_Mem;
+        RC = &MC6809::ACC8RegClass;
+      } else if (Ty == LLT::scalar(16)) {
+        MemOpc = MC6809::CompareBranch_i16_Mem;
+        RC = &MC6809::ACC16RegClass;
+      }
+
+      if (MemOpc) {
+        Register SrcReg;
+        CmpInst::Predicate UsePred = Pred;
+        std::optional<std::pair<Register, int64_t>> Fold;
+        if ((Fold = TryFoldLoad(Rhs)))
+          SrcReg = Lhs; // `reg CC mem`
+        else if ((Fold = TryFoldLoad(Lhs))) {
+          SrcReg = Rhs; // `mem CC reg` == `reg swap(CC) mem`
+          UsePred = CmpInst::getSwappedPredicate(Pred);
+        }
+        auto CCOpt = Fold ? PredToCC(UsePred) : std::nullopt;
+        const RegisterBank *SBank =
+            SrcReg ? RBI.getRegBank(SrcReg, *MRI, TRI) : nullptr;
+        if (Fold && CCOpt && SBank &&
+            SBank->getID() == MC6809::ACCUMRegBankID &&
+            RBI.constrainGenericRegister(SrcReg, *RC, *MRI) &&
+            RBI.constrainGenericRegister(Fold->first, MC6809::INDEX16RegClass,
+                                         *MRI)) {
+          BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(MemOpc))
+              .addImm(*CCOpt)
+              .addReg(SrcReg)
+              .addReg(Fold->first)
+              .addImm(Fold->second)
+              .addMBB(TargetMBB);
+          Register ICmpDst = CondDef->getOperand(0).getReg();
+          MI.eraseFromParent();
+          if (MRI->use_nodbg_empty(ICmpDst))
+            CondDef->eraseFromParent();
+          return true;
+        }
+      }
+    }
+
     if (CondDef && CondDef->getOpcode() == TargetOpcode::G_ICMP &&
         CondDef->getParent() == MBB &&
         ChainAllSingleUse()) {
