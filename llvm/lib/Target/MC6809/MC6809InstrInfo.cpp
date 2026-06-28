@@ -4576,6 +4576,48 @@ void MC6809InstrInfo::expandIdxImm(ContextIndexImmediate Context, MachineIRBuild
       LLVM_DEBUG(for (auto &I : Bundler) {
         I.dump();
       });
+    } else if (DestReg == MC6809::AE || DestReg == MC6809::AF) {
+      // Bug #382: HD6309 E/F have no indexed memory-arith encoding (the IdxImm
+      // map has only A/B/D), so a byte _Mem/_Pull op whose tied accumulator
+      // regalloc placed in E/F would otherwise be unselectable. Stage through B:
+      // copy E/F->B, do the B-form indexed op, copy B->E/F. COPY (not EXG) never
+      // reads B's incoming value, so this is verifier-clean when B is dead; when
+      // B is *live* its value must be preserved, so wrap in pshs b / puls b.
+      MachineBasicBlock &MBB = *MI.getParent();
+      const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
+      LivePhysRegs LiveRegs(TRI);
+      LiveRegs.addLiveIns(MBB);
+      SmallVector<std::pair<MCPhysReg, const MachineOperand *>, 4> Clobbers;
+      for (auto It = MBB.begin(); It != MI.getIterator(); ++It) {
+        Clobbers.clear();
+        LiveRegs.stepForward(*It, Clobbers);
+      }
+      bool BLive = LiveRegs.contains(MC6809::AB);
+
+      // pshs b shifts S down by 1, so an S-relative offset (and thus the chosen
+      // opcode size) must be bumped by 1 while B sits on the stack. Use o8 for
+      // the bumped offset (always encodable; o5 might no longer fit).
+      int UseOffset = Offset;
+      int UseSize = OffsetSize;
+      if (BLive && IndexReg == MC6809::SS) {
+        UseOffset = Offset + 1;
+        UseSize = (UseOffset == 0) ? 0 : isInt<8>(UseOffset) ? 8 : 16;
+      }
+      RegPlusOffsetLen LookupB{MC6809::AB, UseSize};
+      OpcodePair = Context.Opcode->find(LookupB);
+      assert((OpcodePair != Context.Opcode->end()) && "B-form indexed arith must exist");
+
+      if (BLive)
+        Builder.buildInstr(MC6809::PSHSs).addUse(MC6809::AB); // pshs b
+      Builder.buildCopy(Register(MC6809::AB), Register(DestReg)); // B = E/F value
+      auto Instr = Builder.buildInstr(OpcodePair->getSecond()).addDef(MC6809::AB, RegState::Implicit);
+      if (UseSize == 0)
+        Instr.addReg(IndexReg);
+      else
+        Instr.addImm(UseOffset).addReg(IndexReg);
+      Builder.buildCopy(Register(DestReg), Register(MC6809::AB)); // E/F = result
+      if (BLive)
+        Builder.buildInstr(MC6809::PULSs).addDef(MC6809::AB); // puls b
     } else
       llvm_unreachable("Cannot find machine instruction with these immediate indexed operands");
   } else {

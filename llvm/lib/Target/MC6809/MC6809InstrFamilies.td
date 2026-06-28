@@ -492,11 +492,8 @@ multiclass MC6809Arithmetic<ValueType vtype, RegisterClass dst, RegisterClass sr
     def _Imm : MC6809ArithmeticBase<dst, src, (ins !cast<Operand>(vtype#"imm"):$val)>;
   }
   let mayLoad = true in {
-    // Byte indexed/pull accumulates have no E/F encoding (ADDE/ANDF n,x do not
-    // exist) -- constrain their tied accumulator to A/B(+spill) so regalloc
-    // never lands them in E/F on HD6309 (would crash expandIdxImm).
-    def _Mem : MC6809ArithmeticBase<!if(IsByte, ACC8_AB_SP, dst), !if(IsByte, ACC8_AB_SP, src), (ins INDEX16:$idx, unknown:$offset)>;
-    def _Pull : MC6809ArithmeticBase<!if(IsByte, ACC8_AB_SP, dst), !if(IsByte, ACC8_AB_SP, src), (ins STACK16:$idx)>;
+    def _Mem : MC6809ArithmeticBase<dst, src, (ins INDEX16:$idx, unknown:$offset)>;
+    def _Pull : MC6809ArithmeticBase<dst, src, (ins STACK16:$idx)>;
     let Predicates = [IsHD6309] in {
       if !eq(IsByte, 1) then {
         // Bug #214/#217 default: B-half routing. `_Reg` keeps the
@@ -868,10 +865,8 @@ multiclass MC6809Bitwise<ValueType vtype, RegisterClass reg> {
     def _Reg : MC6809BitwiseBase<reg, (ins reg:$src2)>;
   }
   let mayLoad = true in {
-    // Byte indexed/pull bitwise ops have no E/F encoding (ANDF n,x does not
-    // exist) -- constrain to A/B(+spill) so regalloc never lands them in E/F.
-    def _Mem : MC6809BitwiseBase<!if(!eq(vtype, i8), ACC8_AB_SP, reg), (ins INDEX16:$idx, unknown:$offset)>;
-    def _Pull : MC6809BitwiseBase<!if(!eq(vtype, i8), ACC8_AB_SP, reg), (ins STACK16:$idx)>;
+    def _Mem : MC6809BitwiseBase<reg, (ins INDEX16:$idx, unknown:$offset)>;
+    def _Pull : MC6809BitwiseBase<reg, (ins STACK16:$idx)>;
   }
 }
 
