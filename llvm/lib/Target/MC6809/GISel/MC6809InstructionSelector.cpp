@@ -619,7 +619,29 @@ InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectAMIndex
   // (like the load expander) omits the offset operand for the o0 form, and the
   // compare-branch's Compare_*_Mem is re-expanded through the same path -- so
   // `*p == x` -> `cmp ,p`, `p[k] == x` -> `cmp k,p`.
-  if (RootDef->getOpcode() == TargetOpcode::G_LOAD &&
+  // Pointer-domain (INDEX-bank) safety gate: do NOT fold a register-base load
+  // into an index-domain pointer compare. There the compared value lives in an
+  // index register (CMPX/CMPY) and a register-base memory operand needs a SECOND
+  // index register for the base; if both spill they collide in MaterializeSpills
+  // (only IY stages index spills), collapsing the compare to `cmpy n,y` -- a
+  // value compared against itself (bug #384). The frame-index fold above stays
+  // safe (base = U/S, never an index spill). The compare is index-domain when the
+  // OTHER (sibling) G_ICMP operand is INDEX-bank -- the folded memory operand
+  // itself is ACCUM-bank (it is just the memory value), so we must inspect the
+  // sibling, not Root. ACC-domain compares + arith consumers are unaffected.
+  bool IndexDomainCompare = false;
+  if (MachineInstr *Cmp = Root.getParent();
+      Cmp->getOpcode() == TargetOpcode::G_ICMP) {
+    for (unsigned I = 2; I <= 3; ++I) {
+      Register Op = Cmp->getOperand(I).getReg();
+      if (Op == Root.getReg())
+        continue;
+      const RegisterBank *B = RBI.getRegBank(Op, MRI, TRI);
+      if (B && B->getID() == MC6809::INDEXRegBankID)
+        IndexDomainCompare = true;
+    }
+  }
+  if (!IndexDomainCompare && RootDef->getOpcode() == TargetOpcode::G_LOAD &&
       MRI.hasOneNonDBGUse(Root.getReg()) &&
       shouldFoldMemAccess(*Root.getParent(), *RootDef, AA)) {
     MachineInstr *AddrDef = MRI.getVRegDef(RootDef->getOperand(1).getReg());
@@ -657,6 +679,23 @@ InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectAMIndex
   MachineRegisterInfo &MRI = Root.getParent()->getParent()->getParent()->getRegInfo();
   if (!Root.isReg())
     return std::nullopt;
+  // Pointer-domain safety gate (same rationale as selectAMIndexedImmOffset, bug
+  // #384): an index-domain pointer compare's value lives in an index register and
+  // the indirect base needs another -- two index operands collide in
+  // MaterializeSpills (only IY stages index spills). Detect via the sibling
+  // G_ICMP operand's bank. ACC-bank consumers (arith/logical -- the only ones
+  // that currently reach here) are unaffected.
+  if (MachineInstr *Cmp = Root.getParent();
+      Cmp->getOpcode() == TargetOpcode::G_ICMP) {
+    for (unsigned I = 2; I <= 3; ++I) {
+      Register Op = Cmp->getOperand(I).getReg();
+      if (Op == Root.getReg())
+        continue;
+      const RegisterBank *B = RBI.getRegBank(Op, MRI, TRI);
+      if (B && B->getID() == MC6809::INDEXRegBankID)
+        return std::nullopt;
+    }
+  }
   // Peel the outer value load -- the consumer reads it from memory directly.
   MachineInstr *OuterLoad = MRI.getVRegDef(Root.getReg());
   if (!OuterLoad || OuterLoad->getOpcode() != TargetOpcode::G_LOAD)
