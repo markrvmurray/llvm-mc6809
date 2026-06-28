@@ -2270,21 +2270,64 @@ skip_globalvalue_fold:
         return std::make_pair(Addr, (int64_t)0);
       };
 
-      unsigned MemOpc = 0;
+      // P3b: returns (base, offset) if V is a foldable INDIRECT load -- `*p`
+      // where the pointer p itself lives in memory at [base+const] (double
+      // deref), exactly like selectAMIndexedIndirect -- folding into `cmp [n,r]`.
+      auto TryFoldIndirect =
+          [&](Register V) -> std::optional<std::pair<Register, int64_t>> {
+        MachineInstr *Outer = MRI->getVRegDef(V);
+        if (!Outer || Outer->getOpcode() != TargetOpcode::G_LOAD)
+          return std::nullopt;
+        if (!MRI->hasOneNonDBGUse(V) || !shouldFoldMemAccess(MI, *Outer, AA))
+          return std::nullopt;
+        Register PtrReg = Outer->getOperand(1).getReg();
+        MachineInstr *Inner = MRI->getVRegDef(PtrReg);
+        if (!Inner || Inner->getOpcode() != TargetOpcode::G_LOAD)
+          return std::nullopt;
+        if (!MRI->hasOneNonDBGUse(PtrReg) ||
+            !shouldFoldMemAccess(MI, *Inner, AA))
+          return std::nullopt;
+        MachineInstr *AD = MRI->getVRegDef(Inner->getOperand(1).getReg());
+        if (AD && AD->getOpcode() == TargetOpcode::G_PTR_ADD) {
+          MachineInstr *OD = MRI->getVRegDef(AD->getOperand(2).getReg());
+          if (OD && OD->getOpcode() == TargetOpcode::G_CONSTANT)
+            return std::make_pair(AD->getOperand(1).getReg(),
+                                  OD->getOperand(1).getCImm()->getSExtValue());
+          return std::nullopt;
+        }
+        if (AD && (AD->getOpcode() == TargetOpcode::G_FRAME_INDEX ||
+                   AD->getOpcode() == TargetOpcode::G_GLOBAL_VALUE))
+          return std::nullopt;
+        return std::make_pair(Inner->getOperand(1).getReg(), (int64_t)0);
+      };
+
+      unsigned MemOpc = 0, MemIndOpc = 0;
       const TargetRegisterClass *RC = nullptr;
       if (Ty == LLT::scalar(8)) {
         MemOpc = MC6809::CompareBranch_i8_Mem;
+        MemIndOpc = MC6809::CompareBranch_i8_MemIndirect;
         RC = &MC6809::ACC8RegClass;
       } else if (Ty == LLT::scalar(16)) {
         MemOpc = MC6809::CompareBranch_i16_Mem;
+        MemIndOpc = MC6809::CompareBranch_i16_MemIndirect;
         RC = &MC6809::ACC16RegClass;
       }
 
       if (MemOpc) {
         Register SrcReg;
         CmpInst::Predicate UsePred = Pred;
+        unsigned UseOpc = MemOpc;
         std::optional<std::pair<Register, int64_t>> Fold;
-        if ((Fold = TryFoldLoad(Rhs)))
+        // Prefer the indirect (double-deref) fold; fall back to the direct
+        // register-base fold. Load on either side -> swap the predicate.
+        if ((Fold = TryFoldIndirect(Rhs))) {
+          SrcReg = Lhs;
+          UseOpc = MemIndOpc;
+        } else if ((Fold = TryFoldIndirect(Lhs))) {
+          SrcReg = Rhs;
+          UsePred = CmpInst::getSwappedPredicate(Pred);
+          UseOpc = MemIndOpc;
+        } else if ((Fold = TryFoldLoad(Rhs)))
           SrcReg = Lhs; // `reg CC mem`
         else if ((Fold = TryFoldLoad(Lhs))) {
           SrcReg = Rhs; // `mem CC reg` == `reg swap(CC) mem`
@@ -2298,7 +2341,7 @@ skip_globalvalue_fold:
             RBI.constrainGenericRegister(SrcReg, *RC, *MRI) &&
             RBI.constrainGenericRegister(Fold->first, MC6809::INDEX16RegClass,
                                          *MRI)) {
-          BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(MemOpc))
+          BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(UseOpc))
               .addImm(*CCOpt)
               .addReg(SrcReg)
               .addReg(Fold->first)

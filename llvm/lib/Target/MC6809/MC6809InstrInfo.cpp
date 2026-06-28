@@ -3612,6 +3612,8 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::Compare_i8_Mem:
   case MC6809::Compare_i16_Mem:
   case MC6809::Compare_ptr_Mem:
+  case MC6809::Compare_i8_MemIndirect:
+  case MC6809::Compare_i16_MemIndirect:
     expandCompareIdx(Builder, MI);
     break;
   case MC6809::Compare_i8_Pull:
@@ -3644,6 +3646,8 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::CompareBranch_i16_Reg:
   case MC6809::CompareBranch_i8_Mem:
   case MC6809::CompareBranch_i16_Mem:
+  case MC6809::CompareBranch_i8_MemIndirect:
+  case MC6809::CompareBranch_i16_MemIndirect:
   case MC6809::CompareBranch_i8_Pull:
   case MC6809::CompareBranch_i16_Pull:
   case MC6809::CompareBranch_ptr_Imm: // Bug #359: index-domain pointer compare.
@@ -4533,7 +4537,13 @@ void MC6809InstrInfo::expandIdxImm(ContextIndexImmediate Context, MachineIRBuild
   // swaps a load to its `[n,r]` form. Applies at every build site below,
   // including the AW/E-F cheat ops (their memory access is the cheat's op).
   const bool Indirect = isMemIndirectPseudo(MI.getOpcode());
-  auto IndOpc = [&](unsigned O) { return Indirect ? indirectSiblingOf(O) : O; };
+  auto IndOpc = [&](unsigned O) {
+    if (!Indirect)
+      return O;
+    unsigned I = indirectSiblingOf(O);
+    assert(I && "no indirect-indexed sibling for this opcode (add an IND3 row)");
+    return I;
+  };
   auto DestReg = MI.getOperand(0).getReg();
   Register OrigDest = DestReg;
   MachineFunction &MF = *MI.getMF();
@@ -6281,7 +6291,8 @@ static unsigned indirectSiblingOf(unsigned Opc) {
   IND3(SUBA) IND3(SUBB) IND3(SUBD) IND3(SBCA) IND3(SBCB)
   IND3(ANDA) IND3(ANDB) IND3(ORA) IND3(ORB) IND3(EORA) IND3(EORB)
   IND3(ANDD) IND3(ORD) IND3(EORD) // HD6309 16-bit logical (expandIdxImm path)
-  IND3(CMPA) IND3(CMPB) IND3(CMPD) IND3(CMPX) IND3(CMPY)
+  IND3(ADDW) IND3(SUBW)           // HD6309 W-accumulator i16 arith
+  IND3(CMPA) IND3(CMPB) IND3(CMPD) IND3(CMPW) IND3(CMPX) IND3(CMPY)
 #undef IND3
   default: return 0;
   }
@@ -6302,6 +6313,10 @@ static bool isMemIndirectPseudo(unsigned Opc) {
   case MC6809::AND_i8_MemIndirect: case MC6809::AND_i16_MemIndirect:
   case MC6809::OR_i8_MemIndirect:  case MC6809::OR_i16_MemIndirect:
   case MC6809::XOR_i8_MemIndirect: case MC6809::XOR_i16_MemIndirect:
+  // P3b: indirect-indexed compares (setcc + fused compare-branch).
+  case MC6809::Compare_i8_MemIndirect: case MC6809::Compare_i16_MemIndirect:
+  case MC6809::CompareBranch_i8_MemIndirect:
+  case MC6809::CompareBranch_i16_MemIndirect:
     return true;
   default:
     return false;
@@ -7881,6 +7896,13 @@ void MC6809InstrInfo::expandCompareIdx(MachineIRBuilder &Builder, MachineInstr &
   // `cmp ,0` (the strcmp register-base-compare miscompile). This path is only
   // reached with offset 0 by the P3a register-base compare fold; existing
   // frame-index compares resolve to non-zero (o8/o16) offsets post-PEI.
+  // P3b: indirect-indexed compare (`cmp [n,r]`) -- swap to the indirect-sibling
+  // opcode, mirroring expandIdxImm / expandLoadIdx.
+  if (isMemIndirectPseudo(MI.getOpcode())) {
+    unsigned Ind = indirectSiblingOf(Opcode);
+    assert(Ind && "no indirect-indexed compare sibling (add an IND3 row)");
+    Opcode = Ind;
+  }
   auto CmpB = Builder.buildInstr(Opcode);
   if (OffsetSize > 0)
     CmpB.add(OffsetOp);
@@ -8331,6 +8353,8 @@ void MC6809InstrInfo::expandFusedCompareBranch(MachineIRBuilder &Builder, Machin
   case MC6809::CompareBranch_i16_Reg: CmpOpc = MC6809::Compare_i16_Reg; break;
   case MC6809::CompareBranch_i8_Mem:  CmpOpc = MC6809::Compare_i8_Mem; break;
   case MC6809::CompareBranch_i16_Mem: CmpOpc = MC6809::Compare_i16_Mem; break;
+  case MC6809::CompareBranch_i8_MemIndirect:  CmpOpc = MC6809::Compare_i8_MemIndirect; break;
+  case MC6809::CompareBranch_i16_MemIndirect: CmpOpc = MC6809::Compare_i16_MemIndirect; break;
   case MC6809::CompareBranch_i8_Pull:  CmpOpc = MC6809::Compare_i8_Pull; break;
   case MC6809::CompareBranch_i16_Pull: CmpOpc = MC6809::Compare_i16_Pull; break;
   case MC6809::CompareBranch_ptr_Imm:  CmpOpc = MC6809::Compare_ptr_Imm; break; // Bug #359

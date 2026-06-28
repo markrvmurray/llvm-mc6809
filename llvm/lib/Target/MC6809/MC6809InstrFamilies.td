@@ -984,6 +984,9 @@ multiclass MC6809Compare<ValueType vtype, RegisterClass reg> {
   def _Reg : MC6809CompareBase<reg, (ins reg:$src2)>;
   let mayLoad = true in {
     def _Mem : MC6809CompareBase<reg, (ins INDEX16:$idx, unknown:$offset)>;
+    // P3b: indirect-indexed compare (`cmp [n,r]`) -- expanded to the indirect-
+    // sibling opcode via indirectSiblingOf in expandCompareIdx.
+    def _MemIndirect : MC6809CompareBase<reg, (ins INDEX16:$idx, unknown:$offset)>;
     def _Pull : MC6809CompareBase<reg, (ins STACK16:$idx)>;
   }
 }
@@ -1108,6 +1111,8 @@ multiclass MC6809CompareBranch<ValueType vtype, RegisterClass reg> {
   def _Reg : MC6809CompareBranchBase<reg, (ins reg:$src2)>;
   let mayLoad = true in {
     def _Mem : MC6809CompareBranchBase<reg, (ins INDEX16:$idx, unknown:$offset)>;
+    // P3b: indirect-indexed fused compare-branch (`cmp [n,r]; b<cc>`).
+    def _MemIndirect : MC6809CompareBranchBase<reg, (ins INDEX16:$idx, unknown:$offset)>;
     def _Pull : MC6809CompareBranchBase<reg, (ins STACK16:$idx)>;
   }
 }
