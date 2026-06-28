@@ -1409,6 +1409,114 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
           LhsRC = &MC6809::ACC16RegClass;
         }
         if (CmpRegOpc) {
+          // Bug #383: fold a single-use register-base / indirect load operand
+          // into the compare's own addressing mode so a setcc-to-VALUE such as
+          // `int r = *p == x` folds `*p` (`cmp ,p` + ConditionalImm) instead of
+          // materialising the load into an accumulator. Mirrors the G_BRCOND
+          // memory-fold arm. This arm forces ACC8/ACC16 for the value, so the
+          // value and the index base never alias (cf. bug #384, an index-domain
+          // hazard that cannot arise here).
+          unsigned CmpMemOpc = (OpTy == LLT::scalar(8))
+                                   ? MC6809::Compare_i8_Mem
+                                   : MC6809::Compare_i16_Mem;
+          unsigned CmpMemIndOpc = (OpTy == LLT::scalar(8))
+                                      ? MC6809::Compare_i8_MemIndirect
+                                      : MC6809::Compare_i16_MemIndirect;
+          auto TryFoldLoad =
+              [&](Register V) -> std::optional<std::pair<Register, int64_t>> {
+            MachineInstr *LD = MRI->getVRegDef(V);
+            if (!LD || LD->getOpcode() != TargetOpcode::G_LOAD)
+              return std::nullopt;
+            if (!MRI->hasOneNonDBGUse(V) || !shouldFoldMemAccess(MI, *LD, AA))
+              return std::nullopt;
+            Register Addr = LD->getOperand(1).getReg();
+            MachineInstr *AD = MRI->getVRegDef(Addr);
+            if (AD && AD->getOpcode() == TargetOpcode::G_PTR_ADD) {
+              MachineInstr *OD = MRI->getVRegDef(AD->getOperand(2).getReg());
+              if (OD && OD->getOpcode() == TargetOpcode::G_CONSTANT)
+                return std::make_pair(AD->getOperand(1).getReg(),
+                                      OD->getOperand(1).getCImm()->getSExtValue());
+              return std::nullopt;
+            }
+            if (AD && (AD->getOpcode() == TargetOpcode::G_FRAME_INDEX ||
+                       AD->getOpcode() == TargetOpcode::G_GLOBAL_VALUE ||
+                       AD->getOpcode() == TargetOpcode::G_LOAD))
+              return std::nullopt;
+            return std::make_pair(Addr, (int64_t)0);
+          };
+          auto TryFoldIndirect =
+              [&](Register V) -> std::optional<std::pair<Register, int64_t>> {
+            MachineInstr *Outer = MRI->getVRegDef(V);
+            if (!Outer || Outer->getOpcode() != TargetOpcode::G_LOAD)
+              return std::nullopt;
+            if (!MRI->hasOneNonDBGUse(V) ||
+                !shouldFoldMemAccess(MI, *Outer, AA))
+              return std::nullopt;
+            Register PtrReg = Outer->getOperand(1).getReg();
+            MachineInstr *Inner = MRI->getVRegDef(PtrReg);
+            if (!Inner || Inner->getOpcode() != TargetOpcode::G_LOAD)
+              return std::nullopt;
+            if (!MRI->hasOneNonDBGUse(PtrReg) ||
+                !shouldFoldMemAccess(MI, *Inner, AA))
+              return std::nullopt;
+            MachineInstr *AD = MRI->getVRegDef(Inner->getOperand(1).getReg());
+            if (AD && AD->getOpcode() == TargetOpcode::G_PTR_ADD) {
+              MachineInstr *OD = MRI->getVRegDef(AD->getOperand(2).getReg());
+              if (OD && OD->getOpcode() == TargetOpcode::G_CONSTANT)
+                return std::make_pair(AD->getOperand(1).getReg(),
+                                      OD->getOperand(1).getCImm()->getSExtValue());
+              return std::nullopt;
+            }
+            if (AD && (AD->getOpcode() == TargetOpcode::G_FRAME_INDEX ||
+                       AD->getOpcode() == TargetOpcode::G_GLOBAL_VALUE))
+              return std::nullopt;
+            return std::make_pair(Inner->getOperand(1).getReg(), (int64_t)0);
+          };
+          Register SrcReg;
+          CmpInst::Predicate UsePred = Pred;
+          unsigned UseMemOpc = 0;
+          std::optional<std::pair<Register, int64_t>> Fold;
+          if ((Fold = TryFoldIndirect(RhsReg))) {
+            SrcReg = LhsReg;
+            UseMemOpc = CmpMemIndOpc;
+          } else if ((Fold = TryFoldIndirect(LhsReg))) {
+            SrcReg = RhsReg;
+            UsePred = CmpInst::getSwappedPredicate(Pred);
+            UseMemOpc = CmpMemIndOpc;
+          } else if ((Fold = TryFoldLoad(RhsReg))) {
+            SrcReg = LhsReg;
+            UseMemOpc = CmpMemOpc;
+          } else if ((Fold = TryFoldLoad(LhsReg))) {
+            SrcReg = RhsReg;
+            UsePred = CmpInst::getSwappedPredicate(Pred);
+            UseMemOpc = CmpMemOpc;
+          }
+          if (Fold && UseMemOpc) {
+            if (auto UseCC = PredToCC(UsePred)) {
+              MachineIRBuilder B(MI);
+              if (!MRI->getRegClassOrNull(SrcReg))
+                MRI->setRegClass(SrcReg, LhsRC);
+              MRI->setRegClass(DstReg, &MC6809::ACC8RegClass);
+              Register CCReg =
+                  MRI->createVirtualRegister(&MC6809::CCondRegClass);
+              auto Cmp = B.buildInstr(UseMemOpc)
+                             .addDef(CCReg)
+                             .addImm(*UseCC)
+                             .addUse(SrcReg)
+                             .addUse(Fold->first)
+                             .addImm(Fold->second);
+              constrainSelectedInstRegOperands(*Cmp, TII, TRI, RBI);
+              auto Sel = B.buildInstr(MC6809::ConditionalImm)
+                             .addDef(DstReg)
+                             .addImm(*UseCC)
+                             .addUse(CCReg)
+                             .addImm(1)
+                             .addImm(0);
+              constrainSelectedInstRegOperands(*Sel, TII, TRI, RBI);
+              MI.eraseFromParent();
+              return true;
+            }
+          }
           std::optional<int64_t> RhsImm;
           if (auto *RhsDef = MRI->getVRegDef(RhsReg)) {
             if (RhsDef->getOpcode() == TargetOpcode::G_CONSTANT)
