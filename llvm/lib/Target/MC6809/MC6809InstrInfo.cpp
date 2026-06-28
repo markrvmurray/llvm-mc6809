@@ -6301,7 +6301,14 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
       Register DstSpillReg = DestRegOp.getReg();
 
       // Bug #272 Phase B core: accept CImm offsets too.
-      bool SrcOffIsImmediate = SrcOffset.isImm() || SrcOffset.isCImm();
+      // Bug #381: the optimized two-LDD / LDQ slot-copy below loads DIRECTLY
+      // from `off,base` and never applies the indirect-sibling swap, so for an
+      // indirect-indexed pseudo (`ld [off,base]`) it would silently drop the
+      // indirection (qsort's `*(long*)b` -> `ldq 20,u` instead of `ldq [20,u]`).
+      // Route the indirect case through the generic materialize -> recurse ->
+      // dematerialize path below, which expands the load with the indirect swap.
+      bool SrcOffIsImmediate =
+          (SrcOffset.isImm() || SrcOffset.isCImm()) && !Indirect;
       if (SrcOffIsImmediate) {
         int SrcOffBytes = SrcOffset.isImm()
                               ? int(SrcOffset.getImm())
@@ -6494,7 +6501,12 @@ void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI
     int SrcSpillOff = computeSpillStackOffset(SrcSpill.getReg(), MF);
 
     // Bug #272 Phase B core: accept CImm offsets too.
-    bool DstOffIsImmediate = DstOffset.isImm() || DstOffset.isCImm();
+    // Bug #381: symmetric to expandLoadIdx -- the optimized two-LDD / STQ
+    // slot-copy stores DIRECTLY to `off,base` and never applies the indirect
+    // swap, so route the indirect-indexed case (`st [off,base]`) through the
+    // generic materialize -> generic-build -> indirect-swap path below.
+    bool DstOffIsImmediate =
+        (DstOffset.isImm() || DstOffset.isCImm()) && !Indirect;
     if (DstOffIsImmediate) {
       int DstOffBytes = DstOffset.isImm()
                             ? int(DstOffset.getImm())
