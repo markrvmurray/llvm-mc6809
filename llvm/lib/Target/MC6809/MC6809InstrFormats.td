@@ -303,6 +303,9 @@ def gi_am_ls_unmerge_indexed_imm_offset : GIComplexOperandMatcher<s16, "selectAM
 // index + offset [-32768, 32767].
 def am_indexed_imm_offset : ComplexPattern<iPTR, 2, "SelectAMIndexedImmOffset", []>;
 def gi_am_indexed_imm_offset : GIComplexOperandMatcher<s16, "selectAMIndexedImmOffset">, GIComplexPatternEquiv<am_indexed_imm_offset>;
+// P3b: indirect-indexed consumer operand (`op [n,r]`), see selectAMIndexedIndirect.
+def am_indexed_indirect : ComplexPattern<iPTR, 2, "SelectAMIndexedIndirect", []>;
+def gi_am_indexed_indirect : GIComplexOperandMatcher<s16, "selectAMIndexedIndirect">, GIComplexPatternEquiv<am_indexed_indirect>;
 def am_unmerge_indexed_imm_offset : ComplexPattern<iPTR, 2, "SelectAMUnmergeIndexedImmOffset", []>;
 def gi_am_unmerge_indexed_imm_offset : GIComplexOperandMatcher<s16, "selectAMUnmergeIndexedImmOffset">, GIComplexPatternEquiv<am_unmerge_indexed_imm_offset>;
 

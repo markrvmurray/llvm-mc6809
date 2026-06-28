@@ -493,6 +493,9 @@ multiclass MC6809Arithmetic<ValueType vtype, RegisterClass dst, RegisterClass sr
   }
   let mayLoad = true in {
     def _Mem : MC6809ArithmeticBase<dst, src, (ins INDEX16:$idx, unknown:$offset)>;
+    // P3b: indirect-indexed (`op [n,r]`) -- same operands as _Mem, expanded to
+    // the indirect-sibling opcode via indirectSiblingOf in expandIdxImm.
+    def _MemIndirect : MC6809ArithmeticBase<dst, src, (ins INDEX16:$idx, unknown:$offset)>;
     def _Pull : MC6809ArithmeticBase<dst, src, (ins STACK16:$idx)>;
     let Predicates = [IsHD6309] in {
       if !eq(IsByte, 1) then {
@@ -767,6 +770,7 @@ let Predicates = [IsHD6309] in
 multiclass MC6809ArithPat<SDNode node, ValueType vtype, RegisterClass reg, string inst> {
   def _Imm : Pat<(vtype (node reg:$src, imm:$val)), (!cast<Instruction>(inst#"_"#vtype#"_Imm") reg:$src, imm:$val)>;
   def _Idx_Imm : Pat<(vtype (node reg:$src, (am_indexed_imm_offset INDEX16:$idx, i16imm:$offset))), (!cast<Instruction>(inst#"_"#vtype#"_Mem") reg:$src, INDEX16:$idx, imm:$offset)>;
+  def _Idx_Indirect : Pat<(vtype (node reg:$src, (am_indexed_indirect INDEX16:$idx, i16imm:$offset))), (!cast<Instruction>(inst#"_"#vtype#"_MemIndirect") reg:$src, INDEX16:$idx, imm:$offset)>;
   def _Unmerge_Idx_Imm : Pat<(vtype (node reg:$src, (am_unmerge_indexed_imm_offset INDEX16:$idx, i16imm:$offset))), (!cast<Instruction>(inst#"_"#vtype#"_Mem") reg:$src, INDEX16:$idx, imm:$offset)>;
   def _Idx_Reg8 : Pat<(vtype (node reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC8:$offset))), (!cast<Instruction>(inst#"_"#vtype#"_Mem") reg:$src, INDEX16:$idx, ACC8:$offset)>;
   def _Idx_Reg16 : Pat<(vtype (node reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC16:$offset))), (!cast<Instruction>(inst#"_"#vtype#"_Mem") reg:$src, INDEX16:$idx, ACC16:$offset)>;
@@ -781,6 +785,7 @@ multiclass MC6809ArithPat<SDNode node, ValueType vtype, RegisterClass reg, strin
 multiclass MC6809ArithRevPat<SDNode node, ValueType vtype, RegisterClass reg, string inst> {
   def _Imm : Pat<(vtype (node imm:$val, reg:$src)), (!cast<Instruction>("Negate_"#vtype) (!cast<Instruction>(inst#"_"#vtype#"_Imm") reg:$src, imm:$val))>;
   def _Idx_Imm : Pat<(vtype (node (am_indexed_imm_offset INDEX16:$idx, i16imm:$offset), reg:$src)), (!cast<Instruction>("Negate_"#vtype) (!cast<Instruction>(inst#"_"#vtype#"_Mem") reg:$src, INDEX16:$idx, imm:$offset))>;
+  def _Idx_Indirect : Pat<(vtype (node (am_indexed_indirect INDEX16:$idx, i16imm:$offset), reg:$src)), (!cast<Instruction>("Negate_"#vtype) (!cast<Instruction>(inst#"_"#vtype#"_MemIndirect") reg:$src, INDEX16:$idx, imm:$offset))>;
   def _Unmerge_Idx_Imm : Pat<(vtype (node (am_unmerge_indexed_imm_offset INDEX16:$idx, i16imm:$offset), reg:$src)), (!cast<Instruction>("Negate_"#vtype) (!cast<Instruction>(inst#"_"#vtype#"_Mem") reg:$src, INDEX16:$idx, imm:$offset))>;
   def _Idx_Reg8 : Pat<(vtype (node (am_indexed_imm_offset INDEX16:$idx, ACC8:$offset), reg:$src)), (!cast<Instruction>("Negate_"#vtype) (!cast<Instruction>(inst#"_"#vtype#"_Mem") reg:$src, INDEX16:$idx, ACC8:$offset))>;
   def _Idx_Reg16 : Pat<(vtype (node (am_indexed_imm_offset INDEX16:$idx, ACC16:$offset), reg:$src)), (!cast<Instruction>("Negate_"#vtype) (!cast<Instruction>(inst#"_"#vtype#"_Mem") reg:$src, INDEX16:$idx, ACC16:$offset))>;
@@ -866,6 +871,8 @@ multiclass MC6809Bitwise<ValueType vtype, RegisterClass reg> {
   }
   let mayLoad = true in {
     def _Mem : MC6809BitwiseBase<reg, (ins INDEX16:$idx, unknown:$offset)>;
+    // P3b: indirect-indexed (`op [n,r]`) -- see MC6809Arithmetic _MemIndirect.
+    def _MemIndirect : MC6809BitwiseBase<reg, (ins INDEX16:$idx, unknown:$offset)>;
     def _Pull : MC6809BitwiseBase<reg, (ins STACK16:$idx)>;
   }
 }

@@ -3321,9 +3321,11 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::AND_i16_Imm:
     expandBitwiseImm16(ANDImm, MC6809::ANDAi8, MC6809::ANDBi8, Builder, MI);
     break;
+  case MC6809::AND_i8_MemIndirect:
   case MC6809::AND_i8_Mem:
     expandIdxImm(ANDIdxImm, Builder, MI);
     break;
+  case MC6809::AND_i16_MemIndirect:
   case MC6809::AND_i16_Mem:
     expandBitwiseMem16(ANDIdxImm, Builder, MI);
     break;
@@ -3341,9 +3343,11 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::OR_i16_Imm:
     expandBitwiseImm16(ORImm, MC6809::ORAi8, MC6809::ORBi8, Builder, MI);
     break;
+  case MC6809::OR_i8_MemIndirect:
   case MC6809::OR_i8_Mem:
     expandIdxImm(ORIdxImm, Builder, MI);
     break;
+  case MC6809::OR_i16_MemIndirect:
   case MC6809::OR_i16_Mem:
     expandBitwiseMem16(ORIdxImm, Builder, MI);
     break;
@@ -3361,9 +3365,11 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::XOR_i16_Imm:
     expandBitwiseImm16(XORImm, MC6809::EORAi8, MC6809::EORBi8, Builder, MI);
     break;
+  case MC6809::XOR_i8_MemIndirect:
   case MC6809::XOR_i8_Mem:
     expandIdxImm(XORIdxImm, Builder, MI);
     break;
+  case MC6809::XOR_i16_MemIndirect:
   case MC6809::XOR_i16_Mem:
     expandBitwiseMem16(XORIdxImm, Builder, MI);
     break;
@@ -3397,6 +3403,8 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::AddSetOverflowUse_i16_Imm:   // bug #147
     expandCarryImm16(true, Builder, MI);
     break;
+  case MC6809::Add_i8_MemIndirect:
+  case MC6809::Add_i16_MemIndirect:
   case MC6809::Add_i8_Mem:
   case MC6809::Add_i16_Mem:
   case MC6809::AddSetCarry_i8_Mem:
@@ -3471,6 +3479,8 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::SubSetOverflowUse_i16_Imm:   // bug #147
     expandCarryImm16(false, Builder, MI);
     break;
+  case MC6809::Sub_i8_MemIndirect:
+  case MC6809::Sub_i16_MemIndirect:
   case MC6809::Sub_i8_Mem:
   case MC6809::Sub_i16_Mem:
   case MC6809::SubSetCarry_i8_Mem:
@@ -4513,8 +4523,17 @@ void MC6809InstrInfo::expandImm(ContextImmediate Context, MachineIRBuilder &Buil
   MI.eraseFromParent();
 }
 
+static unsigned indirectSiblingOf(unsigned Opc);
+static bool isMemIndirectPseudo(unsigned Opc);
+
 void MC6809InstrInfo::expandIdxImm(ContextIndexImmediate Context, MachineIRBuilder &Builder, MachineInstr &MI) const {
   auto operandCount = MI.getNumExplicitOperands();
+  // P3b: indirect-indexed consumer (`op [n,r]`) -- build the indirect-sibling
+  // opcode (the memory operand is `*(mem[r+n])`), exactly as expandLoadIdx
+  // swaps a load to its `[n,r]` form. Applies at every build site below,
+  // including the AW/E-F cheat ops (their memory access is the cheat's op).
+  const bool Indirect = isMemIndirectPseudo(MI.getOpcode());
+  auto IndOpc = [&](unsigned O) { return Indirect ? indirectSiblingOf(O) : O; };
   auto DestReg = MI.getOperand(0).getReg();
   Register OrigDest = DestReg;
   MachineFunction &MF = *MI.getMF();
@@ -4565,7 +4584,7 @@ void MC6809InstrInfo::expandIdxImm(ContextIndexImmediate Context, MachineIRBuild
       // indexed op, DestReg is the scratch side; mark its read Undef
       // on the second EXG too.
       B = Builder.buildInstr(MC6809::EXGp).addDef(MC6809::AD).addDef(DestReg).addUse(MC6809::AD, RegState::Undef).addUse(DestReg);
-      auto Instr = Builder.buildInstr(OpcodePair->getSecond()).addDef(MC6809::AD, RegState::Implicit);
+      auto Instr = Builder.buildInstr(IndOpc(OpcodePair->getSecond())).addDef(MC6809::AD, RegState::Implicit);
       if (OffsetSize == 0)
         Instr.addReg(IndexReg);
       else
@@ -4610,7 +4629,7 @@ void MC6809InstrInfo::expandIdxImm(ContextIndexImmediate Context, MachineIRBuild
       if (BLive)
         Builder.buildInstr(MC6809::PSHSs).addUse(MC6809::AB); // pshs b
       Builder.buildCopy(Register(MC6809::AB), Register(DestReg)); // B = E/F value
-      auto Instr = Builder.buildInstr(OpcodePair->getSecond()).addDef(MC6809::AB, RegState::Implicit);
+      auto Instr = Builder.buildInstr(IndOpc(OpcodePair->getSecond())).addDef(MC6809::AB, RegState::Implicit);
       if (UseSize == 0)
         Instr.addReg(IndexReg);
       else
@@ -4621,7 +4640,7 @@ void MC6809InstrInfo::expandIdxImm(ContextIndexImmediate Context, MachineIRBuild
     } else
       llvm_unreachable("Cannot find machine instruction with these immediate indexed operands");
   } else {
-    auto Instr = Builder.buildInstr(OpcodePair->getSecond()).addDef(DestReg, RegState::Implicit);
+    auto Instr = Builder.buildInstr(IndOpc(OpcodePair->getSecond())).addDef(DestReg, RegState::Implicit);
     if (OffsetSize == 0)
       Instr.addReg(IndexReg);
     else
@@ -5326,6 +5345,21 @@ void MC6809InstrInfo::expandBitwiseMem16(ContextIndexImmediate Context,
   auto IndexReg = MI.getOperand(operandCount - 2).getReg();
   auto OffsetOp = MI.getOperand(operandCount - 1);
   auto Offset = OffsetOp.isImm() ? OffsetOp.getImm() : OffsetOp.getCImm()->getSExtValue();
+  // P3b indirect (6809): materialize the pointer (at [IndexReg+Offset]) into IY,
+  // then split off [0,IY]/[1,IY] below. The direct two-byte split addresses
+  // [n,r]/[n+1,r], which is wrong for an indirect operand whose two bytes live
+  // at *ptr and *ptr+1. (6309 took the expandIdxImm path above with ANDD/etc.)
+  if (isMemIndirectPseudo(MI.getOpcode())) {
+    // getLoadIdxOpcode always returns the o8/o16 form (which takes an explicit
+    // offset operand), so always pass it -- exactly like the spill-base helper.
+    unsigned LdOpc = getLoadIdxOpcode(MC6809::IY, Offset);
+    Builder.buildInstr(LdOpc)
+        .addDef(MC6809::IY, RegState::Implicit)
+        .addImm(Offset)
+        .addReg(IndexReg);
+    IndexReg = Register(MC6809::IY);
+    Offset = 0;
+  }
   int OffsetLo = Offset + 1;
   int OffsetHi = Offset;
   int OffsetLoSize = offsetSizeInBitsForValue(OffsetLo);
@@ -6242,6 +6276,12 @@ static unsigned indirectSiblingOf(unsigned Opc) {
   IND3(LDA) IND3(LDB) IND3(LDE) IND3(LDF) IND3(LDD) IND3(LDW) IND3(LDX) IND3(LDY)
   IND3(STA) IND3(STB) IND3(STE) IND3(STF) IND3(STD) IND3(STW) IND3(STX) IND3(STY)
   IND3(LDQ) IND3(STQ)
+  // P3b: indirect-indexed arith/logical consumers (`op [n,r]`).
+  IND3(ADDA) IND3(ADDB) IND3(ADDD) IND3(ADCA) IND3(ADCB)
+  IND3(SUBA) IND3(SUBB) IND3(SUBD) IND3(SBCA) IND3(SBCB)
+  IND3(ANDA) IND3(ANDB) IND3(ORA) IND3(ORB) IND3(EORA) IND3(EORB)
+  IND3(ANDD) IND3(ORD) IND3(EORD) // HD6309 16-bit logical (expandIdxImm path)
+  IND3(CMPA) IND3(CMPB) IND3(CMPD) IND3(CMPX) IND3(CMPY)
 #undef IND3
   default: return 0;
   }
@@ -6256,6 +6296,12 @@ static bool isMemIndirectPseudo(unsigned Opc) {
   case MC6809::Load_iPtr_MemIndirect:
   case MC6809::Store_i8_MemIndirect: case MC6809::Store_i16_MemIndirect:
   case MC6809::Store_iPtr_MemIndirect:
+  // P3b: indirect-indexed arith/logical consumers.
+  case MC6809::Add_i8_MemIndirect: case MC6809::Add_i16_MemIndirect:
+  case MC6809::Sub_i8_MemIndirect: case MC6809::Sub_i16_MemIndirect:
+  case MC6809::AND_i8_MemIndirect: case MC6809::AND_i16_MemIndirect:
+  case MC6809::OR_i8_MemIndirect:  case MC6809::OR_i16_MemIndirect:
+  case MC6809::XOR_i8_MemIndirect: case MC6809::XOR_i16_MemIndirect:
     return true;
   default:
     return false;

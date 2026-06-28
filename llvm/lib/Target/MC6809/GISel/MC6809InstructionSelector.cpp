@@ -183,6 +183,7 @@ private:
   ComplexRendererFns selectLSFrameIndex(MachineOperand &Root) const;
   ComplexRendererFns selectAMImmediate(MachineOperand &Root) const;
   ComplexRendererFns selectAMIndexedImmOffset(MachineOperand &Root) const;
+  ComplexRendererFns selectAMIndexedIndirect(MachineOperand &Root) const;
   ComplexRendererFns selectAMUnmergeIndexedImmOffset(MachineOperand &Root) const;
 
 #define GET_GLOBALISEL_PREDICATES_DECL
@@ -631,8 +632,12 @@ InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectAMIndex
         }};
     } else if (AddrDef &&
                AddrDef->getOpcode() != TargetOpcode::G_FRAME_INDEX &&
-               AddrDef->getOpcode() != TargetOpcode::G_GLOBAL_VALUE) {
-      // Plain register pointer: cmp/add ,p
+               AddrDef->getOpcode() != TargetOpcode::G_GLOBAL_VALUE &&
+               AddrDef->getOpcode() != TargetOpcode::G_LOAD) {
+      // Plain register pointer: cmp/add ,p. A pointer that is ITSELF loaded
+      // from memory (G_LOAD) is left to am_indexed_indirect (P3b) -- folding it
+      // here as a register base would materialise the pointer and preempt the
+      // better `op [n,r]` indirect form.
       return {{
           [=](MachineInstrBuilder &MIB) { MIB.add(RootDef->getOperand(1)); },
           [=](MachineInstrBuilder &MIB) { MIB.addImm(0); },
@@ -641,6 +646,56 @@ InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectAMIndex
   }
 
   return std::nullopt;
+}
+
+/// Indirect-indexed consumer fold (P3b): match an arith/compare memory operand
+/// that is `*p` where the pointer `p` itself lives in memory at `[base+const]`,
+/// folding BOTH loads into the consumer's indirect `[n,r]` addressing mode
+/// (`add [n,r]` = add *(mem[r+n])). The outer (value) load is peeled here, then
+/// the inner (pointer) load is matched exactly as selectLSIndexedIndirect does.
+InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectAMIndexedIndirect(MachineOperand &Root) const {
+  MachineRegisterInfo &MRI = Root.getParent()->getParent()->getParent()->getRegInfo();
+  if (!Root.isReg())
+    return std::nullopt;
+  // Peel the outer value load -- the consumer reads it from memory directly.
+  MachineInstr *OuterLoad = MRI.getVRegDef(Root.getReg());
+  if (!OuterLoad || OuterLoad->getOpcode() != TargetOpcode::G_LOAD)
+    return std::nullopt;
+  if (!MRI.hasOneNonDBGUse(Root.getReg()) ||
+      !shouldFoldMemAccess(*Root.getParent(), *OuterLoad, AA))
+    return std::nullopt;
+  // The outer load's ADDRESS is the pointer, which must itself be a single-use
+  // load (the indirect mode reads it from memory), foldable to the consumer.
+  Register PtrReg = OuterLoad->getOperand(1).getReg();
+  MachineInstr *InnerLoad = MRI.getVRegDef(PtrReg);
+  if (!InnerLoad || InnerLoad->getOpcode() != TargetOpcode::G_LOAD)
+    return std::nullopt;
+  if (!MRI.hasOneNonDBGUse(PtrReg) ||
+      !shouldFoldMemAccess(*Root.getParent(), *InnerLoad, AA))
+    return std::nullopt;
+  // Match the inner (pointer) load's address: [base+const], frame-index, or
+  // plain [base] -- identical to selectLSIndexedIndirect.
+  MachineInstr *AddrDef = MRI.getVRegDef(InnerLoad->getOperand(1).getReg());
+  if (AddrDef && AddrDef->getOpcode() == TargetOpcode::G_PTR_ADD) {
+    MachineInstr *OffDef = MRI.getVRegDef(AddrDef->getOperand(2).getReg());
+    if (OffDef && OffDef->getOpcode() == TargetOpcode::G_CONSTANT)
+      return {{
+          [=](MachineInstrBuilder &MIB) { MIB.add(AddrDef->getOperand(1)); },
+          [=](MachineInstrBuilder &MIB) { MIB.add(OffDef->getOperand(1)); },
+      }};
+    return std::nullopt;
+  }
+  if (AddrDef && AddrDef->getOpcode() == TargetOpcode::G_FRAME_INDEX)
+    return {{
+        [=](MachineInstrBuilder &MIB) { MIB.add(AddrDef->getOperand(1)); },
+        [=](MachineInstrBuilder &MIB) { MIB.addImm(0); },
+    }};
+  if (AddrDef && AddrDef->getOpcode() == TargetOpcode::G_GLOBAL_VALUE)
+    return std::nullopt;
+  return {{
+      [=](MachineInstrBuilder &MIB) { MIB.add(InnerLoad->getOperand(1)); },
+      [=](MachineInstrBuilder &MIB) { MIB.addImm(0); },
+  }};
 }
 
 /// Select a "high word unmerged frame index plus offset" address.
