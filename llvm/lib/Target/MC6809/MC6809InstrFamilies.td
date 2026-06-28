@@ -413,15 +413,21 @@ multiclass MC6809StorePat<ValueType vtype, RegisterClass reg> {
   def _#vtype#_Idx_Zero : Pat<(store reg:$src, INDEX16:$idx), (!cast<Instruction>("Store_"#vtype#"_Mem") reg:$src, INDEX16:$idx, (i16 0))>;
   def _#vtype#_Idx_Imm : Pat<(store reg:$src, (am_ls_indexed_imm_offset INDEX16:$idx, i16imm:$offset)), (!cast<Instruction>("Store_"#vtype#"_Mem") reg:$src, INDEX16:$idx, i16imm:$offset)>;
   def _#vtype#_Unmerge_Idx_Imm : Pat<(store reg:$src, (am_ls_unmerge_indexed_imm_offset INDEX16:$idx, i16imm:$offset)), (!cast<Instruction>("Store_"#vtype#"_Mem") reg:$src, INDEX16:$idx, i16imm:$offset)>;
-  // NOTE: register-offset STORES are deliberately NOT wired to
-  // am_ls_indexed_reg_offset yet. On this 2-accumulator target the store value
-  // and the offset both have to be READ, and a byte value is always a sub-reg
-  // of the only 16-bit offset (D = A:B), so `st<byte> d,x` aliases value and
-  // offset -> miscompile. An 8-bit (A/B) offset is only safe when offset != the
-  // value reg. Until that alias guard exists these stay on the (dead, constant-
-  // only) imm matcher so stores fall back to the correct LEAX + zero-offset form.
-  def _#vtype#_Idx_Reg8 : Pat<(store reg:$src, (am_ls_indexed_imm_offset INDEX16:$idx, ACC8:$offset)), (!cast<Instruction>("Store_"#vtype#"_Mem") reg:$src, INDEX16:$idx, ACC8:$offset)>;
-  def _#vtype#_Idx_Reg16 : Pat<(store reg:$src, (am_ls_indexed_imm_offset INDEX16:$idx, ACC16:$offset)), (!cast<Instruction>("Store_"#vtype#"_Mem") reg:$src, INDEX16:$idx, ACC16:$offset)>;
+  // Register-offset STORE (P1 store half): a sole-use G_SEXT of an i8 index rides
+  // the hardware-sign-extended 8-bit accumulator offset (STB A,X / STA B,X),
+  // eliding the explicit SEX-to-D and the LEAX. Safe ONLY for a byte (i8) value:
+  // the value (A or B) and the DISTINCT 8-bit offset vreg are both live at the
+  // store, so they interfere and regalloc places them in OPPOSITE accumulators --
+  // no value/offset overlap. (When value and offset are the SAME vreg they hold
+  // the same value, so `stb b,x` = store v at a[v] is still correct.) A 16-bit
+  // value is D = A:B and would overlap ANY 8-bit offset, and a 16-bit (D) offset
+  // is a superset of the byte value, so neither is wired -- those fall back to
+  // the LEAX + zero-offset form. The matcher (selectLSIndexedRegOffset) only
+  // returns the sext-i8 case; the post-RA foldLEAIntoLoad has no store analog, so
+  // this pre-RA Pat is the only place the register-offset store is recovered.
+  if !eq(vtype, i8) then {
+    def _#vtype#_Idx_Reg8 : Pat<(store reg:$src, (am_ls_indexed_reg_offset INDEX16:$idx, ACC8:$offset)), (!cast<Instruction>("Store_"#vtype#"_Mem") reg:$src, INDEX16:$idx, ACC8:$offset)>;
+  }
   def _#vtype#_Frame_Index : Pat<(store reg:$src, (am_ls_frame_index INDEX16:$idx, ACC16:$offset)), (!cast<Instruction>("Store_"#vtype#"_Mem") reg:$src, INDEX16:$idx, i16imm:$offset)>;
 }
 
