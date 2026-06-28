@@ -166,14 +166,16 @@ bool MC6809LateOptimization::elideCompareZero(MachineBasicBlock &MBB) const {
   return Changed;
 }
 
-// Bug #361: the index-LEA addressing suffix we can fold into a load. Constant
-// (o5/o8/o16) carry an explicit (offset, base) operand pair; accumulator
-// (oA/oB/oD and the HD6309 oE/oF/oW) carry only the base, with the accumulator
-// as an implicit use; PC-relative (o8PC/o16PC) carry a single pcrel symbol
-// operand (the PC base is implicit). Indirect (`…I`), auto inc/dec, and
-// LEAS/LEAU are not foldable. Enum values index the LoadTab columns below.
+// The index-LEA addressing suffix we can fold into a load. Constant (o5/o8/o16)
+// carry an explicit (offset, base) operand pair; accumulator (oA/oB/oD and the
+// HD6309 oE/oF/oW) carry only the base, with the accumulator as an implicit use.
+// PC-relative (o8PC/o16PC) is intentionally absent: a global addressed
+// PC-relatively is folded into the load/store at instruction selection now (the
+// deferred _Sym pseudo + its post-RA expander), so no `leax sym,pc; ld ,x` pair
+// survives to here. Indirect (`…I`), auto inc/dec, and LEAS/LEAU are not
+// foldable. Enum values index the LoadTab columns below.
 enum class IdxSuf : int {
-  o5 = 0, o8, o16, oA, oB, oD, oE, oF, oW, o8PC, o16PC, None = -1
+  o5 = 0, o8, o16, oA, oB, oD, oE, oF, oW, None = -1
 };
 
 static IdxSuf leaIdxSuffix(unsigned LeaOpc) {
@@ -187,8 +189,6 @@ static IdxSuf leaIdxSuffix(unsigned LeaOpc) {
   case MC6809::LEAXi_oE:    case MC6809::LEAYi_oE:    return IdxSuf::oE;
   case MC6809::LEAXi_oF:    case MC6809::LEAYi_oF:    return IdxSuf::oF;
   case MC6809::LEAXi_oW:    case MC6809::LEAYi_oW:    return IdxSuf::oW;
-  case MC6809::LEAXi_o8PC:  case MC6809::LEAYi_o8PC:  return IdxSuf::o8PC;
-  case MC6809::LEAXi_o16PC: case MC6809::LEAYi_o16PC: return IdxSuf::o16PC;
   default: return IdxSuf::None;
   }
 }
@@ -208,17 +208,17 @@ static Register loadO0ValueReg(unsigned LoadOpc) {
 
 // The load opcode that loads ValueReg using addressing suffix Suf. Rows are the
 // value-register families; columns are the IdxSuf order {o5,o8,o16,oA,oB,oD,oE,
-// oF,oW,o8PC,o16PC}. (HD6309 value families E/F/W are not folded — they fall to 0.)
+// oF,oW}. (HD6309 value families E/F/W are not folded — they fall to 0.)
 static unsigned indexedLoadOpcode(Register ValueReg, IdxSuf Suf) {
   if (Suf == IdxSuf::None)
     return 0;
-  static const unsigned LoadTab[6][11] = {
-    /* AA */ {MC6809::LDAi_o5, MC6809::LDAi_o8, MC6809::LDAi_o16, MC6809::LDAi_oA, MC6809::LDAi_oB, MC6809::LDAi_oD, MC6809::LDAi_oE, MC6809::LDAi_oF, MC6809::LDAi_oW, MC6809::LDAi_o8PC, MC6809::LDAi_o16PC},
-    /* AB */ {MC6809::LDBi_o5, MC6809::LDBi_o8, MC6809::LDBi_o16, MC6809::LDBi_oA, MC6809::LDBi_oB, MC6809::LDBi_oD, MC6809::LDBi_oE, MC6809::LDBi_oF, MC6809::LDBi_oW, MC6809::LDBi_o8PC, MC6809::LDBi_o16PC},
-    /* AD */ {MC6809::LDDi_o5, MC6809::LDDi_o8, MC6809::LDDi_o16, MC6809::LDDi_oA, MC6809::LDDi_oB, MC6809::LDDi_oD, MC6809::LDDi_oE, MC6809::LDDi_oF, MC6809::LDDi_oW, MC6809::LDDi_o8PC, MC6809::LDDi_o16PC},
-    /* IX */ {MC6809::LDXi_o5, MC6809::LDXi_o8, MC6809::LDXi_o16, MC6809::LDXi_oA, MC6809::LDXi_oB, MC6809::LDXi_oD, MC6809::LDXi_oE, MC6809::LDXi_oF, MC6809::LDXi_oW, MC6809::LDXi_o8PC, MC6809::LDXi_o16PC},
-    /* IY */ {MC6809::LDYi_o5, MC6809::LDYi_o8, MC6809::LDYi_o16, MC6809::LDYi_oA, MC6809::LDYi_oB, MC6809::LDYi_oD, MC6809::LDYi_oE, MC6809::LDYi_oF, MC6809::LDYi_oW, MC6809::LDYi_o8PC, MC6809::LDYi_o16PC},
-    /* SU */ {MC6809::LDUi_o5, MC6809::LDUi_o8, MC6809::LDUi_o16, MC6809::LDUi_oA, MC6809::LDUi_oB, MC6809::LDUi_oD, MC6809::LDUi_oE, MC6809::LDUi_oF, MC6809::LDUi_oW, MC6809::LDUi_o8PC, MC6809::LDUi_o16PC},
+  static const unsigned LoadTab[6][9] = {
+    /* AA */ {MC6809::LDAi_o5, MC6809::LDAi_o8, MC6809::LDAi_o16, MC6809::LDAi_oA, MC6809::LDAi_oB, MC6809::LDAi_oD, MC6809::LDAi_oE, MC6809::LDAi_oF, MC6809::LDAi_oW},
+    /* AB */ {MC6809::LDBi_o5, MC6809::LDBi_o8, MC6809::LDBi_o16, MC6809::LDBi_oA, MC6809::LDBi_oB, MC6809::LDBi_oD, MC6809::LDBi_oE, MC6809::LDBi_oF, MC6809::LDBi_oW},
+    /* AD */ {MC6809::LDDi_o5, MC6809::LDDi_o8, MC6809::LDDi_o16, MC6809::LDDi_oA, MC6809::LDDi_oB, MC6809::LDDi_oD, MC6809::LDDi_oE, MC6809::LDDi_oF, MC6809::LDDi_oW},
+    /* IX */ {MC6809::LDXi_o5, MC6809::LDXi_o8, MC6809::LDXi_o16, MC6809::LDXi_oA, MC6809::LDXi_oB, MC6809::LDXi_oD, MC6809::LDXi_oE, MC6809::LDXi_oF, MC6809::LDXi_oW},
+    /* IY */ {MC6809::LDYi_o5, MC6809::LDYi_o8, MC6809::LDYi_o16, MC6809::LDYi_oA, MC6809::LDYi_oB, MC6809::LDYi_oD, MC6809::LDYi_oE, MC6809::LDYi_oF, MC6809::LDYi_oW},
+    /* SU */ {MC6809::LDUi_o5, MC6809::LDUi_o8, MC6809::LDUi_o16, MC6809::LDUi_oA, MC6809::LDUi_oB, MC6809::LDUi_oD, MC6809::LDUi_oE, MC6809::LDUi_oF, MC6809::LDUi_oW},
   };
   int Row;
   switch (ValueReg) {

@@ -20,8 +20,7 @@
 define i8 @load_x() {
 ; STATIC-LABEL: load_x:
 ; STATIC:       ; %bb.0:
-; STATIC-NEXT:    lda x
-; STATIC-NEXT:    tfr a,b
+; STATIC-NEXT:    ldb x
 ; STATIC-NEXT:    rts
 ;
 ; PIC-LABEL: load_x:
@@ -35,14 +34,12 @@ define i8 @load_x() {
 define void @store_x(i8 %v) {
 ; STATIC-LABEL: store_x:
 ; STATIC:       ; %bb.0:
-; STATIC-NEXT:    tfr b,a
-; STATIC-NEXT:    sta x
+; STATIC-NEXT:    stb x
 ; STATIC-NEXT:    rts
 ;
 ; PIC-LABEL: store_x:
 ; PIC:       ; %bb.0:
-; PIC-NEXT:    leax x,pc
-; PIC-NEXT:    stb ,x
+; PIC-NEXT:    stb x,pc
 ; PIC-NEXT:    rts
   store i8 %v, ptr @x
   ret void

@@ -170,6 +170,9 @@ private:
   void expandCallRelative(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandLEAPtrAdd(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandLoadSym(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandStoreSym(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandLeaSym(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandLoadImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandLoad1Imm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   // void expandLDImmRemat(MachineIRBuilder &Builder) const;

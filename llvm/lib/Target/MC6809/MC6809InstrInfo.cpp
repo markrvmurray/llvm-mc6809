@@ -3265,6 +3265,21 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::Load_iPtr_Mem:
     expandLoadIdx(Builder, MI);
     break;
+  case MC6809::Load_i8_Sym:
+  case MC6809::Load_i16_Sym:
+  case MC6809::Load_i32_Sym:
+  case MC6809::Load_iPtr_Sym:
+    expandLoadSym(Builder, MI);
+    break;
+  case MC6809::Lea_iPtr_Sym:
+    expandLeaSym(Builder, MI);
+    break;
+  case MC6809::Store_i8_Sym:
+  case MC6809::Store_i16_Sym:
+  case MC6809::Store_i32_Sym:
+  case MC6809::Store_iPtr_Sym:
+    expandStoreSym(Builder, MI);
+    break;
   case MC6809::Store_i8_Mem:
   case MC6809::Store_i16_Mem:
   case MC6809::Store_i32_Mem:
@@ -5897,6 +5912,171 @@ void MC6809InstrInfo::expandLoadImm(MachineIRBuilder &Builder, MachineInstr &MI)
     NewMI.addImm(Val);
   }
   MI.removeFromParent();
+}
+
+// Concrete reg-specific opcode for a global-symbol load/store, by the addressing
+// mode the post-RA expander resolves: direct page (IsDP), PC-relative (IsPIC),
+// or extended (absolute). Driven off the register the value landed in.
+static unsigned getSymLoadOpcode(Register Reg, bool IsDP, bool IsPIC) {
+  struct Row { unsigned R, D, E, PC; };
+  static const Row T[] = {
+    {MC6809::AA, MC6809::LDAd, MC6809::LDAe, MC6809::LDAi_o16PC},
+    {MC6809::AB, MC6809::LDBd, MC6809::LDBe, MC6809::LDBi_o16PC},
+    {MC6809::AD, MC6809::LDDd, MC6809::LDDe, MC6809::LDDi_o16PC},
+    {MC6809::AE, MC6809::LDEd, MC6809::LDEe, MC6809::LDEi_o16PC},
+    {MC6809::AF, MC6809::LDFd, MC6809::LDFe, MC6809::LDFi_o16PC},
+    {MC6809::AW, MC6809::LDWd, MC6809::LDWe, MC6809::LDWi_o16PC},
+    {MC6809::IX, MC6809::LDXd, MC6809::LDXe, MC6809::LDXi_o16PC},
+    {MC6809::IY, MC6809::LDYd, MC6809::LDYe, MC6809::LDYi_o16PC},
+    {MC6809::SU, MC6809::LDUd, MC6809::LDUe, MC6809::LDUi_o16PC},
+    {MC6809::AQ, MC6809::LDQd, MC6809::LDQe, MC6809::LDQi_o16PC},
+  };
+  for (const Row &E : T)
+    if (E.R == Reg)
+      return IsDP ? E.D : IsPIC ? E.PC : E.E;
+  return 0;
+}
+
+static unsigned getSymStoreOpcode(Register Reg, bool IsDP, bool IsPIC) {
+  struct Row { unsigned R, D, E, PC; };
+  static const Row T[] = {
+    {MC6809::AA, MC6809::STAd, MC6809::STAe, MC6809::STAi_o16PC},
+    {MC6809::AB, MC6809::STBd, MC6809::STBe, MC6809::STBi_o16PC},
+    {MC6809::AD, MC6809::STDd, MC6809::STDe, MC6809::STDi_o16PC},
+    {MC6809::AE, MC6809::STEd, MC6809::STEe, MC6809::STEi_o16PC},
+    {MC6809::AF, MC6809::STFd, MC6809::STFe, MC6809::STFi_o16PC},
+    {MC6809::AW, MC6809::STWd, MC6809::STWe, MC6809::STWi_o16PC},
+    {MC6809::IX, MC6809::STXd, MC6809::STXe, MC6809::STXi_o16PC},
+    {MC6809::IY, MC6809::STYd, MC6809::STYe, MC6809::STYi_o16PC},
+    {MC6809::SU, MC6809::STUd, MC6809::STUe, MC6809::STUi_o16PC},
+    {MC6809::AQ, MC6809::STQd, MC6809::STQe, MC6809::STQi_o16PC},
+  };
+  for (const Row &E : T)
+    if (E.R == Reg)
+      return IsDP ? E.D : IsPIC ? E.PC : E.E;
+  return 0;
+}
+
+// The staging register a spilled _Sym value transits through, by pseudo width.
+static Register symStageReg(unsigned PseudoOpc) {
+  switch (PseudoOpc) {
+  case MC6809::Load_i8_Sym:  case MC6809::Store_i8_Sym:  return MC6809::AA;
+  case MC6809::Load_i16_Sym: case MC6809::Store_i16_Sym: return MC6809::AD;
+  case MC6809::Load_iPtr_Sym:case MC6809::Store_iPtr_Sym:return MC6809::IY;
+  case MC6809::Load_i32_Sym: case MC6809::Store_i32_Sym: return MC6809::AQ;
+  default:                                               return MC6809::NoRegister;
+  }
+}
+
+static bool symIsDirectPage(const MachineOperand &SymOp) {
+  return SymOp.isGlobal() &&
+         SymOp.getGlobal()->getAddressSpace() == MC6809::AS_DirectPage;
+}
+
+void MC6809InstrInfo::expandLoadSym(MachineIRBuilder &Builder, MachineInstr &MI) const {
+  MachineFunction &MF = *MI.getMF();
+  Register Dst = MI.getOperand(0).getReg();
+  const MachineOperand &SymOp = MI.getOperand(1);
+  bool IsDP = symIsDirectPage(SymOp);
+  bool IsPIC = MF.getTarget().isPositionIndependent();
+  MachineBasicBlock &MBB = *MI.getParent();
+
+  // Spill dst: load the global into a width-appropriate staging register, then
+  // store that register to the spill slot. Mirrors expandLoadIdx's spill path;
+  // the global op needs no address register, so no staging-base conflict.
+  if (needsMaterialization(Dst)) {
+    Register Stage = symStageReg(MI.getOpcode());
+    int SpillOff = computeSpillStackOffset(Dst, MF);
+    unsigned LoadOpc = getSymLoadOpcode(Stage, IsDP, IsPIC);
+    BuildMI(MBB, MI, MI.getDebugLoc(), get(LoadOpc))
+        .add(SymOp)
+        .addDef(Stage, RegState::Implicit);
+    BuildMI(MBB, MI, MI.getDebugLoc(), get(getStoreIdxOpcode(Stage, SpillOff)))
+        .addUse(Stage, RegState::Implicit)
+        .addImm(SpillOff)
+        .addReg(MC6809::SU);
+    MI.eraseFromParent();
+    return;
+  }
+
+  unsigned Opc = getSymLoadOpcode(Dst, IsDP, IsPIC);
+  assert(Opc && "no global-symbol load opcode for destination register");
+  BuildMI(MBB, MI, MI.getDebugLoc(), get(Opc))
+      .add(SymOp)
+      .addDef(Dst, RegState::Implicit);
+  MI.eraseFromParent();
+}
+
+void MC6809InstrInfo::expandStoreSym(MachineIRBuilder &Builder, MachineInstr &MI) const {
+  MachineFunction &MF = *MI.getMF();
+  Register Src = MI.getOperand(0).getReg();
+  const MachineOperand &SymOp = MI.getOperand(1);
+  bool IsDP = symIsDirectPage(SymOp);
+  bool IsPIC = MF.getTarget().isPositionIndependent();
+  MachineBasicBlock &MBB = *MI.getParent();
+
+  // Spill src: reload the value from its spill slot into a staging register,
+  // then store that register to the global.
+  if (needsMaterialization(Src)) {
+    Register Stage = symStageReg(MI.getOpcode());
+    int SpillOff = computeSpillStackOffset(Src, MF);
+    BuildMI(MBB, MI, MI.getDebugLoc(), get(getLoadIdxOpcode(Stage, SpillOff)))
+        .addDef(Stage, RegState::Implicit)
+        .addImm(SpillOff)
+        .addReg(MC6809::SU);
+    unsigned StoreOpc = getSymStoreOpcode(Stage, IsDP, IsPIC);
+    BuildMI(MBB, MI, MI.getDebugLoc(), get(StoreOpc))
+        .add(SymOp)
+        .addUse(Stage, RegState::Implicit);
+    MI.eraseFromParent();
+    return;
+  }
+
+  unsigned Opc = getSymStoreOpcode(Src, IsDP, IsPIC);
+  assert(Opc && "no global-symbol store opcode for source register");
+  BuildMI(MBB, MI, MI.getDebugLoc(), get(Opc))
+      .add(SymOp)
+      .addUse(Src, RegState::Implicit);
+  MI.eraseFromParent();
+}
+
+// The PC-relative LEA opcode that computes a global's address into Reg.
+static unsigned getLeaSymOpcode(Register Reg) {
+  switch (Reg) {
+  case MC6809::IX: return MC6809::LEAXi_o16PC;
+  case MC6809::IY: return MC6809::LEAYi_o16PC;
+  case MC6809::SU: return MC6809::LEAUi_o16PC;
+  case MC6809::SS: return MC6809::LEASi_o16PC;
+  default:         return 0;
+  }
+}
+
+void MC6809InstrInfo::expandLeaSym(MachineIRBuilder &Builder, MachineInstr &MI) const {
+  MachineFunction &MF = *MI.getMF();
+  Register Dst = MI.getOperand(0).getReg();
+  const MachineOperand &SymOp = MI.getOperand(1);
+  MachineBasicBlock &MBB = *MI.getParent();
+
+  // Spill dst: compute the address into IY staging, then store it to the slot.
+  if (needsMaterialization(Dst)) {
+    int SpillOff = computeSpillStackOffset(Dst, MF);
+    BuildMI(MBB, MI, MI.getDebugLoc(), get(MC6809::LEAYi_o16PC))
+        .add(SymOp)
+        .addDef(MC6809::IY, RegState::Implicit);
+    BuildMI(MBB, MI, MI.getDebugLoc(), get(getStoreIdxOpcode(MC6809::IY, SpillOff)))
+        .addUse(MC6809::IY, RegState::Implicit)
+        .addImm(SpillOff)
+        .addReg(MC6809::SU);
+    MI.eraseFromParent();
+    return;
+  }
+
+  unsigned Opc = getLeaSymOpcode(Dst);
+  assert(Opc && "no PC-relative LEA opcode for destination register");
+  BuildMI(MBB, MI, MI.getDebugLoc(), get(Opc))
+      .add(SymOp)
+      .addDef(Dst, RegState::Implicit);
+  MI.eraseFromParent();
 }
 
 void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI) const {

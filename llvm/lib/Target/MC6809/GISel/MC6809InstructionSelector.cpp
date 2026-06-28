@@ -1159,24 +1159,17 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     bool IsLoad = MI.getOpcode() == TargetOpcode::G_LOAD;
     Register AddrReg = MI.getOperand(IsLoad ? 1 : 1).getReg();
     LLT AddrTy = MRI->getType(AddrReg);
-    // Two paths handled here:
-    //   AS==1 (Bug #178): direct-page addressing, LDAd/STAd/LDDd/STDd
-    //   AS==0 (extended addressing, this commit): LDAe/STAe/LDDe/STDe/
-    //     LDQe/STQe/LDXe/STXe — fold G_GLOBAL_VALUE directly into the
-    //     load/store so the LEAX/LEAY + indexed-zero-offset pair becomes
-    //     a single extended-mode op.  Saves 4 bytes + 5 cycles per site.
-    //
-    // Extended-mode (AS==0) only fires under the STATIC relocation
-    // model.  Under PIC/PIE, globals must be addressed via LEAX label,pc
-    // so the linker can emit R_MC6809_PCREL_16 (per Bug #197); folding
-    // into extended-mode would emit an absolute-address relocation and
-    // break the position-independent contract.  Fall through to the
-    // existing G_GLOBAL_VALUE selectImpl path (which picks LEAXi_o16PC
-    // under PIC, see line ~1395) in that case.
-    bool IsPIC = MF->getTarget().isPositionIndependent();
+    // Fold a G_GLOBAL_VALUE address directly into the load/store as a deferred
+    // _Sym pseudo. The value register is left in its broad class so regalloc
+    // chooses it; the post-RA expander (expandLoadSym / expandStoreSym) emits
+    // the concrete reg-specific opcode AND the addressing mode — direct page /
+    // extended / PC-relative — from the global's address space and the
+    // relocation model. Keeping register selection post-RA avoids the forced
+    // accumulator (and the TFR it costs when the value wants another register)
+    // that a concrete LDDe/LDAd here would impose, while still collapsing the
+    // address-materialise + indexed-zero pair into one op at selection.
     if (AddrTy.isPointer() &&
-        (AddrTy.getAddressSpace() == 1 ||
-         (AddrTy.getAddressSpace() == 0 && !IsPIC))) {
+        (AddrTy.getAddressSpace() == 1 || AddrTy.getAddressSpace() == 0)) {
       bool IsDP = AddrTy.getAddressSpace() == 1;
       // Walk to the G_GLOBAL_VALUE producer.
       MachineInstr *GV = MRI->getVRegDef(AddrReg);
@@ -1197,71 +1190,41 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
       Register ValReg = MI.getOperand(0).getReg();
       LLT ValTy = MRI->getType(ValReg);
       unsigned Opc;
-      MCRegister AccReg;
-      const TargetRegisterClass *AccRC;
+      const TargetRegisterClass *ValRC;
       if (ValTy == LLT::scalar(8)) {
-        Opc = IsLoad ? (IsDP ? MC6809::LDAd : MC6809::LDAe)
-                     : (IsDP ? MC6809::STAd : MC6809::STAe);
-        AccReg = MC6809::AA;
-        AccRC = &MC6809::AAcRegClass;
+        Opc = IsLoad ? MC6809::Load_i8_Sym : MC6809::Store_i8_Sym;
+        ValRC = &MC6809::ACC8RegClass;
       } else if (ValTy == LLT::scalar(16)) {
-        Opc = IsLoad ? (IsDP ? MC6809::LDDd : MC6809::LDDe)
-                     : (IsDP ? MC6809::STDd : MC6809::STDe);
-        AccReg = MC6809::AD;
-        AccRC = &MC6809::ADcRegClass;
-      } else if (!IsDP && ValTy.isPointer() && ValTy.getSizeInBits() == 16) {
-        // Extended-mode pointer load/store: LDX/STX is the canonical
-        // 16-bit pointer load.  Regalloc may insert a COPY between the
-        // value reg and IX if the consumer / producer used IY or IU;
-        // that COPY becomes a TFR (2 bytes) — still smaller than the
-        // LEAX-then-indexed pair we avoid (6 bytes total).
-        // The value reg is INDEX16 (IX+IY+spill), NOT IXc (IX-only).
-        // LDXe/STXe physically use $ix (AccReg), and the COPY below bridges
-        // $ix <-> the value reg — but pinning the *value* to IX-only made
-        // pointer-heavy code (e.g. malloc's free-list walk, whose pointers
-        // are all loaded/stored from globals via this fold) keep many values
-        // in a 1-register class at once -> greedy regalloc "ran out of
-        // registers". INDEX16 lets them spill / use IY.
-        Opc = IsLoad ? MC6809::LDXe : MC6809::STXe;
-        AccReg = MC6809::IX;
-        AccRC = &MC6809::INDEX16RegClass;
-      } else if (!IsDP && ValTy == LLT::scalar(32) && STI.has6309()) {
-        // Extended-mode i32 load/store: HD6309 LDQe/STQe in one op.
-        Opc = IsLoad ? MC6809::LDQe : MC6809::STQe;
-        AccReg = MC6809::AQ;
-        AccRC = &MC6809::AQcRegClass;
+        Opc = IsLoad ? MC6809::Load_i16_Sym : MC6809::Store_i16_Sym;
+        ValRC = &MC6809::ACC16RegClass;
+      } else if (ValTy.isPointer() && ValTy.getSizeInBits() == 16) {
+        Opc = IsLoad ? MC6809::Load_iPtr_Sym : MC6809::Store_iPtr_Sym;
+        ValRC = &MC6809::INDEX16RegClass;
+      } else if (ValTy == LLT::scalar(32) && STI.has6309()) {
+        Opc = IsLoad ? MC6809::Load_i32_Sym : MC6809::Store_i32_Sym;
+        ValRC = &MC6809::AQcRegClass;
       } else {
         if (IsDP)
-          return false; // unsupported width (s32 on plain 6809 etc.)
+          return false; // unsupported width (i32 on plain 6809 etc.)
         goto skip_globalvalue_fold;
       }
+      // Build the deferred pseudo: value operand + the global symbol. The value
+      // reg keeps its broad class (ValRC) so regalloc places it; the addressing
+      // mode and concrete opcode are chosen post-RA from the global itself.
       const MachineOperand &GVOp = GV->getOperand(1);
-      if (IsLoad) {
-        // $reg = LD*e @g  (or LD*d for DP)
-        BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(Opc))
-            .add(GVOp)
-            .addDef(AccReg, RegState::Implicit);
-        // %v = COPY $reg
-        BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(TargetOpcode::COPY),
-                ValReg)
-            .addReg(AccReg);
-        if (!MRI->getRegClassOrNull(ValReg))
-          MRI->setRegClass(ValReg, AccRC);
-      } else {
-        // $reg = COPY %v
-        BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(TargetOpcode::COPY),
-                AccReg)
-            .addReg(ValReg);
-        // ST*e @g  (or ST*d for DP)
-        BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(Opc))
-            .add(GVOp)
-            .addUse(AccReg, RegState::Implicit);
-        if (!MRI->getRegClassOrNull(ValReg))
-          MRI->setRegClass(ValReg, AccRC);
-      }
+      Register GVDef = GV->getOperand(0).getReg();
+      MachineInstrBuilder MIB =
+          IsLoad ? BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(Opc), ValReg)
+                       .add(GVOp)
+                 : BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(Opc))
+                       .addReg(ValReg)
+                       .add(GVOp);
+      if (!MRI->getRegClassOrNull(ValReg))
+        MRI->setRegClass(ValReg, ValRC);
+      constrainSelectedInstRegOperands(*MIB, TII, TRI, RBI);
       MI.eraseFromParent();
       // Erase the G_GLOBAL_VALUE if it has no remaining uses.
-      if (MRI->use_empty(GV->getOperand(0).getReg()))
+      if (MRI->use_empty(GVDef))
         GV->eraseFromParent();
       return true;
     }
@@ -1454,40 +1417,37 @@ skip_globalvalue_fold:
     // smallest code where the binary is hard-coded to a single load
     // address — the pre-#197 default behaviour, byte-identical to before.
     //
-    // We always pick LEAX (and copy to DstReg) rather than emitting per-
-    // regclass variants because (a) the JT dispatch already establishes
-    // LEAX as the canonical PCR-load idiom (MC6809AsmPrinter.cpp), and
-    // (b) the COPY is trivially eliminated by the register allocator
-    // when DstReg is itself IX, leaving a single LEAX in the common
-    // case.
-    if (MF->getTarget().isPositionIndependent()) {
+    // A writable OS9 global lives in the module's data area, reached SU-relative
+    // (SU is OS9's data-base register) with OS9-specific target flags. The
+    // deferred PC-relative pseudo below cannot express that, so materialise it
+    // directly here: LEAX sym,SU then copy into the destination index register.
+    if (MF->getTarget().isPositionIndependent() &&
+        MF->getTarget().getTargetTriple().isOSOS9()) {
       MachineOperand &GlobalOp = MI.getOperand(1);
-      if (MF->getTarget().getTargetTriple().isOSOS9()) {
-        unsigned OS9Flags = getOS9WritableGlobalTargetFlags(GlobalOp.getGlobal());
-        if (OS9Flags != MC6809::MO_NO_FLAGS) {
-          MachineOperand OS9GlobalOp = MachineOperand::CreateGA(
-              GlobalOp.getGlobal(), GlobalOp.getOffset(), OS9Flags);
-          if (!MBB->isLiveIn(MC6809::SU))
-            MBB->addLiveIn(MC6809::SU);
-          BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(MC6809::LEAXi_o16))
-              .add(OS9GlobalOp)
-              .addReg(MC6809::SU);
-          BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(TargetOpcode::COPY),
-                  DstReg)
-              .addReg(MC6809::IX);
-          MI.eraseFromParent();
-          return true;
-        }
+      unsigned OS9Flags = getOS9WritableGlobalTargetFlags(GlobalOp.getGlobal());
+      if (OS9Flags != MC6809::MO_NO_FLAGS) {
+        MachineOperand OS9GlobalOp = MachineOperand::CreateGA(
+            GlobalOp.getGlobal(), GlobalOp.getOffset(), OS9Flags);
+        if (!MBB->isLiveIn(MC6809::SU))
+          MBB->addLiveIn(MC6809::SU);
+        BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(MC6809::LEAXi_o16))
+            .add(OS9GlobalOp)
+            .addReg(MC6809::SU);
+        BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(TargetOpcode::COPY), DstReg)
+            .addReg(MC6809::IX);
+        MI.eraseFromParent();
+        return true;
       }
-      BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(MC6809::LEAXi_o16PC))
-          .add(GlobalOp);
-      BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(TargetOpcode::COPY), DstReg)
-          .addReg(MC6809::IX);
-      MI.eraseFromParent();
-      return true;
     }
 
-    MI.setDesc(TII.get(MC6809::Load_iPtr_Imm));
+    // Every remaining case selects a deferred pseudo whose index register the
+    // allocator picks: Load_iPtr_Imm (absolute LDX/LDY/LDU #addr) for the static
+    // model, Lea_iPtr_Sym (LEA{X,Y,U} sym,pc) for PIC/PIE — including read-only
+    // OS9 globals, which are PC-reachable within the module. The address is
+    // never pinned to IX, so there is no forced COPY/TFR when it wants IY/IU.
+    MI.setDesc(TII.get(MF->getTarget().isPositionIndependent()
+                           ? MC6809::Lea_iPtr_Sym
+                           : MC6809::Load_iPtr_Imm));
     constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
     return true;
   }

@@ -33,6 +33,11 @@ multiclass MC6809Load<RegisterClass dst, ValueType vtype> {
   }
   let mayLoad = true in {
     def _Mem : MC6809LoadBase<dst, (ins INDEX16:$idx, unknown:$offset)>;
+    // load of a global's address with the register choice deferred to
+    // regalloc (dst is the class vreg). The post-RA expander (expandLoadSym)
+    // picks the concrete reg-specific opcode and the addressing mode — direct
+    // page / extended / PC-relative — from the global and the relocation model.
+    def _Sym : MC6809LoadBase<dst, (ins unknown:$sym)>;
   }
 }
 
@@ -80,6 +85,9 @@ let Predicates = [IsHD6309] in {
     def Load_i32_Imm : MC6809LoadBase<AQc, (ins i32imm:$imm)>;
   let mayLoad = true, Defs = [NZ, V] in
     def Load_i32_Mem : MC6809LoadBase<AQc, (ins INDEX16:$idx, unknown:$offset)>;
+  // i32 global load, register deferred (AQc), expanded by expandLoadSym.
+  let mayLoad = true, Defs = [NZ, V] in
+    def Load_i32_Sym : MC6809LoadBase<AQc, (ins unknown:$sym)>;
 
   // Bug #271 cat-3: spill-framework-only i32 load with ACC32 operand
   // class. The narrow AQc constraint on Load_i32 above is load-bearing
@@ -224,11 +232,30 @@ class MC6809StoreBase<RegisterClass src, dag operand> : MC6809LogicalInstr {
 
 multiclass MC6809Store<RegisterClass src> {
   def _Mem : MC6809StoreBase<src, (ins INDEX16:$idx, unknown:$offset)>;
+  // store to a global's address, register choice deferred to regalloc
+  // (src is the class vreg). expandStoreSym picks the concrete reg-specific
+  // opcode + addressing mode (direct page / extended / PC-relative).
+  def _Sym : MC6809StoreBase<src, (ins unknown:$sym)>;
 }
 
 defm Store_i8 : MC6809Store<ACC8>;
 defm Store_i16 : MC6809Store<ACC16>;
 defm Store_iPtr : MC6809Store<INDEX16>;
+
+// Address of a global with the index register deferred to regalloc, for the
+// PIC/PIE G_GLOBAL_VALUE materialisation (the non-PIC case uses Load_iPtr_Imm's
+// absolute LDX #addr). expandLeaSym emits LEA{X,Y,U} sym,pc for the allocated
+// register, so the address is not pinned to IX + a COPY.
+// isReMaterializable / isAsCheapAsAMove: the address is a relocatable constant
+// recomputable by a single LEA, so regalloc rematerialises it under pressure
+// rather than spilling+reloading (a PC-relative LEA re-resolves at any location,
+// so cloning is correct). Mirrors Load_iPtr_Imm's flags for the non-PIC case.
+let Defs = [Z], isReMaterializable = 1, isAsCheapAsAMove = 1 in
+def Lea_iPtr_Sym : MC6809LogicalInstr {
+  dag OutOperandList = (outs INDEX16:$dst);
+  dag InOperandList = (ins unknown:$sym);
+}
+
 let Predicates = [IsHD6309] in {
   // Bug #208 follow-up: src constrained to AQc — same rationale as
   // Load_i32. Bug #210 round 5 kept this constraint because the
@@ -246,6 +273,9 @@ let Predicates = [IsHD6309] in {
   // Bug #308 catalogues).
   let mayStore = true, Defs = [NZ, V] in
     def Store_i32_Mem : MC6809StoreBase<AQc, (ins INDEX16:$idx, unknown:$offset)>;
+  // i32 global store, register deferred (AQc), expanded by expandStoreSym.
+  let mayStore = true, Defs = [NZ, V] in
+    def Store_i32_Sym : MC6809StoreBase<AQc, (ins unknown:$sym)>;
 
   // Bug #271 cat-3: spill-framework-only i32 store with ACC32 operand
   // class.  Mirrors SpillLoad_i32_Mem above.  Bug #308 dropped AD
