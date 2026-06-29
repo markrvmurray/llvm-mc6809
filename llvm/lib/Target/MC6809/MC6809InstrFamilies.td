@@ -507,7 +507,11 @@ multiclass MC6809Arithmetic<ValueType vtype, RegisterClass dst, RegisterClass sr
     // P3b: indirect-indexed (`op [n,r]`) -- same operands as _Mem, expanded to
     // the indirect-sibling opcode via indirectSiblingOf in expandIdxImm.
     def _MemIndirect : MC6809ArithmeticBase<memDst, memSrc, (ins INDEX16:$idx, unknown:$offset)>;
-    def _Pull : MC6809ArithmeticBase<memDst, memSrc, (ins STACK16:$idx)>;
+    // _Pull keeps the full dst/src class: the push/pull pattern that creates it
+    // is non-HD6309, where ACC8 already excludes E/F, so it never needs the
+    // narrowing -- and narrowing it would mismatch the tied accumulator the Pat
+    // feeds in (an ACC8 vreg).
+    def _Pull : MC6809ArithmeticBase<dst, src, (ins STACK16:$idx)>;
     let Predicates = [IsHD6309] in {
       if !eq(IsByte, 1) then {
         // Bug #214/#217 default: B-half routing. `_Reg` keeps the
@@ -889,7 +893,9 @@ multiclass MC6809Bitwise<ValueType vtype, RegisterClass reg, RegisterClass memRe
     def _Mem : MC6809BitwiseBase<memReg, (ins INDEX16:$idx, unknown:$offset)>;
     // P3b: indirect-indexed (`op [n,r]`) -- see MC6809Arithmetic _MemIndirect.
     def _MemIndirect : MC6809BitwiseBase<memReg, (ins INDEX16:$idx, unknown:$offset)>;
-    def _Pull : MC6809BitwiseBase<memReg, (ins STACK16:$idx)>;
+    // _Pull stays on the full class -- non-HD6309-only (ACC8 already excludes
+    // E/F there); narrowing it would mismatch the tied accumulator vreg.
+    def _Pull : MC6809BitwiseBase<reg, (ins STACK16:$idx)>;
   }
 }
 
