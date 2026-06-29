@@ -1151,12 +1151,42 @@ static unsigned getStoreIdxOpcode(Register Reg, int Offset) {
   llvm_unreachable("Unexpected register for spill store");
 }
 
+// Bug #387: the static-stack support functions. getSymLoadOpcode/Store are
+// defined later in this file (the global-symbol expander); forward-declare them
+// so the spill expanders can emit an extended/absolute access to a static slot.
+static unsigned getSymLoadOpcode(Register Reg, bool IsDP, bool IsPIC);
+static unsigned getSymStoreOpcode(Register Reg, bool IsDP, bool IsPIC);
+
+// The frame index backing a spill register's slot (mirrors the key logic in
+// computeSpillStackOffset).
+static int spillSlotFI(MCPhysReg SpillReg, MachineFunction &MF) {
+  auto &FuncInfo = *MF.getInfo<MC6809FunctionInfo>();
+  MCPhysReg SpillKey =
+      isIndexSpillReg(SpillReg) ? SpillReg : getSpillDParent(SpillReg);
+  return FuncInfo.SpillRegFrameIndices[SpillKey];
+}
+
+// True when a spill register's slot was moved to the static stack (Bug #387).
+// Such a slot is NOT at any U-relative address — computeSpillStackOffset's
+// result is meaningless for it; it must be reached by an extended access.
+static bool isStaticSpillSlot(MCPhysReg SpillReg, MachineFunction &MF) {
+  return MF.getFrameInfo().getStackID(spillSlotFI(SpillReg, MF)) ==
+         TargetStackID::Mc6809Static;
+}
+
+// The per-function static-stack byte offset of a spill register (the slot's
+// static offset plus the sub-slot byte for B). MC6809StaticStackAlloc resolves
+// the carried TI_STATIC_STACK target index + this offset to the real global.
+static int staticSpillOffset(MCPhysReg SpillReg, MachineFunction &MF) {
+  return MF.getFrameInfo().getObjectOffset(spillSlotFI(SpillReg, MF)) +
+         getSpillByteOffset(SpillReg);
+}
+
 /// Emit a concrete U-indexed (frame pointer) load from a spill register's
 /// stack slot. Uses U (not S) so PSHS/PULS don't invalidate offsets.
 static MachineInstrBuilder emitSpillLoad(MachineIRBuilder &Builder,
                                          Register RealReg, MCPhysReg SpillReg,
                                          MachineFunction &MF) {
-  int Offset = computeSpillStackOffset(SpillReg, MF);
   unsigned Size = getSpillRegSize(SpillReg);
   // INDEX spills (SPILL_X0..X3) use LDX/LDY directly — no D clobber.
   // Q spills (SPILL_Q0..Q3) use LDQ — operate directly on AQ (HD6309).
@@ -1164,6 +1194,15 @@ static MachineInstrBuilder emitSpillLoad(MachineIRBuilder &Builder,
   Register Reg = (Size == 2 && !isIndexSpillReg(SpillReg))
                      ? Register(MC6809::AD)
                      : RealReg;
+  // Bug #387: a static-stack slot is addressed absolutely, not via U.
+  if (isStaticSpillSlot(SpillReg, MF)) {
+    unsigned Opc = getSymLoadOpcode(Reg, /*IsDP=*/false,
+                                    MF.getTarget().isPositionIndependent());
+    return Builder.buildInstr(Opc)
+        .addTargetIndex(MC6809::TI_STATIC_STACK, staticSpillOffset(SpillReg, MF))
+        .addDef(Reg, RegState::Implicit);
+  }
+  int Offset = computeSpillStackOffset(SpillReg, MF);
   unsigned Opcode = getLoadIdxOpcode(Reg, Offset);
   auto MI = Builder.buildInstr(Opcode)
       .addDef(Reg, RegState::Implicit)
@@ -1177,7 +1216,6 @@ static MachineInstrBuilder emitSpillLoad(MachineIRBuilder &Builder,
 static MachineInstrBuilder emitSpillStore(MachineIRBuilder &Builder,
                                           Register RealReg, MCPhysReg SpillReg,
                                           MachineFunction &MF) {
-  int Offset = computeSpillStackOffset(SpillReg, MF);
   unsigned Size = getSpillRegSize(SpillReg);
   // INDEX spills (SPILL_X0..X3) use STX/STY directly — no D clobber.
   // Q spills (SPILL_Q0..Q3) use STQ — operate directly on AQ (HD6309).
@@ -1185,6 +1223,17 @@ static MachineInstrBuilder emitSpillStore(MachineIRBuilder &Builder,
   Register Reg = (Size == 2 && !isIndexSpillReg(SpillReg))
                      ? Register(MC6809::AD)
                      : RealReg;
+  // Bug #387: a static-stack slot is addressed absolutely, not via U. Keep the
+  // SpillReg implicit-def (Bug #285) so the pseudo's destination stays defined.
+  if (isStaticSpillSlot(SpillReg, MF)) {
+    unsigned Opc = getSymStoreOpcode(Reg, /*IsDP=*/false,
+                                     MF.getTarget().isPositionIndependent());
+    return Builder.buildInstr(Opc)
+        .addTargetIndex(MC6809::TI_STATIC_STACK, staticSpillOffset(SpillReg, MF))
+        .addUse(Reg, RegState::Implicit)
+        .addReg(Register(SpillReg), RegState::ImplicitDefine);
+  }
+  int Offset = computeSpillStackOffset(SpillReg, MF);
   unsigned Opcode = getStoreIdxOpcode(Reg, Offset);
   // Bug #285: this store fills the imaginary spill slot, so it models
   // a write of the SpillReg pseudo-register. Without an explicit
