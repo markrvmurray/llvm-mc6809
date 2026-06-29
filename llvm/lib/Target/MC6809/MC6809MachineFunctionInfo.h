@@ -18,9 +18,17 @@
 namespace llvm {
 
 class MC6809Subtarget;
+class GlobalValue;
 
 struct MC6809FunctionInfo : public MachineFunctionInfo {
   MC6809FunctionInfo(const Function &F, const MC6809Subtarget *STI) {}
+
+  /// Bug #387: for a function whose frame is laid out in static memory
+  /// (see MC6809StaticStackAlloc), the global (alias) that backs this
+  /// function's static-stack region. Null for ordinary dynamic-frame
+  /// functions. The AsmPrinter resolves Mc6809Static frame indices through
+  /// this symbol.
+  const GlobalValue *StaticStackValue = nullptr;
 
   int VarArgsStackIndex = -1;
   DenseMap<Register, size_t> CSRDPOffsets;

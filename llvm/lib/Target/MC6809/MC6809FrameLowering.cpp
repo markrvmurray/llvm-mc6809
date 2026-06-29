@@ -659,6 +659,28 @@ uint64_t MC6809FrameLowering::staticSize(const MachineFrameInfo &MFI) const {
   return Size;
 }
 
+bool MC6809FrameLowering::usesStaticStack(const MachineFunction &MF) const {
+  // Bug #387: only for functions the inter-procedural MC6809NonReentrant
+  // analysis proved single-activation, when the feature is enabled and we are
+  // optimising. A genuinely re-entered function (recursive, interrupt-
+  // reachable, or escaping through an external-call cycle) is never marked
+  // "nonreentrant", so its frame stays dynamic.
+  return MF.getSubtarget<MC6809Subtarget>().staticStack() &&
+         !MF.getFunction().hasOptNone() &&
+         MF.getFunction().hasFnAttribute("nonreentrant");
+}
+
+bool MC6809FrameLowering::isSupportedStackID(TargetStackID::Value ID) const {
+  switch (ID) {
+  case TargetStackID::Default:
+  case TargetStackID::NoAlloc:
+  case TargetStackID::Mc6809Static:
+    return true;
+  default:
+    return false;
+  }
+}
+
 bool MC6809FrameLowering::hasFPImpl(const MachineFunction &MF) const {
   return hasFP(MF);
 }

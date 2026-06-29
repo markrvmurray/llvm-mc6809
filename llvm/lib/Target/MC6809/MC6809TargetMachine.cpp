@@ -37,6 +37,7 @@
 #include "MC6809.h"
 #include "MC6809CopyOpt.h"
 #include "MC6809DirectPageAlloc.h"
+#include "MC6809StaticStackAlloc.h"
 #include "MC6809FinalLowering.h"
 #include "MC6809IncDecPhi.h"
 #include "MC6809IndexIV.h"
@@ -84,6 +85,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMC6809Target() {
   initializeMC6809SanitiseDebugInfoPass(PR);
   initializeMC6809ShiftRotateChainPass(PR);
   initializeMC6809DirectPageAllocPass(PR);
+  initializeMC6809StaticStackAllocPass(PR);
   initializeMC6809FoldAddSub16Pass(PR);
   initializeMC6809FoldCallThroughMemPass(PR);
   initializeMC6809FoldBankCrossPass(PR);
@@ -366,6 +368,13 @@ void MC6809PassConfig::addPreSched2() {
 }
 
 void MC6809PassConfig::addPreEmitPass() {
+  // Bug #387: resolve static-stack frame accesses to real globals. Runs after
+  // PEI/ExpandPostRAPseudos have emitted the TI_STATIC_STACK target indices,
+  // and before FinalLowering/BranchRelaxation see the final operands. A no-op
+  // unless the "static-stack" feature marked some function's frame static.
+  if (getOptLevel() != CodeGenOptLevel::None)
+    addPass(createMC6809StaticStackAllocPass());
+
   // MC6809FinalLowering (bug #149) MUST run BEFORE BranchRelaxation.
   // Several of its classes (Class 1 offset-relax, Class 4 dup-store,
   // Class 5 store-reload, Class 6 branch-over-branch, Class 7 LEA-

@@ -52,6 +52,7 @@ void initializeMC6809PhantomCarryGuardPass(PassRegistry &);
 void initializeMC6809FoldAddSub16Pass(PassRegistry &);
 void initializeMC6809FoldCallThroughMemPass(PassRegistry &);
 void initializeMC6809FoldBankCrossPass(PassRegistry &);
+void initializeMC6809StaticStackAllocPass(PassRegistry &);
 
 FunctionPass *createMC6809PhantomCarryGuardPass();
 MachineFunctionPass *createMC6809FoldAddSub16Pass();

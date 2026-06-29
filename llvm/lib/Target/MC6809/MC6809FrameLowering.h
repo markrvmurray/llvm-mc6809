@@ -49,6 +49,14 @@ public:
   // Computes the size of the static stack.
   uint64_t staticSize(const MachineFrameInfo &MFI) const;
 
+  // Bug #387: true when this function's frame should be laid out in static
+  // memory rather than on the dynamic stack — gated on the "static-stack"
+  // subtarget feature, a real optimisation level, and the "nonreentrant"
+  // attribute computed by MC6809NonReentrant.
+  bool usesStaticStack(const MachineFunction &MF) const;
+
+  bool isSupportedStackID(TargetStackID::Value ID) const override;
+
   // Return whether or not the function is a direct ISR.
   bool isISR(const MachineFunction &MF) const;
 

@@ -282,7 +282,17 @@ void MC6809AsmPrinter::emitJumpTableInfo() {
   OutStreamer->emitDataRegion(MCDR_DataRegionEnd);
 }
 
-const MCSymbol *MC6809AsmPrinter::getFunctionFrameSymbol(int FI) const { return AsmPrinter::getFunctionFrameSymbol(FI); }
+const MCSymbol *MC6809AsmPrinter::getFunctionFrameSymbol(int FI) const {
+  // Bug #387: a static-stack frame index resolves to this function's
+  // static-stack global (set by MC6809StaticStackAlloc), not the dynamic
+  // frame pointer.
+  if (MF->getFrameInfo().getStackID(FI) == TargetStackID::Mc6809Static) {
+    const auto &MFI = *MF->getInfo<MC6809FunctionInfo>();
+    if (MFI.StaticStackValue)
+      return getSymbol(MFI.StaticStackValue);
+  }
+  return AsmPrinter::getFunctionFrameSymbol(FI);
+}
 
 } // namespace
 

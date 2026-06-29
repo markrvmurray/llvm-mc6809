@@ -136,6 +136,8 @@ public:
 
   ArrayRef<std::pair<unsigned, const char *>> getSerializableDirectMachineOperandTargetFlags() const override;
 
+  ArrayRef<std::pair<int, const char *>> getSerializableTargetIndices() const override;
+
   int64_t getFramePoppedByCallee(const MachineInstr &MI) const {
     assert(isFrameInstr(MI) && "Not a frame instruction");
     assert(MI.getOperand(1).getImm() >= 0 && "Size must not be negative");
@@ -392,6 +394,14 @@ private:
 namespace MC6809 {
 
 enum AddressSpace { AS_Memory, AS_DirectPage, NumAddrSpaces };
+
+/// Bug #387: target-index kinds. A frame access in a static-stack function
+/// is lowered to a TI_STATIC_STACK target index carrying the per-function
+/// byte offset; MC6809StaticStackAlloc rewrites it to a GlobalAddress once
+/// the whole-program static-stack layout is known.
+enum TargetIndex {
+  TI_STATIC_STACK,
+};
 
 MC6809CC::CondCode GetBranchConditionForPredicate(CmpInst::Predicate Pred, bool &IsSigned);
 

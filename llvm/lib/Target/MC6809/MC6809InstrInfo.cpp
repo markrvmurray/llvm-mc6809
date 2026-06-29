@@ -8318,6 +8318,12 @@ ArrayRef<std::pair<unsigned, const char *>> MC6809InstrInfo::getSerializableDire
   return Flags;
 }
 
+// Bug #387: lets the static-stack target index round-trip through MIR.
+ArrayRef<std::pair<int, const char *>> MC6809InstrInfo::getSerializableTargetIndices() const {
+  static const std::pair<int, const char *> Flags[] = {{MC6809::TI_STATIC_STACK, "mc6809-static-stack"}};
+  return Flags;
+}
+
 void MC6809InstrInfo::expandFusedCompareBranch(MachineIRBuilder &Builder, MachineInstr &MI) const {
   // Fused compare-and-branch pseudos (bug #42). These were created as single
   // instructions so the register allocator couldn't insert CC-clobbering

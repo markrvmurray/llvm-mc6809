@@ -95,6 +95,9 @@ public:
   bool has6809() const { return Has6809Insns; }
   bool has6309() const { return Has6309Insns; }
 
+  // Bug #387: static-stack allocation for non-reentrant functions.
+  bool staticStack() const { return StaticStack; }
+
 private:
   /// The ELF e_flags architecture features.
   unsigned EFlags = 0;
@@ -103,6 +106,9 @@ private:
   bool Has6309Insns = false;
 
   bool LongRegisterNames = false;
+
+  // Bug #387: set by the "static-stack" subtarget feature (default off).
+  bool StaticStack = false;
 
   // Dummy member, used by FeatureSet's. We cannot have a SubtargetFeature with
   // no variable, so we instead bind pseudo features to this variable.
