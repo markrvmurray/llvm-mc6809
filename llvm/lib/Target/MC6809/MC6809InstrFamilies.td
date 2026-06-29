@@ -493,16 +493,21 @@ class MC6809ArithmeticBaseRegByteA<dag operand> : MC6809LogicalInstr {
   let Constraints = "$dst = $src";
 }
 
-multiclass MC6809Arithmetic<ValueType vtype, RegisterClass dst, RegisterClass src, bit IsByte = 0> {
+// memDst/memSrc default to dst/src but let the byte instantiations narrow only
+// the indexed/pull memory variants to ACC8_AB_SP (off the unencodable HD6309
+// E/F accumulators). _Imm/_Reg keep the full class so a shared accumulator vreg
+// from an ACC8 producer isn't over-constrained.
+multiclass MC6809Arithmetic<ValueType vtype, RegisterClass dst, RegisterClass src, bit IsByte = 0,
+                            RegisterClass memDst = dst, RegisterClass memSrc = src> {
   let isAsCheapAsAMove = true in {
     def _Imm : MC6809ArithmeticBase<dst, src, (ins !cast<Operand>(vtype#"imm"):$val)>;
   }
   let mayLoad = true in {
-    def _Mem : MC6809ArithmeticBase<dst, src, (ins INDEX16:$idx, unknown:$offset)>;
+    def _Mem : MC6809ArithmeticBase<memDst, memSrc, (ins INDEX16:$idx, unknown:$offset)>;
     // P3b: indirect-indexed (`op [n,r]`) -- same operands as _Mem, expanded to
     // the indirect-sibling opcode via indirectSiblingOf in expandIdxImm.
-    def _MemIndirect : MC6809ArithmeticBase<dst, src, (ins INDEX16:$idx, unknown:$offset)>;
-    def _Pull : MC6809ArithmeticBase<dst, src, (ins STACK16:$idx)>;
+    def _MemIndirect : MC6809ArithmeticBase<memDst, memSrc, (ins INDEX16:$idx, unknown:$offset)>;
+    def _Pull : MC6809ArithmeticBase<memDst, memSrc, (ins STACK16:$idx)>;
     let Predicates = [IsHD6309] in {
       if !eq(IsByte, 1) then {
         // Bug #214/#217 default: B-half routing. `_Reg` keeps the
@@ -521,7 +526,9 @@ multiclass MC6809Arithmetic<ValueType vtype, RegisterClass dst, RegisterClass sr
 }
 
 let isAdd = true in {
-  defm Add_i8 : MC6809Arithmetic<i8, ACC8, ACC8, /*IsByte=*/1>;
+  // Narrow only the byte _Mem/_MemIndirect/_Pull accumulator to ACC8_AB_SP
+  // (ACC8 minus HD6309 E/F) — those have no `ADDE`/`ANDF n,x` encoding.
+  defm Add_i8 : MC6809Arithmetic<i8, ACC8, ACC8, /*IsByte=*/1, ACC8_AB_SP, ACC8_AB_SP>;
   defm Add_i16 : MC6809Arithmetic<i16, ACC16, ACC16>;
   // Bug #297 (2026-05-15): native HD6309 i32 ADD via page-2 ADDW (low
   // word in AW) + ADCD (high word in AD, carry-in). Pseudos are dead
@@ -530,7 +537,7 @@ let isAdd = true in {
   let Predicates = [IsHD6309] in
     defm Add_i32 : MC6809Arithmetic<i32, ACC32, ACC32>;
 }
-defm Sub_i8 : MC6809Arithmetic<i8, ACC8, ACC8, /*IsByte=*/1>;
+defm Sub_i8 : MC6809Arithmetic<i8, ACC8, ACC8, /*IsByte=*/1, ACC8_AB_SP, ACC8_AB_SP>;
 defm Sub_i16 : MC6809Arithmetic<i16, ACC16, ACC16>;
 // Bug #297: native HD6309 i32 SUB via page-2 SUBW + SBCD.
 let Predicates = [IsHD6309] in
@@ -861,7 +868,10 @@ class MC6809BitwiseBase<RegisterClass reg, dag operand> : MC6809LogicalInstr {
   let Constraints = "$dst = $src";
 }
 
-multiclass MC6809Bitwise<ValueType vtype, RegisterClass reg> {
+// memReg defaults to reg; the byte instantiations narrow only the indexed/pull
+// memory variants to ACC8_AB_SP (off the unencodable HD6309 E/F accumulators),
+// leaving _Imm/_Reg on the full class.
+multiclass MC6809Bitwise<ValueType vtype, RegisterClass reg, RegisterClass memReg = reg> {
   let isAsCheapAsAMove = true in {
     def _Imm : MC6809BitwiseBase<reg, (ins !cast<Operand>(vtype#"imm"):$imm)>;
   }
@@ -876,10 +886,10 @@ multiclass MC6809Bitwise<ValueType vtype, RegisterClass reg> {
     def _Reg : MC6809BitwiseBase<reg, (ins reg:$src2)>;
   }
   let mayLoad = true in {
-    def _Mem : MC6809BitwiseBase<reg, (ins INDEX16:$idx, unknown:$offset)>;
+    def _Mem : MC6809BitwiseBase<memReg, (ins INDEX16:$idx, unknown:$offset)>;
     // P3b: indirect-indexed (`op [n,r]`) -- see MC6809Arithmetic _MemIndirect.
-    def _MemIndirect : MC6809BitwiseBase<reg, (ins INDEX16:$idx, unknown:$offset)>;
-    def _Pull : MC6809BitwiseBase<reg, (ins STACK16:$idx)>;
+    def _MemIndirect : MC6809BitwiseBase<memReg, (ins INDEX16:$idx, unknown:$offset)>;
+    def _Pull : MC6809BitwiseBase<memReg, (ins STACK16:$idx)>;
   }
 }
 
@@ -887,9 +897,11 @@ multiclass MC6809Bitwise<ValueType vtype, RegisterClass reg> {
 // i1 values live in ACC8 with bit 0 carrying the boolean; the high
 // 7 bits are already 0 on a well-formed i1, so AND[A|B] / OR[A|B] /
 // EOR[A|B] act correctly on bit 0.
-defm AND_i8 : MC6809Bitwise<i8, ACC8>;
-defm OR_i8 : MC6809Bitwise<i8, ACC8>;
-defm XOR_i8 : MC6809Bitwise<i8, ACC8>;
+// Narrow only the byte _Mem/_MemIndirect/_Pull AND/OR/XOR accumulator to
+// ACC8_AB_SP — the HD6309 E/F accumulators have no indexed/pull encoding.
+defm AND_i8 : MC6809Bitwise<i8, ACC8, ACC8_AB_SP>;
+defm OR_i8 : MC6809Bitwise<i8, ACC8, ACC8_AB_SP>;
+defm XOR_i8 : MC6809Bitwise<i8, ACC8, ACC8_AB_SP>;
 defm AND_i16 : MC6809Bitwise<i16, ACC16>;
 defm OR_i16 : MC6809Bitwise<i16, ACC16>;
 defm XOR_i16 : MC6809Bitwise<i16, ACC16>;

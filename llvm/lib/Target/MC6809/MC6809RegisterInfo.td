@@ -457,6 +457,19 @@ def ACC8 : MC6809Reg8Class<(add AB, AA, AF, AE,
 }
 def ACC8_AB : MC6809Reg8Class<(add AB, AA)>;
 
+// ACC8 minus the HD6309 E/F accumulators, but keeping the spill slots and
+// direct-page imaginary regs so allocation never fails. Used as the
+// tied-accumulator class for the byte indexed/pull arith/logical pseudos
+// (_Mem / _MemIndirect / _Pull), which have no `ANDF`/`ADDE n,x` style
+// encoding — if regalloc parked their accumulator in E/F the post-RA expander
+// (expandIdxImm) hit an llvm_unreachable. Excluding E/F here keeps those ops
+// off the unencodable registers on both CPUs (on 6809 this already matches
+// ACC8's AltOrder, so 6809 codegen is unchanged).
+def ACC8_AB_SP : MC6809Reg8Class<(add AB, AA,
+                                     (sequence "SPILL_B%u", 0, 7),
+                                     (sequence "SPILL_A%u", 0, 7),
+                                     (sequence "RC%u",      0, 15))>;
+
 // Bug #217: per-half byte register class for the _Reg variants of
 // MC6809Arithmetic{Base,Carry,SetCarryUse,SetOverflowUse}. The byte
 // _Reg expansion via emit6809RegByteFromMem clobbers ONE accumulator
