@@ -24,6 +24,7 @@
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/GlobalValue.h"
+#include "llvm/CodeGen/LivePhysRegs.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -1327,14 +1328,30 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         continue;
       }
 
-      // Liveness: LoadedReg must be dead at the program point
-      // immediately after MI2. Neighborhood=32 keeps the LQR_Unknown
-      // rate low across the longer post-MI2 scans the unbounded
-      // matcher can reach.
+      // Liveness: LoadedReg must be dead at the program point immediately
+      // after MI2 (the fold drops LoadedReg's value, which the load itself
+      // does not overwrite in the cross-register case). The bounded
+      // computeRegisterLiveness resolves the common cases cheaply; when it
+      // can't (LQR_Unknown — typically the value's fate is decided beyond the
+      // block, i.e. at the live-out boundary) resolve it exactly with a
+      // backward LivePhysRegs scan seeded from the block's live-outs, rather
+      // than conservatively giving up. This recovers folds like
+      // `ldy n,u; ldd ,y; …` where the reloaded pointer is dead after the
+      // deref but its death is only provable against the successors' live-ins.
       auto AfterMI2 = std::next(It2);
       auto LR = MBB.computeRegisterLiveness(&TRI, LoadedReg, AfterMI2,
                                             /*Neighborhood=*/32);
-      if (LR != MachineBasicBlock::LQR_Dead) continue;
+      if (LR == MachineBasicBlock::LQR_Live) continue;
+      if (LR != MachineBasicBlock::LQR_Dead) {
+        LivePhysRegs LPR(TRI);
+        LPR.addLiveOuts(MBB);
+        for (auto It3 = MBB.end(); It3 != AfterMI2;) {
+          --It3;
+          LPR.stepBackward(*It3);
+        }
+        if (!LPR.available(MF.getRegInfo(), LoadedReg))
+          continue; // LoadedReg still live after MI2 — must not fold.
+      }
 
       LLVM_DEBUG(dbgs() << "  SpillOpt Stage 6: folding LDY/op,Y "
                         << "→ op[n,u]:\n"
