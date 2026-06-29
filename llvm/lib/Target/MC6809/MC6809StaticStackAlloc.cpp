@@ -37,6 +37,7 @@
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/IR/GlobalAlias.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Module.h"
 #include "llvm/PassRegistry.h"
@@ -179,11 +180,16 @@ bool MC6809StaticStackAlloc::runOnModule(Module &M) {
   if (!StackSize)
     return false;
 
-  // One global for the whole static stack.
+  // One global for the whole static stack. Use a zero initializer (not undef)
+  // so it lands in .bss (low RAM, zeroed at startup) rather than .noinit, which
+  // on MC6809 the linker script places at the top of RAM where it would overlap
+  // the hardware stack — a static spill write would then clobber return
+  // addresses (and vice versa). The spills always write before they read, so
+  // the zero init is purely a placement lever, not a correctness requirement.
   Type *Typ = ArrayType::get(Type::getInt8Ty(M.getContext()), StackSize);
   GlobalVariable *Stack =
       new GlobalVariable(M, Typ, false, GlobalValue::PrivateLinkage,
-                         UndefValue::get(Typ), "static_stack");
+                         ConstantAggregateZero::get(Typ), "static_stack");
   LLVM_DEBUG(dbgs() << *Stack << "\n");
 
   // A per-function alias into the global, and rewrite each function's

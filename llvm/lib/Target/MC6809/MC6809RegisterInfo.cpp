@@ -12,11 +12,13 @@
 
 #include "MC6809RegisterInfo.h"
 #include "MC6809FrameLowering.h"
+#include "MC6809InstrInfo.h"
 #include "MC6809Subtarget.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
+#include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
@@ -206,6 +208,24 @@ const TargetRegisterClass *MC6809RegisterInfo::getCrossCopyRegClass(const Target
   return RC;
 }
 
+// Bug #387: the _Sym (static/extended-addressing) sibling of a Load/Store_*_Mem
+// spill pseudo, used when its frame index has been moved to the static stack.
+static unsigned getStaticSymOpcode(unsigned MemOpc) {
+  switch (MemOpc) {
+  case MC6809::Load_i8_Mem:        return MC6809::Load_i8_Sym;
+  case MC6809::Load_i16_Mem:       return MC6809::Load_i16_Sym;
+  case MC6809::Load_iPtr_Mem:      return MC6809::Load_iPtr_Sym;
+  case MC6809::Load_i32_Mem:
+  case MC6809::SpillLoad_i32_Mem:  return MC6809::Load_i32_Sym;
+  case MC6809::Store_i8_Mem:       return MC6809::Store_i8_Sym;
+  case MC6809::Store_i16_Mem:      return MC6809::Store_i16_Sym;
+  case MC6809::Store_iPtr_Mem:     return MC6809::Store_iPtr_Sym;
+  case MC6809::Store_i32_Mem:
+  case MC6809::SpillStore_i32_Mem: return MC6809::Store_i32_Sym;
+  default:                         return 0;
+  }
+}
+
 bool MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int SPAdj, unsigned FIOperandNum, RegScavenger *RS) const {
   assert(SPAdj == 0 && "Unexpected non-zero SPAdj");
 
@@ -217,6 +237,28 @@ bool MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int
   int FrameIndex = MI.getOperand(FIOperandNum).getIndex();
   unsigned BasePtr = (TFI->hasFP(MF) ? MC6809::SU : MC6809::SS);
   const MachineFrameInfo &MFI = MF.getFrameInfo();
+
+  // Bug #387 (S3/S4): a spill slot moved to the static stack is addressed
+  // absolutely, not via U/S. Rewrite the Load/Store_*_Mem pseudo to its _Sym
+  // sibling carrying a TI_STATIC_STACK target index (the per-function byte
+  // offset assigned in processFunctionBeforeFrameFinalized). The post-RA
+  // expander (expandLoadSym/expandStoreSym) emits the extended-mode access,
+  // and MC6809StaticStackAlloc turns the target index into the real global.
+  if (MFI.getStackID(FrameIndex) == TargetStackID::Mc6809Static) {
+    int64_t StaticOff = MFI.getObjectOffset(FrameIndex) +
+                        MI.getOperand(FIOperandNum).getOffset() +
+                        MI.getOperand(FIOperandNum + 1).getImm();
+    unsigned SymOpc = getStaticSymOpcode(MI.getOpcode());
+    assert(SymOpc && "static-stack frame index in a non-spill pseudo");
+    const MC6809InstrInfo &TII =
+        *static_cast<const MC6809InstrInfo *>(MF.getSubtarget().getInstrInfo());
+    BuildMI(MBB, MI, dl, TII.get(SymOpc))
+        .add(MI.getOperand(0)) // value register (def for load, use for store)
+        .addTargetIndex(MC6809::TI_STATIC_STACK, StaticOff)
+        .cloneMemRefs(MI);
+    MI.eraseFromParent();
+    return true;
+  }
   // Bug #153/#154: include the FI operand's own byte offset.
   // foldMemoryOperandImpl uses `.addFrameIndex(FI, ByteOffset)` to encode
   // sub-slot byte addressing (e.g. +1 for the low half of a big-endian

@@ -482,6 +482,32 @@ void MC6809FrameLowering::processFunctionBeforeFrameFinalized(MachineFunction &M
       FuncInfo.SpillRegFrameIndices[MC6809::SPILL_D3] = FI;
     }
   }
+
+  // Bug #387 (S2): in a static-stack function, move the spill slots off the
+  // dynamic stack into static memory. This runs before calculateFrameObjectsOffsets,
+  // which skips non-Default stack IDs — so the marked slots drop out of
+  // StackSize (the dynamic frame shrinks) and keep the static offset assigned
+  // here. Only spill slots are eligible: they are always reached through the
+  // Load/Store_*_Mem pseudos that eliminateFrameIndex rewrites to the _Sym
+  // (extended/absolute) form. Locals / address-taken / scavenging objects stay
+  // dynamic. MC6809StaticStackAlloc later lays these per-function regions out
+  // non-overlappingly across the call graph.
+  if (usesStaticStack(MF)) {
+    SmallSet<int, 16> SpillFIs;
+    for (const auto &KV : FuncInfo.SpillRegFrameIndices)
+      SpillFIs.insert(KV.second);
+    int64_t Offset = 0;
+    for (int Idx : seq(0, MFI.getObjectIndexEnd())) {
+      if (MFI.isDeadObjectIndex(Idx) || MFI.isVariableSizedObjectIndex(Idx) ||
+          MFI.getStackID(Idx) != TargetStackID::Default)
+        continue;
+      if (!MFI.isSpillSlotObjectIndex(Idx) && !SpillFIs.count(Idx))
+        continue;
+      MFI.setStackID(Idx, TargetStackID::Mc6809Static);
+      MFI.setObjectOffset(Idx, Offset);
+      Offset += MFI.getObjectSize(Idx); // Static stack grows up.
+    }
+  }
 }
 
 MachineBasicBlock::iterator MC6809FrameLowering::eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB, MachineBasicBlock::iterator MI) const {
