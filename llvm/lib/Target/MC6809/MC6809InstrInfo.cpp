@@ -4087,29 +4087,15 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::BlockCopy_Dec_Dec:
   case MC6809::BlockCopy_Inc_Stay:
   case MC6809::BlockCopy_Stay_Inc: {
-    // Bug #161 round 18 follow-up #3: expand the legalizer's BlockCopy_*
-    // pseudo into the real HD6309 TFM instruction it represents.
-    // Operand layout (set by tryTFMBlockCopy): src(REGTFM), dst(REGTFM),
-    // count(AWc as imm or reg), implicit-def AW, implicit-use AW.
-    //
-    // TFM hardware reads count from W and post-increments / -decrements
-    // the source/dest registers per byte. We have to load count into AW
-    // first, then emit the TFM with src and dst as the only explicit
-    // operands.
+    // Expand the legalizer's BlockCopy_* pseudo into the real HD6309 TFM
+    // instruction it represents. Operand layout (set by tryTFMBlockCopy):
+    // src(REGTFM), dst(REGTFM), with implicit-def/use AW. The byte count was
+    // already loaded into AW by the legalizer (right before this pseudo, the
+    // emitTFM shape), so the only work here is to emit the TFM reading the
+    // *allocated* src/dst registers — whichever IX/IY assignment regalloc
+    // chose.
     Register Src = MI.getOperand(0).getReg();
     Register Dst = MI.getOperand(1).getReg();
-    const MachineOperand &CountMO = MI.getOperand(2);
-    if (CountMO.isImm()) {
-      Builder.buildInstr(MC6809::LDWi16)
-          .addDef(MC6809::AW, RegState::Implicit)
-          .addImm(CountMO.getImm());
-    } else {
-      assert(CountMO.isReg() && "BlockCopy count must be imm or reg");
-      if (CountMO.getReg() != MC6809::AW)
-        Builder.buildInstr(MC6809::TFRp)
-            .addDef(MC6809::AW)
-            .addUse(CountMO.getReg());
-    }
     unsigned TFMOpc;
     switch (MI.getOpcode()) {
     case MC6809::BlockCopy_Inc_Inc:  TFMOpc = MC6809::TFM0pp; break;

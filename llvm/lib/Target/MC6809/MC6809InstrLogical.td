@@ -72,21 +72,19 @@ class MC6809BlockTransfer<dag ins, dag outs, string constraints = ""> : MC6809Lo
   let isReMaterializable = false;
 }
 
-// Bug #161 round 7: BlockCopy_* are emitted by the legalizer
-// (MC6809LegalizerInfo::legalizeMemcpy) with 3 explicit operands
-// (src, dst, count) and AW used in-place. Modelling them as
-// MC6809BlockTransfer (which puts AW under Defs/Uses) keeps the
-// MachineInstr layout aligned with what the legalizer adds — the
-// previous MC6809Transfer-based shape declared 3 ties between
-// 3 outs and 3 ins, leaving the first 3 operand slots empty
-// when only 3 ins were added. That made `MI.defs()` index into
-// the unfilled out-slots, producing non-register operand 0 when
-// the legalizer's first .add() placed a global / stack reference
-// into what TableGen thought was REGTFM:$src2.
-def BlockCopy_Inc_Inc : MC6809BlockTransfer<(ins REGTFM:$src, REGTFM:$dst, AWc:$count), (outs)>;
-def BlockCopy_Dec_Dec : MC6809BlockTransfer<(ins REGTFM:$src, REGTFM:$dst, AWc:$count), (outs)>;
-def BlockCopy_Inc_Stay : MC6809BlockTransfer<(ins REGTFM:$src, REGTFM:$dst, AWc:$count), (outs)>;
-def BlockCopy_Stay_Inc : MC6809BlockTransfer<(ins REGTFM:$src, REGTFM:$dst, AWc:$count), (outs)>;
+// BlockCopy_* are emitted by the legalizer (tryTFMBlockCopy) with two
+// explicit register operands (src, dst, both REGTFM = {IX,IY}); the byte
+// count lives in AW, which is implicit via MC6809BlockTransfer's Defs/Uses.
+// The legalizer loads AW (LDWi16) right before the pseudo — exactly the
+// emitTFM shape — so the count is modelled the way the real TFM models it
+// (implicit W), not as an explicit operand. An explicit AWc:$count slot would
+// have to be filled with either an immediate (illegal in a register operand)
+// or a vreg that doubles the implicit AW use, both of which the machine
+// verifier rejects.
+def BlockCopy_Inc_Inc : MC6809BlockTransfer<(ins REGTFM:$src, REGTFM:$dst), (outs)>;
+def BlockCopy_Dec_Dec : MC6809BlockTransfer<(ins REGTFM:$src, REGTFM:$dst), (outs)>;
+def BlockCopy_Inc_Stay : MC6809BlockTransfer<(ins REGTFM:$src, REGTFM:$dst), (outs)>;
+def BlockCopy_Stay_Inc : MC6809BlockTransfer<(ins REGTFM:$src, REGTFM:$dst), (outs)>;
 
 //===---------------------------------------------------------------------===//
 // Stack instructions. These will be squashed together later.

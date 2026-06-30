@@ -1981,12 +1981,10 @@ bool MC6809LegalizerInfo::tryTFMBlockCopy(LegalizerHelper &Helper, MachineRegist
   // require absolute addressing.
   bool IsPlainCopy = MI.getOpcode() == MC6809::G_MEMCPY ||
                      MI.getOpcode() == MC6809::G_MEMCPY_INLINE;
-  // A register pointer is materialized into the pinned IX/IY (a COPY, plus a
-  // forced `tfr x,y` swap whenever an argument pointer already lives in X),
-  // which raises TFM's break-even length over the byte-loop. Track it to lift
-  // the minimum length so small register-pointer copies stay as byte loops.
-  // (The forced swap is a pinning artifact; a future order-deferral would let
-  // the postbyte record whichever IX/IY assignment regalloc picked.)
+  // Track whether either pointer is a register (vs a compile-time absolute
+  // address). Register pointers take the BlockCopy_* path below, which hands
+  // the pointers to regalloc in the {IX,IY} class so the postbyte records
+  // whichever assignment it picked -- no forced `tfr x,y` swap.
   bool UsesRegPtr = false;
   if (!Dst.has_value()) {
     if (!IsPlainCopy)
@@ -2042,17 +2040,14 @@ bool MC6809LegalizerInfo::tryTFMBlockCopy(LegalizerHelper &Helper, MachineRegist
   }
   if (IsInline)
     SizeMax = UINT16_MAX;
-  // Register-pointer copies pay a fixed materialization + swap overhead.
-  // At -Os/-Oz the shared memcpy libcall is smaller than an inlined TFM, so
-  // keep register-pointer copies on the libcall there. At speed levels the
-  // inline TFM is faster, but only wins over the byte-loop above a longer
-  // length, so lift the minimum. (Absolute-addressing copies materialize
-  // swap-free via leax/leay and keep the lower minimum at every level.)
-  if (UsesRegPtr) {
-    if (MF.getFunction().hasOptSize())
-      return false;
-    SizeMin = std::max<uint64_t>(SizeMin, 16);
-  }
+  // At -Os/-Oz keep register-pointer copies on the shared memcpy libcall: the
+  // memcpy body is already linked in for other callers, so an inline TFM only
+  // adds per-site bytes there. At speed levels the inline TFM is faster (no call
+  // overhead), and with the order-free assignment there is no swap penalty, so
+  // the normal length minimum applies. (Compile-time-absolute copies materialize
+  // their pointers for free via leax/leay and inline at every level.)
+  if (UsesRegPtr && MF.getFunction().hasOptSize())
+    return false;
   uint64_t KnownLen = UINT16_MAX;
   auto LenValue = getUInt64FromConstantOper(Len.value());
   if (LenValue.has_value()) {
@@ -2175,11 +2170,11 @@ bool MC6809LegalizerInfo::tryTFMBlockCopy(LegalizerHelper &Helper, MachineRegist
                      int64_t ExtraOffset,
                      const MachineOperand &CountMO, bool DoDescending,
                      MachinePointerInfo SrcPI, MachinePointerInfo DstPI) {
-    // TFM hardware uses fixed register pairs from REGTFM (D, X, Y, U, S).
-    // Pin to IX (src) and IY (dst) — the canonical pointer regs.  For
+    // Compile-time-absolute path: pin to IX (src) and IY (dst). For
     // Global-address operands, Bug #327 emits LEAX/LEAY directly to the
-    // physreg (no TFR shuffle).  For other shapes, the fallback path
-    // (Bug #326's order-swap) materializes via vreg + COPY.
+    // physreg (no TFR shuffle), so the pinning costs nothing here. (Register
+    // pointers take the order-free BlockCopy_* path instead, which avoids the
+    // pinning's swap.)
     //
     // Order matters: emit destination first so its scratch register is
     // freed for the source materialization.  See materializeIntoPhysReg
@@ -2216,20 +2211,59 @@ bool MC6809LegalizerInfo::tryTFMBlockCopy(LegalizerHelper &Helper, MachineRegist
         .addMemOperand(MF.getMachineMemOperand(DstPI, MachineMemOperand::MOStore, 1, Align(1)));
   };
 
+  // Order-free register-pointer path: hand the pointers to BlockCopy_Inc_Inc as
+  // vregs in the {IX,IY} class and let regalloc pick the assignment. Post-RA the
+  // pseudo expands to the real TFM with the *allocated* registers, so the
+  // postbyte records whichever IX/IY assignment regalloc chose -- an argument
+  // pointer already in X no longer forces a `tfr x,y` swap. Used only for plain
+  // memcpy (always ascending), so BlockCopy_Inc_Inc is the only variant needed;
+  // the compile-time-absolute path keeps the leax/leay-direct emitTFM form.
+  auto emitBlockCopy = [&](const MachineOperand &SrcMO,
+                           const MachineOperand &DstMO, int64_t ExtraOffset,
+                           const MachineOperand &CountMO) {
+    // Materialize each pointer, then COPY it into a REGTFM ({IX,IY}) vreg so
+    // the operand class matches BlockCopy_Inc_Inc and regalloc is free to pick
+    // the IX/IY assignment. The coalescer folds the COPY away when the source
+    // is already in an index register (the common register-pointer case), so
+    // this stays swap-free.
+    Register SrcTFM = MRI.createVirtualRegister(&MC6809::REGTFMRegClass);
+    Builder.buildCopy(SrcTFM, materializeAddrIntoReg(SrcMO, ExtraOffset));
+    Register DstTFM = MRI.createVirtualRegister(&MC6809::REGTFMRegClass);
+    Builder.buildCopy(DstTFM, materializeAddrIntoReg(DstMO, ExtraOffset));
+    // Put the byte count into the W register the TFM reads. BlockCopy carries
+    // AW implicitly (its Defs/Uses), so the count is not an explicit operand
+    // (matching emitTFM). Stay target-opcode-free pre-RA: a generic G_CONSTANT
+    // (immediate length) or the incoming count register, COPYd to AW — the
+    // selector lowers the constant load / transfer, the coalescer folds the
+    // COPY when the value already lands in W.
+    Register CountV = CountMO.isImm()
+                          ? Builder.buildConstant(LLT::scalar(16), CountMO.getImm())
+                                .getReg(0)
+                          : CountMO.getReg();
+    Builder.buildCopy(MC6809::AW, CountV);
+    Builder.buildInstr(MC6809::BlockCopy_Inc_Inc).addUse(SrcTFM).addUse(DstTFM);
+  };
+
   // Note that Descending transfers must be done in backwards order.
   if (KnownLen <= BytesPerTransfer) {
     uint64_t AdjOfs = Descending ? (KnownLen - 1) : 0;
-    emitTFM(Src.value(), Dst.value(), AdjOfs, Len.value(), Descending,
-            SrcPointerInfo, DstPointerInfo);
+    if (UsesRegPtr)
+      emitBlockCopy(Src.value(), Dst.value(), AdjOfs, Len.value());
+    else
+      emitTFM(Src.value(), Dst.value(), AdjOfs, Len.value(), Descending,
+              SrcPointerInfo, DstPointerInfo);
   } else {
     for (uint64_t TOfs = 0; TOfs < KnownLen; TOfs += BytesPerTransfer) {
       uint64_t TLen = std::min(KnownLen - TOfs, BytesPerTransfer);
       uint64_t AdjTOfs = Descending ? (KnownLen - TOfs - 1) : TOfs;
       uint64_t AdjTOfsMO = Descending ? (KnownLen - TOfs - TLen) : TOfs;
       MachineOperand TLenMO = MachineOperand::CreateImm(TLen);
-      emitTFM(Src.value(), Dst.value(), AdjTOfs, TLenMO, Descending,
-              SrcPointerInfo.getWithOffset(AdjTOfsMO),
-              DstPointerInfo.getWithOffset(AdjTOfsMO));
+      if (UsesRegPtr)
+        emitBlockCopy(Src.value(), Dst.value(), AdjTOfs, TLenMO);
+      else
+        emitTFM(Src.value(), Dst.value(), AdjTOfs, TLenMO, Descending,
+                SrcPointerInfo.getWithOffset(AdjTOfsMO),
+                DstPointerInfo.getWithOffset(AdjTOfsMO));
     }
   }
 

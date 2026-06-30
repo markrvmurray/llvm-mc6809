@@ -551,7 +551,14 @@ def REGLIST8 : MC6809Reg8Class<(add CC, AA, AB, DP)>; // Registers which can be 
 def REGLIST16 : MC6809Reg16Class<(add AD, AW, IX, IY, SU, SS, PC)>; // Registers which can be pushed/popped
 def REGPAIR8 : MC6809Reg8Class<(add AA, AB, CC, DP, A0, AE, AF)>; // Registers for EXG, TFR
 def REGPAIR16 : MC6809Reg16Class<(add AD, IX, IY, SU, SS, PC, AW, AV)>; // Registers for EXG, TFR
-def REGTFM : MC6809Reg16Class<(add AD, IX, IY, SU, SS)>; // Registers for TFM
+// Index registers TFM codegen can allocate. The TFM *hardware* accepts
+// D/X/Y/U/S, but for GISel-emitted block copies only IX/IY are usable: D is in
+// the ACCUM bank (a cross-bank pointer vreg can't be assigned a single bank) and
+// U/S are reserved. Restricting to {IX,IY} makes this a subclass of INDEX16, so
+// the pointer operands map cleanly to INDEXRegBank and regalloc picks either
+// IX/IY assignment (the postbyte records whichever it got -- no forced swap).
+// Hand-written asm keeps the full D/X/Y/U/S set via TFM0pp's anyregister.
+def REGTFM : MC6809Reg16Class<(add IX, IY)>; // Index regs TFM codegen allocates
 
 // Pointer and stack registers
 let isPressureFineGrained = true in
