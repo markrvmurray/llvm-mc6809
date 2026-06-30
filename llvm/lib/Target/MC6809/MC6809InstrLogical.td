@@ -75,12 +75,11 @@ class MC6809BlockTransfer<dag ins, dag outs, string constraints = ""> : MC6809Lo
 // BlockCopy_* are emitted by the legalizer (tryTFMBlockCopy) with two
 // explicit register operands (src, dst, both REGTFM = {IX,IY}); the byte
 // count lives in AW, which is implicit via MC6809BlockTransfer's Defs/Uses.
-// The legalizer loads AW (LDWi16) right before the pseudo — exactly the
-// emitTFM shape — so the count is modelled the way the real TFM models it
-// (implicit W), not as an explicit operand. An explicit AWc:$count slot would
-// have to be filled with either an immediate (illegal in a register operand)
-// or a vreg that doubles the implicit AW use, both of which the machine
-// verifier rejects.
+// The legalizer puts the count into AW right before the pseudo, so the count
+// is modelled the way the real TFM models it (implicit W), not as an explicit
+// operand. An explicit AWc:$count slot would have to be filled with either an
+// immediate (illegal in a register operand) or a vreg that doubles the
+// implicit AW use, both of which the machine verifier rejects.
 def BlockCopy_Inc_Inc : MC6809BlockTransfer<(ins REGTFM:$src, REGTFM:$dst), (outs)>;
 def BlockCopy_Dec_Dec : MC6809BlockTransfer<(ins REGTFM:$src, REGTFM:$dst), (outs)>;
 def BlockCopy_Inc_Stay : MC6809BlockTransfer<(ins REGTFM:$src, REGTFM:$dst), (outs)>;

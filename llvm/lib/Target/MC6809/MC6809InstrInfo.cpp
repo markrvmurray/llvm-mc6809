@@ -4090,10 +4090,12 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     // Expand the legalizer's BlockCopy_* pseudo into the real HD6309 TFM
     // instruction it represents. Operand layout (set by tryTFMBlockCopy):
     // src(REGTFM), dst(REGTFM), with implicit-def/use AW. The byte count was
-    // already loaded into AW by the legalizer (right before this pseudo, the
-    // emitTFM shape), so the only work here is to emit the TFM reading the
-    // *allocated* src/dst registers — whichever IX/IY assignment regalloc
-    // chose.
+    // already loaded into AW by the legalizer (right before this pseudo), so
+    // the only work here is to emit the TFM reading the *allocated* src/dst
+    // registers — whichever IX/IY assignment regalloc chose. The mode picks
+    // the increment behaviour: Inc_Inc/TFM0pp = ascending memcpy,
+    // Dec_Dec/TFM1pp = descending memmove, Stay_Inc/TFM3pp = memset fill
+    // (src holds the byte and stays put while dst sweeps the range).
     Register Src = MI.getOperand(0).getReg();
     Register Dst = MI.getOperand(1).getReg();
     unsigned TFMOpc;
@@ -4104,7 +4106,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     case MC6809::BlockCopy_Stay_Inc: TFMOpc = MC6809::TFM3pp; break;
     default: llvm_unreachable("unreachable");
     }
-    Builder.buildInstr(TFMOpc).addUse(Src).addUse(Dst);
+    Builder.buildInstr(TFMOpc).addUse(Src).addUse(Dst).cloneMemRefs(MI);
     MI.eraseFromParent();
     return true;
   }

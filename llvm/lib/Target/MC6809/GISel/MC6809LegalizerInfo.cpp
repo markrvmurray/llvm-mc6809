@@ -2075,24 +2075,11 @@ bool MC6809LegalizerInfo::tryTFMBlockCopy(LegalizerHelper &Helper, MachineRegist
     KnownLen -= 1;
   }
 
-  // Bug #161 round 18 follow-up #3: keep the legalizer-emitted
-  // sequence simple and verifier-friendly. The BlockCopy_* pseudo
-  // had four problems with the previous design:
-  //   - hasSideEffects=false default → DeadMachineInstructionElim
-  //     dropped it entirely (silent miscompile of every memcpy);
-  //   - REGTFM-class operand expectations didn't match the
-  //     FrameIndex / GlobalAddress / Immediate operands the legalizer
-  //     fed in (PEI eliminateFrameIndex assert);
-  //   - count modeled as AWc-class register but legalizer passed an
-  //     immediate (verifier "Expected a register operand");
-  //   - implicit $aw use without prior $aw def (verifier "undefined
-  //     physical register").
-  //
-  // Cleanest fix: stop emitting the BlockCopy_* pseudo. Lower
-  // tryTFMBlockCopy directly to (LDW count) + (TFM src,dst). Each
-  // address-typed operand (FI / GA / Imm / Reg) gets materialized
-  // into an INDEX16 vreg up front so the TFM gets clean register
-  // operands that flow normally through regbank-select / isel.
+  // Materialize each address-typed operand (FrameIndex / GlobalAddress /
+  // Immediate / Reg) into a generic pointer vreg up front, so the block
+  // transfer gets clean register operands that flow normally through
+  // regbank-select / isel. emitBlockCopy then COPYs those into the
+  // REGTFM ({IX,IY}) class the BlockCopy_* pseudo expects.
   LLT P = LLT::pointer(0, 16);
   LLT S16 = LLT::scalar(16);
   auto materializeAddrIntoReg = [&](const MachineOperand &MO,
@@ -2132,138 +2119,66 @@ bool MC6809LegalizerInfo::tryTFMBlockCopy(LegalizerHelper &Helper, MachineRegist
     llvm_unreachable("Unexpected operand type from matchAbsoluteAddressing");
   };
 
-  // Bug #327 (2026-05-22): emit LEAX/LEAY directly to the canonical
-  // pointer physreg ($ix or $iy) for Global-address operands.  Bug #326's
-  // workaround swapped COPY-to-physreg order so regalloc could re-use
-  // $ix between dst and src materialization, but that still emitted a
-  // wasted `tfr x,y` for the dst (because the dst-side LEAX materialized
-  // into $ix then COPY $iy = vreg lowered to `tfr x,y`).
-  //
-  // By emitting LEAYi_o16PC directly with $iy as the implicit def, we
-  // produce the optimal `leay dst,pc; leax src,pc; ldw #N; tfm x+,y+`
-  // — saving 1 cycle + 2 bytes per TFM site.
-  //
-  // For non-Global shapes (FI / Imm / Reg), keep the materializeAddrIntoReg
-  // + buildCopy path — same regalloc benefits as Bug #326's fix (the
-  // dst path is materialized first, freeing $ix for src) and the FI case
-  // needs G_FRAME_INDEX so frame lowering can compute the FP-relative
-  // offset later.
-  auto materializeIntoPhysReg = [&](const MachineOperand &MO,
-                                     int64_t ExtraOffset,
-                                     Register PhysReg) {
-    assert((PhysReg == MC6809::IX || PhysReg == MC6809::IY) &&
-           "materializeIntoPhysReg supports IX/IY only");
-    if (MO.isGlobal()) {
-      unsigned LeaPCR16 = (PhysReg == MC6809::IY)
-          ? MC6809::LEAYi_o16PC
-          : MC6809::LEAXi_o16PC;
-      Builder.buildInstr(LeaPCR16)
-          .addGlobalAddress(MO.getGlobal(), MO.getOffset() + ExtraOffset);
-      return;
-    }
-    // Other shapes (Reg / Imm / FI): materialize via vreg, COPY to physreg.
-    Register Vreg = materializeAddrIntoReg(MO, ExtraOffset);
-    Builder.buildCopy(PhysReg, Vreg);
-  };
-
-  auto emitTFM = [&](const MachineOperand &SrcMO, const MachineOperand &DstMO,
-                     int64_t ExtraOffset,
-                     const MachineOperand &CountMO, bool DoDescending,
-                     MachinePointerInfo SrcPI, MachinePointerInfo DstPI) {
-    // Compile-time-absolute path: pin to IX (src) and IY (dst). For
-    // Global-address operands, Bug #327 emits LEAX/LEAY directly to the
-    // physreg (no TFR shuffle), so the pinning costs nothing here. (Register
-    // pointers take the order-free BlockCopy_* path instead, which avoids the
-    // pinning's swap.)
-    //
-    // Order matters: emit destination first so its scratch register is
-    // freed for the source materialization.  See materializeIntoPhysReg
-    // for the full reasoning.
-    materializeIntoPhysReg(DstMO, ExtraOffset, MC6809::IY);
-    materializeIntoPhysReg(SrcMO, ExtraOffset, MC6809::IX);
-    // Load count into AW.
-    if (CountMO.isImm()) {
-      Builder.buildInstr(MC6809::LDWi16)
-          .addDef(MC6809::AW, RegState::Implicit)
-          .addImm(CountMO.getImm());
-    } else if (CountMO.isReg()) {
-      if (CountMO.getReg() != MC6809::AW)
-        Builder.buildInstr(MC6809::TFRp)
-            .addDef(MC6809::AW)
-            .addUse(CountMO.getReg());
-    } else {
-      llvm_unreachable("Unsupported count operand type");
-    }
-    // Emit TFM. TFM0pp = inc/inc, TFM1pp = dec/dec. The implicit AW
-    // use/def is contributed automatically by the TableGen
-    // Defs=[AW] / Uses=[AW] on TFM[0123]pp — do NOT add it again
-    // here. Doubled implicit operands confuse MachineScheduler's
-    // register-pressure tracker, which asserts in
-    // getUpwardPressureDelta when computing the pressure delta
-    // across a duplicated def/use pair (manifested as the
-    // test-strcat_s / test-wctomb / test-uchar /
-    // libc-testsuite:string compile failures).
-    unsigned TFMOpc = DoDescending ? MC6809::TFM1pp : MC6809::TFM0pp;
-    Builder.buildInstr(TFMOpc)
-        .addUse(MC6809::IX, RegState::Kill)
-        .addUse(MC6809::IY, RegState::Kill)
-        .addMemOperand(MF.getMachineMemOperand(SrcPI, MachineMemOperand::MOLoad, 1, Align(1)))
-        .addMemOperand(MF.getMachineMemOperand(DstPI, MachineMemOperand::MOStore, 1, Align(1)));
-  };
-
-  // Order-free register-pointer path: hand the pointers to BlockCopy_Inc_Inc as
-  // vregs in the {IX,IY} class and let regalloc pick the assignment. Post-RA the
-  // pseudo expands to the real TFM with the *allocated* registers, so the
-  // postbyte records whichever IX/IY assignment regalloc chose -- an argument
-  // pointer already in X no longer forces a `tfr x,y` swap. Used only for plain
-  // memcpy (always ascending), so BlockCopy_Inc_Inc is the only variant needed;
-  // the compile-time-absolute path keeps the leax/leay-direct emitTFM form.
+  // The single block-transfer emitter for every TFM-able memcpy / memmove /
+  // memset, whether the pointers are compile-time-absolute addresses or live
+  // registers. Each pointer is materialized into a REGTFM ({IX,IY}) vreg and
+  // handed to a BlockCopy_* pseudo, which post-RA expands to the real TFM
+  // reading the *allocated* registers. Letting regalloc pick the IX/IY
+  // assignment means an absolute global materializes straight into its index
+  // register (the coalescer folds the COPY -> leax/ldx direct, no shuffle) and
+  // a register pointer already in X no longer forces a `tfr x,y` swap. BlockOpc
+  // selects the increment mode: Inc_Inc (ascending copy), Dec_Dec (descending
+  // memmove), or Stay_Inc (memset fill -- src holds the byte and stays put).
   auto emitBlockCopy = [&](const MachineOperand &SrcMO,
                            const MachineOperand &DstMO, int64_t ExtraOffset,
-                           const MachineOperand &CountMO) {
-    // Materialize each pointer, then COPY it into a REGTFM ({IX,IY}) vreg so
-    // the operand class matches BlockCopy_Inc_Inc and regalloc is free to pick
-    // the IX/IY assignment. The coalescer folds the COPY away when the source
-    // is already in an index register (the common register-pointer case), so
-    // this stays swap-free.
+                           const MachineOperand &CountMO, unsigned BlockOpc,
+                           MachinePointerInfo SrcPI, MachinePointerInfo DstPI) {
     Register SrcTFM = MRI.createVirtualRegister(&MC6809::REGTFMRegClass);
     Builder.buildCopy(SrcTFM, materializeAddrIntoReg(SrcMO, ExtraOffset));
     Register DstTFM = MRI.createVirtualRegister(&MC6809::REGTFMRegClass);
     Builder.buildCopy(DstTFM, materializeAddrIntoReg(DstMO, ExtraOffset));
     // Put the byte count into the W register the TFM reads. BlockCopy carries
-    // AW implicitly (its Defs/Uses), so the count is not an explicit operand
-    // (matching emitTFM). Stay target-opcode-free pre-RA: a generic G_CONSTANT
-    // (immediate length) or the incoming count register, COPYd to AW — the
-    // selector lowers the constant load / transfer, the coalescer folds the
-    // COPY when the value already lands in W.
+    // AW implicitly (its Defs/Uses), so the count is not an explicit operand.
+    // Stay target-opcode-free pre-RA: a generic G_CONSTANT (immediate length)
+    // or the incoming count register, COPYd to AW — the selector lowers the
+    // constant load / transfer, the coalescer folds the COPY when the value
+    // already lands in W.
     Register CountV = CountMO.isImm()
                           ? Builder.buildConstant(LLT::scalar(16), CountMO.getImm())
                                 .getReg(0)
                           : CountMO.getReg();
     Builder.buildCopy(MC6809::AW, CountV);
-    Builder.buildInstr(MC6809::BlockCopy_Inc_Inc).addUse(SrcTFM).addUse(DstTFM);
+    Builder.buildInstr(BlockOpc)
+        .addUse(SrcTFM)
+        .addUse(DstTFM)
+        .addMemOperand(MF.getMachineMemOperand(SrcPI, MachineMemOperand::MOLoad,
+                                               1, Align(1)))
+        .addMemOperand(MF.getMachineMemOperand(DstPI, MachineMemOperand::MOStore,
+                                               1, Align(1)));
   };
+
+  // Pick the TFM increment mode: a memset fills via Stay_Inc (the byte stays
+  // under the source pointer while the destination sweeps the range), a
+  // direction-resolved memmove descends via Dec_Dec, everything else is an
+  // ascending Inc_Inc copy.
+  unsigned BlockOpc = IsMemSet      ? MC6809::BlockCopy_Stay_Inc
+                      : Descending  ? MC6809::BlockCopy_Dec_Dec
+                                    : MC6809::BlockCopy_Inc_Inc;
 
   // Note that Descending transfers must be done in backwards order.
   if (KnownLen <= BytesPerTransfer) {
     uint64_t AdjOfs = Descending ? (KnownLen - 1) : 0;
-    if (UsesRegPtr)
-      emitBlockCopy(Src.value(), Dst.value(), AdjOfs, Len.value());
-    else
-      emitTFM(Src.value(), Dst.value(), AdjOfs, Len.value(), Descending,
-              SrcPointerInfo, DstPointerInfo);
+    emitBlockCopy(Src.value(), Dst.value(), AdjOfs, Len.value(), BlockOpc,
+                  SrcPointerInfo, DstPointerInfo);
   } else {
     for (uint64_t TOfs = 0; TOfs < KnownLen; TOfs += BytesPerTransfer) {
       uint64_t TLen = std::min(KnownLen - TOfs, BytesPerTransfer);
       uint64_t AdjTOfs = Descending ? (KnownLen - TOfs - 1) : TOfs;
       uint64_t AdjTOfsMO = Descending ? (KnownLen - TOfs - TLen) : TOfs;
       MachineOperand TLenMO = MachineOperand::CreateImm(TLen);
-      if (UsesRegPtr)
-        emitBlockCopy(Src.value(), Dst.value(), AdjTOfs, TLenMO);
-      else
-        emitTFM(Src.value(), Dst.value(), AdjTOfs, TLenMO, Descending,
-                SrcPointerInfo.getWithOffset(AdjTOfsMO),
-                DstPointerInfo.getWithOffset(AdjTOfsMO));
+      emitBlockCopy(Src.value(), Dst.value(), AdjTOfs, TLenMO, BlockOpc,
+                    SrcPointerInfo.getWithOffset(AdjTOfsMO),
+                    DstPointerInfo.getWithOffset(AdjTOfsMO));
     }
   }
 
