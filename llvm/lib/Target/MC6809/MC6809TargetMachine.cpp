@@ -366,12 +366,6 @@ void MC6809PassConfig::addPreSched2() {
   // SpillOpt first (smaller / safer instruction stream), then schedule.
   if (getOptLevel() != CodeGenOptLevel::None)
     addPass(createMC6809PostRASpillOptPass());
-
-  // Re-home call-free IY live-ranges to the cheaper page-1 IX where IX is free.
-  // Runs after SpillOpt so it sees the final concrete index ops, and before
-  // BranchRelaxation since it shrinks page-2 ops by one byte each.
-  if (getOptLevel() != CodeGenOptLevel::None)
-    addPass(createMC6809PreferPage1IndexPass());
 }
 
 void MC6809PassConfig::addPreEmitPass() {
@@ -419,6 +413,18 @@ void MC6809PassConfig::addPreEmitPass() {
   // this never touches the phantom-carry chain.
   if (getOptLevel() != CodeGenOptLevel::None)
     addPass(createMachineCopyPropagationPass(/*UseCopyInstr=*/true));
+
+  // Re-home call-free IY live-ranges to the cheaper page-1 IX where IX is free.
+  // Deliberately runs LAST -- after every load/copy-elimination peephole
+  // (SpillOpt, LateOptimization, MachineCopyPropagation) -- because it is a pure
+  // register rename: running it earlier let those passes mis-react to the
+  // rewritten store/reload pairs (e.g. MachineCopyPropagation dropping a reload
+  // across a clobber once a cross-register sty/ldx became a same-register
+  // stx/ldx). With nothing downstream to react, the rename is harmless; it
+  // shrinks page-2 ops by one byte each, which BranchRelaxation (next) accounts
+  // for.
+  if (getOptLevel() != CodeGenOptLevel::None)
+    addPass(createMC6809PreferPage1IndexPass());
 
   addPass(&BranchRelaxationPassID);
   // Encoding-overflow safety nets that historically lived in a dedicated

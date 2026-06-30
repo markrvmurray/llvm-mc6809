@@ -53,15 +53,12 @@ using namespace llvm;
 STATISTIC(NumRanges, "Number of IY live-ranges renamed to IX");
 STATISTIC(NumInstrs, "Number of page-2 instructions demoted to page-1");
 
-// Default OFF: the rename is correct for the common cases (and fixes the
-// strtol/test-llong loop miscompile the stale-live-in version had), but the
-// aggressive-but-accurate liveness still mis-handles a function-boundary
-// live-out case -- it renames onto a value that is live out of a return block
-// (e.g. the IX return value), miscompiling string/format helpers at -O2-fp.
-// Keep the pass available behind the flag until the return-block live-out
-// seeding is finished.
+// Default ON. The rename is gated by a conservative computeRegisterLiveness
+// cross-check (see processBlock) on top of the local IX/IY dataflow, so it only
+// fires where IX is *provably* dead -- bailing on the call-argument /
+// control-flow-save cases the dataflow alone under-reported.
 static cl::opt<bool>
-    EnablePreferPage1("mc6809-prefer-page1-index", cl::init(false), cl::Hidden,
+    EnablePreferPage1("mc6809-prefer-page1-index", cl::init(true), cl::Hidden,
                       cl::desc("Rename call-free IY ranges to IX where IX is "
                                "free (MC6809 page-1 preference)"));
 
@@ -284,6 +281,33 @@ bool MC6809PreferPage1Index::processBlock(MachineBasicBlock &MBB) {
       OK = false;
 
     if (!OK) {
+      ++k;
+      continue;
+    }
+
+    // Conservative liveness cross-check. The two-register dataflow above can
+    // under-report IX liveness for a value that is consumed by a call argument
+    // or a control-flow save the local scan does not model -- renaming onto it
+    // would clobber that value (observed as a frame/return corruption).
+    // computeRegisterLiveness accounts for every use (implicit operands,
+    // regmask clobbers) and answers LQR_Unknown when it cannot be sure; require
+    // a definite LQR_Dead, and treat anything else as a reason to bail:
+    //   * IX must be provably dead entering the range (the rename defines IX
+    //     there, so a live incoming IX value must not exist), and
+    //   * IY must be provably dead just after the range (the value really does
+    //     not escape to a later use this block's scan missed).
+    MachineBasicBlock::const_iterator AtDef(Instrs[k]);
+    if (MBB.computeRegisterLiveness(TRI, MC6809::IX, AtDef,
+                                    /*Neighborhood=*/32) !=
+        MachineBasicBlock::LQR_Dead) {
+      ++k;
+      continue;
+    }
+    MachineBasicBlock::const_iterator AfterLast =
+        std::next(MachineBasicBlock::const_iterator(Instrs[Last]));
+    if (MBB.computeRegisterLiveness(TRI, MC6809::IY, AfterLast,
+                                    /*Neighborhood=*/32) !=
+        MachineBasicBlock::LQR_Dead) {
       ++k;
       continue;
     }

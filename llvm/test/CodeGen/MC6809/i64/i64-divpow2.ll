@@ -126,8 +126,8 @@ define i64 @sdiv_i64_2(i64 %x) {
 ; O2-NEXT:    ldd #63
 ; O2-NEXT:    std 56,u
 ; O2-NEXT:    std 8,s
-; O2-NEXT:    leay 60,u
-; O2-NEXT:    sty 46,u
+; O2-NEXT:    leax 60,u
+; O2-NEXT:    stx 46,u
 ; O2-NEXT:    ldx 46,u
 ; O2-NEXT:    lbsr __ashrdi3
 ; O2-NEXT:    ldy 46,u
@@ -155,8 +155,8 @@ define i64 @sdiv_i64_2(i64 %x) {
 ; O2-NEXT:    std ,s
 ; O2-NEXT:    ldd 56,u
 ; O2-NEXT:    std 8,s
-; O2-NEXT:    leay 68,u
-; O2-NEXT:    sty 46,u
+; O2-NEXT:    leax 68,u
+; O2-NEXT:    stx 46,u
 ; O2-NEXT:    ldx 46,u
 ; O2-NEXT:    lbsr __lshrdi3
 ; O2-NEXT:    ldy 46,u
@@ -256,8 +256,8 @@ define i64 @sdiv_i64_2(i64 %x) {
 ; O2-NEXT:    std ,s
 ; O2-NEXT:    ldd #1
 ; O2-NEXT:    std 8,s
-; O2-NEXT:    leay 76,u
-; O2-NEXT:    sty 46,u
+; O2-NEXT:    leax 76,u
+; O2-NEXT:    stx 46,u
 ; O2-NEXT:    ldx 46,u
 ; O2-NEXT:    lbsr __ashrdi3
 ; O2-NEXT:    ldy 46,u
@@ -412,8 +412,8 @@ define i64 @udiv_i64_4(i64 %x) {
 ; O2-NEXT:    std ,s
 ; O2-NEXT:    ldd 12,u
 ; O2-NEXT:    std 8,s
-; O2-NEXT:    leay 32,u
-; O2-NEXT:    sty 22,u
+; O2-NEXT:    leax 32,u
+; O2-NEXT:    stx 22,u
 ; O2-NEXT:    ldx 22,u
 ; O2-NEXT:    lbsr __lshrdi3
 ; O2-NEXT:    ldy 22,u
@@ -559,8 +559,8 @@ define i64 @ashr_i64_1(i64 %x) {
 ; O2-NEXT:    std ,s
 ; O2-NEXT:    ldd #1
 ; O2-NEXT:    std 8,s
-; O2-NEXT:    leay 28,u
-; O2-NEXT:    sty 18,u
+; O2-NEXT:    leax 28,u
+; O2-NEXT:    stx 18,u
 ; O2-NEXT:    ldx 18,u
 ; O2-NEXT:    lbsr __ashrdi3
 ; O2-NEXT:    ldy 18,u
@@ -710,8 +710,8 @@ define i64 @lshr_i64_2(i64 %x) {
 ; O2-NEXT:    std ,s
 ; O2-NEXT:    ldd 12,u
 ; O2-NEXT:    std 8,s
-; O2-NEXT:    leay 32,u
-; O2-NEXT:    sty 22,u
+; O2-NEXT:    leax 32,u
+; O2-NEXT:    stx 22,u
 ; O2-NEXT:    ldx 22,u
 ; O2-NEXT:    lbsr __lshrdi3
 ; O2-NEXT:    ldy 22,u
@@ -857,8 +857,8 @@ define i64 @shl_i64_3(i64 %x) {
 ; O2-NEXT:    std ,s
 ; O2-NEXT:    ldd #3
 ; O2-NEXT:    std 8,s
-; O2-NEXT:    leay 28,u
-; O2-NEXT:    sty 18,u
+; O2-NEXT:    leax 28,u
+; O2-NEXT:    stx 18,u
 ; O2-NEXT:    ldx 18,u
 ; O2-NEXT:    lbsr __ashldi3
 ; O2-NEXT:    ldy 18,u

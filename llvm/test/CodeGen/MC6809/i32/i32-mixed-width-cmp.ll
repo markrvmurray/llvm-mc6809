@@ -98,8 +98,8 @@ define i1 @eq_i32_sext_i16(i32 %a, i16 %b) {
 ; O2-NEXT:    ldb 7,u
 ; O2-NEXT:    tfr b,a
 ; O2-NEXT:    std 4,s
-; O2-NEXT:    leay 14,u
-; O2-NEXT:    sty 4,u
+; O2-NEXT:    leax 14,u
+; O2-NEXT:    stx 4,u
 ; O2-NEXT:    ldx 4,u
 ; O2-NEXT:    lbsr __ucmpsi2
 ; O2-NEXT:    ldy 4,u
@@ -201,8 +201,8 @@ define i1 @ult_i32_zext_i8(i32 %a, i8 %b) {
 ; O2-NEXT:    std 6,s
 ; O2-NEXT:    ldd #0
 ; O2-NEXT:    std 4,s
-; O2-NEXT:    leay 20,u
-; O2-NEXT:    sty 14,u
+; O2-NEXT:    leax 20,u
+; O2-NEXT:    stx 14,u
 ; O2-NEXT:    ldx 14,u
 ; O2-NEXT:    lbsr __ucmpsi2
 ; O2-NEXT:    ldy 14,u
@@ -322,8 +322,8 @@ define i1 @sgt_i32_sext_i8(i32 %a, i8 %b) {
 ; O2-NEXT:    lda 14,u
 ; O2-NEXT:    tfr a,b
 ; O2-NEXT:    std 4,s
-; O2-NEXT:    leay 16,u
-; O2-NEXT:    sty 8,u
+; O2-NEXT:    leax 16,u
+; O2-NEXT:    stx 8,u
 ; O2-NEXT:    ldx 8,u
 ; O2-NEXT:    lbsr __cmpsi2
 ; O2-NEXT:    ldy 8,u
@@ -405,8 +405,8 @@ define i1 @ne_i32_zext_i16(i32 %a, i16 %b) {
 ; O2-NEXT:    stx 6,s
 ; O2-NEXT:    ldd #0
 ; O2-NEXT:    std 4,s
-; O2-NEXT:    leay 12,u
-; O2-NEXT:    sty 8,u
+; O2-NEXT:    leax 12,u
+; O2-NEXT:    stx 8,u
 ; O2-NEXT:    ldx 8,u
 ; O2-NEXT:    lbsr __ucmpsi2
 ; O2-NEXT:    ldy 8,u
