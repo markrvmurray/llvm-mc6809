@@ -1968,8 +1968,38 @@ bool MC6809LegalizerInfo::tryTFMBlockCopy(LegalizerHelper &Helper, MachineRegist
   auto Src = matchAbsoluteAddressing(MRI, SrcReg);
   auto Len = matchAbsoluteAddressing(MRI, MI.getOperand(2).getReg());
   bool Descending = false;
-  if (!Src.has_value() || !Dst.has_value() || !Len.has_value())
+  // The transfer count must be a compile-time constant for an inline TFM.
+  if (!Len.has_value())
     return false;
+
+  // A plain memcpy assumes its operands don't overlap, so the copy direction is
+  // always ascending -- it can therefore take the pointers straight from
+  // registers (materialized into the index pair) when they aren't compile-time
+  // absolute addresses, replacing a memcpy libcall with an inline `tfm`.
+  // memmove needs compile-time source/dest locations to choose the copy
+  // direction, and memset's fill path needs a constant byte, so those still
+  // require absolute addressing.
+  bool IsPlainCopy = MI.getOpcode() == MC6809::G_MEMCPY ||
+                     MI.getOpcode() == MC6809::G_MEMCPY_INLINE;
+  // A register pointer is materialized into the pinned IX/IY (a COPY, plus a
+  // forced `tfr x,y` swap whenever an argument pointer already lives in X),
+  // which raises TFM's break-even length over the byte-loop. Track it to lift
+  // the minimum length so small register-pointer copies stay as byte loops.
+  // (The forced swap is a pinning artifact; a future order-deferral would let
+  // the postbyte record whichever IX/IY assignment regalloc picked.)
+  bool UsesRegPtr = false;
+  if (!Dst.has_value()) {
+    if (!IsPlainCopy)
+      return false;
+    Dst = MachineOperand::CreateReg(DstReg, /*isDef=*/false);
+    UsesRegPtr = true;
+  }
+  if (!Src.has_value()) {
+    if (!IsPlainCopy)
+      return false;
+    Src = MachineOperand::CreateReg(SrcReg, /*isDef=*/false);
+    UsesRegPtr = true;
+  }
 
   if (IsMemSet) {
     // A TII-based memory set is always slower than the alternative.
@@ -2012,6 +2042,17 @@ bool MC6809LegalizerInfo::tryTFMBlockCopy(LegalizerHelper &Helper, MachineRegist
   }
   if (IsInline)
     SizeMax = UINT16_MAX;
+  // Register-pointer copies pay a fixed materialization + swap overhead.
+  // At -Os/-Oz the shared memcpy libcall is smaller than an inlined TFM, so
+  // keep register-pointer copies on the libcall there. At speed levels the
+  // inline TFM is faster, but only wins over the byte-loop above a longer
+  // length, so lift the minimum. (Absolute-addressing copies materialize
+  // swap-free via leax/leay and keep the lower minimum at every level.)
+  if (UsesRegPtr) {
+    if (MF.getFunction().hasOptSize())
+      return false;
+    SizeMin = std::max<uint64_t>(SizeMin, 16);
+  }
   uint64_t KnownLen = UINT16_MAX;
   auto LenValue = getUInt64FromConstantOper(Len.value());
   if (LenValue.has_value()) {
