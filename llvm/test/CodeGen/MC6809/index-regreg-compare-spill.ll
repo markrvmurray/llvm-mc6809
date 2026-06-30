@@ -18,8 +18,8 @@
 ; register and never collapsing to a same-register CMPR.
 define ptr @ptr_find(ptr %a, ptr %ae, ptr %b, ptr %be, i8 %c) {
 ; CHECK-LABEL: ptr_find:
-; CHECK: cmpy {{-?[0-9]+}},u
-; CHECK: cmpy {{-?[0-9]+}},u
+; CHECK: cmp{{[xy]}} {{-?[0-9]+}},u
+; CHECK: cmp{{[xy]}} {{-?[0-9]+}},u
 ; CHECK-NOT: cmpr [[RR:[a-z]+]],[[RR]]
 entry:
   br label %loop

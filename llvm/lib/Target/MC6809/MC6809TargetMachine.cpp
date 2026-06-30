@@ -86,6 +86,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMC6809Target() {
   initializeMC6809ShiftRotateChainPass(PR);
   initializeMC6809DirectPageAllocPass(PR);
   initializeMC6809StaticStackAllocPass(PR);
+  initializeMC6809PreferPage1IndexPass(PR);
   initializeMC6809FoldAddSub16Pass(PR);
   initializeMC6809FoldCallThroughMemPass(PR);
   initializeMC6809FoldBankCrossPass(PR);
@@ -365,6 +366,12 @@ void MC6809PassConfig::addPreSched2() {
   // SpillOpt first (smaller / safer instruction stream), then schedule.
   if (getOptLevel() != CodeGenOptLevel::None)
     addPass(createMC6809PostRASpillOptPass());
+
+  // Re-home call-free IY live-ranges to the cheaper page-1 IX where IX is free.
+  // Runs after SpillOpt so it sees the final concrete index ops, and before
+  // BranchRelaxation since it shrinks page-2 ops by one byte each.
+  if (getOptLevel() != CodeGenOptLevel::None)
+    addPass(createMC6809PreferPage1IndexPass());
 }
 
 void MC6809PassConfig::addPreEmitPass() {

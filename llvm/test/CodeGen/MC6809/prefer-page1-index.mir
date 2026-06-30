@@ -1,0 +1,43 @@
+# RUN: llc -mtriple=mc6809 -run-pass=mc6809-prefer-page1-index -mc6809-prefer-page1-index=true -o - %s | FileCheck %s
+
+# A call-free IY live-range whose value dies in the block is re-homed to the
+# cheaper page-1 IX when IX is dead across the range; when IX is live it stays
+# on IY.
+--- |
+  define void @rename_when_ix_free() { ret void }
+  define void @keep_when_ix_live() { ret void }
+...
+
+# IX dead throughout -> LDY/STY become LDX/STX.
+---
+name: rename_when_ix_free
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su
+    ; CHECK-LABEL: name: rename_when_ix_free
+    ; CHECK: LDXi_o8 9, $su
+    ; CHECK: STXi_o8 11, $su
+    ; CHECK-NOT: LDYi
+    ; CHECK-NOT: STYi
+    LDYi_o8 9, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    STYi_o8 11, $su, implicit $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    RTSr
+...
+
+# IX holds a value live across the IY range -> must NOT rename (would clobber it).
+---
+name: keep_when_ix_live
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su
+    ; CHECK-LABEL: name: keep_when_ix_live
+    ; CHECK: LDYi_o8 9, $su
+    ; CHECK: STYi_o8 11, $su
+    LDXi_o8 5, $su, implicit-def $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    LDYi_o8 9, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    STYi_o8 11, $su, implicit $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    STXi_o8 13, $su, implicit $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    RTSr
+...
