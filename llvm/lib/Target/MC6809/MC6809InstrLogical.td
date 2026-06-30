@@ -72,18 +72,27 @@ class MC6809BlockTransfer<dag ins, dag outs, string constraints = ""> : MC6809Lo
   let isReMaterializable = false;
 }
 
-// BlockCopy_* are emitted by the legalizer (tryTFMBlockCopy) with two
-// explicit register operands (src, dst, both REGTFM = {IX,IY}); the byte
-// count lives in AW, which is implicit via MC6809BlockTransfer's Defs/Uses.
-// The legalizer puts the count into AW right before the pseudo, so the count
-// is modelled the way the real TFM models it (implicit W), not as an explicit
-// operand. An explicit AWc:$count slot would have to be filled with either an
-// immediate (illegal in a register operand) or a vreg that doubles the
-// implicit AW use, both of which the machine verifier rejects.
-def BlockCopy_Inc_Inc : MC6809BlockTransfer<(ins REGTFM:$src, REGTFM:$dst), (outs)>;
-def BlockCopy_Dec_Dec : MC6809BlockTransfer<(ins REGTFM:$src, REGTFM:$dst), (outs)>;
-def BlockCopy_Inc_Stay : MC6809BlockTransfer<(ins REGTFM:$src, REGTFM:$dst), (outs)>;
-def BlockCopy_Stay_Inc : MC6809BlockTransfer<(ins REGTFM:$src, REGTFM:$dst), (outs)>;
+// BlockCopy_* are emitted by the legalizer (tryTFMBlockCopy) with two REGTFM
+// ({IX,IY}) register operands; the byte count lives in AW, which is implicit
+// via MC6809BlockTransfer's Defs/Uses. The legalizer puts the count into AW
+// right before the pseudo, so the count is modelled the way the real TFM
+// models it (implicit W), not as an explicit operand. An explicit AWc:$count
+// slot would have to be filled with either an immediate (illegal in a register
+// operand) or a vreg that doubles the implicit AW use, both of which the
+// machine verifier rejects.
+//
+// The pointer operands are tied def+use ($src = $src_wb, $dst = $dst_wb): the
+// TFM post-increments / -decrements both pointers as it runs, so it *clobbers*
+// the registers. Modelling that write is essential -- without it the coalescer
+// would happily merge a pointer that is still live after the copy into the
+// register the TFM destroys (e.g. tmpnam's strcpy(s,"TXXXXXX") followed by
+// mktemp(s)), silently corrupting it. The write-back vregs are dead; the tie
+// just forces the interference that keeps a live-after pointer in its own
+// register.
+def BlockCopy_Inc_Inc : MC6809BlockTransfer<(ins REGTFM:$src, REGTFM:$dst), (outs REGTFM:$src_wb, REGTFM:$dst_wb), "$src = $src_wb, $dst = $dst_wb">;
+def BlockCopy_Dec_Dec : MC6809BlockTransfer<(ins REGTFM:$src, REGTFM:$dst), (outs REGTFM:$src_wb, REGTFM:$dst_wb), "$src = $src_wb, $dst = $dst_wb">;
+def BlockCopy_Inc_Stay : MC6809BlockTransfer<(ins REGTFM:$src, REGTFM:$dst), (outs REGTFM:$src_wb, REGTFM:$dst_wb), "$src = $src_wb, $dst = $dst_wb">;
+def BlockCopy_Stay_Inc : MC6809BlockTransfer<(ins REGTFM:$src, REGTFM:$dst), (outs REGTFM:$src_wb, REGTFM:$dst_wb), "$src = $src_wb, $dst = $dst_wb">;
 
 //===---------------------------------------------------------------------===//
 // Stack instructions. These will be squashed together later.

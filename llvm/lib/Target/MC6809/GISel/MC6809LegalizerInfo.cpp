@@ -2148,7 +2148,15 @@ bool MC6809LegalizerInfo::tryTFMBlockCopy(LegalizerHelper &Helper, MachineRegist
                                 .getReg(0)
                           : CountMO.getReg();
     Builder.buildCopy(MC6809::AW, CountV);
+    // The pseudo's pointer operands are tied def+use: the TFM post-increments
+    // them, so it clobbers the registers. The write-back defs are dead, but the
+    // tie makes a pointer that is still live after the copy interfere with the
+    // register the TFM destroys, so regalloc keeps it in its own register.
+    Register SrcWB = MRI.createVirtualRegister(&MC6809::REGTFMRegClass);
+    Register DstWB = MRI.createVirtualRegister(&MC6809::REGTFMRegClass);
     Builder.buildInstr(BlockOpc)
+        .addDef(SrcWB)
+        .addDef(DstWB)
         .addUse(SrcTFM)
         .addUse(DstTFM)
         .addMemOperand(MF.getMachineMemOperand(SrcPI, MachineMemOperand::MOLoad,
