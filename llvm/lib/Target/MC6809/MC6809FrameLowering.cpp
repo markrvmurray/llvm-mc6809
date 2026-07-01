@@ -704,14 +704,26 @@ bool MC6809FrameLowering::hasFP(const MachineFunction &MF) const {
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   if (MFI.isFrameAddressTaken() || MFI.hasVarSizedObjects())
     return true;
-  // Force frame pointer when spill pseudo-registers are used.
+  // Bug #387: a static-stack function lays its whole local frame — spill slots
+  // included — in absolute (extended / PC-relative) memory, so it needs no U
+  // frame pointer for those accesses. It still needs one when it makes calls
+  // (a call's return-address push shifts S, so any S-relative access to the
+  // remaining fixed args / dynamic slots would be unstable across the call).
+  // A call-free static-stack function drops the frame pointer entirely: no
+  // `pshs u; tfr s,u`, and U becomes available for allocation. hasFP must be
+  // stable across passes (it is queried in determineCalleeSaves, before the
+  // static marking runs), so gate only on inputs that don't depend on marking:
+  // usesStaticStack and hasCalls.
+  bool StaticStack = usesStaticStack(MF);
+  if (MFI.hasCalls())
+    return true;
+  if (StaticStack)
+    return false;
+  // Force frame pointer when spill pseudo-registers are used (their U-relative
+  // slots need a stable base). Static-stack functions handled above.
   if (auto *FuncInfo = MF.getInfo<MC6809FunctionInfo>())
     if (FuncInfo->UsesSpillRegisters)
       return true;
-  // Force frame pointer when the function makes calls — calls shift S
-  // (return address push), so S-relative frame access is unstable.
-  if (MFI.hasCalls())
-    return true;
   return false;
 }
 
