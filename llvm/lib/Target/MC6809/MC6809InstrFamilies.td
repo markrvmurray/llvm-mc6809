@@ -547,6 +547,18 @@ defm Sub_i16 : MC6809Arithmetic<i16, ACC16, ACC16>;
 let Predicates = [IsHD6309] in
   defm Sub_i32 : MC6809Arithmetic<i32, ACC32, ACC32>;
 
+// Static-stack siblings of Add_i32_Mem / Sub_i32_Mem: the memory operand is a
+// static-frame symbol (TI_STATIC_STACK target index) rather than an index
+// register + offset. eliminateFrameIndex rewrites a *_Mem whose base is a
+// static-frame index into the *_Sym form; the post-RA expander emits the
+// page-2 ADDW/ADCD (SUBW/SBCD) carry chain against extended (or PC-relative)
+// addresses. Same $dst = $src tie and Defs as the _Mem forms.
+let Predicates = [IsHD6309], mayLoad = true in {
+  let isAdd = true in
+    def Add_i32_Sym : MC6809ArithmeticBase<ACC32, ACC32, (ins unknown:$sym)>;
+  def Sub_i32_Sym : MC6809ArithmeticBase<ACC32, ACC32, (ins unknown:$sym)>;
+}
+
 // --- Carry-setting variants ---
 //
 // SetCarry / SetCarryUse pairs implement the lo/hi halves of an

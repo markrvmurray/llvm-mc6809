@@ -3507,6 +3507,10 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::AddSetOverflow_i32_Mem:
     expandAddSub_i32_Mem(Builder, MI, /*IsAdd=*/true);
     break;
+  // Static-stack sibling: memory operand is a TI_STATIC_STACK target index.
+  case MC6809::Add_i32_Sym:
+    expandAddSub_i32_Sym(Builder, MI, /*IsAdd=*/true);
+    break;
   case MC6809::AddSetCarryUse_i8_Mem:
   case MC6809::AddSetOverflowUse_i8_Mem:    // bug #147
     expandIdxImm(AddCarryIdxImm, Builder, MI);
@@ -3577,6 +3581,10 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::SubSetCarry_i32_Mem:
   case MC6809::SubSetOverflow_i32_Mem:
     expandAddSub_i32_Mem(Builder, MI, /*IsAdd=*/false);
+    break;
+  // Static-stack sibling: memory operand is a TI_STATIC_STACK target index.
+  case MC6809::Sub_i32_Sym:
+    expandAddSub_i32_Sym(Builder, MI, /*IsAdd=*/false);
     break;
   case MC6809::Sub_i8_Reg:
   case MC6809::Sub_i8_RegA:                // bug #221 Phase A
@@ -4876,6 +4884,60 @@ void MC6809InstrInfo::expandAddSub_i32_Mem(MachineIRBuilder &Builder,
   MI.eraseFromParent();
 }
 
+// Static-stack sibling of expandAddSub_i32_Mem. The pseudo carries a
+// TI_STATIC_STACK target index (assigned in eliminateFrameIndex when its
+// _Mem form's frame index was moved to the static frame) in place of the
+// index-register + offset pair. The carry chain is identical — ADDW/ADCD
+// (SUBW/SBCD) against the two 16-bit halves — but each half is reached by an
+// extended (or PC-relative under PIC) access to static_stack + base + N, with
+// the big-endian +2 (low word) / +0 (high word) split applied to the base.
+void MC6809InstrInfo::expandAddSub_i32_Sym(MachineIRBuilder &Builder,
+                                            MachineInstr &MI,
+                                            bool IsAdd) const {
+  const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
+  (void)STI;
+  assert(STI.has6309() &&
+         "i32 ADD/SUB static-stack expansion is HD6309-only");
+
+  Register DestReg = MI.getOperand(0).getReg();
+  Register OrigDest = DestReg;
+  MachineFunction &MF = *MI.getMF();
+  if (needsMaterialization(DestReg))
+    DestReg = materializeReg(Builder, DestReg, MF);
+  assert(DestReg == MC6809::AQ &&
+         "i32 ADD/SUB static-stack requires AQ for the ALU-side operations");
+
+  // Operand layout after the tied $dst=$src pair: the last operand is the
+  // TI_STATIC_STACK target index. Its per-function byte offset lives in the
+  // operand's offset field (the second addTargetIndex argument in
+  // eliminateFrameIndex); getIndex() would return the TI_STATIC_STACK kind.
+  unsigned NumOps = MI.getNumExplicitOperands();
+  int Base = MI.getOperand(NumOps - 1).getOffset();
+  bool IsPIC = MF.getTarget().isPositionIndependent();
+
+  // Big-endian i32 in memory: low word at base+2, high word at base+0. Reuse
+  // the indexed ADDW/ADCD (SUBW/SBCD) opcodes with an o16 offset size, then
+  // map them to their extended/PC-relative static-stack variants — the offset
+  // size only picks the widest indexed form to translate.
+  auto &LowMap = IsAdd ? AddIdxImmOpcode : SubIdxImmOpcode;
+  auto &HighMap = IsAdd ? AddCarryIdxImmOpcode : SubBorrowIdxImmOpcode;
+  auto LowLookup = LowMap.find({MC6809::AW, 16});
+  auto HighLookup = HighMap.find({MC6809::AD, 16});
+  assert(LowLookup != LowMap.end() && HighLookup != HighMap.end() &&
+         "missing ADDW/ADCD/SUBW/SBCD opcode entry");
+
+  Builder.buildInstr(getStaticStackOpcode(LowLookup->getSecond(), IsPIC))
+      .addDef(MC6809::AW, RegState::Implicit)
+      .addTargetIndex(MC6809::TI_STATIC_STACK, Base + 2);
+  Builder.buildInstr(getStaticStackOpcode(HighLookup->getSecond(), IsPIC))
+      .addDef(MC6809::AD, RegState::Implicit)
+      .addTargetIndex(MC6809::TI_STATIC_STACK, Base + 0);
+
+  if (needsMaterialization(OrigDest))
+    dematerializeReg(Builder, DestReg, OrigDest, MF);
+  MI.eraseFromParent();
+}
+
 // Bug #297 commit 2.1/6 (2026-05-15): native HD6309 i32 ADD/SUB, _Imm form.
 //
 // Pseudo shape:
@@ -6163,15 +6225,24 @@ void MC6809InstrInfo::expandLoadSym(MachineIRBuilder &Builder, MachineInstr &MI)
   // the global op needs no address register, so no staging-base conflict.
   if (needsMaterialization(Dst)) {
     Register Stage = symStageReg(MI.getOpcode());
-    int SpillOff = computeSpillStackOffset(Dst, MF);
     unsigned LoadOpc = getSymLoadOpcode(Stage, IsDP, IsPIC);
     BuildMI(MBB, MI, MI.getDebugLoc(), get(LoadOpc))
         .add(SymOp)
         .addDef(Stage, RegState::Implicit);
-    BuildMI(MBB, MI, MI.getDebugLoc(), get(getStoreIdxOpcode(Stage, SpillOff)))
-        .addUse(Stage, RegState::Implicit)
-        .addImm(SpillOff)
-        .addReg(MC6809::SU);
+    // Bug #387: a static-stack spill slot is reached by an extended (or
+    // PC-relative) store, not SpillOff,U.
+    if (isStaticSpillSlot(Dst, MF)) {
+      BuildMI(MBB, MI, MI.getDebugLoc(),
+              get(getSymStoreOpcode(Stage, /*IsDP=*/false, IsPIC)))
+          .addTargetIndex(MC6809::TI_STATIC_STACK, staticSpillOffset(Dst, MF))
+          .addUse(Stage, RegState::Implicit);
+    } else {
+      int SpillOff = computeSpillStackOffset(Dst, MF);
+      BuildMI(MBB, MI, MI.getDebugLoc(), get(getStoreIdxOpcode(Stage, SpillOff)))
+          .addUse(Stage, RegState::Implicit)
+          .addImm(SpillOff)
+          .addReg(MC6809::SU);
+    }
     MI.eraseFromParent();
     return;
   }
@@ -6196,11 +6267,20 @@ void MC6809InstrInfo::expandStoreSym(MachineIRBuilder &Builder, MachineInstr &MI
   // then store that register to the global.
   if (needsMaterialization(Src)) {
     Register Stage = symStageReg(MI.getOpcode());
-    int SpillOff = computeSpillStackOffset(Src, MF);
-    BuildMI(MBB, MI, MI.getDebugLoc(), get(getLoadIdxOpcode(Stage, SpillOff)))
-        .addDef(Stage, RegState::Implicit)
-        .addImm(SpillOff)
-        .addReg(MC6809::SU);
+    // Bug #387: a static-stack spill slot is reached by an extended (or
+    // PC-relative) load, not SpillOff,U.
+    if (isStaticSpillSlot(Src, MF)) {
+      BuildMI(MBB, MI, MI.getDebugLoc(),
+              get(getSymLoadOpcode(Stage, /*IsDP=*/false, IsPIC)))
+          .addTargetIndex(MC6809::TI_STATIC_STACK, staticSpillOffset(Src, MF))
+          .addDef(Stage, RegState::Implicit);
+    } else {
+      int SpillOff = computeSpillStackOffset(Src, MF);
+      BuildMI(MBB, MI, MI.getDebugLoc(), get(getLoadIdxOpcode(Stage, SpillOff)))
+          .addDef(Stage, RegState::Implicit)
+          .addImm(SpillOff)
+          .addReg(MC6809::SU);
+    }
     unsigned StoreOpc = getSymStoreOpcode(Stage, IsDP, IsPIC);
     BuildMI(MBB, MI, MI.getDebugLoc(), get(StoreOpc))
         .add(SymOp)
@@ -6324,14 +6404,25 @@ void MC6809InstrInfo::expandLeaSym(MachineIRBuilder &Builder, MachineInstr &MI) 
 
   // Spill dst: compute the address into IY staging, then store it to the slot.
   if (needsMaterialization(Dst)) {
-    int SpillOff = computeSpillStackOffset(Dst, MF);
+    bool IsPIC = MF.getTarget().isPositionIndependent();
     BuildMI(MBB, MI, MI.getDebugLoc(), get(MC6809::LEAYi_o16PC))
         .add(SymOp)
         .addDef(MC6809::IY, RegState::Implicit);
-    BuildMI(MBB, MI, MI.getDebugLoc(), get(getStoreIdxOpcode(MC6809::IY, SpillOff)))
-        .addUse(MC6809::IY, RegState::Implicit)
-        .addImm(SpillOff)
-        .addReg(MC6809::SU);
+    // Bug #387: a static-stack spill slot is reached by an extended (or
+    // PC-relative) store, not SpillOff,U.
+    if (isStaticSpillSlot(Dst, MF)) {
+      BuildMI(MBB, MI, MI.getDebugLoc(),
+              get(getSymStoreOpcode(MC6809::IY, /*IsDP=*/false, IsPIC)))
+          .addTargetIndex(MC6809::TI_STATIC_STACK, staticSpillOffset(Dst, MF))
+          .addUse(MC6809::IY, RegState::Implicit);
+    } else {
+      int SpillOff = computeSpillStackOffset(Dst, MF);
+      BuildMI(MBB, MI, MI.getDebugLoc(),
+              get(getStoreIdxOpcode(MC6809::IY, SpillOff)))
+          .addUse(MC6809::IY, RegState::Implicit)
+          .addImm(SpillOff)
+          .addReg(MC6809::SU);
+    }
     MI.eraseFromParent();
     return;
   }
@@ -6477,8 +6568,14 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
       // indirection (qsort's `*(long*)b` -> `ldq 20,u` instead of `ldq [20,u]`).
       // Route the indirect case through the generic materialize -> recurse ->
       // dematerialize path below, which expands the load with the indirect swap.
+      // A static-stack destination slot is NOT at DstSpillOff,U — the
+      // optimized two-LDD / LDQ+STQ paths below hard-code that U-relative
+      // store and would write into the (shrunk) dynamic frame. Skip them for a
+      // static slot and fall through to the generic materialize -> recurse ->
+      // dematerialize path, whose emitSpillStore emits the extended STQ.
       bool SrcOffIsImmediate =
-          (SrcOffset.isImm() || SrcOffset.isCImm()) && !Indirect;
+          (SrcOffset.isImm() || SrcOffset.isCImm()) && !Indirect &&
+          !isStaticSpillSlot(DestRegOp.getReg(), MF);
       if (SrcOffIsImmediate) {
         int SrcOffBytes = SrcOffset.isImm()
                               ? int(SrcOffset.getImm())
@@ -6692,6 +6789,38 @@ void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI
       bool AdFamilyLive = false;
       for (MCPhysReg R : {MC6809::AD, MC6809::AA, MC6809::AB}) {
         if (LiveRegs.contains(R)) { AdFamilyLive = true; break; }
+      }
+
+      // Bug #387: a static-stack source slot is reached by an extended (or
+      // PC-relative) LDQ, not `SrcSpillOff,U`. The U-relative optimized paths
+      // below would read from the (shrunk) dynamic frame. Load the slot into
+      // $aq via the static opcode, then STQ to the (dynamic) destination —
+      // wrapped in AQ-preservation when an AD-family value is live across it.
+      if (isStaticSpillSlot(SrcSpill.getReg(), MF)) {
+        bool IsPIC = MF.getTarget().isPositionIndependent();
+        int StaticOff = staticSpillOffset(SrcSpill.getReg(), MF);
+        auto Body = [&]() {
+          unsigned LdOpc = getSymLoadOpcode(MC6809::AQ, /*IsDP=*/false, IsPIC);
+          Builder.buildInstr(LdOpc)
+              .addTargetIndex(MC6809::TI_STATIC_STACK, StaticOff)
+              .addDef(MC6809::AQ, RegState::Implicit);
+          // The STQ base offset shifts by 4 only when the wrapper's LEAS moved
+          // $ss (i.e. AD-family live) and the destination base IS $ss.
+          int AdjDstOff = (AdFamilyLive && DstIndex.getReg() == MC6809::SS)
+                              ? DstOffBytes + 4
+                              : DstOffBytes;
+          unsigned StOpc = getStoreIdxOpcode(MC6809::AQ, AdjDstOff);
+          Builder.buildInstr(StOpc)
+              .addUse(MC6809::AQ, RegState::Implicit)
+              .addImm(AdjDstOff)
+              .addReg(DstIndex.getReg());
+        };
+        if (AdFamilyLive)
+          emitAQPreservedOverHardStackScratch(Builder, Body);
+        else
+          Body();
+        MI.eraseFromParent();
+        return;
       }
 
       if (AdFamilyLive) {
@@ -7310,6 +7439,28 @@ static unsigned getStaticStackOpcode(unsigned IdxOpc, bool IsPIC) {
     llvm_unreachable("No static-stack variant for this opcode");
   }
 #undef SS
+}
+
+unsigned MC6809InstrInfo::getStaticSymOpcode(unsigned MemOpc) const {
+  switch (MemOpc) {
+  case MC6809::Load_i8_Mem:        return MC6809::Load_i8_Sym;
+  case MC6809::Load_i16_Mem:       return MC6809::Load_i16_Sym;
+  case MC6809::Load_iPtr_Mem:      return MC6809::Load_iPtr_Sym;
+  case MC6809::Load_i32_Mem:
+  case MC6809::SpillLoad_i32_Mem:  return MC6809::Load_i32_Sym;
+  case MC6809::Store_i8_Mem:       return MC6809::Store_i8_Sym;
+  case MC6809::Store_i16_Mem:      return MC6809::Store_i16_Sym;
+  case MC6809::Store_iPtr_Mem:     return MC6809::Store_iPtr_Sym;
+  case MC6809::Store_i32_Mem:
+  case MC6809::SpillStore_i32_Mem: return MC6809::Store_i32_Sym;
+  // i32 add/sub whose memory operand is a static-frame local, and the
+  // address-of (LEA) of a static-frame local — the escaping-object cases
+  // that let the whole frame move to the static region.
+  case MC6809::Add_i32_Mem:        return MC6809::Add_i32_Sym;
+  case MC6809::Sub_i32_Mem:        return MC6809::Sub_i32_Sym;
+  case MC6809::LEA_Ptr_Imm:        return MC6809::Lea_iPtr_Sym;
+  default:                         return 0;
+  }
 }
 
 /// Emit a 6809 8-bit register-register operation by loading LHS into

@@ -208,24 +208,6 @@ const TargetRegisterClass *MC6809RegisterInfo::getCrossCopyRegClass(const Target
   return RC;
 }
 
-// Bug #387: the _Sym (static/extended-addressing) sibling of a Load/Store_*_Mem
-// spill pseudo, used when its frame index has been moved to the static stack.
-static unsigned getStaticSymOpcode(unsigned MemOpc) {
-  switch (MemOpc) {
-  case MC6809::Load_i8_Mem:        return MC6809::Load_i8_Sym;
-  case MC6809::Load_i16_Mem:       return MC6809::Load_i16_Sym;
-  case MC6809::Load_iPtr_Mem:      return MC6809::Load_iPtr_Sym;
-  case MC6809::Load_i32_Mem:
-  case MC6809::SpillLoad_i32_Mem:  return MC6809::Load_i32_Sym;
-  case MC6809::Store_i8_Mem:       return MC6809::Store_i8_Sym;
-  case MC6809::Store_i16_Mem:      return MC6809::Store_i16_Sym;
-  case MC6809::Store_iPtr_Mem:     return MC6809::Store_iPtr_Sym;
-  case MC6809::Store_i32_Mem:
-  case MC6809::SpillStore_i32_Mem: return MC6809::Store_i32_Sym;
-  default:                         return 0;
-  }
-}
-
 bool MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int SPAdj, unsigned FIOperandNum, RegScavenger *RS) const {
   assert(SPAdj == 0 && "Unexpected non-zero SPAdj");
 
@@ -237,6 +219,8 @@ bool MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int
   int FrameIndex = MI.getOperand(FIOperandNum).getIndex();
   unsigned BasePtr = (TFI->hasFP(MF) ? MC6809::SU : MC6809::SS);
   const MachineFrameInfo &MFI = MF.getFrameInfo();
+  const MC6809InstrInfo &TII =
+      *static_cast<const MC6809InstrInfo *>(MF.getSubtarget().getInstrInfo());
 
   // Bug #387 (S2): a spill slot that escaped processFunctionBeforeFrameFinalized's
   // static marking — created later in PEI (a register-scavenging emergency slot,
@@ -249,7 +233,7 @@ bool MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int
   // Only when the accessing pseudo actually has a _Sym (extended) sibling.
   if (TFI->usesStaticStack(MF) && MFI.isSpillSlotObjectIndex(FrameIndex) &&
       MFI.getStackID(FrameIndex) == TargetStackID::Default &&
-      getStaticSymOpcode(MI.getOpcode()))
+      TII.getStaticSymOpcode(MI.getOpcode()))
     TFI->markSpillSlotStatic(MF, FrameIndex);
 
   // Bug #387 (S3/S4): a spill slot moved to the static stack is addressed
@@ -262,14 +246,17 @@ bool MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int
     int64_t StaticOff = MFI.getObjectOffset(FrameIndex) +
                         MI.getOperand(FIOperandNum).getOffset() +
                         MI.getOperand(FIOperandNum + 1).getImm();
-    unsigned SymOpc = getStaticSymOpcode(MI.getOpcode());
+    unsigned SymOpc = TII.getStaticSymOpcode(MI.getOpcode());
     assert(SymOpc && "static-stack frame index in a non-spill pseudo");
-    const MC6809InstrInfo &TII =
-        *static_cast<const MC6809InstrInfo *>(MF.getSubtarget().getInstrInfo());
-    BuildMI(MBB, MI, dl, TII.get(SymOpc))
-        .add(MI.getOperand(0)) // value register (def for load, use for store)
-        .addTargetIndex(MC6809::TI_STATIC_STACK, StaticOff)
-        .cloneMemRefs(MI);
+    // Copy every operand before the frame index — the value/dst register for
+    // load/store/LEA, plus the tied source for the add/sub forms (whose
+    // $dst=$src constraint MachineInstr::addOperand re-establishes from the
+    // _Sym opcode's descriptor). The frame index and its companion immediate
+    // (at FIOperandNum, FIOperandNum+1) collapse into the target index.
+    auto MIB = BuildMI(MBB, MI, dl, TII.get(SymOpc));
+    for (unsigned I = 0; I < FIOperandNum; ++I)
+      MIB.add(MI.getOperand(I));
+    MIB.addTargetIndex(MC6809::TI_STATIC_STACK, StaticOff).cloneMemRefs(MI);
     MI.eraseFromParent();
     return true;
   }

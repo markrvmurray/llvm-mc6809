@@ -73,6 +73,14 @@ public:
   ///
   const MC6809RegisterInfo &getRegisterInfo() const { return RI; }
 
+  // Bug #387: the _Sym (static/extended-addressing) sibling of a spill /
+  // frame pseudo whose frame index has been moved to the static stack, or 0 if
+  // the pseudo has no static-stack lowering. Shared by MC6809RegisterInfo
+  // (eliminateFrameIndex, which performs the rewrite) and MC6809FrameLowering
+  // (processFunctionBeforeFrameFinalized, which only marks a local static when
+  // every pseudo that accesses it has such a sibling).
+  unsigned getStaticSymOpcode(unsigned MemOpc) const;
+
   Register isLoadFromStackSlot(const MachineInstr &MI, int &FrameIndex) const override;
 
   Register isStoreToStackSlot(const MachineInstr &MI, int &FrameIndex) const override;
@@ -227,6 +235,11 @@ private:
   // 2.1/6).  _Pull and the carry-Use variants stay llvm_unreachable
   // (not reachable from any TableGen pattern or selector arm).
   void expandAddSub_i32_Mem(MachineIRBuilder &Builder, MachineInstr &MI,
+                            bool IsAdd) const;
+  // Static-stack sibling of expandAddSub_i32_Mem: the memory operand is a
+  // TI_STATIC_STACK target index addressed by extended (or PC-relative under
+  // PIC) mode instead of offset,index-register.
+  void expandAddSub_i32_Sym(MachineIRBuilder &Builder, MachineInstr &MI,
                             bool IsAdd) const;
   void expandAddSub_i32_Imm(MachineIRBuilder &Builder, MachineInstr &MI,
                             bool IsAdd) const;

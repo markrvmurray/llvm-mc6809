@@ -14,6 +14,7 @@
 
 #include "MC6809.h"
 #include "MC6809InstrBuilder.h"
+#include "MC6809InstrInfo.h"
 #include "MC6809MachineFunctionInfo.h"
 #include "MC6809RegisterInfo.h"
 #include "MC6809Subtarget.h"
@@ -487,21 +488,39 @@ void MC6809FrameLowering::processFunctionBeforeFrameFinalized(MachineFunction &M
   // dynamic stack into static memory. This runs before calculateFrameObjectsOffsets,
   // which skips non-Default stack IDs — so the marked slots drop out of
   // StackSize (the dynamic frame shrinks) and keep the static offset assigned
-  // here. Only spill slots are eligible: they are always reached through the
-  // Load/Store_*_Mem pseudos that eliminateFrameIndex rewrites to the _Sym
-  // (extended/absolute) form. Locals / address-taken / scavenging objects stay
-  // dynamic. MC6809StaticStackAlloc later lays these per-function regions out
+  // here. The whole local frame is eligible (spill slots AND ordinary /
+  // address-taken locals): every Default local object is reached through a
+  // pseudo that eliminateFrameIndex rewrites to a _Sym (extended/absolute)
+  // form — Load/Store for value access, Add/Sub for in-place i32 arithmetic,
+  // LEA for an address-of. Only fixed objects (incoming args, negative index,
+  // excluded by the seq starting at 0) and variable-sized objects stay dynamic.
+  // MC6809StaticStackAlloc later lays these per-function regions out
   // non-overlappingly across the call graph.
   if (usesStaticStack(MF)) {
-    SmallSet<int, 16> SpillFIs;
-    for (const auto &KV : FuncInfo.SpillRegFrameIndices)
-      SpillFIs.insert(KV.second);
+    const MC6809InstrInfo &TII =
+        *static_cast<const MC6809InstrInfo *>(MF.getSubtarget().getInstrInfo());
+    // A local can move to the static frame only if every instruction that
+    // reaches it through a frame-index operand has a _Sym (extended-addressing)
+    // lowering — otherwise eliminateFrameIndex could not rewrite that access
+    // and would assert. Collect the locals with any non-lowerable accessor;
+    // those stay on the dynamic frame. (Spill slots are addressed via SPILL_*
+    // register operands, not frame-index operands, so they never appear here —
+    // their materialisation is always static-aware, so they are always
+    // eligible.)
+    SmallSet<int, 8> NotLowerable;
+    for (const MachineBasicBlock &MBB : MF)
+      for (const MachineInstr &MI : MBB) {
+        if (TII.getStaticSymOpcode(MI.getOpcode()))
+          continue;
+        for (const MachineOperand &MO : MI.operands())
+          if (MO.isFI())
+            NotLowerable.insert(MO.getIndex());
+      }
     int64_t Offset = 0;
     for (int Idx : seq(0, MFI.getObjectIndexEnd())) {
       if (MFI.isDeadObjectIndex(Idx) || MFI.isVariableSizedObjectIndex(Idx) ||
-          MFI.getStackID(Idx) != TargetStackID::Default)
-        continue;
-      if (!MFI.isSpillSlotObjectIndex(Idx) && !SpillFIs.count(Idx))
+          MFI.getStackID(Idx) != TargetStackID::Default ||
+          NotLowerable.count(Idx))
         continue;
       MFI.setStackID(Idx, TargetStackID::Mc6809Static);
       MFI.setObjectOffset(Idx, Offset);
