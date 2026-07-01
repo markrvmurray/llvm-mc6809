@@ -586,6 +586,33 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
       FuncInfo->UsesSpillRegisters = true;
   }
 
+  // Reusable save slots for preserving a live real register across a spill
+  // materialisation. Each save is strictly bracketed (store before MI, reload
+  // after MI, no nesting), so at most one save of each register-type is live at
+  // any point — a single slot per type can be shared across the whole function.
+  // Creating a fresh slot per materialisation (the old behaviour) bloated the
+  // frame: these slots are minted after StackSlotColoring runs, so the coloring
+  // pass never merges them (dozens of 2-byte slots for a hot function). This
+  // matters especially for static-stack functions, where the frame lives in the
+  // 64 KB global address space rather than on the runtime stack.
+  // Only the D and Q save slots are shared. Their restores are always emitted
+  // immediately after the (non-terminator) MI, so each save/restore is strictly
+  // bracketed and no two are simultaneously live — one slot per type serves the
+  // whole function. The A/B/IX/IY saves are NOT shared: their restores can be
+  // deferred into successor blocks (a compare feeding a conditional branch, or a
+  // terminator — see DeferByteRestore / insertPtr/ByteRestoreInSuccessors
+  // below), so the save's live range spans BB boundaries and could overlap
+  // another use of the same slot on a different path; those keep a fresh slot.
+  int ReuseQSaveSlot = -1;
+  int ReuseDSaveSlot = -1;
+  auto getSaveSlot = [&](int &Cache, unsigned Size, bool CanReuse) -> int {
+    if (!CanReuse)
+      return MF.getFrameInfo().CreateStackObject(Size, Align(1), true);
+    if (Cache == -1)
+      Cache = MF.getFrameInfo().CreateStackObject(Size, Align(1), true);
+    return Cache;
+  };
+
   for (MachineBasicBlock &MBB : MF) {
     // Add spill pseudo-registers to liveins so the machine verifier doesn't
     // flag them as used-without-definition (bug #16). The value is defined
@@ -1109,7 +1136,7 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
       // would clobber a live $aq value.  Save is wider than NeedD
       // — must be 4 bytes to capture all of $aq's sub-regs.
       if (Info.NeedSaveQ) {
-        QSaveSlot = MFI.CreateStackObject(4, Align(1), true);
+        QSaveSlot = getSaveSlot(ReuseQSaveSlot, 4, !MI.isTerminator());
         // Same Undef rationale as NeedSaveD (Bug #275): if $aq isn't
         // directly live-in at MBB.begin(), the save reads bits that
         // are part of a super-reg's value but not directly defined.
@@ -1128,7 +1155,7 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
 
       // Save D if needed.
       if (Info.NeedSaveD) {
-        DSaveSlot = MFI.CreateStackObject(2, Align(1), true);
+        DSaveSlot = getSaveSlot(ReuseDSaveSlot, 2, !MI.isTerminator());
         // Bug #275: NeedSaveD's backward LPR analysis treats $ad as
         // live whenever any super-reg of $ad (e.g. $aq) is live —
         // because LivePhysRegs::addReg(super) adds all sub-regs into
