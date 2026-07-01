@@ -1156,6 +1156,7 @@ static unsigned getStoreIdxOpcode(Register Reg, int Offset) {
 // so the spill expanders can emit an extended/absolute access to a static slot.
 static unsigned getSymLoadOpcode(Register Reg, bool IsDP, bool IsPIC);
 static unsigned getSymStoreOpcode(Register Reg, bool IsDP, bool IsPIC);
+static unsigned getStaticStackOpcode(unsigned IdxOpc, bool IsPIC);
 
 // The frame index backing a spill register's slot (mirrors the key logic in
 // computeSpillStackOffset).
@@ -1251,6 +1252,35 @@ static MachineInstrBuilder emitSpillStore(MachineIRBuilder &Builder,
       .addReg(MC6809::SU)  // Frame pointer — stable across PSHS/PULS
       .addReg(Register(SpillReg), RegState::ImplicitDefine);
   return MI;
+}
+
+/// Emit an accumulator arithmetic/compare op that reads its operand
+/// directly from a spill register's slot (e.g. `addb n,u`). This is the single
+/// choke point for the ~40 arith-with-spill sites: for an ordinary dynamic slot
+/// it emits the U-indexed form (picking o8 vs o16 by the offset), and for a slot
+/// the static-stack allocator moved into the static_stack global it emits the
+/// extended (absolute, or PC-relative under PIC) form carrying a TI_STATIC_STACK
+/// target index that MC6809StaticStackAlloc later resolves. AccReg is the
+/// accumulator the op reads-and-writes (added as an implicit def, matching the
+/// existing sites). Opc_o16 may be 0 when the op has no 16-bit-offset form.
+static MachineInstrBuilder emitSpillArith(MachineIRBuilder &Builder,
+                                          unsigned Opc_o8, unsigned Opc_o16,
+                                          Register AccReg, MCPhysReg SpillReg,
+                                          MachineFunction &MF) {
+  if (isStaticSpillSlot(SpillReg, MF)) {
+    unsigned Opc = getStaticStackOpcode(
+        Opc_o8, MF.getTarget().isPositionIndependent());
+    return Builder.buildInstr(Opc)
+        .addDef(AccReg, RegState::Implicit)
+        .addTargetIndex(MC6809::TI_STATIC_STACK, staticSpillOffset(SpillReg, MF));
+  }
+  int Offset = computeSpillStackOffset(SpillReg, MF);
+  bool Fits8 = (Offset >= -128 && Offset <= 127);
+  unsigned Opc = (Fits8 || !Opc_o16) ? Opc_o8 : Opc_o16;
+  return Builder.buildInstr(Opc)
+      .addDef(AccReg, RegState::Implicit)
+      .addImm(Offset)
+      .addReg(MC6809::SU);
 }
 
 /// Bug #298 / #300 (consolidated Phase A 2026-05-16): bracket a body
@@ -7274,6 +7304,27 @@ static unsigned getDirectPageOpcode(unsigned IdxOpc) {
   }
 }
 
+// The extended (absolute) or PC-relative variant of an indexed
+// spill-access opcode, for a slot the static-stack allocator moved into the
+// static_stack global. Mirrors getDirectPageOpcode; the value operand(s) stay
+// the same, only the addressing tail changes (a TI_STATIC_STACK target index
+// replaces the offset,U pair). PIC uses the PC-relative form because the
+// static_stack global is materialised relative to PC.
+static unsigned getStaticStackOpcode(unsigned IdxOpc, bool IsPIC) {
+#define SS(BASE)                                                               \
+  case MC6809::BASE##i_o8: case MC6809::BASE##i_o5:                            \
+  case MC6809::BASE##i_o0: case MC6809::BASE##i_o16:                           \
+    return IsPIC ? MC6809::BASE##i_o16PC : MC6809::BASE##e;
+  switch (IdxOpc) {
+  SS(ADDB) SS(ADDA) SS(ADCA) SS(ADCB) SS(SUBA) SS(SUBB) SS(SBCA) SS(SBCB)
+  SS(ANDB) SS(ANDA) SS(ORB) SS(ORA) SS(EORB) SS(EORA)
+  SS(ADDD) SS(SUBD) SS(CMPA) SS(CMPB) SS(CMPD)
+  default:
+    llvm_unreachable("No static-stack variant for this opcode");
+  }
+#undef SS
+}
+
 /// Emit a 6809 8-bit register-register operation by loading LHS into
 /// an accumulator and reading RHS from memory.
 ///
@@ -7345,21 +7396,14 @@ static void emit6809RegByteFromMem(MachineIRBuilder &Builder,
     materializeReg(Builder, LHS, MF);
   RealRHS = RHS;
   if (isSpillReg(RHS)) {
-    // Path (a): U-relative read from RHS's spill slot.
-    // computeSpillStackOffset already includes the byte offset within
-    // the parent D slot (A at +0, B at +1 on big-endian).
-    int ByteOffset = computeSpillStackOffset(RHS, MF);
+    // Path (a): read RHS directly from its spill slot. emitSpillArith emits the
+    // U-relative form for a dynamic slot (picking o8 vs o16 by the offset —
+    // Bug #122's large-frame guard) or the extended TI_STATIC_STACK form for a
+    // static-stack slot. computeSpillStackOffset already includes the
+    // byte offset within the parent D slot (A at +0, B at +1 on big-endian).
     LLVM_DEBUG(dbgs() << "emit6809RegByteFromMem: path(a) RHS="
-               << printReg(RHS) << " offset=" << ByteOffset << "\n");
-    // Bug #122: for large stack frames (>127 bytes), the spill offset
-    // may exceed the 8-bit signed range (-128..+127). Use the _o16
-    // opcode variant for large offsets — _o8 wraps >127 to negative,
-    // reading from below the frame.
-    bool Fits8 = (ByteOffset >= -128 && ByteOffset <= 127);
-    unsigned Opc = (Fits8 || !Opc_o16) ? Opc_o8 : Opc_o16;
-    Builder.buildInstr(Opc)
-        .addDef(AccReg, RegState::Implicit)
-        .addImm(ByteOffset).addReg(MC6809::SU);
+               << printReg(RHS) << "\n");
+    emitSpillArith(Builder, Opc_o8, Opc_o16, AccReg, RHS, MF);
   } else if (RHS.isPhysical() && MC6809::Imag8RegClass.contains(RHS)) {
     // Path (b): RHS is an Imag8 register — use the direct-page
     // opcode to read it directly from its DP location. This avoids
