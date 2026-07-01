@@ -2385,13 +2385,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
       bool HiIsSpill = isSpillReg(HiReg) && !isQSpillReg(HiReg);
 
       auto LoadSpillIntoAD = [&](Register SpillReg) {
-        int Off = computeSpillStackOffset(SpillReg, MF);
-        bool F8 = (Off >= -128 && Off <= 127);
-        unsigned LdOpc = F8 ? MC6809::LDDi_o8 : MC6809::LDDi_o16;
-        Builder.buildInstr(LdOpc)
-            .addDef(MC6809::AD, RegState::Implicit)
-            .addImm(Off)
-            .addReg(MC6809::SU);
+        emitSpillLoadInto(Builder, MC6809::AD, SpillReg, /*ExtraOffset=*/0, MF);
       };
 
       auto StoreToSlot = [&](int SlotOff, bool IsLast) {
@@ -2400,9 +2394,22 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
         // that imaginary register.  Attach implicit-def $spill_q* to
         // the LAST STD so downstream FAKE_USE $spill_q* (from
         // -fextend-lifetimes at -Og) doesn't read an undefined reg.
-        auto MIB = Builder.buildInstr(Opc)
-            .addUse(MC6809::AD, RegState::Implicit)
-            .addImm(SlotOff).addReg(MC6809::SU);
+        // Keep the dynamic path's single uniform Opc (chosen from Offset+2 for
+        // both slot writes); a static-stack dest uses the extended store, with
+        // the sub-slot offset (SlotOff - Offset) added to the static base.
+        MachineInstrBuilder MIB;
+        if (isStaticSpillSlot(DstReg, MF)) {
+          unsigned SymOpc = getSymStoreOpcode(
+              MC6809::AD, /*IsDP=*/false, MF.getTarget().isPositionIndependent());
+          MIB = Builder.buildInstr(SymOpc)
+                    .addUse(MC6809::AD, RegState::Implicit)
+                    .addTargetIndex(MC6809::TI_STATIC_STACK,
+                                    staticSpillOffset(DstReg, MF) + (SlotOff - Offset));
+        } else {
+          MIB = Builder.buildInstr(Opc)
+                    .addUse(MC6809::AD, RegState::Implicit)
+                    .addImm(SlotOff).addReg(MC6809::SU);
+        }
         if (IsLast)
           MIB.addReg(DstReg, RegState::ImplicitDefine);
       };
@@ -2607,13 +2614,8 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     if (SrcReg == MC6809::AQ) {
       // AQ.MSByte = AA — already where we need it.  No instruction.
     } else if (isQSpillReg(SrcReg)) {
-      // SPILL_Q*N: load MSByte from slot+0,$su into AA.
-      int Offset = computeSpillStackOffset(SrcReg, MF);
-      unsigned Opc = (Offset >= -128 && Offset <= 127)
-                         ? MC6809::LDAi_o8 : MC6809::LDAi_o16;
-      Builder.buildInstr(Opc)
-          .addDef(MC6809::AA, RegState::Implicit)
-          .addImm(Offset).addReg(MC6809::SU);
+      // SPILL_Q*N: load MSByte from slot+0 into AA.
+      emitSpillLoadInto(Builder, MC6809::AA, SrcReg, /*ExtraOffset=*/0, MF);
     } else {
       llvm_unreachable("SignTest_i32 src must be AQ or SPILL_Q*N");
     }
@@ -2695,6 +2697,18 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
       Builder.buildInstr(MC6809::ORRp)
           .addDef(MC6809::AA)
           .addUse(MC6809::AF).addUse(MC6809::AA);
+    } else if (isQSpillReg(SrcReg) && isStaticSpillSlot(SrcReg, MF)) {
+      // Static-stack: LDA static+0; 3× ORA static+N (extended, PC-rel under PIC).
+      bool IsPIC = MF.getTarget().isPositionIndependent();
+      int Base = staticSpillOffset(SrcReg, MF);
+      Builder.buildInstr(getSymLoadOpcode(MC6809::AA, /*IsDP=*/false, IsPIC))
+          .addDef(MC6809::AA, RegState::Implicit)
+          .addTargetIndex(MC6809::TI_STATIC_STACK, Base);
+      for (int N = 1; N <= 3; ++N)
+        Builder.buildInstr(getStaticStackOpcode(MC6809::ORAi_o8, IsPIC))
+            .addDef(MC6809::AA, RegState::Implicit)
+            .addUse(MC6809::AA, RegState::Implicit)
+            .addTargetIndex(MC6809::TI_STATIC_STACK, Base + N);
     } else if (isQSpillReg(SrcReg)) {
       int Offset = computeSpillStackOffset(SrcReg, MF);
       auto pickLD = [](int Off) {
@@ -2768,12 +2782,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
 
     // Step 1: ensure X is in $aq.
     if (isQSpillReg(SrcReg)) {
-      int Offset = computeSpillStackOffset(SrcReg, MF);
-      bool Fits8 = (Offset >= -128 && Offset <= 127);
-      unsigned Opc = Fits8 ? MC6809::LDQi_o8 : MC6809::LDQi_o16;
-      Builder.buildInstr(Opc)
-          .addDef(MC6809::AQ, RegState::Implicit)
-          .addImm(Offset).addReg(MC6809::SU);
+      emitSpillLoadInto(Builder, MC6809::AQ, SrcReg, /*ExtraOffset=*/0, MF);
     } else if (SrcReg != MC6809::AQ) {
       llvm_unreachable("EqConst_i32 src must be AQ or SPILL_Q*N");
     }
@@ -2833,13 +2842,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
       Register RealDst = needsMaterialization(DstReg)
                              ? materializeReg(Builder, DstReg, MF)
                              : DstReg;
-      int Offset = computeSpillStackOffset(Parent, MF);
-      Offset += IsLo ? 2 : 0;
-      bool Fits8 = (Offset >= -128 && Offset <= 127);
-      unsigned Opc = Fits8 ? MC6809::LDDi_o8 : MC6809::LDDi_o16;
-      Builder.buildInstr(Opc)
-          .addDef(RealDst, RegState::Implicit)
-          .addImm(Offset).addReg(MC6809::SU);
+      emitSpillLoadInto(Builder, RealDst, Parent, /*ExtraOffset=*/IsLo ? 2 : 0, MF);
       if (needsMaterialization(OrigDst))
         dematerializeReg(Builder, RealDst, OrigDst, MF);
       MI.eraseFromParent();
@@ -2849,18 +2852,12 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     // a REG_SEQUENCE source byte gets rewritten into SPILL_Q half slots.
     if (DstReg.isPhysical() && SrcReg.isPhysical() &&
         isQSpillHalfReg(DstReg, Parent, IsLo)) {
-      int Offset = computeSpillStackOffset(Parent, MF);
-      Offset += IsLo ? 2 : 0;
-      bool Fits8 = (Offset >= -128 && Offset <= 127);
       // Move src into AD first if it's not already there, then store.
       if (SrcReg != MC6809::AD) {
         copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
                     MC6809::AD, SrcReg, /*KillSrc=*/false);
       }
-      unsigned Opc = Fits8 ? MC6809::STDi_o8 : MC6809::STDi_o16;
-      Builder.buildInstr(Opc)
-          .addUse(MC6809::AD, RegState::Implicit)
-          .addImm(Offset).addReg(MC6809::SU);
+      emitSpillStoreFrom(Builder, MC6809::AD, Parent, /*ExtraOffset=*/IsLo ? 2 : 0, MF);
       MI.eraseFromParent();
       return true;
     }
@@ -3786,12 +3783,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
 
     // Step 1: ensure LHS is in $aq.
     if (isQSpillReg(SrcReg)) {
-      int Offset = computeSpillStackOffset(SrcReg, MF);
-      bool Fits8 = (Offset >= -128 && Offset <= 127);
-      unsigned Opc = Fits8 ? MC6809::LDQi_o8 : MC6809::LDQi_o16;
-      Builder.buildInstr(Opc)
-          .addDef(MC6809::AQ, RegState::Implicit)
-          .addImm(Offset).addReg(MC6809::SU);
+      emitSpillLoadInto(Builder, MC6809::AQ, SrcReg, /*ExtraOffset=*/0, MF);
     } else if (SrcReg != MC6809::AQ) {
       llvm_unreachable("CompareBranch_i32_Imm src must be AQ or SPILL_Q*N");
     }
@@ -3884,12 +3876,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
 
     // Step 1: ensure LHS is in $aq.
     if (isQSpillReg(SrcReg)) {
-      int Offset = computeSpillStackOffset(SrcReg, MF);
-      bool Fits8 = (Offset >= -128 && Offset <= 127);
-      unsigned LDQOpc = Fits8 ? MC6809::LDQi_o8 : MC6809::LDQi_o16;
-      Builder.buildInstr(LDQOpc)
-          .addDef(MC6809::AQ, RegState::Implicit)
-          .addImm(Offset).addReg(MC6809::SU);
+      emitSpillLoadInto(Builder, MC6809::AQ, SrcReg, /*ExtraOffset=*/0, MF);
     } else if (SrcReg != MC6809::AQ) {
       llvm_unreachable("CompareSet_i8_i32_Imm src must be AQ or SPILL_Q*N");
     }
@@ -4158,12 +4145,8 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     // Keep the 16-bit INDEX spill path (loads via IX to avoid D clobber).
     if (isSpillReg(PushReg) && getSpillRegSize(PushReg) == 2) {
       MachineFunction &MF = *MI.getMF();
-      int Offset = computeSpillStackOffset(PushReg, MF);
-      unsigned LoadOpc = getLoadIdxOpcode(MC6809::IX, Offset);
       MachineIRBuilder PreBuilder(*MI.getParent(), MI.getIterator());
-      PreBuilder.buildInstr(LoadOpc)
-          .addDef(MC6809::IX, RegState::Implicit)
-          .addImm(Offset).addReg(MC6809::SU);
+      emitSpillLoadInto(PreBuilder, MC6809::IX, PushReg, /*ExtraOffset=*/0, MF);
       MI.getOperand(1).setReg(MC6809::IX);
     } else if (needsMaterialization(PushReg)) {
       MachineFunction &MF = *MI.getMF();
@@ -4420,11 +4403,7 @@ void MC6809InstrInfo::expandLEAPtrAdd(MachineIRBuilder &Builder, MachineInstr &M
     if (SameSpillBase) {
       // Modify-in-place: load current spill value into IY.
       MachineFunction &MF = *MI.getMF();
-      int SpillOff = computeSpillStackOffset(OrigSpillReg, MF);
-      unsigned LoadOpc = getLoadIdxOpcode(StageReg, SpillOff);
-      Builder.buildInstr(LoadOpc)
-          .addDef(StageReg, RegState::Implicit)
-          .addImm(SpillOff).addReg(MC6809::SU);
+      emitSpillLoadInto(Builder, StageReg, OrigSpillReg, /*ExtraOffset=*/0, MF);
       // Rewrite base to IY.
       IndexOp = MachineOperand::CreateReg(StageReg, false);
     }
@@ -4488,13 +4467,9 @@ void MC6809InstrInfo::expandLEAPtrAdd(MachineIRBuilder &Builder, MachineInstr &M
   if (OrigSpillReg.isValid()) {
     Register StageReg = MC6809::IY;  // Must match the staging register above
     MachineFunction &MF = *MI.getMF();
-    int SpillOff = computeSpillStackOffset(OrigSpillReg, MF);
     MachineBasicBlock::iterator After = std::next(MI.getIterator());
     MachineIRBuilder PostBuilder(*MI.getParent(), After);
-    unsigned StoreOpc = getStoreIdxOpcode(StageReg, SpillOff);
-    PostBuilder.buildInstr(StoreOpc)
-        .addUse(StageReg, RegState::Implicit)
-        .addImm(SpillOff).addReg(MC6809::SU);
+    emitSpillStoreFrom(PostBuilder, StageReg, OrigSpillReg, /*ExtraOffset=*/0, MF);
   }
 }
 
@@ -4638,13 +4613,8 @@ void MC6809InstrInfo::expandIdxImm(ContextIndexImmediate Context, MachineIRBuild
   if (isIndexSpillReg(MI.getOperand(operandCount - 2).getReg())) {
     Register SpillReg = MI.getOperand(operandCount - 2).getReg();
     Register StageReg = MC6809::IY;
-    int SpillOff = computeSpillStackOffset(SpillReg, MF);
-    unsigned LoadOpc = getLoadIdxOpcode(StageReg, SpillOff);
     MachineIRBuilder PreBuilder(*MI.getParent(), MI.getIterator());
-    PreBuilder.buildInstr(LoadOpc)
-        .addDef(StageReg, RegState::Implicit)
-        .addImm(SpillOff)
-        .addReg(MC6809::SU);
+    emitSpillLoadInto(PreBuilder, StageReg, SpillReg, /*ExtraOffset=*/0, MF);
     MI.getOperand(operandCount - 2).setReg(StageReg);
   }
   auto IndexReg = MI.getOperand(operandCount - 2).getReg();
