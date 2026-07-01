@@ -5174,6 +5174,12 @@ void MC6809InstrInfo::expandAddSubCarryUse_i32_Reg(
     int Src2OffB2Size = offsetSizeInBitsForValue(Src2OffB2);
     int Src2OffHiSize = offsetSizeInBitsForValue(Src2OffHi);
     Register Src2BaseReg = Src2InEmergency ? MC6809::SS : MC6809::SU;
+    // Bug #387: a static-stack $src2 slot is reached by an extended (absolute,
+    // PC-relative under PIC) carry op against the static_stack global, not a
+    // SU-relative one. The byte offset within the slot is (Off - Src2Off).
+    bool Src2IsStatic = !Src2InEmergency && isStaticSpillSlot(Src2Reg, MF);
+    int Src2StaticBase = Src2IsStatic ? staticSpillOffset(Src2Reg, MF) : 0;
+    bool Src2IsPIC = MF.getTarget().isPositionIndependent();
 
     Builder.buildInstr(MC6809::EXGp)
         .addDef(MC6809::AD).addDef(MC6809::AW)
@@ -5189,6 +5195,13 @@ void MC6809InstrInfo::expandAddSubCarryUse_i32_Reg(
            "Bug #311 Phase 2: missing ADC[B/A/D] / SBC[B/A/D] indexed entry");
 
     auto Emit = [&](unsigned Opc, MCPhysReg Reg, int Off, int OffSize) {
+      if (Src2IsStatic) {
+        Builder.buildInstr(getStaticStackOpcode(Opc, Src2IsPIC))
+            .addDef(Reg, RegState::Implicit)
+            .addTargetIndex(MC6809::TI_STATIC_STACK,
+                            Src2StaticBase + (Off - Src2Off));
+        return;
+      }
       auto Inst = Builder.buildInstr(Opc).addDef(Reg, RegState::Implicit);
       if (OffSize == 0)
         Inst.addReg(Src2BaseReg);
@@ -5297,6 +5310,11 @@ void MC6809InstrInfo::expandAddSub_i32_Reg(MachineIRBuilder &Builder,
     int Src2OffLoSize = offsetSizeInBitsForValue(Src2OffLo);
     int Src2OffHiSize = offsetSizeInBitsForValue(Src2OffHi);
     Register Src2BaseReg = Src2InEmergency ? MC6809::SS : MC6809::SU;
+    // Bug #387: a static-stack $src2 reaches the static_stack global by an
+    // extended (PC-relative under PIC) op; the byte offsets are +2 (lo) / +0 (hi).
+    bool Src2IsStatic = !Src2InEmergency && isStaticSpillSlot(Src2Reg, MF);
+    int Src2StaticBase = Src2IsStatic ? staticSpillOffset(Src2Reg, MF) : 0;
+    bool Src2IsPIC = MF.getTarget().isPositionIndependent();
 
     // Step 3: emit ADDW/SUBW + ADCD/SBCD pair against $src2's base.
     auto &LowMap = IsAdd ? AddIdxImmOpcode : SubIdxImmOpcode;
@@ -5306,21 +5324,30 @@ void MC6809InstrInfo::expandAddSub_i32_Reg(MachineIRBuilder &Builder,
     assert(LowLookup != LowMap.end() && HighLookup != HighMap.end() &&
            "Bug #297: missing ADDW/ADCD/SUBW/SBCD opcode entry");
 
-    auto LowInstr =
-        Builder.buildInstr(LowLookup->getSecond())
-            .addDef(MC6809::AW, RegState::Implicit);
-    if (Src2OffLoSize == 0)
-      LowInstr.addReg(Src2BaseReg);
-    else
-      LowInstr.addImm(Src2OffLo).addReg(Src2BaseReg);
+    if (Src2IsStatic) {
+      Builder.buildInstr(getStaticStackOpcode(LowLookup->getSecond(), Src2IsPIC))
+          .addDef(MC6809::AW, RegState::Implicit)
+          .addTargetIndex(MC6809::TI_STATIC_STACK, Src2StaticBase + 2);
+      Builder.buildInstr(getStaticStackOpcode(HighLookup->getSecond(), Src2IsPIC))
+          .addDef(MC6809::AD, RegState::Implicit)
+          .addTargetIndex(MC6809::TI_STATIC_STACK, Src2StaticBase + 0);
+    } else {
+      auto LowInstr =
+          Builder.buildInstr(LowLookup->getSecond())
+              .addDef(MC6809::AW, RegState::Implicit);
+      if (Src2OffLoSize == 0)
+        LowInstr.addReg(Src2BaseReg);
+      else
+        LowInstr.addImm(Src2OffLo).addReg(Src2BaseReg);
 
-    auto HighInstr =
-        Builder.buildInstr(HighLookup->getSecond())
-            .addDef(MC6809::AD, RegState::Implicit);
-    if (Src2OffHiSize == 0)
-      HighInstr.addReg(Src2BaseReg);
-    else
-      HighInstr.addImm(Src2OffHi).addReg(Src2BaseReg);
+      auto HighInstr =
+          Builder.buildInstr(HighLookup->getSecond())
+              .addDef(MC6809::AD, RegState::Implicit);
+      if (Src2OffHiSize == 0)
+        HighInstr.addReg(Src2BaseReg);
+      else
+        HighInstr.addImm(Src2OffHi).addReg(Src2BaseReg);
+    }
 
     // Step 4: dematerialize $dst back if it was spilled.  U-relative
     // addressing; safe across the in-progress S-displacement.
@@ -7295,7 +7322,8 @@ static unsigned getStaticStackOpcode(unsigned IdxOpc, bool IsPIC) {
   switch (IdxOpc) {
   SS(ADDB) SS(ADDA) SS(ADCA) SS(ADCB) SS(SUBA) SS(SUBB) SS(SBCA) SS(SBCB)
   SS(ANDB) SS(ANDA) SS(ORB) SS(ORA) SS(EORB) SS(EORA)
-  SS(ADDD) SS(SUBD) SS(CMPA) SS(CMPB) SS(CMPD)
+  SS(ADDD) SS(SUBD) SS(ADCD) SS(SBCD) SS(ADDW) SS(SUBW)
+  SS(CMPA) SS(CMPB) SS(CMPD)
   default:
     llvm_unreachable("No static-stack variant for this opcode");
   }
