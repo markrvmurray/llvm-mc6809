@@ -238,6 +238,20 @@ bool MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int
   unsigned BasePtr = (TFI->hasFP(MF) ? MC6809::SU : MC6809::SS);
   const MachineFrameInfo &MFI = MF.getFrameInfo();
 
+  // Bug #387 (S2): a spill slot that escaped processFunctionBeforeFrameFinalized's
+  // static marking — created later in PEI (a register-scavenging emergency slot,
+  // or any spill/save slot the frame-finalisation scan didn't see) — still
+  // belongs in the static frame. Once the dynamic frame has shrunk (the marked
+  // spills moved to the static region), a remaining-dynamic slot's U/S-relative
+  // offset is bogus. Mark it here, at its first access, so it flows into the
+  // Mc6809Static path below; NextStaticStackOffset was seeded by
+  // processFunctionBeforeFrameFinalized, which ran earlier in this same PEI pass.
+  // Only when the accessing pseudo actually has a _Sym (extended) sibling.
+  if (TFI->usesStaticStack(MF) && MFI.isSpillSlotObjectIndex(FrameIndex) &&
+      MFI.getStackID(FrameIndex) == TargetStackID::Default &&
+      getStaticSymOpcode(MI.getOpcode()))
+    TFI->markSpillSlotStatic(MF, FrameIndex);
+
   // Bug #387 (S3/S4): a spill slot moved to the static stack is addressed
   // absolutely, not via U/S. Rewrite the Load/Store_*_Mem pseudo to its _Sym
   // sibling carrying a TI_STATIC_STACK target index (the per-function byte
