@@ -6024,11 +6024,8 @@ void MC6809InstrInfo::expandLoadImm(MachineIRBuilder &Builder, MachineInstr &MI)
       }
       // Store to spill slot (use STY for INDEX spills) or dematerialize.
       if (isIndexSpillReg(DestRegOp.getReg())) {
-        int SpillOff = computeSpillStackOffset(DestRegOp.getReg(), MF);
-        unsigned StoreOpc = getStoreIdxOpcode(MC6809::IY, SpillOff);
-        Builder.buildInstr(StoreOpc)
-            .addUse(MC6809::IY, RegState::Implicit)
-            .addImm(SpillOff).addReg(MC6809::SU);
+        emitSpillStoreFrom(Builder, MC6809::IY, DestRegOp.getReg(),
+                           /*ExtraOffset=*/0, MF);
       } else {
         dematerializeReg(Builder, RealReg, DestRegOp.getReg(), MF);
       }
@@ -6415,14 +6412,11 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
       Register StageReg = MC6809::IY;
       MI.getOperand(0).setReg(StageReg);
       expandLoadIdx(Builder, MI);
-      int SpillOff = computeSpillStackOffset(DestRegOp.getReg(), MF);
       MachineBasicBlock::iterator InsertPt = MI.getIterator();
       ++InsertPt;
       MachineIRBuilder PostBuilder(*MI.getParent(), InsertPt);
-      unsigned StoreOpc = getStoreIdxOpcode(StageReg, SpillOff);
-      PostBuilder.buildInstr(StoreOpc)
-          .addUse(StageReg, RegState::Implicit)
-          .addImm(SpillOff).addReg(MC6809::SU);
+      emitSpillStoreFrom(PostBuilder, StageReg, DestRegOp.getReg(),
+                         /*ExtraOffset=*/0, MF);
     } else if (isQSpillReg(DestRegOp.getReg())) {
       // Bug #308 (2026-05-19): Q-spill destination — conditional
       // expansion to balance Bug #308's correctness need against
@@ -6582,12 +6576,8 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
     //Register DestReg = MI.getOperand(0).getReg();
     Register StageReg = MC6809::IY;  // Prefer IY (callee-saved)
     MachineFunction &MF = *MI.getMF();
-    int SpillOff = computeSpillStackOffset(SpillReg, MF);
-    unsigned LoadOpc = getLoadIdxOpcode(StageReg, SpillOff);
     MachineIRBuilder PreBuilder(*MI.getParent(), MI.getIterator());
-    PreBuilder.buildInstr(LoadOpc)
-        .addDef(StageReg, RegState::Implicit)
-        .addImm(SpillOff).addReg(MC6809::SU);
+    emitSpillLoadInto(PreBuilder, StageReg, SpillReg, /*ExtraOffset=*/0, MF);
     MI.getOperand(1).setReg(StageReg);
   }
 
@@ -6655,12 +6645,8 @@ void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI
   if (isIndexSpillReg(MI.getOperand(0).getReg())) {
     Register SpillReg = MI.getOperand(0).getReg();
     MachineFunction &MF = *MI.getMF();
-    int SpillOff = computeSpillStackOffset(SpillReg, MF);
     MachineIRBuilder LoadBuilder(*MI.getParent(), MI.getIterator());
-    unsigned LoadOpc = getLoadIdxOpcode(MC6809::IY, SpillOff);
-    LoadBuilder.buildInstr(LoadOpc)
-        .addDef(MC6809::IY, RegState::Implicit)
-        .addImm(SpillOff).addReg(MC6809::SU);
+    emitSpillLoadInto(LoadBuilder, MC6809::IY, SpillReg, /*ExtraOffset=*/0, MF);
     MI.getOperand(0).setReg(MC6809::IY);
   } else if (isQSpillReg(MI.getOperand(0).getReg())) {
     // Bug #308 (2026-05-19): symmetric to expandLoadIdx's Q-spill
@@ -6783,12 +6769,8 @@ void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI
     //Register SrcReg = MI.getOperand(0).getReg();
     Register StageReg = MC6809::IY;  // Prefer IY (callee-saved)
     MachineFunction &MF = *MI.getMF();
-    int SpillOff = computeSpillStackOffset(SpillReg, MF);
-    unsigned LoadOpc = getLoadIdxOpcode(StageReg, SpillOff);
     MachineIRBuilder PreBuilder(*MI.getParent(), MI.getIterator());
-    PreBuilder.buildInstr(LoadOpc)
-        .addDef(StageReg, RegState::Implicit)
-        .addImm(SpillOff).addReg(MC6809::SU);
+    emitSpillLoadInto(PreBuilder, StageReg, SpillReg, /*ExtraOffset=*/0, MF);
     MI.getOperand(1).setReg(StageReg);
   }
 
@@ -7523,23 +7505,36 @@ static void emit6809RegPairFromMem(MachineIRBuilder &Builder,
     if (needsMaterialization(LHS))
       materializeReg(Builder, LHS, MF);
 
-    int Offset = computeSpillStackOffset(RHS, MF);
-    // Bug #122 / #125: for large stack frames (>127 bytes), the spill
-    // offset may exceed the 8-bit signed range (-128..+127). Use the
-    // _o16 opcode variant for large offsets — _o8 wraps >127 to
-    // negative, reading from below the frame. Note: Offset+1 (the low
-    // byte) overflows first, so check that.
-    bool Fits8 = (Offset >= -128 && (Offset + 1) <= 127);
-    unsigned OpcB = (Fits8 || !OpcB_o16) ? OpcB_o8 : OpcB_o16;
-    unsigned OpcA = (Fits8 || !OpcA_o16) ? OpcA_o8 : OpcA_o16;
-    // Low byte first — sets CC.C if this op carries.
-    Builder.buildInstr(OpcB)
-        .addDef(MC6809::AB, RegState::Implicit)
-        .addImm(Offset + 1).addReg(MC6809::SU);
-    // High byte second — uses (and possibly sets) CC.C from the low op.
-    Builder.buildInstr(OpcA)
-        .addDef(MC6809::AA, RegState::Implicit)
-        .addImm(Offset).addReg(MC6809::SU);
+    if (isStaticSpillSlot(RHS, MF)) {
+      // Static-stack: extended byte ops against static_stack global (big-endian:
+      // A high at +0, B low at +1). Low byte first so CC.C carries into the high.
+      bool IsPIC = MF.getTarget().isPositionIndependent();
+      int Base = staticSpillOffset(RHS, MF);
+      Builder.buildInstr(getStaticStackOpcode(OpcB_o8, IsPIC))
+          .addDef(MC6809::AB, RegState::Implicit)
+          .addTargetIndex(MC6809::TI_STATIC_STACK, Base + 1);
+      Builder.buildInstr(getStaticStackOpcode(OpcA_o8, IsPIC))
+          .addDef(MC6809::AA, RegState::Implicit)
+          .addTargetIndex(MC6809::TI_STATIC_STACK, Base);
+    } else {
+      int Offset = computeSpillStackOffset(RHS, MF);
+      // Bug #122 / #125: for large stack frames (>127 bytes), the spill
+      // offset may exceed the 8-bit signed range (-128..+127). Use the
+      // _o16 opcode variant for large offsets — _o8 wraps >127 to
+      // negative, reading from below the frame. Note: Offset+1 (the low
+      // byte) overflows first, so check that.
+      bool Fits8 = (Offset >= -128 && (Offset + 1) <= 127);
+      unsigned OpcB = (Fits8 || !OpcB_o16) ? OpcB_o8 : OpcB_o16;
+      unsigned OpcA = (Fits8 || !OpcA_o16) ? OpcA_o8 : OpcA_o16;
+      // Low byte first — sets CC.C if this op carries.
+      Builder.buildInstr(OpcB)
+          .addDef(MC6809::AB, RegState::Implicit)
+          .addImm(Offset + 1).addReg(MC6809::SU);
+      // High byte second — uses (and possibly sets) CC.C from the low op.
+      Builder.buildInstr(OpcA)
+          .addDef(MC6809::AA, RegState::Implicit)
+          .addImm(Offset).addReg(MC6809::SU);
+    }
   } else {
     // Path (b): push RHS onto S, operate from 0,s and 1,s, then LEAS.
     //
@@ -7898,13 +7893,8 @@ void MC6809InstrInfo::expandCompareIdx(MachineIRBuilder &Builder, MachineInstr &
     Register SpillReg = MI.getOperand(3).getReg();
     Register StageReg = MC6809::IY;  // callee-saved; avoids clobbering IX base
     MachineFunction &MF = *MI.getMF();
-    int SpillOff = computeSpillStackOffset(SpillReg, MF);
-    unsigned LoadOpc = getLoadIdxOpcode(StageReg, SpillOff);
     MachineIRBuilder PreBuilder(*MI.getParent(), MI.getIterator());
-    PreBuilder.buildInstr(LoadOpc)
-        .addDef(StageReg, RegState::Implicit)
-        .addImm(SpillOff)
-        .addReg(MC6809::SU);
+    emitSpillLoadInto(PreBuilder, StageReg, SpillReg, /*ExtraOffset=*/0, MF);
     MI.getOperand(3).setReg(StageReg);
   }
 
@@ -8131,10 +8121,17 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
   if (isSpillReg(Src1)) {
     // Src1 is the spill, Src2 is in physreg. Read Src1 directly from
     // its U-relative slot — flags = physreg(=Src2) - mem(=Src1).
-    int ByteOffset = computeSpillStackOffset(Src1, MF);
     unsigned CmpOpc;
-    pickCmpO8O16(Src2Phys, ByteOffset, CmpOpc);
-    Builder.buildInstr(CmpOpc).addImm(ByteOffset).addReg(MC6809::SU);
+    if (isStaticSpillSlot(Src1, MF)) {
+      pickCmpO8O16(Src2Phys, /*Offset=*/0, CmpOpc);
+      Builder.buildInstr(getStaticStackOpcode(
+                             CmpOpc, MF.getTarget().isPositionIndependent()))
+          .addTargetIndex(MC6809::TI_STATIC_STACK, staticSpillOffset(Src1, MF));
+    } else {
+      int ByteOffset = computeSpillStackOffset(Src1, MF);
+      pickCmpO8O16(Src2Phys, ByteOffset, CmpOpc);
+      Builder.buildInstr(CmpOpc).addImm(ByteOffset).addReg(MC6809::SU);
+    }
     MI.eraseFromParent();
     return;
   }
