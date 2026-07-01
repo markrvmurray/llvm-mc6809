@@ -1283,6 +1283,60 @@ static MachineInstrBuilder emitSpillArith(MachineIRBuilder &Builder,
       .addReg(MC6809::SU);
 }
 
+/// Load DestReg directly from a spill register's slot (plus an optional
+/// sub-slot ExtraOffset, e.g. +2 for a hi-half). Emits the U-indexed form for a
+/// dynamic slot or the extended TI_STATIC_STACK form for a static-stack one.
+/// DestReg is the concrete register to load (AA/AB/AD/AW/AE/AF/AQ/IX/IY);
+/// getLoadIdxOpcode / getSymLoadOpcode pick the right load opcode for it.
+static MachineInstrBuilder emitSpillLoadInto(MachineIRBuilder &Builder,
+                                             Register DestReg,
+                                             MCPhysReg SpillReg, int ExtraOffset,
+                                             MachineFunction &MF) {
+  if (isStaticSpillSlot(SpillReg, MF)) {
+    unsigned Opc = getSymLoadOpcode(DestReg, /*IsDP=*/false,
+                                    MF.getTarget().isPositionIndependent());
+    return Builder.buildInstr(Opc)
+        .addDef(DestReg, RegState::Implicit)
+        .addTargetIndex(MC6809::TI_STATIC_STACK,
+                        staticSpillOffset(SpillReg, MF) + ExtraOffset);
+  }
+  int Offset = computeSpillStackOffset(SpillReg, MF) + ExtraOffset;
+  return Builder.buildInstr(getLoadIdxOpcode(DestReg, Offset))
+      .addDef(DestReg, RegState::Implicit)
+      .addImm(Offset)
+      .addReg(MC6809::SU);
+}
+
+/// Store SrcReg directly into a spill register's slot (plus an optional sub-slot
+/// ExtraOffset). Dynamic -> U-indexed; static -> extended TI_STATIC_STACK. When
+/// DefsSpill is set the store also carries an implicit-def of SpillReg (Bug #285:
+/// it fills the spill pseudo, keeping the destination visibly defined).
+static MachineInstrBuilder emitSpillStoreFrom(MachineIRBuilder &Builder,
+                                              Register SrcReg,
+                                              MCPhysReg SpillReg, int ExtraOffset,
+                                              MachineFunction &MF,
+                                              bool DefsSpill = false) {
+  if (isStaticSpillSlot(SpillReg, MF)) {
+    unsigned Opc = getSymStoreOpcode(SrcReg, /*IsDP=*/false,
+                                     MF.getTarget().isPositionIndependent());
+    auto MIB = Builder.buildInstr(Opc)
+                   .addUse(SrcReg, RegState::Implicit)
+                   .addTargetIndex(MC6809::TI_STATIC_STACK,
+                                   staticSpillOffset(SpillReg, MF) + ExtraOffset);
+    if (DefsSpill)
+      MIB.addReg(Register(SpillReg), RegState::ImplicitDefine);
+    return MIB;
+  }
+  int Offset = computeSpillStackOffset(SpillReg, MF) + ExtraOffset;
+  auto MIB = Builder.buildInstr(getStoreIdxOpcode(SrcReg, Offset))
+                 .addUse(SrcReg, RegState::Implicit)
+                 .addImm(Offset)
+                 .addReg(MC6809::SU);
+  if (DefsSpill)
+    MIB.addReg(Register(SpillReg), RegState::ImplicitDefine);
+  return MIB;
+}
+
 /// Bug #298 / #300 (consolidated Phase A 2026-05-16): bracket a body
 /// of post-RA MIs with a 4-byte hard-stack scratch slot that holds
 /// $aq's pre-body value.  Two variants:
@@ -1616,23 +1670,13 @@ MC6809InstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
       // Real → Spill/Imaginary: Store to spill slot or imaginary.
       if (isIndexSpillReg(DestReg)) {
         // INDEX spill: use IY as staging (callee-saved, avoids IX conflicts).
-        int Offset = computeSpillStackOffset(DestReg, MF);
         Register StageReg = MC6809::IY;
         if (SrcReg != StageReg)
           Builder.buildInstr(MC6809::TFRp).addDef(StageReg).addUse(SrcReg);
-        unsigned Opcode = getStoreIdxOpcode(StageReg, Offset);
-        Builder.buildInstr(Opcode)
-            .addUse(StageReg, RegState::Implicit)
-            .addImm(Offset)
-            .addReg(MC6809::SU);
+        emitSpillStoreFrom(Builder, StageReg, DestReg, /*ExtraOffset=*/0, MF);
       } else if (isSpillReg(DestReg) && (SrcReg == MC6809::IX || SrcReg == MC6809::IY)) {
         // INDEX → ACC spill: use STX/STY directly (no D clobber).
-        int Offset = computeSpillStackOffset(DestReg, MF);
-        unsigned Opcode = getStoreIdxOpcode(SrcReg, Offset);
-        Builder.buildInstr(Opcode)
-            .addUse(SrcReg, RegState::Implicit)
-            .addImm(Offset)
-            .addReg(MC6809::SU);
+        emitSpillStoreFrom(Builder, SrcReg, DestReg, /*ExtraOffset=*/0, MF);
       } else if (MC6809::Imag16RegClass.contains(DestReg) &&
                  (SrcReg == MC6809::IX || SrcReg == MC6809::IY ||
                   SrcReg == MC6809::SU || SrcReg == MC6809::SS)) {
@@ -1660,23 +1704,13 @@ MC6809InstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
       // Spill/Imaginary → Real: Load from spill slot or imaginary.
       if (isIndexSpillReg(SrcReg)) {
         // INDEX spill → Real: use IY as staging (callee-saved).
-        int Offset = computeSpillStackOffset(SrcReg, MF);
         Register StageReg = MC6809::IY;
-        unsigned Opcode = getLoadIdxOpcode(StageReg, Offset);
-        Builder.buildInstr(Opcode)
-            .addDef(StageReg, RegState::Implicit)
-            .addImm(Offset)
-            .addReg(MC6809::SU);
+        emitSpillLoadInto(Builder, StageReg, SrcReg, /*ExtraOffset=*/0, MF);
         if (DestReg != StageReg)
           Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(StageReg);
       } else if (isSpillReg(SrcReg) && (DestReg == MC6809::IX || DestReg == MC6809::IY)) {
         // ACC spill → INDEX: use LDX/LDY directly (no D clobber).
-        int Offset = computeSpillStackOffset(SrcReg, MF);
-        unsigned Opcode = getLoadIdxOpcode(DestReg, Offset);
-        Builder.buildInstr(Opcode)
-            .addDef(DestReg, RegState::Implicit)
-            .addImm(Offset)
-            .addReg(MC6809::SU);
+        emitSpillLoadInto(Builder, DestReg, SrcReg, /*ExtraOffset=*/0, MF);
       } else if (MC6809::Imag16RegClass.contains(SrcReg) &&
                  (DestReg == MC6809::IX || DestReg == MC6809::IY ||
                   DestReg == MC6809::SU || DestReg == MC6809::SS)) {
