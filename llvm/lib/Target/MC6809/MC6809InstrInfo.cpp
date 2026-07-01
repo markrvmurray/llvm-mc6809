@@ -7435,6 +7435,9 @@ static unsigned getStaticStackOpcode(unsigned IdxOpc, bool IsPIC) {
   SS(ANDB) SS(ANDA) SS(ORB) SS(ORA) SS(EORB) SS(EORA)
   SS(ADDD) SS(SUBD) SS(ADCD) SS(SBCD) SS(ADDW) SS(SUBW)
   SS(CMPA) SS(CMPB) SS(CMPD)
+  // Index-domain pointer compares (pickCmpO8O16 emits these when the
+  // spilled operand is a pointer/index register).
+  SS(CMPX) SS(CMPY) SS(CMPU) SS(CMPS)
   default:
     llvm_unreachable("No static-stack variant for this opcode");
   }
