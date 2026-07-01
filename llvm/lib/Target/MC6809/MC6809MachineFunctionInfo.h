@@ -30,6 +30,14 @@ struct MC6809FunctionInfo : public MachineFunctionInfo {
   /// this symbol.
   const GlobalValue *StaticStackValue = nullptr;
 
+  /// Bug #387: the next free byte offset in this function's static-stack region.
+  /// processFunctionBeforeFrameFinalized seeds it after marking the spill slots
+  /// that exist at frame-finalisation time; MaterializeSpills continues it for
+  /// the spill slots it creates later (which frame finalisation never saw), so
+  /// those late slots also land in the static frame instead of a now-shrunk
+  /// dynamic frame. Only meaningful when usesStaticStack(MF).
+  int64_t NextStaticStackOffset = 0;
+
   int VarArgsStackIndex = -1;
   DenseMap<Register, size_t> CSRDPOffsets;
 

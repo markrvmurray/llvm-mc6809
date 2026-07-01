@@ -55,6 +55,10 @@ public:
   // attribute computed by MC6809NonReentrant.
   bool usesStaticStack(const MachineFunction &MF) const;
 
+  // Bug #387: place a spill slot created after frame finalisation (in
+  // MaterializeSpills) into the static-stack region. No-op for dynamic frames.
+  void markSpillSlotStatic(MachineFunction &MF, int FI) const;
+
   bool isSupportedStackID(TargetStackID::Value ID) const override;
 
   // Return whether or not the function is a direct ISR.

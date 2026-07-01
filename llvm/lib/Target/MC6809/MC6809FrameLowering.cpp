@@ -507,7 +507,26 @@ void MC6809FrameLowering::processFunctionBeforeFrameFinalized(MachineFunction &M
       MFI.setObjectOffset(Idx, Offset);
       Offset += MFI.getObjectSize(Idx); // Static stack grows up.
     }
+    // Seed the running offset so MaterializeSpills can place the spill slots it
+    // creates later into the same static region (they don't exist yet here).
+    FuncInfo.NextStaticStackOffset = Offset;
   }
+}
+
+// Bug #387: place a spill slot created after frame finalisation (in
+// MaterializeSpills) into the static-stack region, if this is a static-stack
+// function. Mirrors the processFunctionBeforeFrameFinalized marking: static
+// stack ID + a growing static offset. A no-op for ordinary dynamic frames, so
+// the slot then keeps its normal U-relative placement.
+void MC6809FrameLowering::markSpillSlotStatic(MachineFunction &MF,
+                                              int FI) const {
+  if (!usesStaticStack(MF))
+    return;
+  auto &FuncInfo = *MF.getInfo<MC6809FunctionInfo>();
+  MachineFrameInfo &MFI = MF.getFrameInfo();
+  MFI.setStackID(FI, TargetStackID::Mc6809Static);
+  MFI.setObjectOffset(FI, FuncInfo.NextStaticStackOffset);
+  FuncInfo.NextStaticStackOffset += MFI.getObjectSize(FI);
 }
 
 MachineBasicBlock::iterator MC6809FrameLowering::eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB, MachineBasicBlock::iterator MI) const {
