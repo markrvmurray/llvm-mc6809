@@ -2275,12 +2275,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
       Register RealDst = needsMaterialization(DstReg)
                              ? materializeReg(Builder, DstReg, MF)
                              : DstReg;
-      int Offset = computeSpillStackOffset(QParent, MF) + ByteOffset;
-      bool Fits8 = (Offset >= -128 && Offset <= 127);
-      unsigned Opc = Fits8 ? MC6809::LDBi_o8 : MC6809::LDBi_o16;
-      Builder.buildInstr(Opc)
-          .addDef(RealDst, RegState::Implicit)
-          .addImm(Offset).addReg(MC6809::SU);
+      emitSpillLoadInto(Builder, RealDst, QParent, ByteOffset, MF);
       if (needsMaterialization(OrigDst))
         dematerializeReg(Builder, RealDst, OrigDst, MF);
       MI.eraseFromParent();
@@ -2320,13 +2315,8 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
                            : DstReg;
     if (isQSpillReg(SrcReg)) {
       // Read the right 16-bit half directly from the stack slot.
-      int Offset = computeSpillStackOffset(SrcReg, MF);
-      Offset += IsLo ? 2 : 0;  // big-endian: D at +0, W at +2
-      bool Fits8 = (Offset >= -128 && Offset <= 127);
-      unsigned Opc = Fits8 ? MC6809::LDDi_o8 : MC6809::LDDi_o16;
-      Builder.buildInstr(Opc)
-          .addDef(RealDst, RegState::Implicit)
-          .addImm(Offset).addReg(MC6809::SU);
+      // Big-endian: D at +0, W at +2.
+      emitSpillLoadInto(Builder, RealDst, SrcReg, /*ExtraOffset=*/IsLo ? 2 : 0, MF);
     } else {
       // SrcReg is AQ. The relevant half lives in AW (LO) or AD (HI).
       Register SrcWord = IsLo ? Register(MC6809::AW) : Register(MC6809::AD);
@@ -2495,23 +2485,11 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
       bool HiIsSpill = isSpillReg(HiReg) && !isQSpillReg(HiReg);
 
       auto LoadSpillIntoAD = [&](Register SpillReg) {
-        int Offset = computeSpillStackOffset(SpillReg, MF);
-        bool Fits8 = (Offset >= -128 && Offset <= 127);
-        unsigned Opcode = Fits8 ? MC6809::LDDi_o8 : MC6809::LDDi_o16;
-        Builder.buildInstr(Opcode)
-            .addDef(MC6809::AD, RegState::Implicit)
-            .addImm(Offset)
-            .addReg(MC6809::SU);
+        emitSpillLoadInto(Builder, MC6809::AD, SpillReg, /*ExtraOffset=*/0, MF);
       };
       auto LoadSpillIntoAW = [&](Register SpillReg) {
         // HD6309-only: LDW writes AW directly without touching AD.
-        int Offset = computeSpillStackOffset(SpillReg, MF);
-        bool Fits8 = (Offset >= -128 && Offset <= 127);
-        unsigned Opcode = Fits8 ? MC6809::LDWi_o8 : MC6809::LDWi_o16;
-        Builder.buildInstr(Opcode)
-            .addDef(MC6809::AW, RegState::Implicit)
-            .addImm(Offset)
-            .addReg(MC6809::SU);
+        emitSpillLoadInto(Builder, MC6809::AW, SpillReg, /*ExtraOffset=*/0, MF);
       };
 
       if (HiReg == MC6809::AW && LoReg == MC6809::AD) {
@@ -2591,16 +2569,11 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     if (isQSpillReg(DstReg)) {
       // SPILL_Q*N destination: STD <src>,slot+2,$su.  Move src
       // through AD if not already there (STD only writes from AD).
-      int Offset = computeSpillStackOffset(DstReg, MF);
-      bool Fits8 = ((Offset + 2) >= -128 && (Offset + 2) <= 127);
-      unsigned Opc = Fits8 ? MC6809::STDi_o8 : MC6809::STDi_o16;
       if (SrcReg != MC6809::AD) {
         copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
                     MC6809::AD, SrcReg, /*KillSrc=*/false);
       }
-      Builder.buildInstr(Opc)
-          .addUse(MC6809::AD, RegState::Implicit)
-          .addImm(Offset + 2).addReg(MC6809::SU);
+      emitSpillStoreFrom(Builder, MC6809::AD, DstReg, /*ExtraOffset=*/2, MF);
     } else {
       // AQ destination: AW (AQ.sub_lo_word) ← src.  copyPhysReg
       // elides when src is already AW.
