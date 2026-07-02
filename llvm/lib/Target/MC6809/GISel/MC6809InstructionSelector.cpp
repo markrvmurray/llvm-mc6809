@@ -1178,6 +1178,40 @@ bool MC6809InstructionSelector::tryFusePostModify(MachineInstr &MI) const {
   return true;
 }
 
+
+// Match an address that is a constant offset from the (stable) hardware stack
+// pointer: `COPY $ss` or `G_PTR_ADD(COPY $ss, G_CONSTANT)` -- the shape call
+// lowering emits for outgoing argument slots (the call frame is pre-reserved,
+// so S does not move between here and the access). Returns true and the byte
+// offset when matched. Folding the physical $ss base into the access frees
+// the index register the copied stack pointer would otherwise occupy across
+// every call's argument stores.
+static bool matchSSPlusConstant(Register Addr, const MachineRegisterInfo &MRI,
+                                int64_t &Offset) {
+  Offset = 0;
+  Register Cur = Addr;
+  // Look through one G_PTR_ADD with a constant offset.
+  if (MachineInstr *Def = MRI.getVRegDef(Cur)) {
+    if (Def->getOpcode() == TargetOpcode::G_PTR_ADD) {
+      MachineInstr *Off = MRI.getVRegDef(Def->getOperand(2).getReg());
+      if (!Off || Off->getOpcode() != TargetOpcode::G_CONSTANT)
+        return false;
+      Offset = Off->getOperand(1).getCImm()->getSExtValue();
+      Cur = Def->getOperand(1).getReg();
+    }
+  }
+  // Look through COPYs to a physical $ss source.
+  while (MachineInstr *Def = MRI.getVRegDef(Cur)) {
+    if (!Def->isCopy())
+      return false;
+    Register Src = Def->getOperand(1).getReg();
+    if (Src.isPhysical())
+      return Src == MC6809::SS;
+    Cur = Src;
+  }
+  return false;
+}
+
 bool MC6809InstructionSelector::select(MachineInstr &MI) {
   assert(MI.getParent() && "Instruction should be in a basic block!");
   assert(MI.getParent()->getParent() && "Instruction should be in a function!");
@@ -2050,9 +2084,18 @@ skip_globalvalue_fold:
     // If the address is a frame index, fold it directly into the load (the
     // scalar load patterns do this via selectAMIndexedImmOffset). Otherwise a
     // separate LEA_Ptr_Imm materialises the frame address pointlessly.
+    int64_t SSOff;
     if (MachineInstr *FI = getOpcodeDef(TargetOpcode::G_FRAME_INDEX, AddrReg, *MRI)) {
       MI.getOperand(1).ChangeToFrameIndex(FI->getOperand(1).getIndex(),
                                           FI->getOperand(1).getOffset());
+    } else if (matchSSPlusConstant(AddrReg, *MRI, SSOff)) {
+      // Outgoing-arg-slot shape: address the access off the physical stack
+      // pointer instead of tying up an index register with a copy of it.
+      MI.getOperand(1).ChangeToRegister(MC6809::SS, /*isDef=*/false);
+      MI.setDesc(TII.get(MC6809::Load_iPtr_Mem));
+      MI.addOperand(MachineOperand::CreateImm(SSOff));
+      constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
+      return true;
     } else {
       MRI->setRegClass(AddrReg, &MC6809::INDEX16RegClass);
     }
@@ -2070,9 +2113,17 @@ skip_globalvalue_fold:
     Register AddrReg = MI.getOperand(1).getReg();
     MRI->setRegClass(ValReg, &MC6809::INDEX16RegClass);
     // Fold a frame-index address directly into the store, as for G_LOAD above.
+    int64_t SSOff;
     if (MachineInstr *FI = getOpcodeDef(TargetOpcode::G_FRAME_INDEX, AddrReg, *MRI)) {
       MI.getOperand(1).ChangeToFrameIndex(FI->getOperand(1).getIndex(),
                                           FI->getOperand(1).getOffset());
+    } else if (matchSSPlusConstant(AddrReg, *MRI, SSOff)) {
+      // Outgoing-arg-slot shape (see G_LOAD above).
+      MI.getOperand(1).ChangeToRegister(MC6809::SS, /*isDef=*/false);
+      MI.setDesc(TII.get(MC6809::Store_iPtr_Mem));
+      MI.addOperand(MachineOperand::CreateImm(SSOff));
+      constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
+      return true;
     } else {
       MRI->setRegClass(AddrReg, &MC6809::INDEX16RegClass);
     }
