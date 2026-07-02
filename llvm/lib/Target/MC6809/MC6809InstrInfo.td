@@ -596,10 +596,13 @@ let mayLoad = false, mayStore = false, isCall = true in {
 let Predicates = [IsHD6309], mayLoad = true, mayStore = true,
     hasSideEffects = true, isReMaterializable = false,
     Defs = [AW], Uses = [AW] in {
-  def TFM0pp : MC6809BlockRegisterPair0_P3<(outs), "tfm", Opcode<0x38,3>, [], []>;
-  def TFM1pp : MC6809BlockRegisterPair1_P3<(outs), "tfm", Opcode<0x39,3>, [], []>;
-  def TFM2pp : MC6809BlockRegisterPair2_P3<(outs), "tfm", Opcode<0x3A,3>, [], []>;
-  def TFM3pp : MC6809BlockRegisterPair3_P3<(outs), "tfm", Opcode<0x3B,3>, [], []>;
+  // The [AW],[AW] template args matter: the class body's `let Defs = defs`
+  // overrides the enclosing let, so empty args would silently erase the W
+  // count modeling (TFM reads the count from W and burns it down to zero).
+  def TFM0pp : MC6809BlockRegisterPair0_P3<(outs), "tfm", Opcode<0x38,3>, [AW], [AW]>;
+  def TFM1pp : MC6809BlockRegisterPair1_P3<(outs), "tfm", Opcode<0x39,3>, [AW], [AW]>;
+  def TFM2pp : MC6809BlockRegisterPair2_P3<(outs), "tfm", Opcode<0x3A,3>, [AW], [AW]>;
+  def TFM3pp : MC6809BlockRegisterPair3_P3<(outs), "tfm", Opcode<0x3B,3>, [AW], [AW]>;
 }
 
 // Bit-direct ops (Page 3, HD6309): BAND, BIAND, BOR, BIOR, BEOR, BIEOR, LDBT, STBT.

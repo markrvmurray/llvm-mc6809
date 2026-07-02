@@ -4285,7 +4285,17 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     case MC6809::BlockCopy_Stay_Inc: TFMOpc = MC6809::TFM3pp; break;
     default: llvm_unreachable("unreachable");
     }
-    Builder.buildInstr(TFMOpc).addUse(Src).addUse(Dst).cloneMemRefs(MI);
+    // TFM auto-modifies the incremented/decremented pointer register(s);
+    // declare those writes as implicit defs or post-expansion passes assume
+    // the pointers survive the transfer (PostRASpillOpt's slot-mirror then
+    // deletes the reload after the TFM — the memchr stale-IY miscompile).
+    // The "stay" register of TFM2/TFM3 really is left unchanged.
+    auto TFMI = Builder.buildInstr(TFMOpc).addUse(Src).addUse(Dst);
+    if (TFMOpc != MC6809::TFM3pp) // src stays put only in `tfm r,r+`
+      TFMI.addDef(Src, RegState::Implicit);
+    if (TFMOpc != MC6809::TFM2pp) // dst stays put only in `tfm r+,r`
+      TFMI.addDef(Dst, RegState::Implicit);
+    TFMI.cloneMemRefs(MI);
     MI.eraseFromParent();
     return true;
   }
