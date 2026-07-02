@@ -2591,6 +2591,14 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
         StoreToSlot(Offset, /*IsLast=*/false);
         LoadSpillIntoAD(LoReg);
         StoreToSlot(Offset + 2, /*IsLast=*/true);
+      } else if (HiReg == MC6809::AD && LoReg != MC6809::AD) {
+        // Physreg collision (ACC16-widened inputs): HI already sits in
+        // $ad, so the lo→$ad copy of the sequential order would destroy
+        // it. Store HI first, then stage LO.
+        StoreToSlot(Offset, /*IsLast=*/false);
+        copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
+                    MC6809::AD, LoReg, /*KillSrc=*/false);
+        StoreToSlot(Offset + 2, /*IsLast=*/true);
       } else {
         // Case 4: neither spilled (or one is in some non-$ad physreg).
         // Existing sequential behavior: move LO→$ad, STD slot+2,
@@ -2665,6 +2673,16 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
         Builder.buildInstr(MC6809::EXGp)
             .addDef(MC6809::AD).addDef(MC6809::AW)
             .addUse(MC6809::AD).addUse(MC6809::AW);
+      } else if (LoReg == MC6809::AD && !HiIsSpill) {
+        // Physreg collision (ACC16-widened inputs): LO already sits in
+        // $ad and HI is in some other physreg (AW handled by case 1, RS
+        // imaginaries here). The sequential order would clobber LO with
+        // the hi→$ad copy, so move LO to $aw first.
+        copyPhysReg(MBB, InsertBefore, MI.getDebugLoc(),
+                    MC6809::AW, MC6809::AD, /*KillSrc=*/false);
+        if (HiReg != MC6809::AD)
+          copyPhysReg(MBB, InsertBefore, MI.getDebugLoc(),
+                      MC6809::AD, HiReg, /*KillSrc=*/false);
       } else if (LoIsSpill && HiIsSpill) {
         // Case 2: both spilled.  LO first (LDD writes AD, then TFR
         // moves it to AW), THEN HI into AD.

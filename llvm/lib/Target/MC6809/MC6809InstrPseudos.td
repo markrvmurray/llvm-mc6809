@@ -229,7 +229,12 @@ let Defs = [NZ, V] in {
   // ADc-class members; expansion handles the staging.
   def Build32_i16i16 : MC6809Pseudo {
     dag OutOperandList = (outs ACC32:$dst);
-    dag InOperandList  = (ins ADc:$lo, ADc:$hi);
+    // ACC16 (not ADc): the two sources are simultaneously live on ONE
+    // instruction, so with AD as the only real ADc member the pair would be
+    // structurally unallocatable. ACC16 lets the second value sit in AW or
+    // an RS imaginary; the post-RA expansion stages any member through
+    // AD/AW via copyPhysReg.
+    dag InOperandList  = (ins ACC16:$lo, ACC16:$hi);
     // Bug #311 (2026-05-22): explicit Defs = [AD, AW] tells regalloc
     // that the expansion CLOBBERS both halves of AQ as individual
     // sub-registers, not just AQ as a whole.  Without this, regalloc

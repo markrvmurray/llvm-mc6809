@@ -3152,8 +3152,8 @@ bool MC6809InstructionSelector::selectMergeValues(MachineInstr &MI) {
       B1 = narrowIfNeeded(B1, &MC6809::AAcRegClass);
       B2 = narrowIfNeeded(B2, &MC6809::ABcRegClass);
       B3 = narrowIfNeeded(B3, &MC6809::AAcRegClass);
-      Lo16 = MRI->createVirtualRegister(&MC6809::ADcRegClass);
-      Hi16 = MRI->createVirtualRegister(&MC6809::ADcRegClass);
+      Lo16 = MRI->createVirtualRegister(&MC6809::ACC16RegClass);
+      Hi16 = MRI->createVirtualRegister(&MC6809::ACC16RegClass);
       auto MLo = Builder.buildInstr(MC6809::MERGE_LOHI_i16)
                      .addDef(Lo16).addUse(B0).addUse(B1);
       auto MHi = Builder.buildInstr(MC6809::MERGE_LOHI_i16)
@@ -3173,14 +3173,11 @@ bool MC6809InstructionSelector::selectMergeValues(MachineInstr &MI) {
     // constraint, eliminating the leak.
     Register DstAcc32 = Dst;
     MRI->setRegClass(DstAcc32, &MC6809::ACC32RegClass);
-    // Bug #319 Stage 2 (2026-05-21): Build32_i16i16 takes ADc:$lo
-    // and ADc:$hi.  If either is in the broader ACC16 (the typical
-    // producer's output class), FAKE_USE at -Og blocks the
-    // constraint-shrink and the verifier complains.
-    if (hasFakeUse(MI)) {
-      Lo16 = narrowToClass(Builder, MRI, Lo16, &MC6809::ADcRegClass);
-      Hi16 = narrowToClass(Builder, MRI, Hi16, &MC6809::ADcRegClass);
-    }
+    // Build32_i16i16 now takes ACC16:$lo/$hi (the two halves are
+    // simultaneously live on one instruction, so a singleton ADc pair
+    // would be unallocatable once the spill pseudo-registers are gone).
+    // The producers' output class is already ACC16 or narrower, so no
+    // FAKE_USE-blocked constraint-shrink can arise here any more.
     auto Build = Builder.buildInstr(MC6809::Build32_i16i16)
                      .addDef(DstAcc32)
                      .addUse(Lo16)
