@@ -32,6 +32,7 @@
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/MC/MCAsmInfo.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 
 using namespace llvm;
@@ -2133,6 +2134,13 @@ void MC6809InstrInfo::loadStoreRegStackSlot(MachineBasicBlock &MBB, MachineBasic
 // _Reg forms are HD6309-only (base 6809 selects the Push/Pull shape), so
 // this is the HD6309 escape hatch the SPILL_* pseudo-registers used to
 // provide via MaterializeSpills' second-spill-skip path.
+// Diagnostic escape hatch for bisecting spill-fold-related miscompiles:
+// -mc6809-disable-mem-fold reverts to plain reload+register-op spilling for
+// the two-source _Reg pseudos (the EXTRACT byte fold is unaffected).
+static cl::opt<bool> DisableMemFold(
+    "mc6809-disable-mem-fold", cl::Hidden, cl::init(false),
+    cl::desc("Disable folding spilled second sources into _Mem forms"));
+
 struct MC6809MemFoldInfo {
   unsigned MemOpc;
   unsigned FoldIdx;
@@ -2240,6 +2248,8 @@ MachineInstr *MC6809InstrInfo::foldMemoryOperandImpl(
   // function — the conservative whole-frame marking skips slots reached by
   // pseudos without a _Sym lowering, so this fold needs no static-stack
   // special case).
+  if (DisableMemFold)
+    return nullptr;
   auto Fold = memFoldSibling(Opc);
   if (!Fold)
     return nullptr;
@@ -8020,9 +8030,23 @@ void MC6809InstrInfo::expandCompareImm(MachineIRBuilder &Builder, MachineInstr &
     int LoadOffset = 0;
 
     // Find the LDD that loaded the comparison value into D.
+    //
+    // The scan must stop at ANY write that overlaps AD — including
+    // sub-register writes of AA/AB (TFR into a half, byte loads, byte
+    // arithmetic). The original exact-operand check (definesRegister with
+    // TRI == nullptr) was blind to those, so a D value assembled from
+    // byte halves after an unrelated earlier LDD was mis-attributed to
+    // that stale LDD, and the substituted CMPX compared a register that
+    // never held the value (manifest: the libc-testsuite strtol position
+    // checks compared the still-live `c` pointer in X instead of the
+    // freshly byte-built `c - s` in D, "10 != 10"). Byte-assembled D
+    // values are the norm once byte spills flow through the stock
+    // spiller, so overlap-awareness is load-bearing.
+    const TargetRegisterInfo &CmpTRI =
+        *MF.getSubtarget().getRegisterInfo();
     for (auto It = MachineBasicBlock::reverse_iterator(MI.getIterator());
          It != MBB.rend(); ++It) {
-      if (It->definesRegister(MC6809::AD, /*TRI=*/nullptr)) {
+      if (It->modifiesRegister(MC6809::AD, &CmpTRI)) {
         unsigned Opc = It->getOpcode();
         if ((Opc == MC6809::LDDi_o0 || Opc == MC6809::LDDi_o5 ||
              Opc == MC6809::LDDi_o8 || Opc == MC6809::LDDi_o16) &&
@@ -8031,7 +8055,7 @@ void MC6809InstrInfo::expandCompareImm(MachineIRBuilder &Builder, MachineInstr &
           LDDInstr = &*It;
           LoadOffset = It->getOperand(0).getImm();
         }
-        break; // Stop at the first D definition.
+        break; // Stop at the first write overlapping D.
       }
     }
 
