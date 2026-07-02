@@ -481,10 +481,18 @@ class MC6809ArithmeticBase<RegisterClass dst, RegisterClass src, dag operand> : 
 // with virtual registers"). The explicit tied dst operand is the
 // honest clobber declaration. Same reasoning for the A-half and the
 // Carry/CarryUse/OverflowUse mirrors below.
+// ACC8_AB (not the single-register ABc/AAc): with the byte spill
+// pseudo-registers retired and the reg-reg patterns emitting _Reg on both
+// CPUs, overlapping byte chains would oversubscribe a singleton dst class
+// (two unspillable ABc vregs colliding in strtoll's i64 accumulation).
+// The B/A naming is now only a historical hint -- the expansion picks the
+// ADDA/ADDB opcode family from the ASSIGNED register (getByteOpcodes), so
+// either half works. Selector sites that need a specific half for
+// MERGE_LOHI pairing still narrow their vregs explicitly.
 class MC6809ArithmeticBaseRegByteB<dag operand> : MC6809LogicalInstr {
   let Defs = [NZ, V, C];
-  dag OutOperandList = (outs ABc:$dst);
-  dag InOperandList = !con((ins ABc:$src), operand);
+  dag OutOperandList = (outs ACC8_AB:$dst);
+  dag InOperandList = !con((ins ACC8_AB:$src), operand);
   let Constraints = "$dst = $src";
 }
 
@@ -497,8 +505,8 @@ class MC6809ArithmeticBaseRegByteB<dag operand> : MC6809LogicalInstr {
 // path uses it, so the binary is byte-identical to today.
 class MC6809ArithmeticBaseRegByteA<dag operand> : MC6809LogicalInstr {
   let Defs = [NZ, V, C];
-  dag OutOperandList = (outs AAc:$dst);
-  dag InOperandList = !con((ins AAc:$src), operand);
+  dag OutOperandList = (outs ACC8_AB:$dst);
+  dag InOperandList = !con((ins ACC8_AB:$src), operand);
   let Constraints = "$dst = $src";
 }
 
@@ -598,8 +606,8 @@ class MC6809ArithmeticBaseCarry<RegisterClass dst, RegisterClass src, dag operan
 class MC6809ArithmeticBaseCarryRegByteB<dag operand> : MC6809LogicalInstr {
   let Defs = [NZ, V, C];
   let hasSideEffects = 1;
-  dag OutOperandList = (outs ABc:$dst);
-  dag InOperandList = !con((ins ABc:$src), operand);
+  dag OutOperandList = (outs ACC8_AB:$dst);
+  dag InOperandList = !con((ins ACC8_AB:$src), operand);
   let Constraints = "$dst = $src";
 }
 
@@ -607,8 +615,8 @@ class MC6809ArithmeticBaseCarryRegByteB<dag operand> : MC6809LogicalInstr {
 class MC6809ArithmeticBaseCarryRegByteA<dag operand> : MC6809LogicalInstr {
   let Defs = [NZ, V, C];
   let hasSideEffects = 1;
-  dag OutOperandList = (outs AAc:$dst);
-  dag InOperandList = !con((ins AAc:$src), operand);
+  dag OutOperandList = (outs ACC8_AB:$dst);
+  dag InOperandList = !con((ins ACC8_AB:$src), operand);
   let Constraints = "$dst = $src";
 }
 
@@ -693,8 +701,8 @@ class MC6809ArithmeticBaseSetCarryUseRegByteB<dag operand> : MC6809LogicalInstr 
   let Defs = [NZ, V, C];
   let Uses = [C];
   let hasSideEffects = 1;
-  dag OutOperandList = (outs ABc:$dst);
-  dag InOperandList = !con((ins ABc:$src), operand);
+  dag OutOperandList = (outs ACC8_AB:$dst);
+  dag InOperandList = !con((ins ACC8_AB:$src), operand);
   let Constraints = "$dst = $src";
 }
 
@@ -702,8 +710,8 @@ class MC6809ArithmeticBaseSetOverflowUseRegByteB<dag operand> : MC6809LogicalIns
   let Defs = [NZ, V, C];
   let Uses = [V];
   let hasSideEffects = 1;
-  dag OutOperandList = (outs ABc:$dst);
-  dag InOperandList = !con((ins ABc:$src), operand);
+  dag OutOperandList = (outs ACC8_AB:$dst);
+  dag InOperandList = !con((ins ACC8_AB:$src), operand);
   let Constraints = "$dst = $src";
 }
 
@@ -715,8 +723,8 @@ class MC6809ArithmeticBaseSetCarryUseRegByteA<dag operand> : MC6809LogicalInstr 
   let Defs = [NZ, V, C];
   let Uses = [C];
   let hasSideEffects = 1;
-  dag OutOperandList = (outs AAc:$dst);
-  dag InOperandList = !con((ins AAc:$src), operand);
+  dag OutOperandList = (outs ACC8_AB:$dst);
+  dag InOperandList = !con((ins ACC8_AB:$src), operand);
   let Constraints = "$dst = $src";
 }
 
@@ -724,8 +732,8 @@ class MC6809ArithmeticBaseSetOverflowUseRegByteA<dag operand> : MC6809LogicalIns
   let Defs = [NZ, V, C];
   let Uses = [V];
   let hasSideEffects = 1;
-  dag OutOperandList = (outs AAc:$dst);
-  dag InOperandList = !con((ins AAc:$src), operand);
+  dag OutOperandList = (outs ACC8_AB:$dst);
+  dag InOperandList = !con((ins ACC8_AB:$src), operand);
   let Constraints = "$dst = $src";
 }
 

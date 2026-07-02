@@ -294,6 +294,26 @@ bool MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int
   return false;
 }
 
+// Refuse coalesces that would narrow a multi-register byte class down to the
+// single-register AAc/ABc endpoint classes. The selector deliberately COPYs
+// into those classes only at MERGE_LOHI/byte-pair endpoints; folding the copy
+// away re-narrows the whole tied carry chain feeding it to one physical
+// register, and two overlapping chains then present unspillable
+// singleton-class ranges that greedy cannot allocate (strtoll's i64
+// accumulation). Keeping the endpoint copy costs one TFR at worst.
+bool MC6809RegisterInfo::shouldCoalesce(
+    MachineInstr *MI, const TargetRegisterClass *SrcRC, unsigned SubReg,
+    const TargetRegisterClass *DstRC, unsigned DstSubReg,
+    const TargetRegisterClass *NewRC, LiveIntervals &LIS) const {
+  auto IsByteSingleton = [](const TargetRegisterClass *RC) {
+    return RC == &MC6809::AAcRegClass || RC == &MC6809::ABcRegClass;
+  };
+  if (IsByteSingleton(NewRC) && !IsByteSingleton(SrcRC) &&
+      !IsByteSingleton(DstRC))
+    return false;
+  return true;
+}
+
 Register MC6809RegisterInfo::getFrameRegister(const MachineFunction &MF) const {
   const TargetFrameLowering *TFI = getFrameLowering(MF);
   return TFI->hasFP(MF) ? MC6809::SU : MC6809::SS;

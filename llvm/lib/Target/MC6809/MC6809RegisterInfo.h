@@ -66,6 +66,11 @@ public:
 
   bool getRegAllocationHints(Register VirtReg, ArrayRef<MCPhysReg> Order, SmallVectorImpl<MCPhysReg> &Hints, const MachineFunction &MF, const VirtRegMap *VRM = nullptr, const LiveRegMatrix *Matrix = nullptr) const override;
 
+  bool shouldCoalesce(MachineInstr *MI, const TargetRegisterClass *SrcRC,
+                      unsigned SubReg, const TargetRegisterClass *DstRC,
+                      unsigned DstSubReg, const TargetRegisterClass *NewRC,
+                      LiveIntervals &LIS) const override;
+
   BitVector getReservedRegs(const MachineFunction &MF) const override;
 
   MC6809InstrCost copyCost(Register DestReg, Register SrcReg, const MC6809Subtarget &STI) const;

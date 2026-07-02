@@ -497,7 +497,7 @@ ensureCarryChainIntegrity(MachineInstr &Consumer, Register CarryIn,
       // implicit-use bookkeeping, the phantom_carry vreg's spill
       // decisions cascaded incorrectly (imaxabs / llabs failures
       // at -Og-hd6309-mame).
-      ByteVReg = MRI.createVirtualRegister(&MC6809::ABcRegClass);
+      ByteVReg = MRI.createVirtualRegister(&MC6809::ACC8_ABRegClass);
       MachineIRBuilder ProducerB(PMBB, AfterProducer);
       auto MtoB = ProducerB.buildInstr(ToBytePseudo)
                       .addDef(ByteVReg)
@@ -1267,7 +1267,7 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
           unsigned Opc = (*Flag == MC6809::C)
                              ? MC6809::MaterializeCC_C_to_byte
                              : MC6809::MaterializeCC_V_to_byte;
-          MRI->setRegClass(DstReg, &MC6809::ABcRegClass);
+          MRI->setRegClass(DstReg, &MC6809::ACC8_ABRegClass);
           MachineBasicBlock &ProdMBB = *ProdDef->getParent();
           auto InsertIt = std::next(MachineBasicBlock::iterator(ProdDef));
           MachineIRBuilder B(ProdMBB, InsertIt);
@@ -1288,8 +1288,8 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
       // freshly-emitted G_ICMP result, say).  -O1+ instruction-level
       // optimisers fold it.  AND #1 against an already-masked value
       // is idempotent so chaining never breaks semantics.
-      MRI->setRegClass(DstReg, &MC6809::ABcRegClass);
-      MRI->setRegClass(SrcReg, &MC6809::ABcRegClass);
+      MRI->setRegClass(DstReg, &MC6809::ACC8_ABRegClass);
+      MRI->setRegClass(SrcReg, &MC6809::ACC8_ABRegClass);
       MI.setDesc(TII.get(MC6809::AND_i8_Imm));
       MI.getOperand(1).setIsUse();
       MI.tieOperands(0, 1);
@@ -1572,7 +1572,7 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
       // and `hasSideEffects=1` on producer + materialise keeps the
       // flag alive across the gap.
       if (auto Flag = getPhantomCarryFlag(SrcReg, *MRI, &CarryFlagOf)) {
-        MRI->setRegClass(DstReg, &MC6809::ABcRegClass);
+        MRI->setRegClass(DstReg, &MC6809::ACC8_ABRegClass);
         MachineIRBuilder B(MI);
         unsigned Opc = (*Flag == MC6809::C)
                            ? MC6809::MaterializeCC_C_to_byte
@@ -1825,8 +1825,6 @@ skip_globalvalue_fold:
       Register Lo = MI.getOperand(1).getReg();
       Register Hi = MI.getOperand(2).getReg();
       MachineIRBuilder Builder(MI);
-      Lo = narrowToClass(Builder, MRI, Lo, &MC6809::ABcRegClass);
-      Hi = narrowToClass(Builder, MRI, Hi, &MC6809::AAcRegClass);
       Register Merged = MRI->createVirtualRegister(&MC6809::ADcRegClass);
       Register Prod = MRI->createVirtualRegister(&MC6809::ADcRegClass);
       auto MergeMI = Builder.buildInstr(MC6809::MERGE_LOHI_i16)
@@ -3029,57 +3027,8 @@ bool MC6809InstructionSelector::selectMergeValues(MachineInstr &MI) {
       MRI->setRegClass(Lo, &MC6809::ACC8RegClass);
     if (!MRI->getRegClassOrNull(Hi))
       MRI->setRegClass(Hi, &MC6809::ACC8RegClass);
-    // Bug #319 (2026-05-21, refined 2026-05-22): MERGE_LOHI_i16's $lo
-    // input is ABc, $hi is AAc.  When the operand vreg's class is
-    // broader (typically ACC8, from upstream BIT1-elim widening of
-    // ConditionalImm / SEX8Implicit / ZEX8Implicit), the autogen
-    // constrainSelectedInstRegOperands narrow can fail — verifier
-    // rejects the ACC8 operand.
-    //
-    // Stage 1's `hasFakeUse(MI)` gate was too tight: at -Og without
-    // -fextend-lifetimes there's no FAKE_USE, yet the bug still
-    // manifests (32 residual verifier hits at -Og tiers after Stage
-    // 1+2 — confirmed 2026-05-22).  Better gate: emit a narrowing
-    // COPY only when the operand has multiple uses.  Multi-use
-    // means another consumer also constrains the vreg's class, so
-    // constrainSelectedInstRegOperands' best-effort narrow can fail
-    // to find a class compatible with ALL uses.  Single-use is
-    // narrowable cleanly so the COPY would be redundant (and breaks
-    // -O0 lit asm CHECK strings, as observed 2026-05-22).
-    //
-    // Bug #322 (2026-05-22): also force a COPY when the operand's
-    // class is DISJOINT from the target class (e.g. ABc when we
-    // need AAc, or vice versa).  `getCommonSubClass` returns null
-    // when no register can satisfy both, which means
-    // constrainSelectedInstRegOperands has no class to constrain
-    // to and will fail.  This is the test-fread-fwrite shape: i1
-    // ZEX bytes get assigned to ABc (the natural class for
-    // SEX8Implicit / ZEX*Implicit outputs), but both bytes land
-    // in ABc for the SAME MERGE_LOHI_i16 — one as $lo (ABc, OK)
-    // and one as $hi (needs AAc, mismatch).
-    //
-    // Earlier attempt to use a broader "always COPY if class
-    // mismatch" gate regressed non-Og tiers because it inserted
-    // COPYs even for the broader→narrower single-use case where
-    // constrain DID work (and the redundant COPY broke -O0 lit
-    // CHECK strings).  The `getCommonSubClass` check is the
-    // surgical predicate: it ONLY fires when constrain can't
-    // succeed, preserving the working single-use narrow path.
-    auto narrowIfNeeded = [&](Register R,
-                              const TargetRegisterClass *RC) -> Register {
-      const TargetRegisterClass *Cur = MRI->getRegClassOrNull(R);
-      if (Cur == RC)
-        return R;
-      if (!MRI->hasOneUse(R))
-        return narrowToClass(Builder, MRI, R, RC);
-      // Single-use: check if constrain can succeed.
-      if (!Cur || TRI.getCommonSubClass(Cur, RC))
-        return R;
-      // Disjoint classes — constrain can't bridge, must COPY.
-      return narrowToClass(Builder, MRI, R, RC);
-    };
-    Lo = narrowIfNeeded(Lo, &MC6809::ABcRegClass);
-    Hi = narrowIfNeeded(Hi, &MC6809::AAcRegClass);
+    // MERGE_LOHI_i16 takes ACC8_AB inputs; no per-half narrowing needed
+    // (the expansion stages any half combination, including the EXG swap).
     auto Merge = Builder.buildInstr(MC6809::MERGE_LOHI_i16)
                      .addDef(Dst)
                      .addUse(Lo)
@@ -3115,27 +3064,7 @@ bool MC6809InstructionSelector::selectMergeValues(MachineInstr &MI) {
         MRI->setRegClass(B2, &MC6809::ACC8RegClass);
       if (!MRI->getRegClassOrNull(B3))
         MRI->setRegClass(B3, &MC6809::ACC8RegClass);
-      // Bug #319 (2026-05-21) / Bug #322 (2026-05-22): same
-      // narrowIfNeeded gate as the s8×2→s16 shape above.  Force a
-      // COPY when the operand has multiple uses (constrain can't
-      // satisfy all consumers) OR when the operand's class is
-      // disjoint from the target class (constrain has no common
-      // subclass to fall back to — e.g. ABc when we need AAc).
-      auto narrowIfNeeded = [&](Register R,
-                                const TargetRegisterClass *RC) -> Register {
-        const TargetRegisterClass *Cur = MRI->getRegClassOrNull(R);
-        if (Cur == RC)
-          return R;
-        if (!MRI->hasOneUse(R))
-          return narrowToClass(Builder, MRI, R, RC);
-        if (!Cur || TRI.getCommonSubClass(Cur, RC))
-          return R;
-        return narrowToClass(Builder, MRI, R, RC);
-      };
-      B0 = narrowIfNeeded(B0, &MC6809::ABcRegClass);
-      B1 = narrowIfNeeded(B1, &MC6809::AAcRegClass);
-      B2 = narrowIfNeeded(B2, &MC6809::ABcRegClass);
-      B3 = narrowIfNeeded(B3, &MC6809::AAcRegClass);
+      // MERGE_LOHI_i16 takes ACC8_AB inputs; no per-half narrowing needed.
       Lo16 = MRI->createVirtualRegister(&MC6809::ACC16RegClass);
       Hi16 = MRI->createVirtualRegister(&MC6809::ACC16RegClass);
       auto MLo = Builder.buildInstr(MC6809::MERGE_LOHI_i16)
@@ -3305,7 +3234,7 @@ bool MC6809InstructionSelector::selectAddO(MachineInstr &MI) {
     // variant requires ABc operands; FAKE_USE at -Og blocks the
     // automatic narrow.  See file-top helpers.
     if (DstSize == 8 && hasFakeUse(MI)) {
-      LHS = narrowToClass(Builder, MRI, LHS, &MC6809::ABcRegClass);
+      LHS = narrowToClass(Builder, MRI, LHS, &MC6809::ACC8_ABRegClass);
       RHS = narrowToClass(Builder, MRI, RHS, &MC6809::ACC8_ABRegClass);
     }
     Opcode = PickByWidth(
@@ -3497,7 +3426,7 @@ bool MC6809InstructionSelector::selectSubO(MachineInstr &MI) {
   if (Success) {
     // Bug #319 Stage 2 (2026-05-21): mirror selectAddO — see helpers.
     if (DstSize == 8 && hasFakeUse(MI)) {
-      LHS = narrowToClass(Builder, MRI, LHS, &MC6809::ABcRegClass);
+      LHS = narrowToClass(Builder, MRI, LHS, &MC6809::ACC8_ABRegClass);
       RHS = narrowToClass(Builder, MRI, RHS, &MC6809::ACC8_ABRegClass);
     }
     Opcode = PickByWidth(
@@ -3718,7 +3647,7 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
     // lifetimes the FAKE_USE blocks the narrow, tripping the
     // verifier.  See file-top hasFakeUse / narrowToClass helpers.
     if (DstSize == 8 && hasFakeUse(MI)) {
-      LHS = narrowToClass(Builder, MRI, LHS, &MC6809::ABcRegClass);
+      LHS = narrowToClass(Builder, MRI, LHS, &MC6809::ACC8_ABRegClass);
       RHS = narrowToClass(Builder, MRI, RHS, &MC6809::ACC8_ABRegClass);
     }
     Opcode = PickByWidth(
@@ -3915,7 +3844,7 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
   if (Success) {
     // Bug #319 (2026-05-21): mirror selectAddE — see helper docs.
     if (DstSize == 8 && hasFakeUse(MI)) {
-      LHS = narrowToClass(Builder, MRI, LHS, &MC6809::ABcRegClass);
+      LHS = narrowToClass(Builder, MRI, LHS, &MC6809::ACC8_ABRegClass);
       RHS = narrowToClass(Builder, MRI, RHS, &MC6809::ACC8_ABRegClass);
     }
     Opcode = PickByWidth(

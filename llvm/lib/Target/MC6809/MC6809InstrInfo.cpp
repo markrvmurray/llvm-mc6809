@@ -3088,18 +3088,21 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     if (needsMaterialization(DstReg)) {
       RealDst = materializeReg(Builder, DstReg, MF);
     }
-    assert(RealDst == MC6809::AB &&
-           "MaterializeCC_*_to_byte expects ABc-allocated destination");
-
+    assert((RealDst == MC6809::AB || RealDst == MC6809::AA) &&
+           "MaterializeCC_*_to_byte expects an A/B-allocated destination");
+    // Either half works: pick the opcode family from the assigned register
+    // (a hard ABc pin would propagate through the consuming byte chains and
+    // oversubscribe the single-register class).
+    bool IsA = (RealDst == MC6809::AA);
     unsigned Opcode = MI.getOpcode();
     if (Opcode == MC6809::MaterializeCC_C_to_byte) {
-      // LDB #0 ; ADCB #0 — fastest path for the C bit.
-      Builder.buildInstr(MC6809::LDBi8)
-          .addDef(MC6809::AB, RegState::Implicit).addImm(0);
-      Builder.buildInstr(MC6809::ADCBi8)
-          .addDef(MC6809::AB, RegState::Implicit).addImm(0);
+      // LD #0 ; ADC #0 — fastest path for the C bit.
+      Builder.buildInstr(IsA ? MC6809::LDAi8 : MC6809::LDBi8)
+          .addDef(RealDst, RegState::Implicit).addImm(0);
+      Builder.buildInstr(IsA ? MC6809::ADCAi8 : MC6809::ADCBi8)
+          .addDef(RealDst, RegState::Implicit).addImm(0);
     } else {
-      // TFR CC,B ; LSRB×N ; ANDB #1.
+      // TFR CC,r ; LSR×N ; AND #1.
       unsigned NShifts = 0;
       switch (Opcode) {
       case MC6809::MaterializeCC_V_to_byte: NShifts = 1; break;
@@ -3108,14 +3111,14 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
       default: llvm_unreachable("unreachable");
       }
       Builder.buildInstr(MC6809::TFRp)
-          .addDef(MC6809::AB)
+          .addDef(RealDst)
           .addUse(MC6809::CC);
       for (unsigned I = 0; I < NShifts; ++I) {
-        Builder.buildInstr(MC6809::LSRBa)
-            .addDef(MC6809::AB, RegState::Implicit);
+        Builder.buildInstr(IsA ? MC6809::LSRAa : MC6809::LSRBa)
+            .addDef(RealDst, RegState::Implicit);
       }
-      Builder.buildInstr(MC6809::ANDBi8)
-          .addDef(MC6809::AB, RegState::Implicit).addImm(1);
+      Builder.buildInstr(IsA ? MC6809::ANDAi8 : MC6809::ANDBi8)
+          .addDef(RealDst, RegState::Implicit).addImm(1);
     }
 
     if (needsMaterialization(OrigDst)) {
@@ -3142,11 +3145,13 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     if (needsMaterialization(SrcReg)) {
       RealSrc = materializeReg(Builder, SrcReg, MF);
     }
-    assert(RealSrc == MC6809::AB &&
-           "MaterializeByteToCarry_i8 expects ABc-allocated source");
-    // LSRB sets CC.C = (original bit 0 of B) AND clears N, V; sets Z if
-    // result (B>>1) == 0. We only care about CC.C; downstream sub uses it.
-    Builder.buildInstr(MC6809::LSRBa).addDef(MC6809::AB, RegState::Implicit);
+    assert((RealSrc == MC6809::AB || RealSrc == MC6809::AA) &&
+           "MaterializeByteToCarry_i8 expects an A/B-allocated source");
+    // LSR sets CC.C = (original bit 0) and clears N, V; sets Z if the
+    // shifted result == 0. We only care about CC.C; downstream sub uses it.
+    // Pick the half from the assigned register.
+    Builder.buildInstr(RealSrc == MC6809::AA ? MC6809::LSRAa : MC6809::LSRBa)
+        .addDef(RealSrc, RegState::Implicit);
     MI.eraseFromParent();
     return true;
   }
@@ -3174,13 +3179,15 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     if (needsMaterialization(SrcReg)) {
       RealSrc = materializeReg(Builder, SrcReg, MF);
     }
-    assert(RealSrc == MC6809::AB &&
-           "MaterializeByteToOverflow_i8 expects ABc-allocated source");
-    Builder.buildInstr(MC6809::ANDBi8)
-        .addDef(MC6809::AB, RegState::Implicit)
+    assert((RealSrc == MC6809::AB || RealSrc == MC6809::AA) &&
+           "MaterializeByteToOverflow_i8 expects an A/B-allocated source");
+    // Pick the half from the assigned register.
+    bool SrcIsA = (RealSrc == MC6809::AA);
+    Builder.buildInstr(SrcIsA ? MC6809::ANDAi8 : MC6809::ANDBi8)
+        .addDef(RealSrc, RegState::Implicit)
         .addImm(1);
-    Builder.buildInstr(MC6809::ADDBi8)
-        .addDef(MC6809::AB, RegState::Implicit)
+    Builder.buildInstr(SrcIsA ? MC6809::ADDAi8 : MC6809::ADDBi8)
+        .addDef(RealSrc, RegState::Implicit)
         .addImm(0x7F);
     MI.eraseFromParent();
     return true;

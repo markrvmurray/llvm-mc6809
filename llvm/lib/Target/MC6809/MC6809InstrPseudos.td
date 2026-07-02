@@ -134,26 +134,28 @@ let Defs = [NZ, V] in {
     let isAsCheapAsAMove = true;
   }
 
-  // $lo constrained to ABc (AB-half + B-spills), $hi to AAc (AA-half +
-  // A-spills) so regalloc cannot collapse both inputs into the same
-  // physical byte register. Without this, it will happily allocate both
-  // to $ab, then emit reloads that overwrite each other before MERGE
-  // expansion runs — the resulting code loses the low byte entirely.
-  // (bug #118 Layer 1, approach b; failure seen in picolibc's memcpy at
-  // -Oz where the i16 counter increment split into byte halves merged
-  // back through two AB reloads.)
+  // ACC8_AB inputs (not the singleton ABc/AAc): the expansion is fully
+  // assignment-driven -- it stages any half combination into AD via
+  // loadByteInto, including the full (lo=AA, hi=AB) swap via EXG -- and
+  // two simultaneously-live distinct values can never share one physical
+  // register at the same instruction, so the historical both-in-AB hazard
+  // cannot arise. The old singleton constraint propagated through the
+  // tied byte carry chains feeding the merge (machine-cse folds any
+  // isolating COPY straight back), pinning whole overlapping chains to
+  // one register and making them unallocatable once the byte spill
+  // pseudo-registers were retired.
   def MERGE_LOHI_i16 : MC6809Pseudo {
     dag OutOperandList = (outs ADc:$dst);
-    dag InOperandList  = (ins ABc:$lo, AAc:$hi);
+    dag InOperandList  = (ins ACC8_AB:$lo, ACC8_AB:$hi);
     let isAsCheapAsAMove = true;
   }
 
   // The source byte becomes the low byte of the i16 result; high byte is
-  // left undefined. Constrain to ABc so the byte naturally lives in the
-  // low half of AD without a staging TFR in the common case.
+  // left undefined. ACC8_AB (not ABc) for the same chain-pinning reason as
+  // MERGE_LOHI_i16 above; the expansion stages any source half into AB.
   def ANYEXT_i8_to_i16 : MC6809Pseudo {
     dag OutOperandList = (outs ADc:$dst);
-    dag InOperandList  = (ins ABc:$src);
+    dag InOperandList  = (ins ACC8_AB:$src);
     let isAsCheapAsAMove = true;
   }
 
@@ -417,8 +419,9 @@ let Defs = [NZ, V] in {
 //   N: TFR CC,B; LSRB×3; ANDB #1 (CC.N = bit 3)
 // CC layout (msb→lsb): E F H I N Z V C.
 //
-// $dst is constrained to ABc so the expansion always lands in $ab
-// (6309's AE/AF have no ADCE/ADCF / LSRE / LSRF).
+// $dst is ACC8_AB (either page-1 half; 6309's AE/AF stay excluded --
+// no ADCE/ADCF / LSRE / LSRF). The expansion picks the A- or B-family
+// opcodes from the assigned register.
 //
 // hasSideEffects=1 is the scheduling barrier: the producer's CC
 // bit must not be clobbered between its write and this materialise.
@@ -441,25 +444,25 @@ let Defs = [NZ, V] in {
 // preserves the ordering invariant the dropped Uses was a proxy
 // for.
 def MaterializeCC_C_to_byte : MC6809Pseudo {
-  dag OutOperandList = (outs ABc:$dst);
+  dag OutOperandList = (outs ACC8_AB:$dst);
   dag InOperandList  = (ins);
   let Defs = [NZ, V, C];
   let hasSideEffects = 1;
 }
 def MaterializeCC_V_to_byte : MC6809Pseudo {
-  dag OutOperandList = (outs ABc:$dst);
+  dag OutOperandList = (outs ACC8_AB:$dst);
   dag InOperandList  = (ins);
   let Defs = [NZ, V, C];
   let hasSideEffects = 1;
 }
 def MaterializeCC_Z_to_byte : MC6809Pseudo {
-  dag OutOperandList = (outs ABc:$dst);
+  dag OutOperandList = (outs ACC8_AB:$dst);
   dag InOperandList  = (ins);
   let Defs = [NZ, V, C];
   let hasSideEffects = 1;
 }
 def MaterializeCC_N_to_byte : MC6809Pseudo {
-  dag OutOperandList = (outs ABc:$dst);
+  dag OutOperandList = (outs ACC8_AB:$dst);
   dag InOperandList  = (ins);
   let Defs = [NZ, V, C];
   let hasSideEffects = 1;
@@ -471,16 +474,15 @@ def MaterializeCC_N_to_byte : MC6809Pseudo {
 // (e.g. a CompareBranch or any other MI that clobbers C between a
 // SubSetCarry producer and its SubSetCarryUse consumer).
 //
-// $src constrained to ABc so the expansion is always LSRB on $ab —
-// LSRB shifts bit 0 of B into CC.C and zeroes B (we don't care, B's value
-// is consumed here).
+// $src is ACC8_AB; the expansion emits LSRA or LSRB by the assigned
+// register (LSR shifts bit 0 into CC.C; the byte is consumed here).
 //
 // Defs=[NZ,V,C] + hasSideEffects=1: same scheduling barrier as the
 // to-byte sibling — pin the restoration to its MIR position so no
 // further C-clobber slips between this and the consuming SubSetCarryUse.
 def MaterializeByteToCarry_i8 : MC6809Pseudo {
   dag OutOperandList = (outs);
-  dag InOperandList  = (ins ABc:$src);
+  dag InOperandList  = (ins ACC8_AB:$src);
   let Defs = [NZ, V, C];
   let hasSideEffects = 1;
 }
@@ -498,14 +500,15 @@ def MaterializeByteToCarry_i8 : MC6809Pseudo {
 //                 immediately-following SubSetOverflowUse will
 //                 overwrite them anyway.
 //
-// $src constrained to ABc so the expansion is always on $ab.
+// $src is ACC8_AB; the expansion picks the opcode family by the
+// assigned register.
 //
 // Defs=[NZ,V,C] + hasSideEffects=1: same scheduling barrier as the
 // C-flag sibling — pin restoration to its MIR position so no further
 // V-clobber slips between this and the consuming SubSetOverflowUse.
 def MaterializeByteToOverflow_i8 : MC6809Pseudo {
   dag OutOperandList = (outs);
-  dag InOperandList  = (ins ABc:$src);
+  dag InOperandList  = (ins ACC8_AB:$src);
   let Defs = [NZ, V, C];
   let hasSideEffects = 1;
 }
