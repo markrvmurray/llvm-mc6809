@@ -2198,6 +2198,40 @@ static std::optional<MC6809MemFoldInfo> memFoldSibling(unsigned Opc) {
     return MC6809MemFoldInfo{MC6809::OR_i8_Mem, 2};
   case MC6809::XOR_i8_Reg:
     return MC6809MemFoldInfo{MC6809::XOR_i8_Mem, 2};
+  // i16 arithmetic/carry/bitwise (ACC16-classed — multi-register, so like
+  // the byte bitwise fold this is code quality: a spilled second source
+  // reads straight from its slot, e.g. ADDD off,u, instead of reloading).
+  case MC6809::Add_i16_Reg:
+    return MC6809MemFoldInfo{MC6809::Add_i16_Mem, 2};
+  case MC6809::Sub_i16_Reg:
+    return MC6809MemFoldInfo{MC6809::Sub_i16_Mem, 2};
+  case MC6809::AddSetCarry_i16_Reg:
+    return MC6809MemFoldInfo{MC6809::AddSetCarry_i16_Mem, 2};
+  case MC6809::SubSetCarry_i16_Reg:
+    return MC6809MemFoldInfo{MC6809::SubSetCarry_i16_Mem, 2};
+  case MC6809::AddSetCarryUse_i16_Reg:
+    return MC6809MemFoldInfo{MC6809::AddSetCarryUse_i16_Mem, 2};
+  case MC6809::SubSetCarryUse_i16_Reg:
+    return MC6809MemFoldInfo{MC6809::SubSetCarryUse_i16_Mem, 2};
+  case MC6809::AddSetOverflow_i16_Reg:
+    return MC6809MemFoldInfo{MC6809::AddSetOverflow_i16_Mem, 2};
+  case MC6809::SubSetOverflow_i16_Reg:
+    return MC6809MemFoldInfo{MC6809::SubSetOverflow_i16_Mem, 2};
+  case MC6809::AddSetOverflowUse_i16_Reg:
+    return MC6809MemFoldInfo{MC6809::AddSetOverflowUse_i16_Mem, 2};
+  case MC6809::SubSetOverflowUse_i16_Reg:
+    return MC6809MemFoldInfo{MC6809::SubSetOverflowUse_i16_Mem, 2};
+  case MC6809::AND_i16_Reg:
+    return MC6809MemFoldInfo{MC6809::AND_i16_Mem, 2};
+  case MC6809::OR_i16_Reg:
+    return MC6809MemFoldInfo{MC6809::OR_i16_Mem, 2};
+  case MC6809::XOR_i16_Reg:
+    return MC6809MemFoldInfo{MC6809::XOR_i16_Mem, 2};
+  // i16 compares (same operand layout as the byte compares).
+  case MC6809::Compare_i16_Reg:
+    return MC6809MemFoldInfo{MC6809::Compare_i16_Mem, 3};
+  case MC6809::CompareBranch_i16_Reg:
+    return MC6809MemFoldInfo{MC6809::CompareBranch_i16_Mem, 2};
   // Byte compares. Compare: (outs CCond)(ins cc, src, src2) — src2 at 3.
   // CompareBranch: (outs)(ins cc, src, src2, label) — src2 at 2, and the
   // label operand is copied after the folded memory pair.
