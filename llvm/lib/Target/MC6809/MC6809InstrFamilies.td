@@ -1242,7 +1242,7 @@ let Predicates = [IsHD6309] in {
     // SUBW+SBCD writes AW+AD, then TFR/ANDA/LSRA writes AA — all of
     // these are sub-regs of AQ.  Without AQ in Defs, regalloc could
     // leave an unrelated value live in $aq across this pseudo.
-    let Defs = [NZ, V, C, AQ];
+    let Defs = [NZ, V, C, AA, AW];
   }
 }
 

@@ -310,7 +310,7 @@ let Defs = [NZ, V] in {
   def SignTest_i32 : MC6809Pseudo {
     dag OutOperandList = (outs ACC8:$dst);
     dag InOperandList  = (ins ACC32:$src);
-    let Defs = [NZ, V, C, AQ];
+    let Defs = [NZ, V, C, AA, AW];
   }
 
   // Bug #301 (2026-05-16): native HD6309 i32 equal-to-zero test.
@@ -320,6 +320,16 @@ let Defs = [NZ, V] in {
   // predicates:
   //   icmp eq X, 0    →  EqZero_i32 X
   //   icmp ne X, 0    →  XOR (EqZero_i32 X) 1
+  //
+  // Defs note (stock-spilling migration): the AQ scratch clobber is
+  // declared as AA + AW — the parts of AQ DISJOINT from the $ab byte
+  // the expansion leaves the result in (MC6809InsertCopies pins the
+  // dst there and copies out). Declaring AQ itself put the result
+  // register inside its own clobber set: the covering dead-AQ def at
+  // the same slot as the $ab result def confused liveness downstream
+  // (manifest: strtol test-TU miscompile at O2 HD6309). AA + AW +
+  // the explicit $ab def cover every regunit of AQ, so the clobber
+  // strength is unchanged.
   //
   // Post-RA expansion (in MC6809InstrInfo.cpp): OR the 4 source bytes
   // through AB then extract CC.Z into bit 0 of AB (TFR CC,B; ANDB #4;
@@ -344,7 +354,7 @@ let Defs = [NZ, V] in {
   def EqZero_i32 : MC6809Pseudo {
     dag OutOperandList = (outs ACC8:$dst);
     dag InOperandList  = (ins ACC32:$src);
-    let Defs = [NZ, V, C, AQ];
+    let Defs = [NZ, V, C, AA, AW];
   }
 
   // Bug #301 (2026-05-16): native HD6309 i32 equal-to-
@@ -375,7 +385,7 @@ let Defs = [NZ, V] in {
     // across this pseudo and the expansion would silently destroy
     // it — the Bug #311 pattern.  No observed manifest yet; this is
     // a preventive fix from the Bug #321 audit.
-    let Defs = [NZ, V, C, AQ];
+    let Defs = [NZ, V, C, AA, AW];
   }
 }
 
