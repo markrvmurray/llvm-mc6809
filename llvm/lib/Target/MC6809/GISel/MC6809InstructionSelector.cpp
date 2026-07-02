@@ -3318,7 +3318,7 @@ bool MC6809InstructionSelector::selectAddO(MachineInstr &MI) {
     // automatic narrow.  See file-top helpers.
     if (DstSize == 8 && hasFakeUse(MI)) {
       LHS = narrowToClass(Builder, MRI, LHS, &MC6809::ABcRegClass);
-      RHS = narrowToClass(Builder, MRI, RHS, &MC6809::ABcRegClass);
+      RHS = narrowToClass(Builder, MRI, RHS, &MC6809::ACC8_ABRegClass);
     }
     Opcode = PickByWidth(
         PickOpc(MC6809::AddSetCarry_i8_Reg,  MC6809::AddSetOverflow_i8_Reg),
@@ -3510,7 +3510,7 @@ bool MC6809InstructionSelector::selectSubO(MachineInstr &MI) {
     // Bug #319 Stage 2 (2026-05-21): mirror selectAddO — see helpers.
     if (DstSize == 8 && hasFakeUse(MI)) {
       LHS = narrowToClass(Builder, MRI, LHS, &MC6809::ABcRegClass);
-      RHS = narrowToClass(Builder, MRI, RHS, &MC6809::ABcRegClass);
+      RHS = narrowToClass(Builder, MRI, RHS, &MC6809::ACC8_ABRegClass);
     }
     Opcode = PickByWidth(
         PickOpc(MC6809::SubSetCarry_i8_Reg,  MC6809::SubSetOverflow_i8_Reg),
@@ -3731,7 +3731,7 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
     // verifier.  See file-top hasFakeUse / narrowToClass helpers.
     if (DstSize == 8 && hasFakeUse(MI)) {
       LHS = narrowToClass(Builder, MRI, LHS, &MC6809::ABcRegClass);
-      RHS = narrowToClass(Builder, MRI, RHS, &MC6809::ABcRegClass);
+      RHS = narrowToClass(Builder, MRI, RHS, &MC6809::ACC8_ABRegClass);
     }
     Opcode = PickByWidth(
         PickOpc(MC6809::AddSetCarryUse_i8_Reg,  MC6809::AddSetOverflowUse_i8_Reg),
@@ -3928,7 +3928,7 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
     // Bug #319 (2026-05-21): mirror selectAddE — see helper docs.
     if (DstSize == 8 && hasFakeUse(MI)) {
       LHS = narrowToClass(Builder, MRI, LHS, &MC6809::ABcRegClass);
-      RHS = narrowToClass(Builder, MRI, RHS, &MC6809::ABcRegClass);
+      RHS = narrowToClass(Builder, MRI, RHS, &MC6809::ACC8_ABRegClass);
     }
     Opcode = PickByWidth(
         PickOpc(MC6809::SubSetCarryUse_i8_Reg,  MC6809::SubSetOverflowUse_i8_Reg),
