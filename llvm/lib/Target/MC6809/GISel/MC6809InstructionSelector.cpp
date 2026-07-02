@@ -283,13 +283,9 @@ getPhantomCarryFlag(Register SrcReg, const MachineRegisterInfo &MRI,
     case TargetOpcode::G_USUBE:
     case TargetOpcode::G_UADDE:
     case MC6809::SubSetCarry_i8_Imm:    case MC6809::SubSetCarry_i16_Imm:    case MC6809::SubSetCarry_i32_Imm:
-    case MC6809::SubSetCarry_i8_Mem:    case MC6809::SubSetCarry_i16_Mem:    case MC6809::SubSetCarry_i32_Mem:
-    case MC6809::SubSetCarry_i8_Pull:   case MC6809::SubSetCarry_i16_Pull:
-    case MC6809::SubSetCarry_i8_Reg:    case MC6809::SubSetCarry_i16_Reg:    case MC6809::SubSetCarry_i32_Reg:
+    case MC6809::SubSetCarry_i8_Mem:    case MC6809::SubSetCarry_i16_Mem:    case MC6809::SubSetCarry_i32_Mem:    case MC6809::SubSetCarry_i8_Reg:    case MC6809::SubSetCarry_i16_Reg:    case MC6809::SubSetCarry_i32_Reg:
     case MC6809::AddSetCarry_i8_Imm:    case MC6809::AddSetCarry_i16_Imm:    case MC6809::AddSetCarry_i32_Imm:
-    case MC6809::AddSetCarry_i8_Mem:    case MC6809::AddSetCarry_i16_Mem:    case MC6809::AddSetCarry_i32_Mem:
-    case MC6809::AddSetCarry_i8_Pull:   case MC6809::AddSetCarry_i16_Pull:
-    case MC6809::AddSetCarry_i8_Reg:    case MC6809::AddSetCarry_i16_Reg:    case MC6809::AddSetCarry_i32_Reg:
+    case MC6809::AddSetCarry_i8_Mem:    case MC6809::AddSetCarry_i16_Mem:    case MC6809::AddSetCarry_i32_Mem:    case MC6809::AddSetCarry_i8_Reg:    case MC6809::AddSetCarry_i16_Reg:    case MC6809::AddSetCarry_i32_Reg:
     case MC6809::SubSetCarryUse_i8_Imm: case MC6809::SubSetCarryUse_i16_Imm: case MC6809::SubSetCarryUse_i32_Imm:
     case MC6809::SubSetCarryUse_i8_Mem: case MC6809::SubSetCarryUse_i16_Mem: case MC6809::SubSetCarryUse_i32_Mem:
     case MC6809::SubSetCarryUse_i8_Reg: case MC6809::SubSetCarryUse_i16_Reg: case MC6809::SubSetCarryUse_i32_Reg:
@@ -303,13 +299,9 @@ getPhantomCarryFlag(Register SrcReg, const MachineRegisterInfo &MRI,
     case TargetOpcode::G_SSUBE:
     case TargetOpcode::G_SADDE:
     case MC6809::SubSetOverflow_i8_Imm:     case MC6809::SubSetOverflow_i16_Imm:     case MC6809::SubSetOverflow_i32_Imm:
-    case MC6809::SubSetOverflow_i8_Mem:     case MC6809::SubSetOverflow_i16_Mem:     case MC6809::SubSetOverflow_i32_Mem:
-    case MC6809::SubSetOverflow_i8_Pull:    case MC6809::SubSetOverflow_i16_Pull:
-    case MC6809::SubSetOverflow_i8_Reg:     case MC6809::SubSetOverflow_i16_Reg:     case MC6809::SubSetOverflow_i32_Reg:
+    case MC6809::SubSetOverflow_i8_Mem:     case MC6809::SubSetOverflow_i16_Mem:     case MC6809::SubSetOverflow_i32_Mem:    case MC6809::SubSetOverflow_i8_Reg:     case MC6809::SubSetOverflow_i16_Reg:     case MC6809::SubSetOverflow_i32_Reg:
     case MC6809::AddSetOverflow_i8_Imm:     case MC6809::AddSetOverflow_i16_Imm:     case MC6809::AddSetOverflow_i32_Imm:
-    case MC6809::AddSetOverflow_i8_Mem:     case MC6809::AddSetOverflow_i16_Mem:     case MC6809::AddSetOverflow_i32_Mem:
-    case MC6809::AddSetOverflow_i8_Pull:    case MC6809::AddSetOverflow_i16_Pull:
-    case MC6809::AddSetOverflow_i8_Reg:     case MC6809::AddSetOverflow_i16_Reg:     case MC6809::AddSetOverflow_i32_Reg:
+    case MC6809::AddSetOverflow_i8_Mem:     case MC6809::AddSetOverflow_i16_Mem:     case MC6809::AddSetOverflow_i32_Mem:    case MC6809::AddSetOverflow_i8_Reg:     case MC6809::AddSetOverflow_i16_Reg:     case MC6809::AddSetOverflow_i32_Reg:
     case MC6809::SubSetOverflowUse_i8_Imm:  case MC6809::SubSetOverflowUse_i16_Imm:  case MC6809::SubSetOverflowUse_i32_Imm:
     case MC6809::SubSetOverflowUse_i8_Mem:  case MC6809::SubSetOverflowUse_i16_Mem:  case MC6809::SubSetOverflowUse_i32_Mem:
     case MC6809::SubSetOverflowUse_i8_Reg:  case MC6809::SubSetOverflowUse_i16_Reg:  case MC6809::SubSetOverflowUse_i32_Reg:

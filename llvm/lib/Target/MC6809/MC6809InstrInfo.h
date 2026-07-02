@@ -209,13 +209,8 @@ private:
   void expandMulH16Reg(MachineIRBuilder &Builder, MachineInstr &MI) const;
 
   void expandANDReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandANDPull(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandORReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandORPull(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandXORReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandXORPull(MachineIRBuilder &Builder, MachineInstr &MI) const;
-
-  void expandAddPull(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandAddReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandAddSetCarryReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandAddSetCarryByteReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
@@ -228,7 +223,6 @@ private:
   void expandSubSetCarryByteReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandSubSetCarryUseReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandSubSetCarryUseByteReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandSubPull(MachineIRBuilder &Builder, MachineInstr &MI) const;
 
   // Bug #297: native HD6309 i32 ADD/SUB via page-2 ADDW+ADCD / SUBW+SBCD.
   // Three operand shapes — _Mem (commit 2/6), _Imm and _Reg (commit
@@ -258,7 +252,6 @@ private:
   void expandCompareImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandCompareIdx(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandCompareReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandComparePull(MachineIRBuilder &Builder, MachineInstr &MI) const;
   // void expandCompare32Imm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   // void expandCompare32IdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   // void expandCompare32IdxReg(MachineIRBuilder &Builder, MachineInstr &MI) const;

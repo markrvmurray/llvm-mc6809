@@ -332,8 +332,6 @@ static MachineBasicBlock *emitConditionalImm(MachineInstr &MI, MachineBasicBlock
     case MC6809::Compare_i16_Reg:  FusedOpc = MC6809::CompareBranch_i16_Reg; break;
     case MC6809::Compare_i8_Mem:   FusedOpc = MC6809::CompareBranch_i8_Mem;  break;
     case MC6809::Compare_i16_Mem:  FusedOpc = MC6809::CompareBranch_i16_Mem; break;
-    case MC6809::Compare_i8_Pull:  FusedOpc = MC6809::CompareBranch_i8_Pull; break;
-    case MC6809::Compare_i16_Pull: FusedOpc = MC6809::CompareBranch_i16_Pull;break;
     case MC6809::Test_i8_Reg:      FusedOpc = MC6809::TestBranch_i8_Reg;     break;
     case MC6809::Test_i16_Reg:     FusedOpc = MC6809::TestBranch_i16_Reg;    break;
     case MC6809::Test_i8_Mem:      FusedOpc = MC6809::TestBranch_i8_Mem;     break;

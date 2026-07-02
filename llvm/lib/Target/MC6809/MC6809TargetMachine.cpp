@@ -293,8 +293,8 @@ void MC6809PassConfig::addPreGlobalInstructionSelect() {
 
 bool MC6809PassConfig::addGlobalInstructionSelect() {
   addPass(new InstructionSelect());
-  // Post-ISel cleanup (STACK16 vreg → $ss). Must run before RA at all opt
-  // levels — see MC6809InsertCopies.cpp.
+  // Post-ISel cleanup (physreg pinning for the i32 test pseudos). Must run
+  // before RA at all opt levels — see MC6809InsertCopies.cpp.
   addPass(createMC6809InsertCopiesPass());
   // Bug #156: drop dangling DBG_VALUE register operands (vregs with no
   // producer, e.g. clang's widened-i32 debug refs for i16 rsize_t locals).

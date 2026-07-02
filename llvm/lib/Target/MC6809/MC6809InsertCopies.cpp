@@ -8,15 +8,6 @@
 //
 // This file defines a post-instruction-selection cleanup pass.
 //
-// STACK16 vreg → physical $ss replacement (was bug #55):
-//   The TableGen-generated selector emits Push_i8/i16/Ptr instructions with
-//   a STACK16 def operand (modeling the stack pointer side effect). STACK16
-//   contains only $su and $ss, both of which are reserved (SS is the live
-//   stack pointer, SU is the frame pointer — see MC6809RegisterInfo). The
-//   register allocator therefore has no allocatable register for STACK16
-//   vregs. Push/Pull always operate on S anyway, so we replace the vreg
-//   reference with the physical $ss before RA runs.
-//
 //===----------------------------------------------------------------------===//
 
 #include "MC6809InsertCopies.h"
@@ -51,26 +42,8 @@ public:
 
 bool MC6809InsertCopies::runOnMachineFunction(MachineFunction &MF) {
   // Do not gate on skipFunction: at -O0 clang stamps optnone on every
-  // function, which would skip this pass and leave STACK16 vregs intact.
-  // STACK16 has no allocatable register (SU+SS both reserved), so regalloc
-  // aborts with "no registers from class available" on any Push_i16 /
-  // CompareBranch_i16_Pull pair. This rewrite is required for correctness.
-  MachineRegisterInfo &MRI = MF.getRegInfo();
+  // function, which would skip the physreg pinning below.
   bool Changed = false;
-
-  // Replace STACK16 virtual registers with physical $ss. Push/Pull pseudos
-  // always operate on S, and STACK16 has no allocatable register (both $su
-  // and $ss are reserved).
-  for (MachineBasicBlock &MBB : MF)
-    for (MachineInstr &MI : MBB)
-      for (MachineOperand &MO : MI.operands()) {
-        if (!MO.isReg() || !MO.getReg().isVirtual())
-          continue;
-        if (MRI.getRegClassOrNull(MO.getReg()) == &MC6809::STACK16RegClass) {
-          MO.setReg(MC6809::SS);
-          Changed = true;
-        }
-      }
 
   // i32 test pseudos (SignTest_i32 / EqZero_i32 / EqConst_i32) produce their
   // byte result in $ab while clobbering all of $aq (Defs=[NZ,V,C,AQ] — the

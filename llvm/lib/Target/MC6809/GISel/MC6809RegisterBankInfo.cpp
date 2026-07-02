@@ -83,8 +83,6 @@ const RegisterBank &MC6809RegisterBankInfo::getRegBankFromRegClass(const TargetR
              MC6809::Imag16RegClass.hasSubClassEq(&RC) ||
              MC6809::Imag32RegClass.hasSubClassEq(&RC)) {
     return getRegBank(MC6809::ACCUMRegBankID);
-  } else if (MC6809::STACK16RegClass.hasSubClassEq(&RC)) {
-    return getRegBank(MC6809::INDEXRegBankID);
   }
   llvm_unreachable("Unsupported register kind.");
 }

@@ -567,11 +567,6 @@ def INDEX16 : MC6809Reg16Class<(add IX, IY,
                                     SU, SS)>;
 
 // Stack registers for internal push/pull operations.
-// SU is always reserved (frame pointer), so only SS will be allocated.
-// Stack registers for Push/Pull operations.
-// The allocator may assign SU but the expansion always forces SS.
-def STACK16 : MC6809Reg16Class<(add SU, SS)>;
-
 def CCond : MC6809Reg8Class<(add CC)>;
 
 def Imag8 : MC6809Reg8Class<(add (sequence "RC%u", 0, !add(MaxImag8Regs, -1)))>;

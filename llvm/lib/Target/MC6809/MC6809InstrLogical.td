@@ -98,28 +98,11 @@ def BlockCopy_Stay_Inc : MC6809BlockTransfer<(ins REGTFM:$src, REGTFM:$dst), (ou
 // Stack instructions. These will be squashed together later.
 //===---------------------------------------------------------------------===//
 
-class MC6809StackPush<RegisterClass index, RegisterClass reg> : MC6809LogicalInstr {
-  let Defs = [SS];
-  let Uses = [SS];
-  dag OutOperandList = (outs index:$stack);
-  dag InOperandList = (ins reg:$reg);
-  let mayStore = true;
-}
-
-class MC6809StackPull<RegisterClass index, RegisterClass reg> : MC6809LogicalInstr {
-  let Defs = [SS];
-  let Uses = [SS];
-  dag OutOperandList = (outs index:$stack, reg:$reg);
-  dag InOperandList = (ins);
-  let mayLoad = true;
-}
-
-def Push_i8 : MC6809StackPush<STACK16, ACC8>;
-def Pull_i8 : MC6809StackPull<STACK16, ACC8>;
-def Push_i16 : MC6809StackPush<STACK16, ACC16>;
-def Pull_i16 : MC6809StackPull<STACK16, ACC16>;
-def Push_Ptr : MC6809StackPush<STACK16, INDEX16>;
-def Pull_Ptr : MC6809StackPull<STACK16, INDEX16>;
+// The Push_*/Pull_* pseudo pairs and their STACK16 plumbing are gone: the
+// _Reg operand forms cover reg-reg arith and compares on both CPUs with the
+// push/op/pop emitted atomically inside one post-RA expansion, so nothing
+// creates a separated push-to-pull window any more (the shape whose window
+// the register allocator filled with mis-offset S-relative spill code).
 
 //===---------------------------------------------------------------------===//
 // Operandless Accumulator Instructions

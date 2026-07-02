@@ -312,7 +312,6 @@ static bool isFusedCompareBranch(unsigned Opc) {
   case MC6809::CompareBranch_i8_Imm:  case MC6809::CompareBranch_i16_Imm:
   case MC6809::CompareBranch_i8_Reg:  case MC6809::CompareBranch_i16_Reg:
   case MC6809::CompareBranch_i8_Mem:  case MC6809::CompareBranch_i16_Mem:
-  case MC6809::CompareBranch_i8_Pull:  case MC6809::CompareBranch_i16_Pull:
     return true;
   default:
     return false;
@@ -1649,8 +1648,7 @@ MC6809InstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
   Register Dst = MI.getOperand(0).getReg();
   Register Src = MI.getOperand(1).getReg();
   auto IsAtomic16 = [](Register R) {
-    return MC6809::INDEX16RegClass.contains(R) ||
-           MC6809::STACK16RegClass.contains(R);
+    return MC6809::INDEX16RegClass.contains(R);
   };
   if (!IsAtomic16(Dst) || !IsAtomic16(Src))
     return std::nullopt;
@@ -1794,10 +1792,7 @@ MC6809InstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
     if (DestReg != SrcLo)
       Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(SrcLo);
   } else if (AreClasses(MC6809::ACC16RegClass, MC6809::ACC16RegClass) || AreClasses(MC6809::ACC16RegClass, MC6809::INDEX16RegClass) || AreClasses(MC6809::INDEX16RegClass, MC6809::ACC16RegClass) ||
-             AreClasses(MC6809::INDEX16RegClass, MC6809::INDEX16RegClass) ||
-             AreClasses(MC6809::STACK16RegClass, MC6809::STACK16RegClass) ||
-             AreClasses(MC6809::STACK16RegClass, MC6809::INDEX16RegClass) || AreClasses(MC6809::INDEX16RegClass, MC6809::STACK16RegClass) ||
-             AreClasses(MC6809::STACK16RegClass, MC6809::ACC16RegClass) || AreClasses(MC6809::ACC16RegClass, MC6809::STACK16RegClass)) {
+             AreClasses(MC6809::INDEX16RegClass, MC6809::INDEX16RegClass)) {
     Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(SrcReg);
   } else if (AreClasses(MC6809::ACC8RegClass, MC6809::CCFlagRegClass)) {
     // TODO: May need AND #0x0F to mask EFHI bits if callers expect only NZVC.
@@ -1852,9 +1847,8 @@ MC6809InstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
     // Imag16 → Imag16: load to D, store to dest.
     Builder.buildInstr(MC6809::LDDd).addReg(SrcReg);
     Builder.buildInstr(MC6809::STDd).addReg(DestReg);
-  } else if (AreClasses(MC6809::Imag16RegClass, MC6809::INDEX16RegClass) ||
-             AreClasses(MC6809::Imag16RegClass, MC6809::STACK16RegClass)) {
-    // INDEX16/STACK16 → Imag16: store the source register directly to the
+  } else if (AreClasses(MC6809::Imag16RegClass, MC6809::INDEX16RegClass)) {
+    // INDEX16 → Imag16: store the source register directly to the
     // direct-page slot. Each 16-bit hardware register has its own STxd
     // (direct-page) opcode, so we don't need to route through D — that
     // would clobber AA/AB and silently corrupt anything live there
@@ -1871,9 +1865,8 @@ MC6809InstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
       return;
     }
     Builder.buildInstr(Opc).addReg(DestReg).addUse(SrcReg, RegState::Implicit);
-  } else if (AreClasses(MC6809::INDEX16RegClass, MC6809::Imag16RegClass) ||
-             AreClasses(MC6809::STACK16RegClass, MC6809::Imag16RegClass)) {
-    // Imag16 → INDEX16/STACK16: load directly into the destination.
+  } else if (AreClasses(MC6809::INDEX16RegClass, MC6809::Imag16RegClass)) {
+    // Imag16 → INDEX16: load directly into the destination.
     unsigned Opc;
     switch (DestReg) {
     case MC6809::IX: Opc = MC6809::LDXd; break;
@@ -3629,10 +3622,6 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::AND_i16_Reg:
     expandANDReg(Builder, MI);
     break;
-  case MC6809::AND_i8_Pull:
-  case MC6809::AND_i16_Pull:
-    expandANDPull(Builder, MI);
-    break;
   case MC6809::OR_i8_Imm:
     expandImm(ORImm, Builder, MI);
     break;
@@ -3651,10 +3640,6 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::OR_i16_Reg:
     expandORReg(Builder, MI);
     break;
-  case MC6809::OR_i8_Pull:
-  case MC6809::OR_i16_Pull:
-    expandORPull(Builder, MI);
-    break;
   case MC6809::XOR_i8_Imm:
     expandImm(XORImm, Builder, MI);
     break;
@@ -3672,10 +3657,6 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::XOR_i8_Reg:
   case MC6809::XOR_i16_Reg:
     expandXORReg(Builder, MI);
-    break;
-  case MC6809::XOR_i8_Pull:
-  case MC6809::XOR_i16_Pull:
-    expandXORPull(Builder, MI);
     break;
   case MC6809::Add_i8_Imm:
   case MC6809::Add_i16_Imm:
@@ -3834,14 +3815,6 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::SubSetOverflowUse_i16_Reg:   // bug #147
     expandSubSetCarryUseReg(Builder, MI);
     break;
-  case MC6809::Add_i8_Pull:
-  case MC6809::Add_i16_Pull:
-    expandAddPull(Builder, MI);
-    break;
-  case MC6809::Sub_i8_Pull:
-  case MC6809::Sub_i16_Pull:
-    expandSubPull(Builder, MI);
-    break;
   // Bug #297: i32 pseudos that are dormant pre-legalizer-flip (commit 5).
   // Defined in MC6809InstrFamilies.td (commit 1) for completeness so the
   // multiclass instantiations are well-formed, but no MI emits them yet
@@ -3897,17 +3870,6 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::SubSetOverflowUse_i32_Reg:
     expandAddSubCarryUse_i32_Reg(Builder, MI, /*IsAdd=*/false);
     break;
-  // _Pull variants remain unreachable — plain MC6809 has no native
-  // i32 arith.  The _Push_Pull SetIfCondPat arm is gated on IsHD6309.
-  case MC6809::Add_i32_Pull:
-  case MC6809::Sub_i32_Pull:
-  case MC6809::AddSetCarry_i32_Pull:
-  case MC6809::SubSetCarry_i32_Pull:
-  case MC6809::AddSetOverflow_i32_Pull:
-  case MC6809::SubSetOverflow_i32_Pull:
-    llvm_unreachable("Bug #297: i32 _Pull is HD6309-only and the "
-                     "_Push_Pull SetIfCondPat arm is gated; should "
-                     "be unreachable from any selector or pattern");
   case MC6809::Compare_i8_Imm:
   case MC6809::Compare_i16_Imm:
   case MC6809::Compare_ptr_Imm:
@@ -3919,11 +3881,6 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::Compare_i8_MemIndirect:
   case MC6809::Compare_i16_MemIndirect:
     expandCompareIdx(Builder, MI);
-    break;
-  case MC6809::Compare_i8_Pull:
-  case MC6809::Compare_i16_Pull:
-  case MC6809::Compare_ptr_Pull:
-    expandComparePull(Builder, MI);
     break;
   case MC6809::Compare_i8_Reg:
   case MC6809::Compare_i16_Reg:
@@ -3952,8 +3909,6 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::CompareBranch_i16_Mem:
   case MC6809::CompareBranch_i8_MemIndirect:
   case MC6809::CompareBranch_i16_MemIndirect:
-  case MC6809::CompareBranch_i8_Pull:
-  case MC6809::CompareBranch_i16_Pull:
   case MC6809::CompareBranch_ptr_Imm: // Bug #359: index-domain pointer compare.
   case MC6809::CompareBranch_ptr_Reg: // index-domain reg-reg pointer compare.
   case MC6809::CompareBranch_ptr_Mem: // index-domain pointer-vs-memory compare.
@@ -4366,168 +4321,6 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     TFMI.cloneMemRefs(MI);
     MI.eraseFromParent();
     return true;
-  }
-  case MC6809::Push_i8:
-  case MC6809::Push_i16:
-  case MC6809::Push_Ptr: {
-    // Operand 0 = stack register (def), operand 1 = value to push (use).
-    Register PushReg = MI.getOperand(1).getReg();
-    // If pushing a spill or imaginary register, materialize first.
-    // Keep the 16-bit INDEX spill path (loads via IX to avoid D clobber).
-    if (isSpillReg(PushReg) && getSpillRegSize(PushReg) == 2) {
-      MachineFunction &MF = *MI.getMF();
-      MachineIRBuilder PreBuilder(*MI.getParent(), MI.getIterator());
-      emitSpillLoadInto(PreBuilder, MC6809::IX, PushReg, /*ExtraOffset=*/0, MF);
-      MI.getOperand(1).setReg(MC6809::IX);
-    } else if (needsMaterialization(PushReg)) {
-      MachineFunction &MF = *MI.getMF();
-      MachineIRBuilder PreBuilder(*MI.getParent(), MI.getIterator());
-      Register RealReg = materializeReg(PreBuilder, PushReg, MF);
-      MI.getOperand(1).setReg(RealReg);
-    }
-    // Bug #161 round 11: page-1 PSHS doesn't accept AW (HD6309 W) or AQ
-    // (HD6309 Q = D:W). Use PSHSWx for AW; for AQ emit PSHSWx + PSHS D
-    // (W is the low half, D the high half — push high last so the stack
-    // lands as D:W with D at lower addresses, big-endian on the stack
-    // matches the AQ register layout). Mirror image of the Pull_* case
-    // below at lines 2654-2662.
-    // Bug #161 round 15: also handle byte pushes of AE/AF. Page-1 PSHS
-    // doesn't accept E or F. TFR the byte into AA / AB respectively
-    // (whichever has no live LHS in the current carry-chain context),
-    // then PSHS that. The TFR clobbers the page-1 byte register; this
-    // is acceptable for Push_i8 because nothing on the byte side is
-    // live across the push (it's a calling-convention or emit6809 path).
-    {
-      Register PushedReg = MI.getOperand(1).getReg();
-      if (PushedReg == MC6809::AQ) {
-        // Push W first, then D — final stack layout: D at lower (S+0..1),
-        // W at higher (S+2..3) — matches AQ memory layout (D:W = high:low).
-        Builder.buildInstr(MC6809::PSHSWx);
-        MI.setDesc(Builder.getTII().get(MC6809::PSHSs));
-        MI.getOperand(0).setReg(MC6809::SS);
-        MI.getOperand(0).setImplicit();
-        MI.getOperand(1).setReg(MC6809::AD);
-        break;
-      }
-      if (PushedReg == MC6809::AW) {
-        MI.setDesc(Builder.getTII().get(MC6809::PSHSWx));
-        // PSHSWx is page-2 inherent — no operand list. Drop the
-        // explicit AW operand and the implicit-def SS operand.
-        while (MI.getNumOperands() > 0)
-          MI.removeOperand(MI.getNumOperands() - 1);
-        break;
-      }
-      if (PushedReg == MC6809::AE || PushedReg == MC6809::AF) {
-        // HD6309 page-3 STE / STF can store the byte directly to a
-        // stack slot. Emit `LEAS -1,S; STE 0,S` (or STF) — equivalent
-        // to a single-byte PSHS for stack-delta semantics, but without
-        // clobbering AA/AB (which TFR E,A would). Erase the original
-        // Push_i8 since we've replaced its expansion entirely.
-        unsigned StoreOpc = (PushedReg == MC6809::AE) ? MC6809::STEi_o0
-                                                     : MC6809::STFi_o0;
-        // Bug #376: LEASi_o5's only explicit operands are (offset, base-use);
-        // its SS def is implicit (descriptor Defs). The stray explicit
-        // RegState::Define of SS made `leas -1,s` carry an extra def-marked
-        // operand that -verify-machineinstrs rejects (the even-offset paths use
-        // the plain `addImm(N).addReg(SS)` form below). Drop it.
-        Builder.buildInstr(MC6809::LEASi_o5)
-            .addImm(-1).addReg(MC6809::SS);
-        Builder.buildInstr(StoreOpc)
-            .addUse(PushedReg, RegState::Implicit)
-            .addReg(MC6809::SS);
-        MI.eraseFromParent();
-        return true;
-      }
-    }
-    // Sibling of bug #161: the original general-case lowering did
-    //     setDesc(PSHSs); operand[0]=SS; setImplicit(); break;
-    // which converted the existing operand-0 stack-def into an
-    // implicit-def-of-SS, leaving the value-source register at
-    // operand[1]. PSHSs's MCInstrDesc has no defs and one explicit
-    // input (`reglist:$regs`) at position 0 — `encodeRegListOpValue`
-    // iterates from position 0 OR-ing a postbyte bit per register
-    // operand. Implicit operands are not counted as the explicit
-    // reg-list, so the encoder saw no operands and produced
-    // postbyte 0x00 — `pshs (empty)`, a 4-cycle no-op. MULD ,S++
-    // then read whatever stale 16 bits sat at the top of the
-    // stack — the i16-multiply miscompile surfaced by
-    // test-mc6809-mul-corners.
-    //
-    // Fix: remove the operand-0 stack-def entirely. The
-    // value-source register (originally at operand[1]) shifts down
-    // to position 0, where PSHSs expects its `reglist:$regs`. SS
-    // preservation is declared via PSHSs's td-side
-    // `Defs = [SS]` / `Uses = [SS]`; no explicit SS operand needed.
-    MI.setDesc(Builder.getTII().get(MC6809::PSHSs));
-    MI.removeOperand(0);
-    break;
-  }
-  case MC6809::Pull_i8:
-  case MC6809::Pull_i16:
-  case MC6809::Pull_Ptr: {
-    auto PullReg = MI.getOperand(1).getReg();
-    // If pulling into a spill or imaginary register, pull into real reg then store.
-    bool PullToNonPhys = needsMaterialization(PullReg);
-    Register OrigPullReg = PullReg;
-    if (PullToNonPhys) {
-      PullReg = getPhysRegFor(PullReg);
-      MI.getOperand(0).setReg(PullReg);
-    }
-    if (PullReg == MC6809::AQ) {
-      MI.setDesc(Builder.getTII().get(MC6809::PULSWx));
-      MI.removeOperand(0);
-      Builder.buildInstr(MC6809::PULSs).addImm(0x06); // PULS D
-      break;
-    } else if (PullReg == MC6809::AW) {
-      MI.setDesc(Builder.getTII().get(MC6809::PULSWx));
-      MI.removeOperand(0);
-      break;
-    }
-    MI.setDesc(Builder.getTII().get(MC6809::PULSs));
-    unsigned short regList = 0;
-    switch (PullReg) {
-    default:
-      llvm_unreachable("Register not recognised for Pull instruction!");
-    case MC6809::CC:
-      regList |= 1;
-      break;
-    case MC6809::AA:
-      regList |= 2;
-      break;
-    case MC6809::AB:
-      regList |= 4;
-      break;
-    case MC6809::AD:
-      regList |= 6;
-      break;
-    case MC6809::DP:
-      regList |= 8;
-      break;
-    case MC6809::IX:
-      regList |= 16;
-      break;
-    case MC6809::IY:
-      regList |= 32;
-      break;
-    case MC6809::SU:
-    case MC6809::SS:
-      regList |= 64;
-      break;
-    case MC6809::PC:
-      regList |= 128;
-      break;
-    }
-    MI.removeOperand(0);
-    MI.addOperand(MachineOperand::CreateImm(regList));
-    // If the pull target was a spill or imaginary register, store back.
-    if (PullToNonPhys) {
-      MachineFunction &MF = *MI.getMF();
-      MachineBasicBlock::iterator InsertPt = MI.getIterator();
-      ++InsertPt;
-      MachineIRBuilder PostBuilder(*MI.getParent(), InsertPt);
-      dematerializeReg(PostBuilder, PullReg, OrigPullReg, MF);
-    }
-    break;
   }
   }
   return Changed;
@@ -7285,96 +7078,8 @@ void MC6809InstrInfo::expandANDReg(MachineIRBuilder &Builder, MachineInstr &MI) 
   MI.eraseFromParent();
 }
 
-void MC6809InstrInfo::expandANDPull(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  auto DestReg = MI.getOperand(0).getReg();
-  auto SrcReg = MI.getOperand(1).getReg();
-  auto &MF = *MI.getMF();
-  // Always use SS — Push expands to PSHS (S stack), U is reserved.
-  if (!MF.getSubtarget<MC6809Subtarget>().has6309()) {
-    Register OrigDest = DestReg;
-    if (needsMaterialization(DestReg))
-      DestReg = materializeReg(Builder, DestReg, MF);
-    if (MI.getOpcode() == MC6809::AND_i8_Pull) {
-      // _i8_Pull: Push_i8 put 1 byte on S stack at offset 0.
-      unsigned Opc = (DestReg == MC6809::AA) ? MC6809::ANDAi_o0 : MC6809::ANDBi_o0;
-      Builder.buildInstr(Opc).addDef(DestReg, RegState::Implicit).addReg(MC6809::SS);
-      Builder.buildInstr(MC6809::LEASi_o5).addImm(1).addReg(MC6809::SS);
-    } else {
-      // _i16_Pull: Push_i16 put 2 bytes on S stack. Big-endian: S+0=hi, S+1=lo.
-      Builder.buildInstr(MC6809::ANDBi_o5).addDef(MC6809::AB, RegState::Implicit).addImm(1).addReg(MC6809::SS);
-      Builder.buildInstr(MC6809::ANDAi_o0).addDef(MC6809::AA, RegState::Implicit).addReg(MC6809::SS);
-      Builder.buildInstr(MC6809::LEASi_o5).addImm(2).addReg(MC6809::SS);
-    }
-    dematerializeReg(Builder, DestReg, OrigDest, MF);
-  } else {
-    auto OpcodePair = ANDPullOpcode.find(DestReg);
-    Builder.buildInstr(OpcodePair->getSecond())
-        .addDef(DestReg, RegState::Implicit)
-        .addUse(SrcReg, RegState::Implicit)
-        .addUse(MC6809::SS);
-  }
-  MI.eraseFromParent();
-}
 
-void MC6809InstrInfo::expandORPull(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  auto DestReg = MI.getOperand(0).getReg();
-  auto SrcReg = MI.getOperand(1).getReg();
-  auto &MF = *MI.getMF();
-  if (!MF.getSubtarget<MC6809Subtarget>().has6309()) {
-    Register OrigDest = DestReg;
-    if (needsMaterialization(DestReg))
-      DestReg = materializeReg(Builder, DestReg, MF);
-    if (MI.getOpcode() == MC6809::OR_i8_Pull) {
-      // _i8_Pull: Push_i8 put 1 byte on S stack at offset 0.
-      unsigned Opc = (DestReg == MC6809::AA) ? MC6809::ORAi_o0 : MC6809::ORBi_o0;
-      Builder.buildInstr(Opc).addDef(DestReg, RegState::Implicit).addReg(MC6809::SS);
-      Builder.buildInstr(MC6809::LEASi_o5).addImm(1).addReg(MC6809::SS);
-    } else {
-      // _i16_Pull: Push_i16 put 2 bytes on S stack. Big-endian: S+0=hi, S+1=lo.
-      Builder.buildInstr(MC6809::ORBi_o5).addDef(MC6809::AB, RegState::Implicit).addImm(1).addReg(MC6809::SS);
-      Builder.buildInstr(MC6809::ORAi_o0).addDef(MC6809::AA, RegState::Implicit).addReg(MC6809::SS);
-      Builder.buildInstr(MC6809::LEASi_o5).addImm(2).addReg(MC6809::SS);
-    }
-    dematerializeReg(Builder, DestReg, OrigDest, MF);
-  } else {
-    auto OpcodePair = ORPullOpcode.find(DestReg);
-    Builder.buildInstr(OpcodePair->getSecond())
-        .addDef(DestReg, RegState::Implicit)
-        .addUse(SrcReg, RegState::Implicit)
-        .addUse(MC6809::SS);
-  }
-  MI.eraseFromParent();
-}
 
-void MC6809InstrInfo::expandXORPull(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  auto DestReg = MI.getOperand(0).getReg();
-  auto SrcReg = MI.getOperand(1).getReg();
-  auto &MF = *MI.getMF();
-  if (!MF.getSubtarget<MC6809Subtarget>().has6309()) {
-    Register OrigDest = DestReg;
-    if (needsMaterialization(DestReg))
-      DestReg = materializeReg(Builder, DestReg, MF);
-    if (MI.getOpcode() == MC6809::XOR_i8_Pull) {
-      // _i8_Pull: Push_i8 put 1 byte on S stack at offset 0.
-      unsigned Opc = (DestReg == MC6809::AA) ? MC6809::EORAi_o0 : MC6809::EORBi_o0;
-      Builder.buildInstr(Opc).addDef(DestReg, RegState::Implicit).addReg(MC6809::SS);
-      Builder.buildInstr(MC6809::LEASi_o5).addImm(1).addReg(MC6809::SS);
-    } else {
-      // _i16_Pull: Push_i16 put 2 bytes on S stack. Big-endian: S+0=hi, S+1=lo.
-      Builder.buildInstr(MC6809::EORBi_o5).addDef(MC6809::AB, RegState::Implicit).addImm(1).addReg(MC6809::SS);
-      Builder.buildInstr(MC6809::EORAi_o0).addDef(MC6809::AA, RegState::Implicit).addReg(MC6809::SS);
-      Builder.buildInstr(MC6809::LEASi_o5).addImm(2).addReg(MC6809::SS);
-    }
-    dematerializeReg(Builder, DestReg, OrigDest, MF);
-  } else {
-    auto OpcodePair = XORPullOpcode.find(DestReg);
-    Builder.buildInstr(OpcodePair->getSecond())
-        .addDef(DestReg, RegState::Implicit)
-        .addUse(SrcReg, RegState::Implicit)
-        .addUse(MC6809::SS);
-  }
-  MI.eraseFromParent();
-}
 
 void MC6809InstrInfo::expandORReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
   assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg() && "Dest and Source 1 must be same for ORReg");
@@ -8059,39 +7764,7 @@ void MC6809InstrInfo::expandSubSetCarryUseReg(MachineIRBuilder &Builder, Machine
   MI.eraseFromParent();
 }
 
-void MC6809InstrInfo::expandAddPull(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  auto DestReg = MI.getOperand(0).getReg();
-  auto SrcReg = MI.getOperand(1).getReg();
-  Register OrigDest = DestReg;
-  MachineFunction &MF = *MI.getMF();
-  DestReg = materializeReg(Builder, DestReg, MF);
 
-  auto OpcodePair = AddPullOpcode.find(DestReg);
-  Builder.buildInstr(OpcodePair->getSecond())
-      .addDef(DestReg, RegState::Implicit)
-      .addUse(SrcReg, RegState::Implicit)
-      .addUse(MC6809::SS);
-
-  dematerializeReg(Builder, DestReg, OrigDest, MF);
-  MI.eraseFromParent();
-}
-
-void MC6809InstrInfo::expandSubPull(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  auto DestReg = MI.getOperand(0).getReg();
-  auto SrcReg = MI.getOperand(1).getReg();
-  Register OrigDest = DestReg;
-  MachineFunction &MF = *MI.getMF();
-  DestReg = materializeReg(Builder, DestReg, MF);
-
-  auto OpcodePair = SubPullOpcode.find(DestReg);
-  Builder.buildInstr(OpcodePair->getSecond())
-      .addDef(DestReg, RegState::Implicit)
-      .addUse(SrcReg, RegState::Implicit)
-      .addUse(MC6809::SS);
-
-  dematerializeReg(Builder, DestReg, OrigDest, MF);
-  MI.eraseFromParent();
-}
 
 void MC6809InstrInfo::expandCompareImm(MachineIRBuilder &Builder, MachineInstr &MI) const {
   // Operand 0 is the CC register
@@ -8558,35 +8231,6 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
 
 
 
-void MC6809InstrInfo::expandComparePull(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  // Compare_*_Pull: compare register with value pushed on S stack.
-  // Push_i16 (or Push_i8) has pushed the second operand.  We compare
-  // the first operand (in an accumulator) with [S], then advance $ss
-  // past the pushed byte/word via the auto-increment indexed form so
-  // a separate LEAS cleanup is not needed.
-  //   byte (Size==1) :  CMP{A,B,E,F} ,s+      (1 instruction, 2 bytes)
-  //   word (Size==2) :  CMP{D,W,X,Y} ,s++
-  // Operand 0 = CC (def), 1 = condition code, 2 = src register, 3 = stack reg
-  assert(MI.getOperand(2).isReg() && "The source of pull compares must be a register");
-
-  auto SrcReg = MI.getOperand(2).getReg();
-  MachineFunction &MF = *MI.getMF();
-  SrcReg = materializeReg(Builder, SrcReg, MF);
-  unsigned IncOpc = 0;
-  switch (SrcReg) {
-  case MC6809::AA: IncOpc = MC6809::CMPAi_Inc1; break;
-  case MC6809::AB: IncOpc = MC6809::CMPBi_Inc1; break;
-  case MC6809::AE: IncOpc = MC6809::CMPEi_Inc1; break;
-  case MC6809::AF: IncOpc = MC6809::CMPFi_Inc1; break;
-  case MC6809::AD: IncOpc = MC6809::CMPDi_Inc2; break;
-  case MC6809::AW: IncOpc = MC6809::CMPWi_Inc2; break;
-  case MC6809::IX: IncOpc = MC6809::CMPXi_Inc2; break;
-  case MC6809::IY: IncOpc = MC6809::CMPYi_Inc2; break;
-  default: llvm_unreachable("Unexpected register in Compare_Pull expansion.");
-  }
-  Builder.buildInstr(IncOpc).addReg(MC6809::SS);
-  MI.eraseFromParent();
-}
 
 void MC6809InstrInfo::expandTestReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
   assert(MI.getOperand(0).isReg() && MI.getOperand(0).getReg() == MC6809::CC && "The target of tests must be the CC register");
@@ -8812,7 +8456,6 @@ void MC6809InstrInfo::expandFusedCompareBranch(MachineIRBuilder &Builder, Machin
   //   CompareBranch_*_Imm:  (cc, src, imm, tgt)
   //   CompareBranch_*_Reg:  (cc, src, src2, tgt)
   //   CompareBranch_*_Mem:  (cc, src, idx, offset, tgt)
-  //   CompareBranch_*_Pull: (cc, src, stack, tgt)
   //
   // The last EXPLICIT operand is always the branch target MBB. (Use the
   // explicit-operand count so that implicit defs like TestBranch_i16_Mem's
@@ -8838,8 +8481,6 @@ void MC6809InstrInfo::expandFusedCompareBranch(MachineIRBuilder &Builder, Machin
   case MC6809::CompareBranch_i16_Mem: CmpOpc = MC6809::Compare_i16_Mem; break;
   case MC6809::CompareBranch_i8_MemIndirect:  CmpOpc = MC6809::Compare_i8_MemIndirect; break;
   case MC6809::CompareBranch_i16_MemIndirect: CmpOpc = MC6809::Compare_i16_MemIndirect; break;
-  case MC6809::CompareBranch_i8_Pull:  CmpOpc = MC6809::Compare_i8_Pull; break;
-  case MC6809::CompareBranch_i16_Pull: CmpOpc = MC6809::Compare_i16_Pull; break;
   case MC6809::CompareBranch_ptr_Imm:  CmpOpc = MC6809::Compare_ptr_Imm; break; // Bug #359
   case MC6809::CompareBranch_ptr_Reg:  CmpOpc = MC6809::Compare_ptr_Reg; break;
   case MC6809::CompareBranch_ptr_Mem:  CmpOpc = MC6809::Compare_ptr_Mem; break;
