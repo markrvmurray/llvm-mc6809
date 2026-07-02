@@ -282,6 +282,57 @@ bool MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int
 
   // Fold imm into offset
   Offset += MI.getOperand(FIOperandNum + 1).getImm();
+
+  // A Push_* pseudo displaces S until its consuming *_Pull pseudo pops the
+  // value; both are still unexpanded here in PEI, and the pair never spans a
+  // call or a block boundary (the selector and the _Push_Pull patterns emit
+  // them adjacently -- only spiller-inserted code lands in between). An
+  // S-relative access placed inside that window must address relative to the
+  // DISPLACED S, so scan the block prefix for the outstanding pushed bytes.
+  // (PEI's own SPAdj tracking only covers call sequences, hence the local
+  // scan. Frame-pointer functions address via U and are unaffected.)
+  if (BasePtr == MC6809::SS) {
+    int PushedBytes = 0;
+    for (MachineBasicBlock::iterator I = MBB.begin(); I != II; ++I) {
+      unsigned Opc = I->getOpcode();
+      if (Opc == MC6809::Push_i8) {
+        PushedBytes += 1;
+        continue;
+      }
+      if (Opc == MC6809::Push_i16 || Opc == MC6809::Push_Ptr) {
+        PushedBytes += 2;
+        continue;
+      }
+      if (I->isCall()) {
+        // Argument pushes are consumed by the call + its cleanup.
+        PushedBytes = 0;
+        continue;
+      }
+      // A *_Pull consumer is any pseudo with a STACK16-classed operand in
+      // its descriptor; it pops its data width -- 1 byte for the i8 family,
+      // 2 otherwise (told apart by whether any other descriptor operand is
+      // a 16-bit register class).
+      const MCInstrDesc &D = I->getDesc();
+      for (unsigned OpI = 0, E = D.getNumOperands(); OpI != E; ++OpI) {
+        if (D.operands()[OpI].RegClass != MC6809::STACK16RegClassID)
+          continue;
+        int Width = 1;
+        for (unsigned OpJ = 0; OpJ != E; ++OpJ) {
+          int16_t RC = D.operands()[OpJ].RegClass;
+          if (OpJ == OpI || RC < 0 || RC == MC6809::STACK16RegClassID)
+            continue;
+          if (getRegSizeInBits(*getRegClass(RC)) == 16) {
+            Width = 2;
+            break;
+          }
+        }
+        PushedBytes -= Width;
+        break;
+      }
+    }
+    Offset += PushedBytes;
+  }
+
   MI.getOperand(FIOperandNum).ChangeToRegister(BasePtr, false);
   MI.getOperand(FIOperandNum + 1).ChangeToImmediate(Offset);
 
