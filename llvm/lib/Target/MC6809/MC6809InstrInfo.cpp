@@ -2120,6 +2120,76 @@ void MC6809InstrInfo::loadStoreRegStackSlot(MachineBasicBlock &MBB, MachineBasic
   });
 }
 
+// The _Mem sibling of a two-source _Reg pseudo, for folding a spilled
+// second-source reload directly into the operation's memory operand
+// (`addb <slot>,u` instead of reload + register op). FoldIdx is the explicit
+// operand index of the non-tied second source — the only operand that can
+// become a memory operand (the tied dst/src accumulator cannot).
+//
+// This fold is what lets the stock inline spiller handle the single-register
+// accumulator classes (ABc = {AB}, AAc = {AA}): a byte _Reg op has TWO
+// simultaneously-live uses in a one-register class, which is unallocatable
+// unless one of them can be read from its spill slot in place. The byte
+// _Reg forms are HD6309-only (base 6809 selects the Push/Pull shape), so
+// this is the HD6309 escape hatch the SPILL_* pseudo-registers used to
+// provide via MaterializeSpills' second-spill-skip path.
+struct MC6809MemFoldInfo {
+  unsigned MemOpc;
+  unsigned FoldIdx;
+};
+static std::optional<MC6809MemFoldInfo> memFoldSibling(unsigned Opc) {
+  switch (Opc) {
+  // Byte arithmetic (tied dst/src at 0/1, second source at 2).
+  case MC6809::Add_i8_Reg:
+  case MC6809::Add_i8_RegA:
+    return MC6809MemFoldInfo{MC6809::Add_i8_Mem, 2};
+  case MC6809::Sub_i8_Reg:
+  case MC6809::Sub_i8_RegA:
+    return MC6809MemFoldInfo{MC6809::Sub_i8_Mem, 2};
+  case MC6809::AddSetCarry_i8_Reg:
+  case MC6809::AddSetCarry_i8_RegA:
+    return MC6809MemFoldInfo{MC6809::AddSetCarry_i8_Mem, 2};
+  case MC6809::SubSetCarry_i8_Reg:
+  case MC6809::SubSetCarry_i8_RegA:
+    return MC6809MemFoldInfo{MC6809::SubSetCarry_i8_Mem, 2};
+  case MC6809::AddSetOverflow_i8_Reg:
+  case MC6809::AddSetOverflow_i8_RegA:
+    return MC6809MemFoldInfo{MC6809::AddSetOverflow_i8_Mem, 2};
+  case MC6809::SubSetOverflow_i8_Reg:
+  case MC6809::SubSetOverflow_i8_RegA:
+    return MC6809MemFoldInfo{MC6809::SubSetOverflow_i8_Mem, 2};
+  case MC6809::AddSetCarryUse_i8_Reg:
+  case MC6809::AddSetCarryUse_i8_RegA:
+    return MC6809MemFoldInfo{MC6809::AddSetCarryUse_i8_Mem, 2};
+  case MC6809::SubSetCarryUse_i8_Reg:
+  case MC6809::SubSetCarryUse_i8_RegA:
+    return MC6809MemFoldInfo{MC6809::SubSetCarryUse_i8_Mem, 2};
+  case MC6809::AddSetOverflowUse_i8_Reg:
+  case MC6809::AddSetOverflowUse_i8_RegA:
+    return MC6809MemFoldInfo{MC6809::AddSetOverflowUse_i8_Mem, 2};
+  case MC6809::SubSetOverflowUse_i8_Reg:
+  case MC6809::SubSetOverflowUse_i8_RegA:
+    return MC6809MemFoldInfo{MC6809::SubSetOverflowUse_i8_Mem, 2};
+  // Byte bitwise (same shape; ACC8-classed, so this is a code-quality fold,
+  // not an allocability requirement).
+  case MC6809::AND_i8_Reg:
+    return MC6809MemFoldInfo{MC6809::AND_i8_Mem, 2};
+  case MC6809::OR_i8_Reg:
+    return MC6809MemFoldInfo{MC6809::OR_i8_Mem, 2};
+  case MC6809::XOR_i8_Reg:
+    return MC6809MemFoldInfo{MC6809::XOR_i8_Mem, 2};
+  // Byte compares. Compare: (outs CCond)(ins cc, src, src2) — src2 at 3.
+  // CompareBranch: (outs)(ins cc, src, src2, label) — src2 at 2, and the
+  // label operand is copied after the folded memory pair.
+  case MC6809::Compare_i8_Reg:
+    return MC6809MemFoldInfo{MC6809::Compare_i8_Mem, 3};
+  case MC6809::CompareBranch_i8_Reg:
+    return MC6809MemFoldInfo{MC6809::CompareBranch_i8_Mem, 2};
+  default:
+    return std::nullopt;
+  }
+}
+
 MachineInstr *MC6809InstrInfo::foldMemoryOperandImpl(
     MachineFunction &MF, MachineInstr &MI, ArrayRef<unsigned> Ops,
     MachineBasicBlock::iterator InsertPt, int FrameIndex,
@@ -2142,27 +2212,84 @@ MachineInstr *MC6809InstrInfo::foldMemoryOperandImpl(
   // the spill-to-frame path. DP-backed SPILL_D / RS paths are unaffected
   // and remain handled by post-RA materialisation.
   unsigned Opc = MI.getOpcode();
-  if (Opc != MC6809::EXTRACT_LO_i16 && Opc != MC6809::EXTRACT_HI_i16)
+  if (Opc == MC6809::EXTRACT_LO_i16 || Opc == MC6809::EXTRACT_HI_i16) {
+    // Only fold the source operand (index 1). Folding a spilled def would
+    // need a separate extract-into-scratch-then-store, which is not a
+    // single memory-operand fold; let the spiller handle that path.
+    if (Ops.size() != 1 || Ops[0] != 1)
+      return nullptr;
+
+    // MC6809 is big-endian within the D pair: AA is the high byte (offset 0)
+    // and AB is the low byte (offset +1) of a 2-byte frame slot.
+    int ByteOffset = (Opc == MC6809::EXTRACT_LO_i16) ? 1 : 0;
+
+    MachineBasicBlock &MBB = *MI.getParent();
+    const MachineOperand &Dst = MI.getOperand(0);
+    MachineInstr *NewMI = BuildMI(MBB, InsertPt, MI.getDebugLoc(),
+                                  get(MC6809::Load_i8_Mem))
+                              .add(Dst)
+                              .addFrameIndex(FrameIndex, ByteOffset)
+                              .addImm(0);
+    return NewMI;
+  }
+
+  // Fold a spilled second source of a two-source _Reg pseudo into its _Mem
+  // sibling (see memFoldSibling above). The rebuilt instruction reads that
+  // operand from the frame slot in place; eliminateFrameIndex later supplies
+  // the U/S base + offset (or leaves the slot dynamic in a static-stack
+  // function — the conservative whole-frame marking skips slots reached by
+  // pseudos without a _Sym lowering, so this fold needs no static-stack
+  // special case).
+  auto Fold = memFoldSibling(Opc);
+  if (!Fold)
+    return nullptr;
+  if (Ops.size() != 1 || Ops[0] != Fold->FoldIdx)
     return nullptr;
 
-  // Only fold the source operand (index 1). Folding a spilled def would
-  // need a separate extract-into-scratch-then-store, which is not a
-  // single memory-operand fold; let the spiller handle that path.
-  if (Ops.size() != 1 || Ops[0] != 1)
-    return nullptr;
+  const MCInstrDesc &MemDesc = get(Fold->MemOpc);
+  MachineRegisterInfo &MRI = MF.getRegInfo();
+  unsigned NumExplicit = MI.getNumExplicitOperands();
 
-  // MC6809 is big-endian within the D pair: AA is the high byte (offset 0)
-  // and AB is the low byte (offset +1) of a 2-byte frame slot.
-  int ByteOffset = (Opc == MC6809::EXTRACT_LO_i16) ? 1 : 0;
+  // The kept register operands must satisfy the _Mem desc's operand classes
+  // (e.g. the bitwise _Reg accumulator is ACC8 but the _Mem form is
+  // ACC8_AB_SP — no E/F indexed encoding). Constrain each; if any vreg
+  // cannot be constrained, the fold is not possible.
+  unsigned NewOpIdx = 0;
+  for (unsigned I = 0; I < NumExplicit; ++I) {
+    if (I == Fold->FoldIdx) {
+      NewOpIdx += 2; // frame index + offset immediate
+      continue;
+    }
+    const MachineOperand &MO = MI.getOperand(I);
+    if (MO.isReg() && MO.getReg().isVirtual() &&
+        NewOpIdx < MemDesc.getNumOperands()) {
+      const TargetRegisterClass *RC = getRegClass(MemDesc, NewOpIdx);
+      if (RC && !MRI.constrainRegClass(MO.getReg(), RC))
+        return nullptr;
+    }
+    ++NewOpIdx;
+  }
 
   MachineBasicBlock &MBB = *MI.getParent();
-  const MachineOperand &Dst = MI.getOperand(0);
-  MachineInstr *NewMI = BuildMI(MBB, InsertPt, MI.getDebugLoc(),
-                                get(MC6809::Load_i8_Mem))
-                            .add(Dst)
-                            .addFrameIndex(FrameIndex, ByteOffset)
-                            .addImm(0);
-  return NewMI;
+  MachineInstrBuilder MIB =
+      BuildMI(MBB, InsertPt, MI.getDebugLoc(), MemDesc);
+  for (unsigned I = 0; I < NumExplicit; ++I) {
+    if (I == Fold->FoldIdx) {
+      MIB.addFrameIndex(FrameIndex, 0);
+      MIB.addImm(0);
+      continue;
+    }
+    MIB.add(MI.getOperand(I));
+  }
+  // Carry over selector-appended virtual implicit operands (the phantom
+  // carry-out def on the SetCarry/SetOverflow family). Physical implicit
+  // operands (NZ/V/C defs) are re-added from the _Mem desc by BuildMI.
+  for (unsigned I = NumExplicit, E = MI.getNumOperands(); I != E; ++I) {
+    const MachineOperand &MO = MI.getOperand(I);
+    if (MO.isReg() && MO.getReg().isVirtual())
+      MIB.add(MO);
+  }
+  return MIB;
 }
 
 bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
