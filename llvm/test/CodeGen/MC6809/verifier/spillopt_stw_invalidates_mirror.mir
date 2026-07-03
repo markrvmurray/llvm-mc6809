@@ -1,0 +1,53 @@
+# RUN: llc -mtriple=mc6809 -mcpu=hd6309 -run-pass=mc6809-spill-opt \
+# RUN:   -verify-machineinstrs %s -o - 2>&1 | FileCheck %s
+
+# A store from an UNTRACKED register (STW — HD6309 W, likewise STE/STF)
+# overwrites a slot some tracked register mirrors. The mirror is stale:
+# a later reload of that slot into the mirrored register is NOT
+# redundant and must survive.
+#
+# Concrete miscompile (open_memstream's __open_mem_put at -Og hd6309,
+# the `GET_BUF(mf)[mf->pos++] = c; mf->fsize = mf->pos;` shape):
+#
+#   LDD  23,x → $ad     ; D = old pos          (slot 23 mirror: $ad)
+#   TFR  d,w ; ADDW #1
+#   STW  23,x           ; pos = old+1  — slot 23 changed, D now STALE
+#   LDD  23,x → $ad     ; reload the NEW pos
+#   STD  21,x           ; fsize = new pos
+#
+# Before the fix, STW was invisible to the slot tracker: the reload was
+# judged redundant (mirror still said "$ad holds slot 23") and deleted,
+# so fsize got the PRE-increment value — buf contents right, len one
+# short at every put.
+
+# CHECK-LABEL: name: spillopt_stw_invalidates_mirror
+# CHECK: STWi_o8 i16 23
+# The reload after the STW must survive.
+# CHECK: LDDi_o8 i16 23
+# CHECK: STDi_o8 i16 21
+
+---
+name: spillopt_stw_invalidates_mirror
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ix, $su, $ss
+
+    ; D = old pos; establishes the slot-23 mirror on $ad.
+    LDDi_o8 i16 23, $ix, implicit-def renamable $ad, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $aq
+
+    ; W = pos + 1.
+    $aw = TFRp $ad
+    ADDWi16 1, implicit-def $aw, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $c, implicit-def $ae, implicit-def $af, implicit $aw
+
+    ; pos = W — overwrites slot 23 with bits $ad does not hold.
+    STWi_o8 i16 23, $ix, implicit killed renamable $aw, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+
+    ; Reload the NEW pos. Stale-mirror deletion here is the miscompile.
+    LDDi_o8 i16 23, $ix, implicit-def renamable $ad, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $aq
+
+    ; fsize = new pos.
+    STDi_o8 i16 21, $ix, implicit killed renamable $ad, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+
+    RTSr
+...

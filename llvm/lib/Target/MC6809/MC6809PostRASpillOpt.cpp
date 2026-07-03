@@ -100,6 +100,16 @@ static Register getAccRegForOpcode(unsigned Opc) {
     return MC6809::IX;
   case MC6809::LDYi_o0: case MC6809::LDYi_o5: case MC6809::LDYi_o8: case MC6809::LDYi_o16:
     return MC6809::IY;
+  // HD6309 W/E/F stores — invalidate-only (see isIndexedNonAccStore): the
+  // register identity is needed so invalidateOverlap knows the overwritten
+  // bytes are NOT the mirrored register's own bytes (AW/AE/AF share no bits
+  // with the tracked AD/AA/AB/IX/IY).
+  case MC6809::STWi_o0: case MC6809::STWi_o5: case MC6809::STWi_o8: case MC6809::STWi_o16:
+    return MC6809::AW;
+  case MC6809::STEi_o0: case MC6809::STEi_o5: case MC6809::STEi_o8: case MC6809::STEi_o16:
+    return MC6809::AE;
+  case MC6809::STFi_o0: case MC6809::STFi_o5: case MC6809::STFi_o8: case MC6809::STFi_o16:
+    return MC6809::AF;
   default:
     return Register();
   }
@@ -126,16 +136,23 @@ static bool isIndexedStore(unsigned Opc) {
 }
 
 /// Returns true if the opcode is an indexed store we do NOT track as a
-/// deletable slot value (STY/STX/STU). STY/STX hold spilled pointers but the
-/// conservative #363 cut does not track index stores (no index dead-store
-/// elimination); STU stores the reserved frame pointer. All three overwrite
-/// two bytes of a slot, so any tracked slot mirror they overlap must be
-/// invalidated.
+/// deletable slot value (STY/STX/STU, and the HD6309 STW/STE/STF). STY/STX
+/// hold spilled pointers but the conservative #363 cut does not track index
+/// stores (no index dead-store elimination); STU stores the reserved frame
+/// pointer. STW/STE/STF appeared once i16 values could allocate to AW: a
+/// `stw N,x` overwrites a slot some OTHER register mirrors (`ldd N,x` ...
+/// `stw N,x` ... `ldd N,x` — the second reload is NOT redundant, D is
+/// stale). All of these overwrite slot bytes with bits no tracked register
+/// shares, so any tracked mirror they overlap must be invalidated
+/// (open_memstream's fsize=pos++ miscompile at -Og hd6309).
 static bool isIndexedNonAccStore(unsigned Opc) {
   switch (Opc) {
   case MC6809::STYi_o0: case MC6809::STYi_o5: case MC6809::STYi_o8: case MC6809::STYi_o16:
   case MC6809::STXi_o0: case MC6809::STXi_o5: case MC6809::STXi_o8: case MC6809::STXi_o16:
   case MC6809::STUi_o0: case MC6809::STUi_o5: case MC6809::STUi_o8: case MC6809::STUi_o16:
+  case MC6809::STWi_o0: case MC6809::STWi_o5: case MC6809::STWi_o8: case MC6809::STWi_o16:
+  case MC6809::STEi_o0: case MC6809::STEi_o5: case MC6809::STEi_o8: case MC6809::STEi_o16:
+  case MC6809::STFi_o0: case MC6809::STFi_o5: case MC6809::STFi_o8: case MC6809::STFi_o16:
     return true;
   default:
     return false;
@@ -164,7 +181,9 @@ static SlotKey getSlotKey(const MachineInstr &MI) {
   // _o0 variants: no offset operand, just base register
   if (Opc == MC6809::LDDi_o0 || Opc == MC6809::STDi_o0 ||
       Opc == MC6809::LDAi_o0 || Opc == MC6809::STAi_o0 ||
-      Opc == MC6809::LDBi_o0 || Opc == MC6809::STBi_o0) {
+      Opc == MC6809::LDBi_o0 || Opc == MC6809::STBi_o0 ||
+      Opc == MC6809::STWi_o0 || Opc == MC6809::STEi_o0 ||
+      Opc == MC6809::STFi_o0) {
     // Find the explicit register operand (base register).
     for (const MachineOperand &MO : MI.explicit_operands()) {
       if (MO.isReg())
@@ -779,11 +798,14 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
       }
 
       if (isIndexedNonAccStore(Opc)) {
-        // STU writes 2 bytes of the (untracked) U register to the slot. No
-        // tracked register shares bits with U, so any tracked slot whose
-        // bytes overlap [offset, offset+2) is now stale — drop its mirror.
+        // STU/STX/STY/STW write 2 bytes (STE/STF one byte) of an untracked
+        // register to the slot. No tracked register shares bits with the
+        // source, so any tracked slot whose bytes the store overlaps is now
+        // stale — drop its mirror.
         SlotKey Key = getSlotKey(MI);
-        invalidateOverlap(Key.BaseReg, Key.Offset, /*Width=*/2, getAccRegForOpcode(Opc));
+        Register Src = getAccRegForOpcode(Opc);
+        int Width = (Src == MC6809::AE || Src == MC6809::AF) ? 1 : 2;
+        invalidateOverlap(Key.BaseReg, Key.Offset, Width, Src);
         continue;
       }
 
@@ -908,6 +930,15 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
           setSlot(Key, AccReg, nullptr); // no store to delete
         continue;
       }
+
+      // Any other memory-reading instruction — LDW/LDE/LDF (untracked HD6309
+      // loads), indirect loads (`ldd [n,x]` reads the slot bytes as the
+      // pointer), pulls — may read a tracked slot the classifier doesn't
+      // model. Mark every slot read so a pending store is never deleted as
+      // "dead" across it.
+      if (MI.mayLoad())
+        for (auto &E : Slots)
+          E.second.WasRead = true;
 
       // Any instruction that modifies a tracked register invalidates entries.
       // Clear both the accumulator (Reg) and base register (BaseReg) mappings.
