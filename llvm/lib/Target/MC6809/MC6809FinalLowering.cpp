@@ -302,9 +302,6 @@ bool MC6809FinalLowering::elideLeafFrame(MachineFunction &MF) {
     return false;
   if (MFI.isFrameAddressTaken() || MFI.hasVarSizedObjects())
     return false;
-  if (auto *FuncInfo = MF.getInfo<MC6809FunctionInfo>())
-    if (FuncInfo->UsesSpillRegisters)
-      return false;
 
   // Gate 2: identify the entry-block prologue triple. Skip any LEAD-IN
   // debug values / non-real MIs.

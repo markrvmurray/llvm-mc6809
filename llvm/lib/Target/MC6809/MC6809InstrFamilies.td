@@ -59,15 +59,10 @@ defm Load_i8 : MC6809Load<ACC8, i8>;
 defm Load_i16 : MC6809Load<ACC16, i16>;
 defm Load_iPtr : MC6809Load<INDEX16, i16>;
 let Predicates = [IsHD6309] in {
-  // Bug #208 round 4: dst constrained to AQc (= just AQ) instead of
-  // the wider ACC32 (= AQ + SPILL_Q0..3). expandLoadImm's SPILL_Q*
-  // path stages through AQ via LDQ, which clobbers AA/AB/AE/AF/AD/AW
-  // (sub-regs of AQ). Constraining to AQc forces regalloc to know the
-  // result lives in AQ; sub-reg aliasing then prevents it from
-  // keeping AA/etc. live across the pseudo. If a downstream consumer
-  // wants the value in a SPILL_Q* slot, regalloc inserts a normal
-  // ACC32 → SPILL_Q* COPY whose own clobber set (just an STQ, no
-  // LDQ) is bounded.
+  // Bug #208 round 4: dst constrained to AQc. Historically this kept it
+  // off the (now retired) SPILL_Q escape registers; today ACC32 and AQc
+  // are both just {AQ}, and the constraint documents the LDQ clobber of
+  // all AQ sub-regs (AA/AB/AE/AF/AD/AW).
   // Bug #210 round 5 (2026-05-04): kept AQc despite hash.c starvation
   // pressure — the libcall-based G_AND/G_OR/G_XOR i32 (in
   // legalizeBitwise → __andsi3 / __orsi3 / __xorsi3) eliminates the
@@ -89,7 +84,7 @@ let Predicates = [IsHD6309] in {
   // the verifier (Bug #308 manifest in `__split_page`, `wcrtomb`,
   // `ffsll`, `flsl`, `flsll`).  Drop AD from Defs.
   //
-  // For the AQ-dst case (no SPILL_Q* fallback): regalloc still
+  // For the AQ-dst case: regalloc still
   // gets AD-aliasing eviction protection via the explicit AQc dst
   // operand (AD is a sub-reg of AQ).  After expandLoadIdx
   // converts to the concrete LDQi_oN, that instruction's own
@@ -99,46 +94,13 @@ let Predicates = [IsHD6309] in {
     def Load_i32_Imm : MC6809LoadBase<AQc, (ins i32imm:$imm)>;
   let mayLoad = true, Defs = [NZ, V], canFoldAsLoad = 1 in
     def Load_i32_Mem : MC6809LoadBase<AQc, (ins INDEX16:$idx, unknown:$offset)>;
-  // i32 indirect-indexed load: AQ = *(*(idx+offset)). Single LDQ [n,r] (the AQc
-  // dest never takes expandLoadIdx's SPILL_Q two-LDD path, which has no indirect
-  // composition). HD6309-only, like all i32.
+  // i32 indirect-indexed load: AQ = *(*(idx+offset)). Single LDQ [n,r].
+  // HD6309-only, like all i32.
   let mayLoad = true, Defs = [NZ, V] in
     def Load_i32_MemIndirect : MC6809LoadBase<AQc, (ins INDEX16:$idx, unknown:$offset)>;
   // i32 global load, register deferred (AQc), expanded by expandLoadSym.
   let mayLoad = true, Defs = [NZ, V] in
     def Load_i32_Sym : MC6809LoadBase<AQc, (ins unknown:$sym)>;
-
-  // Bug #271 cat-3: spill-framework-only i32 load with ACC32 operand
-  // class. The narrow AQc constraint on Load_i32 above is load-bearing
-  // for user codegen (Bug #208 round 4 sub-reg aliasing), but the spill
-  // framework's `loadStoreRegStackSlot` emits with the original spilled
-  // vreg whose class is ACC32 (= AQ + SPILL_Q0..3) — a non-subclass of
-  // AQc, which -verify-machineinstrs flags. This variant accepts ACC32
-  // directly; its post-RA expansion is identical to Load_i32_Mem (both
-  // route to `expandLoadIdx`, which already handles SPILL_Q* dests via
-  // the Bug #221 two-LDD path with no LDQ sub-reg clobber).
-  //
-  // Bug #290: trimmed Defs from the old worst-case AQ sub-reg list
-  // `[NZ, V, AA, AB, AE, AF, AD, AW]` to `[NZ, V, AD]`.  Sub-reg
-  // aliasing of $ad → $aa/$ab covers the byte-level clobber when
-  // dst is SPILL_Q* (Bug #221 two-LDD path); the rest of the AQ
-  // sub-reg tree ($aw/$ae/$af) is NOT clobbered by the two-LDD path
-  // and was over-claimed historically.  The over-claim hurts
-  // Bug #290's clobber-driven re-evaluation: it sweeps too wide,
-  // creating LTO+FP regalloc pressure with no real backing.
-  // The reg-offset fallback in `expandLoadIdx`'s SPILL_Q* dst path
-  // (which falls through to a full LDQ and would clobber the AQ
-  // sub-reg tree) is unreachable for spill MIs because the spiller
-  // always emits immediate frame-index offsets.
-  // Bug #308 (2026-05-19): dropped AD from Defs (was [NZ, V, AD]) —
-  // same rationale as Load_i32_Mem above.  The two-LDD-via-$ad
-  // expansion was replaced with LDQ-via-$aq + save/restore, so AD
-  // is preserved across the pseudo at runtime.
-  let mayLoad = true, Defs = [NZ, V], canFoldAsLoad = 1 in
-    def SpillLoad_i32_Mem : MC6809LogicalInstr {
-      dag OutOperandList = (outs ACC32:$dst);
-      dag InOperandList = (ins INDEX16:$idx, unknown:$offset);
-    }
 }
 
 // Loads a 0/1 boolean into the LSB of an ACC8 byte (or directly into
@@ -373,15 +335,6 @@ let Predicates = [IsHD6309] in {
   // i32 global store, register deferred (AQc), expanded by expandStoreSym.
   let mayStore = true, Defs = [NZ, V] in
     def Store_i32_Sym : MC6809StoreBase<AQc, (ins unknown:$sym)>;
-
-  // Bug #271 cat-3: spill-framework-only i32 store with ACC32 operand
-  // class.  Mirrors SpillLoad_i32_Mem above.  Bug #308 dropped AD
-  // from Defs for the same reason as Store_i32_Mem above.
-  let mayStore = true, Defs = [NZ, V] in
-    def SpillStore_i32_Mem : MC6809LogicalInstr {
-      dag OutOperandList = (outs);
-      dag InOperandList = (ins ACC32:$src, INDEX16:$idx, unknown:$offset);
-    }
 }
 
 // --- Concrete instructions (register-specific, assembler/disassembler) ---
@@ -478,7 +431,7 @@ class MC6809ArithmeticBase<RegisterClass dst, RegisterClass src, dag operand> : 
 // pre-RA. AA-half is untouched; values in AA are preserved without
 // regalloc-inserted save/restore.
 //
-// ABc is now a genuine one-register class ({AB}; its SPILL_B* members
+// ABc is now a genuine one-register class ({AB}; its spill-register members
 // were retired with the stock frame-index spill migration), so the
 // expansion's B-half transit register IS the explicit $dst. The AB
 // entry these classes used to carry in Defs is gone: a physical AB
@@ -503,7 +456,7 @@ class MC6809ArithmeticBaseRegByteB<dag operand> : MC6809LogicalInstr {
 }
 
 // Bug #221 Phase A — A-half mirror of MC6809ArithmeticBaseRegByteB.
-// Constrains dst to AAc (AA + SPILL_A*) and declares Defs += AA
+// Constrains dst to AAc and declares Defs += AA
 // only. Used by the parallel `_RegA` pseudos defined alongside the
 // `_RegB` ones; Phase B wires the selector to choose between them
 // based on the upstream value's natural half. Phase A introduces the
@@ -1220,8 +1173,8 @@ def CompareBranch_ptr_Sym : MC6809CompareBranchBase<INDEX16, (ins unknown:$sym)>
 let Predicates = [IsHD6309] in {
   // Bug #321 (2026-05-22): override base's Defs=[NZ,V,C] with the
   // wider [NZ,V,C,AQ] to capture the expansion's clobbers.  The
-  // post-RA expansion of this terminator emits LDQ (for SPILL_Q*N
-  // src) + SUBW + SBCD, writing AW and AD individually.  Without
+  // post-RA expansion of this terminator emits SUBW + SBCD,
+  // writing AW and AD individually.  Without
   // AQ in Defs, regalloc could place an unrelated vreg in $aq
   // across this branch and the successor BBs would read the
   // clobbered value — the Bug #311 pattern.  AQ as super-reg

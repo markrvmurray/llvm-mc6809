@@ -253,14 +253,12 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   //
   // Plain MC6809: s8 legal, wider types narrow to s8 carry chains
   // (G_UADDO s8 + G_UADDE s8) via the upstream narrowScalarAddSub.
-  // MaterializeSpills handles sub-register byte extraction from spilled
-  // i16 values (loads from the correct byte offset within the i16 slot).
   //
   // HD6309 (Bug #297, 2026-05-15): s8 + s32 legal, s16 still narrows.
   // The s32 path uses the native page-2 carry chain (ADDW + ADCD /
   // SUBW + SBCD) emitted by expandAddSub_i32_{Mem,Imm,Reg} (commits
   // 2 + 2.1 of Bug #297).  The i32 value lives in physical AQ or a
-  // SPILL_Q*N slot (AQc widening above) and the regbank firewall
+  // spilled i32 home and the regbank firewall
   // (commit 3, MC6809RegisterBankInfo.cpp) forces ACCUM bank
   // unconditionally so cross-bank phi-handling cannot recur at i32
   // width — addressing the Bug #85b atoi failure shape one level
@@ -517,7 +515,7 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   //
   // Bug #272 Phase B retry via Bug #297 (2026-05-15): s32 G_LOAD /
   // G_STORE are now legal directly on HD6309.  An i32 load lands
-  // straight in an ACC32 vreg (AQ or SPILL_Q*N) and is consumed by
+  // straight in an ACC32 vreg and is consumed by
   // native ADDW+ADCD / SUBW+SBCD pairs from commits 1-4.  No more
   // narrowing-to-s16 + G_MERGE_VALUES + REG_SEQUENCE chain — that
   // chain was the structural blocker for the earlier Phase B core
@@ -745,7 +743,7 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
     // SignTest_i32 is a target-specific pseudo (MC6809InstrPseudos.td)
     // whose post-RA expansion tests the i32's MSByte directly via a
     // sub-register read of $aq.MSByte (= $aa) for AQ-allocated src or
-    // a direct byte-load `TST <slot+0>,$su` for SPILL_Q*N src.  Bypasses
+    // the MSByte directly.  Bypasses
     // the EXTRACT_*_word_i32 + ACC32_with_sub_hi_byte synthesised-class
     // collapse that triggered Bug #301a in the reverted Option C
     // attempt (`33cfce2ecc7f`).

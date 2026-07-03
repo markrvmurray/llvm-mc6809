@@ -53,7 +53,6 @@
 #include "MC6809MachineScheduler.h"
 #include "MC6809NonReentrant.h"
 #include "MC6809PostRAScavenging.h"
-#include "MC6809MaterializeSpills.h"
 #include "MC6809ShiftRotateChain.h"
 #include "MC6809TargetObjectFile.h"
 #include "MC6809TargetTransformInfo.h"
@@ -81,7 +80,6 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMC6809Target() {
   initializeMC6809PostRAScavengingPass(PR);
   initializeMC6809PostRASpillOptPass(PR);
   initializeMC6809PreCGPFreezePass(PR);
-  initializeMC6809MaterializeSpillsPass(PR);
   initializeMC6809SanitiseDebugInfoPass(PR);
   initializeMC6809ShiftRotateChainPass(PR);
   initializeMC6809DirectPageAllocPass(PR);
@@ -341,7 +339,6 @@ void MC6809PassConfig::addMachineLateOptimization() {
 void MC6809PassConfig::addPrePEI() {
   if (getOptLevel() != CodeGenOptLevel::None)
     addPass(createMC6809DirectPageAllocPass());
-  addPass(createMC6809MaterializeSpillsPass());
 }
 
 void MC6809PassConfig::addPreSched2() {

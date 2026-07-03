@@ -32,11 +32,11 @@ struct MC6809FunctionInfo : public MachineFunctionInfo {
   const GlobalValue *StaticStackValue = nullptr;
 
   /// Bug #387: the next free byte offset in this function's static-stack region.
-  /// processFunctionBeforeFrameFinalized seeds it after marking the spill slots
-  /// that exist at frame-finalisation time; MaterializeSpills continues it for
-  /// the spill slots it creates later (which frame finalisation never saw), so
-  /// those late slots also land in the static frame instead of a now-shrunk
-  /// dynamic frame. Only meaningful when usesStaticStack(MF).
+  /// processFunctionBeforeFrameFinalized seeds it after marking the slots that
+  /// exist at frame-finalisation time; markSpillSlotStatic continues it for
+  /// slots created later (which frame finalisation never saw), so those late
+  /// slots also land in the static frame instead of a now-shrunk dynamic
+  /// frame. Only meaningful when usesStaticStack(MF).
   int64_t NextStaticStackOffset = 0;
 
   /// Bug #387: frame indices that processFunctionBeforeFrameFinalized found
@@ -50,16 +50,6 @@ struct MC6809FunctionInfo : public MachineFunctionInfo {
 
   int VarArgsStackIndex = -1;
   DenseMap<Register, size_t> CSRDPOffsets;
-
-  /// Frame indices for the stack-backed i32 spill pseudo-registers
-  /// (SPILL_Q0..31 — the only spill-register family left; the byte/word/
-  /// index families spill through stock frame-index slots now). Maps
-  /// SPILL_Q register → its 4-byte frame index.
-  DenseMap<MCPhysReg, int> SpillRegFrameIndices;
-
-  /// Set when spill pseudo-registers are used. Forces frame pointer (U)
-  /// setup so spill accesses use U-relative addressing (stable when S moves).
-  bool UsesSpillRegisters = false;
 
   /// For functions whose return type is too large to fit in a register
   /// (i32, structs, …), gcc6809 returns the value via an implicit sret

@@ -8,9 +8,9 @@
 //
 // Post-RA copy optimization for MC6809.
 //
-// This pass runs after register allocation but before MaterializeSpills
-// and PostRAScavenging. It eliminates redundant COPY instructions that
-// survive the standard MachineCopyPropagation pass — specifically:
+// This pass runs after register allocation but before PostRAScavenging.
+// It eliminates redundant COPY instructions that survive the standard
+// MachineCopyPropagation pass — specifically:
 //
 //   1. Identity copies: $D = COPY $D → deleted
 //   2. Dead copies: COPY whose destination is immediately overwritten
@@ -19,9 +19,9 @@
 //      $X = COPY $D; $Y = COPY $X (X dead) → $Y = COPY $D
 //
 // The standard MachineCopyPropagation handles these generically, but may
-// miss MC6809-specific cases involving spill pseudo-registers (SPILL_D0
-// ..D7) and imaginary registers (RS0..RS3) which are pseudo physregs
-// the generic pass doesn't always track.
+// miss MC6809-specific cases involving the imaginary registers
+// (RS0..RS3), which are pseudo physregs the generic pass doesn't always
+// track.
 //
 //===----------------------------------------------------------------------===//
 

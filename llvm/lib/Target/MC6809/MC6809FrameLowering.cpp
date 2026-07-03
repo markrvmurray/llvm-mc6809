@@ -328,10 +328,6 @@ bool MC6809FrameLowering::enableCalleeSaveSkip(const MachineFunction &MF) const 
 void MC6809FrameLowering::determineCalleeSaves(MachineFunction &MF, BitVector &SavedRegs, RegScavenger *RS) const {
   TargetFrameLowering::determineCalleeSaves(MF, SavedRegs, RS);
 
-  // (The byte/word/index spill pseudo-registers are gone; only the SPILL_Q
-  // tree still needs early usage detection, and that happens in
-  // processFunctionBeforeFrameFinalized — Q spills never force the frame
-  // pointer on their own here.)
   // If we have a frame pointer, the frame register SU needs to be saved as
   // well, since the code that uses it hasn't yet been emitted.
   if (hasFP(MF))
@@ -361,55 +357,8 @@ void MC6809FrameLowering::processFunctionBeforeFrameFinalized(MachineFunction &M
     RS->addScavengingFrameIndex(FI);
   }
 
-  // Allocate stack slots for used spill pseudo-registers. Only the i32
-  // SPILL_Q tree remains (the byte/word/index spill pseudo-registers spill
-  // through the stock frame-index path now).
   MachineFrameInfo &MFI = MF.getFrameInfo();
   auto &FuncInfo = *MF.getInfo<MC6809FunctionInfo>();
-  bool AnySpillUsed = false;
-  // Scan all instructions for actual explicit def/use of spill registers.
-  // Don't use isPhysRegUsed/isPhysRegModified — they trigger on regmask
-  // presence (call-preserved lists) even when no instruction touches the reg.
-  auto isSpillUsedInFunction = [&](MCPhysReg SpillReg) -> bool {
-    for (const MachineBasicBlock &MBB : MF) {
-      for (const MachineInstr &MI : MBB) {
-        for (const MachineOperand &MO : MI.operands()) {
-          if (MO.isReg() && !MO.isImplicit() && MO.getReg() == SpillReg)
-            return true;
-        }
-      }
-    }
-    return false;
-  };
-
-  // Bug #161 round 14: allocate 4-byte stack slots for ACC32 (Q) spill
-  // registers (SPILL_Q0..Q31, HD6309 only — bumped from 4 to 32 in Bug
-  // #296 to remove the artificial ACC32 capacity ceiling).  Standalone
-  // — they don't share storage with SPILL_D pairs.  Slots are only
-  // allocated when the function actually uses them; unused SPILL_Q*N
-  // cost zero stack frame.
-  static const MCPhysReg SpillQRegsEmit[] = {
-    MC6809::SPILL_Q0,  MC6809::SPILL_Q1,  MC6809::SPILL_Q2,  MC6809::SPILL_Q3,
-    MC6809::SPILL_Q4,  MC6809::SPILL_Q5,  MC6809::SPILL_Q6,  MC6809::SPILL_Q7,
-    MC6809::SPILL_Q8,  MC6809::SPILL_Q9,  MC6809::SPILL_Q10, MC6809::SPILL_Q11,
-    MC6809::SPILL_Q12, MC6809::SPILL_Q13, MC6809::SPILL_Q14, MC6809::SPILL_Q15,
-    MC6809::SPILL_Q16, MC6809::SPILL_Q17, MC6809::SPILL_Q18, MC6809::SPILL_Q19,
-    MC6809::SPILL_Q20, MC6809::SPILL_Q21, MC6809::SPILL_Q22, MC6809::SPILL_Q23,
-    MC6809::SPILL_Q24, MC6809::SPILL_Q25, MC6809::SPILL_Q26, MC6809::SPILL_Q27,
-    MC6809::SPILL_Q28, MC6809::SPILL_Q29, MC6809::SPILL_Q30, MC6809::SPILL_Q31
-  };
-  for (MCPhysReg Reg : SpillQRegsEmit) {
-    if (FuncInfo.SpillRegFrameIndices.count(Reg) == 0 &&
-        isSpillUsedInFunction(Reg)) {
-      int FI = MFI.CreateStackObject(4, Align(1), false);
-      FuncInfo.SpillRegFrameIndices[Reg] = FI;
-      AnySpillUsed = true;
-    } else if (FuncInfo.SpillRegFrameIndices.count(Reg)) {
-      AnySpillUsed = true;
-    }
-  }
-  if (AnySpillUsed)
-    FuncInfo.UsesSpillRegisters = true;
 
   // Bug #387 (S2): in a static-stack function, move the spill slots off the
   // dynamic stack into static memory. This runs before calculateFrameObjectsOffsets,
@@ -430,10 +379,7 @@ void MC6809FrameLowering::processFunctionBeforeFrameFinalized(MachineFunction &M
     // reaches it through a frame-index operand has a _Sym (extended-addressing)
     // lowering — otherwise eliminateFrameIndex could not rewrite that access
     // and would assert. Collect the locals with any non-lowerable accessor;
-    // those stay on the dynamic frame. (Spill slots are addressed via SPILL_*
-    // register operands, not frame-index operands, so they never appear here —
-    // their materialisation is always static-aware, so they are always
-    // eligible.)
+    // those stay on the dynamic frame.
     SmallSet<int, 8> NotLowerable;
     for (const MachineBasicBlock &MBB : MF)
       for (const MachineInstr &MI : MBB) {
@@ -458,14 +404,15 @@ void MC6809FrameLowering::processFunctionBeforeFrameFinalized(MachineFunction &M
       MFI.setObjectOffset(Idx, Offset);
       Offset += MFI.getObjectSize(Idx); // Static stack grows up.
     }
-    // Seed the running offset so MaterializeSpills can place the spill slots it
-    // creates later into the same static region (they don't exist yet here).
+    // Seed the running offset so slots created after frame finalisation
+    // (markSpillSlotStatic from eliminateFrameIndex) land in the same
+    // static region.
     FuncInfo.NextStaticStackOffset = Offset;
   }
 }
 
-// Bug #387: place a spill slot created after frame finalisation (in
-// MaterializeSpills) into the static-stack region, if this is a static-stack
+// Bug #387: place a spill slot created after frame finalisation into the
+// static-stack region, if this is a static-stack
 // function. Mirrors the processFunctionBeforeFrameFinalized marking: static
 // stack ID + a growing static offset. A no-op for ordinary dynamic frames, so
 // the slot then keeps its normal U-relative placement.
@@ -646,17 +593,7 @@ bool MC6809FrameLowering::hasFP(const MachineFunction &MF) const {
   // stable across passes (it is queried in determineCalleeSaves, before the
   // static marking runs), so gate only on inputs that don't depend on marking:
   // usesStaticStack and hasCalls.
-  bool StaticStack = usesStaticStack(MF);
-  if (MFI.hasCalls())
-    return true;
-  if (StaticStack)
-    return false;
-  // Force frame pointer when spill pseudo-registers are used (their U-relative
-  // slots need a stable base). Static-stack functions handled above.
-  if (auto *FuncInfo = MF.getInfo<MC6809FunctionInfo>())
-    if (FuncInfo->UsesSpillRegisters)
-      return true;
-  return false;
+  return MFI.hasCalls();
 }
 
 uint64_t MC6809FrameLowering::staticSize(const MachineFrameInfo &MFI) const {

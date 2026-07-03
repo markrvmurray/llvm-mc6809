@@ -136,34 +136,6 @@ BitVector MC6809RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
     for (MCPhysReg Reg : MC6809::Imag8RegClass)
       Reserved.set(Reg);
 
-  // Bug #161 round 15: SPILL_QnHI/LO are sub-registers of SPILL_Q*
-  // (HD6309 32-bit spill regs) — they exist only so the TableGen
-  // intersection-class synthesis includes SPILL_Q in the AQc-equivalent
-  // class for sub_lo_word/sub_hi_word ACC32 vregs. The regalloc must
-  // never place a vreg directly in them; the post-RA expansion of
-  // EXTRACT_LO/HI_word_i32 + the COPY handler in expandPostRAPseudo
-  // recognise these sub-regs and emit the correct LDD slot read.
-  // Bug #296 Phase 2: bumped from Q0..3 to Q0..31.  HI/LO sub-regs for
-  // every SPILL_Q*N must be reserved; the regalloc must never place a
-  // vreg directly in any of them.
-  // Bug #301 cleanup 2026-05-16: SPILL_Q*HI[0..31] (enum 697..728)
-  // and SPILL_Q*LO[0..31] (enum 729..760) are consecutive — range
-  // loops replace the 32-pair case list.
-  for (unsigned R = MC6809::SPILL_Q0HI; R <= MC6809::SPILL_Q31HI; ++R)
-    Reserved.set(R);
-  for (unsigned R = MC6809::SPILL_Q0LO; R <= MC6809::SPILL_Q31LO; ++R)
-    Reserved.set(R);
-  // Bug #301a (2026-05-16): SPILL_Q*HI/LO each gained a
-  // sub-byte chain — SPILL_Q*HIHI, SPILL_Q*HILO, SPILL_Q*LOHI, SPILL_Q*LOLO
-  // for each of 32 slots = 128 byte sub-regs.  All Reserved (regalloc must
-  // never place a vreg in any of them; they exist only as metadata for
-  // TableGen's intersection-class synthesis and for the EXTRACT_LO/HI_i16
-  // expansion path's getSubReg lookups).  Enum layout (per TableGen
-  // foreach 0..31): for Q[I], the 4 byte sub-regs are consecutive in the
-  // enum at 4*I .. 4*I+3 within the SPILL_Q*HIHI..SPILL_Q31LOLO range.
-  for (unsigned R = MC6809::SPILL_Q0HIHI; R <= MC6809::SPILL_Q31LOLO; ++R)
-    Reserved.set(R);
-
   return Reserved;
 }
 
@@ -171,11 +143,9 @@ const MCPhysReg *MC6809RegisterInfo::getCalleeSavedRegs(const MachineFunction *M
 
 const uint32_t *MC6809RegisterInfo::getCallPreservedMask(const MachineFunction &MF, CallingConv::ID CallingConv) const {
   // The TableGen-generated mask from CalleeSavedRegs, unmodified. The
-  // byte/word/index spill pseudo-registers (SPILL_A/B/D/X) that used to be
-  // marked call-preserved here are gone — those classes spill through stock
-  // frame-index slots, which calls cannot clobber. The i32 SPILL_Q tree
-  // keeps its historical treatment (not in this mask; its live ranges never
-  // span calls).
+  // stack-backed spill pseudo-registers (SPILL_A/B/D/X/Q) that used to be
+  // marked call-preserved here are gone — every class spills through stock
+  // frame-index slots, which calls cannot clobber.
   //
   // The RS/RC imaginaries are deliberately NOT in this mask: unlike the
   // retired SPILL_* slots (U-relative, one per frame) they live at FIXED

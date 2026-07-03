@@ -114,9 +114,9 @@ void MC6809AsmPrinter::emitInstruction(const MachineInstr *MI) {
   //   JMP D,X          ; jump to JT base + offset
   //
   // The $idx operand must already be in $ad by the time we get here —
-  // see the BranchJumpTable definition (operand class ADc) and
-  // MC6809MaterializeSpills (which materializes any SPILL_D operand
-  // into AD with an LDD before this instruction). Assert it as a
+  // see the BranchJumpTable definition (operand class ADc) and the
+  // post-RA expansion in MC6809InstrInfo (which stages an RS-homed
+  // index into AD with an LDD before this instruction). Assert it as a
   // tripwire for any future regression of bug #68.
   //
   // The whole sequence stays position-independent: jump table entries

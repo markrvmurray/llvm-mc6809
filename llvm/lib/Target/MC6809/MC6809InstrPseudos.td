@@ -226,18 +226,15 @@ let Defs = [NZ, V] in {
 
   // Bug #161 round 14: extract the low word (sub_lo_word) of an ACC32
   // value into ADc. Replaces the SDAG `(EXTRACT_SUBREG ACC32, sub_lo_word)`
-  // pattern, which works for AQ but cannot extract from SPILL_Q* (no
-  // sub-register structure). Post-RA expansion: AQ source → TFR W,D;
-  // SPILL_Q source → LDD slot+2,U (big-endian: D at +0, W at +2 in the
-  // dedicated 4-byte stack slot).
+  // pattern. Post-RA expansion: AQ source → TFR W,D. A spilled source
+  // folds to a one-word frame load in foldMemoryOperandImpl instead.
   def EXTRACT_LO_word_i32 : MC6809Pseudo {
     dag OutOperandList = (outs ADc:$dst);
     dag InOperandList  = (ins ACC32:$src);
     let isAsCheapAsAMove = true;
   }
 
-  // Symmetric: extract the high word (sub_hi_word = D for AQ; offset 0
-  // for SPILL_Q big-endian).
+  // Symmetric: extract the high word (sub_hi_word = D for AQ).
   def EXTRACT_HI_word_i32 : MC6809Pseudo {
     dag OutOperandList = (outs ADc:$dst);
     dag InOperandList  = (ins ACC32:$src);
@@ -264,9 +261,8 @@ let Defs = [NZ, V] in {
   // Phase 1 (this commit): pseudos defined, inert (no emission
   // sites yet).  Post-RA expansion (in MC6809InstrInfo.cpp)
   // initially mirrors EXTRACT_LO/HI_word_i32: AQ source → TFR
-  // W,D / no-op; SPILL_Q*N source → LDD slot+2/+0,$su.  Phase 3
-  // rewrites the expansion to use literal AD/AW physregs instead
-  // of `getSubReg(AQ, sub_lo_word)`.
+  // W,D / no-op.  Phase 3 rewrites the expansion to use literal
+  // AD/AW physregs instead of `getSubReg(AQ, sub_lo_word)`.
   def Extract16_i32_lo : MC6809Pseudo {
     dag OutOperandList = (outs ADc:$dst);
     dag InOperandList  = (ins ACC32:$src);
@@ -290,9 +286,8 @@ let Defs = [NZ, V] in {
   // writes leak intersection-class demand onto the destination
   // vreg; an opaque Build32_i16i16 pseudo doesn't.
   //
-  // Post-RA expansion: AQ-dest → marshal lo into AW, hi into AD
-  // (via TFR or copyPhysReg).  SPILL_Q*N-dest → STD <lo>,slot+2,
-  // STD <hi>,slot+0.  The inputs may already be in AD or other
+  // Post-RA expansion: marshal lo into AW, hi into AD (via TFR or
+  // copyPhysReg).  The inputs may already be in AD or other
   // ADc-class members; expansion handles the staging.
   def Build32_i16i16 : MC6809Pseudo {
     dag OutOperandList = (outs ACC32:$dst);
@@ -324,9 +319,8 @@ let Defs = [NZ, V] in {
   // register.  Output is opaque ACC32 — same no-sub-word-constraint
   // property as Build32_i16i16.
   //
-  // Post-RA expansion: AQ-dest → copyPhysReg($aw, $src) for the low
-  // half; high word ($ad) stays undefined.  SPILL_Q*N-dest → STD
-  // $src,slot+2,$su for the low half; slot+0 stays undefined.
+  // Post-RA expansion: copyPhysReg($aw, $src) for the low half;
+  // high word ($ad) stays undefined.
   def AnyExt32_i16 : MC6809Pseudo {
     dag OutOperandList = (outs ACC32:$dst);
     dag InOperandList  = (ins ACC16:$src);
@@ -349,18 +343,13 @@ let Defs = [NZ, V] in {
   // fix attempt 2026-05-16): the generic-IR path selects to
   // EXTRACT_HI_word_i32 + CompareBranch_i16, which reads $aq's sub_hi_word
   // through the TableGen-synthesised ACC32_with_sub_hi_byte intersection
-  // class.  When $src is allocated to a SPILL_Q*N (rather than $aq), the
-  // intersection class collapses to {$aq} only (SPILL_Q*N lacks sub-byte
-  // metadata — see feedback-bug301-option-a-dead-end), and the post-RA
-  // verifier rejects the resulting MIR at -Og (91 failures at
-  // Og-hd6309-mame in the reverted attempt).
+  // class — historically that collapsed when the source landed in a
+  // SPILL_Q escape register (see feedback-bug301-option-a-dead-end).
   //
   // This pseudo bypasses the entire EXTRACT_*_word_i32 path: post-RA
-  // expansion (in MC6809InstrInfo.cpp) handles the AQ-source and
-  // SPILL_Q*N-source cases directly via TST on the MSByte (= AA for
-  // AQ-source, or `TST <slot+0>,$su` for spill-source), then captures
-  // the sign bit into the ACC8 dst via the ASLB + LDB#0 + ADCB#0
-  // pattern.
+  // expansion (in MC6809InstrInfo.cpp) works on the MSByte in AA, then
+  // captures the sign bit into the ACC8 dst via the ASLA + LDA#0 +
+  // ADCA#0 pattern.
   //
   // Output is ACC8 with the byte's LSB carrying the boolean result;
   // the post-RA expansion produces a 0/1 byte (high 7 bits cleared by
@@ -404,9 +393,8 @@ let Defs = [NZ, V] in {
   // Post-RA expansion (in MC6809InstrInfo.cpp): OR the 4 source bytes
   // through AB then extract CC.Z into bit 0 of AB (TFR CC,B; ANDB #4;
   // LSRB; LSRB). AQ source uses the byte chain AA:AB:AE:AF via
-  // LEAS-bracket PSHS+ORA-chain; SPILL_Q*N source reads the 4 slot bytes
-  // directly with LDA + 3× ORA.  No EXTRACT_*_word_i32 emission —
-  // bypasses Bug #301a's intersection-class collapse like SignTest_i32.
+  // ORR chain.  No EXTRACT_*_word_i32 emission — bypasses Bug #301a's
+  // intersection-class collapse like SignTest_i32.
   //
   // Output is ACC8 with the byte's LSB carrying the boolean result;
   // the post-RA expansion produces a 0/1 byte (high 7 bits cleared).
@@ -439,8 +427,7 @@ let Defs = [NZ, V] in {
   // Post-RA expansion: SUBW #low16(K); SBCD #high16(K).  This computes
   // X - K and sets CC.Z if X == K.  Then CC.Z is extracted to a 0/1
   // byte via TFR CC,A; ANDA #4; LSRA; LSRA; TFR A,B (same as EqZero_i32).
-  // CLOBBERS $aq's AB byte (AQ-source) or all of $aq (SPILL_Q*N-source
-  // path which must LDQ first) — same dead-LHS caveat as EqZero_i32.
+  // CLOBBERS $aq's AA byte — same dead-LHS caveat as EqZero_i32.
   //
   // RHS is a 32-bit immediate, split into two 16-bit halves at
   // expansion time.  Defs cover CC clobber (SUBW/SBCD both set NZVC).
@@ -450,7 +437,7 @@ let Defs = [NZ, V] in {
     // Bug #321 (2026-05-22): preventive AQ clobber declaration —
     // same shape as EqZero_i32 (Bug #304) and SignTest_i32.  The
     // expansion's SUBW + SBCD writes both AW and AD (subregs of AQ),
-    // and the SPILL_Q*N-source path LDQs into AQ.  Without AQ in
+    // Without AQ in
     // Defs, regalloc could leave a live unrelated value in $aq
     // across this pseudo and the expansion would silently destroy
     // it — the Bug #311 pattern.  No observed manifest yet; this is

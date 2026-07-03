@@ -192,8 +192,8 @@ foreach I = 0...3 in {
 //
 // RS0..RS3 are kept: they have byte sub-regs the EXTRACT_LO/HI_i16
 // pseudo expansions and the ADc class still depend on, and several
-// .cpp source sites enumerate them by name (sub-reg-parent map,
-// SpillPreservedMask, MaterializeSpills' IdxReg classifier).
+// .cpp source sites enumerate them by name (sub-reg-parent map, the
+// post-RA materialisation helpers).
 //
 // To restore the larger pool if needed: re-add the foreach below
 // AND add the names back to ACC16's `add`+`AltOrders` lists below.
@@ -262,107 +262,12 @@ def AQ : MC6809Reg32<16, "q", [AW, AD], [sub_lo_word, sub_hi_word]>;
 
 def MD : MC6809Reg8<17,  "md">;
 
-//===----------------------------------------------------------------------===//
-//  Stack-backed spill pseudo-registers
-//===----------------------------------------------------------------------===//
-// These pseudo-registers are backed by fixed stack frame locations.
-// They give the register allocator extra "registers" for 1-register classes
-// (ADc, AAc, ABc) that would otherwise cause allocation failures.
-// Values assigned to spill registers are accessed via S-indexed loads/stores.
-// DWARF numbers in 0x2000+ range to avoid collision with imaginary regs.
-
-// The byte/word/index spill pseudo-registers (SPILL_A0..7, SPILL_B0..7,
-// SPILL_D0..7, SPILL_X0..3) are GONE: their classes now spill through the
-// stock frame-index path (storeRegToStackSlot / loadRegFromStackSlot +
-// foldMemoryOperandImpl's _Mem folds). Only the i32 SPILL_Q tree below
-// remains, pending the same retirement.
-
-// ACC32 spill pseudo-registers (HD6309 only — backed by 4-byte stack slots,
-// expanded via LDQ/STQ). Bug #161 round 14: each SPILL_Q has half-word
-// sub-registers (SPILL_QnHI / SPILL_QnLO, big-endian: HI at +0, LO at +2
-// in the slot). The half-word sub-regs sit in their own size-16 class
-// (declared as MC6809Reg16) so the TableGen-synthesised intersection
-// class for "ACC32 reg with sub_lo_word/hi_word in ACC16" includes
-// SPILL_Q*; without that, the synthesis collapses to AQ-only (= AQc),
-// reintroducing the regalloc bottleneck. Round 15: marked isAllocatable
-// = false so the regalloc never places a vreg directly in SPILL_QnLO/HI;
-// the post-RA expansion of EXTRACT_LO/HI_word_i32 + the COPY handler
-// in expandPostRAPseudo recognise these sub-regs and emit the correct
-// LDD slot read.
-// Bug #301a (2026-05-16): each SPILL_Q*HI/LO half gets a
-// sub_lo_byte / sub_hi_byte chain (4 byte sub-regs per Q slot, 128
-// total) — mirroring the existing RS0HI/LO + sub-byte pattern (lines
-// 149-180 above).  Reasons:
-// - lets Path A (SPILL_Q*HI/LO added to ADc/AWc) NOT cascade into
-//   EXTRACT_LO_i16 / CompareBranch_i16_Imm / Store_i16_Mem failures
-//   (their post-RA expansions call getSubReg(SrcReg, sub_lo_byte) and
-//   need a real sub-byte to land on);
-// - makes the TableGen-synthesised intersection class
-//   `ACC32_with_sub_hi_byte` include SPILL_Q*N (because
-//   SPILL_Q*N.sub_hi_word = SPILL_Q*HI which now has sub_hi_byte),
-//   structurally closing Bug #301a's class-collapse manifest.
-//
-// Big-endian Q-slot layout (bytes 0..3 of the 4-byte slot):
-//   byte 0 = SPILL_Q*HI.sub_hi_byte = SPILL_Q*HIHI (the sign byte)
-//   byte 1 = SPILL_Q*HI.sub_lo_byte = SPILL_Q*HILO
-//   byte 2 = SPILL_Q*LO.sub_hi_byte = SPILL_Q*LOHI
-//   byte 3 = SPILL_Q*LO.sub_lo_byte = SPILL_Q*LOLO
-// All 128 byte sub-regs are plain MC6809Reg — NOT in any allocatable
-// 8-bit class.  The COPY handler at expandPostRAPseudo recognises them
-// and emits LDB at slot+0/+1/+2/+3,$su.  All Reserved (see
-// MC6809RegisterInfo.cpp).
-//
-// The byte sub-regs are defined in one foreach pass over 0..31 so they
-// occupy a single contiguous enum range (SPILL_Q0HIHI..SPILL_Q31LOLO)
-// for clean range-loop reservation in MC6809RegisterInfo.cpp.
-foreach I = 0...31 in {
-  def SPILL_Q#I#HIHI : MC6809Reg<!add(0x2400, !mul(I, 4)),          "spill_q"#I#"_hi_hi">;
-  def SPILL_Q#I#HILO : MC6809Reg<!add(!add(0x2400, !mul(I, 4)), 1), "spill_q"#I#"_hi_lo">;
-  def SPILL_Q#I#LOHI : MC6809Reg<!add(!add(0x2400, !mul(I, 4)), 2), "spill_q"#I#"_lo_hi">;
-  def SPILL_Q#I#LOLO : MC6809Reg<!add(!add(0x2400, !mul(I, 4)), 3), "spill_q"#I#"_lo_lo">;
-}
-
-// Bug #161 round 14: SPILL_Q* have half-word sub-registers (SPILL_QnHI
-// / SPILL_QnLO, big-endian: HI at +0, LO at +2 in the slot).  Round 15:
-// isAllocatable = false so regalloc never places a vreg directly in
-// SPILL_QnLO/HI; the post-RA expansion of EXTRACT_LO/HI_word_i32 + the
-// COPY handler in expandPostRAPseudo recognise these sub-regs and emit
-// the correct LDD slot read.  Bug #301a (2026-05-16): now MC6809Reg16
-// with sub_lo_byte / sub_hi_byte SubRegIndices pointing at the byte
-// sub-regs defined above.
-//
-// Bug #265 / Bug #296 Phase 2: extend SPILL_Q* from 4 slots to 32 to
-// remove the artificial ACC32 capacity ceiling that the optimizer's
-// word-loop patterns can overflow (memccpy / rawmemchr at HD6309 -O2
-// being the manifest).  Slots are stack-backed like the original four
-// (see expandLoadIdx / expandStoreIdx), so adding more costs zero DP
-// and no per-function memory unless regalloc actually spills to them.
-//
-// DWARF numbering ranges (kept distinct so the original Q0..3 retain
-// their pre-Phase-C IDs for any external code that hashed on them):
-//   Q0..Q3    HI/LO at $2030+I*2, $2031+I*2;   composed at $2018+I*4
-//   Q4..Q31   HI/LO at $2200+I*2, $2201+I*2;   composed at $2100+I*4
-defvar SpillQHiLoOffset = 0x2030;
-defvar SpillQHiLoOffsetExt = 0x2200;
-defvar SpillQOffset    = 0x2018;
-defvar SpillQOffsetExt = 0x2100;
-foreach I = 0...31 in {
-  defvar HiLoBase = !if(!lt(I, 4),
-                        !add(SpillQHiLoOffset,    !mul(I, 2)),
-                        !add(SpillQHiLoOffsetExt, !mul(I, 2)));
-  defvar QBase    = !if(!lt(I, 4),
-                        !add(SpillQOffset,    !shl(I, 2)),
-                        !add(SpillQOffsetExt, !shl(I, 2)));
-  def SPILL_Q#I#HI : MC6809Reg16<HiLoBase, "spill_q"#I#"_hi",
-      [!cast<Register>("SPILL_Q"#I#"HILO"), !cast<Register>("SPILL_Q"#I#"HIHI")],
-      [sub_lo_byte, sub_hi_byte]>;
-  def SPILL_Q#I#LO : MC6809Reg16<!add(HiLoBase, 1), "spill_q"#I#"_lo",
-      [!cast<Register>("SPILL_Q"#I#"LOLO"), !cast<Register>("SPILL_Q"#I#"LOHI")],
-      [sub_lo_byte, sub_hi_byte]>;
-  def SPILL_Q#I   : MC6809Reg32<QBase, "spill_q"#I,
-      [!cast<Register>("SPILL_Q"#I#"LO"), !cast<Register>("SPILL_Q"#I#"HI")],
-      [sub_lo_word, sub_hi_word]>;
-}
+// The stack-backed spill pseudo-registers (SPILL_A0..7, SPILL_B0..7,
+// SPILL_D0..7, SPILL_X0..3, SPILL_Q0..31 with their half-word and byte
+// sub-regs) are GONE: every class spills through the stock frame-index
+// path (storeRegToStackSlot / loadRegFromStackSlot), with
+// foldMemoryOperandImpl's _Mem folds keeping the single-register classes
+// allocatable when two values meet at one instruction.
 
 //===----------------------------------------------------------------------===//
 //  Bug #302 follow-up: PHANTOM_CARRY physregs
@@ -393,7 +298,7 @@ foreach I = 0...31 in {
 // selectSubE.  An explicit operand of PHANTOM_CARRY class would cause
 // PHANTOM_CARRY to leak into emission paths.  The late
 // MC6809PhantomCarryGuard pass (added in this same change) walks every MI
-// after MaterializeSpills and aborts compilation with a clear diagnostic
+// before final lowering and aborts compilation with a clear diagnostic
 // if any explicit PHANTOM_CARRY operand is seen — see
 // MC6809PhantomCarryGuard.cpp.
 //

@@ -870,201 +870,7 @@ void MC6809InstrInfo::insertIndirectBranch(MachineBasicBlock &MBB, MachineBasicB
   Builder.buildInstr(MC6809::LBRAlb).addMBB(&NewDestBB);
 }
 
-/// Check if a register is a stack-backed spill pseudo-register.
-/// Phase A 2026-05-16: SPILL_Q[0..31] enum values are consecutive
-/// (verified via MC6809GenRegisterInfoEnums.inc: SPILL_Q0 = 381,
-/// SPILL_Q31 = 412), so range checks replace the 32-entry case lists
-/// that were previously hand-spelled across 5 sites in this file.
-/// Same for SPILL_Q*HI (697..728) and SPILL_Q*LO (729..760).
-static bool isInSpillQ(Register Reg) {
-  return Reg >= MC6809::SPILL_Q0 && Reg <= MC6809::SPILL_Q31;
-}
 
-// With the byte/word/index spill pseudo-registers retired (SPILL_A/B/D/X),
-// the SPILL_Q i32 tree is the ONLY remaining spill-register family; the
-// helpers below are Q-only until S4 retires that too.
-static bool isSpillReg(Register Reg) {
-  return isInSpillQ(Reg);
-}
-
-/// The frame-index key for a spill register (each SPILL_Q*N keys its own
-/// 4-byte slot).
-static MCPhysReg getSpillDParent(Register Reg) {
-  assert(isInSpillQ(Reg) && "Not a spill register");
-  return Reg;
-}
-
-/// Get byte offset within the SPILL_Q frame object (always 0 — the full
-/// 32-bit value starts at the slot base).
-static int getSpillByteOffset(Register Reg) {
-  assert(isInSpillQ(Reg) && "Not a spill register");
-  return 0;
-}
-
-/// Get the corresponding real hardware register for a spill register.
-static Register getRealRegForSpill(Register Reg) {
-  assert(isInSpillQ(Reg) && "Not a spill register");
-  return MC6809::AQ;
-}
-
-/// Index spills (SPILL_X) are gone — pointers spill through the stock
-/// frame-index path. Kept as a constant-false predicate so the staging
-/// guards read the same until S4 deletes the last of the machinery.
-static bool isIndexSpillReg(Register Reg) {
-  return false;
-}
-
-/// Bug #161 round 14: Q (32-bit) spill register predicate. Used to route
-/// emitSpillLoad / emitSpillStore through LDQ / STQ rather than the
-/// AD-staged 16-bit path.  Phase A consolidation 2026-05-16: just a
-/// thin wrapper around isInSpillQ.
-static bool isQSpillReg(Register Reg) {
-  return isInSpillQ(Reg);
-}
-
-/// Bug #161 round 14: SPILL_Q half-word sub-register predicate. The
-/// VirtRegMap rewriter substitutes these when a REG_SEQUENCE-built ACC32
-/// vreg lands in SPILL_Q* and a sub-reg consumer (sub_lo_word / sub_hi_word)
-/// is rewritten. Returns true and outputs the parent SPILL_Q + which
-/// half (true = LO = stack offset +2, false = HI = offset +0,
-/// big-endian Q layout).
-///
-/// Phase A consolidation 2026-05-16: SPILL_Q*HI[N] and SPILL_Q*LO[N]
-/// are consecutive in the enum (HI: 697..728, LO: 729..760, per
-/// MC6809GenRegisterInfoEnums.inc) and parallel to SPILL_Q[N] (381..412).
-/// Two range checks replace the 64-entry case list.
-static bool isQSpillHalfReg(Register Reg, MCPhysReg &Parent, bool &IsLo) {
-  if (Reg >= MC6809::SPILL_Q0HI && Reg <= MC6809::SPILL_Q31HI) {
-    Parent = MC6809::SPILL_Q0 + (Reg - MC6809::SPILL_Q0HI);
-    IsLo = false;
-    return true;
-  }
-  if (Reg >= MC6809::SPILL_Q0LO && Reg <= MC6809::SPILL_Q31LO) {
-    Parent = MC6809::SPILL_Q0 + (Reg - MC6809::SPILL_Q0LO);
-    IsLo = true;
-    return true;
-  }
-  return false;
-}
-
-/// Bug #301 Phase C Path C (2026-05-16): SPILL_Q byte sub-register predicate.
-/// Each of the 32 SPILL_Q slots has 4 byte sub-registers in enum order:
-/// SPILL_QnHIHI (slot+0), SPILL_QnHILO (slot+1), SPILL_QnLOHI (slot+2),
-/// SPILL_QnLOLO (slot+3).  Returns true and outputs the parent SPILL_Q +
-/// the byte offset within the 4-byte slot.
-static bool isQSpillByteReg(Register Reg, MCPhysReg &Parent,
-                             unsigned &ByteOffset) {
-  if (Reg >= MC6809::SPILL_Q0HIHI && Reg <= MC6809::SPILL_Q31LOLO) {
-    unsigned Idx = Reg - MC6809::SPILL_Q0HIHI;
-    Parent = MC6809::SPILL_Q0 + (Idx / 4);
-    ByteOffset = Idx % 4;
-    return true;
-  }
-  return false;
-}
-
-/// Get the size in bytes of a spill register (only the 4-byte SPILL_Q
-/// slots remain).
-static unsigned getSpillRegSize(Register Reg) {
-  assert(isInSpillQ(Reg) && "Not a spill register");
-  return 4;
-}
-
-/// Compute the actual stack offset for a spill register's frame slot.
-/// This replicates the logic from eliminateFrameIndex so we can emit
-/// concrete S-indexed instructions during post-RA expansion (after PEI
-/// has already run and frame indices are no longer valid).
-static int computeSpillStackOffset(MCPhysReg SpillReg, MachineFunction &MF) {
-  auto &FuncInfo = *MF.getInfo<MC6809FunctionInfo>();
-  // INDEX spill registers use themselves as the key (no parent register).
-  MCPhysReg SpillKey = isIndexSpillReg(SpillReg) ? SpillReg : getSpillDParent(SpillReg);
-  int FI = FuncInfo.SpillRegFrameIndices[SpillKey];
-  const MachineFrameInfo &MFI = MF.getFrameInfo();
-  int Offset = MFI.getObjectOffset(FI);
-
-  // Local stack objects have negative offsets; no PC skip needed.
-  // (Fixed/arg objects have positive offsets and need +2 for return address,
-  // but spill slots are always local.)
-
-  // Compute callee-saved size — count ALL CSRs pushed to the hard stack.
-  unsigned CalleeSavedSize = 0;
-  for (const auto &CSI : MFI.getCalleeSavedInfo()) {
-    const TargetRegisterInfo *TRI = MF.getRegInfo().getTargetRegisterInfo();
-    const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(CSI.getReg());
-    CalleeSavedSize += TRI->getSpillSize(*RC);
-  }
-
-  // Same formula for FP and non-FP — U is set to S after both allocation
-  // and CSR pushes, so the offset from U includes both.
-  Offset += MFI.getStackSize() + CalleeSavedSize;
-
-  // Add byte offset within the 2-byte slot (0 for A/D, 1 for B).
-  Offset += getSpillByteOffset(SpillReg);
-
-  return Offset;
-}
-
-/// For the backward-scan spill peephole in expandTestReg / expandCompareIdx:
-/// returns true if MI is a store that could overwrite bytes in the range
-/// [SpillOffset, SpillOffset + SpillSize) of the S-frame. Conservative —
-/// returns true for any mayStore whose target bytes can't be proven disjoint
-/// (unknown opcode, non-immediate offset).
-///
-/// The peephole's premise is "the matching STX/STY wrote this spill slot and
-/// nothing has clobbered it since, so IX/IY still mirrors the slot". Byte-level
-/// rewrites of the slot (e.g. SubSetCarry_i8_Reg on the sub-byte spill alias)
-/// break that premise without redefining IX/IY, so the scan must notice them.
-static bool storeOverlapsSpillSlot(const MachineInstr &MI, int SpillOffset,
-                                   unsigned SpillSize) {
-  if (!MI.mayStore()) return false;
-  unsigned StoreBytes = 0;
-  int StoreOff = 0;
-  bool HasExplicitOffset = true;
-  switch (MI.getOpcode()) {
-  case MC6809::STAi_o0: case MC6809::STBi_o0: case MC6809::STEi_o0:
-  case MC6809::STFi_o0:
-    StoreBytes = 1; HasExplicitOffset = false; break;
-  case MC6809::STAi_o5: case MC6809::STAi_o8: case MC6809::STAi_o16:
-  case MC6809::STBi_o5: case MC6809::STBi_o8: case MC6809::STBi_o16:
-  case MC6809::STEi_o5: case MC6809::STEi_o8: case MC6809::STEi_o16:
-  case MC6809::STFi_o5: case MC6809::STFi_o8: case MC6809::STFi_o16:
-    StoreBytes = 1; break;
-  case MC6809::STDi_o0: case MC6809::STXi_o0: case MC6809::STYi_o0:
-  case MC6809::STWi_o0: case MC6809::STUi_o0: case MC6809::STSi_o0:
-    StoreBytes = 2; HasExplicitOffset = false; break;
-  case MC6809::STDi_o5: case MC6809::STDi_o8: case MC6809::STDi_o16:
-  case MC6809::STXi_o5: case MC6809::STXi_o8: case MC6809::STXi_o16:
-  case MC6809::STYi_o5: case MC6809::STYi_o8: case MC6809::STYi_o16:
-  case MC6809::STWi_o5: case MC6809::STWi_o8: case MC6809::STWi_o16:
-  case MC6809::STUi_o5: case MC6809::STUi_o8: case MC6809::STUi_o16:
-  case MC6809::STSi_o5: case MC6809::STSi_o8: case MC6809::STSi_o16:
-    StoreBytes = 2; break;
-  case MC6809::STQi_o0:
-    StoreBytes = 4; HasExplicitOffset = false; break;
-  case MC6809::STQi_o5: case MC6809::STQi_o8: case MC6809::STQi_o16:
-    StoreBytes = 4; break;
-  default:
-    // Unknown store (e.g. register-offset indexed store or a memcpy pseudo).
-    // Can't prove it misses the spill slot, so bail conservatively.
-    return true;
-  }
-  // Index of the base-register operand: operand after the offset imm for
-  // non-o0 forms, or operand 0 for the o0 forms.
-  unsigned BaseOpIdx = 0;
-  if (HasExplicitOffset) {
-    if (!MI.getOperand(0).isImm()) return true;
-    StoreOff = MI.getOperand(0).getImm();
-    BaseOpIdx = 1;
-  }
-  // Only stores on the frame base ($su) can hit our spill slot. Non-SU base
-  // stores (e.g. via IX, IY) address unrelated memory — ignore them.
-  if (MI.getNumOperands() <= BaseOpIdx || !MI.getOperand(BaseOpIdx).isReg() ||
-      MI.getOperand(BaseOpIdx).getReg() != MC6809::SU)
-    return false;
-  int SpillEnd = SpillOffset + (int)SpillSize;
-  int StoreEnd = StoreOff + (int)StoreBytes;
-  return StoreOff < SpillEnd && StoreEnd > SpillOffset;
-}
 
 /// Pick the right indexed load opcode for a given register and offset.
 static unsigned getLoadIdxOpcode(Register Reg, int Offset) {
@@ -1103,210 +909,14 @@ static unsigned getSymLoadOpcode(Register Reg, bool IsDP, bool IsPIC);
 static unsigned getSymStoreOpcode(Register Reg, bool IsDP, bool IsPIC);
 static unsigned getStaticStackOpcode(unsigned IdxOpc, bool IsPIC);
 
-// The frame index backing a spill register's slot (mirrors the key logic in
-// computeSpillStackOffset).
-static int spillSlotFI(MCPhysReg SpillReg, MachineFunction &MF) {
-  auto &FuncInfo = *MF.getInfo<MC6809FunctionInfo>();
-  MCPhysReg SpillKey =
-      isIndexSpillReg(SpillReg) ? SpillReg : getSpillDParent(SpillReg);
-  return FuncInfo.SpillRegFrameIndices[SpillKey];
-}
 
-// True when a spill register's slot was moved to the static stack (Bug #387).
-// Such a slot is NOT at any U-relative address — computeSpillStackOffset's
-// result is meaningless for it; it must be reached by an extended access.
-static bool isStaticSpillSlot(MCPhysReg SpillReg, MachineFunction &MF) {
-  return MF.getFrameInfo().getStackID(spillSlotFI(SpillReg, MF)) ==
-         TargetStackID::Mc6809Static;
-}
-
-// The per-function static-stack byte offset of a spill register (the slot's
-// static offset plus the sub-slot byte for B). MC6809StaticStackAlloc resolves
-// the carried TI_STATIC_STACK target index + this offset to the real global.
-static int staticSpillOffset(MCPhysReg SpillReg, MachineFunction &MF) {
-  return MF.getFrameInfo().getObjectOffset(spillSlotFI(SpillReg, MF)) +
-         getSpillByteOffset(SpillReg);
-}
-
-/// Emit a concrete U-indexed (frame pointer) load from a spill register's
-/// stack slot. Uses U (not S) so PSHS/PULS don't invalidate offsets.
-static MachineInstrBuilder emitSpillLoad(MachineIRBuilder &Builder,
-                                         Register RealReg, MCPhysReg SpillReg,
-                                         MachineFunction &MF) {
-  unsigned Size = getSpillRegSize(SpillReg);
-  // INDEX spills (SPILL_X0..X3) use LDX/LDY directly — no D clobber.
-  // Q spills (SPILL_Q0..Q3) use LDQ — operate directly on AQ (HD6309).
-  // ACC spills (SPILL_D0..D7) route through D as before.
-  Register Reg = (Size == 2 && !isIndexSpillReg(SpillReg))
-                     ? Register(MC6809::AD)
-                     : RealReg;
-  // Bug #387: a static-stack slot is addressed absolutely, not via U.
-  if (isStaticSpillSlot(SpillReg, MF)) {
-    unsigned Opc = getSymLoadOpcode(Reg, /*IsDP=*/false,
-                                    MF.getTarget().isPositionIndependent());
-    return Builder.buildInstr(Opc)
-        .addTargetIndex(MC6809::TI_STATIC_STACK, staticSpillOffset(SpillReg, MF))
-        .addDef(Reg, RegState::Implicit);
-  }
-  int Offset = computeSpillStackOffset(SpillReg, MF);
-  unsigned Opcode = getLoadIdxOpcode(Reg, Offset);
-  auto MI = Builder.buildInstr(Opcode)
-      .addDef(Reg, RegState::Implicit)
-      .addImm(Offset)
-      .addReg(MC6809::SU);  // Frame pointer — stable across PSHS/PULS
-  return MI;
-}
-
-/// Emit a concrete U-indexed (frame pointer) store to a spill register's
-/// stack slot. Uses U (not S) so PSHS/PULS don't invalidate offsets.
-static MachineInstrBuilder emitSpillStore(MachineIRBuilder &Builder,
-                                          Register RealReg, MCPhysReg SpillReg,
-                                          MachineFunction &MF) {
-  unsigned Size = getSpillRegSize(SpillReg);
-  // INDEX spills (SPILL_X0..X3) use STX/STY directly — no D clobber.
-  // Q spills (SPILL_Q0..Q3) use STQ — operate directly on AQ (HD6309).
-  // ACC spills (SPILL_D0..D7) route through D as before.
-  Register Reg = (Size == 2 && !isIndexSpillReg(SpillReg))
-                     ? Register(MC6809::AD)
-                     : RealReg;
-  // Bug #387: a static-stack slot is addressed absolutely, not via U. Keep the
-  // SpillReg implicit-def (Bug #285) so the pseudo's destination stays defined.
-  if (isStaticSpillSlot(SpillReg, MF)) {
-    unsigned Opc = getSymStoreOpcode(Reg, /*IsDP=*/false,
-                                     MF.getTarget().isPositionIndependent());
-    return Builder.buildInstr(Opc)
-        .addTargetIndex(MC6809::TI_STATIC_STACK, staticSpillOffset(SpillReg, MF))
-        .addUse(Reg, RegState::Implicit)
-        .addReg(Register(SpillReg), RegState::ImplicitDefine);
-  }
-  int Offset = computeSpillStackOffset(SpillReg, MF);
-  unsigned Opcode = getStoreIdxOpcode(Reg, Offset);
-  // Bug #285: this store fills the imaginary spill slot, so it models
-  // a write of the SpillReg pseudo-register. Without an explicit
-  // implicit-def, callers that erase the originating pseudo (e.g.
-  // ZEX32Implicit, SEX32Implicit, *_i32_Mem spill helpers) leave the
-  // SPILL_* destination with no visible def in the final MIR.
-  // -fextend-lifetimes' FAKE_USE references (-Og) then fail with
-  // "Using an undefined physical register" at the post-postrapseudos
-  // verifier. Manifest at Og-hd6309-mame on hash_buf.c __get_buf
-  // after Bug #284's wider ZEX32Implicit Defs caused regalloc to
-  // prefer $spill_q0 over $aq.
-  auto MI = Builder.buildInstr(Opcode)
-      .addUse(Reg, RegState::Implicit)
-      .addImm(Offset)
-      .addReg(MC6809::SU)  // Frame pointer — stable across PSHS/PULS
-      .addReg(Register(SpillReg), RegState::ImplicitDefine);
-  return MI;
-}
-
-/// Emit an accumulator arithmetic/compare op that reads its operand
-/// directly from a spill register's slot (e.g. `addb n,u`). This is the single
-/// choke point for the ~40 arith-with-spill sites: for an ordinary dynamic slot
-/// it emits the U-indexed form (picking o8 vs o16 by the offset), and for a slot
-/// the static-stack allocator moved into the static_stack global it emits the
-/// extended (absolute, or PC-relative under PIC) form carrying a TI_STATIC_STACK
-/// target index that MC6809StaticStackAlloc later resolves. AccReg is the
-/// accumulator the op reads-and-writes (added as an implicit def, matching the
-/// existing sites). Opc_o16 may be 0 when the op has no 16-bit-offset form.
-static MachineInstrBuilder emitSpillArith(MachineIRBuilder &Builder,
-                                          unsigned Opc_o8, unsigned Opc_o16,
-                                          Register AccReg, MCPhysReg SpillReg,
-                                          MachineFunction &MF) {
-  if (isStaticSpillSlot(SpillReg, MF)) {
-    unsigned Opc = getStaticStackOpcode(
-        Opc_o8, MF.getTarget().isPositionIndependent());
-    return Builder.buildInstr(Opc)
-        .addDef(AccReg, RegState::Implicit)
-        .addTargetIndex(MC6809::TI_STATIC_STACK, staticSpillOffset(SpillReg, MF));
-  }
-  int Offset = computeSpillStackOffset(SpillReg, MF);
-  bool Fits8 = (Offset >= -128 && Offset <= 127);
-  unsigned Opc = (Fits8 || !Opc_o16) ? Opc_o8 : Opc_o16;
-  return Builder.buildInstr(Opc)
-      .addDef(AccReg, RegState::Implicit)
-      .addImm(Offset)
-      .addReg(MC6809::SU);
-}
-
-/// Load DestReg directly from a spill register's slot (plus an optional
-/// sub-slot ExtraOffset, e.g. +2 for a hi-half). Emits the U-indexed form for a
-/// dynamic slot or the extended TI_STATIC_STACK form for a static-stack one.
-/// DestReg is the concrete register to load (AA/AB/AD/AW/AE/AF/AQ/IX/IY);
-/// getLoadIdxOpcode / getSymLoadOpcode pick the right load opcode for it.
-static MachineInstrBuilder emitSpillLoadInto(MachineIRBuilder &Builder,
-                                             Register DestReg,
-                                             MCPhysReg SpillReg, int ExtraOffset,
-                                             MachineFunction &MF) {
-  if (isStaticSpillSlot(SpillReg, MF)) {
-    unsigned Opc = getSymLoadOpcode(DestReg, /*IsDP=*/false,
-                                    MF.getTarget().isPositionIndependent());
-    return Builder.buildInstr(Opc)
-        .addDef(DestReg, RegState::Implicit)
-        .addTargetIndex(MC6809::TI_STATIC_STACK,
-                        staticSpillOffset(SpillReg, MF) + ExtraOffset);
-  }
-  int Offset = computeSpillStackOffset(SpillReg, MF) + ExtraOffset;
-  return Builder.buildInstr(getLoadIdxOpcode(DestReg, Offset))
-      .addDef(DestReg, RegState::Implicit)
-      .addImm(Offset)
-      .addReg(MC6809::SU);
-}
-
-/// Store SrcReg directly into a spill register's slot (plus an optional sub-slot
-/// ExtraOffset). Dynamic -> U-indexed; static -> extended TI_STATIC_STACK. When
-/// DefsSpill is set the store also carries an implicit-def of SpillReg (Bug #285:
-/// it fills the spill pseudo, keeping the destination visibly defined).
-static MachineInstrBuilder emitSpillStoreFrom(MachineIRBuilder &Builder,
-                                              Register SrcReg,
-                                              MCPhysReg SpillReg, int ExtraOffset,
-                                              MachineFunction &MF,
-                                              bool DefsSpill = false) {
-  if (isStaticSpillSlot(SpillReg, MF)) {
-    unsigned Opc = getSymStoreOpcode(SrcReg, /*IsDP=*/false,
-                                     MF.getTarget().isPositionIndependent());
-    auto MIB = Builder.buildInstr(Opc)
-                   .addUse(SrcReg, RegState::Implicit)
-                   .addTargetIndex(MC6809::TI_STATIC_STACK,
-                                   staticSpillOffset(SpillReg, MF) + ExtraOffset);
-    if (DefsSpill)
-      MIB.addReg(Register(SpillReg), RegState::ImplicitDefine);
-    return MIB;
-  }
-  int Offset = computeSpillStackOffset(SpillReg, MF) + ExtraOffset;
-  auto MIB = Builder.buildInstr(getStoreIdxOpcode(SrcReg, Offset))
-                 .addUse(SrcReg, RegState::Implicit)
-                 .addImm(Offset)
-                 .addReg(MC6809::SU);
-  if (DefsSpill)
-    MIB.addReg(Register(SpillReg), RegState::ImplicitDefine);
-  return MIB;
-}
-
-/// Bug #298 / #300 (consolidated Phase A 2026-05-16): bracket a body
-/// of post-RA MIs with a 4-byte hard-stack scratch slot that holds
-/// $aq's pre-body value.  Two variants:
-///
-///  - `emitAQOnHardStackScratch` saves $aq into the scratch and
-///    releases the slot after body, but DOES NOT restore $aq.  Use
-///    when body destroys $aq deliberately (e.g. body IS the i32
-///    arithmetic whose result becomes the new $aq).  Body can read
-///    the saved $aq via $ss + 0..3 indexing.  Origin:
-///    `expandAddSub_i32_Reg` (Bug #298), where SRC2 is in $aq and is
-///    read via $ss+0..3 while DST $aq is overwritten with ADDW+ADCD's
-///    result.
-///
-///  - `emitAQPreservedOverHardStackScratch` saves $aq into the
-///    scratch, runs body (which may transiently clobber $aq), then
-///    restores $aq from the scratch and releases.  Use when body's
-///    side-effect on $aq must be hidden from the caller.  Origin:
-///    `expandLoadImm` SPILL_Q*N branch (Bug #300), where LDQ #imm
-///    transiently stages through $aq before STQ-to-spill-slot.
-///
-/// Both helpers emit the same `LEAS -4,$ss; STQ ,$ss; <body>;
-/// [LDQ ,$ss;] LEAS 4,$ss` shape.  Per
-/// `feedback_leas_save_restore_not_for_common_pseudos.md`, only the
-/// existing call sites should use these — adding to common pseudos
-/// (e.g. Add/Sub_i32_Mem) blows past the 64KB cart limit.
+/// Bug #298 (kept through the spill-register retirement): bracket a body of
+/// post-RA MIs with a 4-byte hard-stack scratch slot holding $aq's pre-body
+/// value. The body mutates $aq IN PLACE to become the result while reading
+/// the OLD $aq (the second source) via $ss + 0..3 indexing; no trailing LDQ
+/// — the caller wants the new $aq. This is how a two-source i32 op computes
+/// when both operands and the result all live in $aq (the whole ACC32 class):
+/// `LEAS -4,$ss; STQ ,$ss; <body>; LEAS 4,$ss`.
 static void emitAQOnHardStackScratch(MachineIRBuilder &Builder,
                                       llvm::function_ref<void()> Body) {
   Builder.buildInstr(MC6809::LEASi_o5).addImm(-4).addReg(MC6809::SS);
@@ -1315,64 +925,6 @@ static void emitAQOnHardStackScratch(MachineIRBuilder &Builder,
       .addReg(MC6809::SS);
   Body();
   Builder.buildInstr(MC6809::LEASi_o5).addImm(4).addReg(MC6809::SS);
-}
-
-static void emitAQPreservedOverHardStackScratch(
-    MachineIRBuilder &Builder, llvm::function_ref<void()> Body) {
-  Builder.buildInstr(MC6809::LEASi_o5).addImm(-4).addReg(MC6809::SS);
-  // Undef-marked read: the save/restore is the identity for whatever is
-  // in $aq, defined or not. The #305 liveness gate keeps the bracket only
-  // when some member of the family is live, but the live member can be a
-  // lone byte half (a partially-redefined $aq the verifier would reject
-  // as an undefined full-register read).
-  Builder.buildInstr(MC6809::STQi_o0)
-      .addUse(MC6809::AQ, RegState::Implicit | RegState::Undef)
-      .addReg(MC6809::SS);
-  Body();
-  Builder.buildInstr(MC6809::LDQi_o0)
-      .addDef(MC6809::AQ, RegState::Implicit)
-      .addReg(MC6809::SS);
-  Builder.buildInstr(MC6809::LEASi_o5).addImm(4).addReg(MC6809::SS);
-}
-
-// Forward declarations needed by emitTwoLDDSlotCopy.
-static unsigned getLoadIdxOpcode(Register Reg, int Offset);
-static unsigned getStoreIdxOpcode(Register Reg, int Offset);
-
-/// Bug #221 / #274 (consolidated Phase A 2026-05-16): copy a 4-byte
-/// i32 from one indexed address to another using two LDD/STD pairs,
-/// avoiding LDQ/STQ.  LDQ/STQ would clobber AQ's sub-registers
-/// (AW, AD, AA, AB, AE, AF) and risk corrupting regalloc-assigned
-/// values living in those sub-registers — `$spill_q*` is an
-/// imaginary reg distinct from physical $aq, so the regalloc treats
-/// them independently and may legitimately place an unrelated vreg
-/// in $aw / $ad across the Q-spill access.
-///
-/// Big-endian Q layout: byte 0..1 = HI word, byte 2..3 = LO word.
-/// Emits HI half first (offset 0), then LO half (offset 2).
-/// Only $ad is clobbered.
-///
-/// If `MarkerReg` is non-null, the LAST STD gets `implicit-def
-/// <MarkerReg>` — used by `expandLoadIdx` SPILL_Q*N dst (Bug #274)
-/// so downstream FAKE_USE / opaque consumers see the slot defined
-/// for `-verify-machineinstrs`.
-static void emitTwoLDDSlotCopy(MachineIRBuilder &Builder,
-                                int SrcOff, Register SrcBase,
-                                int DstOff, Register DstBase,
-                                Register MarkerReg = Register()) {
-  for (int H : {0, 2}) {
-    bool LastHalf = (H == 2);
-    unsigned LdOpc = getLoadIdxOpcode(MC6809::AD, SrcOff + H);
-    Builder.buildInstr(LdOpc)
-        .addDef(MC6809::AD, RegState::Implicit)
-        .addImm(SrcOff + H).addReg(SrcBase);
-    unsigned StOpc = getStoreIdxOpcode(MC6809::AD, DstOff + H);
-    auto St = Builder.buildInstr(StOpc)
-        .addUse(MC6809::AD, RegState::Implicit)
-        .addImm(DstOff + H).addReg(DstBase);
-    if (LastHalf && MarkerReg.isValid())
-      St.addDef(MarkerReg, RegState::Implicit);
-  }
 }
 
 /// Check if a register needs materialization (spill or imaginary — not a real
@@ -1408,9 +960,8 @@ static bool isImag16HiByte(Register Reg) {
 /// approach b) to stage values into AD with strict separation between the
 /// two halves.
 ///
-/// SrcReg must be a member of the ACC8 class: real AA/AB/AE/AF, a SPILL_A*/
-/// SPILL_B* byte spill, an Imag8 (RC*) direct-page byte, or (post-step-5) an
-/// RS byte half (RS*HI/RS*LO).
+/// SrcReg must be a member of the ACC8 class: real AA/AB/AE/AF, an Imag8
+/// (RC*) direct-page byte, or an RS byte half (RS*HI/RS*LO).
 static void loadByteInto(MachineIRBuilder &Builder, MCPhysReg Target,
                          Register SrcReg, MachineFunction &MF) {
   assert((Target == MC6809::AA || Target == MC6809::AB) &&
@@ -1423,11 +974,6 @@ static void loadByteInto(MachineIRBuilder &Builder, MCPhysReg Target,
     Builder.buildInstr(MC6809::TFRp).addDef(Target).addUse(SrcReg);
     return;
   }
-  // Byte spill slots — LDA/LDB at the spill offset, Target chooses A vs B.
-  if (isSpillReg(SrcReg)) {
-    emitSpillLoad(Builder, Target, SrcReg, MF);
-    return;
-  }
   // Direct-page bytes (Imag8 RC* or RS byte halves) — LDAd/LDBd by Target.
   if (MC6809::Imag8RegClass.contains(SrcReg) || isImag16ByteSubReg(SrcReg)) {
     unsigned Opc = (Target == MC6809::AA) ? MC6809::LDAd : MC6809::LDBd;
@@ -1438,7 +984,6 @@ static void loadByteInto(MachineIRBuilder &Builder, MCPhysReg Target,
 }
 
 static bool needsMaterialization(Register Reg) {
-  if (isSpillReg(Reg)) return true;
   if (isImag16ByteSubReg(Reg)) return true;
   return Reg.isPhysical() &&
          (MC6809::Imag8RegClass.contains(Reg) ||
@@ -1447,8 +992,6 @@ static bool needsMaterialization(Register Reg) {
 
 /// Get the physical hardware register that a non-physical register maps to.
 static Register getPhysRegFor(Register Reg) {
-  if (isSpillReg(Reg))
-    return getRealRegForSpill(Reg);
   if (isImag16ByteSubReg(Reg))
     return isImag16HiByte(Reg) ? MC6809::AA : MC6809::AB;
   if (Reg.isPhysical() && MC6809::Imag8RegClass.contains(Reg))
@@ -1458,16 +1001,14 @@ static Register getPhysRegFor(Register Reg) {
   return Reg; // Already a real hardware register.
 }
 
-/// Materialize: if Reg is a spill or imaginary register, emit a load into the
+/// Materialize: if Reg is an imaginary register, emit a load into the
 /// corresponding hardware register and return it. If already physical, no-op.
 static Register materializeReg(MachineIRBuilder &Builder, Register Reg,
                                 MachineFunction &MF) {
   if (!needsMaterialization(Reg))
     return Reg;
   Register PhysReg = getPhysRegFor(Reg);
-  if (isSpillReg(Reg)) {
-    emitSpillLoad(Builder, PhysReg, Reg, MF);
-  } else if (isImag16ByteSubReg(Reg)) {
+  if (isImag16ByteSubReg(Reg)) {
     // Load a single byte from the RS slot using the sub-reg's own symbol.
     // Big-endian: HI byte symbol resolves to the base address (__rsNhi),
     // LO byte symbol resolves to base+1 (__rsNlo). We must NOT use LDD
@@ -1484,15 +1025,13 @@ static Register materializeReg(MachineIRBuilder &Builder, Register Reg,
   return PhysReg;
 }
 
-/// Dematerialize: if OrigReg is a spill or imaginary register, store PhysReg
+/// Dematerialize: if OrigReg is an imaginary register, store PhysReg
 /// back to it. If OrigReg is already physical, no-op.
 static void dematerializeReg(MachineIRBuilder &Builder, Register PhysReg,
                               Register OrigReg, MachineFunction &MF) {
   if (!needsMaterialization(OrigReg))
     return;
-  if (isSpillReg(OrigReg)) {
-    emitSpillStore(Builder, PhysReg, OrigReg, MF);
-  } else if (isImag16ByteSubReg(OrigReg)) {
+  if (isImag16ByteSubReg(OrigReg)) {
     // Store a single byte back to the RS slot using the sub-reg's own symbol.
     unsigned Opc = isImag16HiByte(OrigReg) ? MC6809::STAd : MC6809::STBd;
     Builder.buildInstr(Opc)
@@ -1623,22 +1162,22 @@ static void wrapStagedCCSources(MachineInstr &MI,
     pullStagingReg(B, R);
 }
 
-// Bug #161 round 17: materialize spill / imaginary operands into real
+// Bug #161 round 17: materialize imaginary (RS/RC) operands into real
 // hardware registers before emitting any HD6309 page-3 register-pair
 // instruction (ADDR / ADCR / SUBR / SBCR / ANDR / ORR / EORR / etc).
 // These opcodes encode 4-bit hardware register codes in their postbyte
-// — a raw SPILL_* (DwarfRegNum 0x2000+) operand encodes as garbage that
-// MAME / real silicon decodes as a different (or invalid) instruction.
-// The bug surfaced as test-dp-loop FAILing with MAME "Unexpected
-// exception" — the loop body's `eorr spill_b1, b` emitted bytes
-// `10 36 a9` which round-trips through the disassembler as <unknown>.
-// Returns true if the HD6309 page-3 reg-reg expansion was emitted.
-// Returns false when Src1 and Src2 would land in the same hardware
-// byte half of D — in that case Src2's load would clobber Src1's
-// value, and the caller MUST fall back to the 6809 page-1 path
-// (which reads RHS directly from the U-relative spill slot, so no
-// second-half register is needed at all). The page-1 path is
-// strictly bigger but safe — collision is an exceptional case.
+// — a raw imaginary (DwarfRegNum 0x2000+) operand encodes as garbage
+// that MAME / real silicon decodes as a different (or invalid)
+// instruction. The bug surfaced as test-dp-loop FAILing with MAME
+// "Unexpected exception" — the loop body's `eorr spill_b1, b` emitted
+// bytes `10 36 a9` which round-trips through the disassembler as
+// <unknown>. Returns true if the HD6309 page-3 reg-reg expansion was
+// emitted. Returns false when Src1 and Src2 would land in the same
+// hardware byte half of D — in that case Src2's load would clobber
+// Src1's value, and the caller MUST fall back to the 6809 page-1 path
+// (which reads RHS via a stack push, so no second-half register is
+// needed at all). The page-1 path is strictly bigger but safe —
+// collision is an exceptional case.
 static bool emitHD6309RegRegOp(MachineIRBuilder &Builder, MachineInstr &MI,
                                 unsigned Opcode) {
   MachineFunction &MF = *MI.getMF();
@@ -1648,23 +1187,16 @@ static bool emitHD6309RegRegOp(MachineIRBuilder &Builder, MachineInstr &MI,
   Register OrigDst = Dst;
 
   // Bug #161 round 18: detect Src1/Src2 same-half collision and bail.
-  // Two flavours both produce a degenerate `SUBR B,B`-style postbyte:
+  // Regalloc can collapse both operands to the same physical AB/AA
+  // (e.g. coalesced into one byte-sized live range), or two RS/RC
+  // imaginaries can stage through the same accumulator half; either way
+  // Src1Phys == Src2Phys and the resulting `SUBR B,B` is
+  // `B = B - B = 0`, garbage data.
   //
-  // (a) Bug-#63 "skip second ACC spill" — Src1 has already been
-  //     materialized to AB by MaterializeSpills and Src2 is still a
-  //     SPILL_B* that this helper would materialize here, so the
-  //     helper's LDB would overwrite the pre-MI LDB.
-  //
-  // (b) Regalloc collapsed both operands to the same physical AB/AA
-  //     (e.g. coalesced into one byte-sized live range), so Src1Phys
-  //     == Src2Phys with NO materialization on either side. The
-  //     resulting `SUBR B,B` is `B = B - B = 0`, garbage data.
-  //
-  // We can't safely TFR or use the alt half because MaterializeSpills
-  // may have set up the alt half with an unrelated value live across
-  // this MI. Bail in both cases and let the 6809 page-1 fallback
-  // (which reads RHS from the U-relative spill slot directly) handle
-  // it. The fallback is bigger but correct.
+  // We can't safely TFR or use the alt half because it may hold an
+  // unrelated value live across this MI. Bail and let the 6809 page-1
+  // fallback (which reads RHS via a stack push) handle it. The fallback
+  // is bigger but correct.
   auto effectivePhys = [](Register R) -> Register {
     return needsMaterialization(R) ? getPhysRegFor(R) : R;
   };
@@ -1739,23 +1271,14 @@ MC6809InstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
   if (DestReg == SrcReg)
     return;
 
-  // Handle copies involving spill pseudo-registers or imaginary registers.
-  // Emit concrete S-indexed instructions (not pseudos with frame indices,
-  // since PEI has already run by the time copyPhysReg is called).
+  // Handle copies involving imaginary registers. Emit concrete direct-page
+  // instructions (not pseudos with frame indices, since PEI has already run
+  // by the time copyPhysReg is called).
   if (needsMaterialization(DestReg) || needsMaterialization(SrcReg)) {
     MachineFunction &MF = *MBB.getParent();
     if (needsMaterialization(DestReg) && !needsMaterialization(SrcReg)) {
-      // Real → Spill/Imaginary: Store to spill slot or imaginary.
-      if (isIndexSpillReg(DestReg)) {
-        // INDEX spill: use IY as staging (callee-saved, avoids IX conflicts).
-        Register StageReg = MC6809::IY;
-        if (SrcReg != StageReg)
-          Builder.buildInstr(MC6809::TFRp).addDef(StageReg).addUse(SrcReg);
-        emitSpillStoreFrom(Builder, StageReg, DestReg, /*ExtraOffset=*/0, MF);
-      } else if (isSpillReg(DestReg) && (SrcReg == MC6809::IX || SrcReg == MC6809::IY)) {
-        // INDEX → ACC spill: use STX/STY directly (no D clobber).
-        emitSpillStoreFrom(Builder, SrcReg, DestReg, /*ExtraOffset=*/0, MF);
-      } else if (MC6809::Imag16RegClass.contains(DestReg) &&
+      // Real → Imaginary: store to the direct-page slot.
+      if (MC6809::Imag16RegClass.contains(DestReg) &&
                  (SrcReg == MC6809::IX || SrcReg == MC6809::IY ||
                   SrcReg == MC6809::SU || SrcReg == MC6809::SS)) {
         // INDEX/STACK → Imag16: store the source register directly to the
@@ -1786,17 +1309,8 @@ MC6809InstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
         }
       }
     } else if (!needsMaterialization(DestReg) && needsMaterialization(SrcReg)) {
-      // Spill/Imaginary → Real: Load from spill slot or imaginary.
-      if (isIndexSpillReg(SrcReg)) {
-        // INDEX spill → Real: use IY as staging (callee-saved).
-        Register StageReg = MC6809::IY;
-        emitSpillLoadInto(Builder, StageReg, SrcReg, /*ExtraOffset=*/0, MF);
-        if (DestReg != StageReg)
-          Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(StageReg);
-      } else if (isSpillReg(SrcReg) && (DestReg == MC6809::IX || DestReg == MC6809::IY)) {
-        // ACC spill → INDEX: use LDX/LDY directly (no D clobber).
-        emitSpillLoadInto(Builder, DestReg, SrcReg, /*ExtraOffset=*/0, MF);
-      } else if (MC6809::Imag16RegClass.contains(SrcReg) &&
+      // Imaginary → Real: load from the direct-page slot.
+      if (MC6809::Imag16RegClass.contains(SrcReg) &&
                  (DestReg == MC6809::IX || DestReg == MC6809::IY ||
                   DestReg == MC6809::SU || DestReg == MC6809::SS)) {
         // Imag16 → INDEX/STACK: load directly with LDX/LDY/LDU/LDS.
@@ -1824,7 +1338,7 @@ MC6809InstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
         }
       }
     } else {
-      // Spill/Imaginary → Spill/Imaginary: materialize src, dematerialize
+      // Imaginary → Imaginary: materialize src, dematerialize
       // dest. The staging register is pure scratch here -- preserve it.
       Register TmpReal = getPhysRegFor(SrcReg);
       pushStagingReg(Builder, TmpReal);
@@ -1986,7 +1500,7 @@ MC6809InstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
     // here is the regalloc's way of renaming the value; no instruction
     // emission needed.
     //
-    // For other ACC16 destinations (RS imag regs, SPILL_D*), we route
+    // For other ACC16 destinations (RS imag regs), we route
     // through AD by first claiming AD as the "HI half" of AQ (no
     // instruction), then dematerialising AD to the actual destination
     // via the existing imaginary/spill machinery (TFR or STD as
@@ -1998,7 +1512,7 @@ MC6809InstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
     // $FFF2 and effectively turned the test into an infinite loop.
     if (DestReg == MC6809::AD || DestReg == MC6809::AW)
       return;
-    // Other ACC16 destination (Imag16, SPILL_D*): route through AD then
+    // Other ACC16 destination (Imag16): route through AD then
     // store/transfer to the real destination via the existing AD-source
     // copyPhysReg path.
     if (SrcReg != MC6809::AQ)
@@ -2106,15 +1620,7 @@ static void loadStoreRegisterStaticStackSlot(MachineIRBuilder &Builder, MachineO
         opcode = MO.isDef() ? MC6809::Load_i16_Mem : MC6809::Store_i16_Mem;
       break;
     case 32:
-      // Bug #271 cat-3: use SpillLoad_i32_Mem / SpillStore_i32_Mem,
-      // whose operand class is ACC32 (= AQ + SPILL_Q0..3). The plain
-      // Load_i32_Mem / Store_i32_Mem are AQc-constrained for Bug #208
-      // round 4 sub-reg-aliasing reasons in user codegen, but the
-      // spill framework passes the original ACC32-class vreg directly
-      // — a class mismatch against AQc that -verify-machineinstrs
-      // would flag. The Spill variants share their post-RA expander,
-      // so codegen is unchanged.
-      opcode = MO.isDef() ? MC6809::SpillLoad_i32_Mem : MC6809::SpillStore_i32_Mem;
+      opcode = MO.isDef() ? MC6809::Load_i32_Mem : MC6809::Store_i32_Mem;
       break;
     }
     Builder.buildInstr(opcode).add(MO).addFrameIndex(FrameIndex, Offset).addImm(0).addMemOperand(MMO);
@@ -2148,10 +1654,6 @@ void MC6809InstrInfo::loadStoreRegStackSlot(MachineBasicBlock &MBB, MachineBasic
   MachineFunction &MF = *MBB.getParent();
   MachineFrameInfo &MFI = MF.getFrameInfo();
   MachineRegisterInfo &MRI = MF.getRegInfo();
-
-  // UsesSpillRegisters is detected by determineCalleeSaves (which scans all
-  // instructions before PEI runs hasFP). SU is unconditionally reserved in
-  // getReservedRegs, so we no longer need to coordinate flag-setting here.
 
   // Imaginary registers (RC0..RC255, RS0..RS127) are direct-page memory
   // locations — they don't use frame indices. Emit direct-page LDA/STA
@@ -2223,8 +1725,8 @@ void MC6809InstrInfo::loadStoreRegStackSlot(MachineBasicBlock &MBB, MachineBasic
 // simultaneously-live uses in a one-register class, which is unallocatable
 // unless one of them can be read from its spill slot in place. The byte
 // _Reg forms are HD6309-only (base 6809 selects the Push/Pull shape), so
-// this is the HD6309 escape hatch the SPILL_* pseudo-registers used to
-// provide via MaterializeSpills' second-spill-skip path.
+// this is the HD6309 escape hatch the retired SPILL_* pseudo-registers
+// used to provide.
 // Diagnostic escape hatch for bisecting spill-fold-related miscompiles:
 // -mc6809-disable-mem-fold reverts to plain reload+register-op spilling for
 // the two-source _Reg pseudos (the EXTRACT byte fold is unaffected).
@@ -2391,8 +1893,8 @@ MachineInstr *MC6809InstrInfo::foldMemoryOperandImpl(
   // between its extract and the subtraction.
   //
   // A narrow LDA/LDB of just the wanted byte eliminates the AD clobber on
-  // the spill-to-frame path. DP-backed SPILL_D / RS paths are unaffected
-  // and remain handled by post-RA materialisation.
+  // the spill-to-frame path. DP-backed RS paths are unaffected and remain
+  // handled by post-RA materialisation.
   unsigned Opc = MI.getOpcode();
 
   // A FAKE_USE exists only to extend values' visible lifetimes for debug
@@ -2440,7 +1942,7 @@ MachineInstr *MC6809InstrInfo::foldMemoryOperandImpl(
   // (Store_i32_SlotToMem): reloading it into $aq would create a fresh
   // {AQ}-class interval at the store, colliding with any neighbouring i32
   // that already holds $aq (the -Og llabs/imaxdiv shape).
-  if ((Opc == MC6809::Store_i32_Mem || Opc == MC6809::SpillStore_i32_Mem) &&
+  if (Opc == MC6809::Store_i32_Mem &&
       Ops.size() == 1 && Ops[0] == 0) {
     MachineBasicBlock &MBB = *MI.getParent();
     MachineInstr *NewMI = BuildMI(MBB, InsertPt, MI.getDebugLoc(),
@@ -2457,7 +1959,7 @@ MachineInstr *MC6809InstrInfo::foldMemoryOperandImpl(
   // Store_i32_SlotToMem through D instead of a Load/Store round-trip
   // through $aq (the ceil/floor/fmod shape: an argument load whose value is
   // immediately parked in a spill slot while $aq's neighbourhood is full).
-  if ((Opc == MC6809::Load_i32_Mem || Opc == MC6809::SpillLoad_i32_Mem) &&
+  if (Opc == MC6809::Load_i32_Mem &&
       Ops.size() == 1 && Ops[0] == 0 && MI.getOperand(1).isFI()) {
     MachineBasicBlock &MBB = *MI.getParent();
     MachineInstr *NewMI = BuildMI(MBB, InsertPt, MI.getDebugLoc(),
@@ -2632,7 +2134,6 @@ MachineInstr *MC6809InstrInfo::foldMemoryOperandImpl(
   case MC6809::Load_i8_Mem:
   case MC6809::Load_i16_Mem:
   case MC6809::Load_i32_Mem:
-  case MC6809::SpillLoad_i32_Mem:
   case MC6809::Load_iPtr_Mem:
     break;
   default:
@@ -2648,9 +2149,7 @@ MachineInstr *MC6809InstrInfo::foldMemoryOperandImpl(
   // PeepholeOptimizer (via the generic optimizeLoadInstr) passes no LIS
   // and must NOT take it: with a free $aq, LDQ+STQ beats the two-LDD/STD
   // copy, so the opportunistic pre-RA fold would be a plain pessimization.
-  if (LIS &&
-      (MI.getOpcode() == MC6809::Store_i32_Mem ||
-       MI.getOpcode() == MC6809::SpillStore_i32_Mem) &&
+  if (LIS && MI.getOpcode() == MC6809::Store_i32_Mem &&
       Ops.size() == 1 && Ops[0] == 0) {
     MachineBasicBlock &MBB = *InsertPt->getParent();
     MachineInstr *NewMI = BuildMI(MBB, InsertPt, MI.getDebugLoc(),
@@ -2788,10 +2287,9 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::EXTRACT_HI_i16: {
     // Byte-extract pseudo (bug #118 Layer 1). After regalloc, resolve the
     // 16-bit source to its physical register, pick the relevant byte
-    // sub-physreg (AB/AA for AD, SPILL_B*/SPILL_A* for SPILL_D*, RS*LO/HI
-    // for RS*), and route that byte to the 8-bit destination via
-    // copyPhysReg. All routing — materialise, dematerialise, TFR cross-half
-    // — is already handled inside copyPhysReg.
+    // sub-physreg (AB/AA for AD, RS*LO/HI for RS*), and route that byte to
+    // the 8-bit destination via copyPhysReg. All routing — materialise,
+    // dematerialise, TFR cross-half — is already handled inside copyPhysReg.
     MachineFunction &MF = *MI.getMF();
     const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
     Register DstReg = MI.getOperand(0).getReg();
@@ -2800,35 +2298,10 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
                         ? MC6809::sub_lo_byte
                         : MC6809::sub_hi_byte;
     Register SrcByte = TRI->getSubReg(SrcReg, SubIdx);
-    // Bug #118 Layer 1 (approach b): MaterializeSpills may have pre-routed
-    // the src to its byte staging register (e.g. rewrote SPILL_D0 src → $ab
-    // for EXTRACT_LO, loading just the relevant byte from the spill slot to
-    // avoid the LDD clobber). In that case SrcReg is already the 8-bit
-    // staging byte and getSubReg returns 0. Fall back to SrcReg itself.
+    // A source already narrowed to its 8-bit staging byte has no sub-reg;
+    // getSubReg returns 0. Fall back to SrcReg itself.
     if (!SrcByte)
       SrcByte = SrcReg;
-    // Bug #301 Phase C Path C (2026-05-16): SrcByte may be a SPILL_Q byte
-    // sub-register (SPILL_QnHIHI/HILO/LOHI/LOLO).  copyPhysReg can't route
-    // a stack-slot byte to an accumulator byte — emit LDB at slot+offset
-    // directly here.  needsMaterialization/dematerialize on DstReg are
-    // handled the same way as the COPY-from-SPILL_QnHI/LO case below.
-    MCPhysReg QParent = 0;
-    unsigned ByteOffset = 0;
-    if (isQSpillByteReg(SrcByte, QParent, ByteOffset)) {
-      Register OrigDst = DstReg;
-      // Pure def: stage via the real register, preserved (see Extract16).
-      bool StageDst = needsMaterialization(DstReg);
-      Register RealDst = StageDst ? getPhysRegFor(DstReg) : DstReg;
-      if (StageDst)
-        pushStagingReg(Builder, RealDst);
-      emitSpillLoadInto(Builder, RealDst, QParent, ByteOffset, MF);
-      if (StageDst) {
-        dematerializeReg(Builder, RealDst, OrigDst, MF);
-        pullStagingReg(Builder, RealDst);
-      }
-      MI.eraseFromParent();
-      return true;
-    }
     copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
                 DstReg, SrcByte, /*KillSrc=*/false);
     MI.eraseFromParent();
@@ -2839,21 +2312,13 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::Extract16_i32_lo:
   case MC6809::Extract16_i32_hi: {
     // Bug #161 round 14: extract a 16-bit half from an ACC32 source.
-    // - AQ source: AQ = D:W (D high, W low). sub_lo_word = AW; sub_hi_word
-    //   = AD. Use copyPhysReg AD ← AW (TFR W,D) for LO; for HI it's
-    //   AD ← AD (no-op) so just elide.
-    // - SPILL_Q source: 4-byte stack slot at U+offset, big-endian:
-    //   bytes [0..1] = D (hi word), bytes [2..3] = W (lo word). LO
-    //   needs LDD slot+2,U; HI needs LDD slot+0,U.
-    //
-    // Bug #302 redesign Phase 1 (2026-05-17): Extract16_i32_lo/hi
-    // are the redesign replacements for EXTRACT_LO/HI_word_i32 —
-    // identical post-RA semantics for the moment.  Phase 3 will
-    // rewrite this case to use literal AD/AW physregs without
-    // depending on the AQ sub-register hierarchy.
+    // AQ = D:W (D high, W low). sub_lo_word = AW; sub_hi_word = AD. Use
+    // copyPhysReg AD ← AW (TFR W,D) for LO; for HI it's AD ← AD (no-op)
+    // so just elide. (A spilled i32 source never reaches here — the
+    // Extract16 frame-index fold in foldMemoryOperandImpl reads the wanted
+    // half straight from the slot.)
     MachineFunction &MF = *MI.getMF();
     Register DstReg = MI.getOperand(0).getReg();
-    Register SrcReg = MI.getOperand(1).getReg();
     unsigned Opcode = MI.getOpcode();
     bool IsLo = (Opcode == MC6809::EXTRACT_LO_word_i32 ||
                  Opcode == MC6809::Extract16_i32_lo);
@@ -2865,11 +2330,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     Register RealDst = StageDst ? getPhysRegFor(DstReg) : DstReg;
     if (StageDst)
       pushStagingReg(Builder, RealDst);
-    if (isQSpillReg(SrcReg)) {
-      // Read the right 16-bit half directly from the stack slot.
-      // Big-endian: D at +0, W at +2.
-      emitSpillLoadInto(Builder, RealDst, SrcReg, /*ExtraOffset=*/IsLo ? 2 : 0, MF);
-    } else {
+    {
       // SrcReg is AQ. The relevant half lives in AW (LO) or AD (HI).
       Register SrcWord = IsLo ? Register(MC6809::AW) : Register(MC6809::AD);
       copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
@@ -2892,122 +2353,15 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     //
     // Operand layout: outs ACC32:$dst; ins ADc:$lo, ADc:$hi.
     //
-    // Post-RA expansion:
-    // - AQ destination: AQ = D:W (D high, W low).  Marshal hi → AD
-    //   and lo → AW via copyPhysReg.  When the inputs are already
-    //   in the right physregs the copyPhysReg becomes a no-op (or
-    //   TFR-elision).  When inputs collide (e.g. lo allocated to
-    //   AD), stage through a scratch — copyPhysReg handles that.
-    // - SPILL_Q*N destination: write lo and hi to the right 16-bit
-    //   slots in the 4-byte stack slot.  Big-endian: D at +0,
-    //   W at +2.  STD $lo, slot+2,$su ; STD $hi, slot+0,$su.
-    //   Inputs need to be moved into AD before STD if they're not
-    //   already there (only AD has a memory-store form via STD).
-    MachineFunction &MF = *MI.getMF();
-    Register DstReg = MI.getOperand(0).getReg();
+    // Post-RA expansion: the destination is AQ = D:W (D high, W low).
+    // Marshal hi → AD and lo → AW via copyPhysReg.  When the inputs are
+    // already in the right physregs the copyPhysReg becomes a no-op (or
+    // TFR-elision).  When inputs collide (e.g. lo allocated to AD), stage
+    // collision-aware (Bug #311).
     Register LoReg = MI.getOperand(1).getReg();
     Register HiReg = MI.getOperand(2).getReg();
 
-    if (isQSpillReg(DstReg)) {
-      // Stack-slot destination: STD each half.  STD only writes from
-      // AD, so move each input through AD first if not already there.
-      //
-      // Bug #301 (2026-05-22) follow-up to Bug #311: collision-aware
-      // ordering.  Mirrors Bug #311's AQ-dst case but for the SPILL_Q
-      // destination.  Key insight: STORE first while $ad still holds
-      // the correct value, BEFORE any LDD-from-spill clobbers it.
-      //
-      // Four cases (LoIsSpill, HiIsSpill):
-      //  1. Both SPILL_D: LDD lo→AD; STD slot+2; LDD hi→AD; STD slot+0.
-      //  2. Only HI is SPILL_D, LoReg = $ad: STD slot+2 FIRST (while $ad
-      //     has LO); LDD hi→AD; STD slot+0.  This is the failing case
-      //     pre-fix — the old code did `LDD hi→AD` first (assuming "lo
-      //     already in $ad, just store"), but the lo→AD copy at the start
-      //     was a no-op so the next LDD clobbered the LO value before
-      //     it had been stored.
-      //  3. Only LO is SPILL_D, HiReg = $ad: STD slot+0 FIRST (while $ad
-      //     has HI); LDD lo→AD; STD slot+2.
-      //  4. Neither spilled: existing sequential copyPhysReg + STD.
-      //
-      // No cross-conflict case (Bug #311 case 1) — LoReg/HiReg are ADc
-      // here, no $aw involved.
-      int Offset = computeSpillStackOffset(DstReg, MF);
-      bool Fits8 = ((Offset + 2) >= -128 && (Offset + 2) <= 127);
-      unsigned Opc = Fits8 ? MC6809::STDi_o8 : MC6809::STDi_o16;
-
-      bool LoIsSpill = isSpillReg(LoReg) && !isQSpillReg(LoReg);
-      bool HiIsSpill = isSpillReg(HiReg) && !isQSpillReg(HiReg);
-
-      auto LoadSpillIntoAD = [&](Register SpillReg) {
-        emitSpillLoadInto(Builder, MC6809::AD, SpillReg, /*ExtraOffset=*/0, MF);
-      };
-
-      auto StoreToSlot = [&](int SlotOff, bool IsLast) {
-        // Bug #305 part 2 cluster A (2026-05-18): the source MI's
-        // explicit OutOperand ($spill_q*) is the only visible def of
-        // that imaginary register.  Attach implicit-def $spill_q* to
-        // the LAST STD so downstream FAKE_USE $spill_q* (from
-        // -fextend-lifetimes at -Og) doesn't read an undefined reg.
-        // Keep the dynamic path's single uniform Opc (chosen from Offset+2 for
-        // both slot writes); a static-stack dest uses the extended store, with
-        // the sub-slot offset (SlotOff - Offset) added to the static base.
-        MachineInstrBuilder MIB;
-        if (isStaticSpillSlot(DstReg, MF)) {
-          unsigned SymOpc = getSymStoreOpcode(
-              MC6809::AD, /*IsDP=*/false, MF.getTarget().isPositionIndependent());
-          MIB = Builder.buildInstr(SymOpc)
-                    .addUse(MC6809::AD, RegState::Implicit)
-                    .addTargetIndex(MC6809::TI_STATIC_STACK,
-                                    staticSpillOffset(DstReg, MF) + (SlotOff - Offset));
-        } else {
-          MIB = Builder.buildInstr(Opc)
-                    .addUse(MC6809::AD, RegState::Implicit)
-                    .addImm(SlotOff).addReg(MC6809::SU);
-        }
-        if (IsLast)
-          MIB.addReg(DstReg, RegState::ImplicitDefine);
-      };
-
-      if (LoIsSpill && HiIsSpill) {
-        // Case 1: both spilled.
-        LoadSpillIntoAD(LoReg);
-        StoreToSlot(Offset + 2, /*IsLast=*/false);
-        LoadSpillIntoAD(HiReg);
-        StoreToSlot(Offset, /*IsLast=*/true);
-      } else if (HiIsSpill && LoReg == MC6809::AD) {
-        // Case 2: HI spilled, LO already in $ad.  STORE LO FIRST.
-        StoreToSlot(Offset + 2, /*IsLast=*/false);
-        LoadSpillIntoAD(HiReg);
-        StoreToSlot(Offset, /*IsLast=*/true);
-      } else if (LoIsSpill && HiReg == MC6809::AD) {
-        // Case 3: LO spilled, HI already in $ad.  STORE HI FIRST.
-        StoreToSlot(Offset, /*IsLast=*/false);
-        LoadSpillIntoAD(LoReg);
-        StoreToSlot(Offset + 2, /*IsLast=*/true);
-      } else if (HiReg == MC6809::AD && LoReg != MC6809::AD) {
-        // Physreg collision (ACC16-widened inputs): HI already sits in
-        // $ad, so the lo→$ad copy of the sequential order would destroy
-        // it. Store HI first, then stage LO.
-        StoreToSlot(Offset, /*IsLast=*/false);
-        copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
-                    MC6809::AD, LoReg, /*KillSrc=*/false);
-        StoreToSlot(Offset + 2, /*IsLast=*/true);
-      } else {
-        // Case 4: neither spilled (or one is in some non-$ad physreg).
-        // Existing sequential behavior: move LO→$ad, STD slot+2,
-        // move HI→$ad, STD slot+0.
-        if (LoReg != MC6809::AD) {
-          copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
-                      MC6809::AD, LoReg, /*KillSrc=*/false);
-        }
-        StoreToSlot(Offset + 2, /*IsLast=*/false);
-        if (HiReg != MC6809::AD) {
-          copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
-                      MC6809::AD, HiReg, /*KillSrc=*/false);
-        }
-        StoreToSlot(Offset, /*IsLast=*/true);
-      }
-    } else {
+    {
       // AQ destination: marshal hi into AD, lo into AW.
       //
       // Bug #302 redesign Phase 2 fixup (2026-05-17): the Build32 MI
@@ -3032,41 +2386,24 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
       // data.  Phase 3 rewrites this expansion to be sub-reg-
       // independent and the collision-handling will be revisited
       // there.
-      // Bug #311 (2026-05-22): collision-aware expansion.  Five cases:
+      // Bug #311 (2026-05-22): collision-aware expansion.  Three cases:
       //
       //   1. Cross-conflict (hi=$aw, lo=$ad): EXG D,W in one cycle.
-      //   2. Both SPILL_D: load lo→AD; TFR D,W; load hi→AD.
-      //   3. Only hi is SPILL_D: move lo→AW (preserve from LDD-
-      //      clobber); load hi→AD.  Common case after MaterializeSpills'
-      //      PhysCollision detection skips the $hi=$spill_d0 case
-      //      where $lo=$ad.
-      //   4. Only lo is SPILL_D AND hi is already in $ad: use LDW
-      //      (HD6309) to load lo into AW directly without touching AD.
-      //   5. Neither spilled (and not cross-conflict): existing
-      //      sequential copyPhysReg.
+      //   2. LO already in $ad: move LO to $aw first so the hi→$ad copy
+      //      can't destroy it.
+      //   3. Otherwise: sequential copyPhysReg (hi → $ad, lo → $aw).
       MachineBasicBlock &MBB = *MI.getParent();
       MachineBasicBlock::iterator InsertBefore = MI;
       MachineBasicBlock::iterator BeforeFirstCopy = MBB.end();
       if (InsertBefore != MBB.begin())
         BeforeFirstCopy = std::prev(InsertBefore);
 
-      bool LoIsSpill = isSpillReg(LoReg) && !isQSpillReg(LoReg);
-      bool HiIsSpill = isSpillReg(HiReg) && !isQSpillReg(HiReg);
-
-      auto LoadSpillIntoAD = [&](Register SpillReg) {
-        emitSpillLoadInto(Builder, MC6809::AD, SpillReg, /*ExtraOffset=*/0, MF);
-      };
-      auto LoadSpillIntoAW = [&](Register SpillReg) {
-        // HD6309-only: LDW writes AW directly without touching AD.
-        emitSpillLoadInto(Builder, MC6809::AW, SpillReg, /*ExtraOffset=*/0, MF);
-      };
-
       if (HiReg == MC6809::AW && LoReg == MC6809::AD) {
         // Case 1: cross-conflict — EXG D,W swaps in one cycle.
         Builder.buildInstr(MC6809::EXGp)
             .addDef(MC6809::AD).addDef(MC6809::AW)
             .addUse(MC6809::AD).addUse(MC6809::AW);
-      } else if (LoReg == MC6809::AD && !HiIsSpill) {
+      } else if (LoReg == MC6809::AD) {
         // Physreg collision (ACC16-widened inputs): LO already sits in
         // $ad and HI is in some other physreg (AW handled by case 1, RS
         // imaginaries here). The sequential order would clobber LO with
@@ -3076,37 +2413,8 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
         if (HiReg != MC6809::AD)
           copyPhysReg(MBB, InsertBefore, MI.getDebugLoc(),
                       MC6809::AD, HiReg, /*KillSrc=*/false);
-      } else if (LoIsSpill && HiIsSpill) {
-        // Case 2: both spilled.  LO first (LDD writes AD, then TFR
-        // moves it to AW), THEN HI into AD.
-        LoadSpillIntoAD(LoReg);
-        copyPhysReg(MBB, InsertBefore, MI.getDebugLoc(),
-                    MC6809::AW, MC6809::AD, /*KillSrc=*/false);
-        LoadSpillIntoAD(HiReg);
-      } else if (HiIsSpill) {
-        // Case 3: HI spilled.  Move LO to AW first (preserve before
-        // LDD clobbers AD), then load HI into AD.
-        if (LoReg != MC6809::AW) {
-          copyPhysReg(MBB, InsertBefore, MI.getDebugLoc(),
-                      MC6809::AW, LoReg, /*KillSrc=*/false);
-        }
-        LoadSpillIntoAD(HiReg);
-      } else if (LoIsSpill) {
-        // Case 4: LO spilled.  If HI already in AD, use LDW to load
-        // LO into AW without touching AD.  Otherwise normal sequence.
-        if (HiReg == MC6809::AD) {
-          LoadSpillIntoAW(LoReg);
-        } else {
-          LoadSpillIntoAD(LoReg);
-          copyPhysReg(MBB, InsertBefore, MI.getDebugLoc(),
-                      MC6809::AW, MC6809::AD, /*KillSrc=*/false);
-          if (HiReg != MC6809::AD) {
-            copyPhysReg(MBB, InsertBefore, MI.getDebugLoc(),
-                        MC6809::AD, HiReg, /*KillSrc=*/false);
-          }
-        }
       } else {
-        // Case 5: neither spilled.  Existing sequential behavior.
+        // Case 3: sequential — hi → $ad, lo → $aw.
         if (HiReg != MC6809::AD) {
           copyPhysReg(MBB, InsertBefore, MI.getDebugLoc(),
                       MC6809::AD, HiReg, /*KillSrc=*/false);
@@ -3139,34 +2447,20 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::AnyExt32_i16: {
     // Bug #302 redesign Phase 2 (2026-05-17): i16 → i32 anyext.
     // Move the i16 source into the low half of the i32 destination
-    // (= AW for AQ-dest, = slot+2 for SPILL_Q*N-dest).  High half
-    // is undefined — the IR's anyext semantics make the upper bits
-    // don't-care.
-    MachineFunction &MF = *MI.getMF();
-    Register DstReg = MI.getOperand(0).getReg();
+    // (AW = AQ.sub_lo_word). High half is undefined — the IR's anyext
+    // semantics make the upper bits don't-care.
     Register SrcReg = MI.getOperand(1).getReg();
-    if (isQSpillReg(DstReg)) {
-      // SPILL_Q*N destination: STD <src>,slot+2,$su.  Move src
-      // through AD if not already there (STD only writes from AD).
-      if (SrcReg != MC6809::AD) {
-        copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
-                    MC6809::AD, SrcReg, /*KillSrc=*/false);
-      }
-      emitSpillStoreFrom(Builder, MC6809::AD, DstReg, /*ExtraOffset=*/2, MF);
-    } else {
-      // AQ destination: AW (AQ.sub_lo_word) ← src.  copyPhysReg
-      // elides when src is already AW.
-      if (SrcReg != MC6809::AW) {
-        copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
-                    MC6809::AW, SrcReg, /*KillSrc=*/false);
-      }
+    // AQ destination: AW ← src.  copyPhysReg elides when src is already AW.
+    if (SrcReg != MC6809::AW) {
+      copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
+                  MC6809::AW, SrcReg, /*KillSrc=*/false);
     }
     MI.eraseFromParent();
     return true;
   }
   case MC6809::SignTest_i32: {
     // HD6309 native i32 sign test (Bug #301b).
-    // Dst is ACC8; Src is ACC32 (AQ or SPILL_Q*N).
+    // Dst is ACC8; Src is ACC32 (= AQ).
     //
     // Strategy: get the MSByte (= sign byte, big-endian byte 0 of i32)
     // into AA, ASLA to shift bit 7 into CC.C, then LDA #0 ; ADCA #0
@@ -3178,19 +2472,13 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     // bytes / 4 cycles per call.  Working in A directly saves that
     // instruction.  Both A and B are part of AQ so the AQ clobber is
     // unchanged (Defs already lists AQ — see Bug #304 fix).
-    MachineFunction &MF = *MI.getMF();
     Register DstReg = MI.getOperand(0).getReg();
     Register SrcReg = MI.getOperand(1).getReg();
 
-    // Step 1: ensure MSByte is in AA.
-    if (SrcReg == MC6809::AQ) {
-      // AQ.MSByte = AA — already where we need it.  No instruction.
-    } else if (isQSpillReg(SrcReg)) {
-      // SPILL_Q*N: load MSByte from slot+0 into AA.
-      emitSpillLoadInto(Builder, MC6809::AA, SrcReg, /*ExtraOffset=*/0, MF);
-    } else {
-      llvm_unreachable("SignTest_i32 src must be AQ or SPILL_Q*N");
-    }
+    // Step 1: ensure MSByte is in AA. AQ.MSByte = AA — already where we
+    // need it.  No instruction.
+    if (SrcReg != MC6809::AQ)
+      llvm_unreachable("SignTest_i32 src must be AQ");
 
     // Step 2: ASLA shifts AA left, putting bit 7 (= sign bit) into CC.C
     // and clobbering AA's contents.  We'll overwrite AA in step 3.
@@ -3207,7 +2495,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
         .addImm(0);
 
     // Step 4: COPY AA to Dst (ACC8).  Dst lands in AA / AB / AE / AF
-    // or a SPILL_A* / SPILL_B* slot (materialise/dematerialise handles
+    // or an RC direct-page byte (materialise/dematerialise handles
     // those via copyPhysReg).
     if (DstReg != MC6809::AA) {
       copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
@@ -3221,8 +2509,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     // Strategy: OR all 4 source bytes into AB, then extract CC.Z into AB.
     // Result i1 = 1 if i32 was zero, 0 otherwise.
     //
-    // CAVEAT: this expansion CLOBBERS $aq's AB byte (AQ-source path) or
-    // leaves $aq untouched but clobbers $ab (SPILL_Q*N-source path).
+    // CAVEAT: this expansion CLOBBERS $aq's AA byte.
     // The legalizer/regalloc must treat the LHS i32 vreg as dead post-
     // EqZero_i32 — same effective constraint as the __cmpsi2 libcall this
     // replaces (which clobbers all caller-save regs via the call).
@@ -3231,12 +2518,6 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     //   ORR A,B    ; B = B | A
     //   ORR E,B    ; B = B | E
     //   ORR F,B    ; B = B | F  — CC.Z set iff all 4 bytes were 0
-    //
-    // SPILL_Q*N source (4 bytes at slot+0..3 in big-endian Q layout):
-    //   LDB <slot+0>,$su
-    //   ORB <slot+1>,$su
-    //   ORB <slot+2>,$su
-    //   ORB <slot+3>,$su   ; CC.Z set iff all bytes were 0
     //
     // Then CC.Z → bit 0 of AB:
     //   TFR CC,A     ; A = CC
@@ -3247,7 +2528,6 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     //
     // Finally COPY B to Dst's parent byte (coalescer-tolerant dispatch
     // mirrors SignTest_i32).
-    MachineFunction &MF = *MI.getMF();
     Register DstReg = MI.getOperand(0).getReg();
     Register SrcReg = MI.getOperand(1).getReg();
 
@@ -3269,39 +2549,8 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
       Builder.buildInstr(MC6809::ORRp)
           .addDef(MC6809::AA)
           .addUse(MC6809::AF).addUse(MC6809::AA);
-    } else if (isQSpillReg(SrcReg) && isStaticSpillSlot(SrcReg, MF)) {
-      // Static-stack: LDA static+0; 3× ORA static+N (extended, PC-rel under PIC).
-      bool IsPIC = MF.getTarget().isPositionIndependent();
-      int Base = staticSpillOffset(SrcReg, MF);
-      Builder.buildInstr(getSymLoadOpcode(MC6809::AA, /*IsDP=*/false, IsPIC))
-          .addDef(MC6809::AA, RegState::Implicit)
-          .addTargetIndex(MC6809::TI_STATIC_STACK, Base);
-      for (int N = 1; N <= 3; ++N)
-        Builder.buildInstr(getStaticStackOpcode(MC6809::ORAi_o8, IsPIC))
-            .addDef(MC6809::AA, RegState::Implicit)
-            .addUse(MC6809::AA, RegState::Implicit)
-            .addTargetIndex(MC6809::TI_STATIC_STACK, Base + N);
-    } else if (isQSpillReg(SrcReg)) {
-      int Offset = computeSpillStackOffset(SrcReg, MF);
-      auto pickLD = [](int Off) {
-        return (Off >= -128 && Off <= 127) ? MC6809::LDAi_o8 : MC6809::LDAi_o16;
-      };
-      auto pickOR = [](int Off) {
-        return (Off >= -128 && Off <= 127) ? MC6809::ORAi_o8 : MC6809::ORAi_o16;
-      };
-      // LDA slot+0,$su
-      Builder.buildInstr(pickLD(Offset))
-          .addDef(MC6809::AA, RegState::Implicit)
-          .addImm(Offset).addReg(MC6809::SU);
-      // 3× ORA slot+N,$su
-      for (int N = 1; N <= 3; ++N) {
-        Builder.buildInstr(pickOR(Offset + N))
-            .addDef(MC6809::AA, RegState::Implicit)
-            .addUse(MC6809::AA, RegState::Implicit)
-            .addImm(Offset + N).addReg(MC6809::SU);
-      }
     } else {
-      llvm_unreachable("EqZero_i32 src must be AQ or SPILL_Q*N");
+      llvm_unreachable("EqZero_i32 src must be AQ");
     }
 
     // Step 2: extract CC.Z into bit 0 of AA.
@@ -3337,15 +2586,8 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     //   SBCD #high16(K)  ; AD = AD - high16(K) - C, sets NZ
     //                    ; CC.Z = 1 iff X == K
     //
-    // SPILL_Q*N source: load Q first (clobbers $aq — assumed safe since
-    // regalloc spilled the i32 to a slot, meaning $aq is free here).
-    //   LDQ <slot>,$su
-    //   SUBW #low16(K)
-    //   SBCD #high16(K)
-    //
     // CC.Z → bit 0 of AB (same idiom as EqZero_i32):
     //   TFR CC,A; ANDA #4; LSRA; LSRA; TFR A,B
-    MachineFunction &MF = *MI.getMF();
     Register DstReg = MI.getOperand(0).getReg();
     Register SrcReg = MI.getOperand(1).getReg();
     int64_t K = MI.getOperand(2).getImm();
@@ -3353,11 +2595,8 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     uint16_t KHi = static_cast<uint16_t>((K >> 16) & 0xFFFF);
 
     // Step 1: ensure X is in $aq.
-    if (isQSpillReg(SrcReg)) {
-      emitSpillLoadInto(Builder, MC6809::AQ, SrcReg, /*ExtraOffset=*/0, MF);
-    } else if (SrcReg != MC6809::AQ) {
-      llvm_unreachable("EqConst_i32 src must be AQ or SPILL_Q*N");
-    }
+    if (SrcReg != MC6809::AQ)
+      llvm_unreachable("EqConst_i32 src must be AQ");
 
     // Step 2: SUBW #KLo; SBCD #KHi — sets CC for X - K.
     Builder.buildInstr(MC6809::SUBWi16).addImm(KLo);
@@ -3396,48 +2635,6 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     }
     MI.eraseFromParent();
     return true;
-  }
-  case TargetOpcode::COPY: {
-    // Bug #161 round 14: handle a COPY whose source is one of the SPILL_Q
-    // half-word sub-registers (SPILL_QnLO / SPILL_QnHI). The VirtRegMap
-    // rewriter substitutes these when a REG_SEQUENCE-built ACC32 vreg
-    // lands in SPILL_Q* and a downstream sub-reg COPY (sub_lo_word /
-    // sub_hi_word) is rewritten. Read the right 16-bit half from the
-    // parent SPILL_Q's stack slot. Big-endian: HI at +0, LO at +2.
-    MachineFunction &MF = *MI.getMF();
-    Register DstReg = MI.getOperand(0).getReg();
-    Register SrcReg = MI.getOperand(1).getReg();
-    MCPhysReg Parent = 0; bool IsLo = false;
-    if (DstReg.isPhysical() && SrcReg.isPhysical() &&
-        isQSpillHalfReg(SrcReg, Parent, IsLo)) {
-      Register OrigDst = DstReg;
-      // Pure def: stage via the real register, preserved (see Extract16).
-      bool StageDst = needsMaterialization(DstReg);
-      Register RealDst = StageDst ? getPhysRegFor(DstReg) : DstReg;
-      if (StageDst)
-        pushStagingReg(Builder, RealDst);
-      emitSpillLoadInto(Builder, RealDst, Parent, /*ExtraOffset=*/IsLo ? 2 : 0, MF);
-      if (StageDst) {
-        dematerializeReg(Builder, RealDst, OrigDst, MF);
-        pullStagingReg(Builder, RealDst);
-      }
-      MI.eraseFromParent();
-      return true;
-    }
-    // Symmetric: COPY whose DST is a SPILL_Q half-word — happens when
-    // a REG_SEQUENCE source byte gets rewritten into SPILL_Q half slots.
-    if (DstReg.isPhysical() && SrcReg.isPhysical() &&
-        isQSpillHalfReg(DstReg, Parent, IsLo)) {
-      // Move src into AD first if it's not already there, then store.
-      if (SrcReg != MC6809::AD) {
-        copyPhysReg(*MI.getParent(), MI, MI.getDebugLoc(),
-                    MC6809::AD, SrcReg, /*KillSrc=*/false);
-      }
-      emitSpillStoreFrom(Builder, MC6809::AD, Parent, /*ExtraOffset=*/IsLo ? 2 : 0, MF);
-      MI.eraseFromParent();
-      return true;
-    }
-    return false;  // fall through to default COPY handling
   }
   case MC6809::MaterializeCC_C_to_byte:
   case MC6809::MaterializeCC_V_to_byte:
@@ -3912,12 +3109,12 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     break;
   }
   case MC6809::SEX32Implicit: {
-    // Same SPILL_Q* concern as ZEX32Implicit (bug #208 round 2):
+    // Same historical concern as ZEX32Implicit (bug #208 round 2):
     // SEXWx sign-extends AW into AD, leaving AQ correct, but a
-    // SPILL_Q* dst needs an explicit STQ.
+    // a spilled dst used to need an explicit STQ.
     //
     // Bug #274: source may be AD, AW, or any other ACC16 member that
-    // survives MaterializeSpills (notably the imaginary direct-page
+    // survives to expansion (notably the imaginary direct-page
     // RS0..RS3, or AD when fed from a MERGE_LOHI_i16). After expansion
     // AQ must hold (AD=sign(src) | AW=src), which is what SEXWx does
     // — but only when src is already in AW. Route every non-AW source
@@ -3975,9 +3172,9 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     return true;
   }
   case MC6809::ZEX16Implicit: {
-    // Same SPILL_D* concern as ZEX32Implicit (bug #208 round 2): CLRAa
+    // Same historical concern as ZEX32Implicit (bug #208 round 2): CLRAa
     // zeros AA leaving AB = src, so AD holds the correct (0:src) i16
-    // — but if regalloc allocated the dst to a SPILL_D* slot the
+    // — but if regalloc allocated the dst to a direct-page home the
     // result must be STD'd to it before downstream consumers read.
     //
     // Bug #209 HD6309 leg / bug #211: on HD6309 the ACC16 register
@@ -3999,22 +3196,14 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   }
   case MC6809::ZEX32Implicit: {
     // Source may be AD, AW, or any other ACC16 member that survives
-    // MaterializeSpills (notably the imaginary direct-page RS0..RS3).
-    // Destination may be AQ or a SPILL_Q* spill slot (regalloc picks
-    // freely from the ACC32 class). After expansion the dst register
-    // must hold (D=0 | W=src). Steps:
+    // expansion (notably the imaginary direct-page RS0..RS3).
+    // Destination is AQ (the whole ACC32 class). After expansion the
+    // dst register must hold (D=0 | W=src). Steps:
     //   1. If src != AW, copy src → AW (covers AD via TFR D,W,
     //      RSn via LDD<rsN+TFR, etc. — copyPhysReg knows the
     //      sequences; AD's intermediate clobber is safe since CLRDa
     //      will overwrite it next).
     //   2. CLRDa zeros AD. AQ now holds (AD=0):(AW=src).
-    //   3. If dst is a SPILL_Q*, store AQ to the spill slot via
-    //      dematerializeReg — without this, the spill slot is never
-    //      written and downstream EXTRACT_HI_word_i32 / byte-add
-    //      consumers read uninitialised stack memory (bug #208 round
-    //      2: ZEX32 dst landed in $spill_q0 and the missing STQ
-    //      let strtol's `acc * base + digit` accumulator read garbage
-    //      for the digit's high bytes).
     Register DstReg = MI.getOperand(0).getReg();
     Register SrcReg = MI.getOperand(1).getReg();
     if (SrcReg != MC6809::AW)
@@ -4126,7 +3315,6 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::Load_i8_Mem:
   case MC6809::Load_i16_Mem:
   case MC6809::Load_i32_Mem:
-  case MC6809::SpillLoad_i32_Mem:
   case MC6809::Load_iPtr_Mem:
   case MC6809::Load_i8_MemIndirect:
   case MC6809::Load_i16_MemIndirect:
@@ -4155,7 +3343,6 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::Store_i8_Mem:
   case MC6809::Store_i16_Mem:
   case MC6809::Store_i32_Mem:
-  case MC6809::SpillStore_i32_Mem:
   case MC6809::Store_iPtr_Mem:
   case MC6809::Store_i8_MemIndirect:
   case MC6809::Store_i16_MemIndirect:
@@ -4514,7 +3701,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     // Bug #301 (2026-05-16): native HD6309 i32 fused compare-and-branch.
     // Operand layout (per MC6809CompareBranchBase):
     //   op 0 = i8imm:$cc  (condcode)
-    //   op 1 = ACC32:$src (LHS, in AQ or SPILL_Q*N post-RA)
+    //   op 1 = ACC32:$src (LHS, in AQ post-RA)
     //   op 2 = i32imm:$imm (RHS)
     //   op 3 = label:$tgt (branch target)
     //
@@ -4523,7 +3710,6 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     // wedge a flag-clobber between the SBCD and the LB<cc> because
     // they are emitted adjacent here and the BB has no other
     // post-RA-expanded MIs scheduled between them.
-    MachineFunction &MF = *MI.getMF();
     unsigned CC = MI.getOperand(0).getImm();
     Register SrcReg = MI.getOperand(1).getReg();
     int64_t K = MI.getOperand(2).getImm();
@@ -4554,11 +3740,8 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     uint16_t KHi = static_cast<uint16_t>((K >> 16) & 0xFFFF);
 
     // Step 1: ensure LHS is in $aq.
-    if (isQSpillReg(SrcReg)) {
-      emitSpillLoadInto(Builder, MC6809::AQ, SrcReg, /*ExtraOffset=*/0, MF);
-    } else if (SrcReg != MC6809::AQ) {
-      llvm_unreachable("CompareBranch_i32_Imm src must be AQ or SPILL_Q*N");
-    }
+    if (SrcReg != MC6809::AQ)
+      llvm_unreachable("CompareBranch_i32_Imm src must be AQ");
 
     // Step 2: SUBW #KLo; SBCD #KHi — sets CC.{N,Z,V,C} for X - K.
     Builder.buildInstr(MC6809::SUBWi16).addImm(KLo);
@@ -4610,13 +3793,12 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     // Operand layout (per pseudo def in MC6809InstrFamilies.td):
     //   op 0 = ACC8:$dst (the 0/1 byte result)
     //   op 1 = condcode:$cc
-    //   op 2 = ACC32:$src (LHS, in AQ or SPILL_Q*N post-RA)
+    //   op 2 = ACC32:$src (LHS, in AQ post-RA)
     //   op 3 = i32imm:$imm (RHS)
     //
     // Expansion: ensure $aq holds X, then SUBW #lo16 + SBCD #hi16,
     // then per-condcode branch-free CC bit extraction to AB, then
-    // COPY AB to Dst (Dst is ACC8 — AA/AB/AE/AF or SPILL_A*/SPILL_B*).
-    MachineFunction &MF = *MI.getMF();
+    // COPY AB to Dst (Dst is ACC8 — AA/AB/AE/AF or an RC direct-page byte).
     Register DstReg = MI.getOperand(0).getReg();
     unsigned CC = MI.getOperand(1).getImm();
     Register SrcReg = MI.getOperand(2).getReg();
@@ -4647,11 +3829,8 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     uint16_t KHi = static_cast<uint16_t>((K >> 16) & 0xFFFF);
 
     // Step 1: ensure LHS is in $aq.
-    if (isQSpillReg(SrcReg)) {
-      emitSpillLoadInto(Builder, MC6809::AQ, SrcReg, /*ExtraOffset=*/0, MF);
-    } else if (SrcReg != MC6809::AQ) {
-      llvm_unreachable("CompareSet_i8_i32_Imm src must be AQ or SPILL_Q*N");
-    }
+    if (SrcReg != MC6809::AQ)
+      llvm_unreachable("CompareSet_i8_i32_Imm src must be AQ");
 
     // Step 2: SUBW #KLo; SBCD #KHi — sets CC.{N,Z,V,C} for X - K.
     Builder.buildInstr(MC6809::SUBWi16).addImm(KLo);
@@ -5011,27 +4190,6 @@ void MC6809InstrInfo::expandLEAPtrAdd(MachineIRBuilder &Builder, MachineInstr &M
   MI.removeOperand(2);
   MI.removeOperand(1);
 
-  // If the RESULT register is an INDEX spill, use IY as staging and store back.
-  // Only pre-load from spill if the BASE (operand 1) is the SAME spill register
-  // (modify-in-place). For pure definitions (base is frame index or different
-  // register), don't pre-load — the spill slot isn't initialized yet.
-  Register OrigSpillReg;
-  if (isIndexSpillReg(IndexReg.getReg())) {
-    OrigSpillReg = IndexReg.getReg();
-    Register StageReg = MC6809::IY;
-    bool SameSpillBase = (IndexOp.isReg() && IndexOp.getReg() == OrigSpillReg);
-    if (SameSpillBase) {
-      // Modify-in-place: load current spill value into IY.
-      MachineFunction &MF = *MI.getMF();
-      emitSpillLoadInto(Builder, StageReg, OrigSpillReg, /*ExtraOffset=*/0, MF);
-      // Rewrite base to IY.
-      IndexOp = MachineOperand::CreateReg(StageReg, false);
-    }
-    // Rewrite result to IY (for both modify-in-place and pure definition).
-    IndexReg = MachineOperand::CreateReg(StageReg, true);
-    MI.getOperand(0).setReg(StageReg);
-  }
-
   // Check register offset first (LEAPtrAdd_Reg8/Reg16) — offsetSizeInBits
   // crashes on register operands.
   Register StagedOffReal;
@@ -5060,7 +4218,6 @@ void MC6809InstrInfo::expandLEAPtrAdd(MachineIRBuilder &Builder, MachineInstr &M
     //   - One explicit operand: $ireg (the base/index register)
     MI.getOperand(0).setImplicit();  // result becomes implicit
     MI.addOperand(IndexOp);          // base register as sole explicit operand
-    // Don't return — fall through to the post-store for SPILL_X.
   } else {
 
   int OffsetSize = offsetSizeInBits(OffsetOp);
@@ -5088,15 +4245,6 @@ void MC6809InstrInfo::expandLEAPtrAdd(MachineIRBuilder &Builder, MachineInstr &M
   if (MI.getDesc().hasImplicitDefOfPhysReg(MC6809::Z))
     MI.addOperand(
         MachineOperand::CreateReg(MC6809::Z, /*isDef=*/true, /*isImp=*/true));
-
-  // If the original register was a spill, store staging reg back to spill slot.
-  if (OrigSpillReg.isValid()) {
-    Register StageReg = MC6809::IY;  // Must match the staging register above
-    MachineFunction &MF = *MI.getMF();
-    MachineBasicBlock::iterator After = std::next(MI.getIterator());
-    MachineIRBuilder PostBuilder(*MI.getParent(), After);
-    emitSpillStoreFrom(PostBuilder, StageReg, OrigSpillReg, /*ExtraOffset=*/0, MF);
-  }
 
   // Restore the offset's staging real (PULS does not touch the Z the LEA
   // just defined for elideCompareZero).
@@ -5157,8 +4305,6 @@ void MC6809InstrInfo::expandImm(ContextImmediate Context, MachineIRBuilder &Buil
         MachineBasicBlock &MBB = *MI.getParent();
         auto NextIt = std::next(MachineBasicBlock::iterator(MI));
         MachineIRBuilder StoreBuilder(MBB, NextIt);
-        // dematerializeReg, not emitSpillStore: the destination may be a
-        // DP imaginary, which emitSpillStore cannot address.
         dematerializeReg(StoreBuilder, DestReg, OrigDest, MF);
         pullStagingReg(StoreBuilder, DestReg);
       }
@@ -5260,18 +4406,6 @@ void MC6809InstrInfo::expandIdxImm(ContextIndexImmediate Context, MachineIRBuild
     if (operandCount >= 3 && MI.getOperand(1).isReg() && MI.getOperand(1).getReg() == DestReg)
       MI.getOperand(1).setReg(RealReg);
     DestReg = RealReg;
-  }
-  // Materialize a spilled index base into IY (the P3a consumer fold can keep the
-  // base pointer live to the arith op; under pressure it can spill to an
-  // index-spill reg, which has no real encoding). Mirrors expandStoreIdx /
-  // expandCompareIdx. DestReg is an accumulator here, so IY is free.
-  // (_Sym has no index base; operand count-2 is the tied source register.)
-  if (!IsSym && isIndexSpillReg(MI.getOperand(operandCount - 2).getReg())) {
-    Register SpillReg = MI.getOperand(operandCount - 2).getReg();
-    Register StageReg = MC6809::IY;
-    MachineIRBuilder PreBuilder(*MI.getParent(), MI.getIterator());
-    emitSpillLoadInto(PreBuilder, StageReg, SpillReg, /*ExtraOffset=*/0, MF);
-    MI.getOperand(operandCount - 2).setReg(StageReg);
   }
   Register IndexReg;
   int OffsetSize;
@@ -5498,10 +4632,7 @@ void MC6809InstrInfo::expandCarryMem16(bool IsAdd, MachineIRBuilder &Builder,
 // def-use; the explicit operands after $src are the index reg and the
 // offset (immediate, possibly typed as CImm by some patterns).
 //
-// HD6309 lowering (assumes the operand is materialised into physical AQ;
-// SPILL_Q*N sources go through materializeReg → emitSpillLoad which
-// emits LDQ from the slot, and dematerializeReg → emitSpillStore for the
-// store-back via STQ):
+// HD6309 lowering (the tied operand lives in physical AQ):
 //   ADDW <off+2>, $idx   ; low word (AW = sub_lo_word of AQ) + memory low
 //                          ; (in big-endian memory, low word is at
 //                          ; address+2..3); sets CC.C.
@@ -5530,7 +4661,7 @@ void MC6809InstrInfo::expandAddSub_i32_Mem(MachineIRBuilder &Builder,
   // After materialisation the value lives in physical $aq (or its
   // sub-regs AD high / AW low).  ACC32-class operands can ONLY be $aq
   // post-Phase-B-revert (AQc is still `{AQ}`), but ACC32 itself
-  // includes SPILL_Q0..31 so a spilled value is loaded into AQ here.
+  // is just {AQ} since the SPILL_Q retirement.
   assert(DestReg == MC6809::AQ &&
          "Bug #297: i32 ADD/SUB requires AQ for the ALU-side operations");
 
@@ -5725,8 +4856,6 @@ void MC6809InstrInfo::expandAddSubCarryUse_i32_Imm(
          "Bug #311 Phase 2: i32 carry-use expansion is HD6309-only");
 
   Register DestReg = MI.getOperand(0).getReg();
-  Register OrigDest = DestReg;
-  MachineFunction &MF = *MI.getMF();
 
   unsigned NumOps = MI.getNumExplicitOperands();
   MachineOperand ValOp = MI.getOperand(NumOps - 1);
@@ -5736,55 +4865,36 @@ void MC6809InstrInfo::expandAddSubCarryUse_i32_Imm(
   int LoB1 = int((Val >> 8) & 0xFF);
   int Hi   = int((Val >> 16) & 0xFFFF);
 
-  // Bug #311 Phase 2 follow-up: when DstIsSpill, materializeReg's LDQ
-  // overwrites $aq.  Without preserving the caller's prior $aq value
-  // (typically a downstream-live LO i32 result from the preceding
-  // AddSetCarry_i32_* op), the trailing Store_i32_Mem $aq writes the
-  // wrong half of the i64.  Use emitAQPreservedOverHardStackScratch
-  // so the LDQ trailer restores the caller's $aq before the body
-  // returns.  See expandAddSubCarryUse_i32_Reg for the full rationale.
-  bool DstIsSpill = needsMaterialization(DestReg);
-  auto Body = [&]() {
-    if (DstIsSpill)
-      DestReg = materializeReg(Builder, DestReg, MF);
-    assert(DestReg == MC6809::AQ &&
-           "Bug #311 Phase 2: i32 carry-use Imm requires AQ for the ALU ops");
+  assert(DestReg == MC6809::AQ &&
+         "Bug #311 Phase 2: i32 carry-use Imm requires AQ for the ALU ops");
+  (void)DestReg;
 
-    // EXG D,W — swap; CC.C survives.
-    Builder.buildInstr(MC6809::EXGp)
-        .addDef(MC6809::AD).addDef(MC6809::AW)
-        .addUse(MC6809::AD).addUse(MC6809::AW);
+  // EXG D,W — swap; CC.C survives.
+  Builder.buildInstr(MC6809::EXGp)
+      .addDef(MC6809::AD).addDef(MC6809::AW)
+      .addUse(MC6809::AD).addUse(MC6809::AW);
 
-    unsigned LowLowOpc = IsAdd ? MC6809::ADCBi8 : MC6809::SBCBi8;
-    Builder.buildInstr(LowLowOpc)
-        .addDef(MC6809::AB, RegState::Implicit)
-        .addImm(LoB0);
+  unsigned LowLowOpc = IsAdd ? MC6809::ADCBi8 : MC6809::SBCBi8;
+  Builder.buildInstr(LowLowOpc)
+      .addDef(MC6809::AB, RegState::Implicit)
+      .addImm(LoB0);
 
-    unsigned LowHighOpc = IsAdd ? MC6809::ADCAi8 : MC6809::SBCAi8;
-    Builder.buildInstr(LowHighOpc)
-        .addDef(MC6809::AA, RegState::Implicit)
-        .addImm(LoB1);
+  unsigned LowHighOpc = IsAdd ? MC6809::ADCAi8 : MC6809::SBCAi8;
+  Builder.buildInstr(LowHighOpc)
+      .addDef(MC6809::AA, RegState::Implicit)
+      .addImm(LoB1);
 
-    Builder.buildInstr(MC6809::EXGp)
-        .addDef(MC6809::AD).addDef(MC6809::AW)
-        .addUse(MC6809::AD).addUse(MC6809::AW);
+  Builder.buildInstr(MC6809::EXGp)
+      .addDef(MC6809::AD).addDef(MC6809::AW)
+      .addUse(MC6809::AD).addUse(MC6809::AW);
 
-    auto &HighMap = IsAdd ? AddCarryImmediateOpcode : SubBorrowImmediateOpcode;
-    auto HighLookup = HighMap.find({MC6809::AD});
-    assert(HighLookup != HighMap.end() &&
-           "Bug #311 Phase 2: missing ADCD/SBCD immediate opcode entry");
-    Builder.buildInstr(HighLookup->getSecond())
-        .addDef(MC6809::AD, RegState::Implicit)
-        .addImm(Hi);
-
-    if (DstIsSpill)
-      dematerializeReg(Builder, DestReg, OrigDest, MF);
-  };
-
-  if (DstIsSpill)
-    emitAQPreservedOverHardStackScratch(Builder, Body);
-  else
-    Body();
+  auto &HighMap = IsAdd ? AddCarryImmediateOpcode : SubBorrowImmediateOpcode;
+  auto HighLookup = HighMap.find({MC6809::AD});
+  assert(HighLookup != HighMap.end() &&
+         "Bug #311 Phase 2: missing ADCD/SBCD immediate opcode entry");
+  Builder.buildInstr(HighLookup->getSecond())
+      .addDef(MC6809::AD, RegState::Implicit)
+      .addImm(Hi);
 
   MI.eraseFromParent();
 }
@@ -5808,8 +4918,6 @@ void MC6809InstrInfo::expandAddSubCarryUse_i32_Mem(
          "Bug #311 Phase 2: i32 carry-use expansion is HD6309-only");
 
   Register DestReg = MI.getOperand(0).getReg();
-  Register OrigDest = DestReg;
-  MachineFunction &MF = *MI.getMF();
 
   // Operand layout (post-tied $dst=$src):
   //   op 0: $dst (def-use, tied)
@@ -5827,51 +4935,38 @@ void MC6809InstrInfo::expandAddSubCarryUse_i32_Mem(
   int OffB2Size = offsetSizeInBitsForValue(OffB2);
   int OffHiSize = offsetSizeInBitsForValue(OffHi);
 
-  // See expandAddSubCarryUse_i32_Imm for the DstIsSpill rationale.
-  bool DstIsSpill = needsMaterialization(DestReg);
-  auto Body = [&]() {
-    if (DstIsSpill)
-      DestReg = materializeReg(Builder, DestReg, MF);
-    assert(DestReg == MC6809::AQ &&
-           "Bug #311 Phase 2: i32 carry-use Mem requires AQ for the ALU ops");
+  assert(DestReg == MC6809::AQ &&
+         "Bug #311 Phase 2: i32 carry-use Mem requires AQ for the ALU ops");
+  (void)DestReg;
 
-    Builder.buildInstr(MC6809::EXGp)
-        .addDef(MC6809::AD).addDef(MC6809::AW)
-        .addUse(MC6809::AD).addUse(MC6809::AW);
+  Builder.buildInstr(MC6809::EXGp)
+      .addDef(MC6809::AD).addDef(MC6809::AW)
+      .addUse(MC6809::AD).addUse(MC6809::AW);
 
-    auto &ByteCarryMap = IsAdd ? AddCarryIdxImmOpcode : SubBorrowIdxImmOpcode;
-    auto LowLowLookup  = ByteCarryMap.find({MC6809::AB, OffB3Size});
-    auto LowHighLookup = ByteCarryMap.find({MC6809::AA, OffB2Size});
-    auto HighLookup    = ByteCarryMap.find({MC6809::AD, OffHiSize});
-    assert(LowLowLookup != ByteCarryMap.end() &&
-           LowHighLookup != ByteCarryMap.end() &&
-           HighLookup != ByteCarryMap.end() &&
-           "Bug #311 Phase 2: missing ADC[B/A/D] / SBC[B/A/D] indexed entry");
+  auto &ByteCarryMap = IsAdd ? AddCarryIdxImmOpcode : SubBorrowIdxImmOpcode;
+  auto LowLowLookup  = ByteCarryMap.find({MC6809::AB, OffB3Size});
+  auto LowHighLookup = ByteCarryMap.find({MC6809::AA, OffB2Size});
+  auto HighLookup    = ByteCarryMap.find({MC6809::AD, OffHiSize});
+  assert(LowLowLookup != ByteCarryMap.end() &&
+         LowHighLookup != ByteCarryMap.end() &&
+         HighLookup != ByteCarryMap.end() &&
+         "Bug #311 Phase 2: missing ADC[B/A/D] / SBC[B/A/D] indexed entry");
 
-    auto Emit = [&](unsigned Opc, MCPhysReg Reg, int Off, int OffSize) {
-      auto Inst = Builder.buildInstr(Opc).addDef(Reg, RegState::Implicit);
-      if (OffSize == 0)
-        Inst.addReg(IndexReg);
-      else
-        Inst.addImm(Off).addReg(IndexReg);
-    };
-    Emit(LowLowLookup->getSecond(),  MC6809::AB, OffB3, OffB3Size);
-    Emit(LowHighLookup->getSecond(), MC6809::AA, OffB2, OffB2Size);
-
-    Builder.buildInstr(MC6809::EXGp)
-        .addDef(MC6809::AD).addDef(MC6809::AW)
-        .addUse(MC6809::AD).addUse(MC6809::AW);
-
-    Emit(HighLookup->getSecond(), MC6809::AD, OffHi, OffHiSize);
-
-    if (DstIsSpill)
-      dematerializeReg(Builder, DestReg, OrigDest, MF);
+  auto Emit = [&](unsigned Opc, MCPhysReg Reg, int Off, int OffSize) {
+    auto Inst = Builder.buildInstr(Opc).addDef(Reg, RegState::Implicit);
+    if (OffSize == 0)
+      Inst.addReg(IndexReg);
+    else
+      Inst.addImm(Off).addReg(IndexReg);
   };
+  Emit(LowLowLookup->getSecond(),  MC6809::AB, OffB3, OffB3Size);
+  Emit(LowHighLookup->getSecond(), MC6809::AA, OffB2, OffB2Size);
 
-  if (DstIsSpill)
-    emitAQPreservedOverHardStackScratch(Builder, Body);
-  else
-    Body();
+  Builder.buildInstr(MC6809::EXGp)
+      .addDef(MC6809::AD).addDef(MC6809::AW)
+      .addUse(MC6809::AD).addUse(MC6809::AW);
+
+  Emit(HighLookup->getSecond(), MC6809::AD, OffHi, OffHiSize);
 
   MI.eraseFromParent();
 }
@@ -5879,12 +4974,13 @@ void MC6809InstrInfo::expandAddSubCarryUse_i32_Mem(
 // Bug #311 Phase 2: native HD6309 i32 carry-USE _Reg form.
 //
 // Same emergency-slot pattern as expandAddSub_i32_Reg (Bug #298): save
-// $aq to a hard-stack scratch slot, materialise $dst into $aq, then
-// read $src2's value via memory (S-relative for the scratch when src2
-// was pre-placed in $aq, U-relative when src2 is SPILL_Q*N).
+// $aq to a hard-stack scratch slot, then read $src2's OLD value via
+// S-relative memory while mutating $aq in place. With ACC32 = {AQ},
+// dst, src1 (tied) and src2 all live in $aq post-RA — the scratch slot
+// IS how the two values meet.
 //
-// CC.C threads through LEAS / STQ / materialiseReg / EXG unchanged
-// (none of these ops modify the carry flag on HD6309).
+// CC.C threads through LEAS / STQ / EXG unchanged (none of these ops
+// modify the carry flag on HD6309).
 void MC6809InstrInfo::expandAddSubCarryUse_i32_Reg(
     MachineIRBuilder &Builder, MachineInstr &MI, bool IsAdd) const {
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
@@ -5893,54 +4989,15 @@ void MC6809InstrInfo::expandAddSubCarryUse_i32_Reg(
          "Bug #311 Phase 2: i32 carry-use expansion is HD6309-only");
 
   Register DestReg = MI.getOperand(0).getReg();
-  Register Src2Reg = MI.getOperand(2).getReg();
-  Register OrigDest = DestReg;
-  MachineFunction &MF = *MI.getMF();
+  assert(DestReg == MC6809::AQ &&
+         "Bug #311 Phase 2: i32 carry-use Reg requires AQ for the ALU ops");
+  (void)DestReg;
 
-  // Bug #311 Phase 2 follow-up: choose the right scratch primitive
-  // based on where the tied dst lives at expansion time.
-  //
-  //   - dst == $aq        — emitAQOnHardStackScratch.  The body
-  //     mutates $aq IN PLACE to become the result; the caller's
-  //     "OLD $aq" value (= the tied src) was overwritten by the body
-  //     anyway, so the LEAS-without-LDQ epilogue is correct.
-  //
-  //   - dst is SPILL_Q*N  — emitAQPreservedOverHardStackScratch.
-  //     The body uses $aq as a SCRATCH (loading dst's value into $aq,
-  //     computing the result, dematerialising back to dst's slot).
-  //     The caller's prior $aq value MUST survive — without the
-  //     trailing LDQ, an unrelated live value in $aq (e.g. a
-  //     previously-computed LO i32 result waiting for a downstream
-  //     store) gets silently destroyed.
-  //
-  // This is exactly the memcpy-1 / random() i64-add miscompile that
-  // Phase 2's first cut produced: the HIGH-i32 expansion clobbered
-  // the LOW-i32 result in $aq, and the trailing Store_i32_Mem $aq
-  // then wrote HIGH bytes to the LOW slot of the i64 return.
-  bool DstIsSpill = needsMaterialization(DestReg);
   auto Body = [&]() {
-    if (DstIsSpill)
-      DestReg = materializeReg(Builder, DestReg, MF);
-    assert(DestReg == MC6809::AQ &&
-           "Bug #311 Phase 2: i32 carry-use Reg requires AQ for the ALU ops");
-
-    bool Src2InEmergency = !isQSpillReg(Src2Reg);
-    int Src2Off = Src2InEmergency
-                      ? 0
-                      : computeSpillStackOffset(Src2Reg, MF);
-    int Src2OffB3 = Src2Off + 3;
-    int Src2OffB2 = Src2Off + 2;
-    int Src2OffHi = Src2Off;
-    int Src2OffB3Size = offsetSizeInBitsForValue(Src2OffB3);
-    int Src2OffB2Size = offsetSizeInBitsForValue(Src2OffB2);
-    int Src2OffHiSize = offsetSizeInBitsForValue(Src2OffHi);
-    Register Src2BaseReg = Src2InEmergency ? MC6809::SS : MC6809::SU;
-    // Bug #387: a static-stack $src2 slot is reached by an extended (absolute,
-    // PC-relative under PIC) carry op against the static_stack global, not a
-    // SU-relative one. The byte offset within the slot is (Off - Src2Off).
-    bool Src2IsStatic = !Src2InEmergency && isStaticSpillSlot(Src2Reg, MF);
-    int Src2StaticBase = Src2IsStatic ? staticSpillOffset(Src2Reg, MF) : 0;
-    bool Src2IsPIC = MF.getTarget().isPositionIndependent();
+    // src2's pre-body value sits in the emergency slot at ,S.
+    int Src2OffB3Size = offsetSizeInBitsForValue(3);
+    int Src2OffB2Size = offsetSizeInBitsForValue(2);
+    int Src2OffHiSize = offsetSizeInBitsForValue(0);
 
     Builder.buildInstr(MC6809::EXGp)
         .addDef(MC6809::AD).addDef(MC6809::AW)
@@ -5956,36 +5013,23 @@ void MC6809InstrInfo::expandAddSubCarryUse_i32_Reg(
            "Bug #311 Phase 2: missing ADC[B/A/D] / SBC[B/A/D] indexed entry");
 
     auto Emit = [&](unsigned Opc, MCPhysReg Reg, int Off, int OffSize) {
-      if (Src2IsStatic) {
-        Builder.buildInstr(getStaticStackOpcode(Opc, Src2IsPIC))
-            .addDef(Reg, RegState::Implicit)
-            .addTargetIndex(MC6809::TI_STATIC_STACK,
-                            Src2StaticBase + (Off - Src2Off));
-        return;
-      }
       auto Inst = Builder.buildInstr(Opc).addDef(Reg, RegState::Implicit);
       if (OffSize == 0)
-        Inst.addReg(Src2BaseReg);
+        Inst.addReg(MC6809::SS);
       else
-        Inst.addImm(Off).addReg(Src2BaseReg);
+        Inst.addImm(Off).addReg(MC6809::SS);
     };
-    Emit(LowLowLookup->getSecond(),  MC6809::AB, Src2OffB3, Src2OffB3Size);
-    Emit(LowHighLookup->getSecond(), MC6809::AA, Src2OffB2, Src2OffB2Size);
+    Emit(LowLowLookup->getSecond(),  MC6809::AB, 3, Src2OffB3Size);
+    Emit(LowHighLookup->getSecond(), MC6809::AA, 2, Src2OffB2Size);
 
     Builder.buildInstr(MC6809::EXGp)
         .addDef(MC6809::AD).addDef(MC6809::AW)
         .addUse(MC6809::AD).addUse(MC6809::AW);
 
-    Emit(HighLookup->getSecond(), MC6809::AD, Src2OffHi, Src2OffHiSize);
-
-    if (DstIsSpill)
-      dematerializeReg(Builder, DestReg, OrigDest, MF);
+    Emit(HighLookup->getSecond(), MC6809::AD, 0, Src2OffHiSize);
   };
 
-  if (DstIsSpill)
-    emitAQPreservedOverHardStackScratch(Builder, Body);
-  else
-    emitAQOnHardStackScratch(Builder, Body);
+  emitAQOnHardStackScratch(Builder, Body);
 
   MI.eraseFromParent();
 }
@@ -5999,24 +5043,13 @@ void MC6809InstrInfo::expandAddSubCarryUse_i32_Reg(
 // exist but only at i8/i16 register pairs).  Strategy:
 //
 //   1. Allocate a 4-byte emergency slot on the hard stack via `LEAS
-//      -4,S` and save the current $aq value to it via `STQ ,S`.  This
-//      unconditionally costs an STQ; the alternative is a conditional
-//      save that pessimises the common case (both operands in
-//      SPILL_Q*N) but optimises the AQ-source case, and the complexity
-//      isn't worth the savings.
-//   2. Materialize $dst (which is also $src via tying) into physical
-//      AQ.  If $dst was in SPILL_Q*N, materializeReg emits LDQ from its
-//      slot using U-relative addressing (U is the stable frame ptr).
-//      If $dst was already in AQ, the materialise is a no-op (but the
-//      previous STQ saved that very value to the emergency slot, which
-//      is harmless dead-store).
-//   3. Compute the stack offset of $src2's operand:
-//        - SPILL_Q*N: use computeSpillStackOffset (its own U-relative slot).
-//        - AQ: use the emergency slot (we just stashed it there, S-relative).
-//   4. Emit ADDW <off+2>, <base> / ADCD <off+0>, <base> (or SUBW/SBCD).
-//      Base is U for SPILL_Q*N slot, S for the emergency slot.
-//   5. Dematerialize $dst back to its origin if needed.
-//   6. Release the emergency slot via `LEAS 4,S`.
+//      -4,S` and save the current $aq value to it via `STQ ,S`. With
+//      ACC32 = {AQ}, dst, src1 (tied) and src2 all sit in $aq post-RA
+//      (a genuinely distinct spilled src2 folds to Add/Sub_i32_Mem
+//      instead) — the slot is how src2's value survives the in-place
+//      mutation of $aq.
+//   2. Emit ADDW <2>,S / ADCD <0>,S (or SUBW/SBCD) against the slot.
+//   3. Release the emergency slot via `LEAS 4,S`.
 //
 // Bug #298 fix 2026-05-15: the previous implementation used
 // `MFI.CreateStackObject` + `getObjectOffset` to allocate the emergency
@@ -6043,41 +5076,18 @@ void MC6809InstrInfo::expandAddSub_i32_Reg(MachineIRBuilder &Builder,
          "Bug #297: i32 ADD/SUB expansion is HD6309-only");
 
   Register DestReg = MI.getOperand(0).getReg();
-  Register Src2Reg = MI.getOperand(2).getReg();
-  Register OrigDest = DestReg;
-  MachineFunction &MF = *MI.getMF();
+  assert(DestReg == MC6809::AQ &&
+         "Bug #297: i32 ADD/SUB Reg requires AQ for the ALU-side ops");
+  (void)DestReg;
 
   // The body of the helper saves $aq into a 4-byte hard-stack scratch
   // slot (so SRC2-in-AQ is readable via $ss+0..3) and DOES NOT restore
   // $aq after the body — the body's ADDW+ADCD result becomes the new
   // $aq, which is the DST.
   auto Body = [&]() {
-    // Step 1: materialize $dst into AQ.  Uses U-relative addressing
-    // for SPILL_Q*N → AQ; U is unchanged by the LEAS on S.
-    if (needsMaterialization(DestReg))
-      DestReg = materializeReg(Builder, DestReg, MF);
-    assert(DestReg == MC6809::AQ &&
-           "Bug #297: i32 ADD/SUB Reg requires AQ for the ALU-side ops");
+    int Src2OffLoSize = offsetSizeInBitsForValue(2);
+    int Src2OffHiSize = offsetSizeInBitsForValue(0);
 
-    // Step 2: pick $src2's stack offset + base register.
-    //   SPILL_Q*N → computeSpillStackOffset (U-relative)
-    //   AQ        → emergency slot at S+0 (S-relative)
-    bool Src2InEmergency = !isQSpillReg(Src2Reg);
-    int Src2Off = Src2InEmergency
-                      ? 0
-                      : computeSpillStackOffset(Src2Reg, MF);
-    int Src2OffLo = Src2Off + 2;
-    int Src2OffHi = Src2Off;
-    int Src2OffLoSize = offsetSizeInBitsForValue(Src2OffLo);
-    int Src2OffHiSize = offsetSizeInBitsForValue(Src2OffHi);
-    Register Src2BaseReg = Src2InEmergency ? MC6809::SS : MC6809::SU;
-    // Bug #387: a static-stack $src2 reaches the static_stack global by an
-    // extended (PC-relative under PIC) op; the byte offsets are +2 (lo) / +0 (hi).
-    bool Src2IsStatic = !Src2InEmergency && isStaticSpillSlot(Src2Reg, MF);
-    int Src2StaticBase = Src2IsStatic ? staticSpillOffset(Src2Reg, MF) : 0;
-    bool Src2IsPIC = MF.getTarget().isPositionIndependent();
-
-    // Step 3: emit ADDW/SUBW + ADCD/SBCD pair against $src2's base.
     auto &LowMap = IsAdd ? AddIdxImmOpcode : SubIdxImmOpcode;
     auto &HighMap = IsAdd ? AddCarryIdxImmOpcode : SubBorrowIdxImmOpcode;
     auto LowLookup = LowMap.find({MC6809::AW, Src2OffLoSize});
@@ -6085,46 +5095,24 @@ void MC6809InstrInfo::expandAddSub_i32_Reg(MachineIRBuilder &Builder,
     assert(LowLookup != LowMap.end() && HighLookup != HighMap.end() &&
            "Bug #297: missing ADDW/ADCD/SUBW/SBCD opcode entry");
 
-    if (Src2IsStatic) {
-      Builder.buildInstr(getStaticStackOpcode(LowLookup->getSecond(), Src2IsPIC))
-          .addDef(MC6809::AW, RegState::Implicit)
-          .addTargetIndex(MC6809::TI_STATIC_STACK, Src2StaticBase + 2);
-      Builder.buildInstr(getStaticStackOpcode(HighLookup->getSecond(), Src2IsPIC))
-          .addDef(MC6809::AD, RegState::Implicit)
-          .addTargetIndex(MC6809::TI_STATIC_STACK, Src2StaticBase + 0);
-    } else {
-      auto LowInstr =
-          Builder.buildInstr(LowLookup->getSecond())
-              .addDef(MC6809::AW, RegState::Implicit);
-      if (Src2OffLoSize == 0)
-        LowInstr.addReg(Src2BaseReg);
-      else
-        LowInstr.addImm(Src2OffLo).addReg(Src2BaseReg);
+    auto LowInstr =
+        Builder.buildInstr(LowLookup->getSecond())
+            .addDef(MC6809::AW, RegState::Implicit);
+    if (Src2OffLoSize == 0)
+      LowInstr.addReg(MC6809::SS);
+    else
+      LowInstr.addImm(2).addReg(MC6809::SS);
 
-      auto HighInstr =
-          Builder.buildInstr(HighLookup->getSecond())
-              .addDef(MC6809::AD, RegState::Implicit);
-      if (Src2OffHiSize == 0)
-        HighInstr.addReg(Src2BaseReg);
-      else
-        HighInstr.addImm(Src2OffHi).addReg(Src2BaseReg);
-    }
-
-    // Step 4: dematerialize $dst back if it was spilled.  U-relative
-    // addressing; safe across the in-progress S-displacement.
-    if (needsMaterialization(OrigDest))
-      dematerializeReg(Builder, DestReg, OrigDest, MF);
+    auto HighInstr =
+        Builder.buildInstr(HighLookup->getSecond())
+            .addDef(MC6809::AD, RegState::Implicit);
+    if (Src2OffHiSize == 0)
+      HighInstr.addReg(MC6809::SS);
+    else
+      HighInstr.addImm(0).addReg(MC6809::SS);
   };
 
-  if (isQSpillReg(Src2Reg)) {
-    // $src2 reads from its own U-relative spill slot; the hard-stack
-    // scratch would never be read -- and its save-STQ of a possibly
-    // partially-defined $aq (both operands spilled, nothing yet staged)
-    // is a verifier reject. Run the body without the bracket.
-    Body();
-  } else {
-    emitAQOnHardStackScratch(Builder, Body);
-  }
+  emitAQOnHardStackScratch(Builder, Body);
 
   MI.eraseFromParent();
 }
@@ -6723,7 +5711,7 @@ void MC6809InstrInfo::expandMul16Reg(MachineIRBuilder &Builder, MachineInstr &MI
   // Bug #161 round 14: dst class widened from AWc to ACC16 so back-to-back
   // multiplies in i64 chains don't all collide on AW. After MULD the
   // result is physically in AW; if the regalloc-assigned dst is anything
-  // else (AD, an SPILL_D, an RS imag reg, etc.) emit a TFR W,<dst> via
+  // else (AD, an RS imag reg, etc.) emit a TFR W,<dst> via
   // copyPhysReg. AD is also clobbered by MULD (high-half product) — Defs
   // already lists it.
   //
@@ -6838,96 +5826,31 @@ void MC6809InstrInfo::expandLoadImm(MachineIRBuilder &Builder, MachineInstr &MI)
 
   auto DestRegOp = MI.getOperand(0);
 
-  // If the destination is a spill or imaginary register, load immediate into
-  // the real hardware register, then dematerialize back.
-  // Don't recurse into expandLoadImm — it removes MI and invalidates Builder.
+  // If the destination is an imaginary register, load the immediate into
+  // the natural staging real, then dematerialize back to the direct-page
+  // slot. Don't recurse into expandLoadImm — it removes MI and invalidates
+  // Builder.
   if (needsMaterialization(DestRegOp.getReg())) {
-    // INDEX spills use IY as staging; ACC spills and imaginary use their
-    // natural physical register (via getPhysRegFor).
-    Register RealReg = isIndexSpillReg(DestRegOp.getReg()) ? MC6809::IY
-                                                           : getPhysRegFor(DestRegOp.getReg());
+    Register RealReg = getPhysRegFor(DestRegOp.getReg());
     MachineFunction &MF = Builder.getMF();
     auto ValOp = MI.getOperand(1);
-    // Bug #300 residue (2026-05-15): for SPILL_Q*N (i32) dst, the
-    // staging through physical $aq via LDQ silently clobbers any
-    // other vreg currently live in $aq.  The pseudo's Defs don't
-    // declare AD (adding it regresses test_return_i32_constant), and
-    // the dst class AQc is widened to include SPILL_Q*N (Phase B),
-    // so regalloc may legitimately place a different vreg in $aq
-    // across this pseudo.  Bracket the LDQ + STQ with a LEAS-based
-    // save/restore of $aq on the hard stack to preserve the live
-    // value.  Cost: 4 extra instructions per i32-Imm-to-spill load.
-    bool IsQSpill = !isIndexSpillReg(DestRegOp.getReg()) &&
-                    RealReg == MC6809::AQ;
-    auto Body = [&]() {
-      // Load immediate into staging register, then store to spill/
-      // imaginary slot.
-      auto OpcodePair = LoadImmediateOpcode.find(RealReg);
-      assert(OpcodePair != LoadImmediateOpcode.end());
-      auto NewMI = Builder.buildInstr(OpcodePair->getSecond()).addDef(RealReg, RegState::Implicit);
-      if (ValOp.isGlobal())
-        NewMI.addGlobalAddress(ValOp.getGlobal(), ValOp.getOffset(), ValOp.getTargetFlags());
-      else if (ValOp.isSymbol())
-        NewMI.addExternalSymbol(ValOp.getSymbolName(), ValOp.getTargetFlags());
-      else {
-        int64_t Val = ValOp.isImm() ? ValOp.getImm() : ValOp.getCImm()->getSExtValue();
-        NewMI.addImm(Val);
-      }
-      // Store to spill slot (use STY for INDEX spills) or dematerialize.
-      if (isIndexSpillReg(DestRegOp.getReg())) {
-        emitSpillStoreFrom(Builder, MC6809::IY, DestRegOp.getReg(),
-                           /*ExtraOffset=*/0, MF);
-      } else {
-        dematerializeReg(Builder, RealReg, DestRegOp.getReg(), MF);
-      }
-    };
-    if (IsQSpill) {
-      // Bug #305 (2026-05-18): only wrap in save/restore when $aq or
-      // any of its sub-registers ($ad, $aw, $aa, $ab, $ae, $af) is live
-      // at this expansion point.  Bug #300's unconditional wrap emits
-      // `LEAS -4,$ss; STQ ,$ss; <body>; LDQ ,$ss; LEAS 4,$ss` whose
-      // save-STQ reads $aq.  When the whole $aq family is dead
-      // (typical after an LDD that killed $aq via Bug #299's AQ-in-Defs
-      // with no surviving sub-reg consumer), the read is undefined and
-      // `-verify-machineinstrs` rejects it (61 hits across 7 functions
-      // at -Og-hd6309-mame).
-      //
-      // CRITICAL: `LivePhysRegs::contains(AQ)` returns false when only
-      // a sub-reg ($ad/$aw/etc.) is live (header comment: "Returns
-      // false if just some sub registers are live, use available() when
-      // searching a free register").  We must iterate sub-regs
-      // explicitly — skipping save/restore when $ad is live would let
-      // the body's LDQ #imm clobber the still-live sub-reg.
-      MachineBasicBlock *MBB = MI.getParent();
-      const TargetRegisterInfo &TRI =
-          *Builder.getMF().getSubtarget().getRegisterInfo();
-      LivePhysRegs LiveRegs(TRI);
-      LiveRegs.addLiveIns(*MBB);
-      SmallVector<std::pair<MCPhysReg, const MachineOperand *>, 4> Clobbers;
-      for (auto It = MBB->begin(); It != MI.getIterator(); ++It) {
-        Clobbers.clear();
-        LiveRegs.stepForward(*It, Clobbers);
-      }
-      bool AqFamilyLive = false;
-      for (MCPhysReg R : {MC6809::AQ, MC6809::AD, MC6809::AW,
-                          MC6809::AA, MC6809::AB,
-                          MC6809::AE, MC6809::AF}) {
-        if (LiveRegs.contains(R)) { AqFamilyLive = true; break; }
-      }
-      if (AqFamilyLive)
-        emitAQPreservedOverHardStackScratch(Builder, Body);
-      else
-        Body();
-    } else if (!isIndexSpillReg(DestRegOp.getReg())) {
-      // AD/AA/AB staging: the LD #imm clobbers the staging real, which
-      // regalloc may have left live across this pseudo (its Defs are
-      // deliberately empty). Preserve it (see pushStagingReg).
-      pushStagingReg(Builder, RealReg);
-      Body();
-      pullStagingReg(Builder, RealReg);
-    } else {
-      Body();
+    // AD/AA/AB staging: the LD #imm clobbers the staging real, which
+    // regalloc may have left live across this pseudo (its Defs are
+    // deliberately empty). Preserve it (see pushStagingReg).
+    pushStagingReg(Builder, RealReg);
+    auto OpcodePair = LoadImmediateOpcode.find(RealReg);
+    assert(OpcodePair != LoadImmediateOpcode.end());
+    auto NewMI = Builder.buildInstr(OpcodePair->getSecond()).addDef(RealReg, RegState::Implicit);
+    if (ValOp.isGlobal())
+      NewMI.addGlobalAddress(ValOp.getGlobal(), ValOp.getOffset(), ValOp.getTargetFlags());
+    else if (ValOp.isSymbol())
+      NewMI.addExternalSymbol(ValOp.getSymbolName(), ValOp.getTargetFlags());
+    else {
+      int64_t Val = ValOp.isImm() ? ValOp.getImm() : ValOp.getCImm()->getSExtValue();
+      NewMI.addImm(Val);
     }
+    dematerializeReg(Builder, RealReg, DestRegOp.getReg(), MF);
+    pullStagingReg(Builder, RealReg);
     MI.removeFromParent();
     return;
   }
@@ -6992,17 +5915,6 @@ static unsigned getSymStoreOpcode(Register Reg, bool IsDP, bool IsPIC) {
   return 0;
 }
 
-// The staging register a spilled _Sym value transits through, by pseudo width.
-static Register symStageReg(unsigned PseudoOpc) {
-  switch (PseudoOpc) {
-  case MC6809::Load_i8_Sym:  case MC6809::Store_i8_Sym:  return MC6809::AA;
-  case MC6809::Load_i16_Sym: case MC6809::Store_i16_Sym: return MC6809::AD;
-  case MC6809::Load_iPtr_Sym:case MC6809::Store_iPtr_Sym:return MC6809::IY;
-  case MC6809::Load_i32_Sym: case MC6809::Store_i32_Sym: return MC6809::AQ;
-  default:                                               return MC6809::NoRegister;
-  }
-}
-
 static bool symIsDirectPage(const MachineOperand &SymOp) {
   return SymOp.isGlobal() &&
          SymOp.getGlobal()->getAddressSpace() == MC6809::AS_DirectPage;
@@ -7018,9 +5930,8 @@ void MC6809InstrInfo::expandLoadSym(MachineIRBuilder &Builder, MachineInstr &MI)
 
   // Imaginary dst: load the global into the imaginary's staging real and
   // store it to the DP slot, preserving the staging real around the window
-  // (see pushStagingReg). isStaticSpillSlot/computeSpillStackOffset below
-  // are spill-only and would assert on an RS/RC register.
-  if (needsMaterialization(Dst) && !isSpillReg(Dst)) {
+  // (see pushStagingReg).
+  if (needsMaterialization(Dst)) {
     Register Stage = getPhysRegFor(Dst);
     MachineIRBuilder B(MBB, MI.getIterator());
     pushStagingReg(B, Stage);
@@ -7029,33 +5940,6 @@ void MC6809InstrInfo::expandLoadSym(MachineIRBuilder &Builder, MachineInstr &MI)
         .addDef(Stage, RegState::Implicit);
     dematerializeReg(B, Stage, Dst, MF);
     pullStagingReg(B, Stage);
-    MI.eraseFromParent();
-    return;
-  }
-
-  // Spill dst: load the global into a width-appropriate staging register, then
-  // store that register to the spill slot. Mirrors expandLoadIdx's spill path;
-  // the global op needs no address register, so no staging-base conflict.
-  if (needsMaterialization(Dst)) {
-    Register Stage = symStageReg(MI.getOpcode());
-    unsigned LoadOpc = getSymLoadOpcode(Stage, IsDP, IsPIC);
-    BuildMI(MBB, MI, MI.getDebugLoc(), get(LoadOpc))
-        .add(SymOp)
-        .addDef(Stage, RegState::Implicit);
-    // Bug #387: a static-stack spill slot is reached by an extended (or
-    // PC-relative) store, not SpillOff,U.
-    if (isStaticSpillSlot(Dst, MF)) {
-      BuildMI(MBB, MI, MI.getDebugLoc(),
-              get(getSymStoreOpcode(Stage, /*IsDP=*/false, IsPIC)))
-          .addTargetIndex(MC6809::TI_STATIC_STACK, staticSpillOffset(Dst, MF))
-          .addUse(Stage, RegState::Implicit);
-    } else {
-      int SpillOff = computeSpillStackOffset(Dst, MF);
-      BuildMI(MBB, MI, MI.getDebugLoc(), get(getStoreIdxOpcode(Stage, SpillOff)))
-          .addUse(Stage, RegState::Implicit)
-          .addImm(SpillOff)
-          .addReg(MC6809::SU);
-    }
     MI.eraseFromParent();
     return;
   }
@@ -7078,8 +5962,8 @@ void MC6809InstrInfo::expandStoreSym(MachineIRBuilder &Builder, MachineInstr &MI
 
   // Imaginary src: read the value from its DP slot into the staging real,
   // store that to the global, preserving the staging real (see
-  // pushStagingReg). The spill-slot machinery below would assert on RS/RC.
-  if (needsMaterialization(Src) && !isSpillReg(Src)) {
+  // pushStagingReg).
+  if (needsMaterialization(Src)) {
     MachineIRBuilder B(MBB, MI.getIterator());
     Register Stage = getPhysRegFor(Src);
     pushStagingReg(B, Stage);
@@ -7088,32 +5972,6 @@ void MC6809InstrInfo::expandStoreSym(MachineIRBuilder &Builder, MachineInstr &MI
         .add(SymOp)
         .addUse(Stage, RegState::Implicit);
     pullStagingReg(B, Stage);
-    MI.eraseFromParent();
-    return;
-  }
-
-  // Spill src: reload the value from its spill slot into a staging register,
-  // then store that register to the global.
-  if (needsMaterialization(Src)) {
-    Register Stage = symStageReg(MI.getOpcode());
-    // Bug #387: a static-stack spill slot is reached by an extended (or
-    // PC-relative) load, not SpillOff,U.
-    if (isStaticSpillSlot(Src, MF)) {
-      BuildMI(MBB, MI, MI.getDebugLoc(),
-              get(getSymLoadOpcode(Stage, /*IsDP=*/false, IsPIC)))
-          .addTargetIndex(MC6809::TI_STATIC_STACK, staticSpillOffset(Src, MF))
-          .addDef(Stage, RegState::Implicit);
-    } else {
-      int SpillOff = computeSpillStackOffset(Src, MF);
-      BuildMI(MBB, MI, MI.getDebugLoc(), get(getLoadIdxOpcode(Stage, SpillOff)))
-          .addDef(Stage, RegState::Implicit)
-          .addImm(SpillOff)
-          .addReg(MC6809::SU);
-    }
-    unsigned StoreOpc = getSymStoreOpcode(Stage, IsDP, IsPIC);
-    BuildMI(MBB, MI, MI.getDebugLoc(), get(StoreOpc))
-        .add(SymOp)
-        .addUse(Stage, RegState::Implicit);
     MI.eraseFromParent();
     return;
   }
@@ -7238,36 +6096,12 @@ static unsigned getLeaSymOpcode(Register Reg) {
 }
 
 void MC6809InstrInfo::expandLeaSym(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  MachineFunction &MF = *MI.getMF();
   Register Dst = MI.getOperand(0).getReg();
   const MachineOperand &SymOp = MI.getOperand(1);
   MachineBasicBlock &MBB = *MI.getParent();
 
-  // Spill dst: compute the address into IY staging, then store it to the slot.
-  if (needsMaterialization(Dst)) {
-    bool IsPIC = MF.getTarget().isPositionIndependent();
-    BuildMI(MBB, MI, MI.getDebugLoc(), get(MC6809::LEAYi_o16PC))
-        .add(SymOp)
-        .addDef(MC6809::IY, RegState::Implicit);
-    // Bug #387: a static-stack spill slot is reached by an extended (or
-    // PC-relative) store, not SpillOff,U.
-    if (isStaticSpillSlot(Dst, MF)) {
-      BuildMI(MBB, MI, MI.getDebugLoc(),
-              get(getSymStoreOpcode(MC6809::IY, /*IsDP=*/false, IsPIC)))
-          .addTargetIndex(MC6809::TI_STATIC_STACK, staticSpillOffset(Dst, MF))
-          .addUse(MC6809::IY, RegState::Implicit);
-    } else {
-      int SpillOff = computeSpillStackOffset(Dst, MF);
-      BuildMI(MBB, MI, MI.getDebugLoc(),
-              get(getStoreIdxOpcode(MC6809::IY, SpillOff)))
-          .addUse(MC6809::IY, RegState::Implicit)
-          .addImm(SpillOff)
-          .addReg(MC6809::SU);
-    }
-    MI.eraseFromParent();
-    return;
-  }
-
+  assert(!needsMaterialization(Dst) &&
+         "Lea_iPtr_Sym destination must be a real index register");
   unsigned Opc = getLeaSymOpcode(Dst);
   assert(Opc && "no PC-relative LEA opcode for destination register");
   BuildMI(MBB, MI, MI.getDebugLoc(), get(Opc))
@@ -7332,215 +6166,41 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
 
   auto DestRegOp = MI.getOperand(0);
 
-  // If the destination is a spill register, load into D then store to the
-  // spill slot. The SpillDSaveRestore pass (addPrePEI) handles saving and
-  // restoring D around this operation when D is live — we don't need to
-  // do emergency save/restore here. (The old emergency mechanism created
-  // frame slots after PEI with unreliable offsets.)
+  // Imaginary (RS/RC) destination: load into the staging real accumulator,
+  // then store back to the direct-page slot.
   if (needsMaterialization(DestRegOp.getReg())) {
     MachineFunction &MF = *MI.getMF();
-    if (isIndexSpillReg(DestRegOp.getReg())) {
-      // INDEX spill dest: load into IY (staging), then store to spill slot.
-      Register StageReg = MC6809::IY;
-      MI.getOperand(0).setReg(StageReg);
-      expandLoadIdx(Builder, MI);
-      MachineBasicBlock::iterator InsertPt = MI.getIterator();
-      ++InsertPt;
-      MachineIRBuilder PostBuilder(*MI.getParent(), InsertPt);
-      emitSpillStoreFrom(PostBuilder, StageReg, DestRegOp.getReg(),
-                         /*ExtraOffset=*/0, MF);
-    } else if (isQSpillReg(DestRegOp.getReg())) {
-      // Bug #308 (2026-05-19): Q-spill destination — conditional
-      // expansion to balance Bug #308's correctness need against
-      // the cycle/byte cost of an unconditional save/restore wrap
-      // (catastrophic at LTO levels, +11% cycles).
-      //
-      // - AD-family dead: use emitTwoLDDSlotCopy (the legacy Bug #221
-      //   path).  Cheap (8 bytes, only $ad clobbered).  No Bug #308
-      //   manifest because there's no AD-vreg to corrupt.
-      // - AD-family live: use LDQ + STQ through $aq, bracketed by
-      //   emitAQPreservedOverHardStackScratch (Bug #298/#300/#305
-      //   part 1 pattern).  Preserves all AQ sub-regs across the
-      //   load → correct cross-load behaviour.  Costs ~15 bytes,
-      //   but only in the cases where the OLD path would silently
-      //   miscompile.
-      //
-      // History:
-      //   Bug #221 (pre-Phase-B era) avoided LDQ here because it
-      //   clobbers the full AQ family (AA/AB/AE/AF/AD/AW) — back when
-      //   $aq couldn't be safely save/restored, an unconditional LDQ
-      //   risked corrupting whatever vregs regalloc had placed in those
-      //   sub-regs.  The chosen alternative was `emitTwoLDDSlotCopy`
-      //   via $ad as transit — narrower clobber footprint.
-      //
-      //   But the two-LDD path has its own structural gap (Bug #308):
-      //   the pseudo's `Defs=[AD]` (Bug #299) gets dead-marked by
-      //   regalloc because no MI between this load and the next AD
-      //   def reads the LOADED $ad value (it goes to the spill slot
-      //   via STD).  Dead-marked = zero-width interval = doesn't
-      //   conflict with cross-load AD-vreg ranges → vregs in $ad
-      //   survive in regalloc's view while the runtime two-LDD
-      //   silently clobbers them.  Verifier rejects + runtime
-      //   miscompile.
-      //
-      //   Bug #297 (2026-05-15) closed and re-landed Phase B with
-      //   native HD6309 i32 G_ADD/G_SUB + LDQ/STQ for the AQ-dst
-      //   case, plus the `emitAQPreservedOverHardStackScratch`
-      //   infrastructure for safe AQ save/restore.  That's the
-      //   missing piece — with the wrap, the wider LDQ clobber is
-      //   fully transparent to surrounding code.
-      //
-      // Now: just use LDQ → AQ; STQ AQ → slot, bracketed when needed.
-      // When AQ-family is dead (typical, since cross-load values
-      // usually live in $ad — Bug #308's affected pattern), no wrap
-      // → 6 bytes (LDQ + STQ via Page 2).  When AQ-family is live,
-      // add 9-byte wrap → 15 bytes.  Compare: old two-LDD path was
-      // 8 bytes always, but silently miscompiled the cross-load
-      // case.
-      auto SrcIndex = MI.getOperand(1);
-      auto SrcOffset = MI.getOperand(2);
-      int DstSpillOff = computeSpillStackOffset(DestRegOp.getReg(), MF);
-      Register DstSpillReg = DestRegOp.getReg();
-
-      // Bug #272 Phase B core: accept CImm offsets too.
-      // Bug #381: the optimized two-LDD / LDQ slot-copy below loads DIRECTLY
-      // from `off,base` and never applies the indirect-sibling swap, so for an
-      // indirect-indexed pseudo (`ld [off,base]`) it would silently drop the
-      // indirection (qsort's `*(long*)b` -> `ldq 20,u` instead of `ldq [20,u]`).
-      // Route the indirect case through the generic materialize -> recurse ->
-      // dematerialize path below, which expands the load with the indirect swap.
-      // A static-stack destination slot is NOT at DstSpillOff,U — the
-      // optimized two-LDD / LDQ+STQ paths below hard-code that U-relative
-      // store and would write into the (shrunk) dynamic frame. Skip them for a
-      // static slot and fall through to the generic materialize -> recurse ->
-      // dematerialize path, whose emitSpillStore emits the extended STQ.
-      bool SrcOffIsImmediate =
-          (SrcOffset.isImm() || SrcOffset.isCImm()) && !Indirect &&
-          !isStaticSpillSlot(DestRegOp.getReg(), MF);
-      if (SrcOffIsImmediate) {
-        int SrcOffBytes = SrcOffset.isImm()
-                              ? int(SrcOffset.getImm())
-                              : int(SrcOffset.getCImm()->getSExtValue());
-
-        // AD-family liveness gate — narrower than AQ-family because
-        // emitTwoLDDSlotCopy only clobbers AD (and via sub-reg
-        // aliasing AA/AB).  AW/AE/AF being live alone doesn't
-        // require the save/restore wrap.
-        MachineBasicBlock *MBB = MI.getParent();
-        const TargetRegisterInfo &TRI =
-            *Builder.getMF().getSubtarget().getRegisterInfo();
-        LivePhysRegs LiveRegs(TRI);
-        LiveRegs.addLiveIns(*MBB);
-        SmallVector<std::pair<MCPhysReg, const MachineOperand *>, 4>
-            Clobbers;
-        for (auto It = MBB->begin(); It != MI.getIterator(); ++It) {
-          Clobbers.clear();
-          LiveRegs.stepForward(*It, Clobbers);
-        }
-        bool AdFamilyLive = false;
-        for (MCPhysReg R : {MC6809::AD, MC6809::AA, MC6809::AB}) {
-          if (LiveRegs.contains(R)) { AdFamilyLive = true; break; }
-        }
-
-        if (AdFamilyLive) {
-          // Cross-load AD-vreg is live → use LDQ + STQ via $aq,
-          // bracketed by AQ save/restore so AD's value is preserved
-          // at runtime.  Bug #305 part 2 cluster A: add
-          // `implicit-def $spill_q*` on the STQ to keep downstream
-          // FAKE_USE / consumers happy.
-          //
-          // Wrapper does `LEAS -4,$ss` before body and `LEAS 4,$ss`
-          // after.  If the body's LDQ uses $ss as its base register
-          // (typical when the function has no frame pointer — common
-          // after LTO inlining at -Os), the saved offset is now off
-          // by 4 because $ss has been bumped down by 4.  Compensate
-          // by adding 4 to the source offset when the base is $ss.
-          // The U-relative STQ to the spill slot is unaffected (the
-          // wrapper does not touch $su).
-          int AdjSrcOff =
-              (SrcIndex.getReg() == MC6809::SS)
-                  ? SrcOffBytes + 4
-                  : SrcOffBytes;
-          auto Body = [&, AdjSrcOff]() {
-            unsigned LdOpc =
-                getLoadIdxOpcode(MC6809::AQ, AdjSrcOff);
-            Builder.buildInstr(LdOpc)
-                .addDef(MC6809::AQ, RegState::Implicit)
-                .addImm(AdjSrcOff)
-                .addReg(SrcIndex.getReg());
-            unsigned StOpc =
-                getStoreIdxOpcode(MC6809::AQ, DstSpillOff);
-            Builder.buildInstr(StOpc)
-                .addUse(MC6809::AQ, RegState::Implicit)
-                .addImm(DstSpillOff)
-                .addReg(MC6809::SU)
-                .addDef(DstSpillReg, RegState::Implicit);
-          };
-          emitAQPreservedOverHardStackScratch(Builder, Body);
-        } else {
-          // AD-family dead → legacy two-LDD path is safe and cheap.
-          emitTwoLDDSlotCopy(Builder, SrcOffBytes, SrcIndex.getReg(),
-                             DstSpillOff, MC6809::SU, DstSpillReg);
-        }
-        MI.eraseFromParent();
-        return;
-      }
-      // Reg-offset source path: fall through to the generic Q-via-AQ
-      // approach below (rare; correctness over generality).
-      Register RealReg = getPhysRegFor(DestRegOp.getReg());
-      MI.getOperand(0).setReg(RealReg);
-      MI.getOperand(0).setIsDead(false); // demat below reads the staging real
-      expandLoadIdx(Builder, MI);
-      MachineBasicBlock::iterator InsertPt = MI.getIterator();
-      ++InsertPt;
-      MachineIRBuilder PostBuilder(*MI.getParent(), InsertPt);
-      dematerializeReg(PostBuilder, RealReg, DestRegOp.getReg(), MF);
-    } else {
-      // ACC spill or imaginary dest: load into a real accumulator, then
-      // store back. The staging clobbers that accumulator, and regalloc
-      // believes it survives this pseudo (the pseudo deliberately declares
-      // no accumulator Defs -- a fixed dead-def would veto allocating the
-      // register at all). With the RS imaginaries allocatable, a live $ad
-      // routinely spans an RS-destined load, so preserve it around the
-      // staging via the hard stack (an emergency frame slot cannot be
-      // created this late -- PEI has already laid the frame out). The
-      // preserve is unconditional with an undef-marked push: no
-      // neighborhood liveness probe can decide "holds a value someone
-      // reads" once sub-register halves are defined and consumed
-      // downstream, and pushing then popping garbage is the identity.
-      Register RealReg = getPhysRegFor(DestRegOp.getReg());
-      MachineBasicBlock &MBB = *MI.getParent();
-      MachineIRBuilder PreBuilder(MBB, MI.getIterator());
-      PreBuilder.buildInstr(MC6809::PSHSs)
-          .addUse(RealReg, RegState::Undef);
-      // The push moved S down: any pre-existing S-relative operand inside
-      // the window must be displacement-compensated.
-      compensateSSOperands(MI, stagingPushSize(RealReg));
-      MI.getOperand(0).setReg(RealReg);
-      // The pseudo's def may be dead-marked (unused imaginary dest); the
-      // dematerialising store below READS the staging real, so the flag
-      // must not survive onto the rewritten load's def.
-      MI.getOperand(0).setIsDead(false);
-      expandLoadIdx(Builder, MI);
-      MachineBasicBlock::iterator InsertPt = MI.getIterator();
-      ++InsertPt;
-      MachineIRBuilder PostBuilder(*MI.getParent(), InsertPt);
-      dematerializeReg(PostBuilder, RealReg, DestRegOp.getReg(), MF);
-      PostBuilder.buildInstr(MC6809::PULSs).addDef(RealReg);
-    }
+    // The staging clobbers that accumulator, and regalloc
+    // believes it survives this pseudo (the pseudo deliberately declares
+    // no accumulator Defs -- a fixed dead-def would veto allocating the
+    // register at all). With the RS imaginaries allocatable, a live $ad
+    // routinely spans an RS-destined load, so preserve it around the
+    // staging via the hard stack (an emergency frame slot cannot be
+    // created this late -- PEI has already laid the frame out). The
+    // preserve is unconditional with an undef-marked push: no
+    // neighborhood liveness probe can decide "holds a value someone
+    // reads" once sub-register halves are defined and consumed
+    // downstream, and pushing then popping garbage is the identity.
+    Register RealReg = getPhysRegFor(DestRegOp.getReg());
+    MachineBasicBlock &MBB = *MI.getParent();
+    MachineIRBuilder PreBuilder(MBB, MI.getIterator());
+    PreBuilder.buildInstr(MC6809::PSHSs)
+        .addUse(RealReg, RegState::Undef);
+    // The push moved S down: any pre-existing S-relative operand inside
+    // the window must be displacement-compensated.
+    compensateSSOperands(MI, stagingPushSize(RealReg));
+    MI.getOperand(0).setReg(RealReg);
+    // The pseudo's def may be dead-marked (unused imaginary dest); the
+    // dematerialising store below READS the staging real, so the flag
+    // must not survive onto the rewritten load's def.
+    MI.getOperand(0).setIsDead(false);
+    expandLoadIdx(Builder, MI);
+    MachineBasicBlock::iterator InsertPt = MI.getIterator();
+    ++InsertPt;
+    MachineIRBuilder PostBuilder(*MI.getParent(), InsertPt);
+    dematerializeReg(PostBuilder, RealReg, DestRegOp.getReg(), MF);
+    PostBuilder.buildInstr(MC6809::PULSs).addDef(RealReg);
     return;
-  }
-
-  // If the index register is an INDEX spill, load into a staging index reg.
-  // Use IY if the dest operand is IX (avoid conflict), otherwise IX.
-  if (isIndexSpillReg(MI.getOperand(1).getReg())) {
-    Register SpillReg = MI.getOperand(1).getReg();
-    //Register DestReg = MI.getOperand(0).getReg();
-    Register StageReg = MC6809::IY;  // Prefer IY (callee-saved)
-    MachineFunction &MF = *MI.getMF();
-    MachineIRBuilder PreBuilder(*MI.getParent(), MI.getIterator());
-    emitSpillLoadInto(PreBuilder, StageReg, SpillReg, /*ExtraOffset=*/0, MF);
-    MI.getOperand(1).setReg(StageReg);
   }
 
   auto IndexRegOp = MI.getOperand(1);
@@ -7599,151 +6259,10 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
 void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI) const {
   const bool Indirect = isMemIndirectPseudo(MI.getOpcode());
 
-  // If the source is a spill or imaginary register, materialize it.
-  // INDEX spills use IY (avoids clobbering IX which may be the index base).
-  // ACC spills and imaginary use D with emergency save/restore.
+  // If the source is an imaginary register, materialize it into its staging
+  // real accumulator with a hard-stack preserve around the window.
   bool NeedRestore = false;
-  if (isIndexSpillReg(MI.getOperand(0).getReg())) {
-    Register SpillReg = MI.getOperand(0).getReg();
-    MachineFunction &MF = *MI.getMF();
-    MachineIRBuilder LoadBuilder(*MI.getParent(), MI.getIterator());
-    emitSpillLoadInto(LoadBuilder, MC6809::IY, SpillReg, /*ExtraOffset=*/0, MF);
-    MI.getOperand(0).setReg(MC6809::IY);
-  } else if (isQSpillReg(MI.getOperand(0).getReg())) {
-    // Bug #308 (2026-05-19): symmetric to expandLoadIdx's Q-spill
-    // DEST path — switch from the AD-transit two-LDD slot-to-slot
-    // approach (which has the regalloc-dead-marks-AD-def gap) to
-    // LDQ-from-slot + STQ-to-dst via $aq, bracketed by
-    // `emitAQPreservedOverHardStackScratch` when AQ-family is live.
-    // See the long comment block in expandLoadIdx's Q-spill DEST
-    // path for the full design rationale.
-    auto SrcSpill = MI.getOperand(0);
-    auto DstIndex = MI.getOperand(1);
-    auto DstOffset = MI.getOperand(2);
-    MachineFunction &MF = *MI.getMF();
-    int SrcSpillOff = computeSpillStackOffset(SrcSpill.getReg(), MF);
-
-    // Bug #272 Phase B core: accept CImm offsets too.
-    // Bug #381: symmetric to expandLoadIdx -- the optimized two-LDD / STQ
-    // slot-copy stores DIRECTLY to `off,base` and never applies the indirect
-    // swap, so route the indirect-indexed case (`st [off,base]`) through the
-    // generic materialize -> generic-build -> indirect-swap path below.
-    bool DstOffIsImmediate =
-        (DstOffset.isImm() || DstOffset.isCImm()) && !Indirect;
-    if (DstOffIsImmediate) {
-      int DstOffBytes = DstOffset.isImm()
-                            ? int(DstOffset.getImm())
-                            : int(DstOffset.getCImm()->getSExtValue());
-
-      // AD-family liveness gate (same conditional as expandLoadIdx
-      // Q-spill DST above — narrower than AQ-family to minimise LTO
-      // overhead; emitTwoLDDSlotCopy only clobbers AD/AA/AB so
-      // AW/AE/AF being live alone doesn't require save/restore).
-      MachineBasicBlock *MBB = MI.getParent();
-      const TargetRegisterInfo &TRI =
-          *Builder.getMF().getSubtarget().getRegisterInfo();
-      LivePhysRegs LiveRegs(TRI);
-      LiveRegs.addLiveIns(*MBB);
-      SmallVector<std::pair<MCPhysReg, const MachineOperand *>, 4>
-          Clobbers;
-      for (auto It = MBB->begin(); It != MI.getIterator(); ++It) {
-        Clobbers.clear();
-        LiveRegs.stepForward(*It, Clobbers);
-      }
-      bool AdFamilyLive = false;
-      for (MCPhysReg R : {MC6809::AD, MC6809::AA, MC6809::AB}) {
-        if (LiveRegs.contains(R)) { AdFamilyLive = true; break; }
-      }
-
-      // Bug #387: a static-stack source slot is reached by an extended (or
-      // PC-relative) LDQ, not `SrcSpillOff,U`. The U-relative optimized paths
-      // below would read from the (shrunk) dynamic frame. Load the slot into
-      // $aq via the static opcode, then STQ to the (dynamic) destination —
-      // wrapped in AQ-preservation when an AD-family value is live across it.
-      if (isStaticSpillSlot(SrcSpill.getReg(), MF)) {
-        bool IsPIC = MF.getTarget().isPositionIndependent();
-        int StaticOff = staticSpillOffset(SrcSpill.getReg(), MF);
-        auto Body = [&]() {
-          unsigned LdOpc = getSymLoadOpcode(MC6809::AQ, /*IsDP=*/false, IsPIC);
-          Builder.buildInstr(LdOpc)
-              .addTargetIndex(MC6809::TI_STATIC_STACK, StaticOff)
-              .addDef(MC6809::AQ, RegState::Implicit);
-          // The STQ base offset shifts by 4 only when the wrapper's LEAS moved
-          // $ss (i.e. AD-family live) and the destination base IS $ss.
-          int AdjDstOff = (AdFamilyLive && DstIndex.getReg() == MC6809::SS)
-                              ? DstOffBytes + 4
-                              : DstOffBytes;
-          unsigned StOpc = getStoreIdxOpcode(MC6809::AQ, AdjDstOff);
-          Builder.buildInstr(StOpc)
-              .addUse(MC6809::AQ, RegState::Implicit)
-              .addImm(AdjDstOff)
-              .addReg(DstIndex.getReg());
-        };
-        if (AdFamilyLive)
-          emitAQPreservedOverHardStackScratch(Builder, Body);
-        else
-          Body();
-        MI.eraseFromParent();
-        return;
-      }
-
-      if (AdFamilyLive) {
-        // Use LDQ + STQ via $aq + save/restore — preserves AD-family
-        // across the two-LDD's transient clobber.
-        //
-        // Wrapper does `LEAS -4,$ss` before body and `LEAS 4,$ss`
-        // after.  If the body's STQ uses $ss as its base register
-        // (typical when the function has no frame pointer — common
-        // after LTO inlining at -Os), the saved offset is now off by
-        // 4 because $ss has been bumped down by 4.  Compensate by
-        // adding 4 to the destination offset when the base is $ss.
-        // The U-relative LDQ from the spill slot is unaffected (the
-        // wrapper does not touch $su).
-        int AdjDstOff =
-            (DstIndex.getReg() == MC6809::SS)
-                ? DstOffBytes + 4
-                : DstOffBytes;
-        auto Body = [&, AdjDstOff]() {
-          unsigned LdOpc = getLoadIdxOpcode(MC6809::AQ, SrcSpillOff);
-          Builder.buildInstr(LdOpc)
-              .addDef(MC6809::AQ, RegState::Implicit)
-              .addImm(SrcSpillOff)
-              .addReg(MC6809::SU);
-          unsigned StOpc = getStoreIdxOpcode(MC6809::AQ, AdjDstOff);
-          Builder.buildInstr(StOpc)
-              .addUse(MC6809::AQ, RegState::Implicit)
-              .addImm(AdjDstOff)
-              .addReg(DstIndex.getReg());
-        };
-        emitAQPreservedOverHardStackScratch(Builder, Body);
-      } else {
-        // AD-family dead → legacy two-LDD path is safe and cheap.
-        emitTwoLDDSlotCopy(Builder, SrcSpillOff, MC6809::SU,
-                           DstOffBytes, DstIndex.getReg());
-      }
-      MI.eraseFromParent();
-      return;
-    }
-    // Reg-offset dst path: fall through to the generic
-    // emergency-save + materialise approach (rare; correctness over
-    // generality).
-    MachineIRBuilder LoadBuilder(*MI.getParent(), MI.getIterator());
-    // Preserve $ad around the materialisation via the hard stack: PEI has
-    // already laid the frame out, so a CreateStackObject here would never
-    // receive an offset (every such "emergency" slot silently resolved to
-    // 0,U and smashed the local living there). The push is unconditional
-    // and undef-marked: no neighborhood liveness probe can decide "holds
-    // a value someone reads" once sub-register halves are defined and
-    // consumed downstream, and pushing then popping garbage is the
-    // identity.
-    LoadBuilder.buildInstr(MC6809::PSHSs).addUse(MC6809::AD, RegState::Undef);
-    NeedRestore = true;
-    // The push moved S down by 2: any pre-existing S-relative operand
-    // inside the window must be displacement-compensated.
-    compensateSSOperands(MI, 2);
-    Register RealReg = materializeReg(LoadBuilder, SrcSpill.getReg(), MF);
-    MI.getOperand(0).setReg(RealReg);
-  } else if (needsMaterialization(MI.getOperand(0).getReg())) {
+  if (needsMaterialization(MI.getOperand(0).getReg())) {
     Register SrcReg = MI.getOperand(0).getReg();
     MachineFunction &MF = *MI.getMF();
     MachineIRBuilder LoadBuilder(*MI.getParent(), MI.getIterator());
@@ -7760,19 +6279,7 @@ void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI
     MI.getOperand(0).setReg(RealReg);
   }
 
-  // If the index register is an INDEX spill, load into a staging index reg.
-  // Use IY if the source operand is IX (avoid conflict), otherwise IX.
-  if (isIndexSpillReg(MI.getOperand(1).getReg())) {
-    Register SpillReg = MI.getOperand(1).getReg();
-    //Register SrcReg = MI.getOperand(0).getReg();
-    Register StageReg = MC6809::IY;  // Prefer IY (callee-saved)
-    MachineFunction &MF = *MI.getMF();
-    MachineIRBuilder PreBuilder(*MI.getParent(), MI.getIterator());
-    emitSpillLoadInto(PreBuilder, StageReg, SpillReg, /*ExtraOffset=*/0, MF);
-    MI.getOperand(1).setReg(StageReg);
-  }
-
-  auto SrcRegOp = MI.getOperand(0); // re-read AFTER spill fix
+  auto SrcRegOp = MI.getOperand(0); // re-read AFTER the materialisation fix
   auto IndexRegOp = MI.getOperand(1);
   auto OffsetOp = MI.getOperand(2);
 
@@ -8255,13 +6762,11 @@ unsigned MC6809InstrInfo::getStaticSymOpcode(unsigned MemOpc) const {
   case MC6809::Load_i8_Mem:        return MC6809::Load_i8_Sym;
   case MC6809::Load_i16_Mem:       return MC6809::Load_i16_Sym;
   case MC6809::Load_iPtr_Mem:      return MC6809::Load_iPtr_Sym;
-  case MC6809::Load_i32_Mem:
-  case MC6809::SpillLoad_i32_Mem:  return MC6809::Load_i32_Sym;
+  case MC6809::Load_i32_Mem:       return MC6809::Load_i32_Sym;
   case MC6809::Store_i8_Mem:       return MC6809::Store_i8_Sym;
   case MC6809::Store_i16_Mem:      return MC6809::Store_i16_Sym;
   case MC6809::Store_iPtr_Mem:     return MC6809::Store_iPtr_Sym;
-  case MC6809::Store_i32_Mem:
-  case MC6809::SpillStore_i32_Mem: return MC6809::Store_i32_Sym;
+  case MC6809::Store_i32_Mem:      return MC6809::Store_i32_Sym;
   // Arithmetic / carry-chain / bitwise / compare pseudos whose memory
   // operand is a static-frame local — either the selector's frame folds or
   // foldMemoryOperandImpl's spilled-second-source folds. Each _Mem form
@@ -8340,20 +6845,12 @@ unsigned MC6809InstrInfo::getStaticSymOpcode(unsigned MemOpc) const {
 /// touch. For LHS = an imaginary or A/B-spill register, materializeReg
 /// emits an LDA/LDB and `RealLHS` is the AA or AB it loaded into.
 ///
-/// RHS handling — THREE PATHS
-/// --------------------------
-///   (a) RHS is a SPILL_A*/SPILL_B*: read it directly via U-relative
-///       addressing from the spill slot — no need to push anything.
-///       Used by bug #63's "skip the second ACC spill" path in
-///       MaterializeSpills (see MC6809MaterializeSpills.cpp). The
-///       byte spills use getSpillByteOffset for the correct offset
-///       within the parent frame slot (big-endian: A at slot+0,
-///       B at slot+1).
-///
-///   (b) RHS is an Imag8 register: use the direct-page opcode to
+/// RHS handling — TWO PATHS
+/// ------------------------
+///   (a) RHS is an Imag8 register: use the direct-page opcode to
 ///       read it directly from its DP location. No push needed.
 ///
-///   (c) RHS is a real register or other imaginary register: push it
+///   (b) RHS is a real register or other imaginary register: push it
 ///       onto the S stack with PSHS, operate from `0,s`, then LEAS
 ///       to deallocate. Imaginary regs are materialized first.
 static void emit6809RegByteFromMem(MachineIRBuilder &Builder,
@@ -8368,7 +6865,7 @@ static void emit6809RegByteFromMem(MachineIRBuilder &Builder,
   Register OrigLHS = LHS;
   Register RealLHS = needsMaterialization(LHS) ? getPhysRegFor(LHS) : LHS;
   // The accumulator half (A or B) is determined by where LHS lives.
-  // SPILL_A* / Imag8-A maps to AA; SPILL_B* / Imag8-B maps to AB.
+  // Imag8-A maps to AA; Imag8-B maps to AB.
   // Bug #311 Phase 1 step 1.5: AALSB retired.
   Register AccReg = (RealLHS == MC6809::AA) ? MC6809::AA : MC6809::AB;
   // An imaginary/spill LHS stages through AccReg, which the pseudo does
@@ -8385,8 +6882,7 @@ static void emit6809RegByteFromMem(MachineIRBuilder &Builder,
   // left in A/B by a preceding operation (e.g., libcall result).
   Register RealRHS = needsMaterialization(RHS) ? getPhysRegFor(RHS) : RHS;
   bool PushedEarly = false;
-  if (!isSpillReg(RHS) &&
-      !(RHS.isPhysical() && MC6809::Imag8RegClass.contains(RHS)) &&
+  if (!(RHS.isPhysical() && MC6809::Imag8RegClass.contains(RHS)) &&
       !isImag16ByteSubReg(RHS) && RealRHS == AccReg) {
     if (needsMaterialization(RHS))
       RealRHS = materializeReg(Builder, RHS, MF);
@@ -8396,18 +6892,9 @@ static void emit6809RegByteFromMem(MachineIRBuilder &Builder,
   if (needsMaterialization(LHS))
     materializeReg(Builder, LHS, MF);
   RealRHS = RHS;
-  if (isSpillReg(RHS)) {
-    // Path (a): read RHS directly from its spill slot. emitSpillArith emits the
-    // U-relative form for a dynamic slot (picking o8 vs o16 by the offset —
-    // Bug #122's large-frame guard) or the extended TI_STATIC_STACK form for a
-    // static-stack slot. computeSpillStackOffset already includes the
-    // byte offset within the parent D slot (A at +0, B at +1 on big-endian).
-    LLVM_DEBUG(dbgs() << "emit6809RegByteFromMem: path(a) RHS="
-               << printReg(RHS) << "\n");
-    emitSpillArith(Builder, Opc_o8, Opc_o16, AccReg, RHS, MF);
-  } else if (RHS.isPhysical() && (MC6809::Imag8RegClass.contains(RHS) ||
-                                  isImag16ByteSubReg(RHS))) {
-    // Path (b): RHS is an Imag8 register or an RS byte sub-register —
+  if (RHS.isPhysical() && (MC6809::Imag8RegClass.contains(RHS) ||
+                           isImag16ByteSubReg(RHS))) {
+    // Path (a): RHS is an Imag8 register or an RS byte sub-register —
     // use the direct-page opcode to read it directly from its DP
     // location. This avoids the push/pop overhead (and any staging
     // that would clobber the LHS accumulator) and is correct because
@@ -8424,7 +6911,7 @@ static void emit6809RegByteFromMem(MachineIRBuilder &Builder,
     Builder.buildInstr(MC6809::LEASi_o5)
         .addImm(1).addReg(MC6809::SS);
   } else {
-    // Path (c): PSHS RealRHS; op 0,S; LEAS 1,S.
+    // Path (b): PSHS RealRHS; op 0,S; LEAS 1,S.
     // Stage 5 of MC6809PostRASpillOpt (bug #185) folds this triple to
     // PSHS RealRHS; op ,S+ — saving the LEAS at any optimisation level
     // where the pass fires.  Using the stack avoids the __scratch DP byte.
@@ -8486,21 +6973,12 @@ static void emit6809RegByteFromMem(MachineIRBuilder &Builder,
 /// implicitly. The result is in D at the end and stored back to the
 /// spill slot if needed.
 ///
-/// RHS handling — TWO PATHS  (mirror image of emit6809RegByteFromMem)
+/// RHS handling  (mirror image of emit6809RegByteFromMem)
 /// ------------------------
-///   (a) RHS is a SPILL_D / SPILL_A* / SPILL_B*: read it directly
-///       from the parent's spill slot via U-relative addressing.
-///       This path was previously dead code (MaterializeSpills used
-///       to rewrite all spill operands before this function ran),
-///       but bug #63's fix re-enables it: MaterializeSpills now
-///       deliberately leaves the SECOND distinct ACC spill alone for
-///       Add/Sub/SetCarry _Reg pseudos so this path can handle it.
-///       Big-endian byte order: high byte at slot+0, low byte at
-///       slot+1.
-///
-///   (b) RHS is a real or imaginary register: materialize if needed,
-///       PSHS to push the i16 onto the S stack (high byte at 0,s,
-///       low byte at 1,s), operate from there, then LEAS to pop.
+///   RHS is a real or imaginary register: materialize if needed,
+///   PSHS to push the i16 onto the S stack (high byte at 0,s,
+///   low byte at 1,s), operate from there, then LEAS to pop
+///   (direct-page RS reads happen in place, no push).
 static void emit6809RegPairFromMem(MachineIRBuilder &Builder,
                                    Register LHS, Register RHS,
                                    unsigned OpcB_o8, unsigned OpcA_o8,
@@ -8525,45 +7003,7 @@ static void emit6809RegPairFromMem(MachineIRBuilder &Builder,
   if (StagedLHS)
     pushStagingReg(Builder, MC6809::AD);
 
-  if (isSpillReg(RHS)) {
-    // Path (a): read RHS bytes directly from its U-relative spill
-    // slot. Byte order: hi at slot+0, lo at slot+1.
-    // LHS materialization can happen now — RHS reads from memory and
-    // doesn't need a register.
-    if (needsMaterialization(LHS))
-      materializeReg(Builder, LHS, MF);
-
-    if (isStaticSpillSlot(RHS, MF)) {
-      // Static-stack: extended byte ops against static_stack global (big-endian:
-      // A high at +0, B low at +1). Low byte first so CC.C carries into the high.
-      bool IsPIC = MF.getTarget().isPositionIndependent();
-      int Base = staticSpillOffset(RHS, MF);
-      Builder.buildInstr(getStaticStackOpcode(OpcB_o8, IsPIC))
-          .addDef(MC6809::AB, RegState::Implicit)
-          .addTargetIndex(MC6809::TI_STATIC_STACK, Base + 1);
-      Builder.buildInstr(getStaticStackOpcode(OpcA_o8, IsPIC))
-          .addDef(MC6809::AA, RegState::Implicit)
-          .addTargetIndex(MC6809::TI_STATIC_STACK, Base);
-    } else {
-      int Offset = computeSpillStackOffset(RHS, MF);
-      // Bug #122 / #125: for large stack frames (>127 bytes), the spill
-      // offset may exceed the 8-bit signed range (-128..+127). Use the
-      // _o16 opcode variant for large offsets — _o8 wraps >127 to
-      // negative, reading from below the frame. Note: Offset+1 (the low
-      // byte) overflows first, so check that.
-      bool Fits8 = (Offset >= -128 && (Offset + 1) <= 127);
-      unsigned OpcB = (Fits8 || !OpcB_o16) ? OpcB_o8 : OpcB_o16;
-      unsigned OpcA = (Fits8 || !OpcA_o16) ? OpcA_o8 : OpcA_o16;
-      // Low byte first — sets CC.C if this op carries.
-      Builder.buildInstr(OpcB)
-          .addDef(MC6809::AB, RegState::Implicit)
-          .addImm(Offset + 1).addReg(MC6809::SU);
-      // High byte second — uses (and possibly sets) CC.C from the low op.
-      Builder.buildInstr(OpcA)
-          .addDef(MC6809::AA, RegState::Implicit)
-          .addImm(Offset).addReg(MC6809::SU);
-    }
-  } else if (RHS.isPhysical() && MC6809::Imag16RegClass.contains(RHS)) {
+  if (RHS.isPhysical() && MC6809::Imag16RegClass.contains(RHS)) {
     // Path (b-dp): RHS lives at a fixed direct-page address -- read its
     // bytes straight from memory (lo first so CC.C chains into the hi).
     // No staging register is touched, so this also avoids the Bug #242
@@ -8914,70 +7354,10 @@ void MC6809InstrInfo::expandCompareIdx(MachineIRBuilder &Builder, MachineInstr &
   const bool IsSym = MI.getOperand(3).isTargetIndex();
   assert((IsSym || MI.getOperand(3).isReg()) && "The index operand of indexed compares must be a register");
 
-  // Materialize a spilled index base (operand 3) into IY, mirroring
-  // expandStoreIdx. The P3a consumer memory-fold keeps the base pointer live to
-  // the compare; under register pressure it can spill to an index-spill reg,
-  // which has no real encoding and would render as `,0` (the strcmp miscompile).
-  if (!IsSym && isIndexSpillReg(MI.getOperand(3).getReg())) {
-    Register SpillReg = MI.getOperand(3).getReg();
-    Register StageReg = MC6809::IY;  // callee-saved; avoids clobbering IX base
-    MachineFunction &MF = *MI.getMF();
-    MachineIRBuilder PreBuilder(*MI.getParent(), MI.getIterator());
-    emitSpillLoadInto(PreBuilder, StageReg, SpillReg, /*ExtraOffset=*/0, MF);
-    MI.getOperand(3).setReg(StageReg);
-  }
-
   auto SrcReg = MI.getOperand(2).getReg();
   if (needsMaterialization(SrcReg)) {
     MachineFunction &MF = *MI.getMF();
-    Register IndexSrc = Register();
-    // Optimization for spill registers: if the spill was stored from an INDEX
-    // register (STX/STY) and that register hasn't been redefined, use
-    // CMPX/CMPY directly. This avoids clobbering D (bug #30).
-    // (Imaginary registers are direct-page based, not stack-based, so skip scan.)
-    if (isSpillReg(SrcReg)) {
-      int SpillOffset = computeSpillStackOffset(SrcReg, MF);
-      unsigned SpillSize = getSpillRegSize(SrcReg);
-      MachineBasicBlock &MBB = *MI.getParent();
-      for (auto It = MachineBasicBlock::reverse_iterator(MI.getIterator());
-           It != MBB.rend(); ++It) {
-        unsigned Opc = It->getOpcode();
-        auto IsMatchingIndexStore = [&](unsigned O5, unsigned O8, unsigned O16) {
-          return (Opc == O5 || Opc == O8 || Opc == O16) &&
-                 It->getNumOperands() >= 2 &&
-                 It->getOperand(0).isImm() &&
-                 It->getOperand(0).getImm() == SpillOffset &&
-                 It->getOperand(1).isReg() &&
-                 It->getOperand(1).getReg() == MC6809::SU;
-        };
-        if (IsMatchingIndexStore(MC6809::STXi_o5, MC6809::STXi_o8, MC6809::STXi_o16)) {
-          IndexSrc = MC6809::IX;
-          break;
-        }
-        if (IsMatchingIndexStore(MC6809::STYi_o5, MC6809::STYi_o8, MC6809::STYi_o16)) {
-          IndexSrc = MC6809::IY;
-          break;
-        }
-        // Bail if an intervening store overwrote any byte of our spill slot —
-        // the IX/IY value no longer mirrors the slot even if IX/IY itself is
-        // still live (bug #125: SubSetCarry_i8_Reg writes spill_b/_a in place).
-        if (storeOverlapsSpillSlot(*It, SpillOffset, SpillSize))
-          break;
-        // Bug #263: bail on any call. Calls clobber IX (caller-saved
-        // per the MC6809 ABI) via the regmask, which
-        // `definesRegister(_, TRI=nullptr)` doesn't consult.
-        if (It->isCall())
-          break;
-        if (It->definesRegister(MC6809::IX, /*TRI=*/nullptr) ||
-            It->definesRegister(MC6809::IY, /*TRI=*/nullptr))
-          break;
-      }
-    }
-    if (IndexSrc.isValid()) {
-      SrcReg = IndexSrc;  // Use CMPX/CMPY directly, preserving D.
-    } else {
-      SrcReg = materializeReg(Builder, SrcReg, MF);
-    }
+    SrcReg = materializeReg(Builder, SrcReg, MF);
   }
   // Static-stack sibling: look up the widest indexed compare for the LHS
   // register and translate it to the extended (or PC-relative under PIC)
@@ -9044,12 +7424,12 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
 
   // Bug #161 round 17: materialize spill / imaginary operands into real
   // hardware registers before emitting CMPR. CMPR encodes 4-bit hardware
-  // register codes in its postbyte; raw SPILL_* operands collapse the
+  // register codes in its postbyte; raw imaginary operands collapse the
   // postbyte to 0x00 (= CMPR D,D = always Z=1), breaking the test-strncpy
   // and similar inner-loop comparisons.
   //
   // Bug #161 round 18: when both sources resolve to the same physical
-  // register (commonly because both were SPILL_D* and materialize to
+  // register (commonly because both are imaginaries that materialize to
   // AD), CMPRp X,X always sets Z=1 / N,V,C=0 — wrong for any non-equal
   // source pair. Detect that and fall back to a 6809-style compare via
   // PSHS / CMPx 0,S / LEAS so the SPILL operand is read separately.
@@ -9074,18 +7454,6 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
   // uses below — it works for the general non-SameHalf case too, just
   // costs one stack round-trip.  pickCmpO8O16 (defined further down)
   // picks the right CMPx variant for Src2's physreg.
-  //
-  // An INDEX spill operand must NOT be materialized into a hardware index
-  // register here: MaterializeSpills deliberately leaves the second of
-  // two distinct index spills as a SPILL_X for the register-vs-slot path
-  // below (CMPY off,u), because materializing it into IX/IY would clobber
-  // whatever live value already occupies that register (e.g. a NULL
-  // return pointer held in IX across the compare). Loading a spill into
-  // IX here silently destroyed that value. So for the pointer compare,
-  // when a source is still a spill, fall through to the isSpillReg paths,
-  // which read it from its U-relative slot and touch only the other
-  // operand's register. (Accumulator compares are unaffected: their D
-  // spill is materialized with a D save/restore by MaterializeSpills.)
   unsigned MIOpc = MI.getOpcode();
   auto pickCmpO8O16 = [&](Register PhysReg, unsigned ByteOffset,
                           unsigned &OpcOut) {
@@ -9114,8 +7482,8 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
   // the d-form compare instead. Direction contract (see above):
   // flags = Src2 - Src1.
   {
-    bool Src1Imag = !isSpillReg(Src1) && needsMaterialization(Src1);
-    bool Src2Imag = !isSpillReg(Src2) && needsMaterialization(Src2);
+    bool Src1Imag = needsMaterialization(Src1);
+    bool Src2Imag = needsMaterialization(Src2);
     auto PickCmpD = [&](Register PhysReg) -> unsigned {
       if (MIOpc == MC6809::Compare_i8_Reg) {
         if (PhysReg == MC6809::AA) return MC6809::CMPAd;
@@ -9174,9 +7542,7 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
     }
   }
 
-  bool PtrSpill = MI.getOpcode() == MC6809::Compare_ptr_Reg &&
-                  (isSpillReg(Src1) || isSpillReg(Src2));
-  if (!SameHalf && STI.has6309() && !PtrSpill) {
+  if (!SameHalf && STI.has6309()) {
     if (needsMaterialization(Src1)) Src1 = materializeReg(Builder, Src1, MF);
     if (needsMaterialization(Src2)) Src2 = materializeReg(Builder, Src2, MF);
     Builder.buildInstr(MC6809::CMPRp).addUse(Src1).addUse(Src2);
@@ -9184,72 +7550,14 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
     return;
   }
 
-  // Same-physreg collision. CMPRp's TableGen semantics are
-  // `cmpr reg1, reg2 → flags = reg2 - reg1`. The non-collision path
-  // above emits `addUse(Src1).addUse(Src2)`, mapping Src1→reg1 and
-  // Src2→reg2, so the resulting flags are `Src2 - Src1`. Every
-  // collision fallback below MUST preserve that direction —
-  // i.e. flags = (op2 - op3) using MIR convention, which is
-  // `physreg(=Src2) - mem(=Src1)` in CMPx-from-spill form.
+  // Same-physreg collision or plain-6809 fallback. CMPRp's TableGen
+  // semantics are `cmpr reg1, reg2 → flags = reg2 - reg1`. The
+  // non-collision path above emits `addUse(Src1).addUse(Src2)`, mapping
+  // Src1→reg1 and Src2→reg2, so the resulting flags are `Src2 - Src1`.
+  // The fallback below MUST preserve that direction.
   //
-  // Three sub-cases:
-  //
-  //   (i)  Src2 is a SPILL_* (Src1 already in physreg, with the same
-  //        physreg the spill would materialize into). PSHS Src1's
-  //        value to free the physreg, then load Src2 into the
-  //        physreg, then `CMPx 0,$ss` so the compare is
-  //        physreg(=Src2) - mem(=Src1). LEAS to clean up.
-  //
-  //   (ii) Src1 is a SPILL_* (Src2 already in physreg). Src2 is in
-  //        the right place already; emit `CMPx Src1_offset, $su`
-  //        directly so flags = physreg(=Src2) - mem(=Src1). No
-  //        PSHS needed.
-  //
-  //   (iii) Both already physical AND identical (regalloc coalesced
-  //         them). The value really is the same, so equal is correct
-  //         — emit CMPRp.
-
-  if (isSpillReg(Src2)) {
-    // Src2 is the spill, Src1 is in physreg. Push Src1 to stack, load
-    // Src2 into the physreg (its RealReg matches Src1Phys), CMP
-    // physreg-vs-stack so flags = Src2 - Src1.
-    if (needsMaterialization(Src1)) Src1 = materializeReg(Builder, Src1, MF);
-    Builder.buildInstr(MC6809::PSHSs, {}, {Src1Phys});
-    Register Src2Real = materializeReg(Builder, Src2, MF);
-    unsigned CmpOpc;
-    pickCmpO8O16(Src2Real, 0, CmpOpc);
-    Builder.buildInstr(CmpOpc).addImm(0).addReg(MC6809::SS);
-    // Bug #257: PULS Src1Phys instead of LEAS to RESTORE Src1's value.
-    // The materializeReg(Src2) above loaded Src2's value into Src1Phys
-    // (because SameHalf collision routed both through the same physreg).
-    // Without restoring, successor BBs that have Src1Phys as a livein
-    // see the wrong value. memcmp's byte-loop hit this: $ab held *s2
-    // pre-compare, the load clobbered it with *s1, and the mismatch
-    // BB then computed *s1 - *s1 = 0 (returning equal-on-mismatch).
-    // Cycle cost: PULS B = 6 cy vs LEAS 1,$ss = 5 cy (+1 cy);
-    // PULS D = 7 cy vs LEAS 2,$ss = 5 cy (+2 cy). Same byte count.
-    Builder.buildInstr(MC6809::PULSs, {Src1Phys}, {});
-    MI.eraseFromParent();
-    return;
-  }
-  if (isSpillReg(Src1)) {
-    // Src1 is the spill, Src2 is in physreg. Read Src1 directly from
-    // its U-relative slot — flags = physreg(=Src2) - mem(=Src1).
-    unsigned CmpOpc;
-    if (isStaticSpillSlot(Src1, MF)) {
-      pickCmpO8O16(Src2Phys, /*Offset=*/0, CmpOpc);
-      Builder.buildInstr(getStaticStackOpcode(
-                             CmpOpc, MF.getTarget().isPositionIndependent()))
-          .addTargetIndex(MC6809::TI_STATIC_STACK, staticSpillOffset(Src1, MF));
-    } else {
-      int ByteOffset = computeSpillStackOffset(Src1, MF);
-      pickCmpO8O16(Src2Phys, ByteOffset, CmpOpc);
-      Builder.buildInstr(CmpOpc).addImm(ByteOffset).addReg(MC6809::SU);
-    }
-    MI.eraseFromParent();
-    return;
-  }
-  // Both Src1 and Src2 already physical, no spill on either side.
+  // Both Src1 and Src2 are physical here (a spilled second source folds
+  // to the Compare _Mem sibling before allocation).
   // HD6309: CMPRp regardless of whether Src1Phys == Src2Phys (regalloc
   // coalesced) or not.  Plain MC6809 (Bug #312): PSHS Src1Phys then
   // CMPx Src2 ,$ss++ (post-increment indexed — pops the byte/word
@@ -9289,57 +7597,7 @@ void MC6809InstrInfo::expandTestReg(MachineIRBuilder &Builder, MachineInstr &MI)
   auto SrcReg = MI.getOperand(2).getReg();
   if (needsMaterialization(SrcReg)) {
     MachineFunction &MF = *MI.getMF();
-    Register IndexSrc = Register();
-    // Optimization for spill registers: if the spill was stored from an INDEX
-    // register (STX/STY), use CMPX/CMPY #0 directly. Avoids D clobber (bug #31).
-    // (Imaginary registers are direct-page based, not stack-based, so skip scan.)
-    if (isSpillReg(SrcReg)) {
-      int SpillOffset = computeSpillStackOffset(SrcReg, MF);
-      unsigned SpillSize = getSpillRegSize(SrcReg);
-      MachineBasicBlock &MBB = *MI.getParent();
-      for (auto It = MachineBasicBlock::reverse_iterator(MI.getIterator());
-           It != MBB.rend(); ++It) {
-        unsigned Opc = It->getOpcode();
-        auto IsMatchingIndexStore = [&](unsigned O5, unsigned O8, unsigned O16) {
-          return (Opc == O5 || Opc == O8 || Opc == O16) &&
-                 It->getNumOperands() >= 2 &&
-                 It->getOperand(0).isImm() &&
-                 It->getOperand(0).getImm() == SpillOffset &&
-                 It->getOperand(1).isReg() &&
-                 It->getOperand(1).getReg() == MC6809::SU;
-        };
-        if (IsMatchingIndexStore(MC6809::STXi_o5, MC6809::STXi_o8, MC6809::STXi_o16)) {
-          IndexSrc = MC6809::IX;
-          break;
-        }
-        if (IsMatchingIndexStore(MC6809::STYi_o5, MC6809::STYi_o8, MC6809::STYi_o16)) {
-          IndexSrc = MC6809::IY;
-          break;
-        }
-        // Bail if an intervening store overwrote any byte of our spill slot —
-        // the IX/IY value no longer mirrors the slot even if IX/IY itself is
-        // still live (bug #125: SubSetCarry_i8_Reg writes spill_b/_a in place).
-        if (storeOverlapsSpillSlot(*It, SpillOffset, SpillSize))
-          break;
-        // Bug #263: bail on any call. Calls clobber IX (caller-saved
-        // per the MC6809 ABI) via the regmask, which
-        // `definesRegister(_, TRI=nullptr)` doesn't consult.
-        if (It->isCall())
-          break;
-        if (It->definesRegister(MC6809::IX, /*TRI=*/nullptr) ||
-            It->definesRegister(MC6809::IY, /*TRI=*/nullptr))
-          break;
-      }
-    }
-    if (IndexSrc.isValid()) {
-      // Use CMPX/CMPY #0 directly — preserves D.
-      auto OpcodePair = CompareImmediateOpcode.find(IndexSrc);
-      assert(OpcodePair != CompareImmediateOpcode.end());
-      Builder.buildInstr(OpcodePair->getSecond()).addImm(0);
-      MI.eraseFromParent();
-      return;
-    }
-    // Fallback: materialize into real accumulator and test.
+    // Materialize into the real accumulator and test.
     SrcReg = materializeReg(Builder, SrcReg, MF);
   }
   // TSTD/TSTW are HD6309-only. On 6809, use CMPD/CMPW #0 instead.

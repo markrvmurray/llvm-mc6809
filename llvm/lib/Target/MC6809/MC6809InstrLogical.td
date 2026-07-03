@@ -221,7 +221,7 @@ class MC6809Subroutine : MC6809LogicalInstr {
 // Branch via jump table: index must be materializable to D, table
 // identified by JTI. Expanded post-RA to ASLB+ROLA+LEAX table,PCR
 // +LDD D,X+JMP D,X — that sequence is hardcoded against D, so the
-// $idx operand is constrained to ADc (AD + SPILL_D0..7 only).
+// $idx operand is constrained to ADc.
 // Constraining to plain ACC16 here was bug #68: regalloc was free
 // to pick IX/IY, and the expansion blindly shifted whatever D held.
 // Not marked isBranch to avoid branch relaxation analysis (which
@@ -390,12 +390,10 @@ def SEX16Implicit : MC6809LogicalInstr {
   //
   // Bug #283-shape audit (Bug #284): the SEXx hardware instruction
   // sign-extends AB into AA, producing the i16 result in AD. The
-  // physical AD register IS the destination computation path, even
-  // when regalloc binds $dst to a SPILL_D* slot (in which case the
-  // post-RA expansion does an STD from AD to the spill slot after
-  // SEXx). If AD isn't listed in Defs, regalloc could leave AD live
-  // with an unrelated value across this pseudo and SEXx would
-  // silently destroy it. Mirrors the SEX32Implicit fix (Bug #247).
+  // physical AD register IS the destination computation path. If AD
+  // isn't listed in Defs, regalloc could leave AD live with an
+  // unrelated value across this pseudo and SEXx would silently
+  // destroy it. Mirrors the SEX32Implicit fix (Bug #247).
   //
   // 2026-06-28 (indexed-mode churn fix): produce the result in PHYSICAL $ad
   // and let selection append `%dst = COPY $ad` (see the G_SEXT i8->i16 C++
@@ -420,18 +418,6 @@ def SEX32Implicit : MC6809LogicalInstr {
   // Expansion: SEXW (HD6309).  Sets NZ; V cleared.  Hardware SEXW
   // sign-extends AW into AD, so the expansion physically clobbers
   // AD (and AA/AB via subreg hierarchy).
-  // Bug #247 (same shape as #208 round 2 / #211 for ZEX16Implicit /
-  // ZEX32Implicit): when regalloc binds dst to a SPILL_Q* slot the
-  // OutOperand only marks the spill slot as written — physical AD
-  // is not covered.  An i16 value live in AD across this pseudo
-  // (e.g. test-timegm's `actual` operand of an i16 != i16 compare)
-  // would survive the pseudo per regalloc's view, then get
-  // overwritten by SEXW with sign(W), so the downstream cmpr saw 0
-  // instead of the real value -> "got 0 want N" across all
-  // tm_h/m/s checks.  Fix: list AD in Defs so regalloc spills any
-  // live AD value across this pseudo regardless of dst binding.
-  // (When dst lands in AQ the OutOperand already covers AD via
-  // class hierarchy; the explicit Defs entry is a no-op then.)
   // Bug #274: widened $src to ACC16 (mirroring ZEX32Implicit per
   // Bug #161) so an i16 produced by unrelated codegen — typically
   // MERGE_LOHI_i16 landing in ADc — can feed this pseudo without
@@ -507,8 +493,8 @@ def ZEX32Implicit : MC6809LogicalInstr {
   // Bug #161: widened $src to ACC16 so an i16 produced by unrelated
   // codegen (e.g. MERGE_LOHI_i16 in ADc) can feed this pseudo.
   // Bug #208: the post-RA expansion routes every non-AW source (AD,
-  // RS0..RS3, and any future ACC16 member that survives
-  // MaterializeSpills) through copyPhysReg before CLRDa, so AQ always
+  // RS0..RS3, and any future ACC16 member that survives to
+  // expansion) through copyPhysReg before CLRDa, so AQ always
   // ends up as (D=0 | W=src).  The earlier code only handled AD and
   // silently corrupted the low half whenever regalloc placed the
   // source in an RSn imaginary register.
@@ -547,8 +533,7 @@ def : Pat<(i8 (trunc ACC16:$word)), (EXTRACT_LO_i16 ACC16:$word)>;
 let Predicates = [IsHD6309] in {
   // Bug #302 redesign Phase 2 (2026-05-17): i16 trunc from i32 goes
   // through Extract16_i32_lo (Phase 1's replacement for
-  // EXTRACT_LO_word_i32).  Same post-RA expansion: AQ via TFR W,D,
-  // SPILL_Q*N via LDD slot+2,$su.
+  // EXTRACT_LO_word_i32).  Post-RA expansion: AQ via TFR W,D.
   def : Pat<(i16 (trunc ACC32:$dword)), (Extract16_i32_lo ACC32:$dword)>;
   // Bug #302 redesign Phase 2 (2026-05-17): i32 anyext from i16
   // goes through AnyExt32_i16 (a Phase 2 addition).  Replaces the
