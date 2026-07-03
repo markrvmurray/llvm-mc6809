@@ -373,8 +373,10 @@ void MC6809PassConfig::addPreEmitPass() {
   // PEI/ExpandPostRAPseudos have emitted the TI_STATIC_STACK target indices,
   // and before FinalLowering/BranchRelaxation see the final operands. A no-op
   // unless the "static-stack" feature marked some function's frame static.
-  if (getOptLevel() != CodeGenOptLevel::None)
-    addPass(createMC6809StaticStackAllocPass());
+  // NOT gated on opt level: the frame marking in PEI runs at -O0 too (the
+  // "nonreentrant" attribute can come straight from the IR), and any emitted
+  // target index MUST be resolved or MCInstLower faults on it.
+  addPass(createMC6809StaticStackAllocPass());
 
   // MC6809FinalLowering (bug #149) MUST run BEFORE BranchRelaxation.
   // Several of its classes (Class 1 offset-relax, Class 4 dup-store,
