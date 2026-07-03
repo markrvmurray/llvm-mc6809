@@ -4002,7 +4002,15 @@ bool MC6809InstructionSelector::selectUnMergeValues(MachineInstr &MI) {
   if (SrcTy == S16) {
     // s16 → s8×2: emit EXTRACT_LO_i16 + EXTRACT_HI_i16 pseudos instead of
     // sub-register COPYs (bug #118 Layer 1, approach b).
-    MRI->setRegClass(Src, &MC6809::ACC16RegClass);
+    // Constrain, don't set — see the G_ZEXT i8->i16 intercept: an
+    // already-selected consumer sharing this source (bottom-up order —
+    // BranchJumpTable's ADc index in hash_access's switch) may have
+    // narrowed it; a blind setRegClass widens it back into a verifier
+    // reject.
+    if (!MRI->getRegClassOrNull(Src))
+      MRI->setRegClass(Src, &MC6809::ACC16RegClass);
+    else if (!RBI.constrainGenericRegister(Src, MC6809::ACC16RegClass, *MRI))
+      return false;
     if (!MRI->getRegClassOrNull(Lo))
       MRI->setRegClass(Lo, &MC6809::ACC8RegClass);
     if (!MRI->getRegClassOrNull(Hi))
