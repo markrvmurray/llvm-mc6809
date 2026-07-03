@@ -34,24 +34,24 @@ declare void @sink(ptr)
 define void @fold_through_y(i16 %v, i16 %w) {
 ; O0-LABEL: fold_through_y:
 ; O0:       ; %bb.0: ; %entry
-; O0-NEXT:    leas -16,s
+; O0-NEXT:    leas -10,s
 ; O0-NEXT:    pshs u,y
 ; O0-NEXT:    tfr s,u
 ; O0-NEXT:    tfr x,y
-; O0-NEXT:    ldd 22,u
-; O0-NEXT:    leax 10,u
-; O0-NEXT:    sty 8,u
-; O0-NEXT:    std 6,u
-; O0-NEXT:    ldd 8,u
+; O0-NEXT:    ldd 16,u
+; O0-NEXT:    leax 4,u
+; O0-NEXT:    sty <__rs0
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std ,x
-; O0-NEXT:    ldd 6,u
+; O0-NEXT:    puls d
 ; O0-NEXT:    std 2,x
 ; O0-NEXT:    tfr y,d
 ; O0-NEXT:    std 4,x
 ; O0-NEXT:    lbsr sink
 ; O0-NEXT:    tfr u,s
 ; O0-NEXT:    puls u,y
-; O0-NEXT:    leas 16,s
+; O0-NEXT:    leas 10,s
 ; O0-NEXT:    rts
 ;
 ; O2-LABEL: fold_through_y:

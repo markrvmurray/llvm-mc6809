@@ -510,11 +510,14 @@ def BIT8 : MC6809Reg8Class<(add AA, AB, CC)>; // Valid registers for BAND, BEOR,
 // pool padding. Trimmed back to RS0..RS3 to reclaim ~120 bytes of
 // direct-page address space for user `__attribute__((directpage))`.
 let isPressureFineGrained = true in
+// The SPILL_D* stack-backed pseudo-registers were removed from i16
+// allocation with the stock-frame-index spill migration: i16 spills go
+// through the ordinary spiller and spilled second sources fold into the
+// _Mem forms (see memFoldSibling). The RS direct-page imaginaries remain
+// (a separate, retained mechanism).
 def ACC16 : MC6809Reg16Class<(add AD, AW,
-                                  (sequence "SPILL_D%u", 0, 7),
                                   (sequence "RS%u",      0, 3))> {
     let AltOrders = [(add AD,
-                          (sequence "SPILL_D%u", 0, 7),
                           (sequence "RS%u",      0, 3))];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
 }
@@ -595,7 +598,6 @@ let isAllocatable = false in {
     def ABc : MC6809Reg8Class<(add AB)>;
     let isPressureFineGrained = true in
     def ADc : MC6809Reg16Class<(add AD,
-                                    (sequence "SPILL_D%u", 0, 7),
                                     (sequence "RS%u",      0, 3))>;
     def AEc : MC6809Reg8Class<(add AE)>;
     def AFc : MC6809Reg8Class<(add AF)>;

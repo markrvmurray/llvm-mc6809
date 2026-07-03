@@ -41,29 +41,34 @@ target triple = "mc6809-unknown-unknown"
 define i16 @sub_zext_i8(i8 %a, i8 %b) {
 ; O0-LABEL: sub_zext_i8:
 ; O0:       ; %bb.0: ; %entry
-; O0-NEXT:    leas -11,s
-; O0-NEXT:    pshs u
-; O0-NEXT:    tfr s,u
-; O0-NEXT:    stb 10,u ; 1-byte Folded Spill
+; O0-NEXT:    leas -5,s
+; O0-NEXT:    stb 4,s ; 1-byte Folded Spill
 ; O0-NEXT:    clra
-; O0-NEXT:    std 6,u
-; O0-NEXT:    ldb 15,u
+; O0-NEXT:    std <__rs0
+; O0-NEXT:    ldb 7,s
 ; O0-NEXT:    clra
-; O0-NEXT:    std 4,u
-; O0-NEXT:    ldb 7,u
-; O0-NEXT:    ldb 6,u
-; O0-NEXT:    stb 9,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 5,u
-; O0-NEXT:    ldb 4,u
-; O0-NEXT:    stb 8,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 10,u ; 1-byte Folded Reload
-; O0-NEXT:    subb 15,u
-; O0-NEXT:    lda 9,u ; 1-byte Folded Reload
-; O0-NEXT:    sbca 8,u
+; O0-NEXT:    std <__rs1
+; O0-NEXT:    ldb <__rs0lo
+; O0-NEXT:    pshs a
+; O0-NEXT:    lda <__rs0hi
+; O0-NEXT:    tfr a,b
+; O0-NEXT:    puls a
+; O0-NEXT:    stb 3,s ; 1-byte Folded Spill
+; O0-NEXT:    pshs b
+; O0-NEXT:    ldb <__rs1lo
+; O0-NEXT:    tfr b,a
+; O0-NEXT:    puls b
+; O0-NEXT:    pshs a
+; O0-NEXT:    lda <__rs1hi
+; O0-NEXT:    tfr a,b
+; O0-NEXT:    puls a
+; O0-NEXT:    stb 2,s ; 1-byte Folded Spill
+; O0-NEXT:    ldb 4,s ; 1-byte Folded Reload
+; O0-NEXT:    subb 7,s
+; O0-NEXT:    lda 3,s ; 1-byte Folded Reload
+; O0-NEXT:    sbca 2,s
 ; O0-NEXT:    tfr d,x
-; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u
-; O0-NEXT:    leas 11,s
+; O0-NEXT:    leas 5,s
 ; O0-NEXT:    rts
 ;
 ; O1-LABEL: sub_zext_i8:
@@ -105,29 +110,34 @@ entry:
 define i16 @add_zext_i8(i8 %a, i8 %b) {
 ; O0-LABEL: add_zext_i8:
 ; O0:       ; %bb.0: ; %entry
-; O0-NEXT:    leas -11,s
-; O0-NEXT:    pshs u
-; O0-NEXT:    tfr s,u
-; O0-NEXT:    stb 10,u ; 1-byte Folded Spill
+; O0-NEXT:    leas -5,s
+; O0-NEXT:    stb 4,s ; 1-byte Folded Spill
 ; O0-NEXT:    clra
-; O0-NEXT:    std 6,u
-; O0-NEXT:    ldb 15,u
+; O0-NEXT:    std <__rs0
+; O0-NEXT:    ldb 7,s
 ; O0-NEXT:    clra
-; O0-NEXT:    std 4,u
-; O0-NEXT:    ldb 7,u
-; O0-NEXT:    ldb 6,u
-; O0-NEXT:    stb 9,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 5,u
-; O0-NEXT:    ldb 4,u
-; O0-NEXT:    stb 8,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 10,u ; 1-byte Folded Reload
-; O0-NEXT:    addb 15,u
-; O0-NEXT:    lda 9,u ; 1-byte Folded Reload
-; O0-NEXT:    adca 8,u
+; O0-NEXT:    std <__rs1
+; O0-NEXT:    ldb <__rs0lo
+; O0-NEXT:    pshs a
+; O0-NEXT:    lda <__rs0hi
+; O0-NEXT:    tfr a,b
+; O0-NEXT:    puls a
+; O0-NEXT:    stb 3,s ; 1-byte Folded Spill
+; O0-NEXT:    pshs b
+; O0-NEXT:    ldb <__rs1lo
+; O0-NEXT:    tfr b,a
+; O0-NEXT:    puls b
+; O0-NEXT:    pshs a
+; O0-NEXT:    lda <__rs1hi
+; O0-NEXT:    tfr a,b
+; O0-NEXT:    puls a
+; O0-NEXT:    stb 2,s ; 1-byte Folded Spill
+; O0-NEXT:    ldb 4,s ; 1-byte Folded Reload
+; O0-NEXT:    addb 7,s
+; O0-NEXT:    lda 3,s ; 1-byte Folded Reload
+; O0-NEXT:    adca 2,s
 ; O0-NEXT:    tfr d,x
-; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u
-; O0-NEXT:    leas 11,s
+; O0-NEXT:    leas 5,s
 ; O0-NEXT:    rts
 ;
 ; O1-LABEL: add_zext_i8:

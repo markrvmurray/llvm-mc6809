@@ -69,351 +69,406 @@ define i64 @add64(i64 %a, i64 %b) {
 ; CHECK-NEXT:    rts
 ; O0-LABEL: add64:
 ; O0:       ; %bb.0:
-; O0-NEXT:    leas -20,s
-; O0-NEXT:    pshs u
-; O0-NEXT:    tfr s,u
-; O0-NEXT:    ldd 30,u
-; O0-NEXT:    std 4,u
-; O0-NEXT:    ldd 28,u
-; O0-NEXT:    std 10,u
-; O0-NEXT:    ldd 26,u
-; O0-NEXT:    std 8,u
-; O0-NEXT:    ldd 24,u
-; O0-NEXT:    std 6,u
-; O0-NEXT:    ldb 5,u
-; O0-NEXT:    stb 19,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 4,u
-; O0-NEXT:    stb 18,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 11,u
-; O0-NEXT:    lda 10,u
-; O0-NEXT:    sta 17,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 9,u
-; O0-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 8,u
-; O0-NEXT:    sta 15,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 7,u
-; O0-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 6,u
-; O0-NEXT:    sta 13,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 19,u ; 1-byte Folded Reload
-; O0-NEXT:    adda 39,u
-; O0-NEXT:    sta 19,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 18,u ; 1-byte Folded Reload
-; O0-NEXT:    adca 38,u
-; O0-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O0-NEXT:    adcb 37,u
-; O0-NEXT:    stb 12,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 36,u
-; O0-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 16,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 35,u
-; O0-NEXT:    stb 16,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 34,u
-; O0-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 14,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 33,u
-; O0-NEXT:    stb 14,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 32,u
-; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 19,u ; 1-byte Folded Reload
-; O0-NEXT:    ldb 18,u ; 1-byte Folded Reload
-; O0-NEXT:    std 2,u
+; O0-NEXT:    leas -10,s
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd 20,s
+; O0-NEXT:    std <__rs3
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd 18,s
+; O0-NEXT:    std <__rs0
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd 16,s
+; O0-NEXT:    std <__rs1
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd 14,s
+; O0-NEXT:    std <__rs2
+; O0-NEXT:    puls d
+; O0-NEXT:    ldb <__rs3lo
+; O0-NEXT:    stb 9,s ; 1-byte Folded Spill
+; O0-NEXT:    pshs a
+; O0-NEXT:    lda <__rs3hi
+; O0-NEXT:    tfr a,b
+; O0-NEXT:    puls a
+; O0-NEXT:    stb 8,s ; 1-byte Folded Spill
+; O0-NEXT:    ldb <__rs0lo
+; O0-NEXT:    lda <__rs0hi
+; O0-NEXT:    sta 7,s ; 1-byte Folded Spill
+; O0-NEXT:    pshs b
+; O0-NEXT:    ldb <__rs1lo
+; O0-NEXT:    tfr b,a
+; O0-NEXT:    puls b
+; O0-NEXT:    sta 6,s ; 1-byte Folded Spill
+; O0-NEXT:    lda <__rs1hi
+; O0-NEXT:    sta 5,s ; 1-byte Folded Spill
+; O0-NEXT:    pshs b
+; O0-NEXT:    ldb <__rs2lo
+; O0-NEXT:    tfr b,a
+; O0-NEXT:    puls b
+; O0-NEXT:    sta 4,s ; 1-byte Folded Spill
+; O0-NEXT:    lda <__rs2hi
+; O0-NEXT:    sta 3,s ; 1-byte Folded Spill
+; O0-NEXT:    lda 9,s ; 1-byte Folded Reload
+; O0-NEXT:    adda 27,s
+; O0-NEXT:    sta 9,s ; 1-byte Folded Spill
+; O0-NEXT:    lda 8,s ; 1-byte Folded Reload
+; O0-NEXT:    adca 26,s
+; O0-NEXT:    sta 8,s ; 1-byte Folded Spill
+; O0-NEXT:    adcb 25,s
+; O0-NEXT:    stb 2,s ; 1-byte Folded Spill
+; O0-NEXT:    ldb 7,s ; 1-byte Folded Reload
+; O0-NEXT:    adcb 24,s
+; O0-NEXT:    stb 7,s ; 1-byte Folded Spill
+; O0-NEXT:    ldb 6,s ; 1-byte Folded Reload
+; O0-NEXT:    adcb 23,s
+; O0-NEXT:    stb 6,s ; 1-byte Folded Spill
+; O0-NEXT:    ldb 5,s ; 1-byte Folded Reload
+; O0-NEXT:    adcb 22,s
+; O0-NEXT:    stb 5,s ; 1-byte Folded Spill
+; O0-NEXT:    ldb 4,s ; 1-byte Folded Reload
+; O0-NEXT:    adcb 21,s
+; O0-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O0-NEXT:    ldb 3,s ; 1-byte Folded Reload
+; O0-NEXT:    adcb 20,s
+; O0-NEXT:    stb 3,s ; 1-byte Folded Spill
+; O0-NEXT:    lda 9,s ; 1-byte Folded Reload
+; O0-NEXT:    ldb 8,s ; 1-byte Folded Reload
+; O0-NEXT:    pshs d
 ; O0-NEXT:    exg a,b
-; O0-NEXT:    std 10,u
-; O0-NEXT:    ldd 2,u
-; O0-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O0-NEXT:    std 2,u
+; O0-NEXT:    std <__rs0
+; O0-NEXT:    puls d
+; O0-NEXT:    ldb 7,s ; 1-byte Folded Reload
+; O0-NEXT:    lda 2,s ; 1-byte Folded Reload
+; O0-NEXT:    pshs d
 ; O0-NEXT:    exg a,b
-; O0-NEXT:    std 8,u
-; O0-NEXT:    ldd 2,u
-; O0-NEXT:    ldb 16,u ; 1-byte Folded Reload
-; O0-NEXT:    lda 15,u ; 1-byte Folded Reload
-; O0-NEXT:    std 2,u
-; O0-NEXT:    std 6,u
-; O0-NEXT:    ldd 2,u
-; O0-NEXT:    ldb 14,u ; 1-byte Folded Reload
-; O0-NEXT:    lda 13,u ; 1-byte Folded Reload
-; O0-NEXT:    std 2,u
-; O0-NEXT:    ldd 10,u
+; O0-NEXT:    std <__rs1
+; O0-NEXT:    puls d
+; O0-NEXT:    ldb 6,s ; 1-byte Folded Reload
+; O0-NEXT:    lda 5,s ; 1-byte Folded Reload
+; O0-NEXT:    pshs d
+; O0-NEXT:    std <__rs2
+; O0-NEXT:    puls d
+; O0-NEXT:    ldb 4,s ; 1-byte Folded Reload
+; O0-NEXT:    lda 3,s ; 1-byte Folded Reload
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std 6,x
-; O0-NEXT:    ldd 2,u
-; O0-NEXT:    std 2,u
-; O0-NEXT:    ldd 8,u
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd <__rs1
 ; O0-NEXT:    std 4,x
-; O0-NEXT:    ldd 2,u
-; O0-NEXT:    std 2,u
-; O0-NEXT:    ldd 6,u
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd <__rs2
 ; O0-NEXT:    std 2,x
-; O0-NEXT:    ldd 2,u
+; O0-NEXT:    puls d
 ; O0-NEXT:    std ,x
-; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u
-; O0-NEXT:    leas 20,s
+; O0-NEXT:    leas 10,s
 ; O0-NEXT:    rts
 ;
 ; O1-LABEL: add64:
 ; O1:       ; %bb.0:
-; O1-NEXT:    leas -20,s
-; O1-NEXT:    pshs u
-; O1-NEXT:    tfr s,u
-; O1-NEXT:    ldd 30,u
-; O1-NEXT:    std 4,u
-; O1-NEXT:    ldd 28,u
-; O1-NEXT:    std 10,u
-; O1-NEXT:    ldd 26,u
-; O1-NEXT:    std 8,u
-; O1-NEXT:    ldd 24,u
-; O1-NEXT:    std 6,u
-; O1-NEXT:    ldb 5,u
-; O1-NEXT:    stb 19,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 4,u
-; O1-NEXT:    stb 18,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 11,u
-; O1-NEXT:    lda 10,u
-; O1-NEXT:    sta 17,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 9,u
-; O1-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 8,u
-; O1-NEXT:    sta 15,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 7,u
-; O1-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 6,u
-; O1-NEXT:    sta 13,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 19,u ; 1-byte Folded Reload
-; O1-NEXT:    adda 39,u
-; O1-NEXT:    sta 19,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 18,u ; 1-byte Folded Reload
-; O1-NEXT:    adca 38,u
-; O1-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O1-NEXT:    adcb 37,u
-; O1-NEXT:    stb 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 36,u
-; O1-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 16,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 35,u
-; O1-NEXT:    stb 16,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 34,u
-; O1-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 14,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 33,u
-; O1-NEXT:    stb 14,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 32,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 19,u ; 1-byte Folded Reload
-; O1-NEXT:    ldb 18,u ; 1-byte Folded Reload
-; O1-NEXT:    std 2,u
+; O1-NEXT:    leas -10,s
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd 20,s
+; O1-NEXT:    std <__rs3
+; O1-NEXT:    puls d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd 18,s
+; O1-NEXT:    std <__rs0
+; O1-NEXT:    puls d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd 16,s
+; O1-NEXT:    std <__rs1
+; O1-NEXT:    puls d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd 14,s
+; O1-NEXT:    std <__rs2
+; O1-NEXT:    puls d
+; O1-NEXT:    ldb <__rs3lo
+; O1-NEXT:    stb 9,s ; 1-byte Folded Spill
+; O1-NEXT:    pshs a
+; O1-NEXT:    lda <__rs3hi
+; O1-NEXT:    tfr a,b
+; O1-NEXT:    puls a
+; O1-NEXT:    stb 8,s ; 1-byte Folded Spill
+; O1-NEXT:    ldb <__rs0lo
+; O1-NEXT:    lda <__rs0hi
+; O1-NEXT:    sta 7,s ; 1-byte Folded Spill
+; O1-NEXT:    pshs b
+; O1-NEXT:    ldb <__rs1lo
+; O1-NEXT:    tfr b,a
+; O1-NEXT:    puls b
+; O1-NEXT:    sta 6,s ; 1-byte Folded Spill
+; O1-NEXT:    lda <__rs1hi
+; O1-NEXT:    sta 5,s ; 1-byte Folded Spill
+; O1-NEXT:    pshs b
+; O1-NEXT:    ldb <__rs2lo
+; O1-NEXT:    tfr b,a
+; O1-NEXT:    puls b
+; O1-NEXT:    sta 4,s ; 1-byte Folded Spill
+; O1-NEXT:    lda <__rs2hi
+; O1-NEXT:    sta 3,s ; 1-byte Folded Spill
+; O1-NEXT:    lda 9,s ; 1-byte Folded Reload
+; O1-NEXT:    adda 27,s
+; O1-NEXT:    sta 9,s ; 1-byte Folded Spill
+; O1-NEXT:    lda 8,s ; 1-byte Folded Reload
+; O1-NEXT:    adca 26,s
+; O1-NEXT:    sta 8,s ; 1-byte Folded Spill
+; O1-NEXT:    adcb 25,s
+; O1-NEXT:    stb 2,s ; 1-byte Folded Spill
+; O1-NEXT:    ldb 7,s ; 1-byte Folded Reload
+; O1-NEXT:    adcb 24,s
+; O1-NEXT:    stb 7,s ; 1-byte Folded Spill
+; O1-NEXT:    ldb 6,s ; 1-byte Folded Reload
+; O1-NEXT:    adcb 23,s
+; O1-NEXT:    stb 6,s ; 1-byte Folded Spill
+; O1-NEXT:    ldb 5,s ; 1-byte Folded Reload
+; O1-NEXT:    adcb 22,s
+; O1-NEXT:    stb 5,s ; 1-byte Folded Spill
+; O1-NEXT:    ldb 4,s ; 1-byte Folded Reload
+; O1-NEXT:    adcb 21,s
+; O1-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O1-NEXT:    ldb 3,s ; 1-byte Folded Reload
+; O1-NEXT:    adcb 20,s
+; O1-NEXT:    stb 3,s ; 1-byte Folded Spill
+; O1-NEXT:    lda 9,s ; 1-byte Folded Reload
+; O1-NEXT:    ldb 8,s ; 1-byte Folded Reload
+; O1-NEXT:    pshs d
 ; O1-NEXT:    exg a,b
-; O1-NEXT:    std 10,u
-; O1-NEXT:    ldd 2,u
-; O1-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O1-NEXT:    std 2,u
+; O1-NEXT:    std <__rs0
+; O1-NEXT:    puls d
+; O1-NEXT:    ldb 7,s ; 1-byte Folded Reload
+; O1-NEXT:    lda 2,s ; 1-byte Folded Reload
+; O1-NEXT:    pshs d
 ; O1-NEXT:    exg a,b
-; O1-NEXT:    std 8,u
-; O1-NEXT:    ldd 2,u
-; O1-NEXT:    ldb 16,u ; 1-byte Folded Reload
-; O1-NEXT:    lda 15,u ; 1-byte Folded Reload
-; O1-NEXT:    std 2,u
-; O1-NEXT:    std 6,u
-; O1-NEXT:    ldb 14,u ; 1-byte Folded Reload
-; O1-NEXT:    lda 13,u ; 1-byte Folded Reload
-; O1-NEXT:    std 2,u
-; O1-NEXT:    ldd 10,u
+; O1-NEXT:    std <__rs1
+; O1-NEXT:    puls d
+; O1-NEXT:    ldb 6,s ; 1-byte Folded Reload
+; O1-NEXT:    lda 5,s ; 1-byte Folded Reload
+; O1-NEXT:    pshs d
+; O1-NEXT:    std <__rs2
+; O1-NEXT:    puls d
+; O1-NEXT:    ldb 4,s ; 1-byte Folded Reload
+; O1-NEXT:    lda 3,s ; 1-byte Folded Reload
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd <__rs0
 ; O1-NEXT:    std 6,x
-; O1-NEXT:    ldd 2,u
-; O1-NEXT:    std 2,u
-; O1-NEXT:    ldd 8,u
+; O1-NEXT:    puls d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd <__rs1
 ; O1-NEXT:    std 4,x
-; O1-NEXT:    ldd 2,u
-; O1-NEXT:    std 2,u
-; O1-NEXT:    ldd 6,u
+; O1-NEXT:    puls d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd <__rs2
 ; O1-NEXT:    std 2,x
-; O1-NEXT:    ldd 2,u
+; O1-NEXT:    puls d
 ; O1-NEXT:    std ,x
-; O1-NEXT:    tfr u,s
-; O1-NEXT:    puls u
-; O1-NEXT:    leas 20,s
+; O1-NEXT:    leas 10,s
 ; O1-NEXT:    rts
 ;
 ; O2-LABEL: add64:
 ; O2:       ; %bb.0:
-; O2-NEXT:    leas -20,s
-; O2-NEXT:    pshs u
-; O2-NEXT:    tfr s,u
-; O2-NEXT:    ldd 30,u
-; O2-NEXT:    std 4,u
-; O2-NEXT:    ldd 28,u
-; O2-NEXT:    std 10,u
-; O2-NEXT:    ldd 26,u
-; O2-NEXT:    std 8,u
-; O2-NEXT:    ldd 24,u
-; O2-NEXT:    std 6,u
-; O2-NEXT:    ldb 5,u
-; O2-NEXT:    stb 19,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 4,u
-; O2-NEXT:    stb 18,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 11,u
-; O2-NEXT:    lda 10,u
-; O2-NEXT:    sta 17,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 9,u
-; O2-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 8,u
-; O2-NEXT:    sta 15,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 7,u
-; O2-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 6,u
-; O2-NEXT:    sta 13,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 19,u ; 1-byte Folded Reload
-; O2-NEXT:    adda 39,u
-; O2-NEXT:    sta 19,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 18,u ; 1-byte Folded Reload
-; O2-NEXT:    adca 38,u
-; O2-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O2-NEXT:    adcb 37,u
-; O2-NEXT:    stb 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 36,u
-; O2-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 16,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 35,u
-; O2-NEXT:    stb 16,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 34,u
-; O2-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 14,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 33,u
-; O2-NEXT:    stb 14,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 32,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 19,u ; 1-byte Folded Reload
-; O2-NEXT:    ldb 18,u ; 1-byte Folded Reload
-; O2-NEXT:    std 2,u
+; O2-NEXT:    leas -10,s
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd 20,s
+; O2-NEXT:    std <__rs3
+; O2-NEXT:    puls d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd 18,s
+; O2-NEXT:    std <__rs0
+; O2-NEXT:    puls d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd 16,s
+; O2-NEXT:    std <__rs1
+; O2-NEXT:    puls d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd 14,s
+; O2-NEXT:    std <__rs2
+; O2-NEXT:    puls d
+; O2-NEXT:    ldb <__rs3lo
+; O2-NEXT:    stb 9,s ; 1-byte Folded Spill
+; O2-NEXT:    pshs a
+; O2-NEXT:    lda <__rs3hi
+; O2-NEXT:    tfr a,b
+; O2-NEXT:    puls a
+; O2-NEXT:    stb 8,s ; 1-byte Folded Spill
+; O2-NEXT:    ldb <__rs0lo
+; O2-NEXT:    lda <__rs0hi
+; O2-NEXT:    sta 7,s ; 1-byte Folded Spill
+; O2-NEXT:    pshs b
+; O2-NEXT:    ldb <__rs1lo
+; O2-NEXT:    tfr b,a
+; O2-NEXT:    puls b
+; O2-NEXT:    sta 6,s ; 1-byte Folded Spill
+; O2-NEXT:    lda <__rs1hi
+; O2-NEXT:    sta 5,s ; 1-byte Folded Spill
+; O2-NEXT:    pshs b
+; O2-NEXT:    ldb <__rs2lo
+; O2-NEXT:    tfr b,a
+; O2-NEXT:    puls b
+; O2-NEXT:    sta 4,s ; 1-byte Folded Spill
+; O2-NEXT:    lda <__rs2hi
+; O2-NEXT:    sta 3,s ; 1-byte Folded Spill
+; O2-NEXT:    lda 9,s ; 1-byte Folded Reload
+; O2-NEXT:    adda 27,s
+; O2-NEXT:    sta 9,s ; 1-byte Folded Spill
+; O2-NEXT:    lda 8,s ; 1-byte Folded Reload
+; O2-NEXT:    adca 26,s
+; O2-NEXT:    sta 8,s ; 1-byte Folded Spill
+; O2-NEXT:    adcb 25,s
+; O2-NEXT:    stb 2,s ; 1-byte Folded Spill
+; O2-NEXT:    ldb 7,s ; 1-byte Folded Reload
+; O2-NEXT:    adcb 24,s
+; O2-NEXT:    stb 7,s ; 1-byte Folded Spill
+; O2-NEXT:    ldb 6,s ; 1-byte Folded Reload
+; O2-NEXT:    adcb 23,s
+; O2-NEXT:    stb 6,s ; 1-byte Folded Spill
+; O2-NEXT:    ldb 5,s ; 1-byte Folded Reload
+; O2-NEXT:    adcb 22,s
+; O2-NEXT:    stb 5,s ; 1-byte Folded Spill
+; O2-NEXT:    ldb 4,s ; 1-byte Folded Reload
+; O2-NEXT:    adcb 21,s
+; O2-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O2-NEXT:    ldb 3,s ; 1-byte Folded Reload
+; O2-NEXT:    adcb 20,s
+; O2-NEXT:    stb 3,s ; 1-byte Folded Spill
+; O2-NEXT:    lda 9,s ; 1-byte Folded Reload
+; O2-NEXT:    ldb 8,s ; 1-byte Folded Reload
+; O2-NEXT:    pshs d
 ; O2-NEXT:    exg a,b
-; O2-NEXT:    std 10,u
-; O2-NEXT:    ldd 2,u
-; O2-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O2-NEXT:    std 2,u
+; O2-NEXT:    std <__rs0
+; O2-NEXT:    puls d
+; O2-NEXT:    ldb 7,s ; 1-byte Folded Reload
+; O2-NEXT:    lda 2,s ; 1-byte Folded Reload
+; O2-NEXT:    pshs d
 ; O2-NEXT:    exg a,b
-; O2-NEXT:    std 8,u
-; O2-NEXT:    ldd 2,u
-; O2-NEXT:    ldb 16,u ; 1-byte Folded Reload
-; O2-NEXT:    lda 15,u ; 1-byte Folded Reload
-; O2-NEXT:    std 2,u
-; O2-NEXT:    std 6,u
-; O2-NEXT:    ldb 14,u ; 1-byte Folded Reload
-; O2-NEXT:    lda 13,u ; 1-byte Folded Reload
-; O2-NEXT:    std 2,u
-; O2-NEXT:    ldd 10,u
+; O2-NEXT:    std <__rs1
+; O2-NEXT:    puls d
+; O2-NEXT:    ldb 6,s ; 1-byte Folded Reload
+; O2-NEXT:    lda 5,s ; 1-byte Folded Reload
+; O2-NEXT:    pshs d
+; O2-NEXT:    std <__rs2
+; O2-NEXT:    puls d
+; O2-NEXT:    ldb 4,s ; 1-byte Folded Reload
+; O2-NEXT:    lda 3,s ; 1-byte Folded Reload
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    std 6,x
-; O2-NEXT:    ldd 2,u
-; O2-NEXT:    std 2,u
-; O2-NEXT:    ldd 8,u
+; O2-NEXT:    puls d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd <__rs1
 ; O2-NEXT:    std 4,x
-; O2-NEXT:    ldd 2,u
-; O2-NEXT:    std 2,u
-; O2-NEXT:    ldd 6,u
+; O2-NEXT:    puls d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd <__rs2
 ; O2-NEXT:    std 2,x
-; O2-NEXT:    ldd 2,u
+; O2-NEXT:    puls d
 ; O2-NEXT:    std ,x
-; O2-NEXT:    tfr u,s
-; O2-NEXT:    puls u
-; O2-NEXT:    leas 20,s
+; O2-NEXT:    leas 10,s
 ; O2-NEXT:    rts
 ;
 ; O3-LABEL: add64:
 ; O3:       ; %bb.0:
-; O3-NEXT:    leas -20,s
-; O3-NEXT:    pshs u
-; O3-NEXT:    tfr s,u
-; O3-NEXT:    ldd 30,u
-; O3-NEXT:    std 4,u
-; O3-NEXT:    ldd 28,u
-; O3-NEXT:    std 10,u
-; O3-NEXT:    ldd 26,u
-; O3-NEXT:    std 8,u
-; O3-NEXT:    ldd 24,u
-; O3-NEXT:    std 6,u
-; O3-NEXT:    ldb 5,u
-; O3-NEXT:    stb 19,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 4,u
-; O3-NEXT:    stb 18,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 11,u
-; O3-NEXT:    lda 10,u
-; O3-NEXT:    sta 17,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 9,u
-; O3-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 8,u
-; O3-NEXT:    sta 15,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 7,u
-; O3-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 6,u
-; O3-NEXT:    sta 13,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 19,u ; 1-byte Folded Reload
-; O3-NEXT:    adda 39,u
-; O3-NEXT:    sta 19,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 18,u ; 1-byte Folded Reload
-; O3-NEXT:    adca 38,u
-; O3-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O3-NEXT:    adcb 37,u
-; O3-NEXT:    stb 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 36,u
-; O3-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 16,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 35,u
-; O3-NEXT:    stb 16,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 34,u
-; O3-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 14,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 33,u
-; O3-NEXT:    stb 14,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 32,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 19,u ; 1-byte Folded Reload
-; O3-NEXT:    ldb 18,u ; 1-byte Folded Reload
-; O3-NEXT:    std 2,u
+; O3-NEXT:    leas -10,s
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd 20,s
+; O3-NEXT:    std <__rs3
+; O3-NEXT:    puls d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd 18,s
+; O3-NEXT:    std <__rs0
+; O3-NEXT:    puls d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd 16,s
+; O3-NEXT:    std <__rs1
+; O3-NEXT:    puls d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd 14,s
+; O3-NEXT:    std <__rs2
+; O3-NEXT:    puls d
+; O3-NEXT:    ldb <__rs3lo
+; O3-NEXT:    stb 9,s ; 1-byte Folded Spill
+; O3-NEXT:    pshs a
+; O3-NEXT:    lda <__rs3hi
+; O3-NEXT:    tfr a,b
+; O3-NEXT:    puls a
+; O3-NEXT:    stb 8,s ; 1-byte Folded Spill
+; O3-NEXT:    ldb <__rs0lo
+; O3-NEXT:    lda <__rs0hi
+; O3-NEXT:    sta 7,s ; 1-byte Folded Spill
+; O3-NEXT:    pshs b
+; O3-NEXT:    ldb <__rs1lo
+; O3-NEXT:    tfr b,a
+; O3-NEXT:    puls b
+; O3-NEXT:    sta 6,s ; 1-byte Folded Spill
+; O3-NEXT:    lda <__rs1hi
+; O3-NEXT:    sta 5,s ; 1-byte Folded Spill
+; O3-NEXT:    pshs b
+; O3-NEXT:    ldb <__rs2lo
+; O3-NEXT:    tfr b,a
+; O3-NEXT:    puls b
+; O3-NEXT:    sta 4,s ; 1-byte Folded Spill
+; O3-NEXT:    lda <__rs2hi
+; O3-NEXT:    sta 3,s ; 1-byte Folded Spill
+; O3-NEXT:    lda 9,s ; 1-byte Folded Reload
+; O3-NEXT:    adda 27,s
+; O3-NEXT:    sta 9,s ; 1-byte Folded Spill
+; O3-NEXT:    lda 8,s ; 1-byte Folded Reload
+; O3-NEXT:    adca 26,s
+; O3-NEXT:    sta 8,s ; 1-byte Folded Spill
+; O3-NEXT:    adcb 25,s
+; O3-NEXT:    stb 2,s ; 1-byte Folded Spill
+; O3-NEXT:    ldb 7,s ; 1-byte Folded Reload
+; O3-NEXT:    adcb 24,s
+; O3-NEXT:    stb 7,s ; 1-byte Folded Spill
+; O3-NEXT:    ldb 6,s ; 1-byte Folded Reload
+; O3-NEXT:    adcb 23,s
+; O3-NEXT:    stb 6,s ; 1-byte Folded Spill
+; O3-NEXT:    ldb 5,s ; 1-byte Folded Reload
+; O3-NEXT:    adcb 22,s
+; O3-NEXT:    stb 5,s ; 1-byte Folded Spill
+; O3-NEXT:    ldb 4,s ; 1-byte Folded Reload
+; O3-NEXT:    adcb 21,s
+; O3-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O3-NEXT:    ldb 3,s ; 1-byte Folded Reload
+; O3-NEXT:    adcb 20,s
+; O3-NEXT:    stb 3,s ; 1-byte Folded Spill
+; O3-NEXT:    lda 9,s ; 1-byte Folded Reload
+; O3-NEXT:    ldb 8,s ; 1-byte Folded Reload
+; O3-NEXT:    pshs d
 ; O3-NEXT:    exg a,b
-; O3-NEXT:    std 10,u
-; O3-NEXT:    ldd 2,u
-; O3-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O3-NEXT:    std 2,u
+; O3-NEXT:    std <__rs0
+; O3-NEXT:    puls d
+; O3-NEXT:    ldb 7,s ; 1-byte Folded Reload
+; O3-NEXT:    lda 2,s ; 1-byte Folded Reload
+; O3-NEXT:    pshs d
 ; O3-NEXT:    exg a,b
-; O3-NEXT:    std 8,u
-; O3-NEXT:    ldd 2,u
-; O3-NEXT:    ldb 16,u ; 1-byte Folded Reload
-; O3-NEXT:    lda 15,u ; 1-byte Folded Reload
-; O3-NEXT:    std 2,u
-; O3-NEXT:    std 6,u
-; O3-NEXT:    ldb 14,u ; 1-byte Folded Reload
-; O3-NEXT:    lda 13,u ; 1-byte Folded Reload
-; O3-NEXT:    std 2,u
-; O3-NEXT:    ldd 10,u
+; O3-NEXT:    std <__rs1
+; O3-NEXT:    puls d
+; O3-NEXT:    ldb 6,s ; 1-byte Folded Reload
+; O3-NEXT:    lda 5,s ; 1-byte Folded Reload
+; O3-NEXT:    pshs d
+; O3-NEXT:    std <__rs2
+; O3-NEXT:    puls d
+; O3-NEXT:    ldb 4,s ; 1-byte Folded Reload
+; O3-NEXT:    lda 3,s ; 1-byte Folded Reload
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd <__rs0
 ; O3-NEXT:    std 6,x
-; O3-NEXT:    ldd 2,u
-; O3-NEXT:    std 2,u
-; O3-NEXT:    ldd 8,u
+; O3-NEXT:    puls d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd <__rs1
 ; O3-NEXT:    std 4,x
-; O3-NEXT:    ldd 2,u
-; O3-NEXT:    std 2,u
-; O3-NEXT:    ldd 6,u
+; O3-NEXT:    puls d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd <__rs2
 ; O3-NEXT:    std 2,x
-; O3-NEXT:    ldd 2,u
+; O3-NEXT:    puls d
 ; O3-NEXT:    std ,x
-; O3-NEXT:    tfr u,s
-; O3-NEXT:    puls u
-; O3-NEXT:    leas 20,s
+; O3-NEXT:    leas 10,s
 ; O3-NEXT:    rts
   %r = add i64 %a, %b
   ret i64 %r
@@ -480,351 +535,406 @@ define i64 @sub64(i64 %a, i64 %b) {
 ; CHECK-NEXT:    rts
 ; O0-LABEL: sub64:
 ; O0:       ; %bb.0:
-; O0-NEXT:    leas -20,s
-; O0-NEXT:    pshs u
-; O0-NEXT:    tfr s,u
-; O0-NEXT:    ldd 30,u
-; O0-NEXT:    std 4,u
-; O0-NEXT:    ldd 28,u
-; O0-NEXT:    std 10,u
-; O0-NEXT:    ldd 26,u
-; O0-NEXT:    std 8,u
-; O0-NEXT:    ldd 24,u
-; O0-NEXT:    std 6,u
-; O0-NEXT:    ldb 5,u
-; O0-NEXT:    stb 19,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 4,u
-; O0-NEXT:    stb 18,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 11,u
-; O0-NEXT:    lda 10,u
-; O0-NEXT:    sta 17,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 9,u
-; O0-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 8,u
-; O0-NEXT:    sta 15,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 7,u
-; O0-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 6,u
-; O0-NEXT:    sta 13,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 19,u ; 1-byte Folded Reload
-; O0-NEXT:    suba 39,u
-; O0-NEXT:    sta 19,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 18,u ; 1-byte Folded Reload
-; O0-NEXT:    sbca 38,u
-; O0-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O0-NEXT:    sbcb 37,u
-; O0-NEXT:    stb 12,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O0-NEXT:    sbcb 36,u
-; O0-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 16,u ; 1-byte Folded Reload
-; O0-NEXT:    sbcb 35,u
-; O0-NEXT:    stb 16,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O0-NEXT:    sbcb 34,u
-; O0-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 14,u ; 1-byte Folded Reload
-; O0-NEXT:    sbcb 33,u
-; O0-NEXT:    stb 14,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    sbcb 32,u
-; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 19,u ; 1-byte Folded Reload
-; O0-NEXT:    ldb 18,u ; 1-byte Folded Reload
-; O0-NEXT:    std 2,u
+; O0-NEXT:    leas -10,s
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd 20,s
+; O0-NEXT:    std <__rs3
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd 18,s
+; O0-NEXT:    std <__rs0
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd 16,s
+; O0-NEXT:    std <__rs1
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd 14,s
+; O0-NEXT:    std <__rs2
+; O0-NEXT:    puls d
+; O0-NEXT:    ldb <__rs3lo
+; O0-NEXT:    stb 9,s ; 1-byte Folded Spill
+; O0-NEXT:    pshs a
+; O0-NEXT:    lda <__rs3hi
+; O0-NEXT:    tfr a,b
+; O0-NEXT:    puls a
+; O0-NEXT:    stb 8,s ; 1-byte Folded Spill
+; O0-NEXT:    ldb <__rs0lo
+; O0-NEXT:    lda <__rs0hi
+; O0-NEXT:    sta 7,s ; 1-byte Folded Spill
+; O0-NEXT:    pshs b
+; O0-NEXT:    ldb <__rs1lo
+; O0-NEXT:    tfr b,a
+; O0-NEXT:    puls b
+; O0-NEXT:    sta 6,s ; 1-byte Folded Spill
+; O0-NEXT:    lda <__rs1hi
+; O0-NEXT:    sta 5,s ; 1-byte Folded Spill
+; O0-NEXT:    pshs b
+; O0-NEXT:    ldb <__rs2lo
+; O0-NEXT:    tfr b,a
+; O0-NEXT:    puls b
+; O0-NEXT:    sta 4,s ; 1-byte Folded Spill
+; O0-NEXT:    lda <__rs2hi
+; O0-NEXT:    sta 3,s ; 1-byte Folded Spill
+; O0-NEXT:    lda 9,s ; 1-byte Folded Reload
+; O0-NEXT:    suba 27,s
+; O0-NEXT:    sta 9,s ; 1-byte Folded Spill
+; O0-NEXT:    lda 8,s ; 1-byte Folded Reload
+; O0-NEXT:    sbca 26,s
+; O0-NEXT:    sta 8,s ; 1-byte Folded Spill
+; O0-NEXT:    sbcb 25,s
+; O0-NEXT:    stb 2,s ; 1-byte Folded Spill
+; O0-NEXT:    ldb 7,s ; 1-byte Folded Reload
+; O0-NEXT:    sbcb 24,s
+; O0-NEXT:    stb 7,s ; 1-byte Folded Spill
+; O0-NEXT:    ldb 6,s ; 1-byte Folded Reload
+; O0-NEXT:    sbcb 23,s
+; O0-NEXT:    stb 6,s ; 1-byte Folded Spill
+; O0-NEXT:    ldb 5,s ; 1-byte Folded Reload
+; O0-NEXT:    sbcb 22,s
+; O0-NEXT:    stb 5,s ; 1-byte Folded Spill
+; O0-NEXT:    ldb 4,s ; 1-byte Folded Reload
+; O0-NEXT:    sbcb 21,s
+; O0-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O0-NEXT:    ldb 3,s ; 1-byte Folded Reload
+; O0-NEXT:    sbcb 20,s
+; O0-NEXT:    stb 3,s ; 1-byte Folded Spill
+; O0-NEXT:    lda 9,s ; 1-byte Folded Reload
+; O0-NEXT:    ldb 8,s ; 1-byte Folded Reload
+; O0-NEXT:    pshs d
 ; O0-NEXT:    exg a,b
-; O0-NEXT:    std 10,u
-; O0-NEXT:    ldd 2,u
-; O0-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O0-NEXT:    std 2,u
+; O0-NEXT:    std <__rs0
+; O0-NEXT:    puls d
+; O0-NEXT:    ldb 7,s ; 1-byte Folded Reload
+; O0-NEXT:    lda 2,s ; 1-byte Folded Reload
+; O0-NEXT:    pshs d
 ; O0-NEXT:    exg a,b
-; O0-NEXT:    std 8,u
-; O0-NEXT:    ldd 2,u
-; O0-NEXT:    ldb 16,u ; 1-byte Folded Reload
-; O0-NEXT:    lda 15,u ; 1-byte Folded Reload
-; O0-NEXT:    std 2,u
-; O0-NEXT:    std 6,u
-; O0-NEXT:    ldd 2,u
-; O0-NEXT:    ldb 14,u ; 1-byte Folded Reload
-; O0-NEXT:    lda 13,u ; 1-byte Folded Reload
-; O0-NEXT:    std 2,u
-; O0-NEXT:    ldd 10,u
+; O0-NEXT:    std <__rs1
+; O0-NEXT:    puls d
+; O0-NEXT:    ldb 6,s ; 1-byte Folded Reload
+; O0-NEXT:    lda 5,s ; 1-byte Folded Reload
+; O0-NEXT:    pshs d
+; O0-NEXT:    std <__rs2
+; O0-NEXT:    puls d
+; O0-NEXT:    ldb 4,s ; 1-byte Folded Reload
+; O0-NEXT:    lda 3,s ; 1-byte Folded Reload
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std 6,x
-; O0-NEXT:    ldd 2,u
-; O0-NEXT:    std 2,u
-; O0-NEXT:    ldd 8,u
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd <__rs1
 ; O0-NEXT:    std 4,x
-; O0-NEXT:    ldd 2,u
-; O0-NEXT:    std 2,u
-; O0-NEXT:    ldd 6,u
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd <__rs2
 ; O0-NEXT:    std 2,x
-; O0-NEXT:    ldd 2,u
+; O0-NEXT:    puls d
 ; O0-NEXT:    std ,x
-; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u
-; O0-NEXT:    leas 20,s
+; O0-NEXT:    leas 10,s
 ; O0-NEXT:    rts
 ;
 ; O1-LABEL: sub64:
 ; O1:       ; %bb.0:
-; O1-NEXT:    leas -20,s
-; O1-NEXT:    pshs u
-; O1-NEXT:    tfr s,u
-; O1-NEXT:    ldd 30,u
-; O1-NEXT:    std 4,u
-; O1-NEXT:    ldd 28,u
-; O1-NEXT:    std 10,u
-; O1-NEXT:    ldd 26,u
-; O1-NEXT:    std 8,u
-; O1-NEXT:    ldd 24,u
-; O1-NEXT:    std 6,u
-; O1-NEXT:    ldb 5,u
-; O1-NEXT:    stb 19,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 4,u
-; O1-NEXT:    stb 18,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 11,u
-; O1-NEXT:    lda 10,u
-; O1-NEXT:    sta 17,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 9,u
-; O1-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 8,u
-; O1-NEXT:    sta 15,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 7,u
-; O1-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 6,u
-; O1-NEXT:    sta 13,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 19,u ; 1-byte Folded Reload
-; O1-NEXT:    suba 39,u
-; O1-NEXT:    sta 19,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 18,u ; 1-byte Folded Reload
-; O1-NEXT:    sbca 38,u
-; O1-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O1-NEXT:    sbcb 37,u
-; O1-NEXT:    stb 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O1-NEXT:    sbcb 36,u
-; O1-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 16,u ; 1-byte Folded Reload
-; O1-NEXT:    sbcb 35,u
-; O1-NEXT:    stb 16,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O1-NEXT:    sbcb 34,u
-; O1-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 14,u ; 1-byte Folded Reload
-; O1-NEXT:    sbcb 33,u
-; O1-NEXT:    stb 14,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    sbcb 32,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 19,u ; 1-byte Folded Reload
-; O1-NEXT:    ldb 18,u ; 1-byte Folded Reload
-; O1-NEXT:    std 2,u
+; O1-NEXT:    leas -10,s
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd 20,s
+; O1-NEXT:    std <__rs3
+; O1-NEXT:    puls d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd 18,s
+; O1-NEXT:    std <__rs0
+; O1-NEXT:    puls d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd 16,s
+; O1-NEXT:    std <__rs1
+; O1-NEXT:    puls d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd 14,s
+; O1-NEXT:    std <__rs2
+; O1-NEXT:    puls d
+; O1-NEXT:    ldb <__rs3lo
+; O1-NEXT:    stb 9,s ; 1-byte Folded Spill
+; O1-NEXT:    pshs a
+; O1-NEXT:    lda <__rs3hi
+; O1-NEXT:    tfr a,b
+; O1-NEXT:    puls a
+; O1-NEXT:    stb 8,s ; 1-byte Folded Spill
+; O1-NEXT:    ldb <__rs0lo
+; O1-NEXT:    lda <__rs0hi
+; O1-NEXT:    sta 7,s ; 1-byte Folded Spill
+; O1-NEXT:    pshs b
+; O1-NEXT:    ldb <__rs1lo
+; O1-NEXT:    tfr b,a
+; O1-NEXT:    puls b
+; O1-NEXT:    sta 6,s ; 1-byte Folded Spill
+; O1-NEXT:    lda <__rs1hi
+; O1-NEXT:    sta 5,s ; 1-byte Folded Spill
+; O1-NEXT:    pshs b
+; O1-NEXT:    ldb <__rs2lo
+; O1-NEXT:    tfr b,a
+; O1-NEXT:    puls b
+; O1-NEXT:    sta 4,s ; 1-byte Folded Spill
+; O1-NEXT:    lda <__rs2hi
+; O1-NEXT:    sta 3,s ; 1-byte Folded Spill
+; O1-NEXT:    lda 9,s ; 1-byte Folded Reload
+; O1-NEXT:    suba 27,s
+; O1-NEXT:    sta 9,s ; 1-byte Folded Spill
+; O1-NEXT:    lda 8,s ; 1-byte Folded Reload
+; O1-NEXT:    sbca 26,s
+; O1-NEXT:    sta 8,s ; 1-byte Folded Spill
+; O1-NEXT:    sbcb 25,s
+; O1-NEXT:    stb 2,s ; 1-byte Folded Spill
+; O1-NEXT:    ldb 7,s ; 1-byte Folded Reload
+; O1-NEXT:    sbcb 24,s
+; O1-NEXT:    stb 7,s ; 1-byte Folded Spill
+; O1-NEXT:    ldb 6,s ; 1-byte Folded Reload
+; O1-NEXT:    sbcb 23,s
+; O1-NEXT:    stb 6,s ; 1-byte Folded Spill
+; O1-NEXT:    ldb 5,s ; 1-byte Folded Reload
+; O1-NEXT:    sbcb 22,s
+; O1-NEXT:    stb 5,s ; 1-byte Folded Spill
+; O1-NEXT:    ldb 4,s ; 1-byte Folded Reload
+; O1-NEXT:    sbcb 21,s
+; O1-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O1-NEXT:    ldb 3,s ; 1-byte Folded Reload
+; O1-NEXT:    sbcb 20,s
+; O1-NEXT:    stb 3,s ; 1-byte Folded Spill
+; O1-NEXT:    lda 9,s ; 1-byte Folded Reload
+; O1-NEXT:    ldb 8,s ; 1-byte Folded Reload
+; O1-NEXT:    pshs d
 ; O1-NEXT:    exg a,b
-; O1-NEXT:    std 10,u
-; O1-NEXT:    ldd 2,u
-; O1-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O1-NEXT:    std 2,u
+; O1-NEXT:    std <__rs0
+; O1-NEXT:    puls d
+; O1-NEXT:    ldb 7,s ; 1-byte Folded Reload
+; O1-NEXT:    lda 2,s ; 1-byte Folded Reload
+; O1-NEXT:    pshs d
 ; O1-NEXT:    exg a,b
-; O1-NEXT:    std 8,u
-; O1-NEXT:    ldd 2,u
-; O1-NEXT:    ldb 16,u ; 1-byte Folded Reload
-; O1-NEXT:    lda 15,u ; 1-byte Folded Reload
-; O1-NEXT:    std 2,u
-; O1-NEXT:    std 6,u
-; O1-NEXT:    ldb 14,u ; 1-byte Folded Reload
-; O1-NEXT:    lda 13,u ; 1-byte Folded Reload
-; O1-NEXT:    std 2,u
-; O1-NEXT:    ldd 10,u
+; O1-NEXT:    std <__rs1
+; O1-NEXT:    puls d
+; O1-NEXT:    ldb 6,s ; 1-byte Folded Reload
+; O1-NEXT:    lda 5,s ; 1-byte Folded Reload
+; O1-NEXT:    pshs d
+; O1-NEXT:    std <__rs2
+; O1-NEXT:    puls d
+; O1-NEXT:    ldb 4,s ; 1-byte Folded Reload
+; O1-NEXT:    lda 3,s ; 1-byte Folded Reload
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd <__rs0
 ; O1-NEXT:    std 6,x
-; O1-NEXT:    ldd 2,u
-; O1-NEXT:    std 2,u
-; O1-NEXT:    ldd 8,u
+; O1-NEXT:    puls d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd <__rs1
 ; O1-NEXT:    std 4,x
-; O1-NEXT:    ldd 2,u
-; O1-NEXT:    std 2,u
-; O1-NEXT:    ldd 6,u
+; O1-NEXT:    puls d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd <__rs2
 ; O1-NEXT:    std 2,x
-; O1-NEXT:    ldd 2,u
+; O1-NEXT:    puls d
 ; O1-NEXT:    std ,x
-; O1-NEXT:    tfr u,s
-; O1-NEXT:    puls u
-; O1-NEXT:    leas 20,s
+; O1-NEXT:    leas 10,s
 ; O1-NEXT:    rts
 ;
 ; O2-LABEL: sub64:
 ; O2:       ; %bb.0:
-; O2-NEXT:    leas -20,s
-; O2-NEXT:    pshs u
-; O2-NEXT:    tfr s,u
-; O2-NEXT:    ldd 30,u
-; O2-NEXT:    std 4,u
-; O2-NEXT:    ldd 28,u
-; O2-NEXT:    std 10,u
-; O2-NEXT:    ldd 26,u
-; O2-NEXT:    std 8,u
-; O2-NEXT:    ldd 24,u
-; O2-NEXT:    std 6,u
-; O2-NEXT:    ldb 5,u
-; O2-NEXT:    stb 19,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 4,u
-; O2-NEXT:    stb 18,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 11,u
-; O2-NEXT:    lda 10,u
-; O2-NEXT:    sta 17,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 9,u
-; O2-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 8,u
-; O2-NEXT:    sta 15,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 7,u
-; O2-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 6,u
-; O2-NEXT:    sta 13,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 19,u ; 1-byte Folded Reload
-; O2-NEXT:    suba 39,u
-; O2-NEXT:    sta 19,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 18,u ; 1-byte Folded Reload
-; O2-NEXT:    sbca 38,u
-; O2-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O2-NEXT:    sbcb 37,u
-; O2-NEXT:    stb 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O2-NEXT:    sbcb 36,u
-; O2-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 16,u ; 1-byte Folded Reload
-; O2-NEXT:    sbcb 35,u
-; O2-NEXT:    stb 16,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O2-NEXT:    sbcb 34,u
-; O2-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 14,u ; 1-byte Folded Reload
-; O2-NEXT:    sbcb 33,u
-; O2-NEXT:    stb 14,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    sbcb 32,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 19,u ; 1-byte Folded Reload
-; O2-NEXT:    ldb 18,u ; 1-byte Folded Reload
-; O2-NEXT:    std 2,u
+; O2-NEXT:    leas -10,s
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd 20,s
+; O2-NEXT:    std <__rs3
+; O2-NEXT:    puls d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd 18,s
+; O2-NEXT:    std <__rs0
+; O2-NEXT:    puls d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd 16,s
+; O2-NEXT:    std <__rs1
+; O2-NEXT:    puls d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd 14,s
+; O2-NEXT:    std <__rs2
+; O2-NEXT:    puls d
+; O2-NEXT:    ldb <__rs3lo
+; O2-NEXT:    stb 9,s ; 1-byte Folded Spill
+; O2-NEXT:    pshs a
+; O2-NEXT:    lda <__rs3hi
+; O2-NEXT:    tfr a,b
+; O2-NEXT:    puls a
+; O2-NEXT:    stb 8,s ; 1-byte Folded Spill
+; O2-NEXT:    ldb <__rs0lo
+; O2-NEXT:    lda <__rs0hi
+; O2-NEXT:    sta 7,s ; 1-byte Folded Spill
+; O2-NEXT:    pshs b
+; O2-NEXT:    ldb <__rs1lo
+; O2-NEXT:    tfr b,a
+; O2-NEXT:    puls b
+; O2-NEXT:    sta 6,s ; 1-byte Folded Spill
+; O2-NEXT:    lda <__rs1hi
+; O2-NEXT:    sta 5,s ; 1-byte Folded Spill
+; O2-NEXT:    pshs b
+; O2-NEXT:    ldb <__rs2lo
+; O2-NEXT:    tfr b,a
+; O2-NEXT:    puls b
+; O2-NEXT:    sta 4,s ; 1-byte Folded Spill
+; O2-NEXT:    lda <__rs2hi
+; O2-NEXT:    sta 3,s ; 1-byte Folded Spill
+; O2-NEXT:    lda 9,s ; 1-byte Folded Reload
+; O2-NEXT:    suba 27,s
+; O2-NEXT:    sta 9,s ; 1-byte Folded Spill
+; O2-NEXT:    lda 8,s ; 1-byte Folded Reload
+; O2-NEXT:    sbca 26,s
+; O2-NEXT:    sta 8,s ; 1-byte Folded Spill
+; O2-NEXT:    sbcb 25,s
+; O2-NEXT:    stb 2,s ; 1-byte Folded Spill
+; O2-NEXT:    ldb 7,s ; 1-byte Folded Reload
+; O2-NEXT:    sbcb 24,s
+; O2-NEXT:    stb 7,s ; 1-byte Folded Spill
+; O2-NEXT:    ldb 6,s ; 1-byte Folded Reload
+; O2-NEXT:    sbcb 23,s
+; O2-NEXT:    stb 6,s ; 1-byte Folded Spill
+; O2-NEXT:    ldb 5,s ; 1-byte Folded Reload
+; O2-NEXT:    sbcb 22,s
+; O2-NEXT:    stb 5,s ; 1-byte Folded Spill
+; O2-NEXT:    ldb 4,s ; 1-byte Folded Reload
+; O2-NEXT:    sbcb 21,s
+; O2-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O2-NEXT:    ldb 3,s ; 1-byte Folded Reload
+; O2-NEXT:    sbcb 20,s
+; O2-NEXT:    stb 3,s ; 1-byte Folded Spill
+; O2-NEXT:    lda 9,s ; 1-byte Folded Reload
+; O2-NEXT:    ldb 8,s ; 1-byte Folded Reload
+; O2-NEXT:    pshs d
 ; O2-NEXT:    exg a,b
-; O2-NEXT:    std 10,u
-; O2-NEXT:    ldd 2,u
-; O2-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O2-NEXT:    std 2,u
+; O2-NEXT:    std <__rs0
+; O2-NEXT:    puls d
+; O2-NEXT:    ldb 7,s ; 1-byte Folded Reload
+; O2-NEXT:    lda 2,s ; 1-byte Folded Reload
+; O2-NEXT:    pshs d
 ; O2-NEXT:    exg a,b
-; O2-NEXT:    std 8,u
-; O2-NEXT:    ldd 2,u
-; O2-NEXT:    ldb 16,u ; 1-byte Folded Reload
-; O2-NEXT:    lda 15,u ; 1-byte Folded Reload
-; O2-NEXT:    std 2,u
-; O2-NEXT:    std 6,u
-; O2-NEXT:    ldb 14,u ; 1-byte Folded Reload
-; O2-NEXT:    lda 13,u ; 1-byte Folded Reload
-; O2-NEXT:    std 2,u
-; O2-NEXT:    ldd 10,u
+; O2-NEXT:    std <__rs1
+; O2-NEXT:    puls d
+; O2-NEXT:    ldb 6,s ; 1-byte Folded Reload
+; O2-NEXT:    lda 5,s ; 1-byte Folded Reload
+; O2-NEXT:    pshs d
+; O2-NEXT:    std <__rs2
+; O2-NEXT:    puls d
+; O2-NEXT:    ldb 4,s ; 1-byte Folded Reload
+; O2-NEXT:    lda 3,s ; 1-byte Folded Reload
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    std 6,x
-; O2-NEXT:    ldd 2,u
-; O2-NEXT:    std 2,u
-; O2-NEXT:    ldd 8,u
+; O2-NEXT:    puls d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd <__rs1
 ; O2-NEXT:    std 4,x
-; O2-NEXT:    ldd 2,u
-; O2-NEXT:    std 2,u
-; O2-NEXT:    ldd 6,u
+; O2-NEXT:    puls d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd <__rs2
 ; O2-NEXT:    std 2,x
-; O2-NEXT:    ldd 2,u
+; O2-NEXT:    puls d
 ; O2-NEXT:    std ,x
-; O2-NEXT:    tfr u,s
-; O2-NEXT:    puls u
-; O2-NEXT:    leas 20,s
+; O2-NEXT:    leas 10,s
 ; O2-NEXT:    rts
 ;
 ; O3-LABEL: sub64:
 ; O3:       ; %bb.0:
-; O3-NEXT:    leas -20,s
-; O3-NEXT:    pshs u
-; O3-NEXT:    tfr s,u
-; O3-NEXT:    ldd 30,u
-; O3-NEXT:    std 4,u
-; O3-NEXT:    ldd 28,u
-; O3-NEXT:    std 10,u
-; O3-NEXT:    ldd 26,u
-; O3-NEXT:    std 8,u
-; O3-NEXT:    ldd 24,u
-; O3-NEXT:    std 6,u
-; O3-NEXT:    ldb 5,u
-; O3-NEXT:    stb 19,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 4,u
-; O3-NEXT:    stb 18,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 11,u
-; O3-NEXT:    lda 10,u
-; O3-NEXT:    sta 17,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 9,u
-; O3-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 8,u
-; O3-NEXT:    sta 15,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 7,u
-; O3-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 6,u
-; O3-NEXT:    sta 13,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 19,u ; 1-byte Folded Reload
-; O3-NEXT:    suba 39,u
-; O3-NEXT:    sta 19,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 18,u ; 1-byte Folded Reload
-; O3-NEXT:    sbca 38,u
-; O3-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O3-NEXT:    sbcb 37,u
-; O3-NEXT:    stb 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O3-NEXT:    sbcb 36,u
-; O3-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 16,u ; 1-byte Folded Reload
-; O3-NEXT:    sbcb 35,u
-; O3-NEXT:    stb 16,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O3-NEXT:    sbcb 34,u
-; O3-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 14,u ; 1-byte Folded Reload
-; O3-NEXT:    sbcb 33,u
-; O3-NEXT:    stb 14,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    sbcb 32,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 19,u ; 1-byte Folded Reload
-; O3-NEXT:    ldb 18,u ; 1-byte Folded Reload
-; O3-NEXT:    std 2,u
+; O3-NEXT:    leas -10,s
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd 20,s
+; O3-NEXT:    std <__rs3
+; O3-NEXT:    puls d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd 18,s
+; O3-NEXT:    std <__rs0
+; O3-NEXT:    puls d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd 16,s
+; O3-NEXT:    std <__rs1
+; O3-NEXT:    puls d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd 14,s
+; O3-NEXT:    std <__rs2
+; O3-NEXT:    puls d
+; O3-NEXT:    ldb <__rs3lo
+; O3-NEXT:    stb 9,s ; 1-byte Folded Spill
+; O3-NEXT:    pshs a
+; O3-NEXT:    lda <__rs3hi
+; O3-NEXT:    tfr a,b
+; O3-NEXT:    puls a
+; O3-NEXT:    stb 8,s ; 1-byte Folded Spill
+; O3-NEXT:    ldb <__rs0lo
+; O3-NEXT:    lda <__rs0hi
+; O3-NEXT:    sta 7,s ; 1-byte Folded Spill
+; O3-NEXT:    pshs b
+; O3-NEXT:    ldb <__rs1lo
+; O3-NEXT:    tfr b,a
+; O3-NEXT:    puls b
+; O3-NEXT:    sta 6,s ; 1-byte Folded Spill
+; O3-NEXT:    lda <__rs1hi
+; O3-NEXT:    sta 5,s ; 1-byte Folded Spill
+; O3-NEXT:    pshs b
+; O3-NEXT:    ldb <__rs2lo
+; O3-NEXT:    tfr b,a
+; O3-NEXT:    puls b
+; O3-NEXT:    sta 4,s ; 1-byte Folded Spill
+; O3-NEXT:    lda <__rs2hi
+; O3-NEXT:    sta 3,s ; 1-byte Folded Spill
+; O3-NEXT:    lda 9,s ; 1-byte Folded Reload
+; O3-NEXT:    suba 27,s
+; O3-NEXT:    sta 9,s ; 1-byte Folded Spill
+; O3-NEXT:    lda 8,s ; 1-byte Folded Reload
+; O3-NEXT:    sbca 26,s
+; O3-NEXT:    sta 8,s ; 1-byte Folded Spill
+; O3-NEXT:    sbcb 25,s
+; O3-NEXT:    stb 2,s ; 1-byte Folded Spill
+; O3-NEXT:    ldb 7,s ; 1-byte Folded Reload
+; O3-NEXT:    sbcb 24,s
+; O3-NEXT:    stb 7,s ; 1-byte Folded Spill
+; O3-NEXT:    ldb 6,s ; 1-byte Folded Reload
+; O3-NEXT:    sbcb 23,s
+; O3-NEXT:    stb 6,s ; 1-byte Folded Spill
+; O3-NEXT:    ldb 5,s ; 1-byte Folded Reload
+; O3-NEXT:    sbcb 22,s
+; O3-NEXT:    stb 5,s ; 1-byte Folded Spill
+; O3-NEXT:    ldb 4,s ; 1-byte Folded Reload
+; O3-NEXT:    sbcb 21,s
+; O3-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O3-NEXT:    ldb 3,s ; 1-byte Folded Reload
+; O3-NEXT:    sbcb 20,s
+; O3-NEXT:    stb 3,s ; 1-byte Folded Spill
+; O3-NEXT:    lda 9,s ; 1-byte Folded Reload
+; O3-NEXT:    ldb 8,s ; 1-byte Folded Reload
+; O3-NEXT:    pshs d
 ; O3-NEXT:    exg a,b
-; O3-NEXT:    std 10,u
-; O3-NEXT:    ldd 2,u
-; O3-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O3-NEXT:    std 2,u
+; O3-NEXT:    std <__rs0
+; O3-NEXT:    puls d
+; O3-NEXT:    ldb 7,s ; 1-byte Folded Reload
+; O3-NEXT:    lda 2,s ; 1-byte Folded Reload
+; O3-NEXT:    pshs d
 ; O3-NEXT:    exg a,b
-; O3-NEXT:    std 8,u
-; O3-NEXT:    ldd 2,u
-; O3-NEXT:    ldb 16,u ; 1-byte Folded Reload
-; O3-NEXT:    lda 15,u ; 1-byte Folded Reload
-; O3-NEXT:    std 2,u
-; O3-NEXT:    std 6,u
-; O3-NEXT:    ldb 14,u ; 1-byte Folded Reload
-; O3-NEXT:    lda 13,u ; 1-byte Folded Reload
-; O3-NEXT:    std 2,u
-; O3-NEXT:    ldd 10,u
+; O3-NEXT:    std <__rs1
+; O3-NEXT:    puls d
+; O3-NEXT:    ldb 6,s ; 1-byte Folded Reload
+; O3-NEXT:    lda 5,s ; 1-byte Folded Reload
+; O3-NEXT:    pshs d
+; O3-NEXT:    std <__rs2
+; O3-NEXT:    puls d
+; O3-NEXT:    ldb 4,s ; 1-byte Folded Reload
+; O3-NEXT:    lda 3,s ; 1-byte Folded Reload
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd <__rs0
 ; O3-NEXT:    std 6,x
-; O3-NEXT:    ldd 2,u
-; O3-NEXT:    std 2,u
-; O3-NEXT:    ldd 8,u
+; O3-NEXT:    puls d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd <__rs1
 ; O3-NEXT:    std 4,x
-; O3-NEXT:    ldd 2,u
-; O3-NEXT:    std 2,u
-; O3-NEXT:    ldd 6,u
+; O3-NEXT:    puls d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd <__rs2
 ; O3-NEXT:    std 2,x
-; O3-NEXT:    ldd 2,u
+; O3-NEXT:    puls d
 ; O3-NEXT:    std ,x
-; O3-NEXT:    tfr u,s
-; O3-NEXT:    puls u
-; O3-NEXT:    leas 20,s
+; O3-NEXT:    leas 10,s
 ; O3-NEXT:    rts
   %r = sub i64 %a, %b
   ret i64 %r
@@ -886,205 +996,210 @@ define i64 @and64(i64 %a, i64 %b) {
 ; CHECK-NEXT:    rts
 ; O0-LABEL: and64:
 ; O0:       ; %bb.0:
-; O0-NEXT:    leas -12,s
-; O0-NEXT:    pshs u
-; O0-NEXT:    tfr s,u
-; O0-NEXT:    ldd 30,u
-; O0-NEXT:    std 4,u
-; O0-NEXT:    ldd 28,u
-; O0-NEXT:    std 10,u
-; O0-NEXT:    ldd 4,u
-; O0-NEXT:    std 4,u
-; O0-NEXT:    ldd 26,u
-; O0-NEXT:    std 8,u
-; O0-NEXT:    ldd 4,u
-; O0-NEXT:    std 4,u
-; O0-NEXT:    ldd 24,u
-; O0-NEXT:    std 6,u
-; O0-NEXT:    ldd 4,u
-; O0-NEXT:    andb 23,u
-; O0-NEXT:    anda 22,u
-; O0-NEXT:    std 4,u
-; O0-NEXT:    ldd 10,u
-; O0-NEXT:    ldd 10,u
-; O0-NEXT:    andb 21,u
-; O0-NEXT:    anda 20,u
-; O0-NEXT:    std 10,u
-; O0-NEXT:    ldd 4,u
-; O0-NEXT:    std 4,u
-; O0-NEXT:    ldd 8,u
-; O0-NEXT:    ldd 8,u
-; O0-NEXT:    andb 19,u
-; O0-NEXT:    anda 18,u
-; O0-NEXT:    std 8,u
-; O0-NEXT:    ldd 4,u
-; O0-NEXT:    std 4,u
-; O0-NEXT:    ldd 6,u
-; O0-NEXT:    ldd 6,u
-; O0-NEXT:    andb 17,u
-; O0-NEXT:    anda 16,u
-; O0-NEXT:    std 6,u
-; O0-NEXT:    ldd 4,u
+; O0-NEXT:    leas -2,s
+; O0-NEXT:    ldd 18,s
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd 18,s
+; O0-NEXT:    std <__rs0
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd 16,s
+; O0-NEXT:    std <__rs1
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd 14,s
+; O0-NEXT:    std <__rs2
+; O0-NEXT:    puls d
+; O0-NEXT:    andb 11,s
+; O0-NEXT:    anda 10,s
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd <__rs0
+; O0-NEXT:    andb 11,s
+; O0-NEXT:    anda 10,s
+; O0-NEXT:    std <__rs0
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd <__rs1
+; O0-NEXT:    andb 9,s
+; O0-NEXT:    anda 8,s
+; O0-NEXT:    std <__rs1
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd <__rs2
+; O0-NEXT:    andb 7,s
+; O0-NEXT:    anda 6,s
+; O0-NEXT:    std <__rs2
+; O0-NEXT:    puls d
 ; O0-NEXT:    std 6,x
-; O0-NEXT:    ldd 10,u
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std 4,x
-; O0-NEXT:    ldd 8,u
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd <__rs1
 ; O0-NEXT:    std 2,x
-; O0-NEXT:    ldd 6,u
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd <__rs2
 ; O0-NEXT:    std ,x
-; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u
-; O0-NEXT:    leas 12,s
+; O0-NEXT:    puls d
+; O0-NEXT:    leas 2,s
 ; O0-NEXT:    rts
 ;
 ; O1-LABEL: and64:
 ; O1:       ; %bb.0:
-; O1-NEXT:    leas -12,s
-; O1-NEXT:    pshs u
-; O1-NEXT:    tfr s,u
-; O1-NEXT:    ldd 30,u
-; O1-NEXT:    std 4,u
-; O1-NEXT:    ldd 28,u
-; O1-NEXT:    std 10,u
-; O1-NEXT:    ldd 4,u
-; O1-NEXT:    std 4,u
-; O1-NEXT:    ldd 26,u
-; O1-NEXT:    std 8,u
-; O1-NEXT:    ldd 4,u
-; O1-NEXT:    std 4,u
-; O1-NEXT:    ldd 24,u
-; O1-NEXT:    std 6,u
-; O1-NEXT:    ldd 4,u
-; O1-NEXT:    andb 23,u
-; O1-NEXT:    anda 22,u
-; O1-NEXT:    std 4,u
-; O1-NEXT:    ldd 10,u
-; O1-NEXT:    andb 21,u
-; O1-NEXT:    anda 20,u
-; O1-NEXT:    std 10,u
-; O1-NEXT:    ldd 4,u
-; O1-NEXT:    std 4,u
-; O1-NEXT:    ldd 8,u
-; O1-NEXT:    andb 19,u
-; O1-NEXT:    anda 18,u
-; O1-NEXT:    std 8,u
-; O1-NEXT:    ldd 4,u
-; O1-NEXT:    std 4,u
-; O1-NEXT:    ldd 6,u
-; O1-NEXT:    andb 17,u
-; O1-NEXT:    anda 16,u
-; O1-NEXT:    std 6,u
-; O1-NEXT:    ldd 4,u
+; O1-NEXT:    leas -2,s
+; O1-NEXT:    ldd 18,s
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd 18,s
+; O1-NEXT:    std <__rs0
+; O1-NEXT:    puls d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd 16,s
+; O1-NEXT:    std <__rs1
+; O1-NEXT:    puls d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd 14,s
+; O1-NEXT:    std <__rs2
+; O1-NEXT:    puls d
+; O1-NEXT:    andb 11,s
+; O1-NEXT:    anda 10,s
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd <__rs0
+; O1-NEXT:    andb 11,s
+; O1-NEXT:    anda 10,s
+; O1-NEXT:    std <__rs0
+; O1-NEXT:    puls d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd <__rs1
+; O1-NEXT:    andb 9,s
+; O1-NEXT:    anda 8,s
+; O1-NEXT:    std <__rs1
+; O1-NEXT:    puls d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd <__rs2
+; O1-NEXT:    andb 7,s
+; O1-NEXT:    anda 6,s
+; O1-NEXT:    std <__rs2
+; O1-NEXT:    puls d
 ; O1-NEXT:    std 6,x
-; O1-NEXT:    ldd 10,u
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd <__rs0
 ; O1-NEXT:    std 4,x
-; O1-NEXT:    ldd 8,u
+; O1-NEXT:    puls d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd <__rs1
 ; O1-NEXT:    std 2,x
-; O1-NEXT:    ldd 6,u
+; O1-NEXT:    puls d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd <__rs2
 ; O1-NEXT:    std ,x
-; O1-NEXT:    tfr u,s
-; O1-NEXT:    puls u
-; O1-NEXT:    leas 12,s
+; O1-NEXT:    puls d
+; O1-NEXT:    leas 2,s
 ; O1-NEXT:    rts
 ;
 ; O2-LABEL: and64:
 ; O2:       ; %bb.0:
-; O2-NEXT:    leas -12,s
-; O2-NEXT:    pshs u
-; O2-NEXT:    tfr s,u
-; O2-NEXT:    ldd 30,u
-; O2-NEXT:    std 4,u
-; O2-NEXT:    ldd 28,u
-; O2-NEXT:    std 10,u
-; O2-NEXT:    ldd 4,u
-; O2-NEXT:    std 4,u
-; O2-NEXT:    ldd 26,u
-; O2-NEXT:    std 8,u
-; O2-NEXT:    ldd 4,u
-; O2-NEXT:    std 4,u
-; O2-NEXT:    ldd 24,u
-; O2-NEXT:    std 6,u
-; O2-NEXT:    ldd 4,u
-; O2-NEXT:    andb 23,u
-; O2-NEXT:    anda 22,u
-; O2-NEXT:    std 4,u
-; O2-NEXT:    ldd 10,u
-; O2-NEXT:    andb 21,u
-; O2-NEXT:    anda 20,u
-; O2-NEXT:    std 10,u
-; O2-NEXT:    ldd 4,u
-; O2-NEXT:    std 4,u
-; O2-NEXT:    ldd 8,u
-; O2-NEXT:    andb 19,u
-; O2-NEXT:    anda 18,u
-; O2-NEXT:    std 8,u
-; O2-NEXT:    ldd 4,u
-; O2-NEXT:    std 4,u
-; O2-NEXT:    ldd 6,u
-; O2-NEXT:    andb 17,u
-; O2-NEXT:    anda 16,u
-; O2-NEXT:    std 6,u
-; O2-NEXT:    ldd 4,u
+; O2-NEXT:    leas -2,s
+; O2-NEXT:    ldd 18,s
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd 18,s
+; O2-NEXT:    std <__rs0
+; O2-NEXT:    puls d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd 16,s
+; O2-NEXT:    std <__rs1
+; O2-NEXT:    puls d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd 14,s
+; O2-NEXT:    std <__rs2
+; O2-NEXT:    puls d
+; O2-NEXT:    andb 11,s
+; O2-NEXT:    anda 10,s
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd <__rs0
+; O2-NEXT:    andb 11,s
+; O2-NEXT:    anda 10,s
+; O2-NEXT:    std <__rs0
+; O2-NEXT:    puls d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd <__rs1
+; O2-NEXT:    andb 9,s
+; O2-NEXT:    anda 8,s
+; O2-NEXT:    std <__rs1
+; O2-NEXT:    puls d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd <__rs2
+; O2-NEXT:    andb 7,s
+; O2-NEXT:    anda 6,s
+; O2-NEXT:    std <__rs2
+; O2-NEXT:    puls d
 ; O2-NEXT:    std 6,x
-; O2-NEXT:    ldd 10,u
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    std 4,x
-; O2-NEXT:    ldd 8,u
+; O2-NEXT:    puls d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd <__rs1
 ; O2-NEXT:    std 2,x
-; O2-NEXT:    ldd 6,u
+; O2-NEXT:    puls d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd <__rs2
 ; O2-NEXT:    std ,x
-; O2-NEXT:    tfr u,s
-; O2-NEXT:    puls u
-; O2-NEXT:    leas 12,s
+; O2-NEXT:    puls d
+; O2-NEXT:    leas 2,s
 ; O2-NEXT:    rts
 ;
 ; O3-LABEL: and64:
 ; O3:       ; %bb.0:
-; O3-NEXT:    leas -12,s
-; O3-NEXT:    pshs u
-; O3-NEXT:    tfr s,u
-; O3-NEXT:    ldd 30,u
-; O3-NEXT:    std 4,u
-; O3-NEXT:    ldd 28,u
-; O3-NEXT:    std 10,u
-; O3-NEXT:    ldd 4,u
-; O3-NEXT:    std 4,u
-; O3-NEXT:    ldd 26,u
-; O3-NEXT:    std 8,u
-; O3-NEXT:    ldd 4,u
-; O3-NEXT:    std 4,u
-; O3-NEXT:    ldd 24,u
-; O3-NEXT:    std 6,u
-; O3-NEXT:    ldd 4,u
-; O3-NEXT:    andb 23,u
-; O3-NEXT:    anda 22,u
-; O3-NEXT:    std 4,u
-; O3-NEXT:    ldd 10,u
-; O3-NEXT:    andb 21,u
-; O3-NEXT:    anda 20,u
-; O3-NEXT:    std 10,u
-; O3-NEXT:    ldd 4,u
-; O3-NEXT:    std 4,u
-; O3-NEXT:    ldd 8,u
-; O3-NEXT:    andb 19,u
-; O3-NEXT:    anda 18,u
-; O3-NEXT:    std 8,u
-; O3-NEXT:    ldd 4,u
-; O3-NEXT:    std 4,u
-; O3-NEXT:    ldd 6,u
-; O3-NEXT:    andb 17,u
-; O3-NEXT:    anda 16,u
-; O3-NEXT:    std 6,u
-; O3-NEXT:    ldd 4,u
+; O3-NEXT:    leas -2,s
+; O3-NEXT:    ldd 18,s
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd 18,s
+; O3-NEXT:    std <__rs0
+; O3-NEXT:    puls d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd 16,s
+; O3-NEXT:    std <__rs1
+; O3-NEXT:    puls d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd 14,s
+; O3-NEXT:    std <__rs2
+; O3-NEXT:    puls d
+; O3-NEXT:    andb 11,s
+; O3-NEXT:    anda 10,s
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd <__rs0
+; O3-NEXT:    andb 11,s
+; O3-NEXT:    anda 10,s
+; O3-NEXT:    std <__rs0
+; O3-NEXT:    puls d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd <__rs1
+; O3-NEXT:    andb 9,s
+; O3-NEXT:    anda 8,s
+; O3-NEXT:    std <__rs1
+; O3-NEXT:    puls d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd <__rs2
+; O3-NEXT:    andb 7,s
+; O3-NEXT:    anda 6,s
+; O3-NEXT:    std <__rs2
+; O3-NEXT:    puls d
 ; O3-NEXT:    std 6,x
-; O3-NEXT:    ldd 10,u
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd <__rs0
 ; O3-NEXT:    std 4,x
-; O3-NEXT:    ldd 8,u
+; O3-NEXT:    puls d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd <__rs1
 ; O3-NEXT:    std 2,x
-; O3-NEXT:    ldd 6,u
+; O3-NEXT:    puls d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd <__rs2
 ; O3-NEXT:    std ,x
-; O3-NEXT:    tfr u,s
-; O3-NEXT:    puls u
-; O3-NEXT:    leas 12,s
+; O3-NEXT:    puls d
+; O3-NEXT:    leas 2,s
 ; O3-NEXT:    rts
   %r = and i64 %a, %b
   ret i64 %r
@@ -1146,205 +1261,210 @@ define i64 @or64(i64 %a, i64 %b) {
 ; CHECK-NEXT:    rts
 ; O0-LABEL: or64:
 ; O0:       ; %bb.0:
-; O0-NEXT:    leas -12,s
-; O0-NEXT:    pshs u
-; O0-NEXT:    tfr s,u
-; O0-NEXT:    ldd 30,u
-; O0-NEXT:    std 4,u
-; O0-NEXT:    ldd 28,u
-; O0-NEXT:    std 10,u
-; O0-NEXT:    ldd 4,u
-; O0-NEXT:    std 4,u
-; O0-NEXT:    ldd 26,u
-; O0-NEXT:    std 8,u
-; O0-NEXT:    ldd 4,u
-; O0-NEXT:    std 4,u
-; O0-NEXT:    ldd 24,u
-; O0-NEXT:    std 6,u
-; O0-NEXT:    ldd 4,u
-; O0-NEXT:    orb 23,u
-; O0-NEXT:    ora 22,u
-; O0-NEXT:    std 4,u
-; O0-NEXT:    ldd 10,u
-; O0-NEXT:    ldd 10,u
-; O0-NEXT:    orb 21,u
-; O0-NEXT:    ora 20,u
-; O0-NEXT:    std 10,u
-; O0-NEXT:    ldd 4,u
-; O0-NEXT:    std 4,u
-; O0-NEXT:    ldd 8,u
-; O0-NEXT:    ldd 8,u
-; O0-NEXT:    orb 19,u
-; O0-NEXT:    ora 18,u
-; O0-NEXT:    std 8,u
-; O0-NEXT:    ldd 4,u
-; O0-NEXT:    std 4,u
-; O0-NEXT:    ldd 6,u
-; O0-NEXT:    ldd 6,u
-; O0-NEXT:    orb 17,u
-; O0-NEXT:    ora 16,u
-; O0-NEXT:    std 6,u
-; O0-NEXT:    ldd 4,u
+; O0-NEXT:    leas -2,s
+; O0-NEXT:    ldd 18,s
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd 18,s
+; O0-NEXT:    std <__rs0
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd 16,s
+; O0-NEXT:    std <__rs1
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd 14,s
+; O0-NEXT:    std <__rs2
+; O0-NEXT:    puls d
+; O0-NEXT:    orb 11,s
+; O0-NEXT:    ora 10,s
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd <__rs0
+; O0-NEXT:    orb 11,s
+; O0-NEXT:    ora 10,s
+; O0-NEXT:    std <__rs0
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd <__rs1
+; O0-NEXT:    orb 9,s
+; O0-NEXT:    ora 8,s
+; O0-NEXT:    std <__rs1
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd <__rs2
+; O0-NEXT:    orb 7,s
+; O0-NEXT:    ora 6,s
+; O0-NEXT:    std <__rs2
+; O0-NEXT:    puls d
 ; O0-NEXT:    std 6,x
-; O0-NEXT:    ldd 10,u
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std 4,x
-; O0-NEXT:    ldd 8,u
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd <__rs1
 ; O0-NEXT:    std 2,x
-; O0-NEXT:    ldd 6,u
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd <__rs2
 ; O0-NEXT:    std ,x
-; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u
-; O0-NEXT:    leas 12,s
+; O0-NEXT:    puls d
+; O0-NEXT:    leas 2,s
 ; O0-NEXT:    rts
 ;
 ; O1-LABEL: or64:
 ; O1:       ; %bb.0:
-; O1-NEXT:    leas -12,s
-; O1-NEXT:    pshs u
-; O1-NEXT:    tfr s,u
-; O1-NEXT:    ldd 30,u
-; O1-NEXT:    std 4,u
-; O1-NEXT:    ldd 28,u
-; O1-NEXT:    std 10,u
-; O1-NEXT:    ldd 4,u
-; O1-NEXT:    std 4,u
-; O1-NEXT:    ldd 26,u
-; O1-NEXT:    std 8,u
-; O1-NEXT:    ldd 4,u
-; O1-NEXT:    std 4,u
-; O1-NEXT:    ldd 24,u
-; O1-NEXT:    std 6,u
-; O1-NEXT:    ldd 4,u
-; O1-NEXT:    orb 23,u
-; O1-NEXT:    ora 22,u
-; O1-NEXT:    std 4,u
-; O1-NEXT:    ldd 10,u
-; O1-NEXT:    orb 21,u
-; O1-NEXT:    ora 20,u
-; O1-NEXT:    std 10,u
-; O1-NEXT:    ldd 4,u
-; O1-NEXT:    std 4,u
-; O1-NEXT:    ldd 8,u
-; O1-NEXT:    orb 19,u
-; O1-NEXT:    ora 18,u
-; O1-NEXT:    std 8,u
-; O1-NEXT:    ldd 4,u
-; O1-NEXT:    std 4,u
-; O1-NEXT:    ldd 6,u
-; O1-NEXT:    orb 17,u
-; O1-NEXT:    ora 16,u
-; O1-NEXT:    std 6,u
-; O1-NEXT:    ldd 4,u
+; O1-NEXT:    leas -2,s
+; O1-NEXT:    ldd 18,s
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd 18,s
+; O1-NEXT:    std <__rs0
+; O1-NEXT:    puls d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd 16,s
+; O1-NEXT:    std <__rs1
+; O1-NEXT:    puls d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd 14,s
+; O1-NEXT:    std <__rs2
+; O1-NEXT:    puls d
+; O1-NEXT:    orb 11,s
+; O1-NEXT:    ora 10,s
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd <__rs0
+; O1-NEXT:    orb 11,s
+; O1-NEXT:    ora 10,s
+; O1-NEXT:    std <__rs0
+; O1-NEXT:    puls d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd <__rs1
+; O1-NEXT:    orb 9,s
+; O1-NEXT:    ora 8,s
+; O1-NEXT:    std <__rs1
+; O1-NEXT:    puls d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd <__rs2
+; O1-NEXT:    orb 7,s
+; O1-NEXT:    ora 6,s
+; O1-NEXT:    std <__rs2
+; O1-NEXT:    puls d
 ; O1-NEXT:    std 6,x
-; O1-NEXT:    ldd 10,u
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd <__rs0
 ; O1-NEXT:    std 4,x
-; O1-NEXT:    ldd 8,u
+; O1-NEXT:    puls d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd <__rs1
 ; O1-NEXT:    std 2,x
-; O1-NEXT:    ldd 6,u
+; O1-NEXT:    puls d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd <__rs2
 ; O1-NEXT:    std ,x
-; O1-NEXT:    tfr u,s
-; O1-NEXT:    puls u
-; O1-NEXT:    leas 12,s
+; O1-NEXT:    puls d
+; O1-NEXT:    leas 2,s
 ; O1-NEXT:    rts
 ;
 ; O2-LABEL: or64:
 ; O2:       ; %bb.0:
-; O2-NEXT:    leas -12,s
-; O2-NEXT:    pshs u
-; O2-NEXT:    tfr s,u
-; O2-NEXT:    ldd 30,u
-; O2-NEXT:    std 4,u
-; O2-NEXT:    ldd 28,u
-; O2-NEXT:    std 10,u
-; O2-NEXT:    ldd 4,u
-; O2-NEXT:    std 4,u
-; O2-NEXT:    ldd 26,u
-; O2-NEXT:    std 8,u
-; O2-NEXT:    ldd 4,u
-; O2-NEXT:    std 4,u
-; O2-NEXT:    ldd 24,u
-; O2-NEXT:    std 6,u
-; O2-NEXT:    ldd 4,u
-; O2-NEXT:    orb 23,u
-; O2-NEXT:    ora 22,u
-; O2-NEXT:    std 4,u
-; O2-NEXT:    ldd 10,u
-; O2-NEXT:    orb 21,u
-; O2-NEXT:    ora 20,u
-; O2-NEXT:    std 10,u
-; O2-NEXT:    ldd 4,u
-; O2-NEXT:    std 4,u
-; O2-NEXT:    ldd 8,u
-; O2-NEXT:    orb 19,u
-; O2-NEXT:    ora 18,u
-; O2-NEXT:    std 8,u
-; O2-NEXT:    ldd 4,u
-; O2-NEXT:    std 4,u
-; O2-NEXT:    ldd 6,u
-; O2-NEXT:    orb 17,u
-; O2-NEXT:    ora 16,u
-; O2-NEXT:    std 6,u
-; O2-NEXT:    ldd 4,u
+; O2-NEXT:    leas -2,s
+; O2-NEXT:    ldd 18,s
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd 18,s
+; O2-NEXT:    std <__rs0
+; O2-NEXT:    puls d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd 16,s
+; O2-NEXT:    std <__rs1
+; O2-NEXT:    puls d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd 14,s
+; O2-NEXT:    std <__rs2
+; O2-NEXT:    puls d
+; O2-NEXT:    orb 11,s
+; O2-NEXT:    ora 10,s
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd <__rs0
+; O2-NEXT:    orb 11,s
+; O2-NEXT:    ora 10,s
+; O2-NEXT:    std <__rs0
+; O2-NEXT:    puls d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd <__rs1
+; O2-NEXT:    orb 9,s
+; O2-NEXT:    ora 8,s
+; O2-NEXT:    std <__rs1
+; O2-NEXT:    puls d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd <__rs2
+; O2-NEXT:    orb 7,s
+; O2-NEXT:    ora 6,s
+; O2-NEXT:    std <__rs2
+; O2-NEXT:    puls d
 ; O2-NEXT:    std 6,x
-; O2-NEXT:    ldd 10,u
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    std 4,x
-; O2-NEXT:    ldd 8,u
+; O2-NEXT:    puls d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd <__rs1
 ; O2-NEXT:    std 2,x
-; O2-NEXT:    ldd 6,u
+; O2-NEXT:    puls d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd <__rs2
 ; O2-NEXT:    std ,x
-; O2-NEXT:    tfr u,s
-; O2-NEXT:    puls u
-; O2-NEXT:    leas 12,s
+; O2-NEXT:    puls d
+; O2-NEXT:    leas 2,s
 ; O2-NEXT:    rts
 ;
 ; O3-LABEL: or64:
 ; O3:       ; %bb.0:
-; O3-NEXT:    leas -12,s
-; O3-NEXT:    pshs u
-; O3-NEXT:    tfr s,u
-; O3-NEXT:    ldd 30,u
-; O3-NEXT:    std 4,u
-; O3-NEXT:    ldd 28,u
-; O3-NEXT:    std 10,u
-; O3-NEXT:    ldd 4,u
-; O3-NEXT:    std 4,u
-; O3-NEXT:    ldd 26,u
-; O3-NEXT:    std 8,u
-; O3-NEXT:    ldd 4,u
-; O3-NEXT:    std 4,u
-; O3-NEXT:    ldd 24,u
-; O3-NEXT:    std 6,u
-; O3-NEXT:    ldd 4,u
-; O3-NEXT:    orb 23,u
-; O3-NEXT:    ora 22,u
-; O3-NEXT:    std 4,u
-; O3-NEXT:    ldd 10,u
-; O3-NEXT:    orb 21,u
-; O3-NEXT:    ora 20,u
-; O3-NEXT:    std 10,u
-; O3-NEXT:    ldd 4,u
-; O3-NEXT:    std 4,u
-; O3-NEXT:    ldd 8,u
-; O3-NEXT:    orb 19,u
-; O3-NEXT:    ora 18,u
-; O3-NEXT:    std 8,u
-; O3-NEXT:    ldd 4,u
-; O3-NEXT:    std 4,u
-; O3-NEXT:    ldd 6,u
-; O3-NEXT:    orb 17,u
-; O3-NEXT:    ora 16,u
-; O3-NEXT:    std 6,u
-; O3-NEXT:    ldd 4,u
+; O3-NEXT:    leas -2,s
+; O3-NEXT:    ldd 18,s
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd 18,s
+; O3-NEXT:    std <__rs0
+; O3-NEXT:    puls d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd 16,s
+; O3-NEXT:    std <__rs1
+; O3-NEXT:    puls d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd 14,s
+; O3-NEXT:    std <__rs2
+; O3-NEXT:    puls d
+; O3-NEXT:    orb 11,s
+; O3-NEXT:    ora 10,s
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd <__rs0
+; O3-NEXT:    orb 11,s
+; O3-NEXT:    ora 10,s
+; O3-NEXT:    std <__rs0
+; O3-NEXT:    puls d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd <__rs1
+; O3-NEXT:    orb 9,s
+; O3-NEXT:    ora 8,s
+; O3-NEXT:    std <__rs1
+; O3-NEXT:    puls d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd <__rs2
+; O3-NEXT:    orb 7,s
+; O3-NEXT:    ora 6,s
+; O3-NEXT:    std <__rs2
+; O3-NEXT:    puls d
 ; O3-NEXT:    std 6,x
-; O3-NEXT:    ldd 10,u
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd <__rs0
 ; O3-NEXT:    std 4,x
-; O3-NEXT:    ldd 8,u
+; O3-NEXT:    puls d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd <__rs1
 ; O3-NEXT:    std 2,x
-; O3-NEXT:    ldd 6,u
+; O3-NEXT:    puls d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd <__rs2
 ; O3-NEXT:    std ,x
-; O3-NEXT:    tfr u,s
-; O3-NEXT:    puls u
-; O3-NEXT:    leas 12,s
+; O3-NEXT:    puls d
+; O3-NEXT:    leas 2,s
 ; O3-NEXT:    rts
   %r = or i64 %a, %b
   ret i64 %r
@@ -1406,205 +1526,210 @@ define i64 @xor64(i64 %a, i64 %b) {
 ; CHECK-NEXT:    rts
 ; O0-LABEL: xor64:
 ; O0:       ; %bb.0:
-; O0-NEXT:    leas -12,s
-; O0-NEXT:    pshs u
-; O0-NEXT:    tfr s,u
-; O0-NEXT:    ldd 30,u
-; O0-NEXT:    std 4,u
-; O0-NEXT:    ldd 28,u
-; O0-NEXT:    std 10,u
-; O0-NEXT:    ldd 4,u
-; O0-NEXT:    std 4,u
-; O0-NEXT:    ldd 26,u
-; O0-NEXT:    std 8,u
-; O0-NEXT:    ldd 4,u
-; O0-NEXT:    std 4,u
-; O0-NEXT:    ldd 24,u
-; O0-NEXT:    std 6,u
-; O0-NEXT:    ldd 4,u
-; O0-NEXT:    eorb 23,u
-; O0-NEXT:    eora 22,u
-; O0-NEXT:    std 4,u
-; O0-NEXT:    ldd 10,u
-; O0-NEXT:    ldd 10,u
-; O0-NEXT:    eorb 21,u
-; O0-NEXT:    eora 20,u
-; O0-NEXT:    std 10,u
-; O0-NEXT:    ldd 4,u
-; O0-NEXT:    std 4,u
-; O0-NEXT:    ldd 8,u
-; O0-NEXT:    ldd 8,u
-; O0-NEXT:    eorb 19,u
-; O0-NEXT:    eora 18,u
-; O0-NEXT:    std 8,u
-; O0-NEXT:    ldd 4,u
-; O0-NEXT:    std 4,u
-; O0-NEXT:    ldd 6,u
-; O0-NEXT:    ldd 6,u
-; O0-NEXT:    eorb 17,u
-; O0-NEXT:    eora 16,u
-; O0-NEXT:    std 6,u
-; O0-NEXT:    ldd 4,u
+; O0-NEXT:    leas -2,s
+; O0-NEXT:    ldd 18,s
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd 18,s
+; O0-NEXT:    std <__rs0
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd 16,s
+; O0-NEXT:    std <__rs1
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd 14,s
+; O0-NEXT:    std <__rs2
+; O0-NEXT:    puls d
+; O0-NEXT:    eorb 11,s
+; O0-NEXT:    eora 10,s
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd <__rs0
+; O0-NEXT:    eorb 11,s
+; O0-NEXT:    eora 10,s
+; O0-NEXT:    std <__rs0
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd <__rs1
+; O0-NEXT:    eorb 9,s
+; O0-NEXT:    eora 8,s
+; O0-NEXT:    std <__rs1
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd <__rs2
+; O0-NEXT:    eorb 7,s
+; O0-NEXT:    eora 6,s
+; O0-NEXT:    std <__rs2
+; O0-NEXT:    puls d
 ; O0-NEXT:    std 6,x
-; O0-NEXT:    ldd 10,u
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std 4,x
-; O0-NEXT:    ldd 8,u
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd <__rs1
 ; O0-NEXT:    std 2,x
-; O0-NEXT:    ldd 6,u
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd <__rs2
 ; O0-NEXT:    std ,x
-; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u
-; O0-NEXT:    leas 12,s
+; O0-NEXT:    puls d
+; O0-NEXT:    leas 2,s
 ; O0-NEXT:    rts
 ;
 ; O1-LABEL: xor64:
 ; O1:       ; %bb.0:
-; O1-NEXT:    leas -12,s
-; O1-NEXT:    pshs u
-; O1-NEXT:    tfr s,u
-; O1-NEXT:    ldd 30,u
-; O1-NEXT:    std 4,u
-; O1-NEXT:    ldd 28,u
-; O1-NEXT:    std 10,u
-; O1-NEXT:    ldd 4,u
-; O1-NEXT:    std 4,u
-; O1-NEXT:    ldd 26,u
-; O1-NEXT:    std 8,u
-; O1-NEXT:    ldd 4,u
-; O1-NEXT:    std 4,u
-; O1-NEXT:    ldd 24,u
-; O1-NEXT:    std 6,u
-; O1-NEXT:    ldd 4,u
-; O1-NEXT:    eorb 23,u
-; O1-NEXT:    eora 22,u
-; O1-NEXT:    std 4,u
-; O1-NEXT:    ldd 10,u
-; O1-NEXT:    eorb 21,u
-; O1-NEXT:    eora 20,u
-; O1-NEXT:    std 10,u
-; O1-NEXT:    ldd 4,u
-; O1-NEXT:    std 4,u
-; O1-NEXT:    ldd 8,u
-; O1-NEXT:    eorb 19,u
-; O1-NEXT:    eora 18,u
-; O1-NEXT:    std 8,u
-; O1-NEXT:    ldd 4,u
-; O1-NEXT:    std 4,u
-; O1-NEXT:    ldd 6,u
-; O1-NEXT:    eorb 17,u
-; O1-NEXT:    eora 16,u
-; O1-NEXT:    std 6,u
-; O1-NEXT:    ldd 4,u
+; O1-NEXT:    leas -2,s
+; O1-NEXT:    ldd 18,s
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd 18,s
+; O1-NEXT:    std <__rs0
+; O1-NEXT:    puls d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd 16,s
+; O1-NEXT:    std <__rs1
+; O1-NEXT:    puls d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd 14,s
+; O1-NEXT:    std <__rs2
+; O1-NEXT:    puls d
+; O1-NEXT:    eorb 11,s
+; O1-NEXT:    eora 10,s
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd <__rs0
+; O1-NEXT:    eorb 11,s
+; O1-NEXT:    eora 10,s
+; O1-NEXT:    std <__rs0
+; O1-NEXT:    puls d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd <__rs1
+; O1-NEXT:    eorb 9,s
+; O1-NEXT:    eora 8,s
+; O1-NEXT:    std <__rs1
+; O1-NEXT:    puls d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd <__rs2
+; O1-NEXT:    eorb 7,s
+; O1-NEXT:    eora 6,s
+; O1-NEXT:    std <__rs2
+; O1-NEXT:    puls d
 ; O1-NEXT:    std 6,x
-; O1-NEXT:    ldd 10,u
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd <__rs0
 ; O1-NEXT:    std 4,x
-; O1-NEXT:    ldd 8,u
+; O1-NEXT:    puls d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd <__rs1
 ; O1-NEXT:    std 2,x
-; O1-NEXT:    ldd 6,u
+; O1-NEXT:    puls d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd <__rs2
 ; O1-NEXT:    std ,x
-; O1-NEXT:    tfr u,s
-; O1-NEXT:    puls u
-; O1-NEXT:    leas 12,s
+; O1-NEXT:    puls d
+; O1-NEXT:    leas 2,s
 ; O1-NEXT:    rts
 ;
 ; O2-LABEL: xor64:
 ; O2:       ; %bb.0:
-; O2-NEXT:    leas -12,s
-; O2-NEXT:    pshs u
-; O2-NEXT:    tfr s,u
-; O2-NEXT:    ldd 30,u
-; O2-NEXT:    std 4,u
-; O2-NEXT:    ldd 28,u
-; O2-NEXT:    std 10,u
-; O2-NEXT:    ldd 4,u
-; O2-NEXT:    std 4,u
-; O2-NEXT:    ldd 26,u
-; O2-NEXT:    std 8,u
-; O2-NEXT:    ldd 4,u
-; O2-NEXT:    std 4,u
-; O2-NEXT:    ldd 24,u
-; O2-NEXT:    std 6,u
-; O2-NEXT:    ldd 4,u
-; O2-NEXT:    eorb 23,u
-; O2-NEXT:    eora 22,u
-; O2-NEXT:    std 4,u
-; O2-NEXT:    ldd 10,u
-; O2-NEXT:    eorb 21,u
-; O2-NEXT:    eora 20,u
-; O2-NEXT:    std 10,u
-; O2-NEXT:    ldd 4,u
-; O2-NEXT:    std 4,u
-; O2-NEXT:    ldd 8,u
-; O2-NEXT:    eorb 19,u
-; O2-NEXT:    eora 18,u
-; O2-NEXT:    std 8,u
-; O2-NEXT:    ldd 4,u
-; O2-NEXT:    std 4,u
-; O2-NEXT:    ldd 6,u
-; O2-NEXT:    eorb 17,u
-; O2-NEXT:    eora 16,u
-; O2-NEXT:    std 6,u
-; O2-NEXT:    ldd 4,u
+; O2-NEXT:    leas -2,s
+; O2-NEXT:    ldd 18,s
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd 18,s
+; O2-NEXT:    std <__rs0
+; O2-NEXT:    puls d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd 16,s
+; O2-NEXT:    std <__rs1
+; O2-NEXT:    puls d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd 14,s
+; O2-NEXT:    std <__rs2
+; O2-NEXT:    puls d
+; O2-NEXT:    eorb 11,s
+; O2-NEXT:    eora 10,s
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd <__rs0
+; O2-NEXT:    eorb 11,s
+; O2-NEXT:    eora 10,s
+; O2-NEXT:    std <__rs0
+; O2-NEXT:    puls d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd <__rs1
+; O2-NEXT:    eorb 9,s
+; O2-NEXT:    eora 8,s
+; O2-NEXT:    std <__rs1
+; O2-NEXT:    puls d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd <__rs2
+; O2-NEXT:    eorb 7,s
+; O2-NEXT:    eora 6,s
+; O2-NEXT:    std <__rs2
+; O2-NEXT:    puls d
 ; O2-NEXT:    std 6,x
-; O2-NEXT:    ldd 10,u
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    std 4,x
-; O2-NEXT:    ldd 8,u
+; O2-NEXT:    puls d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd <__rs1
 ; O2-NEXT:    std 2,x
-; O2-NEXT:    ldd 6,u
+; O2-NEXT:    puls d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd <__rs2
 ; O2-NEXT:    std ,x
-; O2-NEXT:    tfr u,s
-; O2-NEXT:    puls u
-; O2-NEXT:    leas 12,s
+; O2-NEXT:    puls d
+; O2-NEXT:    leas 2,s
 ; O2-NEXT:    rts
 ;
 ; O3-LABEL: xor64:
 ; O3:       ; %bb.0:
-; O3-NEXT:    leas -12,s
-; O3-NEXT:    pshs u
-; O3-NEXT:    tfr s,u
-; O3-NEXT:    ldd 30,u
-; O3-NEXT:    std 4,u
-; O3-NEXT:    ldd 28,u
-; O3-NEXT:    std 10,u
-; O3-NEXT:    ldd 4,u
-; O3-NEXT:    std 4,u
-; O3-NEXT:    ldd 26,u
-; O3-NEXT:    std 8,u
-; O3-NEXT:    ldd 4,u
-; O3-NEXT:    std 4,u
-; O3-NEXT:    ldd 24,u
-; O3-NEXT:    std 6,u
-; O3-NEXT:    ldd 4,u
-; O3-NEXT:    eorb 23,u
-; O3-NEXT:    eora 22,u
-; O3-NEXT:    std 4,u
-; O3-NEXT:    ldd 10,u
-; O3-NEXT:    eorb 21,u
-; O3-NEXT:    eora 20,u
-; O3-NEXT:    std 10,u
-; O3-NEXT:    ldd 4,u
-; O3-NEXT:    std 4,u
-; O3-NEXT:    ldd 8,u
-; O3-NEXT:    eorb 19,u
-; O3-NEXT:    eora 18,u
-; O3-NEXT:    std 8,u
-; O3-NEXT:    ldd 4,u
-; O3-NEXT:    std 4,u
-; O3-NEXT:    ldd 6,u
-; O3-NEXT:    eorb 17,u
-; O3-NEXT:    eora 16,u
-; O3-NEXT:    std 6,u
-; O3-NEXT:    ldd 4,u
+; O3-NEXT:    leas -2,s
+; O3-NEXT:    ldd 18,s
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd 18,s
+; O3-NEXT:    std <__rs0
+; O3-NEXT:    puls d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd 16,s
+; O3-NEXT:    std <__rs1
+; O3-NEXT:    puls d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd 14,s
+; O3-NEXT:    std <__rs2
+; O3-NEXT:    puls d
+; O3-NEXT:    eorb 11,s
+; O3-NEXT:    eora 10,s
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd <__rs0
+; O3-NEXT:    eorb 11,s
+; O3-NEXT:    eora 10,s
+; O3-NEXT:    std <__rs0
+; O3-NEXT:    puls d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd <__rs1
+; O3-NEXT:    eorb 9,s
+; O3-NEXT:    eora 8,s
+; O3-NEXT:    std <__rs1
+; O3-NEXT:    puls d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd <__rs2
+; O3-NEXT:    eorb 7,s
+; O3-NEXT:    eora 6,s
+; O3-NEXT:    std <__rs2
+; O3-NEXT:    puls d
 ; O3-NEXT:    std 6,x
-; O3-NEXT:    ldd 10,u
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd <__rs0
 ; O3-NEXT:    std 4,x
-; O3-NEXT:    ldd 8,u
+; O3-NEXT:    puls d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd <__rs1
 ; O3-NEXT:    std 2,x
-; O3-NEXT:    ldd 6,u
+; O3-NEXT:    puls d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd <__rs2
 ; O3-NEXT:    std ,x
-; O3-NEXT:    tfr u,s
-; O3-NEXT:    puls u
-; O3-NEXT:    leas 12,s
+; O3-NEXT:    puls d
+; O3-NEXT:    leas 2,s
 ; O3-NEXT:    rts
   %r = xor i64 %a, %b
   ret i64 %r
@@ -1643,95 +1768,91 @@ define i64 @zext_i32_to_i64(i32 %v) {
 ; CHECK-NEXT:    rts
 ; O0-LABEL: zext_i32_to_i64:
 ; O0:       ; %bb.0:
-; O0-NEXT:    leas -12,s
-; O0-NEXT:    pshs u
-; O0-NEXT:    tfr s,u
-; O0-NEXT:    ldd 18,u
-; O0-NEXT:    std 4,u
-; O0-NEXT:    ldd 16,u
-; O0-NEXT:    std 10,u
-; O0-NEXT:    ldd 4,u
-; O0-NEXT:    std 4,u
+; O0-NEXT:    leas -2,s
+; O0-NEXT:    ldd 6,s
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd 6,s
+; O0-NEXT:    std <__rs0
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd #0
-; O0-NEXT:    std 8,u
-; O0-NEXT:    ldd 4,u
-; O0-NEXT:    std 4,u
+; O0-NEXT:    std <__rs1
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd #0
-; O0-NEXT:    std 6,u
-; O0-NEXT:    ldd 4,u
+; O0-NEXT:    std <__rs2
+; O0-NEXT:    puls d
 ; O0-NEXT:    std 6,x
-; O0-NEXT:    ldd 10,u
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std 4,x
-; O0-NEXT:    ldd 8,u
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd <__rs1
 ; O0-NEXT:    std 2,x
-; O0-NEXT:    ldd 6,u
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd <__rs2
 ; O0-NEXT:    std ,x
-; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u
-; O0-NEXT:    leas 12,s
+; O0-NEXT:    puls d
+; O0-NEXT:    leas 2,s
 ; O0-NEXT:    rts
 ;
 ; O1-LABEL: zext_i32_to_i64:
 ; O1:       ; %bb.0:
-; O1-NEXT:    leas -8,s
-; O1-NEXT:    pshs u
-; O1-NEXT:    tfr s,u
-; O1-NEXT:    ldd 14,u
-; O1-NEXT:    std 4,u
-; O1-NEXT:    ldd 12,u
-; O1-NEXT:    std 6,u
-; O1-NEXT:    ldd 4,u
+; O1-NEXT:    leas -2,s
+; O1-NEXT:    ldd 6,s
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd 6,s
+; O1-NEXT:    std <__rs0
+; O1-NEXT:    puls d
 ; O1-NEXT:    std 6,x
-; O1-NEXT:    ldd 6,u
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd <__rs0
 ; O1-NEXT:    std 4,x
+; O1-NEXT:    puls d
 ; O1-NEXT:    ldd #0
 ; O1-NEXT:    std 2,x
 ; O1-NEXT:    std ,x
-; O1-NEXT:    tfr u,s
-; O1-NEXT:    puls u
-; O1-NEXT:    leas 8,s
+; O1-NEXT:    leas 2,s
 ; O1-NEXT:    rts
 ;
 ; O2-LABEL: zext_i32_to_i64:
 ; O2:       ; %bb.0:
-; O2-NEXT:    leas -8,s
-; O2-NEXT:    pshs u
-; O2-NEXT:    tfr s,u
-; O2-NEXT:    ldd 14,u
-; O2-NEXT:    std 4,u
-; O2-NEXT:    ldd 12,u
-; O2-NEXT:    std 6,u
-; O2-NEXT:    ldd 4,u
+; O2-NEXT:    leas -2,s
+; O2-NEXT:    ldd 6,s
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd 6,s
+; O2-NEXT:    std <__rs0
+; O2-NEXT:    puls d
 ; O2-NEXT:    std 6,x
-; O2-NEXT:    ldd 6,u
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    std 4,x
+; O2-NEXT:    puls d
 ; O2-NEXT:    ldd #0
 ; O2-NEXT:    std 2,x
 ; O2-NEXT:    std ,x
-; O2-NEXT:    tfr u,s
-; O2-NEXT:    puls u
-; O2-NEXT:    leas 8,s
+; O2-NEXT:    leas 2,s
 ; O2-NEXT:    rts
 ;
 ; O3-LABEL: zext_i32_to_i64:
 ; O3:       ; %bb.0:
-; O3-NEXT:    leas -8,s
-; O3-NEXT:    pshs u
-; O3-NEXT:    tfr s,u
-; O3-NEXT:    ldd 14,u
-; O3-NEXT:    std 4,u
-; O3-NEXT:    ldd 12,u
-; O3-NEXT:    std 6,u
-; O3-NEXT:    ldd 4,u
+; O3-NEXT:    leas -2,s
+; O3-NEXT:    ldd 6,s
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd 6,s
+; O3-NEXT:    std <__rs0
+; O3-NEXT:    puls d
 ; O3-NEXT:    std 6,x
-; O3-NEXT:    ldd 6,u
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd <__rs0
 ; O3-NEXT:    std 4,x
+; O3-NEXT:    puls d
 ; O3-NEXT:    ldd #0
 ; O3-NEXT:    std 2,x
 ; O3-NEXT:    std ,x
-; O3-NEXT:    tfr u,s
-; O3-NEXT:    puls u
-; O3-NEXT:    leas 8,s
+; O3-NEXT:    leas 2,s
 ; O3-NEXT:    rts
   %r = zext i32 %v to i64
   ret i64 %r
@@ -1758,74 +1879,66 @@ define i32 @trunc_i64_to_i32(i64 %v) {
 ; CHECK-NEXT:    rts
 ; O0-LABEL: trunc_i64_to_i32:
 ; O0:       ; %bb.0:
-; O0-NEXT:    leas -8,s
-; O0-NEXT:    pshs u
-; O0-NEXT:    tfr s,u
-; O0-NEXT:    ldd 18,u
-; O0-NEXT:    std 4,u
-; O0-NEXT:    ldd 16,u
-; O0-NEXT:    std 6,u
-; O0-NEXT:    ldd 4,u
+; O0-NEXT:    leas -2,s
+; O0-NEXT:    ldd 10,s
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd 10,s
+; O0-NEXT:    std <__rs0
+; O0-NEXT:    puls d
 ; O0-NEXT:    std 2,x
-; O0-NEXT:    ldd 6,u
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std ,x
-; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u
-; O0-NEXT:    leas 8,s
+; O0-NEXT:    puls d
+; O0-NEXT:    leas 2,s
 ; O0-NEXT:    rts
 ;
 ; O1-LABEL: trunc_i64_to_i32:
 ; O1:       ; %bb.0:
-; O1-NEXT:    leas -8,s
-; O1-NEXT:    pshs u
-; O1-NEXT:    tfr s,u
-; O1-NEXT:    ldd 18,u
-; O1-NEXT:    std 4,u
-; O1-NEXT:    ldd 16,u
-; O1-NEXT:    std 6,u
-; O1-NEXT:    ldd 4,u
+; O1-NEXT:    leas -2,s
+; O1-NEXT:    ldd 10,s
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd 10,s
+; O1-NEXT:    std <__rs0
+; O1-NEXT:    puls d
 ; O1-NEXT:    std 2,x
-; O1-NEXT:    ldd 6,u
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd <__rs0
 ; O1-NEXT:    std ,x
-; O1-NEXT:    tfr u,s
-; O1-NEXT:    puls u
-; O1-NEXT:    leas 8,s
+; O1-NEXT:    puls d
+; O1-NEXT:    leas 2,s
 ; O1-NEXT:    rts
 ;
 ; O2-LABEL: trunc_i64_to_i32:
 ; O2:       ; %bb.0:
-; O2-NEXT:    leas -8,s
-; O2-NEXT:    pshs u
-; O2-NEXT:    tfr s,u
-; O2-NEXT:    ldd 18,u
-; O2-NEXT:    std 4,u
-; O2-NEXT:    ldd 16,u
-; O2-NEXT:    std 6,u
-; O2-NEXT:    ldd 4,u
+; O2-NEXT:    leas -2,s
+; O2-NEXT:    ldd 10,s
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd 10,s
+; O2-NEXT:    std <__rs0
+; O2-NEXT:    puls d
 ; O2-NEXT:    std 2,x
-; O2-NEXT:    ldd 6,u
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    std ,x
-; O2-NEXT:    tfr u,s
-; O2-NEXT:    puls u
-; O2-NEXT:    leas 8,s
+; O2-NEXT:    puls d
+; O2-NEXT:    leas 2,s
 ; O2-NEXT:    rts
 ;
 ; O3-LABEL: trunc_i64_to_i32:
 ; O3:       ; %bb.0:
-; O3-NEXT:    leas -8,s
-; O3-NEXT:    pshs u
-; O3-NEXT:    tfr s,u
-; O3-NEXT:    ldd 18,u
-; O3-NEXT:    std 4,u
-; O3-NEXT:    ldd 16,u
-; O3-NEXT:    std 6,u
-; O3-NEXT:    ldd 4,u
+; O3-NEXT:    leas -2,s
+; O3-NEXT:    ldd 10,s
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd 10,s
+; O3-NEXT:    std <__rs0
+; O3-NEXT:    puls d
 ; O3-NEXT:    std 2,x
-; O3-NEXT:    ldd 6,u
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd <__rs0
 ; O3-NEXT:    std ,x
-; O3-NEXT:    tfr u,s
-; O3-NEXT:    puls u
-; O3-NEXT:    leas 8,s
+; O3-NEXT:    puls d
+; O3-NEXT:    leas 2,s
 ; O3-NEXT:    rts
   %r = trunc i64 %v to i32
   ret i32 %r
@@ -1923,126 +2036,134 @@ define void @takes_i64(i64 %x) {
 ; CHECK-NEXT:    rts
 ; O0-LABEL: takes_i64:
 ; O0:       ; %bb.0:
-; O0-NEXT:    leas -12,s
-; O0-NEXT:    pshs u
-; O0-NEXT:    tfr s,u
-; O0-NEXT:    ldd 22,u
-; O0-NEXT:    std 4,u
-; O0-NEXT:    ldd 20,u
-; O0-NEXT:    std 10,u
-; O0-NEXT:    ldd 4,u
-; O0-NEXT:    std 4,u
-; O0-NEXT:    ldd 18,u
-; O0-NEXT:    std 8,u
-; O0-NEXT:    ldd 4,u
-; O0-NEXT:    std 4,u
-; O0-NEXT:    ldd 16,u
-; O0-NEXT:    std 6,u
-; O0-NEXT:    ldd 4,u
+; O0-NEXT:    leas -2,s
+; O0-NEXT:    ldd 10,s
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd 10,s
+; O0-NEXT:    std <__rs0
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd 8,s
+; O0-NEXT:    std <__rs1
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd 6,s
+; O0-NEXT:    std <__rs2
+; O0-NEXT:    puls d
 ; O0-NEXT:    ldx #g
 ; O0-NEXT:    std 6,x
-; O0-NEXT:    ldd 10,u
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std 4,x
-; O0-NEXT:    ldd 8,u
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd <__rs1
 ; O0-NEXT:    std 2,x
-; O0-NEXT:    ldd 6,u
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd <__rs2
 ; O0-NEXT:    std g
-; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u
-; O0-NEXT:    leas 12,s
+; O0-NEXT:    puls d
+; O0-NEXT:    leas 2,s
 ; O0-NEXT:    rts
 ;
 ; O1-LABEL: takes_i64:
 ; O1:       ; %bb.0:
-; O1-NEXT:    leas -12,s
-; O1-NEXT:    pshs u
-; O1-NEXT:    tfr s,u
-; O1-NEXT:    ldd 22,u
-; O1-NEXT:    std 4,u
-; O1-NEXT:    ldd 20,u
-; O1-NEXT:    std 10,u
-; O1-NEXT:    ldd 4,u
-; O1-NEXT:    std 4,u
-; O1-NEXT:    ldd 18,u
-; O1-NEXT:    std 8,u
-; O1-NEXT:    ldd 4,u
-; O1-NEXT:    std 4,u
-; O1-NEXT:    ldd 16,u
-; O1-NEXT:    std 6,u
-; O1-NEXT:    ldd 4,u
+; O1-NEXT:    leas -2,s
+; O1-NEXT:    ldd 10,s
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd 10,s
+; O1-NEXT:    std <__rs0
+; O1-NEXT:    puls d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd 8,s
+; O1-NEXT:    std <__rs1
+; O1-NEXT:    puls d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd 6,s
+; O1-NEXT:    std <__rs2
+; O1-NEXT:    puls d
 ; O1-NEXT:    ldx #g
 ; O1-NEXT:    std 6,x
-; O1-NEXT:    ldd 10,u
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd <__rs0
 ; O1-NEXT:    std 4,x
-; O1-NEXT:    ldd 8,u
+; O1-NEXT:    puls d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd <__rs1
 ; O1-NEXT:    std 2,x
-; O1-NEXT:    ldd 6,u
+; O1-NEXT:    puls d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd <__rs2
 ; O1-NEXT:    std g
-; O1-NEXT:    tfr u,s
-; O1-NEXT:    puls u
-; O1-NEXT:    leas 12,s
+; O1-NEXT:    puls d
+; O1-NEXT:    leas 2,s
 ; O1-NEXT:    rts
 ;
 ; O2-LABEL: takes_i64:
 ; O2:       ; %bb.0:
-; O2-NEXT:    leas -12,s
-; O2-NEXT:    pshs u
-; O2-NEXT:    tfr s,u
-; O2-NEXT:    ldd 22,u
-; O2-NEXT:    std 4,u
-; O2-NEXT:    ldd 20,u
-; O2-NEXT:    std 10,u
-; O2-NEXT:    ldd 4,u
-; O2-NEXT:    std 4,u
-; O2-NEXT:    ldd 18,u
-; O2-NEXT:    std 8,u
-; O2-NEXT:    ldd 4,u
-; O2-NEXT:    std 4,u
-; O2-NEXT:    ldd 16,u
-; O2-NEXT:    std 6,u
-; O2-NEXT:    ldd 4,u
+; O2-NEXT:    leas -2,s
+; O2-NEXT:    ldd 10,s
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd 10,s
+; O2-NEXT:    std <__rs0
+; O2-NEXT:    puls d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd 8,s
+; O2-NEXT:    std <__rs1
+; O2-NEXT:    puls d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd 6,s
+; O2-NEXT:    std <__rs2
+; O2-NEXT:    puls d
 ; O2-NEXT:    ldx #g
 ; O2-NEXT:    std 6,x
-; O2-NEXT:    ldd 10,u
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    std 4,x
-; O2-NEXT:    ldd 8,u
+; O2-NEXT:    puls d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd <__rs1
 ; O2-NEXT:    std 2,x
-; O2-NEXT:    ldd 6,u
+; O2-NEXT:    puls d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd <__rs2
 ; O2-NEXT:    std g
-; O2-NEXT:    tfr u,s
-; O2-NEXT:    puls u
-; O2-NEXT:    leas 12,s
+; O2-NEXT:    puls d
+; O2-NEXT:    leas 2,s
 ; O2-NEXT:    rts
 ;
 ; O3-LABEL: takes_i64:
 ; O3:       ; %bb.0:
-; O3-NEXT:    leas -12,s
-; O3-NEXT:    pshs u
-; O3-NEXT:    tfr s,u
-; O3-NEXT:    ldd 22,u
-; O3-NEXT:    std 4,u
-; O3-NEXT:    ldd 20,u
-; O3-NEXT:    std 10,u
-; O3-NEXT:    ldd 4,u
-; O3-NEXT:    std 4,u
-; O3-NEXT:    ldd 18,u
-; O3-NEXT:    std 8,u
-; O3-NEXT:    ldd 4,u
-; O3-NEXT:    std 4,u
-; O3-NEXT:    ldd 16,u
-; O3-NEXT:    std 6,u
-; O3-NEXT:    ldd 4,u
+; O3-NEXT:    leas -2,s
+; O3-NEXT:    ldd 10,s
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd 10,s
+; O3-NEXT:    std <__rs0
+; O3-NEXT:    puls d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd 8,s
+; O3-NEXT:    std <__rs1
+; O3-NEXT:    puls d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd 6,s
+; O3-NEXT:    std <__rs2
+; O3-NEXT:    puls d
 ; O3-NEXT:    ldx #g
 ; O3-NEXT:    std 6,x
-; O3-NEXT:    ldd 10,u
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd <__rs0
 ; O3-NEXT:    std 4,x
-; O3-NEXT:    ldd 8,u
+; O3-NEXT:    puls d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd <__rs1
 ; O3-NEXT:    std 2,x
-; O3-NEXT:    ldd 6,u
+; O3-NEXT:    puls d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd <__rs2
 ; O3-NEXT:    std g
-; O3-NEXT:    tfr u,s
-; O3-NEXT:    puls u
-; O3-NEXT:    leas 12,s
+; O3-NEXT:    puls d
+; O3-NEXT:    leas 2,s
 ; O3-NEXT:    rts
   store volatile i64 %x, ptr @g
   ret void
@@ -2113,320 +2234,396 @@ define void @i16_then_i64(i16 %a, i64 %b) {
 ; CHECK-NEXT:    rts
 ; O0-LABEL: i16_then_i64:
 ; O0:       ; %bb.0:
-; O0-NEXT:    leas -20,s
-; O0-NEXT:    pshs u
-; O0-NEXT:    tfr s,u
-; O0-NEXT:    stx 10,u
-; O0-NEXT:    ldb 11,u
-; O0-NEXT:    stb 19,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 10,u
-; O0-NEXT:    stb 18,u ; 1-byte Folded Spill
+; O0-NEXT:    leas -10,s
+; O0-NEXT:    stx <__rs0
+; O0-NEXT:    ldb <__rs0lo
+; O0-NEXT:    stb 9,s ; 1-byte Folded Spill
+; O0-NEXT:    pshs a
+; O0-NEXT:    lda <__rs0hi
+; O0-NEXT:    tfr a,b
+; O0-NEXT:    puls a
+; O0-NEXT:    stb 8,s ; 1-byte Folded Spill
+; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd #0
-; O0-NEXT:    std 10,u
-; O0-NEXT:    ldb 11,u
-; O0-NEXT:    lda 10,u
-; O0-NEXT:    sta 17,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 11,u
-; O0-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 10,u
-; O0-NEXT:    sta 15,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 11,u
-; O0-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 10,u
-; O0-NEXT:    sta 13,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 19,u ; 1-byte Folded Reload
-; O0-NEXT:    adda 31,u
-; O0-NEXT:    sta 19,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 18,u ; 1-byte Folded Reload
-; O0-NEXT:    adca 30,u
-; O0-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O0-NEXT:    adcb 29,u
-; O0-NEXT:    stb 12,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 28,u
-; O0-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 16,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 27,u
-; O0-NEXT:    stb 16,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 26,u
-; O0-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 14,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 25,u
-; O0-NEXT:    stb 14,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 24,u
-; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 19,u ; 1-byte Folded Reload
-; O0-NEXT:    ldb 18,u ; 1-byte Folded Reload
-; O0-NEXT:    std 4,u
+; O0-NEXT:    std <__rs0
+; O0-NEXT:    puls d
+; O0-NEXT:    ldb <__rs0lo
+; O0-NEXT:    lda <__rs0hi
+; O0-NEXT:    sta 7,s ; 1-byte Folded Spill
+; O0-NEXT:    pshs b
+; O0-NEXT:    ldb <__rs0lo
+; O0-NEXT:    tfr b,a
+; O0-NEXT:    puls b
+; O0-NEXT:    sta 6,s ; 1-byte Folded Spill
+; O0-NEXT:    lda <__rs0hi
+; O0-NEXT:    sta 5,s ; 1-byte Folded Spill
+; O0-NEXT:    pshs b
+; O0-NEXT:    ldb <__rs0lo
+; O0-NEXT:    tfr b,a
+; O0-NEXT:    puls b
+; O0-NEXT:    sta 4,s ; 1-byte Folded Spill
+; O0-NEXT:    lda <__rs0hi
+; O0-NEXT:    sta 3,s ; 1-byte Folded Spill
+; O0-NEXT:    lda 9,s ; 1-byte Folded Reload
+; O0-NEXT:    adda 19,s
+; O0-NEXT:    sta 9,s ; 1-byte Folded Spill
+; O0-NEXT:    lda 8,s ; 1-byte Folded Reload
+; O0-NEXT:    adca 18,s
+; O0-NEXT:    sta 8,s ; 1-byte Folded Spill
+; O0-NEXT:    adcb 17,s
+; O0-NEXT:    stb 2,s ; 1-byte Folded Spill
+; O0-NEXT:    ldb 7,s ; 1-byte Folded Reload
+; O0-NEXT:    adcb 16,s
+; O0-NEXT:    stb 7,s ; 1-byte Folded Spill
+; O0-NEXT:    ldb 6,s ; 1-byte Folded Reload
+; O0-NEXT:    adcb 15,s
+; O0-NEXT:    stb 6,s ; 1-byte Folded Spill
+; O0-NEXT:    ldb 5,s ; 1-byte Folded Reload
+; O0-NEXT:    adcb 14,s
+; O0-NEXT:    stb 5,s ; 1-byte Folded Spill
+; O0-NEXT:    ldb 4,s ; 1-byte Folded Reload
+; O0-NEXT:    adcb 13,s
+; O0-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O0-NEXT:    ldb 3,s ; 1-byte Folded Reload
+; O0-NEXT:    adcb 12,s
+; O0-NEXT:    stb 3,s ; 1-byte Folded Spill
+; O0-NEXT:    lda 9,s ; 1-byte Folded Reload
+; O0-NEXT:    ldb 8,s ; 1-byte Folded Reload
+; O0-NEXT:    pshs d
 ; O0-NEXT:    exg a,b
-; O0-NEXT:    std 10,u
-; O0-NEXT:    ldd 4,u
-; O0-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O0-NEXT:    std 4,u
+; O0-NEXT:    std <__rs0
+; O0-NEXT:    puls d
+; O0-NEXT:    ldb 7,s ; 1-byte Folded Reload
+; O0-NEXT:    lda 2,s ; 1-byte Folded Reload
+; O0-NEXT:    pshs d
 ; O0-NEXT:    exg a,b
-; O0-NEXT:    std 8,u
-; O0-NEXT:    ldd 4,u
-; O0-NEXT:    ldb 16,u ; 1-byte Folded Reload
-; O0-NEXT:    lda 15,u ; 1-byte Folded Reload
-; O0-NEXT:    std 4,u
-; O0-NEXT:    std 6,u
-; O0-NEXT:    ldd 4,u
-; O0-NEXT:    ldb 14,u ; 1-byte Folded Reload
-; O0-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O0-NEXT:    std <__rs1
+; O0-NEXT:    puls d
+; O0-NEXT:    ldb 6,s ; 1-byte Folded Reload
+; O0-NEXT:    lda 5,s ; 1-byte Folded Reload
+; O0-NEXT:    pshs d
+; O0-NEXT:    std <__rs2
+; O0-NEXT:    puls d
+; O0-NEXT:    ldb 4,s ; 1-byte Folded Reload
+; O0-NEXT:    lda 3,s ; 1-byte Folded Reload
 ; O0-NEXT:    ldx #g
-; O0-NEXT:    std 4,u
-; O0-NEXT:    ldd 10,u
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std 6,x
-; O0-NEXT:    ldd 4,u
-; O0-NEXT:    std 4,u
-; O0-NEXT:    ldd 8,u
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd <__rs1
 ; O0-NEXT:    std 4,x
-; O0-NEXT:    ldd 4,u
-; O0-NEXT:    std 4,u
-; O0-NEXT:    ldd 6,u
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd <__rs2
 ; O0-NEXT:    std 2,x
-; O0-NEXT:    ldd 4,u
+; O0-NEXT:    puls d
 ; O0-NEXT:    std g
-; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u
-; O0-NEXT:    leas 20,s
+; O0-NEXT:    leas 10,s
 ; O0-NEXT:    rts
 ;
 ; O1-LABEL: i16_then_i64:
 ; O1:       ; %bb.0:
-; O1-NEXT:    leas -20,s
-; O1-NEXT:    pshs u
-; O1-NEXT:    tfr s,u
-; O1-NEXT:    ldd 28,u
-; O1-NEXT:    std 6,u
-; O1-NEXT:    ldd 26,u
-; O1-NEXT:    std 10,u
-; O1-NEXT:    ldd 24,u
-; O1-NEXT:    std 8,u
-; O1-NEXT:    ldb 7,u
-; O1-NEXT:    stb 19,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 6,u
-; O1-NEXT:    stb 14,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 11,u
-; O1-NEXT:    stb 18,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 10,u
-; O1-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 9,u
-; O1-NEXT:    stb 16,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 8,u
-; O1-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O1-NEXT:    stx 10,u
-; O1-NEXT:    ldb 11,u
-; O1-NEXT:    lda 10,u
-; O1-NEXT:    addb 31,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O1-NEXT:    adca 30,u
-; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O1-NEXT:    leas -10,s
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd 18,s
+; O1-NEXT:    std <__rs2
+; O1-NEXT:    puls d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd 16,s
+; O1-NEXT:    std <__rs0
+; O1-NEXT:    puls d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd 14,s
+; O1-NEXT:    std <__rs1
+; O1-NEXT:    puls d
+; O1-NEXT:    ldb <__rs2lo
+; O1-NEXT:    stb 9,s ; 1-byte Folded Spill
+; O1-NEXT:    pshs a
+; O1-NEXT:    lda <__rs2hi
+; O1-NEXT:    tfr a,b
+; O1-NEXT:    puls a
+; O1-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O1-NEXT:    ldb <__rs0lo
+; O1-NEXT:    stb 8,s ; 1-byte Folded Spill
+; O1-NEXT:    pshs a
+; O1-NEXT:    lda <__rs0hi
+; O1-NEXT:    tfr a,b
+; O1-NEXT:    puls a
+; O1-NEXT:    stb 7,s ; 1-byte Folded Spill
+; O1-NEXT:    ldb <__rs1lo
+; O1-NEXT:    stb 6,s ; 1-byte Folded Spill
+; O1-NEXT:    pshs a
+; O1-NEXT:    lda <__rs1hi
+; O1-NEXT:    tfr a,b
+; O1-NEXT:    puls a
+; O1-NEXT:    stb 5,s ; 1-byte Folded Spill
+; O1-NEXT:    stx <__rs0
+; O1-NEXT:    ldb <__rs0lo
+; O1-NEXT:    lda <__rs0hi
+; O1-NEXT:    addb 19,s
+; O1-NEXT:    stb 3,s ; 1-byte Folded Spill
+; O1-NEXT:    adca 18,s
+; O1-NEXT:    sta 2,s ; 1-byte Folded Spill
+; O1-NEXT:    lda 9,s ; 1-byte Folded Reload
 ; O1-NEXT:    adca #0
-; O1-NEXT:    sta 19,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 14,u ; 1-byte Folded Reload
+; O1-NEXT:    sta 9,s ; 1-byte Folded Spill
+; O1-NEXT:    ldb 4,s ; 1-byte Folded Reload
 ; O1-NEXT:    adcb #0
-; O1-NEXT:    stb 14,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 18,u ; 1-byte Folded Reload
+; O1-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O1-NEXT:    ldb 8,s ; 1-byte Folded Reload
 ; O1-NEXT:    adcb #0
-; O1-NEXT:    stb 18,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 17,u ; 1-byte Folded Reload
+; O1-NEXT:    stb 8,s ; 1-byte Folded Spill
+; O1-NEXT:    ldb 7,s ; 1-byte Folded Reload
 ; O1-NEXT:    adcb #0
-; O1-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 16,u ; 1-byte Folded Reload
+; O1-NEXT:    stb 7,s ; 1-byte Folded Spill
+; O1-NEXT:    ldb 6,s ; 1-byte Folded Reload
 ; O1-NEXT:    adcb #0
-; O1-NEXT:    stb 16,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O1-NEXT:    stb 6,s ; 1-byte Folded Spill
+; O1-NEXT:    ldb 5,s ; 1-byte Folded Reload
 ; O1-NEXT:    adcb #0
-; O1-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O1-NEXT:    std 2,u
-; O1-NEXT:    std 4,u
-; O1-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O1-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O1-NEXT:    std 2,u
-; O1-NEXT:    std 10,u
-; O1-NEXT:    ldb 18,u ; 1-byte Folded Reload
-; O1-NEXT:    lda 17,u ; 1-byte Folded Reload
-; O1-NEXT:    std 2,u
-; O1-NEXT:    std 8,u
-; O1-NEXT:    ldb 16,u ; 1-byte Folded Reload
-; O1-NEXT:    lda 15,u ; 1-byte Folded Reload
-; O1-NEXT:    std 2,u
-; O1-NEXT:    std 6,u
+; O1-NEXT:    stb 5,s ; 1-byte Folded Spill
+; O1-NEXT:    ldb 3,s ; 1-byte Folded Reload
+; O1-NEXT:    lda 2,s ; 1-byte Folded Reload
+; O1-NEXT:    pshs d
+; O1-NEXT:    std <__rs3
+; O1-NEXT:    puls d
+; O1-NEXT:    ldb 9,s ; 1-byte Folded Reload
+; O1-NEXT:    lda 4,s ; 1-byte Folded Reload
+; O1-NEXT:    pshs d
+; O1-NEXT:    std <__rs0
+; O1-NEXT:    puls d
+; O1-NEXT:    ldb 8,s ; 1-byte Folded Reload
+; O1-NEXT:    lda 7,s ; 1-byte Folded Reload
+; O1-NEXT:    pshs d
+; O1-NEXT:    std <__rs1
+; O1-NEXT:    puls d
+; O1-NEXT:    ldb 6,s ; 1-byte Folded Reload
+; O1-NEXT:    lda 5,s ; 1-byte Folded Reload
+; O1-NEXT:    pshs d
+; O1-NEXT:    std <__rs2
+; O1-NEXT:    puls d
 ; O1-NEXT:    ldx #g
-; O1-NEXT:    ldd 4,u
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd <__rs3
 ; O1-NEXT:    std 6,x
-; O1-NEXT:    ldd 10,u
+; O1-NEXT:    puls d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd <__rs0
 ; O1-NEXT:    std 4,x
-; O1-NEXT:    ldd 8,u
+; O1-NEXT:    puls d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd <__rs1
 ; O1-NEXT:    std 2,x
-; O1-NEXT:    ldd 6,u
+; O1-NEXT:    puls d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd <__rs2
 ; O1-NEXT:    std g
-; O1-NEXT:    tfr u,s
-; O1-NEXT:    puls u
-; O1-NEXT:    leas 20,s
+; O1-NEXT:    puls d
+; O1-NEXT:    leas 10,s
 ; O1-NEXT:    rts
 ;
 ; O2-LABEL: i16_then_i64:
 ; O2:       ; %bb.0:
-; O2-NEXT:    leas -20,s
-; O2-NEXT:    pshs u
-; O2-NEXT:    tfr s,u
-; O2-NEXT:    ldd 28,u
-; O2-NEXT:    std 6,u
-; O2-NEXT:    ldd 26,u
-; O2-NEXT:    std 10,u
-; O2-NEXT:    ldd 24,u
-; O2-NEXT:    std 8,u
-; O2-NEXT:    ldb 7,u
-; O2-NEXT:    stb 19,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 6,u
-; O2-NEXT:    stb 14,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 11,u
-; O2-NEXT:    stb 18,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 10,u
-; O2-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 9,u
-; O2-NEXT:    stb 16,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 8,u
-; O2-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O2-NEXT:    stx 10,u
-; O2-NEXT:    ldb 11,u
-; O2-NEXT:    lda 10,u
-; O2-NEXT:    addb 31,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O2-NEXT:    adca 30,u
-; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O2-NEXT:    leas -10,s
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd 18,s
+; O2-NEXT:    std <__rs2
+; O2-NEXT:    puls d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd 16,s
+; O2-NEXT:    std <__rs0
+; O2-NEXT:    puls d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd 14,s
+; O2-NEXT:    std <__rs1
+; O2-NEXT:    puls d
+; O2-NEXT:    ldb <__rs2lo
+; O2-NEXT:    stb 9,s ; 1-byte Folded Spill
+; O2-NEXT:    pshs a
+; O2-NEXT:    lda <__rs2hi
+; O2-NEXT:    tfr a,b
+; O2-NEXT:    puls a
+; O2-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O2-NEXT:    ldb <__rs0lo
+; O2-NEXT:    stb 8,s ; 1-byte Folded Spill
+; O2-NEXT:    pshs a
+; O2-NEXT:    lda <__rs0hi
+; O2-NEXT:    tfr a,b
+; O2-NEXT:    puls a
+; O2-NEXT:    stb 7,s ; 1-byte Folded Spill
+; O2-NEXT:    ldb <__rs1lo
+; O2-NEXT:    stb 6,s ; 1-byte Folded Spill
+; O2-NEXT:    pshs a
+; O2-NEXT:    lda <__rs1hi
+; O2-NEXT:    tfr a,b
+; O2-NEXT:    puls a
+; O2-NEXT:    stb 5,s ; 1-byte Folded Spill
+; O2-NEXT:    stx <__rs0
+; O2-NEXT:    ldb <__rs0lo
+; O2-NEXT:    lda <__rs0hi
+; O2-NEXT:    addb 19,s
+; O2-NEXT:    stb 3,s ; 1-byte Folded Spill
+; O2-NEXT:    adca 18,s
+; O2-NEXT:    sta 2,s ; 1-byte Folded Spill
+; O2-NEXT:    lda 9,s ; 1-byte Folded Reload
 ; O2-NEXT:    adca #0
-; O2-NEXT:    sta 19,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 14,u ; 1-byte Folded Reload
+; O2-NEXT:    sta 9,s ; 1-byte Folded Spill
+; O2-NEXT:    ldb 4,s ; 1-byte Folded Reload
 ; O2-NEXT:    adcb #0
-; O2-NEXT:    stb 14,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 18,u ; 1-byte Folded Reload
+; O2-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O2-NEXT:    ldb 8,s ; 1-byte Folded Reload
 ; O2-NEXT:    adcb #0
-; O2-NEXT:    stb 18,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 17,u ; 1-byte Folded Reload
+; O2-NEXT:    stb 8,s ; 1-byte Folded Spill
+; O2-NEXT:    ldb 7,s ; 1-byte Folded Reload
 ; O2-NEXT:    adcb #0
-; O2-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 16,u ; 1-byte Folded Reload
+; O2-NEXT:    stb 7,s ; 1-byte Folded Spill
+; O2-NEXT:    ldb 6,s ; 1-byte Folded Reload
 ; O2-NEXT:    adcb #0
-; O2-NEXT:    stb 16,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O2-NEXT:    stb 6,s ; 1-byte Folded Spill
+; O2-NEXT:    ldb 5,s ; 1-byte Folded Reload
 ; O2-NEXT:    adcb #0
-; O2-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O2-NEXT:    std 2,u
-; O2-NEXT:    std 4,u
-; O2-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O2-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O2-NEXT:    std 2,u
-; O2-NEXT:    std 10,u
-; O2-NEXT:    ldb 18,u ; 1-byte Folded Reload
-; O2-NEXT:    lda 17,u ; 1-byte Folded Reload
-; O2-NEXT:    std 2,u
-; O2-NEXT:    std 8,u
-; O2-NEXT:    ldb 16,u ; 1-byte Folded Reload
-; O2-NEXT:    lda 15,u ; 1-byte Folded Reload
-; O2-NEXT:    std 2,u
-; O2-NEXT:    std 6,u
+; O2-NEXT:    stb 5,s ; 1-byte Folded Spill
+; O2-NEXT:    ldb 3,s ; 1-byte Folded Reload
+; O2-NEXT:    lda 2,s ; 1-byte Folded Reload
+; O2-NEXT:    pshs d
+; O2-NEXT:    std <__rs3
+; O2-NEXT:    puls d
+; O2-NEXT:    ldb 9,s ; 1-byte Folded Reload
+; O2-NEXT:    lda 4,s ; 1-byte Folded Reload
+; O2-NEXT:    pshs d
+; O2-NEXT:    std <__rs0
+; O2-NEXT:    puls d
+; O2-NEXT:    ldb 8,s ; 1-byte Folded Reload
+; O2-NEXT:    lda 7,s ; 1-byte Folded Reload
+; O2-NEXT:    pshs d
+; O2-NEXT:    std <__rs1
+; O2-NEXT:    puls d
+; O2-NEXT:    ldb 6,s ; 1-byte Folded Reload
+; O2-NEXT:    lda 5,s ; 1-byte Folded Reload
+; O2-NEXT:    pshs d
+; O2-NEXT:    std <__rs2
+; O2-NEXT:    puls d
 ; O2-NEXT:    ldx #g
-; O2-NEXT:    ldd 4,u
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd <__rs3
 ; O2-NEXT:    std 6,x
-; O2-NEXT:    ldd 10,u
+; O2-NEXT:    puls d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    std 4,x
-; O2-NEXT:    ldd 8,u
+; O2-NEXT:    puls d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd <__rs1
 ; O2-NEXT:    std 2,x
-; O2-NEXT:    ldd 6,u
+; O2-NEXT:    puls d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd <__rs2
 ; O2-NEXT:    std g
-; O2-NEXT:    tfr u,s
-; O2-NEXT:    puls u
-; O2-NEXT:    leas 20,s
+; O2-NEXT:    puls d
+; O2-NEXT:    leas 10,s
 ; O2-NEXT:    rts
 ;
 ; O3-LABEL: i16_then_i64:
 ; O3:       ; %bb.0:
-; O3-NEXT:    leas -20,s
-; O3-NEXT:    pshs u
-; O3-NEXT:    tfr s,u
-; O3-NEXT:    ldd 28,u
-; O3-NEXT:    std 6,u
-; O3-NEXT:    ldd 26,u
-; O3-NEXT:    std 10,u
-; O3-NEXT:    ldd 24,u
-; O3-NEXT:    std 8,u
-; O3-NEXT:    ldb 7,u
-; O3-NEXT:    stb 19,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 6,u
-; O3-NEXT:    stb 14,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 11,u
-; O3-NEXT:    stb 18,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 10,u
-; O3-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 9,u
-; O3-NEXT:    stb 16,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 8,u
-; O3-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O3-NEXT:    stx 10,u
-; O3-NEXT:    ldb 11,u
-; O3-NEXT:    lda 10,u
-; O3-NEXT:    addb 31,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O3-NEXT:    adca 30,u
-; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O3-NEXT:    leas -10,s
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd 18,s
+; O3-NEXT:    std <__rs2
+; O3-NEXT:    puls d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd 16,s
+; O3-NEXT:    std <__rs0
+; O3-NEXT:    puls d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd 14,s
+; O3-NEXT:    std <__rs1
+; O3-NEXT:    puls d
+; O3-NEXT:    ldb <__rs2lo
+; O3-NEXT:    stb 9,s ; 1-byte Folded Spill
+; O3-NEXT:    pshs a
+; O3-NEXT:    lda <__rs2hi
+; O3-NEXT:    tfr a,b
+; O3-NEXT:    puls a
+; O3-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O3-NEXT:    ldb <__rs0lo
+; O3-NEXT:    stb 8,s ; 1-byte Folded Spill
+; O3-NEXT:    pshs a
+; O3-NEXT:    lda <__rs0hi
+; O3-NEXT:    tfr a,b
+; O3-NEXT:    puls a
+; O3-NEXT:    stb 7,s ; 1-byte Folded Spill
+; O3-NEXT:    ldb <__rs1lo
+; O3-NEXT:    stb 6,s ; 1-byte Folded Spill
+; O3-NEXT:    pshs a
+; O3-NEXT:    lda <__rs1hi
+; O3-NEXT:    tfr a,b
+; O3-NEXT:    puls a
+; O3-NEXT:    stb 5,s ; 1-byte Folded Spill
+; O3-NEXT:    stx <__rs0
+; O3-NEXT:    ldb <__rs0lo
+; O3-NEXT:    lda <__rs0hi
+; O3-NEXT:    addb 19,s
+; O3-NEXT:    stb 3,s ; 1-byte Folded Spill
+; O3-NEXT:    adca 18,s
+; O3-NEXT:    sta 2,s ; 1-byte Folded Spill
+; O3-NEXT:    lda 9,s ; 1-byte Folded Reload
 ; O3-NEXT:    adca #0
-; O3-NEXT:    sta 19,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 14,u ; 1-byte Folded Reload
+; O3-NEXT:    sta 9,s ; 1-byte Folded Spill
+; O3-NEXT:    ldb 4,s ; 1-byte Folded Reload
 ; O3-NEXT:    adcb #0
-; O3-NEXT:    stb 14,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 18,u ; 1-byte Folded Reload
+; O3-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O3-NEXT:    ldb 8,s ; 1-byte Folded Reload
 ; O3-NEXT:    adcb #0
-; O3-NEXT:    stb 18,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 17,u ; 1-byte Folded Reload
+; O3-NEXT:    stb 8,s ; 1-byte Folded Spill
+; O3-NEXT:    ldb 7,s ; 1-byte Folded Reload
 ; O3-NEXT:    adcb #0
-; O3-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 16,u ; 1-byte Folded Reload
+; O3-NEXT:    stb 7,s ; 1-byte Folded Spill
+; O3-NEXT:    ldb 6,s ; 1-byte Folded Reload
 ; O3-NEXT:    adcb #0
-; O3-NEXT:    stb 16,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O3-NEXT:    stb 6,s ; 1-byte Folded Spill
+; O3-NEXT:    ldb 5,s ; 1-byte Folded Reload
 ; O3-NEXT:    adcb #0
-; O3-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O3-NEXT:    std 2,u
-; O3-NEXT:    std 4,u
-; O3-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O3-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O3-NEXT:    std 2,u
-; O3-NEXT:    std 10,u
-; O3-NEXT:    ldb 18,u ; 1-byte Folded Reload
-; O3-NEXT:    lda 17,u ; 1-byte Folded Reload
-; O3-NEXT:    std 2,u
-; O3-NEXT:    std 8,u
-; O3-NEXT:    ldb 16,u ; 1-byte Folded Reload
-; O3-NEXT:    lda 15,u ; 1-byte Folded Reload
-; O3-NEXT:    std 2,u
-; O3-NEXT:    std 6,u
+; O3-NEXT:    stb 5,s ; 1-byte Folded Spill
+; O3-NEXT:    ldb 3,s ; 1-byte Folded Reload
+; O3-NEXT:    lda 2,s ; 1-byte Folded Reload
+; O3-NEXT:    pshs d
+; O3-NEXT:    std <__rs3
+; O3-NEXT:    puls d
+; O3-NEXT:    ldb 9,s ; 1-byte Folded Reload
+; O3-NEXT:    lda 4,s ; 1-byte Folded Reload
+; O3-NEXT:    pshs d
+; O3-NEXT:    std <__rs0
+; O3-NEXT:    puls d
+; O3-NEXT:    ldb 8,s ; 1-byte Folded Reload
+; O3-NEXT:    lda 7,s ; 1-byte Folded Reload
+; O3-NEXT:    pshs d
+; O3-NEXT:    std <__rs1
+; O3-NEXT:    puls d
+; O3-NEXT:    ldb 6,s ; 1-byte Folded Reload
+; O3-NEXT:    lda 5,s ; 1-byte Folded Reload
+; O3-NEXT:    pshs d
+; O3-NEXT:    std <__rs2
+; O3-NEXT:    puls d
 ; O3-NEXT:    ldx #g
-; O3-NEXT:    ldd 4,u
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd <__rs3
 ; O3-NEXT:    std 6,x
-; O3-NEXT:    ldd 10,u
+; O3-NEXT:    puls d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd <__rs0
 ; O3-NEXT:    std 4,x
-; O3-NEXT:    ldd 8,u
+; O3-NEXT:    puls d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd <__rs1
 ; O3-NEXT:    std 2,x
-; O3-NEXT:    ldd 6,u
+; O3-NEXT:    puls d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd <__rs2
 ; O3-NEXT:    std g
-; O3-NEXT:    tfr u,s
-; O3-NEXT:    puls u
-; O3-NEXT:    leas 20,s
+; O3-NEXT:    puls d
+; O3-NEXT:    leas 10,s
 ; O3-NEXT:    rts
   %ext = zext i16 %a to i64
   %sum = add i64 %ext, %b

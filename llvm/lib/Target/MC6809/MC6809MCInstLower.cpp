@@ -114,15 +114,20 @@ bool MC6809MCInstLower::lowerOperand(const MachineOperand &MO, MCOperand &MCOp) 
     if (MO.isImplicit())
       return false;
     Register Reg = MO.getReg();
-    // Convert imaginary registers to symbol references (direct-page addresses).
-    if (MC6809::Imag16RegClass.contains(Reg) ||
-        MC6809::Imag8RegClass.contains(Reg)) {
-      const auto &TRI =
-          *MO.getParent()->getMF()->getSubtarget().getRegisterInfo();
-      const MC6809RegisterInfo &MC6809TRI =
-          static_cast<const MC6809RegisterInfo &>(TRI);
+    // Convert imaginary registers to symbol references (direct-page
+    // addresses). Keyed off the symbol-name table rather than the Imag8/
+    // Imag16 classes: the RS byte sub-registers (RS0HI..RS3LO) belong to
+    // neither class but have direct-page symbols of their own, and an
+    // allocated RS value accessed bytewise (EXTRACT_LO/HI on an RS-homed
+    // i16) reaches here through them.
+    const auto &TRI =
+        *MO.getParent()->getMF()->getSubtarget().getRegisterInfo();
+    const MC6809RegisterInfo &MC6809TRI =
+        static_cast<const MC6809RegisterInfo &>(TRI);
+    const char *SymName = MC6809TRI.getImag8SymbolName(Reg);
+    if (SymName && SymName[0]) {
       const MCExpr *Expr = MCSymbolRefExpr::create(
-          Ctx.getOrCreateSymbol(MC6809TRI.getImag8SymbolName(Reg)), Ctx);
+          Ctx.getOrCreateSymbol(SymName), Ctx);
       MCOp = MCOperand::createExpr(Expr);
     } else
       MCOp = MCOperand::createReg(Reg);

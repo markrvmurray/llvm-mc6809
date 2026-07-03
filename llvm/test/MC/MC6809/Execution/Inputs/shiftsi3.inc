@@ -1,18 +1,22 @@
 ;;; shiftsi3.inc — 32-bit variable shift library functions
 ;;;
-;;; ABI (gcc6809 sret-style, ABI #4):
+;;; ABI (matches compiler-rt lib/builtins/mc6809/*si3.S):
 ;;;   IX        = sret pointer (caller-allocated 4-byte buffer)
 ;;;   2,s..3,s  = value high half
 ;;;   4,s..5,s  = value low half
-;;;   B         = shift count (i8; high bits ignored)
+;;;   6,s..7,s  = shift count (i16 stack slot; low byte at 7,s)
+;;;
+;;; The count is read from its stack slot, NOT from B: the compiler
+;;; passes all three arguments on the stack, and relying on the count
+;;; happening to linger in B after the caller's marshalling store was
+;;; a latent accident that broke once stores stage through D.
 ;;; Result is written through IX: hi at IX+0, lo at IX+2 (big-endian).
 ;;; Clobbers: D. Preserves: Y, U.
 ;;;
 ;;; The shift is performed in place at [IX..IX+3]. The destination
 ;;; buffer is the workspace, so no stack frame is needed.
 
-;;; Copy the input value (2,s..5,s) into [IX..IX+3] using A only,
-;;; preserving B (which holds the shift count). LDD would clobber B.
+;;; Copy the input value (2,s..5,s) into [IX..IX+3] using A only.
 ;;; Macro-style sequence used by all three shift functions.
 
 ;;; __ashlsi3 — 32-bit left shift
@@ -27,7 +31,8 @@ __ashlsi3:
 	sta	2,x
 	lda	5,s		; copy value_lo byte 1
 	sta	3,x
-	tstb			; shift count in B (preserved)
+	ldb	7,s		; shift count (low byte of the i16 slot)
+	andb	#31
 	beq	.Lshl32_done
 .Lshl32_loop:
 	asl	3,x		; shift LSB byte left
@@ -51,7 +56,8 @@ __lshrsi3:
 	sta	2,x
 	lda	5,s
 	sta	3,x
-	tstb
+	ldb	7,s		; shift count (low byte of the i16 slot)
+	andb	#31
 	beq	.Llsr32_done
 .Llsr32_loop:
 	lsr	,x		; shift MSB byte right (zero-fill)
@@ -75,7 +81,8 @@ __ashrsi3:
 	sta	2,x
 	lda	5,s
 	sta	3,x
-	tstb
+	ldb	7,s		; shift count (low byte of the i16 slot)
+	andb	#31
 	beq	.Lasr32_done
 .Lasr32_loop:
 	asr	,x		; arithmetic shift MSB byte right

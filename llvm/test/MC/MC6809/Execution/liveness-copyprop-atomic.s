@@ -77,10 +77,11 @@
 ; CHECK: 1709
 ; CHECK-NEXT: 0F0F
 
-; Frame base re-materialised into an index register, then reloaded from the
-; frame slot — the atomic-TFR + index-reload shape the passes act on.
-; Either index register satisfies the guard: with the SPILL_X escape
-; registers retired the reload may allocate to IX or IY, and the page-1
-; preference pass renames IY ranges to IX where IX is free.
-; TRIGGER: tfr s,u
-; TRIGGER: ld{{[xy]}} {{[0-9]+}},u
+; A pointer re-materialised into an index register by reloading it from
+; memory — the index-reload shape the copy-propagation guards act on.
+; Either index register satisfies the guard, and the reload source may be
+; a U-relative frame slot or (with the RS imaginaries allocatable and the
+; frame pointer dropped for RS-resident locals) a direct-page imaginary.
+; The historical `tfr s,u` anchor is gone with the frame pointer; the
+; reload itself is what feeds the guarded passes.
+; TRIGGER: ld{{[xy]}} {{([0-9]+,u|<__rs[0-3])}}

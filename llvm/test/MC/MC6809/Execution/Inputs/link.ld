@@ -52,11 +52,16 @@ SECTIONS {
         __rc5 = .; . += 1;
         __rc6 = .; . += 1;
         __rc7 = .; . += 1;
-        /* 16-bit pool: RS0..RS3 at $08-$0F */
+        /* 16-bit pool: RS0..RS3 at $08-$0F. Byte sub-register aliases:
+           big-endian, HI at the base address, LO at base+1. */
         __rs0 = .; . += 2;
         __rs1 = .; . += 2;
         __rs2 = .; . += 2;
         __rs3 = .; . += 2;
+        __rs0hi = __rs0; __rs0lo = __rs0 + 1;
+        __rs1hi = __rs1; __rs1lo = __rs1 + 1;
+        __rs2hi = __rs2; __rs2lo = __rs2 + 1;
+        __rs3hi = __rs3; __rs3lo = __rs3 + 1;
         /* Remaining (for future expansion) */
         __rc8 = .; . += 1; __rc9 = .; . += 1;
         __rc10 = .; . += 1; __rc11 = .; . += 1;

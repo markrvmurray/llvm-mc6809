@@ -12,23 +12,21 @@ target triple = "mc6809-unknown-unknown"
 define dso_local range(i16 7, 10) i16 @e_ind(ptr noundef readonly captures(none) %pp, i8 noundef zeroext %x) local_unnamed_addr #0 {
 ; MC6809-LABEL: e_ind:
 ; MC6809:       ; %bb.0: ; %entry
-; MC6809-NEXT:    leas -7,s
-; MC6809-NEXT:    pshs u
-; MC6809-NEXT:    tfr s,u
-; MC6809-NEXT:    stb 4,u
+; MC6809-NEXT:    leas -2,s
+; MC6809-NEXT:    pshs d
 ; MC6809-NEXT:    ldd #7
-; MC6809-NEXT:    std 5,u
-; MC6809-NEXT:    ldb 4,u
+; MC6809-NEXT:    std <__rs0
+; MC6809-NEXT:    puls d
 ; MC6809-NEXT:    cmpb [,x]
 ; MC6809-NEXT:    lbeq .LBB0_2
 ; MC6809-NEXT:  ; %bb.1: ; %select.false
+; MC6809-NEXT:    pshs d
 ; MC6809-NEXT:    ldd #9
-; MC6809-NEXT:    std 5,u
+; MC6809-NEXT:    std <__rs0
+; MC6809-NEXT:    puls d
 ; MC6809-NEXT:  .LBB0_2: ; %select.end
-; MC6809-NEXT:    ldx 5,u
-; MC6809-NEXT:    tfr u,s
-; MC6809-NEXT:    puls u
-; MC6809-NEXT:    leas 7,s
+; MC6809-NEXT:    ldx <__rs0
+; MC6809-NEXT:    leas 2,s
 ; MC6809-NEXT:    rts
 ;
 ; HD6309-LABEL: e_ind:
@@ -55,23 +53,21 @@ entry:
 define dso_local range(i16 7, 10) i16 @l_ind(ptr noundef readonly captures(none) %pp, i8 noundef zeroext %x) local_unnamed_addr #0 {
 ; MC6809-LABEL: l_ind:
 ; MC6809:       ; %bb.0: ; %entry
-; MC6809-NEXT:    leas -7,s
-; MC6809-NEXT:    pshs u
-; MC6809-NEXT:    tfr s,u
-; MC6809-NEXT:    stb 4,u
+; MC6809-NEXT:    leas -2,s
+; MC6809-NEXT:    pshs d
 ; MC6809-NEXT:    ldd #7
-; MC6809-NEXT:    std 5,u
-; MC6809-NEXT:    ldb 4,u
+; MC6809-NEXT:    std <__rs0
+; MC6809-NEXT:    puls d
 ; MC6809-NEXT:    cmpb [,x]
 ; MC6809-NEXT:    lbhi .LBB1_2
 ; MC6809-NEXT:  ; %bb.1: ; %select.false
+; MC6809-NEXT:    pshs d
 ; MC6809-NEXT:    ldd #9
-; MC6809-NEXT:    std 5,u
+; MC6809-NEXT:    std <__rs0
+; MC6809-NEXT:    puls d
 ; MC6809-NEXT:  .LBB1_2: ; %select.end
-; MC6809-NEXT:    ldx 5,u
-; MC6809-NEXT:    tfr u,s
-; MC6809-NEXT:    puls u
-; MC6809-NEXT:    leas 7,s
+; MC6809-NEXT:    ldx <__rs0
+; MC6809-NEXT:    leas 2,s
 ; MC6809-NEXT:    rts
 ;
 ; HD6309-LABEL: l_ind:
@@ -98,23 +94,21 @@ entry:
 define dso_local range(i16 7, 10) i16 @sw_ind(ptr noundef readonly captures(none) %pp, i8 noundef zeroext %x) local_unnamed_addr #0 {
 ; MC6809-LABEL: sw_ind:
 ; MC6809:       ; %bb.0: ; %entry
-; MC6809-NEXT:    leas -7,s
-; MC6809-NEXT:    pshs u
-; MC6809-NEXT:    tfr s,u
-; MC6809-NEXT:    stb 4,u
+; MC6809-NEXT:    leas -2,s
+; MC6809-NEXT:    pshs d
 ; MC6809-NEXT:    ldd #7
-; MC6809-NEXT:    std 5,u
-; MC6809-NEXT:    ldb 4,u
+; MC6809-NEXT:    std <__rs0
+; MC6809-NEXT:    puls d
 ; MC6809-NEXT:    cmpb [,x]
 ; MC6809-NEXT:    lbeq .LBB2_2
 ; MC6809-NEXT:  ; %bb.1: ; %select.false
+; MC6809-NEXT:    pshs d
 ; MC6809-NEXT:    ldd #9
-; MC6809-NEXT:    std 5,u
+; MC6809-NEXT:    std <__rs0
+; MC6809-NEXT:    puls d
 ; MC6809-NEXT:  .LBB2_2: ; %select.end
-; MC6809-NEXT:    ldx 5,u
-; MC6809-NEXT:    tfr u,s
-; MC6809-NEXT:    puls u
-; MC6809-NEXT:    leas 7,s
+; MC6809-NEXT:    ldx <__rs0
+; MC6809-NEXT:    leas 2,s
 ; MC6809-NEXT:    rts
 ;
 ; HD6309-LABEL: sw_ind:
@@ -141,27 +135,24 @@ entry:
 define dso_local range(i16 7, 10) i16 @e16(ptr noundef readonly captures(none) %pp, i16 noundef zeroext %x) local_unnamed_addr #0 {
 ; MC6809-LABEL: e16:
 ; MC6809:       ; %bb.0: ; %entry
-; MC6809-NEXT:    leas -8,s
-; MC6809-NEXT:    pshs u
-; MC6809-NEXT:    tfr s,u
-; MC6809-NEXT:    ldd 12,u
-; MC6809-NEXT:    std 6,u
+; MC6809-NEXT:    leas -2,s
+; MC6809-NEXT:    pshs d
+; MC6809-NEXT:    ldd 6,s
+; MC6809-NEXT:    std <__rs0
+; MC6809-NEXT:    puls d
 ; MC6809-NEXT:    ldd #7
-; MC6809-NEXT:    std 4,u
-; MC6809-NEXT:    ldd 6,u
+; MC6809-NEXT:    pshs d
+; MC6809-NEXT:    pshs d
+; MC6809-NEXT:    ldd <__rs0
 ; MC6809-NEXT:    cmpd [,x]
-; MC6809-NEXT:    bne .LBB3_2
-; MC6809-NEXT:  ; %bb.1: ; %entry
-; MC6809-NEXT:    ldd 4,u
-; MC6809-NEXT:    bra .LBB3_3
-; MC6809-NEXT:  .LBB3_2: ; %select.false
-; MC6809-NEXT:    ldd 4,u
+; MC6809-NEXT:    puls d
+; MC6809-NEXT:    puls d
+; MC6809-NEXT:    lbeq .LBB3_2
+; MC6809-NEXT:  ; %bb.1: ; %select.false
 ; MC6809-NEXT:    ldd #9
-; MC6809-NEXT:  .LBB3_3: ; %select.end
+; MC6809-NEXT:  .LBB3_2: ; %select.end
 ; MC6809-NEXT:    tfr d,x
-; MC6809-NEXT:    tfr u,s
-; MC6809-NEXT:    puls u
-; MC6809-NEXT:    leas 8,s
+; MC6809-NEXT:    leas 2,s
 ; MC6809-NEXT:    rts
 ;
 ; HD6309-LABEL: e16:

@@ -100,12 +100,21 @@ BitVector MC6809RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   // mid-allocation (was bug #16).
   Reserved.set(MC6809::SU);
 
-  // Imaginary registers are direct-page memory locations, not CPU registers.
-  // Reserve them so the verifier doesn't track their liveness.
+  // The RC byte imaginaries are direct-page memory locations used only as
+  // materialisation scratch -- reserve them so the verifier doesn't track
+  // their liveness.
   for (MCPhysReg Reg : MC6809::Imag8RegClass)
     Reserved.set(Reg);
-  for (MCPhysReg Reg : MC6809::Imag16RegClass)
-    Reserved.set(Reg);
+  // The RS 16-bit imaginaries, by contrast, are genuine allocation targets
+  // (the MOS model): with the SPILL_D escape registers retired, they are
+  // what makes ADc/ACC16 more than a single register on plain 6809 -- a
+  // reg-reg i16 compare needs BOTH operands placed somewhere at one
+  // instruction. Every expansion already handles an RS operand (direct-page
+  // opcode forms, materializeReg staging, the Imag16 spill-slot path).
+  // They are deliberately NOT in the call-preserved mask: the direct-page
+  // addresses are per-CPU, not per-frame, so values in them do not survive
+  // calls (recursion included) and the allocator must keep their live
+  // ranges call-free.
 
   // HD6309-only registers: reserve on standard 6809.
   const MC6809Subtarget &STI = MF.getSubtarget<MC6809Subtarget>();
@@ -167,10 +176,15 @@ const uint32_t *MC6809RegisterInfo::getCallPreservedMask(const MachineFunction &
                           // SPILL_X0-X3 were removed from INDEX16 allocation
                           // (stock-spilling migration); pointers that must
                           // survive calls now live in ordinary spill slots.
-                          // RS imaginary 16-bit regs and their byte sub-regs (memory-backed = call-preserved)
-                          MC6809::RS0, MC6809::RS1, MC6809::RS2, MC6809::RS3,
-                          MC6809::RS0HI, MC6809::RS0LO, MC6809::RS1HI, MC6809::RS1LO,
-                          MC6809::RS2HI, MC6809::RS2LO, MC6809::RS3HI, MC6809::RS3LO}) {
+                          //
+                          // The RS/RC imaginaries are deliberately NOT in
+                          // this mask: unlike the SPILL_* slots (U-relative,
+                          // one per frame) they live at FIXED direct-page
+                          // addresses shared by every function, so a callee
+                          // that allocates the same imaginary clobbers the
+                          // caller's value. Their live ranges must stay
+                          // call-free.
+                          }) {
       SpillPreservedMask[Reg / 32] |= (1u << (Reg % 32));
     }
     Initialized = true;

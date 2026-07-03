@@ -22,9 +22,11 @@
 
 ; CHECK-LABEL: t1:
 ; The high-byte add-with-carry consumes its RHS from the stack (pushed
-; from the other half), proving the two operands did not collapse.
-; CHECK: pshs {{[ab]}}
-; CHECK-NEXT: adc{{[ab]}} ,s+
+; from the other half), proving the two operands did not collapse. The
+; `,s+` post-increment read implies the matching push; the push itself is
+; not anchored because RS-staging brackets now emit unrelated pshs/puls
+; pairs earlier in the function.
+; CHECK: adc{{[ab]}} ,s+
 
 target datalayout = "E-p:16:8-p1:8:8-S8-m:e-i1:8-i8:8-i16:8-i32:8-i64:8-f32:8-f64:8-a:0-n8:16"
 

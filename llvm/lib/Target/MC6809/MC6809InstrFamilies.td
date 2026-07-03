@@ -1055,9 +1055,12 @@ multiclass MC6809SetIfCondPat<CondCode CC, int cc, ValueType vtype, RegisterClas
   def _i8_Unmerge_Idx_Imm : Pat<(i8 (anyext (i1 (setcc reg:$src, (am_unmerge_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)))), (ConditionalImm cc, (!cast<Instruction>("Compare_"#vtype#"_Mem") cc, reg:$src, INDEX16:$idx, imm:$offset), 1, 0)>;
   def _i8_Idx_Reg8 : Pat<(i8 (anyext (i1 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC8:$offset), CC)))), (ConditionalImm cc, (!cast<Instruction>("Compare_"#vtype#"_Mem") cc, reg:$src, INDEX16:$idx, ACC8:$offset), 1, 0)>;
   def _i8_Idx_Reg16 : Pat<(i8 (anyext (i1 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC16:$offset), CC)))), (ConditionalImm cc, (!cast<Instruction>("Compare_"#vtype#"_Mem") cc, reg:$src, INDEX16:$idx, ACC16:$offset), 1, 0)>;
-  // One reg-reg compare for both CPUs: expandCompareReg emits CMPR on
-  // HD6309 and the atomic PSHS / CMPx 0,S / LEAS fallback on plain 6809.
-  def _i8_Reg : Pat<(i8 (anyext (i1 (setcc reg:$src, reg:$src2, CC)))), (ConditionalImm cc, (!cast<Instruction>("Compare_"#vtype#"_Reg") cc, reg:$src, reg:$src2), 1, 0)>;
+  // No reg-reg pattern: selectImpl runs BEFORE the C++ G_ICMP handling, and
+  // a tablegen reg-reg pattern would swallow every compare -- including the
+  // constant-RHS shapes whose G_CONSTANT hides behind a register-bank COPY
+  // that the `imm` matcher cannot see through. The C++ path emits
+  // Compare_*_Imm / _Mem / _Reg with the right priority on both CPUs
+  // (expandCompareReg provides the plain-6809 reg-reg fallback).
 }
 
 multiclass MC6809SetIfCompCondPat<CondCode CC, int ccode> {
@@ -1456,9 +1459,9 @@ multiclass MC6809CompBraPat<CondCode CC, int cc, ValueType vtype, RegisterClass 
     def _Unmerge_Idx_Imm : Pat<(brcond (i1 (setcc reg:$src, (am_unmerge_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), bb:$tgt), (!cast<Instruction>("CompareBranch_"#vtype#"_Mem") cc, reg:$src, INDEX16:$idx, imm:$offset, bb:$tgt)>;
     def _Idx_Reg8 : Pat<(brcond (i1 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC8:$offset), CC)), bb:$tgt), (!cast<Instruction>("CompareBranch_"#vtype#"_Mem") cc, reg:$src, INDEX16:$idx, ACC8:$offset, bb:$tgt)>;
     def _Idx_Reg16 : Pat<(brcond (i1 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC16:$offset), CC)), bb:$tgt), (!cast<Instruction>("CompareBranch_"#vtype#"_Mem") cc, reg:$src, INDEX16:$idx, ACC16:$offset, bb:$tgt)>;
-    // One reg-reg compare-branch for both CPUs (same model as the ptr
-    // branch below): expandCompareReg supplies the plain-6809 fallback.
-    def _Reg : Pat<(brcond (i1 (setcc reg:$src, reg:$src2, CC)), bb:$tgt), (!cast<Instruction>("CompareBranch_"#vtype#"_Reg") cc, reg:$src, reg:$src2, bb:$tgt)>;
+    // No reg-reg pattern -- same reason as MC6809SetIfCondPat above: the
+    // C++ G_BRCOND handling (which runs after selectImpl fails) owns the
+    // imm/mem/reg-reg priority for fused compare-branches on both CPUs.
   } else {
     // Index/pointer compare-branch. Prefer folding a memory operand into the
     // compare's own addressing mode (CMPX/CMPY off,r) — set up here at ISel so

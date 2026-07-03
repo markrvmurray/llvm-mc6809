@@ -21,45 +21,49 @@ declare void @sink(i16)
 define i16 @cond_skip_join(i16 %x, i16 %a, i16 %b) {
 ; O0-LABEL: cond_skip_join:
 ; O0:       ; %bb.0: ; %entry
-; O0-NEXT:    leas -8,s
+; O0-NEXT:    leas -2,s
 ; O0-NEXT:    pshs u
 ; O0-NEXT:    tfr s,u
-; O0-NEXT:    ldd 12,u
-; O0-NEXT:    std 4,u
-; O0-NEXT:    ldd 14,u
-; O0-NEXT:    std 6,u
-; O0-NEXT:    ldd 4,u
+; O0-NEXT:    ldd 6,u
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd 8,u
+; O0-NEXT:    std <__rs0
+; O0-NEXT:    puls d
 ; O0-NEXT:    cmpx #0
 ; O0-NEXT:    lbne .LBB0_2
 ; O0-NEXT:  ; %bb.1: ; %if.then
 ; O0-NEXT:    tfr d,x
 ; O0-NEXT:    lbsr sink
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd 8,u
+; O0-NEXT:    std <__rs0
+; O0-NEXT:    puls d
 ; O0-NEXT:    lbra .LBB0_2
 ; O0-NEXT:  .LBB0_2: ; %if.end
-; O0-NEXT:    ldx 6,u
+; O0-NEXT:    ldx <__rs0
 ; O0-NEXT:    tfr u,s
 ; O0-NEXT:    puls u
-; O0-NEXT:    leas 8,s
+; O0-NEXT:    leas 2,s
 ; O0-NEXT:    rts
 ;
 ; O2-LABEL: cond_skip_join:
 ; O2:       ; %bb.0: ; %entry
-; O2-NEXT:    leas -6,s
+; O2-NEXT:    leas -2,s
 ; O2-NEXT:    pshs u
 ; O2-NEXT:    tfr s,u
-; O2-NEXT:    ldd 12,u
-; O2-NEXT:    std 4,u
+; O2-NEXT:    ldd 8,u
 ; O2-NEXT:    cmpx #0
 ; O2-NEXT:    bne .LBB0_2
 ; O2-NEXT:  ; %bb.1: ; %if.then
-; O2-NEXT:    ldd 10,u
+; O2-NEXT:    ldd 6,u
 ; O2-NEXT:    tfr d,x
 ; O2-NEXT:    lbsr sink
+; O2-NEXT:    ldd 8,u
 ; O2-NEXT:  .LBB0_2: ; %if.end
-; O2-NEXT:    ldx 4,u
+; O2-NEXT:    tfr d,x
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u
-; O2-NEXT:    leas 6,s
+; O2-NEXT:    leas 2,s
 ; O2-NEXT:    rts
 entry:
   %t = icmp eq i16 %x, 0
