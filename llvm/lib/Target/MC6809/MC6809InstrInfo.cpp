@@ -2440,6 +2440,50 @@ MachineInstr *MC6809InstrInfo::foldMemoryOperandImpl(
     return NewMI;
   }
 
+  // Fold a spilled byte half of MERGE_LOHI_i16 into its _MemLo/_MemHi
+  // sibling: the expansion reads that half straight from the slot, so the
+  // spiller needs no register for the reload. This was the last remaining
+  // greedy deadlock once the byte spill pseudo-registers were retired --
+  // the reload's INF-weight single-byte interval could find both AA and
+  // AB blocked by physical interference at an fp-heavy merge point.
+  if (Opc == MC6809::MERGE_LOHI_i16 && Ops.size() == 1 &&
+      (Ops[0] == 1 || Ops[0] == 2)) {
+    bool FoldLo = (Ops[0] == 1);
+    const MachineOperand &Kept = MI.getOperand(FoldLo ? 2 : 1);
+    MachineBasicBlock &MBB = *MI.getParent();
+    MachineInstr *NewMI =
+        BuildMI(MBB, InsertPt, MI.getDebugLoc(),
+                get(FoldLo ? MC6809::MERGE_LOHI_i16_MemLo
+                           : MC6809::MERGE_LOHI_i16_MemHi))
+            .add(MI.getOperand(0))
+            .add(Kept)
+            .addFrameIndex(FrameIndex, 0)
+            .addImm(0);
+    return NewMI;
+  }
+  // The remaining register half of an already half-folded merge also
+  // spilled: fold it too (both halves then read straight from their
+  // slots).
+  if ((Opc == MC6809::MERGE_LOHI_i16_MemLo ||
+       Opc == MC6809::MERGE_LOHI_i16_MemHi) &&
+      Ops.size() == 1 && Ops[0] == 1) {
+    bool HadMemLo = (Opc == MC6809::MERGE_LOHI_i16_MemLo);
+    MachineBasicBlock &MBB = *MI.getParent();
+    auto MIB = BuildMI(MBB, InsertPt, MI.getDebugLoc(),
+                       get(MC6809::MERGE_LOHI_i16_Mem2))
+                   .add(MI.getOperand(0));
+    if (HadMemLo) {
+      // Existing mem operand is the LO slot; the folded reg was HI.
+      MIB.add(MI.getOperand(2)).add(MI.getOperand(3));
+      MIB.addFrameIndex(FrameIndex, 0).addImm(0);
+    } else {
+      // Folded reg was LO; existing mem operand is the HI slot.
+      MIB.addFrameIndex(FrameIndex, 0).addImm(0);
+      MIB.add(MI.getOperand(2)).add(MI.getOperand(3));
+    }
+    return MIB;
+  }
+
   // Fold a spilled second source of a two-source _Reg pseudo into its _Mem
   // sibling (see memFoldSibling above). The rebuilt instruction reads that
   // operand from the frame slot in place; eliminateFrameIndex later supplies
@@ -3505,6 +3549,81 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
       // unreachable in MC6809; kept for safety if ADc grows.
       Builder.buildInstr(MC6809::TFRp).addDef(DstReg).addUse(MC6809::AD);
     }
+    MI.eraseFromParent();
+    return true;
+  }
+  case MC6809::MERGE_LOHI_i16_Mem2: {
+    // Both merge halves read straight from their frame slots.
+    MachineFunction &MF = *MI.getMF();
+    Register DstReg = MI.getOperand(0).getReg();
+    auto ReadOff = [&](unsigned I) -> int64_t {
+      const MachineOperand &MO = MI.getOperand(I);
+      return MO.isImm() ? MO.getImm() : MO.getCImm()->getSExtValue();
+    };
+    Register LBase = MI.getOperand(1).getReg();
+    int64_t LOff = ReadOff(2);
+    Register HBase = MI.getOperand(3).getReg();
+    int64_t HOff = ReadOff(4);
+    Register OrigDst = DstReg;
+    bool StageDst = needsMaterialization(DstReg);
+    if (StageDst) {
+      pushStagingReg(Builder, MC6809::AD);
+      if (LBase == MC6809::SS)
+        LOff += 2;
+      if (HBase == MC6809::SS)
+        HOff += 2;
+    }
+    auto Emit = [&](bool IsLo, Register Base, int64_t Off) {
+      bool Fits8 = (Off >= -128 && Off <= 127);
+      unsigned LdOpc = IsLo ? (Fits8 ? MC6809::LDBi_o8 : MC6809::LDBi_o16)
+                            : (Fits8 ? MC6809::LDAi_o8 : MC6809::LDAi_o16);
+      Builder.buildInstr(LdOpc)
+          .addDef(IsLo ? MC6809::AB : MC6809::AA, RegState::Implicit)
+          .addImm(Off)
+          .addReg(Base);
+    };
+    Emit(/*IsLo=*/true, LBase, LOff);
+    Emit(/*IsLo=*/false, HBase, HOff);
+    dematerializeReg(Builder, MC6809::AD, OrigDst, MF);
+    if (StageDst)
+      pullStagingReg(Builder, MC6809::AD);
+    MI.eraseFromParent();
+    return true;
+  }
+  case MC6809::MERGE_LOHI_i16_MemLo:
+  case MC6809::MERGE_LOHI_i16_MemHi: {
+    // Merge where one byte half was spilled and folded into a frame read
+    // (see foldMemoryOperandImpl). Stage the register half into its AD
+    // half, then load the spilled half straight from the slot. The slot
+    // operand was rewritten to (base, offset) by eliminateFrameIndex.
+    MachineFunction &MF = *MI.getMF();
+    bool MemIsLo = (MI.getOpcode() == MC6809::MERGE_LOHI_i16_MemLo);
+    Register DstReg = MI.getOperand(0).getReg();
+    Register KeptReg = MI.getOperand(1).getReg();
+    Register BaseReg = MI.getOperand(2).getReg();
+    const MachineOperand &OffOp = MI.getOperand(3);
+    int64_t Off = OffOp.isImm() ? OffOp.getImm()
+                                : OffOp.getCImm()->getSExtValue();
+    Register OrigDst = DstReg;
+    bool StageDst = needsMaterialization(DstReg);
+    if (StageDst)
+      pushStagingReg(Builder, MC6809::AD);
+    // If the push shifted S and the slot is S-relative, compensate.
+    if (StageDst && BaseReg == MC6809::SS)
+      Off += 2;
+    // Register half first (its source may be AA/AB and would otherwise be
+    // clobbered by the memory load into the other half).
+    loadByteInto(Builder, MemIsLo ? MC6809::AA : MC6809::AB, KeptReg, MF);
+    bool Fits8 = (Off >= -128 && Off <= 127);
+    unsigned LdOpc = MemIsLo ? (Fits8 ? MC6809::LDBi_o8 : MC6809::LDBi_o16)
+                             : (Fits8 ? MC6809::LDAi_o8 : MC6809::LDAi_o16);
+    Builder.buildInstr(LdOpc)
+        .addDef(MemIsLo ? MC6809::AB : MC6809::AA, RegState::Implicit)
+        .addImm(Off)
+        .addReg(BaseReg);
+    dematerializeReg(Builder, MC6809::AD, OrigDst, MF);
+    if (StageDst)
+      pullStagingReg(Builder, MC6809::AD);
     MI.eraseFromParent();
     return true;
   }
@@ -4722,6 +4841,7 @@ void MC6809InstrInfo::expandImm(ContextImmediate Context, MachineIRBuilder &Buil
     pushStagingReg(Builder, getPhysRegFor(DestReg));
     Register RealReg = materializeReg(Builder, DestReg, MF);
     MI.getOperand(0).setReg(RealReg);
+    MI.getOperand(0).setIsDead(false); // demat below reads the staging real
     if (operandCount >= 3 && MI.getOperand(1).isReg() && MI.getOperand(1).getReg() == DestReg)
       MI.getOperand(1).setReg(RealReg);
     DestReg = RealReg;
@@ -4851,6 +4971,7 @@ void MC6809InstrInfo::expandIdxImm(ContextIndexImmediate Context, MachineIRBuild
     compensateSSOperands(MI, stagingPushSize(StageReal));
     Register RealReg = materializeReg(Builder, DestReg, MF);
     MI.getOperand(0).setReg(RealReg);
+    MI.getOperand(0).setIsDead(false); // demat below reads the staging real
     // Also fix the tied source operand (operand 1 for most arith pseudos).
     if (operandCount >= 3 && MI.getOperand(1).isReg() && MI.getOperand(1).getReg() == DestReg)
       MI.getOperand(1).setReg(RealReg);
@@ -5828,6 +5949,7 @@ void MC6809InstrInfo::expandNegate(MachineIRBuilder &Builder, MachineInstr &MI) 
     materializeReg(Builder, Reg, MF);
     // Rewrite operands to the real register.
     MI.getOperand(0).setReg(RealReg);
+    MI.getOperand(0).setIsDead(false); // demat below reads the staging real
     if (MI.getNumOperands() > 1 && MI.getOperand(1).isReg() &&
         MI.getOperand(1).getReg() == OrigReg)
       MI.getOperand(1).setReg(RealReg);
@@ -5919,6 +6041,7 @@ void MC6809InstrInfo::expandShiftLeft(MachineIRBuilder &Builder, MachineInstr &M
     PreBuilder.buildInstr(MC6809::PSHSs).addUse(RealReg, RegState::Undef);
     Reg = materializeReg(Builder, Reg, MF);
     MI.getOperand(0).setReg(Reg);
+    MI.getOperand(0).setIsDead(false); // demat below reads the staging real
     if (MI.getNumOperands() > 1 && MI.getOperand(1).isReg() &&
         MI.getOperand(1).getReg() == OrigReg)
       MI.getOperand(1).setReg(Reg);
@@ -5981,6 +6104,7 @@ void MC6809InstrInfo::expandShiftRight(MachineIRBuilder &Builder, MachineInstr &
     PreBuilder.buildInstr(MC6809::PSHSs).addUse(RealReg, RegState::Undef);
     Reg = materializeReg(Builder, Reg, MF);
     MI.getOperand(0).setReg(Reg);
+    MI.getOperand(0).setIsDead(false); // demat below reads the staging real
     if (MI.getNumOperands() > 1 && MI.getOperand(1).isReg() &&
         MI.getOperand(1).getReg() == OrigReg)
       MI.getOperand(1).setReg(Reg);
@@ -7013,6 +7137,7 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
       // approach below (rare; correctness over generality).
       Register RealReg = getPhysRegFor(DestRegOp.getReg());
       MI.getOperand(0).setReg(RealReg);
+      MI.getOperand(0).setIsDead(false); // demat below reads the staging real
       expandLoadIdx(Builder, MI);
       MachineBasicBlock::iterator InsertPt = MI.getIterator();
       ++InsertPt;
@@ -7040,6 +7165,10 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
       // the window must be displacement-compensated.
       compensateSSOperands(MI, stagingPushSize(RealReg));
       MI.getOperand(0).setReg(RealReg);
+      // The pseudo's def may be dead-marked (unused imaginary dest); the
+      // dematerialising store below READS the staging real, so the flag
+      // must not survive onto the rewritten load's def.
+      MI.getOperand(0).setIsDead(false);
       expandLoadIdx(Builder, MI);
       MachineBasicBlock::iterator InsertPt = MI.getIterator();
       ++InsertPt;

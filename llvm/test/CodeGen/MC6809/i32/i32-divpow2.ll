@@ -135,11 +135,11 @@ define i32 @sdiv_i32_2(i32 %x) {
 ; O2-NEXT:    adca 14,u
 ; O2-NEXT:    sta 7,u ; 1-byte Folded Spill
 ; O2-NEXT:    leas -6,s
-; O2-NEXT:    lda 4,u ; 1-byte Folded Reload
-; O2-NEXT:    exg a,b
+; O2-NEXT:    tfr b,a
+; O2-NEXT:    ldb 4,u
 ; O2-NEXT:    std 2,s
-; O2-NEXT:    ldb 8,u ; 1-byte Folded Reload
-; O2-NEXT:    lda 7,u ; 1-byte Folded Reload
+; O2-NEXT:    ldb 8,u
+; O2-NEXT:    lda 7,u
 ; O2-NEXT:    std ,s
 ; O2-NEXT:    ldd #1
 ; O2-NEXT:    std 4,s

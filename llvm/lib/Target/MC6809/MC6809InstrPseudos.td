@@ -134,28 +134,59 @@ let Defs = [NZ, V] in {
     let isAsCheapAsAMove = true;
   }
 
-  // ACC8_AB inputs (not the singleton ABc/AAc): the expansion is fully
-  // assignment-driven -- it stages any half combination into AD via
-  // loadByteInto, including the full (lo=AA, hi=AB) swap via EXG -- and
-  // two simultaneously-live distinct values can never share one physical
-  // register at the same instruction, so the historical both-in-AB hazard
-  // cannot arise. The old singleton constraint propagated through the
-  // tied byte carry chains feeding the merge (machine-cse folds any
-  // isolating COPY straight back), pinning whole overlapping chains to
-  // one register and making them unallocatable once the byte spill
-  // pseudo-registers were retired.
+  // Full ACC8 inputs (not ACC8_AB, and not the singleton ABc/AAc): the
+  // expansion is fully assignment-driven -- loadByteInto stages any
+  // source (real half, E/F, RC imaginary, RS byte half, byte spill) into
+  // the right half of AD, including the full (lo=AA, hi=AB) swap via EXG
+  // -- and two simultaneously-live distinct values can never share one
+  // physical register at the same instruction, so the historical
+  // both-in-AB hazard cannot arise. The old singleton constraint
+  // propagated through the tied byte carry chains feeding the merge
+  // (machine-cse folds any isolating COPY straight back), pinning whole
+  // overlapping chains to one register; and even the two-register
+  // ACC8_AB deadlocked once the byte spill pseudo-registers were
+  // retired: a spilled source's INF-weight reload could find both AA
+  // and AB blocked by physical interference, with no imaginary home
+  // admitted to take it.
   def MERGE_LOHI_i16 : MC6809Pseudo {
     dag OutOperandList = (outs ADc:$dst);
-    dag InOperandList  = (ins ACC8_AB:$lo, ACC8_AB:$hi);
+    dag InOperandList  = (ins ACC8:$lo, ACC8:$hi);
     let isAsCheapAsAMove = true;
   }
 
+  // Memory-operand siblings of MERGE_LOHI_i16: one byte half comes from a
+  // frame slot. foldMemoryOperandImpl rewrites a merge whose lo/hi operand
+  // was spilled into these, so the spiller never needs a register for the
+  // reload -- the INF-weight single-byte reload interval was the last
+  // remaining greedy deadlock shape once the byte spill pseudo-registers
+  // were retired (an fp-heavy merge point can have both AA and AB blocked
+  // by physical interference). The expansion loads the register half into
+  // its AD half via loadByteInto, then reads the spilled half straight
+  // from the slot with LDA/LDB.
+  def MERGE_LOHI_i16_MemLo : MC6809Pseudo {
+    dag OutOperandList = (outs ADc:$dst);
+    dag InOperandList  = (ins ACC8:$hi, INDEX16:$idx, unknown:$offset);
+    let mayLoad = true;
+  }
+  def MERGE_LOHI_i16_MemHi : MC6809Pseudo {
+    dag OutOperandList = (outs ADc:$dst);
+    dag InOperandList  = (ins ACC8:$lo, INDEX16:$idx, unknown:$offset);
+    let mayLoad = true;
+  }
+  // Both halves spilled: lo slot first, hi slot second.
+  def MERGE_LOHI_i16_Mem2 : MC6809Pseudo {
+    dag OutOperandList = (outs ADc:$dst);
+    dag InOperandList  = (ins INDEX16:$lidx, unknown:$loff,
+                              INDEX16:$hidx, unknown:$hoff);
+    let mayLoad = true;
+  }
+
   // The source byte becomes the low byte of the i16 result; high byte is
-  // left undefined. ACC8_AB (not ABc) for the same chain-pinning reason as
-  // MERGE_LOHI_i16 above; the expansion stages any source half into AB.
+  // left undefined. ACC8 for the same reasons as MERGE_LOHI_i16 above;
+  // the expansion stages any source into AB.
   def ANYEXT_i8_to_i16 : MC6809Pseudo {
     dag OutOperandList = (outs ADc:$dst);
-    dag InOperandList  = (ins ACC8_AB:$src);
+    dag InOperandList  = (ins ACC8:$src);
     let isAsCheapAsAMove = true;
   }
 

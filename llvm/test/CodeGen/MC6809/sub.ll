@@ -365,9 +365,10 @@ define dso_local i16 @sub_s_i16(i16 noundef %a, i16 noundef %b, i16 noundef %c, 
 ; O1-NEXT:    pshs a
 ; O1-NEXT:    subb ,s+
 ; O1-NEXT:    stb 4,s ; 1-byte Folded Spill
-; O1-NEXT:    lda 2,s ; 1-byte Folded Reload
-; O1-NEXT:    sbca 3,s
-; O1-NEXT:    ldb 4,s ; 1-byte Folded Reload
+; O1-NEXT:    ldb 2,s ; 1-byte Folded Reload
+; O1-NEXT:    sbcb 3,s
+; O1-NEXT:    tfr b,a
+; O1-NEXT:    ldb 4,s
 ; O1-NEXT:    tfr d,x
 ; O1-NEXT:    leas 5,s
 ; O1-NEXT:    rts
@@ -406,9 +407,10 @@ define dso_local i16 @sub_s_i16(i16 noundef %a, i16 noundef %b, i16 noundef %c, 
 ; O2-NEXT:    pshs a
 ; O2-NEXT:    subb ,s+
 ; O2-NEXT:    stb 4,s ; 1-byte Folded Spill
-; O2-NEXT:    lda 2,s ; 1-byte Folded Reload
-; O2-NEXT:    sbca 3,s
-; O2-NEXT:    ldb 4,s ; 1-byte Folded Reload
+; O2-NEXT:    ldb 2,s ; 1-byte Folded Reload
+; O2-NEXT:    sbcb 3,s
+; O2-NEXT:    tfr b,a
+; O2-NEXT:    ldb 4,s
 ; O2-NEXT:    tfr d,x
 ; O2-NEXT:    leas 5,s
 ; O2-NEXT:    rts
@@ -447,9 +449,10 @@ define dso_local i16 @sub_s_i16(i16 noundef %a, i16 noundef %b, i16 noundef %c, 
 ; O3-NEXT:    pshs a
 ; O3-NEXT:    subb ,s+
 ; O3-NEXT:    stb 4,s ; 1-byte Folded Spill
-; O3-NEXT:    lda 2,s ; 1-byte Folded Reload
-; O3-NEXT:    sbca 3,s
-; O3-NEXT:    ldb 4,s ; 1-byte Folded Reload
+; O3-NEXT:    ldb 2,s ; 1-byte Folded Reload
+; O3-NEXT:    sbcb 3,s
+; O3-NEXT:    tfr b,a
+; O3-NEXT:    ldb 4,s
 ; O3-NEXT:    tfr d,x
 ; O3-NEXT:    leas 5,s
 ; O3-NEXT:    rts
@@ -569,7 +572,7 @@ define dso_local i16 @sub_s_i16_consts(i16 noundef %a, i16 noundef %b, i16 nound
 ; O1-NEXT:    stb 3,s ; 1-byte Folded Spill
 ; O1-NEXT:    lda #12
 ; O1-NEXT:    sbca 2,s
-; O1-NEXT:    ldb 3,s ; 1-byte Folded Reload
+; O1-NEXT:    ldb 3,s
 ; O1-NEXT:    tfr d,x
 ; O1-NEXT:    leas 4,s
 ; O1-NEXT:    rts
@@ -602,7 +605,7 @@ define dso_local i16 @sub_s_i16_consts(i16 noundef %a, i16 noundef %b, i16 nound
 ; O2-NEXT:    stb 3,s ; 1-byte Folded Spill
 ; O2-NEXT:    lda #12
 ; O2-NEXT:    sbca 2,s
-; O2-NEXT:    ldb 3,s ; 1-byte Folded Reload
+; O2-NEXT:    ldb 3,s
 ; O2-NEXT:    tfr d,x
 ; O2-NEXT:    leas 4,s
 ; O2-NEXT:    rts
@@ -635,7 +638,7 @@ define dso_local i16 @sub_s_i16_consts(i16 noundef %a, i16 noundef %b, i16 nound
 ; O3-NEXT:    stb 3,s ; 1-byte Folded Spill
 ; O3-NEXT:    lda #12
 ; O3-NEXT:    sbca 2,s
-; O3-NEXT:    ldb 3,s ; 1-byte Folded Reload
+; O3-NEXT:    ldb 3,s
 ; O3-NEXT:    tfr d,x
 ; O3-NEXT:    leas 4,s
 ; O3-NEXT:    rts
@@ -722,9 +725,10 @@ define dso_local i16 @sub_u_i16(i16 noundef %a, i16 noundef %b, i16 noundef %c, 
 ; O1-NEXT:    pshs a
 ; O1-NEXT:    subb ,s+
 ; O1-NEXT:    stb 4,s ; 1-byte Folded Spill
-; O1-NEXT:    lda 2,s ; 1-byte Folded Reload
-; O1-NEXT:    sbca 3,s
-; O1-NEXT:    ldb 4,s ; 1-byte Folded Reload
+; O1-NEXT:    ldb 2,s ; 1-byte Folded Reload
+; O1-NEXT:    sbcb 3,s
+; O1-NEXT:    tfr b,a
+; O1-NEXT:    ldb 4,s
 ; O1-NEXT:    tfr d,x
 ; O1-NEXT:    leas 5,s
 ; O1-NEXT:    rts
@@ -763,9 +767,10 @@ define dso_local i16 @sub_u_i16(i16 noundef %a, i16 noundef %b, i16 noundef %c, 
 ; O2-NEXT:    pshs a
 ; O2-NEXT:    subb ,s+
 ; O2-NEXT:    stb 4,s ; 1-byte Folded Spill
-; O2-NEXT:    lda 2,s ; 1-byte Folded Reload
-; O2-NEXT:    sbca 3,s
-; O2-NEXT:    ldb 4,s ; 1-byte Folded Reload
+; O2-NEXT:    ldb 2,s ; 1-byte Folded Reload
+; O2-NEXT:    sbcb 3,s
+; O2-NEXT:    tfr b,a
+; O2-NEXT:    ldb 4,s
 ; O2-NEXT:    tfr d,x
 ; O2-NEXT:    leas 5,s
 ; O2-NEXT:    rts
@@ -804,9 +809,10 @@ define dso_local i16 @sub_u_i16(i16 noundef %a, i16 noundef %b, i16 noundef %c, 
 ; O3-NEXT:    pshs a
 ; O3-NEXT:    subb ,s+
 ; O3-NEXT:    stb 4,s ; 1-byte Folded Spill
-; O3-NEXT:    lda 2,s ; 1-byte Folded Reload
-; O3-NEXT:    sbca 3,s
-; O3-NEXT:    ldb 4,s ; 1-byte Folded Reload
+; O3-NEXT:    ldb 2,s ; 1-byte Folded Reload
+; O3-NEXT:    sbcb 3,s
+; O3-NEXT:    tfr b,a
+; O3-NEXT:    ldb 4,s
 ; O3-NEXT:    tfr d,x
 ; O3-NEXT:    leas 5,s
 ; O3-NEXT:    rts
@@ -1040,81 +1046,81 @@ define dso_local i32 @sub_s_i32(i32 noundef %a, i32 noundef %b, i32 noundef %c, 
 ; CHECK-HD6309-NEXT:    rts
 ; O0-LABEL: sub_s_i32:
 ; O0:       ; %bb.0: ; %entry
-; O0-NEXT:    leas -6,s
+; O0-NEXT:    leas -5,s
 ; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 12,s
+; O0-NEXT:    ldd 11,s
 ; O0-NEXT:    std <__rs1
 ; O0-NEXT:    puls d
 ; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 10,s
+; O0-NEXT:    ldd 9,s
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
 ; O0-NEXT:    ldb <__rs1lo
-; O0-NEXT:    stb 5,s ; 1-byte Folded Spill
+; O0-NEXT:    stb 4,s ; 1-byte Folded Spill
 ; O0-NEXT:    pshs a
 ; O0-NEXT:    lda <__rs1hi
 ; O0-NEXT:    tfr a,b
 ; O0-NEXT:    puls a
-; O0-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O0-NEXT:    stb 2,s ; 1-byte Folded Spill
 ; O0-NEXT:    ldb <__rs0lo
+; O0-NEXT:    stb 3,s ; 1-byte Folded Spill
+; O0-NEXT:    pshs a
 ; O0-NEXT:    lda <__rs0hi
-; O0-NEXT:    sta 3,s ; 1-byte Folded Spill
-; O0-NEXT:    lda 5,s ; 1-byte Folded Reload
-; O0-NEXT:    suba 15,s
-; O0-NEXT:    sta 5,s ; 1-byte Folded Spill
+; O0-NEXT:    tfr a,b
+; O0-NEXT:    puls a
 ; O0-NEXT:    lda 4,s ; 1-byte Folded Reload
-; O0-NEXT:    sbca 14,s
+; O0-NEXT:    suba 14,s
 ; O0-NEXT:    sta 4,s ; 1-byte Folded Spill
-; O0-NEXT:    sbcb 13,s
+; O0-NEXT:    lda 2,s ; 1-byte Folded Reload
+; O0-NEXT:    sbca 13,s
+; O0-NEXT:    sta 2,s ; 1-byte Folded Spill
 ; O0-NEXT:    lda 3,s ; 1-byte Folded Reload
 ; O0-NEXT:    sbca 12,s
 ; O0-NEXT:    sta 3,s ; 1-byte Folded Spill
-; O0-NEXT:    lda 5,s ; 1-byte Folded Reload
-; O0-NEXT:    suba 19,s
-; O0-NEXT:    sta 5,s ; 1-byte Folded Spill
+; O0-NEXT:    sbcb 11,s
 ; O0-NEXT:    lda 4,s ; 1-byte Folded Reload
-; O0-NEXT:    sbca 18,s
+; O0-NEXT:    suba 18,s
 ; O0-NEXT:    sta 4,s ; 1-byte Folded Spill
-; O0-NEXT:    sbcb 17,s
+; O0-NEXT:    lda 2,s ; 1-byte Folded Reload
+; O0-NEXT:    sbca 17,s
+; O0-NEXT:    sta 2,s ; 1-byte Folded Spill
 ; O0-NEXT:    lda 3,s ; 1-byte Folded Reload
 ; O0-NEXT:    sbca 16,s
 ; O0-NEXT:    sta 3,s ; 1-byte Folded Spill
-; O0-NEXT:    lda 5,s ; 1-byte Folded Reload
-; O0-NEXT:    suba 23,s
-; O0-NEXT:    sta 5,s ; 1-byte Folded Spill
+; O0-NEXT:    sbcb 15,s
 ; O0-NEXT:    lda 4,s ; 1-byte Folded Reload
-; O0-NEXT:    sbca 22,s
+; O0-NEXT:    suba 22,s
 ; O0-NEXT:    sta 4,s ; 1-byte Folded Spill
-; O0-NEXT:    sbcb 21,s
+; O0-NEXT:    lda 2,s ; 1-byte Folded Reload
+; O0-NEXT:    sbca 21,s
+; O0-NEXT:    sta 2,s ; 1-byte Folded Spill
 ; O0-NEXT:    lda 3,s ; 1-byte Folded Reload
 ; O0-NEXT:    sbca 20,s
 ; O0-NEXT:    sta 3,s ; 1-byte Folded Spill
-; O0-NEXT:    lda 5,s ; 1-byte Folded Reload
-; O0-NEXT:    suba 27,s
-; O0-NEXT:    sta 5,s ; 1-byte Folded Spill
+; O0-NEXT:    sbcb 19,s
 ; O0-NEXT:    lda 4,s ; 1-byte Folded Reload
-; O0-NEXT:    sbca 26,s
+; O0-NEXT:    suba 26,s
 ; O0-NEXT:    sta 4,s ; 1-byte Folded Spill
-; O0-NEXT:    sbcb 25,s
-; O0-NEXT:    stb 2,s ; 1-byte Folded Spill
-; O0-NEXT:    ldb 3,s ; 1-byte Folded Reload
-; O0-NEXT:    sbcb 24,s
-; O0-NEXT:    stb 3,s ; 1-byte Folded Spill
-; O0-NEXT:    lda 5,s ; 1-byte Folded Reload
-; O0-NEXT:    ldb 4,s ; 1-byte Folded Reload
+; O0-NEXT:    lda 2,s ; 1-byte Folded Reload
+; O0-NEXT:    sbca 25,s
+; O0-NEXT:    sta 2,s ; 1-byte Folded Spill
+; O0-NEXT:    lda 3,s ; 1-byte Folded Reload
+; O0-NEXT:    sbca 24,s
+; O0-NEXT:    sta 3,s ; 1-byte Folded Spill
+; O0-NEXT:    sbcb 23,s
 ; O0-NEXT:    pshs d
-; O0-NEXT:    exg a,b
+; O0-NEXT:    ldb 6,s
+; O0-NEXT:    lda 4,s
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
-; O0-NEXT:    ldb 3,s ; 1-byte Folded Reload
-; O0-NEXT:    lda 2,s ; 1-byte Folded Reload
-; O0-NEXT:    exg a,b
+; O0-NEXT:    tfr b,a
+; O0-NEXT:    ldb 3,s
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std 2,x
 ; O0-NEXT:    puls d
 ; O0-NEXT:    std ,x
-; O0-NEXT:    leas 6,s
+; O0-NEXT:    leas 5,s
 ; O0-NEXT:    rts
 ;
 ; O1-LABEL: sub_s_i32:
@@ -1201,15 +1207,13 @@ define dso_local i32 @sub_s_i32(i32 noundef %a, i32 noundef %b, i32 noundef %c, 
 ; O1-NEXT:    sta 5,s ; 1-byte Folded Spill
 ; O1-NEXT:    lda 3,s ; 1-byte Folded Reload
 ; O1-NEXT:    sbca 8,s
-; O1-NEXT:    sta 3,s ; 1-byte Folded Spill
-; O1-NEXT:    lda 4,s ; 1-byte Folded Reload
 ; O1-NEXT:    pshs d
-; O1-NEXT:    exg a,b
+; O1-NEXT:    tfr b,a
+; O1-NEXT:    ldb 6,s
 ; O1-NEXT:    std <__rs1
 ; O1-NEXT:    puls d
-; O1-NEXT:    ldb 5,s ; 1-byte Folded Reload
-; O1-NEXT:    lda 3,s ; 1-byte Folded Reload
 ; O1-NEXT:    pshs d
+; O1-NEXT:    ldb 7,s
 ; O1-NEXT:    std <__rs0
 ; O1-NEXT:    puls d
 ; O1-NEXT:    pshs d
@@ -1307,15 +1311,13 @@ define dso_local i32 @sub_s_i32(i32 noundef %a, i32 noundef %b, i32 noundef %c, 
 ; O2-NEXT:    sta 5,s ; 1-byte Folded Spill
 ; O2-NEXT:    lda 3,s ; 1-byte Folded Reload
 ; O2-NEXT:    sbca 8,s
-; O2-NEXT:    sta 3,s ; 1-byte Folded Spill
-; O2-NEXT:    lda 4,s ; 1-byte Folded Reload
 ; O2-NEXT:    pshs d
-; O2-NEXT:    exg a,b
+; O2-NEXT:    tfr b,a
+; O2-NEXT:    ldb 6,s
 ; O2-NEXT:    std <__rs1
 ; O2-NEXT:    puls d
-; O2-NEXT:    ldb 5,s ; 1-byte Folded Reload
-; O2-NEXT:    lda 3,s ; 1-byte Folded Reload
 ; O2-NEXT:    pshs d
+; O2-NEXT:    ldb 7,s
 ; O2-NEXT:    std <__rs0
 ; O2-NEXT:    puls d
 ; O2-NEXT:    pshs d
@@ -1413,15 +1415,13 @@ define dso_local i32 @sub_s_i32(i32 noundef %a, i32 noundef %b, i32 noundef %c, 
 ; O3-NEXT:    sta 5,s ; 1-byte Folded Spill
 ; O3-NEXT:    lda 3,s ; 1-byte Folded Reload
 ; O3-NEXT:    sbca 8,s
-; O3-NEXT:    sta 3,s ; 1-byte Folded Spill
-; O3-NEXT:    lda 4,s ; 1-byte Folded Reload
 ; O3-NEXT:    pshs d
-; O3-NEXT:    exg a,b
+; O3-NEXT:    tfr b,a
+; O3-NEXT:    ldb 6,s
 ; O3-NEXT:    std <__rs1
 ; O3-NEXT:    puls d
-; O3-NEXT:    ldb 5,s ; 1-byte Folded Reload
-; O3-NEXT:    lda 3,s ; 1-byte Folded Reload
 ; O3-NEXT:    pshs d
+; O3-NEXT:    ldb 7,s
 ; O3-NEXT:    std <__rs0
 ; O3-NEXT:    puls d
 ; O3-NEXT:    pshs d
@@ -1524,91 +1524,91 @@ define dso_local i32 @sub_s_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; CHECK-HD6309-NEXT:    rts
 ; O0-LABEL: sub_s_i32_consts:
 ; O0:       ; %bb.0: ; %entry
-; O0-NEXT:    leas -6,s
+; O0-NEXT:    leas -5,s
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd #-21923
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
 ; O0-NEXT:    ldb <__rs0lo
-; O0-NEXT:    stb 5,s ; 1-byte Folded Spill
+; O0-NEXT:    stb 4,s ; 1-byte Folded Spill
 ; O0-NEXT:    pshs a
 ; O0-NEXT:    lda <__rs0hi
 ; O0-NEXT:    tfr a,b
 ; O0-NEXT:    puls a
-; O0-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O0-NEXT:    stb 2,s ; 1-byte Folded Spill
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd #8
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
 ; O0-NEXT:    ldb <__rs0lo
+; O0-NEXT:    stb 3,s ; 1-byte Folded Spill
+; O0-NEXT:    pshs a
 ; O0-NEXT:    lda <__rs0hi
-; O0-NEXT:    sta 3,s ; 1-byte Folded Spill
-; O0-NEXT:    lda 5,s ; 1-byte Folded Reload
-; O0-NEXT:    suba 11,s
-; O0-NEXT:    sta 5,s ; 1-byte Folded Spill
+; O0-NEXT:    tfr a,b
+; O0-NEXT:    puls a
 ; O0-NEXT:    lda 4,s ; 1-byte Folded Reload
-; O0-NEXT:    sbca 10,s
+; O0-NEXT:    suba 10,s
 ; O0-NEXT:    sta 4,s ; 1-byte Folded Spill
-; O0-NEXT:    sbcb 9,s
+; O0-NEXT:    lda 2,s ; 1-byte Folded Reload
+; O0-NEXT:    sbca 9,s
+; O0-NEXT:    sta 2,s ; 1-byte Folded Spill
 ; O0-NEXT:    lda 3,s ; 1-byte Folded Reload
 ; O0-NEXT:    sbca 8,s
 ; O0-NEXT:    sta 3,s ; 1-byte Folded Spill
-; O0-NEXT:    lda 5,s ; 1-byte Folded Reload
-; O0-NEXT:    suba 15,s
-; O0-NEXT:    sta 5,s ; 1-byte Folded Spill
+; O0-NEXT:    sbcb 7,s
 ; O0-NEXT:    lda 4,s ; 1-byte Folded Reload
-; O0-NEXT:    sbca 14,s
+; O0-NEXT:    suba 14,s
 ; O0-NEXT:    sta 4,s ; 1-byte Folded Spill
-; O0-NEXT:    sbcb 13,s
+; O0-NEXT:    lda 2,s ; 1-byte Folded Reload
+; O0-NEXT:    sbca 13,s
+; O0-NEXT:    sta 2,s ; 1-byte Folded Spill
 ; O0-NEXT:    lda 3,s ; 1-byte Folded Reload
 ; O0-NEXT:    sbca 12,s
 ; O0-NEXT:    sta 3,s ; 1-byte Folded Spill
-; O0-NEXT:    lda 5,s ; 1-byte Folded Reload
-; O0-NEXT:    suba 19,s
-; O0-NEXT:    sta 5,s ; 1-byte Folded Spill
+; O0-NEXT:    sbcb 11,s
 ; O0-NEXT:    lda 4,s ; 1-byte Folded Reload
-; O0-NEXT:    sbca 18,s
+; O0-NEXT:    suba 18,s
 ; O0-NEXT:    sta 4,s ; 1-byte Folded Spill
-; O0-NEXT:    sbcb 17,s
+; O0-NEXT:    lda 2,s ; 1-byte Folded Reload
+; O0-NEXT:    sbca 17,s
+; O0-NEXT:    sta 2,s ; 1-byte Folded Spill
 ; O0-NEXT:    lda 3,s ; 1-byte Folded Reload
 ; O0-NEXT:    sbca 16,s
 ; O0-NEXT:    sta 3,s ; 1-byte Folded Spill
-; O0-NEXT:    lda 5,s ; 1-byte Folded Reload
-; O0-NEXT:    suba 23,s
-; O0-NEXT:    sta 5,s ; 1-byte Folded Spill
+; O0-NEXT:    sbcb 15,s
 ; O0-NEXT:    lda 4,s ; 1-byte Folded Reload
-; O0-NEXT:    sbca 22,s
+; O0-NEXT:    suba 22,s
 ; O0-NEXT:    sta 4,s ; 1-byte Folded Spill
-; O0-NEXT:    sbcb 21,s
+; O0-NEXT:    lda 2,s ; 1-byte Folded Reload
+; O0-NEXT:    sbca 21,s
+; O0-NEXT:    sta 2,s ; 1-byte Folded Spill
 ; O0-NEXT:    lda 3,s ; 1-byte Folded Reload
 ; O0-NEXT:    sbca 20,s
 ; O0-NEXT:    sta 3,s ; 1-byte Folded Spill
-; O0-NEXT:    lda 5,s ; 1-byte Folded Reload
-; O0-NEXT:    suba 27,s
-; O0-NEXT:    sta 5,s ; 1-byte Folded Spill
+; O0-NEXT:    sbcb 19,s
 ; O0-NEXT:    lda 4,s ; 1-byte Folded Reload
-; O0-NEXT:    sbca 26,s
+; O0-NEXT:    suba 26,s
 ; O0-NEXT:    sta 4,s ; 1-byte Folded Spill
-; O0-NEXT:    sbcb 25,s
-; O0-NEXT:    stb 2,s ; 1-byte Folded Spill
-; O0-NEXT:    ldb 3,s ; 1-byte Folded Reload
-; O0-NEXT:    sbcb 24,s
-; O0-NEXT:    stb 3,s ; 1-byte Folded Spill
-; O0-NEXT:    lda 5,s ; 1-byte Folded Reload
-; O0-NEXT:    ldb 4,s ; 1-byte Folded Reload
+; O0-NEXT:    lda 2,s ; 1-byte Folded Reload
+; O0-NEXT:    sbca 25,s
+; O0-NEXT:    sta 2,s ; 1-byte Folded Spill
+; O0-NEXT:    lda 3,s ; 1-byte Folded Reload
+; O0-NEXT:    sbca 24,s
+; O0-NEXT:    sta 3,s ; 1-byte Folded Spill
+; O0-NEXT:    sbcb 23,s
 ; O0-NEXT:    pshs d
-; O0-NEXT:    exg a,b
+; O0-NEXT:    ldb 6,s
+; O0-NEXT:    lda 4,s
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
-; O0-NEXT:    ldb 3,s ; 1-byte Folded Reload
-; O0-NEXT:    lda 2,s ; 1-byte Folded Reload
-; O0-NEXT:    exg a,b
+; O0-NEXT:    tfr b,a
+; O0-NEXT:    ldb 3,s
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std 2,x
 ; O0-NEXT:    puls d
 ; O0-NEXT:    std ,x
-; O0-NEXT:    leas 6,s
+; O0-NEXT:    leas 5,s
 ; O0-NEXT:    rts
 ;
 ; O1-LABEL: sub_s_i32_consts:
@@ -1679,20 +1679,16 @@ define dso_local i32 @sub_s_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; O1-NEXT:    ldb #-86
 ; O1-NEXT:    sbcb 3,s
 ; O1-NEXT:    stb 3,s ; 1-byte Folded Spill
-; O1-NEXT:    ldb #8
-; O1-NEXT:    sbcb 4,s
-; O1-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O1-NEXT:    lda #8
+; O1-NEXT:    sbca 4,s
 ; O1-NEXT:    ldb #0
 ; O1-NEXT:    sbcb 5,s
-; O1-NEXT:    stb 5,s ; 1-byte Folded Spill
-; O1-NEXT:    lda 2,s ; 1-byte Folded Reload
-; O1-NEXT:    ldb 3,s ; 1-byte Folded Reload
 ; O1-NEXT:    pshs d
-; O1-NEXT:    exg a,b
+; O1-NEXT:    ldb 4,s
+; O1-NEXT:    lda 5,s
 ; O1-NEXT:    std <__rs0
 ; O1-NEXT:    puls d
-; O1-NEXT:    ldb 4,s ; 1-byte Folded Reload
-; O1-NEXT:    lda 5,s ; 1-byte Folded Reload
+; O1-NEXT:    exg a,b
 ; O1-NEXT:    pshs d
 ; O1-NEXT:    ldd <__rs0
 ; O1-NEXT:    std 2,x
@@ -1769,20 +1765,16 @@ define dso_local i32 @sub_s_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; O2-NEXT:    ldb #-86
 ; O2-NEXT:    sbcb 3,s
 ; O2-NEXT:    stb 3,s ; 1-byte Folded Spill
-; O2-NEXT:    ldb #8
-; O2-NEXT:    sbcb 4,s
-; O2-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O2-NEXT:    lda #8
+; O2-NEXT:    sbca 4,s
 ; O2-NEXT:    ldb #0
 ; O2-NEXT:    sbcb 5,s
-; O2-NEXT:    stb 5,s ; 1-byte Folded Spill
-; O2-NEXT:    lda 2,s ; 1-byte Folded Reload
-; O2-NEXT:    ldb 3,s ; 1-byte Folded Reload
 ; O2-NEXT:    pshs d
-; O2-NEXT:    exg a,b
+; O2-NEXT:    ldb 4,s
+; O2-NEXT:    lda 5,s
 ; O2-NEXT:    std <__rs0
 ; O2-NEXT:    puls d
-; O2-NEXT:    ldb 4,s ; 1-byte Folded Reload
-; O2-NEXT:    lda 5,s ; 1-byte Folded Reload
+; O2-NEXT:    exg a,b
 ; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    std 2,x
@@ -1859,20 +1851,16 @@ define dso_local i32 @sub_s_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; O3-NEXT:    ldb #-86
 ; O3-NEXT:    sbcb 3,s
 ; O3-NEXT:    stb 3,s ; 1-byte Folded Spill
-; O3-NEXT:    ldb #8
-; O3-NEXT:    sbcb 4,s
-; O3-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O3-NEXT:    lda #8
+; O3-NEXT:    sbca 4,s
 ; O3-NEXT:    ldb #0
 ; O3-NEXT:    sbcb 5,s
-; O3-NEXT:    stb 5,s ; 1-byte Folded Spill
-; O3-NEXT:    lda 2,s ; 1-byte Folded Reload
-; O3-NEXT:    ldb 3,s ; 1-byte Folded Reload
 ; O3-NEXT:    pshs d
-; O3-NEXT:    exg a,b
+; O3-NEXT:    ldb 4,s
+; O3-NEXT:    lda 5,s
 ; O3-NEXT:    std <__rs0
 ; O3-NEXT:    puls d
-; O3-NEXT:    ldb 4,s ; 1-byte Folded Reload
-; O3-NEXT:    lda 5,s ; 1-byte Folded Reload
+; O3-NEXT:    exg a,b
 ; O3-NEXT:    pshs d
 ; O3-NEXT:    ldd <__rs0
 ; O3-NEXT:    std 2,x
@@ -1955,81 +1943,81 @@ define dso_local i32 @sub_u_i32(i32 noundef %a, i32 noundef %b, i32 noundef %c, 
 ; CHECK-HD6309-NEXT:    rts
 ; O0-LABEL: sub_u_i32:
 ; O0:       ; %bb.0: ; %entry
-; O0-NEXT:    leas -6,s
+; O0-NEXT:    leas -5,s
 ; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 12,s
+; O0-NEXT:    ldd 11,s
 ; O0-NEXT:    std <__rs1
 ; O0-NEXT:    puls d
 ; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 10,s
+; O0-NEXT:    ldd 9,s
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
 ; O0-NEXT:    ldb <__rs1lo
-; O0-NEXT:    stb 5,s ; 1-byte Folded Spill
+; O0-NEXT:    stb 4,s ; 1-byte Folded Spill
 ; O0-NEXT:    pshs a
 ; O0-NEXT:    lda <__rs1hi
 ; O0-NEXT:    tfr a,b
 ; O0-NEXT:    puls a
-; O0-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O0-NEXT:    stb 2,s ; 1-byte Folded Spill
 ; O0-NEXT:    ldb <__rs0lo
+; O0-NEXT:    stb 3,s ; 1-byte Folded Spill
+; O0-NEXT:    pshs a
 ; O0-NEXT:    lda <__rs0hi
-; O0-NEXT:    sta 3,s ; 1-byte Folded Spill
-; O0-NEXT:    lda 5,s ; 1-byte Folded Reload
-; O0-NEXT:    suba 15,s
-; O0-NEXT:    sta 5,s ; 1-byte Folded Spill
+; O0-NEXT:    tfr a,b
+; O0-NEXT:    puls a
 ; O0-NEXT:    lda 4,s ; 1-byte Folded Reload
-; O0-NEXT:    sbca 14,s
+; O0-NEXT:    suba 14,s
 ; O0-NEXT:    sta 4,s ; 1-byte Folded Spill
-; O0-NEXT:    sbcb 13,s
+; O0-NEXT:    lda 2,s ; 1-byte Folded Reload
+; O0-NEXT:    sbca 13,s
+; O0-NEXT:    sta 2,s ; 1-byte Folded Spill
 ; O0-NEXT:    lda 3,s ; 1-byte Folded Reload
 ; O0-NEXT:    sbca 12,s
 ; O0-NEXT:    sta 3,s ; 1-byte Folded Spill
-; O0-NEXT:    lda 5,s ; 1-byte Folded Reload
-; O0-NEXT:    suba 19,s
-; O0-NEXT:    sta 5,s ; 1-byte Folded Spill
+; O0-NEXT:    sbcb 11,s
 ; O0-NEXT:    lda 4,s ; 1-byte Folded Reload
-; O0-NEXT:    sbca 18,s
+; O0-NEXT:    suba 18,s
 ; O0-NEXT:    sta 4,s ; 1-byte Folded Spill
-; O0-NEXT:    sbcb 17,s
+; O0-NEXT:    lda 2,s ; 1-byte Folded Reload
+; O0-NEXT:    sbca 17,s
+; O0-NEXT:    sta 2,s ; 1-byte Folded Spill
 ; O0-NEXT:    lda 3,s ; 1-byte Folded Reload
 ; O0-NEXT:    sbca 16,s
 ; O0-NEXT:    sta 3,s ; 1-byte Folded Spill
-; O0-NEXT:    lda 5,s ; 1-byte Folded Reload
-; O0-NEXT:    suba 23,s
-; O0-NEXT:    sta 5,s ; 1-byte Folded Spill
+; O0-NEXT:    sbcb 15,s
 ; O0-NEXT:    lda 4,s ; 1-byte Folded Reload
-; O0-NEXT:    sbca 22,s
+; O0-NEXT:    suba 22,s
 ; O0-NEXT:    sta 4,s ; 1-byte Folded Spill
-; O0-NEXT:    sbcb 21,s
+; O0-NEXT:    lda 2,s ; 1-byte Folded Reload
+; O0-NEXT:    sbca 21,s
+; O0-NEXT:    sta 2,s ; 1-byte Folded Spill
 ; O0-NEXT:    lda 3,s ; 1-byte Folded Reload
 ; O0-NEXT:    sbca 20,s
 ; O0-NEXT:    sta 3,s ; 1-byte Folded Spill
-; O0-NEXT:    lda 5,s ; 1-byte Folded Reload
-; O0-NEXT:    suba 27,s
-; O0-NEXT:    sta 5,s ; 1-byte Folded Spill
+; O0-NEXT:    sbcb 19,s
 ; O0-NEXT:    lda 4,s ; 1-byte Folded Reload
-; O0-NEXT:    sbca 26,s
+; O0-NEXT:    suba 26,s
 ; O0-NEXT:    sta 4,s ; 1-byte Folded Spill
-; O0-NEXT:    sbcb 25,s
-; O0-NEXT:    stb 2,s ; 1-byte Folded Spill
-; O0-NEXT:    ldb 3,s ; 1-byte Folded Reload
-; O0-NEXT:    sbcb 24,s
-; O0-NEXT:    stb 3,s ; 1-byte Folded Spill
-; O0-NEXT:    lda 5,s ; 1-byte Folded Reload
-; O0-NEXT:    ldb 4,s ; 1-byte Folded Reload
+; O0-NEXT:    lda 2,s ; 1-byte Folded Reload
+; O0-NEXT:    sbca 25,s
+; O0-NEXT:    sta 2,s ; 1-byte Folded Spill
+; O0-NEXT:    lda 3,s ; 1-byte Folded Reload
+; O0-NEXT:    sbca 24,s
+; O0-NEXT:    sta 3,s ; 1-byte Folded Spill
+; O0-NEXT:    sbcb 23,s
 ; O0-NEXT:    pshs d
-; O0-NEXT:    exg a,b
+; O0-NEXT:    ldb 6,s
+; O0-NEXT:    lda 4,s
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
-; O0-NEXT:    ldb 3,s ; 1-byte Folded Reload
-; O0-NEXT:    lda 2,s ; 1-byte Folded Reload
-; O0-NEXT:    exg a,b
+; O0-NEXT:    tfr b,a
+; O0-NEXT:    ldb 3,s
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std 2,x
 ; O0-NEXT:    puls d
 ; O0-NEXT:    std ,x
-; O0-NEXT:    leas 6,s
+; O0-NEXT:    leas 5,s
 ; O0-NEXT:    rts
 ;
 ; O1-LABEL: sub_u_i32:
@@ -2116,15 +2104,13 @@ define dso_local i32 @sub_u_i32(i32 noundef %a, i32 noundef %b, i32 noundef %c, 
 ; O1-NEXT:    sta 5,s ; 1-byte Folded Spill
 ; O1-NEXT:    lda 3,s ; 1-byte Folded Reload
 ; O1-NEXT:    sbca 8,s
-; O1-NEXT:    sta 3,s ; 1-byte Folded Spill
-; O1-NEXT:    lda 4,s ; 1-byte Folded Reload
 ; O1-NEXT:    pshs d
-; O1-NEXT:    exg a,b
+; O1-NEXT:    tfr b,a
+; O1-NEXT:    ldb 6,s
 ; O1-NEXT:    std <__rs1
 ; O1-NEXT:    puls d
-; O1-NEXT:    ldb 5,s ; 1-byte Folded Reload
-; O1-NEXT:    lda 3,s ; 1-byte Folded Reload
 ; O1-NEXT:    pshs d
+; O1-NEXT:    ldb 7,s
 ; O1-NEXT:    std <__rs0
 ; O1-NEXT:    puls d
 ; O1-NEXT:    pshs d
@@ -2222,15 +2208,13 @@ define dso_local i32 @sub_u_i32(i32 noundef %a, i32 noundef %b, i32 noundef %c, 
 ; O2-NEXT:    sta 5,s ; 1-byte Folded Spill
 ; O2-NEXT:    lda 3,s ; 1-byte Folded Reload
 ; O2-NEXT:    sbca 8,s
-; O2-NEXT:    sta 3,s ; 1-byte Folded Spill
-; O2-NEXT:    lda 4,s ; 1-byte Folded Reload
 ; O2-NEXT:    pshs d
-; O2-NEXT:    exg a,b
+; O2-NEXT:    tfr b,a
+; O2-NEXT:    ldb 6,s
 ; O2-NEXT:    std <__rs1
 ; O2-NEXT:    puls d
-; O2-NEXT:    ldb 5,s ; 1-byte Folded Reload
-; O2-NEXT:    lda 3,s ; 1-byte Folded Reload
 ; O2-NEXT:    pshs d
+; O2-NEXT:    ldb 7,s
 ; O2-NEXT:    std <__rs0
 ; O2-NEXT:    puls d
 ; O2-NEXT:    pshs d
@@ -2328,15 +2312,13 @@ define dso_local i32 @sub_u_i32(i32 noundef %a, i32 noundef %b, i32 noundef %c, 
 ; O3-NEXT:    sta 5,s ; 1-byte Folded Spill
 ; O3-NEXT:    lda 3,s ; 1-byte Folded Reload
 ; O3-NEXT:    sbca 8,s
-; O3-NEXT:    sta 3,s ; 1-byte Folded Spill
-; O3-NEXT:    lda 4,s ; 1-byte Folded Reload
 ; O3-NEXT:    pshs d
-; O3-NEXT:    exg a,b
+; O3-NEXT:    tfr b,a
+; O3-NEXT:    ldb 6,s
 ; O3-NEXT:    std <__rs1
 ; O3-NEXT:    puls d
-; O3-NEXT:    ldb 5,s ; 1-byte Folded Reload
-; O3-NEXT:    lda 3,s ; 1-byte Folded Reload
 ; O3-NEXT:    pshs d
+; O3-NEXT:    ldb 7,s
 ; O3-NEXT:    std <__rs0
 ; O3-NEXT:    puls d
 ; O3-NEXT:    pshs d
@@ -2439,91 +2421,91 @@ define dso_local i32 @sub_u_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; CHECK-HD6309-NEXT:    rts
 ; O0-LABEL: sub_u_i32_consts:
 ; O0:       ; %bb.0: ; %entry
-; O0-NEXT:    leas -6,s
+; O0-NEXT:    leas -5,s
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd #-2081
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
 ; O0-NEXT:    ldb <__rs0lo
-; O0-NEXT:    stb 5,s ; 1-byte Folded Spill
+; O0-NEXT:    stb 4,s ; 1-byte Folded Spill
 ; O0-NEXT:    pshs a
 ; O0-NEXT:    lda <__rs0hi
 ; O0-NEXT:    tfr a,b
 ; O0-NEXT:    puls a
-; O0-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O0-NEXT:    stb 2,s ; 1-byte Folded Spill
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd #126
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
 ; O0-NEXT:    ldb <__rs0lo
+; O0-NEXT:    stb 3,s ; 1-byte Folded Spill
+; O0-NEXT:    pshs a
 ; O0-NEXT:    lda <__rs0hi
-; O0-NEXT:    sta 3,s ; 1-byte Folded Spill
-; O0-NEXT:    lda 5,s ; 1-byte Folded Reload
-; O0-NEXT:    suba 11,s
-; O0-NEXT:    sta 5,s ; 1-byte Folded Spill
+; O0-NEXT:    tfr a,b
+; O0-NEXT:    puls a
 ; O0-NEXT:    lda 4,s ; 1-byte Folded Reload
-; O0-NEXT:    sbca 10,s
+; O0-NEXT:    suba 10,s
 ; O0-NEXT:    sta 4,s ; 1-byte Folded Spill
-; O0-NEXT:    sbcb 9,s
+; O0-NEXT:    lda 2,s ; 1-byte Folded Reload
+; O0-NEXT:    sbca 9,s
+; O0-NEXT:    sta 2,s ; 1-byte Folded Spill
 ; O0-NEXT:    lda 3,s ; 1-byte Folded Reload
 ; O0-NEXT:    sbca 8,s
 ; O0-NEXT:    sta 3,s ; 1-byte Folded Spill
-; O0-NEXT:    lda 5,s ; 1-byte Folded Reload
-; O0-NEXT:    suba 15,s
-; O0-NEXT:    sta 5,s ; 1-byte Folded Spill
+; O0-NEXT:    sbcb 7,s
 ; O0-NEXT:    lda 4,s ; 1-byte Folded Reload
-; O0-NEXT:    sbca 14,s
+; O0-NEXT:    suba 14,s
 ; O0-NEXT:    sta 4,s ; 1-byte Folded Spill
-; O0-NEXT:    sbcb 13,s
+; O0-NEXT:    lda 2,s ; 1-byte Folded Reload
+; O0-NEXT:    sbca 13,s
+; O0-NEXT:    sta 2,s ; 1-byte Folded Spill
 ; O0-NEXT:    lda 3,s ; 1-byte Folded Reload
 ; O0-NEXT:    sbca 12,s
 ; O0-NEXT:    sta 3,s ; 1-byte Folded Spill
-; O0-NEXT:    lda 5,s ; 1-byte Folded Reload
-; O0-NEXT:    suba 19,s
-; O0-NEXT:    sta 5,s ; 1-byte Folded Spill
+; O0-NEXT:    sbcb 11,s
 ; O0-NEXT:    lda 4,s ; 1-byte Folded Reload
-; O0-NEXT:    sbca 18,s
+; O0-NEXT:    suba 18,s
 ; O0-NEXT:    sta 4,s ; 1-byte Folded Spill
-; O0-NEXT:    sbcb 17,s
+; O0-NEXT:    lda 2,s ; 1-byte Folded Reload
+; O0-NEXT:    sbca 17,s
+; O0-NEXT:    sta 2,s ; 1-byte Folded Spill
 ; O0-NEXT:    lda 3,s ; 1-byte Folded Reload
 ; O0-NEXT:    sbca 16,s
 ; O0-NEXT:    sta 3,s ; 1-byte Folded Spill
-; O0-NEXT:    lda 5,s ; 1-byte Folded Reload
-; O0-NEXT:    suba 23,s
-; O0-NEXT:    sta 5,s ; 1-byte Folded Spill
+; O0-NEXT:    sbcb 15,s
 ; O0-NEXT:    lda 4,s ; 1-byte Folded Reload
-; O0-NEXT:    sbca 22,s
+; O0-NEXT:    suba 22,s
 ; O0-NEXT:    sta 4,s ; 1-byte Folded Spill
-; O0-NEXT:    sbcb 21,s
+; O0-NEXT:    lda 2,s ; 1-byte Folded Reload
+; O0-NEXT:    sbca 21,s
+; O0-NEXT:    sta 2,s ; 1-byte Folded Spill
 ; O0-NEXT:    lda 3,s ; 1-byte Folded Reload
 ; O0-NEXT:    sbca 20,s
 ; O0-NEXT:    sta 3,s ; 1-byte Folded Spill
-; O0-NEXT:    lda 5,s ; 1-byte Folded Reload
-; O0-NEXT:    suba 27,s
-; O0-NEXT:    sta 5,s ; 1-byte Folded Spill
+; O0-NEXT:    sbcb 19,s
 ; O0-NEXT:    lda 4,s ; 1-byte Folded Reload
-; O0-NEXT:    sbca 26,s
+; O0-NEXT:    suba 26,s
 ; O0-NEXT:    sta 4,s ; 1-byte Folded Spill
-; O0-NEXT:    sbcb 25,s
-; O0-NEXT:    stb 2,s ; 1-byte Folded Spill
-; O0-NEXT:    ldb 3,s ; 1-byte Folded Reload
-; O0-NEXT:    sbcb 24,s
-; O0-NEXT:    stb 3,s ; 1-byte Folded Spill
-; O0-NEXT:    lda 5,s ; 1-byte Folded Reload
-; O0-NEXT:    ldb 4,s ; 1-byte Folded Reload
+; O0-NEXT:    lda 2,s ; 1-byte Folded Reload
+; O0-NEXT:    sbca 25,s
+; O0-NEXT:    sta 2,s ; 1-byte Folded Spill
+; O0-NEXT:    lda 3,s ; 1-byte Folded Reload
+; O0-NEXT:    sbca 24,s
+; O0-NEXT:    sta 3,s ; 1-byte Folded Spill
+; O0-NEXT:    sbcb 23,s
 ; O0-NEXT:    pshs d
-; O0-NEXT:    exg a,b
+; O0-NEXT:    ldb 6,s
+; O0-NEXT:    lda 4,s
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
-; O0-NEXT:    ldb 3,s ; 1-byte Folded Reload
-; O0-NEXT:    lda 2,s ; 1-byte Folded Reload
-; O0-NEXT:    exg a,b
+; O0-NEXT:    tfr b,a
+; O0-NEXT:    ldb 3,s
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std 2,x
 ; O0-NEXT:    puls d
 ; O0-NEXT:    std ,x
-; O0-NEXT:    leas 6,s
+; O0-NEXT:    leas 5,s
 ; O0-NEXT:    rts
 ;
 ; O1-LABEL: sub_u_i32_consts:
@@ -2594,20 +2576,16 @@ define dso_local i32 @sub_u_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; O1-NEXT:    ldb #-9
 ; O1-NEXT:    sbcb 3,s
 ; O1-NEXT:    stb 3,s ; 1-byte Folded Spill
-; O1-NEXT:    ldb #126
-; O1-NEXT:    sbcb 4,s
-; O1-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O1-NEXT:    lda #126
+; O1-NEXT:    sbca 4,s
 ; O1-NEXT:    ldb #0
 ; O1-NEXT:    sbcb 5,s
-; O1-NEXT:    stb 5,s ; 1-byte Folded Spill
-; O1-NEXT:    lda 2,s ; 1-byte Folded Reload
-; O1-NEXT:    ldb 3,s ; 1-byte Folded Reload
 ; O1-NEXT:    pshs d
-; O1-NEXT:    exg a,b
+; O1-NEXT:    ldb 4,s
+; O1-NEXT:    lda 5,s
 ; O1-NEXT:    std <__rs0
 ; O1-NEXT:    puls d
-; O1-NEXT:    ldb 4,s ; 1-byte Folded Reload
-; O1-NEXT:    lda 5,s ; 1-byte Folded Reload
+; O1-NEXT:    exg a,b
 ; O1-NEXT:    pshs d
 ; O1-NEXT:    ldd <__rs0
 ; O1-NEXT:    std 2,x
@@ -2684,20 +2662,16 @@ define dso_local i32 @sub_u_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; O2-NEXT:    ldb #-9
 ; O2-NEXT:    sbcb 3,s
 ; O2-NEXT:    stb 3,s ; 1-byte Folded Spill
-; O2-NEXT:    ldb #126
-; O2-NEXT:    sbcb 4,s
-; O2-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O2-NEXT:    lda #126
+; O2-NEXT:    sbca 4,s
 ; O2-NEXT:    ldb #0
 ; O2-NEXT:    sbcb 5,s
-; O2-NEXT:    stb 5,s ; 1-byte Folded Spill
-; O2-NEXT:    lda 2,s ; 1-byte Folded Reload
-; O2-NEXT:    ldb 3,s ; 1-byte Folded Reload
 ; O2-NEXT:    pshs d
-; O2-NEXT:    exg a,b
+; O2-NEXT:    ldb 4,s
+; O2-NEXT:    lda 5,s
 ; O2-NEXT:    std <__rs0
 ; O2-NEXT:    puls d
-; O2-NEXT:    ldb 4,s ; 1-byte Folded Reload
-; O2-NEXT:    lda 5,s ; 1-byte Folded Reload
+; O2-NEXT:    exg a,b
 ; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    std 2,x
@@ -2774,20 +2748,16 @@ define dso_local i32 @sub_u_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; O3-NEXT:    ldb #-9
 ; O3-NEXT:    sbcb 3,s
 ; O3-NEXT:    stb 3,s ; 1-byte Folded Spill
-; O3-NEXT:    ldb #126
-; O3-NEXT:    sbcb 4,s
-; O3-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O3-NEXT:    lda #126
+; O3-NEXT:    sbca 4,s
 ; O3-NEXT:    ldb #0
 ; O3-NEXT:    sbcb 5,s
-; O3-NEXT:    stb 5,s ; 1-byte Folded Spill
-; O3-NEXT:    lda 2,s ; 1-byte Folded Reload
-; O3-NEXT:    ldb 3,s ; 1-byte Folded Reload
 ; O3-NEXT:    pshs d
-; O3-NEXT:    exg a,b
+; O3-NEXT:    ldb 4,s
+; O3-NEXT:    lda 5,s
 ; O3-NEXT:    std <__rs0
 ; O3-NEXT:    puls d
-; O3-NEXT:    ldb 4,s ; 1-byte Folded Reload
-; O3-NEXT:    lda 5,s ; 1-byte Folded Reload
+; O3-NEXT:    exg a,b
 ; O3-NEXT:    pshs d
 ; O3-NEXT:    ldd <__rs0
 ; O3-NEXT:    std 2,x
@@ -2926,7 +2896,7 @@ define dso_local i64 @sub_s_i64(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
 ; O0-NEXT:    ldb <__rs0lo
-; O0-NEXT:    stb 2,s ; 1-byte Folded Spill
+; O0-NEXT:    stb 7,s ; 1-byte Folded Spill
 ; O0-NEXT:    pshs a
 ; O0-NEXT:    lda <__rs0hi
 ; O0-NEXT:    tfr a,b
@@ -2937,73 +2907,74 @@ define dso_local i64 @sub_s_i64(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
 ; O0-NEXT:    ldb <__rs0lo
-; O0-NEXT:    stb 8,s ; 1-byte Folded Spill
+; O0-NEXT:    stb 5,s ; 1-byte Folded Spill
 ; O0-NEXT:    pshs a
 ; O0-NEXT:    lda <__rs0hi
 ; O0-NEXT:    tfr a,b
 ; O0-NEXT:    puls a
-; O0-NEXT:    stb 7,s ; 1-byte Folded Spill
+; O0-NEXT:    stb 8,s ; 1-byte Folded Spill
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd 24,s
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
 ; O0-NEXT:    ldb <__rs0lo
-; O0-NEXT:    stb 6,s ; 1-byte Folded Spill
+; O0-NEXT:    stb 3,s ; 1-byte Folded Spill
 ; O0-NEXT:    pshs a
 ; O0-NEXT:    lda <__rs0hi
 ; O0-NEXT:    tfr a,b
 ; O0-NEXT:    puls a
-; O0-NEXT:    stb 5,s ; 1-byte Folded Spill
+; O0-NEXT:    stb 6,s ; 1-byte Folded Spill
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd 22,s
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
 ; O0-NEXT:    ldb <__rs0lo
-; O0-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O0-NEXT:    stb 2,s ; 1-byte Folded Spill
 ; O0-NEXT:    pshs a
 ; O0-NEXT:    lda <__rs0hi
 ; O0-NEXT:    tfr a,b
 ; O0-NEXT:    puls a
-; O0-NEXT:    stb 3,s ; 1-byte Folded Spill
-; O0-NEXT:    ldb 2,s ; 1-byte Folded Reload
+; O0-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O0-NEXT:    ldb 7,s ; 1-byte Folded Reload
 ; O0-NEXT:    subb 15,s
+; O0-NEXT:    stb 7,s ; 1-byte Folded Spill
 ; O0-NEXT:    lda 9,s ; 1-byte Folded Reload
 ; O0-NEXT:    sbca 16,s
 ; O0-NEXT:    sta 9,s ; 1-byte Folded Spill
-; O0-NEXT:    lda 8,s ; 1-byte Folded Reload
-; O0-NEXT:    sbca 12,s
-; O0-NEXT:    sta 8,s ; 1-byte Folded Spill
-; O0-NEXT:    lda 7,s ; 1-byte Folded Reload
-; O0-NEXT:    sbca 17,s
-; O0-NEXT:    sta 7,s ; 1-byte Folded Spill
+; O0-NEXT:    ldb 5,s ; 1-byte Folded Reload
+; O0-NEXT:    sbcb 12,s
+; O0-NEXT:    stb 5,s ; 1-byte Folded Spill
+; O0-NEXT:    ldb 8,s ; 1-byte Folded Reload
+; O0-NEXT:    sbcb 17,s
+; O0-NEXT:    stb 8,s ; 1-byte Folded Spill
+; O0-NEXT:    ldb 3,s ; 1-byte Folded Reload
+; O0-NEXT:    sbcb 11,s
+; O0-NEXT:    stb 3,s ; 1-byte Folded Spill
 ; O0-NEXT:    lda 6,s ; 1-byte Folded Reload
-; O0-NEXT:    sbca 11,s
-; O0-NEXT:    sta 6,s ; 1-byte Folded Spill
-; O0-NEXT:    lda 5,s ; 1-byte Folded Reload
 ; O0-NEXT:    sbca 13,s
-; O0-NEXT:    sta 5,s ; 1-byte Folded Spill
-; O0-NEXT:    lda 4,s ; 1-byte Folded Reload
+; O0-NEXT:    sta 6,s ; 1-byte Folded Spill
+; O0-NEXT:    lda 2,s ; 1-byte Folded Reload
 ; O0-NEXT:    sbca 10,s
-; O0-NEXT:    sta 4,s ; 1-byte Folded Spill
-; O0-NEXT:    lda 3,s ; 1-byte Folded Reload
-; O0-NEXT:    sbca 14,s
-; O0-NEXT:    sta 3,s ; 1-byte Folded Spill
-; O0-NEXT:    lda 9,s ; 1-byte Folded Reload
+; O0-NEXT:    ldb 4,s ; 1-byte Folded Reload
+; O0-NEXT:    sbcb 14,s
+; O0-NEXT:    stb 4,s ; 1-byte Folded Spill
 ; O0-NEXT:    pshs d
+; O0-NEXT:    ldb 9,s
+; O0-NEXT:    lda 11,s
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
-; O0-NEXT:    ldb 8,s ; 1-byte Folded Reload
-; O0-NEXT:    lda 7,s ; 1-byte Folded Reload
 ; O0-NEXT:    pshs d
+; O0-NEXT:    ldb 7,s
+; O0-NEXT:    lda 10,s
 ; O0-NEXT:    std <__rs1
 ; O0-NEXT:    puls d
-; O0-NEXT:    ldb 6,s ; 1-byte Folded Reload
-; O0-NEXT:    lda 5,s ; 1-byte Folded Reload
 ; O0-NEXT:    pshs d
+; O0-NEXT:    ldb 5,s
+; O0-NEXT:    lda 8,s
 ; O0-NEXT:    std <__rs2
 ; O0-NEXT:    puls d
-; O0-NEXT:    ldb 4,s ; 1-byte Folded Reload
-; O0-NEXT:    lda 3,s ; 1-byte Folded Reload
+; O0-NEXT:    tfr a,b
+; O0-NEXT:    lda 4,s
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std 6,x
@@ -3141,7 +3112,7 @@ define dso_local i64 @sub_s_i64(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O1-NEXT:    std <__rs0
 ; O1-NEXT:    puls d
 ; O1-NEXT:    ldb <__rs0lo
-; O1-NEXT:    stb 2,s ; 1-byte Folded Spill
+; O1-NEXT:    stb 7,s ; 1-byte Folded Spill
 ; O1-NEXT:    pshs a
 ; O1-NEXT:    lda <__rs0hi
 ; O1-NEXT:    tfr a,b
@@ -3152,73 +3123,74 @@ define dso_local i64 @sub_s_i64(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O1-NEXT:    std <__rs0
 ; O1-NEXT:    puls d
 ; O1-NEXT:    ldb <__rs0lo
-; O1-NEXT:    stb 8,s ; 1-byte Folded Spill
+; O1-NEXT:    stb 5,s ; 1-byte Folded Spill
 ; O1-NEXT:    pshs a
 ; O1-NEXT:    lda <__rs0hi
 ; O1-NEXT:    tfr a,b
 ; O1-NEXT:    puls a
-; O1-NEXT:    stb 7,s ; 1-byte Folded Spill
+; O1-NEXT:    stb 8,s ; 1-byte Folded Spill
 ; O1-NEXT:    pshs d
 ; O1-NEXT:    ldd 24,s
 ; O1-NEXT:    std <__rs0
 ; O1-NEXT:    puls d
 ; O1-NEXT:    ldb <__rs0lo
-; O1-NEXT:    stb 6,s ; 1-byte Folded Spill
+; O1-NEXT:    stb 3,s ; 1-byte Folded Spill
 ; O1-NEXT:    pshs a
 ; O1-NEXT:    lda <__rs0hi
 ; O1-NEXT:    tfr a,b
 ; O1-NEXT:    puls a
-; O1-NEXT:    stb 5,s ; 1-byte Folded Spill
+; O1-NEXT:    stb 6,s ; 1-byte Folded Spill
 ; O1-NEXT:    pshs d
 ; O1-NEXT:    ldd 22,s
 ; O1-NEXT:    std <__rs0
 ; O1-NEXT:    puls d
 ; O1-NEXT:    ldb <__rs0lo
-; O1-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O1-NEXT:    stb 2,s ; 1-byte Folded Spill
 ; O1-NEXT:    pshs a
 ; O1-NEXT:    lda <__rs0hi
 ; O1-NEXT:    tfr a,b
 ; O1-NEXT:    puls a
-; O1-NEXT:    stb 3,s ; 1-byte Folded Spill
-; O1-NEXT:    ldb 2,s ; 1-byte Folded Reload
+; O1-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O1-NEXT:    ldb 7,s ; 1-byte Folded Reload
 ; O1-NEXT:    subb 15,s
+; O1-NEXT:    stb 7,s ; 1-byte Folded Spill
 ; O1-NEXT:    lda 9,s ; 1-byte Folded Reload
 ; O1-NEXT:    sbca 16,s
 ; O1-NEXT:    sta 9,s ; 1-byte Folded Spill
-; O1-NEXT:    lda 8,s ; 1-byte Folded Reload
-; O1-NEXT:    sbca 12,s
-; O1-NEXT:    sta 8,s ; 1-byte Folded Spill
-; O1-NEXT:    lda 7,s ; 1-byte Folded Reload
-; O1-NEXT:    sbca 17,s
-; O1-NEXT:    sta 7,s ; 1-byte Folded Spill
+; O1-NEXT:    ldb 5,s ; 1-byte Folded Reload
+; O1-NEXT:    sbcb 12,s
+; O1-NEXT:    stb 5,s ; 1-byte Folded Spill
+; O1-NEXT:    ldb 8,s ; 1-byte Folded Reload
+; O1-NEXT:    sbcb 17,s
+; O1-NEXT:    stb 8,s ; 1-byte Folded Spill
+; O1-NEXT:    ldb 3,s ; 1-byte Folded Reload
+; O1-NEXT:    sbcb 11,s
+; O1-NEXT:    stb 3,s ; 1-byte Folded Spill
 ; O1-NEXT:    lda 6,s ; 1-byte Folded Reload
-; O1-NEXT:    sbca 11,s
-; O1-NEXT:    sta 6,s ; 1-byte Folded Spill
-; O1-NEXT:    lda 5,s ; 1-byte Folded Reload
 ; O1-NEXT:    sbca 13,s
-; O1-NEXT:    sta 5,s ; 1-byte Folded Spill
-; O1-NEXT:    lda 4,s ; 1-byte Folded Reload
+; O1-NEXT:    sta 6,s ; 1-byte Folded Spill
+; O1-NEXT:    lda 2,s ; 1-byte Folded Reload
 ; O1-NEXT:    sbca 10,s
-; O1-NEXT:    sta 4,s ; 1-byte Folded Spill
-; O1-NEXT:    lda 3,s ; 1-byte Folded Reload
-; O1-NEXT:    sbca 14,s
-; O1-NEXT:    sta 3,s ; 1-byte Folded Spill
-; O1-NEXT:    lda 9,s ; 1-byte Folded Reload
+; O1-NEXT:    ldb 4,s ; 1-byte Folded Reload
+; O1-NEXT:    sbcb 14,s
+; O1-NEXT:    stb 4,s ; 1-byte Folded Spill
 ; O1-NEXT:    pshs d
+; O1-NEXT:    ldb 9,s
+; O1-NEXT:    lda 11,s
 ; O1-NEXT:    std <__rs0
 ; O1-NEXT:    puls d
-; O1-NEXT:    ldb 8,s ; 1-byte Folded Reload
-; O1-NEXT:    lda 7,s ; 1-byte Folded Reload
 ; O1-NEXT:    pshs d
+; O1-NEXT:    ldb 7,s
+; O1-NEXT:    lda 10,s
 ; O1-NEXT:    std <__rs1
 ; O1-NEXT:    puls d
-; O1-NEXT:    ldb 6,s ; 1-byte Folded Reload
-; O1-NEXT:    lda 5,s ; 1-byte Folded Reload
 ; O1-NEXT:    pshs d
+; O1-NEXT:    ldb 5,s
+; O1-NEXT:    lda 8,s
 ; O1-NEXT:    std <__rs2
 ; O1-NEXT:    puls d
-; O1-NEXT:    ldb 4,s ; 1-byte Folded Reload
-; O1-NEXT:    lda 3,s ; 1-byte Folded Reload
+; O1-NEXT:    tfr a,b
+; O1-NEXT:    lda 4,s
 ; O1-NEXT:    pshs d
 ; O1-NEXT:    ldd <__rs0
 ; O1-NEXT:    std 6,x
@@ -3356,7 +3328,7 @@ define dso_local i64 @sub_s_i64(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O2-NEXT:    std <__rs0
 ; O2-NEXT:    puls d
 ; O2-NEXT:    ldb <__rs0lo
-; O2-NEXT:    stb 2,s ; 1-byte Folded Spill
+; O2-NEXT:    stb 7,s ; 1-byte Folded Spill
 ; O2-NEXT:    pshs a
 ; O2-NEXT:    lda <__rs0hi
 ; O2-NEXT:    tfr a,b
@@ -3367,73 +3339,74 @@ define dso_local i64 @sub_s_i64(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O2-NEXT:    std <__rs0
 ; O2-NEXT:    puls d
 ; O2-NEXT:    ldb <__rs0lo
-; O2-NEXT:    stb 8,s ; 1-byte Folded Spill
+; O2-NEXT:    stb 5,s ; 1-byte Folded Spill
 ; O2-NEXT:    pshs a
 ; O2-NEXT:    lda <__rs0hi
 ; O2-NEXT:    tfr a,b
 ; O2-NEXT:    puls a
-; O2-NEXT:    stb 7,s ; 1-byte Folded Spill
+; O2-NEXT:    stb 8,s ; 1-byte Folded Spill
 ; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd 24,s
 ; O2-NEXT:    std <__rs0
 ; O2-NEXT:    puls d
 ; O2-NEXT:    ldb <__rs0lo
-; O2-NEXT:    stb 6,s ; 1-byte Folded Spill
+; O2-NEXT:    stb 3,s ; 1-byte Folded Spill
 ; O2-NEXT:    pshs a
 ; O2-NEXT:    lda <__rs0hi
 ; O2-NEXT:    tfr a,b
 ; O2-NEXT:    puls a
-; O2-NEXT:    stb 5,s ; 1-byte Folded Spill
+; O2-NEXT:    stb 6,s ; 1-byte Folded Spill
 ; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd 22,s
 ; O2-NEXT:    std <__rs0
 ; O2-NEXT:    puls d
 ; O2-NEXT:    ldb <__rs0lo
-; O2-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O2-NEXT:    stb 2,s ; 1-byte Folded Spill
 ; O2-NEXT:    pshs a
 ; O2-NEXT:    lda <__rs0hi
 ; O2-NEXT:    tfr a,b
 ; O2-NEXT:    puls a
-; O2-NEXT:    stb 3,s ; 1-byte Folded Spill
-; O2-NEXT:    ldb 2,s ; 1-byte Folded Reload
+; O2-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O2-NEXT:    ldb 7,s ; 1-byte Folded Reload
 ; O2-NEXT:    subb 15,s
+; O2-NEXT:    stb 7,s ; 1-byte Folded Spill
 ; O2-NEXT:    lda 9,s ; 1-byte Folded Reload
 ; O2-NEXT:    sbca 16,s
 ; O2-NEXT:    sta 9,s ; 1-byte Folded Spill
-; O2-NEXT:    lda 8,s ; 1-byte Folded Reload
-; O2-NEXT:    sbca 12,s
-; O2-NEXT:    sta 8,s ; 1-byte Folded Spill
-; O2-NEXT:    lda 7,s ; 1-byte Folded Reload
-; O2-NEXT:    sbca 17,s
-; O2-NEXT:    sta 7,s ; 1-byte Folded Spill
+; O2-NEXT:    ldb 5,s ; 1-byte Folded Reload
+; O2-NEXT:    sbcb 12,s
+; O2-NEXT:    stb 5,s ; 1-byte Folded Spill
+; O2-NEXT:    ldb 8,s ; 1-byte Folded Reload
+; O2-NEXT:    sbcb 17,s
+; O2-NEXT:    stb 8,s ; 1-byte Folded Spill
+; O2-NEXT:    ldb 3,s ; 1-byte Folded Reload
+; O2-NEXT:    sbcb 11,s
+; O2-NEXT:    stb 3,s ; 1-byte Folded Spill
 ; O2-NEXT:    lda 6,s ; 1-byte Folded Reload
-; O2-NEXT:    sbca 11,s
-; O2-NEXT:    sta 6,s ; 1-byte Folded Spill
-; O2-NEXT:    lda 5,s ; 1-byte Folded Reload
 ; O2-NEXT:    sbca 13,s
-; O2-NEXT:    sta 5,s ; 1-byte Folded Spill
-; O2-NEXT:    lda 4,s ; 1-byte Folded Reload
+; O2-NEXT:    sta 6,s ; 1-byte Folded Spill
+; O2-NEXT:    lda 2,s ; 1-byte Folded Reload
 ; O2-NEXT:    sbca 10,s
-; O2-NEXT:    sta 4,s ; 1-byte Folded Spill
-; O2-NEXT:    lda 3,s ; 1-byte Folded Reload
-; O2-NEXT:    sbca 14,s
-; O2-NEXT:    sta 3,s ; 1-byte Folded Spill
-; O2-NEXT:    lda 9,s ; 1-byte Folded Reload
+; O2-NEXT:    ldb 4,s ; 1-byte Folded Reload
+; O2-NEXT:    sbcb 14,s
+; O2-NEXT:    stb 4,s ; 1-byte Folded Spill
 ; O2-NEXT:    pshs d
+; O2-NEXT:    ldb 9,s
+; O2-NEXT:    lda 11,s
 ; O2-NEXT:    std <__rs0
 ; O2-NEXT:    puls d
-; O2-NEXT:    ldb 8,s ; 1-byte Folded Reload
-; O2-NEXT:    lda 7,s ; 1-byte Folded Reload
 ; O2-NEXT:    pshs d
+; O2-NEXT:    ldb 7,s
+; O2-NEXT:    lda 10,s
 ; O2-NEXT:    std <__rs1
 ; O2-NEXT:    puls d
-; O2-NEXT:    ldb 6,s ; 1-byte Folded Reload
-; O2-NEXT:    lda 5,s ; 1-byte Folded Reload
 ; O2-NEXT:    pshs d
+; O2-NEXT:    ldb 5,s
+; O2-NEXT:    lda 8,s
 ; O2-NEXT:    std <__rs2
 ; O2-NEXT:    puls d
-; O2-NEXT:    ldb 4,s ; 1-byte Folded Reload
-; O2-NEXT:    lda 3,s ; 1-byte Folded Reload
+; O2-NEXT:    tfr a,b
+; O2-NEXT:    lda 4,s
 ; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    std 6,x
@@ -3571,7 +3544,7 @@ define dso_local i64 @sub_s_i64(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O3-NEXT:    std <__rs0
 ; O3-NEXT:    puls d
 ; O3-NEXT:    ldb <__rs0lo
-; O3-NEXT:    stb 2,s ; 1-byte Folded Spill
+; O3-NEXT:    stb 7,s ; 1-byte Folded Spill
 ; O3-NEXT:    pshs a
 ; O3-NEXT:    lda <__rs0hi
 ; O3-NEXT:    tfr a,b
@@ -3582,73 +3555,74 @@ define dso_local i64 @sub_s_i64(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O3-NEXT:    std <__rs0
 ; O3-NEXT:    puls d
 ; O3-NEXT:    ldb <__rs0lo
-; O3-NEXT:    stb 8,s ; 1-byte Folded Spill
+; O3-NEXT:    stb 5,s ; 1-byte Folded Spill
 ; O3-NEXT:    pshs a
 ; O3-NEXT:    lda <__rs0hi
 ; O3-NEXT:    tfr a,b
 ; O3-NEXT:    puls a
-; O3-NEXT:    stb 7,s ; 1-byte Folded Spill
+; O3-NEXT:    stb 8,s ; 1-byte Folded Spill
 ; O3-NEXT:    pshs d
 ; O3-NEXT:    ldd 24,s
 ; O3-NEXT:    std <__rs0
 ; O3-NEXT:    puls d
 ; O3-NEXT:    ldb <__rs0lo
-; O3-NEXT:    stb 6,s ; 1-byte Folded Spill
+; O3-NEXT:    stb 3,s ; 1-byte Folded Spill
 ; O3-NEXT:    pshs a
 ; O3-NEXT:    lda <__rs0hi
 ; O3-NEXT:    tfr a,b
 ; O3-NEXT:    puls a
-; O3-NEXT:    stb 5,s ; 1-byte Folded Spill
+; O3-NEXT:    stb 6,s ; 1-byte Folded Spill
 ; O3-NEXT:    pshs d
 ; O3-NEXT:    ldd 22,s
 ; O3-NEXT:    std <__rs0
 ; O3-NEXT:    puls d
 ; O3-NEXT:    ldb <__rs0lo
-; O3-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O3-NEXT:    stb 2,s ; 1-byte Folded Spill
 ; O3-NEXT:    pshs a
 ; O3-NEXT:    lda <__rs0hi
 ; O3-NEXT:    tfr a,b
 ; O3-NEXT:    puls a
-; O3-NEXT:    stb 3,s ; 1-byte Folded Spill
-; O3-NEXT:    ldb 2,s ; 1-byte Folded Reload
+; O3-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O3-NEXT:    ldb 7,s ; 1-byte Folded Reload
 ; O3-NEXT:    subb 15,s
+; O3-NEXT:    stb 7,s ; 1-byte Folded Spill
 ; O3-NEXT:    lda 9,s ; 1-byte Folded Reload
 ; O3-NEXT:    sbca 16,s
 ; O3-NEXT:    sta 9,s ; 1-byte Folded Spill
-; O3-NEXT:    lda 8,s ; 1-byte Folded Reload
-; O3-NEXT:    sbca 12,s
-; O3-NEXT:    sta 8,s ; 1-byte Folded Spill
-; O3-NEXT:    lda 7,s ; 1-byte Folded Reload
-; O3-NEXT:    sbca 17,s
-; O3-NEXT:    sta 7,s ; 1-byte Folded Spill
+; O3-NEXT:    ldb 5,s ; 1-byte Folded Reload
+; O3-NEXT:    sbcb 12,s
+; O3-NEXT:    stb 5,s ; 1-byte Folded Spill
+; O3-NEXT:    ldb 8,s ; 1-byte Folded Reload
+; O3-NEXT:    sbcb 17,s
+; O3-NEXT:    stb 8,s ; 1-byte Folded Spill
+; O3-NEXT:    ldb 3,s ; 1-byte Folded Reload
+; O3-NEXT:    sbcb 11,s
+; O3-NEXT:    stb 3,s ; 1-byte Folded Spill
 ; O3-NEXT:    lda 6,s ; 1-byte Folded Reload
-; O3-NEXT:    sbca 11,s
-; O3-NEXT:    sta 6,s ; 1-byte Folded Spill
-; O3-NEXT:    lda 5,s ; 1-byte Folded Reload
 ; O3-NEXT:    sbca 13,s
-; O3-NEXT:    sta 5,s ; 1-byte Folded Spill
-; O3-NEXT:    lda 4,s ; 1-byte Folded Reload
+; O3-NEXT:    sta 6,s ; 1-byte Folded Spill
+; O3-NEXT:    lda 2,s ; 1-byte Folded Reload
 ; O3-NEXT:    sbca 10,s
-; O3-NEXT:    sta 4,s ; 1-byte Folded Spill
-; O3-NEXT:    lda 3,s ; 1-byte Folded Reload
-; O3-NEXT:    sbca 14,s
-; O3-NEXT:    sta 3,s ; 1-byte Folded Spill
-; O3-NEXT:    lda 9,s ; 1-byte Folded Reload
+; O3-NEXT:    ldb 4,s ; 1-byte Folded Reload
+; O3-NEXT:    sbcb 14,s
+; O3-NEXT:    stb 4,s ; 1-byte Folded Spill
 ; O3-NEXT:    pshs d
+; O3-NEXT:    ldb 9,s
+; O3-NEXT:    lda 11,s
 ; O3-NEXT:    std <__rs0
 ; O3-NEXT:    puls d
-; O3-NEXT:    ldb 8,s ; 1-byte Folded Reload
-; O3-NEXT:    lda 7,s ; 1-byte Folded Reload
 ; O3-NEXT:    pshs d
+; O3-NEXT:    ldb 7,s
+; O3-NEXT:    lda 10,s
 ; O3-NEXT:    std <__rs1
 ; O3-NEXT:    puls d
-; O3-NEXT:    ldb 6,s ; 1-byte Folded Reload
-; O3-NEXT:    lda 5,s ; 1-byte Folded Reload
 ; O3-NEXT:    pshs d
+; O3-NEXT:    ldb 5,s
+; O3-NEXT:    lda 8,s
 ; O3-NEXT:    std <__rs2
 ; O3-NEXT:    puls d
-; O3-NEXT:    ldb 4,s ; 1-byte Folded Reload
-; O3-NEXT:    lda 3,s ; 1-byte Folded Reload
+; O3-NEXT:    tfr a,b
+; O3-NEXT:    lda 4,s
 ; O3-NEXT:    pshs d
 ; O3-NEXT:    ldd <__rs0
 ; O3-NEXT:    std 6,x
@@ -3708,13 +3682,14 @@ define dso_local i64 @sub_s_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O0-NEXT:    puls b
 ; O0-NEXT:    sta 11,s ; 1-byte Folded Spill
 ; O0-NEXT:    lda <__rs2hi
-; O0-NEXT:    sta 6,s ; 1-byte Folded Spill
+; O0-NEXT:    sta 2,s ; 1-byte Folded Spill
 ; O0-NEXT:    pshs b
 ; O0-NEXT:    ldb <__rs3lo
 ; O0-NEXT:    tfr b,a
 ; O0-NEXT:    puls b
-; O0-NEXT:    sta 10,s ; 1-byte Folded Spill
+; O0-NEXT:    sta 6,s ; 1-byte Folded Spill
 ; O0-NEXT:    lda <__rs3hi
+; O0-NEXT:    sta 10,s ; 1-byte Folded Spill
 ; O0-NEXT:    addb #119
 ; O0-NEXT:    stb 3,s ; 1-byte Folded Spill
 ; O0-NEXT:    ldb 9,s ; 1-byte Folded Reload
@@ -3729,14 +3704,15 @@ define dso_local i64 @sub_s_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O0-NEXT:    ldb 11,s ; 1-byte Folded Reload
 ; O0-NEXT:    adcb #254
 ; O0-NEXT:    stb 11,s ; 1-byte Folded Spill
+; O0-NEXT:    ldb 2,s ; 1-byte Folded Reload
+; O0-NEXT:    adcb #255
+; O0-NEXT:    stb 2,s ; 1-byte Folded Spill
 ; O0-NEXT:    ldb 6,s ; 1-byte Folded Reload
 ; O0-NEXT:    adcb #255
 ; O0-NEXT:    stb 6,s ; 1-byte Folded Spill
 ; O0-NEXT:    ldb 10,s ; 1-byte Folded Reload
 ; O0-NEXT:    adcb #255
 ; O0-NEXT:    stb 10,s ; 1-byte Folded Spill
-; O0-NEXT:    adca #255
-; O0-NEXT:    sta 2,s ; 1-byte Folded Spill
 ; O0-NEXT:    ldd 34,s
 ; O0-NEXT:    stb 12,s ; 1-byte Folded Spill
 ; O0-NEXT:    ldd 34,s
@@ -3843,33 +3819,32 @@ define dso_local i64 @sub_s_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O0-NEXT:    ldb 11,s ; 1-byte Folded Reload
 ; O0-NEXT:    sbcb 16,s
 ; O0-NEXT:    stb 11,s ; 1-byte Folded Spill
-; O0-NEXT:    ldb 6,s ; 1-byte Folded Reload
-; O0-NEXT:    sbcb 17,s
-; O0-NEXT:    stb 6,s ; 1-byte Folded Spill
-; O0-NEXT:    ldb 10,s ; 1-byte Folded Reload
-; O0-NEXT:    sbcb 4,s
-; O0-NEXT:    stb 10,s ; 1-byte Folded Spill
 ; O0-NEXT:    ldb 2,s ; 1-byte Folded Reload
-; O0-NEXT:    sbcb 5,s
-; O0-NEXT:    stb 2,s ; 1-byte Folded Spill
-; O0-NEXT:    ldb 3,s ; 1-byte Folded Reload
-; O0-NEXT:    lda 9,s ; 1-byte Folded Reload
+; O0-NEXT:    sbcb 17,s
+; O0-NEXT:    lda 6,s ; 1-byte Folded Reload
+; O0-NEXT:    sbca 4,s
+; O0-NEXT:    sta 6,s ; 1-byte Folded Spill
+; O0-NEXT:    lda 10,s ; 1-byte Folded Reload
+; O0-NEXT:    sbca 5,s
+; O0-NEXT:    sta 10,s ; 1-byte Folded Spill
 ; O0-NEXT:    pshs d
+; O0-NEXT:    ldb 5,s
+; O0-NEXT:    lda 11,s
 ; O0-NEXT:    std <__rs3
 ; O0-NEXT:    puls d
-; O0-NEXT:    ldb 7,s ; 1-byte Folded Reload
-; O0-NEXT:    lda 8,s ; 1-byte Folded Reload
 ; O0-NEXT:    pshs d
+; O0-NEXT:    ldb 9,s
+; O0-NEXT:    lda 10,s
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
-; O0-NEXT:    ldb 11,s ; 1-byte Folded Reload
-; O0-NEXT:    lda 6,s ; 1-byte Folded Reload
 ; O0-NEXT:    pshs d
+; O0-NEXT:    tfr b,a
+; O0-NEXT:    ldb 13,s
 ; O0-NEXT:    std <__rs1
 ; O0-NEXT:    puls d
-; O0-NEXT:    ldb 10,s ; 1-byte Folded Reload
-; O0-NEXT:    lda 2,s ; 1-byte Folded Reload
 ; O0-NEXT:    pshs d
+; O0-NEXT:    ldb 8,s
+; O0-NEXT:    lda 12,s
 ; O0-NEXT:    std <__rs2
 ; O0-NEXT:    puls d
 ; O0-NEXT:    pshs d
@@ -3926,13 +3901,14 @@ define dso_local i64 @sub_s_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O1-NEXT:    puls b
 ; O1-NEXT:    sta 11,s ; 1-byte Folded Spill
 ; O1-NEXT:    lda <__rs2hi
-; O1-NEXT:    sta 6,s ; 1-byte Folded Spill
+; O1-NEXT:    sta 2,s ; 1-byte Folded Spill
 ; O1-NEXT:    pshs b
 ; O1-NEXT:    ldb <__rs3lo
 ; O1-NEXT:    tfr b,a
 ; O1-NEXT:    puls b
-; O1-NEXT:    sta 10,s ; 1-byte Folded Spill
+; O1-NEXT:    sta 6,s ; 1-byte Folded Spill
 ; O1-NEXT:    lda <__rs3hi
+; O1-NEXT:    sta 10,s ; 1-byte Folded Spill
 ; O1-NEXT:    addb #119
 ; O1-NEXT:    stb 3,s ; 1-byte Folded Spill
 ; O1-NEXT:    ldb 9,s ; 1-byte Folded Reload
@@ -3947,14 +3923,15 @@ define dso_local i64 @sub_s_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O1-NEXT:    ldb 11,s ; 1-byte Folded Reload
 ; O1-NEXT:    adcb #-2
 ; O1-NEXT:    stb 11,s ; 1-byte Folded Spill
+; O1-NEXT:    ldb 2,s ; 1-byte Folded Reload
+; O1-NEXT:    adcb #-1
+; O1-NEXT:    stb 2,s ; 1-byte Folded Spill
 ; O1-NEXT:    ldb 6,s ; 1-byte Folded Reload
 ; O1-NEXT:    adcb #-1
 ; O1-NEXT:    stb 6,s ; 1-byte Folded Spill
 ; O1-NEXT:    ldb 10,s ; 1-byte Folded Reload
 ; O1-NEXT:    adcb #-1
 ; O1-NEXT:    stb 10,s ; 1-byte Folded Spill
-; O1-NEXT:    adca #-1
-; O1-NEXT:    sta 2,s ; 1-byte Folded Spill
 ; O1-NEXT:    ldd 34,s
 ; O1-NEXT:    stb 12,s ; 1-byte Folded Spill
 ; O1-NEXT:    ldd 34,s
@@ -4061,33 +4038,32 @@ define dso_local i64 @sub_s_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O1-NEXT:    ldb 11,s ; 1-byte Folded Reload
 ; O1-NEXT:    sbcb 16,s
 ; O1-NEXT:    stb 11,s ; 1-byte Folded Spill
-; O1-NEXT:    ldb 6,s ; 1-byte Folded Reload
-; O1-NEXT:    sbcb 17,s
-; O1-NEXT:    stb 6,s ; 1-byte Folded Spill
-; O1-NEXT:    ldb 10,s ; 1-byte Folded Reload
-; O1-NEXT:    sbcb 4,s
-; O1-NEXT:    stb 10,s ; 1-byte Folded Spill
 ; O1-NEXT:    ldb 2,s ; 1-byte Folded Reload
-; O1-NEXT:    sbcb 5,s
-; O1-NEXT:    stb 2,s ; 1-byte Folded Spill
-; O1-NEXT:    ldb 3,s ; 1-byte Folded Reload
-; O1-NEXT:    lda 9,s ; 1-byte Folded Reload
+; O1-NEXT:    sbcb 17,s
+; O1-NEXT:    lda 6,s ; 1-byte Folded Reload
+; O1-NEXT:    sbca 4,s
+; O1-NEXT:    sta 6,s ; 1-byte Folded Spill
+; O1-NEXT:    lda 10,s ; 1-byte Folded Reload
+; O1-NEXT:    sbca 5,s
+; O1-NEXT:    sta 10,s ; 1-byte Folded Spill
 ; O1-NEXT:    pshs d
+; O1-NEXT:    ldb 5,s
+; O1-NEXT:    lda 11,s
 ; O1-NEXT:    std <__rs3
 ; O1-NEXT:    puls d
-; O1-NEXT:    ldb 7,s ; 1-byte Folded Reload
-; O1-NEXT:    lda 8,s ; 1-byte Folded Reload
 ; O1-NEXT:    pshs d
+; O1-NEXT:    ldb 9,s
+; O1-NEXT:    lda 10,s
 ; O1-NEXT:    std <__rs0
 ; O1-NEXT:    puls d
-; O1-NEXT:    ldb 11,s ; 1-byte Folded Reload
-; O1-NEXT:    lda 6,s ; 1-byte Folded Reload
 ; O1-NEXT:    pshs d
+; O1-NEXT:    tfr b,a
+; O1-NEXT:    ldb 13,s
 ; O1-NEXT:    std <__rs1
 ; O1-NEXT:    puls d
-; O1-NEXT:    ldb 10,s ; 1-byte Folded Reload
-; O1-NEXT:    lda 2,s ; 1-byte Folded Reload
 ; O1-NEXT:    pshs d
+; O1-NEXT:    ldb 8,s
+; O1-NEXT:    lda 12,s
 ; O1-NEXT:    std <__rs2
 ; O1-NEXT:    puls d
 ; O1-NEXT:    pshs d
@@ -4144,13 +4120,14 @@ define dso_local i64 @sub_s_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O2-NEXT:    puls b
 ; O2-NEXT:    sta 11,s ; 1-byte Folded Spill
 ; O2-NEXT:    lda <__rs2hi
-; O2-NEXT:    sta 6,s ; 1-byte Folded Spill
+; O2-NEXT:    sta 2,s ; 1-byte Folded Spill
 ; O2-NEXT:    pshs b
 ; O2-NEXT:    ldb <__rs3lo
 ; O2-NEXT:    tfr b,a
 ; O2-NEXT:    puls b
-; O2-NEXT:    sta 10,s ; 1-byte Folded Spill
+; O2-NEXT:    sta 6,s ; 1-byte Folded Spill
 ; O2-NEXT:    lda <__rs3hi
+; O2-NEXT:    sta 10,s ; 1-byte Folded Spill
 ; O2-NEXT:    addb #119
 ; O2-NEXT:    stb 3,s ; 1-byte Folded Spill
 ; O2-NEXT:    ldb 9,s ; 1-byte Folded Reload
@@ -4165,14 +4142,15 @@ define dso_local i64 @sub_s_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O2-NEXT:    ldb 11,s ; 1-byte Folded Reload
 ; O2-NEXT:    adcb #-2
 ; O2-NEXT:    stb 11,s ; 1-byte Folded Spill
+; O2-NEXT:    ldb 2,s ; 1-byte Folded Reload
+; O2-NEXT:    adcb #-1
+; O2-NEXT:    stb 2,s ; 1-byte Folded Spill
 ; O2-NEXT:    ldb 6,s ; 1-byte Folded Reload
 ; O2-NEXT:    adcb #-1
 ; O2-NEXT:    stb 6,s ; 1-byte Folded Spill
 ; O2-NEXT:    ldb 10,s ; 1-byte Folded Reload
 ; O2-NEXT:    adcb #-1
 ; O2-NEXT:    stb 10,s ; 1-byte Folded Spill
-; O2-NEXT:    adca #-1
-; O2-NEXT:    sta 2,s ; 1-byte Folded Spill
 ; O2-NEXT:    ldd 34,s
 ; O2-NEXT:    stb 12,s ; 1-byte Folded Spill
 ; O2-NEXT:    ldd 34,s
@@ -4279,33 +4257,32 @@ define dso_local i64 @sub_s_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O2-NEXT:    ldb 11,s ; 1-byte Folded Reload
 ; O2-NEXT:    sbcb 16,s
 ; O2-NEXT:    stb 11,s ; 1-byte Folded Spill
-; O2-NEXT:    ldb 6,s ; 1-byte Folded Reload
-; O2-NEXT:    sbcb 17,s
-; O2-NEXT:    stb 6,s ; 1-byte Folded Spill
-; O2-NEXT:    ldb 10,s ; 1-byte Folded Reload
-; O2-NEXT:    sbcb 4,s
-; O2-NEXT:    stb 10,s ; 1-byte Folded Spill
 ; O2-NEXT:    ldb 2,s ; 1-byte Folded Reload
-; O2-NEXT:    sbcb 5,s
-; O2-NEXT:    stb 2,s ; 1-byte Folded Spill
-; O2-NEXT:    ldb 3,s ; 1-byte Folded Reload
-; O2-NEXT:    lda 9,s ; 1-byte Folded Reload
+; O2-NEXT:    sbcb 17,s
+; O2-NEXT:    lda 6,s ; 1-byte Folded Reload
+; O2-NEXT:    sbca 4,s
+; O2-NEXT:    sta 6,s ; 1-byte Folded Spill
+; O2-NEXT:    lda 10,s ; 1-byte Folded Reload
+; O2-NEXT:    sbca 5,s
+; O2-NEXT:    sta 10,s ; 1-byte Folded Spill
 ; O2-NEXT:    pshs d
+; O2-NEXT:    ldb 5,s
+; O2-NEXT:    lda 11,s
 ; O2-NEXT:    std <__rs3
 ; O2-NEXT:    puls d
-; O2-NEXT:    ldb 7,s ; 1-byte Folded Reload
-; O2-NEXT:    lda 8,s ; 1-byte Folded Reload
 ; O2-NEXT:    pshs d
+; O2-NEXT:    ldb 9,s
+; O2-NEXT:    lda 10,s
 ; O2-NEXT:    std <__rs0
 ; O2-NEXT:    puls d
-; O2-NEXT:    ldb 11,s ; 1-byte Folded Reload
-; O2-NEXT:    lda 6,s ; 1-byte Folded Reload
 ; O2-NEXT:    pshs d
+; O2-NEXT:    tfr b,a
+; O2-NEXT:    ldb 13,s
 ; O2-NEXT:    std <__rs1
 ; O2-NEXT:    puls d
-; O2-NEXT:    ldb 10,s ; 1-byte Folded Reload
-; O2-NEXT:    lda 2,s ; 1-byte Folded Reload
 ; O2-NEXT:    pshs d
+; O2-NEXT:    ldb 8,s
+; O2-NEXT:    lda 12,s
 ; O2-NEXT:    std <__rs2
 ; O2-NEXT:    puls d
 ; O2-NEXT:    pshs d
@@ -4362,13 +4339,14 @@ define dso_local i64 @sub_s_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O3-NEXT:    puls b
 ; O3-NEXT:    sta 11,s ; 1-byte Folded Spill
 ; O3-NEXT:    lda <__rs2hi
-; O3-NEXT:    sta 6,s ; 1-byte Folded Spill
+; O3-NEXT:    sta 2,s ; 1-byte Folded Spill
 ; O3-NEXT:    pshs b
 ; O3-NEXT:    ldb <__rs3lo
 ; O3-NEXT:    tfr b,a
 ; O3-NEXT:    puls b
-; O3-NEXT:    sta 10,s ; 1-byte Folded Spill
+; O3-NEXT:    sta 6,s ; 1-byte Folded Spill
 ; O3-NEXT:    lda <__rs3hi
+; O3-NEXT:    sta 10,s ; 1-byte Folded Spill
 ; O3-NEXT:    addb #119
 ; O3-NEXT:    stb 3,s ; 1-byte Folded Spill
 ; O3-NEXT:    ldb 9,s ; 1-byte Folded Reload
@@ -4383,14 +4361,15 @@ define dso_local i64 @sub_s_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O3-NEXT:    ldb 11,s ; 1-byte Folded Reload
 ; O3-NEXT:    adcb #-2
 ; O3-NEXT:    stb 11,s ; 1-byte Folded Spill
+; O3-NEXT:    ldb 2,s ; 1-byte Folded Reload
+; O3-NEXT:    adcb #-1
+; O3-NEXT:    stb 2,s ; 1-byte Folded Spill
 ; O3-NEXT:    ldb 6,s ; 1-byte Folded Reload
 ; O3-NEXT:    adcb #-1
 ; O3-NEXT:    stb 6,s ; 1-byte Folded Spill
 ; O3-NEXT:    ldb 10,s ; 1-byte Folded Reload
 ; O3-NEXT:    adcb #-1
 ; O3-NEXT:    stb 10,s ; 1-byte Folded Spill
-; O3-NEXT:    adca #-1
-; O3-NEXT:    sta 2,s ; 1-byte Folded Spill
 ; O3-NEXT:    ldd 34,s
 ; O3-NEXT:    stb 12,s ; 1-byte Folded Spill
 ; O3-NEXT:    ldd 34,s
@@ -4497,33 +4476,32 @@ define dso_local i64 @sub_s_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O3-NEXT:    ldb 11,s ; 1-byte Folded Reload
 ; O3-NEXT:    sbcb 16,s
 ; O3-NEXT:    stb 11,s ; 1-byte Folded Spill
-; O3-NEXT:    ldb 6,s ; 1-byte Folded Reload
-; O3-NEXT:    sbcb 17,s
-; O3-NEXT:    stb 6,s ; 1-byte Folded Spill
-; O3-NEXT:    ldb 10,s ; 1-byte Folded Reload
-; O3-NEXT:    sbcb 4,s
-; O3-NEXT:    stb 10,s ; 1-byte Folded Spill
 ; O3-NEXT:    ldb 2,s ; 1-byte Folded Reload
-; O3-NEXT:    sbcb 5,s
-; O3-NEXT:    stb 2,s ; 1-byte Folded Spill
-; O3-NEXT:    ldb 3,s ; 1-byte Folded Reload
-; O3-NEXT:    lda 9,s ; 1-byte Folded Reload
+; O3-NEXT:    sbcb 17,s
+; O3-NEXT:    lda 6,s ; 1-byte Folded Reload
+; O3-NEXT:    sbca 4,s
+; O3-NEXT:    sta 6,s ; 1-byte Folded Spill
+; O3-NEXT:    lda 10,s ; 1-byte Folded Reload
+; O3-NEXT:    sbca 5,s
+; O3-NEXT:    sta 10,s ; 1-byte Folded Spill
 ; O3-NEXT:    pshs d
+; O3-NEXT:    ldb 5,s
+; O3-NEXT:    lda 11,s
 ; O3-NEXT:    std <__rs3
 ; O3-NEXT:    puls d
-; O3-NEXT:    ldb 7,s ; 1-byte Folded Reload
-; O3-NEXT:    lda 8,s ; 1-byte Folded Reload
 ; O3-NEXT:    pshs d
+; O3-NEXT:    ldb 9,s
+; O3-NEXT:    lda 10,s
 ; O3-NEXT:    std <__rs0
 ; O3-NEXT:    puls d
-; O3-NEXT:    ldb 11,s ; 1-byte Folded Reload
-; O3-NEXT:    lda 6,s ; 1-byte Folded Reload
 ; O3-NEXT:    pshs d
+; O3-NEXT:    tfr b,a
+; O3-NEXT:    ldb 13,s
 ; O3-NEXT:    std <__rs1
 ; O3-NEXT:    puls d
-; O3-NEXT:    ldb 10,s ; 1-byte Folded Reload
-; O3-NEXT:    lda 2,s ; 1-byte Folded Reload
 ; O3-NEXT:    pshs d
+; O3-NEXT:    ldb 8,s
+; O3-NEXT:    lda 12,s
 ; O3-NEXT:    std <__rs2
 ; O3-NEXT:    puls d
 ; O3-NEXT:    pshs d
@@ -4675,7 +4653,7 @@ define dso_local i64 @sub_u_i64(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
 ; O0-NEXT:    ldb <__rs0lo
-; O0-NEXT:    stb 2,s ; 1-byte Folded Spill
+; O0-NEXT:    stb 7,s ; 1-byte Folded Spill
 ; O0-NEXT:    pshs a
 ; O0-NEXT:    lda <__rs0hi
 ; O0-NEXT:    tfr a,b
@@ -4686,73 +4664,74 @@ define dso_local i64 @sub_u_i64(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
 ; O0-NEXT:    ldb <__rs0lo
-; O0-NEXT:    stb 8,s ; 1-byte Folded Spill
+; O0-NEXT:    stb 5,s ; 1-byte Folded Spill
 ; O0-NEXT:    pshs a
 ; O0-NEXT:    lda <__rs0hi
 ; O0-NEXT:    tfr a,b
 ; O0-NEXT:    puls a
-; O0-NEXT:    stb 7,s ; 1-byte Folded Spill
+; O0-NEXT:    stb 8,s ; 1-byte Folded Spill
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd 24,s
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
 ; O0-NEXT:    ldb <__rs0lo
-; O0-NEXT:    stb 6,s ; 1-byte Folded Spill
+; O0-NEXT:    stb 3,s ; 1-byte Folded Spill
 ; O0-NEXT:    pshs a
 ; O0-NEXT:    lda <__rs0hi
 ; O0-NEXT:    tfr a,b
 ; O0-NEXT:    puls a
-; O0-NEXT:    stb 5,s ; 1-byte Folded Spill
+; O0-NEXT:    stb 6,s ; 1-byte Folded Spill
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd 22,s
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
 ; O0-NEXT:    ldb <__rs0lo
-; O0-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O0-NEXT:    stb 2,s ; 1-byte Folded Spill
 ; O0-NEXT:    pshs a
 ; O0-NEXT:    lda <__rs0hi
 ; O0-NEXT:    tfr a,b
 ; O0-NEXT:    puls a
-; O0-NEXT:    stb 3,s ; 1-byte Folded Spill
-; O0-NEXT:    ldb 2,s ; 1-byte Folded Reload
+; O0-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O0-NEXT:    ldb 7,s ; 1-byte Folded Reload
 ; O0-NEXT:    subb 15,s
+; O0-NEXT:    stb 7,s ; 1-byte Folded Spill
 ; O0-NEXT:    lda 9,s ; 1-byte Folded Reload
 ; O0-NEXT:    sbca 16,s
 ; O0-NEXT:    sta 9,s ; 1-byte Folded Spill
-; O0-NEXT:    lda 8,s ; 1-byte Folded Reload
-; O0-NEXT:    sbca 12,s
-; O0-NEXT:    sta 8,s ; 1-byte Folded Spill
-; O0-NEXT:    lda 7,s ; 1-byte Folded Reload
-; O0-NEXT:    sbca 17,s
-; O0-NEXT:    sta 7,s ; 1-byte Folded Spill
+; O0-NEXT:    ldb 5,s ; 1-byte Folded Reload
+; O0-NEXT:    sbcb 12,s
+; O0-NEXT:    stb 5,s ; 1-byte Folded Spill
+; O0-NEXT:    ldb 8,s ; 1-byte Folded Reload
+; O0-NEXT:    sbcb 17,s
+; O0-NEXT:    stb 8,s ; 1-byte Folded Spill
+; O0-NEXT:    ldb 3,s ; 1-byte Folded Reload
+; O0-NEXT:    sbcb 11,s
+; O0-NEXT:    stb 3,s ; 1-byte Folded Spill
 ; O0-NEXT:    lda 6,s ; 1-byte Folded Reload
-; O0-NEXT:    sbca 11,s
-; O0-NEXT:    sta 6,s ; 1-byte Folded Spill
-; O0-NEXT:    lda 5,s ; 1-byte Folded Reload
 ; O0-NEXT:    sbca 13,s
-; O0-NEXT:    sta 5,s ; 1-byte Folded Spill
-; O0-NEXT:    lda 4,s ; 1-byte Folded Reload
+; O0-NEXT:    sta 6,s ; 1-byte Folded Spill
+; O0-NEXT:    lda 2,s ; 1-byte Folded Reload
 ; O0-NEXT:    sbca 10,s
-; O0-NEXT:    sta 4,s ; 1-byte Folded Spill
-; O0-NEXT:    lda 3,s ; 1-byte Folded Reload
-; O0-NEXT:    sbca 14,s
-; O0-NEXT:    sta 3,s ; 1-byte Folded Spill
-; O0-NEXT:    lda 9,s ; 1-byte Folded Reload
+; O0-NEXT:    ldb 4,s ; 1-byte Folded Reload
+; O0-NEXT:    sbcb 14,s
+; O0-NEXT:    stb 4,s ; 1-byte Folded Spill
 ; O0-NEXT:    pshs d
+; O0-NEXT:    ldb 9,s
+; O0-NEXT:    lda 11,s
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
-; O0-NEXT:    ldb 8,s ; 1-byte Folded Reload
-; O0-NEXT:    lda 7,s ; 1-byte Folded Reload
 ; O0-NEXT:    pshs d
+; O0-NEXT:    ldb 7,s
+; O0-NEXT:    lda 10,s
 ; O0-NEXT:    std <__rs1
 ; O0-NEXT:    puls d
-; O0-NEXT:    ldb 6,s ; 1-byte Folded Reload
-; O0-NEXT:    lda 5,s ; 1-byte Folded Reload
 ; O0-NEXT:    pshs d
+; O0-NEXT:    ldb 5,s
+; O0-NEXT:    lda 8,s
 ; O0-NEXT:    std <__rs2
 ; O0-NEXT:    puls d
-; O0-NEXT:    ldb 4,s ; 1-byte Folded Reload
-; O0-NEXT:    lda 3,s ; 1-byte Folded Reload
+; O0-NEXT:    tfr a,b
+; O0-NEXT:    lda 4,s
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std 6,x
@@ -4890,7 +4869,7 @@ define dso_local i64 @sub_u_i64(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O1-NEXT:    std <__rs0
 ; O1-NEXT:    puls d
 ; O1-NEXT:    ldb <__rs0lo
-; O1-NEXT:    stb 2,s ; 1-byte Folded Spill
+; O1-NEXT:    stb 7,s ; 1-byte Folded Spill
 ; O1-NEXT:    pshs a
 ; O1-NEXT:    lda <__rs0hi
 ; O1-NEXT:    tfr a,b
@@ -4901,73 +4880,74 @@ define dso_local i64 @sub_u_i64(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O1-NEXT:    std <__rs0
 ; O1-NEXT:    puls d
 ; O1-NEXT:    ldb <__rs0lo
-; O1-NEXT:    stb 8,s ; 1-byte Folded Spill
+; O1-NEXT:    stb 5,s ; 1-byte Folded Spill
 ; O1-NEXT:    pshs a
 ; O1-NEXT:    lda <__rs0hi
 ; O1-NEXT:    tfr a,b
 ; O1-NEXT:    puls a
-; O1-NEXT:    stb 7,s ; 1-byte Folded Spill
+; O1-NEXT:    stb 8,s ; 1-byte Folded Spill
 ; O1-NEXT:    pshs d
 ; O1-NEXT:    ldd 24,s
 ; O1-NEXT:    std <__rs0
 ; O1-NEXT:    puls d
 ; O1-NEXT:    ldb <__rs0lo
-; O1-NEXT:    stb 6,s ; 1-byte Folded Spill
+; O1-NEXT:    stb 3,s ; 1-byte Folded Spill
 ; O1-NEXT:    pshs a
 ; O1-NEXT:    lda <__rs0hi
 ; O1-NEXT:    tfr a,b
 ; O1-NEXT:    puls a
-; O1-NEXT:    stb 5,s ; 1-byte Folded Spill
+; O1-NEXT:    stb 6,s ; 1-byte Folded Spill
 ; O1-NEXT:    pshs d
 ; O1-NEXT:    ldd 22,s
 ; O1-NEXT:    std <__rs0
 ; O1-NEXT:    puls d
 ; O1-NEXT:    ldb <__rs0lo
-; O1-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O1-NEXT:    stb 2,s ; 1-byte Folded Spill
 ; O1-NEXT:    pshs a
 ; O1-NEXT:    lda <__rs0hi
 ; O1-NEXT:    tfr a,b
 ; O1-NEXT:    puls a
-; O1-NEXT:    stb 3,s ; 1-byte Folded Spill
-; O1-NEXT:    ldb 2,s ; 1-byte Folded Reload
+; O1-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O1-NEXT:    ldb 7,s ; 1-byte Folded Reload
 ; O1-NEXT:    subb 15,s
+; O1-NEXT:    stb 7,s ; 1-byte Folded Spill
 ; O1-NEXT:    lda 9,s ; 1-byte Folded Reload
 ; O1-NEXT:    sbca 16,s
 ; O1-NEXT:    sta 9,s ; 1-byte Folded Spill
-; O1-NEXT:    lda 8,s ; 1-byte Folded Reload
-; O1-NEXT:    sbca 12,s
-; O1-NEXT:    sta 8,s ; 1-byte Folded Spill
-; O1-NEXT:    lda 7,s ; 1-byte Folded Reload
-; O1-NEXT:    sbca 17,s
-; O1-NEXT:    sta 7,s ; 1-byte Folded Spill
+; O1-NEXT:    ldb 5,s ; 1-byte Folded Reload
+; O1-NEXT:    sbcb 12,s
+; O1-NEXT:    stb 5,s ; 1-byte Folded Spill
+; O1-NEXT:    ldb 8,s ; 1-byte Folded Reload
+; O1-NEXT:    sbcb 17,s
+; O1-NEXT:    stb 8,s ; 1-byte Folded Spill
+; O1-NEXT:    ldb 3,s ; 1-byte Folded Reload
+; O1-NEXT:    sbcb 11,s
+; O1-NEXT:    stb 3,s ; 1-byte Folded Spill
 ; O1-NEXT:    lda 6,s ; 1-byte Folded Reload
-; O1-NEXT:    sbca 11,s
-; O1-NEXT:    sta 6,s ; 1-byte Folded Spill
-; O1-NEXT:    lda 5,s ; 1-byte Folded Reload
 ; O1-NEXT:    sbca 13,s
-; O1-NEXT:    sta 5,s ; 1-byte Folded Spill
-; O1-NEXT:    lda 4,s ; 1-byte Folded Reload
+; O1-NEXT:    sta 6,s ; 1-byte Folded Spill
+; O1-NEXT:    lda 2,s ; 1-byte Folded Reload
 ; O1-NEXT:    sbca 10,s
-; O1-NEXT:    sta 4,s ; 1-byte Folded Spill
-; O1-NEXT:    lda 3,s ; 1-byte Folded Reload
-; O1-NEXT:    sbca 14,s
-; O1-NEXT:    sta 3,s ; 1-byte Folded Spill
-; O1-NEXT:    lda 9,s ; 1-byte Folded Reload
+; O1-NEXT:    ldb 4,s ; 1-byte Folded Reload
+; O1-NEXT:    sbcb 14,s
+; O1-NEXT:    stb 4,s ; 1-byte Folded Spill
 ; O1-NEXT:    pshs d
+; O1-NEXT:    ldb 9,s
+; O1-NEXT:    lda 11,s
 ; O1-NEXT:    std <__rs0
 ; O1-NEXT:    puls d
-; O1-NEXT:    ldb 8,s ; 1-byte Folded Reload
-; O1-NEXT:    lda 7,s ; 1-byte Folded Reload
 ; O1-NEXT:    pshs d
+; O1-NEXT:    ldb 7,s
+; O1-NEXT:    lda 10,s
 ; O1-NEXT:    std <__rs1
 ; O1-NEXT:    puls d
-; O1-NEXT:    ldb 6,s ; 1-byte Folded Reload
-; O1-NEXT:    lda 5,s ; 1-byte Folded Reload
 ; O1-NEXT:    pshs d
+; O1-NEXT:    ldb 5,s
+; O1-NEXT:    lda 8,s
 ; O1-NEXT:    std <__rs2
 ; O1-NEXT:    puls d
-; O1-NEXT:    ldb 4,s ; 1-byte Folded Reload
-; O1-NEXT:    lda 3,s ; 1-byte Folded Reload
+; O1-NEXT:    tfr a,b
+; O1-NEXT:    lda 4,s
 ; O1-NEXT:    pshs d
 ; O1-NEXT:    ldd <__rs0
 ; O1-NEXT:    std 6,x
@@ -5105,7 +5085,7 @@ define dso_local i64 @sub_u_i64(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O2-NEXT:    std <__rs0
 ; O2-NEXT:    puls d
 ; O2-NEXT:    ldb <__rs0lo
-; O2-NEXT:    stb 2,s ; 1-byte Folded Spill
+; O2-NEXT:    stb 7,s ; 1-byte Folded Spill
 ; O2-NEXT:    pshs a
 ; O2-NEXT:    lda <__rs0hi
 ; O2-NEXT:    tfr a,b
@@ -5116,73 +5096,74 @@ define dso_local i64 @sub_u_i64(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O2-NEXT:    std <__rs0
 ; O2-NEXT:    puls d
 ; O2-NEXT:    ldb <__rs0lo
-; O2-NEXT:    stb 8,s ; 1-byte Folded Spill
+; O2-NEXT:    stb 5,s ; 1-byte Folded Spill
 ; O2-NEXT:    pshs a
 ; O2-NEXT:    lda <__rs0hi
 ; O2-NEXT:    tfr a,b
 ; O2-NEXT:    puls a
-; O2-NEXT:    stb 7,s ; 1-byte Folded Spill
+; O2-NEXT:    stb 8,s ; 1-byte Folded Spill
 ; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd 24,s
 ; O2-NEXT:    std <__rs0
 ; O2-NEXT:    puls d
 ; O2-NEXT:    ldb <__rs0lo
-; O2-NEXT:    stb 6,s ; 1-byte Folded Spill
+; O2-NEXT:    stb 3,s ; 1-byte Folded Spill
 ; O2-NEXT:    pshs a
 ; O2-NEXT:    lda <__rs0hi
 ; O2-NEXT:    tfr a,b
 ; O2-NEXT:    puls a
-; O2-NEXT:    stb 5,s ; 1-byte Folded Spill
+; O2-NEXT:    stb 6,s ; 1-byte Folded Spill
 ; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd 22,s
 ; O2-NEXT:    std <__rs0
 ; O2-NEXT:    puls d
 ; O2-NEXT:    ldb <__rs0lo
-; O2-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O2-NEXT:    stb 2,s ; 1-byte Folded Spill
 ; O2-NEXT:    pshs a
 ; O2-NEXT:    lda <__rs0hi
 ; O2-NEXT:    tfr a,b
 ; O2-NEXT:    puls a
-; O2-NEXT:    stb 3,s ; 1-byte Folded Spill
-; O2-NEXT:    ldb 2,s ; 1-byte Folded Reload
+; O2-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O2-NEXT:    ldb 7,s ; 1-byte Folded Reload
 ; O2-NEXT:    subb 15,s
+; O2-NEXT:    stb 7,s ; 1-byte Folded Spill
 ; O2-NEXT:    lda 9,s ; 1-byte Folded Reload
 ; O2-NEXT:    sbca 16,s
 ; O2-NEXT:    sta 9,s ; 1-byte Folded Spill
-; O2-NEXT:    lda 8,s ; 1-byte Folded Reload
-; O2-NEXT:    sbca 12,s
-; O2-NEXT:    sta 8,s ; 1-byte Folded Spill
-; O2-NEXT:    lda 7,s ; 1-byte Folded Reload
-; O2-NEXT:    sbca 17,s
-; O2-NEXT:    sta 7,s ; 1-byte Folded Spill
+; O2-NEXT:    ldb 5,s ; 1-byte Folded Reload
+; O2-NEXT:    sbcb 12,s
+; O2-NEXT:    stb 5,s ; 1-byte Folded Spill
+; O2-NEXT:    ldb 8,s ; 1-byte Folded Reload
+; O2-NEXT:    sbcb 17,s
+; O2-NEXT:    stb 8,s ; 1-byte Folded Spill
+; O2-NEXT:    ldb 3,s ; 1-byte Folded Reload
+; O2-NEXT:    sbcb 11,s
+; O2-NEXT:    stb 3,s ; 1-byte Folded Spill
 ; O2-NEXT:    lda 6,s ; 1-byte Folded Reload
-; O2-NEXT:    sbca 11,s
-; O2-NEXT:    sta 6,s ; 1-byte Folded Spill
-; O2-NEXT:    lda 5,s ; 1-byte Folded Reload
 ; O2-NEXT:    sbca 13,s
-; O2-NEXT:    sta 5,s ; 1-byte Folded Spill
-; O2-NEXT:    lda 4,s ; 1-byte Folded Reload
+; O2-NEXT:    sta 6,s ; 1-byte Folded Spill
+; O2-NEXT:    lda 2,s ; 1-byte Folded Reload
 ; O2-NEXT:    sbca 10,s
-; O2-NEXT:    sta 4,s ; 1-byte Folded Spill
-; O2-NEXT:    lda 3,s ; 1-byte Folded Reload
-; O2-NEXT:    sbca 14,s
-; O2-NEXT:    sta 3,s ; 1-byte Folded Spill
-; O2-NEXT:    lda 9,s ; 1-byte Folded Reload
+; O2-NEXT:    ldb 4,s ; 1-byte Folded Reload
+; O2-NEXT:    sbcb 14,s
+; O2-NEXT:    stb 4,s ; 1-byte Folded Spill
 ; O2-NEXT:    pshs d
+; O2-NEXT:    ldb 9,s
+; O2-NEXT:    lda 11,s
 ; O2-NEXT:    std <__rs0
 ; O2-NEXT:    puls d
-; O2-NEXT:    ldb 8,s ; 1-byte Folded Reload
-; O2-NEXT:    lda 7,s ; 1-byte Folded Reload
 ; O2-NEXT:    pshs d
+; O2-NEXT:    ldb 7,s
+; O2-NEXT:    lda 10,s
 ; O2-NEXT:    std <__rs1
 ; O2-NEXT:    puls d
-; O2-NEXT:    ldb 6,s ; 1-byte Folded Reload
-; O2-NEXT:    lda 5,s ; 1-byte Folded Reload
 ; O2-NEXT:    pshs d
+; O2-NEXT:    ldb 5,s
+; O2-NEXT:    lda 8,s
 ; O2-NEXT:    std <__rs2
 ; O2-NEXT:    puls d
-; O2-NEXT:    ldb 4,s ; 1-byte Folded Reload
-; O2-NEXT:    lda 3,s ; 1-byte Folded Reload
+; O2-NEXT:    tfr a,b
+; O2-NEXT:    lda 4,s
 ; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    std 6,x
@@ -5320,7 +5301,7 @@ define dso_local i64 @sub_u_i64(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O3-NEXT:    std <__rs0
 ; O3-NEXT:    puls d
 ; O3-NEXT:    ldb <__rs0lo
-; O3-NEXT:    stb 2,s ; 1-byte Folded Spill
+; O3-NEXT:    stb 7,s ; 1-byte Folded Spill
 ; O3-NEXT:    pshs a
 ; O3-NEXT:    lda <__rs0hi
 ; O3-NEXT:    tfr a,b
@@ -5331,73 +5312,74 @@ define dso_local i64 @sub_u_i64(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O3-NEXT:    std <__rs0
 ; O3-NEXT:    puls d
 ; O3-NEXT:    ldb <__rs0lo
-; O3-NEXT:    stb 8,s ; 1-byte Folded Spill
+; O3-NEXT:    stb 5,s ; 1-byte Folded Spill
 ; O3-NEXT:    pshs a
 ; O3-NEXT:    lda <__rs0hi
 ; O3-NEXT:    tfr a,b
 ; O3-NEXT:    puls a
-; O3-NEXT:    stb 7,s ; 1-byte Folded Spill
+; O3-NEXT:    stb 8,s ; 1-byte Folded Spill
 ; O3-NEXT:    pshs d
 ; O3-NEXT:    ldd 24,s
 ; O3-NEXT:    std <__rs0
 ; O3-NEXT:    puls d
 ; O3-NEXT:    ldb <__rs0lo
-; O3-NEXT:    stb 6,s ; 1-byte Folded Spill
+; O3-NEXT:    stb 3,s ; 1-byte Folded Spill
 ; O3-NEXT:    pshs a
 ; O3-NEXT:    lda <__rs0hi
 ; O3-NEXT:    tfr a,b
 ; O3-NEXT:    puls a
-; O3-NEXT:    stb 5,s ; 1-byte Folded Spill
+; O3-NEXT:    stb 6,s ; 1-byte Folded Spill
 ; O3-NEXT:    pshs d
 ; O3-NEXT:    ldd 22,s
 ; O3-NEXT:    std <__rs0
 ; O3-NEXT:    puls d
 ; O3-NEXT:    ldb <__rs0lo
-; O3-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O3-NEXT:    stb 2,s ; 1-byte Folded Spill
 ; O3-NEXT:    pshs a
 ; O3-NEXT:    lda <__rs0hi
 ; O3-NEXT:    tfr a,b
 ; O3-NEXT:    puls a
-; O3-NEXT:    stb 3,s ; 1-byte Folded Spill
-; O3-NEXT:    ldb 2,s ; 1-byte Folded Reload
+; O3-NEXT:    stb 4,s ; 1-byte Folded Spill
+; O3-NEXT:    ldb 7,s ; 1-byte Folded Reload
 ; O3-NEXT:    subb 15,s
+; O3-NEXT:    stb 7,s ; 1-byte Folded Spill
 ; O3-NEXT:    lda 9,s ; 1-byte Folded Reload
 ; O3-NEXT:    sbca 16,s
 ; O3-NEXT:    sta 9,s ; 1-byte Folded Spill
-; O3-NEXT:    lda 8,s ; 1-byte Folded Reload
-; O3-NEXT:    sbca 12,s
-; O3-NEXT:    sta 8,s ; 1-byte Folded Spill
-; O3-NEXT:    lda 7,s ; 1-byte Folded Reload
-; O3-NEXT:    sbca 17,s
-; O3-NEXT:    sta 7,s ; 1-byte Folded Spill
+; O3-NEXT:    ldb 5,s ; 1-byte Folded Reload
+; O3-NEXT:    sbcb 12,s
+; O3-NEXT:    stb 5,s ; 1-byte Folded Spill
+; O3-NEXT:    ldb 8,s ; 1-byte Folded Reload
+; O3-NEXT:    sbcb 17,s
+; O3-NEXT:    stb 8,s ; 1-byte Folded Spill
+; O3-NEXT:    ldb 3,s ; 1-byte Folded Reload
+; O3-NEXT:    sbcb 11,s
+; O3-NEXT:    stb 3,s ; 1-byte Folded Spill
 ; O3-NEXT:    lda 6,s ; 1-byte Folded Reload
-; O3-NEXT:    sbca 11,s
-; O3-NEXT:    sta 6,s ; 1-byte Folded Spill
-; O3-NEXT:    lda 5,s ; 1-byte Folded Reload
 ; O3-NEXT:    sbca 13,s
-; O3-NEXT:    sta 5,s ; 1-byte Folded Spill
-; O3-NEXT:    lda 4,s ; 1-byte Folded Reload
+; O3-NEXT:    sta 6,s ; 1-byte Folded Spill
+; O3-NEXT:    lda 2,s ; 1-byte Folded Reload
 ; O3-NEXT:    sbca 10,s
-; O3-NEXT:    sta 4,s ; 1-byte Folded Spill
-; O3-NEXT:    lda 3,s ; 1-byte Folded Reload
-; O3-NEXT:    sbca 14,s
-; O3-NEXT:    sta 3,s ; 1-byte Folded Spill
-; O3-NEXT:    lda 9,s ; 1-byte Folded Reload
+; O3-NEXT:    ldb 4,s ; 1-byte Folded Reload
+; O3-NEXT:    sbcb 14,s
+; O3-NEXT:    stb 4,s ; 1-byte Folded Spill
 ; O3-NEXT:    pshs d
+; O3-NEXT:    ldb 9,s
+; O3-NEXT:    lda 11,s
 ; O3-NEXT:    std <__rs0
 ; O3-NEXT:    puls d
-; O3-NEXT:    ldb 8,s ; 1-byte Folded Reload
-; O3-NEXT:    lda 7,s ; 1-byte Folded Reload
 ; O3-NEXT:    pshs d
+; O3-NEXT:    ldb 7,s
+; O3-NEXT:    lda 10,s
 ; O3-NEXT:    std <__rs1
 ; O3-NEXT:    puls d
-; O3-NEXT:    ldb 6,s ; 1-byte Folded Reload
-; O3-NEXT:    lda 5,s ; 1-byte Folded Reload
 ; O3-NEXT:    pshs d
+; O3-NEXT:    ldb 5,s
+; O3-NEXT:    lda 8,s
 ; O3-NEXT:    std <__rs2
 ; O3-NEXT:    puls d
-; O3-NEXT:    ldb 4,s ; 1-byte Folded Reload
-; O3-NEXT:    lda 3,s ; 1-byte Folded Reload
+; O3-NEXT:    tfr a,b
+; O3-NEXT:    lda 4,s
 ; O3-NEXT:    pshs d
 ; O3-NEXT:    ldd <__rs0
 ; O3-NEXT:    std 6,x
@@ -5457,13 +5439,14 @@ define dso_local i64 @sub_u_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O0-NEXT:    puls b
 ; O0-NEXT:    sta 11,s ; 1-byte Folded Spill
 ; O0-NEXT:    lda <__rs2hi
-; O0-NEXT:    sta 6,s ; 1-byte Folded Spill
+; O0-NEXT:    sta 2,s ; 1-byte Folded Spill
 ; O0-NEXT:    pshs b
 ; O0-NEXT:    ldb <__rs3lo
 ; O0-NEXT:    tfr b,a
 ; O0-NEXT:    puls b
-; O0-NEXT:    sta 10,s ; 1-byte Folded Spill
+; O0-NEXT:    sta 6,s ; 1-byte Folded Spill
 ; O0-NEXT:    lda <__rs3hi
+; O0-NEXT:    sta 10,s ; 1-byte Folded Spill
 ; O0-NEXT:    addb #17
 ; O0-NEXT:    stb 3,s ; 1-byte Folded Spill
 ; O0-NEXT:    ldb 9,s ; 1-byte Folded Reload
@@ -5478,14 +5461,15 @@ define dso_local i64 @sub_u_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O0-NEXT:    ldb 11,s ; 1-byte Folded Reload
 ; O0-NEXT:    adcb #255
 ; O0-NEXT:    stb 11,s ; 1-byte Folded Spill
+; O0-NEXT:    ldb 2,s ; 1-byte Folded Reload
+; O0-NEXT:    adcb #255
+; O0-NEXT:    stb 2,s ; 1-byte Folded Spill
 ; O0-NEXT:    ldb 6,s ; 1-byte Folded Reload
 ; O0-NEXT:    adcb #255
 ; O0-NEXT:    stb 6,s ; 1-byte Folded Spill
 ; O0-NEXT:    ldb 10,s ; 1-byte Folded Reload
 ; O0-NEXT:    adcb #255
 ; O0-NEXT:    stb 10,s ; 1-byte Folded Spill
-; O0-NEXT:    adca #255
-; O0-NEXT:    sta 2,s ; 1-byte Folded Spill
 ; O0-NEXT:    ldd 34,s
 ; O0-NEXT:    stb 12,s ; 1-byte Folded Spill
 ; O0-NEXT:    ldd 34,s
@@ -5592,33 +5576,32 @@ define dso_local i64 @sub_u_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O0-NEXT:    ldb 11,s ; 1-byte Folded Reload
 ; O0-NEXT:    sbcb 16,s
 ; O0-NEXT:    stb 11,s ; 1-byte Folded Spill
-; O0-NEXT:    ldb 6,s ; 1-byte Folded Reload
-; O0-NEXT:    sbcb 17,s
-; O0-NEXT:    stb 6,s ; 1-byte Folded Spill
-; O0-NEXT:    ldb 10,s ; 1-byte Folded Reload
-; O0-NEXT:    sbcb 4,s
-; O0-NEXT:    stb 10,s ; 1-byte Folded Spill
 ; O0-NEXT:    ldb 2,s ; 1-byte Folded Reload
-; O0-NEXT:    sbcb 5,s
-; O0-NEXT:    stb 2,s ; 1-byte Folded Spill
-; O0-NEXT:    ldb 3,s ; 1-byte Folded Reload
-; O0-NEXT:    lda 9,s ; 1-byte Folded Reload
+; O0-NEXT:    sbcb 17,s
+; O0-NEXT:    lda 6,s ; 1-byte Folded Reload
+; O0-NEXT:    sbca 4,s
+; O0-NEXT:    sta 6,s ; 1-byte Folded Spill
+; O0-NEXT:    lda 10,s ; 1-byte Folded Reload
+; O0-NEXT:    sbca 5,s
+; O0-NEXT:    sta 10,s ; 1-byte Folded Spill
 ; O0-NEXT:    pshs d
+; O0-NEXT:    ldb 5,s
+; O0-NEXT:    lda 11,s
 ; O0-NEXT:    std <__rs3
 ; O0-NEXT:    puls d
-; O0-NEXT:    ldb 7,s ; 1-byte Folded Reload
-; O0-NEXT:    lda 8,s ; 1-byte Folded Reload
 ; O0-NEXT:    pshs d
+; O0-NEXT:    ldb 9,s
+; O0-NEXT:    lda 10,s
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
-; O0-NEXT:    ldb 11,s ; 1-byte Folded Reload
-; O0-NEXT:    lda 6,s ; 1-byte Folded Reload
 ; O0-NEXT:    pshs d
+; O0-NEXT:    tfr b,a
+; O0-NEXT:    ldb 13,s
 ; O0-NEXT:    std <__rs1
 ; O0-NEXT:    puls d
-; O0-NEXT:    ldb 10,s ; 1-byte Folded Reload
-; O0-NEXT:    lda 2,s ; 1-byte Folded Reload
 ; O0-NEXT:    pshs d
+; O0-NEXT:    ldb 8,s
+; O0-NEXT:    lda 12,s
 ; O0-NEXT:    std <__rs2
 ; O0-NEXT:    puls d
 ; O0-NEXT:    pshs d
@@ -5675,13 +5658,14 @@ define dso_local i64 @sub_u_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O1-NEXT:    puls b
 ; O1-NEXT:    sta 11,s ; 1-byte Folded Spill
 ; O1-NEXT:    lda <__rs2hi
-; O1-NEXT:    sta 6,s ; 1-byte Folded Spill
+; O1-NEXT:    sta 2,s ; 1-byte Folded Spill
 ; O1-NEXT:    pshs b
 ; O1-NEXT:    ldb <__rs3lo
 ; O1-NEXT:    tfr b,a
 ; O1-NEXT:    puls b
-; O1-NEXT:    sta 10,s ; 1-byte Folded Spill
+; O1-NEXT:    sta 6,s ; 1-byte Folded Spill
 ; O1-NEXT:    lda <__rs3hi
+; O1-NEXT:    sta 10,s ; 1-byte Folded Spill
 ; O1-NEXT:    addb #17
 ; O1-NEXT:    stb 3,s ; 1-byte Folded Spill
 ; O1-NEXT:    ldb 9,s ; 1-byte Folded Reload
@@ -5696,14 +5680,15 @@ define dso_local i64 @sub_u_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O1-NEXT:    ldb 11,s ; 1-byte Folded Reload
 ; O1-NEXT:    adcb #-1
 ; O1-NEXT:    stb 11,s ; 1-byte Folded Spill
+; O1-NEXT:    ldb 2,s ; 1-byte Folded Reload
+; O1-NEXT:    adcb #-1
+; O1-NEXT:    stb 2,s ; 1-byte Folded Spill
 ; O1-NEXT:    ldb 6,s ; 1-byte Folded Reload
 ; O1-NEXT:    adcb #-1
 ; O1-NEXT:    stb 6,s ; 1-byte Folded Spill
 ; O1-NEXT:    ldb 10,s ; 1-byte Folded Reload
 ; O1-NEXT:    adcb #-1
 ; O1-NEXT:    stb 10,s ; 1-byte Folded Spill
-; O1-NEXT:    adca #-1
-; O1-NEXT:    sta 2,s ; 1-byte Folded Spill
 ; O1-NEXT:    ldd 34,s
 ; O1-NEXT:    stb 12,s ; 1-byte Folded Spill
 ; O1-NEXT:    ldd 34,s
@@ -5810,33 +5795,32 @@ define dso_local i64 @sub_u_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O1-NEXT:    ldb 11,s ; 1-byte Folded Reload
 ; O1-NEXT:    sbcb 16,s
 ; O1-NEXT:    stb 11,s ; 1-byte Folded Spill
-; O1-NEXT:    ldb 6,s ; 1-byte Folded Reload
-; O1-NEXT:    sbcb 17,s
-; O1-NEXT:    stb 6,s ; 1-byte Folded Spill
-; O1-NEXT:    ldb 10,s ; 1-byte Folded Reload
-; O1-NEXT:    sbcb 4,s
-; O1-NEXT:    stb 10,s ; 1-byte Folded Spill
 ; O1-NEXT:    ldb 2,s ; 1-byte Folded Reload
-; O1-NEXT:    sbcb 5,s
-; O1-NEXT:    stb 2,s ; 1-byte Folded Spill
-; O1-NEXT:    ldb 3,s ; 1-byte Folded Reload
-; O1-NEXT:    lda 9,s ; 1-byte Folded Reload
+; O1-NEXT:    sbcb 17,s
+; O1-NEXT:    lda 6,s ; 1-byte Folded Reload
+; O1-NEXT:    sbca 4,s
+; O1-NEXT:    sta 6,s ; 1-byte Folded Spill
+; O1-NEXT:    lda 10,s ; 1-byte Folded Reload
+; O1-NEXT:    sbca 5,s
+; O1-NEXT:    sta 10,s ; 1-byte Folded Spill
 ; O1-NEXT:    pshs d
+; O1-NEXT:    ldb 5,s
+; O1-NEXT:    lda 11,s
 ; O1-NEXT:    std <__rs3
 ; O1-NEXT:    puls d
-; O1-NEXT:    ldb 7,s ; 1-byte Folded Reload
-; O1-NEXT:    lda 8,s ; 1-byte Folded Reload
 ; O1-NEXT:    pshs d
+; O1-NEXT:    ldb 9,s
+; O1-NEXT:    lda 10,s
 ; O1-NEXT:    std <__rs0
 ; O1-NEXT:    puls d
-; O1-NEXT:    ldb 11,s ; 1-byte Folded Reload
-; O1-NEXT:    lda 6,s ; 1-byte Folded Reload
 ; O1-NEXT:    pshs d
+; O1-NEXT:    tfr b,a
+; O1-NEXT:    ldb 13,s
 ; O1-NEXT:    std <__rs1
 ; O1-NEXT:    puls d
-; O1-NEXT:    ldb 10,s ; 1-byte Folded Reload
-; O1-NEXT:    lda 2,s ; 1-byte Folded Reload
 ; O1-NEXT:    pshs d
+; O1-NEXT:    ldb 8,s
+; O1-NEXT:    lda 12,s
 ; O1-NEXT:    std <__rs2
 ; O1-NEXT:    puls d
 ; O1-NEXT:    pshs d
@@ -5893,13 +5877,14 @@ define dso_local i64 @sub_u_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O2-NEXT:    puls b
 ; O2-NEXT:    sta 11,s ; 1-byte Folded Spill
 ; O2-NEXT:    lda <__rs2hi
-; O2-NEXT:    sta 6,s ; 1-byte Folded Spill
+; O2-NEXT:    sta 2,s ; 1-byte Folded Spill
 ; O2-NEXT:    pshs b
 ; O2-NEXT:    ldb <__rs3lo
 ; O2-NEXT:    tfr b,a
 ; O2-NEXT:    puls b
-; O2-NEXT:    sta 10,s ; 1-byte Folded Spill
+; O2-NEXT:    sta 6,s ; 1-byte Folded Spill
 ; O2-NEXT:    lda <__rs3hi
+; O2-NEXT:    sta 10,s ; 1-byte Folded Spill
 ; O2-NEXT:    addb #17
 ; O2-NEXT:    stb 3,s ; 1-byte Folded Spill
 ; O2-NEXT:    ldb 9,s ; 1-byte Folded Reload
@@ -5914,14 +5899,15 @@ define dso_local i64 @sub_u_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O2-NEXT:    ldb 11,s ; 1-byte Folded Reload
 ; O2-NEXT:    adcb #-1
 ; O2-NEXT:    stb 11,s ; 1-byte Folded Spill
+; O2-NEXT:    ldb 2,s ; 1-byte Folded Reload
+; O2-NEXT:    adcb #-1
+; O2-NEXT:    stb 2,s ; 1-byte Folded Spill
 ; O2-NEXT:    ldb 6,s ; 1-byte Folded Reload
 ; O2-NEXT:    adcb #-1
 ; O2-NEXT:    stb 6,s ; 1-byte Folded Spill
 ; O2-NEXT:    ldb 10,s ; 1-byte Folded Reload
 ; O2-NEXT:    adcb #-1
 ; O2-NEXT:    stb 10,s ; 1-byte Folded Spill
-; O2-NEXT:    adca #-1
-; O2-NEXT:    sta 2,s ; 1-byte Folded Spill
 ; O2-NEXT:    ldd 34,s
 ; O2-NEXT:    stb 12,s ; 1-byte Folded Spill
 ; O2-NEXT:    ldd 34,s
@@ -6028,33 +6014,32 @@ define dso_local i64 @sub_u_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O2-NEXT:    ldb 11,s ; 1-byte Folded Reload
 ; O2-NEXT:    sbcb 16,s
 ; O2-NEXT:    stb 11,s ; 1-byte Folded Spill
-; O2-NEXT:    ldb 6,s ; 1-byte Folded Reload
-; O2-NEXT:    sbcb 17,s
-; O2-NEXT:    stb 6,s ; 1-byte Folded Spill
-; O2-NEXT:    ldb 10,s ; 1-byte Folded Reload
-; O2-NEXT:    sbcb 4,s
-; O2-NEXT:    stb 10,s ; 1-byte Folded Spill
 ; O2-NEXT:    ldb 2,s ; 1-byte Folded Reload
-; O2-NEXT:    sbcb 5,s
-; O2-NEXT:    stb 2,s ; 1-byte Folded Spill
-; O2-NEXT:    ldb 3,s ; 1-byte Folded Reload
-; O2-NEXT:    lda 9,s ; 1-byte Folded Reload
+; O2-NEXT:    sbcb 17,s
+; O2-NEXT:    lda 6,s ; 1-byte Folded Reload
+; O2-NEXT:    sbca 4,s
+; O2-NEXT:    sta 6,s ; 1-byte Folded Spill
+; O2-NEXT:    lda 10,s ; 1-byte Folded Reload
+; O2-NEXT:    sbca 5,s
+; O2-NEXT:    sta 10,s ; 1-byte Folded Spill
 ; O2-NEXT:    pshs d
+; O2-NEXT:    ldb 5,s
+; O2-NEXT:    lda 11,s
 ; O2-NEXT:    std <__rs3
 ; O2-NEXT:    puls d
-; O2-NEXT:    ldb 7,s ; 1-byte Folded Reload
-; O2-NEXT:    lda 8,s ; 1-byte Folded Reload
 ; O2-NEXT:    pshs d
+; O2-NEXT:    ldb 9,s
+; O2-NEXT:    lda 10,s
 ; O2-NEXT:    std <__rs0
 ; O2-NEXT:    puls d
-; O2-NEXT:    ldb 11,s ; 1-byte Folded Reload
-; O2-NEXT:    lda 6,s ; 1-byte Folded Reload
 ; O2-NEXT:    pshs d
+; O2-NEXT:    tfr b,a
+; O2-NEXT:    ldb 13,s
 ; O2-NEXT:    std <__rs1
 ; O2-NEXT:    puls d
-; O2-NEXT:    ldb 10,s ; 1-byte Folded Reload
-; O2-NEXT:    lda 2,s ; 1-byte Folded Reload
 ; O2-NEXT:    pshs d
+; O2-NEXT:    ldb 8,s
+; O2-NEXT:    lda 12,s
 ; O2-NEXT:    std <__rs2
 ; O2-NEXT:    puls d
 ; O2-NEXT:    pshs d
@@ -6111,13 +6096,14 @@ define dso_local i64 @sub_u_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O3-NEXT:    puls b
 ; O3-NEXT:    sta 11,s ; 1-byte Folded Spill
 ; O3-NEXT:    lda <__rs2hi
-; O3-NEXT:    sta 6,s ; 1-byte Folded Spill
+; O3-NEXT:    sta 2,s ; 1-byte Folded Spill
 ; O3-NEXT:    pshs b
 ; O3-NEXT:    ldb <__rs3lo
 ; O3-NEXT:    tfr b,a
 ; O3-NEXT:    puls b
-; O3-NEXT:    sta 10,s ; 1-byte Folded Spill
+; O3-NEXT:    sta 6,s ; 1-byte Folded Spill
 ; O3-NEXT:    lda <__rs3hi
+; O3-NEXT:    sta 10,s ; 1-byte Folded Spill
 ; O3-NEXT:    addb #17
 ; O3-NEXT:    stb 3,s ; 1-byte Folded Spill
 ; O3-NEXT:    ldb 9,s ; 1-byte Folded Reload
@@ -6132,14 +6118,15 @@ define dso_local i64 @sub_u_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O3-NEXT:    ldb 11,s ; 1-byte Folded Reload
 ; O3-NEXT:    adcb #-1
 ; O3-NEXT:    stb 11,s ; 1-byte Folded Spill
+; O3-NEXT:    ldb 2,s ; 1-byte Folded Reload
+; O3-NEXT:    adcb #-1
+; O3-NEXT:    stb 2,s ; 1-byte Folded Spill
 ; O3-NEXT:    ldb 6,s ; 1-byte Folded Reload
 ; O3-NEXT:    adcb #-1
 ; O3-NEXT:    stb 6,s ; 1-byte Folded Spill
 ; O3-NEXT:    ldb 10,s ; 1-byte Folded Reload
 ; O3-NEXT:    adcb #-1
 ; O3-NEXT:    stb 10,s ; 1-byte Folded Spill
-; O3-NEXT:    adca #-1
-; O3-NEXT:    sta 2,s ; 1-byte Folded Spill
 ; O3-NEXT:    ldd 34,s
 ; O3-NEXT:    stb 12,s ; 1-byte Folded Spill
 ; O3-NEXT:    ldd 34,s
@@ -6246,33 +6233,32 @@ define dso_local i64 @sub_u_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O3-NEXT:    ldb 11,s ; 1-byte Folded Reload
 ; O3-NEXT:    sbcb 16,s
 ; O3-NEXT:    stb 11,s ; 1-byte Folded Spill
-; O3-NEXT:    ldb 6,s ; 1-byte Folded Reload
-; O3-NEXT:    sbcb 17,s
-; O3-NEXT:    stb 6,s ; 1-byte Folded Spill
-; O3-NEXT:    ldb 10,s ; 1-byte Folded Reload
-; O3-NEXT:    sbcb 4,s
-; O3-NEXT:    stb 10,s ; 1-byte Folded Spill
 ; O3-NEXT:    ldb 2,s ; 1-byte Folded Reload
-; O3-NEXT:    sbcb 5,s
-; O3-NEXT:    stb 2,s ; 1-byte Folded Spill
-; O3-NEXT:    ldb 3,s ; 1-byte Folded Reload
-; O3-NEXT:    lda 9,s ; 1-byte Folded Reload
+; O3-NEXT:    sbcb 17,s
+; O3-NEXT:    lda 6,s ; 1-byte Folded Reload
+; O3-NEXT:    sbca 4,s
+; O3-NEXT:    sta 6,s ; 1-byte Folded Spill
+; O3-NEXT:    lda 10,s ; 1-byte Folded Reload
+; O3-NEXT:    sbca 5,s
+; O3-NEXT:    sta 10,s ; 1-byte Folded Spill
 ; O3-NEXT:    pshs d
+; O3-NEXT:    ldb 5,s
+; O3-NEXT:    lda 11,s
 ; O3-NEXT:    std <__rs3
 ; O3-NEXT:    puls d
-; O3-NEXT:    ldb 7,s ; 1-byte Folded Reload
-; O3-NEXT:    lda 8,s ; 1-byte Folded Reload
 ; O3-NEXT:    pshs d
+; O3-NEXT:    ldb 9,s
+; O3-NEXT:    lda 10,s
 ; O3-NEXT:    std <__rs0
 ; O3-NEXT:    puls d
-; O3-NEXT:    ldb 11,s ; 1-byte Folded Reload
-; O3-NEXT:    lda 6,s ; 1-byte Folded Reload
 ; O3-NEXT:    pshs d
+; O3-NEXT:    tfr b,a
+; O3-NEXT:    ldb 13,s
 ; O3-NEXT:    std <__rs1
 ; O3-NEXT:    puls d
-; O3-NEXT:    ldb 10,s ; 1-byte Folded Reload
-; O3-NEXT:    lda 2,s ; 1-byte Folded Reload
 ; O3-NEXT:    pshs d
+; O3-NEXT:    ldb 8,s
+; O3-NEXT:    lda 12,s
 ; O3-NEXT:    std <__rs2
 ; O3-NEXT:    puls d
 ; O3-NEXT:    pshs d

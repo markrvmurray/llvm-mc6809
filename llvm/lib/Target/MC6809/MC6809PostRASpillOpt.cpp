@@ -837,6 +837,14 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
           LLVM_DEBUG(dbgs() << "  SpillOpt #368: reload -> tfr "
                             << printReg(Info->Reg, &TRI) << " -> "
                             << printReg(AccReg, &TRI) << ": " << MI);
+          // The source register may carry a stale kill between its defining
+          // load and here: an intervening STX/STY that stored it elsewhere
+          // marks its last USE killed, and the invalidate-only non-acc store
+          // branch does not track source kills. The value is still in the
+          // register (kill is a liveness marker, not a clobber), so extend
+          // the live range to this new use -- clearing kill flags is always
+          // conservatively safe (see clearKillsToPriorDef).
+          clearKillsToPriorDef(MI, Info->Reg, TRI);
           BuildMI(MBB, MI, MI.getDebugLoc(),
                   MF.getSubtarget().getInstrInfo()->get(MC6809::TFRp))
               .addDef(AccReg)

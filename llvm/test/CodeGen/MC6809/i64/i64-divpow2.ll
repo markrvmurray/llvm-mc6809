@@ -236,22 +236,22 @@ define i64 @sdiv_i64_2(i64 %x) {
 ; O2-NEXT:    adcb 23,u
 ; O2-NEXT:    stb 12,u ; 1-byte Folded Spill
 ; O2-NEXT:    leas -10,s
-; O2-NEXT:    ldb 5,u ; 1-byte Folded Reload
 ; O2-NEXT:    pshs d
+; O2-NEXT:    ldb 5,u
 ; O2-NEXT:    std <__rs0
 ; O2-NEXT:    puls d
 ; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    std 8,s
 ; O2-NEXT:    puls d
-; O2-NEXT:    ldb 11,u ; 1-byte Folded Reload
-; O2-NEXT:    lda 9,u ; 1-byte Folded Reload
+; O2-NEXT:    ldb 11,u
+; O2-NEXT:    lda 9,u
 ; O2-NEXT:    std 4,s
-; O2-NEXT:    ldb 10,u ; 1-byte Folded Reload
-; O2-NEXT:    lda 8,u ; 1-byte Folded Reload
+; O2-NEXT:    ldb 10,u
+; O2-NEXT:    lda 8,u
 ; O2-NEXT:    std 2,s
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O2-NEXT:    ldb 13,u
+; O2-NEXT:    lda 12,u
 ; O2-NEXT:    std ,s
 ; O2-NEXT:    ldd #1
 ; O2-NEXT:    std 8,s

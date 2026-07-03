@@ -38,12 +38,11 @@ define void @sext_i32_to_i64_then_store(ptr %out, i32 %x) {
 ; CHECK-NEXT:  .LBB0_3:
 ; CHECK-NEXT:    andb #1
 ; CHECK-NEXT:    negb
-; CHECK-NEXT:    stb 5,s ; 1-byte Folded Spill
+; CHECK-NEXT:    stb 6,s ; 1-byte Folded Spill
 ; CHECK-NEXT:    sta 10,s ; 1-byte Folded Spill
-; CHECK-NEXT:    sta 9,s ; 1-byte Folded Spill
-; CHECK-NEXT:    ldb 9,s ; 1-byte Folded Reload
+; CHECK-NEXT:    ldb 10,s ; 1-byte Folded Reload
 ; CHECK-NEXT:    subb 16,s
-; CHECK-NEXT:    stb 9,s ; 1-byte Folded Spill
+; CHECK-NEXT:    stb 10,s ; 1-byte Folded Spill
 ; CHECK-NEXT:    tfr a,b
 ; CHECK-NEXT:    sbcb 15,s
 ; CHECK-NEXT:    stb 4,s ; 1-byte Folded Spill
@@ -53,42 +52,42 @@ define void @sext_i32_to_i64_then_store(ptr %out, i32 %x) {
 ; CHECK-NEXT:    tfr a,b
 ; CHECK-NEXT:    sbcb 13,s
 ; CHECK-NEXT:    stb 2,s ; 1-byte Folded Spill
-; CHECK-NEXT:    sta 8,s ; 1-byte Folded Spill
-; CHECK-NEXT:    ldb 8,s ; 1-byte Folded Reload
-; CHECK-NEXT:    sbcb 5,s
-; CHECK-NEXT:    stb 8,s ; 1-byte Folded Spill
-; CHECK-NEXT:    sta 7,s ; 1-byte Folded Spill
-; CHECK-NEXT:    ldb 5,s ; 1-byte Folded Reload
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    sbca ,s+
-; CHECK-NEXT:    sta 7,s ; 1-byte Folded Spill
-; CHECK-NEXT:    lda 10,s ; 1-byte Folded Reload
-; CHECK-NEXT:    sta 6,s ; 1-byte Folded Spill
-; CHECK-NEXT:    lda 6,s ; 1-byte Folded Reload
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    sbca ,s+
-; CHECK-NEXT:    sta 6,s ; 1-byte Folded Spill
-; CHECK-NEXT:    lda 10,s ; 1-byte Folded Reload
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    sbca ,s+
-; CHECK-NEXT:    sta 10,s ; 1-byte Folded Spill
+; CHECK-NEXT:    sta 9,s ; 1-byte Folded Spill
 ; CHECK-NEXT:    ldb 9,s ; 1-byte Folded Reload
-; CHECK-NEXT:    lda 4,s ; 1-byte Folded Reload
+; CHECK-NEXT:    sbcb 6,s
+; CHECK-NEXT:    stb 9,s ; 1-byte Folded Spill
+; CHECK-NEXT:    sta 8,s ; 1-byte Folded Spill
+; CHECK-NEXT:    ldb 6,s ; 1-byte Folded Reload
+; CHECK-NEXT:    sta 5,s ; 1-byte Folded Spill
+; CHECK-NEXT:    lda 8,s ; 1-byte Folded Reload
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    sbca ,s+
+; CHECK-NEXT:    sta 8,s ; 1-byte Folded Spill
+; CHECK-NEXT:    lda 5,s ; 1-byte Folded Reload
+; CHECK-NEXT:    sta 7,s ; 1-byte Folded Spill
+; CHECK-NEXT:    lda 7,s ; 1-byte Folded Reload
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    sbca ,s+
+; CHECK-NEXT:    sta 7,s ; 1-byte Folded Spill
+; CHECK-NEXT:    lda 5,s ; 1-byte Folded Reload
+; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    sbca ,s+
 ; CHECK-NEXT:    pshs d
+; CHECK-NEXT:    ldb 12,s
+; CHECK-NEXT:    lda 6,s
 ; CHECK-NEXT:    std <__rs0
 ; CHECK-NEXT:    puls d
-; CHECK-NEXT:    ldb 3,s ; 1-byte Folded Reload
-; CHECK-NEXT:    lda 2,s ; 1-byte Folded Reload
 ; CHECK-NEXT:    pshs d
+; CHECK-NEXT:    ldb 5,s
+; CHECK-NEXT:    lda 4,s
 ; CHECK-NEXT:    std <__rs1
 ; CHECK-NEXT:    puls d
-; CHECK-NEXT:    ldb 8,s ; 1-byte Folded Reload
-; CHECK-NEXT:    lda 7,s ; 1-byte Folded Reload
 ; CHECK-NEXT:    pshs d
+; CHECK-NEXT:    ldb 11,s
+; CHECK-NEXT:    lda 10,s
 ; CHECK-NEXT:    std <__rs2
 ; CHECK-NEXT:    puls d
-; CHECK-NEXT:    ldb 6,s ; 1-byte Folded Reload
-; CHECK-NEXT:    lda 10,s ; 1-byte Folded Reload
+; CHECK-NEXT:    ldb 7,s
 ; CHECK-NEXT:    pshs d
 ; CHECK-NEXT:    ldd <__rs0
 ; CHECK-NEXT:    std 6,x
