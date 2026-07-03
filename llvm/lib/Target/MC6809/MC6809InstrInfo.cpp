@@ -3561,7 +3561,12 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     // TFR) mutates them, and regalloc may keep the SOURCE bytes live past
     // the merge (crossed halves fed a swapped EXG that silently corrupted
     // both live sources). Preserve D around the staging window.
-    bool StageDst = needsMaterialization(DstReg);
+    // The bracket must also cover a REAL non-AD destination (AW): the
+    // arranging below mutates $aa/$ab, which the pseudo does not declare
+    // -- an AD destination covers its halves by aliasing, but with an AW
+    // dst regalloc may keep live values in A/B across the merge (strtol's
+    // overflow flags were corrupted exactly this way).
+    bool StageDst = needsMaterialization(DstReg) || DstReg != MC6809::AD;
     if (StageDst)
       pushStagingReg(Builder, MC6809::AD);
     if (LoReg == MC6809::AA && HiReg == MC6809::AB) {
@@ -3583,17 +3588,13 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
       loadByteInto(Builder, MC6809::AA, HiReg, MF);
       loadByteInto(Builder, MC6809::AB, LoReg, MF);
     }
-    // AD now holds {hi:AA, lo:AB}. Route to DstReg.
+    // AD now holds {hi:AA, lo:AB}. Route to DstReg -- the TFR to a real
+    // non-AD destination must land BEFORE the pull restores D.
     dematerializeReg(Builder, MC6809::AD, DstReg, MF);
+    if (DstReg != MC6809::AD && !needsMaterialization(DstReg))
+      Builder.buildInstr(MC6809::TFRp).addDef(DstReg).addUse(MC6809::AD);
     if (StageDst)
       pullStagingReg(Builder, MC6809::AD);
-    if (DstReg != MC6809::AD && !needsMaterialization(DstReg)) {
-      // DstReg is a real Imag16-class register that isn't AD itself
-      // (e.g. AW on HD6309 paths in future) — needs an explicit TFR.
-      // Today ADc only contains AD + spills + RS, so this branch is
-      // unreachable in MC6809; kept for safety if ADc grows.
-      Builder.buildInstr(MC6809::TFRp).addDef(DstReg).addUse(MC6809::AD);
-    }
     MI.eraseFromParent();
     return true;
   }
@@ -3615,7 +3616,9 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     Register HBase = MI.getOperand(3).getReg();
     int64_t HOff = ReadOff(4);
     Register OrigDst = DstReg;
-    bool StageDst = needsMaterialization(DstReg);
+    // Bracket real non-AD dsts too -- the LDA/LDB below mutate $aa/$ab,
+    // undeclared for an AW destination (see MERGE_LOHI_i16).
+    bool StageDst = needsMaterialization(DstReg) || DstReg != MC6809::AD;
     if (StageDst) {
       pushStagingReg(Builder, MC6809::AD);
       if (LBase == MC6809::SS)
@@ -3635,14 +3638,13 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     Emit(/*IsLo=*/true, LBase, LOff);
     Emit(/*IsLo=*/false, HBase, HOff);
     dematerializeReg(Builder, MC6809::AD, OrigDst, MF);
-    if (StageDst)
-      pullStagingReg(Builder, MC6809::AD);
-    // Real non-AD destination (AW now that the merge dst class is ACC16):
-    // dematerializeReg no-ops for it, so route the AD-staged result
-    // explicitly -- losing this write-back left a loop index stale in W
-    // (memchr hang).
+    // Real non-AD destination: dematerializeReg no-ops for it, so route
+    // the AD-staged result explicitly (losing this write-back left a loop
+    // index stale in W -- memchr hang), BEFORE the pull restores D.
     if (OrigDst != MC6809::AD && !needsMaterialization(OrigDst))
       Builder.buildInstr(MC6809::TFRp).addDef(OrigDst).addUse(MC6809::AD);
+    if (StageDst)
+      pullStagingReg(Builder, MC6809::AD);
     MI.eraseFromParent();
     return true;
   }
@@ -3661,7 +3663,8 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     int64_t Off = OffOp.isImm() ? OffOp.getImm()
                                 : OffOp.getCImm()->getSExtValue();
     Register OrigDst = DstReg;
-    bool StageDst = needsMaterialization(DstReg);
+    // Bracket real non-AD dsts too (see MERGE_LOHI_i16).
+    bool StageDst = needsMaterialization(DstReg) || DstReg != MC6809::AD;
     if (StageDst)
       pushStagingReg(Builder, MC6809::AD);
     // If the push shifted S and the slot is S-relative, compensate.
@@ -3678,11 +3681,11 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
         .addImm(Off)
         .addReg(BaseReg);
     dematerializeReg(Builder, MC6809::AD, OrigDst, MF);
-    if (StageDst)
-      pullStagingReg(Builder, MC6809::AD);
-    // Route to a real non-AD destination -- see MERGE_LOHI_i16_Mem2.
+    // Route to a real non-AD destination BEFORE the pull restores D.
     if (OrigDst != MC6809::AD && !needsMaterialization(OrigDst))
       Builder.buildInstr(MC6809::TFRp).addDef(OrigDst).addUse(MC6809::AD);
+    if (StageDst)
+      pullStagingReg(Builder, MC6809::AD);
     MI.eraseFromParent();
     return true;
   }
@@ -8756,6 +8759,7 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
         OpcOut = Fits8 ? MC6809::CMPBi_o8 : MC6809::CMPBi_o16;
     } else {
       if      (PhysReg == MC6809::AD) OpcOut = Fits8 ? MC6809::CMPDi_o8 : MC6809::CMPDi_o16;
+      else if (PhysReg == MC6809::AW) OpcOut = Fits8 ? MC6809::CMPWi_o8 : MC6809::CMPWi_o16;
       else if (PhysReg == MC6809::IX) OpcOut = Fits8 ? MC6809::CMPXi_o8 : MC6809::CMPXi_o16;
       else if (PhysReg == MC6809::IY) OpcOut = Fits8 ? MC6809::CMPYi_o8 : MC6809::CMPYi_o16;
       else if (PhysReg == MC6809::SU) OpcOut = Fits8 ? MC6809::CMPUi_o8 : MC6809::CMPUi_o16;
