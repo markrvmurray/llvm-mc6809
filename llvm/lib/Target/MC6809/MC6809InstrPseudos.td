@@ -493,26 +493,33 @@ let Defs = [NZ, V] in {
 // hasSideEffects + same-BB insertion right after the producer
 // preserves the ordering invariant the dropped Uses was a proxy
 // for.
+// Dst class is ACC8_AB_SP ({AA, AB, RC0-15}): the expansion works on a
+// real A/B half and stages an RC destination through it (see the
+// StageDst path). RC membership matters for a value-consumed i32
+// carry-out: the byte is defined while the i32 result holds $aq, and
+// every real byte accumulator aliases $aq — the direct-page home is the
+// only aliasing-free one. E/F stay excluded (the expansion's LD/ADC/LSR
+// opcode families have no E/F forms).
 def MaterializeCC_C_to_byte : MC6809Pseudo {
-  dag OutOperandList = (outs ACC8_AB:$dst);
+  dag OutOperandList = (outs ACC8_AB_SP:$dst);
   dag InOperandList  = (ins);
   let Defs = [NZ, V, C];
   let hasSideEffects = 1;
 }
 def MaterializeCC_V_to_byte : MC6809Pseudo {
-  dag OutOperandList = (outs ACC8_AB:$dst);
+  dag OutOperandList = (outs ACC8_AB_SP:$dst);
   dag InOperandList  = (ins);
   let Defs = [NZ, V, C];
   let hasSideEffects = 1;
 }
 def MaterializeCC_Z_to_byte : MC6809Pseudo {
-  dag OutOperandList = (outs ACC8_AB:$dst);
+  dag OutOperandList = (outs ACC8_AB_SP:$dst);
   dag InOperandList  = (ins);
   let Defs = [NZ, V, C];
   let hasSideEffects = 1;
 }
 def MaterializeCC_N_to_byte : MC6809Pseudo {
-  dag OutOperandList = (outs ACC8_AB:$dst);
+  dag OutOperandList = (outs ACC8_AB_SP:$dst);
   dag InOperandList  = (ins);
   let Defs = [NZ, V, C];
   let hasSideEffects = 1;

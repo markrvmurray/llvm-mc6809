@@ -614,8 +614,8 @@ InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectAMIndex
   // Pointer-domain (INDEX-bank) safety gate: do NOT fold a register-base load
   // into an index-domain pointer compare. There the compared value lives in an
   // index register (CMPX/CMPY) and a register-base memory operand needs a SECOND
-  // index register for the base; if both spill they collide in MaterializeSpills
-  // (only IY stages index spills), collapsing the compare to `cmpy n,y` -- a
+  // index register for the base; if both spill they collide in the post-RA
+  // staging (only IY stages index reloads), collapsing the compare to `cmpy n,y` -- a
   // value compared against itself (bug #384). The frame-index fold above stays
   // safe (base = U/S, never an index spill). The compare is index-domain when the
   // OTHER (sibling) G_ICMP operand is INDEX-bank -- the folded memory operand
@@ -673,8 +673,8 @@ InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectAMIndex
     return std::nullopt;
   // Pointer-domain safety gate (same rationale as selectAMIndexedImmOffset, bug
   // #384): an index-domain pointer compare's value lives in an index register and
-  // the indirect base needs another -- two index operands collide in
-  // MaterializeSpills (only IY stages index spills). Detect via the sibling
+  // the indirect base needs another -- two index operands collide in the
+  // post-RA staging (only IY stages index reloads). Detect via the sibling
   // G_ICMP operand's bank. ACC-bank consumers (arith/logical -- the only ones
   // that currently reach here) are unaffected.
   if (MachineInstr *Cmp = Root.getParent();
@@ -1335,7 +1335,7 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     // moves it to the dst vreg, coalescing to AD when free (no spill / no a[i]
     // churn) or lowering to one STD when contended. See ZEX16Implicit in
     // MC6809InstrLogical.td for why this beats the old vreg-dst + implicit-AA
-    // form (self-interference -> $spill_d0 -> MaterializeSpills churn).
+    // form (self-interference -> spill churn).
     if (DstTy == LLT::scalar(16) && SrcTy == LLT::scalar(8)) {
       if (!MRI->getRegClassOrNull(SrcReg))
         MRI->setRegClass(SrcReg, &MC6809::ACC8RegClass);
@@ -1931,8 +1931,8 @@ skip_globalvalue_fold:
       return true;
     }
     // Bug #161: trunc i32→i8 — chain via Extract16_i32_lo pseudo
-    // (handles both AQ and SPILL_Q sources via its post-RA
-    // expansion: TFR W,D for AQ, LDD slot+2,$su for SPILL_Q*N)
+    // (handles the AQ source via its post-RA
+    // expansion: TFR W,D)
     // followed by EXTRACT_LO_i16 on the resulting AD vreg.
     //
     // Bug #302 redesign Phase 2 (2026-05-17): switched from
@@ -3233,6 +3233,38 @@ bool MC6809InstructionSelector::selectAddO(MachineInstr &MI) {
     // MC6809PhantomCarryGuard.cpp for the late-pass safety net.
     MRI->setRegClass(CarryOut, &MC6809::PHANTOM_CARRYRegClass);
 
+  // A VALUE-consumed carry-out: the byte consumer (TestBranch_i8_Reg,
+  // a store, a select input) was selected first — selection runs
+  // bottom-up — and constrained the vreg to a real byte class because
+  // the fused branch-on-flag form was blocked (an intervening CC
+  // clobber, or a cross-BB use). The pseudo's implicit-def is phantom
+  // bookkeeping only; nothing would ever write the byte (lround read
+  // `<__rc0` that no path had stored). Materialize the flag into the
+  // byte right after the arith with the same MaterializeCC pseudo the
+  // carry bridge uses, and strip the arith's implicit-def so the vreg
+  // keeps a single SSA definition.
+  bool CarryIsValue =
+      MRI->getRegClass(CarryOut) != &MC6809::PHANTOM_CARRYRegClass;
+  auto EmitCarryByteIfValue = [&](MachineInstr &Arith) {
+    if (!CarryIsValue)
+      return;
+    for (unsigned I = Arith.getNumOperands(); I-- > 0;) {
+      const MachineOperand &MO = Arith.getOperand(I);
+      if (MO.isReg() && MO.isDef() && MO.isImplicit() &&
+          MO.getReg() == CarryOut) {
+        Arith.removeOperand(I);
+        break;
+      }
+    }
+    MachineIRBuilder MatB(Arith);
+    MatB.setInsertPt(*Arith.getParent(),
+                     std::next(MachineBasicBlock::iterator(Arith)));
+    auto Mat = MatB.buildInstr(IsSigned ? MC6809::MaterializeCC_V_to_byte
+                                        : MC6809::MaterializeCC_C_to_byte)
+                   .addDef(CarryOut);
+    constrainSelectedInstRegOperands(*Mat, TII, TRI, RBI);
+  };
+
   std::optional<ValueAndVReg> ValReg;
   int64_t Value;
   Success = mi_match(Dst, *MRI, m_GSAddO(m_Reg(Reg), m_GCst(ValReg))) ||
@@ -3249,6 +3281,7 @@ bool MC6809InstructionSelector::selectAddO(MachineInstr &MI) {
                      .addImm(Value)
                      .addDef(CarryOut, RegState::ImplicitDefine);
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
+    EmitCarryByteIfValue(*Instr);
     MI.eraseFromParent();
     return true;
   }
@@ -3272,6 +3305,7 @@ bool MC6809InstructionSelector::selectAddO(MachineInstr &MI) {
                        .addImm(ByteVal)
                        .addDef(CarryOut, RegState::ImplicitDefine);
       constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
+      EmitCarryByteIfValue(*Instr);
       MI.eraseFromParent();
       return true;
     }
@@ -3294,6 +3328,7 @@ bool MC6809InstructionSelector::selectAddO(MachineInstr &MI) {
                      .addDef(CarryOut, RegState::ImplicitDefine)
                      .cloneMemRefs(*Ptr.getParent());
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
+    EmitCarryByteIfValue(*Instr);
     MI.eraseFromParent();
     return true;
   }
@@ -3319,6 +3354,7 @@ bool MC6809InstructionSelector::selectAddO(MachineInstr &MI) {
                 .addUse(RHS)
                 .addDef(CarryOut, RegState::ImplicitDefine);
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
+    EmitCarryByteIfValue(*Instr);
     MI.eraseFromParent();
     return true;
   }
@@ -3421,6 +3457,38 @@ bool MC6809InstructionSelector::selectSubO(MachineInstr &MI) {
     // MC6809PhantomCarryGuard.cpp for the late-pass safety net.
     MRI->setRegClass(CarryOut, &MC6809::PHANTOM_CARRYRegClass);
 
+  // A VALUE-consumed carry-out: the byte consumer (TestBranch_i8_Reg,
+  // a store, a select input) was selected first — selection runs
+  // bottom-up — and constrained the vreg to a real byte class because
+  // the fused branch-on-flag form was blocked (an intervening CC
+  // clobber, or a cross-BB use). The pseudo's implicit-def is phantom
+  // bookkeeping only; nothing would ever write the byte (lround read
+  // `<__rc0` that no path had stored). Materialize the flag into the
+  // byte right after the arith with the same MaterializeCC pseudo the
+  // carry bridge uses, and strip the arith's implicit-def so the vreg
+  // keeps a single SSA definition.
+  bool CarryIsValue =
+      MRI->getRegClass(CarryOut) != &MC6809::PHANTOM_CARRYRegClass;
+  auto EmitCarryByteIfValue = [&](MachineInstr &Arith) {
+    if (!CarryIsValue)
+      return;
+    for (unsigned I = Arith.getNumOperands(); I-- > 0;) {
+      const MachineOperand &MO = Arith.getOperand(I);
+      if (MO.isReg() && MO.isDef() && MO.isImplicit() &&
+          MO.getReg() == CarryOut) {
+        Arith.removeOperand(I);
+        break;
+      }
+    }
+    MachineIRBuilder MatB(Arith);
+    MatB.setInsertPt(*Arith.getParent(),
+                     std::next(MachineBasicBlock::iterator(Arith)));
+    auto Mat = MatB.buildInstr(IsSigned ? MC6809::MaterializeCC_V_to_byte
+                                        : MC6809::MaterializeCC_C_to_byte)
+                   .addDef(CarryOut);
+    constrainSelectedInstRegOperands(*Mat, TII, TRI, RBI);
+  };
+
   std::optional<ValueAndVReg> ValReg;
   int64_t Value;
   // Match `(reg − const)` only — never `(const − reg)`. See the
@@ -3439,6 +3507,7 @@ bool MC6809InstructionSelector::selectSubO(MachineInstr &MI) {
                      .addImm(Value)
                      .addDef(CarryOut, RegState::ImplicitDefine);
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
+    EmitCarryByteIfValue(*Instr);
     MI.eraseFromParent();
     return true;
   }
@@ -3462,6 +3531,7 @@ bool MC6809InstructionSelector::selectSubO(MachineInstr &MI) {
                        .addImm(ByteVal)
                        .addDef(CarryOut, RegState::ImplicitDefine);
       constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
+      EmitCarryByteIfValue(*Instr);
       MI.eraseFromParent();
       return true;
     }
@@ -3488,6 +3558,7 @@ bool MC6809InstructionSelector::selectSubO(MachineInstr &MI) {
                      .addDef(CarryOut, RegState::ImplicitDefine)
                      .cloneMemRefs(*Ptr.getParent());
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
+    EmitCarryByteIfValue(*Instr);
     MI.eraseFromParent();
     return true;
   }
@@ -3511,6 +3582,7 @@ bool MC6809InstructionSelector::selectSubO(MachineInstr &MI) {
                 .addUse(RHS)
                 .addDef(CarryOut, RegState::ImplicitDefine);
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
+    EmitCarryByteIfValue(*Instr);
     MI.eraseFromParent();
     return true;
   }
@@ -3580,6 +3652,38 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
     // MC6809PhantomCarryGuard.cpp for the late-pass safety net.
     MRI->setRegClass(CarryOut, &MC6809::PHANTOM_CARRYRegClass);
 
+  // A VALUE-consumed carry-out: the byte consumer (TestBranch_i8_Reg,
+  // a store, a select input) was selected first — selection runs
+  // bottom-up — and constrained the vreg to a real byte class because
+  // the fused branch-on-flag form was blocked (an intervening CC
+  // clobber, or a cross-BB use). The pseudo's implicit-def is phantom
+  // bookkeeping only; nothing would ever write the byte (lround read
+  // `<__rc0` that no path had stored). Materialize the flag into the
+  // byte right after the arith with the same MaterializeCC pseudo the
+  // carry bridge uses, and strip the arith's implicit-def so the vreg
+  // keeps a single SSA definition.
+  bool CarryIsValue =
+      MRI->getRegClass(CarryOut) != &MC6809::PHANTOM_CARRYRegClass;
+  auto EmitCarryByteIfValue = [&](MachineInstr &Arith) {
+    if (!CarryIsValue)
+      return;
+    for (unsigned I = Arith.getNumOperands(); I-- > 0;) {
+      const MachineOperand &MO = Arith.getOperand(I);
+      if (MO.isReg() && MO.isDef() && MO.isImplicit() &&
+          MO.getReg() == CarryOut) {
+        Arith.removeOperand(I);
+        break;
+      }
+    }
+    MachineIRBuilder MatB(Arith);
+    MatB.setInsertPt(*Arith.getParent(),
+                     std::next(MachineBasicBlock::iterator(Arith)));
+    auto Mat = MatB.buildInstr(IsSigned ? MC6809::MaterializeCC_V_to_byte
+                                        : MC6809::MaterializeCC_C_to_byte)
+                   .addDef(CarryOut);
+    constrainSelectedInstRegOperands(*Mat, TII, TRI, RBI);
+  };
+
   std::optional<ValueAndVReg> ValReg;
   int64_t Value;
   Success = mi_match(Dst, *MRI, m_GSAddE(m_Reg(Reg), m_GCst(ValReg), m_Reg(Carry))) ||
@@ -3618,6 +3722,7 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
                        .addImm(Value + CarryVal)
                        .addDef(CarryOut, RegState::ImplicitDefine);
       constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
+      EmitCarryByteIfValue(*Instr);
       MI.eraseFromParent();
       return true;
     }
@@ -3638,6 +3743,7 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
     if (!Bridged)
       Instr.addUse(Carry, RegState::Implicit);
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
+    EmitCarryByteIfValue(*Instr);
     MI.eraseFromParent();
     return true;
   }
@@ -3661,6 +3767,7 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
       if (!Bridged)
         Instr.addUse(Carry, RegState::Implicit);
       constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
+      EmitCarryByteIfValue(*Instr);
       MI.eraseFromParent();
       return true;
     }
@@ -3685,6 +3792,7 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
       Instr.addUse(Carry, RegState::Implicit);
     Instr.cloneMemRefs(*Ptr.getParent());
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
+    EmitCarryByteIfValue(*Instr);
     MI.eraseFromParent();
     return true;
   }
@@ -3706,6 +3814,7 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
       Instr.addUse(Carry, RegState::Implicit);
     Instr.cloneMemRefs(*Ptr.getParent());
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
+    EmitCarryByteIfValue(*Instr);
     MI.eraseFromParent();
     return true;
   }
@@ -3734,6 +3843,7 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
     if (!Bridged)
       Instr.addUse(Carry, RegState::Implicit);
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
+    EmitCarryByteIfValue(*Instr);
     MI.eraseFromParent();
     return true;
   }
@@ -3810,6 +3920,38 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
     // MC6809PhantomCarryGuard.cpp for the late-pass safety net.
     MRI->setRegClass(CarryOut, &MC6809::PHANTOM_CARRYRegClass);
 
+  // A VALUE-consumed carry-out: the byte consumer (TestBranch_i8_Reg,
+  // a store, a select input) was selected first — selection runs
+  // bottom-up — and constrained the vreg to a real byte class because
+  // the fused branch-on-flag form was blocked (an intervening CC
+  // clobber, or a cross-BB use). The pseudo's implicit-def is phantom
+  // bookkeeping only; nothing would ever write the byte (lround read
+  // `<__rc0` that no path had stored). Materialize the flag into the
+  // byte right after the arith with the same MaterializeCC pseudo the
+  // carry bridge uses, and strip the arith's implicit-def so the vreg
+  // keeps a single SSA definition.
+  bool CarryIsValue =
+      MRI->getRegClass(CarryOut) != &MC6809::PHANTOM_CARRYRegClass;
+  auto EmitCarryByteIfValue = [&](MachineInstr &Arith) {
+    if (!CarryIsValue)
+      return;
+    for (unsigned I = Arith.getNumOperands(); I-- > 0;) {
+      const MachineOperand &MO = Arith.getOperand(I);
+      if (MO.isReg() && MO.isDef() && MO.isImplicit() &&
+          MO.getReg() == CarryOut) {
+        Arith.removeOperand(I);
+        break;
+      }
+    }
+    MachineIRBuilder MatB(Arith);
+    MatB.setInsertPt(*Arith.getParent(),
+                     std::next(MachineBasicBlock::iterator(Arith)));
+    auto Mat = MatB.buildInstr(IsSigned ? MC6809::MaterializeCC_V_to_byte
+                                        : MC6809::MaterializeCC_C_to_byte)
+                   .addDef(CarryOut);
+    constrainSelectedInstRegOperands(*Mat, TII, TRI, RBI);
+  };
+
   std::optional<ValueAndVReg> ValReg;
   int64_t Value;
   // Match `(reg − const, carry_in)` only — never `(const − reg, ...)`.
@@ -3832,6 +3974,7 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
     if (!Bridged)
       Instr.addUse(Carry, RegState::Implicit);
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
+    EmitCarryByteIfValue(*Instr);
     MI.eraseFromParent();
     return true;
   }
@@ -3857,6 +4000,7 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
       if (!Bridged)
         Instr.addUse(Carry, RegState::Implicit);
       constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
+      EmitCarryByteIfValue(*Instr);
       MI.eraseFromParent();
       return true;
     }
@@ -3882,6 +4026,7 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
       Instr.addUse(Carry, RegState::Implicit);
     Instr.cloneMemRefs(*Ptr.getParent());
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
+    EmitCarryByteIfValue(*Instr);
     MI.eraseFromParent();
     return true;
   }
@@ -3906,6 +4051,7 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
       Instr.addUse(Carry, RegState::Implicit);
     Instr.cloneMemRefs(*Ptr.getParent());
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
+    EmitCarryByteIfValue(*Instr);
     MI.eraseFromParent();
     return true;
   }
@@ -3932,6 +4078,7 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
     if (!Bridged)
       Instr.addUse(Carry, RegState::Implicit);
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
+    EmitCarryByteIfValue(*Instr);
     MI.eraseFromParent();
     return true;
   }
