@@ -101,17 +101,12 @@ BitVector MC6809RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   // mid-allocation (was bug #16).
   Reserved.set(MC6809::SU);
 
-  // The RC byte imaginaries are direct-page memory locations used only as
-  // materialisation scratch -- reserve them so the verifier doesn't track
-  // their liveness.
-  for (MCPhysReg Reg : MC6809::Imag8RegClass)
-    Reserved.set(Reg);
-  // The RS 16-bit imaginaries, by contrast, are genuine allocation targets
-  // (the MOS model): with the SPILL_D escape registers retired, they are
-  // what makes ADc/ACC16 more than a single register on plain 6809 -- a
-  // reg-reg i16 compare needs BOTH operands placed somewhere at one
-  // instruction. Every expansion already handles an RS operand (direct-page
-  // opcode forms, materializeReg staging, the Imag16 spill-slot path).
+  // The RS 16-bit imaginaries are genuine allocation targets (the MOS
+  // model): with the SPILL_D escape registers retired, they are what makes
+  // ADc/ACC16 more than a single register on plain 6809 -- a reg-reg i16
+  // compare needs BOTH operands placed somewhere at one instruction. Every
+  // expansion already handles an RS operand (direct-page opcode forms,
+  // materializeReg staging, the Imag16 spill-slot path).
   // They are deliberately NOT in the call-preserved mask: the direct-page
   // addresses are per-CPU, not per-frame, so values in them do not survive
   // calls (recursion included) and the allocator must keep their live
@@ -126,6 +121,20 @@ BitVector MC6809RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
     Reserved.set(MC6809::AQ);
     Reserved.set(MC6809::MD);
   }
+
+  // The RC byte imaginaries (direct-page memory bytes, same MOS model as
+  // RS). On HD6309 they are genuine allocation targets: every real 8-bit
+  // accumulator (AA/AB/AE/AF) aliases $aq, so an instruction defining a
+  // byte alongside a live i32 — an i32 carry-out materialised to a byte is
+  // the canonical case (lround) — has NO aliasing-free home without them;
+  // with the SPILL_Q escape registers retired that is otherwise a
+  // guaranteed allocation failure. CostPerUse biases regalloc back to the
+  // real accumulators whenever one is free. On plain 6809 nothing aliases
+  // the byte pool that way, so the S1-validated {AA, AB} + fold behaviour
+  // is kept: RCs stay reserved as materialisation scratch there.
+  if (!STI.has6309())
+    for (MCPhysReg Reg : MC6809::Imag8RegClass)
+      Reserved.set(Reg);
 
   // Bug #161 round 15: SPILL_QnHI/LO are sub-registers of SPILL_Q*
   // (HD6309 32-bit spill regs) — they exist only so the TableGen

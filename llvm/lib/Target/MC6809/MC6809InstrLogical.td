@@ -438,12 +438,14 @@ def SEX32Implicit : MC6809LogicalInstr {
   // tripping -verify-machineinstrs. The expansion routes every
   // non-AW source through copyPhysReg before SEXWx.
   //
-  // Bug #283-shape audit (Bug #284): the expansion ALSO clobbers AW
-  // when the source isn't already in AW (via the pre-SEXWx
-  // copyPhysReg call). Without AW in Defs the regalloc could leave
-  // AW live with an unrelated value across this pseudo, and the
-  // src→AW copy would destroy it.
-  let Defs = [NZ, V, AD, AW];
+  // NO explicit AD/AW Defs any more: with the SPILL_Q slots retired the
+  // destination is always the real $aq, whose def covers both halves by
+  // sub-register aliasing — including the pre-SEXWx src→AW staging copy
+  // (the bug #284 clobber the Defs used to declare for SPILL_Q dsts).
+  // Kept on a real-$aq destination they self-interfere: a fixed physical
+  // dead-def at the def slot vetoes assigning the dst vreg to $aq, the
+  // only member of its class.
+  let Defs = [NZ, V];
   let hasSideEffects = 1;
   dag InOperandList = (ins ACC16:$src);
   dag OutOperandList = (outs ACC32:$dst);
@@ -511,13 +513,13 @@ def ZEX32Implicit : MC6809LogicalInstr {
   // silently corrupted the low half whenever regalloc placed the
   // source in an RSn imaginary register.
   //
-  // Bug #283-shape audit (Bug #284): expansion clobbers AD via CLRDa
-  // AND AW via the src→AW copyPhysReg (when src != AW). The
-  // OutOperand only covers AQ (and AD/AW via super-reg) when dst=AQ;
-  // for SPILL_Q* dst the OutOperand covers only the spill slot. Add
-  // AD and AW to Defs so regalloc spills any live values in those
-  // physical registers across this pseudo.
-  let Defs = [NZ, V, C, AD, AW];
+  // NO explicit AD/AW Defs any more: with the SPILL_Q slots retired the
+  // destination is always the real $aq, whose def covers the CLRDa AD
+  // clobber and the src→AW staging copy by sub-register aliasing (the
+  // bug #284 clobbers the Defs used to declare for SPILL_Q dsts). Kept
+  // on a real-$aq destination they self-interfere and veto the only
+  // register in the class. C stays for the bug #142 scheduler hazard.
+  let Defs = [NZ, V, C];
   let hasSideEffects = 1;
   dag InOperandList = (ins ACC16:$src);
   dag OutOperandList = (outs ACC32:$dst);

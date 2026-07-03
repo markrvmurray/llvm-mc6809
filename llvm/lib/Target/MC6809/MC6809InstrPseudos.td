@@ -198,6 +198,23 @@ let Defs = [NZ, V] in {
     let mayLoad = true;
   }
 
+  // An i32 store whose VALUE lives in a stack slot: memory-to-memory copy
+  // through the D accumulator (two LDD/STD pairs), never touching $aq.
+  // foldMemoryOperandImpl folds a spilled Store_i32_Mem value operand into
+  // this form; without it, the value round-trips slot -> $aq -> memory and
+  // the reload's {AQ}-class interval collides with whatever neighbouring
+  // i32 already holds $aq (the -Og llabs/imaxdiv "ran out of registers"
+  // shape once the SPILL_Q escape registers were retired). The AD transit
+  // is declared honestly — there is no ACC32 destination operand to cover
+  // it by aliasing, and no self-interference since nothing here needs $aq.
+  let Predicates = [IsHD6309], mayLoad = true, mayStore = true,
+      Defs = [NZ, V, AD] in
+  def Store_i32_SlotToMem : MC6809Pseudo {
+    dag OutOperandList = (outs);
+    dag InOperandList  = (ins INDEX16:$sidx, unknown:$soff,
+                              INDEX16:$didx, unknown:$doff);
+  }
+
   // The source byte becomes the low byte of the i16 result; high byte is
   // left undefined. ACC8 for the same reasons as MERGE_LOHI_i16 above;
   // the expansion stages any source into AB.
@@ -285,15 +302,13 @@ let Defs = [NZ, V] in {
     // an RS imaginary; the post-RA expansion stages any member through
     // AD/AW via copyPhysReg.
     dag InOperandList  = (ins ACC16:$lo, ACC16:$hi);
-    // Bug #311 (2026-05-22): explicit Defs = [AD, AW] tells regalloc
-    // that the expansion CLOBBERS both halves of AQ as individual
-    // sub-registers, not just AQ as a whole.  Without this, regalloc
-    // can insert a spill-reload of $ad BETWEEN this pseudo and a
-    // downstream consumer of $aq, overwriting the expansion's result
-    // with a stale value.  Manifest at -O2-hd6309-mame-fp:
-    // umulodi4_probe / divdi_probe / __ucmpdi2-via-i64-!= return
-    // wrong values despite the printed-low-32 matching.
-    let Defs = [AD, AW];
+    // NO explicit AD/AW Defs: the destination is always the real $aq now
+    // (the SPILL_Q slots are retired), and an $aq def covers both halves
+    // by sub-register aliasing. The old Defs = [AD, AW] existed for the
+    // SPILL_Q-destination staging clobber; kept on a real-$aq destination
+    // they are a fixed physical dead-def at the pseudo's own def slot,
+    // which vetoes assigning the dst vreg to $aq — with {AQ} the whole
+    // class, that is a guaranteed "ran out of registers".
     let isAsCheapAsAMove = true;
   }
 

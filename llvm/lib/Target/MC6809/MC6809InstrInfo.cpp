@@ -404,7 +404,11 @@ Register MC6809InstrInfo::isLoadFromStackSlot(const MachineInstr &MI, int &Frame
 
 Register MC6809InstrInfo::isStoreToStackSlot(const MachineInstr &MI, int &FrameIndex) const {
   SmallVector<const MachineMemOperand *, 1> Accesses;
-  if (MI.mayStore() && hasStoreToStackSlot(MI, Accesses) && Accesses.size() == 1) {
+  // Store_i32_SlotToMem stores no REGISTER — its operand 0 is the source
+  // slot's frame index (a memory-to-memory copy), so it is not a
+  // stack-slot store in this hook's sense.
+  if (MI.mayStore() && MI.getNumOperands() > 0 && MI.getOperand(0).isReg() &&
+      hasStoreToStackSlot(MI, Accesses) && Accesses.size() == 1) {
     FrameIndex = cast<FixedStackPseudoSourceValue>(Accesses.front()->getPseudoValue())->getFrameIndex();
     return MI.getOperand(0).getReg();
   }
@@ -2432,6 +2436,39 @@ MachineInstr *MC6809InstrInfo::foldMemoryOperandImpl(
     return NewMI;
   }
 
+  // A spilled i32 store VALUE folds to a memory-to-memory copy through D
+  // (Store_i32_SlotToMem): reloading it into $aq would create a fresh
+  // {AQ}-class interval at the store, colliding with any neighbouring i32
+  // that already holds $aq (the -Og llabs/imaxdiv shape).
+  if ((Opc == MC6809::Store_i32_Mem || Opc == MC6809::SpillStore_i32_Mem) &&
+      Ops.size() == 1 && Ops[0] == 0) {
+    MachineBasicBlock &MBB = *MI.getParent();
+    MachineInstr *NewMI = BuildMI(MBB, InsertPt, MI.getDebugLoc(),
+                                  get(MC6809::Store_i32_SlotToMem))
+                              .addFrameIndex(FrameIndex, 0)
+                              .addImm(0)
+                              .add(MI.getOperand(1))
+                              .add(MI.getOperand(2));
+    return NewMI;
+  }
+
+  // The def-side mirror: spilling the RESULT of a frame-index i32 load is a
+  // slot-to-slot copy — fold the load + spill-store pair into one
+  // Store_i32_SlotToMem through D instead of a Load/Store round-trip
+  // through $aq (the ceil/floor/fmod shape: an argument load whose value is
+  // immediately parked in a spill slot while $aq's neighbourhood is full).
+  if ((Opc == MC6809::Load_i32_Mem || Opc == MC6809::SpillLoad_i32_Mem) &&
+      Ops.size() == 1 && Ops[0] == 0 && MI.getOperand(1).isFI()) {
+    MachineBasicBlock &MBB = *MI.getParent();
+    MachineInstr *NewMI = BuildMI(MBB, InsertPt, MI.getDebugLoc(),
+                                  get(MC6809::Store_i32_SlotToMem))
+                              .add(MI.getOperand(1))
+                              .add(MI.getOperand(2))
+                              .addFrameIndex(FrameIndex, 0)
+                              .addImm(0);
+    return NewMI;
+  }
+
   // i32 mirror of the EXTRACT fold: a spilled ACC32 source of
   // Extract16_i32_lo/hi becomes a direct one-word frame load. Without it,
   // the spiller's reload needs the whole 4-byte value in $aq (AQc is the
@@ -2565,6 +2602,105 @@ MachineInstr *MC6809InstrInfo::foldMemoryOperandImpl(
   // Carry over selector-appended virtual implicit operands (the phantom
   // carry-out def on the SetCarry/SetOverflow family). Physical implicit
   // operands (NZ/V/C defs) are re-added from the _Mem desc by BuildMI.
+  for (unsigned I = NumExplicit, E = MI.getNumOperands(); I != E; ++I) {
+    const MachineOperand &MO = MI.getOperand(I);
+    if (MO.isReg() && MO.getReg().isVirtual())
+      MIB.add(MO);
+  }
+  return MIB;
+}
+
+// The LoadMI form: the inline spiller's fold-before-remat path. When a
+// rematerializable frame load feeds the second source of a two-source _Reg
+// pseudo, folding the load into the operation's memory operand avoids
+// rematerializing it into a register. With the SPILL_Q escape registers
+// retired, this is allocability-critical for i32: the remat clone would be
+// a second, unspillable {AQ}-class value live at the consumer, colliding
+// with the tied operand's own reload (the bug307r2 llabs shape — the
+// argument load lives in the entry block, the negate in the conditional
+// block, so the isel-time fold can't reach across).
+MachineInstr *MC6809InstrInfo::foldMemoryOperandImpl(
+    MachineFunction &MF, MachineInstr &MI, ArrayRef<unsigned> Ops,
+    MachineBasicBlock::iterator InsertPt, MachineInstr &LoadMI,
+    MachineInstr *& /*CopyMI*/, LiveIntervals *LIS) const {
+  if (DisableMemFold)
+    return nullptr;
+  // Only plain loads whose addressing tail can be transplanted verbatim,
+  // and only when that tail is a frame index — a register base would have
+  // its live range silently extended to the fold site.
+  switch (LoadMI.getOpcode()) {
+  case MC6809::Load_i8_Mem:
+  case MC6809::Load_i16_Mem:
+  case MC6809::Load_i32_Mem:
+  case MC6809::SpillLoad_i32_Mem:
+  case MC6809::Load_iPtr_Mem:
+    break;
+  default:
+    return nullptr;
+  }
+  if (!LoadMI.getOperand(1).isFI())
+    return nullptr;
+  // A store whose VALUE is a rematerializable frame load: slot-to-slot copy
+  // through D. The LIS gate distinguishes the callers: the allocation-time
+  // ones (inline spiller, LiveRangeEdit::foldAsLoad during RA-side DCE)
+  // pass LiveIntervals and use this as PRESSURE RELIEF — two i32 values
+  // cannot meet at a store when {AQ} is the whole class. The pre-RA
+  // PeepholeOptimizer (via the generic optimizeLoadInstr) passes no LIS
+  // and must NOT take it: with a free $aq, LDQ+STQ beats the two-LDD/STD
+  // copy, so the opportunistic pre-RA fold would be a plain pessimization.
+  if (LIS &&
+      (MI.getOpcode() == MC6809::Store_i32_Mem ||
+       MI.getOpcode() == MC6809::SpillStore_i32_Mem) &&
+      Ops.size() == 1 && Ops[0] == 0) {
+    MachineBasicBlock &MBB = *InsertPt->getParent();
+    MachineInstr *NewMI = BuildMI(MBB, InsertPt, MI.getDebugLoc(),
+                                  get(MC6809::Store_i32_SlotToMem))
+                              .add(LoadMI.getOperand(1))
+                              .add(LoadMI.getOperand(2))
+                              .add(MI.getOperand(1))
+                              .add(MI.getOperand(2));
+    return NewMI;
+  }
+  auto Fold = memFoldSibling(MI.getOpcode());
+  if (!Fold)
+    return nullptr;
+  if (Ops.size() != 1 || Ops[0] != Fold->FoldIdx)
+    return nullptr;
+
+  const MCInstrDesc &MemDesc = get(Fold->MemOpc);
+  MachineRegisterInfo &MRI = MF.getRegInfo();
+  unsigned NumExplicit = MI.getNumExplicitOperands();
+
+  // No VirtRegMap is available on this path, so never NARROW a kept
+  // operand's class — accept the fold only when each kept vreg's class
+  // already satisfies the _Mem descriptor.
+  unsigned CheckOpIdx = 0;
+  for (unsigned I = 0; I < NumExplicit; ++I) {
+    if (I == Fold->FoldIdx) {
+      CheckOpIdx += 2; // frame index + offset immediate
+      continue;
+    }
+    const MachineOperand &MO = MI.getOperand(I);
+    if (MO.isReg() && MO.getReg().isVirtual() &&
+        CheckOpIdx < MemDesc.getNumOperands()) {
+      const TargetRegisterClass *RC = getRegClass(MemDesc, CheckOpIdx);
+      if (RC && !RC->hasSubClassEq(MRI.getRegClass(MO.getReg())))
+        return nullptr;
+    }
+    ++CheckOpIdx;
+  }
+
+  MachineBasicBlock &MBB = *InsertPt->getParent();
+  MachineInstrBuilder MIB = BuildMI(MBB, InsertPt, MI.getDebugLoc(), MemDesc);
+  for (unsigned I = 0; I < NumExplicit; ++I) {
+    if (I == Fold->FoldIdx) {
+      MIB.add(LoadMI.getOperand(1)); // frame index
+      MIB.add(LoadMI.getOperand(2)); // offset immediate
+      continue;
+    }
+    MIB.add(MI.getOperand(I));
+  }
+  // Carry over selector-appended virtual implicit operands, as above.
   for (unsigned I = NumExplicit, E = MI.getNumOperands(); I != E; ++I) {
     const MachineOperand &MO = MI.getOperand(I);
     if (MO.isReg() && MO.getReg().isVirtual())
@@ -3631,6 +3767,31 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     MI.eraseFromParent();
     return true;
   }
+  case MC6809::Store_i32_SlotToMem: {
+    // A spilled i32 store value: copy 4 bytes slot -> destination through
+    // the D accumulator (declared AD clobber), never touching $aq. Word
+    // order is immaterial — plain moves, no carry chain.
+    auto ReadOff = [&](unsigned I) -> int64_t {
+      const MachineOperand &MO = MI.getOperand(I);
+      return MO.isImm() ? MO.getImm() : MO.getCImm()->getSExtValue();
+    };
+    Register SBase = MI.getOperand(0).getReg();
+    int64_t SOff = ReadOff(1);
+    Register DBase = MI.getOperand(2).getReg();
+    int64_t DOff = ReadOff(3);
+    for (int64_t Word : {0, 2}) {
+      Builder.buildInstr(getLoadIdxOpcode(MC6809::AD, SOff + Word))
+          .addDef(MC6809::AD, RegState::Implicit)
+          .addImm(SOff + Word)
+          .addReg(SBase);
+      Builder.buildInstr(getStoreIdxOpcode(MC6809::AD, DOff + Word))
+          .addUse(MC6809::AD, RegState::Implicit)
+          .addImm(DOff + Word)
+          .addReg(DBase);
+    }
+    MI.eraseFromParent();
+    return true;
+  }
   case MC6809::MERGE_LOHI_i16_MemLo:
   case MC6809::MERGE_LOHI_i16_MemHi: {
     // Merge where one byte half was spilled and folded into a frame read
@@ -3715,10 +3876,12 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     else if (DstReg == MC6809::AF) WorkReg = MC6809::AB;
 
     // If src and work-reg live in different halves of D (or the src is
-    // an HD6309 byte), copy the byte first. TFR preserves the LSB we
-    // care about.
+    // an HD6309 byte), stage the byte first. loadByteInto (not a raw TFR)
+    // because the source may be an allocated RC direct-page byte — TFR has
+    // no postbyte encoding for those (the MC encoder asserts); a real
+    // register still gets the plain TFR from loadByteInto's first arm.
     if (SrcByte != WorkReg)
-      Builder.buildInstr(MC6809::TFRp).addDef(WorkReg).addUse(SrcByte);
+      loadByteInto(Builder, WorkReg, SrcByte, MF);
 
     // Extract the LSB and sign-extend via two's-complement negation.
     bool DstIsA = (WorkReg == MC6809::AA);
@@ -3772,23 +3935,44 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     break;
   }
   case MC6809::ZEX8Implicit: {
+    // Zero all but the LSB of a byte: WorkReg = src; AND #1. Mirrors
+    // SEX8Implicit's staging (minus the NEG): the src or dst may be an
+    // allocated RC direct-page byte now, which has no TFR postbyte and
+    // must be staged via loadByteInto / dematerializeReg; the old
+    // in-place rewrite to AND[A|B] silently assumed src already sat in
+    // the destination half.
+    MachineFunction &MF = *MI.getMF();
+    Register DstReg = MI.getOperand(0).getReg();
     Register SrcReg = MI.getOperand(1).getReg();
-    unsigned Opcode;
-    // Bug #311 Phase 1 step 1.5 (2026-05-20): post-1.2 ZEX8Implicit
-    // input is ACC8; *LSB / SPILL_*LSB sources are no longer possible.
-    // ACC8 byte halves on HD6309 are AA, AB, AE, AF; non-A half routes
-    // to the B-side encoding (ANDB).
-    Register ByteHalf;
-    if (SrcReg == MC6809::AA || SrcReg == MC6809::AE)
-      ByteHalf = MC6809::AA;
-    else
-      ByteHalf = MC6809::AB;
-    Opcode = (ByteHalf == MC6809::AA) ? MC6809::ANDAi8 : MC6809::ANDBi8;
-    MI.setDesc(Builder.getTII().get(Opcode));
-    MI.removeOperand(1);
-    MI.removeOperand(0);
-    MI.addOperand(MachineOperand::CreateImm(1));
-    break;
+
+    Register OrigDst = DstReg;
+    bool StageDst = needsMaterialization(DstReg);
+    if (StageDst) {
+      DstReg = getPhysRegFor(DstReg);
+      pushStagingReg(Builder, DstReg);
+    }
+
+    Register WorkReg = DstReg;
+    if (DstReg == MC6809::AE) WorkReg = MC6809::AA;
+    else if (DstReg == MC6809::AF) WorkReg = MC6809::AB;
+
+    if (SrcReg != WorkReg)
+      loadByteInto(Builder, WorkReg, SrcReg, MF);
+
+    unsigned AndOpc =
+        (WorkReg == MC6809::AA) ? MC6809::ANDAi8 : MC6809::ANDBi8;
+    Builder.buildInstr(AndOpc).addImm(1);
+
+    if (WorkReg != DstReg)
+      Builder.buildInstr(MC6809::TFRp).addDef(DstReg).addUse(WorkReg);
+
+    if (StageDst) {
+      dematerializeReg(Builder, DstReg, OrigDst, MF);
+      pullStagingReg(Builder, DstReg);
+    }
+
+    MI.eraseFromParent();
+    return true;
   }
   case MC6809::ZEX16Implicit: {
     // Same SPILL_D* concern as ZEX32Implicit (bug #208 round 2): CLRAa

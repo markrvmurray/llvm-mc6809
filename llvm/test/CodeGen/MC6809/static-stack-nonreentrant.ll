@@ -26,7 +26,10 @@ define dso_local i32 @ss_leaf(i32 noundef %seed, i16 noundef %n) local_unnamed_a
 ; SS:         adcd{{.*}}.Lss_leaf_sstk
 ;
 ; DYN-LABEL: ss_leaf:
-; DYN:         tfr{{.*}}s,u
+; The dynamic frame is S-relative with no frame pointer since the stock
+; frame-index spill migration (the old `tfr s,u` here was a side effect of
+; the retired SPILL_Q slots forcing U setup).
+; DYN:         leas
 ; DYN-NOT:     _sstk
 entry:
   %buf = alloca [4 x i32], align 1

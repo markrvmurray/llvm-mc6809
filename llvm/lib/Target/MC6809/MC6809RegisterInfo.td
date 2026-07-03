@@ -525,13 +525,13 @@ def ACC16 : MC6809Reg16Class<(add AD, AW,
 // is no longer a 1-register class. See project_regalloc_two_layer_bottleneck.md.
 // The single in-source user (HD6309 BitTest_i16) switched to ACC16;
 // frame lowering switched to direct physreg $ad copies.
-// Bug #161 round 14: ACC32 includes 4 stack-backed SPILL_Q* slots so
-// multiple simultaneously-live i32 vregs don't all collide on AQ. Pure
-// regalloc spill targets — the materialize path emits a single LDQ/STQ
-// from a dedicated 4-byte stack slot. EXTRACT_SUBREG sub_lo_word /
-// sub_hi_word from a SPILL_Q is unsupported, but round 10's i32→i16
-// narrowing of G_LOAD/G_STORE eliminated nearly all such patterns.
-def ACC32 : MC6809Reg32Class<(add AQ, (sequence "SPILL_Q%u", 0, 31))> {
+// The SPILL_Q* stack-backed pseudo-registers were removed from i32
+// allocation (stock-spilling migration): i32 values spill through ordinary
+// frame-index slots, with foldMemoryOperandImpl reading a spilled second
+// source in place (Add_i32_Mem and friends) and folding a spilled
+// Extract16 source to a one-word load — the escape valve is no longer
+// needed to make the single-register {AQ} pool allocatable.
+def ACC32 : MC6809Reg32Class<(add AQ)> {
     let AltOrders = [(add)];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
 }
@@ -597,12 +597,13 @@ let isAllocatable = false in {
     def AEc : MC6809Reg8Class<(add AE)>;
     def AFc : MC6809Reg8Class<(add AF)>;
     def AWc : MC6809Reg16Class<(add AW)>;
-    // AQc — i32 allocation pool: AQ + 32 SPILL_Q slots.  Spillable so
-    // regalloc has somewhere to put i32 values when AQ is contested
-    // by an enclosing call frame.  Accumulator Defs are scoped to
-    // only the half they actually clobber (LDD → AD, LDW → AW) so
-    // long-lived i32 values can sit in AQ across half-width ops.
-    def AQc : MC6809Reg32Class<(add AQ, (sequence "SPILL_Q%u", 0, 31))>;
+    // AQc — i32 allocation pool: just the real AQ (the SPILL_Q escape
+    // registers are retired; i32 spills through stock frame-index slots,
+    // with the _Mem folds keeping two-source ops allocatable).
+    // Accumulator Defs are scoped to only the half they actually clobber
+    // (LDD → AD, LDW → AW) so long-lived i32 values can sit in AQ across
+    // half-width ops.
+    def AQc : MC6809Reg32Class<(add AQ)>;
     let isPressureFineGrained = true in
     def IXc : MC6809Reg16Class<(add IX)>;
     let isPressureFineGrained = true in

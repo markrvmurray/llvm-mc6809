@@ -129,6 +129,17 @@ public:
                                       MachineInstr *&CopyMI,
                                       LiveIntervals *LIS = nullptr,
                                       VirtRegMap *VRM = nullptr) const override;
+  /// The LoadMI form: fold a frame-index load directly into a consumer's
+  /// memory operand instead of rematerializing it into a register (the
+  /// inline spiller's fold-before-remat path). Essential for the AQ-only
+  /// i32 class, where a rematerialized clone would be a second unspillable
+  /// i32 register value at the consumer.
+  MachineInstr *foldMemoryOperandImpl(MachineFunction &MF, MachineInstr &MI,
+                                      ArrayRef<unsigned> Ops,
+                                      MachineBasicBlock::iterator InsertPt,
+                                      MachineInstr &LoadMI,
+                                      MachineInstr *&CopyMI,
+                                      LiveIntervals *LIS = nullptr) const override;
 
   bool reverseBranchCondition(SmallVectorImpl<MachineOperand> &Cond) const override;
 

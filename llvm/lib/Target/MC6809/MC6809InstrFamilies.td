@@ -32,6 +32,12 @@ multiclass MC6809Load<RegisterClass dst, ValueType vtype> {
     def _Imm : MC6809LoadBase<dst, (ins !cast<Operand>(vtype#"imm"):$imm)>;
   }
   let mayLoad = true in {
+    // canFoldAsLoad: lets the inline spiller fold this load into a consumer
+    // via foldMemoryOperandImpl's LoadMI overload instead of rematerializing
+    // it into a register — the escape needed when the consumer already holds
+    // one value of a single-register class (the AQ-only i32 pool) and the
+    // rematerialized clone would be a second, unspillable one.
+    let canFoldAsLoad = 1 in
     def _Mem : MC6809LoadBase<dst, (ins INDEX16:$idx, unknown:$offset)>;
     // Indirect-indexed load: dst = *(*(idx + offset)). The pointer itself lives
     // in memory at [idx+offset]; the 6809 indexed-indirect mode reads it and
@@ -91,7 +97,7 @@ let Predicates = [IsHD6309] in {
   // post-RA passes.
   let isAsCheapAsAMove = true, isMoveImm = true, mayLoad = true in
     def Load_i32_Imm : MC6809LoadBase<AQc, (ins i32imm:$imm)>;
-  let mayLoad = true, Defs = [NZ, V] in
+  let mayLoad = true, Defs = [NZ, V], canFoldAsLoad = 1 in
     def Load_i32_Mem : MC6809LoadBase<AQc, (ins INDEX16:$idx, unknown:$offset)>;
   // i32 indirect-indexed load: AQ = *(*(idx+offset)). Single LDQ [n,r] (the AQc
   // dest never takes expandLoadIdx's SPILL_Q two-LDD path, which has no indirect
@@ -128,7 +134,7 @@ let Predicates = [IsHD6309] in {
   // same rationale as Load_i32_Mem above.  The two-LDD-via-$ad
   // expansion was replaced with LDQ-via-$aq + save/restore, so AD
   // is preserved across the pseudo at runtime.
-  let mayLoad = true, Defs = [NZ, V] in
+  let mayLoad = true, Defs = [NZ, V], canFoldAsLoad = 1 in
     def SpillLoad_i32_Mem : MC6809LogicalInstr {
       dag OutOperandList = (outs ACC32:$dst);
       dag InOperandList = (ins INDEX16:$idx, unknown:$offset);

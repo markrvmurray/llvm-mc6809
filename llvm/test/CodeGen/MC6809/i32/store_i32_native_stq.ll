@@ -33,5 +33,10 @@ define void @store_pair(i32* %p, i32 %v, i32* %q, i32 %w) {
 }
 
 ; HD6309-LABEL: store_pair:
-; HD6309:       stq
+; Two i32 values are simultaneously live here and {AQ} is the whole i32
+; class since the SPILL_Q retirement: one store keeps the native LDQ/STQ,
+; the other folds to the two-LDD/STD slot-to-slot copy through D (the
+; spiller's pressure-relief fold). What matters is one native STQ and no
+; second AQ residency.
+; HD6309:       std
 ; HD6309:       stq

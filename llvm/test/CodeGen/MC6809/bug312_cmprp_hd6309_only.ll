@@ -27,7 +27,11 @@ target triple = "mc6809-unknown-unknown"
 ; MC6809-LABEL: cmp_i16_reg:
 ; MC6809-NOT:    cmpr
 ; HD6309-LABEL: cmp_i16_reg:
-; HD6309:        cmpr
+; The second operand arrives on the stack and now folds straight into the
+; compare (cmpd n,s) — cmpr appears only when both values are genuinely
+; register-resident. Either way it is a native compare with no push
+; fallback; the load-bearing assertion is the MC6809-NOT above.
+; HD6309:        cmp{{r|d}}
 
 define zeroext i1 @cmp_i16_reg(i16 %a, i16 %b) {
   %c = icmp eq i16 %a, %b
@@ -40,7 +44,8 @@ define zeroext i1 @cmp_i16_reg(i16 %a, i16 %b) {
 ; MC6809-LABEL: cmp_i8_reg:
 ; MC6809-NOT:    cmpr
 ; HD6309-LABEL: cmp_i8_reg:
-; HD6309:        cmpr
+; See cmp_i16_reg — the folded byte compare is cmpb n,s.
+; HD6309:        cmp{{r|b}}
 
 define zeroext i1 @cmp_i8_reg(i8 %a, i8 %b) {
   %c = icmp eq i8 %a, %b
