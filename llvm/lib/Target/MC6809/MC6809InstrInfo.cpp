@@ -2338,6 +2338,31 @@ static std::optional<MC6809MemFoldInfo> memFoldSibling(unsigned Opc) {
     if (DisablePtrFold)
       return std::nullopt;
     return MC6809MemFoldInfo{MC6809::CompareBranch_ptr_Mem, 2};
+  // i32 arithmetic (HD6309-only; AQc is the single-register {AQ} class, so
+  // like the byte folds this is an ALLOCABILITY requirement: an i32 _Reg op
+  // has two simultaneously-live i32 sources, unallocatable unless the
+  // spilled second source is read from its slot in place — ADDW/ADCD
+  // <slot>,u via the _Mem expansions).
+  case MC6809::Add_i32_Reg:
+    return MC6809MemFoldInfo{MC6809::Add_i32_Mem, 2};
+  case MC6809::Sub_i32_Reg:
+    return MC6809MemFoldInfo{MC6809::Sub_i32_Mem, 2};
+  case MC6809::AddSetCarry_i32_Reg:
+    return MC6809MemFoldInfo{MC6809::AddSetCarry_i32_Mem, 2};
+  case MC6809::SubSetCarry_i32_Reg:
+    return MC6809MemFoldInfo{MC6809::SubSetCarry_i32_Mem, 2};
+  case MC6809::AddSetOverflow_i32_Reg:
+    return MC6809MemFoldInfo{MC6809::AddSetOverflow_i32_Mem, 2};
+  case MC6809::SubSetOverflow_i32_Reg:
+    return MC6809MemFoldInfo{MC6809::SubSetOverflow_i32_Mem, 2};
+  case MC6809::AddSetCarryUse_i32_Reg:
+    return MC6809MemFoldInfo{MC6809::AddSetCarryUse_i32_Mem, 2};
+  case MC6809::SubSetCarryUse_i32_Reg:
+    return MC6809MemFoldInfo{MC6809::SubSetCarryUse_i32_Mem, 2};
+  case MC6809::AddSetOverflowUse_i32_Reg:
+    return MC6809MemFoldInfo{MC6809::AddSetOverflowUse_i32_Mem, 2};
+  case MC6809::SubSetOverflowUse_i32_Reg:
+    return MC6809MemFoldInfo{MC6809::SubSetOverflowUse_i32_Mem, 2};
   default:
     return std::nullopt;
   }
@@ -2402,6 +2427,24 @@ MachineInstr *MC6809InstrInfo::foldMemoryOperandImpl(
     MachineInstr *NewMI = BuildMI(MBB, InsertPt, MI.getDebugLoc(),
                                   get(MC6809::Load_i8_Mem))
                               .add(Dst)
+                              .addFrameIndex(FrameIndex, ByteOffset)
+                              .addImm(0);
+    return NewMI;
+  }
+
+  // i32 mirror of the EXTRACT fold: a spilled ACC32 source of
+  // Extract16_i32_lo/hi becomes a direct one-word frame load. Without it,
+  // the spiller's reload needs the whole 4-byte value in $aq (AQc is the
+  // single-register {AQ} class), clobbering AD+AW where a plain LDD of the
+  // wanted half suffices. Big-endian: high word at +0, low word at +2.
+  if (Opc == MC6809::Extract16_i32_lo || Opc == MC6809::Extract16_i32_hi) {
+    if (Ops.size() != 1 || Ops[0] != 1)
+      return nullptr;
+    int ByteOffset = (Opc == MC6809::Extract16_i32_lo) ? 2 : 0;
+    MachineBasicBlock &MBB = *MI.getParent();
+    MachineInstr *NewMI = BuildMI(MBB, InsertPt, MI.getDebugLoc(),
+                                  get(MC6809::Load_i16_Mem))
+                              .add(MI.getOperand(0))
                               .addFrameIndex(FrameIndex, ByteOffset)
                               .addImm(0);
     return NewMI;
