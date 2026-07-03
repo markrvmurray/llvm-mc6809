@@ -205,6 +205,15 @@ public:
   ArrayRef<Register> getSpilledRegs() override { return RegsToSpill; }
   ArrayRef<Register> getReplacedRegs() override { return RegsReplaced; }
   void postOptimization() override;
+  // An instruction erased outside the spiller (LiveRangeEdit::foldAsLoad
+  // deleting a spill store it folded a load into) must leave the
+  // mergeable-spill records too, or hoistAllSpills dereferences a dangling
+  // pointer.
+  void notifyInstructionErased(MachineInstr &MI) override {
+    int FI;
+    if (TII.isStoreToStackSlot(MI, FI))
+      HSpiller.rmFromMergeableSpills(MI, FI);
+  }
 
 private:
   bool isSnippet(const LiveInterval &SnipLI);
@@ -1451,10 +1460,28 @@ bool HoistSpillHelper::rmFromMergeableSpills(MachineInstr &Spill,
   auto It = StackSlotToOrigLI.find(StackSlot);
   if (It == StackSlotToOrigLI.end())
     return false;
-  SlotIndex Idx = LIS.getInstructionIndex(Spill);
-  VNInfo *OrigVNI = It->second->getVNInfoAt(Idx.getRegSlot());
-  std::pair<int, VNInfo *> MIdx = std::make_pair(StackSlot, OrigVNI);
-  return MergeableSpills[MIdx].erase(&Spill);
+  // The spill may already be out of the slot-index maps when the removal is
+  // driven by an external erasure (LiveRangeEdit::foldAsLoad replaces the
+  // instruction in the maps before notifying) — the keyed lookup needs the
+  // index, the pointer-scan fallback below does not.
+  if (!LIS.isNotInMIMap(Spill)) {
+    SlotIndex Idx = LIS.getInstructionIndex(Spill);
+    VNInfo *OrigVNI = It->second->getVNInfoAt(Idx.getRegSlot());
+    std::pair<int, VNInfo *> MIdx = std::make_pair(StackSlot, OrigVNI);
+    if (MergeableSpills[MIdx].erase(&Spill))
+      return true;
+  }
+  // The keyed lookup can miss the entry the spill was ADDED under: across
+  // multiple spill rounds of the same slot the cached original interval's
+  // value-number query may resolve differently than at insertion time
+  // (frequent on MC6809's single-register i32 class, where the same slot
+  // is re-spilled round after round). A missed removal leaves a dangling
+  // instruction pointer that hoistAllSpills later dereferences. Fall back
+  // to erasing the pointer wherever it appears.
+  for (auto &Ent : MergeableSpills)
+    if (Ent.second.erase(&Spill))
+      return true;
+  return false;
 }
 
 /// Check BB to see if it is a possible target BB to place a hoisted spill,

@@ -377,9 +377,19 @@ float VirtRegAuxInfo::weightCalcHelper(LiveInterval &LI) {
   // At the same time STATEPOINT instruction is perfectly fine to have this
   // operand on stack, so spilling such interval and folding its load from stack
   // into instruction itself makes perfect sense.
+  //
+  // The same must-stay-spillable reasoning applies when the register class
+  // has only one allocatable register: an instruction with two operands of
+  // such a class is allocatable only if one of them can be folded into a
+  // memory operand, and the spiller can only attempt that fold on an
+  // interval it is allowed to spill. Marking the tiny interval unspillable
+  // guarantees a "ran out of registers" failure instead (MC6809's AQ-only
+  // 32-bit accumulator class hits this on any i32 reg-reg operation whose
+  // second source is a coalesced load).
   if (LI.isZeroLength(LIS.getSlotIndexes()) &&
       !LI.isLiveAtIndexes(LIS.getRegMaskSlots()) &&
-      !isLiveAtStatepointVarArg(LI) && !canMemFoldInlineAsm(LI, MRI)) {
+      !isLiveAtStatepointVarArg(LI) && !canMemFoldInlineAsm(LI, MRI) &&
+      MRI.getRegClass(LI.reg())->getNumRegs() > 1) {
     LI.markNotSpillable();
     return -1.0;
   }

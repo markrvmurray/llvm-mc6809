@@ -410,6 +410,11 @@ void RAGreedy::LRE_WillEraseInstruction(MachineInstr *MI) {
   if (!MI)
     return;
   LIS->removeInstructionDefsFromRegUnits(*MI);
+  // The spiller keeps mergeable-spill records for hoisting; an erasure it
+  // did not perform itself (LiveRangeEdit::foldAsLoad deleting a spill
+  // store) must drop the instruction from them too.
+  if (SpillerInstance)
+    SpillerInstance->notifyInstructionErased(*MI);
 }
 
 // MC6809 Bug #290: companion to LRE_WillEraseInstruction (which
@@ -2845,16 +2850,29 @@ MCRegister RAGreedy::selectOrSplitImpl(const LiveInterval &VirtReg,
       LLVM_DEBUG(dbgs() << "Unspillable " << VirtReg
                         << " is read only by FAKE_USE; deleting the fake "
                            "uses instead of failing allocation.\n");
+      // A deleted FAKE_USE may carry OTHER virtual registers too; their
+      // intervals also end at the deleted instruction and must be shrunk
+      // alongside VirtReg's, or the verifier sees live segments ending at
+      // a nonexistent slot.
+      SmallSetVector<Register, 4> ShrinkRegs;
+      ShrinkRegs.insert(VirtReg.reg());
       for (MachineInstr *FU : FakeUses) {
+        for (const MachineOperand &MO : FU->operands())
+          if (MO.isReg() && MO.getReg().isVirtual())
+            ShrinkRegs.insert(MO.getReg());
         LIS->RemoveMachineInstrFromMaps(*FU);
         FU->eraseFromParent();
       }
-      // Shrink the interval to its (now nonexistent) reads; shrinkToUses
-      // flags and reports the defs that died, which eliminateDeadDefs can
-      // then erase.
+      // Shrink each affected interval to its (now nonexistent) reads;
+      // shrinkToUses flags and reports the defs that died, which
+      // eliminateDeadDefs can then erase.
       SmallVector<MachineInstr *, 4> DeadDefs;
-      LiveInterval &MutLI = LIS->getInterval(VirtReg.reg());
-      LIS->shrinkToUses(&MutLI, &DeadDefs);
+      for (Register R : ShrinkRegs) {
+        if (!LIS->hasInterval(R))
+          continue;
+        LiveInterval &MutLI = LIS->getInterval(R);
+        LIS->shrinkToUses(&MutLI, &DeadDefs);
+      }
       if (!DeadDefs.empty()) {
         LiveRangeEdit LRE(&VirtReg, NewVRegs, *MF, *LIS, VRM, this,
                           &DeadRemats);

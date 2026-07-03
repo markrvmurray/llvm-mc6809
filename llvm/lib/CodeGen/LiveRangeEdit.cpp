@@ -161,6 +161,11 @@ bool LiveRangeEdit::foldAsLoad(LiveInterval *LI,
   // Update the call info.
   if (UseMI->shouldUpdateAdditionalCallInfo())
     UseMI->getMF()->moveAdditionalCallInfo(UseMI, FoldMI);
+  // Notify the delegate like eliminateDeadDef does: the erased use may be
+  // an instruction the register allocator's spiller has bookkeeping for
+  // (a recorded spill store the load just folded into).
+  if (TheDelegate)
+    TheDelegate->LRE_WillEraseInstruction(UseMI);
   UseMI->eraseFromParent();
   DefMI->addRegisterDead(LI->reg(), nullptr);
   Dead.push_back(DefMI);

@@ -17,6 +17,7 @@ namespace llvm {
 class LiveRangeEdit;
 class MachineFunction;
 class MachineFunctionPass;
+class MachineInstr;
 class VirtRegMap;
 class VirtRegAuxInfo;
 class LiveIntervals;
@@ -47,6 +48,13 @@ public:
   virtual ArrayRef<Register> getReplacedRegs() = 0;
 
   virtual void postOptimization() {}
+
+  /// Notify the spiller that \p MI is about to be erased by machinery
+  /// outside its control (e.g. LiveRangeEdit::foldAsLoad folding a load
+  /// into a spill store and deleting the store). Lets the spiller drop the
+  /// instruction from any bookkeeping (mergeable-spill records for
+  /// hoisting) that would otherwise hold a dangling pointer.
+  virtual void notifyInstructionErased(MachineInstr &MI) {}
 
   struct RequiredAnalyses {
     LiveIntervals &LIS;
