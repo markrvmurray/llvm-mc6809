@@ -328,52 +328,14 @@ bool MC6809FrameLowering::enableCalleeSaveSkip(const MachineFunction &MF) const 
 void MC6809FrameLowering::determineCalleeSaves(MachineFunction &MF, BitVector &SavedRegs, RegScavenger *RS) const {
   TargetFrameLowering::determineCalleeSaves(MF, SavedRegs, RS);
 
-  // Detect spill register usage early — before hasFP is checked for
-  // callee-save decisions. This ensures U is saved when spill registers
-  // require frame pointer setup.
-  auto &FuncInfo = *MF.getInfo<MC6809FunctionInfo>();
-  static const MCPhysReg SpillDRegs[] = {
-    MC6809::SPILL_D0, MC6809::SPILL_D1, MC6809::SPILL_D2, MC6809::SPILL_D3
-  };
-  static const MCPhysReg SpillXRegs[] = {
-    MC6809::SPILL_X0, MC6809::SPILL_X1, MC6809::SPILL_X2, MC6809::SPILL_X3
-  };
-  // Check for explicit spill register operands (not regmask hits).
-  auto isSpillReg = [&](Register Reg) {
-    return llvm::is_contained(SpillDRegs, Reg) ||
-           llvm::is_contained(SpillXRegs, Reg);
-  };
-  for (const MachineBasicBlock &MBB : MF) {
-    for (const MachineInstr &MI : MBB) {
-      for (const MachineOperand &MO : MI.operands()) {
-        if (MO.isReg() && !MO.isImplicit() && isSpillReg(MO.getReg())) {
-          FuncInfo.UsesSpillRegisters = true;
-          break;
-        }
-      }
-      if (FuncInfo.UsesSpillRegisters) break;
-    }
-    if (FuncInfo.UsesSpillRegisters) break;
-  }
-
+  // (The byte/word/index spill pseudo-registers are gone; only the SPILL_Q
+  // tree still needs early usage detection, and that happens in
+  // processFunctionBeforeFrameFinalized — Q spills never force the frame
+  // pointer on their own here.)
   // If we have a frame pointer, the frame register SU needs to be saved as
   // well, since the code that uses it hasn't yet been emitted.
   if (hasFP(MF))
     SavedRegs.set(MC6809::SU);
-
-  // Spill pseudo-registers are stack-local — they don't need callee-saving.
-  // Clear them from SavedRegs even if the call-preserved mask includes them.
-  for (MCPhysReg Reg : SpillDRegs)
-    SavedRegs.reset(Reg);
-  static const MCPhysReg SpillSubRegs[] = {
-    MC6809::SPILL_A0, MC6809::SPILL_A1, MC6809::SPILL_A2, MC6809::SPILL_A3, MC6809::SPILL_A4, MC6809::SPILL_A5, MC6809::SPILL_A6, MC6809::SPILL_A7,
-    MC6809::SPILL_B0, MC6809::SPILL_B1, MC6809::SPILL_B2, MC6809::SPILL_B3, MC6809::SPILL_B4, MC6809::SPILL_B5, MC6809::SPILL_B6, MC6809::SPILL_B7,
-  };
-  for (MCPhysReg Reg : SpillSubRegs)
-    SavedRegs.reset(Reg);
-  // INDEX spill registers also don't need callee-saving.
-  for (MCPhysReg Reg : SpillXRegs)
-    SavedRegs.reset(Reg);
 
   if (isISR(MF)) {
     // We need A to save anything else. This may require in turn saving A.
@@ -399,15 +361,11 @@ void MC6809FrameLowering::processFunctionBeforeFrameFinalized(MachineFunction &M
     RS->addScavengingFrameIndex(FI);
   }
 
-  // Allocate stack slots for used spill pseudo-registers.
-  // Only allocate slots for SPILL_D registers that are actually used.
-  // SPILL_A/SPILL_B share the same stack bytes via sub-register relationships.
-  //MachineRegisterInfo &MRI = MF.getRegInfo();
+  // Allocate stack slots for used spill pseudo-registers. Only the i32
+  // SPILL_Q tree remains (the byte/word/index spill pseudo-registers spill
+  // through the stock frame-index path now).
   MachineFrameInfo &MFI = MF.getFrameInfo();
   auto &FuncInfo = *MF.getInfo<MC6809FunctionInfo>();
-  static const MCPhysReg SpillDRegs[] = {
-    MC6809::SPILL_D0, MC6809::SPILL_D1, MC6809::SPILL_D2, MC6809::SPILL_D3
-  };
   bool AnySpillUsed = false;
   // Scan all instructions for actual explicit def/use of spill registers.
   // Don't use isPhysRegUsed/isPhysRegModified — they trigger on regmask
@@ -424,30 +382,6 @@ void MC6809FrameLowering::processFunctionBeforeFrameFinalized(MachineFunction &M
     return false;
   };
 
-  for (MCPhysReg Reg : SpillDRegs) {
-    if (FuncInfo.SpillRegFrameIndices.count(Reg) == 0 &&
-        isSpillUsedInFunction(Reg)) {
-      int FI = MFI.CreateStackObject(2, Align(1), false);
-      FuncInfo.SpillRegFrameIndices[Reg] = FI;
-      AnySpillUsed = true;
-    } else if (FuncInfo.SpillRegFrameIndices.count(Reg)) {
-      AnySpillUsed = true;
-    }
-  }
-  // Allocate slots for INDEX spill registers (SPILL_X0..X3).
-  static const MCPhysReg SpillXRegsEmit[] = {
-    MC6809::SPILL_X0, MC6809::SPILL_X1, MC6809::SPILL_X2, MC6809::SPILL_X3
-  };
-  for (MCPhysReg Reg : SpillXRegsEmit) {
-    if (FuncInfo.SpillRegFrameIndices.count(Reg) == 0 &&
-        isSpillUsedInFunction(Reg)) {
-      int FI = MFI.CreateStackObject(2, Align(1), false);
-      FuncInfo.SpillRegFrameIndices[Reg] = FI;
-      AnySpillUsed = true;
-    } else if (FuncInfo.SpillRegFrameIndices.count(Reg)) {
-      AnySpillUsed = true;
-    }
-  }
   // Bug #161 round 14: allocate 4-byte stack slots for ACC32 (Q) spill
   // registers (SPILL_Q0..Q31, HD6309 only — bumped from 4 to 32 in Bug
   // #296 to remove the artificial ACC32 capacity ceiling).  Standalone
@@ -474,15 +408,8 @@ void MC6809FrameLowering::processFunctionBeforeFrameFinalized(MachineFunction &M
       AnySpillUsed = true;
     }
   }
-  // Always allocate SPILL_D3 as a scratch save slot for accumulator
-  // save/restore during spill expansion, even if not used for allocation.
-  if (AnySpillUsed) {
+  if (AnySpillUsed)
     FuncInfo.UsesSpillRegisters = true;
-    if (FuncInfo.SpillRegFrameIndices.count(MC6809::SPILL_D3) == 0) {
-      int FI = MFI.CreateStackObject(2, Align(1), false);
-      FuncInfo.SpillRegFrameIndices[MC6809::SPILL_D3] = FI;
-    }
-  }
 
   // Bug #387 (S2): in a static-stack function, move the spill slots off the
   // dynamic stack into static memory. This runs before calculateFrameObjectsOffsets,

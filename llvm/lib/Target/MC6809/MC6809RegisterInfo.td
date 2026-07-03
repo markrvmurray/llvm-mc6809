@@ -271,24 +271,11 @@ def MD : MC6809Reg8<17,  "md">;
 // Values assigned to spill registers are accessed via S-indexed loads/stores.
 // DWARF numbers in 0x2000+ range to avoid collision with imaginary regs.
 
-// SPILL_A{I}, SPILL_B{I}, SPILL_D{I} are interleaved in DWARF numbering
-// so the 16-bit SPILL_D{I} composes its bytes at adjacent addresses:
-//   SPILL_A{I} (= hi byte) = 0x2000 + I*2
-//   SPILL_B{I} (= lo byte) = 0x2001 + I*2
-//   SPILL_D{I} (= 16-bit)  = 0x2000 + I*2  (same DWARF num as its high byte)
-foreach I = 0...7 in {
-  defm SPILL_A#I : MC6809Reg8<!add(0x2000, !mul(I, 2)), "spill_a"#I>;
-  defm SPILL_B#I : MC6809Reg8<!add(0x2001, !mul(I, 2)), "spill_b"#I>;
-  def  SPILL_D#I : MC6809Reg16<!add(0x2000, !mul(I, 2)), "spill_d"#I,
-      [!cast<Register>("SPILL_B"#I), !cast<Register>("SPILL_A"#I)],
-      [sub_lo_byte, sub_hi_byte]>;
-}
-
-// INDEX16 spill pseudo-registers (backed by stack slots, expanded via LDX/STX).
-// These DON'T touch D during expansion, unlike ACC16 spills.
-foreach I = 0...3 in {
-  def SPILL_X#I : MC6809Reg16<!add(0x2010, !mul(I, 2)), "spill_x"#I>;
-}
+// The byte/word/index spill pseudo-registers (SPILL_A0..7, SPILL_B0..7,
+// SPILL_D0..7, SPILL_X0..3) are GONE: their classes now spill through the
+// stock frame-index path (storeRegToStackSlot / loadRegFromStackSlot +
+// foldMemoryOperandImpl's _Mem folds). Only the i32 SPILL_Q tree below
+// remains, pending the same retirement.
 
 // ACC32 spill pseudo-registers (HD6309 only — backed by 4-byte stack slots,
 // expanded via LDQ/STQ). Bug #161 round 14: each SPILL_Q has half-word

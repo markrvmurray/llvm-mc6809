@@ -876,83 +876,38 @@ static bool isInSpillQ(Register Reg) {
   return Reg >= MC6809::SPILL_Q0 && Reg <= MC6809::SPILL_Q31;
 }
 
+// With the byte/word/index spill pseudo-registers retired (SPILL_A/B/D/X),
+// the SPILL_Q i32 tree is the ONLY remaining spill-register family; the
+// helpers below are Q-only until S4 retires that too.
 static bool isSpillReg(Register Reg) {
-  switch (Reg) {
-  case MC6809::SPILL_A0: case MC6809::SPILL_A1: case MC6809::SPILL_A2: case MC6809::SPILL_A3: case MC6809::SPILL_A4: case MC6809::SPILL_A5: case MC6809::SPILL_A6: case MC6809::SPILL_A7:
-  case MC6809::SPILL_B0: case MC6809::SPILL_B1: case MC6809::SPILL_B2: case MC6809::SPILL_B3: case MC6809::SPILL_B4: case MC6809::SPILL_B5: case MC6809::SPILL_B6: case MC6809::SPILL_B7:
-  case MC6809::SPILL_D0: case MC6809::SPILL_D1: case MC6809::SPILL_D2: case MC6809::SPILL_D3: case MC6809::SPILL_D4: case MC6809::SPILL_D5: case MC6809::SPILL_D6: case MC6809::SPILL_D7:
-  case MC6809::SPILL_X0: case MC6809::SPILL_X1: case MC6809::SPILL_X2: case MC6809::SPILL_X3:
-    return true;
-  default:
-    return isInSpillQ(Reg);
-  }
+  return isInSpillQ(Reg);
 }
 
-/// Get the SPILL_D parent register for any spill register.  SPILL_Q*N
-/// is its own parent (Phase A consolidation; see isInSpillQ).
+/// The frame-index key for a spill register (each SPILL_Q*N keys its own
+/// 4-byte slot).
 static MCPhysReg getSpillDParent(Register Reg) {
-  switch (Reg) {
-  case MC6809::SPILL_A0: case MC6809::SPILL_B0: case MC6809::SPILL_D0: return MC6809::SPILL_D0;
-  case MC6809::SPILL_A1: case MC6809::SPILL_B1: case MC6809::SPILL_D1: return MC6809::SPILL_D1;
-  case MC6809::SPILL_A2: case MC6809::SPILL_B2: case MC6809::SPILL_D2: return MC6809::SPILL_D2;
-  case MC6809::SPILL_A3: case MC6809::SPILL_B3: case MC6809::SPILL_D3: return MC6809::SPILL_D3;
-  case MC6809::SPILL_A4: case MC6809::SPILL_B4: case MC6809::SPILL_D4: return MC6809::SPILL_D4;
-  case MC6809::SPILL_A5: case MC6809::SPILL_B5: case MC6809::SPILL_D5: return MC6809::SPILL_D5;
-  case MC6809::SPILL_A6: case MC6809::SPILL_B6: case MC6809::SPILL_D6: return MC6809::SPILL_D6;
-  case MC6809::SPILL_A7: case MC6809::SPILL_B7: case MC6809::SPILL_D7: return MC6809::SPILL_D7;
-  case MC6809::SPILL_X0: return MC6809::SPILL_X0;
-  case MC6809::SPILL_X1: return MC6809::SPILL_X1;
-  case MC6809::SPILL_X2: return MC6809::SPILL_X2;
-  case MC6809::SPILL_X3: return MC6809::SPILL_X3;
-  default:
-    if (isInSpillQ(Reg)) return Reg;
-    llvm_unreachable("Not a spill register");
-  }
+  assert(isInSpillQ(Reg) && "Not a spill register");
+  return Reg;
 }
 
-/// Get byte offset within the SPILL_D / SPILL_X / SPILL_Q frame object.
-/// Big-endian: A (high byte) at offset 0, B (low byte) at offset 1.
-/// SPILL_Q*N is at offset 0 (full 32-bit) — Phase A consolidation.
+/// Get byte offset within the SPILL_Q frame object (always 0 — the full
+/// 32-bit value starts at the slot base).
 static int getSpillByteOffset(Register Reg) {
-  if (isInSpillQ(Reg)) return 0;  // Full 32-bit
-  switch (Reg) {
-  case MC6809::SPILL_D0: case MC6809::SPILL_D1: case MC6809::SPILL_D2: case MC6809::SPILL_D3: case MC6809::SPILL_D4: case MC6809::SPILL_D5: case MC6809::SPILL_D6: case MC6809::SPILL_D7:
-    return 0; // Full 16-bit, offset 0
-  case MC6809::SPILL_A0: case MC6809::SPILL_A1: case MC6809::SPILL_A2: case MC6809::SPILL_A3: case MC6809::SPILL_A4: case MC6809::SPILL_A5: case MC6809::SPILL_A6: case MC6809::SPILL_A7:
-    return 0; // High byte (big-endian)
-  case MC6809::SPILL_B0: case MC6809::SPILL_B1: case MC6809::SPILL_B2: case MC6809::SPILL_B3: case MC6809::SPILL_B4: case MC6809::SPILL_B5: case MC6809::SPILL_B6: case MC6809::SPILL_B7:
-    return 1; // Low byte (big-endian)
-  case MC6809::SPILL_X0: case MC6809::SPILL_X1: case MC6809::SPILL_X2: case MC6809::SPILL_X3:
-    return 0; // Full 16-bit, offset 0
-  default: llvm_unreachable("Not a spill register");
-  }
+  assert(isInSpillQ(Reg) && "Not a spill register");
+  return 0;
 }
 
 /// Get the corresponding real hardware register for a spill register.
-/// SPILL_Q*N → AQ (Phase A consolidation; see isInSpillQ).
 static Register getRealRegForSpill(Register Reg) {
-  if (isInSpillQ(Reg)) return MC6809::AQ;
-  switch (Reg) {
-  case MC6809::SPILL_A0: case MC6809::SPILL_A1: case MC6809::SPILL_A2: case MC6809::SPILL_A3: case MC6809::SPILL_A4: case MC6809::SPILL_A5: case MC6809::SPILL_A6: case MC6809::SPILL_A7:
-    return MC6809::AA;
-  case MC6809::SPILL_B0: case MC6809::SPILL_B1: case MC6809::SPILL_B2: case MC6809::SPILL_B3: case MC6809::SPILL_B4: case MC6809::SPILL_B5: case MC6809::SPILL_B6: case MC6809::SPILL_B7:
-    return MC6809::AB;
-  case MC6809::SPILL_D0: case MC6809::SPILL_D1: case MC6809::SPILL_D2: case MC6809::SPILL_D3: case MC6809::SPILL_D4: case MC6809::SPILL_D5: case MC6809::SPILL_D6: case MC6809::SPILL_D7:
-    return MC6809::AD;
-  case MC6809::SPILL_X0: case MC6809::SPILL_X1: case MC6809::SPILL_X2: case MC6809::SPILL_X3:
-    return MC6809::IX;
-  default: llvm_unreachable("Not a spill register");
-  }
+  assert(isInSpillQ(Reg) && "Not a spill register");
+  return MC6809::AQ;
 }
 
-/// Check if a spill register is an INDEX spill (uses LDX/STX, not LDD/STD).
+/// Index spills (SPILL_X) are gone — pointers spill through the stock
+/// frame-index path. Kept as a constant-false predicate so the staging
+/// guards read the same until S4 deletes the last of the machinery.
 static bool isIndexSpillReg(Register Reg) {
-  switch (Reg) {
-  case MC6809::SPILL_X0: case MC6809::SPILL_X1: case MC6809::SPILL_X2: case MC6809::SPILL_X3:
-    return true;
-  default:
-    return false;
-  }
+  return false;
 }
 
 /// Bug #161 round 14: Q (32-bit) spill register predicate. Used to route
@@ -1004,26 +959,11 @@ static bool isQSpillByteReg(Register Reg, MCPhysReg &Parent,
   return false;
 }
 
-/// Get the size in bytes of a spill register (1 for A/B, 2 for D/X, 4 for Q).
+/// Get the size in bytes of a spill register (only the 4-byte SPILL_Q
+/// slots remain).
 static unsigned getSpillRegSize(Register Reg) {
-  switch (Reg) {
-  case MC6809::SPILL_A0: case MC6809::SPILL_A1: case MC6809::SPILL_A2: case MC6809::SPILL_A3: case MC6809::SPILL_A4: case MC6809::SPILL_A5: case MC6809::SPILL_A6: case MC6809::SPILL_A7:
-  case MC6809::SPILL_B0: case MC6809::SPILL_B1: case MC6809::SPILL_B2: case MC6809::SPILL_B3: case MC6809::SPILL_B4: case MC6809::SPILL_B5: case MC6809::SPILL_B6: case MC6809::SPILL_B7:
-    return 1;
-  case MC6809::SPILL_D0: case MC6809::SPILL_D1: case MC6809::SPILL_D2: case MC6809::SPILL_D3: case MC6809::SPILL_D4: case MC6809::SPILL_D5: case MC6809::SPILL_D6: case MC6809::SPILL_D7:
-  case MC6809::SPILL_X0: case MC6809::SPILL_X1: case MC6809::SPILL_X2: case MC6809::SPILL_X3:
-    return 2;
-  case MC6809::SPILL_Q0:  case MC6809::SPILL_Q1:  case MC6809::SPILL_Q2:  case MC6809::SPILL_Q3:
-  case MC6809::SPILL_Q4:  case MC6809::SPILL_Q5:  case MC6809::SPILL_Q6:  case MC6809::SPILL_Q7:
-  case MC6809::SPILL_Q8:  case MC6809::SPILL_Q9:  case MC6809::SPILL_Q10: case MC6809::SPILL_Q11:
-  case MC6809::SPILL_Q12: case MC6809::SPILL_Q13: case MC6809::SPILL_Q14: case MC6809::SPILL_Q15:
-  case MC6809::SPILL_Q16: case MC6809::SPILL_Q17: case MC6809::SPILL_Q18: case MC6809::SPILL_Q19:
-  case MC6809::SPILL_Q20: case MC6809::SPILL_Q21: case MC6809::SPILL_Q22: case MC6809::SPILL_Q23:
-  case MC6809::SPILL_Q24: case MC6809::SPILL_Q25: case MC6809::SPILL_Q26: case MC6809::SPILL_Q27:
-  case MC6809::SPILL_Q28: case MC6809::SPILL_Q29: case MC6809::SPILL_Q30: case MC6809::SPILL_Q31:
-    return 4;
-  default: llvm_unreachable("Not a spill register");
-  }
+  assert(isInSpillQ(Reg) && "Not a spill register");
+  return 4;
 }
 
 /// Compute the actual stack offset for a spill register's frame slot.

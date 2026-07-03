@@ -161,36 +161,19 @@ BitVector MC6809RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
 const MCPhysReg *MC6809RegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const { return MC6809_CSR_SaveList; }
 
 const uint32_t *MC6809RegisterInfo::getCallPreservedMask(const MachineFunction &MF, CallingConv::ID CallingConv) const {
-  // Start with the TableGen-generated mask from CalleeSavedRegs.
-  // Then mark spill pseudo-registers as call-preserved — they're backed by
-  // stack memory so function calls can't clobber them.
-  static uint32_t SpillPreservedMask[MC6809::NUM_TARGET_REGS / 32 + 1];
-  static bool Initialized = false;
-  if (!Initialized) {
-    // Copy the base mask.
-    unsigned MaskSize = (MC6809::NUM_TARGET_REGS + 31) / 32;
-    memcpy(SpillPreservedMask, MC6809_CSR_RegMask, sizeof(uint32_t) * MaskSize);
-    // Mark all spill registers as preserved across calls.
-    for (MCPhysReg Reg : {MC6809::SPILL_D0, MC6809::SPILL_D1, MC6809::SPILL_D2, MC6809::SPILL_D3, MC6809::SPILL_D4, MC6809::SPILL_D5, MC6809::SPILL_D6, MC6809::SPILL_D7,
-                          MC6809::SPILL_A0, MC6809::SPILL_A1, MC6809::SPILL_A2, MC6809::SPILL_A3, MC6809::SPILL_A4, MC6809::SPILL_A5, MC6809::SPILL_A6, MC6809::SPILL_A7,
-                          MC6809::SPILL_B0, MC6809::SPILL_B1, MC6809::SPILL_B2, MC6809::SPILL_B3, MC6809::SPILL_B4, MC6809::SPILL_B5, MC6809::SPILL_B6, MC6809::SPILL_B7,
-                          // SPILL_X0-X3 were removed from INDEX16 allocation
-                          // (stock-spilling migration); pointers that must
-                          // survive calls now live in ordinary spill slots.
-                          //
-                          // The RS/RC imaginaries are deliberately NOT in
-                          // this mask: unlike the SPILL_* slots (U-relative,
-                          // one per frame) they live at FIXED direct-page
-                          // addresses shared by every function, so a callee
-                          // that allocates the same imaginary clobbers the
-                          // caller's value. Their live ranges must stay
-                          // call-free.
-                          }) {
-      SpillPreservedMask[Reg / 32] |= (1u << (Reg % 32));
-    }
-    Initialized = true;
-  }
-  return SpillPreservedMask;
+  // The TableGen-generated mask from CalleeSavedRegs, unmodified. The
+  // byte/word/index spill pseudo-registers (SPILL_A/B/D/X) that used to be
+  // marked call-preserved here are gone — those classes spill through stock
+  // frame-index slots, which calls cannot clobber. The i32 SPILL_Q tree
+  // keeps its historical treatment (not in this mask; its live ranges never
+  // span calls).
+  //
+  // The RS/RC imaginaries are deliberately NOT in this mask: unlike the
+  // retired SPILL_* slots (U-relative, one per frame) they live at FIXED
+  // direct-page addresses shared by every function, so a callee that
+  // allocates the same imaginary clobbers the caller's value. Their live
+  // ranges must stay call-free.
+  return MC6809_CSR_RegMask;
 }
 
 const TargetRegisterClass *

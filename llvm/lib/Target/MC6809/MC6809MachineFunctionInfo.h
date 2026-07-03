@@ -51,9 +51,10 @@ struct MC6809FunctionInfo : public MachineFunctionInfo {
   int VarArgsStackIndex = -1;
   DenseMap<Register, size_t> CSRDPOffsets;
 
-  /// Frame indices for stack-backed spill pseudo-registers (SPILL_D0..3).
-  /// Maps SPILL_D register → frame index. SPILL_A/SPILL_B share the same
-  /// stack bytes via sub-register relationships.
+  /// Frame indices for the stack-backed i32 spill pseudo-registers
+  /// (SPILL_Q0..31 — the only spill-register family left; the byte/word/
+  /// index families spill through stock frame-index slots now). Maps
+  /// SPILL_Q register → its 4-byte frame index.
   DenseMap<MCPhysReg, int> SpillRegFrameIndices;
 
   /// Set when spill pseudo-registers are used. Forces frame pointer (U)
