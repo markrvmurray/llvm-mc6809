@@ -2966,8 +2966,22 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   }
   case MC6809::Store_i32_SlotToMem: {
     // A spilled i32 store value: copy 4 bytes slot -> destination through
-    // the D accumulator (declared AD clobber), never touching $aq. Word
-    // order is immaterial — plain moves, no carry chain.
+    // the D accumulator. Word order is immaterial — plain moves, no carry
+    // chain.
+    //
+    // D (= AD) is a sub-register of AQ, so the LDD/STD transit clobbers the
+    // high word of any i32 the allocator has parked in $aq across this copy
+    // (the copy touches only AD; AW, the low word, is untouched). Under
+    // register pressure the allocator DOES place this slot-to-slot copy
+    // inside a live $aq range — the divd/printf/strtol miscompiles — so
+    // preserve AD with an undef-marked hard-stack push/pull. The undef push
+    // is the identity when AD is dead; when it holds a live AQ high word it
+    // is saved and restored. Because AD is net-preserved, the pseudo does
+    // NOT list AD in its Defs (the retired emitTwoLDDSlotCopy did the same
+    // via emitAQPreservedOverHardStackScratch — Bug #308).
+    //
+    // The push shifts S down by 2, so $ss-relative operands inside the
+    // window are displacement-compensated by +2.
     auto ReadOff = [&](unsigned I) -> int64_t {
       const MachineOperand &MO = MI.getOperand(I);
       return MO.isImm() ? MO.getImm() : MO.getCImm()->getSExtValue();
@@ -2976,16 +2990,20 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     int64_t SOff = ReadOff(1);
     Register DBase = MI.getOperand(2).getReg();
     int64_t DOff = ReadOff(3);
+    Builder.buildInstr(MC6809::PSHSs).addUse(MC6809::AD, RegState::Undef);
+    int64_t SAdj = (SBase == MC6809::SS) ? 2 : 0;
+    int64_t DAdj = (DBase == MC6809::SS) ? 2 : 0;
     for (int64_t Word : {0, 2}) {
-      Builder.buildInstr(getLoadIdxOpcode(MC6809::AD, SOff + Word))
+      Builder.buildInstr(getLoadIdxOpcode(MC6809::AD, SOff + Word + SAdj))
           .addDef(MC6809::AD, RegState::Implicit)
-          .addImm(SOff + Word)
+          .addImm(SOff + Word + SAdj)
           .addReg(SBase);
-      Builder.buildInstr(getStoreIdxOpcode(MC6809::AD, DOff + Word))
+      Builder.buildInstr(getStoreIdxOpcode(MC6809::AD, DOff + Word + DAdj))
           .addUse(MC6809::AD, RegState::Implicit)
-          .addImm(DOff + Word)
+          .addImm(DOff + Word + DAdj)
           .addReg(DBase);
     }
+    Builder.buildInstr(MC6809::PULSs).addDef(MC6809::AD);
     MI.eraseFromParent();
     return true;
   }

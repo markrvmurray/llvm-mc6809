@@ -199,16 +199,20 @@ let Defs = [NZ, V] in {
   }
 
   // An i32 store whose VALUE lives in a stack slot: memory-to-memory copy
-  // through the D accumulator (two LDD/STD pairs), never touching $aq.
+  // through the D accumulator (two LDD/STD pairs).
   // foldMemoryOperandImpl folds a spilled Store_i32_Mem value operand into
   // this form; without it, the value round-trips slot -> $aq -> memory and
   // the reload's {AQ}-class interval collides with whatever neighbouring
   // i32 already holds $aq (the -Og llabs/imaxdiv "ran out of registers"
-  // shape once the SPILL_Q escape registers were retired). The AD transit
-  // is declared honestly — there is no ACC32 destination operand to cover
-  // it by aliasing, and no self-interference since nothing here needs $aq.
+  // shape once the SPILL_Q escape registers were retired).
+  //
+  // AD is a sub-register of AQ, so the D transit would corrupt the high
+  // word of a live i32 in $aq. The expansion brackets the copy with an
+  // undef-marked PSHS/PULS of D to preserve it (Bug #308 pattern), so AD is
+  // net-preserved and is NOT listed in Defs — otherwise the allocator would
+  // needlessly spill any live $aq across this copy.
   let Predicates = [IsHD6309], mayLoad = true, mayStore = true,
-      Defs = [NZ, V, AD] in
+      Defs = [NZ, V] in
   def Store_i32_SlotToMem : MC6809Pseudo {
     dag OutOperandList = (outs);
     dag InOperandList  = (ins INDEX16:$sidx, unknown:$soff,
