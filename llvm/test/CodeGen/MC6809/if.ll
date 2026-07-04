@@ -240,10 +240,8 @@ define dso_local i16 @if_s16(i16 noundef %a, i16 noundef %b) local_unnamed_addr 
 ; O1-NEXT:    cmpx #0
 ; O1-NEXT:    lbgt .LBB2_2
 ; O1-NEXT:  ; %bb.1: ; %if.end
-; O1-NEXT:    lda #0
-; O1-NEXT:    tfr a,b
-; O1-NEXT:    subb 5,s
-; O1-NEXT:    sbca 4,s
+; O1-NEXT:    ldd #0
+; O1-NEXT:    subd 4,s
 ; O1-NEXT:  .LBB2_2: ; %return
 ; O1-NEXT:    tfr d,x
 ; O1-NEXT:    leas 2,s
@@ -256,10 +254,8 @@ define dso_local i16 @if_s16(i16 noundef %a, i16 noundef %b) local_unnamed_addr 
 ; O2-NEXT:    cmpx #0
 ; O2-NEXT:    lbgt .LBB2_2
 ; O2-NEXT:  ; %bb.1: ; %if.end
-; O2-NEXT:    lda #0
-; O2-NEXT:    tfr a,b
-; O2-NEXT:    subb 5,s
-; O2-NEXT:    sbca 4,s
+; O2-NEXT:    ldd #0
+; O2-NEXT:    subd 4,s
 ; O2-NEXT:  .LBB2_2: ; %return
 ; O2-NEXT:    tfr d,x
 ; O2-NEXT:    leas 2,s
@@ -276,10 +272,8 @@ define dso_local i16 @if_s16(i16 noundef %a, i16 noundef %b) local_unnamed_addr 
 ; O3-NEXT:    leas 2,s
 ; O3-NEXT:    rts
 ; O3-NEXT:  .LBB2_2: ; %if.end
-; O3-NEXT:    lda #0
-; O3-NEXT:    tfr a,b
-; O3-NEXT:    subb 5,s
-; O3-NEXT:    sbca 4,s
+; O3-NEXT:    ldd #0
+; O3-NEXT:    subd 4,s
 ; O3-NEXT:    tfr d,x
 ; O3-NEXT:    leas 2,s
 ; O3-NEXT:    rts

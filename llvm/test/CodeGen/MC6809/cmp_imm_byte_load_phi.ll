@@ -30,12 +30,12 @@
 define dso_local i16 @cmp_imm_byte_load_phi_no_wrap(ptr noundef readonly captures(none) %s) local_unnamed_addr {
 ; CHECK-LABEL: cmp_imm_byte_load_phi_no_wrap:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -5,s
+; CHECK-NEXT:    leas -4,s
 ; CHECK-NEXT:    pshs u,y
 ; CHECK-NEXT:    tfr s,u
 ; CHECK-NEXT:    tfr x,y
 ; CHECK-NEXT:    lda ,x
-; CHECK-NEXT:    sta 5,u ; 1-byte Folded Spill
+; CHECK-NEXT:    sta 4,u ; 1-byte Folded Spill
 ; CHECK-NEXT:    cmpa #45
 ; CHECK-NEXT:    lbeq .LBB0_2
 ; CHECK-NEXT:  ; %bb.1: ; %entry
@@ -51,7 +51,7 @@ define dso_local i16 @cmp_imm_byte_load_phi_no_wrap(ptr noundef readonly capture
 ; CHECK-NEXT:    addb #-48
 ; CHECK-NEXT:    pshs d
 ; CHECK-NEXT:    ldd #0
-; CHECK-NEXT:    std <__rs0
+; CHECK-NEXT:    std <__rs1
 ; CHECK-NEXT:    puls d
 ; CHECK-NEXT:    cmpb #10
 ; CHECK-NEXT:    bhs .LBB0_8
@@ -60,7 +60,7 @@ define dso_local i16 @cmp_imm_byte_load_phi_no_wrap(ptr noundef readonly capture
 ; CHECK-NEXT:    ldd #2
 ; CHECK-NEXT:    std <__rs0
 ; CHECK-NEXT:    puls d
-; CHECK-NEXT:    ldb 5,u ; 1-byte Folded Reload
+; CHECK-NEXT:    ldb 4,u ; 1-byte Folded Reload
 ; CHECK-NEXT:    cmpb #45
 ; CHECK-NEXT:    beq .LBB0_6
 ; CHECK-NEXT:  ; %bb.5: ; %select.false
@@ -75,27 +75,27 @@ define dso_local i16 @cmp_imm_byte_load_phi_no_wrap(ptr noundef readonly capture
 ; CHECK-NEXT:    puls d
 ; CHECK-NEXT:    pshs d
 ; CHECK-NEXT:    ldd #0
-; CHECK-NEXT:    std <__rs0
+; CHECK-NEXT:    std <__rs1
 ; CHECK-NEXT:    puls d
 ; CHECK-NEXT:  .LBB0_7: ; %while.body
 ; CHECK-NEXT:    ; =>This Inner Loop Header: Depth=1
-; CHECK-NEXT:    sta 6,u ; 1-byte Folded Spill
+; CHECK-NEXT:    sta 5,u ; 1-byte Folded Spill
 ; CHECK-NEXT:    leas -2,s
 ; CHECK-NEXT:    ldd #10
 ; CHECK-NEXT:    std ,s
-; CHECK-NEXT:    ldx <__rs0
+; CHECK-NEXT:    ldx <__rs1
 ; CHECK-NEXT:    lbsr __mulhi3
 ; CHECK-NEXT:    leas 2,s
-; CHECK-NEXT:    ldb 6,u ; 1-byte Folded Reload
+; CHECK-NEXT:    ldb 5,u ; 1-byte Folded Reload
 ; CHECK-NEXT:    addb #-48
-; CHECK-NEXT:    stb 6,u ; 1-byte Folded Spill
+; CHECK-NEXT:    stb 5,u ; 1-byte Folded Spill
 ; CHECK-NEXT:    stx <__rs0
 ; CHECK-NEXT:    ldb <__rs0lo
 ; CHECK-NEXT:    lda <__rs0hi
-; CHECK-NEXT:    addb 6,u
+; CHECK-NEXT:    addb 5,u
 ; CHECK-NEXT:    adca #0
 ; CHECK-NEXT:    pshs d
-; CHECK-NEXT:    std <__rs0
+; CHECK-NEXT:    std <__rs1
 ; CHECK-NEXT:    puls d
 ; CHECK-NEXT:    lda ,y
 ; CHECK-NEXT:    tfr a,b
@@ -104,31 +104,27 @@ define dso_local i16 @cmp_imm_byte_load_phi_no_wrap(ptr noundef readonly capture
 ; CHECK-NEXT:    cmpb #10
 ; CHECK-NEXT:    lblo .LBB0_7
 ; CHECK-NEXT:  .LBB0_8: ; %while.end
-; CHECK-NEXT:    lda #0
-; CHECK-NEXT:    ldb <__rs0lo
-; CHECK-NEXT:    stb 4,u ; 1-byte Folded Spill
-; CHECK-NEXT:    pshs a
-; CHECK-NEXT:    lda <__rs0hi
-; CHECK-NEXT:    tfr a,b
-; CHECK-NEXT:    puls a
-; CHECK-NEXT:    stb 6,u ; 1-byte Folded Spill
-; CHECK-NEXT:    tfr a,b
-; CHECK-NEXT:    subb 4,u
-; CHECK-NEXT:    sbca 6,u
 ; CHECK-NEXT:    pshs d
-; CHECK-NEXT:    std <__rs1
+; CHECK-NEXT:    ldd #0
+; CHECK-NEXT:    std <__rs0
 ; CHECK-NEXT:    puls d
-; CHECK-NEXT:    ldb 5,u ; 1-byte Folded Reload
+; CHECK-NEXT:    pshs d
+; CHECK-NEXT:    ldd <__rs0
+; CHECK-NEXT:    subb <__rs1lo
+; CHECK-NEXT:    sbca <__rs1hi
+; CHECK-NEXT:    std <__rs0
+; CHECK-NEXT:    puls d
+; CHECK-NEXT:    ldb 4,u ; 1-byte Folded Reload
 ; CHECK-NEXT:    cmpb #45
 ; CHECK-NEXT:    beq .LBB0_10
 ; CHECK-NEXT:  ; %bb.9: ; %select.false3
-; CHECK-NEXT:    ldd <__rs0
-; CHECK-NEXT:    std <__rs1
+; CHECK-NEXT:    ldd <__rs1
+; CHECK-NEXT:    std <__rs0
 ; CHECK-NEXT:  .LBB0_10: ; %select.end2
-; CHECK-NEXT:    ldx <__rs1
+; CHECK-NEXT:    ldx <__rs0
 ; CHECK-NEXT:    tfr u,s
 ; CHECK-NEXT:    puls u,y
-; CHECK-NEXT:    leas 5,s
+; CHECK-NEXT:    leas 4,s
 ; CHECK-NEXT:    rts
 entry:
   %0 = load i8, ptr %s, align 1

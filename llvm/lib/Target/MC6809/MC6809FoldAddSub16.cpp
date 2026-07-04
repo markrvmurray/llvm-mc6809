@@ -184,24 +184,83 @@ bool MC6809FoldAddSub16::runOnMachineFunction(MachineFunction &MF) {
       if (FlagsConsumed)
         continue;
 
-      // op0=dst, op1=src(tied), then the operand(s). The two byte sources
-      // (op1) must be the lo/hi halves of one i16 value.
+      // op0=dst, op1=src(tied minuend), then the subtrahend operand(s). The
+      // minuend is normally the lo/hi halves of one i16 value (EXTRACT_LO/HI).
+      // It may instead be a constant: `0 - x` (the negate) materialises the
+      // minuend into the byte accumulators with Load_i8_Imm rather than an
+      // EXTRACT, so it slipped through and stayed a byte chain. For the memory
+      // subtrahend form we rematerialise the constant as one Load_i16_Imm and
+      // let the native op subtract memory from it: `ldd #imm; subd mem`.
       Register LoSrc = LoDef->getOperand(1).getReg();
       Register HiSrc = HiDef->getOperand(1).getReg();
       MachineInstr *LoSrcDef = defOf(LoSrc);
       MachineInstr *HiSrcDef = defOf(HiSrc);
-      if (!LoSrcDef || LoSrcDef->getOpcode() != MC6809::EXTRACT_LO_i16)
+      if (!LoSrcDef || !HiSrcDef)
         continue;
-      if (!HiSrcDef || HiSrcDef->getOpcode() != MC6809::EXTRACT_HI_i16)
-        continue;
-      Register Src = LoSrcDef->getOperand(1).getReg();
-      if (Src != HiSrcDef->getOperand(1).getReg())
-        continue;
-
       if (!MRI.hasOneNonDBGUse(LoR) || !MRI.hasOneNonDBGUse(HiR) ||
-          !MRI.hasOneNonDBGUse(LoSrc) || !MRI.hasOneNonDBGUse(HiSrc) ||
           !MRI.hasOneNonDBGUse(CarryOut))
         continue;
+
+      Register Src;
+      SmallVector<MachineInstr *, 2> SrcDefsToErase;
+      bool MaterialiseConst = false;
+      int16_t ConstImm = 0;
+      if (LoSrcDef->getOpcode() == MC6809::EXTRACT_LO_i16 &&
+          HiSrcDef->getOpcode() == MC6809::EXTRACT_HI_i16 &&
+          LoSrcDef->getOperand(1).getReg() == HiSrcDef->getOperand(1).getReg() &&
+          MRI.hasOneNonDBGUse(LoSrc) && MRI.hasOneNonDBGUse(HiSrc)) {
+        // Extracted-halves minuend: the common `x +/- y`, `x - 1`, ... shape.
+        Src = LoSrcDef->getOperand(1).getReg();
+        SrcDefsToErase.push_back(LoSrcDef);
+        SrcDefsToErase.push_back(HiSrcDef);
+      } else if ((Kind == Mem || Kind == Reg) &&
+                 LoSrcDef->getOpcode() == MC6809::Load_i8_Imm &&
+                 HiSrcDef->getOpcode() == MC6809::Load_i8_Imm &&
+                 LoSrcDef->getOperand(1).isImm() &&
+                 HiSrcDef->getOperand(1).isImm()) {
+        // Constant minuend (`0 - x` negate, `C - x`) against a memory or
+        // register subtrahend. The memory form becomes `ldd #imm; subd mem`;
+        // the register form becomes the native reg-reg subtract (SUBR on
+        // HD6309, a push+SUBD idiom on plain 6809 via Sub_i16_Reg). One shared
+        // Load_i8_Imm covers both halves when the bytes are equal (e.g. 0);
+        // otherwise two distinct byte defs. Each must feed only this chain so
+        // rematerialising the whole i16 minuend is safe.
+        ConstImm = (int16_t)(((HiSrcDef->getOperand(1).getImm() & 0xFF) << 8) |
+                             (LoSrcDef->getOperand(1).getImm() & 0xFF));
+        // The register subtrahend form pays a constant materialisation plus,
+        // on plain 6809, a subtrahend spill; that only wins for the true
+        // negate (minuend 0 → `subr`/`ldd #0` with no extra load). A non-zero
+        // constant minus a register is better left as the byte chain. The
+        // memory form is always a win (`ldd #imm; subd mem`), so keep any C
+        // there.
+        if (Kind == Reg && ConstImm != 0)
+          continue;
+        if (LoSrc == HiSrc) {
+          bool OnlyChainUses = true;
+          for (MachineInstr &U : MRI.use_nodbg_instructions(LoSrc))
+            if (&U != LoDef && &U != HiDef) {
+              OnlyChainUses = false;
+              break;
+            }
+          if (!OnlyChainUses)
+            continue;
+          SrcDefsToErase.push_back(LoSrcDef);
+        } else {
+          if (!MRI.hasOneNonDBGUse(LoSrc) || !MRI.hasOneNonDBGUse(HiSrc))
+            continue;
+          SrcDefsToErase.push_back(LoSrcDef);
+          SrcDefsToErase.push_back(HiSrcDef);
+        }
+        MaterialiseConst = true;
+      } else {
+        continue;
+      }
+
+      if (MaterialiseConst) {
+        Src = MRI.createVirtualRegister(MRI.getRegClass(Dst));
+        BuildMI(MBB, MI, MI.getDebugLoc(), TII.get(MC6809::Load_i16_Imm), Src)
+            .addImm(ConstImm);
+      }
 
       auto MIB = BuildMI(MBB, MI, MI.getDebugLoc(), TII.get(ResultOpc), Dst)
                      .addReg(Src);
@@ -253,8 +312,8 @@ bool MC6809FoldAddSub16::runOnMachineFunction(MachineFunction &MF) {
       ToErase.push_back(&MI);
       ToErase.push_back(HiDef);
       ToErase.push_back(LoDef);
-      ToErase.push_back(HiSrcDef);
-      ToErase.push_back(LoSrcDef);
+      for (MachineInstr *D : SrcDefsToErase)
+        ToErase.push_back(D);
       Changed = true;
     }
   }
