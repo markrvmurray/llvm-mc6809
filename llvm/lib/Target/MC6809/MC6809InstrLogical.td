@@ -541,7 +541,7 @@ def ZEX32Implicit : MC6809LogicalInstr {
 def : Pat<(i16 (anyext ACC8:$byte)), (ANYEXT_i8_to_i16 ACC8:$byte)>;
 
 // i8 trunc from i16 — go through EXTRACT_LO_i16 pseudo, same reason.
-def : Pat<(i8 (trunc ADc:$word)), (EXTRACT_LO_i16 ADc:$word)>;
+def : Pat<(i8 (trunc ACC16:$word)), (EXTRACT_LO_i16 ACC16:$word)>;
 let Predicates = [IsHD6309] in {
   // Bug #302 redesign Phase 2 (2026-05-17): i16 trunc from i32 goes
   // through Extract16_i32_lo (Phase 1's replacement for

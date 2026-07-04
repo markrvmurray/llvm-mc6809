@@ -135,13 +135,10 @@ define i32 @phi_i32(i1 %c, i32 %a, i32 %b) {
 ; O0-NEXT:    adcb #0
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldb 7,s
-; O0-NEXT:    std <__rs1
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
-; O0-NEXT:    tfr b,a
-; O0-NEXT:    ldb 6,s
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
+; O0-NEXT:    tfr b,a
+; O0-NEXT:    ldb 4,s
 ; O0-NEXT:    lbra .LBB1_3
 ; O0-NEXT:  .LBB1_2: ; %else
 ; O0-NEXT:    ldb <__rs3lo
@@ -170,23 +167,17 @@ define i32 @phi_i32(i1 %c, i32 %a, i32 %b) {
 ; O0-NEXT:    adcb #0
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldb 7,s
-; O0-NEXT:    std <__rs1
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
-; O0-NEXT:    tfr b,a
-; O0-NEXT:    ldb 6,s
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
+; O0-NEXT:    tfr b,a
+; O0-NEXT:    ldb 4,s
 ; O0-NEXT:    lbra .LBB1_3
 ; O0-NEXT:  .LBB1_3: ; %join
 ; O0-NEXT:    pshs d
-; O0-NEXT:    ldd <__rs1
+; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std 2,x
 ; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std ,x
-; O0-NEXT:    puls d
 ; O0-NEXT:    leas 6,s
 ; O0-NEXT:    rts
 ;

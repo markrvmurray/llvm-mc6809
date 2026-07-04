@@ -123,14 +123,14 @@ let Defs = [NZ, V] in {
   // the bug118/bug267 lit tests and test-strchr on usim).
   def EXTRACT_LO_i16 : MC6809Pseudo {
     dag OutOperandList = (outs ACC8_AB:$dst);
-    dag InOperandList  = (ins ADc:$src);
+    dag InOperandList  = (ins ACC16:$src);
     let isAsCheapAsAMove = true;
   }
 
   // Symmetric. See EXTRACT_LO_i16 comment above.
   def EXTRACT_HI_i16 : MC6809Pseudo {
     dag OutOperandList = (outs ACC8_AB:$dst);
-    dag InOperandList  = (ins ADc:$src);
+    dag InOperandList  = (ins ACC16:$src);
     let isAsCheapAsAMove = true;
   }
 
@@ -148,8 +148,14 @@ let Defs = [NZ, V] in {
   // retired: a spilled source's INF-weight reload could find both AA
   // and AB blocked by physical interference, with no imaginary home
   // admitted to take it.
+  // ACC16 dst (not ADc): the expansion routes the AD-staged result to
+  // ANY real destination (TFR for AW) or dematerialises to an imaginary,
+  // and an ADc dst pinned zext/merge-fed PHIs to {AD, RS0-3} -- with AD's
+  // halves busy in a hot loop the value landed in an RS direct-page slot
+  // and its per-iteration rematerialisation cost strcmp +52% cycles on
+  // HD6309 (where AW sat free the whole loop).
   def MERGE_LOHI_i16 : MC6809Pseudo {
-    dag OutOperandList = (outs ADc:$dst);
+    dag OutOperandList = (outs ACC16:$dst);
     dag InOperandList  = (ins ACC8:$lo, ACC8:$hi);
     let isAsCheapAsAMove = true;
   }
@@ -164,12 +170,12 @@ let Defs = [NZ, V] in {
   // its AD half via loadByteInto, then reads the spilled half straight
   // from the slot with LDA/LDB.
   def MERGE_LOHI_i16_MemLo : MC6809Pseudo {
-    dag OutOperandList = (outs ADc:$dst);
+    dag OutOperandList = (outs ACC16:$dst);
     dag InOperandList  = (ins ACC8:$hi, INDEX16:$idx, unknown:$offset);
     let mayLoad = true;
   }
   def MERGE_LOHI_i16_MemHi : MC6809Pseudo {
-    dag OutOperandList = (outs ADc:$dst);
+    dag OutOperandList = (outs ACC16:$dst);
     dag InOperandList  = (ins ACC8:$lo, INDEX16:$idx, unknown:$offset);
     let mayLoad = true;
   }
@@ -186,7 +192,7 @@ let Defs = [NZ, V] in {
 
   // Both halves spilled: lo slot first, hi slot second.
   def MERGE_LOHI_i16_Mem2 : MC6809Pseudo {
-    dag OutOperandList = (outs ADc:$dst);
+    dag OutOperandList = (outs ACC16:$dst);
     dag InOperandList  = (ins INDEX16:$lidx, unknown:$loff,
                               INDEX16:$hidx, unknown:$hoff);
     let mayLoad = true;
@@ -196,7 +202,7 @@ let Defs = [NZ, V] in {
   // left undefined. ACC8 for the same reasons as MERGE_LOHI_i16 above;
   // the expansion stages any source into AB.
   def ANYEXT_i8_to_i16 : MC6809Pseudo {
-    dag OutOperandList = (outs ADc:$dst);
+    dag OutOperandList = (outs ACC16:$dst);
     dag InOperandList  = (ins ACC8:$src);
     let isAsCheapAsAMove = true;
   }

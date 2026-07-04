@@ -84,4 +84,4 @@
 ; frame pointer dropped for RS-resident locals) a direct-page imaginary.
 ; The historical `tfr s,u` anchor is gone with the frame pointer; the
 ; reload itself is what feeds the guarded passes.
-; TRIGGER: ld{{[xy]}} {{([0-9]+,u|<__rs[0-3])}}
+; TRIGGER: ld{{[xyd]}} {{([0-9]+,u|<__rs[0-3])}}

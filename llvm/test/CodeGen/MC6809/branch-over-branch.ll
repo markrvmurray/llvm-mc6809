@@ -24,23 +24,20 @@ define i16 @cond_skip_join(i16 %x, i16 %a, i16 %b) {
 ; O0-NEXT:    leas -2,s
 ; O0-NEXT:    pshs u
 ; O0-NEXT:    tfr s,u
-; O0-NEXT:    ldd 6,u
 ; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 8,u
+; O0-NEXT:    ldd 6,u
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
+; O0-NEXT:    ldd 8,u
 ; O0-NEXT:    cmpx #0
 ; O0-NEXT:    lbne .LBB0_2
 ; O0-NEXT:  ; %bb.1: ; %if.then
-; O0-NEXT:    tfr d,x
+; O0-NEXT:    ldx <__rs0
 ; O0-NEXT:    lbsr sink
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd 8,u
-; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
 ; O0-NEXT:    lbra .LBB0_2
 ; O0-NEXT:  .LBB0_2: ; %if.end
-; O0-NEXT:    ldx <__rs0
+; O0-NEXT:    tfr d,x
 ; O0-NEXT:    tfr u,s
 ; O0-NEXT:    puls u
 ; O0-NEXT:    leas 2,s

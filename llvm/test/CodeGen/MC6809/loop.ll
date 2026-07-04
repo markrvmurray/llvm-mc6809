@@ -236,39 +236,28 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; HD6309-LABEL: loop:
 ; HD6309:       ; %bb.0: ; %entry
 ; HD6309-NEXT:    leas -2,s
-; HD6309-NEXT:    pshs d
-; HD6309-NEXT:    ldd #0
-; HD6309-NEXT:    std <__rs0
-; HD6309-NEXT:    puls d
+; HD6309-NEXT:    ldw #0
 ; HD6309-NEXT:    tstb
 ; HD6309-NEXT:    ble .LBB0_3
 ; HD6309-NEXT:  ; %bb.1: ; %for.body.preheader
 ; HD6309-NEXT:    clra
-; HD6309-NEXT:    pshs d
-; HD6309-NEXT:    ldd #0
-; HD6309-NEXT:    std <__rs0
-; HD6309-NEXT:    puls d
+; HD6309-NEXT:    ldw #0
 ; HD6309-NEXT:  .LBB0_2: ; %for.body
 ; HD6309-NEXT:    ; =>This Inner Loop Header: Depth=1
 ; HD6309-NEXT:    pshs d
-; HD6309-NEXT:    ldd <__rs0
-; HD6309-NEXT:    std <__rs1
-; HD6309-NEXT:    puls d
-; HD6309-NEXT:    pshs d
-; HD6309-NEXT:    ldd ,x
+; HD6309-NEXT:    tfr w,d
 ; HD6309-NEXT:    std <__rs0
 ; HD6309-NEXT:    puls d
+; HD6309-NEXT:    ldw ,x
 ; HD6309-NEXT:    pshs d
 ; HD6309-NEXT:    ldd <__rs0
-; HD6309-NEXT:    addb <__rs1lo
-; HD6309-NEXT:    adca <__rs1hi
-; HD6309-NEXT:    std <__rs0
+; HD6309-NEXT:    addr d,w
 ; HD6309-NEXT:    puls d
 ; HD6309-NEXT:    leax 2,x
 ; HD6309-NEXT:    addd #-1
 ; HD6309-NEXT:    bne .LBB0_2
 ; HD6309-NEXT:  .LBB0_3: ; %for.end
-; HD6309-NEXT:    ldx <__rs0
+; HD6309-NEXT:    tfr w,x
 ; HD6309-NEXT:    leas 2,s
 ; HD6309-NEXT:    rts
 entry:

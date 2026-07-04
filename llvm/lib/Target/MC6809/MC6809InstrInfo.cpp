@@ -3637,6 +3637,12 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     dematerializeReg(Builder, MC6809::AD, OrigDst, MF);
     if (StageDst)
       pullStagingReg(Builder, MC6809::AD);
+    // Real non-AD destination (AW now that the merge dst class is ACC16):
+    // dematerializeReg no-ops for it, so route the AD-staged result
+    // explicitly -- losing this write-back left a loop index stale in W
+    // (memchr hang).
+    if (OrigDst != MC6809::AD && !needsMaterialization(OrigDst))
+      Builder.buildInstr(MC6809::TFRp).addDef(OrigDst).addUse(MC6809::AD);
     MI.eraseFromParent();
     return true;
   }
@@ -3674,6 +3680,9 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     dematerializeReg(Builder, MC6809::AD, OrigDst, MF);
     if (StageDst)
       pullStagingReg(Builder, MC6809::AD);
+    // Route to a real non-AD destination -- see MERGE_LOHI_i16_Mem2.
+    if (OrigDst != MC6809::AD && !needsMaterialization(OrigDst))
+      Builder.buildInstr(MC6809::TFRp).addDef(OrigDst).addUse(MC6809::AD);
     MI.eraseFromParent();
     return true;
   }

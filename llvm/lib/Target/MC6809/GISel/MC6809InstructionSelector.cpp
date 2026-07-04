@@ -1339,7 +1339,19 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     if (DstTy == LLT::scalar(16) && SrcTy == LLT::scalar(8)) {
       if (!MRI->getRegClassOrNull(SrcReg))
         MRI->setRegClass(SrcReg, &MC6809::ACC8RegClass);
-      MRI->setRegClass(DstReg, &MC6809::ADcRegClass);
+      // Constrain, don't set: an already-selected consumer (bottom-up
+      // order -- e.g. BranchJumpTable's ADc index) may have narrowed the
+      // dst; a blind setRegClass would widen it back and leave a class
+      // mismatch for the verifier. ACC16 (not ADc) when unconstrained:
+      // the result COPYies out of physical $ad, and any ACC16 home is
+      // TFR-reachable -- pinning zext-fed PHIs to {AD, RS0-3} put
+      // loop-carried values into RS direct-page slots while AW sat free
+      // (strcmp +52% cycles on HD6309).
+      if (!MRI->getRegClassOrNull(DstReg))
+        MRI->setRegClass(DstReg, &MC6809::ACC16RegClass);
+      else if (!RBI.constrainGenericRegister(DstReg, MC6809::ACC16RegClass,
+                                             *MRI))
+        return false;
       MachineIRBuilder B(MI);
       B.buildCopy(Register(MC6809::AB), SrcReg);
       B.buildInstr(MC6809::ZEX16Implicit);
@@ -1377,7 +1389,12 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     if (DstTy == LLT::scalar(16) && SrcTy == LLT::scalar(8)) {
       if (!MRI->getRegClassOrNull(SrcReg))
         MRI->setRegClass(SrcReg, &MC6809::ACC8RegClass);
-      MRI->setRegClass(DstReg, &MC6809::ADcRegClass);
+      // Constrain, don't set -- see the G_ZEXT i8->i16 case above.
+      if (!MRI->getRegClassOrNull(DstReg))
+        MRI->setRegClass(DstReg, &MC6809::ACC16RegClass);
+      else if (!RBI.constrainGenericRegister(DstReg, MC6809::ACC16RegClass,
+                                             *MRI))
+        return false;
       MachineIRBuilder B(MI);
       B.buildCopy(Register(MC6809::AB), SrcReg);
       B.buildInstr(MC6809::SEX16Implicit);
@@ -1907,7 +1924,7 @@ skip_globalvalue_fold:
       // subclass like ABc; a blind setRegClass would widen it back and leave
       // a tied-operand class mismatch for the verifier.
       if (!RBI.constrainGenericRegister(DstReg, MC6809::ACC8RegClass, *MRI) ||
-          !RBI.constrainGenericRegister(SrcReg, MC6809::ADcRegClass, *MRI))
+          !RBI.constrainGenericRegister(SrcReg, MC6809::ACC16RegClass, *MRI))
         return false;
       MI.setDesc(TII.get(MC6809::EXTRACT_LO_i16));
       constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
@@ -3073,7 +3090,11 @@ bool MC6809InstructionSelector::selectMergeValues(MachineInstr &MI) {
     // s8×2 → s16: emit MERGE_LOHI_i16 pseudo, which expands post-RA and
     // avoids sub-register COPY edges between ACC8 and ACC16 in the vreg
     // graph (bug #118 Layer 1, approach b).
-    MRI->setRegClass(Dst, &MC6809::ADcRegClass);
+    // Constrain, don't set -- see the G_ZEXT i8->i16 intercept.
+    if (!MRI->getRegClassOrNull(Dst))
+      MRI->setRegClass(Dst, &MC6809::ACC16RegClass);
+    else if (!RBI.constrainGenericRegister(Dst, MC6809::ACC16RegClass, *MRI))
+      return false;
     if (!MRI->getRegClassOrNull(Lo))
       MRI->setRegClass(Lo, &MC6809::ACC8RegClass);
     if (!MRI->getRegClassOrNull(Hi))
@@ -3981,7 +4002,7 @@ bool MC6809InstructionSelector::selectUnMergeValues(MachineInstr &MI) {
   if (SrcTy == S16) {
     // s16 → s8×2: emit EXTRACT_LO_i16 + EXTRACT_HI_i16 pseudos instead of
     // sub-register COPYs (bug #118 Layer 1, approach b).
-    MRI->setRegClass(Src, &MC6809::ADcRegClass);
+    MRI->setRegClass(Src, &MC6809::ACC16RegClass);
     if (!MRI->getRegClassOrNull(Lo))
       MRI->setRegClass(Lo, &MC6809::ACC8RegClass);
     if (!MRI->getRegClassOrNull(Hi))

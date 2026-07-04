@@ -137,6 +137,7 @@ defvar Imag32RegsOffset = !add(Imag16RegsOffset, !shl(MaxImag16Regs,1));
 // Imaginary 8-bit registers, starting with the prefix rc
 foreach I = 0...!add(MaxImag8Regs, -1) in {
   // There exist MaxImag8Regs rcXX registers...
+  let CostPerUse = [1] in
   defm RC#I: MC6809ImagReg8<!add(!shl(I,1), Imag8RegsOffset), "rc"#!cast<string>(I)>;
 }
 
@@ -165,6 +166,13 @@ foreach I = 0...!add(MaxImag8Regs, -1) in {
 // Layout (interleaved hi/lo in DWARF numbering):
 //   RS{I}HI = 0x3000 + I*2,   RS{I}LO = 0x3001 + I*2
 //   RS{I}   = Imag16RegsOffset + I   (16-bit composed)
+// CostPerUse: the imaginaries are direct-page MEMORY -- every access is
+// a real load/store, and post-RA staging brackets multiply that cost in
+// hot code (a rematerialised constant re-stored to __rs0 per loop
+// iteration cost strcmp +52% cycles on HD6309). Bias regalloc to real
+// registers whenever one is free; RS remain available under genuine
+// pressure.
+let CostPerUse = [1] in
 foreach I = 0...3 in {
   def RS#I#HI : MC6809Reg<!add(0x3000, !mul(I, 2)),     "rs"#I#"hi">;
   def RS#I#LO : MC6809Reg<!add(0x3001, !mul(I, 2)),     "rs"#I#"lo">;
