@@ -7817,6 +7817,36 @@ void MC6809InstrInfo::expandFusedCompareBranch(MachineIRBuilder &Builder, Machin
   default: llvm_unreachable("Unknown fused compare-branch opcode");
   }
 
+  // Avoid a double staging bracket. This runs inside wrapStagedCCSources,
+  // which has already PUSHED the staging real for the imaginary value source
+  // (e.g. $ab for an RC byte). We split into a Compare pseudo, and
+  // expandPostRAPseudo re-processes THAT through wrapStagedCCSources again —
+  // which re-pushes the same real because the operand is still imaginary. In
+  // a hot loop (a byte parked in an RC direct-page slot on HD6309) that
+  // doubled bracket is per-iteration overhead. For the value-vs-memory forms
+  // — one accumulator value source against an indexed/indirect memory
+  // operand — materialise that source into the already-pushed real here and
+  // rewrite the operand, so the inner compare finds a real operand and stages
+  // nothing. Restricted to the _Mem / _MemIndirect forms on purpose: the
+  // reg-reg (_Reg) forms feed expandCompareReg, whose base-6809 fallback
+  // pushes an operand and does `cmpd ,s++` itself — materialising early there
+  // double-pushes and compares the wrong operand.
+  switch (CmpOpc) {
+  case MC6809::Compare_i8_Mem:  case MC6809::Compare_i16_Mem:
+  case MC6809::Compare_i8_MemIndirect:  case MC6809::Compare_i16_MemIndirect: {
+    MachineFunction &MF = *MI.getMF();
+    // Operand 1 is the accumulator value source (op0 is the condcode).
+    MachineOperand &MO = MI.getOperand(1);
+    if (MO.isReg() && MO.isUse() && needsMaterialization(MO.getReg())) {
+      Register Real = materializeReg(Builder, MO.getReg(), MF);
+      MO.setReg(Real);
+    }
+    break;
+  }
+  default:
+    break;
+  }
+
   // Emit the compare/test — all operands except the last (branch target).
   // The compare defines CC as an implicit physical register.
   //

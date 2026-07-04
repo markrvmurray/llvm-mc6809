@@ -142,10 +142,8 @@ define dso_local range(i16 7, 10) i16 @e16(ptr noundef readonly captures(none) %
 ; MC6809-NEXT:    puls d
 ; MC6809-NEXT:    ldd #7
 ; MC6809-NEXT:    pshs d
-; MC6809-NEXT:    pshs d
 ; MC6809-NEXT:    ldd <__rs0
 ; MC6809-NEXT:    cmpd [,x]
-; MC6809-NEXT:    puls d
 ; MC6809-NEXT:    puls d
 ; MC6809-NEXT:    lbeq .LBB3_2
 ; MC6809-NEXT:  ; %bb.1: ; %select.false
