@@ -111,10 +111,8 @@ define i32 @phi_i32(i1 %c, i32 %a, i32 %b) {
 ; O0-NEXT:  ; %bb.1: ; %then
 ; O0-NEXT:    ldb <__rs1lo
 ; O0-NEXT:    stb 5,s ; 1-byte Folded Spill
-; O0-NEXT:    pshs a
 ; O0-NEXT:    lda <__rs1hi
 ; O0-NEXT:    tfr a,b
-; O0-NEXT:    puls a
 ; O0-NEXT:    stb 2,s ; 1-byte Folded Spill
 ; O0-NEXT:    ldb <__rs0lo
 ; O0-NEXT:    stb 4,s ; 1-byte Folded Spill
@@ -143,10 +141,8 @@ define i32 @phi_i32(i1 %c, i32 %a, i32 %b) {
 ; O0-NEXT:  .LBB1_2: ; %else
 ; O0-NEXT:    ldb <__rs3lo
 ; O0-NEXT:    stb 5,s ; 1-byte Folded Spill
-; O0-NEXT:    pshs a
 ; O0-NEXT:    lda <__rs3hi
 ; O0-NEXT:    tfr a,b
-; O0-NEXT:    puls a
 ; O0-NEXT:    stb 2,s ; 1-byte Folded Spill
 ; O0-NEXT:    ldb <__rs2lo
 ; O0-NEXT:    stb 4,s ; 1-byte Folded Spill

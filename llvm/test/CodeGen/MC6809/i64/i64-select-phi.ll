@@ -257,10 +257,8 @@ define i64 @phi_i64(i1 %c, i64 %a, i64 %b) {
 ; O0-NEXT:  .LBB1_2: ; %else
 ; O0-NEXT:    ldb <__rs3lo
 ; O0-NEXT:    stb 9,s ; 1-byte Folded Spill
-; O0-NEXT:    pshs a
 ; O0-NEXT:    lda <__rs3hi
 ; O0-NEXT:    tfr a,b
-; O0-NEXT:    puls a
 ; O0-NEXT:    stb 6,s ; 1-byte Folded Spill
 ; O0-NEXT:    ldb <__rs2lo
 ; O0-NEXT:    stb 8,s ; 1-byte Folded Spill

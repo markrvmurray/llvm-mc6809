@@ -174,10 +174,8 @@ define i32 @double_neg(i32 %x) {
 ; O0-NEXT:    tfr a,b
 ; O0-NEXT:    puls a
 ; O0-NEXT:    stb 9,s ; 1-byte Folded Spill
-; O0-NEXT:    pshs b
 ; O0-NEXT:    ldb <__rs0lo
 ; O0-NEXT:    tfr b,a
-; O0-NEXT:    puls b
 ; O0-NEXT:    pshs a
 ; O0-NEXT:    lda <__rs0hi
 ; O0-NEXT:    tfr a,b
@@ -196,10 +194,8 @@ define i32 @double_neg(i32 %x) {
 ; O0-NEXT:    stb 8,s ; 1-byte Folded Spill
 ; O0-NEXT:    ldb <__rs0lo
 ; O0-NEXT:    stb 6,s ; 1-byte Folded Spill
-; O0-NEXT:    pshs a
 ; O0-NEXT:    lda <__rs0hi
 ; O0-NEXT:    tfr a,b
-; O0-NEXT:    puls a
 ; O0-NEXT:    stb 2,s ; 1-byte Folded Spill
 ; O0-NEXT:    ldb <__rs0lo
 ; O0-NEXT:    stb 5,s ; 1-byte Folded Spill

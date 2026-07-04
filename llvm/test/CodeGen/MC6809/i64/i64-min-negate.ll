@@ -326,10 +326,8 @@ define i64 @double_neg(i64 %x) {
 ; O0-NEXT:    tfr a,b
 ; O0-NEXT:    puls a
 ; O0-NEXT:    stb 17,s ; 1-byte Folded Spill
-; O0-NEXT:    pshs b
 ; O0-NEXT:    ldb <__rs0lo
 ; O0-NEXT:    tfr b,a
-; O0-NEXT:    puls b
 ; O0-NEXT:    pshs a
 ; O0-NEXT:    lda <__rs0hi
 ; O0-NEXT:    tfr a,b
@@ -360,10 +358,8 @@ define i64 @double_neg(i64 %x) {
 ; O0-NEXT:    stb 16,s ; 1-byte Folded Spill
 ; O0-NEXT:    ldb <__rs0lo
 ; O0-NEXT:    stb 10,s ; 1-byte Folded Spill
-; O0-NEXT:    pshs a
 ; O0-NEXT:    lda <__rs0hi
 ; O0-NEXT:    tfr a,b
-; O0-NEXT:    puls a
 ; O0-NEXT:    stb 7,s ; 1-byte Folded Spill
 ; O0-NEXT:    ldb <__rs0lo
 ; O0-NEXT:    stb 9,s ; 1-byte Folded Spill

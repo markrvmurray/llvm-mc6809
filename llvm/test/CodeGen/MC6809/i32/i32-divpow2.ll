@@ -123,10 +123,8 @@ define i32 @sdiv_i32_2(i32 %x) {
 ; O2-NEXT:    tfr a,b
 ; O2-NEXT:    puls a
 ; O2-NEXT:    stb 7,u ; 1-byte Folded Spill
-; O2-NEXT:    pshs b
 ; O2-NEXT:    ldb <__rs0lo
 ; O2-NEXT:    tfr b,a
-; O2-NEXT:    puls b
 ; O2-NEXT:    pshs a
 ; O2-NEXT:    lda <__rs0hi
 ; O2-NEXT:    tfr a,b

@@ -2238,10 +2238,8 @@ define void @i16_then_i64(i16 %a, i64 %b) {
 ; O0-NEXT:    stx <__rs0
 ; O0-NEXT:    ldb <__rs0lo
 ; O0-NEXT:    stb 9,s ; 1-byte Folded Spill
-; O0-NEXT:    pshs a
 ; O0-NEXT:    lda <__rs0hi
 ; O0-NEXT:    tfr a,b
-; O0-NEXT:    puls a
 ; O0-NEXT:    stb 6,s ; 1-byte Folded Spill
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd #0

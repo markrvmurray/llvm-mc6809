@@ -1096,6 +1096,37 @@ static void pullStagingReg(MachineIRBuilder &Builder, Register RealReg) {
   Builder.buildInstr(MC6809::PULSs).addDef(RealReg);
 }
 
+/// True when the real staging register RealReg holds a value that must
+/// survive the copy being expanded at MI -- i.e. it (or an aliasing
+/// sub/super register) is live going into MI. A copy through a real
+/// register only needs the surrounding PSHS/PULS preservation in that
+/// case; when the transit register is dead the bracket is pure waste
+/// (memmem's inner loop copies a 16-bit counter between direct-page
+/// imaginaries with D dead across each copy, paying a spurious
+/// pshs d / puls d every iteration).
+///
+/// Walk the block live-ins forward to MI rather than using
+/// computeRegisterLiveness: the bounded-neighborhood form returns
+/// LQR_Unknown when its window doesn't reach a def/kill and counts the
+/// copy's own operands as live. Post-RA the block live-in lists and kill
+/// flags are accurate, so this mirrors the analysis the verifier uses.
+static bool stagingRegLiveAcross(MachineBasicBlock &MBB,
+                                 MachineBasicBlock::iterator MI,
+                                 Register RealReg,
+                                 const TargetRegisterInfo &TRI) {
+  const MachineRegisterInfo &MRI = MBB.getParent()->getRegInfo();
+  if (!MRI.tracksLiveness())
+    return true; // no reliable liveness -- keep the save
+  LivePhysRegs LiveRegs(TRI);
+  LiveRegs.addLiveIns(MBB);
+  SmallVector<std::pair<MCPhysReg, const MachineOperand *>, 4> Clobbers;
+  for (auto It = MBB.begin(); It != MI; ++It) {
+    Clobbers.clear();
+    LiveRegs.stepForward(*It, Clobbers);
+  }
+  return !LiveRegs.available(MRI, RealReg);
+}
+
 /// Bytes a pushStagingReg push moves S down by.
 static unsigned stagingPushSize(Register RealReg) {
   if (RealReg == MC6809::AQ)
@@ -1299,11 +1330,17 @@ MC6809InstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
         Register RealAcc = getPhysRegFor(DestReg);
         if (SrcReg != RealAcc) {
           // The TFR staging clobbers RealAcc, which may hold a live value
-          // (the COPY only declares DestReg) -- preserve it.
-          pushStagingReg(Builder, RealAcc);
+          // (the COPY only declares DestReg) -- preserve it, but only when
+          // it is actually live across the copy.
+          const TargetRegisterInfo &TRI =
+              *MF.getSubtarget().getRegisterInfo();
+          bool Preserve = stagingRegLiveAcross(MBB, MI, RealAcc, TRI);
+          if (Preserve)
+            pushStagingReg(Builder, RealAcc);
           Builder.buildInstr(MC6809::TFRp).addDef(RealAcc).addUse(SrcReg);
           dematerializeReg(Builder, RealAcc, DestReg, MF);
-          pullStagingReg(Builder, RealAcc);
+          if (Preserve)
+            pullStagingReg(Builder, RealAcc);
         } else {
           dematerializeReg(Builder, RealAcc, DestReg, MF);
         }
@@ -1335,23 +1372,36 @@ MC6809InstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
         Register RealAcc = getPhysRegFor(SrcReg);
         if (DestReg != RealAcc) {
           // Staging through RealAcc clobbers it while the COPY only
-          // declares DestReg -- preserve it around the window.
-          pushStagingReg(Builder, RealAcc);
+          // declares DestReg -- preserve it around the window, but only
+          // when it is actually live across the copy.
+          const TargetRegisterInfo &TRI =
+              *MF.getSubtarget().getRegisterInfo();
+          bool Preserve = stagingRegLiveAcross(MBB, MI, RealAcc, TRI);
+          if (Preserve)
+            pushStagingReg(Builder, RealAcc);
           materializeReg(Builder, SrcReg, MF);
           Builder.buildInstr(MC6809::TFRp).addDef(DestReg).addUse(RealAcc);
-          pullStagingReg(Builder, RealAcc);
+          if (Preserve)
+            pullStagingReg(Builder, RealAcc);
         } else {
           materializeReg(Builder, SrcReg, MF);
         }
       }
     } else {
-      // Imaginary → Imaginary: materialize src, dematerialize
-      // dest. The staging register is pure scratch here -- preserve it.
+      // Imaginary → Imaginary: materialize src, dematerialize dest through
+      // the staging register. Preserve it only when it is live across the
+      // copy; when dead (the common direct-page counter shuffle) the
+      // materialize leaves the source value in the staging register, which
+      // is exactly what a following reload would want.
       Register TmpReal = getPhysRegFor(SrcReg);
-      pushStagingReg(Builder, TmpReal);
+      const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
+      bool Preserve = stagingRegLiveAcross(MBB, MI, TmpReal, TRI);
+      if (Preserve)
+        pushStagingReg(Builder, TmpReal);
       materializeReg(Builder, SrcReg, MF);
       dematerializeReg(Builder, TmpReal, DestReg, MF);
-      pullStagingReg(Builder, TmpReal);
+      if (Preserve)
+        pullStagingReg(Builder, TmpReal);
     }
     return;
   }

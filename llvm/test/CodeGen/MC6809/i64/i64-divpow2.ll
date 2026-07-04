@@ -190,10 +190,8 @@ define i64 @sdiv_i64_2(i64 %x) {
 ; O2-NEXT:    tfr a,b
 ; O2-NEXT:    puls a
 ; O2-NEXT:    stb 12,u ; 1-byte Folded Spill
-; O2-NEXT:    pshs b
 ; O2-NEXT:    ldb <__rs3lo
 ; O2-NEXT:    tfr b,a
-; O2-NEXT:    puls b
 ; O2-NEXT:    pshs a
 ; O2-NEXT:    lda <__rs3hi
 ; O2-NEXT:    tfr a,b
