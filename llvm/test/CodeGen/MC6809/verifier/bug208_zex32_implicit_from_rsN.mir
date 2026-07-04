@@ -15,12 +15,10 @@
 
 # CHECK-LABEL: name: zex32_from_rs0
 # Source in $rs0 → expansion must materialize $aw before CLRDa.
-# copyPhysReg's Imag16→ACC16 branch emits LDDd $rs0 then TFRp $aw,$ad.
-# copyPhysReg preserves the $ad staging register around the window (the
-# COPY declares only $aw); ZEX32Implicit's own $ad clobber follows anyway.
-# CHECK:      LDDd $rs0
-# CHECK-NEXT: $aw = TFRp $ad
-# CHECK-NEXT: $ad = PULSs
+# copyPhysReg's Imag16→AW branch loads the direct-page slot straight into
+# $aw with LDWd (HD6309): no $ad transit, so no TFRp and no pshs/puls to
+# preserve $ad (which CLRDa would clobber next anyway).
+# CHECK:      LDWd $rs0
 # CHECK-NEXT: CLRDa
 # CHECK-NOT:  ZEX32Implicit
 ---
@@ -36,9 +34,7 @@ body: |
 # CHECK-LABEL: name: zex32_from_rs2
 # Same shape as above with a different RSn source — confirms the fix
 # does not depend on the specific imaginary register chosen.
-# CHECK:      LDDd $rs2
-# CHECK-NEXT: $aw = TFRp $ad
-# CHECK-NEXT: $ad = PULSs
+# CHECK:      LDWd $rs2
 # CHECK-NEXT: CLRDa
 # CHECK-NOT:  ZEX32Implicit
 ---

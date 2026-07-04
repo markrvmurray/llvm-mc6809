@@ -1312,15 +1312,22 @@ MC6809InstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
       // Imaginary → Real: load from the direct-page slot.
       if (MC6809::Imag16RegClass.contains(SrcReg) &&
                  (DestReg == MC6809::IX || DestReg == MC6809::IY ||
-                  DestReg == MC6809::SU || DestReg == MC6809::SS)) {
-        // Imag16 → INDEX/STACK: load directly with LDX/LDY/LDU/LDS.
-        // Avoids the LDD + TFR sequence that would clobber AA/AB.
+                  DestReg == MC6809::SU || DestReg == MC6809::SS ||
+                  DestReg == MC6809::AW)) {
+        // Imag16 → INDEX/STACK/AW: load directly with LDX/LDY/LDU/LDS/LDW.
+        // AW is HD6309-only (LDW is a page-2 op), and it is never a copy
+        // target on plain 6809, so no subtarget guard is needed. This
+        // avoids the LDD + TFR d,w sequence — which also needed a pshs/puls
+        // to preserve D across the transit (a hot-loop cost: memmem's inner
+        // 16-bit counter is repeatedly copied into W). LDW clobbers only NZ,
+        // exactly as the LDD it replaces did.
         unsigned Opc;
         switch (DestReg) {
         case MC6809::IX: Opc = MC6809::LDXd; break;
         case MC6809::IY: Opc = MC6809::LDYd; break;
         case MC6809::SU: Opc = MC6809::LDUd; break;
         case MC6809::SS: Opc = MC6809::LDSd; break;
+        case MC6809::AW: Opc = MC6809::LDWd; break;
         default: llvm_unreachable("unreachable");
         }
         Builder.buildInstr(Opc).addDef(DestReg, RegState::Implicit).addReg(SrcReg);
