@@ -2712,8 +2712,18 @@ skip_globalvalue_fold:
         CondDef->getOperand(1).getReg() == CondReg) {
       if (auto Flag = getPhantomCarryFlag(CondReg, *MRI, &CarryFlagOf)) {
         MCPhysReg CCBit = *Flag;  // MC6809::C or MC6809::V
-        if (CCBitsSurvive(CondDef, {CCBit}))
-          Phantom = (CCBit == MC6809::C) ? PhantomCarry : PhantomOverflow;
+        // Only carry (C) may be kept live to a direct BCS branch. Every 6809
+        // store clears V but leaves C intact, and the register allocator
+        // inserts spill stores between the flag-producing add/sub and this
+        // branch AFTER selection (always at -O0, where the sum is spilled the
+        // instant it is defined). CCBitsSurvive cannot see those future
+        // stores, so a direct `lbvc`/`lbvs` on overflow reads a V the spill
+        // has already cleared -> the overflow is silently missed. Overflow (V)
+        // therefore falls through to the TestBranch path, which realises the
+        // overflow bit into a byte at the producer (tfr cc,<r>) where a later
+        // store cannot disturb it.
+        if (CCBit == MC6809::C && CCBitsSurvive(CondDef, {CCBit}))
+          Phantom = PhantomCarry;
       }
     }
 
