@@ -1878,8 +1878,13 @@ skip_globalvalue_fold:
     LLT DstTy = MRI->getType(DstReg);
     LLT SrcTy = MRI->getType(SrcReg);
     if (DstTy == LLT::scalar(8) && SrcTy == LLT::scalar(16)) {
-      MRI->setRegClass(DstReg, &MC6809::ACC8RegClass);
-      MRI->setRegClass(SrcReg, &MC6809::ADcRegClass);
+      // Constrain, don't set: selection runs bottom-up, so a consumer (e.g.
+      // an Add_i8_Reg tied operand) may already have narrowed DstReg to a
+      // subclass like ABc; a blind setRegClass would widen it back and leave
+      // a tied-operand class mismatch for the verifier.
+      if (!RBI.constrainGenericRegister(DstReg, MC6809::ACC8RegClass, *MRI) ||
+          !RBI.constrainGenericRegister(SrcReg, MC6809::ADcRegClass, *MRI))
+        return false;
       MI.setDesc(TII.get(MC6809::EXTRACT_LO_i16));
       constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
       return true;
@@ -1896,8 +1901,10 @@ skip_globalvalue_fold:
     // which drops AQ's sub-register hierarchy and rewrites the
     // expansion to be sub-reg-independent.
     if (DstTy == LLT::scalar(8) && SrcTy == LLT::scalar(32)) {
-      MRI->setRegClass(DstReg, &MC6809::ACC8RegClass);
-      MRI->setRegClass(SrcReg, &MC6809::ACC32RegClass);
+      // Same constrain-don't-set rule as the i16->i8 case above.
+      if (!RBI.constrainGenericRegister(DstReg, MC6809::ACC8RegClass, *MRI) ||
+          !RBI.constrainGenericRegister(SrcReg, MC6809::ACC32RegClass, *MRI))
+        return false;
       MachineIRBuilder Builder(MI);
       Register WordLo = MRI->createVirtualRegister(&MC6809::ADcRegClass);
       auto WordExt = Builder.buildInstr(MC6809::Extract16_i32_lo)
