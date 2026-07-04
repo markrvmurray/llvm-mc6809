@@ -39,6 +39,8 @@
   define void @negative_y_clobbered_in_gap() { ret void }
   define void @negative_y_clobbered_live_first() { ret void }
   define void @fold_load_through_self_y() { ret void }
+  define void @fold_load_through_self_y_o8() { ret void }
+  define void @fold_load_through_self_y_o16() { ret void }
   define void @fold_load_through_self_x() { ret void }
   define void @fold_cross_register_y_dead() { ret void }
   define void @negative_cross_register_y_live() { ret void }
@@ -204,6 +206,48 @@ body: |
     LDYi_o5 5, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
     LDYi_o0 $iy, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
     STYi_o5 5, $su, implicit $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    RTSr
+...
+
+---
+name: fold_load_through_self_y_o8
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su
+    ; Bug #361: load-through-self where MI1's OWN offset is 8-bit
+    ; (LDY 62,u — an LDYi_o8, not o0/o5). Before #361,
+    ; getIndirectIndexedOpcode rejected the o8 SOURCE opcode (the macro
+    ; only matched _o0/_o5), so the o8/o16 double-deref silently failed
+    ; to fold. Now folds to LDY [62,u].
+    ; CHECK-LABEL: name: fold_load_through_self_y_o8
+    ; CHECK: liveins: $su
+    ; CHECK-NEXT: {{  $}}
+    ; CHECK-NEXT: LDYi_o8I 62, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    ; CHECK-NEXT: STYi_o8 62, $su, implicit $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    ; CHECK-NEXT: RTSr
+    LDYi_o8 62, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    LDYi_o0 $iy, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    STYi_o8 62, $su, implicit $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    RTSr
+...
+
+---
+name: fold_load_through_self_y_o16
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su
+    ; Bug #361: same, with a 16-bit MI1 offset (LDY 300,u → LDY [300,u]).
+    ; CHECK-LABEL: name: fold_load_through_self_y_o16
+    ; CHECK: liveins: $su
+    ; CHECK-NEXT: {{  $}}
+    ; CHECK-NEXT: LDYi_o16I 300, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    ; CHECK-NEXT: STYi_o16 300, $su, implicit $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    ; CHECK-NEXT: RTSr
+    LDYi_o16 300, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    LDYi_o0 $iy, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    STYi_o16 300, $su, implicit $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
     RTSr
 ...
 

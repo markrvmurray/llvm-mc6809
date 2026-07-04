@@ -485,8 +485,15 @@ static unsigned getIndirectIndexedOpcode(unsigned SrcOpc, int Offset) {
             : (Offset >= -128 && Offset <= 127)      ? V_O8I
                                                      : V_O16I;
 
+  // Bug #361: the `_o8`/`_o16` source cases matter for the load-through-self
+  // rewrite (Stage 6 below), which calls this on MI1 -- the *pointer* load,
+  // whose own offset can be 8- or 16-bit (e.g. `LDY 62,u`). Without them an
+  // 8/16-bit-offset double-deref silently failed to fold. The consumer-side
+  // scan is unaffected: an `_o8`/`_o16` candidate has a non-zero offset, so the
+  // `CandSlot.Offset == 0` guard still rejects it.
 #define IND_VARIANT(BASE)                                                      \
   case MC6809::BASE##_o0: case MC6809::BASE##_o5:                              \
+  case MC6809::BASE##_o8: case MC6809::BASE##_o16:                             \
     switch (V) {                                                               \
     case V_O0I:  return MC6809::BASE##_o0I;                                    \
     case V_O8I:  return MC6809::BASE##_o8I;                                    \
