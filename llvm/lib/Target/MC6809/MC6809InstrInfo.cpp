@@ -7672,8 +7672,21 @@ void MC6809InstrInfo::expandTestReg(MachineIRBuilder &Builder, MachineInstr &MI)
   auto SrcReg = MI.getOperand(2).getReg();
   if (needsMaterialization(SrcReg)) {
     MachineFunction &MF = *MI.getMF();
-    // Materialize into the real accumulator and test.
+    // Materialize into the real accumulator and test. For an imaginary
+    // (direct-page homed) source, materializeReg emits a flag-setting load
+    // (LDD/LDA/LDB) of the same width as the test — it already sets N/Z and
+    // clears V exactly as the TST below would, so the TST is redundant (the
+    // memory-form Test path in expandTestMem relies on the same LDD-sets-flags
+    // property). Drop it. A non-imaginary spill source loads nothing here, so
+    // the TST must stay.
+    bool ImaginaryLoad = isImag16ByteSubReg(SrcReg) ||
+                         MC6809::Imag8RegClass.contains(SrcReg) ||
+                         MC6809::Imag16RegClass.contains(SrcReg);
     SrcReg = materializeReg(Builder, SrcReg, MF);
+    if (ImaginaryLoad) {
+      MI.eraseFromParent();
+      return;
+    }
   }
   // TSTD/TSTW are HD6309-only. On 6809, use CMPD/CMPW #0 instead.
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
