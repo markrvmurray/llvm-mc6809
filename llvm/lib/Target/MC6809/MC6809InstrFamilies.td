@@ -1262,16 +1262,26 @@ multiclass MC6809TestCondPat<CondCode CC, int ccode> {
   }
 }
 
-defm TestPat_HI : MC6809TestCondPat<SETUGT, 2>;
-defm TestPat_HS : MC6809TestCondPat<SETUGE, 4>;
-defm TestPat_LS : MC6809TestCondPat<SETULE, 3>;
-defm TestPat_LO : MC6809TestCondPat<SETULT, 5>;
-defm TestPat_GT : MC6809TestCondPat<SETGT, 14>;
-defm TestPat_GE : MC6809TestCondPat<SETGE, 12>;
-defm TestPat_LE : MC6809TestCondPat<SETLE, 15>;
-defm TestPat_LT : MC6809TestCondPat<SETLT, 13>;
-defm TestPat_EQ : MC6809TestCondPat<SETEQ, 7>;
-defm TestPat_NE : MC6809TestCondPat<SETNE, 6>;
+// These patterns match `0 CC x` (zero on the LHS — the form -O0 code reaches
+// selection with; only the -O1+ combiner canonicalises the constant to the
+// RHS), so the emitted condition must be the SWAPPED code: `0 <u x` is
+// `x != 0`, `0 >s x` is `x <s 0`, and so on. The condition must also be one
+// a TEST can evaluate — the expansion is a load/TST that sets N and Z,
+// clears V and leaves C stale, so the C-consuming codes (HI/HS/LO/LS) are
+// out: the unsigned orders either collapse to EQ/NE or are vacuously
+// true/false (`0 >u x` and `0 <=u x` get no pattern at all). The signed
+// codes work because V=0 makes GT/GE/LT/LE degenerate to plain N/Z forms.
+// Passing the UNSWAPPED code here produced an undefined-C branch
+// (LBlbc_OnlyC after a plain load) for the unsigned orders and a silently
+// reversed branch for the signed ones.
+defm TestPat_HS : MC6809TestCondPat<SETUGE, 7>;  // 0 >=u x  <=>  x == 0
+defm TestPat_LO : MC6809TestCondPat<SETULT, 6>;  // 0 <u x   <=>  x != 0
+defm TestPat_GT : MC6809TestCondPat<SETGT, 13>;  // 0 >s x   <=>  x <s 0
+defm TestPat_GE : MC6809TestCondPat<SETGE, 15>;  // 0 >=s x  <=>  x <=s 0
+defm TestPat_LE : MC6809TestCondPat<SETLE, 12>;  // 0 <=s x  <=>  x >=s 0
+defm TestPat_LT : MC6809TestCondPat<SETLT, 14>;  // 0 <s x   <=>  x >s 0
+defm TestPat_EQ : MC6809TestCondPat<SETEQ, 7>;   // symmetric
+defm TestPat_NE : MC6809TestCondPat<SETNE, 6>;   // symmetric
 
 //===----------------------------------------------------------------------===//
 // BitTest Family
@@ -1498,26 +1508,38 @@ defm CompBraPat_NE : MC6809CompBraCondPat<SETNE, 6>;
 // Fused Test/Branch Patterns
 //===----------------------------------------------------------------------===//
 
-multiclass MC6809TestBraPat<CondCode CC, int cc, ValueType vtype, RegisterClass reg> {
-  def _Reg : Pat<(brcond (i1 (setcc reg:$src, (vtype 0), CC)), bb:$tgt), (!cast<Instruction>("TestBranch_"#vtype#"_Reg") cc, reg:$src, bb:$tgt)>;
-  def _Idx_Imm : Pat<(brcond (i1 (setcc (vtype 0), (am_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), bb:$tgt), (!cast<Instruction>("TestBranch_"#vtype#"_Mem") cc, INDEX16:$idx, i16imm:$offset, bb:$tgt)>;
-  def _Unmerge_Idx_Imm : Pat<(brcond (i1 (setcc (vtype 0), (am_unmerge_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), bb:$tgt), (!cast<Instruction>("TestBranch_"#vtype#"_Mem") cc, INDEX16:$idx, i16imm:$offset, bb:$tgt)>;
-  def _Idx_Reg8 : Pat<(brcond (i1 (setcc (vtype 0), (am_indexed_imm_offset INDEX16:$idx, ACC8:$offset), CC)), bb:$tgt), (!cast<Instruction>("TestBranch_"#vtype#"_Mem") cc, INDEX16:$idx, ACC8:$offset, bb:$tgt)>;
-  def _Idx_Reg16 : Pat<(brcond (i1 (setcc (vtype 0), (am_indexed_imm_offset INDEX16:$idx, ACC16:$offset), CC)), bb:$tgt), (!cast<Instruction>("TestBranch_"#vtype#"_Mem") cc, INDEX16:$idx, ACC16:$offset, bb:$tgt)>;
+// The _Reg form matches `x CC 0` (zero on the RHS) and the _Idx forms match
+// `0 CC x` (zero on the LHS — the -O0 shape; the -O1+ combiner canonicalises
+// the constant to the RHS). The two orientations need DIFFERENT condition
+// codes, and both must be codes a TEST can evaluate (the expansion is a
+// load/TST: N and Z valid, V=0, C stale) — see the MC6809TestPat comment.
+// A `-1` sentinel drops the orientation whose zero comparison is vacuously
+// true or false (e.g. `x <u 0`), leaving it to the generic compare path.
+multiclass MC6809TestBraPat<CondCode CC, int ccReg, int ccZeroLhs, ValueType vtype, RegisterClass reg> {
+  if !ne(ccReg, -1) then {
+    def _Reg : Pat<(brcond (i1 (setcc reg:$src, (vtype 0), CC)), bb:$tgt), (!cast<Instruction>("TestBranch_"#vtype#"_Reg") ccReg, reg:$src, bb:$tgt)>;
+  }
+  if !ne(ccZeroLhs, -1) then {
+    def _Idx_Imm : Pat<(brcond (i1 (setcc (vtype 0), (am_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), bb:$tgt), (!cast<Instruction>("TestBranch_"#vtype#"_Mem") ccZeroLhs, INDEX16:$idx, i16imm:$offset, bb:$tgt)>;
+    def _Unmerge_Idx_Imm : Pat<(brcond (i1 (setcc (vtype 0), (am_unmerge_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), bb:$tgt), (!cast<Instruction>("TestBranch_"#vtype#"_Mem") ccZeroLhs, INDEX16:$idx, i16imm:$offset, bb:$tgt)>;
+    def _Idx_Reg8 : Pat<(brcond (i1 (setcc (vtype 0), (am_indexed_imm_offset INDEX16:$idx, ACC8:$offset), CC)), bb:$tgt), (!cast<Instruction>("TestBranch_"#vtype#"_Mem") ccZeroLhs, INDEX16:$idx, ACC8:$offset, bb:$tgt)>;
+    def _Idx_Reg16 : Pat<(brcond (i1 (setcc (vtype 0), (am_indexed_imm_offset INDEX16:$idx, ACC16:$offset), CC)), bb:$tgt), (!cast<Instruction>("TestBranch_"#vtype#"_Mem") ccZeroLhs, INDEX16:$idx, ACC16:$offset, bb:$tgt)>;
+  }
 }
 
-multiclass MC6809TestBraCondPat<CondCode CC, int ccode> {
-  defm _i8 : MC6809TestBraPat<CC, ccode, i8, ACC8>;
-  defm _i16 : MC6809TestBraPat<CC, ccode, i16, ACC16>;
+multiclass MC6809TestBraCondPat<CondCode CC, int ccReg, int ccZeroLhs> {
+  defm _i8 : MC6809TestBraPat<CC, ccReg, ccZeroLhs, i8, ACC8>;
+  defm _i16 : MC6809TestBraPat<CC, ccReg, ccZeroLhs, i16, ACC16>;
 }
 
-defm TestBraPat_HI : MC6809TestBraCondPat<SETUGT, 2>;
-defm TestBraPat_HS : MC6809TestBraCondPat<SETUGE, 4>;
-defm TestBraPat_LS : MC6809TestBraCondPat<SETULE, 3>;
-defm TestBraPat_LO : MC6809TestBraCondPat<SETULT, 5>;
-defm TestBraPat_GT : MC6809TestBraCondPat<SETGT, 14>;
-defm TestBraPat_GE : MC6809TestBraCondPat<SETGE, 12>;
-defm TestBraPat_LE : MC6809TestBraCondPat<SETLE, 15>;
-defm TestBraPat_LT : MC6809TestBraCondPat<SETLT, 13>;
-defm TestBraPat_EQ : MC6809TestBraCondPat<SETEQ, 7>;
-defm TestBraPat_NE : MC6809TestBraCondPat<SETNE, 6>;
+//                                              x CC 0      0 CC x
+defm TestBraPat_HI : MC6809TestBraCondPat<SETUGT,  6,  -1>; // x!=0 | false
+defm TestBraPat_HS : MC6809TestBraCondPat<SETUGE, -1,   7>; // true | x==0
+defm TestBraPat_LS : MC6809TestBraCondPat<SETULE,  7,  -1>; // x==0 | true
+defm TestBraPat_LO : MC6809TestBraCondPat<SETULT, -1,   6>; // false| x!=0
+defm TestBraPat_GT : MC6809TestBraCondPat<SETGT,  14,  13>;
+defm TestBraPat_GE : MC6809TestBraCondPat<SETGE,  12,  15>;
+defm TestBraPat_LE : MC6809TestBraCondPat<SETLE,  15,  12>;
+defm TestBraPat_LT : MC6809TestBraCondPat<SETLT,  13,  14>;
+defm TestBraPat_EQ : MC6809TestBraCondPat<SETEQ,   7,   7>;
+defm TestBraPat_NE : MC6809TestBraCondPat<SETNE,   6,   6>;
