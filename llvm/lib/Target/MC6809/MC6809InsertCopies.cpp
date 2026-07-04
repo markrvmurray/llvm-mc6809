@@ -28,8 +28,11 @@
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
+#include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/TargetInstrInfo.h"
+#include "llvm/CodeGen/TargetSubtargetInfo.h"
 
 #define DEBUG_TYPE "mc6809-insert-copies"
 
@@ -68,6 +71,41 @@ bool MC6809InsertCopies::runOnMachineFunction(MachineFunction &MF) {
           Changed = true;
         }
       }
+
+  // i32 test pseudos (SignTest_i32 / EqZero_i32 / EqConst_i32) produce their
+  // byte result in $ab while clobbering all of $aq (Defs=[NZ,V,C,AQ] — the
+  // expansion's OR-chain / SUBW+SBCD genuinely destroys it). Every byte
+  // accumulator is a sub-register of AQ, so a *virtual* ACC8 dst has no
+  // register that can coexist with the declared clobber: regalloc sees the
+  // dead AQ def interfering with every candidate and fails with "ran out of
+  // registers" (surfaced when the byte classes lost their SPILL_* escape
+  // registers). Model the hardware truth instead, x86-MUL style: pin the
+  // dst operand to physical $ab (the byte the expansion leaves the result
+  // in) and copy out to the original vreg. The coalescer collapses the COPY
+  // whenever the consumer can take $ab directly.
+  const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
+  for (MachineBasicBlock &MBB : MF)
+    for (MachineInstr &MI : llvm::make_early_inc_range(MBB)) {
+      switch (MI.getOpcode()) {
+      case MC6809::SignTest_i32:
+      case MC6809::EqZero_i32:
+      case MC6809::EqConst_i32:
+      case MC6809::CompareSet_i8_i32_Imm: {
+        MachineOperand &DstMO = MI.getOperand(0);
+        if (!DstMO.isReg() || !DstMO.getReg().isVirtual())
+          break;
+        Register DstVReg = DstMO.getReg();
+        DstMO.setReg(MC6809::AB);
+        BuildMI(MBB, std::next(MachineBasicBlock::iterator(MI)),
+                MI.getDebugLoc(), TII.get(TargetOpcode::COPY), DstVReg)
+            .addReg(MC6809::AB);
+        Changed = true;
+        break;
+      }
+      default:
+        break;
+      }
+    }
 
   return Changed;
 }

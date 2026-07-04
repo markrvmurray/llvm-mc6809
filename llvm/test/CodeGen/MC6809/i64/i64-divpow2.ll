@@ -97,197 +97,163 @@ define i64 @sdiv_i64_2(i64 %x) {
 ;
 ; O2-LABEL: sdiv_i64_2:
 ; O2:       ; %bb.0:
-; O2-NEXT:    leas -54,s
+; O2-NEXT:    leas -50,s
 ; O2-NEXT:    pshs u,y
 ; O2-NEXT:    tfr s,u
 ; O2-NEXT:    tfr x,y
-; O2-NEXT:    sty 20,u
-; O2-NEXT:    ldd 66,u
-; O2-NEXT:    std 16,u
-; O2-NEXT:    ldd 64,u
-; O2-NEXT:    std 28,u
-; O2-NEXT:    ldd 16,u
-; O2-NEXT:    std 16,u
+; O2-NEXT:    sty 8,u
 ; O2-NEXT:    ldd 62,u
-; O2-NEXT:    std 26,u
-; O2-NEXT:    ldd 16,u
-; O2-NEXT:    std 16,u
+; O2-NEXT:    std 4,u
 ; O2-NEXT:    ldd 60,u
-; O2-NEXT:    std 30,u
-; O2-NEXT:    ldd 16,u
+; O2-NEXT:    std 16,u
+; O2-NEXT:    ldd 4,u
+; O2-NEXT:    std 4,u
+; O2-NEXT:    ldd 58,u
+; O2-NEXT:    std 14,u
+; O2-NEXT:    ldd 4,u
+; O2-NEXT:    std 4,u
+; O2-NEXT:    ldd 56,u
+; O2-NEXT:    std 18,u
+; O2-NEXT:    ldd 4,u
 ; O2-NEXT:    leas -10,s
 ; O2-NEXT:    std 6,s
-; O2-NEXT:    ldd 28,u
+; O2-NEXT:    ldd 16,u
 ; O2-NEXT:    std 4,s
-; O2-NEXT:    ldd 26,u
+; O2-NEXT:    ldd 14,u
 ; O2-NEXT:    std 2,s
-; O2-NEXT:    ldd 30,u
+; O2-NEXT:    ldd 18,u
 ; O2-NEXT:    std ,s
 ; O2-NEXT:    ldd #63
-; O2-NEXT:    std 28,u
+; O2-NEXT:    std 16,u
 ; O2-NEXT:    std 8,s
-; O2-NEXT:    leax 32,u
-; O2-NEXT:    stx 18,u
-; O2-NEXT:    ldx 18,u
+; O2-NEXT:    leax 28,u
+; O2-NEXT:    stx 6,u
+; O2-NEXT:    ldx 6,u
 ; O2-NEXT:    lbsr __ashrdi3
-; O2-NEXT:    ldy 18,u
+; O2-NEXT:    ldy 6,u
 ; O2-NEXT:    ldd 6,y
-; O2-NEXT:    std 16,u
+; O2-NEXT:    std 4,u
 ; O2-NEXT:    ldd 4,y
-; O2-NEXT:    std 26,u
-; O2-NEXT:    ldd 16,u
-; O2-NEXT:    std 16,u
+; O2-NEXT:    std 14,u
+; O2-NEXT:    ldd 4,u
+; O2-NEXT:    std 4,u
 ; O2-NEXT:    ldd 2,y
-; O2-NEXT:    std 24,u
-; O2-NEXT:    ldd 16,u
-; O2-NEXT:    std 16,u
-; O2-NEXT:    ldd 32,u
-; O2-NEXT:    std 22,u
-; O2-NEXT:    ldd 16,u
-; O2-NEXT:    leas 10,s
-; O2-NEXT:    leas -10,s
-; O2-NEXT:    std 6,s
-; O2-NEXT:    ldd 26,u
-; O2-NEXT:    std 4,s
-; O2-NEXT:    ldd 24,u
-; O2-NEXT:    std 2,s
-; O2-NEXT:    ldd 22,u
-; O2-NEXT:    std ,s
+; O2-NEXT:    std 12,u
+; O2-NEXT:    ldd 4,u
+; O2-NEXT:    std 4,u
 ; O2-NEXT:    ldd 28,u
-; O2-NEXT:    std 8,s
-; O2-NEXT:    leax 40,u
-; O2-NEXT:    stx 18,u
-; O2-NEXT:    ldx 18,u
-; O2-NEXT:    lbsr __lshrdi3
-; O2-NEXT:    ldy 18,u
-; O2-NEXT:    ldd 6,y
-; O2-NEXT:    std 28,u
-; O2-NEXT:    ldd 4,y
-; O2-NEXT:    std 26,u
-; O2-NEXT:    ldd 2,y
-; O2-NEXT:    std 24,u
+; O2-NEXT:    std 10,u
+; O2-NEXT:    ldd 4,u
 ; O2-NEXT:    leas 10,s
-; O2-NEXT:    ldb 31,u
-; O2-NEXT:    lda 30,u
-; O2-NEXT:    stb 15,u
-; O2-NEXT:    ldb 29,u
-; O2-NEXT:    stb 31,u
-; O2-NEXT:    ldb 15,u
-; O2-NEXT:    sta 14,u
-; O2-NEXT:    lda 28,u
-; O2-NEXT:    sta 30,u
-; O2-NEXT:    lda 14,u
-; O2-NEXT:    stb 13,u
-; O2-NEXT:    ldb 27,u
-; O2-NEXT:    stb 29,u
-; O2-NEXT:    ldb 13,u
-; O2-NEXT:    sta 12,u
-; O2-NEXT:    lda 26,u
-; O2-NEXT:    sta 28,u
-; O2-NEXT:    lda 12,u
-; O2-NEXT:    stb 11,u
-; O2-NEXT:    ldb 25,u
-; O2-NEXT:    stb 27,u
-; O2-NEXT:    ldb 11,u
-; O2-NEXT:    sta 10,u
-; O2-NEXT:    lda 24,u
-; O2-NEXT:    sta 26,u
-; O2-NEXT:    lda 10,u
-; O2-NEXT:    stb 9,u
-; O2-NEXT:    ldb 31,u
-; O2-NEXT:    addb 67,u
-; O2-NEXT:    stb 31,u
-; O2-NEXT:    ldb 9,u
-; O2-NEXT:    sta 8,u
-; O2-NEXT:    lda 30,u
-; O2-NEXT:    adca 66,u
-; O2-NEXT:    sta 30,u
-; O2-NEXT:    lda 8,u
-; O2-NEXT:    stb 7,u
-; O2-NEXT:    ldb 29,u
-; O2-NEXT:    adcb 65,u
-; O2-NEXT:    stb 29,u
-; O2-NEXT:    ldb 7,u
-; O2-NEXT:    sta 6,u
-; O2-NEXT:    lda 28,u
-; O2-NEXT:    adca 64,u
-; O2-NEXT:    sta 28,u
-; O2-NEXT:    lda 6,u
-; O2-NEXT:    stb 5,u
-; O2-NEXT:    ldb 27,u
-; O2-NEXT:    adcb 63,u
-; O2-NEXT:    stb 27,u
-; O2-NEXT:    ldb 5,u
-; O2-NEXT:    sta 4,u
-; O2-NEXT:    lda 26,u
-; O2-NEXT:    adca 62,u
-; O2-NEXT:    sta 26,u
-; O2-NEXT:    lda 4,u
-; O2-NEXT:    adcb 41,u
-; O2-NEXT:    adca 40,u
 ; O2-NEXT:    leas -10,s
-; O2-NEXT:    std 16,u
-; O2-NEXT:    ldb 31,u
-; O2-NEXT:    lda 30,u
-; O2-NEXT:    std 30,u
-; O2-NEXT:    ldd 16,u
-; O2-NEXT:    std 16,u
-; O2-NEXT:    ldd 30,u
 ; O2-NEXT:    std 6,s
-; O2-NEXT:    ldd 16,u
-; O2-NEXT:    std 16,u
-; O2-NEXT:    ldb 29,u
-; O2-NEXT:    lda 28,u
-; O2-NEXT:    std 30,u
-; O2-NEXT:    ldd 16,u
-; O2-NEXT:    std 16,u
-; O2-NEXT:    ldd 30,u
+; O2-NEXT:    ldd 14,u
 ; O2-NEXT:    std 4,s
-; O2-NEXT:    ldd 16,u
-; O2-NEXT:    std 16,u
-; O2-NEXT:    ldb 27,u
-; O2-NEXT:    lda 26,u
-; O2-NEXT:    std 30,u
-; O2-NEXT:    ldd 16,u
-; O2-NEXT:    std 16,u
-; O2-NEXT:    ldd 30,u
+; O2-NEXT:    ldd 12,u
 ; O2-NEXT:    std 2,s
+; O2-NEXT:    ldd 10,u
+; O2-NEXT:    std ,s
 ; O2-NEXT:    ldd 16,u
+; O2-NEXT:    std 8,s
+; O2-NEXT:    leax 36,u
+; O2-NEXT:    stx 6,u
+; O2-NEXT:    ldx 6,u
+; O2-NEXT:    lbsr __lshrdi3
+; O2-NEXT:    ldy 6,u
+; O2-NEXT:    ldd 6,y
+; O2-NEXT:    std 16,u
+; O2-NEXT:    ldd 4,y
+; O2-NEXT:    std 14,u
+; O2-NEXT:    ldd 2,y
+; O2-NEXT:    std 12,u
+; O2-NEXT:    leas 10,s
+; O2-NEXT:    ldb 19,u
+; O2-NEXT:    stb 27,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 18,u
+; O2-NEXT:    sta 26,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 17,u
+; O2-NEXT:    stb 24,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 16,u
+; O2-NEXT:    sta 21,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 15,u
+; O2-NEXT:    stb 25,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 14,u
+; O2-NEXT:    sta 22,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 13,u
+; O2-NEXT:    stb 23,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 12,u
+; O2-NEXT:    sta 20,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 24,u ; 1-byte Folded Reload
+; O2-NEXT:    addb 63,u
+; O2-NEXT:    stb 24,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 21,u ; 1-byte Folded Reload
+; O2-NEXT:    adca 62,u
+; O2-NEXT:    sta 21,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 25,u ; 1-byte Folded Reload
+; O2-NEXT:    adcb 61,u
+; O2-NEXT:    stb 25,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 22,u ; 1-byte Folded Reload
+; O2-NEXT:    adca 60,u
+; O2-NEXT:    sta 22,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 23,u ; 1-byte Folded Reload
+; O2-NEXT:    adcb 59,u
+; O2-NEXT:    stb 23,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 20,u ; 1-byte Folded Reload
+; O2-NEXT:    adca 58,u
+; O2-NEXT:    sta 20,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 27,u ; 1-byte Folded Reload
+; O2-NEXT:    adcb 37,u
+; O2-NEXT:    stb 27,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 26,u ; 1-byte Folded Reload
+; O2-NEXT:    adca 36,u
+; O2-NEXT:    sta 26,u ; 1-byte Folded Spill
+; O2-NEXT:    leas -10,s
+; O2-NEXT:    ldb 24,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 21,u ; 1-byte Folded Reload
+; O2-NEXT:    std 6,s
+; O2-NEXT:    ldb 25,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 22,u ; 1-byte Folded Reload
+; O2-NEXT:    std 4,s
+; O2-NEXT:    ldb 23,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 20,u ; 1-byte Folded Reload
+; O2-NEXT:    std 2,s
+; O2-NEXT:    ldb 27,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 26,u ; 1-byte Folded Reload
 ; O2-NEXT:    std ,s
 ; O2-NEXT:    ldd #1
 ; O2-NEXT:    std 8,s
-; O2-NEXT:    leax 48,u
-; O2-NEXT:    stx 18,u
-; O2-NEXT:    ldx 18,u
+; O2-NEXT:    leax 44,u
+; O2-NEXT:    stx 6,u
+; O2-NEXT:    ldx 6,u
 ; O2-NEXT:    lbsr __ashrdi3
-; O2-NEXT:    ldy 18,u
+; O2-NEXT:    ldy 6,u
 ; O2-NEXT:    ldd 6,y
-; O2-NEXT:    std 16,u
+; O2-NEXT:    std 4,u
 ; O2-NEXT:    ldd 4,y
-; O2-NEXT:    std 30,u
-; O2-NEXT:    ldd 16,u
-; O2-NEXT:    std 16,u
+; O2-NEXT:    std 18,u
+; O2-NEXT:    ldd 4,u
+; O2-NEXT:    std 4,u
 ; O2-NEXT:    ldd 2,y
-; O2-NEXT:    std 28,u
-; O2-NEXT:    ldd 16,u
 ; O2-NEXT:    std 16,u
-; O2-NEXT:    ldd 48,u
-; O2-NEXT:    std 26,u
-; O2-NEXT:    ldd 16,u
+; O2-NEXT:    ldd 4,u
+; O2-NEXT:    std 4,u
+; O2-NEXT:    ldd 44,u
+; O2-NEXT:    std 14,u
+; O2-NEXT:    ldd 4,u
 ; O2-NEXT:    leas 10,s
-; O2-NEXT:    ldy 20,u
+; O2-NEXT:    ldy 8,u
 ; O2-NEXT:    std 6,y
-; O2-NEXT:    ldd 30,u
-; O2-NEXT:    ldy 20,u
+; O2-NEXT:    ldd 18,u
+; O2-NEXT:    ldy 8,u
 ; O2-NEXT:    std 4,y
-; O2-NEXT:    ldd 28,u
-; O2-NEXT:    ldy 20,u
+; O2-NEXT:    ldd 16,u
+; O2-NEXT:    ldy 8,u
 ; O2-NEXT:    std 2,y
-; O2-NEXT:    ldd 26,u
-; O2-NEXT:    std [20,u]
+; O2-NEXT:    ldd 14,u
+; O2-NEXT:    std [8,u]
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u,y
-; O2-NEXT:    leas 54,s
+; O2-NEXT:    leas 50,s
 ; O2-NEXT:    rts
   %r = sdiv i64 %x, 2
   ret i64 %r

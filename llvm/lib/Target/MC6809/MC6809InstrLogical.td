@@ -380,23 +380,25 @@ def LEA_Ptr_Reg16 : MC6809LoadEffectiveAddress<INDEX16, (ins ACC16:$offset)>;
 def SEX8Implicit : MC6809LogicalInstr {
   // Expansion: AND[A|B] #1 + NEG[A|B] (or TFR + …).  NEG sets NZVC.
   //
-  // Bug #283-shape audit (Bug #284): on HD6309 the dst class ACC8
-  // includes AE/AF. When dst = AE/AF, the expansion forces a WorkReg
-  // = AA/AB (because AND/NEG only exist on A/B), runs AND+NEG on the
-  // WorkReg, then TFR WorkReg → dst. The WorkReg (AA or AB) IS
-  // clobbered as scratch — but the OutOperand only covers AE/AF
-  // (the dst). Without AA/AB in Defs the regalloc could leave a
-  // live unrelated value in AA or AB across this pseudo and the
-  // expansion would destroy it. AD covers AA + AB via class
-  // hierarchy.
-  let Defs = [NZ, V, C, AD];
+  // dst is constrained to ACC8_AB ({AB, AA}) — the two registers the
+  // AND/NEG expansion actually operates on. This makes the pseudo's
+  // explicit dst operand the honest clobber declaration and removes
+  // the old `AD` entry from Defs. That entry (the Bug #283/#284
+  // WorkReg protection for an AE/AF dst) aliased BOTH byte halves, so
+  // once the byte classes lost their SPILL_* members the dst had no
+  // assignable register at all ("Some interferences are not with
+  // virtual registers" → ran out of registers). With dst limited to
+  // A/B the expansion's WorkReg path is unreachable: it works on the
+  // dst itself. An AE/AF-bound consumer costs one TFR after the
+  // pseudo instead.
+  let Defs = [NZ, V, C];
   let hasSideEffects = 1;
   // $src is ACC8; the byte's LSB carries the i1 value.  No SDAG
   // Pattern — TableGen rejects `(i1 ACC8:$src)` when i1 and i8 share
   // a register class.  G_SEXT s1→s8 is selected via a C++ intercept
   // in MC6809InstructionSelector.
   dag InOperandList = (ins ACC8:$src);
-  dag OutOperandList = (outs ACC8:$dst);
+  dag OutOperandList = (outs ACC8_AB:$dst);
 }
 
 def SEX16Implicit : MC6809LogicalInstr {

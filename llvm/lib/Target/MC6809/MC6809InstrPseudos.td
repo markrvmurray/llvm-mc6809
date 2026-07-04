@@ -109,24 +109,27 @@ def ConditionalImm : MC6809Pseudo {
 // expanded sequence carries its own explicit Defs on LDA/LDB/TFR/etc.,
 // so correctness is maintained after expansion.
 let Defs = [NZ, V] in {
-  // $dst constrained to ABc so, when $src is allocated to AD, the extract
-  // maps to AD's natural low-byte sub-register AB and expansion is a no-op.
-  // Without this, regalloc may pick $dst in AAc (= AD's hi half); expansion
-  // then emits `TFR A,B` which overwrites the low byte we still need for a
-  // sibling EXTRACT_HI_i16 of the same AD. (bug #118 Layer 1, approach b;
-  // failure seen at -Oz in picolibc test-strchr where `ptr - haystack`
-  // compiled as `ptr - ptr` because haystack_lo was clobbered between
-  // EXTRACT_HI and EXTRACT_LO of the same source AD.)
+  // $dst is ACC8_AB ({AB, AA}). The natural assignment when $src sits in AD
+  // is the matching half (AB for LO, AA for HI — a no-op extract); a
+  // cross-half dst costs one TFR, routed through copyPhysReg by the
+  // expansion. The historical single-half dst classes (ABc for LO / AAc for
+  // HI, bug #118 Layer 1 approach b) became unallocatable once ABc/AAc
+  // shrank to genuine one-register classes: a byte value live in the half
+  // across the extract left the dst with zero candidates ("ran out of
+  // registers"; bug267/bug271_cat6 sentinels). The bug #118 hazard — a
+  // cross-half TFR clobbering a sibling extract's byte — is regalloc-visible
+  // through the declared dst def and the source's interference with a
+  // still-live AD, so the wider class does not reintroduce it (guarded by
+  // the bug118/bug267 lit tests and test-strchr on usim).
   def EXTRACT_LO_i16 : MC6809Pseudo {
-    dag OutOperandList = (outs ABc:$dst);
+    dag OutOperandList = (outs ACC8_AB:$dst);
     dag InOperandList  = (ins ADc:$src);
     let isAsCheapAsAMove = true;
   }
 
-  // Symmetric: $dst in AAc so, when $src = AD, extract maps to AD's hi half
-  // AA and expansion is a no-op. See EXTRACT_LO_i16 comment above.
+  // Symmetric. See EXTRACT_LO_i16 comment above.
   def EXTRACT_HI_i16 : MC6809Pseudo {
-    dag OutOperandList = (outs AAc:$dst);
+    dag OutOperandList = (outs ACC8_AB:$dst);
     dag InOperandList  = (ins ADc:$src);
     let isAsCheapAsAMove = true;
   }

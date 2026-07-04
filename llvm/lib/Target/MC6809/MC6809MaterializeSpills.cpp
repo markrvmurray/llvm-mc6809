@@ -1575,38 +1575,27 @@ bool MC6809MaterializeSpills::runOnMachineFunction(MachineFunction &MF) {
         // src. Default path would emit Load_i16_Mem → $ad (LDD), which
         // clobbers both halves of D and destroys any sibling extract
         // result already staged in the other byte. Load just the byte we
-        // need, directly into the staging byte register. Big-endian:
-        // HI at slot+0, LO at slot+1. EXTRACT_LO_i16's dst class (ABc)
-        // guarantees staging through AB aligns with dst; EXTRACT_HI_i16's
-        // dst class (AAc) guarantees staging through AA aligns with dst.
+        // need — directly into the EXTRACT's destination register — and
+        // erase the EXTRACT. Big-endian: HI at slot+0, LO at slot+1.
         //
-        // Bug #267: rewriting MO.setReg(StageReg) leaves an EXTRACT pseudo
-        // whose source operand class (ADc) doesn't match the new operand
-        // ($ab/$aa, 8-bit) — -verify-machineinstrs flags it. When dst is
-        // also the staging byte (the typical case per the dst-class
-        // constraint above), the EXTRACT is a self-copy after the rewrite
-        // and the Load_i8_Mem already produced the result in dst directly,
-        // so we can just queue the EXTRACT for erase. When dst differs
-        // (e.g. allocated to a SPILL_B*), keep the EXTRACT in place — the
-        // post-RA expansion's byte-pre-routed path (see
-        // MC6809InstrInfo.cpp::expandPostRAPseudo around line 2180)
-        // handles it correctly via copyPhysReg(dst, $ab/$aa).
+        // Bug #267 (updated): the destination class is now ACC8_AB
+        // ({AB, AA}), so the dst is always a real byte accumulator and
+        // Load_i8_Mem can target it directly regardless of which half it
+        // landed in; the old fixed-staging-byte scheme (stage into AB/AA
+        // and rely on dst == staging to erase) left an ill-formed
+        // `EXTRACT $aa, $ab` behind when regalloc chose the cross half.
         if ((MI.getOpcode() == MC6809::EXTRACT_LO_i16 ||
              MI.getOpcode() == MC6809::EXTRACT_HI_i16) &&
             isWideAccSpillReg(SpillReg)) {
           bool IsLo = (MI.getOpcode() == MC6809::EXTRACT_LO_i16);
-          Register StageReg = IsLo ? MC6809::AB : MC6809::AA;
           int ByteOff = ByteOffset + (IsLo ? 1 : 0);
           BuildMI(MBB, MI, DL, TII.get(MC6809::Load_i8_Mem))
-              .addReg(StageReg, RegState::Define)
+              .addReg(MI.getOperand(0).getReg(), RegState::Define)
               .addFrameIndex(FI)
               .addImm(ByteOff);
-          MO.setReg(StageReg);
-          // If dst is the same staging reg, the EXTRACT is now a no-op.
           // Defer erase to the end of BB processing so we don't invalidate
           // operand iterators or downstream loops in this MI.
-          if (MI.getOperand(0).getReg() == StageReg)
-            ToErase.push_back(&MI);
+          ToErase.push_back(&MI);
           continue;
         }
 

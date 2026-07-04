@@ -10,15 +10,19 @@
 ; than 126, which then took the `s <= 0` branch. Manifested as a
 ; complex-divide miscompile (__divsc3 / __divdc3 returning +/-Inf).
 ;
-; With the fix the high-byte ADC reads its second operand directly from
-; its U-relative spill slot (the emit6809RegByteFromMem Path(a) the skip
-; re-enables) rather than clobbering the first operand: an `adcb N,u`,
-; never an `adcb` of a value pushed to the S stack.
+; With the fix the high-byte ADC's two operands stay separate. Under the
+; original SPILL_* materialisation this showed as an `adcb N,u` slot read
+; (emit6809RegByteFromMem Path(a) via the needsSecondAccSpillSkip list);
+; under stock frame-index spilling the same separation shows as the
+; cross-half push sequence `pshs a; adcb ,s+` — the RHS high byte lives
+; in $aa and is consumed from the S stack, never a second $ab load
+; clobbering the first operand.
 
 ; CHECK-LABEL: t1:
-; The high-byte add-with-carry reads its RHS from a U-relative spill slot
-; (frame pointer), proving the two operands did not collapse onto $ab.
-; CHECK: adcb {{-?[0-9]+}},u
+; The high-byte add-with-carry consumes its RHS from a register other
+; than $ab (pushed $aa), proving the two operands did not collapse.
+; CHECK: pshs a
+; CHECK-NEXT: adcb ,s+
 
 target datalayout = "E-p:16:8-p1:8:8-S8-m:e-i1:8-i8:8-i16:8-i32:8-i64:8-f32:8-f64:8-a:0-n8:16"
 

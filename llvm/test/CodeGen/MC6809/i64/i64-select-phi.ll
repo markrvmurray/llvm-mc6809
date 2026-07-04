@@ -141,389 +141,295 @@ define i64 @select_i64(i1 %c, i64 %a, i64 %b) {
 define i64 @phi_i64(i1 %c, i64 %a, i64 %b) {
 ; O0-LABEL: phi_i64:
 ; O0:       ; %bb.0: ; %entry
-; O0-NEXT:    leas -52,s
+; O0-NEXT:    leas -36,s
 ; O0-NEXT:    pshs u
 ; O0-NEXT:    tfr s,u
 ; O0-NEXT:    andb #1
-; O0-NEXT:    stb 35,u
-; O0-NEXT:    ldd 62,u
-; O0-NEXT:    std 50,u
-; O0-NEXT:    ldb 35,u
-; O0-NEXT:    stb 34,u
-; O0-NEXT:    ldd 60,u
-; O0-NEXT:    std 48,u
-; O0-NEXT:    ldb 34,u
-; O0-NEXT:    stb 33,u
-; O0-NEXT:    ldd 58,u
-; O0-NEXT:    std 46,u
-; O0-NEXT:    ldb 33,u
-; O0-NEXT:    stb 32,u
-; O0-NEXT:    ldd 56,u
-; O0-NEXT:    std 44,u
-; O0-NEXT:    ldb 32,u
-; O0-NEXT:    stb 31,u
-; O0-NEXT:    ldd 70,u
-; O0-NEXT:    std 36,u
-; O0-NEXT:    ldb 31,u
-; O0-NEXT:    stb 30,u
-; O0-NEXT:    ldd 68,u
-; O0-NEXT:    std 38,u
-; O0-NEXT:    ldb 30,u
-; O0-NEXT:    stb 29,u
-; O0-NEXT:    ldd 66,u
-; O0-NEXT:    std 40,u
-; O0-NEXT:    ldb 29,u
-; O0-NEXT:    stb 28,u
-; O0-NEXT:    ldd 64,u
-; O0-NEXT:    std 42,u
-; O0-NEXT:    ldb 28,u
+; O0-NEXT:    stb 11,u
+; O0-NEXT:    ldd 46,u
+; O0-NEXT:    std 20,u
+; O0-NEXT:    ldb 11,u
+; O0-NEXT:    stb 10,u
+; O0-NEXT:    ldd 44,u
+; O0-NEXT:    std 22,u
+; O0-NEXT:    ldb 10,u
+; O0-NEXT:    stb 9,u
+; O0-NEXT:    ldd 42,u
+; O0-NEXT:    std 24,u
+; O0-NEXT:    ldb 9,u
+; O0-NEXT:    stb 8,u
+; O0-NEXT:    ldd 40,u
+; O0-NEXT:    std 26,u
+; O0-NEXT:    ldb 8,u
+; O0-NEXT:    stb 7,u
+; O0-NEXT:    ldd 54,u
+; O0-NEXT:    std 12,u
+; O0-NEXT:    ldb 7,u
+; O0-NEXT:    stb 6,u
+; O0-NEXT:    ldd 52,u
+; O0-NEXT:    std 14,u
+; O0-NEXT:    ldb 6,u
+; O0-NEXT:    stb 5,u
+; O0-NEXT:    ldd 50,u
+; O0-NEXT:    std 16,u
+; O0-NEXT:    ldb 5,u
+; O0-NEXT:    stb 4,u
+; O0-NEXT:    ldd 48,u
+; O0-NEXT:    std 18,u
+; O0-NEXT:    ldb 4,u
 ; O0-NEXT:    lbeq .LBB1_2
 ; O0-NEXT:  ; %bb.1: ; %then
-; O0-NEXT:    ldb 51,u
-; O0-NEXT:    lda 50,u
-; O0-NEXT:    stb 27,u
-; O0-NEXT:    ldb 49,u
-; O0-NEXT:    stb 51,u
-; O0-NEXT:    ldb 27,u
-; O0-NEXT:    sta 26,u
-; O0-NEXT:    lda 48,u
-; O0-NEXT:    sta 50,u
-; O0-NEXT:    lda 26,u
-; O0-NEXT:    stb 25,u
-; O0-NEXT:    ldb 47,u
-; O0-NEXT:    stb 49,u
-; O0-NEXT:    ldb 25,u
-; O0-NEXT:    sta 24,u
-; O0-NEXT:    lda 46,u
-; O0-NEXT:    sta 48,u
-; O0-NEXT:    lda 24,u
-; O0-NEXT:    stb 23,u
-; O0-NEXT:    ldb 45,u
-; O0-NEXT:    stb 47,u
-; O0-NEXT:    ldb 23,u
-; O0-NEXT:    sta 22,u
-; O0-NEXT:    lda 44,u
-; O0-NEXT:    sta 46,u
-; O0-NEXT:    lda 22,u
-; O0-NEXT:    addb #1
-; O0-NEXT:    adca #0
-; O0-NEXT:    stb 21,u
-; O0-NEXT:    ldb 51,u
-; O0-NEXT:    ldb 51,u
-; O0-NEXT:    adcb #0
-; O0-NEXT:    stb 51,u
 ; O0-NEXT:    ldb 21,u
-; O0-NEXT:    sta 20,u
-; O0-NEXT:    lda 50,u
-; O0-NEXT:    lda 50,u
-; O0-NEXT:    adca #0
-; O0-NEXT:    sta 50,u
+; O0-NEXT:    stb 35,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 20,u
-; O0-NEXT:    stb 19,u
-; O0-NEXT:    ldb 49,u
-; O0-NEXT:    ldb 49,u
-; O0-NEXT:    adcb #0
-; O0-NEXT:    stb 49,u
-; O0-NEXT:    ldb 19,u
-; O0-NEXT:    sta 18,u
-; O0-NEXT:    lda 48,u
-; O0-NEXT:    lda 48,u
+; O0-NEXT:    sta 34,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 23,u
+; O0-NEXT:    stb 33,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 22,u
+; O0-NEXT:    sta 32,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 25,u
+; O0-NEXT:    stb 31,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 24,u
+; O0-NEXT:    sta 30,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 27,u
+; O0-NEXT:    stb 29,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 26,u
+; O0-NEXT:    sta 28,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 35,u ; 1-byte Folded Reload
+; O0-NEXT:    addb #1
+; O0-NEXT:    stb 35,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 34,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca #0
-; O0-NEXT:    sta 48,u
-; O0-NEXT:    lda 18,u
-; O0-NEXT:    stb 17,u
-; O0-NEXT:    ldb 47,u
-; O0-NEXT:    ldb 47,u
+; O0-NEXT:    sta 34,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 33,u ; 1-byte Folded Reload
 ; O0-NEXT:    adcb #0
-; O0-NEXT:    stb 47,u
-; O0-NEXT:    ldb 17,u
-; O0-NEXT:    sta 16,u
-; O0-NEXT:    lda 46,u
-; O0-NEXT:    lda 46,u
+; O0-NEXT:    stb 33,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 32,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca #0
-; O0-NEXT:    sta 46,u
-; O0-NEXT:    lda 16,u
-; O0-NEXT:    std 14,u
-; O0-NEXT:    ldb 51,u
-; O0-NEXT:    lda 50,u
-; O0-NEXT:    std 50,u
-; O0-NEXT:    ldd 14,u
-; O0-NEXT:    std 14,u
-; O0-NEXT:    ldb 49,u
-; O0-NEXT:    lda 48,u
-; O0-NEXT:    std 48,u
-; O0-NEXT:    ldd 14,u
-; O0-NEXT:    std 14,u
-; O0-NEXT:    ldb 47,u
-; O0-NEXT:    lda 46,u
-; O0-NEXT:    std 46,u
-; O0-NEXT:    ldd 14,u
+; O0-NEXT:    sta 32,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 31,u ; 1-byte Folded Reload
+; O0-NEXT:    adcb #0
+; O0-NEXT:    stb 31,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 30,u ; 1-byte Folded Reload
+; O0-NEXT:    adca #0
+; O0-NEXT:    sta 30,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 29,u ; 1-byte Folded Reload
+; O0-NEXT:    adcb #0
+; O0-NEXT:    stb 29,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 28,u ; 1-byte Folded Reload
+; O0-NEXT:    adca #0
+; O0-NEXT:    sta 28,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 35,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 34,u ; 1-byte Folded Reload
+; O0-NEXT:    std 2,u
+; O0-NEXT:    std 26,u
+; O0-NEXT:    ldd 2,u
+; O0-NEXT:    ldb 33,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 32,u ; 1-byte Folded Reload
+; O0-NEXT:    std 2,u
+; O0-NEXT:    std 24,u
+; O0-NEXT:    ldd 2,u
+; O0-NEXT:    ldb 31,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 30,u ; 1-byte Folded Reload
+; O0-NEXT:    std 2,u
+; O0-NEXT:    std 22,u
+; O0-NEXT:    ldd 2,u
+; O0-NEXT:    ldb 29,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 28,u ; 1-byte Folded Reload
 ; O0-NEXT:    lbra .LBB1_3
 ; O0-NEXT:  .LBB1_2: ; %else
-; O0-NEXT:    ldb 37,u
-; O0-NEXT:    lda 36,u
-; O0-NEXT:    stb 13,u
-; O0-NEXT:    ldb 39,u
-; O0-NEXT:    stb 51,u
 ; O0-NEXT:    ldb 13,u
-; O0-NEXT:    sta 12,u
-; O0-NEXT:    lda 38,u
-; O0-NEXT:    sta 50,u
+; O0-NEXT:    stb 35,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 12,u
-; O0-NEXT:    stb 11,u
-; O0-NEXT:    ldb 41,u
-; O0-NEXT:    stb 49,u
-; O0-NEXT:    ldb 11,u
-; O0-NEXT:    sta 10,u
-; O0-NEXT:    lda 40,u
-; O0-NEXT:    sta 48,u
-; O0-NEXT:    lda 10,u
-; O0-NEXT:    stb 9,u
-; O0-NEXT:    ldb 43,u
-; O0-NEXT:    stb 47,u
-; O0-NEXT:    ldb 9,u
-; O0-NEXT:    sta 8,u
-; O0-NEXT:    lda 42,u
-; O0-NEXT:    sta 46,u
-; O0-NEXT:    lda 8,u
+; O0-NEXT:    sta 34,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 15,u
+; O0-NEXT:    stb 33,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 14,u
+; O0-NEXT:    sta 32,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 17,u
+; O0-NEXT:    stb 31,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 16,u
+; O0-NEXT:    sta 30,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 19,u
+; O0-NEXT:    stb 29,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 18,u
+; O0-NEXT:    sta 28,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 35,u ; 1-byte Folded Reload
 ; O0-NEXT:    addb #2
+; O0-NEXT:    stb 35,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 34,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca #0
-; O0-NEXT:    stb 7,u
-; O0-NEXT:    ldb 51,u
-; O0-NEXT:    ldb 51,u
+; O0-NEXT:    sta 34,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 33,u ; 1-byte Folded Reload
 ; O0-NEXT:    adcb #0
-; O0-NEXT:    stb 51,u
-; O0-NEXT:    ldb 7,u
-; O0-NEXT:    sta 6,u
-; O0-NEXT:    lda 50,u
-; O0-NEXT:    lda 50,u
+; O0-NEXT:    stb 33,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 32,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca #0
-; O0-NEXT:    sta 50,u
-; O0-NEXT:    lda 6,u
-; O0-NEXT:    stb 5,u
-; O0-NEXT:    ldb 49,u
-; O0-NEXT:    ldb 49,u
+; O0-NEXT:    sta 32,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 31,u ; 1-byte Folded Reload
 ; O0-NEXT:    adcb #0
-; O0-NEXT:    stb 49,u
-; O0-NEXT:    ldb 5,u
-; O0-NEXT:    sta 4,u
-; O0-NEXT:    lda 48,u
-; O0-NEXT:    lda 48,u
+; O0-NEXT:    stb 31,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 30,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca #0
-; O0-NEXT:    sta 48,u
-; O0-NEXT:    lda 4,u
-; O0-NEXT:    stb 3,u
-; O0-NEXT:    ldb 47,u
-; O0-NEXT:    ldb 47,u
+; O0-NEXT:    sta 30,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 29,u ; 1-byte Folded Reload
 ; O0-NEXT:    adcb #0
-; O0-NEXT:    stb 47,u
-; O0-NEXT:    ldb 3,u
-; O0-NEXT:    sta 2,u
-; O0-NEXT:    lda 46,u
-; O0-NEXT:    lda 46,u
+; O0-NEXT:    stb 29,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 28,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca #0
-; O0-NEXT:    sta 46,u
-; O0-NEXT:    lda 2,u
-; O0-NEXT:    std 14,u
-; O0-NEXT:    ldb 51,u
-; O0-NEXT:    lda 50,u
-; O0-NEXT:    std 50,u
-; O0-NEXT:    ldd 14,u
-; O0-NEXT:    std 14,u
-; O0-NEXT:    ldb 49,u
-; O0-NEXT:    lda 48,u
-; O0-NEXT:    std 48,u
-; O0-NEXT:    ldd 14,u
-; O0-NEXT:    std 14,u
-; O0-NEXT:    ldb 47,u
-; O0-NEXT:    lda 46,u
-; O0-NEXT:    std 46,u
-; O0-NEXT:    ldd 14,u
+; O0-NEXT:    sta 28,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 35,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 34,u ; 1-byte Folded Reload
+; O0-NEXT:    std 2,u
+; O0-NEXT:    std 26,u
+; O0-NEXT:    ldd 2,u
+; O0-NEXT:    ldb 33,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 32,u ; 1-byte Folded Reload
+; O0-NEXT:    std 2,u
+; O0-NEXT:    std 24,u
+; O0-NEXT:    ldd 2,u
+; O0-NEXT:    ldb 31,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 30,u ; 1-byte Folded Reload
+; O0-NEXT:    std 2,u
+; O0-NEXT:    std 22,u
+; O0-NEXT:    ldd 2,u
+; O0-NEXT:    ldb 29,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 28,u ; 1-byte Folded Reload
 ; O0-NEXT:    lbra .LBB1_3
 ; O0-NEXT:  .LBB1_3: ; %join
+; O0-NEXT:    std 2,u
+; O0-NEXT:    ldd 26,u
 ; O0-NEXT:    std 6,x
-; O0-NEXT:    ldd 50,u
+; O0-NEXT:    ldd 2,u
+; O0-NEXT:    std 2,u
+; O0-NEXT:    ldd 24,u
 ; O0-NEXT:    std 4,x
-; O0-NEXT:    ldd 48,u
+; O0-NEXT:    ldd 2,u
+; O0-NEXT:    std 2,u
+; O0-NEXT:    ldd 22,u
 ; O0-NEXT:    std 2,x
-; O0-NEXT:    ldd 46,u
+; O0-NEXT:    ldd 2,u
 ; O0-NEXT:    std ,x
 ; O0-NEXT:    tfr u,s
 ; O0-NEXT:    puls u
-; O0-NEXT:    leas 52,s
+; O0-NEXT:    leas 36,s
 ; O0-NEXT:    rts
 ;
 ; O2-LABEL: phi_i64:
 ; O2:       ; %bb.0: ; %entry
-; O2-NEXT:    leas -36,s
+; O2-NEXT:    leas -20,s
 ; O2-NEXT:    pshs u
 ; O2-NEXT:    tfr s,u
 ; O2-NEXT:    andb #1
-; O2-NEXT:    bne .LBB1_1
-; O2-NEXT:  ; %bb.6: ; %entry
-; O2-NEXT:    lbra .LBB1_2
-; O2-NEXT:  .LBB1_1: ; %then
-; O2-NEXT:    ldd 46,u
-; O2-NEXT:    std 34,u
-; O2-NEXT:    ldd 44,u
-; O2-NEXT:    std 32,u
-; O2-NEXT:    ldd 42,u
-; O2-NEXT:    std 30,u
-; O2-NEXT:    ldd 40,u
-; O2-NEXT:    std 28,u
-; O2-NEXT:    ldb 35,u
-; O2-NEXT:    lda 34,u
-; O2-NEXT:    stb 27,u
-; O2-NEXT:    ldb 33,u
-; O2-NEXT:    stb 35,u
-; O2-NEXT:    ldb 27,u
-; O2-NEXT:    sta 26,u
-; O2-NEXT:    lda 32,u
-; O2-NEXT:    sta 34,u
-; O2-NEXT:    lda 26,u
-; O2-NEXT:    stb 25,u
-; O2-NEXT:    ldb 31,u
-; O2-NEXT:    stb 33,u
-; O2-NEXT:    ldb 25,u
-; O2-NEXT:    sta 24,u
-; O2-NEXT:    lda 30,u
-; O2-NEXT:    sta 32,u
-; O2-NEXT:    lda 24,u
-; O2-NEXT:    stb 23,u
-; O2-NEXT:    ldb 29,u
-; O2-NEXT:    stb 31,u
-; O2-NEXT:    ldb 23,u
-; O2-NEXT:    sta 22,u
-; O2-NEXT:    lda 28,u
-; O2-NEXT:    sta 30,u
-; O2-NEXT:    lda 22,u
-; O2-NEXT:    addb #1
-; O2-NEXT:    adca #0
-; O2-NEXT:    stb 21,u
-; O2-NEXT:    ldb 35,u
-; O2-NEXT:    adcb #0
-; O2-NEXT:    stb 35,u
-; O2-NEXT:    ldb 21,u
-; O2-NEXT:    sta 20,u
-; O2-NEXT:    lda 34,u
-; O2-NEXT:    adca #0
-; O2-NEXT:    sta 34,u
-; O2-NEXT:    lda 20,u
-; O2-NEXT:    stb 19,u
-; O2-NEXT:    ldb 33,u
-; O2-NEXT:    adcb #0
-; O2-NEXT:    stb 33,u
-; O2-NEXT:    ldb 19,u
-; O2-NEXT:    sta 18,u
-; O2-NEXT:    lda 32,u
-; O2-NEXT:    adca #0
-; O2-NEXT:    sta 32,u
-; O2-NEXT:    lda 18,u
-; O2-NEXT:    stb 17,u
-; O2-NEXT:    ldb 31,u
-; O2-NEXT:    adcb #0
-; O2-NEXT:    stb 31,u
-; O2-NEXT:    ldb 17,u
-; O2-NEXT:    sta 16,u
-; O2-NEXT:    lda 30,u
-; O2-NEXT:    adca #0
-; O2-NEXT:    sta 30,u
-; O2-NEXT:    lda 16,u
-; O2-NEXT:  ; %bb.4: ; %then
-; O2-NEXT:    lbra .LBB1_3
-; O2-NEXT:  .LBB1_2: ; %else
-; O2-NEXT:    ldd 54,u
-; O2-NEXT:    std 34,u
-; O2-NEXT:    ldd 52,u
-; O2-NEXT:    std 32,u
-; O2-NEXT:    ldd 50,u
-; O2-NEXT:    std 30,u
-; O2-NEXT:    ldd 48,u
-; O2-NEXT:    std 28,u
-; O2-NEXT:    ldb 35,u
-; O2-NEXT:    lda 34,u
-; O2-NEXT:    stb 13,u
-; O2-NEXT:    ldb 33,u
-; O2-NEXT:    stb 35,u
-; O2-NEXT:    ldb 13,u
-; O2-NEXT:    sta 12,u
-; O2-NEXT:    lda 32,u
-; O2-NEXT:    sta 34,u
-; O2-NEXT:    lda 12,u
-; O2-NEXT:    stb 11,u
-; O2-NEXT:    ldb 31,u
-; O2-NEXT:    stb 33,u
-; O2-NEXT:    ldb 11,u
-; O2-NEXT:    sta 10,u
-; O2-NEXT:    lda 30,u
-; O2-NEXT:    sta 32,u
-; O2-NEXT:    lda 10,u
-; O2-NEXT:    stb 9,u
-; O2-NEXT:    ldb 29,u
-; O2-NEXT:    stb 31,u
-; O2-NEXT:    ldb 9,u
-; O2-NEXT:    sta 8,u
-; O2-NEXT:    lda 28,u
-; O2-NEXT:    sta 30,u
-; O2-NEXT:    lda 8,u
-; O2-NEXT:    addb #2
-; O2-NEXT:    adca #0
-; O2-NEXT:    stb 7,u
-; O2-NEXT:    ldb 35,u
-; O2-NEXT:    adcb #0
-; O2-NEXT:    stb 35,u
-; O2-NEXT:    ldb 7,u
-; O2-NEXT:    sta 6,u
-; O2-NEXT:    lda 34,u
-; O2-NEXT:    adca #0
-; O2-NEXT:    sta 34,u
-; O2-NEXT:    lda 6,u
-; O2-NEXT:    stb 5,u
-; O2-NEXT:    ldb 33,u
-; O2-NEXT:    adcb #0
-; O2-NEXT:    stb 33,u
-; O2-NEXT:    ldb 5,u
-; O2-NEXT:    sta 4,u
-; O2-NEXT:    lda 32,u
-; O2-NEXT:    adca #0
-; O2-NEXT:    sta 32,u
-; O2-NEXT:    lda 4,u
-; O2-NEXT:    stb 3,u
-; O2-NEXT:    ldb 31,u
-; O2-NEXT:    adcb #0
-; O2-NEXT:    stb 31,u
-; O2-NEXT:    ldb 3,u
-; O2-NEXT:    sta 2,u
-; O2-NEXT:    lda 30,u
-; O2-NEXT:    adca #0
-; O2-NEXT:    sta 30,u
-; O2-NEXT:    lda 2,u
-; O2-NEXT:  .LBB1_3: ; %join
-; O2-NEXT:    std 14,u
-; O2-NEXT:    ldb 35,u
-; O2-NEXT:    lda 34,u
-; O2-NEXT:    std 34,u
-; O2-NEXT:    ldd 14,u
-; O2-NEXT:    std 14,u
-; O2-NEXT:    ldb 33,u
-; O2-NEXT:    lda 32,u
-; O2-NEXT:    std 32,u
-; O2-NEXT:    ldd 14,u
-; O2-NEXT:    std 14,u
-; O2-NEXT:    ldb 31,u
-; O2-NEXT:    lda 30,u
-; O2-NEXT:    std 30,u
-; O2-NEXT:    ldd 14,u
-; O2-NEXT:    std 6,x
-; O2-NEXT:    ldd 34,u
-; O2-NEXT:    std 4,x
-; O2-NEXT:    ldd 32,u
-; O2-NEXT:    std 2,x
+; O2-NEXT:    beq .LBB1_2
+; O2-NEXT:  ; %bb.1: ; %then
 ; O2-NEXT:    ldd 30,u
+; O2-NEXT:    std 4,u
+; O2-NEXT:    ldd 28,u
+; O2-NEXT:    std 10,u
+; O2-NEXT:    ldd 26,u
+; O2-NEXT:    std 8,u
+; O2-NEXT:    ldd 24,u
+; O2-NEXT:    std 6,u
+; O2-NEXT:    ldb 5,u
+; O2-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 4,u
+; O2-NEXT:    sta 18,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 11,u
+; O2-NEXT:    stb 17,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 10,u
+; O2-NEXT:    sta 16,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 9,u
+; O2-NEXT:    stb 15,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 8,u
+; O2-NEXT:    sta 14,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 7,u
+; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 6,u
+; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 19,u ; 1-byte Folded Reload
+; O2-NEXT:    addb #1
+; O2-NEXT:    bra .LBB1_3
+; O2-NEXT:  .LBB1_2: ; %else
+; O2-NEXT:    ldd 38,u
+; O2-NEXT:    std 4,u
+; O2-NEXT:    ldd 36,u
+; O2-NEXT:    std 10,u
+; O2-NEXT:    ldd 34,u
+; O2-NEXT:    std 8,u
+; O2-NEXT:    ldd 32,u
+; O2-NEXT:    std 6,u
+; O2-NEXT:    ldb 5,u
+; O2-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 4,u
+; O2-NEXT:    sta 18,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 11,u
+; O2-NEXT:    stb 17,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 10,u
+; O2-NEXT:    sta 16,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 9,u
+; O2-NEXT:    stb 15,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 8,u
+; O2-NEXT:    sta 14,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 7,u
+; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 6,u
+; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 19,u ; 1-byte Folded Reload
+; O2-NEXT:    addb #2
+; O2-NEXT:  .LBB1_3: ; %join
+; O2-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 18,u ; 1-byte Folded Reload
+; O2-NEXT:    adca #0
+; O2-NEXT:    sta 18,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 17,u ; 1-byte Folded Reload
+; O2-NEXT:    adcb #0
+; O2-NEXT:    stb 17,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 16,u ; 1-byte Folded Reload
+; O2-NEXT:    adca #0
+; O2-NEXT:    sta 16,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O2-NEXT:    adcb #0
+; O2-NEXT:    stb 15,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 14,u ; 1-byte Folded Reload
+; O2-NEXT:    adca #0
+; O2-NEXT:    sta 14,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
+; O2-NEXT:    adcb #0
+; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O2-NEXT:    adca #0
+; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 19,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 18,u ; 1-byte Folded Reload
+; O2-NEXT:    std 2,u
+; O2-NEXT:    std 10,u
+; O2-NEXT:    ldb 17,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 16,u ; 1-byte Folded Reload
+; O2-NEXT:    std 2,u
+; O2-NEXT:    std 8,u
+; O2-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 14,u ; 1-byte Folded Reload
+; O2-NEXT:    std 2,u
+; O2-NEXT:    std 6,u
+; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O2-NEXT:    std 2,u
+; O2-NEXT:    ldd 10,u
+; O2-NEXT:    std 6,x
+; O2-NEXT:    ldd 2,u
+; O2-NEXT:    std 2,u
+; O2-NEXT:    ldd 8,u
+; O2-NEXT:    std 4,x
+; O2-NEXT:    ldd 2,u
+; O2-NEXT:    std 2,u
+; O2-NEXT:    ldd 6,u
+; O2-NEXT:    std 2,x
+; O2-NEXT:    ldd 2,u
 ; O2-NEXT:    std ,x
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u
-; O2-NEXT:    leas 36,s
+; O2-NEXT:    leas 20,s
 ; O2-NEXT:    rts
 entry:
   br i1 %c, label %then, label %else

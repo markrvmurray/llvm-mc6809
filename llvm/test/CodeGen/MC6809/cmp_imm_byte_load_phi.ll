@@ -34,9 +34,9 @@ define dso_local i16 @cmp_imm_byte_load_phi_no_wrap(ptr noundef readonly capture
 ; CHECK-NEXT:    pshs u,y
 ; CHECK-NEXT:    tfr s,u
 ; CHECK-NEXT:    tfr x,y
-; CHECK-NEXT:    sty 10,u
+; CHECK-NEXT:    sty 12,u
 ; CHECK-NEXT:    ldb ,x
-; CHECK-NEXT:    stb 21,u
+; CHECK-NEXT:    stb 19,u ; 1-byte Folded Spill
 ; CHECK-NEXT:    cmpb #45
 ; CHECK-NEXT:    lbeq .LBB0_2
 ; CHECK-NEXT:  ; %bb.1: ; %entry
@@ -47,94 +47,92 @@ define dso_local i16 @cmp_imm_byte_load_phi_no_wrap(ptr noundef readonly capture
 ; CHECK-NEXT:  .LBB0_3: ; %entry
 ; CHECK-NEXT:    andb #1
 ; CHECK-NEXT:    clra
-; CHECK-NEXT:    ldx 10,u
-; CHECK-NEXT:    ldb d,x
-; CHECK-NEXT:    stb 19,u
+; CHECK-NEXT:    ldx 12,u
+; CHECK-NEXT:    lda d,x
+; CHECK-NEXT:    tfr a,b
 ; CHECK-NEXT:    addb #-48
-; CHECK-NEXT:    stb 9,u
+; CHECK-NEXT:    std 10,u
 ; CHECK-NEXT:    ldd #0
 ; CHECK-NEXT:    std 16,u
-; CHECK-NEXT:    ldb 9,u
+; CHECK-NEXT:    ldd 10,u
 ; CHECK-NEXT:    cmpb #10
-; CHECK-NEXT:    bhs .LBB0_9
+; CHECK-NEXT:    bhs .LBB0_8
 ; CHECK-NEXT:  ; %bb.4: ; %while.body.preheader
+; CHECK-NEXT:    sta 9,u
 ; CHECK-NEXT:    ldd #2
-; CHECK-NEXT:    stb 8,u
-; CHECK-NEXT:    ldb 21,u
+; CHECK-NEXT:    std 16,u
+; CHECK-NEXT:    lda 9,u
+; CHECK-NEXT:    ldb 19,u ; 1-byte Folded Reload
 ; CHECK-NEXT:    cmpb #45
-; CHECK-NEXT:    bne .LBB0_6
-; CHECK-NEXT:  ; %bb.5: ; %while.body.preheader
-; CHECK-NEXT:    ldb 8,u
-; CHECK-NEXT:    bra .LBB0_7
-; CHECK-NEXT:  .LBB0_6: ; %select.false
-; CHECK-NEXT:    ldb 8,u
+; CHECK-NEXT:    beq .LBB0_6
+; CHECK-NEXT:  ; %bb.5: ; %select.false
+; CHECK-NEXT:    sta 8,u
 ; CHECK-NEXT:    ldd #1
-; CHECK-NEXT:  .LBB0_7: ; %select.end
-; CHECK-NEXT:    ldx 10,u
+; CHECK-NEXT:    std 16,u
+; CHECK-NEXT:    lda 8,u
+; CHECK-NEXT:  .LBB0_6: ; %select.end
+; CHECK-NEXT:    sta 7,u
+; CHECK-NEXT:    ldx 12,u
+; CHECK-NEXT:    ldd 16,u
 ; CHECK-NEXT:    leax d,x
-; CHECK-NEXT:    stx 10,u
+; CHECK-NEXT:    stx 12,u
+; CHECK-NEXT:    lda 7,u
+; CHECK-NEXT:    sta 6,u
 ; CHECK-NEXT:    ldd #0
 ; CHECK-NEXT:    std 16,u
-; CHECK-NEXT:  .LBB0_8: ; %while.body
+; CHECK-NEXT:    lda 6,u
+; CHECK-NEXT:  .LBB0_7: ; %while.body
 ; CHECK-NEXT:    ; =>This Inner Loop Header: Depth=1
+; CHECK-NEXT:    sta 21,u ; 1-byte Folded Spill
 ; CHECK-NEXT:    leas -2,s
 ; CHECK-NEXT:    ldd #10
 ; CHECK-NEXT:    std ,s
 ; CHECK-NEXT:    ldx 16,u
 ; CHECK-NEXT:    lbsr __mulhi3
 ; CHECK-NEXT:    leas 2,s
-; CHECK-NEXT:    ldb 19,u
+; CHECK-NEXT:    ldb 21,u ; 1-byte Folded Reload
 ; CHECK-NEXT:    addb #-48
-; CHECK-NEXT:    stb 19,u
-; CHECK-NEXT:    tfr x,d
-; CHECK-NEXT:    stb 17,u
-; CHECK-NEXT:    addb 19,u
-; CHECK-NEXT:    stb 17,u
-; CHECK-NEXT:    adca #0
-; CHECK-NEXT:    sta 7,u
-; CHECK-NEXT:    std 16,u
-; CHECK-NEXT:    ldy 10,u
-; CHECK-NEXT:    ldb ,y
-; CHECK-NEXT:    stb 19,u
-; CHECK-NEXT:    addb #-48
-; CHECK-NEXT:    leay 1,y
-; CHECK-NEXT:    sty 10,u
-; CHECK-NEXT:    cmpb #10
-; CHECK-NEXT:    lblo .LBB0_8
-; CHECK-NEXT:  .LBB0_9: ; %while.end
-; CHECK-NEXT:    ldb #0
-; CHECK-NEXT:    stb 19,u
+; CHECK-NEXT:    stb 21,u ; 1-byte Folded Spill
+; CHECK-NEXT:    stx 16,u
 ; CHECK-NEXT:    ldb 17,u
 ; CHECK-NEXT:    lda 16,u
-; CHECK-NEXT:    stb 6,u
+; CHECK-NEXT:    addb 21,u
+; CHECK-NEXT:    adca #0
+; CHECK-NEXT:    std 10,u
+; CHECK-NEXT:    std 16,u
+; CHECK-NEXT:    ldy 12,u
+; CHECK-NEXT:    lda ,y
 ; CHECK-NEXT:    tfr a,b
-; CHECK-NEXT:    stb 15,u
-; CHECK-NEXT:    ldb 6,u
-; CHECK-NEXT:    stb 5,u
-; CHECK-NEXT:    ldb 19,u
-; CHECK-NEXT:    stb 13,u
-; CHECK-NEXT:    ldb 5,u
-; CHECK-NEXT:    pshs b
-; CHECK-NEXT:    ldb 13,u
+; CHECK-NEXT:    addb #-48
+; CHECK-NEXT:    leay 1,y
+; CHECK-NEXT:    sty 12,u
+; CHECK-NEXT:    cmpb #10
+; CHECK-NEXT:    lblo .LBB0_7
+; CHECK-NEXT:  .LBB0_8: ; %while.end
+; CHECK-NEXT:    ldb #0
+; CHECK-NEXT:    stb 20,u ; 1-byte Folded Spill
+; CHECK-NEXT:    lda 17,u
+; CHECK-NEXT:    ldb 16,u
+; CHECK-NEXT:    stb 18,u ; 1-byte Folded Spill
+; CHECK-NEXT:    ldb 20,u ; 1-byte Folded Reload
+; CHECK-NEXT:    stb 21,u ; 1-byte Folded Spill
+; CHECK-NEXT:    pshs a
 ; CHECK-NEXT:    subb ,s+
-; CHECK-NEXT:    stb 13,u
-; CHECK-NEXT:    ldb 19,u
-; CHECK-NEXT:    sbcb 15,u
-; CHECK-NEXT:    stb 19,u
+; CHECK-NEXT:    stb 21,u ; 1-byte Folded Spill
+; CHECK-NEXT:    ldb 20,u ; 1-byte Folded Reload
+; CHECK-NEXT:    sbcb 18,u
 ; CHECK-NEXT:    tfr b,a
-; CHECK-NEXT:    ldb 13,u
-; CHECK-NEXT:    stb 4,u
-; CHECK-NEXT:    ldb 21,u
+; CHECK-NEXT:    ldb 21,u ; 1-byte Folded Reload
+; CHECK-NEXT:    std 10,u
+; CHECK-NEXT:    std 14,u
+; CHECK-NEXT:    ldb 19,u ; 1-byte Folded Reload
 ; CHECK-NEXT:    cmpb #45
-; CHECK-NEXT:    bne .LBB0_11
-; CHECK-NEXT:  ; %bb.10: ; %while.end
-; CHECK-NEXT:    ldb 4,u
-; CHECK-NEXT:    bra .LBB0_12
-; CHECK-NEXT:  .LBB0_11: ; %select.false3
-; CHECK-NEXT:    ldb 4,u
+; CHECK-NEXT:    beq .LBB0_10
+; CHECK-NEXT:  ; %bb.9: ; %select.false3
 ; CHECK-NEXT:    ldd 16,u
-; CHECK-NEXT:  .LBB0_12: ; %select.end2
-; CHECK-NEXT:    tfr d,x
+; CHECK-NEXT:    std 14,u
+; CHECK-NEXT:  .LBB0_10: ; %select.end2
+; CHECK-NEXT:    ldx 14,u
 ; CHECK-NEXT:    tfr u,s
 ; CHECK-NEXT:    puls u,y
 ; CHECK-NEXT:    leas 20,s

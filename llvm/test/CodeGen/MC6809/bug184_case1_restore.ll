@@ -44,10 +44,10 @@ target triple = "mc6809"
 define void @sext_i16_to_i32_then_store(ptr %out, i16 %x) {
 ; CHECK-LABEL: sext_i16_to_i32_then_store:
 ; CHECK:       ; %bb.0:
-; CHECK-NEXT:    leas -13,s
+; CHECK-NEXT:    leas -15,s
 ; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    tfr s,u
-; CHECK-NEXT:    ldd 17,u
+; CHECK-NEXT:    ldd 19,u
 ; CHECK-NEXT:    cmpd #0
 ; CHECK-NEXT:    lblt .LBB0_2
 ; CHECK-NEXT:  ; %bb.1:
@@ -58,37 +58,40 @@ define void @sext_i16_to_i32_then_store(ptr %out, i16 %x) {
 ; CHECK-NEXT:  .LBB0_3:
 ; CHECK-NEXT:    andb #1
 ; CHECK-NEXT:    negb
-; CHECK-NEXT:    stb 12,u
+; CHECK-NEXT:    stb 11,u ; 1-byte Folded Spill
 ; CHECK-NEXT:    ldb #0
-; CHECK-NEXT:    stb 10,u
-; CHECK-NEXT:    stb 8,u
-; CHECK-NEXT:    subb 18,u
-; CHECK-NEXT:    stb 8,u
-; CHECK-NEXT:    ldb 10,u
+; CHECK-NEXT:    stb 12,u ; 1-byte Folded Spill
+; CHECK-NEXT:    ldb 12,u ; 1-byte Folded Reload
+; CHECK-NEXT:    stb 14,u ; 1-byte Folded Spill
+; CHECK-NEXT:    ldb 14,u ; 1-byte Folded Reload
+; CHECK-NEXT:    subb 20,u
+; CHECK-NEXT:    stb 14,u ; 1-byte Folded Spill
+; CHECK-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; CHECK-NEXT:    tfr b,a
-; CHECK-NEXT:    sbca 17,u
-; CHECK-NEXT:    stb 6,u
-; CHECK-NEXT:    sbcb 12,u
-; CHECK-NEXT:    stb 6,u
-; CHECK-NEXT:    ldb 10,u
-; CHECK-NEXT:    sbcb 12,u
-; CHECK-NEXT:    stb 10,u
-; CHECK-NEXT:    sta 4,u
-; CHECK-NEXT:    tfr b,a
-; CHECK-NEXT:    sta 11,u
-; CHECK-NEXT:    lda 4,u
-; CHECK-NEXT:    ldb 8,u
-; CHECK-NEXT:    std 2,u
-; CHECK-NEXT:    ldb 6,u
-; CHECK-NEXT:    lda 11,u
-; CHECK-NEXT:    std 11,u
-; CHECK-NEXT:    ldd 2,u
+; CHECK-NEXT:    sbca 19,u
+; CHECK-NEXT:    sta 10,u ; 1-byte Folded Spill
+; CHECK-NEXT:    stb 13,u ; 1-byte Folded Spill
+; CHECK-NEXT:    ldb 13,u ; 1-byte Folded Reload
+; CHECK-NEXT:    sbcb 11,u
+; CHECK-NEXT:    stb 13,u ; 1-byte Folded Spill
+; CHECK-NEXT:    ldb 12,u ; 1-byte Folded Reload
+; CHECK-NEXT:    sbcb 11,u
+; CHECK-NEXT:    stb 12,u ; 1-byte Folded Spill
+; CHECK-NEXT:    ldb 14,u ; 1-byte Folded Reload
+; CHECK-NEXT:    lda 10,u ; 1-byte Folded Reload
+; CHECK-NEXT:    std 4,u
+; CHECK-NEXT:    std 6,u
+; CHECK-NEXT:    ldb 13,u ; 1-byte Folded Reload
+; CHECK-NEXT:    lda 12,u ; 1-byte Folded Reload
+; CHECK-NEXT:    std 4,u
+; CHECK-NEXT:    std 8,u
+; CHECK-NEXT:    ldd 6,u
 ; CHECK-NEXT:    std 2,x
-; CHECK-NEXT:    ldd 11,u
+; CHECK-NEXT:    ldd 8,u
 ; CHECK-NEXT:    std ,x
 ; CHECK-NEXT:    tfr u,s
 ; CHECK-NEXT:    puls u
-; CHECK-NEXT:    leas 13,s
+; CHECK-NEXT:    leas 15,s
 ; CHECK-NEXT:    rts
   %ext = sext i16 %x to i32
   %neg = sub nsw i32 0, %ext

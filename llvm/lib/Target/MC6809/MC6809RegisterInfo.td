@@ -442,16 +442,15 @@ def CARRY : MC6809Reg1Class<(add C)>;
 def PHANTOM_CARRY : MC6809Reg1Class<(sequence "PHANTOM_CARRY_%u", 0, 7)>;
 // ACC8 — the byte allocation pool.  i1 values share this class with
 // i8: the byte's LSB carries the boolean.  Includes the four real
-// byte registers, 16 SPILL_*N slots, and 16 RC* imaginary (DP)
-// registers, all addressable as a single byte.
+// byte registers and 16 RC* imaginary (DP) registers, all addressable
+// as a single byte.  The SPILL_A*/SPILL_B* stack-backed pseudo-registers
+// were removed from byte allocation: byte spills now go through the
+// stock frame-index spiller, whose second-operand reloads fold into the
+// _Mem forms via foldMemoryOperandImpl (see memFoldSibling).
 def ACC8 : MC6809Reg8Class<(add AB, AA, AF, AE,
-                                (sequence "SPILL_B%u", 0, 7),
-                                (sequence "SPILL_A%u", 0, 7),
                                 (sequence "RC%u",      0, 15))> {
     // AE and AF are HD6309-only. Exclude from allocation on 6809.
     let AltOrders = [(add AB, AA,
-                         (sequence "SPILL_B%u", 0, 7),
-                         (sequence "SPILL_A%u", 0, 7),
                          (sequence "RC%u",      0, 15))];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
 }
@@ -466,8 +465,6 @@ def ACC8_AB : MC6809Reg8Class<(add AB, AA)>;
 // off the unencodable registers on both CPUs (on 6809 this already matches
 // ACC8's AltOrder, so 6809 codegen is unchanged).
 def ACC8_AB_SP : MC6809Reg8Class<(add AB, AA,
-                                     (sequence "SPILL_B%u", 0, 7),
-                                     (sequence "SPILL_A%u", 0, 7),
                                      (sequence "RC%u",      0, 15))>;
 
 // Bug #217: per-half byte register class for the _Reg variants of
@@ -591,8 +588,13 @@ let isAllocatable = false in {
 }
 
 // Single register classes.
-    def AAc : MC6809Reg8Class<(add AA, (sequence "SPILL_A%u", 0, 7))>;
-    def ABc : MC6809Reg8Class<(add AB, (sequence "SPILL_B%u", 0, 7))>;
+// AAc/ABc are genuine one-register classes: an instruction with two
+// simultaneously-live operands in one of them is allocatable only because
+// foldMemoryOperandImpl can fold the spilled second source into the op's
+// _Mem sibling (read from the frame slot in place). See memFoldSibling in
+// MC6809InstrInfo.cpp.
+    def AAc : MC6809Reg8Class<(add AA)>;
+    def ABc : MC6809Reg8Class<(add AB)>;
     let isPressureFineGrained = true in
     def ADc : MC6809Reg16Class<(add AD,
                                     (sequence "SPILL_D%u", 0, 7),
