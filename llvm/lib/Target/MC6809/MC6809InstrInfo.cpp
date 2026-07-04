@@ -8289,6 +8289,7 @@ void MC6809InstrInfo::expandCompareIdx(MachineIRBuilder &Builder, MachineInstr &
     auto OpcodePair = CompareIdxRegOpcode.find(Lookup);
     if (OpcodePair == CompareIdxRegOpcode.end())
       llvm_unreachable("Unexpected operand(s) in compare indexed/register.");
+    Opcode = OpcodePair->getSecond();
   } else
     llvm_unreachable("Unknown offset type for CompareIdx");
   // The zero-offset form (CMPxi_o0) takes ONLY the base -- no offset operand --
