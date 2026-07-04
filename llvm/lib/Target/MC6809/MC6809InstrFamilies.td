@@ -812,12 +812,13 @@ multiclass MC6809ArithPat<SDNode node, ValueType vtype, RegisterClass reg, strin
   def _Unmerge_Idx_Imm : Pat<(vtype (node reg:$src, (am_unmerge_indexed_imm_offset INDEX16:$idx, i16imm:$offset))), (!cast<Instruction>(inst#"_"#vtype#"_Mem") reg:$src, INDEX16:$idx, imm:$offset)>;
   def _Idx_Reg8 : Pat<(vtype (node reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC8:$offset))), (!cast<Instruction>(inst#"_"#vtype#"_Mem") reg:$src, INDEX16:$idx, ACC8:$offset)>;
   def _Idx_Reg16 : Pat<(vtype (node reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC16:$offset))), (!cast<Instruction>(inst#"_"#vtype#"_Mem") reg:$src, INDEX16:$idx, ACC16:$offset)>;
-  let Predicates = [IsHD6309] in {
-    def _Reg : Pat<(vtype (node reg:$src, reg:$src2)), (!cast<Instruction>(inst#"_"#vtype#"_Reg") reg:$src, reg:$src2)>;
-  }
-  let Predicates = [NotHD6309] in {
-    def _Push_Pull : Pat<(vtype (node reg:$src, reg:$src2)), (!cast<Instruction>(inst#"_"#vtype#"_Pull") reg:$src, (!cast<Instruction>("Push_"#vtype) reg:$src2))>;
-  }
+  // One reg-reg form for both CPUs: the _Reg expansion emits the page-3
+  // reg-reg op on HD6309 and the atomic PSHS / op 0,S / LEAS sequence on
+  // plain 6809 (emit6809Reg*FromMem path c). The old NotHD6309 _Push_Pull
+  // pattern split the push from the consumer, leaving a window the register
+  // allocator filled with S-relative spill code (the push-displacement
+  // offset bug class).
+  def _Reg : Pat<(vtype (node reg:$src, reg:$src2)), (!cast<Instruction>(inst#"_"#vtype#"_Reg") reg:$src, reg:$src2)>;
 }
 
 multiclass MC6809ArithRevPat<SDNode node, ValueType vtype, RegisterClass reg, string inst> {
@@ -827,12 +828,8 @@ multiclass MC6809ArithRevPat<SDNode node, ValueType vtype, RegisterClass reg, st
   def _Unmerge_Idx_Imm : Pat<(vtype (node (am_unmerge_indexed_imm_offset INDEX16:$idx, i16imm:$offset), reg:$src)), (!cast<Instruction>("Negate_"#vtype) (!cast<Instruction>(inst#"_"#vtype#"_Mem") reg:$src, INDEX16:$idx, imm:$offset))>;
   def _Idx_Reg8 : Pat<(vtype (node (am_indexed_imm_offset INDEX16:$idx, ACC8:$offset), reg:$src)), (!cast<Instruction>("Negate_"#vtype) (!cast<Instruction>(inst#"_"#vtype#"_Mem") reg:$src, INDEX16:$idx, ACC8:$offset))>;
   def _Idx_Reg16 : Pat<(vtype (node (am_indexed_imm_offset INDEX16:$idx, ACC16:$offset), reg:$src)), (!cast<Instruction>("Negate_"#vtype) (!cast<Instruction>(inst#"_"#vtype#"_Mem") reg:$src, INDEX16:$idx, ACC16:$offset))>;
-  let Predicates = [IsHD6309] in {
-    def _Reg : Pat<(vtype (node reg:$src2, reg:$src)), (!cast<Instruction>("Negate_"#vtype) (!cast<Instruction>("Negate_"#vtype) (!cast<Instruction>(inst#"_"#vtype#"_Reg") reg:$src, reg:$src2)))>;
-  }
-  let Predicates = [NotHD6309] in {
-    def _Push_Pull : Pat<(vtype (node reg:$src2, reg:$src)), (!cast<Instruction>("Negate_"#vtype) (!cast<Instruction>("Negate_"#vtype) (!cast<Instruction>(inst#"_"#vtype#"_Pull") reg:$src, (!cast<Instruction>("Push_"#vtype) reg:$src2))))>;
-  }
+  // Same single reg-reg form for both CPUs as MC6809ArithPat above.
+  def _Reg : Pat<(vtype (node reg:$src2, reg:$src)), (!cast<Instruction>("Negate_"#vtype) (!cast<Instruction>("Negate_"#vtype) (!cast<Instruction>(inst#"_"#vtype#"_Reg") reg:$src, reg:$src2)))>;
 }
 
 defm AddPat_i8 : MC6809ArithPat<add, i8, ACC8, "Add">;
@@ -1058,12 +1055,9 @@ multiclass MC6809SetIfCondPat<CondCode CC, int cc, ValueType vtype, RegisterClas
   def _i8_Unmerge_Idx_Imm : Pat<(i8 (anyext (i1 (setcc reg:$src, (am_unmerge_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)))), (ConditionalImm cc, (!cast<Instruction>("Compare_"#vtype#"_Mem") cc, reg:$src, INDEX16:$idx, imm:$offset), 1, 0)>;
   def _i8_Idx_Reg8 : Pat<(i8 (anyext (i1 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC8:$offset), CC)))), (ConditionalImm cc, (!cast<Instruction>("Compare_"#vtype#"_Mem") cc, reg:$src, INDEX16:$idx, ACC8:$offset), 1, 0)>;
   def _i8_Idx_Reg16 : Pat<(i8 (anyext (i1 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC16:$offset), CC)))), (ConditionalImm cc, (!cast<Instruction>("Compare_"#vtype#"_Mem") cc, reg:$src, INDEX16:$idx, ACC16:$offset), 1, 0)>;
-  let Predicates = [IsHD6309] in {
-    def _i8_Reg : Pat<(i8 (anyext (i1 (setcc reg:$src, reg:$src2, CC)))), (ConditionalImm cc, (!cast<Instruction>("Compare_"#vtype#"_Reg") cc, reg:$src, reg:$src2), 1, 0)>;
-  }
-  let Predicates = [NotHD6309] in {
-    def _i8_Push_Pull : Pat<(i8 (anyext (i1 (setcc reg:$src, reg:$src2, CC)))), (ConditionalImm cc, (!cast<Instruction>("Compare_"#vtype#"_Pull") cc, reg:$src, (!cast<Instruction>("Push_"#vtype) reg:$src2)), 1, 0)>;
-  }
+  // One reg-reg compare for both CPUs: expandCompareReg emits CMPR on
+  // HD6309 and the atomic PSHS / CMPx 0,S / LEAS fallback on plain 6809.
+  def _i8_Reg : Pat<(i8 (anyext (i1 (setcc reg:$src, reg:$src2, CC)))), (ConditionalImm cc, (!cast<Instruction>("Compare_"#vtype#"_Reg") cc, reg:$src, reg:$src2), 1, 0)>;
 }
 
 multiclass MC6809SetIfCompCondPat<CondCode CC, int ccode> {
@@ -1453,12 +1447,9 @@ multiclass MC6809CompBraPat<CondCode CC, int cc, ValueType vtype, RegisterClass 
     def _Unmerge_Idx_Imm : Pat<(brcond (i1 (setcc reg:$src, (am_unmerge_indexed_imm_offset INDEX16:$idx, i16imm:$offset), CC)), bb:$tgt), (!cast<Instruction>("CompareBranch_"#vtype#"_Mem") cc, reg:$src, INDEX16:$idx, imm:$offset, bb:$tgt)>;
     def _Idx_Reg8 : Pat<(brcond (i1 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC8:$offset), CC)), bb:$tgt), (!cast<Instruction>("CompareBranch_"#vtype#"_Mem") cc, reg:$src, INDEX16:$idx, ACC8:$offset, bb:$tgt)>;
     def _Idx_Reg16 : Pat<(brcond (i1 (setcc reg:$src, (am_indexed_imm_offset INDEX16:$idx, ACC16:$offset), CC)), bb:$tgt), (!cast<Instruction>("CompareBranch_"#vtype#"_Mem") cc, reg:$src, INDEX16:$idx, ACC16:$offset, bb:$tgt)>;
-    let Predicates = [IsHD6309] in {
-      def _Reg : Pat<(brcond (i1 (setcc reg:$src, reg:$src2, CC)), bb:$tgt), (!cast<Instruction>("CompareBranch_"#vtype#"_Reg") cc, reg:$src, reg:$src2, bb:$tgt)>;
-    }
-    let Predicates = [NotHD6309] in {
-      def _Push_Pull : Pat<(brcond (i1 (setcc reg:$src, reg:$src2, CC)), bb:$tgt), (!cast<Instruction>("CompareBranch_"#vtype#"_Pull") cc, reg:$src, (!cast<Instruction>("Push_"#vtype) reg:$src2), bb:$tgt)>;
-    }
+    // One reg-reg compare-branch for both CPUs (same model as the ptr
+    // branch below): expandCompareReg supplies the plain-6809 fallback.
+    def _Reg : Pat<(brcond (i1 (setcc reg:$src, reg:$src2, CC)), bb:$tgt), (!cast<Instruction>("CompareBranch_"#vtype#"_Reg") cc, reg:$src, reg:$src2, bb:$tgt)>;
   } else {
     // Index/pointer compare-branch. Prefer folding a memory operand into the
     // compare's own addressing mode (CMPX/CMPY off,r) — set up here at ISel so

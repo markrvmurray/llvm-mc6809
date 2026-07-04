@@ -2523,39 +2523,33 @@ skip_globalvalue_fold:
       bool BothAccum = LBank && RBank &&
                        LBank->getID() == MC6809::ACCUMRegBankID &&
                        RBank->getID() == MC6809::ACCUMRegBankID;
-      unsigned PushOpc = 0;
-      unsigned CmpBrPullOpc = 0;
+      unsigned CmpBrRegOpc = 0;
       const TargetRegisterClass *RC = nullptr;
       if (BothAccum && CCOpt) {
         if (Ty == LLT::scalar(8)) {
-          PushOpc = MC6809::Push_i8;
-          CmpBrPullOpc = MC6809::CompareBranch_i8_Pull;
+          CmpBrRegOpc = MC6809::CompareBranch_i8_Reg;
           RC = &MC6809::ACC8RegClass;
         } else if (Ty == LLT::scalar(16)) {
-          PushOpc = MC6809::Push_i16;
-          CmpBrPullOpc = MC6809::CompareBranch_i16_Pull;
+          CmpBrRegOpc = MC6809::CompareBranch_i16_Reg;
           RC = &MC6809::ACC16RegClass;
         }
       }
-      if (CmpBrPullOpc && CCOpt) {
+      if (CmpBrRegOpc && CCOpt) {
         // Constrain operand classes for the CompareBranch pseudo. G_ICMP
         // operands are bank-selected but may not yet have a register class
         // pinned, so we use constrainGenericRegister.
         if (RBI.constrainGenericRegister(Lhs, *RC, *MRI) &&
             RBI.constrainGenericRegister(Rhs, *RC, *MRI)) {
-          // Follow the same shape the tablegen `_Push_Pull` pattern uses
-          // for non-HD6309: push RHS, then CompareBranch_*_Pull reads it
-          // off the stack (the `Reg` variant would expand to CMPR which
-          // is HD6309-only).
-          Register Pushed =
-              MRI->createVirtualRegister(&MC6809::STACK16RegClass);
-          BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(PushOpc), Pushed)
-              .addReg(Rhs);
-          // CompareBranch_*_Pull operand layout: cc, src, idx(STACK16), tgt.
-          BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(CmpBrPullOpc))
+          // One reg-reg form for both CPUs: expandCompareReg emits CMPR on
+          // HD6309 and the atomic PSHS / CMPx 0,S / LEAS fallback on plain
+          // 6809. (The former Push + CompareBranch_*_Pull pair left a
+          // window between push and pull that the register allocator
+          // filled with S-relative spill code — the push-displacement
+          // offset bug class.)
+          BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(CmpBrRegOpc))
               .addImm(*CCOpt)
               .addReg(Lhs)
-              .addReg(Pushed)
+              .addReg(Rhs)
               .addMBB(TargetMBB);
           // Remove G_ICMP first (its only use was this BRCOND) and then BRCOND.
           CondDef->eraseFromParent();
@@ -2858,22 +2852,20 @@ skip_globalvalue_fold:
                 .add(Src2Load->getOperand(2)); // offset
             constrainSelectedInstRegOperands(*SubMem, TII, TRI, RBI);
           } else {
-            // Push b FIRST (before loading 0 into D), then subtract.
+            // Reg-reg subtract: 0 - b via Sub_i16_Reg. The expansion emits
+            // SUBR on HD6309 and the atomic PSHS / SUBD 0,S / LEAS sequence
+            // on plain 6809, so the old explicit Push_i16 + Sub_i16_Pull
+            // pair (whose push-to-pull window the register allocator could
+            // fill with S-relative spill code) is not needed.
             Register AccSrc2 = MRI->createGenericVirtualRegister(s16);
             MRI->setRegClass(AccSrc2, &MC6809::ACC16RegClass);
-            Register StackReg = MRI->createGenericVirtualRegister(s16);
-            MRI->setRegClass(StackReg, &MC6809::STACK16RegClass);
             BuildMI(MBB, MI, DL, TII.get(TargetOpcode::COPY), AccSrc2).addReg(Src2);
-            auto Push = BuildMI(MBB, MI, DL, TII.get(MC6809::Push_i16), StackReg)
-                .addReg(AccSrc2);
-            constrainSelectedInstRegOperands(*Push, TII, TRI, RBI);
-            // NOW load 0 (after b is safely on the stack).
             auto Zero = BuildMI(MBB, MI, DL, TII.get(MC6809::Load_i16_Imm), AccZero)
                 .addImm(0);
             constrainSelectedInstRegOperands(*Zero, TII, TRI, RBI);
-            auto Sub = BuildMI(MBB, MI, DL, TII.get(MC6809::Sub_i16_Pull), AccNegB)
+            auto Sub = BuildMI(MBB, MI, DL, TII.get(MC6809::Sub_i16_Reg), AccNegB)
                 .addReg(AccZero)
-                .addReg(StackReg);
+                .addReg(AccSrc2);
             constrainSelectedInstRegOperands(*Sub, TII, TRI, RBI);
           }
 
