@@ -1,0 +1,50 @@
+# RUN: llc -mtriple=mc6809 -mcpu=hd6309 -run-pass=mc6809-late-opt -verify-machineinstrs -o - %s | FileCheck %s
+
+# MC6809LateOptimization::elideRedundantLoad drops a direct-page load whose
+# value register still provably holds the same slot's contents from an earlier
+# identical load. A direct-page store to a DIFFERENT slot (carrying
+# hasSideEffects) is walked past -- distinct imaginary slots are distinct
+# addresses and the store leaves the value register untouched. The removed
+# load's flags must be dead, and the value register's kill flags on the
+# intervening store are cleared so it stays live to the reload's former uses.
+
+# Positive: ldd <rs0> ; std <rs1> ; ldd <rs0>  ->  ldd <rs0> ; std <rs1>
+# The store's `killed $ad` becomes a plain use once the reload is gone.
+# CHECK-LABEL: name: reload_across_disjoint_store
+# CHECK:      LDDd $rs0
+# CHECK-NEXT: STDd undef $rs1{{.*}}implicit $ad, implicit-def $rs1
+# CHECK-NOT:  LDDd $rs0
+---
+name: reload_across_disjoint_store
+tracksRegLiveness: true
+body: |
+  bb.0:
+    successors: %bb.1
+    liveins: $rs0
+    LDDd $rs0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit-def $aq
+    STDd undef $rs1, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit killed $ad, implicit-def $rs1
+    LDDd $rs0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit-def $aq
+
+  bb.1:
+    liveins: $ad, $rs0, $rs1
+    ADDDi16 -1, implicit-def $ad, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $c, implicit-def $aa, implicit-def $ab, implicit killed $ad
+    RTSr implicit $ad
+...
+
+# Negative: the value register is clobbered between the two loads (a store to
+# the SAME slot rewrites its memory), so the reload is NOT redundant.
+# CHECK-LABEL: name: reload_after_same_slot_store
+# CHECK:      LDDd $rs0
+# CHECK:      STDd undef $rs0
+# CHECK:      LDDd $rs0
+---
+name: reload_after_same_slot_store
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $rs0, $ad
+    LDDd $rs0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit-def $aq
+    STDd undef $rs0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit killed $ad, implicit-def $rs0
+    LDDd $rs0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit-def $aq
+    RTSr implicit $ad
+...

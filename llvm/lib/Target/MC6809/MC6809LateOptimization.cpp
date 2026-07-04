@@ -46,6 +46,7 @@ public:
   bool tailJMP(MachineBasicBlock &MBB) const;
   bool simplifyAndZero(MachineBasicBlock &MBB) const;
   bool elideCompareZero(MachineBasicBlock &MBB) const;
+  bool elideRedundantLoad(MachineBasicBlock &MBB) const;
   bool foldLEAIntoLoad(MachineBasicBlock &MBB) const;
 };
 
@@ -55,6 +56,7 @@ bool MC6809LateOptimization::runOnMachineFunction(MachineFunction &MF) {
     Changed |= tailJMP(MBB);
     Changed |= simplifyAndZero(MBB);
     Changed |= elideCompareZero(MBB);
+    Changed |= elideRedundantLoad(MBB);
     Changed |= foldLEAIntoLoad(MBB);
   }
   return Changed;
@@ -100,35 +102,81 @@ bool MC6809LateOptimization::elideCompareZero(MachineBasicBlock &MBB) const {
     if (MI.getIterator() == MBB.begin())
       continue;
 
-    // Producer immediately before must define EXACTLY the compared register,
-    // so the N/Z flags it set reflect that value at the right width. A
-    // super-register def is unsafe: `ldd <16-bit>; tstb` defines AD ⊇ AB but
-    // LDD's flags are the 16-bit D's, not the 8-bit B's that TSTB tests
-    // (D=0x0100 -> D!=0 yet B==0). `definesRegister` would accept that; an
-    // exact-width def operand does not.
-    MachineInstr &Prev = *std::prev(MI.getIterator());
-    bool PrevDefsExact = false;
-    for (const MachineOperand &MO : Prev.operands())
-      if (MO.isReg() && MO.isDef() && MO.getReg() == CmpReg) {
-        PrevDefsExact = true;
+    auto ModifiesFlags = [&](const MachineInstr &I) {
+      return I.modifiesRegister(MC6809::N, &TRI) ||
+             I.modifiesRegister(MC6809::Z, &TRI) ||
+             I.modifiesRegister(MC6809::V, &TRI);
+    };
+
+    // Producer search: walk back over instructions that leave the flags AND
+    // CmpReg untouched, stopping at the first instruction that sets the flags
+    // — that is the producer whose N/Z the compare would recompute. The skip
+    // lets a flag-transparent instruction sit between producer and compare:
+    //   addd #-1 ; tfr y,x ; tstd   (the tfr touches neither flags nor AD).
+    // A skipped instruction that rewrites CmpReg would leave the producer's
+    // flags stale for the value the compare tests, so bail in that case.
+    MachineInstr *Producer = nullptr;
+    for (auto PIt = MI.getIterator(); PIt != MBB.begin();) {
+      MachineInstr &P = *--PIt;
+      if (ModifiesFlags(P)) {
+        Producer = &P;
         break;
       }
-    if (!PrevDefsExact)
+      if (P.modifiesRegister(CmpReg, &TRI))
+        break;
+    }
+    if (!Producer)
       continue;
 
-    // Consumer immediately after must be a conditional branch on an N/Z-only
-    // condition (EQ/NE test Z, MI/PL test N — exactly the flags a value op
-    // sets the same way a compare-with-0 would; V and C differ, so signed and
-    // unsigned conditions are excluded).
-    auto NextIt = std::next(MI.getIterator());
-    if (NextIt == MBB.end() || NextIt->getNumOperands() == 0 ||
-        !NextIt->getOperand(0).isImm())
+    // The producer must define EXACTLY the compared register, so the N/Z flags
+    // it set reflect that value at the right width. A super-register def is
+    // unsafe: `ldd <16-bit>; tstb` defines AD ⊇ AB but LDD's flags are the
+    // 16-bit D's, not the 8-bit B's that TSTB tests (D=0x0100 -> D!=0 yet
+    // B==0). `definesRegister` would accept that; an exact-width def does not.
+    bool ProducerDefsExact = false;
+    for (const MachineOperand &MO : Producer->operands())
+      if (MO.isReg() && MO.isDef() && MO.getReg() == CmpReg) {
+        ProducerDefsExact = true;
+        break;
+      }
+    if (!ProducerDefsExact)
       continue;
-    int64_t CC = NextIt->getOperand(0).getImm();
+
+    // Consumer search: walk forward over flag-transparent instructions to the
+    // first that touches the flags. A flag reader there is the consuming
+    // branch (its flags come from the producer once the compare is gone); a
+    // flag writer means a different producer feeds the branch, so bail. The
+    // skip lets flag-transparent instructions sit between compare and branch:
+    //   ldd <rs0> ; tstd ; puls d ; puls d ; beq   (the puls preserve CC).
+    // CmpReg being rewritten in this span is fine — the branch reads flags,
+    // not CmpReg, and the producer's flags already captured its value.
+    auto ConsIt = std::next(MI.getIterator());
+    // Stop at the first instruction that touches ANY flag, whether it reads or
+    // writes it. Dropping the compare makes the producer's N/Z/V (and, for a
+    // CMPr#0, C) reach past this point instead of the compare's, so a skipped
+    // instruction may only be one that consults no flag at all — a reader of V
+    // or C, not just N/Z, would see the changed value.
+    while (ConsIt != MBB.end() && !ModifiesFlags(*ConsIt) &&
+           !ConsIt->readsRegister(MC6809::N, &TRI) &&
+           !ConsIt->readsRegister(MC6809::Z, &TRI) &&
+           !ConsIt->readsRegister(MC6809::V, &TRI) &&
+           !ConsIt->readsRegister(MC6809::C, &TRI))
+      ++ConsIt;
+    if (ConsIt == MBB.end() || ModifiesFlags(*ConsIt))
+      continue;
+    MachineInstr &Cons = *ConsIt;
+
+    // The consumer must be a conditional branch on an N/Z-only condition
+    // (EQ/NE test Z, MI/PL test N — exactly the flags a value op sets the same
+    // way a compare-with-0 would; V and C differ, so signed and unsigned
+    // conditions are excluded).
+    if (Cons.getNumOperands() == 0 || !Cons.getOperand(0).isImm())
+      continue;
+    int64_t CC = Cons.getOperand(0).getImm();
     if (CC != MC6809CC::EQ && CC != MC6809CC::NE && CC != MC6809CC::MI &&
         CC != MC6809CC::PL)
       continue;
-    if (NextIt->readsRegister(MC6809::C, &TRI))
+    if (Cons.readsRegister(MC6809::C, &TRI))
       continue;
 
     // Every N/Z/V flag the branch reads must be (re)defined by the producer,
@@ -136,14 +184,14 @@ bool MC6809LateOptimization::elideCompareZero(MachineBasicBlock &MBB) const {
     // Z-only producer such as LEAX cannot feed a branch that also reads N/V.)
     bool ProducerCoversFlags = true;
     bool ReadsNZ = false;
-    for (const MachineOperand &MO : NextIt->operands()) {
+    for (const MachineOperand &MO : Cons.operands()) {
       if (!MO.isReg() || !MO.isUse())
         continue;
       Register R = MO.getReg();
       if (R == MC6809::N || R == MC6809::Z)
         ReadsNZ = true;
       if ((R == MC6809::N || R == MC6809::Z || R == MC6809::V) &&
-          !Prev.definesRegister(R, &TRI)) {
+          !Producer->definesRegister(R, &TRI)) {
         ProducerCoversFlags = false;
         break;
       }
@@ -154,7 +202,7 @@ bool MC6809LateOptimization::elideCompareZero(MachineBasicBlock &MBB) const {
     // The branch will now read the producer's flags; clear any stale dead
     // markers (regalloc may have flagged them when the compare was the only
     // flag consumer).
-    for (MachineOperand &MO : Prev.operands())
+    for (MachineOperand &MO : Producer->operands())
       if (MO.isReg() && MO.isDef() &&
           (MO.getReg() == MC6809::N || MO.getReg() == MC6809::Z ||
            MO.getReg() == MC6809::NZ || MO.getReg() == MC6809::V))
@@ -241,6 +289,145 @@ static unsigned indexedLoadOpcode(Register ValueReg, IdxSuf Suf) {
 // The folded load addresses memory the way the LEA did, loading the o0 load's
 // value register. Two safety regimes:
 //   * dst == base (value reg == index reg == the load's base): the load
+// Direct-page load / store opcode tables. Operand 0 is the direct-page slot
+// (an imaginary register in the cases we handle); the value the load moves
+// lands in the register returned here.
+static Register dpLoadValueReg(unsigned Opc) {
+  switch (Opc) {
+  case MC6809::LDAd: return MC6809::AA;
+  case MC6809::LDBd: return MC6809::AB;
+  case MC6809::LDDd: return MC6809::AD;
+  case MC6809::LDWd: return MC6809::AW;
+  case MC6809::LDEd: return MC6809::AE;
+  case MC6809::LDFd: return MC6809::AF;
+  case MC6809::LDXd: return MC6809::IX;
+  case MC6809::LDYd: return MC6809::IY;
+  case MC6809::LDUd: return MC6809::SU;
+  case MC6809::LDSd: return MC6809::SS;
+  case MC6809::LDQd: return MC6809::AQ;
+  default: return MC6809::NoRegister;
+  }
+}
+
+static bool isDpSlotStore(unsigned Opc) {
+  switch (Opc) {
+  case MC6809::STAd: case MC6809::STBd: case MC6809::STDd:
+  case MC6809::STWd: case MC6809::STEd: case MC6809::STFd:
+  case MC6809::STXd: case MC6809::STYd: case MC6809::STUd:
+  case MC6809::STSd: case MC6809::STQd:
+    return true;
+  default:
+    return false;
+  }
+}
+
+// Drop a direct-page load whose value register still provably holds the same
+// slot's contents from an earlier identical load:
+//     ldd <__rs0> ; std <__rs1> ; ldd <__rs0>   ->   ldd <__rs0> ; std <__rs1>
+// The store copies D out to a DIFFERENT slot without disturbing D, so the
+// reload is pure waste (memmem's outer loop reloads a 16-bit imaginary right
+// after storing it elsewhere). Restricted to imaginary-register slots so
+// aliasing reduces to a register-identity test.
+bool MC6809LateOptimization::elideRedundantLoad(MachineBasicBlock &MBB) const {
+  const auto &TRI = *MBB.getParent()->getSubtarget().getRegisterInfo();
+  const MachineRegisterInfo &MRI = MBB.getParent()->getRegInfo();
+  if (!MRI.tracksLiveness())
+    return false;
+  bool Changed = false;
+
+  auto ModifiesFlags = [&](const MachineInstr &I) {
+    return I.modifiesRegister(MC6809::N, &TRI) ||
+           I.modifiesRegister(MC6809::Z, &TRI) ||
+           I.modifiesRegister(MC6809::V, &TRI);
+  };
+  auto ReadsFlags = [&](const MachineInstr &I) {
+    return I.readsRegister(MC6809::N, &TRI) ||
+           I.readsRegister(MC6809::Z, &TRI) ||
+           I.readsRegister(MC6809::V, &TRI);
+  };
+
+  for (auto It = MBB.begin(); It != MBB.end();) {
+    MachineInstr &MI = *It++;
+    Register VReg = dpLoadValueReg(MI.getOpcode());
+    if (!VReg)
+      continue;
+    const MachineOperand &Slot = MI.getOperand(0);
+    if (!Slot.isReg() || !Slot.getReg().isPhysical())
+      continue;
+    Register SlotReg = Slot.getReg();
+
+    // Find an earlier identical load with the slot memory and the value
+    // register both untouched in between.
+    MachineInstr *Prior = nullptr;
+    for (auto PIt = MI.getIterator(); PIt != MBB.begin();) {
+      MachineInstr &P = *--PIt;
+      if (P.getOpcode() == MI.getOpcode() && P.getOperand(0).isReg() &&
+          P.getOperand(0).getReg() == SlotReg) {
+        Prior = &P;
+        break;
+      }
+      // Value register clobbered, or the slot's memory written -> the value in
+      // VReg is no longer guaranteed to match the slot.
+      if (P.modifiesRegister(VReg, &TRI) ||
+          P.modifiesRegister(SlotReg, &TRI))
+        break;
+      // A direct-page slot store to a different slot is safe to walk past:
+      // distinct imaginary slots are distinct addresses (a same-slot store was
+      // caught by the SlotReg check above) and its only effect is that
+      // disjoint memory write. These stores carry hasSideEffects in the .td,
+      // so recognise them explicitly rather than lumping them in with the
+      // generic store / side-effect barrier below.
+      if (isDpSlotStore(P.getOpcode()))
+        continue;
+      // Any other store could alias the slot's address (an indexed/extended
+      // store through an arbitrary pointer); a call or an instruction with
+      // unmodeled side effects could touch it too.
+      if (P.isCall() || P.mayStore() || P.hasUnmodeledSideEffects())
+        break;
+    }
+    if (!Prior)
+      continue;
+
+    // The removed load's N/Z/V must be dead: walk forward to the first flag
+    // access; a reader keeps them live (bail), a writer proves them dead. If
+    // the walk runs off the end of the block (the redundant load is the last
+    // instruction, its consumer in a successor), the flags are dead iff they
+    // are not live-out of the block.
+    bool FlagsDead = false;
+    auto FIt = std::next(MI.getIterator());
+    for (; FIt != MBB.end(); ++FIt) {
+      if (ReadsFlags(*FIt))
+        break;
+      if (ModifiesFlags(*FIt)) {
+        FlagsDead = true;
+        break;
+      }
+    }
+    if (FIt == MBB.end()) {
+      LivePhysRegs LiveOut(TRI);
+      LiveOut.addLiveOuts(MBB);
+      FlagsDead = !LiveOut.contains(MC6809::N) &&
+                  !LiveOut.contains(MC6809::Z) &&
+                  !LiveOut.contains(MC6809::V) &&
+                  !LiveOut.contains(MC6809::NZ);
+    }
+    if (!FlagsDead)
+      continue;
+
+    // Keep VReg live from the prior load to this point: clear the kill flags
+    // the intervening instructions placed on it (e.g. the store's killed use),
+    // and un-dead the prior load's definition.
+    for (auto KIt = std::next(Prior->getIterator()); KIt != MI.getIterator();
+         ++KIt)
+      KIt->clearRegisterKills(VReg, &TRI);
+    Prior->clearRegisterDeads(VReg);
+
+    MI.eraseFromParent();
+    Changed = true;
+  }
+  return Changed;
+}
+
 //     overwrites the computed address, so dropping the LEA's advance is
 //     unobservable — unconditionally safe.
 //   * dst != base (the base survives the load): folding drops the base's new

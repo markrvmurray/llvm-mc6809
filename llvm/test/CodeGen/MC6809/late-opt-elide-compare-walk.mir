@@ -1,0 +1,79 @@
+# RUN: llc -mtriple=mc6809 -mcpu=hd6309 -run-pass=mc6809-late-opt -verify-machineinstrs -o - %s | FileCheck %s
+
+# MC6809LateOptimization::elideCompareZero drops a redundant TSTr / CMPr#0 whose
+# N/Z the flag-producing instruction already set. The producer and the consuming
+# branch need not be adjacent to the compare: the pass walks back over
+# flag-transparent, CmpReg-preserving instructions to the producer, and forward
+# over flag-transparent instructions to the branch.
+
+# Producer walk: addd #-1 ; tfr y,x ; tstd -- the tfr touches neither the flags
+# nor AD, so the addd's Z/N is what the tstd would recompute.
+# CHECK-LABEL: name: producer_walk
+# CHECK:      ADDDi16
+# CHECK-NEXT: TFRp
+# CHECK-NEXT: LBlbc_NoC
+# CHECK-NOT:  TSTDa
+---
+name: producer_walk
+tracksRegLiveness: true
+body: |
+  bb.0:
+    successors: %bb.1, %bb.2
+    liveins: $ad, $iy
+    ADDDi16 -1, implicit-def $ad, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $c, implicit-def $aa, implicit-def $ab, implicit killed $ad
+    $ix = TFRp $iy
+    TSTDa implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ad
+    LBlbc_NoC 7, %bb.2, implicit killed $n, implicit killed $z, implicit killed $v
+  bb.1:
+    liveins: $ad
+    RTSr implicit $ad
+  bb.2:
+    RTSr
+...
+
+# Consumer walk: ldd <rs0> ; tstd ; tfr y,x ; lb<cc> -- the flag-transparent tfr
+# between the tst and the branch is skipped; the branch reads the ldd's flags.
+# CHECK-LABEL: name: consumer_walk
+# CHECK:      LDDd $rs0
+# CHECK-NEXT: TFRp
+# CHECK-NEXT: LBlbc_NoC
+# CHECK-NOT:  TSTDa
+---
+name: consumer_walk
+tracksRegLiveness: true
+body: |
+  bb.0:
+    successors: %bb.1, %bb.2
+    liveins: $rs0, $iy
+    LDDd $rs0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit-def $aq
+    TSTDa implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ad
+    $ix = TFRp $iy
+    LBlbc_NoC 7, %bb.2, implicit killed $n, implicit killed $z, implicit killed $v
+  bb.1:
+    liveins: $ad
+    RTSr implicit $ad
+  bb.2:
+    RTSr
+...
+
+# Negative: a flag WRITER (addd) sits between the tst and the branch, so the
+# branch would read that writer's flags, not the load's. The tst must stay.
+# CHECK-LABEL: name: negative_flag_writer_between
+# CHECK:      TSTDa
+---
+name: negative_flag_writer_between
+tracksRegLiveness: true
+body: |
+  bb.0:
+    successors: %bb.1, %bb.2
+    liveins: $rs0
+    LDDd $rs0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit-def $aq
+    TSTDa implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ad
+    ADDDi16 -1, implicit-def $ad, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $c, implicit-def $aa, implicit-def $ab, implicit killed $ad
+    LBlbc_NoC 7, %bb.2, implicit killed $n, implicit killed $z, implicit killed $v
+  bb.1:
+    liveins: $ad
+    RTSr implicit $ad
+  bb.2:
+    RTSr
+...

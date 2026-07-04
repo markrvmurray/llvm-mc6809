@@ -107,7 +107,6 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; MC6809-O0-NEXT:    pshs d
 ; MC6809-O0-NEXT:    pshs d
 ; MC6809-O0-NEXT:    ldd <__rs1
-; MC6809-O0-NEXT:    cmpd #0
 ; MC6809-O0-NEXT:    puls d
 ; MC6809-O0-NEXT:    puls d
 ; MC6809-O0-NEXT:    lbne .LBB0_2
