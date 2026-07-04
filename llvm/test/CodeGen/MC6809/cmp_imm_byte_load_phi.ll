@@ -30,7 +30,7 @@
 define dso_local i16 @cmp_imm_byte_load_phi_no_wrap(ptr noundef readonly captures(none) %s) local_unnamed_addr {
 ; CHECK-LABEL: cmp_imm_byte_load_phi_no_wrap:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -18,s
+; CHECK-NEXT:    leas -17,s
 ; CHECK-NEXT:    pshs u,y
 ; CHECK-NEXT:    tfr s,u
 ; CHECK-NEXT:    tfr x,y
@@ -79,20 +79,20 @@ define dso_local i16 @cmp_imm_byte_load_phi_no_wrap(ptr noundef readonly capture
 ; CHECK-NEXT:    lda 6,u
 ; CHECK-NEXT:  .LBB0_7: ; %while.body
 ; CHECK-NEXT:    ; =>This Inner Loop Header: Depth=1
-; CHECK-NEXT:    sta 19,u ; 1-byte Folded Spill
+; CHECK-NEXT:    sta 18,u ; 1-byte Folded Spill
 ; CHECK-NEXT:    leas -2,s
 ; CHECK-NEXT:    ldd #10
 ; CHECK-NEXT:    std ,s
 ; CHECK-NEXT:    ldx 14,u
 ; CHECK-NEXT:    lbsr __mulhi3
 ; CHECK-NEXT:    leas 2,s
-; CHECK-NEXT:    ldb 19,u ; 1-byte Folded Reload
+; CHECK-NEXT:    ldb 18,u ; 1-byte Folded Reload
 ; CHECK-NEXT:    addb #-48
-; CHECK-NEXT:    stb 19,u ; 1-byte Folded Spill
+; CHECK-NEXT:    stb 18,u ; 1-byte Folded Spill
 ; CHECK-NEXT:    stx 14,u
 ; CHECK-NEXT:    ldb 15,u
 ; CHECK-NEXT:    lda 14,u
-; CHECK-NEXT:    addb 19,u
+; CHECK-NEXT:    addb 18,u
 ; CHECK-NEXT:    adca #0
 ; CHECK-NEXT:    std 10,u
 ; CHECK-NEXT:    std 14,u
@@ -104,21 +104,17 @@ define dso_local i16 @cmp_imm_byte_load_phi_no_wrap(ptr noundef readonly capture
 ; CHECK-NEXT:    lblo .LBB0_7
 ; CHECK-NEXT:  .LBB0_8: ; %while.end
 ; CHECK-NEXT:    ldb #0
-; CHECK-NEXT:    stb 18,u ; 1-byte Folded Spill
 ; CHECK-NEXT:    lda 15,u
-; CHECK-NEXT:    ldb 14,u
-; CHECK-NEXT:    stb 16,u ; 1-byte Folded Spill
-; CHECK-NEXT:    ldb 18,u ; 1-byte Folded Reload
-; CHECK-NEXT:    stb 19,u ; 1-byte Folded Spill
-; CHECK-NEXT:    pshs a
-; CHECK-NEXT:    subb ,s+
-; CHECK-NEXT:    stb 19,u ; 1-byte Folded Spill
-; CHECK-NEXT:    ldb 18,u ; 1-byte Folded Reload
-; CHECK-NEXT:    sbcb 16,u
+; CHECK-NEXT:    sta 16,u ; 1-byte Folded Spill
+; CHECK-NEXT:    lda 14,u
+; CHECK-NEXT:    sta 18,u ; 1-byte Folded Spill
 ; CHECK-NEXT:    tfr b,a
-; CHECK-NEXT:    ldb 19,u ; 1-byte Folded Reload
+; CHECK-NEXT:    suba 16,u
+; CHECK-NEXT:    sbcb 18,u
 ; CHECK-NEXT:    std 10,u
+; CHECK-NEXT:    exg a,b
 ; CHECK-NEXT:    std 12,u
+; CHECK-NEXT:    ldd 10,u
 ; CHECK-NEXT:    ldb 17,u ; 1-byte Folded Reload
 ; CHECK-NEXT:    cmpb #45
 ; CHECK-NEXT:    beq .LBB0_10
@@ -129,7 +125,7 @@ define dso_local i16 @cmp_imm_byte_load_phi_no_wrap(ptr noundef readonly capture
 ; CHECK-NEXT:    ldx 12,u
 ; CHECK-NEXT:    tfr u,s
 ; CHECK-NEXT:    puls u,y
-; CHECK-NEXT:    leas 18,s
+; CHECK-NEXT:    leas 17,s
 ; CHECK-NEXT:    rts
 entry:
   %0 = load i8, ptr %s, align 1

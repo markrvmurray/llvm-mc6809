@@ -16,22 +16,25 @@ target triple = "mc6809-unknown-unknown"
 define i1 @eq_i32_sext_i16(i32 %a, i16 %b) {
 ; O0-LABEL: eq_i32_sext_i16:
 ; O0:       ; %bb.0:
-; O0-NEXT:    leas -17,s
+; O0-NEXT:    leas -18,s
 ; O0-NEXT:    pshs u,y
 ; O0-NEXT:    tfr s,u
 ; O0-NEXT:    stx 9,u
-; O0-NEXT:    ldd 25,u
+; O0-NEXT:    ldd 26,u
 ; O0-NEXT:    std 13,u
-; O0-NEXT:    ldd 23,u
+; O0-NEXT:    ldd 24,u
 ; O0-NEXT:    std 11,u
 ; O0-NEXT:    cmpx #0
 ; O0-NEXT:    lblt .LBB0_2
 ; O0-NEXT:  ; %bb.1:
 ; O0-NEXT:    ldb #0
+; O0-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O0-NEXT:    lbra .LBB0_3
 ; O0-NEXT:  .LBB0_2:
 ; O0-NEXT:    ldb #1
+; O0-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O0-NEXT:  .LBB0_3:
+; O0-NEXT:    ldb 15,u ; 1-byte Folded Reload
 ; O0-NEXT:    andb #1
 ; O0-NEXT:    negb
 ; O0-NEXT:    leas -8,s
@@ -49,7 +52,7 @@ define i1 @eq_i32_sext_i16(i32 %a, i16 %b) {
 ; O0-NEXT:    ldb 6,u
 ; O0-NEXT:    tfr b,a
 ; O0-NEXT:    std 4,s
-; O0-NEXT:    leay 15,u
+; O0-NEXT:    leay 16,u
 ; O0-NEXT:    tfr y,x
 ; O0-NEXT:    lbsr __ucmpsi2
 ; O0-NEXT:    ldd 2,y
@@ -64,18 +67,18 @@ define i1 @eq_i32_sext_i16(i32 %a, i16 %b) {
 ; O0-NEXT:  .LBB0_6:
 ; O0-NEXT:    tfr u,s
 ; O0-NEXT:    puls u,y
-; O0-NEXT:    leas 17,s
+; O0-NEXT:    leas 18,s
 ; O0-NEXT:    rts
 ;
 ; O2-LABEL: eq_i32_sext_i16:
 ; O2:       ; %bb.0:
-; O2-NEXT:    leas -17,s
+; O2-NEXT:    leas -18,s
 ; O2-NEXT:    pshs u,y
 ; O2-NEXT:    tfr s,u
 ; O2-NEXT:    stx 9,u
-; O2-NEXT:    ldd 25,u
+; O2-NEXT:    ldd 26,u
 ; O2-NEXT:    std 13,u
-; O2-NEXT:    ldd 23,u
+; O2-NEXT:    ldd 24,u
 ; O2-NEXT:    std 11,u
 ; O2-NEXT:    cmpx #0
 ; O2-NEXT:    lblt .LBB0_2
@@ -85,6 +88,7 @@ define i1 @eq_i32_sext_i16(i32 %a, i16 %b) {
 ; O2-NEXT:  .LBB0_2:
 ; O2-NEXT:    ldb #1
 ; O2-NEXT:  .LBB0_3:
+; O2-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O2-NEXT:    andb #1
 ; O2-NEXT:    negb
 ; O2-NEXT:    leas -8,s
@@ -102,7 +106,7 @@ define i1 @eq_i32_sext_i16(i32 %a, i16 %b) {
 ; O2-NEXT:    ldb 6,u
 ; O2-NEXT:    tfr b,a
 ; O2-NEXT:    std 4,s
-; O2-NEXT:    leay 15,u
+; O2-NEXT:    leay 16,u
 ; O2-NEXT:    tfr y,x
 ; O2-NEXT:    lbsr __ucmpsi2
 ; O2-NEXT:    ldd 2,y
@@ -117,7 +121,7 @@ define i1 @eq_i32_sext_i16(i32 %a, i16 %b) {
 ; O2-NEXT:  .LBB0_6:
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u,y
-; O2-NEXT:    leas 17,s
+; O2-NEXT:    leas 18,s
 ; O2-NEXT:    rts
   %nn = sext i16 %b to i32
   %c = icmp eq i32 %a, %nn

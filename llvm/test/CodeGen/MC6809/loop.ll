@@ -79,21 +79,15 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; MC6809-O0-NEXT:    ldd ,x
 ; MC6809-O0-NEXT:    std 7,u
 ; MC6809-O0-NEXT:    ldb 8,u
-; MC6809-O0-NEXT:    stb 15,u ; 1-byte Folded Spill
-; MC6809-O0-NEXT:    ldb 7,u
 ; MC6809-O0-NEXT:    stb 14,u ; 1-byte Folded Spill
-; MC6809-O0-NEXT:    lda 12,u
-; MC6809-O0-NEXT:    ldb 11,u
+; MC6809-O0-NEXT:    lda 7,u
+; MC6809-O0-NEXT:    ldb 12,u
 ; MC6809-O0-NEXT:    stb 13,u ; 1-byte Folded Spill
-; MC6809-O0-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; MC6809-O0-NEXT:    pshs a
-; MC6809-O0-NEXT:    addb 0,s
-; MC6809-O0-NEXT:    leas 1,s
+; MC6809-O0-NEXT:    ldb 11,u
 ; MC6809-O0-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; MC6809-O0-NEXT:    ldb 14,u ; 1-byte Folded Reload
-; MC6809-O0-NEXT:    adcb 13,u
-; MC6809-O0-NEXT:    tfr b,a
-; MC6809-O0-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; MC6809-O0-NEXT:    addb 13,u
+; MC6809-O0-NEXT:    adca 15,u
 ; MC6809-O0-NEXT:    std 4,u
 ; MC6809-O0-NEXT:    std 11,u
 ; MC6809-O0-NEXT:    ldd 4,u
@@ -116,201 +110,174 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ;
 ; MC6809-O1-LABEL: loop:
 ; MC6809-O1:       ; %bb.0: ; %entry
-; MC6809-O1-NEXT:    leas -16,s
+; MC6809-O1-NEXT:    leas -11,s
 ; MC6809-O1-NEXT:    pshs u
 ; MC6809-O1-NEXT:    tfr s,u
 ; MC6809-O1-NEXT:    stb 6,u
 ; MC6809-O1-NEXT:    ldd #0
-; MC6809-O1-NEXT:    std 11,u
+; MC6809-O1-NEXT:    std 9,u
 ; MC6809-O1-NEXT:    ldb 6,u
 ; MC6809-O1-NEXT:    tstb
 ; MC6809-O1-NEXT:    ble .LBB0_3
 ; MC6809-O1-NEXT:  ; %bb.1: ; %for.body.preheader
 ; MC6809-O1-NEXT:    clra
-; MC6809-O1-NEXT:    std 9,u
+; MC6809-O1-NEXT:    std 4,u
 ; MC6809-O1-NEXT:    ldd #0
-; MC6809-O1-NEXT:    std 11,u
+; MC6809-O1-NEXT:    std 9,u
+; MC6809-O1-NEXT:    ldd 4,u
 ; MC6809-O1-NEXT:  .LBB0_2: ; %for.body
 ; MC6809-O1-NEXT:    ; =>This Inner Loop Header: Depth=1
-; MC6809-O1-NEXT:    ldd ,x
-; MC6809-O1-NEXT:    std 7,u
-; MC6809-O1-NEXT:    ldb 8,u
-; MC6809-O1-NEXT:    stb 15,u ; 1-byte Folded Spill
-; MC6809-O1-NEXT:    ldb 7,u
-; MC6809-O1-NEXT:    stb 14,u ; 1-byte Folded Spill
-; MC6809-O1-NEXT:    lda 12,u
-; MC6809-O1-NEXT:    ldb 11,u
-; MC6809-O1-NEXT:    stb 13,u ; 1-byte Folded Spill
-; MC6809-O1-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; MC6809-O1-NEXT:    pshs a
-; MC6809-O1-NEXT:    addb ,s+
-; MC6809-O1-NEXT:    stb 15,u ; 1-byte Folded Spill
-; MC6809-O1-NEXT:    ldb 14,u ; 1-byte Folded Reload
-; MC6809-O1-NEXT:    adcb 13,u
-; MC6809-O1-NEXT:    tfr b,a
-; MC6809-O1-NEXT:    ldb 15,u ; 1-byte Folded Reload
 ; MC6809-O1-NEXT:    std 4,u
-; MC6809-O1-NEXT:    std 11,u
-; MC6809-O1-NEXT:    leax 2,x
 ; MC6809-O1-NEXT:    ldd 9,u
-; MC6809-O1-NEXT:    addd #-1
+; MC6809-O1-NEXT:    std 7,u
+; MC6809-O1-NEXT:    ldd 4,u
+; MC6809-O1-NEXT:    std 4,u
+; MC6809-O1-NEXT:    ldd ,x
 ; MC6809-O1-NEXT:    std 9,u
-; MC6809-O1-NEXT:    cmpd #0
+; MC6809-O1-NEXT:    ldd 4,u
+; MC6809-O1-NEXT:    std 4,u
+; MC6809-O1-NEXT:    ldd 9,u
+; MC6809-O1-NEXT:    addb 8,u
+; MC6809-O1-NEXT:    adca 7,u
+; MC6809-O1-NEXT:    std 9,u
+; MC6809-O1-NEXT:    ldd 4,u
+; MC6809-O1-NEXT:    leax 2,x
+; MC6809-O1-NEXT:    addd #-1
 ; MC6809-O1-NEXT:    bne .LBB0_2
 ; MC6809-O1-NEXT:  .LBB0_3: ; %for.end
-; MC6809-O1-NEXT:    ldx 11,u
+; MC6809-O1-NEXT:    ldx 9,u
 ; MC6809-O1-NEXT:    tfr u,s
 ; MC6809-O1-NEXT:    puls u
-; MC6809-O1-NEXT:    leas 16,s
+; MC6809-O1-NEXT:    leas 11,s
 ; MC6809-O1-NEXT:    rts
 ;
 ; MC6809-O2-LABEL: loop:
 ; MC6809-O2:       ; %bb.0: ; %entry
-; MC6809-O2-NEXT:    leas -16,s
+; MC6809-O2-NEXT:    leas -11,s
 ; MC6809-O2-NEXT:    pshs u
 ; MC6809-O2-NEXT:    tfr s,u
 ; MC6809-O2-NEXT:    stb 6,u
 ; MC6809-O2-NEXT:    ldd #0
-; MC6809-O2-NEXT:    std 11,u
+; MC6809-O2-NEXT:    std 9,u
 ; MC6809-O2-NEXT:    ldb 6,u
 ; MC6809-O2-NEXT:    tstb
 ; MC6809-O2-NEXT:    ble .LBB0_3
 ; MC6809-O2-NEXT:  ; %bb.1: ; %for.body.preheader
 ; MC6809-O2-NEXT:    clra
-; MC6809-O2-NEXT:    std 9,u
+; MC6809-O2-NEXT:    std 4,u
 ; MC6809-O2-NEXT:    ldd #0
-; MC6809-O2-NEXT:    std 11,u
+; MC6809-O2-NEXT:    std 9,u
+; MC6809-O2-NEXT:    ldd 4,u
 ; MC6809-O2-NEXT:  .LBB0_2: ; %for.body
 ; MC6809-O2-NEXT:    ; =>This Inner Loop Header: Depth=1
-; MC6809-O2-NEXT:    ldd ,x
-; MC6809-O2-NEXT:    std 7,u
-; MC6809-O2-NEXT:    ldb 8,u
-; MC6809-O2-NEXT:    stb 15,u ; 1-byte Folded Spill
-; MC6809-O2-NEXT:    ldb 7,u
-; MC6809-O2-NEXT:    stb 14,u ; 1-byte Folded Spill
-; MC6809-O2-NEXT:    lda 12,u
-; MC6809-O2-NEXT:    ldb 11,u
-; MC6809-O2-NEXT:    stb 13,u ; 1-byte Folded Spill
-; MC6809-O2-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; MC6809-O2-NEXT:    pshs a
-; MC6809-O2-NEXT:    addb ,s+
-; MC6809-O2-NEXT:    stb 15,u ; 1-byte Folded Spill
-; MC6809-O2-NEXT:    ldb 14,u ; 1-byte Folded Reload
-; MC6809-O2-NEXT:    adcb 13,u
-; MC6809-O2-NEXT:    tfr b,a
-; MC6809-O2-NEXT:    ldb 15,u ; 1-byte Folded Reload
 ; MC6809-O2-NEXT:    std 4,u
-; MC6809-O2-NEXT:    std 11,u
-; MC6809-O2-NEXT:    leax 2,x
 ; MC6809-O2-NEXT:    ldd 9,u
-; MC6809-O2-NEXT:    addd #-1
+; MC6809-O2-NEXT:    std 7,u
+; MC6809-O2-NEXT:    ldd 4,u
+; MC6809-O2-NEXT:    std 4,u
+; MC6809-O2-NEXT:    ldd ,x
 ; MC6809-O2-NEXT:    std 9,u
-; MC6809-O2-NEXT:    cmpd #0
+; MC6809-O2-NEXT:    ldd 4,u
+; MC6809-O2-NEXT:    std 4,u
+; MC6809-O2-NEXT:    ldd 9,u
+; MC6809-O2-NEXT:    addb 8,u
+; MC6809-O2-NEXT:    adca 7,u
+; MC6809-O2-NEXT:    std 9,u
+; MC6809-O2-NEXT:    ldd 4,u
+; MC6809-O2-NEXT:    leax 2,x
+; MC6809-O2-NEXT:    addd #-1
 ; MC6809-O2-NEXT:    bne .LBB0_2
 ; MC6809-O2-NEXT:  .LBB0_3: ; %for.end
-; MC6809-O2-NEXT:    ldx 11,u
+; MC6809-O2-NEXT:    ldx 9,u
 ; MC6809-O2-NEXT:    tfr u,s
 ; MC6809-O2-NEXT:    puls u
-; MC6809-O2-NEXT:    leas 16,s
+; MC6809-O2-NEXT:    leas 11,s
 ; MC6809-O2-NEXT:    rts
 ;
 ; MC6809-O3-LABEL: loop:
 ; MC6809-O3:       ; %bb.0: ; %entry
-; MC6809-O3-NEXT:    leas -16,s
+; MC6809-O3-NEXT:    leas -11,s
 ; MC6809-O3-NEXT:    pshs u
 ; MC6809-O3-NEXT:    tfr s,u
 ; MC6809-O3-NEXT:    stb 6,u
 ; MC6809-O3-NEXT:    ldd #0
-; MC6809-O3-NEXT:    std 11,u
+; MC6809-O3-NEXT:    std 9,u
 ; MC6809-O3-NEXT:    ldb 6,u
 ; MC6809-O3-NEXT:    tstb
 ; MC6809-O3-NEXT:    ble .LBB0_3
 ; MC6809-O3-NEXT:  ; %bb.1: ; %for.body.preheader
 ; MC6809-O3-NEXT:    clra
-; MC6809-O3-NEXT:    std 9,u
+; MC6809-O3-NEXT:    std 4,u
 ; MC6809-O3-NEXT:    ldd #0
-; MC6809-O3-NEXT:    std 11,u
+; MC6809-O3-NEXT:    std 9,u
+; MC6809-O3-NEXT:    ldd 4,u
 ; MC6809-O3-NEXT:  .LBB0_2: ; %for.body
 ; MC6809-O3-NEXT:    ; =>This Inner Loop Header: Depth=1
-; MC6809-O3-NEXT:    ldd ,x
-; MC6809-O3-NEXT:    std 7,u
-; MC6809-O3-NEXT:    ldb 8,u
-; MC6809-O3-NEXT:    stb 15,u ; 1-byte Folded Spill
-; MC6809-O3-NEXT:    ldb 7,u
-; MC6809-O3-NEXT:    stb 14,u ; 1-byte Folded Spill
-; MC6809-O3-NEXT:    lda 12,u
-; MC6809-O3-NEXT:    ldb 11,u
-; MC6809-O3-NEXT:    stb 13,u ; 1-byte Folded Spill
-; MC6809-O3-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; MC6809-O3-NEXT:    pshs a
-; MC6809-O3-NEXT:    addb ,s+
-; MC6809-O3-NEXT:    stb 15,u ; 1-byte Folded Spill
-; MC6809-O3-NEXT:    ldb 14,u ; 1-byte Folded Reload
-; MC6809-O3-NEXT:    adcb 13,u
-; MC6809-O3-NEXT:    tfr b,a
-; MC6809-O3-NEXT:    ldb 15,u ; 1-byte Folded Reload
 ; MC6809-O3-NEXT:    std 4,u
-; MC6809-O3-NEXT:    std 11,u
-; MC6809-O3-NEXT:    leax 2,x
 ; MC6809-O3-NEXT:    ldd 9,u
-; MC6809-O3-NEXT:    addd #-1
+; MC6809-O3-NEXT:    std 7,u
+; MC6809-O3-NEXT:    ldd 4,u
+; MC6809-O3-NEXT:    std 4,u
+; MC6809-O3-NEXT:    ldd ,x
 ; MC6809-O3-NEXT:    std 9,u
-; MC6809-O3-NEXT:    cmpd #0
+; MC6809-O3-NEXT:    ldd 4,u
+; MC6809-O3-NEXT:    std 4,u
+; MC6809-O3-NEXT:    ldd 9,u
+; MC6809-O3-NEXT:    addb 8,u
+; MC6809-O3-NEXT:    adca 7,u
+; MC6809-O3-NEXT:    std 9,u
+; MC6809-O3-NEXT:    ldd 4,u
+; MC6809-O3-NEXT:    leax 2,x
+; MC6809-O3-NEXT:    addd #-1
 ; MC6809-O3-NEXT:    bne .LBB0_2
 ; MC6809-O3-NEXT:  .LBB0_3: ; %for.end
-; MC6809-O3-NEXT:    ldx 11,u
+; MC6809-O3-NEXT:    ldx 9,u
 ; MC6809-O3-NEXT:    tfr u,s
 ; MC6809-O3-NEXT:    puls u
-; MC6809-O3-NEXT:    leas 16,s
+; MC6809-O3-NEXT:    leas 11,s
 ; MC6809-O3-NEXT:    rts
 ;
 ; HD6309-LABEL: loop:
 ; HD6309:       ; %bb.0: ; %entry
-; HD6309-NEXT:    leas -16,s
+; HD6309-NEXT:    leas -11,s
 ; HD6309-NEXT:    pshs u
 ; HD6309-NEXT:    tfr s,u
 ; HD6309-NEXT:    stb 6,u
 ; HD6309-NEXT:    ldd #0
-; HD6309-NEXT:    std 11,u
+; HD6309-NEXT:    std 9,u
 ; HD6309-NEXT:    ldb 6,u
 ; HD6309-NEXT:    tstb
 ; HD6309-NEXT:    ble .LBB0_3
 ; HD6309-NEXT:  ; %bb.1: ; %for.body.preheader
 ; HD6309-NEXT:    clra
-; HD6309-NEXT:    std 9,u
+; HD6309-NEXT:    std 4,u
 ; HD6309-NEXT:    ldd #0
-; HD6309-NEXT:    std 11,u
+; HD6309-NEXT:    std 9,u
+; HD6309-NEXT:    ldd 4,u
 ; HD6309-NEXT:  .LBB0_2: ; %for.body
 ; HD6309-NEXT:    ; =>This Inner Loop Header: Depth=1
-; HD6309-NEXT:    ldd ,x
-; HD6309-NEXT:    std 7,u
-; HD6309-NEXT:    ldb 8,u
-; HD6309-NEXT:    stb 15,u ; 1-byte Folded Spill
-; HD6309-NEXT:    ldb 7,u
-; HD6309-NEXT:    stb 14,u ; 1-byte Folded Spill
-; HD6309-NEXT:    lda 12,u
-; HD6309-NEXT:    ldb 11,u
-; HD6309-NEXT:    stb 13,u ; 1-byte Folded Spill
-; HD6309-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; HD6309-NEXT:    addr a,b
-; HD6309-NEXT:    stb 15,u ; 1-byte Folded Spill
-; HD6309-NEXT:    ldb 14,u ; 1-byte Folded Reload
-; HD6309-NEXT:    adcb 13,u
-; HD6309-NEXT:    tfr b,a
-; HD6309-NEXT:    ldb 15,u ; 1-byte Folded Reload
 ; HD6309-NEXT:    std 4,u
-; HD6309-NEXT:    std 11,u
-; HD6309-NEXT:    leax 2,x
 ; HD6309-NEXT:    ldd 9,u
-; HD6309-NEXT:    addd #-1
+; HD6309-NEXT:    std 7,u
+; HD6309-NEXT:    ldd 4,u
+; HD6309-NEXT:    std 4,u
+; HD6309-NEXT:    ldd ,x
 ; HD6309-NEXT:    std 9,u
-; HD6309-NEXT:    tstd
+; HD6309-NEXT:    ldd 4,u
+; HD6309-NEXT:    std 4,u
+; HD6309-NEXT:    ldd 9,u
+; HD6309-NEXT:    addb 8,u
+; HD6309-NEXT:    adca 7,u
+; HD6309-NEXT:    std 9,u
+; HD6309-NEXT:    ldd 4,u
+; HD6309-NEXT:    leax 2,x
+; HD6309-NEXT:    addd #-1
 ; HD6309-NEXT:    bne .LBB0_2
 ; HD6309-NEXT:  .LBB0_3: ; %for.end
-; HD6309-NEXT:    ldx 11,u
+; HD6309-NEXT:    ldx 9,u
 ; HD6309-NEXT:    tfr u,s
 ; HD6309-NEXT:    puls u
-; HD6309-NEXT:    leas 16,s
+; HD6309-NEXT:    leas 11,s
 ; HD6309-NEXT:    rts
 entry:
   %cmp6 = icmp sgt i8 %n, 0

@@ -871,67 +871,61 @@ define dso_local i32 @add_s_i32(i32 noundef %a, i32 noundef %b, i32 noundef %c, 
 ; O0-NEXT:    std 8,u
 ; O0-NEXT:    ldb 7,u
 ; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 6,u
-; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 6,u
+; O0-NEXT:    stb 12,u ; 1-byte Folded Spill
 ; O0-NEXT:    ldb 9,u
-; O0-NEXT:    stb 11,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 8,u
-; O0-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    addb 25,u
-; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O0-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O0-NEXT:    adda 25,u
+; O0-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 24,u
 ; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O0-NEXT:    adcb 23,u
-; O0-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 22,u
-; O0-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    addb 29,u
-; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O0-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O0-NEXT:    adda 29,u
+; O0-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 28,u
 ; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O0-NEXT:    adcb 27,u
-; O0-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 26,u
-; O0-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    addb 33,u
-; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O0-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O0-NEXT:    adda 33,u
+; O0-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 32,u
 ; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O0-NEXT:    adcb 31,u
-; O0-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 30,u
-; O0-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    addb 37,u
-; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O0-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O0-NEXT:    adda 37,u
+; O0-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 36,u
 ; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O0-NEXT:    adcb 35,u
+; O0-NEXT:    stb 10,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 11,u ; 1-byte Folded Reload
+; O0-NEXT:    adcb 34,u
 ; O0-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 10,u ; 1-byte Folded Reload
-; O0-NEXT:    adca 34,u
-; O0-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O0-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O0-NEXT:    std 4,u
+; O0-NEXT:    exg a,b
 ; O0-NEXT:    std 8,u
 ; O0-NEXT:    ldd 4,u
 ; O0-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O0-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O0-NEXT:    exg a,b
 ; O0-NEXT:    std 4,u
 ; O0-NEXT:    ldd 8,u
 ; O0-NEXT:    std 2,x
@@ -953,66 +947,61 @@ define dso_local i32 @add_s_i32(i32 noundef %a, i32 noundef %b, i32 noundef %c, 
 ; O1-NEXT:    std 8,u
 ; O1-NEXT:    ldb 7,u
 ; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 6,u
-; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
+; O1-NEXT:    ldb 6,u
+; O1-NEXT:    stb 12,u ; 1-byte Folded Spill
 ; O1-NEXT:    ldb 9,u
-; O1-NEXT:    stb 11,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 8,u
-; O1-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    addb 25,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O1-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O1-NEXT:    adda 25,u
+; O1-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 24,u
 ; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O1-NEXT:    adcb 23,u
-; O1-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 22,u
-; O1-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    addb 29,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O1-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O1-NEXT:    adda 29,u
+; O1-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 28,u
 ; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O1-NEXT:    adcb 27,u
-; O1-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 26,u
-; O1-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    addb 33,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O1-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O1-NEXT:    adda 33,u
+; O1-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 32,u
 ; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O1-NEXT:    adcb 31,u
-; O1-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 30,u
-; O1-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    addb 37,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O1-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O1-NEXT:    adda 37,u
+; O1-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 36,u
 ; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O1-NEXT:    adcb 35,u
+; O1-NEXT:    stb 10,u ; 1-byte Folded Spill
+; O1-NEXT:    ldb 11,u ; 1-byte Folded Reload
+; O1-NEXT:    adcb 34,u
 ; O1-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 10,u ; 1-byte Folded Reload
-; O1-NEXT:    adca 34,u
-; O1-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O1-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O1-NEXT:    std 4,u
+; O1-NEXT:    exg a,b
 ; O1-NEXT:    std 8,u
+; O1-NEXT:    ldd 4,u
 ; O1-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O1-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O1-NEXT:    exg a,b
 ; O1-NEXT:    std 4,u
 ; O1-NEXT:    ldd 8,u
 ; O1-NEXT:    std 2,x
@@ -1034,66 +1023,61 @@ define dso_local i32 @add_s_i32(i32 noundef %a, i32 noundef %b, i32 noundef %c, 
 ; O2-NEXT:    std 8,u
 ; O2-NEXT:    ldb 7,u
 ; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 6,u
-; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 6,u
+; O2-NEXT:    stb 12,u ; 1-byte Folded Spill
 ; O2-NEXT:    ldb 9,u
-; O2-NEXT:    stb 11,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 8,u
-; O2-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    addb 25,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O2-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O2-NEXT:    adda 25,u
+; O2-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 24,u
 ; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O2-NEXT:    adcb 23,u
-; O2-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 22,u
-; O2-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    addb 29,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O2-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O2-NEXT:    adda 29,u
+; O2-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 28,u
 ; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O2-NEXT:    adcb 27,u
-; O2-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 26,u
-; O2-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    addb 33,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O2-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O2-NEXT:    adda 33,u
+; O2-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 32,u
 ; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O2-NEXT:    adcb 31,u
-; O2-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 30,u
-; O2-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    addb 37,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O2-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O2-NEXT:    adda 37,u
+; O2-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 36,u
 ; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O2-NEXT:    adcb 35,u
+; O2-NEXT:    stb 10,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 11,u ; 1-byte Folded Reload
+; O2-NEXT:    adcb 34,u
 ; O2-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 10,u ; 1-byte Folded Reload
-; O2-NEXT:    adca 34,u
-; O2-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O2-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O2-NEXT:    std 4,u
+; O2-NEXT:    exg a,b
 ; O2-NEXT:    std 8,u
+; O2-NEXT:    ldd 4,u
 ; O2-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O2-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O2-NEXT:    exg a,b
 ; O2-NEXT:    std 4,u
 ; O2-NEXT:    ldd 8,u
 ; O2-NEXT:    std 2,x
@@ -1115,66 +1099,61 @@ define dso_local i32 @add_s_i32(i32 noundef %a, i32 noundef %b, i32 noundef %c, 
 ; O3-NEXT:    std 8,u
 ; O3-NEXT:    ldb 7,u
 ; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 6,u
-; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
+; O3-NEXT:    ldb 6,u
+; O3-NEXT:    stb 12,u ; 1-byte Folded Spill
 ; O3-NEXT:    ldb 9,u
-; O3-NEXT:    stb 11,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 8,u
-; O3-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    addb 25,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O3-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O3-NEXT:    adda 25,u
+; O3-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 24,u
 ; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O3-NEXT:    adcb 23,u
-; O3-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 22,u
-; O3-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    addb 29,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O3-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O3-NEXT:    adda 29,u
+; O3-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 28,u
 ; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O3-NEXT:    adcb 27,u
-; O3-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 26,u
-; O3-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    addb 33,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O3-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O3-NEXT:    adda 33,u
+; O3-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 32,u
 ; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O3-NEXT:    adcb 31,u
-; O3-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 30,u
-; O3-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    addb 37,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O3-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O3-NEXT:    adda 37,u
+; O3-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 36,u
 ; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O3-NEXT:    adcb 35,u
+; O3-NEXT:    stb 10,u ; 1-byte Folded Spill
+; O3-NEXT:    ldb 11,u ; 1-byte Folded Reload
+; O3-NEXT:    adcb 34,u
 ; O3-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 10,u ; 1-byte Folded Reload
-; O3-NEXT:    adca 34,u
-; O3-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O3-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O3-NEXT:    std 4,u
+; O3-NEXT:    exg a,b
 ; O3-NEXT:    std 8,u
+; O3-NEXT:    ldd 4,u
 ; O3-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O3-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O3-NEXT:    exg a,b
 ; O3-NEXT:    std 4,u
 ; O3-NEXT:    ldd 8,u
 ; O3-NEXT:    std 2,x
@@ -1271,79 +1250,71 @@ define dso_local i32 @add_s_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; O0-NEXT:    std 8,u
 ; O0-NEXT:    ldb 7,u
 ; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 6,u
-; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 6,u
+; O0-NEXT:    stb 12,u ; 1-byte Folded Spill
 ; O0-NEXT:    ldb 9,u
-; O0-NEXT:    stb 11,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 8,u
-; O0-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    addb #93
-; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O0-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O0-NEXT:    adda #93
+; O0-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca #170
 ; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O0-NEXT:    adcb #8
-; O0-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca #0
-; O0-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    addb 25,u
-; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O0-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O0-NEXT:    adda 25,u
+; O0-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 24,u
 ; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O0-NEXT:    adcb 23,u
-; O0-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 22,u
-; O0-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    addb 29,u
-; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O0-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O0-NEXT:    adda 29,u
+; O0-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 28,u
 ; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O0-NEXT:    adcb 27,u
-; O0-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 26,u
-; O0-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    addb 33,u
-; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O0-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O0-NEXT:    adda 33,u
+; O0-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 32,u
 ; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O0-NEXT:    adcb 31,u
-; O0-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 30,u
-; O0-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    addb 37,u
-; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O0-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O0-NEXT:    adda 37,u
+; O0-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 36,u
 ; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O0-NEXT:    adcb 35,u
+; O0-NEXT:    stb 10,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 11,u ; 1-byte Folded Reload
+; O0-NEXT:    adcb 34,u
 ; O0-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 10,u ; 1-byte Folded Reload
-; O0-NEXT:    adca 34,u
-; O0-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O0-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O0-NEXT:    std 4,u
+; O0-NEXT:    exg a,b
 ; O0-NEXT:    std 8,u
 ; O0-NEXT:    ldd 4,u
 ; O0-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O0-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O0-NEXT:    exg a,b
 ; O0-NEXT:    std 4,u
 ; O0-NEXT:    ldd 8,u
 ; O0-NEXT:    std 2,x
@@ -1365,78 +1336,71 @@ define dso_local i32 @add_s_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; O1-NEXT:    std 8,u
 ; O1-NEXT:    ldb 7,u
 ; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 6,u
-; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
+; O1-NEXT:    ldb 6,u
+; O1-NEXT:    stb 12,u ; 1-byte Folded Spill
 ; O1-NEXT:    ldb 9,u
-; O1-NEXT:    stb 11,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 8,u
-; O1-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    addb 25,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O1-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O1-NEXT:    adda 25,u
+; O1-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 24,u
 ; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O1-NEXT:    adcb 23,u
-; O1-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 22,u
-; O1-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    addb 29,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O1-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O1-NEXT:    adda 29,u
+; O1-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 28,u
 ; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O1-NEXT:    adcb 27,u
-; O1-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 26,u
-; O1-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    addb 33,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O1-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O1-NEXT:    adda 33,u
+; O1-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 32,u
 ; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O1-NEXT:    adcb 31,u
-; O1-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 30,u
-; O1-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    addb 37,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O1-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O1-NEXT:    adda 37,u
+; O1-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 36,u
 ; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O1-NEXT:    adcb 35,u
-; O1-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 34,u
-; O1-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    addb #93
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O1-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O1-NEXT:    adda #93
+; O1-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca #-86
 ; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O1-NEXT:    adcb #8
+; O1-NEXT:    stb 10,u ; 1-byte Folded Spill
+; O1-NEXT:    ldb 11,u ; 1-byte Folded Reload
+; O1-NEXT:    adcb #0
 ; O1-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 10,u ; 1-byte Folded Reload
-; O1-NEXT:    adca #0
-; O1-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O1-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O1-NEXT:    std 4,u
+; O1-NEXT:    exg a,b
 ; O1-NEXT:    std 8,u
+; O1-NEXT:    ldd 4,u
 ; O1-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O1-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O1-NEXT:    exg a,b
 ; O1-NEXT:    std 4,u
 ; O1-NEXT:    ldd 8,u
 ; O1-NEXT:    std 2,x
@@ -1458,78 +1422,71 @@ define dso_local i32 @add_s_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; O2-NEXT:    std 8,u
 ; O2-NEXT:    ldb 7,u
 ; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 6,u
-; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 6,u
+; O2-NEXT:    stb 12,u ; 1-byte Folded Spill
 ; O2-NEXT:    ldb 9,u
-; O2-NEXT:    stb 11,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 8,u
-; O2-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    addb 25,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O2-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O2-NEXT:    adda 25,u
+; O2-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 24,u
 ; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O2-NEXT:    adcb 23,u
-; O2-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 22,u
-; O2-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    addb 29,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O2-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O2-NEXT:    adda 29,u
+; O2-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 28,u
 ; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O2-NEXT:    adcb 27,u
-; O2-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 26,u
-; O2-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    addb 33,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O2-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O2-NEXT:    adda 33,u
+; O2-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 32,u
 ; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O2-NEXT:    adcb 31,u
-; O2-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 30,u
-; O2-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    addb 37,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O2-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O2-NEXT:    adda 37,u
+; O2-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 36,u
 ; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O2-NEXT:    adcb 35,u
-; O2-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 34,u
-; O2-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    addb #93
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O2-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O2-NEXT:    adda #93
+; O2-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca #-86
 ; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O2-NEXT:    adcb #8
+; O2-NEXT:    stb 10,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 11,u ; 1-byte Folded Reload
+; O2-NEXT:    adcb #0
 ; O2-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 10,u ; 1-byte Folded Reload
-; O2-NEXT:    adca #0
-; O2-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O2-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O2-NEXT:    std 4,u
+; O2-NEXT:    exg a,b
 ; O2-NEXT:    std 8,u
+; O2-NEXT:    ldd 4,u
 ; O2-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O2-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O2-NEXT:    exg a,b
 ; O2-NEXT:    std 4,u
 ; O2-NEXT:    ldd 8,u
 ; O2-NEXT:    std 2,x
@@ -1551,78 +1508,71 @@ define dso_local i32 @add_s_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; O3-NEXT:    std 8,u
 ; O3-NEXT:    ldb 7,u
 ; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 6,u
-; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
+; O3-NEXT:    ldb 6,u
+; O3-NEXT:    stb 12,u ; 1-byte Folded Spill
 ; O3-NEXT:    ldb 9,u
-; O3-NEXT:    stb 11,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 8,u
-; O3-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    addb 25,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O3-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O3-NEXT:    adda 25,u
+; O3-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 24,u
 ; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O3-NEXT:    adcb 23,u
-; O3-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 22,u
-; O3-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    addb 29,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O3-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O3-NEXT:    adda 29,u
+; O3-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 28,u
 ; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O3-NEXT:    adcb 27,u
-; O3-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 26,u
-; O3-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    addb 33,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O3-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O3-NEXT:    adda 33,u
+; O3-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 32,u
 ; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O3-NEXT:    adcb 31,u
-; O3-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 30,u
-; O3-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    addb 37,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O3-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O3-NEXT:    adda 37,u
+; O3-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 36,u
 ; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O3-NEXT:    adcb 35,u
-; O3-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 34,u
-; O3-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    addb #93
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O3-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O3-NEXT:    adda #93
+; O3-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca #-86
 ; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O3-NEXT:    adcb #8
+; O3-NEXT:    stb 10,u ; 1-byte Folded Spill
+; O3-NEXT:    ldb 11,u ; 1-byte Folded Reload
+; O3-NEXT:    adcb #0
 ; O3-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 10,u ; 1-byte Folded Reload
-; O3-NEXT:    adca #0
-; O3-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O3-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O3-NEXT:    std 4,u
+; O3-NEXT:    exg a,b
 ; O3-NEXT:    std 8,u
+; O3-NEXT:    ldd 4,u
 ; O3-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O3-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O3-NEXT:    exg a,b
 ; O3-NEXT:    std 4,u
 ; O3-NEXT:    ldd 8,u
 ; O3-NEXT:    std 2,x
@@ -1711,67 +1661,61 @@ define dso_local i32 @add_u_i32(i32 noundef %a, i32 noundef %b, i32 noundef %c, 
 ; O0-NEXT:    std 8,u
 ; O0-NEXT:    ldb 7,u
 ; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 6,u
-; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 6,u
+; O0-NEXT:    stb 12,u ; 1-byte Folded Spill
 ; O0-NEXT:    ldb 9,u
-; O0-NEXT:    stb 11,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 8,u
-; O0-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    addb 25,u
-; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O0-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O0-NEXT:    adda 25,u
+; O0-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 24,u
 ; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O0-NEXT:    adcb 23,u
-; O0-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 22,u
-; O0-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    addb 29,u
-; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O0-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O0-NEXT:    adda 29,u
+; O0-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 28,u
 ; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O0-NEXT:    adcb 27,u
-; O0-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 26,u
-; O0-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    addb 33,u
-; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O0-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O0-NEXT:    adda 33,u
+; O0-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 32,u
 ; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O0-NEXT:    adcb 31,u
-; O0-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 30,u
-; O0-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    addb 37,u
-; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O0-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O0-NEXT:    adda 37,u
+; O0-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 36,u
 ; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O0-NEXT:    adcb 35,u
+; O0-NEXT:    stb 10,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 11,u ; 1-byte Folded Reload
+; O0-NEXT:    adcb 34,u
 ; O0-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 10,u ; 1-byte Folded Reload
-; O0-NEXT:    adca 34,u
-; O0-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O0-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O0-NEXT:    std 4,u
+; O0-NEXT:    exg a,b
 ; O0-NEXT:    std 8,u
 ; O0-NEXT:    ldd 4,u
 ; O0-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O0-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O0-NEXT:    exg a,b
 ; O0-NEXT:    std 4,u
 ; O0-NEXT:    ldd 8,u
 ; O0-NEXT:    std 2,x
@@ -1793,66 +1737,61 @@ define dso_local i32 @add_u_i32(i32 noundef %a, i32 noundef %b, i32 noundef %c, 
 ; O1-NEXT:    std 8,u
 ; O1-NEXT:    ldb 7,u
 ; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 6,u
-; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
+; O1-NEXT:    ldb 6,u
+; O1-NEXT:    stb 12,u ; 1-byte Folded Spill
 ; O1-NEXT:    ldb 9,u
-; O1-NEXT:    stb 11,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 8,u
-; O1-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    addb 25,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O1-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O1-NEXT:    adda 25,u
+; O1-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 24,u
 ; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O1-NEXT:    adcb 23,u
-; O1-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 22,u
-; O1-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    addb 29,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O1-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O1-NEXT:    adda 29,u
+; O1-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 28,u
 ; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O1-NEXT:    adcb 27,u
-; O1-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 26,u
-; O1-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    addb 33,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O1-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O1-NEXT:    adda 33,u
+; O1-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 32,u
 ; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O1-NEXT:    adcb 31,u
-; O1-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 30,u
-; O1-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    addb 37,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O1-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O1-NEXT:    adda 37,u
+; O1-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 36,u
 ; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O1-NEXT:    adcb 35,u
+; O1-NEXT:    stb 10,u ; 1-byte Folded Spill
+; O1-NEXT:    ldb 11,u ; 1-byte Folded Reload
+; O1-NEXT:    adcb 34,u
 ; O1-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 10,u ; 1-byte Folded Reload
-; O1-NEXT:    adca 34,u
-; O1-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O1-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O1-NEXT:    std 4,u
+; O1-NEXT:    exg a,b
 ; O1-NEXT:    std 8,u
+; O1-NEXT:    ldd 4,u
 ; O1-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O1-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O1-NEXT:    exg a,b
 ; O1-NEXT:    std 4,u
 ; O1-NEXT:    ldd 8,u
 ; O1-NEXT:    std 2,x
@@ -1874,66 +1813,61 @@ define dso_local i32 @add_u_i32(i32 noundef %a, i32 noundef %b, i32 noundef %c, 
 ; O2-NEXT:    std 8,u
 ; O2-NEXT:    ldb 7,u
 ; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 6,u
-; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 6,u
+; O2-NEXT:    stb 12,u ; 1-byte Folded Spill
 ; O2-NEXT:    ldb 9,u
-; O2-NEXT:    stb 11,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 8,u
-; O2-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    addb 25,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O2-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O2-NEXT:    adda 25,u
+; O2-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 24,u
 ; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O2-NEXT:    adcb 23,u
-; O2-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 22,u
-; O2-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    addb 29,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O2-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O2-NEXT:    adda 29,u
+; O2-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 28,u
 ; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O2-NEXT:    adcb 27,u
-; O2-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 26,u
-; O2-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    addb 33,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O2-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O2-NEXT:    adda 33,u
+; O2-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 32,u
 ; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O2-NEXT:    adcb 31,u
-; O2-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 30,u
-; O2-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    addb 37,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O2-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O2-NEXT:    adda 37,u
+; O2-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 36,u
 ; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O2-NEXT:    adcb 35,u
+; O2-NEXT:    stb 10,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 11,u ; 1-byte Folded Reload
+; O2-NEXT:    adcb 34,u
 ; O2-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 10,u ; 1-byte Folded Reload
-; O2-NEXT:    adca 34,u
-; O2-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O2-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O2-NEXT:    std 4,u
+; O2-NEXT:    exg a,b
 ; O2-NEXT:    std 8,u
+; O2-NEXT:    ldd 4,u
 ; O2-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O2-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O2-NEXT:    exg a,b
 ; O2-NEXT:    std 4,u
 ; O2-NEXT:    ldd 8,u
 ; O2-NEXT:    std 2,x
@@ -1955,66 +1889,61 @@ define dso_local i32 @add_u_i32(i32 noundef %a, i32 noundef %b, i32 noundef %c, 
 ; O3-NEXT:    std 8,u
 ; O3-NEXT:    ldb 7,u
 ; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 6,u
-; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
+; O3-NEXT:    ldb 6,u
+; O3-NEXT:    stb 12,u ; 1-byte Folded Spill
 ; O3-NEXT:    ldb 9,u
-; O3-NEXT:    stb 11,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 8,u
-; O3-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    addb 25,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O3-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O3-NEXT:    adda 25,u
+; O3-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 24,u
 ; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O3-NEXT:    adcb 23,u
-; O3-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 22,u
-; O3-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    addb 29,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O3-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O3-NEXT:    adda 29,u
+; O3-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 28,u
 ; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O3-NEXT:    adcb 27,u
-; O3-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 26,u
-; O3-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    addb 33,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O3-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O3-NEXT:    adda 33,u
+; O3-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 32,u
 ; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O3-NEXT:    adcb 31,u
-; O3-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 30,u
-; O3-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    addb 37,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O3-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O3-NEXT:    adda 37,u
+; O3-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 36,u
 ; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O3-NEXT:    adcb 35,u
+; O3-NEXT:    stb 10,u ; 1-byte Folded Spill
+; O3-NEXT:    ldb 11,u ; 1-byte Folded Reload
+; O3-NEXT:    adcb 34,u
 ; O3-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 10,u ; 1-byte Folded Reload
-; O3-NEXT:    adca 34,u
-; O3-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O3-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O3-NEXT:    std 4,u
+; O3-NEXT:    exg a,b
 ; O3-NEXT:    std 8,u
+; O3-NEXT:    ldd 4,u
 ; O3-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O3-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O3-NEXT:    exg a,b
 ; O3-NEXT:    std 4,u
 ; O3-NEXT:    ldd 8,u
 ; O3-NEXT:    std 2,x
@@ -2109,81 +2038,73 @@ define dso_local i32 @add_u_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; O0-NEXT:    std 6,u
 ; O0-NEXT:    ldb 7,u
 ; O0-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 6,u
-; O0-NEXT:    sta 10,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 6,u
+; O0-NEXT:    stb 10,u ; 1-byte Folded Spill
 ; O0-NEXT:    ldd #126
 ; O0-NEXT:    std 6,u
 ; O0-NEXT:    ldb 7,u
-; O0-NEXT:    stb 9,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 6,u
-; O0-NEXT:    sta 8,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 11,u ; 1-byte Folded Reload
-; O0-NEXT:    addb 19,u
-; O0-NEXT:    stb 11,u ; 1-byte Folded Spill
+; O0-NEXT:    sta 9,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 11,u ; 1-byte Folded Reload
+; O0-NEXT:    adda 19,u
+; O0-NEXT:    sta 11,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 10,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 18,u
 ; O0-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 9,u ; 1-byte Folded Reload
 ; O0-NEXT:    adcb 17,u
-; O0-NEXT:    stb 9,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 8,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 9,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 16,u
-; O0-NEXT:    sta 8,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 11,u ; 1-byte Folded Reload
-; O0-NEXT:    addb 23,u
-; O0-NEXT:    stb 11,u ; 1-byte Folded Spill
+; O0-NEXT:    sta 9,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 11,u ; 1-byte Folded Reload
+; O0-NEXT:    adda 23,u
+; O0-NEXT:    sta 11,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 10,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 22,u
 ; O0-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 9,u ; 1-byte Folded Reload
 ; O0-NEXT:    adcb 21,u
-; O0-NEXT:    stb 9,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 8,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 9,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 20,u
-; O0-NEXT:    sta 8,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 11,u ; 1-byte Folded Reload
-; O0-NEXT:    addb 27,u
-; O0-NEXT:    stb 11,u ; 1-byte Folded Spill
+; O0-NEXT:    sta 9,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 11,u ; 1-byte Folded Reload
+; O0-NEXT:    adda 27,u
+; O0-NEXT:    sta 11,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 10,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 26,u
 ; O0-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 9,u ; 1-byte Folded Reload
 ; O0-NEXT:    adcb 25,u
-; O0-NEXT:    stb 9,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 8,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 9,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 24,u
-; O0-NEXT:    sta 8,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 11,u ; 1-byte Folded Reload
-; O0-NEXT:    addb 31,u
-; O0-NEXT:    stb 11,u ; 1-byte Folded Spill
+; O0-NEXT:    sta 9,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 11,u ; 1-byte Folded Reload
+; O0-NEXT:    adda 31,u
+; O0-NEXT:    sta 11,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 10,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 30,u
 ; O0-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 9,u ; 1-byte Folded Reload
 ; O0-NEXT:    adcb 29,u
-; O0-NEXT:    stb 9,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 8,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 9,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 28,u
-; O0-NEXT:    sta 8,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 11,u ; 1-byte Folded Reload
-; O0-NEXT:    addb 35,u
-; O0-NEXT:    stb 11,u ; 1-byte Folded Spill
+; O0-NEXT:    sta 9,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 11,u ; 1-byte Folded Reload
+; O0-NEXT:    adda 35,u
+; O0-NEXT:    sta 11,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 10,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 34,u
 ; O0-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 9,u ; 1-byte Folded Reload
 ; O0-NEXT:    adcb 33,u
+; O0-NEXT:    stb 8,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 9,u ; 1-byte Folded Reload
+; O0-NEXT:    adcb 32,u
 ; O0-NEXT:    stb 9,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 8,u ; 1-byte Folded Reload
-; O0-NEXT:    adca 32,u
-; O0-NEXT:    sta 8,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 11,u ; 1-byte Folded Reload
-; O0-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 11,u ; 1-byte Folded Reload
+; O0-NEXT:    ldb 10,u ; 1-byte Folded Reload
 ; O0-NEXT:    std 4,u
+; O0-NEXT:    exg a,b
 ; O0-NEXT:    std 6,u
 ; O0-NEXT:    ldd 4,u
 ; O0-NEXT:    ldb 9,u ; 1-byte Folded Reload
 ; O0-NEXT:    lda 8,u ; 1-byte Folded Reload
+; O0-NEXT:    exg a,b
 ; O0-NEXT:    std 4,u
 ; O0-NEXT:    ldd 6,u
 ; O0-NEXT:    std 2,x
@@ -2205,78 +2126,71 @@ define dso_local i32 @add_u_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; O1-NEXT:    std 8,u
 ; O1-NEXT:    ldb 7,u
 ; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 6,u
-; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
+; O1-NEXT:    ldb 6,u
+; O1-NEXT:    stb 12,u ; 1-byte Folded Spill
 ; O1-NEXT:    ldb 9,u
-; O1-NEXT:    stb 11,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 8,u
-; O1-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    addb 25,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O1-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O1-NEXT:    adda 25,u
+; O1-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 24,u
 ; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O1-NEXT:    adcb 23,u
-; O1-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 22,u
-; O1-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    addb 29,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O1-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O1-NEXT:    adda 29,u
+; O1-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 28,u
 ; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O1-NEXT:    adcb 27,u
-; O1-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 26,u
-; O1-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    addb 33,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O1-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O1-NEXT:    adda 33,u
+; O1-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 32,u
 ; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O1-NEXT:    adcb 31,u
-; O1-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 30,u
-; O1-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    addb 37,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O1-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O1-NEXT:    adda 37,u
+; O1-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 36,u
 ; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O1-NEXT:    adcb 35,u
-; O1-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 34,u
-; O1-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    addb #-33
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O1-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O1-NEXT:    adda #-33
+; O1-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca #-9
 ; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O1-NEXT:    adcb #126
+; O1-NEXT:    stb 10,u ; 1-byte Folded Spill
+; O1-NEXT:    ldb 11,u ; 1-byte Folded Reload
+; O1-NEXT:    adcb #0
 ; O1-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 10,u ; 1-byte Folded Reload
-; O1-NEXT:    adca #0
-; O1-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O1-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O1-NEXT:    std 4,u
+; O1-NEXT:    exg a,b
 ; O1-NEXT:    std 8,u
+; O1-NEXT:    ldd 4,u
 ; O1-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O1-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O1-NEXT:    exg a,b
 ; O1-NEXT:    std 4,u
 ; O1-NEXT:    ldd 8,u
 ; O1-NEXT:    std 2,x
@@ -2298,78 +2212,71 @@ define dso_local i32 @add_u_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; O2-NEXT:    std 8,u
 ; O2-NEXT:    ldb 7,u
 ; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 6,u
-; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 6,u
+; O2-NEXT:    stb 12,u ; 1-byte Folded Spill
 ; O2-NEXT:    ldb 9,u
-; O2-NEXT:    stb 11,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 8,u
-; O2-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    addb 25,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O2-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O2-NEXT:    adda 25,u
+; O2-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 24,u
 ; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O2-NEXT:    adcb 23,u
-; O2-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 22,u
-; O2-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    addb 29,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O2-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O2-NEXT:    adda 29,u
+; O2-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 28,u
 ; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O2-NEXT:    adcb 27,u
-; O2-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 26,u
-; O2-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    addb 33,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O2-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O2-NEXT:    adda 33,u
+; O2-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 32,u
 ; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O2-NEXT:    adcb 31,u
-; O2-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 30,u
-; O2-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    addb 37,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O2-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O2-NEXT:    adda 37,u
+; O2-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 36,u
 ; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O2-NEXT:    adcb 35,u
-; O2-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 34,u
-; O2-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    addb #-33
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O2-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O2-NEXT:    adda #-33
+; O2-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca #-9
 ; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O2-NEXT:    adcb #126
+; O2-NEXT:    stb 10,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 11,u ; 1-byte Folded Reload
+; O2-NEXT:    adcb #0
 ; O2-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 10,u ; 1-byte Folded Reload
-; O2-NEXT:    adca #0
-; O2-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O2-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O2-NEXT:    std 4,u
+; O2-NEXT:    exg a,b
 ; O2-NEXT:    std 8,u
+; O2-NEXT:    ldd 4,u
 ; O2-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O2-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O2-NEXT:    exg a,b
 ; O2-NEXT:    std 4,u
 ; O2-NEXT:    ldd 8,u
 ; O2-NEXT:    std 2,x
@@ -2391,78 +2298,71 @@ define dso_local i32 @add_u_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; O3-NEXT:    std 8,u
 ; O3-NEXT:    ldb 7,u
 ; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 6,u
-; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
+; O3-NEXT:    ldb 6,u
+; O3-NEXT:    stb 12,u ; 1-byte Folded Spill
 ; O3-NEXT:    ldb 9,u
-; O3-NEXT:    stb 11,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 8,u
-; O3-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    addb 25,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O3-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O3-NEXT:    adda 25,u
+; O3-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 24,u
 ; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O3-NEXT:    adcb 23,u
-; O3-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 22,u
-; O3-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    addb 29,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O3-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O3-NEXT:    adda 29,u
+; O3-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 28,u
 ; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O3-NEXT:    adcb 27,u
-; O3-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 26,u
-; O3-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    addb 33,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O3-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O3-NEXT:    adda 33,u
+; O3-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 32,u
 ; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O3-NEXT:    adcb 31,u
-; O3-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 30,u
-; O3-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    addb 37,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O3-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O3-NEXT:    adda 37,u
+; O3-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 36,u
 ; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O3-NEXT:    adcb 35,u
-; O3-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 11,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 34,u
-; O3-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    addb #-33
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O3-NEXT:    sta 11,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O3-NEXT:    adda #-33
+; O3-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca #-9
 ; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O3-NEXT:    adcb #126
+; O3-NEXT:    stb 10,u ; 1-byte Folded Spill
+; O3-NEXT:    ldb 11,u ; 1-byte Folded Reload
+; O3-NEXT:    adcb #0
 ; O3-NEXT:    stb 11,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 10,u ; 1-byte Folded Reload
-; O3-NEXT:    adca #0
-; O3-NEXT:    sta 10,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O3-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O3-NEXT:    std 4,u
+; O3-NEXT:    exg a,b
 ; O3-NEXT:    std 8,u
+; O3-NEXT:    ldd 4,u
 ; O3-NEXT:    ldb 11,u ; 1-byte Folded Reload
 ; O3-NEXT:    lda 10,u ; 1-byte Folded Reload
+; O3-NEXT:    exg a,b
 ; O3-NEXT:    std 4,u
 ; O3-NEXT:    ldd 8,u
 ; O3-NEXT:    std 2,x
@@ -2497,133 +2397,126 @@ define dso_local i64 @add_s_i64(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O0-NEXT:    std 6,u
 ; O0-NEXT:    ldb 5,u
 ; O0-NEXT:    stb 19,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 4,u
-; O0-NEXT:    sta 18,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 4,u
+; O0-NEXT:    stb 18,u ; 1-byte Folded Spill
 ; O0-NEXT:    ldb 11,u
-; O0-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 10,u
-; O0-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 9,u
-; O0-NEXT:    stb 15,u ; 1-byte Folded Spill
+; O0-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 9,u
+; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 8,u
 ; O0-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 7,u
-; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 7,u
+; O0-NEXT:    sta 17,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 6,u
-; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O0-NEXT:    addb 31,u
-; O0-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O0-NEXT:    sta 16,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O0-NEXT:    adda 31,u
+; O0-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 30,u
 ; O0-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 17,u ; 1-byte Folded Reload
 ; O0-NEXT:    adcb 29,u
-; O0-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O0-NEXT:    adca 28,u
-; O0-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 27,u
 ; O0-NEXT:    stb 15,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
+; O0-NEXT:    adcb 28,u
+; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O0-NEXT:    adca 27,u
+; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 14,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 26,u
 ; O0-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 25,u
-; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O0-NEXT:    adca 25,u
+; O0-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 16,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 24,u
-; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O0-NEXT:    addb 47,u
-; O0-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O0-NEXT:    sta 16,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O0-NEXT:    adda 47,u
+; O0-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 46,u
 ; O0-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 45,u
-; O0-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O0-NEXT:    adca 44,u
-; O0-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O0-NEXT:    adca 45,u
+; O0-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O0-NEXT:    adcb 44,u
+; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O0-NEXT:    adcb 43,u
-; O0-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 14,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 42,u
 ; O0-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 41,u
-; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O0-NEXT:    adca 41,u
+; O0-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 16,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 40,u
-; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O0-NEXT:    addb 55,u
-; O0-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O0-NEXT:    sta 16,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O0-NEXT:    adda 55,u
+; O0-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 54,u
 ; O0-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 53,u
-; O0-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 16,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O0-NEXT:    adca 53,u
+; O0-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 13,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 52,u
-; O0-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O0-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O0-NEXT:    adcb 51,u
-; O0-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O0-NEXT:    adca 50,u
-; O0-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 49,u
-; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O0-NEXT:    stb 12,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 14,u ; 1-byte Folded Reload
+; O0-NEXT:    adcb 50,u
+; O0-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O0-NEXT:    adca 49,u
+; O0-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 16,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 48,u
-; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O0-NEXT:    addb 63,u
-; O0-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O0-NEXT:    sta 16,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O0-NEXT:    adda 63,u
+; O0-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 62,u
 ; O0-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 61,u
-; O0-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 16,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O0-NEXT:    adca 61,u
+; O0-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 13,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 60,u
-; O0-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 59,u
-; O0-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O0-NEXT:    adca 58,u
-; O0-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 57,u
-; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O0-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O0-NEXT:    adca 56,u
+; O0-NEXT:    adca 59,u
 ; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O0-NEXT:    lda 18,u ; 1-byte Folded Reload
+; O0-NEXT:    adcb 58,u
+; O0-NEXT:    stb 14,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 17,u ; 1-byte Folded Reload
+; O0-NEXT:    adcb 57,u
+; O0-NEXT:    stb 17,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 16,u ; 1-byte Folded Reload
+; O0-NEXT:    adcb 56,u
+; O0-NEXT:    stb 16,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O0-NEXT:    ldb 18,u ; 1-byte Folded Reload
 ; O0-NEXT:    std 2,u
+; O0-NEXT:    exg a,b
 ; O0-NEXT:    std 10,u
 ; O0-NEXT:    ldd 2,u
-; O0-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O0-NEXT:    lda 16,u ; 1-byte Folded Reload
+; O0-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 13,u ; 1-byte Folded Reload
 ; O0-NEXT:    std 2,u
 ; O0-NEXT:    std 8,u
 ; O0-NEXT:    ldd 2,u
-; O0-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O0-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O0-NEXT:    lda 14,u ; 1-byte Folded Reload
 ; O0-NEXT:    std 2,u
 ; O0-NEXT:    std 6,u
 ; O0-NEXT:    ldd 2,u
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O0-NEXT:    ldb 17,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 16,u ; 1-byte Folded Reload
 ; O0-NEXT:    std 2,u
 ; O0-NEXT:    ldd 10,u
 ; O0-NEXT:    std 6,x
@@ -2657,130 +2550,124 @@ define dso_local i64 @add_s_i64(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O1-NEXT:    std 6,u
 ; O1-NEXT:    ldb 5,u
 ; O1-NEXT:    stb 19,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 4,u
-; O1-NEXT:    sta 18,u ; 1-byte Folded Spill
+; O1-NEXT:    ldb 4,u
+; O1-NEXT:    stb 18,u ; 1-byte Folded Spill
 ; O1-NEXT:    ldb 11,u
-; O1-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 10,u
-; O1-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 9,u
-; O1-NEXT:    stb 15,u ; 1-byte Folded Spill
+; O1-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 9,u
+; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 8,u
 ; O1-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 7,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 7,u
+; O1-NEXT:    sta 17,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 6,u
-; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O1-NEXT:    addb 31,u
-; O1-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O1-NEXT:    sta 16,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O1-NEXT:    adda 31,u
+; O1-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 30,u
 ; O1-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 17,u ; 1-byte Folded Reload
 ; O1-NEXT:    adcb 29,u
-; O1-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O1-NEXT:    adca 28,u
-; O1-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 27,u
 ; O1-NEXT:    stb 15,u ; 1-byte Folded Spill
+; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
+; O1-NEXT:    adcb 28,u
+; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O1-NEXT:    adca 27,u
+; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 14,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 26,u
 ; O1-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 25,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O1-NEXT:    adca 25,u
+; O1-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 16,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 24,u
-; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O1-NEXT:    addb 47,u
-; O1-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O1-NEXT:    sta 16,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O1-NEXT:    adda 47,u
+; O1-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 46,u
 ; O1-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 45,u
-; O1-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O1-NEXT:    adca 44,u
-; O1-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O1-NEXT:    adca 45,u
+; O1-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O1-NEXT:    adcb 44,u
+; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O1-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O1-NEXT:    adcb 43,u
-; O1-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 14,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 42,u
 ; O1-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 41,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O1-NEXT:    adca 41,u
+; O1-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 16,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 40,u
-; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O1-NEXT:    addb 55,u
-; O1-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O1-NEXT:    sta 16,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O1-NEXT:    adda 55,u
+; O1-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 54,u
 ; O1-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 53,u
-; O1-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 16,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O1-NEXT:    adca 53,u
+; O1-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 13,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 52,u
-; O1-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O1-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O1-NEXT:    adcb 51,u
-; O1-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O1-NEXT:    adca 50,u
-; O1-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 49,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O1-NEXT:    stb 12,u ; 1-byte Folded Spill
+; O1-NEXT:    ldb 14,u ; 1-byte Folded Reload
+; O1-NEXT:    adcb 50,u
+; O1-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O1-NEXT:    adca 49,u
+; O1-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 16,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 48,u
-; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O1-NEXT:    addb 63,u
-; O1-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O1-NEXT:    sta 16,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O1-NEXT:    adda 63,u
+; O1-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 62,u
 ; O1-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 61,u
-; O1-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 16,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O1-NEXT:    adca 61,u
+; O1-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 13,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 60,u
-; O1-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 59,u
-; O1-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O1-NEXT:    adca 58,u
-; O1-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 57,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O1-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O1-NEXT:    adca 56,u
+; O1-NEXT:    adca 59,u
 ; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O1-NEXT:    lda 18,u ; 1-byte Folded Reload
-; O1-NEXT:    std 2,u
-; O1-NEXT:    std 10,u
+; O1-NEXT:    adcb 58,u
+; O1-NEXT:    stb 14,u ; 1-byte Folded Spill
 ; O1-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O1-NEXT:    lda 16,u ; 1-byte Folded Reload
+; O1-NEXT:    adcb 57,u
+; O1-NEXT:    stb 17,u ; 1-byte Folded Spill
+; O1-NEXT:    ldb 16,u ; 1-byte Folded Reload
+; O1-NEXT:    adcb 56,u
+; O1-NEXT:    stb 16,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O1-NEXT:    ldb 18,u ; 1-byte Folded Reload
+; O1-NEXT:    std 2,u
+; O1-NEXT:    exg a,b
+; O1-NEXT:    std 10,u
+; O1-NEXT:    ldd 2,u
+; O1-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 13,u ; 1-byte Folded Reload
 ; O1-NEXT:    std 2,u
 ; O1-NEXT:    std 8,u
-; O1-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O1-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O1-NEXT:    lda 14,u ; 1-byte Folded Reload
 ; O1-NEXT:    std 2,u
 ; O1-NEXT:    std 6,u
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O1-NEXT:    ldb 17,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 16,u ; 1-byte Folded Reload
 ; O1-NEXT:    std 2,u
 ; O1-NEXT:    ldd 10,u
 ; O1-NEXT:    std 6,x
@@ -2814,130 +2701,124 @@ define dso_local i64 @add_s_i64(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O2-NEXT:    std 6,u
 ; O2-NEXT:    ldb 5,u
 ; O2-NEXT:    stb 19,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 4,u
-; O2-NEXT:    sta 18,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 4,u
+; O2-NEXT:    stb 18,u ; 1-byte Folded Spill
 ; O2-NEXT:    ldb 11,u
-; O2-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 10,u
-; O2-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 9,u
-; O2-NEXT:    stb 15,u ; 1-byte Folded Spill
+; O2-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 9,u
+; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 8,u
 ; O2-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 7,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 7,u
+; O2-NEXT:    sta 17,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 6,u
-; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O2-NEXT:    addb 31,u
-; O2-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O2-NEXT:    sta 16,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O2-NEXT:    adda 31,u
+; O2-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 30,u
 ; O2-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 17,u ; 1-byte Folded Reload
 ; O2-NEXT:    adcb 29,u
-; O2-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O2-NEXT:    adca 28,u
-; O2-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 27,u
 ; O2-NEXT:    stb 15,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
+; O2-NEXT:    adcb 28,u
+; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O2-NEXT:    adca 27,u
+; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 14,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 26,u
 ; O2-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 25,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O2-NEXT:    adca 25,u
+; O2-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 16,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 24,u
-; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O2-NEXT:    addb 47,u
-; O2-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O2-NEXT:    sta 16,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O2-NEXT:    adda 47,u
+; O2-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 46,u
 ; O2-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 45,u
-; O2-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O2-NEXT:    adca 44,u
-; O2-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O2-NEXT:    adca 45,u
+; O2-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O2-NEXT:    adcb 44,u
+; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O2-NEXT:    adcb 43,u
-; O2-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 14,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 42,u
 ; O2-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 41,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O2-NEXT:    adca 41,u
+; O2-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 16,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 40,u
-; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O2-NEXT:    addb 55,u
-; O2-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O2-NEXT:    sta 16,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O2-NEXT:    adda 55,u
+; O2-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 54,u
 ; O2-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 53,u
-; O2-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 16,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O2-NEXT:    adca 53,u
+; O2-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 13,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 52,u
-; O2-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O2-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O2-NEXT:    adcb 51,u
-; O2-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O2-NEXT:    adca 50,u
-; O2-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 49,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O2-NEXT:    stb 12,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 14,u ; 1-byte Folded Reload
+; O2-NEXT:    adcb 50,u
+; O2-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O2-NEXT:    adca 49,u
+; O2-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 16,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 48,u
-; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O2-NEXT:    addb 63,u
-; O2-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O2-NEXT:    sta 16,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O2-NEXT:    adda 63,u
+; O2-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 62,u
 ; O2-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 61,u
-; O2-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 16,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O2-NEXT:    adca 61,u
+; O2-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 13,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 60,u
-; O2-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 59,u
-; O2-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O2-NEXT:    adca 58,u
-; O2-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 57,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O2-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O2-NEXT:    adca 56,u
+; O2-NEXT:    adca 59,u
 ; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O2-NEXT:    lda 18,u ; 1-byte Folded Reload
-; O2-NEXT:    std 2,u
-; O2-NEXT:    std 10,u
+; O2-NEXT:    adcb 58,u
+; O2-NEXT:    stb 14,u ; 1-byte Folded Spill
 ; O2-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O2-NEXT:    lda 16,u ; 1-byte Folded Reload
+; O2-NEXT:    adcb 57,u
+; O2-NEXT:    stb 17,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 16,u ; 1-byte Folded Reload
+; O2-NEXT:    adcb 56,u
+; O2-NEXT:    stb 16,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O2-NEXT:    ldb 18,u ; 1-byte Folded Reload
+; O2-NEXT:    std 2,u
+; O2-NEXT:    exg a,b
+; O2-NEXT:    std 10,u
+; O2-NEXT:    ldd 2,u
+; O2-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 13,u ; 1-byte Folded Reload
 ; O2-NEXT:    std 2,u
 ; O2-NEXT:    std 8,u
-; O2-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O2-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O2-NEXT:    lda 14,u ; 1-byte Folded Reload
 ; O2-NEXT:    std 2,u
 ; O2-NEXT:    std 6,u
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O2-NEXT:    ldb 17,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 16,u ; 1-byte Folded Reload
 ; O2-NEXT:    std 2,u
 ; O2-NEXT:    ldd 10,u
 ; O2-NEXT:    std 6,x
@@ -2971,130 +2852,124 @@ define dso_local i64 @add_s_i64(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O3-NEXT:    std 6,u
 ; O3-NEXT:    ldb 5,u
 ; O3-NEXT:    stb 19,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 4,u
-; O3-NEXT:    sta 18,u ; 1-byte Folded Spill
+; O3-NEXT:    ldb 4,u
+; O3-NEXT:    stb 18,u ; 1-byte Folded Spill
 ; O3-NEXT:    ldb 11,u
-; O3-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 10,u
-; O3-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 9,u
-; O3-NEXT:    stb 15,u ; 1-byte Folded Spill
+; O3-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 9,u
+; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 8,u
 ; O3-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 7,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 7,u
+; O3-NEXT:    sta 17,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 6,u
-; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O3-NEXT:    addb 31,u
-; O3-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O3-NEXT:    sta 16,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O3-NEXT:    adda 31,u
+; O3-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 30,u
 ; O3-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 17,u ; 1-byte Folded Reload
 ; O3-NEXT:    adcb 29,u
-; O3-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O3-NEXT:    adca 28,u
-; O3-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 27,u
 ; O3-NEXT:    stb 15,u ; 1-byte Folded Spill
+; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
+; O3-NEXT:    adcb 28,u
+; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O3-NEXT:    adca 27,u
+; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 14,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 26,u
 ; O3-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 25,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O3-NEXT:    adca 25,u
+; O3-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 16,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 24,u
-; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O3-NEXT:    addb 47,u
-; O3-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O3-NEXT:    sta 16,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O3-NEXT:    adda 47,u
+; O3-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 46,u
 ; O3-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 45,u
-; O3-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O3-NEXT:    adca 44,u
-; O3-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O3-NEXT:    adca 45,u
+; O3-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O3-NEXT:    adcb 44,u
+; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O3-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O3-NEXT:    adcb 43,u
-; O3-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 14,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 42,u
 ; O3-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 41,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O3-NEXT:    adca 41,u
+; O3-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 16,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 40,u
-; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O3-NEXT:    addb 55,u
-; O3-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O3-NEXT:    sta 16,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O3-NEXT:    adda 55,u
+; O3-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 54,u
 ; O3-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 53,u
-; O3-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 16,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O3-NEXT:    adca 53,u
+; O3-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 13,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 52,u
-; O3-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O3-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O3-NEXT:    adcb 51,u
-; O3-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O3-NEXT:    adca 50,u
-; O3-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 49,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O3-NEXT:    stb 12,u ; 1-byte Folded Spill
+; O3-NEXT:    ldb 14,u ; 1-byte Folded Reload
+; O3-NEXT:    adcb 50,u
+; O3-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O3-NEXT:    adca 49,u
+; O3-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 16,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 48,u
-; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O3-NEXT:    addb 63,u
-; O3-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O3-NEXT:    sta 16,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O3-NEXT:    adda 63,u
+; O3-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 62,u
 ; O3-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 61,u
-; O3-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 16,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O3-NEXT:    adca 61,u
+; O3-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 13,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 60,u
-; O3-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 59,u
-; O3-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O3-NEXT:    adca 58,u
-; O3-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 57,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O3-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O3-NEXT:    adca 56,u
+; O3-NEXT:    adca 59,u
 ; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O3-NEXT:    lda 18,u ; 1-byte Folded Reload
-; O3-NEXT:    std 2,u
-; O3-NEXT:    std 10,u
+; O3-NEXT:    adcb 58,u
+; O3-NEXT:    stb 14,u ; 1-byte Folded Spill
 ; O3-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O3-NEXT:    lda 16,u ; 1-byte Folded Reload
+; O3-NEXT:    adcb 57,u
+; O3-NEXT:    stb 17,u ; 1-byte Folded Spill
+; O3-NEXT:    ldb 16,u ; 1-byte Folded Reload
+; O3-NEXT:    adcb 56,u
+; O3-NEXT:    stb 16,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O3-NEXT:    ldb 18,u ; 1-byte Folded Reload
+; O3-NEXT:    std 2,u
+; O3-NEXT:    exg a,b
+; O3-NEXT:    std 10,u
+; O3-NEXT:    ldd 2,u
+; O3-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 13,u ; 1-byte Folded Reload
 ; O3-NEXT:    std 2,u
 ; O3-NEXT:    std 8,u
-; O3-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O3-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O3-NEXT:    lda 14,u ; 1-byte Folded Reload
 ; O3-NEXT:    std 2,u
 ; O3-NEXT:    std 6,u
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O3-NEXT:    ldb 17,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 16,u ; 1-byte Folded Reload
 ; O3-NEXT:    std 2,u
 ; O3-NEXT:    ldd 10,u
 ; O3-NEXT:    std 6,x
@@ -3136,157 +3011,149 @@ define dso_local i64 @add_s_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O0-NEXT:    std 6,u
 ; O0-NEXT:    ldb 5,u
 ; O0-NEXT:    stb 19,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 4,u
-; O0-NEXT:    sta 18,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 4,u
+; O0-NEXT:    stb 18,u ; 1-byte Folded Spill
 ; O0-NEXT:    ldb 11,u
-; O0-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 10,u
-; O0-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 9,u
-; O0-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 8,u
 ; O0-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 7,u
-; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 6,u
+; O0-NEXT:    lda 9,u
 ; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O0-NEXT:    addb #137
-; O0-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 8,u
+; O0-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 7,u
+; O0-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 6,u
+; O0-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O0-NEXT:    adda #137
+; O0-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca #103
 ; O0-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 17,u ; 1-byte Folded Reload
 ; O0-NEXT:    adcb #69
-; O0-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O0-NEXT:    adca #35
-; O0-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb #1
-; O0-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O0-NEXT:    adca #0
-; O0-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb #0
-; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O0-NEXT:    stb 16,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 14,u ; 1-byte Folded Reload
+; O0-NEXT:    adcb #35
 ; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O0-NEXT:    adca #0
+; O0-NEXT:    adca #1
 ; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O0-NEXT:    addb 39,u
-; O0-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O0-NEXT:    adca #0
+; O0-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O0-NEXT:    adca #0
+; O0-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O0-NEXT:    adca #0
+; O0-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O0-NEXT:    adda 39,u
+; O0-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 38,u
 ; O0-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 37,u
-; O0-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O0-NEXT:    adca 36,u
+; O0-NEXT:    adca 37,u
 ; O0-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O0-NEXT:    adcb 36,u
+; O0-NEXT:    stb 14,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O0-NEXT:    adcb 35,u
-; O0-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 14,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 13,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 34,u
-; O0-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 33,u
-; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O0-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O0-NEXT:    adca 33,u
+; O0-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 17,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 32,u
-; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O0-NEXT:    addb 47,u
-; O0-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O0-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O0-NEXT:    adda 47,u
+; O0-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 46,u
 ; O0-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 45,u
-; O0-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O0-NEXT:    adca 44,u
+; O0-NEXT:    adca 45,u
 ; O0-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 43,u
-; O0-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O0-NEXT:    adca 42,u
+; O0-NEXT:    adca 44,u
 ; O0-NEXT:    sta 14,u ; 1-byte Folded Spill
+; O0-NEXT:    adcb 43,u
+; O0-NEXT:    stb 12,u ; 1-byte Folded Spill
 ; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 41,u
-; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O0-NEXT:    adcb 42,u
+; O0-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O0-NEXT:    adca 41,u
+; O0-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 17,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 40,u
-; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O0-NEXT:    addb 55,u
-; O0-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O0-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O0-NEXT:    adda 55,u
+; O0-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 54,u
 ; O0-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 53,u
-; O0-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O0-NEXT:    adca 52,u
+; O0-NEXT:    adca 53,u
 ; O0-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 51,u
-; O0-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O0-NEXT:    adca 50,u
+; O0-NEXT:    adca 52,u
 ; O0-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 49,u
-; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O0-NEXT:    adca 48,u
+; O0-NEXT:    adca 51,u
 ; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O0-NEXT:    addb 63,u
-; O0-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O0-NEXT:    adcb 50,u
+; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O0-NEXT:    adcb 49,u
+; O0-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O0-NEXT:    adca 48,u
+; O0-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O0-NEXT:    adda 63,u
+; O0-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 62,u
 ; O0-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 61,u
-; O0-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O0-NEXT:    adca 60,u
+; O0-NEXT:    adca 61,u
 ; O0-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 59,u
-; O0-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O0-NEXT:    adca 58,u
+; O0-NEXT:    adca 60,u
 ; O0-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 57,u
-; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O0-NEXT:    adca 56,u
+; O0-NEXT:    adca 59,u
 ; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O0-NEXT:    lda 18,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O0-NEXT:    adca 58,u
+; O0-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O0-NEXT:    adcb 57,u
+; O0-NEXT:    stb 15,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 17,u ; 1-byte Folded Reload
+; O0-NEXT:    adcb 56,u
+; O0-NEXT:    stb 17,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O0-NEXT:    ldb 18,u ; 1-byte Folded Reload
 ; O0-NEXT:    std 2,u
+; O0-NEXT:    exg a,b
 ; O0-NEXT:    std 10,u
 ; O0-NEXT:    ldd 2,u
-; O0-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O0-NEXT:    lda 16,u ; 1-byte Folded Reload
+; O0-NEXT:    ldb 16,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 14,u ; 1-byte Folded Reload
 ; O0-NEXT:    std 2,u
 ; O0-NEXT:    std 8,u
 ; O0-NEXT:    ldd 2,u
-; O0-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O0-NEXT:    lda 14,u ; 1-byte Folded Reload
+; O0-NEXT:    ldb 12,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 13,u ; 1-byte Folded Reload
 ; O0-NEXT:    std 2,u
 ; O0-NEXT:    std 6,u
 ; O0-NEXT:    ldd 2,u
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O0-NEXT:    ldb 17,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O0-NEXT:    exg a,b
 ; O0-NEXT:    std 2,u
 ; O0-NEXT:    ldd 10,u
 ; O0-NEXT:    std 6,x
@@ -3320,154 +3187,147 @@ define dso_local i64 @add_s_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O1-NEXT:    std 6,u
 ; O1-NEXT:    ldb 5,u
 ; O1-NEXT:    stb 19,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 4,u
-; O1-NEXT:    sta 18,u ; 1-byte Folded Spill
+; O1-NEXT:    ldb 4,u
+; O1-NEXT:    stb 18,u ; 1-byte Folded Spill
 ; O1-NEXT:    ldb 11,u
-; O1-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 10,u
-; O1-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 9,u
-; O1-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 8,u
 ; O1-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 7,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 6,u
+; O1-NEXT:    lda 9,u
 ; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O1-NEXT:    addb 39,u
-; O1-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 8,u
+; O1-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 7,u
+; O1-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 6,u
+; O1-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O1-NEXT:    adda 39,u
+; O1-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 38,u
 ; O1-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 17,u ; 1-byte Folded Reload
 ; O1-NEXT:    adcb 37,u
-; O1-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O1-NEXT:    adca 36,u
-; O1-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 35,u
-; O1-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O1-NEXT:    adca 34,u
-; O1-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 33,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O1-NEXT:    stb 16,u ; 1-byte Folded Spill
+; O1-NEXT:    ldb 14,u ; 1-byte Folded Reload
+; O1-NEXT:    adcb 36,u
 ; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O1-NEXT:    adca 32,u
+; O1-NEXT:    adca 35,u
 ; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O1-NEXT:    addb 47,u
-; O1-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O1-NEXT:    adca 34,u
+; O1-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O1-NEXT:    adca 33,u
+; O1-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O1-NEXT:    adca 32,u
+; O1-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O1-NEXT:    adda 47,u
+; O1-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 46,u
 ; O1-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 45,u
-; O1-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O1-NEXT:    adca 44,u
+; O1-NEXT:    adca 45,u
 ; O1-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O1-NEXT:    adcb 44,u
+; O1-NEXT:    stb 14,u ; 1-byte Folded Spill
+; O1-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O1-NEXT:    adcb 43,u
-; O1-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 14,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 13,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 42,u
-; O1-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 41,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O1-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O1-NEXT:    adca 41,u
+; O1-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 17,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 40,u
-; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O1-NEXT:    addb 55,u
-; O1-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O1-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O1-NEXT:    adda 55,u
+; O1-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 54,u
 ; O1-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 53,u
-; O1-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O1-NEXT:    adca 52,u
+; O1-NEXT:    adca 53,u
 ; O1-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 51,u
-; O1-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O1-NEXT:    adca 50,u
+; O1-NEXT:    adca 52,u
 ; O1-NEXT:    sta 14,u ; 1-byte Folded Spill
+; O1-NEXT:    adcb 51,u
+; O1-NEXT:    stb 12,u ; 1-byte Folded Spill
 ; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 49,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O1-NEXT:    adcb 50,u
+; O1-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O1-NEXT:    adca 49,u
+; O1-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 17,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 48,u
-; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O1-NEXT:    addb 63,u
-; O1-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O1-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O1-NEXT:    adda 63,u
+; O1-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 62,u
 ; O1-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 61,u
-; O1-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O1-NEXT:    adca 60,u
+; O1-NEXT:    adca 61,u
 ; O1-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 59,u
-; O1-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O1-NEXT:    adca 58,u
+; O1-NEXT:    adca 60,u
 ; O1-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 57,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O1-NEXT:    adca 56,u
+; O1-NEXT:    adca 59,u
 ; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O1-NEXT:    addb #-119
-; O1-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O1-NEXT:    adcb 58,u
+; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O1-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O1-NEXT:    adcb 57,u
+; O1-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O1-NEXT:    adca 56,u
+; O1-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O1-NEXT:    adda #-119
+; O1-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca #103
 ; O1-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb #69
-; O1-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O1-NEXT:    adca #35
+; O1-NEXT:    adca #69
 ; O1-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb #1
-; O1-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O1-NEXT:    adca #0
+; O1-NEXT:    adca #35
 ; O1-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb #0
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O1-NEXT:    adca #0
+; O1-NEXT:    adca #1
 ; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O1-NEXT:    lda 18,u ; 1-byte Folded Reload
-; O1-NEXT:    std 2,u
-; O1-NEXT:    std 10,u
+; O1-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O1-NEXT:    adca #0
+; O1-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O1-NEXT:    adcb #0
+; O1-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O1-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O1-NEXT:    lda 16,u ; 1-byte Folded Reload
+; O1-NEXT:    adcb #0
+; O1-NEXT:    stb 17,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O1-NEXT:    ldb 18,u ; 1-byte Folded Reload
+; O1-NEXT:    std 2,u
+; O1-NEXT:    exg a,b
+; O1-NEXT:    std 10,u
+; O1-NEXT:    ldd 2,u
+; O1-NEXT:    ldb 16,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 14,u ; 1-byte Folded Reload
 ; O1-NEXT:    std 2,u
 ; O1-NEXT:    std 8,u
-; O1-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O1-NEXT:    lda 14,u ; 1-byte Folded Reload
+; O1-NEXT:    ldb 12,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 13,u ; 1-byte Folded Reload
 ; O1-NEXT:    std 2,u
 ; O1-NEXT:    std 6,u
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O1-NEXT:    ldb 17,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O1-NEXT:    exg a,b
 ; O1-NEXT:    std 2,u
 ; O1-NEXT:    ldd 10,u
 ; O1-NEXT:    std 6,x
@@ -3501,154 +3361,147 @@ define dso_local i64 @add_s_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O2-NEXT:    std 6,u
 ; O2-NEXT:    ldb 5,u
 ; O2-NEXT:    stb 19,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 4,u
-; O2-NEXT:    sta 18,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 4,u
+; O2-NEXT:    stb 18,u ; 1-byte Folded Spill
 ; O2-NEXT:    ldb 11,u
-; O2-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 10,u
-; O2-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 9,u
-; O2-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 8,u
 ; O2-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 7,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 6,u
+; O2-NEXT:    lda 9,u
 ; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O2-NEXT:    addb 39,u
-; O2-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 8,u
+; O2-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 7,u
+; O2-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 6,u
+; O2-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O2-NEXT:    adda 39,u
+; O2-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 38,u
 ; O2-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 17,u ; 1-byte Folded Reload
 ; O2-NEXT:    adcb 37,u
-; O2-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O2-NEXT:    adca 36,u
-; O2-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 35,u
-; O2-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O2-NEXT:    adca 34,u
-; O2-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 33,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O2-NEXT:    stb 16,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 14,u ; 1-byte Folded Reload
+; O2-NEXT:    adcb 36,u
 ; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O2-NEXT:    adca 32,u
+; O2-NEXT:    adca 35,u
 ; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O2-NEXT:    addb 47,u
-; O2-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O2-NEXT:    adca 34,u
+; O2-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O2-NEXT:    adca 33,u
+; O2-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O2-NEXT:    adca 32,u
+; O2-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O2-NEXT:    adda 47,u
+; O2-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 46,u
 ; O2-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 45,u
-; O2-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O2-NEXT:    adca 44,u
+; O2-NEXT:    adca 45,u
 ; O2-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O2-NEXT:    adcb 44,u
+; O2-NEXT:    stb 14,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O2-NEXT:    adcb 43,u
-; O2-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 14,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 13,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 42,u
-; O2-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 41,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O2-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O2-NEXT:    adca 41,u
+; O2-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 17,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 40,u
-; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O2-NEXT:    addb 55,u
-; O2-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O2-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O2-NEXT:    adda 55,u
+; O2-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 54,u
 ; O2-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 53,u
-; O2-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O2-NEXT:    adca 52,u
+; O2-NEXT:    adca 53,u
 ; O2-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 51,u
-; O2-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O2-NEXT:    adca 50,u
+; O2-NEXT:    adca 52,u
 ; O2-NEXT:    sta 14,u ; 1-byte Folded Spill
+; O2-NEXT:    adcb 51,u
+; O2-NEXT:    stb 12,u ; 1-byte Folded Spill
 ; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 49,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O2-NEXT:    adcb 50,u
+; O2-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O2-NEXT:    adca 49,u
+; O2-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 17,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 48,u
-; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O2-NEXT:    addb 63,u
-; O2-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O2-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O2-NEXT:    adda 63,u
+; O2-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 62,u
 ; O2-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 61,u
-; O2-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O2-NEXT:    adca 60,u
+; O2-NEXT:    adca 61,u
 ; O2-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 59,u
-; O2-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O2-NEXT:    adca 58,u
+; O2-NEXT:    adca 60,u
 ; O2-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 57,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O2-NEXT:    adca 56,u
+; O2-NEXT:    adca 59,u
 ; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O2-NEXT:    addb #-119
-; O2-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O2-NEXT:    adcb 58,u
+; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O2-NEXT:    adcb 57,u
+; O2-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O2-NEXT:    adca 56,u
+; O2-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O2-NEXT:    adda #-119
+; O2-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca #103
 ; O2-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb #69
-; O2-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O2-NEXT:    adca #35
+; O2-NEXT:    adca #69
 ; O2-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb #1
-; O2-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O2-NEXT:    adca #0
+; O2-NEXT:    adca #35
 ; O2-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb #0
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O2-NEXT:    adca #0
+; O2-NEXT:    adca #1
 ; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O2-NEXT:    lda 18,u ; 1-byte Folded Reload
-; O2-NEXT:    std 2,u
-; O2-NEXT:    std 10,u
+; O2-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O2-NEXT:    adca #0
+; O2-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O2-NEXT:    adcb #0
+; O2-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O2-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O2-NEXT:    lda 16,u ; 1-byte Folded Reload
+; O2-NEXT:    adcb #0
+; O2-NEXT:    stb 17,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O2-NEXT:    ldb 18,u ; 1-byte Folded Reload
+; O2-NEXT:    std 2,u
+; O2-NEXT:    exg a,b
+; O2-NEXT:    std 10,u
+; O2-NEXT:    ldd 2,u
+; O2-NEXT:    ldb 16,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 14,u ; 1-byte Folded Reload
 ; O2-NEXT:    std 2,u
 ; O2-NEXT:    std 8,u
-; O2-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O2-NEXT:    lda 14,u ; 1-byte Folded Reload
+; O2-NEXT:    ldb 12,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 13,u ; 1-byte Folded Reload
 ; O2-NEXT:    std 2,u
 ; O2-NEXT:    std 6,u
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O2-NEXT:    ldb 17,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O2-NEXT:    exg a,b
 ; O2-NEXT:    std 2,u
 ; O2-NEXT:    ldd 10,u
 ; O2-NEXT:    std 6,x
@@ -3682,154 +3535,147 @@ define dso_local i64 @add_s_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O3-NEXT:    std 6,u
 ; O3-NEXT:    ldb 5,u
 ; O3-NEXT:    stb 19,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 4,u
-; O3-NEXT:    sta 18,u ; 1-byte Folded Spill
+; O3-NEXT:    ldb 4,u
+; O3-NEXT:    stb 18,u ; 1-byte Folded Spill
 ; O3-NEXT:    ldb 11,u
-; O3-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 10,u
-; O3-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 9,u
-; O3-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 8,u
 ; O3-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 7,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 6,u
+; O3-NEXT:    lda 9,u
 ; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O3-NEXT:    addb 39,u
-; O3-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 8,u
+; O3-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 7,u
+; O3-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 6,u
+; O3-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O3-NEXT:    adda 39,u
+; O3-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 38,u
 ; O3-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 17,u ; 1-byte Folded Reload
 ; O3-NEXT:    adcb 37,u
-; O3-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O3-NEXT:    adca 36,u
-; O3-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 35,u
-; O3-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O3-NEXT:    adca 34,u
-; O3-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 33,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O3-NEXT:    stb 16,u ; 1-byte Folded Spill
+; O3-NEXT:    ldb 14,u ; 1-byte Folded Reload
+; O3-NEXT:    adcb 36,u
 ; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O3-NEXT:    adca 32,u
+; O3-NEXT:    adca 35,u
 ; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O3-NEXT:    addb 47,u
-; O3-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O3-NEXT:    adca 34,u
+; O3-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O3-NEXT:    adca 33,u
+; O3-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O3-NEXT:    adca 32,u
+; O3-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O3-NEXT:    adda 47,u
+; O3-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 46,u
 ; O3-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 45,u
-; O3-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O3-NEXT:    adca 44,u
+; O3-NEXT:    adca 45,u
 ; O3-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O3-NEXT:    adcb 44,u
+; O3-NEXT:    stb 14,u ; 1-byte Folded Spill
+; O3-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O3-NEXT:    adcb 43,u
-; O3-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 14,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 13,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 42,u
-; O3-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 41,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O3-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O3-NEXT:    adca 41,u
+; O3-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 17,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 40,u
-; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O3-NEXT:    addb 55,u
-; O3-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O3-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O3-NEXT:    adda 55,u
+; O3-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 54,u
 ; O3-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 53,u
-; O3-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O3-NEXT:    adca 52,u
+; O3-NEXT:    adca 53,u
 ; O3-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 51,u
-; O3-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O3-NEXT:    adca 50,u
+; O3-NEXT:    adca 52,u
 ; O3-NEXT:    sta 14,u ; 1-byte Folded Spill
+; O3-NEXT:    adcb 51,u
+; O3-NEXT:    stb 12,u ; 1-byte Folded Spill
 ; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 49,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O3-NEXT:    adcb 50,u
+; O3-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O3-NEXT:    adca 49,u
+; O3-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 17,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 48,u
-; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O3-NEXT:    addb 63,u
-; O3-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O3-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O3-NEXT:    adda 63,u
+; O3-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 62,u
 ; O3-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 61,u
-; O3-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O3-NEXT:    adca 60,u
+; O3-NEXT:    adca 61,u
 ; O3-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 59,u
-; O3-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O3-NEXT:    adca 58,u
+; O3-NEXT:    adca 60,u
 ; O3-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 57,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O3-NEXT:    adca 56,u
+; O3-NEXT:    adca 59,u
 ; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O3-NEXT:    addb #-119
-; O3-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O3-NEXT:    adcb 58,u
+; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O3-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O3-NEXT:    adcb 57,u
+; O3-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O3-NEXT:    adca 56,u
+; O3-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O3-NEXT:    adda #-119
+; O3-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca #103
 ; O3-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb #69
-; O3-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O3-NEXT:    adca #35
+; O3-NEXT:    adca #69
 ; O3-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb #1
-; O3-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O3-NEXT:    adca #0
+; O3-NEXT:    adca #35
 ; O3-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb #0
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O3-NEXT:    adca #0
+; O3-NEXT:    adca #1
 ; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O3-NEXT:    lda 18,u ; 1-byte Folded Reload
-; O3-NEXT:    std 2,u
-; O3-NEXT:    std 10,u
+; O3-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O3-NEXT:    adca #0
+; O3-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O3-NEXT:    adcb #0
+; O3-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O3-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O3-NEXT:    lda 16,u ; 1-byte Folded Reload
+; O3-NEXT:    adcb #0
+; O3-NEXT:    stb 17,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O3-NEXT:    ldb 18,u ; 1-byte Folded Reload
+; O3-NEXT:    std 2,u
+; O3-NEXT:    exg a,b
+; O3-NEXT:    std 10,u
+; O3-NEXT:    ldd 2,u
+; O3-NEXT:    ldb 16,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 14,u ; 1-byte Folded Reload
 ; O3-NEXT:    std 2,u
 ; O3-NEXT:    std 8,u
-; O3-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O3-NEXT:    lda 14,u ; 1-byte Folded Reload
+; O3-NEXT:    ldb 12,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 13,u ; 1-byte Folded Reload
 ; O3-NEXT:    std 2,u
 ; O3-NEXT:    std 6,u
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O3-NEXT:    ldb 17,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O3-NEXT:    exg a,b
 ; O3-NEXT:    std 2,u
 ; O3-NEXT:    ldd 10,u
 ; O3-NEXT:    std 6,x
@@ -3872,133 +3718,126 @@ define dso_local i64 @add_u_i64(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O0-NEXT:    std 6,u
 ; O0-NEXT:    ldb 5,u
 ; O0-NEXT:    stb 19,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 4,u
-; O0-NEXT:    sta 18,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 4,u
+; O0-NEXT:    stb 18,u ; 1-byte Folded Spill
 ; O0-NEXT:    ldb 11,u
-; O0-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 10,u
-; O0-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 9,u
-; O0-NEXT:    stb 15,u ; 1-byte Folded Spill
+; O0-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 9,u
+; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 8,u
 ; O0-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 7,u
-; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 7,u
+; O0-NEXT:    sta 17,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 6,u
-; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O0-NEXT:    addb 31,u
-; O0-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O0-NEXT:    sta 16,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O0-NEXT:    adda 31,u
+; O0-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 30,u
 ; O0-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 17,u ; 1-byte Folded Reload
 ; O0-NEXT:    adcb 29,u
-; O0-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O0-NEXT:    adca 28,u
-; O0-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 27,u
 ; O0-NEXT:    stb 15,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
+; O0-NEXT:    adcb 28,u
+; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O0-NEXT:    adca 27,u
+; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 14,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 26,u
 ; O0-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 25,u
-; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O0-NEXT:    adca 25,u
+; O0-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 16,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 24,u
-; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O0-NEXT:    addb 47,u
-; O0-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O0-NEXT:    sta 16,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O0-NEXT:    adda 47,u
+; O0-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 46,u
 ; O0-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 45,u
-; O0-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O0-NEXT:    adca 44,u
-; O0-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O0-NEXT:    adca 45,u
+; O0-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O0-NEXT:    adcb 44,u
+; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O0-NEXT:    adcb 43,u
-; O0-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 14,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 42,u
 ; O0-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 41,u
-; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O0-NEXT:    adca 41,u
+; O0-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 16,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 40,u
-; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O0-NEXT:    addb 55,u
-; O0-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O0-NEXT:    sta 16,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O0-NEXT:    adda 55,u
+; O0-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 54,u
 ; O0-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 53,u
-; O0-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 16,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O0-NEXT:    adca 53,u
+; O0-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 13,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 52,u
-; O0-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O0-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O0-NEXT:    adcb 51,u
-; O0-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O0-NEXT:    adca 50,u
-; O0-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 49,u
-; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O0-NEXT:    stb 12,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 14,u ; 1-byte Folded Reload
+; O0-NEXT:    adcb 50,u
+; O0-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O0-NEXT:    adca 49,u
+; O0-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 16,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 48,u
-; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O0-NEXT:    addb 63,u
-; O0-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O0-NEXT:    sta 16,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O0-NEXT:    adda 63,u
+; O0-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 62,u
 ; O0-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 61,u
-; O0-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 16,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O0-NEXT:    adca 61,u
+; O0-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 13,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 60,u
-; O0-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 59,u
-; O0-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O0-NEXT:    adca 58,u
-; O0-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 57,u
-; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O0-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O0-NEXT:    adca 56,u
+; O0-NEXT:    adca 59,u
 ; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O0-NEXT:    lda 18,u ; 1-byte Folded Reload
+; O0-NEXT:    adcb 58,u
+; O0-NEXT:    stb 14,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 17,u ; 1-byte Folded Reload
+; O0-NEXT:    adcb 57,u
+; O0-NEXT:    stb 17,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 16,u ; 1-byte Folded Reload
+; O0-NEXT:    adcb 56,u
+; O0-NEXT:    stb 16,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O0-NEXT:    ldb 18,u ; 1-byte Folded Reload
 ; O0-NEXT:    std 2,u
+; O0-NEXT:    exg a,b
 ; O0-NEXT:    std 10,u
 ; O0-NEXT:    ldd 2,u
-; O0-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O0-NEXT:    lda 16,u ; 1-byte Folded Reload
+; O0-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 13,u ; 1-byte Folded Reload
 ; O0-NEXT:    std 2,u
 ; O0-NEXT:    std 8,u
 ; O0-NEXT:    ldd 2,u
-; O0-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O0-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O0-NEXT:    lda 14,u ; 1-byte Folded Reload
 ; O0-NEXT:    std 2,u
 ; O0-NEXT:    std 6,u
 ; O0-NEXT:    ldd 2,u
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O0-NEXT:    ldb 17,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 16,u ; 1-byte Folded Reload
 ; O0-NEXT:    std 2,u
 ; O0-NEXT:    ldd 10,u
 ; O0-NEXT:    std 6,x
@@ -4032,130 +3871,124 @@ define dso_local i64 @add_u_i64(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O1-NEXT:    std 6,u
 ; O1-NEXT:    ldb 5,u
 ; O1-NEXT:    stb 19,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 4,u
-; O1-NEXT:    sta 18,u ; 1-byte Folded Spill
+; O1-NEXT:    ldb 4,u
+; O1-NEXT:    stb 18,u ; 1-byte Folded Spill
 ; O1-NEXT:    ldb 11,u
-; O1-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 10,u
-; O1-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 9,u
-; O1-NEXT:    stb 15,u ; 1-byte Folded Spill
+; O1-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 9,u
+; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 8,u
 ; O1-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 7,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 7,u
+; O1-NEXT:    sta 17,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 6,u
-; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O1-NEXT:    addb 31,u
-; O1-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O1-NEXT:    sta 16,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O1-NEXT:    adda 31,u
+; O1-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 30,u
 ; O1-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 17,u ; 1-byte Folded Reload
 ; O1-NEXT:    adcb 29,u
-; O1-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O1-NEXT:    adca 28,u
-; O1-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 27,u
 ; O1-NEXT:    stb 15,u ; 1-byte Folded Spill
+; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
+; O1-NEXT:    adcb 28,u
+; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O1-NEXT:    adca 27,u
+; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 14,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 26,u
 ; O1-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 25,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O1-NEXT:    adca 25,u
+; O1-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 16,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 24,u
-; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O1-NEXT:    addb 47,u
-; O1-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O1-NEXT:    sta 16,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O1-NEXT:    adda 47,u
+; O1-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 46,u
 ; O1-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 45,u
-; O1-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O1-NEXT:    adca 44,u
-; O1-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O1-NEXT:    adca 45,u
+; O1-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O1-NEXT:    adcb 44,u
+; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O1-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O1-NEXT:    adcb 43,u
-; O1-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 14,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 42,u
 ; O1-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 41,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O1-NEXT:    adca 41,u
+; O1-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 16,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 40,u
-; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O1-NEXT:    addb 55,u
-; O1-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O1-NEXT:    sta 16,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O1-NEXT:    adda 55,u
+; O1-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 54,u
 ; O1-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 53,u
-; O1-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 16,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O1-NEXT:    adca 53,u
+; O1-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 13,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 52,u
-; O1-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O1-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O1-NEXT:    adcb 51,u
-; O1-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O1-NEXT:    adca 50,u
-; O1-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 49,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O1-NEXT:    stb 12,u ; 1-byte Folded Spill
+; O1-NEXT:    ldb 14,u ; 1-byte Folded Reload
+; O1-NEXT:    adcb 50,u
+; O1-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O1-NEXT:    adca 49,u
+; O1-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 16,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 48,u
-; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O1-NEXT:    addb 63,u
-; O1-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O1-NEXT:    sta 16,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O1-NEXT:    adda 63,u
+; O1-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 62,u
 ; O1-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 61,u
-; O1-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 16,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O1-NEXT:    adca 61,u
+; O1-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 13,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 60,u
-; O1-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 59,u
-; O1-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O1-NEXT:    adca 58,u
-; O1-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 57,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O1-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O1-NEXT:    adca 56,u
+; O1-NEXT:    adca 59,u
 ; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O1-NEXT:    lda 18,u ; 1-byte Folded Reload
-; O1-NEXT:    std 2,u
-; O1-NEXT:    std 10,u
+; O1-NEXT:    adcb 58,u
+; O1-NEXT:    stb 14,u ; 1-byte Folded Spill
 ; O1-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O1-NEXT:    lda 16,u ; 1-byte Folded Reload
+; O1-NEXT:    adcb 57,u
+; O1-NEXT:    stb 17,u ; 1-byte Folded Spill
+; O1-NEXT:    ldb 16,u ; 1-byte Folded Reload
+; O1-NEXT:    adcb 56,u
+; O1-NEXT:    stb 16,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O1-NEXT:    ldb 18,u ; 1-byte Folded Reload
+; O1-NEXT:    std 2,u
+; O1-NEXT:    exg a,b
+; O1-NEXT:    std 10,u
+; O1-NEXT:    ldd 2,u
+; O1-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 13,u ; 1-byte Folded Reload
 ; O1-NEXT:    std 2,u
 ; O1-NEXT:    std 8,u
-; O1-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O1-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O1-NEXT:    lda 14,u ; 1-byte Folded Reload
 ; O1-NEXT:    std 2,u
 ; O1-NEXT:    std 6,u
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O1-NEXT:    ldb 17,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 16,u ; 1-byte Folded Reload
 ; O1-NEXT:    std 2,u
 ; O1-NEXT:    ldd 10,u
 ; O1-NEXT:    std 6,x
@@ -4189,130 +4022,124 @@ define dso_local i64 @add_u_i64(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O2-NEXT:    std 6,u
 ; O2-NEXT:    ldb 5,u
 ; O2-NEXT:    stb 19,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 4,u
-; O2-NEXT:    sta 18,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 4,u
+; O2-NEXT:    stb 18,u ; 1-byte Folded Spill
 ; O2-NEXT:    ldb 11,u
-; O2-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 10,u
-; O2-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 9,u
-; O2-NEXT:    stb 15,u ; 1-byte Folded Spill
+; O2-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 9,u
+; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 8,u
 ; O2-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 7,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 7,u
+; O2-NEXT:    sta 17,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 6,u
-; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O2-NEXT:    addb 31,u
-; O2-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O2-NEXT:    sta 16,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O2-NEXT:    adda 31,u
+; O2-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 30,u
 ; O2-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 17,u ; 1-byte Folded Reload
 ; O2-NEXT:    adcb 29,u
-; O2-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O2-NEXT:    adca 28,u
-; O2-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 27,u
 ; O2-NEXT:    stb 15,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
+; O2-NEXT:    adcb 28,u
+; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O2-NEXT:    adca 27,u
+; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 14,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 26,u
 ; O2-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 25,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O2-NEXT:    adca 25,u
+; O2-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 16,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 24,u
-; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O2-NEXT:    addb 47,u
-; O2-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O2-NEXT:    sta 16,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O2-NEXT:    adda 47,u
+; O2-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 46,u
 ; O2-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 45,u
-; O2-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O2-NEXT:    adca 44,u
-; O2-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O2-NEXT:    adca 45,u
+; O2-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O2-NEXT:    adcb 44,u
+; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O2-NEXT:    adcb 43,u
-; O2-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 14,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 42,u
 ; O2-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 41,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O2-NEXT:    adca 41,u
+; O2-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 16,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 40,u
-; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O2-NEXT:    addb 55,u
-; O2-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O2-NEXT:    sta 16,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O2-NEXT:    adda 55,u
+; O2-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 54,u
 ; O2-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 53,u
-; O2-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 16,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O2-NEXT:    adca 53,u
+; O2-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 13,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 52,u
-; O2-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O2-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O2-NEXT:    adcb 51,u
-; O2-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O2-NEXT:    adca 50,u
-; O2-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 49,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O2-NEXT:    stb 12,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 14,u ; 1-byte Folded Reload
+; O2-NEXT:    adcb 50,u
+; O2-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O2-NEXT:    adca 49,u
+; O2-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 16,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 48,u
-; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O2-NEXT:    addb 63,u
-; O2-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O2-NEXT:    sta 16,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O2-NEXT:    adda 63,u
+; O2-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 62,u
 ; O2-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 61,u
-; O2-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 16,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O2-NEXT:    adca 61,u
+; O2-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 13,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 60,u
-; O2-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 59,u
-; O2-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O2-NEXT:    adca 58,u
-; O2-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 57,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O2-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O2-NEXT:    adca 56,u
+; O2-NEXT:    adca 59,u
 ; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O2-NEXT:    lda 18,u ; 1-byte Folded Reload
-; O2-NEXT:    std 2,u
-; O2-NEXT:    std 10,u
+; O2-NEXT:    adcb 58,u
+; O2-NEXT:    stb 14,u ; 1-byte Folded Spill
 ; O2-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O2-NEXT:    lda 16,u ; 1-byte Folded Reload
+; O2-NEXT:    adcb 57,u
+; O2-NEXT:    stb 17,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 16,u ; 1-byte Folded Reload
+; O2-NEXT:    adcb 56,u
+; O2-NEXT:    stb 16,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O2-NEXT:    ldb 18,u ; 1-byte Folded Reload
+; O2-NEXT:    std 2,u
+; O2-NEXT:    exg a,b
+; O2-NEXT:    std 10,u
+; O2-NEXT:    ldd 2,u
+; O2-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 13,u ; 1-byte Folded Reload
 ; O2-NEXT:    std 2,u
 ; O2-NEXT:    std 8,u
-; O2-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O2-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O2-NEXT:    lda 14,u ; 1-byte Folded Reload
 ; O2-NEXT:    std 2,u
 ; O2-NEXT:    std 6,u
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O2-NEXT:    ldb 17,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 16,u ; 1-byte Folded Reload
 ; O2-NEXT:    std 2,u
 ; O2-NEXT:    ldd 10,u
 ; O2-NEXT:    std 6,x
@@ -4346,130 +4173,124 @@ define dso_local i64 @add_u_i64(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O3-NEXT:    std 6,u
 ; O3-NEXT:    ldb 5,u
 ; O3-NEXT:    stb 19,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 4,u
-; O3-NEXT:    sta 18,u ; 1-byte Folded Spill
+; O3-NEXT:    ldb 4,u
+; O3-NEXT:    stb 18,u ; 1-byte Folded Spill
 ; O3-NEXT:    ldb 11,u
-; O3-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 10,u
-; O3-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 9,u
-; O3-NEXT:    stb 15,u ; 1-byte Folded Spill
+; O3-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 9,u
+; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 8,u
 ; O3-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 7,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 7,u
+; O3-NEXT:    sta 17,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 6,u
-; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O3-NEXT:    addb 31,u
-; O3-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O3-NEXT:    sta 16,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O3-NEXT:    adda 31,u
+; O3-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 30,u
 ; O3-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 17,u ; 1-byte Folded Reload
 ; O3-NEXT:    adcb 29,u
-; O3-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O3-NEXT:    adca 28,u
-; O3-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 27,u
 ; O3-NEXT:    stb 15,u ; 1-byte Folded Spill
+; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
+; O3-NEXT:    adcb 28,u
+; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O3-NEXT:    adca 27,u
+; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 14,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 26,u
 ; O3-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 25,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O3-NEXT:    adca 25,u
+; O3-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 16,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 24,u
-; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O3-NEXT:    addb 47,u
-; O3-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O3-NEXT:    sta 16,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O3-NEXT:    adda 47,u
+; O3-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 46,u
 ; O3-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 45,u
-; O3-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O3-NEXT:    adca 44,u
-; O3-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O3-NEXT:    adca 45,u
+; O3-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O3-NEXT:    adcb 44,u
+; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O3-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O3-NEXT:    adcb 43,u
-; O3-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 14,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 42,u
 ; O3-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 41,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O3-NEXT:    adca 41,u
+; O3-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 16,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 40,u
-; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O3-NEXT:    addb 55,u
-; O3-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O3-NEXT:    sta 16,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O3-NEXT:    adda 55,u
+; O3-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 54,u
 ; O3-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 53,u
-; O3-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 16,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O3-NEXT:    adca 53,u
+; O3-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 13,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 52,u
-; O3-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O3-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O3-NEXT:    adcb 51,u
-; O3-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O3-NEXT:    adca 50,u
-; O3-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 49,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O3-NEXT:    stb 12,u ; 1-byte Folded Spill
+; O3-NEXT:    ldb 14,u ; 1-byte Folded Reload
+; O3-NEXT:    adcb 50,u
+; O3-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O3-NEXT:    adca 49,u
+; O3-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 16,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 48,u
-; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O3-NEXT:    addb 63,u
-; O3-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O3-NEXT:    sta 16,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O3-NEXT:    adda 63,u
+; O3-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 62,u
 ; O3-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 61,u
-; O3-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 16,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O3-NEXT:    adca 61,u
+; O3-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 13,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 60,u
-; O3-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 59,u
-; O3-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O3-NEXT:    adca 58,u
-; O3-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 57,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O3-NEXT:    sta 13,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O3-NEXT:    adca 56,u
+; O3-NEXT:    adca 59,u
 ; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O3-NEXT:    lda 18,u ; 1-byte Folded Reload
-; O3-NEXT:    std 2,u
-; O3-NEXT:    std 10,u
+; O3-NEXT:    adcb 58,u
+; O3-NEXT:    stb 14,u ; 1-byte Folded Spill
 ; O3-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O3-NEXT:    lda 16,u ; 1-byte Folded Reload
+; O3-NEXT:    adcb 57,u
+; O3-NEXT:    stb 17,u ; 1-byte Folded Spill
+; O3-NEXT:    ldb 16,u ; 1-byte Folded Reload
+; O3-NEXT:    adcb 56,u
+; O3-NEXT:    stb 16,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O3-NEXT:    ldb 18,u ; 1-byte Folded Reload
+; O3-NEXT:    std 2,u
+; O3-NEXT:    exg a,b
+; O3-NEXT:    std 10,u
+; O3-NEXT:    ldd 2,u
+; O3-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 13,u ; 1-byte Folded Reload
 ; O3-NEXT:    std 2,u
 ; O3-NEXT:    std 8,u
-; O3-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O3-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O3-NEXT:    lda 14,u ; 1-byte Folded Reload
 ; O3-NEXT:    std 2,u
 ; O3-NEXT:    std 6,u
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O3-NEXT:    ldb 17,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 16,u ; 1-byte Folded Reload
 ; O3-NEXT:    std 2,u
 ; O3-NEXT:    ldd 10,u
 ; O3-NEXT:    std 6,x
@@ -4511,157 +4332,149 @@ define dso_local i64 @add_u_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O0-NEXT:    std 6,u
 ; O0-NEXT:    ldb 5,u
 ; O0-NEXT:    stb 19,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 4,u
-; O0-NEXT:    sta 18,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 4,u
+; O0-NEXT:    stb 18,u ; 1-byte Folded Spill
 ; O0-NEXT:    ldb 11,u
-; O0-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 10,u
-; O0-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 9,u
-; O0-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 8,u
 ; O0-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 7,u
-; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 6,u
+; O0-NEXT:    lda 9,u
 ; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O0-NEXT:    addb #239
-; O0-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 8,u
+; O0-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 7,u
+; O0-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 6,u
+; O0-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O0-NEXT:    adda #239
+; O0-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca #190
 ; O0-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 17,u ; 1-byte Folded Reload
 ; O0-NEXT:    adcb #173
-; O0-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O0-NEXT:    adca #222
-; O0-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb #0
-; O0-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O0-NEXT:    adca #0
-; O0-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb #0
-; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O0-NEXT:    stb 16,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 14,u ; 1-byte Folded Reload
+; O0-NEXT:    adcb #222
 ; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca #0
 ; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O0-NEXT:    addb 39,u
-; O0-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O0-NEXT:    adca #0
+; O0-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O0-NEXT:    adca #0
+; O0-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O0-NEXT:    adca #0
+; O0-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O0-NEXT:    adda 39,u
+; O0-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 38,u
 ; O0-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 37,u
-; O0-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O0-NEXT:    adca 36,u
+; O0-NEXT:    adca 37,u
 ; O0-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O0-NEXT:    adcb 36,u
+; O0-NEXT:    stb 14,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O0-NEXT:    adcb 35,u
-; O0-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 14,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 13,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 34,u
-; O0-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 33,u
-; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O0-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O0-NEXT:    adca 33,u
+; O0-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 17,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 32,u
-; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O0-NEXT:    addb 47,u
-; O0-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O0-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O0-NEXT:    adda 47,u
+; O0-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 46,u
 ; O0-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 45,u
-; O0-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O0-NEXT:    adca 44,u
+; O0-NEXT:    adca 45,u
 ; O0-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 43,u
-; O0-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O0-NEXT:    adca 42,u
+; O0-NEXT:    adca 44,u
 ; O0-NEXT:    sta 14,u ; 1-byte Folded Spill
+; O0-NEXT:    adcb 43,u
+; O0-NEXT:    stb 12,u ; 1-byte Folded Spill
 ; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 41,u
-; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O0-NEXT:    adcb 42,u
+; O0-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O0-NEXT:    adca 41,u
+; O0-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 17,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 40,u
-; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O0-NEXT:    addb 55,u
-; O0-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O0-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O0-NEXT:    adda 55,u
+; O0-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 54,u
 ; O0-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 53,u
-; O0-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O0-NEXT:    adca 52,u
+; O0-NEXT:    adca 53,u
 ; O0-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 51,u
-; O0-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O0-NEXT:    adca 50,u
+; O0-NEXT:    adca 52,u
 ; O0-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 49,u
-; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O0-NEXT:    adca 48,u
+; O0-NEXT:    adca 51,u
 ; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O0-NEXT:    addb 63,u
-; O0-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O0-NEXT:    adcb 50,u
+; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O0-NEXT:    adcb 49,u
+; O0-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O0-NEXT:    adca 48,u
+; O0-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O0-NEXT:    adda 63,u
+; O0-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O0-NEXT:    adca 62,u
 ; O0-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 61,u
-; O0-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O0-NEXT:    adca 60,u
+; O0-NEXT:    adca 61,u
 ; O0-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 59,u
-; O0-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O0-NEXT:    adca 58,u
+; O0-NEXT:    adca 60,u
 ; O0-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    adcb 57,u
-; O0-NEXT:    stb 13,u ; 1-byte Folded Spill
 ; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O0-NEXT:    adca 56,u
+; O0-NEXT:    adca 59,u
 ; O0-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O0-NEXT:    lda 18,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O0-NEXT:    adca 58,u
+; O0-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O0-NEXT:    adcb 57,u
+; O0-NEXT:    stb 15,u ; 1-byte Folded Spill
+; O0-NEXT:    ldb 17,u ; 1-byte Folded Reload
+; O0-NEXT:    adcb 56,u
+; O0-NEXT:    stb 17,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O0-NEXT:    ldb 18,u ; 1-byte Folded Reload
 ; O0-NEXT:    std 2,u
+; O0-NEXT:    exg a,b
 ; O0-NEXT:    std 10,u
 ; O0-NEXT:    ldd 2,u
-; O0-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O0-NEXT:    lda 16,u ; 1-byte Folded Reload
+; O0-NEXT:    ldb 16,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 14,u ; 1-byte Folded Reload
 ; O0-NEXT:    std 2,u
 ; O0-NEXT:    std 8,u
 ; O0-NEXT:    ldd 2,u
-; O0-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O0-NEXT:    lda 14,u ; 1-byte Folded Reload
+; O0-NEXT:    ldb 12,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 13,u ; 1-byte Folded Reload
 ; O0-NEXT:    std 2,u
 ; O0-NEXT:    std 6,u
 ; O0-NEXT:    ldd 2,u
-; O0-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O0-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O0-NEXT:    ldb 17,u ; 1-byte Folded Reload
+; O0-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O0-NEXT:    exg a,b
 ; O0-NEXT:    std 2,u
 ; O0-NEXT:    ldd 10,u
 ; O0-NEXT:    std 6,x
@@ -4695,154 +4508,147 @@ define dso_local i64 @add_u_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O1-NEXT:    std 6,u
 ; O1-NEXT:    ldb 5,u
 ; O1-NEXT:    stb 19,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 4,u
-; O1-NEXT:    sta 18,u ; 1-byte Folded Spill
+; O1-NEXT:    ldb 4,u
+; O1-NEXT:    stb 18,u ; 1-byte Folded Spill
 ; O1-NEXT:    ldb 11,u
-; O1-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 10,u
-; O1-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 9,u
-; O1-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 8,u
 ; O1-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 7,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 6,u
+; O1-NEXT:    lda 9,u
 ; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O1-NEXT:    addb 39,u
-; O1-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 8,u
+; O1-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 7,u
+; O1-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 6,u
+; O1-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O1-NEXT:    adda 39,u
+; O1-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 38,u
 ; O1-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 17,u ; 1-byte Folded Reload
 ; O1-NEXT:    adcb 37,u
-; O1-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O1-NEXT:    adca 36,u
-; O1-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 35,u
-; O1-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O1-NEXT:    adca 34,u
-; O1-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 33,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O1-NEXT:    stb 16,u ; 1-byte Folded Spill
+; O1-NEXT:    ldb 14,u ; 1-byte Folded Reload
+; O1-NEXT:    adcb 36,u
 ; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O1-NEXT:    adca 32,u
+; O1-NEXT:    adca 35,u
 ; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O1-NEXT:    addb 47,u
-; O1-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O1-NEXT:    adca 34,u
+; O1-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O1-NEXT:    adca 33,u
+; O1-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O1-NEXT:    adca 32,u
+; O1-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O1-NEXT:    adda 47,u
+; O1-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 46,u
 ; O1-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 45,u
-; O1-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O1-NEXT:    adca 44,u
+; O1-NEXT:    adca 45,u
 ; O1-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O1-NEXT:    adcb 44,u
+; O1-NEXT:    stb 14,u ; 1-byte Folded Spill
+; O1-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O1-NEXT:    adcb 43,u
-; O1-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 14,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 13,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 42,u
-; O1-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 41,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O1-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O1-NEXT:    adca 41,u
+; O1-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 17,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 40,u
-; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O1-NEXT:    addb 55,u
-; O1-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O1-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O1-NEXT:    adda 55,u
+; O1-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 54,u
 ; O1-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 53,u
-; O1-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O1-NEXT:    adca 52,u
+; O1-NEXT:    adca 53,u
 ; O1-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 51,u
-; O1-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O1-NEXT:    adca 50,u
+; O1-NEXT:    adca 52,u
 ; O1-NEXT:    sta 14,u ; 1-byte Folded Spill
+; O1-NEXT:    adcb 51,u
+; O1-NEXT:    stb 12,u ; 1-byte Folded Spill
 ; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 49,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O1-NEXT:    adcb 50,u
+; O1-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O1-NEXT:    adca 49,u
+; O1-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 17,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 48,u
-; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O1-NEXT:    addb 63,u
-; O1-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O1-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O1-NEXT:    adda 63,u
+; O1-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca 62,u
 ; O1-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 61,u
-; O1-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O1-NEXT:    adca 60,u
+; O1-NEXT:    adca 61,u
 ; O1-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 59,u
-; O1-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O1-NEXT:    adca 58,u
+; O1-NEXT:    adca 60,u
 ; O1-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb 57,u
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O1-NEXT:    adca 56,u
+; O1-NEXT:    adca 59,u
 ; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O1-NEXT:    addb #-17
-; O1-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O1-NEXT:    adcb 58,u
+; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O1-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O1-NEXT:    adcb 57,u
+; O1-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O1-NEXT:    adca 56,u
+; O1-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O1-NEXT:    adda #-17
+; O1-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca #-66
 ; O1-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb #-83
-; O1-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O1-NEXT:    adca #-34
+; O1-NEXT:    adca #-83
 ; O1-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb #0
-; O1-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O1-NEXT:    adca #0
+; O1-NEXT:    adca #-34
 ; O1-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    adcb #0
-; O1-NEXT:    stb 13,u ; 1-byte Folded Spill
 ; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O1-NEXT:    adca #0
 ; O1-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O1-NEXT:    lda 18,u ; 1-byte Folded Reload
-; O1-NEXT:    std 2,u
-; O1-NEXT:    std 10,u
+; O1-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O1-NEXT:    adca #0
+; O1-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O1-NEXT:    adcb #0
+; O1-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O1-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O1-NEXT:    lda 16,u ; 1-byte Folded Reload
+; O1-NEXT:    adcb #0
+; O1-NEXT:    stb 17,u ; 1-byte Folded Spill
+; O1-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O1-NEXT:    ldb 18,u ; 1-byte Folded Reload
 ; O1-NEXT:    std 2,u
-; O1-NEXT:    std 8,u
-; O1-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O1-NEXT:    exg a,b
+; O1-NEXT:    std 10,u
+; O1-NEXT:    ldd 2,u
+; O1-NEXT:    ldb 16,u ; 1-byte Folded Reload
 ; O1-NEXT:    lda 14,u ; 1-byte Folded Reload
 ; O1-NEXT:    std 2,u
+; O1-NEXT:    std 8,u
+; O1-NEXT:    ldb 12,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O1-NEXT:    std 2,u
 ; O1-NEXT:    std 6,u
-; O1-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O1-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O1-NEXT:    ldb 17,u ; 1-byte Folded Reload
+; O1-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O1-NEXT:    exg a,b
 ; O1-NEXT:    std 2,u
 ; O1-NEXT:    ldd 10,u
 ; O1-NEXT:    std 6,x
@@ -4876,154 +4682,147 @@ define dso_local i64 @add_u_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O2-NEXT:    std 6,u
 ; O2-NEXT:    ldb 5,u
 ; O2-NEXT:    stb 19,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 4,u
-; O2-NEXT:    sta 18,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 4,u
+; O2-NEXT:    stb 18,u ; 1-byte Folded Spill
 ; O2-NEXT:    ldb 11,u
-; O2-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 10,u
-; O2-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 9,u
-; O2-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 8,u
 ; O2-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 7,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 6,u
+; O2-NEXT:    lda 9,u
 ; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O2-NEXT:    addb 39,u
-; O2-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 8,u
+; O2-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 7,u
+; O2-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 6,u
+; O2-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O2-NEXT:    adda 39,u
+; O2-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 38,u
 ; O2-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 17,u ; 1-byte Folded Reload
 ; O2-NEXT:    adcb 37,u
-; O2-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O2-NEXT:    adca 36,u
-; O2-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 35,u
-; O2-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O2-NEXT:    adca 34,u
-; O2-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 33,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O2-NEXT:    stb 16,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 14,u ; 1-byte Folded Reload
+; O2-NEXT:    adcb 36,u
 ; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O2-NEXT:    adca 32,u
+; O2-NEXT:    adca 35,u
 ; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O2-NEXT:    addb 47,u
-; O2-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O2-NEXT:    adca 34,u
+; O2-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O2-NEXT:    adca 33,u
+; O2-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O2-NEXT:    adca 32,u
+; O2-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O2-NEXT:    adda 47,u
+; O2-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 46,u
 ; O2-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 45,u
-; O2-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O2-NEXT:    adca 44,u
+; O2-NEXT:    adca 45,u
 ; O2-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O2-NEXT:    adcb 44,u
+; O2-NEXT:    stb 14,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O2-NEXT:    adcb 43,u
-; O2-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 14,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 13,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 42,u
-; O2-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 41,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O2-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O2-NEXT:    adca 41,u
+; O2-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 17,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 40,u
-; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O2-NEXT:    addb 55,u
-; O2-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O2-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O2-NEXT:    adda 55,u
+; O2-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 54,u
 ; O2-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 53,u
-; O2-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O2-NEXT:    adca 52,u
+; O2-NEXT:    adca 53,u
 ; O2-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 51,u
-; O2-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O2-NEXT:    adca 50,u
+; O2-NEXT:    adca 52,u
 ; O2-NEXT:    sta 14,u ; 1-byte Folded Spill
+; O2-NEXT:    adcb 51,u
+; O2-NEXT:    stb 12,u ; 1-byte Folded Spill
 ; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 49,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O2-NEXT:    adcb 50,u
+; O2-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O2-NEXT:    adca 49,u
+; O2-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 17,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 48,u
-; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O2-NEXT:    addb 63,u
-; O2-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O2-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O2-NEXT:    adda 63,u
+; O2-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 62,u
 ; O2-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 61,u
-; O2-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O2-NEXT:    adca 60,u
+; O2-NEXT:    adca 61,u
 ; O2-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 59,u
-; O2-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O2-NEXT:    adca 58,u
+; O2-NEXT:    adca 60,u
 ; O2-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 57,u
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O2-NEXT:    adca 56,u
+; O2-NEXT:    adca 59,u
 ; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O2-NEXT:    addb #-17
-; O2-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O2-NEXT:    adcb 58,u
+; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O2-NEXT:    adcb 57,u
+; O2-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O2-NEXT:    adca 56,u
+; O2-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O2-NEXT:    adda #-17
+; O2-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca #-66
 ; O2-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb #-83
-; O2-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O2-NEXT:    adca #-34
+; O2-NEXT:    adca #-83
 ; O2-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb #0
-; O2-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O2-NEXT:    adca #0
+; O2-NEXT:    adca #-34
 ; O2-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb #0
-; O2-NEXT:    stb 13,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca #0
 ; O2-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O2-NEXT:    lda 18,u ; 1-byte Folded Reload
-; O2-NEXT:    std 2,u
-; O2-NEXT:    std 10,u
+; O2-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O2-NEXT:    adca #0
+; O2-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O2-NEXT:    adcb #0
+; O2-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O2-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O2-NEXT:    lda 16,u ; 1-byte Folded Reload
+; O2-NEXT:    adcb #0
+; O2-NEXT:    stb 17,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O2-NEXT:    ldb 18,u ; 1-byte Folded Reload
 ; O2-NEXT:    std 2,u
-; O2-NEXT:    std 8,u
-; O2-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O2-NEXT:    exg a,b
+; O2-NEXT:    std 10,u
+; O2-NEXT:    ldd 2,u
+; O2-NEXT:    ldb 16,u ; 1-byte Folded Reload
 ; O2-NEXT:    lda 14,u ; 1-byte Folded Reload
 ; O2-NEXT:    std 2,u
+; O2-NEXT:    std 8,u
+; O2-NEXT:    ldb 12,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O2-NEXT:    std 2,u
 ; O2-NEXT:    std 6,u
-; O2-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O2-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O2-NEXT:    ldb 17,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O2-NEXT:    exg a,b
 ; O2-NEXT:    std 2,u
 ; O2-NEXT:    ldd 10,u
 ; O2-NEXT:    std 6,x
@@ -5057,154 +4856,147 @@ define dso_local i64 @add_u_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O3-NEXT:    std 6,u
 ; O3-NEXT:    ldb 5,u
 ; O3-NEXT:    stb 19,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 4,u
-; O3-NEXT:    sta 18,u ; 1-byte Folded Spill
+; O3-NEXT:    ldb 4,u
+; O3-NEXT:    stb 18,u ; 1-byte Folded Spill
 ; O3-NEXT:    ldb 11,u
-; O3-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 10,u
-; O3-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 9,u
-; O3-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 8,u
 ; O3-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 7,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 6,u
+; O3-NEXT:    lda 9,u
 ; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O3-NEXT:    addb 39,u
-; O3-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 8,u
+; O3-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 7,u
+; O3-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 6,u
+; O3-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O3-NEXT:    adda 39,u
+; O3-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 38,u
 ; O3-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 17,u ; 1-byte Folded Reload
 ; O3-NEXT:    adcb 37,u
-; O3-NEXT:    stb 17,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O3-NEXT:    adca 36,u
-; O3-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 35,u
-; O3-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O3-NEXT:    adca 34,u
-; O3-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 33,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O3-NEXT:    stb 16,u ; 1-byte Folded Spill
+; O3-NEXT:    ldb 14,u ; 1-byte Folded Reload
+; O3-NEXT:    adcb 36,u
 ; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O3-NEXT:    adca 32,u
+; O3-NEXT:    adca 35,u
 ; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O3-NEXT:    addb 47,u
-; O3-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O3-NEXT:    adca 34,u
+; O3-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O3-NEXT:    adca 33,u
+; O3-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O3-NEXT:    adca 32,u
+; O3-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O3-NEXT:    adda 47,u
+; O3-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 46,u
 ; O3-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 45,u
-; O3-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O3-NEXT:    adca 44,u
+; O3-NEXT:    adca 45,u
 ; O3-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O3-NEXT:    adcb 44,u
+; O3-NEXT:    stb 14,u ; 1-byte Folded Spill
+; O3-NEXT:    ldb 12,u ; 1-byte Folded Reload
 ; O3-NEXT:    adcb 43,u
-; O3-NEXT:    stb 15,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 14,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 13,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 42,u
-; O3-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 41,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O3-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O3-NEXT:    adca 41,u
+; O3-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 17,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 40,u
-; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O3-NEXT:    addb 55,u
-; O3-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O3-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O3-NEXT:    adda 55,u
+; O3-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 54,u
 ; O3-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 53,u
-; O3-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O3-NEXT:    adca 52,u
+; O3-NEXT:    adca 53,u
 ; O3-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 51,u
-; O3-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O3-NEXT:    adca 50,u
+; O3-NEXT:    adca 52,u
 ; O3-NEXT:    sta 14,u ; 1-byte Folded Spill
+; O3-NEXT:    adcb 51,u
+; O3-NEXT:    stb 12,u ; 1-byte Folded Spill
 ; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 49,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
-; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O3-NEXT:    adcb 50,u
+; O3-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O3-NEXT:    adca 49,u
+; O3-NEXT:    sta 15,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 17,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 48,u
-; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O3-NEXT:    addb 63,u
-; O3-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O3-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O3-NEXT:    adda 63,u
+; O3-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca 62,u
 ; O3-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 61,u
-; O3-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O3-NEXT:    adca 60,u
+; O3-NEXT:    adca 61,u
 ; O3-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 59,u
-; O3-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O3-NEXT:    adca 58,u
+; O3-NEXT:    adca 60,u
 ; O3-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb 57,u
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
-; O3-NEXT:    adca 56,u
+; O3-NEXT:    adca 59,u
 ; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O3-NEXT:    addb #-17
-; O3-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O3-NEXT:    adcb 58,u
+; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
+; O3-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O3-NEXT:    adcb 57,u
+; O3-NEXT:    lda 17,u ; 1-byte Folded Reload
+; O3-NEXT:    adca 56,u
+; O3-NEXT:    sta 17,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O3-NEXT:    adda #-17
+; O3-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 18,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca #-66
 ; O3-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb #-83
-; O3-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 16,u ; 1-byte Folded Reload
-; O3-NEXT:    adca #-34
+; O3-NEXT:    adca #-83
 ; O3-NEXT:    sta 16,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 15,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb #0
-; O3-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 14,u ; 1-byte Folded Reload
-; O3-NEXT:    adca #0
+; O3-NEXT:    adca #-34
 ; O3-NEXT:    sta 14,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    adcb #0
-; O3-NEXT:    stb 13,u ; 1-byte Folded Spill
 ; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
 ; O3-NEXT:    adca #0
 ; O3-NEXT:    sta 12,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 19,u ; 1-byte Folded Reload
-; O3-NEXT:    lda 18,u ; 1-byte Folded Reload
-; O3-NEXT:    std 2,u
-; O3-NEXT:    std 10,u
+; O3-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O3-NEXT:    adca #0
+; O3-NEXT:    sta 13,u ; 1-byte Folded Spill
+; O3-NEXT:    adcb #0
+; O3-NEXT:    stb 15,u ; 1-byte Folded Spill
 ; O3-NEXT:    ldb 17,u ; 1-byte Folded Reload
-; O3-NEXT:    lda 16,u ; 1-byte Folded Reload
+; O3-NEXT:    adcb #0
+; O3-NEXT:    stb 17,u ; 1-byte Folded Spill
+; O3-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O3-NEXT:    ldb 18,u ; 1-byte Folded Reload
 ; O3-NEXT:    std 2,u
-; O3-NEXT:    std 8,u
-; O3-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O3-NEXT:    exg a,b
+; O3-NEXT:    std 10,u
+; O3-NEXT:    ldd 2,u
+; O3-NEXT:    ldb 16,u ; 1-byte Folded Reload
 ; O3-NEXT:    lda 14,u ; 1-byte Folded Reload
 ; O3-NEXT:    std 2,u
+; O3-NEXT:    std 8,u
+; O3-NEXT:    ldb 12,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 13,u ; 1-byte Folded Reload
+; O3-NEXT:    std 2,u
 ; O3-NEXT:    std 6,u
-; O3-NEXT:    ldb 13,u ; 1-byte Folded Reload
-; O3-NEXT:    lda 12,u ; 1-byte Folded Reload
+; O3-NEXT:    ldb 17,u ; 1-byte Folded Reload
+; O3-NEXT:    lda 15,u ; 1-byte Folded Reload
+; O3-NEXT:    exg a,b
 ; O3-NEXT:    std 2,u
 ; O3-NEXT:    ldd 10,u
 ; O3-NEXT:    std 6,x

@@ -91,7 +91,7 @@ define i64 @sdiv_i64_2(i64 %x) {
 ; O2-NEXT:    leas -48,s
 ; O2-NEXT:    pshs u,y
 ; O2-NEXT:    tfr s,u
-; O2-NEXT:    stx 16,u ; 2-byte Folded Spill
+; O2-NEXT:    stx 18,u ; 2-byte Folded Spill
 ; O2-NEXT:    ldd 60,u
 ; O2-NEXT:    std 4,u
 ; O2-NEXT:    ldd 58,u
@@ -147,61 +147,59 @@ define i64 @sdiv_i64_2(i64 %x) {
 ; O2-NEXT:    tfr y,x
 ; O2-NEXT:    lbsr __lshrdi3
 ; O2-NEXT:    ldd 6,y
-; O2-NEXT:    std 12,u
-; O2-NEXT:    ldd 4,y
-; O2-NEXT:    std 10,u
-; O2-NEXT:    ldd 2,y
 ; O2-NEXT:    std 8,u
+; O2-NEXT:    ldd 4,y
+; O2-NEXT:    std 12,u
+; O2-NEXT:    ldd 2,y
+; O2-NEXT:    std 10,u
 ; O2-NEXT:    leas 10,s
 ; O2-NEXT:    ldb 15,u
 ; O2-NEXT:    stb 25,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 14,u
-; O2-NEXT:    sta 24,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 13,u
-; O2-NEXT:    stb 22,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 14,u
+; O2-NEXT:    stb 24,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 9,u
+; O2-NEXT:    lda 8,u
+; O2-NEXT:    sta 16,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 13,u
+; O2-NEXT:    sta 23,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 12,u
-; O2-NEXT:    sta 19,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 11,u
-; O2-NEXT:    stb 23,u ; 1-byte Folded Spill
+; O2-NEXT:    sta 21,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 11,u
+; O2-NEXT:    sta 22,u ; 1-byte Folded Spill
 ; O2-NEXT:    lda 10,u
 ; O2-NEXT:    sta 20,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 9,u
-; O2-NEXT:    stb 21,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 8,u
-; O2-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 22,u ; 1-byte Folded Reload
 ; O2-NEXT:    addb 61,u
-; O2-NEXT:    stb 22,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O2-NEXT:    stb 17,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 16,u ; 1-byte Folded Reload
 ; O2-NEXT:    adca 60,u
-; O2-NEXT:    sta 19,u ; 1-byte Folded Spill
 ; O2-NEXT:    ldb 23,u ; 1-byte Folded Reload
 ; O2-NEXT:    adcb 59,u
 ; O2-NEXT:    stb 23,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 20,u ; 1-byte Folded Reload
-; O2-NEXT:    adca 58,u
-; O2-NEXT:    sta 20,u ; 1-byte Folded Spill
 ; O2-NEXT:    ldb 21,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 57,u
+; O2-NEXT:    adcb 58,u
 ; O2-NEXT:    stb 21,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 18,u ; 1-byte Folded Reload
-; O2-NEXT:    adca 56,u
-; O2-NEXT:    sta 18,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 22,u ; 1-byte Folded Reload
+; O2-NEXT:    adcb 57,u
+; O2-NEXT:    stb 22,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 20,u ; 1-byte Folded Reload
+; O2-NEXT:    adcb 56,u
+; O2-NEXT:    stb 20,u ; 1-byte Folded Spill
 ; O2-NEXT:    ldb 25,u ; 1-byte Folded Reload
 ; O2-NEXT:    adcb 35,u
 ; O2-NEXT:    stb 25,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 24,u ; 1-byte Folded Reload
-; O2-NEXT:    adca 34,u
-; O2-NEXT:    sta 24,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 24,u ; 1-byte Folded Reload
+; O2-NEXT:    adcb 34,u
+; O2-NEXT:    stb 24,u ; 1-byte Folded Spill
 ; O2-NEXT:    leas -10,s
-; O2-NEXT:    ldb 22,u ; 1-byte Folded Reload
-; O2-NEXT:    lda 19,u ; 1-byte Folded Reload
+; O2-NEXT:    ldb 17,u ; 1-byte Folded Reload
+; O2-NEXT:    std 4,u
+; O2-NEXT:    std 14,u
 ; O2-NEXT:    std 6,s
 ; O2-NEXT:    ldb 23,u ; 1-byte Folded Reload
-; O2-NEXT:    lda 20,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 21,u ; 1-byte Folded Reload
 ; O2-NEXT:    std 4,s
-; O2-NEXT:    ldb 21,u ; 1-byte Folded Reload
-; O2-NEXT:    lda 18,u ; 1-byte Folded Reload
+; O2-NEXT:    ldb 22,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 20,u ; 1-byte Folded Reload
 ; O2-NEXT:    std 2,s
 ; O2-NEXT:    ldb 25,u ; 1-byte Folded Reload
 ; O2-NEXT:    lda 24,u ; 1-byte Folded Reload
@@ -225,7 +223,7 @@ define i64 @sdiv_i64_2(i64 %x) {
 ; O2-NEXT:    std 10,u
 ; O2-NEXT:    ldd 4,u
 ; O2-NEXT:    leas 10,s
-; O2-NEXT:    ldx 16,u ; 2-byte Folded Reload
+; O2-NEXT:    ldx 18,u ; 2-byte Folded Reload
 ; O2-NEXT:    std 6,x
 ; O2-NEXT:    ldd 14,u
 ; O2-NEXT:    std 4,x

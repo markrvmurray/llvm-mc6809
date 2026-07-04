@@ -13,16 +13,18 @@
 ; With the fix the high-byte ADC's two operands stay separate. Under the
 ; original SPILL_* materialisation this showed as an `adcb N,u` slot read
 ; (emit6809RegByteFromMem Path(a) via the needsSecondAccSpillSkip list);
-; under stock frame-index spilling the same separation shows as the
-; cross-half push sequence `pshs a; adcb ,s+` — the RHS high byte lives
-; in $aa and is consumed from the S stack, never a second $ab load
-; clobbering the first operand.
+; under stock frame-index spilling the same separation shows as a
+; cross-half push sequence (`pshs a; adcb ,s+` or the mirrored halves) —
+; the RHS high byte lives in the other accumulator half and is consumed
+; from the S stack, never a second same-register load clobbering the
+; first operand. Which half carries which operand is the allocator's
+; choice now that the byte pseudos take either page-1 half.
 
 ; CHECK-LABEL: t1:
-; The high-byte add-with-carry consumes its RHS from a register other
-; than $ab (pushed $aa), proving the two operands did not collapse.
-; CHECK: pshs a
-; CHECK-NEXT: adcb ,s+
+; The high-byte add-with-carry consumes its RHS from the stack (pushed
+; from the other half), proving the two operands did not collapse.
+; CHECK: pshs {{[ab]}}
+; CHECK-NEXT: adc{{[ab]}} ,s+
 
 target datalayout = "E-p:16:8-p1:8:8-S8-m:e-i1:8-i8:8-i16:8-i32:8-i64:8-f32:8-f64:8-a:0-n8:16"
 
