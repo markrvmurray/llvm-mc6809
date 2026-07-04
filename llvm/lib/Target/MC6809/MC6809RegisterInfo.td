@@ -559,8 +559,11 @@ def REGTFM : MC6809Reg16Class<(add IX, IY)>; // Index regs TFM codegen allocates
 
 // Pointer and stack registers
 let isPressureFineGrained = true in
+// The SPILL_X* stack-backed pseudo-registers were removed from INDEX16
+// allocation with the stock-frame-index spill migration: pointer spills go
+// through the ordinary spiller, and spilled second sources of the index
+// reg-reg compares fold into the _Mem forms (see memFoldSibling).
 def INDEX16 : MC6809Reg16Class<(add IX, IY,
-                                    (sequence "SPILL_X%u", 0, 3),
                                     SU, SS)>;
 
 // Stack registers for internal push/pull operations.

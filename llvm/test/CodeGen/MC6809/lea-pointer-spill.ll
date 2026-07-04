@@ -34,47 +34,41 @@ declare void @sink(ptr)
 define void @fold_through_y(i16 %v, i16 %w) {
 ; O0-LABEL: fold_through_y:
 ; O0:       ; %bb.0: ; %entry
-; O0-NEXT:    leas -18,s
+; O0-NEXT:    leas -16,s
 ; O0-NEXT:    pshs u,y
 ; O0-NEXT:    tfr s,u
-; O0-NEXT:    ldd 24,u
-; O0-NEXT:    leay 12,u
+; O0-NEXT:    tfr x,y
+; O0-NEXT:    ldd 22,u
+; O0-NEXT:    leax 10,u
 ; O0-NEXT:    sty 8,u
-; O0-NEXT:    stx 10,u
 ; O0-NEXT:    std 6,u
-; O0-NEXT:    ldd 10,u
-; O0-NEXT:    std 12,u
+; O0-NEXT:    ldd 8,u
+; O0-NEXT:    std ,x
 ; O0-NEXT:    ldd 6,u
-; O0-NEXT:    ldy 8,u
-; O0-NEXT:    std 2,y
-; O0-NEXT:    tfr x,d
-; O0-NEXT:    ldy 8,u
-; O0-NEXT:    std 4,y
-; O0-NEXT:    ldy 8,u
-; O0-NEXT:    tfr y,x
+; O0-NEXT:    std 2,x
+; O0-NEXT:    tfr y,d
+; O0-NEXT:    std 4,x
 ; O0-NEXT:    lbsr sink
 ; O0-NEXT:    tfr u,s
 ; O0-NEXT:    puls u,y
-; O0-NEXT:    leas 18,s
+; O0-NEXT:    leas 16,s
 ; O0-NEXT:    rts
 ;
 ; O2-LABEL: fold_through_y:
 ; O2:       ; %bb.0: ; %entry
-; O2-NEXT:    leas -14,s
+; O2-NEXT:    leas -10,s
 ; O2-NEXT:    pshs u,y
 ; O2-NEXT:    tfr s,u
-; O2-NEXT:    ldd 20,u
-; O2-NEXT:    leay 8,u
-; O2-NEXT:    sty 6,u
-; O2-NEXT:    stx 8,u
+; O2-NEXT:    ldd 16,u
+; O2-NEXT:    leay 4,u
+; O2-NEXT:    stx 4,u
 ; O2-NEXT:    std 2,y
-; O2-NEXT:    ldy 6,u
 ; O2-NEXT:    stx 4,y
-; O2-NEXT:    ldx 6,u
+; O2-NEXT:    tfr y,x
 ; O2-NEXT:    lbsr sink
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u,y
-; O2-NEXT:    leas 14,s
+; O2-NEXT:    leas 10,s
 ; O2-NEXT:    rts
 entry:
   %a = alloca [4 x i16], align 1

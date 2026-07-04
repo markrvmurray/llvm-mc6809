@@ -164,13 +164,9 @@ const uint32_t *MC6809RegisterInfo::getCallPreservedMask(const MachineFunction &
     for (MCPhysReg Reg : {MC6809::SPILL_D0, MC6809::SPILL_D1, MC6809::SPILL_D2, MC6809::SPILL_D3, MC6809::SPILL_D4, MC6809::SPILL_D5, MC6809::SPILL_D6, MC6809::SPILL_D7,
                           MC6809::SPILL_A0, MC6809::SPILL_A1, MC6809::SPILL_A2, MC6809::SPILL_A3, MC6809::SPILL_A4, MC6809::SPILL_A5, MC6809::SPILL_A6, MC6809::SPILL_A7,
                           MC6809::SPILL_B0, MC6809::SPILL_B1, MC6809::SPILL_B2, MC6809::SPILL_B3, MC6809::SPILL_B4, MC6809::SPILL_B5, MC6809::SPILL_B6, MC6809::SPILL_B7,
-                          // Bug #85b: SPILL_X0-X3 are stack-backed INDEX16 spill
-                          // registers, exactly like SPILL_D0-D7 for ACC16. They
-                          // must be marked call-preserved so the allocator knows
-                          // they survive function calls. Without this, INDEX16
-                          // has only IX + IY across calls (2 registers), which is
-                          // insufficient for any function with 3+ live pointers.
-                          MC6809::SPILL_X0, MC6809::SPILL_X1, MC6809::SPILL_X2, MC6809::SPILL_X3,
+                          // SPILL_X0-X3 were removed from INDEX16 allocation
+                          // (stock-spilling migration); pointers that must
+                          // survive calls now live in ordinary spill slots.
                           // RS imaginary 16-bit regs and their byte sub-regs (memory-backed = call-preserved)
                           MC6809::RS0, MC6809::RS1, MC6809::RS2, MC6809::RS3,
                           MC6809::RS0HI, MC6809::RS0LO, MC6809::RS1HI, MC6809::RS1LO,

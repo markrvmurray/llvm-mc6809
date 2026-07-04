@@ -18,8 +18,13 @@
 ; register and never collapsing to a same-register CMPR.
 define ptr @ptr_find(ptr %a, ptr %ae, ptr %b, ptr %be, i8 %c) {
 ; CHECK-LABEL: ptr_find:
-; CHECK: cmp{{[xy]}} {{-?[0-9]+}},u
-; CHECK: cmp{{[xy]}} {{-?[0-9]+}},u
+; With the SPILL_X pseudo-registers retired, the compare's operands arrive
+; either both in index registers (HD6309: cmpr y,x), or with the spilled one
+; read from memory (folded frame-slot cmpx N,s / N,u, or the push-and-compare
+; fallback cmpx ,s++). All shapes keep the operands distinct; the load-bearing
+; guard is the CHECK-NOT below (never a self-compare).
+; CHECK: cmp{{[xyr]}}
+; CHECK: cmp{{[xyr]}}
 ; CHECK-NOT: cmpr [[RR:[a-z]+]],[[RR]]
 entry:
   br label %loop

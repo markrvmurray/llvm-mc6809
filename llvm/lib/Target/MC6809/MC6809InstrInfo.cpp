@@ -2193,6 +2193,14 @@ static std::optional<MC6809MemFoldInfo> memFoldSibling(unsigned Opc) {
     return MC6809MemFoldInfo{MC6809::Compare_i8_Mem, 3};
   case MC6809::CompareBranch_i8_Reg:
     return MC6809MemFoldInfo{MC6809::CompareBranch_i8_Mem, 2};
+  // Index-domain pointer compares: with the SPILL_X escape registers gone,
+  // INDEX16 is effectively {IX, IY}; a spilled second pointer of a reg-reg
+  // compare reads straight from its slot (CMPX/CMPY off,r) instead of
+  // reloading through the other index register.
+  case MC6809::Compare_ptr_Reg:
+    return MC6809MemFoldInfo{MC6809::Compare_ptr_Mem, 3};
+  case MC6809::CompareBranch_ptr_Reg:
+    return MC6809MemFoldInfo{MC6809::CompareBranch_ptr_Mem, 2};
   default:
     return std::nullopt;
   }

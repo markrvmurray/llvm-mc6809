@@ -23,8 +23,11 @@ entry:
 
 ; Stack-passed pointer arguments are loaded directly from their frame slots.
 ; CHECK-LABEL: store3:
-; CHECK: ldx {{[0-9]+}},u
-; CHECK: ldy {{[0-9]+}},u
+; The folded loads are frame-relative; the base is S when the function no
+; longer needs a frame pointer (the SPILL_X retirement removed the forced-FP
+; trigger), U when it does.
+; CHECK: ldx {{[0-9]+}},{{[su]}}
+; CHECK: ldy {{[0-9]+}},{{[su]}}
 define void @store3(ptr %a, ptr %b, ptr %pp) {
 entry:
   store ptr %b, ptr %pp, align 1

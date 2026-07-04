@@ -16,141 +16,129 @@ target triple = "mc6809-unknown-unknown"
 define i32 @sdiv_i32_2(i32 %x) {
 ; O0-LABEL: sdiv_i32_2:
 ; O0:       ; %bb.0:
-; O0-NEXT:    leas -18,s
+; O0-NEXT:    leas -16,s
 ; O0-NEXT:    pshs u,y
 ; O0-NEXT:    tfr s,u
-; O0-NEXT:    tfr x,y
-; O0-NEXT:    sty 10,u
-; O0-NEXT:    ldd 26,u
-; O0-NEXT:    std 6,u
+; O0-NEXT:    stx 12,u ; 2-byte Folded Spill
 ; O0-NEXT:    ldd 24,u
-; O0-NEXT:    std 14,u
+; O0-NEXT:    std 6,u
+; O0-NEXT:    ldd 22,u
+; O0-NEXT:    std 10,u
 ; O0-NEXT:    ldd 6,u
 ; O0-NEXT:    leas -8,s
 ; O0-NEXT:    std 6,u
 ; O0-NEXT:    ldd #2
-; O0-NEXT:    std 12,u
+; O0-NEXT:    std 8,u
 ; O0-NEXT:    ldd 6,u
 ; O0-NEXT:    std 2,s
 ; O0-NEXT:    ldd #0
 ; O0-NEXT:    std 6,u
-; O0-NEXT:    ldd 14,u
+; O0-NEXT:    ldd 10,u
 ; O0-NEXT:    std ,s
 ; O0-NEXT:    ldd 6,u
 ; O0-NEXT:    std 6,u
-; O0-NEXT:    ldd 12,u
+; O0-NEXT:    ldd 8,u
 ; O0-NEXT:    std 6,s
 ; O0-NEXT:    ldd 6,u
 ; O0-NEXT:    std 4,s
-; O0-NEXT:    leay 16,u
-; O0-NEXT:    sty 8,u
-; O0-NEXT:    ldy 8,u
+; O0-NEXT:    leay 14,u
 ; O0-NEXT:    tfr y,x
 ; O0-NEXT:    lbsr __divsi3
-; O0-NEXT:    ldy 8,u
 ; O0-NEXT:    ldd 2,y
 ; O0-NEXT:    std 6,u
-; O0-NEXT:    ldd 16,u
-; O0-NEXT:    std 14,u
+; O0-NEXT:    ldd 14,u
+; O0-NEXT:    std 10,u
 ; O0-NEXT:    ldd 6,u
 ; O0-NEXT:    leas 8,s
-; O0-NEXT:    ldy 10,u
-; O0-NEXT:    std 2,y
-; O0-NEXT:    ldd 14,u
-; O0-NEXT:    ldy 10,u
-; O0-NEXT:    std ,y
+; O0-NEXT:    ldx 12,u ; 2-byte Folded Reload
+; O0-NEXT:    std 2,x
+; O0-NEXT:    ldd 10,u
+; O0-NEXT:    std ,x
 ; O0-NEXT:    tfr u,s
 ; O0-NEXT:    puls u,y
-; O0-NEXT:    leas 18,s
+; O0-NEXT:    leas 16,s
 ; O0-NEXT:    rts
 ;
 ; O2-LABEL: sdiv_i32_2:
 ; O2:       ; %bb.0:
-; O2-NEXT:    leas -32,s
+; O2-NEXT:    leas -30,s
 ; O2-NEXT:    pshs u,y
 ; O2-NEXT:    tfr s,u
-; O2-NEXT:    tfr x,y
-; O2-NEXT:    sty 10,u
-; O2-NEXT:    ldd 40,u
-; O2-NEXT:    std 6,u
+; O2-NEXT:    stx 16,u ; 2-byte Folded Spill
 ; O2-NEXT:    ldd 38,u
-; O2-NEXT:    std 16,u
-; O2-NEXT:    ldd 6,u
-; O2-NEXT:    leas -6,s
-; O2-NEXT:    std 2,s
-; O2-NEXT:    ldd 16,u
-; O2-NEXT:    std ,s
-; O2-NEXT:    ldd #31
-; O2-NEXT:    std 14,u
-; O2-NEXT:    std 4,s
-; O2-NEXT:    leax 22,u
-; O2-NEXT:    stx 8,u
-; O2-NEXT:    ldx 8,u
-; O2-NEXT:    lbsr __ashrsi3
-; O2-NEXT:    ldy 8,u
-; O2-NEXT:    ldd 2,y
 ; O2-NEXT:    std 6,u
-; O2-NEXT:    ldd 22,u
+; O2-NEXT:    ldd 36,u
 ; O2-NEXT:    std 12,u
 ; O2-NEXT:    ldd 6,u
-; O2-NEXT:    leas 6,s
 ; O2-NEXT:    leas -6,s
 ; O2-NEXT:    std 2,s
 ; O2-NEXT:    ldd 12,u
 ; O2-NEXT:    std ,s
-; O2-NEXT:    ldd 14,u
+; O2-NEXT:    ldd #31
+; O2-NEXT:    std 10,u
 ; O2-NEXT:    std 4,s
-; O2-NEXT:    leax 26,u
-; O2-NEXT:    stx 8,u
-; O2-NEXT:    ldx 8,u
-; O2-NEXT:    lbsr __lshrsi3
-; O2-NEXT:    ldy 8,u
+; O2-NEXT:    leay 20,u
+; O2-NEXT:    tfr y,x
+; O2-NEXT:    lbsr __ashrsi3
 ; O2-NEXT:    ldd 2,y
-; O2-NEXT:    std 14,u
+; O2-NEXT:    std 6,u
+; O2-NEXT:    ldd 20,u
+; O2-NEXT:    std 8,u
+; O2-NEXT:    ldd 6,u
 ; O2-NEXT:    leas 6,s
-; O2-NEXT:    ldb 17,u
-; O2-NEXT:    stb 21,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 16,u
-; O2-NEXT:    sta 20,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 15,u
-; O2-NEXT:    lda 14,u
-; O2-NEXT:    addb 41,u
-; O2-NEXT:    stb 19,u ; 1-byte Folded Spill
-; O2-NEXT:    adca 40,u
-; O2-NEXT:    sta 18,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 21,u ; 1-byte Folded Reload
-; O2-NEXT:    adcb 27,u
-; O2-NEXT:    stb 21,u ; 1-byte Folded Spill
-; O2-NEXT:    lda 20,u ; 1-byte Folded Reload
-; O2-NEXT:    adca 26,u
-; O2-NEXT:    sta 20,u ; 1-byte Folded Spill
 ; O2-NEXT:    leas -6,s
+; O2-NEXT:    std 2,s
+; O2-NEXT:    ldd 8,u
+; O2-NEXT:    std ,s
+; O2-NEXT:    ldd 10,u
+; O2-NEXT:    std 4,s
+; O2-NEXT:    leay 24,u
+; O2-NEXT:    tfr y,x
+; O2-NEXT:    lbsr __lshrsi3
+; O2-NEXT:    ldd 2,y
+; O2-NEXT:    std 10,u
+; O2-NEXT:    leas 6,s
+; O2-NEXT:    ldb 13,u
+; O2-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 12,u
+; O2-NEXT:    sta 18,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 11,u
+; O2-NEXT:    lda 10,u
+; O2-NEXT:    addb 39,u
+; O2-NEXT:    stb 15,u ; 1-byte Folded Spill
+; O2-NEXT:    adca 38,u
+; O2-NEXT:    sta 14,u ; 1-byte Folded Spill
+; O2-NEXT:    ldb 19,u ; 1-byte Folded Reload
+; O2-NEXT:    adcb 25,u
+; O2-NEXT:    stb 19,u ; 1-byte Folded Spill
+; O2-NEXT:    lda 18,u ; 1-byte Folded Reload
+; O2-NEXT:    adca 24,u
+; O2-NEXT:    sta 18,u ; 1-byte Folded Spill
+; O2-NEXT:    leas -6,s
+; O2-NEXT:    ldb 15,u ; 1-byte Folded Reload
+; O2-NEXT:    lda 14,u ; 1-byte Folded Reload
+; O2-NEXT:    std 2,s
 ; O2-NEXT:    ldb 19,u ; 1-byte Folded Reload
 ; O2-NEXT:    lda 18,u ; 1-byte Folded Reload
-; O2-NEXT:    std 2,s
-; O2-NEXT:    ldb 21,u ; 1-byte Folded Reload
-; O2-NEXT:    lda 20,u ; 1-byte Folded Reload
 ; O2-NEXT:    std ,s
 ; O2-NEXT:    ldd #1
 ; O2-NEXT:    std 4,s
-; O2-NEXT:    leax 30,u
-; O2-NEXT:    stx 8,u
-; O2-NEXT:    ldx 8,u
+; O2-NEXT:    leay 28,u
+; O2-NEXT:    tfr y,x
 ; O2-NEXT:    lbsr __ashrsi3
-; O2-NEXT:    ldy 8,u
 ; O2-NEXT:    ldd 2,y
 ; O2-NEXT:    std 6,u
-; O2-NEXT:    ldd 30,u
-; O2-NEXT:    std 16,u
+; O2-NEXT:    ldd 28,u
+; O2-NEXT:    std 12,u
 ; O2-NEXT:    ldd 6,u
 ; O2-NEXT:    leas 6,s
-; O2-NEXT:    ldy 10,u
-; O2-NEXT:    std 2,y
-; O2-NEXT:    ldd 16,u
-; O2-NEXT:    std [10,u]
+; O2-NEXT:    ldx 16,u ; 2-byte Folded Reload
+; O2-NEXT:    std 2,x
+; O2-NEXT:    ldd 12,u
+; O2-NEXT:    std ,x
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u,y
-; O2-NEXT:    leas 32,s
+; O2-NEXT:    leas 30,s
 ; O2-NEXT:    rts
   %r = sdiv i32 %x, 2
   ret i32 %r
@@ -159,94 +147,86 @@ define i32 @sdiv_i32_2(i32 %x) {
 define i32 @udiv_i32_4(i32 %x) {
 ; O0-LABEL: udiv_i32_4:
 ; O0:       ; %bb.0:
-; O0-NEXT:    leas -16,s
+; O0-NEXT:    leas -14,s
 ; O0-NEXT:    pshs u,y
 ; O0-NEXT:    tfr s,u
-; O0-NEXT:    tfr x,y
-; O0-NEXT:    sty 10,u
-; O0-NEXT:    ldd 24,u
-; O0-NEXT:    std 6,u
+; O0-NEXT:    stx 10,u ; 2-byte Folded Spill
 ; O0-NEXT:    ldd 22,u
-; O0-NEXT:    std 12,u
+; O0-NEXT:    std 6,u
+; O0-NEXT:    ldd 20,u
+; O0-NEXT:    std 8,u
 ; O0-NEXT:    ldd 6,u
 ; O0-NEXT:    leas -8,s
 ; O0-NEXT:    std 2,s
 ; O0-NEXT:    ldd #0
 ; O0-NEXT:    std 6,u
-; O0-NEXT:    ldd 12,u
+; O0-NEXT:    ldd 8,u
 ; O0-NEXT:    std ,s
 ; O0-NEXT:    ldd 6,u
 ; O0-NEXT:    std 6,u
 ; O0-NEXT:    ldd #4
-; O0-NEXT:    std 12,u
+; O0-NEXT:    std 8,u
 ; O0-NEXT:    ldd 6,u
 ; O0-NEXT:    std 6,u
-; O0-NEXT:    ldd 12,u
+; O0-NEXT:    ldd 8,u
 ; O0-NEXT:    std 6,s
 ; O0-NEXT:    ldd 6,u
 ; O0-NEXT:    std 4,s
-; O0-NEXT:    leay 14,u
-; O0-NEXT:    sty 8,u
-; O0-NEXT:    ldy 8,u
+; O0-NEXT:    leay 12,u
 ; O0-NEXT:    tfr y,x
 ; O0-NEXT:    lbsr __udivsi3
-; O0-NEXT:    ldy 8,u
 ; O0-NEXT:    ldd 2,y
 ; O0-NEXT:    std 6,u
-; O0-NEXT:    ldd 14,u
-; O0-NEXT:    std 12,u
+; O0-NEXT:    ldd 12,u
+; O0-NEXT:    std 8,u
 ; O0-NEXT:    ldd 6,u
 ; O0-NEXT:    leas 8,s
-; O0-NEXT:    ldy 10,u
-; O0-NEXT:    std 2,y
-; O0-NEXT:    ldd 12,u
-; O0-NEXT:    ldy 10,u
-; O0-NEXT:    std ,y
+; O0-NEXT:    ldx 10,u ; 2-byte Folded Reload
+; O0-NEXT:    std 2,x
+; O0-NEXT:    ldd 8,u
+; O0-NEXT:    std ,x
 ; O0-NEXT:    tfr u,s
 ; O0-NEXT:    puls u,y
-; O0-NEXT:    leas 16,s
+; O0-NEXT:    leas 14,s
 ; O0-NEXT:    rts
 ;
 ; O2-LABEL: udiv_i32_4:
 ; O2:       ; %bb.0:
-; O2-NEXT:    leas -18,s
+; O2-NEXT:    leas -16,s
 ; O2-NEXT:    pshs u,y
 ; O2-NEXT:    tfr s,u
-; O2-NEXT:    tfr x,y
-; O2-NEXT:    sty 10,u
-; O2-NEXT:    ldd 26,u
-; O2-NEXT:    std 6,u
+; O2-NEXT:    stx 12,u ; 2-byte Folded Spill
 ; O2-NEXT:    ldd 24,u
-; O2-NEXT:    std 14,u
+; O2-NEXT:    std 6,u
+; O2-NEXT:    ldd 22,u
+; O2-NEXT:    std 10,u
 ; O2-NEXT:    ldd 6,u
 ; O2-NEXT:    leas -6,s
 ; O2-NEXT:    std 6,u
 ; O2-NEXT:    ldd #2
-; O2-NEXT:    std 12,u
+; O2-NEXT:    std 8,u
 ; O2-NEXT:    ldd 6,u
 ; O2-NEXT:    std 2,s
-; O2-NEXT:    ldd 14,u
+; O2-NEXT:    ldd 10,u
 ; O2-NEXT:    std ,s
-; O2-NEXT:    ldd 12,u
+; O2-NEXT:    ldd 8,u
 ; O2-NEXT:    std 4,s
-; O2-NEXT:    leax 16,u
-; O2-NEXT:    stx 8,u
-; O2-NEXT:    ldx 8,u
+; O2-NEXT:    leay 14,u
+; O2-NEXT:    tfr y,x
 ; O2-NEXT:    lbsr __lshrsi3
-; O2-NEXT:    ldy 8,u
 ; O2-NEXT:    ldd 2,y
 ; O2-NEXT:    std 6,u
-; O2-NEXT:    ldd 16,u
-; O2-NEXT:    std 14,u
+; O2-NEXT:    ldd 14,u
+; O2-NEXT:    std 10,u
 ; O2-NEXT:    ldd 6,u
 ; O2-NEXT:    leas 6,s
-; O2-NEXT:    ldy 10,u
-; O2-NEXT:    std 2,y
-; O2-NEXT:    ldd 14,u
-; O2-NEXT:    std [10,u]
+; O2-NEXT:    ldx 12,u ; 2-byte Folded Reload
+; O2-NEXT:    std 2,x
+; O2-NEXT:    ldd 10,u
+; O2-NEXT:    std ,x
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u,y
-; O2-NEXT:    leas 18,s
+; O2-NEXT:    leas 16,s
 ; O2-NEXT:    rts
   %r = udiv i32 %x, 4
   ret i32 %r
@@ -255,91 +235,83 @@ define i32 @udiv_i32_4(i32 %x) {
 define i32 @ashr_i32_1(i32 %x) {
 ; O0-LABEL: ashr_i32_1:
 ; O0:       ; %bb.0:
-; O0-NEXT:    leas -18,s
+; O0-NEXT:    leas -16,s
 ; O0-NEXT:    pshs u,y
 ; O0-NEXT:    tfr s,u
-; O0-NEXT:    tfr x,y
-; O0-NEXT:    sty 10,u
-; O0-NEXT:    ldd 26,u
-; O0-NEXT:    std 6,u
+; O0-NEXT:    stx 12,u ; 2-byte Folded Spill
 ; O0-NEXT:    ldd 24,u
-; O0-NEXT:    std 14,u
+; O0-NEXT:    std 6,u
+; O0-NEXT:    ldd 22,u
+; O0-NEXT:    std 10,u
 ; O0-NEXT:    ldd 6,u
 ; O0-NEXT:    std 6,u
 ; O0-NEXT:    ldd #1
-; O0-NEXT:    std 12,u
+; O0-NEXT:    std 8,u
 ; O0-NEXT:    ldd 6,u
 ; O0-NEXT:    std 6,u
-; O0-NEXT:    ldd 12,u
-; O0-NEXT:    ldd 12,u
+; O0-NEXT:    ldd 8,u
+; O0-NEXT:    ldd 8,u
 ; O0-NEXT:    andb #255
 ; O0-NEXT:    clra
-; O0-NEXT:    std 12,u
+; O0-NEXT:    std 8,u
 ; O0-NEXT:    ldd 6,u
 ; O0-NEXT:    leas -6,s
 ; O0-NEXT:    std 2,s
-; O0-NEXT:    ldd 14,u
+; O0-NEXT:    ldd 10,u
 ; O0-NEXT:    std ,s
-; O0-NEXT:    ldd 12,u
+; O0-NEXT:    ldd 8,u
 ; O0-NEXT:    std 4,s
-; O0-NEXT:    leay 16,u
-; O0-NEXT:    sty 8,u
-; O0-NEXT:    ldy 8,u
+; O0-NEXT:    leay 14,u
 ; O0-NEXT:    tfr y,x
 ; O0-NEXT:    lbsr __ashrsi3
-; O0-NEXT:    ldy 8,u
 ; O0-NEXT:    ldd 2,y
 ; O0-NEXT:    std 6,u
-; O0-NEXT:    ldd 16,u
-; O0-NEXT:    std 14,u
+; O0-NEXT:    ldd 14,u
+; O0-NEXT:    std 10,u
 ; O0-NEXT:    ldd 6,u
 ; O0-NEXT:    leas 6,s
-; O0-NEXT:    ldy 10,u
-; O0-NEXT:    std 2,y
-; O0-NEXT:    ldd 14,u
-; O0-NEXT:    ldy 10,u
-; O0-NEXT:    std ,y
+; O0-NEXT:    ldx 12,u ; 2-byte Folded Reload
+; O0-NEXT:    std 2,x
+; O0-NEXT:    ldd 10,u
+; O0-NEXT:    std ,x
 ; O0-NEXT:    tfr u,s
 ; O0-NEXT:    puls u,y
-; O0-NEXT:    leas 18,s
+; O0-NEXT:    leas 16,s
 ; O0-NEXT:    rts
 ;
 ; O2-LABEL: ashr_i32_1:
 ; O2:       ; %bb.0:
-; O2-NEXT:    leas -16,s
+; O2-NEXT:    leas -14,s
 ; O2-NEXT:    pshs u,y
 ; O2-NEXT:    tfr s,u
-; O2-NEXT:    tfr x,y
-; O2-NEXT:    sty 10,u
-; O2-NEXT:    ldd 24,u
-; O2-NEXT:    std 6,u
+; O2-NEXT:    stx 10,u ; 2-byte Folded Spill
 ; O2-NEXT:    ldd 22,u
-; O2-NEXT:    std 12,u
+; O2-NEXT:    std 6,u
+; O2-NEXT:    ldd 20,u
+; O2-NEXT:    std 8,u
 ; O2-NEXT:    ldd 6,u
 ; O2-NEXT:    leas -6,s
 ; O2-NEXT:    std 2,s
-; O2-NEXT:    ldd 12,u
+; O2-NEXT:    ldd 8,u
 ; O2-NEXT:    std ,s
 ; O2-NEXT:    ldd #1
 ; O2-NEXT:    std 4,s
-; O2-NEXT:    leax 14,u
-; O2-NEXT:    stx 8,u
-; O2-NEXT:    ldx 8,u
+; O2-NEXT:    leay 12,u
+; O2-NEXT:    tfr y,x
 ; O2-NEXT:    lbsr __ashrsi3
-; O2-NEXT:    ldy 8,u
 ; O2-NEXT:    ldd 2,y
 ; O2-NEXT:    std 6,u
-; O2-NEXT:    ldd 14,u
-; O2-NEXT:    std 12,u
+; O2-NEXT:    ldd 12,u
+; O2-NEXT:    std 8,u
 ; O2-NEXT:    ldd 6,u
 ; O2-NEXT:    leas 6,s
-; O2-NEXT:    ldy 10,u
-; O2-NEXT:    std 2,y
-; O2-NEXT:    ldd 12,u
-; O2-NEXT:    std [10,u]
+; O2-NEXT:    ldx 10,u ; 2-byte Folded Reload
+; O2-NEXT:    std 2,x
+; O2-NEXT:    ldd 8,u
+; O2-NEXT:    std ,x
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u,y
-; O2-NEXT:    leas 16,s
+; O2-NEXT:    leas 14,s
 ; O2-NEXT:    rts
   %r = ashr i32 %x, 1
   ret i32 %r
@@ -348,95 +320,87 @@ define i32 @ashr_i32_1(i32 %x) {
 define i32 @lshr_i32_2(i32 %x) {
 ; O0-LABEL: lshr_i32_2:
 ; O0:       ; %bb.0:
-; O0-NEXT:    leas -18,s
+; O0-NEXT:    leas -16,s
 ; O0-NEXT:    pshs u,y
 ; O0-NEXT:    tfr s,u
-; O0-NEXT:    tfr x,y
-; O0-NEXT:    sty 10,u
-; O0-NEXT:    ldd 26,u
-; O0-NEXT:    std 6,u
+; O0-NEXT:    stx 12,u ; 2-byte Folded Spill
 ; O0-NEXT:    ldd 24,u
-; O0-NEXT:    std 14,u
+; O0-NEXT:    std 6,u
+; O0-NEXT:    ldd 22,u
+; O0-NEXT:    std 10,u
 ; O0-NEXT:    ldd 6,u
 ; O0-NEXT:    std 6,u
 ; O0-NEXT:    ldd #2
-; O0-NEXT:    std 12,u
+; O0-NEXT:    std 8,u
 ; O0-NEXT:    ldd 6,u
 ; O0-NEXT:    std 6,u
-; O0-NEXT:    ldd 12,u
-; O0-NEXT:    ldd 12,u
+; O0-NEXT:    ldd 8,u
+; O0-NEXT:    ldd 8,u
 ; O0-NEXT:    andb #255
 ; O0-NEXT:    clra
-; O0-NEXT:    std 12,u
+; O0-NEXT:    std 8,u
 ; O0-NEXT:    ldd 6,u
 ; O0-NEXT:    leas -6,s
 ; O0-NEXT:    std 2,s
-; O0-NEXT:    ldd 14,u
+; O0-NEXT:    ldd 10,u
 ; O0-NEXT:    std ,s
-; O0-NEXT:    ldd 12,u
+; O0-NEXT:    ldd 8,u
 ; O0-NEXT:    std 4,s
-; O0-NEXT:    leay 16,u
-; O0-NEXT:    sty 8,u
-; O0-NEXT:    ldy 8,u
+; O0-NEXT:    leay 14,u
 ; O0-NEXT:    tfr y,x
 ; O0-NEXT:    lbsr __lshrsi3
-; O0-NEXT:    ldy 8,u
 ; O0-NEXT:    ldd 2,y
 ; O0-NEXT:    std 6,u
-; O0-NEXT:    ldd 16,u
-; O0-NEXT:    std 14,u
+; O0-NEXT:    ldd 14,u
+; O0-NEXT:    std 10,u
 ; O0-NEXT:    ldd 6,u
 ; O0-NEXT:    leas 6,s
-; O0-NEXT:    ldy 10,u
-; O0-NEXT:    std 2,y
-; O0-NEXT:    ldd 14,u
-; O0-NEXT:    ldy 10,u
-; O0-NEXT:    std ,y
+; O0-NEXT:    ldx 12,u ; 2-byte Folded Reload
+; O0-NEXT:    std 2,x
+; O0-NEXT:    ldd 10,u
+; O0-NEXT:    std ,x
 ; O0-NEXT:    tfr u,s
 ; O0-NEXT:    puls u,y
-; O0-NEXT:    leas 18,s
+; O0-NEXT:    leas 16,s
 ; O0-NEXT:    rts
 ;
 ; O2-LABEL: lshr_i32_2:
 ; O2:       ; %bb.0:
-; O2-NEXT:    leas -18,s
+; O2-NEXT:    leas -16,s
 ; O2-NEXT:    pshs u,y
 ; O2-NEXT:    tfr s,u
-; O2-NEXT:    tfr x,y
-; O2-NEXT:    sty 10,u
-; O2-NEXT:    ldd 26,u
-; O2-NEXT:    std 6,u
+; O2-NEXT:    stx 12,u ; 2-byte Folded Spill
 ; O2-NEXT:    ldd 24,u
-; O2-NEXT:    std 14,u
+; O2-NEXT:    std 6,u
+; O2-NEXT:    ldd 22,u
+; O2-NEXT:    std 10,u
 ; O2-NEXT:    ldd 6,u
 ; O2-NEXT:    leas -6,s
 ; O2-NEXT:    std 6,u
 ; O2-NEXT:    ldd #2
-; O2-NEXT:    std 12,u
+; O2-NEXT:    std 8,u
 ; O2-NEXT:    ldd 6,u
 ; O2-NEXT:    std 2,s
-; O2-NEXT:    ldd 14,u
+; O2-NEXT:    ldd 10,u
 ; O2-NEXT:    std ,s
-; O2-NEXT:    ldd 12,u
+; O2-NEXT:    ldd 8,u
 ; O2-NEXT:    std 4,s
-; O2-NEXT:    leax 16,u
-; O2-NEXT:    stx 8,u
-; O2-NEXT:    ldx 8,u
+; O2-NEXT:    leay 14,u
+; O2-NEXT:    tfr y,x
 ; O2-NEXT:    lbsr __lshrsi3
-; O2-NEXT:    ldy 8,u
 ; O2-NEXT:    ldd 2,y
 ; O2-NEXT:    std 6,u
-; O2-NEXT:    ldd 16,u
-; O2-NEXT:    std 14,u
+; O2-NEXT:    ldd 14,u
+; O2-NEXT:    std 10,u
 ; O2-NEXT:    ldd 6,u
 ; O2-NEXT:    leas 6,s
-; O2-NEXT:    ldy 10,u
-; O2-NEXT:    std 2,y
-; O2-NEXT:    ldd 14,u
-; O2-NEXT:    std [10,u]
+; O2-NEXT:    ldx 12,u ; 2-byte Folded Reload
+; O2-NEXT:    std 2,x
+; O2-NEXT:    ldd 10,u
+; O2-NEXT:    std ,x
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u,y
-; O2-NEXT:    leas 18,s
+; O2-NEXT:    leas 16,s
 ; O2-NEXT:    rts
   %r = lshr i32 %x, 2
   ret i32 %r
@@ -445,91 +409,83 @@ define i32 @lshr_i32_2(i32 %x) {
 define i32 @shl_i32_3(i32 %x) {
 ; O0-LABEL: shl_i32_3:
 ; O0:       ; %bb.0:
-; O0-NEXT:    leas -18,s
+; O0-NEXT:    leas -16,s
 ; O0-NEXT:    pshs u,y
 ; O0-NEXT:    tfr s,u
-; O0-NEXT:    tfr x,y
-; O0-NEXT:    sty 10,u
-; O0-NEXT:    ldd 26,u
-; O0-NEXT:    std 6,u
+; O0-NEXT:    stx 12,u ; 2-byte Folded Spill
 ; O0-NEXT:    ldd 24,u
-; O0-NEXT:    std 14,u
+; O0-NEXT:    std 6,u
+; O0-NEXT:    ldd 22,u
+; O0-NEXT:    std 10,u
 ; O0-NEXT:    ldd 6,u
 ; O0-NEXT:    std 6,u
 ; O0-NEXT:    ldd #3
-; O0-NEXT:    std 12,u
+; O0-NEXT:    std 8,u
 ; O0-NEXT:    ldd 6,u
 ; O0-NEXT:    std 6,u
-; O0-NEXT:    ldd 12,u
-; O0-NEXT:    ldd 12,u
+; O0-NEXT:    ldd 8,u
+; O0-NEXT:    ldd 8,u
 ; O0-NEXT:    andb #255
 ; O0-NEXT:    clra
-; O0-NEXT:    std 12,u
+; O0-NEXT:    std 8,u
 ; O0-NEXT:    ldd 6,u
 ; O0-NEXT:    leas -6,s
 ; O0-NEXT:    std 2,s
-; O0-NEXT:    ldd 14,u
+; O0-NEXT:    ldd 10,u
 ; O0-NEXT:    std ,s
-; O0-NEXT:    ldd 12,u
+; O0-NEXT:    ldd 8,u
 ; O0-NEXT:    std 4,s
-; O0-NEXT:    leay 16,u
-; O0-NEXT:    sty 8,u
-; O0-NEXT:    ldy 8,u
+; O0-NEXT:    leay 14,u
 ; O0-NEXT:    tfr y,x
 ; O0-NEXT:    lbsr __ashlsi3
-; O0-NEXT:    ldy 8,u
 ; O0-NEXT:    ldd 2,y
 ; O0-NEXT:    std 6,u
-; O0-NEXT:    ldd 16,u
-; O0-NEXT:    std 14,u
+; O0-NEXT:    ldd 14,u
+; O0-NEXT:    std 10,u
 ; O0-NEXT:    ldd 6,u
 ; O0-NEXT:    leas 6,s
-; O0-NEXT:    ldy 10,u
-; O0-NEXT:    std 2,y
-; O0-NEXT:    ldd 14,u
-; O0-NEXT:    ldy 10,u
-; O0-NEXT:    std ,y
+; O0-NEXT:    ldx 12,u ; 2-byte Folded Reload
+; O0-NEXT:    std 2,x
+; O0-NEXT:    ldd 10,u
+; O0-NEXT:    std ,x
 ; O0-NEXT:    tfr u,s
 ; O0-NEXT:    puls u,y
-; O0-NEXT:    leas 18,s
+; O0-NEXT:    leas 16,s
 ; O0-NEXT:    rts
 ;
 ; O2-LABEL: shl_i32_3:
 ; O2:       ; %bb.0:
-; O2-NEXT:    leas -16,s
+; O2-NEXT:    leas -14,s
 ; O2-NEXT:    pshs u,y
 ; O2-NEXT:    tfr s,u
-; O2-NEXT:    tfr x,y
-; O2-NEXT:    sty 10,u
-; O2-NEXT:    ldd 24,u
-; O2-NEXT:    std 6,u
+; O2-NEXT:    stx 10,u ; 2-byte Folded Spill
 ; O2-NEXT:    ldd 22,u
-; O2-NEXT:    std 12,u
+; O2-NEXT:    std 6,u
+; O2-NEXT:    ldd 20,u
+; O2-NEXT:    std 8,u
 ; O2-NEXT:    ldd 6,u
 ; O2-NEXT:    leas -6,s
 ; O2-NEXT:    std 2,s
-; O2-NEXT:    ldd 12,u
+; O2-NEXT:    ldd 8,u
 ; O2-NEXT:    std ,s
 ; O2-NEXT:    ldd #3
 ; O2-NEXT:    std 4,s
-; O2-NEXT:    leax 14,u
-; O2-NEXT:    stx 8,u
-; O2-NEXT:    ldx 8,u
+; O2-NEXT:    leay 12,u
+; O2-NEXT:    tfr y,x
 ; O2-NEXT:    lbsr __ashlsi3
-; O2-NEXT:    ldy 8,u
 ; O2-NEXT:    ldd 2,y
 ; O2-NEXT:    std 6,u
-; O2-NEXT:    ldd 14,u
-; O2-NEXT:    std 12,u
+; O2-NEXT:    ldd 12,u
+; O2-NEXT:    std 8,u
 ; O2-NEXT:    ldd 6,u
 ; O2-NEXT:    leas 6,s
-; O2-NEXT:    ldy 10,u
-; O2-NEXT:    std 2,y
-; O2-NEXT:    ldd 12,u
-; O2-NEXT:    std [10,u]
+; O2-NEXT:    ldx 10,u ; 2-byte Folded Reload
+; O2-NEXT:    std 2,x
+; O2-NEXT:    ldd 8,u
+; O2-NEXT:    std ,x
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u,y
-; O2-NEXT:    leas 16,s
+; O2-NEXT:    leas 14,s
 ; O2-NEXT:    rts
   %r = shl i32 %x, 3
   ret i32 %r
