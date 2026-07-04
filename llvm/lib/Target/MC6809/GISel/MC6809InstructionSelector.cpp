@@ -2518,7 +2518,12 @@ skip_globalvalue_fold:
       if (Ty == LLT::scalar(8)) {
         MemOpc = MC6809::CompareBranch_i8_Mem;
         MemIndOpc = MC6809::CompareBranch_i8_MemIndirect;
-        RC = &MC6809::ACC8RegClass;
+        // ACC8_CMP (real accumulators, no RC direct-page bytes): a value
+        // compared against memory has no reason to live in an RC slot, and
+        // parking a hot compare operand there costs a per-access ldb/stage
+        // (memmem's inner byte scan). RC stays in ACC8 for the carry-byte
+        // Test path that genuinely needs an AQ-aliasing-free home.
+        RC = &MC6809::ACC8_CMPRegClass;
       } else if (Ty == LLT::scalar(16)) {
         MemOpc = MC6809::CompareBranch_i16_Mem;
         MemIndOpc = MC6809::CompareBranch_i16_MemIndirect;

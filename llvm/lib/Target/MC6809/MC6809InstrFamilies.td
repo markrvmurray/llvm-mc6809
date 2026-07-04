@@ -986,11 +986,18 @@ class MC6809CompareBase<RegisterClass reg, dag operand> : MC6809LogicalInstr {
   let isCompare = true;
 }
 
-multiclass MC6809Compare<ValueType vtype, RegisterClass reg> {
+// reg is the class of the single compared operand of the memory/immediate
+// forms; regreg is the class used for BOTH operands of the two-operand _Reg
+// form. They differ for i8 so the single-operand forms can exclude the RC
+// direct-page bytes (ACC8_CMP) — keeping a compared value out of an RC slot —
+// while _Reg stays on the full ACC8, since narrowing its second operand out
+// of RC has no such payoff and would reject a value legitimately in ACC8.
+multiclass MC6809Compare<ValueType vtype, RegisterClass reg,
+                         RegisterClass regreg = reg> {
   let isAsCheapAsAMove = true in {
     def _Imm : MC6809CompareBase<reg, (ins !cast<Operand>(vtype#"imm"):$imm)>;
   }
-  def _Reg : MC6809CompareBase<reg, (ins reg:$src2)>;
+  def _Reg : MC6809CompareBase<regreg, (ins regreg:$src2)>;
   let mayLoad = true in {
     def _Mem : MC6809CompareBase<reg, (ins INDEX16:$idx, unknown:$offset)>;
     // P3b: indirect-indexed compare (`cmp [n,r]`) -- expanded to the indirect-
@@ -1001,7 +1008,7 @@ multiclass MC6809Compare<ValueType vtype, RegisterClass reg> {
   }
 }
 
-defm Compare_i8 : MC6809Compare<i8, ACC8>;
+defm Compare_i8 : MC6809Compare<i8, ACC8_CMP, ACC8>;
 defm Compare_i16 : MC6809Compare<i16, ACC16>;
 defm Compare_ptr: MC6809Compare<i16, INDEX16>;
 
@@ -1116,9 +1123,11 @@ class MC6809CompareBranchBase<RegisterClass reg, dag operand> : MC6809LogicalIns
   let isTerminator = true;
 }
 
-multiclass MC6809CompareBranch<ValueType vtype, RegisterClass reg> {
+// See MC6809Compare above for the reg / regreg split rationale.
+multiclass MC6809CompareBranch<ValueType vtype, RegisterClass reg,
+                               RegisterClass regreg = reg> {
   def _Imm : MC6809CompareBranchBase<reg, (ins !cast<Operand>(vtype#"imm"):$imm)>;
-  def _Reg : MC6809CompareBranchBase<reg, (ins reg:$src2)>;
+  def _Reg : MC6809CompareBranchBase<regreg, (ins regreg:$src2)>;
   let mayLoad = true in {
     def _Mem : MC6809CompareBranchBase<reg, (ins INDEX16:$idx, unknown:$offset)>;
     // P3b: indirect-indexed fused compare-branch (`cmp [n,r]; b<cc>`).
@@ -1128,7 +1137,7 @@ multiclass MC6809CompareBranch<ValueType vtype, RegisterClass reg> {
   }
 }
 
-defm CompareBranch_i8 : MC6809CompareBranch<i8, ACC8>;
+defm CompareBranch_i8 : MC6809CompareBranch<i8, ACC8_CMP, ACC8>;
 defm CompareBranch_i16 : MC6809CompareBranch<i16, ACC16>;
 // Bug #359: index-domain fused compare-branch against an immediate. Selected
 // (via selectImpl) for a pointer compared against a constant once

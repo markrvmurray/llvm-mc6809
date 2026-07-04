@@ -354,6 +354,18 @@ def ACC8 : MC6809Reg8Class<(add AB, AA, AF, AE,
                          (sequence "RC%u",      0, 15))];
     let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
 }
+// Compare-operand byte pool: real accumulators only, no RC direct-page
+// bytes. RC is admitted to ACC8 for one shape only — a byte defined
+// alongside a live i32 in AQ (an i32 carry-out materialised to a byte,
+// e.g. lround) needs an AQ-aliasing-free direct-page home; that byte is
+// always TESTed, never COMPAREd. So the compare pools have no reason to
+// admit RC, and admitting it hurt: under byte pressure the allocator
+// parked a hot compare operand in RC (a per-access ldb/stage) where the
+// real-register pool would have kept it live.
+def ACC8_CMP : MC6809Reg8Class<(add AB, AA, AF, AE)> {
+    let AltOrders = [(add AB, AA)];
+    let AltOrderSelect = [{return MF.getSubtarget<MC6809Subtarget>().has6309() ? 0 : 1;}];
+}
 def ACC8_AB : MC6809Reg8Class<(add AB, AA)>;
 
 // ACC8 minus the HD6309 E/F accumulators, but keeping the spill slots and
