@@ -240,11 +240,10 @@ define dso_local i16 @if_s16(i16 noundef %a, i16 noundef %b) local_unnamed_addr 
 ; O1-NEXT:    cmpx #0
 ; O1-NEXT:    lbgt .LBB2_2
 ; O1-NEXT:  ; %bb.1: ; %if.end
-; O1-NEXT:    ldb #0
-; O1-NEXT:    tfr b,a
-; O1-NEXT:    suba 5,s
-; O1-NEXT:    sbcb 4,s
-; O1-NEXT:    exg a,b
+; O1-NEXT:    lda #0
+; O1-NEXT:    tfr a,b
+; O1-NEXT:    subb 5,s
+; O1-NEXT:    sbca 4,s
 ; O1-NEXT:  .LBB2_2: ; %return
 ; O1-NEXT:    tfr d,x
 ; O1-NEXT:    leas 2,s
@@ -257,11 +256,10 @@ define dso_local i16 @if_s16(i16 noundef %a, i16 noundef %b) local_unnamed_addr 
 ; O2-NEXT:    cmpx #0
 ; O2-NEXT:    lbgt .LBB2_2
 ; O2-NEXT:  ; %bb.1: ; %if.end
-; O2-NEXT:    ldb #0
-; O2-NEXT:    tfr b,a
-; O2-NEXT:    suba 5,s
-; O2-NEXT:    sbcb 4,s
-; O2-NEXT:    exg a,b
+; O2-NEXT:    lda #0
+; O2-NEXT:    tfr a,b
+; O2-NEXT:    subb 5,s
+; O2-NEXT:    sbca 4,s
 ; O2-NEXT:  .LBB2_2: ; %return
 ; O2-NEXT:    tfr d,x
 ; O2-NEXT:    leas 2,s
@@ -278,11 +276,10 @@ define dso_local i16 @if_s16(i16 noundef %a, i16 noundef %b) local_unnamed_addr 
 ; O3-NEXT:    leas 2,s
 ; O3-NEXT:    rts
 ; O3-NEXT:  .LBB2_2: ; %if.end
-; O3-NEXT:    ldb #0
-; O3-NEXT:    tfr b,a
-; O3-NEXT:    suba 5,s
-; O3-NEXT:    sbcb 4,s
-; O3-NEXT:    exg a,b
+; O3-NEXT:    lda #0
+; O3-NEXT:    tfr a,b
+; O3-NEXT:    subb 5,s
+; O3-NEXT:    sbca 4,s
 ; O3-NEXT:    tfr d,x
 ; O3-NEXT:    leas 2,s
 ; O3-NEXT:    rts
@@ -456,13 +453,13 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; CHECK-NEXT:    rts
 ; O0-LABEL: if_s32:
 ; O0:       ; %bb.0: ; %entry
-; O0-NEXT:    leas -12,s
+; O0-NEXT:    leas -11,s
 ; O0-NEXT:    pshs u,y
 ; O0-NEXT:    tfr s,u
-; O0-NEXT:    stx 8,u ; 2-byte Folded Spill
-; O0-NEXT:    ldd 20,u
+; O0-NEXT:    stx 7,u ; 2-byte Folded Spill
+; O0-NEXT:    ldd 19,u
 ; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 18,u
+; O0-NEXT:    ldd 17,u
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
 ; O0-NEXT:    leas -8,s
@@ -474,15 +471,15 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O0-NEXT:    puls d
 ; O0-NEXT:    std 6,s
 ; O0-NEXT:    std 4,s
-; O0-NEXT:    leay 10,u
+; O0-NEXT:    leay 9,u
 ; O0-NEXT:    tfr y,x
 ; O0-NEXT:    lbsr __cmpsi2
 ; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 22,u
+; O0-NEXT:    ldd 21,u
 ; O0-NEXT:    std <__rs1
 ; O0-NEXT:    puls d
 ; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 24,u
+; O0-NEXT:    ldd 23,u
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
 ; O0-NEXT:    ldd 2,y
@@ -495,41 +492,37 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
 ; O0-NEXT:    ldb <__rs0lo
-; O0-NEXT:    stb 7,u ; 1-byte Folded Spill
+; O0-NEXT:    stb 6,u ; 1-byte Folded Spill
+; O0-NEXT:    lda <__rs0hi
+; O0-NEXT:    ldb <__rs0lo
+; O0-NEXT:    stb 5,u ; 1-byte Folded Spill
 ; O0-NEXT:    pshs a
 ; O0-NEXT:    lda <__rs0hi
 ; O0-NEXT:    tfr a,b
 ; O0-NEXT:    puls a
 ; O0-NEXT:    stb 4,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb <__rs0lo
-; O0-NEXT:    stb 6,u ; 1-byte Folded Spill
-; O0-NEXT:    pshs a
-; O0-NEXT:    lda <__rs0hi
-; O0-NEXT:    tfr a,b
-; O0-NEXT:    puls a
-; O0-NEXT:    stb 5,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 7,u ; 1-byte Folded Reload
-; O0-NEXT:    suba 25,u
-; O0-NEXT:    sta 7,u ; 1-byte Folded Spill
-; O0-NEXT:    lda 4,u ; 1-byte Folded Reload
-; O0-NEXT:    sbca 24,u
 ; O0-NEXT:    ldb 6,u ; 1-byte Folded Reload
-; O0-NEXT:    sbcb 23,u
+; O0-NEXT:    subb 24,u
 ; O0-NEXT:    stb 6,u ; 1-byte Folded Spill
-; O0-NEXT:    ldb 5,u ; 1-byte Folded Reload
-; O0-NEXT:    sbcb 22,u
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldb 7,u
-; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
+; O0-NEXT:    tfr a,b
+; O0-NEXT:    sbcb 23,u
+; O0-NEXT:    lda 5,u ; 1-byte Folded Reload
+; O0-NEXT:    sbca 22,u
+; O0-NEXT:    sta 5,u ; 1-byte Folded Spill
+; O0-NEXT:    lda 4,u ; 1-byte Folded Reload
+; O0-NEXT:    sbca 21,u
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    tfr b,a
 ; O0-NEXT:    ldb 6,u
+; O0-NEXT:    std <__rs0
+; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldb 5,u
 ; O0-NEXT:    std <__rs1
 ; O0-NEXT:    puls d
 ; O0-NEXT:    lbra .LBB4_2
 ; O0-NEXT:  .LBB4_2: ; %return
-; O0-NEXT:    ldx 8,u ; 2-byte Folded Reload
+; O0-NEXT:    ldx 7,u ; 2-byte Folded Reload
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std 2,x
@@ -540,7 +533,7 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O0-NEXT:    puls d
 ; O0-NEXT:    tfr u,s
 ; O0-NEXT:    puls u,y
-; O0-NEXT:    leas 12,s
+; O0-NEXT:    leas 11,s
 ; O0-NEXT:    rts
 ;
 ; O1-LABEL: if_s32:
@@ -579,23 +572,22 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O1-NEXT:    cmpb #2
 ; O1-NEXT:    lbeq .LBB4_2
 ; O1-NEXT:  ; %bb.1: ; %if.end
-; O1-NEXT:    ldb #0
-; O1-NEXT:    tfr b,a
-; O1-NEXT:    suba 23,u
-; O1-NEXT:    sta 5,u ; 1-byte Folded Spill
-; O1-NEXT:    tfr b,a
-; O1-NEXT:    sbca 22,u
-; O1-NEXT:    sta 4,u ; 1-byte Folded Spill
-; O1-NEXT:    tfr b,a
-; O1-NEXT:    sbca 21,u
-; O1-NEXT:    sbcb 20,u
+; O1-NEXT:    lda #0
+; O1-NEXT:    tfr a,b
+; O1-NEXT:    subb 23,u
+; O1-NEXT:    stb 5,u ; 1-byte Folded Spill
+; O1-NEXT:    tfr a,b
+; O1-NEXT:    sbcb 22,u
+; O1-NEXT:    stb 4,u ; 1-byte Folded Spill
+; O1-NEXT:    tfr a,b
+; O1-NEXT:    sbcb 21,u
+; O1-NEXT:    sbca 20,u
 ; O1-NEXT:    pshs d
 ; O1-NEXT:    ldb 5,u
 ; O1-NEXT:    lda 4,u
 ; O1-NEXT:    std <__rs0
 ; O1-NEXT:    puls d
 ; O1-NEXT:    pshs d
-; O1-NEXT:    exg a,b
 ; O1-NEXT:    std <__rs1
 ; O1-NEXT:    puls d
 ; O1-NEXT:  .LBB4_2: ; %return
@@ -649,23 +641,22 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O2-NEXT:    cmpb #2
 ; O2-NEXT:    lbeq .LBB4_2
 ; O2-NEXT:  ; %bb.1: ; %if.end
-; O2-NEXT:    ldb #0
-; O2-NEXT:    tfr b,a
-; O2-NEXT:    suba 23,u
-; O2-NEXT:    sta 5,u ; 1-byte Folded Spill
-; O2-NEXT:    tfr b,a
-; O2-NEXT:    sbca 22,u
-; O2-NEXT:    sta 4,u ; 1-byte Folded Spill
-; O2-NEXT:    tfr b,a
-; O2-NEXT:    sbca 21,u
-; O2-NEXT:    sbcb 20,u
+; O2-NEXT:    lda #0
+; O2-NEXT:    tfr a,b
+; O2-NEXT:    subb 23,u
+; O2-NEXT:    stb 5,u ; 1-byte Folded Spill
+; O2-NEXT:    tfr a,b
+; O2-NEXT:    sbcb 22,u
+; O2-NEXT:    stb 4,u ; 1-byte Folded Spill
+; O2-NEXT:    tfr a,b
+; O2-NEXT:    sbcb 21,u
+; O2-NEXT:    sbca 20,u
 ; O2-NEXT:    pshs d
 ; O2-NEXT:    ldb 5,u
 ; O2-NEXT:    lda 4,u
 ; O2-NEXT:    std <__rs0
 ; O2-NEXT:    puls d
 ; O2-NEXT:    pshs d
-; O2-NEXT:    exg a,b
 ; O2-NEXT:    std <__rs1
 ; O2-NEXT:    puls d
 ; O2-NEXT:  .LBB4_2: ; %return
@@ -719,23 +710,22 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O3-NEXT:    cmpb #2
 ; O3-NEXT:    lbeq .LBB4_2
 ; O3-NEXT:  ; %bb.1: ; %if.end
-; O3-NEXT:    ldb #0
-; O3-NEXT:    tfr b,a
-; O3-NEXT:    suba 23,u
-; O3-NEXT:    sta 5,u ; 1-byte Folded Spill
-; O3-NEXT:    tfr b,a
-; O3-NEXT:    sbca 22,u
-; O3-NEXT:    sta 4,u ; 1-byte Folded Spill
-; O3-NEXT:    tfr b,a
-; O3-NEXT:    sbca 21,u
-; O3-NEXT:    sbcb 20,u
+; O3-NEXT:    lda #0
+; O3-NEXT:    tfr a,b
+; O3-NEXT:    subb 23,u
+; O3-NEXT:    stb 5,u ; 1-byte Folded Spill
+; O3-NEXT:    tfr a,b
+; O3-NEXT:    sbcb 22,u
+; O3-NEXT:    stb 4,u ; 1-byte Folded Spill
+; O3-NEXT:    tfr a,b
+; O3-NEXT:    sbcb 21,u
+; O3-NEXT:    sbca 20,u
 ; O3-NEXT:    pshs d
 ; O3-NEXT:    ldb 5,u
 ; O3-NEXT:    lda 4,u
 ; O3-NEXT:    std <__rs0
 ; O3-NEXT:    puls d
 ; O3-NEXT:    pshs d
-; O3-NEXT:    exg a,b
 ; O3-NEXT:    std <__rs1
 ; O3-NEXT:    puls d
 ; O3-NEXT:  .LBB4_2: ; %return

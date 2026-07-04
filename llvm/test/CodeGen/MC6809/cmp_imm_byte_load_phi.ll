@@ -104,19 +104,18 @@ define dso_local i16 @cmp_imm_byte_load_phi_no_wrap(ptr noundef readonly capture
 ; CHECK-NEXT:    cmpb #10
 ; CHECK-NEXT:    lblo .LBB0_7
 ; CHECK-NEXT:  .LBB0_8: ; %while.end
-; CHECK-NEXT:    ldb #0
-; CHECK-NEXT:    pshs b
+; CHECK-NEXT:    lda #0
 ; CHECK-NEXT:    ldb <__rs0lo
-; CHECK-NEXT:    tfr b,a
-; CHECK-NEXT:    puls b
-; CHECK-NEXT:    sta 4,u ; 1-byte Folded Spill
+; CHECK-NEXT:    stb 4,u ; 1-byte Folded Spill
+; CHECK-NEXT:    pshs a
 ; CHECK-NEXT:    lda <__rs0hi
-; CHECK-NEXT:    sta 6,u ; 1-byte Folded Spill
-; CHECK-NEXT:    tfr b,a
-; CHECK-NEXT:    suba 4,u
-; CHECK-NEXT:    sbcb 6,u
+; CHECK-NEXT:    tfr a,b
+; CHECK-NEXT:    puls a
+; CHECK-NEXT:    stb 6,u ; 1-byte Folded Spill
+; CHECK-NEXT:    tfr a,b
+; CHECK-NEXT:    subb 4,u
+; CHECK-NEXT:    sbca 6,u
 ; CHECK-NEXT:    pshs d
-; CHECK-NEXT:    exg a,b
 ; CHECK-NEXT:    std <__rs1
 ; CHECK-NEXT:    puls d
 ; CHECK-NEXT:    ldb 5,u ; 1-byte Folded Reload

@@ -34,9 +34,9 @@ define dso_local signext i8 @mul_s_i8(i8 noundef signext %a, i8 noundef signext 
 ; O0-LABEL: mul_s_i8:
 ; O0:       ; %bb.0: ; %entry
 ; O0-NEXT:    leas -2,s
-; O0-NEXT:    lda 4,s
+; O0-NEXT:    tfr b,a
+; O0-NEXT:    ldb 4,s
 ; O0-NEXT:    pshs d
-; O0-NEXT:    exg a,b
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
 ; O0-NEXT:    ldd <__rs0
@@ -49,9 +49,9 @@ define dso_local signext i8 @mul_s_i8(i8 noundef signext %a, i8 noundef signext 
 ; O1-LABEL: mul_s_i8:
 ; O1:       ; %bb.0: ; %entry
 ; O1-NEXT:    leas -2,s
-; O1-NEXT:    lda 4,s
+; O1-NEXT:    tfr b,a
+; O1-NEXT:    ldb 4,s
 ; O1-NEXT:    pshs d
-; O1-NEXT:    exg a,b
 ; O1-NEXT:    std <__rs0
 ; O1-NEXT:    puls d
 ; O1-NEXT:    ldd <__rs0
@@ -64,9 +64,9 @@ define dso_local signext i8 @mul_s_i8(i8 noundef signext %a, i8 noundef signext 
 ; O2-LABEL: mul_s_i8:
 ; O2:       ; %bb.0: ; %entry
 ; O2-NEXT:    leas -2,s
-; O2-NEXT:    lda 4,s
+; O2-NEXT:    tfr b,a
+; O2-NEXT:    ldb 4,s
 ; O2-NEXT:    pshs d
-; O2-NEXT:    exg a,b
 ; O2-NEXT:    std <__rs0
 ; O2-NEXT:    puls d
 ; O2-NEXT:    ldd <__rs0
@@ -79,9 +79,9 @@ define dso_local signext i8 @mul_s_i8(i8 noundef signext %a, i8 noundef signext 
 ; O3-LABEL: mul_s_i8:
 ; O3:       ; %bb.0: ; %entry
 ; O3-NEXT:    leas -2,s
-; O3-NEXT:    lda 4,s
+; O3-NEXT:    tfr b,a
+; O3-NEXT:    ldb 4,s
 ; O3-NEXT:    pshs d
-; O3-NEXT:    exg a,b
 ; O3-NEXT:    std <__rs0
 ; O3-NEXT:    puls d
 ; O3-NEXT:    ldd <__rs0
@@ -385,9 +385,9 @@ define dso_local zeroext i8 @mul_u_i8(i8 noundef zeroext %a, i8 noundef zeroext 
 ; O0-LABEL: mul_u_i8:
 ; O0:       ; %bb.0: ; %entry
 ; O0-NEXT:    leas -2,s
-; O0-NEXT:    lda 4,s
+; O0-NEXT:    tfr b,a
+; O0-NEXT:    ldb 4,s
 ; O0-NEXT:    pshs d
-; O0-NEXT:    exg a,b
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
 ; O0-NEXT:    ldd <__rs0
@@ -400,9 +400,9 @@ define dso_local zeroext i8 @mul_u_i8(i8 noundef zeroext %a, i8 noundef zeroext 
 ; O1-LABEL: mul_u_i8:
 ; O1:       ; %bb.0: ; %entry
 ; O1-NEXT:    leas -2,s
-; O1-NEXT:    lda 4,s
+; O1-NEXT:    tfr b,a
+; O1-NEXT:    ldb 4,s
 ; O1-NEXT:    pshs d
-; O1-NEXT:    exg a,b
 ; O1-NEXT:    std <__rs0
 ; O1-NEXT:    puls d
 ; O1-NEXT:    ldd <__rs0
@@ -415,9 +415,9 @@ define dso_local zeroext i8 @mul_u_i8(i8 noundef zeroext %a, i8 noundef zeroext 
 ; O2-LABEL: mul_u_i8:
 ; O2:       ; %bb.0: ; %entry
 ; O2-NEXT:    leas -2,s
-; O2-NEXT:    lda 4,s
+; O2-NEXT:    tfr b,a
+; O2-NEXT:    ldb 4,s
 ; O2-NEXT:    pshs d
-; O2-NEXT:    exg a,b
 ; O2-NEXT:    std <__rs0
 ; O2-NEXT:    puls d
 ; O2-NEXT:    ldd <__rs0
@@ -430,9 +430,9 @@ define dso_local zeroext i8 @mul_u_i8(i8 noundef zeroext %a, i8 noundef zeroext 
 ; O3-LABEL: mul_u_i8:
 ; O3:       ; %bb.0: ; %entry
 ; O3-NEXT:    leas -2,s
-; O3-NEXT:    lda 4,s
+; O3-NEXT:    tfr b,a
+; O3-NEXT:    ldb 4,s
 ; O3-NEXT:    pshs d
-; O3-NEXT:    exg a,b
 ; O3-NEXT:    std <__rs0
 ; O3-NEXT:    puls d
 ; O3-NEXT:    ldd <__rs0

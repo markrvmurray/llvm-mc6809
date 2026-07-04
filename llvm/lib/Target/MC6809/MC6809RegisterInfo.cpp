@@ -324,6 +324,24 @@ bool MC6809RegisterInfo::getRegAllocationHints(Register VirtReg, ArrayRef<MCPhys
     switch (MI.getOpcode()) {
     default:
       continue;
+    case MC6809::MERGE_LOHI_i16: {
+      // MERGE_LOHI_i16 assembles D = HI:LO, i.e. the high byte in AA and the
+      // low byte in AB. Bias each byte operand toward the half it will occupy
+      // so the merge collapses to zero instructions rather than an EXG/TFR
+      // lane swap (the byte-wise 16-bit subtract `0 - x` otherwise lands its
+      // low result in AA and high in AB and pays an `exg a,b`). Operand 1 is
+      // the low byte, operand 2 the high byte.
+      Register Preferred;
+      if (MI.getOperand(1).isReg() && MI.getOperand(1).getReg() == VirtReg)
+        Preferred = MC6809::AB;
+      else if (MI.getOperand(2).isReg() && MI.getOperand(2).getReg() == VirtReg)
+        Preferred = MC6809::AA;
+      else
+        break;
+      // Worth roughly the EXG the correct lane avoids.
+      RegScores[Preferred] += MC6809InstrCost(2, 8);
+      break;
+    }
     case MC6809::COPY: {
       const MachineOperand &Self = MI.getOperand(0).getReg() == VirtReg ? MI.getOperand(0) : MI.getOperand(1);
       const MachineOperand &Other = MI.getOperand(0).getReg() == VirtReg ? MI.getOperand(1) : MI.getOperand(0);

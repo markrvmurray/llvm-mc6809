@@ -57,22 +57,21 @@ define void @sext_i16_to_i32_then_store(ptr %out, i16 %x) {
 ; CHECK-NEXT:    andb #1
 ; CHECK-NEXT:    negb
 ; CHECK-NEXT:    stb 4,s ; 1-byte Folded Spill
-; CHECK-NEXT:    ldb #0
-; CHECK-NEXT:    tfr b,a
-; CHECK-NEXT:    suba 8,s
-; CHECK-NEXT:    sta 3,s ; 1-byte Folded Spill
-; CHECK-NEXT:    tfr b,a
-; CHECK-NEXT:    sbca 7,s
-; CHECK-NEXT:    sta 2,s ; 1-byte Folded Spill
-; CHECK-NEXT:    tfr b,a
-; CHECK-NEXT:    sbca 4,s
+; CHECK-NEXT:    lda #0
+; CHECK-NEXT:    tfr a,b
+; CHECK-NEXT:    subb 8,s
+; CHECK-NEXT:    stb 3,s ; 1-byte Folded Spill
+; CHECK-NEXT:    tfr a,b
+; CHECK-NEXT:    sbcb 7,s
+; CHECK-NEXT:    stb 2,s ; 1-byte Folded Spill
+; CHECK-NEXT:    tfr a,b
 ; CHECK-NEXT:    sbcb 4,s
+; CHECK-NEXT:    sbca 4,s
 ; CHECK-NEXT:    pshs d
 ; CHECK-NEXT:    ldb 5,s
 ; CHECK-NEXT:    lda 4,s
 ; CHECK-NEXT:    std <__rs0
 ; CHECK-NEXT:    puls d
-; CHECK-NEXT:    exg a,b
 ; CHECK-NEXT:    pshs d
 ; CHECK-NEXT:    ldd <__rs0
 ; CHECK-NEXT:    std 2,x
