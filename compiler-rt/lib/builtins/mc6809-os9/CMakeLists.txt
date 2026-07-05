@@ -3,7 +3,7 @@
 # from the install tree (no per-test absolute paths).
 #
 # Artifacts produced into <resourcedir>/lib/mc6809-unknown-os9/:
-#   - libclang_rt.os9.a   (crt0.o + syscalls.o bundled)
+#   - libclang_rt.os9.a   (crt0.o + syscalls.o + syscalls_c.o bundled)
 #   - mc6809-os9.lds      (the flat-binary linker script)
 #
 # And into <resourcedir>/include/:
@@ -30,6 +30,7 @@ set(_OS9_FLAGS
 set(_OS9_LIB_OUT "${_OS9_BUILD_LIB_DIR}/libclang_rt.os9.a")
 set(_OS9_CRT0_OUT "${_OS9_BUILD_LIB_DIR}/crt0.o")
 set(_OS9_SYSCALLS_OUT "${_OS9_BUILD_LIB_DIR}/syscalls.o")
+set(_OS9_SYSCALLS_C_OUT "${_OS9_BUILD_LIB_DIR}/syscalls_c.o")
 set(_OS9_LDS_OUT "${_OS9_BUILD_LIB_DIR}/mc6809-os9.lds")
 set(_OS9_HDR_OUT "${_OS9_BUILD_INC_DIR}/os9.h")
 
@@ -63,6 +64,18 @@ add_custom_command(
     VERBATIM
 )
 
+# syscalls_c.o — the C (inline-asm) leaf syscalls (_exit for now).
+add_custom_command(
+    OUTPUT  "${_OS9_SYSCALLS_C_OUT}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${_OS9_BUILD_LIB_DIR}"
+    COMMAND ${CMAKE_C_COMPILER} ${_OS9_FLAGS} -Os
+            -c "${CMAKE_CURRENT_SOURCE_DIR}/syscalls.c"
+            -o "${_OS9_SYSCALLS_C_OUT}"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/syscalls.c"
+    COMMENT "[OS-9] Building syscalls_c.o"
+    VERBATIM
+)
+
 # Bundle into libclang_rt.os9.a.  We use llvm-ar with rcsD for a
 # deterministic (-D = no timestamps) static archive.
 add_custom_command(
@@ -72,8 +85,10 @@ add_custom_command(
             "${_OS9_LIB_OUT}"
             "${_OS9_CRT0_OUT}"
             "${_OS9_SYSCALLS_OUT}"
+            "${_OS9_SYSCALLS_C_OUT}"
     DEPENDS "${_OS9_CRT0_OUT}"
             "${_OS9_SYSCALLS_OUT}"
+            "${_OS9_SYSCALLS_C_OUT}"
     COMMENT "[OS-9] Bundling libclang_rt.os9.a"
     VERBATIM
 )

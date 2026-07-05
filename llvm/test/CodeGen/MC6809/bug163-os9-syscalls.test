@@ -8,8 +8,8 @@
 #
 # Locked-in byte patterns per syscall:
 #
-#   _exit:  starts with `1f 10 10 3f 06`
-#           (tfr x,d ; swi2 ; FCB F$Exit=$06)
+#   _exit:  moved to the inline-asm C source syscalls.c; its SWI2 + FCB
+#           F$Exit ($06) codegen is covered by os9-exit.ll (llc).
 #
 #   _write: contains `1f 10 1f 98 ae 62 10 ae 64 10 3f 8a 25`
 #           (tfr x,d ; tfr b,a ; ldx 2,s ; ldy 4,s ; swi2 ;
@@ -31,13 +31,6 @@ RUN:   -o %t.o
 # instructions; we want the raw bytes.)
 RUN: llvm-objcopy -O binary --only-section=.text %t.o %t.text.bin
 RUN: xxd -p -c 256 %t.text.bin > %t.text.hex
-
-# _exit prologue: tfr x,d ; swi2 ; F$Exit ($06)
-# Not anchored to .text start: the shared error helpers (_oserr.._sysret)
-# precede _exit in the section, so match the stub's bytes wherever they land
-# (same non-anchored form as the WRITE/READ checks below).
-RUN: FileCheck %s --check-prefix=EXIT < %t.text.hex
-EXIT: 1f10103f06
 
 # _write body: tfr x,d ; tfr b,a ; ldx 2,s ; ldy 4,s ; swi2 ; I$Write
 RUN: FileCheck %s --check-prefix=WRITE < %t.text.hex

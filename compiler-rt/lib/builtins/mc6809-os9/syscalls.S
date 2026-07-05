@@ -35,7 +35,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-	.set	F_Exit,   0x06
 	.set	I_Seek,   0x88
 	.set	I_Read,   0x89
 	.set	I_Write,  0x8A
@@ -94,22 +93,8 @@ _sysret:
 
 
 //===----------------------------------------------------------------------===//
-// void _exit(int status) __attribute__((noreturn))
-//
-//   C-ABI: status -> X
-//   OS-9:  F$Exit -> B = status byte
-//
-// F$Exit never returns.  We don't bother with the int-return register.
+// _exit / F$Exit now live in syscalls.c (inline-asm C).
 //===----------------------------------------------------------------------===//
-
-	.globl	_exit
-	.type	_exit,@function
-_exit:
-	tfr	x,d			// D = status; B is low byte already
-	swi2
-	.byte	F_Exit			// F$Exit
-	bra	.			// Trap if F$Exit returns.
-	.size	_exit, .-_exit
 
 
 //===----------------------------------------------------------------------===//
@@ -280,8 +265,6 @@ _os_writeln:
 // MC6809Toolchain.cpp).
 //===----------------------------------------------------------------------===//
 
-	.globl	F$Exit
-	.set	F$Exit, _exit
 	.globl	I$Write
 	.set	I$Write, _write
 	.globl	I$Read
