@@ -173,6 +173,17 @@ let Defs = [NZ, V] in {
     dag InOperandList  = (ins ACC8:$lo, INDEX16:$idx, unknown:$offset);
     let mayLoad = true;
   }
+  // Result of folding a spilled FAKE_USE operand (see
+  // foldMemoryOperandImpl): identical debug-lifetime semantics for the
+  // remaining register operands, but mayLoad so the generic
+  // foldMemoryOperand wrapper can attach the stack-slot memoperand it
+  // insists on. Erased at post-RA expansion.
+  def FakeUse_Mem : MC6809Pseudo {
+    dag OutOperandList = (outs);
+    dag InOperandList  = (ins variable_ops);
+    let mayLoad = true;
+  }
+
   // Both halves spilled: lo slot first, hi slot second.
   def MERGE_LOHI_i16_Mem2 : MC6809Pseudo {
     dag OutOperandList = (outs ADc:$dst);

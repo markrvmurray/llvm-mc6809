@@ -2826,6 +2826,42 @@ MCRegister RAGreedy::selectOrSplitImpl(const LiveInterval &VirtReg,
   // If we couldn't allocate a register from spilling, there is probably some
   // invalid inline assembly. The base class will report it.
   if (Stage >= RS_Done || !VirtReg.isSpillable()) {
+    // An unspillable interval whose every read is a FAKE_USE keeps no
+    // program value alive -- the fake uses exist only to extend debug
+    // lifetimes. Delete them rather than failing allocation (newer
+    // upstream releases handle fake uses the same way); the interval's
+    // defs become dead and are eliminated.
+    SmallVector<MachineInstr *, 4> FakeUses;
+    bool OnlyFakeReads = true;
+    for (MachineInstr &UseMI : MRI->use_nodbg_instructions(VirtReg.reg())) {
+      if (UseMI.isFakeUse()) {
+        FakeUses.push_back(&UseMI);
+        continue;
+      }
+      OnlyFakeReads = false;
+      break;
+    }
+    if (OnlyFakeReads && !FakeUses.empty()) {
+      LLVM_DEBUG(dbgs() << "Unspillable " << VirtReg
+                        << " is read only by FAKE_USE; deleting the fake "
+                           "uses instead of failing allocation.\n");
+      for (MachineInstr *FU : FakeUses) {
+        LIS->RemoveMachineInstrFromMaps(*FU);
+        FU->eraseFromParent();
+      }
+      // Shrink the interval to its (now nonexistent) reads; shrinkToUses
+      // flags and reports the defs that died, which eliminateDeadDefs can
+      // then erase.
+      SmallVector<MachineInstr *, 4> DeadDefs;
+      LiveInterval &MutLI = LIS->getInterval(VirtReg.reg());
+      LIS->shrinkToUses(&MutLI, &DeadDefs);
+      if (!DeadDefs.empty()) {
+        LiveRangeEdit LRE(&VirtReg, NewVRegs, *MF, *LIS, VRM, this,
+                          &DeadRemats);
+        LRE.eliminateDeadDefs(DeadDefs);
+      }
+      return MCRegister();
+    }
     return tryLastChanceRecoloring(VirtReg, Order, NewVRegs, FixedRegisters,
                                    RecolorStack, Depth);
   }

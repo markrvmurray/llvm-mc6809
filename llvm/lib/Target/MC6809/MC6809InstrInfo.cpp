@@ -29,6 +29,7 @@
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/VirtRegMap.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/MC/MCAsmInfo.h"
@@ -1375,8 +1376,13 @@ static void emitAQOnHardStackScratch(MachineIRBuilder &Builder,
 static void emitAQPreservedOverHardStackScratch(
     MachineIRBuilder &Builder, llvm::function_ref<void()> Body) {
   Builder.buildInstr(MC6809::LEASi_o5).addImm(-4).addReg(MC6809::SS);
+  // Undef-marked read: the save/restore is the identity for whatever is
+  // in $aq, defined or not. The #305 liveness gate keeps the bracket only
+  // when some member of the family is live, but the live member can be a
+  // lone byte half (a partially-redefined $aq the verifier would reject
+  // as an undefined full-register read).
   Builder.buildInstr(MC6809::STQi_o0)
-      .addUse(MC6809::AQ, RegState::Implicit)
+      .addUse(MC6809::AQ, RegState::Implicit | RegState::Undef)
       .addReg(MC6809::SS);
   Body();
   Builder.buildInstr(MC6809::LDQi_o0)
@@ -2401,7 +2407,7 @@ MachineInstr *MC6809InstrInfo::foldMemoryOperandImpl(
     MachineFunction &MF, MachineInstr &MI, ArrayRef<unsigned> Ops,
     MachineBasicBlock::iterator InsertPt, int FrameIndex,
     MachineInstr *& /*CopyMI*/, LiveIntervals * /*LIS*/,
-    VirtRegMap * /*VRM*/) const {
+    VirtRegMap *VRM) const {
   // Bug #118 Layer 1, approach (b): fold a reload of the 16-bit source of
   // EXTRACT_LO_i16 / EXTRACT_HI_i16 into a direct one-byte frame load.
   //
@@ -2419,6 +2425,27 @@ MachineInstr *MC6809InstrInfo::foldMemoryOperandImpl(
   // the spill-to-frame path. DP-backed SPILL_D / RS paths are unaffected
   // and remain handled by post-RA materialisation.
   unsigned Opc = MI.getOpcode();
+
+  // A FAKE_USE exists only to extend values' visible lifetimes for debug
+  // quality (-Og). A spilled operand needs no reload -- the value is
+  // observable in its stack slot -- so drop the operand instead of
+  // forcing an INF-weight reload interval (a FAKE_USE can carry more
+  // simultaneously-live byte operands than the two-register byte class
+  // can hold, which deadlocked greedy once the byte spill
+  // pseudo-registers were retired).
+  if (Opc == TargetOpcode::FAKE_USE || Opc == MC6809::FakeUse_Mem) {
+    // FakeUse_Mem (not FAKE_USE itself) as the result: the generic
+    // foldMemoryOperand wrapper attaches a load memoperand and asserts
+    // mayLoad on whatever we return.
+    MachineBasicBlock &MBB = *MI.getParent();
+    auto MIB =
+        BuildMI(MBB, InsertPt, MI.getDebugLoc(), get(MC6809::FakeUse_Mem));
+    for (unsigned I = 0, E = MI.getNumOperands(); I != E; ++I)
+      if (!llvm::is_contained(Ops, I))
+        MIB.add(MI.getOperand(I));
+    return MIB;
+  }
+
   if (Opc == MC6809::EXTRACT_LO_i16 || Opc == MC6809::EXTRACT_HI_i16) {
     // Only fold the source operand (index 1). Folding a spilled def would
     // need a separate extract-into-scratch-then-store, which is not a
@@ -2517,8 +2544,26 @@ MachineInstr *MC6809InstrInfo::foldMemoryOperandImpl(
     if (MO.isReg() && MO.getReg().isVirtual() &&
         NewOpIdx < MemDesc.getNumOperands()) {
       const TargetRegisterClass *RC = getRegClass(MemDesc, NewOpIdx);
-      if (RC && !MRI.constrainRegClass(MO.getReg(), RC))
-        return nullptr;
+      if (RC) {
+        // A vreg an earlier regalloc round already assigned cannot be
+        // re-constrained: the assignment is not revisited, so a class
+        // shrink would let an out-of-class register (e.g. AE/AF on the
+        // indexed byte forms, which have no E/F encoding) survive to the
+        // verifier. Accept the fold only if the existing assignment
+        // already satisfies the _Mem class.
+        if (VRM && VRM->hasPhys(MO.getReg())) {
+          if (!RC->contains(VRM->getPhys(MO.getReg())))
+            return nullptr;
+          // The existing assignment satisfies the _Mem class; also narrow
+          // the vreg's class so the verifier's per-operand class check on
+          // the rebuilt instruction passes (a narrower class still
+          // satisfies every wider requirement elsewhere).
+          if (!MRI.constrainRegClass(MO.getReg(), RC))
+            return nullptr;
+        } else if (!MRI.constrainRegClass(MO.getReg(), RC)) {
+          return nullptr;
+        }
+      }
     }
     ++NewOpIdx;
   }
@@ -3552,6 +3597,11 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     MI.eraseFromParent();
     return true;
   }
+  case MC6809::FakeUse_Mem:
+    // Debug-lifetime marker with a folded (spilled) operand; served its
+    // purpose through regalloc -- nothing to emit.
+    MI.eraseFromParent();
+    return true;
   case MC6809::MERGE_LOHI_i16_Mem2: {
     // Both merge halves read straight from their frame slots.
     MachineFunction &MF = *MI.getMF();
@@ -3846,10 +3896,22 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::BranchSubroutine:
     expandCallRelative(Builder, MI);
     break;
-  case MC6809::BranchJumpTable:
+  case MC6809::BranchJumpTable: {
     // Keep as pseudo — expanded in MCInstLower to avoid branch relaxation
     // seeing the concrete JMPi_oDI (which has isBranch and crashes verify).
+    // An imaginary-homed index must first be staged into $ad (the
+    // printer's shift-D dispatch contract). No preserve bracket: this is
+    // a terminator — control leaves the block — and the index operand
+    // has always claimed the accumulator here (the retired spill
+    // machinery loaded spilled indices into $ad the same way).
+    Register Idx = MI.getOperand(0).getReg();
+    if (needsMaterialization(Idx)) {
+      materializeReg(Builder, Idx, *MI.getMF());
+      MI.getOperand(0).setReg(MC6809::AD);
+      MI.getOperand(0).setIsKill(false);
+    }
     break;
+  }
   case MC6809::LEAPtrAdd_Imm:
   case MC6809::LEA_Ptr_Imm:
   case MC6809::LEAPtrAdd_Reg8:
@@ -5731,7 +5793,7 @@ void MC6809InstrInfo::expandAddSub_i32_Reg(MachineIRBuilder &Builder,
   // slot (so SRC2-in-AQ is readable via $ss+0..3) and DOES NOT restore
   // $aq after the body — the body's ADDW+ADCD result becomes the new
   // $aq, which is the DST.
-  emitAQOnHardStackScratch(Builder, [&]() {
+  auto Body = [&]() {
     // Step 1: materialize $dst into AQ.  Uses U-relative addressing
     // for SPILL_Q*N → AQ; U is unchanged by the LEAS on S.
     if (needsMaterialization(DestReg))
@@ -5794,7 +5856,17 @@ void MC6809InstrInfo::expandAddSub_i32_Reg(MachineIRBuilder &Builder,
     // addressing; safe across the in-progress S-displacement.
     if (needsMaterialization(OrigDest))
       dematerializeReg(Builder, DestReg, OrigDest, MF);
-  });
+  };
+
+  if (isQSpillReg(Src2Reg)) {
+    // $src2 reads from its own U-relative spill slot; the hard-stack
+    // scratch would never be read -- and its save-STQ of a possibly
+    // partially-defined $aq (both operands spilled, nothing yet staged)
+    // is a verifier reject. Run the body without the bracket.
+    Body();
+  } else {
+    emitAQOnHardStackScratch(Builder, Body);
+  }
 
   MI.eraseFromParent();
 }

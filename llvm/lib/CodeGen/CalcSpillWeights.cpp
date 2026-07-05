@@ -282,6 +282,13 @@ float VirtRegAuxInfo::weightCalcHelper(LiveInterval &LI) {
        I != E;) {
     MachineInstr *MI = &*(I++);
 
+    // Ignore fake uses: they exist only to extend values' visible
+    // lifetimes for debugging and must not make an interval look
+    // unspillable (the target can fold a spilled fake-use operand away
+    // entirely). Matches newer upstream behaviour.
+    if (MI->isFakeUse())
+      continue;
+
     NumInstr++;
     bool identityCopy = false;
     auto DestSrc = TII.isCopyInstr(*MI);
