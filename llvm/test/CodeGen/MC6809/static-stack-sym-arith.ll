@@ -1,8 +1,8 @@
-; RUN: llc -mtriple=mc6809 -mattr=+static-stack -O2 -verify-machineinstrs %s -o - | FileCheck %s --check-prefix=SS
-; RUN: llc -mtriple=mc6809 -mcpu=hd6309 -mattr=+static-stack -O2 -verify-machineinstrs %s -o - | FileCheck %s --check-prefix=SS63
+; RUN: llc -mtriple=mc6809 -mattr=+static-stack -mc6809-static-stack-dp-avail=0 -O2 -verify-machineinstrs %s -o - | FileCheck %s --check-prefix=SS
+; RUN: llc -mtriple=mc6809 -mcpu=hd6309 -mattr=+static-stack -mc6809-static-stack-dp-avail=0 -O2 -verify-machineinstrs %s -o - | FileCheck %s --check-prefix=SS63
 ; RUN: llc -mtriple=mc6809 -mattr=+static-stack -O2 -relocation-model=pic -verify-machineinstrs %s -o - | FileCheck %s --check-prefix=PIC
-; RUN: llc -mtriple=mc6809 -O2 -verify-machineinstrs %s -o - | FileCheck %s --check-prefix=DYN
-; RUN: llc -mtriple=mc6809 -mattr=+static-stack -O0 -verify-machineinstrs %s -o - | FileCheck %s --check-prefix=SS0
+; RUN: llc -mtriple=mc6809 -mattr=-static-stack -O2 -verify-machineinstrs %s -o - | FileCheck %s --check-prefix=DYN
+; RUN: llc -mtriple=mc6809 -mattr=+static-stack -mc6809-static-stack-dp-avail=0 -O0 -verify-machineinstrs %s -o - | FileCheck %s --check-prefix=SS0
 
 ; Static-stack (_Sym) siblings of the arithmetic / bitwise / compare _Mem
 ; pseudos: when a non-reentrant function's local moves to the static frame,

@@ -15,9 +15,10 @@ def FeatureAltRegisterNamesOnly
                         "Useful if your code has variable names that conflict "#
                         "with llvm-mc6809 register names">;
 
-// Bug #387: lay the frames of provably-non-reentrant functions out in
-// statically-allocated global memory (extended/absolute addressing) instead
-// of on the dynamic U-relative stack. Opt-in for now; default off.
+// Lay the frames of provably-non-reentrant functions out in statically-
+// allocated global memory instead of on the dynamic U-relative stack. Enabled
+// by default via the CPU families (see MC6809Devices.td); disable a translation
+// unit with -mattr=-static-stack.
 def FeatureStaticStack
     : SubtargetFeature<"static-stack", "StaticStack", "true",
                         "Allocate non-reentrant function frames to static "#

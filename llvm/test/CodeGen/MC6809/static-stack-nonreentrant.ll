@@ -1,5 +1,5 @@
-; RUN: llc -mtriple=mc6809 -mcpu=hd6309 -mattr=+static-stack -O2 %s -o - | FileCheck %s --check-prefix=SS
-; RUN: llc -mtriple=mc6809 -mcpu=hd6309 -O2 %s -o - | FileCheck %s --check-prefix=DYN
+; RUN: llc -mtriple=mc6809 -mcpu=hd6309 -mattr=+static-stack -mc6809-static-stack-dp-avail=0 -O2 %s -o - | FileCheck %s --check-prefix=SS
+; RUN: llc -mtriple=mc6809 -mcpu=hd6309 -mattr=-static-stack -O2 %s -o - | FileCheck %s --check-prefix=DYN
 
 ; Static-stack allocation for non-reentrant functions (the +static-stack
 ; feature). A function carrying the "nonreentrant" attribute lays its whole

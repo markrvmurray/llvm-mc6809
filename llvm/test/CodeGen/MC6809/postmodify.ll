@@ -1,6 +1,6 @@
 ; NOTE: Hand-authored — pins the auto-increment / -decrement post-modify fusion.
-; RUN: llc -mtriple=mc6809 -O2 -verify-machineinstrs -filetype=asm < %s | FileCheck %s
-; RUN: llc -mtriple=mc6809 -mcpu=hd6309 -O2 -verify-machineinstrs -filetype=asm < %s | FileCheck %s
+; RUN: llc -mtriple=mc6809 -mattr=-static-stack -O2 -verify-machineinstrs -filetype=asm < %s | FileCheck %s
+; RUN: llc -mtriple=mc6809 -mattr=-static-stack -mcpu=hd6309 -O2 -verify-machineinstrs -filetype=asm < %s | FileCheck %s
 ;
 ; A pointer-walk load/store (*s++, *--s) fuses the pointer advance with the
 ; access into a single post-modify indexed instruction, keeping the pointer in

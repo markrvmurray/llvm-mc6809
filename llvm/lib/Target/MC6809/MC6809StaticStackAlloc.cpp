@@ -46,18 +46,28 @@
 
 using namespace llvm;
 
-// Bytes of the direct page (page 0) available to hold static frames. When the
-// whole static stack fits, it is placed in a `.dp` section and addressed with
-// the 1-byte direct-page form (`ldd <sym`) instead of 3-byte extended — erasing
-// the base-MC6809 `.text` cost of static-stack. A dedicated knob (not
-// `-dp-avail`) on purpose: `-dp-avail` also activates the direct-page allocator,
-// whose frame-slot handling would claim these slots before the static marking
-// and send them back to a dynamic frame. Default 0 = off.
+// Bytes of the direct page (page 0) available to hold static frames. When a
+// function's whole static stack fits within this many bytes, it is placed in a
+// `.dp.bss` section and addressed with the 1-byte direct-page form (`ldd <sym`)
+// instead of 3-byte extended — recovering most of the `.text` cost that static
+// frames otherwise pay on base MC6809.
+//
+// TUNING: this is the primary lever for the static-stack `.text`/direct-page
+// tradeoff. Larger values place more (and bigger) frames in the direct page,
+// avoiding the extended-addressing penalty, but the direct page is a scarce
+// 223-byte region shared with the `-dp-avail` allocator and any
+// __attribute__((directpage)) data; oversubscribing it is a loud linker error
+// (".dp.bss will not fit in region directpage"), not a miscompile. A bench
+// subset showed 64 composes safely across real multi-TU picolibc links with no
+// overflow. A dedicated knob (not `-dp-avail`) on purpose: `-dp-avail` also
+// activates the direct-page allocator, whose frame-slot handling would claim
+// these slots before the static marking and send them back to a dynamic frame.
+// Set to 0 to keep every static frame in extended addressing.
 static cl::opt<uint64_t> StaticStackDPAvail(
-    "mc6809-static-stack-dp-avail", cl::init(0), cl::Hidden,
+    "mc6809-static-stack-dp-avail", cl::init(64), cl::Hidden,
     cl::value_desc("bytes"),
     cl::desc("page-0 bytes available for non-reentrant static frames; "
-             "when the static stack fits, place it in the direct page"));
+             "when a static frame fits, place it in the direct page"));
 
 namespace {
 

@@ -19,8 +19,8 @@ include "llvm/Target/GlobalISel/Combine.td"
 // MC6809 Device Definitions
 //===---------------------------------------------------------------------===//
 
-include "MC6809Devices.td"
 include "MC6809Features.td"
+include "MC6809Devices.td"
 include "MC6809RegisterInfo.td"
 include "MC6809RegisterBanks.td"
 include "MC6809InstrInfo.td"

@@ -107,7 +107,11 @@ private:
 
   bool LongRegisterNames = false;
 
-  // Bug #387: set by the "static-stack" subtarget feature (default off).
+  // Set by the "static-stack" subtarget feature, which the CPU families enable
+  // by default (see MC6809Devices.td for the rationale and tuning levers).
+  // Disable per-translation-unit with -mattr=-static-stack. The initializer
+  // stays false: ParseSubtargetFeatures only ever sets it true from the feature
+  // bit, so -static-stack clears the bit and leaves this false.
   bool StaticStack = false;
 
   // Dummy member, used by FeatureSet's. We cannot have a SubtargetFeature with

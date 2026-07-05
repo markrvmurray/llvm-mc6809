@@ -2,7 +2,7 @@
 ; RUN:     -mc6809-static-stack-dp-avail=200 %s -o - \
 ; RUN:   | FileCheck %s --check-prefix=DP --implicit-check-not='mc6809_8({{.*}}),pc'
 ; RUN: llc -mtriple=mc6809 -mcpu=hd6309 -mattr=+static-stack -O2 \
-; RUN:     %s -o - | FileCheck %s --check-prefix=EXT
+; RUN:     -mc6809-static-stack-dp-avail=0 %s -o - | FileCheck %s --check-prefix=EXT
 ; RUN: llc -mtriple=mc6809 -mcpu=hd6309 -mattr=+static-stack -O2 \
 ; RUN:     -mc6809-static-stack-dp-avail=200 -filetype=obj %s -o %t.o
 ; RUN: llvm-readobj --section-headers %t.o | FileCheck %s --check-prefix=NOBITS
