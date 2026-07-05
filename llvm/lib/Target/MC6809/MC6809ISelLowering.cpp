@@ -122,7 +122,7 @@ std::pair<unsigned, const TargetRegisterClass *> MC6809TargetLowering::getRegFor
       // compatibility with existing MC6809 inline asm.
       return std::make_pair(MC6809::IX, &MC6809::IXcRegClass);
     case 'y':
-      return std::make_pair(MC6809::IY, &MC6809::IXcRegClass);
+      return std::make_pair(MC6809::IY, &MC6809::IYcRegClass);
     case 'A':
       // gcc6809: 'A' = ACC_A_REGS (A register only).
       return std::make_pair(MC6809::AA, &MC6809::AAcRegClass);
