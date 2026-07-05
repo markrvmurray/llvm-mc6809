@@ -2514,10 +2514,10 @@ MachineInstr *MC6809InstrInfo::foldMemoryOperandImpl(
   // Fold a spilled second source of a two-source _Reg pseudo into its _Mem
   // sibling (see memFoldSibling above). The rebuilt instruction reads that
   // operand from the frame slot in place; eliminateFrameIndex later supplies
-  // the U/S base + offset (or leaves the slot dynamic in a static-stack
-  // function — the conservative whole-frame marking skips slots reached by
-  // pseudos without a _Sym lowering, so this fold needs no static-stack
-  // special case).
+  // the U/S base + offset — or, in a static-stack function whose slot moved
+  // to the static frame, rewrites to the matching _Sym sibling (every _Mem
+  // form in the fold table has one; getStaticSymOpcode is the single source
+  // of truth).
   if (DisableMemFold)
     return nullptr;
   auto Fold = memFoldSibling(Opc);
@@ -4005,10 +4005,12 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     break;
   case MC6809::AND_i8_MemIndirect:
   case MC6809::AND_i8_Mem:
+  case MC6809::AND_i8_Sym:
     expandIdxImm(ANDIdxImm, Builder, MI);
     break;
   case MC6809::AND_i16_MemIndirect:
   case MC6809::AND_i16_Mem:
+  case MC6809::AND_i16_Sym:
     expandBitwiseMem16(ANDIdxImm, Builder, MI);
     break;
   case MC6809::AND_i8_Reg:
@@ -4023,10 +4025,12 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     break;
   case MC6809::OR_i8_MemIndirect:
   case MC6809::OR_i8_Mem:
+  case MC6809::OR_i8_Sym:
     expandIdxImm(ORIdxImm, Builder, MI);
     break;
   case MC6809::OR_i16_MemIndirect:
   case MC6809::OR_i16_Mem:
+  case MC6809::OR_i16_Sym:
     expandBitwiseMem16(ORIdxImm, Builder, MI);
     break;
   case MC6809::OR_i8_Reg:
@@ -4041,10 +4045,12 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     break;
   case MC6809::XOR_i8_MemIndirect:
   case MC6809::XOR_i8_Mem:
+  case MC6809::XOR_i8_Sym:
     expandIdxImm(XORIdxImm, Builder, MI);
     break;
   case MC6809::XOR_i16_MemIndirect:
   case MC6809::XOR_i16_Mem:
+  case MC6809::XOR_i16_Sym:
     expandBitwiseMem16(XORIdxImm, Builder, MI);
     break;
   case MC6809::XOR_i8_Reg:
@@ -4077,10 +4083,16 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::Add_i16_MemIndirect:
   case MC6809::Add_i8_Mem:
   case MC6809::Add_i16_Mem:
+  case MC6809::Add_i8_Sym:
+  case MC6809::Add_i16_Sym:
   case MC6809::AddSetCarry_i8_Mem:
   case MC6809::AddSetCarry_i16_Mem:
+  case MC6809::AddSetCarry_i8_Sym:
+  case MC6809::AddSetCarry_i16_Sym:
   case MC6809::AddSetOverflow_i8_Mem:    // bug #147
   case MC6809::AddSetOverflow_i16_Mem:
+  case MC6809::AddSetOverflow_i8_Sym:
+  case MC6809::AddSetOverflow_i16_Sym:
     expandIdxImm(AddIdxImm, Builder, MI);
     break;
   // Bug #297: i32 ADD _Mem family — emit ADDW <off+2>; ADCD <off+0>.
@@ -4096,14 +4108,20 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     break;
   // Static-stack sibling: memory operand is a TI_STATIC_STACK target index.
   case MC6809::Add_i32_Sym:
+  case MC6809::AddSetCarry_i32_Sym:
+  case MC6809::AddSetOverflow_i32_Sym:
     expandAddSub_i32_Sym(Builder, MI, /*IsAdd=*/true);
     break;
   case MC6809::AddSetCarryUse_i8_Mem:
   case MC6809::AddSetOverflowUse_i8_Mem:    // bug #147
+  case MC6809::AddSetCarryUse_i8_Sym:
+  case MC6809::AddSetOverflowUse_i8_Sym:
     expandIdxImm(AddCarryIdxImm, Builder, MI);
     break;
   case MC6809::AddSetCarryUse_i16_Mem:
   case MC6809::AddSetOverflowUse_i16_Mem:   // bug #147
+  case MC6809::AddSetCarryUse_i16_Sym:
+  case MC6809::AddSetOverflowUse_i16_Sym:
     expandCarryMem16(true, Builder, MI);
     break;
   case MC6809::Add_i8_Reg:
@@ -4157,10 +4175,16 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::Sub_i16_MemIndirect:
   case MC6809::Sub_i8_Mem:
   case MC6809::Sub_i16_Mem:
+  case MC6809::Sub_i8_Sym:
+  case MC6809::Sub_i16_Sym:
   case MC6809::SubSetCarry_i8_Mem:
   case MC6809::SubSetCarry_i16_Mem:
+  case MC6809::SubSetCarry_i8_Sym:
+  case MC6809::SubSetCarry_i16_Sym:
   case MC6809::SubSetOverflow_i8_Mem:    // bug #147
   case MC6809::SubSetOverflow_i16_Mem:
+  case MC6809::SubSetOverflow_i8_Sym:
+  case MC6809::SubSetOverflow_i16_Sym:
     expandIdxImm(SubIdxImm, Builder, MI);
     break;
   // Bug #297: i32 SUB _Mem family — emit SUBW <off+2>; SBCD <off+0>.
@@ -4171,6 +4195,8 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     break;
   // Static-stack sibling: memory operand is a TI_STATIC_STACK target index.
   case MC6809::Sub_i32_Sym:
+  case MC6809::SubSetCarry_i32_Sym:
+  case MC6809::SubSetOverflow_i32_Sym:
     expandAddSub_i32_Sym(Builder, MI, /*IsAdd=*/false);
     break;
   case MC6809::Sub_i8_Reg:
@@ -4192,10 +4218,14 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     break;
   case MC6809::SubSetCarryUse_i8_Mem:
   case MC6809::SubSetOverflowUse_i8_Mem:    // bug #147
+  case MC6809::SubSetCarryUse_i8_Sym:
+  case MC6809::SubSetOverflowUse_i8_Sym:
     expandIdxImm(SubBorrowIdxImm, Builder, MI);
     break;
   case MC6809::SubSetCarryUse_i16_Mem:
   case MC6809::SubSetOverflowUse_i16_Mem:   // bug #147
+  case MC6809::SubSetCarryUse_i16_Sym:
+  case MC6809::SubSetOverflowUse_i16_Sym:
     expandCarryMem16(false, Builder, MI);
     break;
   case MC6809::SubSetCarryUse_i8_Reg:
@@ -4273,6 +4303,9 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::Compare_ptr_Mem:
   case MC6809::Compare_i8_MemIndirect:
   case MC6809::Compare_i16_MemIndirect:
+  case MC6809::Compare_i8_Sym:
+  case MC6809::Compare_i16_Sym:
+  case MC6809::Compare_ptr_Sym:
     wrapStagedCCSources(MI, [&] { expandCompareIdx(Builder, MI); });
     break;
   case MC6809::Compare_i8_Reg:
@@ -4305,6 +4338,9 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::CompareBranch_ptr_Imm: // Bug #359: index-domain pointer compare.
   case MC6809::CompareBranch_ptr_Reg: // index-domain reg-reg pointer compare.
   case MC6809::CompareBranch_ptr_Mem: // index-domain pointer-vs-memory compare.
+  case MC6809::CompareBranch_i8_Sym:  // static-stack siblings
+  case MC6809::CompareBranch_i16_Sym:
+  case MC6809::CompareBranch_ptr_Sym:
     wrapStagedCCSources(MI, [&] { expandFusedCompareBranch(Builder, MI); });
     break;
   case MC6809::CompareBranch_i32_Imm: {
@@ -5022,6 +5058,13 @@ static bool isMemIndirectPseudo(unsigned Opc);
 
 void MC6809InstrInfo::expandIdxImm(ContextIndexImmediate Context, MachineIRBuilder &Builder, MachineInstr &MI) const {
   auto operandCount = MI.getNumExplicitOperands();
+  // Static-stack sibling (_Sym): the memory operand is a TI_STATIC_STACK
+  // target index instead of the index-reg + offset pair. The opcode lookup
+  // below keys on the widest indexed form ({reg, 16}) purely to name the
+  // instruction family; getStaticStackOpcode then swaps it for the extended
+  // (or PC-relative under PIC) variant and the emitted operand is the
+  // target index.
+  const bool IsSym = MI.getOperand(operandCount - 1).isTargetIndex();
   // P3b: indirect-indexed consumer (`op [n,r]`) -- build the indirect-sibling
   // opcode (the memory operand is `*(mem[r+n])`), exactly as expandLoadIdx
   // swaps a load to its `[n,r]` form. Applies at every build site below,
@@ -5055,20 +5098,43 @@ void MC6809InstrInfo::expandIdxImm(ContextIndexImmediate Context, MachineIRBuild
   // base pointer live to the arith op; under pressure it can spill to an
   // index-spill reg, which has no real encoding). Mirrors expandStoreIdx /
   // expandCompareIdx. DestReg is an accumulator here, so IY is free.
-  if (isIndexSpillReg(MI.getOperand(operandCount - 2).getReg())) {
+  // (_Sym has no index base; operand count-2 is the tied source register.)
+  if (!IsSym && isIndexSpillReg(MI.getOperand(operandCount - 2).getReg())) {
     Register SpillReg = MI.getOperand(operandCount - 2).getReg();
     Register StageReg = MC6809::IY;
     MachineIRBuilder PreBuilder(*MI.getParent(), MI.getIterator());
     emitSpillLoadInto(PreBuilder, StageReg, SpillReg, /*ExtraOffset=*/0, MF);
     MI.getOperand(operandCount - 2).setReg(StageReg);
   }
-  auto IndexReg = MI.getOperand(operandCount - 2).getReg();
-  auto OffsetOp = MI.getOperand(operandCount - 1);
-  assert((OffsetOp.isImm() || OffsetOp.isCImm()) && "This offset must be an immediate");
-
-  int OffsetSize = offsetSizeInBits(OffsetOp);
-  assert((OffsetSize >= 0) && "Unknown immediate offset size");
-  auto Offset = OffsetOp.isImm() ? OffsetOp.getImm() : OffsetOp.getCImm()->getSExtValue();
+  Register IndexReg;
+  int OffsetSize;
+  int64_t Offset = 0;
+  int64_t SymOff = 0;
+  const bool IsPIC = MF.getTarget().isPositionIndependent();
+  if (IsSym) {
+    SymOff = MI.getOperand(operandCount - 1).getOffset();
+    OffsetSize = 16; // key the widest indexed form; translated to extended
+  } else {
+    IndexReg = MI.getOperand(operandCount - 2).getReg();
+    auto OffsetOp = MI.getOperand(operandCount - 1);
+    assert((OffsetOp.isImm() || OffsetOp.isCImm()) && "This offset must be an immediate");
+    OffsetSize = offsetSizeInBits(OffsetOp);
+    assert((OffsetSize >= 0) && "Unknown immediate offset size");
+    Offset = OffsetOp.isImm() ? OffsetOp.getImm() : OffsetOp.getCImm()->getSExtValue();
+  }
+  // Final-opcode + memory-tail helpers shared by the three emit sites
+  // (plain, AW-through-D cheat, E/F-through-B cheat).
+  auto FinalOpc = [&](unsigned O) {
+    return IsSym ? getStaticStackOpcode(O, IsPIC) : IndOpc(O);
+  };
+  auto AddMemTail = [&](MachineInstrBuilder &Instr, int64_t Off, int OffSize) {
+    if (IsSym)
+      Instr.addTargetIndex(MC6809::TI_STATIC_STACK, SymOff);
+    else if (OffSize == 0)
+      Instr.addReg(IndexReg);
+    else
+      Instr.addImm(Off).addReg(IndexReg);
+  };
   RegPlusOffsetLen Lookup{DestReg, OffsetSize};
   auto OpcodePair = Context.Opcode->find(Lookup);
   if (OpcodePair == Context.Opcode->end()) {
@@ -5085,11 +5151,8 @@ void MC6809InstrInfo::expandIdxImm(ContextIndexImmediate Context, MachineIRBuild
       // indexed op, DestReg is the scratch side; mark its read Undef
       // on the second EXG too.
       B = Builder.buildInstr(MC6809::EXGp).addDef(MC6809::AD).addDef(DestReg).addUse(MC6809::AD, RegState::Undef).addUse(DestReg);
-      auto Instr = Builder.buildInstr(IndOpc(OpcodePair->getSecond())).addDef(MC6809::AD, RegState::Implicit);
-      if (OffsetSize == 0)
-        Instr.addReg(IndexReg);
-      else
-        Instr.addImm(Offset).addReg(IndexReg);
+      auto Instr = Builder.buildInstr(FinalOpc(OpcodePair->getSecond())).addDef(MC6809::AD, RegState::Implicit);
+      AddMemTail(Instr, Offset, OffsetSize);
       E = Builder.buildInstr(MC6809::EXGp).addDef(DestReg).addDef(MC6809::AD).addUse(DestReg, RegState::Undef).addUse(MC6809::AD);
       auto Bundler = MIBundleBuilder(MBB, B, ++E);
       finalizeBundle(MBB, Bundler.begin(), Bundler.end());
@@ -5117,9 +5180,10 @@ void MC6809InstrInfo::expandIdxImm(ContextIndexImmediate Context, MachineIRBuild
       // pshs b shifts S down by 1, so an S-relative offset (and thus the chosen
       // opcode size) must be bumped by 1 while B sits on the stack. Use o8 for
       // the bumped offset (always encodable; o5 might no longer fit).
-      int UseOffset = Offset;
+      // (_Sym addresses are absolute — no S-relative bump can apply.)
+      int64_t UseOffset = Offset;
       int UseSize = OffsetSize;
-      if (BLive && IndexReg == MC6809::SS) {
+      if (BLive && !IsSym && IndexReg == MC6809::SS) {
         UseOffset = Offset + 1;
         UseSize = (UseOffset == 0) ? 0 : isInt<8>(UseOffset) ? 8 : 16;
       }
@@ -5130,22 +5194,16 @@ void MC6809InstrInfo::expandIdxImm(ContextIndexImmediate Context, MachineIRBuild
       if (BLive)
         Builder.buildInstr(MC6809::PSHSs).addUse(MC6809::AB); // pshs b
       Builder.buildCopy(Register(MC6809::AB), Register(DestReg)); // B = E/F value
-      auto Instr = Builder.buildInstr(IndOpc(OpcodePair->getSecond())).addDef(MC6809::AB, RegState::Implicit);
-      if (UseSize == 0)
-        Instr.addReg(IndexReg);
-      else
-        Instr.addImm(UseOffset).addReg(IndexReg);
+      auto Instr = Builder.buildInstr(FinalOpc(OpcodePair->getSecond())).addDef(MC6809::AB, RegState::Implicit);
+      AddMemTail(Instr, UseOffset, UseSize);
       Builder.buildCopy(Register(DestReg), Register(MC6809::AB)); // E/F = result
       if (BLive)
         Builder.buildInstr(MC6809::PULSs).addDef(MC6809::AB); // puls b
     } else
       llvm_unreachable("Cannot find machine instruction with these immediate indexed operands");
   } else {
-    auto Instr = Builder.buildInstr(IndOpc(OpcodePair->getSecond())).addDef(DestReg, RegState::Implicit);
-    if (OffsetSize == 0)
-      Instr.addReg(IndexReg);
-    else
-      Instr.addImm(Offset).addReg(IndexReg);
+    auto Instr = Builder.buildInstr(FinalOpc(OpcodePair->getSecond())).addDef(DestReg, RegState::Implicit);
+    AddMemTail(Instr, Offset, OffsetSize);
   }
   // Store result back BEFORE erasing MI.
   if (needsMaterialization(OrigDest)) {
@@ -5213,6 +5271,28 @@ void MC6809InstrInfo::expandCarryMem16(bool IsAdd, MachineIRBuilder &Builder,
     DestReg = materializeReg(Builder, DestReg, MF);
   }
   auto operandCount = MI.getNumExplicitOperands();
+  auto &CarryMap = IsAdd ? AddCarryIdxImmOpcode : SubBorrowIdxImmOpcode;
+  // Static-stack sibling: split into two extended (or PC-relative) byte
+  // accesses — low byte (base+1, big-endian) first to keep the carry chain
+  // order, high byte (base+0) second.
+  if (MI.getOperand(operandCount - 1).isTargetIndex()) {
+    int64_t Base = MI.getOperand(operandCount - 1).getOffset();
+    bool IsPIC = MF.getTarget().isPositionIndependent();
+    auto OpcB = CarryMap.find({MC6809::AB, 16});
+    auto OpcA = CarryMap.find({MC6809::AA, 16});
+    assert(OpcB != CarryMap.end() && OpcA != CarryMap.end());
+    Builder.buildInstr(getStaticStackOpcode(OpcB->getSecond(), IsPIC))
+        .addDef(MC6809::AB, RegState::Implicit)
+        .addTargetIndex(MC6809::TI_STATIC_STACK, Base + 1);
+    Builder.buildInstr(getStaticStackOpcode(OpcA->getSecond(), IsPIC))
+        .addDef(MC6809::AA, RegState::Implicit)
+        .addTargetIndex(MC6809::TI_STATIC_STACK, Base + 0);
+    dematerializeReg(Builder, DestReg, OrigDest, MF);
+    if (StagedDst)
+      pullStagingReg(Builder, DestReg);
+    MI.eraseFromParent();
+    return;
+  }
   auto IndexReg = MI.getOperand(operandCount - 2).getReg();
   auto OffsetOp = MI.getOperand(operandCount - 1);
   auto Offset = OffsetOp.isImm() ? OffsetOp.getImm() : OffsetOp.getCImm()->getSExtValue();
@@ -5224,7 +5304,6 @@ void MC6809InstrInfo::expandCarryMem16(bool IsAdd, MachineIRBuilder &Builder,
   // Look up the 8-bit opcodes for B and A.
   RegPlusOffsetLen LookupB{MC6809::AB, OffsetLoSize};
   RegPlusOffsetLen LookupA{MC6809::AA, OffsetHiSize};
-  auto &CarryMap = IsAdd ? AddCarryIdxImmOpcode : SubBorrowIdxImmOpcode;
   auto OpcB = CarryMap.find(LookupB);
   auto OpcA = CarryMap.find(LookupA);
   assert(OpcB != CarryMap.end() && OpcA != CarryMap.end());
@@ -5956,6 +6035,28 @@ void MC6809InstrInfo::expandBitwiseMem16(ContextIndexImmediate Context,
     DestReg = materializeReg(Builder, DestReg, MF);
   }
   auto operandCount = MI.getNumExplicitOperands();
+  // Static-stack sibling: split into two extended (or PC-relative) byte
+  // accesses. Bitwise halves are independent — order is immaterial; keep
+  // B-low (base+1), A-high (base+0) to match the indexed split below.
+  if (MI.getOperand(operandCount - 1).isTargetIndex()) {
+    int64_t Base = MI.getOperand(operandCount - 1).getOffset();
+    bool IsPIC = MF.getTarget().isPositionIndependent();
+    auto OpcB = Context.Opcode->find({MC6809::AB, 16});
+    auto OpcA = Context.Opcode->find({MC6809::AA, 16});
+    assert(OpcB != Context.Opcode->end() && OpcA != Context.Opcode->end());
+    Builder.buildInstr(getStaticStackOpcode(OpcB->getSecond(), IsPIC))
+        .addDef(MC6809::AB, RegState::Implicit)
+        .addTargetIndex(MC6809::TI_STATIC_STACK, Base + 1);
+    Builder.buildInstr(getStaticStackOpcode(OpcA->getSecond(), IsPIC))
+        .addDef(MC6809::AA, RegState::Implicit)
+        .addTargetIndex(MC6809::TI_STATIC_STACK, Base + 0);
+    if (needsMaterialization(OrigDest)) {
+      dematerializeReg(Builder, DestReg, OrigDest, MF);
+      Builder.buildInstr(MC6809::PULSs, {}, {Register(MC6809::AD)});
+    }
+    MI.eraseFromParent();
+    return;
+  }
   auto IndexReg = MI.getOperand(operandCount - 2).getReg();
   auto OffsetOp = MI.getOperand(operandCount - 1);
   auto Offset = OffsetOp.isImm() ? OffsetOp.getImm() : OffsetOp.getCImm()->getSExtValue();
@@ -7966,6 +8067,13 @@ static unsigned getStaticStackOpcode(unsigned IdxOpc, bool IsPIC) {
   SS(ANDB) SS(ANDA) SS(ORB) SS(ORA) SS(EORB) SS(EORA)
   SS(ADDD) SS(SUBD) SS(ADCD) SS(SBCD) SS(ADDW) SS(SUBW)
   SS(CMPA) SS(CMPB) SS(CMPD)
+  // HD6309 rows reachable from the generic _Sym expanders: E/F byte
+  // arithmetic (the Add/Sub maps carry AE/AF rows), the W compare, the
+  // E/F compares, and the 16-bit logicals (ANDD/ORD/EORD via the
+  // bitwise-16 path or expandIdxImm's AW-through-D cheat).
+  SS(ADDE) SS(ADDF) SS(SUBE) SS(SUBF)
+  SS(ANDD) SS(ORD) SS(EORD)
+  SS(CMPW) SS(CMPE) SS(CMPF)
   // Index-domain pointer compares (pickCmpO8O16 emits these when the
   // spilled operand is a pointer/index register).
   SS(CMPX) SS(CMPY) SS(CMPU) SS(CMPS)
@@ -7987,11 +8095,57 @@ unsigned MC6809InstrInfo::getStaticSymOpcode(unsigned MemOpc) const {
   case MC6809::Store_iPtr_Mem:     return MC6809::Store_iPtr_Sym;
   case MC6809::Store_i32_Mem:
   case MC6809::SpillStore_i32_Mem: return MC6809::Store_i32_Sym;
+  // Arithmetic / carry-chain / bitwise / compare pseudos whose memory
+  // operand is a static-frame local — either the selector's frame folds or
+  // foldMemoryOperandImpl's spilled-second-source folds. Each _Mem form
+  // listed here has a _Sym multiclass sibling with a post-RA expander;
+  // this map is the single source of truth for "lowerable on the static
+  // frame" (the conservative whole-frame marking and the late spill-slot
+  // marking both key on it).
+  case MC6809::Add_i8_Mem:         return MC6809::Add_i8_Sym;
+  case MC6809::Add_i16_Mem:        return MC6809::Add_i16_Sym;
+  case MC6809::Sub_i8_Mem:         return MC6809::Sub_i8_Sym;
+  case MC6809::Sub_i16_Mem:        return MC6809::Sub_i16_Sym;
+  case MC6809::AddSetCarry_i8_Mem:      return MC6809::AddSetCarry_i8_Sym;
+  case MC6809::AddSetCarry_i16_Mem:     return MC6809::AddSetCarry_i16_Sym;
+  case MC6809::SubSetCarry_i8_Mem:      return MC6809::SubSetCarry_i8_Sym;
+  case MC6809::SubSetCarry_i16_Mem:     return MC6809::SubSetCarry_i16_Sym;
+  case MC6809::AddSetOverflow_i8_Mem:   return MC6809::AddSetOverflow_i8_Sym;
+  case MC6809::AddSetOverflow_i16_Mem:  return MC6809::AddSetOverflow_i16_Sym;
+  case MC6809::SubSetOverflow_i8_Mem:   return MC6809::SubSetOverflow_i8_Sym;
+  case MC6809::SubSetOverflow_i16_Mem:  return MC6809::SubSetOverflow_i16_Sym;
+  case MC6809::AddSetCarryUse_i8_Mem:   return MC6809::AddSetCarryUse_i8_Sym;
+  case MC6809::AddSetCarryUse_i16_Mem:  return MC6809::AddSetCarryUse_i16_Sym;
+  case MC6809::SubSetCarryUse_i8_Mem:   return MC6809::SubSetCarryUse_i8_Sym;
+  case MC6809::SubSetCarryUse_i16_Mem:  return MC6809::SubSetCarryUse_i16_Sym;
+  case MC6809::AddSetOverflowUse_i8_Mem:  return MC6809::AddSetOverflowUse_i8_Sym;
+  case MC6809::AddSetOverflowUse_i16_Mem: return MC6809::AddSetOverflowUse_i16_Sym;
+  case MC6809::SubSetOverflowUse_i8_Mem:  return MC6809::SubSetOverflowUse_i8_Sym;
+  case MC6809::SubSetOverflowUse_i16_Mem: return MC6809::SubSetOverflowUse_i16_Sym;
+  case MC6809::AND_i8_Mem:         return MC6809::AND_i8_Sym;
+  case MC6809::AND_i16_Mem:        return MC6809::AND_i16_Sym;
+  case MC6809::OR_i8_Mem:          return MC6809::OR_i8_Sym;
+  case MC6809::OR_i16_Mem:         return MC6809::OR_i16_Sym;
+  case MC6809::XOR_i8_Mem:         return MC6809::XOR_i8_Sym;
+  case MC6809::XOR_i16_Mem:        return MC6809::XOR_i16_Sym;
+  case MC6809::Compare_i8_Mem:     return MC6809::Compare_i8_Sym;
+  case MC6809::Compare_i16_Mem:    return MC6809::Compare_i16_Sym;
+  case MC6809::Compare_ptr_Mem:    return MC6809::Compare_ptr_Sym;
+  case MC6809::CompareBranch_i8_Mem:  return MC6809::CompareBranch_i8_Sym;
+  case MC6809::CompareBranch_i16_Mem: return MC6809::CompareBranch_i16_Sym;
+  case MC6809::CompareBranch_ptr_Mem: return MC6809::CompareBranch_ptr_Sym;
   // i32 add/sub whose memory operand is a static-frame local, and the
   // address-of (LEA) of a static-frame local — the escaping-object cases
-  // that let the whole frame move to the static region.
+  // that let the whole frame move to the static region. The carry-USE i32
+  // forms are deliberately absent: their expansion is the EXG-D,W dance
+  // (expandAddSubCarryUse_i32_Mem) with no _Sym expander yet, so slots they
+  // reach stay on the dynamic frame.
   case MC6809::Add_i32_Mem:        return MC6809::Add_i32_Sym;
   case MC6809::Sub_i32_Mem:        return MC6809::Sub_i32_Sym;
+  case MC6809::AddSetCarry_i32_Mem:    return MC6809::AddSetCarry_i32_Sym;
+  case MC6809::SubSetCarry_i32_Mem:    return MC6809::SubSetCarry_i32_Sym;
+  case MC6809::AddSetOverflow_i32_Mem: return MC6809::AddSetOverflow_i32_Sym;
+  case MC6809::SubSetOverflow_i32_Mem: return MC6809::SubSetOverflow_i32_Sym;
   case MC6809::LEA_Ptr_Imm:        return MC6809::Lea_iPtr_Sym;
   default:                         return 0;
   }
@@ -8588,13 +8742,16 @@ void MC6809InstrInfo::expandCompareIdx(MachineIRBuilder &Builder, MachineInstr &
   // assert(MI.getOperand(0).isReg() && MI.getOperand(0).getReg() == MC6809::CC && "The target of compares must be the CC register");
   assert((MI.getOperand(1).isImm() || MI.getOperand(1).isCImm()) && "The condition field of compares must be an immediate constant");
   assert(MI.getOperand(2).isReg() && "The source of compares must be a register");
-  assert(MI.getOperand(3).isReg() && "The index operand of indexed compares must be a register");
+  // Static-stack sibling (_Sym): operand 3 is a TI_STATIC_STACK target index
+  // instead of the index-reg + offset pair.
+  const bool IsSym = MI.getOperand(3).isTargetIndex();
+  assert((IsSym || MI.getOperand(3).isReg()) && "The index operand of indexed compares must be a register");
 
   // Materialize a spilled index base (operand 3) into IY, mirroring
   // expandStoreIdx. The P3a consumer memory-fold keeps the base pointer live to
   // the compare; under register pressure it can spill to an index-spill reg,
   // which has no real encoding and would render as `,0` (the strcmp miscompile).
-  if (isIndexSpillReg(MI.getOperand(3).getReg())) {
+  if (!IsSym && isIndexSpillReg(MI.getOperand(3).getReg())) {
     Register SpillReg = MI.getOperand(3).getReg();
     Register StageReg = MC6809::IY;  // callee-saved; avoids clobbering IX base
     MachineFunction &MF = *MI.getMF();
@@ -8654,6 +8811,20 @@ void MC6809InstrInfo::expandCompareIdx(MachineIRBuilder &Builder, MachineInstr &
     } else {
       SrcReg = materializeReg(Builder, SrcReg, MF);
     }
+  }
+  // Static-stack sibling: look up the widest indexed compare for the LHS
+  // register and translate it to the extended (or PC-relative under PIC)
+  // variant against the static-frame symbol.
+  if (IsSym) {
+    RegPlusOffsetLen Lookup{SrcReg, 16};
+    auto OpcodePair = CompareIdxImmOpcode.find(Lookup);
+    if (OpcodePair == CompareIdxImmOpcode.end())
+      llvm_unreachable("Unexpected source register in static-stack compare.");
+    bool IsPIC = MI.getMF()->getTarget().isPositionIndependent();
+    Builder.buildInstr(getStaticStackOpcode(OpcodePair->getSecond(), IsPIC))
+        .addTargetIndex(MC6809::TI_STATIC_STACK, MI.getOperand(3).getOffset());
+    MI.eraseFromParent();
+    return;
   }
   auto IndexOp = MI.getOperand(3);
   auto OffsetOp = MI.getOperand(4);
@@ -9195,6 +9366,11 @@ void MC6809InstrInfo::expandFusedCompareBranch(MachineIRBuilder &Builder, Machin
   case MC6809::CompareBranch_ptr_Imm:  CmpOpc = MC6809::Compare_ptr_Imm; break; // Bug #359
   case MC6809::CompareBranch_ptr_Reg:  CmpOpc = MC6809::Compare_ptr_Reg; break;
   case MC6809::CompareBranch_ptr_Mem:  CmpOpc = MC6809::Compare_ptr_Mem; break;
+  // Static-stack siblings — same split; the compare half carries the
+  // TI_STATIC_STACK target index through to expandCompareIdx.
+  case MC6809::CompareBranch_i8_Sym:   CmpOpc = MC6809::Compare_i8_Sym; break;
+  case MC6809::CompareBranch_i16_Sym:  CmpOpc = MC6809::Compare_i16_Sym; break;
+  case MC6809::CompareBranch_ptr_Sym:  CmpOpc = MC6809::Compare_ptr_Sym; break;
   default: llvm_unreachable("Unknown fused compare-branch opcode");
   }
 

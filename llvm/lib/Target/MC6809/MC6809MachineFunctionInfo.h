@@ -13,6 +13,7 @@
 #ifndef LLVM_LIB_TARGET_MC6809_MC6809MACHINEFUNCTIONINFO_H
 #define LLVM_LIB_TARGET_MC6809_MC6809MACHINEFUNCTIONINFO_H
 
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/CodeGen/MachineFunction.h"
 
 namespace llvm {
@@ -37,6 +38,15 @@ struct MC6809FunctionInfo : public MachineFunctionInfo {
   /// those late slots also land in the static frame instead of a now-shrunk
   /// dynamic frame. Only meaningful when usesStaticStack(MF).
   int64_t NextStaticStackOffset = 0;
+
+  /// Bug #387: frame indices that processFunctionBeforeFrameFinalized found
+  /// reached by at least one pseudo WITHOUT a _Sym (extended-addressing)
+  /// lowering — they must stay on the dynamic frame. eliminateFrameIndex's
+  /// late spill-slot marking consults this so that a slot with MIXED
+  /// accessors (one _Sym-capable, one not) is not moved to the static frame
+  /// on its first _Sym-capable access and then hit by the non-lowerable
+  /// accessor. Only meaningful when usesStaticStack(MF).
+  SmallSet<int, 8> StaticNotLowerable;
 
   int VarArgsStackIndex = -1;
   DenseMap<Register, size_t> CSRDPOffsets;

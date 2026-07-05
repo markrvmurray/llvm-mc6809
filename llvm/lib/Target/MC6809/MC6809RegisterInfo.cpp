@@ -13,6 +13,7 @@
 #include "MC6809RegisterInfo.h"
 #include "MC6809FrameLowering.h"
 #include "MC6809InstrInfo.h"
+#include "MC6809MachineFunctionInfo.h"
 #include "MC6809Subtarget.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "llvm/ADT/SmallSet.h"
@@ -240,10 +241,14 @@ bool MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int
   // offset is bogus. Mark it here, at its first access, so it flows into the
   // Mc6809Static path below; NextStaticStackOffset was seeded by
   // processFunctionBeforeFrameFinalized, which ran earlier in this same PEI pass.
-  // Only when the accessing pseudo actually has a _Sym (extended) sibling.
+  // Only when the accessing pseudo actually has a _Sym (extended) sibling,
+  // AND the frame-finalisation scan didn't find a non-lowerable accessor of
+  // the same slot (mixed-accessor slots must stay dynamic as a whole — see
+  // MC6809FunctionInfo::StaticNotLowerable).
   if (TFI->usesStaticStack(MF) && MFI.isSpillSlotObjectIndex(FrameIndex) &&
       MFI.getStackID(FrameIndex) == TargetStackID::Default &&
-      TII.getStaticSymOpcode(MI.getOpcode()))
+      TII.getStaticSymOpcode(MI.getOpcode()) &&
+      !MF.getInfo<MC6809FunctionInfo>()->StaticNotLowerable.count(FrameIndex))
     TFI->markSpillSlotStatic(MF, FrameIndex);
 
   // Bug #387 (S3/S4): a spill slot moved to the static stack is addressed
@@ -263,10 +268,16 @@ bool MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int
     // $dst=$src constraint MachineInstr::addOperand re-establishes from the
     // _Sym opcode's descriptor). The frame index and its companion immediate
     // (at FIOperandNum, FIOperandNum+1) collapse into the target index.
+    // Explicit operands after the pair (a fused compare-branch's label)
+    // follow it.
     auto MIB = BuildMI(MBB, MI, dl, TII.get(SymOpc));
     for (unsigned I = 0; I < FIOperandNum; ++I)
       MIB.add(MI.getOperand(I));
-    MIB.addTargetIndex(MC6809::TI_STATIC_STACK, StaticOff).cloneMemRefs(MI);
+    MIB.addTargetIndex(MC6809::TI_STATIC_STACK, StaticOff);
+    for (unsigned I = FIOperandNum + 2, E = MI.getNumExplicitOperands(); I < E;
+         ++I)
+      MIB.add(MI.getOperand(I));
+    MIB.cloneMemRefs(MI);
     MI.eraseFromParent();
     return true;
   }

@@ -524,6 +524,12 @@ multiclass MC6809Arithmetic<ValueType vtype, RegisterClass dst, RegisterClass sr
     // P3b: indirect-indexed (`op [n,r]`) -- same operands as _Mem, expanded to
     // the indirect-sibling opcode via indirectSiblingOf in expandIdxImm.
     def _MemIndirect : MC6809ArithmeticBase<memDst, memSrc, (ins INDEX16:$idx, unknown:$offset)>;
+    // Static-stack sibling of _Mem: the memory operand is a static-frame
+    // symbol (TI_STATIC_STACK target index) rather than an index register +
+    // offset. eliminateFrameIndex rewrites a _Mem whose frame index moved to
+    // the static frame into this form; the post-RA expander emits the
+    // extended (or PC-relative under PIC) access. Same tie and Defs as _Mem.
+    def _Sym : MC6809ArithmeticBase<memDst, memSrc, (ins unknown:$sym)>;
     let Predicates = [IsHD6309] in {
       if !eq(IsByte, 1) then {
         // Bug #214/#217 default: B-half routing. `_Reg` keeps the
@@ -559,17 +565,10 @@ defm Sub_i16 : MC6809Arithmetic<i16, ACC16, ACC16>;
 let Predicates = [IsHD6309] in
   defm Sub_i32 : MC6809Arithmetic<i32, ACC32, ACC32>;
 
-// Static-stack siblings of Add_i32_Mem / Sub_i32_Mem: the memory operand is a
-// static-frame symbol (TI_STATIC_STACK target index) rather than an index
-// register + offset. eliminateFrameIndex rewrites a *_Mem whose base is a
-// static-frame index into the *_Sym form; the post-RA expander emits the
-// page-2 ADDW/ADCD (SUBW/SBCD) carry chain against extended (or PC-relative)
-// addresses. Same $dst = $src tie and Defs as the _Mem forms.
-let Predicates = [IsHD6309], mayLoad = true in {
-  let isAdd = true in
-    def Add_i32_Sym : MC6809ArithmeticBase<ACC32, ACC32, (ins unknown:$sym)>;
-  def Sub_i32_Sym : MC6809ArithmeticBase<ACC32, ACC32, (ins unknown:$sym)>;
-}
+// (The former standalone Add_i32_Sym / Sub_i32_Sym defs are now the
+// multiclass _Sym members above — every arith/carry/bitwise/compare family
+// gets its static-stack sibling from its multiclass, keeping
+// getStaticSymOpcode the single source of truth for lowerability.)
 
 // --- Carry-setting variants ---
 //
@@ -626,6 +625,8 @@ multiclass MC6809ArithmeticCarry<ValueType vtype, RegisterClass dst, RegisterCla
   }
   let mayLoad = true in {
     def _Mem : MC6809ArithmeticBaseCarry<dst, src, (ins INDEX16:$idx, unknown:$offset)>;
+    // Static-stack sibling — see MC6809Arithmetic's _Sym member.
+    def _Sym : MC6809ArithmeticBaseCarry<dst, src, (ins unknown:$sym)>;
     let Predicates = [IsHD6309] in {
       if !eq(IsByte, 1) then {
         def _Reg  : MC6809ArithmeticBaseCarryRegByteB<(ins ACC8_AB:$src2)>;
@@ -743,6 +744,8 @@ multiclass MC6809ArithmeticCarryUse<ValueType vtype, RegisterClass dst, Register
   }
   let mayLoad = true in {
     def _Mem : MC6809ArithmeticBaseSetCarryUse<dst, src, (ins INDEX16:$idx, unknown:$offset)>;
+    // Static-stack sibling — see MC6809Arithmetic's _Sym member.
+    def _Sym : MC6809ArithmeticBaseSetCarryUse<dst, src, (ins unknown:$sym)>;
     let Predicates = [IsHD6309] in {
       if !eq(IsByte, 1) then {
         def _Reg  : MC6809ArithmeticBaseSetCarryUseRegByteB<(ins ACC8_AB:$src2)>;
@@ -761,6 +764,8 @@ multiclass MC6809ArithmeticOverflowUse<ValueType vtype, RegisterClass dst, Regis
   }
   let mayLoad = true in {
     def _Mem : MC6809ArithmeticBaseSetOverflowUse<dst, src, (ins INDEX16:$idx, unknown:$offset)>;
+    // Static-stack sibling — see MC6809Arithmetic's _Sym member.
+    def _Sym : MC6809ArithmeticBaseSetOverflowUse<dst, src, (ins unknown:$sym)>;
     let Predicates = [IsHD6309] in {
       if !eq(IsByte, 1) then {
         def _Reg  : MC6809ArithmeticBaseSetOverflowUseRegByteB<(ins ACC8_AB:$src2)>;
@@ -913,6 +918,8 @@ multiclass MC6809Bitwise<ValueType vtype, RegisterClass reg, RegisterClass memRe
     def _Mem : MC6809BitwiseBase<memReg, (ins INDEX16:$idx, unknown:$offset)>;
     // P3b: indirect-indexed (`op [n,r]`) -- see MC6809Arithmetic _MemIndirect.
     def _MemIndirect : MC6809BitwiseBase<memReg, (ins INDEX16:$idx, unknown:$offset)>;
+    // Static-stack sibling — see MC6809Arithmetic's _Sym member.
+    def _Sym : MC6809BitwiseBase<memReg, (ins unknown:$sym)>;
 // (non-HD6309-only note retained: ACC8 already excludes
     // E/F there); narrowing it would mismatch the tied accumulator vreg.
   }
@@ -1030,6 +1037,8 @@ multiclass MC6809Compare<ValueType vtype, RegisterClass reg> {
     // P3b: indirect-indexed compare (`cmp [n,r]`) -- expanded to the indirect-
     // sibling opcode via indirectSiblingOf in expandCompareIdx.
     def _MemIndirect : MC6809CompareBase<reg, (ins INDEX16:$idx, unknown:$offset)>;
+    // Static-stack sibling — see MC6809Arithmetic's _Sym member.
+    def _Sym : MC6809CompareBase<reg, (ins unknown:$sym)>;
   }
 }
 
@@ -1155,6 +1164,8 @@ multiclass MC6809CompareBranch<ValueType vtype, RegisterClass reg> {
     def _Mem : MC6809CompareBranchBase<reg, (ins INDEX16:$idx, unknown:$offset)>;
     // P3b: indirect-indexed fused compare-branch (`cmp [n,r]; b<cc>`).
     def _MemIndirect : MC6809CompareBranchBase<reg, (ins INDEX16:$idx, unknown:$offset)>;
+    // Static-stack sibling — see MC6809Arithmetic's _Sym member.
+    def _Sym : MC6809CompareBranchBase<reg, (ins unknown:$sym)>;
   }
 }
 
@@ -1179,6 +1190,9 @@ def CompareBranch_ptr_Reg : MC6809CompareBranchBase<INDEX16, (ins INDEX16:$src2)
 // reloads both spilled operands through the single IY staging register.
 let mayLoad = true in
 def CompareBranch_ptr_Mem : MC6809CompareBranchBase<INDEX16, (ins INDEX16:$idx, unknown:$offset)>;
+// Static-stack sibling — see MC6809Arithmetic's _Sym member.
+let mayLoad = true in
+def CompareBranch_ptr_Sym : MC6809CompareBranchBase<INDEX16, (ins unknown:$sym)>;
 
 // Bug #301 Phase D step 3.1 (2026-05-16 night): native HD6309 i32
 // compare-and-branch fused pseudo.  Single MachineInstr covering

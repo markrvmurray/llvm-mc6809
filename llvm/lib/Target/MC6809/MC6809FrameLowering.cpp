@@ -516,6 +516,11 @@ void MC6809FrameLowering::processFunctionBeforeFrameFinalized(MachineFunction &M
           if (MO.isFI())
             NotLowerable.insert(MO.getIndex());
       }
+    // Persist for eliminateFrameIndex's LATE spill-slot marking: a slot with
+    // mixed accessors (one _Sym-capable, one not) stays dynamic and must not
+    // be moved to the static frame when the _Sym-capable access is rewritten
+    // first — the non-lowerable accessor would then hit the static assert.
+    FuncInfo.StaticNotLowerable = NotLowerable;
     int64_t Offset = 0;
     for (int Idx : seq(0, MFI.getObjectIndexEnd())) {
       if (MFI.isDeadObjectIndex(Idx) || MFI.isVariableSizedObjectIndex(Idx) ||
