@@ -17,6 +17,14 @@ namespace llvm {
 /// Lowering for an MC6809 ELF32 object file.
 class MC6809TargetObjectFile : public TargetLoweringObjectFileELF {
   typedef TargetLoweringObjectFileELF Base;
+
+public:
+  /// Emit a `.dp.bss*` (direct-page zero-init) section as @nobits even though
+  /// it carries an explicit section name. LLVM only auto-classifies a
+  /// `.bss`-prefixed name as BSS; a `.dp.bss` name would otherwise fall through
+  /// to @progbits and pin real zero bytes into the image.
+  MCSection *getExplicitSectionGlobal(const GlobalObject *GO, SectionKind Kind,
+                                      const TargetMachine &TM) const override;
 };
 
 } // end namespace llvm

@@ -81,6 +81,13 @@ public:
   // every pseudo that accesses it has such a sibling).
   unsigned getStaticSymOpcode(unsigned MemOpc) const;
 
+  // Map a concrete EXTENDED static-stack access opcode (as emitted by the _Sym
+  // expanders when the static frame lives in .bss) to its DIRECT-PAGE sibling,
+  // for when MC6809StaticStackAlloc places the frame in page 0. Returns 0 for
+  // opcodes with no direct-page form (LEA, PC-rel), which then correctly keep
+  // extended addressing of the page-0 symbol.
+  unsigned getStaticStackDirectPageOpcode(unsigned ExtOpc) const;
+
   Register isLoadFromStackSlot(const MachineInstr &MI, int &FrameIndex) const override;
 
   Register isStoreToStackSlot(const MachineInstr &MI, int &FrameIndex) const override;

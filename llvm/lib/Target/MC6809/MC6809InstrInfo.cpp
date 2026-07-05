@@ -6832,6 +6832,38 @@ static unsigned getStaticStackOpcode(unsigned IdxOpc, bool IsPIC) {
 #undef SS
 }
 
+// Extended (`BASE##e`) static-stack access opcode -> its
+// direct-page (`BASE##d`) sibling. The `d` form intrinsically encodes the
+// `< addr` page-0 addressing (1-byte R_MC6809_ADDR_8) — no operand rewrap is
+// needed, only the opcode swap plus a page-0 placement of the static_stack
+// global. Covers exactly the extended forms getSymLoadOpcode/getSymStoreOpcode
+// and getStaticStackOpcode can emit for a static slot; anything else (LEA, the
+// PC-relative `i_o16PC` forms under PIC) has no DP encoding and returns 0, so
+// the caller leaves it extended — correct, just 1 byte larger.
+unsigned MC6809InstrInfo::getStaticStackDirectPageOpcode(unsigned ExtOpc) const {
+#define DP(BASE)                                                               \
+  case MC6809::BASE##e:                                                        \
+    return MC6809::BASE##d;
+  switch (ExtOpc) {
+  // Loads / stores (getSymLoadOpcode / getSymStoreOpcode E columns).
+  DP(LDA) DP(LDB) DP(LDD) DP(LDE) DP(LDF) DP(LDW) DP(LDX) DP(LDY) DP(LDU) DP(LDQ)
+  DP(STA) DP(STB) DP(STD) DP(STE) DP(STF) DP(STW) DP(STX) DP(STY) DP(STU) DP(STQ)
+  // Arithmetic / logical / compare (getStaticStackOpcode BASE##e forms).
+  DP(ADDA) DP(ADDB) DP(ADDD) DP(ADDE) DP(ADDF) DP(ADDW)
+  DP(ADCA) DP(ADCB) DP(ADCD)
+  DP(SUBA) DP(SUBB) DP(SUBD) DP(SUBE) DP(SUBF) DP(SUBW)
+  DP(SBCA) DP(SBCB) DP(SBCD)
+  DP(ANDA) DP(ANDB) DP(ANDD)
+  DP(ORA) DP(ORB) DP(ORD)
+  DP(EORA) DP(EORB) DP(EORD)
+  DP(CMPA) DP(CMPB) DP(CMPD) DP(CMPE) DP(CMPF) DP(CMPW)
+  DP(CMPX) DP(CMPY) DP(CMPU) DP(CMPS)
+  default:
+    return 0;
+  }
+#undef DP
+}
+
 unsigned MC6809InstrInfo::getStaticSymOpcode(unsigned MemOpc) const {
   switch (MemOpc) {
   case MC6809::Load_i8_Mem:        return MC6809::Load_i8_Sym;

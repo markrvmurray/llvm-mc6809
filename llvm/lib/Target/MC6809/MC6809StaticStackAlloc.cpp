@@ -46,6 +46,19 @@
 
 using namespace llvm;
 
+// Bytes of the direct page (page 0) available to hold static frames. When the
+// whole static stack fits, it is placed in a `.dp` section and addressed with
+// the 1-byte direct-page form (`ldd <sym`) instead of 3-byte extended — erasing
+// the base-MC6809 `.text` cost of static-stack. A dedicated knob (not
+// `-dp-avail`) on purpose: `-dp-avail` also activates the direct-page allocator,
+// whose frame-slot handling would claim these slots before the static marking
+// and send them back to a dynamic frame. Default 0 = off.
+static cl::opt<uint64_t> StaticStackDPAvail(
+    "mc6809-static-stack-dp-avail", cl::init(0), cl::Hidden,
+    cl::value_desc("bytes"),
+    cl::desc("page-0 bytes available for non-reentrant static frames; "
+             "when the static stack fits, place it in the direct page"));
+
 namespace {
 
 class MC6809StaticStackAlloc : public ModulePass {
@@ -180,16 +193,38 @@ bool MC6809StaticStackAlloc::runOnModule(Module &M) {
   if (!StackSize)
     return false;
 
+  // If the whole static stack fits in the page-0 window left over after the
+  // direct-page allocator, place it there and address it with the
+  // 1-byte direct-page form (`ldd <sym`) instead of 3-byte extended — the only
+  // real cost of static-stack on base MC6809. Because the static_stack is one
+  // contiguous page-0 global, a direct-page access to any part requires the
+  // *whole* global to fit; so this is an all-or-nothing decision against the
+  // `-mc6809-static-stack-dp-avail` budget. Gated off under PIC (page-0 is
+  // absolute, incompatible with PC-relative code) and when the budget is 0.
+  bool PlaceInDP = StaticStackDPAvail && StackSize <= StaticStackDPAvail &&
+                   !MMI.getTarget().isPositionIndependent();
+
   // One global for the whole static stack. Use a zero initializer (not undef)
   // so it lands in .bss (low RAM, zeroed at startup) rather than .noinit, which
   // on MC6809 the linker script places at the top of RAM where it would overlap
   // the hardware stack — a static spill write would then clobber return
   // addresses (and vice versa). The spills always write before they read, so
   // the zero init is purely a placement lever, not a correctness requirement.
+  // When placed in the direct page, put it in the `.dp.bss` section BY NAME
+  // rather than addrspace(1): (1) the linker script globs `*(.dp.bss .dp.bss.*)`
+  // into the page-0 directpage region and `.dp.bss` is @nobits (zeroed at
+  // startup, no image bytes) — matching the write-before-read frame; (2) using
+  // addrspace(1) would make MCInstLower wrap every GlobalAddress in VK_ADDR8,
+  // truncating the 16-bit address-of (LEA) of a static local to 8 bits. The
+  // section name gives page-0 placement while leaving LEA a correct 16-bit
+  // reference; the direct-page load/store OPCODE (not the symbol) selects 1-byte
+  // addressing.
   Type *Typ = ArrayType::get(Type::getInt8Ty(M.getContext()), StackSize);
   GlobalVariable *Stack =
       new GlobalVariable(M, Typ, false, GlobalValue::PrivateLinkage,
                          ConstantAggregateZero::get(Typ), "static_stack");
+  if (PlaceInDP)
+    Stack->setSection(".dp.bss.static_stack");
   LLVM_DEBUG(dbgs() << *Stack << "\n");
 
   // A per-function alias into the global, and rewrite each function's
@@ -205,6 +240,8 @@ bool MC6809StaticStackAlloc::runOnModule(Module &M) {
         continue;
       const MC6809FrameLowering &TFL =
           *MF->getSubtarget<MC6809Subtarget>().getFrameLowering();
+      const MC6809InstrInfo &TII =
+          *MF->getSubtarget<MC6809Subtarget>().getInstrInfo();
       uint64_t Size = TFL.staticSize(MF->getFrameInfo());
       if (!Size)
         continue;
@@ -231,8 +268,17 @@ bool MC6809StaticStackAlloc::runOnModule(Module &M) {
       for (MachineBasicBlock &MBB : *MF)
         for (MachineInstr &MI : MBB)
           for (MachineOperand &MO : MI.operands())
-            if (MO.isTargetIndex())
+            if (MO.isTargetIndex()) {
               MO.ChangeToGA(Alias, MO.getOffset(), MO.getTargetFlags());
+              // When the frame is page-0 resident, swap the extended access to
+              // its direct-page sibling (1-byte addressing). Opcodes with no DP
+              // form (LEA, and PC-rel under PIC — which PlaceInDP excludes) map
+              // to 0 and correctly keep extended addressing of the page-0 symbol.
+              if (PlaceInDP)
+                if (unsigned DPOpc =
+                        TII.getStaticStackDirectPageOpcode(MI.getOpcode()))
+                  MI.setDesc(TII.get(DPOpc));
+            }
     }
   }
   return true;
