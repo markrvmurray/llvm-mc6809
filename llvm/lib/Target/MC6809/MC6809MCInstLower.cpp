@@ -83,12 +83,33 @@ bool MC6809MCInstLower::lowerOperand(const MachineOperand &MO, MCOperand &MCOp) 
   case MachineOperand::MO_GlobalAddress: {
     const GlobalValue *GV = MO.getGlobal();
     MCOp = lowerSymbolOperand(MO, AP.getSymbol(GV));
-    // This is the last chance to catch values that are attributed a direct-page
-    // section. It is the user's responsibility to ensure the linker will
-    // locate the symbol completely within the direct-page.
+    // This is the last chance to catch values that are attributed to the direct
+    // page and truncate the symbol reference to its 8-bit low byte (VK_ADDR8).
+    // It is the user's responsibility to ensure the linker locates the symbol
+    // completely within the direct page. There are two distinct cases:
+    //
+    //  * An addrspace(1) global is a genuine direct-page object: its pointer
+    //    type is 8-bit (p1:8 in the data layout), so *every* reference to it is
+    //    the in-page offset — truncate unconditionally.
+    //
+    //  * A `.dp` *section* on an ordinary (addrspace 0, 16-bit-pointer) global —
+    //    e.g. a static-stack frame placed in the direct page — is different.
+    //    Only an actual direct-page-addressing access (TSFlagDirectPageAddr)
+    //    consumes the 8-bit form. An address-computing use of the same symbol —
+    //    a PC-relative LEA taking the address of a frame local, an extended or
+    //    indexed access — needs the full 16-bit reference; truncating there
+    //    collapses e.g. `leay sym,pc` to its 8-bit form and computes a wrong
+    //    pointer.
     const auto *GVar = dyn_cast<GlobalVariable>(GV->getAliaseeObject());
-    if (MC6809::isDirectPageSectionName(GV->getSection()) ||
-        (GVar && GVar->getAddressSpace() == MC6809::AS_DirectPage)) {
+    bool Truncate = false;
+    if (GVar && GVar->getAddressSpace() == MC6809::AS_DirectPage) {
+      Truncate = true;
+    } else if (MC6809::isDirectPageSectionName(GV->getSection())) {
+      const MachineInstr *ParentMI = MO.getParent();
+      Truncate = ParentMI &&
+                 (ParentMI->getDesc().TSFlags & MC6809::TSFlagDirectPageAddr);
+    }
+    if (Truncate) {
       const MC6809MCExpr *Expr = MC6809MCExpr::create(MC6809MCExpr::VK_ADDR8, MCOp.getExpr(), /*isNegated=*/false, Ctx);
       MCOp = MCOperand::createExpr(Expr);
     }

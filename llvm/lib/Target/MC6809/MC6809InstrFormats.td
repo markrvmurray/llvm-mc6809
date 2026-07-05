@@ -351,6 +351,13 @@ class MC6809Inst<string mnemonic, Opcode opcode> : Instruction {
   let mayStore = 0;
   let mayLoad = 0;
   let hasSideEffects = true;
+  // Set on formats whose memory operand is an 8-bit direct-page (page-0)
+  // absolute address, so MCInstLower knows the symbol reference must be
+  // truncated to its low byte. Address-computing / full-width forms (extended,
+  // immediate, indexed, PC-relative LEA) leave this clear and keep a 16-bit
+  // reference even when the symbol lives in a direct-page section.
+  bit IsDirectPageAddr = 0;
+  let TSFlags{0} = IsDirectPageAddr;
 }
 
 class Accumulator<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opcode> {
@@ -374,6 +381,7 @@ class BitDirect<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opcode> {
   let P23Inst{31-24} = addr{7-0}; let P23Inst{23-22} = reg{1-0}; let P23Inst{21-19} = srcbit; let P23Inst{18-16} = dstbit; let P23Inst{15-8} = Opc; let P23Inst{7-0} = Pre{7-0};
   let DecoderNamespace = "_Page_" # Page # "_Size_";
   let Mode = "bd";
+  let IsDirectPageAddr = 1;
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   // Byte layout (page 1): [opc][reg/bits postbyte][addr] — address at offset 2.
@@ -444,6 +452,7 @@ class Direct<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opcode> {
   let P23Inst{23-16} = addr{7-0}; let P23Inst{15-8} = Opc; let P23Inst{7-0} = Pre{7-0};
   let DecoderNamespace = "_Page_" # Page # "_Size_";
   let Mode = "d";
+  let IsDirectPageAddr = 1;
   let OperandSize = 1;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins addr8:$addr);
@@ -510,6 +519,7 @@ class ImmediateDirect<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opc
   let P23Inst{31-24} = addr{7-0}; let P23Inst{23-16} = val{7-0}; let P23Inst{15-8} = Opc; let P23Inst{7-0} = Pre{7-0};
   let DecoderNamespace = "_Page_" # Page # "_Size_";
   let Mode = "id";
+  let IsDirectPageAddr = 1;
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   // Byte layout (page 1): [opc][val][addr] — address at offset 2.

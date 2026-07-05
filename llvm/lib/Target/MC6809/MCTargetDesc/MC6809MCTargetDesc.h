@@ -72,7 +72,13 @@ enum OperandType : unsigned { OPERAND_IMM8 = MCOI::OPERAND_FIRST_TARGET, OPERAND
 
 namespace MC6809 {
 
-enum TSFlag { TSFlagMLow = (1 << 0), TSFlagMHigh = (1 << 1), TSFlagXLow = (1 << 2), TSFlagXHigh = (1 << 3) };
+enum TSFlag {
+  // Bit 0: the instruction addresses memory with an 8-bit direct-page (page-0)
+  // absolute address. A symbol operand of such an instruction is truncated to
+  // its low byte (VK_ADDR8); address-computing forms (LEA, extended, immediate,
+  // indexed) leave this clear and keep a full 16-bit reference.
+  TSFlagDirectPageAddr = (1 << 0)
+};
 
 bool isDirectPageSectionName(StringRef Name);
 } // namespace MC6809

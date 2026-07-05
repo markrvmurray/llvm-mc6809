@@ -1,5 +1,6 @@
 ; RUN: llc -mtriple=mc6809 -mcpu=hd6309 -mattr=+static-stack -O2 \
-; RUN:     -mc6809-static-stack-dp-avail=200 %s -o - | FileCheck %s --check-prefix=DP
+; RUN:     -mc6809-static-stack-dp-avail=200 %s -o - \
+; RUN:   | FileCheck %s --check-prefix=DP --implicit-check-not='mc6809_8({{.*}}),pc'
 ; RUN: llc -mtriple=mc6809 -mcpu=hd6309 -mattr=+static-stack -O2 \
 ; RUN:     %s -o - | FileCheck %s --check-prefix=EXT
 ; RUN: llc -mtriple=mc6809 -mcpu=hd6309 -mattr=+static-stack -O2 \
@@ -28,8 +29,11 @@ define dso_local i32 @ss_leaf(i32 noundef %seed, i16 noundef %n) local_unnamed_a
 ; DP:         stq{{.*}}<mc6809_8(.Lss_leaf_sstk
 ; DP:         addw{{.*}}<mc6809_8(.Lss_leaf_sstk
 ; DP:         adcd{{.*}}<mc6809_8(.Lss_leaf_sstk
-; The address-of the frame (index-load base) is NOT truncated to 8 bits.
-; DP-NOT:     leay{{.*}}<mc6809_8
+; The address-of the frame (a PC-relative leay for the index-load base) keeps a
+; full 16-bit reference — it must NOT be truncated to the 8-bit mc6809_8() form,
+; which would collapse `leay sym,pc` to the 8-bit PC-relative encoding and
+; compute a wrong pointer. Enforced globally by the DP run's
+; --implicit-check-not='mc6809_8({{.*}}),pc'.
 ;
 ; EXT-LABEL: ss_leaf:
 ; Feature on but DP budget 0: extended addressing, no direct-page `<` form.
