@@ -73,6 +73,12 @@ SECTIONS {
            emit6809RegByteFromMem — replaces PSHS/op/LEAS triple). */
         __scratch = .; . += 1;
         *(.directpage)
+        /* Direct-page zero-init and data: a static-stack frame placed in the
+           direct page, and any __attribute__((directpage)) object, land here so
+           their `<sym` / mc6809_8(sym) references resolve within page 0. */
+        *(.dp.bss .dp.bss.*)
+        *(.dp.data .dp.data.*)
+        *(.dp.rodata .dp.rodata.*)
     } > DRAM
 
     .ram (NOLOAD) : {
