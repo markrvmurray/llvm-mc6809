@@ -52,6 +52,11 @@ using namespace llvm;
 // mayStoreToStackFrame + invalidateFrameIndexMirrors now drop the aliased
 // SU/SS frame-slot index mirrors before such a store. The knob is retained
 // (default on) as a bisection escape hatch.
+// Master bisection gate for the whole pass.
+static cl::opt<bool>
+    EnableSpillOpt("mc6809-spill-opt", cl::init(true), cl::Hidden,
+                   cl::desc("Enable the post-RA spill load/store peephole"));
+
 static cl::opt<bool>
     EnableIndexReload("mc6809-index-reload-opt", cl::init(true), cl::Hidden,
                       cl::desc("Eliminate redundant index-register (X/Y) spill "
@@ -592,6 +597,8 @@ public:
 };
 
 bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
+  if (!EnableSpillOpt)
+    return false;
   const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   bool Changed = false;

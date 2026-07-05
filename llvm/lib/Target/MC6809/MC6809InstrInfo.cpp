@@ -2141,6 +2141,18 @@ static cl::opt<bool> DisableMemFold(
     "mc6809-disable-mem-fold", cl::Hidden, cl::init(false),
     cl::desc("Disable folding spilled second sources into _Mem forms"));
 
+// Finer-grained diagnostic knob: disable only the index-domain pointer
+// compare folds while keeping the (allocability-critical) byte folds.
+static cl::opt<bool> DisablePtrFold(
+    "mc6809-disable-ptr-fold", cl::Hidden, cl::init(false),
+    cl::desc("Disable folding spilled pointer-compare second sources"));
+
+// Diagnostic knob for the CMPD->CMPX/CMPY compare substitution in
+// expandCompareImm (the "keep a reloaded PHI value comparable" heuristic).
+static cl::opt<bool> DisableCmpSubst(
+    "mc6809-disable-cmp-subst", cl::Hidden, cl::init(false),
+    cl::desc("Disable the CMPD->CMPX/CMPY reload-substitution heuristic"));
+
 struct MC6809MemFoldInfo {
   unsigned MemOpc;
   unsigned FoldIdx;
@@ -2198,8 +2210,12 @@ static std::optional<MC6809MemFoldInfo> memFoldSibling(unsigned Opc) {
   // compare reads straight from its slot (CMPX/CMPY off,r) instead of
   // reloading through the other index register.
   case MC6809::Compare_ptr_Reg:
+    if (DisablePtrFold)
+      return std::nullopt;
     return MC6809MemFoldInfo{MC6809::Compare_ptr_Mem, 3};
   case MC6809::CompareBranch_ptr_Reg:
+    if (DisablePtrFold)
+      return std::nullopt;
     return MC6809MemFoldInfo{MC6809::CompareBranch_ptr_Mem, 2};
   default:
     return std::nullopt;
@@ -8042,7 +8058,7 @@ void MC6809InstrInfo::expandCompareImm(MachineIRBuilder &Builder, MachineInstr &
   // Bug #49 fix: if source is AD and D was loaded from a frame slot that was
   // stored from X or Y, use CMPX/CMPY instead. This preserves D's PHI value
   // which would otherwise be clobbered by the LDD reload.
-  if (SrcReg == MC6809::AD) {
+  if (SrcReg == MC6809::AD && !DisableCmpSubst) {
     MachineBasicBlock &MBB = *MI.getParent();
     MachineInstr *LDDInstr = nullptr;
     int LoadOffset = 0;
