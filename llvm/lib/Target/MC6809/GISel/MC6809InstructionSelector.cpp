@@ -271,7 +271,18 @@ getPhantomCarryFlag(Register SrcReg, const MachineRegisterInfo &MRI,
     // Walk through transparent pass-throughs.
     if (Op == TargetOpcode::G_FREEZE || Op == TargetOpcode::COPY) {
       if (!Def->getOperand(1).isReg()) return std::nullopt;
-      Cur = Def->getOperand(1).getReg();
+      Register Next = Def->getOperand(1).getReg();
+      // Inline-asm CC outputs surface as a `COPY $c` / `COPY $v` off the
+      // INLINEASM's implicit-def.  The value genuinely lives in the CC bit,
+      // exactly like a phantom-carry producer, so report the physical CC
+      // reg — the consumer materialises it into a byte via
+      // MaterializeCC_C_to_byte / MaterializeCC_V_to_byte.
+      if (Next.isPhysical()) {
+        if (Next == MC6809::C) return MC6809::C;
+        if (Next == MC6809::V) return MC6809::V;
+        return std::nullopt;
+      }
+      Cur = Next;
       continue;
     }
     // Phantom-carry producers.  Keep in sync with MC6809InstrInfo.cpp
@@ -1282,11 +1293,20 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
         // after it.
         Register Cur = SrcReg;
         MachineInstr *ProdDef = nullptr;
+        // Collect the COPY/G_FREEZE pass-throughs so we can erase any that
+        // become dead once the G_ZEXT is replaced.  For an inline-asm CC
+        // output the chain is `%2 = COPY %0` / `%0 = COPY $c`; both are dead
+        // after the materialise reads $c directly, and — being cross-bank
+        // flags->accum copies — are unselectable, so they MUST go.
+        SmallVector<MachineInstr *, 4> PassThroughs;
         while (Cur.isVirtual()) {
           ProdDef = MRI->getVRegDef(Cur);
           if (!ProdDef) break;
           unsigned Op = ProdDef->getOpcode();
           if (Op == TargetOpcode::G_FREEZE || Op == TargetOpcode::COPY) {
+            PassThroughs.push_back(ProdDef);
+            if (!ProdDef->getOperand(1).isReg())
+              break;
             Cur = ProdDef->getOperand(1).getReg();
             continue;
           }

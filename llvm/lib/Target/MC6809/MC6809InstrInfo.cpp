@@ -1302,6 +1302,30 @@ MC6809InstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
   if (DestReg == SrcReg)
     return;
 
+  // CC-flag <-> byte copies for the inline-asm 'c' (carry) and 'v' (overflow)
+  // register constraints. Reading a flag into a byte materialises it as a 0/1
+  // value; setting a flag from a byte shifts the byte's LSB into it. Reuse the
+  // MaterializeCC_*_to_byte / MaterializeByteTo{Carry,Overflow}_i8 pseudos,
+  // which handle an A/B or spilled byte and expand post-RA.
+  if ((SrcReg == MC6809::C || SrcReg == MC6809::V) &&
+      MC6809::ACC8_ABRegClass.contains(DestReg)) {
+    // byte = flag ("=c" / "=v"). Model the flag as an explicit use so the
+    // producing instruction's flag def is not treated as dead.
+    Builder.buildInstr(SrcReg == MC6809::C ? MC6809::MaterializeCC_C_to_byte
+                                           : MC6809::MaterializeCC_V_to_byte)
+        .addDef(DestReg)
+        .addUse(SrcReg, RegState::Implicit | getKillRegState(KillSrc));
+    return;
+  }
+  if ((DestReg == MC6809::C || DestReg == MC6809::V) &&
+      MC6809::ACC8_ABRegClass.contains(SrcReg)) {
+    // flag = byte ("c" / "v"). The pseudo defs the flag via its descriptor.
+    Builder.buildInstr(DestReg == MC6809::C ? MC6809::MaterializeByteToCarry_i8
+                                            : MC6809::MaterializeByteToOverflow_i8)
+        .addUse(SrcReg, getKillRegState(KillSrc));
+    return;
+  }
+
   // Handle copies involving imaginary registers. Emit concrete direct-page
   // instructions (not pseudos with frame indices, since PEI has already run
   // by the time copyPhysReg is called).

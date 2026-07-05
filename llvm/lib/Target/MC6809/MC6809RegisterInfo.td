@@ -334,6 +334,9 @@ class MC6809Reg64Class<dag RegList> : MC6809RegClass<[i64], 8, RegList>;
 
 // Register grouping classes.
 def CARRY : MC6809Reg1Class<(add C)>;
+// Single-flag class for the inline-asm 'v' (CC.V overflow) constraint, the
+// overflow analogue of CARRY for the 'c' constraint.
+def OVFLAG : MC6809Reg1Class<(add V)>;
 
 // Bug #302 follow-up: PHANTOM_CARRY is the regalloc home for the
 // scheduling-phantom carry-out vregs produced by SetCarry / SetCarryUse /

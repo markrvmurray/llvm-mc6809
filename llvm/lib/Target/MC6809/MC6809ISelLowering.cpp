@@ -129,6 +129,16 @@ std::pair<unsigned, const TargetRegisterClass *> MC6809TargetLowering::getRegFor
     case 'B':
       // gcc6809: 'B' = ACC_B_REGS (B register only).
       return std::make_pair(MC6809::AB, &MC6809::ABcRegClass);
+    case 'c':
+      // Carry flag (CC.C) — lets inline asm capture/set the carry, e.g. the
+      // OS-9 syscall error convention after SWI2.  An output flag is
+      // materialised into a byte at its consumer (the G_ZEXT phantom-carry
+      // intercept in the selector); an input byte's LSB is materialised back
+      // into the flag by copyPhysReg.
+      return std::make_pair(MC6809::C, &MC6809::CARRYRegClass);
+    case 'v':
+      // Overflow flag (CC.V) — the overflow analogue of 'c'.
+      return std::make_pair(MC6809::V, &MC6809::OVFLAGRegClass);
     }
   }
   return TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
