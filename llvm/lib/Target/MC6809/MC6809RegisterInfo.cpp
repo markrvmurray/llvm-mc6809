@@ -239,6 +239,19 @@ bool MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int
     for (unsigned I = FIOperandNum + 2, E = MI.getNumExplicitOperands(); I < E;
          ++I)
       MIB.add(MI.getOperand(I));
+    // The _Sym descriptor re-adds the CC implicit defs/uses (NZ/V/C), but not
+    // the dynamic PHANTOM_CARRY scheduling operands the selector attaches to
+    // link a byte carry chain — they belong to no instruction descriptor.
+    // Carry them over so the rewritten producer keeps defining (and each
+    // consumer keeps using) its phantom_carry register; dropping them orphans
+    // the chain and the machine verifier flags an undefined phantom_carry use.
+    for (unsigned I = MI.getNumExplicitOperands(), E = MI.getNumOperands();
+         I < E; ++I) {
+      const MachineOperand &MO = MI.getOperand(I);
+      if (MO.isReg() && MO.getReg().isPhysical() &&
+          MC6809::PHANTOM_CARRYRegClass.contains(MO.getReg()))
+        MIB.add(MO);
+    }
     MIB.cloneMemRefs(MI);
     MI.eraseFromParent();
     return true;
