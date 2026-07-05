@@ -156,18 +156,23 @@ public:
   bool isPCRel16() const { return isImmediate<-32768, 65535>(); }
 
   // PC-relative for indexed addressing (LEAX/LDD/STX/etc with `,PCR`).
-  // Strict: symbol refs are rejected so that the matcher always picks
-  // the 16-bit form for symbolic operands. Why: the assembler has no
+  // Strict: any non-constant (symbolic) operand is rejected so that the
+  // matcher always picks the 16-bit form. Why: the assembler has no
   // relaxation rule to promote o8PC to o16PC, and indexed PC-rel
   // operands routinely target labels that are *outside* the ±127 byte
-  // range (jump tables sit after the function body, etc.). Accepting
-  // a symbol ref at the 8-bit indexed form silently truncates when the
-  // offset overflows. This was bug #68: a `LEAX JT,PCR` for a jump
-  // table 919 bytes away got encoded with offset -105 and jumped into
-  // the middle of the function. Restricting only the indexed-PC-rel
-  // path keeps short branches working unchanged.
+  // range (jump tables sit after the function body, a static-stack frame
+  // lives in a distant .bss, etc.). Accepting a symbolic operand at the
+  // 8-bit indexed form silently truncates when the offset overflows.
+  // This was bug #68: a `LEAX JT,PCR` for a jump table 919 bytes away got
+  // encoded with offset -105 and jumped into the middle of the function.
+  // Rejecting only a *plain* MCSymbolRefExpr missed a `sym+offset` binary
+  // expression (e.g. a `leay frame_sym+4,pc` address-of into a static
+  // frame), which fell through to the 8-bit form and overflowed against a
+  // far .bss — so reject anything that is not a resolved constant.
+  // Restricting only the indexed-PC-rel path keeps short branches working
+  // unchanged.
   bool isPCRel8Idx() const {
-    if (isImm() && isa<MCSymbolRefExpr>(getImm()))
+    if (isImm() && !isa<MCConstantExpr>(getImm()))
       return false;
     return isImmediate<-128, 255>();
   }
