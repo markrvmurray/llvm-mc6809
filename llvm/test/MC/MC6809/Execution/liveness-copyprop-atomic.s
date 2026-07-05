@@ -79,5 +79,8 @@
 
 ; Frame base re-materialised into an index register, then reloaded from the
 ; frame slot — the atomic-TFR + index-reload shape the passes act on.
+; Either index register satisfies the guard: with the SPILL_X escape
+; registers retired the reload may allocate to IX or IY, and the page-1
+; preference pass renames IY ranges to IX where IX is free.
 ; TRIGGER: tfr s,u
-; TRIGGER: ldy {{[0-9]+}},u
+; TRIGGER: ld{{[xy]}} {{[0-9]+}},u
