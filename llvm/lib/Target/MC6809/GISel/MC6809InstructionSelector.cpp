@@ -1733,6 +1733,15 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
         GV = MRI->getVRegDef(Src);
       }
       bool HaveGV = GV && GV->getOpcode() == TargetOpcode::G_GLOBAL_VALUE;
+      // A writable OS9 global must not fold into the PC-relative _Sym pseudo:
+      // its data lives in the module's SU-relative data area, not PC-reachable.
+      // Leave it to the generic path — G_GLOBAL_VALUE materialises the
+      // SU-relative address (LEAX mc6809_os9_data(sym),SU) and the load/store
+      // uses it as an index base.
+      if (HaveGV && MF->getTarget().getTargetTriple().isOSOS9() &&
+          getOS9WritableGlobalTargetFlags(GV->getOperand(1).getGlobal()) !=
+              MC6809::MO_NO_FLAGS)
+        goto skip_globalvalue_fold;
       if (!HaveGV) {
         if (IsDP) {
           // A computed direct-page address — a runtime-indexed __directpage
