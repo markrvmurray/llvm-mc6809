@@ -2059,23 +2059,18 @@ skip_globalvalue_fold:
     //
     // A writable OS9 global lives in the module's data area, reached SU-relative
     // (SU is OS9's data-base register) with OS9-specific target flags. The
-    // deferred PC-relative pseudo below cannot express that, so materialise it
-    // directly here: LEAX sym,SU then copy into the destination index register.
+    // PC-relative deferred pseudo below cannot express that, so select the
+    // SU-relative deferred pseudo Lea_iPtr_OS9Sym: the allocator picks the index
+    // register and the post-RA expander emits LEA{X,Y} sym,SU — the address is
+    // not pinned to IX + a COPY.
     if (MF->getTarget().isPositionIndependent() &&
         MF->getTarget().getTargetTriple().isOSOS9()) {
       MachineOperand &GlobalOp = MI.getOperand(1);
       unsigned OS9Flags = getOS9WritableGlobalTargetFlags(GlobalOp.getGlobal());
       if (OS9Flags != MC6809::MO_NO_FLAGS) {
-        MachineOperand OS9GlobalOp = MachineOperand::CreateGA(
-            GlobalOp.getGlobal(), GlobalOp.getOffset(), OS9Flags);
-        if (!MBB->isLiveIn(MC6809::SU))
-          MBB->addLiveIn(MC6809::SU);
-        BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(MC6809::LEAXi_o16))
-            .add(OS9GlobalOp)
-            .addReg(MC6809::SU);
-        BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(TargetOpcode::COPY), DstReg)
-            .addReg(MC6809::IX);
-        MI.eraseFromParent();
+        GlobalOp.setTargetFlags(OS9Flags);
+        MI.setDesc(TII.get(MC6809::Lea_iPtr_OS9Sym));
+        constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
         return true;
       }
     }

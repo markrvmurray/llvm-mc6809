@@ -22,11 +22,17 @@ entry:
   ret i16 %sum2
 }
 
+; Writable OS9 globals are addressed SU-relative via the deferred
+; Lea_iPtr_OS9Sym pseudo: LEA{X,Y} mc6809_os9_data(g),u, with the index register
+; the allocator's choice (not pinned to IX + a COPY). The read-only message
+; stays PC-relative.
 ; CHECK-LABEL: touch:
-; CHECK: leax mc6809_os9_data(initialized_value),u
-; CHECK: leax mc6809_os9_data(uninitialized_value),u
-; CHECK: leax mc6809_os9_data(external_value),u
-; CHECK: leax .Lmessage,pc
-; CHECK-NOT: leax initialized_value,pc
-; CHECK-NOT: leax uninitialized_value,pc
+; CHECK: lea{{[xyu]}} mc6809_os9_data(initialized_value),u
+; CHECK: lea{{[xyu]}} mc6809_os9_data(uninitialized_value),u
+; CHECK: lea{{[xyu]}} mc6809_os9_data(external_value),u
+; CHECK: lea{{[xyu]}} .Lmessage,pc
+; A writable global must never be PC-relative (it lives in the SU-relative data
+; area), and the frame pointer is never rebuilt.
+; CHECK-NOT: initialized_value,pc
+; CHECK-NOT: uninitialized_value,pc
 ; CHECK-NOT: tfr s,u

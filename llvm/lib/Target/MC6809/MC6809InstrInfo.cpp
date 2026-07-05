@@ -3406,6 +3406,9 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::Load_iPtr_Sym:
     expandLoadSym(Builder, MI);
     break;
+  case MC6809::Lea_iPtr_OS9Sym:
+    expandLeaOS9Sym(Builder, MI);
+    break;
   case MC6809::Lea_iPtr_Sym:
     expandLeaSym(Builder, MI);
     break;
@@ -6181,6 +6184,37 @@ void MC6809InstrInfo::expandLeaSym(MachineIRBuilder &Builder, MachineInstr &MI) 
   assert(Opc && "no PC-relative LEA opcode for destination register");
   BuildMI(MBB, MI, MI.getDebugLoc(), get(Opc))
       .add(SymOp)
+      .addDef(Dst, RegState::Implicit);
+  MI.eraseFromParent();
+}
+
+// SU-relative indexed LEA opcode for the allocated index register (OS9 writable
+// globals). SU/SS are reserved and SPILL_X is kept out by rematerialisation, so
+// only the real index registers occur here.
+static unsigned getLeaOS9SymOpcode(Register Reg) {
+  switch (Reg) {
+  case MC6809::IX: return MC6809::LEAXi_o16;
+  case MC6809::IY: return MC6809::LEAYi_o16;
+  default:         return 0;
+  }
+}
+
+void MC6809InstrInfo::expandLeaOS9Sym(MachineIRBuilder &Builder, MachineInstr &MI) const {
+  Register Dst = MI.getOperand(0).getReg();
+  const MachineOperand &SymOp = MI.getOperand(1);
+  MachineBasicBlock &MBB = *MI.getParent();
+
+  // Like expandLeaSym, isReMaterializable keeps the short-lived address out of
+  // an index spill slot, so the dst is always a real index register.
+  assert(!needsMaterialization(Dst) &&
+         "Lea_iPtr_OS9Sym destination must be a real index register");
+  unsigned Opc = getLeaOS9SymOpcode(Dst);
+  assert(Opc && "no SU-relative LEA opcode for destination register");
+  if (!MBB.isLiveIn(MC6809::SU))
+    MBB.addLiveIn(MC6809::SU);
+  BuildMI(MBB, MI, MI.getDebugLoc(), get(Opc))
+      .add(SymOp)
+      .addReg(MC6809::SU)
       .addDef(Dst, RegState::Implicit);
   MI.eraseFromParent();
 }

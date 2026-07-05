@@ -311,6 +311,21 @@ def Lea_iPtr_Sym : MC6809LogicalInstr {
   dag InOperandList = (ins unknown:$sym);
 }
 
+// Address of a writable OS9 global, index register deferred to regalloc — the
+// OS9 analogue of Lea_iPtr_Sym. OS9 writable data lives in the module's data
+// area, reached SU-relative (SU is the data-base register); the symbol carries
+// an OS9 target flag (mc6809_os9_data / _bss) the linker resolves to the
+// data-area offset. expandLeaOS9Sym emits LEA{X,Y} sym,SU for the allocated
+// register, so the address is not pinned to IX + a COPY. The SU base is not
+// declared as a Use (like Lea_iPtr_Sym's implicit PC): SU is reserved and
+// always available, so leaving the pseudo dependency-free lets regalloc
+// rematerialise the address under pressure rather than spilling it.
+let Defs = [Z], isReMaterializable = 1, isAsCheapAsAMove = 1 in
+def Lea_iPtr_OS9Sym : MC6809LogicalInstr {
+  dag OutOperandList = (outs INDEX16:$dst);
+  dag InOperandList = (ins unknown:$sym);
+}
+
 let Predicates = [IsHD6309] in {
   // Bug #208 follow-up: src constrained to AQc — same rationale as
   // Load_i32. Bug #210 round 5 kept this constraint because the
