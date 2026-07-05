@@ -83,8 +83,9 @@ private:
   const MC6809InstrInfo *TII = nullptr;
   // Page-2 (IY/IS-based) opcode -> page-1 (IX-based) sibling.
   DenseMap<unsigned, unsigned> YtoX;
-  // Per-block {IX, IY} live-out, from computeLiveOuts.
+  // Per-block {IX, IY} live-out and live-in, from computeLiveOuts.
   DenseMap<const MachineBasicBlock *, std::pair<bool, bool>> LiveOutXY;
+  DenseMap<const MachineBasicBlock *, std::pair<bool, bool>> LiveInXY;
 
   void buildOpcodeMap();
   void computeLiveOuts(MachineFunction &MF);
@@ -134,6 +135,7 @@ void MC6809PreferPage1Index::buildOpcodeMap() {
 // The boolean lattice makes the fixpoint monotonic, so it always converges.
 void MC6809PreferPage1Index::computeLiveOuts(MachineFunction &MF) {
   LiveOutXY.clear();
+  LiveInXY.clear();
   const Register XY[2] = {MC6809::IX, MC6809::IY};
   DenseMap<const MachineBasicBlock *, std::pair<bool, bool>> Use, Def;
   for (MachineBasicBlock &MBB : MF) {
@@ -170,6 +172,16 @@ void MC6809PreferPage1Index::computeLiveOuts(MachineFunction &MF) {
         Changed = true;
       }
     }
+  }
+
+  // LiveIn(B) = use(B) | (LiveOut(B) & ~def(B)) -- needed so processBlock can
+  // tell whether a value referenced at the top of the block arrives live from
+  // a predecessor (the stored block live-in lists are not trustworthy here,
+  // same reason as above).
+  for (MachineBasicBlock &MBB : MF) {
+    auto U = Use[&MBB], D = Def[&MBB], LO = LiveOutXY[&MBB];
+    LiveInXY[&MBB] = {U.first || (LO.first && !D.first),
+                      U.second || (LO.second && !D.second)};
   }
 }
 
@@ -216,6 +228,7 @@ bool MC6809PreferPage1Index::processBlock(MachineBasicBlock &MBB) {
   // backward, applying each instruction's read/write transfer: a read makes the
   // register live before the instruction, a write-without-read makes it dead.
   auto LO = LiveOutXY.lookup(&MBB);
+  auto LI = LiveInXY.lookup(&MBB);
   bool LiveIX = LO.first, LiveIY = LO.second;
   for (int k = (int)NumMI - 1; k >= 0; --k) {
     LiveAfterIX[k] = LiveIX;
@@ -240,8 +253,11 @@ bool MC6809PreferPage1Index::processBlock(MachineBasicBlock &MBB) {
   for (unsigned k = 0; k < NumMI;) {
     MachineInstr *MI = Instrs[k];
     // A fresh IY value begins where an instruction defines IY and IY was dead
-    // immediately before it.
-    bool IYDeadBefore = (k == 0) || !LiveAfterIY[k - 1];
+    // immediately before it. At the top of the block "dead before" means NOT
+    // live-in: a value arriving from a predecessor (e.g. `leay 3,y` on a
+    // live-in IY as the block's first instruction) is not a fresh def -- its
+    // reaching def is outside the block and cannot be renamed with the range.
+    bool IYDeadBefore = (k == 0) ? !LI.second : !LiveAfterIY[k - 1];
     if (!(MI->definesRegister(MC6809::IY, TRI) && IYDeadBefore)) {
       ++k;
       continue;
@@ -276,8 +292,9 @@ bool MC6809PreferPage1Index::processBlock(MachineBasicBlock &MBB) {
       if (RefsIY(R) && !YtoX.count(R->getOpcode()))
         OK = false;
     }
-    // IX dead immediately before the def too (don't clobber a live IX).
-    if (k > 0 && LiveAfterIX[k - 1])
+    // IX dead immediately before the def too (don't clobber a live IX). At
+    // the top of the block that means IX must not be live-in.
+    if ((k == 0) ? LI.first : LiveAfterIX[k - 1])
       OK = false;
 
     if (!OK) {
