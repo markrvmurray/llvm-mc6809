@@ -319,7 +319,7 @@ static bool isFusedCompareBranch(unsigned Opc) {
   }
 }
 
-// Bug #206 + #271 cat-1: select the verifier-friendly Bbc/LBlbc variant.
+// select the verifier-friendly Bbc/LBlbc variant.
 // The _NoC variants are encoding-equivalent codegen-only opcodes that
 // declare `Uses = [N, Z, V]` (no C); used when the cc immediate doesn't
 // read C at runtime. The _OnlyC variants declare `Uses = [C]`; used
@@ -344,7 +344,7 @@ static unsigned pickLBlbcVariant(int64_t CC) {
   return MC6809::LBlbc;
 }
 
-// Bug #206 + #271 cat-1: classify Bbc / Bbc_NoC / Bbc_OnlyC / LBlbc /
+// classify Bbc / Bbc_NoC / Bbc_OnlyC / LBlbc /
 // LBlbc_NoC / LBlbc_OnlyC uniformly. All six are the same hardware
 // instruction with different LLVM-side metadata (the _NoC / _OnlyC
 // variants declare a tighter Uses set so the verifier doesn't
@@ -531,12 +531,12 @@ unsigned MC6809InstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
     // Default branch: TableGen-declared `let Size = N` is authoritative.
     // PseudoInstExpansion-based pseudos (BranchSubroutine, JumpAbsolute,
     // ReturnImplicit, etc.) carry explicit `let Size` matching their
-    // post-expansion concrete form (bug #183 commit 1).
+    // post-expansion concrete form (commit 1).
     //
     // Fallback: if a pseudo ships without `let Size`, return MaxInstLength
     // (5) so BranchRelaxation conservatively OVERESTIMATES the block size
     // and widens borderline branches that might otherwise overflow. The
-    // alternative — silently returning 0 — caused bug #174's PCRel8
+    // alternative — silently returning 0 — caused a PCRel8
     // fixup overflow in __file_wstr_get when LongBranchSubroutine pseudos
     // contributed 0 to BR's accounting (commit 1 fixed those specifically;
     // this fallback ensures the next undeclared pseudo fails safe instead
@@ -569,9 +569,9 @@ bool MC6809InstrInfo::isBranchOffsetInRange(unsigned BranchOpc, int64_t BrOffset
   //
   // Returning true unconditionally was a stub — it disabled relaxation and
   // caused short branches with out-of-range offsets to silently truncate
-  // their offset bytes, jumping to wrong addresses (was bug #58).
+  // their offset bytes, jumping to wrong addresses.
   //
-  // Bug #182 fix: BR's BrOffset is the raw start-to-start distance
+  // BR's BrOffset is the raw start-to-start distance
   // (per `BranchRelaxation::isBlockInRange` => `DestOffset - BrOffset`).
   // The encoded displacement byte is `target - (PC after instruction)`
   // = `BrOffset - <instruction size>`. Subtract the size here so the
@@ -586,8 +586,8 @@ bool MC6809InstrInfo::isBranchOffsetInRange(unsigned BranchOpc, int64_t BrOffset
   case MC6809::JumpRelative:
   case MC6809::BRAb:
   case MC6809::Bbc:
-  case MC6809::Bbc_NoC:    // bug #206: encoding-equivalent variant
-  case MC6809::Bbc_OnlyC:  // bug #271 cat-1: encoding-equivalent variant
+  case MC6809::Bbc_NoC:    // encoding-equivalent variant
+  case MC6809::Bbc_OnlyC:  // encoding-equivalent variant
     return isInt<8>(BrOffset - 2);   // 2-byte short forms
   case MC6809::LongBranchRelative:
   case MC6809::LongJumpRelative:
@@ -595,8 +595,8 @@ bool MC6809InstrInfo::isBranchOffsetInRange(unsigned BranchOpc, int64_t BrOffset
     return isInt<16>(BrOffset - 3);  // 3-byte page-1 long
   case MC6809::ConditionalLongBranchRelative:
   case MC6809::LBlbc:
-  case MC6809::LBlbc_NoC:    // bug #206: encoding-equivalent variant
-  case MC6809::LBlbc_OnlyC:  // bug #271 cat-1: encoding-equivalent variant
+  case MC6809::LBlbc_NoC:    // encoding-equivalent variant
+  case MC6809::LBlbc_OnlyC:  // encoding-equivalent variant
     return isInt<16>(BrOffset - 4);  // 4-byte page-2 long
   default:
     // Unknown branch opcode — be conservative and say it's in range so we
@@ -616,7 +616,7 @@ unsigned MC6809InstrInfo::getInstBundleLength(const MachineInstr &MI) const {
   return Size;
 }
 
-// Bug #196: findCommutedOpIndices is no longer overridden — the
+// findCommutedOpIndices is no longer overridden — the
 // base-class TargetInstrInfo::findCommutedOpIndices uses the
 // TableGen-generated `isCommutable` flag to recognise commutable
 // pseudos and returns the standard {1, 2} operand pair. Per the
@@ -640,11 +640,11 @@ MachineBasicBlock *MC6809InstrInfo::getBranchDestBlock(const MachineInstr &MI) c
   case TargetOpcode::G_BR:
     return MI.getOperand(0).getMBB();
   case MC6809::Bbc:
-  case MC6809::Bbc_NoC:    // bug #206
-  case MC6809::Bbc_OnlyC:  // bug #271 cat-1
+  case MC6809::Bbc_NoC:
+  case MC6809::Bbc_OnlyC:
   case MC6809::LBlbc:
-  case MC6809::LBlbc_NoC:    // bug #206
-  case MC6809::LBlbc_OnlyC:  // bug #271 cat-1
+  case MC6809::LBlbc_NoC:
+  case MC6809::LBlbc_OnlyC:
   case MC6809::ConditionalBranchRelative:
   case MC6809::ConditionalLongBranchRelative:
   case TargetOpcode::G_BRCOND:
@@ -770,9 +770,9 @@ bool MC6809InstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock *&
 
         // Emit short by default; standard LLVM BranchRelaxation widens
         // via CFG-split + insertIndirectBranch when the displacement is
-        // out of int8 range (bug #174). BuildMI auto-attaches the
+        // out of int8 range. BuildMI auto-attaches the
         // implicit Uses declared by the chosen Bbc/Bbc_NoC MCInstrDesc
-        // (bug #206 picker — _NoC drops C from Uses for cc that doesn't
+        // (picker — _NoC drops C from Uses for cc that doesn't
         // consume it).
         BuildMI(MBB, UnCondBrIter, MBB.findDebugLoc(I), get(pickBbcVariant(CC))).addImm(CC).addMBB(UnCondBrIter->getOperand(0).getMBB());
         BuildMI(MBB, UnCondBrIter, MBB.findDebugLoc(I), get(MC6809::BRAb)).addMBB(TargetBB);
@@ -832,14 +832,14 @@ unsigned MC6809InstrInfo::insertBranch(MachineBasicBlock &MBB, MachineBasicBlock
   if (Cond.empty()) {
     // Unconditional branch — emit short by default. Standard LLVM
     // BranchRelaxation widens via insertIndirectBranch when out of int8
-    // range (bug #174).
+    // range.
     assert(!FBB && "Unconditional branch with multiple successors!");
     Bytes += getInstSizeInBytes(*BuildMI(&MBB, DL, get(MC6809::BRAb)).addMBB(TBB));
     ++Count;
   } else {
     // Conditional branch — emit short by default. BranchRelaxation
-    // widens via CFG-split + insertIndirectBranch as needed (bug #174).
-    // Bug #206: pickBbcVariant selects Bbc_NoC for cc that doesn't
+    // widens via CFG-split + insertIndirectBranch as needed.
+    // pickBbcVariant selects Bbc_NoC for cc that doesn't
     // consume C — verifier-friendly, encoding-equivalent.
     int64_t CC = Cond[0].getImm();
     Bytes += getInstSizeInBytes(*BuildMI(&MBB, DL, get(pickBbcVariant(CC))).add(Cond[0]).addMBB(TBB));
@@ -902,7 +902,7 @@ static unsigned getStoreIdxOpcode(Register Reg, int Offset) {
   llvm_unreachable("Unexpected register for spill store");
 }
 
-// Bug #387: the static-stack support functions. getSymLoadOpcode/Store are
+// the static-stack support functions. getSymLoadOpcode/Store are
 // defined later in this file (the global-symbol expander); forward-declare them
 // so the spill expanders can emit an extended/absolute access to a static slot.
 static unsigned getSymLoadOpcode(Register Reg, bool IsDP, bool IsPIC);
@@ -910,7 +910,7 @@ static unsigned getSymStoreOpcode(Register Reg, bool IsDP, bool IsPIC);
 static unsigned getStaticStackOpcode(unsigned IdxOpc, bool IsPIC);
 
 
-/// Bug #298 (kept through the spill-register retirement): bracket a body of
+/// bracket a body of
 /// post-RA MIs with a 4-byte hard-stack scratch slot holding $aq's pre-body
 /// value. The body mutates $aq IN PLACE to become the result while reading
 /// the OLD $aq (the second source) via $ss + 0..3 indexing; no trailing LDQ
@@ -956,7 +956,7 @@ static bool isImag16HiByte(Register Reg) {
 
 /// Emit code that places SrcReg's byte value into the real accumulator half
 /// Target (MC6809::AA or MC6809::AB), WITHOUT touching the other real half.
-/// Used by the byte-merge/byte-extract pseudo expansions (bug #118 Layer 1,
+/// Used by the byte-merge/byte-extract pseudo expansions (Layer 1,
 /// approach b) to stage values into AD with strict separation between the
 /// two halves.
 ///
@@ -1193,7 +1193,7 @@ static void wrapStagedCCSources(MachineInstr &MI,
     pullStagingReg(B, R);
 }
 
-// Bug #161 round 17: materialize imaginary (RS/RC) operands into real
+// materialize imaginary (RS/RC) operands into real
 // hardware registers before emitting any HD6309 page-3 register-pair
 // instruction (ADDR / ADCR / SUBR / SBCR / ANDR / ORR / EORR / etc).
 // These opcodes encode 4-bit hardware register codes in their postbyte
@@ -1217,7 +1217,7 @@ static bool emitHD6309RegRegOp(MachineIRBuilder &Builder, MachineInstr &MI,
   Register Src2 = MI.getOperand(2).getReg();
   Register OrigDst = Dst;
 
-  // Bug #161 round 18: detect Src1/Src2 same-half collision and bail.
+  // detect Src1/Src2 same-half collision and bail.
   // Regalloc can collapse both operands to the same physical AB/AA
   // (e.g. coalesced into one byte-sized live range), or two RS/RC
   // imaginaries can stage through the same accumulator half; either way
@@ -1264,14 +1264,14 @@ static bool emitHD6309RegRegOp(MachineIRBuilder &Builder, MachineInstr &MI,
   return true;
 }
 
-// Bug #357: report a TFRp as a copy so generic MachineCopyPropagation can
+// report a TFRp as a copy so generic MachineCopyPropagation can
 // forward/eliminate the pervasive register moves TFRp produces — but ONLY for
 // the ATOMIC 16-bit registers IX/IY/SU/SS.
 //
 // The accumulator family (AA/AB/AD/AW/AE/AF) is deliberately EXCLUDED. Its
 // byte ops carry a partial-subregister def: `ldb N,u` is `implicit-def $ad`
 // (D's composite changed because its low byte B did, even though the high byte
-// A is hardware-preserved — the Bug #184 / #362 shape). MachineCopyPropagation
+// A is hardware-preserved — the same shape). MachineCopyPropagation
 // reads that as "$ad (hence AA) fully redefined", so it wrongly concludes a
 // prior `tfr b,a` def of A is dead and deletes it — losing A's value that a
 // later `std` reads as the high half of D. (This regressed test-getopt et al.
@@ -1421,7 +1421,7 @@ MC6809InstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
   } else if (AreClasses(MC6809::ACC16RegClass, MC6809::ACC8RegClass)) {
     if (AreClasses(MC6809::ADcRegClass, MC6809::ABcRegClass) || AreClasses(MC6809::AWcRegClass, MC6809::AFcRegClass))
       return;
-    // Bug #161 round 18 follow-up #2: HD6309's TFR with size mismatch
+    // HD6309's TFR with size mismatch
     // (8-bit src → 16-bit dst) BYTE-REPLICATES the source into both
     // halves of the destination — it does NOT zero-extend. So the
     // bare TFRp emitted here was producing `tfr b,w` ⇒ W=B:B (e.g.
@@ -1549,7 +1549,7 @@ MC6809InstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
     }
     Builder.buildInstr(Opc).addDef(DestReg, RegState::Implicit).addReg(SrcReg);
   } else if (AreClasses(MC6809::ACC16RegClass, MC6809::ACC32RegClass)) {
-    // Bug #266 root cause (2026-05-10): ACC32 → ACC16 sub-register
+    // ACC32 → ACC16 sub-register
     // extraction. AQ = AD:AW (sub_hi_word=AD, sub_lo_word=AW). The
     // hardware Q register physically aliases AD + AW — extracting
     // either half is a NO-OP because the bits already live in the
@@ -1577,7 +1577,7 @@ MC6809InstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
     // Recurse with src=AD to reuse the AD→ImagXX/spill paths above.
     copyPhysReg(MBB, MI, DL, DestReg, MC6809::AD, KillSrc, RenamableDest, RenamableSrc);
   } else {
-    // Bug #186 v5 PLACEHOLDER (2026-04-27): no proper sequence yet for
+    // no proper sequence yet for
     // this physreg pair. Drop a COPY_CC_PLACEHOLDER pseudo so the
     // backend stays compile-clean. AsmPrinter expands it to a comment +
     // SWI3 trap so runtime hits surface noisily and asm-grep finds the
@@ -1634,7 +1634,7 @@ static void loadStoreRegisterStaticStackSlot(MachineIRBuilder &Builder, MachineO
       llvm_unreachable("Unexpected physical register class");
     }
   } else {
-    // Bug #307: virtual phantom_carry vregs hit this path during
+    // virtual phantom_carry vregs hit this path during
     // pressure-driven spill.
     if (MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::PHANTOM_CARRYRegClass))
       Size = 8;
@@ -1685,7 +1685,7 @@ static void loadStoreRegisterStaticStackSlot(MachineIRBuilder &Builder, MachineO
   }
 
   // Emit via copy through ACC.
-  // Bug #311: the IsBit / sub_lsb branches that used to live here are
+  // the IsBit / sub_lsb branches that used to live here are
   // gone; ACC8 carries all values that need this fallback path.
   MachineOperand Tmp = MachineOperand::CreateReg(Builder.getMRI()->createVirtualRegister(&MC6809::ACC8RegClass), MO.isDef());
   if (Tmp.isUse()) {
@@ -1748,7 +1748,7 @@ void MC6809InstrInfo::loadStoreRegStackSlot(MachineBasicBlock &MBB, MachineBasic
     MIB.addReg(Reg, getDefRegState(IsLoad) | getKillRegState(IsKill && !IsLoad));
     MIB.addFrameIndex(FrameIndex).addImm(0).addMemOperand(MMO);
   } else if ((Reg.isPhysical() && MC6809::ACC16RegClass.contains(Reg)) || (Reg.isVirtual() && MRI.getRegClass(Reg)->hasSuperClassEq(&MC6809::ACC16RegClass))) {
-    // Bug #271 cat-2: pass Reg directly to Store_i16_Mem / Load_i16_Mem.
+    // pass Reg directly to Store_i16_Mem / Load_i16_Mem.
     // The historical fresh-vreg + COPY pattern (whose comment claimed
     // "this code introduces subregisters") was leaving 96 verifier hits
     // at -Og hd6309 mame: the Store's operand was the fresh vreg but
@@ -1936,7 +1936,7 @@ MachineInstr *MC6809InstrInfo::foldMemoryOperandImpl(
     MachineBasicBlock::iterator InsertPt, int FrameIndex,
     MachineInstr *& /*CopyMI*/, LiveIntervals * /*LIS*/,
     VirtRegMap *VRM) const {
-  // Bug #118 Layer 1, approach (b): fold a reload of the 16-bit source of
+  // fold a reload of the 16-bit source of
   // EXTRACT_LO_i16 / EXTRACT_HI_i16 into a direct one-byte frame load.
   //
   // Without this fold, when regalloc spills the 16-bit source vreg to a
@@ -2279,7 +2279,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::BranchRelative:
     // Emit short by default; standard LLVM BranchRelaxation widens to
     // LBRA via insertIndirectBranch when the displacement is out of
-    // int8 range (bug #174).
+    // int8 range.
     MI.setDesc(Builder.getTII().get(MC6809::BRAb));
     break;
   case MC6809::LongBranchRelative:
@@ -2291,13 +2291,13 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     // Emit short by default. Strip the pseudo's CCond:$bits operand —
     // the assembler encoding has no register field — and replace it
     // with the implicit Uses on N/Z/V(/C) declared by the chosen
-    // Bbc / Bbc_NoC / Bbc_OnlyC variant (bug #137, bug #206,
-    // bug #271 cat-1). Without these implicit uses the post-RA
+    // Bbc / Bbc_NoC / Bbc_OnlyC variant.
+    // Without these implicit uses the post-RA
     // MachineInstr would lack any CC dependency at all and the
     // scheduler would freely insert flag-clobbering instructions
     // between the cmp and this branch. BranchRelaxation widens to
     // LBlbc via CFG-split + insertBranch + insertIndirectBranch when
-    // the displacement is out of int8 range (bug #174).
+    // the displacement is out of int8 range.
     int64_t CC = MI.getOperand(0).getImm();
     MI.setDesc(Builder.getTII().get(pickBbcVariant(CC)));
     MI.removeOperand(2);
@@ -2316,8 +2316,8 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   }
   case MC6809::ConditionalLongBranchRelative: {
     // Explicit long conditional pseudo — escape hatch. Same operand
-    // shape transformation as the short form above (bug #206 picker
-    // + bug #271 cat-1 OnlyC variant).
+    // shape transformation as the short form above (picker
+    // + the OnlyC variant).
     int64_t CC = MI.getOperand(0).getImm();
     MI.setDesc(Builder.getTII().get(pickLBlbcVariant(CC)));
     MI.removeOperand(2);
@@ -2342,7 +2342,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     break;
   case MC6809::EXTRACT_LO_i16:
   case MC6809::EXTRACT_HI_i16: {
-    // Byte-extract pseudo (bug #118 Layer 1). After regalloc, resolve the
+    // Byte-extract pseudo (Layer 1). After regalloc, resolve the
     // 16-bit source to its physical register, pick the relevant byte
     // sub-physreg (AB/AA for AD, RS*LO/HI for RS*), and route that byte to
     // the 8-bit destination via copyPhysReg. All routing — materialise,
@@ -2368,7 +2368,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::EXTRACT_HI_word_i32:
   case MC6809::Extract16_i32_lo:
   case MC6809::Extract16_i32_hi: {
-    // Bug #161 round 14: extract a 16-bit half from an ACC32 source.
+    // extract a 16-bit half from an ACC32 source.
     // AQ = D:W (D high, W low). sub_lo_word = AW; sub_hi_word = AD. Use
     // copyPhysReg AD ← AW (TFR W,D) for LO; for HI it's AD ← AD (no-op)
     // so just elide. (A spilled i32 source never reaches here — the
@@ -2401,10 +2401,10 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     return true;
   }
   case MC6809::Build32_i16i16: {
-    // Bug #302 redesign Phase 1 (2026-05-17): assemble a 32-bit
+    // assemble a 32-bit
     // value in ACC32 from two 16-bit halves.  Opaque ACC32
     // destination — the result vreg has no sub-word constraints in
-    // its def chain (the structural fix for the Bug #302
+    // its def chain (the structural fix for the
     // REG_SEQUENCE-via-sub_lo_word/sub_hi_word destination-assembly
     // intersection-class leak).
     //
@@ -2414,14 +2414,14 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     // Marshal hi → AD and lo → AW via copyPhysReg.  When the inputs are
     // already in the right physregs the copyPhysReg becomes a no-op (or
     // TFR-elision).  When inputs collide (e.g. lo allocated to AD), stage
-    // collision-aware (Bug #311).
+    // collision-aware.
     Register LoReg = MI.getOperand(1).getReg();
     Register HiReg = MI.getOperand(2).getReg();
 
     {
       // AQ destination: marshal hi into AD, lo into AW.
       //
-      // Bug #302 redesign Phase 2 fixup (2026-05-17): the Build32 MI
+      // the Build32 MI
       // declares an explicit `$aq` def (its OutOperandList is ACC32).
       // When we erase the MI, the def goes with it — and downstream
       // sub-register accesses ($ab, $aa, etc.) see $aq as undefined
@@ -2443,7 +2443,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
       // data.  Phase 3 rewrites this expansion to be sub-reg-
       // independent and the collision-handling will be revisited
       // there.
-      // Bug #311 (2026-05-22): collision-aware expansion.  Three cases:
+      // collision-aware expansion.  Three cases:
       //
       //   1. Cross-conflict (hi=$aw, lo=$ad): EXG D,W in one cycle.
       //   2. LO already in $ad: move LO to $aw first so the hi→$ad copy
@@ -2502,7 +2502,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     return true;
   }
   case MC6809::AnyExt32_i16: {
-    // Bug #302 redesign Phase 2 (2026-05-17): i16 → i32 anyext.
+    // i16 → i32 anyext.
     // Move the i16 source into the low half of the i32 destination
     // (AW = AQ.sub_lo_word). High half is undefined — the IR's anyext
     // semantics make the upper bits don't-care.
@@ -2516,19 +2516,19 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     return true;
   }
   case MC6809::SignTest_i32: {
-    // HD6309 native i32 sign test (Bug #301b).
+    // HD6309 native i32 sign test.
     // Dst is ACC8; Src is ACC32 (= AQ).
     //
     // Strategy: get the MSByte (= sign byte, big-endian byte 0 of i32)
     // into AA, ASLA to shift bit 7 into CC.C, then LDA #0 ; ADCA #0
     // to materialise C as a 0/1 byte in AA.  COPY AA to Dst.
     //
-    // Bug #304 followup (2026-05-21): work in AA, not AB.  For AQ-source
+    // work in AA, not AB.  For AQ-source
     // the MSByte already IS AA (AQ.sub_hi_word.sub_hi_byte), so the
     // initial TFR A,B that brought it into AB was pure overhead — 2
     // bytes / 4 cycles per call.  Working in A directly saves that
     // instruction.  Both A and B are part of AQ so the AQ clobber is
-    // unchanged (Defs already lists AQ — see Bug #304 fix).
+    // unchanged (Defs already lists AQ).
     Register DstReg = MI.getOperand(0).getReg();
     Register SrcReg = MI.getOperand(1).getReg();
 
@@ -2562,7 +2562,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     return true;
   }
   case MC6809::EqZero_i32: {
-    // Bug #301 (2026-05-16): native HD6309 i32 equal-to-zero.
+    // native HD6309 i32 equal-to-zero.
     // Strategy: OR all 4 source bytes into AB, then extract CC.Z into AB.
     // Result i1 = 1 if i32 was zero, 0 otherwise.
     //
@@ -2590,7 +2590,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
 
     // Step 1: OR all 4 bytes into AA.
     //
-    // Bug #304 followup (2026-05-21): work in AA, not AB.  Avoids the
+    // work in AA, not AB.  Avoids the
     // final TFR A,B that brought the extracted Z bit into AB for
     // copying to Dst — Dst may be AA directly, in which case the TFR
     // was pure overhead.  Both A and B are part of AQ so the AQ
@@ -2634,7 +2634,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     return true;
   }
   case MC6809::EqConst_i32: {
-    // Bug #301 (2026-05-16): native HD6309 i32 equal-to-
+    // native HD6309 i32 equal-to-
     // constant test.  Strategy: compute X - K via SUBW+SBCD, which sets
     // CC.Z if X == K, then extract Z as a 0/1 byte (same as EqZero_i32).
     //
@@ -2659,7 +2659,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     Builder.buildInstr(MC6809::SUBWi16).addImm(KLo);
     Builder.buildInstr(MC6809::SBCDi16).addImm(KHi);
 
-    // Bug #346: SUBW/SBCD leave CC.Z reflecting only the high 16 bits, so
+    // SUBW/SBCD leave CC.Z reflecting only the high 16 bits, so
     // X==K would be falsely reported whenever the halves differ only in the
     // low word with no borrow. STQ-to-scratch sets N/Z from the full 32-bit
     // Q (and leaves C), giving a correct CC.Z = (X == K) before extraction.
@@ -2670,7 +2670,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     Builder.buildInstr(MC6809::LEASi_o5).addImm(4).addReg(MC6809::SS);
 
     // Step 3: extract CC.Z into bit 0 of AA.
-    // Bug #304 followup (2026-05-21): work in AA, not AB — avoids the
+    // work in AA, not AB — avoids the
     // final TFR A,B that's pure overhead when Dst happens to be AA.
     Builder.buildInstr(MC6809::TFRp)
         .addDef(MC6809::AA).addUse(MC6809::CC);
@@ -2759,7 +2759,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     return true;
   }
   case MC6809::MaterializeByteToCarry_i8: {
-    // Bug #184 inverse of MaterializeCarryToByte_i8: restore CC.C from a
+    // restore CC.C from a
     // 0/1 byte that was previously frozen via MaterializeCarryToByte_i8.
     // Used to preserve a SubSetCarry chain's borrow across a CC-clobbering
     // region. Single LSRB shifts bit 0 of B into CC.C; B is dead after.
@@ -2790,7 +2790,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     return true;
   }
   case MC6809::MaterializeByteToOverflow_i8: {
-    // Bug #186 follow-up Phase 5 (2026-04-28): V-flag mirror of
+    // V-flag mirror of
     // MaterializeByteToCarry_i8. Restore CC.V from a 0/1 byte that was
     // previously frozen via MaterializeOverflowToByte_i8. Used to
     // preserve a SubSetOverflowUse chain's V across a CC-clobbering
@@ -2848,7 +2848,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     return true;
   }
   case MC6809::MERGE_LOHI_i16: {
-    // Merge two i8s into an i16 (bug #118 Layer 1). Strategy: stage HiReg
+    // Merge two i8s into an i16 (Layer 1). Strategy: stage HiReg
     // into AA and LoReg into AB so AD now holds the merged value, then
     // dematerialise AD into DstReg (single STD if dst is imag/spill, no-op
     // if dst is AD itself, TFR if dst is another Imag16).
@@ -2862,7 +2862,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     Register LoReg  = MI.getOperand(1).getReg();
     Register HiReg  = MI.getOperand(2).getReg();
 
-    // Bug #306: when LoReg == AB and HiReg == AA and DstReg == AD, the
+    // when LoReg == AB and HiReg == AA and DstReg == AD, the
     // standard expansion below collapses to zero machine instructions
     // (both loadByteInto calls early-return on SrcReg == Target, and
     // the trailing dematerializeReg(AD, AD) is a no-op).  With no MI
@@ -3035,7 +3035,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     // is the identity when AD is dead; when it holds a live AQ high word it
     // is saved and restored. Because AD is net-preserved, the pseudo does
     // NOT list AD in its Defs (the retired emitTwoLDDSlotCopy did the same
-    // via emitAQPreservedOverHardStackScratch — Bug #308).
+    // via emitAQPreservedOverHardStackScratch).
     //
     // The push shifts S down by 2, so $ss-relative operands inside the
     // window are displacement-compensated by +2.
@@ -3107,7 +3107,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   }
   case MC6809::SEX8Implicit: {
     // Sign-extend the LSB of an 8-bit register ($aalsb/$ablsb) to 8 bits.
-    // Bug #90: previously missing from expandPostRAPseudo, causing llc to
+    // previously missing from expandPostRAPseudo, causing llc to
     // crash with "Pseudoinstruction was never lowered" for any function
     // that selected a G_SEXT from s1 to s8 at -O0. Two expansion paths:
     //
@@ -3184,11 +3184,11 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     break;
   }
   case MC6809::SEX32Implicit: {
-    // Same historical concern as ZEX32Implicit (bug #208 round 2):
+    // Same historical concern as ZEX32Implicit (round 2):
     // SEXWx sign-extends AW into AD, leaving AQ correct, but a
     // a spilled dst used to need an explicit STQ.
     //
-    // Bug #274: source may be AD, AW, or any other ACC16 member that
+    // source may be AD, AW, or any other ACC16 member that
     // survives to expansion (notably the imaginary direct-page
     // RS0..RS3, or AD when fed from a MERGE_LOHI_i16). After expansion
     // AQ must hold (AD=sign(src) | AW=src), which is what SEXWx does
@@ -3247,12 +3247,12 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     return true;
   }
   case MC6809::ZEX16Implicit: {
-    // Same historical concern as ZEX32Implicit (bug #208 round 2): CLRAa
+    // Same historical concern as ZEX32Implicit (round 2): CLRAa
     // zeros AA leaving AB = src, so AD holds the correct (0:src) i16
     // — but if regalloc allocated the dst to a direct-page home the
     // result must be STD'd to it before downstream consumers read.
     //
-    // Bug #209 HD6309 leg / bug #211: on HD6309 the ACC16 register
+    // on HD6309 the ACC16 register
     // class includes BOTH AD and AW. If the regalloc places the dst
     // in AW (the HD6309 alternative 16-bit accumulator), CLRAa still
     // computes the value in AD — but AW is left holding stale data
@@ -3492,7 +3492,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     break;
   case MC6809::AddSetCarry_i8_Imm:
   case MC6809::AddSetCarry_i16_Imm:
-  // Bug #147: AddSetOverflow_* shares the AddSetCarry expansion (same
+  // AddSetOverflow_* shares the AddSetCarry expansion (same
   // ADDA/ADDB/ADDD instructions). The pseudo opcode is preserved only as
   // metadata for the selector's G_BRCOND-case V-vs-C dispatch; here we just lower to
   // the same MC instructions.
@@ -3501,11 +3501,11 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     expandImm(AddSetCarryImm, Builder, MI);
     break;
   case MC6809::AddSetCarryUse_i8_Imm:
-  case MC6809::AddSetOverflowUse_i8_Imm:    // bug #147
+  case MC6809::AddSetOverflowUse_i8_Imm:
     expandImm(AddCarryImm, Builder, MI);
     break;
   case MC6809::AddSetCarryUse_i16_Imm:
-  case MC6809::AddSetOverflowUse_i16_Imm:   // bug #147
+  case MC6809::AddSetOverflowUse_i16_Imm:
     expandCarryImm16(true, Builder, MI);
     break;
   case MC6809::Add_i8_MemIndirect:
@@ -3518,13 +3518,13 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::AddSetCarry_i16_Mem:
   case MC6809::AddSetCarry_i8_Sym:
   case MC6809::AddSetCarry_i16_Sym:
-  case MC6809::AddSetOverflow_i8_Mem:    // bug #147
+  case MC6809::AddSetOverflow_i8_Mem:
   case MC6809::AddSetOverflow_i16_Mem:
   case MC6809::AddSetOverflow_i8_Sym:
   case MC6809::AddSetOverflow_i16_Sym:
     expandIdxImm(AddIdxImm, Builder, MI);
     break;
-  // Bug #297: i32 ADD _Mem family — emit ADDW <off+2>; ADCD <off+0>.
+  // i32 ADD _Mem family — emit ADDW <off+2>; ADCD <off+0>.
   // AddSetCarry_i32_Mem and AddSetOverflow_i32_Mem share the emission
   // with Add_i32_Mem (same hardware instructions; the pseudo opcode is
   // preserved only as metadata for the CC.C / CC.V flag-chain tracker
@@ -3542,19 +3542,19 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     expandAddSub_i32_Sym(Builder, MI, /*IsAdd=*/true);
     break;
   case MC6809::AddSetCarryUse_i8_Mem:
-  case MC6809::AddSetOverflowUse_i8_Mem:    // bug #147
+  case MC6809::AddSetOverflowUse_i8_Mem:
   case MC6809::AddSetCarryUse_i8_Sym:
   case MC6809::AddSetOverflowUse_i8_Sym:
     expandIdxImm(AddCarryIdxImm, Builder, MI);
     break;
   case MC6809::AddSetCarryUse_i16_Mem:
-  case MC6809::AddSetOverflowUse_i16_Mem:   // bug #147
+  case MC6809::AddSetOverflowUse_i16_Mem:
   case MC6809::AddSetCarryUse_i16_Sym:
   case MC6809::AddSetOverflowUse_i16_Sym:
     expandCarryMem16(true, Builder, MI);
     break;
   case MC6809::Add_i8_Reg:
-  // Bug #221 Phase A: parallel A-half pseudo routes through the same
+  // parallel A-half pseudo routes through the same
   // helper. getByteOpcodes() picks A-half opcodes when RealLHS == AA
   // (which is enforced by the _RegA pseudo's AAc dst class),
   // so no helper change needed.
@@ -3563,23 +3563,23 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     expandAddReg(Builder, MI);
     break;
   case MC6809::AddSetCarry_i8_Reg:
-  case MC6809::AddSetCarry_i8_RegA:        // bug #221 Phase A
-  case MC6809::AddSetOverflow_i8_Reg:      // bug #147
-  case MC6809::AddSetOverflow_i8_RegA:     // bug #221 Phase A
+  case MC6809::AddSetCarry_i8_RegA:
+  case MC6809::AddSetOverflow_i8_Reg:
+  case MC6809::AddSetOverflow_i8_RegA:
     expandAddSetCarryByteReg(Builder, MI);
     break;
   case MC6809::AddSetCarry_i16_Reg:
-  case MC6809::AddSetOverflow_i16_Reg:   // bug #147
+  case MC6809::AddSetOverflow_i16_Reg:
     expandAddSetCarryReg(Builder, MI);
     break;
   case MC6809::AddSetCarryUse_i8_Reg:
-  case MC6809::AddSetCarryUse_i8_RegA:     // bug #221 Phase A
-  case MC6809::AddSetOverflowUse_i8_Reg:   // bug #147
-  case MC6809::AddSetOverflowUse_i8_RegA:  // bug #221 Phase A
+  case MC6809::AddSetCarryUse_i8_RegA:
+  case MC6809::AddSetOverflowUse_i8_Reg:
+  case MC6809::AddSetOverflowUse_i8_RegA:
     expandAddSetCarryUseByteReg(Builder, MI);
     break;
   case MC6809::AddSetCarryUse_i16_Reg:
-  case MC6809::AddSetOverflowUse_i16_Reg:   // bug #147
+  case MC6809::AddSetOverflowUse_i16_Reg:
     expandAddSetCarryUseReg(Builder, MI);
     break;
   case MC6809::Sub_i8_Imm:
@@ -3588,16 +3588,16 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     break;
   case MC6809::SubSetCarry_i8_Imm:
   case MC6809::SubSetCarry_i16_Imm:
-  case MC6809::SubSetOverflow_i8_Imm:    // bug #147
+  case MC6809::SubSetOverflow_i8_Imm:
   case MC6809::SubSetOverflow_i16_Imm:
     expandImm(SubSetCarryImm, Builder, MI);
     break;
   case MC6809::SubSetCarryUse_i8_Imm:
-  case MC6809::SubSetOverflowUse_i8_Imm:    // bug #147
+  case MC6809::SubSetOverflowUse_i8_Imm:
     expandImm(SubBorrowImm, Builder, MI);
     break;
   case MC6809::SubSetCarryUse_i16_Imm:
-  case MC6809::SubSetOverflowUse_i16_Imm:   // bug #147
+  case MC6809::SubSetOverflowUse_i16_Imm:
     expandCarryImm16(false, Builder, MI);
     break;
   case MC6809::Sub_i8_MemIndirect:
@@ -3610,13 +3610,13 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::SubSetCarry_i16_Mem:
   case MC6809::SubSetCarry_i8_Sym:
   case MC6809::SubSetCarry_i16_Sym:
-  case MC6809::SubSetOverflow_i8_Mem:    // bug #147
+  case MC6809::SubSetOverflow_i8_Mem:
   case MC6809::SubSetOverflow_i16_Mem:
   case MC6809::SubSetOverflow_i8_Sym:
   case MC6809::SubSetOverflow_i16_Sym:
     expandIdxImm(SubIdxImm, Builder, MI);
     break;
-  // Bug #297: i32 SUB _Mem family — emit SUBW <off+2>; SBCD <off+0>.
+  // i32 SUB _Mem family — emit SUBW <off+2>; SBCD <off+0>.
   case MC6809::Sub_i32_Mem:
   case MC6809::SubSetCarry_i32_Mem:
   case MC6809::SubSetOverflow_i32_Mem:
@@ -3629,51 +3629,51 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     expandAddSub_i32_Sym(Builder, MI, /*IsAdd=*/false);
     break;
   case MC6809::Sub_i8_Reg:
-  case MC6809::Sub_i8_RegA:                // bug #221 Phase A
+  case MC6809::Sub_i8_RegA:
     expandSubByteReg(Builder, MI);
     break;
   case MC6809::Sub_i16_Reg:
     expandSubReg(Builder, MI);
     break;
   case MC6809::SubSetCarry_i8_Reg:
-  case MC6809::SubSetCarry_i8_RegA:        // bug #221 Phase A
-  case MC6809::SubSetOverflow_i8_Reg:      // bug #147
-  case MC6809::SubSetOverflow_i8_RegA:     // bug #221 Phase A
+  case MC6809::SubSetCarry_i8_RegA:
+  case MC6809::SubSetOverflow_i8_Reg:
+  case MC6809::SubSetOverflow_i8_RegA:
     expandSubSetCarryByteReg(Builder, MI);
     break;
   case MC6809::SubSetCarry_i16_Reg:
-  case MC6809::SubSetOverflow_i16_Reg:   // bug #147
+  case MC6809::SubSetOverflow_i16_Reg:
     expandSubSetCarryReg(Builder, MI);
     break;
   case MC6809::SubSetCarryUse_i8_Mem:
-  case MC6809::SubSetOverflowUse_i8_Mem:    // bug #147
+  case MC6809::SubSetOverflowUse_i8_Mem:
   case MC6809::SubSetCarryUse_i8_Sym:
   case MC6809::SubSetOverflowUse_i8_Sym:
     expandIdxImm(SubBorrowIdxImm, Builder, MI);
     break;
   case MC6809::SubSetCarryUse_i16_Mem:
-  case MC6809::SubSetOverflowUse_i16_Mem:   // bug #147
+  case MC6809::SubSetOverflowUse_i16_Mem:
   case MC6809::SubSetCarryUse_i16_Sym:
   case MC6809::SubSetOverflowUse_i16_Sym:
     expandCarryMem16(false, Builder, MI);
     break;
   case MC6809::SubSetCarryUse_i8_Reg:
-  case MC6809::SubSetCarryUse_i8_RegA:     // bug #221 Phase A
-  case MC6809::SubSetOverflowUse_i8_Reg:   // bug #147
-  case MC6809::SubSetOverflowUse_i8_RegA:  // bug #221 Phase A
+  case MC6809::SubSetCarryUse_i8_RegA:
+  case MC6809::SubSetOverflowUse_i8_Reg:
+  case MC6809::SubSetOverflowUse_i8_RegA:
     expandSubSetCarryUseByteReg(Builder, MI);
     break;
   case MC6809::SubSetCarryUse_i16_Reg:
-  case MC6809::SubSetOverflowUse_i16_Reg:   // bug #147
+  case MC6809::SubSetOverflowUse_i16_Reg:
     expandSubSetCarryUseReg(Builder, MI);
     break;
-  // Bug #297: i32 pseudos that are dormant pre-legalizer-flip (commit 5).
+  // i32 pseudos that are dormant pre-legalizer-flip (commit 5).
   // Defined in MC6809InstrFamilies.td (commit 1) for completeness so the
   // multiclass instantiations are well-formed, but no MI emits them yet
   // and the corresponding expanders are stubs.  An llvm_unreachable here
   // catches a future selector arm that accidentally emits a variant
   // before its expander is filled in.
-  // Bug #297 commit 2.1: i32 ADD/SUB _Imm and _Reg now have expanders.
+  // i32 ADD/SUB _Imm and _Reg now have expanders.
   case MC6809::Add_i32_Imm:
   case MC6809::AddSetCarry_i32_Imm:
   case MC6809::AddSetOverflow_i32_Imm:
@@ -3694,7 +3694,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::SubSetOverflow_i32_Reg:
     expandAddSub_i32_Reg(Builder, MI, /*IsAdd=*/false);
     break;
-  // Bug #311 Phase 2 (2026-05-21): native HD6309 i32 ADD/SUB with
+  // native HD6309 i32 ADD/SUB with
   // carry-IN.  Used by the i32 G_*ADDE / G_*SUBE selector arms (see
   // selectAddE / selectSubE) once the legalizer rule for s32
   // carry-out chains is widened.
@@ -3764,7 +3764,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::CompareBranch_i16_Mem:
   case MC6809::CompareBranch_i8_MemIndirect:
   case MC6809::CompareBranch_i16_MemIndirect:
-  case MC6809::CompareBranch_ptr_Imm: // Bug #359: index-domain pointer compare.
+  case MC6809::CompareBranch_ptr_Imm: // index-domain pointer compare.
   case MC6809::CompareBranch_ptr_Reg: // index-domain reg-reg pointer compare.
   case MC6809::CompareBranch_ptr_Mem: // index-domain pointer-vs-memory compare.
   case MC6809::CompareBranch_i8_Sym:  // static-stack siblings
@@ -3773,7 +3773,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     wrapStagedCCSources(MI, [&] { expandFusedCompareBranch(Builder, MI); });
     break;
   case MC6809::CompareBranch_i32_Imm: {
-    // Bug #301 (2026-05-16): native HD6309 i32 fused compare-and-branch.
+    // native HD6309 i32 fused compare-and-branch.
     // Operand layout (per MC6809CompareBranchBase):
     //   op 0 = i8imm:$cc  (condcode)
     //   op 1 = ACC32:$src (LHS, in AQ post-RA)
@@ -3790,7 +3790,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     int64_t K = MI.getOperand(2).getImm();
     MachineBasicBlock *TgtMBB = MI.getOperand(3).getMBB();
 
-    // Bug #346: signed GT / LE consume BOTH Z and V (GT = Z==0 && N==V;
+    // signed GT / LE consume BOTH Z and V (GT = Z==0 && N==V;
     // LE = Z==1 || N!=V). The STQ Z-fix below sets Z from the full 32-bit
     // Q, but a store also CLEARS V — which would corrupt the N==V test the
     // signed conditions rely on. So GT/LE can't use that fix. Instead
@@ -3822,7 +3822,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     Builder.buildInstr(MC6809::SUBWi16).addImm(KLo);
     Builder.buildInstr(MC6809::SBCDi16).addImm(KHi);
 
-    // Step 2b: Bug #317 fix (2026-05-21).  SUBW+SBCD on i32 leaves
+    // Step 2b: SUBW+SBCD on i32 leaves
     // CC.C correctly reflecting the combined borrow, but CC.Z
     // reflects ONLY SBCD's result (i.e., the high half of Q being
     // zero), not the full 32-bit Q being zero.  For unsigned compare
@@ -3856,7 +3856,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
 
     // Step 3: LB<cc> $tgt — long conditional branch on the i32 result.
     // pickLBlbcVariant chooses LBlbc / LBlbc_NoC / LBlbc_OnlyC based
-    // on which CC flags the condcode actually consumes (Bug #206).
+    // on which CC flags the condcode actually consumes.
     Builder.buildInstr(pickLBlbcVariant(CC))
         .addImm(CC)
         .addMBB(TgtMBB);
@@ -3864,7 +3864,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     return true;
   }
   case MC6809::CompareSet_i8_i32_Imm: {
-    // Bug #301 (2026-05-16): native HD6309 i32 compare-and-set.
+    // native HD6309 i32 compare-and-set.
     // Operand layout (per pseudo def in MC6809InstrFamilies.td):
     //   op 0 = ACC8:$dst (the 0/1 byte result)
     //   op 1 = condcode:$cc
@@ -3879,7 +3879,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     Register SrcReg = MI.getOperand(2).getReg();
     int64_t K = MI.getOperand(3).getImm();
 
-    // Bug #346: signed GT/LE consume both Z and V, but the STQ Z-fix below
+    // signed GT/LE consume both Z and V, but the STQ Z-fix below
     // clears V. Rewrite them to GE/LT against K+1 (V/N-only, no Z fix),
     // mirroring CompareBranch_i32_Imm. INT32_MAX edge: K+1 would wrap, so
     // materialise the constant result directly (x >s MAX = 0; x <=s MAX = 1).
@@ -3911,7 +3911,7 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     Builder.buildInstr(MC6809::SUBWi16).addImm(KLo);
     Builder.buildInstr(MC6809::SBCDi16).addImm(KHi);
 
-    // Bug #346: SUBW/SBCD leave CC.Z reflecting only the high 16 bits.
+    // SUBW/SBCD leave CC.Z reflecting only the high 16 bits.
     // Predicates that read Z (EQ/NE/LS/HI — GT/LE were rewritten above to
     // GE/LT, which read only N/V) need a correct full-32 Z. STQ-to-scratch
     // sets N/Z from the full 32-bit Q and leaves C; V is cleared but these
@@ -4195,7 +4195,7 @@ int MC6809InstrInfo::offsetSizeInBits(MachineOperand &OffsetOp) {
   return offsetSizeInBitsForValue(Offset);
 }
 
-// Bug #149 Phase 1: shrink an indexed-immediate opcode to its narrowest
+// shrink an indexed-immediate opcode to its narrowest
 // valid form for the given offset. Iterates the eight (Reg, OffsetLen)
 // → Opcode tables; for any table containing CurrentOpcode at some
 // (Reg, CurLen), tries CandidateLen in {0, 5, 8} (each only if it both
@@ -4310,7 +4310,7 @@ void MC6809InstrInfo::expandLEAPtrAdd(MachineIRBuilder &Builder, MachineInstr &M
     llvm_unreachable("Unknown offset type for LEAPtrAdd");
   }
 
-  // Bug #365: setDesc swapped the opcode but does NOT materialise the new
+  // setDesc swapped the opcode but does NOT materialise the new
   // opcode's implicit operands, so the implicit-def $z that LEAX/LEAY declare
   // (Defs = [I?, Z]) was dropped — leaving flag-liveness blind to the hardware
   // Z-clobber. Re-add it. LEAS/LEAU declare no Z in their Defs, so gating on
@@ -4353,7 +4353,7 @@ void MC6809InstrInfo::expandImm(ContextImmediate Context, MachineIRBuilder &Buil
     Val = ValOp.isImm() ? ValOp.getImm() : ValOp.getCImm()->getSExtValue();
   else
     llvm_unreachable("Unable to determine immediate value");
-  // Bug #272 Phase B Scope A followup: AND with 0 is an annihilator, not an
+  // AND with 0 is an annihilator, not an
   // identity — `X & 0 == 0` regardless of X.  ANDA/ANDB #0 emits an
   // implicit USE of $aa / $ab that the post-Scope-A/B/C verifier can flag
   // as undef-reading (because the dst's prior value isn't actually
@@ -4364,7 +4364,7 @@ void MC6809InstrInfo::expandImm(ContextImmediate Context, MachineIRBuilder &Buil
   if (Context.Opcode == &ANDImmediateOpcode && Val == 0) {
     unsigned ClrOpc = 0;
     switch (DestReg) {
-    // Bug #311 Phase 1 step 1.5: *LSB physregs retired.
+    // *LSB physregs retired.
     case MC6809::AA: ClrOpc = MC6809::CLRAa; break;
     case MC6809::AB: ClrOpc = MC6809::CLRBa; break;
     case MC6809::AE: ClrOpc = MC6809::CLREa; break;
@@ -4394,7 +4394,7 @@ void MC6809InstrInfo::expandImm(ContextImmediate Context, MachineIRBuilder &Buil
       // page-3 sub-registers (E/F/W). When regalloc picks AE/AF/AW for one
       // of those ops, route through the corresponding page-1 register via
       // an EXG bracket. AE↔AA (byte halves of AW), AF↔AB likewise; AW↔AD
-      // for the 16-bit case that was already handled. Bug #161.
+      // for the 16-bit case that was already handled.
       Register CheatReg = MC6809::NoRegister;
       switch (DestReg) {
       case MC6809::AE: CheatReg = MC6809::AA; break;
@@ -4405,7 +4405,7 @@ void MC6809InstrInfo::expandImm(ContextImmediate Context, MachineIRBuilder &Buil
       if (CheatReg != MC6809::NoRegister) {
         OpcodePair = Context.Opcode->find(CheatReg);
         assert((OpcodePair != Context.Opcode->end()) && "Cheat-target register lacks an immediate-form opcode");
-        // Bug #161 round 6: emit the EXG-cheat as plain serial MIs (no
+        // emit the EXG-cheat as plain serial MIs (no
         // BUNDLE wrap). The original AW-only path used finalizeBundle
         // for atomicity, but that diverges MachineBasicBlock::size()
         // (instr-based) from the post-RA scheduler's bundle-aware
@@ -4413,7 +4413,7 @@ void MC6809InstrInfo::expandImm(ContextImmediate Context, MachineIRBuilder &Buil
         // assertion in PostRASchedulerList.cpp:341. The implicit-defs
         // of CheatReg / DestReg already chain the three MIs through
         // liveness without needing the bundle: nothing reorders them.
-        // Bug #271 cat-1: the cheat scratch register (AA / AB / AD)
+        // the cheat scratch register (AA / AB / AD)
         // holds no meaningful value before the first EXG — only DestReg
         // is live. Mark the scratch read as RegState::Undef so the
         // verifier doesn't flag it as "Using an undefined physical
@@ -4521,7 +4521,7 @@ void MC6809InstrInfo::expandIdxImm(ContextIndexImmediate Context, MachineIRBuild
       assert((OpcodePair != Context.Opcode->end()) && "This should not be reached! We have the D register available.");
       MachineBasicBlock &MBB = *MI.getParent();
       MachineBasicBlock::iterator B, E;
-      // Bug #271 cat-1: AD is the cheat-scratch register here, holding
+      // AD is the cheat-scratch register here, holding
       // no meaningful value before the first EXG. Mark the AD read Undef
       // so the verifier doesn't flag it. After the first EXG + the
       // indexed op, DestReg is the scratch side; mark its read Undef
@@ -4536,7 +4536,7 @@ void MC6809InstrInfo::expandIdxImm(ContextIndexImmediate Context, MachineIRBuild
         I.dump();
       });
     } else if (DestReg == MC6809::AE || DestReg == MC6809::AF) {
-      // Bug #382: HD6309 E/F have no indexed memory-arith encoding (the IdxImm
+      // HD6309 E/F have no indexed memory-arith encoding (the IdxImm
       // map has only A/B/D), so a byte _Mem/_Pull op whose tied accumulator
       // regalloc placed in E/F would otherwise be unselectable. Stage through B:
       // copy E/F->B, do the B-form indexed op, copy B->E/F. COPY (not EXG) never
@@ -4597,7 +4597,7 @@ void MC6809InstrInfo::expandCarryImm16(bool IsAdd, MachineIRBuilder &Builder,
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   if (STI.has6309()) {
     // 6309 has ADCD/SBCD — use the carry-chain members which have
-    // NeverSkip=true (bug #93 structural cleanup).
+    // NeverSkip=true (structural cleanup).
     expandImm(IsAdd ? AddCarryImm : SubBorrowImm, Builder, MI);
     return;
   }
@@ -4699,7 +4699,7 @@ void MC6809InstrInfo::expandCarryMem16(bool IsAdd, MachineIRBuilder &Builder,
   MI.eraseFromParent();
 }
 
-// Bug #297 (2026-05-15) commit 2/6: native HD6309 i32 ADD/SUB, _Mem form.
+// native HD6309 i32 ADD/SUB, _Mem form.
 //
 // Pseudo shape (from MC6809Arithmetic / MC6809ArithmeticCarry):
 //   %dst:ACC32 = Add_i32_Mem %src:ACC32(tied), INDEX16:$idx, unknown:$offset
@@ -4716,7 +4716,7 @@ void MC6809InstrInfo::expandCarryMem16(bool IsAdd, MachineIRBuilder &Builder,
 //                          ; ADDW.
 //
 // SubSetCarry_i32 and SubSetOverflow_i32 share the same emission as
-// Sub_i32 (mirrors the bug #147 sharing of AddSetCarry vs AddSetOverflow
+// Sub_i32 (mirrors the sharing of AddSetCarry vs AddSetOverflow
 // for the i8/i16 dispatch — same hardware instructions; the pseudo
 // opcode is preserved only as metadata for the CC.C / CC.V flag-chain
 // tracker).
@@ -4726,7 +4726,7 @@ void MC6809InstrInfo::expandAddSub_i32_Mem(MachineIRBuilder &Builder,
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   (void)STI;
   assert(STI.has6309() &&
-         "Bug #297: i32 ADD/SUB expansion is HD6309-only");
+         "i32 ADD/SUB expansion is HD6309-only");
 
   Register DestReg = MI.getOperand(0).getReg();
   Register OrigDest = DestReg;
@@ -4738,13 +4738,13 @@ void MC6809InstrInfo::expandAddSub_i32_Mem(MachineIRBuilder &Builder,
   // post-Phase-B-revert (AQc is still `{AQ}`), but ACC32 itself
   // is just {AQ} since the SPILL_Q retirement.
   assert(DestReg == MC6809::AQ &&
-         "Bug #297: i32 ADD/SUB requires AQ for the ALU-side operations");
+         "i32 ADD/SUB requires AQ for the ALU-side operations");
 
   // Operand layout for _Mem (after the tied $dst=$src pair which counts
   // as one explicit operand):
   //   op 0: $dst (def-use, tied — ACC32)
   //   op 1: $idx (INDEX16 register)
-  //   op 2: $offset (immediate, possibly CImm — see Bug #272 Phase B
+  //   op 2: $offset (immediate, possibly CImm — see the
   //                  CImm-vs-Imm note in expandStoreIdx/Load_i32_Mem).
   unsigned NumOps = MI.getNumExplicitOperands();
   Register IndexReg = MI.getOperand(NumOps - 2).getReg();
@@ -4766,7 +4766,7 @@ void MC6809InstrInfo::expandAddSub_i32_Mem(MachineIRBuilder &Builder,
   auto LowLookup = LowMap.find({MC6809::AW, OffsetLoSize});
   auto HighLookup = HighMap.find({MC6809::AD, OffsetHiSize});
   assert(LowLookup != LowMap.end() && HighLookup != HighMap.end() &&
-         "Bug #297: missing ADDW/ADCD/SUBW/SBCD opcode entry");
+         "missing ADDW/ADCD/SUBW/SBCD opcode entry");
 
   auto LowInstr =
       Builder.buildInstr(LowLookup->getSecond())
@@ -4843,7 +4843,7 @@ void MC6809InstrInfo::expandAddSub_i32_Sym(MachineIRBuilder &Builder,
   MI.eraseFromParent();
 }
 
-// Bug #297 commit 2.1/6 (2026-05-15): native HD6309 i32 ADD/SUB, _Imm form.
+// native HD6309 i32 ADD/SUB, _Imm form.
 //
 // Pseudo shape:
 //   %dst:ACC32 = Add_i32_Imm %src:ACC32(tied), i32imm:$val
@@ -4862,7 +4862,7 @@ void MC6809InstrInfo::expandAddSub_i32_Imm(MachineIRBuilder &Builder,
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   (void)STI;
   assert(STI.has6309() &&
-         "Bug #297: i32 ADD/SUB expansion is HD6309-only");
+         "i32 ADD/SUB expansion is HD6309-only");
 
   Register DestReg = MI.getOperand(0).getReg();
   Register OrigDest = DestReg;
@@ -4870,7 +4870,7 @@ void MC6809InstrInfo::expandAddSub_i32_Imm(MachineIRBuilder &Builder,
   if (needsMaterialization(DestReg))
     DestReg = materializeReg(Builder, DestReg, MF);
   assert(DestReg == MC6809::AQ &&
-         "Bug #297: i32 ADD/SUB Imm requires AQ for the ALU-side ops");
+         "i32 ADD/SUB Imm requires AQ for the ALU-side ops");
 
   unsigned NumOps = MI.getNumExplicitOperands();
   MachineOperand ValOp = MI.getOperand(NumOps - 1);
@@ -4886,7 +4886,7 @@ void MC6809InstrInfo::expandAddSub_i32_Imm(MachineIRBuilder &Builder,
   auto &HighMap = IsAdd ? AddCarryImmediateOpcode : SubBorrowImmediateOpcode;
   auto HighLookup = HighMap.find({MC6809::AD});
   assert(LowLookup != LowMap.end() && HighLookup != HighMap.end() &&
-         "Bug #297: missing ADDW/ADCD/SUBW/SBCD immediate opcode entry");
+         "missing ADDW/ADCD/SUBW/SBCD immediate opcode entry");
 
   Builder.buildInstr(LowLookup->getSecond())
       .addDef(MC6809::AW, RegState::Implicit)
@@ -4900,7 +4900,7 @@ void MC6809InstrInfo::expandAddSub_i32_Imm(MachineIRBuilder &Builder,
   MI.eraseFromParent();
 }
 
-// Bug #311 Phase 2 (2026-05-21): native HD6309 i32 ADD/SUB carry-USE
+// native HD6309 i32 ADD/SUB carry-USE
 // variant, _Imm form.  Same shape as expandAddSub_i32_Imm above but
 // the LOW half consumes CC.C as carry-in.
 //
@@ -4928,7 +4928,7 @@ void MC6809InstrInfo::expandAddSubCarryUse_i32_Imm(
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   (void)STI;
   assert(STI.has6309() &&
-         "Bug #311 Phase 2: i32 carry-use expansion is HD6309-only");
+         "i32 carry-use expansion is HD6309-only");
 
   Register DestReg = MI.getOperand(0).getReg();
 
@@ -4941,7 +4941,7 @@ void MC6809InstrInfo::expandAddSubCarryUse_i32_Imm(
   int Hi   = int((Val >> 16) & 0xFFFF);
 
   assert(DestReg == MC6809::AQ &&
-         "Bug #311 Phase 2: i32 carry-use Imm requires AQ for the ALU ops");
+         "i32 carry-use Imm requires AQ for the ALU ops");
   (void)DestReg;
 
   // EXG D,W — swap; CC.C survives.
@@ -4966,7 +4966,7 @@ void MC6809InstrInfo::expandAddSubCarryUse_i32_Imm(
   auto &HighMap = IsAdd ? AddCarryImmediateOpcode : SubBorrowImmediateOpcode;
   auto HighLookup = HighMap.find({MC6809::AD});
   assert(HighLookup != HighMap.end() &&
-         "Bug #311 Phase 2: missing ADCD/SBCD immediate opcode entry");
+         "missing ADCD/SBCD immediate opcode entry");
   Builder.buildInstr(HighLookup->getSecond())
       .addDef(MC6809::AD, RegState::Implicit)
       .addImm(Hi);
@@ -4974,7 +4974,7 @@ void MC6809InstrInfo::expandAddSubCarryUse_i32_Imm(
   MI.eraseFromParent();
 }
 
-// Bug #311 Phase 2: native HD6309 i32 carry-USE _Mem form.
+// native HD6309 i32 carry-USE _Mem form.
 //
 // Same EXG-D,W shape as the _Imm Use form, but the four 16-bit halves
 // of "value" come from memory bytes at offset+3, offset+2, offset+0
@@ -4990,7 +4990,7 @@ void MC6809InstrInfo::expandAddSubCarryUse_i32_Mem(
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   (void)STI;
   assert(STI.has6309() &&
-         "Bug #311 Phase 2: i32 carry-use expansion is HD6309-only");
+         "i32 carry-use expansion is HD6309-only");
 
   Register DestReg = MI.getOperand(0).getReg();
 
@@ -5011,7 +5011,7 @@ void MC6809InstrInfo::expandAddSubCarryUse_i32_Mem(
   int OffHiSize = offsetSizeInBitsForValue(OffHi);
 
   assert(DestReg == MC6809::AQ &&
-         "Bug #311 Phase 2: i32 carry-use Mem requires AQ for the ALU ops");
+         "i32 carry-use Mem requires AQ for the ALU ops");
   (void)DestReg;
 
   Builder.buildInstr(MC6809::EXGp)
@@ -5025,7 +5025,7 @@ void MC6809InstrInfo::expandAddSubCarryUse_i32_Mem(
   assert(LowLowLookup != ByteCarryMap.end() &&
          LowHighLookup != ByteCarryMap.end() &&
          HighLookup != ByteCarryMap.end() &&
-         "Bug #311 Phase 2: missing ADC[B/A/D] / SBC[B/A/D] indexed entry");
+         "missing ADC[B/A/D] / SBC[B/A/D] indexed entry");
 
   auto Emit = [&](unsigned Opc, MCPhysReg Reg, int Off, int OffSize) {
     auto Inst = Builder.buildInstr(Opc).addDef(Reg, RegState::Implicit);
@@ -5046,9 +5046,9 @@ void MC6809InstrInfo::expandAddSubCarryUse_i32_Mem(
   MI.eraseFromParent();
 }
 
-// Bug #311 Phase 2: native HD6309 i32 carry-USE _Reg form.
+// native HD6309 i32 carry-USE _Reg form.
 //
-// Same emergency-slot pattern as expandAddSub_i32_Reg (Bug #298): save
+// Same emergency-slot pattern as expandAddSub_i32_Reg: save
 // $aq to a hard-stack scratch slot, then read $src2's OLD value via
 // S-relative memory while mutating $aq in place. With ACC32 = {AQ},
 // dst, src1 (tied) and src2 all live in $aq post-RA — the scratch slot
@@ -5061,11 +5061,11 @@ void MC6809InstrInfo::expandAddSubCarryUse_i32_Reg(
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   (void)STI;
   assert(STI.has6309() &&
-         "Bug #311 Phase 2: i32 carry-use expansion is HD6309-only");
+         "i32 carry-use expansion is HD6309-only");
 
   Register DestReg = MI.getOperand(0).getReg();
   assert(DestReg == MC6809::AQ &&
-         "Bug #311 Phase 2: i32 carry-use Reg requires AQ for the ALU ops");
+         "i32 carry-use Reg requires AQ for the ALU ops");
   (void)DestReg;
 
   auto Body = [&]() {
@@ -5085,7 +5085,7 @@ void MC6809InstrInfo::expandAddSubCarryUse_i32_Reg(
     assert(LowLowLookup != ByteCarryMap.end() &&
            LowHighLookup != ByteCarryMap.end() &&
            HighLookup != ByteCarryMap.end() &&
-           "Bug #311 Phase 2: missing ADC[B/A/D] / SBC[B/A/D] indexed entry");
+           "missing ADC[B/A/D] / SBC[B/A/D] indexed entry");
 
     auto Emit = [&](unsigned Opc, MCPhysReg Reg, int Off, int OffSize) {
       auto Inst = Builder.buildInstr(Opc).addDef(Reg, RegState::Implicit);
@@ -5109,7 +5109,7 @@ void MC6809InstrInfo::expandAddSubCarryUse_i32_Reg(
   MI.eraseFromParent();
 }
 
-// Bug #297 commit 2.1/6 (2026-05-15): native HD6309 i32 ADD/SUB, _Reg form.
+// native HD6309 i32 ADD/SUB, _Reg form.
 //
 // Pseudo shape:
 //   %dst:ACC32 = Add_i32_Reg %src:ACC32(tied), %src2:ACC32
@@ -5126,7 +5126,7 @@ void MC6809InstrInfo::expandAddSubCarryUse_i32_Reg(
 //   2. Emit ADDW <2>,S / ADCD <0>,S (or SUBW/SBCD) against the slot.
 //   3. Release the emergency slot via `LEAS 4,S`.
 //
-// Bug #298 fix 2026-05-15: the previous implementation used
+// the previous implementation used
 // `MFI.CreateStackObject` + `getObjectOffset` to allocate the emergency
 // slot.  That's broken because expandPostRAPseudo runs AFTER PEI — the
 // freshly-created stack object never gets laid out, so getObjectOffset
@@ -5148,11 +5148,11 @@ void MC6809InstrInfo::expandAddSub_i32_Reg(MachineIRBuilder &Builder,
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   (void)STI;
   assert(STI.has6309() &&
-         "Bug #297: i32 ADD/SUB expansion is HD6309-only");
+         "i32 ADD/SUB expansion is HD6309-only");
 
   Register DestReg = MI.getOperand(0).getReg();
   assert(DestReg == MC6809::AQ &&
-         "Bug #297: i32 ADD/SUB Reg requires AQ for the ALU-side ops");
+         "i32 ADD/SUB Reg requires AQ for the ALU-side ops");
   (void)DestReg;
 
   // The body of the helper saves $aq into a 4-byte hard-stack scratch
@@ -5168,7 +5168,7 @@ void MC6809InstrInfo::expandAddSub_i32_Reg(MachineIRBuilder &Builder,
     auto LowLookup = LowMap.find({MC6809::AW, Src2OffLoSize});
     auto HighLookup = HighMap.find({MC6809::AD, Src2OffHiSize});
     assert(LowLookup != LowMap.end() && HighLookup != HighMap.end() &&
-           "Bug #297: missing ADDW/ADCD/SUBW/SBCD opcode entry");
+           "missing ADDW/ADCD/SUBW/SBCD opcode entry");
 
     auto LowInstr =
         Builder.buildInstr(LowLookup->getSecond())
@@ -5218,7 +5218,7 @@ void MC6809InstrInfo::expandBitwiseImm16(ContextImmediate Context, unsigned OpcA
   int Val = ValOp.isImm() ? ValOp.getImm() : ValOp.getCImm()->getSExtValue();
   int Lo = Val & 0xFF;
   int Hi = (Val >> 8) & 0xFF;
-  // Bug #272 Phase B Scope A followup: AND with 0 is an annihilator; emit
+  // AND with 0 is an annihilator; emit
   // CLRA/CLRB instead of ANDA/ANDB #0 to avoid the implicit USE of the
   // accumulator (which the post-Scope-A/B/C verifier flags as undef-read
   // when the byte's value isn't reachable on all paths).
@@ -5587,7 +5587,7 @@ void MC6809InstrInfo::expandRotate(MachineIRBuilder &Builder, MachineInstr &MI, 
     break;
   }
   MI.setDesc(Builder.getTII().get(Opcode));
-  // Bug #271 (category 4): same off-by-one as expandShiftLeft /
+  // same off-by-one as expandShiftLeft /
   // expandShiftRight. ROL_i8 / ROR_i8 use MC6809Shift<ACC8_AB> too,
   // i.e. (outs reg:$dst), (ins reg:$src, i8imm:$val) — three explicit
   // operands. Remove operand 2 (the i8imm shift count) first.
@@ -5633,7 +5633,7 @@ void MC6809InstrInfo::expandMulD(MachineIRBuilder &Builder, MachineInstr &MI) co
 }
 
 void MC6809InstrInfo::expandMul16Imm(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  // Bug #161 round 14: dst class widened from AWc to ACC16. After MULD
+  // dst class widened from AWc to ACC16. After MULD
   // the result lives in AW; copy out to dst if dst != AW.
   Register Dst = MI.getOperand(0).getReg();
   auto ValueOp = MI.getOperand(2);
@@ -5660,7 +5660,7 @@ void MC6809InstrInfo::expandMulH16Imm(MachineIRBuilder &Builder, MachineInstr &M
 }
 
 void MC6809InstrInfo::expandMul16IdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  // Bug #161 round 14: dst class widened from AWc to ACC16. Same TFR-out
+  // dst class widened from AWc to ACC16. Same TFR-out
   // fixup as expandMul16Imm.
   Register Dst = MI.getOperand(0).getReg();
   auto IndexReg = MI.getOperand(2).getReg();
@@ -5765,7 +5765,7 @@ void MC6809InstrInfo::expandMul16IdxReg(MachineIRBuilder &Builder, MachineInstr 
     Opcode = MC6809::MULDi_oW;
     break;
   }
-  // Bug #161 round 14: dst class widened from AWc to ACC16. Same TFR-out
+  // dst class widened from AWc to ACC16. Same TFR-out
   // fixup as expandMul16Imm.
   Register Dst = MI.getOperand(0).getReg();
   Builder.buildInstr(Opcode)
@@ -5783,7 +5783,7 @@ void MC6809InstrInfo::expandMulH16IdxReg(MachineIRBuilder &Builder, MachineInstr
 }
 
 void MC6809InstrInfo::expandMul16Reg(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  // Bug #161 round 14: dst class widened from AWc to ACC16 so back-to-back
+  // dst class widened from AWc to ACC16 so back-to-back
   // multiplies in i64 chains don't all collide on AW. After MULD the
   // result is physically in AW; if the regalloc-assigned dst is anything
   // else (AD, an RS imag reg, etc.) emit a TFR W,<dst> via
@@ -5814,7 +5814,7 @@ void MC6809InstrInfo::expandMul16Reg(MachineIRBuilder &Builder, MachineInstr &MI
 }
 
 void MC6809InstrInfo::expandMulH16Reg(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  // Bug #161: i16 mulh — high-16 of (D)*(src2) on HD6309. Same expansion
+  // i16 mulh — high-16 of (D)*(src2) on HD6309. Same expansion
   // as expandMul16Reg (push the register operand, MULD ,S++); MULD
   // natively places the high half in D and the low half in W. The
   // pseudo's `Defs = [NZ, AW]` already lists W as clobbered, so the
@@ -6358,18 +6358,18 @@ void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI
   auto IndexRegOp = MI.getOperand(1);
   auto OffsetOp = MI.getOperand(2);
 
-  // Bug #272 Phase B Scope A followup: probe true liveness of the source
+  // probe true liveness of the source
   // register at this MI. If it isn't definitely live (LQR_Live), mark the
   // expanded implicit-use Undef so the verifier accepts the read. The
   // accumulator-hierarchy Defs cleanup (Scope A/B/C) made regalloc more
   // aggressive about sub-register packing, surfacing cases where a vreg
   // assigned to (e.g.) $aa appears in a spill store after the byte's value
   // has been killed via super-reg containment — the verifier sees a bare
-  // `implicit $aa` and trips.  Same Undef-protection shape as Bug #275 /
+  // `implicit $aa` and trips.  Same Undef-protection shape as
   // the MS-pass fix at the save-emission sites, applied at the expansion
   // layer so it also covers regalloc-emitted spills (not just MS-pass
   // saves).
-  // Bug #272 Phase B Scope A followup: probe true liveness of the source
+  // probe true liveness of the source
   // operand using a LivePhysRegs walk from MBB.begin() — matches the
   // analysis the post-RA verifier uses.  computeRegisterLiveness with a
   // bounded neighborhood mis-classifies cases where the search window
@@ -6461,7 +6461,7 @@ void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI
 
 // Forward declarations for 6809 register-to-memory helpers.
 //
-// Bug #122 / #130: every caller MUST pass the `_o16` opcode explicitly.
+// every caller MUST pass the `_o16` opcode explicitly.
 // A `0` `_o16` silently falls back to the `_o8` form inside the helpers,
 // which wraps offsets >127 to negative — a wrong-code class of bug. The
 // parameter is required (no default) so the compiler refuses any new
@@ -6624,7 +6624,7 @@ void MC6809InstrInfo::expandAddReg(MachineIRBuilder &Builder, MachineInstr &MI) 
 // ($nz) and op5 ($v). It is critically important not to confuse
 // op3 (the real src2) with op4 (an implicit-def $nz).
 //
-// Bug #64
+// Operand-index pitfall
 // -------
 // Earlier code here used `MI.getOperand(4)` for src2 — that was
 // the implicit-def $nz, not src2. The result was a passed-as-RHS
@@ -6634,7 +6634,7 @@ void MC6809InstrInfo::expandAddReg(MachineIRBuilder &Builder, MachineInstr &MI) 
 // has 5 operands and op4 IS its src2 — the bug came from copying
 // the Use-variant code without adjusting the index. Fixed.
 void MC6809InstrInfo::expandAddSetCarryReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  // Bug #186 v5: pseudo operand layout shifted (no carry-out at op 1).
+  // pseudo operand layout shifted (no carry-out at op 1).
   // New layout: dst (op 0), src tied (op 1), src2 (op 2).
   // CC.C/V write is implicit via Defs=[NZ,V,C].
   assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg() && "Dest and Source must be same for AddSetCarryReg");
@@ -6658,11 +6658,11 @@ void MC6809InstrInfo::expandAddSetCarryReg(MachineIRBuilder &Builder, MachineIns
 // but uses emit6809RegByteFromMem instead of emit6809RegPairFromMem.
 /// Determine the correct A or B opcode variant for a byte-level
 /// carry chain operation based on which accumulator the LHS maps to,
-/// including the `_o16` variant for large frame offsets (bug #122).
+/// including the `_o16` variant for large frame offsets.
 ///
 /// Every `expand*Reg` expansion that emits via `emit6809RegByteFromMem`
 /// MUST route the opcode pick through this helper — hardcoding `B`
-/// variants is silently wrong when the LHS maps to AA (bug #130).
+/// variants is silently wrong when the LHS maps to AA.
 static void getByteOpcodes(Register LHS,
                            unsigned OpcA_o8, unsigned OpcB_o8,
                            unsigned OpcA_o5, unsigned OpcB_o5,
@@ -6670,14 +6670,14 @@ static void getByteOpcodes(Register LHS,
                            unsigned &Opc_o8, unsigned &Opc_o5,
                            unsigned &Opc_o16) {
   Register RealLHS = needsMaterialization(LHS) ? getPhysRegFor(LHS) : LHS;
-  // Bug #311 Phase 1 step 1.5: AALSB retired.
+  // AALSB retired.
   bool UseA = (RealLHS == MC6809::AA);
   Opc_o8 = UseA ? OpcA_o8 : OpcB_o8;
   Opc_o5 = UseA ? OpcA_o5 : OpcB_o5;
   Opc_o16 = UseA ? OpcA_o16 : OpcB_o16;
 }
 
-// Bug #186 v5: all SetCarry/SetCarryUse expansions migrate to the new
+// all SetCarry/SetCarryUse expansions migrate to the new
 // operand layout (no explicit carry operand). Layouts:
 //   SetCarry:    op 0 = dst, op 1 = src tied, op 2 = src2
 //   SetCarryUse: op 0 = dst, op 1 = src tied, op 2 = src2  (carry-in
@@ -6965,7 +6965,7 @@ static void emit6809RegByteFromMem(MachineIRBuilder &Builder,
                                    unsigned Opc_o8, unsigned Opc_o5,
                                    unsigned Opc_o16) {
   assert(Opc_o16 != 0 &&
-         "emit6809RegByteFromMem: _o16 opcode is required (bug #122/#130). "
+         "emit6809RegByteFromMem: _o16 opcode is required. "
          "A 0 here silently falls back to _o8 and wraps offsets >127 to "
          "negative. Pass the correct *i_o16 variant explicitly.");
   MachineFunction &MF = Builder.getMF();
@@ -6973,7 +6973,7 @@ static void emit6809RegByteFromMem(MachineIRBuilder &Builder,
   Register RealLHS = needsMaterialization(LHS) ? getPhysRegFor(LHS) : LHS;
   // The accumulator half (A or B) is determined by where LHS lives.
   // Imag8-A maps to AA; Imag8-B maps to AB.
-  // Bug #311 Phase 1 step 1.5: AALSB retired.
+  // AALSB retired.
   Register AccReg = (RealLHS == MC6809::AA) ? MC6809::AA : MC6809::AB;
   // An imaginary/spill LHS stages through AccReg, which the pseudo does
   // not declare and regalloc may have left live -- preserve it for the
@@ -7019,12 +7019,12 @@ static void emit6809RegByteFromMem(MachineIRBuilder &Builder,
         .addImm(1).addReg(MC6809::SS);
   } else {
     // Path (b): PSHS RealRHS; op 0,S; LEAS 1,S.
-    // Stage 5 of MC6809PostRASpillOpt (bug #185) folds this triple to
+    // Stage 5 of MC6809PostRASpillOpt folds this triple to
     // PSHS RealRHS; op ,S+ — saving the LEAS at any optimisation level
     // where the pass fires.  Using the stack avoids the __scratch DP byte.
     if (needsMaterialization(RHS))
       RealRHS = materializeReg(Builder, RHS, MF);
-    // Bug #161 round 11: AE / AF (HD6309 byte sub-regs of AW) can't be
+    // AE / AF (HD6309 byte sub-regs of AW) can't be
     // pushed by page-1 PSHS. Use page-2 PSHSWx which pushes W (E:F)
     // as 2 bytes (E at 0,S, F at 1,S, big-endian). For AE the op reads
     // 0,S; for AF it reads 1,S. LEAS pops 2 bytes either way.
@@ -7064,7 +7064,7 @@ static void emit6809RegByteFromMem(MachineIRBuilder &Builder,
 /// The carry from the low byte propagates to the high byte via the
 /// processor's CC.C flag — meaning NOTHING that touches CC may be
 /// scheduled between the two halves. (This is the structural fragility
-/// behind bug #57.) The expansion here is straight-line; downstream
+/// of this two-instruction group.) The expansion here is straight-line; downstream
 /// passes don't reorder these instructions because they're emitted as
 /// a contiguous group.
 ///
@@ -7093,7 +7093,7 @@ static void emit6809RegPairFromMem(MachineIRBuilder &Builder,
                                    unsigned OpcB_o16,
                                    unsigned OpcA_o16) {
   assert(OpcB_o16 != 0 && OpcA_o16 != 0 &&
-         "emit6809RegPairFromMem: _o16 opcodes are required (bug #122/#130). "
+         "emit6809RegPairFromMem: _o16 opcodes are required. "
          "A 0 here silently falls back to _o8 and wraps offsets >127 to "
          "negative. Pass the correct *i_o16 variants explicitly.");
   MachineFunction &MF = Builder.getMF();
@@ -7113,7 +7113,7 @@ static void emit6809RegPairFromMem(MachineIRBuilder &Builder,
   if (RHS.isPhysical() && MC6809::Imag16RegClass.contains(RHS)) {
     // Path (b-dp): RHS lives at a fixed direct-page address -- read its
     // bytes straight from memory (lo first so CC.C chains into the hi).
-    // No staging register is touched, so this also avoids the Bug #242
+    // No staging register is touched, so this also avoids the
     // mirror hazard: materializing an imaginary RHS through AD would
     // destroy a real LHS already living there.
     if (needsMaterialization(LHS))
@@ -7127,7 +7127,7 @@ static void emit6809RegPairFromMem(MachineIRBuilder &Builder,
   } else {
     // Path (b): push RHS onto S, operate from 0,s and 1,s, then LEAS.
     //
-    // Bug #242: we MUST push RHS BEFORE materializing LHS. If LHS is a
+    // we MUST push RHS BEFORE materializing LHS. If LHS is a
     // spill (needs LDD into AD) and RHS == $ad (the typical case for
     // ALU16 ops where the regalloc kept one operand in AD and spilled
     // the other), the LHS materialization clobbers AD — so RHS's value
@@ -7138,12 +7138,12 @@ static void emit6809RegPairFromMem(MachineIRBuilder &Builder,
     if (needsMaterialization(RHS))
       RealRHS = materializeReg(Builder, RHS, MF);
 
-    // Bug #161 round 11: page-1 PSHS doesn't accept the HD6309 W
+    // page-1 PSHS doesn't accept the HD6309 W
     // register. Use the page-2 PSHSWx (which pushes W = E:F as 2 bytes
     // onto SS, big-endian: E at offset 0, F at offset 1) when RealRHS
     // is AW. Same stack layout as `PSHS D` (A at 0, B at 1) so the
     // downstream OpcA/OpcB at 0,S and 1,S reads work unchanged.
-    // Bug #65: see emit6809RegByteFromMem for the full explanation
+    // see emit6809RegByteFromMem for the full explanation
     // of why we use the (opc, defs, srcs) buildInstr form here. TL;DR:
     // the chained .addUse(..., Implicit) form leaves RealRHS off the
     // printed register list and the asm printer emits garbage like
@@ -7178,7 +7178,7 @@ static void emit6809RegPairFromMem(MachineIRBuilder &Builder,
 }
 
 void MC6809InstrInfo::expandAddSetCarryUseReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  // Bug #186 v5: 3-op layout (no carry def/use operand).
+  // 3-op layout (no carry def/use operand).
   assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg() && "Dest and Source must be same for AddSetCarryUseReg");
 
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
@@ -7235,11 +7235,11 @@ void MC6809InstrInfo::expandSubByteReg(MachineIRBuilder &Builder, MachineInstr &
 // Expand `SubSetCarry_i{8,16}_Reg` (i32-narrow lo half — does the
 // subtract and PRODUCES borrow-out for the upper half to consume).
 //
-// Same operand layout and bug #64 history as expandAddSetCarryReg
+// Same operand layout and history as expandAddSetCarryReg
 // above (4 operands: dst, carry, src(==dst), src2). RHS lives at
 // op3, NOT op4. See expandAddSetCarryReg for the full write-up.
 void MC6809InstrInfo::expandSubSetCarryReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  // Bug #186 v5: 3-op layout (no carry def operand).
+  // 3-op layout (no carry def operand).
   assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg() && "Dest and Source must be same for SubSetCarryReg");
 
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
@@ -7257,7 +7257,7 @@ void MC6809InstrInfo::expandSubSetCarryReg(MachineIRBuilder &Builder, MachineIns
 }
 
 void MC6809InstrInfo::expandSubSetCarryUseReg(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  // Bug #186 v5: 3-op layout (no carry def/use operand).
+  // 3-op layout (no carry def/use operand).
   assert(MI.getOperand(0).getReg() == MI.getOperand(1).getReg() && "Dest and Source must be same for SubSetCarryUseReg");
 
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
@@ -7289,7 +7289,7 @@ void MC6809InstrInfo::expandCompareImm(MachineIRBuilder &Builder, MachineInstr &
   MachineFunction &MF = *MI.getMF();
   SrcReg = materializeReg(Builder, SrcReg, MF);
 
-  // Bug #49 fix: if source is AD and D was loaded from a frame slot that was
+  // if source is AD and D was loaded from a frame slot that was
   // stored from X or Y, use CMPX/CMPY instead. This preserves D's PHI value
   // which would otherwise be clobbered by the LDD reload.
   if (SrcReg == MC6809::AD && !DisableCmpSubst) {
@@ -7330,7 +7330,7 @@ void MC6809InstrInfo::expandCompareImm(MachineIRBuilder &Builder, MachineInstr &
     if (LDDInstr) {
       // Look further back for STX/STY to the same frame offset.
       //
-      // Bug #87: the scan must bail out if ANY byte- or word-level store
+      // the scan must bail out if ANY byte- or word-level store
       // to the slot's 2-byte footprint (offsets LoadOffset and
       // LoadOffset+1) occurs between the candidate STX/STY and the LDD.
       // Those stores mutate the in-memory value *after* the STX, so the
@@ -7396,12 +7396,12 @@ void MC6809InstrInfo::expandCompareImm(MachineIRBuilder &Builder, MachineInstr &
           IndexSrc = MC6809::IY;
           break;
         }
-        // Bug #87: any intervening store to the slot footprint makes the
+        // any intervening store to the slot footprint makes the
         // index register stale — bail.
         int Off = 0, Sz = 0;
         if (IsStoreToSU(*It, Off, Sz) && OverlapsSlot(Off, Sz))
           break;
-        // Bug #263: bail on any call. Calls clobber IX (caller-saved per
+        // bail on any call. Calls clobber IX (caller-saved per
         // the MC6809 ABI; only IY and SU are in MC6809_CSR). The slot's
         // bytes survive the call (it's a frame-local slot the callee
         // can't touch), but the IX register does NOT — so the
@@ -7430,10 +7430,10 @@ void MC6809InstrInfo::expandCompareImm(MachineIRBuilder &Builder, MachineInstr &
     }
   }
 
-  // (Bug #49 fix part 2 once lived here — a custom PSHS-D / byte-load /
+  // (fix part 2 once lived here — a custom PSHS-D / byte-load /
   // CMPB / PULS-D wrap intended to preserve a PHI-carried D value across
-  // the byte load that would otherwise clobber D's low byte. Bug #159
-  // narrowed the wrap with a live-out gate. Bug #166's spike removed the
+  // the byte load that would otherwise clobber D's low byte. A live-out
+  // gate narrowed the wrap; a later spike removed the
   // wrap entirely after confirming the underlying PHI clobber no longer
   // reproduces — regalloc / spill placer handle the D-preservation now.
   // Codegen-shape sentinel: `test/CodeGen/MC6809/cmp_imm_byte_load_phi.ll`.
@@ -7529,13 +7529,13 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
   assert(MI.getOperand(2).isReg() && "The 2nd source of register tests must be a register");
   assert(MI.getOperand(3).isReg() && "The 1st source of register tests must be a register");
 
-  // Bug #161 round 17: materialize spill / imaginary operands into real
+  // materialize spill / imaginary operands into real
   // hardware registers before emitting CMPR. CMPR encodes 4-bit hardware
   // register codes in its postbyte; raw imaginary operands collapse the
   // postbyte to 0x00 (= CMPR D,D = always Z=1), breaking the test-strncpy
   // and similar inner-loop comparisons.
   //
-  // Bug #161 round 18: when both sources resolve to the same physical
+  // when both sources resolve to the same physical
   // register (commonly because both are imaginaries that materialize to
   // AD), CMPRp X,X always sets Z=1 / N,V,C=0 — wrong for any non-equal
   // source pair. Detect that and fall back to a 6809-style compare via
@@ -7556,7 +7556,7 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
        Src1Phys == MC6809::IX || Src1Phys == MC6809::IY ||
        Src1Phys == MC6809::SU || Src1Phys == MC6809::SS);
 
-  // Bug #312: CMPRp is HD6309-only.  On plain MC6809 take the same
+  // CMPRp is HD6309-only.  On plain MC6809 take the same
   // PSHS / CMPx 0,$ss / LEAS sequence the SameHalf collision-fallback
   // uses below — it works for the general non-SameHalf case too, just
   // costs one stack round-trip.  pickCmpO8O16 (defined further down)
@@ -7666,7 +7666,7 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
   // Both Src1 and Src2 are physical here (a spilled second source folds
   // to the Compare _Mem sibling before allocation).
   // HD6309: CMPRp regardless of whether Src1Phys == Src2Phys (regalloc
-  // coalesced) or not.  Plain MC6809 (Bug #312): PSHS Src1Phys then
+  // coalesced) or not.  Plain MC6809: PSHS Src1Phys then
   // CMPx Src2 ,$ss++ (post-increment indexed — pops the byte/word
   // back off as part of the compare).  Same flag direction as CMPRp
   // (Src2 - Src1).  PULS isn't needed for value preservation: the
@@ -7866,14 +7866,14 @@ ArrayRef<std::pair<unsigned, const char *>> MC6809InstrInfo::getSerializableDire
   return Flags;
 }
 
-// Bug #387: lets the static-stack target index round-trip through MIR.
+// lets the static-stack target index round-trip through MIR.
 ArrayRef<std::pair<int, const char *>> MC6809InstrInfo::getSerializableTargetIndices() const {
   static const std::pair<int, const char *> Flags[] = {{MC6809::TI_STATIC_STACK, "mc6809-static-stack"}};
   return Flags;
 }
 
 void MC6809InstrInfo::expandFusedCompareBranch(MachineIRBuilder &Builder, MachineInstr &MI) const {
-  // Fused compare-and-branch pseudos (bug #42). These were created as single
+  // Fused compare-and-branch pseudos. These were created as single
   // instructions so the register allocator couldn't insert CC-clobbering
   // reloads between the compare and branch. Now split them back.
   //
@@ -7908,7 +7908,7 @@ void MC6809InstrInfo::expandFusedCompareBranch(MachineIRBuilder &Builder, Machin
   case MC6809::CompareBranch_i16_Mem: CmpOpc = MC6809::Compare_i16_Mem; break;
   case MC6809::CompareBranch_i8_MemIndirect:  CmpOpc = MC6809::Compare_i8_MemIndirect; break;
   case MC6809::CompareBranch_i16_MemIndirect: CmpOpc = MC6809::Compare_i16_MemIndirect; break;
-  case MC6809::CompareBranch_ptr_Imm:  CmpOpc = MC6809::Compare_ptr_Imm; break; // Bug #359
+  case MC6809::CompareBranch_ptr_Imm:  CmpOpc = MC6809::Compare_ptr_Imm; break;
   case MC6809::CompareBranch_ptr_Reg:  CmpOpc = MC6809::Compare_ptr_Reg; break;
   case MC6809::CompareBranch_ptr_Mem:  CmpOpc = MC6809::Compare_ptr_Mem; break;
   // Static-stack siblings — same split; the compare half carries the
@@ -7952,7 +7952,7 @@ void MC6809InstrInfo::expandFusedCompareBranch(MachineIRBuilder &Builder, Machin
   // Emit the compare/test — all operands except the last (branch target).
   // The compare defines CC as an implicit physical register.
   //
-  // Bug #205: $cc is added as a LIVE def (not RegState::Dead). The CC
+  // $cc is added as a LIVE def (not RegState::Dead). The CC
   // register has $n/$z/$v/$c as sub-registers (see MC6809RegisterInfo.td:
   // 'let CoveredBySubRegs = true'); dead-marking the super-reg propagates
   // to mark all sub-registers immediately dead. The LBlbc emitted just
@@ -7967,14 +7967,14 @@ void MC6809InstrInfo::expandFusedCompareBranch(MachineIRBuilder &Builder, Machin
   for (unsigned I = 0; I < NumOps - 1; ++I)
     CmpMI.add(MI.getOperand(I));
 
-  // Emit the conditional branch — bug #206 picker selects LBlbc_NoC
+  // Emit the conditional branch — the picker selects LBlbc_NoC
   // when the cc doesn't actually consume $c, so the verifier doesn't
   // false-positive on TST-style predecessors.
   Builder.buildInstr(pickLBlbcVariant(CC))
       .addImm(CC)
       .addMBB(TargetMBB);
 
-  // Bug #271 (cat-5): the fused pseudo had two CFG successors —
+  // the fused pseudo had two CFG successors —
   // TargetMBB (the conditional target) and the implicit fallthrough.
   // After expansion the LBlbc above is a single-target conditional
   // branch whose not-taken arm falls through to layout-next. If the
@@ -8008,9 +8008,9 @@ void MC6809InstrInfo::expandFusedCompareBranch(MachineIRBuilder &Builder, Machin
 }
 
 //===----------------------------------------------------------------------===//
-// Bug #202 — target-specific MIR verification
+// Target-specific MIR verification
 //
-// Catches structural MIR shapes that round-17/18 of bug #161 hit four times
+// Catches structural MIR shapes that recurred four times
 // in a row (commits 0b00909dd3b4, 9b925cc7ad67, 41a6ab7fddd1; the 4th —
 // 5c2af2d12411 — was a semantic operand-order inversion not catchable by a
 // structural verifier and is out of scope here).
@@ -8094,7 +8094,7 @@ bool MC6809InstrInfo::verifyInstruction(const MachineInstr &MI,
   // Check B — TFRp with size-mismatched operands.
   //
   // HD6309 byte-replicates on size mismatch (e.g. `tfr B,W` with B=0x2A
-  // gives W=0x2A2A, not W=0x002A). Bug #161 round 18 follow-up #2
+  // gives W=0x2A2A, not W=0x002A). A later fix
   // (41a6ab7fddd1) fixed copyPhysReg to wrap with explicit zero-extend
   // (CLRA/CLRE) for ACC8↔ACC16 transfers. Any future regression that
   // re-emits a bare size-mismatched TFRp would be caught here.
