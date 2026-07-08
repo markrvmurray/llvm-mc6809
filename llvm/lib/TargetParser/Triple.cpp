@@ -507,6 +507,8 @@ StringRef Triple::getOSTypeName(OSType Kind) {
     return "qurt";
   case OS9:
     return "os9";
+  case DECB:
+    return "decb";
   }
 
   llvm_unreachable("Invalid OSType");
@@ -982,6 +984,7 @@ static Triple::OSType parseOS(StringRef OSName) {
       .StartsWith("firmware", Triple::Firmware)
       .StartsWith("qurt", Triple::QURT)
       .StartsWith("os9", Triple::OS9)
+      .StartsWith("decb", Triple::DECB)
       .Default(Triple::UnknownOS);
 }
 

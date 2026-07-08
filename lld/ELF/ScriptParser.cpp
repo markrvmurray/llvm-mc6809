@@ -515,6 +515,12 @@ void ScriptParser::readOutputFormat() {
     return;
   }
 
+  if (s == "decb-program") {
+    ctx.arg.oFormatBinary = true;
+    ctx.arg.oFormatDECB = true;
+    return;
+  }
+
   if (s.consume_back("-freebsd"))
     ctx.arg.osabi = ELFOSABI_FREEBSD;
 

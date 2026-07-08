@@ -866,6 +866,10 @@ static bool isOutputFormatBinary(Ctx &ctx, opt::InputArgList &args) {
     ctx.arg.oFormatOS9 = true;
     return true;
   }
+  if (s == "decb-program") {
+    ctx.arg.oFormatDECB = true;
+    return true;
+  }
   if (!s.starts_with("elf"))
     ErrAlways(ctx) << "unknown --oformat value: " << s;
   return false;
