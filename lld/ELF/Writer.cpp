@@ -2744,6 +2744,7 @@ template <class ELFT> void Writer<ELFT>::assignFileOffsetsBinary() {
       ErrAlways(ctx) << "DECB binary size " << fileSize
                      << " exceeds 16-bit length field (max 65535)";
   }
+}
 
 // Bug #163 Phase 3: one byte through the OS-9 CRC-24, mirroring
 // lwlink's os9crc() (lwtools/lwlink/output.c:437) and
@@ -3167,16 +3168,9 @@ template <class ELFT> void Writer<ELFT>::writeDECBWrap() {
     }
   }
 
-  // Exec address: entry-point symbol value, falling back to load address.
-  // The linker script's ENTRY(_start) places _start at the load address,
-  // so the fallback is correct for well-formed DECB programs.
-  uint16_t execAddr = loadAddr;
-  StringRef entryName = ctx.arg.entry;
-  if (!entryName.empty()) {
-    if (Symbol *s = ctx.symtab->find(entryName))
-      if (auto *d = dyn_cast<Defined>(s))
-        execAddr = static_cast<uint16_t>(d->value);
-  }
+  // Exec address: the linker script's ENTRY(_start) places _start at the
+  // origin of .text, which equals the load address.
+  const uint16_t execAddr = loadAddr;
 
   const uint16_t bodySize = static_cast<uint16_t>(fileSize - 10);
 
