@@ -139,9 +139,10 @@ void mc6809::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   //     NOT auto-invoke os9-link yet — that lands with the end-to-end
   //     `hello.c` commit, which threads __mem_size out of the link
   //     into the os9-link --mem argument.
-  const bool IsOS9 = TC.getTriple().isOSOS9();
+  const bool IsOS9  = TC.getTriple().isOSOS9();
+  const bool IsDECB = TC.getTriple().isOSDECB();
 
-  if (!IsOS9 &&
+  if (!IsOS9 && !IsDECB &&
       !Args.hasArg(options::OPT_nostartfiles, options::OPT_nostdlib)) {
     // Prefixing a colon causes GNU LD-like linkers to search for this filename
     // as-is. This contains the minimum necessary startup library.
@@ -150,32 +151,38 @@ void mc6809::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     // libcrt0.a contains optional startup objects that are only pulled in if
     // referenced.
     CmdArgs.push_back("-lcrt0");
-  } else if (!IsOS9 && !Args.hasArg(options::OPT_e)) {
+  } else if (!IsOS9 && !IsDECB && !Args.hasArg(options::OPT_e)) {
     // No crt0 means no _start. Set a dummy entry point to suppress
     // the "cannot find entry symbol" linker warning.
     CmdArgs.push_back("-e0");
   }
 
-  if (!IsOS9 &&
+  if (!IsOS9 && !IsDECB &&
       !Args.hasArg(options::OPT_nodefaultlibs, options::OPT_nostdlib))
     CmdArgs.push_back("-lcrt");
 
-  if (!IsOS9 &&
+  if (!IsOS9 && !IsDECB &&
       !Args.hasArg(options::OPT_nodefaultlibs, options::OPT_nolibc,
                    options::OPT_nostdlib))
     CmdArgs.push_back("-lc");
 
   // MC6809 runtime library: hand-written assembly builtins for shift, multiply,
   // divide operations that the hardware can't do natively.
-  if (!IsOS9 &&
+  if (!IsOS9 && !IsDECB &&
       !Args.hasArg(options::OPT_nodefaultlibs, options::OPT_nostdlib))
     CmdArgs.push_back("-lmc6809rt");
 
   // Default linker script.  Bare-metal uses link.ld; OS-9 uses
   // mc6809-os9.lds (the script landed alongside the OS-9 CRT).
   // -nostdlib or an explicit -T suppresses both.
-  if (!Args.hasArg(options::OPT_T, options::OPT_nostdlib))
-    CmdArgs.push_back(IsOS9 ? "-Tmc6809-os9.lds" : "-Tlink.ld");
+  if (!Args.hasArg(options::OPT_T, options::OPT_nostdlib)) {
+    if (IsOS9)
+      CmdArgs.push_back("-Tmc6809-os9.lds");
+    else if (IsDECB)
+      CmdArgs.push_back("-Tmc6809-decb.lds");
+    else
+      CmdArgs.push_back("-Tlink.ld");
+  }
 
   // For OS-9, prepend the resourcedir's per-triple library directory
   // so lld finds mc6809-os9.lds AND libclang_rt.os9.a.  Then pull in
@@ -215,6 +222,14 @@ void mc6809::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     StringRef CPU = Args.getLastArgValue(options::OPT_mcpu_EQ);
     if (CPU == "hd6309" || CPU == "6309")
       CmdArgs.push_back("--os9-type=0x17");
+  }
+
+  // For DECB, prepend the resourcedir's per-triple library directory so
+  // lld finds mc6809-decb.lds and (in future) libclang_rt.decb.a.
+  if (IsDECB) {
+    SmallString<128> DECBLibPath(D.ResourceDir);
+    llvm::sys::path::append(DECBLibPath, "lib", "mc6809-unknown-decb");
+    CmdArgs.push_back(Args.MakeArgString(Twine("-L") + DECBLibPath.str()));
   }
 
   CmdArgs.push_back("-o");

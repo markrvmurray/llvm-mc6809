@@ -90,6 +90,9 @@ private:
   // module — write the 13-byte header at file offset 0, append the
   // fcs-encoded name + 3-byte CRC tail after the body.
   void writeOS9Wrap();
+  // Wrap a flat body in a CoCo DECB binary: write the 5-byte preamble at
+  // file offset 0 and the 5-byte postamble at the end.
+  void writeDECBWrap();
 
   Ctx &ctx;
   std::unique_ptr<FileOutputBuffer> &buffer;
@@ -399,6 +402,8 @@ template <class ELFT> void Writer<ELFT>::run() {
       // selected the variant.
       if (ctx.arg.oFormatOS9)
         writeOS9Wrap();
+      if (ctx.arg.oFormatDECB)
+        writeDECBWrap();
     }
 
     // Backfill .note.gnu.build-id section content. This is done at last
@@ -2720,6 +2725,25 @@ template <class ELFT> void Writer<ELFT>::assignFileOffsetsBinary() {
       ErrAlways(ctx) << "OS-9 module size " << fileSize
                      << " exceeds 16-bit M$Size field (max 65535)";
   }
+
+  // CoCo DECB binary format: reserve 5 bytes at the start for the preamble
+  // ($00, length hi, length lo, load-addr hi, load-addr lo) and 5 bytes at
+  // the end for the postamble ($FF, $00, $00, exec-addr hi, exec-addr lo).
+  // writeDECBWrap() fills these regions after writeSectionsBinary().
+  if (ctx.arg.oFormatDECB) {
+    const uint64_t preambleSize  = 5;
+    const uint64_t postambleSize = 5;
+
+    for (OutputSection *sec : ctx.outputSections)
+      if (needsOffset(*sec))
+        sec->offset += preambleSize;
+
+    fileSize += preambleSize + postambleSize;
+
+    if (fileSize > 0xFFFF)
+      ErrAlways(ctx) << "DECB binary size " << fileSize
+                     << " exceeds 16-bit length field (max 65535)";
+  }
 }
 
 // Bug #163 Phase 3: one byte through the OS-9 CRC-24, mirroring
@@ -3119,6 +3143,51 @@ template <class ELFT> void Writer<ELFT>::writeOS9Wrap() {
   base[totalSize - 3] = (crc >> 16) & 0xFF;
   base[totalSize - 2] = (crc >> 8) & 0xFF;
   base[totalSize - 1] = crc & 0xFF;
+}
+
+// CoCo DECB binary format.  After writeSectionsBinary() has populated the
+// body at file offsets [5..fileSize-6], lay down the 5-byte preamble and
+// 5-byte postamble.  Layout (per Disk BASIC ROM loader convention):
+//
+//   [0]       $00   — binary file type marker
+//   [1..2]    body length, big-endian (fileSize - 10)
+//   [3..4]    load address, big-endian (VMA of first ALLOC section)
+//   [5..N-6]  raw body (sections laid out by writeSectionsBinary)
+//   [N-5]     $FF   — end-of-file marker
+//   [N-4..N-3] $00 $00 (unused / padding)
+//   [N-2..N-1] exec address, big-endian (entry-point symbol value)
+template <class ELFT> void Writer<ELFT>::writeDECBWrap() {
+  uint8_t *base = ctx.bufferStart;
+
+  // Load address: VMA of the first ALLOC section.
+  uint16_t loadAddr = 0;
+  for (OutputSection *sec : ctx.outputSections) {
+    if (sec->flags & SHF_ALLOC) {
+      loadAddr = static_cast<uint16_t>(sec->addr);
+      break;
+    }
+  }
+
+  // Exec address: the linker script's ENTRY(_start) places _start at the
+  // origin of .text, which equals the load address.
+  const uint16_t execAddr = loadAddr;
+
+  const uint16_t bodySize = static_cast<uint16_t>(fileSize - 10);
+
+  // 5-byte preamble.
+  base[0] = 0x00;
+  base[1] = bodySize >> 8;
+  base[2] = bodySize & 0xFF;
+  base[3] = loadAddr >> 8;
+  base[4] = loadAddr & 0xFF;
+
+  // 5-byte postamble.
+  uint8_t *post = base + fileSize - 5;
+  post[0] = 0xFF;
+  post[1] = 0x00;
+  post[2] = 0x00;
+  post[3] = execAddr >> 8;
+  post[4] = execAddr & 0xFF;
 }
 
 template <class ELFT> void Writer<ELFT>::writeCustomOutputFormat() {

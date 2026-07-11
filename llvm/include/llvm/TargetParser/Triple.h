@@ -262,8 +262,9 @@ public:
     ChipStar,
     Firmware,
     QURT,
-    OS9, // Microware OS-9 / NitrOS-9 (MC6809/HD6309) — Bug #163
-    LastOSType = OS9
+    OS9,  // Microware OS-9 / NitrOS-9 (MC6809/HD6309) — Bug #163
+    DECB, // TRS-80 Color Computer Disk Extended Color BASIC binary format
+    LastOSType = DECB
   };
   enum EnvironmentType {
     UnknownEnvironment,
@@ -690,6 +691,9 @@ public:
 
   /// Tests whether the OS is Microware OS-9 / NitrOS-9 (Bug #163).
   bool isOSOS9() const { return getOS() == Triple::OS9; }
+
+  /// Tests whether the OS is CoCo Disk Extended Color BASIC.
+  bool isOSDECB() const { return getOS() == Triple::DECB; }
 
   /// Tests whether the OS is UEFI.
   bool isUEFI() const { return getOS() == Triple::UEFI; }

@@ -365,6 +365,10 @@ struct Config {
   uint8_t os9AttrRev = 0xA0;  // ReEnt|ModNat, rev 0
   uint16_t os9Exec = 13;      // module-offset of _start; 13 = first body byte
   uint32_t os9Mem = 0;        // M$Mem allocation; must be specified when oFormatOS9
+  // CoCo DECB binary format: 5-byte preamble + raw body + 5-byte postamble.
+  // Load and exec addresses are derived from the ELF (first ALLOC section VMA
+  // and entry-point symbol respectively); no extra parameters needed.
+  bool oFormatDECB = false;
   bool omagic;
   bool optEB = false;
   bool optEL = false;
