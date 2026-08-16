@@ -70,8 +70,28 @@ void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
 
 bool MC6809MCInstLower::lowerOperand(const MachineOperand &MO, MCOperand &MCOp) {
   switch (MO.getType()) {
-  default:
+  default: {
+    // Name the operand, its instruction and its function. A bare fatal error
+    // here says only that *something* was unlowerable, which is close to
+    // useless: the operand types that reach this arm (a target index, a frame
+    // index) get here because an earlier pass failed to rewrite them, and the
+    // whole diagnostic value is in knowing which instruction still carries one.
+    // Mirrors the never-lowered-pseudo report in lower() above.
+    errs() << "MC6809: operand type " << static_cast<unsigned>(MO.getType())
+           << " has no MC lowering\n"
+           << "  operand: ";
+    MO.print(errs());
+    if (const MachineInstr *ParentMI = MO.getParent()) {
+      errs() << "\n  in function: " << ParentMI->getMF()->getName()
+             << "\n  MI: ";
+      ParentMI->print(errs());
+    }
+    errs() << "\nA target index or frame index reaching here means an earlier\n"
+              "pass did not rewrite it — fix that pass rather than lowering\n"
+              "the operand blind. Note that a frame access can sit inside a\n"
+              "BUNDLE, which MachineBasicBlock's default iterator skips.\n";
     report_fatal_error("Operand type not implemented.");
+  }
   case MachineOperand::MO_RegisterMask:
     return false;
   case MachineOperand::MO_BlockAddress:
