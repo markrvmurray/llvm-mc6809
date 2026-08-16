@@ -403,7 +403,7 @@ bool ELFAsmParser::maybeParseSectionType(StringRef &TypeName) {
   Lex();
   if (L.isNot(AsmToken::At) && L.isNot(AsmToken::Percent) &&
       L.isNot(AsmToken::String)) {
-    if (getContext().getAsmInfo()->getCommentString().starts_with('@'))
+    if (getContext().getAsmInfo().getCommentString().starts_with('@'))
       return TokError("expected '%<type>' or \"<type>\"");
     else
       return TokError("expected '@<type>', '%<type>' or \"<type>\"");
@@ -724,7 +724,7 @@ bool ELFAsmParser::parseDirectiveType(StringRef, SMLoc) {
 
   bool AllowAt = getLexer().getAllowAtInIdentifier();
   if (!AllowAt &&
-      !getContext().getAsmInfo()->getCommentString().starts_with("@"))
+      !getContext().getAsmInfo().getCommentString().starts_with("@"))
     getLexer().setAllowAtInIdentifier(true);
   llvm::scope_exit _([&]() { getLexer().setAllowAtInIdentifier(AllowAt); });
 

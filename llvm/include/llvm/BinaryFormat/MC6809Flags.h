@@ -22,8 +22,8 @@ class FeatureBitset;
 
 namespace MC6809 {
 
-/// EnumEntries for general EF_MC6809_* printing.
-extern const ArrayRef<EnumEntry<unsigned>> ElfHeaderMC6809Flags;
+/// Enum strings for general EF_MC6809_* printing.
+EnumStrings<unsigned, 2> getElfHeaderMC6809Flags();
 
 /// Makes a string describing all set EF_MC6809_* bits.
 std::string makeEFlagsString(unsigned EFlags);

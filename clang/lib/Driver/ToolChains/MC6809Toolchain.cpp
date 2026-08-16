@@ -46,7 +46,7 @@ void MC6809ToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
 }
 
 void MC6809ToolChain::addClangTargetOptions(const ArgList &DriverArgs,
-                                ArgStringList &CC1Args,
+                                ArgStringList &CC1Args, BoundArch,
                                 Action::OffloadKind) const {
   CC1Args.push_back("-nostdsysteminc");
   // Not yet implemented for GlobalISel.
@@ -262,7 +262,7 @@ void mc6809::Linker::AddLTOOptions(const toolchains::MC6809ToolChain &TC, const 
                                 ArgStringList &CmdArgs) const {
   assert(!Inputs.empty() && "Must have at least one input.");
   addLTOOptions(TC, Args, CmdArgs, Output, Inputs,
-                TC.getDriver().getLTOMode() == LTOK_Thin);
+                TC.getLTOMode(Args) == LTOK_Thin);
   addMC6809CodeGenArgs(CmdArgs);
   unsigned DPBytes = 0;
   StringRef LTODP = Args.getLastArgValue(options::OPT_mlto_dp_EQ);

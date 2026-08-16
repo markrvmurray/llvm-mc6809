@@ -11,6 +11,8 @@
 #==============================================================================#
 # Temp files created by most text editors.
 *~
+# Emacs lock files
+.#*
 # Merge files created by git.
 *.orig
 # Reject files created by patch.
@@ -58,6 +60,7 @@ autoconf/autom4te.cache
 # per-repo entry was redundant.  Removing it lets a future contributor
 # intentionally track a CLAUDE.md if they choose, while the global rule
 # continues to keep each developer's local CLAUDE.md ignored.)
+.agents/
 /instructions.md
 .claude/
 /GEMINI.md

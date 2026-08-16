@@ -7,37 +7,41 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/BinaryFormat/MOSFlags.h"
+#include "llvm/ADT/Enum.h"
 #include "llvm/BinaryFormat/ELF.h"
 
 namespace llvm {
 namespace MOS {
 
-#define ENUM_ENT(enum, altName)                                                \
-  { #enum, altName, ELF::enum }
+#define ENUM_ENT(enum, altName) {{#enum, altName}, ELF::enum}
 
-static const EnumEntry<unsigned> ElfHeaderMOSFlagsEntries[] = {
-    ENUM_ENT(EF_MOS_ARCH_6502, "mos6502"),
-    ENUM_ENT(EF_MOS_ARCH_6502_BCD, "mos6502bcd"),
-    ENUM_ENT(EF_MOS_ARCH_6502X, "mos6502x"),
-    ENUM_ENT(EF_MOS_ARCH_65C02, "mos65c02"),
-    ENUM_ENT(EF_MOS_ARCH_R65C02, "mosr65c02"),
-    ENUM_ENT(EF_MOS_ARCH_W65C02, "mosw65c02"),
-    ENUM_ENT(EF_MOS_ARCH_65CE02, "mos65ce02"),
-    ENUM_ENT(EF_MOS_ARCH_W65816, "mosw65816"),
-    ENUM_ENT(EF_MOS_ARCH_65EL02, "mos65el02"),
-    ENUM_ENT(EF_MOS_ARCH_HUC6280, "moshuc6280"),
-    ENUM_ENT(EF_MOS_ARCH_SWEET16, "mossweet16"),
-    ENUM_ENT(EF_MOS_ARCH_65DTV02, "mos65dtv02"),
-    ENUM_ENT(EF_MOS_ARCH_4510, "mos4510"),
-    ENUM_ENT(EF_MOS_ARCH_45GS02, "mos45gs02"),
-    ENUM_ENT(EF_MOS_ARCH_SPC700, "mosspc700")};
-const ArrayRef<EnumEntry<unsigned>> ElfHeaderMOSFlags{ElfHeaderMOSFlagsEntries};
+EnumStrings<unsigned, 2> getElfHeaderMOSFlags() {
+  static constexpr EnumStringDef<unsigned, 2> ElfHeaderMOSFlagsDefs[] = {
+      ENUM_ENT(EF_MOS_ARCH_6502, "mos6502"),
+      ENUM_ENT(EF_MOS_ARCH_6502_BCD, "mos6502bcd"),
+      ENUM_ENT(EF_MOS_ARCH_6502X, "mos6502x"),
+      ENUM_ENT(EF_MOS_ARCH_65C02, "mos65c02"),
+      ENUM_ENT(EF_MOS_ARCH_R65C02, "mosr65c02"),
+      ENUM_ENT(EF_MOS_ARCH_W65C02, "mosw65c02"),
+      ENUM_ENT(EF_MOS_ARCH_65CE02, "mos65ce02"),
+      ENUM_ENT(EF_MOS_ARCH_W65816, "mosw65816"),
+      ENUM_ENT(EF_MOS_ARCH_65EL02, "mos65el02"),
+      ENUM_ENT(EF_MOS_ARCH_HUC6280, "moshuc6280"),
+      ENUM_ENT(EF_MOS_ARCH_SWEET16, "mossweet16"),
+      ENUM_ENT(EF_MOS_ARCH_65DTV02, "mos65dtv02"),
+      ENUM_ENT(EF_MOS_ARCH_4510, "mos4510"),
+      ENUM_ENT(EF_MOS_ARCH_45GS02, "mos45gs02"),
+      ENUM_ENT(EF_MOS_ARCH_SPC700, "mosspc700")};
+  static constexpr auto ElfHeaderMOSFlagsStorage =
+      BUILD_ENUM_STRINGS(ElfHeaderMOSFlagsDefs);
+  return EnumStrings(ElfHeaderMOSFlagsStorage);
+}
 
 std::string makeEFlagsString(unsigned EFlags) {
   std::string Str;
   raw_string_ostream Stream(Str);
   ScopedPrinter Printer(Stream);
-  Printer.printFlags("Flags", EFlags, ElfHeaderMOSFlags);
+  Printer.printFlags("Flags", EFlags, getElfHeaderMOSFlags());
   Stream.flush();
   return Str;
 }
@@ -51,6 +55,12 @@ bool checkEFlagsCompatibility(unsigned EFlags, unsigned ModuleEFlags) {
   // Mixing SPC700 with native is prohibited
   if ((Flags & ELF::EF_MOS_ARCH_SPC700) &&
       (Flags & ~ELF::EF_MOS_ARCH_SPC700))
+    return false;
+  // Mixing the 65816 with the 65CE02 is prohibited. Their 16-bit branches
+  // measure the displacement from different addresses, and a relocation is
+  // resolved against the merged output flags, which cannot tell which input
+  // an R_MOS_PCREL_16 came from. No CPU implies both.
+  if ((Flags & ELF::EF_MOS_ARCH_W65816) && (Flags & ELF::EF_MOS_ARCH_65CE02))
     return false;
   return true;
 }

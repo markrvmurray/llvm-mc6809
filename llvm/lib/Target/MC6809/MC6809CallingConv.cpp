@@ -21,4 +21,5 @@
 
 using namespace llvm;
 
+#define GET_CALLING_CONV_IMPL
 #include "MC6809GenCallingConv.inc"

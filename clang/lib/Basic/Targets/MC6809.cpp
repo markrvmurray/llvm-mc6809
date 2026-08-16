@@ -206,7 +206,7 @@ void MC6809TargetInfo::fillValidCPUList(SmallVectorImpl<StringRef> &Values) cons
   Values.append(std::begin(ValidCPUNames), std::end(ValidCPUNames));
 }
 
-bool MC6809TargetInfo::setCPU(const std::string &Name) {
+bool MC6809TargetInfo::setCPU(StringRef Name) {
   if (isValidCPUName(Name)) {
     CPUName = Name;
     return true;

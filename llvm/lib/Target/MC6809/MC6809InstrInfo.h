@@ -131,7 +131,6 @@ public:
 
   MachineInstr *foldMemoryOperandImpl(MachineFunction &MF, MachineInstr &MI,
                                       ArrayRef<unsigned> Ops,
-                                      MachineBasicBlock::iterator InsertPt,
                                       int FrameIndex,
                                       MachineInstr *&CopyMI,
                                       LiveIntervals *LIS = nullptr,
@@ -143,10 +142,10 @@ public:
   /// i32 register value at the consumer.
   MachineInstr *foldMemoryOperandImpl(MachineFunction &MF, MachineInstr &MI,
                                       ArrayRef<unsigned> Ops,
-                                      MachineBasicBlock::iterator InsertPt,
                                       MachineInstr &LoadMI,
                                       MachineInstr *&CopyMI,
-                                      LiveIntervals *LIS = nullptr) const override;
+                                      LiveIntervals *LIS = nullptr,
+                                      VirtRegMap *VRM = nullptr) const override;
 
   bool reverseBranchCondition(SmallVectorImpl<MachineOperand> &Cond) const override;
 

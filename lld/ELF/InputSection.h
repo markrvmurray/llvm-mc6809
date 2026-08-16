@@ -28,7 +28,6 @@ class InputFile;
 class Symbol;
 
 class Defined;
-struct Partition;
 class SyntheticSection;
 template <class ELFT> class ObjFile;
 class OutputSection;
@@ -64,6 +63,7 @@ public:
     Synthetic,
     Spill,
     EHFrame,
+    DebugFrame,
     Merge,
     Output,
     Class,
@@ -78,11 +78,6 @@ public:
 
   StringRef name;
 
-  // The 1-indexed partition that this section is assigned to by the garbage
-  // collector, or 0 if this section is dead. Normally there is only one
-  // partition, so this will either be 0 or 1.
-  elf::Partition &getPartition(Ctx &) const;
-
   // These corresponds to the fields in Elf_Shdr.
   uint64_t flags;
   uint32_t type;
@@ -92,6 +87,7 @@ public:
   uint32_t entsize;
 
   Kind sectionKind;
+  // 0 (dead) or 1 (live).
   uint8_t partition = 1;
 
   // The next two bit fields are only used by InputSectionBase, but we
@@ -108,6 +104,11 @@ public:
   uint64_t getOffset(uint64_t offset) const;
 
   uint64_t getVA(uint64_t offset = 0) const;
+
+  // Translate an offset in relocations to an address. RelocScan::scanEhSection
+  // has already mapped .eh_frame offsets to the merged output section, so they
+  // must not be translated a second time.
+  uint64_t getRelocVA(uint64_t offset) const;
 
   bool isLive() const { return partition != 0; }
   void markLive() { partition = 1; }
@@ -207,11 +208,6 @@ public:
   void drop_back(unsigned num) {
     assert(bytesDropped + num < 256);
     bytesDropped += num;
-  }
-
-  void push_back(uint64_t num) {
-    assert(bytesDropped >= num);
-    bytesDropped -= num;
   }
 
   mutable const uint8_t *content_;
@@ -411,6 +407,34 @@ public:
 
   // Preprocessed relocations in uniform format to avoid REL/RELA/CREL
   // relocation format handling throughout the codebase.
+  SmallVector<Relocation, 0> rels;
+};
+
+// This corresponds to a .debug_frame section of an input file.
+// Unlike .eh_frame, .debug_frame is not loaded at runtime and uses
+// absolute CIE pointers (not relative offsets).
+class DebugFrameInputSection : public InputSectionBase {
+public:
+  template <class ELFT>
+  DebugFrameInputSection(ObjFile<ELFT> &f, const typename ELFT::Shdr &header,
+                         StringRef name);
+  static bool classof(const SectionBase *s) {
+    return s->kind() == DebugFrame;
+  }
+  template <class ELFT> void split();
+  template <class ELFT, class RelTy> void preprocessRelocs(Relocs<RelTy> rels);
+
+  // Splittable sections are handled as a sequence of data
+  // rather than a single large blob of data.
+  SmallVector<EhSectionPiece, 0> cies, fdes;
+
+  SyntheticSection *getParent() const;
+
+  // Map an input offset to the corresponding offset within the parent
+  // synthetic section, taking piece drops and repacking into account.
+  uint64_t getParentOffset(uint64_t offset) const;
+
+  // Preprocessed relocations in uniform format.
   SmallVector<Relocation, 0> rels;
 };
 

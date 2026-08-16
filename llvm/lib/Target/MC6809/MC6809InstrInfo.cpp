@@ -522,7 +522,7 @@ unsigned MC6809InstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
 
   const MachineBasicBlock &MBB = *MI.getParent();
   const MachineFunction *MF = MBB.getParent();
-  const MCAsmInfo *MAI = MF->getTarget().getMCAsmInfo();
+  const MCAsmInfo *MAI = &MF->getTarget().getMCAsmInfo();
 
   const MCInstrDesc &MCID = MI.getDesc();
 
@@ -1957,9 +1957,10 @@ static std::optional<MC6809MemFoldInfo> memFoldSibling(unsigned Opc) {
 
 MachineInstr *MC6809InstrInfo::foldMemoryOperandImpl(
     MachineFunction &MF, MachineInstr &MI, ArrayRef<unsigned> Ops,
-    MachineBasicBlock::iterator InsertPt, int FrameIndex,
-    MachineInstr *& /*CopyMI*/, LiveIntervals * /*LIS*/,
+    int FrameIndex, MachineInstr *& /*CopyMI*/, LiveIntervals * /*LIS*/,
     VirtRegMap *VRM) const {
+  // The fold and any auxiliary instructions are inserted at MI.
+  MachineBasicBlock::iterator InsertPt = MI.getIterator();
   // fold a reload of the 16-bit source of
   // EXTRACT_LO_i16 / EXTRACT_HI_i16 into a direct one-byte frame load.
   //
@@ -2204,8 +2205,10 @@ MachineInstr *MC6809InstrInfo::foldMemoryOperandImpl(
 // block, so the isel-time fold can't reach across).
 MachineInstr *MC6809InstrInfo::foldMemoryOperandImpl(
     MachineFunction &MF, MachineInstr &MI, ArrayRef<unsigned> Ops,
-    MachineBasicBlock::iterator InsertPt, MachineInstr &LoadMI,
-    MachineInstr *& /*CopyMI*/, LiveIntervals *LIS) const {
+    MachineInstr &LoadMI, MachineInstr *& /*CopyMI*/, LiveIntervals *LIS,
+    VirtRegMap * /*VRM*/) const {
+  // The fold and any auxiliary instructions are inserted at MI.
+  MachineBasicBlock::iterator InsertPt = MI.getIterator();
   if (DisableMemFold)
     return nullptr;
   // Only plain loads whose addressing tail can be transplanted verbatim,

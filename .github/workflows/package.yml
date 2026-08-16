@@ -39,7 +39,7 @@ jobs:
       # so this needs to either run before ccache-action or it has to use
       # clean: false.
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Configure POSIX
         if: ${{!startsWith(matrix.os, 'windows')}}
@@ -84,8 +84,9 @@ jobs:
 
       - name: Release Linux
         if: startsWith(matrix.os, 'ubuntu')
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
+          token: ${{ secrets.ACTION_TOKEN }}
           prerelease: true
           body: "Internal compiler build for Linux"
           tag_name: llvm-mos-linux-main
@@ -93,8 +94,9 @@ jobs:
 
       - name: Release macOS
         if: startsWith(matrix.os, 'macos')
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
+          token: ${{ secrets.ACTION_TOKEN }}
           prerelease: true
           body: "Internal compiler build for macOS"
           tag_name: llvm-mos-darwin-main
@@ -102,8 +104,9 @@ jobs:
 
       - name: Release Windows
         if: startsWith(matrix.os, 'windows')
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
+          token: ${{ secrets.ACTION_TOKEN }}
           prerelease: true
           body: "Internal compiler build for Windows"
           tag_name: llvm-mos-windows-main

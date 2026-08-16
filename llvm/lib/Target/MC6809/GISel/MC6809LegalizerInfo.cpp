@@ -605,6 +605,11 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   getActionDefinitionsBuilder(G_FCMP)
       .libcallForCartesianProduct({s1}, {s32, s64});
 
+  // An unconditional branch carries no type, so it needs no rule beyond
+  // being legal. It used to fall through to the legacy legalizer's default;
+  // with that gone the rule has to be stated.
+  getActionDefinitionsBuilder(G_BR).alwaysLegal();
+
   getActionDefinitionsBuilder(G_BRCOND)
       .legalFor({s1});
 
@@ -634,12 +639,12 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // Same-type rules (result and source share the scalar width) avoid the
   // upstream lowerBitCount path that produces (s8, s16) shapes the
   // libcall machinery can't handle.
-  getActionDefinitionsBuilder({G_CTTZ, G_CTTZ_ZERO_UNDEF})
+  getActionDefinitionsBuilder({G_CTTZ, G_CTTZ_ZERO_POISON})
       .libcallFor({{s16, s16}, {s32, s32}, {s64, s64}})
       .widenScalarToNextPow2(0, /*Min=*/16)
       .clampScalar(0, s16, s64);
 
-  getActionDefinitionsBuilder({G_CTLZ, G_CTLZ_ZERO_UNDEF})
+  getActionDefinitionsBuilder({G_CTLZ, G_CTLZ_ZERO_POISON})
       .libcallFor({{s16, s16}, {s32, s32}, {s64, s64}})
       .widenScalarToNextPow2(0, /*Min=*/16)
       .clampScalar(0, s16, s64);
@@ -655,7 +660,6 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   getActionDefinitionsBuilder(G_BITREVERSE).libcallFor(LegalLibcallScalars)
       .clampScalar(0, s8, s64);
 
-  getLegacyLegalizerInfo().computeTables();
   verify(*STI.getInstrInfo());
 }
 
@@ -1628,7 +1632,7 @@ bool MC6809LegalizerInfo::legalizeFixedDivide(LegalizerHelper &Helper, MachineRe
       PosReg = MIRBuilder.buildXor(OpTy, PosReg, MIRBuilder.buildAShr(OpTy, PosReg, MIRBuilder.buildConstant(OpTy, OpSize - 1))).getReg(0);
     Register ScaleReg = MIRBuilder
                             .buildSelect(OpTy, MIRBuilder.buildICmp(CmpInst::ICMP_ULT, LLT::scalar(1), PosReg, MIRBuilder.buildConstant(OpTy, APInt::getOneBitSet(OpSize, Shift - Signed))), MIRBuilder.buildConstant(OpTy, Shift - Signed),
-                                         MIRBuilder.buildAdd(OpTy, MIRBuilder.buildInstr(G_CTLZ_ZERO_UNDEF, {OpTy}, {PosReg}), MIRBuilder.buildConstant(OpTy, -Signed)))
+                                         MIRBuilder.buildAdd(OpTy, MIRBuilder.buildInstr(G_CTLZ_ZERO_POISON, {OpTy}, {PosReg}), MIRBuilder.buildConstant(OpTy, -Signed)))
                             .getReg(0);
     Register ShiftReg = MIRBuilder.buildConstant(OpTy, Shift).getReg(0);
     Register InvScaleReg = MIRBuilder.buildSub(OpTy, ShiftReg, ScaleReg).getReg(0);
@@ -1861,7 +1865,8 @@ bool MC6809LegalizerInfo::legalizeMemOp(LegalizerHelper &Helper, MachineRegister
 
   // Try lowering, keeping in mind the size limit.
   if (IsInline) {
-    Result = Helper.lowerMemcpyInline(MI);
+    // Inline means expand unconditionally, so no length cap.
+    Result = Helper.lowerMemCpyFamily(MI);
   } else {
     Result = Helper.lowerMemCpyFamily(MI, SizeLimit);
   }

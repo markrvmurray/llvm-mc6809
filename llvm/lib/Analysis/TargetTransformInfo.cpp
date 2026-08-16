@@ -106,13 +106,12 @@ IntrinsicCostAttributes::IntrinsicCostAttributes(Intrinsic::ID Id, Type *Ty,
     ParamTys.push_back(Argument->getType());
 }
 
-IntrinsicCostAttributes::IntrinsicCostAttributes(Intrinsic::ID Id, Type *RTy,
-                                                 ArrayRef<const Value *> Args,
-                                                 ArrayRef<Type *> Tys,
-                                                 FastMathFlags Flags,
-                                                 const IntrinsicInst *I,
-                                                 InstructionCost ScalarCost)
-    : II(I), RetTy(RTy), IID(Id), FMF(Flags), ScalarizationCost(ScalarCost) {
+IntrinsicCostAttributes::IntrinsicCostAttributes(
+    Intrinsic::ID Id, Type *RTy, ArrayRef<const Value *> Args,
+    ArrayRef<Type *> Tys, FastMathFlags Flags, const IntrinsicInst *I,
+    InstructionCost ScalarCost, VectorInstrContext VIC)
+    : II(I), RetTy(RTy), IID(Id), FMF(Flags), ScalarizationCost(ScalarCost),
+      VIC(VIC) {
   ParamTys.insert(ParamTys.begin(), Tys.begin(), Tys.end());
   Arguments.insert(Arguments.begin(), Args.begin(), Args.end());
 }
@@ -247,6 +246,10 @@ int TargetTransformInfo::getInlinerVectorBonusPercent() const {
   return TTIImpl->getInlinerVectorBonusPercent();
 }
 
+bool TargetTransformInfo::strictInliningCosts() const {
+  return TTIImpl->strictInliningCosts();
+}
+
 InstructionCost TargetTransformInfo::getGEPCost(
     Type *PointeeType, const Value *Ptr, ArrayRef<const Value *> Operands,
     Type *AccessType, TTI::TargetCostKind CostKind) const {
@@ -294,12 +297,13 @@ bool TargetTransformInfo::hasBranchDivergence(const Function *F) const {
 
 ValueUniformity
 llvm::TargetTransformInfo::getValueUniformity(const Value *V) const {
-  // Calls with the NoDivergenceSource attribute are always uniform.
+  ValueUniformity VU = TTIImpl->getValueUniformity(V);
   if (const auto *Call = dyn_cast<CallBase>(V)) {
-    if (Call->hasFnAttr(Attribute::NoDivergenceSource))
-      return ValueUniformity::AlwaysUniform;
+    if (VU == ValueUniformity::NeverUniform &&
+        Call->hasFnAttr(Attribute::NoDivergenceSource))
+      return ValueUniformity::Default;
   }
-  return TTIImpl->getValueUniformity(V);
+  return VU;
 }
 
 bool llvm::TargetTransformInfo::isValidAddrSpaceCast(unsigned FromAS,
@@ -444,15 +448,13 @@ bool TargetTransformInfo::isLegalAddressingMode(Type *Ty, GlobalValue *BaseGV,
                                         Scale, AddrSpace, I, ScalableOffset);
 }
 
-bool TargetTransformInfo::isLegalAddressingMode(Type *Ty, GlobalValue *BaseGV,
-                                                int64_t BaseOffset,
-                                                bool HasBaseReg, Type *BaseType,
-                                                int64_t Scale, Type *ScaleType,
-                                                unsigned AddrSpace,
-                                                Instruction *I,
-                                                int64_t ScalableOffset) const {
+bool TargetTransformInfo::isLegalAddressingMode(
+    Type *Ty, GlobalValue *BaseGV, int64_t BaseOffset, bool HasBaseReg,
+    Type *BaseType, int64_t Scale, Type *ScaleType, unsigned AddrSpace,
+    Instruction *I, int64_t ScalableOffset) const {
   return TTIImpl->isLegalAddressingMode(Ty, BaseGV, BaseOffset, HasBaseReg,
-                                        Scale, AddrSpace, I, ScalableOffset);
+                                        BaseType, Scale, ScaleType, AddrSpace,
+                                        I, ScalableOffset);
 }
 
 bool TargetTransformInfo::isLSRCostLess(const LSRCost &C1,
@@ -589,11 +591,10 @@ bool TargetTransformInfo::prefersVectorizedAddressing() const {
 
 InstructionCost TargetTransformInfo::getScalingFactorCost(
     Type *Ty, GlobalValue *BaseGV, StackOffset BaseOffset, bool HasBaseReg,
-    Type *BaseType, int64_t Scale, Type *ScaleType,
-    unsigned AddrSpace) const {
-  InstructionCost Cost = TTIImpl->getScalingFactorCost(
-      Ty, BaseGV, BaseOffset, HasBaseReg, BaseType, Scale, ScaleType,
-      AddrSpace);
+    Type *BaseType, int64_t Scale, Type *ScaleType, unsigned AddrSpace) const {
+  InstructionCost Cost =
+      TTIImpl->getScalingFactorCost(Ty, BaseGV, BaseOffset, HasBaseReg,
+                                    BaseType, Scale, ScaleType, AddrSpace);
   assert(Cost >= 0 && "TTI should not produce negative costs!");
   return Cost;
 }
@@ -608,6 +609,10 @@ bool TargetTransformInfo::isTruncateFree(Type *Ty1, Type *Ty2) const {
 
 bool TargetTransformInfo::isZExtFree(Type *Ty1, Type *Ty2) const {
   return TTIImpl->isZExtFree(Ty1, Ty2);
+}
+
+bool TargetTransformInfo::preferNarrowTypes() const {
+  return TTIImpl->preferNarrowTypes();
 }
 
 bool TargetTransformInfo::isProfitableToHoist(Instruction *I) const {
@@ -631,6 +636,10 @@ bool TargetTransformInfo::shouldBuildLookupTables() const {
 bool TargetTransformInfo::shouldBuildLookupTablesForConstant(
     Constant *C) const {
   return TTIImpl->shouldBuildLookupTablesForConstant(C);
+}
+
+unsigned TargetTransformInfo::getMinimumLookupTableEntryBitWidth() const {
+  return TTIImpl->getMinimumLookupTableEntryBitWidth();
 }
 
 bool TargetTransformInfo::shouldBuildRelLookupTables() const {
@@ -753,6 +762,10 @@ TargetTransformInfo::getPopcntSupport(unsigned IntTyWidthInBit) const {
 
 bool TargetTransformInfo::haveFastSqrt(Type *Ty) const {
   return TTIImpl->haveFastSqrt(Ty);
+}
+
+bool TargetTransformInfo::haveFastClmul(IntegerType *Ty) const {
+  return TTIImpl->haveFastClmul(Ty);
 }
 
 bool TargetTransformInfo::isExpensiveToSpeculativelyExecute(
@@ -938,8 +951,10 @@ InstructionCost TargetTransformInfo::getPartialReductionCost(
                                           BinOp, CostKind, FMF);
 }
 
-unsigned TargetTransformInfo::getMaxInterleaveFactor(ElementCount VF) const {
-  return TTIImpl->getMaxInterleaveFactor(VF);
+unsigned
+TargetTransformInfo::getMaxInterleaveFactor(ElementCount VF,
+                                            bool HasUnorderedReductions) const {
+  return TTIImpl->getMaxInterleaveFactor(VF, HasUnorderedReductions);
 }
 
 TargetTransformInfo::OperandValueInfo
@@ -1489,6 +1504,10 @@ bool TargetTransformInfo::preferAlternateOpcodeVectorization() const {
   return TTIImpl->preferAlternateOpcodeVectorization();
 }
 
+bool TargetTransformInfo::preferSLPInstCountCheck() const {
+  return TTIImpl->preferSLPInstCountCheck();
+}
+
 bool TargetTransformInfo::preferPredicatedReductionSelect() const {
   return TTIImpl->preferPredicatedReductionSelect();
 }
@@ -1505,6 +1524,10 @@ bool TargetTransformInfo::shouldConsiderVectorizationRegPressure() const {
 TargetTransformInfo::VPLegalization
 TargetTransformInfo::getVPLegalizationStrategy(const VPIntrinsic &VPI) const {
   return TTIImpl->getVPLegalizationStrategy(VPI);
+}
+
+bool TargetTransformInfo::allowIllegalIntegerIV() const {
+  return TTIImpl->allowIllegalIntegerIV();
 }
 
 bool TargetTransformInfo::hasArmWideBranch(bool Thumb) const {

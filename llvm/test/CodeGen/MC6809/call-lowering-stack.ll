@@ -646,8 +646,7 @@ define void @test_sret_i32(%struct.i32box* sret(%struct.i32box) %out) {
   ; CHECK-HD6309-NEXT: {{  $}}
   ; CHECK-HD6309-NEXT:   [[COPY:%[0-9]+]]:_(p0) = COPY $ix
   ; CHECK-HD6309-NEXT:   [[C:%[0-9]+]]:_(s32) = G_CONSTANT i32 305419896
-  ; CHECK-HD6309-NEXT:   [[COPY1:%[0-9]+]]:_(p0) = COPY [[COPY]](p0)
-  ; CHECK-HD6309-NEXT:   G_STORE [[C]](s32), [[COPY1]](p0) :: (store (s32) into %ir.p, align 1)
+  ; CHECK-HD6309-NEXT:   G_STORE [[C]](s32), [[COPY]](p0) :: (store (s32) into %ir.p, align 1)
   ; CHECK-HD6309-NEXT:   RTSr
   %p = getelementptr inbounds %struct.i32box, %struct.i32box* %out, i16 0, i32 0
   store i32 305419896, i32* %p, align 1
@@ -1094,8 +1093,7 @@ define void @test_sret_i64(%struct.i64box* sret(%struct.i64box) %out) {
   ; CHECK-HD6309-NEXT: {{  $}}
   ; CHECK-HD6309-NEXT:   [[COPY:%[0-9]+]]:_(p0) = COPY $ix
   ; CHECK-HD6309-NEXT:   [[C:%[0-9]+]]:_(s64) = G_CONSTANT i64 -7384579156347827200
-  ; CHECK-HD6309-NEXT:   [[COPY1:%[0-9]+]]:_(p0) = COPY [[COPY]](p0)
-  ; CHECK-HD6309-NEXT:   G_STORE [[C]](s64), [[COPY1]](p0) :: (store (s64) into %ir.p, align 1)
+  ; CHECK-HD6309-NEXT:   G_STORE [[C]](s64), [[COPY]](p0) :: (store (s64) into %ir.p, align 1)
   ; CHECK-HD6309-NEXT:   RTSr
   %p = getelementptr inbounds %struct.i64box, %struct.i64box* %out, i16 0, i32 0
   store i64 -7384579156347827200, i64* %p, align 1

@@ -7,24 +7,28 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/BinaryFormat/MC6809Flags.h"
+#include "llvm/ADT/Enum.h"
 #include "llvm/BinaryFormat/ELF.h"
 
 namespace llvm {
 namespace MC6809 {
 
-#define ENUM_ENT(enum, altName)                                                \
-  { #enum, altName, ELF::enum }
+#define ENUM_ENT(enum, altName) {{#enum, altName}, ELF::enum}
 
-static const EnumEntry<unsigned> ElfHeaderMC6809FlagsEntries[] = {
-    ENUM_ENT(EF_MC6809_ARCH_6809, "mc6809"),
-    ENUM_ENT(EF_MC6809_ARCH_6309, "hd6309")};
-const ArrayRef<EnumEntry<unsigned>> ElfHeaderMC6809Flags{ElfHeaderMC6809FlagsEntries};
+EnumStrings<unsigned, 2> getElfHeaderMC6809Flags() {
+  static constexpr EnumStringDef<unsigned, 2> ElfHeaderMC6809FlagsDefs[] = {
+      ENUM_ENT(EF_MC6809_ARCH_6809, "mc6809"),
+      ENUM_ENT(EF_MC6809_ARCH_6309, "hd6309")};
+  static constexpr auto ElfHeaderMC6809FlagsStorage =
+      BUILD_ENUM_STRINGS(ElfHeaderMC6809FlagsDefs);
+  return EnumStrings(ElfHeaderMC6809FlagsStorage);
+}
 
 std::string makeEFlagsString(unsigned EFlags) {
   std::string Str;
   raw_string_ostream Stream(Str);
   ScopedPrinter Printer(Stream);
-  Printer.printFlags("Flags", EFlags, ElfHeaderMC6809Flags);
+  Printer.printFlags("Flags", EFlags, getElfHeaderMC6809Flags());
   Stream.flush();
   return Str;
 }

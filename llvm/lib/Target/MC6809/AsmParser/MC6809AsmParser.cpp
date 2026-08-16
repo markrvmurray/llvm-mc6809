@@ -304,7 +304,7 @@ public:
 
   };
 
-  MC6809AsmParser(const MCSubtargetInfo &STI, MCAsmParser &Parser, const MCInstrInfo &MII, const MCTargetOptions &Options) : MCTargetAsmParser(Options, STI, MII), MCSTI(static_cast<const MC6809Subtarget &>(STI)), Parser(Parser) {
+  MC6809AsmParser(const MCSubtargetInfo &STI, MCAsmParser &Parser, const MCInstrInfo &MII) : MCTargetAsmParser(STI, MII), MCSTI(static_cast<const MC6809Subtarget &>(STI)), Parser(Parser) {
     MCAsmParserExtension::Initialize(Parser);
     MRI = getContext().getRegisterInfo();
 

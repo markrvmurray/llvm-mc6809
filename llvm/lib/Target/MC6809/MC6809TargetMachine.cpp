@@ -126,10 +126,6 @@ const MC6809Subtarget *MC6809TargetMachine::getSubtargetImpl(const Function &F) 
 
   auto &I = SubtargetMap[CPU + FS];
   if (!I) {
-    // This needs to be done before we create a new subtarget since any
-    // creation will depend on the TM and the code generation flags on the
-    // function that reside in TargetOptions.
-    resetTargetOptions(F);
     I = std::make_unique<MC6809Subtarget>(TargetTriple, CPU, FS, *this);
   }
   return I.get();
