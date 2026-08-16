@@ -275,8 +275,15 @@ bool MC6809StaticStackAlloc::runOnModule(Module &M) {
       MC6809FunctionInfo &MFI = *MF->getInfo<MC6809FunctionInfo>();
       MFI.StaticStackValue = Alias;
 
+      // Iterate the *instruction* list, not the top-level one: a static-frame
+      // access can sit inside a BUNDLE. The HD6309 byte/word indexed-arith
+      // expansion brackets an op whose destination is AW between a pair of
+      // EXG AW<->AD (AW has no indexed encoding) and bundles the three, so a
+      // frame access lands in the bundle interior. MachineBasicBlock's default
+      // iterator walks only bundle heads, which would leave that operand
+      // un-rewritten and it would reach MC lowering as a raw target index.
       for (MachineBasicBlock &MBB : *MF)
-        for (MachineInstr &MI : MBB)
+        for (MachineInstr &MI : MBB.instrs())
           for (MachineOperand &MO : MI.operands())
             if (MO.isTargetIndex()) {
               MO.ChangeToGA(Alias, MO.getOffset(), MO.getTargetFlags());
