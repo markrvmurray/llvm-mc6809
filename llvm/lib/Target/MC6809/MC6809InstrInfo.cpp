@@ -5596,13 +5596,20 @@ void MC6809InstrInfo::expandRotate(MachineIRBuilder &Builder, MachineInstr &MI, 
   if (needsMaterialization(Reg)) {
     Register OrigReg = Reg;
     MachineFunction &MF = *MI.getMF();
+    MachineBasicBlock &MBB = *MI.getParent();
+    // The recursive expansion erases MI, so capture the resume point now
+    // and write the store-back with a fresh builder, as expandShiftRight
+    // does. The staging load and store are LD/ST, which leave C alone, so
+    // the carry the rotate consumes survives the round trip.
+    MachineBasicBlock::iterator NextPt = std::next(MI.getIterator());
     Reg = materializeReg(Builder, Reg, MF);
     MI.getOperand(0).setReg(Reg);
     if (MI.getNumOperands() > 1 && MI.getOperand(1).isReg() &&
         MI.getOperand(1).getReg() == OrigReg)
       MI.getOperand(1).setReg(Reg);
     expandRotate(Builder, MI, Left);
-    dematerializeReg(Builder, Reg, OrigReg, MF);
+    MachineIRBuilder PostBuilder(MBB, NextPt);
+    dematerializeReg(PostBuilder, Reg, OrigReg, MF);
     return;
   }
   unsigned Opcode;
@@ -5616,15 +5623,16 @@ void MC6809InstrInfo::expandRotate(MachineIRBuilder &Builder, MachineInstr &MI, 
     Opcode = Left ? MC6809::ROLBa : MC6809::RORBa;
     break;
   }
-  MI.setDesc(Builder.getTII().get(Opcode));
-  // same off-by-one as expandShiftLeft /
-  // expandShiftRight. ROL_i8 / ROR_i8 use MC6809Shift<ACC8_AB> too,
-  // i.e. (outs reg:$dst), (ins reg:$src, i8imm:$val) — three explicit
-  // operands. Remove operand 2 (the i8imm shift count) first.
-  MI.removeOperand(2); // remove immediate (the i8imm shift count)
-  MI.removeOperand(1); // remove src register (now implicit)
-  MI.removeOperand(0); // remove dst register (now implicit)
-  MI.addImplicitDefUseOperands(*MI.getMF());
+  // Build the concrete rotate afresh and erase the pseudo, as
+  // expandShiftLeft / expandShiftRight do. Rewriting the pseudo in place
+  // would carry its selector-appended phantom-carry implicit operands (the
+  // scheduling link to the instruction that put the wanted bit into C)
+  // through to the concrete instruction, where they have no counterpart:
+  // the producer's expansion drops its side of the link, and a use with no
+  // def is what the machine verifier rejects. buildInstr attaches the
+  // opcode's own implicit CC defs and its C use from the MCInstrDesc.
+  Builder.buildInstr(Opcode);
+  MI.eraseFromParent();
 }
 
 void MC6809InstrInfo::expandMulD(MachineIRBuilder &Builder, MachineInstr &MI) const {

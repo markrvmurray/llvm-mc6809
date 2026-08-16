@@ -303,6 +303,13 @@ getPhantomCarryFlag(Register SrcReg, const MachineRegisterInfo &MRI,
     case MC6809::AddSetCarryUse_i8_Imm: case MC6809::AddSetCarryUse_i16_Imm: case MC6809::AddSetCarryUse_i32_Imm:
     case MC6809::AddSetCarryUse_i8_Mem: case MC6809::AddSetCarryUse_i16_Mem: case MC6809::AddSetCarryUse_i32_Mem:
     case MC6809::AddSetCarryUse_i8_Reg: case MC6809::AddSetCarryUse_i16_Reg: case MC6809::AddSetCarryUse_i32_Reg:
+    // Single-bit shift-extends: the carry-out is the bit shifted out, and
+    // it lives in CC.C. Both the generic form (the consumer of a chain is
+    // selected before its producer, selection being bottom-up) and the
+    // selected pseudos (see selectShiftExtend).
+    case MC6809::G_SHLE:            case MC6809::G_LSHRE:
+    case MC6809::LSL_i8_Reg:        case MC6809::LSR_i8_Reg:        case MC6809::ASR_i8_Reg:
+    case MC6809::ROL_i8_Reg:        case MC6809::ROR_i8_Reg:
       return MC6809::C;
     // Overflow producers.
     case TargetOpcode::G_SSUBO:
@@ -4229,61 +4236,169 @@ bool MC6809InstructionSelector::selectUnMergeValues(MachineInstr &MI) {
 }
 
 bool MC6809InstructionSelector::selectShiftExtend(MachineInstr &MI) {
-  // Select G_SHLE (shift-left-extend) and G_LSHRE (logical-shift-right-extend).
-  // These are single-bit shifts with carry in/out, produced by the shift
-  // decomposition in legalizeShiftRotate for constant shifts.
+  // Select G_SHLE (shift-left-extend) and G_LSHRE (logical-shift-right-extend):
+  // single-bit shifts with a carry in and a carry out, produced by
+  // legalizeShiftRotate for constant shifts and for the 8/16-bit rotates.
   //
-  // G_SHLE → LSL_i8_Reg (= ASL, shift left by 1)
-  // G_LSHRE + carry from ICMP (sign test) → ASR_i8_Reg (arithmetic shift right)
-  // G_LSHRE + carry = 0/undef → LSR_i8_Reg (logical shift right)
+  // The 6809's ROL/ROR are 9-bit rotates through CC.C, so the carry-in
+  // decides the instruction and the carry-out is CC.C afterwards. Both
+  // carries are IR s1 vregs here; physically they are the C flag, and the
+  // s1 vreg is a scheduling phantom (PHANTOM_CARRY class) exactly as in the
+  // add/sub carry chains — see selectAddE. Keeping the vreg wired as an
+  // implicit-def on the producer and an implicit-use on the consumer is
+  // what stops a producer whose byte result is dead (an LSR emitted only to
+  // put bit 0 into the carry for a rotate right) from being deleted before
+  // its consumer is selected, and what keeps the pair adjacent through
+  // regalloc.
   Register Dst = MI.getOperand(0).getReg();
   Register CarryOut = MI.getOperand(1).getReg();
   Register Src = MI.getOperand(2).getReg();
   Register CarryIn = MI.getOperand(3).getReg();
+  bool IsLeft = MI.getOpcode() == MC6809::G_SHLE;
 
   LLT Ty = MRI->getType(Dst);
   if (Ty != LLT::scalar(8))
     return false; // Only handle s8 for now
 
-  // Determine the shift instruction based on carry_in source:
-  // - Constant 0 / undef: first in chain → ASL/LSR/ASR
-  // - From G_ICMP: ASHR sign test → ASR
-  // - From another G_SHLE/G_LSHRE: carry chain → ROL/ROR
-  MachineInstr *CarryDef = MRI->getVRegDef(CarryIn);
-  bool IsCarryChain = CarryDef &&
-      (CarryDef->getOpcode() == MC6809::G_SHLE ||
-       CarryDef->getOpcode() == MC6809::G_LSHRE);
-
-  unsigned ShiftOpc;
-  if (MI.getOpcode() == MC6809::G_SHLE) {
-    ShiftOpc = IsCarryChain ? MC6809::ROL_i8_Reg : MC6809::LSL_i8_Reg;
-  } else {
-    if (CarryDef && CarryDef->getOpcode() == TargetOpcode::G_ICMP)
-      ShiftOpc = MC6809::ASR_i8_Reg;
-    else if (IsCarryChain)
-      ShiftOpc = MC6809::ROR_i8_Reg;
-    else
-      ShiftOpc = MC6809::LSR_i8_Reg;
+  // Classify the carry-in.
+  //   None:    constant 0 or undef — a plain shift, nothing rotates in.
+  //   Phantom: another shift-extend, or any other CC.C-producing chain
+  //            member — the value is already in the carry flag; ROL/ROR.
+  //   SignOfSelf (LSHRE only): the ICMP is the sign test of the very byte
+  //            being shifted — that is an arithmetic shift right; ASR does
+  //            it natively and the ICMP is never materialised.
+  //   Byte:    a genuine 0/1 value (an ICMP result on some other byte, a
+  //            constant 1, ...) — move its LSB into the carry with the
+  //            MaterializeByteToCarry_i8 (LSR) pseudo, then ROL/ROR.
+  enum { None, Phantom, SignOfSelf, Byte } Kind = Byte;
+  Register CarrySrc = CarryIn;
+  {
+    // Look through the transparent pass-throughs, as getPhantomCarryFlag
+    // does, so the shape checks below see the real producer.
+    while (CarrySrc.isVirtual()) {
+      MachineInstr *Def = MRI->getVRegDef(CarrySrc);
+      if (!Def || !(Def->getOpcode() == TargetOpcode::COPY ||
+                    Def->getOpcode() == TargetOpcode::G_FREEZE) ||
+          !Def->getOperand(1).isReg())
+        break;
+      CarrySrc = Def->getOperand(1).getReg();
+    }
+  }
+  MachineInstr *CarryDef =
+      CarrySrc.isVirtual() ? MRI->getVRegDef(CarrySrc) : nullptr;
+  if (auto C = getIConstantVRegSExtVal(CarryIn, *MRI)) {
+    Kind = (*C & 1) ? Byte : None;
+  } else if (CarryDef &&
+             (CarryDef->getOpcode() == TargetOpcode::G_IMPLICIT_DEF ||
+              CarryDef->getOpcode() == TargetOpcode::IMPLICIT_DEF)) {
+    // Still generic when this consumer is selected (bottom-up), selected
+    // already if the undef came from somewhere earlier.
+    Kind = None;
+  } else if (getPhantomCarryFlag(CarryIn, *MRI, &CarryFlagOf) == MC6809::C) {
+    Kind = Phantom;
+  } else if (!IsLeft && CarryDef &&
+             CarryDef->getOpcode() == TargetOpcode::G_ICMP) {
+    // legalizeShiftRotate spells the sign bit of X as `icmp uge X, 0x80`
+    // (or `icmp slt X, 0`); it is the sign of *this* byte only when X is
+    // the byte being shifted.
+    auto Pred = static_cast<CmpInst::Predicate>(CarryDef->getOperand(1).getPredicate());
+    Register X = CarryDef->getOperand(2).getReg();
+    auto RHS = getIConstantVRegSExtVal(CarryDef->getOperand(3).getReg(), *MRI);
+    bool IsSignTest = RHS && ((Pred == CmpInst::ICMP_UGE && (*RHS & 0xFF) == 0x80) ||
+                              (Pred == CmpInst::ICMP_SLT && *RHS == 0));
+    Kind = (IsSignTest && X == Src) ? SignOfSelf : Byte;
   }
 
   MachineIRBuilder Builder(MI);
+  bool CarryOutUsed = !MRI->use_empty(CarryOut);
+
+  // An 8-bit rotate left is SHLE(x, bit7(x)): shift, then add the bit that
+  // fell into the carry back in at bit 0. That is `LSL; ADC #0` — the ADC's
+  // carry-in is the LSL's carry-out, wired as a phantom exactly like a
+  // multi-byte add chain. Only when the carry-out is unused: the ADC
+  // redefines C (always to 0 here), so it cannot double as the producer of
+  // a downstream chain's carry.
+  if (IsLeft && Kind == Byte && !CarryOutUsed && CarryDef &&
+      CarryDef->getOpcode() == TargetOpcode::G_ICMP) {
+    auto Pred = static_cast<CmpInst::Predicate>(CarryDef->getOperand(1).getPredicate());
+    Register X = CarryDef->getOperand(2).getReg();
+    auto RHS = getIConstantVRegSExtVal(CarryDef->getOperand(3).getReg(), *MRI);
+    bool IsBit7OfSelf = X == Src && RHS &&
+                        ((Pred == CmpInst::ICMP_UGE && (*RHS & 0xFF) == 0x80) ||
+                         (Pred == CmpInst::ICMP_SLT && *RHS == 0));
+    if (IsBit7OfSelf) {
+      Register Shifted = MRI->createVirtualRegister(&MC6809::ACC8_ABRegClass);
+      Register Bit7 = MRI->createVirtualRegister(&MC6809::PHANTOM_CARRYRegClass);
+      auto Shift = Builder.buildInstr(MC6809::LSL_i8_Reg)
+                       .addDef(Shifted)
+                       .addUse(Src)
+                       .addImm(1)
+                       .addDef(Bit7, RegState::ImplicitDefine);
+      constrainSelectedInstRegOperands(*Shift, TII, TRI, RBI);
+      CarryFlagOf[Bit7] = MC6809::C;
+      auto Adc = Builder.buildInstr(MC6809::AddSetCarryUse_i8_Imm)
+                     .addDef(Dst)
+                     .addUse(Shifted)
+                     .addImm(0)
+                     .addUse(Bit7, RegState::Implicit);
+      constrainSelectedInstRegOperands(*Adc, TII, TRI, RBI);
+      MI.eraseFromParent();
+      return true;
+    }
+  }
+
+  unsigned ShiftOpc;
+  switch (Kind) {
+  case None:
+    ShiftOpc = IsLeft ? MC6809::LSL_i8_Reg : MC6809::LSR_i8_Reg;
+    break;
+  case SignOfSelf:
+    ShiftOpc = MC6809::ASR_i8_Reg;
+    break;
+  case Phantom:
+  case Byte:
+    ShiftOpc = IsLeft ? MC6809::ROL_i8_Reg : MC6809::ROR_i8_Reg;
+    break;
+  }
+
+  // A byte-valued carry-in has to be put into CC.C first. The materialise
+  // pseudo is LSR on the byte (its LSB goes to C), so it wants its own
+  // ACC8_AB copy; the register allocator supplies it. It carries
+  // hasSideEffects and Defs=[C], and the rotate below carries Uses=[C], so
+  // the pair stays adjacent.
+  if (Kind == Byte) {
+    // Through a COPY into a fresh ACC8_AB vreg rather than the byte vreg
+    // itself: its producer (an ICMP, say) is selected after this consumer
+    // and may pin the vreg to a wider class, undoing a constraint placed
+    // here. Regalloc coalesces the copy away when the classes agree.
+    Register CarryByte = MRI->createVirtualRegister(&MC6809::ACC8_ABRegClass);
+    Builder.buildCopy(CarryByte, CarryIn);
+    auto Mat = Builder.buildInstr(MC6809::MaterializeByteToCarry_i8)
+                   .addUse(CarryByte);
+    constrainSelectedInstRegOperands(*Mat, TII, TRI, RBI);
+  }
+
   auto Shift = Builder.buildInstr(ShiftOpc)
       .addDef(Dst)
       .addUse(Src)
       .addImm(1);  // shift amount = 1
-  constrainSelectedInstRegOperands(*Shift, TII, TRI, RBI);
-
-  // The carry output is implicitly in CC. Mark it as dead if unused,
-  // or create a COPY from the C flag if used.
-  if (MRI->use_empty(CarryOut)) {
-    // Carry not used — nothing to do, it's implicit in CC
-  } else {
-    // Carry is used by the next shift in the chain.
-    // For single-byte shifts, each iteration is independent (same constant
-    // carry_in), so the carry_out is never actually consumed. But mark it
-    // as defined to satisfy the register allocator.
-    Builder.buildUndef(CarryOut);
+  // Rotate consumers keep the phantom carry-in vreg as an implicit use, so
+  // its producer stays alive even when that producer's byte result is dead
+  // and so the two are not separated by anything that redefines C.
+  if (Kind == Phantom)
+    Shift.addUse(CarryIn, RegState::Implicit);
+  // Every shift-extend defines the carry-out. When something consumes it,
+  // it is a phantom whose real home is CC.C: publish it as an implicit-def
+  // in the PHANTOM_CARRY class and register the flag, as selectAddE does,
+  // instead of the old G_IMPLICIT_DEF placeholder that let the consumer
+  // read whatever happened to be in C.
+  if (CarryOutUsed) {
+    Shift.addDef(CarryOut, RegState::ImplicitDefine);
+    if (!MRI->getRegClassOrNull(CarryOut))
+      MRI->setRegClass(CarryOut, &MC6809::PHANTOM_CARRYRegClass);
+    CarryFlagOf[CarryOut] = MC6809::C;
   }
+  constrainSelectedInstRegOperands(*Shift, TII, TRI, RBI);
 
   MI.eraseFromParent();
   return true;

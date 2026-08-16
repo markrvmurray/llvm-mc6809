@@ -389,9 +389,12 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // the G_FSHL/G_FSHR custom handler decomposes to shifts + OR).
   // Using .lower for s32 avoids narrowScalar on the rotate amount
   // which the upstream LegalizerHelper doesn't support.
+  // The amount may arrive as wide as the value (a rotate formed from
+  // fshl.i16 carries an i16 amount); the custom handler truncates it to s8
+  // itself, since narrowScalar on a rotate amount is unsupported upstream.
   getActionDefinitionsBuilder({G_ROTR, G_ROTL})
       .legalForCartesianProduct(LegalScalars, {s1})
-      .customForCartesianProduct(LegalScalars, {s8})
+      .customForCartesianProduct(LegalScalars, {s8, s16, s32})
       .lowerIf([=](const LegalityQuery &Q) {
         return Q.Types[0].getSizeInBits() >= 32;
       })
@@ -1544,9 +1547,24 @@ bool MC6809LegalizerInfo::legalizeFunnelShift(LegalizerHelper &Helper, MachineRe
   Register AmtReg = MI.getOperand(MI.getNumExplicitOperands() - 1).getReg();
 
   LLT Ty = MRI.getType(DstReg);
-  if (Ty == LLT::scalar(8))
-    if (auto Amt = getIConstantVRegValWithLookThrough(AmtReg, MRI))
-      return LegalizerHelper::AlreadyLegal;
+
+  // A funnel shift of a value with itself is a rotate. Say so, and let the
+  // rotate legalization build it from the single-bit carry shifts. The
+  // pre-legalizer combiner does the same rewrite at -O1 and above; at -O0
+  // there is no combiner, and nothing selects a G_FSHL, so it has to happen
+  // here.
+  //
+  // Only for the widths a rotate is legalized natively (s8, s16). From s32
+  // up the G_ROTL/G_ROTR rule LOWERS a rotate to a funnel shift so that the
+  // shifts below become libcalls; rewriting that funnel shift back into a
+  // rotate would cycle forever.
+  if ((Opc == G_FSHL || Opc == G_FSHR) && FwdReg == RevReg &&
+      Ty.getSizeInBits() < 32) {
+    MIRBuilder.buildInstr(Opc == G_FSHL ? G_ROTL : G_ROTR, {DstReg},
+                          {FwdReg, AmtReg});
+    MI.eraseFromParent();
+    return LegalizerHelper::Legalized;
+  }
 
   unsigned FwdShiftOpc = G_SHL;
   unsigned RevShiftOpc = G_LSHR;
@@ -2275,6 +2293,16 @@ bool MC6809LegalizerInfo::legalizeShiftRotate(LegalizerHelper &Helper, MachineRe
 
   LLT S1 = LLT::scalar(1);
   LLT S8 = LLT::scalar(8);
+
+  // A rotate amount is taken modulo the width, so a wide amount (an i16
+  // rotate formed from fshl.i16 carries an i16 amount) loses nothing by
+  // being truncated to a byte; every path below expects an s8 amount.
+  if (IsRotate && MRI.getType(AmtReg) != S8) {
+    Helper.Observer.changingInstr(MI);
+    AmtReg = Builder.buildTrunc(S8, AmtReg).getReg(0);
+    MI.getOperand(2).setReg(AmtReg);
+    Helper.Observer.changedInstr(MI);
+  }
 
   // i16 / i32 / i64 shifts (non-rotates).
   //

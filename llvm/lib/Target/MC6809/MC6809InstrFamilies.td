@@ -951,11 +951,28 @@ defm ASR_i16 : MC6809Shift<ADc>;
 defm LSR_i8 : MC6809Shift<ACC8_AB>;
 defm LSR_i16 : MC6809Shift<ADc>;
 
-// Rotate pseudos for carry-chain shifts (multi-byte shift-by-1).
+// Rotate pseudos for carry-chain shifts (multi-byte shift-by-1) and for
+// the 8-bit rotates, which the legalizer builds from these plus a
+// carry-in.
 // ROL: carry → bit 0, bit 7 → carry. Used for hi byte of left shift chain.
 // ROR: carry → bit 7, bit 0 → carry. Used for lo byte of right shift chain.
-defm ROL_i8 : MC6809Shift<ACC8_AB>;
-defm ROR_i8 : MC6809Shift<ACC8_AB>;
+//
+// Both READ the carry flag: they are 9-bit rotates through CC.C, and the
+// value rotated in comes from whatever last defined C — the previous byte
+// of a chain, or a shift emitted solely to put the wanted bit into the
+// carry (an 8-bit rotate right is LSR on a copy, then ROR). Declaring the
+// use is what keeps that producer alive when its own byte result is dead,
+// and what stops anything that clobbers C from being scheduled in between.
+class MC6809RotateBase<RegisterClass reg> : MC6809ShiftBase<reg> {
+  let Uses = [C];
+}
+
+multiclass MC6809Rotate<RegisterClass reg> {
+  def _Reg : MC6809RotateBase<reg>;
+}
+
+defm ROL_i8 : MC6809Rotate<ACC8_AB>;
+defm ROR_i8 : MC6809Rotate<ACC8_AB>;
 
 // --- Concrete instructions (register-specific, assembler/disassembler) ---
 // Concrete shift instructions (ASLA, ASLB, ASRA, ASRB, LSLA, LSLB, LSRA, LSRB, etc.)
