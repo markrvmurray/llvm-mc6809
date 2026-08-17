@@ -134,6 +134,10 @@ private:
   /// store between the two rewrites CC.
   void materializeFlagAtProducer(Register DstReg, Register SrcReg,
                                  unsigned Flag);
+  /// The one place a MaterializeCC_{C,V}_to_byte is built: immediately after
+  /// \p Producer, the instruction that set the flag.
+  MachineInstr &materializeFlagAfter(MachineInstr &Producer, Register DstReg,
+                                     unsigned Flag);
   bool selectMergeValues(MachineInstr &MI);
   bool selectUnMergeValues(MachineInstr &MI);
   bool selectAddO(MachineInstr &MI);
@@ -3033,14 +3037,23 @@ void MC6809InstructionSelector::materializeFlagAtProducer(Register DstReg,
     break;
   }
   assert(ProdDef && "phantom-carry vreg without a producer");
+  materializeFlagAfter(*ProdDef, DstReg, Flag);
+}
+
+MachineInstr &
+MC6809InstructionSelector::materializeFlagAfter(MachineInstr &Producer,
+                                                Register DstReg,
+                                                unsigned Flag) {
+  assert((Flag == MC6809::C || Flag == MC6809::V) &&
+         "only the carry and overflow flags are materialised this way");
   unsigned Opc = (Flag == MC6809::C) ? MC6809::MaterializeCC_C_to_byte
                                      : MC6809::MaterializeCC_V_to_byte;
   MRI->setRegClass(DstReg, &MC6809::ACC8_ABRegClass);
-  MachineBasicBlock &ProdMBB = *ProdDef->getParent();
-  auto InsertIt = std::next(MachineBasicBlock::iterator(ProdDef));
-  MachineIRBuilder B(ProdMBB, InsertIt);
+  MachineBasicBlock &MBB = *Producer.getParent();
+  MachineIRBuilder B(MBB, std::next(MachineBasicBlock::iterator(Producer)));
   auto I = B.buildInstr(Opc).addDef(DstReg);
   constrainSelectedInstRegOperands(*I, TII, TRI, RBI);
+  return *I;
 }
 
 bool MC6809InstructionSelector::selectMergeValues(MachineInstr &MI) {
@@ -3310,13 +3323,7 @@ bool MC6809InstructionSelector::selectAddO(MachineInstr &MI) {
         break;
       }
     }
-    MachineIRBuilder MatB(Arith);
-    MatB.setInsertPt(*Arith.getParent(),
-                     std::next(MachineBasicBlock::iterator(Arith)));
-    auto Mat = MatB.buildInstr(IsSigned ? MC6809::MaterializeCC_V_to_byte
-                                        : MC6809::MaterializeCC_C_to_byte)
-                   .addDef(CarryOut);
-    constrainSelectedInstRegOperands(*Mat, TII, TRI, RBI);
+    materializeFlagAfter(Arith, CarryOut, IsSigned ? MC6809::V : MC6809::C);
   };
 
   std::optional<ValueAndVReg> ValReg;
@@ -3534,13 +3541,7 @@ bool MC6809InstructionSelector::selectSubO(MachineInstr &MI) {
         break;
       }
     }
-    MachineIRBuilder MatB(Arith);
-    MatB.setInsertPt(*Arith.getParent(),
-                     std::next(MachineBasicBlock::iterator(Arith)));
-    auto Mat = MatB.buildInstr(IsSigned ? MC6809::MaterializeCC_V_to_byte
-                                        : MC6809::MaterializeCC_C_to_byte)
-                   .addDef(CarryOut);
-    constrainSelectedInstRegOperands(*Mat, TII, TRI, RBI);
+    materializeFlagAfter(Arith, CarryOut, IsSigned ? MC6809::V : MC6809::C);
   };
 
   std::optional<ValueAndVReg> ValReg;
@@ -3729,13 +3730,7 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
         break;
       }
     }
-    MachineIRBuilder MatB(Arith);
-    MatB.setInsertPt(*Arith.getParent(),
-                     std::next(MachineBasicBlock::iterator(Arith)));
-    auto Mat = MatB.buildInstr(IsSigned ? MC6809::MaterializeCC_V_to_byte
-                                        : MC6809::MaterializeCC_C_to_byte)
-                   .addDef(CarryOut);
-    constrainSelectedInstRegOperands(*Mat, TII, TRI, RBI);
+    materializeFlagAfter(Arith, CarryOut, IsSigned ? MC6809::V : MC6809::C);
   };
 
   std::optional<ValueAndVReg> ValReg;
@@ -3997,13 +3992,7 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
         break;
       }
     }
-    MachineIRBuilder MatB(Arith);
-    MatB.setInsertPt(*Arith.getParent(),
-                     std::next(MachineBasicBlock::iterator(Arith)));
-    auto Mat = MatB.buildInstr(IsSigned ? MC6809::MaterializeCC_V_to_byte
-                                        : MC6809::MaterializeCC_C_to_byte)
-                   .addDef(CarryOut);
-    constrainSelectedInstRegOperands(*Mat, TII, TRI, RBI);
+    materializeFlagAfter(Arith, CarryOut, IsSigned ? MC6809::V : MC6809::C);
   };
 
   std::optional<ValueAndVReg> ValReg;

@@ -2733,6 +2733,36 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     //   Z: TFR CC,B ; LSRB ; LSRB ; ANDB #1
     //   N: TFR CC,B ; LSRB×3 ; ANDB #1
     MachineFunction &MF = *MI.getMF();
+    // The selector places this pseudo immediately after the instruction
+    // that set the flag, because every store and most arithmetic rewrite
+    // CC. Check that this is still true now that everything before it has
+    // been expanded and the allocator has had its say: walking back over
+    // instructions that leave the flag alone, the first one that writes it
+    // must be a genuine producer -- which may itself read memory (an ADC
+    // with a folded reload) -- and never a store, whether the spiller's
+    // STB of the producer's result or a user store of it (STD clears V).
+#ifndef NDEBUG
+    {
+      MCRegister Flag;
+      switch (MI.getOpcode()) {
+      case MC6809::MaterializeCC_C_to_byte: Flag = MC6809::C; break;
+      case MC6809::MaterializeCC_V_to_byte: Flag = MC6809::V; break;
+      case MC6809::MaterializeCC_Z_to_byte: Flag = MC6809::Z; break;
+      default:                              Flag = MC6809::N; break;
+      }
+      const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
+      MachineBasicBlock &MBB = *MI.getParent();
+      for (auto It = MI.getIterator(); It != MBB.begin();) {
+        --It;
+        if (It->isMetaInstruction() || !It->modifiesRegister(Flag, &TRI))
+          continue;
+        assert(!(It->mayStore() && !It->mayLoad()) &&
+               "MaterializeCC reads a flag that a store has clobbered since "
+               "its producer set it");
+        break;
+      }
+    }
+#endif
     Register DstReg = MI.getOperand(0).getReg();
     Register RealDst = DstReg;
     Register OrigDst = DstReg;
