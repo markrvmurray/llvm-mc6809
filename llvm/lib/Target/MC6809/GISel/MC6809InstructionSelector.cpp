@@ -406,8 +406,19 @@ static void bindPhantomToByte(Register Root, MachineInstr &Producer,
     MachineBasicBlock &MBB = *Producer.getParent();
     MachineIRBuilder B(MBB, std::next(MachineBasicBlock::iterator(Producer)));
     B.buildCopy(Root, Byte);
+    if (WideResult) {
+      // Keep the root out of the imaginary class, or the coalescer folds
+      // the copy away and the root's consumers are handed an imaginary
+      // byte where they wanted an accumulator.
+      if (WasPhantom)
+        MRI.setRegClass(Root, &MC6809::ACC8_ABRegClass);
+      else if (!MRI.constrainRegClass(Root, &MC6809::ACC8_ABRegClass))
+        MRI.setRegClass(Root, &MC6809::ACC8_ABRegClass);
+    }
   }
-  if (WasPhantom)
+  if (WasPhantom && !MRI.getRegClassOrNull(Root))
+    MRI.setRegClass(Root, &MC6809::ACC8_AB_SPRegClass);
+  else if (WasPhantom && MRI.getRegClass(Root) == &MC6809::PHANTOM_CARRYRegClass)
     MRI.setRegClass(Root, &MC6809::ACC8_AB_SPRegClass);
   if (!WasPhantom)
     return;

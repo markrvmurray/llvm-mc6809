@@ -351,8 +351,10 @@ bool MC6809RegisterInfo::getRegAllocationHints(Register VirtReg, ArrayRef<MCPhys
         Preferred = MC6809::AA;
       else
         break;
-      // Worth roughly the EXG the correct lane avoids.
-      RegScores[Preferred] += MC6809InstrCost(2, 8);
+      // Worth roughly the EXG the correct lane avoids -- when the byte can
+      // live there at all (an imaginary-only byte cannot).
+      if (OriginalIndex.count(Preferred))
+        RegScores[Preferred] += MC6809InstrCost(2, 8);
       break;
     }
     case MC6809::COPY: {
