@@ -2034,6 +2034,21 @@ skip_globalvalue_fold:
   case TargetOpcode::G_GLOBAL_VALUE: {
     // Load the address of a global into an index register.
     Register DstReg = MI.getOperand(0).getReg();
+    const MachineOperand &GVMO = MI.getOperand(1);
+    bool IsDPGlobal = GVMO.isGlobal() &&
+                      GVMO.getGlobal()->getAddressSpace() == MC6809::AS_DirectPage;
+    // A direct-page (addrspace 1) global's address is its 8-bit in-page
+    // offset, and a p1 pointer lives in the accumulator bank (pointer
+    // arithmetic on it is byte arithmetic). Materialise it straight into an
+    // 8-bit accumulator -- `LDB #mc6809_8(sym)` -- rather than a 16-bit index
+    // register, which would leave behind a 16-to-8-bit COPY that has no
+    // lowering.
+    if (IsDPGlobal && MRI->getType(DstReg).getSizeInBits() == 8) {
+      MRI->setRegClass(DstReg, &MC6809::ACC8RegClass);
+      MI.setDesc(TII.get(MC6809::Load_i8_Imm));
+      constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
+      return true;
+    }
     MRI->setRegClass(DstReg, &MC6809::INDEX16RegClass);
 
     // Bug #197: under -fPIC / -fPIE, materialise the address PC-relatively
@@ -2074,9 +2089,6 @@ skip_globalvalue_fold:
     // 8-bit in-page offset, which is fixed at link time and so already
     // position-independent. The PC-relative form would combine the DP-offset
     // relocation with PCR (garbage), so always use the immediate form for it.
-    const MachineOperand &GVMO = MI.getOperand(1);
-    bool IsDPGlobal = GVMO.isGlobal() &&
-                      GVMO.getGlobal()->getAddressSpace() == MC6809::AS_DirectPage;
     MI.setDesc(TII.get((MF->getTarget().isPositionIndependent() && !IsDPGlobal)
                            ? MC6809::Lea_iPtr_Sym
                            : MC6809::Load_iPtr_Imm));

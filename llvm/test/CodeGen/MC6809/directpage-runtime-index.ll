@@ -26,12 +26,17 @@ entry:
 }
 
 ; CHECK-LABEL: probe:
-; The object's in-page offset, as a position-independent immediate.
-; CHECK: ldx #mc6809_8(zero_array)
+; The object's in-page offset, as a position-independent immediate -- into an
+; 8-bit accumulator, since a p1 pointer is 8 bits wide and the in-page add is
+; byte arithmetic. Materialising it into a 16-bit index register left a
+; 16-to-8-bit COPY behind that had no lowering and became an SWI3 trap.
+; CHECK: ldb #mc6809_8(zero_array)
 ; The direct-page base, then the full address via indexed addressing.
 ; CHECK: ldx #__dp_base_addr
 ; CHECK: ldb d,x
 
-; Must never use the (HD6309-only) ABX, nor a PC-relative direct-page offset.
+; Must never use the (HD6309-only) ABX, nor a PC-relative direct-page offset,
+; nor leave an unlowered copy behind.
 ; CHECK-NOT: abx
 ; CHECK-NOT: leax mc6809_8({{.*}}),pc
+; CHECK-NOT: swi3
