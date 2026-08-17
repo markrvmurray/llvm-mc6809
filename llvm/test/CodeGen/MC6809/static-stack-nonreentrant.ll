@@ -2,10 +2,11 @@
 ; RUN: llc -mtriple=mc6809 -mcpu=hd6309 -mattr=-static-stack -O2 %s -o - | FileCheck %s --check-prefix=DYN
 
 ; Static-stack allocation for non-reentrant functions (the +static-stack
-; feature). A function carrying the "nonreentrant" attribute lays its whole
-; local frame — including i32 spill slots — in a per-function static global
+; feature). A leaf carrying the "nonreentrant" attribute lays its whole local
+; frame — including i32 spill slots — in a per-function static global
 ; addressed by extended / PC-relative mode instead of a dynamic U-relative
-; frame. i32 is HD6309-only, so these run with -mcpu=hd6309.
+; frame, and drops its frame pointer. i32 is HD6309-only, so these run with
+; -mcpu=hd6309.
 ;
 ; The DYN run (feature off) is the contrast: the identical IR keeps its
 ; dynamic U-relative frame and references no static-stack global. This is
@@ -62,14 +63,15 @@ body:                                             ; preds = %entry, %body
   br i1 %ec, label %done, label %body
 }
 
-; A non-reentrant function that makes a call. The return-address push shifts S,
-; so S-relative access to the remaining fixed arguments would be unstable — the
-; frame pointer is retained (tfr s,u) even though the locals still live in the
-; static frame.
+; A non-reentrant function that makes a call keeps its frame pointer (the
+; return-address push shifts S, so its arguments are only stable U-relative),
+; and with the frame pointer kept a static frame would buy nothing and cost a
+; byte and a cycle per access. It stays on the dynamic frame, feature or not.
 define dso_local i32 @ss_call(i32 noundef %seed, i16 noundef %n) local_unnamed_addr #0 {
 ; SS-LABEL: ss_call:
 ; SS:         tfr{{.*}}s,u
-; SS:         .Lss_call_sstk
+; SS-NOT:     ss_call_sstk
+; SS:         rts
 ;
 ; DYN-LABEL: ss_call:
 ; DYN:         tfr{{.*}}s,u

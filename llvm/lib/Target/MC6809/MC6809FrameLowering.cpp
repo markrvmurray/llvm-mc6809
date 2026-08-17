@@ -583,16 +583,14 @@ bool MC6809FrameLowering::hasFP(const MachineFunction &MF) const {
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   if (MFI.isFrameAddressTaken() || MFI.hasVarSizedObjects())
     return true;
-  // Bug #387: a static-stack function lays its whole local frame — spill slots
-  // included — in absolute (extended / PC-relative) memory, so it needs no U
-  // frame pointer for those accesses. It still needs one when it makes calls
-  // (a call's return-address push shifts S, so any S-relative access to the
-  // remaining fixed args / dynamic slots would be unstable across the call).
-  // A call-free static-stack function drops the frame pointer entirely: no
-  // `pshs u; tfr s,u`, and U becomes available for allocation. hasFP must be
-  // stable across passes (it is queried in determineCalleeSaves, before the
-  // static marking runs), so gate only on inputs that don't depend on marking:
-  // usesStaticStack and hasCalls.
+  // A leaf keeps S at a fixed offset from its incoming arguments for its whole
+  // body, so it needs no U frame pointer; a function that makes calls does
+  // (each call's return-address push shifts S). This is also what makes a
+  // static-stack function frame-pointer-free: usesStaticStack requires
+  // !hasCalls, and its locals live in absolute memory rather than on the
+  // dynamic frame, so U is entirely free for allocation there. hasFP is
+  // queried in determineCalleeSaves, before the static marking runs, so it
+  // must depend only on inputs that are stable by then -- hasCalls is.
   return MFI.hasCalls();
 }
 
@@ -605,14 +603,33 @@ uint64_t MC6809FrameLowering::staticSize(const MachineFrameInfo &MFI) const {
 }
 
 bool MC6809FrameLowering::usesStaticStack(const MachineFunction &MF) const {
-  // Bug #387: only for functions the inter-procedural MC6809NonReentrant
-  // analysis proved single-activation, when the feature is enabled and we are
-  // optimising. A genuinely re-entered function (recursive, interrupt-
-  // reachable, or escaping through an external-call cycle) is never marked
-  // "nonreentrant", so its frame stays dynamic.
+  // Only for functions the inter-procedural MC6809NonReentrant analysis proved
+  // single-activation, when the feature is enabled and we are optimising. A
+  // genuinely re-entered function (recursive, interrupt-reachable, or escaping
+  // through an external-call cycle) is never marked "nonreentrant", so its
+  // frame stays dynamic.
+  //
+  // Beyond that, take the static frame only where it buys the function its
+  // frame pointer back: a function that makes no calls, takes no frame
+  // address and has no variable-sized objects. Such a leaf drops
+  // `pshs u; tfr s,u` and gets U as a third index register, which is where the
+  // whole win lives (hot string/loop leaves). A function that keeps its frame
+  // pointer anyway gains nothing from a static frame and pays for it: an
+  // extended frame access is a byte longer and a cycle slower than a
+  // short-offset `n,u` one, and every static frame widens the whole-program
+  // static_stack, making the page-0 placement that would hide that cost less
+  // likely. Measured across the picolibc bench, restricting to leaves is
+  // better on every tier and every metric than static-stacking every
+  // non-reentrant function.
+  //
+  // The inputs here (hasCalls, isFrameAddressTaken, hasVarSizedObjects) are
+  // all set during instruction selection, so this is stable from
+  // determineCalleeSaves onwards, which hasFP relies on.
+  const MachineFrameInfo &MFI = MF.getFrameInfo();
   return MF.getSubtarget<MC6809Subtarget>().staticStack() &&
          !MF.getFunction().hasOptNone() &&
-         MF.getFunction().hasFnAttribute("nonreentrant");
+         MF.getFunction().hasFnAttribute("nonreentrant") && !MFI.hasCalls() &&
+         !MFI.isFrameAddressTaken() && !MFI.hasVarSizedObjects();
 }
 
 bool MC6809FrameLowering::isSupportedStackID(TargetStackID::Value ID) const {

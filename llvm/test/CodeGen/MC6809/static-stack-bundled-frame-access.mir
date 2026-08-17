@@ -1,0 +1,66 @@
+# RUN: llc -mtriple=mc6809 -mcpu=hd6309 -start-before=mc6809-static-stack-alloc \
+# RUN:     -mc6809-static-stack-dp-avail=200 %s -o - | FileCheck %s --check-prefix=DP
+# RUN: llc -mtriple=mc6809 -mcpu=hd6309 -start-before=mc6809-static-stack-alloc \
+# RUN:     -mc6809-static-stack-dp-avail=0 %s -o - | FileCheck %s --check-prefix=EXT
+
+# A static-stack frame access that lands inside a BUNDLE must still have its
+# TI_STATIC_STACK target index rewritten to the frame global.
+#
+# The HD6309 indexed byte/word arithmetic expansion has no encoding for an
+# operation whose destination is AW, so it brackets the op between a pair of
+# EXG AW<->AD and bundles the three together. When the bracketed op is a frame
+# access, its target index sits in the bundle interior. MC6809StaticStackAlloc
+# iterated the block with MachineBasicBlock's default iterator, which visits
+# only bundle heads, so that one operand was never rewritten and reached
+# MCInstLower as a raw target index -- killing the compiler with
+# "Operand type not implemented."
+#
+# The bundle is written out by hand: which functions the register allocator
+# happens to steer into that AW-cheat is a moving target, but the shape it
+# produces is fixed.
+
+--- |
+  target datalayout = "E-p:16:8-p1:8:8-S8-m:e-i1:8-i8:8-i16:8-i32:8-i64:8-f32:8-f64:8-a:0-n8:16"
+
+  define dso_local i16 @leaf(ptr %p) #0 {
+  entry:
+    ret i16 0
+  }
+
+  attributes #0 = { minsize nofree norecurse nosync nounwind optsize willreturn "nonreentrant" "target-cpu"="hd6309" "target-features"="+static-stack" }
+...
+---
+name:            leaf
+alignment:       1
+tracksRegLiveness: true
+noPhis:          true
+isSSA:           false
+noVRegs:         true
+frameInfo:
+  stackSize:       0
+  maxAlignment:    1
+  hasCalls:        false
+stack:
+  - { id: 0, name: '', type: spill-slot, offset: 0, size: 2, alignment: 1,
+      stack-id: mc6809-static }
+  - { id: 1, name: '', type: spill-slot, offset: 2, size: 2, alignment: 1,
+      stack-id: mc6809-static }
+body:             |
+  bb.0.entry:
+    liveins: $ix, $ad, $aw
+
+    ; DP:  exg d,w
+    ; DP:  eord <mc6809_8(.Lleaf_sstk+2)
+    ; DP:  exg w,d
+    ; DP:  .section{{.*}}.dp.bss.static_stack
+
+    ; EXT: exg d,w
+    ; EXT: eord .Lleaf_sstk+2
+    ; EXT: exg w,d
+    BUNDLE implicit-def $ad, implicit-def $aw, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit $ad, implicit $aw {
+      $ad, $aw = EXGp $ad, $aw
+      EORDe target-index(mc6809-static-stack) + 2, implicit-def $ad, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit killed $ad, implicit-def $ad
+      $aw, $ad = EXGp $aw, $ad
+    }
+    RTSr implicit killed $ix
+...
