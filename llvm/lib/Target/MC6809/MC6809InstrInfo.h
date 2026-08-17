@@ -128,6 +128,26 @@ public:
   void loadStoreRegStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, Register Reg, bool IsKill, int FrameIndex, const TargetRegisterClass *RC, bool IsLoad) const;
 
   bool expandPostRAPseudo(MachineInstr &MI) const override;
+  bool expandPostRAPseudoImpl(MachineInstr &MI) const;
+
+  /// The CC flag whose value the s1 carry-out of a selected phantom-carry
+  /// producer pseudo (SetCarry/SetOverflow families and their *Use forms, the
+  /// single-bit shift-extends) really lives in: C or V. std::nullopt for any
+  /// other opcode.
+  static std::optional<MCPhysReg> phantomFlagOfProducer(unsigned Opcode);
+
+  /// Whether \p MO, an operand of the phantom-carry producer \p MI, is a
+  /// flag-capture tag: an implicit def of a byte register that the selector
+  /// attached because the flag is consumed as a value. The producer's
+  /// expansion then writes the 0/1 flag byte into it itself, right after the
+  /// instruction that set the flag, where nothing can be inserted between.
+  static bool isFlagCaptureTag(const MachineInstr &MI, const MachineOperand &MO);
+
+  /// Emit the sequence that deposits CC flag \p Flag as a 0/1 byte in
+  /// \p DstReg (an A/B accumulator or a direct-page imaginary byte register)
+  /// at \p Builder's insertion point.
+  void emitFlagCapture(MachineIRBuilder &Builder, MCPhysReg Flag,
+                       Register DstReg) const;
 
   MachineInstr *foldMemoryOperandImpl(MachineFunction &MF, MachineInstr &MI,
                                       ArrayRef<unsigned> Ops,

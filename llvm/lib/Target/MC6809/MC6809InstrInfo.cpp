@@ -2292,7 +2292,154 @@ MachineInstr *MC6809InstrInfo::foldMemoryOperandImpl(
   return MIB;
 }
 
+std::optional<MCPhysReg>
+MC6809InstrInfo::phantomFlagOfProducer(unsigned Opcode) {
+  switch (Opcode) {
+  case MC6809::SubSetCarry_i8_Imm:    case MC6809::SubSetCarry_i16_Imm:    case MC6809::SubSetCarry_i32_Imm:
+  case MC6809::SubSetCarry_i8_Mem:    case MC6809::SubSetCarry_i16_Mem:    case MC6809::SubSetCarry_i32_Mem:
+  case MC6809::SubSetCarry_i8_Reg:    case MC6809::SubSetCarry_i16_Reg:    case MC6809::SubSetCarry_i32_Reg:
+  case MC6809::AddSetCarry_i8_Imm:    case MC6809::AddSetCarry_i16_Imm:    case MC6809::AddSetCarry_i32_Imm:
+  case MC6809::AddSetCarry_i8_Mem:    case MC6809::AddSetCarry_i16_Mem:    case MC6809::AddSetCarry_i32_Mem:
+  case MC6809::AddSetCarry_i8_Reg:    case MC6809::AddSetCarry_i16_Reg:    case MC6809::AddSetCarry_i32_Reg:
+  case MC6809::SubSetCarryUse_i8_Imm: case MC6809::SubSetCarryUse_i16_Imm: case MC6809::SubSetCarryUse_i32_Imm:
+  case MC6809::SubSetCarryUse_i8_Mem: case MC6809::SubSetCarryUse_i16_Mem: case MC6809::SubSetCarryUse_i32_Mem:
+  case MC6809::SubSetCarryUse_i8_Reg: case MC6809::SubSetCarryUse_i16_Reg: case MC6809::SubSetCarryUse_i32_Reg:
+  case MC6809::AddSetCarryUse_i8_Imm: case MC6809::AddSetCarryUse_i16_Imm: case MC6809::AddSetCarryUse_i32_Imm:
+  case MC6809::AddSetCarryUse_i8_Mem: case MC6809::AddSetCarryUse_i16_Mem: case MC6809::AddSetCarryUse_i32_Mem:
+  case MC6809::AddSetCarryUse_i8_Reg: case MC6809::AddSetCarryUse_i16_Reg: case MC6809::AddSetCarryUse_i32_Reg:
+  case MC6809::G_SHLE:            case MC6809::G_LSHRE:
+  case MC6809::LSL_i8_Reg:        case MC6809::LSR_i8_Reg:        case MC6809::ASR_i8_Reg:
+  case MC6809::ROL_i8_Reg:        case MC6809::ROR_i8_Reg:
+    return MC6809::C;
+  case MC6809::SubSetOverflow_i8_Imm:     case MC6809::SubSetOverflow_i16_Imm:     case MC6809::SubSetOverflow_i32_Imm:
+  case MC6809::SubSetOverflow_i8_Mem:     case MC6809::SubSetOverflow_i16_Mem:     case MC6809::SubSetOverflow_i32_Mem:
+  case MC6809::SubSetOverflow_i8_Reg:     case MC6809::SubSetOverflow_i16_Reg:     case MC6809::SubSetOverflow_i32_Reg:
+  case MC6809::AddSetOverflow_i8_Imm:     case MC6809::AddSetOverflow_i16_Imm:     case MC6809::AddSetOverflow_i32_Imm:
+  case MC6809::AddSetOverflow_i8_Mem:     case MC6809::AddSetOverflow_i16_Mem:     case MC6809::AddSetOverflow_i32_Mem:
+  case MC6809::AddSetOverflow_i8_Reg:     case MC6809::AddSetOverflow_i16_Reg:     case MC6809::AddSetOverflow_i32_Reg:
+  case MC6809::SubSetOverflowUse_i8_Imm:  case MC6809::SubSetOverflowUse_i16_Imm:  case MC6809::SubSetOverflowUse_i32_Imm:
+  case MC6809::SubSetOverflowUse_i8_Mem:  case MC6809::SubSetOverflowUse_i16_Mem:  case MC6809::SubSetOverflowUse_i32_Mem:
+  case MC6809::SubSetOverflowUse_i8_Reg:  case MC6809::SubSetOverflowUse_i16_Reg:  case MC6809::SubSetOverflowUse_i32_Reg:
+  case MC6809::AddSetOverflowUse_i8_Imm:  case MC6809::AddSetOverflowUse_i16_Imm:  case MC6809::AddSetOverflowUse_i32_Imm:
+  case MC6809::AddSetOverflowUse_i8_Mem:  case MC6809::AddSetOverflowUse_i16_Mem:  case MC6809::AddSetOverflowUse_i32_Mem:
+  case MC6809::AddSetOverflowUse_i8_Reg:  case MC6809::AddSetOverflowUse_i16_Reg:  case MC6809::AddSetOverflowUse_i32_Reg:
+    return MC6809::V;
+  default:
+    return std::nullopt;
+  }
+}
+
+bool MC6809InstrInfo::isFlagCaptureTag(const MachineInstr &MI,
+                                       const MachineOperand &MO) {
+  if (!MO.isReg() || !MO.isDef() || !MO.isImplicit())
+    return false;
+  Register Reg = MO.getReg();
+  if (Reg.isVirtual())
+    return false; // pre-RA: classified by register class, not here
+  if (!MC6809::ACC8_AB_SPRegClass.contains(Reg))
+    return false;
+  // A byte the descriptor itself declares as an implicit def (the E/F cheat
+  // forms) is the producer's own business, not a capture request.
+  for (MCPhysReg D : MI.getDesc().implicit_defs())
+    if (D == Reg)
+      return false;
+  return phantomFlagOfProducer(MI.getOpcode()).has_value();
+}
+
+void MC6809InstrInfo::emitFlagCapture(MachineIRBuilder &Builder,
+                                      MCPhysReg Flag, Register DstReg) const {
+  // CC bit layout (msb->lsb): E F H I N Z V C. Extraction:
+  //   C: LDB #0 ; ADCB #0       (cleanest -- uses ADC's carry-in)
+  //   V: TFR CC,B ; LSRB ; ANDB #1
+  //   Z: TFR CC,B ; LSRB ; LSRB ; ANDB #1
+  //   N: TFR CC,B ; LSRB x3 ; ANDB #1
+  MachineFunction &MF = Builder.getMF();
+  // This must sit immediately after the instruction that set the flag,
+  // because every store and most arithmetic rewrite CC. Check it now that
+  // everything before has been expanded and the allocator has had its say:
+  // walking back over instructions that leave the flag alone, the first one
+  // that writes it must be a genuine producer -- which may itself read
+  // memory, an ADC with a folded reload -- and never a store, whether the
+  // spiller's STB of a result or a user store of it (STB/STD clear V).
+#ifndef NDEBUG
+  {
+    const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
+    MachineBasicBlock &MBB = Builder.getMBB();
+    for (auto It = Builder.getInsertPt(); It != MBB.begin();) {
+      --It;
+      if (It->isMetaInstruction() || !It->modifiesRegister(Flag, &TRI))
+        continue;
+      assert(!(It->mayStore() && !It->mayLoad()) &&
+             "flag capture reads a flag that a store has clobbered since its "
+             "producer set it");
+      break;
+    }
+  }
+#endif
+  Register RealDst = DstReg;
+  bool StageDst = needsMaterialization(DstReg);
+  if (StageDst) {
+    // Pure def: stage via the real register, preserved (see Extract16).
+    // PSHS leaves CC alone, so the flag survives the push.
+    RealDst = getPhysRegFor(DstReg);
+    pushStagingReg(Builder, RealDst);
+  }
+  assert((RealDst == MC6809::AB || RealDst == MC6809::AA) &&
+         "flag capture expects an A/B-allocated destination");
+  // Either half works: pick the opcode family from the assigned register
+  // (a hard ABc pin would propagate through the consuming byte chains and
+  // oversubscribe the single-register class).
+  bool IsA = (RealDst == MC6809::AA);
+  if (Flag == MC6809::C) {
+    Builder.buildInstr(IsA ? MC6809::LDAi8 : MC6809::LDBi8)
+        .addDef(RealDst, RegState::Implicit).addImm(0);
+    Builder.buildInstr(IsA ? MC6809::ADCAi8 : MC6809::ADCBi8)
+        .addDef(RealDst, RegState::Implicit).addImm(0);
+  } else {
+    unsigned NShifts = Flag == MC6809::V ? 1 : Flag == MC6809::Z ? 2 : 3;
+    Builder.buildInstr(MC6809::TFRp).addDef(RealDst).addUse(MC6809::CC);
+    for (unsigned I = 0; I < NShifts; ++I)
+      Builder.buildInstr(IsA ? MC6809::LSRAa : MC6809::LSRBa)
+          .addDef(RealDst, RegState::Implicit);
+    Builder.buildInstr(IsA ? MC6809::ANDAi8 : MC6809::ANDBi8)
+        .addDef(RealDst, RegState::Implicit).addImm(1);
+  }
+  if (StageDst) {
+    dematerializeReg(Builder, RealDst, DstReg, MF);
+    pullStagingReg(Builder, RealDst);
+  }
+}
+
 bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
+  // A phantom-carry producer whose flag is consumed as a value carries the
+  // destination byte as an implicit def (see the selector's
+  // bindFlagToByte). Its expansion writes that byte itself, right after the
+  // instruction that set the flag: capture as a separate instruction would
+  // let the allocator's spill of the producer's own result land between the
+  // two, and STB clears V.
+  SmallVector<std::pair<MCPhysReg, Register>, 2> Captures;
+  if (MI.isPseudo())
+    if (auto Flag = phantomFlagOfProducer(MI.getOpcode()))
+      for (const MachineOperand &MO : MI.implicit_operands())
+        if (isFlagCaptureTag(MI, MO))
+          Captures.emplace_back(*Flag, MO.getReg());
+  if (Captures.empty())
+    return expandPostRAPseudoImpl(MI);
+  // The expansion inserts before MI and erases it, so "right after the
+  // expansion" is whatever followed MI. (Only computed for a tagged
+  // producer: MI may otherwise be a BUNDLE head, whose successor cannot be
+  // named by a bundle iterator.)
+  MachineBasicBlock &MBB = *MI.getParent();
+  MachineBasicBlock::instr_iterator AfterI = std::next(MI.getIterator());
+  bool Changed = expandPostRAPseudoImpl(MI);
+  assert(Changed && "flag-capture tag on a pseudo that did not expand");
+  MachineIRBuilder Builder(MBB, MachineBasicBlock::iterator(AfterI));
+  for (auto &[Flag, Dst] : Captures)
+    emitFlagCapture(Builder, Flag, Dst);
+  return true;
+}
+
+bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
   MachineIRBuilder Builder(MI);
 
   if (!MI.isPseudo()) {
@@ -2724,94 +2871,19 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case MC6809::MaterializeCC_V_to_byte:
   case MC6809::MaterializeCC_Z_to_byte:
   case MC6809::MaterializeCC_N_to_byte: {
-    // Read a single CC flag bit and deposit it as a 0/1 byte in $ab.
-    // The CC bit is the source of truth (no explicit input operand).
-    //
-    // CC bit layout (msb→lsb): E F H I N Z V C.  Extraction:
-    //   C: LDB #0 ; ADCB #0       (cleanest — uses ADC's carry-in)
-    //   V: TFR CC,B ; LSRB ; ANDB #1
-    //   Z: TFR CC,B ; LSRB ; LSRB ; ANDB #1
-    //   N: TFR CC,B ; LSRB×3 ; ANDB #1
-    MachineFunction &MF = *MI.getMF();
-    // The selector places this pseudo immediately after the instruction
-    // that set the flag, because every store and most arithmetic rewrite
-    // CC. Check that this is still true now that everything before it has
-    // been expanded and the allocator has had its say: walking back over
-    // instructions that leave the flag alone, the first one that writes it
-    // must be a genuine producer -- which may itself read memory (an ADC
-    // with a folded reload) -- and never a store, whether the spiller's
-    // STB of the producer's result or a user store of it (STD clears V).
-#ifndef NDEBUG
-    {
-      MCRegister Flag;
-      switch (MI.getOpcode()) {
-      case MC6809::MaterializeCC_C_to_byte: Flag = MC6809::C; break;
-      case MC6809::MaterializeCC_V_to_byte: Flag = MC6809::V; break;
-      case MC6809::MaterializeCC_Z_to_byte: Flag = MC6809::Z; break;
-      default:                              Flag = MC6809::N; break;
-      }
-      const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
-      MachineBasicBlock &MBB = *MI.getParent();
-      for (auto It = MI.getIterator(); It != MBB.begin();) {
-        --It;
-        if (It->isMetaInstruction() || !It->modifiesRegister(Flag, &TRI))
-          continue;
-        assert(!(It->mayStore() && !It->mayLoad()) &&
-               "MaterializeCC reads a flag that a store has clobbered since "
-               "its producer set it");
-        break;
-      }
+    // Read a single CC flag bit and deposit it as a 0/1 byte. The CC bit is
+    // the source of truth (no explicit input operand). Only the physical-
+    // register cases still build this pseudo (an inline-asm "=c" / "=v"
+    // output copied right off the INLINEASM); a selected phantom producer
+    // captures its flag inside its own expansion instead.
+    MCPhysReg Flag;
+    switch (MI.getOpcode()) {
+    case MC6809::MaterializeCC_C_to_byte: Flag = MC6809::C; break;
+    case MC6809::MaterializeCC_V_to_byte: Flag = MC6809::V; break;
+    case MC6809::MaterializeCC_Z_to_byte: Flag = MC6809::Z; break;
+    default:                              Flag = MC6809::N; break;
     }
-#endif
-    Register DstReg = MI.getOperand(0).getReg();
-    Register RealDst = DstReg;
-    Register OrigDst = DstReg;
-    bool StageDst = needsMaterialization(DstReg);
-    if (StageDst) {
-      // Pure def: stage via the real register, preserved (see Extract16).
-      RealDst = getPhysRegFor(DstReg);
-      pushStagingReg(Builder, RealDst);
-    }
-    assert((RealDst == MC6809::AB || RealDst == MC6809::AA) &&
-           "MaterializeCC_*_to_byte expects an A/B-allocated destination");
-    // Either half works: pick the opcode family from the assigned register
-    // (a hard ABc pin would propagate through the consuming byte chains and
-    // oversubscribe the single-register class).
-    bool IsA = (RealDst == MC6809::AA);
-    unsigned Opcode = MI.getOpcode();
-    if (Opcode == MC6809::MaterializeCC_C_to_byte) {
-      // LD #0 ; ADC #0 — fastest path for the C bit.
-      Builder.buildInstr(IsA ? MC6809::LDAi8 : MC6809::LDBi8)
-          .addDef(RealDst, RegState::Implicit).addImm(0);
-      Builder.buildInstr(IsA ? MC6809::ADCAi8 : MC6809::ADCBi8)
-          .addDef(RealDst, RegState::Implicit).addImm(0);
-    } else {
-      // TFR CC,r ; LSR×N ; AND #1.
-      unsigned NShifts = 0;
-      switch (Opcode) {
-      case MC6809::MaterializeCC_V_to_byte: NShifts = 1; break;
-      case MC6809::MaterializeCC_Z_to_byte: NShifts = 2; break;
-      case MC6809::MaterializeCC_N_to_byte: NShifts = 3; break;
-      default: llvm_unreachable("unreachable");
-      }
-      Builder.buildInstr(MC6809::TFRp)
-          .addDef(RealDst)
-          .addUse(MC6809::CC);
-      for (unsigned I = 0; I < NShifts; ++I) {
-        Builder.buildInstr(IsA ? MC6809::LSRAa : MC6809::LSRBa)
-            .addDef(RealDst, RegState::Implicit);
-      }
-      Builder.buildInstr(IsA ? MC6809::ANDAi8 : MC6809::ANDBi8)
-          .addDef(RealDst, RegState::Implicit).addImm(1);
-    }
-
-    if (StageDst) {
-      MachineBasicBlock &MBB = *MI.getParent();
-      auto NextIt = std::next(MachineBasicBlock::iterator(MI));
-      MachineIRBuilder StoreBuilder(MBB, NextIt);
-      dematerializeReg(StoreBuilder, RealDst, OrigDst, MF);
-      pullStagingReg(StoreBuilder, RealDst);
-    }
+    emitFlagCapture(Builder, Flag, MI.getOperand(0).getReg());
     MI.eraseFromParent();
     return true;
   }

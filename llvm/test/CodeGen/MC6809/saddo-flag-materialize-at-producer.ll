@@ -16,9 +16,10 @@ declare { i16, i1 } @llvm.sadd.with.overflow.i16(i16, i16)
 
 ; CHECK-LABEL: checked_add_store:
 ; CHECK:         adc{{[ab]}}
-; CHECK-NEXT:    tfr cc,b
-; CHECK-NEXT:    lsrb
-; CHECK-NEXT:    andb #1
+; CHECK-NOT:     {{st[abdwq] }}
+; CHECK:         tfr cc,{{[ab]}}
+; CHECK-NEXT:    lsr{{[ab]}}
+; CHECK-NEXT:    and{{[ab]}} #1
 ; CHECK:         st{{[dw]}}
 ; CHECK:         rts
 define i1 @checked_add_store(i16 %a, i16 %b, ptr %p) {
@@ -32,13 +33,15 @@ define i1 @checked_add_store(i16 %a, i16 %b, ptr %p) {
 
 ; The overflow bit consumed as a value -- stored as a byte, or steering a
 ; select -- goes through the same capture: the byte is made right after the
-; ADC, before the sum's own store.
+; ADC (a PSHS to stage a direct-page byte is fine, it leaves CC alone) and
+; before any store, the sum's own included.
 
 ; CHECK-LABEL: checked_add_store_flag:
 ; CHECK:         adc{{[ab]}}
-; CHECK-NEXT:    tfr cc,b
-; CHECK-NEXT:    lsrb
-; CHECK-NEXT:    andb #1
+; CHECK-NOT:     {{st[abdwq] }}
+; CHECK:         tfr cc,{{[ab]}}
+; CHECK-NEXT:    lsr{{[ab]}}
+; CHECK-NEXT:    and{{[ab]}} #1
 ; CHECK:         rts
 define void @checked_add_store_flag(i16 %a, i16 %b, ptr %p, ptr %q) {
   %r = call { i16, i1 } @llvm.sadd.with.overflow.i16(i16 %a, i16 %b)
@@ -52,9 +55,10 @@ define void @checked_add_store_flag(i16 %a, i16 %b, ptr %p, ptr %q) {
 
 ; CHECK-LABEL: checked_add_select:
 ; CHECK:         adc{{[ab]}}
-; CHECK-NEXT:    tfr cc,b
-; CHECK-NEXT:    lsrb
-; CHECK-NEXT:    andb #1
+; CHECK-NOT:     {{st[abdwq] }}
+; CHECK:         tfr cc,{{[ab]}}
+; CHECK-NEXT:    lsr{{[ab]}}
+; CHECK-NEXT:    and{{[ab]}} #1
 ; CHECK:         rts
 define i16 @checked_add_select(i16 %a, i16 %b, ptr %p) {
   %r = call { i16, i1 } @llvm.sadd.with.overflow.i16(i16 %a, i16 %b)

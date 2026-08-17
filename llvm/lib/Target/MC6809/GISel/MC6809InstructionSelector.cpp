@@ -132,12 +132,14 @@ private:
   /// the byte \p DstReg. The MaterializeCC pseudo is inserted immediately
   /// after the flag's producer, not at the use, because any arithmetic or
   /// store between the two rewrites CC.
-  void materializeFlagAtProducer(Register DstReg, Register SrcReg,
-                                 unsigned Flag);
-  /// The one place a MaterializeCC_{C,V}_to_byte is built: immediately after
-  /// \p Producer, the instruction that set the flag.
-  MachineInstr &materializeFlagAfter(MachineInstr &Producer, Register DstReg,
-                                     unsigned Flag);
+  /// A phantom-carry vreg is about to be consumed as a value. Turn its root
+  /// (the s1 vreg the producer defines) into a real byte: give it a byte
+  /// register class, so the producer's post-RA expansion captures the flag
+  /// into it itself, right after the instruction that set the flag -- and
+  /// make every chain consumer of that root that has already been selected
+  /// restore CC from the byte, since the capture clobbers CC. Returns the
+  /// root, which callers read as a plain byte from then on.
+  Register bindFlagToByte(Register SrcReg, unsigned Flag);
   bool selectMergeValues(MachineInstr &MI);
   bool selectUnMergeValues(MachineInstr &MI);
   bool selectAddO(MachineInstr &MI);
@@ -257,6 +259,11 @@ getPhantomCarryFlag(Register SrcReg, const MachineRegisterInfo &MRI,
                    const DenseMap<Register, MCPhysReg> *CarryFlagOf = nullptr) {
   Register Cur = SrcReg;
   while (Cur.isVirtual()) {
+    // A root that has been bound to a byte (see bindPhantomToByte) is a
+    // value from then on: the producer captures the flag into it.
+    if (const TargetRegisterClass *RC = MRI.getRegClassOrNull(Cur);
+        RC && RC != &MC6809::PHANTOM_CARRYRegClass)
+      return std::nullopt;
     // Bug #186 v5: tracker lookup. If the IR-level carry/overflow vreg
     // was registered when its SetCarry/SetCarryUse producer was
     // selected (because v5 dropped the explicit carry-out operand from
@@ -344,6 +351,103 @@ getPhantomCarryFlag(Register SrcReg, const MachineRegisterInfo &MRI,
   return std::nullopt;
 }
 
+/// A phantom-carry root vreg -- the s1 the producer defines, as an implicit
+/// def once selected or as the result of the still-generic G_*O / G_*E it
+/// will be selected from -- is about to be consumed as a value. Give it a
+/// byte register class: the producer's post-RA expansion then captures the
+/// flag into it itself, right after the instruction that set the flag,
+/// where nothing can be inserted between (a separate capture instruction
+/// let the allocator's spill of the producer's own result land in the gap,
+/// and STB clears V). Chain consumers of the root that were already selected
+/// read the flag from CC directly, trusting adjacency; the capture clobbers
+/// CC, so each gets a restore from the byte. Consumers selected later see a
+/// value byte and bridge themselves.
+static void bindPhantomToByte(Register Root, MachineInstr &Producer,
+                              MCPhysReg Flag, MachineRegisterInfo &MRI,
+                              const TargetInstrInfo &TII,
+                              const TargetRegisterInfo &TRI,
+                              const RegisterBankInfo &RBI) {
+  assert((Flag == MC6809::C || Flag == MC6809::V) &&
+         "only the carry and overflow flags are bound this way");
+  const TargetRegisterClass *RootRC = MRI.getRegClassOrNull(Root);
+  bool WasPhantom = !RootRC || RootRC == &MC6809::PHANTOM_CARRYRegClass;
+
+  // If the producer is a selected pseudo defining Root implicitly, split
+  // the capture byte off into a fresh vreg and make Root a copy of it right
+  // after the producer. The capture byte is born at the same instruction as
+  // the producer's result: when that result is wider than a byte (AD, AQ --
+  // which alias A and B) the byte must live in a direct-page imaginary
+  // register, so give it a class disjoint from A/B; the copy then moves it
+  // wherever Root's consumers want it, after the result is dead. For a
+  // byte-wide result the other of A/B (or an imaginary register) does.
+  int TagIdx = -1;
+  for (unsigned I = Producer.getNumExplicitOperands(),
+                E = Producer.getNumOperands(); I != E; ++I) {
+    const MachineOperand &MO = Producer.getOperand(I);
+    if (MO.isReg() && MO.isDef() && MO.isImplicit() && MO.getReg() == Root) {
+      TagIdx = I;
+      break;
+    }
+  }
+  if (TagIdx >= 0) {
+    assert(MC6809InstrInfo::phantomFlagOfProducer(Producer.getOpcode()) == Flag &&
+           "flag byte bound to a producer of the other flag");
+    bool WideResult = false;
+    if (Producer.getNumExplicitOperands() > 0 &&
+        Producer.getOperand(0).isReg() && Producer.getOperand(0).isDef()) {
+      Register Res = Producer.getOperand(0).getReg();
+      const TargetRegisterClass *ResRC =
+          Res.isVirtual() ? MRI.getRegClassOrNull(Res) : nullptr;
+      WideResult = ResRC && TRI.getRegSizeInBits(*ResRC) > 8;
+    }
+    Register Byte = MRI.createVirtualRegister(
+        WideResult ? &MC6809::Imag8RegClass : &MC6809::ACC8_AB_SPRegClass);
+    Producer.getOperand(TagIdx).setReg(Byte);
+    MachineBasicBlock &MBB = *Producer.getParent();
+    MachineIRBuilder B(MBB, std::next(MachineBasicBlock::iterator(Producer)));
+    B.buildCopy(Root, Byte);
+  }
+  if (WasPhantom)
+    MRI.setRegClass(Root, &MC6809::ACC8_AB_SPRegClass);
+  if (!WasPhantom)
+    return;
+
+  // Chain consumers already selected against this root read the flag from
+  // CC directly, trusting adjacency. The capture that now follows the
+  // producer clobbers CC, so give each of them a restore from the byte.
+  // Consumers selected later see a value byte and bridge themselves.
+  unsigned Restore = (Flag == MC6809::C) ? MC6809::MaterializeByteToCarry_i8
+                                         : MC6809::MaterializeByteToOverflow_i8;
+  SmallVector<MachineInstr *, 4> Consumers;
+  SmallVector<Register, 4> Work{Root};
+  SmallPtrSet<MachineInstr *, 8> Seen;
+  while (!Work.empty()) {
+    Register R = Work.pop_back_val();
+    for (MachineInstr &Use : MRI.use_nodbg_instructions(R)) {
+      if (&Use == &Producer || !Seen.insert(&Use).second)
+        continue;
+      unsigned Op = Use.getOpcode();
+      if (Op == TargetOpcode::G_FREEZE || Op == TargetOpcode::COPY) {
+        Work.push_back(Use.getOperand(0).getReg());
+        continue;
+      }
+      // A selected chain consumer reads the flag through its descriptor.
+      if (!Use.isPseudo() || !Use.readsRegister(Flag, &TRI))
+        continue;
+      auto It = MachineBasicBlock::iterator(Use);
+      if (It != Use.getParent()->begin() &&
+          std::prev(It)->getOpcode() == Restore)
+        continue; // bridged already
+      Consumers.push_back(&Use);
+    }
+  }
+  for (MachineInstr *Consumer : Consumers) {
+    MachineIRBuilder B(*Consumer);
+    auto R = B.buildInstr(Restore).addUse(Root);
+    constrainSelectedInstRegOperands(*R, TII, TRI, RBI);
+  }
+}
+
 /// Bug #186 follow-up Phase 2a / Phase 5 (2026-04-28): does this MI
 /// clobber the given CC bit (MC6809::C or MC6809::V)?
 ///
@@ -417,23 +521,53 @@ ensureCarryChainIntegrity(MachineInstr &Consumer, Register CarryIn,
                           const RegisterBankInfo &RBI,
                           const DenseMap<Register, MCPhysReg> *CarryFlagOf,
                           DenseMap<MachineInstr *, Register> &BridgedByteFor) {
+  // Walk back through COPY / G_FREEZE to the root vreg first: a root that
+  // has already been bound to a byte (bindPhantomToByte) is a value, and
+  // getPhantomCarryFlag no longer reports it as a phantom.
+  Register Root = CarryIn;
+  while (Root.isVirtual()) {
+    if (const TargetRegisterClass *RC = MRI.getRegClassOrNull(Root);
+        RC && RC != &MC6809::PHANTOM_CARRYRegClass)
+      break; // a value byte
+    MachineInstr *Def = MRI.getVRegDef(Root);
+    if (!Def)
+      break;
+    unsigned Op = Def->getOpcode();
+    if ((Op == TargetOpcode::G_FREEZE || Op == TargetOpcode::COPY) &&
+        Def->getOperand(1).isReg() && Def->getOperand(1).getReg().isVirtual()) {
+      Root = Def->getOperand(1).getReg();
+      continue;
+    }
+    break;
+  }
+  if (const TargetRegisterClass *RootRC =
+          Root.isVirtual() ? MRI.getRegClassOrNull(Root) : nullptr;
+      RootRC && RootRC != &MC6809::PHANTOM_CARRYRegClass) {
+    // Value byte: the producer captured the flag into it and clobbered CC
+    // doing so; restore CC from the byte right before this consumer.
+    if (!CarryFlagOf)
+      return false;
+    auto FlagIt = CarryFlagOf->find(Root);
+    if (FlagIt == CarryFlagOf->end())
+      return false; // a genuine byte boolean, not a bound flag
+    MCPhysReg BoundFlag = FlagIt->second;
+    MachineIRBuilder ConsumerB(Consumer);
+    auto BtoC = ConsumerB
+                    .buildInstr(BoundFlag == MC6809::C
+                                    ? MC6809::MaterializeByteToCarry_i8
+                                    : MC6809::MaterializeByteToOverflow_i8)
+                    .addUse(Root);
+    constrainSelectedInstRegOperands(*BtoC, TII, TRI, RBI);
+    MachineInstr *RootDef = MRI.getVRegDef(Root);
+    return RootDef && RootDef->getParent() != Consumer.getParent();
+  }
+
   auto Flag = getPhantomCarryFlag(CarryIn, MRI, CarryFlagOf);
   if (!Flag || (*Flag != MC6809::C && *Flag != MC6809::V))
     return false;
 
-  // Pick the right materialise pair for the flag we're bridging.
-  //   C: LDB #0 ; ADCB #0      (or LSRB to invert sense)
-  //   V: TFR CC,B ; LSRB ; ANDB #1   (or ANDB #1 ; ADDB #0x7F)
-  // See the pseudo definitions in MC6809InstrPseudos.td.
-  //
-  // CC.C / CC.V is read directly via the pseudo's `Uses = [C]` /
-  // `Uses = [V]`.  The inserted freeze goes immediately after the
-  // producer in the producer's MBB, so the flag is live at the read.
-  // `hasSideEffects = 1` on both producer and freeze keeps them
-  // ordered through scheduling.
-  unsigned ToBytePseudo = (*Flag == MC6809::C)
-      ? MC6809::MaterializeCC_C_to_byte
-      : MC6809::MaterializeCC_V_to_byte;
+  // The consumer-side restore: the flag byte's LSB back into CC.C / CC.V
+  // (LSRB, or the overflow equivalent) immediately before the consumer.
   unsigned ToCCPseudo = (*Flag == MC6809::C)
       ? MC6809::MaterializeByteToCarry_i8
       : MC6809::MaterializeByteToOverflow_i8;
@@ -496,44 +630,12 @@ ensureCarryChainIntegrity(MachineInstr &Consumer, Register CarryIn,
                      // of CarryIn on the new pseudo is still wanted.
   }
 
-  // Producer-side byte (emit ToBytePseudo only once per producer; cache
-  // the byte vreg).
-  Register ByteVReg;
-  auto CacheIt = BridgedByteFor.find(Producer);
-  if (CacheIt != BridgedByteFor.end()) {
-    ByteVReg = CacheIt->second;
-  } else {
-    // Defensive fallback: if the very next MI after Producer is already
-    // the right ToBytePseudo (from a prior call that for some reason
-    // didn't populate the cache — shouldn't happen, but be safe), reuse
-    // its dest vreg.
-    auto AfterProducer = std::next(MachineBasicBlock::iterator(*Producer));
-    MachineBasicBlock &PMBB = *Producer->getParent();
-    if (AfterProducer != PMBB.end() &&
-        AfterProducer->getOpcode() == ToBytePseudo) {
-      ByteVReg = AfterProducer->getOperand(0).getReg();
-    } else {
-      // Fresh: allocate byte vreg and emit ToBytePseudo.
-      //
-      // MaterializeCC_C_to_byte / MaterializeCC_V_to_byte have no
-      // explicit input — CC.C / CC.V is read via the pseudo's
-      // `Uses = [C]` / `Uses = [V]`.  CarryIn is attached as an
-      // *implicit* use so it doesn't count against the pseudo's
-      // explicit operand list (verifier rejects extras on non-
-      // variadic MIs) but its live range still extends across the
-      // bridge for regalloc bookkeeping.  Bug #307 — without the
-      // implicit-use bookkeeping, the phantom_carry vreg's spill
-      // decisions cascaded incorrectly (imaxabs / llabs failures
-      // at -Og-hd6309-mame).
-      ByteVReg = MRI.createVirtualRegister(&MC6809::ACC8_ABRegClass);
-      MachineIRBuilder ProducerB(PMBB, AfterProducer);
-      auto MtoB = ProducerB.buildInstr(ToBytePseudo)
-                      .addDef(ByteVReg)
-                      .addUse(CarryIn, RegState::Implicit);
-      constrainSelectedInstRegOperands(*MtoB, TII, TRI, RBI);
-    }
-    BridgedByteFor[Producer] = ByteVReg;
-  }
+  // Producer side: bind the root to a byte. The producer's own expansion
+  // captures the flag into it (nothing can come between), and every other
+  // already-selected consumer of the root gets its restore there too.
+  bindPhantomToByte(Root, *Producer, *Flag, MRI, TII, TRI, RBI);
+  Register ByteVReg = Root;
+  BridgedByteFor[Producer] = ByteVReg;
 
   // Consumer-side restore: emit ToCCPseudo immediately before this
   // Consumer. Each consumer needs its own restore.
@@ -1305,7 +1407,13 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     LLT SrcTy = MRI->getType(SrcReg);
     if (DstTy == LLT::scalar(8) && SrcTy == LLT::scalar(1)) {
       if (auto Flag = getPhantomCarryFlag(SrcReg, *MRI, &CarryFlagOf)) {
-        materializeFlagAtProducer(DstReg, SrcReg, *Flag);
+        Register Byte = bindFlagToByte(SrcReg, *Flag);
+        // A consumer selected earlier may already have constrained the
+        // destination; otherwise any byte register will do.
+        if (!MRI->getRegClassOrNull(DstReg))
+          MRI->setRegClass(DstReg, &MC6809::ACC8_AB_SPRegClass);
+        MachineIRBuilder B(MI);
+        B.buildCopy(DstReg, Byte);
         MI.eraseFromParent();
         return true;
       }
@@ -1622,7 +1730,13 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
       // instructions later (the sum is typically stored first, and STD
       // clears V), so the use site is the wrong place to read the flag.
       if (auto Flag = getPhantomCarryFlag(SrcReg, *MRI, &CarryFlagOf)) {
-        materializeFlagAtProducer(DstReg, SrcReg, *Flag);
+        Register Byte = bindFlagToByte(SrcReg, *Flag);
+        // A consumer selected earlier may already have constrained the
+        // destination; otherwise any byte register will do.
+        if (!MRI->getRegClassOrNull(DstReg))
+          MRI->setRegClass(DstReg, &MC6809::ACC8_AB_SPRegClass);
+        MachineIRBuilder B(MI);
+        B.buildCopy(DstReg, Byte);
         MI.eraseFromParent();
         return true;
       }
@@ -3013,47 +3127,33 @@ bool MC6809InstructionSelector::selectFrameIndex(MachineInstr &MI) {
   return true;
 }
 
-void MC6809InstructionSelector::materializeFlagAtProducer(Register DstReg,
-                                                          Register SrcReg,
-                                                          unsigned Flag) {
-  // Locate the producer by walking the same COPY / G_FREEZE chain that
-  // getPhantomCarryFlag walked, and insert the materialisation right after
-  // it. CC.C / CC.V are clobbered by any arithmetic or memory store between
-  // producer and use (STD sets V=0), so the flag has to be captured into a
-  // byte at once; the byte vreg then carries the value to the use.
-  Register Cur = SrcReg;
-  MachineInstr *ProdDef = nullptr;
-  while (Cur.isVirtual()) {
-    ProdDef = MRI->getVRegDef(Cur);
-    if (!ProdDef)
+Register MC6809InstructionSelector::bindFlagToByte(Register SrcReg,
+                                                   unsigned Flag) {
+  // Walk the COPY / G_FREEZE chain to the root: the first vreg that already
+  // has a real byte class (a bound root, or the split copy of the capture
+  // byte), or else the phantom the producer defines.
+  Register Root = SrcReg;
+  MachineInstr *Producer = nullptr;
+  while (Root.isVirtual()) {
+    if (const TargetRegisterClass *RC = MRI->getRegClassOrNull(Root);
+        RC && RC != &MC6809::PHANTOM_CARRYRegClass)
+      return Root; // already a value byte
+    Producer = MRI->getVRegDef(Root);
+    if (!Producer)
       break;
-    unsigned Op = ProdDef->getOpcode();
+    unsigned Op = Producer->getOpcode();
     if (Op == TargetOpcode::G_FREEZE || Op == TargetOpcode::COPY) {
-      if (!ProdDef->getOperand(1).isReg())
+      if (!Producer->getOperand(1).isReg() ||
+          !Producer->getOperand(1).getReg().isVirtual())
         break;
-      Cur = ProdDef->getOperand(1).getReg();
+      Root = Producer->getOperand(1).getReg();
       continue;
     }
     break;
   }
-  assert(ProdDef && "phantom-carry vreg without a producer");
-  materializeFlagAfter(*ProdDef, DstReg, Flag);
-}
-
-MachineInstr &
-MC6809InstructionSelector::materializeFlagAfter(MachineInstr &Producer,
-                                                Register DstReg,
-                                                unsigned Flag) {
-  assert((Flag == MC6809::C || Flag == MC6809::V) &&
-         "only the carry and overflow flags are materialised this way");
-  unsigned Opc = (Flag == MC6809::C) ? MC6809::MaterializeCC_C_to_byte
-                                     : MC6809::MaterializeCC_V_to_byte;
-  MRI->setRegClass(DstReg, &MC6809::ACC8_ABRegClass);
-  MachineBasicBlock &MBB = *Producer.getParent();
-  MachineIRBuilder B(MBB, std::next(MachineBasicBlock::iterator(Producer)));
-  auto I = B.buildInstr(Opc).addDef(DstReg);
-  constrainSelectedInstRegOperands(*I, TII, TRI, RBI);
-  return *I;
+  assert(Producer && Root.isVirtual() && "phantom-carry vreg without a producer");
+  bindPhantomToByte(Root, *Producer, Flag, *MRI, TII, TRI, RBI);
+  return Root;
 }
 
 bool MC6809InstructionSelector::selectMergeValues(MachineInstr &MI) {
@@ -3315,15 +3415,12 @@ bool MC6809InstructionSelector::selectAddO(MachineInstr &MI) {
   auto EmitCarryByteIfValue = [&](MachineInstr &Arith) {
     if (!CarryIsValue)
       return;
-    for (unsigned I = Arith.getNumOperands(); I-- > 0;) {
-      const MachineOperand &MO = Arith.getOperand(I);
-      if (MO.isReg() && MO.isDef() && MO.isImplicit() &&
-          MO.getReg() == CarryOut) {
-        Arith.removeOperand(I);
-        break;
-      }
-    }
-    materializeFlagAfter(Arith, CarryOut, IsSigned ? MC6809::V : MC6809::C);
+    // The implicit def of CarryOut on Arith stays: it is now the byte the
+    // producer's expansion writes, right after the flag-setting instruction.
+    // (Bind against Arith directly: the generic MI still defines CarryOut
+    // until it is erased below, so a walk to the def would see two.)
+    bindPhantomToByte(CarryOut, Arith, IsSigned ? MC6809::V : MC6809::C,
+                      *MRI, TII, TRI, RBI);
   };
 
   std::optional<ValueAndVReg> ValReg;
@@ -3533,15 +3630,12 @@ bool MC6809InstructionSelector::selectSubO(MachineInstr &MI) {
   auto EmitCarryByteIfValue = [&](MachineInstr &Arith) {
     if (!CarryIsValue)
       return;
-    for (unsigned I = Arith.getNumOperands(); I-- > 0;) {
-      const MachineOperand &MO = Arith.getOperand(I);
-      if (MO.isReg() && MO.isDef() && MO.isImplicit() &&
-          MO.getReg() == CarryOut) {
-        Arith.removeOperand(I);
-        break;
-      }
-    }
-    materializeFlagAfter(Arith, CarryOut, IsSigned ? MC6809::V : MC6809::C);
+    // The implicit def of CarryOut on Arith stays: it is now the byte the
+    // producer's expansion writes, right after the flag-setting instruction.
+    // (Bind against Arith directly: the generic MI still defines CarryOut
+    // until it is erased below, so a walk to the def would see two.)
+    bindPhantomToByte(CarryOut, Arith, IsSigned ? MC6809::V : MC6809::C,
+                      *MRI, TII, TRI, RBI);
   };
 
   std::optional<ValueAndVReg> ValReg;
@@ -3722,15 +3816,12 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
   auto EmitCarryByteIfValue = [&](MachineInstr &Arith) {
     if (!CarryIsValue)
       return;
-    for (unsigned I = Arith.getNumOperands(); I-- > 0;) {
-      const MachineOperand &MO = Arith.getOperand(I);
-      if (MO.isReg() && MO.isDef() && MO.isImplicit() &&
-          MO.getReg() == CarryOut) {
-        Arith.removeOperand(I);
-        break;
-      }
-    }
-    materializeFlagAfter(Arith, CarryOut, IsSigned ? MC6809::V : MC6809::C);
+    // The implicit def of CarryOut on Arith stays: it is now the byte the
+    // producer's expansion writes, right after the flag-setting instruction.
+    // (Bind against Arith directly: the generic MI still defines CarryOut
+    // until it is erased below, so a walk to the def would see two.)
+    bindPhantomToByte(CarryOut, Arith, IsSigned ? MC6809::V : MC6809::C,
+                      *MRI, TII, TRI, RBI);
   };
 
   std::optional<ValueAndVReg> ValReg;
@@ -3984,15 +4075,12 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
   auto EmitCarryByteIfValue = [&](MachineInstr &Arith) {
     if (!CarryIsValue)
       return;
-    for (unsigned I = Arith.getNumOperands(); I-- > 0;) {
-      const MachineOperand &MO = Arith.getOperand(I);
-      if (MO.isReg() && MO.isDef() && MO.isImplicit() &&
-          MO.getReg() == CarryOut) {
-        Arith.removeOperand(I);
-        break;
-      }
-    }
-    materializeFlagAfter(Arith, CarryOut, IsSigned ? MC6809::V : MC6809::C);
+    // The implicit def of CarryOut on Arith stays: it is now the byte the
+    // producer's expansion writes, right after the flag-setting instruction.
+    // (Bind against Arith directly: the generic MI still defines CarryOut
+    // until it is erased below, so a walk to the def would see two.)
+    bindPhantomToByte(CarryOut, Arith, IsSigned ? MC6809::V : MC6809::C,
+                      *MRI, TII, TRI, RBI);
   };
 
   std::optional<ValueAndVReg> ValReg;
