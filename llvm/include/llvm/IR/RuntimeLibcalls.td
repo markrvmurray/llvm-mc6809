@@ -3682,6 +3682,10 @@ def MC6809SystemLibrary
           __sqrtsf2, __sqrtdf2,
           __abssf2, __absdf2,
           __negsf2, __negdf2,
+          // The libc is picolibc, which provides sincos/sincosf; the
+          // generic table gates them on a GNU environment, so say so here or
+          // the fused sin+cos InstCombine now forms cannot be lowered.
+          sincosf, sincos,
           abort)>;
 
 //===----------------------------------------------------------------------===//
