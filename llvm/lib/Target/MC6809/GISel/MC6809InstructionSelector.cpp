@@ -128,6 +128,12 @@ private:
   // Post-tablegen selection functions. If these return false, it is an error.
   bool tryFusePostModify(MachineInstr &MI) const;
   bool selectFrameIndex(MachineInstr &MI);
+  /// Capture the CC flag standing behind phantom-carry vreg \p SrcReg into
+  /// the byte \p DstReg. The MaterializeCC pseudo is inserted immediately
+  /// after the flag's producer, not at the use, because any arithmetic or
+  /// store between the two rewrites CC.
+  void materializeFlagAtProducer(Register DstReg, Register SrcReg,
+                                 unsigned Flag);
   bool selectMergeValues(MachineInstr &MI);
   bool selectUnMergeValues(MachineInstr &MI);
   bool selectAddO(MachineInstr &MI);
@@ -1295,48 +1301,9 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     LLT SrcTy = MRI->getType(SrcReg);
     if (DstTy == LLT::scalar(8) && SrcTy == LLT::scalar(1)) {
       if (auto Flag = getPhantomCarryFlag(SrcReg, *MRI, &CarryFlagOf)) {
-        // Locate the producer MI by walking COPY/G_FREEZE (same chain
-        // getPhantomCarryFlag walked). Insert the materialisation right
-        // after it.
-        Register Cur = SrcReg;
-        MachineInstr *ProdDef = nullptr;
-        // Collect the COPY/G_FREEZE pass-throughs so we can erase any that
-        // become dead once the G_ZEXT is replaced.  For an inline-asm CC
-        // output the chain is `%2 = COPY %0` / `%0 = COPY $c`; both are dead
-        // after the materialise reads $c directly, and — being cross-bank
-        // flags->accum copies — are unselectable, so they MUST go.
-        SmallVector<MachineInstr *, 4> PassThroughs;
-        while (Cur.isVirtual()) {
-          ProdDef = MRI->getVRegDef(Cur);
-          if (!ProdDef) break;
-          unsigned Op = ProdDef->getOpcode();
-          if (Op == TargetOpcode::G_FREEZE || Op == TargetOpcode::COPY) {
-            PassThroughs.push_back(ProdDef);
-            if (!ProdDef->getOperand(1).isReg())
-              break;
-            Cur = ProdDef->getOperand(1).getReg();
-            continue;
-          }
-          break;
-        }
-        if (ProdDef) {
-          // Emit MaterializeCC_C_to_byte / MaterializeCC_V_to_byte —
-          // the pseudo reads CC.C / CC.V directly via Uses=[C] / [V]
-          // (no explicit operand).  hasSideEffects=1 on producer and
-          // freeze, plus same-BB placement right after the producer,
-          // keeps CC live across the read.
-          unsigned Opc = (*Flag == MC6809::C)
-                             ? MC6809::MaterializeCC_C_to_byte
-                             : MC6809::MaterializeCC_V_to_byte;
-          MRI->setRegClass(DstReg, &MC6809::ACC8_ABRegClass);
-          MachineBasicBlock &ProdMBB = *ProdDef->getParent();
-          auto InsertIt = std::next(MachineBasicBlock::iterator(ProdDef));
-          MachineIRBuilder B(ProdMBB, InsertIt);
-          auto I = B.buildInstr(Opc).addDef(DstReg);
-          constrainSelectedInstRegOperands(*I, TII, TRI, RBI);
-          MI.eraseFromParent();
-          return true;
-        }
+        materializeFlagAtProducer(DstReg, SrcReg, *Flag);
+        MI.eraseFromParent();
+        return true;
       }
       // Non-phantom G_ZEXT s1→s8: rewrite as `AND_i8_Imm $dst, $src, 1`
       // tied (dst==src).  Expands post-RA to a single `AND[A|B] #1`,
@@ -1647,16 +1614,11 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
       // post-RA they expand to
       //   C:  LDB #0 ; ADCB #0     (reads CC.C → 0/1 byte)
       //   V:  TFR CC,B ; LSRB ; ANDB #1
-      // and `hasSideEffects=1` on producer + materialise keeps the
-      // flag alive across the gap.
+      // — right after the producer. The anyext itself may sit several
+      // instructions later (the sum is typically stored first, and STD
+      // clears V), so the use site is the wrong place to read the flag.
       if (auto Flag = getPhantomCarryFlag(SrcReg, *MRI, &CarryFlagOf)) {
-        MRI->setRegClass(DstReg, &MC6809::ACC8_ABRegClass);
-        MachineIRBuilder B(MI);
-        unsigned Opc = (*Flag == MC6809::C)
-                           ? MC6809::MaterializeCC_C_to_byte
-                           : MC6809::MaterializeCC_V_to_byte;
-        auto I = B.buildInstr(Opc).addDef(DstReg);
-        constrainSelectedInstRegOperands(*I, TII, TRI, RBI);
+        materializeFlagAtProducer(DstReg, SrcReg, *Flag);
         MI.eraseFromParent();
         return true;
       }
@@ -3033,6 +2995,40 @@ bool MC6809InstructionSelector::selectFrameIndex(MachineInstr &MI) {
   constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
   MI.eraseFromParent();
   return true;
+}
+
+void MC6809InstructionSelector::materializeFlagAtProducer(Register DstReg,
+                                                          Register SrcReg,
+                                                          unsigned Flag) {
+  // Locate the producer by walking the same COPY / G_FREEZE chain that
+  // getPhantomCarryFlag walked, and insert the materialisation right after
+  // it. CC.C / CC.V are clobbered by any arithmetic or memory store between
+  // producer and use (STD sets V=0), so the flag has to be captured into a
+  // byte at once; the byte vreg then carries the value to the use.
+  Register Cur = SrcReg;
+  MachineInstr *ProdDef = nullptr;
+  while (Cur.isVirtual()) {
+    ProdDef = MRI->getVRegDef(Cur);
+    if (!ProdDef)
+      break;
+    unsigned Op = ProdDef->getOpcode();
+    if (Op == TargetOpcode::G_FREEZE || Op == TargetOpcode::COPY) {
+      if (!ProdDef->getOperand(1).isReg())
+        break;
+      Cur = ProdDef->getOperand(1).getReg();
+      continue;
+    }
+    break;
+  }
+  assert(ProdDef && "phantom-carry vreg without a producer");
+  unsigned Opc = (Flag == MC6809::C) ? MC6809::MaterializeCC_C_to_byte
+                                     : MC6809::MaterializeCC_V_to_byte;
+  MRI->setRegClass(DstReg, &MC6809::ACC8_ABRegClass);
+  MachineBasicBlock &ProdMBB = *ProdDef->getParent();
+  auto InsertIt = std::next(MachineBasicBlock::iterator(ProdDef));
+  MachineIRBuilder B(ProdMBB, InsertIt);
+  auto I = B.buildInstr(Opc).addDef(DstReg);
+  constrainSelectedInstRegOperands(*I, TII, TRI, RBI);
 }
 
 bool MC6809InstructionSelector::selectMergeValues(MachineInstr &MI) {
