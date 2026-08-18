@@ -1,4 +1,22 @@
 # -*- Python -*-
+#
+# End-to-end tests for LLVM-built OS-9 program modules: each TestCase is
+# compiled with the in-tree clang for mc6809-unknown-os9, put on a disk, run
+# under a real NitrOS-9 boot, and its console output checked with FileCheck.
+#
+# Two ways to boot NitrOS-9 are supported; the suite is skipped unless one is
+# fully configured (see README.md):
+#
+#   usim09pt (Pico-Thing, ROM-free, the default)
+#     NITROS9_USIM09PT=/path/to/usim09pt
+#     NITROS9_BOOT_DSK=/path/to/NOS9_6809_L2_DEV_picothing_x0.dsk (IDE image)
+#     NITROS9_FIRMWARE=/path/to/rel_picothing.srec
+#
+#   MAME coco3 (needs CoCo 3 ROMs)
+#     MAME_ROMPATH=/path/to/roms
+#     OS9_BOOT_DSK=/path/to/nitros9-coco3.dsk   [MAME=/path/to/mame]
+#
+# and MC6809_OS9_RUNTIME_TESTS=1 to opt in (booting an OS per test is slow).
 
 import os
 import shutil
@@ -7,8 +25,8 @@ import sys
 
 import lit.formats
 
-config.name = "MC6809 OS-9 MAME Runtime"
-config.test_format = lit.formats.ShTest(execute_external=True)
+config.name = "MC6809 OS-9 Runtime"
+config.test_format = lit.formats.ShTest()
 config.test_source_root = os.path.dirname(__file__)
 config.suffixes = [".c", ".test"]
 
@@ -23,10 +41,6 @@ if llvm_lit_path:
 if sys.argv and sys.argv[0]:
     tool_dirs.append(os.path.dirname(os.path.abspath(sys.argv[0])))
 
-# Convenient for running this source-tree suite directly with
-# llvm/build/bin/llvm-lit, without a configured compiler-rt lit site.
-repo_root = os.path.abspath(os.path.join(config.test_source_root, "..", "..", ".."))
-tool_dirs.append(os.path.join(repo_root, "llvm", "build", "bin"))
 
 def find_tool(env_name, tool_name):
     value = os.environ.get(env_name)
@@ -40,27 +54,28 @@ def find_tool(env_name, tool_name):
             return candidate
     return shutil.which(tool_name) or tool_name
 
+
+def usable(path):
+    return bool(path) and (shutil.which(path) is not None or os.path.exists(path))
+
+
 clang = find_tool("MC6809_OS9_CLANG", "clang")
 filecheck = find_tool("FILECHECK", "FileCheck")
-mame = find_tool("MAME", "mame")
 os9 = find_tool("OS9_TOOL", "os9")
+mame = find_tool("MAME", "mame")
+usim09pt = os.environ.get("NITROS9_USIM09PT", shutil.which("usim09pt") or "")
 
 config.substitutions.append(("%clang", clang))
 config.substitutions.append(("%filecheck", filecheck))
-config.substitutions.append(("%mame", mame))
 config.substitutions.append(("%os9", os9))
 config.substitutions.append(("%run_os9_case",
     os.path.join(config.test_source_root, "scripts", "run-os9-case.sh")))
 
-enabled = os.environ.get("MC6809_OS9_MAME_TESTS") == "1"
-rompath = os.environ.get("MAME_ROMPATH")
-boot_disk = os.environ.get("OS9_BOOT_DSK")
-has_rompath = bool(rompath) and os.path.isdir(rompath)
-has_boot_disk = bool(boot_disk) and os.path.isfile(boot_disk)
-has_mame = shutil.which(mame) is not None or os.path.exists(mame)
-has_os9 = shutil.which(os9) is not None or os.path.exists(os9)
+enabled = os.environ.get("MC6809_OS9_RUNTIME_TESTS") == "1" or \
+          os.environ.get("MC6809_OS9_MAME_TESTS") == "1"
+
 has_mc6809_clang = False
-if shutil.which(clang) is not None or os.path.exists(clang):
+if usable(clang):
     try:
         result = subprocess.run(
             [clang, "--target=mc6809-unknown-os9", "-x", "c", "-c", "-o", os.devnull, "-"],
@@ -73,26 +88,40 @@ if shutil.which(clang) is not None or os.path.exists(clang):
     except OSError:
         has_mc6809_clang = False
 
-configured = (
-    enabled
-    and has_rompath
-    and has_boot_disk
-    and has_mame
-    and has_os9
-    and has_mc6809_clang
-)
+usim_boot = os.environ.get("NITROS9_BOOT_DSK", "")
+usim_firmware = os.environ.get("NITROS9_FIRMWARE", "")
+usim_ready = usable(usim09pt) and os.path.isfile(usim_boot) and os.path.isfile(usim_firmware)
+
+mame_rompath = os.environ.get("MAME_ROMPATH", "")
+mame_boot = os.environ.get("OS9_BOOT_DSK", "")
+mame_ready = usable(mame) and os.path.isdir(mame_rompath) and os.path.isfile(mame_boot)
+
+backend = os.environ.get("MC6809_OS9_BACKEND", "")
+if not backend:
+    backend = "usim" if usim_ready else ("mame" if mame_ready else "")
+
+configured = enabled and usable(os9) and has_mc6809_clang and (
+    (backend == "usim" and usim_ready) or (backend == "mame" and mame_ready))
 
 if configured:
-    config.available_features.add("mc6809-os9-mame-runtime")
+    config.available_features.add("mc6809-os9-runtime")
+    config.available_features.add("mc6809-os9-%s-runtime" % backend)
 else:
     config.unsupported = True
 
-config.environment["MAME"] = mame
-config.environment["OS9_TOOL"] = os9
+config.environment["MC6809_OS9_BACKEND"] = backend
 config.environment["MC6809_OS9_CLANG"] = clang
+config.environment["OS9_TOOL"] = os9
 config.environment["FILECHECK"] = filecheck
+config.environment["MAME"] = mame
+config.environment["NITROS9_USIM09PT"] = usim09pt
 
 for env_name in [
+    "NITROS9_BOOT_DSK",
+    "NITROS9_FIRMWARE",
+    "NITROS9_INPUT_FIRST",
+    "NITROS9_TIMEOUT",
+    "NITROS9_WALL_SECONDS",
     "MAME_ROMPATH",
     "OS9_BOOT_DSK",
     "MAME_SECONDS_TO_RUN",

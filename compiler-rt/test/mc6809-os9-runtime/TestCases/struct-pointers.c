@@ -1,4 +1,4 @@
-// REQUIRES: mc6809-os9-mame-runtime
+// REQUIRES: mc6809-os9-runtime
 //
 // RUN: %run_os9_case %s OS9
 //
