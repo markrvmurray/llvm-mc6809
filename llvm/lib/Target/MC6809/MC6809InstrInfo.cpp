@@ -330,6 +330,8 @@ static bool isFusedCompareBranch(unsigned Opc) {
 // MC6809.h:MC6809CC::doesNotReadCarry / doesOnlyReadCarry so the
 // same logic is reused by the GISel selector.
 static unsigned pickBbcVariant(int64_t CC) {
+  if (MC6809CC::doesOnlyReadZero(CC))
+    return MC6809::Bbc_OnlyZ;
   if (MC6809CC::doesNotReadCarry(CC))
     return MC6809::Bbc_NoC;
   if (MC6809CC::doesOnlyReadCarry(CC))
@@ -338,6 +340,8 @@ static unsigned pickBbcVariant(int64_t CC) {
 }
 
 static unsigned pickLBlbcVariant(int64_t CC) {
+  if (MC6809CC::doesOnlyReadZero(CC))
+    return MC6809::LBlbc_OnlyZ;
   if (MC6809CC::doesNotReadCarry(CC))
     return MC6809::LBlbc_NoC;
   if (MC6809CC::doesOnlyReadCarry(CC))
@@ -352,9 +356,9 @@ static unsigned pickLBlbcVariant(int64_t CC) {
 // false-positive on TST + branch / CarrySet + Store + branch pairs).
 static bool isBbcOrLBlbc(unsigned Opc) {
   return Opc == MC6809::Bbc || Opc == MC6809::Bbc_NoC ||
-         Opc == MC6809::Bbc_OnlyC ||
+         Opc == MC6809::Bbc_OnlyC || Opc == MC6809::Bbc_OnlyZ ||
          Opc == MC6809::LBlbc || Opc == MC6809::LBlbc_NoC ||
-         Opc == MC6809::LBlbc_OnlyC;
+         Opc == MC6809::LBlbc_OnlyC || Opc == MC6809::LBlbc_OnlyZ;
 }
 
 bool MC6809InstrInfo::isCondBranch(const MachineBasicBlock::instr_iterator &I) const {
@@ -589,6 +593,7 @@ bool MC6809InstrInfo::isBranchOffsetInRange(unsigned BranchOpc, int64_t BrOffset
   case MC6809::Bbc:
   case MC6809::Bbc_NoC:    // encoding-equivalent variant
   case MC6809::Bbc_OnlyC:  // encoding-equivalent variant
+  case MC6809::Bbc_OnlyZ:  // encoding-equivalent variant
     return isInt<8>(BrOffset - 2);   // 2-byte short forms
   case MC6809::LongBranchRelative:
   case MC6809::LongJumpRelative:
@@ -598,6 +603,7 @@ bool MC6809InstrInfo::isBranchOffsetInRange(unsigned BranchOpc, int64_t BrOffset
   case MC6809::LBlbc:
   case MC6809::LBlbc_NoC:    // encoding-equivalent variant
   case MC6809::LBlbc_OnlyC:  // encoding-equivalent variant
+  case MC6809::LBlbc_OnlyZ:  // encoding-equivalent variant
     return isInt<16>(BrOffset - 4);  // 4-byte page-2 long
   default:
     // Unknown branch opcode — be conservative and say it's in range so we
@@ -643,9 +649,11 @@ MachineBasicBlock *MC6809InstrInfo::getBranchDestBlock(const MachineInstr &MI) c
   case MC6809::Bbc:
   case MC6809::Bbc_NoC:
   case MC6809::Bbc_OnlyC:
+  case MC6809::Bbc_OnlyZ:
   case MC6809::LBlbc:
   case MC6809::LBlbc_NoC:
   case MC6809::LBlbc_OnlyC:
+  case MC6809::LBlbc_OnlyZ:
   case MC6809::ConditionalBranchRelative:
   case MC6809::ConditionalLongBranchRelative:
   case TargetOpcode::G_BRCOND:
@@ -2632,19 +2640,10 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
     // the displacement is out of int8 range.
     int64_t CC = MI.getOperand(0).getImm();
     MI.setDesc(Builder.getTII().get(pickBbcVariant(CC)));
-    addMissingImplicitOperands(MI);
     MI.removeOperand(2);
-    if (MC6809CC::doesOnlyReadCarry(CC)) {
-      // OnlyC variant: just $c.
-      MI.addOperand(MachineOperand::CreateReg(MC6809::C, /*isDef=*/false, /*isImp=*/true));
-    } else {
-      // Bbc and Bbc_NoC both read N/Z/V; Bbc additionally reads C.
-      MI.addOperand(MachineOperand::CreateReg(MC6809::N, /*isDef=*/false, /*isImp=*/true));
-      MI.addOperand(MachineOperand::CreateReg(MC6809::Z, /*isDef=*/false, /*isImp=*/true));
-      MI.addOperand(MachineOperand::CreateReg(MC6809::V, /*isDef=*/false, /*isImp=*/true));
-      if (!MC6809CC::doesNotReadCarry(CC))
-        MI.addOperand(MachineOperand::CreateReg(MC6809::C, /*isDef=*/false, /*isImp=*/true));
-    }
+    // The variant's descriptor names exactly the flags the condition
+    // reads; materialise them as the implicit uses.
+    addMissingImplicitOperands(MI);
     break;
   }
   case MC6809::ConditionalLongBranchRelative: {
@@ -2653,17 +2652,8 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
     // + the OnlyC variant).
     int64_t CC = MI.getOperand(0).getImm();
     MI.setDesc(Builder.getTII().get(pickLBlbcVariant(CC)));
-    addMissingImplicitOperands(MI);
     MI.removeOperand(2);
-    if (MC6809CC::doesOnlyReadCarry(CC)) {
-      MI.addOperand(MachineOperand::CreateReg(MC6809::C, /*isDef=*/false, /*isImp=*/true));
-    } else {
-      MI.addOperand(MachineOperand::CreateReg(MC6809::N, /*isDef=*/false, /*isImp=*/true));
-      MI.addOperand(MachineOperand::CreateReg(MC6809::Z, /*isDef=*/false, /*isImp=*/true));
-      MI.addOperand(MachineOperand::CreateReg(MC6809::V, /*isDef=*/false, /*isImp=*/true));
-      if (!MC6809CC::doesNotReadCarry(CC))
-        MI.addOperand(MachineOperand::CreateReg(MC6809::C, /*isDef=*/false, /*isImp=*/true));
-    }
+    addMissingImplicitOperands(MI);
     break;
   }
   case MC6809::ReturnImplicit:

@@ -51,7 +51,7 @@ body: |
   ; CHECK-NEXT:   successors: %bb.6(0x40000000), %bb.1(0x40000000)
   ; CHECK-NEXT:   liveins: $n, $z, $v, $c, $ad
   ; CHECK-NEXT: {{  $}}
-  ; CHECK-NEXT:   Bbc_NoC 7, %bb.1, implicit $n, implicit $z, implicit $v
+  ; CHECK-NEXT:   Bbc_OnlyZ 7, %bb.1, implicit $z
   ; CHECK-NEXT: {{  $}}
   ; CHECK-NEXT: bb.6:
   ; CHECK-NEXT:   successors: %bb.3(0x80000000)

@@ -200,6 +200,12 @@ inline static bool doesOnlyReadCarry(int64_t CC) {
   }
 }
 
+/// Condition codes that consume only Z at runtime (EQ, NE): a Z-only
+/// producer such as LEAX/LEAY is a complete flag source for them.
+inline static bool doesOnlyReadZero(int64_t CC) {
+  return CC == EQ || CC == NE;
+}
+
 /// getSwappedCondition - assume the flags are set by MI(a,b), return
 /// the condition code if we modify the instructions such that flags are
 /// set by MI(b,a).

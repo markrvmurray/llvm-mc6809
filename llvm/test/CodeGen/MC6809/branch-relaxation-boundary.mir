@@ -170,7 +170,7 @@ body: |
   ; CHECK-NEXT: {{  $}}
   ; CHECK-NEXT:   NOPx
   ; CHECK-NEXT:   NOPx
-  ; CHECK-NEXT:   Bbc_NoC 7, %bb.2, implicit $n, implicit $z, implicit $v
+  ; CHECK-NEXT:   Bbc_OnlyZ 7, %bb.2, implicit $z
   ; CHECK-NEXT: {{  $}}
   ; CHECK-NEXT: bb.3:
   ; CHECK-NEXT:   successors: %bb.0(0x80000000)

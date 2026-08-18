@@ -931,9 +931,9 @@ bool MC6809FinalLowering::foldBranchOverBranch(MachineFunction &MF) {
     // LBlbc_OnlyC are encoding-equivalent codegen-only variants that
     // just declare a tighter Uses set; treat identically.
     return Opc == MC6809::Bbc || Opc == MC6809::Bbc_NoC ||
-           Opc == MC6809::Bbc_OnlyC ||
+           Opc == MC6809::Bbc_OnlyC || Opc == MC6809::Bbc_OnlyZ ||
            Opc == MC6809::LBlbc || Opc == MC6809::LBlbc_NoC ||
-           Opc == MC6809::LBlbc_OnlyC ||
+           Opc == MC6809::LBlbc_OnlyC || Opc == MC6809::LBlbc_OnlyZ ||
            Opc == MC6809::ConditionalBranchRelative ||
            Opc == MC6809::ConditionalLongBranchRelative;
   };

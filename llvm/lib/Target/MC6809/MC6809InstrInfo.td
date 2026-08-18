@@ -579,6 +579,12 @@ let mayLoad = false, mayStore = false, isBranch = true, isTerminator = true in {
     // c8rtomb / strftime / xdr at -Og.
     def Bbc_OnlyC   : MC6809ShortConditionalBranch_P1<(outs), "b$cond",  Opcode<0x02,1>, [], [C]>;
     def LBlbc_OnlyC : MC6809LongConditionalBranch_P2<(outs),  "lb$cond", Opcode<0x02,2>, [], [C]>;
+
+    // OnlyZ variants for the conditions that consume only Z (EQ, NE): a
+    // Z-only producer (LEAX/LEAY) then feeds the branch with nothing else
+    // in the operand list to be undefined.
+    def Bbc_OnlyZ   : MC6809ShortConditionalBranch_P1<(outs), "b$cond",  Opcode<0x02,1>, [], [Z]>;
+    def LBlbc_OnlyZ : MC6809LongConditionalBranch_P2<(outs),  "lb$cond", Opcode<0x02,2>, [], [Z]>;
   }
 }
 

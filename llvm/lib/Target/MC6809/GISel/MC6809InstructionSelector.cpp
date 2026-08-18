@@ -3019,7 +3019,9 @@ skip_globalvalue_fold:
         // reads only C (HS/CS); canonical LBlbc for cc that reads
         // multiple flags (HI/LS/GE/LT/GT/LE).
         unsigned LBlbcOpc;
-        if (MC6809CC::doesNotReadCarry(CC))
+        if (MC6809CC::doesOnlyReadZero(CC))
+          LBlbcOpc = MC6809::LBlbc_OnlyZ;
+        else if (MC6809CC::doesNotReadCarry(CC))
           LBlbcOpc = MC6809::LBlbc_NoC;
         else if (MC6809CC::doesOnlyReadCarry(CC))
           LBlbcOpc = MC6809::LBlbc_OnlyC;

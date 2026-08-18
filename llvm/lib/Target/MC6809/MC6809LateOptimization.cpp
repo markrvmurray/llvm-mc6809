@@ -337,35 +337,35 @@ bool MC6809LateOptimization::elideCompareZero(MachineBasicBlock &MBB) const {
     // list may name more flags than the condition reads (a Bcc reads N/Z/V
     // as a group); those may come from wherever they were last set -- a
     // Z-only producer such as LEAX/LEAY feeds an EQ/NE branch just fine.
-    const bool NeedsZ = CC == MC6809CC::EQ || CC == MC6809CC::NE;
-    const bool NeedsN = CC == MC6809CC::MI || CC == MC6809CC::PL;
-    bool ProducerCoversFlags =
-        (!NeedsZ || Producer->definesRegister(MC6809::Z, &TRI)) &&
-        (!NeedsN || Producer->definesRegister(MC6809::N, &TRI));
+    // Every flag the branch names must be (re)defined by the producer, so
+    // dropping the compare leaves no flag read undefined. An EQ/NE branch
+    // names only Z (the OnlyZ variant), so a Z-only producer such as
+    // LEAX/LEAY covers it.
+    bool ProducerCoversFlags = true;
     bool ReadsNZ = false;
-    for (const MachineOperand &MO : Cons.operands())
-      if (MO.isReg() && MO.isUse() &&
-          (MO.getReg() == MC6809::N || MO.getReg() == MC6809::Z))
+    for (const MachineOperand &MO : Cons.operands()) {
+      if (!MO.isReg() || !MO.isUse())
+        continue;
+      Register R = MO.getReg();
+      if (R == MC6809::N || R == MC6809::Z)
         ReadsNZ = true;
+      if ((R == MC6809::N || R == MC6809::Z || R == MC6809::V) &&
+          !Producer->definesRegister(R, &TRI)) {
+        ProducerCoversFlags = false;
+        break;
+      }
+    }
     if (!ProducerCoversFlags || !ReadsNZ)
       continue;
 
     // The branch will now read the producer's flags; clear any stale dead
     // markers (regalloc may have flagged them when the compare was the only
-    // flag consumer). A flag the branch names but the condition does not
-    // consult, and the producer does not set (N and V after LEAX), is read
-    // undef: whatever it holds is not looked at.
+    // flag consumer).
     for (MachineOperand &MO : Producer->operands())
       if (MO.isReg() && MO.isDef() &&
           (MO.getReg() == MC6809::N || MO.getReg() == MC6809::Z ||
            MO.getReg() == MC6809::NZ || MO.getReg() == MC6809::V))
         MO.setIsDead(false);
-    for (MachineOperand &MO : Cons.operands())
-      if (MO.isReg() && MO.isUse() &&
-          (MO.getReg() == MC6809::N || MO.getReg() == MC6809::Z ||
-           MO.getReg() == MC6809::V) &&
-          !Producer->definesRegister(MO.getReg(), &TRI))
-        MO.setIsUndef(true);
 
     MI.eraseFromParent();
     Changed = true;
