@@ -47,7 +47,7 @@ define void @sext_i16_to_i32_then_store(ptr %out, i16 %x) {
 ; CHECK-NEXT:    leas -3,s
 ; CHECK-NEXT:    ldd 5,s
 ; CHECK-NEXT:    cmpd #0
-; CHECK-NEXT:    lblt .LBB0_2
+; CHECK-NEXT:    blt .LBB0_2
 ; CHECK-NEXT:  ; %bb.1:
 ; CHECK-NEXT:    ldb #0
 ; CHECK-NEXT:    bra .LBB0_3

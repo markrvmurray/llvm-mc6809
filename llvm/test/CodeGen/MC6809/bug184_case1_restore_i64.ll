@@ -28,7 +28,7 @@ define void @sext_i32_to_i64_then_store(ptr %out, i32 %x) {
 ; CHECK-NEXT:    ldd 11,s
 ; CHECK-NEXT:    ldb #0
 ; CHECK-NEXT:    cmpa #0
-; CHECK-NEXT:    lblt .LBB0_2
+; CHECK-NEXT:    blt .LBB0_2
 ; CHECK-NEXT:  ; %bb.1:
 ; CHECK-NEXT:    lda #0
 ; CHECK-NEXT:    bra .LBB0_3

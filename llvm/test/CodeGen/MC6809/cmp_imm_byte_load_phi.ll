@@ -37,7 +37,7 @@ define dso_local i16 @cmp_imm_byte_load_phi_no_wrap(ptr noundef readonly capture
 ; CHECK-NEXT:    lda ,x
 ; CHECK-NEXT:    sta 4,u ; 1-byte Folded Spill
 ; CHECK-NEXT:    cmpa #45
-; CHECK-NEXT:    lbeq .LBB0_2
+; CHECK-NEXT:    beq .LBB0_2
 ; CHECK-NEXT:  ; %bb.1: ; %entry
 ; CHECK-NEXT:    ldb #0
 ; CHECK-NEXT:    bra .LBB0_3
@@ -102,7 +102,7 @@ define dso_local i16 @cmp_imm_byte_load_phi_no_wrap(ptr noundef readonly capture
 ; CHECK-NEXT:    addb #-48
 ; CHECK-NEXT:    leay 1,y
 ; CHECK-NEXT:    cmpb #10
-; CHECK-NEXT:    lblo .LBB0_7
+; CHECK-NEXT:    blo .LBB0_7
 ; CHECK-NEXT:  .LBB0_8: ; %while.end
 ; CHECK-NEXT:    ldd #0
 ; CHECK-NEXT:    std <__rs0

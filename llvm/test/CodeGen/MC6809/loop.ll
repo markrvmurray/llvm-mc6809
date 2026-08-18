@@ -65,7 +65,7 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; MC6809-O0-NEXT:    std <__rs0
 ; MC6809-O0-NEXT:    puls d
 ; MC6809-O0-NEXT:    tstb
-; MC6809-O0-NEXT:    lble .LBB0_3
+; MC6809-O0-NEXT:    ble .LBB0_3
 ; MC6809-O0-NEXT:  ; %bb.1: ; %for.body.preheader
 ; MC6809-O0-NEXT:    clra
 ; MC6809-O0-NEXT:    std <__rs1
@@ -109,7 +109,7 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; MC6809-O0-NEXT:    ldd <__rs1
 ; MC6809-O0-NEXT:    puls d
 ; MC6809-O0-NEXT:    puls d
-; MC6809-O0-NEXT:    lbne .LBB0_2
+; MC6809-O0-NEXT:    bne .LBB0_2
 ; MC6809-O0-NEXT:  .LBB0_3: ; %for.end
 ; MC6809-O0-NEXT:    ldx <__rs0
 ; MC6809-O0-NEXT:    leas 3,s

@@ -15,7 +15,7 @@ define i32 @select_i32(i1 %c, i32 %a, i32 %b) {
 ; O0-LABEL: select_i32:
 ; O0:       ; %bb.0:
 ; O0-NEXT:    andb #1
-; O0-NEXT:    lbeq .LBB0_2
+; O0-NEXT:    beq .LBB0_2
 ; O0-NEXT:  ; %bb.1:
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd 6,s
@@ -30,7 +30,7 @@ define i32 @select_i32(i1 %c, i32 %a, i32 %b) {
 ; O0-NEXT:    lbra .LBB0_3
 ; O0-NEXT:  .LBB0_3:
 ; O0-NEXT:    tstb
-; O0-NEXT:    lbeq .LBB0_5
+; O0-NEXT:    beq .LBB0_5
 ; O0-NEXT:  ; %bb.4:
 ; O0-NEXT:    ldd 2,s
 ; O0-NEXT:    lbra .LBB0_6
@@ -57,7 +57,7 @@ define i32 @select_i32(i1 %c, i32 %a, i32 %b) {
 ; O2-NEXT:    std <__rs1
 ; O2-NEXT:    puls d
 ; O2-NEXT:    tstb
-; O2-NEXT:    lbne .LBB0_2
+; O2-NEXT:    bne .LBB0_2
 ; O2-NEXT:  ; %bb.1: ; %select.false
 ; O2-NEXT:    ldd 8,s
 ; O2-NEXT:    std <__rs0
@@ -95,7 +95,7 @@ define i32 @phi_i32(i1 %c, i32 %a, i32 %b) {
 ; O0-NEXT:    std <__rs2
 ; O0-NEXT:    puls d
 ; O0-NEXT:    tstb
-; O0-NEXT:    lbeq .LBB1_2
+; O0-NEXT:    beq .LBB1_2
 ; O0-NEXT:  ; %bb.1: ; %then
 ; O0-NEXT:    ldb <__rs1lo
 ; O0-NEXT:    stb 2,s ; 1-byte Folded Spill
@@ -242,10 +242,10 @@ define i32 @select_chain(i1 %c1, i1 %c2, i32 %a, i32 %b, i32 %d) {
 ; O0-NEXT:    andb #1
 ; O0-NEXT:    lda 2,s
 ; O0-NEXT:    anda #1
-; O0-NEXT:    lbeq .LBB2_5
+; O0-NEXT:    beq .LBB2_5
 ; O0-NEXT:  ; %bb.1:
 ; O0-NEXT:    tstb
-; O0-NEXT:    lbeq .LBB2_3
+; O0-NEXT:    beq .LBB2_3
 ; O0-NEXT:  ; %bb.2:
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd 7,s
@@ -268,10 +268,10 @@ define i32 @select_chain(i1 %c1, i1 %c2, i32 %a, i32 %b, i32 %d) {
 ; O0-NEXT:    lbra .LBB2_6
 ; O0-NEXT:  .LBB2_6:
 ; O0-NEXT:    tsta
-; O0-NEXT:    lbeq .LBB2_11
+; O0-NEXT:    beq .LBB2_11
 ; O0-NEXT:  ; %bb.7:
 ; O0-NEXT:    tstb
-; O0-NEXT:    lbeq .LBB2_9
+; O0-NEXT:    beq .LBB2_9
 ; O0-NEXT:  ; %bb.8:
 ; O0-NEXT:    ldd 3,s
 ; O0-NEXT:    lbra .LBB2_10

@@ -17,7 +17,7 @@ define dso_local range(i16 7, 10) i16 @e_ind(ptr noundef readonly captures(none)
 ; MC6809-NEXT:    std <__rs0
 ; MC6809-NEXT:    puls d
 ; MC6809-NEXT:    cmpb [,x]
-; MC6809-NEXT:    lbeq .LBB0_2
+; MC6809-NEXT:    beq .LBB0_2
 ; MC6809-NEXT:  ; %bb.1: ; %select.false
 ; MC6809-NEXT:    ldd #9
 ; MC6809-NEXT:    std <__rs0
@@ -29,7 +29,7 @@ define dso_local range(i16 7, 10) i16 @e_ind(ptr noundef readonly captures(none)
 ; HD6309:       ; %bb.0: ; %entry
 ; HD6309-NEXT:    ldw #7
 ; HD6309-NEXT:    cmpb [,x]
-; HD6309-NEXT:    lbeq .LBB0_2
+; HD6309-NEXT:    beq .LBB0_2
 ; HD6309-NEXT:  ; %bb.1: ; %select.false
 ; HD6309-NEXT:    ldw #9
 ; HD6309-NEXT:  .LBB0_2: ; %select.end
@@ -52,7 +52,7 @@ define dso_local range(i16 7, 10) i16 @l_ind(ptr noundef readonly captures(none)
 ; MC6809-NEXT:    std <__rs0
 ; MC6809-NEXT:    puls d
 ; MC6809-NEXT:    cmpb [,x]
-; MC6809-NEXT:    lbhi .LBB1_2
+; MC6809-NEXT:    bhi .LBB1_2
 ; MC6809-NEXT:  ; %bb.1: ; %select.false
 ; MC6809-NEXT:    ldd #9
 ; MC6809-NEXT:    std <__rs0
@@ -64,7 +64,7 @@ define dso_local range(i16 7, 10) i16 @l_ind(ptr noundef readonly captures(none)
 ; HD6309:       ; %bb.0: ; %entry
 ; HD6309-NEXT:    ldw #7
 ; HD6309-NEXT:    cmpb [,x]
-; HD6309-NEXT:    lbhi .LBB1_2
+; HD6309-NEXT:    bhi .LBB1_2
 ; HD6309-NEXT:  ; %bb.1: ; %select.false
 ; HD6309-NEXT:    ldw #9
 ; HD6309-NEXT:  .LBB1_2: ; %select.end
@@ -87,7 +87,7 @@ define dso_local range(i16 7, 10) i16 @sw_ind(ptr noundef readonly captures(none
 ; MC6809-NEXT:    std <__rs0
 ; MC6809-NEXT:    puls d
 ; MC6809-NEXT:    cmpb [,x]
-; MC6809-NEXT:    lbeq .LBB2_2
+; MC6809-NEXT:    beq .LBB2_2
 ; MC6809-NEXT:  ; %bb.1: ; %select.false
 ; MC6809-NEXT:    ldd #9
 ; MC6809-NEXT:    std <__rs0
@@ -99,7 +99,7 @@ define dso_local range(i16 7, 10) i16 @sw_ind(ptr noundef readonly captures(none
 ; HD6309:       ; %bb.0: ; %entry
 ; HD6309-NEXT:    ldw #7
 ; HD6309-NEXT:    cmpb [,x]
-; HD6309-NEXT:    lbeq .LBB2_2
+; HD6309-NEXT:    beq .LBB2_2
 ; HD6309-NEXT:  ; %bb.1: ; %select.false
 ; HD6309-NEXT:    ldw #9
 ; HD6309-NEXT:  .LBB2_2: ; %select.end
@@ -124,7 +124,7 @@ define dso_local range(i16 7, 10) i16 @e16(ptr noundef readonly captures(none) %
 ; MC6809-NEXT:    ldd <__rs0
 ; MC6809-NEXT:    cmpd [,x]
 ; MC6809-NEXT:    puls d
-; MC6809-NEXT:    lbeq .LBB3_2
+; MC6809-NEXT:    beq .LBB3_2
 ; MC6809-NEXT:  ; %bb.1: ; %select.false
 ; MC6809-NEXT:    ldd #9
 ; MC6809-NEXT:  .LBB3_2: ; %select.end
@@ -136,7 +136,7 @@ define dso_local range(i16 7, 10) i16 @e16(ptr noundef readonly captures(none) %
 ; HD6309-NEXT:    ldw 2,s
 ; HD6309-NEXT:    ldd #7
 ; HD6309-NEXT:    cmpw [,x]
-; HD6309-NEXT:    lbeq .LBB3_2
+; HD6309-NEXT:    beq .LBB3_2
 ; HD6309-NEXT:  ; %bb.1: ; %select.false
 ; HD6309-NEXT:    ldd #9
 ; HD6309-NEXT:  .LBB3_2: ; %select.end

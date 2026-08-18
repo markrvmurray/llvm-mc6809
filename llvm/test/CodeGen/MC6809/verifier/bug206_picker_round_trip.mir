@@ -1,15 +1,15 @@
 # RUN: llc -mtriple=mc6809 -mcpu=hd6309 -run-pass=postrapseudos \
 # RUN:   -verify-machineinstrs %s -o - 2>&1 | FileCheck %s
 
-# Bug #206 round-trip: a fused CompareBranch_i16_Imm with cc=NE (6)
-# should expand to Compare_i16_Imm + LBlbc_NoC (the picker selects
-# the NoC variant because cc=NE doesn't consume C). Verifier must
-# stay clean.
+# Round-trip: a fused CompareBranch_i16_Imm with cc=NE (6) should expand
+# to Compare_i16_Imm + Bbc_NoC (short; branch relaxation widens it when
+# needed, and the picker selects the NoC variant because cc=NE doesn't
+# consume C). Verifier must stay clean.
 
 # CHECK-LABEL: name: cc_ne_picks_lblbc_no_c
 # CHECK-NOT: undefined physical register
 # CHECK-NOT: Bad machine code
-# CHECK: LBlbc_NoC
+# CHECK: Bbc_NoC
 
 ---
 name: cc_ne_picks_lblbc_no_c

@@ -29,7 +29,7 @@ define i16 @cond_skip_join(i16 %x, i16 %a, i16 %b) {
 ; O0-NEXT:    puls d
 ; O0-NEXT:    ldd 6,u
 ; O0-NEXT:    cmpx #0
-; O0-NEXT:    lbne .LBB0_2
+; O0-NEXT:    bne .LBB0_2
 ; O0-NEXT:  ; %bb.1: ; %if.then
 ; O0-NEXT:    ldx <__rs0
 ; O0-NEXT:    lbsr sink

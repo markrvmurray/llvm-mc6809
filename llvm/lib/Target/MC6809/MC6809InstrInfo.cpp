@@ -4138,10 +4138,10 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
       Builder.buildInstr(MC6809::LEASi_o5).addImm(4).addReg(MC6809::SS);
     }
 
-    // Step 3: LB<cc> $tgt — long conditional branch on the i32 result.
-    // pickLBlbcVariant chooses LBlbc / LBlbc_NoC / LBlbc_OnlyC based
-    // on which CC flags the condcode actually consumes.
-    Builder.buildInstr(pickLBlbcVariant(CC))
+    // Step 3: B<cc> $tgt — conditional branch on the i32 result, short
+    // (BranchRelaxation widens it when out of range). pickBbcVariant
+    // chooses the variant by which CC flags the condcode consumes.
+    Builder.buildInstr(pickBbcVariant(CC))
         .addImm(CC)
         .addMBB(TgtMBB);
     MI.eraseFromParent();
@@ -8372,10 +8372,11 @@ void MC6809InstrInfo::expandFusedCompareBranch(MachineIRBuilder &Builder, Machin
   for (unsigned I = 0; I < NumOps - 1; ++I)
     CmpMI.add(MI.getOperand(I));
 
-  // Emit the conditional branch — the picker selects LBlbc_NoC
-  // when the cc doesn't actually consume $c, so the verifier doesn't
-  // false-positive on TST-style predecessors.
-  Builder.buildInstr(pickLBlbcVariant(CC))
+  // Emit the conditional branch, short: BranchRelaxation widens it when the
+  // target is out of range, exactly as for ConditionalBranchRelative. The
+  // picker selects the _NoC variant when the cc doesn't consume $c, so the
+  // verifier doesn't false-positive on TST-style predecessors.
+  Builder.buildInstr(pickBbcVariant(CC))
       .addImm(CC)
       .addMBB(TargetMBB);
 

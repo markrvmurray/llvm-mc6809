@@ -40,7 +40,7 @@ define void @atol_like(ptr %out, ptr %s) {
 ; CHECK-NEXT:    ldb ,x
 ; CHECK-NEXT:    stb 4,u ; 1-byte Folded Spill
 ; CHECK-NEXT:    cmpb #45
-; CHECK-NEXT:    lbeq .LBB0_2
+; CHECK-NEXT:    beq .LBB0_2
 ; CHECK-NEXT:  ; %bb.1: ; %entry
 ; CHECK-NEXT:    ldb #0
 ; CHECK-NEXT:    lbra .LBB0_3
@@ -141,7 +141,7 @@ define void @atol_like(ptr %out, ptr %s) {
 ; CHECK-NEXT:    puls d
 ; CHECK-NEXT:    stb 17,u ; 1-byte Folded Spill
 ; CHECK-NEXT:    cmpb #2
-; CHECK-NEXT:    lbne .LBB0_4
+; CHECK-NEXT:    bne .LBB0_4
 ; CHECK-NEXT:  ; %bb.5: ; %exit
 ; CHECK-NEXT:    pshs d
 ; CHECK-NEXT:    ldd #0
@@ -170,7 +170,7 @@ define void @atol_like(ptr %out, ptr %s) {
 ; CHECK-NEXT:    stb 18,u ; 1-byte Folded Spill
 ; CHECK-NEXT:    ldb 4,u ; 1-byte Folded Reload
 ; CHECK-NEXT:    cmpb #45
-; CHECK-NEXT:    lbne .LBB0_7
+; CHECK-NEXT:    bne .LBB0_7
 ; CHECK-NEXT:  ; %bb.6: ; %exit
 ; CHECK-NEXT:    pshs d
 ; CHECK-NEXT:    ldb 16,u
@@ -181,7 +181,7 @@ define void @atol_like(ptr %out, ptr %s) {
 ; CHECK-NEXT:    lbra .LBB0_8
 ; CHECK-NEXT:  .LBB0_8: ; %exit
 ; CHECK-NEXT:    cmpb #45
-; CHECK-NEXT:    lbne .LBB0_10
+; CHECK-NEXT:    bne .LBB0_10
 ; CHECK-NEXT:  ; %bb.9: ; %exit
 ; CHECK-NEXT:    pshs d
 ; CHECK-NEXT:    ldd #0
