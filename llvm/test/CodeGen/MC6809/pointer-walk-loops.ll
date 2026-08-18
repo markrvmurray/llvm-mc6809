@@ -55,7 +55,7 @@ done:
 
 ; memcmp-like: the steps live past the exit test in the latch; the first
 ; is hoisted to its load and folded, the second load feeds the compare
-; straight from memory.
+; straight from memory and its step folds into that: a walking compare.
 define i8 @cmpn(ptr %a, ptr %b, i16 %n) {
 entry:
   br label %loop
@@ -79,5 +79,40 @@ done:
 }
 ; CHECK-LABEL: cmpn:
 ; CHECK:       ld{{[ab]}} ,{{[xy]}}+
-; CHECK-NEXT:  cmp{{[ab]}} ,{{[xy]}}
+; CHECK-NEXT:  cmp{{[ab]}} ,{{[xy]}}+
 ; CHECK-NEXT:  bne
+
+; memchr: the pointer result phi has a NULL input from inside the loop; that
+; constant is materialised on the exit edge, not every iteration, so the
+; counter can take the other index register; the compare walks the pointer
+; (`cmpb ,x+`, formed after allocation from the compare and the step at the
+; head of the fall-through block) and the found-exit reads it back one step.
+define ptr @find(ptr %s, i8 %c, i16 %n) {
+entry:
+  br label %loop
+loop:
+  %p = phi ptr [ %s, %entry ], [ %p1, %next ]
+  %i = phi i16 [ %n, %entry ], [ %i1, %next ]
+  %z = icmp eq i16 %i, 0
+  br i1 %z, label %done, label %body
+body:
+  %v = load i8, ptr %p, align 1
+  %eq = icmp eq i8 %v, %c
+  br i1 %eq, label %done, label %next
+next:
+  %p1 = getelementptr inbounds i8, ptr %p, i16 1
+  %i1 = add i16 %i, -1
+  br label %loop
+done:
+  %r = phi ptr [ null, %loop ], [ %p, %body ]
+  ret ptr %r
+}
+; CHECK-LABEL: find:
+; CHECK-NOT:   <__rs
+; CHECK:       cmpb ,{{[xy]}}+
+; CHECK-NEXT:  bne
+; CHECK:       lea{{[xy]}} -1,{{[xy]}}
+; CHECK-NEXT:  bra
+; CHECK:       lea{{[xy]}} -1,{{[xy]}}
+; CHECK-NEXT:  bne
+; CHECK-NOT:   <__rs

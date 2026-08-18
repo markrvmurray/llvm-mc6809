@@ -49,6 +49,7 @@ public:
   bool elideRedundantLoad(MachineBasicBlock &MBB) const;
   bool foldLEAIntoLoad(MachineBasicBlock &MBB) const;
   bool formPostIncrement(MachineBasicBlock &MBB) const;
+  bool formWalkingCompareBranch(MachineBasicBlock &MBB) const;
 };
 
 bool MC6809LateOptimization::runOnMachineFunction(MachineFunction &MF) {
@@ -60,9 +61,11 @@ bool MC6809LateOptimization::runOnMachineFunction(MachineFunction &MF) {
     Changed |= elideRedundantLoad(MBB);
     Changed |= foldLEAIntoLoad(MBB);
     Changed |= formPostIncrement(MBB);
+    Changed |= formWalkingCompareBranch(MBB);
   }
   return Changed;
 }
+
 
 // The register a LEA{X,Y,U} of the `k,r` (o5) form steps, and k, when it
 // steps its own base register (`leax 1,x`); an invalid register otherwise.
@@ -137,6 +140,112 @@ static bool readsAsValue(const MachineInstr &MI, Register R) {
   default:
     return false;
   }
+}
+
+// A search loop compares through its pointer and steps it afterwards, on
+// the way round:
+//     cmpb ,x ; beq FOUND        (this block)
+//     leax 1,x ; ...             (the sole fall-through successor)
+// The step folds into the compare (`cmpb ,x+`) when the successor is
+// reached from here alone. On the branch-taken path X is then one step
+// ahead; if X is live there, that path must be entered from here alone as
+// well and gets `leax -1,x` at its start -- provided nothing there reads
+// the flags before writing them (LEAX sets Z).
+bool MC6809LateOptimization::formWalkingCompareBranch(MachineBasicBlock &MBB) const {
+  const auto &TRI = *MBB.getParent()->getSubtarget().getRegisterInfo();
+  const TargetInstrInfo &TII = *MBB.getParent()->getSubtarget().getInstrInfo();
+  // The last non-terminator: an indexed compare at offset 0.
+  auto FirstTerm = MBB.getFirstTerminator();
+  if (FirstTerm == MBB.begin() || FirstTerm == MBB.end())
+    return false;
+  MachineInstr &Cmp = *std::prev(FirstTerm);
+  Register Base;
+  int Off;
+  if (!indexedBaseOffset(Cmp, Base, Off) || Off != 0 ||
+      Cmp.modifiesRegister(Base, &TRI) || readsAsValue(Cmp, Base))
+    return false;
+  if (Base != MC6809::IX && Base != MC6809::IY)
+    return false;
+  // Terminators: one conditional branch, then optionally an unconditional
+  // one (or fall-through). Taken and not-taken successors.
+  MachineInstr &Bcc = *FirstTerm;
+  if (!Bcc.isConditionalBranch() || !Bcc.getOperand(1).isMBB())
+    return false;
+  MachineBasicBlock *Taken = Bcc.getOperand(1).getMBB();
+  MachineBasicBlock *Through = nullptr;
+  auto Next = std::next(FirstTerm);
+  if (Next == MBB.end()) {
+    // Fall-through: the layout successor.
+    auto LI = std::next(MBB.getIterator());
+    if (LI == MBB.getParent()->end() || !MBB.isSuccessor(&*LI))
+      return false;
+    Through = &*LI;
+  } else if (Next->isUnconditionalBranch() && Next->getOperand(0).isMBB() &&
+             std::next(Next) == MBB.end()) {
+    Through = Next->getOperand(0).getMBB();
+  } else {
+    return false;
+  }
+  if (Through == Taken || Through->pred_size() != 1)
+    return false;
+  // The step at the head of the fall-through block.
+  auto StepIt = Through->begin();
+  while (StepIt != Through->end() && StepIt->isDebugInstr())
+    ++StepIt;
+  if (StepIt == Through->end())
+    return false;
+  int K;
+  if (leaSelfStep(*StepIt, K) != Base || K <= 0)
+    return false;
+  unsigned IncOpc = MC6809InstrInfo::getPostIncrementOpcode(Cmp.getOpcode(), K);
+  if (!IncOpc)
+    return false;
+  // The step's own Z must be dead where it was.
+  if (Through->computeRegisterLiveness(&TRI, MC6809::Z, std::next(StepIt)) !=
+      MachineBasicBlock::LQR_Dead)
+    return false;
+  // The taken path: X either dead there, or compensated at its start.
+  bool NeedCompensation = false;
+  for (const auto &LI : Taken->liveins())
+    if (TRI.regsOverlap(LI.PhysReg, Base))
+      NeedCompensation = true;
+  if (NeedCompensation) {
+    // Nothing on the taken path may read a flag before it is written (the
+    // compensating LEA sets Z); stop at the first flag def.
+    for (const MachineInstr &MI : *Taken) {
+      if (MI.isDebugInstr())
+        continue;
+      for (Register F : {MC6809::N, MC6809::Z, MC6809::V, MC6809::C})
+        if (MI.readsRegister(F, &TRI))
+          return false;
+      if (MI.modifiesRegister(MC6809::Z, &TRI))
+        break;
+    }
+    // Compensating LEA at the head of the taken block, or on a block of its
+    // own on the edge when the taken block is reached from elsewhere too.
+    MachineBasicBlock *Dest = Taken;
+    if (Taken->pred_size() != 1) {
+      Dest = MBB.SplitCriticalEdge(Taken, *const_cast<MC6809LateOptimization *>(this));
+      if (!Dest)
+        return false;
+    }
+    unsigned LeaOpc = Base == MC6809::IX ? MC6809::LEAXi_o5 : MC6809::LEAYi_o5;
+    auto At = Dest->begin();
+    while (At != Dest->end() && At->isDebugInstr())
+      ++At;
+    BuildMI(*Dest, At, Bcc.getDebugLoc(), TII.get(LeaOpc))
+        .addImm(-K)
+        .addReg(Base);
+  }
+  // Rewrite the compare and drop the step.
+  for (unsigned I = 0; I < Cmp.getNumOperands(); ++I)
+    if (Cmp.getOperand(I).isImm() || Cmp.getOperand(I).isCImm()) {
+      Cmp.removeOperand(I);
+      break;
+    }
+  Cmp.setDesc(TII.get(IncOpc));
+  StepIt->eraseFromParent();
+  return true;
 }
 
 bool MC6809LateOptimization::formPostIncrement(MachineBasicBlock &MBB) const {

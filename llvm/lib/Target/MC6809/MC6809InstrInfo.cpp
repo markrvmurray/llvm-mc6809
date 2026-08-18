@@ -4051,6 +4051,10 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
   case MC6809::Compare_ptr_Sym:
     wrapStagedCCSources(MI, [&] { expandCompareIdx(Builder, MI); });
     break;
+  case MC6809::Compare_i8_MemPostInc:
+  case MC6809::Compare_i16_MemPostInc:
+    wrapStagedCCSources(MI, [&] { expandComparePostInc(Builder, MI); });
+    break;
   case MC6809::Compare_i8_Reg:
   case MC6809::Compare_i16_Reg:
   case MC6809::Compare_i16_RegIdx:
@@ -7879,6 +7883,31 @@ void MC6809InstrInfo::expandCompareImm(MachineIRBuilder &Builder, MachineInstr &
     llvm_unreachable("Compare Immediate - unexpected register.");
   auto Opcode = OpcodePair->getSecond();
   Builder.buildInstr(Opcode).add(MI.getOperand(3));
+  MI.eraseFromParent();
+}
+
+// Compare_*_MemPostInc: (outs CCond:$dst, INDEX16:$ptr_out)
+//                        (ins cc, src, INDEX16:$ptr_in), ptr_out tied to
+// ptr_in -- one `cmp<src> ,ptr+` / `,ptr++`.
+void MC6809InstrInfo::expandComparePostInc(MachineIRBuilder &Builder,
+                                           MachineInstr &MI) const {
+  Register SrcReg = MI.getOperand(3).getReg();
+  Register Ptr = MI.getOperand(4).getReg();
+  assert(MI.getOperand(1).getReg() == Ptr && "post-increment pointer not tied");
+  if (needsMaterialization(SrcReg))
+    SrcReg = materializeReg(Builder, SrcReg, *MI.getMF());
+  unsigned Opc;
+  if (SrcReg == MC6809::AA)
+    Opc = MC6809::CMPAi_Inc1;
+  else if (SrcReg == MC6809::AB)
+    Opc = MC6809::CMPBi_Inc1;
+  else if (SrcReg == MC6809::AD)
+    Opc = MC6809::CMPDi_Inc2;
+  else if (SrcReg == MC6809::AW)
+    Opc = MC6809::CMPWi_Inc2;
+  else
+    llvm_unreachable("unexpected source of a post-increment compare");
+  Builder.buildInstr(Opc).addReg(Ptr);
   MI.eraseFromParent();
 }
 

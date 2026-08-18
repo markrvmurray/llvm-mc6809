@@ -135,6 +135,110 @@ static bool safeToMoveLoad(const MachineInstr &Load, const MachineInstr &User,
   return true;
 }
 
+// A compare that reads memory through a pointer at offset 0, and the
+// pointer's step by the access size with no other use of the pointer,
+// become one walking compare (`cmpb ,x+`): the step's result is defined by
+// the compare (tied to the pointer). The step may sit before or after the
+// compare; either way nothing else reads the old pointer.
+static bool formPostIncCompares(MachineFunction &MF) {
+  MachineRegisterInfo &MRI = MF.getRegInfo();
+  const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
+  bool Changed = false;
+  for (MachineBasicBlock &MBB : MF) {
+    for (MachineInstr &Cmp : make_early_inc_range(MBB)) {
+      unsigned NewOpc = 0, PtrIdx = 0, Size = 0;
+      bool Branch = false;
+      switch (Cmp.getOpcode()) {
+      case MC6809::Compare_i8_Mem:
+        NewOpc = MC6809::Compare_i8_MemPostInc; PtrIdx = 3; Size = 1; break;
+      case MC6809::Compare_i16_Mem:
+        NewOpc = MC6809::Compare_i16_MemPostInc; PtrIdx = 3; Size = 2; break;
+      // (Not the fused compare-and-branch forms: a terminator must not
+      // define an allocatable register -- the allocator cannot spill a value
+      // after a terminator. Those walking compares are formed after
+      // allocation, in MC6809LateOptimization.)
+      default:
+        continue;
+      }
+      const MachineOperand &PtrMO = Cmp.getOperand(PtrIdx);
+      const MachineOperand &OffMO = Cmp.getOperand(PtrIdx + 1);
+      if (!PtrMO.isReg() || !PtrMO.getReg().isVirtual())
+        continue;
+      int64_t Off = OffMO.isImm() ? OffMO.getImm()
+                    : OffMO.isCImm() ? OffMO.getCImm()->getSExtValue() : 1;
+      if (Off != 0)
+        continue;
+      Register Ptr = PtrMO.getReg();
+      // The pointer's only other user: its step, in this block or (a
+      // compare-and-branch's step sunk to where its result is used) in a
+      // successor this block alone leads to -- either way the stepped
+      // pointer's uses stay dominated when the compare defines it.
+      MachineInstr *Step = nullptr;
+      bool Other = false;
+      for (MachineInstr &U : MRI.use_nodbg_instructions(Ptr)) {
+        if (&U == &Cmp)
+          continue;
+        bool Placed = U.getParent() == &MBB ||
+                      (Branch && MBB.isSuccessor(U.getParent()) &&
+                       U.getParent()->pred_size() == 1);
+        if (!Step && U.getOpcode() == MC6809::LEAPtrAdd_Imm && Placed &&
+            U.getOperand(1).getReg() == Ptr && U.getOperand(2).isImm() &&
+            U.getOperand(2).getImm() == int64_t(Size)) {
+          Step = &U;
+          continue;
+        }
+        Other = true;
+        break;
+      }
+      if (Other || !Step)
+        continue;
+      Register Stepped = Step->getOperand(0).getReg();
+      // If the step comes first, nothing between it and the compare may
+      // read its result (it will be defined at the compare instead).
+      bool StepFirst = false;
+      if (Step->getParent() == &MBB)
+        for (auto It = Step->getIterator(); It != MBB.end(); ++It)
+          if (&*It == &Cmp) {
+            StepFirst = true;
+            break;
+          }
+      if (StepFirst) {
+        bool UsedBetween = false;
+        for (auto It = std::next(Step->getIterator()); &*It != &Cmp; ++It)
+          if (It->readsRegister(Stepped, nullptr)) {
+            UsedBetween = true;
+            break;
+          }
+        if (UsedBetween)
+          continue;
+      }
+      MachineInstrBuilder MIB =
+          BuildMI(MBB, Cmp, Cmp.getDebugLoc(), TII.get(NewOpc));
+      if (!Branch)
+        MIB.add(Cmp.getOperand(0)); // CCond def
+      MIB.addDef(Stepped);
+      for (unsigned I = Branch ? 0 : 1; I < PtrIdx; ++I)
+        MIB.add(Cmp.getOperand(I)); // cc, src
+      MIB.addReg(Ptr);
+      if (Branch)
+        MIB.add(Cmp.getOperand(PtrIdx + 2)); // target
+      // Implicit operands the selector appended (flag defs) stay with the
+      // descriptor; carry any virtual ones over.
+      for (unsigned I = Cmp.getNumExplicitOperands(), E = Cmp.getNumOperands();
+           I != E; ++I)
+        if (Cmp.getOperand(I).isReg() && Cmp.getOperand(I).getReg().isVirtual())
+          MIB.add(Cmp.getOperand(I));
+      MIB.setMemRefs(Cmp.memoperands());
+      MRI.setRegClass(Stepped, &MC6809::INDEX16RegClass);
+      MRI.setRegClass(Ptr, &MC6809::INDEX16RegClass);
+      Cmp.eraseFromParent();
+      Step->eraseFromParent();
+      Changed = true;
+    }
+  }
+  return Changed;
+}
+
 bool MC6809FoldLoadIntoConsumer::runOnMachineFunction(MachineFunction &MF) {
   if (!EnableFoldLoadIntoConsumer)
     return false;
@@ -372,5 +476,6 @@ bool MC6809FoldLoadIntoConsumer::runOnMachineFunction(MachineFunction &MF) {
     }
   }
   (void)TRI;
+  Changed |= formPostIncCompares(MF);
   return Changed;
 }

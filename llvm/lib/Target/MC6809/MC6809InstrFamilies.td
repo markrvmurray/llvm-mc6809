@@ -1042,6 +1042,13 @@ class MC6809CompareBase<RegisterClass reg, dag operand> : MC6809LogicalInstr {
 // direct-page bytes (ACC8_CMP) — keeping a compared value out of an RC slot —
 // while _Reg stays on the full ACC8, since narrowing its second operand out
 // of RC has no such payoff and would reject a value legitimately in ACC8.
+class MC6809ComparePostIncBase<RegisterClass reg> : MC6809LogicalInstr {
+  let mayLoad = true;
+  dag OutOperandList = (outs CCond:$dst, INDEX16:$ptr_out);
+  dag InOperandList = (ins i8imm:$cc, reg:$src, INDEX16:$ptr_in);
+  let Constraints = "$ptr_out = $ptr_in";
+}
+
 multiclass MC6809Compare<ValueType vtype, RegisterClass reg,
                          RegisterClass regreg = reg> {
   let isAsCheapAsAMove = true in {
@@ -1058,8 +1065,13 @@ multiclass MC6809Compare<ValueType vtype, RegisterClass reg,
     def _MemIndirect : MC6809CompareBase<reg, (ins INDEX16:$idx, unknown:$offset)>;
     // Static-stack sibling — see MC6809Arithmetic's _Sym member.
     def _Sym : MC6809CompareBase<reg, (ins unknown:$sym)>;
+    // Compare against `,r+` / `,r++`: the pointer steps by the access
+    // size (a walking compare, `cmpb ,x+`). Formed pre-RA from a _Mem
+    // compare at offset 0 and the pointer's step (MC6809FoldLoadIntoConsumer).
+    def _MemPostInc : MC6809ComparePostIncBase<reg>;
   }
 }
+
 
 defm Compare_i8 : MC6809Compare<i8, ACC8_CMP, ACC8>;
 defm Compare_i16 : MC6809Compare<i16, ACC16>;
@@ -1191,6 +1203,7 @@ multiclass MC6809CompareBranch<ValueType vtype, RegisterClass reg,
     def _Sym : MC6809CompareBranchBase<reg, (ins unknown:$sym)>;
   }
 }
+
 
 defm CompareBranch_i8 : MC6809CompareBranch<i8, ACC8_CMP, ACC8>;
 defm CompareBranch_i16 : MC6809CompareBranch<i16, ACC16>;
