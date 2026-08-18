@@ -48,6 +48,7 @@ public:
   bool elideCompareZero(MachineBasicBlock &MBB) const;
   bool elideRedundantLoad(MachineBasicBlock &MBB) const;
   bool foldLEAIntoLoad(MachineBasicBlock &MBB) const;
+  bool formPostIncrement(MachineBasicBlock &MBB) const;
 };
 
 bool MC6809LateOptimization::runOnMachineFunction(MachineFunction &MF) {
@@ -58,6 +59,153 @@ bool MC6809LateOptimization::runOnMachineFunction(MachineFunction &MF) {
     Changed |= elideCompareZero(MBB);
     Changed |= elideRedundantLoad(MBB);
     Changed |= foldLEAIntoLoad(MBB);
+    Changed |= formPostIncrement(MBB);
+  }
+  return Changed;
+}
+
+// The register a LEA{X,Y,U} of the `k,r` (o5) form steps, and k, when it
+// steps its own base register (`leax 1,x`); an invalid register otherwise.
+static Register leaSelfStep(const MachineInstr &MI, int &K) {
+  switch (MI.getOpcode()) {
+  case MC6809::LEAXi_o5:
+  case MC6809::LEAYi_o5:
+  case MC6809::LEAUi_o5:
+    break;
+  default:
+    return Register();
+  }
+  // Operands: (imm, base); the stepped register is the descriptor's def.
+  const MachineOperand &Off = MI.getOperand(0);
+  if (!(Off.isImm() || Off.isCImm()) || !MI.getOperand(1).isReg())
+    return Register();
+  Register Stepped = MI.getOpcode() == MC6809::LEAXi_o5   ? MC6809::IX
+                     : MI.getOpcode() == MC6809::LEAYi_o5 ? MC6809::IY
+                                                          : MC6809::SU;
+  if (MI.getOperand(1).getReg() != Stepped)
+    return Register();
+  K = Off.isImm() ? Off.getImm() : Off.getCImm()->getSExtValue();
+  return Stepped;
+}
+
+// An indexed access `op off,r` (o0, or o5 with an immediate): its base and
+// offset.
+static bool indexedBaseOffset(const MachineInstr &MI, Register &Base,
+                              int &Off) {
+  Base = Register();
+  Off = 0;
+  bool Imm = false;
+  for (const MachineOperand &MO : MI.explicit_operands()) {
+    if ((MO.isImm() || MO.isCImm()) && !Imm) {
+      Off = MO.isImm() ? MO.getImm() : MO.getCImm()->getSExtValue();
+      Imm = true;
+    } else if (MO.isReg() && MO.getReg().isPhysical() && !MO.isDef() &&
+               MC6809::INDEX16RegClass.contains(MO.getReg()))
+      Base = MO.getReg();
+    else if (MO.isReg() && MO.getReg() == MC6809::SU && !MO.isDef())
+      Base = MC6809::SU;
+  }
+  return Base.isValid();
+}
+
+// Fold a step of an index register into the access it belongs with:
+//   op ,r ; lea r k,r      ->  op ,r+   (k = the access width)
+//   lea r k,r ; op -k,r    ->  op ,r+
+// The step's own Z (LEAX/LEAY set it) must be dead, and the access must
+// neither write the register it steps (`ldx ,x+` is not `ldx ,x ; leax
+// 2,x`) nor read its value as an operand: the 6809 steps the register
+// before the operation, so `stx ,x++` stores the stepped X and `cmpx ,x++`
+// compares it.
+// Does MI read R other than as its indexed base -- as an implicit operand
+// (the stored register of STX, the compared register of CMPX)?
+static bool readsAsValue(const MachineInstr &MI, Register R) {
+  for (const MachineOperand &MO : MI.implicit_operands())
+    if (MO.isReg() && MO.isUse() && MO.getReg() == R)
+      return true;
+  // The index-register stores and compares read their register whether or
+  // not an expander spelled that out.
+  switch (MI.getOpcode()) {
+  case MC6809::STXi_o0: case MC6809::STXi_o5:
+  case MC6809::CMPXi_o0: case MC6809::CMPXi_o5:
+    return R == MC6809::IX;
+  case MC6809::STYi_o0: case MC6809::STYi_o5:
+  case MC6809::CMPYi_o0: case MC6809::CMPYi_o5:
+    return R == MC6809::IY;
+  case MC6809::STUi_o0: case MC6809::STUi_o5:
+  case MC6809::CMPUi_o0: case MC6809::CMPUi_o5:
+    return R == MC6809::SU;
+  default:
+    return false;
+  }
+}
+
+bool MC6809LateOptimization::formPostIncrement(MachineBasicBlock &MBB) const {
+  const auto &TRI = *MBB.getParent()->getSubtarget().getRegisterInfo();
+  const TargetInstrInfo &TII = *MBB.getParent()->getSubtarget().getInstrInfo();
+  bool Changed = false;
+  auto NextReal = [&](MachineBasicBlock::iterator It) {
+    ++It;
+    while (It != MBB.end() && It->isDebugInstr())
+      ++It;
+    return It;
+  };
+  auto Rewrite = [&](MachineInstr &Access, MachineInstr &Lea, unsigned IncOpc) {
+    // The Inc form's explicit operand is the register alone: drop the
+    // offset immediate of an o5 form.
+    for (unsigned I = 0; I < Access.getNumOperands(); ++I)
+      if (Access.getOperand(I).isImm() || Access.getOperand(I).isCImm()) {
+        Access.removeOperand(I);
+        break;
+      }
+    Access.setDesc(TII.get(IncOpc));
+    Lea.eraseFromParent();
+    Changed = true;
+  };
+  for (auto It = MBB.begin(); It != MBB.end();) {
+    MachineInstr &MI = *It++;
+    Register Base;
+    int Off, K;
+    if (Register R = leaSelfStep(MI, K)) {
+      // lea r k,r ; op -k,r
+      auto NIt = NextReal(MI.getIterator());
+      if (NIt == MBB.end() || K <= 0)
+        continue;
+      MachineInstr &Op = *NIt;
+      if (!indexedBaseOffset(Op, Base, Off) || Base != R || Off != -K ||
+          Op.modifiesRegister(R, &TRI) || readsAsValue(Op, R))
+        continue;
+      unsigned IncOpc =
+          MC6809InstrInfo::getPostIncrementOpcode(Op.getOpcode(), K);
+      if (!IncOpc)
+        continue;
+      if (MI.modifiesRegister(MC6809::Z, &TRI) &&
+          !Op.modifiesRegister(MC6809::Z, &TRI) &&
+          MBB.computeRegisterLiveness(&TRI, MC6809::Z, NextReal(NIt)) !=
+              MachineBasicBlock::LQR_Dead)
+        continue;
+      It = NextReal(NIt);
+      Rewrite(Op, MI, IncOpc);
+      continue;
+    }
+    // op ,r ; lea r k,r
+    if (!indexedBaseOffset(MI, Base, Off) || Off != 0)
+      continue;
+    auto NIt = NextReal(MI.getIterator());
+    if (NIt == MBB.end())
+      continue;
+    MachineInstr &Lea = *NIt;
+    if (leaSelfStep(Lea, K) != Base || K <= 0 ||
+        MI.modifiesRegister(Base, &TRI) || readsAsValue(MI, Base))
+      continue;
+    unsigned IncOpc = MC6809InstrInfo::getPostIncrementOpcode(MI.getOpcode(), K);
+    if (!IncOpc)
+      continue;
+    if (Lea.modifiesRegister(MC6809::Z, &TRI) &&
+        MBB.computeRegisterLiveness(&TRI, MC6809::Z, NextReal(NIt)) !=
+            MachineBasicBlock::LQR_Dead)
+      continue;
+    It = NextReal(NIt);
+    Rewrite(MI, Lea, IncOpc);
   }
   return Changed;
 }
@@ -133,9 +281,13 @@ bool MC6809LateOptimization::elideCompareZero(MachineBasicBlock &MBB) const {
     // unsafe: `ldd <16-bit>; tstb` defines AD ⊇ AB but LDD's flags are the
     // 16-bit D's, not the 8-bit B's that TSTB tests (D=0x0100 -> D!=0 yet
     // B==0). `definesRegister` would accept that; an exact-width def does not.
+    // A store sets N/Z from the register it stores, at that register's
+    // width (`stb ,x+` sets Z when B is zero), so a store of exactly CmpReg
+    // is a producer too.
     bool ProducerDefsExact = false;
     for (const MachineOperand &MO : Producer->operands())
-      if (MO.isReg() && MO.isDef() && MO.getReg() == CmpReg) {
+      if (MO.isReg() && MO.getReg() == CmpReg &&
+          (MO.isDef() || (Producer->mayStore() && MO.isUse()))) {
         ProducerDefsExact = true;
         break;
       }

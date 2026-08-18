@@ -127,6 +127,8 @@ private:
 
   // Post-tablegen selection functions. If these return false, it is an error.
   bool tryFusePostModify(MachineInstr &MI) const;
+  bool tryFusePostIncAtAccess(MachineInstr &MI) const;
+  bool loadedValueWillFold(Register Val) const;
   bool selectFrameIndex(MachineInstr &MI);
   bool selectAddrSpaceCast(MachineInstr &MI);
   Register buildDirectPageAddress(MachineBasicBlock &MBB, MachineInstr &Before,
@@ -1193,6 +1195,30 @@ static const TargetRegisterClass &getRegClassForTypeOnBank(
   }
   return getRegClassForType(Ty);
 }
+// Whether a loaded value is headed for a consumer that reads memory directly
+// (a two-source arithmetic/bitwise/compare pseudo -- MC6809FoldLoadIntoConsumer
+// folds the load into it, and the late peephole then folds a following step
+// into that access: `addd ,x++`), or for the byte-narrowed shape of a 16-bit
+// add (EXTRACT_LO/HI, re-widened by MC6809FoldAddSub16 before that fold).
+// Fusing such a load into an auto-increment access at selection would keep
+// the value in a register instead.
+bool MC6809InstructionSelector::loadedValueWillFold(Register Val) const {
+  // Only a 16-bit value: that is where reading the operand from memory
+  // spares the second accumulator the 6809 does not have. A byte value
+  // adds from a register just as well, and the fused access keeps the
+  // pointer in one index register.
+  if (MRI->getType(Val) != LLT::scalar(16))
+    return false;
+  for (const MachineInstr &U : MRI->use_nodbg_instructions(Val)) {
+    if (MC6809InstrInfo::getMemFoldSibling(U.getOpcode()))
+      return true;
+    if (U.getOpcode() == MC6809::EXTRACT_LO_i16 ||
+        U.getOpcode() == MC6809::EXTRACT_HI_i16)
+      return true;
+  }
+  return false;
+}
+
 // Fuse `%adv = G_PTR_ADD %base, ±N` with an adjacent same-pointer
 // `Load/Store_i*_Mem(p, 0)` of access-size N into an auto-increment / -decrement
 // post-modify pseudo: *p++ (PostInc: access *base, base += N) and *--p (PreDec:
@@ -1255,18 +1281,36 @@ bool MC6809InstructionSelector::tryFusePostModify(MachineInstr &MI) const {
   };
 
   // Find the fusible access by use list (adjacency is unnecessary: the access
-  // stays put and only the pure-arithmetic advance is folded into it). Base's
-  // only non-debug users must be MI and that access.
+  // stays put and only the pure-arithmetic advance is folded into it). Other
+  // users of Base are fine for a byte or word access -- Base keeps its
+  // definition and its value; they merely keep it live past the fused
+  // access, which costs the copy the separate advance would have cost too.
+  // Not for a pointer access: with the old pointer still live, the fused
+  // instruction would need three index registers at once (old, new, and
+  // the pointer loaded or stored), and there are two.
   MachineInstr *Access = nullptr;
+  const PM *E = nullptr;
+  bool OtherUsers = false;
   for (MachineInstr &U : MRI->use_nodbg_instructions(Base)) {
     if (&U == &MI)
       continue;
-    if (Access)
-      return false;
-    Access = &U;
+    if (const PM *M = Match(&U); M && !E) {
+      Access = &U;
+      E = M;
+    } else {
+      OtherUsers = true;
+    }
   }
-  const PM *E = Match(Access);
   if (!E)
+    return false;
+  if (OtherUsers && E->Mem == MC6809::Load_iPtr_Mem)
+    return false;
+  if (OtherUsers && E->Mem == MC6809::Store_iPtr_Mem)
+    return false;
+  // A loaded value whose one consumer can take a memory operand is better
+  // folded into that consumer; the late peephole then folds the step into
+  // the access (`addd ,x++`).
+  if (E->IsLoad && loadedValueWillFold(Access->getOperand(0).getReg()))
     return false;
 
   // The fused op redefines the advanced pointer Dst at the access site, so no
@@ -1317,6 +1361,107 @@ bool MC6809InstructionSelector::tryFusePostModify(MachineInstr &MI) const {
   MRI->setRegClass(Base, &MC6809::INDEX16RegClass);
   MRI->setRegClass(Dst, &MC6809::INDEX16RegClass);
   Access->eraseFromParent();
+  MI.eraseFromParent();
+  constrainSelectedInstRegOperands(*MIB, TII, TRI, RBI);
+  return true;
+}
+
+// `*p++` with the access before the advance in the block: by the time the
+// access is visited (bottom-up), the advance is already a LEAPtrAdd_Imm.
+// Fuse the unselected G_LOAD/G_STORE through Base with that later
+// same-block `LEAPtrAdd_Imm %adv, Base, +size` into the post-increment
+// pseudo defined at the access; %adv's uses all follow the LEA, so they
+// stay dominated, and Base keeps its own definition for any other user.
+bool MC6809InstructionSelector::tryFusePostIncAtAccess(MachineInstr &MI) const {
+  const bool IsLoad = MI.getOpcode() == TargetOpcode::G_LOAD;
+  Register Val = MI.getOperand(0).getReg();
+  Register Base = MI.getOperand(1).getReg();
+  if (!Base.isVirtual() || MI.memoperands_empty())
+    return false;
+  const MachineMemOperand *MMO = *MI.memoperands_begin();
+  if (!MMO->getSize().hasValue() || MMO->isVolatile() || MMO->isAtomic())
+    return false;
+  unsigned Size = MMO->getSize().getValue();
+  LLT ValTy = MRI->getType(Val);
+  unsigned Opc;
+  const TargetRegisterClass *ValRC;
+  if (Size == 1 && ValTy == LLT::scalar(8)) {
+    Opc = IsLoad ? MC6809::Load_i8_PostInc : MC6809::Store_i8_PostInc;
+    ValRC = &MC6809::ACC8RegClass;
+  } else if (Size == 2 && ValTy == LLT::scalar(16)) {
+    Opc = IsLoad ? MC6809::Load_i16_PostInc : MC6809::Store_i16_PostInc;
+    ValRC = &MC6809::ACC16RegClass;
+  } else if (Size == 2 && ValTy == LLT::pointer(0, 16)) {
+    Opc = IsLoad ? MC6809::Load_iPtr_PostInc : MC6809::Store_iPtr_PostInc;
+    ValRC = &MC6809::INDEX16RegClass;
+  } else {
+    return false;
+  }
+  // The advance: a LEAPtrAdd_Imm of Base by +Size, later in this block. A
+  // pointer access needs Base to have no other user (see tryFusePostModify:
+  // old pointer, new pointer and the pointer value would want three index
+  // registers).
+  MachineInstr *Adv = nullptr;
+  bool OtherUsers = false;
+  for (MachineInstr &U : MRI->use_nodbg_instructions(Base)) {
+    if (&U == &MI)
+      continue;
+    if (!Adv && U.getOpcode() == MC6809::LEAPtrAdd_Imm &&
+        U.getParent() == MI.getParent() && U.getOperand(1).getReg() == Base &&
+        U.getOperand(2).isImm() && U.getOperand(2).getImm() == int64_t(Size)) {
+      Adv = &U;
+      continue;
+    }
+    OtherUsers = true;
+  }
+  if (!Adv)
+    return false;
+  if (OtherUsers && ValTy.isPointer())
+    return false;
+  // A loaded value whose one consumer can take a memory operand is better
+  // folded into that consumer (`addd ,x`); the late peephole then folds the
+  // step into the access (`addd ,x++`). Fusing here would keep the value in
+  // a register and the add register-register.
+  if (IsLoad && loadedValueWillFold(Val))
+    return false;
+  bool AdvAfter = false;
+  for (auto It = std::next(MI.getIterator()); It != MI.getParent()->end(); ++It)
+    if (&*It == Adv) {
+      AdvAfter = true;
+      break;
+    }
+  if (!AdvAfter)
+    return false;
+  // A value in the index bank (a stored pointer) or a plain scalar: keep the
+  // class the selector would have given it.
+  if (IsLoad) {
+    if (const RegisterBank *RB = MRI->getRegBankOrNull(Val);
+        RB && RB->getID() == MC6809::INDEXRegBankID && ValTy == LLT::scalar(16))
+      return false;
+    MRI->setRegClass(Val, ValRC);
+  } else if (Val.isVirtual() && !MRI->getRegClassOrNull(Val)) {
+    if (const RegisterBank *RB = MRI->getRegBankOrNull(Val);
+        RB && RB->getID() == MC6809::INDEXRegBankID && ValTy == LLT::scalar(16))
+      return false;
+    MRI->setRegClass(Val, ValRC);
+  }
+  Register Dst = Adv->getOperand(0).getReg();
+  MachineInstrBuilder MIB;
+  if (IsLoad)
+    MIB = BuildMI(*MI.getParent(), MI, MI.getDebugLoc(), TII.get(Opc))
+              .addDef(Val)
+              .addDef(Dst)
+              .addReg(Base);
+  else
+    MIB = BuildMI(*MI.getParent(), MI, MI.getDebugLoc(), TII.get(Opc))
+              .addDef(Dst)
+              .addReg(Val)
+              .addReg(Base);
+  for (MachineMemOperand *M : MI.memoperands())
+    MIB.addMemOperand(M);
+  MRI->setRegClass(Base, &MC6809::INDEX16RegClass);
+  MRI->setRegClass(Dst, &MC6809::INDEX16RegClass);
+  Adv->eraseFromParent();
   MI.eraseFromParent();
   constrainSelectedInstRegOperands(*MIB, TII, TRI, RBI);
   return true;
@@ -2076,6 +2221,13 @@ skip_globalvalue_fold:
   // auto-increment / auto-decrement access (*p++ / *--p) before selectImpl
   // turns the G_PTR_ADD into a plain LEA.
   if (MI.getOpcode() == TargetOpcode::G_PTR_ADD && tryFusePostModify(MI))
+    return true;
+  // The other order: the access comes first in the block and the advance
+  // after it, so the advance was visited (and selected to a LEA) before the
+  // access. Fuse from the access side.
+  if ((MI.getOpcode() == TargetOpcode::G_LOAD ||
+       MI.getOpcode() == TargetOpcode::G_STORE) &&
+      tryFusePostIncAtAccess(MI))
     return true;
 
   if (selectImpl(MI, *CoverageInfo))

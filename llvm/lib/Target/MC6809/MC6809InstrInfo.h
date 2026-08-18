@@ -87,6 +87,12 @@ public:
   // opcodes with no direct-page form (LEA, PC-rel), which then correctly keep
   // extended addressing of the page-0 symbol.
   unsigned getStaticStackDirectPageOpcode(unsigned ExtOpc) const;
+  /// For an indexed `*i_o0` / `*i_o5` opcode addressing `,r` (offset 0),
+  /// the `*i_Inc1` / `*i_Inc2` post-increment sibling that also steps the
+  /// index register by Bytes (1 for byte ops, 2 for word ops); 0 if there
+  /// is none or the width does not match the op's accumulator.
+  static unsigned getPostIncrementOpcode(unsigned Opc, int Bytes);
+
   /// The concrete opcode for an indexed arithmetic/compare family member
   /// whose memory operand is a symbol (static-stack slot or global): direct
   /// page for a direct-page global, PC-relative under PIC, else extended.

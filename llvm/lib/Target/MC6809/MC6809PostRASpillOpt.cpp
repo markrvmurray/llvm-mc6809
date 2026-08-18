@@ -19,6 +19,7 @@
 
 #include "MC6809PostRASpillOpt.h"
 #include "MC6809.h"
+#include "MC6809InstrInfo.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
 
 #include "llvm/Analysis/ValueTracking.h"
@@ -557,54 +558,6 @@ static unsigned getIndirectIndexedOpcode(unsigned SrcOpc, int Offset) {
 #undef IND_VARIANT
 }
 
-/// For an `*i_o0` or `*i_o5` (with offset 0) opcode that reads/writes
-/// `,S`, return the corresponding post-increment opcode that absorbs a
-/// following `LEAS PushWidth,S`. PushWidth must be 1 (byte ops on AA/AB,
-/// returns the `*i_Inc1` variant) or 2 (word ops on AD, returns
-/// `*i_Inc2`). Returns 0 if the opcode is not a recognised offset-0
-/// indexed ALU/load/store op or the width doesn't match the op's
-/// natural accumulator size.
-///
-/// Used by Stage 5 of the spill-opt pass to fold the
-/// `PSHS / op ,S / LEAS N,S` triplet into `PSHS / op ,S{+,++}` (bug #185).
-static unsigned getPostIncOpcodeForOffset0(unsigned OrigOpc, int PushWidth) {
-  // Byte ops (AA/AB) — PushWidth must be 1.
-#define BYTE_VARIANT(BASE)                                                     \
-  case MC6809::BASE##_o0: case MC6809::BASE##_o5:                              \
-    return PushWidth == 1 ? MC6809::BASE##_Inc1 : 0;
-  // Word ops (AD) — PushWidth must be 2.
-#define WORD_VARIANT(BASE)                                                     \
-  case MC6809::BASE##_o0: case MC6809::BASE##_o5:                              \
-    return PushWidth == 2 ? MC6809::BASE##_Inc2 : 0;
-
-  switch (OrigOpc) {
-  // Byte loads/stores
-  BYTE_VARIANT(LDAi)
-  BYTE_VARIANT(LDBi)
-  BYTE_VARIANT(STAi)
-  BYTE_VARIANT(STBi)
-  // Byte ALU on A
-  BYTE_VARIANT(ADDAi) BYTE_VARIANT(ADCAi)
-  BYTE_VARIANT(SUBAi) BYTE_VARIANT(SBCAi)
-  BYTE_VARIANT(ANDAi) BYTE_VARIANT(ORAi) BYTE_VARIANT(EORAi)
-  BYTE_VARIANT(CMPAi) BYTE_VARIANT(BITAi)
-  // Byte ALU on B
-  BYTE_VARIANT(ADDBi) BYTE_VARIANT(ADCBi)
-  BYTE_VARIANT(SUBBi) BYTE_VARIANT(SBCBi)
-  BYTE_VARIANT(ANDBi) BYTE_VARIANT(ORBi) BYTE_VARIANT(EORBi)
-  BYTE_VARIANT(CMPBi) BYTE_VARIANT(BITBi)
-  // Word loads/stores
-  WORD_VARIANT(LDDi)
-  WORD_VARIANT(STDi)
-  // Word ALU on D
-  WORD_VARIANT(ADDDi) WORD_VARIANT(SUBDi)
-  WORD_VARIANT(CMPDi)
-  default: return 0;
-  }
-#undef BYTE_VARIANT
-#undef WORD_VARIANT
-}
-
 class MC6809PostRASpillOpt : public MachineFunctionPass {
 public:
   static char ID;
@@ -615,8 +568,6 @@ public:
   bool runOnMachineFunction(MachineFunction &MF) override;
 };
 
-/// The single register pushed/pulled by a page-1 PSHS/PULS, or 0 if the
-/// instruction is not one or pushes several.
 /// Bytes a PSHS/PULS moves: the sum of its registers' sizes.
 static int pushPullBytes(const MachineInstr &MI, const TargetRegisterInfo &TRI) {
   int Bytes = 0;
@@ -626,6 +577,8 @@ static int pushPullBytes(const MachineInstr &MI, const TargetRegisterInfo &TRI) 
   return Bytes;
 }
 
+/// The single register pushed/pulled by a page-1 PSHS/PULS, or 0 if the
+/// instruction is not one or pushes several.
 static Register singlePushPullReg(const MachineInstr &MI) {
   if (MI.getOpcode() != MC6809::PSHSs && MI.getOpcode() != MC6809::PULSs)
     return Register();
@@ -1497,7 +1450,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         if (Cand.isDebugInstr()) continue;
 
         // Is this the op we're looking for?
-        if (unsigned Opc = getPostIncOpcodeForOffset0(Cand.getOpcode(),
+        if (unsigned Opc = MC6809InstrInfo::getPostIncrementOpcode(Cand.getOpcode(),
                                                      PushWidth)) {
           SlotKey Slot = getSlotKey(Cand);
           if (Slot.BaseReg == MC6809::SS && Slot.Offset == 0) {

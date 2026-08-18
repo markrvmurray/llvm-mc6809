@@ -92,6 +92,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMC6809Target() {
   initializeMC6809PreferPage1IndexPass(PR);
   initializeMC6809FoldAddSub16Pass(PR);
   initializeMC6809FoldLoadIntoConsumerPass(PR);
+  initializeMC6809PostIncExitUsesPass(PR);
   initializeMC6809FoldCallThroughMemPass(PR);
   initializeMC6809FoldBankCrossPass(PR);
 }
@@ -274,8 +275,10 @@ bool MC6809PassConfig::addLegalizeMachineIR() {
 }
 
 void MC6809PassConfig::addPreRegBankSelect() {
-  if (getOptLevel() != CodeGenOptLevel::None)
+  if (getOptLevel() != CodeGenOptLevel::None) {
     addPass(createMC6809Combiner());
+    addPass(createMC6809PostIncExitUsesPass());
+  }
   addPass(createMC6809LowerSelectPass());
 }
 

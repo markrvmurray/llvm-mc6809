@@ -97,10 +97,9 @@ define dso_local i16 @cmp_imm_byte_load_phi_no_wrap(ptr noundef readonly capture
 ; CHECK-NEXT:    pshs d
 ; CHECK-NEXT:    std <__rs1
 ; CHECK-NEXT:    puls d
-; CHECK-NEXT:    lda ,y
+; CHECK-NEXT:    lda ,y+
 ; CHECK-NEXT:    tfr a,b
 ; CHECK-NEXT:    addb #-48
-; CHECK-NEXT:    leay 1,y
 ; CHECK-NEXT:    cmpb #10
 ; CHECK-NEXT:    blo .LBB0_7
 ; CHECK-NEXT:  .LBB0_8: ; %while.end

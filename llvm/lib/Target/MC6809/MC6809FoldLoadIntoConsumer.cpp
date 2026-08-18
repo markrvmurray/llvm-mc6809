@@ -54,10 +54,11 @@ static cl::opt<bool> EnableFoldLoadIntoConsumer(
     cl::desc("Fold single-use loads into the arithmetic, bitwise or compare "
              "pseudo that consumes them"));
 
-static cl::opt<bool> FoldAdjacentRegLoads(
-    "mc6809-fold-adjacent-reg-loads", cl::init(true), cl::Hidden,
-    cl::desc("Also fold a register-based load into an adjacent consumer "
-             "when its base is not live past the consumer"));
+static cl::opt<unsigned> FoldNearRegLoadDistance(
+    "mc6809-fold-near-reg-load-distance", cl::init(3), cl::Hidden,
+    cl::desc("Also fold a register-based load into a consumer at most this "
+             "many instructions away when its base is not live past the "
+             "consumer (0: only when the base is live past)"));
 
 namespace {
 
@@ -245,15 +246,18 @@ bool MC6809FoldLoadIntoConsumer::runOnMachineFunction(MachineFunction &MF) {
       // register (and a two-byte spill of the address) at exactly the point
       // the loaded byte was supposed to be cheap. Fold only when the base is
       // live past the consumer anyway -- then nothing is extended -- or when
-      // the consumer immediately follows the load, so there is nothing to
-      // extend across.
+      // the consumer follows within a few instructions, so there is next to
+      // nothing to extend across (a pointer step between them, say).
       if (!IsSym) {
         const MachineOperand &Base = Load.getOperand(1);
+        unsigned Distance = 0;
+        for (auto It = std::next(Load.getIterator());
+             It != MBB.end() && &*It != &User && Distance <= FoldNearRegLoadDistance;
+             ++It)
+          if (!It->isDebugInstr())
+            ++Distance;
         if (Base.isReg() && Base.getReg().isVirtual() &&
-            !(FoldAdjacentRegLoads &&
-              std::next(Copy ? Copy->getIterator() : Load.getIterator()) ==
-                  User.getIterator() &&
-              (!Copy || std::next(Load.getIterator()) == Copy->getIterator()))) {
+            Distance > FoldNearRegLoadDistance) {
           bool LivePast = false;
           for (const MachineInstr &Use :
                MRI.use_nodbg_instructions(Base.getReg())) {
