@@ -1855,8 +1855,11 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
       // its data lives in the module's SU-relative data area, not PC-reachable.
       // Leave it to the generic path — G_GLOBAL_VALUE materialises the
       // SU-relative address (LEAX mc6809_os9_data(sym),SU) and the load/store
-      // uses it as an index base.
-      if (HaveGV && MF->getTarget().getTargetTriple().isOSOS9() &&
+      // uses it as an index base. A direct-page global is the exception: OS-9
+      // sets DP = U >> 8, so an object in the first page of the data area is
+      // reached by direct addressing with its data-area offset as the byte
+      // (the linker resolves it), exactly the fold below.
+      if (HaveGV && !IsDP && MF->getTarget().getTargetTriple().isOSOS9() &&
           getOS9WritableGlobalTargetFlags(GV->getOperand(1).getGlobal()) !=
               MC6809::MO_NO_FLAGS)
         goto skip_globalvalue_fold;
@@ -1911,10 +1914,17 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
           BuildMI(MBB, MI, DL, TII.get(MC6809::ZEX16Implicit));
           Register Off16 = MRI->createVirtualRegister(&MC6809::ACC16RegClass);
           BuildMI(MBB, MI, DL, TII.get(TargetOpcode::COPY), Off16).addReg(MC6809::AD);
-          // The direct-page base address into an index register.
+          // The direct-page base address into an index register. On OS-9 the
+          // direct page is the first page of the process data area, whose
+          // base is in U; elsewhere the linker provides it as __dp_base_addr.
           Register Base = MRI->createVirtualRegister(&MC6809::INDEX16RegClass);
-          auto BaseMIB = BuildMI(MBB, MI, DL, TII.get(MC6809::Load_iPtr_Imm), Base)
-                             .addExternalSymbol("__dp_base_addr");
+          MachineInstrBuilder BaseMIB;
+          if (MF->getTarget().getTargetTriple().isOSOS9())
+            BaseMIB = BuildMI(MBB, MI, DL, TII.get(TargetOpcode::COPY), Base)
+                          .addReg(MC6809::SU);
+          else
+            BaseMIB = BuildMI(MBB, MI, DL, TII.get(MC6809::Load_iPtr_Imm), Base)
+                          .addExternalSymbol("__dp_base_addr");
           // Full address = base + in-page offset (LEAX D,X — no ABX).
           Register Full = MRI->createVirtualRegister(&MC6809::INDEX16RegClass);
           auto LeaMIB = BuildMI(MBB, MI, DL, TII.get(MC6809::LEAPtrAdd_Reg16), Full)
@@ -1925,7 +1935,8 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
           MI.getOperand(1).setReg(Full);
           MI.setDesc(TII.get(MemOpc));
           MI.addOperand(MachineOperand::CreateImm(0));
-          constrainSelectedInstRegOperands(*BaseMIB, TII, TRI, RBI);
+          if (!BaseMIB->isCopy())
+            constrainSelectedInstRegOperands(*BaseMIB, TII, TRI, RBI);
           constrainSelectedInstRegOperands(*LeaMIB, TII, TRI, RBI);
           constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
           return true;

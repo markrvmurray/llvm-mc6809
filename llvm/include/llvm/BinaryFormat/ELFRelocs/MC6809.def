@@ -43,3 +43,6 @@ ELF_RELOC(R_MC6809_OS9_OFFSET_16,  9)
 // Relocations for DWARF.
 ELF_RELOC(R_MC6809_FK_DATA_4,     10)
 ELF_RELOC(R_MC6809_FK_DATA_8,     11)
+// OS-9: the low byte of a symbol's offset in the process data area -- the
+// direct-page operand for an object in the data area's first page.
+ELF_RELOC(R_MC6809_OS9_OFFSET_8,  12)

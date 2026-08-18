@@ -25,7 +25,11 @@ public:
     VK_ADDR16,
     VK_IMM8,
     VK_IMM16,
-    VK_OS9_DATA_OFFSET
+    VK_OS9_DATA_OFFSET,
+    // The low byte of a symbol's OS-9 data-area offset: the direct-page
+    // operand (and the 8-bit pointer value) of an object in the first page
+    // of the process data area, where DP = U >> 8.
+    VK_OS9_DATA_OFFSET_8
   };
 
   /// Creates an MC6809 machine code expression.

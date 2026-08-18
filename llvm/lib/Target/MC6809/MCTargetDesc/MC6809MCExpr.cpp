@@ -30,6 +30,7 @@ const struct ModifierEntry {
     {"mc6809_8", MC6809MCExpr::VK_ADDR8},
     {"mc6809_16", MC6809MCExpr::VK_ADDR16},
     {"mc6809_os9_data", MC6809MCExpr::VK_OS9_DATA_OFFSET},
+    {"mc6809_os9_data8", MC6809MCExpr::VK_OS9_DATA_OFFSET_8},
 };
 
 } // end of anonymous namespace
@@ -84,6 +85,7 @@ int64_t MC6809MCExpr::evaluateAsInt64(int64_t Value) const {
   switch (Kind) {
   case MC6809MCExpr::VK_IMM8:
   case MC6809MCExpr::VK_ADDR8:
+  case MC6809MCExpr::VK_OS9_DATA_OFFSET_8:
     Value &= 0xff;
     break;
   case MC6809MCExpr::VK_IMM16:
@@ -109,6 +111,7 @@ MC6809::Fixups MC6809MCExpr::getFixupKind() const {
     Kind = MC6809::Imm16;
     break;
   case VK_ADDR8:
+  case VK_OS9_DATA_OFFSET_8:
     Kind = MC6809::Addr8;
     break;
   case VK_ADDR16:

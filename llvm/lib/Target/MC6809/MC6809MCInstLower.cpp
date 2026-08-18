@@ -130,7 +130,13 @@ bool MC6809MCInstLower::lowerOperand(const MachineOperand &MO, MCOperand &MCOp) 
                  (ParentMI->getDesc().TSFlags & MC6809::TSFlagDirectPageAddr);
     }
     if (Truncate) {
-      const MC6809MCExpr *Expr = MC6809MCExpr::create(MC6809MCExpr::VK_ADDR8, MCOp.getExpr(), /*isNegated=*/false, Ctx);
+      // On OS-9 the direct page is the first page of the process data area
+      // (DP = U >> 8), so the byte is the object's data-area offset, which
+      // only the linker knows -- not the low byte of a link address.
+      bool IsOS9 = AP.TM.getTargetTriple().isOSOS9();
+      const MC6809MCExpr *Expr = MC6809MCExpr::create(
+          IsOS9 ? MC6809MCExpr::VK_OS9_DATA_OFFSET_8 : MC6809MCExpr::VK_ADDR8,
+          MCOp.getExpr(), /*isNegated=*/false, Ctx);
       MCOp = MCOperand::createExpr(Expr);
     }
     break;

@@ -625,6 +625,13 @@ bool MC6809FrameLowering::usesStaticStack(const MachineFunction &MF) const {
   // The inputs here (hasCalls, isFrameAddressTaken, hasVarSizedObjects) are
   // all set during instruction selection, so this is stable from
   // determineCalleeSaves onwards, which hasFP relies on.
+  // On OS-9 every writable byte of a process lives in its data area and is
+  // reached from U; a static frame would sit in the module body's .bss image,
+  // which is neither writable nor at a link-time address. The dynamic
+  // U-relative frame is what OS-9 wants, and costs the same as a data-area
+  // frame would.
+  if (MF.getTarget().getTargetTriple().isOSOS9())
+    return false;
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   return MF.getSubtarget<MC6809Subtarget>().staticStack() &&
          !MF.getFunction().hasOptNone() &&
