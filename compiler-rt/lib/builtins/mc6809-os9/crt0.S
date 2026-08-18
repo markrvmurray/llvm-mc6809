@@ -167,6 +167,5 @@ _start:
 	// returns to us.
 
 	tfr	x,d
-	swi2
-	.byte	0x06			// F$Exit
+	os9	0x06			// F$Exit
 	.size	_start, .-_start

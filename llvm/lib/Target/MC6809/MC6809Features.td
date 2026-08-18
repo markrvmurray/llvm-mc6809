@@ -23,3 +23,11 @@ def FeatureStaticStack
     : SubtargetFeature<"static-stack", "StaticStack", "true",
                         "Allocate non-reentrant function frames to static "#
                         "memory rather than the dynamic stack">;
+
+// The OS-9 / NitrOS-9 program-module environment. Enabled automatically by the
+// mc6809-*-os9 triple (see MC6809Subtarget / createMC6809MCSubtargetInfo);
+// -mattr=+os9 turns it on for another triple. Today it gates the assembler's
+// `os9 <code>` system-call construct.
+def FeatureOS9
+    : SubtargetFeature<"os9", "OS9", "true",
+                        "Target the OS-9 program-module environment">;

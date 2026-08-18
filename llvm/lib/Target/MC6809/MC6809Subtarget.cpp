@@ -40,8 +40,9 @@ MC6809Subtarget::MC6809Subtarget(const Triple &TT, const std::string &CPU, const
       InstSelector(createMC6809InstructionSelector(TM, *this, RegBankInfo)), InlineAsmLoweringInfo(&TLInfo) {}
 
 MC6809Subtarget &MC6809Subtarget::initializeSubtargetDependencies(StringRef CPU, StringRef FS, const TargetMachine &TM) {
-  // Parse features string.
-  ParseSubtargetFeatures(CPU, /* TuneCPU */ CPU, FS);
+  // Parse features string, with the features the triple implies (+os9).
+  ParseSubtargetFeatures(CPU, /* TuneCPU */ CPU,
+                         mc6809::tripleFeatures(TM.getTargetTriple(), FS));
 
   return *this;
 }

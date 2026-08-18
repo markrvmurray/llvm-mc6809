@@ -981,6 +981,17 @@ def SWIx : MC6809Inherent_P1<(outs), "swi", Opcode<0x3F,1>, [], []>;
 
 def SWI2x : MC6809Inherent_P2<(outs), "swi2", Opcode<0x3F,2>, [], []>;
 
+// OS-9 system call: `os9 <code>` = SWI2 ; FCB <code>. Only in the OS-9
+// environment (the os9 triple, or -mattr=+os9), where SWI2 is the kernel's
+// entry. Uses/Defs are left open: the call's register contract is per code,
+// and this is an assembler-level construct, not something codegen selects.
+def OS9x : OS9SystemCall<"os9", Opcode<0x3F,2>> {
+  let Predicates = [IsOS9];
+  let OutOperandList = (outs);
+  let hasSideEffects = 1;
+}
+def : InstAlias<"os9 # $fcode", (OS9x os9code:$fcode)>, Requires<[IsOS9]>;
+
 def BITMDi8 : MC6809Immediate8Bit_P3<(outs), "bitmd", Opcode<0x3C,3>, [NZ,N,Z,V], [AD]> {
   let Predicates = [IsHD6309];
   let isCompare = true;

@@ -18,6 +18,9 @@ def IsHD6309 : Predicate<"Subtarget->has6309()">, AssemblerPredicate<(all_of Fea
 def NotHD6309 : Predicate<"!Subtarget->has6309()">, AssemblerPredicate<(all_of Feature6309), ""> {
   let PredicateName = "IsHD6309";
 }
+def IsOS9 : Predicate<"Subtarget->isOS9()">, AssemblerPredicate<(all_of FeatureOS9), "os9"> {
+  let PredicateName = "IsOS9";
+}
 
 /// Makes sure that immediate mode operands fit into the required bit field
 /// size.  See also *isImm_8 functions in MC6809 code.
@@ -52,6 +55,14 @@ def imm8 : Operand<i32> {
 def imm16 : Operand<i32> {
   let ParserMatchClass = ImmediateAsmOperand<"Imm16">;
   let EncoderMethod = "encodeImm<MC6809::Imm16, 1>";
+}
+
+// The OS-9 system-call function code that follows SWI2 in-line: a byte, given
+// as a bare expression (`os9 I$Write`, as lwasm and the Microware assembler
+// spell it) or with an immediate mark (`os9 #$8A`).
+def os9code : Operand<i32> {
+  let ParserMatchClass = ImmediateAsmOperand<"Imm8">;
+  let EncoderMethod = "encodeImm<MC6809::Imm8, 2>";
 }
 
 
@@ -510,6 +521,22 @@ class Immediate8Bit<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opcod
   let InOperandList = (ins imm8:$val);
   let AsmString = !strconcat(mnemonic, " # $val");
   let Inst = !if(!eq(Page, 1), P1Inst, P23Inst);
+}
+
+// OS-9 system call: SWI2 followed by the in-line function-code byte, which the
+// kernel reads past the SWI2's return address and skips over. One assembler
+// construct, as in lwasm and the Microware assembler, so a syscall is written
+// `os9 F$Exit` instead of a `swi2` / `.byte` pair that is easy to desynchronise.
+class OS9SystemCall<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opcode> {
+  bits<8> fcode;
+  let P23Inst{23-16} = fcode{7-0}; let P23Inst{15-8} = Opc; let P23Inst{7-0} = Pre{7-0};
+  let DecoderNamespace = "_Page_" # Page # "_Size_";
+  let Mode = "os9";
+  let OperandSize = 1;
+  let Size = !add(OperandSize, OpcodeSize);
+  let InOperandList = (ins os9code:$fcode);
+  let AsmString = !strconcat(mnemonic, " $fcode");
+  let Inst = P23Inst;
 }
 
 class ImmediateDirect<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opcode> {

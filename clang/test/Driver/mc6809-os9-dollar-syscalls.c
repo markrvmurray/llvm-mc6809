@@ -42,8 +42,10 @@ int use_direct(void) {
 // RUN:   -Wl,-L,%S/../../../compiler-rt/lib/builtins/mc6809-os9 \
 // RUN:   -c %s -o %t.o
 //
-// RUN: llvm-mc -triple=mc6809 --filetype=obj \
+// RUN: llvm-mc -triple=mc6809-unknown-os9 --filetype=obj \
 // RUN:   %S/../../../compiler-rt/lib/builtins/mc6809-os9/syscalls.S -o %t.syscalls.o
+// RUN: %clang -target mc6809-unknown-os9 -c \
+// RUN:   %S/../../../compiler-rt/lib/builtins/mc6809-os9/syscalls.c -o %t.syscalls_c.o
 //
 // RUN: llvm-readelf -s %t.o | FileCheck %s --check-prefix=REFS
 // REFS-DAG: UND _exit
@@ -55,11 +57,12 @@ int use_direct(void) {
 // REFS-DAG: UND _os_read
 // REFS-DAG: UND _os_readln
 
-// 3. The syscalls.S object DEFINES both name flavors at the same
-//    addresses (the .set aliases).
+// 3. The runtime objects DEFINE both name flavors at the same addresses
+//    (the .set aliases in syscalls.S, the alias attribute in syscalls.c).
+// RUN: llvm-readelf -s %t.syscalls_c.o | FileCheck %s --check-prefix=DEFS-C
+// DEFS-C-DAG: FUNC{{.+}}_exit
+// DEFS-C-DAG: FUNC{{.+}}F$Exit
 // RUN: llvm-readelf -s %t.syscalls.o | FileCheck %s --check-prefix=DEFS
-// DEFS-DAG: FUNC{{.+}}_exit
-// DEFS-DAG: FUNC{{.+}}F$Exit
 // DEFS-DAG: FUNC{{.+}}_write
 // DEFS-DAG: FUNC{{.+}}I$Write
 // DEFS-DAG: FUNC{{.+}}_read
@@ -78,5 +81,5 @@ int use_direct(void) {
 //    test is checking symbol resolution, not the module wrapper.
 // RUN: ld.lld -T %S/../../../compiler-rt/lib/builtins/mc6809-os9/mc6809-os9.lds \
 // RUN:   --oformat=binary --defsym=_start=use_posix \
-// RUN:   %t.o %t.syscalls.o -o %t.body
+// RUN:   %t.o %t.syscalls.o %t.syscalls_c.o -o %t.body
 // RUN: test -s %t.body

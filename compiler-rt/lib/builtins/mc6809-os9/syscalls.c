@@ -33,11 +33,12 @@
 //   OS-9:  F$Exit -> B = status byte
 //
 // F$Exit never returns; 'd' places status in D (B = low byte).  The function
-// code is emitted as the inline data byte after SWI2 via the 'i' immediate.
+// code is the 'i' immediate, which the assembler's `os9` construct emits as
+// the in-line byte after SWI2.
 //===----------------------------------------------------------------------===//
 
 __attribute__((noreturn)) void _exit(int status) {
-  asm volatile("swi2\n\t.byte %c0" : : "i"(F_Exit), "d"(status) : "memory");
+  asm volatile("os9 %0" : : "i"(F_Exit), "d"(status) : "memory");
   __builtin_unreachable();
 }
 

@@ -22,7 +22,7 @@
 # The error path itself (ldx #-1 ; rts = 8e ff ff 39) is shared, so
 # no need to lock its bytes per syscall.
 
-RUN: llvm-mc -triple=mc6809 --filetype=obj \
+RUN: llvm-mc -triple=mc6809-unknown-os9 --filetype=obj \
 RUN:   %S/../../../../compiler-rt/lib/builtins/mc6809-os9/syscalls.S \
 RUN:   -o %t.o
 

@@ -27,9 +27,9 @@ RUN: echo 'main:'                      >> %t-main.s
 RUN: echo '        ldb #42'            >> %t-main.s
 RUN: echo '        rts'                >> %t-main.s
 
-RUN: llvm-mc -triple=mc6809 --filetype=obj \
+RUN: llvm-mc -triple=mc6809-unknown-os9 --filetype=obj \
 RUN:   %S/../../../../compiler-rt/lib/builtins/mc6809-os9/crt0.S -o %t-crt0.o
-RUN: llvm-mc -triple=mc6809 --filetype=obj %t-main.s -o %t-main.o
+RUN: llvm-mc -triple=mc6809-unknown-os9 --filetype=obj %t-main.s -o %t-main.o
 
 RUN: ld.lld -T %S/../../../../compiler-rt/lib/builtins/mc6809-os9/mc6809-os9.lds \
 RUN:   --oformat=binary \

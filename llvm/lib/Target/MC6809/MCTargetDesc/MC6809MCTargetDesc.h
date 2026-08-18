@@ -16,6 +16,7 @@
 #include "llvm/ADT/Sequence.h"
 #include "llvm/MC/MCInstrDesc.h"
 #include "llvm/Support/DataTypes.h"
+#include "llvm/TargetParser/Triple.h"
 
 #include <memory>
 
@@ -36,6 +37,12 @@ class Triple;
 class raw_pwrite_stream;
 
 Target &getTheMC6809Target();
+
+namespace mc6809 {
+/// The subtarget feature string \p FS augmented with the features the triple
+/// implies: "+os9" for the OS-9 program-module environment.
+std::string tripleFeatures(const Triple &TT, StringRef FS);
+} // namespace mc6809
 
 MCInstrInfo *createMC6809MCInstrInfo();
 

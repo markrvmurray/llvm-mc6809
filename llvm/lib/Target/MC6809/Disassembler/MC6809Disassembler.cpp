@@ -221,6 +221,17 @@ DecodeStatus MC6809Disassembler::getInstruction(MCInst &Instr, uint64_t &Size, A
       if (DecoderTable[i].Size == InsnSize) {
         DecodeStatus Result = decodeInstruction(DecoderTable[i].Table, Instr, Insn, Address, this, STI);
         if (Result != MCDisassembler::Fail) {
+          // In the OS-9 environment SWI2 is the kernel entry and the byte
+          // that follows it is the in-line function code, which the kernel
+          // skips on return -- so present the pair as the `os9 <code>`
+          // construct rather than as SWI2 followed by an unrelated opcode.
+          if (Instr.getOpcode() == MC6809::SWI2x &&
+              STI.hasFeature(MC6809::FeatureOS9) && Bytes.size() > InsnSize) {
+            Instr.setOpcode(MC6809::OS9x);
+            Instr.addOperand(MCOperand::createImm(Bytes[InsnSize]));
+            Size = InsnSize + 1;
+            return Result;
+          }
           Size = InsnSize;
           return Result;
         }

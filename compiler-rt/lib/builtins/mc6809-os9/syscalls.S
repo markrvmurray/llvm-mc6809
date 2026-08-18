@@ -113,8 +113,7 @@ _write:
 	tfr	b,a			// A = fd low byte = path #
 	ldx	2,s			// X = buf
 	ldy	4,s			// Y = nbytes
-	swi2
-	.byte	I_Write			// I$Write
+	os9	I_Write			// I$Write
 	bcs	_os9err
 	tfr	y,x			// X = bytes written
 	rts
@@ -137,8 +136,7 @@ _read:
 	tfr	b,a			// A = fd
 	ldx	2,s			// X = buf
 	ldy	4,s			// Y = nbytes
-	swi2
-	.byte	I_Read			// I$Read
+	os9	I_Read			// I$Read
 	bcs	.Lread_err
 	tfr	y,x
 	rts
@@ -174,8 +172,7 @@ _os_read:
 	tfr	b,a			// A = fd
 	ldx	4,s			// X = buf
 	ldy	[6,s]			// Y = requested byte count
-	swi2
-	.byte	I_Read			// I$Read
+	os9	I_Read			// I$Read
 	bcs	.Los_read_err
 .Los_read_save:
 	ldx	6,s			// X = countp
@@ -201,8 +198,7 @@ _os_readln:
 	tfr	b,a			// A = fd
 	ldx	4,s			// X = buf
 	ldy	[6,s]			// Y = requested byte count
-	swi2
-	.byte	I_ReadLn		// I$ReadLn
+	os9	I_ReadLn		// I$ReadLn
 	bcs	.Los_read_err
 	bra	.Los_read_save
 	.size	_os_readln, .-_os_readln
@@ -216,8 +212,7 @@ _os_write:
 	tfr	x,d
 	tfr	b,a			// A = fd
 	ldx	4,s			// X = buf
-	swi2
-	.byte	I_Write			// I$Write
+	os9	I_Write			// I$Write
 	bcs	.Los_write_err
 	ldx	6,s			// X = countp
 	sty	,x
@@ -239,8 +234,7 @@ _os_writeln:
 	tfr	x,d
 	tfr	b,a			// A = fd
 	ldx	4,s			// X = buf
-	swi2
-	.byte	I_WritLn		// I$WritLn
+	os9	I_WritLn		// I$WritLn
 	bcs	.Los_writeln_err
 	ldx	6,s			// X = countp
 	sty	,x

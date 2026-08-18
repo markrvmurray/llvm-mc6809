@@ -53,12 +53,25 @@ static MCRegisterInfo *createMC6809MCRegisterInfo(const Triple &TT) {
   return X;
 }
 
+std::string mc6809::tripleFeatures(const Triple &TT, StringRef FS) {
+  std::string Features(FS);
+  if (TT.isOSOS9()) {
+    if (!Features.empty())
+      Features += ",";
+    Features += "+os9";
+  }
+  return Features;
+}
+
 static MCSubtargetInfo *createMC6809MCSubtargetInfo(const Triple &TT, StringRef CPU, StringRef FS) {
   // If we've received no advice on which CPU to use, let's use our own default.
   if (CPU.empty()) {
     CPU = "mc6809";
   }
-  return createMC6809MCSubtargetInfoImpl(TT, CPU, /*TuneCPU*/ CPU, FS);
+  // The OS-9 environment is a property of the triple; surface it as a feature
+  // so the assembler, printer and disassembler can key on it.
+  std::string Features = mc6809::tripleFeatures(TT, FS);
+  return createMC6809MCSubtargetInfoImpl(TT, CPU, /*TuneCPU*/ CPU, Features);
 }
 
 static MCInstPrinter *createMC6809MCInstPrinter(const Triple &T, unsigned SyntaxVariant, const MCAsmInfo &MAI, const MCInstrInfo &MII, const MCRegisterInfo &MRI) {

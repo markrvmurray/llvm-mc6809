@@ -97,6 +97,7 @@ public:
 
   // Bug #387: static-stack allocation for non-reentrant functions.
   bool staticStack() const { return StaticStack; }
+  bool isOS9() const { return OS9; }
 
 private:
   /// The ELF e_flags architecture features.
@@ -113,6 +114,7 @@ private:
   // stays false: ParseSubtargetFeatures only ever sets it true from the feature
   // bit, so -static-stack clears the bit and leaves this false.
   bool StaticStack = false;
+  bool OS9 = false;
 
   // Dummy member, used by FeatureSet's. We cannot have a SubtargetFeature with
   // no variable, so we instead bind pseudo features to this variable.
