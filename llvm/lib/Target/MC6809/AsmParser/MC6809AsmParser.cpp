@@ -97,7 +97,11 @@ public:
       if (Evaluated && Constant > 0) {
         return (Constant <= MaxValue);
       }
-      return (MaxValue <= High);
+      // Otherwise the fixup fills the whole field: it fits any operand of
+      // at least that many bits, whether the operand is read as signed (an
+      // indexed offset, -32768..32767) or unsigned (an address, 0..65535).
+      uint64_t OperandBits = llvm::Log2_64_Ceil(uint64_t(High - Low) + 1);
+      return Info.TargetSize <= OperandBits;
     }
 
     // if it's a symbol ref, we'll replace it later
