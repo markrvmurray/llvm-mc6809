@@ -2012,6 +2012,10 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
                  : BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(Opc))
                        .addReg(ValReg)
                        .add(GVOp);
+      // Keep the access's memory operand: without it the pseudo reads as an
+      // ordered access to unknown memory, which pins every later load and
+      // store around it and forbids folding it into a consumer.
+      MIB.setMemRefs(MI.memoperands());
       if (!MRI->getRegClassOrNull(ValReg))
         MRI->setRegClass(ValReg, ValRC);
       constrainSelectedInstRegOperands(*MIB, TII, TRI, RBI);

@@ -87,6 +87,11 @@ public:
   // opcodes with no direct-page form (LEA, PC-rel), which then correctly keep
   // extended addressing of the page-0 symbol.
   unsigned getStaticStackDirectPageOpcode(unsigned ExtOpc) const;
+  /// The concrete opcode for an indexed arithmetic/compare family member
+  /// whose memory operand is a symbol (static-stack slot or global): direct
+  /// page for a direct-page global, PC-relative under PIC, else extended.
+  unsigned getSymArithOpcode(unsigned IdxOpc, const MachineOperand &Sym,
+                             bool IsPIC) const;
 
   Register isLoadFromStackSlot(const MachineInstr &MI, int &FrameIndex) const override;
 
@@ -148,6 +153,19 @@ public:
   /// at \p Builder's insertion point.
   void emitFlagCapture(MachineIRBuilder &Builder, MCPhysReg Flag,
                        Register DstReg) const;
+
+  /// The _Mem sibling of a two-source _Reg pseudo and the explicit operand
+  /// index of the second source that becomes the memory operand, or nothing
+  /// if the pseudo has no such form.
+  struct MemFoldSibling {
+    unsigned MemOpc;
+    unsigned FoldIdx;
+  };
+  static std::optional<MemFoldSibling> getMemFoldSibling(unsigned Opc);
+  /// Whether a two-source pseudo's sources may be exchanged (its operation
+  /// is commutative and both sources have the same class), so a memory
+  /// operand can take either position.
+  static bool isCommutableTwoSource(unsigned Opc);
 
   MachineInstr *foldMemoryOperandImpl(MachineFunction &MF, MachineInstr &MI,
                                       ArrayRef<unsigned> Ops,

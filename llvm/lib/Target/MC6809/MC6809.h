@@ -49,6 +49,7 @@ void initializeMC6809ShiftRotateChainPass(PassRegistry &);
 void initializeMC6809DirectPageAllocPass(PassRegistry &);
 void initializeMC6809PhantomCarryGuardPass(PassRegistry &);
 void initializeMC6809FoldAddSub16Pass(PassRegistry &);
+void initializeMC6809FoldLoadIntoConsumerPass(PassRegistry &);
 void initializeMC6809FoldCallThroughMemPass(PassRegistry &);
 void initializeMC6809FoldBankCrossPass(PassRegistry &);
 void initializeMC6809StaticStackAllocPass(PassRegistry &);
@@ -56,6 +57,7 @@ void initializeMC6809PreferPage1IndexPass(PassRegistry &);
 
 FunctionPass *createMC6809PhantomCarryGuardPass();
 MachineFunctionPass *createMC6809FoldAddSub16Pass();
+MachineFunctionPass *createMC6809FoldLoadIntoConsumerPass();
 MachineFunctionPass *createMC6809FoldCallThroughMemPass();
 MachineFunctionPass *createMC6809FoldBankCrossPass();
 MachineFunctionPass *createMC6809PreferPage1IndexPass();

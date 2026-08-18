@@ -134,16 +134,7 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; MC6809-O1-NEXT:    ; =>This Inner Loop Header: Depth=1
 ; MC6809-O1-NEXT:    pshs d
 ; MC6809-O1-NEXT:    ldd <__rs0
-; MC6809-O1-NEXT:    std <__rs1
-; MC6809-O1-NEXT:    puls d
-; MC6809-O1-NEXT:    pshs d
-; MC6809-O1-NEXT:    ldd ,x
-; MC6809-O1-NEXT:    std <__rs0
-; MC6809-O1-NEXT:    puls d
-; MC6809-O1-NEXT:    pshs d
-; MC6809-O1-NEXT:    ldd <__rs0
-; MC6809-O1-NEXT:    addb <__rs1lo
-; MC6809-O1-NEXT:    adca <__rs1hi
+; MC6809-O1-NEXT:    addd ,x
 ; MC6809-O1-NEXT:    std <__rs0
 ; MC6809-O1-NEXT:    puls d
 ; MC6809-O1-NEXT:    leax 2,x
@@ -173,16 +164,7 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; MC6809-O2-NEXT:    ; =>This Inner Loop Header: Depth=1
 ; MC6809-O2-NEXT:    pshs d
 ; MC6809-O2-NEXT:    ldd <__rs0
-; MC6809-O2-NEXT:    std <__rs1
-; MC6809-O2-NEXT:    puls d
-; MC6809-O2-NEXT:    pshs d
-; MC6809-O2-NEXT:    ldd ,x
-; MC6809-O2-NEXT:    std <__rs0
-; MC6809-O2-NEXT:    puls d
-; MC6809-O2-NEXT:    pshs d
-; MC6809-O2-NEXT:    ldd <__rs0
-; MC6809-O2-NEXT:    addb <__rs1lo
-; MC6809-O2-NEXT:    adca <__rs1hi
+; MC6809-O2-NEXT:    addd ,x
 ; MC6809-O2-NEXT:    std <__rs0
 ; MC6809-O2-NEXT:    puls d
 ; MC6809-O2-NEXT:    leax 2,x
@@ -212,16 +194,7 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; MC6809-O3-NEXT:    ; =>This Inner Loop Header: Depth=1
 ; MC6809-O3-NEXT:    pshs d
 ; MC6809-O3-NEXT:    ldd <__rs0
-; MC6809-O3-NEXT:    std <__rs1
-; MC6809-O3-NEXT:    puls d
-; MC6809-O3-NEXT:    pshs d
-; MC6809-O3-NEXT:    ldd ,x
-; MC6809-O3-NEXT:    std <__rs0
-; MC6809-O3-NEXT:    puls d
-; MC6809-O3-NEXT:    pshs d
-; MC6809-O3-NEXT:    ldd <__rs0
-; MC6809-O3-NEXT:    addb <__rs1lo
-; MC6809-O3-NEXT:    adca <__rs1hi
+; MC6809-O3-NEXT:    addd ,x
 ; MC6809-O3-NEXT:    std <__rs0
 ; MC6809-O3-NEXT:    puls d
 ; MC6809-O3-NEXT:    leax 2,x
@@ -243,15 +216,7 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; HD6309-NEXT:    ldw #0
 ; HD6309-NEXT:  .LBB0_2: ; %for.body
 ; HD6309-NEXT:    ; =>This Inner Loop Header: Depth=1
-; HD6309-NEXT:    pshs d
-; HD6309-NEXT:    tfr w,d
-; HD6309-NEXT:    std <__rs0
-; HD6309-NEXT:    puls d
-; HD6309-NEXT:    ldw ,x
-; HD6309-NEXT:    pshs d
-; HD6309-NEXT:    ldd <__rs0
-; HD6309-NEXT:    addr d,w
-; HD6309-NEXT:    puls d
+; HD6309-NEXT:    addw ,x
 ; HD6309-NEXT:    leax 2,x
 ; HD6309-NEXT:    addd #-1
 ; HD6309-NEXT:    bne .LBB0_2

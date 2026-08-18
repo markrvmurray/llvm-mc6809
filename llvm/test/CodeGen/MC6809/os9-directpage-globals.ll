@@ -19,10 +19,9 @@ entry:
 }
 
 ; CHECK-LABEL: poke:
-; CHECK:     lda <mc6809_os9_data8(dp_flags)
-; CHECK:     stb <mc6809_os9_data8(dp_flags)
-; CHECK-NOT: __dp_base_addr
-; CHECK:     rts
+; CHECK:      eorb <mc6809_os9_data8(dp_flags)
+; CHECK-NEXT: stb <mc6809_os9_data8(dp_flags)
+; CHECK-NEXT: rts
 
 ; A run-time index into a direct-page object needs the page base in an index
 ; register: on OS-9 that is U itself, never the bare-metal __dp_base_addr.

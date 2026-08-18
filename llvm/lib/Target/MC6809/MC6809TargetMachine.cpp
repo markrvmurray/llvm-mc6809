@@ -86,6 +86,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMC6809Target() {
   initializeMC6809StaticStackAllocPass(PR);
   initializeMC6809PreferPage1IndexPass(PR);
   initializeMC6809FoldAddSub16Pass(PR);
+  initializeMC6809FoldLoadIntoConsumerPass(PR);
   initializeMC6809FoldCallThroughMemPass(PR);
   initializeMC6809FoldBankCrossPass(PR);
 }
@@ -304,6 +305,12 @@ void MC6809PassConfig::addMachineSSAOptimization() {
   // native ADDD/SUBD. Runs on selected SSA MIR (only at -O1+), after the
   // generic SSA opts and before register allocation.
   addPass(createMC6809FoldAddSub16Pass());
+  // Fold a single-use load into the arithmetic, bitwise or compare pseudo
+  // that consumes it (`addd sym` / `addb n,x` instead of load + register op),
+  // exchanging the sources of a commutative op when the load feeds the tied
+  // one. After the byte-chain refold so a recovered ADDD gets its memory
+  // operand too.
+  addPass(createMC6809FoldLoadIntoConsumerPass());
   // Fold an invariant function-pointer load into the indirect call that uses it
   // (jsr [n,r]), freeing the index register the pointer would otherwise occupy
   // across the call. Runs on selected SSA MIR before register allocation.
