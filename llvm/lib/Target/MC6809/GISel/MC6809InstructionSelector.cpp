@@ -1434,16 +1434,18 @@ bool MC6809InstructionSelector::tryFusePostIncAtAccess(MachineInstr &MI) const {
     return false;
   // A value in the index bank (a stored pointer) or a plain scalar: keep the
   // class the selector would have given it.
-  if (IsLoad) {
+  // The value keeps any class a consumer selected earlier (bottom-up)
+  // already constrained it to; it only needs to fit the pseudo's.
+  if (Val.isVirtual()) {
     if (const RegisterBank *RB = MRI->getRegBankOrNull(Val);
         RB && RB->getID() == MC6809::INDEXRegBankID && ValTy == LLT::scalar(16))
       return false;
-    MRI->setRegClass(Val, ValRC);
-  } else if (Val.isVirtual() && !MRI->getRegClassOrNull(Val)) {
-    if (const RegisterBank *RB = MRI->getRegBankOrNull(Val);
-        RB && RB->getID() == MC6809::INDEXRegBankID && ValTy == LLT::scalar(16))
-      return false;
-    MRI->setRegClass(Val, ValRC);
+    if (const TargetRegisterClass *Cur = MRI->getRegClassOrNull(Val)) {
+      if (!MRI->constrainRegClass(Val, ValRC))
+        return false;
+    } else {
+      MRI->setRegClass(Val, ValRC);
+    }
   }
   Register Dst = Adv->getOperand(0).getReg();
   MachineInstrBuilder MIB;
