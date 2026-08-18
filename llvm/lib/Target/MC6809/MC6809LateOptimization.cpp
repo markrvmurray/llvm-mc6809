@@ -331,23 +331,22 @@ bool MC6809LateOptimization::elideCompareZero(MachineBasicBlock &MBB) const {
     if (Cons.readsRegister(MC6809::C, &TRI))
       continue;
 
-    // Every N/Z/V flag the branch reads must be (re)defined by the producer,
-    // so dropping the compare leaves no flag read undefined. (This is why a
-    // Z-only producer such as LEAX cannot feed a branch that also reads N/V.)
-    bool ProducerCoversFlags = true;
+    // Every flag the condition actually consults (Z for EQ/NE, N for
+    // MI/PL) must be (re)defined by the producer, so dropping the compare
+    // leaves that flag reflecting the compared value. The branch's operand
+    // list may name more flags than the condition reads (a Bcc reads N/Z/V
+    // as a group); those may come from wherever they were last set -- a
+    // Z-only producer such as LEAX/LEAY feeds an EQ/NE branch just fine.
+    const bool NeedsZ = CC == MC6809CC::EQ || CC == MC6809CC::NE;
+    const bool NeedsN = CC == MC6809CC::MI || CC == MC6809CC::PL;
+    bool ProducerCoversFlags =
+        (!NeedsZ || Producer->definesRegister(MC6809::Z, &TRI)) &&
+        (!NeedsN || Producer->definesRegister(MC6809::N, &TRI));
     bool ReadsNZ = false;
-    for (const MachineOperand &MO : Cons.operands()) {
-      if (!MO.isReg() || !MO.isUse())
-        continue;
-      Register R = MO.getReg();
-      if (R == MC6809::N || R == MC6809::Z)
+    for (const MachineOperand &MO : Cons.operands())
+      if (MO.isReg() && MO.isUse() &&
+          (MO.getReg() == MC6809::N || MO.getReg() == MC6809::Z))
         ReadsNZ = true;
-      if ((R == MC6809::N || R == MC6809::Z || R == MC6809::V) &&
-          !Producer->definesRegister(R, &TRI)) {
-        ProducerCoversFlags = false;
-        break;
-      }
-    }
     if (!ProducerCoversFlags || !ReadsNZ)
       continue;
 

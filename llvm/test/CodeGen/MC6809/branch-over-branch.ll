@@ -43,20 +43,18 @@ define i16 @cond_skip_join(i16 %x, i16 %a, i16 %b) {
 ;
 ; O2-LABEL: cond_skip_join:
 ; O2:       ; %bb.0: ; %entry
-; O2-NEXT:    pshs u
+; O2-NEXT:    pshs u,y
 ; O2-NEXT:    tfr s,u
-; O2-NEXT:    ldd 6,u
+; O2-NEXT:    ldy 8,u
 ; O2-NEXT:    cmpx #0
 ; O2-NEXT:    bne .LBB0_2
 ; O2-NEXT:  ; %bb.1: ; %if.then
-; O2-NEXT:    ldd 4,u
-; O2-NEXT:    tfr d,x
+; O2-NEXT:    ldx 6,u
 ; O2-NEXT:    lbsr sink
-; O2-NEXT:    ldd 6,u
 ; O2-NEXT:  .LBB0_2: ; %if.end
-; O2-NEXT:    tfr d,x
+; O2-NEXT:    tfr y,x
 ; O2-NEXT:    tfr u,s
-; O2-NEXT:    puls u
+; O2-NEXT:    puls u,y
 ; O2-NEXT:    rts
 entry:
   %t = icmp eq i16 %x, 0

@@ -8,7 +8,7 @@
 
 define i16 @dec1(i16 %x) {
 ; CHECK-LABEL: dec1:
-; CHECK:       addd #-1
+; CHECK:       {{addd #-1|leax -1,x}}
 ; CHECK-NOT:   adca
   %r = add i16 %x, -1
   ret i16 %r
@@ -16,7 +16,7 @@ define i16 @dec1(i16 %x) {
 
 define i16 @sub7(i16 %x) {
 ; CHECK-LABEL: sub7:
-; CHECK:       addd #-7
+; CHECK:       {{addd #-7|leax -7,x}}
 ; CHECK-NOT:   adca
   %r = sub i16 %x, 7
   ret i16 %r
@@ -57,8 +57,8 @@ define i16 @usat16(i16 %a, i16 %b) {
 ; CMPD #0 is redundant and dropped (MC6809LateOptimization).
 define void @dec_loop(ptr %p, i16 %n) {
 ; CHECK-LABEL: dec_loop:
-; CHECK:       addd #-1
-; CHECK-NOT:   cmpd #0
+; CHECK:       {{addd #-1|leay -1,y}}
+; CHECK-NOT:   cmp{{[dy]}} #0
 ; CHECK:       bne
 entry:
   br label %loop

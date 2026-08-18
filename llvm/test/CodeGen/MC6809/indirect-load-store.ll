@@ -46,7 +46,7 @@ define i16 @ld16(i16** %s) {
   ret i16 %v
 }
 ; MC6809-LABEL: ld16:
-; MC6809:       ldd     [,x]
+; MC6809:       ld{{[dx]}} [,x]
 
 ; i16 store -> std [,r]
 define void @st16(i16** %s, i16 %v) {

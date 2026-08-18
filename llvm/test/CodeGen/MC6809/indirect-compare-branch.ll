@@ -12,28 +12,28 @@ target triple = "mc6809-unknown-unknown"
 define dso_local range(i16 7, 10) i16 @e_ind(ptr noundef readonly captures(none) %pp, i8 noundef zeroext %x) local_unnamed_addr #0 {
 ; MC6809-LABEL: e_ind:
 ; MC6809:       ; %bb.0: ; %entry
-; MC6809-NEXT:    pshs d
-; MC6809-NEXT:    ldd #7
-; MC6809-NEXT:    std <__rs0
-; MC6809-NEXT:    puls d
-; MC6809-NEXT:    cmpb [,x]
+; MC6809-NEXT:    pshs y
+; MC6809-NEXT:    tfr x,y
+; MC6809-NEXT:    ldx #7
+; MC6809-NEXT:    cmpb [,y]
 ; MC6809-NEXT:    beq .LBB0_2
 ; MC6809-NEXT:  ; %bb.1: ; %select.false
-; MC6809-NEXT:    ldd #9
-; MC6809-NEXT:    std <__rs0
+; MC6809-NEXT:    ldx #9
 ; MC6809-NEXT:  .LBB0_2: ; %select.end
-; MC6809-NEXT:    ldx <__rs0
+; MC6809-NEXT:    puls y
 ; MC6809-NEXT:    rts
 ;
 ; HD6309-LABEL: e_ind:
 ; HD6309:       ; %bb.0: ; %entry
-; HD6309-NEXT:    ldw #7
-; HD6309-NEXT:    cmpb [,x]
+; HD6309-NEXT:    pshs y
+; HD6309-NEXT:    tfr x,y
+; HD6309-NEXT:    ldx #7
+; HD6309-NEXT:    cmpb [,y]
 ; HD6309-NEXT:    beq .LBB0_2
 ; HD6309-NEXT:  ; %bb.1: ; %select.false
-; HD6309-NEXT:    ldw #9
+; HD6309-NEXT:    ldx #9
 ; HD6309-NEXT:  .LBB0_2: ; %select.end
-; HD6309-NEXT:    tfr w,x
+; HD6309-NEXT:    puls y
 ; HD6309-NEXT:    rts
 entry:
   %0 = load ptr, ptr %pp, align 1, !tbaa !8
@@ -47,28 +47,28 @@ entry:
 define dso_local range(i16 7, 10) i16 @l_ind(ptr noundef readonly captures(none) %pp, i8 noundef zeroext %x) local_unnamed_addr #0 {
 ; MC6809-LABEL: l_ind:
 ; MC6809:       ; %bb.0: ; %entry
-; MC6809-NEXT:    pshs d
-; MC6809-NEXT:    ldd #7
-; MC6809-NEXT:    std <__rs0
-; MC6809-NEXT:    puls d
-; MC6809-NEXT:    cmpb [,x]
+; MC6809-NEXT:    pshs y
+; MC6809-NEXT:    tfr x,y
+; MC6809-NEXT:    ldx #7
+; MC6809-NEXT:    cmpb [,y]
 ; MC6809-NEXT:    bhi .LBB1_2
 ; MC6809-NEXT:  ; %bb.1: ; %select.false
-; MC6809-NEXT:    ldd #9
-; MC6809-NEXT:    std <__rs0
+; MC6809-NEXT:    ldx #9
 ; MC6809-NEXT:  .LBB1_2: ; %select.end
-; MC6809-NEXT:    ldx <__rs0
+; MC6809-NEXT:    puls y
 ; MC6809-NEXT:    rts
 ;
 ; HD6309-LABEL: l_ind:
 ; HD6309:       ; %bb.0: ; %entry
-; HD6309-NEXT:    ldw #7
-; HD6309-NEXT:    cmpb [,x]
+; HD6309-NEXT:    pshs y
+; HD6309-NEXT:    tfr x,y
+; HD6309-NEXT:    ldx #7
+; HD6309-NEXT:    cmpb [,y]
 ; HD6309-NEXT:    bhi .LBB1_2
 ; HD6309-NEXT:  ; %bb.1: ; %select.false
-; HD6309-NEXT:    ldw #9
+; HD6309-NEXT:    ldx #9
 ; HD6309-NEXT:  .LBB1_2: ; %select.end
-; HD6309-NEXT:    tfr w,x
+; HD6309-NEXT:    puls y
 ; HD6309-NEXT:    rts
 entry:
   %0 = load ptr, ptr %pp, align 1, !tbaa !8
@@ -82,28 +82,28 @@ entry:
 define dso_local range(i16 7, 10) i16 @sw_ind(ptr noundef readonly captures(none) %pp, i8 noundef zeroext %x) local_unnamed_addr #0 {
 ; MC6809-LABEL: sw_ind:
 ; MC6809:       ; %bb.0: ; %entry
-; MC6809-NEXT:    pshs d
-; MC6809-NEXT:    ldd #7
-; MC6809-NEXT:    std <__rs0
-; MC6809-NEXT:    puls d
-; MC6809-NEXT:    cmpb [,x]
+; MC6809-NEXT:    pshs y
+; MC6809-NEXT:    tfr x,y
+; MC6809-NEXT:    ldx #7
+; MC6809-NEXT:    cmpb [,y]
 ; MC6809-NEXT:    beq .LBB2_2
 ; MC6809-NEXT:  ; %bb.1: ; %select.false
-; MC6809-NEXT:    ldd #9
-; MC6809-NEXT:    std <__rs0
+; MC6809-NEXT:    ldx #9
 ; MC6809-NEXT:  .LBB2_2: ; %select.end
-; MC6809-NEXT:    ldx <__rs0
+; MC6809-NEXT:    puls y
 ; MC6809-NEXT:    rts
 ;
 ; HD6309-LABEL: sw_ind:
 ; HD6309:       ; %bb.0: ; %entry
-; HD6309-NEXT:    ldw #7
-; HD6309-NEXT:    cmpb [,x]
+; HD6309-NEXT:    pshs y
+; HD6309-NEXT:    tfr x,y
+; HD6309-NEXT:    ldx #7
+; HD6309-NEXT:    cmpb [,y]
 ; HD6309-NEXT:    beq .LBB2_2
 ; HD6309-NEXT:  ; %bb.1: ; %select.false
-; HD6309-NEXT:    ldw #9
+; HD6309-NEXT:    ldx #9
 ; HD6309-NEXT:  .LBB2_2: ; %select.end
-; HD6309-NEXT:    tfr w,x
+; HD6309-NEXT:    puls y
 ; HD6309-NEXT:    rts
 entry:
   %0 = load ptr, ptr %pp, align 1, !tbaa !8
@@ -117,30 +117,30 @@ entry:
 define dso_local range(i16 7, 10) i16 @e16(ptr noundef readonly captures(none) %pp, i16 noundef zeroext %x) local_unnamed_addr #0 {
 ; MC6809-LABEL: e16:
 ; MC6809:       ; %bb.0: ; %entry
-; MC6809-NEXT:    ldd 2,s
-; MC6809-NEXT:    std <__rs0
-; MC6809-NEXT:    ldd #7
-; MC6809-NEXT:    pshs d
-; MC6809-NEXT:    ldd <__rs0
-; MC6809-NEXT:    cmpd [,x]
-; MC6809-NEXT:    puls d
+; MC6809-NEXT:    pshs y
+; MC6809-NEXT:    tfr x,y
+; MC6809-NEXT:    ldd 4,s
+; MC6809-NEXT:    ldx #7
+; MC6809-NEXT:    cmpd [,y]
 ; MC6809-NEXT:    beq .LBB3_2
 ; MC6809-NEXT:  ; %bb.1: ; %select.false
-; MC6809-NEXT:    ldd #9
+; MC6809-NEXT:    ldx #9
 ; MC6809-NEXT:  .LBB3_2: ; %select.end
-; MC6809-NEXT:    tfr d,x
+; MC6809-NEXT:    puls y
 ; MC6809-NEXT:    rts
 ;
 ; HD6309-LABEL: e16:
 ; HD6309:       ; %bb.0: ; %entry
-; HD6309-NEXT:    ldw 2,s
-; HD6309-NEXT:    ldd #7
-; HD6309-NEXT:    cmpw [,x]
+; HD6309-NEXT:    pshs y
+; HD6309-NEXT:    tfr x,y
+; HD6309-NEXT:    ldd 4,s
+; HD6309-NEXT:    ldx #7
+; HD6309-NEXT:    cmpd [,y]
 ; HD6309-NEXT:    beq .LBB3_2
 ; HD6309-NEXT:  ; %bb.1: ; %select.false
-; HD6309-NEXT:    ldd #9
+; HD6309-NEXT:    ldx #9
 ; HD6309-NEXT:  .LBB3_2: ; %select.end
-; HD6309-NEXT:    tfr d,x
+; HD6309-NEXT:    puls y
 ; HD6309-NEXT:    rts
 entry:
   %0 = load ptr, ptr %pp, align 1, !tbaa !12

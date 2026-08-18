@@ -16,20 +16,17 @@ define i16 @foo() {
 ;
 ; MC6809-O1-LABEL: foo:
 ; MC6809-O1:       ; %bb.0: ; %entry
-; MC6809-O1-NEXT:    ldd #1234
-; MC6809-O1-NEXT:    tfr d,x
+; MC6809-O1-NEXT:    ldx #1234
 ; MC6809-O1-NEXT:    rts
 ;
 ; MC6809-O2-LABEL: foo:
 ; MC6809-O2:       ; %bb.0: ; %entry
-; MC6809-O2-NEXT:    ldd #1234
-; MC6809-O2-NEXT:    tfr d,x
+; MC6809-O2-NEXT:    ldx #1234
 ; MC6809-O2-NEXT:    rts
 ;
 ; MC6809-O3-LABEL: foo:
 ; MC6809-O3:       ; %bb.0: ; %entry
-; MC6809-O3-NEXT:    ldd #1234
-; MC6809-O3-NEXT:    tfr d,x
+; MC6809-O3-NEXT:    ldx #1234
 ; MC6809-O3-NEXT:    rts
 ;
 ; HD6309-LABEL: foo:

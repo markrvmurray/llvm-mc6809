@@ -36,14 +36,12 @@ define void @store16(i16 %v) {
 define i16 @load16() {
 ; PIC-LABEL: load16:
 ; PIC:       ; %bb.0:
-; PIC-NEXT:    ldd g16,pc
-; PIC-NEXT:    tfr d,x
+; PIC-NEXT:    ldx g16,pc
 ; PIC-NEXT:    rts
 ;
 ; PIC6309-LABEL: load16:
 ; PIC6309:       ; %bb.0:
-; PIC6309-NEXT:    ldd g16,pc
-; PIC6309-NEXT:    tfr d,x
+; PIC6309-NEXT:    ldx g16,pc
 ; PIC6309-NEXT:    rts
   %v = load i16, ptr @g16
   ret i16 %v
@@ -68,14 +66,14 @@ define void @store_ptr(ptr %v) {
 define void @store16_const() {
 ; PIC-LABEL: store16_const:
 ; PIC:       ; %bb.0:
-; PIC-NEXT:    ldd #5
-; PIC-NEXT:    std g16,pc
+; PIC-NEXT:    ldx #5
+; PIC-NEXT:    stx g16,pc
 ; PIC-NEXT:    rts
 ;
 ; PIC6309-LABEL: store16_const:
 ; PIC6309:       ; %bb.0:
-; PIC6309-NEXT:    ldd #5
-; PIC6309-NEXT:    std g16,pc
+; PIC6309-NEXT:    ldx #5
+; PIC6309-NEXT:    stx g16,pc
 ; PIC6309-NEXT:    rts
   store i16 5, ptr @g16
   ret void

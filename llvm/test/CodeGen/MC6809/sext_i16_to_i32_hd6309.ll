@@ -17,7 +17,7 @@ define i32 @sext_arg(i16 %x) {
 ;
 ; MC6809-LABEL: sext_arg:
 ; MC6809-NOT: sexw
-; MC6809:     cmpd #0
+; MC6809:     cmp{{[dxy]}} #0
 ; MC6809:     {{l?}}blt
   %ext = sext i16 %x to i32
   ret i32 %ext
@@ -30,7 +30,7 @@ define i32 @sext_load(ptr %p) {
 ;
 ; MC6809-LABEL: sext_load:
 ; MC6809-NOT: sexw
-; MC6809:     cmpd #0
+; MC6809:     cmp{{[dxy]}} #0
 ; MC6809:     {{l?}}blt
   %v = load i16, ptr %p
   %ext = sext i16 %v to i32
