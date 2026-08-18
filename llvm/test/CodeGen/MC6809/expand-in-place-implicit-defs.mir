@@ -1,0 +1,22 @@
+# RUN: llc -mtriple=mc6809 -run-pass=postrapseudos -verify-machineinstrs %s -o - | FileCheck %s
+
+# A pseudo rewritten in place by setDesc keeps only the operands it had; the
+# concrete instruction's implicit defs and uses (here LDX's N/Z/V) must be
+# added, or later passes see a flag-transparent instruction where the
+# hardware clobbers the flags -- the compare-with-zero elision let such a
+# reload sit between a flag producer and its branch.
+
+---
+name:            reload
+tracksRegLiveness: true
+noPhis:          true
+isSSA:           false
+noVRegs:         true
+body:             |
+  bb.0:
+    liveins: $su
+    ; CHECK-LABEL: name: reload
+    ; CHECK: LDXi_o8 50, $su, {{.*}}implicit-def $n, implicit-def $z
+    renamable $ix = Load_iPtr_Mem $su, 50, implicit-def $nz, implicit-def $v
+    RTSr implicit $ix
+...

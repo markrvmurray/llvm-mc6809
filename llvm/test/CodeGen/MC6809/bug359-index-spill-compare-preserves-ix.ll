@@ -19,9 +19,10 @@
 
 define i16 @two_ptr_store(ptr %pwc, ptr %s, i16 %n) {
 ; CHECK-LABEL: two_ptr_store:
-; The spilled %s null-check loads into Y and uses CMPY — it must NOT load
-; %s into X (which still holds %pwc).
-; CHECK:       cmpy #0
+; The spilled %s null-check loads into Y (the load's own Z serves the
+; branch) — it must NOT load %s into X (which still holds %pwc).
+; CHECK:       ldy 4,s
+; CHECK-NEXT:  beq
 ; %pwc is the incoming arg in X and stays there: its own null-check is a
 ; direct CMPX and the store addresses through X.
 ; CHECK:       cmpx #0

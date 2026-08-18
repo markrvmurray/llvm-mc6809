@@ -1085,6 +1085,28 @@ static void dematerializeReg(MachineIRBuilder &Builder, Register PhysReg,
 /// the post-RA spill optimiser removes the pairs whose register turns out
 /// dead. NOTE: any pre-existing S-relative memory operand inside the window
 /// must be displacement-compensated (+size of the push).
+/// setDesc keeps the instruction's operands and does not materialise the
+/// new descriptor's implicit defs and uses; an expansion that rewrites a
+/// pseudo in place must add them, or the concrete instruction is left
+/// claiming to touch nothing but what the pseudo said (a reload turned into
+/// LDX without its N/Z defs looked flag-transparent to the compare-with-zero
+/// elision, which then let it sit between a flag producer and its branch).
+static void addMissingImplicitOperands(MachineInstr &MI) {
+  const MCInstrDesc &Desc = MI.getDesc();
+  auto Has = [&](MCPhysReg R, bool IsDef) {
+    for (const MachineOperand &MO : MI.operands())
+      if (MO.isReg() && MO.getReg() == R && MO.isDef() == IsDef)
+        return true;
+    return false;
+  };
+  for (MCPhysReg R : Desc.implicit_defs())
+    if (!Has(R, true))
+      MI.addOperand(MachineOperand::CreateReg(R, /*isDef=*/true, /*isImp=*/true));
+  for (MCPhysReg R : Desc.implicit_uses())
+    if (!Has(R, false))
+      MI.addOperand(MachineOperand::CreateReg(R, /*isDef=*/false, /*isImp=*/true));
+}
+
 static bool stagingRegLiveAcross(MachineBasicBlock &MBB,
                                  MachineBasicBlock::iterator MI,
                                  Register RealReg,
@@ -2547,11 +2569,13 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
     // LBRA via insertIndirectBranch when the displacement is out of
     // int8 range.
     MI.setDesc(Builder.getTII().get(MC6809::BRAb));
+    addMissingImplicitOperands(MI);
     break;
   case MC6809::LongBranchRelative:
     // Explicit long pseudo — escape hatch for callers that want to
     // force a long branch regardless of distance.
     MI.setDesc(Builder.getTII().get(MC6809::LBRAlb));
+    addMissingImplicitOperands(MI);
     break;
   case MC6809::ConditionalBranchRelative: {
     // Emit short by default. Strip the pseudo's CCond:$bits operand —
@@ -2566,6 +2590,7 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
     // the displacement is out of int8 range.
     int64_t CC = MI.getOperand(0).getImm();
     MI.setDesc(Builder.getTII().get(pickBbcVariant(CC)));
+    addMissingImplicitOperands(MI);
     MI.removeOperand(2);
     if (MC6809CC::doesOnlyReadCarry(CC)) {
       // OnlyC variant: just $c.
@@ -2586,6 +2611,7 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
     // + the OnlyC variant).
     int64_t CC = MI.getOperand(0).getImm();
     MI.setDesc(Builder.getTII().get(pickLBlbcVariant(CC)));
+    addMissingImplicitOperands(MI);
     MI.removeOperand(2);
     if (MC6809CC::doesOnlyReadCarry(CC)) {
       MI.addOperand(MachineOperand::CreateReg(MC6809::C, /*isDef=*/false, /*isImp=*/true));
@@ -2600,10 +2626,12 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
   }
   case MC6809::ReturnImplicit:
     MI.setDesc(Builder.getTII().get(MC6809::RTSr));
+    addMissingImplicitOperands(MI);
     MI.removeOperand(0);
     break;
   case MC6809::ReturnIRQImplicit:
     MI.setDesc(Builder.getTII().get(MC6809::RTIr));
+    addMissingImplicitOperands(MI);
     MI.removeOperand(0);
     break;
   case MC6809::EXTRACT_LO_i16:
@@ -4388,6 +4416,7 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
   case MC6809::Copy8:
   case MC6809::Copy16:
     MI.setDesc(Builder.getTII().get(MC6809::TFRp));
+    addMissingImplicitOperands(MI);
     break;
   case MC6809::BlockCopy_Inc_Inc:
   case MC6809::BlockCopy_Dec_Dec:
@@ -4512,6 +4541,7 @@ MC6809InstrInfo::getRelaxedIdxOpcode(unsigned CurrentOpcode,
 
 void MC6809InstrInfo::expandCallRelative(MachineIRBuilder &Builder, MachineInstr &MI) const {
   MI.setDesc(Builder.getTII().get(MC6809::BSRb));
+  addMissingImplicitOperands(MI);
 }
 
 void MC6809InstrInfo::expandLEAPtrAdd(MachineIRBuilder &Builder, MachineInstr &MI) const {
@@ -4543,6 +4573,7 @@ void MC6809InstrInfo::expandLEAPtrAdd(MachineIRBuilder &Builder, MachineInstr &M
     if (OpcodePair == LEAPtrAddRegOpcode.end())
       llvm_unreachable("Unexpected LEAPtrAdd register offset operand.");
     MI.setDesc(Builder.getTII().get(OpcodePair->getSecond()));
+    addMissingImplicitOperands(MI);
     // The concrete indexed-offset-reg instruction (e.g. LEAXi_oD) has:
     //   - Result register as implicit def (from Defs list)
     //   - Offset register as implicit use (from Uses list)
@@ -4564,6 +4595,7 @@ void MC6809InstrInfo::expandLEAPtrAdd(MachineIRBuilder &Builder, MachineInstr &M
     if (OpcodePair == LEAPtrAddImmOpcode.end())
       llvm_unreachable("Unexpected operand(s).");
     MI.setDesc(Builder.getTII().get(OpcodePair->getSecond()));
+    addMissingImplicitOperands(MI);
     MI.getOperand(0).setImplicit();
     if (OffsetSize > 0)
       MI.addOperand(OffsetOp);
@@ -5641,6 +5673,7 @@ void MC6809InstrInfo::expandNegate(MachineIRBuilder &Builder, MachineInstr &MI) 
     llvm_unreachable("Illegal register for Neg(1|16)");
   case MC6809::AA:
     MI.setDesc(Builder.getTII().get(MC6809::NEGAa));
+    addMissingImplicitOperands(MI);
     MI.removeOperand(3);
     MI.removeOperand(2);
     MI.removeOperand(1);
@@ -5649,6 +5682,7 @@ void MC6809InstrInfo::expandNegate(MachineIRBuilder &Builder, MachineInstr &MI) 
     break;
   case MC6809::AB:
     MI.setDesc(Builder.getTII().get(MC6809::NEGBa));
+    addMissingImplicitOperands(MI);
     MI.removeOperand(3);
     MI.removeOperand(2);
     MI.removeOperand(1);
@@ -5658,6 +5692,7 @@ void MC6809InstrInfo::expandNegate(MachineIRBuilder &Builder, MachineInstr &MI) 
   case MC6809::AD:
     if (has6309) {
       MI.setDesc(Builder.getTII().get(MC6809::NEGDa));
+      addMissingImplicitOperands(MI);
       MI.removeOperand(3);
       MI.removeOperand(2);
       MI.removeOperand(1);
@@ -5871,6 +5906,7 @@ void MC6809InstrInfo::expandMulD(MachineIRBuilder &Builder, MachineInstr &MI) co
 
   if (DstReg == MC6809::AD && SrcReg == MC6809::AD) {
     MI.setDesc(Builder.getTII().get(MC6809::MULx));
+    addMissingImplicitOperands(MI);
     MI.getOperand(0).setImplicit();
     MI.getOperand(1).setImplicit();
     return;
@@ -5886,6 +5922,7 @@ void MC6809InstrInfo::expandMulD(MachineIRBuilder &Builder, MachineInstr &MI) co
   }
 
   MI.setDesc(Builder.getTII().get(MC6809::MULx));
+  addMissingImplicitOperands(MI);
   MI.getOperand(0).setReg(MC6809::AD);
   MI.getOperand(0).setImplicit();
   MI.getOperand(1).setReg(MC6809::AD);
@@ -6162,6 +6199,7 @@ void MC6809InstrInfo::expandLoad1Imm(MachineIRBuilder &Builder, MachineInstr &MI
   }
 
   MI.setDesc(Builder.getTII().get(Opcode));
+  addMissingImplicitOperands(MI);
 }
 
 void MC6809InstrInfo::expandLoadImm(MachineIRBuilder &Builder, MachineInstr &MI) const {
@@ -6595,6 +6633,7 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
           : "no LoadIdx opcode for this destination register at a valid offset "
             "width (unmapped/unsupported destination register)");
     MI.setDesc(Builder.getTII().get(OpcodePair->getSecond()));
+    addMissingImplicitOperands(MI);
     MI.getOperand(0).setImplicit();
     if (OffsetSize > 0)
       MI.addOperand(OffsetOp);
@@ -6612,6 +6651,7 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
     // reordering that mis-marked it as a second explicit operand (the `d,d`
     // mis-render). reg-offset never combines with the indirect swap below.
     MI.setDesc(Builder.getTII().get(OpcodePair->getSecond()));
+    addMissingImplicitOperands(MI);
     MI.getOperand(0).setImplicit();
     MI.addOperand(IndexRegOp);
     // Not marked killed: the offset accumulator may well be read again, and
@@ -6628,6 +6668,7 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
     unsigned Ind = indirectSiblingOf(MI.getOpcode());
     assert(Ind && "no indirect-indexed sibling for this load opcode");
     MI.setDesc(Builder.getTII().get(Ind));
+    addMissingImplicitOperands(MI);
   }
 }
 
@@ -6718,6 +6759,7 @@ void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI
           : "no StoreIdx opcode for this source register at a valid offset "
             "width (unmapped/unsupported source register)");
     MI.setDesc(Builder.getTII().get(OpcodePair->getSecond()));
+    addMissingImplicitOperands(MI);
     MI.getOperand(0).setImplicit();
     if (SrcIsImpliedUndef)
       MI.getOperand(0).setIsUndef(true);
@@ -6734,6 +6776,7 @@ void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI
     // use. Operands 1 and 2 were removed above, so re-add them (the old code
     // called getOperand(2) on the already-shortened operand list -> OOB crash).
     MI.setDesc(Builder.getTII().get(OpcodePair->getSecond()));
+    addMissingImplicitOperands(MI);
     MI.getOperand(0).setImplicit();
     if (SrcIsImpliedUndef)
       MI.getOperand(0).setIsUndef(true);
@@ -6748,6 +6791,7 @@ void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI
     unsigned Ind = indirectSiblingOf(MI.getOpcode());
     assert(Ind && "no indirect-indexed sibling for this store opcode");
     MI.setDesc(Builder.getTII().get(Ind));
+    addMissingImplicitOperands(MI);
   }
 
   // Restore the preserved $ad from the hard stack.
