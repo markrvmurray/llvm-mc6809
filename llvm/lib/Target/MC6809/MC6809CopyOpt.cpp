@@ -207,9 +207,10 @@ bool MC6809CopyOpt::runOnMachineFunction(MachineFunction &MF) {
             LLVM_DEBUG(dbgs() << "MC6809CopyOpt: shortening chain: " << MI
                               << "  original src: " << printReg(OrigSrc, &TRI)
                               << "\n");
-            // The source now lives up to MI: an earlier read between the
-            // two copies that was its last no longer is.
-            for (auto K = std::next(DefMI->getIterator()); K != MI.getIterator(); ++K)
+            // The source now lives up to MI: an earlier read that was its
+            // last -- the defining copy's own, or one between the two
+            // copies -- no longer is.
+            for (auto K = DefMI->getIterator(); K != MI.getIterator(); ++K)
               for (MachineOperand &MO : K->operands())
                 if (MO.isReg() && MO.isUse() && MO.isKill() && MO.getReg() &&
                     TRI.regsOverlap(MO.getReg(), OrigSrc))

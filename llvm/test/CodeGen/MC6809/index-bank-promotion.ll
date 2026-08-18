@@ -1,4 +1,4 @@
-; RUN: llc -mtriple=mc6809 -mattr=-static-stack -O2 %s -o - | FileCheck %s
+; RUN: llc -mtriple=mc6809 -mattr=-static-stack -O2 -verify-machineinstrs %s -o - | FileCheck %s
 ; RUN: llc -mtriple=mc6809 -mattr=-static-stack -O2 -mc6809-enable-index-promotion=0 %s -o - | FileCheck %s --check-prefix=OFF
 
 ; A 16-bit value that is only loaded, stored, compared, stepped by a

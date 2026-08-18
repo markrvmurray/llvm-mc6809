@@ -352,12 +352,20 @@ bool MC6809LateOptimization::elideCompareZero(MachineBasicBlock &MBB) const {
 
     // The branch will now read the producer's flags; clear any stale dead
     // markers (regalloc may have flagged them when the compare was the only
-    // flag consumer).
+    // flag consumer). A flag the branch names but the condition does not
+    // consult, and the producer does not set (N and V after LEAX), is read
+    // undef: whatever it holds is not looked at.
     for (MachineOperand &MO : Producer->operands())
       if (MO.isReg() && MO.isDef() &&
           (MO.getReg() == MC6809::N || MO.getReg() == MC6809::Z ||
            MO.getReg() == MC6809::NZ || MO.getReg() == MC6809::V))
         MO.setIsDead(false);
+    for (MachineOperand &MO : Cons.operands())
+      if (MO.isReg() && MO.isUse() &&
+          (MO.getReg() == MC6809::N || MO.getReg() == MC6809::Z ||
+           MO.getReg() == MC6809::V) &&
+          !Producer->definesRegister(MO.getReg(), &TRI))
+        MO.setIsUndef(true);
 
     MI.eraseFromParent();
     Changed = true;
