@@ -38,6 +38,13 @@ class MC6809TTIImpl : public BasicTTIImplBase<MC6809TTIImpl> {
 
 public:
   explicit MC6809TTIImpl(const MC6809TargetMachine *TM, const Function &F) : BaseT(TM, F.getParent()->getDataLayout()), ST(TM->getSubtargetImpl(F)), TLI(ST->getTargetLowering()) {}
+
+  /// With one 16-bit accumulator and two index registers, a loop's register
+  /// count is what decides whether it spills into imaginary registers: when
+  /// the loop strength reducer's own cost model says its solution is worse
+  /// than what it started with (`while (*p) p++` rewritten as `p[i]` needs a
+  /// second register), keep the original.
+  bool shouldDropLSRSolutionIfLessProfitable() const override { return true; }
 };
 
 } // end namespace llvm

@@ -60,6 +60,11 @@
 
 using namespace llvm;
 
+static cl::opt<bool> EnableIndexIV(
+    "mc6809-enable-index-iv", cl::init(true), cl::Hidden,
+    cl::desc("Run the 8-bit index induction-variable rewrite in the IR "
+             "loop pipeline"));
+
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMC6809Target() {
   // Register the target.
   RegisterTargetMachine<MC6809TargetMachine> X(getTheMC6809Target());
@@ -158,7 +163,7 @@ void MC6809TargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
       });
 
   PB.registerLateLoopOptimizationsEPCallback([](LoopPassManager &PM, OptimizationLevel Level) {
-    if (Level != OptimizationLevel::O0) {
+    if (Level != OptimizationLevel::O0 && EnableIndexIV) {
       PM.addPass(MC6809IndexIV());
 
       // New induction variables may have been added.

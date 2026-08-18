@@ -56,6 +56,20 @@ MC6809TargetLowering::MC6809TargetLowering(const MC6809TargetMachine &TM, const 
   setStackPointerRegisterToSaveRestore(MC6809::SS);
 
   setMaximumJumpTableSize(std::min(256u, getMaximumJumpTableSize()));
+
+  // The indexed post-increment and pre-decrement modes (`,x+` `,x++` `,-x`
+  // `,--x`) are what the selector fuses a `p += size` into
+  // (tryFusePostModify). Telling the loop strength reducer they are legal
+  // makes it express a loop's other uses of the pointer through the
+  // advanced value, so a `while (*p) p++` loop keeps one pointer with its
+  // step folded into the access. (Instruction selection is GlobalISel;
+  // these actions only inform TargetTransformInfo.)
+  for (MVT VT : {MVT::i8, MVT::i16}) {
+    setIndexedLoadAction(ISD::POST_INC, VT, Legal);
+    setIndexedStoreAction(ISD::POST_INC, VT, Legal);
+    setIndexedLoadAction(ISD::PRE_DEC, VT, Legal);
+    setIndexedStoreAction(ISD::PRE_DEC, VT, Legal);
+  }
 }
 
 MVT MC6809TargetLowering::getRegisterTypeForCallingConv(LLVMContext &Context, CallingConv::ID CC, EVT VT, const ISD::ArgFlagsTy &Flags) const {
@@ -151,42 +165,31 @@ static bool is8BitIndex(Type *Ty) {
 }
 
 bool MC6809TargetLowering::isLegalAddressingMode(const DataLayout &DL, const AddrMode &AM, Type *Ty, unsigned AddrSpace, Instruction *I) const {
-  if (AM.Scale > 1 || AM.Scale < 0)
+  // Legal means one 6809 addressing mode with no separate address
+  // computation and no register beyond the ones named:
+  //   register + offset        `n,r`      any 16-bit offset
+  //   register + byte index    `b,r`      the accumulator-offset mode with a
+  //                                       (sign-extended) byte in A or B
+  //   symbol + offset          `sym+n`    extended (or direct page)
+  // A register plus a 16-bit index is `d,r`: selectable, but it ties up the
+  // only 16-bit accumulator and costs four cycles per access, so it is not
+  // free -- treating it as legal made the loop strength reducer rewrite
+  // `while (*p) p++` as `p[i]` with the counter homed in an imaginary
+  // register. A symbol plus a register has no mode at all.
+  if (AM.Scale > 1 || AM.Scale < 0 || AM.ScalableOffset)
     return false;
 
-  // Any Base + Index mode can be legally selected with direct page indexed
+  // Any base + index mode can be selected with direct-page indexed
   // addressing.
   if (AddrSpace == MC6809::AS_DirectPage)
     return true;
 
-  if (AM.Scale) {
-    assert(AM.Scale == 1);
-    if (!AM.HasBaseReg) {
-      // Indexed addressing mode.
-      if (is8BitIndex(AM.ScaleType))
-        return true;
-
-      // Consider a reg + 8-bit offset selectable via the indirect indexed
-      // addressing mode.
-      return !AM.BaseGV && 0 <= AM.BaseOffs && AM.BaseOffs < 256;
-    }
-
-    // Indirect indexed addressing mode: 16-bit register + 8-bit index register.
-    // Doesn't matter which is 8-bit and which is 16-bit.
-    return !AM.BaseGV && !AM.BaseOffs && (is8BitIndex(AM.BaseType) || is8BitIndex(AM.ScaleType));
-  }
-
-  if (AM.HasBaseReg) {
-    // Indexed addressing mode.
-    if (is8BitIndex(AM.BaseType))
-      return true;
-
-    // Consider an reg + 8-bit offset selectable via the indirect indexed
-    // addressing mode.
-    return !AM.BaseGV && 0 <= AM.BaseOffs && AM.BaseOffs < 256;
-  }
-
-  // Any other combination of GV and BaseOffset are just global offsets.
+  const bool HasIndex = AM.Scale == 1;
+  if (HasIndex && AM.HasBaseReg)
+    return !AM.BaseGV && !AM.BaseOffs &&
+           (is8BitIndex(AM.BaseType) || is8BitIndex(AM.ScaleType));
+  if (HasIndex || AM.HasBaseReg)
+    return !AM.BaseGV && isInt<16>(AM.BaseOffs);
   return true;
 }
 
