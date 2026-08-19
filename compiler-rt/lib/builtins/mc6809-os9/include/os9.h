@@ -186,6 +186,11 @@ __OS9_READ_SHIM(_os_readln, OS9_I_READLN)
 __OS9_WRITE_SHIM(_os_write, OS9_I_WRITE)
 __OS9_WRITE_SHIM(_os_writeln, OS9_I_WRITLN)
 
+/* Every call that takes a path name leaves X pointing past the name it
+ * parsed (ioman: `stx R$X,u`), so X is a read-write operand, not an input:
+ * told otherwise, the compiler believes the pointer survives the call and
+ * gives the next one a name that starts where the last one stopped. */
+
 /* I$Open: A = mode, X = path name -> A = path number.  A and B are the only
  * byte registers the 6809 has, so a call that reads one and writes the other
  * value back into it says so ("+A") rather than naming an input and an output
@@ -195,7 +200,8 @@ static inline int _os_open(const char *__name, int __mode, int *__pathp) {
   unsigned char __err;
   unsigned char __a = (unsigned char)__mode; /* in: mode, out: path number */
   unsigned char __b;                         /* out: error code */
-  OS9_SYSCALL(OS9_I_OPEN, ("=c"(__err), "+A"(__a), "=B"(__b)), ("x"(__name)));
+  const char *__x = __name;                  /* in: the name, out: past it */
+  OS9_SYSCALL(OS9_I_OPEN, ("=c"(__err), "+A"(__a), "=B"(__b), "+x"(__x)), ());
   if (__err)
     return __os9_fail(__b);
   *__pathp = __a;
@@ -221,7 +227,8 @@ static inline int _os_create(const char *__name, int __mode, int __attrs,
    * nothing to place them in (A and B are all the 6809 has). */
   unsigned __d = ((unsigned)(unsigned char)__mode << 8) |
                  (unsigned char)__attrs;
-  OS9_SYSCALL(OS9_I_CREATE, ("=c"(__err), "+d"(__d)), ("x"(__name)));
+  const char *__x = __name;
+  OS9_SYSCALL(OS9_I_CREATE, ("=c"(__err), "+d"(__d), "+x"(__x)), ());
   if (__err)
     return __os9_fail(__d & 0xFF);
   *__pathp = __d >> 8;
@@ -231,15 +238,17 @@ static inline int _os_create(const char *__name, int __mode, int __attrs,
 /* I$Delete: X = path name. */
 static inline int _os_delete(const char *__name) {
   unsigned char __err, __ecode;
-  OS9_SYSCALL(OS9_I_DELETE, ("=c"(__err), "=B"(__ecode)), ("x"(__name)));
+  const char *__x = __name;
+  OS9_SYSCALL(OS9_I_DELETE, ("=c"(__err), "=B"(__ecode), "+x"(__x)), ());
   return __err ? __os9_fail(__ecode) : 0;
 }
 
 /* I$MakDir: B = attributes, X = path name. */
 static inline int _os_makdir(const char *__name, int __attrs) {
   unsigned char __err, __ecode;
-  OS9_SYSCALL(OS9_I_MAKDIR, ("=c"(__err), "=B"(__ecode)),
-              ("B"((unsigned char)__attrs), "x"(__name)));
+  const char *__x = __name;
+  OS9_SYSCALL(OS9_I_MAKDIR, ("=c"(__err), "=B"(__ecode), "+x"(__x)),
+              ("B"((unsigned char)__attrs)));
   return __err ? __os9_fail(__ecode) : 0;
 }
 
@@ -247,8 +256,9 @@ static inline int _os_makdir(const char *__name, int __attrs) {
  * execution directory), X = path name. */
 static inline int _os_chgdir(const char *__name, int __mode) {
   unsigned char __err, __ecode;
-  OS9_SYSCALL(OS9_I_CHGDIR, ("=c"(__err), "=B"(__ecode)),
-              ("A"((unsigned char)__mode), "x"(__name)));
+  const char *__x = __name;
+  OS9_SYSCALL(OS9_I_CHGDIR, ("=c"(__err), "=B"(__ecode), "+x"(__x)),
+              ("A"((unsigned char)__mode)));
   return __err ? __os9_fail(__ecode) : 0;
 }
 
