@@ -211,6 +211,10 @@ static DecodeStatus DecodeBIT8RegisterClass(MCInst &MI, uint64_t RegNo, uint64_t
 }
 
 DecodeStatus MC6809Disassembler::getInstruction(MCInst &Instr, uint64_t &Size, ArrayRef<uint8_t> Bytes, uint64_t Address, raw_ostream &CStream) const {
+  // On failure Size is the number of bytes to skip: one byte of data (or
+  // none when there is none left) -- never left unset, the caller slices
+  // the buffer by it.
+  Size = Bytes.empty() ? 0 : 1;
   for (size_t InsnSize : seq_inclusive(1, 5)) {
     if (Bytes.size() < InsnSize)
       return MCDisassembler::Fail;
