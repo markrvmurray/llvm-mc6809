@@ -486,11 +486,22 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &M
   BuildCFI(MBB, EntryMBBI, {},
            MCCFIInstruction::createOffset(nullptr, PCDwarf, -2));
 
+  if (!hasFP(MF)) {
+    // No frame pointer: S addresses everything, and the outgoing-call area is
+    // reserved at the bottom of the frame (hasReservedCallFrame), where call
+    // lowering stores arguments at `n,s`.  So the callee-saved pushes go
+    // first and the frame is allocated below them: [call area][locals]
+    // [saved registers][return address], with the locals at plain
+    // StackSize-relative offsets from S (eliminateFrameIndex).
+    auto AfterPushes = std::find_if_not(MBB.begin(), MBB.end(), [](const MachineInstr &MI) { return MI.getFlag(MachineInstr::FrameSetup); });
+    Builder.setInsertPt(MBB, AfterPushes);
+    if (StackSize)
+      offsetSP(Builder, -StackSize);
+    return;
+  }
+
   if (StackSize)
     offsetSP(Builder, -StackSize);
-
-  if (!hasFP(MF))
-    return;
 
   // Skip the callee-saved push instructions.
   auto MBBI = std::find_if_not(Builder.getInsertPt(), MBB.end(), [](const MachineInstr &MI) { return MI.getFlag(MachineInstr::FrameSetup); });
@@ -552,6 +563,13 @@ void MC6809FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &M
 
   if (isISR(MF))
     StackSize += 256;
+
+  if (!hasFP(MF)) {
+    // The frame sits below the callee-saved registers (see emitPrologue):
+    // release it before they are pulled.
+    auto MBBI = find_if_not(mbb_reverse(MBB.begin(), Builder.getInsertPt()), [](const MachineInstr &MI) { return MI.getFlag(MachineInstr::FrameDestroy); });
+    Builder.setInsertPt(MBB, MachineBasicBlock::iterator(MBBI));
+  }
 
   // If soft stack is used, increase the soft stack pointer SP.
   if (StackSize)

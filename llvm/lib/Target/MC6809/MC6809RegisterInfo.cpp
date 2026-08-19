@@ -267,18 +267,22 @@ bool MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int
   // Fixed stack objects (args, positive offset) are above the return
   // address on the stack. Local objects (spills, negative offset) are
   // below it. Only args need the +2 PC skip.
-  if (Offset >= 0)
+  const bool IsIncomingArg = Offset >= 0;
+  if (IsIncomingArg)
     Offset += 2; // Skip the saved PC (return address)
 
   // Account for CSRs pushed on the hardware stack outside MFI's modeled stack.
   // Soft-stack CSR slots are already included in MFI.getStackSize().
   unsigned CalleeSavedSize = TFI->getHardStackCalleeSavedSize(MF);
 
-  // The frame pointer (U) is set to S AFTER both stack allocation and
-  // callee-saved pushes. So the offset from FP to args includes both.
-  // Same formula for FP and non-FP — the base register differs (U vs S)
-  // but the offset computation is identical.
-  Offset += MFI.getStackSize() + CalleeSavedSize;
+  // With a frame pointer, U is set to S AFTER both the stack allocation and
+  // the callee-saved pushes (the pushes sit below the locals), so every
+  // offset from U includes both.  Without one, the frame is allocated BELOW
+  // the pushes (emitPrologue): the locals are StackSize-relative to S and
+  // only the incoming arguments lie beyond the saved registers.
+  Offset += MFI.getStackSize();
+  if (TFI->hasFP(MF) || IsIncomingArg)
+    Offset += CalleeSavedSize;
 
   // Fold imm into offset
   Offset += MI.getOperand(FIOperandNum + 1).getImm();
