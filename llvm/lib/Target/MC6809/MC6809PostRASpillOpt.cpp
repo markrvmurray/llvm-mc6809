@@ -1606,6 +1606,22 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         // accumulator between the two.
         if (Cand.modifiesRegister(BaseReg, &TRI))
           break;
+
+        // Nor may anything rewrite the slot itself.  Folded, the pointer
+        // is read at the consumer, so a store landing on the same memory
+        // in between would have the fold read the new pointer where the
+        // unfolded code read the old one.  A store whose own slot is
+        // known and elsewhere is fine -- that is the common case, a
+        // neighbouring frame slot -- but one that could be anywhere in
+        // the frame, or that lands on this slot, ends the scan.
+        if (mayStoreToStackFrame(Cand, MFI)) {
+          SlotKey CandSlot = getSlotKey(Cand);
+          bool Elsewhere = CandSlot.BaseReg.isValid() &&
+                           CandSlot.BaseReg == BaseReg &&
+                           CandSlot.Offset != Offset;
+          if (!Elsewhere)
+            break;
+        }
       }
       if (!NewOpc) continue;
       MachineInstr &MI2 = *It2;
