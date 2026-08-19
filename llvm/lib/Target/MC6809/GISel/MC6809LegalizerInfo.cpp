@@ -390,6 +390,10 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
       .legalForCartesianProduct(LegalScalars, {s1})
       .customForCartesianProduct(LegalScalars, {s8})
       .customForCartesianProduct({s32}, {s8})
+      // A shift amount of an odd width -- an s3 out of a lowered bit
+      // reverse, say -- is neither the by-one form nor the by-a-byte one,
+      // and clamping alone leaves it between them with no rule to match.
+      .widenScalarToNextPow2(1, /*Min=*/8)
       .clampScalar(1, s1, s8)
       .clampScalar(0, s8, s32);
   // Rotates: s8/s16 by 1 = legal (native ROL/ROR). s8/s16 by s8 =
