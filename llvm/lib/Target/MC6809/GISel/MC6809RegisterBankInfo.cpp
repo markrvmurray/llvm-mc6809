@@ -95,20 +95,24 @@ MC6809GenRegisterBankInfo::PartialMappingIdx MC6809GenRegisterBankInfo::getParti
   if (Ty.isPointer() && Ty.getSizeInBits() != 8)
     return PMI_INDEX;
 
-  switch (Ty.getSizeInBits()) {
-  case 1:
+  // The register file holds bytes, words, double words and quad words; a
+  // value of any other width goes in the smallest that holds it.  Real code
+  // never asks -- the legalizer has widened everything by now -- but a
+  // DBG_VALUE keeps its source variable's own type, so at -g a three-bit
+  // `mode` in the C arrives here as three bits, and the generic mapper
+  // insists on a mapping for every register operand.
+  unsigned Size = Ty.getSizeInBits();
+  if (Size == 1)
     return PMI_COND;
-  case 8:
+  if (Size <= 8)
     return PMI_ACC8;
-  case 16:
+  if (Size <= 16)
     return PMI_ACC16;
-  case 32:
+  if (Size <= 32)
     return PMI_ACC32;
-  case 64:
+  if (Size <= 64)
     return PMI_ACC64;
-  default:
-    llvm_unreachable("Unsupported register size.");
-  }
+  llvm_unreachable("Unsupported register size.");
 }
 
 void MC6809RegisterBankInfo::getInstrPartialMappingIdxs(const MachineInstr &MI, const MachineRegisterInfo &MRI, SmallVectorImpl<PartialMappingIdx> &OpRegBankIdx) {
