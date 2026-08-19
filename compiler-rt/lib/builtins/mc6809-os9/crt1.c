@@ -26,7 +26,12 @@
 //      of the parameter string, which ends in a carriage return and is
 //      split on blanks in place (it lives in the writable data area);
 //
-//   3. runs the constructors, calls main(argc, argv), runs the destructors
+//   3. links the floating-point module when the program has any floating
+//      point in it: the MC6839 is not part of an OS-9 program the way it
+//      is part of a bare-metal one, it is the FPO9 module, shared by
+//      everything using it.  _exit gives it back (F$UnLink);
+//
+//   4. runs the constructors, calls main(argc, argv), runs the destructors
 //      (which is where a C library flushes its streams and runs atexit()
 //      handlers) and exits with main's return value (F$Exit).
 //
@@ -48,6 +53,9 @@ const unsigned char *__os9_module; // the module body (its header at 0)
 unsigned __os9_mem_want;        // __os9_mem_request: total size to ask for
 unsigned __os9_pool_off;        // __heap_start: U-relative static pool
 unsigned __os9_pool_len;        // __heap_size
+
+// The floating-point module, while this program holds it: _exit unlinks it.
+void *__os9_fp_module;
 
 // The heap sbrk() hands out.
 char *__os9_heap_cur;
@@ -112,6 +120,36 @@ int __os9_grow(unsigned bytes) {
   return -1;
 }
 
+// Set by the MC6839 layer of the compiler's runtime, which is in the
+// program only if it does floating point at all; a weak reference keeps a
+// program that does none from carrying any of this.
+extern void __mc6839_set_rom_base(void *__base) __attribute__((weak));
+
+// The ROM is the FPO9 module: already in memory if something else got
+// there first, otherwise loaded from the execution directory, which is
+// where the program itself came from.  A program that needs floating
+// point and cannot find it cannot run, so say so and stop rather than
+// call through an empty pointer.
+static void claim_fp(void) {
+  struct __os9_module m;
+
+  if (!__mc6839_set_rom_base)
+    return;
+  m.name = "FPO9";
+  m.type = 0; // any type: the ROM is a user-defined type ($B1)
+  if (__os9_link(&m) != 0) {
+    m.name = "fpo9";
+    if (__os9_load(&m) != 0) {
+      static const char missing[] = "fpo9: floating point module not found\r";
+      int n = sizeof missing - 1;
+      _os_write(2, missing, &n);
+      _exit(OS9_E_MNF);
+    }
+  }
+  __os9_fp_module = m.header;
+  __mc6839_set_rom_base(m.header);
+}
+
 static void module_name(void) {
   // Universal header: name offset at 4 (big-endian); the name is fcs-style,
   // last character with its high bit set.
@@ -132,6 +170,7 @@ static int is_blank(char c) { return c == ' ' || c == '\t'; }
 
 void __os9_crt1(void) {
   claim_heap();
+  claim_fp();
   module_name();
 
   // Tokenise the parameter string in place: words separated by blanks,

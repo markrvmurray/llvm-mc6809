@@ -31,6 +31,9 @@ extern "C" {
 #endif
 
 /* Function codes (os9.d names without the `$`). */
+#define OS9_F_LINK   0x00
+#define OS9_F_LOAD   0x01
+#define OS9_F_UNLINK 0x02
 #define OS9_F_EXIT   0x06
 #define OS9_F_MEM    0x07
 #define OS9_F_SLEEP  0x0A
@@ -314,6 +317,27 @@ struct __os9_xu {
 int __os9_seek(struct __os9_xu *__p);
 int __os9_getstt_xu(struct __os9_xu *__p);
 int __os9_setstt_xu(struct __os9_xu *__p);
+
+/* F$Link, F$Load and F$UnLink: a module comes back in U, which is the
+ * process data base, so these are stubs in libclang_rt.os9.a too.
+ *
+ *   F$Link   A = type/language (0 = any), X = the module's name
+ *   F$Load   A = type/language, X = a pathlist, relative to the execution
+ *            directory -- and the module it loads is linked, so it is one
+ *            of ours to give back
+ *   F$UnLink U = the module header
+ *
+ * Both return the header in U and the entry point in Y, and leave X past
+ * the name.  0 on success, else the OS-9 error code (also in errno). */
+struct __os9_module {
+  const char *name;    /* in: the module name, or a pathlist for the load */
+  unsigned char type;  /* in: type/language byte, 0 for any */
+  void *header;        /* out: the module header */
+  void *entry;         /* out: its entry point */
+};
+int __os9_link(struct __os9_module *__m);
+int __os9_load(struct __os9_module *__m);
+int __os9_unlink(void *__header);
 
 /* F$Mem: D = new total data-area size in bytes (0 = query) -> D = actual
  * size (whole pages), Y = upper bound of the area.  The kernel grows the area

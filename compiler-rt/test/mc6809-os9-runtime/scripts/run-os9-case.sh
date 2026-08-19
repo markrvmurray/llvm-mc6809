@@ -22,6 +22,11 @@ case_name=$(basename "$src")
 case_name=${case_name%.*}
 case_name=$(printf '%s' "$case_name" | tr -cd 'A-Za-z0-9_')
 [ -n "$case_name" ] || case_name=testcase
+# The floating-point module.  A program that does any floating point links
+# FPO9 at start-up, loading it from the execution directory when it is not
+# already in memory, so it goes on the disk beside the test.
+: "${MC6809_FP_MODULE:=$(cd "$(dirname "$0")/../../../lib/builtins/mc6809" && pwd)/Float09.bin}"
+
 # Command-line words for the program: an optional `// ARGS: ...` line.
 case_args=$(sed -n 's|^// *ARGS: *||p' "$src" | head -1)
 workdir=$(mktemp -d "${TMPDIR:-/tmp}/mc6809-os9-runtime.XXXXXX")
@@ -56,6 +61,10 @@ run_usim() {
   "$OS9_TOOL" makdir "$disk,CMDS" >/dev/null
   "$OS9_TOOL" copy -r "$module" "$disk,CMDS/$case_name" >/dev/null
   "$OS9_TOOL" attr -q -e -pe -pr "$disk,CMDS/$case_name" >/dev/null
+  if [ -f "$MC6809_FP_MODULE" ]; then
+    "$OS9_TOOL" copy -r "$MC6809_FP_MODULE" "$disk,CMDS/FPO9" >/dev/null
+    "$OS9_TOOL" attr -q -e -pe -pr "$disk,CMDS/FPO9" >/dev/null
+  fi
 
   # Empty user name logs in; the program runs twice (with the case's
   # `// ARGS:` words, if any); the echo is the sentinel that says the shell

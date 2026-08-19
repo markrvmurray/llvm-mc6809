@@ -18,8 +18,20 @@
 // definition serves programs without one.
 __attribute__((weak)) int errno;
 
-// F$Exit takes the status in B and does not return.
+// The floating-point module crt1 linked, if this program has one.
+extern void *__os9_fp_module;
+
+// F$Exit takes the status in B and does not return.  Every way out of a
+// program comes through here -- a return from main, exit(), abort() -- so
+// this is where a linked module is given back: the kernel does not unlink
+// what a process linked, and a module nobody gives back stays in memory
+// with nobody using it.
 __attribute__((noreturn)) void _exit(int status) {
+  if (__os9_fp_module) {
+    void *fp = __os9_fp_module;
+    __os9_fp_module = 0;
+    __os9_unlink(fp);
+  }
   OS9_SYSCALL(OS9_F_EXIT, (), ("d"(status)));
   __builtin_unreachable();
 }

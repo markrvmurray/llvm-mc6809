@@ -31,6 +31,7 @@ set(_OS9_LIB_OUT "${_OS9_BUILD_LIB_DIR}/libclang_rt.os9.a")
 set(_OS9_CRT0_OUT "${_OS9_BUILD_LIB_DIR}/crt0.o")
 set(_OS9_SYSCALLS_OUT "${_OS9_BUILD_LIB_DIR}/syscalls.o")
 set(_OS9_CRT1_OUT "${_OS9_BUILD_LIB_DIR}/crt1.o")
+set(_OS9_LINK_OUT "${_OS9_BUILD_LIB_DIR}/os9-link.o")
 set(_OS9_XU_OUT "${_OS9_BUILD_LIB_DIR}/os9-xu.o")
 set(_OS9_LDS_OUT "${_OS9_BUILD_LIB_DIR}/mc6809-os9.lds")
 set(_OS9_HDR_OUT "${_OS9_BUILD_INC_DIR}/os9.h")
@@ -94,6 +95,18 @@ add_custom_command(
     VERBATIM
 )
 
+# os9-link.o -- F$Link / F$Load / F$UnLink, which answer in U.
+add_custom_command(
+    OUTPUT  "${_OS9_LINK_OUT}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${_OS9_BUILD_LIB_DIR}"
+    COMMAND ${CMAKE_C_COMPILER} ${_OS9_FLAGS}
+            -c "${CMAKE_CURRENT_SOURCE_DIR}/os9-link.S"
+            -o "${_OS9_LINK_OUT}"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/os9-link.S"
+    COMMENT "[OS-9] Building os9-link.o"
+    VERBATIM
+)
+
 # Bundle into libclang_rt.os9.a.  We use llvm-ar with rcsD for a
 # deterministic (-D = no timestamps) static archive.
 add_custom_command(
@@ -105,10 +118,12 @@ add_custom_command(
             "${_OS9_CRT1_OUT}"
             "${_OS9_SYSCALLS_OUT}"
             "${_OS9_XU_OUT}"
+            "${_OS9_LINK_OUT}"
     DEPENDS "${_OS9_CRT0_OUT}"
             "${_OS9_CRT1_OUT}"
             "${_OS9_SYSCALLS_OUT}"
             "${_OS9_XU_OUT}"
+            "${_OS9_LINK_OUT}"
     COMMENT "[OS-9] Bundling libclang_rt.os9.a"
     VERBATIM
 )
