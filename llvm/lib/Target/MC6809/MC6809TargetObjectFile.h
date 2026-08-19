@@ -25,6 +25,10 @@ public:
   /// to @progbits and pin real zero bytes into the image.
   MCSection *getExplicitSectionGlobal(const GlobalObject *GO, SectionKind Kind,
                                       const TargetMachine &TM) const override;
+  /// OS-9: pointer-holding constants go to a writable-image section, not
+  /// .rodata (see isOS9DataAreaObject).
+  MCSection *SelectSectionForGlobal(const GlobalObject *GO, SectionKind Kind,
+                                    const TargetMachine &TM) const override;
 };
 
 } // end namespace llvm

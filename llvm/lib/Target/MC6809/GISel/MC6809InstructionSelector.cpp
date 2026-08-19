@@ -69,9 +69,13 @@ static bool hasFakeUse(const MachineInstr &MI) {
   return false;
 }
 
+// The access mode of a global on OS-9: MO_NO_FLAGS for a body (PC-relative)
+// object, MO_OS9_DATA / MO_OS9_BSS for one in the data area (U-relative).
+// Agrees with the section selection (MC6809TargetObjectFile) through
+// isOS9DataAreaObject.
 static unsigned getOS9WritableGlobalTargetFlags(const GlobalValue *GV) {
   const auto *GVar = dyn_cast<GlobalVariable>(GV->getAliaseeObject());
-  if (!GVar || GVar->isConstant())
+  if (!GVar || !isOS9DataAreaObject(GVar))
     return MC6809::MO_NO_FLAGS;
   if (GVar->isDeclaration())
     return MC6809::MO_OS9_DATA;
@@ -80,6 +84,10 @@ static unsigned getOS9WritableGlobalTargetFlags(const GlobalValue *GV) {
   if (Section.starts_with(".bss"))
     return MC6809::MO_OS9_BSS;
   if (Section.starts_with(".data"))
+    return MC6809::MO_OS9_DATA;
+  // A pointer-holding constant sits in .data.rel.ro (the section selection
+  // puts it there even when zero-initialised), never in .bss.
+  if (GVar->isConstant())
     return MC6809::MO_OS9_DATA;
 
   const Constant *Init = GVar->getInitializer();
@@ -2481,13 +2489,28 @@ skip_globalvalue_fold:
     // SU-relative deferred pseudo Lea_iPtr_OS9Sym: the allocator picks the index
     // register and the post-RA expander emits LEA{X,Y} sym,SU — the address is
     // not pinned to IX + a COPY.
-    if (MF->getTarget().isPositionIndependent() &&
-        MF->getTarget().getTargetTriple().isOSOS9()) {
+    if (MF->getTarget().getTargetTriple().isOSOS9()) {
       MachineOperand &GlobalOp = MI.getOperand(1);
       unsigned OS9Flags = getOS9WritableGlobalTargetFlags(GlobalOp.getGlobal());
-      if (OS9Flags != MC6809::MO_NO_FLAGS) {
+      if (OS9Flags != MC6809::MO_NO_FLAGS)
         GlobalOp.setTargetFlags(OS9Flags);
-        MI.setDesc(TII.get(MC6809::Lea_iPtr_OS9Sym));
+      // An extern-weak symbol may be undefined, and the C rule then says its
+      // address is null.  Neither region's base-relative form can express
+      // that (see Lea_iPtr_OS9Weak), so the custom inserter builds it.
+      if (GlobalOp.getGlobal()->hasExternalWeakLinkage()) {
+        MI.setDesc(TII.get(MC6809::Lea_iPtr_OS9Weak));
+        constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
+        return true;
+      }
+      // An OS-9 module and its data area are both placed at run time, so no
+      // address in it is a link-time constant whatever the relocation model
+      // says: a data-area object is reached from U, a body object PC-
+      // relatively.  (A direct-page global is the exception -- its address
+      // IS its link-time in-page offset.)
+      if (!IsDPGlobal) {
+        MI.setDesc(TII.get(OS9Flags != MC6809::MO_NO_FLAGS
+                               ? MC6809::Lea_iPtr_OS9Sym
+                               : MC6809::Lea_iPtr_Sym));
         constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
         return true;
       }

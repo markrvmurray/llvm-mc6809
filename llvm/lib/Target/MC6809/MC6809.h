@@ -22,12 +22,22 @@
 namespace llvm {
 
 class FunctionPass;
+class GlobalVariable;
 class MachineFunctionPass;
 class InstructionSelector;
 class PassRegistry;
 class MC6809RegisterBankInfo;
 class MC6809Subtarget;
 class MC6809TargetMachine;
+
+/// OS-9: does this global live in the per-process data area (reached from
+/// U, copied and rebased by the CRT) rather than in the module body (read
+/// PC-relatively)? Every writable object does; so does a constant that holds
+/// or could hold a pointer -- its type has a pointer in it, or its
+/// initialiser needs a relocation -- because a module is placed at run time
+/// and the body cannot be patched. Code generation and section selection
+/// both use this, so an object's access mode and placement agree.
+bool isOS9DataAreaObject(const GlobalVariable *GV);
 
 InstructionSelector *createMC6809InstructionSelector(const MC6809TargetMachine &TM, MC6809Subtarget &, MC6809RegisterBankInfo &);
 
