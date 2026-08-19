@@ -47,14 +47,12 @@ define void @sext_i16_to_i32_then_store(ptr %out, i16 %x) {
 ; CHECK-NEXT:    leas -3,s
 ; CHECK-NEXT:    pshs y
 ; CHECK-NEXT:    ldy 7,s
-; CHECK-NEXT:    cmpy #0
-; CHECK-NEXT:    blt .LBB0_2
-; CHECK-NEXT:  ; %bb.1:
 ; CHECK-NEXT:    ldb #0
-; CHECK-NEXT:    bra .LBB0_3
-; CHECK-NEXT:  .LBB0_2:
+; CHECK-NEXT:    cmpy #0
+; CHECK-NEXT:    bge .LBB0_2
+; CHECK-NEXT:  ; %bb.1:
 ; CHECK-NEXT:    ldb #1
-; CHECK-NEXT:  .LBB0_3:
+; CHECK-NEXT:  .LBB0_2:
 ; CHECK-NEXT:    andb #1
 ; CHECK-NEXT:    negb
 ; CHECK-NEXT:    stb 4,s ; 1-byte Folded Spill

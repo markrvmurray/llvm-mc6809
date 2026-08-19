@@ -1,0 +1,92 @@
+# RUN: llc -mtriple=mc6809 -run-pass=mc6809-late-opt -verify-machineinstrs -o - %s | FileCheck %s
+# Hand-authored: a materialised compare result's diamond (`cmp ; bcc T ; ldb #0
+# ; bra J ; T: ldb #1 ; J:`) loses its unconditional branch and a block: the
+# false load moves ahead of the flag producer and the branch inverts over the
+# true load -- when the loaded register is free across the producer.
+
+# CHECK-LABEL: name: hoisted
+# CHECK:      bb.0:
+# CHECK:        LDBi8 0, implicit-def dead $nz, implicit-def dead $n, implicit-def dead $z, implicit-def dead $v, implicit-def $ab
+# CHECK-NEXT:   CMPXi_o5 2, $ss
+# CHECK-NEXT:   Bbc_OnlyC 4, %bb.3, implicit killed $c
+# CHECK-NOT:    BRAb
+# CHECK:      bb.2:
+# CHECK:        LDBi8 1
+# CHECK-NOT:    BRAb
+# CHECK:      bb.3:
+# CHECK-NEXT:   liveins: $ab
+---
+name: hoisted
+tracksRegLiveness: true
+body: |
+  bb.0:
+    successors: %bb.1(0x40000000), %bb.2(0x40000000)
+    liveins: $ix, $ss
+    CMPXi_o5 2, $ss, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $c, implicit killed $ix
+    Bbc_OnlyC 5, %bb.2, implicit killed $c
+  bb.1:
+    successors: %bb.3(0x80000000)
+    LDBi8 0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ab, implicit-def $ab
+    BRAb %bb.3
+  bb.2:
+    successors: %bb.3(0x80000000)
+    LDBi8 1, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ab, implicit-def $ab
+  bb.3:
+    liveins: $ab
+    RTSr implicit killed $ab
+...
+
+# The compare reads B itself: B is not free across it, the diamond stays.
+# CHECK-LABEL: name: compare_uses_b
+# CHECK:        CMPBi_o5 2, $ss
+# CHECK-NEXT:   Bbc_OnlyC 5, %bb.2
+# CHECK:      bb.1:
+# CHECK:        LDBi8 0
+# CHECK-NEXT:   BRAb %bb.3
+---
+name: compare_uses_b
+tracksRegLiveness: true
+body: |
+  bb.0:
+    successors: %bb.1(0x40000000), %bb.2(0x40000000)
+    liveins: $ab, $ss
+    CMPBi_o5 2, $ss, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $c, implicit killed $ab
+    Bbc_OnlyC 5, %bb.2, implicit killed $c
+  bb.1:
+    successors: %bb.3(0x80000000)
+    LDBi8 0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ab, implicit-def $ab
+    BRAb %bb.3
+  bb.2:
+    successors: %bb.3(0x80000000)
+    LDBi8 1, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ab, implicit-def $ab
+  bb.3:
+    liveins: $ab
+    RTSr implicit killed $ab
+...
+
+# The producer sets only Z (a LEA): the load's N/V would leak; the diamond stays.
+# CHECK-LABEL: name: producer_only_z
+# CHECK:        LEAXi_o5 -1
+# CHECK-NEXT:   Bbc_OnlyZ 7, %bb.2
+# CHECK:        LDBi8 0
+# CHECK-NEXT:   BRAb %bb.3
+---
+name: producer_only_z
+tracksRegLiveness: true
+body: |
+  bb.0:
+    successors: %bb.1(0x40000000), %bb.2(0x40000000)
+    liveins: $ix
+    LEAXi_o5 -1, killed renamable $ix, implicit-def renamable $ix, implicit-def $z, implicit-def $z
+    Bbc_OnlyZ 7, %bb.2, implicit $z
+  bb.1:
+    successors: %bb.3(0x80000000)
+    LDBi8 0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ab, implicit-def $ab
+    BRAb %bb.3
+  bb.2:
+    successors: %bb.3(0x80000000)
+    LDBi8 1, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ab, implicit-def $ab
+  bb.3:
+    liveins: $ab
+    RTSr implicit killed $ab
+...

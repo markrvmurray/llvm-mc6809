@@ -50,6 +50,7 @@ public:
   bool foldLEAIntoLoad(MachineBasicBlock &MBB) const;
   bool formPostIncrement(MachineBasicBlock &MBB) const;
   bool formWalkingCompareBranch(MachineBasicBlock &MBB) const;
+  bool hoistDiamondFalseLoad(MachineBasicBlock &MBB) const;
 };
 
 bool MC6809LateOptimization::runOnMachineFunction(MachineFunction &MF) {
@@ -62,6 +63,7 @@ bool MC6809LateOptimization::runOnMachineFunction(MachineFunction &MF) {
     Changed |= foldLEAIntoLoad(MBB);
     Changed |= formPostIncrement(MBB);
     Changed |= formWalkingCompareBranch(MBB);
+    Changed |= hoistDiamondFalseLoad(MBB);
   }
   return Changed;
 }
@@ -310,6 +312,112 @@ bool MC6809LateOptimization::formWalkingCompareBranch(MachineBasicBlock &MBB) co
     Changed = true;
   }
   return Changed;
+}
+
+// A materialised compare result is a diamond of two immediate loads:
+//     cmpx #n ; beq T      (this block)
+//     ldb #0 ; bra J       (F: the fall-through, reached from here alone)
+//   T: ldb #1              (reached from here alone, falls into J)
+//   J:
+// The false load moves ahead of the flag producer, whose flags overwrite
+// the load's, and the branch inverts over the true load:
+//     ldb #0 ; cmpx #n ; bne J ; ldb #1 ; J:
+// One conditional branch instead of a conditional and an unconditional,
+// and a block fewer. Only when the register the loads write is free across
+// the producer: not read or written by it, and not live before it -- known
+// here, after allocation (a byte compare `cmpb` uses B itself; the value
+// would then have to go elsewhere).
+bool MC6809LateOptimization::hoistDiamondFalseLoad(MachineBasicBlock &MBB) const {
+  const auto &TRI = *MBB.getParent()->getSubtarget().getRegisterInfo();
+  const TargetInstrInfo &TII = *MBB.getParent()->getSubtarget().getInstrInfo();
+  auto ImmLoadReg = [](const MachineInstr &MI) -> Register {
+    switch (MI.getOpcode()) {
+    case MC6809::LDAi8: return MC6809::AA;
+    case MC6809::LDBi8: return MC6809::AB;
+    case MC6809::LDEi8: return MC6809::AE;
+    case MC6809::LDFi8: return MC6809::AF;
+    default: return Register();
+    }
+  };
+  // This block: flag producer, then one conditional branch, no unconditional.
+  auto Term = MBB.getFirstTerminator();
+  if (Term == MBB.end() || Term == MBB.begin() ||
+      !Term->isConditionalBranch() || std::next(Term) != MBB.end() ||
+      !Term->getOperand(1).isMBB())
+    return false;
+  MachineInstr &Bcc = *Term;
+  MachineInstr &Producer = *std::prev(Term);
+  // The producer must define every flag the branch could read (a load's
+  // own N/Z/V must not leak through) -- a compare or test, not a LEA.
+  for (Register F : {MC6809::N, MC6809::Z, MC6809::V})
+    if (!Producer.modifiesRegister(F, &TRI))
+      return false;
+  MachineBasicBlock *T = Bcc.getOperand(1).getMBB();
+  MachineBasicBlock *F = MBB.getNextNode();
+  if (!F || F == T || !MBB.isSuccessor(F) || F->pred_size() != 1 ||
+      T->pred_size() != 1 || F->getNextNode() != T)
+    return false;
+  MachineBasicBlock *J = T->getNextNode();
+  if (!J || T->succ_size() != 1 || !T->isSuccessor(J) || F->succ_size() != 1 ||
+      !F->isSuccessor(J))
+    return false;
+  // F: `ld r #k1 ; bra J`. T: `ld r #k2` (falls through).
+  auto FI = F->begin(), TI = T->begin();
+  while (FI != F->end() && FI->isDebugInstr()) ++FI;
+  while (TI != T->end() && TI->isDebugInstr()) ++TI;
+  if (FI == F->end() || TI == T->end())
+    return false;
+  MachineInstr &FalseLoad = *FI, &TrueLoad = *TI;
+  Register R = ImmLoadReg(FalseLoad);
+  if (!R || ImmLoadReg(TrueLoad) != R)
+    return false;
+  auto FNext = std::next(FI);
+  while (FNext != F->end() && FNext->isDebugInstr()) ++FNext;
+  if (FNext == F->end() || !FNext->isUnconditionalBranch() ||
+      !FNext->getOperand(0).isMBB() || FNext->getOperand(0).getMBB() != J ||
+      std::next(FNext) != F->end())
+    return false;
+  auto TNext = std::next(TI);
+  while (TNext != T->end() && TNext->isDebugInstr()) ++TNext;
+  if (TNext != T->end())
+    return false;
+  // R free across the producer: it neither reads nor writes R, and R is not
+  // live into the producer (nothing after the branch reads it before the
+  // loads: T and F both write it first, so only the producer matters).
+  if (Producer.readsRegister(R, &TRI) || Producer.modifiesRegister(R, &TRI))
+    return false;
+  if (MBB.computeRegisterLiveness(&TRI, R, MachineBasicBlock::const_iterator(Producer.getIterator())) !=
+      MachineBasicBlock::LQR_Dead)
+    return false;
+  MC6809CC::CondCode Inv = MC6809CC::getOppositeCondition(
+      MC6809CC::CondCode(Bcc.getOperand(0).getImm()));
+  if (Inv == MC6809CC::INVALID)
+    return false;
+  // Move the false load ahead of the producer (its flags now dead), invert
+  // the branch to J, drop F, and let T fall through into J.
+  FalseLoad.removeFromParent();
+  MBB.insert(Producer.getIterator(), &FalseLoad);
+  for (MachineOperand &MO : FalseLoad.operands())
+    if (MO.isReg() && MO.isDef() && MO.isImplicit() &&
+        (MO.getReg() == MC6809::NZ || MO.getReg() == MC6809::N ||
+         MO.getReg() == MC6809::Z || MO.getReg() == MC6809::V))
+      MO.setIsDead();
+  Bcc.getOperand(0).setImm(Inv);
+  Bcc.getOperand(1).setMBB(J);
+  auto PT = MBB.getSuccProbability(llvm::find(MBB.successors(), T));
+  auto PF = MBB.getSuccProbability(llvm::find(MBB.successors(), F));
+  MBB.removeSuccessor(F);
+  MBB.removeSuccessor(T);
+  MBB.addSuccessor(J, PF);
+  MBB.addSuccessor(T, PT);
+  F->removeSuccessor(J);
+  F->eraseFromParent();
+  // The register the loads write is live out of MBB into J now (through
+  // the false load); T's live-ins already exclude it (T defines it).
+  if (!J->isLiveIn(R))
+    J->addLiveIn(R);
+  (void)TII;
+  return true;
 }
 
 bool MC6809LateOptimization::formPostIncrement(MachineBasicBlock &MBB) const {
