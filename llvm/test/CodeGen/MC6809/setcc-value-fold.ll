@@ -23,7 +23,6 @@ define dso_local range(i16 0, 2) i16 @eqv(ptr noundef readonly captures(none) %p
 ; MC6809-NEXT:  .LBB0_2: ; %entry
 ; MC6809-NEXT:    ldb #1
 ; MC6809-NEXT:  .LBB0_3: ; %entry
-; MC6809-NEXT:    andb #1
 ; MC6809-NEXT:    clra
 ; MC6809-NEXT:    tfr d,x
 ; MC6809-NEXT:    rts
@@ -38,7 +37,6 @@ define dso_local range(i16 0, 2) i16 @eqv(ptr noundef readonly captures(none) %p
 ; HD6309-NEXT:  .LBB0_2: ; %entry
 ; HD6309-NEXT:    ldb #1
 ; HD6309-NEXT:  .LBB0_3: ; %entry
-; HD6309-NEXT:    andb #1
 ; HD6309-NEXT:    clra
 ; HD6309-NEXT:    tfr d,x
 ; HD6309-NEXT:    rts
@@ -61,7 +59,6 @@ define dso_local range(i16 0, 2) i16 @idxv(ptr noundef readonly captures(none) %
 ; MC6809-NEXT:  .LBB1_2: ; %entry
 ; MC6809-NEXT:    ldb #1
 ; MC6809-NEXT:  .LBB1_3: ; %entry
-; MC6809-NEXT:    andb #1
 ; MC6809-NEXT:    clra
 ; MC6809-NEXT:    tfr d,x
 ; MC6809-NEXT:    rts
@@ -76,7 +73,6 @@ define dso_local range(i16 0, 2) i16 @idxv(ptr noundef readonly captures(none) %
 ; HD6309-NEXT:  .LBB1_2: ; %entry
 ; HD6309-NEXT:    ldb #1
 ; HD6309-NEXT:  .LBB1_3: ; %entry
-; HD6309-NEXT:    andb #1
 ; HD6309-NEXT:    clra
 ; HD6309-NEXT:    tfr d,x
 ; HD6309-NEXT:    rts
@@ -100,7 +96,6 @@ define dso_local range(i16 0, 2) i16 @indv(ptr noundef readonly captures(none) %
 ; MC6809-NEXT:  .LBB2_2: ; %entry
 ; MC6809-NEXT:    ldb #1
 ; MC6809-NEXT:  .LBB2_3: ; %entry
-; MC6809-NEXT:    andb #1
 ; MC6809-NEXT:    clra
 ; MC6809-NEXT:    tfr d,x
 ; MC6809-NEXT:    rts
@@ -115,7 +110,6 @@ define dso_local range(i16 0, 2) i16 @indv(ptr noundef readonly captures(none) %
 ; HD6309-NEXT:  .LBB2_2: ; %entry
 ; HD6309-NEXT:    ldb #1
 ; HD6309-NEXT:  .LBB2_3: ; %entry
-; HD6309-NEXT:    andb #1
 ; HD6309-NEXT:    clra
 ; HD6309-NEXT:    tfr d,x
 ; HD6309-NEXT:    rts

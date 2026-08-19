@@ -129,6 +129,7 @@ private:
   bool tryFusePostModify(MachineInstr &MI) const;
   bool tryFusePostIncAtAccess(MachineInstr &MI) const;
   bool loadedValueWillFold(Register Val) const;
+  bool isKnownZeroOrOne(Register R) const;
   bool selectFrameIndex(MachineInstr &MI);
   bool selectAddrSpaceCast(MachineInstr &MI);
   Register buildDirectPageAddress(MachineBasicBlock &MBB, MachineInstr &Before,
@@ -1202,6 +1203,67 @@ static const TargetRegisterClass &getRegClassForTypeOnBank(
 // add (EXTRACT_LO/HI, re-widened by MC6809FoldAddSub16 before that fold).
 // Fusing such a load into an auto-increment access at selection would keep
 // the value in a register instead.
+// Does the byte (or i1) value in R provably hold only 0 or 1 -- so that
+// zero-extending it needs no mask? Compares materialise 0/1 (ConditionalImm
+// selects G_ICMP; a flag capture is 0/1 too), as do boolean constants, and
+// phis, copies and logic ops over such values. Bounded walk over the
+// still-generic or already-selected definers (the selector works bottom-up,
+// so a definer may be either); a phi met again on its own cycle counts as
+// known, its other inputs decide.
+static bool knownZeroOrOne(Register R, const MachineRegisterInfo &MRI,
+                           SmallPtrSetImpl<const MachineInstr *> &Visited,
+                           unsigned Depth) {
+  if (!R.isVirtual() || Depth > 8)
+    return false;
+  const MachineInstr *Def = MRI.getVRegDef(R);
+  if (!Def)
+    return false;
+  if (!Visited.insert(Def).second)
+    return true;
+  auto Known = [&](unsigned OpIdx) {
+    return knownZeroOrOne(Def->getOperand(OpIdx).getReg(), MRI, Visited,
+                          Depth + 1);
+  };
+  switch (Def->getOpcode()) {
+  case TargetOpcode::G_ICMP:
+  case TargetOpcode::G_FCMP:
+  case MC6809::ConditionalImm:
+  case MC6809::MaterializeCC_C_to_byte:
+  case MC6809::MaterializeCC_V_to_byte:
+  case MC6809::MaterializeCC_Z_to_byte:
+  case MC6809::MaterializeCC_N_to_byte:
+    return true;
+  case TargetOpcode::G_CONSTANT:
+    return Def->getOperand(1).getCImm()->getValue().ule(1);
+  case MC6809::Load_i8_Imm:
+    return Def->getOperand(1).isImm() &&
+           (Def->getOperand(1).getImm() & 0xff) <= 1;
+  case TargetOpcode::G_PHI:
+  case TargetOpcode::PHI:
+    for (unsigned I = 1, E = Def->getNumOperands(); I < E; I += 2)
+      if (!Known(I))
+        return false;
+    return true;
+  case TargetOpcode::COPY:
+  case TargetOpcode::G_TRUNC:
+  case TargetOpcode::G_ZEXT:
+  case TargetOpcode::G_ANYEXT:
+    return !Def->getOperand(1).getSubReg() && Known(1);
+  case TargetOpcode::G_AND:
+    return Known(1) || Known(2);
+  case TargetOpcode::G_OR:
+  case TargetOpcode::G_XOR:
+    return Known(1) && Known(2);
+  default:
+    return false;
+  }
+}
+
+bool MC6809InstructionSelector::isKnownZeroOrOne(Register R) const {
+  SmallPtrSet<const MachineInstr *, 8> Visited;
+  return knownZeroOrOne(R, *MRI, Visited, 0);
+}
+
 bool MC6809InstructionSelector::loadedValueWillFold(Register Val) const {
   // A 16-bit value: reading the operand from memory spares the second
   // accumulator the 6809 does not have. A byte value with one consumer that
@@ -1669,11 +1731,19 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
       // the LSB).  ABc is the narrowest class that satisfies both
       // AND_i8_Imm and downstream consumers like ZEX16Implicit.
       //
-      // Producing `AND[A|B] #1` unconditionally can leave a redundant
-      // mask at -O0 when the source was already known-LSB-only (a
-      // freshly-emitted G_ICMP result, say).  -O1+ instruction-level
-      // optimisers fold it.  AND #1 against an already-masked value
-      // is idempotent so chaining never breaks semantics.
+      // A source that already holds 0 or 1 in the whole byte -- a
+      // compare's materialised result, a boolean constant, a phi or
+      // logic op of such -- needs no mask: nothing later takes it out.
+      if (isKnownZeroOrOne(SrcReg)) {
+        if (!MRI->getRegClassOrNull(DstReg))
+          MRI->setRegClass(DstReg, &MC6809::ACC8_ABRegClass);
+        if (!MRI->getRegClassOrNull(SrcReg))
+          MRI->setRegClass(SrcReg, &MC6809::ACC8_ABRegClass);
+        MachineIRBuilder B(MI);
+        B.buildCopy(DstReg, SrcReg);
+        MI.eraseFromParent();
+        return true;
+      }
       MRI->setRegClass(DstReg, &MC6809::ACC8_ABRegClass);
       MRI->setRegClass(SrcReg, &MC6809::ACC8_ABRegClass);
       MI.setDesc(TII.get(MC6809::AND_i8_Imm));

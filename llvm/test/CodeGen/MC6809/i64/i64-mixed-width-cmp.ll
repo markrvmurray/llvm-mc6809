@@ -46,7 +46,6 @@ define i1 @eq_i64_sext_i32(i64 %a, i32 %b) {
 ; O0-NEXT:  .LBB0_2:
 ; O0-NEXT:    ldb #1
 ; O0-NEXT:  .LBB0_3:
-; O0-NEXT:    andb #1
 ; O0-NEXT:    negb
 ; O0-NEXT:    stb 4,u ; 1-byte Folded Spill
 ; O0-NEXT:    leas -16,s
@@ -115,7 +114,6 @@ define i1 @eq_i64_sext_i32(i64 %a, i32 %b) {
 ; O2-NEXT:  .LBB0_2:
 ; O2-NEXT:    ldb #1
 ; O2-NEXT:  .LBB0_3:
-; O2-NEXT:    andb #1
 ; O2-NEXT:    negb
 ; O2-NEXT:    stb 4,u ; 1-byte Folded Spill
 ; O2-NEXT:    leas -16,s

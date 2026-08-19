@@ -35,7 +35,6 @@ define void @sext_i32_to_i64_then_store(ptr %out, i32 %x) {
 ; CHECK-NEXT:  .LBB0_2:
 ; CHECK-NEXT:    lda #1
 ; CHECK-NEXT:  .LBB0_3:
-; CHECK-NEXT:    anda #1
 ; CHECK-NEXT:    nega
 ; CHECK-NEXT:    sta 4,s ; 1-byte Folded Spill
 ; CHECK-NEXT:    stb 8,s ; 1-byte Folded Spill

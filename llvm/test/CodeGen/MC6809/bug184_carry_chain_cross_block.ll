@@ -47,7 +47,6 @@ define void @atol_like(ptr %out, ptr %s) {
 ; CHECK-NEXT:  .LBB0_2: ; %entry
 ; CHECK-NEXT:    ldb #1
 ; CHECK-NEXT:  .LBB0_3: ; %entry
-; CHECK-NEXT:    andb #1
 ; CHECK-NEXT:    lda #0
 ; CHECK-NEXT:    sta 17,u ; 1-byte Folded Spill
 ; CHECK-NEXT:    lda 17,u
