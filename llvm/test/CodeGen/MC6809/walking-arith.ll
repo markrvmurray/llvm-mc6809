@@ -1,7 +1,8 @@
 ; Hand-authored: a memory operand read through a pointer that steps by the
 ; access size folds, step and all, into the op that consumes it -- the walking
 ; forms (`op ,x+`, `op ,x++`, `op ,--x`) -- and an i16 accumulate of a
-; zero-extended byte keeps its sum in D (`addb ,x+ ; adca #0`).
+; zero-extended byte keeps its sum in D (`addb ,x+ ; adca #0`). Both loads
+; of a walking byte compare step, one in the load and one in the compare.
 ; RUN: llc -mtriple=mc6809 -O2 -verify-machineinstrs < %s | FileCheck %s --check-prefixes=CHECK,MC6809
 ; RUN: llc -mtriple=mc6809 -mcpu=hd6309 -O2 -verify-machineinstrs < %s | FileCheck %s --check-prefixes=CHECK,HD6309
 
@@ -30,6 +31,12 @@
 ; CHECK-NEXT: sbca #0
 ; CHECK-NOT: __rs
 ; CHECK: rts
+
+; if (*a++ != *b++)
+; CHECK-LABEL: walkcmp:
+; CHECK: ld{{[bf]}} ,x+
+; CHECK-NEXT: cmp{{[bf]}} ,y+
+; CHECK-NEXT: bne
 
 ; t = (t << 1) + *s++
 ; CHECK-LABEL: mix:
