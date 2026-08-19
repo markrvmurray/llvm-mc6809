@@ -1203,11 +1203,19 @@ static const TargetRegisterClass &getRegClassForTypeOnBank(
 // Fusing such a load into an auto-increment access at selection would keep
 // the value in a register instead.
 bool MC6809InstructionSelector::loadedValueWillFold(Register Val) const {
-  // Only a 16-bit value: that is where reading the operand from memory
-  // spares the second accumulator the 6809 does not have. A byte value
-  // adds from a register just as well, and the fused access keeps the
-  // pointer in one index register.
-  if (MRI->getType(Val) != LLT::scalar(16))
+  // A 16-bit value: reading the operand from memory spares the second
+  // accumulator the 6809 does not have. A byte value with one consumer that
+  // has a memory form: the 6809 has no register-register byte arithmetic
+  // either (`_Reg` goes through memory), and the walking form of the
+  // consumer (`addb ,x+`) then keeps both the accumulator and the pointer.
+  LLT Ty = MRI->getType(Val);
+  if (Ty == LLT::scalar(8)) {
+    if (!MRI->hasOneNonDBGUse(Val))
+      return false;
+    const MachineInstr &U = *MRI->use_instr_nodbg_begin(Val);
+    return MC6809InstrInfo::getMemFoldSibling(U.getOpcode()).has_value();
+  }
+  if (Ty != LLT::scalar(16))
     return false;
   for (const MachineInstr &U : MRI->use_nodbg_instructions(Val)) {
     if (MC6809InstrInfo::getMemFoldSibling(U.getOpcode()))

@@ -135,103 +135,199 @@ static bool safeToMoveLoad(const MachineInstr &Load, const MachineInstr &User,
   return true;
 }
 
-// A compare that reads memory through a pointer at offset 0, and the
-// pointer's step by the access size with no other use of the pointer,
-// become one walking compare (`cmpb ,x+`): the step's result is defined by
-// the compare (tied to the pointer). The step may sit before or after the
-// compare; either way nothing else reads the old pointer.
-static bool formPostIncCompares(MachineFunction &MF) {
+// The walking form of an op that reads memory through a pointer: its
+// `,r+` / `,-r` sibling (and the 2-byte forms), where the pointer operand
+// sits, the access size, and the accumulator class the sibling needs (none
+// for a compare).
+struct StepForm {
+  unsigned Opc;
+  unsigned PtrIdx;
+  unsigned Size;
+  bool NeedsHD6309;
+  const TargetRegisterClass *AccRC;
+  // A plain load's walking forms are the post-modify pseudos, one per
+  // direction and without a step operand (the selector fuses these itself
+  // at the access; this catches a load it left for a fold that did not
+  // happen).
+  unsigned DecOpc = 0;
+};
+
+static std::optional<StepForm> stepFormOf(unsigned Opc) {
+  // ADD/SUB step through the HD6309 W as well; the carry and bitwise word
+  // ops through D only. Bytes stay on A/B like the _Mem forms.
+  const TargetRegisterClass *Byte = &MC6809::ACC8_AB_SPRegClass;
+  const TargetRegisterClass *AnyWord = &MC6809::ACC16RegClass;
+  const TargetRegisterClass *Word = &MC6809::ADcRegClass;
+  switch (Opc) {
+  case MC6809::Load_i8_Mem:
+    return StepForm{MC6809::Load_i8_PostInc, 1, 1, false, nullptr,
+                    MC6809::Load_i8_PreDec};
+  case MC6809::Load_i16_Mem:
+    return StepForm{MC6809::Load_i16_PostInc, 1, 2, false, nullptr,
+                    MC6809::Load_i16_PreDec};
+  case MC6809::Compare_i8_Mem:
+    return StepForm{MC6809::Compare_i8_MemStep, 3, 1, false, nullptr};
+  case MC6809::Compare_i16_Mem:
+    return StepForm{MC6809::Compare_i16_MemStep, 3, 2, false, nullptr};
+  // (Not the fused compare-and-branch forms: a terminator must not define
+  // an allocatable register -- the allocator cannot spill a value after a
+  // terminator. Those walking compares are formed after allocation, in
+  // MC6809LateOptimization.)
+#define ARITH(NAME, SIZE, HD, RC)                                             \
+  case MC6809::NAME##_Mem:                                                    \
+    return StepForm{MC6809::NAME##_MemStep, 2, SIZE, HD, RC};
+  ARITH(Add_i8, 1, false, Byte)
+  ARITH(Add_i16, 2, false, AnyWord)
+  ARITH(Sub_i8, 1, false, Byte)
+  ARITH(Sub_i16, 2, false, AnyWord)
+  ARITH(AddSetCarry_i8, 1, false, Byte)
+  ARITH(AddSetCarry_i16, 2, false, AnyWord)
+  ARITH(SubSetCarry_i8, 1, false, Byte)
+  ARITH(SubSetCarry_i16, 2, false, AnyWord)
+  ARITH(AddSetOverflow_i8, 1, false, Byte)
+  ARITH(AddSetOverflow_i16, 2, false, AnyWord)
+  ARITH(SubSetOverflow_i8, 1, false, Byte)
+  ARITH(SubSetOverflow_i16, 2, false, AnyWord)
+  ARITH(AddSetCarryUse_i8, 1, false, Byte)
+  ARITH(SubSetCarryUse_i8, 1, false, Byte)
+  ARITH(AddSetOverflowUse_i8, 1, false, Byte)
+  ARITH(SubSetOverflowUse_i8, 1, false, Byte)
+  ARITH(AND_i8, 1, false, Byte)
+  ARITH(OR_i8, 1, false, Byte)
+  ARITH(XOR_i8, 1, false, Byte)
+  // The 6809 has no 16-bit bitwise op: ANDD/ORD/EORD are HD6309.
+  ARITH(AND_i16, 2, true, Word)
+  ARITH(OR_i16, 2, true, Word)
+  ARITH(XOR_i16, 2, true, Word)
+#undef ARITH
+  default:
+    return std::nullopt;
+  }
+}
+
+// An op that reads memory through a pointer at offset 0, and the pointer's
+// step by the access size with no other use of the pointer, become one
+// walking op (`cmpb ,x+`, `addd ,x++`, `ldb ,-x`-style `addb ,-x`): the
+// step's result is defined by the op (tied to the pointer). A step forward
+// (`*p++`) may sit before or after the op, which reads the unstepped
+// pointer; a step back (`*--p`) sits before the op, which reads the stepped
+// one. Either way nothing else reads the pointer the op consumes.
+static bool formStepMemOps(MachineFunction &MF) {
   MachineRegisterInfo &MRI = MF.getRegInfo();
-  const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
+  const auto &STI = MF.getSubtarget<MC6809Subtarget>();
+  const TargetInstrInfo &TII = *STI.getInstrInfo();
   bool Changed = false;
   for (MachineBasicBlock &MBB : MF) {
-    for (MachineInstr &Cmp : make_early_inc_range(MBB)) {
-      unsigned NewOpc = 0, PtrIdx = 0, Size = 0;
-      bool Branch = false;
-      switch (Cmp.getOpcode()) {
-      case MC6809::Compare_i8_Mem:
-        NewOpc = MC6809::Compare_i8_MemPostInc; PtrIdx = 3; Size = 1; break;
-      case MC6809::Compare_i16_Mem:
-        NewOpc = MC6809::Compare_i16_MemPostInc; PtrIdx = 3; Size = 2; break;
-      // (Not the fused compare-and-branch forms: a terminator must not
-      // define an allocatable register -- the allocator cannot spill a value
-      // after a terminator. Those walking compares are formed after
-      // allocation, in MC6809LateOptimization.)
-      default:
+    for (MachineInstr &Op : make_early_inc_range(MBB)) {
+      std::optional<StepForm> F = stepFormOf(Op.getOpcode());
+      if (!F || (F->NeedsHD6309 && !STI.has6309()))
         continue;
-      }
-      const MachineOperand &PtrMO = Cmp.getOperand(PtrIdx);
-      const MachineOperand &OffMO = Cmp.getOperand(PtrIdx + 1);
+      const MachineOperand &PtrMO = Op.getOperand(F->PtrIdx);
+      const MachineOperand &OffMO = Op.getOperand(F->PtrIdx + 1);
       if (!PtrMO.isReg() || !PtrMO.getReg().isVirtual())
         continue;
       int64_t Off = OffMO.isImm() ? OffMO.getImm()
                     : OffMO.isCImm() ? OffMO.getCImm()->getSExtValue() : 1;
-      if (Off != 0)
+      const int64_t Size = F->Size;
+      // Reading `0,p` with p stepping forward: `,p+`. Reading `-size,p` with
+      // p stepping back: `,-p`. (Reading `0,q` where q is p stepped back is
+      // the same walk expressed on the stepped pointer; see below.)
+      if (Off != 0 && Off != -Size)
         continue;
-      Register Ptr = PtrMO.getReg();
-      // The pointer's only other user: its step, in this block or (a
-      // compare-and-branch's step sunk to where its result is used) in a
-      // successor this block alone leads to -- either way the stepped
-      // pointer's uses stay dominated when the compare defines it.
-      MachineInstr *Step = nullptr;
+      Register Read = PtrMO.getReg(); // the pointer the op reads through
+      MachineInstr *Step = nullptr;   // the LEAPtrAdd_Imm absorbed
+      Register PtrIn, PtrOut;         // the walking op's tied pair
+      int64_t StepBy = Off == 0 ? Size : -Size;
+      auto IsStep = [&](const MachineInstr &U, int64_t By) {
+        return U.getOpcode() == MC6809::LEAPtrAdd_Imm && U.getParent() == &MBB &&
+               U.getOperand(2).isImm() && U.getOperand(2).getImm() == By;
+      };
+      // The read pointer's only other user is its step (before or after
+      // the op).
       bool Other = false;
-      for (MachineInstr &U : MRI.use_nodbg_instructions(Ptr)) {
-        if (&U == &Cmp)
+      for (MachineInstr &U : MRI.use_nodbg_instructions(Read)) {
+        if (&U == &Op)
           continue;
-        bool Placed = U.getParent() == &MBB ||
-                      (Branch && MBB.isSuccessor(U.getParent()) &&
-                       U.getParent()->pred_size() == 1);
-        if (!Step && U.getOpcode() == MC6809::LEAPtrAdd_Imm && Placed &&
-            U.getOperand(1).getReg() == Ptr && U.getOperand(2).isImm() &&
-            U.getOperand(2).getImm() == int64_t(Size)) {
+        if (!Step && IsStep(U, StepBy) && U.getOperand(1).getReg() == Read) {
           Step = &U;
           continue;
         }
         Other = true;
         break;
       }
-      if (Other || !Step)
-        continue;
-      Register Stepped = Step->getOperand(0).getReg();
-      // If the step comes first, nothing between it and the compare may
-      // read its result (it will be defined at the compare instead).
-      bool StepFirst = false;
-      if (Step->getParent() == &MBB)
+      if (!Other && Step) {
+        PtrIn = Read;
+        PtrOut = Step->getOperand(0).getReg();
+        // If the step comes first, nothing between it and the op may read
+        // its result (it will be defined at the op instead).
+        bool StepFirst = false;
         for (auto It = Step->getIterator(); It != MBB.end(); ++It)
-          if (&*It == &Cmp) {
+          if (&*It == &Op) {
             StepFirst = true;
             break;
           }
-      if (StepFirst) {
+        if (StepFirst) {
+          bool UsedBetween = false;
+          for (auto It = std::next(Step->getIterator()); &*It != &Op; ++It)
+            if (It->readsRegister(PtrOut, nullptr)) {
+              UsedBetween = true;
+              break;
+            }
+          if (UsedBetween)
+            continue;
+        }
+      } else if (Off == 0) {
+        // The read pointer is itself a step back of a pointer with no other
+        // use, made in this block, and nothing between the step and the op
+        // reads it (the op will define it): `,-p`.
+        MachineInstr *Def = MRI.getVRegDef(Read);
+        if (!Def || !IsStep(*Def, -Size) ||
+            !MRI.hasOneNonDBGUse(Def->getOperand(1).getReg()))
+          continue;
         bool UsedBetween = false;
-        for (auto It = std::next(Step->getIterator()); &*It != &Cmp; ++It)
-          if (It->readsRegister(Stepped, nullptr)) {
+        for (auto It = std::next(Def->getIterator()); &*It != &Op; ++It)
+          if (It->readsRegister(Read, nullptr)) {
             UsedBetween = true;
             break;
           }
         if (UsedBetween)
           continue;
+        Step = Def;
+        PtrIn = Def->getOperand(1).getReg();
+        PtrOut = Read;
+        StepBy = -Size;
+      } else {
+        continue;
       }
-      MachineInstrBuilder MIB =
-          BuildMI(MBB, Cmp, Cmp.getDebugLoc(), TII.get(NewOpc));
-      if (!Branch)
-        MIB.add(Cmp.getOperand(0)); // CCond def
-      MIB.addDef(Stepped);
-      for (unsigned I = Branch ? 0 : 1; I < PtrIdx; ++I)
-        MIB.add(Cmp.getOperand(I)); // cc, src
-      MIB.addReg(Ptr);
-      if (Branch)
-        MIB.add(Cmp.getOperand(PtrIdx + 2)); // target
+      // The walking form keeps its accumulator off HD6309 W/E/F.
+      if (F->AccRC) {
+        Register Dst = Op.getOperand(0).getReg(), Src = Op.getOperand(1).getReg();
+        if (!Dst.isVirtual() || !Src.isVirtual() ||
+            !MRI.constrainRegClass(Dst, F->AccRC) ||
+            !MRI.constrainRegClass(Src, F->AccRC))
+          continue;
+      }
+      const bool IsLoad = F->DecOpc != 0;
+      MachineInstrBuilder MIB = BuildMI(
+          MBB, Op, Op.getDebugLoc(),
+          TII.get(IsLoad && StepBy < 0 ? F->DecOpc : F->Opc));
+      MIB.add(Op.getOperand(0)); // CC, accumulator or loaded value def
+      MIB.addDef(PtrOut);
+      for (unsigned I = 1; I < F->PtrIdx; ++I)
+        MIB.add(Op.getOperand(I)); // cc + src, or the tied src
+      MIB.addReg(PtrIn);
+      if (!IsLoad)
+        MIB.addImm(StepBy);
       // Implicit operands the selector appended (flag defs) stay with the
       // descriptor; carry any virtual ones over.
-      for (unsigned I = Cmp.getNumExplicitOperands(), E = Cmp.getNumOperands();
+      for (unsigned I = Op.getNumExplicitOperands(), E = Op.getNumOperands();
            I != E; ++I)
-        if (Cmp.getOperand(I).isReg() && Cmp.getOperand(I).getReg().isVirtual())
-          MIB.add(Cmp.getOperand(I));
-      MIB.setMemRefs(Cmp.memoperands());
-      MRI.setRegClass(Stepped, &MC6809::INDEX16RegClass);
-      MRI.setRegClass(Ptr, &MC6809::INDEX16RegClass);
-      Cmp.eraseFromParent();
+        if (Op.getOperand(I).isReg() && Op.getOperand(I).getReg().isVirtual())
+          MIB.add(Op.getOperand(I));
+      MIB.setMemRefs(Op.memoperands());
+      MRI.setRegClass(PtrOut, &MC6809::INDEX16RegClass);
+      MRI.setRegClass(PtrIn, &MC6809::INDEX16RegClass);
+      Op.eraseFromParent();
       Step->eraseFromParent();
       Changed = true;
     }
@@ -476,6 +572,6 @@ bool MC6809FoldLoadIntoConsumer::runOnMachineFunction(MachineFunction &MF) {
     }
   }
   (void)TRI;
-  Changed |= formPostIncCompares(MF);
+  Changed |= formStepMemOps(MF);
   return Changed;
 }

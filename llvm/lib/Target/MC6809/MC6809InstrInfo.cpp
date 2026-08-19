@@ -2068,12 +2068,22 @@ unsigned MC6809InstrInfo::getPostIncrementOpcode(unsigned OrigOpc, int PushWidth
   BYTE_VARIANT(SUBBi) BYTE_VARIANT(SBCBi)
   BYTE_VARIANT(ANDBi) BYTE_VARIANT(ORBi) BYTE_VARIANT(EORBi)
   BYTE_VARIANT(CMPBi) BYTE_VARIANT(BITBi)
+  // HD6309 E/F: loads, stores, add, sub, compare
+  BYTE_VARIANT(LDEi) BYTE_VARIANT(LDFi)
+  BYTE_VARIANT(STEi) BYTE_VARIANT(STFi)
+  BYTE_VARIANT(ADDEi) BYTE_VARIANT(ADDFi)
+  BYTE_VARIANT(SUBEi) BYTE_VARIANT(SUBFi)
+  BYTE_VARIANT(CMPEi) BYTE_VARIANT(CMPFi)
   // Word loads/stores
   WORD_VARIANT(LDDi)
   WORD_VARIANT(STDi)
   // Word ALU on D
   WORD_VARIANT(ADDDi) WORD_VARIANT(SUBDi)
   WORD_VARIANT(CMPDi)
+  // HD6309 W
+  WORD_VARIANT(LDWi) WORD_VARIANT(STWi)
+  WORD_VARIANT(ADDWi) WORD_VARIANT(SUBWi)
+  WORD_VARIANT(CMPWi)
   // Index-register loads/stores/compares
   WORD_VARIANT(LDXi) WORD_VARIANT(LDYi) WORD_VARIANT(LDUi)
   WORD_VARIANT(STXi) WORD_VARIANT(STYi) WORD_VARIANT(STUi)
@@ -4051,9 +4061,33 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
   case MC6809::Compare_ptr_Sym:
     wrapStagedCCSources(MI, [&] { expandCompareIdx(Builder, MI); });
     break;
-  case MC6809::Compare_i8_MemPostInc:
-  case MC6809::Compare_i16_MemPostInc:
-    wrapStagedCCSources(MI, [&] { expandComparePostInc(Builder, MI); });
+  case MC6809::Add_i8_MemStep:
+  case MC6809::Add_i16_MemStep:
+  case MC6809::AddSetCarry_i8_MemStep:
+  case MC6809::AddSetCarry_i16_MemStep:
+  case MC6809::AddSetOverflow_i8_MemStep:
+  case MC6809::AddSetOverflow_i16_MemStep:
+  case MC6809::AddSetCarryUse_i8_MemStep:
+  case MC6809::AddSetOverflowUse_i8_MemStep:
+  case MC6809::Sub_i8_MemStep:
+  case MC6809::Sub_i16_MemStep:
+  case MC6809::SubSetCarry_i8_MemStep:
+  case MC6809::SubSetCarry_i16_MemStep:
+  case MC6809::SubSetOverflow_i8_MemStep:
+  case MC6809::SubSetOverflow_i16_MemStep:
+  case MC6809::SubSetCarryUse_i8_MemStep:
+  case MC6809::SubSetOverflowUse_i8_MemStep:
+  case MC6809::AND_i8_MemStep:
+  case MC6809::AND_i16_MemStep:
+  case MC6809::OR_i8_MemStep:
+  case MC6809::OR_i16_MemStep:
+  case MC6809::XOR_i8_MemStep:
+  case MC6809::XOR_i16_MemStep:
+    expandArithStep(Builder, MI);
+    break;
+  case MC6809::Compare_i8_MemStep:
+  case MC6809::Compare_i16_MemStep:
+    wrapStagedCCSources(MI, [&] { expandCompareStep(Builder, MI); });
     break;
   case MC6809::Compare_i8_Reg:
   case MC6809::Compare_i16_Reg:
@@ -7886,28 +7920,136 @@ void MC6809InstrInfo::expandCompareImm(MachineIRBuilder &Builder, MachineInstr &
   MI.eraseFromParent();
 }
 
-// Compare_*_MemPostInc: (outs CCond:$dst, INDEX16:$ptr_out)
-//                        (ins cc, src, INDEX16:$ptr_in), ptr_out tied to
-// ptr_in -- one `cmp<src> ,ptr+` / `,ptr++`.
-void MC6809InstrInfo::expandComparePostInc(MachineIRBuilder &Builder,
-                                           MachineInstr &MI) const {
+// Compare_*_MemStep: (outs CCond:$dst, INDEX16:$ptr_out)
+//                    (ins cc, src, INDEX16:$ptr_in, step), ptr_out tied to
+// ptr_in -- one `cmp<src> ,ptr+` / `,ptr++` (step > 0) or `,-ptr` / `,--ptr`
+// (step < 0).
+void MC6809InstrInfo::expandCompareStep(MachineIRBuilder &Builder,
+                                        MachineInstr &MI) const {
   Register SrcReg = MI.getOperand(3).getReg();
   Register Ptr = MI.getOperand(4).getReg();
-  assert(MI.getOperand(1).getReg() == Ptr && "post-increment pointer not tied");
+  bool Inc = MI.getOperand(5).getImm() > 0;
+  assert(MI.getOperand(1).getReg() == Ptr && "stepped pointer not tied");
   if (needsMaterialization(SrcReg))
     SrcReg = materializeReg(Builder, SrcReg, *MI.getMF());
   unsigned Opc;
   if (SrcReg == MC6809::AA)
-    Opc = MC6809::CMPAi_Inc1;
+    Opc = Inc ? MC6809::CMPAi_Inc1 : MC6809::CMPAi_Dec1;
   else if (SrcReg == MC6809::AB)
-    Opc = MC6809::CMPBi_Inc1;
+    Opc = Inc ? MC6809::CMPBi_Inc1 : MC6809::CMPBi_Dec1;
   else if (SrcReg == MC6809::AD)
-    Opc = MC6809::CMPDi_Inc2;
+    Opc = Inc ? MC6809::CMPDi_Inc2 : MC6809::CMPDi_Dec2;
   else if (SrcReg == MC6809::AW)
-    Opc = MC6809::CMPWi_Inc2;
+    Opc = Inc ? MC6809::CMPWi_Inc2 : MC6809::CMPWi_Dec2;
   else
-    llvm_unreachable("unexpected source of a post-increment compare");
-  Builder.buildInstr(Opc).addReg(Ptr);
+    llvm_unreachable("unexpected source of a walking compare");
+  // The indexed opcode does not model the pointer's step: add it.
+  Builder.buildInstr(Opc).addUse(Ptr).addDef(Ptr, RegState::Implicit);
+  MI.eraseFromParent();
+}
+
+// The concrete `op ,r+` / `,r++` (Inc) or `,-r` / `,--r` for an arithmetic
+// _MemStep pseudo whose accumulator was assigned Reg. The pseudos' classes
+// keep the HD6309 W/E/F out where the op has no indexed encoding to step
+// through (the carry and bitwise ops).
+static unsigned arithStepOpcode(unsigned Pseudo, Register Reg, bool Inc) {
+  enum Kind { Add, Adc, Sub, Sbc, And, Or, Eor };
+  Kind K;
+  switch (Pseudo) {
+  case MC6809::Add_i8_MemStep:
+  case MC6809::Add_i16_MemStep:
+  case MC6809::AddSetCarry_i8_MemStep:
+  case MC6809::AddSetCarry_i16_MemStep:
+  case MC6809::AddSetOverflow_i8_MemStep:
+  case MC6809::AddSetOverflow_i16_MemStep:
+    K = Add;
+    break;
+  case MC6809::AddSetCarryUse_i8_MemStep:
+  case MC6809::AddSetOverflowUse_i8_MemStep:
+    K = Adc;
+    break;
+  case MC6809::Sub_i8_MemStep:
+  case MC6809::Sub_i16_MemStep:
+  case MC6809::SubSetCarry_i8_MemStep:
+  case MC6809::SubSetCarry_i16_MemStep:
+  case MC6809::SubSetOverflow_i8_MemStep:
+  case MC6809::SubSetOverflow_i16_MemStep:
+    K = Sub;
+    break;
+  case MC6809::SubSetCarryUse_i8_MemStep:
+  case MC6809::SubSetOverflowUse_i8_MemStep:
+    K = Sbc;
+    break;
+  case MC6809::AND_i8_MemStep:
+  case MC6809::AND_i16_MemStep:
+    K = And;
+    break;
+  case MC6809::OR_i8_MemStep:
+  case MC6809::OR_i16_MemStep:
+    K = Or;
+    break;
+  case MC6809::XOR_i8_MemStep:
+  case MC6809::XOR_i16_MemStep:
+    K = Eor;
+    break;
+  default:
+    return 0;
+  }
+  // Columns: A, B, D, E, F, W. ADD/SUB have the HD6309 E/F/W forms; the
+  // carry and bitwise ops only A/B/D.
+#define ABD(M)                                                                \
+  {MC6809::M##Ai_Inc1, MC6809::M##Ai_Dec1},                                   \
+      {MC6809::M##Bi_Inc1, MC6809::M##Bi_Dec1},                               \
+      {MC6809::M##Di_Inc2, MC6809::M##Di_Dec2}
+#define EFW(M)                                                                \
+  {MC6809::M##Ei_Inc1, MC6809::M##Ei_Dec1},                                   \
+      {MC6809::M##Fi_Inc1, MC6809::M##Fi_Dec1},                               \
+      {MC6809::M##Wi_Inc2, MC6809::M##Wi_Dec2}
+#define NONE {0, 0}, {0, 0}, {0, 0}
+  static const unsigned Table[7][6][2] = {
+      {ABD(ADD), EFW(ADD)}, {ABD(ADC), NONE}, {ABD(SUB), EFW(SUB)},
+      {ABD(SBC), NONE},     {ABD(AND), NONE}, {ABD(OR), NONE},
+      {ABD(EOR), NONE}};
+#undef ABD
+#undef EFW
+#undef NONE
+  unsigned R = Reg == MC6809::AA   ? 0
+               : Reg == MC6809::AB ? 1
+               : Reg == MC6809::AD ? 2
+               : Reg == MC6809::AE ? 3
+               : Reg == MC6809::AF ? 4
+               : Reg == MC6809::AW ? 5
+                                   : 6;
+  return R < 6 ? Table[K][R][Inc ? 0 : 1] : 0;
+}
+
+// *_MemStep (arithmetic, carry, bitwise): (outs dst, INDEX16:$ptr_out)
+// (ins src, INDEX16:$ptr_in, step), dst tied to src and ptr_out to ptr_in --
+// one `op<acc> ,ptr+` / `,ptr++` (step > 0) or `,-ptr` / `,--ptr` (step < 0).
+// A spilled accumulator is staged through its real as for the _Mem forms.
+void MC6809InstrInfo::expandArithStep(MachineIRBuilder &Builder,
+                                      MachineInstr &MI) const {
+  MachineFunction &MF = *MI.getMF();
+  Register Dest = MI.getOperand(0).getReg();
+  Register Ptr = MI.getOperand(3).getReg();
+  bool Inc = MI.getOperand(4).getImm() > 0;
+  assert(MI.getOperand(1).getReg() == Ptr && "stepped pointer not tied");
+  Register OrigDest = Dest;
+  bool Staged = needsMaterialization(Dest);
+  if (Staged) {
+    pushStagingReg(Builder, getPhysRegFor(Dest));
+    Dest = materializeReg(Builder, Dest, MF);
+  }
+  unsigned Opc = arithStepOpcode(MI.getOpcode(), Dest, Inc);
+  assert(Opc && "no walking form for this accumulator");
+  Builder.buildInstr(Opc)
+      .addDef(Dest, RegState::Implicit)
+      .addUse(Ptr)
+      .addDef(Ptr, RegState::Implicit);
+  if (Staged) {
+    dematerializeReg(Builder, Dest, OrigDest, MF);
+    pullStagingReg(Builder, Dest);
+  }
   MI.eraseFromParent();
 }
 

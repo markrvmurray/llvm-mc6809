@@ -8,18 +8,20 @@
 ; that. The accumulator is reg-agnostic ({{[a-f]}}): HD6309 may place the value
 ; in E/F (e.g. ldf ,y+ / stf ,x+), which must also have post-modify opcodes.
 
-; *s++ load
+; *s++ load, consumed by an add: the walk folds into the add itself.
 ; CHECK-LABEL: sumv:
-; CHECK: ld{{[a-f]}} ,x+
+; CHECK: addb ,x+
+; CHECK-NEXT: adca #0
 
 ; *d++ = *s++
 ; CHECK-LABEL: cpyv:
 ; CHECK: ld{{[a-f]}} ,y+
 ; CHECK: st{{[a-f]}} ,x+
 
-; *--e load
+; *--e load, likewise
 ; CHECK-LABEL: rsumv:
-; CHECK: ld{{[a-f]}} ,-x
+; CHECK: addb ,-x
+; CHECK-NEXT: adca #0
 
 ; ModuleID = 'pmlit.c'
 source_filename = "pmlit.c"

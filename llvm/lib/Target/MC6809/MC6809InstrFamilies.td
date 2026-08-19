@@ -431,6 +431,27 @@ let Predicates = [IsHD6309] in {
 
 // --- Pseudo-instructions (register-agnostic, GlobalISel) ---
 
+// `op ,ptr+` / `,ptr++` / `,-ptr` / `,--ptr`: the memory source is read
+// through a pointer that steps by the access size -- after the access when
+// $step is positive, before it when negative -- and the stepped pointer is
+// defined by the op (tied to the input). Formed pre-RA from an op's _Mem
+// form at offset 0 and the pointer's step (MC6809FoldLoadIntoConsumer).
+// The word forms admit the HD6309 W only where the op has an indexed
+// encoding for it (ADD/SUB); the carry and bitwise ops keep to D and its
+// imaginaries, and the byte forms to A/B and theirs like the _Mem forms --
+// cheating through D/B here would only trade the step for the moves.
+class MC6809ArithStepBase<RegisterClass dst, list<Register> defs,
+                          list<Register> uses = [], bit sideEffects = 0>
+    : MC6809LogicalInstr {
+  let Defs = defs;
+  let Uses = uses;
+  let hasSideEffects = sideEffects;
+  let mayLoad = 1;
+  dag OutOperandList = (outs dst:$dst, INDEX16:$ptr_out);
+  dag InOperandList = (ins dst:$src, INDEX16:$ptr_in, i8imm:$step);
+  let Constraints = "$dst = $src, $ptr_out = $ptr_in";
+}
+
 class MC6809ArithmeticBase<RegisterClass dst, RegisterClass src, dag operand> : MC6809LogicalInstr {
   let Defs = [NZ, V, C];
   dag OutOperandList = (outs dst:$dst);
@@ -504,6 +525,8 @@ multiclass MC6809Arithmetic<ValueType vtype, RegisterClass dst, RegisterClass sr
     // the static frame into this form; the post-RA expander emits the
     // extended (or PC-relative under PIC) access. Same tie and Defs as _Mem.
     def _Sym : MC6809ArithmeticBase<memDst, memSrc, (ins unknown:$sym)>;
+    if !ne(vtype, i32) then
+      def _MemStep : MC6809ArithStepBase<!if(IsByte, ACC8_AB_SP, ACC16), [NZ, V, C]>;
     let Predicates = [IsHD6309] in {
       if !eq(IsByte, 1) then {
         // Bug #214/#217 default: B-half routing. `_Reg` keeps the
@@ -610,6 +633,8 @@ multiclass MC6809ArithmeticCarry<ValueType vtype, RegisterClass dst, RegisterCla
     def _Mem : MC6809ArithmeticBaseCarry<dst, src, (ins INDEX16:$idx, unknown:$offset)>;
     // Static-stack sibling — see MC6809Arithmetic's _Sym member.
     def _Sym : MC6809ArithmeticBaseCarry<dst, src, (ins unknown:$sym)>;
+    if !ne(vtype, i32) then
+      def _MemStep : MC6809ArithStepBase<!if(IsByte, ACC8_AB_SP, ACC16), [NZ, V, C], [], 1>;
     let Predicates = [IsHD6309] in {
       if !eq(IsByte, 1) then {
         def _Reg  : MC6809ArithmeticBaseCarryRegByteB<(ins ACC8_AB:$src2)>;
@@ -731,6 +756,8 @@ multiclass MC6809ArithmeticCarryUse<ValueType vtype, RegisterClass dst, Register
     def _Mem : MC6809ArithmeticBaseSetCarryUse<dst, src, (ins INDEX16:$idx, unknown:$offset)>;
     // Static-stack sibling — see MC6809Arithmetic's _Sym member.
     def _Sym : MC6809ArithmeticBaseSetCarryUse<dst, src, (ins unknown:$sym)>;
+    if !eq(IsByte, 1) then
+      def _MemStep : MC6809ArithStepBase<ACC8_AB_SP, [NZ, V, C], [C], 1>;
     let Predicates = [IsHD6309] in {
       if !eq(IsByte, 1) then {
         def _Reg  : MC6809ArithmeticBaseSetCarryUseRegByteB<(ins ACC8_AB:$src2)>;
@@ -753,6 +780,8 @@ multiclass MC6809ArithmeticOverflowUse<ValueType vtype, RegisterClass dst, Regis
     def _Mem : MC6809ArithmeticBaseSetOverflowUse<dst, src, (ins INDEX16:$idx, unknown:$offset)>;
     // Static-stack sibling — see MC6809Arithmetic's _Sym member.
     def _Sym : MC6809ArithmeticBaseSetOverflowUse<dst, src, (ins unknown:$sym)>;
+    if !eq(IsByte, 1) then
+      def _MemStep : MC6809ArithStepBase<ACC8_AB_SP, [NZ, V, C], [V], 1>;
     let Predicates = [IsHD6309] in {
       if !eq(IsByte, 1) then {
         def _Reg  : MC6809ArithmeticBaseSetOverflowUseRegByteB<(ins ACC8_AB:$src2)>;
@@ -912,6 +941,8 @@ multiclass MC6809Bitwise<ValueType vtype, RegisterClass reg, RegisterClass memRe
     def _MemIndirect : MC6809BitwiseBase<memReg, (ins INDEX16:$idx, unknown:$offset)>;
     // Static-stack sibling — see MC6809Arithmetic's _Sym member.
     def _Sym : MC6809BitwiseBase<memReg, (ins unknown:$sym)>;
+    // The word form is HD6309-only (ANDD/ORD/EORD); formation checks.
+    def _MemStep : MC6809ArithStepBase<!if(!eq(vtype, i8), ACC8_AB_SP, ADc), [NZ, V]>;
 // (non-HD6309-only note retained: ACC8 already excludes
     // E/F there); narrowing it would mismatch the tied accumulator vreg.
   }
@@ -1042,10 +1073,10 @@ class MC6809CompareBase<RegisterClass reg, dag operand> : MC6809LogicalInstr {
 // direct-page bytes (ACC8_CMP) — keeping a compared value out of an RC slot —
 // while _Reg stays on the full ACC8, since narrowing its second operand out
 // of RC has no such payoff and would reject a value legitimately in ACC8.
-class MC6809ComparePostIncBase<RegisterClass reg> : MC6809LogicalInstr {
+class MC6809CompareStepBase<RegisterClass reg> : MC6809LogicalInstr {
   let mayLoad = true;
   dag OutOperandList = (outs CCond:$dst, INDEX16:$ptr_out);
-  dag InOperandList = (ins i8imm:$cc, reg:$src, INDEX16:$ptr_in);
+  dag InOperandList = (ins i8imm:$cc, reg:$src, INDEX16:$ptr_in, i8imm:$step);
   let Constraints = "$ptr_out = $ptr_in";
 }
 
@@ -1065,10 +1096,12 @@ multiclass MC6809Compare<ValueType vtype, RegisterClass reg,
     def _MemIndirect : MC6809CompareBase<reg, (ins INDEX16:$idx, unknown:$offset)>;
     // Static-stack sibling — see MC6809Arithmetic's _Sym member.
     def _Sym : MC6809CompareBase<reg, (ins unknown:$sym)>;
-    // Compare against `,r+` / `,r++`: the pointer steps by the access
-    // size (a walking compare, `cmpb ,x+`). Formed pre-RA from a _Mem
-    // compare at offset 0 and the pointer's step (MC6809FoldLoadIntoConsumer).
-    def _MemPostInc : MC6809ComparePostIncBase<reg>;
+    // Compare against `,r+` / `,-r` (and the 2-byte forms): the pointer
+    // steps by the access size, after the access for a positive $step and
+    // before it for a negative one (a walking compare, `cmpb ,x+`). Formed
+    // pre-RA from a _Mem compare at offset 0 and the pointer's step
+    // (MC6809FoldLoadIntoConsumer).
+    def _MemStep : MC6809CompareStepBase<reg>;
   }
 }
 
