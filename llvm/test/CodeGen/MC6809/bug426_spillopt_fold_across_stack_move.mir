@@ -1,0 +1,51 @@
+# RUN: llc -mtriple=mc6809 -run-pass=mc6809-spill-opt \
+# RUN:     -verify-machineinstrs %s -o - 2>&1 | FileCheck %s
+
+# Folding `LDX n,S` + `op ,X` into `op [n,S]` moves the frame access from
+# where the pointer was loaded to where it is used.  The offset only means
+# the same slot if S has not moved in between -- and a staging bracket
+# (PSHS/PULS around an imaginary register materialised through the
+# accumulator) moves it by two bytes.  Folding across one made a store
+# through a pointer argument write through whatever pointer sat two bytes
+# lower: silent, wrong, and no crash.
+#
+# Frame-pointer-less code meets this; OS-9 code is always frame-pointer-less,
+# since U is the process data base.  `fcvt_r` never wrote `*decpt`.
+
+# The pointer load must survive, and the store must still go through X.
+# CHECK-LABEL: name: no_fold_across_staging_bracket
+# CHECK:      LDXi_o8 76, $ss
+# CHECK-NEXT: PSHSs
+# CHECK:      STDi_o0 killed renamable $ix
+# CHECK-NOT:  STDi_o8I
+
+# With nothing moving S, the same shape folds as before.
+# CHECK-LABEL: name: fold_when_stack_still
+# CHECK-NOT:  LDXi_o8 76, $ss
+# CHECK:      STDi_o8I 76, $ss
+
+---
+name: no_fold_across_staging_bracket
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ss, $rs2, $ad
+    LDXi_o8 76, $ss, implicit-def renamable $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    PSHSs $ad, implicit-def $ss, implicit $ss
+    LDDd $rs2, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit-def $aq
+    STDi_o0 killed renamable $ix, implicit killed $ad, implicit-def dead $nz, implicit-def dead $v, implicit-def $n, implicit-def $z
+    $ad = PULSs implicit-def $ss, implicit $ss
+    STDi_o8 20, $ss, implicit $ad, implicit-def dead $nz, implicit-def dead $v, implicit-def $n, implicit-def $z
+    RTSr
+...
+---
+name: fold_when_stack_still
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ss, $rs2
+    LDXi_o8 76, $ss, implicit-def renamable $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    LDDd $rs2, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit-def $aq
+    STDi_o0 killed renamable $ix, implicit killed $ad, implicit-def dead $nz, implicit-def dead $v, implicit-def $n, implicit-def $z
+    RTSr
+...

@@ -1595,6 +1595,17 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         if (Cand.readsRegister(LoadedReg, &TRI) ||
             Cand.modifiesRegister(LoadedReg, &TRI))
           break; // safety abort
+
+        // Nor may anything move what the offset is measured from.  The
+        // load happens here but the folded access happens at the
+        // consumer, so a PSHS/PULS staging bracket or a LEAS in between
+        // leaves the same number naming a different slot -- silently, and
+        // two bytes out.  Frame-pointer-less code (all of OS-9, where U
+        // is the process data base) addresses its frame from S and meets
+        // this whenever an imaginary register is staged through the
+        // accumulator between the two.
+        if (Cand.modifiesRegister(BaseReg, &TRI))
+          break;
       }
       if (!NewOpc) continue;
       MachineInstr &MI2 = *It2;
