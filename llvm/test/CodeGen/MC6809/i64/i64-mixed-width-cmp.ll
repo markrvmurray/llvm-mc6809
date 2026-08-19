@@ -121,7 +121,6 @@ define i1 @eq_i64_sext_i32(i64 %a, i32 %b) {
 ; O2-NEXT:    leas -16,s
 ; O2-NEXT:    ldd 17,u
 ; O2-NEXT:    std <__rs1
-; O2-NEXT:    ldd <__rs1
 ; O2-NEXT:    std 6,s
 ; O2-NEXT:    ldd 15,u
 ; O2-NEXT:    std 4,s

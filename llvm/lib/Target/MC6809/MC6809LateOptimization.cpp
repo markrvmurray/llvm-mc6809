@@ -641,25 +641,40 @@ static Register dpLoadValueReg(unsigned Opc) {
   }
 }
 
-static bool isDpSlotStore(unsigned Opc) {
+// The register a direct-page store writes to its slot.
+static Register dpStoreValueReg(unsigned Opc) {
   switch (Opc) {
-  case MC6809::STAd: case MC6809::STBd: case MC6809::STDd:
-  case MC6809::STWd: case MC6809::STEd: case MC6809::STFd:
-  case MC6809::STXd: case MC6809::STYd: case MC6809::STUd:
-  case MC6809::STSd: case MC6809::STQd:
-    return true;
-  default:
-    return false;
+  case MC6809::STAd: return MC6809::AA;
+  case MC6809::STBd: return MC6809::AB;
+  case MC6809::STDd: return MC6809::AD;
+  case MC6809::STWd: return MC6809::AW;
+  case MC6809::STEd: return MC6809::AE;
+  case MC6809::STFd: return MC6809::AF;
+  case MC6809::STXd: return MC6809::IX;
+  case MC6809::STYd: return MC6809::IY;
+  case MC6809::STUd: return MC6809::SU;
+  case MC6809::STSd: return MC6809::SS;
+  case MC6809::STQd: return MC6809::AQ;
+  default: return MC6809::NoRegister;
   }
 }
 
+static bool isDpSlotStore(unsigned Opc) {
+  return dpStoreValueReg(Opc).isValid();
+}
+
 // Drop a direct-page load whose value register still provably holds the same
-// slot's contents from an earlier identical load:
+// slot's contents, from an earlier identical load or from the store that
+// filled the slot:
 //     ldd <__rs0> ; std <__rs1> ; ldd <__rs0>   ->   ldd <__rs0> ; std <__rs1>
-// The store copies D out to a DIFFERENT slot without disturbing D, so the
-// reload is pure waste (memmem's outer loop reloads a 16-bit imaginary right
-// after storing it elsewhere). Restricted to imaginary-register slots so
-// aliasing reduces to a register-identity test.
+//     addd #-1 ; std <__rs0> ; ldd <__rs0>      ->   addd #-1 ; std <__rs0>
+// The store copies D out without disturbing D, so the reload is pure waste
+// (memmem's outer loop reloads a 16-bit imaginary right after storing it
+// elsewhere; a loop counter kept in an imaginary is stored and reloaded for
+// its zero test). Restricted to imaginary-register slots so aliasing reduces
+// to a register-identity test. The dropped load's N/Z/V must be dead, or
+// still exactly what the prior load or store left (both set N and Z from
+// the value and clear V) with nothing in between rewriting them.
 bool MC6809LateOptimization::elideRedundantLoad(MachineBasicBlock &MBB) const {
   const auto &TRI = *MBB.getParent()->getSubtarget().getRegisterInfo();
   const MachineRegisterInfo &MRI = MBB.getParent()->getRegInfo();
@@ -693,8 +708,9 @@ bool MC6809LateOptimization::elideRedundantLoad(MachineBasicBlock &MBB) const {
     MachineInstr *Prior = nullptr;
     for (auto PIt = MI.getIterator(); PIt != MBB.begin();) {
       MachineInstr &P = *--PIt;
-      if (P.getOpcode() == MI.getOpcode() && P.getOperand(0).isReg() &&
-          P.getOperand(0).getReg() == SlotReg) {
+      if ((P.getOpcode() == MI.getOpcode() ||
+           dpStoreValueReg(P.getOpcode()) == VReg) &&
+          P.getOperand(0).isReg() && P.getOperand(0).getReg() == SlotReg) {
         Prior = &P;
         break;
       }
@@ -743,8 +759,19 @@ bool MC6809LateOptimization::elideRedundantLoad(MachineBasicBlock &MBB) const {
                   !LiveOut.contains(MC6809::V) &&
                   !LiveOut.contains(MC6809::NZ);
     }
-    if (!FlagsDead)
-      continue;
+    if (!FlagsDead) {
+      // Live, but the same as the prior access left them?
+      bool FlagsSame = true;
+      for (auto BIt = std::next(Prior->getIterator()); BIt != MI.getIterator();
+           ++BIt)
+        if (ModifiesFlags(*BIt) || BIt->modifiesRegister(MC6809::NZ, &TRI))
+          FlagsSame = false;
+      if (!FlagsSame)
+        continue;
+      // The prior access's flag defs must then stay live: un-dead them.
+      for (Register F : {MC6809::N, MC6809::Z, MC6809::V, MC6809::NZ})
+        Prior->clearRegisterDeads(F);
+    }
 
     // Keep VReg live from the prior load to this point: clear the kill flags
     // the intervening instructions placed on it (e.g. the store's killed use),
@@ -753,6 +780,7 @@ bool MC6809LateOptimization::elideRedundantLoad(MachineBasicBlock &MBB) const {
          ++KIt)
       KIt->clearRegisterKills(VReg, &TRI);
     Prior->clearRegisterDeads(VReg);
+    Prior->clearRegisterKills(VReg, &TRI); // a store's killed use of it
 
     MI.eraseFromParent();
     Changed = true;

@@ -31,12 +31,14 @@ body: |
     RTSr implicit $ad
 ...
 
-# Negative: the value register is clobbered between the two loads (a store to
-# the SAME slot rewrites its memory), so the reload is NOT redundant.
+# A store to the SAME slot from the same register leaves D holding exactly
+# what the slot holds, and the same N/Z/V (both set N and Z from the value
+# and clear V): the reload after it is redundant, flags included, and the
+# store's killed use of D is cleared so D stays live to the return.
 # CHECK-LABEL: name: reload_after_same_slot_store
 # CHECK:      LDDd $rs0
-# CHECK:      STDd undef $rs0
-# CHECK:      LDDd $rs0
+# CHECK-NEXT: STDd undef $rs0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ad
+# CHECK-NEXT: RTSr implicit $ad
 ---
 name: reload_after_same_slot_store
 tracksRegLiveness: true
@@ -46,5 +48,44 @@ body: |
     LDDd $rs0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit-def $aq
     STDd undef $rs0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit killed $ad, implicit-def $rs0
     LDDd $rs0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit-def $aq
+    RTSr implicit $ad
+...
+
+# Negative: a store from a DIFFERENT register to the slot rewrites its memory
+# without touching D, so the reload is needed.
+# CHECK-LABEL: name: reload_after_other_reg_store
+# CHECK:      LDDd $rs0
+# CHECK:      STXd undef $rs0
+# CHECK:      LDDd $rs0
+---
+name: reload_after_other_reg_store
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $rs0, $ad, $ix
+    LDDd $rs0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit-def $aq
+    STXd undef $rs0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit killed $ix, implicit-def $rs0
+    LDDd $rs0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit-def $aq
+    RTSr implicit $ad
+...
+
+# The reload's flags are live (the branch reads Z), but nothing between the
+# store and the reload rewrites them: the store's own N/Z/V serve.
+# CHECK-LABEL: name: reload_flags_from_store
+# CHECK:      ADDDi16 -1
+# CHECK-NEXT: STDd undef $rs0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ad
+# CHECK-NEXT: Bbc_OnlyZ 6, %bb.1, implicit $z
+---
+name: reload_flags_from_store
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $rs0, $ad
+    ADDDi16 -1, implicit-def $ad, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $c, implicit-def $aa, implicit-def $ab, implicit killed $ad
+    STDd undef $rs0, implicit-def dead $nz, implicit-def dead $n, implicit-def dead $z, implicit-def dead $v, implicit killed $ad, implicit-def $rs0
+    LDDd $rs0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit-def $aq
+    Bbc_OnlyZ 6, %bb.1, implicit $z
+  bb.1:
+    liveins: $ad
     RTSr implicit $ad
 ...
