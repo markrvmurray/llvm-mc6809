@@ -26,7 +26,9 @@
 //      of the parameter string, which ends in a carriage return and is
 //      split on blanks in place (it lives in the writable data area);
 //
-//   3. calls main(argc, argv) and exits with its return value (F$Exit).
+//   3. runs the constructors, calls main(argc, argv), runs the destructors
+//      (which is where a C library flushes its streams and runs atexit()
+//      handlers) and exits with main's return value (F$Exit).
 //
 // Compiled C reaches a linker symbol's address U-relatively (the data
 // model), so the script's plain numbers (offsets, sizes) come in through
@@ -55,6 +57,35 @@ char __os9_progname[30];        // a module name is at most 29 characters
 #define OS9_MAX_ARGS 32
 
 extern int main(int, char **);
+
+// The constructor and destructor tables, in the data area (the linker script
+// gathers them into .data, whose pointers the CRT has already rebased).  The
+// start-up code walks them itself rather than calling a C library's
+// __libc_init_array: a weak reference to that would not pull it out of the
+// library's archive, and a program built without a C library has none at all.
+// A destructor here is also how the library flushes its streams and how
+// atexit() handlers run (its .fini_array_onexit entry), so a main() that
+// returns gets the same treatment as one that calls exit().
+extern void (*__preinit_array_start[])(void);
+extern void (*__preinit_array_end[])(void);
+extern void (*__init_array_start[])(void);
+extern void (*__init_array_end[])(void);
+extern void (*__fini_array_start[])(void);
+extern void (*__fini_array_end[])(void);
+
+static void run_constructors(void) {
+  for (void (**fn)(void) = __preinit_array_start; fn != __preinit_array_end;
+       fn++)
+    (*fn)();
+  for (void (**fn)(void) = __init_array_start; fn != __init_array_end; fn++)
+    (*fn)();
+}
+
+// Destructors run in reverse, as the C standard wants for atexit().
+static void run_destructors(void) {
+  for (void (**fn)(void) = __fini_array_end; fn != __fini_array_start;)
+    (*--fn)();
+}
 
 static void claim_heap(void) {
   __os9_heap_cur = __os9_data_base + __os9_pool_off;
@@ -123,5 +154,8 @@ void __os9_crt1(void) {
   }
   argv[argc] = 0;
 
-  _exit(main(argc, argv));
+  run_constructors();
+  int status = main(argc, argv);
+  run_destructors();
+  _exit(status);
 }
