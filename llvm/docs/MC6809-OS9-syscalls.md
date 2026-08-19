@@ -12,7 +12,11 @@ than only what looked useful at the time.
 
 **On the Level 1 column**: the shims themselves are level-agnostic -- an
 unticked L1 box beside a ticked L2 one means "never run there", not "not
-written".  Nothing has been run on Level 1 yet.
+written".  What is ticked there comes from
+`compiler-rt/test/mc6809-os9-runtime`, which is green at both levels
+(18/18), and covers start-up, the module calls and the console.  The rest
+of the column is empty because the picolibc suite -- which is what reaches
+the file and directory calls -- has only ever been run on Level 2.
 
 Codes are the byte after `SWI2`.  The source of truth for names and numbers
 is `defs/os9.d` in the NitrOS-9 tree.
@@ -21,14 +25,14 @@ is `defs/os9.d` in the NitrOS-9 tree.
 
 | Code | Call | What it is | L1 | L2 | Notes |
 |------|------|-----------|:--:|:--:|-------|
-| $00 | F$Link | link to a module already in memory | [ ] | [x] | `__os9_link`; the FP module |
-| $01 | F$Load | load a module from a file and link it | [ ] | [x] | `__os9_load` |
-| $02 | F$UnLink | drop a link to a module | [ ] | [x] | `__os9_unlink`; `_exit` gives back FPO9 |
+| $00 | F$Link | link to a module already in memory | [x] | [x] | `__os9_link`; verified with the module already in memory -- on a fresh boot this fails and F$Load does the work |
+| $01 | F$Load | load a module from a file and link it | [x] | [x] | `__os9_load` |
+| $02 | F$UnLink | drop a link to a module | [x] | [x] | `__os9_unlink`; `_exit` gives back FPO9, checked with `mdir` at both levels |
 | $03 | F$Fork | start a new process | [ ] | [ ] | wanted for `system()`, `popen()` |
 | $04 | F$Wait | wait for a child to die | [ ] | [ ] | with F$Fork |
 | $05 | F$Chain | replace this process with another module | [ ] | [ ] | the shape of `execve()` |
-| $06 | F$Exit | terminate, with a status | [ ] | [x] | `_exit` |
-| $07 | F$Mem | change the data area size | [ ] | [x] | the heap claim; live `sbrk` still wants it |
+| $06 | F$Exit | terminate, with a status | [x] | [x] | `_exit` |
+| $07 | F$Mem | change the data area size | [x] | [x] | the heap claim; live `sbrk` still wants it |
 | $08 | F$Send | send a signal to a process | [ ] | [ ] | half of `kill()` |
 | $09 | F$Icpt | install a signal handler | [ ] | [ ] | half of `signal()` |
 | $0A | F$Sleep | suspend for a time | [ ] | [ ] | shim in `os9.h`, never exercised |
@@ -67,18 +71,18 @@ is `defs/os9.d` in the NitrOS-9 tree.
 | $81 | I$Detach | detach a device | [ ] | [ ] | |
 | $82 | I$Dup | duplicate a path number | [ ] | [ ] | `dup()`; shim exists, never exercised |
 | $83 | I$Create | create a file | [ ] | [x] | `open()` with O_CREAT |
-| $84 | I$Open | open a file or directory | [ ] | [x] | `open()`, `opendir()`, `access()` |
+| $84 | I$Open | open a file or directory | [x] | [x] | `open()`, `opendir()`, `access()`; L1 via the runtime suite |
 | $85 | I$MakDir | make a directory | [ ] | [x] | `mkdir()` |
 | $86 | I$ChgDir | change the working or execution directory | [ ] | [x] | `chdir()` |
 | $87 | I$Delete | delete a file or directory | [ ] | [x] | `unlink()`, `rmdir()` |
 | $88 | I$Seek | set the file position (X:U) | [ ] | [x] | `lseek()`; asm stub, U is the data base |
 | $89 | I$Read | read bytes | [ ] | [x] | `read()` |
-| $8A | I$Write | write bytes | [ ] | [x] | `write()` |
+| $8A | I$Write | write bytes | [x] | [x] | `write()`; every runtime case prints through it |
 | $8B | I$ReadLn | read a line, with editing | [ ] | [ ] | shim exists, never exercised |
 | $8C | I$WritLn | write a line, with editing | [ ] | [ ] | shim exists, never exercised |
 | $8D | I$GetStt | get path status | [ ] | [x] | `fstat()`, `isatty()`, `statvfs()`, `getcwd()` |
 | $8E | I$SetStt | set path status | [ ] | [x] | `ftruncate()` via SS.Size |
-| $8F | I$Close | close a path | [ ] | [x] | `close()` |
+| $8F | I$Close | close a path | [x] | [x] | `close()`; L1 via the runtime suite |
 | $90 | I$DeletX | delete from the execution directory | [ ] | [ ] | |
 | $91 | I$ModDsc | modify a device descriptor in memory | [ ] | [ ] | |
 
