@@ -101,29 +101,67 @@ is `defs/os9.d` in the NitrOS-9 tree.
 
 ## System-state calls -- not callable from a program
 
-$27-$33 exist at both levels; $34-$57 and $70-$71 are Level 2 only.  These
-are the kernel's own service requests: F$VIRQ, F$SRqMem, F$SRtMem, F$IRQ,
-F$IOQu, F$AProc, F$NProc, F$VModul, F$Find64, F$All64, F$Ret64, F$SSvc,
-F$IODel, F$SLink, F$Boot, F$BtMem, F$GProcP, F$Move, F$AllRAM, F$AllImg,
-F$DelImg, F$SetImg, F$FreeLB, F$FreeHB, F$AllTsk, F$DelTsk, F$SetTsk,
-F$ResTsk, F$RelTsk, F$DATLog, F$DATTmp, F$LDAXY, F$LDAXYP, F$LDDDXY,
-F$LDABX, F$STABX, F$AllPrc, F$DelPrc, F$ELink, F$FModul, F$MapBlk,
-F$ClrBlk, F$DelRAM, F$GCMDir, F$AlHRAM, F$ReBoot, F$CRCMod, F$VBlock,
-F$RegDmp, F$NVRAM.
+These run in system state, on the kernel's stack and its data.  A program
+that calls one either gets an error or takes the machine down with it, so
+every box is crossed; they are listed for completeness, and so that nobody
+has to work out for themselves which calls a program may actually use.
 
-| | L1 | L2 |
-|---|:--:|:--:|
-| all of the above | ✗ | ✗ |
+$56 (F$XTime) belongs to this range too but is listed with the user calls
+above, because the plan for `clock()` and `times()` rests on it -- see the
+note there about whether a program may call it at all.
 
-They run in system state, on the kernel's stack and its data.  A program
-that calls one either gets an error or takes the machine down with it.
-
-**F$XTime ($56) is the open question.**  It is listed with the user calls
-above because that is where the plan for `clock()` and `times()` puts it,
-but it sits in this reserved range, and nothing in the whole NitrOS-9 tree
-calls it -- no command, no module.  Whether a program in user state can
-reach it at all is therefore unverified, and worth a five-line probe before
-any work is planned on top of it.
+| Code | Call | What it is | L1 | L2 | Notes |
+|------|------|-----------|:--:|:--:|-------|
+| $27 | F$VIRQ | install or delete a virtual IRQ | ✗ | ✗ | system state |
+| $28 | F$SRqMem | system memory request | ✗ | ✗ | system state |
+| $29 | F$SRtMem | system memory return | ✗ | ✗ | system state |
+| $2A | F$IRQ | enter the IRQ polling table | ✗ | ✗ | system state |
+| $2B | F$IOQu | enter the I/O queue | ✗ | ✗ | system state |
+| $2C | F$AProc | enter the active process queue | ✗ | ✗ | system state |
+| $2D | F$NProc | start the next process | ✗ | ✗ | system state |
+| $2E | F$VModul | validate a module | ✗ | ✗ | system state |
+| $2F | F$Find64 | find a process or path descriptor | ✗ | ✗ | system state |
+| $30 | F$All64 | allocate a process or path descriptor | ✗ | ✗ | system state |
+| $31 | F$Ret64 | return a process or path descriptor | ✗ | ✗ | system state |
+| $32 | F$SSvc | initialise the service request table | ✗ | ✗ | system state |
+| $33 | F$IODel | delete an I/O module | ✗ | ✗ | system state |
+| $34 | F$SLink | system link | ✗ | ✗ | Level 2 only, system state |
+| $35 | F$Boot | bootstrap the system | ✗ | ✗ | Level 2 only, system state |
+| $36 | F$BtMem | bootstrap memory request | ✗ | ✗ | Level 2 only, system state |
+| $37 | F$GProcP | get a process pointer | ✗ | ✗ | Level 2 only, system state |
+| $38 | F$Move | move data, low bound first | ✗ | ✗ | Level 2 only, system state |
+| $39 | F$AllRAM | allocate RAM blocks | ✗ | ✗ | Level 2 only, system state |
+| $3A | F$AllImg | allocate image RAM blocks | ✗ | ✗ | Level 2 only, system state |
+| $3B | F$DelImg | deallocate image RAM blocks | ✗ | ✗ | Level 2 only, system state |
+| $3C | F$SetImg | set a process DAT image | ✗ | ✗ | Level 2 only, system state |
+| $3D | F$FreeLB | get a free low block | ✗ | ✗ | Level 2 only, system state |
+| $3E | F$FreeHB | get a free high block | ✗ | ✗ | Level 2 only, system state |
+| $3F | F$AllTsk | allocate a task number | ✗ | ✗ | Level 2 only, system state |
+| $40 | F$DelTsk | deallocate a task number | ✗ | ✗ | Level 2 only, system state |
+| $41 | F$SetTsk | set a task's DAT registers | ✗ | ✗ | Level 2 only, system state |
+| $42 | F$ResTsk | reserve a task number | ✗ | ✗ | Level 2 only, system state |
+| $43 | F$RelTsk | release a task number | ✗ | ✗ | Level 2 only, system state |
+| $44 | F$DATLog | DAT block/offset to logical address | ✗ | ✗ | Level 2 only, system state |
+| $45 | F$DATTmp | make a temporary DAT image (obsolete) | ✗ | ✗ | Level 2 only, system state |
+| $46 | F$LDAXY | load A from [X,[Y]] | ✗ | ✗ | Level 2 only, system state |
+| $47 | F$LDAXYP | load A from [X+,[Y]] | ✗ | ✗ | Level 2 only, system state |
+| $48 | F$LDDDXY | load D from [D+X,[Y]] | ✗ | ✗ | Level 2 only, system state |
+| $49 | F$LDABX | load A from 0,X in task B | ✗ | ✗ | Level 2 only, system state |
+| $4A | F$STABX | store A at 0,X in task B | ✗ | ✗ | Level 2 only, system state |
+| $4B | F$AllPrc | allocate a process descriptor | ✗ | ✗ | Level 2 only, system state |
+| $4C | F$DelPrc | deallocate a process descriptor | ✗ | ✗ | Level 2 only, system state |
+| $4D | F$ELink | link by module directory entry | ✗ | ✗ | Level 2 only, system state |
+| $4E | F$FModul | find a module directory entry | ✗ | ✗ | Level 2 only, system state |
+| $4F | F$MapBlk | map a specific block | ✗ | ✗ | Level 2 only, system state |
+| $50 | F$ClrBlk | clear a specific block | ✗ | ✗ | Level 2 only, system state |
+| $51 | F$DelRAM | deallocate RAM blocks | ✗ | ✗ | Level 2 only, system state |
+| $52 | F$GCMDir | pack the module directory | ✗ | ✗ | Level 2 only, system state |
+| $53 | F$AlHRAM | allocate high RAM blocks | ✗ | ✗ | Level 2 only, system state |
+| $54 | F$ReBoot | reboot, or drop to RSDOS | ✗ | ✗ | Level 2 only, system state |
+| $55 | F$CRCMod | toggle or report CRC checking | ✗ | ✗ | Level 2 only, system state |
+| $57 | F$VBlock | verify modules in a block and add them | ✗ | ✗ | Level 2 only, system state |
+| $70 | F$RegDmp | debugging register dump | ✗ | ✗ | Level 2 only, system state |
+| $71 | F$NVRAM | read or write battery-backed RAM | ✗ | ✗ | Level 2 only, system state |
 
 ## Filling this in
 
