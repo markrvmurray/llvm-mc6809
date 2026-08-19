@@ -12,11 +12,13 @@ than only what looked useful at the time.
 
 **On the Level 1 column**: the shims themselves are level-agnostic -- an
 unticked L1 box beside a ticked L2 one means "never run there", not "not
-written".  What is ticked there comes from
-`compiler-rt/test/mc6809-os9-runtime`, which is green at both levels
-(18/18), and covers start-up, the module calls and the console.  The rest
-of the column is empty because the picolibc suite -- which is what reaches
-the file and directory calls -- has only ever been run on Level 2.
+written".  What is ticked there comes from two suites: the runtime cases, green at
+both levels (18/18), which cover start-up, the module calls and the
+console; and the picolibc suite, which now runs at Level 1 too
+(`NITROS9_LEVEL=1`) and reached 102 OK there.  What is still unticked
+either was not reached by a passing Level 1 test, or belongs to a test
+that does not fit -- Level 1 has no DAT, so 162 of them are too big for
+the one 64K space it shares with the system.
 
 Codes are the byte after `SWI2`.  The source of truth for names and numbers
 is `defs/os9.d` in the NitrOS-9 tree.
@@ -46,7 +48,7 @@ is `defs/os9.d` in the NitrOS-9 tree.
 | $12 | F$SchBit | search an allocation bitmap | [ ] | [ ] | |
 | $13 | F$AllBit | allocate in a bitmap | [ ] | [ ] | |
 | $14 | F$DelBit | deallocate in a bitmap | [ ] | [ ] | |
-| $15 | F$Time | the current date and time | [ ] | [x] | `gettimeofday()` |
+| $15 | F$Time | the current date and time | [x] | [x] | `gettimeofday()` |
 | $16 | F$STime | set the date and time | [ ] | [ ] | |
 | $17 | F$CRC | compute an OS-9 CRC | [ ] | [ ] | |
 | $18 | F$GPrDsc | copy a process descriptor | ✗ | [ ] | Level 2 only |
@@ -70,17 +72,17 @@ is `defs/os9.d` in the NitrOS-9 tree.
 | $80 | I$Attach | attach a device | [ ] | [ ] | |
 | $81 | I$Detach | detach a device | [ ] | [ ] | |
 | $82 | I$Dup | duplicate a path number | [ ] | [ ] | `dup()`; shim exists, never exercised |
-| $83 | I$Create | create a file | [ ] | [x] | `open()` with O_CREAT |
+| $83 | I$Create | create a file | [x] | [x] | `open()` with O_CREAT |
 | $84 | I$Open | open a file or directory | [x] | [x] | `open()`, `opendir()`, `access()`; L1 via the runtime suite |
 | $85 | I$MakDir | make a directory | [ ] | [x] | `mkdir()` |
 | $86 | I$ChgDir | change the working or execution directory | [ ] | [x] | `chdir()` |
-| $87 | I$Delete | delete a file or directory | [ ] | [x] | `unlink()`, `rmdir()` |
-| $88 | I$Seek | set the file position (X:U) | [ ] | [x] | `lseek()`; asm stub, U is the data base |
-| $89 | I$Read | read bytes | [ ] | [x] | `read()` |
+| $87 | I$Delete | delete a file or directory | [x] | [x] | `unlink()`, `rmdir()` |
+| $88 | I$Seek | set the file position (X:U) | [x] | [x] | `lseek()`; asm stub, U is the data base |
+| $89 | I$Read | read bytes | [x] | [x] | `read()` |
 | $8A | I$Write | write bytes | [x] | [x] | `write()`; every runtime case prints through it |
 | $8B | I$ReadLn | read a line, with editing | [ ] | [ ] | shim exists, never exercised |
 | $8C | I$WritLn | write a line, with editing | [ ] | [ ] | shim exists, never exercised |
-| $8D | I$GetStt | get path status | [ ] | [x] | `fstat()`, `isatty()`, `statvfs()`, `getcwd()` |
+| $8D | I$GetStt | get path status | [x] | [x] | `fstat()`, `isatty()`, `statvfs()`, `getcwd()` |
 | $8E | I$SetStt | set path status | [ ] | [x] | `ftruncate()` via SS.Size |
 | $8F | I$Close | close a path | [x] | [x] | `close()`; L1 via the runtime suite |
 | $90 | I$DeletX | delete from the execution directory | [ ] | [ ] | |
