@@ -163,5 +163,7 @@ _start:
 	std	mc6809_os9_data(__os9_pool_off),u
 	ldd	#__heap_size
 	std	mc6809_os9_data(__os9_pool_len),u
+	ldd	#__stack_size
+	std	mc6809_os9_data(__os9_stack_size),u
 	lbsr	__os9_crt1		// does not return (F$Exit)
 	.size	_start, .-_start

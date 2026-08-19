@@ -19,12 +19,14 @@
 //
 //   2. claims the heap: asks the kernel (F$Mem) for __os9_mem_request bytes
 //      of data area in total when the process has less, and hands sbrk()
-//      the pages that appear above the old top -- above the stack and the
-//      parameter area, so growing the area again later extends the heap
-//      contiguously with nothing to move (__os9_grow).  When the area is
-//      already big enough, or the kernel refuses, the heap is the static
-//      pool the linker script carved out below the stack (__heap_start,
-//      __heap_size);
+//      the pages that appear past the old top -- past the stack and the
+//      parameter area, so growing again later extends the heap in place
+//      with nothing to move (__os9_grow).  When the whole request cannot
+//      be had, it asks for less rather than giving up: a system with no
+//      DAT has one 64K space for everything, and a program left with only
+//      the static pool cannot even open a file.  The stack is whatever the
+//      module header reserved (__stack_size), which the kernel must
+//      satisfy at fork;
 //
 //   3. builds argc/argv: argv[0] is the module's own name (the shell strips
 //      the command name from the parameter string); argv[1..] are the words
@@ -53,6 +55,7 @@ const unsigned char *__os9_module; // the module body (its header at 0)
 unsigned __os9_mem_want;        // __os9_mem_request: total size to ask for
 unsigned __os9_pool_off;        // __heap_start: U-relative static pool
 unsigned __os9_pool_len;        // __heap_size
+unsigned __os9_stack_size;      // __stack_size: kept clear of the heap
 
 // The floating-point module, while this program holds it: _exit unlinks it.
 void *__os9_fp_module;
@@ -96,19 +99,33 @@ static void run_destructors(void) {
 }
 
 static void claim_heap(void) {
-  __os9_heap_cur = __os9_data_base + __os9_pool_off;
-  __os9_heap_end = __os9_heap_cur + __os9_pool_len;
+  char *pool = __os9_data_base + __os9_pool_off;
   unsigned have = (unsigned)(__os9_top - __os9_data_base);
-  if (__os9_mem_want <= have)
-    return;
+  unsigned want = __os9_mem_want;
   void *top;
-  if (_os_mem(__os9_mem_want, 0, &top) != 0 || (char *)top <= __os9_top)
-    return;
-  // The new pages sit above everything the kernel laid out: they are the
-  // heap, and another F$Mem would extend them in place.
-  __os9_heap_cur = __os9_top;
-  __os9_heap_end = (char *)top;
-  __os9_top = (char *)top;
+
+  // The kernel lays the parameter area, and the stack below it, at the far
+  // end of what it granted at fork -- the module header's ask, so the stack
+  // has __stack_size and nothing has to guess.  Growing the area adds space
+  // past all of that, and those pages are the heap: nothing moves, and a
+  // later grow (__os9_grow) extends it in place.
+  __os9_heap_cur = pool;
+  __os9_heap_end = pool + __os9_pool_len;
+
+  // Ask for less rather than nothing.  A system without a DAT has one 64K
+  // space for everything, so a large program often cannot have the whole
+  // request -- and taking the static pool instead leaves it with a heap
+  // too small to open a file.  Halve until the kernel agrees or there is
+  // nothing worth asking for.
+  while (want > have + 256) {
+    if (_os_mem(want, 0, &top) == 0 && (char *)top > __os9_top) {
+      __os9_heap_cur = __os9_top;
+      __os9_heap_end = (char *)top;
+      __os9_top = (char *)top;
+      return;
+    }
+    want = have + (want - have) / 2;
+  }
 }
 
 // Grow the heap by at least `bytes`; 0 on success.  Not yet: the heap is

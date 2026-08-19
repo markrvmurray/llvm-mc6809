@@ -46,18 +46,20 @@
  * Overridable via -Wl,--defsym=:
  *   __heap_size        (default 0x0400 = 1024 B) the static heap pool,
  *                      used when the kernel grants no more memory
- *   __stack_size       (default 0x0200 = 512 B)
- *   __os9_mem_request  (default 0x4000 = 16 KB) the total data-area size
- *                      the start-up code asks the kernel for (F$Mem); the
- *                      pages granted above the stack become the heap.  0
- *                      disables the request.
+ *   __stack_size       (default 0x0800 = 2 KB) reserved below the
+ *                      parameter area for the stack the kernel gives us;
+ *                      the heap stops there
+ *   __os9_mem_request  (default 0x4000 = 16 KB) the data-area size asked
+ *                      for in the module header, and again with F$Mem if
+ *                      the kernel granted less.  Everything between the
+ *                      program's own data and the stack is the heap.
  */
 
 OUTPUT_FORMAT(os9-program-module)
 ENTRY(_start)
 
 PROVIDE(__heap_size  = 0x0400);
-PROVIDE(__stack_size = 0x0200);
+PROVIDE(__stack_size = 0x0800);
 PROVIDE(__os9_mem_request = 0x4000);
 
 /*
@@ -184,6 +186,12 @@ SECTIONS {
     __bss_start     = __data_start + __data_size;
     __heap_start    = __bss_start + __bss_size;
     __stack_start   = __heap_start + __heap_size;
+    /* What the module header asks the kernel for: the program's own data,
+     * the static pool and a stack.  Deliberately not the whole
+     * __os9_mem_request -- the kernel must satisfy this at fork or the
+     * program does not start at all, and on a system without a DAT that
+     * turns a big program into one that cannot run.  The rest is asked for
+     * afterwards with F$Mem, which may fail harmlessly. */
     __mem_size      = __stack_start + __stack_size;
 
     /DISCARD/ : {
