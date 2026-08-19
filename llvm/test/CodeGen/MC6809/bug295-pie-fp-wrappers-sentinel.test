@@ -14,10 +14,12 @@
 #    compiler-rt/lib/builtins/mc6809/ must contain ZERO absolute
 #    `ldd #__mc6839_fpcb_*` patterns.  If grep finds any, fail.
 #
-# 2. The expected PCR pattern `leay __mc6839_fpcb_*,pc; tfr y,d` must
-#    appear at least once in EACH of the 5 FP wrapper files (fp_arith.S,
-#    fp_bcd.S, fp_cmp.S, fp_conv.S, floatdi.S).  If any file is missing
-#    the pattern, fail.
+# 2. The PC-relative form itself now lives in one place -- the FP_ENTRY
+#    macro in mc6839_call.inc, whose bare-metal arm is
+#    `leay \fpcb,pc; tfr y,d` -- because OS-9 reaches the control blocks
+#    from U instead.  So: that macro must still carry the PCR form, and
+#    each of the 5 wrapper files (fp_arith.S, fp_bcd.S, fp_cmp.S,
+#    fp_conv.S, floatdi.S) must reach its control block through it.
 #
 # Why not check exact counts?  Counts will drift legitimately as we add
 # or remove wrappers.  The sentinel guards against the *pattern*
@@ -33,15 +35,17 @@ RUN: not grep -lE "ldd[[:space:]]+#__mc6839_fpcb_" \
 RUN:   %S/../../../../compiler-rt/lib/builtins/mc6809/*.S
 
 # Assertion 2: each FP wrapper file uses the PCR pattern.
-RUN: grep -lE "leay[[:space:]]+__mc6839_fpcb_[a-z0-9_]+,pc" \
+RUN: grep -lE "leay[[:space:]]+\\\\fpcb,pc" \
+RUN:   %S/../../../../compiler-rt/lib/builtins/mc6809/mc6839_call.inc
+RUN: grep -l "FP_ENTRY __mc6839_fpcb_" \
 RUN:   %S/../../../../compiler-rt/lib/builtins/mc6809/fp_arith.S
-RUN: grep -lE "leay[[:space:]]+__mc6839_fpcb_[a-z0-9_]+,pc" \
+RUN: grep -l "FP_ENTRY __mc6839_fpcb_" \
 RUN:   %S/../../../../compiler-rt/lib/builtins/mc6809/fp_bcd.S
-RUN: grep -lE "leay[[:space:]]+__mc6839_fpcb_[a-z0-9_]+,pc" \
+RUN: grep -l "FP_ENTRY __mc6839_fpcb_" \
 RUN:   %S/../../../../compiler-rt/lib/builtins/mc6809/fp_cmp.S
-RUN: grep -lE "leay[[:space:]]+__mc6839_fpcb_[a-z0-9_]+,pc" \
+RUN: grep -l "FP_ENTRY __mc6839_fpcb_" \
 RUN:   %S/../../../../compiler-rt/lib/builtins/mc6809/fp_conv.S
-RUN: grep -lE "leay[[:space:]]+__mc6839_fpcb_[a-z0-9_]+,pc" \
+RUN: grep -l "FP_ENTRY __mc6839_fpcb_" \
 RUN:   %S/../../../../compiler-rt/lib/builtins/mc6809/floatdi.S
 
 # Assertion 3 (hermetic): the PCR pattern itself assembles to a
