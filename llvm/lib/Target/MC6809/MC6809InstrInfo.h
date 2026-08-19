@@ -315,6 +315,7 @@ private:
   void expandCompareIdx(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandCompareStep(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandArithStep(MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandAddSubZextByte(MachineIRBuilder &Builder, MachineInstr &MI, bool IsAdd, bool Step) const;
   void expandCompareReg(MachineIRBuilder &Builder, MachineInstr &MI) const;
   // void expandCompare32Imm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   // void expandCompare32IdxImm(MachineIRBuilder &Builder, MachineInstr &MI) const;

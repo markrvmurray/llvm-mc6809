@@ -8,7 +8,8 @@
 ; that. The accumulator is reg-agnostic ({{[a-f]}}): HD6309 may place the value
 ; in E/F (e.g. ldf ,y+ / stf ,x+), which must also have post-modify opcodes.
 
-; *s++ load, consumed by an add: the walk folds into the add itself.
+; *s++ load, consumed by an i16 accumulate: the walk folds into the add
+; itself, with the sum staying in D (`addb ,x+ ; adca #0`).
 ; CHECK-LABEL: sumv:
 ; CHECK: addb ,x+
 ; CHECK-NEXT: adca #0

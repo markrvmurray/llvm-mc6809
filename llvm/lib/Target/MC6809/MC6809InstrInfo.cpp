@@ -4061,6 +4061,20 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
   case MC6809::Compare_ptr_Sym:
     wrapStagedCCSources(MI, [&] { expandCompareIdx(Builder, MI); });
     break;
+  case MC6809::AddZext8_i16_Mem:
+  case MC6809::AddZext8_i16_Sym:
+    expandAddSubZextByte(Builder, MI, /*IsAdd=*/true, /*Step=*/false);
+    break;
+  case MC6809::AddZext8_i16_MemStep:
+    expandAddSubZextByte(Builder, MI, /*IsAdd=*/true, /*Step=*/true);
+    break;
+  case MC6809::SubZext8_i16_Mem:
+  case MC6809::SubZext8_i16_Sym:
+    expandAddSubZextByte(Builder, MI, /*IsAdd=*/false, /*Step=*/false);
+    break;
+  case MC6809::SubZext8_i16_MemStep:
+    expandAddSubZextByte(Builder, MI, /*IsAdd=*/false, /*Step=*/true);
+    break;
   case MC6809::Add_i8_MemStep:
   case MC6809::Add_i16_MemStep:
   case MC6809::AddSetCarry_i8_MemStep:
@@ -7320,6 +7334,8 @@ unsigned MC6809InstrInfo::getStaticSymOpcode(unsigned MemOpc) const {
   // marking both key on it).
   case MC6809::Add_i8_Mem:         return MC6809::Add_i8_Sym;
   case MC6809::Add_i16_Mem:        return MC6809::Add_i16_Sym;
+  case MC6809::AddZext8_i16_Mem:   return MC6809::AddZext8_i16_Sym;
+  case MC6809::SubZext8_i16_Mem:   return MC6809::SubZext8_i16_Sym;
   case MC6809::Sub_i8_Mem:         return MC6809::Sub_i8_Sym;
   case MC6809::Sub_i16_Mem:        return MC6809::Sub_i16_Sym;
   case MC6809::AddSetCarry_i8_Mem:      return MC6809::AddSetCarry_i8_Sym;
@@ -8021,6 +8037,66 @@ static unsigned arithStepOpcode(unsigned Pseudo, Register Reg, bool Inc) {
                : Reg == MC6809::AW ? 5
                                    : 6;
   return R < 6 ? Table[K][R][Inc ? 0 : 1] : 0;
+}
+
+// AddZext8_i16 / SubZext8_i16 (_Mem, _Sym, _MemStep): an i16
+// accumulator in D takes a zero-extended byte from memory --
+// `addb <mem> ; adca #0` (`subb ; sbca #0`). A spilled accumulator is
+// staged through D as for the _Mem arithmetic forms.
+void MC6809InstrInfo::expandAddSubZextByte(MachineIRBuilder &Builder,
+                                           MachineInstr &MI, bool IsAdd,
+                                           bool Step) const {
+  MachineFunction &MF = *MI.getMF();
+  Register Dest = MI.getOperand(0).getReg();
+  Register OrigDest = Dest;
+  bool Staged = needsMaterialization(Dest);
+  if (Staged) {
+    Register StageReal = getPhysRegFor(Dest);
+    pushStagingReg(Builder, StageReal);
+    // The memory operand may be S-relative and must see the shifted S.
+    compensateSSOperands(MI, stagingPushSize(StageReal));
+    Dest = materializeReg(Builder, Dest, MF);
+  }
+  assert(Dest == MC6809::AD && "zero-extended byte accumulate not in D");
+  if (Step) {
+    Register Ptr = MI.getOperand(3).getReg();
+    bool Inc = MI.getOperand(4).getImm() > 0;
+    assert(MI.getOperand(1).getReg() == Ptr && "stepped pointer not tied");
+    Builder.buildInstr(IsAdd ? (Inc ? MC6809::ADDBi_Inc1 : MC6809::ADDBi_Dec1)
+                             : (Inc ? MC6809::SUBBi_Inc1 : MC6809::SUBBi_Dec1))
+        .addDef(MC6809::AB, RegState::Implicit)
+        .addUse(Ptr)
+        .addDef(Ptr, RegState::Implicit);
+  } else if (isSymOperand(MI.getOperand(2))) {
+    const MachineOperand SymOp = MI.getOperand(2);
+    unsigned Opc = getSymArithOpcode(IsAdd ? MC6809::ADDBi_o16 : MC6809::SUBBi_o16,
+                                     SymOp, MF.getTarget().isPositionIndependent());
+    auto I = Builder.buildInstr(Opc).addDef(MC6809::AB, RegState::Implicit);
+    addSymOperand(I, SymOp, 0);
+  } else {
+    Register IndexReg = MI.getOperand(2).getReg();
+    MachineOperand &OffsetOp = MI.getOperand(3);
+    int OffsetSize = offsetSizeInBits(OffsetOp);
+    assert(OffsetSize >= 0 && "Unknown immediate offset size");
+    int64_t Offset = OffsetOp.isImm() ? OffsetOp.getImm()
+                                      : OffsetOp.getCImm()->getSExtValue();
+    auto &Map = IsAdd ? AddIdxImmOpcode : SubIdxImmOpcode;
+    auto It = Map.find(RegPlusOffsetLen{MC6809::AB, OffsetSize});
+    assert(It != Map.end() && "no B-form indexed byte op");
+    auto I = Builder.buildInstr(It->getSecond()).addDef(MC6809::AB, RegState::Implicit);
+    if (OffsetSize == 0)
+      I.addReg(IndexReg);
+    else
+      I.addImm(Offset).addReg(IndexReg);
+  }
+  Builder.buildInstr(IsAdd ? MC6809::ADCAi8 : MC6809::SBCAi8)
+      .addDef(MC6809::AA, RegState::Implicit)
+      .addImm(0);
+  if (Staged) {
+    dematerializeReg(Builder, Dest, OrigDest, MF);
+    pullStagingReg(Builder, Dest);
+  }
+  MI.eraseFromParent();
 }
 
 // *_MemStep (arithmetic, carry, bitwise): (outs dst, INDEX16:$ptr_out)

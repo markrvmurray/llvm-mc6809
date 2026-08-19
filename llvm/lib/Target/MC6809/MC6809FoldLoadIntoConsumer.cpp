@@ -192,6 +192,8 @@ static std::optional<StepForm> stepFormOf(unsigned Opc) {
   ARITH(SubSetCarryUse_i8, 1, false, Byte)
   ARITH(AddSetOverflowUse_i8, 1, false, Byte)
   ARITH(SubSetOverflowUse_i8, 1, false, Byte)
+  ARITH(AddZext8_i16, 1, false, Word)
+  ARITH(SubZext8_i16, 1, false, Word)
   ARITH(AND_i8, 1, false, Byte)
   ARITH(OR_i8, 1, false, Byte)
   ARITH(XOR_i8, 1, false, Byte)
@@ -329,6 +331,118 @@ static bool formStepMemOps(MachineFunction &MF) {
       MRI.setRegClass(PtrIn, &MC6809::INDEX16RegClass);
       Op.eraseFromParent();
       Step->eraseFromParent();
+      Changed = true;
+    }
+  }
+  return Changed;
+}
+
+// The one virtual implicit operand of MI that is a def / a use: the
+// imaginary carry the selector threads between the halves of a byte chain.
+static Register implicitVReg(const MachineInstr &MI, bool WantDef) {
+  for (const MachineOperand &MO : MI.operands())
+    if (MO.isReg() && MO.isImplicit() && MO.getReg().isVirtual() &&
+        MO.isDef() == WantDef)
+      return MO.getReg();
+  return Register();
+}
+
+// An i16 accumulate of a zero-extended byte read from memory,
+//
+//     %lo  = EXTRACT_LO_i16 %t
+//     %hi  = EXTRACT_HI_i16 %t
+//     %lo2 = AddSetCarry_i8_Mem    %lo, <mem>   (defs carry %c)
+//     %hi2 = AddSetCarryUse_i8_Imm %hi, 0       (uses %c)
+//     %t2  = MERGE_LOHI_i16 %lo2, %hi2
+//
+// (or the Sub pair), becomes `%t2 = AddZext8_i16_Mem %t, <mem>` in the
+// place of the low op: `addb <mem> ; adca #0` with t staying in D. The
+// byte chain's separate lo/hi values could not share D with t, so t was
+// spilled to an imaginary and staged around every step. Runs after the
+// generic fold has turned the byte operand into a memory read.
+static bool foldZextByteChains(MachineFunction &MF) {
+  MachineRegisterInfo &MRI = MF.getRegInfo();
+  const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
+  const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
+  bool Changed = false;
+  for (MachineBasicBlock &MBB : MF) {
+    for (MachineInstr &Merge : make_early_inc_range(MBB)) {
+      if (Merge.getOpcode() != MC6809::MERGE_LOHI_i16)
+        continue;
+      Register LoR = Merge.getOperand(1).getReg();
+      Register HiR = Merge.getOperand(2).getReg();
+      if (!LoR.isVirtual() || !HiR.isVirtual() ||
+          !MRI.hasOneNonDBGUse(LoR) || !MRI.hasOneNonDBGUse(HiR))
+        continue;
+      MachineInstr *LoDef = MRI.getVRegDef(LoR), *HiDef = MRI.getVRegDef(HiR);
+      if (!LoDef || !HiDef || LoDef->getParent() != &MBB ||
+          HiDef->getParent() != &MBB)
+        continue;
+      unsigned NewOpc, HiOpc;
+      switch (LoDef->getOpcode()) {
+      case MC6809::AddSetCarry_i8_Mem:
+      case MC6809::AddSetCarry_i8_Sym:
+        NewOpc = LoDef->getOpcode() == MC6809::AddSetCarry_i8_Mem
+                     ? MC6809::AddZext8_i16_Mem
+                     : MC6809::AddZext8_i16_Sym;
+        HiOpc = MC6809::AddSetCarryUse_i8_Imm;
+        break;
+      case MC6809::SubSetCarry_i8_Mem:
+      case MC6809::SubSetCarry_i8_Sym:
+        NewOpc = LoDef->getOpcode() == MC6809::SubSetCarry_i8_Mem
+                     ? MC6809::SubZext8_i16_Mem
+                     : MC6809::SubZext8_i16_Sym;
+        HiOpc = MC6809::SubSetCarryUse_i8_Imm;
+        break;
+      default:
+        continue;
+      }
+      if (HiDef->getOpcode() != HiOpc || !HiDef->getOperand(2).isImm() ||
+          HiDef->getOperand(2).getImm() != 0)
+        continue;
+      // The carry flows lo -> hi and ends there.
+      Register CarryOut = implicitVReg(*LoDef, /*WantDef=*/true);
+      if (!CarryOut || CarryOut != implicitVReg(*HiDef, /*WantDef=*/false) ||
+          !MRI.hasOneNonDBGUse(CarryOut))
+        continue;
+      Register HiCarryOut = implicitVReg(*HiDef, /*WantDef=*/true);
+      if (HiCarryOut && !MRI.use_nodbg_empty(HiCarryOut))
+        continue;
+      // Both halves come from one i16 value.
+      Register LoSrc = LoDef->getOperand(1).getReg();
+      Register HiSrc = HiDef->getOperand(1).getReg();
+      MachineInstr *LoX = MRI.getVRegDef(LoSrc), *HiX = MRI.getVRegDef(HiSrc);
+      if (!LoX || !HiX || LoX->getOpcode() != MC6809::EXTRACT_LO_i16 ||
+          HiX->getOpcode() != MC6809::EXTRACT_HI_i16 ||
+          LoX->getOperand(1).getReg() != HiX->getOperand(1).getReg() ||
+          !MRI.hasOneNonDBGUse(LoSrc) || !MRI.hasOneNonDBGUse(HiSrc))
+        continue;
+      Register T = LoX->getOperand(1).getReg();
+      // The chain must be contiguous (lo op, hi op, merge): the new op reads
+      // memory and sets the flags at the low op's place, and nothing may
+      // sit between the halves and see them.
+      if (&*std::next(LoDef->getIterator()) != HiDef ||
+          &*std::next(HiDef->getIterator()) != &Merge)
+        continue;
+      // Anything reading the flags after the chain sees the same values
+      // (the new op ends with the same `adca #0`), so only the flag readers
+      // inside the chain mattered -- and there are none.
+      (void)TRI;
+      Register Dst = Merge.getOperand(0).getReg();
+      if (!MRI.constrainRegClass(Dst, &MC6809::ADcRegClass) ||
+          !MRI.constrainRegClass(T, &MC6809::ADcRegClass))
+        continue;
+      MachineInstrBuilder MIB =
+          BuildMI(MBB, *LoDef, LoDef->getDebugLoc(), TII.get(NewOpc), Dst)
+              .addReg(T);
+      for (unsigned I = 2, E = LoDef->getNumExplicitOperands(); I < E; ++I)
+        MIB.add(LoDef->getOperand(I)); // idx + offset, or the symbol
+      MIB.setMemRefs(LoDef->memoperands());
+      Merge.eraseFromParent();
+      HiDef->eraseFromParent();
+      LoDef->eraseFromParent();
+      LoX->eraseFromParent();
+      HiX->eraseFromParent();
       Changed = true;
     }
   }
@@ -572,6 +686,7 @@ bool MC6809FoldLoadIntoConsumer::runOnMachineFunction(MachineFunction &MF) {
     }
   }
   (void)TRI;
+  Changed |= foldZextByteChains(MF);
   Changed |= formStepMemOps(MF);
   return Changed;
 }

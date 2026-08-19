@@ -903,6 +903,34 @@ let Predicates = [IsHD6309] in {
 // because constants are in registers, not bare immediates).
 
 //===----------------------------------------------------------------------===//
+// i16 accumulate of a zero-extended byte from memory
+//===----------------------------------------------------------------------===//
+
+// `t += (u16)*p` / `t -= (u16)*p` with t in D: `addb <mem> ; adca #0`
+// (`subb ; sbca #0`). The legalizer narrows the i16 add to a byte carry
+// chain over EXTRACT_LO/HI + MERGE_LOHI, whose separate byte values keep
+// t out of D; MC6809FoldLoadIntoConsumer refolds that chain, once the byte
+// operand has become a memory read, into these. Only D and its imaginary
+// stand-ins: the HD6309 has no ADCE/ADCF for the W halves.
+class MC6809AddZextByteBase<dag operand> : MC6809LogicalInstr {
+  let Defs = [NZ, V, C];
+  let mayLoad = 1;
+  dag OutOperandList = (outs ADc:$dst);
+  dag InOperandList = !con((ins ADc:$src), operand);
+  let Constraints = "$dst = $src";
+}
+
+multiclass MC6809AddZextByte {
+  def _Mem : MC6809AddZextByteBase<(ins INDEX16:$idx, unknown:$offset)>;
+  // Static-stack sibling -- see MC6809Arithmetic's _Sym member.
+  def _Sym : MC6809AddZextByteBase<(ins unknown:$sym)>;
+  def _MemStep : MC6809ArithStepBase<ADc, [NZ, V, C]>;
+}
+
+defm AddZext8_i16 : MC6809AddZextByte;
+defm SubZext8_i16 : MC6809AddZextByte;
+
+//===----------------------------------------------------------------------===//
 // Bitwise (AND/OR/XOR) Family
 //===----------------------------------------------------------------------===//
 
