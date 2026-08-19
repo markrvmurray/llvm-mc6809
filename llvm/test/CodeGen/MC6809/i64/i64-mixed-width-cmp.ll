@@ -42,7 +42,7 @@ define i1 @eq_i64_sext_i32(i64 %a, i32 %b) {
 ; O0-NEXT:    blt .LBB0_2
 ; O0-NEXT:  ; %bb.1:
 ; O0-NEXT:    ldb #0
-; O0-NEXT:    lbra .LBB0_3
+; O0-NEXT:    bra .LBB0_3
 ; O0-NEXT:  .LBB0_2:
 ; O0-NEXT:    ldb #1
 ; O0-NEXT:  .LBB0_3:
@@ -84,7 +84,7 @@ define i1 @eq_i64_sext_i32(i64 %a, i32 %b) {
 ; O0-NEXT:    beq .LBB0_5
 ; O0-NEXT:  ; %bb.4:
 ; O0-NEXT:    ldb #0
-; O0-NEXT:    lbra .LBB0_6
+; O0-NEXT:    bra .LBB0_6
 ; O0-NEXT:  .LBB0_5:
 ; O0-NEXT:    ldb #1
 ; O0-NEXT:  .LBB0_6:
@@ -204,7 +204,7 @@ define i1 @ult_i64_zext_i16(i64 %a, i16 %b) {
 ; O0-NEXT:    beq .LBB1_2
 ; O0-NEXT:  ; %bb.1:
 ; O0-NEXT:    ldb #0
-; O0-NEXT:    lbra .LBB1_3
+; O0-NEXT:    bra .LBB1_3
 ; O0-NEXT:  .LBB1_2:
 ; O0-NEXT:    ldb #1
 ; O0-NEXT:  .LBB1_3:
@@ -292,7 +292,7 @@ define i1 @sgt_i64_sext_i8(i64 %a, i8 %b) {
 ; O0-NEXT:    blt .LBB2_2
 ; O0-NEXT:  ; %bb.1:
 ; O0-NEXT:    lda #0
-; O0-NEXT:    lbra .LBB2_3
+; O0-NEXT:    bra .LBB2_3
 ; O0-NEXT:  .LBB2_2:
 ; O0-NEXT:    lda #1
 ; O0-NEXT:  .LBB2_3:
@@ -336,7 +336,7 @@ define i1 @sgt_i64_sext_i8(i64 %a, i8 %b) {
 ; O0-NEXT:    beq .LBB2_5
 ; O0-NEXT:  ; %bb.4:
 ; O0-NEXT:    ldb #0
-; O0-NEXT:    lbra .LBB2_6
+; O0-NEXT:    bra .LBB2_6
 ; O0-NEXT:  .LBB2_5:
 ; O0-NEXT:    ldb #1
 ; O0-NEXT:  .LBB2_6:
@@ -490,7 +490,7 @@ define i1 @ne_i64_zext_i8(i64 %a, i8 %b) {
 ; O0-NEXT:    bne .LBB3_2
 ; O0-NEXT:  ; %bb.1:
 ; O0-NEXT:    ldb #0
-; O0-NEXT:    lbra .LBB3_3
+; O0-NEXT:    bra .LBB3_3
 ; O0-NEXT:  .LBB3_2:
 ; O0-NEXT:    ldb #1
 ; O0-NEXT:  .LBB3_3:

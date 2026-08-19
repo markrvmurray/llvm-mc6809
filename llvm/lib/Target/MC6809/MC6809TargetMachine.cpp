@@ -90,6 +90,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMC6809Target() {
   initializeMC6809DirectPageAllocPass(PR);
   initializeMC6809StaticStackAllocPass(PR);
   initializeMC6809PreferPage1IndexPass(PR);
+  initializeMC6809FoldLongBranchPass(PR);
   initializeMC6809FoldAddSub16Pass(PR);
   initializeMC6809FoldLoadIntoConsumerPass(PR);
   initializeMC6809PostIncExitUsesPass(PR);
@@ -437,6 +438,9 @@ void MC6809PassConfig::addPreEmitPass() {
     addPass(createMC6809PreferPage1IndexPass());
 
   addPass(&BranchRelaxationPassID);
+  // Fold the `b!cc ; lbra` pairs relaxation left into the long conditional
+  // branches the 6809 has, and shrink long branches that reach.
+  addPass(createMC6809FoldLongBranchPass());
   // Encoding-overflow safety nets that historically lived in a dedicated
   // post-pass (MC6809NoShortBranches, retired in commit 2bf4696c62d7) have
   // moved into MC6809AsmBackend::applyFixup — PCRel8 (was bug #58), Rel8

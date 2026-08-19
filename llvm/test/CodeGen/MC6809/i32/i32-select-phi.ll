@@ -21,22 +21,22 @@ define i32 @select_i32(i1 %c, i32 %a, i32 %b) {
 ; O0-NEXT:    ldd 6,s
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
-; O0-NEXT:    lbra .LBB0_3
+; O0-NEXT:    bra .LBB0_3
 ; O0-NEXT:  .LBB0_2:
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd 10,s
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
-; O0-NEXT:    lbra .LBB0_3
+; O0-NEXT:    bra .LBB0_3
 ; O0-NEXT:  .LBB0_3:
 ; O0-NEXT:    tstb
 ; O0-NEXT:    beq .LBB0_5
 ; O0-NEXT:  ; %bb.4:
 ; O0-NEXT:    ldd 2,s
-; O0-NEXT:    lbra .LBB0_6
+; O0-NEXT:    bra .LBB0_6
 ; O0-NEXT:  .LBB0_5:
 ; O0-NEXT:    ldd 6,s
-; O0-NEXT:    lbra .LBB0_6
+; O0-NEXT:    bra .LBB0_6
 ; O0-NEXT:  .LBB0_6:
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
@@ -123,7 +123,7 @@ define i32 @phi_i32(i1 %c, i32 %a, i32 %b) {
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
 ; O0-NEXT:    ldb 1,s
-; O0-NEXT:    lbra .LBB1_3
+; O0-NEXT:    bra .LBB1_3
 ; O0-NEXT:  .LBB1_2: ; %else
 ; O0-NEXT:    ldb <__rs3lo
 ; O0-NEXT:    stb 2,s ; 1-byte Folded Spill
@@ -151,7 +151,7 @@ define i32 @phi_i32(i1 %c, i32 %a, i32 %b) {
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
 ; O0-NEXT:    ldb 1,s
-; O0-NEXT:    lbra .LBB1_3
+; O0-NEXT:    bra .LBB1_3
 ; O0-NEXT:  .LBB1_3: ; %join
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
@@ -251,21 +251,21 @@ define i32 @select_chain(i1 %c1, i1 %c2, i32 %a, i32 %b, i32 %d) {
 ; O0-NEXT:    ldd 7,s
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
-; O0-NEXT:    lbra .LBB2_4
+; O0-NEXT:    bra .LBB2_4
 ; O0-NEXT:  .LBB2_3:
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd 11,s
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
-; O0-NEXT:    lbra .LBB2_4
+; O0-NEXT:    bra .LBB2_4
 ; O0-NEXT:  .LBB2_4:
-; O0-NEXT:    lbra .LBB2_6
+; O0-NEXT:    bra .LBB2_6
 ; O0-NEXT:  .LBB2_5:
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd 15,s
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
-; O0-NEXT:    lbra .LBB2_6
+; O0-NEXT:    bra .LBB2_6
 ; O0-NEXT:  .LBB2_6:
 ; O0-NEXT:    tsta
 ; O0-NEXT:    beq .LBB2_11
@@ -274,15 +274,15 @@ define i32 @select_chain(i1 %c1, i1 %c2, i32 %a, i32 %b, i32 %d) {
 ; O0-NEXT:    beq .LBB2_9
 ; O0-NEXT:  ; %bb.8:
 ; O0-NEXT:    ldd 3,s
-; O0-NEXT:    lbra .LBB2_10
+; O0-NEXT:    bra .LBB2_10
 ; O0-NEXT:  .LBB2_9:
 ; O0-NEXT:    ldd 7,s
-; O0-NEXT:    lbra .LBB2_10
+; O0-NEXT:    bra .LBB2_10
 ; O0-NEXT:  .LBB2_10:
-; O0-NEXT:    lbra .LBB2_12
+; O0-NEXT:    bra .LBB2_12
 ; O0-NEXT:  .LBB2_11:
 ; O0-NEXT:    ldd 11,s
-; O0-NEXT:    lbra .LBB2_12
+; O0-NEXT:    bra .LBB2_12
 ; O0-NEXT:  .LBB2_12:
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0

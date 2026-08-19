@@ -29,7 +29,7 @@ define dso_local signext i8 @if_s8(i8 noundef signext %a, i8 noundef signext %b)
 ; O0-NEXT:  ; %bb.1: ; %if.end
 ; O0-NEXT:    ldb #0
 ; O0-NEXT:    subb 2,s
-; O0-NEXT:    lbra .LBB0_2
+; O0-NEXT:    bra .LBB0_2
 ; O0-NEXT:  .LBB0_2: ; %return
 ; O0-NEXT:    rts
 ;
@@ -108,7 +108,7 @@ define dso_local zeroext i8 @if_u8(i8 noundef zeroext %a, i8 noundef zeroext %b)
 ; O0-NEXT:  ; %bb.1: ; %if.end
 ; O0-NEXT:    ldb #-1
 ; O0-NEXT:    eorb 2,s
-; O0-NEXT:    lbra .LBB1_2
+; O0-NEXT:    bra .LBB1_2
 ; O0-NEXT:  .LBB1_2: ; %return
 ; O0-NEXT:    rts
 ;
@@ -204,7 +204,7 @@ define dso_local i16 @if_s16(i16 noundef %a, i16 noundef %b) local_unnamed_addr 
 ; O0-NEXT:    lda <__rs0hi
 ; O0-NEXT:    subb 3,s
 ; O0-NEXT:    sbca 2,s
-; O0-NEXT:    lbra .LBB2_2
+; O0-NEXT:    bra .LBB2_2
 ; O0-NEXT:  .LBB2_2: ; %return
 ; O0-NEXT:    tfr d,x
 ; O0-NEXT:    rts
@@ -300,7 +300,7 @@ define dso_local i16 @if_u16(i16 noundef %a, i16 noundef %b) local_unnamed_addr 
 ; O0-NEXT:    ldd #-1
 ; O0-NEXT:    eorb 3,s
 ; O0-NEXT:    eora 2,s
-; O0-NEXT:    lbra .LBB3_2
+; O0-NEXT:    bra .LBB3_2
 ; O0-NEXT:  .LBB3_2: ; %return
 ; O0-NEXT:    tfr d,x
 ; O0-NEXT:    rts
@@ -482,7 +482,7 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O0-NEXT:    ldb 5,u
 ; O0-NEXT:    std <__rs1
 ; O0-NEXT:    puls d
-; O0-NEXT:    lbra .LBB4_2
+; O0-NEXT:    bra .LBB4_2
 ; O0-NEXT:  .LBB4_2: ; %return
 ; O0-NEXT:    ldx 7,u ; 2-byte Folded Reload
 ; O0-NEXT:    pshs d
@@ -794,7 +794,7 @@ define dso_local i32 @if_u32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O0-NEXT:    std <__rs1
 ; O0-NEXT:    puls d
 ; O0-NEXT:    leas 8,s
-; O0-NEXT:    lbra .LBB5_2
+; O0-NEXT:    bra .LBB5_2
 ; O0-NEXT:  .LBB5_2: ; %return
 ; O0-NEXT:    ldx 4,u ; 2-byte Folded Reload
 ; O0-NEXT:    pshs d

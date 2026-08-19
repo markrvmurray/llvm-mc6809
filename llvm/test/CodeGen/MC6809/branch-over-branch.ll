@@ -34,7 +34,7 @@ define i16 @cond_skip_join(i16 %x, i16 %a, i16 %b) {
 ; O0-NEXT:    ldx <__rs0
 ; O0-NEXT:    lbsr sink
 ; O0-NEXT:    ldd 6,u
-; O0-NEXT:    lbra .LBB0_2
+; O0-NEXT:    bra .LBB0_2
 ; O0-NEXT:  .LBB0_2: ; %if.end
 ; O0-NEXT:    tfr d,x
 ; O0-NEXT:    tfr u,s

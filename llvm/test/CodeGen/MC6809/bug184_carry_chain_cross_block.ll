@@ -43,7 +43,7 @@ define void @atol_like(ptr %out, ptr %s) {
 ; CHECK-NEXT:    beq .LBB0_2
 ; CHECK-NEXT:  ; %bb.1: ; %entry
 ; CHECK-NEXT:    ldb #0
-; CHECK-NEXT:    lbra .LBB0_3
+; CHECK-NEXT:    bra .LBB0_3
 ; CHECK-NEXT:  .LBB0_2: ; %entry
 ; CHECK-NEXT:    ldb #1
 ; CHECK-NEXT:  .LBB0_3: ; %entry
@@ -82,7 +82,7 @@ define void @atol_like(ptr %out, ptr %s) {
 ; CHECK-NEXT:    ldb 16,u
 ; CHECK-NEXT:    std <__rs1
 ; CHECK-NEXT:    puls d
-; CHECK-NEXT:    lbra .LBB0_4
+; CHECK-NEXT:    bra .LBB0_4
 ; CHECK-NEXT:  .LBB0_4: ; %loop
 ; CHECK-NEXT:    ; =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    leas -8,s
@@ -175,9 +175,9 @@ define void @atol_like(ptr %out, ptr %s) {
 ; CHECK-NEXT:    ldb 16,u
 ; CHECK-NEXT:    std <__rs1
 ; CHECK-NEXT:    puls d
-; CHECK-NEXT:    lbra .LBB0_8
+; CHECK-NEXT:    bra .LBB0_8
 ; CHECK-NEXT:  .LBB0_7: ; %exit
-; CHECK-NEXT:    lbra .LBB0_8
+; CHECK-NEXT:    bra .LBB0_8
 ; CHECK-NEXT:  .LBB0_8: ; %exit
 ; CHECK-NEXT:    cmpb #45
 ; CHECK-NEXT:    bne .LBB0_10
@@ -205,10 +205,10 @@ define void @atol_like(ptr %out, ptr %s) {
 ; CHECK-NEXT:    ldb 17,u ; 1-byte Folded Reload
 ; CHECK-NEXT:    sbcb 15,u
 ; CHECK-NEXT:    sbca 16,u
-; CHECK-NEXT:    lbra .LBB0_11
+; CHECK-NEXT:    bra .LBB0_11
 ; CHECK-NEXT:  .LBB0_10: ; %exit
 ; CHECK-NEXT:    ldd 10,u ; 2-byte Folded Reload
-; CHECK-NEXT:    lbra .LBB0_11
+; CHECK-NEXT:    bra .LBB0_11
 ; CHECK-NEXT:  .LBB0_11: ; %exit
 ; CHECK-NEXT:    ldx 5,u ; 2-byte Folded Reload
 ; CHECK-NEXT:    pshs d
