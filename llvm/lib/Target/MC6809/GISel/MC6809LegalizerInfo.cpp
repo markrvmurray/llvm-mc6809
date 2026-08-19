@@ -665,11 +665,19 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
       .widenScalarToNextPow2(0, /*Min=*/16)
       .clampScalar(0, s16, s64);
 
-  getActionDefinitionsBuilder(G_BSWAP).legalFor({s16}).libcallFor({s32, s64})
+  // Swapping the bytes of a 16-bit value has no instruction (EXG A,B is one,
+  // but the value is not always in D and the halves of an imaginary register
+  // are not addressable as a pair), and marking it legal left nothing to
+  // select it: expand it as the shifts and the OR it is.  Wider values are
+  // the compiler-rt byte-swap builtins.
+  getActionDefinitionsBuilder(G_BSWAP).lowerFor({s16}).libcallFor({s32, s64})
       .clampScalar(0, s16, s64);
 
-  getActionDefinitionsBuilder(G_BITREVERSE).libcallFor(LegalLibcallScalars)
-      .clampScalar(0, s8, s64);
+  // Reversing the bits of a value has no instruction and no libcall (LLVM
+  // has no RTLIB entry for it), so it is always expanded in place -- the
+  // swap-halves-then-quarters-then-pairs sequence LegalizerHelper emits over
+  // shifts and masks of the value's own width.
+  getActionDefinitionsBuilder(G_BITREVERSE).lower();
 
   verify(*STI.getInstrInfo());
 }
