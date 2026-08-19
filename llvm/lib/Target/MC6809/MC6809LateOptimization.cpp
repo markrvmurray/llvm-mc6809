@@ -29,10 +29,15 @@
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
+#include "llvm/Support/CommandLine.h"
 
 #define DEBUG_TYPE "mc6809-late-opt"
 
 using namespace llvm;
+
+static cl::opt<bool> EnableDiamondFalseLoad(
+    "mc6809-enable-diamond-false-load", cl::init(true), cl::Hidden,
+    cl::desc("Load a compare result's false value ahead of the compare"));
 
 namespace {
 
@@ -328,6 +333,8 @@ bool MC6809LateOptimization::formWalkingCompareBranch(MachineBasicBlock &MBB) co
 // here, after allocation (a byte compare `cmpb` uses B itself; the value
 // would then have to go elsewhere).
 bool MC6809LateOptimization::hoistDiamondFalseLoad(MachineBasicBlock &MBB) const {
+  if (!EnableDiamondFalseLoad)
+    return false;
   const auto &TRI = *MBB.getParent()->getSubtarget().getRegisterInfo();
   const TargetInstrInfo &TII = *MBB.getParent()->getSubtarget().getInstrInfo();
   auto ImmLoadReg = [](const MachineInstr &MI) -> Register {
