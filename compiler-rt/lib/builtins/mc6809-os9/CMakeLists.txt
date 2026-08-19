@@ -30,6 +30,8 @@ set(_OS9_FLAGS
 set(_OS9_LIB_OUT "${_OS9_BUILD_LIB_DIR}/libclang_rt.os9.a")
 set(_OS9_CRT0_OUT "${_OS9_BUILD_LIB_DIR}/crt0.o")
 set(_OS9_SYSCALLS_OUT "${_OS9_BUILD_LIB_DIR}/syscalls.o")
+set(_OS9_CRT1_OUT "${_OS9_BUILD_LIB_DIR}/crt1.o")
+set(_OS9_XU_OUT "${_OS9_BUILD_LIB_DIR}/os9-xu.o")
 set(_OS9_LDS_OUT "${_OS9_BUILD_LIB_DIR}/mc6809-os9.lds")
 set(_OS9_HDR_OUT "${_OS9_BUILD_INC_DIR}/os9.h")
 
@@ -66,6 +68,32 @@ add_custom_command(
     VERBATIM
 )
 
+# crt1.o -- the C half of start-up: heap claim (F$Mem), argc/argv, main.
+add_custom_command(
+    OUTPUT  "${_OS9_CRT1_OUT}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${_OS9_BUILD_LIB_DIR}"
+    COMMAND ${CMAKE_C_COMPILER} ${_OS9_FLAGS} -Os
+            -I "${CMAKE_CURRENT_SOURCE_DIR}/include"
+            -c "${CMAKE_CURRENT_SOURCE_DIR}/crt1.c"
+            -o "${_OS9_CRT1_OUT}"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/crt1.c"
+            "${CMAKE_CURRENT_SOURCE_DIR}/include/os9.h"
+    COMMENT "[OS-9] Building crt1.o"
+    VERBATIM
+)
+
+# os9-xu.o -- the calls that carry a 32-bit position in X:U (save/restore U).
+add_custom_command(
+    OUTPUT  "${_OS9_XU_OUT}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${_OS9_BUILD_LIB_DIR}"
+    COMMAND ${CMAKE_C_COMPILER} ${_OS9_FLAGS}
+            -c "${CMAKE_CURRENT_SOURCE_DIR}/os9-xu.S"
+            -o "${_OS9_XU_OUT}"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/os9-xu.S"
+    COMMENT "[OS-9] Building os9-xu.o"
+    VERBATIM
+)
+
 # Bundle into libclang_rt.os9.a.  We use llvm-ar with rcsD for a
 # deterministic (-D = no timestamps) static archive.
 add_custom_command(
@@ -74,9 +102,13 @@ add_custom_command(
     COMMAND ${CMAKE_AR} rcsD
             "${_OS9_LIB_OUT}"
             "${_OS9_CRT0_OUT}"
+            "${_OS9_CRT1_OUT}"
             "${_OS9_SYSCALLS_OUT}"
+            "${_OS9_XU_OUT}"
     DEPENDS "${_OS9_CRT0_OUT}"
+            "${_OS9_CRT1_OUT}"
             "${_OS9_SYSCALLS_OUT}"
+            "${_OS9_XU_OUT}"
     COMMENT "[OS-9] Bundling libclang_rt.os9.a"
     VERBATIM
 )

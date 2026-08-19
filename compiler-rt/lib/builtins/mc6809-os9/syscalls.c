@@ -14,7 +14,9 @@
 
 #include <os9.h>
 
-int errno;
+// The C library's when one is linked (picolibc's is a plain int too); this
+// definition serves programs without one.
+__attribute__((weak)) int errno;
 
 // F$Exit takes the status in B and does not return.
 __attribute__((noreturn)) void _exit(int status) {

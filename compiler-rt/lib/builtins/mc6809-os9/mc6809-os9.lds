@@ -44,8 +44,13 @@
  * region needs only its image and start symbols here.
  *
  * Overridable via -Wl,--defsym=:
- *   __heap_size   (default 0x0400 = 1024 B)
- *   __stack_size  (default 0x0200 = 512 B)
+ *   __heap_size        (default 0x0400 = 1024 B) the static heap pool,
+ *                      used when the kernel grants no more memory
+ *   __stack_size       (default 0x0200 = 512 B)
+ *   __os9_mem_request  (default 0x4000 = 16 KB) the total data-area size
+ *                      the start-up code asks the kernel for (F$Mem); the
+ *                      pages granted above the stack become the heap.  0
+ *                      disables the request.
  */
 
 OUTPUT_FORMAT(os9-program-module)
@@ -53,6 +58,7 @@ ENTRY(_start)
 
 PROVIDE(__heap_size  = 0x0400);
 PROVIDE(__stack_size = 0x0200);
+PROVIDE(__os9_mem_request = 0x4000);
 
 /*
  * The imaginary registers.  Same map as bare metal: RC0-7 at $00, RS0-3 at

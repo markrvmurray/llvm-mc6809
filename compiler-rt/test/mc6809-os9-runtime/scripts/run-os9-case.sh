@@ -22,6 +22,8 @@ case_name=$(basename "$src")
 case_name=${case_name%.*}
 case_name=$(printf '%s' "$case_name" | tr -cd 'A-Za-z0-9_')
 [ -n "$case_name" ] || case_name=testcase
+# Command-line words for the program: an optional `// ARGS: ...` line.
+case_args=$(sed -n 's|^// *ARGS: *||p' "$src" | head -1)
 workdir=$(mktemp -d "${TMPDIR:-/tmp}/mc6809-os9-runtime.XXXXXX")
 if [ "${KEEP_OS9_TEST_WORKDIR:-0}" != 1 ]; then
   trap 'rm -rf "$workdir"' EXIT
@@ -55,9 +57,12 @@ run_usim() {
   "$OS9_TOOL" copy -r "$module" "$disk,CMDS/$case_name" >/dev/null
   "$OS9_TOOL" attr -q -e -pe -pr "$disk,CMDS/$case_name" >/dev/null
 
-  # Empty user name logs in; the program runs twice; the echo is the
-  # sentinel that says the shell got its prompt back.
-  local input="\\r\\r\\rchx /j0/cmds\\r$case_name\\r$case_name\\recho CIDONE\\r"
+  # Empty user name logs in; the program runs twice (with the case's
+  # `// ARGS:` words, if any); the echo is the sentinel that says the shell
+  # got its prompt back.
+  local cmd="$case_name"
+  [ -n "$case_args" ] && cmd="$case_name $case_args"
+  local input="\\r\\r\\rchx /j0/cmds\\r$cmd\\r$cmd\\recho CIDONE\\r"
 
   (cd "$workdir" && "$NITROS9_USIM09PT" --timeout="$NITROS9_TIMEOUT" \
       --input-first="$NITROS9_INPUT_FIRST" --input-step=500000 \
@@ -107,8 +112,8 @@ run_mame() {
     printf 'link shell\n'
     printf 'load utilpak1 %s\n' "$case_name"
     printf 'echo * %s *\n' "$case_name"
-    printf 'shell %s >>>-%s.out\n' "$case_name" "$case_name"
-    printf 'shell %s >>>+%s.out\n' "$case_name" "$case_name"
+    printf 'shell %s %s >>>-%s.out\n' "$case_name" "$case_args" "$case_name"
+    printf 'shell %s %s >>>+%s.out\n' "$case_name" "$case_args" "$case_name"
     printf 'echo CIDONE >>>-zzdone.out\n'
   } >"$startup"
 

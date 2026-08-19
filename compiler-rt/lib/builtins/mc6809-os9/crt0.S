@@ -36,11 +36,11 @@
 //
 //   3. Zero .dp.bss (at U + __dp_bss_start) and .bss (at U + __bss_start).
 //
-//   4. Call main().  Return value comes back in X; low byte is the exit
-//      status per the C `int main(void)` convention.  The parameter string
-//      (X, D on entry) is not yet turned into argc/argv.
-//
-//   5. Exit via F$Exit ($06) — does not return.
+//   4. Hand over to the C half (crt1.c): store the entry registers (U, X,
+//      D, Y, the module base) and the linker script's numbers (the heap
+//      request and the static pool) in its variables and call __os9_crt1(),
+//      which claims the heap (F$Mem), builds argc/argv from the parameter
+//      string, calls main() and exits via F$Exit ($06).
 //
 // The copy and zero loops are plain byte-by-byte MC6809 code with the
 // 16-bit count held temporarily in U; an HD6309 TFM variant can live in a
@@ -53,6 +53,9 @@
 	.globl	_start
 	.type	_start,@function
 _start:
+	// --- 0. Keep the parameter string (X) and its length (D) while the
+	//        data area is set up; Y (the top) and U survive on their own.
+	pshs	d,x
 	// --- 1. Copy the initialised-data images from the module body into
 	//        the data area: .dp.data to U + __dp_data_start (the direct
 	//        page), .data to U + __data_start.
@@ -140,20 +143,23 @@ _start:
 	rts
 
 .Lcall_main:
-	// --- 4. Call main() ------------------------------------------------
+	// --- 4. Hand over to the C half ------------------------------------
 	//
-	// Param-string pointer (X) and byte count (D) on entry are NOT
-	// preserved across this call; turning them into argc/argv is a
-	// job for the C runtime layer, not this stub.
-
-	lbsr	main
-
-	// --- 5. Exit via F$Exit --------------------------------------------
-	//
-	// main() returned with the exit status in X per the LLVM-MC6809
-	// ABI for `int`.  F$Exit consumes B as the status and never
-	// returns to us.
-
-	tfr	x,d
-	os9	0x06			// F$Exit
+	// The variables live in the data area (U-relative, the data model);
+	// the linker-script numbers are plain immediates.
+	stu	mc6809_os9_data(__os9_data_base),u
+	sty	mc6809_os9_data(__os9_top),u
+	puls	d,x			// D = parameter length, X = parameter string
+	std	mc6809_os9_data(__os9_param_len),u
+	stx	mc6809_os9_data(__os9_param),u
+	leax	_start,pc		// the module body starts at its header, 13
+	leax	-13,x			// bytes before _start (M$Exec = 13)
+	stx	mc6809_os9_data(__os9_module),u
+	ldd	#__os9_mem_request
+	std	mc6809_os9_data(__os9_mem_want),u
+	ldd	#__heap_start
+	std	mc6809_os9_data(__os9_pool_off),u
+	ldd	#__heap_size
+	std	mc6809_os9_data(__os9_pool_len),u
+	lbsr	__os9_crt1		// does not return (F$Exit)
 	.size	_start, .-_start

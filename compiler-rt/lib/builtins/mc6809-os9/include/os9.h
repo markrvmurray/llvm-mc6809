@@ -11,19 +11,12 @@
  * static inline function whose body is a single OS9_SYSCALL, so a call to
  * _os_write() compiles to a few register moves and the `os9` itself.
  *
- * Three flavours of name are available:
- *
- *   direct OS-9        _os_read _os_readln _os_write _os_writeln _os_open
- *                      _os_close            0 on success, else the OS-9
- *                                           error code (also left in errno)
- *   POSIX style        _exit _read _write   -1 on failure, errno set
- *   NitrOS-9 native    F$Exit I$Read I$Write  the POSIX functions under
- *                                           their OS-9 names; `$` in an
- *                                           identifier needs
- *                                           -fdollars-in-identifiers, which
- *                                           the mc6809-unknown-os9 driver
- *                                           enables (define
- *                                           OS9_NO_DOLLAR_NAMES to hide them)
+ * The shims (_os_read, _os_write, _os_open, _os_create, __os9_seek ...)
+ * return 0 on success, else the OS-9 error code (also left in errno).
+ * libclang_rt.os9.a adds _exit and the byte-count _read/_write (with their
+ * F$Exit/I$Read/I$Write names); the POSIX names a C library expects (read,
+ * write, open, lseek, sbrk ...) are picolibc's OS-9 layer (libos/os9),
+ * built on these shims.
  *
  * Path numbers are file descriptors: 0/1/2 = stdin/stdout/stderr, no
  * translation.
@@ -40,25 +33,74 @@ extern "C" {
 /* Function codes (os9.d names without the `$`). */
 #define OS9_F_EXIT   0x06
 #define OS9_F_MEM    0x07
+#define OS9_F_SLEEP  0x0A
+#define OS9_F_ID     0x0C
 #define OS9_F_TIME   0x15
+#define OS9_F_TPS    0x25 /* Level 2 */
+#define OS9_F_XTIME  0x56 /* Level 2 */
+#define OS9_I_DUP    0x82
+#define OS9_I_CREATE 0x83
 #define OS9_I_OPEN   0x84
+#define OS9_I_MAKDIR 0x85
+#define OS9_I_CHGDIR 0x86
+#define OS9_I_DELETE 0x87
 #define OS9_I_SEEK   0x88
 #define OS9_I_READ   0x89
 #define OS9_I_WRITE  0x8A
 #define OS9_I_READLN 0x8B
 #define OS9_I_WRITLN 0x8C
+#define OS9_I_GETSTT 0x8D
+#define OS9_I_SETSTT 0x8E
 #define OS9_I_CLOSE  0x8F
 
-/* Error codes this header interprets itself. */
-#define OS9_E_EOF    0xD3
+/* I$GetStt / I$SetStt function codes (SS.* in os9.d). */
+#define OS9_SS_OPT   0x00 /* get/set the 32-byte path options */
+#define OS9_SS_READY 0x01 /* data ready? */
+#define OS9_SS_SIZE  0x02 /* file size (X:U); set = truncate/extend */
+#define OS9_SS_POS   0x05 /* file position (X:U) */
+#define OS9_SS_EOF   0x06 /* at end of file? */
+#define OS9_SS_DEVNM 0x0E /* device name */
+#define OS9_SS_FD    0x0F /* file descriptor sector */
 
-/* I$Open modes. */
+/* Error codes this header interprets itself (the rest are in os9.d). */
+#define OS9_E_PTHFUL 0xC8
+#define OS9_E_BPNUM  0xC9
+#define OS9_E_BMODE  0xCB
+#define OS9_E_MEMFUL 0xCF
+#define OS9_E_UNKSVC 0xD0
+#define OS9_E_EOF    0xD3
+#define OS9_E_NES    0xD5
+#define OS9_E_FNA    0xD6
+#define OS9_E_BPNAM  0xD7
+#define OS9_E_PNNF   0xD8
+#define OS9_E_SLF    0xD9
+#define OS9_E_CEF    0xDA
+#define OS9_E_IBA    0xDB
+#define OS9_E_HANGUP 0xDC
+#define OS9_E_MNF    0xDD
+#define OS9_E_DELSP  0xDF
+#define OS9_E_IPRCID 0xE0
+#define OS9_E_NOCHLD 0xE2
+#define OS9_E_DNE    0xEF /* directory not empty */
+#define OS9_E_WP     0xF2
+#define OS9_E_FULL   0xF8
+#define OS9_E_SHARE  0xFD
+
+/* I$Open / I$Create access modes and file attributes (same bits). */
 #define OS9_READ     0x01
 #define OS9_WRITE    0x02
 #define OS9_UPDATE   (OS9_READ | OS9_WRITE)
+#define OS9_EXEC     0x04
+#define OS9_PREAD    0x08
+#define OS9_PWRITE   0x10
+#define OS9_PEXEC    0x20
+#define OS9_SHARE    0x40
+#define OS9_DIR      0x80
 
-/* The OS-9 error code of the last failed call.  Lives in the process data
- * area like every other writable object. */
+/* The OS-9 error code of the last failed call (the C library's errno when
+ * one is linked; libclang_rt.os9.a carries a weak definition for programs
+ * without one).  Lives in the process data area like every other writable
+ * object. */
 extern int errno;
 
 /*
@@ -75,10 +117,11 @@ extern int errno;
  *   OS9_SYSCALL(OS9_I_CLOSE, ("=c"(err), "=B"(code)), ("A"(path)));
  */
 #define __OS9_UNPAREN(...) __VA_ARGS__
+#define __OS9_INPUTS(...) __VA_OPT__(__VA_ARGS__,)
 #define OS9_SYSCALL(code, outputs, inputs)                                    \
   __asm__ __volatile__("os9 %c[__os9_code]"                                   \
                        : __OS9_UNPAREN outputs                                \
-                       : [__os9_code] "i"(code), __OS9_UNPAREN inputs         \
+                       : __OS9_INPUTS inputs [__os9_code] "i"(code)           \
                        : "memory")
 
 /* Record a failure and hand back its code. */
@@ -145,7 +188,156 @@ static inline int _os_close(int __path) {
   return __err ? __os9_fail(__ecode) : 0;
 }
 
-/* POSIX-style entry points, in libclang_rt.os9.a. */
+/* I$Create: A = mode (must include write), B = attributes, X = path name
+ * -> A = path number.  Fails with OS9_E_CEF if the file exists. */
+static inline int _os_create(const char *__name, int __mode, int __attrs,
+                             int *__pathp) {
+  unsigned char __err, __ecode, __path;
+  OS9_SYSCALL(OS9_I_CREATE, ("=c"(__err), "=B"(__ecode), "=A"(__path)),
+              ("A"((unsigned char)__mode), "B"((unsigned char)__attrs),
+               "x"(__name)));
+  if (__err)
+    return __os9_fail(__ecode);
+  *__pathp = __path;
+  return 0;
+}
+
+/* I$Delete: X = path name. */
+static inline int _os_delete(const char *__name) {
+  unsigned char __err, __ecode;
+  OS9_SYSCALL(OS9_I_DELETE, ("=c"(__err), "=B"(__ecode)), ("x"(__name)));
+  return __err ? __os9_fail(__ecode) : 0;
+}
+
+/* I$MakDir: B = attributes, X = path name. */
+static inline int _os_makdir(const char *__name, int __attrs) {
+  unsigned char __err, __ecode;
+  OS9_SYSCALL(OS9_I_MAKDIR, ("=c"(__err), "=B"(__ecode)),
+              ("B"((unsigned char)__attrs), "x"(__name)));
+  return __err ? __os9_fail(__ecode) : 0;
+}
+
+/* I$ChgDir: A = mode (OS9_READ/OS9_WRITE = data directory, OS9_EXEC =
+ * execution directory), X = path name. */
+static inline int _os_chgdir(const char *__name, int __mode) {
+  unsigned char __err, __ecode;
+  OS9_SYSCALL(OS9_I_CHGDIR, ("=c"(__err), "=B"(__ecode)),
+              ("A"((unsigned char)__mode), "x"(__name)));
+  return __err ? __os9_fail(__ecode) : 0;
+}
+
+/* I$Dup: A = path number -> A = new path number. */
+static inline int _os_dup(int __path, int *__newp) {
+  unsigned char __err, __ecode, __new;
+  OS9_SYSCALL(OS9_I_DUP, ("=c"(__err), "=B"(__ecode), "=A"(__new)),
+              ("A"((unsigned char)__path)));
+  if (__err)
+    return __os9_fail(__ecode);
+  *__newp = __new;
+  return 0;
+}
+
+/* I$GetStt / I$SetStt with a buffer: A = path, B = function, X = buffer,
+ * Y = byte count (SS.FD takes one; SS.Opt ignores it).  SS.Opt reads or
+ * writes the path's 32-byte option section; SS.FD reads the first Y bytes
+ * of the file descriptor sector. */
+static inline int _os_getstt_buf(int __path, int __fn, void *__buf, int __n) {
+  unsigned char __err, __ecode;
+  OS9_SYSCALL(OS9_I_GETSTT, ("=c"(__err), "=B"(__ecode)),
+              ("A"((unsigned char)__path), "B"((unsigned char)__fn),
+               "x"(__buf), "y"(__n)));
+  return __err ? __os9_fail(__ecode) : 0;
+}
+static inline int _os_setstt_buf(int __path, int __fn, const void *__buf) {
+  unsigned char __err, __ecode;
+  OS9_SYSCALL(OS9_I_SETSTT, ("=c"(__err), "=B"(__ecode)),
+              ("A"((unsigned char)__path), "B"((unsigned char)__fn),
+               "x"(__buf)));
+  return __err ? __os9_fail(__ecode) : 0;
+}
+
+/* I$GetStt with no operands beyond the function: SS.EOF (OS9_E_EOF when at
+ * the end), SS.Ready (B = bytes available on success). */
+static inline int _os_getstt(int __path, int __fn) {
+  unsigned char __err, __ecode;
+  OS9_SYSCALL(OS9_I_GETSTT, ("=c"(__err), "=B"(__ecode)),
+              ("A"((unsigned char)__path), "B"((unsigned char)__fn)));
+  return __err ? __os9_fail(__ecode) : 0;
+}
+
+/* Calls that carry a 32-bit file position in X:U (I$Seek, and SS.Size /
+ * SS.Pos through I$GetStt / I$SetStt): U is the process data-area base, so
+ * these are hand-written stubs in libclang_rt.os9.a that save and restore it
+ * around the call.  `pos` is read by the seek and the set, written by the
+ * get.  0 on success, else the OS-9 error code (also in errno). */
+struct __os9_xu {
+  unsigned char path;
+  unsigned char fn;      /* SS.Size / SS.Pos; ignored by the seek */
+  unsigned long pos;
+};
+int __os9_seek(struct __os9_xu *__p);
+int __os9_getstt_xu(struct __os9_xu *__p);
+int __os9_setstt_xu(struct __os9_xu *__p);
+
+/* F$Mem: D = new total data-area size in bytes (0 = query) -> D = actual
+ * size (whole pages), Y = upper bound of the area.  The kernel grows the area
+ * at the top; it refuses (OS9_E_DELSP) to shrink below the stack. */
+static inline int _os_mem(unsigned __size, unsigned *__sizep, void **__topp) {
+  unsigned char __err, __ecode;
+  void *__top;
+  OS9_SYSCALL(OS9_F_MEM, ("=c"(__err), "=B"(__ecode), "+d"(__size), "=y"(__top)),
+              ());
+  if (__err)
+    return __os9_fail(__ecode);
+  if (__sizep)
+    *__sizep = __size;
+  if (__topp)
+    *__topp = __top;
+  return 0;
+}
+
+/* F$Time: X = 6-byte buffer -> year-1900, month, day, hour, minute, second. */
+static inline int _os_time(unsigned char __buf[6]) {
+  unsigned char __err, __ecode;
+  OS9_SYSCALL(OS9_F_TIME, ("=c"(__err), "=B"(__ecode)), ("x"(__buf)));
+  return __err ? __os9_fail(__ecode) : 0;
+}
+
+/* F$ID: -> A = process id, Y = user id. */
+static inline int _os_id(int *__pidp, int *__userp) {
+  unsigned char __err, __ecode, __pid;
+  int __user;
+  OS9_SYSCALL(OS9_F_ID, ("=c"(__err), "=B"(__ecode), "=A"(__pid), "=y"(__user)),
+              ());
+  if (__err)
+    return __os9_fail(__ecode);
+  if (__pidp)
+    *__pidp = __pid;
+  if (__userp)
+    *__userp = __user;
+  return 0;
+}
+
+/* F$Sleep: X = ticks (0 = indefinitely, 1 = give up the rest of the slice). */
+static inline int _os_sleep(unsigned __ticks) {
+  unsigned char __err, __ecode;
+  OS9_SYSCALL(OS9_F_SLEEP, ("=c"(__err), "=B"(__ecode)), ("x"(__ticks)));
+  return __err ? __os9_fail(__ecode) : 0;
+}
+
+/* The C runtime's view of the process, set up by the start-up code before
+ * main(): the heap sbrk() hands out, and the program's own name (the
+ * module name, argv[0]). */
+extern char *__os9_heap_cur;   /* next free byte */
+extern char *__os9_heap_end;   /* one past the last usable byte */
+extern char  __os9_progname[]; /* NUL-terminated module name */
+
+/* Out-of-line entry points, in libclang_rt.os9.a: _exit, and the
+ * byte-count-returning _read/_write (-1 on failure, errno set) under their
+ * POSIX-style and NitrOS-9 names (`$` in an identifier needs
+ * -fdollars-in-identifiers, which the mc6809-unknown-os9 driver enables;
+ * define OS9_NO_DOLLAR_NAMES to hide them).  A C library's read()/write()
+ * are separate functions built on the shims. */
 void _exit(int __status) __attribute__((__noreturn__));
 int  _write(int __fd, const void *__buf, int __n);
 int  _read(int __fd, void *__buf, int __n);
