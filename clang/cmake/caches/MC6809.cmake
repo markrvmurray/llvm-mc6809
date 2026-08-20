@@ -43,6 +43,23 @@ set(BUILTINS_mc6809-unknown-os9_CMAKE_SYSTEM_NAME Generic CACHE STRING "")
 
 set(LLVM_DEFAULT_TARGET_TRIPLE "mc6809-unknown-unknown" CACHE STRING "")
 
+# Which llvm-mc6809 this is.  LLVM's own version says which LLVM we forked;
+# it says nothing about the 6809 work, and every tool here is asked "what
+# version are you?" by somebody eventually.
+#
+# One variable reaches all three banners, because clang and lld both default
+# their own vendor string from it:
+#
+#   clang --version       llvm-mc6809 1.0-dev clang version 24.0.0git (rev)
+#   ld.lld --version      llvm-mc6809 1.0-dev LLD 24.0.0git (rev)
+#   llc --version         llvm-mc6809 1.0-dev LLVM version 24.0.0git
+#
+# The last one replaces the "LLVM (http://llvm.org/):" line rather than
+# adding to it.  This is the development cache, so it says so, and LLVM's
+# own `git` suffix stays: a working tree is not a release of anything.
+# MC6809-Release.cmake is the cache for a build somebody else will use.
+set(PACKAGE_VENDOR "llvm-mc6809 1.0-dev" CACHE STRING "")
+
 # The following option is principally to reduce space on Github action runner
 # builds. They make smaller, and possibly slower, releases; but the releases are
 # already over 1GB without them on most platforms, and the compilers don't seem

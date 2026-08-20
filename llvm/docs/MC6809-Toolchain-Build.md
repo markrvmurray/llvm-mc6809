@@ -37,7 +37,44 @@ sysroot beside *that* clang.
 * An LLVM build of this tree.  **Use a Release build for anything anyone else
   will run**: the development Debug tree produces a bundle of about 4 GB and
   a slow compiler.  The Debug tree is the default only because it is the one
-  that is always there.
+  that is always there.  Configure a release build from its own cache file,
+  which sets the three things that differ from a working tree:
+
+  ```sh
+  cmake -C clang/cmake/caches/MC6809-Release.cmake -G Ninja -S llvm -B build-release
+  cmake --build build-release --target all -j 8
+  ```
+
+## Which version this is
+
+Every tool answers `--version`, and the answer should say which llvm-mc6809
+it is — LLVM's own version says which LLVM we forked and nothing about the
+6809 work.  One CMake variable, `PACKAGE_VENDOR`, reaches all three banners,
+because clang and lld each default their own vendor string from it:
+
+```
+clang --version     llvm-mc6809 1.0-rc1 clang version 24.0.0 (repo revision)
+ld.lld --version    llvm-mc6809 1.0-rc1 LLD 24.0.0 (repo revision)
+llc --version       llvm-mc6809 1.0-rc1 LLVM version 24.0.0
+```
+
+The last replaces LLVM's `LLVM (http://llvm.org/):` line rather than adding
+to it.
+
+The number lives in exactly two lines of CMake, one per cache file:
+`MC6809.cmake` says `1.0-dev`, and `MC6809-Release.cmake` says which
+candidate or release this is — **edit that line for each one**: `1.0-rc1`,
+`1.0-rc2`, then `1.0`.  A candidate is built exactly like the release it is a
+candidate for, so it is the only thing that changes between them.
+`-DPACKAGE_VENDOR=...` overrides it for a one-off, because `-D` is processed
+after `-C`.
+
+A release build also drops LLVM's `git` suffix, so it reports `24.0.0` rather
+than `24.0.0git`.  The suffix says "this is not a release of LLVM", which is
+true of a working tree and noise on a release of this; clang and lld still
+print the repository and the revision they were built from.  It returns by
+itself in any development build, which uses `MC6809.cmake` and never reads
+the release cache.
 * A picolibc checkout beside this one (`../picolibc` by default), with meson
   and ninja available.
 * For checking the result: `usim09batch` and `usim09pt` on the PATH, and a
