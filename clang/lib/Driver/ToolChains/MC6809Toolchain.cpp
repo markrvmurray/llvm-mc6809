@@ -122,10 +122,19 @@ void mc6809::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   auto &TC = static_cast<const toolchains::MC6809ToolChain &>(getToolChain());
   auto &D = TC.getDriver();
 
+  // A partial link is not a final link: there is no entry point to keep
+  // anything alive, so collecting unused sections would collect all of them,
+  // and sorting by alignment means nothing without a layout to sort.  Left
+  // in, `-r` produces an object holding a file name and nothing else -- which
+  // is what every start-up object picolibc installed used to be.
+  const bool IsRelocatable = Args.hasArg(options::OPT_r);
+
   // Pass defaults before AddLinkerInputs, since that includes -Wl
   // options, which should override these.
-  CmdArgs.push_back("--gc-sections");
-  CmdArgs.push_back("--sort-section=alignment");
+  if (!IsRelocatable) {
+    CmdArgs.push_back("--gc-sections");
+    CmdArgs.push_back("--sort-section=alignment");
+  }
 
   AddLinkerInputs(TC, Inputs, Args, CmdArgs, JA);
 
@@ -201,9 +210,11 @@ void mc6809::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     // referenced.  It belongs to the older runtime, not to a sysroot.
     if (!HaveSysRoot)
       CmdArgs.push_back("-lcrt0");
-  } else if (!IsOS9 && !IsDECB && !Args.hasArg(options::OPT_e)) {
+  } else if (!IsOS9 && !IsDECB && !IsRelocatable &&
+             !Args.hasArg(options::OPT_e)) {
     // No crt0 means no _start. Set a dummy entry point to suppress
-    // the "cannot find entry symbol" linker warning.
+    // the "cannot find entry symbol" linker warning.  Not for a partial
+    // link, which has no entry to set.
     CmdArgs.push_back("-e0");
   }
 
