@@ -12,13 +12,14 @@ than only what looked useful at the time.
 
 **On the Level 1 column**: the shims themselves are level-agnostic -- an
 unticked L1 box beside a ticked L2 one means "never run there", not "not
-written".  What is ticked there comes from two suites: the runtime cases, green at
-both levels (18/18), which cover start-up, the module calls and the
-console; and the picolibc suite, which now runs at Level 1 too
-(`NITROS9_LEVEL=1`) and reached 102 OK there.  What is still unticked
-either was not reached by a passing Level 1 test, or belongs to a test
-that does not fit -- Level 1 has no DAT, so 162 of them are too big for
-the one 64K space it shares with the system.
+written".  What is ticked there comes from two suites: the runtime cases
+(19, green, one of them pinned to Level 1 because argv[0] is only really
+tested where the data area does not start at zero), which cover start-up,
+the module calls and the console; and the picolibc suite, which runs at
+Level 1 too (`NITROS9_LEVEL=1`) and reaches 103 OK there.  What is still
+unticked either was not reached by a passing Level 1 test, or belongs to a
+test that does not fit: of 171 tests at Level 1, 34 are too big for the one
+64K space it shares with the system and 17 do not link at all.
 
 Codes are the byte after `SWI2`.  The source of truth for names and numbers
 is `defs/os9.d` in the NitrOS-9 tree.
@@ -74,8 +75,8 @@ is `defs/os9.d` in the NitrOS-9 tree.
 | $82 | I$Dup | duplicate a path number | [ ] | [ ] | `dup()`; shim exists, never exercised |
 | $83 | I$Create | create a file | [x] | [x] | `open()` with O_CREAT |
 | $84 | I$Open | open a file or directory | [x] | [x] | `open()`, `opendir()`, `access()`; L1 via the runtime suite |
-| $85 | I$MakDir | make a directory | [ ] | [x] | `mkdir()` |
-| $86 | I$ChgDir | change the working or execution directory | [ ] | [x] | `chdir()` |
+| $85 | I$MakDir | make a directory | [ ] | [ ] | `mkdir()` is written and links, but nothing in either suite makes a directory |
+| $86 | I$ChgDir | change the working or execution directory | [ ] | [ ] | `chdir()` is written and links, but nothing in either suite changes directory |
 | $87 | I$Delete | delete a file or directory | [x] | [x] | `unlink()`, `rmdir()` |
 | $88 | I$Seek | set the file position (X:U) | [x] | [x] | `lseek()`; asm stub, U is the data base |
 | $89 | I$Read | read bytes | [x] | [x] | `read()` |
@@ -88,6 +89,17 @@ is `defs/os9.d` in the NitrOS-9 tree.
 | $90 | I$DeletX | delete from the execution directory | [ ] | [ ] | |
 | $91 | I$ModDsc | modify a device descriptor in memory | [ ] | [ ] | |
 
+**What Level 1 will not do**: two paths open on one file do not see each
+other there.  A reader opened after a write, while the writer still holds the
+file, is given the sectors the file has been allotted -- sector-rounded, never
+written -- while the writer's bytes are still in RBF's buffer; a reader opened
+before the write sees the size the file had then, and still does after the
+writer closes.  Level 2 reads back what was written.  Write, close, then open
+behaves the same at both.  It is the OS, not these wrappers -- a program
+calling I$Create, I$Write and I$Open directly shows it -- and OS-9 has no sync
+call to work around it with, so anything that wants the coherency POSIX
+promises wants Level 2.
+
 ### Status calls worth their own boxes
 
 `I$GetStt`/`I$SetStt` are a family; these are the codes used or wanted.
@@ -98,7 +110,7 @@ is `defs/os9.d` in the NitrOS-9 tree.
 | $02 | SS.Size | file size; set truncates or extends | [ ] | [x] | X:U pair |
 | $05 | SS.Pos | current position | [ ] | [ ] | `lseek(SEEK_CUR)` uses it |
 | $06 | SS.EOF | at end of file? | [ ] | [ ] | |
-| $0E | SS.DevNm | the device a path is on | [ ] | [x] | `getcwd()`, `statvfs()` |
+| $0E | SS.DevNm | the device a path is on | [x] | [x] | `getcwd()`, `statvfs()`; L1 through `getcwd()`, which returns nothing if it fails |
 | $0F | SS.FD | the file descriptor sector | [ ] | [x] | `fstat()` dates, attributes, link count |
 | $10 | SS.Ticks | lockout duration | [ ] | [ ] | |
 | $11 | SS.Lock | lock or release a record | [ ] | [ ] | |
