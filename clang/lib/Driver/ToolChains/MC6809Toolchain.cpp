@@ -200,6 +200,12 @@ void mc6809::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(Args.MakeArgString(Twine("-L") + LibDir.str()));
   }
 
+  // DECB: the entry and the linker script are staged in the per-triple
+  // directory, the way OS-9's are.  There is no library yet, so that is all
+  // a link gets -- a program brings its own code.
+  if (IsDECB && !Args.hasArg(options::OPT_nostartfiles, options::OPT_nostdlib))
+    CmdArgs.push_back("-l:crt0.o");
+
   if (!IsOS9 && !IsDECB &&
       !Args.hasArg(options::OPT_nostartfiles, options::OPT_nostdlib)) {
     // Prefixing a colon causes GNU LD-like linkers to search for this filename

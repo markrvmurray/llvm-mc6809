@@ -3111,9 +3111,11 @@ template <class ELFT> void Writer<ELFT>::writeDECBWrap() {
     }
   }
 
-  // Exec address: the linker script's ENTRY(_start) places _start at the
-  // origin of .text, which equals the load address.
-  const uint16_t execAddr = loadAddr;
+  // Exec address: where EXEC jumps, which is the entry symbol -- not the
+  // load address.  They are the same only when the script puts the start-up
+  // code first, and a script that puts anything else there (a direct page,
+  // say) would otherwise get an exec address pointing at data, silently.
+  const uint16_t execAddr = static_cast<uint16_t>(getEntryAddr(ctx));
 
   const uint16_t bodySize = static_cast<uint16_t>(fileSize - 10);
 

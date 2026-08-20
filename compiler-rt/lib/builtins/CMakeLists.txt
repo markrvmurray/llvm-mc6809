@@ -1416,6 +1416,10 @@ else ()
         # OS-9 builtins. See compiler-rt/lib/builtins/mc6809-os9/CMakeLists.txt.
         add_subdirectory(mc6809-os9)
       elseif (${arch} STREQUAL "mc6809")
+        # The DECB entry and linker script ride along with the bare-metal
+        # builtins: they are two files in the shared resource directory, not
+        # a library, so they need no compiler-rt build of their own.
+        add_subdirectory(mc6809-decb)
         # The library is built under the alternate name
         # libclang_rt.builtins-hd6309.a (so its target name doesn't
         # collide with the default builtins target). It's then copied
