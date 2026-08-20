@@ -144,6 +144,12 @@ esac
 # Built by the staged compiler and installed by picolibc's own rules, which
 # already put headers in include/ and libraries in lib/.  Tests are off: a
 # bundle does not need them, and some of them deliberately do not link.
+# What this bundle is, taken from the compiler rather than from a number kept
+# here: two records of a version disagree eventually, and the one the user
+# gets is the one the compiler prints.
+"$PREFIX/bin/clang" --version | head -1 > "$PREFIX/VERSION"
+say "this is $(cat "$PREFIX/VERSION")"
+
 say "generating cross files against $PREFIX"
 MC6809_TOOLCHAIN=$PREFIX "$PICOLIBC/scripts/gen-mc6809-cross.sh" >/dev/null
 trap '"$PICOLIBC/scripts/gen-mc6809-cross.sh" >/dev/null 2>&1 || true' EXIT
@@ -238,9 +244,16 @@ say "linking the bare-metal directories under the names the short forms compute"
 # ------------------------------------------------------------------- check
 # A bundle that has not compiled and run a program is not known to work.
 say "checking the result"
-if "$PICOLIBC/scripts/check-mc6809-toolchain" "$PREFIX"; then
-  say "rolled: $PREFIX ($(du -sh "$PREFIX" | cut -f1))"
-else
-  echo "$0: rolled, but it does not pass its own check" >&2
-  exit 1
-fi
+"$PICOLIBC/scripts/check-mc6809-toolchain" "$PREFIX"
+case $? in
+  0) say "rolled: $PREFIX ($(du -sh "$PREFIX" | cut -f1))" ;;
+  # The check says 2 when it could not run -- no simulator, no NitrOS-9 image.
+  # That is not a bundle that failed; it is a bundle nobody has tried yet, and
+  # calling it either would be wrong.  Still not a success: a release that has
+  # never run a program is not one.
+  2) echo "$0: rolled, but nothing here could run it -- see above." >&2
+     echo "  The bundle is at $PREFIX; it is untested, not broken." >&2
+     exit 2 ;;
+  *) echo "$0: rolled, but it does not pass its own check" >&2
+     exit 1 ;;
+esac
