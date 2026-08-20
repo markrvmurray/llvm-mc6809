@@ -77,14 +77,14 @@ is `defs/os9.d` in the NitrOS-9 tree.
 | $84 | I$Open | open a file or directory | [x] | [x] | `open()`, `opendir()`, `access()`; L1 via the runtime suite |
 | $85 | I$MakDir | make a directory | [x] | [x] | `mkdir()`; the runtime case makes one at both levels and writes a file in it |
 | $86 | I$ChgDir | change the working or execution directory | [x] | [x] | `chdir()`; proved by a relative name -- the file is only reachable from the parent as `subdir/f.txt` if the change took |
-| $87 | I$Delete | delete a file or directory | [x] | [x] | `unlink()`; `rmdir()` does not work -- OS-9 refuses to delete a directory until its directory attribute is cleared, tracked separately |
+| $87 | I$Delete | delete a file or directory | [x] | [x] | `unlink()` and `rmdir()`; a directory has to lose its directory attribute first, which `rmdir()` does through SS.FD |
 | $88 | I$Seek | set the file position (X:U) | [x] | [x] | `lseek()`; asm stub, U is the data base |
 | $89 | I$Read | read bytes | [x] | [x] | `read()` |
 | $8A | I$Write | write bytes | [x] | [x] | `write()`; every runtime case prints through it |
 | $8B | I$ReadLn | read a line, with editing | [ ] | [ ] | shim exists, never exercised |
 | $8C | I$WritLn | write a line, with editing | [ ] | [ ] | shim exists, never exercised |
 | $8D | I$GetStt | get path status | [x] | [x] | `fstat()`, `isatty()`, `statvfs()`, `getcwd()` |
-| $8E | I$SetStt | set path status | [ ] | [x] | `ftruncate()` via SS.Size |
+| $8E | I$SetStt | set path status | [x] | [x] | `ftruncate()` via SS.Size; `rmdir()` via SS.FD, which is what runs at L1 |
 | $8F | I$Close | close a path | [x] | [x] | `close()`; L1 via the runtime suite |
 | $90 | I$DeletX | delete from the execution directory | [ ] | [ ] | |
 | $91 | I$ModDsc | modify a device descriptor in memory | [ ] | [ ] | |
@@ -111,7 +111,7 @@ promises wants Level 2.
 | $05 | SS.Pos | current position | [ ] | [ ] | `lseek(SEEK_CUR)` uses it |
 | $06 | SS.EOF | at end of file? | [ ] | [ ] | |
 | $0E | SS.DevNm | the device a path is on | [x] | [x] | `getcwd()`, `statvfs()`; L1 through `getcwd()`, which returns nothing if it fails |
-| $0F | SS.FD | the file descriptor sector | [ ] | [x] | `fstat()` dates, attributes, link count |
+| $0F | SS.FD | the file descriptor sector | [x] | [x] | `fstat()` dates, attributes, link count; `rmdir()` clears the directory bit by writing one byte of it back |
 | $10 | SS.Ticks | lockout duration | [ ] | [ ] | |
 | $11 | SS.Lock | lock or release a record | [ ] | [ ] | |
 | $20 | SS.FDInf | file descriptor info | [ ] | [ ] | |

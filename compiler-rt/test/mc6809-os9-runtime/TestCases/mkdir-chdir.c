@@ -79,8 +79,9 @@ int main(void) {
   put("\n");
 
   // The directory itself is left behind: OS-9 will not delete one until its
-  // directory attribute has been cleared, which is a job for rmdir() and is
-  // tracked on its own.  The disk is made afresh for each run, so nothing
-  // accumulates.
+  // directory attribute has been cleared, which takes reading and writing
+  // the file descriptor sector -- rmdir()'s job, tested from C in picolibc's
+  // test-rmdir, not something to repeat here.  The disk is made afresh for
+  // each run, so nothing accumulates.
   return 0;
 }

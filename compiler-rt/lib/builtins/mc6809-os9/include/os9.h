@@ -320,11 +320,12 @@ static inline int _os_getstt_buf(int __path, int __fn, void *__buf, int __n) {
                "x"(__buf), "y"(__n)));
   return __err ? __os9_fail(__ecode) : 0;
 }
-static inline int _os_setstt_buf(int __path, int __fn, const void *__buf) {
+static inline int _os_setstt_buf(int __path, int __fn, const void *__buf,
+                                 int __n) {
   unsigned char __err, __ecode;
   OS9_SYSCALL(OS9_I_SETSTT, ("=c"(__err), "=B"(__ecode)),
               ("A"((unsigned char)__path), "B"((unsigned char)__fn),
-               "x"(__buf)));
+               "x"(__buf), "y"(__n)));
   return __err ? __os9_fail(__ecode) : 0;
 }
 
