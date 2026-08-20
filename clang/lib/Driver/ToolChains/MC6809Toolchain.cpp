@@ -25,6 +25,14 @@ MC6809ToolChain::MC6809ToolChain(const Driver &D, const llvm::Triple &Triple,
          const llvm::opt::ArgList &Args)
     : ToolChain(D, Triple, Args) {
   getProgramPaths().push_back(getDriver().Dir);
+
+  // A sysroot may hold more than one library -- one built for the 6309, one
+  // for whole-program optimisation -- with multilib.yaml saying which flags
+  // choose which.  clang puts <sysroot>/<Dir> on the library search path
+  // itself, ahead of the default, so the file names the directory that holds
+  // the libraries and nothing else is needed here.  Without the file nothing
+  // changes and lib/ is the only place looked at.
+  loadMultilibsFromYAML(Args, D, computeSysRoot());
 }
 
 Tool *MC6809ToolChain::buildLinker() const { return new tools::mc6809::Linker(*this); }

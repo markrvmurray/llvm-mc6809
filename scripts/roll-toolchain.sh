@@ -86,10 +86,13 @@ COMMON="-Dformat-default=integer -Dprintf-aliases=false -Dstdio-float=false
         -Dmb-capable=false -Dio-long-long=false -Dtests=false
         -Doptimization=s"
 
+# build_variant TRIPLE SUBDIR CROSS [meson options...]
+#   SUBDIR is "" for a triple's default library, or the multilib directory
+#   under it -- `hd6309`, say -- for one a rule in multilib.yaml selects.
 build_variant() {
-  triple=$1; cross=$2; shift 2
-  sysroot=$PREFIX/lib/clang-runtimes/$triple
-  build=$PREFIX/.build-$triple
+  triple=$1; subdir=$2; cross=$3; shift 3
+  sysroot=$PREFIX/lib/clang-runtimes/$triple${subdir:+/$subdir}
+  build=$PREFIX/.build-$triple${subdir:+-$subdir}
   say "building picolibc for $triple"
   rm -rf "$build" "$sysroot"
   # shellcheck disable=SC2086
@@ -99,20 +102,50 @@ build_variant() {
     || { echo "$0: meson setup failed for $triple; see $build.log" >&2; exit 1; }
   meson install -C "$build" --quiet >>"$build.log" 2>&1 \
     || { echo "$0: install failed for $triple; see $build.log" >&2; exit 1; }
+  # A multilib variant shares the triple's headers: they are the same
+  # headers, and a second copy is a megabyte saying so.
+  [ -n "$subdir" ] && rm -rf "$sysroot/include"
   rm -rf "$build" "$build.log"
 }
 
-# One library per triple.  Shipping several without a way to choose between
-# them would only confuse; that is multilib, and it is not here yet.
-build_variant mc6809-unknown-unknown cross-clang-mc6809-unknown-elf.txt
-build_variant mc6809-unknown-os9 cross-clang-mc6809-unknown-os9.txt \
+# The default library for each triple, and one variant: a bare-metal library
+# built for the 6309, which multilib.yaml below selects when -mcpu says so.
+# Every further variant is another full picolibc build here and another cell
+# to be sure of, so they earn their place one at a time.
+build_variant mc6809-unknown-unknown "" cross-clang-mc6809-unknown-elf.txt
+build_variant mc6809-unknown-os9 "" cross-clang-mc6809-unknown-os9.txt \
     -Dpicocrt=false -Dsemihost=false -Dos-os9=true -Dposix-console=true
 
 # DECB: a program EXECed from Disk Extended Color BASIC.  Its console is the
 # ROM's, and nothing in this tree can run one -- the check below builds these
 # and looks at the envelope rather than pretending to test them.
-build_variant mc6809-unknown-decb cross-clang-mc6809-unknown-decb.txt \
+build_variant mc6809-unknown-decb "" cross-clang-mc6809-unknown-decb.txt \
     -Dpicocrt=false -Dsemihost=false -Dos-decb=true -Dposix-console=true
+
+build_variant mc6809-unknown-unknown hd6309 cross-clang-mc6809-unknown-elf.txt \
+    -Dc_args=-mcpu=hd6309 -Dcpp_args=-mcpu=hd6309 \
+    -Dc_link_args=-mcpu=hd6309 -Dcpp_link_args=-mcpu=hd6309
+
+# What chooses between them.  clang puts <sysroot>/<Dir> on the library path
+# ahead of the default, so Dir names the directory holding the libraries and
+# the default stays behind it as the fallback.
+say "writing multilib.yaml"
+cat > "$PREFIX/lib/clang-runtimes/mc6809-unknown-unknown/multilib.yaml" <<'YAML'
+# Which library a link gets.  The flags a rule can match on are the ones
+# clang works out for this target: the triple, the relocation model, -mcpu=
+# and whether the link is doing whole-program optimisation.
+MultilibVersion: 1.0
+
+Variants:
+# The default library needs a rule of its own, or a plain build matches
+# nothing and clang says so on every compile.
+- Dir: lib
+  Flags: [--target=mc6809-unknown-unknown, -mcpu=mc6809]
+- Dir: hd6309/lib
+  Flags: [--target=mc6809-unknown-unknown, -mcpu=hd6309]
+
+Mappings: []
+YAML
 
 # ------------------------------------------------------------------- check
 # A bundle that has not compiled and run a program is not known to work.

@@ -428,6 +428,22 @@ static void getARMMultilibFlags(const Driver &D, const llvm::Triple &Triple,
   }
 }
 
+static void getMC6809MultilibFlags(const llvm::opt::ArgList &Args,
+                                   Multilib::flags_list &Result) {
+  // What distinguishes one MC6809 library from another: the processor, and
+  // whether the library was built for whole-program optimisation.  A rule in
+  // multilib.yaml matches on these; without them it could only match on the
+  // triple, which does not separate a 6809 library from a 6309 one.
+  StringRef CPU = Args.getLastArgValue(options::OPT_mcpu_EQ);
+  if (CPU == "6309")
+    CPU = "hd6309";
+  Result.push_back(("-mcpu=" + (CPU.empty() ? StringRef("mc6809") : CPU)).str());
+
+  Result.push_back(Args.hasArg(options::OPT_flto, options::OPT_flto_EQ)
+                       ? "-flto"
+                       : "-fno-lto");
+}
+
 static void getRISCVMultilibFlags(const Driver &D, const llvm::Triple &Triple,
                                   const llvm::opt::ArgList &Args,
                                   Multilib::flags_list &Result,
@@ -490,6 +506,9 @@ ToolChain::getMultilibFlags(const llvm::opt::ArgList &Args) const {
   case llvm::Triple::thumb:
   case llvm::Triple::thumbeb:
     getARMMultilibFlags(D, Triple, RelocationModel, Args, Result);
+    break;
+  case llvm::Triple::mc6809:
+    getMC6809MultilibFlags(Args, Result);
     break;
   case llvm::Triple::riscv32:
   case llvm::Triple::riscv64:
