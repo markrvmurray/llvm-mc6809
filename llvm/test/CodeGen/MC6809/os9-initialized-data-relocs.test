@@ -17,7 +17,7 @@ RUN: echo '        tfr x,d'                             >> %t-crt1.s
 RUN: echo '        os9 0x06'                            >> %t-crt1.s
 RUN: echo '        .bss'                                >> %t-crt1.s
 RUN: echo '        .globl __os9_data_base, __os9_param, __os9_param_len, __os9_top' >> %t-crt1.s
-RUN: echo '        .globl __os9_module, __os9_mem_want, __os9_pool_off, __os9_pool_len' >> %t-crt1.s
+RUN: echo '        .globl __os9_module, __os9_mem_want, __os9_pool_off, __os9_pool_len, __os9_stack_size' >> %t-crt1.s
 RUN: echo '__os9_data_base: .zero 2'                    >> %t-crt1.s
 RUN: echo '__os9_param: .zero 2'                        >> %t-crt1.s
 RUN: echo '__os9_param_len: .zero 2'                    >> %t-crt1.s
@@ -26,6 +26,7 @@ RUN: echo '__os9_module: .zero 2'                       >> %t-crt1.s
 RUN: echo '__os9_mem_want: .zero 2'                     >> %t-crt1.s
 RUN: echo '__os9_pool_off: .zero 2'                     >> %t-crt1.s
 RUN: echo '__os9_pool_len: .zero 2'                     >> %t-crt1.s
+RUN: echo '__os9_stack_size: .zero 2'                   >> %t-crt1.s
 RUN: llvm-mc -triple=mc6809-unknown-os9 --filetype=obj %t-crt1.s -o %t-crt1.o
 
 RUN: echo '        .text'             >  %t.s
