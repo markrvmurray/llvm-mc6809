@@ -177,6 +177,20 @@ void mc6809::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   const bool IsOS9  = TC.getTriple().isOSOS9();
   const bool IsDECB = TC.getTriple().isOSDECB();
 
+  // A C library installed beside the compiler.  Bare metal used to name a
+  // runtime that is not shipped -- link.ld, libcrt0.a and libcrt.a exist
+  // nowhere -- so with a sysroot it gets picolibc's shape instead: its
+  // start-up object, its library and system layer, and its linker script.
+  // Without one, nothing changes, and a build that passes its own -L and -T
+  // is unaffected.
+  const std::string SysRoot = TC.computeSysRoot();
+  const bool HaveSysRoot = !IsOS9 && !IsDECB && sysRootHasLibC(SysRoot);
+  if (HaveSysRoot && !Args.hasArg(options::OPT_nostdlib)) {
+    llvm::SmallString<128> LibDir(SysRoot);
+    llvm::sys::path::append(LibDir, "lib");
+    CmdArgs.push_back(Args.MakeArgString(Twine("-L") + LibDir.str()));
+  }
+
   if (!IsOS9 && !IsDECB &&
       !Args.hasArg(options::OPT_nostartfiles, options::OPT_nostdlib)) {
     // Prefixing a colon causes GNU LD-like linkers to search for this filename
@@ -184,26 +198,40 @@ void mc6809::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-l:crt0.o");
 
     // libcrt0.a contains optional startup objects that are only pulled in if
-    // referenced.
-    CmdArgs.push_back("-lcrt0");
+    // referenced.  It belongs to the older runtime, not to a sysroot.
+    if (!HaveSysRoot)
+      CmdArgs.push_back("-lcrt0");
   } else if (!IsOS9 && !IsDECB && !Args.hasArg(options::OPT_e)) {
     // No crt0 means no _start. Set a dummy entry point to suppress
     // the "cannot find entry symbol" linker warning.
     CmdArgs.push_back("-e0");
   }
 
-  if (!IsOS9 && !IsDECB &&
+  if (!IsOS9 && !IsDECB && !HaveSysRoot &&
       !Args.hasArg(options::OPT_nodefaultlibs, options::OPT_nostdlib))
     CmdArgs.push_back("-lcrt");
 
-  if (!IsOS9 && !IsDECB &&
+  if (!IsOS9 && !IsDECB && !HaveSysRoot &&
       !Args.hasArg(options::OPT_nodefaultlibs, options::OPT_nolibc,
                    options::OPT_nostdlib))
     CmdArgs.push_back("-lc");
 
+  // With a sysroot: the library and the layer that gives it a machine to run
+  // on, as a group -- each needs the other -- and the compiler's own
+  // builtins, which the older runtime spelled libmc6809rt.
+  if (HaveSysRoot &&
+      !Args.hasArg(options::OPT_nodefaultlibs, options::OPT_nostdlib)) {
+    CmdArgs.push_back("--start-group");
+    if (!Args.hasArg(options::OPT_nolibc))
+      CmdArgs.push_back("-lc");
+    CmdArgs.push_back("-lsemihost");
+    CmdArgs.push_back("-lclang_rt.builtins");
+    CmdArgs.push_back("--end-group");
+  }
+
   // MC6809 runtime library: hand-written assembly builtins for shift, multiply,
   // divide operations that the hardware can't do natively.
-  if (!IsOS9 && !IsDECB &&
+  if (!IsOS9 && !IsDECB && !HaveSysRoot &&
       !Args.hasArg(options::OPT_nodefaultlibs, options::OPT_nostdlib))
     CmdArgs.push_back("-lmc6809rt");
 
@@ -215,6 +243,8 @@ void mc6809::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-Tmc6809-os9.lds");
     else if (IsDECB)
       CmdArgs.push_back("-Tmc6809-decb.lds");
+    else if (HaveSysRoot)
+      CmdArgs.push_back("-Tpicolibc.ld");
     else
       CmdArgs.push_back("-Tlink.ld");
   }
