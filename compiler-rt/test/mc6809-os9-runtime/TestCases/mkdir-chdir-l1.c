@@ -1,6 +1,6 @@
 // REQUIRES: mc6809-os9-runtime, nitros9-l1
 // RUN: %run_os9_case %s OS9
-// CFLAGS: -Os -fno-builtin
+// CFLAGS: -fno-builtin
 // LEVEL: 1
 //
 // The same directory calls at Level 1, where a program shares one address

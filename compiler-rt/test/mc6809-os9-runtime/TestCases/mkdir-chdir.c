@@ -1,6 +1,6 @@
 // REQUIRES: mc6809-os9-runtime
 // RUN: %run_os9_case %s OS9
-// CFLAGS: -Os -fno-builtin
+// CFLAGS: -fno-builtin
 //
 // I$MakDir, I$ChgDir and I$Delete on a directory.  Making the directory is
 // only half of it: the test writes a file with a plain relative name, so if
@@ -8,9 +8,6 @@
 // the delete of the now-not-empty directory fails.
 //
 // OS9: makdir=0 chdir=0 wrote=5 read=hello chdir-back=0 from-parent=0 rmfile=0
-// -Os because the I$Create shim does not survive register allocation
-// without it; that is a backend limitation, tracked separately, and not
-// what this case is here to measure.
 #include <os9.h>
 
 static void put(const char *s) {
