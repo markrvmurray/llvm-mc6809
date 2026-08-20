@@ -1,5 +1,8 @@
 // A sysroot may hold more than one library, with multilib.yaml saying which
-// flags choose which.  clang puts <sysroot>/<Dir> on the library path ahead
+// flags choose which.  The rules do not name the triple: the file already
+// lives inside the sysroot for one, and naming it would mean spelling every
+// way of writing it -- `mc6809-clang` computes `mc6809` where the long name
+// computes `mc6809-unknown-unknown`.  clang puts <sysroot>/<Dir> on the library path ahead
 // of the default, so a variant is found first and the default stays behind
 // it as the fallback.
 //
@@ -8,9 +11,9 @@
 // RUN: echo 'MultilibVersion: 1.0'                             > %t/sysroot/multilib.yaml
 // RUN: echo 'Variants:'                                       >> %t/sysroot/multilib.yaml
 // RUN: echo '- Dir: lib'                                      >> %t/sysroot/multilib.yaml
-// RUN: echo '  Flags: [--target=mc6809-unknown-unknown, -mcpu=mc6809]' >> %t/sysroot/multilib.yaml
+// RUN: echo '  Flags: [-mcpu=mc6809]'                        >> %t/sysroot/multilib.yaml
 // RUN: echo '- Dir: hd6309/lib'                               >> %t/sysroot/multilib.yaml
-// RUN: echo '  Flags: [--target=mc6809-unknown-unknown, -mcpu=hd6309]' >> %t/sysroot/multilib.yaml
+// RUN: echo '  Flags: [-mcpu=hd6309]'                        >> %t/sysroot/multilib.yaml
 // RUN: echo 'Mappings: []'                                    >> %t/sysroot/multilib.yaml
 
 // Plain 6809 gets the default library, and no complaint about matching
