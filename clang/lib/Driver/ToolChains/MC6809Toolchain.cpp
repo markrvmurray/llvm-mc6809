@@ -193,7 +193,7 @@ void mc6809::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   // Without one, nothing changes, and a build that passes its own -L and -T
   // is unaffected.
   const std::string SysRoot = TC.computeSysRoot();
-  const bool HaveSysRoot = !IsOS9 && !IsDECB && sysRootHasLibC(SysRoot);
+  const bool HaveSysRoot = !IsOS9 && sysRootHasLibC(SysRoot);
   if (HaveSysRoot && !Args.hasArg(options::OPT_nostdlib)) {
     llvm::SmallString<128> LibDir(SysRoot);
     llvm::sys::path::append(LibDir, "lib");
@@ -205,6 +205,19 @@ void mc6809::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   // a link gets -- a program brings its own code.
   if (IsDECB && !Args.hasArg(options::OPT_nostartfiles, options::OPT_nostdlib))
     CmdArgs.push_back("-l:crt0.o");
+
+  // DECB's library, when one is installed beside the compiler: libdecb is the
+  // console and the handful of calls a C library needs to exist -- there is no
+  // operating system here beyond a character in and a character out.
+  if (IsDECB && HaveSysRoot &&
+      !Args.hasArg(options::OPT_nodefaultlibs, options::OPT_nostdlib)) {
+    CmdArgs.push_back("--start-group");
+    if (!Args.hasArg(options::OPT_nolibc))
+      CmdArgs.push_back("-lc");
+    CmdArgs.push_back("-ldecb");
+    CmdArgs.push_back("-lclang_rt.builtins");
+    CmdArgs.push_back("--end-group");
+  }
 
   if (!IsOS9 && !IsDECB &&
       !Args.hasArg(options::OPT_nostartfiles, options::OPT_nostdlib)) {
@@ -245,7 +258,7 @@ void mc6809::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   // With a sysroot: the library and the layer that gives it a machine to run
   // on, as a group -- each needs the other -- and the compiler's own
   // builtins, which the older runtime spelled libmc6809rt.
-  if (HaveSysRoot &&
+  if (HaveSysRoot && !IsDECB &&
       !Args.hasArg(options::OPT_nodefaultlibs, options::OPT_nostdlib)) {
     CmdArgs.push_back("--start-group");
     if (!Args.hasArg(options::OPT_nolibc))
@@ -338,12 +351,17 @@ void mc6809::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("--os9-type=0x17");
   }
 
-  // For DECB, prepend the resourcedir's per-triple library directory so
-  // lld finds mc6809-decb.lds and (in future) libclang_rt.decb.a.
+  // For DECB, the resourcedir's per-triple directory holds the start-up code
+  // and the linker script; the compiler's builtins are the bare-metal ones,
+  // the machine being the same, so that directory is on the path too rather
+  // than a second copy of an identical library.
   if (IsDECB) {
     SmallString<128> DECBLibPath(D.ResourceDir);
     llvm::sys::path::append(DECBLibPath, "lib", "mc6809-unknown-decb");
     CmdArgs.push_back(Args.MakeArgString(Twine("-L") + DECBLibPath.str()));
+    SmallString<128> BuiltinsPath(D.ResourceDir);
+    llvm::sys::path::append(BuiltinsPath, "lib", "mc6809-unknown-unknown");
+    CmdArgs.push_back(Args.MakeArgString(Twine("-L") + BuiltinsPath.str()));
   }
 
   CmdArgs.push_back("-o");

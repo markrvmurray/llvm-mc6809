@@ -108,6 +108,12 @@ build_variant mc6809-unknown-unknown cross-clang-mc6809-unknown-elf.txt
 build_variant mc6809-unknown-os9 cross-clang-mc6809-unknown-os9.txt \
     -Dpicocrt=false -Dsemihost=false -Dos-os9=true -Dposix-console=true
 
+# DECB: a program EXECed from Disk Extended Color BASIC.  Its console is the
+# ROM's, and nothing in this tree can run one -- the check below builds these
+# and looks at the envelope rather than pretending to test them.
+build_variant mc6809-unknown-decb cross-clang-mc6809-unknown-decb.txt \
+    -Dpicocrt=false -Dsemihost=false -Dos-decb=true -Dposix-console=true
+
 # ------------------------------------------------------------------- check
 # A bundle that has not compiled and run a program is not known to work.
 say "checking the result"
