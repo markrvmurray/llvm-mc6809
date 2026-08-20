@@ -128,13 +128,33 @@ static void claim_heap(void) {
   }
 }
 
-// Grow the heap by at least `bytes`; 0 on success.  Not yet: the heap is
-// whatever claim_heap() found.  (A live version asks F$Mem for more and
-// moves __os9_heap_end up -- possible when the heap is the region above
-// the old top, where growth is contiguous.)
+// Grow the heap by at least `bytes`; 0 on success.  F$Mem adds pages at the
+// far end of the data area, which is where the heap is, so the heap grows
+// in place and nothing has to move.
+//
+// It must not move, either: sbrk() takes the address it is going to hand
+// back before it asks for more, so this may extend the end and nothing
+// else.  When the kernel refused at fork and the static pool is the heap,
+// the pool is not at the far end -- there is nothing to extend, and saying
+// so is better than relocating a heap someone already holds a pointer into.
 int __os9_grow(unsigned bytes) {
-  (void)bytes;
-  return -1;
+  if (__os9_heap_end != __os9_top)
+    return -1;
+
+  // F$Mem is told the size the area should be, not the increment, and gives
+  // back whole 256-byte pages -- so an ask for less than a page still moves
+  // the top by one.  The size is 16 bits like every address here, so an ask
+  // that wraps is an ask that cannot be met.
+  unsigned want = (unsigned)(__os9_top - __os9_data_base) + bytes;
+  void *top;
+  if (want < bytes || _os_mem(want, 0, &top) != 0)
+    return -1;
+  if ((char *)top <= __os9_heap_end)      // nothing gained; leave as it was
+    return -1;
+
+  __os9_heap_end = (char *)top;
+  __os9_top = (char *)top;
+  return 0;
 }
 
 // Set by the MC6839 layer of the compiler's runtime, which is in the
