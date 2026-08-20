@@ -50,14 +50,81 @@ for f in "$LLVM_BUILD"/bin/clang-* "$LLVM_BUILD"/bin/lld \
          "$LLVM_BUILD"/bin/llvm-ar "$LLVM_BUILD"/bin/llvm-nm \
          "$LLVM_BUILD"/bin/llvm-objcopy "$LLVM_BUILD"/bin/llvm-objdump \
          "$LLVM_BUILD"/bin/llvm-ranlib "$LLVM_BUILD"/bin/llvm-readelf \
-         "$LLVM_BUILD"/bin/llvm-size "$LLVM_BUILD"/bin/llvm-strip; do
-  [ -f "$f" ] && [ ! -L "$f" ] && cp -p "$f" "$PREFIX/bin/"
+         "$LLVM_BUILD"/bin/llvm-readobj "$LLVM_BUILD"/bin/llvm-size \
+         "$LLVM_BUILD"/bin/llvm-strip; do
+  [ -e "$f" ] || continue
+  base=$(basename "$f")
+  if [ -L "$f" ]; then
+    # Upstream ships several of these as links to one binary -- ranlib is
+    # llvm-ar, strip is llvm-objcopy, readelf is llvm-readobj -- and they
+    # behave differently depending on the name they were called by.  Copy
+    # the link, not another copy of the binary.
+    ln -sf "$(basename "$(readlink "$f")")" "$PREFIX/bin/$base"
+  else
+    cp -p "$f" "$PREFIX/bin/"
+  fi
 done
 ( cd "$PREFIX/bin"
   clangbin=$(ls clang-* 2>/dev/null | head -1)
   [ -n "$clangbin" ] && ln -sf "$clangbin" clang
   [ -f lld ] && ln -sf lld ld.lld
   true )
+
+# Names for the target, so nobody has to spell a triple to compile a program.
+# Symlinks, not wrapper scripts: clang resolves its own path to the real
+# binary before working out where its sysroot is, so a script that execs a
+# clang from elsewhere would send it looking beside *that* one.
+say "naming the tools for the target"
+( cd "$PREFIX/bin"
+  for t in clang ld.lld llvm-ar llvm-nm llvm-objcopy llvm-objdump \
+           llvm-ranlib llvm-readelf llvm-size llvm-strip; do
+    [ -e "$t" ] || continue
+    short=${t#llvm-}
+    short=${short%.lld}
+    ln -sf "$t" "mc6809-$short"
+  done
+  # And one per target, which the driver reads off its own name.
+  for target in os9 decb; do
+    ln -sf clang "mc6809-$target-clang"
+  done )
+
+# Running one.  The simulators are not part of this bundle -- they are other
+# people's programs -- so this finds one and says plainly when it cannot.
+cat > "$PREFIX/bin/mc6809-run" <<'RUNNER'
+#!/bin/sh
+# mc6809-run — run a program built by this toolchain, on whatever simulator
+# is to hand.  Which one depends on what the file is, and the file says:
+#
+#   7f 45 4c 46   an ELF: bare metal, on usim09batch
+#   87 cd         an OS-9 program module: NitrOS-9, on usim09pt
+#   00            a DECB binary: a CoCo, which nothing here can be
+set -eu
+[ $# -ge 1 ] || { echo "usage: mc6809-run PROGRAM [args...]" >&2; exit 2; }
+prog=$1; shift
+magic=$(od -An -N2 -tx1 "$prog" | tr -d ' \n')
+case "$magic" in
+  7f45)
+    command -v usim09batch >/dev/null 2>&1 || {
+      echo "mc6809-run: usim09batch is not on the PATH; it is part of USim," >&2
+      echo "            not of this toolchain." >&2
+      exit 127; }
+    exec usim09batch "$prog" "$@" ;;
+  87cd)
+    command -v run-mc6809-os9 >/dev/null 2>&1 || {
+      echo "mc6809-run: an OS-9 module needs run-mc6809-os9 and a NitrOS-9" >&2
+      echo "            image; both live with picolibc and USim, not here." >&2
+      exit 127; }
+    exec run-mc6809-os9 "$prog" "$@" ;;
+  00*)
+    echo "mc6809-run: this is a DECB binary, for a CoCo.  Nothing here can" >&2
+    echo "            run one: LOADM it on a machine or in an emulator." >&2
+    exit 127 ;;
+  *)
+    echo "mc6809-run: $prog is not a program this toolchain builds" >&2
+    exit 2 ;;
+esac
+RUNNER
+chmod +x "$PREFIX/bin/mc6809-run"
 
 say "staging the compiler's own runtime directory"
 resdir=$("$LLVM_BUILD/bin/clang" -print-resource-dir)
@@ -131,21 +198,42 @@ build_variant mc6809-unknown-unknown hd6309 cross-clang-mc6809-unknown-elf.txt \
 # the default stays behind it as the fallback.
 say "writing multilib.yaml"
 cat > "$PREFIX/lib/clang-runtimes/mc6809-unknown-unknown/multilib.yaml" <<'YAML'
-# Which library a link gets.  The flags a rule can match on are the ones
-# clang works out for this target: the triple, the relocation model, -mcpu=
-# and whether the link is doing whole-program optimisation.
+# Which library a link gets.  A rule matches when its flags are among the ones
+# clang worked out for the link.
+#
+# The triple is deliberately not one of them: this file already lives inside
+# the sysroot for a triple, and naming it here would only mean spelling every
+# way of writing that triple -- `mc6809-clang` computes `mc6809`, the long
+# name computes `mc6809-unknown-unknown`, and a rule naming one would not
+# match the other.
 MultilibVersion: 1.0
 
 Variants:
-# The default library needs a rule of its own, or a plain build matches
-# nothing and clang says so on every compile.
+# The default needs a rule of its own, or a plain build matches nothing and
+# clang says so on every compile.
 - Dir: lib
-  Flags: [--target=mc6809-unknown-unknown, -mcpu=mc6809]
+  Flags: [-mcpu=mc6809]
 - Dir: hd6309/lib
-  Flags: [--target=mc6809-unknown-unknown, -mcpu=hd6309]
+  Flags: [-mcpu=hd6309]
 
 Mappings: []
 YAML
+
+# `mc6809-clang` computes the triple `mc6809`, not `mc6809-unknown-unknown`,
+# and the sysroot is named after the triple -- so without these the friendly
+# name would find no library and say nothing about it.  `mc6809-elf` is the
+# other spelling people reach for.
+say "linking the bare-metal directories under the names the short forms compute"
+( cd "$PREFIX/lib/clang-runtimes"
+  for alias in mc6809 mc6809-unknown-unknown-elf mc6809-elf; do
+    [ -e "$alias" ] || ln -sf mc6809-unknown-unknown "$alias"
+  done )
+# The compiler's own runtime directory is named after the triple as well, so
+# the short name has to find the builtins there too.
+( cd "$PREFIX"/lib/clang/*/lib 2>/dev/null || exit 0
+  for alias in mc6809 mc6809-unknown-unknown-elf mc6809-elf; do
+    [ -e "$alias" ] || ln -sf mc6809-unknown-unknown "$alias"
+  done )
 
 # ------------------------------------------------------------------- check
 # A bundle that has not compiled and run a program is not known to work.
