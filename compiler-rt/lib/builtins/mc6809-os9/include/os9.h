@@ -135,13 +135,47 @@ extern int errno;
  *
  *   unsigned char err, code;
  *   OS9_SYSCALL(OS9_I_CLOSE, ("=c"(err), "=B"(code)), ("A"(path)));
+ *
+ * Two operands must never name overlapping registers -- B and D together,
+ * say: they are the same register, and asking for both leaves the allocator
+ * nothing to satisfy them with.
+ *
+ * A call that hands back the pair D has no accumulator left for the carry,
+ * which needs a byte register to be read into: use OS9_SYSCALL_BERR for
+ * those, which reports the failure in B instead.
  */
+
 #define __OS9_UNPAREN(...) __VA_ARGS__
-#define __OS9_INPUTS(...) __VA_OPT__(__VA_ARGS__,)
+/* A parenthesised operand list, comma-terminated when it has anything in it,
+ * so another operand can always follow. */
+#define __OS9_LIST(...) __VA_OPT__(__VA_ARGS__,)
 #define OS9_SYSCALL(code, outputs, inputs)                                    \
   __asm__ __volatile__("os9 %c[__os9_code]"                                   \
                        : __OS9_UNPAREN outputs                                \
-                       : __OS9_INPUTS inputs [__os9_code] "i"(code)           \
+                       : __OS9_LIST inputs [__os9_code] "i"(code)             \
+                       : "memory")
+
+/*
+ * OS9_SYSCALL_BERR(code, outputs, inputs)
+ *
+ * As OS9_SYSCALL, but the failure arrives in B -- the OS-9 error code, or
+ * zero when the call worked -- and the carry is not asked for at all.  The
+ * calls that hand back the pair D have no accumulator to spare for the
+ * carry, and one asked for anyway is an allocation with no answer: the two
+ * bytes A and B are the only homes there are, and the call's own result is
+ * in both of them.
+ *
+ * Nothing is lost by clearing B on the way out.  For F$Mem the kernel
+ * already returns a whole number of 256-byte pages, so the low byte of the
+ * size is zero; for I$Create B carries nothing once the call has worked.
+ */
+#define OS9_SYSCALL_BERR(code, outputs, inputs)                               \
+  __asm__ __volatile__("os9 %c[__os9_code]\n\t"                              \
+                       "bcs .Los9err%=\n\t"                                  \
+                       "clrb\n"                                              \
+                       ".Los9err%=:"                                          \
+                       : __OS9_UNPAREN outputs                                \
+                       : __OS9_LIST inputs [__os9_code] "i"(code)             \
                        : "memory")
 
 /* Record a failure and hand back its code. */
@@ -223,7 +257,6 @@ static inline int _os_close(int __path) {
  * -> A = path number.  Fails with OS9_E_CEF if the file exists. */
 static inline int _os_create(const char *__name, int __mode, int __attrs,
                              int *__pathp) {
-  unsigned char __err;
   /* A = mode, B = attributes going in; A = path number, B = the error code
    * coming out.  Named as the pair D rather than as two byte operands: with
    * the carry also an output, two tied byte operands leave the allocator
@@ -231,8 +264,8 @@ static inline int _os_create(const char *__name, int __mode, int __attrs,
   unsigned __d = ((unsigned)(unsigned char)__mode << 8) |
                  (unsigned char)__attrs;
   const char *__x = __name;
-  OS9_SYSCALL(OS9_I_CREATE, ("=c"(__err), "+d"(__d), "+x"(__x)), ());
-  if (__err)
+  OS9_SYSCALL_BERR(OS9_I_CREATE, ("+d"(__d), "+x"(__x)), ());
+  if (__d & 0xFF)
     return __os9_fail(__d & 0xFF);
   *__pathp = __d >> 8;
   return 0;
@@ -343,12 +376,15 @@ int __os9_unlink(void *__header);
  * size (whole pages), Y = upper bound of the area.  The kernel grows the area
  * at the top; it refuses (OS9_E_DELSP) to shrink below the stack. */
 static inline int _os_mem(unsigned __size, unsigned *__sizep, void **__topp) {
-  unsigned char __err, __ecode;
+  /* D is the size wanted going in and the size given coming out, or the
+   * error code in its low half when the call fails.  Named as the pair,
+   * never as B and D at once: they are the same register. */
+  unsigned __d = __size;
   void *__top;
-  OS9_SYSCALL(OS9_F_MEM, ("=c"(__err), "=B"(__ecode), "+d"(__size), "=y"(__top)),
-              ());
-  if (__err)
-    return __os9_fail(__ecode);
+  OS9_SYSCALL_BERR(OS9_F_MEM, ("+d"(__d), "=y"(__top)), ());
+  if (__d & 0xFF)
+    return __os9_fail(__d & 0xFF);
+  __size = __d;
   if (__sizep)
     *__sizep = __size;
   if (__topp)
