@@ -97,9 +97,35 @@ through the short names (`mc6809-clang`, `mc6809-os9-clang`,
 spelling of the triple, and both the sysroot and the resource directory are
 named after it.
 
-This is **not** the picolibc test suite, and cannot be: that suite links the
-`libc.a` it has just built, so it exercises the compiler and never the
-installed library.
+This is **not** the picolibc test suite as that suite is normally run: a
+normal run links the `libc.a` it has just built, so it exercises the compiler
+and never the installed library.  `--corpus` closes the gap from the other
+side — it takes the suite's programs as *source* and compiles each against
+the bundle with one plain clang command:
+
+```sh
+picolibc/scripts/check-mc6809-toolchain --corpus /opt/mc6809
+```
+
+Seventeen of them run and pass on a bundle rolled from the Debug tree, four
+report picolibc's own "skip", and four cannot link:
+
+```
+not in this libc: test-regex(regcomp) test-time(__d_vfprintf)
+                  test-time2(__d_vfprintf) test-wcsftime(wcsncmp)
+```
+
+That line is the point of the mode.  A link that fails **only** for a missing
+symbol is a statement about what the bundle was built with — the four above
+are the POSIX extensions, floating-point `printf` and wide characters, all
+three switched off deliberately.  Any other build failure — a header not
+found, no `libc` at all — is reported as a failure, because that is what a
+broken bundle looks like.  The corpus runs bare metal only; the OS-9 half of
+the library is covered by the bench's `os9` levels and the runtime suite.
+
+If the simulators are not on the `PATH` the check stops and says which one is
+missing.  It does not report the cases it could not run as failures, and does
+not report them as passes either.
 
 DECB is built and its LOADM envelope inspected, but not run — nothing here
 can run a CoCo program, and the check says `not run` rather than implying
@@ -119,6 +145,15 @@ Everything else follows from that: the harness takes its compiler from
 meson's own record of the build, and the OS-9 runner finds the FP module by
 asking the compiler where its resource directory is.
 
+## What is deliberately outside the bundle
+
+**The simulators.**  `mc6809-run` dispatches on a program's magic bytes and
+runs it, but it runs it on `usim09batch` or `usim09pt` found on the `PATH`,
+and neither is shipped here.  They are somebody else's programs with their own
+build and their own release; copying binaries of them into our tarball would
+make us the people who ship a stale USim.  The check says which one is missing
+when it cannot find them, and the usage guide names where they come from.
+
 ## What is not done
 
 * **Nothing runs DECB.** The format, the start-up code and the library are
@@ -128,3 +163,14 @@ asking the compiler where its resource directory is.
 * **One optimisation level.** Every library is built `-Os`.  An LTO variant
   would be two lines of YAML and another build; nobody has measured whether
   it is worth it.
+* **The libraries are integer-only.** `-Dstdio-float=false -Dwant-libm=false
+  -Dposix-extensions=false -Dmb-capable=false -Dio-long-long=false`: no
+  `libm`, no `%f` in `printf`, no `regcomp`, no wide characters, no `%lld`.
+  Floating-point *arithmetic* works — the compiler emits calls into
+  compiler-rt, and on OS-9 into the MC6839 ROM — but `printf("%f")` prints
+  the literal `*float*`, which is picolibc saying so out loud.
+  A floating-point variant is a second full build per triple, and there is no
+  obvious flag for clang's multilib rules to select it by: `-mcpu` and
+  `-flto` are all `getMultilibFlags` offers, and neither says anything about
+  what `printf` can format.  That design question is what stands between here
+  and shipping one.

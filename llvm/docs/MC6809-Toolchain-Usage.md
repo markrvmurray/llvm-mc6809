@@ -115,6 +115,15 @@ starting point, not a finished target.
 * **No fork, exec, or signals** on any target, and none planned.
 * **No wide characters or multibyte**, as a matter of policy — those tests are
   out of scope rather than pending.
+* **The libraries are integer-only.**  Floating-point *arithmetic* works: the
+  compiler calls into its runtime, and on OS-9 into the MC6839 ROM, so
+  `(int)(3.5 * 2.0 + 1.0)` is 8 as it should be.  But `printf("%f", x)` prints
+  the literal `*float*` — picolibc's way of saying the format was left out —
+  and `<math.h>` has headers with nothing behind them, so `sqrt` fails to
+  link.  `%lld`, `regcomp` and the other POSIX extensions are absent for the
+  same reason: the shipped libraries are built small, and a floating-point
+  variant is not among them yet.  If you need one today, build picolibc
+  yourself with `-Dstdio-float=true -Dwant-libm=true` and link against that.
 * **Position-independent by default.** Code is PC-relative, which is what OS-9
   modules need; `-fno-pie` gives absolute addressing for a ROM at a fixed
   address.
