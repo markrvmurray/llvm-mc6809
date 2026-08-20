@@ -51,6 +51,10 @@ public:
 
   bool SupportsProfiling() const override { return false; }
 
+  // Where the C library that goes with this clang lives: `--sysroot` if
+  // given, otherwise beside the binary that was invoked.
+  std::string computeSysRoot() const override;
+
   void
   AddClangSystemIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                             llvm::opt::ArgStringList &CC1Args) const override;

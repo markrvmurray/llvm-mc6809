@@ -13,6 +13,7 @@
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
 #include "clang/Options/Options.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 
 using namespace llvm::opt;
@@ -28,6 +29,31 @@ MC6809ToolChain::MC6809ToolChain(const Driver &D, const llvm::Triple &Triple,
 
 Tool *MC6809ToolChain::buildLinker() const { return new tools::mc6809::Linker(*this); }
 
+// The C library that goes with this clang, found the way the rest of the
+// toolchain is found: beside the binary that was invoked.  `--sysroot` wins,
+// which is what a developer pointing at a live picolibc build directory uses;
+// otherwise it is <clang>/../lib/clang-runtimes/<triple>, the layout the
+// upstream bare-metal toolchains use, so a moved or renamed installation
+// still works and nothing has to be baked in when the compiler is built.
+std::string MC6809ToolChain::computeSysRoot() const {
+  const Driver &D = getDriver();
+  if (!D.SysRoot.empty())
+    return D.SysRoot;
+  llvm::SmallString<128> Dir(D.Dir);
+  llvm::sys::path::append(Dir, "..", "lib", "clang-runtimes",
+                          getTriple().str());
+  return std::string(Dir);
+}
+
+// Only offer the sysroot if there is a library in it: without one, a link
+// gets the same arguments it got before, so a tree that has never had a
+// picolibc installed beside it behaves exactly as it did.
+static bool sysRootHasLibC(llvm::StringRef SysRoot) {
+  llvm::SmallString<128> LibC(SysRoot);
+  llvm::sys::path::append(LibC, "lib", "libc.a");
+  return llvm::sys::fs::exists(LibC);
+}
+
 void MC6809ToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
                                     ArgStringList &CC1Args) const {
   if (DriverArgs.hasArg(options::OPT_nostdinc))
@@ -37,11 +63,20 @@ void MC6809ToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
     SmallString<128> Dir(getDriver().ResourceDir);
     llvm::sys::path::append(Dir, "include");
     addSystemInclude(DriverArgs, CC1Args, Dir.str());
-    // Bug #163 Phase 2: for the OS-9 triple, the resourcedir's
-    // `include/` already holds os9.h (staged by the
-    // mc6809-os9-runtime target).  The addSystemInclude above is
-    // enough to make `#include <os9.h>` resolve from
-    // <resourcedir>/include/.  No extra path needed.
+    // The resourcedir's `include/` already holds os9.h (staged by the
+    // mc6809-os9-runtime target), so `#include <os9.h>` resolves from
+    // there without another path.
+  }
+
+  if (DriverArgs.hasArg(options::OPT_nostdlibinc))
+    return;
+
+  // The C library's own headers, when one is installed beside this clang.
+  std::string SysRoot = computeSysRoot();
+  if (sysRootHasLibC(SysRoot)) {
+    SmallString<128> Inc(SysRoot);
+    llvm::sys::path::append(Inc, "include");
+    addSystemInclude(DriverArgs, CC1Args, Inc.str());
   }
 }
 
@@ -195,6 +230,25 @@ void mc6809::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
     if (!Args.hasArg(options::OPT_nostartfiles, options::OPT_nostdlib))
       CmdArgs.push_back("-lclang_rt.os9");
+
+    // The C library, when one is installed beside this clang.  libos9 is
+    // its system layer -- the OS-9 calls behind read, write, open and the
+    // rest -- and each needs the other: the library calls the layer, and the
+    // layer's errno is the library's.  A group settles that without either
+    // having to come first.  Without a sysroot the link is unchanged, which
+    // is what a build against a picolibc build directory relies on.
+    std::string SysRoot = getToolChain().computeSysRoot();
+    if (!Args.hasArg(options::OPT_nodefaultlibs, options::OPT_nostdlib) &&
+        sysRootHasLibC(SysRoot)) {
+      SmallString<128> LibDir(SysRoot);
+      llvm::sys::path::append(LibDir, "lib");
+      CmdArgs.push_back(Args.MakeArgString(Twine("-L") + LibDir.str()));
+      CmdArgs.push_back("--start-group");
+      CmdArgs.push_back("-lc");
+      CmdArgs.push_back("-los9");
+      CmdArgs.push_back("--end-group");
+    }
+
     // The OS-9 build of the compiler builtins (integer only, from the same
     // per-triple resource directory).
     if (!Args.hasArg(options::OPT_nodefaultlibs, options::OPT_nostdlib))
