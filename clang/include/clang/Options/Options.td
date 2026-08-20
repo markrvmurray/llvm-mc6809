@@ -1720,6 +1720,12 @@ def fpost_link_tool
   : Joined<["-"], "fpost-link-tool=">, Group<f_Group>,
     HelpText<"LLVM-MOS flag to run the given tool on the ELF file after linking.">;
 
+def mcrt0_EQ
+  : Joined<["-"], "mcrt0=">, Group<m_Group>,
+    HelpText<"MC6809 flag: which start-up object to link -- default (does not "
+             "return from main, for hardware), semihost or hosted (call exit, "
+             "for a simulator), minimal, or none.">;
+
 defm assume_unique_vtables : BoolFOption<"assume-unique-vtables",
   CodeGenOpts<"DisableExactDynamicCast">, DefaultFalse,
   PosFlag<SetFalse>,

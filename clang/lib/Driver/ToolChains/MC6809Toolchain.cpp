@@ -204,7 +204,16 @@ void mc6809::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       !Args.hasArg(options::OPT_nostartfiles, options::OPT_nostdlib)) {
     // Prefixing a colon causes GNU LD-like linkers to search for this filename
     // as-is. This contains the minimum necessary startup library.
-    CmdArgs.push_back("-l:crt0.o");
+    //
+    // picolibc installs several: the plain one does not call exit(), because
+    // a program on hardware does not return from main -- under a simulator
+    // that means it prints its output and then runs for ever.  -mcrt0= picks
+    // another; `semihost` is the one a simulator wants.
+    StringRef Crt0 = Args.getLastArgValue(options::OPT_mcrt0_EQ);
+    if (Crt0.empty() || Crt0 == "default")
+      CmdArgs.push_back("-l:crt0.o");
+    else
+      CmdArgs.push_back(Args.MakeArgString("-l:crt0-" + Crt0 + ".o"));
 
     // libcrt0.a contains optional startup objects that are only pulled in if
     // referenced.  It belongs to the older runtime, not to a sysroot.
