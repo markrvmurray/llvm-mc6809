@@ -176,19 +176,30 @@ COMMON="-Dformat-default=integer -Dprintf-aliases=false -Dstdio-float=false
 build_variant() {
   triple=$1; subdir=$2; cross=$3; shift 3
   sysroot=$PREFIX/lib/clang-runtimes/$triple${subdir:+/$subdir}
+  # A variant lives in its own directory under the sysroot, holding the
+  # libraries directly and its headers in include/ beside them -- the shape
+  # clang looks for when multilib.yaml names that directory.
   build=$PREFIX/.build-$triple${subdir:+-$subdir}
   say "building picolibc for $triple"
   rm -rf "$build" "$sysroot"
   # shellcheck disable=SC2086
+  libdir=lib; [ -n "$subdir" ] && libdir=.
   meson setup "$build" "$PICOLIBC" --cross-file "$PICOLIBC/scripts/$cross" \
-      -Dprefix="$sysroot" --libdir=lib --includedir=include \
+      -Dprefix="$sysroot" --libdir="$libdir" --includedir=include \
       $COMMON "$@" >"$build.log" 2>&1 \
     || { echo "$0: meson setup failed for $triple; see $build.log" >&2; exit 1; }
   meson install -C "$build" --quiet >>"$build.log" 2>&1 \
     || { echo "$0: install failed for $triple; see $build.log" >&2; exit 1; }
-  # A multilib variant shares the triple's headers: they are the same
-  # headers, and a second copy is a megabyte saying so.
-  [ -n "$subdir" ] && rm -rf "$sysroot/include"
+  # A variant keeps its headers only when they differ.  The 6309 library is
+  # the same C library built for another processor, so its headers are
+  # identical to the default's and a second copy would be a megabyte saying
+  # so; a floating-point library's picolibc.h differs in one line -- the one
+  # that decides whether plain printf can format a double -- so it keeps
+  # them, and clang puts that directory ahead of the default.
+  case "$subdir" in
+    ""|*fp*) : ;;
+    *)       rm -rf "$sysroot/include" ;;
+  esac
   rm -rf "$build" "$build.log"
 }
 
@@ -213,13 +224,32 @@ build_variant mc6809-unknown-decb "" cross-clang-mc6809-unknown-decb.txt \
 
 # NitrOS-9 runs on a 6309 as readily as bare metal does -- a CoCo 3 with the
 # chip swapped is the usual way people meet one -- so the OS-9 sysroot gets
-# the same variant.  DECB has no second library: nothing has run the first.
-# shellcheck disable=SC2086
-build_variant mc6809-unknown-unknown hd6309 cross-clang-mc6809-unknown-elf.txt \
-    $HD6309_OPTS
-# shellcheck disable=SC2086
-build_variant mc6809-unknown-os9 hd6309 cross-clang-mc6809-unknown-os9.txt \
-    $OS9_OPTS $HD6309_OPTS
+# the same variants as bare metal.  DECB gets none: nothing has run its first
+# library, so a second is premature.
+#
+# Floating point is the other axis.  The default libraries are integer-only,
+# which keeps a program small and is the right default on a machine with 64K;
+# `-mlibc=float` asks for the ones that can format a double and do maths.
+# That is a build, not a flag, because picolibc decides it at compile time --
+# and it changes a header as well as the code, which is why an fp variant
+# keeps its own include directory.
+FP_OPTS="-Dformat-default=double -Dstdio-float=true -Dwant-libm=true"
+
+for _cpu in "" hd6309; do
+  for _fp in "" fp; do
+    [ -z "$_cpu$_fp" ] && continue          # the defaults are built above
+    _dir=$_cpu${_cpu:+${_fp:+-}}$_fp
+    _opts=""
+    [ -n "$_cpu" ] && _opts="$_opts $HD6309_OPTS"
+    [ -n "$_fp" ] && _opts="$_opts $FP_OPTS"
+    # shellcheck disable=SC2086
+    build_variant mc6809-unknown-unknown "$_dir" \
+        cross-clang-mc6809-unknown-elf.txt $_opts
+    # shellcheck disable=SC2086
+    build_variant mc6809-unknown-os9 "$_dir" \
+        cross-clang-mc6809-unknown-os9.txt $OS9_OPTS $_opts
+  done
+done
 
 # What chooses between them.  clang puts <sysroot>/<Dir> on the library path
 # ahead of the default, so Dir names the directory holding the libraries and
@@ -242,9 +272,13 @@ Variants:
 # The default needs a rule of its own, or a plain build matches nothing and
 # clang says so on every compile.
 - Dir: lib
-  Flags: [-mcpu=mc6809]
-- Dir: hd6309/lib
-  Flags: [-mcpu=hd6309]
+  Flags: [-mcpu=mc6809, -mlibc=integer]
+- Dir: hd6309
+  Flags: [-mcpu=hd6309, -mlibc=integer]
+- Dir: fp
+  Flags: [-mcpu=mc6809, -mlibc=float]
+- Dir: hd6309-fp
+  Flags: [-mcpu=hd6309, -mlibc=float]
 
 Mappings: []
 YAML
