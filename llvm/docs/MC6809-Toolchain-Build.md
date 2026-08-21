@@ -38,48 +38,87 @@ sysroot beside *that* clang.
   will run**: the development Debug tree produces a bundle of about 4 GB and
   a slow compiler.  The Debug tree is the default only because it is the one
   that is always there.  Configure a release build from its own cache file,
-  which sets the three things that differ from a working tree:
+  which sets what differs from a working tree — Release, no assertions, no
+  `git` on the version, and the release number.  **From the repository
+  root**, since the paths are relative to it:
 
   ```sh
   cmake -C clang/cmake/caches/MC6809-Release.cmake -G Ninja -S llvm -B build-release
-  cmake --build build-release --target all -j 8
+  cmake --build build-release --target all -j $(sysctl -n hw.ncpu)   # or -j N
   ```
 
-## Which version this is
+  `build-release` at the root is git-ignored (`/build*`), as is
+  `llvm/cmake-build-*`; `llvm/build-release` is **not**, and will litter
+  `git status`.  Expect the build to take roughly half an hour on eight
+  cores, and 2.5 GB.
 
-Every tool answers `--version`, and the answer should say which llvm-mc6809
-it is — LLVM's own version says which LLVM we forked and nothing about the
-6809 work.  One CMake variable, `PACKAGE_VENDOR`, reaches all three banners,
-because clang and lld each default their own vendor string from it:
-
-```
-clang --version     llvm-mc6809 1.0-rc1 clang version 24.0.0 (repo revision)
-ld.lld --version    llvm-mc6809 1.0-rc1 LLD 24.0.0 (repo revision)
-llc --version       llvm-mc6809 1.0-rc1 LLVM version 24.0.0
-```
-
-The last replaces LLVM's `LLVM (http://llvm.org/):` line rather than adding
-to it.
-
-The number lives in exactly two lines of CMake, one per cache file:
-`MC6809.cmake` says `1.0-dev`, and `MC6809-Release.cmake` says which
-candidate or release this is — **edit that line for each one**: `1.0-rc1`,
-`1.0-rc2`, then `1.0`.  A candidate is built exactly like the release it is a
-candidate for, so it is the only thing that changes between them.
-`-DPACKAGE_VENDOR=...` overrides it for a one-off, because `-D` is processed
-after `-C`.
-
-A release build also drops LLVM's `git` suffix, so it reports `24.0.0` rather
-than `24.0.0git`.  The suffix says "this is not a release of LLVM", which is
-true of a working tree and noise on a release of this; clang and lld still
-print the repository and the revision they were built from.  It returns by
-itself in any development build, which uses `MC6809.cmake` and never reads
-the release cache.
 * A picolibc checkout beside this one (`../picolibc` by default), with meson
   and ninja available.
 * For checking the result: `usim09batch` and `usim09pt` on the PATH, and a
   NitrOS-9 image tree (`NITROS9_RECIPES`, default
   `~/Documents/NitrOS-9/nitros9/recipes/picothing`).
+
+
+## Which version this is
+
+Every tool answers `--version`, and the answer should say which llvm-mc6809
+it is — LLVM's own version says which LLVM we forked and nothing about the
+6809 work.  A release build reports:
+
+```
+clang --version     llvm-mc6809 clang version 24.0.0 (llvm-mc6809 1.0-rc1 <rev>)
+ld.lld --version    llvm-mc6809 LLD 24.0.0 (<repository> <rev>)
+llc --version       llvm-mc6809 LLVM version 24.0.0
+```
+
+The vendor — `llvm-mc6809` — comes from `PACKAGE_VENDOR`, which reaches all
+three: clang and lld copy it into their own `CLANG_VENDOR` and `LLD_VENDOR`
+the first time a tree is configured, and LLVM's tool printer uses it in place
+of the `LLVM (http://llvm.org/):` line.
+
+**The vendor is a name and must never contain a version number.**  Build
+systems take the first dotted number in `clang --version` to be the
+compiler's version — meson's `search_version` does exactly that — so
+`llvm-mc6809 1.0 clang version 24.0.0` makes every meson project believe it
+is looking at clang 1.0 and refuse to build (`ERROR: None of values ['c18']
+are supported by the C compiler`).  That is why `Ubuntu clang version 18.1.3`
+and `Apple clang version ...` are names.  The release number therefore goes
+*after* the version, in the parentheses, through
+`CLANG_REPOSITORY_STRING`.
+
+Only clang carries the number.  `LLVM_FORCE_VC_REPOSITORY` would give it to
+lld and the llvm tools as well, but forcing the repository without also
+forcing the revision leaves the revision undefined and both tools then print
+no revision at all — a bad trade, since the number is also in
+`<prefix>/VERSION` and the bundle README while the revision is the only thing
+that says which source built it.
+
+**Editing it for a candidate**: one line in `MC6809-Release.cmake`,
+`MC6809_RELEASE`, which reads `1.0-rc1`, then `1.0-rc2`, then `1.0`.  A
+candidate is built exactly like the release it is a candidate for, so it is
+the only thing that changes between them.
+
+**A one-off build with a different label** cannot use `-DMC6809_RELEASE=`:
+cmake reads the `-C` file before it applies any `-D`, so the string derived
+from that line is already fixed.  Set the derived string directly:
+
+```sh
+cmake -C clang/cmake/caches/MC6809-Release.cmake \
+    -DCLANG_REPOSITORY_STRING="llvm-mc6809 1.0-smoke" \
+    -G Ninja -S llvm -B build-release
+```
+
+`-DPACKAGE_VENDOR=` does **not** do this job, and fails in the worst way: the
+cache forces `CLANG_VENDOR`, so clang goes on reporting whatever
+`MC6809_RELEASE` said while `llc` reports the `-D` value — a split identity,
+with the meson-breaking shape on one side, and a bundle named after the wrong
+release, since the roll script takes the version from clang.
+
+A release build also drops LLVM's `git` suffix, so it reports `24.0.0` rather
+than `24.0.0git`.  The suffix says "this is not a release of LLVM", which is
+true of a working tree and noise on a release of this.  It returns by itself
+in any development build, which uses `MC6809.cmake` and never reads the
+release cache.
 
 ## Rolling one
 

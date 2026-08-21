@@ -20,7 +20,11 @@ set(LLVM_ENABLE_ASSERTIONS OFF CACHE BOOL "" FORCE)
 # whatever this line said.  A one-off build with a different number sets those
 # two directly instead:
 #
-#   -DCLANG_REPOSITORY_STRING="llvm-mc6809 X" -DLLVM_FORCE_VC_REPOSITORY="llvm-mc6809 X"
+#   -DCLANG_REPOSITORY_STRING="llvm-mc6809 X"
+#
+# and not -DPACKAGE_VENDOR=, which sets what llc reports while clang goes on
+# reporting the number below -- a split identity, and the roll script names
+# the bundle from clang.
 set(MC6809_RELEASE "1.0-rc1" CACHE STRING "Which llvm-mc6809 release this is")
 
 # Forced, and all three of them: clang and lld copy PACKAGE_VENDOR into their
