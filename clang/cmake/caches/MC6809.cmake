@@ -50,15 +50,24 @@ set(LLVM_DEFAULT_TARGET_TRIPLE "mc6809-unknown-unknown" CACHE STRING "")
 # One variable reaches all three banners, because clang and lld both default
 # their own vendor string from it:
 #
-#   clang --version       llvm-mc6809 1.0-dev clang version 24.0.0git (rev)
-#   ld.lld --version      llvm-mc6809 1.0-dev LLD 24.0.0git (rev)
-#   llc --version         llvm-mc6809 1.0-dev LLVM version 24.0.0git
+#   clang --version       llvm-mc6809 clang version 24.0.0git (repo rev)
+#   ld.lld --version      llvm-mc6809 LLD 24.0.0git (repo rev)
+#   llc --version         llvm-mc6809 LLVM version 24.0.0git
 #
 # The last one replaces the "LLVM (http://llvm.org/):" line rather than
-# adding to it.  This is the development cache, so it says so, and LLVM's
-# own `git` suffix stays: a working tree is not a release of anything.
-# MC6809-Release.cmake is the cache for a build somebody else will use.
-set(PACKAGE_VENDOR "llvm-mc6809 1.0-dev" CACHE STRING "")
+# adding to it.
+#
+# **The vendor is a name and must not contain a version number.**  Build
+# systems read the first dotted number in `clang --version` and call it the
+# compiler's version -- meson's `search_version` does exactly that -- so
+# "llvm-mc6809 1.0" ahead of "clang version 24.0.0" makes every meson project
+# believe this is clang 1.0 and refuse it (`ERROR: None of values ['c18'] are
+# supported by the C compiler`).  Hence a name, as `Ubuntu clang version
+# 18.1.3` and `Apple clang version ...` are names.  A release puts its number
+# after the version instead -- see MC6809-Release.cmake -- and a working tree
+# needs none: LLVM's own `git` suffix already says it is not a release, and
+# the repository and revision are printed beside it.
+set(PACKAGE_VENDOR "llvm-mc6809" CACHE STRING "")
 
 # The following option is principally to reduce space on Github action runner
 # builds. They make smaller, and possibly slower, releases; but the releases are
