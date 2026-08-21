@@ -42,7 +42,7 @@ sysroot beside *that* clang.
 
 * An LLVM build of this tree.  **Use a Release build for anything anyone else
   will run**: the development Debug tree produces a bundle several times the
-  size and a slow compiler.  A release bundle is about 230 MB, 46 MB packed.  The Debug tree is the default only because it is the one
+  size and a slow compiler, and is the default only because it is the one
   that is always there.  Configure a release build from its own cache file,
   which sets what differs from a working tree — Release, no assertions, no
   `git` on the version, and the release number.  **From the repository
@@ -55,8 +55,11 @@ sysroot beside *that* clang.
 
   `build-release` at the root is git-ignored (`/build*`), as is
   `llvm/cmake-build-*`; `llvm/build-release` is **not**, and will litter
-  `git status`.  Expect the build to take roughly half an hour on eight
-  cores, and 2.5 GB.
+  `git status`.
+
+  Measured on an eighteen-core Apple Silicon Mac, from nothing: **14 minutes
+  at `-j 8`, 9 minutes at `-j 18`**, and a 2.6 GB build tree.  What comes out
+  of it is a **231 MB** bundle, **45 MB** packed.
 
 * A picolibc checkout beside this one (`../picolibc` by default), with meson
   and ninja available.
@@ -147,9 +150,9 @@ that compiler**, installs it with picolibc's own rules, writes the
 result by compiling and running programs against it.  It exits non-zero if
 those do not run.
 
-From a release tree it takes about three quarters of a minute, nearly all of
-it the eight picolibc builds; from the development tree, several times that,
-because a Debug clang compiles slowly.
+From a release tree the roll takes about fifty seconds, nearly all of it the
+eight picolibc builds, and the check that follows it another twenty; from the
+development tree, several times that, because a Debug clang compiles slowly.
 
 ### Packaging
 
