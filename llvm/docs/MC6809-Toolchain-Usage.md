@@ -69,6 +69,37 @@ kernel matches a module by type *and* language and only ever asks for that
 one.  Put a 6309 program on a 6809 system and you get an illegal instruction
 when it reaches one, not a polite refusal.
 
+## C++
+
+`mc6809-clang++` and its `-os9-` and `-decb-` siblings compile C++, and an
+ordinary hello world works:
+
+```cpp
+#include <cstdio>
+int main() { std::printf("hello, world\n"); return 0; }
+```
+
+**There is no C++ standard library**, and there is not going to be one —
+libc++ is far larger than a 64 KB address space.  What there is, is the
+language over the C library:
+
+* `<cstdio>`, `<cstdlib>`, `<cstring>`, `<cmath>`, `<cctype>`, `<ctime>`,
+  `<cstdint>`, `<cstddef>`, `<cerrno>`, `<cassert>`, `<climits>`, `<cfloat>`,
+  `<cstdarg>`, `<cinttypes>` and `<new>`.  Each is a thin cover: it includes
+  the C header and brings its names into `namespace std`.  There is no
+  `<vector>`, no `<string>`, no `<iostream>`.
+* classes, templates, virtual functions, objects with constructors —
+  including globals and function-local statics — `new` and `delete`.
+
+**Exceptions and RTTI are off**, and asking for a `try` or a `dynamic_cast`
+is an error where you write it rather than a mangled name at link time.
+Unwinding wants tables and an unwinder, RTTI wants a type_info hierarchy, and
+neither earns its space here.  `-fexceptions` or `-frtti` turn them back on
+if you have brought your own runtime; this toolchain has none.
+
+`new` returns null when it cannot allocate — there is nothing to throw — so
+check the pointer, as you would in C.
+
 ## Floating point
 
 The default libraries are integer-only — small, which is the right default on
@@ -179,6 +210,7 @@ starting point, not a finished target.
   the memory.
 * **`int` is 16 bits**, pointers are 16 bits, and `long` is 32.
 * **No fork, exec, or signals** on any target, and none planned.
+* **No C++ standard library** — see [C++](#c) above for what there is.
 * **No wide characters or multibyte**, as a matter of policy — those tests are
   out of scope rather than pending.
 * **The default libraries are integer-only**, and `%lld`, `regcomp` and the

@@ -15,6 +15,8 @@ how to know whether what came out works.  For using the result, see
 <prefix>/lib/clang-runtimes/<triple>/include  picolibc headers
 <prefix>/lib/clang-runtimes/<triple>/lib      libc.a and its system layer
 <prefix>/lib/clang-runtimes/<triple>/multilib.yaml   which library a link gets
+<prefix>/lib/clang/<ver>/include/c++/          <cstdio> and friends: the C
+                                              library under its C++ names
 <prefix>/share/doc/mc6809/                    the guides, including the note
                                               on the MC6839 ROM
 <prefix>/README.md                            what it is, in one page
@@ -243,6 +245,20 @@ Two things that surprise people:
 * **Size.**  A hello-world that prints two doubles came to 59,964 bytes of
   the 64 KB address space.  Floating point is affordable on this machine only
   in small doses.
+
+### C++
+
+There is no C++ standard library and no plan for one.  What the bundle
+carries is `libclang_rt.cxx.a` per triple — the operator new and delete
+family over malloc, `__cxa_pure_virtual`, and the guard functions for
+function-local statics — and a directory of headers that give the C library
+its C++ spelling.  Both are built by
+`compiler-rt/lib/builtins/mc6809-cxx/`; the runtime is compiled freestanding,
+since compiler-rt is built before a C library exists to include from.
+
+Exceptions and RTTI are off by default, in `addExceptionArgs` and
+`CalculateRTTIMode` where clang keeps such decisions, so that what is missing
+is refused where it is written instead of at link time.
 
 ### The MC6839 ROM
 
