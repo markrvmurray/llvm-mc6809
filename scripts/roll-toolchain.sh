@@ -114,6 +114,17 @@ case "$magic" in
       echo "mc6809-run: an OS-9 module needs run-mc6809-os9 and a NitrOS-9" >&2
       echo "            image; both live with picolibc and USim, not here." >&2
       exit 127; }
+    # Floating point on OS-9 is the FPO9 module, loaded at start-up from the
+    # disk the program is on.  This bundle has one, so put it within reach
+    # rather than leave a program printing "no floating point module" beside
+    # a toolchain that shipped the module.  A program that does no floating
+    # point neither looks for it nor minds that it is there.
+    if [ -z "${MC6809_FP_MODULE:-}" ]; then
+      res=$("$(dirname "$0")/clang" -print-resource-dir 2>/dev/null || true)
+      [ -f "$res/lib/mc6809-unknown-os9/FPO9" ] &&
+        MC6809_FP_MODULE=$res/lib/mc6809-unknown-os9/FPO9 &&
+        export MC6809_FP_MODULE
+    fi
     exec run-mc6809-os9 "$prog" "$@" ;;
   00*)
     echo "mc6809-run: this is a DECB binary, for a CoCo.  Nothing here can" >&2

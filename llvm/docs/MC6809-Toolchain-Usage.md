@@ -69,6 +69,47 @@ and is really the kernel declining to run 6309 code on a 6809.  That is the
 right answer — the alternative is an illegal instruction somewhere later —
 but it is a puzzling one the first time.
 
+## Floating point
+
+The libraries in the bundle are integer-only: arithmetic works, but
+`printf("%f")` prints the literal `*float*` and `sqrt` does not link.  If
+somebody has built you a floating-point sysroot (the recipe is in
+[MC6809-Toolchain-Build.md](MC6809-Toolchain-Build.md)), point at it:
+
+```sh
+mc6809-clang --sysroot=/opt/mc6809/lib/clang-runtimes/mc6809-unknown-unknown-fp \
+    -mcrt0=semihost hello.c -o hello.elf
+```
+
+```
+product 8.000000
+sqrt 4.000000
+```
+
+The headers come from the same place, which is why it is a whole sysroot and
+not just another `-L`.  No `-lm` is needed: picolibc's maths lives in
+`libc.a`.
+
+The arithmetic itself is Motorola's MC6839 floating-point ROM, and where it
+comes from depends on the target:
+
+* **Bare metal and DECB**: the 8 KB ROM is part of the compiler's runtime and
+  is linked into your program — only if you use floating point, so a program
+  that does none carries none.  Nothing to install.
+* **OS-9**: the ROM is the `FPO9` module, and the start-up code links it at
+  run time.  **It must be on the machine**: already in memory, or loadable
+  from the execution directory the program was run from.  A program that
+  cannot find it prints `fpo9: no floating point module` and stops with the
+  kernel's own error — which is as often "no room" as "no such module", since
+  the module, your program and its data share one 64 KB space.  The file
+  ships in the bundle at `lib/clang/<ver>/lib/mc6809-unknown-os9/FPO9`; copy
+  it to the target like any other module.  `mc6809-run` does that part for
+  you — it asks the compiler where its runtime is and puts the module on the
+  disk beside your program.
+
+Expect it to be expensive: a hello-world printing two doubles came to 59,964
+bytes of the 64 KB address space.
+
 ## Choosing the start-up
 
 A program on real hardware does not return from `main`, so the default
@@ -135,8 +176,8 @@ starting point, not a finished target.
   and `<math.h>` has headers with nothing behind them, so `sqrt` fails to
   link.  `%lld`, `regcomp` and the other POSIX extensions are absent for the
   same reason: the shipped libraries are built small, and a floating-point
-  variant is not among them yet.  If you need one today, build picolibc
-  yourself with `-Dstdio-float=true -Dwant-libm=true` and link against that.
+  variant is not among them yet.  See [Floating point](#floating-point) above
+  for what to do about it.
 * **Position-independent by default.** Code is PC-relative, which is what OS-9
   modules need; `-fno-pie` gives absolute addressing for a ROM at a fixed
   address.

@@ -128,6 +128,68 @@ full picolibc build in the roll and another thing to be sure of, so they
 should earn their place.  The flags a rule can match on are the target, the
 relocation model, `-mcpu=` and whether the link is doing LTO.
 
+### Adding a floating-point variant
+
+The shipped libraries are integer-only, so `printf("%f")` prints `*float*`
+and `sqrt` does not link.  A variant that can do both is one picolibc build:
+
+```sh
+meson setup /tmp/fp-build ../picolibc \
+    --cross-file ../picolibc/scripts/cross-clang-mc6809-unknown-elf.txt \
+    -Dprefix=/opt/mc6809/lib/clang-runtimes/mc6809-unknown-unknown-fp \
+    --libdir=lib --includedir=include \
+    -Dprintf-aliases=false -Dposix-extensions=false -Dsearch-extensions=true \
+    -Dmb-capable=false -Dio-long-long=false -Dtests=false -Doptimization=s \
+    -Dformat-default=double -Dstdio-float=true -Dwant-libm=true
+meson install -C /tmp/fp-build
+```
+
+Three options do the work: `-Dstdio-float=true` builds the double-capable
+`printf`/`scanf`, `-Dwant-libm=true` builds the maths functions, and
+**`-Dformat-default=double` is the one that is easy to miss** — without it
+the float-capable code is built but plain `printf` still resolves to the
+integer one.  For OS-9, add that triple's options (`-Dpicocrt=false
+-Dsemihost=false -Dos-os9=true -Dposix-console=true`) and install into
+`mc6809-unknown-os9-fp`.
+
+**It is a separate sysroot, not a multilib directory under an existing one**,
+and that is forced rather than chosen: the two builds install *different
+headers*.  `picolibc.h` carries `#define __IO_DEFAULT 'd'` where the integer
+build has `'i'`, and clang's multilib mechanism switches the library
+directory only — the include path comes from `<sysroot>/include`.  On top of
+that there is no flag for a rule to match on: `getMultilibFlags` offers
+`-mcpu` and `-flto`, and neither describes what `printf` can format.  Making
+this a variant the driver selects by itself needs both halves — a driver
+option emitted into the multilib flags, and a per-variant include directory —
+which is why the bundle does not ship one yet.
+
+Two things that surprise people:
+
+* **No `-lm`.**  picolibc's `libm.a` is an empty archive; the maths lives in
+  `libc.a`, and the link works without it.
+* **Size.**  A hello-world that prints two doubles came to 59,964 bytes of
+  the 64 KB address space.  Floating point is affordable on this machine only
+  in small doses.
+
+### The MC6839 ROM
+
+Floating-point *arithmetic* does not come from picolibc at all: it comes from
+Motorola's MC6839 floating-point ROM, and the bundle already carries it in
+both of the forms it is needed in.
+
+* **Bare metal and DECB**: the 8 KB ROM is assembled into the compiler's
+  runtime (`compiler-rt/lib/builtins/mc6809/mc6839_rom.S`) and linked into
+  the program, but only if the program does floating point at all — it is
+  reached through a weak reference.  Nothing extra to install.
+* **OS-9**: the same ROM as a loadable module, `FPO9`, staged in the
+  compiler's resource directory (`lib/clang/<ver>/lib/mc6809-unknown-os9/`).
+  A program links it at start-up, so **it has to be on the target machine**
+  as well as in the bundle.
+
+The ROM is a reconstruction from published Motorola source rather than
+something written here; whoever publishes a tarball should satisfy themselves
+about redistributing it.
+
 ## Checking one
 
 ```sh
