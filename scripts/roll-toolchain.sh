@@ -104,8 +104,16 @@ cat > "$PREFIX/bin/mc6809-run" <<'RUNNER'
 #   7f 45 4c 46   an ELF: bare metal, on usim09batch
 #   87 cd         an OS-9 program module: NitrOS-9, on usim09pt
 #   00            a DECB binary: a CoCo, which nothing here can be
+#
+# Which processor it needs is read from the ELF header.  An OS-9 module has
+# nowhere to record that, so --hd6309 says it.
 set -eu
-[ $# -ge 1 ] || { echo "usage: mc6809-run PROGRAM [args...]" >&2; exit 2; }
+cpu=
+case "${1:-}" in
+  --hd6309) cpu=6309; shift ;;
+  --6809)   cpu=6809; shift ;;
+esac
+[ $# -ge 1 ] || { echo "usage: mc6809-run [--hd6309] PROGRAM [args...]" >&2; exit 2; }
 prog=$1; shift
 magic=$(od -An -N2 -tx1 "$prog" | tr -d ' \n')
 case "$magic" in
@@ -114,8 +122,28 @@ case "$magic" in
       echo "mc6809-run: usim09batch is not on the PATH; it is part of USim," >&2
       echo "            not of this toolchain." >&2
       exit 127; }
-    exec usim09batch "$prog" "$@" ;;
+    # An ELF says which processor it needs: e_flags, at offset 36 of a 32-bit
+    # big-endian header, has bit 1 for the 6809 and bit 2 for the 6309.  A
+    # 6309 program started on a 6809 dies on its first 6309 opcode, with an
+    # illegal-instruction message that says nothing about why.
+    if [ -z "$cpu" ]; then
+      flags=$(od -An -j36 -N4 -tx1 "$prog" | tr -d ' \n')
+      # Any low nibble with bit 1 set: a link that mixed 6809 and 6309 objects
+      # gives 3, and it still needs a 6309.
+      case "$flags" in *[2367abefABEF]) cpu=6309 ;; esac
+    fi
+    [ "$cpu" = 6309 ] && set -- --hd6309 "$prog" "$@" || set -- "$prog" "$@"
+    exec usim09batch "$@" ;;
   87cd)
+    # An OS-9 module cannot say which processor it needs: the language byte
+    # in its header stays "6809 object" whatever the code is, because that is
+    # the only language NitrOS-9 asks for -- its own 6309 build marks its own
+    # modules the same way.  So a 6309 module has to be named as one:
+    #
+    #     mc6809-run --hd6309 program
+    #
+    # which boots the 6309 NitrOS-9 rather than the ordinary one.
+    [ "$cpu" = 6309 ] && { NITROS9_CPU=6309; export NITROS9_CPU; }
     command -v run-mc6809-os9 >/dev/null 2>&1 || {
       echo "mc6809-run: an OS-9 module needs run-mc6809-os9 and a NitrOS-9" >&2
       echo "            image; both live with picolibc and USim, not here." >&2
