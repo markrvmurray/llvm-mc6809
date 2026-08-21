@@ -217,10 +217,19 @@ the machine to run it on.  There is no floating-point DECB library: the
 MC6839 ROM would be linked into the program, and 8 KB is a lot to spend
 under BASIC without deciding to.
 
-**A program should print what it must and not return.**  Coming back from
-`main` puts BASIC through a warm start that clears the screen, taking the
-program's output with it; a program that ends in a loop keeps its output on
-screen.  That is the one part of this target still to be fixed.
+A program returns to BASIC by returning from `main`, and its output stays on
+screen:
+
+```
+EXEC
+BACK TO BASIC
+OK
+```
+
+The start-up saves the stack and the direct page BASIC handed over and puts
+both back, so the interpreter resumes with its own machine — which matters
+more than it sounds: a program runs with `DP` pointing at its own page, and
+Color BASIC reaches its working storage through `DP`.
 
 ## Limits worth knowing
 
