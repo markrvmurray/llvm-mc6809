@@ -93,6 +93,13 @@ decided in `picolibc.h` at the time the library is built.
 It combines with `-mcpu=hd6309`, so there are four libraries per target:
 plain, 6309, floating point, and both.
 
+A bare-metal program records in its ELF header which processor it needs, so
+`mc6809-run` starts the right simulator without being told.  An OS-9 module
+has nowhere to record that — its language byte says "6809 object" whatever
+the code is, because that is the only language NitrOS-9 asks for — so a 6309
+module is named as one: `mc6809-run --hd6309 program`, which boots the 6309
+NitrOS-9 rather than the ordinary one.
+
 The arithmetic itself is Motorola's MC6839 floating-point ROM, and where it
 comes from depends on the target:
 
