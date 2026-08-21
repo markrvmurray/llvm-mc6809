@@ -259,15 +259,17 @@ build_variant mc6809-unknown-unknown "" cross-clang-mc6809-unknown-elf.txt
 build_variant mc6809-unknown-os9 "" cross-clang-mc6809-unknown-os9.txt $OS9_OPTS
 
 # DECB: a program EXECed from Disk Extended Color BASIC.  Its console is the
-# ROM's, and nothing in this tree can run one -- the check below builds these
-# and looks at the envelope rather than pretending to test them.
+# ROM's, so the check below builds these and looks at the envelope; running
+# one needs a CoCo, which is a separate MAME build with Tandy's ROMs.
+DECB_OPTS="-Dpicocrt=false -Dsemihost=false -Dos-decb=true -Dposix-console=true"
+# shellcheck disable=SC2086
 build_variant mc6809-unknown-decb "" cross-clang-mc6809-unknown-decb.txt \
-    -Dpicocrt=false -Dsemihost=false -Dos-decb=true -Dposix-console=true
+    $DECB_OPTS
 
 # NitrOS-9 runs on a 6309 as readily as bare metal does -- a CoCo 3 with the
 # chip swapped is the usual way people meet one -- so the OS-9 sysroot gets
-# the same variants as bare metal.  DECB gets none: nothing has run its first
-# library, so a second is premature.
+# the same variants as bare metal.  So does DECB: the same swapped-chip CoCo
+# runs Disk BASIC, and MAME calls that machine `coco3h`.
 #
 # Floating point is the other axis.  The default libraries are integer-only,
 # which keeps a program small and is the right default on a machine with 64K;
@@ -290,6 +292,15 @@ for _cpu in "" hd6309; do
     # shellcheck disable=SC2086
     build_variant mc6809-unknown-os9 "$_dir" \
         cross-clang-mc6809-unknown-os9.txt $OS9_OPTS $_opts
+    # DECB gets the processor variant but not the floating-point one: the
+    # MC6839 ROM is linked into the program there, and 8K of ROM in a program
+    # that has to fit under BASIC is a decision to take deliberately rather
+    # than to ship four ways.
+    if [ -z "$_fp" ]; then
+      # shellcheck disable=SC2086
+      build_variant mc6809-unknown-decb "$_dir" \
+          cross-clang-mc6809-unknown-decb.txt $DECB_OPTS $_opts
+    fi
   done
 done
 
@@ -329,6 +340,7 @@ YAML
 say "writing multilib.yaml"
 write_multilib mc6809-unknown-unknown
 write_multilib mc6809-unknown-os9
+write_multilib mc6809-unknown-decb
 
 # `mc6809-clang` computes the triple `mc6809`, not `mc6809-unknown-unknown`,
 # and the sysroot is named after the triple -- so without these the friendly

@@ -212,6 +212,11 @@ stack occupy the memory the program's heap grows into; the library refuses to
 allocate rather than corrupt them, so anything needing `malloc` — including
 `printf`'s buffer — fails.
 
+`-mcpu=hd6309` works here too, and gets its own library; MAME's `coco3h` is
+the machine to run it on.  There is no floating-point DECB library: the
+MC6839 ROM would be linked into the program, and 8 KB is a lot to spend
+under BASIC without deciding to.
+
 **A program should print what it must and not return.**  Coming back from
 `main` puts BASIC through a warm start that clears the screen, taking the
 program's output with it; a program that ends in a loop keeps its output on

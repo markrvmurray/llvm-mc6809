@@ -197,6 +197,12 @@ lib/clang-runtimes/<triple>/fp/           plain 6809, floating point
 lib/clang-runtimes/<triple>/hd6309-fp/    HD6309, floating point
 ```
 
+DECB has the processor variant but not the floating-point one: there the
+MC6839 ROM is linked into the program, and 8 KB of it in something that must
+fit under BASIC is a decision to take deliberately rather than to ship four
+ways.  A 6309 DECB program runs on MAME's `coco3h`, the CoCo 3 with the chip
+swapped.
+
 `-mcpu=hd6309` and `-mlibc=float` choose between them.  A variant directory
 holds its libraries directly, with its headers in `include/` beside them —
 the shape clang looks for when `multilib.yaml` names that directory.  Only a
