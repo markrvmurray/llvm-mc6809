@@ -50,7 +50,7 @@ for.
 ## Choosing the machine
 
 ```sh
-mc6809-clang -mcpu=hd6309 hello.c -o hello.elf
+mc6809-clang -mcpu=hd6309 -mcrt0=semihost hello.c -o hello.elf
 ```
 
 That selects the HD6309 instruction set **and** a C library built for it;
