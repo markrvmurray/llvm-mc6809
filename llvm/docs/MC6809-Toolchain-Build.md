@@ -66,6 +66,11 @@ sysroot beside *that* clang.
 * For checking the result: `usim09batch` and `usim09pt` on the PATH, and a
   NitrOS-9 image tree (`NITROS9_RECIPES`, default
   `~/Documents/NitrOS-9/nitros9/recipes/picothing`).
+* Optionally, for the DECB cases: a CoCo-capable MAME
+  (`MC6809_MAMECOCO3=/path/to/mamecoco3-headless`) with Tandy's ROMs —
+  including `coco3h.zip`, which MAME will not take from `coco3.zip` though
+  the ROM is the same — and ToolShed's `decb` to write a Disk BASIC floppy.
+  Without them those two cases say so rather than passing.
 
 
 ## Which version this is
@@ -297,7 +302,8 @@ chain of custody and the exact bytes are in
 picolibc/scripts/check-mc6809-toolchain ~/mc6809
 ```
 
-Twenty-three cases, and it prints its own tally.  It compiles ordinary
+Twenty-five cases with a CoCo to hand, twenty-three without, and it prints
+its own tally.  It compiles ordinary
 programs — stdio, malloc, string, 32-bit arithmetic — with nothing but
 `--target`, and runs each: bare metal on USim, OS-9 on a real NitrOS-9 boot.
 Then each library variant twice over, that the link uses the variant's own
@@ -377,12 +383,11 @@ when it cannot find them, and the usage guide names where they come from.
 
 ## What is not done
 
-* **DECB is not in the check.** It runs — a CoCo 3 under MAME prints from it
-  — but the check has no CoCo: `mamecoco3` is a separate build with its own
-  ROMs, and driving BASIC means typing `CLEAR`, `LOADM` and `EXEC` through
-  an emulated keyboard that accepts a few characters a second.  So the check
-  still only verifies that a DECB binary links and comes out in a LOADM
-  envelope, and the recipe for running one by hand is in the usage guide.
+* **DECB needs a CoCo you supply.**  The check runs it on both processors
+  when one is available — set `MC6809_MAMECOCO3` to a `mamecoco3-headless`
+  — and reports "not checked" when it is not, since a CoCo needs Tandy's
+  ROMs and a separate MAME build, neither of which can ship here.  Without
+  them the envelope is still verified.
 * **No Homebrew formula, no installer, no signing or notarisation.**  There
   is a tarball and a checksum (see [Packaging](#packaging)); everything
   beyond that is unbuilt, and on macOS an unsigned binary downloaded from
