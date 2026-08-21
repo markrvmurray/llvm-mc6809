@@ -100,15 +100,24 @@ From the development tree it takes about two minutes.
 
 ### Library variants
 
-Each triple gets one library, and bare metal gets a second built for the
-6309, which `-mcpu=hd6309` selects:
+Each triple gets one library, and the two targets with a machine to run on
+get a second built for the 6309, which `-mcpu=hd6309` selects:
 
 ```
 lib/clang-runtimes/mc6809-unknown-unknown/lib/          plain 6809
 lib/clang-runtimes/mc6809-unknown-unknown/hd6309/lib/   HD6309
+lib/clang-runtimes/mc6809-unknown-os9/lib/              plain 6809
+lib/clang-runtimes/mc6809-unknown-os9/hd6309/lib/       HD6309
 ```
 
-`multilib.yaml` names the directories and the flags that choose them.  Its
+A 6309 variant only skips the headers, not the libraries: they are the same
+headers, and a second copy is a megabyte saying so.  DECB has no variant —
+nothing has run the first library, so a second is premature.
+
+`multilib.yaml` names the directories and the flags that choose them.  **Each
+sysroot with a variant needs its own copy**: clang reads the file from the
+sysroot it picked for the triple, and the file says nothing about which
+triple that was.  Its
 rules deliberately do **not** name the triple: the file already lives inside
 a sysroot for one, and the short tool names compute different spellings of it
 (`mc6809-clang` computes `mc6809`, not `mc6809-unknown-unknown`), so a rule

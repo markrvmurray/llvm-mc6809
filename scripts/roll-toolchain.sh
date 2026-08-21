@@ -181,13 +181,18 @@ build_variant() {
   rm -rf "$build" "$build.log"
 }
 
-# The default library for each triple, and one variant: a bare-metal library
-# built for the 6309, which multilib.yaml below selects when -mcpu says so.
-# Every further variant is another full picolibc build here and another cell
-# to be sure of, so they earn their place one at a time.
+# The default library for each triple, and a 6309 variant for the two targets
+# that have a machine to run on.  multilib.yaml below picks a variant when
+# -mcpu says so.  Every further variant is another full picolibc build here
+# and another cell to be sure of, so they earn their place one at a time.
+OS9_OPTS="-Dpicocrt=false -Dsemihost=false -Dos-os9=true -Dposix-console=true"
+HD6309_OPTS="-Dc_args=-mcpu=hd6309 -Dcpp_args=-mcpu=hd6309
+             -Dc_link_args=-mcpu=hd6309 -Dcpp_link_args=-mcpu=hd6309"
+
+# shellcheck disable=SC2086
 build_variant mc6809-unknown-unknown "" cross-clang-mc6809-unknown-elf.txt
-build_variant mc6809-unknown-os9 "" cross-clang-mc6809-unknown-os9.txt \
-    -Dpicocrt=false -Dsemihost=false -Dos-os9=true -Dposix-console=true
+# shellcheck disable=SC2086
+build_variant mc6809-unknown-os9 "" cross-clang-mc6809-unknown-os9.txt $OS9_OPTS
 
 # DECB: a program EXECed from Disk Extended Color BASIC.  Its console is the
 # ROM's, and nothing in this tree can run one -- the check below builds these
@@ -195,15 +200,23 @@ build_variant mc6809-unknown-os9 "" cross-clang-mc6809-unknown-os9.txt \
 build_variant mc6809-unknown-decb "" cross-clang-mc6809-unknown-decb.txt \
     -Dpicocrt=false -Dsemihost=false -Dos-decb=true -Dposix-console=true
 
+# NitrOS-9 runs on a 6309 as readily as bare metal does -- a CoCo 3 with the
+# chip swapped is the usual way people meet one -- so the OS-9 sysroot gets
+# the same variant.  DECB has no second library: nothing has run the first.
+# shellcheck disable=SC2086
 build_variant mc6809-unknown-unknown hd6309 cross-clang-mc6809-unknown-elf.txt \
-    -Dc_args=-mcpu=hd6309 -Dcpp_args=-mcpu=hd6309 \
-    -Dc_link_args=-mcpu=hd6309 -Dcpp_link_args=-mcpu=hd6309
+    $HD6309_OPTS
+# shellcheck disable=SC2086
+build_variant mc6809-unknown-os9 hd6309 cross-clang-mc6809-unknown-os9.txt \
+    $OS9_OPTS $HD6309_OPTS
 
 # What chooses between them.  clang puts <sysroot>/<Dir> on the library path
 # ahead of the default, so Dir names the directory holding the libraries and
-# the default stays behind it as the fallback.
-say "writing multilib.yaml"
-cat > "$PREFIX/lib/clang-runtimes/mc6809-unknown-unknown/multilib.yaml" <<'YAML'
+# the default stays behind it as the fallback.  Each sysroot that has a
+# variant needs its own copy: the file is read from the sysroot clang picked
+# for the triple, and says nothing about which triple that was.
+write_multilib() {
+cat > "$PREFIX/lib/clang-runtimes/$1/multilib.yaml" <<'YAML'
 # Which library a link gets.  A rule matches when its flags are among the ones
 # clang worked out for the link.
 #
@@ -224,6 +237,11 @@ Variants:
 
 Mappings: []
 YAML
+}
+
+say "writing multilib.yaml"
+write_multilib mc6809-unknown-unknown
+write_multilib mc6809-unknown-os9
 
 # `mc6809-clang` computes the triple `mc6809`, not `mc6809-unknown-unknown`,
 # and the sysroot is named after the triple -- so without these the friendly

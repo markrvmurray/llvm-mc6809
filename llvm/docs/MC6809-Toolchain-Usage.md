@@ -54,7 +54,20 @@ mc6809-clang -mcpu=hd6309 hello.c -o hello.elf
 ```
 
 That selects the HD6309 instruction set **and** a C library built for it;
-without it you get plain 6809 throughout.  `-mcpu=6309` means the same.
+without it you get plain 6809 throughout.  `-mcpu=6309` means the same.  It
+works for OS-9 as well as for bare metal:
+
+```sh
+mc6809-os9-clang -mcpu=hd6309 hello.c -o hello
+```
+
+**An OS-9 program built for the 6309 needs a NitrOS-9 built for the 6309.**
+The linker marks the module `6309 Obj` in its header, and the kernel matches
+a module by type *and* language, so a 6809 system does not find it at all:
+you get `ERROR #234`, non-existent module, which reads like a missing file
+and is really the kernel declining to run 6309 code on a 6809.  That is the
+right answer — the alternative is an illegal instruction somewhere later —
+but it is a puzzling one the first time.
 
 ## Choosing the start-up
 
