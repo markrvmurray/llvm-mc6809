@@ -209,8 +209,10 @@ the shape clang looks for when `multilib.yaml` names that directory.  Only a
 variant whose headers really differ keeps a copy of them: the 6309 library is
 the same C library built for another processor, so a second set would be a
 megabyte saying so, while a floating-point one differs in the line of
-`picolibc.h` that decides what `printf` can format.  DECB has no variants —
-nothing has run its first library, so a second is premature.
+`picolibc.h` that decides what `printf` can format.  DECB has the processor
+variant but not this one: there the MC6839 ROM is linked into the program,
+and 8 KB inside something that must fit under BASIC is a choice to make
+deliberately.
 
 `multilib.yaml` names the directories and the flags that choose them.  **Each
 sysroot with a variant needs its own copy**: clang reads the file from the

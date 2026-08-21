@@ -213,7 +213,45 @@ allocate rather than corrupt them, so anything needing `malloc` — including
 `printf`'s buffer — fails.
 
 `-mcpu=hd6309` works here too, and gets its own library; MAME's `coco3h` is
-the machine to run it on.  There is no floating-point DECB library: the
+the machine to run it on.
+
+### Running one under MAME
+
+`mc6809-run` cannot: a CoCo is a different machine from the simulators it
+knows.  What works, and the sharp edges found getting it to:
+
+```sh
+decb dskini hello.dsk                            # a Disk BASIC disk
+decb copy -2 -b hello.bin hello.dsk,HELLO.BIN    # -2 machine code, -b binary
+mamecoco3-headless -1 hello.dsk 95 -- -autoboot_script drive.lua
+```
+
+* **`coco3h` needs its own ROM name.**  MAME looks for `coco3h.zip` (or
+  `coco.zip`) and will not fall back to `coco3.zip`, though the ROM is the
+  same: link one to the other in `roms/`.
+* **Do not type a long command with `-autoboot_command`.**  MAME's keyboard
+  queue is fixed-size and a CoCo types a few characters a second, so
+  everything after the first Enter is silently dropped -- which looks exactly
+  like a program that never ran.  Post one short line at a time from a Lua
+  script (`-autoboot_script`) with `emu.wait` between them:
+
+  ```lua
+  local nat = manager.machine.natkeyboard
+  emu.wait(6);  nat:post('CLEAR 200,&H3EFF\n')
+  emu.wait(30); nat:post('LOADM"HELLO"\n')
+  emu.wait(25); nat:post('EXEC\n')
+  emu.wait(20)
+  ```
+
+* **Read the screen, not a screenshot.**  The text screen is at `$0400`,
+  32×16, so a few lines of Lua turn it into text a script can check.  The
+  VDG has no lowercase -- BASIC stores it as inverse-video uppercase -- so
+  case does not survive the trip.
+* **BASIC does not echo the newline before running `EXEC`**, so a screen
+  showing `EXEC` with no blank line beneath it may well be a program that has
+  already run.
+* **Rebuild the program after rebuilding the library.**  A stale binary on
+  the floppy looks precisely like a fix that did not work.  There is no floating-point DECB library: the
 MC6839 ROM would be linked into the program, and 8 KB is a lot to spend
 under BASIC without deciding to.
 
