@@ -34,6 +34,9 @@ public:
   void emitValueImpl(const MCExpr *Value, unsigned Size, SMLoc Loc = SMLoc()) override;
 
   void emitMappingSymbol(StringRef Name);
+
+  // Record in the ELF header which processor the code needs.
+  void markArchitecture(const MCSubtargetInfo &STI);
   //void emit816MXState(bool IsMLow, bool IsMHigh, bool IsXLow, bool IsXHigh);
 
   bool hasBSS() const { return HasBSS; }

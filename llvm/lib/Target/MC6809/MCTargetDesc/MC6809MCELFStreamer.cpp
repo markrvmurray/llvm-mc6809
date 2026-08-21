@@ -21,6 +21,7 @@
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCObjectFileInfo.h"
+#include "llvm/MC/MCELFObjectWriter.h"
 #include "llvm/MC/MCObjectWriter.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCSymbol.h"
@@ -33,6 +34,8 @@ namespace llvm {
 
 void MC6809MCELFStreamer::initSections(const MCSubtargetInfo &STI) {
   Has6309Instructions = STI.hasFeature(MC6809::Feature6309);
+
+  markArchitecture(STI);
 
   MCContext &Ctx = getContext();
   switchSection(Ctx.getObjectFileInfo()->getTextSection());
@@ -58,7 +61,28 @@ void MC6809MCELFStreamer::changeSection(MCSection *Section, uint32_t Subsection)
   XState = MXFlagUnknown;
 }
 
-void MC6809MCELFStreamer::emitInstruction(const MCInst &Inst, const MCSubtargetInfo &STI) { MCELFStreamer::emitInstruction(Inst, STI); }
+// Say in the header which processor this code needs.  A 6309 runs 6809 code,
+// so it is the other direction that matters: without this an object built for
+// the 6309 is indistinguishable from a 6809 one, and whatever runs it -- a
+// simulator, a loader, a disassembler choosing a decode table -- has to be
+// told separately, or guess and be wrong.  lld ORs the flags of its inputs,
+// so a program containing any 6309 code says so.
+//
+// Done wherever code arrives rather than once at the start of a file: the
+// compiler comes through initSections, but llvm-mc assembling a .s file does
+// not, and an object it produced would otherwise say nothing at all.
+void MC6809MCELFStreamer::markArchitecture(const MCSubtargetInfo &STI) {
+  ELFObjectWriter &W = getWriter();
+  W.setELFHeaderEFlags(W.getELFHeaderEFlags() |
+                       (STI.hasFeature(MC6809::Feature6309)
+                            ? ELF::EF_MC6809_ARCH_6309
+                            : ELF::EF_MC6809_ARCH_6809));
+}
+
+void MC6809MCELFStreamer::emitInstruction(const MCInst &Inst, const MCSubtargetInfo &STI) {
+  markArchitecture(STI);
+  MCELFStreamer::emitInstruction(Inst, STI);
+}
 
 void MC6809MCELFStreamer::emitValueImpl(const MCExpr *Value, unsigned Size, SMLoc Loc) {
   MCELFStreamer::emitValueImpl(Value, Size, Loc);

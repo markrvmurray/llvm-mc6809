@@ -1776,6 +1776,13 @@ constexpr EnumStringDef<unsigned, 2> ElfHeaderAVRFlagsDefs[] = {
 };
 constexpr auto ElfHeaderAVRFlags = BUILD_ENUM_STRINGS(ElfHeaderAVRFlagsDefs);
 
+constexpr EnumStringDef<unsigned, 2> ElfHeaderMC6809FlagsDefs[] = {
+    ENUM_ENT(EF_MC6809_ARCH_6809, "6809"),
+    ENUM_ENT(EF_MC6809_ARCH_6309, "6309"),
+};
+constexpr auto ElfHeaderMC6809Flags =
+    BUILD_ENUM_STRINGS(ElfHeaderMC6809FlagsDefs);
+
 constexpr EnumStringDef<unsigned, 2> ElfHeaderLoongArchFlagsDefs[] = {
     ENUM_ENT(EF_LOONGARCH_ABI_SOFT_FLOAT, "SOFT-FLOAT"),
     ENUM_ENT(EF_LOONGARCH_ABI_SINGLE_FLOAT, "SINGLE-FLOAT"),
@@ -3785,6 +3792,8 @@ template <class ELFT> void GNUELFDumper<ELFT>::printFileHeaders() {
   else if (e.e_machine == EM_AVR)
     ElfFlags = printFlags(e.e_flags, EnumStrings(ElfHeaderAVRFlags),
                           unsigned(ELF::EF_AVR_ARCH_MASK));
+  else if (e.e_machine == EM_MC6809)
+    ElfFlags = printFlags(e.e_flags, EnumStrings(ElfHeaderMC6809Flags));
   else if (e.e_machine == EM_LOONGARCH)
     ElfFlags = printFlags(e.e_flags, EnumStrings(ElfHeaderLoongArchFlags),
                           unsigned(ELF::EF_LOONGARCH_ABI_MODIFIER_MASK),
@@ -7697,6 +7706,8 @@ template <class ELFT> void LLVMELFDumper<ELFT>::printFileHeaders() {
     else if (E.e_machine == EM_AVR)
       W.printFlags("Flags", E.e_flags, EnumStrings(ElfHeaderAVRFlags),
                    unsigned(ELF::EF_AVR_ARCH_MASK));
+    else if (E.e_machine == EM_MC6809)
+      W.printFlags("Flags", E.e_flags, EnumStrings(ElfHeaderMC6809Flags));
     else if (E.e_machine == EM_LOONGARCH)
       W.printFlags("Flags", E.e_flags, EnumStrings(ElfHeaderLoongArchFlags),
                    unsigned(ELF::EF_LOONGARCH_ABI_MODIFIER_MASK),
