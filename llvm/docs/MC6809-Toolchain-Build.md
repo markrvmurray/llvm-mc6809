@@ -283,22 +283,29 @@ chain of custody and the exact bytes are in
 ## Checking one
 
 ```sh
-picolibc/scripts/check-mc6809-toolchain /opt/mc6809
+picolibc/scripts/check-mc6809-toolchain ~/mc6809
 ```
 
-Seventeen cases.  It compiles ordinary programs — stdio, malloc, string,
-32-bit arithmetic — with nothing but `--target`, and runs each: bare metal on
-USim, OS-9 on a real NitrOS-9 boot.  It then checks each library variant
-twice over, that the link uses the variant's own directory *and* that the
-program runs, since a default library would often link and run anyway; that
-DECB comes out in a LOADM envelope; and that a build system reading
-`clang --version` gets the compiler's version rather than the release
-number.  Nothing in it names a library, a linker script or an include
-path; if the driver cannot find its own sysroot, it fails.  It then builds
-through the short names (`mc6809-clang`, `mc6809-os9-clang`,
-`mc6809-decb-clang`), which is a different test again: each computes its own
-spelling of the triple, and both the sysroot and the resource directory are
-named after it.
+Twenty-three cases, and it prints its own tally.  It compiles ordinary
+programs — stdio, malloc, string, 32-bit arithmetic — with nothing but
+`--target`, and runs each: bare metal on USim, OS-9 on a real NitrOS-9 boot.
+Then each library variant twice over, that the link uses the variant's own
+directory *and* that the program runs, since a default library would often
+link and run anyway.  Then C++: one program per target using a global with a
+constructor, `new`, virtual dispatch, a virtual destructor, a local static, a
+template and the C++ headers all at once — each of those is easy to leave out
+of a runtime and hard to notice missing — and that a `try` is refused at
+compile time, since the alternative is a link failing on
+`__cxa_allocate_exception`.  Then that DECB comes out in a LOADM envelope,
+that a build system reading `clang --version` gets the compiler's version
+rather than the release number, and that all six `mc6809-*-clang` and
+`-clang++` names work.
+
+Nothing in it names a library, a linker script or an include path: if the
+driver cannot find its own sysroot, it fails.  The short names are a test in
+their own right, which is why all six are built through — each computes its
+own spelling of the triple, and both the sysroot and the resource directory
+are named after that spelling.
 
 This is **not** the picolibc test suite as that suite is normally run: a
 normal run links the `libc.a` it has just built, so it exercises the compiler
@@ -307,7 +314,7 @@ side — it takes the suite's programs as *source* and compiles each against
 the bundle with one plain clang command:
 
 ```sh
-picolibc/scripts/check-mc6809-toolchain --corpus /opt/mc6809
+picolibc/scripts/check-mc6809-toolchain --corpus ~/mc6809
 ```
 
 Seventeen of them run and pass, four report picolibc's own "skip", and four
@@ -340,8 +347,8 @@ otherwise.
 prefix instead of a build tree:
 
 ```sh
-MC6809_TOOLCHAIN=/opt/mc6809 picolibc/scripts/gen-mc6809-cross.sh
-MC6809_TOOLCHAIN=/opt/mc6809 picolibc/scripts/bench-parallel.sh --levels Os
+MC6809_TOOLCHAIN=~/mc6809 picolibc/scripts/gen-mc6809-cross.sh
+MC6809_TOOLCHAIN=~/mc6809 picolibc/scripts/bench-parallel.sh --levels Os
 ```
 
 Everything else follows from that: the harness takes its compiler from
