@@ -71,14 +71,12 @@ when it reaches one, not a polite refusal.
 
 ## Floating point
 
-The libraries in the bundle are integer-only: arithmetic works, but
-`printf("%f")` prints the literal `*float*` and `sqrt` does not link.  If
-somebody has built you a floating-point sysroot (the recipe is in
-[MC6809-Toolchain-Build.md](MC6809-Toolchain-Build.md)), point at it:
+The default libraries are integer-only — small, which is the right default on
+a machine with 64 KB.  `-mlibc=float` asks for the ones that can format a
+double and do maths:
 
 ```sh
-mc6809-clang --sysroot=/opt/mc6809/lib/clang-runtimes/mc6809-unknown-unknown-fp \
-    -mcrt0=semihost hello.c -o hello.elf
+mc6809-clang -mlibc=float -mcrt0=semihost hello.c -o hello.elf
 ```
 
 ```
@@ -86,9 +84,14 @@ product 8.000000
 sqrt 4.000000
 ```
 
-The headers come from the same place, which is why it is a whole sysroot and
-not just another `-L`.  No `-lm` is needed: picolibc's maths lives in
-`libc.a`.
+Without it, `printf("%f", x)` prints the literal `*float*` — picolibc saying
+the format was left out — and `sqrt` does not link.  No `-lm` is needed
+either way: picolibc's maths lives in `libc.a`.  The flag selects headers as
+well as libraries, because whether plain `printf` can format a double is
+decided in `picolibc.h` at the time the library is built.
+
+It combines with `-mcpu=hd6309`, so there are four libraries per target:
+plain, 6309, floating point, and both.
 
 The arithmetic itself is Motorola's MC6839 floating-point ROM, and where it
 comes from depends on the target:
@@ -169,15 +172,12 @@ starting point, not a finished target.
 * **No fork, exec, or signals** on any target, and none planned.
 * **No wide characters or multibyte**, as a matter of policy — those tests are
   out of scope rather than pending.
-* **The libraries are integer-only.**  Floating-point *arithmetic* works: the
-  compiler calls into its runtime, and on OS-9 into the MC6839 ROM, so
-  `(int)(3.5 * 2.0 + 1.0)` is 8 as it should be.  But `printf("%f", x)` prints
-  the literal `*float*` — picolibc's way of saying the format was left out —
-  and `<math.h>` has headers with nothing behind them, so `sqrt` fails to
-  link.  `%lld`, `regcomp` and the other POSIX extensions are absent for the
-  same reason: the shipped libraries are built small, and a floating-point
-  variant is not among them yet.  See [Floating point](#floating-point) above
-  for what to do about it.
+* **The default libraries are integer-only**, and `%lld`, `regcomp` and the
+  other POSIX extensions are absent as well — the shipped libraries are built
+  small.  Floating point has a variant of its own: see
+  [Floating point](#floating-point) above.  The others do not; if you need
+  one, build picolibc with the option that provides it and link against that
+  sysroot.
 * **Position-independent by default.** Code is PC-relative, which is what OS-9
   modules need; `-fno-pie` gives absolute addressing for a ROM at a fixed
   address.

@@ -100,19 +100,25 @@ From the development tree it takes about two minutes.
 
 ### Library variants
 
-Each triple gets one library, and the two targets with a machine to run on
-get a second built for the 6309, which `-mcpu=hd6309` selects:
+The two targets with a machine to run on get four libraries each — the
+processor and the floating-point question are independent, so the matrix is
+2×2:
 
 ```
-lib/clang-runtimes/mc6809-unknown-unknown/lib/          plain 6809
-lib/clang-runtimes/mc6809-unknown-unknown/hd6309/lib/   HD6309
-lib/clang-runtimes/mc6809-unknown-os9/lib/              plain 6809
-lib/clang-runtimes/mc6809-unknown-os9/hd6309/lib/       HD6309
+lib/clang-runtimes/<triple>/lib/          plain 6809, integer-only
+lib/clang-runtimes/<triple>/hd6309/       HD6309, integer-only
+lib/clang-runtimes/<triple>/fp/           plain 6809, floating point
+lib/clang-runtimes/<triple>/hd6309-fp/    HD6309, floating point
 ```
 
-A 6309 variant only skips the headers, not the libraries: they are the same
-headers, and a second copy is a megabyte saying so.  DECB has no variant —
-nothing has run the first library, so a second is premature.
+`-mcpu=hd6309` and `-mlibc=float` choose between them.  A variant directory
+holds its libraries directly, with its headers in `include/` beside them —
+the shape clang looks for when `multilib.yaml` names that directory.  Only a
+variant whose headers really differ keeps a copy of them: the 6309 library is
+the same C library built for another processor, so a second set would be a
+megabyte saying so, while a floating-point one differs in the line of
+`picolibc.h` that decides what `printf` can format.  DECB has no variants —
+nothing has run its first library, so a second is premature.
 
 `multilib.yaml` names the directories and the flags that choose them.  **Each
 sysroot with a variant needs its own copy**: clang reads the file from the
@@ -128,40 +134,26 @@ full picolibc build in the roll and another thing to be sure of, so they
 should earn their place.  The flags a rule can match on are the target, the
 relocation model, `-mcpu=` and whether the link is doing LTO.
 
-### Adding a floating-point variant
+### Adding a variant
 
-The shipped libraries are integer-only, so `printf("%f")` prints `*float*`
-and `sqrt` does not link.  A variant that can do both is one picolibc build:
+A variant is a picolibc build plus a rule.  The floating-point ones are three
+meson options — `-Dstdio-float=true`, `-Dwant-libm=true` and, easy to miss,
+`-Dformat-default=double`, without which the float-capable code is built but
+plain `printf` still resolves to the integer one — and a `multilib.yaml`
+entry naming the flags that select them.
 
-```sh
-meson setup /tmp/fp-build ../picolibc \
-    --cross-file ../picolibc/scripts/cross-clang-mc6809-unknown-elf.txt \
-    -Dprefix=/opt/mc6809/lib/clang-runtimes/mc6809-unknown-unknown-fp \
-    --libdir=lib --includedir=include \
-    -Dprintf-aliases=false -Dposix-extensions=false -Dsearch-extensions=true \
-    -Dmb-capable=false -Dio-long-long=false -Dtests=false -Doptimization=s \
-    -Dformat-default=double -Dstdio-float=true -Dwant-libm=true
-meson install -C /tmp/fp-build
-```
+What made this one more than a build is worth knowing before adding the next:
 
-Three options do the work: `-Dstdio-float=true` builds the double-capable
-`printf`/`scanf`, `-Dwant-libm=true` builds the maths functions, and
-**`-Dformat-default=double` is the one that is easy to miss** — without it
-the float-capable code is built but plain `printf` still resolves to the
-integer one.  For OS-9, add that triple's options (`-Dpicocrt=false
--Dsemihost=false -Dos-os9=true -Dposix-console=true`) and install into
-`mc6809-unknown-os9-fp`.
-
-**It is a separate sysroot, not a multilib directory under an existing one**,
-and that is forced rather than chosen: the two builds install *different
-headers*.  `picolibc.h` carries `#define __IO_DEFAULT 'd'` where the integer
-build has `'i'`, and clang's multilib mechanism switches the library
-directory only — the include path comes from `<sysroot>/include`.  On top of
-that there is no flag for a rule to match on: `getMultilibFlags` offers
-`-mcpu` and `-flto`, and neither describes what `printf` can format.  Making
-this a variant the driver selects by itself needs both halves — a driver
-option emitted into the multilib flags, and a per-variant include directory —
-which is why the bundle does not ship one yet.
+* **A rule can only match on flags clang produces.** `getMultilibFlags` gives
+  the target and the relocation model; `getMC6809MultilibFlags` adds `-mcpu`,
+  `-flto`/`-fno-lto` and `-mlibc`.  Nothing clang works out for itself says
+  whether a library can format a double, so the flag has to be asked for
+  outright — hence `-mlibc=`, beside the `-mcrt0=` that picks a start-up.
+* **Headers can differ, and here they do.** clang's multilib mechanism
+  switches the library directory; the include path comes from the sysroot.
+  `MC6809ToolChain::AddClangSystemIncludeArgs` now puts a selected variant's
+  own `include/` ahead of the default, which is what makes `picolibc.h` —
+  and so plain `printf` — come from the right build.
 
 Two things that surprise people:
 
@@ -271,16 +263,10 @@ when it cannot find them, and the usage guide names where they come from.
 * **No packaging**: no tarball, no Homebrew formula, no installer.  A bundle
   is a directory; `tar` is left as an exercise until somebody wants one.
 * **One optimisation level.** Every library is built `-Os`.  An LTO variant
-  would be two lines of YAML and another build; nobody has measured whether
-  it is worth it.
-* **The libraries are integer-only.** `-Dstdio-float=false -Dwant-libm=false
-  -Dposix-extensions=false -Dmb-capable=false -Dio-long-long=false`: no
-  `libm`, no `%f` in `printf`, no `regcomp`, no wide characters, no `%lld`.
-  Floating-point *arithmetic* works — the compiler emits calls into
-  compiler-rt, and on OS-9 into the MC6839 ROM — but `printf("%f")` prints
-  the literal `*float*`, which is picolibc saying so out loud.
-  A floating-point variant is a second full build per triple, and there is no
-  obvious flag for clang's multilib rules to select it by: `-mcpu` and
-  `-flto` are all `getMultilibFlags` offers, and neither says anything about
-  what `printf` can format.  That design question is what stands between here
-  and shipping one.
+  would be two lines of YAML and another build — `-flto` is already among the
+  flags a rule can match on — but nobody has measured whether it is worth it.
+* **The default libraries are integer-only**, and the POSIX extensions, wide
+  characters and `%lld` are absent from every variant: `-Dposix-extensions=
+  false -Dmb-capable=false -Dio-long-long=false`.  Floating point is the one
+  that has a variant and a flag; the rest would each want the same treatment,
+  and none has been asked for.
