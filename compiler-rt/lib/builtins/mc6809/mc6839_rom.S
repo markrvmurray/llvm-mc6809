@@ -1,5 +1,11 @@
 ; MC6839 Floating-Point ROM — embedded into the program image.
 ;
+; Float09.bin is Motorola's ROM image, 8192 bytes, unaltered: written for
+; Motorola by Joel Boney in 1980, and documented by Rich Kottke in 1989 as
+; having been released into the public domain by Motorola in 1988.  The
+; provenance, the chain of custody and where the same bytes appear in an
+; installed toolchain are in llvm/docs/MC6809-Third-Party.md.
+;
 ; There is no physical ROM chip. The 8KB MC6839 binary is linked as a
 ; normal section alongside .text; the linker places it wherever it fits.
 ; The MC6839 code is fully position-independent (OS-9 module, all internal

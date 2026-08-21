@@ -100,8 +100,10 @@ the code is, because that is the only language NitrOS-9 asks for — so a 6309
 module is named as one: `mc6809-run --hd6309 program`, which boots the 6309
 NitrOS-9 rather than the ordinary one.
 
-The arithmetic itself is Motorola's MC6839 floating-point ROM, and where it
-comes from depends on the target:
+The arithmetic itself is Motorola's MC6839 floating-point ROM — the one piece
+of this toolchain not written for it, described in
+[MC6809-Third-Party.md](MC6809-Third-Party.md) — and where it comes from
+depends on the target:
 
 * **Bare metal and DECB**: the 8 KB ROM is part of the compiler's runtime and
   is linked into your program — only if you use floating point, so a program

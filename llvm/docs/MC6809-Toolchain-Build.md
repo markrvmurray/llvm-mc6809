@@ -178,9 +178,10 @@ both of the forms it is needed in.
   A program links it at start-up, so **it has to be on the target machine**
   as well as in the bundle.
 
-The ROM is a reconstruction from published Motorola source rather than
-something written here; whoever publishes a tarball should satisfy themselves
-about redistributing it.
+The ROM is Motorola's, written by Joel Boney in 1980 and documented as
+released into the public domain by Motorola in 1988.  The provenance, the
+chain of custody and the exact bytes are in
+[MC6809-Third-Party.md](MC6809-Third-Party.md), which every bundle carries.
 
 ## Checking one
 

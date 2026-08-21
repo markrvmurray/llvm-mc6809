@@ -346,7 +346,7 @@ say "linking the bare-metal directories under the names the short forms compute"
 say "staging the documents"
 mkdir -p "$PREFIX/share/doc/mc6809"
 for doc in MC6809-Toolchain-Build.md MC6809-Toolchain-Usage.md \
-           MC6809-OS9.md MC6809-OS9-syscalls.md; do
+           MC6809-OS9.md MC6809-OS9-syscalls.md MC6809-Third-Party.md; do
   [ -f "$REPO/llvm/docs/$doc" ] && cp "$REPO/llvm/docs/$doc" \
       "$PREFIX/share/doc/mc6809/$doc"
 done
@@ -393,6 +393,9 @@ Full documentation is in \`share/doc/mc6809/\`:
     one.
   * \`MC6809-OS9.md\` and \`MC6809-OS9-syscalls.md\` -- the OS-9 target in
     detail.
+  * \`MC6809-Third-Party.md\` -- the one piece of this toolchain that was not
+    written for it: Motorola's MC6839 floating-point ROM, which does all the
+    floating-point arithmetic, where it came from and on what footing.
 
 This is \`$banner\`, built from
 $(cd "$REPO" && git rev-parse HEAD 2>/dev/null || echo "an unknown revision").
