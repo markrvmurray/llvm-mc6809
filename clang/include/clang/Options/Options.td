@@ -1726,6 +1726,12 @@ def mcrt0_EQ
              "return from main, for hardware), semihost or hosted (call exit, "
              "for a simulator), minimal, or none.">;
 
+def mlibc_EQ
+  : Joined<["-"], "mlibc=">, Group<m_Group>,
+    HelpText<"MC6809 flag: which C library variant to link -- integer "
+             "(default) or float, which adds floating-point printf/scanf and "
+             "the maths functions.  Selects both the library and its headers.">;
+
 defm assume_unique_vtables : BoolFOption<"assume-unique-vtables",
   CodeGenOpts<"DisableExactDynamicCast">, DefaultFalse,
   PosFlag<SetFalse>,

@@ -6,14 +6,17 @@
 // of the default, so a variant is found first and the default stays behind
 // it as the fallback.
 //
-// RUN: rm -rf %t && mkdir -p %t/sysroot/lib %t/sysroot/hd6309/lib
-// RUN: touch %t/sysroot/lib/libc.a %t/sysroot/hd6309/lib/libc.a
+// RUN: rm -rf %t && mkdir -p %t/sysroot/lib %t/sysroot/include
+// RUN: mkdir -p %t/sysroot/hd6309 %t/sysroot/fp/include
+// RUN: touch %t/sysroot/lib/libc.a %t/sysroot/hd6309/libc.a %t/sysroot/fp/libc.a
 // RUN: echo 'MultilibVersion: 1.0'                             > %t/sysroot/multilib.yaml
 // RUN: echo 'Variants:'                                       >> %t/sysroot/multilib.yaml
 // RUN: echo '- Dir: lib'                                      >> %t/sysroot/multilib.yaml
-// RUN: echo '  Flags: [-mcpu=mc6809]'                        >> %t/sysroot/multilib.yaml
-// RUN: echo '- Dir: hd6309/lib'                               >> %t/sysroot/multilib.yaml
-// RUN: echo '  Flags: [-mcpu=hd6309]'                        >> %t/sysroot/multilib.yaml
+// RUN: echo '  Flags: [-mcpu=mc6809, -mlibc=integer]'         >> %t/sysroot/multilib.yaml
+// RUN: echo '- Dir: hd6309'                                   >> %t/sysroot/multilib.yaml
+// RUN: echo '  Flags: [-mcpu=hd6309, -mlibc=integer]'         >> %t/sysroot/multilib.yaml
+// RUN: echo '- Dir: fp'                                       >> %t/sysroot/multilib.yaml
+// RUN: echo '  Flags: [-mcpu=mc6809, -mlibc=float]'           >> %t/sysroot/multilib.yaml
 // RUN: echo 'Mappings: []'                                    >> %t/sysroot/multilib.yaml
 
 // Plain 6809 gets the default library, and no complaint about matching
@@ -28,11 +31,27 @@
 // RUN: %clang --target=mc6809-unknown-unknown -mcpu=hd6309 --sysroot=%t/sysroot -### %s 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=HD6309
 // HD6309-NOT: warning: no multilib
-// HD6309: "-L{{.*}}sysroot{{/|\\\\}}hd6309{{/|\\\\}}lib" "-L{{.*}}sysroot{{/|\\\\}}lib"
+// HD6309: "-L{{.*}}sysroot{{/|\\\\}}hd6309" "-L{{.*}}sysroot{{/|\\\\}}lib"
 
 // `-mcpu=6309` is the same processor spelled differently, and must choose the
 // same library.
 // RUN: %clang --target=mc6809-unknown-unknown -mcpu=6309 --sysroot=%t/sysroot -### %s 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=HD6309
+
+// A library variant may differ in its headers as well as its code, and the
+// floating-point one does: picolibc.h decides there whether plain printf can
+// format a double.  So the variant's include directory goes ahead of the
+// default's -- and a variant without one (the 6309 library shares the
+// default headers) must not add a directory that is not there.
+// RUN: %clang --target=mc6809-unknown-unknown -mlibc=float --sysroot=%t/sysroot -### %s 2>&1 \
+// RUN:   | FileCheck %s --check-prefix=FLOAT
+// FLOAT-NOT: warning: no multilib
+// FLOAT: "-internal-isystem" "{{.*}}sysroot{{/|\\\\}}fp{{/|\\\\}}include"
+// FLOAT: "-internal-isystem" "{{.*}}sysroot{{/|\\\\}}include"
+// FLOAT: "-L{{.*}}sysroot{{/|\\\\}}fp" "-L{{.*}}sysroot{{/|\\\\}}lib"
+
+// RUN: %clang --target=mc6809-unknown-unknown -mcpu=hd6309 --sysroot=%t/sysroot -### %s 2>&1 \
+// RUN:   | FileCheck %s --check-prefix=NOVARINC
+// NOVARINC-NOT: "-internal-isystem" "{{.*}}hd6309{{/|\\\\}}include"
 
 int main(void) { return 0; }

@@ -14,6 +14,7 @@
 #include "clang/Driver/Driver.h"
 #include "clang/Options/Options.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/Path.h"
 
 using namespace llvm::opt;
@@ -82,6 +83,20 @@ void MC6809ToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
   // The C library's own headers, when one is installed beside this clang.
   std::string SysRoot = computeSysRoot();
   if (sysRootHasLibC(SysRoot)) {
+    // A library variant may bring its own headers, and one of ours does: a
+    // floating-point libc differs from the integer one in picolibc.h, which
+    // is what makes plain printf resolve to the double-capable code.  The
+    // variant's include directory goes ahead of the default so that its
+    // header wins; a variant that has none (the 6309 library, which shares
+    // the default headers) simply names a directory that is not there.
+    for (const Multilib &M : getOrderedMultilibs()) {
+      SmallString<128> Dir(SysRoot);
+      llvm::sys::path::append(Dir, M.includeSuffix());
+      llvm::sys::path::append(Dir, "include");
+      if (getDriver().getVFS().exists(Dir))
+        addSystemInclude(DriverArgs, CC1Args, Dir.str());
+    }
+
     SmallString<128> Inc(SysRoot);
     llvm::sys::path::append(Inc, "include");
     addSystemInclude(DriverArgs, CC1Args, Inc.str());

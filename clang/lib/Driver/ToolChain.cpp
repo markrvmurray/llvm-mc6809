@@ -442,6 +442,14 @@ static void getMC6809MultilibFlags(const llvm::opt::ArgList &Args,
   Result.push_back(Args.hasArg(options::OPT_flto, options::OPT_flto_EQ)
                        ? "-flto"
                        : "-fno-lto");
+
+  // And whether the library can format a float.  Nothing clang works out for
+  // itself says this: a libc built with floating-point printf and the maths
+  // functions differs from one without in a way no target flag describes, so
+  // -mlibc= says it outright.
+  StringRef LibC = Args.getLastArgValue(options::OPT_mlibc_EQ);
+  Result.push_back(
+      ("-mlibc=" + (LibC.empty() ? StringRef("integer") : LibC)).str());
 }
 
 static void getRISCVMultilibFlags(const Driver &D, const llvm::Triple &Triple,
