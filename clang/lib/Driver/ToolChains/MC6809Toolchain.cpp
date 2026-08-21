@@ -351,12 +351,15 @@ void mc6809::Linker::ConstructJob(Compilation &C, const JobAction &JA,
             Args.MakeArgString(Twine("--os9-name=") + Stem));
     }
 
-    // HD6309-native modules use Prgrm|Obj6309 ($17); plain 6809 uses
-    // Prgrm|Objct ($11).  --os9-type defaults to $11 in lld, so we
-    // only need to override for HD6309.
-    StringRef CPU = Args.getLastArgValue(options::OPT_mcpu_EQ);
-    if (CPU == "hd6309" || CPU == "6309")
-      CmdArgs.push_back("--os9-type=0x17");
+    // The module's language stays Prgrm|Objct ($11) whatever the CPU is.
+    // OS-9 does define a separate language for 6309 object code -- $17,
+    // Obj6309, and that is what this used to emit for -mcpu=hd6309 -- but
+    // nothing runs such a module: the kernel matches a module by type *and*
+    // language, and NitrOS-9 asks for $11.  Its own 6309 build marks every
+    // module $11 as well, so a $17 module is refused by a 6309 NitrOS-9
+    // exactly as it is by a 6809 one, with error 234, non-existent module.
+    // Somebody who wants the other language byte can still ask lld for it
+    // with --os9-type.
   }
 
   // For DECB, the resourcedir's per-triple directory holds the start-up code
