@@ -157,6 +157,17 @@ std::pair<unsigned, const TargetRegisterClass *> MC6809TargetLowering::getRegFor
       return std::make_pair(MC6809::V, &MC6809::OVFLAGRegClass);
     }
   }
+  // `{e}` and `{f}` are ambiguous: the 6309 accumulator halves are written
+  // `e` and `f`, and the condition-code bits E (entire) and F (FIRQ mask) are
+  // *named* E and F, which the generic lookup matches case-insensitively.  It
+  // resolved them to the flag bits, so an asm clobbering the accumulator half
+  // silently clobbered a flag instead.  clang offers these names for the
+  // accumulators, so that is what they mean here.
+  if (Constraint == "{e}")
+    return std::make_pair(MC6809::AE, &MC6809::AEcRegClass);
+  if (Constraint == "{f}")
+    return std::make_pair(MC6809::AF, &MC6809::AFcRegClass);
+
   return TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
 }
 

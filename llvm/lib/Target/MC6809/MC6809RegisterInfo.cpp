@@ -15,6 +15,7 @@
 #include "MC6809InstrInfo.h"
 #include "MC6809MachineFunctionInfo.h"
 #include "MC6809Subtarget.h"
+#include "MCTargetDesc/MC6809InstPrinter.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
@@ -137,6 +138,14 @@ BitVector MC6809RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
       Reserved.set(Reg);
 
   return Reserved;
+}
+
+// The assembler's spelling, from the same table the printer uses.  See the
+// header for why the inherited version is wrong for this target.
+StringRef MC6809RegisterInfo::getRegAsmName(MCRegister Reg) const {
+  if (const char *Name = MC6809InstPrinter::getRegisterName(Reg))
+    return StringRef(Name);
+  return StringRef(getName(Reg));
 }
 
 const MCPhysReg *MC6809RegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const { return MC6809_CSR_SaveList; }

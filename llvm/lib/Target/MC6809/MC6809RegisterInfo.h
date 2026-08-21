@@ -38,6 +38,15 @@ public:
     return Imag8SymbolNames[Reg].c_str();
   }
 
+  // What a register is called in assembly, which is not what it is called in
+  // TableGen: `AD` is written `d`, `IX` is written `x`.  The default returns
+  // the record name, and its own comment admits the assumption ("we are
+  // assuming that the assembly name is equal to the TableGen name converted
+  // to lower case") -- true for x86's EAX/eax, false here.  Inline-asm
+  // clobbers are matched against this, so without the override `~{d}` finds
+  // no register and is silently dropped.
+  StringRef getRegAsmName(MCRegister Reg) const override;
+
   const MCPhysReg *getCalleeSavedRegs(const MachineFunction *MF) const override;
 
   const uint32_t *getCallPreservedMask(const MachineFunction &MF, CallingConv::ID) const override;
