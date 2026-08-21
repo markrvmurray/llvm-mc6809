@@ -198,10 +198,24 @@ not expected:
   same on both.
 
 **DECB** is a `LOADM`/`EXEC` binary: the direct page and the program at
-`$3F00`, the console through the BASIC ROM, and a return to BASIC when `main`
-ends.  **It has never been run** — the format, the start-up and the library
-are written and link, but no machine has executed one.  Treat it as a
-starting point, not a finished target.
+`$3F00`, and the console through the BASIC ROM.  It runs — on a CoCo 3 under
+MAME, `printf` and formatted output work — with two conditions:
+
+```basic
+CLEAR 200,&H3EFF        ' move BASIC below the program, before loading
+LOADM"HELLO"
+EXEC
+```
+
+**The `CLEAR` is not optional.**  Without it BASIC's variables, strings and
+stack occupy the memory the program's heap grows into; the library refuses to
+allocate rather than corrupt them, so anything needing `malloc` — including
+`printf`'s buffer — fails.
+
+**A program should print what it must and not return.**  Coming back from
+`main` puts BASIC through a warm start that clears the screen, taking the
+program's output with it; a program that ends in a loop keeps its output on
+screen.  That is the one part of this target still to be fixed.
 
 ## Limits worth knowing
 

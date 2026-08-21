@@ -369,10 +369,12 @@ when it cannot find them, and the usage guide names where they come from.
 
 ## What is not done
 
-* **Nothing runs DECB.** The format, the start-up code and the library are
-  written and link; no machine has executed any of it.  The other three
-  libraries — bare metal, OS-9, and the 6309 variants of both — are each run
-  by the check.
+* **DECB is not in the check.** It runs — a CoCo 3 under MAME prints from it
+  — but the check has no CoCo: `mamecoco3` is a separate build with its own
+  ROMs, and driving BASIC means typing `CLEAR`, `LOADM` and `EXEC` through
+  an emulated keyboard that accepts a few characters a second.  So the check
+  still only verifies that a DECB binary links and comes out in a LOADM
+  envelope, and the recipe for running one by hand is in the usage guide.
 * **No Homebrew formula, no installer, no signing or notarisation.**  There
   is a tarball and a checksum (see [Packaging](#packaging)); everything
   beyond that is unbuilt, and on macOS an unsigned binary downloaded from
