@@ -1,0 +1,49 @@
+#ifndef _MC6809_CXX_CSTDLIB
+#define _MC6809_CXX_CSTDLIB
+
+// cstdlib -- the C library's stdlib.h under C++ rules.
+//
+// There is no C++ standard library on this target; these headers exist so
+// that ordinary C++ can use the C library by its standard spelling.  They
+// declare nothing of their own: the names are picolibc's, brought into
+// namespace std as the standard says they should be.
+
+#include <stdlib.h>
+
+namespace std {
+using ::size_t;
+using ::div_t;
+using ::ldiv_t;
+using ::abort;
+using ::atexit;
+using ::exit;
+using ::_Exit;
+using ::getenv;
+using ::system;
+using ::malloc;
+using ::calloc;
+using ::realloc;
+using ::free;
+using ::atof;
+using ::atoi;
+using ::atol;
+using ::atoll;
+using ::strtol;
+using ::strtoul;
+using ::strtoll;
+using ::strtoull;
+using ::strtod;
+using ::strtof;
+using ::rand;
+using ::srand;
+using ::qsort;
+using ::bsearch;
+using ::abs;
+using ::labs;
+using ::llabs;
+using ::div;
+using ::ldiv;
+using ::lldiv;
+} // namespace std
+
+#endif

@@ -1,0 +1,20 @@
+#ifndef _MC6809_CXX_CSTDDEF
+#define _MC6809_CXX_CSTDDEF
+
+// cstddef -- the C library's stddef.h under C++ rules.
+//
+// There is no C++ standard library on this target; these headers exist so
+// that ordinary C++ can use the C library by its standard spelling.  They
+// declare nothing of their own: the names are picolibc's, brought into
+// namespace std as the standard says they should be.
+
+#include <stddef.h>
+
+namespace std {
+using ::size_t;
+using ::ptrdiff_t;
+using ::nullptr_t;
+using ::max_align_t;
+} // namespace std
+
+#endif

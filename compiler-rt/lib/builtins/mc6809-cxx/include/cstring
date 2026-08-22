@@ -1,0 +1,39 @@
+#ifndef _MC6809_CXX_CSTRING
+#define _MC6809_CXX_CSTRING
+
+// cstring -- the C library's string.h under C++ rules.
+//
+// There is no C++ standard library on this target; these headers exist so
+// that ordinary C++ can use the C library by its standard spelling.  They
+// declare nothing of their own: the names are picolibc's, brought into
+// namespace std as the standard says they should be.
+
+#include <string.h>
+
+namespace std {
+using ::size_t;
+using ::memcpy;
+using ::memmove;
+using ::memset;
+using ::memcmp;
+using ::memchr;
+using ::strcpy;
+using ::strncpy;
+using ::strcat;
+using ::strncat;
+using ::strcmp;
+using ::strncmp;
+using ::strcoll;
+using ::strxfrm;
+using ::strchr;
+using ::strrchr;
+using ::strspn;
+using ::strcspn;
+using ::strpbrk;
+using ::strstr;
+using ::strtok;
+using ::strlen;
+using ::strerror;
+} // namespace std
+
+#endif

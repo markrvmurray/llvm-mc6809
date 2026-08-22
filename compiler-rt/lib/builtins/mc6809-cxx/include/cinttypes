@@ -1,0 +1,17 @@
+#ifndef _MC6809_CXX_CINTTYPES
+#define _MC6809_CXX_CINTTYPES
+
+// cinttypes -- the C library's inttypes.h under C++ rules.
+
+#include <cstdint>
+#include <inttypes.h>
+
+namespace std {
+using ::imaxdiv_t;
+using ::imaxabs;
+using ::imaxdiv;
+using ::strtoimax;
+using ::strtoumax;
+} // namespace std
+
+#endif

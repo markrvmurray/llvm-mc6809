@@ -1,0 +1,15 @@
+#ifndef _MC6809_CXX_CERRNO
+#define _MC6809_CXX_CERRNO
+
+// cerrno -- the C library's errno.h under C++ rules.
+//
+// There is no C++ standard library on this target; these headers exist so
+// that ordinary C++ can use the C library by its standard spelling.  They
+// declare nothing of their own: the names are picolibc's, brought into
+// namespace std as the standard says they should be.
+
+#include <errno.h>
+
+// errno.h declares macros, which are not scoped and need no using.
+
+#endif

@@ -1,0 +1,15 @@
+#ifndef _MC6809_CXX_CLIMITS
+#define _MC6809_CXX_CLIMITS
+
+// climits -- the C library's limits.h under C++ rules.
+//
+// There is no C++ standard library on this target; these headers exist so
+// that ordinary C++ can use the C library by its standard spelling.  They
+// declare nothing of their own: the names are picolibc's, brought into
+// namespace std as the standard says they should be.
+
+#include <limits.h>
+
+// limits.h declares macros, which are not scoped and need no using.
+
+#endif

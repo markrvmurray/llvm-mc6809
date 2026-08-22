@@ -1,0 +1,30 @@
+#ifndef _MC6809_CXX_CTIME
+#define _MC6809_CXX_CTIME
+
+// ctime -- the C library's time.h under C++ rules.
+//
+// There is no C++ standard library on this target; these headers exist so
+// that ordinary C++ can use the C library by its standard spelling.  They
+// declare nothing of their own: the names are picolibc's, brought into
+// namespace std as the standard says they should be.
+
+#include <time.h>
+
+namespace std {
+using ::size_t;
+using ::clock_t;
+using ::time_t;
+using ::tm;
+using ::timespec;
+using ::clock;
+using ::difftime;
+using ::mktime;
+using ::time;
+using ::asctime;
+using ::ctime;
+using ::gmtime;
+using ::localtime;
+using ::strftime;
+} // namespace std
+
+#endif

@@ -1,0 +1,64 @@
+#ifndef _MC6809_CXX_CSTDIO
+#define _MC6809_CXX_CSTDIO
+
+// cstdio -- the C library's stdio.h under C++ rules.
+//
+// There is no C++ standard library on this target; these headers exist so
+// that ordinary C++ can use the C library by its standard spelling.  They
+// declare nothing of their own: the names are picolibc's, brought into
+// namespace std as the standard says they should be.
+
+#include <stdio.h>
+
+namespace std {
+using ::FILE;
+using ::fpos_t;
+using ::size_t;
+using ::fopen;
+using ::freopen;
+using ::fclose;
+using ::fflush;
+using ::setbuf;
+using ::setvbuf;
+using ::fread;
+using ::fwrite;
+using ::fgetc;
+using ::fgets;
+using ::fputc;
+using ::fputs;
+using ::getc;
+using ::getchar;
+using ::putc;
+using ::putchar;
+using ::puts;
+using ::ungetc;
+using ::printf;
+using ::fprintf;
+using ::sprintf;
+using ::snprintf;
+using ::vprintf;
+using ::vfprintf;
+using ::vsprintf;
+using ::vsnprintf;
+using ::scanf;
+using ::fscanf;
+using ::sscanf;
+using ::vscanf;
+using ::vfscanf;
+using ::vsscanf;
+using ::fseek;
+using ::ftell;
+using ::rewind;
+using ::fgetpos;
+using ::fsetpos;
+using ::clearerr;
+using ::feof;
+using ::ferror;
+using ::perror;
+using ::remove;
+using ::rename;
+using ::tmpfile;
+using ::tmpnam;
+} // namespace std
+
+#endif

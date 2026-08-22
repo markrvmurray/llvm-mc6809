@@ -1,0 +1,39 @@
+#ifndef _MC6809_CXX_NEW
+#define _MC6809_CXX_NEW
+
+// <new> -- allocation, and the placement form the language needs.
+//
+// There is no C++ standard library on this target.  What is here is what the
+// compiler emits calls to, implemented over malloc and free in
+// libclang_rt.cxx: a failed allocation returns null rather than throwing,
+// since there are no exceptions.  Check the pointer, as you would in C.
+
+#include <stddef.h>
+
+namespace std {
+using ::size_t;
+struct nothrow_t {
+  explicit nothrow_t() = default;
+};
+extern const nothrow_t nothrow;
+} // namespace std
+
+void *operator new(std::size_t);
+void *operator new[](std::size_t);
+void *operator new(std::size_t, const std::nothrow_t &) noexcept;
+void *operator new[](std::size_t, const std::nothrow_t &) noexcept;
+
+void operator delete(void *) noexcept;
+void operator delete[](void *) noexcept;
+void operator delete(void *, const std::nothrow_t &) noexcept;
+void operator delete[](void *, const std::nothrow_t &) noexcept;
+void operator delete(void *, std::size_t) noexcept;
+void operator delete[](void *, std::size_t) noexcept;
+
+// Placement new: no allocation, so the compiler needs only the declaration.
+inline void *operator new(std::size_t, void *p) noexcept { return p; }
+inline void *operator new[](std::size_t, void *p) noexcept { return p; }
+inline void operator delete(void *, void *) noexcept {}
+inline void operator delete[](void *, void *) noexcept {}
+
+#endif

@@ -1415,11 +1415,15 @@ else ()
         # The OS-9 CRT, linker script and system-call header live with the
         # OS-9 builtins. See compiler-rt/lib/builtins/mc6809-os9/CMakeLists.txt.
         add_subdirectory(mc6809-os9)
+        # What C++ needs beyond the C library -- there is no C++ standard
+        # library on this target, only the language over picolibc.
+        add_subdirectory(mc6809-cxx)
       elseif (${arch} STREQUAL "mc6809")
         # The DECB entry and linker script ride along with the bare-metal
         # builtins: they are two files in the shared resource directory, not
         # a library, so they need no compiler-rt build of their own.
         add_subdirectory(mc6809-decb)
+        add_subdirectory(mc6809-cxx)
         # The library is built under the alternate name
         # libclang_rt.builtins-hd6309.a (so its target name doesn't
         # collide with the default builtins target). It's then copied

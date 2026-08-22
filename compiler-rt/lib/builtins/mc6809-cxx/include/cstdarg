@@ -1,0 +1,17 @@
+#ifndef _MC6809_CXX_CSTDARG
+#define _MC6809_CXX_CSTDARG
+
+// cstdarg -- the C library's stdarg.h under C++ rules.
+//
+// There is no C++ standard library on this target; these headers exist so
+// that ordinary C++ can use the C library by its standard spelling.  They
+// declare nothing of their own: the names are picolibc's, brought into
+// namespace std as the standard says they should be.
+
+#include <stdarg.h>
+
+namespace std {
+using ::va_list;
+} // namespace std
+
+#endif

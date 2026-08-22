@@ -1,0 +1,74 @@
+#ifndef _MC6809_CXX_CMATH
+#define _MC6809_CXX_CMATH
+
+// cmath -- the C library's math.h under C++ rules.
+//
+// There is no C++ standard library on this target; these headers exist so
+// that ordinary C++ can use the C library by its standard spelling.  They
+// declare nothing of their own: the names are picolibc's, brought into
+// namespace std as the standard says they should be.
+
+#include <math.h>
+
+namespace std {
+using ::float_t;
+using ::double_t;
+using ::fabs;
+using ::fmod;
+using ::remainder;
+using ::fma;
+using ::fmax;
+using ::fmin;
+using ::fdim;
+using ::exp;
+using ::exp2;
+using ::expm1;
+using ::log;
+using ::log10;
+using ::log2;
+using ::log1p;
+using ::pow;
+using ::sqrt;
+using ::cbrt;
+using ::hypot;
+using ::sin;
+using ::cos;
+using ::tan;
+using ::asin;
+using ::acos;
+using ::atan;
+using ::atan2;
+using ::sinh;
+using ::cosh;
+using ::tanh;
+using ::asinh;
+using ::acosh;
+using ::atanh;
+using ::erf;
+using ::erfc;
+using ::tgamma;
+using ::lgamma;
+using ::ceil;
+using ::floor;
+using ::trunc;
+using ::round;
+using ::lround;
+using ::llround;
+using ::rint;
+using ::nearbyint;
+using ::frexp;
+using ::ldexp;
+using ::modf;
+using ::scalbn;
+using ::ilogb;
+using ::logb;
+using ::nextafter;
+using ::copysign;
+using ::nan;
+using ::isnan;
+using ::isinf;
+using ::isfinite;
+using ::signbit;
+} // namespace std
+
+#endif
