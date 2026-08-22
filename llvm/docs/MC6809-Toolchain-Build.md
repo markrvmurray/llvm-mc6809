@@ -377,10 +377,17 @@ fifth of the build and none of the bundle.  `-D` beats `-C`: every entry the
 cache file sets is a plain `CACHE` set with no `FORCE`, so the flags on the
 command line win.
 
+First run, 2026-08-22: **green, and 2h09** — 2h07 of it the build, about
+three times what an eighteen-core Mac takes, with a cold compiler cache.
+The cache saved cleanly, so later runs should be a fraction of that, and
+the job's cap allows for a cold one plus the bundle roll.
+
 Then it runs every MC6809 test that does not need a machine to run on:
 `llvm/test/CodeGen/MC6809`, `llvm/test/MC/MC6809`,
 `clang/test/CodeGen/MC6809`, the `mc6809-*` Sema cases and the driver cases.
-On 2026-08-22 that is **240 passed, 56 unsupported, 0 failed**.
+On 2026-08-22 that is **240 passed, 56 unsupported, 0 failed** — the same
+figures the suite gives on macOS, which is the answer to the question the
+whole job exists to ask.
 
 The 56 are the emulator-driven suites, and they are why the job does not
 simply trust lit's exit status.  **A suite that stops running reports

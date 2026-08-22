@@ -33,7 +33,12 @@ jobs:
     # Not on anybody else's fork of this fork.
     if: github.repository == 'markrvmurray/llvm-mc6809'
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    # Measured: 2h09 for the first run, of which 2h07 was the build -- a
+    # four-vCPU runner takes about three times what an eighteen-core Mac
+    # does, and that is with no lldb.  Later runs restore the ccache and
+    # should be a fraction of it, but a cold cache plus the bundle roll has
+    # to fit, and a run killed by the cap wastes the whole two hours.
+    timeout-minutes: 300
     env:
       # Raise this when the suite grows.  It exists because the failure that
       # matters here is not a red test -- it is the whole suite quietly
