@@ -358,6 +358,46 @@ DECB is built and its LOADM envelope inspected, but not run — nothing here
 can run a CoCo program, and the check says `not run` rather than implying
 otherwise.
 
+## What GitHub builds
+
+`.github/workflows/mc6809-ci.yml` answers one question on every push to
+`MC6809`: does this tree build, and pass its own tests, on a machine that is
+not the one it was written on?  A fork of LLVM has no other way to find that
+out, and it is the failure that costs most when it surfaces during a release
+rather than before one.
+
+It configures from the development cache with three things changed —
+Release so it finishes inside an hour, assertions kept **on** because
+catching a bad assumption is most of the value, and no lldb, which is a
+fifth of the build and none of the bundle.  `-D` beats `-C`: every entry the
+cache file sets is a plain `CACHE` set with no `FORCE`, so the flags on the
+command line win.
+
+Then it runs every MC6809 test that does not need a machine to run on:
+`llvm/test/CodeGen/MC6809`, `llvm/test/MC/MC6809`,
+`clang/test/CodeGen/MC6809`, the `mc6809-*` Sema cases and the driver cases.
+On 2026-08-22 that is **240 passed, 56 unsupported, 0 failed**.
+
+The 56 are the emulator-driven suites, and they are why the job does not
+simply trust lit's exit status.  **A suite that stops running reports
+success**: `lit` exits 0 when every test is UNSUPPORTED, which is what a
+`lit.local.cfg` that no longer recognises the target, or a clang that no
+longer knows the triple, would produce.  So the job also requires at least
+`MIN_PASS` passes — 240, raise it as the suite grows — and says in its
+summary how many tests were skipped rather than burying it.
+
+**What CI does not do, and cannot**: roll a bundle, build picolibc, or run
+anything on an emulator.  The acceptance check needs usim, a NitrOS-9 image
+tree, and for the two DECB cases MAME together with Tandy's ROMs, which
+cannot be committed to a public repository or fetched into a runner.  A
+green tick therefore means "it builds elsewhere and the host-side tests
+pass" — not "releasable".  The 42-case check stays a local gate.
+
+Note that the repository still carries upstream LLVM's own workflows, 46 of
+them.  Thirty-one are guarded by `github.repository == 'llvm/llvm-project'`
+and skip; the rest can fire on a pull request and run jobs for projects this
+fork does not build.
+
 ## Testing the wider suites against a bundle
 
 `MC6809_TOOLCHAIN` points the picolibc harness and the bench at an installed

@@ -1,0 +1,156 @@
+# Does this tree build and pass its own tests on a machine that is not
+# Mark's Mac?  That is the whole question this workflow answers, and it is
+# the one thing a fork of LLVM cannot find out any other way.
+#
+# What it deliberately does NOT do: roll a bundle, build picolibc, or run
+# anything on an emulator.  The acceptance check needs usim, a NitrOS-9
+# image tree, and -- for the two DECB cases -- MAME with Tandy's ROMs,
+# which cannot live in a public repository.  Those stay a local gate.  See
+# llvm/docs/MC6809-Toolchain-Build.md.
+name: MC6809 CI
+
+on:
+  push:
+    branches: [MC6809]
+    paths-ignore: ['**/*.md']
+  pull_request:
+    branches: [MC6809]
+    paths-ignore: ['**/*.md']
+  workflow_dispatch:
+
+# A second push supersedes the first; a 50-minute build of a commit nobody
+# is looking at any more is 50 minutes of somebody else's electricity.
+concurrency:
+  group: mc6809-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    name: Linux build and MC6809 tests
+    # Not on anybody else's fork of this fork.
+    if: github.repository == 'markrvmurray/llvm-mc6809'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      # Raise this when the suite grows.  It exists because the failure that
+      # matters here is not a red test -- it is the whole suite quietly
+      # becoming UNSUPPORTED (a lit.local.cfg that stops seeing the target,
+      # a clang that no longer knows the triple) and lit then reporting
+      # success over nothing.  Measured on 2026-08-22: 240 passed, 56
+      # unsupported, 0 failed.
+      MIN_PASS: 240
+      CCACHE_MAXSIZE: 2G
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          # 2.7 GB of repository; no history is needed to compile it.
+          fetch-depth: 1
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+              ninja-build ccache clang lld
+          cmake --version && ninja --version && ccache --version | head -1
+
+      # Keyed on the commit so it always writes a fresh entry; the prefix
+      # restores the nearest previous one, which is what makes the second
+      # and later runs quick.
+      - name: Restore compiler cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-linux-${{ github.sha }}
+          restore-keys: ccache-linux-
+
+      - name: Configure
+        run: |
+          # The development cache, with the three things a CI build wants
+          # different: Release so it finishes, assertions kept ON because
+          # catching a bad assumption is most of the value, and no lldb --
+          # a fifth of the build, and the bundle ships none of it.
+          #
+          # -D beats -C: cmake reads the -C file first, and every entry it
+          # sets is a plain CACHE set with no FORCE.
+          cmake -C clang/cmake/caches/MC6809.cmake \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DLLVM_ENABLE_ASSERTIONS=ON \
+              -DLLVM_ENABLE_PROJECTS="clang;lld" \
+              -DCMAKE_C_COMPILER=clang \
+              -DCMAKE_CXX_COMPILER=clang++ \
+              -DLLVM_USE_LINKER=lld \
+              -DLLVM_CCACHE_BUILD=ON \
+              -DLLVM_PARALLEL_LINK_JOBS=2 \
+              -G Ninja -S llvm -B build-ci
+          # Prove the overrides took, rather than discovering it 50 minutes
+          # from now in a build that quietly included lldb.
+          grep -E '^(CMAKE_BUILD_TYPE|LLVM_ENABLE_PROJECTS|LLVM_ENABLE_ASSERTIONS):' \
+              build-ci/CMakeCache.txt
+
+      - name: Build
+        run: |
+          ccache --zero-stats >/dev/null
+          # --target all, always: a stale lld breaks LTO links in ways that
+          # look like backend bugs.
+          cmake --build build-ci --target all
+          ccache --show-stats | head -8
+
+      - name: MC6809 test suite
+        id: lit
+        run: |
+          set -o pipefail
+          # Every MC6809 test that does not need a machine to run on.  The
+          # emulator-driven suites (llvm/test/MC/MC6809/Execution, and the
+          # OS-9 runtime cases under compiler-rt) report UNSUPPORTED here
+          # because USIM09BATCH and friends are unset -- deliberately, and
+          # the count below is what stops that reading as success.
+          build-ci/bin/llvm-lit --no-progress-bar -v \
+              llvm/test/CodeGen/MC6809 \
+              llvm/test/MC/MC6809 \
+              clang/test/CodeGen/MC6809 \
+              clang/test/Sema/asm-mc6809-*.c \
+              clang/test/Sema/mc6809-*.c \
+              clang/test/Driver/mc6809*.c \
+              2>&1 | tee lit.log
+
+      - name: Check the suite actually ran
+        if: always() && steps.lit.outcome != 'skipped'
+        run: |
+          passed=$(sed -n 's/^ *Passed *: *\([0-9]*\).*/\1/p'      lit.log | tail -1)
+          failed=$(sed -n 's/^ *Failed *: *\([0-9]*\).*/\1/p'      lit.log | tail -1)
+          unsupp=$(sed -n 's/^ *Unsupported *: *\([0-9]*\).*/\1/p' lit.log | tail -1)
+          passed=${passed:-0}; failed=${failed:-0}; unsupp=${unsupp:-0}
+          {
+            echo "### MC6809 test suite"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| passed | $passed |"
+            echo "| failed | $failed |"
+            echo "| unsupported (needs an emulator) | $unsupp |"
+            echo
+            echo "Not covered here: the picolibc build, the rolled bundle,"
+            echo "and everything that needs usim, a NitrOS-9 image or MAME"
+            echo "with Tandy's ROMs.  Those remain a local gate."
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$failed" -ne 0 ]; then
+            echo "::error::$failed test(s) failed"; exit 1
+          fi
+          if [ "$passed" -lt "$MIN_PASS" ]; then
+            echo "::error::only $passed tests passed, expected at least $MIN_PASS -- the suite is not running, which is worse than a failure"
+            exit 1
+          fi
+          echo "$passed passed, $unsupp unsupported, 0 failed"
+
+      - name: Keep the log when something broke
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lit-log
+          path: lit.log
+          retention-days: 14
