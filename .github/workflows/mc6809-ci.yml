@@ -53,7 +53,7 @@ jobs:
       # the bundle it named, and a branch would quietly change what it means.
       # Bump these in a commit when either dependency moves.
       PICOLIBC_REPO: markrvmurray/picolibc
-      PICOLIBC_SHA: 38d27be3b9b764b93d35695c98ca706e3a8c4b5a
+      PICOLIBC_SHA: 0324312a9cd9b466f4fa63a01390a274d9efb8ed
       USIM_REPO: markrvmurray/usim
       USIM_SHA: bf2e69d9e99ffb6dccd02854a0abcabc022ba912
 
