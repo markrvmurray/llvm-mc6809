@@ -1,0 +1,78 @@
+; REQUIRES: mc6809
+
+; RUN: rm -rf %t && split-file %s %t && cd %t
+; RUN: llvm-as main.ll -o main.o
+; RUN: llvm-as strcmp.ll -o strcmp.o
+; RUN: llvm-as memcmp.ll -o memcmp.o
+; RUN: llvm-ar rcs libc.a strcmp.o memcmp.o
+
+;; main compares against a constant string. The optimization pipeline is
+;; told that memcmp is a bitcode library function not brought into the link
+;; and leaves the strcmp alone -- but the MC6809 codegen pipeline runs an
+;; instruction combine of its own after loop strength reduction, and that
+;; combine used to see an unrestricted library-function table and turn the
+;; strcmp into memcmp anyway. By then memcmp had lost its only chance to be
+;; compiled, and the call resolved to address zero. The codegen pipeline must
+;; honour the same restriction as the optimization pipeline.
+; RUN: ld.lld -o out main.o libc.a
+; RUN: llvm-nm out | FileCheck %s
+
+;; Same with lazy objects.
+; RUN: ld.lld -o out-lazy main.o --start-lib strcmp.o memcmp.o --end-lib
+; RUN: llvm-nm out-lazy | FileCheck %s
+
+;; When memcmp is in the link the transform is allowed and lands on the
+;; definition -- the restriction is precise, not a blanket disable.
+; RUN: ld.lld -o out-extracted main.o strcmp.o memcmp.o
+; RUN: llvm-nm out-extracted | FileCheck %s --check-prefix=EXTRACTED
+
+; CHECK-NOT: memcmp
+; CHECK: T strcmp
+; CHECK-NOT: memcmp
+
+; EXTRACTED: T memcmp
+
+;--- strcmp.ll
+target datalayout = "E-p:16:8-p1:8:8-S8-m:e-i1:8-i8:8-i16:8-i32:8-i64:8-f32:8-f64:8-a:0-n8:16"
+target triple = "mc6809-unknown-unknown"
+
+;; The result must be unknowable to interprocedural constant propagation,
+;; or the compare in the caller folds away before codegen sees it.
+define i16 @strcmp(ptr %a, ptr %b) noinline {
+  %x = load i8, ptr %a
+  %y = load i8, ptr %b
+  %d = sub i8 %x, %y
+  %r = sext i8 %d to i16
+  ret i16 %r
+}
+
+;--- memcmp.ll
+target datalayout = "E-p:16:8-p1:8:8-S8-m:e-i1:8-i8:8-i16:8-i32:8-i64:8-f32:8-f64:8-a:0-n8:16"
+target triple = "mc6809-unknown-unknown"
+
+define i16 @memcmp(ptr %a, ptr %b, i16 %n) noinline {
+  call void asm sideeffect "", ""()
+  ret i16 0
+}
+
+;--- main.ll
+target datalayout = "E-p:16:8-p1:8:8-S8-m:e-i1:8-i8:8-i16:8-i32:8-i64:8-f32:8-f64:8-a:0-n8:16"
+target triple = "mc6809-unknown-unknown"
+
+@str = constant [6 x i8] c"POSIX\00"
+
+;; What licenses the strcmp-against-a-constant to memcmp rewrite: the other
+;; operand is provably dereferenceable for the constant's length (a global
+;; buffer), its contents are unknown (stored from an argument), and the
+;; result feeds only an equality test against zero.
+@buf = global [8 x i8] zeroinitializer
+
+define i16 @_start(i8 %c) {
+  store i8 %c, ptr @buf
+  %r = call i16 @strcmp(ptr @buf, ptr @str)
+  %eq = icmp eq i16 %r, 0
+  %z = zext i1 %eq to i16
+  ret i16 %z
+}
+
+declare i16 @strcmp(ptr, ptr)

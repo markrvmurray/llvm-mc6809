@@ -256,6 +256,26 @@ createTargetMachine(const Config &Conf, const Target *TheTarget, Module &M) {
   return TM;
 }
 
+// Determine whether or not its safe to emit calls to each libfunc. Libfuncs
+// that might have been present in the current LTO unit, but are not, have
+// lost their only opportunity to be defined, and calls must not be emitted to
+// them. This applies to every pipeline that runs over the module once the
+// unit is fixed: the optimization pipeline, and equally the codegen pipeline,
+// whose target-added IR passes may simplify one library call into another
+// (a strcmp against a constant into memcmp, say).
+static void disableBitcodeLibFuncs(TargetLibraryInfoImpl &TLII,
+                                   const DenseSet<StringRef> &BitcodeLibFuncs) {
+  if (BitcodeLibFuncs.empty())
+    return;
+  TargetLibraryInfo TLI(TLII);
+  for (unsigned I = 0, E = static_cast<unsigned>(LibFunc::NumLibFuncs); I != E;
+       ++I) {
+    LibFunc F = static_cast<LibFunc>(I);
+    if (BitcodeLibFuncs.contains(TLI.getName(F)))
+      TLII.setUnavailable(F);
+  }
+}
+
 static void runNewPMPasses(const Config &Conf, Module &Mod, TargetMachine *TM,
                            unsigned OptLevel, bool IsThinLTO,
                            ModuleSummaryIndex *ExportSummary,
@@ -303,18 +323,8 @@ static void runNewPMPasses(const Config &Conf, Module &Mod, TargetMachine *TM,
   if (Conf.Freestanding)
     TLII->disableAllFunctions();
 
-  // Determine whether or not its safe to emit calls to each libfunc. Libfuncs
-  // that might have been present in the current LTO unit, but are not, have
-  // lost their only opportunity to be defined, and calls must not be emitted to
-  // them.
   // FIXME: BitcodeLibFuncs isn't yet set for distributed ThinLTO.
-  TargetLibraryInfo TLI(*TLII);
-  for (unsigned I = 0, E = static_cast<unsigned>(LibFunc::NumLibFuncs); I != E;
-       ++I) {
-    LibFunc F = static_cast<LibFunc>(I);
-    if (BitcodeLibFuncs.contains(TLI.getName(F)))
-      TLII->setUnavailable(F);
-  }
+  disableBitcodeLibFuncs(*TLII, BitcodeLibFuncs);
 
   FAM.registerPass([&] { return TargetLibraryAnalysis(*TLII); });
 
@@ -436,7 +446,8 @@ bool lto::opt(const Config &Conf, TargetMachine *TM, unsigned Task, Module &Mod,
 
 static void codegen(const Config &Conf, TargetMachine *TM,
                     AddStreamFn AddStream, unsigned Task, Module &Mod,
-                    const ModuleSummaryIndex &CombinedIndex) {
+                    const ModuleSummaryIndex &CombinedIndex,
+                    const DenseSet<StringRef> &BitcodeLibFuncs) {
   llvm::TimeTraceScope timeScope("codegen");
   if (Conf.PreCodeGenModuleHook && !Conf.PreCodeGenModuleHook(Task, Mod))
     return;
@@ -483,6 +494,7 @@ static void codegen(const Config &Conf, TargetMachine *TM,
   {
     legacy::PassManager CodeGenPasses;
     TargetLibraryInfoImpl TLII(Mod.getTargetTriple(), TM->Options.VecLib);
+    disableBitcodeLibFuncs(TLII, BitcodeLibFuncs);
     CodeGenPasses.add(new TargetLibraryInfoWrapperPass(TLII));
     CodeGenPasses.add(new RuntimeLibraryInfoWrapper(
         Mod.getTargetTriple(), TM->Options.ExceptionModel,
@@ -516,7 +528,8 @@ static void codegen(const Config &Conf, TargetMachine *TM,
 static void splitCodeGen(const Config &C, TargetMachine *TM,
                          AddStreamFn AddStream,
                          unsigned ParallelCodeGenParallelismLevel, Module &Mod,
-                         const ModuleSummaryIndex &CombinedIndex) {
+                         const ModuleSummaryIndex &CombinedIndex,
+                         const DenseSet<StringRef> &BitcodeLibFuncs) {
   DefaultThreadPool CodegenThreadPool(
       heavyweight_hardware_concurrency(ParallelCodeGenParallelismLevel));
   unsigned ThreadCount = 0;
@@ -548,7 +561,7 @@ static void splitCodeGen(const Config &C, TargetMachine *TM,
                   createTargetMachine(C, T, *MPartInCtx);
 
               codegen(C, TM.get(), AddStream, ThreadId, *MPartInCtx,
-                      CombinedIndex);
+                      CombinedIndex, BitcodeLibFuncs);
             },
             // Pass BC using std::move to ensure that it get moved rather than
             // copied into the thread's context.
@@ -612,11 +625,13 @@ Error lto::backend(const Config &C, AddStreamFn AddStream,
       return Error::success();
   }
 
+  DenseSet<StringRef> BitcodeLibFuncsSet(BitcodeLibFuncs.begin(),
+                                         BitcodeLibFuncs.end());
   if (ParallelCodeGenParallelismLevel == 1) {
-    codegen(C, TM.get(), AddStream, 0, Mod, CombinedIndex);
+    codegen(C, TM.get(), AddStream, 0, Mod, CombinedIndex, BitcodeLibFuncsSet);
   } else {
     splitCodeGen(C, TM.get(), AddStream, ParallelCodeGenParallelismLevel, Mod,
-                 CombinedIndex);
+                 CombinedIndex, BitcodeLibFuncsSet);
   }
   return Error::success();
 }
@@ -678,10 +693,13 @@ Error lto::thinBackend(const Config &Conf, unsigned Task, AddStreamFn AddStream,
   Mod.setPartialSampleProfileRatio(CombinedIndex);
 
   LLVM_DEBUG(dbgs() << "Running ThinLTO\n");
+  DenseSet<StringRef> BitcodeLibFuncsSet(BitcodeLibFuncs.begin(),
+                                         BitcodeLibFuncs.end());
   if (CodeGenOnly) {
     // If CodeGenOnly is set, we only perform code generation and skip
     // optimization. This value may differ from Conf.CodeGenOnly.
-    codegen(Conf, TM.get(), AddStream, Task, Mod, CombinedIndex);
+    codegen(Conf, TM.get(), AddStream, Task, Mod, CombinedIndex,
+            BitcodeLibFuncsSet);
     return finalizeOptimizationRemarks(std::move(DiagnosticOutputFile));
   }
 
@@ -704,7 +722,8 @@ Error lto::thinBackend(const Config &Conf, unsigned Task, AddStreamFn AddStream,
         if (IRAddStream)
           cgdata::saveModuleForTwoRounds(Mod, Task, IRAddStream);
 
-        codegen(Conf, TM, AddStream, Task, Mod, CombinedIndex);
+        codegen(Conf, TM, AddStream, Task, Mod, CombinedIndex,
+                BitcodeLibFuncsSet);
         return finalizeOptimizationRemarks(std::move(DiagnosticOutputFile));
       };
 
