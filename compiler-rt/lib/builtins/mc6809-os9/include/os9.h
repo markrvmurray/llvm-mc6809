@@ -186,14 +186,19 @@ __OS9_READ_SHIM(_os_readln, OS9_I_READLN)
 __OS9_WRITE_SHIM(_os_write, OS9_I_WRITE)
 __OS9_WRITE_SHIM(_os_writeln, OS9_I_WRITLN)
 
-/* I$Open: A = mode, X = path name -> A = path number. */
+/* I$Open: A = mode, X = path name -> A = path number.  A and B are the only
+ * byte registers the 6809 has, so a call that reads one and writes the other
+ * value back into it says so ("+A") rather than naming an input and an output
+ * separately -- two live byte values at once is more than the allocator can
+ * always place. */
 static inline int _os_open(const char *__name, int __mode, int *__pathp) {
-  unsigned char __err, __ecode, __path;
-  OS9_SYSCALL(OS9_I_OPEN, ("=c"(__err), "=B"(__ecode), "=A"(__path)),
-              ("A"((unsigned char)__mode), "x"(__name)));
+  unsigned char __err;
+  unsigned char __a = (unsigned char)__mode; /* in: mode, out: path number */
+  unsigned char __b;                         /* out: error code */
+  OS9_SYSCALL(OS9_I_OPEN, ("=c"(__err), "+A"(__a), "=B"(__b)), ("x"(__name)));
   if (__err)
-    return __os9_fail(__ecode);
-  *__pathp = __path;
+    return __os9_fail(__b);
+  *__pathp = __a;
   return 0;
 }
 
@@ -209,13 +214,17 @@ static inline int _os_close(int __path) {
  * -> A = path number.  Fails with OS9_E_CEF if the file exists. */
 static inline int _os_create(const char *__name, int __mode, int __attrs,
                              int *__pathp) {
-  unsigned char __err, __ecode, __path;
-  OS9_SYSCALL(OS9_I_CREATE, ("=c"(__err), "=B"(__ecode), "=A"(__path)),
-              ("A"((unsigned char)__mode), "B"((unsigned char)__attrs),
-               "x"(__name)));
+  unsigned char __err;
+  /* A = mode, B = attributes going in; A = path number, B = the error code
+   * coming out.  Named as the pair D rather than as two byte operands: with
+   * the carry also an output, two tied byte operands leave the allocator
+   * nothing to place them in (A and B are all the 6809 has). */
+  unsigned __d = ((unsigned)(unsigned char)__mode << 8) |
+                 (unsigned char)__attrs;
+  OS9_SYSCALL(OS9_I_CREATE, ("=c"(__err), "+d"(__d)), ("x"(__name)));
   if (__err)
-    return __os9_fail(__ecode);
-  *__pathp = __path;
+    return __os9_fail(__d & 0xFF);
+  *__pathp = __d >> 8;
   return 0;
 }
 
