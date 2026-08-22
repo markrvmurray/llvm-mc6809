@@ -1,6 +1,8 @@
-# OS-9 initialized static storage can contain addresses.  The module image
-# cannot know the process data-area base, so lld must emit a runtime relocation
-# table and crt0 must apply it after copying .data.
+# OS-9 initialised static storage can contain addresses.  The module image
+# cannot know where the module or the process data area will be placed, so
+# lld writes each such word as an offset (into the data area for a target
+# that lives there, else into the module body), emits a runtime relocation
+# table saying which, and crt0 rebases the words after copying the images.
 
 REQUIRES: mc6809-registered-target
 
@@ -17,6 +19,16 @@ RUN: echo '        .rodata'           >> %t.s
 RUN: echo 'ro_msg:'                   >> %t.s
 RUN: echo '        .asciz "ro"'       >> %t.s
 RUN: echo ''                          >> %t.s
+RUN: echo '        .section .dp.data,"aw",@progbits' >> %t.s
+RUN: echo 'dp_var:'                   >> %t.s
+RUN: echo '        .byte 0x55'        >> %t.s
+RUN: echo 'dp_ptr:'                   >> %t.s
+RUN: echo '        .word init_var'    >> %t.s
+RUN: echo ''                          >> %t.s
+RUN: echo '        .section .dp.bss,"aw",@nobits' >> %t.s
+RUN: echo 'dp_bss_var:'               >> %t.s
+RUN: echo '        .zero 1'           >> %t.s
+RUN: echo ''                          >> %t.s
 RUN: echo '        .data'             >> %t.s
 RUN: echo '        .globl init_var'   >> %t.s
 RUN: echo 'init_var:'                 >> %t.s
@@ -27,6 +39,10 @@ RUN: echo 'ptr_bss:'                  >> %t.s
 RUN: echo '        .word bss_var'     >> %t.s
 RUN: echo 'ptr_ro:'                   >> %t.s
 RUN: echo '        .word ro_msg'      >> %t.s
+RUN: echo 'ptr_dp:'                   >> %t.s
+RUN: echo '        .word dp_var'      >> %t.s
+RUN: echo 'ptr_dp_bss:'               >> %t.s
+RUN: echo '        .word dp_bss_var'  >> %t.s
 RUN: echo ''                          >> %t.s
 RUN: echo '        .bss'              >> %t.s
 RUN: echo '        .globl bss_var'    >> %t.s
@@ -35,17 +51,36 @@ RUN: echo '        .zero 2'           >> %t.s
 
 RUN: llvm-mc -triple=mc6809-unknown-os9 --filetype=obj %t.s -o %t.o
 RUN: ld.lld -T %S/../../../../compiler-rt/lib/builtins/mc6809-os9/mc6809-os9.lds \
-RUN:   --os9-name=reloc %t-crt0.o %t.o -o %t.os9
+RUN:   --os9-name=reloc -Map=%t.map %t-crt0.o %t.o -o %t.os9
 RUN: %S/../../../../tools/os9-module-check %t.os9 | FileCheck %s --check-prefix=VALID
 RUN: xxd -p -c 65536 %t.os9 > %t.hex
-RUN: FileCheck %s --check-prefix=RELOCS < %t.hex
+RUN: FileCheck %s --check-prefixes=IMAGE,RELOCS < %t.hex
 
 VALID: OK ({{[0-9]+}} bytes)
 VALID: CRC: valid (full CRC = $800FE3)
 
-# Table entries are kind,u16-data-offset:
-#   ptr_data at .data+2 -> kind 2 (add U-relative data base)
-#   ptr_bss  at .data+4 -> kind 3 (add U-relative bss base)
-#   ptr_ro   at .data+6 -> kind 1 (add module body base)
-# followed by a zero sentinel.
-RELOCS: 02000203000401000600
+# Data-area layout (U-relative): the imaginary registers take $00-$17, then
+#   .dp.data  $18: dp_var (1) $19: dp_ptr (2)      -> __dp_end before .dp.bss
+#   .dp.bss   $1B: dp_bss_var (1)                  -> __dp_end = $1C
+#   .data     $1C: init_var $1E: ptr_data $20: ptr_bss $22: ptr_ro
+#             $24: ptr_dp $26: ptr_dp_bss
+#   .bss      $28: bss_var
+#
+# The .dp.data image in the body: dp_var, then dp_ptr as init_var's
+# data-area offset $001C.
+IMAGE: 55001c
+# The .data image in the body: init_var, then the pointer words as offsets:
+# ptr_data $001C, ptr_bss $0028, ptr_ro = ro_msg's body offset (not pinned),
+# ptr_dp $0018, ptr_dp_bss $001B.
+IMAGE: 1234001c0028{{[0-9a-f][0-9a-f][0-9a-f][0-9a-f]}}0018001b
+
+# The table lists each word by its U-relative offset, sorted, with the kind
+# the CRT applies: 2 = add U (target in the data area), 1 = add the module
+# base (target in the body).  A zero kind ends the table.
+#   $0019 dp_ptr -> init_var     kind 2
+#   $001E ptr_data -> init_var   kind 2
+#   $0020 ptr_bss -> bss_var     kind 2
+#   $0022 ptr_ro -> ro_msg       kind 1
+#   $0024 ptr_dp -> dp_var       kind 2
+#   $0026 ptr_dp_bss -> dp_bss_var kind 2
+RELOCS: 02001902001e02002001002202002402002600

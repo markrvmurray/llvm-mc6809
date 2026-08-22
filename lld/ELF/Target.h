@@ -248,6 +248,9 @@ uint8_t getMipsFpAbiFlag(Ctx &, InputFile *file, uint8_t oldFlag,
                          uint8_t newFlag);
 uint64_t getMipsPageAddr(uint64_t addr);
 bool isMipsN32Abi(Ctx &, const InputFile &f);
+// MC6809 OS-9: map a module-body address inside one of the data-area regions
+// (.dp.data, .dp.bss, .data, .bss) to its U-relative data-area offset.
+std::optional<uint64_t> getOS9DataAreaOffset(Ctx &, uint64_t va);
 bool isMicroMips(Ctx &);
 bool isMipsR6(Ctx &);
 

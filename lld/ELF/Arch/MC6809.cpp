@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "InputFiles.h"
+#include "OutputSections.h"
 #include "SymbolTable.h"
 #include "Symbols.h"
 #include "Target.h"
@@ -75,20 +76,36 @@ static uint64_t getSymbolVA(Ctx &ctx, StringRef name) {
   return 0;
 }
 
+// An OS-9 program's writable data lives in a per-process data area addressed
+// from U. The link lays the read-only images out in module-body space; the
+// linker script says, for each region, where its image is in the body and
+// where the region sits in the data area (as a U-relative offset). Map a
+// body address inside one of the regions to its data-area offset.
+std::optional<uint64_t> getOS9DataAreaOffset(Ctx &ctx, uint64_t va) {
+  struct Region {
+    const char *imageStart, *imageEnd, *start;
+  };
+  static const Region regions[] = {
+      {"__dp_data_image_start", "__dp_data_image_end", "__dp_data_start"},
+      {"__dp_bss_image_start", "__dp_bss_image_end", "__dp_bss_start"},
+      {"__data_image_start", "__data_image_end", "__data_start"},
+      {"__bss_image_start", "__bss_image_end", "__bss_start"},
+  };
+  for (const Region &r : regions) {
+    uint64_t imageStart = getSymbolVA(ctx, r.imageStart);
+    uint64_t imageEnd = getSymbolVA(ctx, r.imageEnd);
+    if (imageStart <= va && va < imageEnd)
+      return getSymbolVA(ctx, r.start) + (va - imageStart);
+  }
+  return std::nullopt;
+}
+
 static uint64_t getOS9DataOffset(Ctx &ctx, const Relocation &rel,
                                  uint64_t val) {
-  uint64_t dataStart = getSymbolVA(ctx, "__data_image_start");
-  uint64_t dataEnd = getSymbolVA(ctx, "__data_image_end");
-  uint64_t bssStart = getSymbolVA(ctx, "__bss_image_start");
-  uint64_t bssEnd = getSymbolVA(ctx, "__bss_image_end");
-  uint64_t dataSize = getSymbolVA(ctx, "__data_size");
-
-  if (dataStart <= val && val < dataEnd)
-    return val - dataStart;
-  if (bssStart <= val && val < bssEnd)
-    return dataSize + (val - bssStart);
-
-  ErrAlways(ctx) << "R_MC6809_OS9_OFFSET_16 target is outside .data/.bss";
+  if (std::optional<uint64_t> offset = getOS9DataAreaOffset(ctx, val))
+    return *offset;
+  ErrAlways(ctx) << "OS-9 data-area relocation target is not in .dp.data, "
+                    ".dp.bss, .data or .bss";
   return 0;
 }
 
@@ -105,6 +122,19 @@ void MC6809::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
     *loc = static_cast<unsigned char>(val - 1);
     break;
   case R_MC6809_ADDR_16:
+    // In an OS-9 program module a pointer held in initialised data cannot be
+    // an absolute address: the module and the data area are both placed at
+    // run time. Store the pointer as an offset the CRT can rebase -- into the
+    // data area if it points there, else into the module body -- and let the
+    // .os9_reloc table say which (see OS9RelocSection).
+    if (ctx.arg.oFormatOS9) {
+      if (InputSectionBase *isec = getErrorPlace(ctx, loc).isec) {
+        const OutputSection *os = isec->getOutputSection();
+        if (os && (os->name == ".data" || os->name == ".dp.data"))
+          if (std::optional<uint64_t> off = getOS9DataAreaOffset(ctx, val))
+            val = *off;
+      }
+    }
     write16be(loc, static_cast<unsigned short>(val));
     break;
   case R_MC6809_PCREL_16:
@@ -132,6 +162,18 @@ void MC6809::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
   case R_MC6809_OS9_OFFSET_16:
     write16be(loc, static_cast<unsigned short>(getOS9DataOffset(ctx, rel, val)));
     break;
+  case R_MC6809_OS9_OFFSET_8: {
+    // Direct-page operand for an object in the first page of the data area:
+    // DP = U >> 8, so the one-byte operand is the data-area offset itself.
+    uint64_t off = getOS9DataOffset(ctx, rel, val);
+    if (off > 0xFF)
+      ErrAlways(ctx) << getErrorLoc(ctx, loc)
+                     << "OS-9 direct-page operand: object is not in the first "
+                        "page of the data area (offset "
+                     << off << ")";
+    *loc = static_cast<unsigned char>(off);
+    break;
+  }
   case R_MC6809_FK_DATA_4:
     write32be(loc, static_cast<unsigned long>(val));
     break;

@@ -227,9 +227,12 @@ public:
 };
 
 // Runtime relocation table for MC6809 OS-9 program modules. Each 3-byte entry
-// patches one initialized pointer copied into the process data area:
-//   byte 0: kind (1 = module body, 2 = .data, 3 = .bss)
-//   byte 1-2: offset within the copied .data area to patch.
+// names one pointer held in initialised data (.data or .dp.data) that the CRT
+// must rebase after copying the images into the process data area:
+//   byte 0: kind (1 = add the module base, 2 = add U, the data-area base)
+//   byte 1-2: U-relative offset of the word within the data area.
+// The word itself is written by the linker as the matching offset. A zero
+// kind byte ends the table.
 class OS9RelocSection final : public SyntheticSection {
 public:
   OS9RelocSection(Ctx &);
@@ -241,7 +244,8 @@ public:
 private:
   struct Entry {
     uint8_t kind;
-    uint16_t dataOffset;
+    const InputSection *sec;
+    uint64_t offset; // of the word within sec
   };
 
   void buildEntries() const;

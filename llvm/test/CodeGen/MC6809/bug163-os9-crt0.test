@@ -7,16 +7,17 @@
 #
 # User stub:  main: ldb #42; rts        // return 42 as exit status
 #
-# Body layout (no .data, no .bss → CRT collapses both copy loops via
-# the BEQ-on-zero guards):
+# Body layout (no .data, no .bss → CRT collapses the copy and zero loops
+# via the BEQ-on-zero guards):
 #   _start (in .text.startup) → jsr main → swi2 → fcb $06
 #   main   (in .text)         → ldb #42; rts
 #
 # We don't byte-pin the entire body (encoding details may shift), but
 # we DO pin three things:
 #   1. _start MUST be at body offset 0 (so M$Exec = 13).
-#      Asserted by checking the first 3 bytes are `cc 00 00`
-#      (LDD #__data_size, with __data_size resolved to 0).
+#      Asserted by checking the first 3 bytes are `cc 00 18`
+#      (LDD #__dp_data_start: the direct-page data follows the $18
+#      bytes of imaginary registers at the start of the data area).
 #   2. Body must contain the F$Exit syscall sequence `10 3f 06`.
 #   3. os9-module-check accepts the wrapped module.
 
@@ -39,10 +40,10 @@ RUN:   %t-crt0.o %t-main.o -o %t.body
 # GNU-only; xxd is portable across macOS and Linux distros).
 RUN: xxd -p -c 256 %t.body > %t.body.hex
 
-# 1. _start at offset 0 — first instruction is LDD #__data_size (=0).
-#    Opcode bytes: cc 00 00.  Anchored to start of line.
+# 1. _start at offset 0 — first instruction is LDD #__dp_data_start (=$18).
+#    Opcode bytes: cc 00 18.  Anchored to start of line.
 RUN: FileCheck %s --check-prefix=PROLOGUE < %t.body.hex
-PROLOGUE: {{^cc0000}}
+PROLOGUE: {{^cc0018}}
 
 # 2. Body must contain the F$Exit syscall sequence (10 3f 06).
 RUN: FileCheck %s --check-prefix=EXITSEQ < %t.body.hex

@@ -234,7 +234,7 @@ OS9RelocSection::OS9RelocSection(Ctx &ctx)
 
 static bool isOS9RelocSource(const InputSection &sec) {
   const OutputSection *os = sec.getOutputSection();
-  return os && os->name == ".data";
+  return os && (os->name == ".data" || os->name == ".dp.data");
 }
 
 static bool isOS9PointerReloc(RelType type) {
@@ -273,10 +273,6 @@ void OS9RelocSection::buildEntries() const {
       if (!isOS9PointerReloc(rel.type))
         continue;
 
-      uint64_t dataOffset = sec->outSecOff + rel.offset;
-      if (dataOffset > 0xffff)
-        Err(ctx) << sec << ": OS-9 data relocation offset exceeds 16 bits";
-
       const OutputSection *targetOut = getOS9RelocTargetOutputSection(*rel.sym);
       if (!targetOut || !(targetOut->flags & SHF_ALLOC)) {
         Err(ctx) << sec->getSrcMsg(*rel.sym, rel.offset)
@@ -284,17 +280,16 @@ void OS9RelocSection::buildEntries() const {
         continue;
       }
 
-      uint8_t kind = targetOut->name == ".data" ? 2
-                     : targetOut->name == ".bss" ? 3
-                                                  : 1;
-      entries.push_back({kind, static_cast<uint16_t>(dataOffset)});
+      // The word has been written as an offset (MC6809::relocate): into the
+      // data area for a target in one of its regions, else into the module
+      // body. The CRT adds U (kind 2) or the module base (kind 1).
+      StringRef target = targetOut->name;
+      bool inDataArea = target == ".data" || target == ".bss" ||
+                        target == ".dp.data" || target == ".dp.bss";
+      uint8_t kind = inDataArea ? 2 : 1;
+      entries.push_back({kind, sec, rel.offset});
     }
   }
-
-  llvm::sort(entries, [](const Entry &a, const Entry &b) {
-    return a.dataOffset < b.dataOffset || (a.dataOffset == b.dataOffset &&
-                                           a.kind < b.kind);
-  });
 }
 
 void OS9RelocSection::finalizeContents() { buildEntries(); }
@@ -310,13 +305,26 @@ size_t OS9RelocSection::getSize() const {
 
 void OS9RelocSection::writeTo(uint8_t *buf) {
   buildEntries();
+  // Addresses are final only now, so this is where each word's place in the
+  // data area is known.
+  SmallVector<std::pair<uint16_t, uint8_t>, 0> table;
   for (const Entry &entry : entries) {
-    *buf++ = entry.kind;
-    write16be(buf, entry.dataOffset);
+    uint64_t va = entry.sec->getVA(entry.offset);
+    std::optional<uint64_t> off = getOS9DataAreaOffset(ctx, va);
+    if (!off || *off > 0xffff) {
+      Err(ctx) << entry.sec
+               << ": OS-9 data relocation is not inside the data area";
+      continue;
+    }
+    table.push_back({static_cast<uint16_t>(*off), entry.kind});
+  }
+  llvm::sort(table);
+  for (auto [off, kind] : table) {
+    *buf++ = kind;
+    write16be(buf, off);
     buf += 2;
   }
-  if (!entries.empty())
-    *buf = 0;
+  *buf = 0;
 }
 
 EhFrameSection::EhFrameSection(Ctx &ctx)
