@@ -21,6 +21,53 @@
 # there.
 set -eu
 
+# ------------------------------------------------------------------- host
+# Windows is the one host where the aliasing below cannot be a symlink.  A
+# hardlink is a real directory entry to the same file, which is what matters:
+# clang resolves the path it was invoked by to find its sysroot, so a name
+# that is a copy or a link both work, and a shell wrapper does not.
+case $(uname -s) in
+  MINGW*|MSYS*|CYGWIN*) HOST_WINDOWS=1; EXE=.exe ;;
+  *)                    HOST_WINDOWS=;  EXE= ;;
+esac
+# auto | symlink | hardlink | copy.  The override exists so the Windows path
+# can be exercised on a machine that has symlinks -- see the guide.
+: "${MC6809_LINK_MODE:=auto}"
+[ "$MC6809_LINK_MODE" = auto ] && \
+  { [ -n "$HOST_WINDOWS" ] && MC6809_LINK_MODE=hardlink || MC6809_LINK_MODE=symlink; }
+
+# alias_file TARGET NAME -- both relative, both in the current directory.
+alias_file() {
+  rm -f "$2"
+  case $MC6809_LINK_MODE in
+    symlink)  ln -s "$1" "$2" ;;
+    hardlink) ln "$1" "$2" 2>/dev/null || cp -p "$1" "$2" ;;
+    copy)     cp -p "$1" "$2" ;;
+  esac
+}
+
+# alias_dir TARGET NAME -- a directory, which is the harder case: NTFS
+# hardlinks do not span directories, and a directory symlink wants either
+# administrator rights or developer mode.  A junction needs neither.
+alias_dir() {
+  [ -e "$2" ] && return 0
+  case $MC6809_LINK_MODE in
+    symlink) ln -s "$1" "$2" ;;
+    *)       ln -s "$1" "$2" 2>/dev/null \
+               || cmd //c mklink //J "$(basename "$2")" "$(basename "$1")" \
+                    >/dev/null 2>&1 \
+               || cp -R "$1" "$2" ;;
+  esac
+}
+
+# One of these exists on every host worth shipping from.
+sha256_of() {
+  if command -v shasum >/dev/null 2>&1;      then shasum -a 256 "$1"
+  elif command -v sha256sum >/dev/null 2>&1; then sha256sum "$1"
+  else echo "$0: no shasum or sha256sum" >&2; return 1
+  fi
+}
+
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 PREFIX=
 LLVM_BUILD=$REPO/llvm/cmake-build-debug-system
@@ -51,36 +98,48 @@ say() { echo "==[ $(date '+%H:%M:%S') $* ]=="; }
 # clang resolves its own path to the real binary, so a symlink into a build
 # tree would send the driver looking for its sysroot there instead of here.
 say "staging tools from $LLVM_BUILD"
+deferred=$(mktemp "${TMPDIR:-/tmp}/mc6809-roll.XXXXXX")
 mkdir -p "$PREFIX/bin" "$PREFIX/lib"
 # Named, not globbed.  `bin/clang-*` sweeps up clang-repl, clang-check,
 # clang-import-test, clang-installapi, clang-refactor, the offload wrappers
 # and clang-tblgen -- three quarters of a gigabyte of programs nobody
 # cross-compiling for a 6809 will run, and one of them is a build tool.
 # clang-24 is the real binary that `clang` is a link to, so both are here.
-for f in "$LLVM_BUILD"/bin/clang "$LLVM_BUILD"/bin/clang-[0-9]* \
-         "$LLVM_BUILD"/bin/clang++ "$LLVM_BUILD"/bin/clang-cpp \
-         "$LLVM_BUILD"/bin/ld.lld "$LLVM_BUILD"/bin/lld \
-         "$LLVM_BUILD"/bin/llvm-ar "$LLVM_BUILD"/bin/llvm-nm \
-         "$LLVM_BUILD"/bin/llvm-objcopy "$LLVM_BUILD"/bin/llvm-objdump \
-         "$LLVM_BUILD"/bin/llvm-ranlib "$LLVM_BUILD"/bin/llvm-readelf \
-         "$LLVM_BUILD"/bin/llvm-readobj "$LLVM_BUILD"/bin/llvm-size \
-         "$LLVM_BUILD"/bin/llvm-strip; do
+for f in "$LLVM_BUILD"/bin/clang$EXE "$LLVM_BUILD"/bin/clang-[0-9]* \
+         "$LLVM_BUILD"/bin/clang++$EXE "$LLVM_BUILD"/bin/clang-cpp$EXE \
+         "$LLVM_BUILD"/bin/ld.lld$EXE "$LLVM_BUILD"/bin/lld$EXE \
+         "$LLVM_BUILD"/bin/llvm-ar$EXE "$LLVM_BUILD"/bin/llvm-nm$EXE \
+         "$LLVM_BUILD"/bin/llvm-objcopy$EXE "$LLVM_BUILD"/bin/llvm-objdump$EXE \
+         "$LLVM_BUILD"/bin/llvm-ranlib$EXE "$LLVM_BUILD"/bin/llvm-readelf$EXE \
+         "$LLVM_BUILD"/bin/llvm-readobj$EXE "$LLVM_BUILD"/bin/llvm-size$EXE \
+         "$LLVM_BUILD"/bin/llvm-strip$EXE; do
   [ -e "$f" ] || continue
   base=$(basename "$f")
   if [ -L "$f" ]; then
     # Upstream ships several of these as links to one binary -- ranlib is
     # llvm-ar, strip is llvm-objcopy, readelf is llvm-readobj -- and they
-    # behave differently depending on the name they were called by.  Copy
-    # the link, not another copy of the binary.
-    ln -sf "$(basename "$(readlink "$f")")" "$PREFIX/bin/$base"
+    # behave differently depending on the name they were called by.  Keep
+    # the link, rather than a second copy of the binary.
+    #
+    # Deferred to a second pass, and resolved here rather than after the cd
+    # below because $f can be relative: a symlink may be made before the
+    # thing it points at exists, but a hardlink or a copy may not, and
+    # `clang` is staged before `clang-24`.
+    echo "$base $(basename "$(readlink "$f")")" >> "$deferred"
   else
     cp -p "$f" "$PREFIX/bin/"
   fi
 done
+# Second pass, now that every real binary is in place.
+while read -r base linked; do
+  [ -n "${base:-}" ] || continue
+  ( cd "$PREFIX/bin" && alias_file "$linked" "$base" )
+done < "$deferred"
+rm -f "$deferred"
 ( cd "$PREFIX/bin"
-  clangbin=$(ls clang-* 2>/dev/null | head -1)
-  [ -n "$clangbin" ] && ln -sf "$clangbin" clang
-  [ -f lld ] && ln -sf lld ld.lld
+  clangbin=$(ls clang-[0-9]* 2>/dev/null | head -1)
+  [ -n "$clangbin" ] && alias_file "$clangbin" "clang$EXE"
+  [ -f "lld$EXE" ] && alias_file "lld$EXE" "ld.lld$EXE"
   true )
 
 # Names for the target, so nobody has to spell a triple to compile a program.
@@ -91,15 +150,17 @@ say "naming the tools for the target"
 ( cd "$PREFIX/bin"
   for t in clang clang++ ld.lld llvm-ar llvm-nm llvm-objcopy llvm-objdump \
            llvm-ranlib llvm-readelf llvm-size llvm-strip; do
-    [ -e "$t" ] || continue
+    [ -e "$t$EXE" ] || continue
     short=${t#llvm-}
     short=${short%.lld}
-    ln -sf "$t" "mc6809-$short"
+    alias_file "$t$EXE" "mc6809-$short$EXE"
   done
-  # And one per target, which the driver reads off its own name.
+  # And one per target, which the driver reads off its own name.  The .exe
+  # is no obstacle to that: parseDriverSuffix strips it before matching, so
+  # mc6809-os9-clang.exe still derives its triple from its own name.
   for target in os9 decb; do
-    ln -sf clang "mc6809-$target-clang"
-    ln -sf clang++ "mc6809-$target-clang++"
+    alias_file "clang$EXE" "mc6809-$target-clang$EXE"
+    alias_file "clang++$EXE" "mc6809-$target-clang++$EXE"
   done )
 
 # Running one.  The simulators are not part of this bundle -- they are other
@@ -349,13 +410,13 @@ write_multilib mc6809-unknown-decb
 say "linking the bare-metal directories under the names the short forms compute"
 ( cd "$PREFIX/lib/clang-runtimes"
   for alias in mc6809 mc6809-unknown-unknown-elf mc6809-elf; do
-    [ -e "$alias" ] || ln -sf mc6809-unknown-unknown "$alias"
+    alias_dir mc6809-unknown-unknown "$alias"
   done )
 # The compiler's own runtime directory is named after the triple as well, so
 # the short name has to find the builtins there too.
 ( cd "$PREFIX"/lib/clang/*/lib 2>/dev/null || exit 0
   for alias in mc6809 mc6809-unknown-unknown-elf mc6809-elf; do
-    [ -e "$alias" ] || ln -sf mc6809-unknown-unknown "$alias"
+    alias_dir mc6809-unknown-unknown "$alias"
   done )
 
 # ------------------------------------------------------------------- check
@@ -442,7 +503,10 @@ esac
 if [ -n "$TARBALL" ]; then
   parent=$(cd "$(dirname "$PREFIX")" && pwd)
   base=$(basename "$PREFIX")
-  host=$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)
+  case $(uname -s) in
+    MINGW*|MSYS*|CYGWIN*) host=windows-$(uname -m) ;;
+    *) host=$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m) ;;
+  esac
   name=mc6809-toolchain-$version-$host
   : "${TARDIR:=$parent}"
   mkdir -p "$TARDIR"
@@ -450,15 +514,22 @@ if [ -n "$TARBALL" ]; then
 
   # The archive unpacks into a directory named for what it is, whatever the
   # prefix happened to be called while it was built.
-  say "packing $name.tar.xz"
+  # A .zip where a .zip is expected, and where the tools to unpack one are
+  # already there; xz everywhere else.
+  if [ -n "$HOST_WINDOWS" ]; then archive=$name.zip; else archive=$name.tar.xz; fi
+  say "packing $archive"
   staged=$parent/$name
   [ "$staged" = "$PREFIX" ] || { rm -rf "$staged"; cp -R "$PREFIX" "$staged"; }
-  # xz -T0 uses every core; the single-threaded default takes many minutes
-  # over a toolchain.
-  ( cd "$parent" && tar -cf - "$name" | xz -T0 -6 > "$TARDIR/$name.tar.xz" )
+  if [ -n "$HOST_WINDOWS" ]; then
+    ( cd "$parent" && rm -f "$TARDIR/$archive" && zip -q -r -9 "$TARDIR/$archive" "$name" )
+  else
+    # xz -T0 uses every core; the single-threaded default takes many minutes
+    # over a toolchain.
+    ( cd "$parent" && tar -cf - "$name" | xz -T0 -6 > "$TARDIR/$archive" )
+  fi
   [ "$staged" = "$PREFIX" ] || rm -rf "$staged"
 
-  ( cd "$TARDIR" && shasum -a 256 "$name.tar.xz" > "$name.tar.xz.sha256" )
-  say "packed: $TARDIR/$name.tar.xz ($(du -h "$TARDIR/$name.tar.xz" | cut -f1))"
-  say "        $(cat "$TARDIR/$name.tar.xz.sha256")"
+  ( cd "$TARDIR" && sha256_of "$archive" > "$archive.sha256" )
+  say "packed: $TARDIR/$archive ($(du -h "$TARDIR/$archive" | cut -f1))"
+  say "        $(cat "$TARDIR/$archive.sha256")"
 fi

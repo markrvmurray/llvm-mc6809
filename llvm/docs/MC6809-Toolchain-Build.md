@@ -421,6 +421,47 @@ them.  Thirty-one are guarded by `github.repository == 'llvm/llvm-project'`
 and skip; the rest can fire on a pull request and run jobs for projects this
 fork does not build.
 
+## Hosts, and how the target names are made
+
+The `mc6809-*` names must be **real directory entries pointing at the real
+binary** — never a shell wrapper.  clang resolves the path it was invoked by
+before working out where its sysroot is, so a script that execs a clang
+somewhere else sends the driver looking beside *that* one.  Three things
+satisfy that, and the roll script picks by host:
+
+| host | names | directories | archive |
+|---|---|---|---|
+| macOS, Linux | symlink | symlink | `.tar.xz` |
+| Windows | **hardlink** | junction, else copy | `.zip` |
+
+Windows is the awkward one.  Git-bash quietly turns `ln -s` into a copy
+unless MSYS is configured otherwise, and a copy per name means a fresh
+100 MB `clang-24` each time; an NTFS hardlink is a real directory entry to
+the same file and needs no special rights.  Directories cannot be
+hardlinked, so the sysroot aliases fall back to a junction and then to a
+copy.  The `.exe` suffix is no obstacle to the naming trick:
+`parseDriverSuffix` strips it before matching, so `mc6809-os9-clang.exe`
+still derives its triple from its own name.
+
+`MC6809_LINK_MODE=symlink|hardlink|copy` overrides the choice, which is how
+the Windows shape gets exercised without Windows:
+
+```sh
+MC6809_LINK_MODE=hardlink scripts/roll-toolchain.sh --prefix ~/mc6809-hl ...
+```
+
+Measured that way on macOS: no symlinks anywhere in `bin/`, every
+target-named tool sharing an inode with the binary it names, and the
+bundle passing **48 of 48** and all seven sabotages.  So the aliasing
+strategy is proven; what is *not* proven is Windows itself.
+
+**Still untried on a Windows host**: whether meson accepts the generated
+cross files there (the paths are MSYS-style and would want `cygpath -m`),
+whether picolibc builds under it at all, and whether
+`check-mc6809-toolchain` — a shell script — runs under git-bash, which
+decides whether a Windows bundle can be checked or only built.  Those want
+a Windows machine or a `windows-latest` runner, not more guessing here.
+
 ## Checking the check
 
 ```sh
