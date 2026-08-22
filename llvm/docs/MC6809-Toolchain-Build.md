@@ -302,8 +302,12 @@ chain of custody and the exact bytes are in
 picolibc/scripts/check-mc6809-toolchain ~/mc6809
 ```
 
-Twenty-five cases with a CoCo to hand, twenty-three without, and it prints
-its own tally.  It compiles ordinary
+Forty-eight cases with a CoCo to hand and a NitrOS-9 image, forty-six
+without the CoCo, and every run prints `pass=`, `fail=` and `not-run=`.  The
+last of those is the one to read: a case that could not be attempted is
+counted and named, never silently dropped, and a run with any of them exits
+2 unless `MC6809_CHECK_ALLOW_UNRUNNABLE` says in advance that a smaller
+check was wanted.  It compiles ordinary
 programs — stdio, malloc, string, 32-bit arithmetic — with nothing but
 `--target`, and runs each: bare metal on USim, OS-9 on a real NitrOS-9 boot.
 Then each library variant twice over, that the link uses the variant's own
@@ -386,12 +390,24 @@ longer knows the triple, would produce.  So the job also requires at least
 `MIN_PASS` passes — 240, raise it as the suite grows — and says in its
 summary how many tests were skipped rather than burying it.
 
-**What CI does not do, and cannot**: roll a bundle, build picolibc, or run
-anything on an emulator.  The acceptance check needs usim, a NitrOS-9 image
-tree, and for the two DECB cases MAME together with Tandy's ROMs, which
-cannot be committed to a public repository or fetched into a runner.  A
-green tick therefore means "it builds elsewhere and the host-side tests
-pass" — not "releasable".  The 42-case check stays a local gate.
+It then builds a bundle and checks it.  picolibc and usim are checked out
+**at pinned commits** — `PICOLIBC_SHA` and `USIM_SHA` in the workflow, bumped
+by a commit when either moves — because a branch would quietly change what
+an old tag rebuilds to.  usim is built there, which is what lets the
+bare-metal cases really run rather than merely link, and the bundle is
+checked *unpacked from its own tarball*, so completeness and relocatability
+are tested together.  The tarball is uploaded as an artifact.
+
+**What CI still cannot do** is the part that needs machines: six OS-9 cases
+and the C++ OS-9 case want a NitrOS-9 image, and the two DECB cases want
+MAME with Tandy's ROMs, which cannot go in a public repository.  So the run
+sets `MC6809_CHECK_ALLOW_UNRUNNABLE` and expects **39 passed, 9 not run**
+against 48 locally.  Both numbers are enforced: fewer passes than
+`CHECK_MIN_PASS` means cases are disappearing rather than failing, and more
+skips than `CHECK_EXPECT_NOTRUN` means something stopped being attempted.
+A green tick means "it builds elsewhere, and a bundle rolled there works as
+far as a machineless runner can tell" — not "releasable".  The full check
+stays a local gate.
 
 Note that the repository still carries upstream LLVM's own workflows, 46 of
 them.  Thirty-one are guarded by `github.repository == 'llvm/llvm-project'`

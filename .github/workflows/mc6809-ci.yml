@@ -44,6 +44,23 @@ jobs:
       MIN_PASS: 240
       CCACHE_MAXSIZE: 2G
 
+      # Pinned to a commit, never to a branch: an old tag has to rebuild to
+      # the bundle it named, and a branch would quietly change what it means.
+      # Bump these in a commit when either dependency moves.
+      PICOLIBC_REPO: markrvmurray/picolibc
+      PICOLIBC_SHA: 38d27be3b9b764b93d35695c98ca706e3a8c4b5a
+      USIM_REPO: markrvmurray/usim
+      USIM_SHA: bf2e69d9e99ffb6dccd02854a0abcabc022ba912
+
+      # The acceptance check, minus what a runner cannot have.  Measured on
+      # 2026-08-22 against 1.0-rc1: 48 pass with everything present, 39 pass
+      # and 9 not run without a NitrOS-9 image (six OS-9 cases and the C++
+      # OS-9 case) or MAME with Tandy's ROMs (two DECB cases).
+      CHECK_MIN_PASS: 39
+      CHECK_EXPECT_NOTRUN: 9
+      # Says, in advance and in the log, that this is the reduced check.
+      MC6809_CHECK_ALLOW_UNRUNNABLE: 1
+
     steps:
       - name: Check out
         uses: actions/checkout@v4
@@ -147,10 +164,112 @@ jobs:
           fi
           echo "$passed passed, $unsupp unsupported, 0 failed"
 
+      # ------------------------------------------------------------------
+      # Everything below builds an actual bundle and checks it, which is the
+      # difference between "the compiler compiles" and "the thing people
+      # download works".
+      # ------------------------------------------------------------------
+
+      - name: Check out picolibc
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.PICOLIBC_REPO }}
+          ref: ${{ env.PICOLIBC_SHA }}
+          path: _deps/picolibc
+
+      - name: Check out usim
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.USIM_REPO }}
+          ref: ${{ env.USIM_SHA }}
+          path: _deps/usim
+
+      - name: Install picolibc build tools
+        run: sudo apt-get install -y --no-install-recommends meson xz-utils
+
+      - name: Build the simulators
+        run: |
+          # The check refuses to run at all without both of these, and with
+          # them the bare-metal cases really execute rather than just link.
+          # -Werror is dropped: a warning from a newer g++ than the one this
+          # was written against must not fail the build of a test tool.
+          make -C _deps/usim -j "$(nproc)" usim09batch usim09pt \
+              CXX='g++ --std=c++20 -Wall -Wextra'
+          echo "$GITHUB_WORKSPACE/_deps/usim" >> "$GITHUB_PATH"
+
+      - name: Roll a bundle
+        run: |
+          # The roll builds picolibc eight times with the compiler just built,
+          # then checks what it produced and refuses to package a bundle that
+          # does not run.
+          scripts/roll-toolchain.sh \
+              --prefix "$RUNNER_TEMP/mc6809" \
+              --llvm-build build-ci \
+              --picolibc "$GITHUB_WORKSPACE/_deps/picolibc" \
+              --tarball "$RUNNER_TEMP/dist"
+
+      - name: Check the archive, not the prefix it came from
+        id: check
+        run: |
+          set -o pipefail
+          cd "$RUNNER_TEMP/dist"
+          shasum -a 256 -c ./*.tar.xz.sha256
+          # Unpacked somewhere it was never built: this tests the archive's
+          # completeness and the bundle's relocatability at the same time.
+          mkdir -p "$RUNNER_TEMP/unpacked"
+          tar -xf ./*.tar.xz -C "$RUNNER_TEMP/unpacked"
+          bundle=$(basename ./*.tar.xz .tar.xz)
+          "$GITHUB_WORKSPACE/_deps/picolibc/scripts/check-mc6809-toolchain" \
+              --corpus "$RUNNER_TEMP/unpacked/$bundle" 2>&1 | tee check.log
+
+      - name: Check the bundle check actually ran
+        if: always() && steps.check.outcome != 'skipped'
+        run: |
+          log=$RUNNER_TEMP/dist/check.log
+          [ -f "$log" ] || { echo "::error::no check log"; exit 1; }
+          read -r p f n <<EOF
+          $(sed -n 's/^pass=\([0-9]*\) fail=\([0-9]*\) not-run=\([0-9]*\).*/\1 \2 \3/p' "$log" | tail -1)
+          EOF
+          p=${p:-0}; f=${f:-0}; n=${n:-0}
+          {
+            echo "### Bundle"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| passed | $p |"
+            echo "| failed | $f |"
+            echo "| not run (no NitrOS-9 image, no CoCo ROMs) | $n |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$f" -ne 0 ]; then echo "::error::$f bundle check(s) failed"; exit 1; fi
+          if [ "$p" -lt "$CHECK_MIN_PASS" ]; then
+            echo "::error::only $p checks passed, expected at least $CHECK_MIN_PASS -- cases are disappearing rather than failing"
+            exit 1
+          fi
+          # More skipped than expected means something stopped being
+          # attempted; the count is the only thing that would show it.
+          if [ "$n" -gt "$CHECK_EXPECT_NOTRUN" ]; then
+            echo "::error::$n cases were not run, expected $CHECK_EXPECT_NOTRUN"
+            exit 1
+          fi
+          echo "$p passed, $f failed, $n not run"
+
+      - name: Publish the bundle
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mc6809-toolchain-linux-x86_64
+          path: |
+            ${{ runner.temp }}/dist/*.tar.xz
+            ${{ runner.temp }}/dist/*.tar.xz.sha256
+          retention-days: 14
+
       - name: Keep the log when something broke
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: lit-log
-          path: lit.log
+          name: logs
+          path: |
+            lit.log
+            ${{ runner.temp }}/dist/check.log
           retention-days: 14
+          if-no-files-found: ignore
