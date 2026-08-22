@@ -14,6 +14,9 @@
 //     Store_i16_Mem %d, %base, off    (std off,base)   -> Store_iPtr_Mem %x, ...   (stx off,base)
 //     Compare_i16_Imm cc, %d, #imm    (cmpd #imm)      -> Compare_ptr_Imm cc, %x   (cmpx #imm)
 //     Compare_i16_Mem cc, %d, %b, off (cmpd off,b)     -> Compare_ptr_Mem cc, %x   (cmpx off,b)
+//     Add_i16_Reg %a, %d              (tfr x,d ...)    -> Add_i16_RegIdx %a, %x    (pshs x; addd ,s++)
+//     (and Sub/AND/OR/XOR/carry-chain and Compare _Reg forms: the second
+//     source is read from memory after a push either way)
 //
 // MC6809 has index-register store and compare forms (STX/STY/STU, CMPX/CMPY/
 // CMPU), so the copy into D is pure overhead. Folding it pre-register-allocation
@@ -73,9 +76,33 @@ struct FoldTarget {
 static FoldTarget indexConsumer(unsigned Opc) {
   switch (Opc) {
   case MC6809::Store_i16_Mem:         return {MC6809::Store_iPtr_Mem, 0};
+  case MC6809::Store_i16_Sym:         return {MC6809::Store_iPtr_Sym, 0};
   case MC6809::Compare_i16_Imm:       return {MC6809::Compare_ptr_Imm, 2};
   case MC6809::Compare_i16_Mem:       return {MC6809::Compare_ptr_Mem, 2};
+  case MC6809::Compare_i16_Sym:       return {MC6809::Compare_ptr_Sym, 2};
   case MC6809::CompareBranch_i16_Imm: return {MC6809::CompareBranch_ptr_Imm, 1};
+  case MC6809::CompareBranch_i16_Mem: return {MC6809::CompareBranch_ptr_Mem, 1};
+  case MC6809::CompareBranch_i16_Sym: return {MC6809::CompareBranch_ptr_Sym, 1};
+  // The SECOND source of a 16-bit register-register arithmetic, bitwise or
+  // compare pseudo may be an index register (the _RegIdx sibling): the
+  // 6809 reads that operand from memory after a push either way, so a
+  // value that arrived in X or Y stays there instead of being copied into
+  // D and evicting the tied operand into an imaginary register.
+  case MC6809::Add_i16_Reg:               return {MC6809::Add_i16_RegIdx, 2};
+  case MC6809::Sub_i16_Reg:               return {MC6809::Sub_i16_RegIdx, 2};
+  case MC6809::AddSetCarry_i16_Reg:       return {MC6809::AddSetCarry_i16_RegIdx, 2};
+  case MC6809::SubSetCarry_i16_Reg:       return {MC6809::SubSetCarry_i16_RegIdx, 2};
+  case MC6809::AddSetCarryUse_i16_Reg:    return {MC6809::AddSetCarryUse_i16_RegIdx, 2};
+  case MC6809::SubSetCarryUse_i16_Reg:    return {MC6809::SubSetCarryUse_i16_RegIdx, 2};
+  case MC6809::AddSetOverflow_i16_Reg:    return {MC6809::AddSetOverflow_i16_RegIdx, 2};
+  case MC6809::SubSetOverflow_i16_Reg:    return {MC6809::SubSetOverflow_i16_RegIdx, 2};
+  case MC6809::AddSetOverflowUse_i16_Reg: return {MC6809::AddSetOverflowUse_i16_RegIdx, 2};
+  case MC6809::SubSetOverflowUse_i16_Reg: return {MC6809::SubSetOverflowUse_i16_RegIdx, 2};
+  case MC6809::AND_i16_Reg:               return {MC6809::AND_i16_RegIdx, 2};
+  case MC6809::OR_i16_Reg:                return {MC6809::OR_i16_RegIdx, 2};
+  case MC6809::XOR_i16_Reg:               return {MC6809::XOR_i16_RegIdx, 2};
+  case MC6809::Compare_i16_Reg:           return {MC6809::Compare_i16_RegIdx, 3};
+  case MC6809::CompareBranch_i16_Reg:     return {MC6809::CompareBranch_i16_RegIdx, 2};
   default:                            return {0, -1};
   }
 }
@@ -98,20 +125,43 @@ bool MC6809FoldBankCross::runOnMachineFunction(MachineFunction &MF) {
         continue;
       Register Dst = MI.getOperand(0).getReg();
       Register Src = MI.getOperand(1).getReg();
-      if (!Dst.isVirtual() || !Src.isVirtual())
+      if (!Dst.isVirtual())
         continue;
       const TargetRegisterClass *DstRC = MRI.getRegClassOrNull(Dst);
-      const TargetRegisterClass *SrcRC = MRI.getRegClassOrNull(Src);
-      if (!DstRC || !SrcRC)
+      if (!DstRC || !MC6809::ACC16RegClass.hasSubClassEq(DstRC))
         continue;
-      if (MC6809::ACC16RegClass.hasSubClassEq(DstRC) &&
-          MC6809::INDEX16RegClass.hasSubClassEq(SrcRC))
+      // The source is an index-bank virtual register, or one of the index
+      // registers themselves (an incoming argument in X, a call result).
+      if (Src.isVirtual()) {
+        const TargetRegisterClass *SrcRC = MRI.getRegClassOrNull(Src);
+        if (SrcRC && MC6809::INDEX16RegClass.hasSubClassEq(SrcRC))
+          Copies.push_back(&MI);
+      } else if (Src == MC6809::IX || Src == MC6809::IY) {
         Copies.push_back(&MI);
+      }
     }
-
   for (MachineInstr *Copy : Copies) {
     Register AccReg = Copy->getOperand(0).getReg();
     Register IdxReg = Copy->getOperand(1).getReg();
+    // A physical index source gets its own index-bank virtual register,
+    // copied right where the accumulator copy was (the physical register is
+    // known to hold the value there and nowhere else).
+    if (IdxReg.isPhysical()) {
+      bool AnyConsumer = false;
+      for (MachineInstr &Use : MRI.use_nodbg_instructions(AccReg)) {
+        FoldTarget FT = indexConsumer(Use.getOpcode());
+        if (FT.Opc && Use.getOperand(FT.ValueOp).isReg() &&
+            Use.getOperand(FT.ValueOp).getReg() == AccReg)
+          AnyConsumer = true;
+      }
+      if (!AnyConsumer)
+        continue;
+      Register NewIdx = MRI.createVirtualRegister(&MC6809::INDEX16RegClass);
+      BuildMI(*Copy->getParent(), std::next(Copy->getIterator()),
+              Copy->getDebugLoc(), TII.get(TargetOpcode::COPY), NewIdx)
+          .addReg(IdxReg);
+      IdxReg = NewIdx;
+    }
 
     // Retarget each store/compare that uses the accumulator value to read the
     // index register directly. Other uses keep the copy alive.

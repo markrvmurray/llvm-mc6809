@@ -516,6 +516,15 @@ multiclass MC6809Arithmetic<ValueType vtype, RegisterClass dst, RegisterClass sr
         def _RegA : MC6809ArithmeticBaseRegByteA<(ins ACC8_AB:$src2)>;
       } else {
         def _Reg : MC6809ArithmeticBase<dst, src, (ins src:$src2)>;
+        // Second source in an index register. The 6809 has no register-
+        // register ADDD: the second operand is read from memory, and the
+        // expander pushes it there (`pshs r; op ,s`) -- so an index register
+        // serves exactly as well as an accumulator, and much better than
+        // the alternative when D is taken (an imaginary register with all
+        // its staging). Retargeted from _Reg when the second source arrives
+        // in the index bank (MC6809FoldBankCross); same expansion.
+        if !eq(vtype, i16) then
+          def _RegIdx : MC6809ArithmeticBase<dst, src, (ins INDEX16:$src2)>;
       }
     }
   }
@@ -608,6 +617,8 @@ multiclass MC6809ArithmeticCarry<ValueType vtype, RegisterClass dst, RegisterCla
         def _RegA : MC6809ArithmeticBaseCarryRegByteA<(ins ACC8_AB:$src2)>;
       } else {
         def _Reg : MC6809ArithmeticBaseCarry<dst, src, (ins src:$src2)>;
+        if !eq(vtype, i16) then
+          def _RegIdx : MC6809ArithmeticBaseCarry<dst, src, (ins INDEX16:$src2)>;
       }
     }
   }
@@ -727,6 +738,8 @@ multiclass MC6809ArithmeticCarryUse<ValueType vtype, RegisterClass dst, Register
         def _RegA : MC6809ArithmeticBaseSetCarryUseRegByteA<(ins ACC8_AB:$src2)>;
       } else {
         def _Reg : MC6809ArithmeticBaseSetCarryUse<dst, src, (ins src:$src2)>;
+        if !eq(vtype, i16) then
+          def _RegIdx : MC6809ArithmeticBaseSetCarryUse<dst, src, (ins INDEX16:$src2)>;
       }
     }
   }
@@ -747,6 +760,8 @@ multiclass MC6809ArithmeticOverflowUse<ValueType vtype, RegisterClass dst, Regis
         def _RegA : MC6809ArithmeticBaseSetOverflowUseRegByteA<(ins ACC8_AB:$src2)>;
       } else {
         def _Reg : MC6809ArithmeticBaseSetOverflowUse<dst, src, (ins src:$src2)>;
+        if !eq(vtype, i16) then
+          def _RegIdx : MC6809ArithmeticBaseSetOverflowUse<dst, src, (ins INDEX16:$src2)>;
       }
     }
   }
@@ -888,6 +903,9 @@ multiclass MC6809Bitwise<ValueType vtype, RegisterClass reg, RegisterClass memRe
   let isCommutable = 1 in {
     def _Reg : MC6809BitwiseBase<reg, (ins reg:$src2)>;
   }
+  // Not commutable: the two sources have different classes.
+  if !eq(vtype, i16) then
+    def _RegIdx : MC6809BitwiseBase<reg, (ins INDEX16:$src2)>;
   let mayLoad = true in {
     def _Mem : MC6809BitwiseBase<memReg, (ins INDEX16:$idx, unknown:$offset)>;
     // P3b: indirect-indexed (`op [n,r]`) -- see MC6809Arithmetic _MemIndirect.
@@ -1030,6 +1048,9 @@ multiclass MC6809Compare<ValueType vtype, RegisterClass reg,
     def _Imm : MC6809CompareBase<reg, (ins !cast<Operand>(vtype#"imm"):$imm)>;
   }
   def _Reg : MC6809CompareBase<regreg, (ins regreg:$src2)>;
+  // Second compared operand in an index register (see the arithmetic _RegIdx).
+  if !eq(vtype, i16) then
+    def _RegIdx : MC6809CompareBase<regreg, (ins INDEX16:$src2)>;
   let mayLoad = true in {
     def _Mem : MC6809CompareBase<reg, (ins INDEX16:$idx, unknown:$offset)>;
     // P3b: indirect-indexed compare (`cmp [n,r]`) -- expanded to the indirect-
@@ -1160,6 +1181,8 @@ multiclass MC6809CompareBranch<ValueType vtype, RegisterClass reg,
                                RegisterClass regreg = reg> {
   def _Imm : MC6809CompareBranchBase<reg, (ins !cast<Operand>(vtype#"imm"):$imm)>;
   def _Reg : MC6809CompareBranchBase<regreg, (ins regreg:$src2)>;
+  if !eq(vtype, i16) then
+    def _RegIdx : MC6809CompareBranchBase<regreg, (ins INDEX16:$src2)>;
   let mayLoad = true in {
     def _Mem : MC6809CompareBranchBase<reg, (ins INDEX16:$idx, unknown:$offset)>;
     // P3b: indirect-indexed fused compare-branch (`cmp [n,r]; b<cc>`).

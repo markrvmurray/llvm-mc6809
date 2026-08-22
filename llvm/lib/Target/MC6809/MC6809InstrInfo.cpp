@@ -312,6 +312,7 @@ static bool isFusedCompareBranch(unsigned Opc) {
   case MC6809::TestBranch_i8_Mem:  case MC6809::TestBranch_i16_Mem:
   case MC6809::CompareBranch_i8_Imm:  case MC6809::CompareBranch_i16_Imm:
   case MC6809::CompareBranch_i8_Reg:  case MC6809::CompareBranch_i16_Reg:
+  case MC6809::CompareBranch_i16_RegIdx:
   case MC6809::CompareBranch_i8_Mem:  case MC6809::CompareBranch_i16_Mem:
     return true;
   default:
@@ -1894,35 +1895,50 @@ static std::optional<MC6809MemFoldInfo> memFoldSibling(unsigned Opc) {
   // the byte bitwise fold this is code quality: a spilled second source
   // reads straight from its slot, e.g. ADDD off,u, instead of reloading).
   case MC6809::Add_i16_Reg:
+  case MC6809::Add_i16_RegIdx:
     return MC6809MemFoldInfo{MC6809::Add_i16_Mem, 2};
   case MC6809::Sub_i16_Reg:
+  case MC6809::Sub_i16_RegIdx:
     return MC6809MemFoldInfo{MC6809::Sub_i16_Mem, 2};
   case MC6809::AddSetCarry_i16_Reg:
+  case MC6809::AddSetCarry_i16_RegIdx:
     return MC6809MemFoldInfo{MC6809::AddSetCarry_i16_Mem, 2};
   case MC6809::SubSetCarry_i16_Reg:
+  case MC6809::SubSetCarry_i16_RegIdx:
     return MC6809MemFoldInfo{MC6809::SubSetCarry_i16_Mem, 2};
   case MC6809::AddSetCarryUse_i16_Reg:
+  case MC6809::AddSetCarryUse_i16_RegIdx:
     return MC6809MemFoldInfo{MC6809::AddSetCarryUse_i16_Mem, 2};
   case MC6809::SubSetCarryUse_i16_Reg:
+  case MC6809::SubSetCarryUse_i16_RegIdx:
     return MC6809MemFoldInfo{MC6809::SubSetCarryUse_i16_Mem, 2};
   case MC6809::AddSetOverflow_i16_Reg:
+  case MC6809::AddSetOverflow_i16_RegIdx:
     return MC6809MemFoldInfo{MC6809::AddSetOverflow_i16_Mem, 2};
   case MC6809::SubSetOverflow_i16_Reg:
+  case MC6809::SubSetOverflow_i16_RegIdx:
     return MC6809MemFoldInfo{MC6809::SubSetOverflow_i16_Mem, 2};
   case MC6809::AddSetOverflowUse_i16_Reg:
+  case MC6809::AddSetOverflowUse_i16_RegIdx:
     return MC6809MemFoldInfo{MC6809::AddSetOverflowUse_i16_Mem, 2};
   case MC6809::SubSetOverflowUse_i16_Reg:
+  case MC6809::SubSetOverflowUse_i16_RegIdx:
     return MC6809MemFoldInfo{MC6809::SubSetOverflowUse_i16_Mem, 2};
   case MC6809::AND_i16_Reg:
+  case MC6809::AND_i16_RegIdx:
     return MC6809MemFoldInfo{MC6809::AND_i16_Mem, 2};
   case MC6809::OR_i16_Reg:
+  case MC6809::OR_i16_RegIdx:
     return MC6809MemFoldInfo{MC6809::OR_i16_Mem, 2};
   case MC6809::XOR_i16_Reg:
+  case MC6809::XOR_i16_RegIdx:
     return MC6809MemFoldInfo{MC6809::XOR_i16_Mem, 2};
   // i16 compares (same operand layout as the byte compares).
   case MC6809::Compare_i16_Reg:
+  case MC6809::Compare_i16_RegIdx:
     return MC6809MemFoldInfo{MC6809::Compare_i16_Mem, 3};
   case MC6809::CompareBranch_i16_Reg:
+  case MC6809::CompareBranch_i16_RegIdx:
     return MC6809MemFoldInfo{MC6809::CompareBranch_i16_Mem, 2};
   // Byte compares. Compare: (outs CCond)(ins cc, src, src2) — src2 at 3.
   // CompareBranch: (outs)(ins cc, src, src2, label) — src2 at 2, and the
@@ -2347,6 +2363,8 @@ MC6809InstrInfo::phantomFlagOfProducer(unsigned Opcode) {
   case MC6809::SubSetCarry_i8_Imm:    case MC6809::SubSetCarry_i16_Imm:    case MC6809::SubSetCarry_i32_Imm:
   case MC6809::SubSetCarry_i8_Mem:    case MC6809::SubSetCarry_i16_Mem:    case MC6809::SubSetCarry_i32_Mem:
   case MC6809::SubSetCarry_i8_Reg:    case MC6809::SubSetCarry_i16_Reg:    case MC6809::SubSetCarry_i32_Reg:
+  case MC6809::SubSetCarry_i16_RegIdx: case MC6809::AddSetCarry_i16_RegIdx:
+  case MC6809::SubSetCarryUse_i16_RegIdx: case MC6809::AddSetCarryUse_i16_RegIdx:
   case MC6809::AddSetCarry_i8_Imm:    case MC6809::AddSetCarry_i16_Imm:    case MC6809::AddSetCarry_i32_Imm:
   case MC6809::AddSetCarry_i8_Mem:    case MC6809::AddSetCarry_i16_Mem:    case MC6809::AddSetCarry_i32_Mem:
   case MC6809::AddSetCarry_i8_Reg:    case MC6809::AddSetCarry_i16_Reg:    case MC6809::AddSetCarry_i32_Reg:
@@ -2363,6 +2381,8 @@ MC6809InstrInfo::phantomFlagOfProducer(unsigned Opcode) {
   case MC6809::SubSetOverflow_i8_Imm:     case MC6809::SubSetOverflow_i16_Imm:     case MC6809::SubSetOverflow_i32_Imm:
   case MC6809::SubSetOverflow_i8_Mem:     case MC6809::SubSetOverflow_i16_Mem:     case MC6809::SubSetOverflow_i32_Mem:
   case MC6809::SubSetOverflow_i8_Reg:     case MC6809::SubSetOverflow_i16_Reg:     case MC6809::SubSetOverflow_i32_Reg:
+  case MC6809::SubSetOverflow_i16_RegIdx: case MC6809::AddSetOverflow_i16_RegIdx:
+  case MC6809::SubSetOverflowUse_i16_RegIdx: case MC6809::AddSetOverflowUse_i16_RegIdx:
   case MC6809::AddSetOverflow_i8_Imm:     case MC6809::AddSetOverflow_i16_Imm:     case MC6809::AddSetOverflow_i32_Imm:
   case MC6809::AddSetOverflow_i8_Mem:     case MC6809::AddSetOverflow_i16_Mem:     case MC6809::AddSetOverflow_i32_Mem:
   case MC6809::AddSetOverflow_i8_Reg:     case MC6809::AddSetOverflow_i16_Reg:     case MC6809::AddSetOverflow_i32_Reg:
@@ -3625,6 +3645,7 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
     break;
   case MC6809::AND_i8_Reg:
   case MC6809::AND_i16_Reg:
+  case MC6809::AND_i16_RegIdx:
     expandANDReg(Builder, MI);
     break;
   case MC6809::OR_i8_Imm:
@@ -3645,6 +3666,7 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
     break;
   case MC6809::OR_i8_Reg:
   case MC6809::OR_i16_Reg:
+  case MC6809::OR_i16_RegIdx:
     expandORReg(Builder, MI);
     break;
   case MC6809::XOR_i8_Imm:
@@ -3665,6 +3687,7 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
     break;
   case MC6809::XOR_i8_Reg:
   case MC6809::XOR_i16_Reg:
+  case MC6809::XOR_i16_RegIdx:
     expandXORReg(Builder, MI);
     break;
   case MC6809::Add_i8_Imm:
@@ -3741,6 +3764,7 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
   // so no helper change needed.
   case MC6809::Add_i8_RegA:
   case MC6809::Add_i16_Reg:
+  case MC6809::Add_i16_RegIdx:
     expandAddReg(Builder, MI);
     break;
   case MC6809::AddSetCarry_i8_Reg:
@@ -3751,6 +3775,8 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
     break;
   case MC6809::AddSetCarry_i16_Reg:
   case MC6809::AddSetOverflow_i16_Reg:
+  case MC6809::AddSetCarry_i16_RegIdx:
+  case MC6809::AddSetOverflow_i16_RegIdx:
     expandAddSetCarryReg(Builder, MI);
     break;
   case MC6809::AddSetCarryUse_i8_Reg:
@@ -3761,6 +3787,8 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
     break;
   case MC6809::AddSetCarryUse_i16_Reg:
   case MC6809::AddSetOverflowUse_i16_Reg:
+  case MC6809::AddSetCarryUse_i16_RegIdx:
+  case MC6809::AddSetOverflowUse_i16_RegIdx:
     expandAddSetCarryUseReg(Builder, MI);
     break;
   case MC6809::Sub_i8_Imm:
@@ -3814,6 +3842,7 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
     expandSubByteReg(Builder, MI);
     break;
   case MC6809::Sub_i16_Reg:
+  case MC6809::Sub_i16_RegIdx:
     expandSubReg(Builder, MI);
     break;
   case MC6809::SubSetCarry_i8_Reg:
@@ -3824,6 +3853,8 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
     break;
   case MC6809::SubSetCarry_i16_Reg:
   case MC6809::SubSetOverflow_i16_Reg:
+  case MC6809::SubSetCarry_i16_RegIdx:
+  case MC6809::SubSetOverflow_i16_RegIdx:
     expandSubSetCarryReg(Builder, MI);
     break;
   case MC6809::SubSetCarryUse_i8_Mem:
@@ -3846,6 +3877,8 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
     break;
   case MC6809::SubSetCarryUse_i16_Reg:
   case MC6809::SubSetOverflowUse_i16_Reg:
+  case MC6809::SubSetCarryUse_i16_RegIdx:
+  case MC6809::SubSetOverflowUse_i16_RegIdx:
     expandSubSetCarryUseReg(Builder, MI);
     break;
   // i32 pseudos that are dormant pre-legalizer-flip (commit 5).
@@ -3920,6 +3953,7 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
     break;
   case MC6809::Compare_i8_Reg:
   case MC6809::Compare_i16_Reg:
+  case MC6809::Compare_i16_RegIdx:
   case MC6809::Compare_ptr_Reg:
     expandCompareReg(Builder, MI);
     break;
@@ -3941,6 +3975,7 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
   case MC6809::CompareBranch_i16_Imm:
   case MC6809::CompareBranch_i8_Reg:
   case MC6809::CompareBranch_i16_Reg:
+  case MC6809::CompareBranch_i16_RegIdx:
   case MC6809::CompareBranch_i8_Mem:
   case MC6809::CompareBranch_i16_Mem:
   case MC6809::CompareBranch_i8_MemIndirect:
@@ -6696,6 +6731,9 @@ static void emit6809RegPairFromMem(MachineIRBuilder &Builder,
                                    unsigned OpcB_o5, unsigned OpcA_o0,
                                    unsigned OpcB_o16,
                                    unsigned OpcA_o16);
+static bool emit6809Reg16FromMem(MachineIRBuilder &Builder, Register LHS,
+                                 Register RHS, unsigned OpcDP,
+                                 unsigned OpcInc2);
 static void getByteOpcodes(Register LHS,
                            unsigned OpcA_o8, unsigned OpcB_o8,
                            unsigned OpcA_o5, unsigned OpcB_o5,
@@ -6709,7 +6747,8 @@ void MC6809InstrInfo::expandANDReg(MachineIRBuilder &Builder, MachineInstr &MI) 
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   if (STI.has6309() && emitHD6309RegRegOp(Builder, MI, MC6809::ANDRp)) {
     // page-3 reg-reg path emitted
-  } else if (MI.getOpcode() == MC6809::AND_i16_Reg) {
+  } else if (MI.getOpcode() == MC6809::AND_i16_Reg ||
+             MI.getOpcode() == MC6809::AND_i16_RegIdx) {
     emit6809RegPairFromMem(Builder,
                            MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
                            MC6809::ANDBi_o8, MC6809::ANDAi_o8,
@@ -6738,7 +6777,8 @@ void MC6809InstrInfo::expandORReg(MachineIRBuilder &Builder, MachineInstr &MI) c
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   if (STI.has6309() && emitHD6309RegRegOp(Builder, MI, MC6809::ORRp)) {
     // page-3 reg-reg path emitted
-  } else if (MI.getOpcode() == MC6809::OR_i16_Reg) {
+  } else if (MI.getOpcode() == MC6809::OR_i16_Reg ||
+             MI.getOpcode() == MC6809::OR_i16_RegIdx) {
     emit6809RegPairFromMem(Builder,
                            MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
                            MC6809::ORBi_o8, MC6809::ORAi_o8,
@@ -6764,7 +6804,8 @@ void MC6809InstrInfo::expandXORReg(MachineIRBuilder &Builder, MachineInstr &MI) 
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   if (STI.has6309() && emitHD6309RegRegOp(Builder, MI, MC6809::EORRp)) {
     // page-3 reg-reg path emitted
-  } else if (MI.getOpcode() == MC6809::XOR_i16_Reg) {
+  } else if (MI.getOpcode() == MC6809::XOR_i16_Reg ||
+             MI.getOpcode() == MC6809::XOR_i16_RegIdx) {
     emit6809RegPairFromMem(Builder,
                            MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
                            MC6809::EORBi_o8, MC6809::EORAi_o8,
@@ -6800,7 +6841,9 @@ void MC6809InstrInfo::expandAddReg(MachineIRBuilder &Builder, MachineInstr &MI) 
     emit6809RegByteFromMem(Builder,
                            MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
                            Opc_o8, Opc_o5, Opc_o16);
-  } else {
+  } else if (!emit6809Reg16FromMem(Builder, MI.getOperand(0).getReg(),
+                                   MI.getOperand(2).getReg(), MC6809::ADDDd,
+                                   MC6809::ADDDi_Inc2)) {
     // i16 reg-reg add: low byte ADDB sets carry, high byte ADCA must
     // consume it. Earlier code used ADDA for the high byte and silently
     // dropped the carry between bytes 0 and 1 of the i16 add — so e.g.
@@ -7320,6 +7363,39 @@ static void emit6809RegByteFromMem(MachineIRBuilder &Builder,
 ///   PSHS to push the i16 onto the S stack (high byte at 0,s,
 ///   low byte at 1,s), operate from there, then LEAS to pop
 ///   (direct-page RS reads happen in place, no push).
+// A plain 16-bit ADDD/SUBD from a second source in a register, on the 6809
+// (which has no register-register form): an imaginary second source is read
+// by direct addressing (`addd <rs`), any other register is pushed and read
+// back with auto-increment (`pshs r; addd ,s++`). Only for the ops that have
+// a 16-bit memory form -- the carry chains and the bitwise ops (no ADCD/ANDD
+// on the 6809) keep the byte-pair expansion. Returns false when the byte-pair
+// path must handle it (an imaginary destination, which stages through D and
+// needs the general bracket).
+static cl::opt<bool> EnableReg16FromMem(
+    "mc6809-enable-reg16-from-mem", cl::Hidden, cl::init(true),
+    cl::desc("Expand a 16-bit reg-reg ADD/SUB on the 6809 as one ADDD/SUBD "
+             "from the pushed or direct-page second source"));
+
+static bool emit6809Reg16FromMem(MachineIRBuilder &Builder, Register LHS,
+                                 Register RHS, unsigned OpcDP,
+                                 unsigned OpcInc2) {
+  if (!EnableReg16FromMem || LHS != MC6809::AD || RHS == MC6809::AD)
+    return false;
+  if (RHS.isPhysical() && MC6809::Imag16RegClass.contains(RHS)) {
+    Builder.buildInstr(OpcDP)
+        .addDef(MC6809::AD, RegState::Implicit)
+        .addReg(RHS);
+    return true;
+  }
+  if (needsMaterialization(RHS))
+    return false;
+  Builder.buildInstr(MC6809::PSHSs, {}, {RHS});
+  Builder.buildInstr(OpcInc2)
+      .addDef(MC6809::AD, RegState::Implicit)
+      .addReg(MC6809::SS);
+  return true;
+}
+
 static void emit6809RegPairFromMem(MachineIRBuilder &Builder,
                                    Register LHS, Register RHS,
                                    unsigned OpcB_o8, unsigned OpcA_o8,
@@ -7434,7 +7510,9 @@ void MC6809InstrInfo::expandSubReg(MachineIRBuilder &Builder, MachineInstr &MI) 
   const auto &STI = MI.getMF()->getSubtarget<MC6809Subtarget>();
   if (STI.has6309() && emitHD6309RegRegOp(Builder, MI, MC6809::SUBRp)) {
     // page-3 reg-reg path emitted
-  } else {
+  } else if (!emit6809Reg16FromMem(Builder, MI.getOperand(0).getReg(),
+                                   MI.getOperand(2).getReg(), MC6809::SUBDd,
+                                   MC6809::SUBDi_Inc2)) {
     emit6809RegPairFromMem(Builder,
                            MI.getOperand(0).getReg(), MI.getOperand(2).getReg(),
                            MC6809::SUBBi_o8, MC6809::SBCAi_o8,
@@ -7816,6 +7894,17 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
     }
   };
 
+  // Compare PhysReg against the word (byte) on top of the stack, popping it.
+  auto pickCmpInc = [&](Register PhysReg) -> unsigned {
+    if (MIOpc == MC6809::Compare_i8_Reg)
+      return PhysReg == MC6809::AA ? MC6809::CMPAi_Inc1 : MC6809::CMPBi_Inc1;
+    if (PhysReg == MC6809::IX)
+      return MC6809::CMPXi_Inc2;
+    if (PhysReg == MC6809::IY)
+      return MC6809::CMPYi_Inc2;
+    return MC6809::CMPDi_Inc2;
+  };
+
   // Imaginary (direct-page homed) sources. With the RS/RC imaginaries
   // allocatable, one or both compare operands can live in a DP slot; the
   // materializing CMPR arm above skips SameHalf pairs (both would stage
@@ -7872,11 +7961,11 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
       else if (STI.has6309())
         Builder.buildInstr(MC6809::CMPRp).addUse(Src1).addUse(Src2Phys);
       else {
+        // Src1 keeps its register (neither the push nor the compare
+        // writes it), so the pushed copy is consumed by the compare's
+        // post-increment.
         Builder.buildInstr(MC6809::PSHSs, {}, {Register(Src1)});
-        unsigned CmpOpc;
-        pickCmpO8O16(Src2Phys, 0, CmpOpc);
-        Builder.buildInstr(CmpOpc).addImm(0).addReg(MC6809::SS);
-        Builder.buildInstr(MC6809::PULSs, {Register(Src1)}, {});
+        Builder.buildInstr(pickCmpInc(Src2Phys)).addReg(MC6809::SS);
       }
       pullStagingReg(Builder, Src2Phys);
       MI.eraseFromParent();
@@ -7913,17 +8002,7 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
     return;
   }
   Builder.buildInstr(MC6809::PSHSs, {}, {Src1Phys});
-  unsigned CmpIncOpc = 0;
-  if (MIOpc == MC6809::Compare_i8_Reg) {
-    CmpIncOpc = (Src2Phys == MC6809::AA) ? MC6809::CMPAi_Inc1
-                                         : MC6809::CMPBi_Inc1;
-  } else {
-    if      (Src2Phys == MC6809::AD) CmpIncOpc = MC6809::CMPDi_Inc2;
-    else if (Src2Phys == MC6809::IX) CmpIncOpc = MC6809::CMPXi_Inc2;
-    else if (Src2Phys == MC6809::IY) CmpIncOpc = MC6809::CMPYi_Inc2;
-    else                              CmpIncOpc = MC6809::CMPDi_Inc2;
-  }
-  Builder.buildInstr(CmpIncOpc).addReg(MC6809::SS);
+  Builder.buildInstr(pickCmpInc(Src2Phys)).addReg(MC6809::SS);
   MI.eraseFromParent();
 }
 
@@ -8139,6 +8218,7 @@ void MC6809InstrInfo::expandFusedCompareBranch(MachineIRBuilder &Builder, Machin
   case MC6809::CompareBranch_i16_Imm: CmpOpc = MC6809::Compare_i16_Imm; break;
   case MC6809::CompareBranch_i8_Reg:  CmpOpc = MC6809::Compare_i8_Reg; break;
   case MC6809::CompareBranch_i16_Reg: CmpOpc = MC6809::Compare_i16_Reg; break;
+  case MC6809::CompareBranch_i16_RegIdx: CmpOpc = MC6809::Compare_i16_RegIdx; break;
   case MC6809::CompareBranch_i8_Mem:  CmpOpc = MC6809::Compare_i8_Mem; break;
   case MC6809::CompareBranch_i16_Mem: CmpOpc = MC6809::Compare_i16_Mem; break;
   case MC6809::CompareBranch_i8_MemIndirect:  CmpOpc = MC6809::Compare_i8_MemIndirect; break;

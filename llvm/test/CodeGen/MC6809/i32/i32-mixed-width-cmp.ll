@@ -81,24 +81,18 @@ define i1 @eq_i32_sext_i16(i32 %a, i16 %b) {
 ;
 ; O2-LABEL: eq_i32_sext_i16:
 ; O2:       ; %bb.0:
-; O2-NEXT:    leas -5,s
+; O2-NEXT:    leas -4,s
 ; O2-NEXT:    pshs u,y
 ; O2-NEXT:    tfr s,u
-; O2-NEXT:    stx <__rs2
 ; O2-NEXT:    pshs d
-; O2-NEXT:    ldd 13,u
-; O2-NEXT:    std <__rs0
-; O2-NEXT:    puls d
-; O2-NEXT:    pshs d
-; O2-NEXT:    ldd 11,u
+; O2-NEXT:    ldd 12,u
 ; O2-NEXT:    std <__rs1
 ; O2-NEXT:    puls d
 ; O2-NEXT:    pshs d
-; O2-NEXT:    pshs d
-; O2-NEXT:    ldd <__rs2
-; O2-NEXT:    cmpd #0
+; O2-NEXT:    ldd 10,u
+; O2-NEXT:    std <__rs0
 ; O2-NEXT:    puls d
-; O2-NEXT:    puls d
+; O2-NEXT:    cmpx #0
 ; O2-NEXT:    lblt .LBB0_2
 ; O2-NEXT:  ; %bb.1:
 ; O2-NEXT:    ldb #0
@@ -106,25 +100,21 @@ define i1 @eq_i32_sext_i16(i32 %a, i16 %b) {
 ; O2-NEXT:  .LBB0_2:
 ; O2-NEXT:    ldb #1
 ; O2-NEXT:  .LBB0_3:
-; O2-NEXT:    stb 4,u ; 1-byte Folded Spill
 ; O2-NEXT:    andb #1
 ; O2-NEXT:    negb
 ; O2-NEXT:    leas -8,s
 ; O2-NEXT:    pshs d
-; O2-NEXT:    ldd <__rs0
+; O2-NEXT:    ldd <__rs1
 ; O2-NEXT:    std 4,s
 ; O2-NEXT:    puls d
 ; O2-NEXT:    pshs d
-; O2-NEXT:    ldd <__rs1
+; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    std 2,s
 ; O2-NEXT:    puls d
-; O2-NEXT:    pshs d
-; O2-NEXT:    ldd <__rs2
-; O2-NEXT:    std 8,s
-; O2-NEXT:    puls d
+; O2-NEXT:    stx 6,s
 ; O2-NEXT:    tfr b,a
 ; O2-NEXT:    std 4,s
-; O2-NEXT:    leay 5,u
+; O2-NEXT:    leay 4,u
 ; O2-NEXT:    tfr y,x
 ; O2-NEXT:    lbsr __ucmpsi2
 ; O2-NEXT:    ldd 2,y
@@ -139,7 +129,7 @@ define i1 @eq_i32_sext_i16(i32 %a, i16 %b) {
 ; O2-NEXT:  .LBB0_6:
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u,y
-; O2-NEXT:    leas 5,s
+; O2-NEXT:    leas 4,s
 ; O2-NEXT:    rts
   %nn = sext i16 %b to i32
   %c = icmp eq i32 %a, %nn

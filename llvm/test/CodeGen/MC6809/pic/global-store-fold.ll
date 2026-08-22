@@ -22,14 +22,12 @@
 define void @store16(i16 %v) {
 ; PIC-LABEL: store16:
 ; PIC:       ; %bb.0:
-; PIC-NEXT:    tfr x,d
-; PIC-NEXT:    std g16,pc
+; PIC-NEXT:    stx g16,pc
 ; PIC-NEXT:    rts
 ;
 ; PIC6309-LABEL: store16:
 ; PIC6309:       ; %bb.0:
-; PIC6309-NEXT:    tfr x,d
-; PIC6309-NEXT:    std g16,pc
+; PIC6309-NEXT:    stx g16,pc
 ; PIC6309-NEXT:    rts
   store i16 %v, ptr @g16
   ret void
