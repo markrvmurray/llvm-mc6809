@@ -2,6 +2,7 @@
 # roll-toolchain.sh — build an MC6809 toolchain someone can unpack and use.
 #
 #   scripts/roll-toolchain.sh --prefix DIR [--llvm-build DIR] [--picolibc DIR]
+#                             [--tarball [DIR]]
 #
 # Produces:
 #
@@ -24,12 +25,17 @@ REPO=$(cd "$(dirname "$0")/.." && pwd)
 PREFIX=
 LLVM_BUILD=$REPO/llvm/cmake-build-debug-system
 PICOLIBC=$(cd "$REPO/.." && pwd)/picolibc
+TARBALL=
+TARDIR=
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --prefix)      PREFIX=$2; shift 2 ;;
     --llvm-build)  LLVM_BUILD=$2; shift 2 ;;
     --picolibc)    PICOLIBC=$2; shift 2 ;;
+    # Where the archive goes; bare --tarball puts it beside the prefix.
+    --tarball)     TARBALL=1
+                   case "${2:-}" in ""|-*) shift ;; *) TARDIR=$2; shift 2 ;; esac ;;
     -h|--help)     sed -n '2,24p' "$0"; exit 0 ;;
     *) echo "$0: unknown option $1" >&2; exit 2 ;;
   esac
@@ -306,6 +312,64 @@ say "linking the bare-metal directories under the names the short forms compute"
 
 # ------------------------------------------------------------------- check
 # A bundle that has not compiled and run a program is not known to work.
+# ----------------------------------------------------------------- the docs
+# A bundle should be able to explain itself without the source tree it came
+# from, so the two guides travel with it.
+say "staging the documents"
+mkdir -p "$PREFIX/share/doc/mc6809"
+for doc in MC6809-Toolchain-Build.md MC6809-Toolchain-Usage.md \
+           MC6809-OS9.md MC6809-OS9-syscalls.md; do
+  [ -f "$REPO/llvm/docs/$doc" ] && cp "$REPO/llvm/docs/$doc" \
+      "$PREFIX/share/doc/mc6809/$doc"
+done
+
+# The version, as the compiler gives it.  A release build prints its number
+# in the parentheses, after the LLVM version and never before it:
+#
+#   llvm-mc6809 clang version 24.0.0 (llvm-mc6809 1.0-rc1 <rev>)  -> 1.0-rc1
+#   llvm-mc6809 clang version 24.0.0git (git@github...git <rev>)  -> 24.0.0git
+#
+# A working tree has no release number, so its LLVM version stands in.
+banner=$(cat "$PREFIX/VERSION")
+version=$(echo "$banner" | sed -n 's/.*(llvm-mc6809 \([^ )]*\).*/\1/p')
+[ -n "$version" ] ||
+  version=$(echo "$banner" | sed -n 's/.*clang version \([^ ]*\).*/\1/p')
+[ -n "$version" ] || version=unknown
+
+cat > "$PREFIX/README.md" <<README
+# MC6809 toolchain $version
+
+A C compiler, linker, assembler and C library for the Motorola 6809 and the
+Hitachi 6309.  Nothing else needs installing, and nothing is baked in: every
+path is worked out from the binary that was invoked, so this directory can be
+moved or renamed.
+
+    bin/mc6809-clang       hello.c -o hello.elf     # bare metal, on a simulator
+    bin/mc6809-os9-clang   hello.c -o hello         # an OS-9 program module
+    bin/mc6809-decb-clang  hello.c -o hello.bin     # a CoCo LOADM binary
+
+Add \`-mcpu=hd6309\` for the Hitachi part and \`-mlibc=float\` for a C library
+that can format a double; both pick libraries as well as code.  On a
+simulator, add \`-mcrt0=semihost\` so the program exits when \`main\` returns.
+
+\`bin/mc6809-run PROGRAM\` runs one, on whichever simulator suits the file --
+USim for bare metal, NitrOS-9 under usim09pt for an OS-9 module.  **The
+simulators are not part of this bundle**; they come from USim, which is a
+separate program.
+
+Full documentation is in \`share/doc/mc6809/\`:
+
+  * \`MC6809-Toolchain-Usage.md\` -- what to type, what each target gives you,
+    and the limits worth knowing on a 64 KB machine.
+  * \`MC6809-Toolchain-Build.md\` -- how this bundle was made and how to check
+    one.
+  * \`MC6809-OS9.md\` and \`MC6809-OS9-syscalls.md\` -- the OS-9 target in
+    detail.
+
+This is \`$banner\`, built from
+$(cd "$REPO" && git rev-parse HEAD 2>/dev/null || echo "an unknown revision").
+README
+
 say "checking the result"
 "$PICOLIBC/scripts/check-mc6809-toolchain" "$PREFIX"
 case $? in
@@ -320,3 +384,30 @@ case $? in
   *) echo "$0: rolled, but it does not pass its own check" >&2
      exit 1 ;;
 esac
+
+# ------------------------------------------------------------- the tarball
+# Only after the check: an archive of a bundle nobody has run is not a
+# release, it is a large file.
+if [ -n "$TARBALL" ]; then
+  parent=$(cd "$(dirname "$PREFIX")" && pwd)
+  base=$(basename "$PREFIX")
+  host=$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)
+  name=mc6809-toolchain-$version-$host
+  : "${TARDIR:=$parent}"
+  mkdir -p "$TARDIR"
+  TARDIR=$(cd "$TARDIR" && pwd)
+
+  # The archive unpacks into a directory named for what it is, whatever the
+  # prefix happened to be called while it was built.
+  say "packing $name.tar.xz"
+  staged=$parent/$name
+  [ "$staged" = "$PREFIX" ] || { rm -rf "$staged"; cp -R "$PREFIX" "$staged"; }
+  # xz -T0 uses every core; the single-threaded default takes many minutes
+  # over a toolchain.
+  ( cd "$parent" && tar -cf - "$name" | xz -T0 -6 > "$TARDIR/$name.tar.xz" )
+  [ "$staged" = "$PREFIX" ] || rm -rf "$staged"
+
+  ( cd "$TARDIR" && shasum -a 256 "$name.tar.xz" > "$name.tar.xz.sha256" )
+  say "packed: $TARDIR/$name.tar.xz ($(du -h "$TARDIR/$name.tar.xz" | cut -f1))"
+  say "        $(cat "$TARDIR/$name.tar.xz.sha256")"
+fi
