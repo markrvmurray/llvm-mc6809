@@ -59,7 +59,7 @@ sysroot beside *that* clang.
 
   Measured on an eighteen-core Apple Silicon Mac, from nothing: **14 minutes
   at `-j 8`, 9 minutes at `-j 18`**, and a 2.6 GB build tree.  What comes out
-  of it is a **231 MB** bundle, **45 MB** packed.
+  of it is a **234 MB** bundle, **45 MB** packed.
 
 * A picolibc checkout beside this one (`../picolibc` by default), with meson
   and ninja available.
