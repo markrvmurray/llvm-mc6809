@@ -53,7 +53,7 @@
 using namespace llvm;
 
 static cl::opt<bool> EnableFoldCallThroughMem(
-    "mc6809-fold-call-mem", cl::init(true), cl::Hidden,
+    "mc6809-enable-fold-call-mem", cl::init(true), cl::Hidden,
     cl::desc("Fold an invariant function-pointer load into the indirect call "
              "that uses it (jsr [n,r]), freeing the index register"));
 

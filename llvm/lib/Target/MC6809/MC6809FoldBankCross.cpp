@@ -45,7 +45,7 @@
 using namespace llvm;
 
 static cl::opt<bool> EnableFoldBankCross(
-    "mc6809-fold-bank-cross", cl::init(true), cl::Hidden,
+    "mc6809-enable-fold-bank-cross", cl::init(true), cl::Hidden,
     cl::desc("Fold an INDEX->ACCUM copy into the store/compare that uses it so "
              "the value stays in an index register (stx/cmpx, no tfr x,d)"));
 

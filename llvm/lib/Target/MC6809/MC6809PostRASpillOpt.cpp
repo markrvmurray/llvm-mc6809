@@ -54,7 +54,7 @@ using namespace llvm;
 // (default on) as a bisection escape hatch.
 // Master bisection gate for the whole pass.
 static cl::opt<bool>
-    EnableSpillOpt("mc6809-spill-opt", cl::init(true), cl::Hidden,
+    EnableSpillOpt("mc6809-enable-spill-opt", cl::init(true), cl::Hidden,
                    cl::desc("Enable the post-RA spill load/store peephole"));
 
 static cl::opt<bool>

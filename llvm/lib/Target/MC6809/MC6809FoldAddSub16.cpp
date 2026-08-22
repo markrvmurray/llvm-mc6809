@@ -54,7 +54,7 @@
 using namespace llvm;
 
 static cl::opt<bool> EnableFoldAddSub16(
-    "mc6809-fold-addsub16", cl::init(true), cl::Hidden,
+    "mc6809-enable-fold-addsub16", cl::init(true), cl::Hidden,
     cl::desc("Bug #360: refold byte-decomposed i16 add/sub of an immediate "
              "back into native ADDD/SUBD"));
 

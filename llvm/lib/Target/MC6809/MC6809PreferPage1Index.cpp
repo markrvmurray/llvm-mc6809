@@ -58,7 +58,7 @@ STATISTIC(NumInstrs, "Number of page-2 instructions demoted to page-1");
 // fires where IX is *provably* dead -- bailing on the call-argument /
 // control-flow-save cases the dataflow alone under-reported.
 static cl::opt<bool>
-    EnablePreferPage1("mc6809-prefer-page1-index", cl::init(true), cl::Hidden,
+    EnablePreferPage1("mc6809-enable-prefer-page1-index", cl::init(true), cl::Hidden,
                       cl::desc("Rename call-free IY ranges to IX where IX is "
                                "free (MC6809 page-1 preference)"));
 
