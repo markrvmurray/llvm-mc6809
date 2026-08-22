@@ -1,0 +1,265 @@
+# Builds a bundle for every host we can build one on, checks each, and
+# attaches them to a GitHub release.
+#
+# 1.0-rc1 existed because a person ran three commands on one laptop and read
+# the output.  That is fine for a candidate and wrong for a release: the
+# artifact cannot be reproduced by anyone else, and there is a bundle for
+# exactly one host.
+#
+# Separate from mc6809-ci.yml on purpose.  CI answers "does this build
+# elsewhere" on every push and wants to be quick; this answers "what do we
+# hand over" a few times a year and wants to be thorough.  Folding them
+# together would mean a conditional on nearly every step.
+name: MC6809 release
+
+on:
+  push:
+    tags: ['RELEASE_*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to build (must exist in both repositories)'
+        required: true
+      include_windows:
+        description: 'Also try a Windows bundle (unproven -- see bug #458)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: mc6809-release-${{ github.event.inputs.tag || github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write        # to create the release and attach the bundles
+
+jobs:
+  build:
+    name: ${{ matrix.host }}
+    if: github.repository == 'markrvmurray/llvm-mc6809'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 360
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false      # one host failing must not cancel the others
+      # Three hosts always; Windows only when asked for, because no Windows
+      # bundle has ever been produced (bug #458) and a release must not wait
+      # on an experiment.  When it is asked for it is experimental, so its
+      # failure cannot stop the other three -- and its log is the cheapest
+      # way to answer what #458 is waiting on: whether picolibc builds
+      # there, whether meson takes the cross files, and whether the check
+      # runs under git-bash.
+      #
+      # ubuntu-22.04, not latest: built against the oldest glibc we support,
+      # so the binaries do not exclude older distributions.  macos-13 is an
+      # Intel bundle, which cannot be built on the machine this project is
+      # developed on.
+      matrix:
+        include: ${{ fromJSON(github.event.inputs.include_windows == 'true'
+          && '[{"os":"ubuntu-22.04","host":"linux-x86_64","experimental":false},{"os":"macos-14","host":"darwin-arm64","experimental":false},{"os":"macos-13","host":"darwin-x86_64","experimental":false},{"os":"windows-latest","host":"windows-x86_64","experimental":true}]'
+          || '[{"os":"ubuntu-22.04","host":"linux-x86_64","experimental":false},{"os":"macos-14","host":"darwin-arm64","experimental":false},{"os":"macos-13","host":"darwin-x86_64","experimental":false}]') }}
+
+    env:
+      # Every case that needs a machine -- a NitrOS-9 image, a CoCo's ROMs --
+      # is named and counted, and cannot be run here.  See the bundle guide.
+      MC6809_CHECK_ALLOW_UNRUNNABLE: 1
+      CHECK_MIN_PASS: 39
+      CHECK_EXPECT_NOTRUN: 9
+      RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+    steps:
+      - name: Check out llvm-mc6809 at the tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref_name }}
+          fetch-depth: 1
+
+      # A release pins picolibc by *tag*, not by commit as CI does: the two
+      # repositories are released together, and a release that quietly took
+      # whatever picolibc happened to be at is not reproducible.
+      - name: Require the same tag in picolibc
+        shell: bash
+        run: |
+          if ! git ls-remote --tags --exit-code \
+                 https://github.com/markrvmurray/picolibc "$RELEASE_TAG" \
+                 >/dev/null 2>&1; then
+            echo "::error::picolibc has no tag $RELEASE_TAG -- the two repositories are released together, and the library half is missing"
+            exit 1
+          fi
+          echo "picolibc $RELEASE_TAG found"
+
+      - name: Check out picolibc at the tag
+        uses: actions/checkout@v4
+        with:
+          repository: markrvmurray/picolibc
+          ref: ${{ github.event.inputs.tag || github.ref_name }}
+          path: _deps/picolibc
+
+      - name: Check out usim
+        uses: actions/checkout@v4
+        with:
+          repository: markrvmurray/usim
+          ref: pico-thing
+          path: _deps/usim
+
+      - name: Install build tools (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+              ninja-build clang lld meson xz-utils zip
+
+      - name: Install build tools (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          for f in ninja meson xz; do
+            brew list --formula "$f" >/dev/null 2>&1 || brew install "$f"
+          done
+
+      - name: Build the simulators
+        shell: bash
+        run: |
+          # -Werror dropped: a warning from a newer compiler than this was
+          # written against must not fail the build of a test tool.
+          make -C _deps/usim -j 4 usim09batch usim09pt \
+              CXX='g++ --std=c++20 -Wall -Wextra'
+          echo "$GITHUB_WORKSPACE/_deps/usim" >> "$GITHUB_PATH"
+
+      - name: Configure
+        shell: bash
+        run: |
+          # The release cache: Release, no assertions, no `git` on the
+          # version, and the release number where a build system will not
+          # read it as the compiler's own.  No lldb -- a fifth of the build
+          # and none of the bundle.
+          cmake -C clang/cmake/caches/MC6809-Release.cmake \
+              -DLLVM_ENABLE_PROJECTS="clang;lld" \
+              -DLLVM_PARALLEL_LINK_JOBS=2 \
+              -G Ninja -S llvm -B build-release
+          grep -E '^(CMAKE_BUILD_TYPE|LLVM_ENABLE_ASSERTIONS|CLANG_REPOSITORY_STRING):' \
+              build-release/CMakeCache.txt
+
+      - name: Build
+        shell: bash
+        run: cmake --build build-release --target all
+
+      - name: Roll and check a bundle
+        shell: bash
+        run: |
+          scripts/roll-toolchain.sh \
+              --prefix "$RUNNER_TEMP/mc6809" \
+              --llvm-build build-release \
+              --picolibc "$GITHUB_WORKSPACE/_deps/picolibc" \
+              --tarball "$RUNNER_TEMP/dist"
+
+      - name: Check the archive, not the prefix it came from
+        shell: bash
+        run: |
+          set -o pipefail
+          cd "$RUNNER_TEMP/dist"
+          archive=$(ls ./*.tar.xz ./*.zip 2>/dev/null | head -1)
+          shasum -a 256 -c "$(basename "$archive").sha256" 2>/dev/null \
+            || sha256sum -c "$(basename "$archive").sha256"
+          mkdir -p "$RUNNER_TEMP/unpacked"
+          case "$archive" in
+            *.zip) unzip -q "$archive" -d "$RUNNER_TEMP/unpacked" ;;
+            *)     tar -xf "$archive" -C "$RUNNER_TEMP/unpacked" ;;
+          esac
+          bundle=$(ls "$RUNNER_TEMP/unpacked" | head -1)
+          "$GITHUB_WORKSPACE/_deps/picolibc/scripts/check-mc6809-toolchain" \
+              --corpus "$RUNNER_TEMP/unpacked/$bundle" 2>&1 | tee check.log
+
+      - name: Hold the numbers, and record them for the release notes
+        shell: bash
+        run: |
+          log=$RUNNER_TEMP/dist/check.log
+          read -r p f n <<EOF
+          $(sed -n 's/^pass=\([0-9]*\) fail=\([0-9]*\) not-run=\([0-9]*\).*/\1 \2 \3/p' "$log" | tail -1)
+          EOF
+          p=${p:-0}; f=${f:-0}; n=${n:-0}
+          if [ "$f" -ne 0 ]; then echo "::error::$f check(s) failed"; exit 1; fi
+          if [ "$p" -lt "$CHECK_MIN_PASS" ]; then
+            echo "::error::only $p passed, expected at least $CHECK_MIN_PASS -- cases are disappearing rather than failing"; exit 1
+          fi
+          if [ "$n" -gt "$CHECK_EXPECT_NOTRUN" ]; then
+            echo "::error::$n cases were not run, expected $CHECK_EXPECT_NOTRUN"; exit 1
+          fi
+          printf '%s|%s|%s|%s\n' "${{ matrix.host }}" "$p" "$f" "$n" \
+              > "$RUNNER_TEMP/dist/verified-${{ matrix.host }}.txt"
+          echo "${{ matrix.host }}: $p passed, $f failed, $n not run"
+
+      - name: Keep the bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-${{ matrix.host }}
+          path: |
+            ${{ runner.temp }}/dist/*.tar.xz
+            ${{ runner.temp }}/dist/*.tar.xz.sha256
+            ${{ runner.temp }}/dist/*.zip
+            ${{ runner.temp }}/dist/*.zip.sha256
+            ${{ runner.temp }}/dist/verified-*.txt
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: Attach the bundles to the release
+    needs: build
+    if: github.repository == 'markrvmurray/llvm-mc6809'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+
+      - name: Say what actually arrived
+        id: notes
+        shell: bash
+        run: |
+          cd assets
+          # Named from what is here, never from what was hoped for: a host
+          # whose job failed leaves no artifact, and the notes must say so
+          # rather than implying four bundles exist.
+          {
+            echo "Bundles in this release:"
+            echo
+            echo "| host | passed | failed | not run |"
+            echo "|---|---|---|---|"
+            for v in */verified-*.txt; do
+              [ -f "$v" ] || continue
+              IFS='|' read -r host p f n < "$v"
+              echo "| $host | $p | $f | $n |"
+            done
+            echo
+            echo "\"Not run\" are the cases needing a machine no runner has:"
+            echo "the OS-9 cases want a NitrOS-9 image and the DECB ones want"
+            echo "MAME with Tandy's ROMs. They are counted, never dropped."
+            echo
+            echo "Each bundle was checked after being unpacked from its own"
+            echo "archive, somewhere it was never built."
+          } > "$RUNNER_TEMP/notes.md"
+          cat "$RUNNER_TEMP/notes.md"
+          count=$(ls */verified-*.txt 2>/dev/null | wc -l | tr -d ' ')
+          [ "$count" -gt 0 ] || { echo "::error::no host produced a bundle"; exit 1; }
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+
+      - name: Create or update the release
+        shell: bash
+        run: |
+          cd assets
+          files=$(find . -name '*.tar.xz' -o -name '*.zip' -o -name '*.sha256')
+          [ -n "$files" ] || { echo "::error::no archives to attach"; exit 1; }
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            # shellcheck disable=SC2086
+            gh release upload "$RELEASE_TAG" $files --clobber
+          else
+            # shellcheck disable=SC2086
+            gh release create "$RELEASE_TAG" $files \
+                --title "llvm-mc6809 ${RELEASE_TAG#RELEASE_}" \
+                --notes-file "$RUNNER_TEMP/notes.md" \
+                --prerelease
+          fi
+          gh release view "$RELEASE_TAG" --json assets \
+              --jq '.assets[].name' | sed 's/^/  attached: /'

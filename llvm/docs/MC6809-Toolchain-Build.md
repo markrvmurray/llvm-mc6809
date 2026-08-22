@@ -421,6 +421,46 @@ them.  Thirty-one are guarded by `github.repository == 'llvm/llvm-project'`
 and skip; the rest can fire on a pull request and run jobs for projects this
 fork does not build.
 
+## Releasing
+
+`.github/workflows/mc6809-release.yml` builds a bundle for every host we can
+build one on, checks each, and attaches them to a GitHub release.  1.0-rc1
+existed because a person ran three commands on one laptop and read the
+output; that is fine for a candidate and wrong for a release, which nobody
+else can reproduce and which exists for exactly one host.
+
+Three hosts always: **ubuntu-22.04** (not latest — built against the oldest
+glibc we support, so the binaries do not exclude older distributions),
+**macos-14** for arm64, and **macos-13** for an Intel bundle that cannot be
+built on the machine this project is developed on.  Windows joins only when
+asked for, and as an experiment: see [the Windows bug](#) — no Windows
+bundle has ever been produced, and a release must not wait on one.
+
+A release pins picolibc **by tag**, not by commit as CI does.  The two
+repositories are released together, and the job stops with a plain message
+if picolibc has no tag of the same name rather than building against
+whatever happens to be on the branch.
+
+Each host holds the same numbers CI does — no failures, at least
+`CHECK_MIN_PASS` passes, no more than `CHECK_EXPECT_NOTRUN` skips — and
+records its tally.  The release notes are then written **from the tallies
+that actually arrived**, so a host whose job failed is absent from the table
+rather than silently implied.  If no host produced a bundle, the publish
+step fails instead of creating an empty release.
+
+### Two things about triggering, one of them a trap
+
+**A tag runs the workflow as it existed *at that tag*.**  `RELEASE_1.0_rc1`
+was created before this workflow existed, so re-pushing it will run nothing
+at all.  Only a tag created on a commit that already contains the workflow
+can trigger it.
+
+**Manual dispatch is offered only for workflows on the default branch**,
+which here is `main`, while the work is on `MC6809`.  Until the workflow
+reaches `main`, the "Run workflow" button will not appear, and the `tag`
+input — which exists precisely so an already-made tag can be built — cannot
+be used.  Landing the workflow on `main` is what makes that path available.
+
 ## Hosts, and how the target names are made
 
 The `mc6809-*` names must be **real directory entries pointing at the real
