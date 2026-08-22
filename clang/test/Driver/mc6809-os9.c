@@ -6,8 +6,9 @@
 //   2. A linker invocation that:
 //        - uses mc6809-os9.lds (NOT link.ld);
 //        - does NOT pull in the bare-metal startup libs (crt0/crt/c/
-//          mc6809rt) — the user supplies OS-9 startfiles directly at
-//          Phase 2 PoC scope.
+//          mc6809rt) but the OS-9 runtime (libclang_rt.os9: crt0 +
+//          syscalls) and the OS-9 build of the compiler builtins, both
+//          from the per-triple resource directory.
 //
 // A parallel plain-bare-metal run must continue to pull in the
 // bare-metal defaults — guards against the OS-9 branch accidentally
@@ -25,10 +26,24 @@ void _start(void) {}
 // RUN:   | FileCheck %s --check-prefix=LINK_OS9
 // LINK_OS9:     ld.lld
 // LINK_OS9:     "-Tmc6809-os9.lds"
+// LINK_OS9-SAME: "-L{{.*}}mc6809-unknown-os9"
+// LINK_OS9-SAME: "-lclang_rt.os9"
+// LINK_OS9-SAME: "-lclang_rt.builtins"
 // LINK_OS9-NOT: "-Tlink.ld"
 // LINK_OS9-NOT: "-l:crt0.o"
 // LINK_OS9-NOT: "-lcrt0"
 // LINK_OS9-NOT: "-lmc6809rt"
+
+// -nodefaultlibs keeps the startup files but drops the builtins;
+// -nostdlib drops both.
+// RUN: %clang -### -target mc6809-unknown-os9 -nostdinc -nodefaultlibs %s -o %t.body 2>&1 \
+// RUN:   | FileCheck %s --check-prefix=NODEFAULT
+// NODEFAULT:     "-lclang_rt.os9"
+// NODEFAULT-NOT: "-lclang_rt.builtins"
+// RUN: %clang -### -target mc6809-unknown-os9 -nostdinc -nostdlib %s -o %t.body 2>&1 \
+// RUN:   | FileCheck %s --check-prefix=NOSTDLIB
+// NOSTDLIB-NOT: "-lclang_rt.os9"
+// NOSTDLIB-NOT: "-lclang_rt.builtins"
 
 // Link job — bare-metal path (must remain unchanged).
 // RUN: %clang -### -target mc6809 -nostdinc %s -o %t.elf 2>&1 \

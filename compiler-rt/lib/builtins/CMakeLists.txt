@@ -1117,6 +1117,30 @@ list(APPEND mc6809_SOURCES
   mc6809/fenv.c
 )
 
+# OS-9 program modules (mc6809-unknown-os9) get the integer builtins only.
+# The MC6839 floating-point layer keeps its ROM image and control blocks
+# in the module body and reaches them PC-relatively, which an OS-9 module
+# cannot do for anything it writes; OS-9 floating point wants the kernel's
+# own Float09 module (F$Link) and is not built yet.
+if(COMPILER_RT_DEFAULT_TARGET_TRIPLE MATCHES "-os9")
+  list(REMOVE_ITEM mc6809_SOURCES
+    mc6809/fp_bcd.S
+    mc6809/floatdi.S
+    mc6809/mc6839_rom.S
+    mc6809/fp_data.S
+    mc6809/fp_arith.S
+    mc6809/fp_conv.S
+    mc6809/fp_cmp.S
+    mc6809/fp_trampoline.S
+    mc6809/fenv.c
+    # Generic C that is only floating-point glue.
+    divsc3.c divdc3.c divxc3.c divtc3.c
+    mulsc3.c muldc3.c mulxc3.c multc3.c
+    fp_mode.c
+    extendbfsf2.c truncdfbf2.c truncsfbf2.c truncxfbf2.c trunctfbf2.c
+  )
+endif()
+
 set(mos_SOURCES ${GENERIC_SOURCES})
 # MOS SDK implementations are already smaller and faster.
 list(REMOVE_ITEM mos_SOURCES
@@ -1400,7 +1424,11 @@ else ()
       # prepends `-L .../hd6309` to the link command when -mcpu=hd6309
       # is set, so picolibc's existing `-lclang_rt.builtins` (inside
       # its --start-group block) resolves to the HD6309 version first.
-      if (${arch} STREQUAL "mc6809")
+      if (${arch} STREQUAL "mc6809" AND COMPILER_RT_DEFAULT_TARGET_TRIPLE MATCHES "-os9")
+        # The OS-9 CRT, linker script and system-call header live with the
+        # OS-9 builtins. See compiler-rt/lib/builtins/mc6809-os9/CMakeLists.txt.
+        add_subdirectory(mc6809-os9)
+      elseif (${arch} STREQUAL "mc6809")
         # The library is built under the alternate name
         # libclang_rt.builtins-hd6309.a (so its target name doesn't
         # collide with the default builtins target). It's then copied
@@ -1435,12 +1463,6 @@ else ()
         add_custom_target(clang_rt.builtins-hd6309-multilib ALL
           DEPENDS "${_MC6809_HD6309_DST}")
         add_dependencies(builtins clang_rt.builtins-hd6309-multilib)
-
-        # Bug #163 Phase 2: build OS-9 / NitrOS-9 startup files
-        # (crt0.o + syscalls.o) bundled into libclang_rt.os9.a, plus
-        # stage the linker script + os9.h header into the resourcedir.
-        # See compiler-rt/lib/builtins/mc6809-os9/CMakeLists.txt.
-        add_subdirectory(mc6809-os9)
       endif ()
 
       # Write out the sources that were used to compile the builtins so that tests can be run in

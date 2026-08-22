@@ -195,6 +195,10 @@ void mc6809::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
     if (!Args.hasArg(options::OPT_nostartfiles, options::OPT_nostdlib))
       CmdArgs.push_back("-lclang_rt.os9");
+    // The OS-9 build of the compiler builtins (integer only, from the same
+    // per-triple resource directory).
+    if (!Args.hasArg(options::OPT_nodefaultlibs, options::OPT_nostdlib))
+      CmdArgs.push_back("-lclang_rt.builtins");
 
     // Bug #163 Phase 3: derive --os9-name from the output file's stem
     // (basename minus extension) unless the user already passed it.
