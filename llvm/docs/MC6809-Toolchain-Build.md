@@ -15,6 +15,10 @@ how to know whether what came out works.  For using the result, see
 <prefix>/lib/clang-runtimes/<triple>/include  picolibc headers
 <prefix>/lib/clang-runtimes/<triple>/lib      libc.a and its system layer
 <prefix>/lib/clang-runtimes/<triple>/multilib.yaml   which library a link gets
+<prefix>/share/doc/mc6809/                    the guides, including the note
+                                              on the MC6839 ROM
+<prefix>/README.md                            what it is, in one page
+<prefix>/VERSION                              the compiler's own version line
 ```
 
 Three triples are built:
@@ -123,10 +127,16 @@ release cache.
 ## Rolling one
 
 ```sh
-scripts/roll-toolchain.sh --prefix /opt/mc6809 \
-    [--llvm-build /path/to/llvm-release-build] \
-    [--picolibc /path/to/picolibc]
+scripts/roll-toolchain.sh --prefix ~/mc6809 \
+    --llvm-build build-release \
+    [--picolibc /path/to/picolibc] \
+    [--tarball DIR]
 ```
+
+The prefix is any directory you can write to; it is created.  **Pass
+`--llvm-build` for anything you intend to ship**: without it the script uses
+the development Debug tree, which is exactly what the prerequisites tell you
+not to hand to anybody.  `--picolibc` defaults to `../picolibc`.
 
 It stages the tools and the compiler's runtime directory, generates cross
 files pointing at the staged compiler, builds picolibc for each triple **with
@@ -135,7 +145,39 @@ that compiler**, installs it with picolibc's own rules, writes the
 result by compiling and running programs against it.  It exits non-zero if
 those do not run.
 
-From the development tree it takes about two minutes.
+From a release tree it takes about three quarters of a minute, nearly all of
+it the eight picolibc builds; from the development tree, several times that,
+because a Debug clang compiles slowly.
+
+### Packaging
+
+`--tarball DIR` turns the rolled prefix into something you can hand over, and
+runs **only after the check has passed** — an archive of a bundle nobody has
+run is not a release, it is a large file.  It:
+
+* stages the guides into `<prefix>/share/doc/mc6809/`, so a bundle explains
+  itself away from this source tree;
+* writes `<prefix>/README.md` and `<prefix>/VERSION`, taking the version from
+  the compiler's own banner rather than from a number kept in the script;
+* packs `DIR/mc6809-toolchain-<version>-<host>.tar.xz`, which unpacks into a
+  directory named for what it is whatever the prefix was called, with `xz`
+  using every core;
+* writes `DIR/mc6809-toolchain-<version>-<host>.tar.xz.sha256` beside it.
+
+`xz` must be on the `PATH`; macOS `tar` will not make an `.xz` by itself.
+
+**Then check the archive, not the prefix it came from.**  The roll checks the
+directory it built; what you hand over is the tarball, and the two are only
+the same if nothing went wrong in between.  Unpack it somewhere it was never
+built and run the check there, which tests the archive's completeness and the
+bundle's relocatability at once:
+
+```sh
+shasum -a 256 -c mc6809-toolchain-1.0-rc1-darwin-arm64.tar.xz.sha256
+tar -xf mc6809-toolchain-1.0-rc1-darwin-arm64.tar.xz -C /tmp/unpacked
+picolibc/scripts/check-mc6809-toolchain --corpus \
+    /tmp/unpacked/mc6809-toolchain-1.0-rc1-darwin-arm64
+```
 
 ### Library variants
 
@@ -228,9 +270,14 @@ chain of custody and the exact bytes are in
 picolibc/scripts/check-mc6809-toolchain /opt/mc6809
 ```
 
-Compiles ordinary programs — stdio, malloc, string, 32-bit arithmetic — with
-nothing but `--target`, and runs each: bare metal on USim, OS-9 on a real
-NitrOS-9 boot.  Nothing in it names a library, a linker script or an include
+Seventeen cases.  It compiles ordinary programs — stdio, malloc, string,
+32-bit arithmetic — with nothing but `--target`, and runs each: bare metal on
+USim, OS-9 on a real NitrOS-9 boot.  It then checks each library variant
+twice over, that the link uses the variant's own directory *and* that the
+program runs, since a default library would often link and run anyway; that
+DECB comes out in a LOADM envelope; and that a build system reading
+`clang --version` gets the compiler's version rather than the release
+number.  Nothing in it names a library, a linker script or an include
 path; if the driver cannot find its own sysroot, it fails.  It then builds
 through the short names (`mc6809-clang`, `mc6809-os9-clang`,
 `mc6809-decb-clang`), which is a different test again: each computes its own
@@ -247,8 +294,8 @@ the bundle with one plain clang command:
 picolibc/scripts/check-mc6809-toolchain --corpus /opt/mc6809
 ```
 
-Seventeen of them run and pass on a bundle rolled from the Debug tree, four
-report picolibc's own "skip", and four cannot link:
+Seventeen of them run and pass, four report picolibc's own "skip", and four
+cannot link — the same on a Debug-rolled bundle and a release one:
 
 ```
 not in this libc: test-regex(regcomp) test-time(__d_vfprintf)
@@ -300,8 +347,10 @@ when it cannot find them, and the usage guide names where they come from.
   written and link; no machine has executed any of it.  The other three
   libraries — bare metal, OS-9, and the 6309 variants of both — are each run
   by the check.
-* **No packaging**: no tarball, no Homebrew formula, no installer.  A bundle
-  is a directory; `tar` is left as an exercise until somebody wants one.
+* **No Homebrew formula, no installer, no signing or notarisation.**  There
+  is a tarball and a checksum (see [Packaging](#packaging)); everything
+  beyond that is unbuilt, and on macOS an unsigned binary downloaded from
+  elsewhere will need Gatekeeper talked round.
 * **One optimisation level.** Every library is built `-Os`.  An LTO variant
   would be two lines of YAML and another build — `-flto` is already among the
   flags a rule can match on — but nobody has measured whether it is worth it.
