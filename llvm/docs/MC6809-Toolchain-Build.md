@@ -421,6 +421,36 @@ them.  Thirty-one are guarded by `github.repository == 'llvm/llvm-project'`
 and skip; the rest can fire on a pull request and run jobs for projects this
 fork does not build.
 
+## Checking the check
+
+```sh
+picolibc/scripts/sabotage-mc6809-check ~/mc6809
+```
+
+The check above decides whether a bundle is packaged, so it is worth
+knowing that it can fail.  For a long time it could not: twelve of its
+cases ran in a subshell and lost every count they made, and five dress
+rehearsals in a row read as passes over it.
+
+This breaks a *copy* of a bundle, one way at a time -- a variant
+directory, a sysroot header, the compiler builtins, `libc.a`, a start-up
+object, one of the target-named tools, the multilib rules -- and requires
+the check to notice each one.  A non-zero exit does not count as noticing:
+the check also exits 2 when cases could not be run, which has nothing to do
+with the sabotage.  Each case names the `FAIL` line it expects and requires
+`fail>=1` with it.  A control run comes first, because sabotages mean
+nothing against a bundle that was already broken.
+
+It found one gap on its first run, and it was the interesting one: **an
+entire library variant could be deleted and the check still passed**.  The
+link line still named the directory, since multilib rules match on flags
+and not on what is on disk, and the program still printed the right answer,
+since a 6809 libc runs on a 6309.  A bundle rolled with one of the eight
+picolibc builds silently missing would have shipped.  The variant case now
+requires the directory to hold a `libc.a` as well.
+
+Seven of seven, and about two and a half minutes.
+
 ## Testing the wider suites against a bundle
 
 `MC6809_TOOLCHAIN` points the picolibc harness and the bench at an installed
