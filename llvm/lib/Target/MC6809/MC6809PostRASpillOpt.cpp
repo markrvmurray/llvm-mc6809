@@ -669,15 +669,13 @@ static bool removeDeadStagingBrackets(MachineFunction &MF) {
   if (!MRI.tracksLiveness())
     return false;
   bool Changed = false;
-  // A staging push is undef-marked (the expander declares no interest in
-  // the value); a matching pull hands the saved value back.
+  // A push of one accumulator (undef-marked when the expander knew it
+  // held nothing) whose matching pull hands the saved value back.
   auto isStagingPush = [](const MachineInstr &MI, Register &R) {
     if (MI.getOpcode() != MC6809::PSHSs)
       return false;
     R = singlePushPullReg(MI);
-    if (R != MC6809::AD && R != MC6809::AA && R != MC6809::AB)
-      return false;
-    return MI.getOperand(0).isUndef();
+    return R == MC6809::AD || R == MC6809::AA || R == MC6809::AB;
   };
   // Does the window read (any unit of) R before writing it? An inner
   // staging push reads its register (the undef marking only says the
@@ -866,7 +864,7 @@ static bool removeDeadStagingBrackets(MachineFunction &MF) {
           B = OtherPush->getIterator();
           continue;
         }
-        // Any other bracket's push really does read its register (its
+        // Any other bracket's push really does read its register (an
         // undef marking only says the expander did not care), so the
         // register it saves is live up to that push -- and possibly across
         // us. Conservative: a bracket whose register is dead after its pull

@@ -1,0 +1,47 @@
+# RUN: llc -mtriple=mc6809 -mcpu=hd6309 -run-pass=postrapseudos -verify-machineinstrs %s -o - | FileCheck %s
+
+# The HD6309 immediate-form bitwise op on W has no encoding, so the expander
+# swaps W into D with EXG, operates, and swaps back: D's value is carried
+# through the pair. When D holds something (here B, live into and out of
+# the sequence), the EXG's read of D must be a real read, not undef -- an
+# undef read told liveness D was dead across the pair, and the dead-bracket
+# cleanup then removed the very save that kept B.
+
+--- |
+  define void @carried() { ret void }
+  define void @nothing_carried() { ret void }
+...
+---
+name:            carried
+tracksRegLiveness: true
+noPhis:          true
+isSSA:           false
+noVRegs:         true
+body:             |
+  bb.0:
+    liveins: $aw, $ab
+    ; CHECK-LABEL: name: carried
+    ; CHECK:      $ad, $aw = EXGp $ad, $aw
+    ; CHECK-NEXT: ORDi16 32
+    ; CHECK-NEXT: $aw, $ad = EXGp $aw, $ad
+    $aw = OR_i16_Imm $aw, 32, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    RTSr implicit $ab, implicit $aw
+...
+---
+# With nothing in D the scratch reads are undef, so the verifier does not
+# see a use of an undefined register.
+name:            nothing_carried
+tracksRegLiveness: true
+noPhis:          true
+isSSA:           false
+noVRegs:         true
+body:             |
+  bb.0:
+    liveins: $aw
+    ; CHECK-LABEL: name: nothing_carried
+    ; CHECK:      $ad, $aw = EXGp undef $ad, $aw
+    ; CHECK-NEXT: ORDi16 32
+    ; CHECK-NEXT: $aw, $ad = EXGp undef $aw, $ad
+    $aw = OR_i16_Imm $aw, 32, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    RTSr implicit $aw
+...

@@ -15,6 +15,7 @@
   define void @call_in_window() { ret void }
   define void @inner_operand_push() { ret void }
   define void @nested_same_register() { ret void }
+  define void @plain_push() { ret void }
 ...
 ---
 # The pull's value is overwritten by the next load: bracket goes, and the
@@ -200,5 +201,29 @@ body:             |
     LDDi_o5 5, $ss, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit-def $aq
     STDd undef $rs1, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ad, implicit-def $rs1
     $ad = PULSs implicit-def $ss, implicit $ss
+    RTSr
+...
+---
+# A push that is not undef-marked (the expander saw D holding a value) is
+# a bracket all the same: it goes when that value is dead after the pull.
+name:            plain_push
+tracksRegLiveness: true
+noPhis:          true
+isSSA:           false
+noVRegs:         true
+body:             |
+  bb.0:
+    liveins: $ss, $ad
+    ; CHECK-LABEL: name: plain_push
+    ; CHECK-NOT:   PSHSs
+    ; CHECK:       LDDi_o5 3, $ss
+    ; CHECK-NOT:   PULSs
+    ; CHECK:       RTSr
+    PSHSs $ad, implicit-def $ss, implicit $ss
+    LDDi_o5 5, $ss, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit-def $aq
+    STDd undef $rs0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ad, implicit-def $rs0
+    $ad = PULSs implicit-def $ss, implicit $ss
+    LDDi_o5 7, $ss, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit-def $aq
+    STDd undef $rs1, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ad, implicit-def $rs1
     RTSr
 ...

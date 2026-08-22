@@ -1080,18 +1080,40 @@ static void dematerializeReg(MachineIRBuilder &Builder, Register PhysReg,
 /// accumulator precisely BECAUSE regalloc parked this operand in an
 /// imaginary/spill home; the staging load would silently clobber it (the
 /// pseudo declares no accumulator Defs -- a fixed dead-def would veto
-/// allocating the register at all). The push is undef-marked and
-/// unconditional: no local liveness probe can decide "holds a value someone
-/// reads" once sub-register halves are defined and consumed around the
-/// site, and pushing then popping garbage is the identity when the register
-/// was in fact dead. NOTE: any pre-existing S-relative memory operand
-/// inside the window must be displacement-compensated (+size of the push).
+/// allocating the register at all). The push is unconditional; its read is
+/// undef only when the register holds nothing here (carriedReadState), and
+/// the post-RA spill optimiser removes the pairs whose register turns out
+/// dead. NOTE: any pre-existing S-relative memory operand inside the window
+/// must be displacement-compensated (+size of the push).
+static bool stagingRegLiveAcross(MachineBasicBlock &MBB,
+                                 MachineBasicBlock::iterator MI,
+                                 Register RealReg,
+                                 const TargetRegisterInfo &TRI);
+
+/// The register state for an expansion's read of a real register whose
+/// value it merely carries through (a staging push, the scratch side of an
+/// EXG cheat): a plain read when the register holds a value at the
+/// insertion point, so liveness sees that the value flows through the
+/// window; undef when it holds nothing, so the verifier does not see a use
+/// of an undefined register. Marking such reads undef unconditionally told
+/// liveness the value was dead when it was not: a dead-bracket cleanup then
+/// dropped the very save that kept it.
+static RegState carriedReadState(MachineIRBuilder &Builder, Register R) {
+  MachineBasicBlock &MBB = Builder.getMBB();
+  const TargetRegisterInfo &TRI =
+      *MBB.getParent()->getSubtarget().getRegisterInfo();
+  return stagingRegLiveAcross(MBB, Builder.getInsertPt(), R, TRI)
+             ? RegState::NoFlags
+             : RegState::Undef;
+}
+
 static void pushStagingReg(MachineIRBuilder &Builder, Register RealReg) {
   if (RealReg == MC6809::AQ) {
     // AQ = D:W -- no page-1 push encodes it. PSHSW then PSHS D; the pull
     // mirrors in reverse. (HD6309-only staging register.)
     Builder.buildInstr(MC6809::PSHSWx);
-    Builder.buildInstr(MC6809::PSHSs).addUse(MC6809::AD, RegState::Undef);
+    Builder.buildInstr(MC6809::PSHSs)
+        .addUse(MC6809::AD, carriedReadState(Builder, MC6809::AD));
     return;
   }
   if (RealReg == MC6809::AW || RealReg == MC6809::AE ||
@@ -1099,7 +1121,8 @@ static void pushStagingReg(MachineIRBuilder &Builder, Register RealReg) {
     Builder.buildInstr(MC6809::PSHSWx);
     return;
   }
-  Builder.buildInstr(MC6809::PSHSs).addUse(RealReg, RegState::Undef);
+  Builder.buildInstr(MC6809::PSHSs)
+      .addUse(RealReg, carriedReadState(Builder, RealReg));
 }
 static void pullStagingReg(MachineIRBuilder &Builder, Register RealReg) {
   if (RealReg == MC6809::AQ) {
@@ -2729,8 +2752,25 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
       MachineBasicBlock::iterator LastEmitted = std::prev(InsertBefore);
       bool EmittedSomething = (LastEmitted != BeforeFirstCopy);
       if (EmittedSomething) {
-        // Add implicit-def $aq to the last emitted MI so the
-        // verifier sees $aq freshly defined here.
+        // Add implicit-def $aq to the last emitted MI so the verifier sees
+        // $aq freshly defined here. That copy wrote only one half of Q;
+        // the other half was written earlier and flows through, so give
+        // the same instruction a read of it -- otherwise a def of the
+        // whole of Q says the other half is dead before this point, and a
+        // liveness-based cleanup would drop whatever kept it (the staging
+        // save around an intervening imaginary-register copy, say).
+        const TargetRegisterInfo &TRI =
+            *MI.getMF()->getSubtarget().getRegisterInfo();
+        Register Other;
+        if (LastEmitted->definesRegister(MC6809::AW, &TRI) &&
+            !LastEmitted->definesRegister(MC6809::AD, &TRI))
+          Other = MC6809::AD;
+        else if (LastEmitted->definesRegister(MC6809::AD, &TRI) &&
+                 !LastEmitted->definesRegister(MC6809::AW, &TRI))
+          Other = MC6809::AW;
+        if (Other)
+          LastEmitted->addOperand(MachineOperand::CreateReg(
+              Other, /*isDef=*/false, /*isImp=*/true));
         LastEmitted->addOperand(MachineOperand::CreateReg(
             MC6809::AQ, /*isDef=*/true, /*isImp=*/true));
       } else {
@@ -4635,16 +4675,15 @@ void MC6809InstrInfo::expandImm(ContextImmediate Context, MachineIRBuilder &Buil
         // assertion in PostRASchedulerList.cpp:341. The implicit-defs
         // of CheatReg / DestReg already chain the three MIs through
         // liveness without needing the bundle: nothing reorders them.
-        // the cheat scratch register (AA / AB / AD)
-        // holds no meaningful value before the first EXG — only DestReg
-        // is live. Mark the scratch read as RegState::Undef so the
-        // verifier doesn't flag it as "Using an undefined physical
-        // register". After the first EXG and the operation, DestReg
-        // is the scratch side and is undef going into the second EXG;
-        // mark its read Undef there too.
-        Builder.buildInstr(MC6809::EXGp).addDef(CheatReg).addDef(DestReg).addUse(CheatReg, RegState::Undef).addUse(DestReg);
+        // The cheat scratch register (AA / AB / AD) is carried through
+        // the pair of EXGs: whatever it held comes back. Its reads are
+        // undef only when it holds nothing here (carriedReadState), so
+        // liveness sees a live value flow through and the verifier sees
+        // no use of an undefined register.
+        RegState Carried = carriedReadState(Builder, CheatReg);
+        Builder.buildInstr(MC6809::EXGp).addDef(CheatReg).addDef(DestReg).addUse(CheatReg, Carried).addUse(DestReg);
         Builder.buildInstr(OpcodePair->getSecond()).addDef(CheatReg, RegState::Implicit).addImm(Val);
-        Builder.buildInstr(MC6809::EXGp).addDef(DestReg).addDef(CheatReg).addUse(DestReg, RegState::Undef).addUse(CheatReg);
+        Builder.buildInstr(MC6809::EXGp).addDef(DestReg).addDef(CheatReg).addUse(DestReg, Carried).addUse(CheatReg);
       } else {
         llvm_unreachable("Cannot find machine instruction with this immediate operand");
       }
@@ -4742,15 +4781,14 @@ void MC6809InstrInfo::expandIdxImm(ContextIndexImmediate Context, MachineIRBuild
       assert((OpcodePair != Context.Opcode->end()) && "This should not be reached! We have the D register available.");
       MachineBasicBlock &MBB = *MI.getParent();
       MachineBasicBlock::iterator B, E;
-      // AD is the cheat-scratch register here, holding
-      // no meaningful value before the first EXG. Mark the AD read Undef
-      // so the verifier doesn't flag it. After the first EXG + the
-      // indexed op, DestReg is the scratch side; mark its read Undef
-      // on the second EXG too.
-      B = Builder.buildInstr(MC6809::EXGp).addDef(MC6809::AD).addDef(DestReg).addUse(MC6809::AD, RegState::Undef).addUse(DestReg);
+      // AD is the cheat-scratch register here, carried through the two
+      // EXGs; its reads are undef only when it holds nothing at this
+      // point (carriedReadState).
+      RegState Carried = carriedReadState(Builder, MC6809::AD);
+      B = Builder.buildInstr(MC6809::EXGp).addDef(MC6809::AD).addDef(DestReg).addUse(MC6809::AD, Carried).addUse(DestReg);
       auto Instr = Builder.buildInstr(FinalOpc(OpcodePair->getSecond())).addDef(MC6809::AD, RegState::Implicit);
       AddMemTail(Instr, Offset, OffsetSize);
-      E = Builder.buildInstr(MC6809::EXGp).addDef(DestReg).addDef(MC6809::AD).addUse(DestReg, RegState::Undef).addUse(MC6809::AD);
+      E = Builder.buildInstr(MC6809::EXGp).addDef(DestReg).addDef(MC6809::AD).addUse(DestReg, Carried).addUse(MC6809::AD);
       auto Bundler = MIBundleBuilder(MBB, B, ++E);
       finalizeBundle(MBB, Bundler.begin(), Bundler.end());
       LLVM_DEBUG(for (auto &I : Bundler) {
