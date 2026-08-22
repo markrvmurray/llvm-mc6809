@@ -13,13 +13,15 @@ than only what looked useful at the time.
 **On the Level 1 column**: the shims themselves are level-agnostic -- an
 unticked L1 box beside a ticked L2 one means "never run there", not "not
 written".  What is ticked there comes from two suites: the runtime cases
-(21, green, two of them pinned to Level 1 because argv[0] is only really
-tested where the data area does not start at zero), which cover start-up,
+(21, green, two of them pinned to Level 1 -- argv[0] is only really tested
+where the data area does not start at zero, and the directory calls are
+worth running in the address space everything shares), which cover start-up,
 the module calls and the console; and the picolibc suite, which runs at
-Level 1 too (`NITROS9_LEVEL=1`) and reaches 103 OK there.  What is still
+Level 1 too (`NITROS9_LEVEL=1`) and reaches 105 OK there.  What is still
 unticked either was not reached by a passing Level 1 test, or belongs to a
-test that does not fit: of 171 tests at Level 1, 34 are too big for the one
-64K space it shares with the system and 17 do not link at all.
+test that does not fit: of 172 tests at Level 1, 34 are too big for the one
+64K space it shares with the system, 16 do not link at all, and 2 want a
+coherency Level 1 does not have (below).
 
 Codes are the byte after `SWI2`.  The source of truth for names and numbers
 is `defs/os9.d` in the NitrOS-9 tree.
@@ -75,7 +77,7 @@ is `defs/os9.d` in the NitrOS-9 tree.
 | $82 | I$Dup | duplicate a path number | [ ] | [ ] | `dup()`; shim exists, never exercised |
 | $83 | I$Create | create a file | [x] | [x] | `open()` with O_CREAT |
 | $84 | I$Open | open a file or directory | [x] | [x] | `open()`, `opendir()`, `access()`; L1 via the runtime suite |
-| $85 | I$MakDir | make a directory | [x] | [x] | `mkdir()`; the runtime case makes one at both levels and writes a file in it |
+| $85 | I$MakDir | make a directory | [x] | [x] | `mkdir()`; the runtime case makes one at both levels and writes a file in it, and `test-rmdir` makes one from C |
 | $86 | I$ChgDir | change the working or execution directory | [x] | [x] | `chdir()`; proved by a relative name -- the file is only reachable from the parent as `subdir/f.txt` if the change took |
 | $87 | I$Delete | delete a file or directory | [x] | [x] | `unlink()` and `rmdir()`; a directory has to lose its directory attribute first, which `rmdir()` does through SS.FD |
 | $88 | I$Seek | set the file position (X:U) | [x] | [x] | `lseek()`; asm stub, U is the data base |
@@ -107,8 +109,8 @@ promises wants Level 2.
 | Code | Status call | What it is | L1 | L2 | Notes |
 |------|-------------|-----------|:--:|:--:|-------|
 | $00 | SS.Opt | the 32-byte path options | [ ] | [x] | device type, for `isatty()` and `fstat()` |
-| $02 | SS.Size | file size; set truncates or extends | [ ] | [x] | X:U pair |
-| $05 | SS.Pos | current position | [ ] | [ ] | `lseek(SEEK_CUR)` uses it |
+| $02 | SS.Size | file size; set truncates or extends | [x] | [x] | X:U pair; reopening a file for writing truncates it, and the test then finds it empty |
+| $05 | SS.Pos | current position | [x] | [x] | `lseek(SEEK_CUR)`; a backwards seek from where the file is, then a read that has to land right |
 | $06 | SS.EOF | at end of file? | [ ] | [ ] | |
 | $0E | SS.DevNm | the device a path is on | [x] | [x] | `getcwd()`, `statvfs()`; L1 through `getcwd()`, which returns nothing if it fails |
 | $0F | SS.FD | the file descriptor sector | [x] | [x] | `fstat()` dates, attributes, link count; `rmdir()` clears the directory bit by writing one byte of it back |
