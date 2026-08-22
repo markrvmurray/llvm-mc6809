@@ -1688,3 +1688,30 @@ def wcslen : TargetLibCall<"wcslen", SizeT, [Ptr]>;
 
 /// ssize_t write(int fildes, const void *buf, size_t nbyte);
 def write : TargetLibCall<"write", SSizeT, [Int, Ptr, SizeT]>;
+
+// Library functions the optimizer introduces calls to (BuildLibCalls.cpp,
+// SimplifyLibCalls.cpp, LoopIdiomRecognize.cpp, DeadStoreElimination.cpp,
+// MergeICmps.cpp, PreISelIntrinsicLowering.cpp). getOrInsertLibFunc() asserts
+// that every function it is asked for is in this set, so a new emitter that
+// forgets to extend it fails loudly rather than being internalized away by LTO.
+def : OptimizerIntroducedLibCalls<[
+  // stdio
+  puts, putchar, fputc, fputs, fwrite,
+  iprintf, small_printf, siprintf, small_sprintf, fiprintf, small_fprintf,
+  sprintf, snprintf, vsprintf, vsnprintf,
+  // strings and memory
+  strlen, wcslen, strdup, strchr, strncmp, strcpy, stpcpy, strncpy, stpncpy,
+  strcat, strncat, strlcpy, strlcat, memcpy_chk, mempcpy, memchr, memrchr,
+  memcmp, bcmp, memccpy, memset_pattern16,
+  // allocation
+  malloc, calloc,
+  Znwm12__hot_cold_t, ZnwmRKSt9nothrow_t12__hot_cold_t,
+  ZnwmSt11align_val_t12__hot_cold_t,
+  ZnwmSt11align_val_tRKSt9nothrow_t12__hot_cold_t,
+  Znam12__hot_cold_t, ZnamRKSt9nothrow_t12__hot_cold_t,
+  ZnamSt11align_val_t12__hot_cold_t,
+  ZnamSt11align_val_tRKSt9nothrow_t12__hot_cold_t,
+  size_returning_new_hot_cold, size_returning_new_aligned_hot_cold,
+  // math (float and long double variants are implied)
+  exp, exp2, exp10, ldexp, sqrt, tan, sincospi_stret, sincospif_stret
+]>;

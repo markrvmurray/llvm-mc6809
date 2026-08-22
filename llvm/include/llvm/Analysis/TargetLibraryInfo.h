@@ -154,6 +154,16 @@ public:
     setState(F, StandardName);
   }
 
+  /// Whether the optimizer can introduce a call to \p F where none existed
+  /// before (BuildLibCalls and its users). Every other library function is only
+  /// ever recognized, so a definition of it that nothing calls stays uncalled.
+  /// Link-time optimization uses this to decide which bitcode-defined library
+  /// functions must keep their external signature for the whole pipeline.
+  static bool canBeIntroducedByOptimizer(LibFunc F) {
+    assert(F < NumLibFuncs && "out-of-bounds LibFunc");
+    return OptimizerIntroducedTable[F];
+  }
+
   /// Forces a function to be marked as available and provide an alternate name
   /// that must be used.
   void setAvailableWithName(LibFunc F, StringRef Name) {
@@ -423,6 +433,11 @@ public:
       return true;
     }
     return false;
+  }
+
+  /// See TargetLibraryInfoImpl::canBeIntroducedByOptimizer.
+  static bool canBeIntroducedByOptimizer(LibFunc F) {
+    return TargetLibraryInfoImpl::canBeIntroducedByOptimizer(F);
   }
 
   /// Return the canonical name for a LibFunc. This should not be used for

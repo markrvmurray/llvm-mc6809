@@ -8,6 +8,7 @@
 
 #include "SequenceToOffsetTable.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/TableGen/CodeGenHelpers.h"
@@ -32,6 +33,7 @@ private:
   void emitTargetLibraryInfoEnum(raw_ostream &OS) const;
   void emitTargetLibraryInfoStringTable(raw_ostream &OS) const;
   void emitTargetLibraryInfoSignatureTable(raw_ostream &OS) const;
+  void emitTargetLibraryInfoOptimizerIntroducedTable(raw_ostream &OS) const;
 
 public:
   TargetLibraryInfoEmitter(const RecordKeeper &R);
@@ -115,6 +117,8 @@ void TargetLibraryInfoEmitter::emitTargetLibraryInfoStringTable(
      << NumEl << "];\n";
   OS << "LLVM_ABI static const uint8_t StandardNamesSizeTable[" << NumEl
      << "];\n";
+  OS << "LLVM_ABI static const bool OptimizerIntroducedTable[" << NumEl
+     << "];\n";
 }
 
 // Since there are much less type signatures then library functions, the type
@@ -168,12 +172,60 @@ void TargetLibraryInfoEmitter::emitTargetLibraryInfoSignatureTable(
   OS << "};\n";
 }
 
+// A library function is one the optimizer can introduce a call to if it is
+// listed in an OptimizerIntroducedLibCalls record, or if it is the float or
+// long double variant of any floating-point library function: BuildLibCalls
+// forms those by appending 'f' or 'l' to the double-precision name when it
+// shrinks a call to a narrower type.
+void TargetLibraryInfoEmitter::emitTargetLibraryInfoOptimizerIntroducedTable(
+    raw_ostream &OS) const {
+  StringSet<> Introduced;
+  for (const Record *List :
+       Records.getAllDerivedDefinitions("OptimizerIntroducedLibCalls"))
+    for (const Record *R : List->getValueAsListOfDefs("LibCalls"))
+      Introduced.insert(R->getValueAsString("String"));
+
+  auto IsFloating = [](const Record *R) {
+    auto IsFloatingType = [](const Record *T) {
+      StringRef N = T->getName();
+      return N == "Flt" || N == "Dbl" || N == "LDbl" || N == "Floating";
+    };
+    if (const Record *Ret = R->getValueAsOptionalDef("ReturnType"))
+      if (IsFloatingType(Ret))
+        return true;
+    return any_of(R->getValueAsListOfDefs("ArgumentTypes"), IsFloatingType);
+  };
+  StringSet<> FloatingNames;
+  for (const Record *R : AllTargetLibcalls)
+    if (IsFloating(R))
+      FloatingNames.insert(R->getValueAsString("String"));
+
+  auto IsIntroduced = [&](const Record *R) {
+    StringRef Str = R->getValueAsString("String");
+    if (Introduced.contains(Str))
+      return true;
+    return (Str.ends_with('f') || Str.ends_with('l')) &&
+           FloatingNames.contains(Str) &&
+           FloatingNames.contains(Str.drop_back());
+  };
+
+  IfDefEmitter IfDef(OS, "GET_TARGET_LIBRARY_INFO_OPTIMIZER_INTRODUCED_TABLE");
+  OS << "const bool TargetLibraryInfoImpl::OptimizerIntroducedTable["
+     << AllTargetLibcalls.size() + 1 << "] = {\n";
+  OS.indent(2) << "false, //\n";
+  for (const Record *R : AllTargetLibcalls)
+    OS.indent(2) << (IsIntroduced(R) ? "true" : "false") << ", // "
+                 << R->getValueAsString("String") << "\n";
+  OS << "};\n";
+}
+
 void TargetLibraryInfoEmitter::run(raw_ostream &OS) {
   emitSourceFileHeader("Target Library Info Source Fragment", OS, Records);
 
   emitTargetLibraryInfoEnum(OS);
   emitTargetLibraryInfoStringTable(OS);
   emitTargetLibraryInfoSignatureTable(OS);
+  emitTargetLibraryInfoOptimizerIntroducedTable(OS);
 }
 
 static TableGen::Emitter::OptClass<TargetLibraryInfoEmitter>

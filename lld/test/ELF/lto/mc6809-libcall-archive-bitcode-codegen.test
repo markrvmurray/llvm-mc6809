@@ -27,7 +27,7 @@
 ; RUN: llvm-nm out-extracted | FileCheck %s --check-prefix=EXTRACTED
 
 ; CHECK-NOT: memcmp
-; CHECK: T strcmp
+; CHECK: {{[Tt]}} strcmp
 ; CHECK-NOT: memcmp
 
 ; EXTRACTED: T memcmp

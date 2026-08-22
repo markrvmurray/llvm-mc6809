@@ -42,3 +42,15 @@ class TargetLibCall<string Str, FuncArgType RetType,
   FuncArgType ReturnType = RetType;
   list<FuncArgType> ArgumentTypes = ArgTypes;
 }
+
+// The library functions the optimizer can introduce a call to where none
+// existed before (see BuildLibCalls.h and its users). Most library functions
+// are only ever recognized; a call to one of these may appear at any point in
+// the pipeline, so LTO has to keep an extracted bitcode definition of it
+// callable with its original signature. Float and long double variants of a
+// floating-point library function are always included, since the optimizer
+// forms them by suffixing the double name; only the double-precision entries
+// and non-floating-point functions need listing here.
+class OptimizerIntroducedLibCalls<list<TargetLibCall> Funcs> {
+  list<TargetLibCall> LibCalls = Funcs;
+}

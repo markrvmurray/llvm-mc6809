@@ -25,6 +25,9 @@ using namespace llvm;
 #define GET_TARGET_LIBRARY_INFO_STRING_TABLE
 #include "llvm/Analysis/TargetLibraryInfo.inc"
 
+#define GET_TARGET_LIBRARY_INFO_OPTIMIZER_INTRODUCED_TABLE
+#include "llvm/Analysis/TargetLibraryInfo.inc"
+
 std::string VecDesc::getVectorFunctionABIVariantString() const {
   assert(!VectorFnName.empty() && "Vector function name must not be empty.");
   SmallString<256> Buffer;

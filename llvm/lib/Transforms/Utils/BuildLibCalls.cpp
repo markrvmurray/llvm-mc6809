@@ -1508,6 +1508,12 @@ FunctionCallee llvm::getOrInsertLibFunc(Module *M, const TargetLibraryInfo &TLI,
                                         AttributeList AttributeList) {
   assert(TLI.has(TheLibFunc) &&
          "Creating call to non-existing library function.");
+  // Link-time optimization internalizes bitcode definitions of every library
+  // function this is never asked for; asking for a new one without adding it
+  // to OptimizerIntroducedLibCalls in TargetLibraryInfo.td would let its
+  // definition be renamed or deleted before the call is created.
+  assert(TLI.canBeIntroducedByOptimizer(TheLibFunc) &&
+         "Library function is not registered as introducible.");
   StringRef Name = TLI.getName(TheLibFunc);
   FunctionCallee C = M->getOrInsertFunction(Name, T, AttributeList);
 

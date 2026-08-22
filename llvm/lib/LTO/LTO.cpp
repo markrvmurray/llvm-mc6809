@@ -662,8 +662,13 @@ Expected<std::unique_ptr<InputFile>> InputFile::create(MemoryBufferRef Object) {
 bool InputFile::Symbol::isLibcall(
     const TargetLibraryInfo &TLI,
     const RTLIB::RuntimeLibcallsInfo &Libcalls) const {
+  // A library function the optimizer only recognizes, never introduces, can
+  // be internalized like anything else: a definition of it that is unused
+  // stays unused. Only one the optimizer may emit a fresh call to at any point
+  // must keep its external signature.
   LibFunc F;
-  if (TLI.getLibFunc(IRName, F) && TLI.has(F))
+  if (TLI.getLibFunc(IRName, F) && TLI.has(F) &&
+      TLI.canBeIntroducedByOptimizer(F))
     return true;
   return Libcalls.getSupportedLibcallImpl(IRName) != RTLIB::Unsupported;
 }
