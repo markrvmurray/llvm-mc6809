@@ -79,7 +79,16 @@ int use_direct(void) {
 // 4. Linking pulls in syscalls.o cleanly -- both call sites resolve.
 //    Override the script's OS-9 default with --oformat=binary; this
 //    test is checking symbol resolution, not the module wrapper.
+//    _exit gives the floating-point module back when there is one, which
+//    reaches crt1's module pointer and the F$UnLink stub.  Neither is in
+//    this link, deliberately -- it is the shims' own symbols being checked.
+//    The module pointer is a real word in .data because the writer will not
+//    take a data-area relocation against anything else; nothing here runs.
+// RUN: echo '.data'                     > %t.stub.s
+// RUN: echo '.globl __os9_fp_module'   >> %t.stub.s
+// RUN: echo '__os9_fp_module: .word 0' >> %t.stub.s
+// RUN: llvm-mc -triple=mc6809-unknown-os9 -filetype=obj %t.stub.s -o %t.stub.o
 // RUN: ld.lld -T %S/../../../compiler-rt/lib/builtins/mc6809-os9/mc6809-os9.lds \
-// RUN:   --oformat=binary --defsym=_start=use_posix \
-// RUN:   %t.o %t.syscalls.o -o %t.body
+// RUN:   --oformat=binary --defsym=_start=use_posix --defsym=__os9_unlink=0 \
+// RUN:   %t.o %t.syscalls.o %t.stub.o -o %t.body
 // RUN: test -s %t.body
