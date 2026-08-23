@@ -56,6 +56,8 @@ class CCIfNotSubtarget<string F, CCAction A>
 let Entry = 1 in
 def RetCC_MC6809 : CallingConv<[
   CCIfType<[i1],  CCPromoteToType<i8>>,
+  // A direct-page pointer (address space 1) is a byte, and travels as one.
+  CCIfPtrAddrSpace<1, CCAssignToReg<[AB]>>,
   CCIfType<[i8],  CCAssignToReg<[AB]>>,
   CCIfPtr<CCAssignToReg<[IX]>>,
   CCIfType<[i16], CCAssignToReg<[IX]>>,
@@ -83,6 +85,9 @@ def RetCC_MC6809 : CallingConv<[
 //   - Callee-saved: U (frame pointer), Y
 let Entry = 1 in
 def CC_MC6809 : CallingConv<[
+  // A direct-page pointer (address space 1) is a byte, and travels as one.
+  CCIfPtrAddrSpace<1, CCAssignToReg<[AB]>>,
+  CCIfPtrAddrSpace<1, CCAssignToStack<1, 1>>,
   CCIfPtr<CCAssignToReg<[IX]>>,
   CCIfType<[i1],  CCPromoteToType<i8>>,
   CCIfType<[i8],  CCAssignToReg<[AB]>>,

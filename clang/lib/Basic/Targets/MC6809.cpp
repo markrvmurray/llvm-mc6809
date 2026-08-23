@@ -188,6 +188,22 @@ uint64_t MC6809TargetInfo::getPointerWidthV(LangAS AddrSpace) const {
   }
 }
 
+// The direct page (address space 1) is a 256-byte window inside generic
+// memory: a pointer to a direct-page object converts to a generic pointer
+// without loss, so that conversion is implicit, like any other widening.
+// The other direction narrows and needs a cast.
+bool MC6809TargetInfo::isAddressSpaceSupersetOf(LangAS A, LangAS B) const {
+  if (A == B)
+    return true;
+  auto IsGeneric = [](LangAS AS) {
+    return !isTargetAddressSpace(AS) || toTargetAddressSpace(AS) == 0;
+  };
+  auto IsDirectPage = [](LangAS AS) {
+    return isTargetAddressSpace(AS) && toTargetAddressSpace(AS) == 1;
+  };
+  return IsGeneric(A) && IsDirectPage(B);
+}
+
 // Bug #161: keep these CPU names in lockstep with the `def : Device<...>`
 // list in `llvm/lib/Target/MC6809/MC6809Devices.td`. The clang driver
 // validates here; the LLVM backend resolves the same string against

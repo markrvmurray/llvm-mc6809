@@ -90,7 +90,9 @@ const RegisterBank &MC6809RegisterBankInfo::getRegBankFromRegClass(const TargetR
 MC6809GenRegisterBankInfo::PartialMappingIdx MC6809GenRegisterBankInfo::getPartialMappingIdx(const LLT &Ty) {
   if (Ty.isVector())
     llvm_unreachable("Vector is unsupported.");
-  if (Ty.isPointer())
+  // A direct-page pointer (p1) is an 8-bit in-page offset: it lives in the
+  // accumulator bank like any byte, and only a 16-bit pointer is an index.
+  if (Ty.isPointer() && Ty.getSizeInBits() != 8)
     return PMI_INDEX;
 
   switch (Ty.getSizeInBits()) {

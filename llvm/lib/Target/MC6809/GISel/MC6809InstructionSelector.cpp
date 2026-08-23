@@ -128,6 +128,9 @@ private:
   // Post-tablegen selection functions. If these return false, it is an error.
   bool tryFusePostModify(MachineInstr &MI) const;
   bool selectFrameIndex(MachineInstr &MI);
+  bool selectAddrSpaceCast(MachineInstr &MI);
+  Register buildDirectPageAddress(MachineBasicBlock &MBB, MachineInstr &Before,
+                                  const DebugLoc &DL, Register InPageOff);
   /// Capture the CC flag standing behind phantom-carry vreg \p SrcReg into
   /// the byte \p DstReg. The MaterializeCC pseudo is inserted immediately
   /// after the flag's producer, not at the use, because any arithmetic or
@@ -1353,6 +1356,83 @@ static bool matchSSPlusConstant(Register Addr, const MachineRegisterInfo &MRI,
   return false;
 }
 
+// The full 16-bit address of a direct-page object from a computed p1 pointer
+// (a run-time index into a __directpage object, or its address taken as a
+// generic pointer): the page base plus the zero-extended 8-bit in-page
+// offset, in an index register. Returns a null register if the p1 value
+// cannot be traced to an 8-bit quantity.
+Register MC6809InstructionSelector::buildDirectPageAddress(
+    MachineBasicBlock &MBB, MachineInstr &Before, const DebugLoc &DL,
+    Register InPageOff) {
+  // Trace the p1 address back to its underlying 8-bit value: the in-page
+  // offset integer, or the direct-page global itself (which selects to an
+  // 8-bit immediate load). Sourcing from that leaves the p1
+  // G_INTTOPTR/COPY chain dead -- 8-bit index-bank pointers have no
+  // register class -- and the selector drops it as trivially dead.
+  for (;;) {
+    MachineInstr *D = MRI->getVRegDef(InPageOff);
+    if (!D)
+      break;
+    if (D->isCopy() && D->getOperand(1).getReg().isVirtual()) {
+      InPageOff = D->getOperand(1).getReg();
+      continue;
+    }
+    if (D->getOpcode() == TargetOpcode::G_INTTOPTR) {
+      InPageOff = D->getOperand(1).getReg();
+      continue;
+    }
+    break;
+  }
+  if (MRI->getType(InPageOff).getSizeInBits() != 8)
+    return Register();
+  // The 8-bit in-page offset zero-extended via physical AD, then copied
+  // out (physreg-$ad ZEX16Implicit form): COPY $ab=off; ZEX16Implicit
+  // (CLRA -> $ad = 0:off); Off16 = COPY $ad.
+  BuildMI(MBB, Before, DL, TII.get(TargetOpcode::COPY), Register(MC6809::AB))
+      .addReg(InPageOff);
+  BuildMI(MBB, Before, DL, TII.get(MC6809::ZEX16Implicit));
+  Register Off16 = MRI->createVirtualRegister(&MC6809::ACC16RegClass);
+  BuildMI(MBB, Before, DL, TII.get(TargetOpcode::COPY), Off16).addReg(MC6809::AD);
+  // The direct-page base address into an index register. On OS-9 the
+  // direct page is the first page of the process data area, whose
+  // base is in U; elsewhere the linker provides it as __dp_base_addr.
+  Register Base = MRI->createVirtualRegister(&MC6809::INDEX16RegClass);
+  if (MF->getTarget().getTargetTriple().isOSOS9()) {
+    BuildMI(MBB, Before, DL, TII.get(TargetOpcode::COPY), Base)
+        .addReg(MC6809::SU);
+  } else {
+    auto BaseMIB = BuildMI(MBB, Before, DL, TII.get(MC6809::Load_iPtr_Imm), Base)
+                       .addExternalSymbol("__dp_base_addr");
+    constrainSelectedInstRegOperands(*BaseMIB, TII, TRI, RBI);
+  }
+  // Full address = base + in-page offset (LEAX D,X -- no ABX).
+  Register Full = MRI->createVirtualRegister(&MC6809::INDEX16RegClass);
+  auto LeaMIB = BuildMI(MBB, Before, DL, TII.get(MC6809::LEAPtrAdd_Reg16), Full)
+                    .addReg(Base)
+                    .addReg(Off16);
+  constrainSelectedInstRegOperands(*LeaMIB, TII, TRI, RBI);
+  return Full;
+}
+
+// p1 -> p0: the direct-page object's full address as a generic pointer (the
+// legalizer lowers p0 -> p1 to a truncation).
+bool MC6809InstructionSelector::selectAddrSpaceCast(MachineInstr &MI) {
+  Register DstReg = MI.getOperand(0).getReg();
+  Register SrcReg = MI.getOperand(1).getReg();
+  if (MRI->getType(DstReg).getAddressSpace() != 0 ||
+      MRI->getType(SrcReg).getAddressSpace() != MC6809::AS_DirectPage)
+    return false;
+  MachineBasicBlock &MBB = *MI.getParent();
+  Register Full = buildDirectPageAddress(MBB, MI, MI.getDebugLoc(), SrcReg);
+  if (!Full)
+    return false;
+  MRI->setRegClass(DstReg, &MC6809::INDEX16RegClass);
+  BuildMI(MBB, MI, MI.getDebugLoc(), TII.get(TargetOpcode::COPY), DstReg)
+      .addReg(Full);
+  MI.eraseFromParent();
+  return true;
+}
+
 bool MC6809InstructionSelector::select(MachineInstr &MI) {
   assert(MI.getParent() && "Instruction should be in a basic block!");
   assert(MI.getParent()->getParent() && "Instruction should be in a function!");
@@ -1885,59 +1965,14 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
           }
           MachineBasicBlock &MBB = *MI.getParent();
           const DebugLoc &DL = MI.getDebugLoc();
-          // Trace the computed p1 address back to its underlying integer (the
-          // 8-bit in-page offset). Sourcing from that leaves the p1
-          // G_INTTOPTR/COPY chain dead — 8-bit index-bank pointers have no
-          // register class — and the selector drops it as trivially dead.
-          Register InPageOff = AddrReg;
-          for (;;) {
-            MachineInstr *D = MRI->getVRegDef(InPageOff);
-            if (!D)
-              break;
-            if (D->isCopy() && D->getOperand(1).getReg().isVirtual()) {
-              InPageOff = D->getOperand(1).getReg();
-              continue;
-            }
-            if (D->getOpcode() == TargetOpcode::G_INTTOPTR) {
-              InPageOff = D->getOperand(1).getReg();
-              continue;
-            }
-            break;
-          }
-          if (MRI->getType(InPageOff) != LLT::scalar(8))
+          Register Full = buildDirectPageAddress(MBB, MI, DL, AddrReg);
+          if (!Full)
             return false;
-          // The 8-bit in-page offset zero-extended via physical AD, then copied
-          // out (physreg-$ad ZEX16Implicit form): COPY $ab=off; ZEX16Implicit
-          // (CLRA -> $ad = 0:off); Off16 = COPY $ad.
-          BuildMI(MBB, MI, DL, TII.get(TargetOpcode::COPY), Register(MC6809::AB))
-              .addReg(InPageOff);
-          BuildMI(MBB, MI, DL, TII.get(MC6809::ZEX16Implicit));
-          Register Off16 = MRI->createVirtualRegister(&MC6809::ACC16RegClass);
-          BuildMI(MBB, MI, DL, TII.get(TargetOpcode::COPY), Off16).addReg(MC6809::AD);
-          // The direct-page base address into an index register. On OS-9 the
-          // direct page is the first page of the process data area, whose
-          // base is in U; elsewhere the linker provides it as __dp_base_addr.
-          Register Base = MRI->createVirtualRegister(&MC6809::INDEX16RegClass);
-          MachineInstrBuilder BaseMIB;
-          if (MF->getTarget().getTargetTriple().isOSOS9())
-            BaseMIB = BuildMI(MBB, MI, DL, TII.get(TargetOpcode::COPY), Base)
-                          .addReg(MC6809::SU);
-          else
-            BaseMIB = BuildMI(MBB, MI, DL, TII.get(MC6809::Load_iPtr_Imm), Base)
-                          .addExternalSymbol("__dp_base_addr");
-          // Full address = base + in-page offset (LEAX D,X — no ABX).
-          Register Full = MRI->createVirtualRegister(&MC6809::INDEX16RegClass);
-          auto LeaMIB = BuildMI(MBB, MI, DL, TII.get(MC6809::LEAPtrAdd_Reg16), Full)
-                            .addReg(Base)
-                            .addReg(Off16);
           // Rewrite the load/store as a zero-offset indexed access.
           MRI->setRegClass(ValReg, ValRC);
           MI.getOperand(1).setReg(Full);
           MI.setDesc(TII.get(MemOpc));
           MI.addOperand(MachineOperand::CreateImm(0));
-          if (!BaseMIB->isCopy())
-            constrainSelectedInstRegOperands(*BaseMIB, TII, TRI, RBI);
-          constrainSelectedInstRegOperands(*LeaMIB, TII, TRI, RBI);
           constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
           return true;
         }
@@ -2170,6 +2205,9 @@ skip_globalvalue_fold:
     constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
     return true;
   }
+
+  case TargetOpcode::G_ADDRSPACE_CAST:
+    return selectAddrSpaceCast(MI);
 
   case TargetOpcode::G_GLOBAL_VALUE: {
     // Load the address of a global into an index register.

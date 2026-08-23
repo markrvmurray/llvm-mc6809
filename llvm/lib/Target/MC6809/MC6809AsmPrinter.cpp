@@ -66,11 +66,41 @@ public:
   void emitJumpTableInfo() override;
 
   const MCSymbol *getFunctionFrameSymbol(int FI) const override;
+
+  const MCExpr *lowerConstant(const Constant *CV, const Constant *BaseCV,
+                              uint64_t Offset) override;
 };
 
 // Simple pseudo-instructions have their lowering (with expansion to real
 // instructions) auto-generated.
 #include "MC6809GenMCPseudoLowering.inc"
+
+// A pointer to a direct-page object in a static initialiser. Cast to a
+// generic pointer it is the object's full address, which is the symbol
+// itself at 16 bits (on OS-9 the linker turns it into a data-area offset the
+// CRT rebases, like any other pointer word). Cast the other way it is the
+// object's 8-bit in-page offset: the low byte of the address on bare metal,
+// the data-area offset on OS-9.
+const MCExpr *MC6809AsmPrinter::lowerConstant(const Constant *CV,
+                                              const Constant *BaseCV,
+                                              uint64_t Offset) {
+  if (const auto *CE = dyn_cast<ConstantExpr>(CV);
+      CE && CE->getOpcode() == Instruction::AddrSpaceCast) {
+    const Constant *Op = CE->getOperand(0);
+    unsigned DstAS = CE->getType()->getPointerAddressSpace();
+    unsigned SrcAS = Op->getType()->getPointerAddressSpace();
+    if (SrcAS == MC6809::AS_DirectPage && DstAS == MC6809::AS_Memory)
+      return lowerConstant(Op, BaseCV, Offset);
+    if (SrcAS == MC6809::AS_Memory && DstAS == MC6809::AS_DirectPage) {
+      bool IsOS9 = TM.getTargetTriple().isOSOS9();
+      return MC6809MCExpr::create(IsOS9 ? MC6809MCExpr::VK_OS9_DATA_OFFSET_8
+                                        : MC6809MCExpr::VK_ADDR8,
+                                  lowerConstant(Op, BaseCV, Offset),
+                                  /*isNegated=*/false, OutContext);
+    }
+  }
+  return AsmPrinter::lowerConstant(CV, BaseCV, Offset);
+}
 
 void MC6809AsmPrinter::EmitToStreamer(MCStreamer &S, MCInst &Inst) {
   // If this instruction contains an out-of-range immediate address, perform an

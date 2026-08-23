@@ -232,6 +232,14 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
       .widenScalarIf(IsScalarPointer(1, 0, std::less<>{}), ChangeToSameSizeScalar(1, 0))
       .narrowScalarIf(IsScalarPointer(1, 0, std::greater<>{}), ChangeToSameSizeScalar(1, 0));
 
+  // Between the generic and the direct-page address spaces. p1 -> p0 forms
+  // the object's full address (the direct-page base plus the 8-bit in-page
+  // offset), which only the selector can express; p0 -> p1 keeps the in-page
+  // offset, i.e. the address's low byte.
+  getActionDefinitionsBuilder(G_ADDRSPACE_CAST)
+      .legalFor({{p, p1}})
+      .customFor({{p1, p}});
+
   getActionDefinitionsBuilder(G_PTR_ADD)
       .legalFor({{p, s16}, {p, s8}})
       // A direct-page (p1) pointer add is an in-page index that never crosses
@@ -1279,6 +1287,18 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
     auto Off8 = B.buildTrunc(S8, OffReg);
     auto Sum8 = B.buildAdd(S8, Base8, Off8);
     B.buildIntToPtr(DstReg, Sum8);
+    MI.eraseFromParent();
+    return true;
+  }
+  case G_ADDRSPACE_CAST: {
+    // p0 -> p1: a direct-page pointer is the in-page offset, the low byte of
+    // the full address.
+    Register DstReg = MI.getOperand(0).getReg();
+    Register SrcReg = MI.getOperand(1).getReg();
+    MachineIRBuilder &B = Helper.MIRBuilder;
+    auto Full = B.buildPtrToInt(LLT::scalar(16), SrcReg);
+    auto Low = B.buildTrunc(LLT::scalar(8), Full);
+    B.buildIntToPtr(DstReg, Low);
     MI.eraseFromParent();
     return true;
   }

@@ -7,8 +7,8 @@
 
 // Direct-page objects live in the first page of the process data area
 // (DP = U >> 8): initialised ones are copied there, zeroed ones cleared,
-// a pointer held in the page is rebased, and byte-wide direct addressing
-// reads and writes them.
+// a pointer held in the page is rebased, byte-wide direct addressing reads
+// and writes them, and their address as an ordinary pointer works.
 
 #include <os9.h>
 
@@ -17,6 +17,7 @@ static __attribute__((directpage)) int dp_zero;
 static __attribute__((directpage)) const char *dp_ptr = "LLVM OS-9 direct page OK\r";
 static int table[3] = {1, 2, 3};
 static int *volatile p_table = table;
+static unsigned char *volatile p_dp = &dp_init;   /* full address of a dp object */
 
 #define WRITE_LINE(s) write_line((s), sizeof(s) - 1)
 
@@ -36,5 +37,8 @@ int main(void) {
   dp_init += 1;
   if (dp_init != 0x5B)
     return WRITE_LINE("bad dp update\r");
+  *p_dp += 1;
+  if (dp_init != 0x5C)
+    return WRITE_LINE("bad dp pointer\r");
   return _os_write(1, dp_ptr, &n);
 }

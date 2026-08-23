@@ -24,3 +24,17 @@ void f(void) {
   int local_auto __attribute__((directpage)); // expected-error {{'directpage' attribute requires static storage duration}}
   __directpage int local_auto2; // expected-error {{'directpage' attribute requires static storage duration}}
 }
+
+// A pointer to a direct-page object converts to a generic pointer
+// implicitly (the direct page is a window inside generic memory); the
+// other direction narrows and needs a cast.
+static __directpage int dp_obj;
+int *g_generic = &dp_obj;
+void take_generic(int *p);
+void conv(int *p) {
+  take_generic(&dp_obj);
+  int *q = &dp_obj;
+  __attribute__((address_space(1))) int *r = p; // expected-error {{initializing '__attribute__((address_space(1))) int *' with an expression of type 'int *' changes address space of pointer}}
+  __attribute__((address_space(1))) int *s = (__attribute__((address_space(1))) int *)p;
+  (void)q; (void)r; (void)s;
+}
