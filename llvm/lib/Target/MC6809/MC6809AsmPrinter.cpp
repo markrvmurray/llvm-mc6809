@@ -18,6 +18,7 @@
 #include "MC6809MCInstLower.h"
 #include "MC6809MachineFunctionInfo.h"
 #include "MC6809RegisterInfo.h"
+#include "MCTargetDesc/MC6809InstPrinter.h"
 #include "MC6809Subtarget.h"
 #include "TargetInfo/MC6809TargetInfo.h"
 
@@ -235,15 +236,26 @@ bool MC6809AsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNo, co
     break;
   case MachineOperand::MO_Register:
     Register Reg = MO.getReg();
-    OS << TRI.getRegAsmName(Reg);
+    // The name the instruction printer would use (`y`), not the record's own
+    // (`IY`), which the assembler would read as a symbol.
+    OS << MC6809InstPrinter::getRegisterName(Reg);
     break;
   }
   return false;
 }
 
 bool MC6809AsmPrinter::PrintAsmMemoryOperand(const MachineInstr *MI, unsigned OpNo, const char *ExtraCode, raw_ostream &OS) {
-  // Memory operands are simply stored in pointer registers; no extra work is
-  // required.
+  if (ExtraCode && ExtraCode[0])
+    return true;
+
+  const MachineOperand &MO = MI->getOperand(OpNo);
+  // The address is held in an index register, and what the assembler wants
+  // there is the indexed form -- `0,y` -- not the register's own name, which
+  // it would read as a symbol and leave for the linker to fail on.
+  if (MO.isReg()) {
+    OS << "0," << MC6809InstPrinter::getRegisterName(MO.getReg());
+    return false;
+  }
   return PrintAsmOperand(MI, OpNo, ExtraCode, OS);
 }
 
