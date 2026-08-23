@@ -52,7 +52,14 @@ say() { echo "==[ $(date '+%H:%M:%S') $* ]=="; }
 # tree would send the driver looking for its sysroot there instead of here.
 say "staging tools from $LLVM_BUILD"
 mkdir -p "$PREFIX/bin" "$PREFIX/lib"
-for f in "$LLVM_BUILD"/bin/clang-* "$LLVM_BUILD"/bin/lld \
+# Named, not globbed.  `bin/clang-*` sweeps up clang-repl, clang-check,
+# clang-import-test, clang-installapi, clang-refactor, the offload wrappers
+# and clang-tblgen -- three quarters of a gigabyte of programs nobody
+# cross-compiling for a 6809 will run, and one of them is a build tool.
+# clang-24 is the real binary that `clang` is a link to, so both are here.
+for f in "$LLVM_BUILD"/bin/clang "$LLVM_BUILD"/bin/clang-[0-9]* \
+         "$LLVM_BUILD"/bin/clang++ "$LLVM_BUILD"/bin/clang-cpp \
+         "$LLVM_BUILD"/bin/ld.lld "$LLVM_BUILD"/bin/lld \
          "$LLVM_BUILD"/bin/llvm-ar "$LLVM_BUILD"/bin/llvm-nm \
          "$LLVM_BUILD"/bin/llvm-objcopy "$LLVM_BUILD"/bin/llvm-objdump \
          "$LLVM_BUILD"/bin/llvm-ranlib "$LLVM_BUILD"/bin/llvm-readelf \

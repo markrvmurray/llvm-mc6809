@@ -39,8 +39,8 @@ sysroot beside *that* clang.
 ## Prerequisites
 
 * An LLVM build of this tree.  **Use a Release build for anything anyone else
-  will run**: the development Debug tree produces a bundle of about 4 GB and
-  a slow compiler.  The Debug tree is the default only because it is the one
+  will run**: the development Debug tree produces a bundle several times the
+  size and a slow compiler.  A release bundle is about 230 MB, 46 MB packed.  The Debug tree is the default only because it is the one
   that is always there.  Configure a release build from its own cache file,
   which sets what differs from a working tree — Release, no assertions, no
   `git` on the version, and the release number.  **From the repository
