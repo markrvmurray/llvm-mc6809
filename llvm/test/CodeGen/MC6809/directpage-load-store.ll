@@ -20,9 +20,7 @@
 define i8 @load_byte() {
 ; CHECK-LABEL: load_byte:
 ; CHECK:       ; %bb.0:
-; CHECK-NEXT:    leas -2,s
 ; CHECK-NEXT:    ldb <mc6809_8(g_byte)
-; CHECK-NEXT:    leas 2,s
 ; CHECK-NEXT:    rts
   %v = load i8, ptr addrspace(1) @g_byte, align 1
   ret i8 %v
@@ -31,9 +29,7 @@ define i8 @load_byte() {
 define void @store_byte(i8 %v) {
 ; CHECK-LABEL: store_byte:
 ; CHECK:       ; %bb.0:
-; CHECK-NEXT:    leas -2,s
 ; CHECK-NEXT:    stb <mc6809_8(g_byte)
-; CHECK-NEXT:    leas 2,s
 ; CHECK-NEXT:    rts
   store i8 %v, ptr addrspace(1) @g_byte, align 1
   ret void
@@ -42,10 +38,8 @@ define void @store_byte(i8 %v) {
 define i16 @load_word() {
 ; CHECK-LABEL: load_word:
 ; CHECK:       ; %bb.0:
-; CHECK-NEXT:    leas -2,s
 ; CHECK-NEXT:    ldd <mc6809_8(g_word)
 ; CHECK-NEXT:    tfr d,x
-; CHECK-NEXT:    leas 2,s
 ; CHECK-NEXT:    rts
   %v = load i16, ptr addrspace(1) @g_word, align 1
   ret i16 %v
@@ -54,10 +48,8 @@ define i16 @load_word() {
 define void @store_word(i16 %v) {
 ; CHECK-LABEL: store_word:
 ; CHECK:       ; %bb.0:
-; CHECK-NEXT:    leas -2,s
 ; CHECK-NEXT:    tfr x,d
 ; CHECK-NEXT:    std <mc6809_8(g_word)
-; CHECK-NEXT:    leas 2,s
 ; CHECK-NEXT:    rts
   store i16 %v, ptr addrspace(1) @g_word, align 1
   ret void

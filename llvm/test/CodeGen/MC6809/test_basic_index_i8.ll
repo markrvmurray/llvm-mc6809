@@ -10,10 +10,8 @@ define i8 @foo0(i8* nocapture noundef readonly %a, i8 noundef zeroext %b) #0 {
 ;
 ; MC6809-O0-LABEL: foo0:
 ; MC6809-O0:       ; %bb.0: ; %entry
-; MC6809-O0-NEXT:    leas -2,s
 ; MC6809-O0-NEXT:    clra
 ; MC6809-O0-NEXT:    ldb d,x
-; MC6809-O0-NEXT:    leas 2,s
 ; MC6809-O0-NEXT:    rts
 ;
 ; MC6809-O1-LABEL: foo0:
@@ -36,10 +34,8 @@ define i8 @foo0(i8* nocapture noundef readonly %a, i8 noundef zeroext %b) #0 {
 ;
 ; HD6309-LABEL: foo0:
 ; HD6309:       ; %bb.0: ; %entry
-; HD6309-NEXT:    leas -2,s
 ; HD6309-NEXT:    clra
 ; HD6309-NEXT:    ldb d,x
-; HD6309-NEXT:    leas 2,s
 ; HD6309-NEXT:    rts
 entry:
   %idxprom = zext i8 %b to i16
@@ -52,10 +48,8 @@ define i8 @foo1(i8* nocapture noundef readonly %a, i8 noundef signext %b) #0 {
 ;
 ; MC6809-O0-LABEL: foo1:
 ; MC6809-O0:       ; %bb.0: ; %entry
-; MC6809-O0-NEXT:    leas -2,s
 ; MC6809-O0-NEXT:    sex
 ; MC6809-O0-NEXT:    ldb d,x
-; MC6809-O0-NEXT:    leas 2,s
 ; MC6809-O0-NEXT:    rts
 ;
 ; MC6809-O1-LABEL: foo1:
@@ -75,10 +69,8 @@ define i8 @foo1(i8* nocapture noundef readonly %a, i8 noundef signext %b) #0 {
 ;
 ; HD6309-LABEL: foo1:
 ; HD6309:       ; %bb.0: ; %entry
-; HD6309-NEXT:    leas -2,s
 ; HD6309-NEXT:    sex
 ; HD6309-NEXT:    ldb d,x
-; HD6309-NEXT:    leas 2,s
 ; HD6309-NEXT:    rts
 entry:
   %idxprom = sext i8 %b to i16
@@ -91,9 +83,7 @@ define i8 @foo2(i8* nocapture noundef readonly %a) #0 {
 ;
 ; MC6809-O0-LABEL: foo2:
 ; MC6809-O0:       ; %bb.0: ; %entry
-; MC6809-O0-NEXT:    leas -2,s
 ; MC6809-O0-NEXT:    ldb -5,x
-; MC6809-O0-NEXT:    leas 2,s
 ; MC6809-O0-NEXT:    rts
 ;
 ; MC6809-O1-LABEL: foo2:
@@ -113,9 +103,7 @@ define i8 @foo2(i8* nocapture noundef readonly %a) #0 {
 ;
 ; HD6309-LABEL: foo2:
 ; HD6309:       ; %bb.0: ; %entry
-; HD6309-NEXT:    leas -2,s
 ; HD6309-NEXT:    ldb -5,x
-; HD6309-NEXT:    leas 2,s
 ; HD6309-NEXT:    rts
 entry:
   %arrayidx = getelementptr inbounds i8, i8* %a, i16 -5

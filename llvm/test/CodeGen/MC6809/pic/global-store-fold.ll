@@ -87,10 +87,9 @@ define void @store16_const() {
 define void @store32(i32 %v) {
 ; PIC-LABEL: store32:
 ; PIC:       ; %bb.0:
-; PIC-NEXT:    leas -2,s
-; PIC-NEXT:    ldd 6,s
+; PIC-NEXT:    ldd 4,s
 ; PIC-NEXT:    pshs d
-; PIC-NEXT:    ldd 6,s
+; PIC-NEXT:    ldd 4,s
 ; PIC-NEXT:    std <__rs0
 ; PIC-NEXT:    puls d
 ; PIC-NEXT:    leax g32,pc
@@ -99,7 +98,6 @@ define void @store32(i32 %v) {
 ; PIC-NEXT:    ldd <__rs0
 ; PIC-NEXT:    std g32,pc
 ; PIC-NEXT:    puls d
-; PIC-NEXT:    leas 2,s
 ; PIC-NEXT:    rts
 ;
 ; PIC6309-LABEL: store32:

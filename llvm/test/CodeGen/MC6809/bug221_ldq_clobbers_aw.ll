@@ -26,7 +26,7 @@
 define i32 @bug221_load_i32_from_spill(i32 %x) #0 {
 ; CHECK-LABEL: bug221_load_i32_from_spill:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -6,s
+; CHECK-NEXT:    leas -4,s
 ; CHECK-NEXT:    pshs u,y
 ; CHECK-NEXT:    tfr s,u
 ; CHECK-NEXT:    tfr x,y
@@ -36,13 +36,13 @@ define i32 @bug221_load_i32_from_spill(i32 %x) #0 {
 ; CHECK-NEXT:    leax 4,u
 ; CHECK-NEXT:    lbsr sink_i32
 ; CHECK-NEXT:    leas 2,s
-; CHECK-NEXT:    ldq 12,u
+; CHECK-NEXT:    ldq 10,u
 ; CHECK-NEXT:    addw 6,u
 ; CHECK-NEXT:    adcd 4,u
 ; CHECK-NEXT:    stq ,y
 ; CHECK-NEXT:    tfr u,s
 ; CHECK-NEXT:    puls u,y
-; CHECK-NEXT:    leas 6,s
+; CHECK-NEXT:    leas 4,s
 ; CHECK-NEXT:    rts
 entry:
   %fp = load ptr, ptr @gptr, align 1

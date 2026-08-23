@@ -29,47 +29,41 @@ declare i16 @callee(i16, i16)
 define i16 @trampoline(i16 %x, i16 %y) {
 ; MC6809-O0-LABEL: trampoline:
 ; MC6809-O0:       ; %bb.0: ; %entry
-; MC6809-O0-NEXT:    leas -2,s
 ; MC6809-O0-NEXT:    pshs u
 ; MC6809-O0-NEXT:    tfr s,u
-; MC6809-O0-NEXT:    ldd 6,u
+; MC6809-O0-NEXT:    ldd 4,u
 ; MC6809-O0-NEXT:    leas -2,s
 ; MC6809-O0-NEXT:    std ,s
 ; MC6809-O0-NEXT:    lbsr callee
 ; MC6809-O0-NEXT:    leas 2,s
 ; MC6809-O0-NEXT:    tfr u,s
 ; MC6809-O0-NEXT:    puls u
-; MC6809-O0-NEXT:    leas 2,s
 ; MC6809-O0-NEXT:    rts
 ;
 ; MC6809-O1-LABEL: trampoline:
 ; MC6809-O1:       ; %bb.0: ; %entry
-; MC6809-O1-NEXT:    leas -2,s
 ; MC6809-O1-NEXT:    pshs u
 ; MC6809-O1-NEXT:    tfr s,u
-; MC6809-O1-NEXT:    ldd 6,u
+; MC6809-O1-NEXT:    ldd 4,u
 ; MC6809-O1-NEXT:    leas -2,s
 ; MC6809-O1-NEXT:    std ,s
 ; MC6809-O1-NEXT:    lbsr callee
 ; MC6809-O1-NEXT:    leas 2,s
 ; MC6809-O1-NEXT:    tfr u,s
 ; MC6809-O1-NEXT:    puls u
-; MC6809-O1-NEXT:    leas 2,s
 ; MC6809-O1-NEXT:    rts
 ;
 ; MC6809-O2-LABEL: trampoline:
 ; MC6809-O2:       ; %bb.0: ; %entry
-; MC6809-O2-NEXT:    leas -2,s
 ; MC6809-O2-NEXT:    pshs u
 ; MC6809-O2-NEXT:    tfr s,u
-; MC6809-O2-NEXT:    ldd 6,u
+; MC6809-O2-NEXT:    ldd 4,u
 ; MC6809-O2-NEXT:    leas -2,s
 ; MC6809-O2-NEXT:    std ,s
 ; MC6809-O2-NEXT:    lbsr callee
 ; MC6809-O2-NEXT:    leas 2,s
 ; MC6809-O2-NEXT:    tfr u,s
 ; MC6809-O2-NEXT:    puls u
-; MC6809-O2-NEXT:    leas 2,s
 ; MC6809-O2-NEXT:    rts
 entry:
   %r = tail call i16 @callee(i16 %x, i16 %y)

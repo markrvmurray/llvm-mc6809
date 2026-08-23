@@ -10,12 +10,10 @@ define i32 @foo() {
 ;
 ; MC6809-O0-LABEL: foo:
 ; MC6809-O0:       ; %bb.0: ; %entry
-; MC6809-O0-NEXT:    leas -2,s
 ; MC6809-O0-NEXT:    ldd #24910
 ; MC6809-O0-NEXT:    std 2,x
 ; MC6809-O0-NEXT:    ldd #188
 ; MC6809-O0-NEXT:    std ,x
-; MC6809-O0-NEXT:    leas 2,s
 ; MC6809-O0-NEXT:    rts
 ;
 ; MC6809-O1-LABEL: foo:
@@ -44,10 +42,8 @@ define i32 @foo() {
 ;
 ; HD6309-LABEL: foo:
 ; HD6309:       ; %bb.0: ; %entry
-; HD6309-NEXT:    leas -2,s
 ; HD6309-NEXT:    ldq #12345678
 ; HD6309-NEXT:    stq ,x
-; HD6309-NEXT:    leas 2,s
 ; HD6309-NEXT:    rts
 entry:
   ret i32 12345678

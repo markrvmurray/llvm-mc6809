@@ -10,10 +10,8 @@ define i16 @foo() {
 ;
 ; MC6809-O0-LABEL: foo:
 ; MC6809-O0:       ; %bb.0: ; %entry
-; MC6809-O0-NEXT:    leas -2,s
 ; MC6809-O0-NEXT:    ldd #1234
 ; MC6809-O0-NEXT:    tfr d,x
-; MC6809-O0-NEXT:    leas 2,s
 ; MC6809-O0-NEXT:    rts
 ;
 ; MC6809-O1-LABEL: foo:
@@ -36,10 +34,8 @@ define i16 @foo() {
 ;
 ; HD6309-LABEL: foo:
 ; HD6309:       ; %bb.0: ; %entry
-; HD6309-NEXT:    leas -2,s
 ; HD6309-NEXT:    ldd #1234
 ; HD6309-NEXT:    tfr d,x
-; HD6309-NEXT:    leas 2,s
 ; HD6309-NEXT:    rts
 entry:
   ret i16 1234

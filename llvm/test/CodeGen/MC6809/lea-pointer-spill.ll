@@ -34,11 +34,11 @@ declare void @sink(ptr)
 define void @fold_through_y(i16 %v, i16 %w) {
 ; O0-LABEL: fold_through_y:
 ; O0:       ; %bb.0: ; %entry
-; O0-NEXT:    leas -10,s
+; O0-NEXT:    leas -8,s
 ; O0-NEXT:    pshs u,y
 ; O0-NEXT:    tfr s,u
 ; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 16,u
+; O0-NEXT:    ldd 14,u
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
 ; O0-NEXT:    tfr x,d
@@ -53,15 +53,15 @@ define void @fold_through_y(i16 %v, i16 %w) {
 ; O0-NEXT:    lbsr sink
 ; O0-NEXT:    tfr u,s
 ; O0-NEXT:    puls u,y
-; O0-NEXT:    leas 10,s
+; O0-NEXT:    leas 8,s
 ; O0-NEXT:    rts
 ;
 ; O2-LABEL: fold_through_y:
 ; O2:       ; %bb.0: ; %entry
-; O2-NEXT:    leas -10,s
+; O2-NEXT:    leas -8,s
 ; O2-NEXT:    pshs u,y
 ; O2-NEXT:    tfr s,u
-; O2-NEXT:    ldd 16,u
+; O2-NEXT:    ldd 14,u
 ; O2-NEXT:    leay 4,u
 ; O2-NEXT:    stx 4,u
 ; O2-NEXT:    std 2,y
@@ -70,7 +70,7 @@ define void @fold_through_y(i16 %v, i16 %w) {
 ; O2-NEXT:    lbsr sink
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u,y
-; O2-NEXT:    leas 10,s
+; O2-NEXT:    leas 8,s
 ; O2-NEXT:    rts
 entry:
   %a = alloca [4 x i16], align 1

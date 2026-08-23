@@ -348,14 +348,12 @@ void MC6809FrameLowering::determineCalleeSaves(MachineFunction &MF, BitVector &S
 }
 
 void MC6809FrameLowering::processFunctionBeforeFrameFinalized(MachineFunction &MF, RegScavenger *RS) const {
-  // Always reserve an emergency spill slot for the register scavenger.
-  // The 6809 has very few registers, so the scavenger frequently needs
-  // to temporarily spill a register during frame index elimination.
-  if (RS) {
-    MachineFrameInfo &MFI = MF.getFrameInfo();
-    int FI = MFI.CreateStackObject(2, Align(1), false);
-    RS->addScavengingFrameIndex(FI);
-  }
+  // No emergency spill slot is reserved for the register scavenger: frame
+  // index elimination on this target creates no virtual registers, so PEI's
+  // scavenger never has anything to spill (and the post-RA pseudo scavenging
+  // pass runs its own scavenger). Reserving one put two dead bytes in every
+  // frame -- a longer prologue and larger local offsets in every function
+  // that keeps a frame, and an unused LEAS pair in leaves.
 
   MachineFrameInfo &MFI = MF.getFrameInfo();
   auto &FuncInfo = *MF.getInfo<MC6809FunctionInfo>();

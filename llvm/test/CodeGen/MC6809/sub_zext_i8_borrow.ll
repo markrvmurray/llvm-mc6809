@@ -41,11 +41,11 @@ target triple = "mc6809-unknown-unknown"
 define i16 @sub_zext_i8(i8 %a, i8 %b) {
 ; O0-LABEL: sub_zext_i8:
 ; O0:       ; %bb.0: ; %entry
-; O0-NEXT:    leas -4,s
-; O0-NEXT:    stb 3,s ; 1-byte Folded Spill
+; O0-NEXT:    leas -2,s
+; O0-NEXT:    stb 1,s ; 1-byte Folded Spill
 ; O0-NEXT:    clra
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    ldb 6,s
+; O0-NEXT:    ldb 4,s
 ; O0-NEXT:    clra
 ; O0-NEXT:    std <__rs1
 ; O0-NEXT:    ldb <__rs0lo
@@ -55,12 +55,12 @@ define i16 @sub_zext_i8(i8 %a, i8 %b) {
 ; O0-NEXT:    lda <__rs1hi
 ; O0-NEXT:    tfr a,b
 ; O0-NEXT:    puls a
-; O0-NEXT:    stb 2,s ; 1-byte Folded Spill
-; O0-NEXT:    ldb 3,s ; 1-byte Folded Reload
-; O0-NEXT:    subb 6,s
-; O0-NEXT:    sbca 2,s
+; O0-NEXT:    stb ,s ; 1-byte Folded Spill
+; O0-NEXT:    ldb 1,s ; 1-byte Folded Reload
+; O0-NEXT:    subb 4,s
+; O0-NEXT:    sbca ,s
 ; O0-NEXT:    tfr d,x
-; O0-NEXT:    leas 4,s
+; O0-NEXT:    leas 2,s
 ; O0-NEXT:    rts
 ;
 ; O1-LABEL: sub_zext_i8:
@@ -102,11 +102,11 @@ entry:
 define i16 @add_zext_i8(i8 %a, i8 %b) {
 ; O0-LABEL: add_zext_i8:
 ; O0:       ; %bb.0: ; %entry
-; O0-NEXT:    leas -4,s
-; O0-NEXT:    stb 3,s ; 1-byte Folded Spill
+; O0-NEXT:    leas -2,s
+; O0-NEXT:    stb 1,s ; 1-byte Folded Spill
 ; O0-NEXT:    clra
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    ldb 6,s
+; O0-NEXT:    ldb 4,s
 ; O0-NEXT:    clra
 ; O0-NEXT:    std <__rs1
 ; O0-NEXT:    ldb <__rs0lo
@@ -116,12 +116,12 @@ define i16 @add_zext_i8(i8 %a, i8 %b) {
 ; O0-NEXT:    lda <__rs1hi
 ; O0-NEXT:    tfr a,b
 ; O0-NEXT:    puls a
-; O0-NEXT:    stb 2,s ; 1-byte Folded Spill
-; O0-NEXT:    ldb 3,s ; 1-byte Folded Reload
-; O0-NEXT:    addb 6,s
-; O0-NEXT:    adca 2,s
+; O0-NEXT:    stb ,s ; 1-byte Folded Spill
+; O0-NEXT:    ldb 1,s ; 1-byte Folded Reload
+; O0-NEXT:    addb 4,s
+; O0-NEXT:    adca ,s
 ; O0-NEXT:    tfr d,x
-; O0-NEXT:    leas 4,s
+; O0-NEXT:    leas 2,s
 ; O0-NEXT:    rts
 ;
 ; O1-LABEL: add_zext_i8:

@@ -10,9 +10,7 @@ define i8 @foo(i8* %a) {
 ;
 ; MC6809-O0-LABEL: foo:
 ; MC6809-O0:       ; %bb.0: ; %entry
-; MC6809-O0-NEXT:    leas -2,s
 ; MC6809-O0-NEXT:    ldb ,x
-; MC6809-O0-NEXT:    leas 2,s
 ; MC6809-O0-NEXT:    rts
 ;
 ; MC6809-O1-LABEL: foo:
@@ -32,9 +30,7 @@ define i8 @foo(i8* %a) {
 ;
 ; HD6309-LABEL: foo:
 ; HD6309:       ; %bb.0: ; %entry
-; HD6309-NEXT:    leas -2,s
 ; HD6309-NEXT:    ldb ,x
-; HD6309-NEXT:    leas 2,s
 ; HD6309-NEXT:    rts
 entry:
   %0 = load i8, i8* %a, align 1

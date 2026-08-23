@@ -10,8 +10,6 @@ define void @f() #0 {
 ;
 ; MC6809-O0-LABEL: f:
 ; MC6809-O0:       ; %bb.0: ; %entry
-; MC6809-O0-NEXT:    leas -2,s
-; MC6809-O0-NEXT:    leas 2,s
 ; MC6809-O0-NEXT:    rts
 ;
 ; MC6809-O1-LABEL: f:
@@ -28,8 +26,6 @@ define void @f() #0 {
 ;
 ; HD6309-LABEL: f:
 ; HD6309:       ; %bb.0: ; %entry
-; HD6309-NEXT:    leas -2,s
-; HD6309-NEXT:    leas 2,s
 ; HD6309-NEXT:    rts
 entry:
   ret void

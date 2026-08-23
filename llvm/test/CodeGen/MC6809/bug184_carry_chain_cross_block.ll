@@ -32,11 +32,11 @@ target triple = "mc6809"
 define void @atol_like(ptr %out, ptr %s) {
 ; CHECK-LABEL: atol_like:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -21,s
+; CHECK-NEXT:    leas -19,s
 ; CHECK-NEXT:    pshs u,y
 ; CHECK-NEXT:    tfr s,u
 ; CHECK-NEXT:    stx 5,u ; 2-byte Folded Spill
-; CHECK-NEXT:    ldx 27,u
+; CHECK-NEXT:    ldx 25,u
 ; CHECK-NEXT:    ldb ,x
 ; CHECK-NEXT:    stb 4,u ; 1-byte Folded Spill
 ; CHECK-NEXT:    cmpb #45
@@ -219,7 +219,7 @@ define void @atol_like(ptr %out, ptr %s) {
 ; CHECK-NEXT:    std ,x
 ; CHECK-NEXT:    tfr u,s
 ; CHECK-NEXT:    puls u,y
-; CHECK-NEXT:    leas 21,s
+; CHECK-NEXT:    leas 19,s
 ; CHECK-NEXT:    rts
 entry:
   %first = load i8, ptr %s, align 1

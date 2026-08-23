@@ -30,7 +30,7 @@
 define dso_local i16 @cmp_imm_byte_load_phi_no_wrap(ptr noundef readonly captures(none) %s) local_unnamed_addr {
 ; CHECK-LABEL: cmp_imm_byte_load_phi_no_wrap:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    leas -4,s
+; CHECK-NEXT:    leas -2,s
 ; CHECK-NEXT:    pshs u,y
 ; CHECK-NEXT:    tfr s,u
 ; CHECK-NEXT:    tfr x,y
@@ -124,7 +124,7 @@ define dso_local i16 @cmp_imm_byte_load_phi_no_wrap(ptr noundef readonly capture
 ; CHECK-NEXT:    ldx <__rs0
 ; CHECK-NEXT:    tfr u,s
 ; CHECK-NEXT:    puls u,y
-; CHECK-NEXT:    leas 4,s
+; CHECK-NEXT:    leas 2,s
 ; CHECK-NEXT:    rts
 entry:
   %0 = load i8, ptr %s, align 1

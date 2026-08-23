@@ -24,8 +24,8 @@ target triple = "mc6809"
 define void @sext_i32_to_i64_then_store(ptr %out, i32 %x) {
 ; CHECK-LABEL: sext_i32_to_i64_then_store:
 ; CHECK:       ; %bb.0:
-; CHECK-NEXT:    leas -11,s
-; CHECK-NEXT:    ldd 13,s
+; CHECK-NEXT:    leas -9,s
+; CHECK-NEXT:    ldd 11,s
 ; CHECK-NEXT:    ldb #0
 ; CHECK-NEXT:    cmpa #0
 ; CHECK-NEXT:    lblt .LBB0_2
@@ -37,57 +37,57 @@ define void @sext_i32_to_i64_then_store(ptr %out, i32 %x) {
 ; CHECK-NEXT:  .LBB0_3:
 ; CHECK-NEXT:    anda #1
 ; CHECK-NEXT:    nega
-; CHECK-NEXT:    sta 6,s ; 1-byte Folded Spill
-; CHECK-NEXT:    stb 10,s ; 1-byte Folded Spill
-; CHECK-NEXT:    lda 10,s ; 1-byte Folded Reload
-; CHECK-NEXT:    suba 16,s
-; CHECK-NEXT:    sta 10,s ; 1-byte Folded Spill
-; CHECK-NEXT:    tfr b,a
-; CHECK-NEXT:    sbca 15,s
 ; CHECK-NEXT:    sta 4,s ; 1-byte Folded Spill
-; CHECK-NEXT:    tfr b,a
-; CHECK-NEXT:    sbca 14,s
-; CHECK-NEXT:    sta 3,s ; 1-byte Folded Spill
+; CHECK-NEXT:    stb 8,s ; 1-byte Folded Spill
+; CHECK-NEXT:    lda 8,s ; 1-byte Folded Reload
+; CHECK-NEXT:    suba 14,s
+; CHECK-NEXT:    sta 8,s ; 1-byte Folded Spill
 ; CHECK-NEXT:    tfr b,a
 ; CHECK-NEXT:    sbca 13,s
 ; CHECK-NEXT:    sta 2,s ; 1-byte Folded Spill
-; CHECK-NEXT:    stb 9,s ; 1-byte Folded Spill
-; CHECK-NEXT:    lda 9,s ; 1-byte Folded Reload
-; CHECK-NEXT:    sbca 6,s
-; CHECK-NEXT:    sta 9,s ; 1-byte Folded Spill
-; CHECK-NEXT:    stb 8,s ; 1-byte Folded Spill
-; CHECK-NEXT:    lda 6,s ; 1-byte Folded Reload
+; CHECK-NEXT:    tfr b,a
+; CHECK-NEXT:    sbca 12,s
+; CHECK-NEXT:    sta 1,s ; 1-byte Folded Spill
+; CHECK-NEXT:    tfr b,a
+; CHECK-NEXT:    sbca 11,s
+; CHECK-NEXT:    sta ,s ; 1-byte Folded Spill
+; CHECK-NEXT:    stb 7,s ; 1-byte Folded Spill
+; CHECK-NEXT:    lda 7,s ; 1-byte Folded Reload
+; CHECK-NEXT:    sbca 4,s
+; CHECK-NEXT:    sta 7,s ; 1-byte Folded Spill
+; CHECK-NEXT:    stb 6,s ; 1-byte Folded Spill
+; CHECK-NEXT:    lda 4,s ; 1-byte Folded Reload
+; CHECK-NEXT:    stb 3,s ; 1-byte Folded Spill
+; CHECK-NEXT:    ldb 6,s ; 1-byte Folded Reload
+; CHECK-NEXT:    pshs a
+; CHECK-NEXT:    sbcb ,s+
+; CHECK-NEXT:    stb 6,s ; 1-byte Folded Spill
+; CHECK-NEXT:    ldb 3,s ; 1-byte Folded Reload
 ; CHECK-NEXT:    stb 5,s ; 1-byte Folded Spill
-; CHECK-NEXT:    ldb 8,s ; 1-byte Folded Reload
+; CHECK-NEXT:    ldb 5,s ; 1-byte Folded Reload
 ; CHECK-NEXT:    pshs a
 ; CHECK-NEXT:    sbcb ,s+
-; CHECK-NEXT:    stb 8,s ; 1-byte Folded Spill
-; CHECK-NEXT:    ldb 5,s ; 1-byte Folded Reload
-; CHECK-NEXT:    stb 7,s ; 1-byte Folded Spill
-; CHECK-NEXT:    ldb 7,s ; 1-byte Folded Reload
-; CHECK-NEXT:    pshs a
-; CHECK-NEXT:    sbcb ,s+
-; CHECK-NEXT:    stb 7,s ; 1-byte Folded Spill
-; CHECK-NEXT:    ldb 5,s ; 1-byte Folded Reload
+; CHECK-NEXT:    stb 5,s ; 1-byte Folded Spill
+; CHECK-NEXT:    ldb 3,s ; 1-byte Folded Reload
 ; CHECK-NEXT:    pshs a
 ; CHECK-NEXT:    sbcb ,s+
 ; CHECK-NEXT:    pshs d
-; CHECK-NEXT:    ldb 12,s
-; CHECK-NEXT:    lda 6,s
+; CHECK-NEXT:    ldb 10,s
+; CHECK-NEXT:    lda 4,s
 ; CHECK-NEXT:    std <__rs0
 ; CHECK-NEXT:    puls d
 ; CHECK-NEXT:    pshs d
-; CHECK-NEXT:    ldb 5,s
-; CHECK-NEXT:    lda 4,s
+; CHECK-NEXT:    ldb 3,s
+; CHECK-NEXT:    lda 2,s
 ; CHECK-NEXT:    std <__rs1
 ; CHECK-NEXT:    puls d
 ; CHECK-NEXT:    pshs d
-; CHECK-NEXT:    ldb 11,s
-; CHECK-NEXT:    lda 10,s
+; CHECK-NEXT:    ldb 9,s
+; CHECK-NEXT:    lda 8,s
 ; CHECK-NEXT:    std <__rs2
 ; CHECK-NEXT:    puls d
 ; CHECK-NEXT:    tfr b,a
-; CHECK-NEXT:    ldb 7,s
+; CHECK-NEXT:    ldb 5,s
 ; CHECK-NEXT:    pshs d
 ; CHECK-NEXT:    ldd <__rs0
 ; CHECK-NEXT:    std 6,x
@@ -101,7 +101,7 @@ define void @sext_i32_to_i64_then_store(ptr %out, i32 %x) {
 ; CHECK-NEXT:    std 2,x
 ; CHECK-NEXT:    puls d
 ; CHECK-NEXT:    std ,x
-; CHECK-NEXT:    leas 11,s
+; CHECK-NEXT:    leas 9,s
 ; CHECK-NEXT:    rts
   %ext = sext i32 %x to i64
   %neg = sub nsw i64 0, %ext

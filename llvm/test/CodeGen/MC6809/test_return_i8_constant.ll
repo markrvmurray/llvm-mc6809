@@ -10,9 +10,7 @@ define i8 @foo() #0 {
 ;
 ; MC6809-O0-LABEL: foo:
 ; MC6809-O0:       ; %bb.0: ; %entry
-; MC6809-O0-NEXT:    leas -2,s
 ; MC6809-O0-NEXT:    ldb #85
-; MC6809-O0-NEXT:    leas 2,s
 ; MC6809-O0-NEXT:    rts
 ;
 ; MC6809-O1-LABEL: foo:
@@ -32,9 +30,7 @@ define i8 @foo() #0 {
 ;
 ; HD6309-LABEL: foo:
 ; HD6309:       ; %bb.0: ; %entry
-; HD6309-NEXT:    leas -2,s
 ; HD6309-NEXT:    ldb #85
-; HD6309-NEXT:    leas 2,s
 ; HD6309-NEXT:    rts
 entry:
   ret i8 85
