@@ -299,15 +299,21 @@ jobs:
             *)                         prerelease= ;;
           esac
           echo "publishing $version${prerelease:+ (prerelease)}"
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+          # --repo on every call: this job deliberately does not check the
+          # repository out -- it only needs the artifacts -- and without a
+          # checkout gh has no remote to infer from and fails with "not a
+          # git repository".  Cloning 2.6 GB to name a repository we already
+          # know would be a poor trade.
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             # shellcheck disable=SC2086
-            gh release upload "$RELEASE_TAG" $files --clobber
+            gh release upload "$RELEASE_TAG" $files --repo "$GITHUB_REPOSITORY" --clobber
           else
             # shellcheck disable=SC2086
             gh release create "$RELEASE_TAG" $files \
+                --repo "$GITHUB_REPOSITORY" \
                 --title "llvm-mc6809 $version" \
                 --notes-file "$RUNNER_TEMP/notes.md" \
                 $prerelease
           fi
-          gh release view "$RELEASE_TAG" --json assets \
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets \
               --jq '.assets[].name' | sed 's/^/  attached: /'
