@@ -32,7 +32,6 @@
  *               allocates data areas in whole pages)
  *   __data_start   .data copy
  *   __bss_start    .bss (zeroed)
- *   __errno_offset runtime slot
  *   __heap_start   heap
  *   __stack_start  stack; S = U + __mem_size
  *
@@ -140,15 +139,6 @@ SECTIONS {
     }
     __bss_size = __bss_image_end - __bss_image_start;
 
-    .runtime (NOLOAD) : ALIGN(2) {
-        __runtime_image_start = .;
-        __errno_image_start = .;
-        . += 2;
-        __errno_image_end = .;
-        __runtime_image_end = .;
-    }
-    __runtime_size = __runtime_image_end - __runtime_image_start;
-
     .heap (NOLOAD) : ALIGN(2) {
         __heap_image_start = .;
         . += __heap_size;
@@ -167,9 +157,7 @@ SECTIONS {
     __dp_end        = __dp_bss_start + __dp_bss_size;
     __data_start    = ALIGN(__dp_end, 2);
     __bss_start     = __data_start + __data_size;
-    __runtime_start = __bss_start + __bss_size;
-    __errno_offset  = __runtime_start;
-    __heap_start    = __runtime_start + __runtime_size;
+    __heap_start    = __bss_start + __bss_size;
     __stack_start   = __heap_start + __heap_size;
     __mem_size      = __stack_start + __stack_size;
 

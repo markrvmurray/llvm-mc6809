@@ -2,9 +2,10 @@
 //
 // Drives the complete OS-9 build:
 //
-//   1. `clang -target mc6809-unknown-os9` compiles this hello.c +
-//      crt0.S + syscalls.S into a flat module body using the
-//      mc6809-os9.lds linker script (auto-passed by the driver).
+//   1. `clang -target mc6809-unknown-os9` compiles this hello.c and
+//      links it with libclang_rt.os9.a (crt0 + syscalls) into a module
+//      body using the mc6809-os9.lds linker script (auto-passed by the
+//      driver).
 //   2. The os9-link post-link wrapper prepends the OS-9 header,
 //      computes parity + CRC.
 //   3. os9-module-check validates the final module.
@@ -54,8 +55,8 @@
 
 int main(void) {
     /* Using the native NitrOS-9 syscall name via <os9.h>.  The same
-       call could be spelled `_write(...)` — both resolve to the same
-       SWI2/I$Write stub via the .set aliases in syscalls.S. */
+       call could be spelled `_write(...)` -- both are the same function
+       (the alias in syscalls.c). */
     I$Write(1, "Hello, world!\n", 14);
     return 0;
 }

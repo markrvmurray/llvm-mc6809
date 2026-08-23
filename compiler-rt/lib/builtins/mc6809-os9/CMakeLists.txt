@@ -1,13 +1,13 @@
-# Bug #163 Phase 2: build + install the OS-9 / NitrOS-9 runtime
-# artifacts so `clang -target mc6809-unknown-os9` works as a one-shot
-# from the install tree (no per-test absolute paths).
+# Build + install the OS-9 / NitrOS-9 runtime artifacts so
+# `clang -target mc6809-unknown-os9` works as a one-shot from the
+# install tree (no per-test absolute paths).
 #
 # Artifacts produced into <resourcedir>/lib/mc6809-unknown-os9/:
-#   - libclang_rt.os9.a   (crt0.o + syscalls.o + syscalls_c.o bundled)
-#   - mc6809-os9.lds      (the flat-binary linker script)
+#   - libclang_rt.os9.a   (crt0.o + syscalls.o bundled)
+#   - mc6809-os9.lds      (the program-module linker script)
 #
 # And into <resourcedir>/include/:
-#   - os9.h               (C API for the syscall stubs)
+#   - os9.h               (the system-call shims and the C API)
 #
 # `cmake --build . --target all` triggers `mc6809-os9-runtime` via
 # its `ALL` attribute, so a normal full build deposits these files.
@@ -30,7 +30,6 @@ set(_OS9_FLAGS
 set(_OS9_LIB_OUT "${_OS9_BUILD_LIB_DIR}/libclang_rt.os9.a")
 set(_OS9_CRT0_OUT "${_OS9_BUILD_LIB_DIR}/crt0.o")
 set(_OS9_SYSCALLS_OUT "${_OS9_BUILD_LIB_DIR}/syscalls.o")
-set(_OS9_SYSCALLS_C_OUT "${_OS9_BUILD_LIB_DIR}/syscalls_c.o")
 set(_OS9_LDS_OUT "${_OS9_BUILD_LIB_DIR}/mc6809-os9.lds")
 set(_OS9_HDR_OUT "${_OS9_BUILD_INC_DIR}/os9.h")
 
@@ -52,27 +51,18 @@ add_custom_command(
     VERBATIM
 )
 
-# syscalls.o
+# syscalls.o -- errno and the POSIX-style entry points, C over the inline
+# shims in include/os9.h.
 add_custom_command(
     OUTPUT  "${_OS9_SYSCALLS_OUT}"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${_OS9_BUILD_LIB_DIR}"
-    COMMAND ${CMAKE_C_COMPILER} ${_OS9_FLAGS}
-            -c "${CMAKE_CURRENT_SOURCE_DIR}/syscalls.S"
-            -o "${_OS9_SYSCALLS_OUT}"
-    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/syscalls.S"
-    COMMENT "[OS-9] Building syscalls.o"
-    VERBATIM
-)
-
-# syscalls_c.o — the C (inline-asm) leaf syscalls (_exit for now).
-add_custom_command(
-    OUTPUT  "${_OS9_SYSCALLS_C_OUT}"
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${_OS9_BUILD_LIB_DIR}"
     COMMAND ${CMAKE_C_COMPILER} ${_OS9_FLAGS} -Os
+            -I "${CMAKE_CURRENT_SOURCE_DIR}/include"
             -c "${CMAKE_CURRENT_SOURCE_DIR}/syscalls.c"
-            -o "${_OS9_SYSCALLS_C_OUT}"
+            -o "${_OS9_SYSCALLS_OUT}"
     DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/syscalls.c"
-    COMMENT "[OS-9] Building syscalls_c.o"
+            "${CMAKE_CURRENT_SOURCE_DIR}/include/os9.h"
+    COMMENT "[OS-9] Building syscalls.o"
     VERBATIM
 )
 
@@ -85,10 +75,8 @@ add_custom_command(
             "${_OS9_LIB_OUT}"
             "${_OS9_CRT0_OUT}"
             "${_OS9_SYSCALLS_OUT}"
-            "${_OS9_SYSCALLS_C_OUT}"
     DEPENDS "${_OS9_CRT0_OUT}"
             "${_OS9_SYSCALLS_OUT}"
-            "${_OS9_SYSCALLS_C_OUT}"
     COMMENT "[OS-9] Bundling libclang_rt.os9.a"
     VERBATIM
 )
