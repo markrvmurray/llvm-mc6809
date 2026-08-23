@@ -35,6 +35,7 @@ set(_OS9_LINK_OUT "${_OS9_BUILD_LIB_DIR}/os9-link.o")
 set(_OS9_XU_OUT "${_OS9_BUILD_LIB_DIR}/os9-xu.o")
 set(_OS9_LDS_OUT "${_OS9_BUILD_LIB_DIR}/mc6809-os9.lds")
 set(_OS9_HDR_OUT "${_OS9_BUILD_INC_DIR}/os9.h")
+set(_OS9_FP_OUT  "${_OS9_BUILD_LIB_DIR}/FPO9")
 
 # Inside the compiler-rt sub-project, ${CMAKE_C_COMPILER} is the
 # already-built clang and ${CMAKE_AR} is llvm-ar (both passed in via
@@ -128,6 +129,19 @@ add_custom_command(
     VERBATIM
 )
 
+# The floating-point module, staged under the name OS-9 knows it by.  A
+# program that does floating point links FPO9 at run time rather than
+# carrying the ROM, so it has to be on the system: this is the copy to put
+# on a disk, next to the linker script the same programs are built with.
+add_custom_command(
+    OUTPUT  "${_OS9_FP_OUT}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/../mc6809/Float09.bin"
+            "${_OS9_FP_OUT}"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/../mc6809/Float09.bin"
+    COMMENT "[OS-9] Staging FPO9"
+)
+
 # Stage the linker script + header into the resourcedir.
 add_custom_command(
     OUTPUT  "${_OS9_LDS_OUT}"
@@ -152,12 +166,13 @@ add_custom_target(mc6809-os9-runtime ALL
         "${_OS9_LIB_OUT}"
         "${_OS9_LDS_OUT}"
         "${_OS9_HDR_OUT}"
+        "${_OS9_FP_OUT}"
 )
 add_dependencies(builtins mc6809-os9-runtime)
 
 # Install rules — match the resourcedir layout so the in-tree paths
 # and the installed paths are byte-identical relative to the prefix.
-install(FILES "${_OS9_LIB_OUT}" "${_OS9_LDS_OUT}"
+install(FILES "${_OS9_LIB_OUT}" "${_OS9_LDS_OUT}" "${_OS9_FP_OUT}"
         DESTINATION "${COMPILER_RT_INSTALL_LIBRARY_DIR}/${_OS9_TRIPLE}"
         COMPONENT mc6809-os9-runtime)
 install(FILES "${_OS9_HDR_OUT}"

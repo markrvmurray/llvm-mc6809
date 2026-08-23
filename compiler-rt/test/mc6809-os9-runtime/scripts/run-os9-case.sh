@@ -24,8 +24,12 @@ case_name=$(printf '%s' "$case_name" | tr -cd 'A-Za-z0-9_')
 [ -n "$case_name" ] || case_name=testcase
 # The floating-point module.  A program that does any floating point links
 # FPO9 at start-up, loading it from the execution directory when it is not
-# already in memory, so it goes on the disk beside the test.
-: "${MC6809_FP_MODULE:=$(cd "$(dirname "$0")/../../../lib/builtins/mc6809" && pwd)/Float09.bin}"
+# already in memory, so it goes on the disk beside the test.  The compiler
+# stages it next to the OS-9 linker script.
+if [ -z "${MC6809_FP_MODULE:-}" ]; then
+  MC6809_FP_MODULE=$("$MC6809_OS9_CLANG" -target mc6809-unknown-os9 \
+                     -print-resource-dir 2>/dev/null)/lib/mc6809-unknown-os9/FPO9
+fi
 
 # Command-line words for the program: an optional `// ARGS: ...` line.
 case_args=$(sed -n 's|^// *ARGS: *||p' "$src" | head -1)

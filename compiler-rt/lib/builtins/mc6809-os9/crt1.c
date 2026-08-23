@@ -12,7 +12,12 @@
 // and the linker script's numbers in the variables below, then calls
 // __os9_crt1(), which:
 //
-//   1. claims the heap: asks the kernel (F$Mem) for __os9_mem_request bytes
+//   1. links the floating-point module when the program has any floating
+//      point in it: the MC6839 is not part of an OS-9 program the way it
+//      is part of a bare-metal one, it is the FPO9 module, shared by
+//      everything using it.  _exit gives it back (F$UnLink);
+//
+//   2. claims the heap: asks the kernel (F$Mem) for __os9_mem_request bytes
 //      of data area in total when the process has less, and hands sbrk()
 //      the pages that appear above the old top -- above the stack and the
 //      parameter area, so growing the area again later extends the heap
@@ -21,15 +26,10 @@
 //      pool the linker script carved out below the stack (__heap_start,
 //      __heap_size);
 //
-//   2. builds argc/argv: argv[0] is the module's own name (the shell strips
+//   3. builds argc/argv: argv[0] is the module's own name (the shell strips
 //      the command name from the parameter string); argv[1..] are the words
 //      of the parameter string, which ends in a carriage return and is
 //      split on blanks in place (it lives in the writable data area);
-//
-//   3. links the floating-point module when the program has any floating
-//      point in it: the MC6839 is not part of an OS-9 program the way it
-//      is part of a bare-metal one, it is the FPO9 module, shared by
-//      everything using it.  _exit gives it back (F$UnLink);
 //
 //   4. runs the constructors, calls main(argc, argv), runs the destructors
 //      (which is where a C library flushes its streams and runs atexit()
@@ -128,23 +128,28 @@ extern void __mc6839_set_rom_base(void *__base) __attribute__((weak));
 // The ROM is the FPO9 module: already in memory if something else got
 // there first, otherwise loaded from the execution directory, which is
 // where the program itself came from.  A program that needs floating
-// point and cannot find it cannot run, so say so and stop rather than
-// call through an empty pointer.
+// point and cannot find it cannot run, so say so and stop with the
+// kernel's own reason -- which is as often "no room for it" (the module,
+// the program and its data area share one 64K address space) as it is
+// "no such module" -- rather than call through an empty pointer.
 static void claim_fp(void) {
   struct __os9_module m;
+  int err;
 
   if (!__mc6839_set_rom_base)
     return;
   m.name = "FPO9";
   m.type = 0; // any type: the ROM is a user-defined type ($B1)
-  if (__os9_link(&m) != 0) {
+  err = __os9_link(&m);
+  if (err != 0) {
     m.name = "fpo9";
-    if (__os9_load(&m) != 0) {
-      static const char missing[] = "fpo9: floating point module not found\r";
-      int n = sizeof missing - 1;
-      _os_write(2, missing, &n);
-      _exit(OS9_E_MNF);
-    }
+    err = __os9_load(&m);
+  }
+  if (err != 0) {
+    static const char missing[] = "fpo9: no floating point module\r";
+    int n = sizeof missing - 1;
+    _os_write(2, missing, &n);
+    _exit(err);
   }
   __os9_fp_module = m.header;
   __mc6839_set_rom_base(m.header);
@@ -169,8 +174,11 @@ static void module_name(void) {
 static int is_blank(char c) { return c == ' ' || c == '\t'; }
 
 void __os9_crt1(void) {
-  claim_heap();
+  // The floating-point module first: it has to fit in the address space
+  // this process shares between its program, its data area and anything
+  // it links, and the heap is the elastic one of the three.
   claim_fp();
+  claim_heap();
   module_name();
 
   // Tokenise the parameter string in place: words separated by blanks,
