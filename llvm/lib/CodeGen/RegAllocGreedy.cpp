@@ -2894,9 +2894,24 @@ MCRegister RAGreedy::selectOrSplitImpl(const LiveInterval &VirtReg,
                      TimerGroupDescription, TimePassesIsEnabled);
   LiveRangeEdit LRE(&VirtReg, NewVRegs, *MF, *LIS, VRM, this, &DeadRemats);
   spiller().spill(LRE, &Order);
-  ExtraInfo->setStage(NewVRegs.begin(), NewVRegs.end(), RS_Done);
-  for (Register VReg : NewVRegs)
+  // Spill products are done: they are never split or spilled again, and
+  // giving them an infinite weight as well makes their evictions urgent, so
+  // a reload or remat can always claim a register. Stage and weight have to
+  // move together, and only for the vregs that have no stage yet. The
+  // spiller's dead-def elimination can separate a live range into connected
+  // components, and LRE_DidCloneVirtReg deliberately hands those clones a
+  // fresh RS_Assign so they can be allocated anew -- which means they may be
+  // split again. A clone that may be split but has been made unspillable
+  // dead-ends the splitters: a region split parks the interfering part in a
+  // complement interval whose whole purpose is to be spilled if it does not
+  // allocate, and an unspillable complement has nowhere to go but last-chance
+  // recoloring. Leave the clones' stage and finite weight alone.
+  for (Register VReg : NewVRegs) {
+    if (ExtraInfo->getOrInitStage(VReg) != RS_New)
+      continue;
+    ExtraInfo->setStage(VReg, RS_Done);
     LIS->getInterval(VReg).markNotSpillable();
+  }
 
   // Tell LiveDebugVariables about the new ranges. Ranges not being covered by
   // the new regs are kept in LDV (still mapping to the old register), until
