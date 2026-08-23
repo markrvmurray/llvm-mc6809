@@ -251,15 +251,26 @@ jobs:
           cd assets
           files=$(find . -name '*.tar.xz' -o -name '*.zip' -o -name '*.sha256')
           [ -n "$files" ] || { echo "::error::no archives to attach"; exit 1; }
+          # RELEASE_1.0_rc1 -> "1.0-rc1".  The tag separates with
+          # underscores; a title should not.
+          version=$(printf '%s' "${RELEASE_TAG#RELEASE_}" | tr '_' '-')
+          # A candidate is a prerelease; the release it is a candidate for is
+          # not.  Marking 1.0 itself as a prerelease would hide it from
+          # everything that asks GitHub for the latest release.
+          case "$version" in
+            *rc*|*alpha*|*beta*|*pre*) prerelease=--prerelease ;;
+            *)                         prerelease= ;;
+          esac
+          echo "publishing $version${prerelease:+ (prerelease)}"
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             # shellcheck disable=SC2086
             gh release upload "$RELEASE_TAG" $files --clobber
           else
             # shellcheck disable=SC2086
             gh release create "$RELEASE_TAG" $files \
-                --title "llvm-mc6809 ${RELEASE_TAG#RELEASE_}" \
+                --title "llvm-mc6809 $version" \
                 --notes-file "$RUNNER_TEMP/notes.md" \
-                --prerelease
+                $prerelease
           fi
           gh release view "$RELEASE_TAG" --json assets \
               --jq '.assets[].name' | sed 's/^/  attached: /'
