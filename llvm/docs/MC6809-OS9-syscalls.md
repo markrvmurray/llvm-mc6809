@@ -13,7 +13,7 @@ than only what looked useful at the time.
 **On the Level 1 column**: the shims themselves are level-agnostic -- an
 unticked L1 box beside a ticked L2 one means "never run there", not "not
 written".  What is ticked there comes from two suites: the runtime cases
-(19, green, one of them pinned to Level 1 because argv[0] is only really
+(21, green, two of them pinned to Level 1 because argv[0] is only really
 tested where the data area does not start at zero), which cover start-up,
 the module calls and the console; and the picolibc suite, which runs at
 Level 1 too (`NITROS9_LEVEL=1`) and reaches 103 OK there.  What is still
@@ -75,9 +75,9 @@ is `defs/os9.d` in the NitrOS-9 tree.
 | $82 | I$Dup | duplicate a path number | [ ] | [ ] | `dup()`; shim exists, never exercised |
 | $83 | I$Create | create a file | [x] | [x] | `open()` with O_CREAT |
 | $84 | I$Open | open a file or directory | [x] | [x] | `open()`, `opendir()`, `access()`; L1 via the runtime suite |
-| $85 | I$MakDir | make a directory | [ ] | [ ] | `mkdir()` is written and links, but nothing in either suite makes a directory |
-| $86 | I$ChgDir | change the working or execution directory | [ ] | [ ] | `chdir()` is written and links, but nothing in either suite changes directory |
-| $87 | I$Delete | delete a file or directory | [x] | [x] | `unlink()`, `rmdir()` |
+| $85 | I$MakDir | make a directory | [x] | [x] | `mkdir()`; the runtime case makes one at both levels and writes a file in it |
+| $86 | I$ChgDir | change the working or execution directory | [x] | [x] | `chdir()`; proved by a relative name -- the file is only reachable from the parent as `subdir/f.txt` if the change took |
+| $87 | I$Delete | delete a file or directory | [x] | [x] | `unlink()`; `rmdir()` does not work -- OS-9 refuses to delete a directory until its directory attribute is cleared, tracked separately |
 | $88 | I$Seek | set the file position (X:U) | [x] | [x] | `lseek()`; asm stub, U is the data base |
 | $89 | I$Read | read bytes | [x] | [x] | `read()` |
 | $8A | I$Write | write bytes | [x] | [x] | `write()`; every runtime case prints through it |

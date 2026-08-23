@@ -55,7 +55,12 @@ fi
 module="$workdir/$case_name"
 out="$workdir/$case_name.out"
 
-"$MC6809_OS9_CLANG" -target mc6809-unknown-os9 "$src" -o "$module"
+# A case may name compiler options (`// CFLAGS: -Os`).  Nothing needs them
+# to be exercised -- the default is no optimisation, which is the harder
+# case for the backend and worth keeping that way.
+case_cflags=$(sed -n 's|^// *CFLAGS: *||p' "$src" | head -1)
+
+"$MC6809_OS9_CLANG" -target mc6809-unknown-os9 ${case_cflags:-} "$src" -o "$module"
 
 #-----------------------------------------------------------------------------
 # usim09pt: NitrOS-9 Level 1/2 (Pico-Thing) booted from an IDE image on i0,
