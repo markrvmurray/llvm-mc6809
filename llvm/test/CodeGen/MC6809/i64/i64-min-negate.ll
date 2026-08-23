@@ -450,18 +450,12 @@ define i64 @double_neg(i64 %x) {
 ; O2-NEXT:    std <__rs2
 ; O2-NEXT:    puls d
 ; O2-NEXT:    std 6,x
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    std 4,x
-; O2-NEXT:    puls d
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd <__rs1
 ; O2-NEXT:    std 2,x
-; O2-NEXT:    puls d
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd <__rs2
 ; O2-NEXT:    std ,x
-; O2-NEXT:    puls d
 ; O2-NEXT:    rts
   %n = sub i64 0, %x
   %r = sub i64 0, %n

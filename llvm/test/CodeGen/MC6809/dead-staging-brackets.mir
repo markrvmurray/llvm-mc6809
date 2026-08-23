@@ -1,0 +1,204 @@
+# RUN: llc -mtriple=mc6809 -run-pass=mc6809-spill-opt -verify-machineinstrs %s -o - | FileCheck %s
+
+# An imaginary-register access on the base 6809 is expanded through D, and
+# the expander brackets it with an unconditional `pshs d ... puls d` because
+# it cannot know whether D holds anything. Post-RA the answer is known: the
+# bracket is dead when nothing reads D between the pull and D's next write
+# (and the window itself writes D before reading it). Dead brackets are
+# removed and S-relative offsets inside the window drop by the slot size.
+
+--- |
+  define void @dead() { ret void }
+  define void @live_after() { ret void }
+  define void @window_reads_first() { ret void }
+  define void @nested_dead() { ret void }
+  define void @call_in_window() { ret void }
+  define void @inner_operand_push() { ret void }
+  define void @nested_same_register() { ret void }
+...
+---
+# The pull's value is overwritten by the next load: bracket goes, and the
+# stacked argument at 5,s becomes 3,s.
+name:            dead
+tracksRegLiveness: true
+noPhis:          true
+isSSA:           false
+noVRegs:         true
+body:             |
+  bb.0:
+    liveins: $ss, $rs1
+    ; CHECK-LABEL: name: dead
+    ; CHECK-NOT:   PSHSs
+    ; CHECK:       LDDi_o5 3, $ss
+    ; CHECK-NEXT:  STDd undef $rs0
+    ; CHECK-NEXT:  LDDi_o5 7, $ss
+    ; CHECK-NOT:   PULSs
+    ; CHECK:       RTSr
+    PSHSs undef $ad, implicit-def $ss, implicit $ss
+    LDDi_o5 5, $ss, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit-def $aq
+    STDd undef $rs0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ad, implicit-def $rs0
+    $ad = PULSs implicit-def $ss, implicit $ss
+    LDDi_o5 7, $ss, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit-def $aq
+    STDd undef $rs1, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ad, implicit-def $rs1
+    RTSr
+...
+---
+# D is read after the pull (the store): the bracket stays, offsets untouched.
+name:            live_after
+tracksRegLiveness: true
+noPhis:          true
+isSSA:           false
+noVRegs:         true
+body:             |
+  bb.0:
+    liveins: $ss, $ad
+    ; CHECK-LABEL: name: live_after
+    ; CHECK:       PSHSs undef $ad
+    ; CHECK-NEXT:  LDDi_o5 5, $ss
+    ; CHECK-NEXT:  STDd undef $rs0
+    ; CHECK-NEXT:  $ad = PULSs
+    ; CHECK-NEXT:  STDi_o5 3, $ss, {{.*}}implicit $ad
+    PSHSs undef $ad, implicit-def $ss, implicit $ss
+    LDDi_o5 5, $ss, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit-def $aq
+    STDd undef $rs0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ad, implicit-def $rs0
+    $ad = PULSs implicit-def $ss, implicit $ss
+    STDi_o5 3, $ss, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ad
+    RTSr
+...
+---
+# The window reads D before writing it (`std <rs0` of the incoming D): D is
+# live into the window and the bracket must stay even though nothing after
+# the pull reads D.
+name:            window_reads_first
+tracksRegLiveness: true
+noPhis:          true
+isSSA:           false
+noVRegs:         true
+body:             |
+  bb.0:
+    liveins: $ss, $ad
+    ; CHECK-LABEL: name: window_reads_first
+    ; CHECK:       PSHSs undef $ad
+    ; CHECK-NEXT:  STDd undef $rs0
+    ; CHECK-NEXT:  LDDi_o5 5, $ss
+    ; CHECK-NEXT:  STDd undef $rs1
+    ; CHECK-NEXT:  $ad = PULSs
+    PSHSs undef $ad, implicit-def $ss, implicit $ss
+    STDd undef $rs0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ad, implicit-def $rs0
+    LDDi_o5 5, $ss, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit-def $aq
+    STDd undef $rs1, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ad, implicit-def $rs1
+    $ad = PULSs implicit-def $ss, implicit $ss
+    LDDi_o5 7, $ss, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit-def $aq
+    RTSr
+...
+---
+# A dead A bracket sits after a D bracket. The A push is the only read of A
+# between the D pull and D's next write; once it is dropped the D bracket
+# is dead too. Both go (the removal iterates to a fixed point).
+name:            nested_dead
+tracksRegLiveness: true
+noPhis:          true
+isSSA:           false
+noVRegs:         true
+body:             |
+  bb.0:
+    liveins: $ss, $rs1
+    ; CHECK-LABEL: name: nested_dead
+    ; CHECK-NOT:   PSHSs
+    ; CHECK:       LDDi_o5 3, $ss
+    ; CHECK-NEXT:  STDd undef $rs0
+    ; CHECK-NEXT:  LDAd $rs0hi
+    ; CHECK-NEXT:  $ab = TFRp $aa
+    ; CHECK-NEXT:  STBi_o5 4, $ss
+    ; CHECK-NOT:   PULSs
+    ; CHECK:       RTSr
+    PSHSs undef $ad, implicit-def $ss, implicit $ss
+    LDDi_o5 5, $ss, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit-def $aq
+    STDd undef $rs0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ad, implicit-def $rs0
+    $ad = PULSs implicit-def $ss, implicit $ss
+    PSHSs undef $aa, implicit-def $ss, implicit $ss
+    LDAd $rs0hi, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa
+    $ab = TFRp $aa
+    $aa = PULSs implicit-def $ss, implicit $ss
+    STBi_o5 4, $ss, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ab
+    RTSr
+...
+---
+# A call inside the window is opaque: keep the bracket.
+name:            call_in_window
+tracksRegLiveness: true
+noPhis:          true
+isSSA:           false
+noVRegs:         true
+body:             |
+  bb.0:
+    liveins: $ss, $rs1
+    ; CHECK-LABEL: name: call_in_window
+    ; CHECK:       PSHSs undef $ad
+    ; CHECK:       $ad = PULSs
+    PSHSs undef $ad, implicit-def $ss, implicit $ss
+    LDDi_o5 5, $ss, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit-def $aq
+    LBSRlb @dead, implicit $ss, implicit-def $ss, implicit-def $ad
+    STDd undef $rs0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ad, implicit-def $rs0
+    $ad = PULSs implicit-def $ss, implicit $ss
+    LDDi_o5 7, $ss, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit-def $aq
+    RTSr
+...
+---
+# The window pushes an operand and pops it again with `,s++`: balanced, so
+# the bracket around it is judged on its own merits (dead here). The
+# argument read at 6,s while the operand is stacked skips both slots and
+# comes down by ours only.
+name:            inner_operand_push
+tracksRegLiveness: true
+noPhis:          true
+isSSA:           false
+noVRegs:         true
+body:             |
+  bb.0:
+    liveins: $ss, $ix, $rs1
+    ; CHECK-LABEL: name: inner_operand_push
+    ; CHECK-NOT:   PSHSs undef $ad
+    ; CHECK:       LDDd $rs1
+    ; CHECK-NEXT:  PSHSs $ix
+    ; CHECK-NEXT:  LDDi_o5 4, $ss
+    ; CHECK-NEXT:  CMPDi_Inc2 $ss
+    ; CHECK-NOT:   PULSs
+    ; CHECK:       RTSr
+    PSHSs undef $ad, implicit-def $ss, implicit $ss
+    LDDd $rs1, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit-def $aq
+    PSHSs $ix, implicit-def $ss, implicit $ss
+    LDDi_o5 6, $ss, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit-def $aq
+    CMPDi_Inc2 $ss, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $c, implicit $ad
+    $ad = PULSs implicit-def $ss, implicit $ss
+    RTSr implicit $ix
+...
+---
+# A D bracket nested inside a D bracket, both dead: the inner one goes
+# first (its window writes D before reading it, and the enclosing pull is
+# a plain write of D), which leaves the outer one dead too.
+name:            nested_same_register
+tracksRegLiveness: true
+noPhis:          true
+isSSA:           false
+noVRegs:         true
+body:             |
+  bb.0:
+    liveins: $ss, $rs1
+    ; CHECK-LABEL: name: nested_same_register
+    ; CHECK-NOT:   PSHSs
+    ; CHECK:       LDDd $rs1
+    ; CHECK-NEXT:  STDd undef $rs0
+    ; CHECK-NEXT:  LDDi_o5 3, $ss
+    ; CHECK-NOT:   PULSs
+    ; CHECK:       RTSr
+    PSHSs undef $ad, implicit-def $ss, implicit $ss
+    PSHSs undef $ad, implicit-def $ss, implicit $ss
+    LDDd $rs1, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit-def $aq
+    STDd undef $rs0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ad, implicit-def $rs0
+    $ad = PULSs implicit-def $ss, implicit $ss
+    LDDi_o5 5, $ss, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit-def $aq
+    STDd undef $rs1, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ad, implicit-def $rs1
+    $ad = PULSs implicit-def $ss, implicit $ss
+    RTSr
+...

@@ -178,6 +178,7 @@ bool MC6809CopyOpt::runOnMachineFunction(MachineFunction &MF) {
           bool OrigSrcUsedLater = false;
           MachineBasicBlock::iterator ScanIt = std::next(MI.getIterator());
           MachineBasicBlock::iterator ScanEnd = MI.getParent()->end();
+          bool Redefined = false;
           for (; ScanIt != ScanEnd; ++ScanIt) {
             if (ScanIt->readsRegister(OrigSrc, &TRI)) {
               OrigSrcUsedLater = true;
@@ -186,14 +187,33 @@ bool MC6809CopyOpt::runOnMachineFunction(MachineFunction &MF) {
             // If $OrigSrc gets re-defined between MI and ScanIt,
             // any further uses read the new value, not the one we'd
             // be killing — so the kill flag transfer is safe.
-            if (ScanIt->modifiesRegister(OrigSrc, &TRI))
+            if (ScanIt->modifiesRegister(OrigSrc, &TRI)) {
+              Redefined = true;
               break;
+            }
           }
+          // Not redefined in the block: a successor may read it.
+          if (!OrigSrcUsedLater && !Redefined)
+            for (const MachineBasicBlock *Succ : MI.getParent()->successors())
+              if (Succ->isLiveIn(OrigSrc) ||
+                  llvm::any_of(Succ->liveins(), [&](const auto &LI) {
+                    return TRI.regsOverlap(LI.PhysReg, OrigSrc);
+                  })) {
+                OrigSrcUsedLater = true;
+                break;
+              }
 
           if (!Clobbered && !OrigSrcUsedLater) {
             LLVM_DEBUG(dbgs() << "MC6809CopyOpt: shortening chain: " << MI
                               << "  original src: " << printReg(OrigSrc, &TRI)
                               << "\n");
+            // The source now lives up to MI: an earlier read between the
+            // two copies that was its last no longer is.
+            for (auto K = std::next(DefMI->getIterator()); K != MI.getIterator(); ++K)
+              for (MachineOperand &MO : K->operands())
+                if (MO.isReg() && MO.isUse() && MO.isKill() && MO.getReg() &&
+                    TRI.regsOverlap(MO.getReg(), OrigSrc))
+                  MO.setIsKill(false);
             MI.getOperand(1).setReg(OrigSrc);
             Changed = true;
           }

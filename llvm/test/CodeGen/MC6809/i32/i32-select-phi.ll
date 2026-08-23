@@ -59,23 +59,15 @@ define i32 @select_i32(i1 %c, i32 %a, i32 %b) {
 ; O2-NEXT:    tstb
 ; O2-NEXT:    lbne .LBB0_2
 ; O2-NEXT:  ; %bb.1: ; %select.false
-; O2-NEXT:    pshs d
-; O2-NEXT:    ldd 10,s
-; O2-NEXT:    std <__rs0
-; O2-NEXT:    puls d
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd 8,s
+; O2-NEXT:    std <__rs0
+; O2-NEXT:    ldd 6,s
 ; O2-NEXT:    std <__rs1
-; O2-NEXT:    puls d
 ; O2-NEXT:  .LBB0_2: ; %select.end
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    std 2,x
-; O2-NEXT:    puls d
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd <__rs1
 ; O2-NEXT:    std ,x
-; O2-NEXT:    puls d
 ; O2-NEXT:    rts
   %r = select i1 %c, i32 %a, i32 %b
   ret i32 %r
@@ -175,14 +167,10 @@ define i32 @phi_i32(i1 %c, i32 %a, i32 %b) {
 ; O2-NEXT:    andb #1
 ; O2-NEXT:    beq .LBB1_2
 ; O2-NEXT:  ; %bb.1: ; %then
-; O2-NEXT:    pshs d
-; O2-NEXT:    ldd 9,s
-; O2-NEXT:    std <__rs1
-; O2-NEXT:    puls d
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd 7,s
+; O2-NEXT:    std <__rs1
+; O2-NEXT:    ldd 5,s
 ; O2-NEXT:    std <__rs0
-; O2-NEXT:    puls d
 ; O2-NEXT:    ldb <__rs1lo
 ; O2-NEXT:    stb 2,s ; 1-byte Folded Spill
 ; O2-NEXT:    lda <__rs1hi
@@ -197,14 +185,10 @@ define i32 @phi_i32(i1 %c, i32 %a, i32 %b) {
 ; O2-NEXT:    addb #1
 ; O2-NEXT:    bra .LBB1_3
 ; O2-NEXT:  .LBB1_2: ; %else
-; O2-NEXT:    pshs d
-; O2-NEXT:    ldd 13,s
-; O2-NEXT:    std <__rs1
-; O2-NEXT:    puls d
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd 11,s
+; O2-NEXT:    std <__rs1
+; O2-NEXT:    ldd 9,s
 ; O2-NEXT:    std <__rs0
-; O2-NEXT:    puls d
 ; O2-NEXT:    ldb <__rs1lo
 ; O2-NEXT:    stb 2,s ; 1-byte Folded Spill
 ; O2-NEXT:    lda <__rs1hi
@@ -335,23 +319,15 @@ define i32 @select_chain(i1 %c1, i1 %c2, i32 %a, i32 %b, i32 %d) {
 ; O2-NEXT:    tsta
 ; O2-NEXT:    bne .LBB2_4
 ; O2-NEXT:  ; %bb.3: ; %select.false2
-; O2-NEXT:    pshs d
-; O2-NEXT:    ldd 15,s
-; O2-NEXT:    std <__rs0
-; O2-NEXT:    puls d
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd 13,s
+; O2-NEXT:    std <__rs0
+; O2-NEXT:    ldd 11,s
 ; O2-NEXT:    std <__rs1
-; O2-NEXT:    puls d
 ; O2-NEXT:  .LBB2_4: ; %select.end1
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    std 2,x
-; O2-NEXT:    puls d
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd <__rs1
 ; O2-NEXT:    std ,x
-; O2-NEXT:    puls d
 ; O2-NEXT:    rts
   %s1 = select i1 %c1, i32 %a, i32 %b
   %s2 = select i1 %c2, i32 %s1, i32 %d

@@ -4507,8 +4507,14 @@ void MC6809InstrInfo::expandLEAPtrAdd(MachineIRBuilder &Builder, MachineInstr &M
     //   - Result register as implicit def (from Defs list)
     //   - Offset register as implicit use (from Uses list)
     //   - One explicit operand: $ireg (the base/index register)
+    // setDesc does not materialise the descriptor's implicit operands, so
+    // the offset accumulator's use is added by hand -- liveness must see
+    // that `leax d,x` reads D. (Not marked killed: whether the offset is
+    // read again is not known here; a missing kill is merely conservative.)
     MI.getOperand(0).setImplicit();  // result becomes implicit
     MI.addOperand(IndexOp);          // base register as sole explicit operand
+    MI.addOperand(MachineOperand::CreateReg(OffsetReg, /*isDef=*/false,
+                                            /*isImp=*/true));
   } else {
 
   int OffsetSize = offsetSizeInBits(OffsetOp);
@@ -6570,8 +6576,10 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
     MI.setDesc(Builder.getTII().get(OpcodePair->getSecond()));
     MI.getOperand(0).setImplicit();
     MI.addOperand(IndexRegOp);
+    // Not marked killed: the offset accumulator may well be read again, and
+    // a false kill would let liveness-based cleanups treat it as free.
     MI.addOperand(MachineOperand::CreateReg(OffsetOp.getReg(), /*isDef=*/false,
-                                            /*isImp=*/true, /*isKill=*/true));
+                                            /*isImp=*/true));
   } else
     llvm_unreachable("Unknown offset type for LoadIdx");
 
@@ -6693,7 +6701,7 @@ void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI
       MI.getOperand(0).setIsUndef(true);
     MI.addOperand(IndexRegOp);
     MI.addOperand(MachineOperand::CreateReg(OffsetOp.getReg(), /*isDef=*/false,
-                                            /*isImp=*/true, /*isKill=*/true));
+                                            /*isImp=*/true));
   } else
     llvm_unreachable("Unknown offset type for StoreIdx");
 

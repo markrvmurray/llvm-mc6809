@@ -73,10 +73,8 @@ define i32 @sdiv_i32_2(i32 %x) {
 ; O2-NEXT:    pshs u,y
 ; O2-NEXT:    tfr s,u
 ; O2-NEXT:    stx 5,u ; 2-byte Folded Spill
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd 26,u
 ; O2-NEXT:    std <__rs0
-; O2-NEXT:    puls d
 ; O2-NEXT:    ldd 24,u
 ; O2-NEXT:    leas -6,s
 ; O2-NEXT:    pshs d
@@ -98,30 +96,22 @@ define i32 @sdiv_i32_2(i32 %x) {
 ; O2-NEXT:    leas 6,s
 ; O2-NEXT:    leas -6,s
 ; O2-NEXT:    std 2,s
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd <__rs0
-; O2-NEXT:    std 2,s
-; O2-NEXT:    puls d
+; O2-NEXT:    std ,s
 ; O2-NEXT:    ldd 8,u ; 2-byte Folded Reload
 ; O2-NEXT:    std 4,s
 ; O2-NEXT:    leay 14,u
 ; O2-NEXT:    tfr y,x
 ; O2-NEXT:    lbsr __lshrsi3
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd 2,y
 ; O2-NEXT:    std <__rs0
-; O2-NEXT:    puls d
 ; O2-NEXT:    leas 6,s
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd 24,u
 ; O2-NEXT:    std <__rs1
-; O2-NEXT:    puls d
 ; O2-NEXT:    ldb <__rs1lo
 ; O2-NEXT:    stb 8,u ; 1-byte Folded Spill
-; O2-NEXT:    pshs a
 ; O2-NEXT:    lda <__rs1hi
 ; O2-NEXT:    tfr a,b
-; O2-NEXT:    puls a
 ; O2-NEXT:    stb 7,u ; 1-byte Folded Spill
 ; O2-NEXT:    ldb <__rs0lo
 ; O2-NEXT:    lda <__rs0hi
@@ -153,10 +143,8 @@ define i32 @sdiv_i32_2(i32 %x) {
 ; O2-NEXT:    leas 6,s
 ; O2-NEXT:    ldx 5,u ; 2-byte Folded Reload
 ; O2-NEXT:    std 2,x
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    std ,x
-; O2-NEXT:    puls d
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u,y
 ; O2-NEXT:    leas 18,s
@@ -219,14 +207,10 @@ define i32 @udiv_i32_4(i32 %x) {
 ; O2-NEXT:    pshs u,y
 ; O2-NEXT:    tfr s,u
 ; O2-NEXT:    stx 4,u ; 2-byte Folded Spill
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd 14,u
 ; O2-NEXT:    std <__rs1
-; O2-NEXT:    puls d
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd 12,u
 ; O2-NEXT:    std <__rs0
-; O2-NEXT:    puls d
 ; O2-NEXT:    leas -6,s
 ; O2-NEXT:    ldd #2
 ; O2-NEXT:    pshs d
@@ -249,10 +233,8 @@ define i32 @udiv_i32_4(i32 %x) {
 ; O2-NEXT:    leas 6,s
 ; O2-NEXT:    ldx 4,u ; 2-byte Folded Reload
 ; O2-NEXT:    std 2,x
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    std ,x
-; O2-NEXT:    puls d
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u,y
 ; O2-NEXT:    leas 6,s
@@ -322,10 +304,8 @@ define i32 @ashr_i32_1(i32 %x) {
 ; O2-NEXT:    puls d
 ; O2-NEXT:    leas -6,s
 ; O2-NEXT:    std 2,s
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd <__rs0
-; O2-NEXT:    std 2,s
-; O2-NEXT:    puls d
+; O2-NEXT:    std ,s
 ; O2-NEXT:    ldd #1
 ; O2-NEXT:    std 4,s
 ; O2-NEXT:    leay 6,u
@@ -339,10 +319,8 @@ define i32 @ashr_i32_1(i32 %x) {
 ; O2-NEXT:    leas 6,s
 ; O2-NEXT:    ldx 4,u ; 2-byte Folded Reload
 ; O2-NEXT:    std 2,x
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    std ,x
-; O2-NEXT:    puls d
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u,y
 ; O2-NEXT:    leas 6,s
@@ -405,14 +383,10 @@ define i32 @lshr_i32_2(i32 %x) {
 ; O2-NEXT:    pshs u,y
 ; O2-NEXT:    tfr s,u
 ; O2-NEXT:    stx 4,u ; 2-byte Folded Spill
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd 14,u
 ; O2-NEXT:    std <__rs1
-; O2-NEXT:    puls d
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd 12,u
 ; O2-NEXT:    std <__rs0
-; O2-NEXT:    puls d
 ; O2-NEXT:    leas -6,s
 ; O2-NEXT:    ldd #2
 ; O2-NEXT:    pshs d
@@ -435,10 +409,8 @@ define i32 @lshr_i32_2(i32 %x) {
 ; O2-NEXT:    leas 6,s
 ; O2-NEXT:    ldx 4,u ; 2-byte Folded Reload
 ; O2-NEXT:    std 2,x
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    std ,x
-; O2-NEXT:    puls d
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u,y
 ; O2-NEXT:    leas 6,s
@@ -508,10 +480,8 @@ define i32 @shl_i32_3(i32 %x) {
 ; O2-NEXT:    puls d
 ; O2-NEXT:    leas -6,s
 ; O2-NEXT:    std 2,s
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd <__rs0
-; O2-NEXT:    std 2,s
-; O2-NEXT:    puls d
+; O2-NEXT:    std ,s
 ; O2-NEXT:    ldd #3
 ; O2-NEXT:    std 4,s
 ; O2-NEXT:    leay 6,u
@@ -525,10 +495,8 @@ define i32 @shl_i32_3(i32 %x) {
 ; O2-NEXT:    leas 6,s
 ; O2-NEXT:    ldx 4,u ; 2-byte Folded Reload
 ; O2-NEXT:    std 2,x
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    std ,x
-; O2-NEXT:    puls d
 ; O2-NEXT:    tfr u,s
 ; O2-NEXT:    puls u,y
 ; O2-NEXT:    leas 6,s

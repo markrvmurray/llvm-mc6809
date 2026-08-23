@@ -78,7 +78,6 @@ define i16 @cmp_keep_both(i16 %v, ptr %q) {
 ; CHECK-LABEL: cmp_keep_both:
 ; MC6809:       pshs x
 ; MC6809-NEXT:  cmpd ,s++
-; MC6809-NOT:   puls x
-; MC6809:       {{l?}}blt
+; MC6809-NEXT:  {{l?}}blt
 ; HD6309:       cmpr x,d
 ; HD6309-NEXT:  {{l?}}blt

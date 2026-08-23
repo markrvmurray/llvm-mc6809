@@ -19,10 +19,8 @@ define dso_local range(i16 7, 10) i16 @e_ind(ptr noundef readonly captures(none)
 ; MC6809-NEXT:    cmpb [,x]
 ; MC6809-NEXT:    lbeq .LBB0_2
 ; MC6809-NEXT:  ; %bb.1: ; %select.false
-; MC6809-NEXT:    pshs d
 ; MC6809-NEXT:    ldd #9
 ; MC6809-NEXT:    std <__rs0
-; MC6809-NEXT:    puls d
 ; MC6809-NEXT:  .LBB0_2: ; %select.end
 ; MC6809-NEXT:    ldx <__rs0
 ; MC6809-NEXT:    rts
@@ -56,10 +54,8 @@ define dso_local range(i16 7, 10) i16 @l_ind(ptr noundef readonly captures(none)
 ; MC6809-NEXT:    cmpb [,x]
 ; MC6809-NEXT:    lbhi .LBB1_2
 ; MC6809-NEXT:  ; %bb.1: ; %select.false
-; MC6809-NEXT:    pshs d
 ; MC6809-NEXT:    ldd #9
 ; MC6809-NEXT:    std <__rs0
-; MC6809-NEXT:    puls d
 ; MC6809-NEXT:  .LBB1_2: ; %select.end
 ; MC6809-NEXT:    ldx <__rs0
 ; MC6809-NEXT:    rts
@@ -93,10 +89,8 @@ define dso_local range(i16 7, 10) i16 @sw_ind(ptr noundef readonly captures(none
 ; MC6809-NEXT:    cmpb [,x]
 ; MC6809-NEXT:    lbeq .LBB2_2
 ; MC6809-NEXT:  ; %bb.1: ; %select.false
-; MC6809-NEXT:    pshs d
 ; MC6809-NEXT:    ldd #9
 ; MC6809-NEXT:    std <__rs0
-; MC6809-NEXT:    puls d
 ; MC6809-NEXT:  .LBB2_2: ; %select.end
 ; MC6809-NEXT:    ldx <__rs0
 ; MC6809-NEXT:    rts
@@ -123,10 +117,8 @@ entry:
 define dso_local range(i16 7, 10) i16 @e16(ptr noundef readonly captures(none) %pp, i16 noundef zeroext %x) local_unnamed_addr #0 {
 ; MC6809-LABEL: e16:
 ; MC6809:       ; %bb.0: ; %entry
-; MC6809-NEXT:    pshs d
-; MC6809-NEXT:    ldd 4,s
+; MC6809-NEXT:    ldd 2,s
 ; MC6809-NEXT:    std <__rs0
-; MC6809-NEXT:    puls d
 ; MC6809-NEXT:    ldd #7
 ; MC6809-NEXT:    pshs d
 ; MC6809-NEXT:    ldd <__rs0

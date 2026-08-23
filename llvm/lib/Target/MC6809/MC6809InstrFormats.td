@@ -369,6 +369,10 @@ class MC6809Inst<string mnemonic, Opcode opcode> : Instruction {
   // reference even when the symbol lives in a direct-page section.
   bit IsDirectPageAddr = 0;
   let TSFlags{0} = IsDirectPageAddr;
+  // The number of bytes the indexed operand post-increments its index
+  // register by (0 for every mode but `,r+` and `,r++`).
+  bits<2> PostIncrementBytes = 0;
+  let TSFlags{2-1} = PostIncrementBytes;
 }
 
 class Accumulator<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opcode> {
@@ -660,6 +664,7 @@ class ImmediateIndexedInc1<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic
   let P23Inst{31} = 0b1; let P23Inst{30-29} = ireg; let P23Inst{28-24} = 0b00000; let P23Inst{23-16} = val{7-0}; let P23Inst{15-8} = Opc; let P23Inst{7-0} = Pre{7-0};
   let DecoderNamespace = "_Page_" # Page # "_Size_";
   let Mode = "ii_Inc1";
+  let PostIncrementBytes = 1;
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val, INDEX16:$ireg);
@@ -674,6 +679,7 @@ class ImmediateIndexedInc2<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic
   let P23Inst{31} = 0b1; let P23Inst{30-29} = ireg; let P23Inst{28-24} = 0b00001; let P23Inst{23-16} = val{7-0}; let P23Inst{15-8} = Opc; let P23Inst{7-0} = Pre{7-0};
   let DecoderNamespace = "_Page_" # Page # "_Size_";
   let Mode = "ii_Inc2";
+  let PostIncrementBytes = 2;
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val, INDEX16:$ireg);
@@ -688,6 +694,7 @@ class ImmediateIndexedInc2Ind<string mnemonic, Opcode opcode> : MC6809Inst<mnemo
   let P23Inst{31} = 0b1; let P23Inst{30-29} = ireg; let P23Inst{28-24} = 0b10001; let P23Inst{23-16} = val{7-0}; let P23Inst{15-8} = Opc; let P23Inst{7-0} = Pre{7-0};
   let DecoderNamespace = "_Page_" # Page # "_Size_";
   let Mode = "ii_Inc2I";
+  let PostIncrementBytes = 2;
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val, INDEX16:$ireg);
@@ -701,6 +708,7 @@ class ImmediateIndexedIncW2<string mnemonic, Opcode opcode> : MC6809Inst<mnemoni
   let P23Inst{31-24} = 0b11001111; let P23Inst{23-16} = val{7-0}; let P23Inst{15-8} = Opc; let P23Inst{7-0} = Pre{7-0};
   let DecoderNamespace = "_Page_" # Page # "_Size_";
   let Mode = "ii_IncW2";
+  let PostIncrementBytes = 2;
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val);
@@ -714,6 +722,7 @@ class ImmediateIndexedIncW2Ind<string mnemonic, Opcode opcode> : MC6809Inst<mnem
   let P23Inst{31-24} = 0b11010000; let P23Inst{23-16} = val{7-0}; let P23Inst{15-8} = Opc; let P23Inst{7-0} = Pre{7-0};
   let DecoderNamespace = "_Page_" # Page # "_Size_";
   let Mode = "ii_IncW2I";
+  let PostIncrementBytes = 2;
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val);
@@ -1185,6 +1194,7 @@ class IndexedInc1<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opcode>
   let P23Inst{23} = 0b1; let P23Inst{22-21} = ireg; let P23Inst{20-16} = 0b00000; let P23Inst{15-8} = Opc; let P23Inst{7-0} = Pre{7-0};
   let DecoderNamespace = "_Page_" # Page # "_Size_";
   let Mode = "i_Inc1";
+  let PostIncrementBytes = 1;
   let OperandSize = 1;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins INDEX16:$ireg);
@@ -1198,6 +1208,7 @@ class IndexedInc2<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opcode>
   let P23Inst{23} = 0b1; let P23Inst{22-21} = ireg; let P23Inst{20-16} = 0b00001; let P23Inst{15-8} = Opc; let P23Inst{7-0} = Pre{7-0};
   let DecoderNamespace = "_Page_" # Page # "_Size_";
   let Mode = "i_Inc2";
+  let PostIncrementBytes = 2;
   let OperandSize = 1;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins INDEX16:$ireg);
@@ -1211,6 +1222,7 @@ class IndexedInc2Ind<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opco
   let P23Inst{23} = 0b1; let P23Inst{22-21} = ireg; let P23Inst{20-16} = 0b10001; let P23Inst{15-8} = Opc; let P23Inst{7-0} = Pre{7-0};
   let DecoderNamespace = "_Page_" # Page # "_Size_";
   let Mode = "i_Inc2I";
+  let PostIncrementBytes = 2;
   let OperandSize = 1;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins INDEX16:$ireg);
@@ -1223,6 +1235,7 @@ class IndexedIncW2<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opcode
   let P23Inst{23-16} = 0b11001111; let P23Inst{15-8} = Opc; let P23Inst{7-0} = Pre{7-0};
   let DecoderNamespace = "_Page_" # Page # "_Size_";
   let Mode = "i_IncW2";
+  let PostIncrementBytes = 2;
   let OperandSize = 1;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins);
@@ -1235,6 +1248,7 @@ class IndexedIncW2Ind<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opc
   let P23Inst{23-16} = 0b11010000; let P23Inst{15-8} = Opc; let P23Inst{7-0} = Pre{7-0};
   let DecoderNamespace = "_Page_" # Page # "_Size_";
   let Mode = "i_IncW2I";
+  let PostIncrementBytes = 2;
   let OperandSize = 1;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins);

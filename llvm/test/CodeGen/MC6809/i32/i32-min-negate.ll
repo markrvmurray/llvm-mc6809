@@ -228,10 +228,8 @@ define i32 @double_neg(i32 %x) {
 ; O2-NEXT:    std <__rs0
 ; O2-NEXT:    puls d
 ; O2-NEXT:    std 2,x
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    std ,x
-; O2-NEXT:    puls d
 ; O2-NEXT:    rts
   %n = sub i32 0, %x
   %r = sub i32 0, %n

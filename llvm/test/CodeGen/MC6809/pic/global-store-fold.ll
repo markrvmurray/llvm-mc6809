@@ -92,10 +92,8 @@ define void @store32(i32 %v) {
 ; PIC-NEXT:    puls d
 ; PIC-NEXT:    leax g32,pc
 ; PIC-NEXT:    std 2,x
-; PIC-NEXT:    pshs d
 ; PIC-NEXT:    ldd <__rs0
 ; PIC-NEXT:    std g32,pc
-; PIC-NEXT:    puls d
 ; PIC-NEXT:    rts
 ;
 ; PIC6309-LABEL: store32:

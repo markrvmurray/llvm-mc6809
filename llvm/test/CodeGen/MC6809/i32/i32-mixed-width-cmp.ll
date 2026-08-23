@@ -84,14 +84,10 @@ define i1 @eq_i32_sext_i16(i32 %a, i16 %b) {
 ; O2-NEXT:    leas -4,s
 ; O2-NEXT:    pshs u,y
 ; O2-NEXT:    tfr s,u
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd 12,u
 ; O2-NEXT:    std <__rs1
-; O2-NEXT:    puls d
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd 10,u
 ; O2-NEXT:    std <__rs0
-; O2-NEXT:    puls d
 ; O2-NEXT:    cmpx #0
 ; O2-NEXT:    lblt .LBB0_2
 ; O2-NEXT:  ; %bb.1:
@@ -403,10 +399,8 @@ define i1 @ne_i32_zext_i16(i32 %a, i16 %b) {
 ; O2-NEXT:    puls d
 ; O2-NEXT:    leas -8,s
 ; O2-NEXT:    std 2,s
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd <__rs0
-; O2-NEXT:    std 2,s
-; O2-NEXT:    puls d
+; O2-NEXT:    std ,s
 ; O2-NEXT:    stx 6,s
 ; O2-NEXT:    ldd #0
 ; O2-NEXT:    std 4,s

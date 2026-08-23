@@ -615,12 +615,316 @@ public:
   bool runOnMachineFunction(MachineFunction &MF) override;
 };
 
+/// The single register pushed/pulled by a page-1 PSHS/PULS, or 0 if the
+/// instruction is not one or pushes several.
+/// Bytes a PSHS/PULS moves: the sum of its registers' sizes.
+static int pushPullBytes(const MachineInstr &MI, const TargetRegisterInfo &TRI) {
+  int Bytes = 0;
+  for (const MachineOperand &MO : MI.explicit_operands())
+    if (MO.isReg())
+      Bytes += TRI.getRegSizeInBits(*TRI.getMinimalPhysRegClass(MO.getReg())) / 8;
+  return Bytes;
+}
+
+static Register singlePushPullReg(const MachineInstr &MI) {
+  if (MI.getOpcode() != MC6809::PSHSs && MI.getOpcode() != MC6809::PULSs)
+    return Register();
+  Register R;
+  for (const MachineOperand &MO : MI.explicit_operands()) {
+    if (!MO.isReg())
+      return Register();
+    if (R)
+      return Register(); // more than one register
+    R = MO.getReg();
+  }
+  return R;
+}
+
+/// Remove a `PSHS R ... PULS R` bracket whose register R holds nothing anyone
+/// reads: the post-RA expanders wrap every staging use of a real accumulator
+/// (imaginary-register traffic through D, A or B) in such a bracket without
+/// knowing whether the accumulator is live, and it very often is not -- a
+/// 16-bit value parked in a direct-page imaginary register then costs a
+/// pshs/puls pair around every access. On the finished code liveness is
+/// exact (backward from the block's live-outs), so the bracket can go
+/// whenever R is dead at the push, treating the pull as transparent (it
+/// hands back the value the push saved): nothing in the window may touch S
+/// except S-relative operands above the pushed slot, which are lowered by
+/// the slot's size.
+static cl::opt<bool> EnableDeadBracketRemoval(
+    "mc6809-enable-dead-staging-brackets", cl::init(true), cl::Hidden,
+    cl::desc("Remove pshs/puls staging brackets around a dead accumulator"));
+
+static cl::opt<unsigned> DeadBracketLimit(
+    "mc6809-dead-staging-bracket-limit", cl::init(~0u), cl::Hidden,
+    cl::desc("Debugging: remove at most this many staging brackets"));
+
+static bool removeDeadStagingBrackets(MachineFunction &MF) {
+  if (!EnableDeadBracketRemoval)
+    return false;
+  static unsigned Removed = 0;
+  const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
+  const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
+  const MachineRegisterInfo &MRI = MF.getRegInfo();
+  if (!MRI.tracksLiveness())
+    return false;
+  bool Changed = false;
+  // A staging push is undef-marked (the expander declares no interest in
+  // the value); a matching pull hands the saved value back.
+  auto isStagingPush = [](const MachineInstr &MI, Register &R) {
+    if (MI.getOpcode() != MC6809::PSHSs)
+      return false;
+    R = singlePushPullReg(MI);
+    if (R != MC6809::AD && R != MC6809::AA && R != MC6809::AB)
+      return false;
+    return MI.getOperand(0).isUndef();
+  };
+  // Does the window read (any unit of) R before writing it? An inner
+  // staging push reads its register (the undef marking only says the
+  // expander did not care what it holds).
+  auto windowReadsFirst = [&](MachineBasicBlock::iterator Begin,
+                              MachineBasicBlock::iterator End, Register R) {
+    LivePhysRegs Window(TRI); // empty: only the window's own reads count
+    for (auto B = End; B != Begin;) {
+      --B;
+      Register Saved;
+      if (isStagingPush(*B, Saved))
+        Window.addReg(Saved);
+      Window.stepBackward(*B);
+    }
+    return !Window.available(MRI, R);
+  };
+  for (MachineBasicBlock &MBB : MF) {
+    // Every staging bracket of the block, pull -> push. Later brackets are
+    // value-preserving for their register: liveness of that register flows
+    // through them (they read the value at their push only if their window
+    // reads it before writing it).
+    // Pairs are matched last-in-first-out over the block: any single-register
+    // PSHS whose matching PULS names the same register hands that register's
+    // value straight back (whether the push was a staging save or an operand
+    // save). Any other change of S in between makes the pairing unknown.
+    DenseMap<const MachineInstr *, MachineInstr *> BracketPush;
+    DenseMap<const MachineInstr *, unsigned> Ordinal;
+    {
+      SmallVector<MachineInstr *, 8> Stack;
+      unsigned N = 0;
+      for (MachineInstr &MI : MBB) {
+        Ordinal[&MI] = N++;
+        if (MI.getOpcode() == MC6809::PSHSs) {
+          if (singlePushPullReg(MI))
+            Stack.push_back(&MI);
+          else
+            Stack.clear();
+          continue;
+        }
+        if (MI.getOpcode() == MC6809::PULSs) {
+          Register R = singlePushPullReg(MI);
+          if (R && !Stack.empty() && singlePushPullReg(*Stack.back()) == R)
+            BracketPush[&MI] = Stack.pop_back_val();
+          else
+            Stack.clear();
+          continue;
+        }
+        // `op ,s++` consumes the top push whole; anything else that
+        // writes S makes the pairing unknown.
+        bool UsesS = false, DefsS = false;
+        for (const MachineOperand &MO : MI.operands())
+          if (MO.isReg() && MO.getReg() == MC6809::SS)
+            (MO.isDef() ? DefsS : UsesS) = true;
+        if (DefsS) {
+          Stack.clear();
+          continue;
+        }
+        if (UsesS)
+          if (int Inc = MC6809::getPostIncrementBytes(MI.getDesc().TSFlags)) {
+            if (!Stack.empty() && pushPullBytes(*Stack.back(), TRI) == Inc)
+              Stack.pop_back();
+            else
+              Stack.clear();
+          }
+      }
+    }
+    for (auto It = MBB.begin(); It != MBB.end();) {
+      MachineInstr &Push = *It++;
+      Register R;
+      if (!isStagingPush(Push, R))
+        continue;
+      unsigned Size = (R == MC6809::AD) ? 2 : 1;
+
+      // Find the matching pull and vet the window. Inner pushes and pulls
+      // (a nested staging bracket, an operand pushed for a `,s++` read)
+      // are fine as long as they balance before our pull: Depth tracks
+      // the bytes they hold below our slot, so an S-relative operand at
+      // an offset under Depth addresses them (unchanged), one at Depth or
+      // more skips over them to our slot (must be above it) and moves down
+      // by the slot's size when the bracket goes.
+      MachineInstr *Pull = nullptr;
+      SmallVector<MachineInstr *, 8> SRelative;
+      bool Bail = false;
+      int Depth = 0;
+      for (auto W = It; W != MBB.end(); ++W) {
+        MachineInstr &MI = *W;
+        if (MI.getOpcode() == MC6809::PULSs && Depth == 0 &&
+            singlePushPullReg(MI) == R) {
+          Pull = &MI;
+          break;
+        }
+        if (MI.isDebugInstr() || MI.isCFIInstruction())
+          continue;
+        // (Not hasUnmodeledSideEffects(): TableGen infers it for every
+        // pattern-less concrete instruction here, e.g. LDD #imm.)
+        if (MI.isCall() || MI.isTerminator() || MI.isInlineAsm() ||
+            MI.isReturn()) {
+          LLVM_DEBUG(dbgs() << "  SpillOpt: bracket blocked by " << MI);
+          Bail = true;
+          break;
+        }
+        if (MI.getOpcode() == MC6809::PSHSs ||
+            MI.getOpcode() == MC6809::PULSs) {
+          int Bytes = pushPullBytes(MI, TRI);
+          if (MI.getOpcode() == MC6809::PSHSs)
+            Depth += Bytes;
+          else if (Bytes <= Depth)
+            Depth -= Bytes;
+          else
+            Bail = true; // pulls into our slot
+          if (Bail)
+            break;
+          continue;
+        }
+        bool TouchesS = false;
+        for (const MachineOperand &MO : MI.operands())
+          if (MO.isReg() && MO.getReg() == MC6809::SS) {
+            if (MO.isDef()) {
+              Bail = true;
+              break;
+            }
+            TouchesS = true;
+          }
+        if (Bail)
+          break;
+        if (!TouchesS)
+          continue;
+        // `op ,s++` pops the operand an inner push left.
+        if (unsigned Inc = MC6809::getPostIncrementBytes(MI.getDesc().TSFlags)) {
+          if (int(Inc) > Depth) {
+            Bail = true;
+            break;
+          }
+          Depth -= Inc;
+          continue;
+        }
+        // An S-relative operand of a known offset family: either within the
+        // inner pushes or above our slot.
+        Register Base;
+        int Offset;
+        if (!getBaseAndOffset(MI, Base, Offset) || Base != MC6809::SS ||
+            !getOpcodeForOffsetSize(MI.getOpcode(), Offset)) {
+          LLVM_DEBUG(dbgs() << "  SpillOpt: bracket blocked by S use " << MI);
+          Bail = true;
+          break;
+        }
+        if (Offset < Depth)
+          continue;
+        if (Offset < Depth + int(Size)) {
+          LLVM_DEBUG(dbgs() << "  SpillOpt: bracket blocked by slot use " << MI);
+          Bail = true;
+          break;
+        }
+        SRelative.push_back(&MI);
+      }
+      if (Bail || !Pull || BracketPush.lookup(Pull) != &Push) {
+        LLVM_DEBUG(dbgs() << "  SpillOpt: staging bracket kept ("
+                          << (Bail ? "window touches S/flow" : "no pull")
+                          << ") " << Push);
+        continue;
+      }
+
+      // The saved value is needed if anything after the pull reads R (the
+      // pull hands back exactly what the push saved), or if the window
+      // itself reads R before overwriting it. Later staging brackets of R
+      // are transparent: skip over them (their pull hands back what their
+      // push saved), unless their own window reads R first.
+      LivePhysRegs After(TRI);
+      After.addLiveOuts(MBB);
+      bool Live = false;
+      const auto Stop = std::next(Pull->getIterator());
+      for (auto B = MBB.end(); B != Stop;) {
+        --B;
+        auto BP = BracketPush.find(&*B);
+        // Only a later, disjoint bracket is transparent; an enclosing one
+        // hands back a value from before our push, so our saved value does
+        // not flow past its pull (treat that pull as a plain definition).
+        if (BP != BracketPush.end() && singlePushPullReg(*B) == R &&
+            Ordinal.lookup(BP->second) > Ordinal.lookup(Pull)) {
+          MachineInstr *OtherPush = BP->second;
+          if (windowReadsFirst(std::next(OtherPush->getIterator()),
+                               B, R)) {
+            Live = true;
+            break;
+          }
+          B = OtherPush->getIterator();
+          continue;
+        }
+        // Any other bracket's push really does read its register (its
+        // undef marking only says the expander did not care), so the
+        // register it saves is live up to that push -- and possibly across
+        // us. Conservative: a bracket whose register is dead after its pull
+        // still counts, and simply keeps ours.
+        Register Saved;
+        if (isStagingPush(*B, Saved))
+          After.addReg(Saved);
+        After.stepBackward(*B);
+      }
+      if (!Live)
+        Live = !After.available(MRI, R);
+      if (!Live)
+        Live = windowReadsFirst(It, Pull->getIterator(), R);
+      if (Live) {
+        LLVM_DEBUG(dbgs() << "  SpillOpt: staging bracket kept (live) " << Push);
+        continue;
+      }
+
+      if (Removed >= DeadBracketLimit)
+        continue;
+      ++Removed;
+      LLVM_DEBUG(dbgs() << "  SpillOpt: dropping dead staging bracket "
+                        << Push << "  ... " << *Pull);
+      for (MachineInstr *MI : SRelative) {
+        for (MachineOperand &MO : MI->explicit_operands()) {
+          if (!MO.isImm())
+            continue;
+          int NewOffset = MO.getImm() - int(Size);
+          MO.setImm(NewOffset);
+          unsigned NewOpc =
+              getOpcodeForOffsetSize(MI->getOpcode(), NewOffset ? NewOffset : 1);
+          if (NewOpc && NewOpc != MI->getOpcode())
+            MI->setDesc(TII.get(NewOpc));
+          break;
+        }
+      }
+      // The pull's def of R is gone; anything after that read R was reading
+      // the pushed (dead) value, so nothing changes for it.
+      BracketPush.erase(Pull);
+      Push.eraseFromParent();
+      Pull->eraseFromParent();
+      Changed = true;
+    }
+  }
+  return Changed;
+}
+
 bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
   if (!EnableSpillOpt)
     return false;
   const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   bool Changed = false;
+
+  // A dropped bracket can expose an enclosing bracket of a wider register
+  // (its push was the only remaining read), so iterate to a fixed point.
+  while (removeDeadStagingBrackets(MF))
+    Changed = true;
 
   for (MachineBasicBlock &MBB : MF) {
     // Bug #367: fold `ld R,mem; tfr R,R2 → ld R2,mem` first, so the slot loop

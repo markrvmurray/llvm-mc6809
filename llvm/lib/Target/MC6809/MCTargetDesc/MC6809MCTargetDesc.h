@@ -84,8 +84,17 @@ enum TSFlag {
   // absolute address. A symbol operand of such an instruction is truncated to
   // its low byte (VK_ADDR8); address-computing forms (LEA, extended, immediate,
   // indexed) leave this clear and keep a full 16-bit reference.
-  TSFlagDirectPageAddr = (1 << 0)
+  TSFlagDirectPageAddr = (1 << 0),
+  // Bits 1-2: the number of bytes (0, 1 or 2) the instruction's indexed
+  // operand post-increments its index register by (`,x+` / `,x++`).
+  TSFlagPostIncrementShift = 1,
+  TSFlagPostIncrementMask = (3 << TSFlagPostIncrementShift)
 };
+
+/// The number of bytes an instruction post-increments its index register by.
+inline unsigned getPostIncrementBytes(uint64_t TSFlags) {
+  return (TSFlags & TSFlagPostIncrementMask) >> TSFlagPostIncrementShift;
+}
 
 bool isDirectPageSectionName(StringRef Name);
 } // namespace MC6809

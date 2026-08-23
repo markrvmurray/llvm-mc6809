@@ -68,8 +68,8 @@ entry:
 ; OS9-NEXT:   stb <mc6809_os9_data8(dp)
 ; CHECK-NEXT: rts
 
-; A compare exchanges its operands and its condition: `d < v` is `v > d`,
-; a compare against the symbol.
+; A compare exchanges its operands and its condition: `d < v` is `v > d` --
+; and with v still in X, the compare is CMPX against the symbol.
 define i8 @lt(i16 %v) {
 entry:
   %0 = load i16, ptr @d, align 1
@@ -78,13 +78,14 @@ entry:
   ret i8 %r
 }
 ; CHECK-LABEL: lt:
-; ABS:        cmp{{[dx]}} d
-; PIC:        cmp{{[dx]}} d,pc
-; OS9:        cmp{{[dx]}} ,{{[xy]}}
+; ABS:        cmpx d
+; PIC:        cmpx d,pc
+; OS9:        cmpx ,{{[xy]}}
 ; CHECK-NEXT: {{l?}}b{{gt|lt}}
 
 ; A store to the same memory between the load and its consumer forbids the
-; fold: the consumer must not read the new value, so the load stays.
+; fold: the consumer must not read the new value. The stored value stays in
+; X (stx), and the add reads it from there through the stack.
 define i16 @clobbered(i16 %v) {
 entry:
   %0 = load i16, ptr @d, align 1
@@ -94,10 +95,14 @@ entry:
 }
 ; CHECK-LABEL: clobbered:
 ; ABS:        ldd d
+; ABS-NEXT:   stx d
 ; PIC:        ldd d,pc
+; PIC-NEXT:   stx d,pc
 ; OS9:        ldd ,{{[xy]}}
-; ABS-NOT:    addd d
-; PIC-NOT:    addd d,pc
+; OS9-NEXT:   stx ,{{[xy]}}
+; CHECK-NEXT: pshs x
+; CHECK-NEXT: addd ,s++
+; CHECK-NEXT: tfr d,x
 ; CHECK:      rts
 
 ; A value used twice keeps its register.

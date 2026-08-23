@@ -105,39 +105,23 @@ define i64 @select_i64(i1 %c, i64 %a, i64 %b) {
 ; O2-NEXT:    tstb
 ; O2-NEXT:    lbne .LBB0_2
 ; O2-NEXT:  ; %bb.1: ; %select.false
-; O2-NEXT:    pshs d
-; O2-NEXT:    ldd 18,s
-; O2-NEXT:    std <__rs0
-; O2-NEXT:    puls d
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd 16,s
-; O2-NEXT:    std <__rs1
-; O2-NEXT:    puls d
-; O2-NEXT:    pshs d
+; O2-NEXT:    std <__rs0
 ; O2-NEXT:    ldd 14,s
-; O2-NEXT:    std <__rs2
-; O2-NEXT:    puls d
-; O2-NEXT:    pshs d
+; O2-NEXT:    std <__rs1
 ; O2-NEXT:    ldd 12,s
+; O2-NEXT:    std <__rs2
+; O2-NEXT:    ldd 10,s
 ; O2-NEXT:    std <__rs3
-; O2-NEXT:    puls d
 ; O2-NEXT:  .LBB0_2: ; %select.end
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    std 6,x
-; O2-NEXT:    puls d
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd <__rs1
 ; O2-NEXT:    std 4,x
-; O2-NEXT:    puls d
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd <__rs2
 ; O2-NEXT:    std 2,x
-; O2-NEXT:    puls d
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd <__rs3
 ; O2-NEXT:    std ,x
-; O2-NEXT:    puls d
 ; O2-NEXT:    rts
   %r = select i1 %c, i64 %a, i64 %b
   ret i64 %r
@@ -339,22 +323,14 @@ define i64 @phi_i64(i1 %c, i64 %a, i64 %b) {
 ; O2-NEXT:    andb #1
 ; O2-NEXT:    beq .LBB1_2
 ; O2-NEXT:  ; %bb.1: ; %then
-; O2-NEXT:    pshs d
-; O2-NEXT:    ldd 18,s
-; O2-NEXT:    std <__rs3
-; O2-NEXT:    puls d
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd 16,s
-; O2-NEXT:    std <__rs0
-; O2-NEXT:    puls d
-; O2-NEXT:    pshs d
+; O2-NEXT:    std <__rs3
 ; O2-NEXT:    ldd 14,s
-; O2-NEXT:    std <__rs1
-; O2-NEXT:    puls d
-; O2-NEXT:    pshs d
+; O2-NEXT:    std <__rs0
 ; O2-NEXT:    ldd 12,s
+; O2-NEXT:    std <__rs1
+; O2-NEXT:    ldd 10,s
 ; O2-NEXT:    std <__rs2
-; O2-NEXT:    puls d
 ; O2-NEXT:    ldb <__rs3lo
 ; O2-NEXT:    lda <__rs3hi
 ; O2-NEXT:    sta 6,s ; 1-byte Folded Spill
@@ -382,22 +358,14 @@ define i64 @phi_i64(i1 %c, i64 %a, i64 %b) {
 ; O2-NEXT:    addb #1
 ; O2-NEXT:    bra .LBB1_3
 ; O2-NEXT:  .LBB1_2: ; %else
-; O2-NEXT:    pshs d
-; O2-NEXT:    ldd 26,s
-; O2-NEXT:    std <__rs3
-; O2-NEXT:    puls d
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd 24,s
-; O2-NEXT:    std <__rs0
-; O2-NEXT:    puls d
-; O2-NEXT:    pshs d
+; O2-NEXT:    std <__rs3
 ; O2-NEXT:    ldd 22,s
-; O2-NEXT:    std <__rs1
-; O2-NEXT:    puls d
-; O2-NEXT:    pshs d
+; O2-NEXT:    std <__rs0
 ; O2-NEXT:    ldd 20,s
+; O2-NEXT:    std <__rs1
+; O2-NEXT:    ldd 18,s
 ; O2-NEXT:    std <__rs2
-; O2-NEXT:    puls d
 ; O2-NEXT:    ldb <__rs3lo
 ; O2-NEXT:    lda <__rs3hi
 ; O2-NEXT:    sta 6,s ; 1-byte Folded Spill
@@ -648,39 +616,23 @@ define i64 @select_chain(i1 %c1, i1 %c2, i64 %a, i64 %b, i64 %d) {
 ; O2-NEXT:    tsta
 ; O2-NEXT:    bne .LBB2_4
 ; O2-NEXT:  ; %bb.3: ; %select.false2
-; O2-NEXT:    pshs d
-; O2-NEXT:    ldd 27,s
-; O2-NEXT:    std <__rs0
-; O2-NEXT:    puls d
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd 25,s
-; O2-NEXT:    std <__rs1
-; O2-NEXT:    puls d
-; O2-NEXT:    pshs d
+; O2-NEXT:    std <__rs0
 ; O2-NEXT:    ldd 23,s
-; O2-NEXT:    std <__rs2
-; O2-NEXT:    puls d
-; O2-NEXT:    pshs d
+; O2-NEXT:    std <__rs1
 ; O2-NEXT:    ldd 21,s
+; O2-NEXT:    std <__rs2
+; O2-NEXT:    ldd 19,s
 ; O2-NEXT:    std <__rs3
-; O2-NEXT:    puls d
 ; O2-NEXT:  .LBB2_4: ; %select.end1
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    std 6,x
-; O2-NEXT:    puls d
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd <__rs1
 ; O2-NEXT:    std 4,x
-; O2-NEXT:    puls d
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd <__rs2
 ; O2-NEXT:    std 2,x
-; O2-NEXT:    puls d
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd <__rs3
 ; O2-NEXT:    std ,x
-; O2-NEXT:    puls d
 ; O2-NEXT:    rts
   %s1 = select i1 %c1, i64 %a, i64 %b
   %s2 = select i1 %c2, i64 %s1, i64 %d

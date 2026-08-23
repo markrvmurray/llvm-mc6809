@@ -104,16 +104,12 @@ define dso_local i16 @cmp_imm_byte_load_phi_no_wrap(ptr noundef readonly capture
 ; CHECK-NEXT:    cmpb #10
 ; CHECK-NEXT:    lblo .LBB0_7
 ; CHECK-NEXT:  .LBB0_8: ; %while.end
-; CHECK-NEXT:    pshs d
 ; CHECK-NEXT:    ldd #0
 ; CHECK-NEXT:    std <__rs0
-; CHECK-NEXT:    puls d
-; CHECK-NEXT:    pshs d
 ; CHECK-NEXT:    ldd <__rs0
 ; CHECK-NEXT:    subb <__rs1lo
 ; CHECK-NEXT:    sbca <__rs1hi
 ; CHECK-NEXT:    std <__rs0
-; CHECK-NEXT:    puls d
 ; CHECK-NEXT:    ldb 4,u ; 1-byte Folded Reload
 ; CHECK-NEXT:    cmpb #45
 ; CHECK-NEXT:    beq .LBB0_10
