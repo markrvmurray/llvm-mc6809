@@ -238,6 +238,14 @@ void MC6809TargetInfo::getTargetDefines(const LangOptions &Opts,
   Builder.defineMacro("__mc6809__");
   Builder.defineMacro("__MC6809__");
 
+  // OS-9 / NitrOS-9 program modules: the data area is addressed from U and
+  // the module body is read-only and placed at run time, which code that
+  // reaches its own data has to know about.
+  if (getTriple().isOSOS9()) {
+    Builder.defineMacro("__OS9__");
+    Builder.defineMacro("__os9__");
+  }
+
   // Generate instruction feature set macros.
   const auto &CPUDefines =
       llvm::StringSwitch<std::vector<std::string>>(CPUName)
