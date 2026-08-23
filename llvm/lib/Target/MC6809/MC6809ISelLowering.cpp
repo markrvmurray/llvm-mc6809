@@ -23,7 +23,9 @@
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/SelectionDAG.h"
 #include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
+#include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/Module.h"
 #include "llvm/Support/ErrorHandling.h"
 
 #include "MC6809.h"
@@ -207,6 +209,7 @@ bool MC6809TargetLowering::isZExtFree(Type *SrcTy, Type *DstTy) const {
 
 static MachineBasicBlock *emitConditionalImm(MachineInstr &MI, MachineBasicBlock *MBB);
 static MachineBasicBlock *emitSelectImm(MachineInstr &MI, MachineBasicBlock *MBB);
+static MachineBasicBlock *emitLeaOS9Weak(MachineInstr &MI, MachineBasicBlock *MBB);
 
 MachineBasicBlock *MC6809TargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI, MachineBasicBlock *MBB) const {
   switch (MI.getOpcode()) {
@@ -216,7 +219,88 @@ MachineBasicBlock *MC6809TargetLowering::EmitInstrWithCustomInserter(MachineInst
     return emitConditionalImm(MI, MBB);
   case MC6809::SelectImm:
     return emitSelectImm(MI, MBB);
+  case MC6809::Lea_iPtr_OS9Weak:
+    return emitLeaOS9Weak(MI, MBB);
   }
+}
+
+// Lea_iPtr_OS9Weak: the address of an extern-weak global on OS9.  A module
+// is linked at 0 and its data area is addressed from U, so a symbol the
+// linker resolved to 0 (undefined) would come out as the module's own base
+// or as U -- both non-null -- where the C rule says the address of an
+// undefined weak symbol is null.  Nothing real sits at offset 0 of either
+// region (the body starts with _start, the data area with the imaginary
+// registers), so offset 0 is the "undefined" sentinel and the address is
+// built around it:
+//
+//     Head:  %off = Load_iPtr_Imm #sym          ; link-time offset, 0 if
+//            CompareBranch_ptr EQ %off,#0 -> Tail ; undefined -> null
+//     Add:   %sum = Lea_iPtr_Sym sym            ; body: sym,pc
+//              or   Lea_iPtr_OS9Sym sym         ; data area: sym,u
+//     Tail:  %dst = PHI %off(Head), %sum(Add)
+static MachineBasicBlock *emitLeaOS9Weak(MachineInstr &MI, MachineBasicBlock *MBB) {
+  MachineFunction *F = MBB->getParent();
+  MachineRegisterInfo &MRI = F->getRegInfo();
+  const TargetInstrInfo &TII = *F->getSubtarget().getInstrInfo();
+  const BasicBlock *LLVM_BB = MBB->getBasicBlock();
+  DebugLoc DL = MI.getDebugLoc();
+  Register Dst = MI.getOperand(0).getReg();
+  const MachineOperand SymOp = MI.getOperand(1);
+  // The data area or the module body, as the target flags say (set by the
+  // selector from the same rule the section selection uses).
+  const bool InDataArea = SymOp.getTargetFlags() == MC6809::MO_OS9_DATA ||
+                          SymOp.getTargetFlags() == MC6809::MO_OS9_BSS;
+
+  MachineBasicBlock *HeadMBB = MBB;
+  MachineFunction::iterator I = ++MBB->getIterator();
+  MachineBasicBlock *TailMBB = HeadMBB->splitAt(MI);
+  if (TailMBB == HeadMBB) {
+    // MI was the last instruction: make the merge block, steering the
+    // successor's phis to it.
+    MachineBasicBlock *OrigSucc = &*I;
+    TailMBB = F->CreateMachineBasicBlock(LLVM_BB);
+    F->insert(OrigSucc->getIterator(), TailMBB);
+    TailMBB->addSuccessor(OrigSucc);
+    HeadMBB->replaceSuccessor(OrigSucc, TailMBB);
+    for (MachineInstr &Phi : OrigSucc->phis())
+      for (unsigned Idx = 1; Idx < Phi.getNumOperands(); Idx += 2)
+        if (Phi.getOperand(Idx + 1).getMBB() == HeadMBB)
+          Phi.getOperand(Idx + 1).setMBB(TailMBB);
+    BuildMI(*TailMBB, TailMBB->end(), DL, TII.get(MC6809::LongBranchRelative))
+        .addMBB(OrigSucc);
+  }
+  HeadMBB->removeSuccessor(TailMBB);
+
+  MachineBasicBlock *AddMBB = F->CreateMachineBasicBlock(LLVM_BB);
+  F->insert(TailMBB->getIterator(), AddMBB);
+  for (const auto &LiveIn : TailMBB->liveins())
+    AddMBB->addLiveIn(LiveIn);
+  HeadMBB->addSuccessor(AddMBB);
+  HeadMBB->addSuccessor(TailMBB);
+  AddMBB->addSuccessor(TailMBB);
+
+  // Head: the link-time offset, and the test against it.
+  Register Off = MRI.createVirtualRegister(&MC6809::INDEX16RegClass);
+  BuildMI(*HeadMBB, MI, DL, TII.get(MC6809::Load_iPtr_Imm), Off).add(SymOp);
+  BuildMI(*HeadMBB, MI, DL, TII.get(MC6809::CompareBranch_ptr_Imm))
+      .addImm(MC6809CC::EQ)
+      .addReg(Off)
+      .addImm(0)
+      .addMBB(TailMBB);
+  // Add: the symbol's run-time address, relative to its region's base.
+  Register Sum = MRI.createVirtualRegister(&MC6809::INDEX16RegClass);
+  BuildMI(*AddMBB, AddMBB->end(), DL,
+          TII.get(InDataArea ? MC6809::Lea_iPtr_OS9Sym : MC6809::Lea_iPtr_Sym),
+          Sum)
+      .add(SymOp);
+  // Tail: the result.
+  BuildMI(*TailMBB, TailMBB->begin(), DL, TII.get(MC6809::PHI), Dst)
+      .addReg(Off)
+      .addMBB(HeadMBB)
+      .addReg(Sum)
+      .addMBB(AddMBB);
+  MI.eraseFromParent();
+  return TailMBB;
 }
 
 // FIXME!! MarkM: Do load Immediate of all sizes, not just i1(=i8).

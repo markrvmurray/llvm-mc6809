@@ -97,15 +97,41 @@ std::optional<uint64_t> getOS9DataAreaOffset(Ctx &ctx, uint64_t va) {
     if (imageStart <= va && va < imageEnd)
       return getSymbolVA(ctx, r.start) + (va - imageStart);
   }
+  // One past a region's end (an end-of-table symbol such as
+  // __fini_array_end) belongs to that region when no region starts there.
+  for (const Region &r : regions) {
+    uint64_t imageStart = getSymbolVA(ctx, r.imageStart);
+    uint64_t imageEnd = getSymbolVA(ctx, r.imageEnd);
+    if (va == imageEnd && imageStart < imageEnd)
+      return getSymbolVA(ctx, r.start) + (va - imageStart);
+  }
   return std::nullopt;
 }
 
-static uint64_t getOS9DataOffset(Ctx &ctx, const Relocation &rel,
-                                 uint64_t val) {
+static uint64_t getOS9DataOffset(Ctx &ctx, uint8_t *loc,
+                                 const Relocation &rel, uint64_t val) {
   if (std::optional<uint64_t> offset = getOS9DataAreaOffset(ctx, val))
     return *offset;
-  ErrAlways(ctx) << "OS-9 data-area relocation target is not in .dp.data, "
-                    ".dp.bss, .data or .bss";
+  // An undefined weak symbol (`stdin` in a program that never reads it) has
+  // no place in the data area.  Offset 0 is the "undefined" sentinel the
+  // code generator tests for -- nothing real lives at offset 0 of either
+  // region -- so the address comes out null (Lea_iPtr_OS9Weak).
+  if (rel.sym && rel.sym->isUndefWeak())
+    return 0;
+  // Debug info (a DW_OP_addr of a data-area object, say) may name a symbol
+  // that was discarded or never defined; it is not loaded, so best effort.
+  if (InputSectionBase *isec = getErrorPlace(ctx, loc).isec)
+    if (!(isec->flags & llvm::ELF::SHF_ALLOC))
+      return val;
+  const char *name = rel.sym ? rel.sym->getName().data() : "";
+  const char *section = "";
+  if (auto *d = dyn_cast_or_null<Defined>(rel.sym))
+    if (d->section)
+      section = d->section->name.data();
+  ErrAlways(ctx) << getErrorLoc(ctx, loc)
+                 << "OS-9 data-area relocation target is not in .dp.data, "
+                    ".dp.bss, .data or .bss: "
+                 << name << " (" << section << ")";
   return 0;
 }
 
@@ -160,12 +186,12 @@ void MC6809::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
     write16be(loc, static_cast<unsigned short>(val));
     break;
   case R_MC6809_OS9_OFFSET_16:
-    write16be(loc, static_cast<unsigned short>(getOS9DataOffset(ctx, rel, val)));
+    write16be(loc, static_cast<unsigned short>(getOS9DataOffset(ctx, loc, rel, val)));
     break;
   case R_MC6809_OS9_OFFSET_8: {
     // Direct-page operand for an object in the first page of the data area:
     // DP = U >> 8, so the one-byte operand is the data-area offset itself.
-    uint64_t off = getOS9DataOffset(ctx, rel, val);
+    uint64_t off = getOS9DataOffset(ctx, loc, rel, val);
     if (off > 0xFF)
       ErrAlways(ctx) << getErrorLoc(ctx, loc)
                      << "OS-9 direct-page operand: object is not in the first "

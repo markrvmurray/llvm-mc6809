@@ -326,6 +326,18 @@ def Lea_iPtr_OS9Sym : MC6809LogicalInstr {
   dag InOperandList = (ins unknown:$sym);
 }
 
+// Address of an extern-weak function or read-only object on OS9, which may
+// be undefined: then its address must be null, but a PC-relative LEA of a
+// symbol the linker resolved to 0 yields the module's own start (a module is
+// linked at 0 and placed at run time). The custom inserter (emitLeaOS9Weak)
+// builds: dst = #sym (the link-time body offset, 0 when undefined); if dst
+// != 0: dst += module body base (the address of _start, at body offset 0).
+def Lea_iPtr_OS9Weak : MC6809Pseudo {
+  dag OutOperandList = (outs INDEX16:$dst);
+  dag InOperandList = (ins unknown:$sym);
+  let usesCustomInserter = true;
+}
+
 let Predicates = [IsHD6309] in {
   // Bug #208 follow-up: src constrained to AQc — same rationale as
   // Load_i32. Bug #210 round 5 kept this constraint because the
