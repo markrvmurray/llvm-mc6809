@@ -156,7 +156,15 @@ jobs:
         run: |
           set -o pipefail
           cd "$RUNNER_TEMP/dist"
-          archive=$(ls ./*.tar.xz ./*.zip 2>/dev/null | head -1)
+          # find, not `ls a b`: GitHub runs `shell: bash` as `bash -eo
+          # pipefail`, and `ls ./*.tar.xz ./*.zip` exits 1 the moment one of
+          # those patterns matches nothing -- which is always, since a host
+          # produces one or the other.  The step then dies before printing
+          # anything.  find reports what exists and says nothing about what
+          # does not, and -print -quit avoids a pipe that could SIGPIPE.
+          archive=$(find . -maxdepth 1 \
+                      \( -name '*.tar.xz' -o -name '*.zip' \) -print -quit)
+          [ -n "$archive" ] || { echo "::error::the roll produced no archive"; exit 1; }
           shasum -a 256 -c "$(basename "$archive").sha256" 2>/dev/null \
             || sha256sum -c "$(basename "$archive").sha256"
           mkdir -p "$RUNNER_TEMP/unpacked"
@@ -164,7 +172,8 @@ jobs:
             *.zip) unzip -q "$archive" -d "$RUNNER_TEMP/unpacked" ;;
             *)     tar -xf "$archive" -C "$RUNNER_TEMP/unpacked" ;;
           esac
-          bundle=$(ls "$RUNNER_TEMP/unpacked" | head -1)
+          bundle=$(basename "$(find "$RUNNER_TEMP/unpacked" -maxdepth 1 \
+                      -mindepth 1 -type d -print -quit)")
           "$GITHUB_WORKSPACE/_deps/picolibc/scripts/check-mc6809-toolchain" \
               --corpus "$RUNNER_TEMP/unpacked/$bundle" 2>&1 | tee check.log
 
@@ -241,7 +250,10 @@ jobs:
             echo "archive, somewhere it was never built."
           } > "$RUNNER_TEMP/notes.md"
           cat "$RUNNER_TEMP/notes.md"
-          count=$(ls */verified-*.txt 2>/dev/null | wc -l | tr -d ' ')
+          # find rather than ls: with no matches ls exits non-zero, and
+          # under -eo pipefail that kills this step silently -- losing the
+          # very message below that explains what went wrong.
+          count=$(find . -name 'verified-*.txt' | wc -l | tr -d ' ')
           [ "$count" -gt 0 ] || { echo "::error::no host produced a bundle"; exit 1; }
           echo "count=$count" >> "$GITHUB_OUTPUT"
 
