@@ -89,7 +89,7 @@ done
 # clang from elsewhere would send it looking beside *that* one.
 say "naming the tools for the target"
 ( cd "$PREFIX/bin"
-  for t in clang ld.lld llvm-ar llvm-nm llvm-objcopy llvm-objdump \
+  for t in clang clang++ ld.lld llvm-ar llvm-nm llvm-objcopy llvm-objdump \
            llvm-ranlib llvm-readelf llvm-size llvm-strip; do
     [ -e "$t" ] || continue
     short=${t#llvm-}
@@ -99,6 +99,7 @@ say "naming the tools for the target"
   # And one per target, which the driver reads off its own name.
   for target in os9 decb; do
     ln -sf clang "mc6809-$target-clang"
+    ln -sf clang++ "mc6809-$target-clang++"
   done )
 
 # Running one.  The simulators are not part of this bundle -- they are other
