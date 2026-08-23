@@ -265,7 +265,9 @@ when it cannot find them, and the usage guide names where they come from.
 ## What is not done
 
 * **Nothing runs DECB.** The format, the start-up code and the library are
-  written and link; no machine has executed any of it.
+  written and link; no machine has executed any of it.  The other three
+  libraries — bare metal, OS-9, and the 6309 variants of both — are each run
+  by the check.
 * **No packaging**: no tarball, no Homebrew formula, no installer.  A bundle
   is a directory; `tar` is left as an exercise until somebody wants one.
 * **One optimisation level.** Every library is built `-Os`.  An LTO variant

@@ -61,13 +61,13 @@ works for OS-9 as well as for bare metal:
 mc6809-os9-clang -mcpu=hd6309 hello.c -o hello
 ```
 
-**An OS-9 program built for the 6309 needs a NitrOS-9 built for the 6309.**
-The linker marks the module `6309 Obj` in its header, and the kernel matches
-a module by type *and* language, so a 6809 system does not find it at all:
-you get `ERROR #234`, non-existent module, which reads like a missing file
-and is really the kernel declining to run 6309 code on a 6809.  That is the
-right answer — the alternative is an illegal instruction somewhere later —
-but it is a puzzling one the first time.
+**An OS-9 program built for the 6309 needs a NitrOS-9 built for the 6309** —
+the `l<level>_6309` recipe, not the ordinary one.  Nothing marks the program
+as needing it: a module's language byte says `6809 Obj` whatever the `-mcpu`
+was, exactly as NitrOS-9's own 6309 build marks its own modules, because the
+kernel matches a module by type *and* language and only ever asks for that
+one.  Put a 6309 program on a 6809 system and you get an illegal instruction
+when it reaches one, not a polite refusal.
 
 ## Floating point
 
