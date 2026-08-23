@@ -38,6 +38,38 @@ MC6809ToolChain::MC6809ToolChain(const Driver &D, const llvm::Triple &Triple,
 
 Tool *MC6809ToolChain::buildLinker() const { return new tools::mc6809::Linker(*this); }
 
+// There is no libc++ or libstdc++ to choose between; saying so keeps the
+// driver from looking for one and from adding -lc++ to a link.
+ToolChain::CXXStdlibType
+MC6809ToolChain::GetCXXStdlibType(const ArgList &Args) const {
+  return ToolChain::CST_Libcxx;
+}
+
+// The C library's headers under their C++ names, staged beside the
+// compiler's own: <cstdio> includes <stdio.h> and brings its names into
+// namespace std, and that is the whole of the "standard library" here.
+void MC6809ToolChain::AddClangCXXStdlibIncludeArgs(
+    const ArgList &DriverArgs, ArgStringList &CC1Args) const {
+  if (DriverArgs.hasArg(options::OPT_nostdinc, options::OPT_nostdlibinc,
+                        options::OPT_nostdincxx))
+    return;
+
+  SmallString<128> Dir(getDriver().ResourceDir);
+  llvm::sys::path::append(Dir, "include", "c++");
+  if (getDriver().getVFS().exists(Dir))
+    addSystemInclude(DriverArgs, CC1Args, Dir.str());
+}
+
+// What the language needs beyond the C library: operator new and delete over
+// malloc, __cxa_pure_virtual, and the single-threaded guard functions for
+// function-local statics.  Not a standard library, and not pretending to be.
+void MC6809ToolChain::AddCXXStdlibLibArgs(const ArgList &Args,
+                                          ArgStringList &CmdArgs) const {
+  if (Args.hasArg(options::OPT_nostdlib, options::OPT_nostdlibxx))
+    return;
+  CmdArgs.push_back("-lclang_rt.cxx");
+}
+
 // The C library that goes with this clang, found the way the rest of the
 // toolchain is found: beside the binary that was invoked.  `--sysroot` wins,
 // which is what a developer pointing at a live picolibc build directory uses;
@@ -109,6 +141,7 @@ void MC6809ToolChain::addClangTargetOptions(const ArgList &DriverArgs,
   CC1Args.push_back("-nostdsysteminc");
   // Not yet implemented for GlobalISel.
   CC1Args.push_back("-fexperimental-assignment-tracking=disabled");
+
 
   // Bug #163 Phase 2: OS-9 / NitrOS-9 syscalls and library functions
   // traditionally use `$` in identifiers (F$Exit, I$Read, I$Write, …).
@@ -235,6 +268,8 @@ void mc6809::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   if (IsDECB && HaveSysRoot &&
       !Args.hasArg(options::OPT_nodefaultlibs, options::OPT_nostdlib)) {
     CmdArgs.push_back("--start-group");
+    if (D.CCCIsCXX())
+      getToolChain().AddCXXStdlibLibArgs(Args, CmdArgs);
     if (!Args.hasArg(options::OPT_nolibc))
       CmdArgs.push_back("-lc");
     CmdArgs.push_back("-ldecb");
@@ -284,6 +319,8 @@ void mc6809::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   if (HaveSysRoot && !IsDECB &&
       !Args.hasArg(options::OPT_nodefaultlibs, options::OPT_nostdlib)) {
     CmdArgs.push_back("--start-group");
+    if (D.CCCIsCXX())
+      getToolChain().AddCXXStdlibLibArgs(Args, CmdArgs);
     if (!Args.hasArg(options::OPT_nolibc))
       CmdArgs.push_back("-lc");
     CmdArgs.push_back("-lsemihost");
@@ -336,6 +373,8 @@ void mc6809::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       llvm::sys::path::append(LibDir, "lib");
       CmdArgs.push_back(Args.MakeArgString(Twine("-L") + LibDir.str()));
       CmdArgs.push_back("--start-group");
+      if (D.CCCIsCXX())
+        getToolChain().AddCXXStdlibLibArgs(Args, CmdArgs);
       CmdArgs.push_back("-lc");
       CmdArgs.push_back("-los9");
       CmdArgs.push_back("--end-group");

@@ -183,8 +183,12 @@ static bool addExceptionArgs(const ArgList &Args, types::ID InputType,
   }
 
   if (types::isCXX(InputType)) {
-    // Disable C++ EH by default on XCore, PS4/PS5 and GPU targets.
+    // Disable C++ EH by default on XCore, MC6809, PS4/PS5 and GPU targets.
+    // MC6809 has no unwinder and no room for one: a hello world is 7K of a
+    // 64K address space, and the C++ support there is the language over the
+    // C library rather than a standard library.
     bool CXXExceptionsEnabled = Triple.getArch() != llvm::Triple::xcore &&
+                                Triple.getArch() != llvm::Triple::mc6809 &&
                                 !Triple.isPS() && !Triple.isDriverKit() &&
                                 !(Triple.isGPU() && !IsDeviceOffloadAction);
     Arg *ExceptionArg = Args.getLastArg(

@@ -62,6 +62,25 @@ public:
   addClangTargetOptions(const llvm::opt::ArgList &DriverArgs,
                         llvm::opt::ArgStringList &CC1Args, BoundArch BA,
                         Action::OffloadKind DeviceOffloadKind) const override;
+
+  // C++ here is the language over the C library: there is no standard
+  // library, and libc++ would not fit one if there were.  What exists is a
+  // directory of thin covers over the C headers (<cstdio> and friends) and a
+  // small runtime -- operator new and delete, the guard functions -- in
+  // libclang_rt.cxx.
+  void AddClangCXXStdlibIncludeArgs(
+      const llvm::opt::ArgList &DriverArgs,
+      llvm::opt::ArgStringList &CC1Args) const override;
+  void AddCXXStdlibLibArgs(const llvm::opt::ArgList &Args,
+                           llvm::opt::ArgStringList &CmdArgs) const override;
+  CXXStdlibType GetCXXStdlibType(const llvm::opt::ArgList &Args) const override;
+
+  // Neither is implemented, and refusing them plainly beats a link failing
+  // on __cxa_allocate_exception.
+  UnwindTableLevel
+  getDefaultUnwindTableLevel(const llvm::opt::ArgList &Args) const override {
+    return UnwindTableLevel::None;
+  }
 };
 
 } // namespace toolchains

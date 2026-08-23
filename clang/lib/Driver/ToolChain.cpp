@@ -75,8 +75,14 @@ static ToolChain::RTTIMode CalculateRTTIMode(const ArgList &Args,
       return ToolChain::RM_Disabled;
   }
 
-  // -frtti is default, except for the PS4/PS5 and DriverKit.
-  bool NoRTTI = Triple.isPS() || Triple.isDriverKit();
+  // -frtti is default, except for the PS4/PS5, DriverKit and MC6809.  RTTI
+  // on MC6809 wants libcxxabi's type_info hierarchy, which is not there and
+  // would not earn its space: C++ on that target is the language over the C
+  // library, not a standard library.  Off unless asked for, so a
+  // dynamic_cast is refused where it is written rather than at link time by
+  // a mangled name.
+  bool NoRTTI = Triple.isPS() || Triple.isDriverKit() ||
+                Triple.getArch() == llvm::Triple::mc6809;
   return NoRTTI ? ToolChain::RM_Disabled : ToolChain::RM_Enabled;
 }
 
