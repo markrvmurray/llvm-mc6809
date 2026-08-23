@@ -65,6 +65,12 @@ jobs:
       CHECK_MIN_PASS: 39
       CHECK_EXPECT_NOTRUN: 9
       RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+      # Pinned like everything else a release is built from.  usim is not
+      # incidental to the result: it is what decides whether the programs in
+      # the bundle ran correctly, so a floating branch would change what
+      # rebuilding this tag means.  picolibc is pinned by tag because it is
+      # released alongside this one; usim is not, so it is pinned by commit.
+      USIM_SHA: bf2e69d9e99ffb6dccd02854a0abcabc022ba912
 
     steps:
       - name: Check out llvm-mc6809 at the tag
@@ -98,7 +104,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: markrvmurray/usim
-          ref: pico-thing
+          ref: ${{ env.USIM_SHA }}
           path: _deps/usim
 
       - name: Install build tools (Linux)
