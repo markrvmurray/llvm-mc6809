@@ -112,6 +112,16 @@ that says which source built it.
 candidate is built exactly like the release it is a candidate for, so it is
 the only thing that changes between them.
 
+**Then build it in a fresh directory.**  `MC6809_RELEASE` is a plain cache
+entry, so re-running cmake over an existing `build-release` keeps whatever
+it was first configured with, and `CLANG_REPOSITORY_STRING` — which *is*
+forced — is derived from that stale value.  The compiler goes on reporting
+the old number, and since the roll script names the bundle from the
+compiler's own banner, the tarball is named for the wrong candidate.  `-D`
+does not rescue it either: the derived string is computed while the `-C`
+file is read, before any `-D` is applied, so `-DMC6809_RELEASE=` updates the
+number nothing reads any more.  `rm -rf build-release` and configure again.
+
 **A one-off build with a different label** cannot use `-DMC6809_RELEASE=`:
 cmake reads the `-C` file before it applies any `-D`, so the string derived
 from that line is already fixed.  Set the derived string directly:
