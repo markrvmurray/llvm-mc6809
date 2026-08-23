@@ -439,12 +439,32 @@ existed because a person ran three commands on one laptop and read the
 output; that is fine for a candidate and wrong for a release, which nobody
 else can reproduce and which exists for exactly one host.
 
-Three hosts always: **ubuntu-22.04** (not latest — built against the oldest
-glibc we support, so the binaries do not exclude older distributions),
-**macos-14** for arm64, and **macos-13** for an Intel bundle that cannot be
-built on the machine this project is developed on.  Windows joins only when
-asked for, and as an experiment: see [the Windows bug](#) — no Windows
-bundle has ever been produced, and a release must not wait on one.
+Two hosts always: **ubuntu-22.04** (not latest — built against the oldest
+glibc we support, so the binaries do not exclude older distributions) and
+**macos-15** for arm64.  Windows joins only when asked for, and as an
+experiment — no Windows bundle has ever been produced, and a release must
+not wait on one.
+
+**There is no Intel Mac bundle**, and that is not an oversight.  `macos-13`
+was in this matrix until a release run sat queued on it for hours: the
+label has been *withdrawn*, not deprecated — it is absent from
+`actions/runner-images` — so the job waits for a runner that will never
+come, rather than failing.  Intel macOS survives only as `macos-15-intel`
+and the `-large` labels, which are larger runners and are billed even on a
+public repository.  Adding one back is a spending decision.
+
+**Check the labels before trusting a matrix.**  There is no API for the
+hosted images; the live list is the `actions/runner-images` README:
+
+```sh
+gh api repos/actions/runner-images/contents/README.md --jq .content | base64 -d
+```
+
+and what a run actually used is in its job records:
+
+```sh
+gh api repos/OWNER/REPO/actions/runs/RUNID/jobs --jq '.jobs[] | "\(.name) \(.labels)"'
+```
 
 A release pins picolibc **by tag**, not by commit as CI does.  The two
 repositories are released together, and the job stops with a plain message
@@ -455,7 +475,12 @@ Each host holds the same numbers CI does — no failures, at least
 `CHECK_MIN_PASS` passes, no more than `CHECK_EXPECT_NOTRUN` skips — and
 records its tally.  The release notes are then written **from the tallies
 that actually arrived**, so a host whose job failed is absent from the table
-rather than silently implied.  If no host produced a bundle, the publish
+rather than silently implied.
+
+For that to mean anything the publish job runs on `always()`.  `needs:` on a
+matrix means *every* leg succeeded, so without it one failing host would
+skip publication altogether — and the careful accounting of what arrived
+would never run.  If no host produced a bundle, the publish
 step fails instead of creating an empty release.
 
 ### Two things about triggering, one of them a trap

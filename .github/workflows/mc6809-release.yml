@@ -50,13 +50,23 @@ jobs:
       # runs under git-bash.
       #
       # ubuntu-22.04, not latest: built against the oldest glibc we support,
-      # so the binaries do not exclude older distributions.  macos-13 is an
-      # Intel bundle, which cannot be built on the machine this project is
-      # developed on.
+      # so the binaries do not exclude older distributions.
+      #
+      # No Intel Mac.  macos-13 was in this matrix and can never run: the
+      # label has been withdrawn -- not deprecated, absent from
+      # actions/runner-images -- so the job queued until its timeout rather
+      # than failing.  Intel macOS now exists only as macos-15-intel and the
+      # -large labels, which are larger runners and are billed even on a
+      # public repository.  Adding one back is a spending decision, not a
+      # line of YAML.
+      #
+      # macos-15 rather than macos-14: 14 still runs but is marked
+      # deprecated, and a release should not be built on an image that is
+      # being withdrawn.
       matrix:
         include: ${{ fromJSON(github.event.inputs.include_windows == 'true'
-          && '[{"os":"ubuntu-22.04","host":"linux-x86_64","experimental":false},{"os":"macos-14","host":"darwin-arm64","experimental":false},{"os":"macos-13","host":"darwin-x86_64","experimental":false},{"os":"windows-latest","host":"windows-x86_64","experimental":true}]'
-          || '[{"os":"ubuntu-22.04","host":"linux-x86_64","experimental":false},{"os":"macos-14","host":"darwin-arm64","experimental":false},{"os":"macos-13","host":"darwin-x86_64","experimental":false}]') }}
+          && '[{"os":"ubuntu-22.04","host":"linux-x86_64","experimental":false},{"os":"macos-15","host":"darwin-arm64","experimental":false},{"os":"windows-latest","host":"windows-x86_64","experimental":true}]'
+          || '[{"os":"ubuntu-22.04","host":"linux-x86_64","experimental":false},{"os":"macos-15","host":"darwin-arm64","experimental":false}]') }}
 
     env:
       # Every case that needs a machine -- a NitrOS-9 image, a CoCo's ROMs --
@@ -218,7 +228,13 @@ jobs:
   publish:
     name: Attach the bundles to the release
     needs: build
-    if: github.repository == 'markrvmurray/llvm-mc6809'
+    # always(), not the default: `needs: build` on a matrix means "every leg
+    # succeeded", so one host failing would skip this job entirely -- and
+    # with it the whole point of writing the notes from the tallies that
+    # actually arrived.  A host that failed leaves no artifact and is absent
+    # from the table; if none delivered, the step below fails on purpose.
+    # cancelled() is excluded so cancelling a run does not still publish.
+    if: always() && !cancelled() && github.repository == 'markrvmurray/llvm-mc6809'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
