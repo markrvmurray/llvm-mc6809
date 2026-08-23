@@ -439,9 +439,10 @@ existed because a person ran three commands on one laptop and read the
 output; that is fine for a candidate and wrong for a release, which nobody
 else can reproduce and which exists for exactly one host.
 
-Two hosts always: **ubuntu-22.04** (not latest — built against the oldest
-glibc we support, so the binaries do not exclude older distributions) and
-**macos-15** for arm64.  Windows joins only when asked for, and as an
+Three hosts always: **ubuntu-22.04** (not latest — built against the oldest
+glibc we support, so the binaries do not exclude older distributions),
+**ubuntu-22.04-arm** for a Linux bundle that runs on a Pi or an arm server,
+and **macos-15** for arm64.  Windows joins only when asked for, and as an
 experiment — no Windows bundle has ever been produced, and a release must
 not wait on one.
 
