@@ -88,8 +88,25 @@ if usable(clang):
     except OSError:
         has_mc6809_clang = False
 
-usim_boot = os.environ.get("NITROS9_BOOT_DSK", "")
-usim_firmware = os.environ.get("NITROS9_FIRMWARE", "")
+# The images live in a known place under the NitrOS-9 recipes tree, one
+# directory per level, so derive them the way run-mc6809-os9 does rather than
+# making every caller name two paths.  Naming them still wins.
+nitros9_recipes = os.environ.get(
+    "NITROS9_RECIPES",
+    os.path.expanduser("~/Documents/NitrOS-9/nitros9/recipes/picothing"))
+
+
+def level_images(level):
+    lvldir = os.path.join(nitros9_recipes, "l%s" % level)
+    return (os.path.join(lvldir,
+                         "NOS9_6809_L%s_DEV_picothing_x0.dsk" % level),
+            os.path.join(lvldir, "rel_picothing.srec"))
+
+
+nitros9_level = os.environ.get("NITROS9_LEVEL", "2")
+derived_boot, derived_firmware = level_images(nitros9_level)
+usim_boot = os.environ.get("NITROS9_BOOT_DSK") or derived_boot
+usim_firmware = os.environ.get("NITROS9_FIRMWARE") or derived_firmware
 usim_ready = usable(usim09pt) and os.path.isfile(usim_boot) and os.path.isfile(usim_firmware)
 
 mame_rompath = os.environ.get("MAME_ROMPATH", "")
@@ -106,6 +123,12 @@ configured = enabled and usable(os9) and has_mc6809_clang and (
 if configured:
     config.available_features.add("mc6809-os9-runtime")
     config.available_features.add("mc6809-os9-%s-runtime" % backend)
+    # A case can ask for a level other than the one in force (`// LEVEL: 1`),
+    # which is only honest if that level's images are actually here.
+    for _lvl in ("1", "2"):
+        _b, _f = level_images(_lvl)
+        if os.path.isfile(_b) and os.path.isfile(_f):
+            config.available_features.add("nitros9-l%s" % _lvl)
 else:
     config.unsupported = True
 
@@ -115,6 +138,9 @@ config.environment["OS9_TOOL"] = os9
 config.environment["FILECHECK"] = filecheck
 config.environment["MAME"] = mame
 config.environment["NITROS9_USIM09PT"] = usim09pt
+config.environment["NITROS9_RECIPES"] = nitros9_recipes
+config.environment["NITROS9_BOOT_DSK"] = usim_boot
+config.environment["NITROS9_FIRMWARE"] = usim_firmware
 
 for env_name in [
     "NITROS9_BOOT_DSK",

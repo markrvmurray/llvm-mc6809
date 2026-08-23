@@ -18,10 +18,19 @@ input.  A test takes 2–3 s.
 ```sh
 export MC6809_OS9_RUNTIME_TESTS=1
 export NITROS9_USIM09PT=/path/to/usim/usim09pt
-export NITROS9_BOOT_DSK=/path/to/nitros9/recipes/picothing/l2/NOS9_6809_L2_DEV_picothing_x0.dsk
-export NITROS9_FIRMWARE=/path/to/nitros9/recipes/picothing/l2/rel_picothing.srec
+export NITROS9_RECIPES=/path/to/nitros9/recipes/picothing   # if not ~/Documents/...
 llvm/build/bin/llvm-lit -sv compiler-rt/test/mc6809-os9-runtime
 ```
+
+The images are found under `$NITROS9_RECIPES/l<level>` (default level 2,
+`NITROS9_LEVEL` to change it); name `NITROS9_BOOT_DSK` and `NITROS9_FIRMWARE`
+instead if they live somewhere else.  Without them the suite reports
+UNSUPPORTED rather than failing, so check that it says how many tests ran.
+
+A case that only means something at one level says so with a `// LEVEL: N`
+line and requires that level's images (`// REQUIRES: nitros9-l1`); see
+`TestCases/argvlvl1.c`, which checks the recovery of argv[0] from the module
+header where the data area does not start at zero.
 
 The boot image must be an IDE (flat) image, not the recipe's default floppy
 image; build it in the recipe directory with

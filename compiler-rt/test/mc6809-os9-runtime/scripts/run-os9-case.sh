@@ -33,6 +33,18 @@ fi
 
 # Command-line words for the program: an optional `// ARGS: ...` line.
 case_args=$(sed -n 's|^// *ARGS: *||p' "$src" | head -1)
+
+# A case may name the level it wants (`// LEVEL: 1`) when what it checks only
+# shows up at that level; the images come from the recipes tree, one directory
+# per level.  Without the line, whatever the caller configured stands.
+case_level=$(sed -n 's|^// *LEVEL: *||p' "$src" | head -1)
+if [ -n "$case_level" ]; then
+  : "${NITROS9_RECIPES:=$HOME/Documents/NitrOS-9/nitros9/recipes/picothing}"
+  _lvldir="$NITROS9_RECIPES/l$case_level"
+  NITROS9_BOOT_DSK="$_lvldir/NOS9_6809_L${case_level}_DEV_picothing_x0.dsk"
+  NITROS9_FIRMWARE="$_lvldir/rel_picothing.srec"
+  export NITROS9_BOOT_DSK NITROS9_FIRMWARE
+fi
 workdir=$(mktemp -d "${TMPDIR:-/tmp}/mc6809-os9-runtime.XXXXXX")
 if [ "${KEEP_OS9_TEST_WORKDIR:-0}" != 1 ]; then
   trap 'rm -rf "$workdir"' EXIT
