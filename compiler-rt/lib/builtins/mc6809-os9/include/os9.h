@@ -81,10 +81,27 @@ extern "C" {
 #define OS9_E_DELSP  0xDF
 #define OS9_E_IPRCID 0xE0
 #define OS9_E_NOCHLD 0xE2
-#define OS9_E_DNE    0xEF /* directory not empty */
+#define OS9_E_KWNMOD 0xE7
+#define OS9_E_NEMOD  0xEA
+#define OS9_E_BNAM   0xEB
+#define OS9_E_NORAM  0xED
+#define OS9_E_DNE    0xEE /* directory not empty */
+#define OS9_E_NOTASK 0xEF
+#define OS9_E_UNIT   0xF0
+#define OS9_E_SECT   0xF1
 #define OS9_E_WP     0xF2
+#define OS9_E_CRC    0xF3
+#define OS9_E_READ   0xF4
+#define OS9_E_WRITE  0xF5
+#define OS9_E_NOTRDY 0xF6
+#define OS9_E_SEEK   0xF7
 #define OS9_E_FULL   0xF8
+#define OS9_E_BTYP   0xF9
+#define OS9_E_DEVBSY 0xFA
+#define OS9_E_DIDC   0xFB
+#define OS9_E_LOCK   0xFC
 #define OS9_E_SHARE  0xFD
+#define OS9_E_DEADLK 0xFE
 
 /* I$Open / I$Create access modes and file attributes (same bits). */
 #define OS9_READ     0x01

@@ -53,9 +53,10 @@
 	.globl	_start
 	.type	_start,@function
 _start:
-	// --- 0. Keep the parameter string (X) and its length (D) while the
-	//        data area is set up; Y (the top) and U survive on their own.
-	pshs	d,x
+	// --- 0. Keep the parameter string (X), its length (D) and the top of
+	//        the area (Y) while the data area is set up; U survives on its
+	//        own (nothing below writes it).
+	pshs	d,x,y
 	// --- 1. Copy the initialised-data images from the module body into
 	//        the data area: .dp.data to U + __dp_data_start (the direct
 	//        page), .data to U + __data_start.
@@ -148,10 +149,11 @@ _start:
 	// The variables live in the data area (U-relative, the data model);
 	// the linker-script numbers are plain immediates.
 	stu	mc6809_os9_data(__os9_data_base),u
-	sty	mc6809_os9_data(__os9_top),u
-	puls	d,x			// D = parameter length, X = parameter string
+	puls	d,x,y			// D = parameter length, X = parameter string,
+					// Y = top of the area
 	std	mc6809_os9_data(__os9_param_len),u
 	stx	mc6809_os9_data(__os9_param),u
+	sty	mc6809_os9_data(__os9_top),u
 	leax	_start,pc		// the module body starts at its header, 13
 	leax	-13,x			// bytes before _start (M$Exec = 13)
 	stx	mc6809_os9_data(__os9_module),u

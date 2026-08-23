@@ -108,6 +108,25 @@ SECTIONS {
     .data : ALIGN(2) {
         __data_image_start = .;
         *(.data .data.*)
+        /*
+         * Constructor and destructor tables: code pointers, which in a
+         * module placed at run time can only live in the data area (copied
+         * and rebased by the CRT like every pointer in .data).  The bounds
+         * are data-area offsets, as __libc_init_array reaches them.
+         */
+        . = ALIGN(2);
+        __preinit_array_start = .;
+        KEEP(*(.preinit_array))
+        __preinit_array_end = .;
+        __init_array_start = .;
+        KEEP(*(SORT_BY_INIT_PRIORITY(.init_array.*) SORT_BY_INIT_PRIORITY(.ctors.*)))
+        KEEP(*(.init_array .ctors))
+        __init_array_end = .;
+        __fini_array_start = .;
+        KEEP(*(SORT_BY_INIT_PRIORITY(.fini_array.*) SORT_BY_INIT_PRIORITY(.dtors.*)))
+        KEEP(*(.fini_array .dtors))
+        KEEP(*(.fini_array*))
+        __fini_array_end = .;
         __data_image_end = .;
     }
     __data_size = __data_image_end - __data_image_start;

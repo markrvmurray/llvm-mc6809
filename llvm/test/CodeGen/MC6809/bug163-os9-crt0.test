@@ -32,18 +32,40 @@ RUN: llvm-mc -triple=mc6809-unknown-os9 --filetype=obj \
 RUN:   %S/../../../../compiler-rt/lib/builtins/mc6809-os9/crt0.S -o %t-crt0.o
 RUN: llvm-mc -triple=mc6809-unknown-os9 --filetype=obj %t-main.s -o %t-main.o
 
+# The C half of start-up (crt1.c: heap claim, argv, main, F$Exit) stands in
+# as an assembly stub here -- this test is about crt0.S and the module wrap.
+RUN: echo '        .text'                               >  %t-crt1.s
+RUN: echo '        .globl __os9_crt1'                   >> %t-crt1.s
+RUN: echo '__os9_crt1:'                                 >> %t-crt1.s
+RUN: echo '        lbsr main'                           >> %t-crt1.s
+RUN: echo '        tfr x,d'                             >> %t-crt1.s
+RUN: echo '        os9 0x06'                            >> %t-crt1.s
+RUN: echo '        .bss'                                >> %t-crt1.s
+RUN: echo '        .globl __os9_data_base, __os9_param, __os9_param_len, __os9_top' >> %t-crt1.s
+RUN: echo '        .globl __os9_module, __os9_mem_want, __os9_pool_off, __os9_pool_len' >> %t-crt1.s
+RUN: echo '__os9_data_base: .zero 2'                    >> %t-crt1.s
+RUN: echo '__os9_param: .zero 2'                        >> %t-crt1.s
+RUN: echo '__os9_param_len: .zero 2'                    >> %t-crt1.s
+RUN: echo '__os9_top: .zero 2'                          >> %t-crt1.s
+RUN: echo '__os9_module: .zero 2'                       >> %t-crt1.s
+RUN: echo '__os9_mem_want: .zero 2'                     >> %t-crt1.s
+RUN: echo '__os9_pool_off: .zero 2'                     >> %t-crt1.s
+RUN: echo '__os9_pool_len: .zero 2'                     >> %t-crt1.s
+RUN: llvm-mc -triple=mc6809-unknown-os9 --filetype=obj %t-crt1.s -o %t-crt1.o
+
 RUN: ld.lld -T %S/../../../../compiler-rt/lib/builtins/mc6809-os9/mc6809-os9.lds \
 RUN:   --oformat=binary \
-RUN:   %t-crt0.o %t-main.o -o %t.body
+RUN:   %t-crt0.o %t-crt1.o %t-main.o -o %t.body
 
 # Flatten the body to one continuous hex line via xxd (-w on od is
 # GNU-only; xxd is portable across macOS and Linux distros).
 RUN: xxd -p -c 256 %t.body > %t.body.hex
 
-# 1. _start at offset 0 — first instruction is LDD #__dp_data_start (=$18).
-#    Opcode bytes: cc 00 18.  Anchored to start of line.
+# 1. _start at offset 0 — first instructions keep the parameter string, its length and the top
+#    (PSHS D,X,Y: 34 36) and load #__dp_data_start (=$18): cc 00 18.
+#    Anchored to start of line.
 RUN: FileCheck %s --check-prefix=PROLOGUE < %t.body.hex
-PROLOGUE: {{^cc0018}}
+PROLOGUE: {{^3436cc0018}}
 
 # 2. Body must contain the F$Exit syscall sequence (10 3f 06).
 RUN: FileCheck %s --check-prefix=EXITSEQ < %t.body.hex
