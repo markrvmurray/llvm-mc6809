@@ -36,6 +36,7 @@
 
 ; Bug #287: opcodes from shared header (single source of truth).
 .include "mc6839_fpops.inc"
+#include "mc6839_call.inc"
 
 ; ---- BINDEC --------------------------------------------------------------
 ;
@@ -55,24 +56,20 @@
         .global __mc6839_bindec_f64
 __mc6839_bindec_f64:
         pshs    u,y                 ; save callee-saved U, Y
-        ldu     6,s                 ; U = k (digit count)
-        leay    __mc6839_fpcb_f64,pc ; Bug #295: PCR-load &fpcb via Y (X preserved)
-        tfr     y,d                 ; D -> FPCB (ROM ABI)
-        leay    8,s                 ; Y -> double val (8 bytes at S+8..15)
-        lbsr    __fpreg
-        .byte   FPOP_BINDEC
+        FP_ENTRY __mc6839_fpcb_f64
+        ldu     6+FP_SLOT,s                 ; U = k (digit count)
+        leay    8+FP_SLOT,s                 ; Y -> double val (8 bytes at S+8..15)
+        FP_CALL FPOP_BINDEC
         puls    u,y                 ; runs at FPOP+1, restore caller's U,Y
         rts
 
         .global __mc6839_bindec_f32
 __mc6839_bindec_f32:
         pshs    u,y
-        ldu     6,s                 ; U = k
-        leay    __mc6839_fpcb_f32,pc ; Bug #295: PCR-load &fpcb via Y
-        tfr     y,d                 ; D -> FPCB
-        leay    8,s                 ; Y -> float val (4 bytes at S+8..11)
-        lbsr    __fpreg
-        .byte   FPOP_BINDEC
+        FP_ENTRY __mc6839_fpcb_f32
+        ldu     6+FP_SLOT,s                 ; U = k
+        leay    8+FP_SLOT,s                 ; Y -> float val (4 bytes at S+8..11)
+        FP_CALL FPOP_BINDEC
         puls    u,y
         rts
 
@@ -94,21 +91,17 @@ __mc6839_bindec_f32:
         .global __mc6839_decbin_f64
 __mc6839_decbin_f64:
         pshs    u,y
-        ldu     6,s                 ; U -> BCD string
-        leay    __mc6839_fpcb_f64,pc ; Bug #295: PCR-load &fpcb via Y (Y unused by DECBIN ABI)
-        tfr     y,d                 ; D -> FPCB
-        lbsr    __fpreg
-        .byte   FPOP_DECBIN
+        FP_ENTRY __mc6839_fpcb_f64
+        ldu     6+FP_SLOT,s                 ; U -> BCD string
+        FP_CALL FPOP_DECBIN
         puls    u,y
         rts
 
         .global __mc6839_decbin_f32
 __mc6839_decbin_f32:
         pshs    u,y
-        ldu     6,s                 ; U -> BCD string
-        leay    __mc6839_fpcb_f32,pc ; Bug #295: PCR-load &fpcb via Y
-        tfr     y,d                 ; D -> FPCB
-        lbsr    __fpreg
-        .byte   FPOP_DECBIN
+        FP_ENTRY __mc6839_fpcb_f32
+        ldu     6+FP_SLOT,s                 ; U -> BCD string
+        FP_CALL FPOP_DECBIN
         puls    u,y
         rts

@@ -26,6 +26,7 @@
 ; Bug #287: opcodes + IEEE 754 high-half constants from shared headers.
 .include "mc6839_fpops.inc"
 .include "mc6839_abi.inc"
+#include "mc6839_call.inc"
 
 ; ===========================================================================
 ;
@@ -65,11 +66,10 @@ __floatundidf:
         ; "clear-bit-31 + FADD 2^31" trick; otherwise direct FFLTD.
         lda     28,s
         bmi     .Lfundidf_hi_neg
-        leay    __mc6839_fpcb_f64,pc
-        tfr     y,d
-        leay    28,s                 ; Y → hi u32 (positive-as-signed: OK)
-        lbsr    __fpreg
-        .byte   FPOP_FFLTD           ; *X = (double)hi_i32
+        FP_BASE 24
+        FP_ENTRY __mc6839_fpcb_f64
+        leay    28+FP_SLOT,s                 ; Y → hi u32 (positive-as-signed: OK)
+        FP_CALL FPOP_FFLTD
         bra     .Lfundidf_hi_mul
 .Lfundidf_hi_neg:
         ; modified hi u32 with bit 31 cleared at [S+10..13]
@@ -79,11 +79,10 @@ __floatundidf:
         stb     11,s
         ldd     30,s
         std     12,s
-        leay    __mc6839_fpcb_f64,pc
-        tfr     y,d
-        leay    10,s                 ; Y → modified u32
-        lbsr    __fpreg
-        .byte   FPOP_FFLTD           ; *X = (double)(hi & 0x7FFFFFFF)
+        FP_BASE 24
+        FP_ENTRY __mc6839_fpcb_f64
+        leay    10+FP_SLOT,s                 ; Y → modified u32
+        FP_CALL FPOP_FFLTD
         ; add 2^31 = 0x41E0_0000_0000_0000 to *X
         ldd     #F64_TWOP31_HI
         std     14,s
@@ -92,12 +91,11 @@ __floatundidf:
         std     16,s
         std     18,s
         std     20,s
-        ldu     ,s                   ; U = caller's sret (= *X target)
-        leay    __mc6839_fpcb_f64,pc
-        tfr     y,d
-        leay    14,s                 ; Y → 2^31 const
-        lbsr    __fpreg
-        .byte   FPOP_FADD            ; *sret += 2^31
+        FP_BASE 24
+        FP_ENTRY __mc6839_fpcb_f64
+        ldu     0+FP_SLOT,s                   ; U = caller's sret (= *X target)
+        leay    14+FP_SLOT,s                 ; Y → 2^31 const
+        FP_CALL FPOP_FADD
 .Lfundidf_hi_mul:
         ; ----- step 2: *X *= 2^32  (= 0x41F0_0000_0000_0000) -----
         ldd     #F64_TWOP32_HI
@@ -107,21 +105,19 @@ __floatundidf:
         std     4,s
         std     6,s
         std     8,s
-        ldu     ,s                   ; U = sret
-        leay    __mc6839_fpcb_f64,pc
-        tfr     y,d
-        leay    2,s                  ; Y → 2^32 const
-        lbsr    __fpreg
-        .byte   FPOP_FMUL            ; *sret *= 2^32
+        FP_BASE 24
+        FP_ENTRY __mc6839_fpcb_f64
+        ldu     0+FP_SLOT,s                   ; U = sret
+        leay    2+FP_SLOT,s                  ; Y → 2^32 const
+        FP_CALL FPOP_FMUL
         ; ----- step 3: lo_f64 at [S+2..9] via the same FFLTD + maybe-FADD -----
         lda     32,s                 ; lo u32's high byte at [S+32..35]
         bmi     .Lfundidf_lo_neg
-        leax    2,s                  ; lo_f64 scratch
-        leay    __mc6839_fpcb_f64,pc
-        tfr     y,d
-        leay    32,s                 ; Y → lo u32 (positive-as-signed: OK)
-        lbsr    __fpreg
-        .byte   FPOP_FFLTD
+        FP_BASE 24
+        FP_ENTRY __mc6839_fpcb_f64
+        leax    2+FP_SLOT,s                  ; lo_f64 scratch
+        leay    32+FP_SLOT,s                 ; Y → lo u32 (positive-as-signed: OK)
+        FP_CALL FPOP_FFLTD
         bra     .Lfundidf_combine
 .Lfundidf_lo_neg:
         ; modified lo u32 at [S+10..13]; bit 31 cleared
@@ -131,12 +127,11 @@ __floatundidf:
         stb     11,s
         ldd     34,s
         std     12,s
-        leax    2,s                  ; lo_f64 scratch
-        leay    __mc6839_fpcb_f64,pc
-        tfr     y,d
-        leay    10,s
-        lbsr    __fpreg
-        .byte   FPOP_FFLTD           ; lo_f64 = (lo & 0x7FFFFFFF)
+        FP_BASE 24
+        FP_ENTRY __mc6839_fpcb_f64
+        leax    2+FP_SLOT,s                  ; lo_f64 scratch
+        leay    10+FP_SLOT,s
+        FP_CALL FPOP_FFLTD
         ; 2^31 const at [S+14..21]
         ldd     #F64_TWOP31_HI
         std     14,s
@@ -145,21 +140,19 @@ __floatundidf:
         std     16,s
         std     18,s
         std     20,s
-        leau    2,s                  ; U → lo_f64
-        leay    __mc6839_fpcb_f64,pc
-        tfr     y,d
-        leay    14,s                 ; Y → 2^31 const
-        lbsr    __fpreg
-        .byte   FPOP_FADD            ; lo_f64 += 2^31
+        FP_BASE 24
+        FP_ENTRY __mc6839_fpcb_f64
+        leau    2+FP_SLOT,s                  ; U → lo_f64
+        leay    14+FP_SLOT,s                 ; Y → 2^31 const
+        FP_CALL FPOP_FADD
 .Lfundidf_combine:
         ; ----- step 4: *sret += lo_f64 -----
         ldx     ,s                   ; X = sret (step 3 clobbered X)
-        ldu     ,s                   ; U = sret
-        leay    __mc6839_fpcb_f64,pc
-        tfr     y,d
-        leay    2,s                  ; Y → lo_f64
-        lbsr    __fpreg
-        .byte   FPOP_FADD
+        FP_BASE 24
+        FP_ENTRY __mc6839_fpcb_f64
+        ldu     0+FP_SLOT,s                   ; U = sret
+        leay    2+FP_SLOT,s                  ; Y → lo_f64
+        FP_CALL FPOP_FADD
         leas    22,s
         puls    u,y
         rts
@@ -182,11 +175,10 @@ __floatdidf:
         leas    -22,s                ; arg now at [S+28..35]
         stx     ,s                   ; save caller's sret pointer
         ; ----- step 1: hi i32 (SIGNED) → f64 at *X -----
-        leay    __mc6839_fpcb_f64,pc
-        tfr     y,d
-        leay    28,s                 ; Y → hi i32 (always treated signed)
-        lbsr    __fpreg
-        .byte   FPOP_FFLTD
+        FP_BASE 24
+        FP_ENTRY __mc6839_fpcb_f64
+        leay    28+FP_SLOT,s                 ; Y → hi i32 (always treated signed)
+        FP_CALL FPOP_FFLTD
         ; ----- step 2: *X *= 2^32 -----
         ldd     #F64_TWOP32_HI
         std     2,s
@@ -195,21 +187,19 @@ __floatdidf:
         std     4,s
         std     6,s
         std     8,s
-        ldu     ,s
-        leay    __mc6839_fpcb_f64,pc
-        tfr     y,d
-        leay    2,s
-        lbsr    __fpreg
-        .byte   FPOP_FMUL
+        FP_BASE 24
+        FP_ENTRY __mc6839_fpcb_f64
+        ldu     0+FP_SLOT,s
+        leay    2+FP_SLOT,s
+        FP_CALL FPOP_FMUL
         ; ----- step 3: lo u32 → lo_f64 at [S+2..9] (unsigned: same as undidf) -----
         lda     32,s
         bmi     .Lfdidf_lo_neg
-        leax    2,s
-        leay    __mc6839_fpcb_f64,pc
-        tfr     y,d
-        leay    32,s
-        lbsr    __fpreg
-        .byte   FPOP_FFLTD
+        FP_BASE 24
+        FP_ENTRY __mc6839_fpcb_f64
+        leax    2+FP_SLOT,s
+        leay    32+FP_SLOT,s
+        FP_CALL FPOP_FFLTD
         bra     .Lfdidf_combine
 .Lfdidf_lo_neg:
         anda    #0x7F
@@ -218,12 +208,11 @@ __floatdidf:
         stb     11,s
         ldd     34,s
         std     12,s
-        leax    2,s
-        leay    __mc6839_fpcb_f64,pc
-        tfr     y,d
-        leay    10,s
-        lbsr    __fpreg
-        .byte   FPOP_FFLTD
+        FP_BASE 24
+        FP_ENTRY __mc6839_fpcb_f64
+        leax    2+FP_SLOT,s
+        leay    10+FP_SLOT,s
+        FP_CALL FPOP_FFLTD
         ldd     #F64_TWOP31_HI
         std     14,s
         clra
@@ -231,20 +220,18 @@ __floatdidf:
         std     16,s
         std     18,s
         std     20,s
-        leau    2,s
-        leay    __mc6839_fpcb_f64,pc
-        tfr     y,d
-        leay    14,s
-        lbsr    __fpreg
-        .byte   FPOP_FADD
+        FP_BASE 24
+        FP_ENTRY __mc6839_fpcb_f64
+        leau    2+FP_SLOT,s
+        leay    14+FP_SLOT,s
+        FP_CALL FPOP_FADD
 .Lfdidf_combine:
         ldx     ,s                   ; X = sret (step 3 clobbered X)
-        ldu     ,s
-        leay    __mc6839_fpcb_f64,pc
-        tfr     y,d
-        leay    2,s
-        lbsr    __fpreg
-        .byte   FPOP_FADD
+        FP_BASE 24
+        FP_ENTRY __mc6839_fpcb_f64
+        ldu     0+FP_SLOT,s
+        leay    2+FP_SLOT,s
+        FP_CALL FPOP_FADD
         leas    22,s
         puls    u,y
         rts
@@ -275,11 +262,10 @@ __floatundisf:
         ; ----- step 1: hi u32 → f32 at *X -----
         lda     20,s
         bmi     .Lfundisf_hi_neg
-        leay    __mc6839_fpcb_f32,pc
-        tfr     y,d
-        leay    20,s
-        lbsr    __fpreg
-        .byte   FPOP_FFLTD
+        FP_BASE 16
+        FP_ENTRY __mc6839_fpcb_f32
+        leay    20+FP_SLOT,s
+        FP_CALL FPOP_FFLTD
         bra     .Lfundisf_hi_mul
 .Lfundisf_hi_neg:
         anda    #0x7F
@@ -288,23 +274,21 @@ __floatundisf:
         stb     7,s
         ldd     22,s
         std     8,s
-        leay    __mc6839_fpcb_f32,pc
-        tfr     y,d
-        leay    6,s
-        lbsr    __fpreg
-        .byte   FPOP_FFLTD
+        FP_BASE 16
+        FP_ENTRY __mc6839_fpcb_f32
+        leay    6+FP_SLOT,s
+        FP_CALL FPOP_FFLTD
         ; 2^31 as f32 = 0x4F00_0000
         ldd     #F32_TWOP31_HI
         std     10,s
         clra
         clrb
         std     12,s
-        ldu     ,s
-        leay    __mc6839_fpcb_f32,pc
-        tfr     y,d
-        leay    10,s
-        lbsr    __fpreg
-        .byte   FPOP_FADD
+        FP_BASE 16
+        FP_ENTRY __mc6839_fpcb_f32
+        ldu     0+FP_SLOT,s
+        leay    10+FP_SLOT,s
+        FP_CALL FPOP_FADD
 .Lfundisf_hi_mul:
         ; *X *= 2^32 as f32 = 0x4F80_0000
         ldd     #F32_TWOP32_HI
@@ -312,21 +296,19 @@ __floatundisf:
         clra
         clrb
         std     4,s
-        ldu     ,s
-        leay    __mc6839_fpcb_f32,pc
-        tfr     y,d
-        leay    2,s
-        lbsr    __fpreg
-        .byte   FPOP_FMUL
+        FP_BASE 16
+        FP_ENTRY __mc6839_fpcb_f32
+        ldu     0+FP_SLOT,s
+        leay    2+FP_SLOT,s
+        FP_CALL FPOP_FMUL
         ; lo u32 → lo_f32 at [S+2..5]
         lda     24,s
         bmi     .Lfundisf_lo_neg
-        leax    2,s
-        leay    __mc6839_fpcb_f32,pc
-        tfr     y,d
-        leay    24,s
-        lbsr    __fpreg
-        .byte   FPOP_FFLTD
+        FP_BASE 16
+        FP_ENTRY __mc6839_fpcb_f32
+        leax    2+FP_SLOT,s
+        leay    24+FP_SLOT,s
+        FP_CALL FPOP_FFLTD
         bra     .Lfundisf_combine
 .Lfundisf_lo_neg:
         anda    #0x7F
@@ -335,31 +317,28 @@ __floatundisf:
         stb     7,s
         ldd     26,s
         std     8,s
-        leax    2,s
-        leay    __mc6839_fpcb_f32,pc
-        tfr     y,d
-        leay    6,s
-        lbsr    __fpreg
-        .byte   FPOP_FFLTD
+        FP_BASE 16
+        FP_ENTRY __mc6839_fpcb_f32
+        leax    2+FP_SLOT,s
+        leay    6+FP_SLOT,s
+        FP_CALL FPOP_FFLTD
         ldd     #F32_TWOP31_HI
         std     10,s
         clra
         clrb
         std     12,s
-        leau    2,s
-        leay    __mc6839_fpcb_f32,pc
-        tfr     y,d
-        leay    10,s
-        lbsr    __fpreg
-        .byte   FPOP_FADD
+        FP_BASE 16
+        FP_ENTRY __mc6839_fpcb_f32
+        leau    2+FP_SLOT,s
+        leay    10+FP_SLOT,s
+        FP_CALL FPOP_FADD
 .Lfundisf_combine:
         ldx     ,s                   ; X = sret (step 3 clobbered X)
-        ldu     ,s
-        leay    __mc6839_fpcb_f32,pc
-        tfr     y,d
-        leay    2,s
-        lbsr    __fpreg
-        .byte   FPOP_FADD
+        FP_BASE 16
+        FP_ENTRY __mc6839_fpcb_f32
+        ldu     0+FP_SLOT,s
+        leay    2+FP_SLOT,s
+        FP_CALL FPOP_FADD
         leas    14,s
         puls    u,y
         rts
@@ -379,32 +358,29 @@ __floatdisf:
         leas    -14,s
         stx     ,s
         ; hi i32 (SIGNED) → f32 at *X
-        leay    __mc6839_fpcb_f32,pc
-        tfr     y,d
-        leay    20,s
-        lbsr    __fpreg
-        .byte   FPOP_FFLTD
+        FP_BASE 16
+        FP_ENTRY __mc6839_fpcb_f32
+        leay    20+FP_SLOT,s
+        FP_CALL FPOP_FFLTD
         ; *X *= 2^32
         ldd     #F32_TWOP32_HI
         std     2,s
         clra
         clrb
         std     4,s
-        ldu     ,s
-        leay    __mc6839_fpcb_f32,pc
-        tfr     y,d
-        leay    2,s
-        lbsr    __fpreg
-        .byte   FPOP_FMUL
+        FP_BASE 16
+        FP_ENTRY __mc6839_fpcb_f32
+        ldu     0+FP_SLOT,s
+        leay    2+FP_SLOT,s
+        FP_CALL FPOP_FMUL
         ; lo u32 → lo_f32 at [S+2..5]
         lda     24,s
         bmi     .Lfdisf_lo_neg
-        leax    2,s
-        leay    __mc6839_fpcb_f32,pc
-        tfr     y,d
-        leay    24,s
-        lbsr    __fpreg
-        .byte   FPOP_FFLTD
+        FP_BASE 16
+        FP_ENTRY __mc6839_fpcb_f32
+        leax    2+FP_SLOT,s
+        leay    24+FP_SLOT,s
+        FP_CALL FPOP_FFLTD
         bra     .Lfdisf_combine
 .Lfdisf_lo_neg:
         anda    #0x7F
@@ -413,31 +389,28 @@ __floatdisf:
         stb     7,s
         ldd     26,s
         std     8,s
-        leax    2,s
-        leay    __mc6839_fpcb_f32,pc
-        tfr     y,d
-        leay    6,s
-        lbsr    __fpreg
-        .byte   FPOP_FFLTD
+        FP_BASE 16
+        FP_ENTRY __mc6839_fpcb_f32
+        leax    2+FP_SLOT,s
+        leay    6+FP_SLOT,s
+        FP_CALL FPOP_FFLTD
         ldd     #F32_TWOP31_HI
         std     10,s
         clra
         clrb
         std     12,s
-        leau    2,s
-        leay    __mc6839_fpcb_f32,pc
-        tfr     y,d
-        leay    10,s
-        lbsr    __fpreg
-        .byte   FPOP_FADD
+        FP_BASE 16
+        FP_ENTRY __mc6839_fpcb_f32
+        leau    2+FP_SLOT,s
+        leay    10+FP_SLOT,s
+        FP_CALL FPOP_FADD
 .Lfdisf_combine:
         ldx     ,s                   ; X = sret (step 3 clobbered X)
-        ldu     ,s
-        leay    __mc6839_fpcb_f32,pc
-        tfr     y,d
-        leay    2,s
-        lbsr    __fpreg
-        .byte   FPOP_FADD
+        FP_BASE 16
+        FP_ENTRY __mc6839_fpcb_f32
+        ldu     0+FP_SLOT,s
+        leay    2+FP_SLOT,s
+        FP_CALL FPOP_FADD
         leas    14,s
         puls    u,y
         rts
@@ -507,29 +480,26 @@ __fixdfdi:
         std     30,s
         std     32,s
         std     34,s
-        leax    20,s                 ; X = scratch
-        leau    4,s                  ; U = |a|
-        leay    __mc6839_fpcb_f64,pc
-        tfr     y,d
-        leay    28,s                 ; Y = 2^-32
-        lbsr    __fpreg
-        .byte   FPOP_FMUL
+        FP_BASE 42
+        FP_ENTRY __mc6839_fpcb_f64
+        leax    20+FP_SLOT,s                 ; X = scratch
+        leau    4+FP_SLOT,s                  ; U = |a|
+        leay    28+FP_SLOT,s                 ; Y = 2^-32
+        FP_CALL FPOP_FMUL
 
         ; ----- step 3: hi_i32 = FFIXD_trunc(scratch) -----
-        leax    12,s                 ; X = hi_i32 buf
-        leay    __mc6839_fpcb_f64_trunc,pc
-        tfr     y,d
-        leay    20,s                 ; Y = scratch
-        lbsr    __fpreg
-        .byte   FPOP_FFIXD
+        FP_BASE 42
+        FP_ENTRY __mc6839_fpcb_f64_trunc
+        leax    12+FP_SLOT,s                 ; X = hi_i32 buf
+        leay    20+FP_SLOT,s                 ; Y = scratch
+        FP_CALL FPOP_FFIXD
 
         ; ----- step 4: scratch = (double)hi_i32 -----
-        leax    20,s                 ; X = scratch
-        leay    __mc6839_fpcb_f64,pc
-        tfr     y,d
-        leay    12,s                 ; Y = hi_i32 buf
-        lbsr    __fpreg
-        .byte   FPOP_FFLTD
+        FP_BASE 42
+        FP_ENTRY __mc6839_fpcb_f64
+        leax    20+FP_SLOT,s                 ; X = scratch
+        leay    12+FP_SLOT,s                 ; Y = hi_i32 buf
+        FP_CALL FPOP_FFLTD
 
         ; ----- step 5: scratch *= 2^32 -----
         ldd     #F64_TWOP32_HI
@@ -539,22 +509,20 @@ __fixdfdi:
         std     30,s
         std     32,s
         std     34,s
-        leax    20,s
-        leau    20,s
-        leay    __mc6839_fpcb_f64,pc
-        tfr     y,d
-        leay    28,s
-        lbsr    __fpreg
-        .byte   FPOP_FMUL
+        FP_BASE 42
+        FP_ENTRY __mc6839_fpcb_f64
+        leax    20+FP_SLOT,s
+        leau    20+FP_SLOT,s
+        leay    28+FP_SLOT,s
+        FP_CALL FPOP_FMUL
 
         ; ----- step 6: scratch = |a| - scratch  (residual) -----
-        leax    20,s
-        leau    4,s                  ; U = |a|
-        leay    __mc6839_fpcb_f64,pc
-        tfr     y,d
-        leay    20,s                 ; Y = scratch (current = hi*2^32)
-        lbsr    __fpreg
-        .byte   FPOP_FSUB            ; scratch = |a| - hi*2^32 = residual
+        FP_BASE 42
+        FP_ENTRY __mc6839_fpcb_f64
+        leax    20+FP_SLOT,s
+        leau    4+FP_SLOT,s                  ; U = |a|
+        leay    20+FP_SLOT,s                 ; Y = scratch (current = hi*2^32)
+        FP_CALL FPOP_FSUB
 
         ; ----- step 7: split lo on residual < or >= 2^31 -----
         ldd     20,s                 ; top 2 bytes of residual
@@ -562,12 +530,11 @@ __fixdfdi:
         bhs     .Lfdd_bit31
 
         ; Simple: lo_u32 = FFIXD_trunc(residual). X = &lo_u32, Y = residual.
-        leax    16,s
-        leay    __mc6839_fpcb_f64_trunc,pc
-        tfr     y,d
-        leay    20,s
-        lbsr    __fpreg
-        .byte   FPOP_FFIXD
+        FP_BASE 42
+        FP_ENTRY __mc6839_fpcb_f64_trunc
+        leax    16+FP_SLOT,s
+        leay    20+FP_SLOT,s
+        FP_CALL FPOP_FFIXD
         bra     .Lfdd_compose
 
 .Lfdd_bit31:
@@ -579,19 +546,17 @@ __fixdfdi:
         std     30,s
         std     32,s
         std     34,s
-        leax    20,s
-        leau    20,s
-        leay    __mc6839_fpcb_f64,pc
-        tfr     y,d
-        leay    28,s
-        lbsr    __fpreg
-        .byte   FPOP_FSUB            ; scratch -= 2^31, now in [0, 2^31)
-        leax    16,s                 ; X = lo_u32 buf
-        leay    __mc6839_fpcb_f64_trunc,pc
-        tfr     y,d
-        leay    20,s
-        lbsr    __fpreg
-        .byte   FPOP_FFIXD
+        FP_BASE 42
+        FP_ENTRY __mc6839_fpcb_f64
+        leax    20+FP_SLOT,s
+        leau    20+FP_SLOT,s
+        leay    28+FP_SLOT,s
+        FP_CALL FPOP_FSUB
+        FP_BASE 42
+        FP_ENTRY __mc6839_fpcb_f64_trunc
+        leax    16+FP_SLOT,s                 ; X = lo_u32 buf
+        leay    20+FP_SLOT,s
+        FP_CALL FPOP_FFIXD
         ; OR bit 31 of the high byte: set bit 7 of [S+16].
         lda     16,s
         ora     #0x80
@@ -705,29 +670,26 @@ __fixsfdi:
         clra
         clrb
         std     26,s
-        leax    20,s
-        leau    4,s
-        leay    __mc6839_fpcb_f32,pc
-        tfr     y,d
-        leay    24,s
-        lbsr    __fpreg
-        .byte   FPOP_FMUL
+        FP_BASE 34
+        FP_ENTRY __mc6839_fpcb_f32
+        leax    20+FP_SLOT,s
+        leau    4+FP_SLOT,s
+        leay    24+FP_SLOT,s
+        FP_CALL FPOP_FMUL
 
         ; hi_i32 = FFIXD_trunc(scratch)
-        leax    12,s
-        leay    __mc6839_fpcb_f32_trunc,pc
-        tfr     y,d
-        leay    20,s
-        lbsr    __fpreg
-        .byte   FPOP_FFIXD
+        FP_BASE 34
+        FP_ENTRY __mc6839_fpcb_f32_trunc
+        leax    12+FP_SLOT,s
+        leay    20+FP_SLOT,s
+        FP_CALL FPOP_FFIXD
 
         ; scratch = (float)hi_i32
-        leax    20,s
-        leay    __mc6839_fpcb_f32,pc
-        tfr     y,d
-        leay    12,s
-        lbsr    __fpreg
-        .byte   FPOP_FFLTD
+        FP_BASE 34
+        FP_ENTRY __mc6839_fpcb_f32
+        leax    20+FP_SLOT,s
+        leay    12+FP_SLOT,s
+        FP_CALL FPOP_FFLTD
 
         ; scratch *= 2^32. 2^32 f32 = 0x4F800000.
         ldd     #F32_TWOP32_HI
@@ -735,34 +697,31 @@ __fixsfdi:
         clra
         clrb
         std     26,s
-        leax    20,s
-        leau    20,s
-        leay    __mc6839_fpcb_f32,pc
-        tfr     y,d
-        leay    24,s
-        lbsr    __fpreg
-        .byte   FPOP_FMUL
+        FP_BASE 34
+        FP_ENTRY __mc6839_fpcb_f32
+        leax    20+FP_SLOT,s
+        leau    20+FP_SLOT,s
+        leay    24+FP_SLOT,s
+        FP_CALL FPOP_FMUL
 
         ; scratch = |a| - scratch
-        leax    20,s
-        leau    4,s
-        leay    __mc6839_fpcb_f32,pc
-        tfr     y,d
-        leay    20,s
-        lbsr    __fpreg
-        .byte   FPOP_FSUB
+        FP_BASE 34
+        FP_ENTRY __mc6839_fpcb_f32
+        leax    20+FP_SLOT,s
+        leau    4+FP_SLOT,s
+        leay    20+FP_SLOT,s
+        FP_CALL FPOP_FSUB
 
         ; Check residual >= 2^31? Top 2 bytes >= 0x4F00?
         ldd     20,s
         cmpd    #F32_TWOP31_HI
         bhs     .Lfsd_bit31
 
-        leax    16,s
-        leay    __mc6839_fpcb_f32_trunc,pc
-        tfr     y,d
-        leay    20,s
-        lbsr    __fpreg
-        .byte   FPOP_FFIXD
+        FP_BASE 34
+        FP_ENTRY __mc6839_fpcb_f32_trunc
+        leax    16+FP_SLOT,s
+        leay    20+FP_SLOT,s
+        FP_CALL FPOP_FFIXD
         bra     .Lfsd_compose
 
 .Lfsd_bit31:
@@ -772,19 +731,17 @@ __fixsfdi:
         clra
         clrb
         std     26,s
-        leax    20,s
-        leau    20,s
-        leay    __mc6839_fpcb_f32,pc
-        tfr     y,d
-        leay    24,s
-        lbsr    __fpreg
-        .byte   FPOP_FSUB
-        leax    16,s
-        leay    __mc6839_fpcb_f32_trunc,pc
-        tfr     y,d
-        leay    20,s
-        lbsr    __fpreg
-        .byte   FPOP_FFIXD
+        FP_BASE 34
+        FP_ENTRY __mc6839_fpcb_f32
+        leax    20+FP_SLOT,s
+        leau    20+FP_SLOT,s
+        leay    24+FP_SLOT,s
+        FP_CALL FPOP_FSUB
+        FP_BASE 34
+        FP_ENTRY __mc6839_fpcb_f32_trunc
+        leax    16+FP_SLOT,s
+        leay    20+FP_SLOT,s
+        FP_CALL FPOP_FFIXD
         lda     16,s
         ora     #0x80
         sta     16,s

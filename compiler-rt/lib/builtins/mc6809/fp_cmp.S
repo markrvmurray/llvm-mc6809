@@ -36,6 +36,7 @@
 
 ; Bug #287: opcodes + parameter-word constants from shared headers.
 .include "mc6839_fpops.inc"
+#include "mc6839_call.inc"
 .include "mc6839_abi.inc"
 
 ; ---- f32 comparison --------------------------------------------------------
@@ -55,13 +56,11 @@ __gesf2:
 __eqsf2:
 __nesf2:
         pshs    u,y,x               ; save callee-saved U,Y + result buffer X
-        leau    8,s                 ; U = &arg1
-        leay    __mc6839_fpcb_f32,pc ; Bug #295: PCR-load &fpcb (X is sret buffer)
-        tfr     y,d                 ; D = &fpcb (ROM ABI)
-        leay    12,s                ; Y = &arg2
+        FP_ENTRY __mc6839_fpcb_f32
+        leau    8+FP_SLOT,s                 ; U = &arg1
+        leay    12+FP_SLOT,s                ; Y = &arg2
         ldx     #FCMP_S_S           ; parameter word: single, single
-        lbsr    __fpreg
-        .byte   FPOP_FCMP
+        FP_CALL FPOP_FCMP
         bra     .Lcmp_cleanup       ; (BRA preserves CC)
 
 ; ---- f64 comparison --------------------------------------------------------
@@ -81,13 +80,11 @@ __gedf2:
 __eqdf2:
 __nedf2:
         pshs    u,y,x
-        leau    8,s
-        leay    __mc6839_fpcb_f64,pc ; Bug #295: PCR-load &fpcb (X is sret buffer)
-        tfr     y,d                 ; D = &fpcb (ROM ABI)
-        leay    16,s                ; Y = &arg2 (f64 arg2 starts 8 bytes higher)
+        FP_ENTRY __mc6839_fpcb_f64
+        leau    8+FP_SLOT,s
+        leay    16+FP_SLOT,s                ; Y = &arg2 (f64 arg2 starts 8 bytes higher)
         ldx     #FCMP_D_D           ; parameter word: double, double
-        lbsr    __fpreg
-        .byte   FPOP_FCMP
+        FP_CALL FPOP_FCMP
         ; fall through
 
 ; ---- shared cleanup --------------------------------------------------------
@@ -143,25 +140,21 @@ __nedf2:
         .global __unordsf2
 __unordsf2:
         pshs    u,y,x               ; save callee-saved U,Y + result buffer X
-        leau    8,s                 ; U = &arg1
-        leay    __mc6839_fpcb_f32,pc ; &fpcb (X is sret buffer)
-        tfr     y,d                 ; D = &fpcb (ROM ABI)
-        leay    12,s                ; Y = &arg2
+        FP_ENTRY __mc6839_fpcb_f32
+        leau    8+FP_SLOT,s                 ; U = &arg1
+        leay    12+FP_SLOT,s                ; Y = &arg2
         ldx     #FCMP_S_S           ; parameter word: single, single
-        lbsr    __fpreg
-        .byte   FPOP_FCMP
+        FP_CALL FPOP_FCMP
         bra     .Lunord_cleanup     ; (BRA preserves CC)
 
         .global __unorddf2
 __unorddf2:
         pshs    u,y,x
-        leau    8,s
-        leay    __mc6839_fpcb_f64,pc ; &fpcb (X is sret buffer)
-        tfr     y,d                 ; D = &fpcb (ROM ABI)
-        leay    16,s                ; Y = &arg2 (f64 arg2 starts 8 bytes higher)
+        FP_ENTRY __mc6839_fpcb_f64
+        leau    8+FP_SLOT,s
+        leay    16+FP_SLOT,s                ; Y = &arg2 (f64 arg2 starts 8 bytes higher)
         ldx     #FCMP_D_D           ; parameter word: double, double
-        lbsr    __fpreg
-        .byte   FPOP_FCMP
+        FP_CALL FPOP_FCMP
         ; fall through
 
 ; On entry: CC = comparison result; X = parameter word. Saved result

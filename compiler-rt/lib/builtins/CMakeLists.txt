@@ -1117,27 +1117,14 @@ list(APPEND mc6809_SOURCES
   mc6809/fenv.c
 )
 
-# OS-9 program modules (mc6809-unknown-os9) get the integer builtins only.
-# The MC6839 floating-point layer keeps its ROM image and control blocks
-# in the module body and reaches them PC-relatively, which an OS-9 module
-# cannot do for anything it writes; OS-9 floating point wants the kernel's
-# own Float09 module (F$Link) and is not built yet.
+# OS-9 program modules (mc6809-unknown-os9) do not carry the MC6839 ROM in
+# their own image: it is the FPO9 module, which the start-up code links at
+# run time (F$Link) and unlinks on the way out.  Everything else about the
+# floating-point layer is the same; the wrappers know where to reach the
+# control blocks and the ROM entry from <mc6839_call.inc>.
 if(COMPILER_RT_DEFAULT_TARGET_TRIPLE MATCHES "-os9")
   list(REMOVE_ITEM mc6809_SOURCES
-    mc6809/fp_bcd.S
-    mc6809/floatdi.S
     mc6809/mc6839_rom.S
-    mc6809/fp_data.S
-    mc6809/fp_arith.S
-    mc6809/fp_conv.S
-    mc6809/fp_cmp.S
-    mc6809/fp_trampoline.S
-    mc6809/fenv.c
-    # Generic C that is only floating-point glue.
-    divsc3.c divdc3.c divxc3.c divtc3.c
-    mulsc3.c muldc3.c mulxc3.c multc3.c
-    fp_mode.c
-    extendbfsf2.c truncdfbf2.c truncsfbf2.c truncxfbf2.c trunctfbf2.c
   )
 endif()
 

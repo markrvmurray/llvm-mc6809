@@ -273,18 +273,8 @@ int feholdexcept(fenv_t *envp) {
     return 0;
 }
 
-/* ------------------------------------------------------------------ */
-/* Non-standard: MC6839 ROM runtime entry-point setup                 */
-/* ------------------------------------------------------------------ */
-
-/* Update the three pointer globals declared in fp_trampoline.S to
- * reflect a new ROM base address.  For bare-metal, the linker has
- * already initialised these to `__mc6839_rom_start + offset` and no
- * call is needed.  For OS-9, crt0 calls this after F$Link("Float09")
- * returns the dynamic load address. */
-void __mc6839_set_rom_base(void *base) {
-    char *p = (char *)base;
-    __mc6839_rom_base   = p;
-    __mc6839_fpreg_ptr  = p + MC6839_FPREG_OFFSET;
-    __mc6839_fpstak_ptr = p + MC6839_FPSTAK_OFFSET;
-}
+/* __mc6839_set_rom_base() sets the pointer globals; it lives in
+ * fp_trampoline.S, beside them, because a program that does floating
+ * point pulls that object in and this one only when it asks for
+ * <fenv.h> -- and the start-up code, whose reference is weak, needs the
+ * one it is sure to have. */

@@ -27,54 +27,47 @@
 
 ; Bug #287: opcodes from shared header (single source of truth).
 .include "mc6839_fpops.inc"
+#include "mc6839_call.inc"
 
 ; ---- f32 dyadic -------------------------------------------------------------
 
         .global __addsf3
 __addsf3:
         pshs    u,y
-        leau    6,s
-        leay    __mc6839_fpcb_f32,pc
-        tfr     y,d
-        leay    10,s
-        lbsr    __fpreg
-        .byte   FPOP_FADD
+        FP_ENTRY __mc6839_fpcb_f32
+        leau    6+FP_SLOT,s
+        leay    10+FP_SLOT,s
+        FP_CALL FPOP_FADD
         puls    u,y
         rts
 
         .global __subsf3
 __subsf3:
         pshs    u,y
-        leau    6,s
-        leay    __mc6839_fpcb_f32,pc
-        tfr     y,d
-        leay    10,s
-        lbsr    __fpreg
-        .byte   FPOP_FSUB
+        FP_ENTRY __mc6839_fpcb_f32
+        leau    6+FP_SLOT,s
+        leay    10+FP_SLOT,s
+        FP_CALL FPOP_FSUB
         puls    u,y
         rts
 
         .global __mulsf3
 __mulsf3:
         pshs    u,y
-        leau    6,s
-        leay    __mc6839_fpcb_f32,pc
-        tfr     y,d
-        leay    10,s
-        lbsr    __fpreg
-        .byte   FPOP_FMUL
+        FP_ENTRY __mc6839_fpcb_f32
+        leau    6+FP_SLOT,s
+        leay    10+FP_SLOT,s
+        FP_CALL FPOP_FMUL
         puls    u,y
         rts
 
         .global __divsf3
 __divsf3:
         pshs    u,y
-        leau    6,s
-        leay    __mc6839_fpcb_f32,pc
-        tfr     y,d
-        leay    10,s
-        lbsr    __fpreg
-        .byte   FPOP_FDIV
+        FP_ENTRY __mc6839_fpcb_f32
+        leau    6+FP_SLOT,s
+        leay    10+FP_SLOT,s
+        FP_CALL FPOP_FDIV
         puls    u,y
         rts
 
@@ -83,48 +76,40 @@ __divsf3:
         .global __adddf3
 __adddf3:
         pshs    u,y
-        leau    6,s
-        leay    __mc6839_fpcb_f64,pc
-        tfr     y,d
-        leay    14,s
-        lbsr    __fpreg
-        .byte   FPOP_FADD
+        FP_ENTRY __mc6839_fpcb_f64
+        leau    6+FP_SLOT,s
+        leay    14+FP_SLOT,s
+        FP_CALL FPOP_FADD
         puls    u,y
         rts
 
         .global __subdf3
 __subdf3:
         pshs    u,y
-        leau    6,s
-        leay    __mc6839_fpcb_f64,pc
-        tfr     y,d
-        leay    14,s
-        lbsr    __fpreg
-        .byte   FPOP_FSUB
+        FP_ENTRY __mc6839_fpcb_f64
+        leau    6+FP_SLOT,s
+        leay    14+FP_SLOT,s
+        FP_CALL FPOP_FSUB
         puls    u,y
         rts
 
         .global __muldf3
 __muldf3:
         pshs    u,y
-        leau    6,s
-        leay    __mc6839_fpcb_f64,pc
-        tfr     y,d
-        leay    14,s
-        lbsr    __fpreg
-        .byte   FPOP_FMUL
+        FP_ENTRY __mc6839_fpcb_f64
+        leau    6+FP_SLOT,s
+        leay    14+FP_SLOT,s
+        FP_CALL FPOP_FMUL
         puls    u,y
         rts
 
         .global __divdf3
 __divdf3:
         pshs    u,y
-        leau    6,s
-        leay    __mc6839_fpcb_f64,pc
-        tfr     y,d
-        leay    14,s
-        lbsr    __fpreg
-        .byte   FPOP_FDIV
+        FP_ENTRY __mc6839_fpcb_f64
+        leau    6+FP_SLOT,s
+        leay    14+FP_SLOT,s
+        FP_CALL FPOP_FDIV
         puls    u,y
         rts
 
@@ -133,22 +118,18 @@ __divdf3:
         .global __sqrtsf2
 __sqrtsf2:
         pshs    u,y
-        leay    __mc6839_fpcb_f32,pc
-        tfr     y,d
-        leay    6,s
-        lbsr    __fpreg
-        .byte   FPOP_FSQRT
+        FP_ENTRY __mc6839_fpcb_f32
+        leay    6+FP_SLOT,s
+        FP_CALL FPOP_FSQRT
         puls    u,y
         rts
 
         .global __sqrtdf2
 __sqrtdf2:
         pshs    u,y
-        leay    __mc6839_fpcb_f64,pc
-        tfr     y,d
-        leay    6,s
-        lbsr    __fpreg
-        .byte   FPOP_FSQRT
+        FP_ENTRY __mc6839_fpcb_f64
+        leay    6+FP_SLOT,s
+        FP_CALL FPOP_FSQRT
         puls    u,y
         rts
 
@@ -162,22 +143,18 @@ __sqrtdf2:
         .global __abssf2
 __abssf2:
         pshs    u,y
-        leay    __mc6839_fpcb_f32,pc
-        tfr     y,d
-        leay    6,s
-        lbsr    __fpreg
-        .byte   FPOP_FABS
+        FP_ENTRY __mc6839_fpcb_f32
+        leay    6+FP_SLOT,s
+        FP_CALL FPOP_FABS
         puls    u,y
         rts
 
         .global __absdf2
 __absdf2:
         pshs    u,y
-        leay    __mc6839_fpcb_f64,pc
-        tfr     y,d
-        leay    6,s
-        lbsr    __fpreg
-        .byte   FPOP_FABS
+        FP_ENTRY __mc6839_fpcb_f64
+        leay    6+FP_SLOT,s
+        FP_CALL FPOP_FABS
         puls    u,y
         rts
 
@@ -190,21 +167,17 @@ __absdf2:
         .global __negsf2
 __negsf2:
         pshs    u,y
-        leay    __mc6839_fpcb_f32,pc
-        tfr     y,d
-        leay    6,s
-        lbsr    __fpreg
-        .byte   FPOP_FNEG
+        FP_ENTRY __mc6839_fpcb_f32
+        leay    6+FP_SLOT,s
+        FP_CALL FPOP_FNEG
         puls    u,y
         rts
 
         .global __negdf2
 __negdf2:
         pshs    u,y
-        leay    __mc6839_fpcb_f64,pc
-        tfr     y,d
-        leay    6,s
-        lbsr    __fpreg
-        .byte   FPOP_FNEG
+        FP_ENTRY __mc6839_fpcb_f64
+        leay    6+FP_SLOT,s
+        FP_CALL FPOP_FNEG
         puls    u,y
         rts

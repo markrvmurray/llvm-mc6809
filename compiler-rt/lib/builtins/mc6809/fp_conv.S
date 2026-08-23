@@ -20,6 +20,7 @@
 
 ; Bug #287: opcodes + FMOV/IEEE constants from shared headers.
 .include "mc6839_fpops.inc"
+#include "mc6839_call.inc"
 .include "mc6839_abi.inc"
 
 ; ---- precision conversion (FMOV; U = precision word) ----------------------
@@ -28,12 +29,10 @@
 __extendsfdf2:
         ; f32 → f64.  Precision word: src=single(0), dst=double(1).
         pshs    u,y
+        FP_ENTRY __mc6839_fpcb_f64
         ldu     #FMOV_S_TO_D
-        leay    __mc6839_fpcb_f64,pc
-        tfr     y,d
-        leay    6,s
-        lbsr    __fpreg
-        .byte   FPOP_FMOV
+        leay    6+FP_SLOT,s
+        FP_CALL FPOP_FMOV
         puls    u,y
         rts
 
@@ -41,12 +40,10 @@ __extendsfdf2:
 __truncdfsf2:
         ; f64 → f32.  Precision word: src=double(1), dst=single(0).
         pshs    u,y
+        FP_ENTRY __mc6839_fpcb_f32
         ldu     #FMOV_D_TO_S
-        leay    __mc6839_fpcb_f32,pc
-        tfr     y,d
-        leay    6,s
-        lbsr    __fpreg
-        .byte   FPOP_FMOV
+        leay    6+FP_SLOT,s
+        FP_CALL FPOP_FMOV
         puls    u,y
         rts
 
@@ -56,11 +53,9 @@ __truncdfsf2:
 __floatsisf:
         ; signed i32 → f32.  Y → i32 arg.
         pshs    u,y
-        leay    __mc6839_fpcb_f32,pc
-        tfr     y,d
-        leay    6,s
-        lbsr    __fpreg
-        .byte   FPOP_FFLTD
+        FP_ENTRY __mc6839_fpcb_f32
+        leay    6+FP_SLOT,s
+        FP_CALL FPOP_FFLTD
         puls    u,y
         rts
 
@@ -68,11 +63,9 @@ __floatsisf:
 __floatsidf:
         ; signed i32 → f64.
         pshs    u,y
-        leay    __mc6839_fpcb_f64,pc
-        tfr     y,d
-        leay    6,s
-        lbsr    __fpreg
-        .byte   FPOP_FFLTD
+        FP_ENTRY __mc6839_fpcb_f64
+        leay    6+FP_SLOT,s
+        FP_CALL FPOP_FFLTD
         puls    u,y
         rts
 
@@ -96,32 +89,27 @@ __floatunsisf:
         std     ,s
         ldd     12,s
         std     2,s
-        leay    __mc6839_fpcb_f32,pc
-        tfr     y,d
-        leay    ,s
-        lbsr    __fpreg
-        .byte   FPOP_FFLTD
+        FP_ENTRY __mc6839_fpcb_f32
+        leay    0+FP_SLOT,s
+        FP_CALL FPOP_FFLTD
         ; result now in *X.  Add 2^31 = 0x4F000000.
         ldd     #F32_TWOP31_HI
         std     ,s
         clra
         clrb
         std     2,s
+        FP_BASE 6
+        FP_ENTRY __mc6839_fpcb_f32
         leau    ,x                  ; U → *X (FADD arg1)
-        leay    __mc6839_fpcb_f32,pc
-        tfr     y,d
-        leay    ,s                  ; Y → 2^31 constant
-        lbsr    __fpreg
-        .byte   FPOP_FADD
+        leay    0+FP_SLOT,s                  ; Y → 2^31 constant
+        FP_CALL FPOP_FADD
         leas    4,s
         puls    u,y
         rts
 .Lfunsisf_simple:
-        leay    __mc6839_fpcb_f32,pc
-        tfr     y,d
-        leay    6,s
-        lbsr    __fpreg
-        .byte   FPOP_FFLTD
+        FP_ENTRY __mc6839_fpcb_f32
+        leay    6+FP_SLOT,s
+        FP_CALL FPOP_FFLTD
         puls    u,y
         rts
 
@@ -138,11 +126,9 @@ __floatunsidf:
         std     ,s
         ldd     20,s
         std     2,s
-        leay    __mc6839_fpcb_f64,pc
-        tfr     y,d
-        leay    ,s
-        lbsr    __fpreg
-        .byte   FPOP_FFLTD
+        FP_ENTRY __mc6839_fpcb_f64
+        leay    0+FP_SLOT,s
+        FP_CALL FPOP_FFLTD
         ; 2^31 as f64 = 0x41E0000000000000
         ldd     #F64_TWOP31_HI
         std     4,s
@@ -151,21 +137,18 @@ __floatunsidf:
         std     6,s
         std     8,s
         std     10,s
+        FP_BASE 14
+        FP_ENTRY __mc6839_fpcb_f64
         leau    ,x
-        leay    __mc6839_fpcb_f64,pc
-        tfr     y,d
-        leay    4,s
-        lbsr    __fpreg
-        .byte   FPOP_FADD
+        leay    4+FP_SLOT,s
+        FP_CALL FPOP_FADD
         leas    12,s
         puls    u,y
         rts
 .Lfunsidf_simple:
-        leay    __mc6839_fpcb_f64,pc
-        tfr     y,d
-        leay    6,s
-        lbsr    __fpreg
-        .byte   FPOP_FFLTD
+        FP_ENTRY __mc6839_fpcb_f64
+        leay    6+FP_SLOT,s
+        FP_CALL FPOP_FFLTD
         puls    u,y
         rts
 
@@ -179,11 +162,9 @@ __floatunsidf:
 __fixsfsi:
         ; f32 → signed i32.
         pshs    u,y
-        leay    __mc6839_fpcb_f32_trunc,pc
-        tfr     y,d
-        leay    6,s
-        lbsr    __fpreg
-        .byte   FPOP_FFIXD
+        FP_ENTRY __mc6839_fpcb_f32_trunc
+        leay    6+FP_SLOT,s
+        FP_CALL FPOP_FFIXD
         puls    u,y
         rts
 
@@ -191,11 +172,9 @@ __fixsfsi:
 __fixdfsi:
         ; f64 → signed i32.
         pshs    u,y
-        leay    __mc6839_fpcb_f64_trunc,pc
-        tfr     y,d
-        leay    6,s
-        lbsr    __fpreg
-        .byte   FPOP_FFIXD
+        FP_ENTRY __mc6839_fpcb_f64_trunc
+        leay    6+FP_SLOT,s
+        FP_CALL FPOP_FFIXD
         puls    u,y
         rts
 
