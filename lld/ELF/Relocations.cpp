@@ -628,6 +628,12 @@ static void reportUndefinedSymbol(Ctx &ctx, const UndefinedDiag &undef,
            "(see https://lld.llvm.org/ELF/start-stop-gc)";
   }
 
+  if (auto it = ctx.lateBitcodeDefs.find(&sym); it != ctx.lateBitcodeDefs.end())
+    msg << "\n>>> defined in bitcode archive member " << it->second
+        << ", which was not part of the link when LTO ran and cannot be "
+           "compiled now; the reference was introduced during LTO code "
+           "generation";
+
   if (undef.isWarning)
     Warn(ctx) << msg.str();
   else

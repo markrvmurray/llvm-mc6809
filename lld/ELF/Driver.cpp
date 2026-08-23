@@ -2874,6 +2874,10 @@ void LinkerDriver::compileBitcodeFiles(bool skipLinkedOutput) {
     markBuffersAsDontNeed(ctx, skipLinkedOutput);
 
   ltoObjectFiles = lto->compile();
+  // From here on the set of bitcode files LTO compiled is fixed: a reference
+  // from the LTO output to a bitcode archive member that was never extracted
+  // cannot be satisfied (see Symbol::resolve).
+  ctx.ltoCompiled = true;
   for (auto &file : ltoObjectFiles) {
     auto *obj = cast<ObjFile<ELFT>>(file.get());
     obj->parse(/*ignoreComdats=*/true);

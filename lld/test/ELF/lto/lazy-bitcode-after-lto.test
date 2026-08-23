@@ -1,0 +1,52 @@
+; REQUIRES: x86
+
+; RUN: rm -rf %t && split-file %s %t && cd %t
+; RUN: llvm-as main.ll -o main.o
+; RUN: llvm-as helper.ll -o helper.o
+; RUN: llvm-ar rcs libh.a helper.o
+; RUN: llvm-mc -triple=x86_64-unknown-linux-gnu -filetype=obj main.s -o main-native.o
+
+;; A reference that first appears in the LTO output -- an inline-asm operand
+;; here, a library call the code generator introduced in the case that
+;; surfaced this -- to a symbol whose only definition is a bitcode archive
+;; member nothing referenced before LTO ran. The member cannot be compiled
+;; now. It used to be extracted anyway, become an uncompiled bitcode
+;; definition, and be written as absolute zero -- silently, --no-undefined
+;; included. It is an undefined symbol, and the message says why.
+; RUN: not ld.lld -o out main.o libh.a 2>&1 | FileCheck %s
+; RUN: not ld.lld --no-undefined -o out main.o libh.a 2>&1 | FileCheck %s
+; RUN: not ld.lld -o out main.o --start-lib helper.o --end-lib 2>&1 | FileCheck %s
+
+; CHECK:      error: undefined symbol: helper
+; CHECK-NEXT: >>> referenced by ld-temp.o
+; CHECK-NEXT: >>>               out.lto.o:(_start)
+; CHECK-NEXT: >>> defined in bitcode archive member {{.*}}helper.o{{.*}}, which was not part of the link when LTO ran and cannot be compiled now; the reference was introduced during LTO code generation
+
+;; The same reference from a native object extracts the member normally.
+; RUN: ld.lld -o out-native main-native.o libh.a
+; RUN: llvm-nm out-native | FileCheck %s --check-prefix=NATIVE
+; NATIVE: T helper
+
+;--- main.ll
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-unknown-linux-gnu"
+
+define void @_start() {
+  call void asm sideeffect "call helper", ""()
+  ret void
+}
+
+;--- helper.ll
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-unknown-linux-gnu"
+
+define void @helper() noinline {
+  call void asm sideeffect "", ""()
+  ret void
+}
+
+;--- main.s
+.globl _start
+_start:
+  call helper
+  ret

@@ -786,6 +786,13 @@ struct Ctx : CommonLinkerContext {
   // True if all native vtable symbols have corresponding type info symbols
   // during LTO.
   bool ltoAllVtablesHaveTypeInfos = false;
+  // True once LTO has produced its object files. From then on a lazy bitcode
+  // archive member can no longer be brought into the link -- LTO has already
+  // run and nothing would compile it -- so a reference to it stays undefined.
+  bool ltoCompiled = false;
+  // Undefined symbols whose only definition was such a member: symbol -> the
+  // bitcode member, for the diagnostic.
+  llvm::DenseMap<const Symbol *, const InputFile *> lateBitcodeDefs;
   // Number of Vernaux entries (needed shared object names).
   uint32_t vernauxNum = 0;
 

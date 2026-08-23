@@ -448,6 +448,20 @@ void Symbol::resolve(Ctx &ctx, const Undefined &other) {
       return;
     }
 
+    // A lazy bitcode member cannot be extracted once LTO has run: it would be
+    // added to the link as an uncompiled bitcode definition, and its symbols
+    // would be written as absolute zero. This happens when LTO code generation
+    // introduces a reference (a library call it synthesised, an inline-asm
+    // operand) to a bitcode symbol nothing referenced before. Leave the symbol
+    // undefined so the reference is reported as such, and remember the member
+    // for the diagnostic.
+    if (ctx.ltoCompiled && isa<BitcodeFile>(file)) {
+      const InputFile *member = file;
+      other.overwrite(*this);
+      ctx.lateBitcodeDefs[this] = member;
+      return;
+    }
+
     // Do extra check for --warn-backrefs.
     //
     // --warn-backrefs is an option to prevent an undefined reference from
