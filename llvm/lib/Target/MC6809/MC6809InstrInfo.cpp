@@ -5983,6 +5983,23 @@ void MC6809InstrInfo::expandRotate(MachineIRBuilder &Builder, MachineInstr &MI, 
   MI.eraseFromParent();
 }
 
+// The pseudo declares A, B and D as clobbers because its result may be
+// allocated elsewhere, in which case the allocator marks them dead. Once the
+// expansion has made D the result those flags are untrue: the product is
+// about to be read from there. Operand 0 is that def, so the clobber of D goes
+// and the byte halves lose their dead flags.
+static void dropAccumulatorClobbers(MachineInstr &MI) {
+  for (unsigned I = MI.getNumOperands(); I-- > 2;) {
+    MachineOperand &MO = MI.getOperand(I);
+    if (!MO.isReg() || !MO.isDef())
+      continue;
+    if (MO.getReg() == MC6809::AD)
+      MI.removeOperand(I);
+    else if (MO.getReg() == MC6809::AA || MO.getReg() == MC6809::AB)
+      MO.setIsDead(false);
+  }
+}
+
 void MC6809InstrInfo::expandMulD(MachineIRBuilder &Builder, MachineInstr &MI) const {
   assert(MI.getOpcode() == MC6809::MUL_D && "Invalid multiply opcode");
   Register DstReg = MI.getOperand(0).getReg();
@@ -5993,6 +6010,7 @@ void MC6809InstrInfo::expandMulD(MachineIRBuilder &Builder, MachineInstr &MI) co
     addMissingImplicitOperands(MI);
     MI.getOperand(0).setImplicit();
     MI.getOperand(1).setImplicit();
+    dropAccumulatorClobbers(MI);
     return;
   }
 
@@ -6011,6 +6029,7 @@ void MC6809InstrInfo::expandMulD(MachineIRBuilder &Builder, MachineInstr &MI) co
   MI.getOperand(0).setImplicit();
   MI.getOperand(1).setReg(MC6809::AD);
   MI.getOperand(1).setImplicit();
+  dropAccumulatorClobbers(MI);
 
   if (DstReg != MC6809::AD) {
     MachineBasicBlock::iterator InsertPt = MI.getIterator();

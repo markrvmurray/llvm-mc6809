@@ -1,0 +1,37 @@
+# RUN: llc -mtriple=mc6809 -run-pass=post-ra-pseudos -verify-machineinstrs \
+# RUN:     %s -o - 2>&1 | FileCheck %s
+
+# The allocator puts the multiply's result in an imaginary register and marks
+# the accumulator it clobbers dead. The expansion then computes the result in
+# that accumulator and copies it out, so the accumulator is live after MUL and
+# no dead def of it, or of its bytes, may survive onto the instruction.
+
+# CHECK-LABEL: name: mul_result_in_imaginary_register
+# CHECK:      MULx implicit-def $ad, implicit killed $ad
+# CHECK-NOT:  dead $ad
+# CHECK-NOT:  dead $aa
+# CHECK-NOT:  dead $ab
+# CHECK:      RTSr
+---
+name: mul_result_in_imaginary_register
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $rs0
+    $rs0 = MUL_D killed $rs0, implicit-def dead $z, implicit-def dead $c, implicit-def dead $aa, implicit-def dead $ab, implicit-def dead $ad
+    RTSr implicit $rs0
+...
+
+# CHECK-LABEL: name: mul_result_in_accumulator
+# CHECK:      MULx implicit-def $ad, implicit killed $ad
+# CHECK-NOT:  dead $ad
+# CHECK:      RTSr
+---
+name: mul_result_in_accumulator
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ad
+    $ad = MUL_D killed $ad, implicit-def dead $z, implicit-def dead $c, implicit-def $aa, implicit-def $ab, implicit-def $ad
+    RTSr implicit $ad
+...
