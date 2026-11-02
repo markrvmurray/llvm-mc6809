@@ -138,6 +138,10 @@ struct MC6809OutgoingValueHandler : CallLowering::OutgoingValueHandler {
 
   void assignValueToAddress(Register ValVReg, Register Addr, LLT MemTy, const MachinePointerInfo &MPO, const CCValAssign &VA) override {
     MachineFunction &MF = MIRBuilder.getMF();
+    // A stack slot is at least a byte, however narrow the IR type: an i1 has
+    // been widened by now, and selection has no one-bit store.
+    if (MemTy.getSizeInBits() < 8)
+      MemTy = LLT::scalar(8);
     auto *MMO = MF.getMachineMemOperand(MPO, MachineMemOperand::MOStore, MemTy, inferAlignFromPtrInfo(MF, MPO));
     Register ExtReg = extendRegister(ValVReg, VA);
     MIRBuilder.buildStore(ExtReg, Addr, *MMO);
