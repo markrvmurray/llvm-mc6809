@@ -88,6 +88,8 @@ static MCTargetStreamer *createMC6809ObjectTargetStreamer(MCStreamer &S, const M
 
 static MCTargetStreamer *createMCAsmTargetStreamer(MCStreamer &S, formatted_raw_ostream &OS, MCInstPrinter *InstPrint) { return new MC6809TargetAsmStreamer(S, OS); }
 
+static MCTargetStreamer *createMC6809NullTargetStreamer(MCStreamer &S) { return new MC6809TargetNullStreamer(S); }
+
 static MCInstrAnalysis *createMC6809MCInstrAnalysis(const MCInstrInfo *Info) { return new MC6809MCInstrAnalysis(Info); }
 
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMC6809TargetMC() {
@@ -120,6 +122,9 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMC6809TargetMC() {
 
   // Register the asm target streamer.
   TargetRegistry::RegisterAsmTargetStreamer(getTheMC6809Target(), createMCAsmTargetStreamer);
+
+  // Register the null target streamer.
+  TargetRegistry::RegisterNullTargetStreamer(getTheMC6809Target(), createMC6809NullTargetStreamer);
 
   // Register the asm backend (as little endian).
   TargetRegistry::RegisterMCAsmBackend(getTheMC6809Target(), createMC6809AsmBackend);

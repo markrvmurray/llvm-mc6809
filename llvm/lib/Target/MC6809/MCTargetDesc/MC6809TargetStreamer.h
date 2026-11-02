@@ -37,6 +37,26 @@ protected:
 };
 
 /// A target streamer for textual MC6809 assembly code.
+/// The target streamer behind the null streamer, which parses module asm to
+/// find its symbols when writing LTO bitcode. It must still be an
+/// MC6809TargetStreamer, because the asm parser casts to one for .directpage.
+class MC6809TargetNullStreamer final : public MC6809TargetStreamer {
+public:
+  explicit MC6809TargetNullStreamer(MCStreamer &S) : MC6809TargetStreamer(S) {}
+
+  bool emitDirectiveDirectPage(MCSymbol *Symbol) override { return true; }
+
+private:
+  bool hasBSS() override { return false; }
+  bool hasDPBSS() override { return false; }
+  bool hasData() override { return false; }
+  bool hasDPData() override { return false; }
+  bool hasInitArray() override { return false; }
+  bool hasFiniArray() override { return false; }
+
+  void stronglyReference(MCSymbol *Sym) override {}
+};
+
 class MC6809TargetAsmStreamer final : public MC6809TargetStreamer {
 public:
   MC6809TargetAsmStreamer(MCStreamer &S, formatted_raw_ostream &OS);
