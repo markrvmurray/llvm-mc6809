@@ -9,7 +9,7 @@
 #
 #   usim09pt (Pico-Thing, ROM-free, the default)
 #     NITROS9_USIM09PT=/path/to/usim09pt
-#     NITROS9_BOOT_DSK=/path/to/NOS9_6809_L2_DEV_picothing_x0.dsk (IDE image)
+#     NITROS9_BOOT_DSK=/path/to/NOS9_6809_L2_DEV_picothing_mega.dsk (IDE image)
 #     NITROS9_FIRMWARE=/path/to/rel_picothing.srec
 #
 #   MAME coco3 (needs CoCo 3 ROMs)
@@ -97,10 +97,19 @@ nitros9_recipes = os.environ.get(
 
 
 def level_images(level):
-    lvldir = os.path.join(nitros9_recipes, "l%s" % level)
-    return (os.path.join(lvldir,
-                         "NOS9_6809_L%s_DEV_picothing_x0.dsk" % level),
-            os.path.join(lvldir, "rel_picothing.srec"))
+    # The harness mounts the test disk as the IDE slave, whose /J0 descriptor
+    # only the mega images have, so they come first. A level without one falls
+    # back to the plain recipe.
+    for lvldir, names in (
+            ("l%s_mega" % level, ("NOS9_6809_L%s_DEV_picothing_mega.dsk",)),
+            ("l%s" % level, ("NOS9_6809_L%s_DEV_picothing_x0.dsk",
+                             "NOS9_6809_L%s_DEV_picothing.dsk"))):
+        firmware = os.path.join(nitros9_recipes, lvldir, "rel_picothing.srec")
+        for name in names:
+            boot = os.path.join(nitros9_recipes, lvldir, name % level)
+            if os.path.isfile(boot) and os.path.isfile(firmware):
+                return boot, firmware
+    return "", ""
 
 
 nitros9_level = os.environ.get("NITROS9_LEVEL", "2")

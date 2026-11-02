@@ -40,9 +40,17 @@ case_args=$(sed -n 's|^// *ARGS: *||p' "$src" | head -1)
 case_level=$(sed -n 's|^// *LEVEL: *||p' "$src" | head -1)
 if [ -n "$case_level" ]; then
   : "${NITROS9_RECIPES:=$HOME/Documents/NitrOS-9/nitros9/recipes/picothing}"
-  _lvldir="$NITROS9_RECIPES/l$case_level"
-  NITROS9_BOOT_DSK="$_lvldir/NOS9_6809_L${case_level}_DEV_picothing_x0.dsk"
-  NITROS9_FIRMWARE="$_lvldir/rel_picothing.srec"
+  # The mega image has the /J0 descriptor this harness mounts the test disk
+  # on; a level without one falls back to the plain recipe.
+  for _img in "l${case_level}_mega/NOS9_6809_L${case_level}_DEV_picothing_mega.dsk" \
+              "l$case_level/NOS9_6809_L${case_level}_DEV_picothing_x0.dsk" \
+              "l$case_level/NOS9_6809_L${case_level}_DEV_picothing.dsk"; do
+    if [ -f "$NITROS9_RECIPES/$_img" ]; then
+      NITROS9_BOOT_DSK="$NITROS9_RECIPES/$_img"
+      NITROS9_FIRMWARE="$(dirname "$NITROS9_BOOT_DSK")/rel_picothing.srec"
+      break
+    fi
+  done
   export NITROS9_BOOT_DSK NITROS9_FIRMWARE
 fi
 workdir=$(mktemp -d "${TMPDIR:-/tmp}/mc6809-os9-runtime.XXXXXX")
@@ -122,6 +130,14 @@ run_usim() {
   # The console output after the first command echo, without the NUL bytes
   # the console emits between lines.
   tr -d '\000\r' <"$log" | sed -n "/chx \/j0\/cmds/,\$p" >"$out"
+  # A boot image with no slave descriptor fails here, before the program runs,
+  # which should not read as a problem with the program.
+  if sed -n 2p "$out" | grep -aq '^Error #'; then
+    echo "$NITROS9_BOOT_DSK cannot reach the test disk: chx /j0/cmds gave" \
+      "'$(sed -n 2p "$out")'. Use an image with a /J0 descriptor, such as the" \
+      "l2_mega recipe." >&2
+    exit 1
+  fi
 }
 
 #-----------------------------------------------------------------------------
