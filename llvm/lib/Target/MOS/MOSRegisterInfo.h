@@ -13,8 +13,6 @@
 #ifndef LLVM_LIB_TARGET_MOS_MOSREGISTERINFO_H
 #define LLVM_LIB_TARGET_MOS_MOSREGISTERINFO_H
 
-#include "MOSInstrCost.h"
-
 #include "llvm/ADT/BitVector.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
@@ -23,8 +21,6 @@
 #include "MOSGenRegisterInfo.inc"
 
 namespace llvm {
-
-class MOSSubtarget;
 
 class MOSRegisterInfo : public MOSGenRegisterInfo {
   std::unique_ptr<std::string[]> Imag8SymbolNames;
@@ -46,6 +42,12 @@ public:
 
   const TargetRegisterClass *
   getCrossCopyRegClass(const TargetRegisterClass *RC) const override;
+
+  // Full imaginary storage class for R, independently of operand constraints.
+  // Flags use ImagLSB, bytes use Imag8, and pairs use Imag16. Unsupported
+  // register classes are diagnosed rather than assigned a default storage size.
+  const TargetRegisterClass *
+  getImagRegClass(Register R, const MachineRegisterInfo &MRI) const;
 
   unsigned getCSRCost(const MachineFunction &MF) const override;
 
@@ -86,7 +88,7 @@ public:
 
   bool
   getRegAllocationHints(Register VirtReg, ArrayRef<MCPhysReg> Order,
-                        SmallVectorImpl<MCPhysReg> &Hints,
+                        SmallSetVector<MCPhysReg, 16> &Hints,
                         const MachineFunction &MF,
                         const VirtRegMap *VRM = nullptr,
                         const LiveRegMatrix *Matrix = nullptr) const override;
@@ -94,9 +96,6 @@ public:
   const char *getImag8SymbolName(Register Reg) const {
     return Imag8SymbolNames[Reg].c_str();
   }
-
-  MOSInstrCost copyCost(Register DestReg, Register SrcReg,
-                        const MOSSubtarget &STI) const;
 
 private:
   void reserveAllSubregs(BitVector *Reserved, Register Reg) const;

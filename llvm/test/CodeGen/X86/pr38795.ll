@@ -110,6 +110,7 @@ define dso_local void @fn() {
 ; CHECK-NEXT:    # implicit-def: $eax
 ; CHECK-NEXT:    testb %bl, %bl
 ; CHECK-NEXT:    jne .LBB0_11
+; CHECK-NEXT:    .p2align 4
 ; CHECK-NEXT:  .LBB0_16: # %if.end39
 ; CHECK-NEXT:    # in Loop: Header=BB0_1 Depth=1
 ; CHECK-NEXT:    testl %eax, %eax

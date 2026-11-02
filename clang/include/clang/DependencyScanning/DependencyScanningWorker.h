@@ -9,11 +9,10 @@
 #ifndef LLVM_CLANG_DEPENDENCYSCANNING_DEPENDENCYSCANNINGWORKER_H
 #define LLVM_CLANG_DEPENDENCYSCANNING_DEPENDENCYSCANNINGWORKER_H
 
-#include "clang/Basic/AtomicLineLogger.h"
+#include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/DiagnosticOptions.h"
 #include "clang/Basic/FileManager.h"
 #include "clang/Basic/LLVM.h"
-#include "clang/DependencyScanning/DependencyScannerImpl.h"
 #include "clang/DependencyScanning/DependencyScanningService.h"
 #include "clang/DependencyScanning/ModuleDepCollector.h"
 #include "clang/Frontend/PCHContainerOperations.h"
@@ -21,6 +20,7 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBufferRef.h"
 #include "llvm/Support/VirtualFileSystem.h"
+#include <memory>
 #include <optional>
 #include <string>
 
@@ -33,6 +33,9 @@ namespace dependencies {
 class DependencyConsumer;
 class DependencyScanningWorkerFilesystem;
 
+std::unique_ptr<DiagnosticOptions>
+createScanningDiagOptions(ArrayRef<std::string> CommandLine);
+
 /// An individual dependency scanning worker that is able to run on its own
 /// thread.
 ///
@@ -44,7 +47,9 @@ public:
   /// Construct a dependency scanning worker.
   ///
   /// @param Service The parent service. Must outlive the worker.
-  DependencyScanningWorker(DependencyScanningService &Service);
+  DependencyScanningWorker(
+      DependencyScanningService &Service,
+      IntrusiveRefCntPtr<llvm::vfs::FileSystem> LocalFS = nullptr);
 
   ~DependencyScanningWorker();
 
@@ -86,6 +91,8 @@ public:
   llvm::vfs::TracingFileSystem *getTracingVFS() const {
     return TracingFS.get();
   }
+
+  DependencyScanningService &getService() const { return Service; }
 
   // MaxNumOfByNameQueries is the upper limit of the number of names the by-name
   // scanning API (computeDependenciesByName) can drain per call. At the time of

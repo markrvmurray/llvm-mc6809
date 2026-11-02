@@ -102,23 +102,17 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMC6809Target() {
 // Address space 1 is the direct page ($0000-$00FF): 8-bit pointers,
 // since the high byte is implicit in the DP register. Bug #178 user
 // `__attribute__((directpage))` globals live here.
-static const char *MC6809DataLayout = "E-p:16:8-p1:8:8-S8-m:e-i1:8-i8:8-i16:8-i32:8-i64:8-f32:8-f64:8-a:0-n8:16";
-
 /// Processes a CPU name.
 static StringRef getCPU(StringRef CPU) { return (CPU.empty() || CPU == "generic") ? "mc6809" : CPU; }
 
 static Reloc::Model getEffectiveRelocModel(std::optional<Reloc::Model> RM) { return RM ? *RM : Reloc::Static; }
 
 MC6809TargetMachine::MC6809TargetMachine(const Target &T, const Triple &TT, StringRef CPU, StringRef FS, const TargetOptions &Options, std::optional<Reloc::Model> RM, std::optional<CodeModel::Model> CM, CodeGenOptLevel OL, bool JIT)
-    : CodeGenTargetMachineImpl(T, MC6809DataLayout, TT, getCPU(CPU), FS, Options, getEffectiveRelocModel(RM), getEffectiveCodeModel(CM, CodeModel::Small), OL),
+    : CodeGenTargetMachineImpl(T, TT, getCPU(CPU), FS, Options, getEffectiveRelocModel(RM), getEffectiveCodeModel(CM, CodeModel::Small), OL),
       SubTarget(TT, getCPU(CPU).str(), FS.str(), *this) {
   this->TLOF = std::make_unique<MC6809TargetObjectFile>();
 
   initAsmInfo();
-
-  // MC6809 has no FP registers — always soft-float.
-  if (this->Options.FloatABIType == FloatABI::Default)
-    this->Options.FloatABIType = FloatABI::Soft;
 
   setGlobalISel(true);
   // Prevents fallback to SelectionDAG by allowing direct aborts.
@@ -257,7 +251,7 @@ void MC6809PassConfig::addIRPasses() {
 bool MC6809PassConfig::addPreISel() { return false; }
 
 bool MC6809PassConfig::addIRTranslator() {
-  addPass(new IRTranslator(getOptLevel()));
+  addPass(new IRTranslatorLegacy(getOptLevel()));
   return false;
 }
 
@@ -270,7 +264,7 @@ void MC6809PassConfig::addPreLegalizeMachineIR() {
 }
 
 bool MC6809PassConfig::addLegalizeMachineIR() {
-  addPass(new Legalizer());
+  addPass(new LegalizerLegacy());
   addPass(createMC6809InternalizePass());
   return false;
 }
@@ -284,7 +278,7 @@ void MC6809PassConfig::addPreRegBankSelect() {
 }
 
 bool MC6809PassConfig::addRegBankSelect() {
-  addPass(new RegBankSelect());
+  addPass(new RegBankSelectLegacy());
   return false;
 }
 
@@ -292,11 +286,11 @@ void MC6809PassConfig::addPreGlobalInstructionSelect() {
   // This pass helps reduce the live ranges of constants to within a basic
   // block, which can greatly improve machine scheduling, as they can now be
   // moved around to keep register pressure low.
-  addPass(new Localizer());
+  addPass(new LocalizerLegacy());
 }
 
 bool MC6809PassConfig::addGlobalInstructionSelect() {
-  addPass(new InstructionSelect());
+  addPass(new InstructionSelectLegacy());
   // Post-ISel cleanup (physreg pinning for the i32 test pseudos). Must run
   // before RA at all opt levels — see MC6809InsertCopies.cpp.
   addPass(createMC6809InsertCopiesPass());

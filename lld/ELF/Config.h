@@ -28,6 +28,7 @@
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/GlobPattern.h"
+#include "llvm/Support/LibraryOptionsContext.h"
 #include "llvm/Support/TarWriter.h"
 #include <atomic>
 #include <memory>
@@ -213,6 +214,7 @@ public:
   LinkerDriver(LinkerDriver &) = delete;
   void linkerMain(ArrayRef<const char *> args);
   void addFile(StringRef path, bool withLOption);
+  void addFile(std::unique_ptr<ELFFileBase> ef);
   void addLibrary(StringRef name);
 
 private:
@@ -321,6 +323,7 @@ struct Config {
   llvm::SmallVector<SymbolVersion, 0> dynamicList;
   llvm::SmallVector<uint8_t, 0> buildIdVector;
   llvm::SmallVector<llvm::StringRef, 0> mllvmOpts;
+  llvm::cl::LibraryOptionsContext libraryOptions;
   llvm::MapVector<std::pair<const InputSectionBase *, const InputSectionBase *>,
                   uint64_t>
       callGraphProfile;
@@ -369,7 +372,6 @@ struct Config {
   bool fixCortexA53Errata843419;
   bool fixCortexA8;
   bool formatBinary = false;
-  bool fortranCommon;
   bool gcSections;
   bool gdbIndex;
   bool gnuHash = false;
@@ -459,6 +461,7 @@ struct Config {
   bool zKeepDataSectionPrefix;
   bool zKeepTextSectionPrefix;
   bool zLrodataAfterBss;
+  bool zMarkPlt;
   bool zNoBtCfi;
   bool zNodefaultlib;
   bool zNodelete;
@@ -669,6 +672,8 @@ struct InStruct {
   std::unique_ptr<SymtabShndxSection> symTabShndx;
   std::unique_ptr<SyntheticSection> hexagonAttributes;
   std::unique_ptr<SyntheticSection> riscvAttributes;
+  std::unique_ptr<SyntheticSection> dynDbg;
+  std::unique_ptr<SyntheticSection> dynDbgNote;
 };
 
 struct Ctx : CommonLinkerContext {
@@ -802,6 +807,10 @@ struct Ctx : CommonLinkerContext {
   unsigned scriptSymOrderCounter = 1;
   llvm::DenseMap<const Symbol *, unsigned> scriptSymOrder;
 
+  // Used to assert removeUnusedSyntheticSections-removed sections cannot become
+  // needed again.
+  SmallVector<SyntheticSection *, 0> removedSyntheticSections;
+
   // The set of TOC entries (.toc + addend) for which we should not apply
   // toc-indirect to toc-relative relaxation. const Symbol * refers to the
   // STT_SECTION symbol associated to the .toc input section.
@@ -812,6 +821,18 @@ struct Ctx : CommonLinkerContext {
   llvm::raw_fd_ostream openAuxiliaryFile(llvm::StringRef, std::error_code &);
 
   std::optional<AArch64PauthAbiCoreInfo> aarch64PauthAbiCoreInfo;
+
+  // True if performing the embedded unoptimized dynamic debugging relocatable
+  // link.
+  bool inDynDbgLink = false;
+  // True if performing dynamic debugging style relocatable link rather than a
+  // regular relocatable link.
+  bool dynDbgRelocatable = false;
+  // True if the link contains dynamic debugging.
+  bool hasDynDbg = false;
+  // Pointer to the output of the embedded unoptimized dynamic debugging
+  // relocatable link.
+  std::unique_ptr<llvm::FileOutputBuffer> dynDbgOutput;
 };
 
 // The first two elements of versionDefinitions represent VER_NDX_LOCAL and

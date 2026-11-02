@@ -70,7 +70,7 @@ PreservedAnalyses MC6809IndexIV::run(Loop &L, LoopAnalysisManager &AM, LoopStand
       }
 
       // The index must itself fit into 8 bits.
-      const auto *Index = SE.getAddRecExpr(/*Start=*/SE.getConstant(R->getType(), 0), Step, &L, R->getNoWrapFlags());
+      const auto Index = SE.getAddRecExpr(/*Start=*/SE.getConstant(R->getType(), 0), Step, &L, R->getNoWrapFlags());
       const auto IndexRange = SE.getSignedRange(Index);
       if (!InRange(IndexRange)) {
         LLVM_DEBUG(dbgs() << "Index range does not fit in 8 bits\n");

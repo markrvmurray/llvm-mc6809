@@ -25,6 +25,8 @@
 #include "ProcessGDBRemote.h"
 #include "ProcessGDBRemoteLog.h"
 
+#include "lldb/Target/ABI.h"
+
 #include <memory>
 
 using namespace lldb;
@@ -40,7 +42,7 @@ ThreadGDBRemote::ThreadGDBRemote(Process &process, lldb::tid_t tid)
       m_queue_serial_number(LLDB_INVALID_QUEUE_ID),
       m_associated_with_libdispatch_queue(eLazyBoolCalculate) {
   Log *log = GetLog(GDBRLog::Thread);
-  LLDB_LOG(log, "this = {0}, pid = {1}, tid = {2}", this, process.GetID(),
+  LLDB_LOG(log, "this = {0}, pid = {1}, tid = {2:x}", this, process.GetID(),
            GetID());
   // At this point we can clone reg_info for architectures supporting
   // run-time update to register sizes and offsets..
@@ -55,7 +57,7 @@ ThreadGDBRemote::ThreadGDBRemote(Process &process, lldb::tid_t tid)
 ThreadGDBRemote::~ThreadGDBRemote() {
   ProcessSP process_sp(GetProcess());
   Log *log = GetLog(GDBRLog::Thread);
-  LLDB_LOG(log, "this = {0}, pid = {1}, tid = {2}", this,
+  LLDB_LOG(log, "this = {0}, pid = {1}, tid = {2:x}", this,
            process_sp ? process_sp->GetID() : LLDB_INVALID_PROCESS_ID, GetID());
   DestroyThread();
 }
@@ -314,6 +316,13 @@ ThreadGDBRemote::CreateRegisterContextForFrame(StackFrame *frame) {
       bool read_all_registers_at_once =
           !pSupported || gdb_process->m_use_g_packet_for_reading;
       bool write_all_registers_at_once = !pSupported;
+      ABI *abi = process_sp->GetABI().get();
+      if (abi) {
+        auto custom_ctx = abi->CreateGDBRemoteRegisterContextForThread(
+            *this, concrete_frame_idx);
+        if (custom_ctx)
+          return custom_ctx;
+      }
       reg_ctx_sp = std::make_shared<GDBRemoteRegisterContext>(
           *this, concrete_frame_idx, m_reg_info_sp, read_all_registers_at_once,
           write_all_registers_at_once);
@@ -367,7 +376,7 @@ ThreadGDBRemote::GetSiginfo(size_t max_size) const {
                                    "qXfer:siginfo:read not supported");
 
   llvm::Expected<std::string> response =
-      gdb_process->m_gdb_comm.ReadExtFeature("siginfo", "");
+      gdb_process->m_gdb_comm.ReadSiginfo(GetProtocolID());
   if (!response)
     return response.takeError();
 

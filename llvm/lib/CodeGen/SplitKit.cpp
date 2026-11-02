@@ -1686,8 +1686,9 @@ void SplitEditor::splitSingleBlock(const SplitAnalysis::BlockInfo &BI) {
 void SplitEditor::splitLiveThroughBlock(unsigned MBBNum,
                                         unsigned IntvIn, SlotIndex LeaveBefore,
                                         unsigned IntvOut, SlotIndex EnterAfter){
+  MachineBasicBlock *MBB = VRM.getMachineFunction().getBlockNumbered(MBBNum);
   SlotIndex Start, Stop;
-  std::tie(Start, Stop) = LIS.getSlotIndexes()->getMBBRange(MBBNum);
+  std::tie(Start, Stop) = LIS.getSlotIndexes()->getMBBRange(MBB);
 
   LLVM_DEBUG(dbgs() << "%bb." << MBBNum << " [" << Start << ';' << Stop
                     << ") intf " << LeaveBefore << '-' << EnterAfter
@@ -1698,8 +1699,6 @@ void SplitEditor::splitLiveThroughBlock(unsigned MBBNum,
   assert((!LeaveBefore || LeaveBefore < Stop) && "Interference after block");
   assert((!IntvIn || !LeaveBefore || LeaveBefore > Start) && "Impossible intf");
   assert((!EnterAfter || EnterAfter >= Start) && "Interference before block");
-
-  MachineBasicBlock *MBB = VRM.getMachineFunction().getBlockNumbered(MBBNum);
 
   if (!IntvOut) {
     LLVM_DEBUG(dbgs() << ", spill on entry.\n");

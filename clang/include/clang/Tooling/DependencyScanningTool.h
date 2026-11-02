@@ -9,7 +9,6 @@
 #ifndef LLVM_CLANG_TOOLING_DEPENDENCYSCANNINGTOOL_H
 #define LLVM_CLANG_TOOLING_DEPENDENCYSCANNINGTOOL_H
 
-#include "clang/DependencyScanning/DependencyScannerImpl.h"
 #include "clang/DependencyScanning/DependencyScanningService.h"
 #include "clang/DependencyScanning/DependencyScanningUtils.h"
 #include "clang/DependencyScanning/DependencyScanningWorker.h"
@@ -36,8 +35,10 @@ public:
   /// Construct a dependency scanning tool.
   ///
   /// @param Service  The parent service. Must outlive the tool.
-  DependencyScanningTool(dependencies::DependencyScanningService &Service)
-      : Worker(Service) {}
+  DependencyScanningTool(
+      dependencies::DependencyScanningService &Service,
+      IntrusiveRefCntPtr<llvm::vfs::FileSystem> LocalFS = nullptr)
+      : Worker(Service, LocalFS) {}
 
   /// Print out the dependency information into a string using the dependency
   /// file format that is specified in the options (-MD is the default) and

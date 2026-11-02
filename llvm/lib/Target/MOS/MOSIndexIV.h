@@ -18,7 +18,7 @@
 
 namespace llvm {
 
-struct MOSIndexIV : public PassInfoMixin<MOSIndexIV> {
+struct MOSIndexIV : public OptionalPassInfoMixin<MOSIndexIV> {
   PreservedAnalyses run(Loop &L, LoopAnalysisManager &AM,
                         LoopStandardAnalysisResults &AR,
                         LPMUpdater &U);

@@ -1,4 +1,4 @@
-# RUN: llc -mtriple=mc6809 -mcpu=hd6309 -run-pass=postrapseudos \
+# RUN: llc -mtriple=mc6809 -mcpu=hd6309 -run-pass=post-ra-pseudos \
 # RUN:   -verify-machineinstrs %s -o - 2>&1 | FileCheck %s
 
 # Round-trip: a fused CompareBranch_i16_Imm with cc=NE (6) should expand

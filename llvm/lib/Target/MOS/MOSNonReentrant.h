@@ -21,7 +21,7 @@ namespace llvm {
 
 ModulePass *createMOSNonReentrantPass();
 
-struct MOSNonReentrantPass : PassInfoMixin<MOSNonReentrantPass> {
+struct MOSNonReentrantPass : OptionalPassInfoMixin<MOSNonReentrantPass> {
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 

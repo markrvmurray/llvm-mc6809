@@ -65,23 +65,21 @@ bool MOSTargetLowering::isSuitableForJumpTable(const SwitchInst *SI,
   return TargetLowering::isSuitableForJumpTable(SI, NumCases, Range, PSI, BFI);
 }
 
-MVT MOSTargetLowering::getRegisterType(MVT VT) const {
+MVT MOSTargetLowering::getCachedRegisterType(MVT VT) const {
   // Even though a 16-bit register is available, it's not actually an integer
   // register, so split to 8 bits instead.
   if (VT.getSizeInBits() > 8)
     return MVT::i8;
-  return TargetLowering::getRegisterType(VT);
+  return TargetLowering::getCachedRegisterType(VT);
 }
 
-unsigned
-MOSTargetLowering::getNumRegisters(LLVMContext &Context, EVT VT,
-                                   std::optional<MVT> RegisterVT) const {
+unsigned MOSTargetLowering::getCachedNumRegisters(MVT VT) const {
   // Even though a 16-bit register is available, it's not actually an integer
   // register, so split to 8 bits instead. Use ceiling division to ensure
-  // non-power-of-2 types like i9 get enough registers.
+  // non-power-of-2 types get enough registers.
   if (VT.getSizeInBits() > 8)
     return (VT.getSizeInBits() + 7) / 8;
-  return TargetLowering::getNumRegisters(Context, VT, RegisterVT);
+  return TargetLowering::getCachedNumRegisters(VT);
 }
 
 MVT MOSTargetLowering::getRegisterTypeForCallingConv(

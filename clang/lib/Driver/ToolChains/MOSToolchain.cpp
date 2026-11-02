@@ -41,10 +41,18 @@ void MOSToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
 
 void MOSToolChain::addClangTargetOptions(const ArgList &DriverArgs,
                                 ArgStringList &CC1Args, BoundArch,
-                                Action::OffloadKind) const {
+                                Action::OffloadKind Kind) const {
   CC1Args.push_back("-nostdsysteminc");
   // Not yet implemented for GlobalISel.
   CC1Args.push_back("-fexperimental-assignment-tracking=disabled");
+  // Under LTO (the SDK default), the C++ runtime is linked into the program's
+  // module, so operator new's internals (the new handler, heap state) are
+  // ordinary program-accessible memory, not "inaccessible" as the
+  // sane-operator-new assumption requires.
+  if (isUsingLTO(DriverArgs, Kind) &&
+      !DriverArgs.hasFlag(options::OPT_fassume_sane_operator_new,
+                          options::OPT_fno_assume_sane_operator_new, false))
+    CC1Args.push_back("-fno-assume-sane-operator-new");
 }
 
 static bool hasLTOEmitAsm(const ArgList &Args) {

@@ -1,4 +1,4 @@
-# RUN: llc -mtriple=mc6809 -mcpu=hd6309 -run-pass=postrapseudos \
+# RUN: llc -mtriple=mc6809 -mcpu=hd6309 -run-pass=post-ra-pseudos \
 # RUN:   -verify-machineinstrs %s -o - 2>&1 | FileCheck %s
 
 # Bug #205: expandFusedCompareBranch used to add `dead $cc` to the

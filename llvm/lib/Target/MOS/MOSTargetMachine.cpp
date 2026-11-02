@@ -28,6 +28,7 @@
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Support/CodeGen.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Scalar/IndVarSimplify.h"
 #include "llvm/Transforms/Utils.h"
@@ -35,7 +36,10 @@
 #include "MCTargetDesc/MOSMCTargetDesc.h"
 #include "MOS.h"
 #include "MOSCombiner.h"
+#include "MOSConventionalSSA.h"
 #include "MOSCopyOpt.h"
+#include "MOSImagRegAssign.h"
+#include "MOSImagRegSpill.h"
 #include "MOSIndexIV.h"
 #include "MOSInsertCopies.h"
 #include "MOSInternalize.h"
@@ -45,6 +49,7 @@
 #include "MOSMachineScheduler.h"
 #include "MOSNonReentrant.h"
 #include "MOSPostRAScavenging.h"
+#include "MOSRegAlloc.h"
 #include "MOSShiftRotateChain.h"
 #include "MOSStaticStackAlloc.h"
 #include "MOSTargetObjectFile.h"
@@ -53,6 +58,11 @@
 
 using namespace llvm;
 
+static cl::opt<bool> ExperimentalRegAlloc(
+    "mos-experimental-regalloc", cl::Hidden,
+    cl::desc("Use the experimental SSA MOS register allocation pipeline"),
+    cl::init(LLVM_MOS_EXPERIMENTAL_REGALLOC_DEFAULT));
+
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMOSTarget() {
   // Register the target.
   RegisterTargetMachine<MOSTargetMachine> X(getTheMOSTarget());
@@ -60,20 +70,21 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMOSTarget() {
   PassRegistry &PR = *PassRegistry::getPassRegistry();
   initializeGlobalISel(PR);
   initializeMOSCombinerPass(PR);
+  initializeMOSConventionalSSAPass(PR);
   initializeMOSCopyOptPass(PR);
+  initializeMOSImagRegAssignPass(PR);
+  initializeMOSImagRegSpillPass(PR);
   initializeMOSInsertCopiesPass(PR);
   initializeMOSInternalizePass(PR);
   initializeMOSLateOptimizationPass(PR);
   initializeMOSLowerSelectPass(PR);
   initializeMOSNonReentrantPass(PR);
   initializeMOSPostRAScavengingPass(PR);
+  initializeMOSRegAllocPass(PR);
   initializeMOSShiftRotateChainPass(PR);
   initializeMOSStaticStackAllocPass(PR);
   initializeMOSZeroPageAllocPass(PR);
 }
-
-static const char *MOSDataLayout =
-    "e-m:e-p:16:8-p1:8:8-i16:8-i32:8-i64:8-f32:8-f64:8-a:8-Fi8-n8";
 
 /// Processes a CPU name.
 static StringRef getCPU(StringRef CPU) {
@@ -90,13 +101,18 @@ MOSTargetMachine::MOSTargetMachine(const Target &T, const Triple &TT,
                                    std::optional<Reloc::Model> RM,
                                    std::optional<CodeModel::Model> CM,
                                    CodeGenOptLevel OL, bool JIT)
-    : CodeGenTargetMachineImpl(T, MOSDataLayout, TT, getCPU(CPU), FS, Options,
+    : CodeGenTargetMachineImpl(T, TT, getCPU(CPU), FS, Options,
                                getEffectiveRelocModel(RM),
                                getEffectiveCodeModel(CM, CodeModel::Small), OL),
       SubTarget(TT, getCPU(CPU).str(), FS.str(), *this) {
   this->TLOF = std::make_unique<MOSTargetObjectFile>();
 
   initAsmInfo();
+
+  // Shrink wrapping and tail merging can lay out blocks after an epilogue
+  // that still run inside the frame (or before a prologue, outside it). Have
+  // CFIFixup restore the unwind state for them.
+  setCFIFixup(true);
 
   setGlobalISel(true);
   // Prevents fallback to SelectionDAG by allowing direct aborts.
@@ -198,9 +214,11 @@ public:
   void addPreGlobalInstructionSelect() override;
   bool addGlobalInstructionSelect() override;
 
-  // Register pressure is too high around calls to work without detailed
-  // scheduling.
-  bool alwaysRequiresMachineScheduler() const override { return true; }
+  // The conventional allocator needs scheduling even at -O0. The experimental
+  // pipeline owns instruction placement and does not run the pre-RA scheduler.
+  bool alwaysRequiresMachineScheduler() const override {
+    return !ExperimentalRegAlloc;
+  }
 
   void addMachineSSAOptimization() override;
 
@@ -215,6 +233,9 @@ public:
   void addPreEmitPass() override;
 
   std::unique_ptr<CSEConfigBase> getCSEConfig() const override;
+
+private:
+  void addExperimentalRegAlloc();
 };
 } // namespace
 
@@ -234,7 +255,7 @@ void MOSPassConfig::addIRPasses() {
 bool MOSPassConfig::addPreISel() { return false; }
 
 bool MOSPassConfig::addIRTranslator() {
-  addPass(new IRTranslator(getOptLevel()));
+  addPass(new IRTranslatorLegacy(getOptLevel()));
   return false;
 }
 
@@ -246,7 +267,7 @@ void MOSPassConfig::addPreLegalizeMachineIR() {
 }
 
 bool MOSPassConfig::addLegalizeMachineIR() {
-  addPass(new Legalizer());
+  addPass(new LegalizerLegacy());
   addPass(createMOSInternalizePass());
   return false;
 }
@@ -258,7 +279,7 @@ void MOSPassConfig::addPreRegBankSelect() {
 }
 
 bool MOSPassConfig::addRegBankSelect() {
-  addPass(new RegBankSelect());
+  addPass(new RegBankSelectLegacy());
   return false;
 }
 
@@ -266,21 +287,28 @@ void MOSPassConfig::addPreGlobalInstructionSelect() {
   // This pass helps reduce the live ranges of constants to within a basic
   // block, which can greatly improve machine scheduling, as they can now be
   // moved around to keep register pressure low.
-  addPass(new Localizer());
+  addPass(new LocalizerLegacy());
 }
 
 bool MOSPassConfig::addGlobalInstructionSelect() {
-  addPass(new InstructionSelect());
+  addPass(new InstructionSelectLegacy());
   return false;
 }
 
 void MOSPassConfig::addMachineSSAOptimization() {
   TargetPassConfig::addMachineSSAOptimization();
-  if (getOptLevel() != CodeGenOptLevel::None)
+  // MOSInsertCopies exists to paper over coalescing issues in LLVM's greedy
+  // register allocator, but the experimental register allocator doesn't do
+  // coalescing for affected variables.
+  if (!ExperimentalRegAlloc && getOptLevel() != CodeGenOptLevel::None)
     addPass(createMOSInsertCopiesPass());
 }
 
 void MOSPassConfig::addOptimizedRegAlloc() {
+  if (ExperimentalRegAlloc) {
+    addExperimentalRegAlloc();
+    return;
+  }
   if (getOptLevel() != CodeGenOptLevel::None) {
     // Run the coalescer twice to coalesce RMW patterns revealed by the first
     // coalesce.
@@ -319,6 +347,22 @@ void MOSPassConfig::addPreSched2() {
 }
 
 void MOSPassConfig::addPreEmitPass() { addPass(&BranchRelaxationPassID); }
+
+void MOSPassConfig::addExperimentalRegAlloc() {
+  addPass(&DetectDeadLanesID);
+  addPass(&InitUndefID);
+  addPass(&ProcessImplicitDefsID);
+  addPass(&UnreachableMachineBlockElimID);
+
+  addPass(createMOSConventionalSSAPass());
+  addPass(createMOSImagRegSpillPass());
+  addPass(createMOSImagRegAssignPass());
+  addPass(createMOSRegAllocPass());
+
+  addPass(&StackSlotColoringID);
+  addPass(&MachineCopyPropagationID);
+  addPass(&MachineLICMID);
+}
 
 namespace {
 

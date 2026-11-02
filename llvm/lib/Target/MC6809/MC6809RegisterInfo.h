@@ -73,7 +73,7 @@ public:
 
   Register getFrameRegister(const MachineFunction &MF) const override;
 
-  bool getRegAllocationHints(Register VirtReg, ArrayRef<MCPhysReg> Order, SmallVectorImpl<MCPhysReg> &Hints, const MachineFunction &MF, const VirtRegMap *VRM = nullptr, const LiveRegMatrix *Matrix = nullptr) const override;
+  bool getRegAllocationHints(Register VirtReg, ArrayRef<MCPhysReg> Order, SmallSetVector<MCPhysReg, 16> &Hints, const MachineFunction &MF, const VirtRegMap *VRM = nullptr, const LiveRegMatrix *Matrix = nullptr) const override;
 
   bool shouldCoalesce(MachineInstr *MI, const TargetRegisterClass *SrcRC,
                       unsigned SubReg, const TargetRegisterClass *DstRC,

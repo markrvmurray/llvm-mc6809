@@ -1383,7 +1383,7 @@ body: |
     ; CHECK-NEXT: [[AND1:%[0-9]+]]:_(s8) = G_AND [[COPY2]], [[C1]]
     ; CHECK-NEXT: [[LSHRE2:%[0-9]+]]:_(s8), [[LSHRE3:%[0-9]+]]:_(s1) = G_LSHRE [[AND1]], [[C]]
     ; CHECK-NEXT: [[COPY3:%[0-9]+]]:_(s8) = COPY [[LSHRE2]](s8)
-    ; CHECK-NEXT: [[OR:%[0-9]+]]:_(s8) = disjoint G_OR [[COPY1]], [[COPY3]]
+    ; CHECK-NEXT: [[OR:%[0-9]+]]:_(s8) = G_OR [[COPY1]], [[COPY3]]
     ; CHECK-NEXT: RTS implicit [[OR]](s8)
     %0:_(s8) = COPY $a
     %1:_(s3) = G_TRUNC %0

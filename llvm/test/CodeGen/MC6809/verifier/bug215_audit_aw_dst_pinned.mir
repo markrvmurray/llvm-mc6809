@@ -1,4 +1,4 @@
-# RUN: llc -mtriple=mc6809 -mcpu=hd6309 -run-pass=postrapseudos \
+# RUN: llc -mtriple=mc6809 -mcpu=hd6309 -run-pass=post-ra-pseudos \
 # RUN:     -verify-machineinstrs %s -o - 2>&1 | FileCheck %s
 
 # Bug #215 audit sentinel — pins the multi-arch-reg dst routing
@@ -80,7 +80,7 @@ tracksRegLiveness: true
 body: |
   bb.0:
     liveins: $ad
-    $aw = Multiply_i16_Imm $ad, 5, implicit-def dead $nz, implicit-def dead $ad, implicit-def dead $aw, implicit-def dead $aq, implicit-def dead $aa, implicit-def dead $ab, implicit-def dead $ae, implicit-def dead $af
+    $aw = Multiply_i16_Imm $ad, 5, implicit-def dead $nz, implicit-def dead $ad, implicit-def dead $aq, implicit-def dead $aa, implicit-def dead $ab, implicit-def dead $ae, implicit-def dead $af
     RTSr implicit $aw
 ...
 
@@ -99,7 +99,7 @@ tracksRegLiveness: true
 body: |
   bb.0:
     liveins: $ad
-    $ad = Multiply_i16_Imm $ad, 5, implicit-def dead $nz, implicit-def dead $ad, implicit-def dead $aw, implicit-def dead $aq, implicit-def dead $aa, implicit-def dead $ab, implicit-def dead $ae, implicit-def dead $af
+    $ad = Multiply_i16_Imm $ad, 5, implicit-def dead $nz, implicit-def dead $aw, implicit-def dead $aq, implicit-def dead $aa, implicit-def dead $ab, implicit-def dead $ae, implicit-def dead $af
     RTSr implicit $ad
 ...
 

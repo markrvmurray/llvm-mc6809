@@ -18,7 +18,6 @@
 #include "llvm/TargetParser/ARMTargetParser.h"
 #include "llvm/TargetParser/ARMTargetParserCommon.h"
 #include "llvm/TargetParser/Host.h"
-#include "llvm/TargetParser/TargetParser.h"
 #include <cassert>
 #include <cstring>
 using namespace llvm;
@@ -196,6 +195,8 @@ StringRef Triple::getArchName(ArchType Kind, SubArchType SubArch) {
       return "arm64ec";
     if (SubArch == AArch64SubArch_arm64e)
       return "arm64e";
+    if (SubArch == AArch64SubArch_arm64e_x1)
+      return "arm64e.x1";
     if (SubArch == AArch64SubArch_lfi)
       return "aarch64_lfi";
     break;
@@ -402,7 +403,7 @@ StringRef Triple::getOSTypeName(OSType Kind) {
   switch (Kind) {
   case UnknownOS:
     return "unknown";
-#define TRIPLE_OS(Enum, Name)                                                  \
+#define TRIPLE_OS(Enum, Name, CMakeName)                                       \
   case Enum:                                                                   \
     return Name;
 #include "llvm/TargetParser/TripleName.def"
@@ -415,7 +416,7 @@ StringRef Triple::getEnvironmentTypeName(EnvironmentType Kind) {
   switch (Kind) {
   case UnknownEnvironment:
     return "unknown";
-#define TRIPLE_ENV(Enum, Name)                                                 \
+#define TRIPLE_ENV(Enum, Name, CMakeOverride)                                  \
   case Enum:                                                                   \
     return Name;
 #include "llvm/TargetParser/TripleName.def"
@@ -625,6 +626,7 @@ Triple::ArchType Triple::parseArch(StringRef ArchName) {
           .Case("arm64", Triple::aarch64)
           .Case("arm64_32", Triple::aarch64_32)
           .Case("arm64e", Triple::aarch64)
+          .Case("arm64e.x1", Triple::aarch64)
           .Case("arm64ec", Triple::aarch64)
           .Case("arm", Triple::arm)
           .Case("armeb", Triple::armeb)
@@ -717,7 +719,7 @@ static Triple::VendorType parseVendor(StringRef VendorName) {
 
 static Triple::OSType parseOS(StringRef OSName) {
   return StringSwitch<Triple::OSType>(OSName)
-#define TRIPLE_OS(Enum, Name) .StartsWith(Name, Triple::Enum)
+#define TRIPLE_OS(Enum, Name, CMakeName) .StartsWith(Name, Triple::Enum)
 #define TRIPLE_OS_ALIAS(Enum, AliasName) .StartsWith(AliasName, Triple::Enum)
 #include "llvm/TargetParser/TripleName.def"
       .Default(Triple::UnknownOS);
@@ -725,7 +727,7 @@ static Triple::OSType parseOS(StringRef OSName) {
 
 static Triple::EnvironmentType parseEnvironment(StringRef EnvironmentName) {
   return StringSwitch<Triple::EnvironmentType>(EnvironmentName)
-#define TRIPLE_ENV(Enum, Name) .StartsWith(Name, Triple::Enum)
+#define TRIPLE_ENV(Enum, Name, CMakeOverride) .StartsWith(Name, Triple::Enum)
 #include "llvm/TargetParser/TripleName.def"
       .Default(Triple::UnknownEnvironment);
 }
@@ -754,6 +756,8 @@ Triple::SubArchType Triple::parseSubArch(StringRef SubArchName) {
 
   if (SubArchName == "arm64e")
     return Triple::AArch64SubArch_arm64e;
+  if (SubArchName == "arm64e.x1")
+    return Triple::AArch64SubArch_arm64e_x1;
 
   if (SubArchName == "arm64ec")
     return Triple::AArch64SubArch_arm64ec;
@@ -854,6 +858,7 @@ Triple::SubArchType Triple::parseSubArch(StringRef SubArchName) {
         .Case("12.01", Triple::AMDGPUSubArch1201)
         .Case("12.5", Triple::AMDGPUSubArch12_5)
         .Case("12.50", Triple::AMDGPUSubArch1250)
+        .Case("12.50s", Triple::AMDGPUSubArch1250S)
         .Case("12.51", Triple::AMDGPUSubArch1251)
         .Case("13", Triple::AMDGPUSubArch13)
         .Case("13.10", Triple::AMDGPUSubArch1310)
@@ -942,6 +947,8 @@ Triple::SubArchType Triple::parseSubArch(StringRef SubArchName) {
     return Triple::ARMSubArch_v9_6a;
   case ARM::ArchKind::ARMV9_7A:
     return Triple::ARMSubArch_v9_7a;
+  case ARM::ArchKind::ARMV9_8A:
+    return Triple::ARMSubArch_v9_8a;
   case ARM::ArchKind::ARMV8R:
     return Triple::ARMSubArch_v8r;
   case ARM::ArchKind::ARMV8MBaseline:
@@ -2521,11 +2528,14 @@ ExceptionHandling Triple::getDefaultExceptionHandling() const {
   case Triple::hexagon:
   case Triple::lanai:
   case Triple::m68k:
+  case Triple::mos:
   case Triple::msp430:
   case Triple::systemz:
   case Triple::xcore:
   case Triple::xtensa:
     return ExceptionHandling::DwarfCFI;
+  case Triple::ve:
+    return ExceptionHandling::SjLj;
   default:
     break;
   }
@@ -2538,30 +2548,34 @@ ExceptionHandling Triple::getDefaultExceptionHandling() const {
   return ExceptionHandling::None;
 }
 
-static FloatABI::ABIType getARMDefaultFloatABI(const Triple &T) {
+static FloatABI::ABIType getARMDefaultFloatABI(const Triple &T,
+                                               StringRef ABIName) {
   Triple::EnvironmentType Env = T.getEnvironment();
   bool IsHard =
       Env == Triple::GNUEABIHF || Env == Triple::GNUEABIHFT64 ||
       Env == Triple::MuslEABIHF || Env == Triple::EABIHF ||
       (T.isOSBinFormatMachO() && T.getSubArch() == Triple::ARMSubArch_v7em) ||
-      T.isOSWindows() || ARM::computeTargetABI(T, "") == ARM::ARM_ABI_AAPCS16;
+      T.isOSWindows() ||
+      ARM::computeTargetABI(T, ABIName) == ARM::ARM_ABI_AAPCS16;
   return IsHard ? FloatABI::Hard : FloatABI::Soft;
 }
 
-FloatABI::ABIType Triple::getDefaultFloatABI() const {
+FloatABI::ABIType Triple::getDefaultFloatABI(StringRef ABIName) const {
   if (isARM() || isThumb())
-    return getARMDefaultFloatABI(*this);
+    return getARMDefaultFloatABI(*this, ABIName);
 
   // MIPS defaults to hard float, except on FreeBSD which uses soft float.
   if (isMIPS())
     return isOSFreeBSD() ? FloatABI::Soft : FloatABI::Hard;
 
-  if (isCSKY() || isAVR() || getArch() == msp430)
+  if (isCSKY() || isAVR() || getArch() == msp430 || getArch() == mc6809)
     return FloatABI::Soft;
 
   // Most targets use hard float unless soft float is explicitly requested.
   return FloatABI::Hard;
 }
+
+ThreadModel Triple::getDefaultThreadModel() const { return ThreadModel::POSIX; }
 
 LongDoubleFormat Triple::getDefaultLongDoubleFormat() const {
   switch (getArch()) {
@@ -2570,13 +2584,17 @@ LongDoubleFormat Triple::getDefaultLongDoubleFormat() const {
   case riscv64:
   case riscv32be:
   case riscv64be:
-  case sparc:
-  case sparcel:
   case sparcv9:
   case systemz:
   case ve:
   case wasm32:
   case wasm64:
+    return LongDoubleFormat::IEEEquad;
+  case sparc:
+  case sparcel:
+    // GCC uses IEEE double for bare-metal, NetBSD, and RTEMS SPARC V8 targets.
+    if (getOS() == UnknownOS || getOS() == NetBSD || getOS() == RTEMS)
+      return LongDoubleFormat::IEEEdouble;
     return LongDoubleFormat::IEEEquad;
   case ppc:
   case ppcle:
@@ -2601,8 +2619,8 @@ LongDoubleFormat Triple::getDefaultLongDoubleFormat() const {
   case aarch64:
   case aarch64_be:
   case aarch64_32:
-    // AArch64 uses IEEE quad, except on Windows, Darwin, and Android.
-    if (isOSWindows() || isOSDarwin() || isAndroid())
+    // AArch64 uses IEEE quad, except on Windows and Darwin.
+    if (isOSWindows() || isOSDarwin())
       return LongDoubleFormat::IEEEdouble;
     return LongDoubleFormat::IEEEquad;
   case mips64:

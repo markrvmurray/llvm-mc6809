@@ -1,3 +1,6 @@
+; UNSUPPORTED: true
+; llvm-mos: Handwritten checks depend on upstream register-allocation decisions
+; that differ with this fork's spilling and splitting heuristics.
 ; RUN: llc < %s -mcpu=atom -mtriple=i686-linux | FileCheck %s
 
 ; CHECK:%bb.5

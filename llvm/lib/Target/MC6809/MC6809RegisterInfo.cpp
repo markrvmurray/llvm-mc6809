@@ -332,7 +332,7 @@ Register MC6809RegisterInfo::getFrameRegister(const MachineFunction &MF) const {
   return TFI->hasFP(MF) ? MC6809::SU : MC6809::SS;
 }
 
-bool MC6809RegisterInfo::getRegAllocationHints(Register VirtReg, ArrayRef<MCPhysReg> Order, SmallVectorImpl<MCPhysReg> &Hints, const MachineFunction &MF, const VirtRegMap *VRM, const LiveRegMatrix *Matrix) const {
+bool MC6809RegisterInfo::getRegAllocationHints(Register VirtReg, ArrayRef<MCPhysReg> Order, SmallSetVector<MCPhysReg, 16> &Hints, const MachineFunction &MF, const VirtRegMap *VRM, const LiveRegMatrix *Matrix) const {
   const MC6809Subtarget &STI = MF.getSubtarget<MC6809Subtarget>();
   const auto &TRI = *STI.getRegisterInfo();
   const MachineRegisterInfo &MRI = MF.getRegInfo();
@@ -413,7 +413,7 @@ bool MC6809RegisterInfo::getRegAllocationHints(Register VirtReg, ArrayRef<MCPhys
       return false;
     return OriginalIndex[A.first] < OriginalIndex[B.first];
   });
-  append_range(Hints, make_first_range(RegsAndScores));
+  Hints.insert_range(make_first_range(RegsAndScores));
   return false;
 }
 

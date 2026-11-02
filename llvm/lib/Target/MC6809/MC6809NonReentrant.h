@@ -21,7 +21,7 @@ namespace llvm {
 
 ModulePass *createMC6809NonReentrantPass();
 
-struct MC6809NonReentrantPass : PassInfoMixin<MC6809NonReentrantPass> {
+struct MC6809NonReentrantPass : OptionalPassInfoMixin<MC6809NonReentrantPass> {
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 

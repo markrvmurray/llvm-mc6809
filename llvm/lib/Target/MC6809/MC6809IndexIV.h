@@ -19,7 +19,7 @@
 
 namespace llvm {
 
-struct MC6809IndexIV : public PassInfoMixin<MC6809IndexIV> {
+struct MC6809IndexIV : public OptionalPassInfoMixin<MC6809IndexIV> {
   PreservedAnalyses run(Loop &L, LoopAnalysisManager &AM, LoopStandardAnalysisResults &AR, LPMUpdater &U);
 };
 

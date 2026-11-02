@@ -36,6 +36,7 @@
 #include "llvm/Support/FileUtilities.h"
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/InitLLVM.h"
+#include "llvm/Support/LibraryOptionsContext.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/TargetSelect.h"
@@ -393,7 +394,9 @@ int main(int argc, char **argv) {
   cl::AddExtraVersionPrinter(TargetRegistry::printRegisteredTargetsForVersion);
 
   cl::HideUnrelatedOptions({&MCCategory, &getColorCategory()});
-  cl::ParseCommandLineOptions(argc, argv, "llvm machine code playground\n");
+  cl::LibraryOptionsContext LibraryOptions;
+  cl::parseCommandLineOptions(LibraryOptions, ArrayRef(argv, argc),
+                              "llvm machine code playground\n");
 
   if (TimeTrace)
     timeTraceProfilerInitialize(TimeTraceGranularity, argv[0]);
@@ -409,6 +412,7 @@ int main(int argc, char **argv) {
   });
 
   MCTargetOptions MCOptions = mc::InitMCTargetOptionsFromFlags();
+  MCOptions.LibraryOptions = &LibraryOptions;
   MCOptions.CompressDebugSections = CompressDebugSections.getValue();
   MCOptions.ShowMCInst = ShowInst;
   MCOptions.AsmVerbose = true;

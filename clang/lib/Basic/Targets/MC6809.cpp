@@ -43,7 +43,7 @@ MC6809TargetInfo::MC6809TargetInfo(const llvm::Triple &Triple, const TargetOptio
     : TargetInfo(Triple) {
   // Address space 1 = direct page (8-bit pointers, high byte implicit
   // in DP register). Bug #178 user `__attribute__((directpage))`
-  // globals live there. Must match MC6809TargetMachine.cpp.
+  // globals live there. Must match llvm/lib/TargetParser/TargetDataLayout.cpp.
   static const char Layout[] =
       "E-p:16:8-p1:8:8-S8-m:e-i1:8-i8:8-i16:8-i32:8-i64:8-f32:8-f64:8-a:0-n8:16";
   resetDataLayout(Layout);

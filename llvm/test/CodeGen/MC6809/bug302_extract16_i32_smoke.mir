@@ -1,4 +1,4 @@
-# RUN: llc -mtriple=mc6809 -mcpu=hd6309 -run-pass=postrapseudos \
+# RUN: llc -mtriple=mc6809 -mcpu=hd6309 -run-pass=post-ra-pseudos \
 # RUN:     %s -o - 2>&1 | FileCheck %s
 
 # Bug #302 redesign Phase 1 (2026-05-17): smoke test for the new

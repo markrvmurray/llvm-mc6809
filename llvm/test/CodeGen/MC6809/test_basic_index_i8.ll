@@ -48,8 +48,7 @@ define i8 @foo1(i8* nocapture noundef readonly %a, i8 noundef signext %b) #0 {
 ;
 ; MC6809-O0-LABEL: foo1:
 ; MC6809-O0:       ; %bb.0: ; %entry
-; MC6809-O0-NEXT:    sex
-; MC6809-O0-NEXT:    ldb d,x
+; MC6809-O0-NEXT:    ldb b,x
 ; MC6809-O0-NEXT:    rts
 ;
 ; MC6809-O1-LABEL: foo1:
@@ -69,8 +68,7 @@ define i8 @foo1(i8* nocapture noundef readonly %a, i8 noundef signext %b) #0 {
 ;
 ; HD6309-LABEL: foo1:
 ; HD6309:       ; %bb.0: ; %entry
-; HD6309-NEXT:    sex
-; HD6309-NEXT:    ldb d,x
+; HD6309-NEXT:    ldb b,x
 ; HD6309-NEXT:    rts
 entry:
   %idxprom = sext i8 %b to i16

@@ -39,8 +39,6 @@
 
 namespace llvm {
 
-LLVM_ABI extern cl::opt<bool> UseSegmentSetForPhysRegs;
-
 class BitVector;
 class MachineBlockFrequencyInfo;
 class MachineDominatorTree;
@@ -174,6 +172,17 @@ public:
                                        const MachineBlockFrequencyInfo *MBFI,
                                        const MachineBasicBlock *MBB,
                                        ProfileSummaryInfo *PSI = nullptr);
+
+  /// Variants taking a precomputed \p OptForSize rather than deriving it from a
+  /// ProfileSummaryInfo.
+  LLVM_ABI static float getSpillWeight(bool isDef, bool isUse,
+                                       const MachineBlockFrequencyInfo *MBFI,
+                                       const MachineInstr &MI, bool OptForSize);
+
+  LLVM_ABI static float getSpillWeight(bool isDef, bool isUse,
+                                       const MachineBlockFrequencyInfo *MBFI,
+                                       const MachineBasicBlock *MBB,
+                                       bool OptForSize);
 
   LiveInterval &getInterval(Register Reg) {
     if (hasInterval(Reg))
@@ -326,11 +335,17 @@ public:
     return Indexes->getMBBFromIndex(index);
   }
 
+  /// Adds an empty block \p MBB to the SlotIndexes and regmask maps.
   void insertMBBInMaps(MachineBasicBlock *MBB) {
-    Indexes->insertMBBInMaps(MBB);
-    assert(unsigned(MBB->getNumber()) == RegMaskBlocks.size() &&
-           "Blocks must be added in order.");
-    RegMaskBlocks.push_back(std::make_pair(RegMaskSlots.size(), 0));
+    insertMBBInMapsImpl(MBB, /*AssumeRegMaskEmpty=*/true);
+  }
+
+  /// After the tail of \p Orig has been sliced into \p SplitBB, updates the
+  /// SlotIndexes and regmask maps and re-slices \p Orig's regmask table across
+  /// the two blocks.
+  void splitAt(MachineBasicBlock &Orig, MachineBasicBlock &SplitBB) {
+    insertMBBInMapsImpl(&SplitBB, /*AssumeRegMaskEmpty=*/false);
+    reassignRegMaskSlots(Orig, SplitBB);
   }
 
   SlotIndex InsertMachineInstrInMaps(MachineInstr &MI) {
@@ -467,9 +482,7 @@ public:
     LiveRange *LR = RegUnitRanges[static_cast<unsigned>(Unit)];
     if (!LR) {
       // Compute missing ranges on demand.
-      // Use segment set to speed-up initial computation of the live range.
-      RegUnitRanges[static_cast<unsigned>(Unit)] = LR =
-          new LiveRange(UseSegmentSetForPhysRegs);
+      RegUnitRanges[static_cast<unsigned>(Unit)] = LR = createRegUnitRange();
       computeRegUnitRange(*LR, Unit);
       // MC6809 Bug #256: bump the version tag so any consumer that
       // cached a previous nullptr or stale pointer for this regunit
@@ -585,6 +598,16 @@ private:
   /// Compute RegMaskSlots and RegMaskBits.
   void computeRegMasks();
 
+  /// Implementation of insertMBBInMaps(). \p MBB must contain no regmask
+  /// operands when \p AssumeRegMaskEmpty is true.
+  LLVM_ABI void insertMBBInMapsImpl(MachineBasicBlock *MBB,
+                                    bool AssumeRegMaskEmpty);
+
+  /// Updates the regmask table for \p Orig's instructions that are moved into
+  /// \p SplitBB, so that the table is sliced across both blocks.
+  LLVM_ABI void reassignRegMaskSlots(MachineBasicBlock &Orig,
+                                     MachineBasicBlock &SplitBB);
+
   /// Walk the values in \p LI and check for dead values:
   /// - Dead PHIDef values are marked as unused.
   /// - Dead operands are marked as such.
@@ -596,6 +619,7 @@ private:
                          SmallVectorImpl<MachineInstr *> *dead);
 
   LLVM_ABI static LiveInterval *createInterval(Register Reg);
+  LLVM_ABI static LiveRange *createRegUnitRange();
 
   void printInstrs(raw_ostream &O) const;
   void dumpInstrs() const;

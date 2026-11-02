@@ -8,7 +8,7 @@
 ; which is why MC6809RegisterInfo overrides getRegAsmName; the inherited one
 ; returns the record name and every clobber here was silently dropped.
 
-; RUN: llc -mtriple=mc6809 -mcpu=hd6309 -stop-after=irtranslator %s -o - \
+; RUN: llc -mtriple=mc6809 -mcpu=hd6309 -stop-after=ir-translator %s -o - \
 ; RUN:   | FileCheck %s
 
 define void @clobbers() {

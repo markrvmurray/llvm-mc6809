@@ -45,11 +45,9 @@ public:
                               uint64_t Range, ProfileSummaryInfo *PSI,
                               BlockFrequencyInfo *BFI) const override;
 
-  MVT getRegisterType(MVT VT) const override;
+  MVT getCachedRegisterType(MVT VT) const override;
 
-  unsigned
-  getNumRegisters(LLVMContext &Context, EVT VT,
-                  std::optional<MVT> RegisterVT = std::nullopt) const override;
+  unsigned getCachedNumRegisters(MVT VT) const override;
 
   unsigned getNumRegistersForInlineAsm(LLVMContext &Context,
                                        EVT VT) const override;
