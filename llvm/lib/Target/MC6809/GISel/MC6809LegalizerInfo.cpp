@@ -667,20 +667,28 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // Same-type rules (result and source share the scalar width) avoid the
   // upstream lowerBitCount path that produces (s8, s16) shapes the
   // libcall machinery can't handle.
+  // Both type indices are widened, since a source narrower than 16 bits has
+  // no libcall of its own.
   getActionDefinitionsBuilder({G_CTTZ, G_CTTZ_ZERO_POISON})
       .libcallFor({{s16, s16}, {s32, s32}, {s64, s64}})
       .widenScalarToNextPow2(0, /*Min=*/16)
-      .clampScalar(0, s16, s64);
+      .clampScalar(0, s16, s64)
+      .widenScalarToNextPow2(1, /*Min=*/16)
+      .clampScalar(1, s16, s64);
 
   getActionDefinitionsBuilder({G_CTLZ, G_CTLZ_ZERO_POISON})
       .libcallFor({{s16, s16}, {s32, s32}, {s64, s64}})
       .widenScalarToNextPow2(0, /*Min=*/16)
-      .clampScalar(0, s16, s64);
+      .clampScalar(0, s16, s64)
+      .widenScalarToNextPow2(1, /*Min=*/16)
+      .clampScalar(1, s16, s64);
 
   getActionDefinitionsBuilder(G_CTPOP)
       .libcallFor({{s16, s16}, {s32, s32}, {s64, s64}})
       .widenScalarToNextPow2(0, /*Min=*/16)
-      .clampScalar(0, s16, s64);
+      .clampScalar(0, s16, s64)
+      .widenScalarToNextPow2(1, /*Min=*/16)
+      .clampScalar(1, s16, s64);
 
   // Swapping the bytes of a 16-bit value has no instruction (EXG A,B is one,
   // but the value is not always in D and the halves of an imaginary register
