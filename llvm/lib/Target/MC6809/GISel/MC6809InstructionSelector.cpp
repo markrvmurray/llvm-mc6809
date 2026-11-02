@@ -2261,9 +2261,9 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
   }
 skip_globalvalue_fold:
 
-  // Bug #322 (2026-05-22): intercept G_MUL / G_UMULH / G_SMULH on i8
-  // BEFORE selectImpl matches the TableGen MulPat_i8 / MulHUPat_i8 /
-  // MulHSPat_i8 patterns.  Those autogen-emit
+  // Intercept G_MUL / G_UMULH on i8
+  // BEFORE selectImpl matches the TableGen MulPat_i8 / MulHUPat_i8
+  // patterns.  Those autogen-emit
   // `MERGE_LOHI_i16 ACC8:$b, ACC8:$a` with the inputs in their
   // existing classes — if both inputs happen to be in ABc (a common
   // shape: EXTRACT_LO_i16 + PHI-of-ACC8 / SEX8Implicit outputs),
@@ -2279,8 +2279,7 @@ skip_globalvalue_fold:
   // narrowing COPYs.  Bypasses the autogen pattern for the i8
   // multiply shapes; semantically identical otherwise.
   if (MI.getOpcode() == TargetOpcode::G_MUL ||
-      MI.getOpcode() == TargetOpcode::G_UMULH ||
-      MI.getOpcode() == TargetOpcode::G_SMULH) {
+      MI.getOpcode() == TargetOpcode::G_UMULH) {
     Register DstReg = MI.getOperand(0).getReg();
     if (MRI->getType(DstReg) == LLT::scalar(8)) {
       Register Lo = MI.getOperand(1).getReg();
@@ -3419,7 +3418,7 @@ skip_globalvalue_fold:
   case TargetOpcode::G_SSUBE:
     return selectSubE(MI);
 
-  // G_MUL/G_UMULH/G_SMULH i8: handled by TableGen patterns via
+  // G_MUL/G_UMULH i8: handled by TableGen patterns via
   // REG_SEQUENCE + MUL_D + EXTRACT_SUBREG (no hand-lowering needed).
 
   case MC6809::G_SHLE:

@@ -338,16 +338,29 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
     //
     // Bug #161 round 16's narrowScalar concern is obsolete since
     // s32/s64 are already libcallFor — no narrowing path active.
-    getActionDefinitionsBuilder({G_MUL, G_UMULH, G_SMULH})
+    getActionDefinitionsBuilder(G_MUL)
         .legalFor({s8})
         .libcallFor({s16, s32, s64})
         .clampScalar(0, s1, sMaxLogic);
   } else {
-    getActionDefinitionsBuilder({G_MUL, G_UMULH, G_SMULH})
+    getActionDefinitionsBuilder(G_MUL)
         .legalFor({s8})
         .libcallFor({s16, s32, s64})
         .clampScalar(0, s8, s64);
   }
+
+  // InstCombine turns (ext(a) * ext(b)) >> width into llvm.[su]mulh. There is
+  // no runtime library function for those, so widen back to the multiply they
+  // came from, which does have one. s64 would need an s128 multiply, which
+  // this target does not have. MUL is unsigned, so only G_UMULH is native at
+  // s8.
+  getActionDefinitionsBuilder(G_UMULH)
+      .legalFor({s8})
+      .lowerFor({s16, s32})
+      .minScalar(0, s8);
+  getActionDefinitionsBuilder(G_SMULH)
+      .lowerFor({s8, s16, s32})
+      .minScalar(0, s8);
 
   getActionDefinitionsBuilder({G_SDIV, G_UDIV, G_SREM, G_UREM})
       .libcallFor(LegalLibcallScalars)

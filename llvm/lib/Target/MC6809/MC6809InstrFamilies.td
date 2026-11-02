@@ -1482,14 +1482,11 @@ def MUL_D : MC6809MultiplyD;
 // between ACC8 and ACC16 in the virtual-register graph — bug #118 Layer 1,
 // approach b.
 // mul  → low byte of the product
-// mulhu/mulhs → high byte of the product
+// mulhu → high byte of the product (MUL is unsigned, so mulhs is lowered)
 def MulPat_i8 : Pat<(i8 (mul ACC8:$b, ACC8:$a)),
   (EXTRACT_LO_i16 (MUL_D (MERGE_LOHI_i16 ACC8:$b, ACC8:$a)))>;
 
 def MulHUPat_i8 : Pat<(i8 (mulhu ACC8:$b, ACC8:$a)),
-  (EXTRACT_HI_i16 (MUL_D (MERGE_LOHI_i16 ACC8:$b, ACC8:$a)))>;
-
-def MulHSPat_i8 : Pat<(i8 (mulhs ACC8:$b, ACC8:$a)),
   (EXTRACT_HI_i16 (MUL_D (MERGE_LOHI_i16 ACC8:$b, ACC8:$a)))>;
 
 // --- 16-bit multiply pseudo-instructions (6309 only) ---
