@@ -220,7 +220,8 @@ static bool formStepMemOps(MachineFunction &MF) {
   const TargetInstrInfo &TII = *STI.getInstrInfo();
   bool Changed = false;
   for (MachineBasicBlock &MBB : MF) {
-    for (MachineInstr &Op : make_early_inc_range(MBB)) {
+    for (auto Next = MBB.begin(), End = MBB.end(); Next != End;) {
+      MachineInstr &Op = *Next++;
       std::optional<StepForm> F = stepFormOf(Op.getOpcode());
       if (!F || (F->NeedsHD6309 && !STI.has6309()))
         continue;
@@ -329,6 +330,9 @@ static bool formStepMemOps(MachineFunction &MF) {
       MIB.setMemRefs(Op.memoperands());
       MRI.setRegClass(PtrOut, &MC6809::INDEX16RegClass);
       MRI.setRegClass(PtrIn, &MC6809::INDEX16RegClass);
+      // The step is often the very next instruction, where the walk goes next.
+      if (Next == Step->getIterator())
+        ++Next;
       Op.eraseFromParent();
       Step->eraseFromParent();
       Changed = true;
