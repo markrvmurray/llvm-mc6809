@@ -79,7 +79,6 @@ add_lldb_tool(lldb-server
       lldbPluginInstructionLoongArch
       lldbPluginInstructionMIPS
       lldbPluginInstructionMIPS64
-      lldbPluginInstructionRISCV
       ${LLDB_SYSTEM_LIBS}
 )
 

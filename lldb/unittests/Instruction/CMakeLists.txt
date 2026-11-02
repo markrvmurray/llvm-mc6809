@@ -2,7 +2,6 @@ add_lldb_unittest(EmulatorTests
   ARM/TestARMEmulator.cpp
   ARM64/TestAArch64Emulator.cpp
   LoongArch/TestLoongArchEmulator.cpp
-  RISCV/TestRISCVEmulator.cpp
 
   LINK_COMPONENTS
     Support
@@ -14,7 +13,6 @@ add_lldb_unittest(EmulatorTests
     lldbPluginInstructionARM
     lldbPluginInstructionARM64
     lldbPluginInstructionLoongArch
-    lldbPluginInstructionRISCV
   )
 
 # Only add RISCV emulator tests if RISCV is in the list of LLVM targets to build.
