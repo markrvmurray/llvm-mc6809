@@ -1067,6 +1067,8 @@ list(APPEND mc6809_SOURCES
   mc6809/lshrdi3.S
   mc6809/udivmoddi4.S
   mc6809/ctzhi2.S
+  # __clzhi2: what __builtin_clz and any llvm.ctlz of 16 bits or fewer call.
+  mc6809/clzhi2.S
   # __clzsi2: 32-bit count-leading-zeros. Excluded from GENERIC_SOURCES
   # for register-pressure reasons (see clzsi2.c REMOVE_ITEM above), but
   # __clzdi2.c IS shipped and transitively calls it via __builtin_clz.
