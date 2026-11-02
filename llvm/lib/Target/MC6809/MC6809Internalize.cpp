@@ -56,6 +56,8 @@ public:
   DenseMap<std::pair<Function *, GlobalValue *>, Instruction *> insertDummyIRLibcalls(Module &M) const;
 
   void eraseDummyIRLibcalls(DenseMap<std::pair<Function *, GlobalValue *>, Instruction *> DummyIRLibcalls, const DenseSet<Function *> &ErasedFunctions) const;
+
+  void dropDebugValuesOfErasedGlobals(Module &M) const;
 };
 
 } // namespace
@@ -99,7 +101,35 @@ bool MC6809Internalize::runOnModule(Module &M) {
 
   eraseDummyIRLibcalls(std::move(DummyIRLibcalls), ErasedFunctions);
 
+  dropDebugValuesOfErasedGlobals(M);
+
   return true;
+}
+
+// Metadata does not count as a use, so dead code elimination can erase a global
+// that debug values still name. The IR ones follow it automatically, but the
+// machine ones keep a pointer that would be followed when the location is
+// emitted. Those values have no address to describe any more.
+void MC6809Internalize::dropDebugValuesOfErasedGlobals(Module &M) const {
+  DenseSet<const GlobalValue *> Live;
+  for (const GlobalValue &GV : M.global_values())
+    Live.insert(&GV);
+
+  for (Function &F : M) {
+    MachineFunction *MF = MMI->getMachineFunction(F);
+    if (!MF)
+      continue;
+    for (MachineBasicBlock &MBB : *MF)
+      for (MachineInstr &MI : MBB) {
+        if (!MI.isDebugValue())
+          continue;
+        for (MachineOperand &MO : MI.debug_operands())
+          if (MO.isGlobal() && !Live.contains(MO.getGlobal()))
+            MO.ChangeToRegister(MCRegister(), /*isDef=*/false, /*isImp=*/false,
+                                /*isKill=*/false, /*isDead=*/false,
+                                /*isUndef=*/false, /*isDebug=*/true);
+      }
+  }
 }
 
 DenseMap<std::pair<Function *, GlobalValue *>, Instruction *> MC6809Internalize::insertDummyIRLibcalls(Module &M) const {
