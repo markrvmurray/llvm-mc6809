@@ -2376,6 +2376,23 @@ bool MC6809LegalizerInfo::legalizeShiftRotate(LegalizerHelper &Helper, MachineRe
     if (Ty.getSizeInBits() == 16 &&
         getIConstantVRegValWithLookThrough(AmtReg, MRI))
       return true; // selectShift16 handles constant i16 shifts
+    // The high half of an i32 needs no shifting loop, only moves. GVN makes this
+    // common: on a big-endian target it reads a byte through an earlier wider
+    // load as lshr by 24, which a call would make dearer than the load it saved.
+    if (Ty == LLT::scalar(32) && MI.getOpcode() == G_LSHR)
+      if (auto Amt = getIConstantVRegValWithLookThrough(AmtReg, MRI);
+          Amt && (Amt->Value == 16 || Amt->Value == 24)) {
+        LLT S16 = LLT::scalar(16);
+        auto Halves = Builder.buildUnmerge(S16, Src);
+        Register Lo = Halves.getReg(1);
+        if (Amt->Value == 24) {
+          auto Bytes = Builder.buildUnmerge(S8, Lo);
+          Lo = Builder.buildZExt(S16, Bytes.getReg(1)).getReg(0);
+        }
+        Builder.buildMergeLikeInstr(Dst, {Lo, Builder.buildConstant(S16, 0).getReg(0)});
+        MI.eraseFromParent();
+        return true;
+      }
     LLT AmtTy = MRI.getType(AmtReg);
     if (AmtTy != S8)
       MI.getOperand(2).setReg(Builder.buildTrunc(S8, AmtReg).getReg(0));
