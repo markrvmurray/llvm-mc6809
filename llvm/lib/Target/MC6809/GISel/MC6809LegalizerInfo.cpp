@@ -505,7 +505,7 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   getActionDefinitionsBuilder({G_INTRINSIC_LRINT, G_LROUND})
       .libcallForCartesianProduct({s32}, {s32, s64});
 
-  getActionDefinitionsBuilder(G_LLROUND)
+  getActionDefinitionsBuilder({G_LLROUND, G_INTRINSIC_LLRINT})
       .libcallForCartesianProduct({s64}, {s32, s64});
 
   getActionDefinitionsBuilder(G_FPEXT)
