@@ -1668,6 +1668,22 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
 
   // isPreISelOpcode is stolen from llvm-mos. Methinks it means "not a GlobalISel opcode".
   if (!MI.isPreISelOpcode()) {
+    // A fake use only keeps a value around for the debugger, and a value wider
+    // than 32 bits has no register class to keep it in. Dropping the use loses
+    // nothing else, and leaves its definition dead.
+    if (MI.getOpcode() == TargetOpcode::FAKE_USE) {
+      for (unsigned I = MI.getNumOperands(); I-- > 0;) {
+        const MachineOperand &MO = MI.getOperand(I);
+        if (MO.isReg() && MO.getReg().isVirtual() &&
+            MRI->getType(MO.getReg()).isValid() &&
+            MRI->getType(MO.getReg()).getSizeInBits() > 32)
+          MI.removeOperand(I);
+      }
+      if (MI.getNumOperands() == 0) {
+        MI.eraseFromParent();
+        return true;
+      }
+    }
     // Ensure that target-independent pseudos like COPY have register classes.
     constrainGenericOp(MI);
     return true;
