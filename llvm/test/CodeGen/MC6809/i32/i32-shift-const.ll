@@ -703,84 +703,18 @@ define i32 @lshr_i32_8(i32 %x) {
 define i32 @lshr_i32_16(i32 %x) {
 ; O0-LABEL: lshr_i32_16:
 ; O0:       ; %bb.0:
-; O0-NEXT:    leas -6,s
-; O0-NEXT:    pshs u,y
-; O0-NEXT:    tfr s,u
-; O0-NEXT:    stx 4,u ; 2-byte Folded Spill
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 14,u
-; O0-NEXT:    std <__rs1
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 12,u
-; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
-; O0-NEXT:    ldd #16
-; O0-NEXT:    andb #255
-; O0-NEXT:    clra
-; O0-NEXT:    leas -6,s
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd <__rs1
-; O0-NEXT:    std 4,s
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd <__rs0
-; O0-NEXT:    std 2,s
-; O0-NEXT:    puls d
-; O0-NEXT:    std 4,s
-; O0-NEXT:    leay 6,u
-; O0-NEXT:    tfr y,x
-; O0-NEXT:    lbsr __lshrsi3
-; O0-NEXT:    ldd 2,y
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 6,u
-; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
-; O0-NEXT:    leas 6,s
-; O0-NEXT:    ldx 4,u ; 2-byte Folded Reload
+; O0-NEXT:    ldd 2,s
 ; O0-NEXT:    std 2,x
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd <__rs0
+; O0-NEXT:    ldd #0
 ; O0-NEXT:    std ,x
-; O0-NEXT:    puls d
-; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u,y
-; O0-NEXT:    leas 6,s
 ; O0-NEXT:    rts
 ;
 ; O2-LABEL: lshr_i32_16:
 ; O2:       ; %bb.0:
-; O2-NEXT:    leas -6,s
-; O2-NEXT:    pshs u,y
-; O2-NEXT:    tfr s,u
-; O2-NEXT:    stx 4,u ; 2-byte Folded Spill
-; O2-NEXT:    ldd 14,u
-; O2-NEXT:    pshs d
-; O2-NEXT:    ldd 12,u
-; O2-NEXT:    std <__rs0
-; O2-NEXT:    puls d
-; O2-NEXT:    leas -6,s
-; O2-NEXT:    std 2,s
-; O2-NEXT:    ldd <__rs0
-; O2-NEXT:    std ,s
-; O2-NEXT:    ldd #16
-; O2-NEXT:    std 4,s
-; O2-NEXT:    leay 6,u
-; O2-NEXT:    tfr y,x
-; O2-NEXT:    lbsr __lshrsi3
-; O2-NEXT:    ldd 2,y
-; O2-NEXT:    pshs d
-; O2-NEXT:    ldd 6,u
-; O2-NEXT:    std <__rs0
-; O2-NEXT:    puls d
-; O2-NEXT:    leas 6,s
-; O2-NEXT:    ldx 4,u ; 2-byte Folded Reload
+; O2-NEXT:    ldd 2,s
 ; O2-NEXT:    std 2,x
-; O2-NEXT:    ldd <__rs0
+; O2-NEXT:    ldd #0
 ; O2-NEXT:    std ,x
-; O2-NEXT:    tfr u,s
-; O2-NEXT:    puls u,y
-; O2-NEXT:    leas 6,s
 ; O2-NEXT:    rts
   %r = lshr i32 %x, 16
   ret i32 %r
