@@ -22,25 +22,23 @@ export NITROS9_RECIPES=/path/to/nitros9/recipes/picothing   # if not ~/Documents
 llvm/build/bin/llvm-lit -sv compiler-rt/test/mc6809-os9-runtime
 ```
 
-The images are found under `$NITROS9_RECIPES/l<level>` (default level 2,
-`NITROS9_LEVEL` to change it); name `NITROS9_BOOT_DSK` and `NITROS9_FIRMWARE`
-instead if they live somewhere else.  Without them the suite reports
-UNSUPPORTED rather than failing, so check that it says how many tests ran.
+The boot image is `$NITROS9_RECIPES/l<level>_mega/`'s (default level 2,
+`NITROS9_LEVEL` to change it), and the firmware is the newest
+`rel_picothing.srec` in any recipe, since one REL boots every level.  Name
+`NITROS9_BOOT_DSK` and `NITROS9_FIRMWARE` instead if they live somewhere else.
+Without them the suite reports UNSUPPORTED rather than failing, so check that
+it says how many tests ran.
+
+The test disk is the IDE slave, so the boot image needs the `/J0` descriptor,
+and an image without one counts as absent.  Only the mega images have it: Level
+2 in the bootfile, Level 1 in `/Modules`, from where each run loads it.
 
 A case that only means something at one level says so with a `// LEVEL: N`
-line and requires that level's images (`// REQUIRES: nitros9-l1`); see
+line and requires that level's image (`// REQUIRES: nitros9-l1`); see
 `TestCases/argvlvl1.c`, which checks the recovery of argv[0] from the module
 header where the data area does not start at zero.
 
-The boot image must be an IDE (flat) image, not the recipe's default floppy
-image; build it in the recipe directory with
-
-```sh
-NITROS9DIR=/path/to/nitros9 make \
-    DSKIMAGE=NOS9_6809_L2_DEV_picothing_x0.dsk OS9FORMAT_CMD="os9 format -e -l65536"
-```
-
-(`l1` for Level 1: same command with the L1 names.)  Knobs:
+Build the images with NitrOS-9's `.github/workflows/nitros9.sh`.  Knobs:
 `NITROS9_INPUT_FIRST` (cycles before the first console byte, default 78M —
 the login prompt must be up), `NITROS9_TIMEOUT` (instruction cap),
 `NITROS9_WALL_SECONDS` (wall-clock cap, default 300).

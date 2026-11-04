@@ -9,7 +9,8 @@
 #
 #   usim09pt (Pico-Thing, ROM-free, the default)
 #     NITROS9_USIM09PT=/path/to/usim09pt
-#     NITROS9_BOOT_DSK=/path/to/NOS9_6809_L2_DEV_picothing_mega.dsk (IDE image)
+#     NITROS9_BOOT_DSK=/path/to/NOS9_6809_L2_DEV_picothing_mega.dsk
+#                      (an IDE image with a /J0 descriptor)
 #     NITROS9_FIRMWARE=/path/to/rel_picothing.srec
 #
 #   MAME coco3 (needs CoCo 3 ROMs)
@@ -18,10 +19,14 @@
 #
 # and MC6809_OS9_RUNTIME_TESTS=1 to opt in (booting an OS per test is slow).
 
+import functools
+import glob
+import operator
 import os
 import shutil
 import subprocess
 import sys
+import tempfile
 
 import lit.formats
 
@@ -96,27 +101,66 @@ nitros9_recipes = os.environ.get(
     os.path.expanduser("~/Documents/NitrOS-9/nitros9/recipes/picothing"))
 
 
-def level_images(level):
-    # The harness mounts the test disk as the IDE slave, whose /J0 descriptor
-    # only the mega images have, so they come first. A level without one falls
-    # back to the plain recipe.
-    for lvldir, names in (
-            ("l%s_mega" % level, ("NOS9_6809_L%s_DEV_picothing_mega.dsk",)),
-            ("l%s" % level, ("NOS9_6809_L%s_DEV_picothing_x0.dsk",
-                             "NOS9_6809_L%s_DEV_picothing.dsk"))):
-        firmware = os.path.join(nitros9_recipes, lvldir, "rel_picothing.srec")
-        for name in names:
-            boot = os.path.join(nitros9_recipes, lvldir, name % level)
-            if os.path.isfile(boot) and os.path.isfile(firmware):
-                return boot, firmware
-    return "", ""
+def level_image(level):
+    return os.path.join(nitros9_recipes, "l%s_mega" % level,
+                        "NOS9_6809_L%s_DEV_picothing_mega.dsk" % level)
+
+
+def newest_firmware():
+    # One REL boots every level and processor, so any recipe's copy will do;
+    # the newest is the one least likely to predate the images.
+    found = glob.glob(os.path.join(nitros9_recipes, "*", "rel_picothing.srec"))
+    return max(found, key=os.path.getmtime) if found else ""
+
+
+def module_names(data):
+    # A module header is $87 $CD, its size, its name's offset, and at byte 8 a
+    # check that makes the first nine bytes XOR to $FF.  A name's last
+    # character carries the high bit.
+    names = []
+    at = data.find(b"\x87\xcd")
+    while at >= 0:
+        header = data[at:at + 9]
+        if len(header) == 9 and functools.reduce(operator.xor, header) == 0xFF:
+            name_at = at + ((header[4] << 8) | header[5])
+            name = bytearray()
+            while name_at < len(data):
+                name.append(data[name_at] & 0x7F)
+                if data[name_at] & 0x80:
+                    break
+                name_at += 1
+            names.append(name.decode("ascii", "replace"))
+        at = data.find(b"\x87\xcd", at + 1)
+    return names
+
+
+def image_has_j0(image):
+    # The test disk is the IDE slave, reached through the /J0 descriptor.
+    # Level 2 mega images have it in the bootfile.  Level 1's module directory
+    # has no room for it there, so those images keep it in /Modules, and
+    # run-os9-case.sh loads it from there.
+    if not (image and os.path.isfile(image) and usable(os9)):
+        return False
+    listing = subprocess.run([os9, "dir", image + ",Modules"],
+                             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                             check=False).stdout
+    if b"j0_pt.dd" in listing:
+        return True
+    with tempfile.TemporaryDirectory() as tmp:
+        bootfile = os.path.join(tmp, "OS9Boot")
+        subprocess.run([os9, "copy", "-r", image + ",OS9Boot", bootfile],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                       check=False)
+        if not os.path.isfile(bootfile):
+            return False
+        with open(bootfile, "rb") as f:
+            return "J0" in module_names(f.read())
 
 
 nitros9_level = os.environ.get("NITROS9_LEVEL", "2")
-derived_boot, derived_firmware = level_images(nitros9_level)
-usim_boot = os.environ.get("NITROS9_BOOT_DSK") or derived_boot
-usim_firmware = os.environ.get("NITROS9_FIRMWARE") or derived_firmware
-usim_ready = usable(usim09pt) and os.path.isfile(usim_boot) and os.path.isfile(usim_firmware)
+usim_boot = os.environ.get("NITROS9_BOOT_DSK") or level_image(nitros9_level)
+usim_firmware = os.environ.get("NITROS9_FIRMWARE") or newest_firmware()
+usim_ready = usable(usim09pt) and image_has_j0(usim_boot) and os.path.isfile(usim_firmware)
 
 mame_rompath = os.environ.get("MAME_ROMPATH", "")
 mame_boot = os.environ.get("OS9_BOOT_DSK", "")
@@ -133,11 +177,12 @@ if configured:
     config.available_features.add("mc6809-os9-runtime")
     config.available_features.add("mc6809-os9-%s-runtime" % backend)
     # A case can ask for a level other than the one in force (`// LEVEL: 1`),
-    # which is only honest if that level's images are actually here.
+    # which is only honest if that level's image can reach the test disk.
     for _lvl in ("1", "2"):
-        _b, _f = level_images(_lvl)
-        if os.path.isfile(_b) and os.path.isfile(_f):
+        _image = level_image(_lvl)
+        if image_has_j0(_image):
             config.available_features.add("nitros9-l%s" % _lvl)
+            config.environment["NITROS9_BOOT_DSK_L%s" % _lvl] = _image
 else:
     config.unsupported = True
 

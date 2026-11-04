@@ -35,23 +35,13 @@ fi
 case_args=$(sed -n 's|^// *ARGS: *||p' "$src" | head -1)
 
 # A case may name the level it wants (`// LEVEL: 1`) when what it checks only
-# shows up at that level; the images come from the recipes tree, one directory
-# per level.  Without the line, whatever the caller configured stands.
+# shows up at that level; lit.cfg.py gives the image for each level it found.
+# Without the line, whatever the caller configured stands.
 case_level=$(sed -n 's|^// *LEVEL: *||p' "$src" | head -1)
 if [ -n "$case_level" ]; then
-  : "${NITROS9_RECIPES:=$HOME/Documents/NitrOS-9/nitros9/recipes/picothing}"
-  # The mega image has the /J0 descriptor this harness mounts the test disk
-  # on; a level without one falls back to the plain recipe.
-  for _img in "l${case_level}_mega/NOS9_6809_L${case_level}_DEV_picothing_mega.dsk" \
-              "l$case_level/NOS9_6809_L${case_level}_DEV_picothing_x0.dsk" \
-              "l$case_level/NOS9_6809_L${case_level}_DEV_picothing.dsk"; do
-    if [ -f "$NITROS9_RECIPES/$_img" ]; then
-      NITROS9_BOOT_DSK="$NITROS9_RECIPES/$_img"
-      NITROS9_FIRMWARE="$(dirname "$NITROS9_BOOT_DSK")/rel_picothing.srec"
-      break
-    fi
-  done
-  export NITROS9_BOOT_DSK NITROS9_FIRMWARE
+  level_image="NITROS9_BOOT_DSK_L$case_level"
+  NITROS9_BOOT_DSK=${!level_image:?no image for level $case_level}
+  export NITROS9_BOOT_DSK
 fi
 workdir=$(mktemp -d "${TMPDIR:-/tmp}/mc6809-os9-runtime.XXXXXX")
 if [ "${KEEP_OS9_TEST_WORKDIR:-0}" != 1 ]; then
@@ -100,7 +90,12 @@ run_usim() {
   # got its prompt back.
   local cmd="$case_name"
   [ -n "$case_args" ] && cmd="$case_name $case_args"
-  local input="\\r\\r\\rchx /j0/cmds\\r$cmd\\r$cmd\\recho CIDONE\\r"
+  # Level 1 has no room for the /J0 descriptor in its bootfile, so it is loaded.
+  local load_j0=""
+  if "$OS9_TOOL" dir "$NITROS9_BOOT_DSK,Modules" 2>/dev/null | grep -q 'j0_pt\.dd'; then
+    load_j0="load /dd/modules/j0_pt.dd\\r"
+  fi
+  local input="\\r\\r\\r${load_j0}chx /j0/cmds\\r$cmd\\r$cmd\\recho CIDONE\\r"
 
   (cd "$workdir" && "$NITROS9_USIM09PT" --timeout="$NITROS9_TIMEOUT" \
       --input-first="$NITROS9_INPUT_FIRST" --input-step=500000 \
@@ -131,11 +126,12 @@ run_usim() {
   # the console emits between lines.
   tr -d '\000\r' <"$log" | sed -n "/chx \/j0\/cmds/,\$p" >"$out"
   # A boot image with no slave descriptor fails here, before the program runs,
-  # which should not read as a problem with the program.
-  if sed -n 2p "$out" | grep -aq '^Error #'; then
+  # which should not read as a problem with the program.  Level 1's kernel says
+  # ERROR, Level 2's shell says Error.
+  if sed -n 2p "$out" | grep -aqi '^error #'; then
     echo "$NITROS9_BOOT_DSK cannot reach the test disk: chx /j0/cmds gave" \
-      "'$(sed -n 2p "$out")'. Use an image with a /J0 descriptor, such as the" \
-      "l2_mega recipe." >&2
+      "'$(sed -n 2p "$out")'. Use an image with a /J0 descriptor, such as a mega" \
+      "recipe's." >&2
     exit 1
   fi
 }
