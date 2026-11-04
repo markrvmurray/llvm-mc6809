@@ -13,6 +13,7 @@
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
 #include "clang/Options/Options.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/Path.h"
@@ -89,6 +90,23 @@ std::string MC6809ToolChain::computeSysRoot() const {
 // Only offer the sysroot if there is a library in it: without one, a link
 // gets the same arguments it got before, so a tree that has never had a
 // picolibc installed beside it behaves exactly as it did.
+// The module name to give an OS-9 program built as a file with this stem: what
+// remains of it under the rules both kernels' F$PrsNam share, at most the 29
+// characters a directory entry holds.  Level 2 also takes a dash, which Level 1
+// takes as the end of the name, so a module called "my-prog" can only be found
+// by name at Level 2.  At Level 1 it can be loaded from a file with another
+// name but never linked, so the system loads a second copy to run it, and the
+// two rarely fit.
+static std::string os9ModuleNameFromStem(llvm::StringRef Stem) {
+  std::string Name;
+  for (char C : Stem) {
+    bool Legal = llvm::isAlnum(C) || C == '_' || (C == '.' && !Name.empty());
+    if (Legal && Name.size() < 29)
+      Name += C;
+  }
+  return Name;
+}
+
 static bool sysRootHasLibC(llvm::StringRef SysRoot) {
   llvm::SmallString<128> LibC(SysRoot);
   llvm::sys::path::append(LibC, "lib", "libc.a");
@@ -385,8 +403,8 @@ void mc6809::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     if (!Args.hasArg(options::OPT_nodefaultlibs, options::OPT_nostdlib))
       CmdArgs.push_back("-lclang_rt.builtins");
 
-    // Bug #163 Phase 3: derive --os9-name from the output file's stem
-    // (basename minus extension) unless the user already passed it.
+    // Derive --os9-name from the output file's stem (basename minus extension)
+    // unless the user already passed it.
     // mc6809-os9.lds defaults OUTPUT_FORMAT to os9-program-module, so
     // the linker will demand a name and emit a wrapped module.
     bool UserGaveName = false;
@@ -399,10 +417,12 @@ void mc6809::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       }
     }
     if (!UserGaveName) {
-      StringRef Stem = llvm::sys::path::stem(Output.getFilename());
-      if (!Stem.empty())
-        CmdArgs.push_back(
-            Args.MakeArgString(Twine("--os9-name=") + Stem));
+      std::string Name =
+          os9ModuleNameFromStem(llvm::sys::path::stem(Output.getFilename()));
+      // With no name left the linker asks for one, which says more than a
+      // made-up name would.
+      if (!Name.empty())
+        CmdArgs.push_back(Args.MakeArgString(Twine("--os9-name=") + Name));
     }
 
     // The module's language stays Prgrm|Objct ($11) whatever the CPU is.

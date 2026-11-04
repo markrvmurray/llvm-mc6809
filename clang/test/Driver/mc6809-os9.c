@@ -45,6 +45,31 @@ void _start(void) {}
 // NOSTDLIB-NOT: "-lclang_rt.os9"
 // NOSTDLIB-NOT: "-lclang_rt.builtins"
 
+// The module name comes from the output file, keeping only what both kernels
+// accept in a name: Level 1 ends a name at a dash, and allows 29 characters.
+// RUN: %clang -### -target mc6809-unknown-os9 -nostdinc %s -o %t.dir/my-prog.os9 2>&1 \
+// RUN:   | FileCheck %s --check-prefix=NAME_DASH
+// NAME_DASH: "--os9-name=myprog"
+// RUN: %clang -### -target mc6809-unknown-os9 -nostdinc %s -o %t.dir/Ab_9.x-y.os9 2>&1 \
+// RUN:   | FileCheck %s --check-prefix=NAME_DOT
+// NAME_DOT: "--os9-name=Ab_9.xy"
+// RUN: %clang -### -target mc6809-unknown-os9 -nostdinc %s -o %t.dir/.my-prog.os9 2>&1 \
+// RUN:   | FileCheck %s --check-prefix=NAME_LEADING_DOT
+// NAME_LEADING_DOT: "--os9-name=myprog"
+// RUN: %clang -### -target mc6809-unknown-os9 -nostdinc %s \
+// RUN:   -o %t.dir/abcdefghijklmnopqrstuvwxyz0123456789 2>&1 \
+// RUN:   | FileCheck %s --check-prefix=NAME_LONG
+// NAME_LONG: "--os9-name=abcdefghijklmnopqrstuvwxyz012"
+// Nothing usable is left, so no name is passed and the linker asks for one.
+// RUN: %clang -### -target mc6809-unknown-os9 -nostdinc %s -o %t.dir/--- 2>&1 \
+// RUN:   | FileCheck %s --check-prefix=NAME_NONE
+// NAME_NONE-NOT: "--os9-name
+// A name asked for is used as it stands.
+// RUN: %clang -### -target mc6809-unknown-os9 -nostdinc %s -o %t.dir/x -Wl,--os9-name=my-prog 2>&1 \
+// RUN:   | FileCheck %s --check-prefix=NAME_GIVEN
+// NAME_GIVEN: "--os9-name=my-prog"
+// NAME_GIVEN-NOT: "--os9-name=x"
+
 // Link job — bare-metal path (must remain unchanged).
 // RUN: %clang -### -target mc6809 -nostdinc %s -o %t.elf 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=LINK_BARE
