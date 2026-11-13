@@ -185,6 +185,8 @@ parameter string, a heap that grows through `F$Mem`, and files:
 `getcwd`/`statvfs` all go to the operating system.  Floating point comes from
 the MC6839 ROM, linked at run time as the `FPO9` module.  The module is named
 after your output file, so `-o hello` produces a module called `hello`.
+Characters that some NitrOS-9 versions do not accept in a name are left out, so
+`-o my-prog` produces `myprog`; `-Wl,--os9-name=NAME` sets the name outright.
 
 Two things differ between NitrOS-9 levels and will surprise you if they are
 not expected:
