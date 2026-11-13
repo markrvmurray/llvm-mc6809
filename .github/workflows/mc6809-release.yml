@@ -92,6 +92,20 @@ jobs:
           ref: ${{ github.event.inputs.tag || github.ref_name }}
           fetch-depth: 1
 
+      # The release page opens with this version's section of the notes.  Ask
+      # now, not after hours of building, so a tag with no notes stops here.
+      - name: Require release notes for this version
+        shell: bash
+        run: |
+          version=$(printf '%s' "${RELEASE_TAG#RELEASE_}" | tr '_' '-')
+          notes=llvm/docs/MC6809-ReleaseNotes.md
+          section=$(awk -v h="## $version" '$0 == h {on = 1; next} on && /^## / {exit} on' "$notes")
+          if [ -z "$(printf '%s' "$section" | tr -d '[:space:]')" ]; then
+            echo "::error::$notes has no section headed '## $version'"
+            exit 1
+          fi
+          echo "release notes for $version: $(printf '%s\n' "$section" | wc -l | tr -d ' ') lines"
+
       # A release pins picolibc by *tag*, not by commit as CI does: the two
       # repositories are released together, and a release that quietly took
       # whatever picolibc happened to be at is not reproducible.
@@ -253,10 +267,24 @@ jobs:
         shell: bash
         run: |
           cd assets
+          # This version's section of the notes file, taken from the tag
+          # itself.  The job has no checkout, so ask the API for the file.
+          version=$(printf '%s' "${RELEASE_TAG#RELEASE_}" | tr '_' '-')
+          gh api -H 'Accept: application/vnd.github.raw' \
+              "repos/$GITHUB_REPOSITORY/contents/llvm/docs/MC6809-ReleaseNotes.md?ref=$RELEASE_TAG" \
+              > "$RUNNER_TEMP/all-notes.md"
+          awk -v h="## $version" '$0 == h {on = 1; next} on && /^## / {exit} on' \
+              "$RUNNER_TEMP/all-notes.md" > "$RUNNER_TEMP/section.md"
+          [ -s "$RUNNER_TEMP/section.md" ] ||
+            { echo "::error::no release notes for $version at $RELEASE_TAG"; exit 1; }
           # Named from what is here, never from what was hoped for: a host
           # whose job failed leaves no artifact, and the notes must say so
           # rather than implying four bundles exist.
           {
+            cat "$RUNNER_TEMP/section.md"
+            echo
+            echo "### How this release was checked"
+            echo
             echo "Bundles in this release:"
             echo
             echo "| host | passed | failed | not run |"
