@@ -266,6 +266,9 @@ jobs:
         id: notes
         shell: bash
         run: |
+          # With no host delivering a bundle there is no artifact, and so no
+          # directory to enter: say what happened rather than fail on the cd.
+          [ -d assets ] || { echo "::error::no host produced a bundle"; exit 1; }
           cd assets
           # This version's section of the notes file, taken from the tag
           # itself.  The job has no checkout, so ask the API for the file.
