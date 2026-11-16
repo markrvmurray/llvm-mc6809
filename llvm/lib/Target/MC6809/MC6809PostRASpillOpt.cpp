@@ -1007,7 +1007,23 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
       if (!DirectFrameStore && mayStoreToStackFrame(MI, MFI))
         invalidateFrameIndexMirrors();
 
-      if (isIndexedStore(Opc)) {
+      // A volatile access is observable, so it takes no part in the tracking
+      // below: it is never deleted as a dead store or a redundant load, and
+      // it never becomes a mirror that lets a later access be deleted. It
+      // still changes what is known. A volatile store overwrites its bytes,
+      // so drop any mirror of them here; a volatile load redefines its
+      // register, which the generic def loop at the end handles.
+      const bool Ordered = MC6809InstrInfo::hasOrderedMemOperand(MI);
+      if (Ordered && (isIndexedStore(Opc) || isIndexedNonAccStore(Opc))) {
+        SlotKey Key = getSlotKey(MI);
+        Register Src = getAccRegForOpcode(Opc);
+        int Width = isIndexedStore(Opc)
+                        ? slotWidth(Src)
+                        : (Src == MC6809::AE || Src == MC6809::AF) ? 1 : 2;
+        invalidateOverlap(Key.BaseReg, Key.Offset, Width, Register());
+      }
+
+      if (!Ordered && isIndexedStore(Opc)) {
         Register AccReg = getAccRegForOpcode(Opc);
         SlotKey Key = getSlotKey(MI);
         // A 16-bit store (STD/STX/STY) at offset N covers both bytes [N, N+1],
@@ -1052,7 +1068,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         continue;
       }
 
-      if (isIndexedNonAccStore(Opc)) {
+      if (!Ordered && isIndexedNonAccStore(Opc)) {
         // STU/STX/STY/STW write 2 bytes (STE/STF one byte) of an untracked
         // register to the slot. No tracked register shares bits with the
         // source, so any tracked slot whose bytes the store overlaps is now
@@ -1064,7 +1080,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         continue;
       }
 
-      if (isIndexedLoad(Opc)) {
+      if (!Ordered && isIndexedLoad(Opc)) {
         Register AccReg = getAccRegForOpcode(Opc);
         SlotKey Key = getSlotKey(MI);
         // Bug #363 follow-up: a self-based index load (`ldy ,y` — base register

@@ -154,6 +154,16 @@ public:
   /// instruction that set the flag, where nothing can be inserted between.
   static bool isFlagCaptureTag(const MachineInstr &MI, const MachineOperand &MO);
 
+  /// Whether \p MI accesses memory through a volatile or atomic memory
+  /// operand. Such an access is observable in itself: a device register may
+  /// change or act on every read and every write. A pass must not delete it,
+  /// merge it with another access, or forward a value past it.
+  ///
+  /// An instruction with no memory operands answers false. Spill and reload
+  /// code created after register allocation carries none, and the passes that
+  /// ask are the ones that clean such code up.
+  static bool hasOrderedMemOperand(const MachineInstr &MI);
+
   /// Emit the sequence that deposits CC flag \p Flag as a 0/1 byte in
   /// \p DstReg (an A/B accumulator or a direct-page imaginary byte register)
   /// at \p Builder's insertion point.

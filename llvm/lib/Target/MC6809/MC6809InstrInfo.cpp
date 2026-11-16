@@ -2503,6 +2503,12 @@ MC6809InstrInfo::phantomFlagOfProducer(unsigned Opcode) {
   }
 }
 
+bool MC6809InstrInfo::hasOrderedMemOperand(const MachineInstr &MI) {
+  return any_of(MI.memoperands(), [](const MachineMemOperand *MMO) {
+    return !MMO->isUnordered();
+  });
+}
+
 bool MC6809InstrInfo::isFlagCaptureTag(const MachineInstr &MI,
                                        const MachineOperand &MO) {
   if (!MO.isReg() || !MO.isDef() || !MO.isImplicit())

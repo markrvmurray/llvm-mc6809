@@ -579,7 +579,10 @@ bool MC6809FinalLowering::elideDupStores(MachineFunction &MF) {
         continue;
       }
 
-      bool Tracked = isTrackedStore(MI);
+      // A volatile store is observable: never drop it as a duplicate, and
+      // never let it stand as the store that makes an earlier one dead.
+      bool Tracked = isTrackedStore(MI) &&
+                     !MC6809InstrInfo::hasOrderedMemOperand(MI);
 
       if (!Tracked) {
         // Untracked memory access invalidates everything.
@@ -758,6 +761,10 @@ bool MC6809FinalLowering::elideStoreReload(MachineFunction &MF) {
       }
 
       auto Cls = classify(MI.getOpcode());
+      // A volatile access is observable: its reload is never redundant, and
+      // it records nothing a later reload could be removed against.
+      if (Cls && MC6809InstrInfo::hasOrderedMemOperand(MI))
+        Cls.reset();
       if (!Cls) {
         // Untracked: invalidate everything if it could touch memory or
         // any tracked data register.
