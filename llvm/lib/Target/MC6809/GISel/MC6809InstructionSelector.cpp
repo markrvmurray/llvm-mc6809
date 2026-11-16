@@ -718,6 +718,33 @@ MC6809InstructionSelector::MC6809InstructionSelector(const MC6809TargetMachine &
 static bool shouldFoldMemAccess(const MachineInstr &Dst, const MachineInstr &Src,
                                 AAResults *AA);
 
+/// Whether \p Consumer may read a stack slot itself, in place of using the
+/// value the G_LOAD \p Load took from it. Folding moves the read from the load
+/// to the consumer, so the slot must still hold the same value there: no store
+/// to it and no call in between. Every fold of a frame-slot load goes through
+/// here; a slot is ordinary memory once its address has been taken.
+///
+/// \p WholeValue says the consumer takes the load's whole result. Otherwise
+/// it takes one half of it, through a G_UNMERGE_VALUES.
+static bool canFoldFrameLoad(const MachineInstr &Consumer,
+                             const MachineInstr &Load, bool WholeValue,
+                             AAResults *AA) {
+  // An incoming argument's slot is never written, and its load says so (an
+  // invariant load of an immutable fixed object). It reads the same anywhere
+  // in the function, across blocks and calls alike.
+  if (Load.isDereferenceableInvariantLoad())
+    return true;
+  // A volatile read happens once, as one access. Folding keeps that only when
+  // this consumer is the value's sole use, so the load itself disappears.
+  // Folding a half would read the two bytes separately, and low byte first.
+  if (Load.hasOrderedMemoryRef()) {
+    const MachineRegisterInfo &MRI = Load.getMF()->getRegInfo();
+    if (!WholeValue || !MRI.hasOneNonDBGUse(Load.getOperand(0).getReg()))
+      return false;
+  }
+  return shouldFoldMemAccess(Consumer, Load, AA);
+}
+
 /// Select a "register plus signed immediate offset" address.
 InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectAMImmediate(MachineOperand &Root) const {
   MachineRegisterInfo &MRI = Root.getParent()->getParent()->getParent()->getRegInfo();
@@ -743,9 +770,10 @@ InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectAMIndex
     return std::nullopt;
 
   MachineInstr *RootDef = MRI.getVRegDef(Root.getReg());
-  if (RootDef->getOpcode() == TargetOpcode::G_LOAD || RootDef->getOpcode() == TargetOpcode::G_STORE) {
+  if (RootDef->getOpcode() == TargetOpcode::G_LOAD) {
     MachineInstr *FrameDef = MRI.getVRegDef(RootDef->getOperand(1).getReg());
-    if (FrameDef->getOpcode() == TargetOpcode::G_FRAME_INDEX) {
+    if (FrameDef->getOpcode() == TargetOpcode::G_FRAME_INDEX &&
+        canFoldFrameLoad(*Root.getParent(), *RootDef, /*WholeValue=*/true, AA)) {
       return {{
           [=](MachineInstrBuilder &MIB) { MIB.add(FrameDef->getOperand(1)); },
           [=](MachineInstrBuilder &MIB) { MIB.addImm(0); },
@@ -903,7 +931,9 @@ InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectAMUnmer
     MachineInstr *LoadDef = MRI.getVRegDef(RootDef->getOperand(2).getReg());
     if (LoadDef->getOpcode() == TargetOpcode::G_LOAD) {
       MachineInstr *FrameDef = MRI.getVRegDef(LoadDef->getOperand(1).getReg());
-      if (FrameDef->getOpcode() == TargetOpcode::G_FRAME_INDEX) {
+      if (FrameDef->getOpcode() == TargetOpcode::G_FRAME_INDEX &&
+          canFoldFrameLoad(*Root.getParent(), *LoadDef, /*WholeValue=*/false,
+                           AA)) {
         return {{
             [=](MachineInstrBuilder &MIB) { MIB.add(FrameDef->getOperand(1)); },
             [=](MachineInstrBuilder &MIB) { MIB.addImm(mergeoffset); },
@@ -1135,6 +1165,8 @@ struct FoldedLdIdx_match {
       if (Load) {
         FrameIndex = getOpcodeDef(MC6809::G_FRAME_INDEX, Load->getOperand(1).getReg(), MRI);
         if (FrameIndex) {
+          if (!canFoldFrameLoad(Tgt, *Load, /*WholeValue=*/false, AA))
+            return false;
           Ptr = FrameIndex->getOperand(1);
           const LLT Ty = MRI.getType(Unmerge->getOperand(2).getReg());
           const unsigned TySize = Ty.getSizeInBits();
@@ -1155,7 +1187,7 @@ struct FoldedLdIdx_match {
     if (Load) {
       FrameIndex = getOpcodeDef(MC6809::G_FRAME_INDEX, Load->getOperand(1).getReg(), MRI);
       if (FrameIndex) {
-        if (!shouldFoldMemAccess(Tgt, *FrameIndex, AA))
+        if (!canFoldFrameLoad(Tgt, *Load, /*WholeValue=*/true, AA))
           return false;
         Ptr = FrameIndex->getOperand(1);
         Offset = MachineOperand::CreateImm(0);

@@ -35,7 +35,13 @@ define dso_local i16 @ss_add16(i16 noundef %x, i16 noundef %n) local_unnamed_add
 entry:
   %slot = alloca i16, align 1
   store volatile i16 %n, ptr %slot, align 1
-  %ld = load volatile i16, ptr %slot, align 1
+  br label %use
+
+; An ordinary load, in its own block so the store is not forwarded to it. The
+; add is selected as two byte halves of the loaded value, and a volatile load
+; is never read as two separate bytes.
+use:
+  %ld = load i16, ptr %slot, align 1
   %sum = add i16 %x, %ld
   ret i16 %sum
 }
