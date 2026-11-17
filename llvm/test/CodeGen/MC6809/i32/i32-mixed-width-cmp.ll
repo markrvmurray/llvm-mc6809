@@ -101,27 +101,39 @@ define i1 @eq_i32_sext_i16(i32 %a, i16 %b) {
 define i1 @ult_i32_zext_i8(i32 %a, i8 %b) {
 ; O0-LABEL: ult_i32_zext_i8:
 ; O0:       ; %bb.0:
-; O0-NEXT:    leas -1,s
-; O0-NEXT:    stb ,s ; 1-byte Folded Spill
+; O0-NEXT:    leas -2,s
+; O0-NEXT:    stb 1,s ; 1-byte Folded Spill
 ; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 7,s
+; O0-NEXT:    ldd 8,s
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
 ; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 5,s
+; O0-NEXT:    ldd 6,s
 ; O0-NEXT:    std <__rs1
 ; O0-NEXT:    puls d
-; O0-NEXT:    lda <__rs0lo
-; O0-NEXT:    ldb <__rs0hi
-; O0-NEXT:    suba ,s
-; O0-NEXT:    sbcb #0
-; O0-NEXT:    ldb <__rs1lo
-; O0-NEXT:    lda <__rs1hi
-; O0-NEXT:    sbcb #0
-; O0-NEXT:    sbca #0
+; O0-NEXT:    ldb <__rs0lo
+; O0-NEXT:    lda <__rs0hi
+; O0-NEXT:    subb 1,s
 ; O0-NEXT:    ldb #0
-; O0-NEXT:    adcb #0
-; O0-NEXT:    leas 1,s
+; O0-NEXT:    sbca #0
+; O0-NEXT:    lda <__rs1lo
+; O0-NEXT:    sta ,s ; 1-byte Folded Spill
+; O0-NEXT:    lda <__rs1hi
+; O0-NEXT:    sta 1,s ; 1-byte Folded Spill
+; O0-NEXT:    lda ,s ; 1-byte Folded Reload
+; O0-NEXT:    sbca #0
+; O0-NEXT:    lda 1,s ; 1-byte Folded Reload
+; O0-NEXT:    sbca #0
+; O0-NEXT:    sbcb #0
+; O0-NEXT:    cmpb #0
+; O0-NEXT:    bne .LBB1_2
+; O0-NEXT:  ; %bb.1:
+; O0-NEXT:    ldb #0
+; O0-NEXT:    bra .LBB1_3
+; O0-NEXT:  .LBB1_2:
+; O0-NEXT:    ldb #1
+; O0-NEXT:  .LBB1_3:
+; O0-NEXT:    leas 2,s
 ; O0-NEXT:    rts
 ;
 ; O2-LABEL: ult_i32_zext_i8:
@@ -132,16 +144,24 @@ define i1 @ult_i32_zext_i8(i32 %a, i8 %b) {
 ; O2-NEXT:    std <__rs0
 ; O2-NEXT:    ldd 3,s
 ; O2-NEXT:    std <__rs1
-; O2-NEXT:    lda <__rs0lo
-; O2-NEXT:    ldb <__rs0hi
-; O2-NEXT:    suba ,s
-; O2-NEXT:    sbcb #0
-; O2-NEXT:    ldb <__rs1lo
-; O2-NEXT:    lda <__rs1hi
-; O2-NEXT:    sbcb #0
+; O2-NEXT:    ldb <__rs0lo
+; O2-NEXT:    lda <__rs0hi
+; O2-NEXT:    subb ,s
 ; O2-NEXT:    sbca #0
+; O2-NEXT:    lda <__rs1lo
+; O2-NEXT:    ldb <__rs1hi
+; O2-NEXT:    sbca #0
+; O2-NEXT:    sbcb #0
 ; O2-NEXT:    ldb #0
-; O2-NEXT:    adcb #0
+; O2-NEXT:    sbcb #0
+; O2-NEXT:    cmpb #0
+; O2-NEXT:    bne .LBB1_2
+; O2-NEXT:  ; %bb.1:
+; O2-NEXT:    ldb #0
+; O2-NEXT:    leas 1,s
+; O2-NEXT:    rts
+; O2-NEXT:  .LBB1_2:
+; O2-NEXT:    ldb #1
 ; O2-NEXT:    leas 1,s
 ; O2-NEXT:    rts
   %nn = zext i8 %b to i32
@@ -162,23 +182,32 @@ define i1 @sgt_i32_sext_i8(i32 %a, i8 %b) {
 ; O0-NEXT:  .LBB2_2:
 ; O0-NEXT:    ldb #1
 ; O0-NEXT:  .LBB2_3:
-; O0-NEXT:    andb #1
-; O0-NEXT:    negb
-; O0-NEXT:    stb 2,s ; 1-byte Folded Spill
+; O0-NEXT:    tfr b,a
+; O0-NEXT:    anda #1
+; O0-NEXT:    nega
+; O0-NEXT:    sta 2,s ; 1-byte Folded Spill
 ; O0-NEXT:    ldb #-128
 ; O0-NEXT:    eorb 5,s
 ; O0-NEXT:    stb ,s ; 1-byte Folded Spill
+; O0-NEXT:    tfr a,b
+; O0-NEXT:    eorb #-128
+; O0-NEXT:    lda 1,s ; 1-byte Folded Reload
+; O0-NEXT:    suba 8,s
 ; O0-NEXT:    lda 2,s ; 1-byte Folded Reload
-; O0-NEXT:    eora #-128
-; O0-NEXT:    ldb 1,s ; 1-byte Folded Reload
-; O0-NEXT:    subb 8,s
-; O0-NEXT:    ldb 2,s ; 1-byte Folded Reload
-; O0-NEXT:    sbcb 7,s
-; O0-NEXT:    ldb 2,s ; 1-byte Folded Reload
-; O0-NEXT:    sbcb 6,s
-; O0-NEXT:    sbca ,s
+; O0-NEXT:    sbca 7,s
+; O0-NEXT:    lda 2,s ; 1-byte Folded Reload
+; O0-NEXT:    sbca 6,s
+; O0-NEXT:    sbcb ,s
 ; O0-NEXT:    ldb #0
-; O0-NEXT:    adcb #0
+; O0-NEXT:    sbcb #0
+; O0-NEXT:    cmpb #0
+; O0-NEXT:    bne .LBB2_5
+; O0-NEXT:  ; %bb.4:
+; O0-NEXT:    ldb #0
+; O0-NEXT:    bra .LBB2_6
+; O0-NEXT:  .LBB2_5:
+; O0-NEXT:    ldb #1
+; O0-NEXT:  .LBB2_6:
 ; O0-NEXT:    leas 3,s
 ; O0-NEXT:    rts
 ;
@@ -194,23 +223,32 @@ define i1 @sgt_i32_sext_i8(i32 %a, i8 %b) {
 ; O2-NEXT:  .LBB2_2:
 ; O2-NEXT:    ldb #1
 ; O2-NEXT:  .LBB2_3:
-; O2-NEXT:    andb #1
-; O2-NEXT:    negb
-; O2-NEXT:    stb 2,s ; 1-byte Folded Spill
+; O2-NEXT:    tfr b,a
+; O2-NEXT:    anda #1
+; O2-NEXT:    nega
+; O2-NEXT:    sta 2,s ; 1-byte Folded Spill
 ; O2-NEXT:    ldb #-128
 ; O2-NEXT:    eorb 5,s
 ; O2-NEXT:    stb ,s ; 1-byte Folded Spill
+; O2-NEXT:    tfr a,b
+; O2-NEXT:    eorb #-128
+; O2-NEXT:    lda 1,s ; 1-byte Folded Reload
+; O2-NEXT:    suba 8,s
 ; O2-NEXT:    lda 2,s ; 1-byte Folded Reload
-; O2-NEXT:    eora #-128
-; O2-NEXT:    ldb 1,s ; 1-byte Folded Reload
-; O2-NEXT:    subb 8,s
-; O2-NEXT:    ldb 2,s ; 1-byte Folded Reload
-; O2-NEXT:    sbcb 7,s
-; O2-NEXT:    ldb 2,s ; 1-byte Folded Reload
-; O2-NEXT:    sbcb 6,s
-; O2-NEXT:    sbca ,s
+; O2-NEXT:    sbca 7,s
+; O2-NEXT:    lda 2,s ; 1-byte Folded Reload
+; O2-NEXT:    sbca 6,s
+; O2-NEXT:    sbcb ,s
 ; O2-NEXT:    ldb #0
-; O2-NEXT:    adcb #0
+; O2-NEXT:    sbcb #0
+; O2-NEXT:    cmpb #0
+; O2-NEXT:    bne .LBB2_5
+; O2-NEXT:  ; %bb.4:
+; O2-NEXT:    ldb #0
+; O2-NEXT:    leas 3,s
+; O2-NEXT:    rts
+; O2-NEXT:  .LBB2_5:
+; O2-NEXT:    ldb #1
 ; O2-NEXT:    leas 3,s
 ; O2-NEXT:    rts
   %nn = sext i8 %b to i32

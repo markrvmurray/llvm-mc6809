@@ -1066,10 +1066,15 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
       }
       auto SubLo = B.buildUSubo(S16, S1, ALo, BLo);
       auto SubHi = B.buildUSube(S16, S1, AHi, BHi, SubLo.getReg(1));
-      Register Borrow = SubHi.getReg(1);
-      if (Invert)
-        Borrow = B.buildXor(S1, Borrow, B.buildConstant(S1, 1)).getReg(0);
-      B.buildCopy(Dst, Borrow);
+      // Keep the borrow inside the chain: one more SBC, of 0 - 0, turns it
+      // into a byte that is 0 or -1, and the result is that byte compared
+      // with zero. A borrow taken out of the chain as a value left a carry
+      // placeholder unresolved in some functions.
+      LLT S8 = LLT::scalar(8);
+      auto Zero = B.buildConstant(S8, 0);
+      auto Mask = B.buildUSube(S8, S1, Zero, Zero, SubHi.getReg(1));
+      B.buildICmp(Invert ? CmpInst::ICMP_EQ : CmpInst::ICMP_NE, Dst,
+                  Mask.getReg(0), Zero);
       MI.eraseFromParent();
       return true;
     }
