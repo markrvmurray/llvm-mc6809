@@ -39,8 +39,6 @@ using namespace llvm;
 
 STATISTIC(NumOffsetsRelaxed,    "Number of indexed offsets relaxed to a "
                                 "narrower form (_o16->_o8->_o5/_o0)");
-STATISTIC(NumLeafFramesElided,  "Number of leaf-function frame setup/teardown "
-                                "pairs elided");
 STATISTIC(NumAdjIncsFolded,     "Number of adjacent inc/add #1 sequences "
                                 "folded into a single add #N");
 STATISTIC(NumDupStoresElided,   "Number of dead duplicate stores to the same "
@@ -67,10 +65,6 @@ static cl::opt<int> RelaxOffsetsMinO(
     "mc6809-fl-offset-relax-min-O", cl::init(2), cl::Hidden,
     cl::desc("Minimum -O level (0..3) to enable indexed-offset relaxation "
              "in MC6809FinalLowering. 99 disables. Default: 2."));
-static cl::opt<int> LeafFrameMinO(
-    "mc6809-fl-leaf-frame-min-O", cl::init(2), cl::Hidden,
-    cl::desc("Minimum -O level (0..3) to enable leaf-frame elision in "
-             "MC6809FinalLowering. 99 disables. Default: 2."));
 static cl::opt<int> AdjIncMinO(
     "mc6809-fl-adj-inc-min-O", cl::init(2), cl::Hidden,
     cl::desc("Minimum -O level (0..3) to enable adjacent-increment folding "
@@ -115,7 +109,6 @@ public:
 
 private:
   bool relaxOffsets(MachineFunction &MF);
-  bool elideLeafFrame(MachineFunction &MF);
   bool foldAdjacentInc(MachineFunction &MF);
   bool elideDupStores(MachineFunction &MF);
   bool elideStoreReload(MachineFunction &MF);
@@ -164,8 +157,6 @@ bool MC6809FinalLowering::runOnMachineFunction(MachineFunction &MF) {
 
   if (enabled(MF, RelaxOffsetsMinO))
     Changed |= relaxOffsets(MF);
-  if (enabled(MF, LeafFrameMinO))
-    Changed |= elideLeafFrame(MF);
   if (enabled(MF, AdjIncMinO))
     Changed |= foldAdjacentInc(MF);
   if (enabled(MF, DupStoreMinO))
@@ -229,170 +220,6 @@ bool MC6809FinalLowering::relaxOffsets(MachineFunction &MF) {
     }
   }
   return Changed;
-}
-
-bool MC6809FinalLowering::elideLeafFrame(MachineFunction &MF) {
-  // A function gets a U-based frame pointer (per MC6809FrameLowering::hasFP)
-  // when ANY of: frame address taken, var-sized objects, spill pseudo-
-  // registers used, or hasCalls(). For functions whose ONLY hasFP trigger
-  // is hasCalls() AND that don't actually need U OR the stack-locals area,
-  // the entire frame setup (LEAS -N,S; PSHSs U; TFRp $su=$ss) and matching
-  // teardown (TFRp $ss=$su; PULSs U; LEAS +N,S) is dead weight: 12 bytes +
-  // ~40 cycles of pure ABI ceremony per call to such a function.
-  //
-  // U is callee-saved per the MC6809 ABI. Eliding the save IS safe here
-  // only because we're also eliding the write to U (the TFR setup), so
-  // the caller's U is preserved by virtue of us never touching it.
-  //
-  // The eliding is pattern-driven: we match the exact 3-MI prologue
-  // sequence at entry-block head and the exact 3-MI epilogue sequence
-  // before each return-block terminator, so we don't accidentally
-  // delete an outgoing-arg ADJCALLSTACK adjustment that has already
-  // been lowered to a plain LEAS by this point in the pipeline.
-
-  auto isLEASAdjust = [](const MachineInstr &MI) {
-    // Post-ExpandPostRAPseudos / post-Class-1, S-pointer adjustments are
-    // concrete LEASi_o{0,5,8,16} forms with operand layout
-    // (imm offset, $ss base, implicit-def $ss). We must NOT match LEAS
-    // forms whose base is X/Y/U — those are address arithmetic, not
-    // stack adjustment.
-    unsigned Opc = MI.getOpcode();
-    if (Opc != MC6809::LEASi_o0 && Opc != MC6809::LEASi_o5 &&
-        Opc != MC6809::LEASi_o8 && Opc != MC6809::LEASi_o16 &&
-        Opc != MC6809::LEAPtrAdd_Imm)
-      return false;
-    // Find the base register in the explicit operands.
-    for (const MachineOperand &MO : MI.operands()) {
-      if (MO.isReg() && !MO.isImplicit() && MO.getReg() == MC6809::SS)
-        return true;
-    }
-    return false;
-  };
-  auto isTFRSStoSU = [](const MachineInstr &MI) {
-    return MI.getOpcode() == MC6809::TFRp && MI.getNumOperands() >= 2 &&
-           MI.getOperand(0).isReg() && MI.getOperand(0).getReg() == MC6809::SU &&
-           MI.getOperand(1).isReg() && MI.getOperand(1).getReg() == MC6809::SS;
-  };
-  auto isTFRSUtoSS = [](const MachineInstr &MI) {
-    return MI.getOpcode() == MC6809::TFRp && MI.getNumOperands() >= 2 &&
-           MI.getOperand(0).isReg() && MI.getOperand(0).getReg() == MC6809::SS &&
-           MI.getOperand(1).isReg() && MI.getOperand(1).getReg() == MC6809::SU;
-  };
-  auto pushesU = [](const MachineInstr &MI) {
-    if (MI.getOpcode() != MC6809::PSHSs)
-      return false;
-    for (const MachineOperand &MO : MI.operands())
-      if (MO.isReg() && MO.getReg() == MC6809::SU)
-        return true;
-    return false;
-  };
-  auto pullsU = [](const MachineInstr &MI) {
-    if (MI.getOpcode() != MC6809::PULSs)
-      return false;
-    for (const MachineOperand &MO : MI.operands())
-      if (MO.isReg() && MO.getReg() == MC6809::SU)
-        return true;
-    return false;
-  };
-
-  const MachineFrameInfo &MFI = MF.getFrameInfo();
-
-  // Gate 1: must have a frame currently, and ONLY because of hasCalls().
-  if (!MFI.hasCalls())
-    return false;
-  if (MFI.isFrameAddressTaken() || MFI.hasVarSizedObjects())
-    return false;
-
-  // Gate 2: identify the entry-block prologue triple. Skip any LEAD-IN
-  // debug values / non-real MIs.
-  MachineBasicBlock &Entry = MF.front();
-  auto It = Entry.SkipPHIsAndLabels(Entry.begin());
-  while (It != Entry.end() && It->isDebugInstr())
-    ++It;
-  if (It == Entry.end() || !isLEASAdjust(*It))
-    return false;
-  MachineInstr *PrologLEAS = &*It;
-  ++It;
-  while (It != Entry.end() && It->isDebugInstr()) ++It;
-  if (It == Entry.end() || !pushesU(*It))
-    return false;
-  MachineInstr *PrologPSHS = &*It;
-  ++It;
-  while (It != Entry.end() && It->isDebugInstr()) ++It;
-  if (It == Entry.end() || !isTFRSStoSU(*It))
-    return false;
-  MachineInstr *PrologTFR = &*It;
-
-  // Gate 3: scan body for any USE of U or any FI operand. The body is
-  // every MI EXCEPT the prologue triple we just found and the epilogue
-  // triples we'll find below. For the gate, treat the prologue triple
-  // as "skip" and check everything else; epilogue MIs that touch U
-  // pass the body-scan but will be erased below if the epilogue
-  // pattern matches.
-  for (const MachineBasicBlock &MBB : MF) {
-    for (const MachineInstr &MI : MBB) {
-      if (&MI == PrologLEAS || &MI == PrologPSHS || &MI == PrologTFR)
-        continue;
-      // Allow MIs that look like epilogue ones to slip past the
-      // U-scan; the structural check below is the real authority.
-      if (isTFRSUtoSS(MI) || pullsU(MI) || isLEASAdjust(MI))
-        continue;
-      for (const MachineOperand &MO : MI.operands()) {
-        // Implicit register operands on calls/returns are liveness
-        // markers, not actual reads/writes (e.g. RTSr lists `implicit $su`
-        // because U was the FP, but RTS itself doesn't touch U). They
-        // don't represent real use of the frame pointer for our purposes.
-        if (MO.isReg() && !MO.isImplicit() && MO.getReg() == MC6809::SU)
-          return false;
-        if (MO.isFI())
-          return false;
-      }
-    }
-  }
-
-  // Gate 4: every return block must end in the exact 3-MI epilogue
-  // sequence (TFR $ss=$su; PULSs U; LEAS +N,S) immediately before the
-  // terminator. Collect them; abort if any return block doesn't match.
-  SmallVector<std::array<MachineInstr *, 3>, 4> Epilogues;
-  for (MachineBasicBlock &MBB : MF) {
-    if (!MBB.isReturnBlock())
-      continue;
-    auto T = MBB.getFirstTerminator();
-    if (T == MBB.begin())
-      return false;
-    auto P3 = std::prev(T);
-    while (P3 != MBB.begin() && P3->isDebugInstr())
-      --P3;
-    if (!isLEASAdjust(*P3) || P3 == MBB.begin())
-      return false;
-    auto P2 = std::prev(P3);
-    while (P2 != MBB.begin() && P2->isDebugInstr())
-      --P2;
-    if (!pullsU(*P2) || P2 == MBB.begin())
-      return false;
-    auto P1 = std::prev(P2);
-    while (P1 != MBB.begin() && P1->isDebugInstr())
-      --P1;
-    if (!isTFRSUtoSS(*P1))
-      return false;
-    Epilogues.push_back({&*P1, &*P2, &*P3});
-  }
-  if (Epilogues.empty())
-    return false;
-
-  // All gates passed — erase the prologue triple and every epilogue
-  // triple. Count one elision per function (the unit of meaningful
-  // work, regardless of how many return blocks).
-  PrologLEAS->eraseFromParent();
-  PrologPSHS->eraseFromParent();
-  PrologTFR->eraseFromParent();
-  for (auto &E : Epilogues) {
-    E[0]->eraseFromParent();
-    E[1]->eraseFromParent();
-    E[2]->eraseFromParent();
-  }
-  ++NumLeafFramesElided;
-  return true;
 }
 
 bool MC6809FinalLowering::foldAdjacentInc(MachineFunction &MF) {

@@ -74,3 +74,15 @@ define void @unwinds(i16 %n) uwtable {
   call void @take(ptr %buf, i16 %n)
   ret void
 }
+
+; Asked for one in a function whose body never touches U: still kept.
+; CHECK-LABEL: asked_bare:
+; CHECK:       pshs u
+; CHECK:       tfr s,u
+; CHECK:       lbsr take
+; CHECK:       tfr u,s
+; CHECK:       puls u
+define void @asked_bare() "frame-pointer"="all" {
+  call void @take(ptr null, i16 0)
+  ret void
+}
