@@ -23,6 +23,7 @@
 #include "MC6809InstrInfo.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
 
+#include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/GlobalValue.h"
@@ -41,6 +42,19 @@
 #include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "mc6809-spill-opt"
+
+STATISTIC(NumStagingBrackets, "Dead pshs/puls staging brackets removed");
+STATISTIC(NumImmIntoIndex, "ldd #n; tfr d,r folded into ld r #n");
+STATISTIC(NumLoadIntoCopy, "ld R,mem; tfr R,R2 folded into ld R2,mem");
+STATISTIC(NumDeadSlotStores, "Dead stores to a tracked slot removed");
+STATISTIC(NumAccReloads, "Redundant accumulator reloads removed");
+STATISTIC(NumIndexReloads, "Redundant index-register reloads removed");
+STATISTIC(NumCrossRegReloads, "Reloads replaced by a transfer from another register");
+STATISTIC(NumDeadFrameIndexLoads, "Dead frame-slot index loads removed");
+STATISTIC(NumUnusedLeasPairs, "Unused leas -N/+N pairs removed");
+STATISTIC(NumPostIncPull, "op ,s; leas W,s folded to op ,s+/,s++");
+STATISTIC(NumIndirectSelfLoad, "ldy n,b; ldy ,y folded to ldy [n,b]");
+STATISTIC(NumIndirectConsumer, "ldy n,b; op ,y folded to op [n,b]");
 
 using namespace llvm;
 
@@ -336,6 +350,7 @@ static bool foldLoadIntoCopy(MachineBasicBlock &MBB,
           .add(Prev->getOperand(0));
       Prev->eraseFromParent();
       MI.eraseFromParent();
+      ++NumImmIntoIndex;
       Changed = true;
       continue;
     }
@@ -351,6 +366,7 @@ static bool foldLoadIntoCopy(MachineBasicBlock &MBB,
         .addReg(K.BaseReg);
     Prev->eraseFromParent();
     MI.eraseFromParent();
+    ++NumLoadIntoCopy;
     Changed = true;
   }
   return Changed;
@@ -888,6 +904,7 @@ static bool removeDeadStagingBrackets(MachineFunction &MF) {
       BracketPush.erase(Pull);
       Push.eraseFromParent();
       Pull->eraseFromParent();
+      ++NumStagingBrackets;
       Changed = true;
     }
   }
@@ -951,6 +968,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
             LLVM_DEBUG(dbgs() << "  SpillOpt: deleting dead store: "
                               << *E.second.StoreInstr);
             E.second.StoreInstr->eraseFromParent();
+            ++NumDeadSlotStores;
             Changed = true;
           }
           E.second = {Reg, Store, false, SourceKilled};
@@ -1138,6 +1156,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
           LLVM_DEBUG(dbgs() << "  SpillOpt: deleting redundant load: " << MI);
           clearKillsToPriorDef(MI, AccReg, TRI);
           MI.eraseFromParent();
+          if (IsIndex) ++NumIndexReloads; else ++NumAccReloads;
           Changed = true;
           continue;
         }
@@ -1172,6 +1191,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
               .addDef(AccReg)
               .addUse(Info->Reg);
           MI.eraseFromParent();
+          ++NumCrossRegReloads;
           Changed = true;
           // The TFR now defines AccReg with the slot value — replicate the load
           // path's tracker update (the load that would have done it is gone):
@@ -1210,6 +1230,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
             deadFrameLoadDest(MBB, MI, AccReg, TRI)) {
           LLVM_DEBUG(dbgs() << "  SpillOpt: deleting dead frame load: " << MI);
           MI.eraseFromParent();
+          ++NumDeadFrameIndexLoads;
           Changed = true;
           continue;
         }
@@ -1371,73 +1392,11 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
     }
     PrologLEAS->eraseFromParent();
     EpilogLEAS->eraseFromParent();
+    ++NumUnusedLeasPairs;
     Changed = true;
   }
 
-  // Stage 4: Eliminate push/pull around add/sub from stack.
-  // Pattern: LDD offset,s; PSHS D; LDD #imm; SUBD/ADDD ,s++ → LDD #imm; SUBD/ADDD offset,s
   const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
-  for (MachineBasicBlock &MBB : MF) {
-    for (auto It = MBB.begin(); It != MBB.end(); ) {
-      MachineInstr &MI = *It++;
-      // Look for LDD from S-relative slot.
-      unsigned LoadOpc = MI.getOpcode();
-      if (getAccRegForOpcode(LoadOpc) != MC6809::AD || !isIndexedLoad(LoadOpc))
-        continue;
-      SlotKey LoadSlot = getSlotKey(MI);
-      if (LoadSlot.BaseReg != MC6809::SS)
-        continue;
-
-      // Next: PSHS D.
-      if (It == MBB.end()) continue;
-      MachineInstr &Push = *It;
-      if (Push.getOpcode() != MC6809::PSHSs) continue;
-      bool PushesD = false;
-      for (const MachineOperand &MO : Push.operands())
-        if (MO.isReg() && MO.isUse() && MO.getReg() == MC6809::AD)
-          PushesD = true;
-      if (!PushesD) continue;
-
-      // Next: LDD #imm (any immediate load into D).
-      auto It2 = std::next(It);
-      if (It2 == MBB.end()) continue;
-      MachineInstr &LoadImm = *It2;
-      if (LoadImm.getOpcode() != MC6809::LDDi16) continue;
-
-      // Next: SUBD/ADDD ,s++ (auto-increment from stack).
-      auto It3 = std::next(It2);
-      if (It3 == MBB.end()) continue;
-      MachineInstr &ArithPull = *It3;
-      unsigned PullOpc = ArithPull.getOpcode();
-      unsigned ReplacementOpc;
-      if (PullOpc == MC6809::SUBDi_Inc2)
-        ReplacementOpc = getOpcodeForOffsetSize(MC6809::SUBDi_o5, LoadSlot.Offset);
-      else if (PullOpc == MC6809::ADDDi_Inc2)
-        ReplacementOpc = getOpcodeForOffsetSize(MC6809::ADDDi_o5, LoadSlot.Offset);
-      else
-        continue;
-      if (!ReplacementOpc) continue;
-
-      LLVM_DEBUG(dbgs() << "  SpillOpt: folding push/pull into direct mem op: "
-                        << MI << "  → " << ArithPull);
-
-      // Replace SUBD/ADDD ,s++ with SUBD/ADDD offset,s.
-      ArithPull.setDesc(TII.get(ReplacementOpc));
-      // Add offset and base register operands (before the implicit operands).
-      // The _Inc2 variant has just $ss as explicit operand; we need imm + $ss.
-      // Remove old explicit operand and re-add with offset.
-      ArithPull.removeOperand(0); // remove $ss
-      MachineInstrBuilder(MF, &ArithPull)
-          .addImm(LoadSlot.Offset).addReg(MC6809::SS);
-
-      // Delete the LDD and PSHS.
-      MI.eraseFromParent();
-      Push.eraseFromParent();
-      // It now points past the deleted Push; LoadImm and ArithPull are still valid.
-      It = It2; // resume from LoadImm (which we keep)
-      Changed = true;
-    }
-  }
 
   // Stage 5 (bug #185): fold PSHS reg / ... / op ,S / LEAS N,S into
   // PSHS reg / ... / op ,S{+,++}, eliminating the LEAS. Saves 2 bytes
@@ -1555,6 +1514,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
 
       // Advance past the rewritten MI2 to continue scanning.
       It = std::next(MI2.getIterator());
+      ++NumPostIncPull;
       Changed = true;
     }
   }
@@ -1697,6 +1657,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         MI2.eraseFromParent();
         // Continue scanning past MI1 (the rewritten indirect load).
         It = std::next(MI1.getIterator());
+        ++NumIndirectSelfLoad;
         Changed = true;
         continue;
       }
@@ -1758,6 +1719,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
 
       // Continue from MI2+1.
       It = std::next(MI2.getIterator());
+      ++NumIndirectConsumer;
       Changed = true;
     }
   }

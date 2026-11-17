@@ -6,31 +6,21 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file declares the MC6809 final-lowering pass (bug #149). The pass
-// runs in addPreEmitPass between BranchRelaxation and NoShortBranches and
-// hosts seven independently-gated late-stage transforms:
+// This file declares the MC6809 final-lowering pass. It runs in
+// addPreEmitPass between BranchRelaxation and NoShortBranches and hosts
+// independently-gated late-stage transforms (numbered as first planned;
+// 2, 3 and 7 are gone -- 2 was never needed, 3 and 7 never fired on the
+// C library or its tests at any of the 30 bench levels):
 //
 //   1. Indexed-offset relaxation (_o16 -> _o8 -> _o5 -> _o0)
-//   2. Leaf-frame elision        (drop pshs u/tfr s,u where unused)
-//   3. Adjacent inc/add folding  (fold inc;inc into add #N)
 //   4. Dup-store elimination     (drop store before another store, same slot)
 //   5. Store+reload elimination  (drop reload of slot still live in a reg)
 //   6. Branch-over-branch fold   (invert cond + drop uncond when one
-//                                 target is the layout successor; fixes
-//                                 bug #179, especially at -O0 where
-//                                 BranchFolderPass doesn't run)
-//   7. LEA-pointer-spill fold    (rewrite ldy <slot>,u; OP <op_off>,y
-//                                 into OP (lea_off+op_off),u when the
-//                                 slot is known to hold a U/S-relative
-//                                 LEA-computed address; fixes bug #176,
-//                                 dominant at -O0 where regalloc spills
-//                                 frame-pointer-relative addresses
-//                                 instead of rematerialising them)
+//                                 target is the layout successor, especially
+//                                 at -O0 where BranchFolderPass doesn't run)
 //
-// Each class has its own minimum -O level (default >= -O2 for size/speed
-// optimisations; Classes 6 and 7 default to -O0 since they're pure
-// code-shape cleanups that never enlarge code) and its own STATISTIC
-// counter so we can see which classes fire on which workloads.
+// Each class has its own minimum -O level (default -O2 for 1, 4 and 5; 0
+// for 6, a pure code-shape cleanup) and its own STATISTIC counter.
 //
 //===----------------------------------------------------------------------===//
 
