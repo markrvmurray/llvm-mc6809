@@ -8,15 +8,15 @@
 
 target triple = "mc6809-unknown-unknown"
 
-; Three 16-bit stack arguments are staged into direct-page registers for the
-; comparison's libcall while D holds the fourth.
-; CHECK-LABEL: lt32:
+; The 64-bit operands of a comparison's libcall are staged through
+; direct-page registers while D holds another word.
+; CHECK-LABEL: lt64:
 ; CHECK-NOT:   pshs d
 ; CHECK:       ldx {{[0-9]+}},s
 ; CHECK-NEXT:  stx <__rs0
 ; CHECK-NOT:   pshs d
-; CHECK:       lbsr __cmpsi2
-define i1 @lt32(i32 %a, i32 %b) {
-  %c = icmp slt i32 %a, %b
+; CHECK:       lbsr __cmpdi2
+define i1 @lt64(i64 %a, i64 %b) {
+  %c = icmp slt i64 %a, %b
   ret i1 %c
 }

@@ -3225,9 +3225,16 @@ skip_globalvalue_fold:
       // doesn't read C (LBlbc_NoC).
       unsigned LBlbcOpc = (Phantom == PhantomCarry) ?
           MC6809::LBlbc_OnlyC : MC6809::LBlbc_NoC;
+      // The branch reads the physical flag, but it must also name the
+      // producer's carry value: otherwise, when the producer's arithmetic
+      // result is unused too -- a subtract done only for its borrow, as an
+      // inline 32-bit compare is -- the producer has no users left and the
+      // selector deletes it, and the branch tests whatever C happens to
+      // hold.
       BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(LBlbcOpc))
           .addImm(CC)
-          .addMBB(TargetMBB);
+          .addMBB(TargetMBB)
+          .addReg(CondReg, RegState::Implicit);
       MI.eraseFromParent();
       return true;
     }

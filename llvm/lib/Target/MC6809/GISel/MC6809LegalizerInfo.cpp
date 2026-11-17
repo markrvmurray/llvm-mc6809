@@ -1023,6 +1023,56 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
     //    ge/uge   →  ne result, 0
     //    eq       →  eq result, 1
     //    ne       →  ne result, 1
+    // On the 6809 a 32-bit compare is done inline and without a branch in
+    // the middle (a branch there is where the allocator once put a spill
+    // that clobbered Z): equality as an OR of the XORed halves tested
+    // against zero, order as the borrow out of a full 32-bit subtract.
+    // A signed order is the unsigned one with both sign bits flipped.
+    if (OpTy == LLT::scalar(32) &&
+        !MI.getMF()->getSubtarget<MC6809Subtarget>().has6309()) {
+      LLT S1 = LLT::scalar(1);
+      auto LH = B.buildUnmerge(S16, Lhs); // (lo, hi)
+      auto RH = B.buildUnmerge(S16, Rhs);
+      if (Pred == CmpInst::ICMP_EQ || Pred == CmpInst::ICMP_NE) {
+        auto Lo = B.buildXor(S16, LH.getReg(0), RH.getReg(0));
+        auto Hi = B.buildXor(S16, LH.getReg(1), RH.getReg(1));
+        auto Any = B.buildOr(S16, Lo, Hi);
+        B.buildICmp(Pred, Dst, Any, B.buildConstant(S16, 0));
+        MI.eraseFromParent();
+        return true;
+      }
+      Register ALo = LH.getReg(0), AHi = LH.getReg(1);
+      Register BLo = RH.getReg(0), BHi = RH.getReg(1);
+      if (CmpInst::isSigned(Pred)) {
+        // Flip only the top byte's sign bit (`eora #$80`); a 16-bit XOR
+        // with 0x8000 staged the constant through a direct-page register.
+        LLT S8 = LLT::scalar(8);
+        auto FlipTop = [&](Register Half) {
+          auto Bytes = B.buildUnmerge(S8, Half); // (lo, hi)
+          auto Top = B.buildXor(S8, Bytes.getReg(1), B.buildConstant(S8, 0x80));
+          return B.buildMergeLikeInstr(S16, {Bytes.getReg(0), Top}).getReg(0);
+        };
+        AHi = FlipTop(AHi);
+        BHi = FlipTop(BHi);
+      }
+      // a < b (unsigned) is the borrow out of a - b; a > b is that of b - a.
+      bool Swap = Pred == CmpInst::ICMP_UGT || Pred == CmpInst::ICMP_ULE ||
+                  Pred == CmpInst::ICMP_SGT || Pred == CmpInst::ICMP_SLE;
+      bool Invert = Pred == CmpInst::ICMP_UGE || Pred == CmpInst::ICMP_ULE ||
+                    Pred == CmpInst::ICMP_SGE || Pred == CmpInst::ICMP_SLE;
+      if (Swap) {
+        std::swap(ALo, BLo);
+        std::swap(AHi, BHi);
+      }
+      auto SubLo = B.buildUSubo(S16, S1, ALo, BLo);
+      auto SubHi = B.buildUSube(S16, S1, AHi, BHi, SubLo.getReg(1));
+      Register Borrow = SubHi.getReg(1);
+      if (Invert)
+        Borrow = B.buildXor(S1, Borrow, B.buildConstant(S1, 1)).getReg(0);
+      B.buildCopy(Dst, Borrow);
+      MI.eraseFromParent();
+      return true;
+    }
     if (OpTy == LLT::scalar(32) || OpTy == LLT::scalar(64)) {
       bool IsUnsigned = CmpInst::isUnsigned(Pred) || Pred == CmpInst::ICMP_EQ ||
                         Pred == CmpInst::ICMP_NE;
