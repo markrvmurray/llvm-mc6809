@@ -127,8 +127,21 @@ def MC6809_CSR : CalleeSavedRegs<(add IY, SU)>;
 // What an interrupt handler preserves, beyond what the processor stacks for
 // it. An IRQ, NMI or SWI entry has already pushed CC, A, B, DP, X, Y, U and
 // PC (and W, on a 6309 in native mode), and RTI restores them. That leaves
-// the direct-page registers: they sit at fixed addresses and are scratch
-// across calls, so the interrupted code may be in the middle of using any of
-// them. Y and U stay listed so that the frame code treats a handler like any
-// other function when it uses them.
-def MC6809_Interrupt_CSR : CalleeSavedRegs<(add IY, SU, RS0, RS1, RS2, RS3)>;
+// the direct-page registers the allocator may hand out: RS0-RS3 and
+// RC0-RC15. They sit at fixed addresses and are scratch across calls, so the
+// interrupted code may be in the middle of using any of them. Y and U stay
+// listed so that the frame code treats a handler like any other function
+// when it uses them.
+def MC6809_Interrupt_CSR
+    : CalleeSavedRegs<(add IY, SU, RS0, RS1, RS2, RS3,
+                           (sequence "RC%u", 0, 15))>;
+
+// A FIRQ entry stacks only PC and CC, so its handler preserves every
+// register it touches: the accumulators and X as well. On the 6309 that
+// includes W.
+def MC6809_FIRQ_CSR
+    : CalleeSavedRegs<(add IY, SU, IX, AD, RS0, RS1, RS2, RS3,
+                           (sequence "RC%u", 0, 15))>;
+def MC6809_FIRQ_HD6309_CSR
+    : CalleeSavedRegs<(add IY, SU, IX, AD, AW, RS0, RS1, RS2, RS3,
+                           (sequence "RC%u", 0, 15))>;

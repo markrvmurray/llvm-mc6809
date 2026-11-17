@@ -63,6 +63,8 @@ public:
 
   // Return whether or not the function is a direct ISR.
   bool isISR(const MachineFunction &MF) const;
+  /// Whether \p MF is a FIRQ handler: entered with only PC and CC stacked.
+  bool isFIRQ(const MachineFunction &MF) const;
 
 private:
   bool hasFPImpl(const MachineFunction &MF) const override;

@@ -151,6 +151,10 @@ StringRef MC6809RegisterInfo::getRegAsmName(MCRegister Reg) const {
 const MCPhysReg *MC6809RegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
   const auto &TFI = *static_cast<const MC6809FrameLowering *>(
       MF->getSubtarget().getFrameLowering());
+  if (TFI.isFIRQ(*MF))
+    return MF->getSubtarget<MC6809Subtarget>().has6309()
+               ? MC6809_FIRQ_HD6309_CSR_SaveList
+               : MC6809_FIRQ_CSR_SaveList;
   return TFI.isISR(*MF) ? MC6809_Interrupt_CSR_SaveList : MC6809_CSR_SaveList;
 }
 

@@ -43,17 +43,23 @@
 ;
 ; REQUIRES: usim
 ;
-; Two handlers take a real interrupt each, twice: an IRQ from the ACIA and a
-; software interrupt. The first two lines are the probes in irq-probe.inc,
-; which fill the four direct-page registers, take the interrupt and check
-; them: 0 means all four came back. Then a 32-bit sum interrupted halfway by
-; each kind, the number of interrupts taken, and what the handlers computed.
-; The 6309 runs in native mode, the only mode a handler supports there.
+; Handlers for an IRQ from the ACIA, a software interrupt and a FIRQ. The
+; first four lines are the probes in irq-probe.inc, which fill the registers
+; a handler must preserve, take the interrupt and check them: 0 means all
+; came back. Two of the handlers call a routine that overwrites every
+; register a call may. The simulator has no FIRQ source, so that probe enters
+; its handler as the processor would, twice, with a leaf and with a handler
+; that calls. Then a 32-bit sum interrupted halfway, the number of interrupts
+; taken, and what the handlers computed. The 6309 runs in native mode, the
+; only mode a handler supports there.
 ;
 ; CHECK: 0000
 ; CHECK-NEXT: 0000
+; CHECK-NEXT: 0000
+; CHECK-NEXT: 0000
 ; CHECK-NEXT: 11233345
 ; CHECK-NEXT: 11233345
-; CHECK-NEXT: 0202
+; CHECK-NEXT: 020202
 ; CHECK-NEXT: 02060A0E
 ; CHECK-NEXT: 00020608
+; CHECK-NEXT: 0002050E

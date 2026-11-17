@@ -113,9 +113,15 @@ bool MC6809FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB, Mach
   // AD = A+B = 0x06), so the fused encoding produces the SAME byte layout
   // as separate `pshs y; pshs x; pshs d` would have (Y at high addr, X
   // below, AD bytes at SP) — PEI-computed SP-relative offsets stay valid.
-  // Non-fusible CSRs (those routed through AD, plus AW) emit individually.
+  // W has a push of its own (PSHSW).
+  // The direct-page registers (only an interrupt handler saves those) have
+  // no push of their own and go through an accumulator: a 16-bit one through
+  // D, the 8-bit ones through A and B, two to a push. The accumulators are
+  // free for this: the processor has stacked them, or, in a FIRQ handler, D
+  // is in the fused push that comes first (see determineCalleeSaves).
   SmallVector<Register, 4> Fusible;
-  SmallVector<Register, 4> AdRouted;
+  SmallVector<Register, 4> Imag16;
+  SmallVector<Register, 16> Imag8;
   bool HaveAW = false;
   for (const CalleeSavedInfo &CI : CSI) {
     Register Reg = CI.getReg();
@@ -125,8 +131,12 @@ bool MC6809FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB, Mach
       Fusible.push_back(Reg);
     } else if (Reg == MC6809::AW) {
       HaveAW = true;
+    } else if (MC6809::Imag8RegClass.contains(Reg)) {
+      Imag8.push_back(Reg);
     } else {
-      AdRouted.push_back(Reg);
+      assert(MC6809::Imag16RegClass.contains(Reg) &&
+             "callee-saved register with no way to push it");
+      Imag16.push_back(Reg);
     }
   }
 
@@ -157,8 +167,19 @@ bool MC6809FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB, Mach
     for (Register R : Fusible)
       MIB.addUse(R);
   }
-  for (Register R : AdRouted) {
+  for (Register R : Imag16) {
     Builder.buildCopy(Register(MC6809::AD), R);
+    Builder.buildInstr(MC6809::PSHSs, {}, {Register(MC6809::AD)});
+  }
+  // Loaded with the direct-page instruction itself: a COPY from one of these
+  // to A is expanded by way of B.
+  for (unsigned I = 0, E = Imag8.size(); I < E; I += 2) {
+    Builder.buildInstr(MC6809::LDAd).addReg(Imag8[I]);
+    if (I + 1 == E) {
+      Builder.buildInstr(MC6809::PSHSs, {}, {Register(MC6809::AA)});
+      break;
+    }
+    Builder.buildInstr(MC6809::LDBd).addReg(Imag8[I + 1]);
     Builder.buildInstr(MC6809::PSHSs, {}, {Register(MC6809::AD)});
   }
   if (HaveAW)
@@ -222,39 +243,54 @@ bool MC6809FrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB, Ma
   // CSR restores are emitted.
   MachineInstrSpan MIS(MI, &MBB);
 
-  // Bug #175: mirror of the spill-side fusion. Bucket the same way and
-  // emit one fused PULS for the directly-pullable CSRs. The reverse
-  // ordering (vs. the spill side) is purely cosmetic — PULS pops in
-  // hardware-mask-ascending order regardless of source-list operand
-  // order, so the encoded mask determines the layout. The original loop
-  // walked `reverse(CSI)` so individual `puls reg` instructions came in
-  // the reverse order of the spill `pshs reg` sequence; we preserve that
-  // for the AdRouted (un-fusible) bucket so SP-relative offsets resolve
-  // correctly during the unwind. The fused PULS comes out in one
-  // instruction, after the AdRouted unwind completes.
+  // Mirror of the spill side: the registers that PULS takes directly come
+  // off in one fused instruction, last, since they went on first. PULS pops
+  // in a fixed hardware order whatever order its operands are written in.
   SmallVector<Register, 4> Fusible;
-  SmallVector<Register, 4> AdRouted;
+  SmallVector<Register, 4> Imag16;
+  SmallVector<Register, 16> Imag8;
   bool HaveAW = false;
   for (const CalleeSavedInfo &CI : CSI) {
     Register Reg = CI.getReg();
     if (!CI.isTargetSpilled() || FuncInfo->CSRDPOffsets.count(Reg))
       continue;
-    if (MC6809::INDEX16RegClass.contains(Reg) || Reg == MC6809::AD) {
+    if (MC6809::INDEX16RegClass.contains(Reg) || Reg == MC6809::AD)
       Fusible.push_back(Reg);
-    } else if (Reg == MC6809::AW) {
+    else if (Reg == MC6809::AW)
       HaveAW = true;
-    } else {
-      AdRouted.push_back(Reg);
-    }
+    else if (MC6809::Imag8RegClass.contains(Reg))
+      Imag8.push_back(Reg);
+    else
+      Imag16.push_back(Reg);
   }
 
-  // Restore order is the inverse of spill: AW (was last to push) first,
-  // then AdRouted in REVERSE (each was a `copy ad,csr; pshs ad`, unwind
-  // is `puls ad; copy csr,ad`), then the fused PULS for the
-  // directly-pushable bucket (was first to push, so last to pop).
+  // Restore order is the inverse of spill: W, then the direct-page registers
+  // back through the accumulators, then the fused PULS.
   if (HaveAW)
     Builder.buildInstr(MC6809::PULSWx, {}, {});
-  for (Register R : reverse(AdRouted)) {
+  // The 8-bit direct-page registers were pushed two at a time, with an odd
+  // one last and on its own; undo that from the end.
+  auto StoreByte = [&](unsigned Opc, Register Acc, Register Imag) {
+    Builder.buildInstr(Opc)
+        .addReg(Imag, RegState::Undef)
+        .addUse(Acc, RegState::Implicit)
+        .addReg(Imag, RegState::ImplicitDefine);
+  };
+  for (unsigned I = Imag8.size() & ~1u, E = Imag8.size();; I -= 2) {
+    if (I < E) {
+      if (I + 1 == E) {
+        Builder.buildInstr(MC6809::PULSs, {Register(MC6809::AA)}, {});
+        StoreByte(MC6809::STAd, MC6809::AA, Imag8[I]);
+      } else {
+        Builder.buildInstr(MC6809::PULSs, {Register(MC6809::AD)}, {});
+        StoreByte(MC6809::STAd, MC6809::AA, Imag8[I]);
+        StoreByte(MC6809::STBd, MC6809::AB, Imag8[I + 1]);
+      }
+    }
+    if (I == 0)
+      break;
+  }
+  for (Register R : reverse(Imag16)) {
     Builder.buildInstr(MC6809::PULSs, {Register(MC6809::AD)}, {});
     Builder.buildCopy(R, Register(MC6809::AD));
   }
@@ -316,6 +352,17 @@ void MC6809FrameLowering::determineCalleeSaves(MachineFunction &MF, BitVector &S
   // well, since the code that uses it hasn't yet been emitted.
   if (hasFP(MF))
     SavedRegs.set(MC6809::SU);
+
+  // A direct-page register is saved by loading it into D and pushing that.
+  // In a FIRQ handler D belongs to the interrupted code, so it is saved
+  // first whenever one of them is, even if the body never touches D. (On the
+  // other interrupts the processor has stacked D already.)
+  if (isFIRQ(MF)) {
+    auto Saved = [&](MCPhysReg Reg) { return SavedRegs.test(Reg); };
+    if (any_of(MC6809::Imag16RegClass, Saved) ||
+        any_of(MC6809::Imag8RegClass, Saved))
+      SavedRegs.set(MC6809::AD);
+  }
 }
 
 void MC6809FrameLowering::processFunctionBeforeFrameFinalized(MachineFunction &MF, RegScavenger *RS) const {
@@ -639,6 +686,12 @@ void MC6809FrameLowering::offsetSP(MachineIRBuilder &Builder, int64_t Offset) co
     report_fatal_error("Stack pointer increment too large: " + Twine(Offset));
 
   Builder.buildInstr(MC6809::LEAPtrAdd_Imm).addDef(MC6809::SS).addUse(MC6809::SS).addImm(Offset);
+}
+
+bool MC6809FrameLowering::isFIRQ(const MachineFunction &MF) const {
+  return isISR(MF) &&
+         MF.getFunction().getFnAttribute("interrupt").getValueAsString() ==
+             "firq";
 }
 
 bool MC6809FrameLowering::isISR(const MachineFunction &MF) const {

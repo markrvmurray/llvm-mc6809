@@ -1,13 +1,15 @@
 ; Interrupt handlers and the code they interrupt. A handler returns with RTI
 ; and must leave the direct-page registers as it found them: they are scratch
-; to every other function, so the interrupted code may be using them.
+; to every other function, so the interrupted code may be using them. A FIRQ
+; handler is handed only PC and CC saved, and must leave every register so.
 ; clang -O2 output for:
 ;
 ;   #define ACIA_CTRL (*(volatile unsigned char *)0xFFC4)
 ;   #define ACIA_DATA (*(volatile unsigned char *)0xFFC5)
-;   volatile unsigned char irqs, swis;
-;   unsigned long irq_sum, swi_sum;
+;   volatile unsigned char irqs, swis, firqs;
+;   unsigned long irq_sum, swi_sum, firq_sum;
 ;   volatile unsigned long seed;
+;   void scribble(void);    /* in irq-probe.inc: overwrites every scratch register */
 ;   void mix(unsigned long *p) { *p = *p + seed + 0x00000101UL; }  /* noinline */
 ;   __attribute__((interrupt)) void irq_handler(void) {
 ;     ACIA_CTRL = 0x15;                  /* transmit interrupt off */
@@ -15,7 +17,12 @@
 ;     irq_sum = irq_sum + seed + 0x01020304UL;
 ;     irqs++;
 ;   }
-;   __attribute__((interrupt)) void swi_handler(void) { mix(&swi_sum); swis++; }
+;   __attribute__((interrupt)) void swi_handler(void) { scribble(); mix(&swi_sum); swis++; }
+;   __attribute__((interrupt("firq"))) void firq_leaf(void) {
+;     firq_sum = firq_sum + seed + 0x00000007UL;
+;     firqs++;
+;   }
+;   __attribute__((interrupt("firq"))) void firq_calls(void) { scribble(); mix(&firq_sum); firqs++; }
 ;   unsigned long sum_across_irq(unsigned long a, unsigned long b, unsigned long c) {
 ;     unsigned long t = a + b;
 ;     ACIA_CTRL = 0x35;                  /* transmit interrupt on: IRQ here */
@@ -31,6 +38,8 @@ target triple = "mc6809-unknown-unknown"
 @irqs = global i8 0, align 1
 @swi_sum = global i32 0, align 1
 @swis = global i8 0, align 1
+@firq_sum = global i32 0, align 1
+@firqs = global i8 0, align 1
 
 define void @mix(ptr noundef %p) noinline {
 entry:
@@ -59,10 +68,34 @@ entry:
 
 define void @swi_handler() "interrupt" {
 entry:
+  tail call void @scribble()
   tail call void @mix(ptr noundef nonnull @swi_sum)
   %0 = load volatile i8, ptr @swis, align 1
   %inc = add i8 %0, 1
   store volatile i8 %inc, ptr @swis, align 1
+  ret void
+}
+
+define void @firq_leaf() "interrupt"="firq" {
+entry:
+  %0 = load i32, ptr @firq_sum, align 1
+  %1 = load volatile i32, ptr @seed, align 1
+  %add = add i32 %0, 7
+  %add1 = add i32 %add, %1
+  store i32 %add1, ptr @firq_sum, align 1
+  %2 = load volatile i8, ptr @firqs, align 1
+  %inc = add i8 %2, 1
+  store volatile i8 %inc, ptr @firqs, align 1
+  ret void
+}
+
+define void @firq_calls() "interrupt"="firq" {
+entry:
+  tail call void @scribble()
+  tail call void @mix(ptr noundef nonnull @firq_sum)
+  %0 = load volatile i8, ptr @firqs, align 1
+  %inc = add i8 %0, 1
+  store volatile i8 %inc, ptr @firqs, align 1
   ret void
 }
 
@@ -82,3 +115,4 @@ entry:
   ret i32 %add1
 }
 
+declare void @scribble()
