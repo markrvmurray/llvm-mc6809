@@ -1,0 +1,219 @@
+# RUN: llc -mtriple=mc6809 -run-pass=mc6809-insert-copies -verify-machineinstrs %s -o - | FileCheck %s
+
+# A byte extract whose user is a link of a carry chain (SBC, ADC) is placed
+# beside that user, inside the chain, unless another operand of the user is
+# also born inside the chain. Then the new bytes and the value the chain
+# carries would all need A or B at once with C live and no room to spill
+# (picolibc's c8rtomb ran out of registers at -Og), so the extract goes to
+# the start of the chain instead.
+
+# The zero is made before the chain: the high byte joins the chain.
+# CHECK-LABEL: name: neg
+# CHECK:       Load_i8_Imm 0
+# CHECK-NEXT:  EXTRACT_LO_i16
+# CHECK-NEXT:  SubSetCarry_i8_Reg
+# CHECK-NEXT:  EXTRACT_HI_i16
+# CHECK-NEXT:  SubSetCarryUse_i8_Reg
+
+# The zero is copied inside the chain: the high byte stays before it.
+# CHECK-LABEL: name: neg_copy_in_chain
+# CHECK:       Load_i8_Imm 0
+# CHECK-NEXT:  EXTRACT_LO_i16
+# CHECK-NEXT:  EXTRACT_HI_i16
+# CHECK-NEXT:  SubSetCarry_i8_Reg
+# CHECK-NEXT:  COPY
+# CHECK-NEXT:  SubSetCarryUse_i8_Reg
+
+--- |
+  ; ModuleID = 'neg.ll'
+  source_filename = "neg.ll"
+  target datalayout = "E-p:16:8-p1:8:8-S8-m:e-i1:8-i8:8-i16:8-i32:8-i64:8-f32:8-f64:8-a:0-n8:16"
+  target triple = "mc6809-unknown-unknown"
+  
+  ; Function Attrs: norecurse
+  define void @neg(i16 %x, ptr %p) #0 {
+    %n = sub i16 0, %x
+    store i16 %n, ptr %p, align 1
+    ret void
+  }
+
+  define void @neg_copy_in_chain(i16 %x, ptr %p) #0 {
+    %n = sub i16 0, %x
+    store i16 %n, ptr %p, align 1
+    ret void
+  }
+  
+  attributes #0 = { norecurse }
+...
+---
+name:            neg
+alignment:       1
+exposesReturnsTwice: false
+legalized:       true
+regBankSelected: true
+selected:        true
+failedISel:      false
+tracksRegLiveness: true
+hasWinCFI:       false
+noPhis:          false
+isSSA:           true
+noVRegs:         false
+hasFakeUses:     false
+callsEHReturn:   false
+callsUnwindInit: false
+hasEHContTarget: false
+hasEHScopes:     false
+hasEHFunclets:   false
+isOutlined:      false
+debugInstrRef:   false
+failsVerification: false
+tracksDebugUserValues: false
+registers:
+  - { id: 0, class: index16, preferred-register: '', flags: [  ] }
+  - { id: 1, class: index, preferred-register: '', flags: [  ] }
+  - { id: 2, class: index, preferred-register: '', flags: [  ] }
+  - { id: 3, class: _, preferred-register: '', flags: [  ] }
+  - { id: 4, class: acc16, preferred-register: '', flags: [  ] }
+  - { id: 5, class: acc8_ab, preferred-register: '', flags: [  ] }
+  - { id: 6, class: _, preferred-register: '', flags: [  ] }
+  - { id: 7, class: acc8_ab, preferred-register: '', flags: [  ] }
+  - { id: 8, class: acc8_ab, preferred-register: '', flags: [  ] }
+  - { id: 9, class: acc8_ab, preferred-register: '', flags: [  ] }
+  - { id: 10, class: phantom_carry, preferred-register: '', flags: [  ] }
+  - { id: 11, class: acc8_ab, preferred-register: '', flags: [  ] }
+  - { id: 12, class: phantom_carry, preferred-register: '', flags: [  ] }
+  - { id: 13, class: acc16, preferred-register: '', flags: [  ] }
+liveins:         []
+frameInfo:
+  isFrameAddressTaken: false
+  isReturnAddressTaken: false
+  hasStackMap:     false
+  hasPatchPoint:   false
+  stackSize:       0
+  offsetAdjustment: 0
+  maxAlignment:    1
+  adjustsStack:    false
+  hasCalls:        false
+  framePointerPolicy: none
+  stackProtector:  ''
+  functionContext: ''
+  maxCallFrameSize: 4294967295
+  cvBytesOfCalleeSavedRegisters: 0
+  hasOpaqueSPAdjustment: false
+  hasVAStart:      false
+  hasMustTailInVarArgFunc: false
+  hasTailCall:     false
+  isCalleeSavedInfoValid: false
+  localFrameSize:  0
+fixedStack:
+  - { id: 0, type: default, offset: 0, size: 2, alignment: 1, stack-id: default, 
+      isImmutable: true, isAliased: false, callee-saved-register: '', callee-saved-restored: true, 
+      debug-info-variable: '', debug-info-expression: '', debug-info-location: '' }
+stack:           []
+entry_values:    []
+callSites:       []
+debugValueSubstitutions: []
+constants:       []
+machineFunctionInfo: {}
+body:             |
+  bb.1 (%ir-block.0):
+    liveins: $ix
+  
+    %0:index16 = COPY $ix
+    %13:acc16 = COPY %0
+    %7:acc8_ab = EXTRACT_LO_i16 %13, implicit-def $nz, implicit-def $v
+    %8:acc8_ab = EXTRACT_HI_i16 %13, implicit-def $nz, implicit-def $v
+    %5:acc8_ab = Load_i8_Imm 0, implicit-def dead $nz, implicit-def dead $v
+    %9:acc8_ab = SubSetCarry_i8_Reg %5, %7, implicit-def $nz, implicit-def $v, implicit-def $c, implicit-def %10
+    %11:acc8_ab = SubSetCarryUse_i8_Reg %5, %8, implicit-def $nz, implicit-def $v, implicit-def $c, implicit $c, implicit-def %12, implicit %10
+    %4:acc16 = MERGE_LOHI_i16 %9, %11, implicit-def $nz, implicit-def $v
+    Store_i16_MemIndirect %4, %fixed-stack.0, 0, implicit-def dead $nz, implicit-def dead $v :: (store (s16) into %ir.p, align 1)
+    RTSr
+...
+---
+name:            neg_copy_in_chain
+alignment:       1
+exposesReturnsTwice: false
+legalized:       true
+regBankSelected: true
+selected:        true
+failedISel:      false
+tracksRegLiveness: true
+hasWinCFI:       false
+noPhis:          false
+isSSA:           true
+noVRegs:         false
+hasFakeUses:     false
+callsEHReturn:   false
+callsUnwindInit: false
+hasEHContTarget: false
+hasEHScopes:     false
+hasEHFunclets:   false
+isOutlined:      false
+debugInstrRef:   false
+failsVerification: false
+tracksDebugUserValues: false
+registers:
+  - { id: 0, class: index16, preferred-register: '', flags: [  ] }
+  - { id: 1, class: index, preferred-register: '', flags: [  ] }
+  - { id: 2, class: index, preferred-register: '', flags: [  ] }
+  - { id: 3, class: _, preferred-register: '', flags: [  ] }
+  - { id: 4, class: acc16, preferred-register: '', flags: [  ] }
+  - { id: 5, class: acc8_ab, preferred-register: '', flags: [  ] }
+  - { id: 6, class: _, preferred-register: '', flags: [  ] }
+  - { id: 7, class: acc8_ab, preferred-register: '', flags: [  ] }
+  - { id: 8, class: acc8_ab, preferred-register: '', flags: [  ] }
+  - { id: 9, class: acc8_ab, preferred-register: '', flags: [  ] }
+  - { id: 10, class: phantom_carry, preferred-register: '', flags: [  ] }
+  - { id: 11, class: acc8_ab, preferred-register: '', flags: [  ] }
+  - { id: 12, class: phantom_carry, preferred-register: '', flags: [  ] }
+  - { id: 13, class: acc16, preferred-register: '', flags: [  ] }
+  - { id: 30, class: acc8_ab, preferred-register: '', flags: [  ] }
+liveins:         []
+frameInfo:
+  isFrameAddressTaken: false
+  isReturnAddressTaken: false
+  hasStackMap:     false
+  hasPatchPoint:   false
+  stackSize:       0
+  offsetAdjustment: 0
+  maxAlignment:    1
+  adjustsStack:    false
+  hasCalls:        false
+  framePointerPolicy: none
+  stackProtector:  ''
+  functionContext: ''
+  maxCallFrameSize: 4294967295
+  cvBytesOfCalleeSavedRegisters: 0
+  hasOpaqueSPAdjustment: false
+  hasVAStart:      false
+  hasMustTailInVarArgFunc: false
+  hasTailCall:     false
+  isCalleeSavedInfoValid: false
+  localFrameSize:  0
+fixedStack:
+  - { id: 0, type: default, offset: 0, size: 2, alignment: 1, stack-id: default, 
+      isImmutable: true, isAliased: false, callee-saved-register: '', callee-saved-restored: true, 
+      debug-info-variable: '', debug-info-expression: '', debug-info-location: '' }
+stack:           []
+entry_values:    []
+callSites:       []
+debugValueSubstitutions: []
+constants:       []
+machineFunctionInfo: {}
+body:             |
+  bb.1 (%ir-block.0):
+    liveins: $ix
+  
+    %0:index16 = COPY $ix
+    %13:acc16 = COPY %0
+    %7:acc8_ab = EXTRACT_LO_i16 %13, implicit-def $nz, implicit-def $v
+    %8:acc8_ab = EXTRACT_HI_i16 %13, implicit-def $nz, implicit-def $v
+    %5:acc8_ab = Load_i8_Imm 0, implicit-def dead $nz, implicit-def dead $v
+    %9:acc8_ab = SubSetCarry_i8_Reg %5, %7, implicit-def $nz, implicit-def $v, implicit-def $c, implicit-def %10
+    %30:acc8_ab = COPY %5
+    %11:acc8_ab = SubSetCarryUse_i8_Reg %30, %8, implicit-def $nz, implicit-def $v, implicit-def $c, implicit $c, implicit-def %12, implicit %10
+    %4:acc16 = MERGE_LOHI_i16 %9, %11, implicit-def $nz, implicit-def $v
+    Store_i16_MemIndirect %4, %fixed-stack.0, 0, implicit-def dead $nz, implicit-def dead $v :: (store (s16) into %ir.p, align 1)
+    RTSr
+...

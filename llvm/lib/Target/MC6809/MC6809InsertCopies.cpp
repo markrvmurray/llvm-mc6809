@@ -27,8 +27,15 @@
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
+#include "llvm/Support/CommandLine.h"
 
 #define DEBUG_TYPE "mc6809-insert-copies"
+
+static llvm::cl::opt<bool>
+    PlaceByteExtracts("mc6809-place-byte-extracts", llvm::cl::init(true),
+                      llvm::cl::Hidden,
+                      llvm::cl::desc("Move each byte extract to just before "
+                                     "its user"));
 
 using namespace llvm;
 
@@ -107,22 +114,63 @@ bool MC6809InsertCopies::runOnMachineFunction(MachineFunction &MF) {
   // value is born at once, and three live together are more than A and B
   // can hold: a 32-bit shift by a byte, which takes one value apart and
   // builds another, ran out of registers. Move each extract to just before
-  // its only user in the same block, when nothing in between reads a flag
-  // the extract sets or touches D, and the user clobbers, without reading,
+  // its only user in the same block (or, for a user in a carry chain, the
+  // start of the chain), when nothing in between reads a flag the extract
+  // sets or touches D, and that instruction clobbers, without reading,
   // every flag the extract sets.
   const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
   MachineRegisterInfo &MRI = MF.getRegInfo();
   for (MachineBasicBlock &MBB : MF)
     for (MachineInstr &Ext : llvm::make_early_inc_range(MBB)) {
+      if (!PlaceByteExtracts)
+        break;
       if (Ext.getOpcode() != MC6809::EXTRACT_LO_i16 &&
           Ext.getOpcode() != MC6809::EXTRACT_HI_i16)
         continue;
       Register Def = Ext.getOperand(0).getReg();
       if (!Def.isVirtual() || !MRI.hasOneNonDBGUse(Def))
         continue;
-      MachineInstr &User = *MRI.use_instr_nodbg_begin(Def);
-      if (User.getParent() != &MBB || User.isPHI())
+      MachineInstr &Use = *MRI.use_instr_nodbg_begin(Def);
+      if (Use.getParent() != &MBB || Use.isPHI())
         continue;
+      // A user inside a carry chain (ADCA, SBCB...) takes the byte beside it
+      // too, unless another of its operands is also born inside the chain
+      // (`0 - x` copies its zero there): then two new bytes and the value
+      // the chain carries all want A or B at once, C is live, and nothing
+      // can be spilled in between. Go back to where the chain starts, the
+      // instruction that sets C without reading it; if that is above the
+      // extract, leave the extract where it is.
+      MachineInstr *Target = &Use;
+      if (Use.readsRegister(MC6809::C, &TRI)) {
+        MachineInstr *Start = &Use;
+        while (Start && Start->readsRegister(MC6809::C, &TRI)) {
+          MachineInstr *Prev = nullptr;
+          for (auto I = Start->getIterator(); I != Ext.getIterator();) {
+            --I;
+            if (I->modifiesRegister(MC6809::C, &TRI)) {
+              Prev = &*I;
+              break;
+            }
+          }
+          Start = Prev;
+        }
+        // The window the byte would join: from the chain's start (or the
+        // extract itself, when the chain starts above it) to the user.
+        MachineInstr *From = Start ? Start : &Ext;
+        bool OtherBornInChain = false;
+        for (const MachineOperand &MO : Use.uses())
+          if (MO.isReg() && MO.getReg().isVirtual() && MO.getReg() != Def)
+            if (MachineInstr *D = MRI.getVRegDef(MO.getReg()))
+              for (auto I = std::next(From->getIterator());
+                   I != Use.getIterator(); ++I)
+                if (&*I == D)
+                  OtherBornInChain = true;
+        if (OtherBornInChain)
+          Target = Start;
+      }
+      if (!Target)
+        continue;
+      MachineInstr &User = *Target;
       auto IsExtract = [](const MachineInstr &I) {
         return I.getOpcode() == MC6809::EXTRACT_LO_i16 ||
                I.getOpcode() == MC6809::EXTRACT_HI_i16;
