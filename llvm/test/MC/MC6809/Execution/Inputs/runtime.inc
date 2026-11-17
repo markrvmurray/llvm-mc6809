@@ -148,7 +148,14 @@ halt:
 	.word	0		; 0xfff2: SWI3
 	.word	0		; 0xfff4: SWI2
 	.word	0		; 0xfff6: FIRQ
+;; A test that takes interrupts defines __runtime_irq_vectors before including
+;; this file, and supplies irq_handler and swi_handler.
+.ifdef __runtime_irq_vectors
+	.word	irq_handler	; 0xfff8: IRQ
+	.word	swi_handler	; 0xfffa: SWI
+.else
 	.word	0		; 0xfff8: IRQ
 	.word	0		; 0xfffa: SWI
+.endif
 	.word	0		; 0xfffc: NMI
 	.word	_start		; 0xfffe: RESET

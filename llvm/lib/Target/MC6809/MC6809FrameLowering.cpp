@@ -49,27 +49,11 @@ MC6809FrameLowering::MC6809FrameLowering()
                           /*LocalAreaOffset=*/0) {}
 
 bool MC6809FrameLowering::assignCalleeSavedSpillSlots(MachineFunction &MF, const TargetRegisterInfo *TRI, std::vector<CalleeSavedInfo> &CSI) const {
-  MachineFrameInfo &MFI = MF.getFrameInfo();
-  const auto &MC6809FI = *MF.getInfo<MC6809FunctionInfo>();
-
-  size_t HardStackRemaining = 4;
   for (CalleeSavedInfo &Info : CSI) {
-    // Some CSRs may be rewritten to direct page locations.
-    // These don't need to be spilled.
-    auto It = MC6809FI.CSRDPOffsets.find(Info.getReg());
-    if (It != MC6809FI.CSRDPOffsets.end()) {
-      Info.setTargetSpilled();
-      continue;
-    }
-
-    // We place the first four CSRs on the hard stack, which we don't
-    // explicitly model in PEI.
-    if (HardStackRemaining) {
-      Info.setTargetSpilled();
-      --HardStackRemaining;
-    } else {
-      Info.setFrameIdx(MFI.CreateSpillStackObject(1, Align()));
-    }
+    // Every callee-saved register is pushed on the hardware stack by
+    // spillCalleeSavedRegisters, which PEI does not model as frame objects.
+    // (A CSR rewritten to a direct-page location needs no push either.)
+    Info.setTargetSpilled();
   }
 
   return true;
@@ -332,19 +316,6 @@ void MC6809FrameLowering::determineCalleeSaves(MachineFunction &MF, BitVector &S
   // well, since the code that uses it hasn't yet been emitted.
   if (hasFP(MF))
     SavedRegs.set(MC6809::SU);
-
-  if (isISR(MF)) {
-    // We need A to save anything else. This may require in turn saving A.
-    // Normally, this could be done with __save_A, but for ISRs, that location
-    // must also be saved. So we have to save A as a CSR, not through the
-    // scavenger. Luckily, due to the register ordering, we're ensured that A
-    // is saved before any other register.
-    if (!SavedRegs.none())
-      SavedRegs.set(MC6809::AA);
-
-    if (SavedRegs.size() > 4)
-      SavedRegs.set(MC6809::IY);
-  }
 }
 
 void MC6809FrameLowering::processFunctionBeforeFrameFinalized(MachineFunction &MF, RegScavenger *RS) const {
@@ -465,13 +436,6 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &M
   MachineIRBuilder Builder(MBB, MBB.begin());
 
   int64_t StackSize = MFI.getStackSize();
-  // If the interrupted routine is in the middle of decrementing its stack
-  // pointer, this routine may observe a stack pointer up to 255 bytes higher
-  // than its atomic value.  Accordingly, summarily decrement the SP by a page.
-  // Interrupts are rarer than the the routines they interrupt, so they pay the
-  // cost of dealing with this atomicity problem.
-  if (isISR(MF))
-    StackSize += 256;
 
   // Bug #164 Tier 2: initial CFI.  At function entry (just after the caller's
   // JSR/BSR has pushed the 2-byte return address) the canonical frame address
@@ -560,9 +524,6 @@ void MC6809FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &M
   }
 
   int64_t StackSize = MFI.getStackSize();
-
-  if (isISR(MF))
-    StackSize += 256;
 
   if (!hasFP(MF)) {
     // The frame sits below the callee-saved registers (see emitPrologue):

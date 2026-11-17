@@ -148,7 +148,11 @@ StringRef MC6809RegisterInfo::getRegAsmName(MCRegister Reg) const {
   return StringRef(getName(Reg));
 }
 
-const MCPhysReg *MC6809RegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const { return MC6809_CSR_SaveList; }
+const MCPhysReg *MC6809RegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
+  const auto &TFI = *static_cast<const MC6809FrameLowering *>(
+      MF->getSubtarget().getFrameLowering());
+  return TFI.isISR(*MF) ? MC6809_Interrupt_CSR_SaveList : MC6809_CSR_SaveList;
+}
 
 const uint32_t *MC6809RegisterInfo::getCallPreservedMask(const MachineFunction &MF, CallingConv::ID CallingConv) const {
   // The TableGen-generated mask from CalleeSavedRegs, unmodified. The

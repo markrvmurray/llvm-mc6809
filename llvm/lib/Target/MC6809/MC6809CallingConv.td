@@ -123,3 +123,12 @@ def CC_MC6809_VarArgs : CallingConv<[
 // Callee-saved registers: U (frame pointer) and Y.
 // A, B, X, CC are caller-saved.
 def MC6809_CSR : CalleeSavedRegs<(add IY, SU)>;
+
+// What an interrupt handler preserves, beyond what the processor stacks for
+// it. An IRQ, NMI or SWI entry has already pushed CC, A, B, DP, X, Y, U and
+// PC (and W, on a 6309 in native mode), and RTI restores them. That leaves
+// the direct-page registers: they sit at fixed addresses and are scratch
+// across calls, so the interrupted code may be in the middle of using any of
+// them. Y and U stay listed so that the frame code treats a handler like any
+// other function when it uses them.
+def MC6809_Interrupt_CSR : CalleeSavedRegs<(add IY, SU, RS0, RS1, RS2, RS3)>;
