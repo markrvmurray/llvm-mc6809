@@ -1,0 +1,29 @@
+# RUN: llc -mtriple=mc6809 -start-before=post-ra-pseudos %s -o - | FileCheck %s
+#
+# U can be allocated where it is not the frame pointer, so an indirect load
+# or store (`op [n,r]`) can have U as its value register. The table that maps
+# each indexed load and store to its indirect form had no rows for U, and the
+# expansion asserted.
+
+---
+# CHECK-LABEL: load_u_indirect:
+# CHECK:       ldu [2,x]
+name: load_u_indirect
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ix
+    $su = Load_iPtr_MemIndirect $ix, 2, implicit-def $nz, implicit-def $v
+    RTSr implicit $su
+...
+---
+# CHECK-LABEL: store_u_indirect:
+# CHECK:       stu [4,x]
+name: store_u_indirect
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ix, $su
+    Store_iPtr_MemIndirect $su, $ix, 4, implicit-def $nz, implicit-def $v
+    RTSr
+...

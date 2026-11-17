@@ -6736,8 +6736,8 @@ static unsigned indirectSiblingOf(unsigned Opc) {
   case MC6809::R##i_o0: return MC6809::R##i_o0I;                                \
   case MC6809::R##i_o5: case MC6809::R##i_o8: return MC6809::R##i_o8I;          \
   case MC6809::R##i_o16: return MC6809::R##i_o16I;
-  IND3(LDA) IND3(LDB) IND3(LDE) IND3(LDF) IND3(LDD) IND3(LDW) IND3(LDX) IND3(LDY)
-  IND3(STA) IND3(STB) IND3(STE) IND3(STF) IND3(STD) IND3(STW) IND3(STX) IND3(STY)
+  IND3(LDA) IND3(LDB) IND3(LDE) IND3(LDF) IND3(LDD) IND3(LDW) IND3(LDX) IND3(LDY) IND3(LDU)
+  IND3(STA) IND3(STB) IND3(STE) IND3(STF) IND3(STD) IND3(STW) IND3(STX) IND3(STY) IND3(STU)
   IND3(LDQ) IND3(STQ)
   // P3b: indirect-indexed arith/logical consumers (`op [n,r]`).
   IND3(ADDA) IND3(ADDB) IND3(ADDD) IND3(ADCA) IND3(ADCB)
@@ -6745,7 +6745,7 @@ static unsigned indirectSiblingOf(unsigned Opc) {
   IND3(ANDA) IND3(ANDB) IND3(ORA) IND3(ORB) IND3(EORA) IND3(EORB)
   IND3(ANDD) IND3(ORD) IND3(EORD) // HD6309 16-bit logical (expandIdxImm path)
   IND3(ADDW) IND3(SUBW)           // HD6309 W-accumulator i16 arith
-  IND3(CMPA) IND3(CMPB) IND3(CMPD) IND3(CMPW) IND3(CMPX) IND3(CMPY)
+  IND3(CMPA) IND3(CMPB) IND3(CMPD) IND3(CMPW) IND3(CMPX) IND3(CMPY) IND3(CMPU)
 #undef IND3
   default: return 0;
   }
