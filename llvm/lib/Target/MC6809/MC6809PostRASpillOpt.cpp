@@ -19,6 +19,7 @@
 
 #include "MC6809PostRASpillOpt.h"
 #include "MC6809.h"
+#include "MC6809FrameLowering.h"
 #include "MC6809InstrInfo.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
 
@@ -177,6 +178,13 @@ static bool isIndexedLoad(unsigned Opc) {
 /// Extract the slot key (base register + offset) from an indexed load/store.
 /// The _o0 variants have no offset operand (offset=0), the rest have
 /// offset as the first operand and base register as the second.
+/// See MC6809FrameLowering::isFrameBase.
+static bool isFrameBase(const MachineFunction &MF, Register Reg) {
+  return static_cast<const MC6809FrameLowering &>(
+             *MF.getSubtarget().getFrameLowering())
+      .isFrameBase(MF, Reg);
+}
+
 static SlotKey getSlotKey(const MachineInstr &MI) {
   unsigned Opc = MI.getOpcode();
   // _o0 variants: no offset operand, just base register
@@ -979,7 +987,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
     // store-through-pointer, so the accumulator reload elimination is untouched.
     auto invalidateFrameIndexMirrors = [&]() {
       for (auto &E : Slots) {
-        if ((E.first.BaseReg == MC6809::SU || E.first.BaseReg == MC6809::SS) &&
+        if (isFrameBase(MF, E.first.BaseReg) &&
             (E.second.Reg == MC6809::IX || E.second.Reg == MC6809::IY)) {
           E.second.Reg = Register();
           E.second.WasRead = true;
@@ -1002,7 +1010,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
       bool DirectFrameStore = false;
       if (isIndexedStore(Opc) || isIndexedNonAccStore(Opc)) {
         Register B = getSlotKey(MI).BaseReg;
-        DirectFrameStore = (B == MC6809::SU || B == MC6809::SS);
+        DirectFrameStore = isFrameBase(MF, B);
       }
       if (!DirectFrameStore && mayStoreToStackFrame(MI, MFI))
         invalidateFrameIndexMirrors();
@@ -1177,7 +1185,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         // motivating dead-load family (`ldy N,u` whose Y is overwritten before
         // use) is index-register anyway.
         if ((AccReg == MC6809::IX || AccReg == MC6809::IY) &&
-            (Key.BaseReg == MC6809::SU || Key.BaseReg == MC6809::SS) &&
+            isFrameBase(MF, Key.BaseReg) &&
             deadFrameLoadDest(MBB, MI, AccReg, TRI)) {
           LLVM_DEBUG(dbgs() << "  SpillOpt: deleting dead frame load: " << MI);
           MI.eraseFromParent();

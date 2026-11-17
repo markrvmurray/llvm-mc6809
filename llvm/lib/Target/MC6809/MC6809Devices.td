@@ -32,15 +32,13 @@ class Family<string name, string desc, list<SubtargetFeature> i>
 // FeatureStaticStack is enabled by default for every CPU: a provably
 // non-reentrant leaf function (no calls, no frame address taken, no
 // variable-sized objects) lays its frame in static global memory rather than
-// the dynamic U-relative stack. That frees the frame pointer entirely -- no
-// `pshs u; tfr s,u`, U becomes a third index register -- which is where the win
-// lives (hot string/loop leaves: strcmp/memmove -17..-26% cycles at -Os on
-// HD6309). Functions that keep their frame pointer anyway are left on the
-// dynamic frame: for them a static frame only costs (extended addressing is a
-// byte longer and a cycle slower than a short `n,u` access) and it widens the
-// whole-program static_stack, so restricting to leaves measured better on
-// every tier of the picolibc bench than static-stacking every non-reentrant
-// function. -mc6809-static-stack-dp-avail sizes the page-0 window used for
+// on the stack. Its locals are then reached by absolute (or, within the
+// -mc6809-static-stack-dp-avail window, direct-page) addresses instead of
+// S-relative ones, and the frame needs no allocation. Functions that make
+// calls stay on the dynamic frame: for them a static frame costs a byte and
+// a cycle per extended access and widens the whole-program static_stack, and
+// restricting to leaves measured better on every tier of the picolibc bench
+// than static-stacking every non-reentrant function. -mc6809-static-stack-dp-avail sizes the page-0 window used for
 // 1-byte direct-page frame addressing; -mattr=-static-stack disables the
 // feature for a translation unit.
 def Family6809

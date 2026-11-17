@@ -95,12 +95,15 @@ BitVector MC6809RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   Reserved.set(MC6809::AV);
   Reserved.set(MC6809::MD);
 
-  // SU is unconditionally reserved as the frame pointer. Even when a function
-  // doesn't need a frame pointer at the start of compilation, the register
-  // allocator may introduce stack-backed spill registers that require one.
-  // Reserving SU upfront avoids the phase-ordering trap where hasFP() flips
-  // mid-allocation (was bug #16).
-  Reserved.set(MC6809::SU);
+  // U is reserved where it has a fixed job: as the frame pointer, or on OS-9
+  // as the base of the process's data area. Anywhere else it is a third
+  // index register. hasFP depends only on what is known before register
+  // allocation (variable-sized objects, a taken frame address, the
+  // frame-pointer attribute), so the answer cannot change under the
+  // allocator.
+  const MC6809FrameLowering *TFI = getFrameLowering(MF);
+  if (TFI->hasFP(MF) || MF.getTarget().getTargetTriple().isOSOS9())
+    Reserved.set(MC6809::SU);
 
   // The RS 16-bit imaginaries are genuine allocation targets (the MOS
   // model): with the SPILL_D escape registers retired, they are what makes

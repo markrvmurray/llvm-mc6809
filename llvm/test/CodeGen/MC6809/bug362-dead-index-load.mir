@@ -10,11 +10,13 @@
 # sub-register defs (`ldb` is implicit-def $ad even though A is preserved),
 # which makes a liveness-based dead-load test unsound (Bug #184 shape).
 
+# The functions ask for a frame pointer, so U addresses the frame here; where
+# U is an ordinary register see u-pointer-frame-alias.mir.
 --- |
-  define void @dead_ldy_removed() { ret void }
-  define void @live_ldy_kept() { ret void }
-  define void @acc_dead_load_kept() { ret void }
-  define void @non_frame_load_kept() { ret void }
+  define void @dead_ldy_removed() "frame-pointer"="all" { ret void }
+  define void @live_ldy_kept() "frame-pointer"="all" { ret void }
+  define void @acc_dead_load_kept() "frame-pointer"="all" { ret void }
+  define void @non_frame_load_kept() "frame-pointer"="all" { ret void }
 ...
 ---
 # `ldy 10,u` loads IY, which is overwritten by `ldy 22,u` before any use:

@@ -41,6 +41,12 @@ public:
   void emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
   void emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
   bool hasFP(const MachineFunction &MF) const;
+  // Whether an access based on Reg is to this function's own frame -- or,
+  // on OS-9, to the process's data area -- rather than through a pointer
+  // that could be anywhere: S always; U only when it is the frame pointer or
+  // the OS-9 data-area base. Anywhere else U is an ordinary allocatable
+  // register and may hold any address, the frame included.
+  bool isFrameBase(const MachineFunction &MF, Register Reg) const;
 
   // Computes bytes occupied by callee-saved registers pushed on the hardware
   // stack outside MachineFrameInfo's modeled stack objects.

@@ -1,0 +1,93 @@
+# RUN: llc -mtriple=mc6809 -run-pass=mc6809-spill-opt -mc6809-index-reload-opt -o - %s | FileCheck %s --check-prefix=SPILLOPT
+# RUN: llc -mtriple=mc6809 -O2 -run-pass=mc6809-final-lowering -o - %s | FileCheck %s --check-prefix=FINAL
+#
+# Without a frame pointer U is an ordinary register and may hold any address,
+# a stack local's included. A store through it is a store through a pointer,
+# not a write to a known frame slot: the passes that track what each stack
+# slot holds must not keep a copy of a slot across it. (With a frame pointer,
+# U-based accesses are frame slots: bug366-stack-aliasing-store.mir and the
+# others that ask for one.)
+
+--- |
+  @g = external global i16
+  define void @spillopt_u_store_retains_reload() { ret void }
+  define void @spillopt_fp_u_store_elides_reload() "frame-pointer"="all" { ret void }
+  define void @final_u_store_retains_reload() { ret void }
+  define void @final_fp_u_store_elides_reload() "frame-pointer"="all" { ret void }
+...
+---
+# (SS,8) is held in Y; `std 2,u` with U pointing into the frame may overwrite
+# it, so the second `ldy 8,s` stays.
+# SPILLOPT-LABEL: name: spillopt_u_store_retains_reload
+# SPILLOPT:       LDYi_o8 8, $ss
+# SPILLOPT:       STDi_o5 2, $su
+# SPILLOPT:       LDYi_o8 8, $ss
+name: spillopt_u_store_retains_reload
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su, $ad
+    LDYi_o8 8, $ss, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    STDi_o5 6, $iy, implicit $ad, implicit-def dead $nz, implicit-def dead $n, implicit-def dead $z, implicit-def dead $v :: (store (s16) into @g)
+    STDi_o5 2, $su, implicit $ad, implicit-def dead $nz, implicit-def dead $n, implicit-def dead $z, implicit-def dead $v :: (store (s16) into stack)
+    LDYi_o8 8, $ss, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    STDi_o5 4, $iy, implicit $ad, implicit-def dead $nz, implicit-def dead $n, implicit-def dead $z, implicit-def dead $v :: (store (s16) into @g)
+    RTSr implicit $su
+...
+---
+# With a frame pointer `std 2,u` writes (SU,2), which is not (SU,8): Y still
+# holds (SU,8) and the second load goes.
+# SPILLOPT-LABEL: name: spillopt_fp_u_store_elides_reload
+# SPILLOPT:       LDYi_o8 8, $su
+# SPILLOPT:       STDi_o5 2, $su
+# SPILLOPT-NOT:   LDYi_o8 8, $su
+# SPILLOPT:       RTSr
+name: spillopt_fp_u_store_elides_reload
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su, $ad
+    LDYi_o8 8, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    STDi_o5 6, $iy, implicit $ad, implicit-def dead $nz, implicit-def dead $n, implicit-def dead $z, implicit-def dead $v :: (store (s16) into @g)
+    STDi_o5 2, $su, implicit $ad, implicit-def dead $nz, implicit-def dead $n, implicit-def dead $z, implicit-def dead $v :: (store (s16) into stack)
+    LDYi_o8 8, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    STDi_o5 4, $iy, implicit $ad, implicit-def dead $nz, implicit-def dead $n, implicit-def dead $z, implicit-def dead $v :: (store (s16) into @g)
+    RTSr implicit $su
+...
+---
+# Y is stored to (SS,16) and read back; in between, `stx 0,u` may write that
+# very slot through U, so the reload stays.
+# FINAL-LABEL: name: final_u_store_retains_reload
+# FINAL:       STYi_o8 16, $ss
+# FINAL:       STXi_o0 $su
+# FINAL:       LDYi_o8 16, $ss
+name: final_u_store_retains_reload
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su, $iy, $ix
+    STYi_o8 16, $ss, implicit $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    STXi_o0 $su, implicit $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    LDYi_o8 16, $ss, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    STDi_o5 4, $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    RTSr
+...
+---
+# With a frame pointer the same `stx 0,u` writes a known frame slot that is
+# not (SU,16), so the reload of (SU,16) is still redundant and goes.
+# FINAL-LABEL: name: final_fp_u_store_elides_reload
+# FINAL:       STYi_o8 16, $su
+# FINAL:       STXi_o0 $su
+# FINAL-NOT:   LDYi_o8 16, $su
+# FINAL:       RTSr
+name: final_fp_u_store_elides_reload
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su, $iy, $ix
+    STYi_o8 16, $su, implicit $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    STXi_o0 $su, implicit $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    LDYi_o8 16, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    STDi_o5 4, $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    RTSr
+...

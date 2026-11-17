@@ -17,6 +17,7 @@
 #include "MC6809FinalLowering.h"
 
 #include "MC6809.h"
+#include "MC6809FrameLowering.h"
 #include "MC6809InstrInfo.h"
 #include "MC6809MachineFunctionInfo.h"
 #include "MC6809Subtarget.h"
@@ -126,6 +127,13 @@ private:
 };
 
 } // namespace
+
+/// See MC6809FrameLowering::isFrameBase.
+static bool isFrameBase(const MachineFunction &MF, Register Reg) {
+  return static_cast<const MC6809FrameLowering &>(
+             *MF.getSubtarget().getFrameLowering())
+      .isFrameBase(MF, Reg);
+}
 
 bool MC6809FinalLowering::runOnMachineFunction(MachineFunction &MF) {
   bool Changed = false;
@@ -631,7 +639,7 @@ bool MC6809FinalLowering::elideStoreReload(MachineFunction &MF) {
       // gives up some elision opportunities but is necessary for
       // correctness — see the qsort failure traced to STD ,Y aliasing
       // with STY $399,u in the swapfunc loop.
-      if (K.Base != MC6809::SU && K.Base != MC6809::SS) {
+      if (!isFrameBase(MF, K.Base)) {
         invalidateAll();
         continue;
       }
@@ -994,7 +1002,7 @@ bool MC6809FinalLowering::foldLEAPointerSpill(MachineFunction &MF) {
       if (MI.getNumExplicitOperands() < 1 || !MI.getOperand(0).isReg())
         return std::nullopt;
       Register Base = MI.getOperand(0).getReg();
-      if (Base != MC6809::SU && Base != MC6809::SS)
+      if (!isFrameBase(MF, Base))
         return std::nullopt;
       return AddrValue{Base, 0};
     }
@@ -1003,7 +1011,7 @@ bool MC6809FinalLowering::foldLEAPointerSpill(MachineFunction &MF) {
           !MI.getOperand(1).isReg())
         return std::nullopt;
       Register Base = MI.getOperand(1).getReg();
-      if (Base != MC6809::SU && Base != MC6809::SS)
+      if (!isFrameBase(MF, Base))
         return std::nullopt;
       return AddrValue{Base, MI.getOperand(0).getImm()};
     }
@@ -1012,7 +1020,7 @@ bool MC6809FinalLowering::foldLEAPointerSpill(MachineFunction &MF) {
 
   // STY/STX recognition (and LDY/LDX): returns (slot_offset, slot_base)
   // iff this is a STY/STX/LDY/LDX targeting a slot in U or S.
-  auto recogniseStLd = [&getOffsetAndBaseIdx](
+  auto recogniseStLd = [&getOffsetAndBaseIdx, &MF](
       const MachineInstr &MI, unsigned StO0, unsigned StO5, unsigned StO8,
       unsigned StO16) -> std::optional<std::pair<int64_t, Register>> {
     unsigned Opc = MI.getOpcode();
@@ -1022,7 +1030,7 @@ bool MC6809FinalLowering::foldLEAPointerSpill(MachineFunction &MF) {
     if (!OB)
       return std::nullopt;
     Register Base = MI.getOperand(OB->second).getReg();
-    if (Base != MC6809::SU && Base != MC6809::SS)
+    if (!isFrameBase(MF, Base))
       return std::nullopt;
     return std::make_pair(OB->first, Base);
   };
@@ -1369,7 +1377,7 @@ bool MC6809FinalLowering::foldLEAPointerSpill(MachineFunction &MF) {
         } else {
           Register StoreBase = MI.getOperand(SOB->second).getReg();
           int64_t StoreOff = SOB->first;
-          if (StoreBase != MC6809::SU && StoreBase != MC6809::SS) {
+          if (!isFrameBase(MF, StoreBase)) {
             // Dynamic base — any U/S slot could alias.
             Slots.clear();
           } else {

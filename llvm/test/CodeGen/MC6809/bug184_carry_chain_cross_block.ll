@@ -32,9 +32,9 @@ target triple = "mc6809"
 define void @atol_like(ptr %out, ptr %s) {
 ; CHECK-LABEL: atol_like:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    pshs y
-; CHECK-NEXT:    leas -27,s
-; CHECK-NEXT:    stx 9,s ; 2-byte Folded Spill
+; CHECK-NEXT:    pshs u,y
+; CHECK-NEXT:    leas -25,s
+; CHECK-NEXT:    tfr x,y
 ; CHECK-NEXT:    ldx 31,s
 ; CHECK-NEXT:    ldb ,x
 ; CHECK-NEXT:    stb 8,s ; 1-byte Folded Spill
@@ -47,42 +47,42 @@ define void @atol_like(ptr %out, ptr %s) {
 ; CHECK-NEXT:    ldb #1
 ; CHECK-NEXT:  .LBB0_3: ; %entry
 ; CHECK-NEXT:    lda #0
-; CHECK-NEXT:    sta 21,s ; 1-byte Folded Spill
-; CHECK-NEXT:    lda 21,s
+; CHECK-NEXT:    sta 19,s ; 1-byte Folded Spill
+; CHECK-NEXT:    lda 19,s
 ; CHECK-NEXT:    lda d,x
 ; CHECK-NEXT:    ldx #0
 ; CHECK-NEXT:    stx <__rs0
 ; CHECK-NEXT:    ldb <__rs0lo
-; CHECK-NEXT:    stb 20,s ; 1-byte Folded Spill
+; CHECK-NEXT:    stb 18,s ; 1-byte Folded Spill
 ; CHECK-NEXT:    ldb <__rs0hi
-; CHECK-NEXT:    stb 19,s ; 1-byte Folded Spill
+; CHECK-NEXT:    stb 17,s ; 1-byte Folded Spill
 ; CHECK-NEXT:    suba #48
-; CHECK-NEXT:    sta 18,s ; 1-byte Folded Spill
-; CHECK-NEXT:    lda 21,s ; 1-byte Folded Reload
+; CHECK-NEXT:    sta 16,s ; 1-byte Folded Spill
+; CHECK-NEXT:    lda 19,s ; 1-byte Folded Reload
 ; CHECK-NEXT:    sbca #0
-; CHECK-NEXT:    ldb 20,s ; 1-byte Folded Reload
+; CHECK-NEXT:    ldb 18,s ; 1-byte Folded Reload
 ; CHECK-NEXT:    sbcb #0
-; CHECK-NEXT:    stb 20,s ; 1-byte Folded Spill
-; CHECK-NEXT:    ldb 19,s ; 1-byte Folded Reload
+; CHECK-NEXT:    stb 18,s ; 1-byte Folded Spill
+; CHECK-NEXT:    ldb 17,s ; 1-byte Folded Reload
 ; CHECK-NEXT:    sbcb #0
-; CHECK-NEXT:    sta 13,s ; 1-byte Folded Spill
+; CHECK-NEXT:    sta 11,s ; 1-byte Folded Spill
 ; CHECK-NEXT:    pshs d
-; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    ldb 18,s
 ; CHECK-NEXT:    std <__rs0
 ; CHECK-NEXT:    puls d
-; CHECK-NEXT:    stb 19,s ; 1-byte Folded Spill
+; CHECK-NEXT:    stb 17,s ; 1-byte Folded Spill
 ; CHECK-NEXT:    pshs d
 ; CHECK-NEXT:    tfr b,a
-; CHECK-NEXT:    ldb 22,s
+; CHECK-NEXT:    ldb 20,s
 ; CHECK-NEXT:    std <__rs1
 ; CHECK-NEXT:    puls d
 ; CHECK-NEXT:    bra .LBB0_4
 ; CHECK-NEXT:  .LBB0_4: ; %loop
 ; CHECK-NEXT:    ; =>This Inner Loop Header: Depth=1
-; CHECK-NEXT:    leay 23,s
+; CHECK-NEXT:    leau 21,s
 ; CHECK-NEXT:    pshs d
 ; CHECK-NEXT:    ldd <__rs0
-; CHECK-NEXT:    std 13,s ; 2-byte Folded Spill
+; CHECK-NEXT:    std 11,s ; 2-byte Folded Spill
 ; CHECK-NEXT:    puls d
 ; CHECK-NEXT:    pshs d
 ; CHECK-NEXT:    ldd <__rs0
@@ -90,7 +90,7 @@ define void @atol_like(ptr %out, ptr %s) {
 ; CHECK-NEXT:    puls d
 ; CHECK-NEXT:    pshs d
 ; CHECK-NEXT:    ldd <__rs1
-; CHECK-NEXT:    std 16,s ; 2-byte Folded Spill
+; CHECK-NEXT:    std 14,s ; 2-byte Folded Spill
 ; CHECK-NEXT:    puls d
 ; CHECK-NEXT:    pshs d
 ; CHECK-NEXT:    ldd <__rs1
@@ -100,37 +100,37 @@ define void @atol_like(ptr %out, ptr %s) {
 ; CHECK-NEXT:    std 6,s
 ; CHECK-NEXT:    ldd #0
 ; CHECK-NEXT:    std 4,s
-; CHECK-NEXT:    tfr y,x
+; CHECK-NEXT:    tfr u,x
 ; CHECK-NEXT:    lbsr __mulsi3
 ; CHECK-NEXT:    pshs d
-; CHECK-NEXT:    ldd 2,y
+; CHECK-NEXT:    ldd 2,u
 ; CHECK-NEXT:    std <__rs0
 ; CHECK-NEXT:    puls d
 ; CHECK-NEXT:    ldb <__rs0lo
-; CHECK-NEXT:    stb 22,s ; 1-byte Folded Spill
+; CHECK-NEXT:    stb 20,s ; 1-byte Folded Spill
 ; CHECK-NEXT:    lda <__rs0hi
-; CHECK-NEXT:    ldb 22,s ; 1-byte Folded Reload
-; CHECK-NEXT:    addb 18,s
-; CHECK-NEXT:    stb 22,s ; 1-byte Folded Spill
-; CHECK-NEXT:    adca 13,s
-; CHECK-NEXT:    sta 17,s ; 1-byte Folded Spill
 ; CHECK-NEXT:    ldb 20,s ; 1-byte Folded Reload
-; CHECK-NEXT:    adcb 24,s
-; CHECK-NEXT:    stb 16,s ; 1-byte Folded Spill
-; CHECK-NEXT:    lda 19,s ; 1-byte Folded Reload
-; CHECK-NEXT:    adca 23,s
-; CHECK-NEXT:    ldb 21,s ; 1-byte Folded Reload
+; CHECK-NEXT:    addb 16,s
+; CHECK-NEXT:    stb 20,s ; 1-byte Folded Spill
+; CHECK-NEXT:    adca 11,s
+; CHECK-NEXT:    sta 15,s ; 1-byte Folded Spill
+; CHECK-NEXT:    ldb 18,s ; 1-byte Folded Reload
+; CHECK-NEXT:    adcb 22,s
+; CHECK-NEXT:    stb 14,s ; 1-byte Folded Spill
+; CHECK-NEXT:    lda 17,s ; 1-byte Folded Reload
+; CHECK-NEXT:    adca 21,s
+; CHECK-NEXT:    ldb 19,s ; 1-byte Folded Reload
 ; CHECK-NEXT:    addb #1
 ; CHECK-NEXT:    pshs d
-; CHECK-NEXT:    ldb 24,s
-; CHECK-NEXT:    lda 19,s
+; CHECK-NEXT:    ldb 22,s
+; CHECK-NEXT:    lda 17,s
 ; CHECK-NEXT:    std <__rs0
 ; CHECK-NEXT:    puls d
 ; CHECK-NEXT:    pshs d
-; CHECK-NEXT:    ldb 18,s
+; CHECK-NEXT:    ldb 16,s
 ; CHECK-NEXT:    std <__rs1
 ; CHECK-NEXT:    puls d
-; CHECK-NEXT:    stb 21,s ; 1-byte Folded Spill
+; CHECK-NEXT:    stb 19,s ; 1-byte Folded Spill
 ; CHECK-NEXT:    cmpb #2
 ; CHECK-NEXT:    bne .LBB0_4
 ; CHECK-NEXT:  ; %bb.5: ; %exit
@@ -140,26 +140,26 @@ define void @atol_like(ptr %out, ptr %s) {
 ; CHECK-NEXT:    puls d
 ; CHECK-NEXT:    ldb <__rs0lo
 ; CHECK-NEXT:    lda <__rs0hi
-; CHECK-NEXT:    sta 21,s ; 1-byte Folded Spill
-; CHECK-NEXT:    ldx 11,s ; 2-byte Folded Reload
+; CHECK-NEXT:    sta 19,s ; 1-byte Folded Spill
+; CHECK-NEXT:    ldx 9,s ; 2-byte Folded Reload
 ; CHECK-NEXT:    stx <__rs1
 ; CHECK-NEXT:    lda <__rs1lo
-; CHECK-NEXT:    sta 20,s ; 1-byte Folded Spill
+; CHECK-NEXT:    sta 18,s ; 1-byte Folded Spill
 ; CHECK-NEXT:    lda <__rs1hi
-; CHECK-NEXT:    sta 22,s ; 1-byte Folded Spill
-; CHECK-NEXT:    lda 21,s ; 1-byte Folded Reload
-; CHECK-NEXT:    subb 20,s
-; CHECK-NEXT:    stb 20,s ; 1-byte Folded Spill
-; CHECK-NEXT:    sbca 22,s
+; CHECK-NEXT:    sta 20,s ; 1-byte Folded Spill
+; CHECK-NEXT:    lda 19,s ; 1-byte Folded Reload
+; CHECK-NEXT:    subb 18,s
+; CHECK-NEXT:    stb 18,s ; 1-byte Folded Spill
+; CHECK-NEXT:    sbca 20,s
 ; CHECK-NEXT:    ldb #0
 ; CHECK-NEXT:    adcb #0
-; CHECK-NEXT:    stb 22,s ; 1-byte Folded Spill
+; CHECK-NEXT:    stb 20,s ; 1-byte Folded Spill
 ; CHECK-NEXT:    ldb 8,s ; 1-byte Folded Reload
 ; CHECK-NEXT:    cmpb #45
 ; CHECK-NEXT:    bne .LBB0_7
 ; CHECK-NEXT:  ; %bb.6: ; %exit
 ; CHECK-NEXT:    pshs d
-; CHECK-NEXT:    ldb 22,s
+; CHECK-NEXT:    ldb 20,s
 ; CHECK-NEXT:    std <__rs1
 ; CHECK-NEXT:    puls d
 ; CHECK-NEXT:    bra .LBB0_8
@@ -174,30 +174,29 @@ define void @atol_like(ptr %out, ptr %s) {
 ; CHECK-NEXT:    std <__rs0
 ; CHECK-NEXT:    puls d
 ; CHECK-NEXT:    ldb <__rs0lo
-; CHECK-NEXT:    stb 21,s ; 1-byte Folded Spill
+; CHECK-NEXT:    stb 19,s ; 1-byte Folded Spill
 ; CHECK-NEXT:    lda <__rs0hi
-; CHECK-NEXT:    ldx 14,s ; 2-byte Folded Reload
+; CHECK-NEXT:    ldx 12,s ; 2-byte Folded Reload
 ; CHECK-NEXT:    stx <__rs0
 ; CHECK-NEXT:    ldb <__rs0lo
-; CHECK-NEXT:    stb 19,s ; 1-byte Folded Spill
+; CHECK-NEXT:    stb 17,s ; 1-byte Folded Spill
 ; CHECK-NEXT:    ldb <__rs0hi
-; CHECK-NEXT:    stb 20,s ; 1-byte Folded Spill
-; CHECK-NEXT:    ldb 22,s ; 1-byte Folded Reload
+; CHECK-NEXT:    stb 18,s ; 1-byte Folded Spill
+; CHECK-NEXT:    ldb 20,s ; 1-byte Folded Reload
 ; CHECK-NEXT:    lsrb
-; CHECK-NEXT:    ldb 21,s ; 1-byte Folded Reload
-; CHECK-NEXT:    sbcb 19,s
-; CHECK-NEXT:    sbca 20,s
+; CHECK-NEXT:    ldb 19,s ; 1-byte Folded Reload
+; CHECK-NEXT:    sbcb 17,s
+; CHECK-NEXT:    sbca 18,s
 ; CHECK-NEXT:    bra .LBB0_11
 ; CHECK-NEXT:  .LBB0_10: ; %exit
-; CHECK-NEXT:    ldd 14,s ; 2-byte Folded Reload
+; CHECK-NEXT:    ldd 12,s ; 2-byte Folded Reload
 ; CHECK-NEXT:    bra .LBB0_11
 ; CHECK-NEXT:  .LBB0_11: ; %exit
-; CHECK-NEXT:    ldx 9,s ; 2-byte Folded Reload
-; CHECK-NEXT:    ldy <__rs1
-; CHECK-NEXT:    sty 2,x
-; CHECK-NEXT:    std ,x
-; CHECK-NEXT:    leas 27,s
-; CHECK-NEXT:    puls y,pc
+; CHECK-NEXT:    ldx <__rs1
+; CHECK-NEXT:    stx 2,y
+; CHECK-NEXT:    std ,y
+; CHECK-NEXT:    leas 25,s
+; CHECK-NEXT:    puls u,y,pc
 entry:
   %first = load i8, ptr %s, align 1
   %is_neg = icmp eq i8 %first, 45

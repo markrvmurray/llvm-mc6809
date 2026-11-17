@@ -23,8 +23,8 @@ define ptr @ptr_find(ptr %a, ptr %ae, ptr %b, ptr %be, i8 %c) {
 ; read from memory (folded frame-slot cmpx N,s / N,u, or the push-and-compare
 ; fallback cmpx ,s++). All shapes keep the operands distinct; the load-bearing
 ; guard is the CHECK-NOT below (never a self-compare).
-; CHECK: cmp{{[xyr]}}
-; CHECK: cmp{{[xyr]}}
+; CHECK: cmp{{[xyur]}}
+; CHECK: cmp{{[xyur]}}
 ; CHECK-NOT: cmpr [[RR:[a-z]+]],[[RR]]
 entry:
   br label %loop

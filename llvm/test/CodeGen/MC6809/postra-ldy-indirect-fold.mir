@@ -33,21 +33,23 @@
 #                                  the second LDY+ORB folds (Stage 6 picks the
 #                                  adjacent LDY, never across the live clobber).
 
+# The functions ask for a frame pointer, so U addresses the frame here; where
+# U is an ordinary register see u-pointer-frame-alias.mir.
 --- |
-  define void @fold_o0_byte() { ret void }
-  define void @fold_o8_byte() { ret void }
-  define void @fold_o16_word() { ret void }
-  define void @fold_with_gap3() { ret void }
-  define void @negative_y_reused() { ret void }
-  define void @negative_y_clobbered_in_gap() { ret void }
-  define void @negative_y_clobbered_live_first() { ret void }
-  define void @fold_load_through_self_y() { ret void }
-  define void @fold_load_through_self_y_o8() { ret void }
-  define void @fold_load_through_self_y_o16() { ret void }
-  define void @fold_load_through_self_x() { ret void }
-  define void @fold_cross_register_y_dead() { ret void }
-  define void @negative_cross_register_y_live() { ret void }
-  define void @negative_slot_rewritten() { ret void }
+  define void @fold_o0_byte() "frame-pointer"="all" { ret void }
+  define void @fold_o8_byte() "frame-pointer"="all" { ret void }
+  define void @fold_o16_word() "frame-pointer"="all" { ret void }
+  define void @fold_with_gap3() "frame-pointer"="all" { ret void }
+  define void @negative_y_reused() "frame-pointer"="all" { ret void }
+  define void @negative_y_clobbered_in_gap() "frame-pointer"="all" { ret void }
+  define void @negative_y_clobbered_live_first() "frame-pointer"="all" { ret void }
+  define void @fold_load_through_self_y() "frame-pointer"="all" { ret void }
+  define void @fold_load_through_self_y_o8() "frame-pointer"="all" { ret void }
+  define void @fold_load_through_self_y_o16() "frame-pointer"="all" { ret void }
+  define void @fold_load_through_self_x() "frame-pointer"="all" { ret void }
+  define void @fold_cross_register_y_dead() "frame-pointer"="all" { ret void }
+  define void @negative_cross_register_y_live() "frame-pointer"="all" { ret void }
+  define void @negative_slot_rewritten() "frame-pointer"="all" { ret void }
 ...
 
 ---

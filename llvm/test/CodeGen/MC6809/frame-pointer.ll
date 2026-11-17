@@ -60,13 +60,13 @@ define void @asked(i16 %n) "frame-pointer"="all" {
 ; so nothing follows that.
 ; CHECK-LABEL: unwinds:
 ; CHECK:       .cfi_def_cfa s, 2
-; CHECK:       pshs y
-; CHECK-NEXT:  .cfi_def_cfa_offset 4
-; CHECK-NEXT:  leas -12,s
+; CHECK:       pshs u,y
+; CHECK-NEXT:  .cfi_def_cfa_offset 6
+; CHECK-NEXT:  leas -10,s
 ; CHECK-NEXT:  .cfi_def_cfa_offset 16
-; CHECK:       leas 12,s
-; CHECK-NEXT:  .cfi_def_cfa_offset 4
-; CHECK-NEXT:  puls y,pc
+; CHECK:       leas 10,s
+; CHECK-NEXT:  .cfi_def_cfa_offset 6
+; CHECK-NEXT:  puls u,y,pc
 ; CHECK-NEXT:  .Lfunc_end
 define void @unwinds(i16 %n) uwtable {
   %buf = alloca [4 x i16]

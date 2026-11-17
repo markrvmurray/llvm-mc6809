@@ -15,15 +15,17 @@
 # sequence; mayStoreToStackFrame is offset-agnostic, so this exercises the same
 # frame-aliasing mechanism the real `std ,y` bug did.)
 
+# The functions ask for a frame pointer, so U addresses the frame here; where
+# U is an ordinary register see u-pointer-frame-alias.mir.
 --- |
   @g = external global i16
-  define void @stack_store_retains_reload() { ret void }
-  define void @no_mmo_store_retains_reload() { ret void }
-  define void @alloca_store_retains_reload() {
+  define void @stack_store_retains_reload() "frame-pointer"="all" { ret void }
+  define void @no_mmo_store_retains_reload() "frame-pointer"="all" { ret void }
+  define void @alloca_store_retains_reload() "frame-pointer"="all" {
     %buf = alloca [8 x i8]
     ret void
   }
-  define void @heap_store_elides_reload() { ret void }
+  define void @heap_store_elides_reload() "frame-pointer"="all" { ret void }
 ...
 ---
 # A `std 2,y` whose MMO names the stack frame (Stack PSV) may alias the

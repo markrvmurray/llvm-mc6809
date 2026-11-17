@@ -29,6 +29,11 @@
 # After the elided LDY @ 16: the LEAY directly follows the STY.
 # CHECK-NEXT: LEAYi_o5 3, killed $iy, implicit-def $iy
 
+# The functions ask for a frame pointer, so U addresses the frame here; where
+# U is an ordinary register see u-pointer-frame-alias.mir.
+--- |
+  define void @elide_clears_kill_iy() "frame-pointer"="all" { ret void }
+...
 ---
 name: elide_clears_kill_iy
 tracksRegLiveness: true

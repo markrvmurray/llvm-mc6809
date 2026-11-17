@@ -667,6 +667,14 @@ void MC6809FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &M
   foldReturnIntoPull(MBB);
 }
 
+bool MC6809FrameLowering::isFrameBase(const MachineFunction &MF,
+                                      Register Reg) const {
+  if (Reg == MC6809::SS)
+    return true;
+  return Reg == MC6809::SU &&
+         (hasFP(MF) || MF.getTarget().getTargetTriple().isOSOS9());
+}
+
 bool MC6809FrameLowering::hasFP(const MachineFunction &MF) const {
   // Every frame is addressed from S unless something needs a fixed base: a
   // variable-sized object moves S by an amount known only at run time, and a

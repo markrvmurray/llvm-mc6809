@@ -2108,9 +2108,9 @@ attributes #0 = { mustprogress nofree norecurse nosync nounwind willreturn memor
 define dso_local i64 @mul_s_i64(i64 %a, i64 %b) {
 ; O0-LABEL: mul_s_i64:
 ; O0:       ; %bb.0: ; %entry
-; O0-NEXT:    pshs y
-; O0-NEXT:    leas -26,s
-; O0-NEXT:    stx 16,s ; 2-byte Folded Spill
+; O0-NEXT:    pshs u,y
+; O0-NEXT:    leas -24,s
+; O0-NEXT:    tfr x,y
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd 38,s
 ; O0-NEXT:    std <__rs3
@@ -2145,38 +2145,37 @@ define dso_local i64 @mul_s_i64(i64 %a, i64 %b) {
 ; O0-NEXT:    std 10,s
 ; O0-NEXT:    ldd 30,s
 ; O0-NEXT:    std 8,s
-; O0-NEXT:    leay 18,s
-; O0-NEXT:    tfr y,x
+; O0-NEXT:    leau 16,s
+; O0-NEXT:    tfr u,x
 ; O0-NEXT:    lbsr __muldi3
-; O0-NEXT:    ldd 6,y
-; O0-NEXT:    ldx 4,y
+; O0-NEXT:    ldd 6,u
+; O0-NEXT:    ldx 4,u
 ; O0-NEXT:    stx <__rs0
-; O0-NEXT:    ldx 2,y
+; O0-NEXT:    ldx 2,u
 ; O0-NEXT:    stx <__rs1
-; O0-NEXT:    ldx 18,s
+; O0-NEXT:    ldx 16,s
 ; O0-NEXT:    stx <__rs2
-; O0-NEXT:    ldx 16,s ; 2-byte Folded Reload
-; O0-NEXT:    std 6,x
+; O0-NEXT:    std 6,y
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
-; O0-NEXT:    std 4,x
+; O0-NEXT:    std 4,y
 ; O0-NEXT:    puls d
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs1
-; O0-NEXT:    std 2,x
+; O0-NEXT:    std 2,y
 ; O0-NEXT:    puls d
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs2
-; O0-NEXT:    std ,x
+; O0-NEXT:    std ,y
 ; O0-NEXT:    puls d
-; O0-NEXT:    leas 26,s
-; O0-NEXT:    puls y,pc
+; O0-NEXT:    leas 24,s
+; O0-NEXT:    puls u,y,pc
 ;
 ; O1-LABEL: mul_s_i64:
 ; O1:       ; %bb.0: ; %entry
-; O1-NEXT:    pshs y
-; O1-NEXT:    leas -26,s
-; O1-NEXT:    stx 16,s ; 2-byte Folded Spill
+; O1-NEXT:    pshs u,y
+; O1-NEXT:    leas -24,s
+; O1-NEXT:    tfr x,y
 ; O1-NEXT:    ldd 36,s
 ; O1-NEXT:    std <__rs3
 ; O1-NEXT:    ldd 44,s
@@ -2201,32 +2200,31 @@ define dso_local i64 @mul_s_i64(i64 %a, i64 %b) {
 ; O1-NEXT:    std 10,s
 ; O1-NEXT:    ldd 30,s
 ; O1-NEXT:    std 8,s
-; O1-NEXT:    leay 18,s
-; O1-NEXT:    tfr y,x
+; O1-NEXT:    leau 16,s
+; O1-NEXT:    tfr u,x
 ; O1-NEXT:    lbsr __muldi3
-; O1-NEXT:    ldd 6,y
-; O1-NEXT:    ldx 4,y
+; O1-NEXT:    ldd 6,u
+; O1-NEXT:    ldx 4,u
 ; O1-NEXT:    stx <__rs0
-; O1-NEXT:    ldx 2,y
+; O1-NEXT:    ldx 2,u
 ; O1-NEXT:    stx <__rs1
-; O1-NEXT:    ldx 18,s
+; O1-NEXT:    ldx 16,s
 ; O1-NEXT:    stx <__rs2
-; O1-NEXT:    ldx 16,s ; 2-byte Folded Reload
-; O1-NEXT:    std 6,x
+; O1-NEXT:    std 6,y
 ; O1-NEXT:    ldd <__rs0
-; O1-NEXT:    std 4,x
+; O1-NEXT:    std 4,y
 ; O1-NEXT:    ldd <__rs1
-; O1-NEXT:    std 2,x
+; O1-NEXT:    std 2,y
 ; O1-NEXT:    ldd <__rs2
-; O1-NEXT:    std ,x
-; O1-NEXT:    leas 26,s
-; O1-NEXT:    puls y,pc
+; O1-NEXT:    std ,y
+; O1-NEXT:    leas 24,s
+; O1-NEXT:    puls u,y,pc
 ;
 ; O2-LABEL: mul_s_i64:
 ; O2:       ; %bb.0: ; %entry
-; O2-NEXT:    pshs y
-; O2-NEXT:    leas -26,s
-; O2-NEXT:    stx 16,s ; 2-byte Folded Spill
+; O2-NEXT:    pshs u,y
+; O2-NEXT:    leas -24,s
+; O2-NEXT:    tfr x,y
 ; O2-NEXT:    ldd 36,s
 ; O2-NEXT:    std <__rs3
 ; O2-NEXT:    ldd 44,s
@@ -2251,32 +2249,31 @@ define dso_local i64 @mul_s_i64(i64 %a, i64 %b) {
 ; O2-NEXT:    std 10,s
 ; O2-NEXT:    ldd 30,s
 ; O2-NEXT:    std 8,s
-; O2-NEXT:    leay 18,s
-; O2-NEXT:    tfr y,x
+; O2-NEXT:    leau 16,s
+; O2-NEXT:    tfr u,x
 ; O2-NEXT:    lbsr __muldi3
-; O2-NEXT:    ldd 6,y
-; O2-NEXT:    ldx 4,y
+; O2-NEXT:    ldd 6,u
+; O2-NEXT:    ldx 4,u
 ; O2-NEXT:    stx <__rs0
-; O2-NEXT:    ldx 2,y
+; O2-NEXT:    ldx 2,u
 ; O2-NEXT:    stx <__rs1
-; O2-NEXT:    ldx 18,s
+; O2-NEXT:    ldx 16,s
 ; O2-NEXT:    stx <__rs2
-; O2-NEXT:    ldx 16,s ; 2-byte Folded Reload
-; O2-NEXT:    std 6,x
+; O2-NEXT:    std 6,y
 ; O2-NEXT:    ldd <__rs0
-; O2-NEXT:    std 4,x
+; O2-NEXT:    std 4,y
 ; O2-NEXT:    ldd <__rs1
-; O2-NEXT:    std 2,x
+; O2-NEXT:    std 2,y
 ; O2-NEXT:    ldd <__rs2
-; O2-NEXT:    std ,x
-; O2-NEXT:    leas 26,s
-; O2-NEXT:    puls y,pc
+; O2-NEXT:    std ,y
+; O2-NEXT:    leas 24,s
+; O2-NEXT:    puls u,y,pc
 ;
 ; O3-LABEL: mul_s_i64:
 ; O3:       ; %bb.0: ; %entry
-; O3-NEXT:    pshs y
-; O3-NEXT:    leas -26,s
-; O3-NEXT:    stx 16,s ; 2-byte Folded Spill
+; O3-NEXT:    pshs u,y
+; O3-NEXT:    leas -24,s
+; O3-NEXT:    tfr x,y
 ; O3-NEXT:    ldd 36,s
 ; O3-NEXT:    std <__rs3
 ; O3-NEXT:    ldd 44,s
@@ -2301,26 +2298,25 @@ define dso_local i64 @mul_s_i64(i64 %a, i64 %b) {
 ; O3-NEXT:    std 10,s
 ; O3-NEXT:    ldd 30,s
 ; O3-NEXT:    std 8,s
-; O3-NEXT:    leay 18,s
-; O3-NEXT:    tfr y,x
+; O3-NEXT:    leau 16,s
+; O3-NEXT:    tfr u,x
 ; O3-NEXT:    lbsr __muldi3
-; O3-NEXT:    ldd 6,y
-; O3-NEXT:    ldx 4,y
+; O3-NEXT:    ldd 6,u
+; O3-NEXT:    ldx 4,u
 ; O3-NEXT:    stx <__rs0
-; O3-NEXT:    ldx 2,y
+; O3-NEXT:    ldx 2,u
 ; O3-NEXT:    stx <__rs1
-; O3-NEXT:    ldx 18,s
+; O3-NEXT:    ldx 16,s
 ; O3-NEXT:    stx <__rs2
-; O3-NEXT:    ldx 16,s ; 2-byte Folded Reload
-; O3-NEXT:    std 6,x
+; O3-NEXT:    std 6,y
 ; O3-NEXT:    ldd <__rs0
-; O3-NEXT:    std 4,x
+; O3-NEXT:    std 4,y
 ; O3-NEXT:    ldd <__rs1
-; O3-NEXT:    std 2,x
+; O3-NEXT:    std 2,y
 ; O3-NEXT:    ldd <__rs2
-; O3-NEXT:    std ,x
-; O3-NEXT:    leas 26,s
-; O3-NEXT:    puls y,pc
+; O3-NEXT:    std ,y
+; O3-NEXT:    leas 24,s
+; O3-NEXT:    puls u,y,pc
 entry:
   %mul = mul nsw i64 %b, %a
   ret i64 %mul
@@ -2329,9 +2325,9 @@ entry:
 define dso_local i64 @mul_s_i64_consts(i64 %a, i64 %b) {
 ; O0-LABEL: mul_s_i64_consts:
 ; O0:       ; %bb.0: ; %entry
-; O0-NEXT:    pshs y
-; O0-NEXT:    leas -34,s
-; O0-NEXT:    stx 16,s ; 2-byte Folded Spill
+; O0-NEXT:    pshs u,y
+; O0-NEXT:    leas -32,s
+; O0-NEXT:    tfr x,y
 ; O0-NEXT:    ldd 44,s
 ; O0-NEXT:    ldx 42,s
 ; O0-NEXT:    stx <__rs1
@@ -2370,15 +2366,15 @@ define dso_local i64 @mul_s_i64_consts(i64 %a, i64 %b) {
 ; O0-NEXT:    ldd <__rs1
 ; O0-NEXT:    std 10,s
 ; O0-NEXT:    puls d
-; O0-NEXT:    leay 18,s
-; O0-NEXT:    tfr y,x
+; O0-NEXT:    leau 16,s
+; O0-NEXT:    tfr u,x
 ; O0-NEXT:    lbsr __muldi3
-; O0-NEXT:    ldd 6,y
-; O0-NEXT:    ldx 4,y
+; O0-NEXT:    ldd 6,u
+; O0-NEXT:    ldx 4,u
 ; O0-NEXT:    stx <__rs0
-; O0-NEXT:    ldx 2,y
+; O0-NEXT:    ldx 2,u
 ; O0-NEXT:    stx <__rs1
-; O0-NEXT:    ldx 18,s
+; O0-NEXT:    ldx 16,s
 ; O0-NEXT:    stx <__rs2
 ; O0-NEXT:    std 6,s
 ; O0-NEXT:    pshs d
@@ -2401,38 +2397,37 @@ define dso_local i64 @mul_s_i64_consts(i64 %a, i64 %b) {
 ; O0-NEXT:    std 10,s
 ; O0-NEXT:    ldd 46,s
 ; O0-NEXT:    std 8,s
-; O0-NEXT:    leay 26,s
-; O0-NEXT:    tfr y,x
+; O0-NEXT:    leau 24,s
+; O0-NEXT:    tfr u,x
 ; O0-NEXT:    lbsr __muldi3
-; O0-NEXT:    ldd 6,y
-; O0-NEXT:    ldx 4,y
+; O0-NEXT:    ldd 6,u
+; O0-NEXT:    ldx 4,u
 ; O0-NEXT:    stx <__rs0
-; O0-NEXT:    ldx 2,y
+; O0-NEXT:    ldx 2,u
 ; O0-NEXT:    stx <__rs1
-; O0-NEXT:    ldx 26,s
+; O0-NEXT:    ldx 24,s
 ; O0-NEXT:    stx <__rs2
-; O0-NEXT:    ldx 16,s ; 2-byte Folded Reload
-; O0-NEXT:    std 6,x
+; O0-NEXT:    std 6,y
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
-; O0-NEXT:    std 4,x
+; O0-NEXT:    std 4,y
 ; O0-NEXT:    puls d
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs1
-; O0-NEXT:    std 2,x
+; O0-NEXT:    std 2,y
 ; O0-NEXT:    puls d
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs2
-; O0-NEXT:    std ,x
+; O0-NEXT:    std ,y
 ; O0-NEXT:    puls d
-; O0-NEXT:    leas 34,s
-; O0-NEXT:    puls y,pc
+; O0-NEXT:    leas 32,s
+; O0-NEXT:    puls u,y,pc
 ;
 ; O1-LABEL: mul_s_i64_consts:
 ; O1:       ; %bb.0: ; %entry
-; O1-NEXT:    pshs y
-; O1-NEXT:    leas -34,s
-; O1-NEXT:    stx 16,s ; 2-byte Folded Spill
+; O1-NEXT:    pshs u,y
+; O1-NEXT:    leas -32,s
+; O1-NEXT:    tfr x,y
 ; O1-NEXT:    ldd 44,s
 ; O1-NEXT:    ldx 42,s
 ; O1-NEXT:    stx <__rs0
@@ -2453,15 +2448,15 @@ define dso_local i64 @mul_s_i64_consts(i64 %a, i64 %b) {
 ; O1-NEXT:    std 12,s
 ; O1-NEXT:    std 10,s
 ; O1-NEXT:    std 8,s
-; O1-NEXT:    leay 18,s
-; O1-NEXT:    tfr y,x
+; O1-NEXT:    leau 16,s
+; O1-NEXT:    tfr u,x
 ; O1-NEXT:    lbsr __muldi3
-; O1-NEXT:    ldd 6,y
-; O1-NEXT:    ldx 4,y
+; O1-NEXT:    ldd 6,u
+; O1-NEXT:    ldx 4,u
 ; O1-NEXT:    stx <__rs0
-; O1-NEXT:    ldx 2,y
+; O1-NEXT:    ldx 2,u
 ; O1-NEXT:    stx <__rs1
-; O1-NEXT:    ldx 18,s
+; O1-NEXT:    ldx 16,s
 ; O1-NEXT:    stx <__rs2
 ; O1-NEXT:    std 6,s
 ; O1-NEXT:    ldd <__rs0
@@ -2478,32 +2473,31 @@ define dso_local i64 @mul_s_i64_consts(i64 %a, i64 %b) {
 ; O1-NEXT:    std 10,s
 ; O1-NEXT:    ldd 46,s
 ; O1-NEXT:    std 8,s
-; O1-NEXT:    leay 26,s
-; O1-NEXT:    tfr y,x
+; O1-NEXT:    leau 24,s
+; O1-NEXT:    tfr u,x
 ; O1-NEXT:    lbsr __muldi3
-; O1-NEXT:    ldd 6,y
-; O1-NEXT:    ldx 4,y
+; O1-NEXT:    ldd 6,u
+; O1-NEXT:    ldx 4,u
 ; O1-NEXT:    stx <__rs0
-; O1-NEXT:    ldx 2,y
+; O1-NEXT:    ldx 2,u
 ; O1-NEXT:    stx <__rs1
-; O1-NEXT:    ldx 26,s
+; O1-NEXT:    ldx 24,s
 ; O1-NEXT:    stx <__rs2
-; O1-NEXT:    ldx 16,s ; 2-byte Folded Reload
-; O1-NEXT:    std 6,x
+; O1-NEXT:    std 6,y
 ; O1-NEXT:    ldd <__rs0
-; O1-NEXT:    std 4,x
+; O1-NEXT:    std 4,y
 ; O1-NEXT:    ldd <__rs1
-; O1-NEXT:    std 2,x
+; O1-NEXT:    std 2,y
 ; O1-NEXT:    ldd <__rs2
-; O1-NEXT:    std ,x
-; O1-NEXT:    leas 34,s
-; O1-NEXT:    puls y,pc
+; O1-NEXT:    std ,y
+; O1-NEXT:    leas 32,s
+; O1-NEXT:    puls u,y,pc
 ;
 ; O2-LABEL: mul_s_i64_consts:
 ; O2:       ; %bb.0: ; %entry
-; O2-NEXT:    pshs y
-; O2-NEXT:    leas -34,s
-; O2-NEXT:    stx 16,s ; 2-byte Folded Spill
+; O2-NEXT:    pshs u,y
+; O2-NEXT:    leas -32,s
+; O2-NEXT:    tfr x,y
 ; O2-NEXT:    ldd 44,s
 ; O2-NEXT:    ldx 42,s
 ; O2-NEXT:    stx <__rs0
@@ -2524,15 +2518,15 @@ define dso_local i64 @mul_s_i64_consts(i64 %a, i64 %b) {
 ; O2-NEXT:    std 12,s
 ; O2-NEXT:    std 10,s
 ; O2-NEXT:    std 8,s
-; O2-NEXT:    leay 18,s
-; O2-NEXT:    tfr y,x
+; O2-NEXT:    leau 16,s
+; O2-NEXT:    tfr u,x
 ; O2-NEXT:    lbsr __muldi3
-; O2-NEXT:    ldd 6,y
-; O2-NEXT:    ldx 4,y
+; O2-NEXT:    ldd 6,u
+; O2-NEXT:    ldx 4,u
 ; O2-NEXT:    stx <__rs0
-; O2-NEXT:    ldx 2,y
+; O2-NEXT:    ldx 2,u
 ; O2-NEXT:    stx <__rs1
-; O2-NEXT:    ldx 18,s
+; O2-NEXT:    ldx 16,s
 ; O2-NEXT:    stx <__rs2
 ; O2-NEXT:    std 6,s
 ; O2-NEXT:    ldd <__rs0
@@ -2549,32 +2543,31 @@ define dso_local i64 @mul_s_i64_consts(i64 %a, i64 %b) {
 ; O2-NEXT:    std 10,s
 ; O2-NEXT:    ldd 46,s
 ; O2-NEXT:    std 8,s
-; O2-NEXT:    leay 26,s
-; O2-NEXT:    tfr y,x
+; O2-NEXT:    leau 24,s
+; O2-NEXT:    tfr u,x
 ; O2-NEXT:    lbsr __muldi3
-; O2-NEXT:    ldd 6,y
-; O2-NEXT:    ldx 4,y
+; O2-NEXT:    ldd 6,u
+; O2-NEXT:    ldx 4,u
 ; O2-NEXT:    stx <__rs0
-; O2-NEXT:    ldx 2,y
+; O2-NEXT:    ldx 2,u
 ; O2-NEXT:    stx <__rs1
-; O2-NEXT:    ldx 26,s
+; O2-NEXT:    ldx 24,s
 ; O2-NEXT:    stx <__rs2
-; O2-NEXT:    ldx 16,s ; 2-byte Folded Reload
-; O2-NEXT:    std 6,x
+; O2-NEXT:    std 6,y
 ; O2-NEXT:    ldd <__rs0
-; O2-NEXT:    std 4,x
+; O2-NEXT:    std 4,y
 ; O2-NEXT:    ldd <__rs1
-; O2-NEXT:    std 2,x
+; O2-NEXT:    std 2,y
 ; O2-NEXT:    ldd <__rs2
-; O2-NEXT:    std ,x
-; O2-NEXT:    leas 34,s
-; O2-NEXT:    puls y,pc
+; O2-NEXT:    std ,y
+; O2-NEXT:    leas 32,s
+; O2-NEXT:    puls u,y,pc
 ;
 ; O3-LABEL: mul_s_i64_consts:
 ; O3:       ; %bb.0: ; %entry
-; O3-NEXT:    pshs y
-; O3-NEXT:    leas -34,s
-; O3-NEXT:    stx 16,s ; 2-byte Folded Spill
+; O3-NEXT:    pshs u,y
+; O3-NEXT:    leas -32,s
+; O3-NEXT:    tfr x,y
 ; O3-NEXT:    ldd 44,s
 ; O3-NEXT:    ldx 42,s
 ; O3-NEXT:    stx <__rs0
@@ -2595,15 +2588,15 @@ define dso_local i64 @mul_s_i64_consts(i64 %a, i64 %b) {
 ; O3-NEXT:    std 12,s
 ; O3-NEXT:    std 10,s
 ; O3-NEXT:    std 8,s
-; O3-NEXT:    leay 18,s
-; O3-NEXT:    tfr y,x
+; O3-NEXT:    leau 16,s
+; O3-NEXT:    tfr u,x
 ; O3-NEXT:    lbsr __muldi3
-; O3-NEXT:    ldd 6,y
-; O3-NEXT:    ldx 4,y
+; O3-NEXT:    ldd 6,u
+; O3-NEXT:    ldx 4,u
 ; O3-NEXT:    stx <__rs0
-; O3-NEXT:    ldx 2,y
+; O3-NEXT:    ldx 2,u
 ; O3-NEXT:    stx <__rs1
-; O3-NEXT:    ldx 18,s
+; O3-NEXT:    ldx 16,s
 ; O3-NEXT:    stx <__rs2
 ; O3-NEXT:    std 6,s
 ; O3-NEXT:    ldd <__rs0
@@ -2620,26 +2613,25 @@ define dso_local i64 @mul_s_i64_consts(i64 %a, i64 %b) {
 ; O3-NEXT:    std 10,s
 ; O3-NEXT:    ldd 46,s
 ; O3-NEXT:    std 8,s
-; O3-NEXT:    leay 26,s
-; O3-NEXT:    tfr y,x
+; O3-NEXT:    leau 24,s
+; O3-NEXT:    tfr u,x
 ; O3-NEXT:    lbsr __muldi3
-; O3-NEXT:    ldd 6,y
-; O3-NEXT:    ldx 4,y
+; O3-NEXT:    ldd 6,u
+; O3-NEXT:    ldx 4,u
 ; O3-NEXT:    stx <__rs0
-; O3-NEXT:    ldx 2,y
+; O3-NEXT:    ldx 2,u
 ; O3-NEXT:    stx <__rs1
-; O3-NEXT:    ldx 26,s
+; O3-NEXT:    ldx 24,s
 ; O3-NEXT:    stx <__rs2
-; O3-NEXT:    ldx 16,s ; 2-byte Folded Reload
-; O3-NEXT:    std 6,x
+; O3-NEXT:    std 6,y
 ; O3-NEXT:    ldd <__rs0
-; O3-NEXT:    std 4,x
+; O3-NEXT:    std 4,y
 ; O3-NEXT:    ldd <__rs1
-; O3-NEXT:    std 2,x
+; O3-NEXT:    std 2,y
 ; O3-NEXT:    ldd <__rs2
-; O3-NEXT:    std ,x
-; O3-NEXT:    leas 34,s
-; O3-NEXT:    puls y,pc
+; O3-NEXT:    std ,y
+; O3-NEXT:    leas 32,s
+; O3-NEXT:    puls u,y,pc
 entry:
   %mul = mul i64 %a, 7
   %mul1 = mul i64 %mul, %b
@@ -2649,9 +2641,9 @@ entry:
 define dso_local i64 @mul_u_i64(i64 %a, i64 %b) {
 ; O0-LABEL: mul_u_i64:
 ; O0:       ; %bb.0: ; %entry
-; O0-NEXT:    pshs y
-; O0-NEXT:    leas -26,s
-; O0-NEXT:    stx 16,s ; 2-byte Folded Spill
+; O0-NEXT:    pshs u,y
+; O0-NEXT:    leas -24,s
+; O0-NEXT:    tfr x,y
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd 38,s
 ; O0-NEXT:    std <__rs3
@@ -2686,38 +2678,37 @@ define dso_local i64 @mul_u_i64(i64 %a, i64 %b) {
 ; O0-NEXT:    std 10,s
 ; O0-NEXT:    ldd 30,s
 ; O0-NEXT:    std 8,s
-; O0-NEXT:    leay 18,s
-; O0-NEXT:    tfr y,x
+; O0-NEXT:    leau 16,s
+; O0-NEXT:    tfr u,x
 ; O0-NEXT:    lbsr __muldi3
-; O0-NEXT:    ldd 6,y
-; O0-NEXT:    ldx 4,y
+; O0-NEXT:    ldd 6,u
+; O0-NEXT:    ldx 4,u
 ; O0-NEXT:    stx <__rs0
-; O0-NEXT:    ldx 2,y
+; O0-NEXT:    ldx 2,u
 ; O0-NEXT:    stx <__rs1
-; O0-NEXT:    ldx 18,s
+; O0-NEXT:    ldx 16,s
 ; O0-NEXT:    stx <__rs2
-; O0-NEXT:    ldx 16,s ; 2-byte Folded Reload
-; O0-NEXT:    std 6,x
+; O0-NEXT:    std 6,y
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
-; O0-NEXT:    std 4,x
+; O0-NEXT:    std 4,y
 ; O0-NEXT:    puls d
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs1
-; O0-NEXT:    std 2,x
+; O0-NEXT:    std 2,y
 ; O0-NEXT:    puls d
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs2
-; O0-NEXT:    std ,x
+; O0-NEXT:    std ,y
 ; O0-NEXT:    puls d
-; O0-NEXT:    leas 26,s
-; O0-NEXT:    puls y,pc
+; O0-NEXT:    leas 24,s
+; O0-NEXT:    puls u,y,pc
 ;
 ; O1-LABEL: mul_u_i64:
 ; O1:       ; %bb.0: ; %entry
-; O1-NEXT:    pshs y
-; O1-NEXT:    leas -26,s
-; O1-NEXT:    stx 16,s ; 2-byte Folded Spill
+; O1-NEXT:    pshs u,y
+; O1-NEXT:    leas -24,s
+; O1-NEXT:    tfr x,y
 ; O1-NEXT:    ldd 36,s
 ; O1-NEXT:    std <__rs3
 ; O1-NEXT:    ldd 44,s
@@ -2742,32 +2733,31 @@ define dso_local i64 @mul_u_i64(i64 %a, i64 %b) {
 ; O1-NEXT:    std 10,s
 ; O1-NEXT:    ldd 30,s
 ; O1-NEXT:    std 8,s
-; O1-NEXT:    leay 18,s
-; O1-NEXT:    tfr y,x
+; O1-NEXT:    leau 16,s
+; O1-NEXT:    tfr u,x
 ; O1-NEXT:    lbsr __muldi3
-; O1-NEXT:    ldd 6,y
-; O1-NEXT:    ldx 4,y
+; O1-NEXT:    ldd 6,u
+; O1-NEXT:    ldx 4,u
 ; O1-NEXT:    stx <__rs0
-; O1-NEXT:    ldx 2,y
+; O1-NEXT:    ldx 2,u
 ; O1-NEXT:    stx <__rs1
-; O1-NEXT:    ldx 18,s
+; O1-NEXT:    ldx 16,s
 ; O1-NEXT:    stx <__rs2
-; O1-NEXT:    ldx 16,s ; 2-byte Folded Reload
-; O1-NEXT:    std 6,x
+; O1-NEXT:    std 6,y
 ; O1-NEXT:    ldd <__rs0
-; O1-NEXT:    std 4,x
+; O1-NEXT:    std 4,y
 ; O1-NEXT:    ldd <__rs1
-; O1-NEXT:    std 2,x
+; O1-NEXT:    std 2,y
 ; O1-NEXT:    ldd <__rs2
-; O1-NEXT:    std ,x
-; O1-NEXT:    leas 26,s
-; O1-NEXT:    puls y,pc
+; O1-NEXT:    std ,y
+; O1-NEXT:    leas 24,s
+; O1-NEXT:    puls u,y,pc
 ;
 ; O2-LABEL: mul_u_i64:
 ; O2:       ; %bb.0: ; %entry
-; O2-NEXT:    pshs y
-; O2-NEXT:    leas -26,s
-; O2-NEXT:    stx 16,s ; 2-byte Folded Spill
+; O2-NEXT:    pshs u,y
+; O2-NEXT:    leas -24,s
+; O2-NEXT:    tfr x,y
 ; O2-NEXT:    ldd 36,s
 ; O2-NEXT:    std <__rs3
 ; O2-NEXT:    ldd 44,s
@@ -2792,32 +2782,31 @@ define dso_local i64 @mul_u_i64(i64 %a, i64 %b) {
 ; O2-NEXT:    std 10,s
 ; O2-NEXT:    ldd 30,s
 ; O2-NEXT:    std 8,s
-; O2-NEXT:    leay 18,s
-; O2-NEXT:    tfr y,x
+; O2-NEXT:    leau 16,s
+; O2-NEXT:    tfr u,x
 ; O2-NEXT:    lbsr __muldi3
-; O2-NEXT:    ldd 6,y
-; O2-NEXT:    ldx 4,y
+; O2-NEXT:    ldd 6,u
+; O2-NEXT:    ldx 4,u
 ; O2-NEXT:    stx <__rs0
-; O2-NEXT:    ldx 2,y
+; O2-NEXT:    ldx 2,u
 ; O2-NEXT:    stx <__rs1
-; O2-NEXT:    ldx 18,s
+; O2-NEXT:    ldx 16,s
 ; O2-NEXT:    stx <__rs2
-; O2-NEXT:    ldx 16,s ; 2-byte Folded Reload
-; O2-NEXT:    std 6,x
+; O2-NEXT:    std 6,y
 ; O2-NEXT:    ldd <__rs0
-; O2-NEXT:    std 4,x
+; O2-NEXT:    std 4,y
 ; O2-NEXT:    ldd <__rs1
-; O2-NEXT:    std 2,x
+; O2-NEXT:    std 2,y
 ; O2-NEXT:    ldd <__rs2
-; O2-NEXT:    std ,x
-; O2-NEXT:    leas 26,s
-; O2-NEXT:    puls y,pc
+; O2-NEXT:    std ,y
+; O2-NEXT:    leas 24,s
+; O2-NEXT:    puls u,y,pc
 ;
 ; O3-LABEL: mul_u_i64:
 ; O3:       ; %bb.0: ; %entry
-; O3-NEXT:    pshs y
-; O3-NEXT:    leas -26,s
-; O3-NEXT:    stx 16,s ; 2-byte Folded Spill
+; O3-NEXT:    pshs u,y
+; O3-NEXT:    leas -24,s
+; O3-NEXT:    tfr x,y
 ; O3-NEXT:    ldd 36,s
 ; O3-NEXT:    std <__rs3
 ; O3-NEXT:    ldd 44,s
@@ -2842,26 +2831,25 @@ define dso_local i64 @mul_u_i64(i64 %a, i64 %b) {
 ; O3-NEXT:    std 10,s
 ; O3-NEXT:    ldd 30,s
 ; O3-NEXT:    std 8,s
-; O3-NEXT:    leay 18,s
-; O3-NEXT:    tfr y,x
+; O3-NEXT:    leau 16,s
+; O3-NEXT:    tfr u,x
 ; O3-NEXT:    lbsr __muldi3
-; O3-NEXT:    ldd 6,y
-; O3-NEXT:    ldx 4,y
+; O3-NEXT:    ldd 6,u
+; O3-NEXT:    ldx 4,u
 ; O3-NEXT:    stx <__rs0
-; O3-NEXT:    ldx 2,y
+; O3-NEXT:    ldx 2,u
 ; O3-NEXT:    stx <__rs1
-; O3-NEXT:    ldx 18,s
+; O3-NEXT:    ldx 16,s
 ; O3-NEXT:    stx <__rs2
-; O3-NEXT:    ldx 16,s ; 2-byte Folded Reload
-; O3-NEXT:    std 6,x
+; O3-NEXT:    std 6,y
 ; O3-NEXT:    ldd <__rs0
-; O3-NEXT:    std 4,x
+; O3-NEXT:    std 4,y
 ; O3-NEXT:    ldd <__rs1
-; O3-NEXT:    std 2,x
+; O3-NEXT:    std 2,y
 ; O3-NEXT:    ldd <__rs2
-; O3-NEXT:    std ,x
-; O3-NEXT:    leas 26,s
-; O3-NEXT:    puls y,pc
+; O3-NEXT:    std ,y
+; O3-NEXT:    leas 24,s
+; O3-NEXT:    puls u,y,pc
 entry:
   %mul = mul i64 %b, %a
   ret i64 %mul
@@ -2870,9 +2858,9 @@ entry:
 define dso_local i64 @mul_u_i64_consts(i64 %a, i64 %b) {
 ; O0-LABEL: mul_u_i64_consts:
 ; O0:       ; %bb.0: ; %entry
-; O0-NEXT:    pshs y
-; O0-NEXT:    leas -34,s
-; O0-NEXT:    stx 16,s ; 2-byte Folded Spill
+; O0-NEXT:    pshs u,y
+; O0-NEXT:    leas -32,s
+; O0-NEXT:    tfr x,y
 ; O0-NEXT:    ldd 44,s
 ; O0-NEXT:    ldx 42,s
 ; O0-NEXT:    stx <__rs1
@@ -2911,15 +2899,15 @@ define dso_local i64 @mul_u_i64_consts(i64 %a, i64 %b) {
 ; O0-NEXT:    ldd <__rs1
 ; O0-NEXT:    std 10,s
 ; O0-NEXT:    puls d
-; O0-NEXT:    leay 18,s
-; O0-NEXT:    tfr y,x
+; O0-NEXT:    leau 16,s
+; O0-NEXT:    tfr u,x
 ; O0-NEXT:    lbsr __muldi3
-; O0-NEXT:    ldd 6,y
-; O0-NEXT:    ldx 4,y
+; O0-NEXT:    ldd 6,u
+; O0-NEXT:    ldx 4,u
 ; O0-NEXT:    stx <__rs0
-; O0-NEXT:    ldx 2,y
+; O0-NEXT:    ldx 2,u
 ; O0-NEXT:    stx <__rs1
-; O0-NEXT:    ldx 18,s
+; O0-NEXT:    ldx 16,s
 ; O0-NEXT:    stx <__rs2
 ; O0-NEXT:    std 6,s
 ; O0-NEXT:    pshs d
@@ -2942,38 +2930,37 @@ define dso_local i64 @mul_u_i64_consts(i64 %a, i64 %b) {
 ; O0-NEXT:    std 10,s
 ; O0-NEXT:    ldd 46,s
 ; O0-NEXT:    std 8,s
-; O0-NEXT:    leay 26,s
-; O0-NEXT:    tfr y,x
+; O0-NEXT:    leau 24,s
+; O0-NEXT:    tfr u,x
 ; O0-NEXT:    lbsr __muldi3
-; O0-NEXT:    ldd 6,y
-; O0-NEXT:    ldx 4,y
+; O0-NEXT:    ldd 6,u
+; O0-NEXT:    ldx 4,u
 ; O0-NEXT:    stx <__rs0
-; O0-NEXT:    ldx 2,y
+; O0-NEXT:    ldx 2,u
 ; O0-NEXT:    stx <__rs1
-; O0-NEXT:    ldx 26,s
+; O0-NEXT:    ldx 24,s
 ; O0-NEXT:    stx <__rs2
-; O0-NEXT:    ldx 16,s ; 2-byte Folded Reload
-; O0-NEXT:    std 6,x
+; O0-NEXT:    std 6,y
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
-; O0-NEXT:    std 4,x
+; O0-NEXT:    std 4,y
 ; O0-NEXT:    puls d
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs1
-; O0-NEXT:    std 2,x
+; O0-NEXT:    std 2,y
 ; O0-NEXT:    puls d
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs2
-; O0-NEXT:    std ,x
+; O0-NEXT:    std ,y
 ; O0-NEXT:    puls d
-; O0-NEXT:    leas 34,s
-; O0-NEXT:    puls y,pc
+; O0-NEXT:    leas 32,s
+; O0-NEXT:    puls u,y,pc
 ;
 ; O1-LABEL: mul_u_i64_consts:
 ; O1:       ; %bb.0: ; %entry
-; O1-NEXT:    pshs y
-; O1-NEXT:    leas -34,s
-; O1-NEXT:    stx 16,s ; 2-byte Folded Spill
+; O1-NEXT:    pshs u,y
+; O1-NEXT:    leas -32,s
+; O1-NEXT:    tfr x,y
 ; O1-NEXT:    ldd 44,s
 ; O1-NEXT:    ldx 42,s
 ; O1-NEXT:    stx <__rs0
@@ -2994,15 +2981,15 @@ define dso_local i64 @mul_u_i64_consts(i64 %a, i64 %b) {
 ; O1-NEXT:    std 12,s
 ; O1-NEXT:    std 10,s
 ; O1-NEXT:    std 8,s
-; O1-NEXT:    leay 18,s
-; O1-NEXT:    tfr y,x
+; O1-NEXT:    leau 16,s
+; O1-NEXT:    tfr u,x
 ; O1-NEXT:    lbsr __muldi3
-; O1-NEXT:    ldd 6,y
-; O1-NEXT:    ldx 4,y
+; O1-NEXT:    ldd 6,u
+; O1-NEXT:    ldx 4,u
 ; O1-NEXT:    stx <__rs0
-; O1-NEXT:    ldx 2,y
+; O1-NEXT:    ldx 2,u
 ; O1-NEXT:    stx <__rs1
-; O1-NEXT:    ldx 18,s
+; O1-NEXT:    ldx 16,s
 ; O1-NEXT:    stx <__rs2
 ; O1-NEXT:    std 6,s
 ; O1-NEXT:    ldd <__rs0
@@ -3019,32 +3006,31 @@ define dso_local i64 @mul_u_i64_consts(i64 %a, i64 %b) {
 ; O1-NEXT:    std 10,s
 ; O1-NEXT:    ldd 46,s
 ; O1-NEXT:    std 8,s
-; O1-NEXT:    leay 26,s
-; O1-NEXT:    tfr y,x
+; O1-NEXT:    leau 24,s
+; O1-NEXT:    tfr u,x
 ; O1-NEXT:    lbsr __muldi3
-; O1-NEXT:    ldd 6,y
-; O1-NEXT:    ldx 4,y
+; O1-NEXT:    ldd 6,u
+; O1-NEXT:    ldx 4,u
 ; O1-NEXT:    stx <__rs0
-; O1-NEXT:    ldx 2,y
+; O1-NEXT:    ldx 2,u
 ; O1-NEXT:    stx <__rs1
-; O1-NEXT:    ldx 26,s
+; O1-NEXT:    ldx 24,s
 ; O1-NEXT:    stx <__rs2
-; O1-NEXT:    ldx 16,s ; 2-byte Folded Reload
-; O1-NEXT:    std 6,x
+; O1-NEXT:    std 6,y
 ; O1-NEXT:    ldd <__rs0
-; O1-NEXT:    std 4,x
+; O1-NEXT:    std 4,y
 ; O1-NEXT:    ldd <__rs1
-; O1-NEXT:    std 2,x
+; O1-NEXT:    std 2,y
 ; O1-NEXT:    ldd <__rs2
-; O1-NEXT:    std ,x
-; O1-NEXT:    leas 34,s
-; O1-NEXT:    puls y,pc
+; O1-NEXT:    std ,y
+; O1-NEXT:    leas 32,s
+; O1-NEXT:    puls u,y,pc
 ;
 ; O2-LABEL: mul_u_i64_consts:
 ; O2:       ; %bb.0: ; %entry
-; O2-NEXT:    pshs y
-; O2-NEXT:    leas -34,s
-; O2-NEXT:    stx 16,s ; 2-byte Folded Spill
+; O2-NEXT:    pshs u,y
+; O2-NEXT:    leas -32,s
+; O2-NEXT:    tfr x,y
 ; O2-NEXT:    ldd 44,s
 ; O2-NEXT:    ldx 42,s
 ; O2-NEXT:    stx <__rs0
@@ -3065,15 +3051,15 @@ define dso_local i64 @mul_u_i64_consts(i64 %a, i64 %b) {
 ; O2-NEXT:    std 12,s
 ; O2-NEXT:    std 10,s
 ; O2-NEXT:    std 8,s
-; O2-NEXT:    leay 18,s
-; O2-NEXT:    tfr y,x
+; O2-NEXT:    leau 16,s
+; O2-NEXT:    tfr u,x
 ; O2-NEXT:    lbsr __muldi3
-; O2-NEXT:    ldd 6,y
-; O2-NEXT:    ldx 4,y
+; O2-NEXT:    ldd 6,u
+; O2-NEXT:    ldx 4,u
 ; O2-NEXT:    stx <__rs0
-; O2-NEXT:    ldx 2,y
+; O2-NEXT:    ldx 2,u
 ; O2-NEXT:    stx <__rs1
-; O2-NEXT:    ldx 18,s
+; O2-NEXT:    ldx 16,s
 ; O2-NEXT:    stx <__rs2
 ; O2-NEXT:    std 6,s
 ; O2-NEXT:    ldd <__rs0
@@ -3090,32 +3076,31 @@ define dso_local i64 @mul_u_i64_consts(i64 %a, i64 %b) {
 ; O2-NEXT:    std 10,s
 ; O2-NEXT:    ldd 46,s
 ; O2-NEXT:    std 8,s
-; O2-NEXT:    leay 26,s
-; O2-NEXT:    tfr y,x
+; O2-NEXT:    leau 24,s
+; O2-NEXT:    tfr u,x
 ; O2-NEXT:    lbsr __muldi3
-; O2-NEXT:    ldd 6,y
-; O2-NEXT:    ldx 4,y
+; O2-NEXT:    ldd 6,u
+; O2-NEXT:    ldx 4,u
 ; O2-NEXT:    stx <__rs0
-; O2-NEXT:    ldx 2,y
+; O2-NEXT:    ldx 2,u
 ; O2-NEXT:    stx <__rs1
-; O2-NEXT:    ldx 26,s
+; O2-NEXT:    ldx 24,s
 ; O2-NEXT:    stx <__rs2
-; O2-NEXT:    ldx 16,s ; 2-byte Folded Reload
-; O2-NEXT:    std 6,x
+; O2-NEXT:    std 6,y
 ; O2-NEXT:    ldd <__rs0
-; O2-NEXT:    std 4,x
+; O2-NEXT:    std 4,y
 ; O2-NEXT:    ldd <__rs1
-; O2-NEXT:    std 2,x
+; O2-NEXT:    std 2,y
 ; O2-NEXT:    ldd <__rs2
-; O2-NEXT:    std ,x
-; O2-NEXT:    leas 34,s
-; O2-NEXT:    puls y,pc
+; O2-NEXT:    std ,y
+; O2-NEXT:    leas 32,s
+; O2-NEXT:    puls u,y,pc
 ;
 ; O3-LABEL: mul_u_i64_consts:
 ; O3:       ; %bb.0: ; %entry
-; O3-NEXT:    pshs y
-; O3-NEXT:    leas -34,s
-; O3-NEXT:    stx 16,s ; 2-byte Folded Spill
+; O3-NEXT:    pshs u,y
+; O3-NEXT:    leas -32,s
+; O3-NEXT:    tfr x,y
 ; O3-NEXT:    ldd 44,s
 ; O3-NEXT:    ldx 42,s
 ; O3-NEXT:    stx <__rs0
@@ -3136,15 +3121,15 @@ define dso_local i64 @mul_u_i64_consts(i64 %a, i64 %b) {
 ; O3-NEXT:    std 12,s
 ; O3-NEXT:    std 10,s
 ; O3-NEXT:    std 8,s
-; O3-NEXT:    leay 18,s
-; O3-NEXT:    tfr y,x
+; O3-NEXT:    leau 16,s
+; O3-NEXT:    tfr u,x
 ; O3-NEXT:    lbsr __muldi3
-; O3-NEXT:    ldd 6,y
-; O3-NEXT:    ldx 4,y
+; O3-NEXT:    ldd 6,u
+; O3-NEXT:    ldx 4,u
 ; O3-NEXT:    stx <__rs0
-; O3-NEXT:    ldx 2,y
+; O3-NEXT:    ldx 2,u
 ; O3-NEXT:    stx <__rs1
-; O3-NEXT:    ldx 18,s
+; O3-NEXT:    ldx 16,s
 ; O3-NEXT:    stx <__rs2
 ; O3-NEXT:    std 6,s
 ; O3-NEXT:    ldd <__rs0
@@ -3161,26 +3146,25 @@ define dso_local i64 @mul_u_i64_consts(i64 %a, i64 %b) {
 ; O3-NEXT:    std 10,s
 ; O3-NEXT:    ldd 46,s
 ; O3-NEXT:    std 8,s
-; O3-NEXT:    leay 26,s
-; O3-NEXT:    tfr y,x
+; O3-NEXT:    leau 24,s
+; O3-NEXT:    tfr u,x
 ; O3-NEXT:    lbsr __muldi3
-; O3-NEXT:    ldd 6,y
-; O3-NEXT:    ldx 4,y
+; O3-NEXT:    ldd 6,u
+; O3-NEXT:    ldx 4,u
 ; O3-NEXT:    stx <__rs0
-; O3-NEXT:    ldx 2,y
+; O3-NEXT:    ldx 2,u
 ; O3-NEXT:    stx <__rs1
-; O3-NEXT:    ldx 26,s
+; O3-NEXT:    ldx 24,s
 ; O3-NEXT:    stx <__rs2
-; O3-NEXT:    ldx 16,s ; 2-byte Folded Reload
-; O3-NEXT:    std 6,x
+; O3-NEXT:    std 6,y
 ; O3-NEXT:    ldd <__rs0
-; O3-NEXT:    std 4,x
+; O3-NEXT:    std 4,y
 ; O3-NEXT:    ldd <__rs1
-; O3-NEXT:    std 2,x
+; O3-NEXT:    std 2,y
 ; O3-NEXT:    ldd <__rs2
-; O3-NEXT:    std ,x
-; O3-NEXT:    leas 34,s
-; O3-NEXT:    puls y,pc
+; O3-NEXT:    std ,y
+; O3-NEXT:    leas 32,s
+; O3-NEXT:    puls u,y,pc
 entry:
   %mul = mul i64 %a, 13
   %mul1 = mul i64 %mul, %b
