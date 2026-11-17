@@ -57,6 +57,22 @@ do.body:                                          ; preds = %do.body, %entry
   store volatile i8 6, ptr getelementptr inbounds nuw (i8, ptr @port, i16 13), align 1, !tbaa !9
   store volatile i8 7, ptr getelementptr inbounds nuw (i8, ptr @port, i16 14), align 1, !tbaa !9
   store volatile i8 8, ptr getelementptr inbounds nuw (i8, ptr @port, i16 15), align 1, !tbaa !9
+  store volatile i8 1, ptr @port, align 1, !tbaa !9
+  store volatile i8 2, ptr getelementptr inbounds nuw (i8, ptr @port, i16 1), align 1, !tbaa !9
+  store volatile i8 3, ptr getelementptr inbounds nuw (i8, ptr @port, i16 2), align 1, !tbaa !9
+  store volatile i8 4, ptr getelementptr inbounds nuw (i8, ptr @port, i16 3), align 1, !tbaa !9
+  store volatile i8 5, ptr getelementptr inbounds nuw (i8, ptr @port, i16 4), align 1, !tbaa !9
+  store volatile i8 6, ptr getelementptr inbounds nuw (i8, ptr @port, i16 5), align 1, !tbaa !9
+  store volatile i8 7, ptr getelementptr inbounds nuw (i8, ptr @port, i16 6), align 1, !tbaa !9
+  store volatile i8 8, ptr getelementptr inbounds nuw (i8, ptr @port, i16 7), align 1, !tbaa !9
+  store volatile i8 1, ptr getelementptr inbounds nuw (i8, ptr @port, i16 8), align 1, !tbaa !9
+  store volatile i8 2, ptr getelementptr inbounds nuw (i8, ptr @port, i16 9), align 1, !tbaa !9
+  store volatile i8 3, ptr getelementptr inbounds nuw (i8, ptr @port, i16 10), align 1, !tbaa !9
+  store volatile i8 4, ptr getelementptr inbounds nuw (i8, ptr @port, i16 11), align 1, !tbaa !9
+  store volatile i8 5, ptr getelementptr inbounds nuw (i8, ptr @port, i16 12), align 1, !tbaa !9
+  store volatile i8 6, ptr getelementptr inbounds nuw (i8, ptr @port, i16 13), align 1, !tbaa !9
+  store volatile i8 7, ptr getelementptr inbounds nuw (i8, ptr @port, i16 14), align 1, !tbaa !9
+  store volatile i8 8, ptr getelementptr inbounds nuw (i8, ptr @port, i16 15), align 1, !tbaa !9
   %dec = add i16 %n.addr.0, -1
   %tobool.not = icmp eq i16 %dec, 0
   br i1 %tobool.not, label %do.end, label %do.body, !llvm.loop !10

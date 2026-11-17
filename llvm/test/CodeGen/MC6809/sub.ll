@@ -457,19 +457,16 @@ define dso_local i16 @sub_s_i16_consts(i16 noundef %a, i16 noundef %b, i16 nound
 ; O1-NEXT:    std <__rs0
 ; O1-NEXT:    addd 8,s
 ; O1-NEXT:    std <__rs0
-; O1-NEXT:    ldb #77
-; O1-NEXT:    stb 1,s ; 1-byte Folded Spill
-; O1-NEXT:    ldd <__rs0
 ; O1-NEXT:    addd 10,s
 ; O1-NEXT:    std <__rs0
-; O1-NEXT:    lda <__rs0lo
-; O1-NEXT:    ldb <__rs0hi
+; O1-NEXT:    ldb <__rs0lo
 ; O1-NEXT:    stb ,s ; 1-byte Folded Spill
-; O1-NEXT:    ldb 1,s ; 1-byte Folded Reload
-; O1-NEXT:    pshs a
-; O1-NEXT:    subb ,s+
+; O1-NEXT:    ldb <__rs0hi
+; O1-NEXT:    stb 1,s ; 1-byte Folded Spill
+; O1-NEXT:    ldb #77
+; O1-NEXT:    subb ,s
 ; O1-NEXT:    lda #12
-; O1-NEXT:    sbca ,s
+; O1-NEXT:    sbca 1,s
 ; O1-NEXT:    tfr d,x
 ; O1-NEXT:    leas 2,s
 ; O1-NEXT:    rts
@@ -485,19 +482,16 @@ define dso_local i16 @sub_s_i16_consts(i16 noundef %a, i16 noundef %b, i16 nound
 ; O2-NEXT:    std <__rs0
 ; O2-NEXT:    addd 8,s
 ; O2-NEXT:    std <__rs0
-; O2-NEXT:    ldb #77
-; O2-NEXT:    stb 1,s ; 1-byte Folded Spill
-; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    addd 10,s
 ; O2-NEXT:    std <__rs0
-; O2-NEXT:    lda <__rs0lo
-; O2-NEXT:    ldb <__rs0hi
+; O2-NEXT:    ldb <__rs0lo
 ; O2-NEXT:    stb ,s ; 1-byte Folded Spill
-; O2-NEXT:    ldb 1,s ; 1-byte Folded Reload
-; O2-NEXT:    pshs a
-; O2-NEXT:    subb ,s+
+; O2-NEXT:    ldb <__rs0hi
+; O2-NEXT:    stb 1,s ; 1-byte Folded Spill
+; O2-NEXT:    ldb #77
+; O2-NEXT:    subb ,s
 ; O2-NEXT:    lda #12
-; O2-NEXT:    sbca ,s
+; O2-NEXT:    sbca 1,s
 ; O2-NEXT:    tfr d,x
 ; O2-NEXT:    leas 2,s
 ; O2-NEXT:    rts
@@ -513,19 +507,16 @@ define dso_local i16 @sub_s_i16_consts(i16 noundef %a, i16 noundef %b, i16 nound
 ; O3-NEXT:    std <__rs0
 ; O3-NEXT:    addd 8,s
 ; O3-NEXT:    std <__rs0
-; O3-NEXT:    ldb #77
-; O3-NEXT:    stb 1,s ; 1-byte Folded Spill
-; O3-NEXT:    ldd <__rs0
 ; O3-NEXT:    addd 10,s
 ; O3-NEXT:    std <__rs0
-; O3-NEXT:    lda <__rs0lo
-; O3-NEXT:    ldb <__rs0hi
+; O3-NEXT:    ldb <__rs0lo
 ; O3-NEXT:    stb ,s ; 1-byte Folded Spill
-; O3-NEXT:    ldb 1,s ; 1-byte Folded Reload
-; O3-NEXT:    pshs a
-; O3-NEXT:    subb ,s+
+; O3-NEXT:    ldb <__rs0hi
+; O3-NEXT:    stb 1,s ; 1-byte Folded Spill
+; O3-NEXT:    ldb #77
+; O3-NEXT:    subb ,s
 ; O3-NEXT:    lda #12
-; O3-NEXT:    sbca ,s
+; O3-NEXT:    sbca 1,s
 ; O3-NEXT:    tfr d,x
 ; O3-NEXT:    leas 2,s
 ; O3-NEXT:    rts

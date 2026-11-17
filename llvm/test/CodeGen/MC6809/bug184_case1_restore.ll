@@ -45,38 +45,44 @@ define void @sext_i16_to_i32_then_store(ptr %out, i16 %x) {
 ; CHECK-LABEL: sext_i16_to_i32_then_store:
 ; CHECK:       ; %bb.0:
 ; CHECK-NEXT:    pshs u
-; CHECK-NEXT:    leas -3,s
-; CHECK-NEXT:    ldu 7,s
+; CHECK-NEXT:    leas -4,s
+; CHECK-NEXT:    ldu 8,s
 ; CHECK-NEXT:    ldb #0
 ; CHECK-NEXT:    cmpu #0
 ; CHECK-NEXT:    bge .LBB0_2
 ; CHECK-NEXT:  ; %bb.1:
 ; CHECK-NEXT:    ldb #1
 ; CHECK-NEXT:  .LBB0_2:
-; CHECK-NEXT:    andb #1
-; CHECK-NEXT:    negb
+; CHECK-NEXT:    tfr b,a
+; CHECK-NEXT:    anda #1
+; CHECK-NEXT:    nega
+; CHECK-NEXT:    sta ,s ; 1-byte Folded Spill
+; CHECK-NEXT:    ldb #0
+; CHECK-NEXT:    stb 3,s ; 1-byte Folded Spill
+; CHECK-NEXT:    ldb #0
+; CHECK-NEXT:    subb 9,s
 ; CHECK-NEXT:    stb 2,s ; 1-byte Folded Spill
-; CHECK-NEXT:    lda #0
-; CHECK-NEXT:    tfr a,b
-; CHECK-NEXT:    subb 8,s
+; CHECK-NEXT:    ldb #0
+; CHECK-NEXT:    sbcb 8,s
 ; CHECK-NEXT:    stb 1,s ; 1-byte Folded Spill
-; CHECK-NEXT:    tfr a,b
-; CHECK-NEXT:    sbcb 7,s
-; CHECK-NEXT:    stb ,s ; 1-byte Folded Spill
-; CHECK-NEXT:    tfr a,b
-; CHECK-NEXT:    sbcb 2,s
-; CHECK-NEXT:    sbca 2,s
+; CHECK-NEXT:    ldb #0
+; CHECK-NEXT:    pshs a
+; CHECK-NEXT:    sbcb ,s+
+; CHECK-NEXT:    lda 3,s ; 1-byte Folded Reload
+; CHECK-NEXT:    sbca ,s
+; CHECK-NEXT:    sta 3,s ; 1-byte Folded Spill
 ; CHECK-NEXT:    pshs d
-; CHECK-NEXT:    ldb 3,s
-; CHECK-NEXT:    lda 2,s
+; CHECK-NEXT:    ldb 4,s
+; CHECK-NEXT:    lda 3,s
 ; CHECK-NEXT:    std <__rs0
 ; CHECK-NEXT:    puls d
+; CHECK-NEXT:    lda 3,s
 ; CHECK-NEXT:    pshs d
 ; CHECK-NEXT:    ldd <__rs0
 ; CHECK-NEXT:    std 2,x
 ; CHECK-NEXT:    puls d
 ; CHECK-NEXT:    std ,x
-; CHECK-NEXT:    leas 3,s
+; CHECK-NEXT:    leas 4,s
 ; CHECK-NEXT:    puls u,pc
   %ext = sext i16 %x to i32
   %neg = sub nsw i32 0, %ext

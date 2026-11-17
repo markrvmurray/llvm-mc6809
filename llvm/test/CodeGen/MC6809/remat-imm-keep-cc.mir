@@ -1,0 +1,34 @@
+# RUN: llc -mtriple=mc6809 -start-before=post-ra-pseudos -verify-machineinstrs %s -o - | FileCheck %s
+#
+# A constant load is rematerialised (loaded again where it is used rather
+# than spilled and reloaded). LD #n sets N, Z and V, so where flags are live
+# at the new place the register allocator gets the _ImmKeepCC form, which
+# defines no flags and expands to a load inside a save and restore of CC.
+
+---
+# The compare's flags reach the branch across the rematerialised load.
+# CHECK-LABEL: keep_cc:
+# CHECK:       cmpb #3
+# CHECK-NEXT:  pshs cc
+# CHECK-NEXT:  ldx #1234
+# CHECK-NEXT:  puls cc
+# CHECK-NEXT:  beq
+name: keep_cc
+tracksRegLiveness: true
+body: |
+  bb.0:
+    successors: %bb.1, %bb.2
+    liveins: $ab
+    CMPBi8 3, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $c, implicit $ab
+    $ix = Load_iPtr_ImmKeepCC 1234
+    Bbc_OnlyZ 7, %bb.2, implicit $z
+    LBRAlb %bb.1
+
+  bb.1:
+    liveins: $ix
+    RTSr implicit $ix
+
+  bb.2:
+    liveins: $ix
+    RTSr implicit $ix
+...

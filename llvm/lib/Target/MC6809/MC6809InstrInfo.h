@@ -105,6 +105,11 @@ public:
 
   void reMaterialize(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, Register DestReg, unsigned SubIdx, const MachineInstr &Orig, LaneBitmask UsedLanes = LaneBitmask::getAll()) const override;
 
+protected:
+  bool isReMaterializableImpl(const MachineInstr &MI) const override;
+
+public:
+
   MachineInstr *commuteInstructionImpl(MachineInstr &MI, bool NewMI, unsigned OpIdx1, unsigned OpIdx2) const override;
 
   unsigned getInstSizeInBytes(const MachineInstr &MI) const override;

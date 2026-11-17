@@ -92,29 +92,32 @@ define i64 @neg_i64(i64 %x) {
 ;
 ; O2-LABEL: neg_i64:
 ; O2:       ; %bb.0:
-; O2-NEXT:    leas -6,s
-; O2-NEXT:    lda #0
-; O2-NEXT:    tfr a,b
-; O2-NEXT:    subb 15,s
+; O2-NEXT:    leas -7,s
+; O2-NEXT:    ldb #0
+; O2-NEXT:    stb 6,s ; 1-byte Folded Spill
+; O2-NEXT:    ldb #0
+; O2-NEXT:    subb 16,s
 ; O2-NEXT:    stb 5,s ; 1-byte Folded Spill
-; O2-NEXT:    tfr a,b
-; O2-NEXT:    sbcb 14,s
+; O2-NEXT:    ldb #0
+; O2-NEXT:    sbcb 15,s
 ; O2-NEXT:    stb 4,s ; 1-byte Folded Spill
-; O2-NEXT:    tfr a,b
-; O2-NEXT:    sbcb 13,s
+; O2-NEXT:    ldb #0
+; O2-NEXT:    sbcb 14,s
 ; O2-NEXT:    stb 3,s ; 1-byte Folded Spill
-; O2-NEXT:    tfr a,b
-; O2-NEXT:    sbcb 12,s
+; O2-NEXT:    ldb #0
+; O2-NEXT:    sbcb 13,s
 ; O2-NEXT:    stb 2,s ; 1-byte Folded Spill
-; O2-NEXT:    tfr a,b
-; O2-NEXT:    sbcb 11,s
+; O2-NEXT:    ldb #0
+; O2-NEXT:    sbcb 12,s
 ; O2-NEXT:    stb 1,s ; 1-byte Folded Spill
-; O2-NEXT:    tfr a,b
-; O2-NEXT:    sbcb 10,s
+; O2-NEXT:    ldb #0
+; O2-NEXT:    sbcb 11,s
 ; O2-NEXT:    stb ,s ; 1-byte Folded Spill
-; O2-NEXT:    tfr a,b
-; O2-NEXT:    sbcb 9,s
-; O2-NEXT:    sbca 8,s
+; O2-NEXT:    ldb #0
+; O2-NEXT:    sbcb 10,s
+; O2-NEXT:    lda 6,s ; 1-byte Folded Reload
+; O2-NEXT:    sbca 9,s
+; O2-NEXT:    sta 6,s ; 1-byte Folded Spill
 ; O2-NEXT:    pshs d
 ; O2-NEXT:    ldb 7,s
 ; O2-NEXT:    lda 6,s
@@ -130,6 +133,7 @@ define i64 @neg_i64(i64 %x) {
 ; O2-NEXT:    lda 2,s
 ; O2-NEXT:    std <__rs2
 ; O2-NEXT:    puls d
+; O2-NEXT:    lda 6,s
 ; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    std 6,x
@@ -143,7 +147,7 @@ define i64 @neg_i64(i64 %x) {
 ; O2-NEXT:    std 2,x
 ; O2-NEXT:    puls d
 ; O2-NEXT:    std ,x
-; O2-NEXT:    leas 6,s
+; O2-NEXT:    leas 7,s
 ; O2-NEXT:    rts
   %r = sub i64 0, %x
   ret i64 %r
@@ -208,29 +212,32 @@ define i64 @mul_neg1(i64 %x) {
 ;
 ; O2-LABEL: mul_neg1:
 ; O2:       ; %bb.0:
-; O2-NEXT:    leas -6,s
-; O2-NEXT:    lda #0
-; O2-NEXT:    tfr a,b
-; O2-NEXT:    subb 15,s
+; O2-NEXT:    leas -7,s
+; O2-NEXT:    ldb #0
+; O2-NEXT:    stb 6,s ; 1-byte Folded Spill
+; O2-NEXT:    ldb #0
+; O2-NEXT:    subb 16,s
 ; O2-NEXT:    stb 5,s ; 1-byte Folded Spill
-; O2-NEXT:    tfr a,b
-; O2-NEXT:    sbcb 14,s
+; O2-NEXT:    ldb #0
+; O2-NEXT:    sbcb 15,s
 ; O2-NEXT:    stb 4,s ; 1-byte Folded Spill
-; O2-NEXT:    tfr a,b
-; O2-NEXT:    sbcb 13,s
+; O2-NEXT:    ldb #0
+; O2-NEXT:    sbcb 14,s
 ; O2-NEXT:    stb 3,s ; 1-byte Folded Spill
-; O2-NEXT:    tfr a,b
-; O2-NEXT:    sbcb 12,s
+; O2-NEXT:    ldb #0
+; O2-NEXT:    sbcb 13,s
 ; O2-NEXT:    stb 2,s ; 1-byte Folded Spill
-; O2-NEXT:    tfr a,b
-; O2-NEXT:    sbcb 11,s
+; O2-NEXT:    ldb #0
+; O2-NEXT:    sbcb 12,s
 ; O2-NEXT:    stb 1,s ; 1-byte Folded Spill
-; O2-NEXT:    tfr a,b
-; O2-NEXT:    sbcb 10,s
+; O2-NEXT:    ldb #0
+; O2-NEXT:    sbcb 11,s
 ; O2-NEXT:    stb ,s ; 1-byte Folded Spill
-; O2-NEXT:    tfr a,b
-; O2-NEXT:    sbcb 9,s
-; O2-NEXT:    sbca 8,s
+; O2-NEXT:    ldb #0
+; O2-NEXT:    sbcb 10,s
+; O2-NEXT:    lda 6,s ; 1-byte Folded Reload
+; O2-NEXT:    sbca 9,s
+; O2-NEXT:    sta 6,s ; 1-byte Folded Spill
 ; O2-NEXT:    pshs d
 ; O2-NEXT:    ldb 7,s
 ; O2-NEXT:    lda 6,s
@@ -246,6 +253,7 @@ define i64 @mul_neg1(i64 %x) {
 ; O2-NEXT:    lda 2,s
 ; O2-NEXT:    std <__rs2
 ; O2-NEXT:    puls d
+; O2-NEXT:    lda 6,s
 ; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    std 6,x
@@ -259,7 +267,7 @@ define i64 @mul_neg1(i64 %x) {
 ; O2-NEXT:    std 2,x
 ; O2-NEXT:    puls d
 ; O2-NEXT:    std ,x
-; O2-NEXT:    leas 6,s
+; O2-NEXT:    leas 7,s
 ; O2-NEXT:    rts
   %r = mul i64 %x, -1
   ret i64 %r

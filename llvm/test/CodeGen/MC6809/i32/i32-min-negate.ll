@@ -53,28 +53,32 @@ define i32 @neg_i32(i32 %x) {
 ;
 ; O2-LABEL: neg_i32:
 ; O2:       ; %bb.0:
-; O2-NEXT:    leas -2,s
-; O2-NEXT:    lda #0
-; O2-NEXT:    tfr a,b
-; O2-NEXT:    subb 7,s
+; O2-NEXT:    leas -3,s
+; O2-NEXT:    ldb #0
+; O2-NEXT:    stb 2,s ; 1-byte Folded Spill
+; O2-NEXT:    ldb #0
+; O2-NEXT:    subb 8,s
 ; O2-NEXT:    stb 1,s ; 1-byte Folded Spill
-; O2-NEXT:    tfr a,b
-; O2-NEXT:    sbcb 6,s
+; O2-NEXT:    ldb #0
+; O2-NEXT:    sbcb 7,s
 ; O2-NEXT:    stb ,s ; 1-byte Folded Spill
-; O2-NEXT:    tfr a,b
-; O2-NEXT:    sbcb 5,s
-; O2-NEXT:    sbca 4,s
+; O2-NEXT:    ldb #0
+; O2-NEXT:    sbcb 6,s
+; O2-NEXT:    lda 2,s ; 1-byte Folded Reload
+; O2-NEXT:    sbca 5,s
+; O2-NEXT:    sta 2,s ; 1-byte Folded Spill
 ; O2-NEXT:    pshs d
 ; O2-NEXT:    ldb 3,s
 ; O2-NEXT:    lda 2,s
 ; O2-NEXT:    std <__rs0
 ; O2-NEXT:    puls d
+; O2-NEXT:    lda 2,s
 ; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    std 2,x
 ; O2-NEXT:    puls d
 ; O2-NEXT:    std ,x
-; O2-NEXT:    leas 2,s
+; O2-NEXT:    leas 3,s
 ; O2-NEXT:    rts
   %r = sub i32 0, %x
   ret i32 %r
@@ -113,28 +117,32 @@ define i32 @mul_neg1(i32 %x) {
 ;
 ; O2-LABEL: mul_neg1:
 ; O2:       ; %bb.0:
-; O2-NEXT:    leas -2,s
-; O2-NEXT:    lda #0
-; O2-NEXT:    tfr a,b
-; O2-NEXT:    subb 7,s
+; O2-NEXT:    leas -3,s
+; O2-NEXT:    ldb #0
+; O2-NEXT:    stb 2,s ; 1-byte Folded Spill
+; O2-NEXT:    ldb #0
+; O2-NEXT:    subb 8,s
 ; O2-NEXT:    stb 1,s ; 1-byte Folded Spill
-; O2-NEXT:    tfr a,b
-; O2-NEXT:    sbcb 6,s
+; O2-NEXT:    ldb #0
+; O2-NEXT:    sbcb 7,s
 ; O2-NEXT:    stb ,s ; 1-byte Folded Spill
-; O2-NEXT:    tfr a,b
-; O2-NEXT:    sbcb 5,s
-; O2-NEXT:    sbca 4,s
+; O2-NEXT:    ldb #0
+; O2-NEXT:    sbcb 6,s
+; O2-NEXT:    lda 2,s ; 1-byte Folded Reload
+; O2-NEXT:    sbca 5,s
+; O2-NEXT:    sta 2,s ; 1-byte Folded Spill
 ; O2-NEXT:    pshs d
 ; O2-NEXT:    ldb 3,s
 ; O2-NEXT:    lda 2,s
 ; O2-NEXT:    std <__rs0
 ; O2-NEXT:    puls d
+; O2-NEXT:    lda 2,s
 ; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    std 2,x
 ; O2-NEXT:    puls d
 ; O2-NEXT:    std ,x
-; O2-NEXT:    leas 2,s
+; O2-NEXT:    leas 3,s
 ; O2-NEXT:    rts
   %r = mul i32 %x, -1
   ret i32 %r

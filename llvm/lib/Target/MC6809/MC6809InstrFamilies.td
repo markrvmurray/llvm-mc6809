@@ -28,9 +28,18 @@ class MC6809LoadBase<RegisterClass dst, dag operand> : MC6809LogicalInstr {
 }
 
 multiclass MC6809Load<RegisterClass dst, ValueType vtype> {
-  let isAsCheapAsAMove = true, isMoveImm = true in {
+  // A constant reads no memory, and the register allocator may load it
+  // again where it is needed rather than spill and reload it. Its N/Z/V defs
+  // are real (LD #n sets them), so MC6809InstrInfo::reMaterialize swaps in
+  // _ImmKeepCC wherever the flags are live at the new place.
+  let isAsCheapAsAMove = true, isMoveImm = true, isReMaterializable = true,
+      mayLoad = false in {
     def _Imm : MC6809LoadBase<dst, (ins !cast<Operand>(vtype#"imm"):$imm)>;
   }
+  // The same load where the flags must survive it: defines no flags, and
+  // expands after allocation to `pshs cc ; ld #n ; puls cc`.
+  let Defs = []<Register>, mayLoad = false in
+    def _ImmKeepCC : MC6809LoadBase<dst, (ins !cast<Operand>(vtype#"imm"):$imm)>;
   let mayLoad = true in {
     // canFoldAsLoad: lets the inline spiller fold this load into a consumer
     // via foldMemoryOperandImpl's LoadMI overload instead of rematerializing
@@ -90,7 +99,11 @@ let Predicates = [IsHD6309] in {
   // converts to the concrete LDQi_oN, that instruction's own
   // Defs=[AA,AB,AD,AE,AF,AW,AQ] cover the full clobber for
   // post-RA passes.
-  let isAsCheapAsAMove = true, isMoveImm = true, mayLoad = true in
+  // Not rematerialised, unlike the narrower constants: its only register is
+  // Q, and a second copy of a constant there competes with whatever else
+  // needs Q at that point -- strtoll ran out of registers. A spilled 32-bit
+  // constant is reloaded from its slot instead.
+  let isAsCheapAsAMove = true, isMoveImm = true, mayLoad = false in
     def Load_i32_Imm : MC6809LoadBase<AQc, (ins i32imm:$imm)>;
   let mayLoad = true, Defs = [NZ, V], canFoldAsLoad = 1 in
     def Load_i32_Mem : MC6809LoadBase<AQc, (ins INDEX16:$idx, unknown:$offset)>;

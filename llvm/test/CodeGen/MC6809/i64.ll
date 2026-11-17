@@ -1594,28 +1594,28 @@ define i64 @zext_i32_to_i64(i32 %v) {
 ; CHECK-NEXT:    rts
 ; O0-LABEL: zext_i32_to_i64:
 ; O0:       ; %bb.0:
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 6,s
-; O0-NEXT:    std <__rs1
-; O0-NEXT:    puls d
+; O0-NEXT:    ldd 4,s
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd 4,s
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd #0
+; O0-NEXT:    std <__rs1
+; O0-NEXT:    puls d
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd #0
 ; O0-NEXT:    std <__rs2
 ; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd <__rs1
 ; O0-NEXT:    std 6,x
-; O0-NEXT:    puls d
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std 4,x
 ; O0-NEXT:    puls d
+; O0-NEXT:    pshs d
+; O0-NEXT:    ldd <__rs1
 ; O0-NEXT:    std 2,x
+; O0-NEXT:    puls d
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs2
 ; O0-NEXT:    std ,x

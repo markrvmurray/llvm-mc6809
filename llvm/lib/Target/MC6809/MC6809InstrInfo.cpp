@@ -423,18 +423,49 @@ Register MC6809InstrInfo::isStoreToStackSlot(const MachineInstr &MI, int &FrameI
   return 0;
 }
 
-void MC6809InstrInfo::reMaterialize(MachineBasicBlock &MBB, MachineBasicBlock::iterator I, Register DestReg, unsigned SubIdx, const MachineInstr &Orig, LaneBitmask UsedLanes) const {
-  auto opcode = Orig.getOpcode();
-  if (opcode == MC6809::Load_i8_Imm || opcode == MC6809::Load_i16_Imm || opcode == MC6809::Load_i32_Imm) {
-    const TargetRegisterInfo &TRI = getRegisterInfo();
-    MachineInstr *MI = MBB.getParent()->CloneMachineInstr(&Orig);
-    MI->removeOperand(1);
-    MI->substituteRegister(MI->getOperand(0).getReg(), DestReg, SubIdx, TRI);
-    MI->setDesc(get(opcode));
-    MBB.insert(I, MI);
-  } else {
-    TargetInstrInfo::reMaterialize(MBB, I, DestReg, SubIdx, Orig, UsedLanes);
+/// The flag-preserving twin of a constant load (see the _ImmKeepCC
+/// definitions), or 0 if Opc is not a constant load.
+static unsigned immLoadKeepCC(unsigned Opc) {
+  switch (Opc) {
+  case MC6809::Load_i8_Imm:   return MC6809::Load_i8_ImmKeepCC;
+  case MC6809::Load_i16_Imm:  return MC6809::Load_i16_ImmKeepCC;
+  case MC6809::Load_iPtr_Imm: return MC6809::Load_iPtr_ImmKeepCC;
+  default:                    return 0;
   }
+}
+
+bool MC6809InstrInfo::isReMaterializableImpl(const MachineInstr &MI) const {
+  // A constant load reads nothing and writes only its result and N/Z/V; the
+  // generic check refuses any physical-register def, but reMaterialize
+  // below keeps the flags intact wherever they are live.
+  if (immLoadKeepCC(MI.getOpcode()))
+    return true;
+  return TargetInstrInfo::isReMaterializableImpl(MI);
+}
+
+void MC6809InstrInfo::reMaterialize(MachineBasicBlock &MBB, MachineBasicBlock::iterator I, Register DestReg, unsigned SubIdx, const MachineInstr &Orig, LaneBitmask UsedLanes) const {
+  unsigned KeepCC = immLoadKeepCC(Orig.getOpcode());
+  if (!KeepCC) {
+    TargetInstrInfo::reMaterialize(MBB, I, DestReg, SubIdx, Orig, UsedLanes);
+    return;
+  }
+  const TargetRegisterInfo &TRI = getRegisterInfo();
+  MachineInstr *MI = MBB.getParent()->CloneMachineInstr(&Orig);
+  MI->substituteRegister(MI->getOperand(0).getReg(), DestReg, SubIdx, TRI);
+  // The load sets N, Z and V. Where something later reads flags produced
+  // before this point (or liveness cannot tell), use the twin that saves
+  // and restores CC around the load.
+  bool FlagsLive = false;
+  for (MCRegister F : {MC6809::N, MC6809::Z, MC6809::V})
+    if (MBB.computeRegisterLiveness(&TRI, F, I, /*Neighborhood=*/32) !=
+        MachineBasicBlock::LQR_Dead)
+      FlagsLive = true;
+  if (FlagsLive) {
+    MI->setDesc(get(KeepCC));
+    for (unsigned N = MI->getNumOperands(); N-- > MI->getNumExplicitOperands();)
+      MI->removeOperand(N);
+  }
+  MBB.insert(I, MI);
 }
 
 MachineInstr *MC6809InstrInfo::commuteInstructionImpl(MachineInstr &MI, bool NewMI, unsigned Idx1, unsigned Idx2) const {
@@ -3775,6 +3806,33 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
   case MC6809::Load_i32_Imm:
     expandLoadImm(Builder, MI);
     break;
+  case MC6809::Load_i8_ImmKeepCC:
+  case MC6809::Load_i16_ImmKeepCC:
+  case MC6809::Load_iPtr_ImmKeepCC: {
+    // A rematerialised constant where the flags are live: save CC around
+    // the load. The push reads only the live flags as far as liveness is
+    // concerned (the other CC bits need not hold anything), and the pull
+    // writes them all back.
+    MachineBasicBlock &MBB = *MI.getParent();
+    const DebugLoc &DL = MI.getDebugLoc();
+    BuildMI(MBB, MI, DL, get(MC6809::PSHSs))
+        .addReg(MC6809::CC, RegState::Undef)
+        .addReg(MC6809::N, RegState::Implicit)
+        .addReg(MC6809::Z, RegState::Implicit)
+        .addReg(MC6809::V, RegState::Implicit);
+    BuildMI(MBB, std::next(MI.getIterator()), DL, get(MC6809::PULSs))
+        .addDef(MC6809::CC);
+    unsigned Plain;
+    switch (MI.getOpcode()) {
+    case MC6809::Load_i8_ImmKeepCC:   Plain = MC6809::Load_i8_Imm; break;
+    case MC6809::Load_i16_ImmKeepCC:  Plain = MC6809::Load_i16_Imm; break;
+    default:                          Plain = MC6809::Load_iPtr_Imm; break;
+    }
+    MI.setDesc(get(Plain));
+    addMissingImplicitOperands(MI);
+    expandLoadImm(Builder, MI);
+    break;
+  }
   case MC6809::Load_i8_Mem:
   case MC6809::Load_i16_Mem:
   case MC6809::Load_i32_Mem:

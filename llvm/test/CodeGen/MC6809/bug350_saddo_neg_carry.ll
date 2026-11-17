@@ -21,12 +21,10 @@
 ; choice now that the byte pseudos take either page-1 half.
 
 ; CHECK-LABEL: t1:
-; The high-byte add-with-carry consumes its RHS from the stack (pushed
-; from the other half), proving the two operands did not collapse. The
-; `,s+` post-increment read implies the matching push; the push itself is
-; not anchored because RS-staging brackets now emit unrelated pshs/puls
-; pairs earlier in the function.
-; CHECK: adc{{[ab]}} ,s+
+; The high-byte add-with-carry consumes its RHS from the stack -- pushed
+; from the other half (`,s+`) or read from its spill slot (`n,s`) -- proving
+; the two operands did not collapse into one register.
+; CHECK: adc{{[ab]}} {{,s\+|[0-9]+,s}}
 
 target datalayout = "E-p:16:8-p1:8:8-S8-m:e-i1:8-i8:8-i16:8-i32:8-i64:8-f32:8-f64:8-a:0-n8:16"
 
