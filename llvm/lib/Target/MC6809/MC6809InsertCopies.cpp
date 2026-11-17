@@ -197,10 +197,31 @@ bool MC6809InsertCopies::runOnMachineFunction(MachineFunction &MF) {
           for (const MachineOperand &MO : E->implicit_operands())
             if (MO.isReg() && MO.isDef() && I->readsRegister(MO.getReg(), &TRI))
               Safe = false;
-          for (const MachineOperand &MO : I->operands())
-            if (MO.isReg() && MO.getReg().isPhysical() &&
-                TRI.regsOverlap(MO.getReg(), MC6809::AD))
-              Safe = false;
+          // Nothing that needs A or B for itself: a call (which clobbers
+          // them, and would stretch the D-held source across it), a
+          // physical register overlapping D, or a value that can only live
+          // in D or Q (the 6309's Q holds A and B too).
+          if (I->isCall())
+            Safe = false;
+          for (const MachineOperand &MO : I->operands()) {
+            if (!MO.isReg() || !MO.getReg())
+              continue;
+            Register R = MO.getReg();
+            if (R.isPhysical()) {
+              if (TRI.regsOverlap(R, MC6809::AD))
+                Safe = false;
+            } else if (const TargetRegisterClass *RC =
+                           MRI.getRegClassOrNull(R)) {
+              // A value that, wherever it is put, holds both A and B (D,
+              // or the 6309's Q). A single byte in A or B is ordinary
+              // competition, which the allocator can settle.
+              if (llvm::all_of(*RC, [&](MCPhysReg P) {
+                    return TRI.regsOverlap(P, MC6809::AA) &&
+                           TRI.regsOverlap(P, MC6809::AB);
+                  }))
+                Safe = false;
+            }
+          }
         }
       }
       if (!Safe)
