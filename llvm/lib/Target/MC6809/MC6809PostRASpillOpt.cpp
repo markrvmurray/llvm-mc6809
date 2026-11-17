@@ -483,125 +483,7 @@ static bool getBaseAndOffset(const MachineInstr &MI, Register &BaseReg,
   return FoundReg;
 }
 
-/// Return the _o5 opcode variant for a given _o5/_o8/_o16 opcode (identity),
-/// or 0 if not a recognized indexed instruction. Used when adjusting offsets
-/// may require changing the opcode variant.
-static unsigned getOpcodeForOffsetSize(unsigned OrigOpc, int NewOffset) {
-  // Determine which offset size category the new offset needs.
-  int Size = (NewOffset == 0) ? 0
-           : (NewOffset >= -16 && NewOffset < 16) ? 5
-           : (NewOffset >= -128 && NewOffset < 128) ? 8 : 16;
 
-  // Map from original opcode to its family, then pick the right variant.
-  // We use a macro-based approach: strip the _oN suffix and reattach.
-#define OFFSET_VARIANT(BASE)                                                   \
-  case MC6809::BASE##_o0: case MC6809::BASE##_o5:                              \
-  case MC6809::BASE##_o8: case MC6809::BASE##_o16:                             \
-    switch (Size) {                                                            \
-    case 0:  return MC6809::BASE##_o0;                                         \
-    case 5:  return MC6809::BASE##_o5;                                         \
-    case 8:  return MC6809::BASE##_o8;                                         \
-    default: return MC6809::BASE##_o16;                                        \
-    }
-
-  switch (OrigOpc) {
-  OFFSET_VARIANT(LEASi)
-  OFFSET_VARIANT(LDDi)
-  OFFSET_VARIANT(LDAi)
-  OFFSET_VARIANT(LDBi)
-  OFFSET_VARIANT(STDi)
-  OFFSET_VARIANT(STAi)
-  OFFSET_VARIANT(STBi)
-  OFFSET_VARIANT(ADDAi)
-  OFFSET_VARIANT(ADDBi)
-  OFFSET_VARIANT(ADDDi)
-  OFFSET_VARIANT(SUBAi)
-  OFFSET_VARIANT(SUBBi)
-  OFFSET_VARIANT(SUBDi)
-  OFFSET_VARIANT(ADCAi)
-  OFFSET_VARIANT(ADCBi)
-  OFFSET_VARIANT(SBCAi)
-  OFFSET_VARIANT(SBCBi)
-  OFFSET_VARIANT(CMPAi)
-  OFFSET_VARIANT(CMPBi)
-  OFFSET_VARIANT(CMPDi)
-  OFFSET_VARIANT(ANDAi)
-  OFFSET_VARIANT(ANDBi)
-  OFFSET_VARIANT(ORAi)
-  OFFSET_VARIANT(ORBi)
-  OFFSET_VARIANT(EORAi)
-  OFFSET_VARIANT(EORBi)
-  OFFSET_VARIANT(LEAXi)
-  OFFSET_VARIANT(LEAYi)
-  OFFSET_VARIANT(LEAUi)
-  default: return 0;
-  }
-#undef OFFSET_VARIANT
-}
-
-/// For an `*i_o0` or `*i_o5` (with offset 0) opcode that reads/writes
-/// `,reg`, return the corresponding *indirect-indexed* opcode for the
-/// pattern `LDY n,u; op ,Y → op [n,u]` (bug #189). The target opcode
-/// is selected by the LDY-side offset:
-///   Offset == 0          → `*i_o0I`  (no offset operand)
-///   Offset ∈ [-128, 127] → `*i_o8I`  (8-bit offset)
-///   else                  → `*i_o16I` (16-bit offset)
-/// MC6809 has no 5-bit indirect form, so 5-bit-fitting offsets
-/// promote to `_o8I`. Returns 0 if the source op has no indirect
-/// variant family (force skip).
-static unsigned getIndirectIndexedOpcode(unsigned SrcOpc, int Offset) {
-  // Pick the variant suffix once based on offset size.
-  enum Variant { V_O0I, V_O8I, V_O16I };
-  Variant V = (Offset == 0)                          ? V_O0I
-            : (Offset >= -128 && Offset <= 127)      ? V_O8I
-                                                     : V_O16I;
-
-  // Bug #361: the `_o8`/`_o16` source cases matter for the load-through-self
-  // rewrite (Stage 6 below), which calls this on MI1 -- the *pointer* load,
-  // whose own offset can be 8- or 16-bit (e.g. `LDY 62,u`). Without them an
-  // 8/16-bit-offset double-deref silently failed to fold. The consumer-side
-  // scan is unaffected: an `_o8`/`_o16` candidate has a non-zero offset, so the
-  // `CandSlot.Offset == 0` guard still rejects it.
-#define IND_VARIANT(BASE)                                                      \
-  case MC6809::BASE##_o0: case MC6809::BASE##_o5:                              \
-  case MC6809::BASE##_o8: case MC6809::BASE##_o16:                             \
-    switch (V) {                                                               \
-    case V_O0I:  return MC6809::BASE##_o0I;                                    \
-    case V_O8I:  return MC6809::BASE##_o8I;                                    \
-    default:     return MC6809::BASE##_o16I;                                   \
-    }
-
-  switch (SrcOpc) {
-  // Byte loads/stores
-  IND_VARIANT(LDAi)
-  IND_VARIANT(LDBi)
-  IND_VARIANT(STAi)
-  IND_VARIANT(STBi)
-  // Byte ALU on A
-  IND_VARIANT(ADDAi) IND_VARIANT(ADCAi)
-  IND_VARIANT(SUBAi) IND_VARIANT(SBCAi)
-  IND_VARIANT(ANDAi) IND_VARIANT(ORAi) IND_VARIANT(EORAi)
-  IND_VARIANT(CMPAi) IND_VARIANT(BITAi)
-  // Byte ALU on B
-  IND_VARIANT(ADDBi) IND_VARIANT(ADCBi)
-  IND_VARIANT(SUBBi) IND_VARIANT(SBCBi)
-  IND_VARIANT(ANDBi) IND_VARIANT(ORBi) IND_VARIANT(EORBi)
-  IND_VARIANT(CMPBi) IND_VARIANT(BITBi)
-  // Word loads/stores
-  IND_VARIANT(LDDi)
-  IND_VARIANT(STDi)
-  // Word ALU on D
-  IND_VARIANT(ADDDi) IND_VARIANT(SUBDi)
-  IND_VARIANT(CMPDi)
-  // 16-bit index-register loads — enable bug #190 load-through-self
-  // (`LDY n,u; LDY ,Y → LDY [n,u]`) plus the cross-register path
-  // (`LDY n,u; LDX ,Y → LDX [n,u]`) via the standard #189 dead-after
-  // liveness check.
-  IND_VARIANT(LDXi) IND_VARIANT(LDYi) IND_VARIANT(LDUi)
-  default: return 0;
-  }
-#undef IND_VARIANT
-}
 
 class MC6809PostRASpillOpt : public MachineFunctionPass {
 public:
@@ -815,7 +697,7 @@ static bool removeDeadStagingBrackets(MachineFunction &MF) {
         Register Base;
         int Offset;
         if (!getBaseAndOffset(MI, Base, Offset) || Base != MC6809::SS ||
-            !getOpcodeForOffsetSize(MI.getOpcode(), Offset)) {
+            !MC6809InstrInfo::getIdxFormForOffset(MI.getOpcode(), Offset)) {
           LLVM_DEBUG(dbgs() << "  SpillOpt: bracket blocked by S use " << MI);
           Bail = true;
           break;
@@ -893,7 +775,7 @@ static bool removeDeadStagingBrackets(MachineFunction &MF) {
           int NewOffset = MO.getImm() - int(Size);
           MO.setImm(NewOffset);
           unsigned NewOpc =
-              getOpcodeForOffsetSize(MI->getOpcode(), NewOffset ? NewOffset : 1);
+              MC6809InstrInfo::getIdxFormForOffset(MI->getOpcode(), NewOffset ? NewOffset : 1);
           if (NewOpc && NewOpc != MI->getOpcode())
             MI->setDesc(TII.get(NewOpc));
           break;
@@ -1377,10 +1259,10 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
           int Size = (NewOffset >= -16 && NewOffset < 16) ? 5
                    : (NewOffset >= -128 && NewOffset < 128) ? 8 : 16;
           (void)Size;
-          unsigned NewOpc = getOpcodeForOffsetSize(MI->getOpcode(), NewOffset);
+          unsigned NewOpc = MC6809InstrInfo::getIdxFormForOffset(MI->getOpcode(), NewOffset);
           // Don't switch to _o0 — keep _o5 with offset 0 instead.
           if (NewOffset == 0)
-            NewOpc = getOpcodeForOffsetSize(MI->getOpcode(), 1); // force _o5
+            NewOpc = MC6809InstrInfo::getIdxFormForOffset(MI->getOpcode(), 1); // force _o5
           if (NewOpc && NewOpc != MI->getOpcode()) {
             LLVM_DEBUG(dbgs() << "    adjusting " << OldOffset
                               << " → " << NewOffset << "\n");
@@ -1587,7 +1469,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         if (Cand.isDebugInstr()) continue;
 
         // Try to match as MI2.
-        if (unsigned Opc = getIndirectIndexedOpcode(Cand.getOpcode(),
+        if (unsigned Opc = MC6809InstrInfo::getIdxIndirectFormForOffset(Cand.getOpcode(),
                                                    Offset)) {
           SlotKey CandSlot = getSlotKey(Cand);
           if (CandSlot.BaseReg == LoadedReg && CandSlot.Offset == 0) {
@@ -1645,7 +1527,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
           (MI2.getOpcode() == MC6809::LDXi_o0 && LoadedReg == MC6809::IX) ||
           (MI2.getOpcode() == MC6809::LDUi_o0 && LoadedReg == MC6809::SU);
       if (IsLoadThroughSelf) {
-        unsigned NewMI1Opc = getIndirectIndexedOpcode(MI1.getOpcode(),
+        unsigned NewMI1Opc = MC6809InstrInfo::getIdxIndirectFormForOffset(MI1.getOpcode(),
                                                      Offset);
         if (!NewMI1Opc) continue; // shouldn't happen for LDY/LDX/LDU
                                   // but guard.

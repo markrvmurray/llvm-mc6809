@@ -26,8 +26,11 @@ entry:
 ; The folded loads are frame-relative; the base is S when the function no
 ; longer needs a frame pointer (the SPILL_X retirement removed the forced-FP
 ; trigger), U when it does.
+; The pointer to store through is either loaded the same way, or read
+; through its slot directly (`stx [n,s]`).
+; CHECK-NOT: lea
 ; CHECK: ldx {{[0-9]+}},{{[su]}}
-; CHECK: ld{{[yu]}} {{[0-9]+}},{{[su]}}
+; CHECK: {{ld[yu] [0-9]+,[su]|stx \[[0-9]+,[su]\]}}
 define void @store3(ptr %a, ptr %b, ptr %pp) {
 entry:
   store ptr %b, ptr %pp, align 1

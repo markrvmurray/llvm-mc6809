@@ -4807,7 +4807,38 @@ int MC6809InstrInfo::offsetSizeInBits(MachineOperand &OffsetOp) {
   return offsetSizeInBitsForValue(Offset);
 }
 
+static bool isNonIndirectIdxForm(unsigned Opc) {
+  std::optional<MC6809::IdxForm> F = MC6809InstrInfo::getIdxForm(Opc);
+  return F && *F <= MC6809::IdxForm::O16;
+}
+
+unsigned MC6809InstrInfo::getIdxIndirectSibling(unsigned Opc) {
+  if (!isNonIndirectIdxForm(Opc))
+    return 0;
+  switch (*getIdxForm(Opc)) {
+  case MC6809::IdxForm::O0:
+    return getIdxSibling(Opc, MC6809::IdxForm::O0I);
+  case MC6809::IdxForm::O5:
+  case MC6809::IdxForm::O8:
+    return getIdxSibling(Opc, MC6809::IdxForm::O8I);
+  default:
+    return getIdxSibling(Opc, MC6809::IdxForm::O16I);
+  }
+}
+
+unsigned MC6809InstrInfo::getIdxIndirectFormForOffset(unsigned Opc,
+                                                      int64_t Offset) {
+  if (!isNonIndirectIdxForm(Opc))
+    return 0;
+  MC6809::IdxForm F = Offset == 0                         ? MC6809::IdxForm::O0I
+                      : (Offset >= -128 && Offset <= 127) ? MC6809::IdxForm::O8I
+                                                          : MC6809::IdxForm::O16I;
+  return getIdxSibling(Opc, F);
+}
+
 unsigned MC6809InstrInfo::getIdxFormForOffset(unsigned Opc, int64_t Offset) {
+  if (!isNonIndirectIdxForm(Opc))
+    return 0;
   int Need = offsetSizeInBitsForValue(Offset);
   for (auto [Bits, Form] : {std::pair{0, MC6809::IdxForm::O0},
                             {5, MC6809::IdxForm::O5},
@@ -5036,7 +5067,6 @@ void MC6809InstrInfo::expandImm(ContextImmediate Context, MachineIRBuilder &Buil
   MI.eraseFromParent();
 }
 
-static unsigned indirectSiblingOf(unsigned Opc);
 static bool isMemIndirectPseudo(unsigned Opc);
 
 void MC6809InstrInfo::expandIdxImm(ContextIndexImmediate Context, MachineIRBuilder &Builder, MachineInstr &MI) const {
@@ -5056,7 +5086,7 @@ void MC6809InstrInfo::expandIdxImm(ContextIndexImmediate Context, MachineIRBuild
   auto IndOpc = [&](unsigned O) {
     if (!Indirect)
       return O;
-    unsigned I = indirectSiblingOf(O);
+    unsigned I = getIdxIndirectSibling(O);
     assert(I && "no indirect-indexed sibling for this opcode (add an IND3 row)");
     return I;
   };
@@ -6865,30 +6895,6 @@ void MC6809InstrInfo::expandLeaOS9Sym(MachineIRBuilder &Builder, MachineInstr &M
   MI.eraseFromParent();
 }
 
-// Map a concrete indexed load/store opcode to its indirect-indexed (`[n,r]`)
-// sibling. The indirect addressing mode has no 5-bit-offset form, so an o5 pick
-// is promoted to o8I. Returns 0 if no indirect form exists.
-static unsigned indirectSiblingOf(unsigned Opc) {
-  switch (Opc) {
-#define IND3(R)                                                                 \
-  case MC6809::R##i_o0: return MC6809::R##i_o0I;                                \
-  case MC6809::R##i_o5: case MC6809::R##i_o8: return MC6809::R##i_o8I;          \
-  case MC6809::R##i_o16: return MC6809::R##i_o16I;
-  IND3(LDA) IND3(LDB) IND3(LDE) IND3(LDF) IND3(LDD) IND3(LDW) IND3(LDX) IND3(LDY) IND3(LDU)
-  IND3(STA) IND3(STB) IND3(STE) IND3(STF) IND3(STD) IND3(STW) IND3(STX) IND3(STY) IND3(STU)
-  IND3(LDQ) IND3(STQ)
-  // P3b: indirect-indexed arith/logical consumers (`op [n,r]`).
-  IND3(ADDA) IND3(ADDB) IND3(ADDD) IND3(ADCA) IND3(ADCB)
-  IND3(SUBA) IND3(SUBB) IND3(SUBD) IND3(SBCA) IND3(SBCB)
-  IND3(ANDA) IND3(ANDB) IND3(ORA) IND3(ORB) IND3(EORA) IND3(EORB)
-  IND3(ANDD) IND3(ORD) IND3(EORD) // HD6309 16-bit logical (expandIdxImm path)
-  IND3(ADDW) IND3(SUBW)           // HD6309 W-accumulator i16 arith
-  IND3(CMPA) IND3(CMPB) IND3(CMPD) IND3(CMPW) IND3(CMPX) IND3(CMPY) IND3(CMPU)
-#undef IND3
-  default: return 0;
-  }
-}
-
 // True if the pseudo is an indirect-indexed load/store variant (its concrete
 // opcode, once chosen, is swapped to the `[n,r]` indirect sibling).
 static bool isMemIndirectPseudo(unsigned Opc) {
@@ -7025,7 +7031,7 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
   // indirect bit, baked into the opcode) differs -- so swap the concrete opcode
   // for its `[n,r]` sibling.
   if (Indirect) {
-    unsigned Ind = indirectSiblingOf(MI.getOpcode());
+    unsigned Ind = getIdxIndirectSibling(MI.getOpcode());
     assert(Ind && "no indirect-indexed sibling for this load opcode");
     MI.setDesc(Builder.getTII().get(Ind));
     addMissingImplicitOperands(MI);
@@ -7160,7 +7166,7 @@ void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI
 
   // Swap to the indirect-indexed sibling (same operands, indirect postbyte).
   if (Indirect) {
-    unsigned Ind = indirectSiblingOf(MI.getOpcode());
+    unsigned Ind = getIdxIndirectSibling(MI.getOpcode());
     assert(Ind && "no indirect-indexed sibling for this store opcode");
     MI.setDesc(Builder.getTII().get(Ind));
     addMissingImplicitOperands(MI);
@@ -8358,7 +8364,7 @@ void MC6809InstrInfo::expandCompareIdx(MachineIRBuilder &Builder, MachineInstr &
   // P3b: indirect-indexed compare (`cmp [n,r]`) -- swap to the indirect-sibling
   // opcode, mirroring expandIdxImm / expandLoadIdx.
   if (isMemIndirectPseudo(MI.getOpcode())) {
-    unsigned Ind = indirectSiblingOf(Opcode);
+    unsigned Ind = getIdxIndirectSibling(Opcode);
     assert(Ind && "no indirect-indexed compare sibling (add an IND3 row)");
     Opcode = Ind;
   }

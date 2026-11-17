@@ -251,9 +251,16 @@ public:
   /// The same operation, on the same registers, in another offset form; 0 if
   /// it has no such form. From TableGen's IndexedForms table.
   static unsigned getIdxSibling(unsigned Opc, MC6809::IdxForm Form);
-  /// The non-indirect form that encodes Offset in the fewest bytes (0 for no
-  /// offset, then 5, 8 and 16 bits), for Opc's family; 0 if none fits.
+  /// For a non-indirect Opc: the non-indirect form of its family that
+  /// encodes Offset in the fewest bytes (no offset, then 5, 8 and 16 bits);
+  /// 0 if Opc is indirect, not indexed, or no form fits.
   static unsigned getIdxFormForOffset(unsigned Opc, int64_t Offset);
+  /// For a non-indirect Opc: its indirect (`[n,r]`) sibling of the same
+  /// offset width (o5, which has no indirect form, goes to o8I); 0 if none.
+  static unsigned getIdxIndirectSibling(unsigned Opc);
+  /// For a non-indirect Opc: the indirect form of its family that encodes
+  /// Offset (no offset, then 8 and 16 bits); 0 if none.
+  static unsigned getIdxIndirectFormForOffset(unsigned Opc, int64_t Offset);
 
 protected:
   // Bug #357: report a value-preserving same-width TFRp as a copy so generic
