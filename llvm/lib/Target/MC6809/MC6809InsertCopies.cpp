@@ -19,6 +19,8 @@
 #include "MC6809RegisterInfo.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
 
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
@@ -110,101 +112,104 @@ bool MC6809InsertCopies::runOnMachineFunction(MachineFunction &MF) {
     }
 
   // A byte extract (EXTRACT_LO_i16 / EXTRACT_HI_i16) is A or B only.
-  // Selection emits it where the value is taken apart, so every byte of a
-  // value is born at once, and three live together are more than A and B
-  // can hold: a 32-bit shift by a byte, which takes one value apart and
-  // builds another, ran out of registers. Move each extract to just before
-  // its only user in the same block (or, for a user in a carry chain, the
-  // start of the chain), when nothing in between reads a flag the extract
-  // sets or touches D, and that instruction clobbers, without reading,
-  // every flag the extract sets.
+  // Selection emits it where the value is taken apart, so the bytes of
+  // several values can be born together, and three live at once are more
+  // than A and B can hold. Move the extracts of each value -- both halves
+  // together, so that a value whose halves are used side by side stays in
+  // D -- to just before the first of their users, when each has one user
+  // in the same block, nothing in between reads a flag an extract sets or
+  // touches D, and that first user clobbers, without reading, every flag
+  // the extracts set.
   const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
   MachineRegisterInfo &MRI = MF.getRegInfo();
-  for (MachineBasicBlock &MBB : MF)
-    for (MachineInstr &Ext : llvm::make_early_inc_range(MBB)) {
-      if (!PlaceByteExtracts)
-        break;
-      if (Ext.getOpcode() != MC6809::EXTRACT_LO_i16 &&
-          Ext.getOpcode() != MC6809::EXTRACT_HI_i16)
+  auto IsExtract = [](const MachineInstr &I) {
+    return I.getOpcode() == MC6809::EXTRACT_LO_i16 ||
+           I.getOpcode() == MC6809::EXTRACT_HI_i16;
+  };
+  for (MachineBasicBlock &MBB : MF) {
+    if (!PlaceByteExtracts)
+      break;
+    // Number the block once: the moves below only reorder extracts, which
+    // never serve as anyone's first user.
+    DenseMap<const MachineInstr *, unsigned> Pos;
+    unsigned N = 0;
+    for (MachineInstr &I : MBB)
+      Pos[&I] = N++;
+    SmallSet<Register, 8> Done;
+    // Collect first: moving a pair down while walking the block would step
+    // over the extracts it is moved past.
+    SmallVector<MachineInstr *, 16> Extracts;
+    for (MachineInstr &I : MBB)
+      if (IsExtract(I))
+        Extracts.push_back(&I);
+    for (MachineInstr *ExtP : Extracts) {
+      MachineInstr &Ext = *ExtP;
+      Register Src = Ext.getOperand(1).getReg();
+      if (!Src.isVirtual() || !Done.insert(Src).second)
         continue;
-      Register Def = Ext.getOperand(0).getReg();
-      if (!Def.isVirtual() || !MRI.hasOneNonDBGUse(Def))
-        continue;
-      MachineInstr &Use = *MRI.use_instr_nodbg_begin(Def);
-      if (Use.getParent() != &MBB || Use.isPHI())
-        continue;
-      // A user inside a carry chain (ADCA, SBCB...) takes the byte beside it
-      // too, unless another of its operands is also born inside the chain
-      // (`0 - x` copies its zero there): then two new bytes and the value
-      // the chain carries all want A or B at once, C is live, and nothing
-      // can be spilled in between. Go back to where the chain starts, the
-      // instruction that sets C without reading it; if that is above the
-      // extract, leave the extract where it is.
-      MachineInstr *Target = &Use;
-      if (Use.readsRegister(MC6809::C, &TRI)) {
-        MachineInstr *Start = &Use;
-        while (Start && Start->readsRegister(MC6809::C, &TRI)) {
-          MachineInstr *Prev = nullptr;
-          for (auto I = Start->getIterator(); I != Ext.getIterator();) {
-            --I;
-            if (I->modifiesRegister(MC6809::C, &TRI)) {
-              Prev = &*I;
-              break;
-            }
-          }
-          Start = Prev;
+      // The value's extracts in this block, each with one user here.
+      SmallVector<MachineInstr *, 2> Group;
+      MachineInstr *First = nullptr;
+      bool Ok = true;
+      for (MachineInstr &U : MRI.use_nodbg_instructions(Src)) {
+        if (!IsExtract(U) || U.getParent() != &MBB)
+          continue;
+        Register Def = U.getOperand(0).getReg();
+        if (!Def.isVirtual() || !MRI.hasOneNonDBGUse(Def)) {
+          Ok = false;
+          break;
         }
-        // The window the byte would join: from the chain's start (or the
-        // extract itself, when the chain starts above it) to the user.
-        MachineInstr *From = Start ? Start : &Ext;
-        bool OtherBornInChain = false;
-        for (const MachineOperand &MO : Use.uses())
-          if (MO.isReg() && MO.getReg().isVirtual() && MO.getReg() != Def)
-            if (MachineInstr *D = MRI.getVRegDef(MO.getReg()))
-              for (auto I = std::next(From->getIterator());
-                   I != Use.getIterator(); ++I)
-                if (&*I == D)
-                  OtherBornInChain = true;
-        if (OtherBornInChain)
-          Target = Start;
+        MachineInstr &User = *MRI.use_instr_nodbg_begin(Def);
+        if (User.getParent() != &MBB || User.isPHI() || IsExtract(User) ||
+            Pos[&User] < Pos[&U]) {
+          Ok = false;
+          break;
+        }
+        Group.push_back(&U);
+        if (!First || Pos[&User] < Pos[First])
+          First = &User;
       }
-      if (!Target)
+      if (!Ok || Group.empty() ||
+          llvm::any_of(Group, [&](const MachineInstr *E) {
+            return Pos[E] > Pos[First]; // only ever move an extract down
+          }))
         continue;
-      MachineInstr &User = *Target;
-      auto IsExtract = [](const MachineInstr &I) {
-        return I.getOpcode() == MC6809::EXTRACT_LO_i16 ||
-               I.getOpcode() == MC6809::EXTRACT_HI_i16;
-      };
-      // Already in place: nothing but other extracts (two that feed the
-      // same merge) stands between it and its user. Moving it past them
-      // would only swap the pair back and forth.
-      auto J = std::next(Ext.getIterator());
-      while (J != MBB.end() && J != User.getIterator() && IsExtract(*J))
-        ++J;
-      if (J == User.getIterator())
-        continue;
-      SmallVector<Register, 4> Flags;
-      for (const MachineOperand &MO : Ext.implicit_operands())
-        if (MO.isReg() && MO.isDef())
-          Flags.push_back(MO.getReg());
-      bool Safe = llvm::all_of(Flags, [&](Register F) {
-        return User.definesRegister(F, &TRI) && !User.readsRegister(F, &TRI);
+      llvm::sort(Group, [&](const MachineInstr *L, const MachineInstr *R) {
+        return Pos[L] < Pos[R];
       });
-      for (auto I = std::next(Ext.getIterator());
-           Safe && I != User.getIterator(); ++I) {
-        for (Register F : Flags)
-          if (I->readsRegister(F, &TRI))
+      // Already in place: nothing but extracts between them and the user.
+      auto J = std::next(Group.back()->getIterator());
+      while (J != First->getIterator() && IsExtract(*J))
+        ++J;
+      if (J == First->getIterator())
+        continue;
+      bool Safe = true;
+      for (MachineInstr *E : Group) {
+        for (const MachineOperand &MO : E->implicit_operands())
+          if (MO.isReg() && MO.isDef() &&
+              (!First->definesRegister(MO.getReg(), &TRI) ||
+               First->readsRegister(MO.getReg(), &TRI)))
             Safe = false;
-        for (const MachineOperand &MO : I->operands())
-          if (MO.isReg() && MO.getReg().isPhysical() &&
-              TRI.regsOverlap(MO.getReg(), MC6809::AD))
-            Safe = false;
+        for (auto I = std::next(E->getIterator());
+             Safe && I != First->getIterator(); ++I) {
+          if (IsExtract(*I))
+            continue;
+          for (const MachineOperand &MO : E->implicit_operands())
+            if (MO.isReg() && MO.isDef() && I->readsRegister(MO.getReg(), &TRI))
+              Safe = false;
+          for (const MachineOperand &MO : I->operands())
+            if (MO.isReg() && MO.getReg().isPhysical() &&
+                TRI.regsOverlap(MO.getReg(), MC6809::AD))
+              Safe = false;
+        }
       }
       if (!Safe)
         continue;
-      Ext.moveBefore(&User);
+      for (MachineInstr *E : Group)
+        E->moveBefore(First);
       Changed = true;
     }
+  }
 
   return Changed;
 }

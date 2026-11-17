@@ -1,21 +1,19 @@
 # RUN: llc -mtriple=mc6809 -run-pass=mc6809-insert-copies -verify-machineinstrs %s -o - | FileCheck %s
 
-# A byte extract whose user is a link of a carry chain (SBC, ADC) is placed
-# beside that user, inside the chain, unless another operand of the user is
-# also born inside the chain. Then the new bytes and the value the chain
-# carries would all need A or B at once with C live and no room to spill
-# (picolibc's c8rtomb ran out of registers at -Og), so the extract goes to
-# the start of the chain instead.
+# The two byte extracts of one value move together, to just before the
+# first of their users. In a carry chain (SBC, ADC) that is the chain's
+# start, so a high byte is never born between two links, where the value
+# the chain carries and the link's other operand already need A and B with
+# C live and nowhere to spill (picolibc's c8rtomb ran out of registers at
+# -Og when the high byte was placed beside its own link).
 
-# The zero is made before the chain: the high byte joins the chain.
 # CHECK-LABEL: name: neg
 # CHECK:       Load_i8_Imm 0
 # CHECK-NEXT:  EXTRACT_LO_i16
-# CHECK-NEXT:  SubSetCarry_i8_Reg
 # CHECK-NEXT:  EXTRACT_HI_i16
+# CHECK-NEXT:  SubSetCarry_i8_Reg
 # CHECK-NEXT:  SubSetCarryUse_i8_Reg
 
-# The zero is copied inside the chain: the high byte stays before it.
 # CHECK-LABEL: name: neg_copy_in_chain
 # CHECK:       Load_i8_Imm 0
 # CHECK-NEXT:  EXTRACT_LO_i16

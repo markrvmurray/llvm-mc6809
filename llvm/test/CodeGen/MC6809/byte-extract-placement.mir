@@ -3,15 +3,16 @@
 # A byte extract is A or B only. Selection emits the extracts of a value
 # where it is taken apart, so in a 32-bit shift by a byte three of them
 # were live at once before the merges that consume them -- more than A and
-# B can hold. The pass moves each to just before its only user. It does
-# not move one past a physical D (which holds A and B), nor past an
-# instruction that reads a flag the extract sets.
+# B can hold. The pass moves the extracts of each value, both halves
+# together, to just before the first of their users. It does not move one
+# past a physical D (which holds A and B), nor past an instruction that
+# reads a flag the extract sets.
 
 # CHECK-LABEL: name: shl8
 # CHECK:       Load_i8_Imm 0
 # CHECK-NEXT:  EXTRACT_LO_i16 %2
-# CHECK-NEXT:  MERGE_LOHI_i16
 # CHECK-NEXT:  EXTRACT_HI_i16 %2
+# CHECK-NEXT:  MERGE_LOHI_i16
 # CHECK-NEXT:  EXTRACT_LO_i16 %3
 # CHECK-NEXT:  MERGE_LOHI_i16
 

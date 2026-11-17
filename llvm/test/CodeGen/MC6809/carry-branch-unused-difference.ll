@@ -17,9 +17,9 @@ declare { i16, i1 } @llvm.usub.with.overflow.i16(i16, i16)
 
 ; CHECK-LABEL: b32:
 ; M6809:       subb {{[0-9]+}},s
-; M6809:       sbcb {{[0-9]+}},s
-; M6809:       sbcb {{[0-9]+}},s
-; M6809:       sbcb {{[0-9]+}},s
+; M6809:       sbc{{a|b}} {{[0-9]+}},s
+; M6809:       sbc{{a|b}} {{[0-9]+}},s
+; M6809:       sbc{{a|b}} {{[0-9]+}},s
 ; H6309:       sbcd 6,s
 ; CHECK-NEXT:  bhs
 define i8 @b32(i32 %a, i32 %b) {
@@ -33,7 +33,8 @@ no:
 }
 
 ; CHECK-LABEL: b16:
-; CHECK:       sbcb 2,s
+; CHECK:       sub{{a|b}} {{[0-9]+}},s
+; CHECK-NEXT:  sbc{{a|b}} {{[0-9]+}},s
 ; CHECK-NEXT:  bhs
 define i8 @b16(i16 %a, i16 %b) {
   %r = call { i16, i1 } @llvm.usub.with.overflow.i16(i16 %a, i16 %b)

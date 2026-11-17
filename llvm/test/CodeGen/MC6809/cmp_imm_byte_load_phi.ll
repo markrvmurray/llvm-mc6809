@@ -69,13 +69,13 @@ define dso_local i16 @cmp_imm_byte_load_phi_no_wrap(ptr noundef readonly capture
 ; CHECK-NEXT:    std ,s
 ; CHECK-NEXT:    ldx <__rs1
 ; CHECK-NEXT:    lbsr __mulhi3
-; CHECK-NEXT:    lda 3,s ; 1-byte Folded Reload
-; CHECK-NEXT:    adda #-48
+; CHECK-NEXT:    ldb 3,s ; 1-byte Folded Reload
+; CHECK-NEXT:    addb #-48
+; CHECK-NEXT:    stb 3,s ; 1-byte Folded Spill
 ; CHECK-NEXT:    stx <__rs0
 ; CHECK-NEXT:    ldb <__rs0lo
-; CHECK-NEXT:    pshs a
-; CHECK-NEXT:    addb ,s+
 ; CHECK-NEXT:    lda <__rs0hi
+; CHECK-NEXT:    addb 3,s
 ; CHECK-NEXT:    adca #0
 ; CHECK-NEXT:    std <__rs1
 ; CHECK-NEXT:    ldb ,u+
