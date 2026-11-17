@@ -1481,6 +1481,15 @@ MC6809LegalizerInfo::legalizeBitwise(LegalizerHelper &Helper,
 
   assert(Ty == LLT::scalar(32) && "Expected s1 or s32");
 
+  // On the 6809 a 32-bit value lives as two 16-bit halves (there is no Q),
+  // and the bitwise operations act on each half independently: two ANDA/
+  // ANDB pairs, with nothing carried between them, instead of marshalling
+  // both operands for a call. Nothing here builds a 32-bit register back
+  // up, which is what starved the 6309 (below).
+  if (!MI.getMF()->getSubtarget<MC6809Subtarget>().has6309())
+    return Helper.narrowScalar(MI, 0, LLT::scalar(16)) !=
+           LegalizerHelper::UnableToLegalize;
+
   // Bug #210 round 5 (2026-05-04): route i32 G_AND/G_OR/G_XOR to libcalls
   // (`__andsi3`/`__orsi3`/`__xorsi3` — implemented in compiler-rt).
   // The previous in-line decomposition (legalizeI32BinaryOp) emitted
