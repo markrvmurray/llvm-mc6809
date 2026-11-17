@@ -87,8 +87,17 @@ int MC6809SchedStrategy::registerClassPressureDiff(const TargetRegisterClass &RC
   const MachineInstr *MI = SU->getInstr();
 
   int PressureDiff = 0;
+  // A physical D (or Q) holds A and B as well: a value pinned there, such
+  // as ZEX16Implicit's result before the COPY that reads it out, occupies
+  // both byte accumulators. Count it with them, or the copy drifts away
+  // from its producer and D stays physically live across code that needs
+  // A and B.
+  bool CountsD = &RC == &MC6809::ACC8RegClass;
   for (const MachineOperand &MO : MI->operands()) {
-    if (!MO.isReg() || !MO.getReg().isPhysical() || !RC.contains(MO.getReg()))
+    if (!MO.isReg() || !MO.getReg().isPhysical())
+      continue;
+    if (!RC.contains(MO.getReg()) &&
+        !(CountsD && TRI->regsOverlap(MO.getReg(), MC6809::AD)))
       continue;
     if (MO.isDef()) {
       PressureDiff += IsTop ? 1 : -1;

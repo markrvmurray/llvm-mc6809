@@ -683,13 +683,13 @@ define i32 @ashr_i32_8(i32 %x) {
 ; O2-NEXT:    puls d
 ; O2-NEXT:    ldb <__rs1hi
 ; O2-NEXT:    stb ,s ; 1-byte Folded Spill
-; O2-NEXT:    ldb <__rs0lo
-; O2-NEXT:    lda <__rs2hi
+; O2-NEXT:    lda <__rs0lo
+; O2-NEXT:    ldb <__rs2hi
 ; O2-NEXT:    pshs d
-; O2-NEXT:    tfr b,a
 ; O2-NEXT:    ldb 2,s
 ; O2-NEXT:    std <__rs0
 ; O2-NEXT:    puls d
+; O2-NEXT:    tfr b,a
 ; O2-NEXT:    ldb 1,s
 ; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd <__rs0
