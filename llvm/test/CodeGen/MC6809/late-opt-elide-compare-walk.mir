@@ -77,3 +77,124 @@ body: |
   bb.2:
     RTSr
 ...
+
+# The flags an instruction leaves describe the value it moved or computed, not
+# an index register it addressed through. A store sets them from the register
+# it stores; a `,x+` or `,-x` form also defines the index register it steps.
+# Only `ldx ,x`, whose value IS the index register, lets `cmpx #0` go.
+
+# stb ,x ; cmpx #0 -- the flags are B's, so the compare of X stays.
+# CHECK-LABEL: name: store_base_not_producer
+# CHECK:      CMPXi16
+---
+name: store_base_not_producer
+tracksRegLiveness: true
+body: |
+  bb.0:
+    successors: %bb.1, %bb.2
+    liveins: $ix, $ab
+    STBi_o0 $ix, implicit $ab, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    CMPXi16 0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $c, implicit $ix
+    LBlbc_NoC 7, %bb.2, implicit killed $n, implicit killed $z, implicit killed $v
+  bb.1:
+    RTSr
+  bb.2:
+    RTSr
+...
+
+# stb ,x ; tstb -- the flags are B's, so the test of B goes.
+# CHECK-LABEL: name: store_value_is_producer
+# CHECK-NOT:  TSTBa
+# CHECK:      LBlbc_NoC
+---
+name: store_value_is_producer
+tracksRegLiveness: true
+body: |
+  bb.0:
+    successors: %bb.1, %bb.2
+    liveins: $ix, $ab
+    STBi_o0 $ix, implicit $ab, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    TSTBa implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ab
+    LBlbc_NoC 7, %bb.2, implicit killed $n, implicit killed $z, implicit killed $v
+  bb.1:
+    RTSr
+  bb.2:
+    RTSr
+...
+
+# stb ,x+ ; cmpx #0 -- X is stepped, not tested.
+# CHECK-LABEL: name: store_postinc_not_producer
+# CHECK:      CMPXi16
+---
+name: store_postinc_not_producer
+tracksRegLiveness: true
+body: |
+  bb.0:
+    successors: %bb.1, %bb.2
+    liveins: $ix, $ab
+    STBi_Inc1 $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ab, implicit-def $ix
+    CMPXi16 0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $c, implicit $ix
+    LBlbc_NoC 7, %bb.2, implicit killed $n, implicit killed $z, implicit killed $v
+  bb.1:
+    RTSr
+  bb.2:
+    RTSr
+...
+
+# ldb ,x+ ; cmpx #0 -- the flags are the loaded B's.
+# CHECK-LABEL: name: load_postinc_not_producer
+# CHECK:      CMPXi16
+---
+name: load_postinc_not_producer
+tracksRegLiveness: true
+body: |
+  bb.0:
+    successors: %bb.1, %bb.2
+    liveins: $ix
+    LDBi_Inc1 $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ab, implicit-def $ix
+    CMPXi16 0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $c, implicit $ix
+    LBlbc_NoC 7, %bb.2, implicit killed $n, implicit killed $z, implicit killed $v
+  bb.1:
+    RTSr
+  bb.2:
+    RTSr
+...
+
+# ldb ,-x ; cmpx #0 -- likewise for a pre-decrement.
+# CHECK-LABEL: name: load_predec_not_producer
+# CHECK:      CMPXi16
+---
+name: load_predec_not_producer
+tracksRegLiveness: true
+body: |
+  bb.0:
+    successors: %bb.1, %bb.2
+    liveins: $ix
+    LDBi_Dec1 $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ab, implicit-def $ix
+    CMPXi16 0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $c, implicit $ix
+    LBlbc_NoC 7, %bb.2, implicit killed $n, implicit killed $z, implicit killed $v
+  bb.1:
+    RTSr
+  bb.2:
+    RTSr
+...
+
+# ldx ,x ; cmpx #0 -- X is the loaded value, so the compare goes.
+# CHECK-LABEL: name: load_index_is_producer
+# CHECK-NOT:  CMPXi16
+# CHECK:      LBlbc_NoC
+---
+name: load_index_is_producer
+tracksRegLiveness: true
+body: |
+  bb.0:
+    successors: %bb.1, %bb.2
+    liveins: $ix
+    LDXi_o0 $ix, implicit-def $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    CMPXi16 0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $c, implicit $ix
+    LBlbc_NoC 7, %bb.2, implicit killed $n, implicit killed $z, implicit killed $v
+  bb.1:
+    RTSr
+  bb.2:
+    RTSr
+...

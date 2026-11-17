@@ -373,6 +373,10 @@ class MC6809Inst<string mnemonic, Opcode opcode> : Instruction {
   // register by (0 for every mode but `,r+` and `,r++`).
   bits<2> PostIncrementBytes = 0;
   let TSFlags{2-1} = PostIncrementBytes;
+  // Likewise for the bytes it pre-decrements the index register by (`,-r`
+  // and `,--r`).
+  bits<2> PreDecrementBytes = 0;
+  let TSFlags{4-3} = PreDecrementBytes;
 }
 
 class Accumulator<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opcode> {
@@ -581,6 +585,7 @@ class ImmediateIndexedDec1<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic
   let P23Inst{31} = 0b1; let P23Inst{30-29} = ireg; let P23Inst{28-24} = 0b00010; let P23Inst{23-16} = val{7-0}; let P23Inst{15-8} = Opc; let P23Inst{7-0} = Pre{7-0};
   let DecoderNamespace = "_Page_" # Page # "_Size_";
   let Mode = "ii_Dec1";
+  let PreDecrementBytes = 1;
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val, INDEX16:$ireg);
@@ -595,6 +600,7 @@ class ImmediateIndexedDec2<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic
   let P23Inst{31} = 0b1; let P23Inst{30-29} = ireg; let P23Inst{28-24} = 0b00011; let P23Inst{23-16} = val{7-0}; let P23Inst{15-8} = Opc; let P23Inst{7-0} = Pre{7-0};
   let DecoderNamespace = "_Page_" # Page # "_Size_";
   let Mode = "ii_Dec2";
+  let PreDecrementBytes = 2;
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val, INDEX16:$ireg);
@@ -609,6 +615,7 @@ class ImmediateIndexedDec2Ind<string mnemonic, Opcode opcode> : MC6809Inst<mnemo
   let P23Inst{31} = 0b1; let P23Inst{30-29} = ireg; let P23Inst{28-24} = 0b10011; let P23Inst{23-16} = val{7-0}; let P23Inst{15-8} = Opc; let P23Inst{7-0} = Pre{7-0};
   let DecoderNamespace = "_Page_" # Page # "_Size_";
   let Mode = "ii_Dec2I";
+  let PreDecrementBytes = 2;
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val, INDEX16:$ireg);
@@ -622,6 +629,7 @@ class ImmediateIndexedDecW2<string mnemonic, Opcode opcode> : MC6809Inst<mnemoni
   let P23Inst{31-24} = 0b11101111; let P23Inst{23-16} = val{7-0}; let P23Inst{15-8} = Opc; let P23Inst{7-0} = Pre{7-0};
   let DecoderNamespace = "_Page_" # Page # "_Size_";
   let Mode = "ii_DecW2";
+  let PreDecrementBytes = 2;
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val);
@@ -635,6 +643,7 @@ class ImmediateIndexedDecW2Ind<string mnemonic, Opcode opcode> : MC6809Inst<mnem
   let P23Inst{31-24} = 0b11110000; let P23Inst{23-16} = val{7-0}; let P23Inst{15-8} = Opc; let P23Inst{7-0} = Pre{7-0};
   let DecoderNamespace = "_Page_" # Page # "_Size_";
   let Mode = "ii_DecW2I";
+  let PreDecrementBytes = 2;
   let OperandSize = 2;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins i8imm:$val);
@@ -1117,6 +1126,7 @@ class IndexedDec1<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opcode>
   let P23Inst{23} = 0b1; let P23Inst{22-21} = ireg; let P23Inst{20-16} = 0b00010; let P23Inst{15-8} = Opc; let P23Inst{7-0} = Pre{7-0};
   let DecoderNamespace = "_Page_" # Page # "_Size_";
   let Mode = "i_Dec1";
+  let PreDecrementBytes = 1;
   let OperandSize = 1;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins INDEX16:$ireg);
@@ -1130,6 +1140,7 @@ class IndexedDec2<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opcode>
   let P23Inst{23} = 0b1; let P23Inst{22-21} = ireg; let P23Inst{20-16} = 0b00011; let P23Inst{15-8} = Opc; let P23Inst{7-0} = Pre{7-0};
   let DecoderNamespace = "_Page_" # Page # "_Size_";
   let Mode = "i_Dec2";
+  let PreDecrementBytes = 2;
   let OperandSize = 1;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins INDEX16:$ireg);
@@ -1143,6 +1154,7 @@ class IndexedDec2Ind<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opco
   let P23Inst{23} = 0b1; let P23Inst{22-21} = ireg; let P23Inst{20-16} = 0b10011; let P23Inst{15-8} = Opc; let P23Inst{7-0} = Pre{7-0};
   let DecoderNamespace = "_Page_" # Page # "_Size_";
   let Mode = "i_Dec2I";
+  let PreDecrementBytes = 2;
   let OperandSize = 1;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins INDEX16:$ireg);
@@ -1155,6 +1167,7 @@ class IndexedDecW2<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opcode
   let P23Inst{23-16} = 0b11101111; let P23Inst{15-8} = Opc; let P23Inst{7-0} = Pre{7-0};
   let DecoderNamespace = "_Page_" # Page # "_Size_";
   let Mode = "i_DecW2";
+  let PreDecrementBytes = 2;
   let OperandSize = 1;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins);
@@ -1167,6 +1180,7 @@ class IndexedDecW2Ind<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opc
   let P23Inst{23-16} = 0b11110000; let P23Inst{15-8} = Opc; let P23Inst{7-0} = Pre{7-0};
   let DecoderNamespace = "_Page_" # Page # "_Size_";
   let Mode = "i_DecW2I";
+  let PreDecrementBytes = 2;
   let OperandSize = 1;
   let Size = !add(OperandSize, OpcodeSize);
   let InOperandList = (ins);

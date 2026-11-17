@@ -564,22 +564,39 @@ bool MC6809LateOptimization::elideCompareZero(MachineBasicBlock &MBB) const {
     if (!Producer)
       continue;
 
-    // The producer must define EXACTLY the compared register, so the N/Z flags
-    // it set reflect that value at the right width. A super-register def is
-    // unsafe: `ldd <16-bit>; tstb` defines AD ⊇ AB but LDD's flags are the
-    // 16-bit D's, not the 8-bit B's that TSTB tests (D=0x0100 -> D!=0 yet
-    // B==0). `definesRegister` would accept that; an exact-width def does not.
-    // A store sets N/Z from the register it stores, at that register's
-    // width (`stb ,x+` sets Z when B is zero), so a store of exactly CmpReg
-    // is a producer too.
-    bool ProducerDefsExact = false;
-    for (const MachineOperand &MO : Producer->operands())
-      if (MO.isReg() && MO.getReg() == CmpReg &&
-          (MO.isDef() || (Producer->mayStore() && MO.isUse()))) {
-        ProducerDefsExact = true;
-        break;
+    // The producer's N/Z must describe EXACTLY the compared register, at its
+    // width. A super-register def is unsafe: `ldd <16-bit>; tstb` defines
+    // AD ⊇ AB but LDD's flags are the 16-bit D's, not the 8-bit B's that TSTB
+    // tests (D=0x0100 -> D!=0 yet B==0).
+    //
+    // Defining the register is not enough for an instruction that reaches
+    // memory, because an index register it addresses through is not what its
+    // flags describe:
+    //  - a store sets N/Z from the register it stores (`stb ,x+` sets Z when
+    //    B is zero), so it produces flags for that register and no other --
+    //    not for the base of `stb ,x`, and not for the X that `stb ,x+` steps;
+    //  - a load or an operation that steps its index register (`ldb ,x+`,
+    //    `addb ,-x`) defines the index register too, but its flags are the
+    //    loaded or computed value's. `ldx ,x` still qualifies: X is its value.
+    // The value register of these instructions is named by the opcode, so it
+    // is an implicit operand; the explicit register operands are the address.
+    auto IsValueReg = [&](const MachineInstr &P) {
+      if (P.mayStore() && !P.mayLoad()) {
+        for (const MachineOperand &MO : P.implicit_operands())
+          if (MO.isReg() && MO.isUse() && MO.getReg() == CmpReg)
+            return true;
+        return false;
       }
-    if (!ProducerDefsExact)
+      if (P.mayLoad() && MC6809::stepsIndexRegister(P.getDesc().TSFlags))
+        for (const MachineOperand &MO : P.explicit_operands())
+          if (MO.isReg() && MO.getReg() == CmpReg)
+            return false;
+      for (const MachineOperand &MO : P.operands())
+        if (MO.isReg() && MO.isDef() && MO.getReg() == CmpReg)
+          return true;
+      return false;
+    };
+    if (!IsValueReg(*Producer))
       continue;
 
     // Consumer search: walk forward over flag-transparent instructions to the
