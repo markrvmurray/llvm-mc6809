@@ -265,11 +265,16 @@ bool MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int
     // Carry them over so the rewritten producer keeps defining (and each
     // consumer keeps using) its phantom_carry register; dropping them orphans
     // the chain and the machine verifier flags an undefined phantom_carry use.
+    // Likewise the tag that asks the producer's expansion to copy its flag
+    // into a byte (MC6809InstrInfo::isFlagCaptureTag): dropping it left a
+    // static-stack leaf's overflow add without the copy of V it was
+    // selected to make.
     for (unsigned I = MI.getNumExplicitOperands(), E = MI.getNumOperands();
          I < E; ++I) {
       const MachineOperand &MO = MI.getOperand(I);
       if (MO.isReg() && MO.getReg().isPhysical() &&
-          MC6809::PHANTOM_CARRYRegClass.contains(MO.getReg()))
+          (MC6809::PHANTOM_CARRYRegClass.contains(MO.getReg()) ||
+           MC6809InstrInfo::isFlagCaptureTag(MI, MO)))
         MIB.add(MO);
     }
     MIB.cloneMemRefs(MI);

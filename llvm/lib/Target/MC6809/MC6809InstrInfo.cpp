@@ -2563,8 +2563,15 @@ MachineInstr *MC6809InstrInfo::foldMemoryOperandImpl(
   return MIB;
 }
 
+static unsigned memOpcodeOfStaticSym(unsigned SymOpc);
+
 std::optional<MCPhysReg>
 MC6809InstrInfo::phantomFlagOfProducer(unsigned Opcode) {
+  // A static-stack producer captures the flag its frame-slot form does.
+  // The _Sym forms were missing from this list, so a static-stack leaf's
+  // signed-overflow add never copied V into its result byte.
+  if (unsigned Mem = memOpcodeOfStaticSym(Opcode))
+    Opcode = Mem;
   switch (Opcode) {
   case MC6809::SubSetCarry_i8_Imm:    case MC6809::SubSetCarry_i16_Imm:    case MC6809::SubSetCarry_i32_Imm:
   case MC6809::SubSetCarry_i8_Mem:    case MC6809::SubSetCarry_i16_Mem:    case MC6809::SubSetCarry_i32_Mem:
@@ -7523,7 +7530,28 @@ unsigned MC6809InstrInfo::getStaticStackDirectPageOpcode(unsigned ExtOpc) const 
 #undef DP
 }
 
+static unsigned staticSymOpcodeOf(unsigned MemOpc);
+
 unsigned MC6809InstrInfo::getStaticSymOpcode(unsigned MemOpc) const {
+  return staticSymOpcodeOf(MemOpc);
+}
+
+/// The frame-slot (_Mem) pseudo a static-stack (_Sym) pseudo was rewritten
+/// from, or 0. Built once by inverting staticSymOpcodeOf, so a fact about
+/// the _Mem form -- which flag it captures, say -- carries over to its
+/// static-stack sibling without a second hand-kept list.
+static unsigned memOpcodeOfStaticSym(unsigned SymOpc) {
+  static const DenseMap<unsigned, unsigned> Inverse = [] {
+    DenseMap<unsigned, unsigned> M;
+    for (unsigned Opc = 0; Opc < MC6809::INSTRUCTION_LIST_END; ++Opc)
+      if (unsigned Sym = staticSymOpcodeOf(Opc))
+        M[Sym] = Opc;
+    return M;
+  }();
+  return Inverse.lookup(SymOpc);
+}
+
+static unsigned staticSymOpcodeOf(unsigned MemOpc) {
   switch (MemOpc) {
   case MC6809::Load_i8_Mem:        return MC6809::Load_i8_Sym;
   case MC6809::Load_i16_Mem:       return MC6809::Load_i16_Sym;
