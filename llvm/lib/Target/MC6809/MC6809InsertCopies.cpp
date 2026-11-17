@@ -7,8 +7,9 @@
 //===----------------------------------------------------------------------===//
 //
 // This file defines a post-instruction-selection cleanup pass: physical
-// result registers for the i32 test pseudos, and byte extracts placed at
-// their users.
+// result registers for the i32 test pseudos, carry branches stripped of the
+// value they named only for selection, and byte extracts placed at their
+// users.
 //
 //===----------------------------------------------------------------------===//
 
@@ -79,6 +80,25 @@ bool MC6809InsertCopies::runOnMachineFunction(MachineFunction &MF) {
       }
       default:
         break;
+      }
+    }
+
+  // A branch on a carry names the producer's carry value as an implicit use
+  // only to keep the producer alive through selection (see the selector's
+  // phantom-carry branch). Selected, the producer defines C, which the
+  // branch reads; drop the virtual use, which would otherwise stretch a
+  // live range to the block's end through PHI elimination.
+  for (MachineBasicBlock &MBB : MF)
+    for (MachineInstr &Br : MBB.terminators()) {
+      if (Br.getOpcode() != MC6809::LBlbc_OnlyC &&
+          Br.getOpcode() != MC6809::LBlbc_NoC)
+        continue;
+      for (unsigned I = Br.getNumOperands(); I-- > Br.getNumExplicitOperands();) {
+        const MachineOperand &MO = Br.getOperand(I);
+        if (MO.isReg() && MO.isUse() && MO.getReg().isVirtual()) {
+          Br.removeOperand(I);
+          Changed = true;
+        }
       }
     }
 
