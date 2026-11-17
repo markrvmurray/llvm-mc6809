@@ -53,6 +53,12 @@ template <> struct DenseMapInfo<RegPlusReg> {
   static bool isEqual(const RegPlusReg &A, const RegPlusReg &B) { return A == B; }
 };
 
+namespace MC6809 {
+/// The offset form of a constant-offset indexed instruction (the order of
+/// the Form field in MC6809InstrInfoTables.td's IndexedForms table).
+enum class IdxForm : uint8_t { O0, O5, O8, O16, O0I, O8I, O16I };
+} // namespace MC6809
+
 } // namespace llvm
 
 namespace llvm {
@@ -239,6 +245,15 @@ public:
   // 5/8/16 it stays an immediate (just the encoding width changes).
   std::pair<unsigned, int>
   getRelaxedIdxOpcode(unsigned CurrentOpcode, int64_t Offset) const;
+
+  /// The offset form of a constant-offset indexed instruction, if Opc is one.
+  static std::optional<MC6809::IdxForm> getIdxForm(unsigned Opc);
+  /// The same operation, on the same registers, in another offset form; 0 if
+  /// it has no such form. From TableGen's IndexedForms table.
+  static unsigned getIdxSibling(unsigned Opc, MC6809::IdxForm Form);
+  /// The non-indirect form that encodes Offset in the fewest bytes (0 for no
+  /// offset, then 5, 8 and 16 bits), for Opc's family; 0 if none fits.
+  static unsigned getIdxFormForOffset(unsigned Opc, int64_t Offset);
 
 protected:
   // Bug #357: report a value-preserving same-width TFRp as a copy so generic

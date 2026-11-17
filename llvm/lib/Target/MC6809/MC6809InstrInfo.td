@@ -144,6 +144,13 @@ multiclass MC6809ImmediateIndexed_P1<string Mnemonic, Opcode opcode, dag outdag,
   def _DecW2I : MC6809ImmediateIndexedDecW2Ind_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, [AW]), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
+  def _o0_form   : IndexedFormInfo<!cast<Instruction>(NAME # "_o0"),   NAME, 0>;
+  def _o5_form   : IndexedFormInfo<!cast<Instruction>(NAME # "_o5"),   NAME, 1>;
+  def _o8_form   : IndexedFormInfo<!cast<Instruction>(NAME # "_o8"),   NAME, 2>;
+  def _o16_form  : IndexedFormInfo<!cast<Instruction>(NAME # "_o16"),  NAME, 3>;
+  def _o0I_form  : IndexedFormInfo<!cast<Instruction>(NAME # "_o0I"),  NAME, 4>;
+  def _o8I_form  : IndexedFormInfo<!cast<Instruction>(NAME # "_o8I"),  NAME, 5>;
+  def _o16I_form : IndexedFormInfo<!cast<Instruction>(NAME # "_o16I"), NAME, 6>;
 }
 // ============================== PAGE MC6809Indexed_P1 ==================================
 multiclass MC6809Indexed_P1<string Mnemonic, Opcode opcode, dag outdag, list<Register> defsin, list<Register> usesin> {
@@ -213,6 +220,13 @@ multiclass MC6809Indexed_P1<string Mnemonic, Opcode opcode, dag outdag, list<Reg
   def _DecW2I : MC6809IndexedDecW2Ind_P1<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, [AW]), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
+  def _o0_form   : IndexedFormInfo<!cast<Instruction>(NAME # "_o0"),   NAME, 0>;
+  def _o5_form   : IndexedFormInfo<!cast<Instruction>(NAME # "_o5"),   NAME, 1>;
+  def _o8_form   : IndexedFormInfo<!cast<Instruction>(NAME # "_o8"),   NAME, 2>;
+  def _o16_form  : IndexedFormInfo<!cast<Instruction>(NAME # "_o16"),  NAME, 3>;
+  def _o0I_form  : IndexedFormInfo<!cast<Instruction>(NAME # "_o0I"),  NAME, 4>;
+  def _o8I_form  : IndexedFormInfo<!cast<Instruction>(NAME # "_o8I"),  NAME, 5>;
+  def _o16I_form : IndexedFormInfo<!cast<Instruction>(NAME # "_o16I"), NAME, 6>;
 }
 // ============================== Load8 multiclass ======================================
 // Produces all concrete forms of an 8-bit load: immediate, direct, indexed (all
@@ -701,6 +715,13 @@ multiclass MC6809Indexed_P2<string Mnemonic, Opcode opcode, dag outdag, list<Reg
   def _DecW2I : MC6809IndexedDecW2Ind_P2<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, [AW]), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
+  def _o0_form   : IndexedFormInfo<!cast<Instruction>(NAME # "_o0"),   NAME, 0>;
+  def _o5_form   : IndexedFormInfo<!cast<Instruction>(NAME # "_o5"),   NAME, 1>;
+  def _o8_form   : IndexedFormInfo<!cast<Instruction>(NAME # "_o8"),   NAME, 2>;
+  def _o16_form  : IndexedFormInfo<!cast<Instruction>(NAME # "_o16"),  NAME, 3>;
+  def _o0I_form  : IndexedFormInfo<!cast<Instruction>(NAME # "_o0I"),  NAME, 4>;
+  def _o8I_form  : IndexedFormInfo<!cast<Instruction>(NAME # "_o8I"),  NAME, 5>;
+  def _o16I_form : IndexedFormInfo<!cast<Instruction>(NAME # "_o16I"), NAME, 6>;
 }
 // ============================== PAGE MC6809Indexed_P3 ==================================
 multiclass MC6809Indexed_P3<string Mnemonic, Opcode opcode, dag outdag, list<Register> defsin, list<Register> usesin> {
@@ -770,6 +791,13 @@ multiclass MC6809Indexed_P3<string Mnemonic, Opcode opcode, dag outdag, list<Reg
   def _DecW2I : MC6809IndexedDecW2Ind_P3<!con(outdag, (outs)), Mnemonic, opcode, !listconcat(defsin, [AW]), !listconcat(usesin, [AW])> {
     let Predicates = [IsHD6309];
   }
+  def _o0_form   : IndexedFormInfo<!cast<Instruction>(NAME # "_o0"),   NAME, 0>;
+  def _o5_form   : IndexedFormInfo<!cast<Instruction>(NAME # "_o5"),   NAME, 1>;
+  def _o8_form   : IndexedFormInfo<!cast<Instruction>(NAME # "_o8"),   NAME, 2>;
+  def _o16_form  : IndexedFormInfo<!cast<Instruction>(NAME # "_o16"),  NAME, 3>;
+  def _o0I_form  : IndexedFormInfo<!cast<Instruction>(NAME # "_o0I"),  NAME, 4>;
+  def _o8I_form  : IndexedFormInfo<!cast<Instruction>(NAME # "_o8I"),  NAME, 5>;
+  def _o16I_form : IndexedFormInfo<!cast<Instruction>(NAME # "_o16I"), NAME, 6>;
 }
 // ============================== END PAGES ==================================
 

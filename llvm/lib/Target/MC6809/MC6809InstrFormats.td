@@ -3089,3 +3089,26 @@ class MC6809Stack_P1<dag outs, string mnemonic, Opcode opc, list<Register> defs,
     let OutOperandList = outs;
 }
 
+// One row of the IndexedForms table (MC6809InstrInfoTables.td): a
+// constant-offset indexed instruction, the family it belongs to (the defm
+// name of its indexed multiclass, e.g. "LDDi") and its offset form. The
+// indexed multiclasses emit one for each of their constant-offset forms, so
+// "the 8-bit-offset sibling of LDDi_o16" is a table lookup, not a hand table.
+class IndexedFormInfo<Instruction inst, string family, bits<3> form> {
+  Instruction Inst = inst;
+  string Family = family;
+  bits<3> Form = form; // MC6809::IdxForm: 0 o0, 1 o5, 2 o8, 3 o16, 4 o0I, 5 o8I, 6 o16I
+  // Unused here: they absorb the `let ... in { defm ... }` that wrap the
+  // indexed multiclasses, which apply to every record a multiclass makes.
+  bit mayLoad = ?;
+  bit mayStore = ?;
+  bit isCompare = ?;
+  bit isAdd = ?;
+  bit isBranch = ?;
+  bit isBarrier = ?;
+  bit isTerminator = ?;
+  bit isCall = ?;
+  bit hasSideEffects = ?;
+  bit isAsCheapAsAMove = ?;
+  list<Predicate> Predicates = [];
+}

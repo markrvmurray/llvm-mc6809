@@ -43,6 +43,39 @@ using namespace llvm;
 #define GET_INSTRINFO_CTOR_DTOR
 #include "MC6809GenInstrInfo.inc"
 
+namespace llvm::MC6809 {
+// One row of TableGen's IndexedForms table.
+struct IndexedForm {
+  unsigned Inst;
+  unsigned Family; // offset into the table's string pool
+  uint8_t Form;    // an IdxForm
+};
+#define GET_MC6809IndexedForms_DECL
+#define GET_MC6809IndexedForms_IMPL
+#include "MC6809GenSearchableTables.inc"
+} // namespace llvm::MC6809
+
+std::optional<MC6809::IdxForm> MC6809InstrInfo::getIdxForm(unsigned Opc) {
+  if (const MC6809::IndexedForm *Row = MC6809::getIndexedForm(Opc))
+    return static_cast<MC6809::IdxForm>(Row->Form);
+  return std::nullopt;
+}
+
+unsigned MC6809InstrInfo::getIdxSibling(unsigned Opc, MC6809::IdxForm Form) {
+  // (family, form) -> opcode, built once from the generated table.
+  static const DenseMap<std::pair<unsigned, unsigned>, unsigned> Siblings =
+      [] {
+        DenseMap<std::pair<unsigned, unsigned>, unsigned> M;
+        for (const MC6809::IndexedForm &Row : MC6809::MC6809IndexedForms)
+          M[{Row.Family, Row.Form}] = Row.Inst;
+        return M;
+      }();
+  const MC6809::IndexedForm *Row = MC6809::getIndexedForm(Opc);
+  if (!Row)
+    return 0;
+  return Siblings.lookup({Row->Family, static_cast<unsigned>(Form)});
+}
+
 void llvm::MC6809::emitFrameOffset(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI, const DebugLoc &DL, unsigned DestReg, unsigned SrcReg, StackOffset Offset, const TargetInstrInfo *TII, MachineInstr::MIFlag Flag) {
   int64_t Bytes = Offset.getFixed();
 
@@ -4774,62 +4807,37 @@ int MC6809InstrInfo::offsetSizeInBits(MachineOperand &OffsetOp) {
   return offsetSizeInBitsForValue(Offset);
 }
 
-// shrink an indexed-immediate opcode to its narrowest
-// valid form for the given offset. Iterates the eight (Reg, OffsetLen)
-// → Opcode tables; for any table containing CurrentOpcode at some
-// (Reg, CurLen), tries CandidateLen in {0, 5, 8} (each only if it both
-// fits the offset value and is strictly smaller than CurLen) and returns
-// the first hit. Cost is O(N) per call across ~640 entries, but the call
-// site (MC6809FinalLowering::relaxOffsets) only triggers on indexed MIs.
+unsigned MC6809InstrInfo::getIdxFormForOffset(unsigned Opc, int64_t Offset) {
+  int Need = offsetSizeInBitsForValue(Offset);
+  for (auto [Bits, Form] : {std::pair{0, MC6809::IdxForm::O0},
+                            {5, MC6809::IdxForm::O5},
+                            {8, MC6809::IdxForm::O8},
+                            {16, MC6809::IdxForm::O16}})
+    if (Need <= Bits)
+      if (unsigned Sib = getIdxSibling(Opc, Form))
+        return Sib;
+  return 0;
+}
+
+// Shrink a constant-offset indexed opcode to its narrowest form for the
+// offset: the smallest of no offset, 5, 8 and 16 bits that fits and is
+// narrower than the current form. Indirect forms are left alone.
 std::pair<unsigned, int>
 MC6809InstrInfo::getRelaxedIdxOpcode(unsigned CurrentOpcode,
                                      int64_t Offset) const {
-  // The eight tables that share the {Reg, OffsetLen} -> Opcode shape.
-  // Order matches MC6809InstrInfo's constructor.
-  const DenseMap<RegPlusOffsetLen, unsigned> *Tables[] = {
-      &LEAPtrAddImmOpcode,    &LoadIdxImmOpcode,       &StoreIdxImmOpcode,
-      &AddIdxImmOpcode,       &AddCarryIdxImmOpcode,   &SubIdxImmOpcode,
-      &SubBorrowIdxImmOpcode, &CompareIdxImmOpcode,
-  };
-
-  // Required size to encode the offset (0 / 5 / 8 / 16 / 256-too-big).
+  std::optional<MC6809::IdxForm> Cur = getIdxForm(CurrentOpcode);
+  if (!Cur || *Cur > MC6809::IdxForm::O16)
+    return {0, -1};
+  static const int Width[] = {0, 5, 8, 16};
+  int CurBits = Width[static_cast<unsigned>(*Cur)];
   int Need = offsetSizeInBitsForValue(Offset);
-  if (Need < 0 || Need > 16)
+  if (Need > 16)
     return {0, -1};
-
-  for (const auto *Table : Tables) {
-    // Find which (Reg, CurLen) maps to CurrentOpcode in this table.
-    Register Reg;
-    int CurLen = -2;
-    for (const auto &KV : *Table) {
-      if (KV.second == CurrentOpcode) {
-        Reg = KV.first.Reg;
-        CurLen = KV.first.OffsetLen;
-        break;
-      }
-    }
-    if (CurLen == -2)
-      continue;
-
-    // The "-1" key in these tables is a fallback alias for the _o16
-    // entry (see MC6809InstrInfo ctor). Treat it as 16 for comparison
-    // so we don't try to "relax" downward FROM the fallback.
-    int EffCur = (CurLen < 0) ? 16 : CurLen;
-
-    // Try strictly smaller candidates that fit the offset.
-    static const int Candidates[] = {0, 5, 8};
-    for (int Cand : Candidates) {
-      if (Cand >= EffCur)
-        break;
-      if (Need > Cand)
-        continue;
-      auto It = Table->find({Reg, Cand});
-      if (It != Table->end())
-        return {It->second, Cand};
-    }
-    // Found the table but no smaller form available: nothing to do.
-    return {0, -1};
-  }
+  for (unsigned F = 0; F < 3 && Width[F] < CurBits; ++F)
+    if (Need <= Width[F])
+      if (unsigned Sib =
+              getIdxSibling(CurrentOpcode, static_cast<MC6809::IdxForm>(F)))
+        return {Sib, Width[F]};
   return {0, -1};
 }
 
