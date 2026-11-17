@@ -2540,27 +2540,40 @@ bool MC6809LegalizerInfo::legalizeShiftRotate(LegalizerHelper &Helper, MachineRe
     if (Ty.getSizeInBits() == 16 &&
         getIConstantVRegValWithLookThrough(AmtReg, MRI))
       return true; // selectShift16 handles constant i16 shifts
-    // The high half of an i32 needs no shifting loop, only moves. GVN makes this
-    // common: on a big-endian target it reads a byte through an earlier wider
-    // load as lshr by 24, which a call would make dearer than the load it saved.
-    if (Ty == LLT::scalar(32) && MI.getOpcode() == G_LSHR)
-      if (auto Amt = getIConstantVRegValWithLookThrough(AmtReg, MRI);
-          Amt && (Amt->Value == 16 || Amt->Value == 24)) {
-        LLT S16 = LLT::scalar(16);
-        auto Halves = Builder.buildUnmerge(S16, Src);
-        Register Lo = Halves.getReg(1);
-        if (Amt->Value == 24) {
-          auto Bytes = Builder.buildUnmerge(S8, Lo);
-          Lo = Builder.buildZExt(S16, Bytes.getReg(1)).getReg(0);
+    // A 32-bit shift on the 6809 by a whole number of bytes is only byte
+    // moves: it takes the byte path below. Any other amount keeps the call:
+    // a bit-by-bit chain across four bytes, with only A and B to hold them,
+    // spilled every byte at every step and came out larger and slower.
+    // (The 6309 keeps the call for all of them: its 32-bit values live in Q.)
+    bool InlineConst32 = false;
+    if (Ty == LLT::scalar(32) &&
+        !MI.getMF()->getSubtarget<MC6809Subtarget>().has6309())
+      if (auto Amt = getIConstantVRegValWithLookThrough(AmtReg, MRI))
+        InlineConst32 = Amt->Value.getZExtValue() % 8 == 0 &&
+                        Amt->Value.getZExtValue() < 32;
+    if (!InlineConst32) {
+      // The high half of an i32 needs no shifting loop, only moves. GVN makes this
+      // common: on a big-endian target it reads a byte through an earlier wider
+      // load as lshr by 24, which a call would make dearer than the load it saved.
+      if (Ty == LLT::scalar(32) && MI.getOpcode() == G_LSHR)
+        if (auto Amt = getIConstantVRegValWithLookThrough(AmtReg, MRI);
+            Amt && (Amt->Value == 16 || Amt->Value == 24)) {
+          LLT S16 = LLT::scalar(16);
+          auto Halves = Builder.buildUnmerge(S16, Src);
+          Register Lo = Halves.getReg(1);
+          if (Amt->Value == 24) {
+            auto Bytes = Builder.buildUnmerge(S8, Lo);
+            Lo = Builder.buildZExt(S16, Bytes.getReg(1)).getReg(0);
+          }
+          Builder.buildMergeLikeInstr(Dst, {Lo, Builder.buildConstant(S16, 0).getReg(0)});
+          MI.eraseFromParent();
+          return true;
         }
-        Builder.buildMergeLikeInstr(Dst, {Lo, Builder.buildConstant(S16, 0).getReg(0)});
-        MI.eraseFromParent();
-        return true;
-      }
-    LLT AmtTy = MRI.getType(AmtReg);
-    if (AmtTy != S8)
-      MI.getOperand(2).setReg(Builder.buildTrunc(S8, AmtReg).getReg(0));
-    return shiftRotateLibcall(Helper, MRI, MI, LocObserver);
+      LLT AmtTy = MRI.getType(AmtReg);
+      if (AmtTy != S8)
+        MI.getOperand(2).setReg(Builder.buildTrunc(S8, AmtReg).getReg(0));
+      return shiftRotateLibcall(Helper, MRI, MI, LocObserver);
+    }
   }
 
   // Presently, only left shifts by one bit are supported.
@@ -2605,8 +2618,10 @@ bool MC6809LegalizerInfo::legalizeShiftRotate(LegalizerHelper &Helper, MachineRe
     case G_ROTR:
       break;
     case G_ASHR: {
-      Register Sign = Builder.buildICmp(ICmpInst::ICMP_SLT, S1, Src, Builder.buildConstant(Ty, 0)).getReg(0);
-      Fill = Builder.buildSExt(S8, Sign).getReg(0);
+      // The fill byte is the sign of the top byte: SEX it into 16 bits and
+      // take the high half, rather than compare the whole value with zero.
+      auto Ext = Builder.buildSExt(LLT::scalar(16), DstBytes.back());
+      Fill = Builder.buildUnmerge(S8, Ext).getReg(1);
       break;
     }
     case G_LSHR:
