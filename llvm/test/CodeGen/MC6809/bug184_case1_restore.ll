@@ -77,8 +77,7 @@ define void @sext_i16_to_i32_then_store(ptr %out, i16 %x) {
 ; CHECK-NEXT:    puls d
 ; CHECK-NEXT:    std ,x
 ; CHECK-NEXT:    leas 3,s
-; CHECK-NEXT:    puls y
-; CHECK-NEXT:    rts
+; CHECK-NEXT:    puls y,pc
   %ext = sext i16 %x to i32
   %neg = sub nsw i32 0, %ext
   store i32 %neg, ptr %out, align 1

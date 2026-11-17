@@ -24,16 +24,16 @@ entry:
 ; ABS:        tfr x,d
 ; ABS-NEXT:   addd d
 ; ABS-NEXT:   std d
-; ABS-NEXT:   rts
+; ABS-NEXT:   {{rts|puls .*,pc}}
 ; PIC:        tfr x,d
 ; PIC-NEXT:   addd d,pc
 ; PIC-NEXT:   std d,pc
-; PIC-NEXT:   rts
+; PIC-NEXT:   {{rts|puls .*,pc}}
 ; OS9:        lea{{[xy]}} mc6809_os9_data(d),u
 ; OS9:        tfr x,d
 ; OS9-NEXT:   addd ,{{[xy]}}
 ; OS9-NEXT:   std ,{{[xy]}}
-; OS9:        rts
+; OS9:        {{rts|puls .*,pc}}
 
 define void @rmw8(i8 %v) {
 entry:
@@ -49,7 +49,7 @@ entry:
 ; PIC-NEXT:   stb c,pc
 ; OS9:        eorb ,{{[xy]}}
 ; OS9-NEXT:   stb ,{{[xy]}}
-; CHECK-NEXT: rts
+; CHECK-NEXT: {{rts|puls .*,pc}}
 
 ; A direct-page global takes the direct-page form of the op.
 define void @rmwdp(i8 %v) {
@@ -66,7 +66,7 @@ entry:
 ; PIC-NEXT:   stb <mc6809_8(dp)
 ; OS9:        orb <mc6809_os9_data8(dp)
 ; OS9-NEXT:   stb <mc6809_os9_data8(dp)
-; CHECK-NEXT: rts
+; CHECK-NEXT: {{rts|puls .*,pc}}
 
 ; A compare exchanges its operands and its condition: `d < v` is `v > d` --
 ; and with v still in X, the compare is CMPX against the symbol.
@@ -103,7 +103,7 @@ entry:
 ; CHECK-NEXT: pshs x
 ; CHECK-NEXT: addd ,s++
 ; CHECK-NEXT: tfr d,x
-; CHECK:      rts
+; CHECK:      {{rts|puls .*,pc}}
 
 ; A value used twice keeps its register.
 define i16 @twice(i16 %v) {
@@ -118,4 +118,4 @@ entry:
 ; PIC:        ldd d,pc
 ; ABS-NOT:    addd d
 ; PIC-NOT:    addd d,pc
-; CHECK:      rts
+; CHECK:      {{rts|puls .*,pc}}

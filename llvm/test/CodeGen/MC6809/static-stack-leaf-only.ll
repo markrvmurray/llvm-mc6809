@@ -12,7 +12,7 @@ target datalayout = "E-p:16:8-p1:8:8-S8-m:e-i1:8-i8:8-i16:8-i32:8-i64:8-f32:8-f6
 ; CHECK-NOT:     pshs{{.*}}u
 ; CHECK-NOT:     ,u
 ; CHECK:         .Lleaf_sstk
-; CHECK:         rts
+; CHECK:         {{rts|puls .*,pc}}
 define internal i16 @leaf(ptr %p, i16 %n) noinline norecurse {
 entry:
   %a = alloca [8 x i16]
@@ -40,7 +40,7 @@ exit:
 ; CHECK-NOT:     _sstk
 ; CHECK:         ,s
 ; CHECK-NOT:     _sstk
-; CHECK:         rts
+; CHECK:         {{rts|puls .*,pc}}
 define internal i16 @caller(ptr %p, i16 %n) noinline norecurse {
 entry:
   %a = alloca [8 x i16]

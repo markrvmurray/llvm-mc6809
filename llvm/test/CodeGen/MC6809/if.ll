@@ -491,8 +491,7 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O0-NEXT:    std ,x
 ; O0-NEXT:    puls d
 ; O0-NEXT:    leas 17,s
-; O0-NEXT:    puls y
-; O0-NEXT:    rts
+; O0-NEXT:    puls y,pc
 ;
 ; O1-LABEL: if_s32:
 ; O1:       ; %bb.0: ; %entry
@@ -546,8 +545,7 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O1-NEXT:    ldd <__rs1
 ; O1-NEXT:    std ,x
 ; O1-NEXT:    leas 16,s
-; O1-NEXT:    puls y
-; O1-NEXT:    rts
+; O1-NEXT:    puls y,pc
 ;
 ; O2-LABEL: if_s32:
 ; O2:       ; %bb.0: ; %entry
@@ -601,8 +599,7 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O2-NEXT:    ldd <__rs1
 ; O2-NEXT:    std ,x
 ; O2-NEXT:    leas 16,s
-; O2-NEXT:    puls y
-; O2-NEXT:    rts
+; O2-NEXT:    puls y,pc
 ;
 ; O3-LABEL: if_s32:
 ; O3:       ; %bb.0: ; %entry
@@ -656,8 +653,7 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O3-NEXT:    ldd <__rs1
 ; O3-NEXT:    std ,x
 ; O3-NEXT:    leas 16,s
-; O3-NEXT:    puls y
-; O3-NEXT:    rts
+; O3-NEXT:    puls y,pc
 entry:
   %cmp = icmp sgt i32 %a, 0
   br i1 %cmp, label %return, label %if.end
@@ -785,8 +781,7 @@ define dso_local i32 @if_u32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O0-NEXT:    std ,x
 ; O0-NEXT:    puls d
 ; O0-NEXT:    leas 18,s
-; O0-NEXT:    puls y
-; O0-NEXT:    rts
+; O0-NEXT:    puls y,pc
 ;
 ; O1-LABEL: if_u32:
 ; O1:       ; %bb.0: ; %entry
@@ -836,8 +831,7 @@ define dso_local i32 @if_u32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O1-NEXT:    ldd <__rs1
 ; O1-NEXT:    std ,x
 ; O1-NEXT:    leas 18,s
-; O1-NEXT:    puls y
-; O1-NEXT:    rts
+; O1-NEXT:    puls y,pc
 ;
 ; O2-LABEL: if_u32:
 ; O2:       ; %bb.0: ; %entry
@@ -887,8 +881,7 @@ define dso_local i32 @if_u32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O2-NEXT:    ldd <__rs1
 ; O2-NEXT:    std ,x
 ; O2-NEXT:    leas 18,s
-; O2-NEXT:    puls y
-; O2-NEXT:    rts
+; O2-NEXT:    puls y,pc
 ;
 ; O3-LABEL: if_u32:
 ; O3:       ; %bb.0: ; %entry
@@ -938,8 +931,7 @@ define dso_local i32 @if_u32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O3-NEXT:    ldd <__rs1
 ; O3-NEXT:    std ,x
 ; O3-NEXT:    leas 18,s
-; O3-NEXT:    puls y
-; O3-NEXT:    rts
+; O3-NEXT:    puls y,pc
 entry:
   %cmp.not = icmp eq i32 %a, 0
   br i1 %cmp.not, label %if.end, label %return

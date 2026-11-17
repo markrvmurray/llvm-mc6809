@@ -71,4 +71,4 @@ entry:
 ; to small backend changes and would make this test flaky.
 ;
 ; CHECK-LABEL: test_8i32_live_vregs:
-; CHECK:       rts
+; CHECK:       {{rts|puls .*,pc}}

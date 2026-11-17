@@ -496,8 +496,7 @@ define dso_local i32 @div_s_i32(i32 %a, i32 %b) {
 ; O0-NEXT:    std ,x
 ; O0-NEXT:    puls d
 ; O0-NEXT:    leas 14,s
-; O0-NEXT:    puls y
-; O0-NEXT:    rts
+; O0-NEXT:    puls y,pc
 ;
 ; O1-LABEL: div_s_i32:
 ; O1:       ; %bb.0: ; %entry
@@ -537,8 +536,7 @@ define dso_local i32 @div_s_i32(i32 %a, i32 %b) {
 ; O1-NEXT:    ldd <__rs0
 ; O1-NEXT:    std ,x
 ; O1-NEXT:    leas 14,s
-; O1-NEXT:    puls y
-; O1-NEXT:    rts
+; O1-NEXT:    puls y,pc
 ;
 ; O2-LABEL: div_s_i32:
 ; O2:       ; %bb.0: ; %entry
@@ -578,8 +576,7 @@ define dso_local i32 @div_s_i32(i32 %a, i32 %b) {
 ; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    std ,x
 ; O2-NEXT:    leas 14,s
-; O2-NEXT:    puls y
-; O2-NEXT:    rts
+; O2-NEXT:    puls y,pc
 ;
 ; O3-LABEL: div_s_i32:
 ; O3:       ; %bb.0: ; %entry
@@ -619,8 +616,7 @@ define dso_local i32 @div_s_i32(i32 %a, i32 %b) {
 ; O3-NEXT:    ldd <__rs0
 ; O3-NEXT:    std ,x
 ; O3-NEXT:    leas 14,s
-; O3-NEXT:    puls y
-; O3-NEXT:    rts
+; O3-NEXT:    puls y,pc
 entry:
   %div = sdiv i32 %a, %b
   ret i32 %div
@@ -673,8 +669,7 @@ define dso_local i32 @div_u_i32(i32 %a, i32 %b) {
 ; O0-NEXT:    std ,x
 ; O0-NEXT:    puls d
 ; O0-NEXT:    leas 14,s
-; O0-NEXT:    puls y
-; O0-NEXT:    rts
+; O0-NEXT:    puls y,pc
 ;
 ; O1-LABEL: div_u_i32:
 ; O1:       ; %bb.0: ; %entry
@@ -714,8 +709,7 @@ define dso_local i32 @div_u_i32(i32 %a, i32 %b) {
 ; O1-NEXT:    ldd <__rs0
 ; O1-NEXT:    std ,x
 ; O1-NEXT:    leas 14,s
-; O1-NEXT:    puls y
-; O1-NEXT:    rts
+; O1-NEXT:    puls y,pc
 ;
 ; O2-LABEL: div_u_i32:
 ; O2:       ; %bb.0: ; %entry
@@ -755,8 +749,7 @@ define dso_local i32 @div_u_i32(i32 %a, i32 %b) {
 ; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    std ,x
 ; O2-NEXT:    leas 14,s
-; O2-NEXT:    puls y
-; O2-NEXT:    rts
+; O2-NEXT:    puls y,pc
 ;
 ; O3-LABEL: div_u_i32:
 ; O3:       ; %bb.0: ; %entry
@@ -796,8 +789,7 @@ define dso_local i32 @div_u_i32(i32 %a, i32 %b) {
 ; O3-NEXT:    ldd <__rs0
 ; O3-NEXT:    std ,x
 ; O3-NEXT:    leas 14,s
-; O3-NEXT:    puls y
-; O3-NEXT:    rts
+; O3-NEXT:    puls y,pc
 entry:
   %div = udiv i32 %a, %b
   ret i32 %div
@@ -850,8 +842,7 @@ define dso_local i32 @mod_s_i32(i32 %a, i32 %b) {
 ; O0-NEXT:    std ,x
 ; O0-NEXT:    puls d
 ; O0-NEXT:    leas 14,s
-; O0-NEXT:    puls y
-; O0-NEXT:    rts
+; O0-NEXT:    puls y,pc
 ;
 ; O1-LABEL: mod_s_i32:
 ; O1:       ; %bb.0: ; %entry
@@ -891,8 +882,7 @@ define dso_local i32 @mod_s_i32(i32 %a, i32 %b) {
 ; O1-NEXT:    ldd <__rs0
 ; O1-NEXT:    std ,x
 ; O1-NEXT:    leas 14,s
-; O1-NEXT:    puls y
-; O1-NEXT:    rts
+; O1-NEXT:    puls y,pc
 ;
 ; O2-LABEL: mod_s_i32:
 ; O2:       ; %bb.0: ; %entry
@@ -932,8 +922,7 @@ define dso_local i32 @mod_s_i32(i32 %a, i32 %b) {
 ; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    std ,x
 ; O2-NEXT:    leas 14,s
-; O2-NEXT:    puls y
-; O2-NEXT:    rts
+; O2-NEXT:    puls y,pc
 ;
 ; O3-LABEL: mod_s_i32:
 ; O3:       ; %bb.0: ; %entry
@@ -973,8 +962,7 @@ define dso_local i32 @mod_s_i32(i32 %a, i32 %b) {
 ; O3-NEXT:    ldd <__rs0
 ; O3-NEXT:    std ,x
 ; O3-NEXT:    leas 14,s
-; O3-NEXT:    puls y
-; O3-NEXT:    rts
+; O3-NEXT:    puls y,pc
 entry:
   %rem = srem i32 %a, %b
   ret i32 %rem
@@ -1027,8 +1015,7 @@ define dso_local i32 @mod_u_i32(i32 %a, i32 %b) {
 ; O0-NEXT:    std ,x
 ; O0-NEXT:    puls d
 ; O0-NEXT:    leas 14,s
-; O0-NEXT:    puls y
-; O0-NEXT:    rts
+; O0-NEXT:    puls y,pc
 ;
 ; O1-LABEL: mod_u_i32:
 ; O1:       ; %bb.0: ; %entry
@@ -1068,8 +1055,7 @@ define dso_local i32 @mod_u_i32(i32 %a, i32 %b) {
 ; O1-NEXT:    ldd <__rs0
 ; O1-NEXT:    std ,x
 ; O1-NEXT:    leas 14,s
-; O1-NEXT:    puls y
-; O1-NEXT:    rts
+; O1-NEXT:    puls y,pc
 ;
 ; O2-LABEL: mod_u_i32:
 ; O2:       ; %bb.0: ; %entry
@@ -1109,8 +1095,7 @@ define dso_local i32 @mod_u_i32(i32 %a, i32 %b) {
 ; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    std ,x
 ; O2-NEXT:    leas 14,s
-; O2-NEXT:    puls y
-; O2-NEXT:    rts
+; O2-NEXT:    puls y,pc
 ;
 ; O3-LABEL: mod_u_i32:
 ; O3:       ; %bb.0: ; %entry
@@ -1150,8 +1135,7 @@ define dso_local i32 @mod_u_i32(i32 %a, i32 %b) {
 ; O3-NEXT:    ldd <__rs0
 ; O3-NEXT:    std ,x
 ; O3-NEXT:    leas 14,s
-; O3-NEXT:    puls y
-; O3-NEXT:    rts
+; O3-NEXT:    puls y,pc
 entry:
   %rem = urem i32 %a, %b
   ret i32 %rem
@@ -1234,8 +1218,7 @@ define dso_local i64 @div_s_i64(i64 %a, i64 %b) {
 ; O0-NEXT:    std ,x
 ; O0-NEXT:    puls d
 ; O0-NEXT:    leas 26,s
-; O0-NEXT:    puls y
-; O0-NEXT:    rts
+; O0-NEXT:    puls y,pc
 ;
 ; O1-LABEL: div_s_i64:
 ; O1:       ; %bb.0: ; %entry
@@ -1299,8 +1282,7 @@ define dso_local i64 @div_s_i64(i64 %a, i64 %b) {
 ; O1-NEXT:    ldd <__rs2
 ; O1-NEXT:    std ,x
 ; O1-NEXT:    leas 26,s
-; O1-NEXT:    puls y
-; O1-NEXT:    rts
+; O1-NEXT:    puls y,pc
 ;
 ; O2-LABEL: div_s_i64:
 ; O2:       ; %bb.0: ; %entry
@@ -1364,8 +1346,7 @@ define dso_local i64 @div_s_i64(i64 %a, i64 %b) {
 ; O2-NEXT:    ldd <__rs2
 ; O2-NEXT:    std ,x
 ; O2-NEXT:    leas 26,s
-; O2-NEXT:    puls y
-; O2-NEXT:    rts
+; O2-NEXT:    puls y,pc
 ;
 ; O3-LABEL: div_s_i64:
 ; O3:       ; %bb.0: ; %entry
@@ -1429,8 +1410,7 @@ define dso_local i64 @div_s_i64(i64 %a, i64 %b) {
 ; O3-NEXT:    ldd <__rs2
 ; O3-NEXT:    std ,x
 ; O3-NEXT:    leas 26,s
-; O3-NEXT:    puls y
-; O3-NEXT:    rts
+; O3-NEXT:    puls y,pc
 entry:
   %div = sdiv i64 %a, %b
   ret i64 %div
@@ -1513,8 +1493,7 @@ define dso_local i64 @div_u_i64(i64 %a, i64 %b) {
 ; O0-NEXT:    std ,x
 ; O0-NEXT:    puls d
 ; O0-NEXT:    leas 26,s
-; O0-NEXT:    puls y
-; O0-NEXT:    rts
+; O0-NEXT:    puls y,pc
 ;
 ; O1-LABEL: div_u_i64:
 ; O1:       ; %bb.0: ; %entry
@@ -1578,8 +1557,7 @@ define dso_local i64 @div_u_i64(i64 %a, i64 %b) {
 ; O1-NEXT:    ldd <__rs2
 ; O1-NEXT:    std ,x
 ; O1-NEXT:    leas 26,s
-; O1-NEXT:    puls y
-; O1-NEXT:    rts
+; O1-NEXT:    puls y,pc
 ;
 ; O2-LABEL: div_u_i64:
 ; O2:       ; %bb.0: ; %entry
@@ -1643,8 +1621,7 @@ define dso_local i64 @div_u_i64(i64 %a, i64 %b) {
 ; O2-NEXT:    ldd <__rs2
 ; O2-NEXT:    std ,x
 ; O2-NEXT:    leas 26,s
-; O2-NEXT:    puls y
-; O2-NEXT:    rts
+; O2-NEXT:    puls y,pc
 ;
 ; O3-LABEL: div_u_i64:
 ; O3:       ; %bb.0: ; %entry
@@ -1708,8 +1685,7 @@ define dso_local i64 @div_u_i64(i64 %a, i64 %b) {
 ; O3-NEXT:    ldd <__rs2
 ; O3-NEXT:    std ,x
 ; O3-NEXT:    leas 26,s
-; O3-NEXT:    puls y
-; O3-NEXT:    rts
+; O3-NEXT:    puls y,pc
 entry:
   %div = udiv i64 %a, %b
   ret i64 %div
@@ -1792,8 +1768,7 @@ define dso_local i64 @mod_s_i64(i64 %a, i64 %b) {
 ; O0-NEXT:    std ,x
 ; O0-NEXT:    puls d
 ; O0-NEXT:    leas 26,s
-; O0-NEXT:    puls y
-; O0-NEXT:    rts
+; O0-NEXT:    puls y,pc
 ;
 ; O1-LABEL: mod_s_i64:
 ; O1:       ; %bb.0: ; %entry
@@ -1857,8 +1832,7 @@ define dso_local i64 @mod_s_i64(i64 %a, i64 %b) {
 ; O1-NEXT:    ldd <__rs2
 ; O1-NEXT:    std ,x
 ; O1-NEXT:    leas 26,s
-; O1-NEXT:    puls y
-; O1-NEXT:    rts
+; O1-NEXT:    puls y,pc
 ;
 ; O2-LABEL: mod_s_i64:
 ; O2:       ; %bb.0: ; %entry
@@ -1922,8 +1896,7 @@ define dso_local i64 @mod_s_i64(i64 %a, i64 %b) {
 ; O2-NEXT:    ldd <__rs2
 ; O2-NEXT:    std ,x
 ; O2-NEXT:    leas 26,s
-; O2-NEXT:    puls y
-; O2-NEXT:    rts
+; O2-NEXT:    puls y,pc
 ;
 ; O3-LABEL: mod_s_i64:
 ; O3:       ; %bb.0: ; %entry
@@ -1987,8 +1960,7 @@ define dso_local i64 @mod_s_i64(i64 %a, i64 %b) {
 ; O3-NEXT:    ldd <__rs2
 ; O3-NEXT:    std ,x
 ; O3-NEXT:    leas 26,s
-; O3-NEXT:    puls y
-; O3-NEXT:    rts
+; O3-NEXT:    puls y,pc
 entry:
   %rem = srem i64 %a, %b
   ret i64 %rem
@@ -2071,8 +2043,7 @@ define dso_local i64 @mod_u_i64(i64 %a, i64 %b) {
 ; O0-NEXT:    std ,x
 ; O0-NEXT:    puls d
 ; O0-NEXT:    leas 26,s
-; O0-NEXT:    puls y
-; O0-NEXT:    rts
+; O0-NEXT:    puls y,pc
 ;
 ; O1-LABEL: mod_u_i64:
 ; O1:       ; %bb.0: ; %entry
@@ -2136,8 +2107,7 @@ define dso_local i64 @mod_u_i64(i64 %a, i64 %b) {
 ; O1-NEXT:    ldd <__rs2
 ; O1-NEXT:    std ,x
 ; O1-NEXT:    leas 26,s
-; O1-NEXT:    puls y
-; O1-NEXT:    rts
+; O1-NEXT:    puls y,pc
 ;
 ; O2-LABEL: mod_u_i64:
 ; O2:       ; %bb.0: ; %entry
@@ -2201,8 +2171,7 @@ define dso_local i64 @mod_u_i64(i64 %a, i64 %b) {
 ; O2-NEXT:    ldd <__rs2
 ; O2-NEXT:    std ,x
 ; O2-NEXT:    leas 26,s
-; O2-NEXT:    puls y
-; O2-NEXT:    rts
+; O2-NEXT:    puls y,pc
 ;
 ; O3-LABEL: mod_u_i64:
 ; O3:       ; %bb.0: ; %entry
@@ -2266,8 +2235,7 @@ define dso_local i64 @mod_u_i64(i64 %a, i64 %b) {
 ; O3-NEXT:    ldd <__rs2
 ; O3-NEXT:    std ,x
 ; O3-NEXT:    leas 26,s
-; O3-NEXT:    puls y
-; O3-NEXT:    rts
+; O3-NEXT:    puls y,pc
 entry:
   %rem = urem i64 %a, %b
   ret i64 %rem

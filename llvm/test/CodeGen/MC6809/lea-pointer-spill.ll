@@ -51,8 +51,7 @@ define void @fold_through_y(i16 %v, i16 %w) {
 ; O0-NEXT:    tfr y,x
 ; O0-NEXT:    lbsr sink
 ; O0-NEXT:    leas 8,s
-; O0-NEXT:    puls y
-; O0-NEXT:    rts
+; O0-NEXT:    puls y,pc
 ;
 ; O2-LABEL: fold_through_y:
 ; O2:       ; %bb.0: ; %entry
@@ -66,8 +65,7 @@ define void @fold_through_y(i16 %v, i16 %w) {
 ; O2-NEXT:    tfr y,x
 ; O2-NEXT:    lbsr sink
 ; O2-NEXT:    leas 8,s
-; O2-NEXT:    puls y
-; O2-NEXT:    rts
+; O2-NEXT:    puls y,pc
 entry:
   %a = alloca [4 x i16], align 1
   %p0 = getelementptr [4 x i16], ptr %a, i32 0, i32 0

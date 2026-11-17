@@ -117,8 +117,7 @@ define i32 @mul_neg1(i32 %x) {
 ; O0-NEXT:    std ,x
 ; O0-NEXT:    puls d
 ; O0-NEXT:    leas 14,s
-; O0-NEXT:    puls y
-; O0-NEXT:    rts
+; O0-NEXT:    puls y,pc
 ;
 ; O2-LABEL: mul_neg1:
 ; O2:       ; %bb.0:

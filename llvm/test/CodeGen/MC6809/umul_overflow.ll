@@ -34,7 +34,7 @@
 target triple = "mc6809-unknown-unknown"
 
 ; CHECK-LABEL: umul8_sat:
-; CHECK: rts
+; CHECK: {{rts|puls .*,pc}}
 define i8 @umul8_sat(i8 %a, i8 %b) {
   %r = call { i8, i1 } @llvm.umul.with.overflow.i8(i8 %a, i8 %b)
   %v = extractvalue { i8, i1 } %r, 0
@@ -44,7 +44,7 @@ define i8 @umul8_sat(i8 %a, i8 %b) {
 }
 
 ; CHECK-LABEL: umul16_sat:
-; CHECK: rts
+; CHECK: {{rts|puls .*,pc}}
 define i16 @umul16_sat(i16 %a, i16 %b) {
   %r = call { i16, i1 } @llvm.umul.with.overflow.i16(i16 %a, i16 %b)
   %v = extractvalue { i16, i1 } %r, 0
@@ -54,7 +54,7 @@ define i16 @umul16_sat(i16 %a, i16 %b) {
 }
 
 ; CHECK-LABEL: umul32_sat:
-; CHECK: rts
+; CHECK: {{rts|puls .*,pc}}
 define i32 @umul32_sat(i32 %a, i32 %b) {
   %r = call { i32, i1 } @llvm.umul.with.overflow.i32(i32 %a, i32 %b)
   %v = extractvalue { i32, i1 } %r, 0

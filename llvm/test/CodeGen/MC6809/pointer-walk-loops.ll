@@ -30,7 +30,7 @@ done:
 ; CHECK-NEXT:  bne
 ; CHECK:       lea{{[xy]}} -1,{{[xy]}}
 ; CHECK-NOT:   <__rs
-; CHECK:       rts
+; CHECK:       {{rts|puls .*,pc}}
 
 ; strcpy: two walking pointers, byte through B; the store sets Z, no tst.
 define void @cpy(ptr %d, ptr %s) {

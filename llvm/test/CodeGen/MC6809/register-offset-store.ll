@@ -20,8 +20,7 @@ define dso_local void @sst(ptr noundef writeonly captures(none) %a, i8 noundef s
 ; MC6809-NEXT:    lda 4,u
 ; MC6809-NEXT:    sta b,x
 ; MC6809-NEXT:    tfr u,s
-; MC6809-NEXT:    puls u
-; MC6809-NEXT:    rts
+; MC6809-NEXT:    puls u,pc
 ;
 ; HD6309-LABEL: sst:
 ; HD6309:       ; %bb.0: ; %entry
@@ -30,8 +29,7 @@ define dso_local void @sst(ptr noundef writeonly captures(none) %a, i8 noundef s
 ; HD6309-NEXT:    lda 4,u
 ; HD6309-NEXT:    sta b,x
 ; HD6309-NEXT:    tfr u,s
-; HD6309-NEXT:    puls u
-; HD6309-NEXT:    rts
+; HD6309-NEXT:    puls u,pc
 entry:
   %idxprom = sext i8 %i to i16
   %arrayidx = getelementptr inbounds i8, ptr %a, i16 %idxprom
@@ -47,8 +45,7 @@ define dso_local signext i8 @sld(ptr noundef readonly captures(none) %a, i8 noun
 ; MC6809-NEXT:    tfr s,u
 ; MC6809-NEXT:    ldb b,x
 ; MC6809-NEXT:    tfr u,s
-; MC6809-NEXT:    puls u
-; MC6809-NEXT:    rts
+; MC6809-NEXT:    puls u,pc
 ;
 ; HD6309-LABEL: sld:
 ; HD6309:       ; %bb.0: ; %entry
@@ -56,8 +53,7 @@ define dso_local signext i8 @sld(ptr noundef readonly captures(none) %a, i8 noun
 ; HD6309-NEXT:    tfr s,u
 ; HD6309-NEXT:    ldb b,x
 ; HD6309-NEXT:    tfr u,s
-; HD6309-NEXT:    puls u
-; HD6309-NEXT:    rts
+; HD6309-NEXT:    puls u,pc
 entry:
   %idxprom = sext i8 %i to i16
   %arrayidx = getelementptr inbounds i8, ptr %a, i16 %idxprom

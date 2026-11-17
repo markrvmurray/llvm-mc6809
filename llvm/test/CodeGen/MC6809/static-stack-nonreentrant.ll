@@ -70,7 +70,7 @@ define dso_local i32 @ss_call(i32 noundef %seed, i16 noundef %n) local_unnamed_a
 ; SS-LABEL: ss_call:
 ; SS-NOT:     tfr{{.*}}s,u
 ; SS-NOT:     ss_call_sstk
-; SS:         rts
+; SS:         {{rts|puls .*,pc}}
 ;
 ; DYN-LABEL: ss_call:
 ; DYN-NOT:     tfr{{.*}}s,u

@@ -21,35 +21,35 @@
 target triple = "mc6809-unknown-unknown"
 
 ; CHECK-LABEL: get_i8:
-; CHECK: rts
+; CHECK: {{rts|puls .*,pc}}
 define i8 @get_i8(ptr %ap) {
   %v = va_arg ptr %ap, i8
   ret i8 %v
 }
 
 ; CHECK-LABEL: get_i16:
-; CHECK: rts
+; CHECK: {{rts|puls .*,pc}}
 define i16 @get_i16(ptr %ap) {
   %v = va_arg ptr %ap, i16
   ret i16 %v
 }
 
 ; CHECK-LABEL: get_i32:
-; CHECK: rts
+; CHECK: {{rts|puls .*,pc}}
 define i32 @get_i32(ptr %ap) {
   %v = va_arg ptr %ap, i32
   ret i32 %v
 }
 
 ; CHECK-LABEL: get_i64:
-; CHECK: rts
+; CHECK: {{rts|puls .*,pc}}
 define i64 @get_i64(ptr %ap) {
   %v = va_arg ptr %ap, i64
   ret i64 %v
 }
 
 ; CHECK-LABEL: get_ptr:
-; CHECK: rts
+; CHECK: {{rts|puls .*,pc}}
 define ptr @get_ptr(ptr %ap) {
   %v = va_arg ptr %ap, ptr
   ret ptr %v

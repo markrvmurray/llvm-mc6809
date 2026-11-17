@@ -472,6 +472,13 @@ defm TIM : ImmTestConcrete<"tim", Opcode<0x0B,1>, Opcode<0x6B,1>, Opcode<0x7B,1>
 // Stack push/pull (Page 1).
 def PSHSs : MC6809Stack_P1<(outs), "pshs", Opcode<0x34,1>, [SS], [SS]>;
 def PULSs : MC6809Stack_P1<(outs), "puls", Opcode<0x35,1>, [SS], [SS]>;
+// The same pull with PC in its list, as a function's last instruction: the
+// epilogue's pull of the saved registers and the return in one
+// (`puls y,u,pc`). The epilogue forms it; it is never parsed or decoded, PULSs
+// covers those.
+let isReturn = true, isTerminator = true, isBarrier = true,
+    isCodeGenOnly = true in
+def PULSpc : MC6809Stack_P1<(outs), "puls", Opcode<0x35,1>, [SS], [SS]>;
 def PSHUs : MC6809Stack_P1<(outs), "pshu", Opcode<0x36,1>, [SU], [SU]>;
 def PULUs : MC6809Stack_P1<(outs), "pulu", Opcode<0x37,1>, [SU], [SU]>;
 

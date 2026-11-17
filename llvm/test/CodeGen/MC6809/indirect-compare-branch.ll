@@ -22,8 +22,7 @@ define dso_local range(i16 7, 10) i16 @e_ind(ptr noundef readonly captures(none)
 ; MC6809-NEXT:    ldx #9
 ; MC6809-NEXT:  .LBB0_2: ; %select.end
 ; MC6809-NEXT:    tfr u,s
-; MC6809-NEXT:    puls u,y
-; MC6809-NEXT:    rts
+; MC6809-NEXT:    puls u,y,pc
 ;
 ; HD6309-LABEL: e_ind:
 ; HD6309:       ; %bb.0: ; %entry
@@ -37,8 +36,7 @@ define dso_local range(i16 7, 10) i16 @e_ind(ptr noundef readonly captures(none)
 ; HD6309-NEXT:    ldx #9
 ; HD6309-NEXT:  .LBB0_2: ; %select.end
 ; HD6309-NEXT:    tfr u,s
-; HD6309-NEXT:    puls u,y
-; HD6309-NEXT:    rts
+; HD6309-NEXT:    puls u,y,pc
 entry:
   %0 = load ptr, ptr %pp, align 1, !tbaa !8
   %1 = load i8, ptr %0, align 1, !tbaa !11
@@ -61,8 +59,7 @@ define dso_local range(i16 7, 10) i16 @l_ind(ptr noundef readonly captures(none)
 ; MC6809-NEXT:    ldx #9
 ; MC6809-NEXT:  .LBB1_2: ; %select.end
 ; MC6809-NEXT:    tfr u,s
-; MC6809-NEXT:    puls u,y
-; MC6809-NEXT:    rts
+; MC6809-NEXT:    puls u,y,pc
 ;
 ; HD6309-LABEL: l_ind:
 ; HD6309:       ; %bb.0: ; %entry
@@ -76,8 +73,7 @@ define dso_local range(i16 7, 10) i16 @l_ind(ptr noundef readonly captures(none)
 ; HD6309-NEXT:    ldx #9
 ; HD6309-NEXT:  .LBB1_2: ; %select.end
 ; HD6309-NEXT:    tfr u,s
-; HD6309-NEXT:    puls u,y
-; HD6309-NEXT:    rts
+; HD6309-NEXT:    puls u,y,pc
 entry:
   %0 = load ptr, ptr %pp, align 1, !tbaa !8
   %1 = load i8, ptr %0, align 1, !tbaa !11
@@ -100,8 +96,7 @@ define dso_local range(i16 7, 10) i16 @sw_ind(ptr noundef readonly captures(none
 ; MC6809-NEXT:    ldx #9
 ; MC6809-NEXT:  .LBB2_2: ; %select.end
 ; MC6809-NEXT:    tfr u,s
-; MC6809-NEXT:    puls u,y
-; MC6809-NEXT:    rts
+; MC6809-NEXT:    puls u,y,pc
 ;
 ; HD6309-LABEL: sw_ind:
 ; HD6309:       ; %bb.0: ; %entry
@@ -115,8 +110,7 @@ define dso_local range(i16 7, 10) i16 @sw_ind(ptr noundef readonly captures(none
 ; HD6309-NEXT:    ldx #9
 ; HD6309-NEXT:  .LBB2_2: ; %select.end
 ; HD6309-NEXT:    tfr u,s
-; HD6309-NEXT:    puls u,y
-; HD6309-NEXT:    rts
+; HD6309-NEXT:    puls u,y,pc
 entry:
   %0 = load ptr, ptr %pp, align 1, !tbaa !8
   %1 = load i8, ptr %0, align 1, !tbaa !11
@@ -140,8 +134,7 @@ define dso_local range(i16 7, 10) i16 @e16(ptr noundef readonly captures(none) %
 ; MC6809-NEXT:    ldx #9
 ; MC6809-NEXT:  .LBB3_2: ; %select.end
 ; MC6809-NEXT:    tfr u,s
-; MC6809-NEXT:    puls u,y
-; MC6809-NEXT:    rts
+; MC6809-NEXT:    puls u,y,pc
 ;
 ; HD6309-LABEL: e16:
 ; HD6309:       ; %bb.0: ; %entry
@@ -156,8 +149,7 @@ define dso_local range(i16 7, 10) i16 @e16(ptr noundef readonly captures(none) %
 ; HD6309-NEXT:    ldx #9
 ; HD6309-NEXT:  .LBB3_2: ; %select.end
 ; HD6309-NEXT:    tfr u,s
-; HD6309-NEXT:    puls u,y
-; HD6309-NEXT:    rts
+; HD6309-NEXT:    puls u,y,pc
 entry:
   %0 = load ptr, ptr %pp, align 1, !tbaa !12
   %1 = load i16, ptr %0, align 1, !tbaa !14

@@ -45,8 +45,7 @@ define dso_local signext i8 @mul_s_i8(i8 noundef signext %a, i8 noundef signext 
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    ldb <__rs0lo
 ; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u
-; O0-NEXT:    rts
+; O0-NEXT:    puls u,pc
 ;
 ; O1-LABEL: mul_s_i8:
 ; O1:       ; %bb.0: ; %entry
@@ -62,8 +61,7 @@ define dso_local signext i8 @mul_s_i8(i8 noundef signext %a, i8 noundef signext 
 ; O1-NEXT:    std <__rs0
 ; O1-NEXT:    ldb <__rs0lo
 ; O1-NEXT:    tfr u,s
-; O1-NEXT:    puls u
-; O1-NEXT:    rts
+; O1-NEXT:    puls u,pc
 ;
 ; O2-LABEL: mul_s_i8:
 ; O2:       ; %bb.0: ; %entry
@@ -79,8 +77,7 @@ define dso_local signext i8 @mul_s_i8(i8 noundef signext %a, i8 noundef signext 
 ; O2-NEXT:    std <__rs0
 ; O2-NEXT:    ldb <__rs0lo
 ; O2-NEXT:    tfr u,s
-; O2-NEXT:    puls u
-; O2-NEXT:    rts
+; O2-NEXT:    puls u,pc
 ;
 ; O3-LABEL: mul_s_i8:
 ; O3:       ; %bb.0: ; %entry
@@ -96,8 +93,7 @@ define dso_local signext i8 @mul_s_i8(i8 noundef signext %a, i8 noundef signext 
 ; O3-NEXT:    std <__rs0
 ; O3-NEXT:    ldb <__rs0lo
 ; O3-NEXT:    tfr u,s
-; O3-NEXT:    puls u
-; O3-NEXT:    rts
+; O3-NEXT:    puls u,pc
 entry:
   %mul = mul i8 %b, %a
   ret i8 %mul
@@ -159,8 +155,7 @@ define dso_local i16 @mul_s_i8_i16(i8 noundef signext %a, i8 noundef signext %b)
 ; O0-NEXT:    lbsr __mulhi3
 ; O0-NEXT:    leas 2,s
 ; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u
-; O0-NEXT:    rts
+; O0-NEXT:    puls u,pc
 ;
 ; O1-LABEL: mul_s_i8_i16:
 ; O1:       ; %bb.0: ; %entry
@@ -289,8 +284,7 @@ define dso_local signext i8 @mul_s_i8_consts(i8 noundef signext %a, i8 noundef s
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    ldb <__rs0lo
 ; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u
-; O0-NEXT:    rts
+; O0-NEXT:    puls u,pc
 ;
 ; O1-LABEL: mul_s_i8_consts:
 ; O1:       ; %bb.0: ; %entry
@@ -313,8 +307,7 @@ define dso_local signext i8 @mul_s_i8_consts(i8 noundef signext %a, i8 noundef s
 ; O1-NEXT:    std <__rs0
 ; O1-NEXT:    ldb <__rs0lo
 ; O1-NEXT:    tfr u,s
-; O1-NEXT:    puls u
-; O1-NEXT:    rts
+; O1-NEXT:    puls u,pc
 ;
 ; O2-LABEL: mul_s_i8_consts:
 ; O2:       ; %bb.0: ; %entry
@@ -337,8 +330,7 @@ define dso_local signext i8 @mul_s_i8_consts(i8 noundef signext %a, i8 noundef s
 ; O2-NEXT:    std <__rs0
 ; O2-NEXT:    ldb <__rs0lo
 ; O2-NEXT:    tfr u,s
-; O2-NEXT:    puls u
-; O2-NEXT:    rts
+; O2-NEXT:    puls u,pc
 ;
 ; O3-LABEL: mul_s_i8_consts:
 ; O3:       ; %bb.0: ; %entry
@@ -361,8 +353,7 @@ define dso_local signext i8 @mul_s_i8_consts(i8 noundef signext %a, i8 noundef s
 ; O3-NEXT:    std <__rs0
 ; O3-NEXT:    ldb <__rs0lo
 ; O3-NEXT:    tfr u,s
-; O3-NEXT:    puls u
-; O3-NEXT:    rts
+; O3-NEXT:    puls u,pc
 entry:
   %mul = mul i8 %a, 12
   %mul2 = mul i8 %mul, %b
@@ -410,8 +401,7 @@ define dso_local zeroext i8 @mul_u_i8(i8 noundef zeroext %a, i8 noundef zeroext 
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    ldb <__rs0lo
 ; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u
-; O0-NEXT:    rts
+; O0-NEXT:    puls u,pc
 ;
 ; O1-LABEL: mul_u_i8:
 ; O1:       ; %bb.0: ; %entry
@@ -427,8 +417,7 @@ define dso_local zeroext i8 @mul_u_i8(i8 noundef zeroext %a, i8 noundef zeroext 
 ; O1-NEXT:    std <__rs0
 ; O1-NEXT:    ldb <__rs0lo
 ; O1-NEXT:    tfr u,s
-; O1-NEXT:    puls u
-; O1-NEXT:    rts
+; O1-NEXT:    puls u,pc
 ;
 ; O2-LABEL: mul_u_i8:
 ; O2:       ; %bb.0: ; %entry
@@ -444,8 +433,7 @@ define dso_local zeroext i8 @mul_u_i8(i8 noundef zeroext %a, i8 noundef zeroext 
 ; O2-NEXT:    std <__rs0
 ; O2-NEXT:    ldb <__rs0lo
 ; O2-NEXT:    tfr u,s
-; O2-NEXT:    puls u
-; O2-NEXT:    rts
+; O2-NEXT:    puls u,pc
 ;
 ; O3-LABEL: mul_u_i8:
 ; O3:       ; %bb.0: ; %entry
@@ -461,8 +449,7 @@ define dso_local zeroext i8 @mul_u_i8(i8 noundef zeroext %a, i8 noundef zeroext 
 ; O3-NEXT:    std <__rs0
 ; O3-NEXT:    ldb <__rs0lo
 ; O3-NEXT:    tfr u,s
-; O3-NEXT:    puls u
-; O3-NEXT:    rts
+; O3-NEXT:    puls u,pc
 entry:
   %mul = mul i8 %b, %a
   ret i8 %mul
@@ -523,8 +510,7 @@ define dso_local i16 @mul_u_i8_i16(i8 noundef zeroext %a, i8 noundef zeroext %b)
 ; O0-NEXT:    lbsr __mulhi3
 ; O0-NEXT:    leas 2,s
 ; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u
-; O0-NEXT:    rts
+; O0-NEXT:    puls u,pc
 ;
 ; O1-LABEL: mul_u_i8_i16:
 ; O1:       ; %bb.0: ; %entry
@@ -653,8 +639,7 @@ define dso_local zeroext i8 @mul_u_i8_consts(i8 noundef zeroext %a, i8 noundef z
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    ldb <__rs0lo
 ; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u
-; O0-NEXT:    rts
+; O0-NEXT:    puls u,pc
 ;
 ; O1-LABEL: mul_u_i8_consts:
 ; O1:       ; %bb.0: ; %entry
@@ -677,8 +662,7 @@ define dso_local zeroext i8 @mul_u_i8_consts(i8 noundef zeroext %a, i8 noundef z
 ; O1-NEXT:    std <__rs0
 ; O1-NEXT:    ldb <__rs0lo
 ; O1-NEXT:    tfr u,s
-; O1-NEXT:    puls u
-; O1-NEXT:    rts
+; O1-NEXT:    puls u,pc
 ;
 ; O2-LABEL: mul_u_i8_consts:
 ; O2:       ; %bb.0: ; %entry
@@ -701,8 +685,7 @@ define dso_local zeroext i8 @mul_u_i8_consts(i8 noundef zeroext %a, i8 noundef z
 ; O2-NEXT:    std <__rs0
 ; O2-NEXT:    ldb <__rs0lo
 ; O2-NEXT:    tfr u,s
-; O2-NEXT:    puls u
-; O2-NEXT:    rts
+; O2-NEXT:    puls u,pc
 ;
 ; O3-LABEL: mul_u_i8_consts:
 ; O3:       ; %bb.0: ; %entry
@@ -725,8 +708,7 @@ define dso_local zeroext i8 @mul_u_i8_consts(i8 noundef zeroext %a, i8 noundef z
 ; O3-NEXT:    std <__rs0
 ; O3-NEXT:    ldb <__rs0lo
 ; O3-NEXT:    tfr u,s
-; O3-NEXT:    puls u
-; O3-NEXT:    rts
+; O3-NEXT:    puls u,pc
 entry:
   %mul = mul i8 %a, 13
   %mul2 = mul i8 %mul, %b
@@ -777,8 +759,7 @@ define dso_local i16 @mul_s_i16(i16 noundef %a, i16 noundef %b) local_unnamed_ad
 ; O0-NEXT:    lbsr __mulhi3
 ; O0-NEXT:    leas 2,s
 ; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u
-; O0-NEXT:    rts
+; O0-NEXT:    puls u,pc
 ;
 ; O1-LABEL: mul_s_i16:
 ; O1:       ; %bb.0: ; %entry
@@ -791,8 +772,7 @@ define dso_local i16 @mul_s_i16(i16 noundef %a, i16 noundef %b) local_unnamed_ad
 ; O1-NEXT:    lbsr __mulhi3
 ; O1-NEXT:    leas 2,s
 ; O1-NEXT:    tfr u,s
-; O1-NEXT:    puls u
-; O1-NEXT:    rts
+; O1-NEXT:    puls u,pc
 ;
 ; O2-LABEL: mul_s_i16:
 ; O2:       ; %bb.0: ; %entry
@@ -805,8 +785,7 @@ define dso_local i16 @mul_s_i16(i16 noundef %a, i16 noundef %b) local_unnamed_ad
 ; O2-NEXT:    lbsr __mulhi3
 ; O2-NEXT:    leas 2,s
 ; O2-NEXT:    tfr u,s
-; O2-NEXT:    puls u
-; O2-NEXT:    rts
+; O2-NEXT:    puls u,pc
 ;
 ; O3-LABEL: mul_s_i16:
 ; O3:       ; %bb.0: ; %entry
@@ -819,8 +798,7 @@ define dso_local i16 @mul_s_i16(i16 noundef %a, i16 noundef %b) local_unnamed_ad
 ; O3-NEXT:    lbsr __mulhi3
 ; O3-NEXT:    leas 2,s
 ; O3-NEXT:    tfr u,s
-; O3-NEXT:    puls u
-; O3-NEXT:    rts
+; O3-NEXT:    puls u,pc
 entry:
   %mul = mul nsw i16 %b, %a
   ret i16 %mul
@@ -874,8 +852,7 @@ define dso_local i16 @mul_s_i16_consts(i16 noundef %a, i16 noundef %b) local_unn
 ; O0-NEXT:    lbsr __mulhi3
 ; O0-NEXT:    leas 2,s
 ; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u
-; O0-NEXT:    rts
+; O0-NEXT:    puls u,pc
 ;
 ; O1-LABEL: mul_s_i16_consts:
 ; O1:       ; %bb.0: ; %entry
@@ -892,8 +869,7 @@ define dso_local i16 @mul_s_i16_consts(i16 noundef %a, i16 noundef %b) local_unn
 ; O1-NEXT:    lbsr __mulhi3
 ; O1-NEXT:    leas 2,s
 ; O1-NEXT:    tfr u,s
-; O1-NEXT:    puls u
-; O1-NEXT:    rts
+; O1-NEXT:    puls u,pc
 ;
 ; O2-LABEL: mul_s_i16_consts:
 ; O2:       ; %bb.0: ; %entry
@@ -910,8 +886,7 @@ define dso_local i16 @mul_s_i16_consts(i16 noundef %a, i16 noundef %b) local_unn
 ; O2-NEXT:    lbsr __mulhi3
 ; O2-NEXT:    leas 2,s
 ; O2-NEXT:    tfr u,s
-; O2-NEXT:    puls u
-; O2-NEXT:    rts
+; O2-NEXT:    puls u,pc
 ;
 ; O3-LABEL: mul_s_i16_consts:
 ; O3:       ; %bb.0: ; %entry
@@ -928,8 +903,7 @@ define dso_local i16 @mul_s_i16_consts(i16 noundef %a, i16 noundef %b) local_unn
 ; O3-NEXT:    lbsr __mulhi3
 ; O3-NEXT:    leas 2,s
 ; O3-NEXT:    tfr u,s
-; O3-NEXT:    puls u
-; O3-NEXT:    rts
+; O3-NEXT:    puls u,pc
 entry:
   %mul = mul nsw i16 %a, 754
   %mul1 = mul nsw i16 %mul, %b
@@ -980,8 +954,7 @@ define dso_local i16 @mul_u_i16(i16 noundef %a, i16 noundef %b) local_unnamed_ad
 ; O0-NEXT:    lbsr __mulhi3
 ; O0-NEXT:    leas 2,s
 ; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u
-; O0-NEXT:    rts
+; O0-NEXT:    puls u,pc
 ;
 ; O1-LABEL: mul_u_i16:
 ; O1:       ; %bb.0: ; %entry
@@ -994,8 +967,7 @@ define dso_local i16 @mul_u_i16(i16 noundef %a, i16 noundef %b) local_unnamed_ad
 ; O1-NEXT:    lbsr __mulhi3
 ; O1-NEXT:    leas 2,s
 ; O1-NEXT:    tfr u,s
-; O1-NEXT:    puls u
-; O1-NEXT:    rts
+; O1-NEXT:    puls u,pc
 ;
 ; O2-LABEL: mul_u_i16:
 ; O2:       ; %bb.0: ; %entry
@@ -1008,8 +980,7 @@ define dso_local i16 @mul_u_i16(i16 noundef %a, i16 noundef %b) local_unnamed_ad
 ; O2-NEXT:    lbsr __mulhi3
 ; O2-NEXT:    leas 2,s
 ; O2-NEXT:    tfr u,s
-; O2-NEXT:    puls u
-; O2-NEXT:    rts
+; O2-NEXT:    puls u,pc
 ;
 ; O3-LABEL: mul_u_i16:
 ; O3:       ; %bb.0: ; %entry
@@ -1022,8 +993,7 @@ define dso_local i16 @mul_u_i16(i16 noundef %a, i16 noundef %b) local_unnamed_ad
 ; O3-NEXT:    lbsr __mulhi3
 ; O3-NEXT:    leas 2,s
 ; O3-NEXT:    tfr u,s
-; O3-NEXT:    puls u
-; O3-NEXT:    rts
+; O3-NEXT:    puls u,pc
 entry:
   %mul = mul i16 %b, %a
   ret i16 %mul
@@ -1077,8 +1047,7 @@ define dso_local i16 @mul_u_i16_consts(i16 noundef %a, i16 noundef %b) local_unn
 ; O0-NEXT:    lbsr __mulhi3
 ; O0-NEXT:    leas 2,s
 ; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u
-; O0-NEXT:    rts
+; O0-NEXT:    puls u,pc
 ;
 ; O1-LABEL: mul_u_i16_consts:
 ; O1:       ; %bb.0: ; %entry
@@ -1095,8 +1064,7 @@ define dso_local i16 @mul_u_i16_consts(i16 noundef %a, i16 noundef %b) local_unn
 ; O1-NEXT:    lbsr __mulhi3
 ; O1-NEXT:    leas 2,s
 ; O1-NEXT:    tfr u,s
-; O1-NEXT:    puls u
-; O1-NEXT:    rts
+; O1-NEXT:    puls u,pc
 ;
 ; O2-LABEL: mul_u_i16_consts:
 ; O2:       ; %bb.0: ; %entry
@@ -1113,8 +1081,7 @@ define dso_local i16 @mul_u_i16_consts(i16 noundef %a, i16 noundef %b) local_unn
 ; O2-NEXT:    lbsr __mulhi3
 ; O2-NEXT:    leas 2,s
 ; O2-NEXT:    tfr u,s
-; O2-NEXT:    puls u
-; O2-NEXT:    rts
+; O2-NEXT:    puls u,pc
 ;
 ; O3-LABEL: mul_u_i16_consts:
 ; O3:       ; %bb.0: ; %entry
@@ -1131,8 +1098,7 @@ define dso_local i16 @mul_u_i16_consts(i16 noundef %a, i16 noundef %b) local_unn
 ; O3-NEXT:    lbsr __mulhi3
 ; O3-NEXT:    leas 2,s
 ; O3-NEXT:    tfr u,s
-; O3-NEXT:    puls u
-; O3-NEXT:    rts
+; O3-NEXT:    puls u,pc
 entry:
   %mul = mul i16 %a, 1111
   %mul1 = mul i16 %mul, %b
@@ -2372,8 +2338,7 @@ define dso_local i64 @mul_s_i64(i64 %a, i64 %b) {
 ; O0-NEXT:    std ,x
 ; O0-NEXT:    puls d
 ; O0-NEXT:    leas 26,s
-; O0-NEXT:    puls y
-; O0-NEXT:    rts
+; O0-NEXT:    puls y,pc
 ;
 ; O1-LABEL: mul_s_i64:
 ; O1:       ; %bb.0: ; %entry
@@ -2435,8 +2400,7 @@ define dso_local i64 @mul_s_i64(i64 %a, i64 %b) {
 ; O1-NEXT:    ldd <__rs2
 ; O1-NEXT:    std ,x
 ; O1-NEXT:    leas 26,s
-; O1-NEXT:    puls y
-; O1-NEXT:    rts
+; O1-NEXT:    puls y,pc
 ;
 ; O2-LABEL: mul_s_i64:
 ; O2:       ; %bb.0: ; %entry
@@ -2498,8 +2462,7 @@ define dso_local i64 @mul_s_i64(i64 %a, i64 %b) {
 ; O2-NEXT:    ldd <__rs2
 ; O2-NEXT:    std ,x
 ; O2-NEXT:    leas 26,s
-; O2-NEXT:    puls y
-; O2-NEXT:    rts
+; O2-NEXT:    puls y,pc
 ;
 ; O3-LABEL: mul_s_i64:
 ; O3:       ; %bb.0: ; %entry
@@ -2561,8 +2524,7 @@ define dso_local i64 @mul_s_i64(i64 %a, i64 %b) {
 ; O3-NEXT:    ldd <__rs2
 ; O3-NEXT:    std ,x
 ; O3-NEXT:    leas 26,s
-; O3-NEXT:    puls y
-; O3-NEXT:    rts
+; O3-NEXT:    puls y,pc
 entry:
   %mul = mul nsw i64 %b, %a
   ret i64 %mul
@@ -2686,8 +2648,7 @@ define dso_local i64 @mul_s_i64_consts(i64 %a, i64 %b) {
 ; O0-NEXT:    std ,x
 ; O0-NEXT:    puls d
 ; O0-NEXT:    leas 34,s
-; O0-NEXT:    puls y
-; O0-NEXT:    rts
+; O0-NEXT:    puls y,pc
 ;
 ; O1-LABEL: mul_s_i64_consts:
 ; O1:       ; %bb.0: ; %entry
@@ -2776,8 +2737,7 @@ define dso_local i64 @mul_s_i64_consts(i64 %a, i64 %b) {
 ; O1-NEXT:    ldd <__rs2
 ; O1-NEXT:    std ,x
 ; O1-NEXT:    leas 34,s
-; O1-NEXT:    puls y
-; O1-NEXT:    rts
+; O1-NEXT:    puls y,pc
 ;
 ; O2-LABEL: mul_s_i64_consts:
 ; O2:       ; %bb.0: ; %entry
@@ -2866,8 +2826,7 @@ define dso_local i64 @mul_s_i64_consts(i64 %a, i64 %b) {
 ; O2-NEXT:    ldd <__rs2
 ; O2-NEXT:    std ,x
 ; O2-NEXT:    leas 34,s
-; O2-NEXT:    puls y
-; O2-NEXT:    rts
+; O2-NEXT:    puls y,pc
 ;
 ; O3-LABEL: mul_s_i64_consts:
 ; O3:       ; %bb.0: ; %entry
@@ -2956,8 +2915,7 @@ define dso_local i64 @mul_s_i64_consts(i64 %a, i64 %b) {
 ; O3-NEXT:    ldd <__rs2
 ; O3-NEXT:    std ,x
 ; O3-NEXT:    leas 34,s
-; O3-NEXT:    puls y
-; O3-NEXT:    rts
+; O3-NEXT:    puls y,pc
 entry:
   %mul = mul i64 %a, 7
   %mul1 = mul i64 %mul, %b
@@ -3041,8 +2999,7 @@ define dso_local i64 @mul_u_i64(i64 %a, i64 %b) {
 ; O0-NEXT:    std ,x
 ; O0-NEXT:    puls d
 ; O0-NEXT:    leas 26,s
-; O0-NEXT:    puls y
-; O0-NEXT:    rts
+; O0-NEXT:    puls y,pc
 ;
 ; O1-LABEL: mul_u_i64:
 ; O1:       ; %bb.0: ; %entry
@@ -3104,8 +3061,7 @@ define dso_local i64 @mul_u_i64(i64 %a, i64 %b) {
 ; O1-NEXT:    ldd <__rs2
 ; O1-NEXT:    std ,x
 ; O1-NEXT:    leas 26,s
-; O1-NEXT:    puls y
-; O1-NEXT:    rts
+; O1-NEXT:    puls y,pc
 ;
 ; O2-LABEL: mul_u_i64:
 ; O2:       ; %bb.0: ; %entry
@@ -3167,8 +3123,7 @@ define dso_local i64 @mul_u_i64(i64 %a, i64 %b) {
 ; O2-NEXT:    ldd <__rs2
 ; O2-NEXT:    std ,x
 ; O2-NEXT:    leas 26,s
-; O2-NEXT:    puls y
-; O2-NEXT:    rts
+; O2-NEXT:    puls y,pc
 ;
 ; O3-LABEL: mul_u_i64:
 ; O3:       ; %bb.0: ; %entry
@@ -3230,8 +3185,7 @@ define dso_local i64 @mul_u_i64(i64 %a, i64 %b) {
 ; O3-NEXT:    ldd <__rs2
 ; O3-NEXT:    std ,x
 ; O3-NEXT:    leas 26,s
-; O3-NEXT:    puls y
-; O3-NEXT:    rts
+; O3-NEXT:    puls y,pc
 entry:
   %mul = mul i64 %b, %a
   ret i64 %mul
@@ -3355,8 +3309,7 @@ define dso_local i64 @mul_u_i64_consts(i64 %a, i64 %b) {
 ; O0-NEXT:    std ,x
 ; O0-NEXT:    puls d
 ; O0-NEXT:    leas 34,s
-; O0-NEXT:    puls y
-; O0-NEXT:    rts
+; O0-NEXT:    puls y,pc
 ;
 ; O1-LABEL: mul_u_i64_consts:
 ; O1:       ; %bb.0: ; %entry
@@ -3445,8 +3398,7 @@ define dso_local i64 @mul_u_i64_consts(i64 %a, i64 %b) {
 ; O1-NEXT:    ldd <__rs2
 ; O1-NEXT:    std ,x
 ; O1-NEXT:    leas 34,s
-; O1-NEXT:    puls y
-; O1-NEXT:    rts
+; O1-NEXT:    puls y,pc
 ;
 ; O2-LABEL: mul_u_i64_consts:
 ; O2:       ; %bb.0: ; %entry
@@ -3535,8 +3487,7 @@ define dso_local i64 @mul_u_i64_consts(i64 %a, i64 %b) {
 ; O2-NEXT:    ldd <__rs2
 ; O2-NEXT:    std ,x
 ; O2-NEXT:    leas 34,s
-; O2-NEXT:    puls y
-; O2-NEXT:    rts
+; O2-NEXT:    puls y,pc
 ;
 ; O3-LABEL: mul_u_i64_consts:
 ; O3:       ; %bb.0: ; %entry
@@ -3625,8 +3576,7 @@ define dso_local i64 @mul_u_i64_consts(i64 %a, i64 %b) {
 ; O3-NEXT:    ldd <__rs2
 ; O3-NEXT:    std ,x
 ; O3-NEXT:    leas 34,s
-; O3-NEXT:    puls y
-; O3-NEXT:    rts
+; O3-NEXT:    puls y,pc
 entry:
   %mul = mul i64 %a, 13
   %mul1 = mul i64 %mul, %b

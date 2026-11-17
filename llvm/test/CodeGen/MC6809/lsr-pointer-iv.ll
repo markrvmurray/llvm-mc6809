@@ -28,4 +28,4 @@ done:
 ; CHECK:       ld{{[ab]}} ,{{[xy]}}
 ; CHECK-NOT:   <__rs
 ; CHECK-NOT:   ld{{[ab]}} d,
-; CHECK:       rts
+; CHECK:       {{rts|puls .*,pc}}

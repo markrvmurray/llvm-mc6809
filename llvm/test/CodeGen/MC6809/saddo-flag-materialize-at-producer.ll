@@ -21,7 +21,7 @@ declare { i16, i1 } @llvm.sadd.with.overflow.i16(i16, i16)
 ; CHECK-NEXT:    lsr{{[ab]}}
 ; CHECK-NEXT:    and{{[ab]}} #1
 ; CHECK:         st{{[dw]}}
-; CHECK:         rts
+; CHECK:         {{rts|puls .*,pc}}
 define i1 @checked_add_store(i16 %a, i16 %b, ptr %p) {
   %r = call { i16, i1 } @llvm.sadd.with.overflow.i16(i16 %a, i16 %b)
   %o = extractvalue { i16, i1 } %r, 1
@@ -42,7 +42,7 @@ define i1 @checked_add_store(i16 %a, i16 %b, ptr %p) {
 ; CHECK:         tfr cc,{{[ab]}}
 ; CHECK-NEXT:    lsr{{[ab]}}
 ; CHECK-NEXT:    and{{[ab]}} #1
-; CHECK:         rts
+; CHECK:         {{rts|puls .*,pc}}
 define void @checked_add_store_flag(i16 %a, i16 %b, ptr %p, ptr %q) {
   %r = call { i16, i1 } @llvm.sadd.with.overflow.i16(i16 %a, i16 %b)
   %s = extractvalue { i16, i1 } %r, 0
@@ -59,7 +59,7 @@ define void @checked_add_store_flag(i16 %a, i16 %b, ptr %p, ptr %q) {
 ; CHECK:         tfr cc,{{[ab]}}
 ; CHECK-NEXT:    lsr{{[ab]}}
 ; CHECK-NEXT:    and{{[ab]}} #1
-; CHECK:         rts
+; CHECK:         {{rts|puls .*,pc}}
 define i16 @checked_add_select(i16 %a, i16 %b, ptr %p) {
   %r = call { i16, i1 } @llvm.sadd.with.overflow.i16(i16 %a, i16 %b)
   %s = extractvalue { i16, i1 } %r, 0

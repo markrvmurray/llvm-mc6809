@@ -21,7 +21,7 @@ declare void @take(ptr, i16)
 ; CHECK-NOT:   leas
 ; CHECK:       lbsr take
 ; CHECK-NOT:   tfr u,s
-; CHECK:       rts
+; CHECK:       {{rts|puls .*,pc}}
 define void @calls(i16 %n) {
   %buf = alloca [4 x i16]
   call void @take(ptr %buf, i16 %n)
@@ -35,7 +35,6 @@ define void @calls(i16 %n) {
 ; CHECK:       tfr s,u
 ; CHECK:       tfr u,s
 ; CHECK:       puls u
-; CHECK:       rts
 define void @dynamic(i16 %n) {
   %buf = alloca i8, i16 %n
   call void @take(ptr %buf, i16 %n)
@@ -49,7 +48,6 @@ define void @dynamic(i16 %n) {
 ; CHECK:       lbsr take
 ; CHECK:       tfr u,s
 ; CHECK:       puls u
-; CHECK:       rts
 define void @asked(i16 %n) "frame-pointer"="all" {
   %buf = alloca [4 x i16]
   call void @take(ptr %buf, i16 %n)
@@ -58,16 +56,18 @@ define void @asked(i16 %n) "frame-pointer"="all" {
 
 ; Without a frame pointer the CFA stays S-relative; the prologue says how far
 ; S has moved after the pushes and after the frame is allocated, and the
-; epilogue puts it back.
+; epilogue follows it back down. The return is folded into the last pull,
+; so nothing follows that.
 ; CHECK-LABEL: unwinds:
 ; CHECK:       .cfi_def_cfa s, 2
 ; CHECK:       pshs y
 ; CHECK-NEXT:  .cfi_def_cfa_offset 4
 ; CHECK-NEXT:  leas -12,s
 ; CHECK-NEXT:  .cfi_def_cfa_offset 16
-; CHECK:       puls y
-; CHECK-NEXT:  .cfi_def_cfa s, 2
-; CHECK-NEXT:  rts
+; CHECK:       leas 12,s
+; CHECK-NEXT:  .cfi_def_cfa_offset 4
+; CHECK-NEXT:  puls y,pc
+; CHECK-NEXT:  .Lfunc_end
 define void @unwinds(i16 %n) uwtable {
   %buf = alloca [4 x i16]
   call void @take(ptr %buf, i16 %n)
@@ -81,7 +81,7 @@ define void @unwinds(i16 %n) uwtable {
 ; CHECK:       tfr s,u
 ; CHECK:       lbsr take
 ; CHECK:       tfr u,s
-; CHECK:       puls u
+; CHECK:       puls u,pc
 define void @asked_bare() "frame-pointer"="all" {
   call void @take(ptr null, i16 0)
   ret void

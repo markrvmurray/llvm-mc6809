@@ -147,8 +147,7 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; MC6809-O1-NEXT:  .LBB0_3: ; %for.end
 ; MC6809-O1-NEXT:    ldx <__rs0
 ; MC6809-O1-NEXT:    tfr u,s
-; MC6809-O1-NEXT:    puls u
-; MC6809-O1-NEXT:    rts
+; MC6809-O1-NEXT:    puls u,pc
 ;
 ; MC6809-O2-LABEL: loop:
 ; MC6809-O2:       ; %bb.0: ; %entry
@@ -178,8 +177,7 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; MC6809-O2-NEXT:  .LBB0_3: ; %for.end
 ; MC6809-O2-NEXT:    ldx <__rs0
 ; MC6809-O2-NEXT:    tfr u,s
-; MC6809-O2-NEXT:    puls u
-; MC6809-O2-NEXT:    rts
+; MC6809-O2-NEXT:    puls u,pc
 ;
 ; MC6809-O3-LABEL: loop:
 ; MC6809-O3:       ; %bb.0: ; %entry
@@ -209,8 +207,7 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; MC6809-O3-NEXT:  .LBB0_3: ; %for.end
 ; MC6809-O3-NEXT:    ldx <__rs0
 ; MC6809-O3-NEXT:    tfr u,s
-; MC6809-O3-NEXT:    puls u
-; MC6809-O3-NEXT:    rts
+; MC6809-O3-NEXT:    puls u,pc
 ;
 ; HD6309-LABEL: loop:
 ; HD6309:       ; %bb.0: ; %entry
@@ -230,8 +227,7 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; HD6309-NEXT:  .LBB0_3: ; %for.end
 ; HD6309-NEXT:    tfr w,x
 ; HD6309-NEXT:    tfr u,s
-; HD6309-NEXT:    puls u
-; HD6309-NEXT:    rts
+; HD6309-NEXT:    puls u,pc
 entry:
   %cmp6 = icmp sgt i8 %n, 0
   br i1 %cmp6, label %for.body.preheader, label %for.end

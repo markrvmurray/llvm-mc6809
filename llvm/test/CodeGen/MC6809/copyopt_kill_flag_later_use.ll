@@ -30,4 +30,4 @@ entry:
   ret i64 %r
 }
 
-; CHECK: rts
+; CHECK: {{rts|puls .*,pc}}

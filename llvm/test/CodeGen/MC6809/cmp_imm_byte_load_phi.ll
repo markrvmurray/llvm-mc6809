@@ -111,8 +111,7 @@ define dso_local i16 @cmp_imm_byte_load_phi_no_wrap(ptr noundef readonly capture
 ; CHECK-NEXT:  .LBB0_9: ; %select.end2
 ; CHECK-NEXT:    ldx <__rs0
 ; CHECK-NEXT:    leas 4,s
-; CHECK-NEXT:    puls y
-; CHECK-NEXT:    rts
+; CHECK-NEXT:    puls y,pc
 entry:
   %0 = load i8, ptr %s, align 1
   %cmp.not = icmp eq i8 %0, 45

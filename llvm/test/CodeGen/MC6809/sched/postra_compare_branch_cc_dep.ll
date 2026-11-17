@@ -30,15 +30,14 @@ define i16 @cmp_eq_branch(i16 %x, i16 %y, i16 %z) {
 ; MC6809-O2-NEXT:    ldy 6,s
 ; MC6809-O2-NEXT:    tfr y,x
 ; MC6809-O2-NEXT:    lbsr sink_b
-; MC6809-O2-NEXT:    bra .LBB0_3
+; MC6809-O2-NEXT:    tfr y,x
+; MC6809-O2-NEXT:    puls y,pc
 ; MC6809-O2-NEXT:  .LBB0_2: ; %then
 ; MC6809-O2-NEXT:    ldy 4,s
 ; MC6809-O2-NEXT:    tfr y,x
 ; MC6809-O2-NEXT:    lbsr sink_a
-; MC6809-O2-NEXT:  .LBB0_3: ; %then
 ; MC6809-O2-NEXT:    tfr y,x
-; MC6809-O2-NEXT:    puls y
-; MC6809-O2-NEXT:    rts
+; MC6809-O2-NEXT:    puls y,pc
 entry:
   %cmp = icmp eq i16 %x, 0
   br i1 %cmp, label %then, label %else

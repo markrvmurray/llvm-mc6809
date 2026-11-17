@@ -564,6 +564,58 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &M
       Block.addLiveIn(FPReg);
 }
 
+// A return pulls the address it goes back to off S, as a pull does. When the
+// epilogue ends by pulling the callee-saved registers, add PC to that pull and
+// drop the return: `puls y,u ; rts` becomes `puls y,u,pc`, a byte and three
+// cycles shorter. An interrupt handler returns with RTI and keeps both.
+//
+// The epilogue's closing note that the CFA is back at S+2 would then come
+// before the pull, while the registers are still on the stack, so it goes.
+static void foldReturnIntoPull(MachineBasicBlock &MBB) {
+  auto Ret = MBB.getFirstTerminator();
+  if (Ret == MBB.end() || (Ret->getOpcode() != MC6809::RTSr &&
+                            Ret->getOpcode() != MC6809::ReturnImplicit))
+    return;
+  MachineBasicBlock::iterator Pull = Ret;
+  SmallVector<MachineInstr *, 1> Notes;
+  do {
+    if (Pull == MBB.begin())
+      return;
+    --Pull;
+    if (Pull->isCFIInstruction())
+      Notes.push_back(&*Pull);
+  } while (Pull->isCFIInstruction());
+  if (Pull->getOpcode() != MC6809::PULSs ||
+      !Pull->getFlag(MachineInstr::FrameDestroy))
+    return;
+  for (const MachineOperand &MO : Pull->explicit_operands())
+    if (!MO.isReg() || !MO.isDef() || MO.getReg() == MC6809::PC)
+      return;
+
+  MachineFunction &MF = *MBB.getParent();
+  const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
+  auto MIB = BuildMI(MBB, Ret, Ret->getDebugLoc(),
+                     MF.getSubtarget().getInstrInfo()->get(MC6809::PULSpc));
+  SmallVector<Register, 4> Pulled;
+  for (const MachineOperand &MO : Pull->explicit_operands()) {
+    MIB.add(MO);
+    Pulled.push_back(MO.getReg());
+  }
+  MIB.addDef(MC6809::PC);
+  // What the return read (the returned value, the restored registers) it
+  // still reads, except what this pull itself puts back.
+  for (const MachineOperand &MO : Ret->implicit_operands())
+    if (MO.isReg() && MO.isUse() && none_of(Pulled, [&](Register R) {
+          return TRI.regsOverlap(R, MO.getReg());
+        }))
+      MIB.add(MO);
+  MIB->setFlag(MachineInstr::FrameDestroy);
+  for (MachineInstr *Note : Notes)
+    Note->eraseFromParent();
+  Pull->eraseFromParent();
+  Ret->eraseFromParent();
+}
+
 void MC6809FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const {
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   const TargetRegisterInfo &TRI = *MF.getRegInfo().getTargetRegisterInfo();
@@ -591,8 +643,16 @@ void MC6809FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &M
   }
 
   // If soft stack is used, increase the soft stack pointer SP.
-  if (StackSize)
+  if (StackSize) {
     offsetSP(Builder, StackSize);
+    // Without a frame pointer the saved registers are still to be pulled:
+    // say where the CFA is until they are.
+    int64_t CSRBytes = getHardStackCalleeSavedSize(MF);
+    if (!hasFP(MF) && CSRBytes)
+      BuildCFI(MBB, Builder.getInsertPt(), {},
+               MCCFIInstruction::cfiDefCfaOffset(nullptr, CSRBytes + 2),
+               MachineInstr::FrameDestroy);
+  }
 
   // Bug #164 Tier 2: restore SP-based CFA for the unwinder at the point of
   // the return instruction.  After the epilogue unwinds the frame, CFA is
@@ -603,6 +663,8 @@ void MC6809FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &M
              MCCFIInstruction::cfiDefCfa(nullptr, SPDwarf, 2),
              MachineInstr::FrameDestroy);
   }
+
+  foldReturnIntoPull(MBB);
 }
 
 bool MC6809FrameLowering::hasFP(const MachineFunction &MF) const {

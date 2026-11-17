@@ -18,7 +18,7 @@
 target datalayout = "E-p:16:8-p1:8:8-S8-m:e-i1:8-i8:8-i16:8-i32:8-i64:8-f32:8-f64:8-a:0-n8:16"
 
 ; CHECK-LABEL: getopt_internal:
-; CHECK: rts
+; CHECK: {{rts|puls .*,pc}}
 
 define fastcc i16 @getopt_internal(ptr %argv, ptr %shortopts, ptr %longopts, ptr %data, i1 %cmp6, i32 %0, i1 %cond1) {
 entry:

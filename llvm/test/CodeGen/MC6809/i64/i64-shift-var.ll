@@ -84,8 +84,7 @@ define i64 @shl_i64_by_i8(i64 %x, i8 %n) {
 ; O0-NEXT:    std ,x
 ; O0-NEXT:    puls d
 ; O0-NEXT:    leas 20,s
-; O0-NEXT:    puls y
-; O0-NEXT:    rts
+; O0-NEXT:    puls y,pc
 ;
 ; O2-LABEL: shl_i64_by_i8:
 ; O2:       ; %bb.0:
@@ -151,8 +150,7 @@ define i64 @shl_i64_by_i8(i64 %x, i8 %n) {
 ; O2-NEXT:    ldd <__rs2
 ; O2-NEXT:    std ,x
 ; O2-NEXT:    leas 20,s
-; O2-NEXT:    puls y
-; O2-NEXT:    rts
+; O2-NEXT:    puls y,pc
   %nn = zext i8 %n to i64
   %r = shl i64 %x, %nn
   ret i64 %r
@@ -231,8 +229,7 @@ define i64 @lshr_i64_by_i16(i64 %x, i16 %n) {
 ; O0-NEXT:    std ,x
 ; O0-NEXT:    puls d
 ; O0-NEXT:    leas 20,s
-; O0-NEXT:    puls y
-; O0-NEXT:    rts
+; O0-NEXT:    puls y,pc
 ;
 ; O2-LABEL: lshr_i64_by_i16:
 ; O2:       ; %bb.0:
@@ -292,8 +289,7 @@ define i64 @lshr_i64_by_i16(i64 %x, i16 %n) {
 ; O2-NEXT:    ldd <__rs2
 ; O2-NEXT:    std ,x
 ; O2-NEXT:    leas 20,s
-; O2-NEXT:    puls y
-; O2-NEXT:    rts
+; O2-NEXT:    puls y,pc
   %nn = zext i16 %n to i64
   %r = lshr i64 %x, %nn
   ret i64 %r
@@ -372,8 +368,7 @@ define i64 @ashr_i64_by_i32(i64 %x, i32 %n) {
 ; O0-NEXT:    std ,x
 ; O0-NEXT:    puls d
 ; O0-NEXT:    leas 20,s
-; O0-NEXT:    puls y
-; O0-NEXT:    rts
+; O0-NEXT:    puls y,pc
 ;
 ; O2-LABEL: ashr_i64_by_i32:
 ; O2:       ; %bb.0:
@@ -433,8 +428,7 @@ define i64 @ashr_i64_by_i32(i64 %x, i32 %n) {
 ; O2-NEXT:    ldd <__rs2
 ; O2-NEXT:    std ,x
 ; O2-NEXT:    leas 20,s
-; O2-NEXT:    puls y
-; O2-NEXT:    rts
+; O2-NEXT:    puls y,pc
   %nn = zext i32 %n to i64
   %r = ashr i64 %x, %nn
   ret i64 %r
@@ -513,8 +507,7 @@ define i64 @shl_i64_by_i32_sext(i64 %x, i32 %n) {
 ; O0-NEXT:    std ,x
 ; O0-NEXT:    puls d
 ; O0-NEXT:    leas 20,s
-; O0-NEXT:    puls y
-; O0-NEXT:    rts
+; O0-NEXT:    puls y,pc
 ;
 ; O2-LABEL: shl_i64_by_i32_sext:
 ; O2:       ; %bb.0:
@@ -574,8 +567,7 @@ define i64 @shl_i64_by_i32_sext(i64 %x, i32 %n) {
 ; O2-NEXT:    ldd <__rs2
 ; O2-NEXT:    std ,x
 ; O2-NEXT:    leas 20,s
-; O2-NEXT:    puls y
-; O2-NEXT:    rts
+; O2-NEXT:    puls y,pc
   %nn = sext i32 %n to i64
   %r = shl i64 %x, %nn
   ret i64 %r

@@ -22,8 +22,7 @@ define i16 @caller(i16 %a, i16 %b, ptr %p) {
 ; CHECK:         ldd 14,s
 ; CHECK:         lbsr g
 ; CHECK:         leas 10,s
-; CHECK-NEXT:    puls y
-; CHECK-NEXT:    rts
+; CHECK-NEXT:    puls y,pc
   %v = load i16, ptr %p
   %r = call i16 @g(i16 %a, i16 %b, i16 %v, i16 %b)
   %s = call i16 @g(i16 %r, i16 %v, i16 %a, i16 %b)

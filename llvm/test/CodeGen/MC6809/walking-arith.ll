@@ -30,7 +30,7 @@
 ; CHECK: subb ,x+
 ; CHECK-NEXT: sbca #0
 ; CHECK-NOT: __rs
-; CHECK: rts
+; CHECK: {{rts|puls .*,pc}}
 
 ; if (*a++ != *b++)
 ; CHECK-LABEL: walkcmp:

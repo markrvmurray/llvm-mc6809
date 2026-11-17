@@ -214,8 +214,7 @@ define void @atol_like(ptr %out, ptr %s) {
 ; CHECK-NEXT:    puls d
 ; CHECK-NEXT:    std ,x
 ; CHECK-NEXT:    leas 27,s
-; CHECK-NEXT:    puls y
-; CHECK-NEXT:    rts
+; CHECK-NEXT:    puls y,pc
 entry:
   %first = load i8, ptr %s, align 1
   %is_neg = icmp eq i8 %first, 45

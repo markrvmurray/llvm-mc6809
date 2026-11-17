@@ -42,14 +42,15 @@ define i16 @cond_skip_join(i16 %x, i16 %a, i16 %b) {
 ; O2-NEXT:    pshs y
 ; O2-NEXT:    ldy 6,s
 ; O2-NEXT:    cmpx #0
-; O2-NEXT:    bne .LBB0_2
-; O2-NEXT:  ; %bb.1: ; %if.then
+; O2-NEXT:    beq .LBB0_2
+; O2-NEXT:  ; %bb.1: ; %if.end
+; O2-NEXT:    tfr y,x
+; O2-NEXT:    puls y,pc
+; O2-NEXT:  .LBB0_2: ; %if.then
 ; O2-NEXT:    ldx 4,s
 ; O2-NEXT:    lbsr sink
-; O2-NEXT:  .LBB0_2: ; %if.end
 ; O2-NEXT:    tfr y,x
-; O2-NEXT:    puls y
-; O2-NEXT:    rts
+; O2-NEXT:    puls y,pc
 entry:
   %t = icmp eq i16 %x, 0
   br i1 %t, label %if.then, label %if.end

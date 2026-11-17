@@ -87,8 +87,7 @@ define i64 @sdiv_i64_2(i64 %x) {
 ; O0-NEXT:    std ,x
 ; O0-NEXT:    puls d
 ; O0-NEXT:    leas 26,s
-; O0-NEXT:    puls y
-; O0-NEXT:    rts
+; O0-NEXT:    puls y,pc
 ;
 ; O2-LABEL: sdiv_i64_2:
 ; O2:       ; %bb.0:
@@ -238,8 +237,7 @@ define i64 @sdiv_i64_2(i64 %x) {
 ; O2-NEXT:    ldd <__rs2
 ; O2-NEXT:    std ,x
 ; O2-NEXT:    leas 44,s
-; O2-NEXT:    puls y
-; O2-NEXT:    rts
+; O2-NEXT:    puls y,pc
   %r = sdiv i64 %x, 2
   ret i64 %r
 }
@@ -319,8 +317,7 @@ define i64 @udiv_i64_4(i64 %x) {
 ; O0-NEXT:    std ,x
 ; O0-NEXT:    puls d
 ; O0-NEXT:    leas 26,s
-; O0-NEXT:    puls y
-; O0-NEXT:    rts
+; O0-NEXT:    puls y,pc
 ;
 ; O2-LABEL: udiv_i64_4:
 ; O2:       ; %bb.0:
@@ -378,8 +375,7 @@ define i64 @udiv_i64_4(i64 %x) {
 ; O2-NEXT:    ldd <__rs2
 ; O2-NEXT:    std ,x
 ; O2-NEXT:    leas 20,s
-; O2-NEXT:    puls y
-; O2-NEXT:    rts
+; O2-NEXT:    puls y,pc
   %r = udiv i64 %x, 4
   ret i64 %r
 }
@@ -457,8 +453,7 @@ define i64 @ashr_i64_1(i64 %x) {
 ; O0-NEXT:    std ,x
 ; O0-NEXT:    puls d
 ; O0-NEXT:    leas 20,s
-; O0-NEXT:    puls y
-; O0-NEXT:    rts
+; O0-NEXT:    puls y,pc
 ;
 ; O2-LABEL: ashr_i64_1:
 ; O2:       ; %bb.0:
@@ -512,8 +507,7 @@ define i64 @ashr_i64_1(i64 %x) {
 ; O2-NEXT:    ldd <__rs2
 ; O2-NEXT:    std ,x
 ; O2-NEXT:    leas 20,s
-; O2-NEXT:    puls y
-; O2-NEXT:    rts
+; O2-NEXT:    puls y,pc
   %r = ashr i64 %x, 1
   ret i64 %r
 }
@@ -591,8 +585,7 @@ define i64 @lshr_i64_2(i64 %x) {
 ; O0-NEXT:    std ,x
 ; O0-NEXT:    puls d
 ; O0-NEXT:    leas 20,s
-; O0-NEXT:    puls y
-; O0-NEXT:    rts
+; O0-NEXT:    puls y,pc
 ;
 ; O2-LABEL: lshr_i64_2:
 ; O2:       ; %bb.0:
@@ -650,8 +643,7 @@ define i64 @lshr_i64_2(i64 %x) {
 ; O2-NEXT:    ldd <__rs2
 ; O2-NEXT:    std ,x
 ; O2-NEXT:    leas 20,s
-; O2-NEXT:    puls y
-; O2-NEXT:    rts
+; O2-NEXT:    puls y,pc
   %r = lshr i64 %x, 2
   ret i64 %r
 }
@@ -729,8 +721,7 @@ define i64 @shl_i64_3(i64 %x) {
 ; O0-NEXT:    std ,x
 ; O0-NEXT:    puls d
 ; O0-NEXT:    leas 20,s
-; O0-NEXT:    puls y
-; O0-NEXT:    rts
+; O0-NEXT:    puls y,pc
 ;
 ; O2-LABEL: shl_i64_3:
 ; O2:       ; %bb.0:
@@ -784,8 +775,7 @@ define i64 @shl_i64_3(i64 %x) {
 ; O2-NEXT:    ldd <__rs2
 ; O2-NEXT:    std ,x
 ; O2-NEXT:    leas 20,s
-; O2-NEXT:    puls y
-; O2-NEXT:    rts
+; O2-NEXT:    puls y,pc
   %r = shl i64 %x, 3
   ret i64 %r
 }

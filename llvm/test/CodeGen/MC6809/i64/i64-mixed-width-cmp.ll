@@ -97,8 +97,7 @@ define i1 @eq_i64_sext_i32(i64 %a, i32 %b) {
 ; O0-NEXT:    ldb #1
 ; O0-NEXT:  .LBB0_6:
 ; O0-NEXT:    leas 21,s
-; O0-NEXT:    puls y
-; O0-NEXT:    rts
+; O0-NEXT:    puls y,pc
 ;
 ; O2-LABEL: eq_i64_sext_i32:
 ; O2:       ; %bb.0:
@@ -147,13 +146,12 @@ define i1 @eq_i64_sext_i32(i64 %a, i32 %b) {
 ; O2-NEXT:    beq .LBB0_5
 ; O2-NEXT:  ; %bb.4:
 ; O2-NEXT:    ldb #0
-; O2-NEXT:    bra .LBB0_6
+; O2-NEXT:    leas 21,s
+; O2-NEXT:    puls y,pc
 ; O2-NEXT:  .LBB0_5:
 ; O2-NEXT:    ldb #1
-; O2-NEXT:  .LBB0_6:
 ; O2-NEXT:    leas 21,s
-; O2-NEXT:    puls y
-; O2-NEXT:    rts
+; O2-NEXT:    puls y,pc
   %nn = sext i32 %b to i64
   %c = icmp eq i64 %a, %nn
   ret i1 %c
@@ -209,8 +207,7 @@ define i1 @ult_i64_zext_i16(i64 %a, i16 %b) {
 ; O0-NEXT:    ldb #1
 ; O0-NEXT:  .LBB1_3:
 ; O0-NEXT:    leas 20,s
-; O0-NEXT:    puls y
-; O0-NEXT:    rts
+; O0-NEXT:    puls y,pc
 ;
 ; O2-LABEL: ult_i64_zext_i16:
 ; O2:       ; %bb.0:
@@ -249,13 +246,12 @@ define i1 @ult_i64_zext_i16(i64 %a, i16 %b) {
 ; O2-NEXT:    beq .LBB1_2
 ; O2-NEXT:  ; %bb.1:
 ; O2-NEXT:    ldb #0
-; O2-NEXT:    bra .LBB1_3
+; O2-NEXT:    leas 20,s
+; O2-NEXT:    puls y,pc
 ; O2-NEXT:  .LBB1_2:
 ; O2-NEXT:    ldb #1
-; O2-NEXT:  .LBB1_3:
 ; O2-NEXT:    leas 20,s
-; O2-NEXT:    puls y
-; O2-NEXT:    rts
+; O2-NEXT:    puls y,pc
   %nn = zext i16 %b to i64
   %c = icmp ult i64 %a, %nn
   ret i1 %c
@@ -344,8 +340,7 @@ define i1 @sgt_i64_sext_i8(i64 %a, i8 %b) {
 ; O0-NEXT:    ldb #1
 ; O0-NEXT:  .LBB2_5:
 ; O0-NEXT:    leas 20,s
-; O0-NEXT:    puls y
-; O0-NEXT:    rts
+; O0-NEXT:    puls y,pc
 ;
 ; O2-LABEL: sgt_i64_sext_i8:
 ; O2:       ; %bb.0:
@@ -407,13 +402,12 @@ define i1 @sgt_i64_sext_i8(i64 %a, i8 %b) {
 ; O2-NEXT:    beq .LBB2_4
 ; O2-NEXT:  ; %bb.3:
 ; O2-NEXT:    ldb #0
-; O2-NEXT:    bra .LBB2_5
+; O2-NEXT:    leas 21,s
+; O2-NEXT:    puls y,pc
 ; O2-NEXT:  .LBB2_4:
 ; O2-NEXT:    ldb #1
-; O2-NEXT:  .LBB2_5:
 ; O2-NEXT:    leas 21,s
-; O2-NEXT:    puls y
-; O2-NEXT:    rts
+; O2-NEXT:    puls y,pc
   %nn = sext i8 %b to i64
   %c = icmp sgt i64 %a, %nn
   ret i1 %c
@@ -488,8 +482,7 @@ define i1 @ne_i64_zext_i8(i64 %a, i8 %b) {
 ; O0-NEXT:    ldb #1
 ; O0-NEXT:  .LBB3_3:
 ; O0-NEXT:    leas 20,s
-; O0-NEXT:    puls y
-; O0-NEXT:    rts
+; O0-NEXT:    puls y,pc
 ;
 ; O2-LABEL: ne_i64_zext_i8:
 ; O2:       ; %bb.0:
@@ -541,13 +534,12 @@ define i1 @ne_i64_zext_i8(i64 %a, i8 %b) {
 ; O2-NEXT:    bne .LBB3_2
 ; O2-NEXT:  ; %bb.1:
 ; O2-NEXT:    ldb #0
-; O2-NEXT:    bra .LBB3_3
+; O2-NEXT:    leas 20,s
+; O2-NEXT:    puls y,pc
 ; O2-NEXT:  .LBB3_2:
 ; O2-NEXT:    ldb #1
-; O2-NEXT:  .LBB3_3:
 ; O2-NEXT:    leas 20,s
-; O2-NEXT:    puls y
-; O2-NEXT:    rts
+; O2-NEXT:    puls y,pc
   %nn = zext i8 %b to i64
   %c = icmp ne i64 %a, %nn
   ret i1 %c
