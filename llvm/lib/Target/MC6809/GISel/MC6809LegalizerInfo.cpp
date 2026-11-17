@@ -2373,6 +2373,106 @@ bool MC6809LegalizerInfo::legalizeShiftRotate(LegalizerHelper &Helper, MachineRe
   // assembly libcalls in compiler-rt/lib/builtins/mc6809/ (__ashlhi3,
   // __ashrhi3, __lshrhi3, __ashlsi3, ..., __ashldi3, __ashrdi3, __lshrdi3).
   if (Ty.getSizeInBits() >= 16 && !IsRotate) {
+    // A constant i16 shift by a whole byte or more is a move of the byte
+    // that survives, then a shift of that one byte by what is left: `x << 8`
+    // is `tfr b,a ; clrb`, and `x >> 15` (the sign, in a signed division by
+    // a power of two) is a sign smear. Shifting the whole value one bit at a
+    // time cost two instructions a bit.
+    if (Ty.getSizeInBits() == 16)
+      if (auto Amt = getIConstantVRegValWithLookThrough(AmtReg, MRI);
+          Amt && Amt->Value.getZExtValue() >= 8 &&
+          Amt->Value.getZExtValue() < 16) {
+        unsigned Rest = Amt->Value.getZExtValue() - 8;
+        // The two bytes. A byte extended from 8 bits has a high byte that
+        // is 0 (zero-extended) or anything at all (any-extended): take 0
+        // for both. Left as the undefined half of a merge, it selected to a
+        // zero-extension that pins D, and a lowered bit reversal then ran
+        // out of registers.
+        Register Lo, Hi;
+        MachineInstr *SrcDef = getDefIgnoringCopies(Src, MRI);
+        if (SrcDef &&
+            (SrcDef->getOpcode() == TargetOpcode::G_ANYEXT ||
+             SrcDef->getOpcode() == TargetOpcode::G_ZEXT) &&
+            MRI.getType(SrcDef->getOperand(1).getReg()) == S8) {
+          Lo = SrcDef->getOperand(1).getReg();
+          Hi = Builder.buildConstant(S8, 0).getReg(0);
+        } else {
+          auto Bytes = Builder.buildUnmerge(S8, Src); // (lo, hi)
+          Lo = Bytes.getReg(0);
+          Hi = Bytes.getReg(1);
+        }
+        // A byte that is all sign (0 or -1, as the high half of a sign
+        // extension is) shifted right logically is an AND with a mask: the
+        // rounding bias of a signed divide by a power of two is exactly that.
+        auto IsSignByte = [&](Register V) {
+          // Look through an unmerge of a merge, which the artifact combiner
+          // has not folded yet when this runs.
+          for (;;) {
+            MachineInstr *U = getDefIgnoringCopies(V, MRI);
+            if (!U || U->getOpcode() != TargetOpcode::G_UNMERGE_VALUES)
+              break;
+            MachineInstr *M = getDefIgnoringCopies(
+                U->getOperand(U->getNumOperands() - 1).getReg(), MRI);
+            if (!M || M->getOpcode() != TargetOpcode::G_MERGE_VALUES ||
+                M->getNumOperands() != U->getNumOperands())
+              break;
+            unsigned Idx = U->findRegisterDefOperandIdx(V, nullptr);
+            V = M->getOperand(Idx + 1).getReg();
+          }
+          MachineInstr *Def = getDefIgnoringCopies(V, MRI);
+          if (!Def || Def->getOpcode() != TargetOpcode::G_UNMERGE_VALUES)
+            return false;
+          MachineInstr *Whole = getDefIgnoringCopies(
+              Def->getOperand(Def->getNumOperands() - 1).getReg(), MRI);
+          if (!Whole)
+            return false;
+          // The high byte of a byte sign-extended to 16 bits...
+          if (Whole->getOpcode() == TargetOpcode::G_SEXT &&
+              MRI.getType(Whole->getOperand(1).getReg()) == S8)
+            return Def->getOperand(1).getReg() == V;
+          // ...or either byte of a 16-bit value shifted right arithmetically
+          // by 15, not yet legalised when this shift is.
+          if (Whole->getOpcode() == TargetOpcode::G_ASHR &&
+              MRI.getType(Whole->getOperand(0).getReg()) == LLT::scalar(16))
+            if (auto A = getIConstantVRegValWithLookThrough(
+                    Whole->getOperand(2).getReg(), MRI))
+              return A->Value == 15;
+          return false;
+        };
+        auto ByteShift = [&](unsigned Opc, Register V) -> Register {
+          if (!Rest)
+            return V;
+          if (Opc == G_LSHR && IsSignByte(V))
+            return Builder
+                .buildAnd(S8, V, Builder.buildConstant(S8, 0xFF >> Rest))
+                .getReg(0);
+          return Builder
+              .buildInstr(Opc, {S8}, {V, Builder.buildConstant(S8, Rest)})
+              .getReg(0);
+        };
+        Register NewLo, NewHi;
+        switch (MI.getOpcode()) {
+        case G_SHL:
+          NewHi = ByteShift(G_SHL, Lo);
+          NewLo = Builder.buildConstant(S8, 0).getReg(0);
+          break;
+        case G_LSHR:
+          NewLo = ByteShift(G_LSHR, Hi);
+          NewHi = Builder.buildConstant(S8, 0).getReg(0);
+          break;
+        default: { // G_ASHR
+          // The sign byte: the high half of the high byte sign-extended,
+          // which is SEX.
+          auto Ext = Builder.buildSExt(LLT::scalar(16), Hi);
+          NewHi = Builder.buildUnmerge(S8, Ext).getReg(1);
+          NewLo = Rest == 7 ? NewHi : ByteShift(G_ASHR, Hi);
+          break;
+        }
+        }
+        Builder.buildMergeLikeInstr(Dst, {NewLo, NewHi});
+        MI.eraseFromParent();
+        return true;
+      }
     if (Ty.getSizeInBits() == 16 &&
         getIConstantVRegValWithLookThrough(AmtReg, MRI))
       return true; // selectShift16 handles constant i16 shifts
