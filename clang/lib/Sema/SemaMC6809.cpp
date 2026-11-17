@@ -43,8 +43,26 @@ void SemaMC6809::handleInterruptAttr(Decl *D, const ParsedAttr &AL) {
     return;
   }
 
-  if (!AL.checkExactlyNumArgs(SemaRef, 0))
+  // The argument, if there is one, names the interrupt. All but "firq" are
+  // entered with every register stacked and are handled alike.
+  if (AL.getNumArgs() > 1) {
+    Diag(AL.getLoc(), diag::err_attribute_too_many_arguments) << AL << 1;
     return;
+  }
+  StringRef Str;
+  SourceLocation ArgLoc;
+  if (AL.getNumArgs() == 1 &&
+      !SemaRef.checkStringLiteralArgumentAttr(AL, 0, Str, &ArgLoc))
+    return;
+  MC6809InterruptAttr::InterruptType Kind;
+  if (!MC6809InterruptAttr::ConvertStrToInterruptType(Str, Kind)) {
+    // An error, not the usual warning: the function would otherwise be
+    // compiled as an ordinary one and return with RTS.
+    Diag(ArgLoc, diag::err_attribute_wrong_decl_type_str)
+        << AL << AL.isRegularKeywordAttribute()
+        << "the interrupts 'irq', 'nmi', 'swi', 'swi2', 'swi3' and 'firq'";
+    return;
+  }
 
   // Nothing passes a handler arguments, and nothing reads a result.
   if ((hasFunctionProto(D) && getFunctionOrMethodNumParams(D) != 0) ||
@@ -55,7 +73,8 @@ void SemaMC6809::handleInterruptAttr(Decl *D, const ParsedAttr &AL) {
     return;
   }
 
-  handleSimpleAttribute<MC6809InterruptAttr>(*this, D, AL);
+  D->addAttr(::new (getASTContext())
+                 MC6809InterruptAttr(getASTContext(), AL, Kind));
 }
 
 // The two variants inherited with the attribute are not implemented: nothing

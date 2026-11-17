@@ -20,8 +20,32 @@ __attribute__((interrupt)) int returns_value(void);
 // os9-error@-2 {{'interrupt' attribute is not supported on 'os9'}}
 // decb-error@-3 {{'interrupt' attribute is not supported on 'decb'}}
 
-__attribute__((interrupt(1))) void with_argument(void);
-// bare-error@-1 {{'interrupt' attribute takes no arguments}}
+// The argument names the interrupt. FIRQ has a handler of its own kind; the
+// others are all entered alike.
+__attribute__((interrupt("irq"))) void on_irq(void);
+// os9-error@-1 {{'interrupt' attribute is not supported on 'os9'}}
+// decb-error@-2 {{'interrupt' attribute is not supported on 'decb'}}
+__attribute__((interrupt("nmi"))) void on_nmi(void);
+// os9-error@-1 {{'interrupt' attribute is not supported on 'os9'}}
+// decb-error@-2 {{'interrupt' attribute is not supported on 'decb'}}
+__attribute__((interrupt("swi2"))) void on_swi2(void);
+// os9-error@-1 {{'interrupt' attribute is not supported on 'os9'}}
+// decb-error@-2 {{'interrupt' attribute is not supported on 'decb'}}
+__attribute__((interrupt("firq"))) void on_firq(void);
+// os9-error@-1 {{'interrupt' attribute is not supported on 'os9'}}
+// decb-error@-2 {{'interrupt' attribute is not supported on 'decb'}}
+
+// An unknown one is an error, not a warning that leaves an ordinary function.
+__attribute__((interrupt("reset"))) void unknown_kind(void);
+// bare-error@-1 {{'interrupt' attribute only applies to the interrupts 'irq', 'nmi', 'swi', 'swi2', 'swi3' and 'firq'}}
+// os9-error@-2 {{'interrupt' attribute is not supported on 'os9'}}
+// decb-error@-3 {{'interrupt' attribute is not supported on 'decb'}}
+__attribute__((interrupt(1))) void not_a_string(void);
+// bare-error@-1 {{'interrupt' attribute requires a string}}
+// os9-error@-2 {{'interrupt' attribute is not supported on 'os9'}}
+// decb-error@-3 {{'interrupt' attribute is not supported on 'decb'}}
+__attribute__((interrupt("irq", "firq"))) void two_kinds(void);
+// bare-error@-1 {{'interrupt' attribute takes no more than 1 argument}}
 // os9-error@-2 {{'interrupt' attribute is not supported on 'os9'}}
 // decb-error@-3 {{'interrupt' attribute is not supported on 'decb'}}
 

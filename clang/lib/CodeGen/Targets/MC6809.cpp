@@ -38,8 +38,14 @@ public:
     if (GV->isDeclaration())
       return;
     const auto *FD = dyn_cast_or_null<FunctionDecl>(D);
-    if (FD && FD->hasAttr<MC6809InterruptAttr>())
-      cast<llvm::Function>(GV)->addFnAttr("interrupt");
+    if (!FD)
+      return;
+    // FIRQ stacks only PC and CC, so its handler has more to save and says
+    // so in the attribute's value.
+    if (const auto *Attr = FD->getAttr<MC6809InterruptAttr>())
+      cast<llvm::Function>(GV)->addFnAttr(
+          "interrupt",
+          Attr->getInterrupt() == MC6809InterruptAttr::FIRQ ? "firq" : "");
   }
 };
 

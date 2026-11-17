@@ -2316,7 +2316,14 @@ def M68kInterrupt : InheritableAttr, TargetSpecificAttr<TargetM68k> {
 def MC6809Interrupt : InheritableAttr, TargetSpecificAttr<TargetMC6809> {
   let Spellings = [GCC<"m6809_interrupt">];
   let Subjects = SubjectList<[Function]>;
+  // The interrupts that stack the whole register set share one kind of
+  // handler; FIRQ stacks only PC and CC and needs its own.
+  let Args = [EnumArgument<"Interrupt", "InterruptType", /*is_string=*/true,
+                           ["irq", "nmi", "swi", "swi2", "swi3", "firq", ""],
+                           ["IRQ", "NMI", "SWI", "SWI2", "SWI3", "FIRQ", "Generic"],
+                           1>];
   let ParseKind = "Interrupt";
+  let HasCustomParsing = 1;
   let Documentation = [Undocumented];
 }
 
