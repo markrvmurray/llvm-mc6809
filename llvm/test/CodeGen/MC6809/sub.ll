@@ -311,95 +311,56 @@ define dso_local i16 @sub_s_i16(i16 noundef %a, i16 noundef %b, i16 noundef %c, 
 ;
 ; O1-LABEL: sub_s_i16:
 ; O1:       ; %bb.0: ; %entry
-; O1-NEXT:    leas -3,s
-; O1-NEXT:    ldd 5,s
-; O1-NEXT:    std <__rs0
-; O1-NEXT:    lda <__rs0lo
-; O1-NEXT:    ldb <__rs0hi
-; O1-NEXT:    adda 8,s
-; O1-NEXT:    adcb 7,s
-; O1-NEXT:    adda 10,s
-; O1-NEXT:    adcb 9,s
-; O1-NEXT:    adda 12,s
-; O1-NEXT:    adcb 11,s
-; O1-NEXT:    stb 1,s ; 1-byte Folded Spill
+; O1-NEXT:    ldd 2,s
+; O1-NEXT:    addd 4,s
+; O1-NEXT:    addd 6,s
 ; O1-NEXT:    stx <__rs0
-; O1-NEXT:    ldb <__rs0lo
-; O1-NEXT:    stb 2,s ; 1-byte Folded Spill
-; O1-NEXT:    ldb <__rs0hi
-; O1-NEXT:    stb ,s ; 1-byte Folded Spill
-; O1-NEXT:    ldb 2,s ; 1-byte Folded Reload
-; O1-NEXT:    pshs a
-; O1-NEXT:    subb ,s+
-; O1-NEXT:    stb 2,s ; 1-byte Folded Spill
-; O1-NEXT:    ldb ,s ; 1-byte Folded Reload
-; O1-NEXT:    sbcb 1,s
-; O1-NEXT:    tfr b,a
-; O1-NEXT:    ldb 2,s
-; O1-NEXT:    tfr d,x
-; O1-NEXT:    leas 3,s
+; O1-NEXT:    addd 8,s
+; O1-NEXT:    pshs d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd <__rs0
+; O1-NEXT:    subb 1,s
+; O1-NEXT:    sbca ,s
+; O1-NEXT:    leas 2,s
+; O1-NEXT:    std <__rs0
+; O1-NEXT:    puls d
+; O1-NEXT:    ldx <__rs0
 ; O1-NEXT:    rts
 ;
 ; O2-LABEL: sub_s_i16:
 ; O2:       ; %bb.0: ; %entry
-; O2-NEXT:    leas -3,s
-; O2-NEXT:    ldd 5,s
-; O2-NEXT:    std <__rs0
-; O2-NEXT:    lda <__rs0lo
-; O2-NEXT:    ldb <__rs0hi
-; O2-NEXT:    adda 8,s
-; O2-NEXT:    adcb 7,s
-; O2-NEXT:    adda 10,s
-; O2-NEXT:    adcb 9,s
-; O2-NEXT:    adda 12,s
-; O2-NEXT:    adcb 11,s
-; O2-NEXT:    stb 1,s ; 1-byte Folded Spill
+; O2-NEXT:    ldd 2,s
+; O2-NEXT:    addd 4,s
+; O2-NEXT:    addd 6,s
 ; O2-NEXT:    stx <__rs0
-; O2-NEXT:    ldb <__rs0lo
-; O2-NEXT:    stb 2,s ; 1-byte Folded Spill
-; O2-NEXT:    ldb <__rs0hi
-; O2-NEXT:    stb ,s ; 1-byte Folded Spill
-; O2-NEXT:    ldb 2,s ; 1-byte Folded Reload
-; O2-NEXT:    pshs a
-; O2-NEXT:    subb ,s+
-; O2-NEXT:    stb 2,s ; 1-byte Folded Spill
-; O2-NEXT:    ldb ,s ; 1-byte Folded Reload
-; O2-NEXT:    sbcb 1,s
-; O2-NEXT:    tfr b,a
-; O2-NEXT:    ldb 2,s
-; O2-NEXT:    tfr d,x
-; O2-NEXT:    leas 3,s
+; O2-NEXT:    addd 8,s
+; O2-NEXT:    pshs d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd <__rs0
+; O2-NEXT:    subb 1,s
+; O2-NEXT:    sbca ,s
+; O2-NEXT:    leas 2,s
+; O2-NEXT:    std <__rs0
+; O2-NEXT:    puls d
+; O2-NEXT:    ldx <__rs0
 ; O2-NEXT:    rts
 ;
 ; O3-LABEL: sub_s_i16:
 ; O3:       ; %bb.0: ; %entry
-; O3-NEXT:    leas -3,s
-; O3-NEXT:    ldd 5,s
-; O3-NEXT:    std <__rs0
-; O3-NEXT:    lda <__rs0lo
-; O3-NEXT:    ldb <__rs0hi
-; O3-NEXT:    adda 8,s
-; O3-NEXT:    adcb 7,s
-; O3-NEXT:    adda 10,s
-; O3-NEXT:    adcb 9,s
-; O3-NEXT:    adda 12,s
-; O3-NEXT:    adcb 11,s
-; O3-NEXT:    stb 1,s ; 1-byte Folded Spill
+; O3-NEXT:    ldd 2,s
+; O3-NEXT:    addd 4,s
+; O3-NEXT:    addd 6,s
 ; O3-NEXT:    stx <__rs0
-; O3-NEXT:    ldb <__rs0lo
-; O3-NEXT:    stb 2,s ; 1-byte Folded Spill
-; O3-NEXT:    ldb <__rs0hi
-; O3-NEXT:    stb ,s ; 1-byte Folded Spill
-; O3-NEXT:    ldb 2,s ; 1-byte Folded Reload
-; O3-NEXT:    pshs a
-; O3-NEXT:    subb ,s+
-; O3-NEXT:    stb 2,s ; 1-byte Folded Spill
-; O3-NEXT:    ldb ,s ; 1-byte Folded Reload
-; O3-NEXT:    sbcb 1,s
-; O3-NEXT:    tfr b,a
-; O3-NEXT:    ldb 2,s
-; O3-NEXT:    tfr d,x
-; O3-NEXT:    leas 3,s
+; O3-NEXT:    addd 8,s
+; O3-NEXT:    pshs d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd <__rs0
+; O3-NEXT:    subb 1,s
+; O3-NEXT:    sbca ,s
+; O3-NEXT:    leas 2,s
+; O3-NEXT:    std <__rs0
+; O3-NEXT:    puls d
+; O3-NEXT:    ldx <__rs0
 ; O3-NEXT:    rts
 entry:
   %sub = sub nsw i16 %a, %b
@@ -489,26 +450,26 @@ define dso_local i16 @sub_s_i16_consts(i16 noundef %a, i16 noundef %b, i16 nound
 ; O1:       ; %bb.0: ; %entry
 ; O1-NEXT:    leas -2,s
 ; O1-NEXT:    stx <__rs0
-; O1-NEXT:    lda <__rs0lo
-; O1-NEXT:    ldb <__rs0hi
-; O1-NEXT:    adda 5,s
-; O1-NEXT:    adcb 4,s
-; O1-NEXT:    adda 7,s
-; O1-NEXT:    adcb 6,s
-; O1-NEXT:    adda 9,s
-; O1-NEXT:    adcb 8,s
-; O1-NEXT:    adda 11,s
-; O1-NEXT:    adcb 10,s
-; O1-NEXT:    stb ,s ; 1-byte Folded Spill
+; O1-NEXT:    ldd <__rs0
+; O1-NEXT:    addd 4,s
+; O1-NEXT:    std <__rs0
+; O1-NEXT:    addd 6,s
+; O1-NEXT:    std <__rs0
+; O1-NEXT:    addd 8,s
+; O1-NEXT:    std <__rs0
 ; O1-NEXT:    ldb #77
 ; O1-NEXT:    stb 1,s ; 1-byte Folded Spill
+; O1-NEXT:    ldd <__rs0
+; O1-NEXT:    addd 10,s
+; O1-NEXT:    std <__rs0
+; O1-NEXT:    lda <__rs0lo
+; O1-NEXT:    ldb <__rs0hi
+; O1-NEXT:    stb ,s ; 1-byte Folded Spill
 ; O1-NEXT:    ldb 1,s ; 1-byte Folded Reload
 ; O1-NEXT:    pshs a
 ; O1-NEXT:    subb ,s+
-; O1-NEXT:    stb 1,s ; 1-byte Folded Spill
 ; O1-NEXT:    lda #12
 ; O1-NEXT:    sbca ,s
-; O1-NEXT:    ldb 1,s
 ; O1-NEXT:    tfr d,x
 ; O1-NEXT:    leas 2,s
 ; O1-NEXT:    rts
@@ -517,25 +478,26 @@ define dso_local i16 @sub_s_i16_consts(i16 noundef %a, i16 noundef %b, i16 nound
 ; O2:       ; %bb.0: ; %entry
 ; O2-NEXT:    leas -2,s
 ; O2-NEXT:    stx <__rs0
-; O2-NEXT:    lda <__rs0lo
-; O2-NEXT:    ldb <__rs0hi
-; O2-NEXT:    adda 5,s
-; O2-NEXT:    adcb 4,s
-; O2-NEXT:    adda 7,s
-; O2-NEXT:    adcb 6,s
-; O2-NEXT:    adda 9,s
-; O2-NEXT:    adcb 8,s
-; O2-NEXT:    adda 11,s
-; O2-NEXT:    adcb 10,s
-; O2-NEXT:    stb ,s ; 1-byte Folded Spill
+; O2-NEXT:    ldd <__rs0
+; O2-NEXT:    addd 4,s
+; O2-NEXT:    std <__rs0
+; O2-NEXT:    addd 6,s
+; O2-NEXT:    std <__rs0
+; O2-NEXT:    addd 8,s
+; O2-NEXT:    std <__rs0
 ; O2-NEXT:    ldb #77
 ; O2-NEXT:    stb 1,s ; 1-byte Folded Spill
+; O2-NEXT:    ldd <__rs0
+; O2-NEXT:    addd 10,s
+; O2-NEXT:    std <__rs0
+; O2-NEXT:    lda <__rs0lo
+; O2-NEXT:    ldb <__rs0hi
+; O2-NEXT:    stb ,s ; 1-byte Folded Spill
+; O2-NEXT:    ldb 1,s ; 1-byte Folded Reload
 ; O2-NEXT:    pshs a
 ; O2-NEXT:    subb ,s+
-; O2-NEXT:    stb 1,s ; 1-byte Folded Spill
 ; O2-NEXT:    lda #12
 ; O2-NEXT:    sbca ,s
-; O2-NEXT:    ldb 1,s
 ; O2-NEXT:    tfr d,x
 ; O2-NEXT:    leas 2,s
 ; O2-NEXT:    rts
@@ -544,25 +506,26 @@ define dso_local i16 @sub_s_i16_consts(i16 noundef %a, i16 noundef %b, i16 nound
 ; O3:       ; %bb.0: ; %entry
 ; O3-NEXT:    leas -2,s
 ; O3-NEXT:    stx <__rs0
-; O3-NEXT:    lda <__rs0lo
-; O3-NEXT:    ldb <__rs0hi
-; O3-NEXT:    adda 5,s
-; O3-NEXT:    adcb 4,s
-; O3-NEXT:    adda 7,s
-; O3-NEXT:    adcb 6,s
-; O3-NEXT:    adda 9,s
-; O3-NEXT:    adcb 8,s
-; O3-NEXT:    adda 11,s
-; O3-NEXT:    adcb 10,s
-; O3-NEXT:    stb ,s ; 1-byte Folded Spill
+; O3-NEXT:    ldd <__rs0
+; O3-NEXT:    addd 4,s
+; O3-NEXT:    std <__rs0
+; O3-NEXT:    addd 6,s
+; O3-NEXT:    std <__rs0
+; O3-NEXT:    addd 8,s
+; O3-NEXT:    std <__rs0
 ; O3-NEXT:    ldb #77
 ; O3-NEXT:    stb 1,s ; 1-byte Folded Spill
+; O3-NEXT:    ldd <__rs0
+; O3-NEXT:    addd 10,s
+; O3-NEXT:    std <__rs0
+; O3-NEXT:    lda <__rs0lo
+; O3-NEXT:    ldb <__rs0hi
+; O3-NEXT:    stb ,s ; 1-byte Folded Spill
+; O3-NEXT:    ldb 1,s ; 1-byte Folded Reload
 ; O3-NEXT:    pshs a
 ; O3-NEXT:    subb ,s+
-; O3-NEXT:    stb 1,s ; 1-byte Folded Spill
 ; O3-NEXT:    lda #12
 ; O3-NEXT:    sbca ,s
-; O3-NEXT:    ldb 1,s
 ; O3-NEXT:    tfr d,x
 ; O3-NEXT:    leas 2,s
 ; O3-NEXT:    rts
@@ -615,95 +578,56 @@ define dso_local i16 @sub_u_i16(i16 noundef %a, i16 noundef %b, i16 noundef %c, 
 ;
 ; O1-LABEL: sub_u_i16:
 ; O1:       ; %bb.0: ; %entry
-; O1-NEXT:    leas -3,s
-; O1-NEXT:    ldd 5,s
-; O1-NEXT:    std <__rs0
-; O1-NEXT:    lda <__rs0lo
-; O1-NEXT:    ldb <__rs0hi
-; O1-NEXT:    adda 8,s
-; O1-NEXT:    adcb 7,s
-; O1-NEXT:    adda 10,s
-; O1-NEXT:    adcb 9,s
-; O1-NEXT:    adda 12,s
-; O1-NEXT:    adcb 11,s
-; O1-NEXT:    stb 1,s ; 1-byte Folded Spill
+; O1-NEXT:    ldd 2,s
+; O1-NEXT:    addd 4,s
+; O1-NEXT:    addd 6,s
 ; O1-NEXT:    stx <__rs0
-; O1-NEXT:    ldb <__rs0lo
-; O1-NEXT:    stb 2,s ; 1-byte Folded Spill
-; O1-NEXT:    ldb <__rs0hi
-; O1-NEXT:    stb ,s ; 1-byte Folded Spill
-; O1-NEXT:    ldb 2,s ; 1-byte Folded Reload
-; O1-NEXT:    pshs a
-; O1-NEXT:    subb ,s+
-; O1-NEXT:    stb 2,s ; 1-byte Folded Spill
-; O1-NEXT:    ldb ,s ; 1-byte Folded Reload
-; O1-NEXT:    sbcb 1,s
-; O1-NEXT:    tfr b,a
-; O1-NEXT:    ldb 2,s
-; O1-NEXT:    tfr d,x
-; O1-NEXT:    leas 3,s
+; O1-NEXT:    addd 8,s
+; O1-NEXT:    pshs d
+; O1-NEXT:    pshs d
+; O1-NEXT:    ldd <__rs0
+; O1-NEXT:    subb 1,s
+; O1-NEXT:    sbca ,s
+; O1-NEXT:    leas 2,s
+; O1-NEXT:    std <__rs0
+; O1-NEXT:    puls d
+; O1-NEXT:    ldx <__rs0
 ; O1-NEXT:    rts
 ;
 ; O2-LABEL: sub_u_i16:
 ; O2:       ; %bb.0: ; %entry
-; O2-NEXT:    leas -3,s
-; O2-NEXT:    ldd 5,s
-; O2-NEXT:    std <__rs0
-; O2-NEXT:    lda <__rs0lo
-; O2-NEXT:    ldb <__rs0hi
-; O2-NEXT:    adda 8,s
-; O2-NEXT:    adcb 7,s
-; O2-NEXT:    adda 10,s
-; O2-NEXT:    adcb 9,s
-; O2-NEXT:    adda 12,s
-; O2-NEXT:    adcb 11,s
-; O2-NEXT:    stb 1,s ; 1-byte Folded Spill
+; O2-NEXT:    ldd 2,s
+; O2-NEXT:    addd 4,s
+; O2-NEXT:    addd 6,s
 ; O2-NEXT:    stx <__rs0
-; O2-NEXT:    ldb <__rs0lo
-; O2-NEXT:    stb 2,s ; 1-byte Folded Spill
-; O2-NEXT:    ldb <__rs0hi
-; O2-NEXT:    stb ,s ; 1-byte Folded Spill
-; O2-NEXT:    ldb 2,s ; 1-byte Folded Reload
-; O2-NEXT:    pshs a
-; O2-NEXT:    subb ,s+
-; O2-NEXT:    stb 2,s ; 1-byte Folded Spill
-; O2-NEXT:    ldb ,s ; 1-byte Folded Reload
-; O2-NEXT:    sbcb 1,s
-; O2-NEXT:    tfr b,a
-; O2-NEXT:    ldb 2,s
-; O2-NEXT:    tfr d,x
-; O2-NEXT:    leas 3,s
+; O2-NEXT:    addd 8,s
+; O2-NEXT:    pshs d
+; O2-NEXT:    pshs d
+; O2-NEXT:    ldd <__rs0
+; O2-NEXT:    subb 1,s
+; O2-NEXT:    sbca ,s
+; O2-NEXT:    leas 2,s
+; O2-NEXT:    std <__rs0
+; O2-NEXT:    puls d
+; O2-NEXT:    ldx <__rs0
 ; O2-NEXT:    rts
 ;
 ; O3-LABEL: sub_u_i16:
 ; O3:       ; %bb.0: ; %entry
-; O3-NEXT:    leas -3,s
-; O3-NEXT:    ldd 5,s
-; O3-NEXT:    std <__rs0
-; O3-NEXT:    lda <__rs0lo
-; O3-NEXT:    ldb <__rs0hi
-; O3-NEXT:    adda 8,s
-; O3-NEXT:    adcb 7,s
-; O3-NEXT:    adda 10,s
-; O3-NEXT:    adcb 9,s
-; O3-NEXT:    adda 12,s
-; O3-NEXT:    adcb 11,s
-; O3-NEXT:    stb 1,s ; 1-byte Folded Spill
+; O3-NEXT:    ldd 2,s
+; O3-NEXT:    addd 4,s
+; O3-NEXT:    addd 6,s
 ; O3-NEXT:    stx <__rs0
-; O3-NEXT:    ldb <__rs0lo
-; O3-NEXT:    stb 2,s ; 1-byte Folded Spill
-; O3-NEXT:    ldb <__rs0hi
-; O3-NEXT:    stb ,s ; 1-byte Folded Spill
-; O3-NEXT:    ldb 2,s ; 1-byte Folded Reload
-; O3-NEXT:    pshs a
-; O3-NEXT:    subb ,s+
-; O3-NEXT:    stb 2,s ; 1-byte Folded Spill
-; O3-NEXT:    ldb ,s ; 1-byte Folded Reload
-; O3-NEXT:    sbcb 1,s
-; O3-NEXT:    tfr b,a
-; O3-NEXT:    ldb 2,s
-; O3-NEXT:    tfr d,x
-; O3-NEXT:    leas 3,s
+; O3-NEXT:    addd 8,s
+; O3-NEXT:    pshs d
+; O3-NEXT:    pshs d
+; O3-NEXT:    ldd <__rs0
+; O3-NEXT:    subb 1,s
+; O3-NEXT:    sbca ,s
+; O3-NEXT:    leas 2,s
+; O3-NEXT:    std <__rs0
+; O3-NEXT:    puls d
+; O3-NEXT:    ldx <__rs0
 ; O3-NEXT:    rts
 entry:
   %sub = sub i16 %a, %b
@@ -793,14 +717,15 @@ define dso_local i16 @sub_u_i16_consts(i16 noundef %a, i16 noundef %b, i16 nound
 ; O1:       ; %bb.0: ; %entry
 ; O1-NEXT:    leas -1,s
 ; O1-NEXT:    stx <__rs0
+; O1-NEXT:    ldd <__rs0
+; O1-NEXT:    addd 3,s
+; O1-NEXT:    std <__rs0
+; O1-NEXT:    addd 5,s
+; O1-NEXT:    std <__rs0
+; O1-NEXT:    addd 7,s
+; O1-NEXT:    std <__rs0
 ; O1-NEXT:    ldb <__rs0lo
 ; O1-NEXT:    lda <__rs0hi
-; O1-NEXT:    addb 4,s
-; O1-NEXT:    adca 3,s
-; O1-NEXT:    addb 6,s
-; O1-NEXT:    adca 5,s
-; O1-NEXT:    addb 8,s
-; O1-NEXT:    adca 7,s
 ; O1-NEXT:    addb 10,s
 ; O1-NEXT:    adca 9,s
 ; O1-NEXT:    sta ,s ; 1-byte Folded Spill
@@ -816,14 +741,15 @@ define dso_local i16 @sub_u_i16_consts(i16 noundef %a, i16 noundef %b, i16 nound
 ; O2:       ; %bb.0: ; %entry
 ; O2-NEXT:    leas -1,s
 ; O2-NEXT:    stx <__rs0
+; O2-NEXT:    ldd <__rs0
+; O2-NEXT:    addd 3,s
+; O2-NEXT:    std <__rs0
+; O2-NEXT:    addd 5,s
+; O2-NEXT:    std <__rs0
+; O2-NEXT:    addd 7,s
+; O2-NEXT:    std <__rs0
 ; O2-NEXT:    ldb <__rs0lo
 ; O2-NEXT:    lda <__rs0hi
-; O2-NEXT:    addb 4,s
-; O2-NEXT:    adca 3,s
-; O2-NEXT:    addb 6,s
-; O2-NEXT:    adca 5,s
-; O2-NEXT:    addb 8,s
-; O2-NEXT:    adca 7,s
 ; O2-NEXT:    addb 10,s
 ; O2-NEXT:    adca 9,s
 ; O2-NEXT:    sta ,s ; 1-byte Folded Spill
@@ -839,14 +765,15 @@ define dso_local i16 @sub_u_i16_consts(i16 noundef %a, i16 noundef %b, i16 nound
 ; O3:       ; %bb.0: ; %entry
 ; O3-NEXT:    leas -1,s
 ; O3-NEXT:    stx <__rs0
+; O3-NEXT:    ldd <__rs0
+; O3-NEXT:    addd 3,s
+; O3-NEXT:    std <__rs0
+; O3-NEXT:    addd 5,s
+; O3-NEXT:    std <__rs0
+; O3-NEXT:    addd 7,s
+; O3-NEXT:    std <__rs0
 ; O3-NEXT:    ldb <__rs0lo
 ; O3-NEXT:    lda <__rs0hi
-; O3-NEXT:    addb 4,s
-; O3-NEXT:    adca 3,s
-; O3-NEXT:    addb 6,s
-; O3-NEXT:    adca 5,s
-; O3-NEXT:    addb 8,s
-; O3-NEXT:    adca 7,s
 ; O3-NEXT:    addb 10,s
 ; O3-NEXT:    adca 9,s
 ; O3-NEXT:    sta ,s ; 1-byte Folded Spill

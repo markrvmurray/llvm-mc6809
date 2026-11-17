@@ -295,49 +295,31 @@ define dso_local i16 @add_s_i16(i16 noundef %a, i16 noundef %b, i16 noundef %c, 
 ;
 ; O1-LABEL: add_s_i16:
 ; O1:       ; %bb.0: ; %entry
-; O1-NEXT:    stx <__rs0
-; O1-NEXT:    ldb <__rs0lo
-; O1-NEXT:    lda <__rs0hi
-; O1-NEXT:    addb 3,s
-; O1-NEXT:    adca 2,s
-; O1-NEXT:    addb 5,s
-; O1-NEXT:    adca 4,s
-; O1-NEXT:    addb 7,s
-; O1-NEXT:    adca 6,s
-; O1-NEXT:    addb 9,s
-; O1-NEXT:    adca 8,s
+; O1-NEXT:    tfr x,d
+; O1-NEXT:    addd 2,s
+; O1-NEXT:    addd 4,s
+; O1-NEXT:    addd 6,s
+; O1-NEXT:    addd 8,s
 ; O1-NEXT:    tfr d,x
 ; O1-NEXT:    rts
 ;
 ; O2-LABEL: add_s_i16:
 ; O2:       ; %bb.0: ; %entry
-; O2-NEXT:    stx <__rs0
-; O2-NEXT:    ldb <__rs0lo
-; O2-NEXT:    lda <__rs0hi
-; O2-NEXT:    addb 3,s
-; O2-NEXT:    adca 2,s
-; O2-NEXT:    addb 5,s
-; O2-NEXT:    adca 4,s
-; O2-NEXT:    addb 7,s
-; O2-NEXT:    adca 6,s
-; O2-NEXT:    addb 9,s
-; O2-NEXT:    adca 8,s
+; O2-NEXT:    tfr x,d
+; O2-NEXT:    addd 2,s
+; O2-NEXT:    addd 4,s
+; O2-NEXT:    addd 6,s
+; O2-NEXT:    addd 8,s
 ; O2-NEXT:    tfr d,x
 ; O2-NEXT:    rts
 ;
 ; O3-LABEL: add_s_i16:
 ; O3:       ; %bb.0: ; %entry
-; O3-NEXT:    stx <__rs0
-; O3-NEXT:    ldb <__rs0lo
-; O3-NEXT:    lda <__rs0hi
-; O3-NEXT:    addb 3,s
-; O3-NEXT:    adca 2,s
-; O3-NEXT:    addb 5,s
-; O3-NEXT:    adca 4,s
-; O3-NEXT:    addb 7,s
-; O3-NEXT:    adca 6,s
-; O3-NEXT:    addb 9,s
-; O3-NEXT:    adca 8,s
+; O3-NEXT:    tfr x,d
+; O3-NEXT:    addd 2,s
+; O3-NEXT:    addd 4,s
+; O3-NEXT:    addd 6,s
+; O3-NEXT:    addd 8,s
 ; O3-NEXT:    tfr d,x
 ; O3-NEXT:    rts
 entry:
@@ -408,55 +390,34 @@ define dso_local i16 @add_s_i16_consts(i16 noundef %a, i16 noundef %b, i16 nound
 ;
 ; O1-LABEL: add_s_i16_consts:
 ; O1:       ; %bb.0: ; %entry
-; O1-NEXT:    stx <__rs0
-; O1-NEXT:    ldb <__rs0lo
-; O1-NEXT:    lda <__rs0hi
-; O1-NEXT:    addb 3,s
-; O1-NEXT:    adca 2,s
-; O1-NEXT:    addb 5,s
-; O1-NEXT:    adca 4,s
-; O1-NEXT:    addb 7,s
-; O1-NEXT:    adca 6,s
-; O1-NEXT:    addb 9,s
-; O1-NEXT:    adca 8,s
-; O1-NEXT:    addb #77
-; O1-NEXT:    adca #12
+; O1-NEXT:    tfr x,d
+; O1-NEXT:    addd 2,s
+; O1-NEXT:    addd 4,s
+; O1-NEXT:    addd 6,s
+; O1-NEXT:    addd 8,s
+; O1-NEXT:    addd #3149
 ; O1-NEXT:    tfr d,x
 ; O1-NEXT:    rts
 ;
 ; O2-LABEL: add_s_i16_consts:
 ; O2:       ; %bb.0: ; %entry
-; O2-NEXT:    stx <__rs0
-; O2-NEXT:    ldb <__rs0lo
-; O2-NEXT:    lda <__rs0hi
-; O2-NEXT:    addb 3,s
-; O2-NEXT:    adca 2,s
-; O2-NEXT:    addb 5,s
-; O2-NEXT:    adca 4,s
-; O2-NEXT:    addb 7,s
-; O2-NEXT:    adca 6,s
-; O2-NEXT:    addb 9,s
-; O2-NEXT:    adca 8,s
-; O2-NEXT:    addb #77
-; O2-NEXT:    adca #12
+; O2-NEXT:    tfr x,d
+; O2-NEXT:    addd 2,s
+; O2-NEXT:    addd 4,s
+; O2-NEXT:    addd 6,s
+; O2-NEXT:    addd 8,s
+; O2-NEXT:    addd #3149
 ; O2-NEXT:    tfr d,x
 ; O2-NEXT:    rts
 ;
 ; O3-LABEL: add_s_i16_consts:
 ; O3:       ; %bb.0: ; %entry
-; O3-NEXT:    stx <__rs0
-; O3-NEXT:    ldb <__rs0lo
-; O3-NEXT:    lda <__rs0hi
-; O3-NEXT:    addb 3,s
-; O3-NEXT:    adca 2,s
-; O3-NEXT:    addb 5,s
-; O3-NEXT:    adca 4,s
-; O3-NEXT:    addb 7,s
-; O3-NEXT:    adca 6,s
-; O3-NEXT:    addb 9,s
-; O3-NEXT:    adca 8,s
-; O3-NEXT:    addb #77
-; O3-NEXT:    adca #12
+; O3-NEXT:    tfr x,d
+; O3-NEXT:    addd 2,s
+; O3-NEXT:    addd 4,s
+; O3-NEXT:    addd 6,s
+; O3-NEXT:    addd 8,s
+; O3-NEXT:    addd #3149
 ; O3-NEXT:    tfr d,x
 ; O3-NEXT:    rts
 entry:
@@ -524,49 +485,31 @@ define dso_local i16 @add_u_i16(i16 noundef %a, i16 noundef %b, i16 noundef %c, 
 ;
 ; O1-LABEL: add_u_i16:
 ; O1:       ; %bb.0: ; %entry
-; O1-NEXT:    stx <__rs0
-; O1-NEXT:    ldb <__rs0lo
-; O1-NEXT:    lda <__rs0hi
-; O1-NEXT:    addb 3,s
-; O1-NEXT:    adca 2,s
-; O1-NEXT:    addb 5,s
-; O1-NEXT:    adca 4,s
-; O1-NEXT:    addb 7,s
-; O1-NEXT:    adca 6,s
-; O1-NEXT:    addb 9,s
-; O1-NEXT:    adca 8,s
+; O1-NEXT:    tfr x,d
+; O1-NEXT:    addd 2,s
+; O1-NEXT:    addd 4,s
+; O1-NEXT:    addd 6,s
+; O1-NEXT:    addd 8,s
 ; O1-NEXT:    tfr d,x
 ; O1-NEXT:    rts
 ;
 ; O2-LABEL: add_u_i16:
 ; O2:       ; %bb.0: ; %entry
-; O2-NEXT:    stx <__rs0
-; O2-NEXT:    ldb <__rs0lo
-; O2-NEXT:    lda <__rs0hi
-; O2-NEXT:    addb 3,s
-; O2-NEXT:    adca 2,s
-; O2-NEXT:    addb 5,s
-; O2-NEXT:    adca 4,s
-; O2-NEXT:    addb 7,s
-; O2-NEXT:    adca 6,s
-; O2-NEXT:    addb 9,s
-; O2-NEXT:    adca 8,s
+; O2-NEXT:    tfr x,d
+; O2-NEXT:    addd 2,s
+; O2-NEXT:    addd 4,s
+; O2-NEXT:    addd 6,s
+; O2-NEXT:    addd 8,s
 ; O2-NEXT:    tfr d,x
 ; O2-NEXT:    rts
 ;
 ; O3-LABEL: add_u_i16:
 ; O3:       ; %bb.0: ; %entry
-; O3-NEXT:    stx <__rs0
-; O3-NEXT:    ldb <__rs0lo
-; O3-NEXT:    lda <__rs0hi
-; O3-NEXT:    addb 3,s
-; O3-NEXT:    adca 2,s
-; O3-NEXT:    addb 5,s
-; O3-NEXT:    adca 4,s
-; O3-NEXT:    addb 7,s
-; O3-NEXT:    adca 6,s
-; O3-NEXT:    addb 9,s
-; O3-NEXT:    adca 8,s
+; O3-NEXT:    tfr x,d
+; O3-NEXT:    addd 2,s
+; O3-NEXT:    addd 4,s
+; O3-NEXT:    addd 6,s
+; O3-NEXT:    addd 8,s
 ; O3-NEXT:    tfr d,x
 ; O3-NEXT:    rts
 entry:
@@ -637,55 +580,34 @@ define dso_local i16 @add_u_i16_consts(i16 noundef %a, i16 noundef %b, i16 nound
 ;
 ; O1-LABEL: add_u_i16_consts:
 ; O1:       ; %bb.0: ; %entry
-; O1-NEXT:    stx <__rs0
-; O1-NEXT:    ldb <__rs0lo
-; O1-NEXT:    lda <__rs0hi
-; O1-NEXT:    addb 3,s
-; O1-NEXT:    adca 2,s
-; O1-NEXT:    addb 5,s
-; O1-NEXT:    adca 4,s
-; O1-NEXT:    addb 7,s
-; O1-NEXT:    adca 6,s
-; O1-NEXT:    addb 9,s
-; O1-NEXT:    adca 8,s
-; O1-NEXT:    addb #-1
-; O1-NEXT:    adca #32
+; O1-NEXT:    tfr x,d
+; O1-NEXT:    addd 2,s
+; O1-NEXT:    addd 4,s
+; O1-NEXT:    addd 6,s
+; O1-NEXT:    addd 8,s
+; O1-NEXT:    addd #8447
 ; O1-NEXT:    tfr d,x
 ; O1-NEXT:    rts
 ;
 ; O2-LABEL: add_u_i16_consts:
 ; O2:       ; %bb.0: ; %entry
-; O2-NEXT:    stx <__rs0
-; O2-NEXT:    ldb <__rs0lo
-; O2-NEXT:    lda <__rs0hi
-; O2-NEXT:    addb 3,s
-; O2-NEXT:    adca 2,s
-; O2-NEXT:    addb 5,s
-; O2-NEXT:    adca 4,s
-; O2-NEXT:    addb 7,s
-; O2-NEXT:    adca 6,s
-; O2-NEXT:    addb 9,s
-; O2-NEXT:    adca 8,s
-; O2-NEXT:    addb #-1
-; O2-NEXT:    adca #32
+; O2-NEXT:    tfr x,d
+; O2-NEXT:    addd 2,s
+; O2-NEXT:    addd 4,s
+; O2-NEXT:    addd 6,s
+; O2-NEXT:    addd 8,s
+; O2-NEXT:    addd #8447
 ; O2-NEXT:    tfr d,x
 ; O2-NEXT:    rts
 ;
 ; O3-LABEL: add_u_i16_consts:
 ; O3:       ; %bb.0: ; %entry
-; O3-NEXT:    stx <__rs0
-; O3-NEXT:    ldb <__rs0lo
-; O3-NEXT:    lda <__rs0hi
-; O3-NEXT:    addb 3,s
-; O3-NEXT:    adca 2,s
-; O3-NEXT:    addb 5,s
-; O3-NEXT:    adca 4,s
-; O3-NEXT:    addb 7,s
-; O3-NEXT:    adca 6,s
-; O3-NEXT:    addb 9,s
-; O3-NEXT:    adca 8,s
-; O3-NEXT:    addb #-1
-; O3-NEXT:    adca #32
+; O3-NEXT:    tfr x,d
+; O3-NEXT:    addd 2,s
+; O3-NEXT:    addd 4,s
+; O3-NEXT:    addd 6,s
+; O3-NEXT:    addd 8,s
+; O3-NEXT:    addd #8447
 ; O3-NEXT:    tfr d,x
 ; O3-NEXT:    rts
 entry:

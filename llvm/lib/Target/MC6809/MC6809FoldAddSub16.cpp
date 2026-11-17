@@ -86,6 +86,94 @@ static Register implicitVReg(const MachineInstr &MI, bool WantDef) {
   return Register();
 }
 
+/// The high-byte opcode that completes a chain whose low byte is Opc, or 0.
+static unsigned chainTailOpcode(unsigned Opc) {
+  switch (Opc) {
+  case MC6809::AddSetCarry_i8_Imm: return MC6809::AddSetCarryUse_i8_Imm;
+  case MC6809::AddSetCarry_i8_Mem: return MC6809::AddSetCarryUse_i8_Mem;
+  case MC6809::AddSetCarry_i8_Reg: return MC6809::AddSetCarryUse_i8_Reg;
+  case MC6809::SubSetCarry_i8_Mem: return MC6809::SubSetCarryUse_i8_Mem;
+  case MC6809::SubSetCarry_i8_Reg: return MC6809::SubSetCarryUse_i8_Reg;
+  default: return 0;
+  }
+}
+
+/// An add whose result feeds another add straight from its two bytes --
+/// `x + y + 1000` -- never forms the MERGE_LOHI_i16 the fold below starts
+/// from, so neither add would fold. Give each such pair of bytes the shape a
+/// whole i16 value has (a MERGE, then EXTRACT_LO/HI of it for the next add),
+/// so that both adds fold. Returns whether anything changed.
+static bool splitChainedChains(MachineFunction &MF) {
+  MachineRegisterInfo &MRI = MF.getRegInfo();
+  const auto &TII = *MF.getSubtarget().getInstrInfo();
+  bool Changed = false;
+  for (MachineBasicBlock &MBB : MF) {
+    SmallVector<std::pair<MachineInstr *, MachineInstr *>, 4> Pairs;
+    for (MachineInstr &LoDef : MBB) {
+      unsigned TailOpc = chainTailOpcode(LoDef.getOpcode());
+      if (!TailOpc)
+        continue;
+      Register CarryOut = implicitVReg(LoDef, /*WantDef=*/true);
+      Register LoR = LoDef.getOperand(0).getReg();
+      if (!CarryOut || !MRI.hasOneNonDBGUse(CarryOut) ||
+          !MRI.hasOneNonDBGUse(LoR))
+        continue;
+      MachineInstr &HiDef = *MRI.use_instr_nodbg_begin(CarryOut);
+      if (HiDef.getOpcode() != TailOpc || HiDef.getParent() != &MBB)
+        continue;
+      Register HiCarryOut = implicitVReg(HiDef, /*WantDef=*/true);
+      Register HiR = HiDef.getOperand(0).getReg();
+      if ((HiCarryOut && !MRI.use_nodbg_empty(HiCarryOut)) ||
+          !MRI.hasOneNonDBGUse(HiR))
+        continue;
+      // Both bytes must feed the same operand of the next add's two bytes.
+      MachineInstr &LoUse = *MRI.use_instr_nodbg_begin(LoR);
+      MachineInstr &HiUse = *MRI.use_instr_nodbg_begin(HiR);
+      unsigned NextTail = chainTailOpcode(LoUse.getOpcode());
+      if (!NextTail || HiUse.getOpcode() != NextTail ||
+          LoUse.getParent() != &MBB || HiUse.getParent() != &MBB ||
+          implicitVReg(LoUse, true) != implicitVReg(HiUse, false))
+        continue;
+      unsigned LoIdx = LoUse.findRegisterUseOperandIdx(LoR, nullptr);
+      unsigned HiIdx = HiUse.findRegisterUseOperandIdx(HiR, nullptr);
+      if (LoIdx != HiIdx)
+        continue;
+      // This add must be complete before the next one starts, where the new
+      // instructions go (they set N, Z and V; the next add sets every flag).
+      bool TailFirst = false;
+      for (auto It = HiDef.getIterator(); It != MBB.end(); ++It)
+        if (&*It == &LoUse) {
+          TailFirst = true;
+          break;
+        }
+      if (!TailFirst)
+        continue;
+      Pairs.push_back({&LoDef, &HiDef});
+    }
+    for (auto [LoDef, HiDef] : Pairs) {
+      Register LoR = LoDef->getOperand(0).getReg();
+      Register HiR = HiDef->getOperand(0).getReg();
+      MachineInstr &LoUse = *MRI.use_instr_nodbg_begin(LoR);
+      MachineInstr &HiUse = *MRI.use_instr_nodbg_begin(HiR);
+      const DebugLoc &DL = LoUse.getDebugLoc();
+      Register Whole = MRI.createVirtualRegister(&MC6809::ACC16RegClass);
+      BuildMI(MBB, LoUse, DL, TII.get(MC6809::MERGE_LOHI_i16), Whole)
+          .addReg(LoR)
+          .addReg(HiR);
+      Register NewLo = MRI.createVirtualRegister(MRI.getRegClass(LoR));
+      Register NewHi = MRI.createVirtualRegister(MRI.getRegClass(HiR));
+      BuildMI(MBB, LoUse, DL, TII.get(MC6809::EXTRACT_LO_i16), NewLo)
+          .addReg(Whole);
+      BuildMI(MBB, LoUse, DL, TII.get(MC6809::EXTRACT_HI_i16), NewHi)
+          .addReg(Whole);
+      LoUse.substituteRegister(LoR, NewLo, 0, *MRI.getTargetRegisterInfo());
+      HiUse.substituteRegister(HiR, NewHi, 0, *MRI.getTargetRegisterInfo());
+      Changed = true;
+    }
+  }
+  return Changed;
+}
+
 bool MC6809FoldAddSub16::runOnMachineFunction(MachineFunction &MF) {
   if (!EnableFoldAddSub16)
     return false;
@@ -93,7 +181,7 @@ bool MC6809FoldAddSub16::runOnMachineFunction(MachineFunction &MF) {
   MachineRegisterInfo &MRI = MF.getRegInfo();
   const auto &TII = *MF.getSubtarget().getInstrInfo();
   const auto &TRI = *MF.getSubtarget().getRegisterInfo();
-  bool Changed = false;
+  bool Changed = splitChainedChains(MF);
 
   auto defOf = [&](Register R) -> MachineInstr * {
     return R.isVirtual() ? MRI.getVRegDef(R) : nullptr;
