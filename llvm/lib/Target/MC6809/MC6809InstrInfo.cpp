@@ -213,9 +213,6 @@ MC6809InstrInfo::MC6809InstrInfo(const MC6809Subtarget &STI)
       {{MC6809::AB, MC6809::AF}, MC6809::SBCBi_oF}, {{MC6809::AB, MC6809::AW}, MC6809::SBCBi_oW}, {{MC6809::AD, MC6809::AA}, MC6809::SBCDi_oA}, {{MC6809::AD, MC6809::AB}, MC6809::SBCDi_oB}, {{MC6809::AD, MC6809::AD}, MC6809::SBCDi_oD},
       {{MC6809::AD, MC6809::AE}, MC6809::SBCDi_oE}, {{MC6809::AD, MC6809::AF}, MC6809::SBCDi_oF}, {{MC6809::AD, MC6809::AW}, MC6809::SBCDi_oW},
   };
-  CompareImmediateOpcode = {
-      {{MC6809::AA}, MC6809::CMPAi8}, {{MC6809::AB}, MC6809::CMPBi8}, {{MC6809::AE}, MC6809::CMPEi8}, {{MC6809::AF}, MC6809::CMPFi8}, {{MC6809::AD}, MC6809::CMPDi16}, {{MC6809::AW}, MC6809::CMPWi16},
-  };
   CompareIdxImmOpcode = {
       {{MC6809::AA, -1}, MC6809::CMPAi_o16}, {{MC6809::AA, 0}, MC6809::CMPAi_o0},   {{MC6809::AA, 5}, MC6809::CMPAi_o5},   {{MC6809::AA, 8}, MC6809::CMPAi_o8},   {{MC6809::AA, 16}, MC6809::CMPAi_o16}, {{MC6809::AB, -1}, MC6809::CMPBi_o16},
       {{MC6809::AB, 0}, MC6809::CMPBi_o0},   {{MC6809::AB, 5}, MC6809::CMPBi_o5},   {{MC6809::AB, 8}, MC6809::CMPBi_o8},   {{MC6809::AB, 16}, MC6809::CMPBi_o16}, {{MC6809::AD, -1}, MC6809::CMPDi_o16}, {{MC6809::AD, 0}, MC6809::CMPDi_o0},
@@ -922,6 +919,21 @@ void MC6809InstrInfo::insertIndirectBranch(MachineBasicBlock &MBB, MachineBasicB
 
 
 
+/// The opcode of an instruction for byte accumulator R: A, B, or on the
+/// 6309 E or F, from the forms given (0 where the instruction has none).
+/// Any other register, or one with no form, is an error, not a quiet B.
+static unsigned byteAccOpcode(Register R, unsigned OpA, unsigned OpB,
+                              unsigned OpE = 0, unsigned OpF = 0) {
+  unsigned Opc = R == MC6809::AA   ? OpA
+                 : R == MC6809::AB ? OpB
+                 : R == MC6809::AE ? OpE
+                 : R == MC6809::AF ? OpF
+                                   : 0;
+  if (!Opc)
+    llvm_unreachable("no form of this instruction for that byte register");
+  return Opc;
+}
+
 /// Pick the right indexed load opcode for a given register and offset.
 static unsigned getLoadIdxOpcode(Register Reg, int Offset) {
   bool Is8 = (Offset >= -128 && Offset <= 127);
@@ -1046,7 +1058,8 @@ static void loadByteInto(MachineIRBuilder &Builder, MCPhysReg Target,
   }
   // Direct-page bytes (Imag8 RC* or RS byte halves) — LDAd/LDBd by Target.
   if (MC6809::Imag8RegClass.contains(SrcReg) || isImag16ByteSubReg(SrcReg)) {
-    unsigned Opc = (Target == MC6809::AA) ? MC6809::LDAd : MC6809::LDBd;
+    unsigned Opc = byteAccOpcode(Target, MC6809::LDAd, MC6809::LDBd,
+                                  MC6809::LDEd, MC6809::LDFd);
     Builder.buildInstr(Opc).addReg(SrcReg);
     return;
   }
@@ -1087,7 +1100,8 @@ static Register materializeReg(MachineIRBuilder &Builder, Register Reg,
     Builder.buildInstr(Opc).addReg(Reg);
     // After LDD: A=hi byte, B=lo byte. PhysReg is AA or AB as appropriate.
   } else if (MC6809::Imag8RegClass.contains(Reg)) {
-    unsigned Opc = (PhysReg == MC6809::AA) ? MC6809::LDAd : MC6809::LDBd;
+    unsigned Opc = byteAccOpcode(PhysReg, MC6809::LDAd, MC6809::LDBd,
+                                  MC6809::LDEd, MC6809::LDFd);
     Builder.buildInstr(Opc).addReg(Reg);
   } else if (MC6809::Imag16RegClass.contains(Reg)) {
     Builder.buildInstr(MC6809::LDDd).addReg(Reg);
@@ -1110,7 +1124,8 @@ static void dematerializeReg(MachineIRBuilder &Builder, Register PhysReg,
                 RegState::Implicit)
         .addReg(OrigReg, RegState::ImplicitDefine);
   } else if (MC6809::Imag8RegClass.contains(OrigReg)) {
-    unsigned Opc = (PhysReg == MC6809::AA) ? MC6809::STAd : MC6809::STBd;
+    unsigned Opc = byteAccOpcode(PhysReg, MC6809::STAd, MC6809::STBd,
+                                  MC6809::STEd, MC6809::STFd);
     Builder.buildInstr(Opc)
         .addReg(OrigReg, RegState::Undef)
         .addUse(PhysReg, RegState::Implicit)
@@ -1285,14 +1300,20 @@ static Register freeTransitIndex(MachineInstr &MI, Register LoadBase) {
 
 /// The direct-page load and store of a transit register.
 static unsigned transitLoadDP(Register R) {
-  return R == MC6809::IX ? MC6809::LDXd
-         : R == MC6809::SU ? MC6809::LDUd
-                           : MC6809::LDYd;
+  switch (R) {
+  case MC6809::IX: return MC6809::LDXd;
+  case MC6809::SU: return MC6809::LDUd;
+  case MC6809::IY: return MC6809::LDYd;
+  default: llvm_unreachable("not a transit register");
+  }
 }
 static unsigned transitStoreDP(Register R) {
-  return R == MC6809::IX ? MC6809::STXd
-         : R == MC6809::SU ? MC6809::STUd
-                           : MC6809::STYd;
+  switch (R) {
+  case MC6809::IX: return MC6809::STXd;
+  case MC6809::SU: return MC6809::STUd;
+  case MC6809::IY: return MC6809::STYd;
+  default: llvm_unreachable("not a transit register");
+  }
 }
 
 /// Bytes a pushStagingReg push moves S down by.
@@ -1525,7 +1546,8 @@ MC6809InstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
         // through the accumulator the destination is usually loaded into
         // would move it to the other half first and save that half around
         // the move.
-        Builder.buildInstr(SrcReg == MC6809::AA ? MC6809::STAd : MC6809::STBd)
+        Builder.buildInstr(byteAccOpcode(SrcReg, MC6809::STAd, MC6809::STBd,
+                                         MC6809::STEd, MC6809::STFd))
             .addReg(DestReg, RegState::Undef)
             .addUse(SrcReg, RegState::Implicit)
             .addReg(DestReg, RegState::ImplicitDefine);
@@ -3225,7 +3247,7 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
     // LSR sets CC.C = (original bit 0) and clears N, V; sets Z if the
     // shifted result == 0. We only care about CC.C; downstream sub uses it.
     // Pick the half from the assigned register.
-    Builder.buildInstr(RealSrc == MC6809::AA ? MC6809::LSRAa : MC6809::LSRBa)
+    Builder.buildInstr(byteAccOpcode(RealSrc, MC6809::LSRAa, MC6809::LSRBa))
         .addDef(RealSrc, RegState::Implicit);
     if (StagedSrc)
       pullStagingReg(Builder, RealSrc);
@@ -3678,8 +3700,7 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
     if (SrcReg != WorkReg)
       loadByteInto(Builder, WorkReg, SrcReg, MF);
 
-    unsigned AndOpc =
-        (WorkReg == MC6809::AA) ? MC6809::ANDAi8 : MC6809::ANDBi8;
+    unsigned AndOpc = byteAccOpcode(WorkReg, MC6809::ANDAi8, MC6809::ANDBi8);
     Builder.buildInstr(AndOpc).addImm(1);
 
     if (WorkReg != DstReg)
@@ -8387,10 +8408,11 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
                           unsigned &OpcOut) {
     bool Fits8 = (int(ByteOffset) >= -128 && int(ByteOffset) <= 127);
     if (MIOpc == MC6809::Compare_i8_Reg) {
-      if (PhysReg == MC6809::AA)
-        OpcOut = Fits8 ? MC6809::CMPAi_o8 : MC6809::CMPAi_o16;
-      else
-        OpcOut = Fits8 ? MC6809::CMPBi_o8 : MC6809::CMPBi_o16;
+      OpcOut = Fits8 ? byteAccOpcode(PhysReg, MC6809::CMPAi_o8, MC6809::CMPBi_o8,
+                                     MC6809::CMPEi_o8, MC6809::CMPFi_o8)
+                     : byteAccOpcode(PhysReg, MC6809::CMPAi_o16,
+                                     MC6809::CMPBi_o16, MC6809::CMPEi_o16,
+                                     MC6809::CMPFi_o16);
     } else {
       if      (PhysReg == MC6809::AD) OpcOut = Fits8 ? MC6809::CMPDi_o8 : MC6809::CMPDi_o16;
       else if (PhysReg == MC6809::AW) OpcOut = Fits8 ? MC6809::CMPWi_o8 : MC6809::CMPWi_o16;
@@ -8405,7 +8427,8 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
   // Compare PhysReg against the word (byte) on top of the stack, popping it.
   auto pickCmpInc = [&](Register PhysReg) -> unsigned {
     if (MIOpc == MC6809::Compare_i8_Reg)
-      return PhysReg == MC6809::AA ? MC6809::CMPAi_Inc1 : MC6809::CMPBi_Inc1;
+      return byteAccOpcode(PhysReg, MC6809::CMPAi_Inc1, MC6809::CMPBi_Inc1,
+                           MC6809::CMPEi_Inc1, MC6809::CMPFi_Inc1);
     switch (PhysReg) {
     case MC6809::AD: return MC6809::CMPDi_Inc2;
     case MC6809::IX: return MC6809::CMPXi_Inc2;

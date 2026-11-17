@@ -281,6 +281,7 @@ static unsigned getIdxLoadOpcodeFor(Register R, int Offset) {
   if (R == MC6809::AD) return Is8 ? MC6809::LDDi_o8 : MC6809::LDDi_o16;
   if (R == MC6809::IX) return Is8 ? MC6809::LDXi_o8 : MC6809::LDXi_o16;
   if (R == MC6809::IY) return Is8 ? MC6809::LDYi_o8 : MC6809::LDYi_o16;
+  if (R == MC6809::SU) return Is8 ? MC6809::LDUi_o8 : MC6809::LDUi_o16;
   return 0;
 }
 

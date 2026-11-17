@@ -228,7 +228,10 @@ bool MC6809LateOptimization::formWalkingCompareBranch(MachineBasicBlock &MBB) co
     Register Base;
     int Off;
     indexedBaseOffset(*Acc, Base, Off);
-    if (llvm::is_contained(Done, Base))
+    // Not the stack pointer: moving a step of S changes the offset of every
+    // S-relative access and the frame's CFI, which this rewrite does not
+    // model.
+    if (Base == MC6809::SS || llvm::is_contained(Done, Base))
       continue;
     // Its step in the head.
     MachineInstr *Step = nullptr;
@@ -296,9 +299,13 @@ bool MC6809LateOptimization::formWalkingCompareBranch(MachineBasicBlock &MBB) co
             return Changed;
         }
       }
-      unsigned LeaOpc = Base == MC6809::IX   ? MC6809::LEAXi_o5
-                        : Base == MC6809::IY ? MC6809::LEAYi_o5
-                                             : MC6809::LEAUi_o5;
+      unsigned LeaOpc;
+      switch (Base) {
+      case MC6809::IX: LeaOpc = MC6809::LEAXi_o5; break;
+      case MC6809::IY: LeaOpc = MC6809::LEAYi_o5; break;
+      case MC6809::SU: LeaOpc = MC6809::LEAUi_o5; break;
+      default: llvm_unreachable("walking access through a non-index register");
+      }
       auto At = CompDest->begin();
       while (At != CompDest->end() && At->isDebugInstr())
         ++At;
