@@ -895,6 +895,7 @@ static unsigned getLoadIdxOpcode(Register Reg, int Offset) {
   if (Reg == MC6809::AW) return Is8 ? MC6809::LDWi_o8 : MC6809::LDWi_o16;
   if (Reg == MC6809::IX) return Is8 ? MC6809::LDXi_o8 : MC6809::LDXi_o16;
   if (Reg == MC6809::IY) return Is8 ? MC6809::LDYi_o8 : MC6809::LDYi_o16;
+  if (Reg == MC6809::SU) return Is8 ? MC6809::LDUi_o8 : MC6809::LDUi_o16;
   if (Reg == MC6809::AQ) return Is8 ? MC6809::LDQi_o8 : MC6809::LDQi_o16;
   llvm_unreachable("Unexpected register for spill load");
 }
@@ -910,6 +911,7 @@ static unsigned getStoreIdxOpcode(Register Reg, int Offset) {
   if (Reg == MC6809::AW) return Is8 ? MC6809::STWi_o8 : MC6809::STWi_o16;
   if (Reg == MC6809::IX) return Is8 ? MC6809::STXi_o8 : MC6809::STXi_o16;
   if (Reg == MC6809::IY) return Is8 ? MC6809::STYi_o8 : MC6809::STYi_o16;
+  if (Reg == MC6809::SU) return Is8 ? MC6809::STUi_o8 : MC6809::STUi_o16;
   if (Reg == MC6809::AQ) return Is8 ? MC6809::STQi_o8 : MC6809::STQi_o16;
   llvm_unreachable("Unexpected register for spill store");
 }
@@ -8266,7 +8268,7 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
       else if (PhysReg == MC6809::IY) OpcOut = Fits8 ? MC6809::CMPYi_o8 : MC6809::CMPYi_o16;
       else if (PhysReg == MC6809::SU) OpcOut = Fits8 ? MC6809::CMPUi_o8 : MC6809::CMPUi_o16;
       else if (PhysReg == MC6809::SS) OpcOut = Fits8 ? MC6809::CMPSi_o8 : MC6809::CMPSi_o16;
-      else                             OpcOut = Fits8 ? MC6809::CMPDi_o8 : MC6809::CMPDi_o16;
+      else llvm_unreachable("no indexed compare for this register");
     }
   };
 
@@ -8274,11 +8276,16 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
   auto pickCmpInc = [&](Register PhysReg) -> unsigned {
     if (MIOpc == MC6809::Compare_i8_Reg)
       return PhysReg == MC6809::AA ? MC6809::CMPAi_Inc1 : MC6809::CMPBi_Inc1;
-    if (PhysReg == MC6809::IX)
-      return MC6809::CMPXi_Inc2;
-    if (PhysReg == MC6809::IY)
-      return MC6809::CMPYi_Inc2;
-    return MC6809::CMPDi_Inc2;
+    switch (PhysReg) {
+    case MC6809::AD: return MC6809::CMPDi_Inc2;
+    case MC6809::IX: return MC6809::CMPXi_Inc2;
+    case MC6809::IY: return MC6809::CMPYi_Inc2;
+    case MC6809::SU: return MC6809::CMPUi_Inc2;
+    case MC6809::AW: return MC6809::CMPWi_Inc2;
+    default:
+      // A default here once compared D in place of an unlisted register.
+      llvm_unreachable("no compare-and-pop for this register");
+    }
   };
 
   // Imaginary (direct-page homed) sources. With the RS/RC imaginaries
@@ -8303,7 +8310,8 @@ void MC6809InstrInfo::expandCompareReg(MachineIRBuilder &Builder, MachineInstr &
       if (PhysReg == MC6809::SU) return MC6809::CMPUd;
       if (PhysReg == MC6809::SS) return MC6809::CMPSd;
       if (PhysReg == MC6809::AW) return MC6809::CMPWd;
-      return MC6809::CMPDd;
+      if (PhysReg == MC6809::AD) return MC6809::CMPDd;
+      llvm_unreachable("no direct-page compare for this register");
     };
     if (Src1Imag && !Src2Imag) {
       // Src2 already real: CMP<Src2>d __src1 gives Src2 - mem(Src1).

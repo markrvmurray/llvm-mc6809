@@ -1,0 +1,27 @@
+# RUN: llc -mtriple=mc6809 -start-before=post-ra-pseudos %s -o - | FileCheck %s
+#
+# A register-against-register compare on the 6809 pushes one operand and
+# compares the other against it, popping it (`pshs y ; cmpu ,s++`). With U
+# allocatable, U can be the register compared. The choice of compare used to
+# fall back to CMPD for any register it did not list, so a compare of U came
+# out as `cmpd ,s++` and compared whatever D held.
+
+---
+# CHECK-LABEL: compare_u_y:
+# CHECK:       pshs y
+# CHECK-NEXT:  cmpu ,s++
+name: compare_u_y
+tracksRegLiveness: true
+body: |
+  bb.0:
+    successors: %bb.1, %bb.2
+    liveins: $su, $iy
+    CompareBranch_ptr_Reg 7, $su, $iy, %bb.1, implicit-def $nz, implicit-def $v, implicit-def $c
+    LongBranchRelative %bb.2
+
+  bb.1:
+    RTSr
+
+  bb.2:
+    RTSr
+...
