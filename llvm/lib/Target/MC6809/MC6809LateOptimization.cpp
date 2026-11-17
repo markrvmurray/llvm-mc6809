@@ -705,14 +705,17 @@ static IdxSuf leaIdxSuffix(unsigned LeaOpc) {
 
 // The value register a zero-offset register-indirect load (`ld ,r`) loads into.
 static Register loadO0ValueReg(unsigned LoadOpc) {
-  switch (LoadOpc) {
-  case MC6809::LDAi_o0: return MC6809::AA;
-  case MC6809::LDBi_o0: return MC6809::AB;
-  case MC6809::LDDi_o0: return MC6809::AD;
-  case MC6809::LDXi_o0: return MC6809::IX;
-  case MC6809::LDYi_o0: return MC6809::IY;
-  case MC6809::LDUi_o0: return MC6809::SU;
-  default: return MC6809::NoRegister;
+  auto LS = MC6809InstrInfo::getIdxLoadStore(LoadOpc);
+  if (!LS || LS->IsStore ||
+      MC6809InstrInfo::getIdxForm(LoadOpc) != MC6809::IdxForm::O0)
+    return MC6809::NoRegister;
+  // The registers whose `ld ,r` the LEA fold takes (not E, F, W, Q or S).
+  switch (LS->Value) {
+  case MC6809::AA: case MC6809::AB: case MC6809::AD:
+  case MC6809::IX: case MC6809::IY: case MC6809::SU:
+    return LS->Value;
+  default:
+    return MC6809::NoRegister;
   }
 }
 

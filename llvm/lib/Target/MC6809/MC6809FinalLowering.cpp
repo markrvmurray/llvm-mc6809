@@ -380,38 +380,8 @@ bool MC6809FinalLowering::elideStoreReload(MachineFunction &MF) {
     Register DataReg; // family tag + actual data reg
   };
   auto classify = [](unsigned Opc) -> std::optional<StoreOrLoad> {
-#define STORE_FAMILY(R, A, B, C, D)                                            \
-  if (Opc == MC6809::A || Opc == MC6809::B || Opc == MC6809::C ||              \
-      Opc == MC6809::D)                                                        \
-    return StoreOrLoad{true, MC6809::R};
-#define LOAD_FAMILY(R, A, B, C, D)                                             \
-  if (Opc == MC6809::A || Opc == MC6809::B || Opc == MC6809::C ||              \
-      Opc == MC6809::D)                                                        \
-    return StoreOrLoad{false, MC6809::R};
-    STORE_FAMILY(AA, STAi_o0, STAi_o5, STAi_o8, STAi_o16)
-    STORE_FAMILY(AB, STBi_o0, STBi_o5, STBi_o8, STBi_o16)
-    STORE_FAMILY(AD, STDi_o0, STDi_o5, STDi_o8, STDi_o16)
-    STORE_FAMILY(AE, STEi_o0, STEi_o5, STEi_o8, STEi_o16)
-    STORE_FAMILY(AF, STFi_o0, STFi_o5, STFi_o8, STFi_o16)
-    STORE_FAMILY(AW, STWi_o0, STWi_o5, STWi_o8, STWi_o16)
-    STORE_FAMILY(AQ, STQi_o0, STQi_o5, STQi_o8, STQi_o16)
-    STORE_FAMILY(IX, STXi_o0, STXi_o5, STXi_o8, STXi_o16)
-    STORE_FAMILY(IY, STYi_o0, STYi_o5, STYi_o8, STYi_o16)
-    STORE_FAMILY(SU, STUi_o0, STUi_o5, STUi_o8, STUi_o16)
-    STORE_FAMILY(SS, STSi_o0, STSi_o5, STSi_o8, STSi_o16)
-    LOAD_FAMILY(AA, LDAi_o0, LDAi_o5, LDAi_o8, LDAi_o16)
-    LOAD_FAMILY(AB, LDBi_o0, LDBi_o5, LDBi_o8, LDBi_o16)
-    LOAD_FAMILY(AD, LDDi_o0, LDDi_o5, LDDi_o8, LDDi_o16)
-    LOAD_FAMILY(AE, LDEi_o0, LDEi_o5, LDEi_o8, LDEi_o16)
-    LOAD_FAMILY(AF, LDFi_o0, LDFi_o5, LDFi_o8, LDFi_o16)
-    LOAD_FAMILY(AW, LDWi_o0, LDWi_o5, LDWi_o8, LDWi_o16)
-    LOAD_FAMILY(AQ, LDQi_o0, LDQi_o5, LDQi_o8, LDQi_o16)
-    LOAD_FAMILY(IX, LDXi_o0, LDXi_o5, LDXi_o8, LDXi_o16)
-    LOAD_FAMILY(IY, LDYi_o0, LDYi_o5, LDYi_o8, LDYi_o16)
-    LOAD_FAMILY(SU, LDUi_o0, LDUi_o5, LDUi_o8, LDUi_o16)
-    LOAD_FAMILY(SS, LDSi_o0, LDSi_o5, LDSi_o8, LDSi_o16)
-#undef STORE_FAMILY
-#undef LOAD_FAMILY
+    if (auto LS = MC6809InstrInfo::getIdxLoadStore(Opc))
+      return StoreOrLoad{LS->IsStore, LS->Value};
     return std::nullopt;
   };
 

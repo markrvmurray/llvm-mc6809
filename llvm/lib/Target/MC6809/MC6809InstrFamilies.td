@@ -131,10 +131,10 @@ def Load_i1_Imm : MC6809LogicalInstr {
 // 8-bit loads: LDA/LDB (6809 Page 1)
 defm LDA : Load8Concrete<"lda", Opcode<0x86,1>, Opcode<0x96,1>,
                           Opcode<0xA6,1>, Opcode<0xB6,1>,
-                          [NZ,N,Z,V,AA]>;
+                          [NZ,N,Z,V,AA], AA>;
 defm LDB : Load8Concrete<"ldb", Opcode<0xC6,1>, Opcode<0xD6,1>,
                           Opcode<0xE6,1>, Opcode<0xF6,1>,
-                          [NZ,N,Z,V,AB]>;
+                          [NZ,N,Z,V,AB], AB>;
 
 // 16-bit loads: LDD/LDX/LDU (6809 Page 1)
 //
@@ -148,37 +148,38 @@ defm LDB : Load8Concrete<"ldb", Opcode<0xC6,1>, Opcode<0xD6,1>,
 // to force regalloc to evict any vreg currently in AQ before LDD.
 defm LDD : Load16Concrete<"ldd", Opcode<0xCC,1>, Opcode<0xDC,1>,
                            Opcode<0xEC,1>, Opcode<0xFC,1>,
-                           [NZ,N,Z,V,AA,AB,AD,AQ]>;
+                           [NZ,N,Z,V,AA,AB,AD,AQ], AD>;
 defm LDX : Load16Concrete<"ldx", Opcode<0x8E,1>, Opcode<0x9E,1>,
                            Opcode<0xAE,1>, Opcode<0xBE,1>,
-                           [NZ,N,Z,V,IX]>;
+                           [NZ,N,Z,V,IX], IX>;
 defm LDU : Load16Concrete<"ldu", Opcode<0xCE,1>, Opcode<0xDE,1>,
                            Opcode<0xEE,1>, Opcode<0xFE,1>,
-                           [NZ,N,Z,V,SU]>;
+                           [NZ,N,Z,V,SU], SU>;
 
 // 8-bit loads: LDE/LDF (6309 Page 3)
 defm LDE : Load8Concrete_P3<"lde", Opcode<0x86,3>, Opcode<0x96,3>,
                              Opcode<0xA6,3>, Opcode<0xB6,3>,
-                             [NZ,N,Z,V,AE]>;
+                             [NZ,N,Z,V,AE], AE>;
 defm LDF : Load8Concrete_P3<"ldf", Opcode<0xC6,3>, Opcode<0xD6,3>,
                              Opcode<0xE6,3>, Opcode<0xF6,3>,
-                             [NZ,N,Z,V,AF]>;
+                             [NZ,N,Z,V,AF], AF>;
 
 // 16-bit loads: LDY/LDS (6809 Page 2), LDW (6309 Page 2)
 defm LDY : Load16Concrete_P2<"ldy", Opcode<0x8E,2>, Opcode<0x9E,2>,
                               Opcode<0xAE,2>, Opcode<0xBE,2>,
-                              [NZ,N,Z,V,IY]>;
+                              [NZ,N,Z,V,IY], IY>;
 defm LDS : Load16Concrete_P2<"lds", Opcode<0xCE,2>, Opcode<0xDE,2>,
                               Opcode<0xEE,2>, Opcode<0xFE,2>,
-                              [NZ,N,Z,V,SS]>;
+                              [NZ,N,Z,V,SS], SS>;
 let Predicates = [IsHD6309] in {
   defm LDW : Load16Concrete_P2<"ldw", Opcode<0x86,2>, Opcode<0x96,2>,
                                 Opcode<0xA6,2>, Opcode<0xB6,2>,
-                                [NZ,N,Z,V,AE,AF,AW]>;
+                                [NZ,N,Z,V,AE,AF,AW], AW>;
 }
 
 // LDQ (6309, 32-bit): immediate on Page 1, dir/idx/ext on Page 2.
-let Predicates = [IsHD6309], mayLoad = true in {
+let Predicates = [IsHD6309], mayLoad = true,
+    IdxValueEnc = AQ.HWEncoding, IdxAccess = 1 in {
   def LDQi32 : MC6809Immediate32Bit_P1<(outs), "ldq", Opcode<0xCD,1>,
                [NZ,N,Z,V,AA,AB,AD,AE,AF,AW,AQ], []>;
   def LDQd   : MC6809Direct_P2<(outs), "ldq", Opcode<0xDC,2>,
@@ -380,27 +381,28 @@ let Predicates = [IsHD6309] in {
 // --- Concrete instructions (register-specific, assembler/disassembler) ---
 
 // 8-bit stores: STA/STB (6809 Page 1)
-defm STA : Store8Concrete<"sta", Opcode<0x97,1>, Opcode<0xA7,1>, Opcode<0xB7,1>>;
-defm STB : Store8Concrete<"stb", Opcode<0xD7,1>, Opcode<0xE7,1>, Opcode<0xF7,1>>;
+defm STA : Store8Concrete<"sta", Opcode<0x97,1>, Opcode<0xA7,1>, Opcode<0xB7,1>, AA>;
+defm STB : Store8Concrete<"stb", Opcode<0xD7,1>, Opcode<0xE7,1>, Opcode<0xF7,1>, AB>;
 
 // 16-bit stores: STD/STX/STU (6809 Page 1)
-defm STD : Store16Concrete<"std", Opcode<0xDD,1>, Opcode<0xED,1>, Opcode<0xFD,1>>;
-defm STX : Store16Concrete<"stx", Opcode<0x9F,1>, Opcode<0xAF,1>, Opcode<0xBF,1>>;
-defm STU : Store16Concrete<"stu", Opcode<0xDF,1>, Opcode<0xEF,1>, Opcode<0xFF,1>>;
+defm STD : Store16Concrete<"std", Opcode<0xDD,1>, Opcode<0xED,1>, Opcode<0xFD,1>, AD>;
+defm STX : Store16Concrete<"stx", Opcode<0x9F,1>, Opcode<0xAF,1>, Opcode<0xBF,1>, IX>;
+defm STU : Store16Concrete<"stu", Opcode<0xDF,1>, Opcode<0xEF,1>, Opcode<0xFF,1>, SU>;
 
 // 8-bit stores: STE/STF (6309 Page 3)
-defm STE : Store8Concrete_P3<"ste", Opcode<0x97,3>, Opcode<0xA7,3>, Opcode<0xB7,3>>;
-defm STF : Store8Concrete_P3<"stf", Opcode<0xD7,3>, Opcode<0xE7,3>, Opcode<0xF7,3>>;
+defm STE : Store8Concrete_P3<"ste", Opcode<0x97,3>, Opcode<0xA7,3>, Opcode<0xB7,3>, AE>;
+defm STF : Store8Concrete_P3<"stf", Opcode<0xD7,3>, Opcode<0xE7,3>, Opcode<0xF7,3>, AF>;
 
 // 16-bit stores: STY/STS (6809 Page 2), STW (6309 Page 2)
-defm STY : Store16Concrete_P2<"sty", Opcode<0x9F,2>, Opcode<0xAF,2>, Opcode<0xBF,2>>;
-defm STS : Store16Concrete_P2<"sts", Opcode<0xDF,2>, Opcode<0xEF,2>, Opcode<0xFF,2>>;
+defm STY : Store16Concrete_P2<"sty", Opcode<0x9F,2>, Opcode<0xAF,2>, Opcode<0xBF,2>, IY>;
+defm STS : Store16Concrete_P2<"sts", Opcode<0xDF,2>, Opcode<0xEF,2>, Opcode<0xFF,2>, SS>;
 let Predicates = [IsHD6309] in {
-  defm STW : Store16Concrete_P2<"stw", Opcode<0x97,2>, Opcode<0xA7,2>, Opcode<0xB7,2>>;
+  defm STW : Store16Concrete_P2<"stw", Opcode<0x97,2>, Opcode<0xA7,2>, Opcode<0xB7,2>, AW>;
 }
 
 // STQ (6309, 32-bit): dir/idx/ext on Page 2.
-let Predicates = [IsHD6309], mayStore = true in {
+let Predicates = [IsHD6309], mayStore = true,
+    IdxValueEnc = AQ.HWEncoding, IdxAccess = 2 in {
   def STQd  : MC6809Direct_P2<(outs), "stq", Opcode<0xDD,2>, [NZ,N,Z,V], []>;
   defm STQi : MC6809Indexed_P2<"stq", Opcode<0xED,2>, (outs), [NZ,N,Z,V], []>;
   def STQe  : MC6809Extended_P2<(outs), "stq", Opcode<0xFD,2>, [NZ,N,Z,V], []>;

@@ -102,33 +102,24 @@ struct SlotKey {
 /// Elimination fires only on an EXACT register match, so a slot reused across
 /// register classes by stack-slot colouring is never mis-elided.
 static Register getAccRegForOpcode(unsigned Opc) {
-  switch (Opc) {
-  case MC6809::LDDi_o0: case MC6809::LDDi_o5: case MC6809::LDDi_o8: case MC6809::LDDi_o16:
-  case MC6809::STDi_o0: case MC6809::STDi_o5: case MC6809::STDi_o8: case MC6809::STDi_o16:
-    return MC6809::AD;
-  case MC6809::LDAi_o0: case MC6809::LDAi_o5: case MC6809::LDAi_o8: case MC6809::LDAi_o16:
-  case MC6809::STAi_o0: case MC6809::STAi_o5: case MC6809::STAi_o8: case MC6809::STAi_o16:
-    return MC6809::AA;
-  case MC6809::LDBi_o0: case MC6809::LDBi_o5: case MC6809::LDBi_o8: case MC6809::LDBi_o16:
-  case MC6809::STBi_o0: case MC6809::STBi_o5: case MC6809::STBi_o8: case MC6809::STBi_o16:
-    return MC6809::AB;
-  case MC6809::LDXi_o0: case MC6809::LDXi_o5: case MC6809::LDXi_o8: case MC6809::LDXi_o16:
-    return MC6809::IX;
-  case MC6809::LDYi_o0: case MC6809::LDYi_o5: case MC6809::LDYi_o8: case MC6809::LDYi_o16:
-    return MC6809::IY;
-  // HD6309 W/E/F stores — invalidate-only (see isIndexedNonAccStore): the
-  // register identity is needed so invalidateOverlap knows the overwritten
-  // bytes are NOT the mirrored register's own bytes (AW/AE/AF share no bits
-  // with the tracked AD/AA/AB/IX/IY).
-  case MC6809::STWi_o0: case MC6809::STWi_o5: case MC6809::STWi_o8: case MC6809::STWi_o16:
-    return MC6809::AW;
-  case MC6809::STEi_o0: case MC6809::STEi_o5: case MC6809::STEi_o8: case MC6809::STEi_o16:
-    return MC6809::AE;
-  case MC6809::STFi_o0: case MC6809::STFi_o5: case MC6809::STFi_o8: case MC6809::STFi_o16:
-    return MC6809::AF;
-  default:
+  auto LS = MC6809InstrInfo::getIdxLoadStore(Opc);
+  if (!LS)
     return Register();
-  }
+  Register R = LS->Value;
+  if (!LS->IsStore) // loads of the tracked registers
+    return (R == MC6809::AD || R == MC6809::AA || R == MC6809::AB ||
+            R == MC6809::IX || R == MC6809::IY)
+               ? R
+               : Register();
+  // Stores: the tracked accumulators, and the HD6309 W/E/F stores --
+  // invalidate-only (see isIndexedNonAccStore): the register identity is
+  // needed so invalidateOverlap knows the overwritten bytes are NOT the
+  // mirrored register's own bytes (AW/AE/AF share no bits with the tracked
+  // AD/AA/AB/IX/IY).
+  return (R == MC6809::AD || R == MC6809::AA || R == MC6809::AB ||
+          R == MC6809::AW || R == MC6809::AE || R == MC6809::AF)
+             ? R
+             : Register();
 }
 
 /// True for a tracked register that occupies two bytes (a 16-bit store/load
@@ -141,14 +132,10 @@ static bool isTracked16Bit(Register R) {
 /// (STD/STA/STB). Index stores (STY/STX) are invalidate-only; see
 /// isIndexedNonAccStore and getAccRegForOpcode.
 static bool isIndexedStore(unsigned Opc) {
-  switch (Opc) {
-  case MC6809::STDi_o0: case MC6809::STDi_o5: case MC6809::STDi_o8: case MC6809::STDi_o16:
-  case MC6809::STAi_o0: case MC6809::STAi_o5: case MC6809::STAi_o8: case MC6809::STAi_o16:
-  case MC6809::STBi_o0: case MC6809::STBi_o5: case MC6809::STBi_o8: case MC6809::STBi_o16:
-    return true;
-  default:
-    return false;
-  }
+  auto LS = MC6809InstrInfo::getIdxLoadStore(Opc);
+  return LS && LS->IsStore &&
+         (LS->Value == MC6809::AD || LS->Value == MC6809::AA ||
+          LS->Value == MC6809::AB);
 }
 
 /// Returns true if the opcode is an indexed store we do NOT track as a
@@ -162,31 +149,20 @@ static bool isIndexedStore(unsigned Opc) {
 /// shares, so any tracked mirror they overlap must be invalidated
 /// (open_memstream's fsize=pos++ miscompile at -Og hd6309).
 static bool isIndexedNonAccStore(unsigned Opc) {
-  switch (Opc) {
-  case MC6809::STYi_o0: case MC6809::STYi_o5: case MC6809::STYi_o8: case MC6809::STYi_o16:
-  case MC6809::STXi_o0: case MC6809::STXi_o5: case MC6809::STXi_o8: case MC6809::STXi_o16:
-  case MC6809::STUi_o0: case MC6809::STUi_o5: case MC6809::STUi_o8: case MC6809::STUi_o16:
-  case MC6809::STWi_o0: case MC6809::STWi_o5: case MC6809::STWi_o8: case MC6809::STWi_o16:
-  case MC6809::STEi_o0: case MC6809::STEi_o5: case MC6809::STEi_o8: case MC6809::STEi_o16:
-  case MC6809::STFi_o0: case MC6809::STFi_o5: case MC6809::STFi_o8: case MC6809::STFi_o16:
-    return true;
-  default:
-    return false;
-  }
+  auto LS = MC6809InstrInfo::getIdxLoadStore(Opc);
+  return LS && LS->IsStore &&
+         (LS->Value == MC6809::IY || LS->Value == MC6809::IX ||
+          LS->Value == MC6809::SU || LS->Value == MC6809::AW ||
+          LS->Value == MC6809::AE || LS->Value == MC6809::AF);
 }
 
 /// Returns true if the opcode is an indexed load (accumulator or index reg).
 static bool isIndexedLoad(unsigned Opc) {
-  switch (Opc) {
-  case MC6809::LDDi_o0: case MC6809::LDDi_o5: case MC6809::LDDi_o8: case MC6809::LDDi_o16:
-  case MC6809::LDAi_o0: case MC6809::LDAi_o5: case MC6809::LDAi_o8: case MC6809::LDAi_o16:
-  case MC6809::LDBi_o0: case MC6809::LDBi_o5: case MC6809::LDBi_o8: case MC6809::LDBi_o16:
-  case MC6809::LDXi_o0: case MC6809::LDXi_o5: case MC6809::LDXi_o8: case MC6809::LDXi_o16:
-  case MC6809::LDYi_o0: case MC6809::LDYi_o5: case MC6809::LDYi_o8: case MC6809::LDYi_o16:
-    return true;
-  default:
-    return false;
-  }
+  auto LS = MC6809InstrInfo::getIdxLoadStore(Opc);
+  return LS && !LS->IsStore &&
+         (LS->Value == MC6809::AD || LS->Value == MC6809::AA ||
+          LS->Value == MC6809::AB || LS->Value == MC6809::IX ||
+          LS->Value == MC6809::IY);
 }
 
 /// Extract the slot key (base register + offset) from an indexed load/store.
@@ -286,18 +262,6 @@ static bool flagsDeadAfter(MachineBasicBlock &MBB, MachineInstr &MI,
   return true;
 }
 
-/// Bug #367: the indexed-load opcode that loads a 16-bit register R (AD/IX/IY)
-/// from a U/S-relative slot at the given offset. Mirrors getLoadIdxOpcode's
-/// subset (o8 for an 8-bit displacement, o16 otherwise; the #149 offset
-/// relaxation later shrinks o8→o5/o0). 0 if R is not a 16-bit load register.
-static unsigned getIdxLoadOpcodeFor(Register R, int Offset) {
-  bool Is8 = (Offset >= -128 && Offset <= 127);
-  if (R == MC6809::AD) return Is8 ? MC6809::LDDi_o8 : MC6809::LDDi_o16;
-  if (R == MC6809::IX) return Is8 ? MC6809::LDXi_o8 : MC6809::LDXi_o16;
-  if (R == MC6809::IY) return Is8 ? MC6809::LDYi_o8 : MC6809::LDYi_o16;
-  if (R == MC6809::SU) return Is8 ? MC6809::LDUi_o8 : MC6809::LDUi_o16;
-  return 0;
-}
 
 /// Fold `ld R,mem; tfr R,R2 → ld R2,mem` (and `ldd #n; tfr d,R2 → ld R2,#n`).
 /// When a load defines R -- an index register, or D handed to an index
@@ -355,7 +319,7 @@ static bool foldLoadIntoCopy(MachineBasicBlock &MBB,
       continue;
     }
     SlotKey K = getSlotKey(*Prev);
-    unsigned NewOpc = getIdxLoadOpcodeFor(R2, K.Offset);
+    unsigned NewOpc = MC6809InstrInfo::getIdxLoadStoreOpcode(R2, /*IsStore=*/false, K.Offset);
     if (!NewOpc)
       continue;
     // Build the retargeted load via BuildMI so the new opcode's implicit defs

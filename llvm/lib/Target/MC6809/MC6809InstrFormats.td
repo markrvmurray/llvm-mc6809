@@ -377,6 +377,11 @@ class MC6809Inst<string mnemonic, Opcode opcode> : Instruction {
   // and `,--r`).
   bits<2> PreDecrementBytes = 0;
   let TSFlags{4-3} = PreDecrementBytes;
+  // For a plain load or store, set by the load and store multiclasses: the
+  // hardware encoding of the register it loads or stores, and 1 for a load,
+  // 2 for a store (0 for anything else). The IndexedForms table carries them.
+  bits<16> IdxValueEnc = 0xFFFF;
+  bits<2> IdxAccess = 0;
 }
 
 class Accumulator<string mnemonic, Opcode opcode> : MC6809Inst<mnemonic, opcode> {
@@ -3098,6 +3103,10 @@ class IndexedFormInfo<Instruction inst, string family, bits<3> form> {
   Instruction Inst = inst;
   string Family = family;
   bits<3> Form = form; // MC6809::IdxForm: 0 o0, 1 o5, 2 o8, 3 o16, 4 o0I, 5 o8I, 6 o16I
+  // Set, like the instruction's own, by the `let` of a load or store
+  // multiclass around the indexed multiclass that makes this row.
+  bits<16> IdxValueEnc = 0xFFFF;
+  bits<2> IdxAccess = 0;
   // Unused here: they absorb the `let ... in { defm ... }` that wrap the
   // indexed multiclasses, which apply to every record a multiclass makes.
   bit mayLoad = ?;

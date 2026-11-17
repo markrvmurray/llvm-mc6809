@@ -43,12 +43,18 @@ using namespace llvm;
 #define GET_INSTRINFO_CTOR_DTOR
 #include "MC6809GenInstrInfo.inc"
 
+namespace llvm {
+extern const uint16_t MC6809RegEncodingTable[];
+} // namespace llvm
+
 namespace llvm::MC6809 {
 // One row of TableGen's IndexedForms table.
 struct IndexedForm {
   unsigned Inst;
-  unsigned Family; // offset into the table's string pool
-  uint8_t Form;    // an IdxForm
+  unsigned Family;      // offset into the table's string pool
+  uint8_t Form;         // an IdxForm
+  uint16_t IdxValueEnc; // hardware encoding of the loaded/stored register
+  uint8_t IdxAccess;    // 0 neither, 1 load, 2 store
 };
 #define GET_MC6809IndexedForms_DECL
 #define GET_MC6809IndexedForms_IMPL
@@ -59,6 +65,56 @@ std::optional<MC6809::IdxForm> MC6809InstrInfo::getIdxForm(unsigned Opc) {
   if (const MC6809::IndexedForm *Row = MC6809::getIndexedForm(Opc))
     return static_cast<MC6809::IdxForm>(Row->Form);
   return std::nullopt;
+}
+
+// The register with hardware encoding Enc that a load or store can move: a
+// byte accumulator, D, W, Q or an index register. (Other registers -- the
+// flags, say -- may share an encoding.)
+static Register valueRegForEncoding(uint16_t Enc) {
+  static const DenseMap<uint16_t, Register> ByEnc = [] {
+    DenseMap<uint16_t, Register> M;
+    for (unsigned R = 1; R < MC6809::NUM_TARGET_REGS; ++R)
+      if (MC6809::ACC8_CMPRegClass.contains(R) ||
+          R == MC6809::AD || R == MC6809::AW || R == MC6809::AQ ||
+          MC6809::INDEX16RegClass.contains(R)) {
+        bool New = M.insert({MC6809RegEncodingTable[R], Register(R)}).second;
+        assert(New && "two value registers share a hardware encoding");
+        (void)New;
+      }
+    return M;
+  }();
+  return ByEnc.lookup(Enc);
+}
+
+std::optional<MC6809InstrInfo::IdxLoadStore>
+MC6809InstrInfo::getIdxLoadStore(unsigned Opc) {
+  const MC6809::IndexedForm *Row = MC6809::getIndexedForm(Opc);
+  if (!Row || !Row->IdxAccess ||
+      Row->Form > static_cast<unsigned>(MC6809::IdxForm::O16))
+    return std::nullopt;
+  Register R = valueRegForEncoding(Row->IdxValueEnc);
+  assert(R && "load/store row names no known value register");
+  return IdxLoadStore{R, Row->IdxAccess == 2};
+}
+
+unsigned MC6809InstrInfo::getIdxLoadStoreOpcode(Register Value, bool IsStore,
+                                                int64_t Offset) {
+  // (register, is-store) -> 16-bit-offset form, built once from the table.
+  static const DenseMap<std::pair<unsigned, unsigned>, unsigned> Wide = [] {
+    DenseMap<std::pair<unsigned, unsigned>, unsigned> M;
+    for (const MC6809::IndexedForm &Row : MC6809::MC6809IndexedForms)
+      if (Row.IdxAccess &&
+          Row.Form == static_cast<unsigned>(MC6809::IdxForm::O16))
+        M[{valueRegForEncoding(Row.IdxValueEnc).id(), Row.IdxAccess == 2 ? 1u : 0u}] =
+            Row.Inst;
+    return M;
+  }();
+  unsigned O16 = Wide.lookup({Value.id(), IsStore ? 1u : 0u});
+  if (!O16)
+    return 0;
+  if (Offset >= -128 && Offset <= 127)
+    return getIdxSibling(O16, MC6809::IdxForm::O8);
+  return O16;
 }
 
 unsigned MC6809InstrInfo::getIdxSibling(unsigned Opc, MC6809::IdxForm Form) {
@@ -969,34 +1025,20 @@ static unsigned byteAccOpcode(Register R, unsigned OpA, unsigned OpB,
 
 /// Pick the right indexed load opcode for a given register and offset.
 static unsigned getLoadIdxOpcode(Register Reg, int Offset) {
-  bool Is8 = (Offset >= -128 && Offset <= 127);
-  if (Reg == MC6809::AA) return Is8 ? MC6809::LDAi_o8 : MC6809::LDAi_o16;
-  if (Reg == MC6809::AB) return Is8 ? MC6809::LDBi_o8 : MC6809::LDBi_o16;
-  if (Reg == MC6809::AD) return Is8 ? MC6809::LDDi_o8 : MC6809::LDDi_o16;
-  if (Reg == MC6809::AE) return Is8 ? MC6809::LDEi_o8 : MC6809::LDEi_o16;
-  if (Reg == MC6809::AF) return Is8 ? MC6809::LDFi_o8 : MC6809::LDFi_o16;
-  if (Reg == MC6809::AW) return Is8 ? MC6809::LDWi_o8 : MC6809::LDWi_o16;
-  if (Reg == MC6809::IX) return Is8 ? MC6809::LDXi_o8 : MC6809::LDXi_o16;
-  if (Reg == MC6809::IY) return Is8 ? MC6809::LDYi_o8 : MC6809::LDYi_o16;
-  if (Reg == MC6809::SU) return Is8 ? MC6809::LDUi_o8 : MC6809::LDUi_o16;
-  if (Reg == MC6809::AQ) return Is8 ? MC6809::LDQi_o8 : MC6809::LDQi_o16;
-  llvm_unreachable("Unexpected register for spill load");
+  unsigned Opc = MC6809InstrInfo::getIdxLoadStoreOpcode(Reg, /*IsStore=*/false,
+                                                        Offset);
+  if (!Opc)
+    llvm_unreachable("Unexpected register for spill load");
+  return Opc;
 }
 
 /// Pick the right indexed store opcode for a given register and offset.
 static unsigned getStoreIdxOpcode(Register Reg, int Offset) {
-  bool Is8 = (Offset >= -128 && Offset <= 127);
-  if (Reg == MC6809::AA) return Is8 ? MC6809::STAi_o8 : MC6809::STAi_o16;
-  if (Reg == MC6809::AB) return Is8 ? MC6809::STBi_o8 : MC6809::STBi_o16;
-  if (Reg == MC6809::AD) return Is8 ? MC6809::STDi_o8 : MC6809::STDi_o16;
-  if (Reg == MC6809::AE) return Is8 ? MC6809::STEi_o8 : MC6809::STEi_o16;
-  if (Reg == MC6809::AF) return Is8 ? MC6809::STFi_o8 : MC6809::STFi_o16;
-  if (Reg == MC6809::AW) return Is8 ? MC6809::STWi_o8 : MC6809::STWi_o16;
-  if (Reg == MC6809::IX) return Is8 ? MC6809::STXi_o8 : MC6809::STXi_o16;
-  if (Reg == MC6809::IY) return Is8 ? MC6809::STYi_o8 : MC6809::STYi_o16;
-  if (Reg == MC6809::SU) return Is8 ? MC6809::STUi_o8 : MC6809::STUi_o16;
-  if (Reg == MC6809::AQ) return Is8 ? MC6809::STQi_o8 : MC6809::STQi_o16;
-  llvm_unreachable("Unexpected register for spill store");
+  unsigned Opc = MC6809InstrInfo::getIdxLoadStoreOpcode(Reg, /*IsStore=*/true,
+                                                        Offset);
+  if (!Opc)
+    llvm_unreachable("Unexpected register for spill store");
+  return Opc;
 }
 
 // the static-stack support functions. getSymLoadOpcode/Store are

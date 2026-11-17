@@ -15,12 +15,13 @@ include "llvm/TableGen/SearchableTable.td"
 /// ---------------------------------------------------------------------------
 
 /// ---------------------------------------------------------------------------
-/// Constant-offset indexed forms: for each instruction, its family and its
-/// offset form; looked up by opcode, or by family and form to find a sibling.
+/// Constant-offset indexed forms: for each instruction, its family, its offset
+/// form and, for a plain load or store, the register it moves; looked up by
+/// opcode, or by family and form to find a sibling.
 def MC6809IndexedForms : GenericTable {
   let FilterClass = "IndexedFormInfo";
   let CppTypeName = "IndexedForm";
-  let Fields = ["Inst", "Family", "Form"];
+  let Fields = ["Inst", "Family", "Form", "IdxValueEnc", "IdxAccess"];
   let PrimaryKey = ["Inst"];
   let PrimaryKeyName = "getIndexedForm";
 }

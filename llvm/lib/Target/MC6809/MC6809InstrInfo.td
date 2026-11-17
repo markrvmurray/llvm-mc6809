@@ -236,8 +236,8 @@ multiclass MC6809Indexed_P1<string Mnemonic, Opcode opcode, dag outdag, list<Reg
 // used by GlobalISel).
 multiclass Load8Concrete<string Mnem, Opcode ImmOpc, Opcode DirOpc,
                          Opcode IdxOpc, Opcode ExtOpc,
-                         list<Register> Defs> {
-  let mayLoad = true in {
+                         list<Register> Defs, Register Value> {
+  let mayLoad = true, IdxValueEnc = Value.HWEncoding, IdxAccess = 1 in {
     def i8 : MC6809Immediate8Bit_P1<(outs), Mnem, ImmOpc, Defs, []>;
     def d  : MC6809Direct_P1<(outs), Mnem, DirOpc, Defs, []>;
     defm i : MC6809Indexed_P1<Mnem, IdxOpc, (outs), Defs, []>;
@@ -248,8 +248,8 @@ multiclass Load8Concrete<string Mnem, Opcode ImmOpc, Opcode DirOpc,
 // 16-bit load: immediate/direct/indexed/extended (Page 1).
 multiclass Load16Concrete<string Mnem, Opcode ImmOpc, Opcode DirOpc,
                           Opcode IdxOpc, Opcode ExtOpc,
-                          list<Register> Defs> {
-  let mayLoad = true in {
+                          list<Register> Defs, Register Value> {
+  let mayLoad = true, IdxValueEnc = Value.HWEncoding, IdxAccess = 1 in {
     def i16 : MC6809Immediate16Bit_P1<(outs), Mnem, ImmOpc, Defs, []>;
     def d   : MC6809Direct_P1<(outs), Mnem, DirOpc, Defs, []>;
     defm i  : MC6809Indexed_P1<Mnem, IdxOpc, (outs), Defs, []>;
@@ -261,8 +261,8 @@ multiclass Load16Concrete<string Mnem, Opcode ImmOpc, Opcode DirOpc,
 
 // Store: direct/indexed/extended (Page 1). No immediate form.
 multiclass Store8Concrete<string Mnem, Opcode DirOpc, Opcode IdxOpc,
-                          Opcode ExtOpc> {
-  let mayStore = true in {
+                          Opcode ExtOpc, Register Value> {
+  let mayStore = true, IdxValueEnc = Value.HWEncoding, IdxAccess = 2 in {
     def d  : MC6809Direct_P1<(outs), Mnem, DirOpc, [NZ,N,Z,V], []>;
     defm i : MC6809Indexed_P1<Mnem, IdxOpc, (outs), [NZ,N,Z,V], []>;
     def e  : MC6809Extended_P1<(outs), Mnem, ExtOpc, [NZ,N,Z,V], []>;
@@ -270,8 +270,8 @@ multiclass Store8Concrete<string Mnem, Opcode DirOpc, Opcode IdxOpc,
 }
 
 multiclass Store16Concrete<string Mnem, Opcode DirOpc, Opcode IdxOpc,
-                           Opcode ExtOpc> {
-  let mayStore = true in {
+                           Opcode ExtOpc, Register Value> {
+  let mayStore = true, IdxValueEnc = Value.HWEncoding, IdxAccess = 2 in {
     def d  : MC6809Direct_P1<(outs), Mnem, DirOpc, [NZ,N,Z,V], []>;
     defm i : MC6809Indexed_P1<Mnem, IdxOpc, (outs), [NZ,N,Z,V], []>;
     def e  : MC6809Extended_P1<(outs), Mnem, ExtOpc, [NZ,N,Z,V], []>;
@@ -804,8 +804,8 @@ multiclass MC6809Indexed_P3<string Mnemonic, Opcode opcode, dag outdag, list<Reg
 // Page 3 (HD6309, prefix 0x11) variant of Load8Concrete.
 multiclass Load8Concrete_P3<string Mnem, Opcode ImmOpc, Opcode DirOpc,
                             Opcode IdxOpc, Opcode ExtOpc,
-                            list<Register> Defs> {
-  let Predicates = [IsHD6309], mayLoad = true in {
+                            list<Register> Defs, Register Value> {
+  let Predicates = [IsHD6309], mayLoad = true, IdxValueEnc = Value.HWEncoding, IdxAccess = 1 in {
     def i8 : MC6809Immediate8Bit_P3<(outs), Mnem, ImmOpc, Defs, []>;
     def d  : MC6809Direct_P3<(outs), Mnem, DirOpc, Defs, []>;
     defm i : MC6809Indexed_P3<Mnem, IdxOpc, (outs), Defs, []>;
@@ -816,8 +816,8 @@ multiclass Load8Concrete_P3<string Mnem, Opcode ImmOpc, Opcode DirOpc,
 // 16-bit load (Page 2, prefix 0x10).
 multiclass Load16Concrete_P2<string Mnem, Opcode ImmOpc, Opcode DirOpc,
                              Opcode IdxOpc, Opcode ExtOpc,
-                             list<Register> Defs> {
-  let mayLoad = true in {
+                             list<Register> Defs, Register Value> {
+  let mayLoad = true, IdxValueEnc = Value.HWEncoding, IdxAccess = 1 in {
     def i16 : MC6809Immediate16Bit_P2<(outs), Mnem, ImmOpc, Defs, []>;
     def d   : MC6809Direct_P2<(outs), Mnem, DirOpc, Defs, []>;
     defm i  : MC6809Indexed_P2<Mnem, IdxOpc, (outs), Defs, []>;
@@ -829,8 +829,8 @@ multiclass Load16Concrete_P2<string Mnem, Opcode ImmOpc, Opcode DirOpc,
 
 // Store (Page 3, HD6309).
 multiclass Store8Concrete_P3<string Mnem, Opcode DirOpc, Opcode IdxOpc,
-                             Opcode ExtOpc> {
-  let Predicates = [IsHD6309], mayStore = true in {
+                             Opcode ExtOpc, Register Value> {
+  let Predicates = [IsHD6309], mayStore = true, IdxValueEnc = Value.HWEncoding, IdxAccess = 2 in {
     def d  : MC6809Direct_P3<(outs), Mnem, DirOpc, [NZ,N,Z,V], []>;
     defm i : MC6809Indexed_P3<Mnem, IdxOpc, (outs), [NZ,N,Z,V], []>;
     def e  : MC6809Extended_P3<(outs), Mnem, ExtOpc, [NZ,N,Z,V], []>;
@@ -839,8 +839,8 @@ multiclass Store8Concrete_P3<string Mnem, Opcode DirOpc, Opcode IdxOpc,
 
 // Store (Page 2).
 multiclass Store16Concrete_P2<string Mnem, Opcode DirOpc, Opcode IdxOpc,
-                              Opcode ExtOpc> {
-  let mayStore = true in {
+                              Opcode ExtOpc, Register Value> {
+  let mayStore = true, IdxValueEnc = Value.HWEncoding, IdxAccess = 2 in {
     def d  : MC6809Direct_P2<(outs), Mnem, DirOpc, [NZ,N,Z,V], []>;
     defm i : MC6809Indexed_P2<Mnem, IdxOpc, (outs), [NZ,N,Z,V], []>;
     def e  : MC6809Extended_P2<(outs), Mnem, ExtOpc, [NZ,N,Z,V], []>;

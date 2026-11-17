@@ -262,6 +262,19 @@ public:
   /// Offset (no offset, then 8 and 16 bits); 0 if none.
   static unsigned getIdxIndirectFormForOffset(unsigned Opc, int64_t Offset);
 
+  /// A plain indexed load or store (non-indirect form): the register it
+  /// loads or stores, and which.
+  struct IdxLoadStore {
+    Register Value;
+    bool IsStore;
+  };
+  static std::optional<IdxLoadStore> getIdxLoadStore(unsigned Opc);
+  /// The plain indexed load (or store) of Value with an offset operand: the
+  /// 8-bit-offset form if Offset fits, else the 16-bit one (offset
+  /// relaxation narrows it later). 0 if Value has no such instruction.
+  static unsigned getIdxLoadStoreOpcode(Register Value, bool IsStore,
+                                        int64_t Offset);
+
 protected:
   // Bug #357: report a value-preserving same-width TFRp as a copy so generic
   // MachineCopyPropagation can forward/eliminate it.
