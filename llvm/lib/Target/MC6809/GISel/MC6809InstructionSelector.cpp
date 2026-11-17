@@ -2907,7 +2907,9 @@ skip_globalvalue_fold:
       if (LhsAccum && CCOpt) {
         if (Ty == LLT::scalar(8)) {
           CmpBrImmOpc = MC6809::CompareBranch_i8_Imm;
-          RC = &MC6809::ACC8RegClass;
+          // The class the fused compare-and-branch takes (A, B, E, F), not
+          // ACC8, which also holds direct-page bytes.
+          RC = &MC6809::ACC8_CMPRegClass;
         } else if (Ty == LLT::scalar(16)) {
           CmpBrImmOpc = MC6809::CompareBranch_i16_Imm;
           RC = &MC6809::ACC16RegClass;
@@ -3149,11 +3151,15 @@ skip_globalvalue_fold:
             // branch actually consumes), not the Compare's CC — they're
             // usually the same but not guaranteed identical.
             (void)CmpCC;
-            BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(FusedOpc))
-                .addImm(CC)
-                .addReg(Src)
-                .addImm(Imm)
-                .addMBB(TargetMBB);
+            auto Fused = BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(FusedOpc))
+                             .addImm(CC)
+                             .addReg(Src)
+                             .addImm(Imm)
+                             .addMBB(TargetMBB);
+            // The fused form's source class is narrower than the plain
+            // compare's (an 8-bit one takes A, B, E or F, not a direct-page
+            // byte): constrain it, or copy into the class if it cannot be.
+            constrainSelectedInstRegOperands(*Fused, TII, TRI, RBI);
             MI.eraseFromParent();
             // Leave Compare + ConditionalImm for DCE — they feed the
             // original i1 materialisation for any OTHER user (e.g. a
