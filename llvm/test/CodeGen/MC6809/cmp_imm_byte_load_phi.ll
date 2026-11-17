@@ -45,34 +45,26 @@ define dso_local i16 @cmp_imm_byte_load_phi_no_wrap(ptr noundef readonly capture
 ; CHECK-NEXT:    lda d,y
 ; CHECK-NEXT:    tfr a,b
 ; CHECK-NEXT:    addb #-48
-; CHECK-NEXT:    pshs d
-; CHECK-NEXT:    ldd #0
-; CHECK-NEXT:    std <__rs1
-; CHECK-NEXT:    puls d
+; CHECK-NEXT:    ldx #0
+; CHECK-NEXT:    stx <__rs1
 ; CHECK-NEXT:    cmpb #10
 ; CHECK-NEXT:    bhs .LBB0_7
 ; CHECK-NEXT:  ; %bb.3: ; %while.body.preheader
-; CHECK-NEXT:    pshs d
-; CHECK-NEXT:    ldd #2
-; CHECK-NEXT:    std <__rs0
-; CHECK-NEXT:    puls d
+; CHECK-NEXT:    ldx #2
+; CHECK-NEXT:    stx <__rs0
 ; CHECK-NEXT:    ldb 2,s ; 1-byte Folded Reload
 ; CHECK-NEXT:    cmpb #45
 ; CHECK-NEXT:    beq .LBB0_5
 ; CHECK-NEXT:  ; %bb.4: ; %select.false
-; CHECK-NEXT:    pshs d
-; CHECK-NEXT:    ldd #1
-; CHECK-NEXT:    std <__rs0
-; CHECK-NEXT:    puls d
+; CHECK-NEXT:    ldx #1
+; CHECK-NEXT:    stx <__rs0
 ; CHECK-NEXT:  .LBB0_5: ; %select.end
 ; CHECK-NEXT:    pshs d
 ; CHECK-NEXT:    ldd <__rs0
 ; CHECK-NEXT:    leay d,y
 ; CHECK-NEXT:    puls d
-; CHECK-NEXT:    pshs d
-; CHECK-NEXT:    ldd #0
-; CHECK-NEXT:    std <__rs1
-; CHECK-NEXT:    puls d
+; CHECK-NEXT:    ldx #0
+; CHECK-NEXT:    stx <__rs1
 ; CHECK-NEXT:  .LBB0_6: ; %while.body
 ; CHECK-NEXT:    ; =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    sta 3,s ; 1-byte Folded Spill

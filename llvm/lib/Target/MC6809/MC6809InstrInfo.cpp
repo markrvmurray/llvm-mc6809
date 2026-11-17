@@ -1199,6 +1199,45 @@ static bool stagingRegLiveAcross(MachineBasicBlock &MBB,
   return !LiveRegs.available(MRI, RealReg);
 }
 
+/// X or Y, when one of them can carry a 16-bit value between memory and a
+/// direct-page register at MI in place of D, so that D needs no saving: its
+/// value is not read after MI (a callee-saved register the function has not
+/// saved counts as read -- LivePhysRegs adds those as pristine), and MI does
+/// not use it, except as the base of a load, which reads it before the load
+/// overwrites it. X is cheaper (Y's loads and stores take a prefix byte),
+/// and either is cheaper than a push and pull of D.
+static Register freeTransitIndex(MachineInstr &MI, Register LoadBase) {
+  MachineBasicBlock &MBB = *MI.getParent();
+  const MachineFunction &MF = *MBB.getParent();
+  const MachineRegisterInfo &MRI = MF.getRegInfo();
+  if (!MRI.tracksLiveness())
+    return Register();
+  const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
+  LivePhysRegs LiveAfter(TRI);
+  LiveAfter.addLiveOuts(MBB);
+  for (MachineInstr &I : llvm::reverse(MBB)) {
+    if (&I == &MI)
+      break;
+    LiveAfter.stepBackward(I);
+  }
+  auto Free = [&](Register R) {
+    return LiveAfter.available(MRI, R) &&
+           none_of(MI.operands(), [&](const MachineOperand &MO) {
+             return MO.isReg() && MO.getReg() &&
+                    TRI.regsOverlap(MO.getReg(), R) &&
+                    !(MO.isUse() && MO.getReg() == LoadBase);
+           });
+  };
+  // D itself free: keep to D. The save the caller emits around it is then
+  // dead, and the post-RA cleanup removes it.
+  if (Free(MC6809::AD))
+    return Register();
+  for (Register R : {MC6809::IX, MC6809::IY})
+    if (Free(R))
+      return R;
+  return Register();
+}
+
 /// Bytes a pushStagingReg push moves S down by.
 static unsigned stagingPushSize(Register RealReg) {
   if (RealReg == MC6809::AQ)
@@ -1422,6 +1461,17 @@ MC6809InstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
         default: llvm_unreachable("unreachable");
         }
         Builder.buildInstr(Opc).addReg(DestReg, RegState::Undef).addUse(SrcReg, RegState::Implicit).addReg(DestReg, RegState::ImplicitDefine);
+      } else if ((SrcReg == MC6809::AA || SrcReg == MC6809::AB) &&
+                 (MC6809::Imag8RegClass.contains(DestReg) ||
+                  isImag16ByteSubReg(DestReg))) {
+        // A or B -> a direct-page byte: store it from where it is. Staging
+        // through the accumulator the destination is usually loaded into
+        // would move it to the other half first and save that half around
+        // the move.
+        Builder.buildInstr(SrcReg == MC6809::AA ? MC6809::STAd : MC6809::STBd)
+            .addReg(DestReg, RegState::Undef)
+            .addUse(SrcReg, RegState::Implicit)
+            .addReg(DestReg, RegState::ImplicitDefine);
       } else {
         Register RealAcc = getPhysRegFor(DestReg);
         if (SrcReg != RealAcc) {
@@ -1464,6 +1514,12 @@ MC6809InstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
         default: llvm_unreachable("unreachable");
         }
         Builder.buildInstr(Opc).addDef(DestReg, RegState::Implicit).addReg(SrcReg);
+      } else if ((DestReg == MC6809::AA || DestReg == MC6809::AB) &&
+                 (MC6809::Imag8RegClass.contains(SrcReg) ||
+                  isImag16ByteSubReg(SrcReg))) {
+        // A direct-page byte -> A or B: load it straight there (see the
+        // store above).
+        loadByteInto(Builder, DestReg, SrcReg, MF);
       } else {
         Register RealAcc = getPhysRegFor(SrcReg);
         if (DestReg != RealAcc) {
@@ -6317,6 +6373,29 @@ void MC6809InstrInfo::expandLoadImm(MachineIRBuilder &Builder, MachineInstr &MI)
     Register RealReg = getPhysRegFor(DestRegOp.getReg());
     MachineFunction &MF = Builder.getMF();
     auto ValOp = MI.getOperand(1);
+    // A 16-bit constant can go through a free X or Y instead, with nothing
+    // to save.
+    Register Transit;
+    if (RealReg == MC6809::AD)
+      Transit = freeTransitIndex(MI, Register());
+    if (Transit) {
+      auto Load = Builder.buildInstr(LoadImmediateOpcode.at(Transit))
+                      .addDef(Transit, RegState::Implicit);
+      if (ValOp.isGlobal())
+        Load.addGlobalAddress(ValOp.getGlobal(), ValOp.getOffset(),
+                              ValOp.getTargetFlags());
+      else if (ValOp.isSymbol())
+        Load.addExternalSymbol(ValOp.getSymbolName(), ValOp.getTargetFlags());
+      else
+        Load.addImm(ValOp.isImm() ? ValOp.getImm()
+                                  : ValOp.getCImm()->getSExtValue());
+      Builder.buildInstr(Transit == MC6809::IX ? MC6809::STXd : MC6809::STYd)
+          .addReg(DestRegOp.getReg(), RegState::Undef)
+          .addUse(Transit, RegState::Implicit)
+          .addReg(DestRegOp.getReg(), RegState::ImplicitDefine);
+      MI.removeFromParent();
+      return;
+    }
     // AD/AA/AB staging: the LD #imm clobbers the staging real, which
     // regalloc may have left live across this pseudo (its Defs are
     // deliberately empty). Preserve it (see pushStagingReg).
@@ -6684,6 +6763,22 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
   // then store back to the direct-page slot.
   if (needsMaterialization(DestRegOp.getReg())) {
     MachineFunction &MF = *MI.getMF();
+    // A 16-bit one can go through a free X or Y instead, with nothing to
+    // save.
+    if (MC6809::Imag16RegClass.contains(DestRegOp.getReg()) && !Indirect)
+      if (Register Transit = freeTransitIndex(MI, MI.getOperand(1).getReg())) {
+        MI.getOperand(0).setReg(Transit);
+        MI.getOperand(0).setIsDead(false);
+        expandLoadIdx(Builder, MI);
+        MachineIRBuilder PostBuilder(*MI.getParent(),
+                                     std::next(MI.getIterator()));
+        PostBuilder
+            .buildInstr(Transit == MC6809::IX ? MC6809::STXd : MC6809::STYd)
+            .addReg(DestRegOp.getReg(), RegState::Undef)
+            .addUse(Transit, RegState::Implicit)
+            .addReg(DestRegOp.getReg(), RegState::ImplicitDefine);
+        return;
+      }
     // The staging clobbers that accumulator, and regalloc
     // believes it survives this pseudo (the pseudo deliberately declares
     // no accumulator Defs -- a fixed dead-def would veto allocating the
@@ -6781,7 +6876,19 @@ void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI
   // If the source is an imaginary register, materialize it into its staging
   // real accumulator with a hard-stack preserve around the window.
   bool NeedRestore = false;
-  if (needsMaterialization(MI.getOperand(0).getReg())) {
+  Register Transit;
+  if (MC6809::Imag16RegClass.contains(MI.getOperand(0).getReg()) && !Indirect)
+    Transit = freeTransitIndex(MI, Register());
+  if (Transit) {
+    // A 16-bit direct-page source can go through a free X or Y instead, with
+    // nothing to save.
+    Register SrcReg = MI.getOperand(0).getReg();
+    MachineIRBuilder LoadBuilder(*MI.getParent(), MI.getIterator());
+    LoadBuilder.buildInstr(Transit == MC6809::IX ? MC6809::LDXd : MC6809::LDYd)
+        .addDef(Transit, RegState::Implicit)
+        .addReg(SrcReg);
+    MI.getOperand(0).setReg(Transit);
+  } else if (needsMaterialization(MI.getOperand(0).getReg())) {
     Register SrcReg = MI.getOperand(0).getReg();
     MachineFunction &MF = *MI.getMF();
     MachineIRBuilder LoadBuilder(*MI.getParent(), MI.getIterator());

@@ -71,10 +71,8 @@ define void @sext_i16_to_i32_then_store(ptr %out, i16 %x) {
 ; CHECK-NEXT:    lda 2,s
 ; CHECK-NEXT:    std <__rs0
 ; CHECK-NEXT:    puls d
-; CHECK-NEXT:    pshs d
-; CHECK-NEXT:    ldd <__rs0
-; CHECK-NEXT:    std 2,x
-; CHECK-NEXT:    puls d
+; CHECK-NEXT:    ldy <__rs0
+; CHECK-NEXT:    sty 2,x
 ; CHECK-NEXT:    std ,x
 ; CHECK-NEXT:    leas 3,s
 ; CHECK-NEXT:    puls y,pc

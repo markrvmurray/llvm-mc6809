@@ -87,10 +87,7 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; MC6809-O0-NEXT:    lda <__rs2hi
 ; MC6809-O0-NEXT:    ldb <__rs0lo
 ; MC6809-O0-NEXT:    stb 2,u ; 1-byte Folded Spill
-; MC6809-O0-NEXT:    pshs a
-; MC6809-O0-NEXT:    lda <__rs0hi
-; MC6809-O0-NEXT:    tfr a,b
-; MC6809-O0-NEXT:    puls a
+; MC6809-O0-NEXT:    ldb <__rs0hi
 ; MC6809-O0-NEXT:    stb 4,u ; 1-byte Folded Spill
 ; MC6809-O0-NEXT:    ldb 3,u ; 1-byte Folded Reload
 ; MC6809-O0-NEXT:    addb 2,u

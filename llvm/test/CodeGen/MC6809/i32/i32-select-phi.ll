@@ -102,10 +102,7 @@ define i32 @phi_i32(i1 %c, i32 %a, i32 %b) {
 ; O0-NEXT:    lda <__rs1hi
 ; O0-NEXT:    ldb <__rs0lo
 ; O0-NEXT:    stb 1,s ; 1-byte Folded Spill
-; O0-NEXT:    pshs a
-; O0-NEXT:    lda <__rs0hi
-; O0-NEXT:    tfr a,b
-; O0-NEXT:    puls a
+; O0-NEXT:    ldb <__rs0hi
 ; O0-NEXT:    stb ,s ; 1-byte Folded Spill
 ; O0-NEXT:    ldb 2,s ; 1-byte Folded Reload
 ; O0-NEXT:    addb #1
@@ -130,10 +127,7 @@ define i32 @phi_i32(i1 %c, i32 %a, i32 %b) {
 ; O0-NEXT:    lda <__rs3hi
 ; O0-NEXT:    ldb <__rs2lo
 ; O0-NEXT:    stb 1,s ; 1-byte Folded Spill
-; O0-NEXT:    pshs a
-; O0-NEXT:    lda <__rs2hi
-; O0-NEXT:    tfr a,b
-; O0-NEXT:    puls a
+; O0-NEXT:    ldb <__rs2hi
 ; O0-NEXT:    stb ,s ; 1-byte Folded Spill
 ; O0-NEXT:    ldb 2,s ; 1-byte Folded Reload
 ; O0-NEXT:    addb #2
@@ -176,10 +170,7 @@ define i32 @phi_i32(i1 %c, i32 %a, i32 %b) {
 ; O2-NEXT:    lda <__rs1hi
 ; O2-NEXT:    ldb <__rs0lo
 ; O2-NEXT:    stb 1,s ; 1-byte Folded Spill
-; O2-NEXT:    pshs a
-; O2-NEXT:    lda <__rs0hi
-; O2-NEXT:    tfr a,b
-; O2-NEXT:    puls a
+; O2-NEXT:    ldb <__rs0hi
 ; O2-NEXT:    stb ,s ; 1-byte Folded Spill
 ; O2-NEXT:    ldb 2,s ; 1-byte Folded Reload
 ; O2-NEXT:    addb #1
@@ -194,10 +185,7 @@ define i32 @phi_i32(i1 %c, i32 %a, i32 %b) {
 ; O2-NEXT:    lda <__rs1hi
 ; O2-NEXT:    ldb <__rs0lo
 ; O2-NEXT:    stb 1,s ; 1-byte Folded Spill
-; O2-NEXT:    pshs a
-; O2-NEXT:    lda <__rs0hi
-; O2-NEXT:    tfr a,b
-; O2-NEXT:    puls a
+; O2-NEXT:    ldb <__rs0hi
 ; O2-NEXT:    stb ,s ; 1-byte Folded Spill
 ; O2-NEXT:    ldb 2,s ; 1-byte Folded Reload
 ; O2-NEXT:    addb #2

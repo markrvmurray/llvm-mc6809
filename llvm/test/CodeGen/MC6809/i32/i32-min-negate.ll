@@ -25,10 +25,7 @@ define i32 @neg_i32(i32 %x) {
 ; O0-NEXT:    lda <__rs0hi
 ; O0-NEXT:    ldb <__rs0lo
 ; O0-NEXT:    stb 1,s ; 1-byte Folded Spill
-; O0-NEXT:    pshs a
-; O0-NEXT:    lda <__rs0hi
-; O0-NEXT:    tfr a,b
-; O0-NEXT:    puls a
+; O0-NEXT:    ldb <__rs0hi
 ; O0-NEXT:    stb ,s ; 1-byte Folded Spill
 ; O0-NEXT:    ldb 2,s ; 1-byte Folded Reload
 ; O0-NEXT:    subb 8,s
@@ -90,10 +87,8 @@ define i32 @mul_neg1(i32 %x) {
 ; O0-NEXT:    leas -14,s
 ; O0-NEXT:    stx 8,s ; 2-byte Folded Spill
 ; O0-NEXT:    ldd 20,s
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 20,s
-; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
+; O0-NEXT:    ldx 18,s
+; O0-NEXT:    stx <__rs0
 ; O0-NEXT:    std 2,s
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
@@ -106,10 +101,8 @@ define i32 @mul_neg1(i32 %x) {
 ; O0-NEXT:    tfr y,x
 ; O0-NEXT:    lbsr __mulsi3
 ; O0-NEXT:    ldd 2,y
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 12,s
-; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
+; O0-NEXT:    ldx 10,s
+; O0-NEXT:    stx <__rs0
 ; O0-NEXT:    ldx 8,s ; 2-byte Folded Reload
 ; O0-NEXT:    std 2,x
 ; O0-NEXT:    pshs d
@@ -158,17 +151,10 @@ define i32 @double_neg(i32 %x) {
 ; O0-NEXT:    puls d
 ; O0-NEXT:    ldb <__rs0lo
 ; O0-NEXT:    stb 4,s ; 1-byte Folded Spill
-; O0-NEXT:    pshs a
-; O0-NEXT:    lda <__rs0hi
-; O0-NEXT:    tfr a,b
-; O0-NEXT:    puls a
+; O0-NEXT:    ldb <__rs0hi
 ; O0-NEXT:    stb 6,s ; 1-byte Folded Spill
-; O0-NEXT:    ldb <__rs0lo
-; O0-NEXT:    tfr b,a
-; O0-NEXT:    pshs a
-; O0-NEXT:    lda <__rs0hi
-; O0-NEXT:    tfr a,b
-; O0-NEXT:    puls a
+; O0-NEXT:    lda <__rs0lo
+; O0-NEXT:    ldb <__rs0hi
 ; O0-NEXT:    stb 5,s ; 1-byte Folded Spill
 ; O0-NEXT:    ldb 4,s ; 1-byte Folded Reload
 ; O0-NEXT:    subb 12,s
@@ -186,10 +172,7 @@ define i32 @double_neg(i32 %x) {
 ; O0-NEXT:    lda <__rs0hi
 ; O0-NEXT:    ldb <__rs0lo
 ; O0-NEXT:    stb 2,s ; 1-byte Folded Spill
-; O0-NEXT:    pshs a
-; O0-NEXT:    lda <__rs0hi
-; O0-NEXT:    tfr a,b
-; O0-NEXT:    puls a
+; O0-NEXT:    ldb <__rs0hi
 ; O0-NEXT:    stb ,s ; 1-byte Folded Spill
 ; O0-NEXT:    ldb 3,s ; 1-byte Folded Reload
 ; O0-NEXT:    subb 4,s

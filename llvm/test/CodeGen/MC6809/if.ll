@@ -419,16 +419,12 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O0-NEXT:    leas -17,s
 ; O0-NEXT:    stx 11,s ; 2-byte Folded Spill
 ; O0-NEXT:    ldd 23,s
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 23,s
-; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
+; O0-NEXT:    ldx 21,s
+; O0-NEXT:    stx <__rs0
 ; O0-NEXT:    std 2,s
 ; O0-NEXT:    ldd #0
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd <__rs0
-; O0-NEXT:    std 2,s
-; O0-NEXT:    puls d
+; O0-NEXT:    ldx <__rs0
+; O0-NEXT:    stx ,s
 ; O0-NEXT:    std 6,s
 ; O0-NEXT:    std 4,s
 ; O0-NEXT:    leay 13,s
@@ -455,10 +451,7 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O0-NEXT:    lda <__rs0hi
 ; O0-NEXT:    ldb <__rs0lo
 ; O0-NEXT:    stb 9,s ; 1-byte Folded Spill
-; O0-NEXT:    pshs a
-; O0-NEXT:    lda <__rs0hi
-; O0-NEXT:    tfr a,b
-; O0-NEXT:    puls a
+; O0-NEXT:    ldb <__rs0hi
 ; O0-NEXT:    stb 8,s ; 1-byte Folded Spill
 ; O0-NEXT:    ldb 10,s ; 1-byte Folded Reload
 ; O0-NEXT:    subb 28,s
@@ -499,10 +492,8 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O1-NEXT:    leas -16,s
 ; O1-NEXT:    stx 10,s ; 2-byte Folded Spill
 ; O1-NEXT:    ldd 22,s
-; O1-NEXT:    pshs d
-; O1-NEXT:    ldd 22,s
-; O1-NEXT:    std <__rs0
-; O1-NEXT:    puls d
+; O1-NEXT:    ldx 20,s
+; O1-NEXT:    stx <__rs0
 ; O1-NEXT:    std 2,s
 ; O1-NEXT:    ldd <__rs0
 ; O1-NEXT:    std 0,s
@@ -553,10 +544,8 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O2-NEXT:    leas -16,s
 ; O2-NEXT:    stx 10,s ; 2-byte Folded Spill
 ; O2-NEXT:    ldd 22,s
-; O2-NEXT:    pshs d
-; O2-NEXT:    ldd 22,s
-; O2-NEXT:    std <__rs0
-; O2-NEXT:    puls d
+; O2-NEXT:    ldx 20,s
+; O2-NEXT:    stx <__rs0
 ; O2-NEXT:    std 2,s
 ; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    std ,s
@@ -607,10 +596,8 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O3-NEXT:    leas -16,s
 ; O3-NEXT:    stx 10,s ; 2-byte Folded Spill
 ; O3-NEXT:    ldd 22,s
-; O3-NEXT:    pshs d
-; O3-NEXT:    ldd 22,s
-; O3-NEXT:    std <__rs0
-; O3-NEXT:    puls d
+; O3-NEXT:    ldx 20,s
+; O3-NEXT:    stx <__rs0
 ; O3-NEXT:    std 2,s
 ; O3-NEXT:    ldd <__rs0
 ; O3-NEXT:    std ,s
@@ -720,16 +707,12 @@ define dso_local i32 @if_u32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O0-NEXT:    leas -18,s
 ; O0-NEXT:    stx 8,s ; 2-byte Folded Spill
 ; O0-NEXT:    ldd 24,s
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 24,s
-; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
+; O0-NEXT:    ldx 22,s
+; O0-NEXT:    stx <__rs0
 ; O0-NEXT:    std 2,s
 ; O0-NEXT:    ldd #0
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd <__rs0
-; O0-NEXT:    std 2,s
-; O0-NEXT:    puls d
+; O0-NEXT:    ldx <__rs0
+; O0-NEXT:    stx ,s
 ; O0-NEXT:    std 6,s
 ; O0-NEXT:    std 4,s
 ; O0-NEXT:    leay 10,s
@@ -789,10 +772,8 @@ define dso_local i32 @if_u32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O1-NEXT:    leas -18,s
 ; O1-NEXT:    stx 8,s ; 2-byte Folded Spill
 ; O1-NEXT:    ldd 24,s
-; O1-NEXT:    pshs d
-; O1-NEXT:    ldd 24,s
-; O1-NEXT:    std <__rs0
-; O1-NEXT:    puls d
+; O1-NEXT:    ldx 22,s
+; O1-NEXT:    stx <__rs0
 ; O1-NEXT:    std 2,s
 ; O1-NEXT:    ldd <__rs0
 ; O1-NEXT:    std 0,s
@@ -839,10 +820,8 @@ define dso_local i32 @if_u32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O2-NEXT:    leas -18,s
 ; O2-NEXT:    stx 8,s ; 2-byte Folded Spill
 ; O2-NEXT:    ldd 24,s
-; O2-NEXT:    pshs d
-; O2-NEXT:    ldd 24,s
-; O2-NEXT:    std <__rs0
-; O2-NEXT:    puls d
+; O2-NEXT:    ldx 22,s
+; O2-NEXT:    stx <__rs0
 ; O2-NEXT:    std 2,s
 ; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    std ,s
@@ -889,10 +868,8 @@ define dso_local i32 @if_u32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O3-NEXT:    leas -18,s
 ; O3-NEXT:    stx 8,s ; 2-byte Folded Spill
 ; O3-NEXT:    ldd 24,s
-; O3-NEXT:    pshs d
-; O3-NEXT:    ldd 24,s
-; O3-NEXT:    std <__rs0
-; O3-NEXT:    puls d
+; O3-NEXT:    ldx 22,s
+; O3-NEXT:    stx <__rs0
 ; O3-NEXT:    std 2,s
 ; O3-NEXT:    ldd <__rs0
 ; O3-NEXT:    std ,s

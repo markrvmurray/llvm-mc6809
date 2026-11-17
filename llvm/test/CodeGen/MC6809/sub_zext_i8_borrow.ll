@@ -51,10 +51,7 @@ define i16 @sub_zext_i8(i8 %a, i8 %b) {
 ; O0-NEXT:    ldb <__rs0lo
 ; O0-NEXT:    lda <__rs0hi
 ; O0-NEXT:    ldb <__rs1lo
-; O0-NEXT:    pshs a
-; O0-NEXT:    lda <__rs1hi
-; O0-NEXT:    tfr a,b
-; O0-NEXT:    puls a
+; O0-NEXT:    ldb <__rs1hi
 ; O0-NEXT:    stb ,s ; 1-byte Folded Spill
 ; O0-NEXT:    ldb 1,s ; 1-byte Folded Reload
 ; O0-NEXT:    subb 4,s
@@ -112,10 +109,7 @@ define i16 @add_zext_i8(i8 %a, i8 %b) {
 ; O0-NEXT:    ldb <__rs0lo
 ; O0-NEXT:    lda <__rs0hi
 ; O0-NEXT:    ldb <__rs1lo
-; O0-NEXT:    pshs a
-; O0-NEXT:    lda <__rs1hi
-; O0-NEXT:    tfr a,b
-; O0-NEXT:    puls a
+; O0-NEXT:    ldb <__rs1hi
 ; O0-NEXT:    stb ,s ; 1-byte Folded Spill
 ; O0-NEXT:    ldb 1,s ; 1-byte Folded Reload
 ; O0-NEXT:    addb 4,s
