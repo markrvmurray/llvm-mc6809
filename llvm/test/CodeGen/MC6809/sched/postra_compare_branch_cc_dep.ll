@@ -23,21 +23,21 @@ declare void @sink_b(i16)
 define i16 @cmp_eq_branch(i16 %x, i16 %y, i16 %z) {
 ; MC6809-O2-LABEL: cmp_eq_branch:
 ; MC6809-O2:       ; %bb.0: ; %entry
-; MC6809-O2-NEXT:    pshs y
+; MC6809-O2-NEXT:    pshs u
 ; MC6809-O2-NEXT:    cmpx #0
 ; MC6809-O2-NEXT:    beq .LBB0_2
 ; MC6809-O2-NEXT:  ; %bb.1: ; %else
-; MC6809-O2-NEXT:    ldy 6,s
-; MC6809-O2-NEXT:    tfr y,x
+; MC6809-O2-NEXT:    ldu 6,s
+; MC6809-O2-NEXT:    tfr u,x
 ; MC6809-O2-NEXT:    lbsr sink_b
-; MC6809-O2-NEXT:    tfr y,x
-; MC6809-O2-NEXT:    puls y,pc
+; MC6809-O2-NEXT:    tfr u,x
+; MC6809-O2-NEXT:    puls u,pc
 ; MC6809-O2-NEXT:  .LBB0_2: ; %then
-; MC6809-O2-NEXT:    ldy 4,s
-; MC6809-O2-NEXT:    tfr y,x
+; MC6809-O2-NEXT:    ldu 4,s
+; MC6809-O2-NEXT:    tfr u,x
 ; MC6809-O2-NEXT:    lbsr sink_a
-; MC6809-O2-NEXT:    tfr y,x
-; MC6809-O2-NEXT:    puls y,pc
+; MC6809-O2-NEXT:    tfr u,x
+; MC6809-O2-NEXT:    puls u,pc
 entry:
   %cmp = icmp eq i16 %x, 0
   br i1 %cmp, label %then, label %else

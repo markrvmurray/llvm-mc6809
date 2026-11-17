@@ -25,7 +25,7 @@ done:
 ; CHECK-LABEL: len:
 ; CHECK-NOT:   <__rs
 ; CHECK-NOT:   ld{{[ab]}} d,
-; CHECK:       ld{{[ab]}} ,{{[xy]}}
+; CHECK:       ld{{[ab]}} ,{{[xyu]}}
 ; CHECK-NOT:   <__rs
 ; CHECK-NOT:   ld{{[ab]}} d,
 ; CHECK:       {{rts|puls .*,pc}}

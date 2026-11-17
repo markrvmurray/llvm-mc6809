@@ -57,7 +57,9 @@ define i16 @usat16(i16 %a, i16 %b) {
 ; CMPD #0 is redundant and dropped (MC6809LateOptimization).
 define void @dec_loop(ptr %p, i16 %n) {
 ; CHECK-LABEL: dec_loop:
-; CHECK:       {{addd #-1|leay -1,y}}
+; A counter in U is the exception: LEAU sets no flags, so `leau -1,u` keeps
+; its `cmpu #0`.
+; CHECK:       {{addd #-1|leay -1,y|leau -1,u}}
 ; CHECK-NOT:   cmp{{[dy]}} #0
 ; CHECK:       bne
 entry:

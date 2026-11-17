@@ -30,9 +30,9 @@
 define dso_local i16 @cmp_imm_byte_load_phi_no_wrap(ptr noundef readonly captures(none) %s) local_unnamed_addr {
 ; CHECK-LABEL: cmp_imm_byte_load_phi_no_wrap:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    pshs y
+; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    leas -4,s
-; CHECK-NEXT:    tfr x,y
+; CHECK-NEXT:    tfr x,u
 ; CHECK-NEXT:    lda ,x
 ; CHECK-NEXT:    sta 2,s ; 1-byte Folded Spill
 ; CHECK-NEXT:    ldb #0
@@ -42,7 +42,7 @@ define dso_local i16 @cmp_imm_byte_load_phi_no_wrap(ptr noundef readonly capture
 ; CHECK-NEXT:    ldb #1
 ; CHECK-NEXT:  .LBB0_2: ; %entry
 ; CHECK-NEXT:    clra
-; CHECK-NEXT:    lda d,y
+; CHECK-NEXT:    lda d,u
 ; CHECK-NEXT:    tfr a,b
 ; CHECK-NEXT:    addb #-48
 ; CHECK-NEXT:    ldx #0
@@ -61,7 +61,7 @@ define dso_local i16 @cmp_imm_byte_load_phi_no_wrap(ptr noundef readonly capture
 ; CHECK-NEXT:  .LBB0_5: ; %select.end
 ; CHECK-NEXT:    pshs d
 ; CHECK-NEXT:    ldd <__rs0
-; CHECK-NEXT:    leay d,y
+; CHECK-NEXT:    leau d,u
 ; CHECK-NEXT:    puls d
 ; CHECK-NEXT:    ldx #0
 ; CHECK-NEXT:    stx <__rs1
@@ -81,7 +81,7 @@ define dso_local i16 @cmp_imm_byte_load_phi_no_wrap(ptr noundef readonly capture
 ; CHECK-NEXT:    addb 3,s
 ; CHECK-NEXT:    adca #0
 ; CHECK-NEXT:    std <__rs1
-; CHECK-NEXT:    lda ,y+
+; CHECK-NEXT:    lda ,u+
 ; CHECK-NEXT:    tfr a,b
 ; CHECK-NEXT:    addb #-48
 ; CHECK-NEXT:    cmpb #10
@@ -101,7 +101,7 @@ define dso_local i16 @cmp_imm_byte_load_phi_no_wrap(ptr noundef readonly capture
 ; CHECK-NEXT:  .LBB0_9: ; %select.end2
 ; CHECK-NEXT:    ldx <__rs0
 ; CHECK-NEXT:    leas 4,s
-; CHECK-NEXT:    puls y,pc
+; CHECK-NEXT:    puls u,pc
 entry:
   %0 = load i8, ptr %s, align 1
   %cmp.not = icmp eq i8 %0, 45

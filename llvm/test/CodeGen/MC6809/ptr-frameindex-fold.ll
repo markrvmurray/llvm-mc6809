@@ -27,7 +27,7 @@ entry:
 ; longer needs a frame pointer (the SPILL_X retirement removed the forced-FP
 ; trigger), U when it does.
 ; CHECK: ldx {{[0-9]+}},{{[su]}}
-; CHECK: ldy {{[0-9]+}},{{[su]}}
+; CHECK: ld{{[yu]}} {{[0-9]+}},{{[su]}}
 define void @store3(ptr %a, ptr %b, ptr %pp) {
 entry:
   store ptr %b, ptr %pp, align 1

@@ -44,11 +44,11 @@ target triple = "mc6809"
 define void @sext_i16_to_i32_then_store(ptr %out, i16 %x) {
 ; CHECK-LABEL: sext_i16_to_i32_then_store:
 ; CHECK:       ; %bb.0:
-; CHECK-NEXT:    pshs y
+; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    leas -3,s
-; CHECK-NEXT:    ldy 7,s
+; CHECK-NEXT:    ldu 7,s
 ; CHECK-NEXT:    ldb #0
-; CHECK-NEXT:    cmpy #0
+; CHECK-NEXT:    cmpu #0
 ; CHECK-NEXT:    bge .LBB0_2
 ; CHECK-NEXT:  ; %bb.1:
 ; CHECK-NEXT:    ldb #1
@@ -71,11 +71,13 @@ define void @sext_i16_to_i32_then_store(ptr %out, i16 %x) {
 ; CHECK-NEXT:    lda 2,s
 ; CHECK-NEXT:    std <__rs0
 ; CHECK-NEXT:    puls d
-; CHECK-NEXT:    ldy <__rs0
-; CHECK-NEXT:    sty 2,x
+; CHECK-NEXT:    pshs d
+; CHECK-NEXT:    ldd <__rs0
+; CHECK-NEXT:    std 2,x
+; CHECK-NEXT:    puls d
 ; CHECK-NEXT:    std ,x
 ; CHECK-NEXT:    leas 3,s
-; CHECK-NEXT:    puls y,pc
+; CHECK-NEXT:    puls u,pc
   %ext = sext i16 %x to i32
   %neg = sub nsw i32 0, %ext
   store i32 %neg, ptr %out, align 1

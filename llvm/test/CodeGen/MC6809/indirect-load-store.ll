@@ -64,7 +64,7 @@ define i32 @ld32(i32** %s) {
   ret i32 %v
 }
 ; HD6309-LABEL: ld32:
-; HD6309:       ldq     [,{{[xy]}}]
+; HD6309:       ldq     [,{{[xyu]}}]
 
 ; i32 store -- HD6309-only native STQ indirect -> stq [,r]
 define void @st32(i32** %s, i32 %v) {
@@ -73,4 +73,4 @@ define void @st32(i32** %s, i32 %v) {
   ret void
 }
 ; HD6309-LABEL: st32:
-; HD6309:       stq     [,{{[xy]}}]
+; HD6309:       stq     [,{{[xyu]}}]

@@ -9,8 +9,7 @@
 target datalayout = "E-p:16:8-p1:8:8-S8-m:e-i1:8-i8:8-i16:8-i32:8-i64:8-f32:8-f64:8-a:0-n8:16"
 
 ; CHECK-LABEL: leaf:
-; CHECK-NOT:     pshs{{.*}}u
-; CHECK-NOT:     ,u
+; CHECK-NOT:     tfr s,u
 ; CHECK:         .Lleaf_sstk
 ; CHECK:         {{rts|puls .*,pc}}
 define internal i16 @leaf(ptr %p, i16 %n) noinline norecurse {

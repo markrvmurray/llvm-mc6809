@@ -16,7 +16,6 @@ declare void @take(ptr, i16)
 ; pointer, no stack adjustment around the calls.
 ; CHECK-LABEL: calls:
 ; CHECK-NOT:   tfr s,u
-; CHECK-NOT:   ,u
 ; CHECK:       lbsr take
 ; CHECK-NOT:   leas
 ; CHECK:       lbsr take

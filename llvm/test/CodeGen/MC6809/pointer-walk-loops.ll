@@ -26,9 +26,9 @@ done:
 }
 ; CHECK-LABEL: len:
 ; CHECK-NOT:   <__rs
-; CHECK:       ld{{[ab]}} ,{{[xy]}}+
+; CHECK:       ld{{[ab]}} ,{{[xyu]}}+
 ; CHECK-NEXT:  bne
-; CHECK:       lea{{[xy]}} -1,{{[xy]}}
+; CHECK:       lea{{[xyu]}} -1,{{[xyu]}}
 ; CHECK-NOT:   <__rs
 ; CHECK:       {{rts|puls .*,pc}}
 
@@ -49,8 +49,8 @@ done:
   ret void
 }
 ; CHECK-LABEL: cpy:
-; CHECK:       ld{{[ab]}} ,{{[xy]}}+
-; CHECK-NEXT:  st{{[ab]}} ,{{[xy]}}+
+; CHECK:       ld{{[ab]}} ,{{[xyu]}}+
+; CHECK-NEXT:  st{{[ab]}} ,{{[xyu]}}+
 ; CHECK-NEXT:  bne
 
 ; memcmp-like: the steps live past the exit test in the latch; the first
@@ -78,8 +78,8 @@ done:
   ret i8 %r
 }
 ; CHECK-LABEL: cmpn:
-; CHECK:       ld{{[ab]}} ,{{[xy]}}+
-; CHECK-NEXT:  cmp{{[ab]}} ,{{[xy]}}+
+; CHECK:       ld{{[ab]}} ,{{[xyu]}}+
+; CHECK-NEXT:  cmp{{[ab]}} ,{{[xyu]}}+
 ; CHECK-NEXT:  bne
 
 ; memchr: the pointer result phi has a NULL input from inside the loop; that
@@ -109,10 +109,12 @@ done:
 }
 ; CHECK-LABEL: find:
 ; CHECK-NOT:   <__rs
-; CHECK:       cmpb ,{{[xy]}}+
+; CHECK:       cmpb ,{{[xyu]}}+
 ; CHECK-NEXT:  bne
-; CHECK:       lea{{[xy]}} -1,{{[xy]}}
+; CHECK:       lea{{[xyu]}} -1,{{[xyu]}}
 ; CHECK-NEXT:  bra
-; CHECK:       lea{{[xy]}} -1,{{[xy]}}
-; CHECK-NEXT:  bne
+; The counter steps down with LEA; in U it also needs `cmpu #0`, since LEAU
+; sets no flags.
+; CHECK:       lea{{[xyu]}} -1,{{[xyu]}}
+; CHECK:       bne
 ; CHECK-NOT:   <__rs

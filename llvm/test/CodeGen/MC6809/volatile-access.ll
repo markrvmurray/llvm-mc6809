@@ -28,8 +28,8 @@ define void @write_twice(ptr %p, i8 %v) {
 
 define i16 @read_twice16(ptr %p) {
 ; CHECK-LABEL: read_twice16:
-; CHECK:       ld{{[dxy]}} ,x
-; CHECK-NEXT:  ld{{[dxy]}} ,x
+; CHECK:       ld{{[dxyu]}} ,x
+; CHECK-NEXT:  ld{{[dxyu]}} ,x
 ; CHECK:       {{rts|puls .*,pc}}
   %discard = load volatile i16, ptr %p
   %v = load volatile i16, ptr %p
@@ -38,8 +38,8 @@ define i16 @read_twice16(ptr %p) {
 
 define void @write_twice16(ptr %p, i16 %v) {
 ; CHECK-LABEL: write_twice16:
-; CHECK:       st{{[dxy]}} ,x
-; CHECK-NEXT:  st{{[dxy]}} ,x
+; CHECK:       st{{[dxyu]}} ,x
+; CHECK-NEXT:  st{{[dxyu]}} ,x
 ; CHECK:       {{rts|puls .*,pc}}
   store volatile i16 %v, ptr %p
   store volatile i16 %v, ptr %p

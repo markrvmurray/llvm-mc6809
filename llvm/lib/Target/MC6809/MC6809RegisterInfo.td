@@ -481,8 +481,11 @@ let isPressureFineGrained = true in
 // allocation with the stock-frame-index spill migration: pointer spills go
 // through the ordinary spiller, and spilled second sources of the index
 // reg-reg compares fold into the _Mem forms (see memFoldSibling).
-def INDEX16 : MC6809Reg16Class<(add IX, IY,
-                                    SU, SS)>;
+// U comes before Y: both are callee-saved, but U's loads, stores and LEAs
+// are page-1 instructions and Y's carry a prefix byte. U is reserved where
+// it is the frame pointer or the OS-9 data-area base.
+def INDEX16 : MC6809Reg16Class<(add IX, SU,
+                                    IY, SS)>;
 
 // Stack registers for internal push/pull operations.
 def CCond : MC6809Reg8Class<(add CC)>;

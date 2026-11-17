@@ -9,11 +9,12 @@ target triple = "mc6809-unknown-unknown"
 
 declare i16 @g(i16)
 
-; Y is saved around the call, and comes back with the return address.
+; The register kept across the call is saved, and comes back with the
+; return address.
 ; CHECK-LABEL: saves_y:
-; CHECK:       pshs y
+; CHECK:       pshs {{[uy]}}
 ; CHECK:       lbsr g
-; CHECK:       puls y,pc
+; CHECK:       puls {{[uy]}},pc
 ; CHECK-NOT:   rts
 ; CHECK:       .Lfunc_end
 define i16 @saves_y(i16 %x) {

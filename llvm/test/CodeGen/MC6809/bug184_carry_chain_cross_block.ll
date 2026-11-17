@@ -34,7 +34,7 @@ define void @atol_like(ptr %out, ptr %s) {
 ; CHECK:       ; %bb.0: ; %entry
 ; CHECK-NEXT:    pshs u,y
 ; CHECK-NEXT:    leas -25,s
-; CHECK-NEXT:    tfr x,y
+; CHECK-NEXT:    tfr x,u
 ; CHECK-NEXT:    ldx 31,s
 ; CHECK-NEXT:    ldb ,x
 ; CHECK-NEXT:    stb 8,s ; 1-byte Folded Spill
@@ -79,7 +79,7 @@ define void @atol_like(ptr %out, ptr %s) {
 ; CHECK-NEXT:    bra .LBB0_4
 ; CHECK-NEXT:  .LBB0_4: ; %loop
 ; CHECK-NEXT:    ; =>This Inner Loop Header: Depth=1
-; CHECK-NEXT:    leau 21,s
+; CHECK-NEXT:    leay 21,s
 ; CHECK-NEXT:    pshs d
 ; CHECK-NEXT:    ldd <__rs0
 ; CHECK-NEXT:    std 11,s ; 2-byte Folded Spill
@@ -100,10 +100,10 @@ define void @atol_like(ptr %out, ptr %s) {
 ; CHECK-NEXT:    std 6,s
 ; CHECK-NEXT:    ldd #0
 ; CHECK-NEXT:    std 4,s
-; CHECK-NEXT:    tfr u,x
+; CHECK-NEXT:    tfr y,x
 ; CHECK-NEXT:    lbsr __mulsi3
 ; CHECK-NEXT:    pshs d
-; CHECK-NEXT:    ldd 2,u
+; CHECK-NEXT:    ldd 2,y
 ; CHECK-NEXT:    std <__rs0
 ; CHECK-NEXT:    puls d
 ; CHECK-NEXT:    ldb <__rs0lo
@@ -193,8 +193,8 @@ define void @atol_like(ptr %out, ptr %s) {
 ; CHECK-NEXT:    bra .LBB0_11
 ; CHECK-NEXT:  .LBB0_11: ; %exit
 ; CHECK-NEXT:    ldx <__rs1
-; CHECK-NEXT:    stx 2,y
-; CHECK-NEXT:    std ,y
+; CHECK-NEXT:    stx 2,u
+; CHECK-NEXT:    std ,u
 ; CHECK-NEXT:    leas 25,s
 ; CHECK-NEXT:    puls u,y,pc
 entry:

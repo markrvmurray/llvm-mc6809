@@ -27,8 +27,8 @@ done:
 }
 ; CHECK-LABEL: fill:
 ; CHECK-NOT:   <__rs
-; CHECK:       lea{{[xy]}} -1,{{[xy]}}
-; CHECK-NEXT:  stb ,{{[xy]}}+
+; CHECK:       lea{{[xyu]}} -1,{{[xyu]}}
+; CHECK-NEXT:  stb ,{{[xyu]}}+
 ; CHECK-NOT:   <__rs
 ; OFF-LABEL:   fill:
 ; OFF:         <__rs

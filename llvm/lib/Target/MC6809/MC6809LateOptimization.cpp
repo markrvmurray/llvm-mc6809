@@ -191,7 +191,7 @@ bool MC6809LateOptimization::formWalkingCompareBranch(MachineBasicBlock &MBB) co
   if (Through == Taken || Through->pred_size() != 1)
     return false;
   // The candidates: the compare (last non-terminator) and the indexed
-  // accesses just before it, each through X or Y at offset 0, neither
+  // accesses just before it, each through X, Y or U at offset 0, neither
   // writing nor reading its base as a value.
   SmallVector<MachineInstr *, 4> Cands;
   for (auto It = std::prev(FirstTerm);; --It) {
@@ -203,7 +203,7 @@ bool MC6809LateOptimization::formWalkingCompareBranch(MachineBasicBlock &MBB) co
       continue;
     }
     if (!indexedBaseOffset(*It, Base, Off) || Off != 0 ||
-        (Base != MC6809::IX && Base != MC6809::IY) ||
+        (Base != MC6809::IX && Base != MC6809::IY && Base != MC6809::SU) ||
         It->modifiesRegister(Base, &TRI) || readsAsValue(*It, Base))
       break;
     Cands.push_back(&*It);
@@ -296,7 +296,9 @@ bool MC6809LateOptimization::formWalkingCompareBranch(MachineBasicBlock &MBB) co
             return Changed;
         }
       }
-      unsigned LeaOpc = Base == MC6809::IX ? MC6809::LEAXi_o5 : MC6809::LEAYi_o5;
+      unsigned LeaOpc = Base == MC6809::IX   ? MC6809::LEAXi_o5
+                        : Base == MC6809::IY ? MC6809::LEAYi_o5
+                                             : MC6809::LEAUi_o5;
       auto At = CompDest->begin();
       while (At != CompDest->end() && At->isDebugInstr())
         ++At;

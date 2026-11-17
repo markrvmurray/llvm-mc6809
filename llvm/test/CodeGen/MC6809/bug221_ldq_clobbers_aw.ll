@@ -26,9 +26,9 @@
 define i32 @bug221_load_i32_from_spill(i32 %x) #0 {
 ; CHECK-LABEL: bug221_load_i32_from_spill:
 ; CHECK:       ; %bb.0: ; %entry
-; CHECK-NEXT:    pshs y
+; CHECK-NEXT:    pshs u
 ; CHECK-NEXT:    leas -6,s
-; CHECK-NEXT:    tfr x,y
+; CHECK-NEXT:    tfr x,u
 ; CHECK-NEXT:    ldx gptr
 ; CHECK-NEXT:    stx ,s
 ; CHECK-NEXT:    leax 2,s
@@ -36,9 +36,9 @@ define i32 @bug221_load_i32_from_spill(i32 %x) #0 {
 ; CHECK-NEXT:    ldq 10,s
 ; CHECK-NEXT:    addw 4,s
 ; CHECK-NEXT:    adcd 2,s
-; CHECK-NEXT:    stq ,y
+; CHECK-NEXT:    stq ,u
 ; CHECK-NEXT:    leas 6,s
-; CHECK-NEXT:    puls y,pc
+; CHECK-NEXT:    puls u,pc
 entry:
   %fp = load ptr, ptr @gptr, align 1
   %a = call i32 @sink_i32(ptr %fp)         ; produces an i32 callee result
