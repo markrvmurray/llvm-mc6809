@@ -160,8 +160,11 @@ static bool splitChainedChains(MachineFunction &MF) {
       BuildMI(MBB, LoUse, DL, TII.get(MC6809::MERGE_LOHI_i16), Whole)
           .addReg(LoR)
           .addReg(HiR);
-      Register NewLo = MRI.createVirtualRegister(MRI.getRegClass(LoR));
-      Register NewHi = MRI.createVirtualRegister(MRI.getRegClass(HiR));
+      // The class the extracts define (A or B), not the one the add's
+      // result happened to have: the add may have been given the wider
+      // byte class, which includes registers an extract cannot produce.
+      Register NewLo = MRI.createVirtualRegister(&MC6809::ACC8_ABRegClass);
+      Register NewHi = MRI.createVirtualRegister(&MC6809::ACC8_ABRegClass);
       BuildMI(MBB, LoUse, DL, TII.get(MC6809::EXTRACT_LO_i16), NewLo)
           .addReg(Whole);
       BuildMI(MBB, LoUse, DL, TII.get(MC6809::EXTRACT_HI_i16), NewHi)
