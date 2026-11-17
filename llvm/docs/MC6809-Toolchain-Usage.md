@@ -176,35 +176,70 @@ returns to BASIC; both do the right thing without being asked.
 
 ## Interrupt handlers
 
-On bare metal a function can be an interrupt handler:
+On bare metal a function can be an interrupt handler, and the start-up code
+points the processor's vector at it when it has the right name:
 
 ```c
 volatile unsigned char ticks;
 
-__attribute__((interrupt)) void timer_tick(void) {
+__attribute__((interrupt)) void __irq_handler(void) {
   ticks++;
+}
+
+__attribute__((interrupt("firq"))) void __firq_handler(void) {
+  /* ... */
 }
 ```
 
 A handler takes no arguments and returns nothing.  It returns with `RTI`, and
-it preserves the compiler's direct-page registers as well as what the
-processor stacked, so it can interrupt any compiled code and call any compiled
-function.
+it preserves everything the interrupted code may be using: what the processor
+did not stack for it, and the compiler's direct-page registers.  So it can
+interrupt any compiled code and call any compiled function.
+
+The attribute's argument names the interrupt: `"irq"`, `"nmi"`, `"swi"`,
+`"swi2"`, `"swi3"` or `"firq"`.  Only `"firq"` changes the code.  A FIRQ entry
+stacks just the program counter and the flags, so a FIRQ handler saves the
+registers it uses itself; the others arrive with the whole register set
+stacked, and the bare attribute means the same as naming any of them.
+
+The start-up code holds the vector table, `$FFF0`-`$FFFF`.  Each vector goes
+to a function of a fixed name, and a program installs a handler by defining
+it:
+
+| Vector  | Interrupt                         | Function          |
+|---------|-----------------------------------|-------------------|
+| `$FFF0` | 6309 illegal instruction, divide by zero | `__trap_handler` |
+| `$FFF2` | SWI3                              | `__swi3_handler`  |
+| `$FFF4` | SWI2                              | `__swi2_handler`  |
+| `$FFF6` | FIRQ                              | `__firq_handler`  |
+| `$FFF8` | IRQ                               | `__irq_handler`   |
+| `$FFFA` | SWI                               | `__swi_handler`   |
+| `$FFFC` | NMI                               | `__nmi_handler`   |
+| `$FFFE` | Reset                             | `_start`          |
+
+A vector with no handler goes to `__unhandled_interrupt`, which stops the
+program: under a simulator it exits with status 99, and on hardware it loops.
+The compiler uses SWI3 for `__builtin_trap`, and its default handler does the
+same.  A machine that keeps its vectors somewhere else can move the table
+with `-Wl,--defsym=__vectors=ADDRESS`.
 
 What this covers, and what it does not:
 
-* **IRQ, NMI and the software interrupts.**  All of them stack the whole
-  register set before the handler runs.  FIRQ stacks only the program counter
-  and the flags, and is not supported yet.
 * **Bare metal only.**  Under OS-9 the kernel fields the interrupt and calls a
   service routine as an ordinary subroutine, and Color BASIC keeps the vectors
   for itself; the attribute is an error for both.
-* **6309: native mode only.**  In emulation mode the processor does not stack
-  W, and a handler does not save it.  The default start-up enters native mode.
-* **The vector is yours to set.**  The start-up code does not install
-  handlers.  Put the handler's address in the vector your hardware uses
-  (`$FFF8` for IRQ, `$FFFC` for NMI, `$FFFA` for SWI) from your own linker
-  script or ROM image.
+* **6309: native mode, except for FIRQ.**  In emulation mode the processor
+  does not stack W, and an IRQ, NMI or software-interrupt handler does not
+  save it.  A FIRQ handler saves W itself and works in either mode.  The
+  default start-up enters native mode.
+* **No floating point in a handler.**  The floating-point routines keep their
+  working state in fixed memory, so a handler that used them would corrupt a
+  calculation it interrupted.
+* **A handler that calls a function pays for it.**  It cannot know which
+  direct-page registers the callee uses, so it saves all 24 bytes of them:
+  about 130 bytes of code and 340 cycles (6809 timings) on top of a handler
+  that calls nothing.  Keep a handler that must be fast free of calls, which includes
+  multiplication, division and 32-bit arithmetic on the 6809.
 * **`m6809_interrupt_norecurse` and `m6809_no_isr`** are not implemented and
   are errors.
 
