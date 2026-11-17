@@ -1147,6 +1147,12 @@ bool CombinerHelper::matchSextInRegOfLoad(
   if (!isPowerOf2_32(NewSizeBits))
     return false;
 
+  // On a big-endian target the low bits of the load are at the tail of the
+  // wider access, so a narrower load from the SAME pointer would read the
+  // head (high) bytes instead. Bail out, as matchCombineLoadWithAndMask does.
+  if (NewSizeBits < MemBits && MI.getMF()->getDataLayout().isBigEndian())
+    return false;
+
   LegalityQuery::MemDesc MMDesc(*MMO);
 
   // Don't modify the memory access size if this is atomic/volatile, but we can
