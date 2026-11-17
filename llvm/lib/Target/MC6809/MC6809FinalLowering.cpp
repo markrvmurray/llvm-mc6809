@@ -313,19 +313,9 @@ bool MC6809FinalLowering::elideDupStores(MachineFunction &MF) {
         continue;
       }
 
-      // Build the slot key. For _o0 forms, no offset operand exists;
-      // for _o5/_o8/_o16, operand[0] is the offset and operand[1] is
-      // the base register (post-expansion shape).
+      // Build the slot key.
       SlotKey K{MI.getOpcode(), 0, Register()};
-      if (MI.getNumOperands() >= 2 && MI.getOperand(0).isImm() &&
-          MI.getOperand(1).isReg()) {
-        K.Offset = MI.getOperand(0).getImm();
-        K.Base = MI.getOperand(1).getReg();
-      } else if (MI.getNumOperands() >= 1 && MI.getOperand(0).isReg()) {
-        // _o0 form: only the base register, no offset operand.
-        K.Offset = 0;
-        K.Base = MI.getOperand(0).getReg();
-      } else {
+      if (!MC6809InstrInfo::getIdxBaseOffset(MI, K.Base, K.Offset)) {
         // Unexpected operand shape — be safe.
         invalidateAll();
         continue;
@@ -466,14 +456,7 @@ bool MC6809FinalLowering::elideStoreReload(MachineFunction &MF) {
 
       // Build slot key.
       SlotKey K{Cls->DataReg, 0, Register()};
-      if (MI.getNumOperands() >= 2 && MI.getOperand(0).isImm() &&
-          MI.getOperand(1).isReg()) {
-        K.Offset = MI.getOperand(0).getImm();
-        K.Base = MI.getOperand(1).getReg();
-      } else if (MI.getNumOperands() >= 1 && MI.getOperand(0).isReg()) {
-        K.Offset = 0;
-        K.Base = MI.getOperand(0).getReg();
-      } else {
+      if (!MC6809InstrInfo::getIdxBaseOffset(MI, K.Base, K.Offset)) {
         invalidateAll();
         continue;
       }

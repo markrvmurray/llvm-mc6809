@@ -176,31 +176,10 @@ static bool isFrameBase(const MachineFunction &MF, Register Reg) {
 }
 
 static SlotKey getSlotKey(const MachineInstr &MI) {
-  unsigned Opc = MI.getOpcode();
-  // _o0 variants: no offset operand, just base register
-  if (Opc == MC6809::LDDi_o0 || Opc == MC6809::STDi_o0 ||
-      Opc == MC6809::LDAi_o0 || Opc == MC6809::STAi_o0 ||
-      Opc == MC6809::LDBi_o0 || Opc == MC6809::STBi_o0 ||
-      Opc == MC6809::STWi_o0 || Opc == MC6809::STEi_o0 ||
-      Opc == MC6809::STFi_o0) {
-    // Find the explicit register operand (base register).
-    for (const MachineOperand &MO : MI.explicit_operands()) {
-      if (MO.isReg())
-        return {MO.getReg(), 0};
-    }
-  }
-  // Other variants: first explicit operand is offset, second is base reg.
-  int Offset = 0;
-  Register BaseReg;
-  for (const MachineOperand &MO : MI.explicit_operands()) {
-    if (MO.isImm())
-      Offset = MO.getImm();
-    else if (MO.isCImm())
-      Offset = static_cast<int>(MO.getCImm()->getZExtValue());
-    else if (MO.isReg())
-      BaseReg = MO.getReg();
-  }
-  return {BaseReg, Offset};
+  Register Base;
+  int64_t Offset;
+  MC6809InstrInfo::getIdxBaseOffset(MI, Base, Offset);
+  return {Base, static_cast<int>(Offset)};
 }
 
 /// Bug #362: true if an indexed load's destination register and the N/Z/V
@@ -430,21 +409,10 @@ static bool isLEAS(unsigned Opc) {
 /// immediate offset and a physical base register.
 static bool getBaseAndOffset(const MachineInstr &MI, Register &BaseReg,
                              int &Offset) {
-  // Look for the pattern: optional imm operand + register operand among
-  // the explicit operands. The _o0 variants have no imm (offset=0).
-  bool FoundReg = false, FoundImm = false;
-  Offset = 0;
-  BaseReg = Register();
-  for (const MachineOperand &MO : MI.explicit_operands()) {
-    if (MO.isImm() && !FoundImm) {
-      Offset = MO.getImm();
-      FoundImm = true;
-    } else if (MO.isReg() && MO.getReg().isPhysical() && !MO.isDef()) {
-      BaseReg = MO.getReg();
-      FoundReg = true;
-    }
-  }
-  return FoundReg;
+  int64_t Off;
+  bool Found = MC6809InstrInfo::getIdxBaseOffset(MI, BaseReg, Off);
+  Offset = static_cast<int>(Off);
+  return Found;
 }
 
 

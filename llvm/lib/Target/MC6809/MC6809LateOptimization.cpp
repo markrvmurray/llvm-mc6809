@@ -107,20 +107,10 @@ static Register leaSelfStep(const MachineInstr &MI, int &K) {
 // offset.
 static bool indexedBaseOffset(const MachineInstr &MI, Register &Base,
                               int &Off) {
-  Base = Register();
-  Off = 0;
-  bool Imm = false;
-  for (const MachineOperand &MO : MI.explicit_operands()) {
-    if ((MO.isImm() || MO.isCImm()) && !Imm) {
-      Off = MO.isImm() ? MO.getImm() : MO.getCImm()->getSExtValue();
-      Imm = true;
-    } else if (MO.isReg() && MO.getReg().isPhysical() && !MO.isDef() &&
-               MC6809::INDEX16RegClass.contains(MO.getReg()))
-      Base = MO.getReg();
-    else if (MO.isReg() && MO.getReg() == MC6809::SU && !MO.isDef())
-      Base = MC6809::SU;
-  }
-  return Base.isValid();
+  int64_t O;
+  bool Found = MC6809InstrInfo::getIdxBaseOffset(MI, Base, O);
+  Off = static_cast<int>(O);
+  return Found;
 }
 
 // Fold a step of an index register into the access it belongs with:

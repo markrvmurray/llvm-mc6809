@@ -117,6 +117,23 @@ unsigned MC6809InstrInfo::getIdxLoadStoreOpcode(Register Value, bool IsStore,
   return O16;
 }
 
+bool MC6809InstrInfo::getIdxBaseOffset(const MachineInstr &MI, Register &Base,
+                                       int64_t &Offset) {
+  Base = Register();
+  Offset = 0;
+  bool HaveImm = false;
+  for (const MachineOperand &MO : MI.explicit_operands()) {
+    if ((MO.isImm() || MO.isCImm()) && !HaveImm) {
+      Offset = MO.isImm() ? MO.getImm() : MO.getCImm()->getSExtValue();
+      HaveImm = true;
+    } else if (MO.isReg() && MO.getReg().isPhysical() && !MO.isDef() &&
+               MC6809::INDEX16RegClass.contains(MO.getReg())) {
+      Base = MO.getReg();
+    }
+  }
+  return Base.isValid();
+}
+
 unsigned MC6809InstrInfo::getIdxSibling(unsigned Opc, MC6809::IdxForm Form) {
   // (family, form) -> opcode, built once from the generated table.
   static const DenseMap<std::pair<unsigned, unsigned>, unsigned> Siblings =

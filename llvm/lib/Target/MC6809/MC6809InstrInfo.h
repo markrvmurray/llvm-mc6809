@@ -275,6 +275,14 @@ public:
   static unsigned getIdxLoadStoreOpcode(Register Value, bool IsStore,
                                         int64_t Offset);
 
+  /// The base register and constant offset of an indexed access (`op n,r`,
+  /// or `op ,r` for offset 0): the explicit index register it uses (the last
+  /// one, for a form that also names an index register as its value) and
+  /// the first explicit immediate, sign-extended. False if MI names no index
+  /// register.
+  static bool getIdxBaseOffset(const MachineInstr &MI, Register &Base,
+                               int64_t &Offset);
+
 protected:
   // Bug #357: report a value-preserving same-width TFRp as a copy so generic
   // MachineCopyPropagation can forward/eliminate it.
