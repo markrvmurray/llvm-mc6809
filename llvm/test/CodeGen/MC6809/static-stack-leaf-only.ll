@@ -2,7 +2,8 @@
 
 ; A static frame is taken only where it frees the frame pointer. Both
 ; functions below are provably non-reentrant (internal, only called from one
-; place, no external-call cycle). The leaf gets a static frame and no frame
+; place, no external-call cycle, and reached only from `main`, which no
+; outside caller enters a second time). The leaf gets a static frame and no frame
 ; pointer at all; the function that calls it keeps its dynamic U-relative
 ; frame -- a static frame would cost it a byte and a cycle per access and buy
 ; nothing, since it needs U as a frame pointer across the call anyway.
@@ -64,7 +65,7 @@ exit:
   ret i16 %s.next
 }
 
-define i16 @api(ptr %p, i16 %n) norecurse {
+define i16 @main(ptr %p, i16 %n) norecurse {
   %r = call i16 @caller(ptr %p, i16 %n)
   ret i16 %r
 }

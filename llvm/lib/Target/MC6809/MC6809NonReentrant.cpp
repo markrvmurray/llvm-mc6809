@@ -78,7 +78,22 @@ bool MC6809NonReentrantImpl::run(Module &M) {
     Changed |= runOnSCC(CurSCC);
   }
 
-  // Mark all functions reachable from an interrupt function as non-reentrant.
+  // A function that can be called from outside this module can be entered
+  // while it is already running: an interrupt handler in another translation
+  // unit, or one written in assembly, may call it at any moment. Nothing here
+  // can see such a caller, so every externally callable function, and all it
+  // can reach, counts as reentrant. Only `main` is exempt: it is entered once.
+  //
+  // In an ordinary compile that leaves little but helpers reached from `main`
+  // alone. Under LTO the module is the program: its functions are internal,
+  // the handlers are visible, and the analysis below is exact.
+  for (const auto &CallRecord : *CG.getExternalCallingNode()) {
+    const Function *F = CallRecord.second->getFunction();
+    if (F && F->getName() != "main")
+      markReentrant(*CallRecord.second);
+  }
+
+  // Mark all functions reachable from an interrupt function as reentrant.
   for (Function &F : M.functions()) {
     if (F.hasFnAttribute("interrupt")) {
       HasInterrupts = true;
@@ -160,8 +175,13 @@ void MC6809NonReentrantImpl::markReentrant(const CallGraphNode &CGN) {
     return;
   Reentrant.insert(&CGN);
 
+  // A call to code outside the module goes to the calls-external node, which
+  // has no function. Whatever that code might call back into is externally
+  // callable and so already a root; following the edge would only drag in
+  // `main` and everything under it.
   for (const auto &CallRecord : CGN)
-    markReentrant(*CallRecord.second);
+    if (CallRecord.second->getFunction())
+      markReentrant(*CallRecord.second);
 }
 
 void MC6809NonReentrantImpl::visitNorecurseInterrupt(const CallGraphNode &CGN) {
