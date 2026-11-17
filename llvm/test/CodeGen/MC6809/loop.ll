@@ -59,7 +59,7 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ;
 ; MC6809-O0-LABEL: loop:
 ; MC6809-O0:       ; %bb.0: ; %entry
-; MC6809-O0-NEXT:    leas -3,s
+; MC6809-O0-NEXT:    leas -1,s
 ; MC6809-O0-NEXT:    pshs u
 ; MC6809-O0-NEXT:    tfr s,u
 ; MC6809-O0-NEXT:    pshs d
@@ -83,20 +83,24 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; MC6809-O0-NEXT:    std <__rs2
 ; MC6809-O0-NEXT:    puls d
 ; MC6809-O0-NEXT:    ldb <__rs2lo
-; MC6809-O0-NEXT:    stb 3,u ; 1-byte Folded Spill
-; MC6809-O0-NEXT:    lda <__rs2hi
-; MC6809-O0-NEXT:    ldb <__rs0lo
+; MC6809-O0-NEXT:    lda <__rs0lo
+; MC6809-O0-NEXT:    pshs a
+; MC6809-O0-NEXT:    addb 0,s
+; MC6809-O0-NEXT:    leas 1,s
 ; MC6809-O0-NEXT:    stb 2,u ; 1-byte Folded Spill
+; MC6809-O0-NEXT:    lda <__rs2hi
 ; MC6809-O0-NEXT:    ldb <__rs0hi
-; MC6809-O0-NEXT:    stb 4,u ; 1-byte Folded Spill
-; MC6809-O0-NEXT:    ldb 3,u ; 1-byte Folded Reload
-; MC6809-O0-NEXT:    addb 2,u
-; MC6809-O0-NEXT:    adca 4,u
+; MC6809-O0-NEXT:    pshs b
+; MC6809-O0-NEXT:    adca 0,s
+; MC6809-O0-NEXT:    leas 1,s
+; MC6809-O0-NEXT:    pshs d
+; MC6809-O0-NEXT:    ldb 2,u
 ; MC6809-O0-NEXT:    std <__rs0
+; MC6809-O0-NEXT:    puls d
 ; MC6809-O0-NEXT:    leax 2,x
 ; MC6809-O0-NEXT:    ldb <__rs1lo
-; MC6809-O0-NEXT:    lda <__rs1hi
 ; MC6809-O0-NEXT:    addb #255
+; MC6809-O0-NEXT:    lda <__rs1hi
 ; MC6809-O0-NEXT:    adca #255
 ; MC6809-O0-NEXT:    std <__rs1
 ; MC6809-O0-NEXT:    pshs d
@@ -109,7 +113,7 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; MC6809-O0-NEXT:    ldx <__rs0
 ; MC6809-O0-NEXT:    tfr u,s
 ; MC6809-O0-NEXT:    puls u
-; MC6809-O0-NEXT:    leas 3,s
+; MC6809-O0-NEXT:    leas 1,s
 ; MC6809-O0-NEXT:    rts
 ;
 ; MC6809-O1-LABEL: loop:

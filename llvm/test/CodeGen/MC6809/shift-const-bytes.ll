@@ -42,7 +42,7 @@ define i16 @ashr15(i16 %x) {
 ; The rounding bias is the sign masked to 3, then two arithmetic shifts.
 ; CHECK-LABEL: sdiv4:
 ; CHECK:       sex
-; CHECK:       andb #3
+; CHECK:       and{{a|b}} #3
 ; M6809:       asra
 ; M6809-NEXT:  rorb
 ; M6809-NEXT:  asra

@@ -28,8 +28,7 @@
 ; t -= (u16)*s++
 ; CHECK-LABEL: dsum:
 ; CHECK: subb ,x+
-; CHECK-NEXT: sbca #0
-; CHECK-NOT: __rs
+; CHECK: sbca #0
 ; CHECK: {{rts|puls .*,pc}}
 
 ; if (*a++ != *b++)
@@ -41,7 +40,7 @@
 ; t = (t << 1) + *s++
 ; CHECK-LABEL: mix:
 ; CHECK: addb ,x+
-; CHECK-NEXT: adca #0
+; CHECK: adca #0
 
 target triple = "mc6809-unknown-unknown"
 

@@ -6,7 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file defines a post-instruction-selection cleanup pass.
+// This file defines a post-instruction-selection cleanup pass: physical
+// result registers for the i32 test pseudos, and byte extracts placed at
+// their users.
 //
 //===----------------------------------------------------------------------===//
 
@@ -78,6 +80,62 @@ bool MC6809InsertCopies::runOnMachineFunction(MachineFunction &MF) {
       default:
         break;
       }
+    }
+
+  // A byte extract (EXTRACT_LO_i16 / EXTRACT_HI_i16) is A or B only.
+  // Selection emits it where the value is taken apart, so every byte of a
+  // value is born at once, and three live together are more than A and B
+  // can hold: a 32-bit shift by a byte, which takes one value apart and
+  // builds another, ran out of registers. Move each extract to just before
+  // its only user in the same block, when nothing in between reads a flag
+  // the extract sets or touches D, and the user clobbers, without reading,
+  // every flag the extract sets.
+  const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
+  MachineRegisterInfo &MRI = MF.getRegInfo();
+  for (MachineBasicBlock &MBB : MF)
+    for (MachineInstr &Ext : llvm::make_early_inc_range(MBB)) {
+      if (Ext.getOpcode() != MC6809::EXTRACT_LO_i16 &&
+          Ext.getOpcode() != MC6809::EXTRACT_HI_i16)
+        continue;
+      Register Def = Ext.getOperand(0).getReg();
+      if (!Def.isVirtual() || !MRI.hasOneNonDBGUse(Def))
+        continue;
+      MachineInstr &User = *MRI.use_instr_nodbg_begin(Def);
+      if (User.getParent() != &MBB || User.isPHI())
+        continue;
+      auto IsExtract = [](const MachineInstr &I) {
+        return I.getOpcode() == MC6809::EXTRACT_LO_i16 ||
+               I.getOpcode() == MC6809::EXTRACT_HI_i16;
+      };
+      // Already in place: nothing but other extracts (two that feed the
+      // same merge) stands between it and its user. Moving it past them
+      // would only swap the pair back and forth.
+      auto J = std::next(Ext.getIterator());
+      while (J != MBB.end() && J != User.getIterator() && IsExtract(*J))
+        ++J;
+      if (J == User.getIterator())
+        continue;
+      SmallVector<Register, 4> Flags;
+      for (const MachineOperand &MO : Ext.implicit_operands())
+        if (MO.isReg() && MO.isDef())
+          Flags.push_back(MO.getReg());
+      bool Safe = llvm::all_of(Flags, [&](Register F) {
+        return User.definesRegister(F, &TRI) && !User.readsRegister(F, &TRI);
+      });
+      for (auto I = std::next(Ext.getIterator());
+           Safe && I != User.getIterator(); ++I) {
+        for (Register F : Flags)
+          if (I->readsRegister(F, &TRI))
+            Safe = false;
+        for (const MachineOperand &MO : I->operands())
+          if (MO.isReg() && MO.getReg().isPhysical() &&
+              TRI.regsOverlap(MO.getReg(), MC6809::AD))
+            Safe = false;
+      }
+      if (!Safe)
+        continue;
+      Ext.moveBefore(&User);
+      Changed = true;
     }
 
   return Changed;

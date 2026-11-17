@@ -101,28 +101,20 @@ define i1 @eq_i32_sext_i16(i32 %a, i16 %b) {
 define i1 @ult_i32_zext_i8(i32 %a, i8 %b) {
 ; O0-LABEL: ult_i32_zext_i8:
 ; O0:       ; %bb.0:
-; O0-NEXT:    leas -2,s
-; O0-NEXT:    stb 1,s ; 1-byte Folded Spill
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 8,s
-; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 6,s
-; O0-NEXT:    std <__rs1
-; O0-NEXT:    puls d
-; O0-NEXT:    ldb <__rs0lo
-; O0-NEXT:    lda <__rs0hi
-; O0-NEXT:    subb 1,s
-; O0-NEXT:    ldb #0
-; O0-NEXT:    sbca #0
+; O0-NEXT:    ldx 4,s
+; O0-NEXT:    stx <__rs1
+; O0-NEXT:    ldx 2,s
+; O0-NEXT:    stx <__rs0
 ; O0-NEXT:    lda <__rs1lo
-; O0-NEXT:    sta ,s ; 1-byte Folded Spill
+; O0-NEXT:    pshs b
+; O0-NEXT:    suba 0,s
+; O0-NEXT:    leas 1,s
+; O0-NEXT:    ldb #0
 ; O0-NEXT:    lda <__rs1hi
-; O0-NEXT:    sta 1,s ; 1-byte Folded Spill
-; O0-NEXT:    lda ,s ; 1-byte Folded Reload
 ; O0-NEXT:    sbca #0
-; O0-NEXT:    lda 1,s ; 1-byte Folded Reload
+; O0-NEXT:    lda <__rs0lo
+; O0-NEXT:    sbca #0
+; O0-NEXT:    lda <__rs0hi
 ; O0-NEXT:    sbca #0
 ; O0-NEXT:    sbcb #0
 ; O0-NEXT:    cmpb #0
@@ -133,36 +125,32 @@ define i1 @ult_i32_zext_i8(i32 %a, i8 %b) {
 ; O0-NEXT:  .LBB1_2:
 ; O0-NEXT:    ldb #1
 ; O0-NEXT:  .LBB1_3:
-; O0-NEXT:    leas 2,s
 ; O0-NEXT:    rts
 ;
 ; O2-LABEL: ult_i32_zext_i8:
 ; O2:       ; %bb.0:
-; O2-NEXT:    leas -1,s
-; O2-NEXT:    stb ,s ; 1-byte Folded Spill
-; O2-NEXT:    ldd 5,s
-; O2-NEXT:    std <__rs0
-; O2-NEXT:    ldd 3,s
-; O2-NEXT:    std <__rs1
-; O2-NEXT:    ldb <__rs0lo
-; O2-NEXT:    lda <__rs0hi
-; O2-NEXT:    subb ,s
-; O2-NEXT:    sbca #0
+; O2-NEXT:    ldx 4,s
+; O2-NEXT:    stx <__rs1
+; O2-NEXT:    ldx 2,s
+; O2-NEXT:    stx <__rs0
 ; O2-NEXT:    lda <__rs1lo
-; O2-NEXT:    ldb <__rs1hi
-; O2-NEXT:    sbca #0
-; O2-NEXT:    sbcb #0
+; O2-NEXT:    pshs b
+; O2-NEXT:    suba ,s+
 ; O2-NEXT:    ldb #0
-; O2-NEXT:    sbcb #0
-; O2-NEXT:    cmpb #0
+; O2-NEXT:    lda <__rs1hi
+; O2-NEXT:    sbca #0
+; O2-NEXT:    lda <__rs0lo
+; O2-NEXT:    sbca #0
+; O2-NEXT:    lda <__rs0hi
+; O2-NEXT:    sbca #0
+; O2-NEXT:    lda #0
+; O2-NEXT:    sbca #0
+; O2-NEXT:    cmpa #0
 ; O2-NEXT:    bne .LBB1_2
 ; O2-NEXT:  ; %bb.1:
-; O2-NEXT:    ldb #0
-; O2-NEXT:    leas 1,s
 ; O2-NEXT:    rts
 ; O2-NEXT:  .LBB1_2:
 ; O2-NEXT:    ldb #1
-; O2-NEXT:    leas 1,s
 ; O2-NEXT:    rts
   %nn = zext i8 %b to i32
   %c = icmp ult i32 %a, %nn
