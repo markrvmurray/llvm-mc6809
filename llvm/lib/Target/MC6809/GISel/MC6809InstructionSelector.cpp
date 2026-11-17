@@ -2326,6 +2326,22 @@ skip_globalvalue_fold:
   // Fix: emit the MERGE+MUL+EXTRACT chain manually with explicit
   // narrowing COPYs.  Bypasses the autogen pattern for the i8
   // multiply shapes; semantically identical otherwise.
+  // A byte times a byte, all 16 bits: the factors into A and B, one MUL.
+  if (MI.getOpcode() == MC6809::G_EXPAND_MUL) {
+    MachineIRBuilder Builder(MI);
+    Register Merged = MRI->createVirtualRegister(&MC6809::ADcRegClass);
+    auto MergeMI = Builder.buildInstr(MC6809::MERGE_LOHI_i16)
+                       .addDef(Merged)
+                       .addUse(MI.getOperand(1).getReg())
+                       .addUse(MI.getOperand(2).getReg());
+    auto MulMI = Builder.buildInstr(MC6809::MUL_D)
+                     .addDef(MI.getOperand(0).getReg())
+                     .addUse(Merged);
+    constrainSelectedInstRegOperands(*MergeMI, TII, TRI, RBI);
+    constrainSelectedInstRegOperands(*MulMI, TII, TRI, RBI);
+    MI.eraseFromParent();
+    return true;
+  }
   if (MI.getOpcode() == TargetOpcode::G_MUL ||
       MI.getOpcode() == TargetOpcode::G_UMULH) {
     Register DstReg = MI.getOperand(0).getReg();

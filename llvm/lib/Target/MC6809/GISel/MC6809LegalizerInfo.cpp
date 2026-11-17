@@ -340,12 +340,14 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
     // s32/s64 are already libcallFor — no narrowing path active.
     getActionDefinitionsBuilder(G_MUL)
         .legalFor({s8})
-        .libcallFor({s16, s32, s64})
+        .customFor({s16}) // a byte times a byte is MUL; see legalizeMul
+        .libcallFor({s32, s64})
         .clampScalar(0, s1, sMaxLogic);
   } else {
     getActionDefinitionsBuilder(G_MUL)
         .legalFor({s8})
-        .libcallFor({s16, s32, s64})
+        .customFor({s16}) // a byte times a byte is MUL; see legalizeMul
+        .libcallFor({s32, s64})
         .clampScalar(0, s8, s64);
   }
 
@@ -733,6 +735,8 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
   case G_OR:
   case G_XOR:
     return legalizeBitwise(Helper, MRI, MI, LocObserver);
+  case G_MUL:
+    return legalizeMul(Helper, MRI, MI, LocObserver);
   case G_SEXT_INREG: {
     Register Dst = MI.getOperand(0).getReg();
     Register Src = MI.getOperand(1).getReg();
@@ -1541,6 +1545,47 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
   return false;
 }
 
+
+// A 16-bit multiply of two unsigned bytes -- zero extended, loaded and zero
+// extended, or constants 0..255 -- is one MUL (A x B -> D), not a call to
+// __mulhi3, on both processors. Signed bytes stay a call: correcting MUL's
+// unsigned product (subtract each factor from the high byte when the other
+// is negative) cost about 17 instructions at every site on the 6809, and on
+// the 6309 the call is a single MULD.
+bool MC6809LegalizerInfo::legalizeMul(LegalizerHelper &Helper,
+                                      MachineRegisterInfo &MRI,
+                                      MachineInstr &MI,
+                                      LostDebugLocObserver &LocObserver) const {
+  MachineIRBuilder &B = Helper.MIRBuilder;
+  LLT S8 = LLT::scalar(8), S16 = LLT::scalar(16);
+  Register Dst = MI.getOperand(0).getReg();
+  // The unsigned byte a 16-bit factor was widened from, if any.
+  auto ByteOf = [&](Register R) -> Register {
+    if (MachineInstr *Def = getDefIgnoringCopies(R, MRI)) {
+      if (Def->getOpcode() == TargetOpcode::G_ZEXT &&
+          MRI.getType(Def->getOperand(1).getReg()) == S8)
+        return Def->getOperand(1).getReg();
+      // A byte loaded and zero extended: its low byte is the byte.
+      if (Def->getOpcode() == TargetOpcode::G_ZEXTLOAD &&
+          cast<GAnyLoad>(Def)->getMemSizeInBits().getValue() == 8)
+        return B.buildTrunc(S8, R).getReg(0);
+    }
+    if (auto C = getIConstantVRegSExtVal(R, MRI))
+      if (*C >= 0 && *C <= 255)
+        return B.buildConstant(S8, *C).getReg(0);
+    return Register();
+  };
+  if (MRI.getType(Dst) == S16) {
+    Register A = ByteOf(MI.getOperand(1).getReg());
+    Register C = A ? ByteOf(MI.getOperand(2).getReg()) : Register();
+    if (A && C) {
+      B.buildInstr(MC6809::G_EXPAND_MUL, {Dst}, {A, C});
+      MI.eraseFromParent();
+      return true;
+    }
+  }
+  return Helper.libcall(MI, LocObserver) != LegalizerHelper::UnableToLegalize;
+}
 
 bool
 MC6809LegalizerInfo::legalizeBitwise(LegalizerHelper &Helper,

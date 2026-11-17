@@ -447,81 +447,53 @@ define dso_local i16 @mul_u_i8_i16(i8 noundef zeroext %a, i8 noundef zeroext %b)
 ; O0:       ; %bb.0: ; %entry
 ; O0-NEXT:    pshs u
 ; O0-NEXT:    tfr s,u
-; O0-NEXT:    clra
-; O0-NEXT:    std <__rs0
+; O0-NEXT:    tfr b,a
 ; O0-NEXT:    ldb 4,u
-; O0-NEXT:    clra
-; O0-NEXT:    leas -2,s
+; O0-NEXT:    std <__rs0
+; O0-NEXT:    mul
+; O0-NEXT:    std <__rs0
 ; O0-NEXT:    ldx <__rs0
-; O0-NEXT:    stx ,s
-; O0-NEXT:    tfr d,x
-; O0-NEXT:    lbsr __mulhi3
-; O0-NEXT:    leas 2,s
 ; O0-NEXT:    tfr u,s
 ; O0-NEXT:    puls u,pc
 ;
 ; O1-LABEL: mul_u_i8_i16:
 ; O1:       ; %bb.0: ; %entry
-; O1-NEXT:    leas -1,s
 ; O1-NEXT:    pshs u
 ; O1-NEXT:    tfr s,u
-; O1-NEXT:    stb 2,u ; 1-byte Folded Spill
-; O1-NEXT:    ldb 5,u
-; O1-NEXT:    clra
+; O1-NEXT:    tfr b,a
+; O1-NEXT:    ldb 4,u
 ; O1-NEXT:    std <__rs0
-; O1-NEXT:    ldb 2,u ; 1-byte Folded Reload
-; O1-NEXT:    clra
-; O1-NEXT:    leas -2,s
-; O1-NEXT:    std ,s
+; O1-NEXT:    mul
+; O1-NEXT:    std <__rs0
 ; O1-NEXT:    ldx <__rs0
-; O1-NEXT:    lbsr __mulhi3
-; O1-NEXT:    leas 2,s
 ; O1-NEXT:    tfr u,s
-; O1-NEXT:    puls u
-; O1-NEXT:    leas 1,s
-; O1-NEXT:    rts
+; O1-NEXT:    puls u,pc
 ;
 ; O2-LABEL: mul_u_i8_i16:
 ; O2:       ; %bb.0: ; %entry
-; O2-NEXT:    leas -1,s
 ; O2-NEXT:    pshs u
 ; O2-NEXT:    tfr s,u
-; O2-NEXT:    stb 2,u ; 1-byte Folded Spill
-; O2-NEXT:    ldb 5,u
-; O2-NEXT:    clra
+; O2-NEXT:    tfr b,a
+; O2-NEXT:    ldb 4,u
 ; O2-NEXT:    std <__rs0
-; O2-NEXT:    ldb 2,u ; 1-byte Folded Reload
-; O2-NEXT:    clra
-; O2-NEXT:    leas -2,s
-; O2-NEXT:    std ,s
+; O2-NEXT:    mul
+; O2-NEXT:    std <__rs0
 ; O2-NEXT:    ldx <__rs0
-; O2-NEXT:    lbsr __mulhi3
-; O2-NEXT:    leas 2,s
 ; O2-NEXT:    tfr u,s
-; O2-NEXT:    puls u
-; O2-NEXT:    leas 1,s
-; O2-NEXT:    rts
+; O2-NEXT:    puls u,pc
 ;
 ; O3-LABEL: mul_u_i8_i16:
 ; O3:       ; %bb.0: ; %entry
-; O3-NEXT:    leas -1,s
 ; O3-NEXT:    pshs u
 ; O3-NEXT:    tfr s,u
-; O3-NEXT:    stb 2,u ; 1-byte Folded Spill
-; O3-NEXT:    ldb 5,u
-; O3-NEXT:    clra
+; O3-NEXT:    tfr b,a
+; O3-NEXT:    ldb 4,u
 ; O3-NEXT:    std <__rs0
-; O3-NEXT:    ldb 2,u ; 1-byte Folded Reload
-; O3-NEXT:    clra
-; O3-NEXT:    leas -2,s
-; O3-NEXT:    std ,s
+; O3-NEXT:    mul
+; O3-NEXT:    std <__rs0
 ; O3-NEXT:    ldx <__rs0
-; O3-NEXT:    lbsr __mulhi3
-; O3-NEXT:    leas 2,s
 ; O3-NEXT:    tfr u,s
-; O3-NEXT:    puls u
-; O3-NEXT:    leas 1,s
-; O3-NEXT:    rts
+; O3-NEXT:    puls u,pc
 entry:
   %conv = zext i8 %a to i16
   %conv1 = zext i8 %b to i16
