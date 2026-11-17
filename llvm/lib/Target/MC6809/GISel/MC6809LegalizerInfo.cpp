@@ -653,7 +653,12 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
       })
       .legalForCartesianProduct(LegalTypesWithOne, {s1}).clampScalar(0, s8, sMax);
 
-  getActionDefinitionsBuilder({G_SDIVREM, G_UDIVREM, G_DYN_STACKALLOC, G_SEXT_INREG, G_SMULO, G_SMIN, G_SMAX, G_UMIN, G_UMAX, G_UADDSAT, G_SADDSAT, G_USUBSAT, G_SSUBSAT, G_USHLSAT, G_SSHLSAT, G_FPOWI})
+  // Sign extension in a register of a whole number of bytes keeps the low
+  // bytes and fills the rest with the sign of the top one (custom); any
+  // other width is a shift left and an arithmetic shift right.
+  getActionDefinitionsBuilder(G_SEXT_INREG).custom();
+
+  getActionDefinitionsBuilder({G_SDIVREM, G_UDIVREM, G_DYN_STACKALLOC, G_SMULO, G_SMIN, G_SMAX, G_UMIN, G_UMAX, G_UADDSAT, G_SADDSAT, G_USUBSAT, G_SSUBSAT, G_USHLSAT, G_SSHLSAT, G_FPOWI})
       .lower();
 
   // CTTZ / CTLZ / CTPOP all go to hand-written runtime libcalls
@@ -728,6 +733,44 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
   case G_OR:
   case G_XOR:
     return legalizeBitwise(Helper, MRI, MI, LocObserver);
+  case G_SEXT_INREG: {
+    Register Dst = MI.getOperand(0).getReg();
+    Register Src = MI.getOperand(1).getReg();
+    LLT Ty = MRI.getType(Dst);
+    int64_t Bits = MI.getOperand(2).getImm();
+    if (Bits % 8 != 0 || Ty.getSizeInBits() % 8 != 0 ||
+        Bits >= Ty.getSizeInBits())
+      return Helper.lower(MI, 0, LLT()) != LegalizerHelper::UnableToLegalize;
+    MachineIRBuilder &B = Helper.MIRBuilder;
+    // The 6309 sign-extends a byte into D (SEX) and D into Q (SEXW), both
+    // legal G_SEXTs: truncate and extend through them rather than take the
+    // value apart in bytes. The low part is taken with an unmerge, not a
+    // G_TRUNC: the artifact combiner folds sext(trunc x) straight back into
+    // the G_SEXT_INREG being legalized here.
+    if (MI.getMF()->getSubtarget<MC6809Subtarget>().has6309() &&
+        (Ty == LLT::scalar(16) || Ty == LLT::scalar(32))) {
+      LLT S16 = LLT::scalar(16);
+      Register Narrow =
+          B.buildUnmerge(LLT::scalar(Bits), Src).getReg(0); // low part
+      if (Bits == 8 && Ty == LLT::scalar(32))
+        Narrow = B.buildSExt(S16, Narrow).getReg(0);
+      B.buildSExt(Dst, Narrow);
+      MI.eraseFromParent();
+      return true;
+    }
+    LLT S8 = LLT::scalar(8);
+    auto Bytes = B.buildUnmerge(S8, Src); // least significant first
+    unsigned Keep = Bits / 8;
+    // The fill byte: the top kept byte sign-extended (SEX), high half.
+    auto Ext = B.buildSExt(LLT::scalar(16), Bytes.getReg(Keep - 1));
+    Register Fill = B.buildUnmerge(S8, Ext).getReg(1);
+    SmallVector<Register, 8> Parts;
+    for (unsigned I = 0; I < Ty.getSizeInBytes(); ++I)
+      Parts.push_back(I < Keep ? Bytes.getReg(I) : Fill);
+    B.buildMergeLikeInstr(Dst, Parts);
+    MI.eraseFromParent();
+    return true;
+  }
   case G_ICMP: {
     Register Dst = MI.getOperand(0).getReg();
     auto Pred = (CmpInst::Predicate)MI.getOperand(1).getPredicate();

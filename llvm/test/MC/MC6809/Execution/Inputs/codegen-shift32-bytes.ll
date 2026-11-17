@@ -59,3 +59,18 @@ entry:
   ret i32 %shr
 }
 
+
+; Sign extension within a register: (int32_t)(int8_t)a and
+; (int32_t)(int16_t)a, the low byte or bytes kept and the rest filled
+; with their sign.
+define i32 @sext8in32(i32 %a) {
+  %s = shl i32 %a, 24
+  %r = ashr exact i32 %s, 24
+  ret i32 %r
+}
+
+define i32 @sext16in32(i32 %a) {
+  %s = shl i32 %a, 16
+  %r = ashr exact i32 %s, 16
+  ret i32 %r
+}
