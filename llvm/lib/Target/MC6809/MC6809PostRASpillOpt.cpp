@@ -285,11 +285,11 @@ static unsigned getIdxLoadOpcodeFor(Register R, int Offset) {
   return 0;
 }
 
-/// Bug #367: fold `ld R,mem; tfr R,R2 → ld R2,mem`. When an indexed load defines
-/// an ATOMIC register R (IX/IY — so the dead-check on R is sound, immune to the
-/// partial-subreg hazard) and is immediately followed by a `tfr R,R2` after
-/// which R is dead, load directly into R2 and drop both the original load and
-/// the transfer. Flag-transparent: the rewritten load reads the SAME memory, so
+/// Fold `ld R,mem; tfr R,R2 → ld R2,mem` (and `ldd #n; tfr d,R2 → ld R2,#n`).
+/// When a load defines R -- an index register, or D handed to an index
+/// register -- and is immediately followed by a `tfr R,R2` after which R is
+/// dead, load directly into R2 and drop both the original load and the
+/// transfer. Flag-transparent: the rewritten load reads the SAME memory, so
 /// it sets identical N/Z — and it even ENABLES the #360 compare-zero elision
 /// (the load now feeds the consumer's register, so a trailing `cmp #0` dies).
 /// Run before the slot-tracking loop so that loop sees the folded loads.
@@ -302,15 +302,23 @@ static bool foldLoadIntoCopy(MachineBasicBlock &MBB,
       continue;
     Register R2 = MI.getOperand(0).getReg(); // tfr dest (the consumer's reg)
     Register R = MI.getOperand(1).getReg();  // tfr src = the load's dest
-    if (!isAtomic16(R) || !is16BitXfer(R2))
+    // From an index register to D, X or Y; or from D to an index register --
+    // a value loaded into D only to be handed to X (a call's argument, say).
+    // D's liveness is asked of its register units, so A and B are covered.
+    bool FromD = R == MC6809::AD &&
+                 (R2 == MC6809::IX || R2 == MC6809::IY || R2 == MC6809::SU);
+    if (!FromD && (!isAtomic16(R) || !is16BitXfer(R2)))
       continue;
     // The preceding (non-debug) instruction must be an indexed load that
-    // defines exactly R.
+    // defines exactly R, or for D a load of an immediate.
     MachineInstr *Prev = MI.getPrevNode();
     while (Prev && Prev->isDebugInstr())
       Prev = Prev->getPrevNode();
-    if (!Prev || !isIndexedLoad(Prev->getOpcode()) ||
-        getAccRegForOpcode(Prev->getOpcode()) != R)
+    if (!Prev)
+      continue;
+    bool Imm = FromD && Prev->getOpcode() == MC6809::LDDi16;
+    if (!Imm && (!isIndexedLoad(Prev->getOpcode()) ||
+                 getAccRegForOpcode(Prev->getOpcode()) != R))
       continue;
     // R must be dead immediately after the transfer (the tfr was its last use).
     // No flag check is needed — the rewritten load sets identical flags.
@@ -319,6 +327,18 @@ static bool foldLoadIntoCopy(MachineBasicBlock &MBB,
     if (MBB.computeRegisterLiveness(&TRI, R, After, /*Neighborhood=*/16) !=
         MachineBasicBlock::LQR_Dead)
       continue;
+    if (Imm) {
+      // LDX/LDY/LDU #n set N, Z and V as LDD #n does.
+      unsigned NewOpc = R2 == MC6809::IX   ? MC6809::LDXi16
+                        : R2 == MC6809::IY ? MC6809::LDYi16
+                                           : MC6809::LDUi16;
+      BuildMI(MBB, *Prev, Prev->getDebugLoc(), TII.get(NewOpc))
+          .add(Prev->getOperand(0));
+      Prev->eraseFromParent();
+      MI.eraseFromParent();
+      Changed = true;
+      continue;
+    }
     SlotKey K = getSlotKey(*Prev);
     unsigned NewOpc = getIdxLoadOpcodeFor(R2, K.Offset);
     if (!NewOpc)
