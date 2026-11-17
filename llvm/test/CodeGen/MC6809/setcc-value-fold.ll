@@ -15,6 +15,8 @@ target triple = "mc6809-unknown-unknown"
 define dso_local range(i16 0, 2) i16 @eqv(ptr noundef readonly captures(none) %p, i8 noundef signext %x) local_unnamed_addr #0 {
 ; MC6809-LABEL: eqv:
 ; MC6809:       ; %bb.0: ; %entry
+; MC6809-NEXT:    pshs u
+; MC6809-NEXT:    tfr s,u
 ; MC6809-NEXT:    cmpb ,x
 ; MC6809-NEXT:    beq .LBB0_2
 ; MC6809-NEXT:  ; %bb.1: ; %entry
@@ -25,10 +27,14 @@ define dso_local range(i16 0, 2) i16 @eqv(ptr noundef readonly captures(none) %p
 ; MC6809-NEXT:  .LBB0_3: ; %entry
 ; MC6809-NEXT:    clra
 ; MC6809-NEXT:    tfr d,x
+; MC6809-NEXT:    tfr u,s
+; MC6809-NEXT:    puls u
 ; MC6809-NEXT:    rts
 ;
 ; HD6309-LABEL: eqv:
 ; HD6309:       ; %bb.0: ; %entry
+; HD6309-NEXT:    pshs u
+; HD6309-NEXT:    tfr s,u
 ; HD6309-NEXT:    cmpb ,x
 ; HD6309-NEXT:    beq .LBB0_2
 ; HD6309-NEXT:  ; %bb.1: ; %entry
@@ -39,6 +45,8 @@ define dso_local range(i16 0, 2) i16 @eqv(ptr noundef readonly captures(none) %p
 ; HD6309-NEXT:  .LBB0_3: ; %entry
 ; HD6309-NEXT:    clra
 ; HD6309-NEXT:    tfr d,x
+; HD6309-NEXT:    tfr u,s
+; HD6309-NEXT:    puls u
 ; HD6309-NEXT:    rts
 entry:
   %0 = load i8, ptr %p, align 1, !tbaa !8
@@ -51,6 +59,8 @@ entry:
 define dso_local range(i16 0, 2) i16 @idxv(ptr noundef readonly captures(none) %p, i8 noundef signext %x) local_unnamed_addr #0 {
 ; MC6809-LABEL: idxv:
 ; MC6809:       ; %bb.0: ; %entry
+; MC6809-NEXT:    pshs u
+; MC6809-NEXT:    tfr s,u
 ; MC6809-NEXT:    cmpb 3,x
 ; MC6809-NEXT:    beq .LBB1_2
 ; MC6809-NEXT:  ; %bb.1: ; %entry
@@ -61,10 +71,14 @@ define dso_local range(i16 0, 2) i16 @idxv(ptr noundef readonly captures(none) %
 ; MC6809-NEXT:  .LBB1_3: ; %entry
 ; MC6809-NEXT:    clra
 ; MC6809-NEXT:    tfr d,x
+; MC6809-NEXT:    tfr u,s
+; MC6809-NEXT:    puls u
 ; MC6809-NEXT:    rts
 ;
 ; HD6309-LABEL: idxv:
 ; HD6309:       ; %bb.0: ; %entry
+; HD6309-NEXT:    pshs u
+; HD6309-NEXT:    tfr s,u
 ; HD6309-NEXT:    cmpb 3,x
 ; HD6309-NEXT:    beq .LBB1_2
 ; HD6309-NEXT:  ; %bb.1: ; %entry
@@ -75,6 +89,8 @@ define dso_local range(i16 0, 2) i16 @idxv(ptr noundef readonly captures(none) %
 ; HD6309-NEXT:  .LBB1_3: ; %entry
 ; HD6309-NEXT:    clra
 ; HD6309-NEXT:    tfr d,x
+; HD6309-NEXT:    tfr u,s
+; HD6309-NEXT:    puls u
 ; HD6309-NEXT:    rts
 entry:
   %arrayidx = getelementptr inbounds nuw i8, ptr %p, i16 3
@@ -88,6 +104,8 @@ entry:
 define dso_local range(i16 0, 2) i16 @indv(ptr noundef readonly captures(none) %pp, i8 noundef signext %x) local_unnamed_addr #1 {
 ; MC6809-LABEL: indv:
 ; MC6809:       ; %bb.0: ; %entry
+; MC6809-NEXT:    pshs u
+; MC6809-NEXT:    tfr s,u
 ; MC6809-NEXT:    cmpb [,x]
 ; MC6809-NEXT:    beq .LBB2_2
 ; MC6809-NEXT:  ; %bb.1: ; %entry
@@ -98,10 +116,14 @@ define dso_local range(i16 0, 2) i16 @indv(ptr noundef readonly captures(none) %
 ; MC6809-NEXT:  .LBB2_3: ; %entry
 ; MC6809-NEXT:    clra
 ; MC6809-NEXT:    tfr d,x
+; MC6809-NEXT:    tfr u,s
+; MC6809-NEXT:    puls u
 ; MC6809-NEXT:    rts
 ;
 ; HD6309-LABEL: indv:
 ; HD6309:       ; %bb.0: ; %entry
+; HD6309-NEXT:    pshs u
+; HD6309-NEXT:    tfr s,u
 ; HD6309-NEXT:    cmpb [,x]
 ; HD6309-NEXT:    beq .LBB2_2
 ; HD6309-NEXT:  ; %bb.1: ; %entry
@@ -112,6 +134,8 @@ define dso_local range(i16 0, 2) i16 @indv(ptr noundef readonly captures(none) %
 ; HD6309-NEXT:  .LBB2_3: ; %entry
 ; HD6309-NEXT:    clra
 ; HD6309-NEXT:    tfr d,x
+; HD6309-NEXT:    tfr u,s
+; HD6309-NEXT:    puls u
 ; HD6309-NEXT:    rts
 entry:
   %0 = load ptr, ptr %pp, align 1, !tbaa !9

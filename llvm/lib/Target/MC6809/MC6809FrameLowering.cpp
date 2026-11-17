@@ -506,8 +506,19 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &M
     // StackSize-relative offsets from S (eliminateFrameIndex).
     auto AfterPushes = std::find_if_not(MBB.begin(), MBB.end(), [](const MachineInstr &MI) { return MI.getFlag(MachineInstr::FrameSetup); });
     Builder.setInsertPt(MBB, AfterPushes);
-    if (StackSize)
+    // The CFA stays S-relative; say how far S has moved from it once the
+    // registers are pushed and again once the frame is allocated. (A push in
+    // the middle of the body moves S for a few instructions without a note.)
+    int64_t CSRBytes = getHardStackCalleeSavedSize(MF);
+    if (CSRBytes)
+      BuildCFI(MBB, Builder.getInsertPt(), {},
+               MCCFIInstruction::cfiDefCfaOffset(nullptr, CSRBytes + 2));
+    if (StackSize) {
       offsetSP(Builder, -StackSize);
+      BuildCFI(MBB, Builder.getInsertPt(), {},
+               MCCFIInstruction::cfiDefCfaOffset(nullptr,
+                                                 CSRBytes + StackSize + 2));
+    }
     return;
   }
 
@@ -586,7 +597,7 @@ void MC6809FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &M
   // Bug #164 Tier 2: restore SP-based CFA for the unwinder at the point of
   // the return instruction.  After the epilogue unwinds the frame, CFA is
   // back to SP + 2 (just the return address remains).
-  if (hasFP(MF) || StackSize) {
+  if (hasFP(MF) || StackSize || getHardStackCalleeSavedSize(MF)) {
     unsigned SPDwarf = MRI->getDwarfRegNum(MC6809::SS, /*isEH=*/true);
     BuildCFI(MBB, MBB.getFirstTerminator(), {},
              MCCFIInstruction::cfiDefCfa(nullptr, SPDwarf, 2),
@@ -595,27 +606,25 @@ void MC6809FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &M
 }
 
 bool MC6809FrameLowering::hasFP(const MachineFunction &MF) const {
+  // Every frame is addressed from S unless something needs a fixed base: a
+  // variable-sized object moves S by an amount known only at run time, and a
+  // taken frame address must stay valid while S moves. S is otherwise stable
+  // between the prologue and the epilogue: the outgoing-argument area is
+  // reserved in the frame (hasReservedCallFrame), a call's return address is
+  // gone again when the callee returns, and the code that pushes a register
+  // in the middle of a function adjusts its own stack offsets for the push.
+  const MachineFrameInfo &MFI = MF.getFrameInfo();
+  bool Needed = MFI.isFrameAddressTaken() || MFI.hasVarSizedObjects();
   if (MF.getTarget().getTargetTriple().isOSOS9()) {
-    if (MF.getFrameInfo().isFrameAddressTaken() ||
-        MF.getFrameInfo().hasVarSizedObjects())
+    if (Needed)
       report_fatal_error(
           "OS-9 MC6809 does not support a U-based frame pointer; U is the "
           "process data-area base");
     return false;
   }
-
-  const MachineFrameInfo &MFI = MF.getFrameInfo();
-  if (MFI.isFrameAddressTaken() || MFI.hasVarSizedObjects())
-    return true;
-  // A leaf keeps S at a fixed offset from its incoming arguments for its whole
-  // body, so it needs no U frame pointer; a function that makes calls does
-  // (each call's return-address push shifts S). This is also what makes a
-  // static-stack function frame-pointer-free: usesStaticStack requires
-  // !hasCalls, and its locals live in absolute memory rather than on the
-  // dynamic frame, so U is entirely free for allocation there. hasFP is
-  // queried in determineCalleeSaves, before the static marking runs, so it
-  // must depend only on inputs that are stable by then -- hasCalls is.
-  return MFI.hasCalls();
+  // Also when asked for one (-fno-omit-frame-pointer). Not on OS-9, whose U
+  // is never free.
+  return Needed || MF.disableFramePointerElim();
 }
 
 uint64_t MC6809FrameLowering::staticSize(const MachineFrameInfo &MFI) const {

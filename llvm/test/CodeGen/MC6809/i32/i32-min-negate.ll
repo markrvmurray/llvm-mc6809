@@ -86,16 +86,14 @@ define i32 @neg_i32(i32 %x) {
 define i32 @mul_neg1(i32 %x) {
 ; O0-LABEL: mul_neg1:
 ; O0:       ; %bb.0:
-; O0-NEXT:    leas -6,s
-; O0-NEXT:    pshs u,y
-; O0-NEXT:    tfr s,u
-; O0-NEXT:    stx 4,u ; 2-byte Folded Spill
-; O0-NEXT:    ldd 14,u
+; O0-NEXT:    pshs y
+; O0-NEXT:    leas -14,s
+; O0-NEXT:    stx 8,s ; 2-byte Folded Spill
+; O0-NEXT:    ldd 20,s
 ; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 12,u
+; O0-NEXT:    ldd 20,s
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
-; O0-NEXT:    leas -8,s
 ; O0-NEXT:    std 2,s
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
@@ -104,24 +102,22 @@ define i32 @mul_neg1(i32 %x) {
 ; O0-NEXT:    ldd #-1
 ; O0-NEXT:    std 6,s
 ; O0-NEXT:    std 4,s
-; O0-NEXT:    leay 6,u
+; O0-NEXT:    leay 10,s
 ; O0-NEXT:    tfr y,x
 ; O0-NEXT:    lbsr __mulsi3
 ; O0-NEXT:    ldd 2,y
 ; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 6,u
+; O0-NEXT:    ldd 12,s
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
-; O0-NEXT:    leas 8,s
-; O0-NEXT:    ldx 4,u ; 2-byte Folded Reload
+; O0-NEXT:    ldx 8,s ; 2-byte Folded Reload
 ; O0-NEXT:    std 2,x
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std ,x
 ; O0-NEXT:    puls d
-; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u,y
-; O0-NEXT:    leas 6,s
+; O0-NEXT:    leas 14,s
+; O0-NEXT:    puls y
 ; O0-NEXT:    rts
 ;
 ; O2-LABEL: mul_neg1:

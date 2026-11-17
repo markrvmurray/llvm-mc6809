@@ -63,18 +63,17 @@ body:                                             ; preds = %entry, %body
   br i1 %ec, label %done, label %body
 }
 
-; A non-reentrant function that makes a call keeps its frame pointer (the
-; return-address push shifts S, so its arguments are only stable U-relative),
-; and with the frame pointer kept a static frame would buy nothing and cost a
-; byte and a cycle per access. It stays on the dynamic frame, feature or not.
+; A non-reentrant function that makes a call stays on the dynamic frame,
+; feature or not: only a leaf takes a static one. Its frame is addressed from
+; S, with no frame pointer.
 define dso_local i32 @ss_call(i32 noundef %seed, i16 noundef %n) local_unnamed_addr #0 {
 ; SS-LABEL: ss_call:
-; SS:         tfr{{.*}}s,u
+; SS-NOT:     tfr{{.*}}s,u
 ; SS-NOT:     ss_call_sstk
 ; SS:         rts
 ;
 ; DYN-LABEL: ss_call:
-; DYN:         tfr{{.*}}s,u
+; DYN-NOT:     tfr{{.*}}s,u
 ; DYN-NOT:     _sstk
 entry:
   %buf = alloca [4 x i32], align 1

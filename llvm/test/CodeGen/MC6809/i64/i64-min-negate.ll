@@ -164,24 +164,22 @@ define i64 @neg_i64(i64 %x) {
 define i64 @mul_neg1(i64 %x) {
 ; O0-LABEL: mul_neg1:
 ; O0:       ; %bb.0:
-; O0-NEXT:    leas -10,s
-; O0-NEXT:    pshs u,y
-; O0-NEXT:    tfr s,u
-; O0-NEXT:    stx 4,u ; 2-byte Folded Spill
-; O0-NEXT:    ldd 22,u
+; O0-NEXT:    pshs y
+; O0-NEXT:    leas -26,s
+; O0-NEXT:    stx 16,s ; 2-byte Folded Spill
+; O0-NEXT:    ldd 36,s
 ; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 20,u
+; O0-NEXT:    ldd 36,s
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
 ; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 18,u
+; O0-NEXT:    ldd 34,s
 ; O0-NEXT:    std <__rs1
 ; O0-NEXT:    puls d
 ; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 16,u
+; O0-NEXT:    ldd 32,s
 ; O0-NEXT:    std <__rs2
 ; O0-NEXT:    puls d
-; O0-NEXT:    leas -16,s
 ; O0-NEXT:    std 6,s
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
@@ -200,7 +198,7 @@ define i64 @mul_neg1(i64 %x) {
 ; O0-NEXT:    std 12,s
 ; O0-NEXT:    std 10,s
 ; O0-NEXT:    std 8,s
-; O0-NEXT:    leay 6,u
+; O0-NEXT:    leay 18,s
 ; O0-NEXT:    tfr y,x
 ; O0-NEXT:    lbsr __muldi3
 ; O0-NEXT:    ldd 6,y
@@ -213,11 +211,10 @@ define i64 @mul_neg1(i64 %x) {
 ; O0-NEXT:    std <__rs1
 ; O0-NEXT:    puls d
 ; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 6,u
+; O0-NEXT:    ldd 20,s
 ; O0-NEXT:    std <__rs2
 ; O0-NEXT:    puls d
-; O0-NEXT:    leas 16,s
-; O0-NEXT:    ldx 4,u ; 2-byte Folded Reload
+; O0-NEXT:    ldx 16,s ; 2-byte Folded Reload
 ; O0-NEXT:    std 6,x
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
@@ -231,9 +228,8 @@ define i64 @mul_neg1(i64 %x) {
 ; O0-NEXT:    ldd <__rs2
 ; O0-NEXT:    std ,x
 ; O0-NEXT:    puls d
-; O0-NEXT:    tfr u,s
-; O0-NEXT:    puls u,y
-; O0-NEXT:    leas 10,s
+; O0-NEXT:    leas 26,s
+; O0-NEXT:    puls y
 ; O0-NEXT:    rts
 ;
 ; O2-LABEL: mul_neg1:

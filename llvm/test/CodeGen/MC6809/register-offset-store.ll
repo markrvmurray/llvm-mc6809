@@ -15,14 +15,22 @@ target triple = "mc6809-unknown-unknown"
 define dso_local void @sst(ptr noundef writeonly captures(none) %a, i8 noundef signext %i, i8 noundef signext %v) local_unnamed_addr #0 {
 ; MC6809-LABEL: sst:
 ; MC6809:       ; %bb.0: ; %entry
-; MC6809-NEXT:    lda 2,s
+; MC6809-NEXT:    pshs u
+; MC6809-NEXT:    tfr s,u
+; MC6809-NEXT:    lda 4,u
 ; MC6809-NEXT:    sta b,x
+; MC6809-NEXT:    tfr u,s
+; MC6809-NEXT:    puls u
 ; MC6809-NEXT:    rts
 ;
 ; HD6309-LABEL: sst:
 ; HD6309:       ; %bb.0: ; %entry
-; HD6309-NEXT:    lda 2,s
+; HD6309-NEXT:    pshs u
+; HD6309-NEXT:    tfr s,u
+; HD6309-NEXT:    lda 4,u
 ; HD6309-NEXT:    sta b,x
+; HD6309-NEXT:    tfr u,s
+; HD6309-NEXT:    puls u
 ; HD6309-NEXT:    rts
 entry:
   %idxprom = sext i8 %i to i16
@@ -35,12 +43,20 @@ entry:
 define dso_local signext i8 @sld(ptr noundef readonly captures(none) %a, i8 noundef signext %i) local_unnamed_addr #1 {
 ; MC6809-LABEL: sld:
 ; MC6809:       ; %bb.0: ; %entry
+; MC6809-NEXT:    pshs u
+; MC6809-NEXT:    tfr s,u
 ; MC6809-NEXT:    ldb b,x
+; MC6809-NEXT:    tfr u,s
+; MC6809-NEXT:    puls u
 ; MC6809-NEXT:    rts
 ;
 ; HD6309-LABEL: sld:
 ; HD6309:       ; %bb.0: ; %entry
+; HD6309-NEXT:    pshs u
+; HD6309-NEXT:    tfr s,u
 ; HD6309-NEXT:    ldb b,x
+; HD6309-NEXT:    tfr u,s
+; HD6309-NEXT:    puls u
 ; HD6309-NEXT:    rts
 entry:
   %idxprom = sext i8 %i to i16

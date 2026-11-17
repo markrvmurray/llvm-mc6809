@@ -1,12 +1,10 @@
 ; RUN: llc -mtriple=mc6809 -O2 -mc6809-static-stack-dp-avail=0 %s -o - | FileCheck %s
 
-; A static frame is taken only where it frees the frame pointer. Both
-; functions below are provably non-reentrant (internal, only called from one
-; place, no external-call cycle, and reached only from `main`, which no
-; outside caller enters a second time). The leaf gets a static frame and no frame
-; pointer at all; the function that calls it keeps its dynamic U-relative
-; frame -- a static frame would cost it a byte and a cycle per access and buy
-; nothing, since it needs U as a frame pointer across the call anyway.
+; A static frame is taken only by a leaf. Both functions below are provably
+; non-reentrant (internal, only called from one place, no external-call cycle,
+; and reached only from `main`, which no outside caller enters a second time).
+; The leaf gets a static frame; the function that calls it keeps its dynamic
+; S-relative frame.
 
 target datalayout = "E-p:16:8-p1:8:8-S8-m:e-i1:8-i8:8-i16:8-i32:8-i64:8-f32:8-f64:8-a:0-n8:16"
 
@@ -37,10 +35,10 @@ exit:
 }
 
 ; CHECK-LABEL: caller:
-; CHECK:         pshs{{.*}}u
-; CHECK:         tfr s,u
 ; CHECK-NOT:     _sstk
-; CHECK:         ,u
+; CHECK:         leas -{{[0-9]+}},s
+; CHECK-NOT:     _sstk
+; CHECK:         ,s
 ; CHECK-NOT:     _sstk
 ; CHECK:         rts
 define internal i16 @caller(ptr %p, i16 %n) noinline norecurse {

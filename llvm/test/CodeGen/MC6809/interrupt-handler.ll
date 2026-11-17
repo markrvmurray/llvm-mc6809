@@ -128,7 +128,7 @@ entry:
 ; direct-page registers to the stack. On the 6309 W goes last and comes back
 ; first.
 ; CHECK-LABEL: fast_calls_out:
-; CHECK:       pshs u,x,d
+; CHECK:       pshs x,d
 ; CHECK-NEXT:  ldd <__rs0
 ; CHECK-NEXT:  pshs d
 ; CHECK:       lda <__rc14
@@ -141,5 +141,5 @@ entry:
 ; CHECK-NEXT:  sta <__rc14
 ; CHECK-NEXT:  stb <__rc15
 ; CHECK:       std <__rs0
-; CHECK-NEXT:  puls u,x,d
+; CHECK-NEXT:  puls x,d
 ; CHECK-NEXT:  rti
