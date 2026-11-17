@@ -87,6 +87,32 @@ static MachineInstr *matchFoldableStore(Register Dst, const MachineInstr &ValDef
   return &MI;
 }
 
+// Whether \p MI may change memory or do anything else beyond defining its
+// registers.
+static bool hasMemoryEffect(const MachineInstr &MI) {
+  return MI.mayStore() || MI.isCall() || MI.hasUnmodeledSideEffects();
+}
+
+// Whether \p Store, which writes back the value loaded by \p ValDef and
+// adjusted by \p Add, may move to the end of both predecessors of \p MBB.
+// That takes it above everything ahead of it in the block, so nothing there
+// may read or write memory, or call: only the load and the add it belongs to.
+static bool canHoistStore(const MachineBasicBlock &MBB,
+                          const MachineInstr &Store,
+                          const MachineInstr &ValDef,
+                          const MachineInstr &Add) {
+  if (Store.getParent() != &MBB)
+    return false;
+  for (const MachineInstr &Prior :
+       make_range(MBB.begin(), MachineBasicBlock::const_iterator(Store))) {
+    if (&Prior == &ValDef || &Prior == &Add)
+      continue;
+    if (Prior.mayLoad() || hasMemoryEffect(Prior))
+      return false;
+  }
+  return true;
+}
+
 static MachineBasicBlock *splitCriticalEdge(MachineBasicBlock &MBB, MachineBasicBlock &Succ) {
   MachineFunction &MF = *MBB.getParent();
 
@@ -140,7 +166,16 @@ bool MC6809IncDecPhi::runOnMachineFunction(MachineFunction &MF) {
       MachineInstr *ValDef = MRI.getOneDef(Val)->getParent();
       MachineBasicBlock *ValDefMBB = ValDef->getParent();
       if (ValDefMBB == &MBB) {
+        // It moves to the end of both predecessors, above everything ahead of
+        // it in this block. A load must not rise above a store or a call that
+        // may change what it reads.
         bool SawStore = false;
+        for (const MachineInstr &Prior :
+             make_range(MBB.begin(), MachineBasicBlock::iterator(ValDef)))
+          if (hasMemoryEffect(Prior)) {
+            SawStore = true;
+            break;
+          }
         if (!ValDef->isSafeToMove(SawStore))
           continue;
         if (!MRI.hasOneNonDBGUse(Val))
@@ -164,6 +199,8 @@ bool MC6809IncDecPhi::runOnMachineFunction(MachineFunction &MF) {
       }
 
       MachineInstr *FoldableStore = matchFoldableStore(Dst, *ValDef, MRI);
+      if (FoldableStore && !canHoistStore(MBB, *FoldableStore, *ValDef, MI))
+        FoldableStore = nullptr;
 
       // If one of the parent edges is critical, then lifting across it
       // deconditionalizes computation, since the parent may branch away from
