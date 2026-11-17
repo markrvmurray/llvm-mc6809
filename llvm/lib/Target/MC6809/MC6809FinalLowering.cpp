@@ -1363,7 +1363,31 @@ bool MC6809FinalLowering::foldLEAPointerSpill(MachineFunction &MF) {
         // and a later `ldy 21,u; ldd ,y` mis-folded using stale
         // tracking that should have been invalidated.
         bool HavePending = (Addr == &YAddr ? PendingLDY : PendingLDX) != nullptr;
-        if (Addr && HavePending) {
+        // The fold deletes the reload, so afterwards the index register no
+        // longer holds the address. That is only sound when nothing reads
+        // the register again: not this instruction through another operand
+        // (`stx ,x` stores the address itself), and nothing after it. Death
+        // must be proved inside the block -- a redefinition before any read,
+        // or a block with no successor -- because live-in lists are not kept
+        // exact this late, and at -O0 nothing else would catch a mistake.
+        auto IndexDeadAfterFold = [&](Register R) {
+          unsigned Reads = 0;
+          for (const MachineOperand &MO : MI.operands())
+            if (MO.isReg() && MO.readsReg() && TRI->regsOverlap(MO.getReg(), R))
+              ++Reads;
+          if (Reads != 1)
+            return false;
+          for (auto It = std::next(MI.getIterator()); It != MBB.end(); ++It) {
+            if (It->isDebugInstr())
+              continue;
+            if (It->readsRegister(R, TRI))
+              return false;
+            if (It->modifiesRegister(R, TRI))
+              return true;
+          }
+          return MBB.succ_empty();
+        };
+        if (Addr && HavePending && IndexDeadAfterFold(IdxReg)) {
           int64_t NewOff = Addr->Offset + OB->first;
           unsigned O16 = getO16Form(MI.getOpcode());
           if (O16 != 0 && isInt<16>(NewOff)) {
