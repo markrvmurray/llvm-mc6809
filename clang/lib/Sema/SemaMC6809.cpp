@@ -17,46 +17,35 @@
 #include "clang/Basic/TargetBuiltins.h"
 #include "llvm/ADT/APSInt.h"
 #include "clang/Sema/Attr.h"
+#include "clang/Basic/TargetInfo.h"
 #include "clang/Sema/Sema.h"
 
 using namespace llvm;
 
 namespace clang {
 
+// Interrupt handlers are not implemented for this target. A handler has to
+// return with RTI and has to preserve everything the interrupted code may be
+// using, the direct-page registers the compiler allocates among them, and
+// nothing does that yet. Refuse the attributes: accepting them and compiling
+// an ordinary function, which returns with RTS, fails only when the interrupt
+// arrives.
+static void diagnoseInterruptUnsupported(SemaBase &S, const ParsedAttr &AL) {
+  S.Diag(AL.getLoc(), diag::err_attribute_not_supported_on_arch)
+      << AL
+      << S.getASTContext().getTargetInfo().getTriple().getArchName();
+}
+
 void SemaMC6809::handleInterruptAttr(Decl *D, const ParsedAttr &AL) {
-  if (!isFuncOrMethodForAttrSubject(D)) {
-    Diag(D->getLocation(), diag::warn_attribute_wrong_decl_type) << "'interrupt'" << ExpectedFunction;
-    return;
-  }
-
-  if (!AL.checkExactlyNumArgs(SemaRef, 0))
-    return;
-
-  handleSimpleAttribute<MC6809InterruptAttr>(*this, D, AL);
+  diagnoseInterruptUnsupported(*this, AL);
 }
 
 void SemaMC6809::handleInterruptNorecurseAttr(Decl *D, const ParsedAttr &AL) {
-  if (!isFuncOrMethodForAttrSubject(D)) {
-    Diag(D->getLocation(), diag::warn_attribute_wrong_decl_type) << "'interrupt_norecurse'" << ExpectedFunction;
-    return;
-  }
-
-  if (!AL.checkExactlyNumArgs(SemaRef, 0))
-    return;
-
-  handleSimpleAttribute<MC6809InterruptNorecurseAttr>(*this, D, AL);
+  diagnoseInterruptUnsupported(*this, AL);
 }
 
 void SemaMC6809::handleInterruptNoISRAttr(Decl *D, const ParsedAttr &AL) {
-  if (!isFuncOrMethodForAttrSubject(D)) {
-    Diag(D->getLocation(), diag::warn_attribute_wrong_decl_type) << "'no_isr'" << ExpectedFunction;
-    return;
-  }
-
-  if (!AL.checkExactlyNumArgs(SemaRef, 0))
-    return;
-
-  handleSimpleAttribute<MC6809NoISRAttr>(*this, D, AL);
+  diagnoseInterruptUnsupported(*this, AL);
 }
 
 // Bug #178: __attribute__((directpage)) → addrspace(1) global on
