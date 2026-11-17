@@ -24,28 +24,57 @@ using namespace llvm;
 
 namespace clang {
 
-// Interrupt handlers are not implemented for this target. A handler has to
-// return with RTI and has to preserve everything the interrupted code may be
-// using, the direct-page registers the compiler allocates among them, and
-// nothing does that yet. Refuse the attributes: accepting them and compiling
-// an ordinary function, which returns with RTS, fails only when the interrupt
-// arrives.
-static void diagnoseInterruptUnsupported(SemaBase &S, const ParsedAttr &AL) {
+// An interrupt handler is entered by IRQ, NMI or a software interrupt, with
+// the processor's registers already stacked, and returns with RTI. Only a
+// bare-metal program owns its vectors: under OS-9 the kernel fields the
+// interrupt and calls a service routine as a subroutine, and Color BASIC
+// keeps the vectors for itself.
+void SemaMC6809::handleInterruptAttr(Decl *D, const ParsedAttr &AL) {
+  const llvm::Triple &T = getASTContext().getTargetInfo().getTriple();
+  if (T.isOSOS9() || T.isOSDECB()) {
+    Diag(AL.getLoc(), diag::err_attribute_not_supported_on_arch)
+        << AL << T.getOSName();
+    return;
+  }
+
+  if (!isFuncOrMethodForAttrSubject(D)) {
+    Diag(D->getLocation(), diag::warn_attribute_wrong_decl_type)
+        << AL << AL.isRegularKeywordAttribute() << ExpectedFunction;
+    return;
+  }
+
+  if (!AL.checkExactlyNumArgs(SemaRef, 0))
+    return;
+
+  // Nothing passes a handler arguments, and nothing reads a result.
+  if ((hasFunctionProto(D) && getFunctionOrMethodNumParams(D) != 0) ||
+      !getFunctionOrMethodResultType(D)->isVoidType()) {
+    Diag(AL.getLoc(), diag::err_attribute_wrong_decl_type_str)
+        << AL << AL.isRegularKeywordAttribute()
+        << "functions that take no parameters and return 'void'";
+    return;
+  }
+
+  handleSimpleAttribute<MC6809InterruptAttr>(*this, D, AL);
+}
+
+// The two variants inherited with the attribute are not implemented: nothing
+// gives a handler that promises not to recurse its own static storage, and
+// nothing opts a function out of being treated as one. Refuse them: accepted
+// and ignored, they would describe code the compiler does not produce.
+static void diagnoseInterruptVariantUnsupported(SemaBase &S,
+                                                const ParsedAttr &AL) {
   S.Diag(AL.getLoc(), diag::err_attribute_not_supported_on_arch)
       << AL
       << S.getASTContext().getTargetInfo().getTriple().getArchName();
 }
 
-void SemaMC6809::handleInterruptAttr(Decl *D, const ParsedAttr &AL) {
-  diagnoseInterruptUnsupported(*this, AL);
-}
-
 void SemaMC6809::handleInterruptNorecurseAttr(Decl *D, const ParsedAttr &AL) {
-  diagnoseInterruptUnsupported(*this, AL);
+  diagnoseInterruptVariantUnsupported(*this, AL);
 }
 
 void SemaMC6809::handleInterruptNoISRAttr(Decl *D, const ParsedAttr &AL) {
-  diagnoseInterruptUnsupported(*this, AL);
+  diagnoseInterruptVariantUnsupported(*this, AL);
 }
 
 // Bug #178: __attribute__((directpage)) → addrspace(1) global on

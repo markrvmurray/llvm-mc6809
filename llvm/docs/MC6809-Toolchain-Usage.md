@@ -174,6 +174,46 @@ mc6809-clang -mcrt0=semihost hello.c -o hello.elf   # exits when main returns
 This applies to bare metal only.  OS-9 exits through the kernel and DECB
 returns to BASIC; both do the right thing without being asked.
 
+## Interrupt handlers
+
+On bare metal a function can be an interrupt handler:
+
+```c
+volatile unsigned char ticks;
+
+__attribute__((interrupt)) void timer_tick(void) {
+  ticks++;
+}
+```
+
+A handler takes no arguments and returns nothing.  It returns with `RTI`, and
+it preserves the compiler's direct-page registers as well as what the
+processor stacked, so it can interrupt any compiled code and call any compiled
+function.
+
+What this covers, and what it does not:
+
+* **IRQ, NMI and the software interrupts.**  All of them stack the whole
+  register set before the handler runs.  FIRQ stacks only the program counter
+  and the flags, and is not supported yet.
+* **Bare metal only.**  Under OS-9 the kernel fields the interrupt and calls a
+  service routine as an ordinary subroutine, and Color BASIC keeps the vectors
+  for itself; the attribute is an error for both.
+* **6309: native mode only.**  In emulation mode the processor does not stack
+  W, and a handler does not save it.  The default start-up enters native mode.
+* **The vector is yours to set.**  The start-up code does not install
+  handlers.  Put the handler's address in the vector your hardware uses
+  (`$FFF8` for IRQ, `$FFFC` for NMI, `$FFFA` for SWI) from your own linker
+  script or ROM image.
+* **`m6809_interrupt_norecurse` and `m6809_no_isr`** are not implemented and
+  are errors.
+
+A function that a handler calls may be running already when the interrupt
+arrives.  The compiler allows for that: it keeps a function's locals in static
+memory only when it can see every caller and none is a handler, which in an
+ordinary compile means a `static` function reached from `main` alone.  With
+`-flto` it sees the whole program and can do it more often.
+
 ## What you get on each target
 
 **Bare metal** is picolibc over a semihosting layer: stdio goes to the

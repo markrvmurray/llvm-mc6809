@@ -30,6 +30,17 @@ public:
       return getLangASFromTargetAS(1);
     return TargetCodeGenInfo::getGlobalVarAddressSpace(CGM, D);
   }
+
+  // Tell the backend which functions are interrupt handlers: it returns from
+  // them with RTI and has them preserve the direct-page registers.
+  void setTargetAttributes(const Decl *D, llvm::GlobalValue *GV,
+                           CodeGen::CodeGenModule &CGM) const override {
+    if (GV->isDeclaration())
+      return;
+    const auto *FD = dyn_cast_or_null<FunctionDecl>(D);
+    if (FD && FD->hasAttr<MC6809InterruptAttr>())
+      cast<llvm::Function>(GV)->addFnAttr("interrupt");
+  }
 };
 
 } // anonymous namespace
