@@ -1272,13 +1272,27 @@ static Register freeTransitIndex(MachineInstr &MI, Register LoadBase) {
            });
   };
   // D itself free: keep to D. The save the caller emits around it is then
-  // dead, and the post-RA cleanup removes it.
+  // dead, and the post-RA cleanup removes it. Then X, then U (where it is
+  // allocatable: a reserved register is never available), then Y, whose
+  // loads and stores take a prefix byte.
   if (Free(MC6809::AD))
     return Register();
-  for (Register R : {MC6809::IX, MC6809::IY})
+  for (Register R : {MC6809::IX, MC6809::SU, MC6809::IY})
     if (Free(R))
       return R;
   return Register();
+}
+
+/// The direct-page load and store of a transit register.
+static unsigned transitLoadDP(Register R) {
+  return R == MC6809::IX ? MC6809::LDXd
+         : R == MC6809::SU ? MC6809::LDUd
+                           : MC6809::LDYd;
+}
+static unsigned transitStoreDP(Register R) {
+  return R == MC6809::IX ? MC6809::STXd
+         : R == MC6809::SU ? MC6809::STUd
+                           : MC6809::STYd;
 }
 
 /// Bytes a pushStagingReg push moves S down by.
@@ -1595,11 +1609,11 @@ MC6809InstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
           MC6809::Imag16RegClass.contains(DestReg) && MI != MBB.end())
         if (Register Transit = freeTransitIndex(*MI, Register())) {
           Builder
-              .buildInstr(Transit == MC6809::IX ? MC6809::LDXd : MC6809::LDYd)
+              .buildInstr(transitLoadDP(Transit))
               .addDef(Transit, RegState::Implicit)
               .addReg(SrcReg);
           Builder
-              .buildInstr(Transit == MC6809::IX ? MC6809::STXd : MC6809::STYd)
+              .buildInstr(transitStoreDP(Transit))
               .addReg(DestReg, RegState::Undef)
               .addUse(Transit, RegState::Implicit)
               .addReg(DestReg, RegState::ImplicitDefine);
@@ -4201,6 +4215,19 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
   case MC6809::Compare_i8_Imm:
   case MC6809::Compare_i16_Imm:
   case MC6809::Compare_ptr_Imm:
+    // A 16-bit direct-page value compared with a constant can be loaded
+    // into a free X, U or Y and compared there (`ldx <rs ; cmpx #n` sets
+    // the flags CMPD would), instead of through a saved D.
+    if (MC6809::Imag16RegClass.contains(MI.getOperand(2).getReg()))
+      if (Register Transit = freeTransitIndex(MI, Register())) {
+        Builder.buildInstr(transitLoadDP(Transit))
+            .addDef(Transit, RegState::Implicit)
+            .addReg(MI.getOperand(2).getReg());
+        Builder.buildInstr(CompareImmediateOpcode.at(Transit))
+            .add(MI.getOperand(3));
+        MI.eraseFromParent();
+        break;
+      }
     wrapStagedCCSources(MI, [&] { expandCompareImm(Builder, MI); });
     break;
   case MC6809::Compare_i8_Mem:
@@ -4263,6 +4290,16 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
     break;
   case MC6809::Test_i8_Reg:
   case MC6809::Test_i16_Reg:
+    // Likewise a test of a 16-bit direct-page value: LDX/LDU/LDY sets N
+    // and Z and clears V exactly as the LDD it replaces.
+    if (MC6809::Imag16RegClass.contains(MI.getOperand(2).getReg()))
+      if (Register Transit = freeTransitIndex(MI, Register())) {
+        Builder.buildInstr(transitLoadDP(Transit))
+            .addDef(Transit, RegState::Implicit)
+            .addReg(MI.getOperand(2).getReg());
+        MI.eraseFromParent();
+        break;
+      }
     wrapStagedCCSources(MI, [&] { expandTestReg(Builder, MI); });
     break;
   case MC6809::Test_i8_Mem:
@@ -6485,7 +6522,7 @@ void MC6809InstrInfo::expandLoadImm(MachineIRBuilder &Builder, MachineInstr &MI)
       else
         Load.addImm(ValOp.isImm() ? ValOp.getImm()
                                   : ValOp.getCImm()->getSExtValue());
-      Builder.buildInstr(Transit == MC6809::IX ? MC6809::STXd : MC6809::STYd)
+      Builder.buildInstr(transitStoreDP(Transit))
           .addReg(DestRegOp.getReg(), RegState::Undef)
           .addUse(Transit, RegState::Implicit)
           .addReg(DestRegOp.getReg(), RegState::ImplicitDefine);
@@ -6869,7 +6906,7 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
         MachineIRBuilder PostBuilder(*MI.getParent(),
                                      std::next(MI.getIterator()));
         PostBuilder
-            .buildInstr(Transit == MC6809::IX ? MC6809::STXd : MC6809::STYd)
+            .buildInstr(transitStoreDP(Transit))
             .addReg(DestRegOp.getReg(), RegState::Undef)
             .addUse(Transit, RegState::Implicit)
             .addReg(DestRegOp.getReg(), RegState::ImplicitDefine);
@@ -6980,7 +7017,7 @@ void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI
     // nothing to save.
     Register SrcReg = MI.getOperand(0).getReg();
     MachineIRBuilder LoadBuilder(*MI.getParent(), MI.getIterator());
-    LoadBuilder.buildInstr(Transit == MC6809::IX ? MC6809::LDXd : MC6809::LDYd)
+    LoadBuilder.buildInstr(transitLoadDP(Transit))
         .addDef(Transit, RegState::Implicit)
         .addReg(SrcReg);
     MI.getOperand(0).setReg(Transit);
