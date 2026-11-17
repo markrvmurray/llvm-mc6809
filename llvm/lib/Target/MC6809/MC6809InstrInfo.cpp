@@ -464,6 +464,13 @@ void MC6809InstrInfo::reMaterialize(MachineBasicBlock &MBB, MachineBasicBlock::i
     MI->setDesc(get(KeepCC));
     for (unsigned N = MI->getNumOperands(); N-- > MI->getNumExplicitOperands();)
       MI->removeOperand(N);
+  } else {
+    // Say so on the flag defs: the coalescer, which rematerialises through
+    // this hook too, requires a rematerialised def's physical-register
+    // side effects to be dead.
+    for (MachineOperand &MO : MI->implicit_operands())
+      if (MO.isReg() && MO.isDef())
+        MO.setIsDead();
   }
   MBB.insert(I, MI);
 }
