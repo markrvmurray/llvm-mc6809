@@ -182,8 +182,12 @@ bool MC6809FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB, Mach
     Builder.buildInstr(MC6809::LDBd).addReg(Imag8[I + 1]);
     Builder.buildInstr(MC6809::PSHSs, {}, {Register(MC6809::AD)});
   }
+  // PSHSW and PULSW name no register operand; say here that this push reads
+  // W and the pull below writes it, or the return that reads the restored W
+  // reads a register nothing defined.
   if (HaveAW)
-    Builder.buildInstr(MC6809::PSHSWx, {}, {});
+    Builder.buildInstr(MC6809::PSHSWx, {}, {})
+        .addReg(MC6809::AW, RegState::Implicit);
 
   // Record that the frame pointer is killed by these instructions.
   for (auto &InsertedMI : make_range(MIS.begin(), MI))
@@ -267,7 +271,8 @@ bool MC6809FrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB, Ma
   // Restore order is the inverse of spill: W, then the direct-page registers
   // back through the accumulators, then the fused PULS.
   if (HaveAW)
-    Builder.buildInstr(MC6809::PULSWx, {}, {});
+    Builder.buildInstr(MC6809::PULSWx, {}, {})
+        .addReg(MC6809::AW, RegState::ImplicitDefine);
   // The 8-bit direct-page registers were pushed two at a time, with an odd
   // one last and on its own; undo that from the end.
   auto StoreByte = [&](unsigned Opc, Register Acc, Register Imag) {

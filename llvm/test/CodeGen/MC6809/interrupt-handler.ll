@@ -1,5 +1,5 @@
-; RUN: llc -global-isel -global-isel-abort=1 -mtriple=mc6809 -O2 < %s | FileCheck %s --check-prefixes=CHECK,M6809
-; RUN: llc -global-isel -global-isel-abort=1 -mtriple=mc6809 -mcpu=hd6309 -O2 < %s | FileCheck %s --check-prefixes=CHECK,H6309
+; RUN: llc -global-isel -global-isel-abort=1 -mtriple=mc6809 -O2 -verify-machineinstrs < %s | FileCheck %s --check-prefixes=CHECK,M6809
+; RUN: llc -global-isel -global-isel-abort=1 -mtriple=mc6809 -mcpu=hd6309 -O2 -verify-machineinstrs < %s | FileCheck %s --check-prefixes=CHECK,H6309
 
 ; An interrupt handler returns with RTI. For an IRQ, NMI or software interrupt
 ; the processor has stacked its own registers already; what the handler adds
