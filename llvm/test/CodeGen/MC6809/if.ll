@@ -526,9 +526,7 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O1-NEXT:    lda 10,s
 ; O1-NEXT:    std <__rs0
 ; O1-NEXT:    puls d
-; O1-NEXT:    pshs d
 ; O1-NEXT:    std <__rs1
-; O1-NEXT:    puls d
 ; O1-NEXT:  .LBB4_2: ; %return
 ; O1-NEXT:    ldx 10,s ; 2-byte Folded Reload
 ; O1-NEXT:    ldd <__rs0
@@ -578,9 +576,7 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O2-NEXT:    lda 10,s
 ; O2-NEXT:    std <__rs0
 ; O2-NEXT:    puls d
-; O2-NEXT:    pshs d
 ; O2-NEXT:    std <__rs1
-; O2-NEXT:    puls d
 ; O2-NEXT:  .LBB4_2: ; %return
 ; O2-NEXT:    ldx 10,s ; 2-byte Folded Reload
 ; O2-NEXT:    ldd <__rs0
@@ -630,9 +626,7 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O3-NEXT:    lda 10,s
 ; O3-NEXT:    std <__rs0
 ; O3-NEXT:    puls d
-; O3-NEXT:    pshs d
 ; O3-NEXT:    std <__rs1
-; O3-NEXT:    puls d
 ; O3-NEXT:  .LBB4_2: ; %return
 ; O3-NEXT:    ldx 10,s ; 2-byte Folded Reload
 ; O3-NEXT:    ldd <__rs0

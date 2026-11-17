@@ -117,9 +117,7 @@ define i1 @ult_i32_zext_i8(i32 %a, i8 %b) {
 ; O0-NEXT:    ldx 16,s
 ; O0-NEXT:    stx <__rs1
 ; O0-NEXT:    lda #0
-; O0-NEXT:    pshs d
 ; O0-NEXT:    std <__rs2
-; O0-NEXT:    puls d
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std 4,s
@@ -201,9 +199,7 @@ define i1 @sgt_i32_sext_i8(i32 %a, i8 %b) {
 ; O0-NEXT:    stx 2,s
 ; O0-NEXT:    ldx <__rs1
 ; O0-NEXT:    stx ,s
-; O0-NEXT:    pshs d
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
 ; O0-NEXT:    tfr a,b
 ; O0-NEXT:    ldx <__rs0
 ; O0-NEXT:    stx 6,s

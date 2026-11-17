@@ -37,10 +37,7 @@ define dso_local signext i8 @mul_s_i8(i8 noundef signext %a, i8 noundef signext 
 ; O0-NEXT:    tfr s,u
 ; O0-NEXT:    tfr b,a
 ; O0-NEXT:    ldb 4,u
-; O0-NEXT:    pshs d
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
-; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    mul
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    ldb <__rs0lo
@@ -53,10 +50,7 @@ define dso_local signext i8 @mul_s_i8(i8 noundef signext %a, i8 noundef signext 
 ; O1-NEXT:    tfr s,u
 ; O1-NEXT:    tfr b,a
 ; O1-NEXT:    ldb 4,u
-; O1-NEXT:    pshs d
 ; O1-NEXT:    std <__rs0
-; O1-NEXT:    puls d
-; O1-NEXT:    ldd <__rs0
 ; O1-NEXT:    mul
 ; O1-NEXT:    std <__rs0
 ; O1-NEXT:    ldb <__rs0lo
@@ -69,10 +63,7 @@ define dso_local signext i8 @mul_s_i8(i8 noundef signext %a, i8 noundef signext 
 ; O2-NEXT:    tfr s,u
 ; O2-NEXT:    tfr b,a
 ; O2-NEXT:    ldb 4,u
-; O2-NEXT:    pshs d
 ; O2-NEXT:    std <__rs0
-; O2-NEXT:    puls d
-; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    mul
 ; O2-NEXT:    std <__rs0
 ; O2-NEXT:    ldb <__rs0lo
@@ -85,10 +76,7 @@ define dso_local signext i8 @mul_s_i8(i8 noundef signext %a, i8 noundef signext 
 ; O3-NEXT:    tfr s,u
 ; O3-NEXT:    tfr b,a
 ; O3-NEXT:    ldb 4,u
-; O3-NEXT:    pshs d
 ; O3-NEXT:    std <__rs0
-; O3-NEXT:    puls d
-; O3-NEXT:    ldd <__rs0
 ; O3-NEXT:    mul
 ; O3-NEXT:    std <__rs0
 ; O3-NEXT:    ldb <__rs0lo
@@ -266,18 +254,12 @@ define dso_local signext i8 @mul_s_i8_consts(i8 noundef signext %a, i8 noundef s
 ; O0-NEXT:    pshs u
 ; O0-NEXT:    tfr s,u
 ; O0-NEXT:    lda #12
-; O0-NEXT:    pshs d
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
-; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    mul
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    ldb <__rs0lo
 ; O0-NEXT:    lda 4,u
-; O0-NEXT:    pshs d
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
-; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    mul
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    ldb <__rs0lo
@@ -289,18 +271,12 @@ define dso_local signext i8 @mul_s_i8_consts(i8 noundef signext %a, i8 noundef s
 ; O1-NEXT:    pshs u
 ; O1-NEXT:    tfr s,u
 ; O1-NEXT:    lda #12
-; O1-NEXT:    pshs d
 ; O1-NEXT:    std <__rs0
-; O1-NEXT:    puls d
-; O1-NEXT:    ldd <__rs0
 ; O1-NEXT:    mul
 ; O1-NEXT:    std <__rs0
 ; O1-NEXT:    ldb <__rs0lo
 ; O1-NEXT:    lda 4,u
-; O1-NEXT:    pshs d
 ; O1-NEXT:    std <__rs0
-; O1-NEXT:    puls d
-; O1-NEXT:    ldd <__rs0
 ; O1-NEXT:    mul
 ; O1-NEXT:    std <__rs0
 ; O1-NEXT:    ldb <__rs0lo
@@ -312,18 +288,12 @@ define dso_local signext i8 @mul_s_i8_consts(i8 noundef signext %a, i8 noundef s
 ; O2-NEXT:    pshs u
 ; O2-NEXT:    tfr s,u
 ; O2-NEXT:    lda #12
-; O2-NEXT:    pshs d
 ; O2-NEXT:    std <__rs0
-; O2-NEXT:    puls d
-; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    mul
 ; O2-NEXT:    std <__rs0
 ; O2-NEXT:    ldb <__rs0lo
 ; O2-NEXT:    lda 4,u
-; O2-NEXT:    pshs d
 ; O2-NEXT:    std <__rs0
-; O2-NEXT:    puls d
-; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    mul
 ; O2-NEXT:    std <__rs0
 ; O2-NEXT:    ldb <__rs0lo
@@ -335,18 +305,12 @@ define dso_local signext i8 @mul_s_i8_consts(i8 noundef signext %a, i8 noundef s
 ; O3-NEXT:    pshs u
 ; O3-NEXT:    tfr s,u
 ; O3-NEXT:    lda #12
-; O3-NEXT:    pshs d
 ; O3-NEXT:    std <__rs0
-; O3-NEXT:    puls d
-; O3-NEXT:    ldd <__rs0
 ; O3-NEXT:    mul
 ; O3-NEXT:    std <__rs0
 ; O3-NEXT:    ldb <__rs0lo
 ; O3-NEXT:    lda 4,u
-; O3-NEXT:    pshs d
 ; O3-NEXT:    std <__rs0
-; O3-NEXT:    puls d
-; O3-NEXT:    ldd <__rs0
 ; O3-NEXT:    mul
 ; O3-NEXT:    std <__rs0
 ; O3-NEXT:    ldb <__rs0lo
@@ -391,10 +355,7 @@ define dso_local zeroext i8 @mul_u_i8(i8 noundef zeroext %a, i8 noundef zeroext 
 ; O0-NEXT:    tfr s,u
 ; O0-NEXT:    tfr b,a
 ; O0-NEXT:    ldb 4,u
-; O0-NEXT:    pshs d
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
-; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    mul
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    ldb <__rs0lo
@@ -407,10 +368,7 @@ define dso_local zeroext i8 @mul_u_i8(i8 noundef zeroext %a, i8 noundef zeroext 
 ; O1-NEXT:    tfr s,u
 ; O1-NEXT:    tfr b,a
 ; O1-NEXT:    ldb 4,u
-; O1-NEXT:    pshs d
 ; O1-NEXT:    std <__rs0
-; O1-NEXT:    puls d
-; O1-NEXT:    ldd <__rs0
 ; O1-NEXT:    mul
 ; O1-NEXT:    std <__rs0
 ; O1-NEXT:    ldb <__rs0lo
@@ -423,10 +381,7 @@ define dso_local zeroext i8 @mul_u_i8(i8 noundef zeroext %a, i8 noundef zeroext 
 ; O2-NEXT:    tfr s,u
 ; O2-NEXT:    tfr b,a
 ; O2-NEXT:    ldb 4,u
-; O2-NEXT:    pshs d
 ; O2-NEXT:    std <__rs0
-; O2-NEXT:    puls d
-; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    mul
 ; O2-NEXT:    std <__rs0
 ; O2-NEXT:    ldb <__rs0lo
@@ -439,10 +394,7 @@ define dso_local zeroext i8 @mul_u_i8(i8 noundef zeroext %a, i8 noundef zeroext 
 ; O3-NEXT:    tfr s,u
 ; O3-NEXT:    tfr b,a
 ; O3-NEXT:    ldb 4,u
-; O3-NEXT:    pshs d
 ; O3-NEXT:    std <__rs0
-; O3-NEXT:    puls d
-; O3-NEXT:    ldd <__rs0
 ; O3-NEXT:    mul
 ; O3-NEXT:    std <__rs0
 ; O3-NEXT:    ldb <__rs0lo
@@ -619,18 +571,12 @@ define dso_local zeroext i8 @mul_u_i8_consts(i8 noundef zeroext %a, i8 noundef z
 ; O0-NEXT:    pshs u
 ; O0-NEXT:    tfr s,u
 ; O0-NEXT:    lda #13
-; O0-NEXT:    pshs d
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
-; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    mul
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    ldb <__rs0lo
 ; O0-NEXT:    lda 4,u
-; O0-NEXT:    pshs d
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
-; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    mul
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    ldb <__rs0lo
@@ -642,18 +588,12 @@ define dso_local zeroext i8 @mul_u_i8_consts(i8 noundef zeroext %a, i8 noundef z
 ; O1-NEXT:    pshs u
 ; O1-NEXT:    tfr s,u
 ; O1-NEXT:    lda #13
-; O1-NEXT:    pshs d
 ; O1-NEXT:    std <__rs0
-; O1-NEXT:    puls d
-; O1-NEXT:    ldd <__rs0
 ; O1-NEXT:    mul
 ; O1-NEXT:    std <__rs0
 ; O1-NEXT:    ldb <__rs0lo
 ; O1-NEXT:    lda 4,u
-; O1-NEXT:    pshs d
 ; O1-NEXT:    std <__rs0
-; O1-NEXT:    puls d
-; O1-NEXT:    ldd <__rs0
 ; O1-NEXT:    mul
 ; O1-NEXT:    std <__rs0
 ; O1-NEXT:    ldb <__rs0lo
@@ -665,18 +605,12 @@ define dso_local zeroext i8 @mul_u_i8_consts(i8 noundef zeroext %a, i8 noundef z
 ; O2-NEXT:    pshs u
 ; O2-NEXT:    tfr s,u
 ; O2-NEXT:    lda #13
-; O2-NEXT:    pshs d
 ; O2-NEXT:    std <__rs0
-; O2-NEXT:    puls d
-; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    mul
 ; O2-NEXT:    std <__rs0
 ; O2-NEXT:    ldb <__rs0lo
 ; O2-NEXT:    lda 4,u
-; O2-NEXT:    pshs d
 ; O2-NEXT:    std <__rs0
-; O2-NEXT:    puls d
-; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    mul
 ; O2-NEXT:    std <__rs0
 ; O2-NEXT:    ldb <__rs0lo
@@ -688,18 +622,12 @@ define dso_local zeroext i8 @mul_u_i8_consts(i8 noundef zeroext %a, i8 noundef z
 ; O3-NEXT:    pshs u
 ; O3-NEXT:    tfr s,u
 ; O3-NEXT:    lda #13
-; O3-NEXT:    pshs d
 ; O3-NEXT:    std <__rs0
-; O3-NEXT:    puls d
-; O3-NEXT:    ldd <__rs0
 ; O3-NEXT:    mul
 ; O3-NEXT:    std <__rs0
 ; O3-NEXT:    ldb <__rs0lo
 ; O3-NEXT:    lda 4,u
-; O3-NEXT:    pshs d
 ; O3-NEXT:    std <__rs0
-; O3-NEXT:    puls d
-; O3-NEXT:    ldd <__rs0
 ; O3-NEXT:    mul
 ; O3-NEXT:    std <__rs0
 ; O3-NEXT:    ldb <__rs0lo

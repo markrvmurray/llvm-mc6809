@@ -268,9 +268,7 @@ define i1 @sgt_i64_sext_i8(i64 %a, i8 %b) {
 ; O0-NEXT:    stx 2,s
 ; O0-NEXT:    ldx <__rs3
 ; O0-NEXT:    stx ,s
-; O0-NEXT:    pshs d
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
 ; O0-NEXT:    pshs d
 ; O0-NEXT:    tfr a,b
 ; O0-NEXT:    std <__rs1

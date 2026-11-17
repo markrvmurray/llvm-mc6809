@@ -92,17 +92,13 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; MC6809-O0-NEXT:    ldb 3,u ; 1-byte Folded Reload
 ; MC6809-O0-NEXT:    addb 2,u
 ; MC6809-O0-NEXT:    adca 4,u
-; MC6809-O0-NEXT:    pshs d
 ; MC6809-O0-NEXT:    std <__rs0
-; MC6809-O0-NEXT:    puls d
 ; MC6809-O0-NEXT:    leax 2,x
 ; MC6809-O0-NEXT:    ldb <__rs1lo
 ; MC6809-O0-NEXT:    lda <__rs1hi
 ; MC6809-O0-NEXT:    addb #255
 ; MC6809-O0-NEXT:    adca #255
-; MC6809-O0-NEXT:    pshs d
 ; MC6809-O0-NEXT:    std <__rs1
-; MC6809-O0-NEXT:    puls d
 ; MC6809-O0-NEXT:    pshs d
 ; MC6809-O0-NEXT:    pshs d
 ; MC6809-O0-NEXT:    ldd <__rs1

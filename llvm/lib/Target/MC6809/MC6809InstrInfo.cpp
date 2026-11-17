@@ -1547,6 +1547,21 @@ MC6809InstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
       // is exactly what a following reload would want.
       Register TmpReal = getPhysRegFor(SrcReg);
       const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
+      // A 16-bit copy can go through a free X or Y instead.
+      if (MC6809::Imag16RegClass.contains(SrcReg) &&
+          MC6809::Imag16RegClass.contains(DestReg) && MI != MBB.end())
+        if (Register Transit = freeTransitIndex(*MI, Register())) {
+          Builder
+              .buildInstr(Transit == MC6809::IX ? MC6809::LDXd : MC6809::LDYd)
+              .addDef(Transit, RegState::Implicit)
+              .addReg(SrcReg);
+          Builder
+              .buildInstr(Transit == MC6809::IX ? MC6809::STXd : MC6809::STYd)
+              .addReg(DestReg, RegState::Undef)
+              .addUse(Transit, RegState::Implicit)
+              .addReg(DestReg, RegState::ImplicitDefine);
+          return;
+        }
       bool Preserve = stagingRegLiveAcross(MBB, MI, TmpReal, TRI);
       if (Preserve)
         pushStagingReg(Builder, TmpReal);
@@ -3303,7 +3318,11 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
     // -- an AD destination covers its halves by aliasing, but with an AW
     // dst regalloc may keep live values in A/B across the merge (strtol's
     // overflow flags were corrupted exactly this way).
-    bool StageDst = needsMaterialization(DstReg) || DstReg != MC6809::AD;
+    // Halves already in place (low in B, high in A) are not moved, so
+    // nothing needs saving: the merged value is simply D.
+    bool InPlace = LoReg == MC6809::AB && HiReg == MC6809::AA;
+    bool StageDst =
+        !InPlace && (needsMaterialization(DstReg) || DstReg != MC6809::AD);
     if (StageDst)
       pushStagingReg(Builder, MC6809::AD);
     if (LoReg == MC6809::AA && HiReg == MC6809::AB) {
