@@ -17,12 +17,8 @@ define i1 @eq_i32_sext_i16(i32 %a, i16 %b) {
 ; O0-LABEL: eq_i32_sext_i16:
 ; O0:       ; %bb.0:
 ; O0-NEXT:    stx <__rs0
-; O0-NEXT:    pshs d
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    cmpd #0
-; O0-NEXT:    puls d
-; O0-NEXT:    puls d
 ; O0-NEXT:    blt .LBB0_2
 ; O0-NEXT:  ; %bb.1:
 ; O0-NEXT:    ldb #0
@@ -49,11 +45,7 @@ define i1 @eq_i32_sext_i16(i32 %a, i16 %b) {
 ; O0-NEXT:    leas 2,s
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
-; O0-NEXT:    puls d
-; O0-NEXT:    puls d
 ; O0-NEXT:    beq .LBB0_5
 ; O0-NEXT:  ; %bb.4:
 ; O0-NEXT:    ldb #0
@@ -277,11 +269,7 @@ define i1 @ne_i32_zext_i16(i32 %a, i16 %b) {
 ; O0-NEXT:    leas 2,s
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
-; O0-NEXT:    puls d
-; O0-NEXT:    puls d
 ; O0-NEXT:    bne .LBB3_2
 ; O0-NEXT:  ; %bb.1:
 ; O0-NEXT:    ldb #0

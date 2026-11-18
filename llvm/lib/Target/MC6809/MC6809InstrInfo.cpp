@@ -1373,6 +1373,22 @@ static bool stagingRegLiveAcross(MachineBasicBlock &MBB,
   return !Live.available(MRI, RealReg);
 }
 
+/// Whether an expansion of MI that borrows the real register R must save
+/// and restore it: R is read after MI before being written, or MI itself
+/// names R (or a register overlapping it). Asked before anything of the
+/// expansion is emitted after MI, so "after MI" is code already expanded.
+static bool stagingSaveNeeded(MachineInstr &MI, Register R) {
+  MachineBasicBlock &MBB = *MI.getParent();
+  const TargetRegisterInfo &TRI =
+      *MBB.getParent()->getSubtarget().getRegisterInfo();
+  if (any_of(MI.operands(), [&](const MachineOperand &MO) {
+        return MO.isReg() && MO.getReg().isPhysical() &&
+               TRI.regsOverlap(MO.getReg(), R);
+      }))
+    return true;
+  return stagingRegLiveAcross(MBB, std::next(MI.getIterator()), R, TRI);
+}
+
 /// X or Y, when one of them can carry a 16-bit value between memory and a
 /// direct-page register at MI in place of D, so that D needs no saving: its
 /// value is not read after MI (a callee-saved register the function has not
@@ -1471,7 +1487,7 @@ static void wrapStagedCCSources(MachineInstr &MI,
   for (const MachineOperand &MO : MI.explicit_operands())
     if (MO.isReg() && MO.isUse() && needsMaterialization(MO.getReg())) {
       Register R = getPhysRegFor(MO.getReg());
-      if (!llvm::is_contained(Staged, R))
+      if (!llvm::is_contained(Staged, R) && stagingSaveNeeded(MI, R))
         Staged.push_back(R);
     }
   if (Staged.empty()) {
@@ -1554,7 +1570,9 @@ static bool emitHD6309RegRegOp(MachineIRBuilder &Builder, MachineInstr &MI,
   // (the pseudo only declares its imaginary/spill operands).
   SmallVector<Register, 3> Staged;
   for (Register R : {Src1, Src2, Dst})
-    if (needsMaterialization(R) && !llvm::is_contained(Staged, getPhysRegFor(R)))
+    if (needsMaterialization(R) &&
+        !llvm::is_contained(Staged, getPhysRegFor(R)) &&
+        stagingSaveNeeded(MI, getPhysRegFor(R)))
       Staged.push_back(getPhysRegFor(R));
   for (Register R : Staged)
     pushStagingReg(Builder, R);
