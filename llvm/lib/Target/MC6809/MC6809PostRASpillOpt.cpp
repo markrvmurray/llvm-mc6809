@@ -21,6 +21,7 @@
 #include "MC6809.h"
 #include "MC6809FrameLowering.h"
 #include "MC6809InstrInfo.h"
+#include "MC6809ValueTracker.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
 
 #include "llvm/ADT/Statistic.h"
@@ -356,76 +357,8 @@ static void clearKillsToPriorDef(MachineInstr &ReloadMI, Register Reg,
   }
 }
 
-/// Bug #366: true if MI may write the function's own stack frame. Used to
-/// invalidate frame-slot index mirrors for a store through a frame-address
-/// pointer (`std n,y` where Y holds a frame-local address), which the
-/// (base,offset) slot tracker — keyed on the index base, not SU/SS — cannot
-/// relate to a frame slot.
-///
-/// CONSERVATIVE BY DEFAULT: a store may write the frame UNLESS its MMO proves
-/// otherwise. Only two footprints are provably non-frame (and so safe to skip,
-/// preserving the reload-elimination win):
-///   - a non-Stack/FixedStack PseudoSourceValue that does not may-alias the
-///     frame (GOT / JumpTable / ConstantPool / GlobalValue / CallEntry), or
-///   - an IR Value whose underlying object is a GlobalValue.
-/// Everything else — a Stack/FixedStack PSV, a no-MMO store, or a bare IR Value
-/// that is (or derives from) an alloca — may be the frame. Inlined locals like
-/// `long_options`/`ap`/`data` keep an `into %ir.NAME` alloca MMO post-LTO and
-/// are NOT lowered to a Stack/FixedStack PSV; classifying those as non-frame
-/// was the Bug #366 miscompile (test-getopt -flto: stale optarg pointer).
-static bool mayStoreToStackFrame(const MachineInstr &MI,
-                                 const MachineFrameInfo &MFI) {
-  if (!MI.mayStore())
-    return false;
-  if (MI.memoperands_empty())
-    return true; // unknown footprint — conservative
-  for (const MachineMemOperand *MMO : MI.memoperands()) {
-    if (!MMO->isStore())
-      continue;
-    if (const PseudoSourceValue *PSV = MMO->getPseudoValue()) {
-      if (PSV->isStack() || PSV->kind() == PseudoSourceValue::FixedStack ||
-          PSV->mayAlias(&MFI))
-        return true; // frame / spill / may-alias-frame PSV
-      continue;      // GOT / JumpTable / ConstantPool / GlobalValue / CallEntry
-    }
-    const Value *V = MMO->getValue();
-    if (!V)
-      return true; // neither PSV nor IR value — unknown, conservative
-    if (!isa<GlobalValue>(getUnderlyingObject(V)))
-      return true; // alloca / inttoptr / opaque pointer — may be the frame
-  }
-  return false;
-}
 
-/// The spill slot an access is to: the frame index every memory operand of MI
-/// names, when that index is a spill slot; INT_MIN otherwise. A spill slot's
-/// address is never taken, so nothing but an access naming its frame index can
-/// read or write it -- and a store to it cannot reach anything else.
-static int spillSlotOf(const MachineInstr &MI, const MachineFrameInfo &MFI) {
-  if (MI.memoperands_empty())
-    return INT_MIN;
-  int FI = INT_MIN;
-  for (const MachineMemOperand *MMO : MI.memoperands()) {
-    const auto *FS =
-        dyn_cast_or_null<FixedStackPseudoSourceValue>(MMO->getPseudoValue());
-    if (!FS || !MFI.isSpillSlotObjectIndex(FS->getFrameIndex()) ||
-        (FI != INT_MIN && FI != FS->getFrameIndex()))
-      return INT_MIN;
-    FI = FS->getFrameIndex();
-  }
-  return FI;
-}
 
-/// A store to a direct-page imaginary register (`std <rs0`): compiler-private
-/// memory no pointer reaches.
-static bool storesImaginaryReg(const MachineInstr &MI) {
-  for (const MachineOperand &MO : MI.operands())
-    if (MO.isReg() && MO.getReg().isPhysical() &&
-        (MC6809::Imag8RegClass.contains(MO.getReg()) ||
-         MC6809::Imag16RegClass.contains(MO.getReg())))
-      return true;
-  return false;
-}
 
 /// Returns true if the opcode is a LEAS indexed instruction.
 static bool isLEAS(unsigned Opc) {
@@ -776,130 +709,32 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
     // below (and #368) sees the cleaned-up loads.
     Changed |= foldLoadIntoCopy(MBB, TRI, *MF.getSubtarget().getInstrInfo());
 
-    // Track slot contents: {(base, offset)} → {register, store instruction}.
-    // The store instruction is kept so we can delete dead stores (Stage 2).
-    struct SlotInfo {
-      Register Reg;
-      MachineInstr *StoreInstr = nullptr; // null if value came from a load
-      bool WasRead = false;               // true if slot was read since store
-      // Bug #271 cat-1: true when the STA/STB/STD that established this
-      // slot mapping also killed its source register (e.g.
-      // `STAi_o16 678,$su, implicit killed $aa`). After such a store,
-      // the slot has the value but the SOURCE register is DEAD. A
-      // subsequent reload (`LDAi_o16 678,$su → $aa, implicit-def $aa`)
-      // is NOT redundant — it re-establishes the register's live range
-      // for downstream use. Without this flag, spill-opt would delete
-      // the reload and any downstream `TFRp $aa` / `$ab = TFR $aa`
-      // would read a dead register, triggering verifier
-      // "Using an undefined physical register" complaints.
-      bool SourceKilled = false;
-      // What the mirrored memory is, from the access that established it:
-      // a spill slot (SpillFI, see spillSlotOf), the stack frame (a frame
-      // local, possibly address-taken), or unknown (anything a pointer may
-      // reach).
-      int SpillFI = INT_MIN;
-      bool IsFrame = false;
-    };
-    SmallVector<std::pair<SlotKey, SlotInfo>, 8> Slots;
-
-    auto findSlot = [&](const SlotKey &Key) -> SlotInfo * {
-      for (auto &E : Slots) {
-        if (E.first == Key)
-          return &E.second;
-      }
-      return nullptr;
-    };
-
-    // A location is the frame if its memory operand says so (stack or
-    // fixed-stack, or an alloca), or, with no memory operand, if it is
-    // addressed from a frame base.
-    auto isFrameLocation = [&](const MachineInstr &Est, Register Base) {
-      if (Est.memoperands_empty())
-        return isFrameBase(MF, Base);
-      for (const MachineMemOperand *MMO : Est.memoperands()) {
-        if (const PseudoSourceValue *PSV = MMO->getPseudoValue()) {
-          if (!(PSV->isStack() ||
-                PSV->kind() == PseudoSourceValue::FixedStack))
-            return false;
-          continue;
-        }
-        const Value *V = MMO->getValue();
-        if (!V || !isa<AllocaInst>(getUnderlyingObject(V)))
-          return false;
-      }
-      return true;
+    // Track slot contents: which register holds which slot, and the store
+    // that set it up, so a never-read store can be deleted (Stage 2).
+    MC6809ValueTracker T(MF, TRI);
+    using SlotInfo = MC6809ValueTracker::Mirror;
+    auto findSlot = [&](const SlotKey &Key) {
+      return T.find({Key.BaseReg, Key.Offset});
     };
     auto setSlot = [&](const SlotKey &Key, Register Reg, MachineInstr *Store,
                        const MachineInstr &Est, bool SourceKilled = false) {
-      int SpillFI = spillSlotOf(Est, MFI);
-      bool IsFrame = SpillFI == INT_MIN && isFrameLocation(Est, Key.BaseReg);
-      for (auto &E : Slots) {
-        if (E.first == Key) {
-          // Stage 2: if previous store was never read, it's dead — but only
-          // if the new store covers the same width. A 1-byte STA to offset N
-          // does NOT kill a 2-byte STD at offset N (the low byte is still live).
-          if (E.second.StoreInstr && !E.second.WasRead &&
-              E.second.Reg == Reg) {
-            LLVM_DEBUG(dbgs() << "  SpillOpt: deleting dead store: "
-                              << *E.second.StoreInstr);
-            E.second.StoreInstr->eraseFromParent();
-            ++NumDeadSlotStores;
-            Changed = true;
-          }
-          E.second = {Reg, Store, false, SourceKilled, SpillFI, IsFrame};
-          return;
-        }
+      SlotInfo Old = T.set({Key.BaseReg, Key.Offset}, Reg, Store, Est,
+                           SourceKilled);
+      // Stage 2: if the previous store to this slot, of the same register,
+      // was never read, it is dead. (Width matters: a 1-byte STA does not
+      // kill a 2-byte STD at the same offset, whose low byte is still live --
+      // hence the same-register test.)
+      if (Old.Store && !Old.WasRead && Old.Reg == Reg) {
+        LLVM_DEBUG(dbgs() << "  SpillOpt: deleting dead store: " << *Old.Store);
+        Old.Store->eraseFromParent();
+        ++NumDeadSlotStores;
+        Changed = true;
       }
-      Slots.push_back(
-          {Key, {Reg, Store, false, SourceKilled, SpillFI, IsFrame}});
     };
-
     auto markRead = [&](const SlotKey &Key) {
-      if (auto *S = findSlot(Key))
-        S->WasRead = true;
+      T.markRead({Key.BaseReg, Key.Offset});
     };
-
-    auto clearReg = [&](Register Reg) {
-      for (auto &E : Slots) {
-        if (E.second.Reg.isValid() && TRI.regsOverlap(E.second.Reg, Reg))
-          E.second.Reg = Register();
-      }
-    };
-
-    // Bug #363 follow-up: a store of StoredReg to bytes [Off, Off+Width) of a
-    // slot overwrites those bytes. Any tracked slot whose byte range overlaps
-    // and whose register does NOT share physical bits with StoredReg now holds
-    // a stale value — drop its mirror. (Slots whose register sub/super-overlaps
-    // StoredReg keep their mirror: the overwritten bytes are that register's
-    // own bytes, e.g. STB N+1 over an AD slot at N writes AD's low byte. For
-    // the accumulator this was already covered by clearReg on sub-register
-    // redefinition; index registers — IX/IY — share no bits with accumulators
-    // or each other, so an accumulator/byte store landing in an index slot's
-    // range must invalidate it, the case that broke getopt/memmem.)
-    auto slotWidth = [&](Register R) { return isTracked16Bit(R) ? 2 : 1; };
-    auto invalidateOverlap = [&](Register Base, int Off, int Width,
-                                 Register StoredReg) {
-      for (auto &E : Slots) {
-        if (E.first.BaseReg != Base || !E.second.Reg.isValid())
-          continue;
-        int M = E.first.Offset;
-        int WS = slotWidth(E.second.Reg);
-        if (M + WS <= Off || Off + Width <= M)
-          continue; // disjoint byte ranges
-        // The store writes this register's own bytes back where they were
-        // (`std 4,u` over a mirror of A at 4,u): the mirror stays. Only at
-        // that exact position -- `stq 2,u` writes W, not D, over 4,u.
-        if (StoredReg.isValid()) {
-          int Pos = MC6809InstrInfo::getSubRegByteOffset(TRI, StoredReg,
-                                                         E.second.Reg);
-          if (Pos >= 0 && M == Off + Pos)
-            continue;
-        }
-        E.second.Reg = Register();
-        E.second.WasRead = true;
-      }
-    };
-
+    auto clearReg = [&](Register Reg) { T.clearHolder(Reg); };
 
     for (MachineInstr &MI : make_early_inc_range(MBB)) {
       unsigned Opc = MI.getOpcode();
@@ -911,45 +746,25 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
       // a mirror of unknown memory on any store -- except stores to a spill
       // slot or an imaginary register, which no pointer reaches.
       if (MI.mayStore()) {
-        int StoreFI = spillSlotOf(MI, MFI);
-        bool StorePrivate = StoreFI != INT_MIN || storesImaginaryReg(MI);
-        bool StoreMayHitFrame = !StorePrivate && mayStoreToStackFrame(MI, MFI);
         Register SB;
         int64_t SO;
         bool SameBaseHandled =
             (isIndexedStore(Opc) || isIndexedNonAccStore(Opc)) &&
             MC6809InstrInfo::getIdxBaseOffset(MI, SB, SO);
-        for (auto &E : Slots) {
-          if (!E.second.Reg.isValid() ||
-              (SameBaseHandled && E.first.BaseReg == SB))
-            continue;
-          bool Drop = E.second.SpillFI != INT_MIN ? StoreFI == E.second.SpillFI
-                      : E.second.IsFrame          ? StoreMayHitFrame
-                                                  : !StorePrivate;
-          if (Drop) {
-            E.second.Reg = Register();
-            E.second.WasRead = true;
-          }
-        }
+        T.storeAlias(MI, SameBaseHandled, SB);
       }
 
-      // A volatile access is observable, so it takes no part in the tracking
-      // below: it is never deleted as a dead store or a redundant load, and
-      // it never becomes a mirror that lets a later access be deleted. It
-      // still changes what is known. A volatile store overwrites its bytes,
-      // so drop any mirror of them here; a volatile load redefines its
-      // register, which the generic def loop at the end handles.
       const bool Ordered = MC6809InstrInfo::hasOrderedMemOperand(MI);
       if (Ordered && (isIndexedStore(Opc) || isIndexedNonAccStore(Opc))) {
         SlotKey Key = getSlotKey(MI);
         Register Src = getAccRegForOpcode(Opc);
         int Width = isIndexedStore(Opc)
-                        ? slotWidth(Src)
+                        ? MC6809ValueTracker::holderWidth(Src)
                         : MC6809InstrInfo::getIdxLoadStore(Opc)
                               ? MC6809InstrInfo::getValueRegBytes(
                                     MC6809InstrInfo::getIdxLoadStore(Opc)->Value)
                               : 2;
-        invalidateOverlap(Key.BaseReg, Key.Offset, Width, Register());
+        T.storeOverlap(Key.BaseReg, Key.Offset, Width, Register());
       }
 
       if (!Ordered && isIndexedStore(Opc)) {
@@ -962,15 +777,16 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         if (isTracked16Bit(AccReg)) {
           SlotKey HiKey = {Key.BaseReg, Key.Offset};
           SlotKey LoKey = {Key.BaseReg, Key.Offset + 1};
-          if (auto *Hi = findSlot(HiKey))
+          if (SlotInfo *Hi = findSlot(HiKey))
             Hi->WasRead = true; // prevent incorrect dead-store deletion
-          if (auto *Lo = findSlot(LoKey))
+          if (SlotInfo *Lo = findSlot(LoKey))
             Lo->WasRead = true;
         }
         // Bug #363 follow-up: drop the mirror of any other slot whose bytes
         // this store overwrites with unrelated register bits (see the
         // invalidateOverlap comment) — the getopt/memmem fix.
-        invalidateOverlap(Key.BaseReg, Key.Offset, slotWidth(AccReg), AccReg);
+        T.storeOverlap(Key.BaseReg, Key.Offset,
+                       MC6809ValueTracker::holderWidth(AccReg), AccReg);
         // Bug #271 cat-1: capture whether this store also killed its
         // source register. If yes, the slot has the value but the
         // register is dead — see SlotInfo::SourceKilled.
@@ -986,8 +802,8 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         // SourceKilled bit so dead-store detection on the same slot
         // still works.
         if (SourceKilled) {
-          for (auto &E : Slots) {
-            if (E.first == Key)
+          for (auto &E : T.entries()) {
+            if (E.first == MC6809ValueTracker::Key{Key.BaseReg, Key.Offset})
               continue;
             if (E.second.Reg.isValid() &&
                 TRI.regsOverlap(E.second.Reg, AccReg))
@@ -1005,7 +821,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         SlotKey Key = getSlotKey(MI);
         Register Src = MC6809InstrInfo::getIdxLoadStore(Opc)->Value;
         int Width = MC6809InstrInfo::getValueRegBytes(Src);
-        invalidateOverlap(Key.BaseReg, Key.Offset, Width, Src);
+        T.storeOverlap(Key.BaseReg, Key.Offset, Width, Src);
         continue;
       }
 
@@ -1081,10 +897,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
           // and establish AccReg as a fresh mirror of this slot.
           markRead(Key);
           clearReg(AccReg);
-          for (auto &E : Slots)
-            if (E.first.BaseReg.isValid() &&
-                TRI.regsOverlap(E.first.BaseReg, AccReg))
-              E.second.Reg = Register();
+          T.clearBase(AccReg);
           setSlot(Key, AccReg, nullptr, MI);
           continue;
         }
@@ -1124,9 +937,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         // their mirrors (the generic def-loop below does this, but the load
         // branch returns before reaching it). No-op for the accumulator, which
         // is never a base register.
-        for (auto &E : Slots)
-          if (E.first.BaseReg.isValid() && TRI.regsOverlap(E.first.BaseReg, AccReg))
-            E.second.Reg = Register();
+        T.clearBase(AccReg);
         // Don't establish a mirror for a self-based load: the key is unstable
         // (see SelfBase above).
         if (!SelfBase)
@@ -1140,8 +951,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
       // model. Mark every slot read so a pending store is never deleted as
       // "dead" across it.
       if (MI.mayLoad())
-        for (auto &E : Slots)
-          E.second.WasRead = true;
+        T.markAllRead();
 
       // Any instruction that modifies a tracked register invalidates entries.
       // Clear both the accumulator (Reg) and base register (BaseReg) mappings.
@@ -1151,10 +961,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
           clearReg(Def);
           // Also invalidate any slot whose BASE register was modified
           // (e.g., LEAY changes IY, invalidating all {IY, *} slots).
-          for (auto &E : Slots) {
-            if (E.first.BaseReg.isValid() && TRI.regsOverlap(E.first.BaseReg, Def))
-              E.second.Reg = Register();
-          }
+          T.clearBase(Def);
         }
         // Bug #303: any instruction that KILLS a tracked register also
         // invalidates the slot->register mapping.  FAKE_USE in particular
@@ -1175,7 +982,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
 
       // Branches, calls, and other control flow invalidate everything.
       if (MI.isCall() || MI.isBranch() || MI.isReturn())
-        Slots.clear();
+        T.clear();
     }
   }
 
@@ -1501,7 +1308,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         // known and elsewhere is fine -- that is the common case, a
         // neighbouring frame slot -- but one that could be anywhere in
         // the frame, or that lands on this slot, ends the scan.
-        if (mayStoreToStackFrame(Cand, MFI)) {
+        if (MC6809ValueTracker::mayStoreToStackFrame(Cand, MFI)) {
           SlotKey CandSlot = getSlotKey(Cand);
           bool Elsewhere = CandSlot.BaseReg.isValid() &&
                            CandSlot.BaseReg == BaseReg &&
