@@ -128,10 +128,8 @@ define void @atol_like(ptr %out, ptr %s) {
 ; CHECK-NEXT:    cmpb #2
 ; CHECK-NEXT:    bne .LBB0_4
 ; CHECK-NEXT:  ; %bb.5: ; %exit
-; CHECK-NEXT:    pshs d
 ; CHECK-NEXT:    ldd #0
 ; CHECK-NEXT:    std <__rs0
-; CHECK-NEXT:    puls d
 ; CHECK-NEXT:    ldb <__rs0lo
 ; CHECK-NEXT:    lda <__rs0hi
 ; CHECK-NEXT:    sta 19,s ; 1-byte Folded Spill
@@ -164,10 +162,8 @@ define void @atol_like(ptr %out, ptr %s) {
 ; CHECK-NEXT:    cmpb #45
 ; CHECK-NEXT:    bne .LBB0_10
 ; CHECK-NEXT:  ; %bb.9: ; %exit
-; CHECK-NEXT:    pshs d
 ; CHECK-NEXT:    ldd #0
 ; CHECK-NEXT:    std <__rs0
-; CHECK-NEXT:    puls d
 ; CHECK-NEXT:    ldb 20,s ; 1-byte Folded Reload
 ; CHECK-NEXT:    lsrb
 ; CHECK-NEXT:    ldb <__rs0lo

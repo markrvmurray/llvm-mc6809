@@ -1665,10 +1665,8 @@ define void @takes_i64(i64 %x) {
 ; O0-NEXT:    ldd <__rs1
 ; O0-NEXT:    std 2,x
 ; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs2
 ; O0-NEXT:    std g
-; O0-NEXT:    puls d
 ; O0-NEXT:    rts
 ;
 ; O1-LABEL: takes_i64:
@@ -1798,10 +1796,8 @@ define void @i16_then_i64(i16 %a, i64 %b) {
 ; O0:       ; %bb.0:
 ; O0-NEXT:    leas -8,s
 ; O0-NEXT:    stx <__rs1
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd #0
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
 ; O0-NEXT:    ldb <__rs1lo
 ; O0-NEXT:    stb 7,s ; 1-byte Folded Spill
 ; O0-NEXT:    lda <__rs1hi

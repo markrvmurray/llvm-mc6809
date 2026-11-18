@@ -1694,14 +1694,10 @@ define dso_local i32 @add_u_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; O0-LABEL: add_u_i32_consts:
 ; O0:       ; %bb.0: ; %entry
 ; O0-NEXT:    leas -3,s
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd #-2081
 ; O0-NEXT:    std <__rs1
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd #126
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
 ; O0-NEXT:    ldb <__rs1lo
 ; O0-NEXT:    lda <__rs1hi
 ; O0-NEXT:    addb 8,s

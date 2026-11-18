@@ -16,10 +16,8 @@ define i32 @neg_i32(i32 %x) {
 ; O0-LABEL: neg_i32:
 ; O0:       ; %bb.0:
 ; O0-NEXT:    leas -3,s
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd #0
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
 ; O0-NEXT:    ldb <__rs0lo
 ; O0-NEXT:    stb 2,s ; 1-byte Folded Spill
 ; O0-NEXT:    lda <__rs0hi
@@ -152,10 +150,8 @@ define i32 @double_neg(i32 %x) {
 ; O0-LABEL: double_neg:
 ; O0:       ; %bb.0:
 ; O0-NEXT:    leas -7,s
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd #0
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
 ; O0-NEXT:    ldb <__rs0lo
 ; O0-NEXT:    stb 4,s ; 1-byte Folded Spill
 ; O0-NEXT:    ldb <__rs0hi

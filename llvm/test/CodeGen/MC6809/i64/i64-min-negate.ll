@@ -16,10 +16,8 @@ define i64 @neg_i64(i64 %x) {
 ; O0-LABEL: neg_i64:
 ; O0:       ; %bb.0:
 ; O0-NEXT:    leas -8,s
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd #0
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
 ; O0-NEXT:    ldb <__rs0lo
 ; O0-NEXT:    stb 7,s ; 1-byte Folded Spill
 ; O0-NEXT:    ldb <__rs0hi
@@ -277,10 +275,8 @@ define i64 @double_neg(i64 %x) {
 ; O0-LABEL: double_neg:
 ; O0:       ; %bb.0:
 ; O0-NEXT:    leas -16,s
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd #0
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
 ; O0-NEXT:    ldb <__rs0lo
 ; O0-NEXT:    stb 9,s ; 1-byte Folded Spill
 ; O0-NEXT:    ldb <__rs0hi

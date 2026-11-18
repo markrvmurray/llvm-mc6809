@@ -419,10 +419,8 @@ define dso_local i16 @sub_s_i16_consts(i16 noundef %a, i16 noundef %b, i16 nound
 ; O0-LABEL: sub_s_i16_consts:
 ; O0:       ; %bb.0: ; %entry
 ; O0-NEXT:    leas -2,s
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd #3149
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
 ; O0-NEXT:    stx <__rs1
 ; O0-NEXT:    ldb <__rs1lo
 ; O0-NEXT:    stb ,s ; 1-byte Folded Spill
@@ -675,10 +673,8 @@ define dso_local i16 @sub_u_i16_consts(i16 noundef %a, i16 noundef %b, i16 nound
 ; O0-LABEL: sub_u_i16_consts:
 ; O0:       ; %bb.0: ; %entry
 ; O0-NEXT:    leas -2,s
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd #8447
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
 ; O0-NEXT:    stx <__rs1
 ; O0-NEXT:    ldb <__rs1lo
 ; O0-NEXT:    stb ,s ; 1-byte Folded Spill
@@ -1235,14 +1231,10 @@ define dso_local i32 @sub_s_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; O0-LABEL: sub_s_i32_consts:
 ; O0:       ; %bb.0: ; %entry
 ; O0-NEXT:    leas -3,s
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd #-21923
 ; O0-NEXT:    std <__rs1
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd #8
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
 ; O0-NEXT:    ldb <__rs1lo
 ; O0-NEXT:    lda <__rs1hi
 ; O0-NEXT:    subb 8,s
@@ -1991,14 +1983,10 @@ define dso_local i32 @sub_u_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; O0-LABEL: sub_u_i32_consts:
 ; O0:       ; %bb.0: ; %entry
 ; O0-NEXT:    leas -3,s
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd #-2081
 ; O0-NEXT:    std <__rs1
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd #126
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
 ; O0-NEXT:    ldb <__rs1lo
 ; O0-NEXT:    lda <__rs1hi
 ; O0-NEXT:    subb 8,s
