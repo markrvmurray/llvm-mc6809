@@ -36,10 +36,8 @@ define void @fold_through_y(i16 %v, i16 %w) {
 ; O0:       ; %bb.0: ; %entry
 ; O0-NEXT:    pshs u
 ; O0-NEXT:    leas -8,s
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 14,s
+; O0-NEXT:    ldd 12,s
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
 ; O0-NEXT:    tfr x,d
 ; O0-NEXT:    leau ,s
 ; O0-NEXT:    std ,s

@@ -74,32 +74,22 @@ define void @atol_like(ptr %out, ptr %s) {
 ; CHECK-NEXT:  .LBB0_4: ; %loop
 ; CHECK-NEXT:    ; =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    leay 21,s
-; CHECK-NEXT:    pshs d
 ; CHECK-NEXT:    ldd <__rs0
-; CHECK-NEXT:    std 10,s ; 2-byte Folded Spill
-; CHECK-NEXT:    puls d
-; CHECK-NEXT:    pshs d
+; CHECK-NEXT:    std 8,s ; 2-byte Folded Spill
 ; CHECK-NEXT:    ldd <__rs0
-; CHECK-NEXT:    std 4,s
-; CHECK-NEXT:    puls d
-; CHECK-NEXT:    pshs d
-; CHECK-NEXT:    ldd <__rs1
-; CHECK-NEXT:    std 14,s ; 2-byte Folded Spill
-; CHECK-NEXT:    puls d
-; CHECK-NEXT:    pshs d
-; CHECK-NEXT:    ldd <__rs1
 ; CHECK-NEXT:    std 2,s
-; CHECK-NEXT:    puls d
+; CHECK-NEXT:    ldd <__rs1
+; CHECK-NEXT:    std 12,s ; 2-byte Folded Spill
+; CHECK-NEXT:    ldd <__rs1
+; CHECK-NEXT:    std ,s
 ; CHECK-NEXT:    ldd #10
 ; CHECK-NEXT:    std 6,s
 ; CHECK-NEXT:    ldd #0
 ; CHECK-NEXT:    std 4,s
 ; CHECK-NEXT:    tfr y,x
 ; CHECK-NEXT:    lbsr __mulsi3
-; CHECK-NEXT:    pshs d
 ; CHECK-NEXT:    ldd 2,y
 ; CHECK-NEXT:    std <__rs0
-; CHECK-NEXT:    puls d
 ; CHECK-NEXT:    ldb <__rs0lo
 ; CHECK-NEXT:    stb 20,s ; 1-byte Folded Spill
 ; CHECK-NEXT:    lda <__rs0hi

@@ -70,22 +70,14 @@ define i64 @add64(i64 %a, i64 %b) {
 ; O0-LABEL: add64:
 ; O0:       ; %bb.0:
 ; O0-NEXT:    leas -6,s
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 16,s
-; O0-NEXT:    std <__rs3
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd 14,s
-; O0-NEXT:    std <__rs2
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
+; O0-NEXT:    std <__rs3
 ; O0-NEXT:    ldd 12,s
-; O0-NEXT:    std <__rs1
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
+; O0-NEXT:    std <__rs2
 ; O0-NEXT:    ldd 10,s
+; O0-NEXT:    std <__rs1
+; O0-NEXT:    ldd 8,s
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
 ; O0-NEXT:    ldb <__rs3lo
 ; O0-NEXT:    lda <__rs3hi
 ; O0-NEXT:    addb 23,s
@@ -396,22 +388,14 @@ define i64 @sub64(i64 %a, i64 %b) {
 ; O0-LABEL: sub64:
 ; O0:       ; %bb.0:
 ; O0-NEXT:    leas -6,s
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 16,s
-; O0-NEXT:    std <__rs3
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd 14,s
-; O0-NEXT:    std <__rs2
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
+; O0-NEXT:    std <__rs3
 ; O0-NEXT:    ldd 12,s
-; O0-NEXT:    std <__rs1
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
+; O0-NEXT:    std <__rs2
 ; O0-NEXT:    ldd 10,s
+; O0-NEXT:    std <__rs1
+; O0-NEXT:    ldd 8,s
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
 ; O0-NEXT:    ldb <__rs3lo
 ; O0-NEXT:    lda <__rs3hi
 ; O0-NEXT:    subb 23,s
@@ -750,18 +734,12 @@ define i64 @and64(i64 %a, i64 %b) {
 ; O0-NEXT:    std <__rs2
 ; O0-NEXT:    puls d
 ; O0-NEXT:    std 6,x
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std 4,x
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs1
 ; O0-NEXT:    std 2,x
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs2
 ; O0-NEXT:    std ,x
-; O0-NEXT:    puls d
 ; O0-NEXT:    rts
 ;
 ; O1-LABEL: and64:
@@ -989,18 +967,12 @@ define i64 @or64(i64 %a, i64 %b) {
 ; O0-NEXT:    std <__rs2
 ; O0-NEXT:    puls d
 ; O0-NEXT:    std 6,x
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std 4,x
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs1
 ; O0-NEXT:    std 2,x
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs2
 ; O0-NEXT:    std ,x
-; O0-NEXT:    puls d
 ; O0-NEXT:    rts
 ;
 ; O1-LABEL: or64:
@@ -1228,18 +1200,12 @@ define i64 @xor64(i64 %a, i64 %b) {
 ; O0-NEXT:    std <__rs2
 ; O0-NEXT:    puls d
 ; O0-NEXT:    std 6,x
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std 4,x
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs1
 ; O0-NEXT:    std 2,x
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs2
 ; O0-NEXT:    std ,x
-; O0-NEXT:    puls d
 ; O0-NEXT:    rts
 ;
 ; O1-LABEL: xor64:
@@ -1424,18 +1390,12 @@ define i64 @zext_i32_to_i64(i32 %v) {
 ; O0-NEXT:    std <__rs2
 ; O0-NEXT:    puls d
 ; O0-NEXT:    std 6,x
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std 4,x
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs1
 ; O0-NEXT:    std 2,x
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs2
 ; O0-NEXT:    std ,x
-; O0-NEXT:    puls d
 ; O0-NEXT:    rts
 ;
 ; O1-LABEL: zext_i32_to_i64:
@@ -1513,10 +1473,8 @@ define i32 @trunc_i64_to_i32(i64 %v) {
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
 ; O0-NEXT:    std 2,x
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std ,x
-; O0-NEXT:    puls d
 ; O0-NEXT:    rts
 ;
 ; O1-LABEL: trunc_i64_to_i32:
@@ -1657,14 +1615,10 @@ define void @takes_i64(i64 %x) {
 ; O0-NEXT:    stx <__rs2
 ; O0-NEXT:    ldx #g
 ; O0-NEXT:    std 6,x
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std 4,x
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs1
 ; O0-NEXT:    std 2,x
-; O0-NEXT:    puls d
 ; O0-NEXT:    ldd <__rs2
 ; O0-NEXT:    std g
 ; O0-NEXT:    rts

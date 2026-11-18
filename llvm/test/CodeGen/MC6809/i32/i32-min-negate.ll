@@ -92,10 +92,8 @@ define i32 @mul_neg1(i32 %x) {
 ; O0-NEXT:    ldx 18,s
 ; O0-NEXT:    stx <__rs0
 ; O0-NEXT:    std 2,s
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
-; O0-NEXT:    std 2,s
-; O0-NEXT:    puls d
+; O0-NEXT:    std ,s
 ; O0-NEXT:    ldd #-1
 ; O0-NEXT:    std 6,s
 ; O0-NEXT:    std 4,s
@@ -106,10 +104,8 @@ define i32 @mul_neg1(i32 %x) {
 ; O0-NEXT:    ldx 8,s
 ; O0-NEXT:    stx <__rs0
 ; O0-NEXT:    std 2,u
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std ,u
-; O0-NEXT:    puls d
 ; O0-NEXT:    leas 12,s
 ; O0-NEXT:    puls u,y,pc
 ;

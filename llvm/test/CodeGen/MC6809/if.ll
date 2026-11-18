@@ -414,14 +414,10 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O0-LABEL: if_s32:
 ; O0:       ; %bb.0: ; %entry
 ; O0-NEXT:    leas -4,s
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 14,s
-; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd 12,s
+; O0-NEXT:    std <__rs0
+; O0-NEXT:    ldd 10,s
 ; O0-NEXT:    std <__rs1
-; O0-NEXT:    puls d
 ; O0-NEXT:    ldb #-128
 ; O0-NEXT:    eorb 6,s
 ; O0-NEXT:    stb 3,s ; 1-byte Folded Spill
@@ -476,14 +472,10 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O0-NEXT:    puls d
 ; O0-NEXT:    bra .LBB4_2
 ; O0-NEXT:  .LBB4_2: ; %return
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std 2,x
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs1
 ; O0-NEXT:    std ,x
-; O0-NEXT:    puls d
 ; O0-NEXT:    leas 4,s
 ; O0-NEXT:    rts
 ;
@@ -692,14 +684,10 @@ define dso_local i32 @if_u32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; CHECK-NEXT:    rts
 ; O0-LABEL: if_u32:
 ; O0:       ; %bb.0: ; %entry
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 10,s
-; O0-NEXT:    std <__rs1
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd 8,s
+; O0-NEXT:    std <__rs1
+; O0-NEXT:    ldd 6,s
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
 ; O0-NEXT:    ldd #0
 ; O0-NEXT:    std <__rs2
 ; O0-NEXT:    ldd #0
@@ -720,28 +708,19 @@ define dso_local i32 @if_u32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    ldd #-1
 ; O0-NEXT:    std <__rs1
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd <__rs1
-; O0-NEXT:    eorb 11,s
-; O0-NEXT:    eora 10,s
-; O0-NEXT:    std <__rs1
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    eorb 9,s
 ; O0-NEXT:    eora 8,s
+; O0-NEXT:    std <__rs1
+; O0-NEXT:    ldd <__rs0
+; O0-NEXT:    eorb 7,s
+; O0-NEXT:    eora 6,s
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
 ; O0-NEXT:    bra .LBB5_2
 ; O0-NEXT:  .LBB5_2: ; %return
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs1
 ; O0-NEXT:    std 2,x
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std ,x
-; O0-NEXT:    puls d
 ; O0-NEXT:    rts
 ;
 ; O1-LABEL: if_u32:

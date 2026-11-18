@@ -76,10 +76,8 @@ define dso_local i16 @loop(ptr nocapture noundef readonly %pa, i8 noundef signex
 ; MC6809-O0-NEXT:    bra .LBB0_2
 ; MC6809-O0-NEXT:  .LBB0_2: ; %for.body
 ; MC6809-O0-NEXT:    ; =>This Inner Loop Header: Depth=1
-; MC6809-O0-NEXT:    pshs d
 ; MC6809-O0-NEXT:    ldd ,x
 ; MC6809-O0-NEXT:    std <__rs2
-; MC6809-O0-NEXT:    puls d
 ; MC6809-O0-NEXT:    ldb <__rs2lo
 ; MC6809-O0-NEXT:    stb 3,u ; 1-byte Folded Spill
 ; MC6809-O0-NEXT:    lda <__rs2hi

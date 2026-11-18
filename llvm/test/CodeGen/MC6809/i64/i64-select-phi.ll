@@ -163,20 +163,16 @@ define i64 @phi_i64(i1 %c, i64 %a, i64 %b) {
 ; O0-NEXT:    stb 3,s ; 1-byte Folded Spill
 ; O0-NEXT:    adca #0
 ; O0-NEXT:    sta 2,s ; 1-byte Folded Spill
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 12,s
+; O0-NEXT:    ldd 10,s
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
 ; O0-NEXT:    ldb <__rs0lo
 ; O0-NEXT:    lda <__rs0hi
 ; O0-NEXT:    adcb #0
 ; O0-NEXT:    stb 1,s ; 1-byte Folded Spill
 ; O0-NEXT:    adca #0
 ; O0-NEXT:    sta ,s ; 1-byte Folded Spill
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 10,s
+; O0-NEXT:    ldd 8,s
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
 ; O0-NEXT:    ldb <__rs0lo
 ; O0-NEXT:    lda <__rs0hi
 ; O0-NEXT:    adcb #0
@@ -210,20 +206,16 @@ define i64 @phi_i64(i1 %c, i64 %a, i64 %b) {
 ; O0-NEXT:    stb 3,s ; 1-byte Folded Spill
 ; O0-NEXT:    adca #0
 ; O0-NEXT:    sta 2,s ; 1-byte Folded Spill
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 20,s
+; O0-NEXT:    ldd 18,s
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
 ; O0-NEXT:    ldb <__rs0lo
 ; O0-NEXT:    lda <__rs0hi
 ; O0-NEXT:    adcb #0
 ; O0-NEXT:    stb 1,s ; 1-byte Folded Spill
 ; O0-NEXT:    adca #0
 ; O0-NEXT:    sta ,s ; 1-byte Folded Spill
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 18,s
+; O0-NEXT:    ldd 16,s
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
 ; O0-NEXT:    ldb <__rs0lo
 ; O0-NEXT:    lda <__rs0hi
 ; O0-NEXT:    adcb #0

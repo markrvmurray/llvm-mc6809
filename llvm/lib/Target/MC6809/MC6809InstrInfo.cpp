@@ -1266,11 +1266,9 @@ static void dematerializeReg(MachineIRBuilder &Builder, Register PhysReg,
 /// accumulator precisely BECAUSE regalloc parked this operand in an
 /// imaginary/spill home; the staging load would silently clobber it (the
 /// pseudo declares no accumulator Defs -- a fixed dead-def would veto
-/// allocating the register at all). The push is unconditional; its read is
-/// undef only when the register holds nothing here (carriedReadState), and
-/// the post-RA spill optimiser removes the pairs whose register turns out
-/// dead. NOTE: any pre-existing S-relative memory operand inside the window
-/// must be displacement-compensated (+size of the push).
+/// allocating the register at all). pushStagingReg saves it only when its
+/// value is read later; any pre-existing S-relative memory operand inside
+/// the window must be displacement-compensated by the bytes it returns.
 /// setDesc keeps the instruction's operands and does not materialise the
 /// new descriptor's implicit defs and uses; an expansion that rewrites a
 /// pseudo in place must add them, or the concrete instruction is left
@@ -3682,9 +3680,9 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
     int64_t SOff = ReadOff(1);
     Register DBase = MI.getOperand(2).getReg();
     int64_t DOff = ReadOff(3);
-    Builder.buildInstr(MC6809::PSHSs).addUse(MC6809::AD, RegState::Undef);
-    int64_t SAdj = (SBase == MC6809::SS) ? 2 : 0;
-    int64_t DAdj = (DBase == MC6809::SS) ? 2 : 0;
+    unsigned StagePushed = pushStagingReg(Builder, MC6809::AD);
+    int64_t SAdj = (SBase == MC6809::SS) ? StagePushed : 0;
+    int64_t DAdj = (DBase == MC6809::SS) ? StagePushed : 0;
     for (int64_t Word : {0, 2}) {
       Builder.buildInstr(getLoadIdxOpcode(MC6809::AD, SOff + Word + SAdj))
           .addDef(MC6809::AD, RegState::Implicit)
@@ -3695,7 +3693,7 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
           .addImm(DOff + Word + DAdj)
           .addReg(DBase);
     }
-    Builder.buildInstr(MC6809::PULSs).addDef(MC6809::AD);
+    pullStagingReg(Builder, MC6809::AD, StagePushed);
     MI.eraseFromParent();
     return true;
   }
@@ -5968,11 +5966,10 @@ void MC6809InstrInfo::expandBitwiseImm16(ContextImmediate Context, unsigned OpcA
   auto DestReg = MI.getOperand(0).getReg();
   Register OrigDest = DestReg;
   MachineFunction &MF = *MI.getMF();
+  unsigned StagePushed = 0;
   if (needsMaterialization(DestReg)) {
-    // Save D — it may hold a live value while we operate on the spill/imag.
-    // Undef-marked: pushing then popping garbage is the identity when D was
-    // in fact dead/undefined, and no local probe can prove which.
-    Builder.buildInstr(MC6809::PSHSs).addUse(MC6809::AD, RegState::Undef);
+    // Save D when its value is read later (see pushStagingReg).
+    StagePushed = pushStagingReg(Builder, MC6809::AD);
     DestReg = materializeReg(Builder, DestReg, MF);
   }
   auto operandCount = MI.getNumExplicitOperands();
@@ -5999,7 +5996,7 @@ void MC6809InstrInfo::expandBitwiseImm16(ContextImmediate Context, unsigned OpcA
   }
   if (needsMaterialization(OrigDest)) {
     dematerializeReg(Builder, DestReg, OrigDest, MF);
-    Builder.buildInstr(MC6809::PULSs, {}, {Register(MC6809::AD)});
+    pullStagingReg(Builder, MC6809::AD, StagePushed);
   }
   MI.eraseFromParent();
 }
@@ -6018,12 +6015,13 @@ void MC6809InstrInfo::expandBitwiseMem16(ContextIndexImmediate Context,
   auto DestReg = MI.getOperand(0).getReg();
   Register OrigDest = DestReg;
   MachineFunction &MF = *MI.getMF();
+  unsigned StagePushed = 0;
   if (needsMaterialization(DestReg)) {
-    // Undef-marked push -- see expandBitwiseImm16. The push moved S down
-    // by 2: an S-relative memory operand must be displacement-compensated
-    // before the offset is read below.
-    Builder.buildInstr(MC6809::PSHSs).addUse(MC6809::AD, RegState::Undef);
-    compensateSSOperands(MI, 2);
+    // Save D when its value is read later (see pushStagingReg). A push
+    // moves S down: an S-relative memory operand must be displacement-
+    // compensated before the offset is read below.
+    StagePushed = pushStagingReg(Builder, MC6809::AD);
+    compensateSSOperands(MI, StagePushed);
     DestReg = materializeReg(Builder, DestReg, MF);
   }
   auto operandCount = MI.getNumExplicitOperands();
@@ -6044,7 +6042,7 @@ void MC6809InstrInfo::expandBitwiseMem16(ContextIndexImmediate Context,
     addSymOperand(InstrA, SymOp, 0);
     if (needsMaterialization(OrigDest)) {
       dematerializeReg(Builder, DestReg, OrigDest, MF);
-      Builder.buildInstr(MC6809::PULSs, {}, {Register(MC6809::AD)});
+      pullStagingReg(Builder, MC6809::AD, StagePushed);
     }
     MI.eraseFromParent();
     return;
@@ -6088,7 +6086,7 @@ void MC6809InstrInfo::expandBitwiseMem16(ContextIndexImmediate Context,
     InstrA.addImm(OffsetHi).addReg(IndexReg);
   if (needsMaterialization(OrigDest)) {
     dematerializeReg(Builder, DestReg, OrigDest, MF);
-    Builder.buildInstr(MC6809::PULSs, {}, {Register(MC6809::AD)});
+    pullStagingReg(Builder, MC6809::AD, StagePushed);
   }
   MI.eraseFromParent();
 }
@@ -6122,7 +6120,7 @@ void MC6809InstrInfo::expandNegate(MachineIRBuilder &Builder, MachineInstr &MI) 
     MachineBasicBlock::iterator NextPt = std::next(MI.getIterator());
     Register RealReg = getPhysRegFor(OrigReg);
     MachineIRBuilder PreBuilder(MBB, MI.getIterator());
-    PreBuilder.buildInstr(MC6809::PSHSs).addUse(RealReg, RegState::Undef);
+    unsigned StagePushed = pushStagingReg(PreBuilder, RealReg);
     materializeReg(Builder, Reg, MF);
     // Rewrite operands to the real register.
     MI.getOperand(0).setReg(RealReg);
@@ -6135,7 +6133,7 @@ void MC6809InstrInfo::expandNegate(MachineIRBuilder &Builder, MachineInstr &MI) 
     // Store back.
     MachineIRBuilder PostBuilder(MBB, NextPt);
     dematerializeReg(PostBuilder, RealReg, OrigReg, MF);
-    PostBuilder.buildInstr(MC6809::PULSs).addDef(RealReg);
+    pullStagingReg(PostBuilder, RealReg, StagePushed);
     return;
   }
 
@@ -6214,11 +6212,11 @@ void MC6809InstrInfo::expandShiftLeft(MachineIRBuilder &Builder, MachineInstr &M
     MachineBasicBlock::iterator NextPt = std::next(MI.getIterator());
     // The staging clobbers the real accumulator, and regalloc picked an
     // imaginary home precisely because that accumulator may be busy --
-    // preserve it around the whole shift (undef-marked push: garbage
-    // in/garbage out is the identity when it was in fact dead).
+    // preserve it around the whole shift when its value is read later
+    // (see pushStagingReg).
     Register RealReg = getPhysRegFor(OrigReg);
     MachineIRBuilder PreBuilder(MBB, MI.getIterator());
-    PreBuilder.buildInstr(MC6809::PSHSs).addUse(RealReg, RegState::Undef);
+    unsigned StagePushed = pushStagingReg(PreBuilder, RealReg);
     Reg = materializeReg(Builder, Reg, MF);
     MI.getOperand(0).setReg(Reg);
     MI.getOperand(0).setIsDead(false); // demat below reads the staging real
@@ -6228,7 +6226,7 @@ void MC6809InstrInfo::expandShiftLeft(MachineIRBuilder &Builder, MachineInstr &M
     expandShiftLeft(Builder, MI);
     MachineIRBuilder PostBuilder(MBB, NextPt);
     dematerializeReg(PostBuilder, Reg, OrigReg, MF);
-    PostBuilder.buildInstr(MC6809::PULSs).addDef(RealReg);
+    pullStagingReg(PostBuilder, RealReg, StagePushed);
     return;
   }
   // LSL_i8/i16_Reg is (outs reg:$dst), (ins reg:$src, i8imm:$val) with $dst
@@ -6277,11 +6275,11 @@ void MC6809InstrInfo::expandShiftRight(MachineIRBuilder &Builder, MachineInstr &
     MachineBasicBlock::iterator NextPt = std::next(MI.getIterator());
     // The staging clobbers the real accumulator, and regalloc picked an
     // imaginary home precisely because that accumulator may be busy --
-    // preserve it around the whole shift (undef-marked push: garbage
-    // in/garbage out is the identity when it was in fact dead).
+    // preserve it around the whole shift when its value is read later
+    // (see pushStagingReg).
     Register RealReg = getPhysRegFor(OrigReg);
     MachineIRBuilder PreBuilder(MBB, MI.getIterator());
-    PreBuilder.buildInstr(MC6809::PSHSs).addUse(RealReg, RegState::Undef);
+    unsigned StagePushed = pushStagingReg(PreBuilder, RealReg);
     Reg = materializeReg(Builder, Reg, MF);
     MI.getOperand(0).setReg(Reg);
     MI.getOperand(0).setIsDead(false); // demat below reads the staging real
@@ -6291,7 +6289,7 @@ void MC6809InstrInfo::expandShiftRight(MachineIRBuilder &Builder, MachineInstr &
     expandShiftRight(Builder, MI, Arithmetic);
     MachineIRBuilder PostBuilder(MBB, NextPt);
     dematerializeReg(PostBuilder, Reg, OrigReg, MF);
-    PostBuilder.buildInstr(MC6809::PULSs).addDef(RealReg);
+    pullStagingReg(PostBuilder, RealReg, StagePushed);
     return;
   }
   // Emit $val (operand 2) single-bit right shifts in place, then erase.
@@ -7093,19 +7091,15 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
     // register at all). With the RS imaginaries allocatable, a live $ad
     // routinely spans an RS-destined load, so preserve it around the
     // staging via the hard stack (an emergency frame slot cannot be
-    // created this late -- PEI has already laid the frame out). The
-    // preserve is unconditional with an undef-marked push: no
-    // neighborhood liveness probe can decide "holds a value someone
-    // reads" once sub-register halves are defined and consumed
-    // downstream, and pushing then popping garbage is the identity.
+    // created this late -- PEI has already laid the frame out) when its
+    // value is read later (see pushStagingReg).
     Register RealReg = getPhysRegFor(DestRegOp.getReg());
     MachineBasicBlock &MBB = *MI.getParent();
     MachineIRBuilder PreBuilder(MBB, MI.getIterator());
-    PreBuilder.buildInstr(MC6809::PSHSs)
-        .addUse(RealReg, RegState::Undef);
+    unsigned StagePushed = pushStagingReg(PreBuilder, RealReg);
     // The push moved S down: any pre-existing S-relative operand inside
     // the window must be displacement-compensated.
-    compensateSSOperands(MI, stagingPushSize(RealReg));
+    compensateSSOperands(MI, StagePushed);
     MI.getOperand(0).setReg(RealReg);
     // The pseudo's def may be dead-marked (unused imaginary dest); the
     // dematerialising store below READS the staging real, so the flag
@@ -7116,7 +7110,7 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
     ++InsertPt;
     MachineIRBuilder PostBuilder(*MI.getParent(), InsertPt);
     dematerializeReg(PostBuilder, RealReg, DestRegOp.getReg(), MF);
-    PostBuilder.buildInstr(MC6809::PULSs).addDef(RealReg);
+    pullStagingReg(PostBuilder, RealReg, StagePushed);
     return;
   }
 
@@ -7183,7 +7177,7 @@ void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI
 
   // If the source is an imaginary register, materialize it into its staging
   // real accumulator with a hard-stack preserve around the window.
-  bool NeedRestore = false;
+  unsigned StagePushed = 0;
   Register Transit;
   if (MC6809::Imag16RegClass.contains(MI.getOperand(0).getReg()) && !Indirect)
     Transit = freeTransitIndex(MI, Register());
@@ -7203,11 +7197,10 @@ void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI
 
     // Preserve $ad unconditionally (see the spill-source arm above --
     // same hard-stack + undef-push rationale).
-    LoadBuilder.buildInstr(MC6809::PSHSs).addUse(MC6809::AD, RegState::Undef);
-    NeedRestore = true;
+    StagePushed = pushStagingReg(LoadBuilder, MC6809::AD);
     // The push moved S down by 2: any pre-existing S-relative operand
     // inside the window must be displacement-compensated.
-    compensateSSOperands(MI, 2);
+    compensateSSOperands(MI, StagePushed);
 
     Register RealReg = materializeReg(LoadBuilder, SrcReg, MF);
     MI.getOperand(0).setReg(RealReg);
@@ -7313,11 +7306,11 @@ void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI
   }
 
   // Restore the preserved $ad from the hard stack.
-  if (NeedRestore) {
+  if (StagePushed) {
     MachineBasicBlock::iterator RestorePt = MI.getIterator();
     ++RestorePt;
     MachineIRBuilder RestoreBuilder(*MI.getParent(), RestorePt);
-    RestoreBuilder.buildInstr(MC6809::PULSs).addDef(MC6809::AD);
+    pullStagingReg(RestoreBuilder, MC6809::AD, StagePushed);
   }
 }
 

@@ -21,10 +21,8 @@ declare void @sink(i16)
 define i16 @cond_skip_join(i16 %x, i16 %a, i16 %b) {
 ; O0-LABEL: cond_skip_join:
 ; O0:       ; %bb.0: ; %entry
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 4,s
+; O0-NEXT:    ldd 2,s
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
 ; O0-NEXT:    ldd 4,s
 ; O0-NEXT:    cmpx #0
 ; O0-NEXT:    bne .LBB0_2

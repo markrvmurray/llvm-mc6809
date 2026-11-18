@@ -95,14 +95,10 @@ define i1 @ult_i32_zext_i8(i32 %a, i8 %b) {
 ; O0:       ; %bb.0:
 ; O0-NEXT:    leas -2,s
 ; O0-NEXT:    stb 1,s ; 1-byte Folded Spill
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 8,s
-; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd 6,s
+; O0-NEXT:    std <__rs0
+; O0-NEXT:    ldd 4,s
 ; O0-NEXT:    std <__rs1
-; O0-NEXT:    puls d
 ; O0-NEXT:    ldb <__rs0lo
 ; O0-NEXT:    lda <__rs0hi
 ; O0-NEXT:    subb 1,s
@@ -252,12 +248,10 @@ define i1 @ne_i32_zext_i16(i32 %a, i16 %b) {
 ; O0-LABEL: ne_i32_zext_i16:
 ; O0:       ; %bb.0:
 ; O0-NEXT:    stx <__rs0
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
-; O0-NEXT:    eorb 7,s
-; O0-NEXT:    eora 6,s
+; O0-NEXT:    eorb 5,s
+; O0-NEXT:    eora 4,s
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
 ; O0-NEXT:    ldd #0
 ; O0-NEXT:    eorb 3,s
 ; O0-NEXT:    eora 2,s

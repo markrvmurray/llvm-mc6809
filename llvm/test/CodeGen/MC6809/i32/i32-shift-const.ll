@@ -18,14 +18,10 @@ define i32 @shl_i32_1(i32 %x) {
 ; O0-NEXT:    pshs u,y
 ; O0-NEXT:    leas -10,s
 ; O0-NEXT:    tfr x,u
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 20,s
-; O0-NEXT:    std <__rs1
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd 18,s
+; O0-NEXT:    std <__rs1
+; O0-NEXT:    ldd 16,s
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
 ; O0-NEXT:    ldd #1
 ; O0-NEXT:    andb #255
 ; O0-NEXT:    clra
@@ -41,10 +37,8 @@ define i32 @shl_i32_1(i32 %x) {
 ; O0-NEXT:    ldx 6,s
 ; O0-NEXT:    stx <__rs0
 ; O0-NEXT:    std 2,u
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std ,u
-; O0-NEXT:    puls d
 ; O0-NEXT:    leas 10,s
 ; O0-NEXT:    puls u,y,pc
 ;
@@ -82,14 +76,10 @@ define i32 @shl_i32_7(i32 %x) {
 ; O0-NEXT:    pshs u,y
 ; O0-NEXT:    leas -10,s
 ; O0-NEXT:    tfr x,u
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 20,s
-; O0-NEXT:    std <__rs1
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd 18,s
+; O0-NEXT:    std <__rs1
+; O0-NEXT:    ldd 16,s
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
 ; O0-NEXT:    ldd #7
 ; O0-NEXT:    andb #255
 ; O0-NEXT:    clra
@@ -105,10 +95,8 @@ define i32 @shl_i32_7(i32 %x) {
 ; O0-NEXT:    ldx 6,s
 ; O0-NEXT:    stx <__rs0
 ; O0-NEXT:    std 2,u
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std ,u
-; O0-NEXT:    puls d
 ; O0-NEXT:    leas 10,s
 ; O0-NEXT:    puls u,y,pc
 ;
@@ -144,14 +132,10 @@ define i32 @shl_i32_8(i32 %x) {
 ; O0-LABEL: shl_i32_8:
 ; O0:       ; %bb.0:
 ; O0-NEXT:    leas -2,s
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 8,s
-; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd 6,s
+; O0-NEXT:    std <__rs0
+; O0-NEXT:    ldd 4,s
 ; O0-NEXT:    std <__rs1
-; O0-NEXT:    puls d
 ; O0-NEXT:    ldb <__rs1lo
 ; O0-NEXT:    stb 1,s ; 1-byte Folded Spill
 ; O0-NEXT:    ldb <__rs1hi
@@ -201,14 +185,10 @@ define i32 @shl_i32_15(i32 %x) {
 ; O0-NEXT:    pshs u,y
 ; O0-NEXT:    leas -10,s
 ; O0-NEXT:    tfr x,u
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 20,s
-; O0-NEXT:    std <__rs1
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd 18,s
+; O0-NEXT:    std <__rs1
+; O0-NEXT:    ldd 16,s
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
 ; O0-NEXT:    ldd #15
 ; O0-NEXT:    andb #255
 ; O0-NEXT:    clra
@@ -224,10 +204,8 @@ define i32 @shl_i32_15(i32 %x) {
 ; O0-NEXT:    ldx 6,s
 ; O0-NEXT:    stx <__rs0
 ; O0-NEXT:    std 2,u
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std ,u
-; O0-NEXT:    puls d
 ; O0-NEXT:    leas 10,s
 ; O0-NEXT:    puls u,y,pc
 ;
@@ -262,16 +240,12 @@ define i32 @shl_i32_15(i32 %x) {
 define i32 @shl_i32_16(i32 %x) {
 ; O0-LABEL: shl_i32_16:
 ; O0:       ; %bb.0:
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 6,s
+; O0-NEXT:    ldd 4,s
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
 ; O0-NEXT:    ldd #0
 ; O0-NEXT:    std 2,x
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std ,x
-; O0-NEXT:    puls d
 ; O0-NEXT:    rts
 ;
 ; O2-LABEL: shl_i32_16:
@@ -293,14 +267,10 @@ define i32 @shl_i32_31(i32 %x) {
 ; O0-NEXT:    pshs u,y
 ; O0-NEXT:    leas -10,s
 ; O0-NEXT:    tfr x,u
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 20,s
-; O0-NEXT:    std <__rs1
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd 18,s
+; O0-NEXT:    std <__rs1
+; O0-NEXT:    ldd 16,s
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
 ; O0-NEXT:    ldd #31
 ; O0-NEXT:    andb #255
 ; O0-NEXT:    clra
@@ -316,10 +286,8 @@ define i32 @shl_i32_31(i32 %x) {
 ; O0-NEXT:    ldx 6,s
 ; O0-NEXT:    stx <__rs0
 ; O0-NEXT:    std 2,u
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std ,u
-; O0-NEXT:    puls d
 ; O0-NEXT:    leas 10,s
 ; O0-NEXT:    puls u,y,pc
 ;
@@ -357,14 +325,10 @@ define i32 @lshr_i32_1(i32 %x) {
 ; O0-NEXT:    pshs u,y
 ; O0-NEXT:    leas -10,s
 ; O0-NEXT:    tfr x,u
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 20,s
-; O0-NEXT:    std <__rs1
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd 18,s
+; O0-NEXT:    std <__rs1
+; O0-NEXT:    ldd 16,s
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
 ; O0-NEXT:    ldd #1
 ; O0-NEXT:    andb #255
 ; O0-NEXT:    clra
@@ -380,10 +344,8 @@ define i32 @lshr_i32_1(i32 %x) {
 ; O0-NEXT:    ldx 6,s
 ; O0-NEXT:    stx <__rs0
 ; O0-NEXT:    std 2,u
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std ,u
-; O0-NEXT:    puls d
 ; O0-NEXT:    leas 10,s
 ; O0-NEXT:    puls u,y,pc
 ;
@@ -419,14 +381,10 @@ define i32 @lshr_i32_8(i32 %x) {
 ; O0-LABEL: lshr_i32_8:
 ; O0:       ; %bb.0:
 ; O0-NEXT:    leas -2,s
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 8,s
-; O0-NEXT:    std <__rs1
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd 6,s
+; O0-NEXT:    std <__rs1
+; O0-NEXT:    ldd 4,s
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
 ; O0-NEXT:    ldb <__rs1lo
 ; O0-NEXT:    ldb <__rs1hi
 ; O0-NEXT:    stb ,s ; 1-byte Folded Spill
@@ -475,10 +433,8 @@ define i32 @lshr_i32_16(i32 %x) {
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
 ; O0-NEXT:    std 2,x
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std ,x
-; O0-NEXT:    puls d
 ; O0-NEXT:    rts
 ;
 ; O2-LABEL: lshr_i32_16:
@@ -498,14 +454,10 @@ define i32 @lshr_i32_31(i32 %x) {
 ; O0-NEXT:    pshs u,y
 ; O0-NEXT:    leas -10,s
 ; O0-NEXT:    tfr x,u
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 20,s
-; O0-NEXT:    std <__rs1
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd 18,s
+; O0-NEXT:    std <__rs1
+; O0-NEXT:    ldd 16,s
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
 ; O0-NEXT:    ldd #31
 ; O0-NEXT:    andb #255
 ; O0-NEXT:    clra
@@ -521,10 +473,8 @@ define i32 @lshr_i32_31(i32 %x) {
 ; O0-NEXT:    ldx 6,s
 ; O0-NEXT:    stx <__rs0
 ; O0-NEXT:    std 2,u
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std ,u
-; O0-NEXT:    puls d
 ; O0-NEXT:    leas 10,s
 ; O0-NEXT:    puls u,y,pc
 ;
@@ -562,14 +512,10 @@ define i32 @ashr_i32_1(i32 %x) {
 ; O0-NEXT:    pshs u,y
 ; O0-NEXT:    leas -10,s
 ; O0-NEXT:    tfr x,u
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 20,s
-; O0-NEXT:    std <__rs1
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd 18,s
+; O0-NEXT:    std <__rs1
+; O0-NEXT:    ldd 16,s
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
 ; O0-NEXT:    ldd #1
 ; O0-NEXT:    andb #255
 ; O0-NEXT:    clra
@@ -585,10 +531,8 @@ define i32 @ashr_i32_1(i32 %x) {
 ; O0-NEXT:    ldx 6,s
 ; O0-NEXT:    stx <__rs0
 ; O0-NEXT:    std 2,u
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std ,u
-; O0-NEXT:    puls d
 ; O0-NEXT:    leas 10,s
 ; O0-NEXT:    puls u,y,pc
 ;
@@ -624,14 +568,10 @@ define i32 @ashr_i32_8(i32 %x) {
 ; O0-LABEL: ashr_i32_8:
 ; O0:       ; %bb.0:
 ; O0-NEXT:    leas -3,s
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 9,s
-; O0-NEXT:    std <__rs1
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd 7,s
+; O0-NEXT:    std <__rs1
+; O0-NEXT:    ldd 5,s
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
 ; O0-NEXT:    ldb <__rs1lo
 ; O0-NEXT:    ldb <__rs1hi
 ; O0-NEXT:    stb 2,s ; 1-byte Folded Spill
@@ -659,18 +599,14 @@ define i32 @ashr_i32_8(i32 %x) {
 ; O2-LABEL: ashr_i32_8:
 ; O2:       ; %bb.0:
 ; O2-NEXT:    leas -2,s
-; O2-NEXT:    pshs d
-; O2-NEXT:    ldd 6,s
+; O2-NEXT:    ldd 4,s
 ; O2-NEXT:    std <__rs0
-; O2-NEXT:    puls d
 ; O2-NEXT:    ldb <__rs0hi
 ; O2-NEXT:    stb 1,s ; 1-byte Folded Spill
 ; O2-NEXT:    sex
 ; O2-NEXT:    std <__rs2
-; O2-NEXT:    pshs d
-; O2-NEXT:    ldd 8,s
+; O2-NEXT:    ldd 6,s
 ; O2-NEXT:    std <__rs1
-; O2-NEXT:    puls d
 ; O2-NEXT:    ldb <__rs1hi
 ; O2-NEXT:    stb ,s ; 1-byte Folded Spill
 ; O2-NEXT:    lda <__rs0lo
@@ -695,10 +631,8 @@ define i32 @ashr_i32_8(i32 %x) {
 define i32 @ashr_i32_16(i32 %x) {
 ; O0-LABEL: ashr_i32_16:
 ; O0:       ; %bb.0:
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 4,s
+; O0-NEXT:    ldd 2,s
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
 ; O0-NEXT:    ldb <__rs0lo
 ; O0-NEXT:    ldb <__rs0hi
 ; O0-NEXT:    sex
@@ -736,14 +670,10 @@ define i32 @ashr_i32_31(i32 %x) {
 ; O0-NEXT:    pshs u,y
 ; O0-NEXT:    leas -10,s
 ; O0-NEXT:    tfr x,u
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldd 20,s
-; O0-NEXT:    std <__rs1
-; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd 18,s
+; O0-NEXT:    std <__rs1
+; O0-NEXT:    ldd 16,s
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
 ; O0-NEXT:    ldd #31
 ; O0-NEXT:    andb #255
 ; O0-NEXT:    clra
@@ -759,10 +689,8 @@ define i32 @ashr_i32_31(i32 %x) {
 ; O0-NEXT:    ldx 6,s
 ; O0-NEXT:    stx <__rs0
 ; O0-NEXT:    std 2,u
-; O0-NEXT:    pshs d
 ; O0-NEXT:    ldd <__rs0
 ; O0-NEXT:    std ,u
-; O0-NEXT:    puls d
 ; O0-NEXT:    leas 10,s
 ; O0-NEXT:    puls u,y,pc
 ;
