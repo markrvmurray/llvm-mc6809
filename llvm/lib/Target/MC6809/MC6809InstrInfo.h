@@ -152,6 +152,19 @@ public:
   bool expandPostRAPseudo(MachineInstr &MI) const override;
   bool expandPostRAPseudoImpl(MachineInstr &MI) const;
 
+  /// MC6809ExpandPseudos brackets each expansion with these, so that a
+  /// staging register written earlier in the same expansion counts as
+  /// holding a value the rest of the expansion -- not emitted yet, so not
+  /// visible to liveness -- may still read.
+  void beginExpansion(MachineInstr &MI) const {
+    ExpansionMBB = MI.getParent();
+    ExpansionPrev = MI.getPrevNode();
+  }
+  void endExpansion() const { ExpansionMBB = nullptr; }
+  /// R (or a register overlapping it) is written by the expansion in
+  /// progress before P.
+  bool writtenInExpansion(MachineBasicBlock::iterator P, Register R) const;
+
   /// The CC flag whose value the s1 carry-out of a selected phantom-carry
   /// producer pseudo (SetCarry/SetOverflow families and their *Use forms, the
   /// single-bit shift-extends) really lives in: C or V. std::nullopt for any
@@ -297,6 +310,8 @@ protected:
   isCopyInstrImpl(const MachineInstr &MI) const override;
 
 private:
+  mutable MachineBasicBlock *ExpansionMBB = nullptr;
+  mutable MachineInstr *ExpansionPrev = nullptr;
   // const MC6809RegisterBankInfo &RBI;
 
   // void copyPhysRegImpl(MachineBasicBlock &MBB, MachineIRBuilder &Builder, Register DestReg, Register SrcReg) const;

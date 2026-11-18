@@ -1370,7 +1370,25 @@ static bool stagingRegLiveAcross(MachineBasicBlock &MBB,
   Live.addLiveOuts(MBB);
   for (auto It = MBB.end(); It != MI;)
     Live.stepBackward(*--It);
-  return !Live.available(MRI, RealReg);
+  if (!Live.available(MRI, RealReg))
+    return true;
+  // The expansion in progress may have loaded a value into RealReg that its
+  // own later code -- not emitted yet -- reads.
+  return static_cast<const MC6809InstrInfo &>(
+             *MBB.getParent()->getSubtarget().getInstrInfo())
+      .writtenInExpansion(MI, RealReg);
+}
+
+bool MC6809InstrInfo::writtenInExpansion(MachineBasicBlock::iterator P,
+                                         Register R) const {
+  if (!ExpansionMBB)
+    return false; // not inside an expansion
+  for (auto It = ExpansionPrev ? std::next(ExpansionPrev->getIterator())
+                               : ExpansionMBB->begin();
+       It != P && It != ExpansionMBB->end(); ++It)
+    if (It->modifiesRegister(R, &RI))
+      return true;
+  return false;
 }
 
 /// Whether an expansion of MI that borrows the real register R must save

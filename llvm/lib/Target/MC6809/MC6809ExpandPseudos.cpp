@@ -22,6 +22,7 @@
 #include "MC6809ExpandPseudos.h"
 
 #include "MC6809.h"
+#include "MC6809InstrInfo.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
 
 #include "llvm/CodeGen/MachineBasicBlock.h"
@@ -85,6 +86,8 @@ bool MC6809ExpandPseudos::runOnMachineFunction(MachineFunction &MF) {
       MachineBasicBlock::iterator Prev = AtBegin ? It : std::prev(It);
       if (!MI.isPseudo())
         continue;
+      const auto &MTII = static_cast<const MC6809InstrInfo &>(TII);
+      MTII.beginExpansion(MI);
       bool Expanded = TII.expandPostRAPseudo(MI);
       if (!Expanded) {
         switch (MI.getOpcode()) {
@@ -100,6 +103,7 @@ bool MC6809ExpandPseudos::runOnMachineFunction(MachineFunction &MF) {
           break;
         }
       }
+      MTII.endExpansion();
       Changed |= Expanded;
       if (AtBegin)
         break;
