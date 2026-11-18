@@ -3102,7 +3102,8 @@ class MC6809Stack_P1<dag outs, string mnemonic, Opcode opc, list<Register> defs,
 class IndexedFormInfo<Instruction inst, string family, bits<3> form> {
   Instruction Inst = inst;
   string Family = family;
-  bits<3> Form = form; // MC6809::IdxForm: 0 o0, 1 o5, 2 o8, 3 o16, 4 o0I, 5 o8I, 6 o16I
+  bits<3> Form = form; // MC6809::IdxForm: 0 o0, 1 o5, 2 o8, 3 o16, 4 o0I, 5 o8I, 6 o16I,
+                       // 7 the family's direct-page form
   // Set, like the instruction's own, by the `let` of a load or store
   // multiclass around the indexed multiclass that makes this row.
   bits<16> IdxValueEnc = 0xFFFF;

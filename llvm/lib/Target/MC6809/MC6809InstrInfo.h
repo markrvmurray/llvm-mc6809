@@ -56,7 +56,9 @@ template <> struct DenseMapInfo<RegPlusReg> {
 namespace MC6809 {
 /// The offset form of a constant-offset indexed instruction (the order of
 /// the Form field in MC6809InstrInfoTables.td's IndexedForms table).
-enum class IdxForm : uint8_t { O0, O5, O8, O16, O0I, O8I, O16I };
+/// The addressing forms a load/store/arithmetic family's table rows name:
+/// the indexed ones, and Dir, the direct-page form of a load or store.
+enum class IdxForm : uint8_t { O0, O5, O8, O16, O0I, O8I, O16I, Dir };
 } // namespace MC6809
 
 } // namespace llvm
@@ -295,6 +297,11 @@ public:
   /// The plain indexed load (or store) of Value with an offset operand: the
   /// 8-bit-offset form if Offset fits, else the 16-bit one (offset
   /// relaxation narrows it later). 0 if Value has no such instruction.
+  /// The value register of a direct-page load or store (`ldd <x`, `stx <y`),
+  /// and whether it stores; nullopt for anything else.
+  static std::optional<IdxLoadStore> getDirLoadStore(unsigned Opc);
+  /// The direct-page load or store of Value, or 0 if there is none.
+  static unsigned getDirLoadStoreOpcode(Register Value, bool IsStore);
   static unsigned getIdxLoadStoreOpcode(Register Value, bool IsStore,
                                         int64_t Offset);
 
@@ -434,10 +441,8 @@ private:
   DenseMap<RegPlusReg, unsigned> LEAPtrAddRegOpcode;
 
   DenseMap<Register, unsigned> LoadImmediateOpcode;
-  DenseMap<RegPlusOffsetLen, unsigned> LoadIdxImmOpcode;
   DenseMap<RegPlusReg, unsigned> LoadIdxRegOpcode;
 
-  DenseMap<RegPlusOffsetLen, unsigned> StoreIdxImmOpcode;
   DenseMap<RegPlusReg, unsigned> StoreIdxRegOpcode;
 
   DenseMap<Register, unsigned> AddImmediateOpcode;

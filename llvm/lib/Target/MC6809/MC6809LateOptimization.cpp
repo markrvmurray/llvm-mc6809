@@ -745,42 +745,15 @@ static unsigned indexedLoadOpcode(Register ValueReg, IdxSuf Suf) {
 // The folded load addresses memory the way the LEA did, loading the o0 load's
 // value register. Two safety regimes:
 //   * dst == base (value reg == index reg == the load's base): the load
-// Direct-page load / store opcode tables. Operand 0 is the direct-page slot
-// (an imaginary register in the cases we handle); the value the load moves
-// lands in the register returned here.
+// The register a direct-page load fills, or a direct-page store writes to
+// its slot (operand 0, an imaginary register in the cases handled here).
 static Register dpLoadValueReg(unsigned Opc) {
-  switch (Opc) {
-  case MC6809::LDAd: return MC6809::AA;
-  case MC6809::LDBd: return MC6809::AB;
-  case MC6809::LDDd: return MC6809::AD;
-  case MC6809::LDWd: return MC6809::AW;
-  case MC6809::LDEd: return MC6809::AE;
-  case MC6809::LDFd: return MC6809::AF;
-  case MC6809::LDXd: return MC6809::IX;
-  case MC6809::LDYd: return MC6809::IY;
-  case MC6809::LDUd: return MC6809::SU;
-  case MC6809::LDSd: return MC6809::SS;
-  case MC6809::LDQd: return MC6809::AQ;
-  default: return MC6809::NoRegister;
-  }
+  auto LS = MC6809InstrInfo::getDirLoadStore(Opc);
+  return LS && !LS->IsStore ? LS->Value : Register();
 }
-
-// The register a direct-page store writes to its slot.
 static Register dpStoreValueReg(unsigned Opc) {
-  switch (Opc) {
-  case MC6809::STAd: return MC6809::AA;
-  case MC6809::STBd: return MC6809::AB;
-  case MC6809::STDd: return MC6809::AD;
-  case MC6809::STWd: return MC6809::AW;
-  case MC6809::STEd: return MC6809::AE;
-  case MC6809::STFd: return MC6809::AF;
-  case MC6809::STXd: return MC6809::IX;
-  case MC6809::STYd: return MC6809::IY;
-  case MC6809::STUd: return MC6809::SU;
-  case MC6809::STSd: return MC6809::SS;
-  case MC6809::STQd: return MC6809::AQ;
-  default: return MC6809::NoRegister;
-  }
+  auto LS = MC6809InstrInfo::getDirLoadStore(Opc);
+  return LS && LS->IsStore ? LS->Value : Register();
 }
 
 // Drop a direct-page load whose value register still provably holds the same

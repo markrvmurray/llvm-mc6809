@@ -242,6 +242,7 @@ multiclass Load8Concrete<string Mnem, Opcode ImmOpc, Opcode DirOpc,
     def d  : MC6809Direct_P1<(outs), Mnem, DirOpc, Defs, []>;
     defm i : MC6809Indexed_P1<Mnem, IdxOpc, (outs), Defs, []>;
     def e  : MC6809Extended_P1<(outs), Mnem, ExtOpc, Defs, []>;
+    def d_form : IndexedFormInfo<!cast<Instruction>(NAME # "d"), NAME # "i", 7>;
   }
 }
 
@@ -254,6 +255,7 @@ multiclass Load16Concrete<string Mnem, Opcode ImmOpc, Opcode DirOpc,
     def d   : MC6809Direct_P1<(outs), Mnem, DirOpc, Defs, []>;
     defm i  : MC6809Indexed_P1<Mnem, IdxOpc, (outs), Defs, []>;
     def e   : MC6809Extended_P1<(outs), Mnem, ExtOpc, Defs, []>;
+    def d_form : IndexedFormInfo<!cast<Instruction>(NAME # "d"), NAME # "i", 7>;
   }
 }
 
@@ -267,6 +269,7 @@ multiclass Store8Concrete<string Mnem, Opcode DirOpc, Opcode IdxOpc,
     def d  : MC6809Direct_P1<(outs), Mnem, DirOpc, [NZ,N,Z,V], [Value]>;
     defm i : MC6809Indexed_P1<Mnem, IdxOpc, (outs), [NZ,N,Z,V], [Value]>;
     def e  : MC6809Extended_P1<(outs), Mnem, ExtOpc, [NZ,N,Z,V], [Value]>;
+    def d_form : IndexedFormInfo<!cast<Instruction>(NAME # "d"), NAME # "i", 7>;
   }
 }
 
@@ -276,6 +279,7 @@ multiclass Store16Concrete<string Mnem, Opcode DirOpc, Opcode IdxOpc,
     def d  : MC6809Direct_P1<(outs), Mnem, DirOpc, [NZ,N,Z,V], [Value]>;
     defm i : MC6809Indexed_P1<Mnem, IdxOpc, (outs), [NZ,N,Z,V], [Value]>;
     def e  : MC6809Extended_P1<(outs), Mnem, ExtOpc, [NZ,N,Z,V], [Value]>;
+    def d_form : IndexedFormInfo<!cast<Instruction>(NAME # "d"), NAME # "i", 7>;
   }
 }
 
@@ -811,6 +815,7 @@ multiclass Load8Concrete_P3<string Mnem, Opcode ImmOpc, Opcode DirOpc,
     def d  : MC6809Direct_P3<(outs), Mnem, DirOpc, Defs, []>;
     defm i : MC6809Indexed_P3<Mnem, IdxOpc, (outs), Defs, []>;
     def e  : MC6809Extended_P3<(outs), Mnem, ExtOpc, Defs, []>;
+    def d_form : IndexedFormInfo<!cast<Instruction>(NAME # "d"), NAME # "i", 7>;
   }
 }
 
@@ -823,6 +828,7 @@ multiclass Load16Concrete_P2<string Mnem, Opcode ImmOpc, Opcode DirOpc,
     def d   : MC6809Direct_P2<(outs), Mnem, DirOpc, Defs, []>;
     defm i  : MC6809Indexed_P2<Mnem, IdxOpc, (outs), Defs, []>;
     def e   : MC6809Extended_P2<(outs), Mnem, ExtOpc, Defs, []>;
+    def d_form : IndexedFormInfo<!cast<Instruction>(NAME # "d"), NAME # "i", 7>;
   }
 }
 
@@ -835,6 +841,7 @@ multiclass Store8Concrete_P3<string Mnem, Opcode DirOpc, Opcode IdxOpc,
     def d  : MC6809Direct_P3<(outs), Mnem, DirOpc, [NZ,N,Z,V], [Value]>;
     defm i : MC6809Indexed_P3<Mnem, IdxOpc, (outs), [NZ,N,Z,V], [Value]>;
     def e  : MC6809Extended_P3<(outs), Mnem, ExtOpc, [NZ,N,Z,V], [Value]>;
+    def d_form : IndexedFormInfo<!cast<Instruction>(NAME # "d"), NAME # "i", 7>;
   }
 }
 
@@ -845,6 +852,7 @@ multiclass Store16Concrete_P2<string Mnem, Opcode DirOpc, Opcode IdxOpc,
     def d  : MC6809Direct_P2<(outs), Mnem, DirOpc, [NZ,N,Z,V], [Value]>;
     defm i : MC6809Indexed_P2<Mnem, IdxOpc, (outs), [NZ,N,Z,V], [Value]>;
     def e  : MC6809Extended_P2<(outs), Mnem, ExtOpc, [NZ,N,Z,V], [Value]>;
+    def d_form : IndexedFormInfo<!cast<Instruction>(NAME # "d"), NAME # "i", 7>;
   }
 }
 

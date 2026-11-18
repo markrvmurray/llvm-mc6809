@@ -97,6 +97,32 @@ MC6809InstrInfo::getIdxLoadStore(unsigned Opc) {
   return IdxLoadStore{R, Row->IdxAccess == 2};
 }
 
+std::optional<MC6809InstrInfo::IdxLoadStore>
+MC6809InstrInfo::getDirLoadStore(unsigned Opc) {
+  const MC6809::IndexedForm *Row = MC6809::getIndexedForm(Opc);
+  if (!Row || !Row->IdxAccess ||
+      Row->Form != static_cast<unsigned>(MC6809::IdxForm::Dir))
+    return std::nullopt;
+  Register R = valueRegForEncoding(Row->IdxValueEnc);
+  assert(R && "direct load/store row names no known value register");
+  return IdxLoadStore{R, Row->IdxAccess == 2};
+}
+
+unsigned MC6809InstrInfo::getDirLoadStoreOpcode(Register Value,
+                                                bool IsStore) {
+  // (register, is-store) -> direct-page form, built once from the table.
+  static const DenseMap<std::pair<unsigned, unsigned>, unsigned> Dir = [] {
+    DenseMap<std::pair<unsigned, unsigned>, unsigned> M;
+    for (const MC6809::IndexedForm &Row : MC6809::MC6809IndexedForms)
+      if (Row.IdxAccess &&
+          Row.Form == static_cast<unsigned>(MC6809::IdxForm::Dir))
+        M[{valueRegForEncoding(Row.IdxValueEnc).id(),
+           Row.IdxAccess == 2 ? 1u : 0u}] = Row.Inst;
+    return M;
+  }();
+  return Dir.lookup({Value.id(), IsStore ? 1u : 0u});
+}
+
 unsigned MC6809InstrInfo::getIdxLoadStoreOpcode(Register Value, bool IsStore,
                                                 int64_t Offset) {
   // (register, is-store) -> 16-bit-offset form, built once from the table.
@@ -115,6 +141,21 @@ unsigned MC6809InstrInfo::getIdxLoadStoreOpcode(Register Value, bool IsStore,
   if (Offset >= -128 && Offset <= 127)
     return getIdxSibling(O16, MC6809::IdxForm::O8);
   return O16;
+}
+
+/// The indexed load or store of Value with an offset field of Bits bits (0,
+/// 5, 8 or 16), or 0 if there is none.
+static unsigned idxLoadStoreForWidth(Register Value, bool IsStore, int Bits) {
+  unsigned O16 = MC6809InstrInfo::getIdxLoadStoreOpcode(Value, IsStore, 1 << 14);
+  if (!O16)
+    return 0;
+  switch (Bits) {
+  case 0: return MC6809InstrInfo::getIdxSibling(O16, MC6809::IdxForm::O0);
+  case 5: return MC6809InstrInfo::getIdxSibling(O16, MC6809::IdxForm::O5);
+  case 8: return MC6809InstrInfo::getIdxSibling(O16, MC6809::IdxForm::O8);
+  case 16: return O16;
+  default: return 0;
+  }
 }
 
 bool MC6809InstrInfo::getIdxBaseOffset(const MachineInstr &MI, Register &Base,
@@ -206,18 +247,6 @@ MC6809InstrInfo::MC6809InstrInfo(const MC6809Subtarget &STI)
       {MC6809::AA, MC6809::LDAi8},  {MC6809::AB, MC6809::LDBi8},  {MC6809::AE, MC6809::LDEi8},  {MC6809::AF, MC6809::LDFi8},  {MC6809::AD, MC6809::LDDi16}, {MC6809::AW, MC6809::LDWi16},
       {MC6809::AQ, MC6809::LDQi32}, {MC6809::IX, MC6809::LDXi16}, {MC6809::IY, MC6809::LDYi16}, {MC6809::SU, MC6809::LDUi16}, {MC6809::SS, MC6809::LDSi16},
   };
-  LoadIdxImmOpcode = {
-      {{MC6809::AA, -1}, MC6809::LDAi_o16}, {{MC6809::AA, 0}, MC6809::LDAi_o0},   {{MC6809::AA, 5}, MC6809::LDAi_o5},   {{MC6809::AA, 8}, MC6809::LDAi_o8},   {{MC6809::AA, 16}, MC6809::LDAi_o16}, {{MC6809::AB, -1}, MC6809::LDBi_o16},
-      {{MC6809::AB, 0}, MC6809::LDBi_o0},   {{MC6809::AB, 5}, MC6809::LDBi_o5},   {{MC6809::AB, 8}, MC6809::LDBi_o8},   {{MC6809::AB, 16}, MC6809::LDBi_o16}, {{MC6809::AD, -1}, MC6809::LDDi_o16}, {{MC6809::AD, 0}, MC6809::LDDi_o0},
-      {{MC6809::AD, 5}, MC6809::LDDi_o5},   {{MC6809::AD, 8}, MC6809::LDDi_o8},   {{MC6809::AD, 16}, MC6809::LDDi_o16}, {{MC6809::AE, -1}, MC6809::LDEi_o16}, {{MC6809::AE, 0}, MC6809::LDEi_o0},   {{MC6809::AE, 5}, MC6809::LDEi_o5},
-      {{MC6809::AE, 8}, MC6809::LDEi_o8},   {{MC6809::AE, 16}, MC6809::LDEi_o16}, {{MC6809::AF, -1}, MC6809::LDFi_o16}, {{MC6809::AF, 0}, MC6809::LDFi_o0},   {{MC6809::AF, 5}, MC6809::LDFi_o5},   {{MC6809::AF, 8}, MC6809::LDFi_o8},
-      {{MC6809::AF, 16}, MC6809::LDFi_o16}, {{MC6809::AW, -1}, MC6809::LDWi_o16}, {{MC6809::AW, 0}, MC6809::LDWi_o0},   {{MC6809::AW, 5}, MC6809::LDWi_o5},   {{MC6809::AW, 8}, MC6809::LDWi_o8},   {{MC6809::AW, 16}, MC6809::LDWi_o16},
-      {{MC6809::AQ, -1}, MC6809::LDQi_o16}, {{MC6809::AQ, 0}, MC6809::LDQi_o0},   {{MC6809::AQ, 5}, MC6809::LDQi_o5},   {{MC6809::AQ, 8}, MC6809::LDQi_o8},   {{MC6809::AQ, 16}, MC6809::LDQi_o16}, {{MC6809::IX, -1}, MC6809::LDXi_o16},
-      {{MC6809::IX, 0}, MC6809::LDXi_o0},   {{MC6809::IX, 5}, MC6809::LDXi_o5},   {{MC6809::IX, 8}, MC6809::LDXi_o8},   {{MC6809::IX, 16}, MC6809::LDXi_o16}, {{MC6809::IY, -1}, MC6809::LDYi_o16}, {{MC6809::IY, 0}, MC6809::LDYi_o0},
-      {{MC6809::IY, 5}, MC6809::LDYi_o5},   {{MC6809::IY, 8}, MC6809::LDYi_o8},   {{MC6809::IY, 16}, MC6809::LDYi_o16}, {{MC6809::SU, -1}, MC6809::LDUi_o16}, {{MC6809::SU, 0}, MC6809::LDUi_o0},   {{MC6809::SU, 5}, MC6809::LDUi_o5},
-      {{MC6809::SU, 8}, MC6809::LDUi_o8},   {{MC6809::SU, 16}, MC6809::LDUi_o16}, {{MC6809::SS, -1}, MC6809::LDSi_o16}, {{MC6809::SS, 0}, MC6809::LDSi_o0},   {{MC6809::SS, 5}, MC6809::LDSi_o5},   {{MC6809::SS, 8}, MC6809::LDSi_o8},
-      {{MC6809::SS, 16}, MC6809::LDSi_o16},
-  };
   LoadIdxRegOpcode = {
       {{MC6809::AA, MC6809::AA}, MC6809::LDAi_oA}, {{MC6809::AA, MC6809::AB}, MC6809::LDAi_oB}, {{MC6809::AA, MC6809::AD}, MC6809::LDAi_oD}, {{MC6809::AA, MC6809::AE}, MC6809::LDAi_oE}, {{MC6809::AA, MC6809::AF}, MC6809::LDAi_oF},
       {{MC6809::AA, MC6809::AW}, MC6809::LDAi_oW}, {{MC6809::AB, MC6809::AA}, MC6809::LDBi_oA}, {{MC6809::AB, MC6809::AB}, MC6809::LDBi_oB}, {{MC6809::AB, MC6809::AD}, MC6809::LDBi_oD}, {{MC6809::AB, MC6809::AE}, MC6809::LDBi_oE},
@@ -233,18 +262,6 @@ MC6809InstrInfo::MC6809InstrInfo(const MC6809Subtarget &STI)
       {{MC6809::SU, MC6809::AB}, MC6809::LDUi_oB}, {{MC6809::SU, MC6809::AD}, MC6809::LDUi_oD}, {{MC6809::SU, MC6809::AE}, MC6809::LDUi_oE}, {{MC6809::SU, MC6809::AF}, MC6809::LDUi_oF}, {{MC6809::SU, MC6809::AW}, MC6809::LDUi_oW},
       {{MC6809::SS, MC6809::AA}, MC6809::LDSi_oA}, {{MC6809::SS, MC6809::AB}, MC6809::LDSi_oB}, {{MC6809::SS, MC6809::AD}, MC6809::LDSi_oD}, {{MC6809::SS, MC6809::AE}, MC6809::LDSi_oE}, {{MC6809::SS, MC6809::AF}, MC6809::LDSi_oF},
       {{MC6809::SS, MC6809::AW}, MC6809::LDSi_oW},
-  };
-  StoreIdxImmOpcode = {
-      {{MC6809::AA, -1}, MC6809::STAi_o16}, {{MC6809::AA, 0}, MC6809::STAi_o0},   {{MC6809::AA, 5}, MC6809::STAi_o5},   {{MC6809::AA, 8}, MC6809::STAi_o8},   {{MC6809::AA, 16}, MC6809::STAi_o16}, {{MC6809::AB, -1}, MC6809::STBi_o16},
-      {{MC6809::AB, 0}, MC6809::STBi_o0},   {{MC6809::AB, 5}, MC6809::STBi_o5},   {{MC6809::AB, 8}, MC6809::STBi_o8},   {{MC6809::AB, 16}, MC6809::STBi_o16}, {{MC6809::AD, -1}, MC6809::STDi_o16}, {{MC6809::AD, 0}, MC6809::STDi_o0},
-      {{MC6809::AD, 5}, MC6809::STDi_o5},   {{MC6809::AD, 8}, MC6809::STDi_o8},   {{MC6809::AD, 16}, MC6809::STDi_o16}, {{MC6809::AE, -1}, MC6809::STEi_o16}, {{MC6809::AE, 0}, MC6809::STEi_o0},   {{MC6809::AE, 5}, MC6809::STEi_o5},
-      {{MC6809::AE, 8}, MC6809::STEi_o8},   {{MC6809::AE, 16}, MC6809::STEi_o16}, {{MC6809::AF, -1}, MC6809::STFi_o16}, {{MC6809::AF, 0}, MC6809::STFi_o0},   {{MC6809::AF, 5}, MC6809::STFi_o5},   {{MC6809::AF, 8}, MC6809::STFi_o8},
-      {{MC6809::AF, 16}, MC6809::STFi_o16}, {{MC6809::AW, -1}, MC6809::STWi_o16}, {{MC6809::AW, 0}, MC6809::STWi_o0},   {{MC6809::AW, 5}, MC6809::STWi_o5},   {{MC6809::AW, 8}, MC6809::STWi_o8},   {{MC6809::AW, 16}, MC6809::STWi_o16},
-      {{MC6809::AQ, -1}, MC6809::STQi_o16}, {{MC6809::AQ, 0}, MC6809::STQi_o0},   {{MC6809::AQ, 5}, MC6809::STQi_o5},   {{MC6809::AQ, 8}, MC6809::STQi_o8},   {{MC6809::AQ, 16}, MC6809::STQi_o16}, {{MC6809::IX, -1}, MC6809::STXi_o16},
-      {{MC6809::IX, 0}, MC6809::STXi_o0},   {{MC6809::IX, 5}, MC6809::STXi_o5},   {{MC6809::IX, 8}, MC6809::STXi_o8},   {{MC6809::IX, 16}, MC6809::STXi_o16}, {{MC6809::IY, -1}, MC6809::STYi_o16}, {{MC6809::IY, 0}, MC6809::STYi_o0},
-      {{MC6809::IY, 5}, MC6809::STYi_o5},   {{MC6809::IY, 8}, MC6809::STYi_o8},   {{MC6809::IY, 16}, MC6809::STYi_o16}, {{MC6809::SU, -1}, MC6809::STUi_o16}, {{MC6809::SU, 0}, MC6809::STUi_o0},   {{MC6809::SU, 5}, MC6809::STUi_o5},
-      {{MC6809::SU, 8}, MC6809::STUi_o8},   {{MC6809::SU, 16}, MC6809::STUi_o16}, {{MC6809::SS, -1}, MC6809::STSi_o16}, {{MC6809::SS, 0}, MC6809::STSi_o0},   {{MC6809::SS, 5}, MC6809::STSi_o5},   {{MC6809::SS, 8}, MC6809::STSi_o8},
-      {{MC6809::SS, 16}, MC6809::STSi_o16},
   };
   StoreIdxRegOpcode = {
       {{MC6809::AA, MC6809::AA}, MC6809::STAi_oA}, {{MC6809::AA, MC6809::AB}, MC6809::STAi_oB}, {{MC6809::AA, MC6809::AD}, MC6809::STAi_oD}, {{MC6809::AA, MC6809::AE}, MC6809::STAi_oE}, {{MC6809::AA, MC6809::AF}, MC6809::STAi_oF},
@@ -1537,20 +1554,14 @@ static Register freeTransitIndex(MachineInstr &MI, Register LoadBase) {
 
 /// The direct-page load and store of a transit register.
 static unsigned transitLoadDP(Register R) {
-  switch (R) {
-  case MC6809::IX: return MC6809::LDXd;
-  case MC6809::SU: return MC6809::LDUd;
-  case MC6809::IY: return MC6809::LDYd;
-  default: llvm_unreachable("not a transit register");
-  }
+  unsigned Opc = MC6809InstrInfo::getDirLoadStoreOpcode(R, false);
+  assert(Opc && "not a transit register");
+  return Opc;
 }
 static unsigned transitStoreDP(Register R) {
-  switch (R) {
-  case MC6809::IX: return MC6809::STXd;
-  case MC6809::SU: return MC6809::STUd;
-  case MC6809::IY: return MC6809::STYd;
-  default: llvm_unreachable("not a transit register");
-  }
+  unsigned Opc = MC6809InstrInfo::getDirLoadStoreOpcode(R, true);
+  assert(Opc && "not a transit register");
+  return Opc;
 }
 
 
@@ -7181,9 +7192,8 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
 
   int OffsetSize = offsetSizeInBits(OffsetOp);
   if (OffsetSize >= 0) {
-    RegPlusOffsetLen Lookup{DestRegOp.getReg(), OffsetSize};
-    auto OpcodePair = LoadIdxImmOpcode.find(Lookup);
-    if (OpcodePair == LoadIdxImmOpcode.end())
+    unsigned LdOpc = idxLoadStoreForWidth(DestRegOp.getReg(), false, OffsetSize);
+    if (!LdOpc)
       // No (dest reg, offset width) entry. offsetSizeInBits returns >16 only
       // for an offset outside the 16-bit range; otherwise the width is valid
       // (o5/o8/o16) and the destination register simply has no indexed-load
@@ -7192,7 +7202,7 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
           ? "LoadIdx offset out of range for any indexed addressing form"
           : "no LoadIdx opcode for this destination register at a valid offset "
             "width (unmapped/unsupported destination register)");
-    MI.setDesc(Builder.getTII().get(OpcodePair->getSecond()));
+    MI.setDesc(Builder.getTII().get(LdOpc));
     addMissingImplicitOperands(MI);
     MI.getOperand(0).setImplicit();
     if (OffsetSize > 0)
@@ -7320,16 +7330,15 @@ void MC6809InstrInfo::expandStoreIdx(MachineIRBuilder &Builder, MachineInstr &MI
 
   int OffsetSize = offsetSizeInBits(OffsetOp);
   if (OffsetSize >= 0) {
-    RegPlusOffsetLen Lookup{SrcRegOp.getReg(), OffsetSize};
-    auto OpcodePair = StoreIdxImmOpcode.find(Lookup);
-    if (OpcodePair == StoreIdxImmOpcode.end())
+    unsigned StOpc = idxLoadStoreForWidth(SrcRegOp.getReg(), true, OffsetSize);
+    if (!StOpc)
       // Mirror of the LoadIdx case above: >16 means the offset is out of range,
       // otherwise the source register has no indexed-store form in the table.
       llvm_unreachable(OffsetSize > 16
           ? "StoreIdx offset out of range for any indexed addressing form"
           : "no StoreIdx opcode for this source register at a valid offset "
             "width (unmapped/unsupported source register)");
-    MI.setDesc(Builder.getTII().get(OpcodePair->getSecond()));
+    MI.setDesc(Builder.getTII().get(StOpc));
     addMissingImplicitOperands(MI);
     MI.getOperand(0).setImplicit();
     if (SrcIsImpliedUndef)
@@ -8813,11 +8822,9 @@ void MC6809InstrInfo::expandTestMem(MachineIRBuilder &Builder, MachineInstr &MI)
     // Use LDD to set N/Z and clear V. AD is declared as a Def of the
     // Test_i16_Mem / TestBranch_i16_Mem pseudos so RA knows about the clobber.
     if (OffsetSize >= 0) {
-      RegPlusOffsetLen Lookup{MC6809::AD, OffsetSize};
-      auto OpcodePair = LoadIdxImmOpcode.find(Lookup);
-      if (OpcodePair == LoadIdxImmOpcode.end())
+      Opcode = idxLoadStoreForWidth(MC6809::AD, false, OffsetSize);
+      if (!Opcode)
         llvm_unreachable("Test_i16_Mem: unexpected immediate offset size.");
-      Opcode = OpcodePair->getSecond();
     } else if (OffsetOp.isReg()) {
       RegPlusReg Lookup{MC6809::AD, OffsetOp.getReg()};
       auto OpcodePair = LoadIdxRegOpcode.find(Lookup);
