@@ -38,6 +38,8 @@ using namespace llvm;
 
 STATISTIC(NumOffsetsRelaxed,    "Number of indexed offsets relaxed to a "
                                 "narrower form (_o16->_o8->_o5/_o0)");
+STATISTIC(NumDeadStoresElided,
+          "Stores overwritten before anything could read them, deleted");
 STATISTIC(NumStoreReloadsElided,"Number of redundant reloads of unmodified "
                                 "spill slots elided");
 STATISTIC(NumBranchOverBranchFolded, "Number of branch-over-branch pairs "
@@ -195,19 +197,39 @@ bool MC6809FinalLowering::elideStoreReload(MachineFunction &MF) {
       // A plain indexed load or store we can key; a volatile one is
       // observable and takes no part (it is still a store, below).
       auto LS = MC6809InstrInfo::getIdxLoadStore(MI.getOpcode());
+      // Every load and store carries hasSideEffects in the .td; for an
+      // indexed one, the memory it touches is all there is to it, and that
+      // is modelled below. Anything else with side effects, or a volatile
+      // access, may observe any memory.
+      if ((!LS && MI.hasUnmodeledSideEffects()) ||
+          MC6809InstrInfo::hasOrderedMemOperand(MI))
+        T.readAll();
       if (LS && MC6809InstrInfo::hasOrderedMemOperand(MI))
         LS.reset();
       Register Base;
       int64_t Off = 0;
       bool Keyed = LS && MC6809InstrInfo::getIdxBaseOffset(MI, Base, Off);
 
+      if (MI.mayLoad() && !(Keyed && !LS->IsStore))
+        T.readAlias(MI, false, Register());
       if (MI.mayStore())
         T.storeAlias(MI, Keyed && LS->IsStore, Base);
 
       if (Keyed && LS->IsStore) {
-        T.storeOverlap(Base, Off, MC6809InstrInfo::getValueRegBytes(LS->Value),
-                       LS->Value);
-        T.set({Base, static_cast<int>(Off)}, LS->Value, &MI, MI);
+        int Width = MC6809InstrInfo::getValueRegBytes(LS->Value);
+        T.storeOverlap(Base, Off, Width, LS->Value);
+        // A store no load could have read since, whose bytes this one
+        // overwrites, is dead.
+        SmallVector<MachineInstr *, 2> Dead;
+        T.takeCoveredStores(Base, Off, Width, Dead);
+        for (MachineInstr *D : Dead) {
+          LLVM_DEBUG(dbgs() << "FinalLowering: dead store: " << *D);
+          D->eraseFromParent();
+          ++NumDeadStoresElided;
+          Changed = true;
+        }
+        T.set({Base, static_cast<int>(Off)}, LS->Value, MI);
+        T.addPendingStore({Base, static_cast<int>(Off)}, Width, MI);
         continue;
       }
 
@@ -215,6 +237,7 @@ bool MC6809FinalLowering::elideStoreReload(MachineFunction &MF) {
         MC6809ValueTracker::Key K{Base, static_cast<int>(Off)};
         // `ldy ,y` names a slot through the register it overwrites.
         bool SelfBase = TRI.regsOverlap(Base, LS->Value);
+        int Width = MC6809InstrInfo::getValueRegBytes(LS->Value);
         if (!SelfBase)
           if (MC6809ValueTracker::Mirror *M = T.find(K);
               M && M->Reg == LS->Value) {
@@ -224,10 +247,12 @@ bool MC6809FinalLowering::elideStoreReload(MachineFunction &MF) {
             Changed = true;
             continue;
           }
+        T.readRange(Base, Off, Width);
+        T.readAlias(MI, true, Base);
         T.clearHolder(LS->Value);
         T.clearBase(LS->Value);
         if (!SelfBase)
-          T.set(K, LS->Value, nullptr, MI);
+          T.set(K, LS->Value, MI);
         continue;
       }
 

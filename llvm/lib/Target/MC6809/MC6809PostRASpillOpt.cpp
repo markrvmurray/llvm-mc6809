@@ -48,7 +48,6 @@
 STATISTIC(NumStagingBrackets, "Dead pshs/puls staging brackets removed");
 STATISTIC(NumImmIntoIndex, "ldd #n; tfr d,r folded into ld r #n");
 STATISTIC(NumLoadIntoCopy, "ld R,mem; tfr R,R2 folded into ld R2,mem");
-STATISTIC(NumDeadSlotStores, "Dead stores to a tracked slot removed");
 STATISTIC(NumAccReloads, "Redundant accumulator reloads removed");
 STATISTIC(NumIndexReloads, "Redundant index-register reloads removed");
 STATISTIC(NumCrossRegReloads, "Reloads replaced by a transfer from another register");
@@ -124,12 +123,6 @@ static Register getAccRegForOpcode(unsigned Opc) {
           R == MC6809::AQ || R == MC6809::SS)
              ? R
              : Register();
-}
-
-/// True for a tracked register that occupies two bytes (a 16-bit store/load
-/// covers offsets [N, N+1]). Covers the D accumulator and both index regs.
-static bool isTracked16Bit(Register R) {
-  return R == MC6809::AD || R == MC6809::IX || R == MC6809::IY;
 }
 
 /// Returns true if the opcode is a tracked indexed store — accumulator only
@@ -695,30 +688,16 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
     // below (and #368) sees the cleaned-up loads.
     Changed |= foldLoadIntoCopy(MBB, TRI, *MF.getSubtarget().getInstrInfo());
 
-    // Track slot contents: which register holds which slot, and the store
-    // that set it up, so a never-read store can be deleted (Stage 2).
+    // Track slot contents: which register holds which slot. (Dead stores
+    // are FinalLowering's, on the same tracker.)
     MC6809ValueTracker T(MF, TRI);
     using SlotInfo = MC6809ValueTracker::Mirror;
     auto findSlot = [&](const SlotKey &Key) {
       return T.find({Key.BaseReg, Key.Offset});
     };
-    auto setSlot = [&](const SlotKey &Key, Register Reg, MachineInstr *Store,
-                       const MachineInstr &Est, bool SourceKilled = false) {
-      SlotInfo Old = T.set({Key.BaseReg, Key.Offset}, Reg, Store, Est,
-                           SourceKilled);
-      // Stage 2: if the previous store to this slot, of the same register,
-      // was never read, it is dead. (Width matters: a 1-byte STA does not
-      // kill a 2-byte STD at the same offset, whose low byte is still live --
-      // hence the same-register test.)
-      if (Old.Store && !Old.WasRead && Old.Reg == Reg) {
-        LLVM_DEBUG(dbgs() << "  SpillOpt: deleting dead store: " << *Old.Store);
-        Old.Store->eraseFromParent();
-        ++NumDeadSlotStores;
-        Changed = true;
-      }
-    };
-    auto markRead = [&](const SlotKey &Key) {
-      T.markRead({Key.BaseReg, Key.Offset});
+    auto setSlot = [&](const SlotKey &Key, Register Reg, MachineInstr &Est,
+                       bool SourceKilled = false) {
+      T.set({Key.BaseReg, Key.Offset}, Reg, Est, SourceKilled);
     };
     auto clearReg = [&](Register Reg) { T.clearHolder(Reg); };
 
@@ -765,18 +744,6 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
       if (!Ordered && isIndexedStore(Opc)) {
         Register AccReg = getAccRegForOpcode(Opc);
         SlotKey Key = getSlotKey(MI);
-        // A 16-bit store (STD/STX/STY) at offset N covers both bytes [N, N+1],
-        // so mark any tracked slot at N or N+1 as read to prevent a later
-        // store from being treated as a dead store of a value that was in
-        // fact partially overwritten here.
-        if (isTracked16Bit(AccReg)) {
-          SlotKey HiKey = {Key.BaseReg, Key.Offset};
-          SlotKey LoKey = {Key.BaseReg, Key.Offset + 1};
-          if (SlotInfo *Hi = findSlot(HiKey))
-            Hi->WasRead = true; // prevent incorrect dead-store deletion
-          if (SlotInfo *Lo = findSlot(LoKey))
-            Lo->WasRead = true;
-        }
         // Bug #363 follow-up: drop the mirror of any other slot whose bytes
         // this store overwrites with unrelated register bits (see the
         // invalidateOverlap comment) — the getopt/memmem fix.
@@ -786,7 +753,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         // source register. If yes, the slot has the value but the
         // register is dead — see SlotInfo::SourceKilled.
         bool SourceKilled = MI.killsRegister(AccReg, &TRI);
-        setSlot(Key, AccReg, &MI, MI, SourceKilled);
+        setSlot(Key, AccReg, MI, SourceKilled);
         // Bug #271 cat-1 (cross-store kill): when this store kills its
         // source register, ALL prior slots that recorded `Reg == AccReg`
         // become stale from a liveness perspective — the register is now
@@ -890,10 +857,9 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
           // path's tracker update (the load that would have done it is gone):
           // mark the slot read, drop AccReg's stale mirrors / any slot it bases,
           // and establish AccReg as a fresh mirror of this slot.
-          markRead(Key);
           clearReg(AccReg);
           T.clearBase(AccReg);
-          setSlot(Key, AccReg, nullptr, MI);
+          setSlot(Key, AccReg, MI);
           continue;
         }
         // Bug #362: dead frame/spill-slot load. A load from the U/S-relative
@@ -925,7 +891,6 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
           continue;
         }
         // Load defines the register — update tracking.
-        markRead(Key);
         clearReg(AccReg);
         // The load redefines AccReg. If AccReg is an index register it may be
         // the base of other tracked slots, whose addresses just changed — drop
@@ -936,17 +901,9 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         // Don't establish a mirror for a self-based load: the key is unstable
         // (see SelfBase above).
         if (!SelfBase)
-          setSlot(Key, AccReg, nullptr, MI); // no store to delete
+          setSlot(Key, AccReg, MI);
         continue;
       }
-
-      // Any other memory-reading instruction — LDW/LDE/LDF (untracked HD6309
-      // loads), indirect loads (`ldd [n,x]` reads the slot bytes as the
-      // pointer), pulls — may read a tracked slot the classifier doesn't
-      // model. Mark every slot read so a pending store is never deleted as
-      // "dead" across it.
-      if (MI.mayLoad())
-        T.markAllRead();
 
       // Any instruction that modifies a tracked register invalidates entries.
       // Clear both the accumulator (Reg) and base register (BaseReg) mappings.

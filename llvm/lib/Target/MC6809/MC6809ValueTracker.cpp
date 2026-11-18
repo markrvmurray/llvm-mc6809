@@ -12,6 +12,7 @@
 #include "MC6809InstrInfo.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
@@ -135,9 +136,8 @@ MC6809ValueTracker::Mirror *MC6809ValueTracker::find(const Key &K) {
   return nullptr;
 }
 
-MC6809ValueTracker::Mirror
-MC6809ValueTracker::set(const Key &K, Register Reg, MachineInstr *Store,
-                        const MachineInstr &Est, bool SourceKilled) {
+void MC6809ValueTracker::set(const Key &K, Register Reg, MachineInstr &Est,
+                             bool SourceKilled) {
   // An imaginary register is compiler-private direct-page memory: only an
   // access naming it (or an overlapping one) reaches it.
   bool IsImaginary = MC6809::Imag8RegClass.contains(K.Base) ||
@@ -145,27 +145,11 @@ MC6809ValueTracker::set(const Key &K, Register Reg, MachineInstr *Store,
   int SpillFI = IsImaginary ? INT_MIN : spillSlotOf(Est, MFI);
   bool IsFrame =
       !IsImaginary && SpillFI == INT_MIN && isFrameLocation(Est, K.Base);
-  Mirror New{Reg,     Store,       false,
-             SourceKilled, SpillFI, IsFrame,
-             IsImaginary,  const_cast<MachineInstr *>(&Est)};
-  for (auto &E : Entries)
-    if (E.first == K) {
-      Mirror Old = E.second;
-      E.second = New;
-      return Old;
-    }
-  Entries.push_back({K, New});
-  return Mirror();
-}
-
-void MC6809ValueTracker::markRead(const Key &K) {
+  Mirror New{Reg, SourceKilled, SpillFI, IsFrame, IsImaginary, &Est};
   if (Mirror *M = find(K))
-    M->WasRead = true;
-}
-
-void MC6809ValueTracker::markAllRead() {
-  for (auto &E : Entries)
-    E.second.WasRead = true;
+    *M = New;
+  else
+    Entries.push_back({K, New});
 }
 
 void MC6809ValueTracker::clearHolder(Register R) {
@@ -178,6 +162,62 @@ void MC6809ValueTracker::clearBase(Register R) {
   for (auto &E : Entries)
     if (E.first.Base.isValid() && TRI.regsOverlap(E.first.Base, R))
       E.second.Reg = Register();
+  llvm::erase_if(Pending, [&](const PendingStore &P) {
+    return TRI.regsOverlap(P.K.Base, R);
+  });
+}
+
+static bool isImaginary(Register R) {
+  return MC6809::Imag8RegClass.contains(R) ||
+         MC6809::Imag16RegClass.contains(R);
+}
+
+void MC6809ValueTracker::addPendingStore(const Key &K, int Width,
+                                         MachineInstr &Store) {
+  bool Imag = isImaginary(K.Base);
+  Pending.push_back(
+      {K, Width, &Store, Imag ? INT_MIN : spillSlotOf(Store, MFI), Imag});
+}
+
+void MC6809ValueTracker::takeCoveredStores(
+    Register Base, int Off, int Width, SmallVectorImpl<MachineInstr *> &Dead) {
+  llvm::erase_if(Pending, [&](const PendingStore &P) {
+    if (P.K.Base != Base || P.K.Offset < Off ||
+        P.K.Offset + P.Width > Off + Width)
+      return false;
+    Dead.push_back(P.Store);
+    for (auto &E : Entries)
+      if (E.second.Est == P.Store) {
+        E.second.Est = nullptr;
+        E.second.Reg = Register();
+      }
+    return true;
+  });
+}
+
+void MC6809ValueTracker::readRange(Register Base, int Off, int Width) {
+  llvm::erase_if(Pending, [&](const PendingStore &P) {
+    return P.K.Base == Base && P.K.Offset < Off + Width &&
+           Off < P.K.Offset + P.Width;
+  });
+}
+
+void MC6809ValueTracker::readAlias(const MachineInstr &MI, bool KeyedOnOwnBase,
+                                   Register OwnBase) {
+  int LoadFI = spillSlotOf(MI, MFI);
+  llvm::erase_if(Pending, [&](const PendingStore &P) {
+    if (KeyedOnOwnBase && P.K.Base == OwnBase)
+      return false; // readRange decides
+    if (P.SpillFI != INT_MIN && LoadFI != INT_MIN)
+      return LoadFI == P.SpillFI;
+    if (P.IsImaginary && !MI.memoperands_empty() &&
+        all_of(MI.memoperands(), [](const MachineMemOperand *MMO) {
+          return MMO->getPseudoValue() || MMO->getValue();
+        }) &&
+        !namesOverlapping(MI, P.K.Base))
+      return false;
+    return true;
+  });
 }
 
 void MC6809ValueTracker::storeOverlap(Register Base, int Off, int Width,
@@ -199,7 +239,6 @@ void MC6809ValueTracker::storeOverlap(Register Base, int Off, int Width,
         continue;
     }
     E.second.Reg = Register();
-    E.second.WasRead = true;
   }
 }
 
@@ -228,10 +267,8 @@ void MC6809ValueTracker::storeAlias(const MachineInstr &MI,
                 : E.second.SpillFI != INT_MIN ? StoreFI == E.second.SpillFI
                 : E.second.IsFrame            ? StoreMayHitFrame
                                               : !StorePrivate;
-    if (Drop) {
+    if (Drop)
       E.second.Reg = Register();
-      E.second.WasRead = true;
-    }
   }
 }
 

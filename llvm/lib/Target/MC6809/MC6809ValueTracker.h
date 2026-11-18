@@ -10,10 +10,11 @@
 // value of memory location L", with one set of rules for what invalidates it.
 // A location is an indexed slot -- a base register and a byte offset -- or a
 // direct-page imaginary register (keyed by that register, offset 0). Each
-// mirror records how wide the holder is, the store that set it up (so a
-// client can delete it if it is never read), and what the memory is -- a
-// spill slot, a frame location, or anything a pointer may reach -- which
-// decides which other stores may alias it.
+// mirror records the access that set it up and what the memory is -- a spill
+// slot, a frame location, an imaginary register, or anything a pointer may
+// reach -- which decides which other stores may alias it. Separately, stores
+// no load could yet have read are kept pending, so that one whose bytes a
+// later store overwrites can be found dead.
 //
 // The tracker keeps the model; clients decide what to track and what to do
 // with it (delete a reload, turn it into a transfer, delete a dead store).
@@ -46,9 +47,7 @@ public:
 
   struct Mirror {
     Register Reg;                     // the holder; invalid once stale
-    MachineInstr *Store = nullptr;    // the store that set it up, if any
-    bool WasRead = false;             // the location was read since
-    bool SourceKilled = false;        // that store killed its source
+    bool SourceKilled = false;        // set up by a store that killed Reg
     int SpillFI = INT_MIN;            // spill slot, or INT_MIN
     bool IsFrame = false;             // frame location (not a spill slot)
     bool IsImaginary = false;         // a direct-page imaginary register
@@ -58,24 +57,23 @@ public:
   MC6809ValueTracker(const MachineFunction &MF, const TargetRegisterInfo &TRI);
 
   /// Forget everything (a call, a branch, a return).
-  void clear() { Entries.clear(); }
+  void clear() {
+    Entries.clear();
+    Pending.clear();
+  }
 
   /// The mirror at K, if any (possibly stale: check Reg).
   Mirror *find(const Key &K);
 
-  /// Record that Reg holds the value at K, set up by Est (whose memory
-  /// operand says what the memory is) and, if a store, by Store. Returns the
-  /// mirror K had before (by value; Reg invalid if none), for a client to
-  /// judge the earlier store dead.
-  Mirror set(const Key &K, Register Reg, MachineInstr *Store,
-             const MachineInstr &Est, bool SourceKilled = false);
-
-  void markRead(const Key &K);
-  void markAllRead();
+  /// Record that Reg holds the value at K, set up by the load or store Est
+  /// (whose memory operand says what the memory is).
+  void set(const Key &K, Register Reg, MachineInstr &Est,
+           bool SourceKilled = false);
 
   /// A def or kill of R: no mirror is held in R any more.
   void clearHolder(Register R);
-  /// A def of R: a mirror based on R names other memory now.
+  /// A def of R: a mirror or pending store based on R names other memory
+  /// now.
   void clearBase(Register R);
 
   /// A store of Width bytes at Base+Off overwrote those bytes: drop every
@@ -108,6 +106,25 @@ public:
   static void clearKillsToPriorDef(MachineInstr &MI, Register Reg,
                                    const TargetRegisterInfo &TRI);
 
+  // Dead stores. A store stays pending until something may read one of its
+  // bytes; a later store that covers all of them makes it dead.
+
+  /// Record Store, of Width bytes at K, as pending.
+  void addPendingStore(const Key &K, int Width, MachineInstr &Store);
+  /// A store of Width bytes at Base+Off: append to Dead every pending store
+  /// on Base whose bytes it covers, and forget them (mirrors included).
+  void takeCoveredStores(Register Base, int Off, int Width,
+                         SmallVectorImpl<MachineInstr *> &Dead);
+  /// A keyed load of Width bytes at Base+Off reads those bytes.
+  void readRange(Register Base, int Off, int Width);
+  /// Any load MI (keyed on OwnBase or not): it may read every pending store
+  /// on another base, except a spill slot or an imaginary register it
+  /// provably does not name.
+  void readAlias(const MachineInstr &MI, bool KeyedOnOwnBase,
+                 Register OwnBase);
+  /// Something may read any memory: nothing pending is dead.
+  void readAll() { Pending.clear(); }
+
   /// All mirrors, for client walks.
   SmallVectorImpl<std::pair<Key, Mirror>> &entries() { return Entries; }
 
@@ -116,6 +133,15 @@ private:
   const MachineFrameInfo &MFI;
   const TargetRegisterInfo &TRI;
   SmallVector<std::pair<Key, Mirror>, 8> Entries;
+
+  struct PendingStore {
+    Key K;
+    int Width;
+    MachineInstr *Store;
+    int SpillFI;
+    bool IsImaginary;
+  };
+  SmallVector<PendingStore, 8> Pending;
 
   bool isFrameLocation(const MachineInstr &Est, Register Base) const;
   bool namesOverlapping(const MachineInstr &MI, Register R) const;

@@ -883,9 +883,9 @@ bool MC6809LateOptimization::elideRedundantLoad(MachineBasicBlock &MBB) const {
         T.clearBase(MO.getReg());
       }
     if (LoadReg)
-      T.set({Slot, 0}, LoadReg, nullptr, MI);
+      T.set({Slot, 0}, LoadReg, MI);
     else if (StoreReg)
-      T.set({Slot, 0}, StoreReg, &MI, MI);
+      T.set({Slot, 0}, StoreReg, MI);
   }
   return Changed;
 }

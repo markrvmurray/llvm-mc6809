@@ -1,0 +1,99 @@
+# RUN: llc -mtriple=mc6809 -mcpu=hd6309 -run-pass=mc6809-final-lowering -verify-machineinstrs -o - %s | FileCheck %s
+
+# A store is dead when a later store overwrites all of its bytes and nothing
+# could have read any of them in between. Reads are tracked by byte range:
+# a load of either byte of a 16-bit store keeps it.
+
+# CHECK-LABEL: name: overwritten
+# CHECK-NOT:  STDi_o5 4, $su
+# CHECK:      STXi_o5 4, $su
+---
+name: overwritten
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su, $ad, $ix
+    STDi_o5 4, $su, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit killed $ad
+    STXi_o5 4, $su, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ix
+    RTSr
+...
+
+# The 16-bit store at 3 covers the byte store at 4.
+# CHECK-LABEL: name: covered_by_wider
+# CHECK-NOT:  STBi_o5 4, $su
+# CHECK:      STDi_o5 3, $su
+---
+name: covered_by_wider
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su, $ad
+    STBi_o5 4, $su, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ab
+    STDi_o5 3, $su, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ad
+    RTSr
+...
+
+# A byte load of the low half reads the first store.
+# CHECK-LABEL: name: low_byte_read
+# CHECK:      STDi_o5 4, $su
+# CHECK-NEXT: LDAi_o5 5, $su
+# CHECK-NEXT: STXi_o5 4, $su
+---
+name: low_byte_read
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su, $ad, $ix
+    STDi_o5 4, $su, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit killed $ad
+    LDAi_o5 5, $su, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa
+    STXi_o5 4, $su, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ix
+    RTSr implicit $aa
+...
+
+# Only half overwritten: the low byte at 5 is still the first store's.
+# CHECK-LABEL: name: half_overwritten
+# CHECK:      STDi_o5 4, $su
+# CHECK-NEXT: STBi_o5 4, $su
+---
+name: half_overwritten
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su, $ad
+    STDi_o5 4, $su, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ad
+    STBi_o5 4, $su, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ab
+    RTSr
+...
+
+# A load through another pointer may read it.
+# CHECK-LABEL: name: other_base_read
+# CHECK:      STDi_o5 4, $su
+# CHECK-NEXT: LDAi_o0 $ix
+# CHECK-NEXT: STXi_o5 4, $su
+---
+name: other_base_read
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su, $ad, $ix
+    STDi_o5 4, $su, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit killed $ad
+    LDAi_o0 $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa
+    STXi_o5 4, $su, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ix
+    RTSr implicit $aa
+...
+
+# The base changes in between: the second store names other memory.
+# CHECK-LABEL: name: base_redefined
+# CHECK:      STDi_o5 4, $su
+# CHECK:      STXi_o5 4, $su
+---
+name: base_redefined
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $su, $ad, $ix
+    STDi_o5 4, $su, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit killed $ad
+    LEAUi_o5 2, $su, implicit-def $su, implicit-def $z
+    STXi_o5 4, $su, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ix
+    RTSr
+...
