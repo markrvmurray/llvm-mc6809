@@ -129,6 +129,13 @@ bool MC6809InstrInfo::getIdxBaseOffset(const MachineInstr &MI, Register &Base,
     } else if (MO.isReg() && MO.getReg().isPhysical() && !MO.isDef() &&
                MC6809::INDEX16RegClass.contains(MO.getReg())) {
       Base = MO.getReg();
+    } else if (!MO.isReg()) {
+      // A symbolic offset (`lda tbl,x`): the distance from the base is not
+      // known here, so the access has no base-and-offset at all -- above
+      // all it is not the access at offset 0.
+      Base = Register();
+      Offset = 0;
+      return false;
     }
   }
   return Base.isValid();

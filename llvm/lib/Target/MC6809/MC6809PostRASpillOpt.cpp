@@ -279,8 +279,11 @@ static bool foldLoadIntoCopy(MachineBasicBlock &MBB,
     if (!Prev)
       continue;
     bool Imm = FromD && Prev->getOpcode() == MC6809::LDDi16;
+    Register PB;
+    int64_t PO;
     if (!Imm && (!isIndexedLoad(Prev->getOpcode()) ||
-                 getAccRegForOpcode(Prev->getOpcode()) != R))
+                 getAccRegForOpcode(Prev->getOpcode()) != R ||
+                 !MC6809InstrInfo::getIdxBaseOffset(*Prev, PB, PO)))
       continue;
     // R must be dead immediately after the transfer (the tfr was its last use).
     // No flag check is needed — the rewritten load sets identical flags.
@@ -720,7 +723,16 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
     auto clearReg = [&](Register Reg) { T.clearHolder(Reg); };
 
     for (MachineInstr &MI : make_early_inc_range(MBB)) {
+      // An indexed access with a symbolic offset is no slot: the model sees
+      // it only as a load or store of unknown memory.
       unsigned Opc = MI.getOpcode();
+      {
+        Register KB;
+        int64_t KO;
+        if (MC6809InstrInfo::getIdxLoadStore(Opc) &&
+            !MC6809InstrInfo::getIdxBaseOffset(MI, KB, KO))
+          Opc = 0;
+      }
 
       // A store may alias any mirror it does not provably miss. Same-base
       // indexed stores are handled below by exact byte overlap. Otherwise:

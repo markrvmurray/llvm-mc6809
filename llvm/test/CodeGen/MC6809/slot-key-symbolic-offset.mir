@@ -1,0 +1,42 @@
+# RUN: llc -mtriple=mc6809 -run-pass=mc6809-final-lowering -verify-machineinstrs -o - %s | FileCheck %s --check-prefix=FL
+# RUN: llc -mtriple=mc6809 -run-pass=mc6809-spill-opt -verify-machineinstrs -o - %s | FileCheck %s --check-prefix=SO
+
+# An indexed access whose offset is a symbol (`lda tbl,x`) names memory at
+# an unknown distance from the base: it is no slot, and above all not the
+# slot at offset 0 (`lda ,x`).
+
+--- |
+  @tbl = external global [4 x i8]
+  define void @reload_symbolic() { ret void }
+  define void @fold_symbolic() { ret void }
+...
+
+# The load from tbl,x is not a reload of the byte just stored at ,x.
+# FL-LABEL: name: reload_symbolic
+# FL:       STAi_o0 $ix
+# FL-NEXT:  LDAi_o16 @tbl, $ix
+---
+name: reload_symbolic
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ix, $aa
+    STAi_o0 $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $aa
+    LDAi_o16 @tbl, $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa
+    RTSr implicit $aa
+...
+
+# ldd tbl,x ; tfr d,y must not become ldy 0,x.
+# SO-LABEL: name: fold_symbolic
+# SO:       LDDi_o16 @tbl, $ix
+# SO-NOT:   LDYi_o{{.*}} 0, $ix
+---
+name: fold_symbolic
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ix
+    LDDi_o16 @tbl, $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit-def $aq
+    $iy = TFRp killed $ad
+    RTSr implicit $iy
+...

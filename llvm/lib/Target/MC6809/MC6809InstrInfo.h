@@ -279,7 +279,7 @@ public:
   /// or `op ,r` for offset 0): the explicit index register it uses (the last
   /// one, for a form that also names an index register as its value) and
   /// the first explicit immediate, sign-extended. False if MI names no index
-  /// register.
+  /// register, or if its offset is not an immediate (a symbol).
   static bool getIdxBaseOffset(const MachineInstr &MI, Register &Base,
                                int64_t &Offset);
   /// Where Sub's bytes sit in memory when Super is stored (the 6809 is
