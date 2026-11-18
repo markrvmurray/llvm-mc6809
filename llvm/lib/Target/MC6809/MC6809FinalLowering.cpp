@@ -489,6 +489,20 @@ bool MC6809FinalLowering::elideStoreReload(MachineFunction &MF) {
       // Single-slot tracking gives up some elision opportunities but
       // is dramatically simpler to reason about.
       if (Cls->IsStore) {
+        // The store overwrites its bytes whatever register held them: drop
+        // every slot on this base whose bytes it overlaps (`std 4,s ; stx
+        // 4,s` leaves no D in 4,s), then record its own.
+        int64_t W = MC6809InstrInfo::getValueRegBytes(Cls->DataReg);
+        Slots.erase(
+            std::remove_if(Slots.begin(), Slots.end(),
+                           [&](const std::pair<SlotKey, Register> &P) {
+                             int64_t PW =
+                                 MC6809InstrInfo::getValueRegBytes(P.second);
+                             return P.first.Base == K.Base &&
+                                    P.first.Offset < K.Offset + W &&
+                                    K.Offset < P.first.Offset + PW;
+                           }),
+            Slots.end());
         invalidateReg(Cls->DataReg);
         recordSlot(K, Cls->DataReg);
       } else {

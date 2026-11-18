@@ -1,0 +1,50 @@
+# RUN: llc -mtriple=mc6809 -O2 -run-pass=mc6809-final-lowering -verify-machineinstrs %s -o - | FileCheck %s
+#
+# FinalLowering's store/reload elision must forget a register's slot when
+# another register's store overwrites any of its bytes: after `std 4,s ;
+# stx 4,s`, 4,s holds X, and `ldd 4,s` is not redundant.
+
+# CHECK-LABEL: name: x_over_d
+# CHECK:       STXi_o5 4, $ss
+# CHECK-NEXT:  LDDi_o5 4, $ss
+---
+name: x_over_d
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ad, $ix
+    STDi_o8 4, $ss, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ad
+    STXi_o8 4, $ss, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ix
+    LDDi_o8 4, $ss, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit-def $aq
+    RTSr implicit $ad
+...
+# A byte store into the middle of D's slot: the reload stays too.
+# CHECK-LABEL: name: b_into_d
+# CHECK:       STBi_o5 5, $ss
+# CHECK-NEXT:  LDDi_o5 4, $ss
+---
+name: b_into_d
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ad
+    STDi_o8 4, $ss, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ad
+    STBi_o8 5, $ss, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ab
+    LDDi_o8 4, $ss, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit-def $aq
+    RTSr implicit $ad
+...
+# Nothing overwrote it: the reload goes.
+# CHECK-LABEL: name: untouched
+# CHECK:       STDi_o5 4, $ss
+# CHECK-NOT:   LDDi
+---
+name: untouched
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ad, $ix
+    STDi_o8 4, $ss, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ad
+    STXi_o8 6, $ss, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ix
+    LDDi_o8 4, $ss, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit-def $aq
+    RTSr implicit $ad
+...
