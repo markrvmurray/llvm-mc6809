@@ -38,8 +38,6 @@ using namespace llvm;
 
 STATISTIC(NumOffsetsRelaxed,    "Number of indexed offsets relaxed to a "
                                 "narrower form (_o16->_o8->_o5/_o0)");
-STATISTIC(NumDupStoresElided,   "Number of dead duplicate stores to the same "
-                                "slot elided");
 STATISTIC(NumStoreReloadsElided,"Number of redundant reloads of unmodified "
                                 "spill slots elided");
 STATISTIC(NumBranchOverBranchFolded, "Number of branch-over-branch pairs "
@@ -57,10 +55,6 @@ namespace {
 static cl::opt<int> RelaxOffsetsMinO(
     "mc6809-fl-offset-relax-min-O", cl::init(2), cl::Hidden,
     cl::desc("Minimum -O level (0..3) to enable indexed-offset relaxation "
-             "in MC6809FinalLowering. 99 disables. Default: 2."));
-static cl::opt<int> DupStoreMinO(
-    "mc6809-fl-dup-store-min-O", cl::init(2), cl::Hidden,
-    cl::desc("Minimum -O level (0..3) to enable duplicate-store elimination "
              "in MC6809FinalLowering. 99 disables. Default: 2."));
 static cl::opt<int> StoreReloadMinO(
     "mc6809-fl-store-reload-min-O", cl::init(2), cl::Hidden,
@@ -90,7 +84,6 @@ public:
 
 private:
   bool relaxOffsets(MachineFunction &MF);
-  bool elideDupStores(MachineFunction &MF);
   bool elideStoreReload(MachineFunction &MF);
   bool foldBranchOverBranch(MachineFunction &MF);
 
@@ -115,14 +108,12 @@ bool MC6809FinalLowering::runOnMachineFunction(MachineFunction &MF) {
   if (enabled(MF, BranchOverBranchMinO))
     Changed |= foldBranchOverBranch(MF);
 
-  // Classes 1, 4 and 5 are size/speed optimisations and respect optnone.
+  // Classes 1 and 5 are size/speed optimisations and respect optnone.
   if (skipFunction(MF.getFunction()))
     return Changed;
 
   if (enabled(MF, RelaxOffsetsMinO))
     Changed |= relaxOffsets(MF);
-  if (enabled(MF, DupStoreMinO))
-    Changed |= elideDupStores(MF);
   if (enabled(MF, StoreReloadMinO))
     Changed |= elideStoreReload(MF);
   return Changed;
@@ -179,154 +170,6 @@ bool MC6809FinalLowering::relaxOffsets(MachineFunction &MF) {
       }
       ++NumOffsetsRelaxed;
       Changed = true;
-    }
-  }
-  return Changed;
-}
-
-bool MC6809FinalLowering::elideDupStores(MachineFunction &MF) {
-  // Eliminate dead duplicate stores to the same spill slot:
-  //
-  //   stb $21,u
-  //   andb #$3        ; modifies B but doesn't touch memory
-  //   stb $21,u       ; overwrites the first store, no intervening read
-  //
-  // Per-MBB linear scan: track the most recent store to each
-  // (opcode, offset, base) triple. When another store to the same
-  // triple is reached without an intervening MI that could read the
-  // slot, the prior store is dead — erase it.
-  //
-  // Conservative invalidations (clear the entire tracking map):
-  //   - any MI with mayLoad (loads might read the slot we wrote)
-  //   - any MI with mayStore that we don't recognize as a tracked
-  //     store opcode (it might write to overlapping memory)
-  //   - any call (callees may read the caller's stack)
-  //   - any inline-asm or barrier
-  //
-  // Intra-MBB only — cross-block tracking would require a forward
-  // dataflow that's well outside the scope of a final-lowering pass.
-
-  auto isTrackedStore = [](const MachineInstr &MI) {
-    // Indexed-immediate store opcodes (post-expansion forms only —
-    // _o0/_o5/_o8/_o16 across STA/STB/STD/STE/STF/STW/STQ/
-    // STX/STY/STU/STS).
-    static const unsigned Ops[] = {
-      MC6809::STAi_o0, MC6809::STAi_o5, MC6809::STAi_o8, MC6809::STAi_o16,
-      MC6809::STBi_o0, MC6809::STBi_o5, MC6809::STBi_o8, MC6809::STBi_o16,
-      MC6809::STDi_o0, MC6809::STDi_o5, MC6809::STDi_o8, MC6809::STDi_o16,
-      MC6809::STEi_o0, MC6809::STEi_o5, MC6809::STEi_o8, MC6809::STEi_o16,
-      MC6809::STFi_o0, MC6809::STFi_o5, MC6809::STFi_o8, MC6809::STFi_o16,
-      MC6809::STWi_o0, MC6809::STWi_o5, MC6809::STWi_o8, MC6809::STWi_o16,
-      MC6809::STQi_o0, MC6809::STQi_o5, MC6809::STQi_o8, MC6809::STQi_o16,
-      MC6809::STXi_o0, MC6809::STXi_o5, MC6809::STXi_o8, MC6809::STXi_o16,
-      MC6809::STYi_o0, MC6809::STYi_o5, MC6809::STYi_o8, MC6809::STYi_o16,
-      MC6809::STUi_o0, MC6809::STUi_o5, MC6809::STUi_o8, MC6809::STUi_o16,
-      MC6809::STSi_o0, MC6809::STSi_o5, MC6809::STSi_o8, MC6809::STSi_o16,
-    };
-    unsigned Opc = MI.getOpcode();
-    for (unsigned O : Ops)
-      if (O == Opc)
-        return true;
-    return false;
-  };
-
-  // Slot key = (opcode, offset_imm, base_reg). A store with _o0 form
-  // has offset=0 implicitly (no explicit operand), so we treat its
-  // offset key as 0.
-  struct SlotKey {
-    unsigned Opcode;
-    int64_t Offset;
-    Register Base;
-    bool operator==(const SlotKey &O) const {
-      return Opcode == O.Opcode && Offset == O.Offset && Base == O.Base;
-    }
-  };
-
-  // A store's (opcode, offset, base) key only identifies a fixed memory
-  // location while the base register holds a fixed value. The hardware
-  // stack pointer $ss is adjusted by LEAS during outgoing-argument setup,
-  // so two `STQi_o0 $ss` stores separated by a `LEAS N,$ss` address
-  // DIFFERENT memory (e.g. a scratch slot vs. a live call-argument slot).
-  // Any def of a tracked store's base register must therefore drop that
-  // entry, or we would elide a still-live store as a false duplicate.
-  // (The sibling elideStoreReload guards the same hazard.)
-  const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
-
-  bool Changed = false;
-  for (MachineBasicBlock &MBB : MF) {
-    SmallVector<std::pair<SlotKey, MachineInstr *>, 8> RecentStores;
-
-    auto invalidateAll = [&]() { RecentStores.clear(); };
-    auto invalidateReg = [&](Register R) {
-      RecentStores.erase(
-          std::remove_if(RecentStores.begin(), RecentStores.end(),
-                         [&, R](const std::pair<SlotKey, MachineInstr *> &P) {
-                           return TRI->regsOverlap(P.first.Base, R);
-                         }),
-          RecentStores.end());
-    };
-    auto findStore = [&](const SlotKey &K) -> MachineInstr ** {
-      for (auto &P : RecentStores)
-        if (P.first == K)
-          return &P.second;
-      return nullptr;
-    };
-    auto recordStore = [&](const SlotKey &K, MachineInstr *MI) {
-      if (auto **Slot = findStore(K)) {
-        *Slot = MI;
-        return;
-      }
-      RecentStores.push_back({K, MI});
-    };
-
-    for (MachineInstr &MI : llvm::make_early_inc_range(MBB)) {
-      // First: cheap structural classifications.
-      if (MI.isCall() || MI.isInlineAsm() || MI.isReturn() ||
-          MI.isBranch() || MI.isTerminator()) {
-        invalidateAll();
-        continue;
-      }
-
-      // A volatile store is observable: never drop it as a duplicate, and
-      // never let it stand as the store that makes an earlier one dead.
-      bool Tracked = isTrackedStore(MI) &&
-                     !MC6809InstrInfo::hasOrderedMemOperand(MI);
-
-      if (!Tracked) {
-        // Untracked memory access invalidates everything.
-        if (MI.mayLoad() || MI.mayStore()) {
-          invalidateAll();
-          continue;
-        }
-        // A def of any tracked store's base register (e.g. LEAS adjusting
-        // $ss) changes which memory that store's key refers to — drop the
-        // affected entries so a later same-key store can't elide it.
-        for (const MachineOperand &MO : MI.operands())
-          if (MO.isReg() && MO.isDef() && MO.getReg().isPhysical())
-            invalidateReg(MO.getReg());
-        continue;
-      }
-
-      // Build the slot key.
-      SlotKey K{MI.getOpcode(), 0, Register()};
-      if (!MC6809InstrInfo::getIdxBaseOffset(MI, K.Base, K.Offset)) {
-        // Unexpected operand shape — be safe.
-        invalidateAll();
-        continue;
-      }
-
-      // If we already have a recorded store to this slot, the prior
-      // one is dead.
-      if (auto **Prior = findStore(K)) {
-        if (*Prior) {
-          (*Prior)->eraseFromParent();
-          ++NumDupStoresElided;
-          Changed = true;
-        }
-        *Prior = &MI;
-      } else {
-        recordStore(K, &MI);
-      }
     }
   }
   return Changed;
