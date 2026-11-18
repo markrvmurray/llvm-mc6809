@@ -1123,7 +1123,6 @@ static void emitAQOnHardStackScratch(MachineIRBuilder &Builder,
                                       llvm::function_ref<void()> Body) {
   Builder.buildInstr(MC6809::LEASi_o5).addImm(-4).addReg(MC6809::SS);
   Builder.buildInstr(MC6809::STQi_o0)
-      .addUse(MC6809::AQ, RegState::Implicit)
       .addReg(MC6809::SS);
   Body();
   Builder.buildInstr(MC6809::LEASi_o5).addImm(4).addReg(MC6809::SS);
@@ -1248,7 +1247,6 @@ static void dematerializeReg(MachineIRBuilder &Builder, Register PhysReg,
                                   MC6809::STEd, MC6809::STFd);
     Builder.buildInstr(Opc)
         .addReg(OrigReg, RegState::Undef)
-        .addUse(PhysReg, RegState::Implicit)
         .addReg(OrigReg, RegState::ImplicitDefine);
   } else if (MC6809::Imag16RegClass.contains(OrigReg)) {
     // Declare the read of the accumulator being stored (the hardware
@@ -1256,7 +1254,6 @@ static void dematerializeReg(MachineIRBuilder &Builder, Register PhysReg,
     // liveness and downstream kill flags go stale.
     Builder.buildInstr(MC6809::STDd)
         .addReg(OrigReg, RegState::Undef)
-        .addUse(MC6809::AD, RegState::Implicit)
         .addReg(OrigReg, RegState::ImplicitDefine);
   }
 }
@@ -1773,7 +1770,7 @@ MC6809InstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
         case MC6809::SS: Opc = MC6809::STSd; break;
         default: llvm_unreachable("unreachable");
         }
-        Builder.buildInstr(Opc).addReg(DestReg, RegState::Undef).addUse(SrcReg, RegState::Implicit).addReg(DestReg, RegState::ImplicitDefine);
+        Builder.buildInstr(Opc).addReg(DestReg, RegState::Undef).addReg(DestReg, RegState::ImplicitDefine);
       } else if ((SrcReg == MC6809::AA || SrcReg == MC6809::AB) &&
                  (MC6809::Imag8RegClass.contains(DestReg) ||
                   isImag16ByteSubReg(DestReg))) {
@@ -1784,7 +1781,6 @@ MC6809InstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
         Builder.buildInstr(byteAccOpcode(SrcReg, MC6809::STAd, MC6809::STBd,
                                          MC6809::STEd, MC6809::STFd))
             .addReg(DestReg, RegState::Undef)
-            .addUse(SrcReg, RegState::Implicit)
             .addReg(DestReg, RegState::ImplicitDefine);
       } else {
         Register RealAcc = getPhysRegFor(DestReg);
@@ -1870,7 +1866,6 @@ MC6809InstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
           Builder
               .buildInstr(transitStoreDP(Transit))
               .addReg(DestReg, RegState::Undef)
-              .addUse(Transit, RegState::Implicit)
               .addReg(DestReg, RegState::ImplicitDefine);
           return;
         }
@@ -2011,7 +2006,7 @@ MC6809InstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
       Builder.buildInstr(MC6809::STDd).addReg(DestReg, RegState::Undef).addReg(DestReg, RegState::ImplicitDefine);
       return;
     }
-    Builder.buildInstr(Opc).addReg(DestReg, RegState::Undef).addUse(SrcReg, RegState::Implicit).addReg(DestReg, RegState::ImplicitDefine);
+    Builder.buildInstr(Opc).addReg(DestReg, RegState::Undef).addReg(DestReg, RegState::ImplicitDefine);
   } else if (AreClasses(MC6809::INDEX16RegClass, MC6809::Imag16RegClass)) {
     // Imag16 → INDEX16: load directly into the destination.
     unsigned Opc;
@@ -3410,7 +3405,6 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
     // Q (and leaves C), giving a correct CC.Z = (X == K) before extraction.
     Builder.buildInstr(MC6809::LEASi_o5).addImm(-4).addReg(MC6809::SS);
     Builder.buildInstr(MC6809::STQi_o0)
-        .addUse(MC6809::AQ, RegState::Implicit)
         .addReg(MC6809::SS);
     Builder.buildInstr(MC6809::LEASi_o5).addImm(4).addReg(MC6809::SS);
 
@@ -3763,7 +3757,6 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
           .addImm(SOff + Word + SAdj)
           .addReg(SBase);
       Builder.buildInstr(getStoreIdxOpcode(MC6809::AD, DOff + Word + DAdj))
-          .addUse(MC6809::AD, RegState::Implicit)
           .addImm(DOff + Word + DAdj)
           .addReg(DBase);
     }
@@ -4667,7 +4660,6 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
     if (NeedsZFix) {
       Builder.buildInstr(MC6809::LEASi_o5).addImm(-4).addReg(MC6809::SS);
       Builder.buildInstr(MC6809::STQi_o0)
-          .addUse(MC6809::AQ, RegState::Implicit)
           .addReg(MC6809::SS);
       Builder.buildInstr(MC6809::LEASi_o5).addImm(4).addReg(MC6809::SS);
     }
@@ -4738,7 +4730,6 @@ bool MC6809InstrInfo::expandPostRAPseudoImpl(MachineInstr &MI) const {
         CC == MC6809CC::HI) {
       Builder.buildInstr(MC6809::LEASi_o5).addImm(-4).addReg(MC6809::SS);
       Builder.buildInstr(MC6809::STQi_o0)
-          .addUse(MC6809::AQ, RegState::Implicit)
           .addReg(MC6809::SS);
       Builder.buildInstr(MC6809::LEASi_o5).addImm(4).addReg(MC6809::SS);
     }
@@ -6794,7 +6785,6 @@ void MC6809InstrInfo::expandLoadImm(MachineIRBuilder &Builder, MachineInstr &MI)
                                   : ValOp.getCImm()->getSExtValue());
       Builder.buildInstr(transitStoreDP(Transit))
           .addReg(DestRegOp.getReg(), RegState::Undef)
-          .addUse(Transit, RegState::Implicit)
           .addReg(DestRegOp.getReg(), RegState::ImplicitDefine);
       MI.removeFromParent();
       return;
@@ -6935,8 +6925,7 @@ void MC6809InstrInfo::expandStoreSym(MachineIRBuilder &Builder, MachineInstr &MI
     StagePushed = pushStagingReg(B, Stage);
     materializeReg(B, Src, MF);
     BuildMI(MBB, MI, MI.getDebugLoc(), get(getSymStoreOpcode(Stage, IsDP, IsPIC)))
-        .add(SymOp)
-        .addUse(Stage, RegState::Implicit);
+        .add(SymOp);
     pullStagingReg(B, Stage, StagePushed);
     MI.eraseFromParent();
     return;
@@ -6945,8 +6934,7 @@ void MC6809InstrInfo::expandStoreSym(MachineIRBuilder &Builder, MachineInstr &MI
   unsigned Opc = getSymStoreOpcode(Src, IsDP, IsPIC);
   assert(Opc && "no global-symbol store opcode for source register");
   BuildMI(MBB, MI, MI.getDebugLoc(), get(Opc))
-      .add(SymOp)
-      .addUse(Src, RegState::Implicit);
+      .add(SymOp);
   MI.eraseFromParent();
 }
 
@@ -7018,7 +7006,6 @@ void MC6809InstrInfo::expandStorePostMod(MachineIRBuilder &Builder, MachineInstr
   // add both explicitly: implicit use of the value, implicit def of the pointer.
   Builder.buildInstr(Opc)
       .addUse(PtrReg)
-      .addUse(ValReg, RegState::Implicit)
       .addDef(PtrReg, RegState::Implicit);
   if (StagedVal)
     pullStagingReg(Builder, ValReg, StagePushed);
@@ -7155,7 +7142,6 @@ void MC6809InstrInfo::expandLoadIdx(MachineIRBuilder &Builder, MachineInstr &MI)
         PostBuilder
             .buildInstr(transitStoreDP(Transit))
             .addReg(DestRegOp.getReg(), RegState::Undef)
-            .addUse(Transit, RegState::Implicit)
             .addReg(DestRegOp.getReg(), RegState::ImplicitDefine);
         return;
       }

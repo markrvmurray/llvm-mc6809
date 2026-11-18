@@ -259,22 +259,23 @@ multiclass Load16Concrete<string Mnem, Opcode ImmOpc, Opcode DirOpc,
 
 // Load concrete defm lines are in MC6809InstrFamilies.td
 
-// Store: direct/indexed/extended (Page 1). No immediate form.
+// Store: direct/indexed/extended (Page 1). No immediate form. The stored
+// register is an implicit use, so every store reads it whoever builds it.
 multiclass Store8Concrete<string Mnem, Opcode DirOpc, Opcode IdxOpc,
                           Opcode ExtOpc, Register Value> {
   let mayStore = true, IdxValueEnc = Value.HWEncoding, IdxAccess = 2 in {
-    def d  : MC6809Direct_P1<(outs), Mnem, DirOpc, [NZ,N,Z,V], []>;
-    defm i : MC6809Indexed_P1<Mnem, IdxOpc, (outs), [NZ,N,Z,V], []>;
-    def e  : MC6809Extended_P1<(outs), Mnem, ExtOpc, [NZ,N,Z,V], []>;
+    def d  : MC6809Direct_P1<(outs), Mnem, DirOpc, [NZ,N,Z,V], [Value]>;
+    defm i : MC6809Indexed_P1<Mnem, IdxOpc, (outs), [NZ,N,Z,V], [Value]>;
+    def e  : MC6809Extended_P1<(outs), Mnem, ExtOpc, [NZ,N,Z,V], [Value]>;
   }
 }
 
 multiclass Store16Concrete<string Mnem, Opcode DirOpc, Opcode IdxOpc,
                            Opcode ExtOpc, Register Value> {
   let mayStore = true, IdxValueEnc = Value.HWEncoding, IdxAccess = 2 in {
-    def d  : MC6809Direct_P1<(outs), Mnem, DirOpc, [NZ,N,Z,V], []>;
-    defm i : MC6809Indexed_P1<Mnem, IdxOpc, (outs), [NZ,N,Z,V], []>;
-    def e  : MC6809Extended_P1<(outs), Mnem, ExtOpc, [NZ,N,Z,V], []>;
+    def d  : MC6809Direct_P1<(outs), Mnem, DirOpc, [NZ,N,Z,V], [Value]>;
+    defm i : MC6809Indexed_P1<Mnem, IdxOpc, (outs), [NZ,N,Z,V], [Value]>;
+    def e  : MC6809Extended_P1<(outs), Mnem, ExtOpc, [NZ,N,Z,V], [Value]>;
   }
 }
 
@@ -831,9 +832,9 @@ multiclass Load16Concrete_P2<string Mnem, Opcode ImmOpc, Opcode DirOpc,
 multiclass Store8Concrete_P3<string Mnem, Opcode DirOpc, Opcode IdxOpc,
                              Opcode ExtOpc, Register Value> {
   let Predicates = [IsHD6309], mayStore = true, IdxValueEnc = Value.HWEncoding, IdxAccess = 2 in {
-    def d  : MC6809Direct_P3<(outs), Mnem, DirOpc, [NZ,N,Z,V], []>;
-    defm i : MC6809Indexed_P3<Mnem, IdxOpc, (outs), [NZ,N,Z,V], []>;
-    def e  : MC6809Extended_P3<(outs), Mnem, ExtOpc, [NZ,N,Z,V], []>;
+    def d  : MC6809Direct_P3<(outs), Mnem, DirOpc, [NZ,N,Z,V], [Value]>;
+    defm i : MC6809Indexed_P3<Mnem, IdxOpc, (outs), [NZ,N,Z,V], [Value]>;
+    def e  : MC6809Extended_P3<(outs), Mnem, ExtOpc, [NZ,N,Z,V], [Value]>;
   }
 }
 
@@ -841,9 +842,9 @@ multiclass Store8Concrete_P3<string Mnem, Opcode DirOpc, Opcode IdxOpc,
 multiclass Store16Concrete_P2<string Mnem, Opcode DirOpc, Opcode IdxOpc,
                               Opcode ExtOpc, Register Value> {
   let mayStore = true, IdxValueEnc = Value.HWEncoding, IdxAccess = 2 in {
-    def d  : MC6809Direct_P2<(outs), Mnem, DirOpc, [NZ,N,Z,V], []>;
-    defm i : MC6809Indexed_P2<Mnem, IdxOpc, (outs), [NZ,N,Z,V], []>;
-    def e  : MC6809Extended_P2<(outs), Mnem, ExtOpc, [NZ,N,Z,V], []>;
+    def d  : MC6809Direct_P2<(outs), Mnem, DirOpc, [NZ,N,Z,V], [Value]>;
+    defm i : MC6809Indexed_P2<Mnem, IdxOpc, (outs), [NZ,N,Z,V], [Value]>;
+    def e  : MC6809Extended_P2<(outs), Mnem, ExtOpc, [NZ,N,Z,V], [Value]>;
   }
 }
 

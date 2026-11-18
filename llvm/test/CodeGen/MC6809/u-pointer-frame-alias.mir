@@ -65,11 +65,11 @@ name: final_u_store_retains_reload
 tracksRegLiveness: true
 body: |
   bb.0:
-    liveins: $su, $iy, $ix
+    liveins: $su, $iy, $ix, $ad
     STYi_o8 16, $ss, implicit $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
     STXi_o0 $su, implicit $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
     LDYi_o8 16, $ss, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
-    STDi_o5 4, $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    STDi_o5 4, $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ad
     RTSr
 ...
 ---
@@ -84,10 +84,10 @@ name: final_fp_u_store_elides_reload
 tracksRegLiveness: true
 body: |
   bb.0:
-    liveins: $su, $iy, $ix
+    liveins: $su, $iy, $ix, $ad
     STYi_o8 16, $su, implicit $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
     STXi_o0 $su, implicit $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
     LDYi_o8 16, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
-    STDi_o5 4, $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    STDi_o5 4, $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ad
     RTSr
 ...

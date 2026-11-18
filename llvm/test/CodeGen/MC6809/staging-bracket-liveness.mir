@@ -8,7 +8,8 @@
 # CHECK-LABEL: name: dead_after
 # CHECK-NOT:  PSHSs
 # CHECK:      LDDd $rs2
-# CHECK-NEXT: STDd undef $rs0
+# The store reads the D it stores (its descriptor says so).
+# CHECK-NEXT: STDd undef $rs0{{.*}}implicit $ad
 # CHECK-NOT:  PULSs
 ---
 name: dead_after

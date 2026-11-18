@@ -403,9 +403,9 @@ let Predicates = [IsHD6309] in {
 // STQ (6309, 32-bit): dir/idx/ext on Page 2.
 let Predicates = [IsHD6309], mayStore = true,
     IdxValueEnc = AQ.HWEncoding, IdxAccess = 2 in {
-  def STQd  : MC6809Direct_P2<(outs), "stq", Opcode<0xDD,2>, [NZ,N,Z,V], []>;
-  defm STQi : MC6809Indexed_P2<"stq", Opcode<0xED,2>, (outs), [NZ,N,Z,V], []>;
-  def STQe  : MC6809Extended_P2<(outs), "stq", Opcode<0xFD,2>, [NZ,N,Z,V], []>;
+  def STQd  : MC6809Direct_P2<(outs), "stq", Opcode<0xDD,2>, [NZ,N,Z,V], [AQ]>;
+  defm STQi : MC6809Indexed_P2<"stq", Opcode<0xED,2>, (outs), [NZ,N,Z,V], [AQ]>;
+  def STQe  : MC6809Extended_P2<(outs), "stq", Opcode<0xFD,2>, [NZ,N,Z,V], [AQ]>;
 }
 
 // --- Patterns (connect LLVM IR to pseudo-instructions) ---
