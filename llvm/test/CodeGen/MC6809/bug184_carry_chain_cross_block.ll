@@ -140,10 +140,8 @@ define void @atol_like(ptr %out, ptr %s) {
 ; CHECK-NEXT:    cmpb #45
 ; CHECK-NEXT:    bne .LBB0_7
 ; CHECK-NEXT:  ; %bb.6: ; %exit
-; CHECK-NEXT:    pshs d
-; CHECK-NEXT:    ldb 20,s
+; CHECK-NEXT:    ldb 18,s
 ; CHECK-NEXT:    std <__rs1
-; CHECK-NEXT:    puls d
 ; CHECK-NEXT:    bra .LBB0_8
 ; CHECK-NEXT:  .LBB0_7: ; %exit
 ; CHECK-NEXT:    bra .LBB0_8

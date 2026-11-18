@@ -1,0 +1,35 @@
+# RUN: llc -mtriple=mc6809 -mcpu=hd6309 -run-pass=mc6809-expand-pseudos -verify-machineinstrs -o - %s | FileCheck %s
+
+# Whether a staging register needs saving is asked after the pseudo being
+# expanded: its own operand reads happen inside the window, before the
+# staging load clobbers the register. The low-word extract declares a read
+# of all of Q but only reads W; with D dead after it, D is not saved.
+# CHECK-LABEL: name: extract_lo_d_dead_after
+# CHECK-NOT:   PSHSs
+# CHECK:       STDd undef $rs0
+# CHECK-NOT:   PULSs
+---
+name: extract_lo_d_dead_after
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $aq
+    renamable $rs0 = Extract16_i32_lo killed renamable $aq, implicit-def dead $nz, implicit-def dead $v
+    LDDi16 5, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit-def $aq
+    RTSr implicit $ad, implicit $rs0
+...
+
+# D read after it: saved.
+# CHECK-LABEL: name: extract_lo_d_live_after
+# CHECK:       PSHSs $ad
+# CHECK:       STDd undef $rs0
+# CHECK:       $ad = PULSs
+---
+name: extract_lo_d_live_after
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $aq
+    renamable $rs0 = Extract16_i32_lo renamable $aq, implicit-def dead $nz, implicit-def dead $v
+    RTSr implicit $ad, implicit $rs0
+...

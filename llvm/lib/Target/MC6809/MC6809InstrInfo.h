@@ -159,8 +159,18 @@ public:
   void beginExpansion(MachineInstr &MI) const {
     ExpansionMBB = MI.getParent();
     ExpansionPrev = MI.getPrevNode();
+    ExpansionMI = &MI;
   }
-  void endExpansion() const { ExpansionMBB = nullptr; }
+  void endExpansion() const {
+    ExpansionMBB = nullptr;
+    ExpansionMI = nullptr;
+  }
+  /// Where to ask whether a register saved at P is read after the window
+  /// it is saved across: just after the pseudo being expanded, when that
+  /// still lies at or after P -- the pseudo's own operand reads happen
+  /// inside the window, before anything clobbers the register -- else P.
+  MachineBasicBlock::iterator stagingQueryPoint(
+      MachineBasicBlock &MBB, MachineBasicBlock::iterator P) const;
   /// R (or a register overlapping it) is written by the expansion in
   /// progress before P.
   bool writtenInExpansion(MachineBasicBlock::iterator P, Register R) const;
@@ -312,6 +322,9 @@ protected:
 private:
   mutable MachineBasicBlock *ExpansionMBB = nullptr;
   mutable MachineInstr *ExpansionPrev = nullptr;
+  // The pseudo being expanded; cleared before anything is emitted after it
+  // is erased (its memory may be recycled for a new instruction).
+  mutable MachineInstr *ExpansionMI = nullptr;
   // const MC6809RegisterBankInfo &RBI;
 
   // void copyPhysRegImpl(MachineBasicBlock &MBB, MachineIRBuilder &Builder, Register DestReg, Register SrcReg) const;

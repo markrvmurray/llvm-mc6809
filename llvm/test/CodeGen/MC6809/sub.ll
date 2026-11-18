@@ -317,13 +317,11 @@ define dso_local i16 @sub_s_i16(i16 noundef %a, i16 noundef %b, i16 noundef %c, 
 ; O1-NEXT:    stx <__rs0
 ; O1-NEXT:    addd 8,s
 ; O1-NEXT:    pshs d
-; O1-NEXT:    pshs d
 ; O1-NEXT:    ldd <__rs0
 ; O1-NEXT:    subb 1,s
 ; O1-NEXT:    sbca ,s
 ; O1-NEXT:    leas 2,s
 ; O1-NEXT:    std <__rs0
-; O1-NEXT:    puls d
 ; O1-NEXT:    ldx <__rs0
 ; O1-NEXT:    rts
 ;
@@ -335,13 +333,11 @@ define dso_local i16 @sub_s_i16(i16 noundef %a, i16 noundef %b, i16 noundef %c, 
 ; O2-NEXT:    stx <__rs0
 ; O2-NEXT:    addd 8,s
 ; O2-NEXT:    pshs d
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    subb 1,s
 ; O2-NEXT:    sbca ,s
 ; O2-NEXT:    leas 2,s
 ; O2-NEXT:    std <__rs0
-; O2-NEXT:    puls d
 ; O2-NEXT:    ldx <__rs0
 ; O2-NEXT:    rts
 ;
@@ -353,13 +349,11 @@ define dso_local i16 @sub_s_i16(i16 noundef %a, i16 noundef %b, i16 noundef %c, 
 ; O3-NEXT:    stx <__rs0
 ; O3-NEXT:    addd 8,s
 ; O3-NEXT:    pshs d
-; O3-NEXT:    pshs d
 ; O3-NEXT:    ldd <__rs0
 ; O3-NEXT:    subb 1,s
 ; O3-NEXT:    sbca ,s
 ; O3-NEXT:    leas 2,s
 ; O3-NEXT:    std <__rs0
-; O3-NEXT:    puls d
 ; O3-NEXT:    ldx <__rs0
 ; O3-NEXT:    rts
 entry:
@@ -571,13 +565,11 @@ define dso_local i16 @sub_u_i16(i16 noundef %a, i16 noundef %b, i16 noundef %c, 
 ; O1-NEXT:    stx <__rs0
 ; O1-NEXT:    addd 8,s
 ; O1-NEXT:    pshs d
-; O1-NEXT:    pshs d
 ; O1-NEXT:    ldd <__rs0
 ; O1-NEXT:    subb 1,s
 ; O1-NEXT:    sbca ,s
 ; O1-NEXT:    leas 2,s
 ; O1-NEXT:    std <__rs0
-; O1-NEXT:    puls d
 ; O1-NEXT:    ldx <__rs0
 ; O1-NEXT:    rts
 ;
@@ -589,13 +581,11 @@ define dso_local i16 @sub_u_i16(i16 noundef %a, i16 noundef %b, i16 noundef %c, 
 ; O2-NEXT:    stx <__rs0
 ; O2-NEXT:    addd 8,s
 ; O2-NEXT:    pshs d
-; O2-NEXT:    pshs d
 ; O2-NEXT:    ldd <__rs0
 ; O2-NEXT:    subb 1,s
 ; O2-NEXT:    sbca ,s
 ; O2-NEXT:    leas 2,s
 ; O2-NEXT:    std <__rs0
-; O2-NEXT:    puls d
 ; O2-NEXT:    ldx <__rs0
 ; O2-NEXT:    rts
 ;
@@ -607,13 +597,11 @@ define dso_local i16 @sub_u_i16(i16 noundef %a, i16 noundef %b, i16 noundef %c, 
 ; O3-NEXT:    stx <__rs0
 ; O3-NEXT:    addd 8,s
 ; O3-NEXT:    pshs d
-; O3-NEXT:    pshs d
 ; O3-NEXT:    ldd <__rs0
 ; O3-NEXT:    subb 1,s
 ; O3-NEXT:    sbca ,s
 ; O3-NEXT:    leas 2,s
 ; O3-NEXT:    std <__rs0
-; O3-NEXT:    puls d
 ; O3-NEXT:    ldx <__rs0
 ; O3-NEXT:    rts
 entry:
@@ -3000,10 +2988,8 @@ define dso_local i64 @sub_s_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O0-NEXT:    ldb 8,s
 ; O0-NEXT:    std <__rs1
 ; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldb 7,s
+; O0-NEXT:    ldb 5,s
 ; O0-NEXT:    std <__rs2
-; O0-NEXT:    puls d
 ; O0-NEXT:    ldd <__rs3
 ; O0-NEXT:    std 6,x
 ; O0-NEXT:    ldd <__rs0
@@ -3165,10 +3151,8 @@ define dso_local i64 @sub_s_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O1-NEXT:    ldb 8,s
 ; O1-NEXT:    std <__rs1
 ; O1-NEXT:    puls d
-; O1-NEXT:    pshs d
-; O1-NEXT:    ldb 7,s
+; O1-NEXT:    ldb 5,s
 ; O1-NEXT:    std <__rs2
-; O1-NEXT:    puls d
 ; O1-NEXT:    ldd <__rs3
 ; O1-NEXT:    std 6,x
 ; O1-NEXT:    ldd <__rs0
@@ -3326,10 +3310,8 @@ define dso_local i64 @sub_s_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O2-NEXT:    ldb 8,s
 ; O2-NEXT:    std <__rs1
 ; O2-NEXT:    puls d
-; O2-NEXT:    pshs d
-; O2-NEXT:    ldb 7,s
+; O2-NEXT:    ldb 5,s
 ; O2-NEXT:    std <__rs2
-; O2-NEXT:    puls d
 ; O2-NEXT:    ldd <__rs3
 ; O2-NEXT:    std 6,x
 ; O2-NEXT:    ldd <__rs0
@@ -3487,10 +3469,8 @@ define dso_local i64 @sub_s_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O3-NEXT:    ldb 8,s
 ; O3-NEXT:    std <__rs1
 ; O3-NEXT:    puls d
-; O3-NEXT:    pshs d
-; O3-NEXT:    ldb 7,s
+; O3-NEXT:    ldb 5,s
 ; O3-NEXT:    std <__rs2
-; O3-NEXT:    puls d
 ; O3-NEXT:    ldd <__rs3
 ; O3-NEXT:    std 6,x
 ; O3-NEXT:    ldd <__rs0
@@ -4238,10 +4218,8 @@ define dso_local i64 @sub_u_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O0-NEXT:    ldb 8,s
 ; O0-NEXT:    std <__rs1
 ; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldb 7,s
+; O0-NEXT:    ldb 5,s
 ; O0-NEXT:    std <__rs2
-; O0-NEXT:    puls d
 ; O0-NEXT:    ldd <__rs3
 ; O0-NEXT:    std 6,x
 ; O0-NEXT:    ldd <__rs0
@@ -4403,10 +4381,8 @@ define dso_local i64 @sub_u_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O1-NEXT:    ldb 8,s
 ; O1-NEXT:    std <__rs1
 ; O1-NEXT:    puls d
-; O1-NEXT:    pshs d
-; O1-NEXT:    ldb 7,s
+; O1-NEXT:    ldb 5,s
 ; O1-NEXT:    std <__rs2
-; O1-NEXT:    puls d
 ; O1-NEXT:    ldd <__rs3
 ; O1-NEXT:    std 6,x
 ; O1-NEXT:    ldd <__rs0
@@ -4564,10 +4540,8 @@ define dso_local i64 @sub_u_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O2-NEXT:    ldb 8,s
 ; O2-NEXT:    std <__rs1
 ; O2-NEXT:    puls d
-; O2-NEXT:    pshs d
-; O2-NEXT:    ldb 7,s
+; O2-NEXT:    ldb 5,s
 ; O2-NEXT:    std <__rs2
-; O2-NEXT:    puls d
 ; O2-NEXT:    ldd <__rs3
 ; O2-NEXT:    std 6,x
 ; O2-NEXT:    ldd <__rs0
@@ -4725,10 +4699,8 @@ define dso_local i64 @sub_u_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O3-NEXT:    ldb 8,s
 ; O3-NEXT:    std <__rs1
 ; O3-NEXT:    puls d
-; O3-NEXT:    pshs d
-; O3-NEXT:    ldb 7,s
+; O3-NEXT:    ldb 5,s
 ; O3-NEXT:    std <__rs2
-; O3-NEXT:    puls d
 ; O3-NEXT:    ldd <__rs3
 ; O3-NEXT:    std 6,x
 ; O3-NEXT:    ldd <__rs0

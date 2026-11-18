@@ -1350,7 +1350,14 @@ static unsigned pushStagingReg(MachineIRBuilder &Builder, Register RealReg) {
   }
   MachineBasicBlock &MBB = Builder.getMBB();
   const auto &TII = static_cast<const MC6809InstrInfo &>(Builder.getTII());
-  MachineBasicBlock::iterator Q = Builder.getInsertPt();
+  MachineBasicBlock::iterator Q =
+      TII.stagingQueryPoint(MBB, Builder.getInsertPt());
+  // A pseudo that defines RealReg itself: liveness after it is of its own
+  // result, so ask at the push.
+  if (Q != Builder.getInsertPt() &&
+      std::prev(Q)->modifiesRegister(
+          RealReg, MBB.getParent()->getSubtarget().getRegisterInfo()))
+    Q = Builder.getInsertPt();
   bool ReadLater = stagingRegReadLater(
       MBB, Q, RealReg, *MBB.getParent()->getSubtarget().getRegisterInfo());
   if (!ReadLater && !TII.writtenInExpansion(Builder.getInsertPt(), RealReg))
@@ -1449,6 +1456,17 @@ static bool stagingRegLiveAcross(MachineBasicBlock &MBB,
   return static_cast<const MC6809InstrInfo &>(
              *MBB.getParent()->getSubtarget().getInstrInfo())
       .writtenInExpansion(MI, RealReg);
+}
+
+MachineBasicBlock::iterator
+MC6809InstrInfo::stagingQueryPoint(MachineBasicBlock &MBB,
+                                   MachineBasicBlock::iterator P) const {
+  if (!ExpansionMI || ExpansionMBB != &MBB)
+    return P;
+  for (auto It = P; It != MBB.end(); ++It)
+    if (&*It == ExpansionMI)
+      return std::next(It);
+  return P;
 }
 
 bool MC6809InstrInfo::writtenInExpansion(MachineBasicBlock::iterator P,
@@ -2978,6 +2996,8 @@ bool MC6809InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   MachineBasicBlock &MBB = *MI.getParent();
   MachineBasicBlock::instr_iterator AfterI = std::next(MI.getIterator());
   bool Changed = expandPostRAPseudoImpl(MI);
+  // MI is gone: a new instruction may reuse its memory.
+  ExpansionMI = nullptr;
   assert(Changed && "flag-capture tag on a pseudo that did not expand");
   MachineIRBuilder Builder(MBB, MachineBasicBlock::iterator(AfterI));
   for (auto &[Flag, Dst] : Captures)

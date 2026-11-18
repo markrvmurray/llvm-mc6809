@@ -466,10 +466,8 @@ define dso_local i32 @if_s32(i32 noundef %a, i32 noundef %b) local_unnamed_addr 
 ; O0-NEXT:    ldb 5,s
 ; O0-NEXT:    std <__rs0
 ; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldb 4,s
+; O0-NEXT:    ldb 2,s
 ; O0-NEXT:    std <__rs1
-; O0-NEXT:    puls d
 ; O0-NEXT:    bra .LBB4_2
 ; O0-NEXT:  .LBB4_2: ; %return
 ; O0-NEXT:    ldd <__rs0

@@ -391,10 +391,8 @@ define i32 @lshr_i32_8(i32 %x) {
 ; O0-NEXT:    lda <__rs0lo
 ; O0-NEXT:    ldb <__rs0hi
 ; O0-NEXT:    stb 1,s ; 1-byte Folded Spill
-; O0-NEXT:    pshs d
-; O0-NEXT:    ldb 2,s
+; O0-NEXT:    ldb 0,s
 ; O0-NEXT:    std <__rs0
-; O0-NEXT:    puls d
 ; O0-NEXT:    lda #0
 ; O0-NEXT:    ldb 1,s
 ; O0-NEXT:    pshs d

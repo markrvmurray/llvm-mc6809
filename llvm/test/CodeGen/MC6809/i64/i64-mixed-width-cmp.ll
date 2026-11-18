@@ -49,10 +49,8 @@ define i1 @eq_i64_sext_i32(i64 %a, i32 %b) {
 ; O0-NEXT:    tfr b,a
 ; O0-NEXT:    std <__rs1
 ; O0-NEXT:    puls d
-; O0-NEXT:    pshs d
 ; O0-NEXT:    tfr b,a
 ; O0-NEXT:    std <__rs2
-; O0-NEXT:    puls d
 ; O0-NEXT:    ldd 35,s
 ; O0-NEXT:    std 14,s
 ; O0-NEXT:    ldd <__rs0
