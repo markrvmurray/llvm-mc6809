@@ -331,7 +331,6 @@ define i1 @sgt_i64_sext_i8(i64 %a, i8 %b) {
 ; O2-NEXT:    stx 2,s
 ; O2-NEXT:    ldx <__rs3
 ; O2-NEXT:    stx ,s
-; O2-NEXT:    lda 16,s
 ; O2-NEXT:    std 14,s
 ; O2-NEXT:    ldb 16,s ; 1-byte Folded Reload
 ; O2-NEXT:    tfr b,a

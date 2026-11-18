@@ -337,24 +337,7 @@ static bool foldLoadIntoCopy(MachineBasicBlock &MBB,
 /// sound for any surrounding code, not just the cases seen so far.
 static void clearKillsToPriorDef(MachineInstr &ReloadMI, Register Reg,
                                  const TargetRegisterInfo &TRI) {
-  MachineBasicBlock &MBB = *ReloadMI.getParent();
-  for (auto It = std::next(ReloadMI.getReverseIterator()); It != MBB.rend();
-       ++It) {
-    bool DefsReg = false;
-    for (MachineOperand &MO : It->operands()) {
-      if (!MO.isReg() || !MO.getReg().isPhysical() ||
-          !TRI.regsOverlap(MO.getReg(), Reg))
-        continue;
-      if (MO.isUse() && MO.isKill())
-        MO.setIsKill(false);
-      if (MO.isDef())
-        DefsReg = true;
-    }
-    // Stop once we reach the definition that established Reg's value: kills
-    // before it belong to a different live range and must be left intact.
-    if (DefsReg)
-      break;
-  }
+  MC6809ValueTracker::clearKillsToPriorDef(ReloadMI, Reg, TRI);
 }
 
 

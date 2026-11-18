@@ -18,6 +18,7 @@
 #include "MC6809InstrInfo.h"
 #include "MC6809MachineFunctionInfo.h"
 #include "MC6809Subtarget.h"
+#include "MC6809ValueTracker.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
 
 #include "llvm/ADT/Statistic.h"
@@ -104,13 +105,6 @@ private:
 };
 
 } // namespace
-
-/// See MC6809FrameLowering::isFrameBase.
-static bool isFrameBase(const MachineFunction &MF, Register Reg) {
-  return static_cast<const MC6809FrameLowering &>(
-             *MF.getSubtarget().getFrameLowering())
-      .isFrameBase(MF, Reg);
-}
 
 bool MC6809FinalLowering::runOnMachineFunction(MachineFunction &MF) {
   bool Changed = false;
@@ -339,235 +333,66 @@ bool MC6809FinalLowering::elideDupStores(MachineFunction &MF) {
 }
 
 bool MC6809FinalLowering::elideStoreReload(MachineFunction &MF) {
-  // Eliminate redundant reloads of unmodified spill slots:
-  //
-  //   std 24,u      ; spill D to slot 24 (data register = $ad)
-  //   ; ... no MI writes $ad and no MI writes slot 24 ...
-  //   ldd 24,u      ; reload — but $ad still holds the same value.
-  //
-  // Erase the LDD (already-in-register).
-  //
-  // Per-MBB linear scan: track slotMap[(family, offset, base)] -> data
-  // register currently holding the slot's value. On any clobber of a
-  // data register OR a write to the slot, invalidate the corresponding
-  // entries.
-  //
-  // Conservative invalidations:
-  //   - any call: clear all entries (callees may clobber any caller-save
-  //     reg AND may write through the stack)
-  //   - inline-asm / barriers / branches: clear all
-  //   - any unrecognised mayLoad / mayStore: clear all
-  //
-  // Family-based matching (STA<->LDA, STB<->LDB, STD<->LDD, etc.) means
-  // we don't try to fold cross-width cases (e.g. STD followed by LDA of
-  // the high byte). Strictly the safe MVP.
-
-  // Map an opcode to (family-tag, data-register) iff it is a tracked
-  // store or load. Family tag is the data-register itself (which is
-  // unique per family).
-  struct StoreOrLoad {
-    bool IsStore;
-    Register DataReg; // family tag + actual data reg
-  };
-  auto classify = [](unsigned Opc) -> std::optional<StoreOrLoad> {
-    if (auto LS = MC6809InstrInfo::getIdxLoadStore(Opc))
-      return StoreOrLoad{LS->IsStore, LS->Value};
-    return std::nullopt;
-  };
-
-  // Slot key: (data-reg-family-tag, offset, base-reg). Storing 0
-  // implicit for the _o0 form.
-  struct SlotKey {
-    Register Family;
-    int64_t Offset;
-    Register Base;
-    bool operator==(const SlotKey &O) const {
-      return Family == O.Family && Offset == O.Offset && Base == O.Base;
-    }
-  };
-
-  // For sub-register aliasing: AA/AB are sub-regs of AD; AE/AF of AW;
-  // AA/AB/AE/AF/AW of AQ. A write to AA leaves AD's low byte (AB)
-  // intact but invalidates the "AD as a whole holds slot X" tracking.
-  // TargetRegisterInfo::regsOverlap captures this correctly across all
-  // 8/16/32-bit family relationships including the 6309 wider forms.
-  const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
-
+  // Delete a reload of a slot whose value its register still holds, by the
+  // shared MC6809ValueTracker's rules: a store drops every mirror it may
+  // alias (same-base byte overlap; other bases by what the memory operands
+  // say), a def of the holder or the base drops a mirror, and calls, returns,
+  // branches and inline asm drop everything. Kills between the establishing
+  // access and the deleted reload are cleared.
+  const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
   bool Changed = false;
   for (MachineBasicBlock &MBB : MF) {
-    SmallVector<std::pair<SlotKey, Register>, 8> Slots;
-
-    auto findSlot = [&](const SlotKey &K) -> Register * {
-      for (auto &P : Slots)
-        if (P.first == K)
-          return &P.second;
-      return nullptr;
-    };
-    auto recordSlot = [&](const SlotKey &K, Register DataReg) {
-      if (auto *S = findSlot(K)) {
-        *S = DataReg;
-        return;
-      }
-      Slots.push_back({K, DataReg});
-    };
-    auto invalidateAll = [&]() { Slots.clear(); };
-    auto invalidateReg = [&](Register R) {
-      // Drop any slot whose tracked DATA reg OR BASE reg overlaps R.
-      // The base-reg case matters for stack-pointer adjustments
-      // (LEAS -2,S changes $ss, so any "slot N from $ss" tracked
-      // before the LEAS now refers to a different memory location).
-      // Frame-pointer ($su) base is stable within a function body
-      // by construction, but we treat it uniformly for safety.
-      Slots.erase(
-          std::remove_if(Slots.begin(), Slots.end(),
-                         [&, R](const std::pair<SlotKey, Register> &P) {
-                           return TRI->regsOverlap(P.second, R) ||
-                                  TRI->regsOverlap(P.first.Base, R);
-                         }),
-          Slots.end());
-    };
-
+    MC6809ValueTracker T(MF, TRI);
     for (MachineInstr &MI : llvm::make_early_inc_range(MBB)) {
       if (MI.isCall() || MI.isInlineAsm() || MI.isReturn() ||
           MI.isBranch() || MI.isTerminator()) {
-        invalidateAll();
+        T.clear();
+        continue;
+      }
+      // A plain indexed load or store we can key; a volatile one is
+      // observable and takes no part (it is still a store, below).
+      auto LS = MC6809InstrInfo::getIdxLoadStore(MI.getOpcode());
+      if (LS && MC6809InstrInfo::hasOrderedMemOperand(MI))
+        LS.reset();
+      Register Base;
+      int64_t Off = 0;
+      bool Keyed = LS && MC6809InstrInfo::getIdxBaseOffset(MI, Base, Off);
+
+      if (MI.mayStore())
+        T.storeAlias(MI, Keyed && LS->IsStore, Base);
+
+      if (Keyed && LS->IsStore) {
+        T.storeOverlap(Base, Off, MC6809InstrInfo::getValueRegBytes(LS->Value),
+                       LS->Value);
+        T.set({Base, static_cast<int>(Off)}, LS->Value, &MI, MI);
         continue;
       }
 
-      auto Cls = classify(MI.getOpcode());
-      // A volatile access is observable: its reload is never redundant, and
-      // it records nothing a later reload could be removed against.
-      if (Cls && MC6809InstrInfo::hasOrderedMemOperand(MI))
-        Cls.reset();
-      if (!Cls) {
-        // Untracked: invalidate everything if it could touch memory or
-        // any tracked data register.
-        if (MI.mayLoad() || MI.mayStore()) {
-          invalidateAll();
-          continue;
-        }
-        // Otherwise, invalidate only tracked-data-reg defs.
-        for (const MachineOperand &MO : MI.operands()) {
-          if (MO.isReg() && MO.isDef() && MO.getReg().isPhysical())
-            invalidateReg(MO.getReg());
-        }
-        continue;
-      }
-
-      // Build slot key.
-      SlotKey K{Cls->DataReg, 0, Register()};
-      if (!MC6809InstrInfo::getIdxBaseOffset(MI, K.Base, K.Offset)) {
-        invalidateAll();
-        continue;
-      }
-
-      // Only track loads/stores whose base is the canonical frame pointer
-      // ($su) or stack pointer ($ss). Anything with a dynamic base
-      // register (X/Y/U used as a generic pointer via LEA/etc.) might
-      // alias an $su-relative slot — we can't prove non-aliasing without
-      // pointer analysis, so a tracked store through such a base is
-      // treated as an opaque mayStore (invalidateAll), and a tracked load
-      // through it is treated as opaque mayLoad (invalidateAll). This
-      // gives up some elision opportunities but is necessary for
-      // correctness — see the qsort failure traced to STD ,Y aliasing
-      // with STY $399,u in the swapfunc loop.
-      if (!isFrameBase(MF, K.Base)) {
-        invalidateAll();
-        continue;
-      }
-
-      // Conservative invariant: AT MOST ONE slot tracks a given data
-      // register at any time. On every tracked store or load (whether
-      // elided or not), invalidate any prior slot tracking this data
-      // reg before recording the new slot. Reasoning: keeping multiple
-      // slots tracked under the same data reg is correct in principle
-      // (their contents are equal at the moment of recording), but
-      // creates fragile state — any subsequent partial invalidation
-      // (sub-reg aliasing, base-reg moves, dynamic-base writes) has
-      // multiple slots to invalidate, each with its own subtle rules,
-      // and we've already burned several bug-fix cycles on edge cases.
-      // Single-slot tracking gives up some elision opportunities but
-      // is dramatically simpler to reason about.
-      if (Cls->IsStore) {
-        // The store overwrites its bytes whatever register held them: drop
-        // every slot on this base whose bytes it overlaps (`std 4,s ; stx
-        // 4,s` leaves no D in 4,s), then record its own.
-        int64_t W = MC6809InstrInfo::getValueRegBytes(Cls->DataReg);
-        Slots.erase(
-            std::remove_if(Slots.begin(), Slots.end(),
-                           [&](const std::pair<SlotKey, Register> &P) {
-                             int64_t PW =
-                                 MC6809InstrInfo::getValueRegBytes(P.second);
-                             return P.first.Base == K.Base &&
-                                    P.first.Offset < K.Offset + W &&
-                                    K.Offset < P.first.Offset + PW;
-                           }),
-            Slots.end());
-        invalidateReg(Cls->DataReg);
-        recordSlot(K, Cls->DataReg);
-      } else {
-        // Load: if the slot is currently tracked AND already in DataReg,
-        // the load is redundant.
-        if (Register *Existing = findSlot(K)) {
-          if (*Existing == Cls->DataReg) {
-            // Bug #207: clear stale `killed` flags on uses of DataReg
-            // (or any sub/super-register that overlaps DataReg) that
-            // sit between the matching store and the about-to-be-erased
-            // load. The post-RA scheduler may have set those kill
-            // markers under the assumption that this LDY would re-define
-            // the register; with the LDY going away, the kills become
-            // load-bearing wrong — they tell the verifier that DataReg
-            // is dead before any subsequent use, which would break the
-            // chain.
-            //
-            // Walk backward from MI's predecessor, clearing kill flags
-            // on uses of DataReg/aliased regs. Stop at any earlier def
-            // (that's a fresh independent live range whose kills are
-            // unrelated) or at the start of the BB. Skip non-real
-            // instructions (DBG_VALUE/CFI/etc.).
-            for (auto It = std::prev(MI.getIterator()),
-                      Begin = MBB.instr_begin();;) {
-              if (It->isDebugInstr() || It->isPosition()) {
-                if (It == Begin) break;
-                --It;
-                continue;
-              }
-              bool DefsDataReg = false;
-              for (MachineOperand &MO : It->operands()) {
-                if (!MO.isReg() || !MO.getReg().isPhysical())
-                  continue;
-                if (!TRI->regsOverlap(MO.getReg(), Cls->DataReg))
-                  continue;
-                if (MO.isDef()) {
-                  DefsDataReg = true;
-                  // Don't clear kills on the def's own MI, but the def
-                  // itself bounds the walk — kills before this point
-                  // belong to a prior live range.
-                } else if (MO.isKill()) {
-                  MO.setIsKill(false);
-                }
-              }
-              if (DefsDataReg) break;
-              if (It == Begin) break;
-              --It;
-            }
+      if (Keyed) {
+        MC6809ValueTracker::Key K{Base, static_cast<int>(Off)};
+        // `ldy ,y` names a slot through the register it overwrites.
+        bool SelfBase = TRI.regsOverlap(Base, LS->Value);
+        if (!SelfBase)
+          if (MC6809ValueTracker::Mirror *M = T.find(K);
+              M && M->Reg == LS->Value) {
+            MC6809ValueTracker::clearKillsToPriorDef(MI, LS->Value, TRI);
             MI.eraseFromParent();
             ++NumStoreReloadsElided;
             Changed = true;
-            // Even though elided, normalize tracking to single-slot
-            // invariant. The slot already tracks DataReg, so this is
-            // mostly a no-op, but it ensures any earlier-recorded
-            // duplicate-tracking (from the time before this fix) gets
-            // cleaned up.
-            invalidateReg(Cls->DataReg);
-            recordSlot(K, Cls->DataReg);
             continue;
           }
-        }
-        // Otherwise the load brings a fresh value into DataReg.
-        invalidateReg(Cls->DataReg);
-        recordSlot(K, Cls->DataReg);
+        T.clearHolder(LS->Value);
+        T.clearBase(LS->Value);
+        if (!SelfBase)
+          T.set(K, LS->Value, nullptr, MI);
+        continue;
       }
+
+      for (const MachineOperand &MO : MI.operands())
+        if (MO.isReg() && MO.isDef() && MO.getReg().isPhysical()) {
+          T.clearHolder(MO.getReg());
+          T.clearBase(MO.getReg());
+        }
     }
   }
   return Changed;

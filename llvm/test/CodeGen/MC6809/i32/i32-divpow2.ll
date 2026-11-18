@@ -77,7 +77,6 @@ define i32 @sdiv_i32_2(i32 %x) {
 ; O2-NEXT:    ldb <__rs0lo
 ; O2-NEXT:    stb 9,s ; 1-byte Folded Spill
 ; O2-NEXT:    lda <__rs0hi
-; O2-NEXT:    ldb 9,s ; 1-byte Folded Reload
 ; O2-NEXT:    addb 31,s
 ; O2-NEXT:    stb 9,s ; 1-byte Folded Spill
 ; O2-NEXT:    adca 30,s

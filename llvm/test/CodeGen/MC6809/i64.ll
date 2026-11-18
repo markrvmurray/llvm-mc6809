@@ -1950,7 +1950,6 @@ define void @i16_then_i64(i16 %a, i64 %b) {
 ; O2-NEXT:    ldb <__rs3lo
 ; O2-NEXT:    stb 5,s ; 1-byte Folded Spill
 ; O2-NEXT:    lda <__rs3hi
-; O2-NEXT:    ldb 5,s ; 1-byte Folded Reload
 ; O2-NEXT:    addb 15,s
 ; O2-NEXT:    stb 5,s ; 1-byte Folded Spill
 ; O2-NEXT:    adca 14,s
@@ -2016,7 +2015,6 @@ define void @i16_then_i64(i16 %a, i64 %b) {
 ; O3-NEXT:    ldb <__rs3lo
 ; O3-NEXT:    stb 5,s ; 1-byte Folded Spill
 ; O3-NEXT:    lda <__rs3hi
-; O3-NEXT:    ldb 5,s ; 1-byte Folded Reload
 ; O3-NEXT:    addb 15,s
 ; O3-NEXT:    stb 5,s ; 1-byte Folded Spill
 ; O3-NEXT:    adca 14,s

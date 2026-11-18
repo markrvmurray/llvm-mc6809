@@ -13,6 +13,7 @@
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
 
 #include "llvm/Analysis/ValueTracking.h"
+#include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
@@ -211,5 +212,25 @@ void MC6809ValueTracker::storeAlias(const MachineInstr &MI,
       E.second.Reg = Register();
       E.second.WasRead = true;
     }
+  }
+}
+
+void MC6809ValueTracker::clearKillsToPriorDef(MachineInstr &MI, Register Reg,
+                                              const TargetRegisterInfo &TRI) {
+  MachineBasicBlock &MBB = *MI.getParent();
+  for (auto It = std::next(MI.getReverseIterator()); It != MBB.rend(); ++It) {
+    bool DefsReg = false;
+    for (MachineOperand &MO : It->operands()) {
+      if (!MO.isReg() || !MO.getReg().isPhysical() ||
+          !TRI.regsOverlap(MO.getReg(), Reg))
+        continue;
+      if (MO.isUse() && MO.isKill())
+        MO.setIsKill(false);
+      if (MO.isDef())
+        DefsReg = true;
+    }
+    // Kills before the definition belong to another live range.
+    if (DefsReg)
+      break;
   }
 }

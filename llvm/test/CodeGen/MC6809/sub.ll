@@ -1010,7 +1010,6 @@ define dso_local i32 @sub_s_i32(i32 noundef %a, i32 noundef %b, i32 noundef %c, 
 ; O2-NEXT:    ldb <__rs3hi
 ; O2-NEXT:    stb 4,s ; 1-byte Folded Spill
 ; O2-NEXT:    adca 16,s
-; O2-NEXT:    ldb 4,s ; 1-byte Folded Reload
 ; O2-NEXT:    adcb 15,s
 ; O2-NEXT:    stb 4,s ; 1-byte Folded Spill
 ; O2-NEXT:    ldb 2,s ; 1-byte Folded Reload
@@ -1089,7 +1088,6 @@ define dso_local i32 @sub_s_i32(i32 noundef %a, i32 noundef %b, i32 noundef %c, 
 ; O3-NEXT:    ldb <__rs3hi
 ; O3-NEXT:    stb 4,s ; 1-byte Folded Spill
 ; O3-NEXT:    adca 16,s
-; O3-NEXT:    ldb 4,s ; 1-byte Folded Reload
 ; O3-NEXT:    adcb 15,s
 ; O3-NEXT:    stb 4,s ; 1-byte Folded Spill
 ; O3-NEXT:    ldb 2,s ; 1-byte Folded Reload
@@ -1401,7 +1399,6 @@ define dso_local i32 @sub_s_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; O2-NEXT:    ldb <__rs1hi
 ; O2-NEXT:    stb 2,s ; 1-byte Folded Spill
 ; O2-NEXT:    adca 10,s
-; O2-NEXT:    ldb 2,s ; 1-byte Folded Reload
 ; O2-NEXT:    adcb 9,s
 ; O2-NEXT:    stb 2,s ; 1-byte Folded Spill
 ; O2-NEXT:    ldb ,s ; 1-byte Folded Reload
@@ -1475,7 +1472,6 @@ define dso_local i32 @sub_s_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; O3-NEXT:    ldb <__rs1hi
 ; O3-NEXT:    stb 2,s ; 1-byte Folded Spill
 ; O3-NEXT:    adca 10,s
-; O3-NEXT:    ldb 2,s ; 1-byte Folded Reload
 ; O3-NEXT:    adcb 9,s
 ; O3-NEXT:    stb 2,s ; 1-byte Folded Spill
 ; O3-NEXT:    ldb ,s ; 1-byte Folded Reload
@@ -1770,7 +1766,6 @@ define dso_local i32 @sub_u_i32(i32 noundef %a, i32 noundef %b, i32 noundef %c, 
 ; O2-NEXT:    ldb <__rs3hi
 ; O2-NEXT:    stb 4,s ; 1-byte Folded Spill
 ; O2-NEXT:    adca 16,s
-; O2-NEXT:    ldb 4,s ; 1-byte Folded Reload
 ; O2-NEXT:    adcb 15,s
 ; O2-NEXT:    stb 4,s ; 1-byte Folded Spill
 ; O2-NEXT:    ldb 2,s ; 1-byte Folded Reload
@@ -1849,7 +1844,6 @@ define dso_local i32 @sub_u_i32(i32 noundef %a, i32 noundef %b, i32 noundef %c, 
 ; O3-NEXT:    ldb <__rs3hi
 ; O3-NEXT:    stb 4,s ; 1-byte Folded Spill
 ; O3-NEXT:    adca 16,s
-; O3-NEXT:    ldb 4,s ; 1-byte Folded Reload
 ; O3-NEXT:    adcb 15,s
 ; O3-NEXT:    stb 4,s ; 1-byte Folded Spill
 ; O3-NEXT:    ldb 2,s ; 1-byte Folded Reload
@@ -2161,7 +2155,6 @@ define dso_local i32 @sub_u_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; O2-NEXT:    ldb <__rs1hi
 ; O2-NEXT:    stb 2,s ; 1-byte Folded Spill
 ; O2-NEXT:    adca 10,s
-; O2-NEXT:    ldb 2,s ; 1-byte Folded Reload
 ; O2-NEXT:    adcb 9,s
 ; O2-NEXT:    stb 2,s ; 1-byte Folded Spill
 ; O2-NEXT:    ldb ,s ; 1-byte Folded Reload
@@ -2235,7 +2228,6 @@ define dso_local i32 @sub_u_i32_consts(i32 noundef %a, i32 noundef %b, i32 nound
 ; O3-NEXT:    ldb <__rs1hi
 ; O3-NEXT:    stb 2,s ; 1-byte Folded Spill
 ; O3-NEXT:    adca 10,s
-; O3-NEXT:    ldb 2,s ; 1-byte Folded Reload
 ; O3-NEXT:    adcb 9,s
 ; O3-NEXT:    stb 2,s ; 1-byte Folded Spill
 ; O3-NEXT:    ldb ,s ; 1-byte Folded Reload
@@ -3301,8 +3293,6 @@ define dso_local i64 @sub_s_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O2-NEXT:    sta ,s ; 1-byte Folded Spill
 ; O2-NEXT:    ldd 32,s
 ; O2-NEXT:    stb 15,s ; 1-byte Folded Spill
-; O2-NEXT:    ldd 32,s
-; O2-NEXT:    ldb 15,s ; 1-byte Folded Reload
 ; O2-NEXT:    addb 41,s
 ; O2-NEXT:    stb 15,s ; 1-byte Folded Spill
 ; O2-NEXT:    adca 40,s
@@ -3319,8 +3309,6 @@ define dso_local i64 @sub_s_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O2-NEXT:    stb 13,s ; 1-byte Folded Spill
 ; O2-NEXT:    ldd 28,s
 ; O2-NEXT:    stb 14,s ; 1-byte Folded Spill
-; O2-NEXT:    ldd 28,s
-; O2-NEXT:    ldb 14,s ; 1-byte Folded Reload
 ; O2-NEXT:    adcb 37,s
 ; O2-NEXT:    stb 14,s ; 1-byte Folded Spill
 ; O2-NEXT:    adca 36,s
@@ -3478,8 +3466,6 @@ define dso_local i64 @sub_s_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O3-NEXT:    sta ,s ; 1-byte Folded Spill
 ; O3-NEXT:    ldd 32,s
 ; O3-NEXT:    stb 15,s ; 1-byte Folded Spill
-; O3-NEXT:    ldd 32,s
-; O3-NEXT:    ldb 15,s ; 1-byte Folded Reload
 ; O3-NEXT:    addb 41,s
 ; O3-NEXT:    stb 15,s ; 1-byte Folded Spill
 ; O3-NEXT:    adca 40,s
@@ -3496,8 +3482,6 @@ define dso_local i64 @sub_s_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O3-NEXT:    stb 13,s ; 1-byte Folded Spill
 ; O3-NEXT:    ldd 28,s
 ; O3-NEXT:    stb 14,s ; 1-byte Folded Spill
-; O3-NEXT:    ldd 28,s
-; O3-NEXT:    ldb 14,s ; 1-byte Folded Reload
 ; O3-NEXT:    adcb 37,s
 ; O3-NEXT:    stb 14,s ; 1-byte Folded Spill
 ; O3-NEXT:    adca 36,s
@@ -4619,8 +4603,6 @@ define dso_local i64 @sub_u_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O2-NEXT:    sta ,s ; 1-byte Folded Spill
 ; O2-NEXT:    ldd 32,s
 ; O2-NEXT:    stb 15,s ; 1-byte Folded Spill
-; O2-NEXT:    ldd 32,s
-; O2-NEXT:    ldb 15,s ; 1-byte Folded Reload
 ; O2-NEXT:    addb 41,s
 ; O2-NEXT:    stb 15,s ; 1-byte Folded Spill
 ; O2-NEXT:    adca 40,s
@@ -4637,8 +4619,6 @@ define dso_local i64 @sub_u_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O2-NEXT:    stb 13,s ; 1-byte Folded Spill
 ; O2-NEXT:    ldd 28,s
 ; O2-NEXT:    stb 14,s ; 1-byte Folded Spill
-; O2-NEXT:    ldd 28,s
-; O2-NEXT:    ldb 14,s ; 1-byte Folded Reload
 ; O2-NEXT:    adcb 37,s
 ; O2-NEXT:    stb 14,s ; 1-byte Folded Spill
 ; O2-NEXT:    adca 36,s
@@ -4796,8 +4776,6 @@ define dso_local i64 @sub_u_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O3-NEXT:    sta ,s ; 1-byte Folded Spill
 ; O3-NEXT:    ldd 32,s
 ; O3-NEXT:    stb 15,s ; 1-byte Folded Spill
-; O3-NEXT:    ldd 32,s
-; O3-NEXT:    ldb 15,s ; 1-byte Folded Reload
 ; O3-NEXT:    addb 41,s
 ; O3-NEXT:    stb 15,s ; 1-byte Folded Spill
 ; O3-NEXT:    adca 40,s
@@ -4814,8 +4792,6 @@ define dso_local i64 @sub_u_i64_consts(i64 %a, i64 %b, i64 %c, i64 %d, i64 %e) {
 ; O3-NEXT:    stb 13,s ; 1-byte Folded Spill
 ; O3-NEXT:    ldd 28,s
 ; O3-NEXT:    stb 14,s ; 1-byte Folded Spill
-; O3-NEXT:    ldd 28,s
-; O3-NEXT:    ldb 14,s ; 1-byte Folded Reload
 ; O3-NEXT:    adcb 37,s
 ; O3-NEXT:    stb 14,s ; 1-byte Folded Spill
 ; O3-NEXT:    adca 36,s

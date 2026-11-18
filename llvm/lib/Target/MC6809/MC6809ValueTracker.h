@@ -98,6 +98,13 @@ public:
   /// The spill slot every memory operand of MI names, or INT_MIN.
   static int spillSlotOf(const MachineInstr &MI, const MachineFrameInfo &MFI);
 
+  /// A reload of Reg is being deleted, so Reg's value now reaches its uses
+  /// from the definition before it: clear every kill of Reg (or a register
+  /// overlapping it) between that definition and MI. Clearing kills only
+  /// lengthens a live range, so it is always safe.
+  static void clearKillsToPriorDef(MachineInstr &MI, Register Reg,
+                                   const TargetRegisterInfo &TRI);
+
   /// All mirrors, for client walks.
   SmallVectorImpl<std::pair<Key, Mirror>> &entries() { return Entries; }
 
