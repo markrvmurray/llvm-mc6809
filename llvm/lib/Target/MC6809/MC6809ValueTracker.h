@@ -8,7 +8,8 @@
 //
 // A per-basic-block model, for the post-RA passes, of "register R holds the
 // value of memory location L", with one set of rules for what invalidates it.
-// A location is an indexed slot: a base register and a byte offset. Each
+// A location is an indexed slot -- a base register and a byte offset -- or a
+// direct-page imaginary register (keyed by that register, offset 0). Each
 // mirror records how wide the holder is, the store that set it up (so a
 // client can delete it if it is never read), and what the memory is -- a
 // spill slot, a frame location, or anything a pointer may reach -- which
@@ -50,6 +51,8 @@ public:
     bool SourceKilled = false;        // that store killed its source
     int SpillFI = INT_MIN;            // spill slot, or INT_MIN
     bool IsFrame = false;             // frame location (not a spill slot)
+    bool IsImaginary = false;         // a direct-page imaginary register
+    MachineInstr *Est = nullptr;      // the access that set it up
   };
 
   MC6809ValueTracker(const MachineFunction &MF, const TargetRegisterInfo &TRI);
@@ -83,9 +86,9 @@ public:
   /// Any store MI: drop every mirror it may alias but is not an indexed
   /// store on that mirror's own base (those go through storeOverlap). A
   /// spill-slot mirror goes only on a store to that slot; a frame mirror on
-  /// a store that may write the frame; any other mirror on any store --
-  /// except that stores to a spill slot or an imaginary register drop
-  /// nothing else.
+  /// a store that may write the frame; an imaginary-register mirror on a
+  /// store naming that register; any other mirror on any store -- except
+  /// that stores to a spill slot or an imaginary register drop nothing else.
   void storeAlias(const MachineInstr &MI, bool IndexedOnOwnBase,
                   Register OwnBase);
 
@@ -100,8 +103,8 @@ public:
 
   /// A reload of Reg is being deleted, so Reg's value now reaches its uses
   /// from the definition before it: clear every kill of Reg (or a register
-  /// overlapping it) between that definition and MI. Clearing kills only
-  /// lengthens a live range, so it is always safe.
+  /// overlapping it) between that definition and MI, and the definition's
+  /// dead flag. Both only lengthen a live range, so they are always safe.
   static void clearKillsToPriorDef(MachineInstr &MI, Register Reg,
                                    const TargetRegisterInfo &TRI);
 
@@ -115,6 +118,7 @@ private:
   SmallVector<std::pair<Key, Mirror>, 8> Entries;
 
   bool isFrameLocation(const MachineInstr &Est, Register Base) const;
+  bool namesOverlapping(const MachineInstr &MI, Register R) const;
 };
 
 } // namespace llvm

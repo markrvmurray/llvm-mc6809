@@ -89,3 +89,42 @@ body: |
     liveins: $ad
     RTSr implicit $ad
 ...
+
+# A direct-page load of another slot changes no memory and no register but
+# its own: lda <rc0 ; ldb <rc1 ; std <rs1 ; lda <rc0 drops the second lda.
+# CHECK-LABEL: name: reload_across_other_load
+# CHECK:      LDAd $rc0
+# CHECK-NEXT: LDBd $rc1
+# CHECK-NEXT: STDd undef $rs1
+# CHECK-NEXT: LDBd $rc0
+---
+name: reload_across_other_load
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $rc0, $rc1
+    LDAd $rc0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa
+    LDBd $rc1, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ab
+    STDd undef $rs1, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit killed $ad, implicit-def $rs1
+    LDAd $rc0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa
+    LDBd $rc0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ab
+    RTSr implicit $ad
+...
+
+# A store through a pointer could reach any memory: the reload stays.
+# CHECK-LABEL: name: reload_after_pointer_store
+# CHECK:      LDAd $rc0
+# CHECK-NEXT: STBi_o0 $ix
+# CHECK-NEXT: LDAd $rc0
+---
+name: reload_after_pointer_store
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $rc0, $ix, $ab
+    LDAd $rc0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa
+    STBi_o0 $ix, implicit-def dead $nz, implicit-def dead $n, implicit-def dead $z, implicit-def dead $v, implicit $ab
+    LDAd $rc0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa
+    LDBd $rc0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ab
+    RTSr implicit $ad
+...

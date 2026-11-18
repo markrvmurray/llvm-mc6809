@@ -20,6 +20,7 @@
 #include "MC6809InstrBuilder.h"
 #include "MC6809RegisterInfo.h"
 #include "MC6809Subtarget.h"
+#include "MC6809ValueTracker.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
 
 #include "llvm/ADT/Statistic.h"
@@ -782,26 +783,23 @@ static Register dpStoreValueReg(unsigned Opc) {
   }
 }
 
-static bool isDpSlotStore(unsigned Opc) {
-  return dpStoreValueReg(Opc).isValid();
-}
-
 // Drop a direct-page load whose value register still provably holds the same
 // slot's contents, from an earlier identical load or from the store that
 // filled the slot:
 //     ldd <__rs0> ; std <__rs1> ; ldd <__rs0>   ->   ldd <__rs0> ; std <__rs1>
 //     addd #-1 ; std <__rs0> ; ldd <__rs0>      ->   addd #-1 ; std <__rs0>
-// The store copies D out without disturbing D, so the reload is pure waste
-// (memmem's outer loop reloads a 16-bit imaginary right after storing it
-// elsewhere; a loop counter kept in an imaginary is stored and reloaded for
-// its zero test). Restricted to imaginary-register slots so aliasing reduces
-// to a register-identity test. The dropped load's N/Z/V must be dead, or
-// still exactly what the prior load or store left (both set N and Z from
-// the value and clear V) with nothing in between rewriting them.
+// The store copies D out without disturbing D, so the reload is pure waste.
+// Which register holds which slot is MC6809ValueTracker's: a store naming an
+// overlapping imaginary register, or one whose footprint is not known to be
+// private, drops the mirror, as does a def of the holder; calls and unmodelled
+// side effects drop everything. The dropped load's N/Z/V must be dead, or
+// still exactly what the access that set up the mirror left (both loads and
+// stores set N and Z from the value and clear V) with nothing in between
+// rewriting them.
 bool MC6809LateOptimization::elideRedundantLoad(MachineBasicBlock &MBB) const {
-  const auto &TRI = *MBB.getParent()->getSubtarget().getRegisterInfo();
-  const MachineRegisterInfo &MRI = MBB.getParent()->getRegInfo();
-  if (!MRI.tracksLiveness())
+  MachineFunction &MF = *MBB.getParent();
+  const auto &TRI = *MF.getSubtarget().getRegisterInfo();
+  if (!MF.getRegInfo().tracksLiveness())
     return false;
   bool Changed = false;
 
@@ -815,99 +813,79 @@ bool MC6809LateOptimization::elideRedundantLoad(MachineBasicBlock &MBB) const {
            I.readsRegister(MC6809::Z, &TRI) ||
            I.readsRegister(MC6809::V, &TRI);
   };
-
-  for (auto It = MBB.begin(); It != MBB.end();) {
-    MachineInstr &MI = *It++;
-    Register VReg = dpLoadValueReg(MI.getOpcode());
-    if (!VReg)
-      continue;
-    const MachineOperand &Slot = MI.getOperand(0);
-    if (!Slot.isReg() || !Slot.getReg().isPhysical())
-      continue;
-    Register SlotReg = Slot.getReg();
-
-    // Find an earlier identical load with the slot memory and the value
-    // register both untouched in between.
-    MachineInstr *Prior = nullptr;
-    for (auto PIt = MI.getIterator(); PIt != MBB.begin();) {
-      MachineInstr &P = *--PIt;
-      if ((P.getOpcode() == MI.getOpcode() ||
-           dpStoreValueReg(P.getOpcode()) == VReg) &&
-          P.getOperand(0).isReg() && P.getOperand(0).getReg() == SlotReg) {
-        Prior = &P;
-        break;
-      }
-      // Value register clobbered, or the slot's memory written -> the value in
-      // VReg is no longer guaranteed to match the slot.
-      if (P.modifiesRegister(VReg, &TRI) ||
-          P.modifiesRegister(SlotReg, &TRI))
-        break;
-      // A direct-page slot store to a different slot is safe to walk past:
-      // distinct imaginary slots are distinct addresses (a same-slot store was
-      // caught by the SlotReg check above) and its only effect is that
-      // disjoint memory write. These stores carry hasSideEffects in the .td,
-      // so recognise them explicitly rather than lumping them in with the
-      // generic store / side-effect barrier below.
-      if (isDpSlotStore(P.getOpcode()))
-        continue;
-      // Any other store could alias the slot's address (an indexed/extended
-      // store through an arbitrary pointer); a call or an instruction with
-      // unmodeled side effects could touch it too.
-      if (P.isCall() || P.mayStore() || P.hasUnmodeledSideEffects())
-        break;
-    }
-    if (!Prior)
-      continue;
-
-    // The removed load's N/Z/V must be dead: walk forward to the first flag
-    // access; a reader keeps them live (bail), a writer proves them dead. If
-    // the walk runs off the end of the block (the redundant load is the last
-    // instruction, its consumer in a successor), the flags are dead iff they
-    // are not live-out of the block.
-    bool FlagsDead = false;
-    auto FIt = std::next(MI.getIterator());
-    for (; FIt != MBB.end(); ++FIt) {
+  // The flags MI leaves are dead: the first later flag access writes them,
+  // or none reads them before the block ends and they are not live out.
+  auto FlagsDeadAfter = [&](MachineInstr &MI) {
+    for (auto FIt = std::next(MI.getIterator()); FIt != MBB.end(); ++FIt) {
       if (ReadsFlags(*FIt))
-        break;
-      if (ModifiesFlags(*FIt)) {
-        FlagsDead = true;
-        break;
+        return false;
+      if (ModifiesFlags(*FIt))
+        return true;
+    }
+    LivePhysRegs LiveOut(TRI);
+    LiveOut.addLiveOuts(MBB);
+    return !LiveOut.contains(MC6809::N) && !LiveOut.contains(MC6809::Z) &&
+           !LiveOut.contains(MC6809::V) && !LiveOut.contains(MC6809::NZ);
+  };
+
+  MC6809ValueTracker T(MF, TRI);
+  for (MachineInstr &MI : llvm::make_early_inc_range(MBB)) {
+    if (MI.isDebugInstr())
+      continue;
+    Register LoadReg = dpLoadValueReg(MI.getOpcode());
+    Register StoreReg = dpStoreValueReg(MI.getOpcode());
+    Register Slot;
+    if ((LoadReg || StoreReg) && MI.getOperand(0).isReg() &&
+        MI.getOperand(0).getReg().isPhysical())
+      Slot = MI.getOperand(0).getReg();
+    else
+      LoadReg = StoreReg = Register();
+
+    if (MI.isCall() || MI.isInlineAsm() ||
+        (!Slot && MI.hasUnmodeledSideEffects())) {
+      T.clear();
+      continue;
+    }
+
+    if (LoadReg) {
+      MC6809ValueTracker::Key K{Slot, 0};
+      MC6809ValueTracker::Mirror *M = T.find(K);
+      if (M && M->Reg == LoadReg && M->Est) {
+        MachineInstr &Prior = *M->Est;
+        bool Ok = FlagsDeadAfter(MI);
+        if (!Ok) {
+          // Live, but the same as the prior access left them?
+          Ok = true;
+          for (auto BIt = std::next(Prior.getIterator());
+               BIt != MI.getIterator(); ++BIt)
+            if (ModifiesFlags(*BIt) ||
+                BIt->modifiesRegister(MC6809::NZ, &TRI))
+              Ok = false;
+          if (Ok)
+            for (Register F : {MC6809::N, MC6809::Z, MC6809::V, MC6809::NZ})
+              Prior.clearRegisterDeads(F);
+        }
+        if (Ok) {
+          MC6809ValueTracker::clearKillsToPriorDef(MI, LoadReg, TRI);
+          MI.eraseFromParent();
+          ++NumDPReloadsElided;
+          Changed = true;
+          continue;
+        }
       }
     }
-    if (FIt == MBB.end()) {
-      LivePhysRegs LiveOut(TRI);
-      LiveOut.addLiveOuts(MBB);
-      FlagsDead = !LiveOut.contains(MC6809::N) &&
-                  !LiveOut.contains(MC6809::Z) &&
-                  !LiveOut.contains(MC6809::V) &&
-                  !LiveOut.contains(MC6809::NZ);
-    }
-    if (!FlagsDead) {
-      // Live, but the same as the prior access left them?
-      bool FlagsSame = true;
-      for (auto BIt = std::next(Prior->getIterator()); BIt != MI.getIterator();
-           ++BIt)
-        if (ModifiesFlags(*BIt) || BIt->modifiesRegister(MC6809::NZ, &TRI))
-          FlagsSame = false;
-      if (!FlagsSame)
-        continue;
-      // The prior access's flag defs must then stay live: un-dead them.
-      for (Register F : {MC6809::N, MC6809::Z, MC6809::V, MC6809::NZ})
-        Prior->clearRegisterDeads(F);
-    }
 
-    // Keep VReg live from the prior load to this point: clear the kill flags
-    // the intervening instructions placed on it (e.g. the store's killed use),
-    // and un-dead the prior load's definition.
-    for (auto KIt = std::next(Prior->getIterator()); KIt != MI.getIterator();
-         ++KIt)
-      KIt->clearRegisterKills(VReg, &TRI);
-    Prior->clearRegisterDeads(VReg);
-    Prior->clearRegisterKills(VReg, &TRI); // a store's killed use of it
-
-    MI.eraseFromParent();
-    ++NumDPReloadsElided;
-    Changed = true;
+    if (MI.mayStore())
+      T.storeAlias(MI, false, Register());
+    for (const MachineOperand &MO : MI.operands())
+      if (MO.isReg() && MO.isDef() && MO.getReg().isPhysical()) {
+        T.clearHolder(MO.getReg());
+        T.clearBase(MO.getReg());
+      }
+    if (LoadReg)
+      T.set({Slot, 0}, LoadReg, nullptr, MI);
+    else if (StoreReg)
+      T.set({Slot, 0}, StoreReg, &MI, MI);
   }
   return Changed;
 }

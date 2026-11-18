@@ -138,9 +138,16 @@ MC6809ValueTracker::Mirror *MC6809ValueTracker::find(const Key &K) {
 MC6809ValueTracker::Mirror
 MC6809ValueTracker::set(const Key &K, Register Reg, MachineInstr *Store,
                         const MachineInstr &Est, bool SourceKilled) {
-  int SpillFI = spillSlotOf(Est, MFI);
-  bool IsFrame = SpillFI == INT_MIN && isFrameLocation(Est, K.Base);
-  Mirror New{Reg, Store, false, SourceKilled, SpillFI, IsFrame};
+  // An imaginary register is compiler-private direct-page memory: only an
+  // access naming it (or an overlapping one) reaches it.
+  bool IsImaginary = MC6809::Imag8RegClass.contains(K.Base) ||
+                     MC6809::Imag16RegClass.contains(K.Base);
+  int SpillFI = IsImaginary ? INT_MIN : spillSlotOf(Est, MFI);
+  bool IsFrame =
+      !IsImaginary && SpillFI == INT_MIN && isFrameLocation(Est, K.Base);
+  Mirror New{Reg,     Store,       false,
+             SourceKilled, SpillFI, IsFrame,
+             IsImaginary,  const_cast<MachineInstr *>(&Est)};
   for (auto &E : Entries)
     if (E.first == K) {
       Mirror Old = E.second;
@@ -196,6 +203,15 @@ void MC6809ValueTracker::storeOverlap(Register Base, int Off, int Width,
   }
 }
 
+bool MC6809ValueTracker::namesOverlapping(const MachineInstr &MI,
+                                          Register R) const {
+  for (const MachineOperand &MO : MI.operands())
+    if (MO.isReg() && MO.getReg().isPhysical() &&
+        TRI.regsOverlap(MO.getReg(), R))
+      return true;
+  return false;
+}
+
 void MC6809ValueTracker::storeAlias(const MachineInstr &MI,
                                     bool IndexedOnOwnBase, Register OwnBase) {
   int StoreFI = spillSlotOf(MI, MFI);
@@ -205,9 +221,13 @@ void MC6809ValueTracker::storeAlias(const MachineInstr &MI,
     if (!E.second.Reg.isValid() ||
         (IndexedOnOwnBase && E.first.Base == OwnBase))
       continue;
-    bool Drop = E.second.SpillFI != INT_MIN ? StoreFI == E.second.SpillFI
-                : E.second.IsFrame          ? StoreMayHitFrame
-                                            : !StorePrivate;
+    // An imaginary register goes on a store naming it (or one overlapping
+    // it), or on any store whose footprint is not known to be private.
+    bool Drop = E.second.IsImaginary
+                    ? !StorePrivate || namesOverlapping(MI, E.first.Base)
+                : E.second.SpillFI != INT_MIN ? StoreFI == E.second.SpillFI
+                : E.second.IsFrame            ? StoreMayHitFrame
+                                              : !StorePrivate;
     if (Drop) {
       E.second.Reg = Register();
       E.second.WasRead = true;
@@ -229,8 +249,11 @@ void MC6809ValueTracker::clearKillsToPriorDef(MachineInstr &MI, Register Reg,
       if (MO.isDef())
         DefsReg = true;
     }
-    // Kills before the definition belong to another live range.
-    if (DefsReg)
+    // Kills before the definition belong to another live range; the
+    // definition itself is live now.
+    if (DefsReg) {
+      It->clearRegisterDeads(Reg);
       break;
+    }
   }
 }
