@@ -1245,6 +1245,20 @@ static Register materializeReg(MachineIRBuilder &Builder, Register Reg,
   return PhysReg;
 }
 
+/// materializeReg for the destination of a read-modify-write pseudo, whose
+/// tied source names the same register: when MI reads it undef, there is no
+/// old value to load, and the staging register is used as it is.
+static Register materializeTiedDest(MachineIRBuilder &Builder,
+                                    const MachineInstr &MI, Register Reg,
+                                    MachineFunction &MF) {
+  if (needsMaterialization(Reg) &&
+      any_of(MI.uses(), [&](const MachineOperand &MO) {
+        return MO.isReg() && MO.getReg() == Reg && MO.isUndef();
+      }))
+    return getPhysRegFor(Reg);
+  return materializeReg(Builder, Reg, MF);
+}
+
 /// Dematerialize: if OrigReg is an imaginary register, store PhysReg
 /// back to it. If OrigReg is already physical, no-op.
 static void dematerializeReg(MachineIRBuilder &Builder, Register PhysReg,
@@ -5177,7 +5191,7 @@ void MC6809InstrInfo::expandImm(ContextImmediate Context, MachineIRBuilder &Buil
     // Preserve the staging real around the whole read-modify-write window
     // (see pushStagingReg).
     StagePushed = pushStagingReg(Builder, getPhysRegFor(DestReg));
-    Register RealReg = materializeReg(Builder, DestReg, MF);
+    Register RealReg = materializeTiedDest(Builder, MI, DestReg, MF);
     MI.getOperand(0).setReg(RealReg);
     MI.getOperand(0).setIsDead(false); // demat below reads the staging real
     if (operandCount >= 3 && MI.getOperand(1).isReg() && MI.getOperand(1).getReg() == DestReg)
@@ -5311,7 +5325,7 @@ void MC6809InstrInfo::expandIdxImm(ContextIndexImmediate Context, MachineIRBuild
     Register StageReal = getPhysRegFor(DestReg);
     StagePushed = pushStagingReg(Builder, StageReal);
     compensateSSOperands(MI, StagePushed);
-    Register RealReg = materializeReg(Builder, DestReg, MF);
+    Register RealReg = materializeTiedDest(Builder, MI, DestReg, MF);
     MI.getOperand(0).setReg(RealReg);
     MI.getOperand(0).setIsDead(false); // demat below reads the staging real
     // Also fix the tied source operand (operand 1 for most arith pseudos).
@@ -5446,7 +5460,7 @@ void MC6809InstrInfo::expandCarryImm16(bool IsAdd, MachineIRBuilder &Builder,
   // carry survives the preserve bracket.
   unsigned StagePushed =
       (StagedDst) ? pushStagingReg(Builder, getPhysRegFor(DestReg)) : 0;
-  DestReg = materializeReg(Builder, DestReg, MF);
+  DestReg = materializeTiedDest(Builder, MI, DestReg, MF);
   auto operandCount = MI.getNumExplicitOperands();
   auto ValOp = MI.getOperand(operandCount - 1);
   int Val = ValOp.isImm() ? ValOp.getImm() : ValOp.getCImm()->getSExtValue();
@@ -5480,7 +5494,7 @@ void MC6809InstrInfo::expandCarryMem16(bool IsAdd, MachineIRBuilder &Builder,
     Register StageReal = getPhysRegFor(DestReg);
     StagePushed = pushStagingReg(Builder, StageReal);
     compensateSSOperands(MI, StagePushed);
-    DestReg = materializeReg(Builder, DestReg, MF);
+    DestReg = materializeTiedDest(Builder, MI, DestReg, MF);
   }
   auto operandCount = MI.getNumExplicitOperands();
   auto &CarryMap = IsAdd ? AddCarryIdxImmOpcode : SubBorrowIdxImmOpcode;
@@ -5568,7 +5582,7 @@ void MC6809InstrInfo::expandAddSub_i32_Mem(MachineIRBuilder &Builder,
   Register OrigDest = DestReg;
   MachineFunction &MF = *MI.getMF();
   if (needsMaterialization(DestReg))
-    DestReg = materializeReg(Builder, DestReg, MF);
+    DestReg = materializeTiedDest(Builder, MI, DestReg, MF);
   // After materialisation the value lives in physical $aq (or its
   // sub-regs AD high / AW low).  ACC32-class operands can ONLY be $aq
   // post-Phase-B-revert (AQc is still `{AQ}`), but ACC32 itself
@@ -5644,7 +5658,7 @@ void MC6809InstrInfo::expandAddSub_i32_Sym(MachineIRBuilder &Builder,
   Register OrigDest = DestReg;
   MachineFunction &MF = *MI.getMF();
   if (needsMaterialization(DestReg))
-    DestReg = materializeReg(Builder, DestReg, MF);
+    DestReg = materializeTiedDest(Builder, MI, DestReg, MF);
   assert(DestReg == MC6809::AQ &&
          "i32 ADD/SUB static-stack requires AQ for the ALU-side operations");
 
@@ -5704,7 +5718,7 @@ void MC6809InstrInfo::expandAddSub_i32_Imm(MachineIRBuilder &Builder,
   Register OrigDest = DestReg;
   MachineFunction &MF = *MI.getMF();
   if (needsMaterialization(DestReg))
-    DestReg = materializeReg(Builder, DestReg, MF);
+    DestReg = materializeTiedDest(Builder, MI, DestReg, MF);
   assert(DestReg == MC6809::AQ &&
          "i32 ADD/SUB Imm requires AQ for the ALU-side ops");
 
@@ -6046,7 +6060,7 @@ void MC6809InstrInfo::expandBitwiseImm16(ContextImmediate Context, unsigned OpcA
   if (needsMaterialization(DestReg)) {
     // Save D when its value is read later (see pushStagingReg).
     StagePushed = pushStagingReg(Builder, MC6809::AD);
-    DestReg = materializeReg(Builder, DestReg, MF);
+    DestReg = materializeTiedDest(Builder, MI, DestReg, MF);
   }
   auto operandCount = MI.getNumExplicitOperands();
   auto ValOp = MI.getOperand(operandCount - 1);
@@ -6098,7 +6112,7 @@ void MC6809InstrInfo::expandBitwiseMem16(ContextIndexImmediate Context,
     // compensated before the offset is read below.
     StagePushed = pushStagingReg(Builder, MC6809::AD);
     compensateSSOperands(MI, StagePushed);
-    DestReg = materializeReg(Builder, DestReg, MF);
+    DestReg = materializeTiedDest(Builder, MI, DestReg, MF);
   }
   auto operandCount = MI.getNumExplicitOperands();
   // Static-stack sibling: split into two extended (or PC-relative) byte
@@ -6197,7 +6211,7 @@ void MC6809InstrInfo::expandNegate(MachineIRBuilder &Builder, MachineInstr &MI) 
     Register RealReg = getPhysRegFor(OrigReg);
     MachineIRBuilder PreBuilder(MBB, MI.getIterator());
     unsigned StagePushed = pushStagingReg(PreBuilder, RealReg);
-    materializeReg(Builder, Reg, MF);
+    materializeTiedDest(Builder, MI, Reg, MF);
     // Rewrite operands to the real register.
     MI.getOperand(0).setReg(RealReg);
     MI.getOperand(0).setIsDead(false); // demat below reads the staging real
@@ -6293,7 +6307,7 @@ void MC6809InstrInfo::expandShiftLeft(MachineIRBuilder &Builder, MachineInstr &M
     Register RealReg = getPhysRegFor(OrigReg);
     MachineIRBuilder PreBuilder(MBB, MI.getIterator());
     unsigned StagePushed = pushStagingReg(PreBuilder, RealReg);
-    Reg = materializeReg(Builder, Reg, MF);
+    Reg = materializeTiedDest(Builder, MI, Reg, MF);
     MI.getOperand(0).setReg(Reg);
     MI.getOperand(0).setIsDead(false); // demat below reads the staging real
     if (MI.getNumOperands() > 1 && MI.getOperand(1).isReg() &&
@@ -6356,7 +6370,7 @@ void MC6809InstrInfo::expandShiftRight(MachineIRBuilder &Builder, MachineInstr &
     Register RealReg = getPhysRegFor(OrigReg);
     MachineIRBuilder PreBuilder(MBB, MI.getIterator());
     unsigned StagePushed = pushStagingReg(PreBuilder, RealReg);
-    Reg = materializeReg(Builder, Reg, MF);
+    Reg = materializeTiedDest(Builder, MI, Reg, MF);
     MI.getOperand(0).setReg(Reg);
     MI.getOperand(0).setIsDead(false); // demat below reads the staging real
     if (MI.getNumOperands() > 1 && MI.getOperand(1).isReg() &&
@@ -6411,7 +6425,7 @@ void MC6809InstrInfo::expandRotate(MachineIRBuilder &Builder, MachineInstr &MI, 
     // does. The staging load and store are LD/ST, which leave C alone, so
     // the carry the rotate consumes survives the round trip.
     MachineBasicBlock::iterator NextPt = std::next(MI.getIterator());
-    Reg = materializeReg(Builder, Reg, MF);
+    Reg = materializeTiedDest(Builder, MI, Reg, MF);
     MI.getOperand(0).setReg(Reg);
     if (MI.getNumOperands() > 1 && MI.getOperand(1).isReg() &&
         MI.getOperand(1).getReg() == OrigReg)
@@ -8432,7 +8446,7 @@ void MC6809InstrInfo::expandAddSubZextByte(MachineIRBuilder &Builder,
     StagePushed = pushStagingReg(Builder, StageReal);
     // The memory operand may be S-relative and must see the shifted S.
     compensateSSOperands(MI, StagePushed);
-    Dest = materializeReg(Builder, Dest, MF);
+    Dest = materializeTiedDest(Builder, MI, Dest, MF);
   }
   assert(Dest == MC6809::AD && "zero-extended byte accumulate not in D");
   if (Step) {
@@ -8492,7 +8506,7 @@ void MC6809InstrInfo::expandArithStep(MachineIRBuilder &Builder,
   unsigned StagePushed = 0;
   if (Staged) {
     StagePushed = pushStagingReg(Builder, getPhysRegFor(Dest));
-    Dest = materializeReg(Builder, Dest, MF);
+    Dest = materializeTiedDest(Builder, MI, Dest, MF);
   }
   unsigned Opc = arithStepOpcode(MI.getOpcode(), Dest, Inc);
   assert(Opc && "no walking form for this accumulator");
