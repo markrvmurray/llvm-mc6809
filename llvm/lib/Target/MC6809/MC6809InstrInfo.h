@@ -282,6 +282,13 @@ public:
   /// register.
   static bool getIdxBaseOffset(const MachineInstr &MI, Register &Base,
                                int64_t &Offset);
+  /// Where Sub's bytes sit in memory when Super is stored (the 6809 is
+  /// big-endian): their offset from the first byte of Super's store, 0 when
+  /// Sub == Super; -1 if Sub is not part of Super.
+  static int getSubRegByteOffset(const TargetRegisterInfo &TRI, Register Super,
+                                 Register Sub);
+  /// The number of bytes a store or load of R moves.
+  static unsigned getValueRegBytes(Register R);
 
 protected:
   // Bug #357: report a value-preserving same-width TFRp as a copy so generic

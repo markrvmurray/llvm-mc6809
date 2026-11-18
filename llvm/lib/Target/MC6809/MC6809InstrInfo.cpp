@@ -134,6 +134,27 @@ bool MC6809InstrInfo::getIdxBaseOffset(const MachineInstr &MI, Register &Base,
   return Base.isValid();
 }
 
+unsigned MC6809InstrInfo::getValueRegBytes(Register R) {
+  if (R == MC6809::AQ)
+    return 4;
+  if (MC6809::ACC8_CMPRegClass.contains(R))
+    return 1;
+  return 2;
+}
+
+int MC6809InstrInfo::getSubRegByteOffset(const TargetRegisterInfo &TRI,
+                                         Register Super, Register Sub) {
+  if (Super == Sub)
+    return 0;
+  unsigned Idx = TRI.getSubRegIndex(Super, Sub);
+  if (!Idx)
+    return -1;
+  // Bits counted from the least significant; memory is big-endian, so the
+  // most significant byte is stored first.
+  unsigned Bits = getValueRegBytes(Super) * 8;
+  return (Bits - TRI.getSubRegIdxOffset(Idx) - TRI.getSubRegIdxSize(Idx)) / 8;
+}
+
 unsigned MC6809InstrInfo::getIdxSibling(unsigned Opc, MC6809::IdxForm Form) {
   // (family, form) -> opcode, built once from the generated table.
   static const DenseMap<std::pair<unsigned, unsigned>, unsigned> Siblings =

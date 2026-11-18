@@ -117,7 +117,8 @@ static Register getAccRegForOpcode(unsigned Opc) {
   // mirrored register's own bytes (AW/AE/AF share no bits with the tracked
   // AD/AA/AB/IX/IY).
   return (R == MC6809::AD || R == MC6809::AA || R == MC6809::AB ||
-          R == MC6809::AW || R == MC6809::AE || R == MC6809::AF)
+          R == MC6809::AW || R == MC6809::AE || R == MC6809::AF ||
+          R == MC6809::AQ || R == MC6809::SS)
              ? R
              : Register();
 }
@@ -153,7 +154,8 @@ static bool isIndexedNonAccStore(unsigned Opc) {
   return LS && LS->IsStore &&
          (LS->Value == MC6809::IY || LS->Value == MC6809::IX ||
           LS->Value == MC6809::SU || LS->Value == MC6809::AW ||
-          LS->Value == MC6809::AE || LS->Value == MC6809::AF);
+          LS->Value == MC6809::AE || LS->Value == MC6809::AF ||
+          LS->Value == MC6809::AQ || LS->Value == MC6809::SS);
 }
 
 /// Returns true if the opcode is an indexed load (accumulator or index reg).
@@ -824,8 +826,15 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         int WS = slotWidth(E.second.Reg);
         if (M + WS <= Off || Off + Width <= M)
           continue; // disjoint byte ranges
-        if (StoredReg.isValid() && TRI.regsOverlap(StoredReg, E.second.Reg))
-          continue; // overwritten bytes are this register's own bytes
+        // The store writes this register's own bytes back where they were
+        // (`std 4,u` over a mirror of A at 4,u): the mirror stays. Only at
+        // that exact position -- `stq 2,u` writes W, not D, over 4,u.
+        if (StoredReg.isValid()) {
+          int Pos = MC6809InstrInfo::getSubRegByteOffset(TRI, StoredReg,
+                                                         E.second.Reg);
+          if (Pos >= 0 && M == Off + Pos)
+            continue;
+        }
         E.second.Reg = Register();
         E.second.WasRead = true;
       }
@@ -880,7 +889,10 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         Register Src = getAccRegForOpcode(Opc);
         int Width = isIndexedStore(Opc)
                         ? slotWidth(Src)
-                        : (Src == MC6809::AE || Src == MC6809::AF) ? 1 : 2;
+                        : MC6809InstrInfo::getIdxLoadStore(Opc)
+                              ? MC6809InstrInfo::getValueRegBytes(
+                                    MC6809InstrInfo::getIdxLoadStore(Opc)->Value)
+                              : 2;
         invalidateOverlap(Key.BaseReg, Key.Offset, Width, Register());
       }
 
@@ -935,8 +947,8 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         // source, so any tracked slot whose bytes the store overlaps is now
         // stale — drop its mirror.
         SlotKey Key = getSlotKey(MI);
-        Register Src = getAccRegForOpcode(Opc);
-        int Width = (Src == MC6809::AE || Src == MC6809::AF) ? 1 : 2;
+        Register Src = MC6809InstrInfo::getIdxLoadStore(Opc)->Value;
+        int Width = MC6809InstrInfo::getValueRegBytes(Src);
         invalidateOverlap(Key.BaseReg, Key.Offset, Width, Src);
         continue;
       }
