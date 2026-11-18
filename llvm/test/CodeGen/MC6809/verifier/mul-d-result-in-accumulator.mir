@@ -1,4 +1,4 @@
-# RUN: llc -mtriple=mc6809 -run-pass=post-ra-pseudos -verify-machineinstrs \
+# RUN: llc -mtriple=mc6809 -run-pass=mc6809-expand-pseudos -verify-machineinstrs \
 # RUN:     %s -o - 2>&1 | FileCheck %s
 
 # The allocator puts the multiply's result in an imaginary register and marks

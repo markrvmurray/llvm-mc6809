@@ -53,6 +53,7 @@
 #include "MC6809MachineScheduler.h"
 #include "MC6809NonReentrant.h"
 #include "MC6809PostRAScavenging.h"
+#include "MC6809ExpandPseudos.h"
 #include "MC6809ShiftRotateChain.h"
 #include "MC6809TargetObjectFile.h"
 #include "MC6809TargetTransformInfo.h"
@@ -83,6 +84,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMC6809Target() {
   initializeMC6809NonReentrantPass(PR);
   initializeMC6809PhantomCarryGuardPass(PR);
   initializeMC6809PostRAScavengingPass(PR);
+  initializeMC6809ExpandPseudosPass(PR);
   initializeMC6809PostRASpillOptPass(PR);
   initializeMC6809PreCGPFreezePass(PR);
   initializeMC6809SanitiseDebugInfoPass(PR);
@@ -351,8 +353,8 @@ void MC6809PassConfig::addPreSched2() {
   addPass(createMC6809PostRAScavengingPass());
   // Lower control flow pseudos.
   addPass(&FinalizeISelID);
-  // Lower pseudos produced by control flow pseudos.
-  addPass(&ExpandPostRAPseudosID);
+  // Lower the pseudos, each block bottom-up (see MC6809ExpandPseudos).
+  addPass(createMC6809ExpandPseudosPass());
   addPass(createMC6809PostRAScavengingPass());
 
   // Eliminate redundant spill loads/stores from post-RA expansion.

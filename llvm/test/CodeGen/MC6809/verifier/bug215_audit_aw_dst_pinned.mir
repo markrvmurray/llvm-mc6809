@@ -1,4 +1,4 @@
-# RUN: llc -mtriple=mc6809 -mcpu=hd6309 -run-pass=post-ra-pseudos \
+# RUN: llc -mtriple=mc6809 -mcpu=hd6309 -run-pass=mc6809-expand-pseudos \
 # RUN:     -verify-machineinstrs %s -o - 2>&1 | FileCheck %s
 
 # Bug #215 audit sentinel — pins the multi-arch-reg dst routing

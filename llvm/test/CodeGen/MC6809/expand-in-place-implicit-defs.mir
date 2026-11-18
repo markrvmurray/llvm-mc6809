@@ -1,4 +1,4 @@
-# RUN: llc -mtriple=mc6809 -run-pass=post-ra-pseudos -verify-machineinstrs %s -o - | FileCheck %s
+# RUN: llc -mtriple=mc6809 -run-pass=mc6809-expand-pseudos -verify-machineinstrs %s -o - | FileCheck %s
 
 # A pseudo rewritten in place by setDesc keeps only the operands it had; the
 # concrete instruction's implicit defs and uses (here LDX's N/Z/V) must be

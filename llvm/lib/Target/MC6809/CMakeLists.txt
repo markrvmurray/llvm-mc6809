@@ -52,6 +52,7 @@ add_llvm_target(MC6809CodeGen
   MC6809NonReentrant.cpp
   MC6809PhantomCarryGuard.cpp
   MC6809PostRAScavenging.cpp
+  MC6809ExpandPseudos.cpp
   MC6809PostRASpillOpt.cpp
   MC6809ValueTracker.cpp
   MC6809PreCGPFreeze.cpp

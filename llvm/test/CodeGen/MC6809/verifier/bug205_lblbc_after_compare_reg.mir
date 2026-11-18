@@ -1,4 +1,4 @@
-# RUN: llc -mtriple=mc6809 -mcpu=hd6309 -run-pass=post-ra-pseudos \
+# RUN: llc -mtriple=mc6809 -mcpu=hd6309 -run-pass=mc6809-expand-pseudos \
 # RUN:   -verify-machineinstrs %s -o - 2>&1 | FileCheck %s
 
 # Bug #205: same-shape regression as bug205_lblbc_after_compare_imm.mir

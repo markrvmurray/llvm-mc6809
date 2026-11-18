@@ -1,4 +1,4 @@
-# RUN: llc -mtriple=mc6809 -mcpu=hd6309 -run-pass=post-ra-pseudos -verify-machineinstrs %s -o - | FileCheck %s
+# RUN: llc -mtriple=mc6809 -mcpu=hd6309 -run-pass=mc6809-expand-pseudos -verify-machineinstrs %s -o - | FileCheck %s
 
 # The HD6309 immediate-form bitwise op on W has no encoding, so the expander
 # swaps W into D with EXG, operates, and swaps back: D's value is carried
