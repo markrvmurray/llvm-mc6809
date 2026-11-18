@@ -14,11 +14,11 @@
 # working as a bisection escape hatch.
 #
 # Bug #366: the stores through Y below carry a NON-STACK MMO (`into @g`, a
-# global). mayStoreToStackFrame returns false for them, so they do NOT
-# invalidate the (SU,8)->IY frame mirror and the redundant reload is still
-# eliminated — this is the getopt-O2 win (`std n,y` into an option string).
-# A store with a Stack/FixedStack (or absent) MMO would instead retain the
-# reload; that case is covered by bug366-stack-aliasing-store.mir.
+# global), and the reloads are of a spill slot (`from %stack.0`), which no
+# pointer reaches: the stores do NOT invalidate the (SU,8)->IY mirror and the
+# redundant reload is still eliminated -- the getopt-O2 win (`std n,y` into an
+# option string). A store with a Stack/FixedStack (or absent) MMO over a frame
+# local would instead retain the reload; bug366-stack-aliasing-store.mir.
 
 --- |
   @g = external global i16
@@ -40,12 +40,14 @@
 # OFF:       LDYi_o8 8, $su
 name: redundant_reload
 tracksRegLiveness: true
+stack:
+  - { id: 0, type: spill-slot, offset: 0, size: 2, alignment: 1 }
 body: |
   bb.0:
     liveins: $su, $ad
-    LDYi_o8 8, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    LDYi_o8 8, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v :: (load (s16) from %stack.0)
     STDi_o5 2, $iy, implicit $ad, implicit-def dead $nz, implicit-def dead $n, implicit-def dead $z, implicit-def dead $v :: (store (s16) into @g)
-    LDYi_o8 8, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    LDYi_o8 8, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v :: (load (s16) from %stack.0)
     STDi_o5 4, $iy, implicit $ad, implicit-def dead $nz, implicit-def dead $n, implicit-def dead $z, implicit-def dead $v :: (store (s16) into @g)
     RTSr implicit $su
 ...
@@ -58,12 +60,14 @@ body: |
 # CHECK:       LDYi_o8 8, $su
 name: clobbered_reload
 tracksRegLiveness: true
+stack:
+  - { id: 0, type: spill-slot, offset: 0, size: 2, alignment: 1 }
 body: |
   bb.0:
     liveins: $su, $ad
-    LDYi_o8 8, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    LDYi_o8 8, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v :: (load (s16) from %stack.0)
     LEAYi_o5 1, $iy, implicit-def $iy, implicit-def $z
-    LDYi_o8 8, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v
+    LDYi_o8 8, $su, implicit-def $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v :: (load (s16) from %stack.0)
     STDi_o5 2, $iy, implicit $ad, implicit-def dead $nz, implicit-def dead $n, implicit-def dead $z, implicit-def dead $v
     RTSr implicit $su
 ...

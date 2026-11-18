@@ -35,6 +35,7 @@
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineMemOperand.h"
 #include "llvm/CodeGen/PseudoSourceValue.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
@@ -65,8 +66,9 @@ using namespace llvm;
 // alloca such as getopt's long_options/ap/data) writes a frame slot that the
 // (base,offset) slot tracker keyed on the index base could not relate to
 // SU/SS, so a later `ldy K,u` reload of that slot was wrongly elided.
-// mayStoreToStackFrame + invalidateFrameIndexMirrors now drop the aliased
-// SU/SS frame-slot index mirrors before such a store. The knob is retained
+// Every store now drops each mirror of memory a pointer may reach -- all but
+// spill slots, known from the memory operand (spillSlotOf) -- unless it is
+// itself a spill-slot or imaginary-register store. The knob is retained
 // (default on) as a bisection escape hatch.
 // Master bisection gate for the whole pass.
 static cl::opt<bool>
@@ -392,6 +394,36 @@ static bool mayStoreToStackFrame(const MachineInstr &MI,
     if (!isa<GlobalValue>(getUnderlyingObject(V)))
       return true; // alloca / inttoptr / opaque pointer — may be the frame
   }
+  return false;
+}
+
+/// The spill slot an access is to: the frame index every memory operand of MI
+/// names, when that index is a spill slot; INT_MIN otherwise. A spill slot's
+/// address is never taken, so nothing but an access naming its frame index can
+/// read or write it -- and a store to it cannot reach anything else.
+static int spillSlotOf(const MachineInstr &MI, const MachineFrameInfo &MFI) {
+  if (MI.memoperands_empty())
+    return INT_MIN;
+  int FI = INT_MIN;
+  for (const MachineMemOperand *MMO : MI.memoperands()) {
+    const auto *FS =
+        dyn_cast_or_null<FixedStackPseudoSourceValue>(MMO->getPseudoValue());
+    if (!FS || !MFI.isSpillSlotObjectIndex(FS->getFrameIndex()) ||
+        (FI != INT_MIN && FI != FS->getFrameIndex()))
+      return INT_MIN;
+    FI = FS->getFrameIndex();
+  }
+  return FI;
+}
+
+/// A store to a direct-page imaginary register (`std <rs0`): compiler-private
+/// memory no pointer reaches.
+static bool storesImaginaryReg(const MachineInstr &MI) {
+  for (const MachineOperand &MO : MI.operands())
+    if (MO.isReg() && MO.getReg().isPhysical() &&
+        (MC6809::Imag8RegClass.contains(MO.getReg()) ||
+         MC6809::Imag16RegClass.contains(MO.getReg())))
+      return true;
   return false;
 }
 
@@ -761,6 +793,12 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
       // would read a dead register, triggering verifier
       // "Using an undefined physical register" complaints.
       bool SourceKilled = false;
+      // What the mirrored memory is, from the access that established it:
+      // a spill slot (SpillFI, see spillSlotOf), the stack frame (a frame
+      // local, possibly address-taken), or unknown (anything a pointer may
+      // reach).
+      int SpillFI = INT_MIN;
+      bool IsFrame = false;
     };
     SmallVector<std::pair<SlotKey, SlotInfo>, 8> Slots;
 
@@ -772,8 +810,29 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
       return nullptr;
     };
 
-    auto setSlot = [&](const SlotKey &Key, Register Reg,
-                        MachineInstr *Store, bool SourceKilled = false) {
+    // A location is the frame if its memory operand says so (stack or
+    // fixed-stack, or an alloca), or, with no memory operand, if it is
+    // addressed from a frame base.
+    auto isFrameLocation = [&](const MachineInstr &Est, Register Base) {
+      if (Est.memoperands_empty())
+        return isFrameBase(MF, Base);
+      for (const MachineMemOperand *MMO : Est.memoperands()) {
+        if (const PseudoSourceValue *PSV = MMO->getPseudoValue()) {
+          if (!(PSV->isStack() ||
+                PSV->kind() == PseudoSourceValue::FixedStack))
+            return false;
+          continue;
+        }
+        const Value *V = MMO->getValue();
+        if (!V || !isa<AllocaInst>(getUnderlyingObject(V)))
+          return false;
+      }
+      return true;
+    };
+    auto setSlot = [&](const SlotKey &Key, Register Reg, MachineInstr *Store,
+                       const MachineInstr &Est, bool SourceKilled = false) {
+      int SpillFI = spillSlotOf(Est, MFI);
+      bool IsFrame = SpillFI == INT_MIN && isFrameLocation(Est, Key.BaseReg);
       for (auto &E : Slots) {
         if (E.first == Key) {
           // Stage 2: if previous store was never read, it's dead — but only
@@ -787,11 +846,12 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
             ++NumDeadSlotStores;
             Changed = true;
           }
-          E.second = {Reg, Store, false, SourceKilled};
+          E.second = {Reg, Store, false, SourceKilled, SpillFI, IsFrame};
           return;
         }
       }
-      Slots.push_back({Key, {Reg, Store, false, SourceKilled}});
+      Slots.push_back(
+          {Key, {Reg, Store, false, SourceKilled, SpillFI, IsFrame}});
     };
 
     auto markRead = [&](const SlotKey &Key) {
@@ -840,42 +900,38 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
       }
     };
 
-    // Bug #366: drop the mirror of every SU/SS frame slot whose value is held
-    // in an INDEX register (IX/IY). Used when an instruction may write the
-    // frame in a way the (base,offset) slot key does not capture — a store
-    // through a frame-address pointer (`std ,y`, MMO `into stack + N`), whose
-    // slot key is (indexreg,off) rather than (SU/SS,off). Index mirrors only:
-    // accumulator spill slots are compiler-private and never aliased by a
-    // store-through-pointer, so the accumulator reload elimination is untouched.
-    auto invalidateFrameIndexMirrors = [&]() {
-      for (auto &E : Slots) {
-        if (isFrameBase(MF, E.first.BaseReg) &&
-            (E.second.Reg == MC6809::IX || E.second.Reg == MC6809::IY)) {
-          E.second.Reg = Register();
-          E.second.WasRead = true;
-        }
-      }
-    };
 
     for (MachineInstr &MI : make_early_inc_range(MBB)) {
       unsigned Opc = MI.getOpcode();
 
-      // Bug #366: a store that may write the stack frame through a pointer
-      // whose frame offset the tracker cannot relate to SU/SS (a `std ,y`
-      // where Y holds a frame-local address) aliases SU/SS frame slots that
-      // the slot key does not capture. Drop every index-held SU/SS frame
-      // mirror before the store branches run. Direct SU/SS-relative stores are
-      // excluded: invalidateOverlap already invalidates the precise
-      // overlapping slot for those (including index mirrors, since the stored
-      // accumulator shares no bits with IX/IY), so the blunt drop would only
-      // cost the #363 win.
-      bool DirectFrameStore = false;
-      if (isIndexedStore(Opc) || isIndexedNonAccStore(Opc)) {
-        Register B = getSlotKey(MI).BaseReg;
-        DirectFrameStore = isFrameBase(MF, B);
+      // A store may alias any mirror it does not provably miss. Same-base
+      // indexed stores are handled below by exact byte overlap. Otherwise:
+      // a spill-slot mirror goes only on a store to that very slot (through
+      // whatever base); a frame mirror on any store that may write the frame;
+      // a mirror of unknown memory on any store -- except stores to a spill
+      // slot or an imaginary register, which no pointer reaches.
+      if (MI.mayStore()) {
+        int StoreFI = spillSlotOf(MI, MFI);
+        bool StorePrivate = StoreFI != INT_MIN || storesImaginaryReg(MI);
+        bool StoreMayHitFrame = !StorePrivate && mayStoreToStackFrame(MI, MFI);
+        Register SB;
+        int64_t SO;
+        bool SameBaseHandled =
+            (isIndexedStore(Opc) || isIndexedNonAccStore(Opc)) &&
+            MC6809InstrInfo::getIdxBaseOffset(MI, SB, SO);
+        for (auto &E : Slots) {
+          if (!E.second.Reg.isValid() ||
+              (SameBaseHandled && E.first.BaseReg == SB))
+            continue;
+          bool Drop = E.second.SpillFI != INT_MIN ? StoreFI == E.second.SpillFI
+                      : E.second.IsFrame          ? StoreMayHitFrame
+                                                  : !StorePrivate;
+          if (Drop) {
+            E.second.Reg = Register();
+            E.second.WasRead = true;
+          }
+        }
       }
-      if (!DirectFrameStore && mayStoreToStackFrame(MI, MFI))
-        invalidateFrameIndexMirrors();
 
       // A volatile access is observable, so it takes no part in the tracking
       // below: it is never deleted as a dead store or a redundant load, and
@@ -919,7 +975,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         // source register. If yes, the slot has the value but the
         // register is dead — see SlotInfo::SourceKilled.
         bool SourceKilled = MI.killsRegister(AccReg, &TRI);
-        setSlot(Key, AccReg, &MI, SourceKilled);
+        setSlot(Key, AccReg, &MI, MI, SourceKilled);
         // Bug #271 cat-1 (cross-store kill): when this store kills its
         // source register, ALL prior slots that recorded `Reg == AccReg`
         // become stale from a liveness perspective — the register is now
@@ -1029,7 +1085,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
             if (E.first.BaseReg.isValid() &&
                 TRI.regsOverlap(E.first.BaseReg, AccReg))
               E.second.Reg = Register();
-          setSlot(Key, AccReg, nullptr);
+          setSlot(Key, AccReg, nullptr, MI);
           continue;
         }
         // Bug #362: dead frame/spill-slot load. A load from the U/S-relative
@@ -1074,7 +1130,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         // Don't establish a mirror for a self-based load: the key is unstable
         // (see SelfBase above).
         if (!SelfBase)
-          setSlot(Key, AccReg, nullptr); // no store to delete
+          setSlot(Key, AccReg, nullptr, MI); // no store to delete
         continue;
       }
 

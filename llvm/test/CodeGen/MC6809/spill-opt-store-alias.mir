@@ -1,0 +1,81 @@
+# RUN: llc -mtriple=mc6809 -O2 -run-pass=mc6809-spill-opt -verify-machineinstrs %s -o - | FileCheck %s
+#
+# A store may alias a mirror the slot key cannot relate to it: the spill
+# optimiser keeps a mirror across another base's store only when the memory
+# operands prove they miss -- a spill slot (address never taken) survives any
+# store but one to that slot; a frame location survives stores that cannot
+# write the frame (a global); anything else a pointer may reach goes.
+
+--- |
+  @g = external global i8
+  define void @pointer_over_pointer() { ret void }
+  define void @pointer_over_frame_local() { ret void }
+  define void @pointer_over_spill() { ret void }
+  define void @global_over_frame_local() { ret void }
+...
+# x and y may alias: the reload through x stays.
+# CHECK-LABEL: name: pointer_over_pointer
+# CHECK:       STBi_o0 $iy
+# CHECK-NEXT:  LDAi_o0 $ix
+---
+name: pointer_over_pointer
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ix, $iy, $ab
+    LDAi_o0 $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa
+    STBi_o0 $iy, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ab
+    LDAi_o0 $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa
+    RTSr implicit $aa
+...
+# x may point at the frame local: the reload stays.
+# CHECK-LABEL: name: pointer_over_frame_local
+# CHECK:       STAi_o0 $ix
+# CHECK-NEXT:  LDBi_o8 0, $ss
+---
+name: pointer_over_frame_local
+tracksRegLiveness: true
+stack:
+  - { id: 0, offset: 0, size: 2, alignment: 1 }
+body: |
+  bb.0:
+    liveins: $ix, $aa
+    LDBi_o8 0, $ss, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ab :: (load (s8) from %stack.0)
+    STAi_o0 $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $aa :: (store (s8))
+    LDBi_o8 0, $ss, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ab :: (load (s8) from %stack.0)
+    RTSr implicit $ab
+...
+# No pointer reaches a spill slot: the reload goes.
+# CHECK-LABEL: name: pointer_over_spill
+# CHECK:       STAi_o0 $ix
+# CHECK-NOT:   LDBi_o8
+---
+name: pointer_over_spill
+tracksRegLiveness: true
+stack:
+  - { id: 0, type: spill-slot, offset: 0, size: 1, alignment: 1 }
+body: |
+  bb.0:
+    liveins: $ix, $aa
+    LDBi_o8 0, $ss, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ab :: (load (s8) from %stack.0)
+    STAi_o0 $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $aa :: (store (s8))
+    LDBi_o8 0, $ss, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ab :: (load (s8) from %stack.0)
+    RTSr implicit $ab
+...
+# A store into a global cannot write the frame: the reload goes.
+# CHECK-LABEL: name: global_over_frame_local
+# CHECK:       STAi_o0 $ix
+# CHECK-NOT:   LDBi_o8
+---
+name: global_over_frame_local
+tracksRegLiveness: true
+stack:
+  - { id: 0, offset: 0, size: 2, alignment: 1 }
+body: |
+  bb.0:
+    liveins: $ix, $aa
+    LDBi_o8 0, $ss, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ab :: (load (s8) from %stack.0)
+    STAi_o0 $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $aa :: (store (s8) into @g)
+    LDBi_o8 0, $ss, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ab :: (load (s8) from %stack.0)
+    RTSr implicit $ab
+...
