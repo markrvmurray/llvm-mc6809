@@ -1,4 +1,4 @@
-# RUN: llc -mtriple=mc6809 -start-before=post-ra-pseudos %s -o - | FileCheck %s
+# RUN: llc -mtriple=mc6809 -start-before=mc6809-expand-pseudos %s -o - | FileCheck %s
 #
 # A 16-bit direct-page register compared with a constant, or tested, is
 # loaded into a free X, U or Y and compared there (`ldx <rs ; cmpx #n`),

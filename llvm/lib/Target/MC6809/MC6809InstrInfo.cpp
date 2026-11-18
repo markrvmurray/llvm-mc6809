@@ -1295,20 +1295,26 @@ static bool stagingRegLiveAcross(MachineBasicBlock &MBB,
                                  MachineBasicBlock::iterator MI,
                                  Register RealReg,
                                  const TargetRegisterInfo &TRI);
+static bool stagingRegReadLater(MachineBasicBlock &MBB,
+                                MachineBasicBlock::iterator MI,
+                                Register RealReg,
+                                const TargetRegisterInfo &TRI);
+static void stagingLiveAt(MachineBasicBlock &MBB,
+                          MachineBasicBlock::iterator MI,
+                          const TargetRegisterInfo &TRI, LivePhysRegs &Live);
 
 /// The register state for an expansion's read of a real register whose
 /// value it merely carries through (a staging push, the scratch side of an
-/// EXG cheat): a plain read when the register holds a value at the
-/// insertion point, so liveness sees that the value flows through the
-/// window; undef when it holds nothing, so the verifier does not see a use
-/// of an undefined register. Marking such reads undef unconditionally told
+/// EXG cheat): a plain read when the value is read later, so liveness sees
+/// that it flows through the window; undef otherwise, so the verifier does
+/// not see a use of a register that may be (partly) undefined. Marking such reads undef unconditionally told
 /// liveness the value was dead when it was not: a dead-bracket cleanup then
 /// dropped the very save that kept it.
 static RegState carriedReadState(MachineIRBuilder &Builder, Register R) {
   MachineBasicBlock &MBB = Builder.getMBB();
   const TargetRegisterInfo &TRI =
       *MBB.getParent()->getSubtarget().getRegisterInfo();
-  return stagingRegLiveAcross(MBB, Builder.getInsertPt(), R, TRI)
+  return stagingRegReadLater(MBB, Builder.getInsertPt(), R, TRI)
              ? RegState::NoFlags
              : RegState::Undef;
 }
@@ -1342,9 +1348,43 @@ static unsigned pushStagingReg(MachineIRBuilder &Builder, Register RealReg) {
     Builder.buildInstr(MC6809::PSHSWx);
     return 2;
   }
-  if (carriedReadState(Builder, RealReg) == RegState::Undef)
+  MachineBasicBlock &MBB = Builder.getMBB();
+  const auto &TII = static_cast<const MC6809InstrInfo &>(Builder.getTII());
+  MachineBasicBlock::iterator Q = Builder.getInsertPt();
+  bool ReadLater = stagingRegReadLater(
+      MBB, Q, RealReg, *MBB.getParent()->getSubtarget().getRegisterInfo());
+  if (!ReadLater && !TII.writtenInExpansion(Builder.getInsertPt(), RealReg))
     return 0;
-  Builder.buildInstr(MC6809::PSHSs).addUse(RealReg);
+  // The push reads what is read later and nothing else: all of RealReg
+  // when all of it is; when only a half of D is (say B, with A never
+  // written here), the register operand is undef and the live half is an
+  // implicit read, so the verifier sees no undefined use and liveness still
+  // carries that half through. Kept only because this expansion loaded it
+  // (see writtenInExpansion): undef -- the expansion's own later reads
+  // carry its liveness.
+  const TargetRegisterInfo &TRI =
+      *MBB.getParent()->getSubtarget().getRegisterInfo();
+  const MachineRegisterInfo &MRI = MBB.getParent()->getRegInfo();
+  SmallVector<Register, 2> LiveParts;
+  bool AllLive = !MRI.tracksLiveness();
+  if (!AllLive && ReadLater) {
+    LivePhysRegs Live;
+    stagingLiveAt(MBB, Q, TRI, Live);
+    if (RealReg == MC6809::AD) {
+      bool A = !Live.available(MRI, MC6809::AA);
+      bool B = !Live.available(MRI, MC6809::AB);
+      AllLive = A && B;
+      if (A != B)
+        LiveParts.push_back(A ? MC6809::AA : MC6809::AB);
+    } else {
+      AllLive = !Live.available(MRI, RealReg);
+    }
+  }
+  auto Push = Builder.buildInstr(MC6809::PSHSs)
+                  .addUse(RealReg, AllLive ? RegState::NoFlags
+                                           : RegState::Undef);
+  for (Register Part : LiveParts)
+    Push.addUse(Part, RegState::Implicit);
   return stagingPushSize(RealReg);
 }
 static void pullStagingReg(MachineIRBuilder &Builder, Register RealReg,
@@ -1377,21 +1417,35 @@ static void pullStagingReg(MachineIRBuilder &Builder, Register RealReg,
 /// expanded bottom-up (MC6809ExpandPseudos), so everything after the pseudo
 /// being expanded is concrete code and the answer is exact there; across
 /// that pseudo itself, its declared operands stand for its expansion.
+static void stagingLiveAt(MachineBasicBlock &MBB,
+                          MachineBasicBlock::iterator MI,
+                          const TargetRegisterInfo &TRI, LivePhysRegs &Live) {
+  Live.init(TRI);
+  Live.addLiveOuts(MBB);
+  for (auto It = MBB.end(); It != MI;)
+    Live.stepBackward(*--It);
+}
+
+static bool stagingRegReadLater(MachineBasicBlock &MBB,
+                                MachineBasicBlock::iterator MI,
+                                Register RealReg,
+                                const TargetRegisterInfo &TRI) {
+  const MachineRegisterInfo &MRI = MBB.getParent()->getRegInfo();
+  if (!MRI.tracksLiveness())
+    return true; // no reliable liveness -- keep the save
+  LivePhysRegs Live;
+  stagingLiveAt(MBB, MI, TRI, Live);
+  return !Live.available(MRI, RealReg);
+}
+
+/// stagingRegReadLater, or the expansion in progress has loaded a value into
+/// RealReg that its own later code -- not emitted yet -- may read.
 static bool stagingRegLiveAcross(MachineBasicBlock &MBB,
                                  MachineBasicBlock::iterator MI,
                                  Register RealReg,
                                  const TargetRegisterInfo &TRI) {
-  const MachineRegisterInfo &MRI = MBB.getParent()->getRegInfo();
-  if (!MRI.tracksLiveness())
-    return true; // no reliable liveness -- keep the save
-  LivePhysRegs Live(TRI);
-  Live.addLiveOuts(MBB);
-  for (auto It = MBB.end(); It != MI;)
-    Live.stepBackward(*--It);
-  if (!Live.available(MRI, RealReg))
+  if (stagingRegReadLater(MBB, MI, RealReg, TRI))
     return true;
-  // The expansion in progress may have loaded a value into RealReg that its
-  // own later code -- not emitted yet -- reads.
   return static_cast<const MC6809InstrInfo &>(
              *MBB.getParent()->getSubtarget().getInstrInfo())
       .writtenInExpansion(MI, RealReg);

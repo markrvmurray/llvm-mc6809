@@ -185,7 +185,12 @@ namespace {
 /// MC6809 Code Generator Pass Configuration Options.
 class MC6809PassConfig : public TargetPassConfig {
 public:
-  MC6809PassConfig(MC6809TargetMachine &TM, PassManagerBase &PM) : TargetPassConfig(TM, PM) {}
+  MC6809PassConfig(MC6809TargetMachine &TM, PassManagerBase &PM)
+      : TargetPassConfig(TM, PM) {
+    // Every post-RA pseudo is expanded bottom-up (see MC6809ExpandPseudos),
+    // including where the standard pipeline expands them.
+    substitutePass(&ExpandPostRAPseudosID, &MC6809ExpandPseudosID);
+  }
 
   MC6809TargetMachine &getMC6809TargetMachine() const { return getTM<MC6809TargetMachine>(); }
 
@@ -353,7 +358,8 @@ void MC6809PassConfig::addPreSched2() {
   addPass(createMC6809PostRAScavengingPass());
   // Lower control flow pseudos.
   addPass(&FinalizeISelID);
-  // Lower the pseudos, each block bottom-up (see MC6809ExpandPseudos).
+  // Lower pseudos produced by control flow pseudos (bottom-up, as the
+  // standard expansion slot is; see the constructor).
   addPass(createMC6809ExpandPseudosPass());
   addPass(createMC6809PostRAScavengingPass());
 

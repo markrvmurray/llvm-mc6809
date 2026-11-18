@@ -14,6 +14,7 @@
 namespace llvm {
 
 MachineFunctionPass *createMC6809ExpandPseudosPass();
+extern char &MC6809ExpandPseudosID;
 
 } // namespace llvm
 

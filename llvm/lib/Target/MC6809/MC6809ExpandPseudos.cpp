@@ -114,6 +114,7 @@ bool MC6809ExpandPseudos::runOnMachineFunction(MachineFunction &MF) {
 }
 
 char MC6809ExpandPseudos::ID = 0;
+char &llvm::MC6809ExpandPseudosID = MC6809ExpandPseudos::ID;
 
 INITIALIZE_PASS(MC6809ExpandPseudos, DEBUG_TYPE,
                 "MC6809 bottom-up post-RA pseudo expansion", false, false)
