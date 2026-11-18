@@ -1347,19 +1347,18 @@ static void pullStagingReg(MachineIRBuilder &Builder, Register RealReg) {
 }
 
 /// True when the real staging register RealReg holds a value that must
-/// survive the copy being expanded at MI -- i.e. it (or an aliasing
-/// sub/super register) is live going into MI. A copy through a real
-/// register only needs the surrounding PSHS/PULS preservation in that
+/// survive the code inserted at MI -- i.e. it (or an aliasing sub/super
+/// register) is read at or after MI before being written. A copy through a
+/// real register only needs the surrounding PSHS/PULS preservation in that
 /// case; when the transit register is dead the bracket is pure waste
 /// (memmem's inner loop copies a 16-bit counter between direct-page
 /// imaginaries with D dead across each copy, paying a spurious
 /// pshs d / puls d every iteration).
 ///
-/// Walk the block live-ins forward to MI rather than using
-/// computeRegisterLiveness: the bounded-neighborhood form returns
-/// LQR_Unknown when its window doesn't reach a def/kill and counts the
-/// copy's own operands as live. Post-RA the block live-in lists and kill
-/// flags are accurate, so this mirrors the analysis the verifier uses.
+/// Liveness is walked backward from the block's live-outs. Pseudos are
+/// expanded bottom-up (MC6809ExpandPseudos), so everything after the pseudo
+/// being expanded is concrete code and the answer is exact there; across
+/// that pseudo itself, its declared operands stand for its expansion.
 static bool stagingRegLiveAcross(MachineBasicBlock &MBB,
                                  MachineBasicBlock::iterator MI,
                                  Register RealReg,
@@ -1367,14 +1366,11 @@ static bool stagingRegLiveAcross(MachineBasicBlock &MBB,
   const MachineRegisterInfo &MRI = MBB.getParent()->getRegInfo();
   if (!MRI.tracksLiveness())
     return true; // no reliable liveness -- keep the save
-  LivePhysRegs LiveRegs(TRI);
-  LiveRegs.addLiveIns(MBB);
-  SmallVector<std::pair<MCPhysReg, const MachineOperand *>, 4> Clobbers;
-  for (auto It = MBB.begin(); It != MI; ++It) {
-    Clobbers.clear();
-    LiveRegs.stepForward(*It, Clobbers);
-  }
-  return !LiveRegs.available(MRI, RealReg);
+  LivePhysRegs Live(TRI);
+  Live.addLiveOuts(MBB);
+  for (auto It = MBB.end(); It != MI;)
+    Live.stepBackward(*--It);
+  return !Live.available(MRI, RealReg);
 }
 
 /// X or Y, when one of them can carry a 16-bit value between memory and a
