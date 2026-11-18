@@ -1526,8 +1526,8 @@ static Register freeTransitIndex(MachineInstr &MI, Register LoadBase) {
                     !(MO.isUse() && MO.getReg() == LoadBase);
            });
   };
-  // D itself free: keep to D. The save the caller emits around it is then
-  // dead, and the post-RA cleanup removes it. Then X, then U (where it is
+  // D itself free: keep to D (the caller's pushStagingReg then saves
+  // nothing). Then X, then U (where it is
   // allocatable: a reserved register is never available), then Y, whose
   // loads and stores take a prefix byte.
   if (Free(MC6809::AD))

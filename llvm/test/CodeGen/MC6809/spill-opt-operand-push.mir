@@ -1,0 +1,33 @@
+# RUN: llc -mtriple=mc6809 -run-pass=mc6809-spill-opt -verify-machineinstrs -o - %s | FileCheck %s
+
+# A save of D followed by an operand push of D: the compare reads the pushed
+# value back from the stack (cmpd ,s), so D is live after the save and the
+# save must stay. (A cleanup that took every single-register pshs/puls pair
+# for a transparent save deleted the first pair, and the compare saw the
+# value loaded from __rs0 instead -- vstrfmon's padding loop.)
+# CHECK-LABEL: name: operand_push_after_save
+# CHECK:       PSHSs $ad
+# CHECK-NEXT:  LDDd $rs0
+# CHECK-NEXT:  LEAXi_oD
+# CHECK-NEXT:  $ad = PULSs
+# CHECK-NEXT:  PSHSs $ad
+# CHECK-NEXT:  LDDd $rs2
+# CHECK-NEXT:  CMPDi_o0 $ss
+# CHECK-NEXT:  $ad = PULSs
+---
+name: operand_push_after_save
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ad, $su, $rs0, $rs2
+    $ix = TFRp $su
+    PSHSs $ad, implicit-def $ss, implicit $ss
+    LDDd $rs0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit-def $aq
+    LEAXi_oD killed $ix, implicit-def $ix, implicit-def $z, implicit $ad
+    $ad = PULSs implicit-def $ss, implicit $ss
+    PSHSs $ad, implicit-def $ss, implicit $ss
+    LDDd $rs2, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $aa, implicit-def $ab, implicit-def $ad, implicit-def $aq
+    CMPDi_o0 $ss, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $c, implicit $ad
+    $ad = PULSs implicit-def $ss, implicit $ss
+    RTSr implicit $ix, implicit $n, implicit $z, implicit $v, implicit $c
+...
