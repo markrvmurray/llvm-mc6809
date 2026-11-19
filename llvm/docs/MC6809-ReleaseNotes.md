@@ -4,9 +4,9 @@ Each release has a section headed `## <version>`, which the release workflow
 publishes on that release's GitHub page above the table of test results.  A
 tag with no section here is not published.
 
-## 1.0.1-rc1
+## 1.1.0-rc1
 
-The first candidate for llvm-mc6809 1.0.1: faster and smaller code, wrong
+The first candidate for llvm-mc6809 1.1.0: faster and smaller code, wrong
 code fixed, and interrupt handlers.
 
 ### Smaller and faster
