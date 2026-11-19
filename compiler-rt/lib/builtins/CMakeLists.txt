@@ -1087,6 +1087,7 @@ list(APPEND mc6809_SOURCES
   mc6809/ctzdi2.S
   mc6809/clzdi2.S
   mc6809/popcountdi2.S
+  mc6809/popcountsi2.S
   mc6809/paritydi2.S
   # Bug #242 (partial): __popcounthi2 needed by picolibc memalign/hcreate_r
   # at non-LTO HD6309 (and probably mc6809 too). Compiler-rt has no
