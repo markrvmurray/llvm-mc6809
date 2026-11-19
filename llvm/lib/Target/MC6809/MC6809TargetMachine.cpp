@@ -39,6 +39,7 @@
 #include "MC6809DirectPageAlloc.h"
 #include "MC6809StaticStackAlloc.h"
 #include "MC6809FinalLowering.h"
+#include "MC6809CallFrameHoist.h"
 #include "MC6809IncDecPhi.h"
 #include "MC6809IndexIV.h"
 #include "MC6809InsertCopies.h"
@@ -76,6 +77,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMC6809Target() {
   initializeMC6809CombinerPass(PR);
   initializeMC6809CopyOptPass(PR);
   initializeMC6809FinalLoweringPass(PR);
+  initializeMC6809CallFrameHoistPass(PR);
   initializeMC6809IncDecPhiPass(PR);
   initializeMC6809InsertCopiesPass(PR);
   initializeMC6809InternalizePass(PR);
@@ -271,6 +273,9 @@ void MC6809PassConfig::addPreLegalizeMachineIR() {
 }
 
 bool MC6809PassConfig::addLegalizeMachineIR() {
+  // Nothing the legalizer may turn into a library call can be left inside
+  // another call's argument setup.
+  addPass(createMC6809CallFrameHoistPass());
   addPass(new LegalizerLegacy());
   addPass(createMC6809InternalizePass());
   return false;

@@ -46,6 +46,7 @@ void initializeMC6809CombinerPass(PassRegistry &);
 void initializeMC6809CopyOptPass(PassRegistry &);
 void initializeMC6809FinalLoweringPass(PassRegistry &);
 void initializeMC6809IncDecPhiPass(PassRegistry &);
+void initializeMC6809CallFrameHoistPass(PassRegistry &);
 void initializeMC6809IndexIVPass(PassRegistry &);
 void initializeMC6809InsertCopiesPass(PassRegistry &);
 void initializeMC6809InternalizePass(PassRegistry &);

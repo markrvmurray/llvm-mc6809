@@ -38,6 +38,7 @@ add_llvm_target(MC6809CodeGen
   MC6809FoldCallThroughMem.cpp
   MC6809FrameLowering.cpp
   MC6809ISelLowering.cpp
+  MC6809CallFrameHoist.cpp
   MC6809IncDecPhi.cpp
   MC6809IndexIV.cpp
   MC6809InlineAsmLowering.cpp
