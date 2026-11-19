@@ -158,6 +158,13 @@ int feraiseexcept(int excepts) {
     return 0;
 }
 
+/* C23: set the flags without raising them. The ROM runs with no traps
+ * enabled here, so that is what feraiseexcept does too. */
+int fesetexcept(int excepts) {
+    set_status_bits((unsigned char)(excepts & FE_ALL_EXCEPT));
+    return 0;
+}
+
 /* ------------------------------------------------------------------ */
 /* GNU extensions: FP exception trap enable/disable (Bug #341)        */
 /*                                                                    */
