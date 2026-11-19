@@ -1,0 +1,107 @@
+# RUN: llc -mtriple=mc6809 -mcpu=hd6309 -start-before=mc6809-late-opt -verify-machineinstrs -o - %s | FileCheck %s
+
+# A byte loaded, changed and stored back to the same place, with the
+# accumulator dead after, is one memory operation. The direct-page and
+# extended immediate forms take the address before the immediate, the
+# indexed ones after: the printed operands check both orders.
+
+--- |
+  @g = external global i8
+  define void @aim_indexed() { ret void }
+  define void @oim_direct() { ret void }
+  define void @eim_extended() { ret void }
+  define void @inc_indexed() { ret void }
+  define void @acc_live() { ret void }
+  define void @volatile_store() { ret void }
+...
+
+# CHECK-LABEL: aim_indexed:
+# CHECK:       aim #240,4,x
+# CHECK-NOT:   ldb
+---
+name: aim_indexed
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ix
+    LDBi_o5 4, $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ab :: (load (s8))
+    ANDBi8 240, implicit-def $ab, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ab
+    STBi_o5 4, $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit killed $ab :: (store (s8))
+    RTSr
+...
+
+# CHECK-LABEL: oim_direct:
+# CHECK:       oim #3,<__rc0
+---
+name: oim_direct
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $rc0
+    LDBd $rc0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ab
+    ORBi8 3, implicit-def $ab, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ab
+    STBd undef $rc0, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit killed $ab, implicit-def $rc0
+    RTSr implicit $rc0
+...
+
+# CHECK-LABEL: eim_extended:
+# CHECK:       eim #15,g
+---
+name: eim_extended
+tracksRegLiveness: true
+body: |
+  bb.0:
+    LDBe @g, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ab :: (load (s8) from @g)
+    EORBi8 15, implicit-def $ab, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ab
+    STBe @g, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit killed $ab :: (store (s8) into @g)
+    RTSr
+...
+
+# inc leaves C, add #1 sets it: with C dead, the add folds to inc.
+# CHECK-LABEL: inc_indexed:
+# CHECK:       inc 4,x
+---
+name: inc_indexed
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ix
+    LDBi_o5 4, $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ab :: (load (s8))
+    ADDBi8 1, implicit-def $ab, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $c, implicit $ab
+    STBi_o5 4, $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit killed $ab :: (store (s8))
+    RTSr
+...
+
+# The accumulator is returned: no fold.
+# CHECK-LABEL: acc_live:
+# CHECK:       ldb 4,x
+# CHECK-NEXT:  andb #240
+# CHECK-NEXT:  stb 4,x
+---
+name: acc_live
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ix
+    LDBi_o5 4, $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ab :: (load (s8))
+    ANDBi8 240, implicit-def $ab, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ab
+    STBi_o5 4, $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ab :: (store (s8))
+    RTSr implicit $ab
+...
+
+# A volatile access (an I/O register, say) is left alone.
+# CHECK-LABEL: volatile_store:
+# CHECK:       ldb 4,x
+# CHECK-NEXT:  andb #240
+# CHECK-NEXT:  stb 4,x
+---
+name: volatile_store
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $ix
+    LDBi_o5 4, $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit-def $ab :: (volatile load (s8))
+    ANDBi8 240, implicit-def $ab, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit $ab
+    STBi_o5 4, $ix, implicit-def $nz, implicit-def $n, implicit-def $z, implicit-def $v, implicit killed $ab :: (volatile store (s8))
+    RTSr
+...

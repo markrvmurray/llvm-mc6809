@@ -38,6 +38,7 @@
 STATISTIC(NumCompareZeroElided, "Redundant compares with zero removed");
 STATISTIC(NumDPReloadsElided, "Redundant direct-page reloads removed");
 STATISTIC(NumLEAIntoLoad, "lea r,d; ld ,r folded to ld d,b");
+STATISTIC(NumMemoryRMW, "ld; op; st of one byte folded to a memory operation");
 STATISTIC(NumPostIncLeaAfter, "op ,r; lea r k,r folded to op ,r+");
 STATISTIC(NumWalkingCompare, "Successor pointer steps folded into a walking compare");
 STATISTIC(NumWalkingCompensation, "Compensating lea inserted on the taken path of a walking compare");
@@ -64,6 +65,7 @@ public:
   bool formPostIncrement(MachineBasicBlock &MBB) const;
   bool formWalkingCompareBranch(MachineBasicBlock &MBB) const;
   bool hoistDiamondFalseLoad(MachineBasicBlock &MBB) const;
+  bool foldMemoryRMW(MachineBasicBlock &MBB) const;
 };
 
 bool MC6809LateOptimization::runOnMachineFunction(MachineFunction &MF) {
@@ -75,10 +77,190 @@ bool MC6809LateOptimization::runOnMachineFunction(MachineFunction &MF) {
     Changed |= formPostIncrement(MBB);
     Changed |= formWalkingCompareBranch(MBB);
     Changed |= hoistDiamondFalseLoad(MBB);
+    Changed |= foldMemoryRMW(MBB);
   }
   return Changed;
 }
 
+
+
+// A byte loaded, changed and stored back to the same place, with the
+// accumulator dead after, is one memory operation:
+//     ldb 4,x ; andb #$f0 ; stb 4,x   ->   aim #$f0,4,x     (6309: and/or/eor)
+//     ldb <v  ; incb      ; stb <v    ->   inc <v           (inc/dec, either CPU)
+// The memory forms set N, Z and V as the store did (and leave C, as the
+// logical immediates and inc/dec do); `add #1`/`sub #1` set C where inc/dec
+// do not, so those fold only where C is dead. Indexed, direct-page and
+// extended forms; not a volatile access.
+bool MC6809LateOptimization::foldMemoryRMW(MachineBasicBlock &MBB) const {
+  MachineFunction &MF = *MBB.getParent();
+  const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
+  const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
+  bool Is6309 = MF.getSubtarget<MC6809Subtarget>().has6309();
+  if (!MF.getRegInfo().tracksLiveness())
+    return false;
+  enum class Op { None, And, Or, Eor, Inc, Dec };
+  // The access's form: indexed (with its IdxForm), direct page or extended.
+  enum class Kind { None, Idx, Dir, Ext };
+  auto Access = [&](const MachineInstr &MI, bool Store, Register &R,
+                    MC6809::IdxForm &F) {
+    if (auto LS = MC6809InstrInfo::getIdxLoadStore(MI.getOpcode());
+        LS && LS->IsStore == Store) {
+      R = LS->Value;
+      F = *MC6809InstrInfo::getIdxForm(MI.getOpcode());
+      return Kind::Idx;
+    }
+    if (auto LS = MC6809InstrInfo::getDirLoadStore(MI.getOpcode());
+        LS && LS->IsStore == Store) {
+      R = LS->Value;
+      return Kind::Dir;
+    }
+    switch (MI.getOpcode()) {
+    case MC6809::LDAe: R = MC6809::AA; return Store ? Kind::None : Kind::Ext;
+    case MC6809::LDBe: R = MC6809::AB; return Store ? Kind::None : Kind::Ext;
+    case MC6809::STAe: R = MC6809::AA; return Store ? Kind::Ext : Kind::None;
+    case MC6809::STBe: R = MC6809::AB; return Store ? Kind::Ext : Kind::None;
+    default: return Kind::None;
+    }
+  };
+  // The operation on R, its immediate for and/or/eor, and whether the
+  // memory form sets C differently (add/sub #1 against inc/dec).
+  auto Operation = [&](const MachineInstr &MI, Register R, int64_t &Imm,
+                       bool &SetsC) {
+    bool A = R == MC6809::AA;
+    unsigned O = MI.getOpcode();
+    SetsC = false;
+    auto ImmIs = [&](int64_t V) {
+      return MI.getOperand(0).isImm() && MI.getOperand(0).getImm() == V;
+    };
+    if (O == (A ? MC6809::INCAa : MC6809::INCBa))
+      return Op::Inc;
+    if (O == (A ? MC6809::DECAa : MC6809::DECBa))
+      return Op::Dec;
+    if (O == (A ? MC6809::ADDAi8 : MC6809::ADDBi8) && ImmIs(1)) {
+      SetsC = true;
+      return Op::Inc;
+    }
+    if (O == (A ? MC6809::SUBAi8 : MC6809::SUBBi8) && ImmIs(1)) {
+      SetsC = true;
+      return Op::Dec;
+    }
+    if (!Is6309 || !MI.getOperand(0).isImm())
+      return Op::None;
+    Imm = MI.getOperand(0).getImm();
+    if (O == (A ? MC6809::ANDAi8 : MC6809::ANDBi8))
+      return Op::And;
+    if (O == (A ? MC6809::ORAi8 : MC6809::ORBi8))
+      return Op::Or;
+    if (O == (A ? MC6809::EORAi8 : MC6809::EORBi8))
+      return Op::Eor;
+    return Op::None;
+  };
+  auto NextReal = [&](MachineBasicBlock::iterator It) {
+    for (++It; It != MBB.end() && It->isDebugInstr(); ++It)
+      ;
+    return It;
+  };
+  auto ReadLater = [&](MachineBasicBlock::iterator After, Register R) {
+    LivePhysRegs Live(TRI);
+    Live.addLiveOuts(MBB);
+    for (auto It = MBB.end(); It != After;)
+      Live.stepBackward(*--It);
+    return !Live.available(MF.getRegInfo(), R);
+  };
+
+  bool Changed = false;
+  for (auto It = MBB.begin(); It != MBB.end();) {
+    MachineInstr &Ld = *It++;
+    Register R;
+    MC6809::IdxForm LF{}, SF{};
+    Kind K = Access(Ld, false, R, LF);
+    if (K == Kind::None || (R != MC6809::AA && R != MC6809::AB) ||
+        MC6809InstrInfo::hasOrderedMemOperand(Ld))
+      continue;
+    auto OIt = NextReal(Ld.getIterator());
+    if (OIt == MBB.end())
+      continue;
+    int64_t Imm = 0;
+    bool SetsC;
+    Op O = Operation(*OIt, R, Imm, SetsC);
+    if (O == Op::None)
+      continue;
+    auto SIt = NextReal(OIt);
+    if (SIt == MBB.end())
+      continue;
+    MachineInstr &St = *SIt;
+    Register SR;
+    if (Access(St, true, SR, SF) != K || SR != R ||
+        (K == Kind::Idx && SF != LF) ||
+        MC6809InstrInfo::hasOrderedMemOperand(St))
+      continue;
+    // The same address: the explicit operands of the load and the store
+    // name it (for a direct-page register, as a plain and an undef use).
+    unsigned NL = Ld.getNumExplicitOperands(), NS = St.getNumExplicitOperands();
+    if (NL != NS)
+      continue;
+    bool Same = true;
+    for (unsigned I = 0; I < NL && Same; ++I) {
+      const MachineOperand &A = Ld.getOperand(I), &B = St.getOperand(I);
+      if (A.isReg() && B.isReg())
+        Same = A.getReg() == B.getReg();
+      else
+        Same = A.isIdenticalTo(B);
+    }
+    if (!Same)
+      continue;
+    auto After = std::next(SIt);
+    if (ReadLater(After, R) || (SetsC && ReadLater(After, MC6809::C)))
+      continue;
+    unsigned NewOpc = 0;
+    bool HasImm = O == Op::And || O == Op::Or || O == Op::Eor;
+    unsigned IdxBase = O == Op::And   ? MC6809::AIMii_o0
+                       : O == Op::Or  ? MC6809::OIMii_o0
+                       : O == Op::Eor ? MC6809::EIMii_o0
+                       : O == Op::Inc ? MC6809::INCi_o0
+                                      : MC6809::DECi_o0;
+    if (K == Kind::Idx)
+      NewOpc = MC6809InstrInfo::getIdxSibling(IdxBase, LF);
+    else if (K == Kind::Dir)
+      NewOpc = O == Op::And   ? MC6809::AIMid
+               : O == Op::Or  ? MC6809::OIMid
+               : O == Op::Eor ? MC6809::EIMid
+               : O == Op::Inc ? MC6809::INCd
+                              : MC6809::DECd;
+    else
+      NewOpc = O == Op::And   ? MC6809::AIMie
+               : O == Op::Or  ? MC6809::OIMie
+               : O == Op::Eor ? MC6809::EIMie
+               : O == Op::Inc ? MC6809::INCe
+                              : MC6809::DECe;
+    if (!NewOpc)
+      continue;
+    MachineInstrBuilder New =
+        BuildMI(MBB, St, St.getDebugLoc(), TII.get(NewOpc));
+    // The indexed forms take the immediate first (`aim #v,o,r`); the direct
+    // and extended forms take it after the address (`(ins addr, val)`).
+    if (HasImm && K == Kind::Idx)
+      New.addImm(Imm & 0xFF);
+    for (unsigned I = 0; I < NL; ++I)
+      New.add(Ld.getOperand(I)); // the load's: a plain read of the address
+    if (HasImm && K != Kind::Idx)
+      New.addImm(Imm & 0xFF);
+    for (const MachineOperand &MO : St.implicit_operands())
+      if (MO.isReg() && MO.isDef() &&
+          !TRI.regsOverlap(MO.getReg(), MC6809::CC))
+        New.add(MO); // the direct-page register the store writes
+    New.cloneMergedMemRefs({&Ld, &St});
+    if (It == OIt || It == SIt)
+      It = std::next(SIt);
+    Ld.eraseFromParent();
+    OIt->eraseFromParent();
+    St.eraseFromParent();
+    ++NumMemoryRMW;
+    Changed = true;
+  }
+  return Changed;
+}
 
 // The register a LEA{X,Y,U} of the `k,r` (o5) form steps, and k, when it
 // steps its own base register (`leax 1,x`); an invalid register otherwise.
