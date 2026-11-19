@@ -37,7 +37,7 @@ public:
 
   // Record in the ELF header which processor the code needs.
   void markArchitecture(const MCSubtargetInfo &STI);
-  //void emit816MXState(bool IsMLow, bool IsMHigh, bool IsXLow, bool IsXHigh);
+  // void emit816MXState(bool IsMLow, bool IsMHigh, bool IsXLow, bool IsXHigh);
 
   bool hasBSS() const { return HasBSS; }
   bool hasDPBSS() const { return HasDPBSS; }

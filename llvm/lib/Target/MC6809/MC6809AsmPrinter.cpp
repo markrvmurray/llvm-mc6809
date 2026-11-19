@@ -11,11 +11,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "MCTargetDesc/MC6809AsmBackend.h"
 #include "MC6809MCInstLower.h"
 #include "MC6809MachineFunctionInfo.h"
 #include "MC6809RegisterInfo.h"
 #include "MC6809Subtarget.h"
+#include "MCTargetDesc/MC6809AsmBackend.h"
 #include "MCTargetDesc/MC6809InstPrinter.h"
 #include "MCTargetDesc/MC6809MCExpr.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
@@ -68,8 +68,7 @@ public:
 
   const MCSymbol *getFunctionFrameSymbol(int FI) const override;
 
-  const MCExpr *lowerConstant(const Constant *CV, const Constant *BaseCV,
-                              uint64_t Offset) override;
+  const MCExpr *lowerConstant(const Constant *CV, const Constant *BaseCV, uint64_t Offset) override;
 };
 } // namespace
 
@@ -83,11 +82,8 @@ public:
 // CRT rebases, like any other pointer word). Cast the other way it is the
 // object's 8-bit in-page offset: the low byte of the address on bare metal,
 // the data-area offset on OS-9.
-const MCExpr *MC6809AsmPrinter::lowerConstant(const Constant *CV,
-                                              const Constant *BaseCV,
-                                              uint64_t Offset) {
-  if (const auto *CE = dyn_cast<ConstantExpr>(CV);
-      CE && CE->getOpcode() == Instruction::AddrSpaceCast) {
+const MCExpr *MC6809AsmPrinter::lowerConstant(const Constant *CV, const Constant *BaseCV, uint64_t Offset) {
+  if (const auto *CE = dyn_cast<ConstantExpr>(CV); CE && CE->getOpcode() == Instruction::AddrSpaceCast) {
     const Constant *Op = CE->getOperand(0);
     unsigned DstAS = CE->getType()->getPointerAddressSpace();
     unsigned SrcAS = Op->getType()->getPointerAddressSpace();
@@ -95,9 +91,7 @@ const MCExpr *MC6809AsmPrinter::lowerConstant(const Constant *CV,
       return lowerConstant(Op, BaseCV, Offset);
     if (SrcAS == MC6809::AS_Memory && DstAS == MC6809::AS_DirectPage) {
       bool IsOS9 = TM.getTargetTriple().isOSOS9();
-      return MC6809MCExpr::create(IsOS9 ? MC6809MCExpr::VK_OS9_DATA_OFFSET_8
-                                        : MC6809MCExpr::VK_ADDR8,
-                                  lowerConstant(Op, BaseCV, Offset),
+      return MC6809MCExpr::create(IsOS9 ? MC6809MCExpr::VK_OS9_DATA_OFFSET_8 : MC6809MCExpr::VK_ADDR8, lowerConstant(Op, BaseCV, Offset),
                                   /*isNegated=*/false, OutContext);
     }
   }
@@ -120,12 +114,10 @@ void MC6809AsmPrinter::emitInstruction(const MachineInstr *MI) {
   // every emission site so we can decide which class pairs to wire up
   // properly in copyPhysReg.
   if (MI->getOpcode() == MC6809::COPY_CC_PLACEHOLDER) {
-    const TargetRegisterInfo *TRI =
-        MI->getMF()->getSubtarget().getRegisterInfo();
+    const TargetRegisterInfo *TRI = MI->getMF()->getSubtarget().getRegisterInfo();
     std::string Dst = TRI->getName(MI->getOperand(0).getReg());
     std::string Src = TRI->getName(MI->getOperand(1).getReg());
-    OutStreamer->AddComment("PLACEHOLDER COPY $" + Dst + " <- $" + Src
-                            + " (bug #186 v5)");
+    OutStreamer->AddComment("PLACEHOLDER COPY $" + Dst + " <- $" + Src + " (bug #186 v5)");
     MCInst SWI;
     SWI.setOpcode(MC6809::SWI3x);
     EmitToStreamer(*OutStreamer, SWI);
@@ -166,9 +158,7 @@ void MC6809AsmPrinter::emitInstruction(const MachineInstr *MI) {
   // form for symbolic operands. With that fix in place, this
   // expansion can use the original PCR-relative LEAX cleanly.
   if (MI->getOpcode() == MC6809::BranchJumpTable) {
-    assert(MI->getOperand(0).isReg() &&
-           MI->getOperand(0).getReg() == MC6809::AD &&
-           "BranchJumpTable: $idx must be in $ad before expansion (bug #68)");
+    assert(MI->getOperand(0).isReg() && MI->getOperand(0).getReg() == MC6809::AD && "BranchJumpTable: $idx must be in $ad before expansion (bug #68)");
     unsigned JTI = MI->getOperand(1).getIndex();
     MCSymbol *JTSym = GetJTISymbol(JTI);
     // ASLB — shift index left (low byte)
@@ -182,8 +172,7 @@ void MC6809AsmPrinter::emitInstruction(const MachineInstr *MI) {
     // LEAX JT,PCR — PC-relative jump table base
     MCInst LEA;
     LEA.setOpcode(MC6809::LEAXi_o16PC);
-    LEA.addOperand(MCOperand::createExpr(
-        MCSymbolRefExpr::create(JTSym, OutContext)));
+    LEA.addOperand(MCOperand::createExpr(MCSymbolRefExpr::create(JTSym, OutContext)));
     EmitToStreamer(*OutStreamer, LEA);
     // LDD D,X — load relative offset from table[index]
     MCInst LDD;
@@ -202,9 +191,9 @@ void MC6809AsmPrinter::emitInstruction(const MachineInstr *MI) {
     MachineBasicBlock::const_instr_iterator I = MI->getIterator();
     MachineBasicBlock::const_instr_iterator E = MI->getParent()->instr_end();
     while (++I != E && I->isInsideBundle()) {
-        MCInst Inst;
-        InstLowering.lower(&*I, Inst);
-        EmitToStreamer(*OutStreamer, Inst);
+      MCInst Inst;
+      InstLowering.lower(&*I, Inst);
+      EmitToStreamer(*OutStreamer, Inst);
     }
   } else {
     MCInst Inst;
@@ -335,7 +324,6 @@ const MCSymbol *MC6809AsmPrinter::getFunctionFrameSymbol(int FI) const {
   }
   return AsmPrinter::getFunctionFrameSymbol(FI);
 }
-
 
 // Force static initialization.
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMC6809AsmPrinter() { RegisterAsmPrinter<MC6809AsmPrinter> X(getTheMC6809Target()); }

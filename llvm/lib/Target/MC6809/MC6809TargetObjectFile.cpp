@@ -54,8 +54,7 @@ bool llvm::isOS9DataAreaObject(const GlobalVariable *GV) {
   return false;
 }
 
-MCSection *MC6809TargetObjectFile::SelectSectionForGlobal(
-    const GlobalObject *GO, SectionKind Kind, const TargetMachine &TM) const {
+MCSection *MC6809TargetObjectFile::SelectSectionForGlobal(const GlobalObject *GO, SectionKind Kind, const TargetMachine &TM) const {
   // OS-9: a constant that the data model keeps in the data area (see
   // isOS9DataAreaObject) goes to a writable-image section (.data.rel.ro*)
   // that the module linker script copies into the data area, never to
@@ -67,8 +66,7 @@ MCSection *MC6809TargetObjectFile::SelectSectionForGlobal(
   return Base::SelectSectionForGlobal(GO, Kind, TM);
 }
 
-MCSection *MC6809TargetObjectFile::getExplicitSectionGlobal(
-    const GlobalObject *GO, SectionKind Kind, const TargetMachine &TM) const {
+MCSection *MC6809TargetObjectFile::getExplicitSectionGlobal(const GlobalObject *GO, SectionKind Kind, const TargetMachine &TM) const {
   // The direct-page zero-init region (`.dp.bss` / `.dp.bss.*`) holds the
   // static-stack frame and any direct-page .bss. A global with an explicit
   // section is never auto-classified as BSS (isSuitableForBSS bails on an

@@ -310,8 +310,7 @@ MachineFunction::reverse_iterator MC6809LowerSelect::lowerSelect(GSelect &MI) {
 void MC6809LowerSelect::moveAwayFromCalls(MachineFunction &MF) {
   for (MachineBasicBlock &MBB : MF) {
     for (auto I = MBB.begin(), E = MBB.end(); I != E; ++I) {
-      if (I->getOpcode() != MC6809::LongBranchSubroutine && I->getOpcode() != MC6809::BranchSubroutine &&
-          I->getOpcode() != MC6809::LBSRlb && I->getOpcode() != MC6809::BSRb)
+      if (I->getOpcode() != MC6809::LongBranchSubroutine && I->getOpcode() != MC6809::BranchSubroutine && I->getOpcode() != MC6809::LBSRlb && I->getOpcode() != MC6809::BSRb)
         continue;
 
       SmallVector<MachineInstr *> PushedMIs;
@@ -378,7 +377,6 @@ void MC6809LowerSelect::sinkSelectsToBranchUses(MachineFunction &MF) {
     }
   }
 }
-
 
 char MC6809LowerSelect::ID = 0;
 

@@ -21,9 +21,6 @@
 #include "llvm/CodeGen/MachineMemOperand.h"
 #include "llvm/CodeGen/MachineOperand.h"
 
-namespace llvm {
-
-
-} // end namespace llvm
+namespace llvm {} // end namespace llvm
 
 #endif

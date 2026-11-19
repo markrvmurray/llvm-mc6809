@@ -56,10 +56,7 @@ struct MC6809ValueAssigner : CallLowering::ValueAssigner {
   /// go on the stack, none in registers).
   bool InsideSplit = false;
 
-  MC6809ValueAssigner(bool IsIncoming, MachineRegisterInfo &MRI, const MachineFunction &MF, bool IsReturn = false)
-    : CallLowering::ValueAssigner(IsIncoming,
-        IsReturn ? RetCC_MC6809 : CC_MC6809,
-        CC_MC6809_VarArgs) {
+  MC6809ValueAssigner(bool IsIncoming, MachineRegisterInfo &MRI, const MachineFunction &MF, bool IsReturn = false) : CallLowering::ValueAssigner(IsIncoming, IsReturn ? RetCC_MC6809 : CC_MC6809, CC_MC6809_VarArgs) {
     Reserved = MRI.getTargetRegisterInfo()->getReservedRegs(MF);
   }
 
@@ -85,8 +82,7 @@ struct MC6809ValueAssigner : CallLowering::ValueAssigner {
       // (STRUCTURE_SIZE_BOUNDARY 8 in m6809.h).
       Align ByValAlign(1);
       unsigned Offset = State.AllocateStack(ByValSize, ByValAlign);
-      State.addLoc(CCValAssign::getMem(ValNo, ValVT, Offset, LocVT,
-                                       CCValAssign::Full));
+      State.addLoc(CCValAssign::getMem(ValNo, ValVT, Offset, LocVT, CCValAssign::Full));
       StackSize = State.getStackSize();
       return false;
     }
@@ -186,10 +182,7 @@ struct MC6809OutgoingArgsHandler : MC6809OutgoingValueHandler {
   // structs typical of MC6809 code (4-16 bytes) this is fine; for
   // larger byval blobs a memcpy libcall would be more compact, but
   // none of our tests exercise that case yet.
-  void assignValueToAddress(const CallLowering::ArgInfo &Arg,
-                            unsigned ValRegIndex, Register Addr, LLT MemTy,
-                            const MachinePointerInfo &MPO,
-                            const CCValAssign &VA) override {
+  void assignValueToAddress(const CallLowering::ArgInfo &Arg, unsigned ValRegIndex, Register Addr, LLT MemTy, const MachinePointerInfo &MPO, const CCValAssign &VA) override {
     if (Arg.Flags[ValRegIndex].isByVal()) {
       MachineFunction &MF = MIRBuilder.getMF();
       uint64_t Size = Arg.Flags[ValRegIndex].getByValSize();
@@ -199,18 +192,11 @@ struct MC6809OutgoingArgsHandler : MC6809OutgoingValueHandler {
       LLT OffTy = LLT::scalar(16);
 
       for (uint64_t I = 0; I < Size; ++I) {
-        Register OffsetReg =
-            MIRBuilder.buildConstant(OffTy, I).getReg(0);
-        Register CurSrc =
-            MIRBuilder.buildPtrAdd(PtrTy, SrcPtr, OffsetReg).getReg(0);
-        Register CurDst =
-            MIRBuilder.buildPtrAdd(PtrTy, Addr, OffsetReg).getReg(0);
-        auto *SrcMMO = MF.getMachineMemOperand(MachinePointerInfo(),
-                                               MachineMemOperand::MOLoad,
-                                               I8Ty, Align(1));
-        auto *DstMMO = MF.getMachineMemOperand(MPO,
-                                               MachineMemOperand::MOStore,
-                                               I8Ty, Align(1));
+        Register OffsetReg = MIRBuilder.buildConstant(OffTy, I).getReg(0);
+        Register CurSrc = MIRBuilder.buildPtrAdd(PtrTy, SrcPtr, OffsetReg).getReg(0);
+        Register CurDst = MIRBuilder.buildPtrAdd(PtrTy, Addr, OffsetReg).getReg(0);
+        auto *SrcMMO = MF.getMachineMemOperand(MachinePointerInfo(), MachineMemOperand::MOLoad, I8Ty, Align(1));
+        auto *DstMMO = MF.getMachineMemOperand(MPO, MachineMemOperand::MOStore, I8Ty, Align(1));
         Register Byte = MIRBuilder.buildLoad(I8Ty, CurSrc, *SrcMMO).getReg(0);
         MIRBuilder.buildStore(Byte, CurDst, *DstMMO);
       }
@@ -297,10 +283,7 @@ struct MC6809IncomingArgsHandler : public MC6809IncomingValueHandler {
   // and the natural value of that pointer is the frame-index pointer
   // returned by getStackAddress (i.e. Addr). No load is needed —
   // the formal vreg simply takes the address.
-  void assignValueToAddress(const CallLowering::ArgInfo &Arg,
-                            unsigned ValRegIndex, Register Addr, LLT MemTy,
-                            const MachinePointerInfo &MPO,
-                            const CCValAssign &VA) override {
+  void assignValueToAddress(const CallLowering::ArgInfo &Arg, unsigned ValRegIndex, Register Addr, LLT MemTy, const MachinePointerInfo &MPO, const CCValAssign &VA) override {
     if (Arg.Flags[ValRegIndex].isByVal()) {
       MIRBuilder.buildCopy(Arg.Regs[ValRegIndex], Addr);
       return;
@@ -372,7 +355,6 @@ static bool isLargeReturnType(const Type *Ty, const DataLayout &DL) {
   return DL.getTypeStoreSize(const_cast<Type *>(Ty)).getKnownMinValue() > 2;
 }
 
-
 bool MC6809CallLowering::lowerReturn(MachineIRBuilder &MIRBuilder, const Value *Val, ArrayRef<Register> VRegs, FunctionLoweringInfo &FLI) const {
   MachineFunction &MF = MIRBuilder.getMF();
   const auto &TFI = static_cast<const MC6809FrameLowering &>(*MF.getSubtarget().getFrameLowering());
@@ -399,8 +381,7 @@ bool MC6809CallLowering::lowerReturn(MachineIRBuilder &MIRBuilder, const Value *
                                    "for large-return functions");
       assert(VRegs.size() == 1 && "expected single vreg for large return");
       LLT ValLLT = MRI.getType(VRegs[0]);
-      auto *MMO = MF.getMachineMemOperand(
-          MachinePointerInfo(), MachineMemOperand::MOStore, ValLLT, Align(1));
+      auto *MMO = MF.getMachineMemOperand(MachinePointerInfo(), MachineMemOperand::MOStore, ValLLT, Align(1));
       MIRBuilder.buildStore(VRegs[0], SRetVReg, *MMO);
       MIRBuilder.insertInstr(Return);
       return true;
@@ -449,7 +430,6 @@ bool MC6809CallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder, cons
   MachineFunction &MF = MIRBuilder.getMF();
   const DataLayout &DL = MF.getDataLayout();
   MachineRegisterInfo &MRI = MF.getRegInfo();
-
 
   SmallVector<ArgInfo> SplitArgs;
   unsigned Idx = 0;
@@ -549,13 +529,9 @@ bool MC6809CallLowering::lowerCall(MachineIRBuilder &MIRBuilder, CallLoweringInf
   // The setRegClass call is safe regardless of the vreg's prior state:
   // for a generic vreg it assigns the class; for an already-classed
   // vreg setRegClass would be too aggressive, so we check first.
-  if (IsIndirect && Info.Callee.getReg().isVirtual() &&
-      MRI.getRegClassOrNull(Info.Callee.getReg()) == nullptr)
+  if (IsIndirect && Info.Callee.getReg().isVirtual() && MRI.getRegClassOrNull(Info.Callee.getReg()) == nullptr)
     MRI.setRegClass(Info.Callee.getReg(), &MC6809::INDEX16RegClass);
-  auto Call = MIRBuilder.buildInstrNoInsert(IsIndirect ? MC6809::JSRi_o0
-                                                        : MC6809::LongBranchSubroutine)
-                  .add(Info.Callee)
-                  .addRegMask(TRI.getCallPreservedMask(MF, Info.CallConv));
+  auto Call = MIRBuilder.buildInstrNoInsert(IsIndirect ? MC6809::JSRi_o0 : MC6809::LongBranchSubroutine).add(Info.Callee).addRegMask(TRI.getCallPreservedMask(MF, Info.CallConv));
 
   SmallVector<ArgInfo, 8> OutArgs;
   for (auto &OrigArg : Info.OrigArgs) {
@@ -568,8 +544,7 @@ bool MC6809CallLowering::lowerCall(MachineIRBuilder &MIRBuilder, CallLoweringInf
   // pointer arg in IX, and the callee writes the result through that
   // pointer. After the call, we G_LOAD the result back from the buffer
   // into the original return-value vreg.
-  bool UseSret = !Info.OrigRet.Ty->isVoidTy() &&
-                 isLargeReturnType(Info.OrigRet.Ty, DL);
+  bool UseSret = !Info.OrigRet.Ty->isVoidTy() && isLargeReturnType(Info.OrigRet.Ty, DL);
   int SRetFI = -1;
   Register SRetAddrVReg;
   if (UseSret) {
@@ -610,12 +585,9 @@ bool MC6809CallLowering::lowerCall(MachineIRBuilder &MIRBuilder, CallLoweringInf
     // original return-value vreg(s). For a single-vreg return (the
     // common case for i32/i64), this is one G_LOAD; the legalizer
     // will narrow it as needed.
-    assert(Info.OrigRet.Regs.size() == 1 &&
-           "multi-vreg sret returns not yet supported");
+    assert(Info.OrigRet.Regs.size() == 1 && "multi-vreg sret returns not yet supported");
     LLT RetLLT = MRI.getType(Info.OrigRet.Regs[0]);
-    auto *MMO = MF.getMachineMemOperand(
-        MachinePointerInfo::getFixedStack(MF, SRetFI),
-        MachineMemOperand::MOLoad, RetLLT, Align(1));
+    auto *MMO = MF.getMachineMemOperand(MachinePointerInfo::getFixedStack(MF, SRetFI), MachineMemOperand::MOLoad, RetLLT, Align(1));
     MIRBuilder.buildLoad(Info.OrigRet.Regs[0], SRetAddrVReg, *MMO);
   } else if (!Info.OrigRet.Ty->isVoidTy()) {
     // Copy the return value from its physical location into a virtual register.

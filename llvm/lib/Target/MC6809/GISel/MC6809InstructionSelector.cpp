@@ -45,7 +45,6 @@ using namespace MIPatternMatch;
 
 #define DEBUG_TYPE "mc6809-isel"
 
-
 // Bug #319 (2026-05-21): narrow a vreg's class to a tighter target
 // class when the producer (e.g. ConditionalImm / SEX8Implicit /
 // ZEX8Implicit, post-BIT1-elimination) emits at the broader ACC8 but
@@ -97,10 +96,7 @@ static unsigned getOS9WritableGlobalTargetFlags(const GlobalValue *GV) {
 // as `R`.  If `R` is already in `RC`, returns `R` unchanged.
 // Otherwise emits a COPY to a fresh `RC`-classed vreg and returns
 // that.
-static Register narrowToClass(MachineIRBuilder &Builder,
-                              MachineRegisterInfo *MRI,
-                              Register R,
-                              const TargetRegisterClass *RC) {
+static Register narrowToClass(MachineIRBuilder &Builder, MachineRegisterInfo *MRI, Register R, const TargetRegisterClass *RC) {
   if (MRI->getRegClassOrNull(R) == RC)
     return R;
   Register Copy = MRI->createVirtualRegister(RC);
@@ -140,8 +136,7 @@ private:
   bool isKnownZeroOrOne(Register R) const;
   bool selectFrameIndex(MachineInstr &MI);
   bool selectAddrSpaceCast(MachineInstr &MI);
-  Register buildDirectPageAddress(MachineBasicBlock &MBB, MachineInstr &Before,
-                                  const DebugLoc &DL, Register InPageOff);
+  Register buildDirectPageAddress(MachineBasicBlock &MBB, MachineInstr &Before, const DebugLoc &DL, Register InPageOff);
   /// Capture the CC flag standing behind phantom-carry vreg \p SrcReg into
   /// the byte \p DstReg. The MaterializeCC pseudo is inserted immediately
   /// after the flag's producer, not at the use, because any arithmetic or
@@ -222,11 +217,7 @@ private:
 };
 } // namespace
 
-void MC6809InstructionSelector::setupMF(MachineFunction &MF,
-                                     GISelValueTracking *VT,
-                                     CodeGenCoverage *CovInfo,
-                                     ProfileSummaryInfo *PSI,
-                                     BlockFrequencyInfo *BFI, AAResults *AA) {
+void MC6809InstructionSelector::setupMF(MachineFunction &MF, GISelValueTracking *VT, CodeGenCoverage *CovInfo, ProfileSummaryInfo *PSI, BlockFrequencyInfo *BFI, AAResults *AA) {
   InstructionSelector::setupMF(MF, VT, CovInfo, PSI, BFI, AA);
 
   // Bug #186 v5: per-function carry/overflow flag tracking.
@@ -269,15 +260,12 @@ void MC6809InstructionSelector::setupMF(MachineFunction &MF,
 //
 // Consumer sites use this to decide whether to emit a flag-reading
 // sequence (true phantom) or a byte-LSB-reading sequence (real byte).
-static std::optional<MCPhysReg>
-getPhantomCarryFlag(Register SrcReg, const MachineRegisterInfo &MRI,
-                   const DenseMap<Register, MCPhysReg> *CarryFlagOf = nullptr) {
+static std::optional<MCPhysReg> getPhantomCarryFlag(Register SrcReg, const MachineRegisterInfo &MRI, const DenseMap<Register, MCPhysReg> *CarryFlagOf = nullptr) {
   Register Cur = SrcReg;
   while (Cur.isVirtual()) {
     // A root that has been bound to a byte (see bindPhantomToByte) is a
     // value from then on: the producer captures the flag into it.
-    if (const TargetRegisterClass *RC = MRI.getRegClassOrNull(Cur);
-        RC && RC != &MC6809::PHANTOM_CARRYRegClass)
+    if (const TargetRegisterClass *RC = MRI.getRegClassOrNull(Cur); RC && RC != &MC6809::PHANTOM_CARRYRegClass)
       return std::nullopt;
     // Bug #186 v5: tracker lookup. If the IR-level carry/overflow vreg
     // was registered when its SetCarry/SetCarryUse producer was
@@ -290,7 +278,8 @@ getPhantomCarryFlag(Register SrcReg, const MachineRegisterInfo &MRI,
         return It->second;
     }
     MachineInstr *Def = MRI.getVRegDef(Cur);
-    if (!Def) return std::nullopt;
+    if (!Def)
+      return std::nullopt;
     unsigned Op = Def->getOpcode();
     // Bug #186 follow-up Phase 1a (2026-04-28): the v5 IMPLICIT_DEF
     // placeholder is gone — selectAddO/SubO/AddE/SubE now attach an
@@ -299,10 +288,12 @@ getPhantomCarryFlag(Register SrcReg, const MachineRegisterInfo &MRI,
     // pseudo and the switch below recognises it. This branch only
     // fires for genuinely undef carry vregs (legalizer artefacts);
     // safe to terminate the walk.
-    if (Op == TargetOpcode::IMPLICIT_DEF) return std::nullopt;
+    if (Op == TargetOpcode::IMPLICIT_DEF)
+      return std::nullopt;
     // Walk through transparent pass-throughs.
     if (Op == TargetOpcode::G_FREEZE || Op == TargetOpcode::COPY) {
-      if (!Def->getOperand(1).isReg()) return std::nullopt;
+      if (!Def->getOperand(1).isReg())
+        return std::nullopt;
       Register Next = Def->getOperand(1).getReg();
       // Inline-asm CC outputs surface as a `COPY $c` / `COPY $v` off the
       // INLINEASM's implicit-def.  The value genuinely lives in the CC bit,
@@ -310,8 +301,10 @@ getPhantomCarryFlag(Register SrcReg, const MachineRegisterInfo &MRI,
       // reg — the consumer materialises it into a byte via
       // MaterializeCC_C_to_byte / MaterializeCC_V_to_byte.
       if (Next.isPhysical()) {
-        if (Next == MC6809::C) return MC6809::C;
-        if (Next == MC6809::V) return MC6809::V;
+        if (Next == MC6809::C)
+          return MC6809::C;
+        if (Next == MC6809::V)
+          return MC6809::V;
         return std::nullopt;
       }
       Cur = Next;
@@ -325,39 +318,95 @@ getPhantomCarryFlag(Register SrcReg, const MachineRegisterInfo &MRI,
     case TargetOpcode::G_UADDO:
     case TargetOpcode::G_USUBE:
     case TargetOpcode::G_UADDE:
-    case MC6809::SubSetCarry_i8_Imm:    case MC6809::SubSetCarry_i16_Imm:    case MC6809::SubSetCarry_i32_Imm:
-    case MC6809::SubSetCarry_i8_Mem:    case MC6809::SubSetCarry_i16_Mem:    case MC6809::SubSetCarry_i32_Mem:    case MC6809::SubSetCarry_i8_Reg:    case MC6809::SubSetCarry_i16_Reg:    case MC6809::SubSetCarry_i32_Reg:
-    case MC6809::AddSetCarry_i8_Imm:    case MC6809::AddSetCarry_i16_Imm:    case MC6809::AddSetCarry_i32_Imm:
-    case MC6809::AddSetCarry_i8_Mem:    case MC6809::AddSetCarry_i16_Mem:    case MC6809::AddSetCarry_i32_Mem:    case MC6809::AddSetCarry_i8_Reg:    case MC6809::AddSetCarry_i16_Reg:    case MC6809::AddSetCarry_i32_Reg:
-    case MC6809::SubSetCarryUse_i8_Imm: case MC6809::SubSetCarryUse_i16_Imm: case MC6809::SubSetCarryUse_i32_Imm:
-    case MC6809::SubSetCarryUse_i8_Mem: case MC6809::SubSetCarryUse_i16_Mem: case MC6809::SubSetCarryUse_i32_Mem:
-    case MC6809::SubSetCarryUse_i8_Reg: case MC6809::SubSetCarryUse_i16_Reg: case MC6809::SubSetCarryUse_i32_Reg:
-    case MC6809::AddSetCarryUse_i8_Imm: case MC6809::AddSetCarryUse_i16_Imm: case MC6809::AddSetCarryUse_i32_Imm:
-    case MC6809::AddSetCarryUse_i8_Mem: case MC6809::AddSetCarryUse_i16_Mem: case MC6809::AddSetCarryUse_i32_Mem:
-    case MC6809::AddSetCarryUse_i8_Reg: case MC6809::AddSetCarryUse_i16_Reg: case MC6809::AddSetCarryUse_i32_Reg:
+    case MC6809::SubSetCarry_i8_Imm:
+    case MC6809::SubSetCarry_i16_Imm:
+    case MC6809::SubSetCarry_i32_Imm:
+    case MC6809::SubSetCarry_i8_Mem:
+    case MC6809::SubSetCarry_i16_Mem:
+    case MC6809::SubSetCarry_i32_Mem:
+    case MC6809::SubSetCarry_i8_Reg:
+    case MC6809::SubSetCarry_i16_Reg:
+    case MC6809::SubSetCarry_i32_Reg:
+    case MC6809::AddSetCarry_i8_Imm:
+    case MC6809::AddSetCarry_i16_Imm:
+    case MC6809::AddSetCarry_i32_Imm:
+    case MC6809::AddSetCarry_i8_Mem:
+    case MC6809::AddSetCarry_i16_Mem:
+    case MC6809::AddSetCarry_i32_Mem:
+    case MC6809::AddSetCarry_i8_Reg:
+    case MC6809::AddSetCarry_i16_Reg:
+    case MC6809::AddSetCarry_i32_Reg:
+    case MC6809::SubSetCarryUse_i8_Imm:
+    case MC6809::SubSetCarryUse_i16_Imm:
+    case MC6809::SubSetCarryUse_i32_Imm:
+    case MC6809::SubSetCarryUse_i8_Mem:
+    case MC6809::SubSetCarryUse_i16_Mem:
+    case MC6809::SubSetCarryUse_i32_Mem:
+    case MC6809::SubSetCarryUse_i8_Reg:
+    case MC6809::SubSetCarryUse_i16_Reg:
+    case MC6809::SubSetCarryUse_i32_Reg:
+    case MC6809::AddSetCarryUse_i8_Imm:
+    case MC6809::AddSetCarryUse_i16_Imm:
+    case MC6809::AddSetCarryUse_i32_Imm:
+    case MC6809::AddSetCarryUse_i8_Mem:
+    case MC6809::AddSetCarryUse_i16_Mem:
+    case MC6809::AddSetCarryUse_i32_Mem:
+    case MC6809::AddSetCarryUse_i8_Reg:
+    case MC6809::AddSetCarryUse_i16_Reg:
+    case MC6809::AddSetCarryUse_i32_Reg:
     // Single-bit shift-extends: the carry-out is the bit shifted out, and
     // it lives in CC.C. Both the generic form (the consumer of a chain is
     // selected before its producer, selection being bottom-up) and the
     // selected pseudos (see selectShiftExtend).
-    case MC6809::G_SHLE:            case MC6809::G_LSHRE:
-    case MC6809::LSL_i8_Reg:        case MC6809::LSR_i8_Reg:        case MC6809::ASR_i8_Reg:
-    case MC6809::ROL_i8_Reg:        case MC6809::ROR_i8_Reg:
+    case MC6809::G_SHLE:
+    case MC6809::G_LSHRE:
+    case MC6809::LSL_i8_Reg:
+    case MC6809::LSR_i8_Reg:
+    case MC6809::ASR_i8_Reg:
+    case MC6809::ROL_i8_Reg:
+    case MC6809::ROR_i8_Reg:
       return MC6809::C;
     // Overflow producers.
     case TargetOpcode::G_SSUBO:
     case TargetOpcode::G_SADDO:
     case TargetOpcode::G_SSUBE:
     case TargetOpcode::G_SADDE:
-    case MC6809::SubSetOverflow_i8_Imm:     case MC6809::SubSetOverflow_i16_Imm:     case MC6809::SubSetOverflow_i32_Imm:
-    case MC6809::SubSetOverflow_i8_Mem:     case MC6809::SubSetOverflow_i16_Mem:     case MC6809::SubSetOverflow_i32_Mem:    case MC6809::SubSetOverflow_i8_Reg:     case MC6809::SubSetOverflow_i16_Reg:     case MC6809::SubSetOverflow_i32_Reg:
-    case MC6809::AddSetOverflow_i8_Imm:     case MC6809::AddSetOverflow_i16_Imm:     case MC6809::AddSetOverflow_i32_Imm:
-    case MC6809::AddSetOverflow_i8_Mem:     case MC6809::AddSetOverflow_i16_Mem:     case MC6809::AddSetOverflow_i32_Mem:    case MC6809::AddSetOverflow_i8_Reg:     case MC6809::AddSetOverflow_i16_Reg:     case MC6809::AddSetOverflow_i32_Reg:
-    case MC6809::SubSetOverflowUse_i8_Imm:  case MC6809::SubSetOverflowUse_i16_Imm:  case MC6809::SubSetOverflowUse_i32_Imm:
-    case MC6809::SubSetOverflowUse_i8_Mem:  case MC6809::SubSetOverflowUse_i16_Mem:  case MC6809::SubSetOverflowUse_i32_Mem:
-    case MC6809::SubSetOverflowUse_i8_Reg:  case MC6809::SubSetOverflowUse_i16_Reg:  case MC6809::SubSetOverflowUse_i32_Reg:
-    case MC6809::AddSetOverflowUse_i8_Imm:  case MC6809::AddSetOverflowUse_i16_Imm:  case MC6809::AddSetOverflowUse_i32_Imm:
-    case MC6809::AddSetOverflowUse_i8_Mem:  case MC6809::AddSetOverflowUse_i16_Mem:  case MC6809::AddSetOverflowUse_i32_Mem:
-    case MC6809::AddSetOverflowUse_i8_Reg:  case MC6809::AddSetOverflowUse_i16_Reg:  case MC6809::AddSetOverflowUse_i32_Reg:
+    case MC6809::SubSetOverflow_i8_Imm:
+    case MC6809::SubSetOverflow_i16_Imm:
+    case MC6809::SubSetOverflow_i32_Imm:
+    case MC6809::SubSetOverflow_i8_Mem:
+    case MC6809::SubSetOverflow_i16_Mem:
+    case MC6809::SubSetOverflow_i32_Mem:
+    case MC6809::SubSetOverflow_i8_Reg:
+    case MC6809::SubSetOverflow_i16_Reg:
+    case MC6809::SubSetOverflow_i32_Reg:
+    case MC6809::AddSetOverflow_i8_Imm:
+    case MC6809::AddSetOverflow_i16_Imm:
+    case MC6809::AddSetOverflow_i32_Imm:
+    case MC6809::AddSetOverflow_i8_Mem:
+    case MC6809::AddSetOverflow_i16_Mem:
+    case MC6809::AddSetOverflow_i32_Mem:
+    case MC6809::AddSetOverflow_i8_Reg:
+    case MC6809::AddSetOverflow_i16_Reg:
+    case MC6809::AddSetOverflow_i32_Reg:
+    case MC6809::SubSetOverflowUse_i8_Imm:
+    case MC6809::SubSetOverflowUse_i16_Imm:
+    case MC6809::SubSetOverflowUse_i32_Imm:
+    case MC6809::SubSetOverflowUse_i8_Mem:
+    case MC6809::SubSetOverflowUse_i16_Mem:
+    case MC6809::SubSetOverflowUse_i32_Mem:
+    case MC6809::SubSetOverflowUse_i8_Reg:
+    case MC6809::SubSetOverflowUse_i16_Reg:
+    case MC6809::SubSetOverflowUse_i32_Reg:
+    case MC6809::AddSetOverflowUse_i8_Imm:
+    case MC6809::AddSetOverflowUse_i16_Imm:
+    case MC6809::AddSetOverflowUse_i32_Imm:
+    case MC6809::AddSetOverflowUse_i8_Mem:
+    case MC6809::AddSetOverflowUse_i16_Mem:
+    case MC6809::AddSetOverflowUse_i32_Mem:
+    case MC6809::AddSetOverflowUse_i8_Reg:
+    case MC6809::AddSetOverflowUse_i16_Reg:
+    case MC6809::AddSetOverflowUse_i32_Reg:
       return MC6809::V;
     default:
       return std::nullopt;
@@ -377,13 +426,8 @@ getPhantomCarryFlag(Register SrcReg, const MachineRegisterInfo &MRI,
 /// read the flag from CC directly, trusting adjacency; the capture clobbers
 /// CC, so each gets a restore from the byte. Consumers selected later see a
 /// value byte and bridge themselves.
-static void bindPhantomToByte(Register Root, MachineInstr &Producer,
-                              MCPhysReg Flag, MachineRegisterInfo &MRI,
-                              const TargetInstrInfo &TII,
-                              const TargetRegisterInfo &TRI,
-                              const RegisterBankInfo &RBI) {
-  assert((Flag == MC6809::C || Flag == MC6809::V) &&
-         "only the carry and overflow flags are bound this way");
+static void bindPhantomToByte(Register Root, MachineInstr &Producer, MCPhysReg Flag, MachineRegisterInfo &MRI, const TargetInstrInfo &TII, const TargetRegisterInfo &TRI, const RegisterBankInfo &RBI) {
+  assert((Flag == MC6809::C || Flag == MC6809::V) && "only the carry and overflow flags are bound this way");
   const TargetRegisterClass *RootRC = MRI.getRegClassOrNull(Root);
   bool WasPhantom = !RootRC || RootRC == &MC6809::PHANTOM_CARRYRegClass;
 
@@ -396,8 +440,7 @@ static void bindPhantomToByte(Register Root, MachineInstr &Producer,
   // wherever Root's consumers want it, after the result is dead. For a
   // byte-wide result the other of A/B (or an imaginary register) does.
   int TagIdx = -1;
-  for (unsigned I = Producer.getNumExplicitOperands(),
-                E = Producer.getNumOperands(); I != E; ++I) {
+  for (unsigned I = Producer.getNumExplicitOperands(), E = Producer.getNumOperands(); I != E; ++I) {
     const MachineOperand &MO = Producer.getOperand(I);
     if (MO.isReg() && MO.isDef() && MO.isImplicit() && MO.getReg() == Root) {
       TagIdx = I;
@@ -405,18 +448,14 @@ static void bindPhantomToByte(Register Root, MachineInstr &Producer,
     }
   }
   if (TagIdx >= 0) {
-    assert(MC6809InstrInfo::phantomFlagOfProducer(Producer.getOpcode()) == Flag &&
-           "flag byte bound to a producer of the other flag");
+    assert(MC6809InstrInfo::phantomFlagOfProducer(Producer.getOpcode()) == Flag && "flag byte bound to a producer of the other flag");
     bool WideResult = false;
-    if (Producer.getNumExplicitOperands() > 0 &&
-        Producer.getOperand(0).isReg() && Producer.getOperand(0).isDef()) {
+    if (Producer.getNumExplicitOperands() > 0 && Producer.getOperand(0).isReg() && Producer.getOperand(0).isDef()) {
       Register Res = Producer.getOperand(0).getReg();
-      const TargetRegisterClass *ResRC =
-          Res.isVirtual() ? MRI.getRegClassOrNull(Res) : nullptr;
+      const TargetRegisterClass *ResRC = Res.isVirtual() ? MRI.getRegClassOrNull(Res) : nullptr;
       WideResult = ResRC && TRI.getRegSizeInBits(*ResRC) > 8;
     }
-    Register Byte = MRI.createVirtualRegister(
-        WideResult ? &MC6809::Imag8RegClass : &MC6809::ACC8_AB_SPRegClass);
+    Register Byte = MRI.createVirtualRegister(WideResult ? &MC6809::Imag8RegClass : &MC6809::ACC8_AB_SPRegClass);
     Producer.getOperand(TagIdx).setReg(Byte);
     MachineBasicBlock &MBB = *Producer.getParent();
     MachineIRBuilder B(MBB, std::next(MachineBasicBlock::iterator(Producer)));
@@ -442,8 +481,7 @@ static void bindPhantomToByte(Register Root, MachineInstr &Producer,
   // CC directly, trusting adjacency. The capture that now follows the
   // producer clobbers CC, so give each of them a restore from the byte.
   // Consumers selected later see a value byte and bridge themselves.
-  unsigned Restore = (Flag == MC6809::C) ? MC6809::MaterializeByteToCarry_i8
-                                         : MC6809::MaterializeByteToOverflow_i8;
+  unsigned Restore = (Flag == MC6809::C) ? MC6809::MaterializeByteToCarry_i8 : MC6809::MaterializeByteToOverflow_i8;
   SmallVector<MachineInstr *, 4> Consumers;
   SmallVector<Register, 4> Work{Root};
   SmallPtrSet<MachineInstr *, 8> Seen;
@@ -461,8 +499,7 @@ static void bindPhantomToByte(Register Root, MachineInstr &Producer,
       if (!Use.isPseudo() || !Use.readsRegister(Flag, &TRI))
         continue;
       auto It = MachineBasicBlock::iterator(Use);
-      if (It != Use.getParent()->begin() &&
-          std::prev(It)->getOpcode() == Restore)
+      if (It != Use.getParent()->begin() && std::prev(It)->getOpcode() == Restore)
         continue; // bridged already
       Consumers.push_back(&Use);
     }
@@ -483,11 +520,8 @@ static void bindPhantomToByte(Register Root, MachineInstr &Producer,
 ///
 /// Fast paths skip MIs that obviously can't touch a physreg they don't
 /// declare (COPY/PHI/IMPLICIT_DEF/DBG_VALUE).
-static bool clobbersCCFlag(const MachineInstr &MI,
-                           const TargetRegisterInfo &TRI,
-                           MCPhysReg Flag) {
-  if (MI.isCopyLike() || MI.isPHI() || MI.isImplicitDef() ||
-      MI.isDebugInstr())
+static bool clobbersCCFlag(const MachineInstr &MI, const TargetRegisterInfo &TRI, MCPhysReg Flag) {
+  if (MI.isCopyLike() || MI.isPHI() || MI.isImplicitDef() || MI.isDebugInstr())
     return false;
   return MI.modifiesRegister(Flag, &TRI);
 }
@@ -539,36 +573,26 @@ static bool clobbersCCFlag(const MachineInstr &MI,
 /// `.addUse(CarryIn, RegState::Implicit)` is still required for DCE
 /// protection (Bug #161 round 12 — keeps the upstream alive when its
 /// non-carry byte result is dead).
-static bool
-ensureCarryChainIntegrity(MachineInstr &Consumer, Register CarryIn,
-                          MachineRegisterInfo &MRI,
-                          const TargetInstrInfo &TII,
-                          const TargetRegisterInfo &TRI,
-                          const RegisterBankInfo &RBI,
-                          const DenseMap<Register, MCPhysReg> *CarryFlagOf,
-                          DenseMap<MachineInstr *, Register> &BridgedByteFor) {
+static bool ensureCarryChainIntegrity(MachineInstr &Consumer, Register CarryIn, MachineRegisterInfo &MRI, const TargetInstrInfo &TII, const TargetRegisterInfo &TRI, const RegisterBankInfo &RBI, const DenseMap<Register, MCPhysReg> *CarryFlagOf,
+                                      DenseMap<MachineInstr *, Register> &BridgedByteFor) {
   // Walk back through COPY / G_FREEZE to the root vreg first: a root that
   // has already been bound to a byte (bindPhantomToByte) is a value, and
   // getPhantomCarryFlag no longer reports it as a phantom.
   Register Root = CarryIn;
   while (Root.isVirtual()) {
-    if (const TargetRegisterClass *RC = MRI.getRegClassOrNull(Root);
-        RC && RC != &MC6809::PHANTOM_CARRYRegClass)
+    if (const TargetRegisterClass *RC = MRI.getRegClassOrNull(Root); RC && RC != &MC6809::PHANTOM_CARRYRegClass)
       break; // a value byte
     MachineInstr *Def = MRI.getVRegDef(Root);
     if (!Def)
       break;
     unsigned Op = Def->getOpcode();
-    if ((Op == TargetOpcode::G_FREEZE || Op == TargetOpcode::COPY) &&
-        Def->getOperand(1).isReg() && Def->getOperand(1).getReg().isVirtual()) {
+    if ((Op == TargetOpcode::G_FREEZE || Op == TargetOpcode::COPY) && Def->getOperand(1).isReg() && Def->getOperand(1).getReg().isVirtual()) {
       Root = Def->getOperand(1).getReg();
       continue;
     }
     break;
   }
-  if (const TargetRegisterClass *RootRC =
-          Root.isVirtual() ? MRI.getRegClassOrNull(Root) : nullptr;
-      RootRC && RootRC != &MC6809::PHANTOM_CARRYRegClass) {
+  if (const TargetRegisterClass *RootRC = Root.isVirtual() ? MRI.getRegClassOrNull(Root) : nullptr; RootRC && RootRC != &MC6809::PHANTOM_CARRYRegClass) {
     // Value byte: the producer captured the flag into it and clobbered CC
     // doing so; restore CC from the byte right before this consumer.
     if (!CarryFlagOf)
@@ -578,11 +602,7 @@ ensureCarryChainIntegrity(MachineInstr &Consumer, Register CarryIn,
       return false; // a genuine byte boolean, not a bound flag
     MCPhysReg BoundFlag = FlagIt->second;
     MachineIRBuilder ConsumerB(Consumer);
-    auto BtoC = ConsumerB
-                    .buildInstr(BoundFlag == MC6809::C
-                                    ? MC6809::MaterializeByteToCarry_i8
-                                    : MC6809::MaterializeByteToOverflow_i8)
-                    .addUse(Root);
+    auto BtoC = ConsumerB.buildInstr(BoundFlag == MC6809::C ? MC6809::MaterializeByteToCarry_i8 : MC6809::MaterializeByteToOverflow_i8).addUse(Root);
     constrainSelectedInstRegOperands(*BtoC, TII, TRI, RBI);
     MachineInstr *RootDef = MRI.getVRegDef(Root);
     return RootDef && RootDef->getParent() != Consumer.getParent();
@@ -594,9 +614,7 @@ ensureCarryChainIntegrity(MachineInstr &Consumer, Register CarryIn,
 
   // The consumer-side restore: the flag byte's LSB back into CC.C / CC.V
   // (LSRB, or the overflow equivalent) immediately before the consumer.
-  unsigned ToCCPseudo = (*Flag == MC6809::C)
-      ? MC6809::MaterializeByteToCarry_i8
-      : MC6809::MaterializeByteToOverflow_i8;
+  unsigned ToCCPseudo = (*Flag == MC6809::C) ? MC6809::MaterializeByteToCarry_i8 : MC6809::MaterializeByteToOverflow_i8;
 
   // Walk back through COPY / G_FREEZE to find the actual producer MI.
   // Bug #186 v5/1a: the chain may go through IMPLICIT_DEF placeholders
@@ -651,9 +669,9 @@ ensureCarryChainIntegrity(MachineInstr &Consumer, Register CarryIn,
       }
     }
     if (!Found && !NeedsBridge)
-      return false;  // No intervening clobber — Phase 1a's hasSideEffects
-                     // adjacency is enough.  Caller's implicit-use
-                     // of CarryIn on the new pseudo is still wanted.
+      return false; // No intervening clobber — Phase 1a's hasSideEffects
+                    // adjacency is enough.  Caller's implicit-use
+                    // of CarryIn on the new pseudo is still wanted.
   }
 
   // Producer side: bind the root to a byte. The producer's own expansion
@@ -666,8 +684,7 @@ ensureCarryChainIntegrity(MachineInstr &Consumer, Register CarryIn,
   // Consumer-side restore: emit ToCCPseudo immediately before this
   // Consumer. Each consumer needs its own restore.
   MachineIRBuilder ConsumerB(Consumer);
-  auto BtoC = ConsumerB.buildInstr(ToCCPseudo)
-                  .addUse(ByteVReg);
+  auto BtoC = ConsumerB.buildInstr(ToCCPseudo).addUse(ByteVReg);
   constrainSelectedInstRegOperands(*BtoC, TII, TRI, RBI);
 
   // Bug #307 round 2 (2026-05-18): signal to the caller that the
@@ -697,7 +714,6 @@ ensureCarryChainIntegrity(MachineInstr &Consumer, Register CarryIn,
   return CrossBB;
 }
 
-
 #define GET_GLOBALISEL_IMPL
 #include "MC6809GenGlobalISel.inc"
 #include "llvm/Support/FormatVariadic.h"
@@ -715,8 +731,7 @@ MC6809InstructionSelector::MC6809InstructionSelector(const MC6809TargetMachine &
 }
 
 // Defined below; used by selectLSIndexedIndirect.
-static bool shouldFoldMemAccess(const MachineInstr &Dst, const MachineInstr &Src,
-                                AAResults *AA);
+static bool shouldFoldMemAccess(const MachineInstr &Dst, const MachineInstr &Src, AAResults *AA);
 
 /// Whether \p Consumer may read a stack slot itself, in place of using the
 /// value the G_LOAD \p Load took from it. Folding moves the read from the load
@@ -726,9 +741,7 @@ static bool shouldFoldMemAccess(const MachineInstr &Dst, const MachineInstr &Src
 ///
 /// \p WholeValue says the consumer takes the load's whole result. Otherwise
 /// it takes one half of it, through a G_UNMERGE_VALUES.
-static bool canFoldFrameLoad(const MachineInstr &Consumer,
-                             const MachineInstr &Load, bool WholeValue,
-                             AAResults *AA) {
+static bool canFoldFrameLoad(const MachineInstr &Consumer, const MachineInstr &Load, bool WholeValue, AAResults *AA) {
   // An incoming argument's slot is never written, and its load says so (an
   // invariant load of an immutable fixed object). It reads the same anywhere
   // in the function, across blocks and calls alike.
@@ -772,8 +785,7 @@ InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectAMIndex
   MachineInstr *RootDef = MRI.getVRegDef(Root.getReg());
   if (RootDef->getOpcode() == TargetOpcode::G_LOAD) {
     MachineInstr *FrameDef = MRI.getVRegDef(RootDef->getOperand(1).getReg());
-    if (FrameDef->getOpcode() == TargetOpcode::G_FRAME_INDEX &&
-        canFoldFrameLoad(*Root.getParent(), *RootDef, /*WholeValue=*/true, AA)) {
+    if (FrameDef->getOpcode() == TargetOpcode::G_FRAME_INDEX && canFoldFrameLoad(*Root.getParent(), *RootDef, /*WholeValue=*/true, AA)) {
       return {{
           [=](MachineInstrBuilder &MIB) { MIB.add(FrameDef->getOperand(1)); },
           [=](MachineInstrBuilder &MIB) { MIB.addImm(0); },
@@ -805,8 +817,7 @@ InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectAMIndex
   // itself is ACCUM-bank (it is just the memory value), so we must inspect the
   // sibling, not Root. ACC-domain compares + arith consumers are unaffected.
   bool IndexDomainCompare = false;
-  if (MachineInstr *Cmp = Root.getParent();
-      Cmp->getOpcode() == TargetOpcode::G_ICMP) {
+  if (MachineInstr *Cmp = Root.getParent(); Cmp->getOpcode() == TargetOpcode::G_ICMP) {
     for (unsigned I = 2; I <= 3; ++I) {
       Register Op = Cmp->getOperand(I).getReg();
       if (Op == Root.getReg())
@@ -816,9 +827,7 @@ InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectAMIndex
         IndexDomainCompare = true;
     }
   }
-  if (!IndexDomainCompare && RootDef->getOpcode() == TargetOpcode::G_LOAD &&
-      MRI.hasOneNonDBGUse(Root.getReg()) &&
-      shouldFoldMemAccess(*Root.getParent(), *RootDef, AA)) {
+  if (!IndexDomainCompare && RootDef->getOpcode() == TargetOpcode::G_LOAD && MRI.hasOneNonDBGUse(Root.getReg()) && shouldFoldMemAccess(*Root.getParent(), *RootDef, AA)) {
     MachineInstr *AddrDef = MRI.getVRegDef(RootDef->getOperand(1).getReg());
     if (AddrDef && AddrDef->getOpcode() == TargetOpcode::G_PTR_ADD) {
       MachineInstr *OffDef = MRI.getVRegDef(AddrDef->getOperand(2).getReg());
@@ -827,10 +836,7 @@ InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectAMIndex
             [=](MachineInstrBuilder &MIB) { MIB.add(AddrDef->getOperand(1)); },
             [=](MachineInstrBuilder &MIB) { MIB.add(OffDef->getOperand(1)); },
         }};
-    } else if (AddrDef &&
-               AddrDef->getOpcode() != TargetOpcode::G_FRAME_INDEX &&
-               AddrDef->getOpcode() != TargetOpcode::G_GLOBAL_VALUE &&
-               AddrDef->getOpcode() != TargetOpcode::G_LOAD) {
+    } else if (AddrDef && AddrDef->getOpcode() != TargetOpcode::G_FRAME_INDEX && AddrDef->getOpcode() != TargetOpcode::G_GLOBAL_VALUE && AddrDef->getOpcode() != TargetOpcode::G_LOAD) {
       // Plain register pointer: cmp/add ,p. A pointer that is ITSELF loaded
       // from memory (G_LOAD) is left to am_indexed_indirect (P3b) -- folding it
       // here as a register base would materialise the pointer and preempt the
@@ -860,8 +866,7 @@ InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectAMIndex
   // post-RA staging (only IY stages index reloads). Detect via the sibling
   // G_ICMP operand's bank. ACC-bank consumers (arith/logical -- the only ones
   // that currently reach here) are unaffected.
-  if (MachineInstr *Cmp = Root.getParent();
-      Cmp->getOpcode() == TargetOpcode::G_ICMP) {
+  if (MachineInstr *Cmp = Root.getParent(); Cmp->getOpcode() == TargetOpcode::G_ICMP) {
     for (unsigned I = 2; I <= 3; ++I) {
       Register Op = Cmp->getOperand(I).getReg();
       if (Op == Root.getReg())
@@ -875,8 +880,7 @@ InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectAMIndex
   MachineInstr *OuterLoad = MRI.getVRegDef(Root.getReg());
   if (!OuterLoad || OuterLoad->getOpcode() != TargetOpcode::G_LOAD)
     return std::nullopt;
-  if (!MRI.hasOneNonDBGUse(Root.getReg()) ||
-      !shouldFoldMemAccess(*Root.getParent(), *OuterLoad, AA))
+  if (!MRI.hasOneNonDBGUse(Root.getReg()) || !shouldFoldMemAccess(*Root.getParent(), *OuterLoad, AA))
     return std::nullopt;
   // The outer load's ADDRESS is the pointer, which must itself be a single-use
   // load (the indirect mode reads it from memory), foldable to the consumer.
@@ -884,8 +888,7 @@ InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectAMIndex
   MachineInstr *InnerLoad = MRI.getVRegDef(PtrReg);
   if (!InnerLoad || InnerLoad->getOpcode() != TargetOpcode::G_LOAD)
     return std::nullopt;
-  if (!MRI.hasOneNonDBGUse(PtrReg) ||
-      !shouldFoldMemAccess(*Root.getParent(), *InnerLoad, AA))
+  if (!MRI.hasOneNonDBGUse(PtrReg) || !shouldFoldMemAccess(*Root.getParent(), *InnerLoad, AA))
     return std::nullopt;
   // Match the inner (pointer) load's address: [base+const], frame-index, or
   // plain [base] -- identical to selectLSIndexedIndirect.
@@ -924,16 +927,14 @@ InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectAMUnmer
     // Big-endian: operand 0 = lo part, operand 1 = hi part.
     // Lo part is at the HIGHER address: base + element_size.
     // Hi part is at base + 0.
-    //Register SrcReg = RootDef->getOperand(2).getReg();
+    // Register SrcReg = RootDef->getOperand(2).getReg();
     unsigned EltSize = MRI.getType(Root.getReg()).getSizeInBytes();
     bool IsLo = Root.getReg() == RootDef->getOperand(0).getReg();
     unsigned MergeOffset = IsLo ? EltSize : 0;
     MachineInstr *LoadDef = MRI.getVRegDef(RootDef->getOperand(2).getReg());
     if (LoadDef->getOpcode() == TargetOpcode::G_LOAD) {
       MachineInstr *FrameDef = MRI.getVRegDef(LoadDef->getOperand(1).getReg());
-      if (FrameDef->getOpcode() == TargetOpcode::G_FRAME_INDEX &&
-          canFoldFrameLoad(*Root.getParent(), *LoadDef, /*WholeValue=*/false,
-                           AA)) {
+      if (FrameDef->getOpcode() == TargetOpcode::G_FRAME_INDEX && canFoldFrameLoad(*Root.getParent(), *LoadDef, /*WholeValue=*/false, AA)) {
         return {{
             [=](MachineInstrBuilder &MIB) { MIB.add(FrameDef->getOperand(1)); },
             [=](MachineInstrBuilder &MIB) { MIB.addImm(MergeOffset); },
@@ -977,8 +978,7 @@ InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectLSIndex
 ///  - otherwise the full 16-bit (ACC16) offset register (correct for a zero-
 ///    extended unsigned index or a native i16 value -> `ld d,x`).
 /// Constant offsets fall through (handled by selectLSIndexedImmOffset).
-InstructionSelector::ComplexRendererFns
-MC6809InstructionSelector::selectLSIndexedRegOffset(MachineOperand &Root) const {
+InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectLSIndexedRegOffset(MachineOperand &Root) const {
   MachineRegisterInfo &MRI = Root.getParent()->getParent()->getParent()->getRegInfo();
   if (!Root.isReg())
     return std::nullopt;
@@ -1006,8 +1006,7 @@ MC6809InstructionSelector::selectLSIndexedRegOffset(MachineOperand &Root) const 
   // index dies at the leax), so leave those to it: return nullopt.
   if (OffDef->getOpcode() == TargetOpcode::G_SEXT) {
     Register X = OffDef->getOperand(1).getReg();
-    if (MRI.getType(X) == LLT::scalar(8) && MRI.hasOneNonDBGUse(OffReg) &&
-        MRI.hasOneNonDBGUse(X)) {
+    if (MRI.getType(X) == LLT::scalar(8) && MRI.hasOneNonDBGUse(OffReg) && MRI.hasOneNonDBGUse(X)) {
       return {{
           [=](MachineInstrBuilder &MIB) { MIB.add(RootDef->getOperand(1)); },
           [=](MachineInstrBuilder &MIB) { MIB.addReg(X); },
@@ -1042,8 +1041,7 @@ InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectLSFrame
 /// one instruction, so the explicit pointer-load -- and the scarce index
 /// register it would occupy -- both vanish. Returns the *inner* load's
 /// (idx, offset) for the indirect _MemIndirect pseudo.
-InstructionSelector::ComplexRendererFns
-MC6809InstructionSelector::selectLSIndexedIndirect(MachineOperand &Root) const {
+InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectLSIndexedIndirect(MachineOperand &Root) const {
   MachineRegisterInfo &MRI = Root.getParent()->getParent()->getParent()->getRegInfo();
   if (!Root.isReg())
     return std::nullopt;
@@ -1102,8 +1100,8 @@ static bool shouldFoldMemAccess(const MachineInstr &Dst, const MachineInstr &Src
   if (Dst.getParent() != Src.getParent())
     return false;
 
-  //if ((*Src.memoperands_begin())->isVolatile())
-  //  return false;
+  // if ((*Src.memoperands_begin())->isVolatile())
+  //   return false;
 
   // Look for intervening instructions that cannot be folded across.
   for (const MachineInstr &I : make_range(std::next(MachineBasicBlock::const_iterator(Src)), MachineBasicBlock::const_iterator(Dst))) {
@@ -1132,10 +1130,8 @@ static bool shouldFoldMemAccess(const MachineInstr &Dst, const MachineInstr &Src
 ///
 /// For big-endian MC6809: part[0] (lo) is `const & 0xFF`,
 /// part[1] (hi) is `(const >> 8) & 0xFF`.
-static bool getUnmergedByteConstant(const MachineRegisterInfo &MRI,
-                                    Register Reg, int64_t &Val) {
-  const MachineInstr *Unmerge =
-      getOpcodeDef(MC6809::G_UNMERGE_VALUES, Reg, MRI);
+static bool getUnmergedByteConstant(const MachineRegisterInfo &MRI, Register Reg, int64_t &Val) {
+  const MachineInstr *Unmerge = getOpcodeDef(MC6809::G_UNMERGE_VALUES, Reg, MRI);
   if (!Unmerge)
     return false;
   // The source of the unmerge is the last operand.
@@ -1200,9 +1196,7 @@ struct FoldedLdIdx_match {
 };
 } // end anonymous namespace
 
-static inline FoldedLdIdx_match m_FoldedLdIdx(const MachineInstr &Tgt, MachineOperand &Ptr, MachineOperand &Offset, AAResults *AA) {
-  return {Tgt, Ptr, Offset, AA};
-}
+static inline FoldedLdIdx_match m_FoldedLdIdx(const MachineInstr &Tgt, MachineOperand &Ptr, MachineOperand &Offset, AAResults *AA) { return {Tgt, Ptr, Offset, AA}; }
 
 // Returns the widest register class that can contain values of a given type.
 // Used to ensure that every virtual register gets some register class by the
@@ -1210,30 +1204,27 @@ static inline FoldedLdIdx_match m_FoldedLdIdx(const MachineInstr &Tgt, MachineOp
 static const TargetRegisterClass &getRegClassForType(LLT Ty) {
   if (Ty == LLT::pointer(0, 16)) {
     return MC6809::INDEX16RegClass;
-  } 
-    switch (Ty.getSizeInBits()) {
-    default:
-      llvm_unreachable("Invalid type size.");
-    case 1:
-      // i1 values share the byte pool with i8; the byte's LSB carries
-      // the boolean.
-      return MC6809::ACC8RegClass;
-    case 8:
-      return MC6809::ACC8RegClass;
-    case 16:
-      return MC6809::ACC16RegClass;
-    case 32:
-      return MC6809::ACC32RegClass;
-    }
-  
+  }
+  switch (Ty.getSizeInBits()) {
+  default:
+    llvm_unreachable("Invalid type size.");
+  case 1:
+    // i1 values share the byte pool with i8; the byte's LSB carries
+    // the boolean.
+    return MC6809::ACC8RegClass;
+  case 8:
+    return MC6809::ACC8RegClass;
+  case 16:
+    return MC6809::ACC16RegClass;
+  case 32:
+    return MC6809::ACC32RegClass;
+  }
 }
 
 // Version that checks register bank for s16 values — returns INDEX16
 // for values in the index bank (e.g., args/returns passed in X).
-static const TargetRegisterClass &getRegClassForTypeOnBank(
-    LLT Ty, const RegisterBank *RB) {
-  if (Ty.getSizeInBits() == 16 && RB &&
-      RB->getID() == MC6809::INDEXRegBankID) {
+static const TargetRegisterClass &getRegClassForTypeOnBank(LLT Ty, const RegisterBank *RB) {
+  if (Ty.getSizeInBits() == 16 && RB && RB->getID() == MC6809::INDEXRegBankID) {
     return MC6809::INDEX16RegClass;
   }
   return getRegClassForType(Ty);
@@ -1252,9 +1243,7 @@ static const TargetRegisterClass &getRegClassForTypeOnBank(
 // still-generic or already-selected definers (the selector works bottom-up,
 // so a definer may be either); a phi met again on its own cycle counts as
 // known, its other inputs decide.
-static bool knownZeroOrOne(Register R, const MachineRegisterInfo &MRI,
-                           SmallPtrSetImpl<const MachineInstr *> &Visited,
-                           unsigned Depth) {
+static bool knownZeroOrOne(Register R, const MachineRegisterInfo &MRI, SmallPtrSetImpl<const MachineInstr *> &Visited, unsigned Depth) {
   if (!R.isVirtual() || Depth > 8)
     return false;
   const MachineInstr *Def = MRI.getVRegDef(R);
@@ -1262,10 +1251,7 @@ static bool knownZeroOrOne(Register R, const MachineRegisterInfo &MRI,
     return false;
   if (!Visited.insert(Def).second)
     return true;
-  auto Known = [&](unsigned OpIdx) {
-    return knownZeroOrOne(Def->getOperand(OpIdx).getReg(), MRI, Visited,
-                          Depth + 1);
-  };
+  auto Known = [&](unsigned OpIdx) { return knownZeroOrOne(Def->getOperand(OpIdx).getReg(), MRI, Visited, Depth + 1); };
   switch (Def->getOpcode()) {
   case TargetOpcode::G_ICMP:
   case TargetOpcode::G_FCMP:
@@ -1278,8 +1264,7 @@ static bool knownZeroOrOne(Register R, const MachineRegisterInfo &MRI,
   case TargetOpcode::G_CONSTANT:
     return Def->getOperand(1).getCImm()->getValue().ule(1);
   case MC6809::Load_i8_Imm:
-    return Def->getOperand(1).isImm() &&
-           (Def->getOperand(1).getImm() & 0xff) <= 1;
+    return Def->getOperand(1).isImm() && (Def->getOperand(1).getImm() & 0xff) <= 1;
   case TargetOpcode::G_PHI:
   case TargetOpcode::PHI:
     for (unsigned I = 1, E = Def->getNumOperands(); I < E; I += 2)
@@ -1324,8 +1309,7 @@ bool MC6809InstructionSelector::loadedValueWillFold(Register Val) const {
   for (const MachineInstr &U : MRI->use_nodbg_instructions(Val)) {
     if (MC6809InstrInfo::getMemFoldSibling(U.getOpcode()))
       return true;
-    if (U.getOpcode() == MC6809::EXTRACT_LO_i16 ||
-        U.getOpcode() == MC6809::EXTRACT_HI_i16)
+    if (U.getOpcode() == MC6809::EXTRACT_LO_i16 || U.getOpcode() == MC6809::EXTRACT_HI_i16)
       return true;
   }
   return false;
@@ -1344,12 +1328,9 @@ bool MC6809InstructionSelector::tryFusePostModify(MachineInstr &MI) const {
     unsigned Size;
   };
   static const PM Table[] = {
-      {MC6809::Load_i8_Mem, MC6809::Load_i8_PostInc, MC6809::Load_i8_PreDec, true, 1},
-      {MC6809::Load_i16_Mem, MC6809::Load_i16_PostInc, MC6809::Load_i16_PreDec, true, 2},
-      {MC6809::Load_iPtr_Mem, MC6809::Load_iPtr_PostInc, MC6809::Load_iPtr_PreDec, true, 2},
-      {MC6809::Store_i8_Mem, MC6809::Store_i8_PostInc, MC6809::Store_i8_PreDec, false, 1},
-      {MC6809::Store_i16_Mem, MC6809::Store_i16_PostInc, MC6809::Store_i16_PreDec, false, 2},
-      {MC6809::Store_iPtr_Mem, MC6809::Store_iPtr_PostInc, MC6809::Store_iPtr_PreDec, false, 2},
+      {MC6809::Load_i8_Mem, MC6809::Load_i8_PostInc, MC6809::Load_i8_PreDec, true, 1},        {MC6809::Load_i16_Mem, MC6809::Load_i16_PostInc, MC6809::Load_i16_PreDec, true, 2},
+      {MC6809::Load_iPtr_Mem, MC6809::Load_iPtr_PostInc, MC6809::Load_iPtr_PreDec, true, 2},  {MC6809::Store_i8_Mem, MC6809::Store_i8_PostInc, MC6809::Store_i8_PreDec, false, 1},
+      {MC6809::Store_i16_Mem, MC6809::Store_i16_PostInc, MC6809::Store_i16_PreDec, false, 2}, {MC6809::Store_iPtr_Mem, MC6809::Store_iPtr_PostInc, MC6809::Store_iPtr_PreDec, false, 2},
   };
 
   Register Dst = MI.getOperand(0).getReg();
@@ -1438,8 +1419,7 @@ bool MC6809InstructionSelector::tryFusePostModify(MachineInstr &MI) const {
       AccessAfterMI = true;
       break;
     }
-  auto UsesDstBetween = [&](MachineBasicBlock::iterator From,
-                            MachineBasicBlock::iterator To) {
+  auto UsesDstBetween = [&](MachineBasicBlock::iterator From, MachineBasicBlock::iterator To) {
     for (auto It = std::next(From); It != BB->end() && It != To; ++It) {
       if (It->isDebugInstr())
         continue;
@@ -1449,8 +1429,7 @@ bool MC6809InstructionSelector::tryFusePostModify(MachineInstr &MI) const {
     }
     return false;
   };
-  if (AccessAfterMI ? UsesDstBetween(MI.getIterator(), Access->getIterator())
-                    : UsesDstBetween(Access->getIterator(), MI.getIterator()))
+  if (AccessAfterMI ? UsesDstBetween(MI.getIterator(), Access->getIterator()) : UsesDstBetween(Access->getIterator(), MI.getIterator()))
     return false;
 
   unsigned FusedOpc = IsInc ? E->PostInc : E->PreDec;
@@ -1518,9 +1497,7 @@ bool MC6809InstructionSelector::tryFusePostIncAtAccess(MachineInstr &MI) const {
   for (MachineInstr &U : MRI->use_nodbg_instructions(Base)) {
     if (&U == &MI)
       continue;
-    if (!Adv && U.getOpcode() == MC6809::LEAPtrAdd_Imm &&
-        U.getParent() == MI.getParent() && U.getOperand(1).getReg() == Base &&
-        U.getOperand(2).isImm() && U.getOperand(2).getImm() == int64_t(Size)) {
+    if (!Adv && U.getOpcode() == MC6809::LEAPtrAdd_Imm && U.getParent() == MI.getParent() && U.getOperand(1).getReg() == Base && U.getOperand(2).isImm() && U.getOperand(2).getImm() == int64_t(Size)) {
       Adv = &U;
       continue;
     }
@@ -1549,8 +1526,7 @@ bool MC6809InstructionSelector::tryFusePostIncAtAccess(MachineInstr &MI) const {
   // The value keeps any class a consumer selected earlier (bottom-up)
   // already constrained it to; it only needs to fit the pseudo's.
   if (Val.isVirtual()) {
-    if (const RegisterBank *RB = MRI->getRegBankOrNull(Val);
-        RB && RB->getID() == MC6809::INDEXRegBankID && ValTy == LLT::scalar(16))
+    if (const RegisterBank *RB = MRI->getRegBankOrNull(Val); RB && RB->getID() == MC6809::INDEXRegBankID && ValTy == LLT::scalar(16))
       return false;
     if (MRI->getRegClassOrNull(Val)) {
       if (!MRI->constrainRegClass(Val, ValRC))
@@ -1562,15 +1538,9 @@ bool MC6809InstructionSelector::tryFusePostIncAtAccess(MachineInstr &MI) const {
   Register Dst = Adv->getOperand(0).getReg();
   MachineInstrBuilder MIB;
   if (IsLoad)
-    MIB = BuildMI(*MI.getParent(), MI, MI.getDebugLoc(), TII.get(Opc))
-              .addDef(Val)
-              .addDef(Dst)
-              .addReg(Base);
+    MIB = BuildMI(*MI.getParent(), MI, MI.getDebugLoc(), TII.get(Opc)).addDef(Val).addDef(Dst).addReg(Base);
   else
-    MIB = BuildMI(*MI.getParent(), MI, MI.getDebugLoc(), TII.get(Opc))
-              .addDef(Dst)
-              .addReg(Val)
-              .addReg(Base);
+    MIB = BuildMI(*MI.getParent(), MI, MI.getDebugLoc(), TII.get(Opc)).addDef(Dst).addReg(Val).addReg(Base);
   for (MachineMemOperand *M : MI.memoperands())
     MIB.addMemOperand(M);
   MRI->setRegClass(Base, &MC6809::INDEX16RegClass);
@@ -1581,7 +1551,6 @@ bool MC6809InstructionSelector::tryFusePostIncAtAccess(MachineInstr &MI) const {
   return true;
 }
 
-
 // Match an address that is a constant offset from the (stable) hardware stack
 // pointer: `COPY $ss` or `G_PTR_ADD(COPY $ss, G_CONSTANT)` -- the shape call
 // lowering emits for outgoing argument slots (the call frame is pre-reserved,
@@ -1589,8 +1558,7 @@ bool MC6809InstructionSelector::tryFusePostIncAtAccess(MachineInstr &MI) const {
 // offset when matched. Folding the physical $ss base into the access frees
 // the index register the copied stack pointer would otherwise occupy across
 // every call's argument stores.
-static bool matchSSPlusConstant(Register Addr, const MachineRegisterInfo &MRI,
-                                int64_t &Offset) {
+static bool matchSSPlusConstant(Register Addr, const MachineRegisterInfo &MRI, int64_t &Offset) {
   Offset = 0;
   Register Cur = Addr;
   // Look through one G_PTR_ADD with a constant offset.
@@ -1620,9 +1588,7 @@ static bool matchSSPlusConstant(Register Addr, const MachineRegisterInfo &MRI,
 // generic pointer): the page base plus the zero-extended 8-bit in-page
 // offset, in an index register. Returns a null register if the p1 value
 // cannot be traced to an 8-bit quantity.
-Register MC6809InstructionSelector::buildDirectPageAddress(
-    MachineBasicBlock &MBB, MachineInstr &Before, const DebugLoc &DL,
-    Register InPageOff) {
+Register MC6809InstructionSelector::buildDirectPageAddress(MachineBasicBlock &MBB, MachineInstr &Before, const DebugLoc &DL, Register InPageOff) {
   // Trace the p1 address back to its underlying 8-bit value: the in-page
   // offset integer, or the direct-page global itself (which selects to an
   // 8-bit immediate load). Sourcing from that leaves the p1
@@ -1647,8 +1613,7 @@ Register MC6809InstructionSelector::buildDirectPageAddress(
   // The 8-bit in-page offset zero-extended via physical AD, then copied
   // out (physreg-$ad ZEX16Implicit form): COPY $ab=off; ZEX16Implicit
   // (CLRA -> $ad = 0:off); Off16 = COPY $ad.
-  BuildMI(MBB, Before, DL, TII.get(TargetOpcode::COPY), Register(MC6809::AB))
-      .addReg(InPageOff);
+  BuildMI(MBB, Before, DL, TII.get(TargetOpcode::COPY), Register(MC6809::AB)).addReg(InPageOff);
   BuildMI(MBB, Before, DL, TII.get(MC6809::ZEX16Implicit));
   Register Off16 = MRI->createVirtualRegister(&MC6809::ACC16RegClass);
   BuildMI(MBB, Before, DL, TII.get(TargetOpcode::COPY), Off16).addReg(MC6809::AD);
@@ -1657,18 +1622,14 @@ Register MC6809InstructionSelector::buildDirectPageAddress(
   // base is in U; elsewhere the linker provides it as __dp_base_addr.
   Register Base = MRI->createVirtualRegister(&MC6809::INDEX16RegClass);
   if (MF->getTarget().getTargetTriple().isOSOS9()) {
-    BuildMI(MBB, Before, DL, TII.get(TargetOpcode::COPY), Base)
-        .addReg(MC6809::SU);
+    BuildMI(MBB, Before, DL, TII.get(TargetOpcode::COPY), Base).addReg(MC6809::SU);
   } else {
-    auto BaseMIB = BuildMI(MBB, Before, DL, TII.get(MC6809::Load_iPtr_Imm), Base)
-                       .addExternalSymbol("__dp_base_addr");
+    auto BaseMIB = BuildMI(MBB, Before, DL, TII.get(MC6809::Load_iPtr_Imm), Base).addExternalSymbol("__dp_base_addr");
     constrainSelectedInstRegOperands(*BaseMIB, TII, TRI, RBI);
   }
   // Full address = base + in-page offset (LEAX D,X -- no ABX).
   Register Full = MRI->createVirtualRegister(&MC6809::INDEX16RegClass);
-  auto LeaMIB = BuildMI(MBB, Before, DL, TII.get(MC6809::LEAPtrAdd_Reg16), Full)
-                    .addReg(Base)
-                    .addReg(Off16);
+  auto LeaMIB = BuildMI(MBB, Before, DL, TII.get(MC6809::LEAPtrAdd_Reg16), Full).addReg(Base).addReg(Off16);
   constrainSelectedInstRegOperands(*LeaMIB, TII, TRI, RBI);
   return Full;
 }
@@ -1678,16 +1639,14 @@ Register MC6809InstructionSelector::buildDirectPageAddress(
 bool MC6809InstructionSelector::selectAddrSpaceCast(MachineInstr &MI) {
   Register DstReg = MI.getOperand(0).getReg();
   Register SrcReg = MI.getOperand(1).getReg();
-  if (MRI->getType(DstReg).getAddressSpace() != 0 ||
-      MRI->getType(SrcReg).getAddressSpace() != MC6809::AS_DirectPage)
+  if (MRI->getType(DstReg).getAddressSpace() != 0 || MRI->getType(SrcReg).getAddressSpace() != MC6809::AS_DirectPage)
     return false;
   MachineBasicBlock &MBB = *MI.getParent();
   Register Full = buildDirectPageAddress(MBB, MI, MI.getDebugLoc(), SrcReg);
   if (!Full)
     return false;
   MRI->setRegClass(DstReg, &MC6809::INDEX16RegClass);
-  BuildMI(MBB, MI, MI.getDebugLoc(), TII.get(TargetOpcode::COPY), DstReg)
-      .addReg(Full);
+  BuildMI(MBB, MI, MI.getDebugLoc(), TII.get(TargetOpcode::COPY), DstReg).addReg(Full);
   MI.eraseFromParent();
   return true;
 }
@@ -1708,9 +1667,7 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     if (MI.getOpcode() == TargetOpcode::FAKE_USE) {
       for (unsigned I = MI.getNumOperands(); I-- > 0;) {
         const MachineOperand &MO = MI.getOperand(I);
-        if (MO.isReg() && MO.getReg().isVirtual() &&
-            MRI->getType(MO.getReg()).isValid() &&
-            MRI->getType(MO.getReg()).getSizeInBits() > 32)
+        if (MO.isReg() && MO.getReg().isVirtual() && MRI->getType(MO.getReg()).isValid() && MRI->getType(MO.getReg()).getSizeInBits() > 32)
           MI.removeOperand(I);
       }
       if (MI.getNumOperands() == 0) {
@@ -1747,9 +1704,7 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
   // post-call sret HIGH-half load, miscompiling every i32 add of a value
   // returned via sret (strtol's `acc * base + digit` accumulator being
   // the case that surfaced this bug).
-  if (MI.getOpcode() == TargetOpcode::G_MERGE_VALUES &&
-      MRI->getType(MI.getOperand(0).getReg()) == LLT::scalar(32) &&
-      MI.getNumOperands() == 5)
+  if (MI.getOpcode() == TargetOpcode::G_MERGE_VALUES && MRI->getType(MI.getOperand(0).getReg()) == LLT::scalar(32) && MI.getNumOperands() == 5)
     return selectMergeValues(MI);
 
   // Intercept G_ZEXT s1→s8 when the source is a phantom-carry vreg.
@@ -1829,8 +1784,7 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
       // (strcmp +52% cycles on HD6309).
       if (!MRI->getRegClassOrNull(DstReg))
         MRI->setRegClass(DstReg, &MC6809::ACC16RegClass);
-      else if (!RBI.constrainGenericRegister(DstReg, MC6809::ACC16RegClass,
-                                             *MRI))
+      else if (!RBI.constrainGenericRegister(DstReg, MC6809::ACC16RegClass, *MRI))
         return false;
       MachineIRBuilder B(MI);
       B.buildCopy(Register(MC6809::AB), SrcReg);
@@ -1856,9 +1810,7 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
         MRI->setRegClass(SrcReg, &MC6809::ACC8RegClass);
       MRI->setRegClass(DstReg, &MC6809::ACC8RegClass);
       MachineIRBuilder B(MI);
-      auto I = B.buildInstr(MC6809::SEX8Implicit)
-                   .addDef(DstReg)
-                   .addUse(SrcReg);
+      auto I = B.buildInstr(MC6809::SEX8Implicit).addDef(DstReg).addUse(SrcReg);
       constrainSelectedInstRegOperands(*I, TII, TRI, RBI);
       MI.eraseFromParent();
       return true;
@@ -1872,8 +1824,7 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
       // Constrain, don't set -- see the G_ZEXT i8->i16 case above.
       if (!MRI->getRegClassOrNull(DstReg))
         MRI->setRegClass(DstReg, &MC6809::ACC16RegClass);
-      else if (!RBI.constrainGenericRegister(DstReg, MC6809::ACC16RegClass,
-                                             *MRI))
+      else if (!RBI.constrainGenericRegister(DstReg, MC6809::ACC16RegClass, *MRI))
         return false;
       MachineIRBuilder B(MI);
       B.buildCopy(Register(MC6809::AB), SrcReg);
@@ -1898,17 +1849,28 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     if (DstTy == LLT::scalar(1)) {
       auto PredToCC = [](CmpInst::Predicate Pred) -> std::optional<unsigned> {
         switch (Pred) {
-        case CmpInst::ICMP_EQ:  return MC6809CC::EQ;
-        case CmpInst::ICMP_NE:  return MC6809CC::NE;
-        case CmpInst::ICMP_UGT: return MC6809CC::HI;
-        case CmpInst::ICMP_UGE: return MC6809CC::HS;
-        case CmpInst::ICMP_ULT: return MC6809CC::LO;
-        case CmpInst::ICMP_ULE: return MC6809CC::LS;
-        case CmpInst::ICMP_SGT: return MC6809CC::GT;
-        case CmpInst::ICMP_SGE: return MC6809CC::GE;
-        case CmpInst::ICMP_SLT: return MC6809CC::LT;
-        case CmpInst::ICMP_SLE: return MC6809CC::LE;
-        default: return std::nullopt;
+        case CmpInst::ICMP_EQ:
+          return MC6809CC::EQ;
+        case CmpInst::ICMP_NE:
+          return MC6809CC::NE;
+        case CmpInst::ICMP_UGT:
+          return MC6809CC::HI;
+        case CmpInst::ICMP_UGE:
+          return MC6809CC::HS;
+        case CmpInst::ICMP_ULT:
+          return MC6809CC::LO;
+        case CmpInst::ICMP_ULE:
+          return MC6809CC::LS;
+        case CmpInst::ICMP_SGT:
+          return MC6809CC::GT;
+        case CmpInst::ICMP_SGE:
+          return MC6809CC::GE;
+        case CmpInst::ICMP_SLT:
+          return MC6809CC::LT;
+        case CmpInst::ICMP_SLE:
+          return MC6809CC::LE;
+        default:
+          return std::nullopt;
         }
       };
       auto Pred = (CmpInst::Predicate)MI.getOperand(1).getPredicate();
@@ -1939,14 +1901,9 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
           // memory-fold arm. This arm forces ACC8/ACC16 for the value, so the
           // value and the index base never alias (cf. bug #384, an index-domain
           // hazard that cannot arise here).
-          unsigned CmpMemOpc = (OpTy == LLT::scalar(8))
-                                   ? MC6809::Compare_i8_Mem
-                                   : MC6809::Compare_i16_Mem;
-          unsigned CmpMemIndOpc = (OpTy == LLT::scalar(8))
-                                      ? MC6809::Compare_i8_MemIndirect
-                                      : MC6809::Compare_i16_MemIndirect;
-          auto TryFoldLoad =
-              [&](Register V) -> std::optional<std::pair<Register, int64_t>> {
+          unsigned CmpMemOpc = (OpTy == LLT::scalar(8)) ? MC6809::Compare_i8_Mem : MC6809::Compare_i16_Mem;
+          unsigned CmpMemIndOpc = (OpTy == LLT::scalar(8)) ? MC6809::Compare_i8_MemIndirect : MC6809::Compare_i16_MemIndirect;
+          auto TryFoldLoad = [&](Register V) -> std::optional<std::pair<Register, int64_t>> {
             MachineInstr *LD = MRI->getVRegDef(V);
             if (!LD || LD->getOpcode() != TargetOpcode::G_LOAD)
               return std::nullopt;
@@ -1957,41 +1914,33 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
             if (AD && AD->getOpcode() == TargetOpcode::G_PTR_ADD) {
               MachineInstr *OD = MRI->getVRegDef(AD->getOperand(2).getReg());
               if (OD && OD->getOpcode() == TargetOpcode::G_CONSTANT)
-                return std::make_pair(AD->getOperand(1).getReg(),
-                                      OD->getOperand(1).getCImm()->getSExtValue());
+                return std::make_pair(AD->getOperand(1).getReg(), OD->getOperand(1).getCImm()->getSExtValue());
               return std::nullopt;
             }
-            if (AD && (AD->getOpcode() == TargetOpcode::G_FRAME_INDEX ||
-                       AD->getOpcode() == TargetOpcode::G_GLOBAL_VALUE ||
-                       AD->getOpcode() == TargetOpcode::G_LOAD))
+            if (AD && (AD->getOpcode() == TargetOpcode::G_FRAME_INDEX || AD->getOpcode() == TargetOpcode::G_GLOBAL_VALUE || AD->getOpcode() == TargetOpcode::G_LOAD))
               return std::nullopt;
             return std::make_pair(Addr, (int64_t)0);
           };
-          auto TryFoldIndirect =
-              [&](Register V) -> std::optional<std::pair<Register, int64_t>> {
+          auto TryFoldIndirect = [&](Register V) -> std::optional<std::pair<Register, int64_t>> {
             MachineInstr *Outer = MRI->getVRegDef(V);
             if (!Outer || Outer->getOpcode() != TargetOpcode::G_LOAD)
               return std::nullopt;
-            if (!MRI->hasOneNonDBGUse(V) ||
-                !shouldFoldMemAccess(MI, *Outer, AA))
+            if (!MRI->hasOneNonDBGUse(V) || !shouldFoldMemAccess(MI, *Outer, AA))
               return std::nullopt;
             Register PtrReg = Outer->getOperand(1).getReg();
             MachineInstr *Inner = MRI->getVRegDef(PtrReg);
             if (!Inner || Inner->getOpcode() != TargetOpcode::G_LOAD)
               return std::nullopt;
-            if (!MRI->hasOneNonDBGUse(PtrReg) ||
-                !shouldFoldMemAccess(MI, *Inner, AA))
+            if (!MRI->hasOneNonDBGUse(PtrReg) || !shouldFoldMemAccess(MI, *Inner, AA))
               return std::nullopt;
             MachineInstr *AD = MRI->getVRegDef(Inner->getOperand(1).getReg());
             if (AD && AD->getOpcode() == TargetOpcode::G_PTR_ADD) {
               MachineInstr *OD = MRI->getVRegDef(AD->getOperand(2).getReg());
               if (OD && OD->getOpcode() == TargetOpcode::G_CONSTANT)
-                return std::make_pair(AD->getOperand(1).getReg(),
-                                      OD->getOperand(1).getCImm()->getSExtValue());
+                return std::make_pair(AD->getOperand(1).getReg(), OD->getOperand(1).getCImm()->getSExtValue());
               return std::nullopt;
             }
-            if (AD && (AD->getOpcode() == TargetOpcode::G_FRAME_INDEX ||
-                       AD->getOpcode() == TargetOpcode::G_GLOBAL_VALUE))
+            if (AD && (AD->getOpcode() == TargetOpcode::G_FRAME_INDEX || AD->getOpcode() == TargetOpcode::G_GLOBAL_VALUE))
               return std::nullopt;
             return std::make_pair(Inner->getOperand(1).getReg(), (int64_t)0);
           };
@@ -2020,21 +1969,10 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
               if (!MRI->getRegClassOrNull(SrcReg))
                 MRI->setRegClass(SrcReg, LhsRC);
               MRI->setRegClass(DstReg, &MC6809::ACC8RegClass);
-              Register CCReg =
-                  MRI->createVirtualRegister(&MC6809::CCondRegClass);
-              auto Cmp = B.buildInstr(UseMemOpc)
-                             .addDef(CCReg)
-                             .addImm(*UseCC)
-                             .addUse(SrcReg)
-                             .addUse(Fold->first)
-                             .addImm(Fold->second);
+              Register CCReg = MRI->createVirtualRegister(&MC6809::CCondRegClass);
+              auto Cmp = B.buildInstr(UseMemOpc).addDef(CCReg).addImm(*UseCC).addUse(SrcReg).addUse(Fold->first).addImm(Fold->second);
               constrainSelectedInstRegOperands(*Cmp, TII, TRI, RBI);
-              auto Sel = B.buildInstr(MC6809::ConditionalImm)
-                             .addDef(DstReg)
-                             .addImm(*UseCC)
-                             .addUse(CCReg)
-                             .addImm(1)
-                             .addImm(0);
+              auto Sel = B.buildInstr(MC6809::ConditionalImm).addDef(DstReg).addImm(*UseCC).addUse(CCReg).addImm(1).addImm(0);
               constrainSelectedInstRegOperands(*Sel, TII, TRI, RBI);
               MI.eraseFromParent();
               return true;
@@ -2051,28 +1989,15 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
           Register CCReg = MRI->createVirtualRegister(&MC6809::CCondRegClass);
           MachineInstrBuilder Cmp;
           if (RhsImm) {
-            Cmp = B.buildInstr(CmpImmOpc)
-                      .addDef(CCReg)
-                      .addImm(*CCOpt)
-                      .addUse(LhsReg)
-                      .addImm(*RhsImm);
+            Cmp = B.buildInstr(CmpImmOpc).addDef(CCReg).addImm(*CCOpt).addUse(LhsReg).addImm(*RhsImm);
           } else {
             if (!MRI->getRegClassOrNull(RhsReg))
               MRI->setRegClass(RhsReg, LhsRC);
-            Cmp = B.buildInstr(CmpRegOpc)
-                      .addDef(CCReg)
-                      .addImm(*CCOpt)
-                      .addUse(LhsReg)
-                      .addUse(RhsReg);
+            Cmp = B.buildInstr(CmpRegOpc).addDef(CCReg).addImm(*CCOpt).addUse(LhsReg).addUse(RhsReg);
           }
           constrainSelectedInstRegOperands(*Cmp, TII, TRI, RBI);
           MRI->setRegClass(DstReg, &MC6809::ACC8RegClass);
-          auto Sel = B.buildInstr(MC6809::ConditionalImm)
-                         .addDef(DstReg)
-                         .addImm(*CCOpt)
-                         .addUse(CCReg)
-                         .addImm(1)
-                         .addImm(0);
+          auto Sel = B.buildInstr(MC6809::ConditionalImm).addDef(DstReg).addImm(*CCOpt).addUse(CCReg).addImm(1).addImm(0);
           constrainSelectedInstRegOperands(*Sel, TII, TRI, RBI);
           MI.eraseFromParent();
           return true;
@@ -2138,9 +2063,7 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
       int64_t Val = MI.getOperand(1).getCImm()->getSExtValue() & 1;
       MRI->setRegClass(DstReg, &MC6809::ACC8RegClass);
       MachineIRBuilder B(MI);
-      auto I = B.buildInstr(MC6809::Load_i8_Imm)
-                   .addDef(DstReg)
-                   .addImm(Val);
+      auto I = B.buildInstr(MC6809::Load_i8_Imm).addDef(DstReg).addImm(Val);
       constrainSelectedInstRegOperands(*I, TII, TRI, RBI);
       MI.eraseFromParent();
       return true;
@@ -2188,8 +2111,7 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
   // s16 → LDDd/STDd/$ad. We mutate the G_GLOBAL_VALUE only if it has
   // no other uses (always true for a use-once temporary today; future
   // pointer-arithmetic on DP pointers would need to relax this).
-  if (MI.getOpcode() == TargetOpcode::G_LOAD ||
-      MI.getOpcode() == TargetOpcode::G_STORE) {
+  if (MI.getOpcode() == TargetOpcode::G_LOAD || MI.getOpcode() == TargetOpcode::G_STORE) {
     bool IsLoad = MI.getOpcode() == TargetOpcode::G_LOAD;
     Register AddrReg = MI.getOperand(1).getReg(); // a load's and a store's address alike
     LLT AddrTy = MRI->getType(AddrReg);
@@ -2202,15 +2124,14 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
     // accumulator (and the TFR it costs when the value wants another register)
     // that a concrete LDDe/LDAd here would impose, while still collapsing the
     // address-materialise + indexed-zero pair into one op at selection.
-    if (AddrTy.isPointer() &&
-        (AddrTy.getAddressSpace() == 1 || AddrTy.getAddressSpace() == 0)) {
+    if (AddrTy.isPointer() && (AddrTy.getAddressSpace() == 1 || AddrTy.getAddressSpace() == 0)) {
       bool IsDP = AddrTy.getAddressSpace() == 1;
       // Walk to the G_GLOBAL_VALUE producer.
       MachineInstr *GV = MRI->getVRegDef(AddrReg);
-      while (GV && (GV->getOpcode() == TargetOpcode::COPY ||
-                    GV->getOpcode() == TargetOpcode::G_FREEZE)) {
+      while (GV && (GV->getOpcode() == TargetOpcode::COPY || GV->getOpcode() == TargetOpcode::G_FREEZE)) {
         Register Src = GV->getOperand(1).getReg();
-        if (!Src.isVirtual()) break;
+        if (!Src.isVirtual())
+          break;
         GV = MRI->getVRegDef(Src);
       }
       bool HaveGV = GV && GV->getOpcode() == TargetOpcode::G_GLOBAL_VALUE;
@@ -2222,9 +2143,7 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
       // sets DP = U >> 8, so an object in the first page of the data area is
       // reached by direct addressing with its data-area offset as the byte
       // (the linker resolves it), exactly the fold below.
-      if (HaveGV && !IsDP && MF->getTarget().getTargetTriple().isOSOS9() &&
-          getOS9WritableGlobalTargetFlags(GV->getOperand(1).getGlobal()) !=
-              MC6809::MO_NO_FLAGS)
+      if (HaveGV && !IsDP && MF->getTarget().getTargetTriple().isOSOS9() && getOS9WritableGlobalTargetFlags(GV->getOperand(1).getGlobal()) != MC6809::MO_NO_FLAGS)
         goto skip_globalvalue_fold;
       if (!HaveGV) {
         if (IsDP) {
@@ -2289,12 +2208,7 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
       // mode and concrete opcode are chosen post-RA from the global itself.
       const MachineOperand &GVOp = GV->getOperand(1);
       Register GVDef = GV->getOperand(0).getReg();
-      MachineInstrBuilder MIB =
-          IsLoad ? BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(Opc), ValReg)
-                       .add(GVOp)
-                 : BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(Opc))
-                       .addReg(ValReg)
-                       .add(GVOp);
+      MachineInstrBuilder MIB = IsLoad ? BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(Opc), ValReg).add(GVOp) : BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(Opc)).addReg(ValReg).add(GVOp);
       // Keep the access's memory operand: without it the pseudo reads as an
       // ordered access to unknown memory, which pins every later load and
       // store around it and forbids folding it into a consumer.
@@ -2332,20 +2246,14 @@ skip_globalvalue_fold:
   if (MI.getOpcode() == MC6809::G_EXPAND_MUL) {
     MachineIRBuilder Builder(MI);
     Register Merged = MRI->createVirtualRegister(&MC6809::ADcRegClass);
-    auto MergeMI = Builder.buildInstr(MC6809::MERGE_LOHI_i16)
-                       .addDef(Merged)
-                       .addUse(MI.getOperand(1).getReg())
-                       .addUse(MI.getOperand(2).getReg());
-    auto MulMI = Builder.buildInstr(MC6809::MUL_D)
-                     .addDef(MI.getOperand(0).getReg())
-                     .addUse(Merged);
+    auto MergeMI = Builder.buildInstr(MC6809::MERGE_LOHI_i16).addDef(Merged).addUse(MI.getOperand(1).getReg()).addUse(MI.getOperand(2).getReg());
+    auto MulMI = Builder.buildInstr(MC6809::MUL_D).addDef(MI.getOperand(0).getReg()).addUse(Merged);
     constrainSelectedInstRegOperands(*MergeMI, TII, TRI, RBI);
     constrainSelectedInstRegOperands(*MulMI, TII, TRI, RBI);
     MI.eraseFromParent();
     return true;
   }
-  if (MI.getOpcode() == TargetOpcode::G_MUL ||
-      MI.getOpcode() == TargetOpcode::G_UMULH) {
+  if (MI.getOpcode() == TargetOpcode::G_MUL || MI.getOpcode() == TargetOpcode::G_UMULH) {
     Register DstReg = MI.getOperand(0).getReg();
     if (MRI->getType(DstReg) == LLT::scalar(8)) {
       Register Lo = MI.getOperand(1).getReg();
@@ -2353,15 +2261,10 @@ skip_globalvalue_fold:
       MachineIRBuilder Builder(MI);
       Register Merged = MRI->createVirtualRegister(&MC6809::ADcRegClass);
       Register Prod = MRI->createVirtualRegister(&MC6809::ADcRegClass);
-      auto MergeMI = Builder.buildInstr(MC6809::MERGE_LOHI_i16)
-                         .addDef(Merged).addUse(Lo).addUse(Hi);
-      auto MulMI = Builder.buildInstr(MC6809::MUL_D)
-                       .addDef(Prod).addUse(Merged);
-      unsigned ExtractOp = (MI.getOpcode() == TargetOpcode::G_MUL)
-                               ? MC6809::EXTRACT_LO_i16
-                               : MC6809::EXTRACT_HI_i16;
-      auto ExtractMI =
-          Builder.buildInstr(ExtractOp).addDef(DstReg).addUse(Prod);
+      auto MergeMI = Builder.buildInstr(MC6809::MERGE_LOHI_i16).addDef(Merged).addUse(Lo).addUse(Hi);
+      auto MulMI = Builder.buildInstr(MC6809::MUL_D).addDef(Prod).addUse(Merged);
+      unsigned ExtractOp = (MI.getOpcode() == TargetOpcode::G_MUL) ? MC6809::EXTRACT_LO_i16 : MC6809::EXTRACT_HI_i16;
+      auto ExtractMI = Builder.buildInstr(ExtractOp).addDef(DstReg).addUse(Prod);
       constrainSelectedInstRegOperands(*MergeMI, TII, TRI, RBI);
       constrainSelectedInstRegOperands(*MulMI, TII, TRI, RBI);
       constrainSelectedInstRegOperands(*ExtractMI, TII, TRI, RBI);
@@ -2378,9 +2281,7 @@ skip_globalvalue_fold:
   // The other order: the access comes first in the block and the advance
   // after it, so the advance was visited (and selected to a LEA) before the
   // access. Fuse from the access side.
-  if ((MI.getOpcode() == TargetOpcode::G_LOAD ||
-       MI.getOpcode() == TargetOpcode::G_STORE) &&
-      tryFusePostIncAtAccess(MI))
+  if ((MI.getOpcode() == TargetOpcode::G_LOAD || MI.getOpcode() == TargetOpcode::G_STORE) && tryFusePostIncAtAccess(MI))
     return true;
 
   if (selectImpl(MI, *CoverageInfo))
@@ -2405,8 +2306,7 @@ skip_globalvalue_fold:
       // an Add_i8_Reg tied operand) may already have narrowed DstReg to a
       // subclass like ABc; a blind setRegClass would widen it back and leave
       // a tied-operand class mismatch for the verifier.
-      if (!RBI.constrainGenericRegister(DstReg, MC6809::ACC8RegClass, *MRI) ||
-          !RBI.constrainGenericRegister(SrcReg, MC6809::ACC16RegClass, *MRI))
+      if (!RBI.constrainGenericRegister(DstReg, MC6809::ACC8RegClass, *MRI) || !RBI.constrainGenericRegister(SrcReg, MC6809::ACC16RegClass, *MRI))
         return false;
       MI.setDesc(TII.get(MC6809::EXTRACT_LO_i16));
       constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
@@ -2425,18 +2325,13 @@ skip_globalvalue_fold:
     // expansion to be sub-reg-independent.
     if (DstTy == LLT::scalar(8) && SrcTy == LLT::scalar(32)) {
       // Same constrain-don't-set rule as the i16->i8 case above.
-      if (!RBI.constrainGenericRegister(DstReg, MC6809::ACC8RegClass, *MRI) ||
-          !RBI.constrainGenericRegister(SrcReg, MC6809::ACC32RegClass, *MRI))
+      if (!RBI.constrainGenericRegister(DstReg, MC6809::ACC8RegClass, *MRI) || !RBI.constrainGenericRegister(SrcReg, MC6809::ACC32RegClass, *MRI))
         return false;
       MachineIRBuilder Builder(MI);
       Register WordLo = MRI->createVirtualRegister(&MC6809::ADcRegClass);
-      auto WordExt = Builder.buildInstr(MC6809::Extract16_i32_lo)
-                        .addDef(WordLo)
-                        .addUse(SrcReg);
+      auto WordExt = Builder.buildInstr(MC6809::Extract16_i32_lo).addDef(WordLo).addUse(SrcReg);
       constrainSelectedInstRegOperands(*WordExt, TII, TRI, RBI);
-      auto Ext = Builder.buildInstr(MC6809::EXTRACT_LO_i16)
-                     .addDef(DstReg)
-                     .addUse(WordLo);
+      auto Ext = Builder.buildInstr(MC6809::EXTRACT_LO_i16).addDef(DstReg).addUse(WordLo);
       constrainSelectedInstRegOperands(*Ext, TII, TRI, RBI);
       MI.eraseFromParent();
       return true;
@@ -2522,8 +2417,7 @@ skip_globalvalue_fold:
     // Load the address of a global into an index register.
     Register DstReg = MI.getOperand(0).getReg();
     const MachineOperand &GVMO = MI.getOperand(1);
-    bool IsDPGlobal = GVMO.isGlobal() &&
-                      GVMO.getGlobal()->getAddressSpace() == MC6809::AS_DirectPage;
+    bool IsDPGlobal = GVMO.isGlobal() && GVMO.getGlobal()->getAddressSpace() == MC6809::AS_DirectPage;
     // A direct-page (addrspace 1) global's address is its 8-bit in-page
     // offset, and a p1 pointer lives in the accumulator bank (pointer
     // arithmetic on it is byte arithmetic). Materialise it straight into an
@@ -2573,9 +2467,7 @@ skip_globalvalue_fold:
       // relatively.  (A direct-page global is the exception -- its address
       // IS its link-time in-page offset.)
       if (!IsDPGlobal) {
-        MI.setDesc(TII.get(OS9Flags != MC6809::MO_NO_FLAGS
-                               ? MC6809::Lea_iPtr_OS9Sym
-                               : MC6809::Lea_iPtr_Sym));
+        MI.setDesc(TII.get(OS9Flags != MC6809::MO_NO_FLAGS ? MC6809::Lea_iPtr_OS9Sym : MC6809::Lea_iPtr_Sym));
         constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
         return true;
       }
@@ -2591,9 +2483,7 @@ skip_globalvalue_fold:
     // 8-bit in-page offset, which is fixed at link time and so already
     // position-independent. The PC-relative form would combine the DP-offset
     // relocation with PCR (garbage), so always use the immediate form for it.
-    MI.setDesc(TII.get((MF->getTarget().isPositionIndependent() && !IsDPGlobal)
-                           ? MC6809::Lea_iPtr_Sym
-                           : MC6809::Load_iPtr_Imm));
+    MI.setDesc(TII.get((MF->getTarget().isPositionIndependent() && !IsDPGlobal) ? MC6809::Lea_iPtr_Sym : MC6809::Load_iPtr_Imm));
     constrainSelectedInstRegOperands(MI, TII, TRI, RBI);
     return true;
   }
@@ -2610,8 +2500,7 @@ skip_globalvalue_fold:
     // separate LEA_Ptr_Imm materialises the frame address pointlessly.
     int64_t SSOff;
     if (MachineInstr *FI = getOpcodeDef(TargetOpcode::G_FRAME_INDEX, AddrReg, *MRI)) {
-      MI.getOperand(1).ChangeToFrameIndex(FI->getOperand(1).getIndex(),
-                                          FI->getOperand(1).getOffset());
+      MI.getOperand(1).ChangeToFrameIndex(FI->getOperand(1).getIndex(), FI->getOperand(1).getOffset());
     } else if (matchSSPlusConstant(AddrReg, *MRI, SSOff)) {
       // Outgoing-arg-slot shape: address the access off the physical stack
       // pointer instead of tying up an index register with a copy of it.
@@ -2639,8 +2528,7 @@ skip_globalvalue_fold:
     // Fold a frame-index address directly into the store, as for G_LOAD above.
     int64_t SSOff;
     if (MachineInstr *FI = getOpcodeDef(TargetOpcode::G_FRAME_INDEX, AddrReg, *MRI)) {
-      MI.getOperand(1).ChangeToFrameIndex(FI->getOperand(1).getIndex(),
-                                          FI->getOperand(1).getOffset());
+      MI.getOperand(1).ChangeToFrameIndex(FI->getOperand(1).getIndex(), FI->getOperand(1).getOffset());
     } else if (matchSSPlusConstant(AddrReg, *MRI, SSOff)) {
       // Outgoing-arg-slot shape (see G_LOAD above).
       MI.getOperand(1).ChangeToRegister(MC6809::SS, /*isDef=*/false);
@@ -2667,9 +2555,7 @@ skip_globalvalue_fold:
     Register IdxReg = MI.getOperand(2).getReg();
     unsigned JTI = MI.getOperand(1).getIndex();
     MRI->setRegClass(IdxReg, &MC6809::ADcRegClass);
-    BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(MC6809::BranchJumpTable))
-        .addReg(IdxReg)
-        .addJumpTableIndex(JTI);
+    BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(MC6809::BranchJumpTable)).addReg(IdxReg).addJumpTableIndex(JTI);
     MI.eraseFromParent();
     return true;
   }
@@ -2712,8 +2598,7 @@ skip_globalvalue_fold:
     // the optimisation below.
     Register WalkReg = CondReg;
     MachineInstr *CondDef = MRI->getVRegDef(WalkReg);
-    while (CondDef && (CondDef->getOpcode() == TargetOpcode::G_FREEZE ||
-                       CondDef->getOpcode() == TargetOpcode::COPY)) {
+    while (CondDef && (CondDef->getOpcode() == TargetOpcode::G_FREEZE || CondDef->getOpcode() == TargetOpcode::COPY)) {
       Register NextReg = CondDef->getOperand(1).getReg();
       if (!NextReg.isVirtual())
         break;
@@ -2738,22 +2623,40 @@ skip_globalvalue_fold:
     auto FlagsReadBy = [](int64_t Cond) {
       SmallVector<MCPhysReg, 3> Out;
       switch (Cond) {
-      case MC6809CC::CC: case MC6809CC::CS:
-        Out.push_back(MC6809::C); break;
-      case MC6809CC::HI: case MC6809CC::LS:
-        Out.push_back(MC6809::C); Out.push_back(MC6809::Z); break;
-      case MC6809CC::EQ: case MC6809CC::NE:
-        Out.push_back(MC6809::Z); break;
-      case MC6809CC::VC: case MC6809CC::VS:
-        Out.push_back(MC6809::V); break;
-      case MC6809CC::PL: case MC6809CC::MI:
-        Out.push_back(MC6809::N); break;
-      case MC6809CC::GE: case MC6809CC::LT:
-        Out.push_back(MC6809::N); Out.push_back(MC6809::V); break;
-      case MC6809CC::GT: case MC6809CC::LE:
-        Out.push_back(MC6809::N); Out.push_back(MC6809::V);
-        Out.push_back(MC6809::Z); break;
-      default: break; // RA/RN/INVALID — no flags consulted
+      case MC6809CC::CC:
+      case MC6809CC::CS:
+        Out.push_back(MC6809::C);
+        break;
+      case MC6809CC::HI:
+      case MC6809CC::LS:
+        Out.push_back(MC6809::C);
+        Out.push_back(MC6809::Z);
+        break;
+      case MC6809CC::EQ:
+      case MC6809CC::NE:
+        Out.push_back(MC6809::Z);
+        break;
+      case MC6809CC::VC:
+      case MC6809CC::VS:
+        Out.push_back(MC6809::V);
+        break;
+      case MC6809CC::PL:
+      case MC6809CC::MI:
+        Out.push_back(MC6809::N);
+        break;
+      case MC6809CC::GE:
+      case MC6809CC::LT:
+        Out.push_back(MC6809::N);
+        Out.push_back(MC6809::V);
+        break;
+      case MC6809CC::GT:
+      case MC6809CC::LE:
+        Out.push_back(MC6809::N);
+        Out.push_back(MC6809::V);
+        Out.push_back(MC6809::Z);
+        break;
+      default:
+        break; // RA/RN/INVALID — no flags consulted
       }
       return Out;
     };
@@ -2762,9 +2665,7 @@ skip_globalvalue_fold:
     // check that no instruction between modifies any of the CC bits the
     // branch will consult. Returns true if safe to use the live CC.
     auto CCBitsSurvive = [&](MachineInstr *From, ArrayRef<MCPhysReg> Bits) {
-      for (auto It = std::next(MachineBasicBlock::iterator(From)),
-                End = MachineBasicBlock::iterator(&MI);
-           It != End; ++It) {
+      for (auto It = std::next(MachineBasicBlock::iterator(From)), End = MachineBasicBlock::iterator(&MI); It != End; ++It) {
         for (MCPhysReg Bit : Bits)
           if (It->modifiesRegister(Bit, &TRI))
             return false;
@@ -2806,17 +2707,28 @@ skip_globalvalue_fold:
     // Map a CmpInst predicate to the matching MC6809 condition code.
     auto PredToCC = [](CmpInst::Predicate Pred) -> std::optional<unsigned> {
       switch (Pred) {
-      case CmpInst::ICMP_EQ:  return MC6809CC::EQ;
-      case CmpInst::ICMP_NE:  return MC6809CC::NE;
-      case CmpInst::ICMP_UGT: return MC6809CC::HI;
-      case CmpInst::ICMP_UGE: return MC6809CC::HS;
-      case CmpInst::ICMP_ULT: return MC6809CC::LO;
-      case CmpInst::ICMP_ULE: return MC6809CC::LS;
-      case CmpInst::ICMP_SGT: return MC6809CC::GT;
-      case CmpInst::ICMP_SGE: return MC6809CC::GE;
-      case CmpInst::ICMP_SLT: return MC6809CC::LT;
-      case CmpInst::ICMP_SLE: return MC6809CC::LE;
-      default: return std::nullopt;
+      case CmpInst::ICMP_EQ:
+        return MC6809CC::EQ;
+      case CmpInst::ICMP_NE:
+        return MC6809CC::NE;
+      case CmpInst::ICMP_UGT:
+        return MC6809CC::HI;
+      case CmpInst::ICMP_UGE:
+        return MC6809CC::HS;
+      case CmpInst::ICMP_ULT:
+        return MC6809CC::LO;
+      case CmpInst::ICMP_ULE:
+        return MC6809CC::LS;
+      case CmpInst::ICMP_SGT:
+        return MC6809CC::GT;
+      case CmpInst::ICMP_SGE:
+        return MC6809CC::GE;
+      case CmpInst::ICMP_SLT:
+        return MC6809CC::LT;
+      case CmpInst::ICMP_SLE:
+        return MC6809CC::LE;
+      default:
+        return std::nullopt;
       }
     };
 
@@ -2861,8 +2773,7 @@ skip_globalvalue_fold:
           return false;
         if (D == CondDef)
           return true;
-        if (D->getOpcode() != TargetOpcode::G_FREEZE &&
-            D->getOpcode() != TargetOpcode::COPY)
+        if (D->getOpcode() != TargetOpcode::G_FREEZE && D->getOpcode() != TargetOpcode::COPY)
           return false;
         Register Next = D->getOperand(1).getReg();
         if (!Next.isVirtual())
@@ -2878,16 +2789,17 @@ skip_globalvalue_fold:
         if (auto C = getIConstantVRegValWithLookThrough(Cur, *MRI))
           return C->Value.getSExtValue();
         MachineInstr *D = MRI->getVRegDef(Cur);
-        if (!D) return std::nullopt;
+        if (!D)
+          return std::nullopt;
         unsigned Op = D->getOpcode();
         if (Op == TargetOpcode::COPY || Op == TargetOpcode::G_FREEZE) {
           Register N = D->getOperand(1).getReg();
-          if (!N.isVirtual()) return std::nullopt;
+          if (!N.isVirtual())
+            return std::nullopt;
           Cur = N;
           continue;
         }
-        if (Op == MC6809::Load_i8_Imm || Op == MC6809::Load_i16_Imm ||
-            Op == MC6809::Load_iPtr_Imm)
+        if (Op == MC6809::Load_i8_Imm || Op == MC6809::Load_i16_Imm || Op == MC6809::Load_iPtr_Imm)
           return D->getOperand(1).getImm();
         return std::nullopt;
       }
@@ -2918,8 +2830,7 @@ skip_globalvalue_fold:
       LLT Ty = MRI->getType(Lhs);
       auto CCOpt = PredToCC(Pred);
       const RegisterBank *LBank = RBI.getRegBank(Lhs, *MRI, TRI);
-      bool LhsAccum = LBank &&
-                      LBank->getID() == MC6809::ACCUMRegBankID;
+      bool LhsAccum = LBank && LBank->getID() == MC6809::ACCUMRegBankID;
       unsigned CmpBrImmOpc = 0;
       const TargetRegisterClass *RC = nullptr;
       if (LhsAccum && CCOpt) {
@@ -2934,13 +2845,8 @@ skip_globalvalue_fold:
         }
       }
       if (CmpBrImmOpc && CCOpt) {
-        if (auto Imm = FindImmRhs(Rhs);
-            Imm && RBI.constrainGenericRegister(Lhs, *RC, *MRI)) {
-          BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(CmpBrImmOpc))
-              .addImm(*CCOpt)
-              .addReg(Lhs)
-              .addImm(*Imm)
-              .addMBB(TargetMBB);
+        if (auto Imm = FindImmRhs(Rhs); Imm && RBI.constrainGenericRegister(Lhs, *RC, *MRI)) {
+          BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(CmpBrImmOpc)).addImm(*CCOpt).addReg(Lhs).addImm(*Imm).addMBB(TargetMBB);
           // Erase the G_ICMP only if it has no remaining users after
           // we've taken ours (the BRCOND below). Otherwise leave it for
           // the select / other consumer to emit their own comparison.
@@ -2962,15 +2868,13 @@ skip_globalvalue_fold:
     // freeze between the icmp and this brcond was already walked above. (The
     // foldable-load address is base[+const]; G_PTR_ADD-const or a plain pointer,
     // never a frame index or global -- same shouldFoldMemAccess safety regime.)
-    if (CondDef && CondDef->getOpcode() == TargetOpcode::G_ICMP &&
-        CondDef->getParent() == MBB && ChainAllSingleUse()) {
+    if (CondDef && CondDef->getOpcode() == TargetOpcode::G_ICMP && CondDef->getParent() == MBB && ChainAllSingleUse()) {
       auto Pred = (CmpInst::Predicate)CondDef->getOperand(1).getPredicate();
       Register Lhs = CondDef->getOperand(2).getReg();
       Register Rhs = CondDef->getOperand(3).getReg();
       LLT Ty = MRI->getType(Lhs);
       // Returns (base, offset) if V is a foldable single-use register-base load.
-      auto TryFoldLoad =
-          [&](Register V) -> std::optional<std::pair<Register, int64_t>> {
+      auto TryFoldLoad = [&](Register V) -> std::optional<std::pair<Register, int64_t>> {
         MachineInstr *LD = MRI->getVRegDef(V);
         if (!LD || LD->getOpcode() != TargetOpcode::G_LOAD)
           return std::nullopt;
@@ -2981,12 +2885,10 @@ skip_globalvalue_fold:
         if (AD && AD->getOpcode() == TargetOpcode::G_PTR_ADD) {
           MachineInstr *OD = MRI->getVRegDef(AD->getOperand(2).getReg());
           if (OD && OD->getOpcode() == TargetOpcode::G_CONSTANT)
-            return std::make_pair(AD->getOperand(1).getReg(),
-                                  OD->getOperand(1).getCImm()->getSExtValue());
+            return std::make_pair(AD->getOperand(1).getReg(), OD->getOperand(1).getCImm()->getSExtValue());
           return std::nullopt;
         }
-        if (AD && (AD->getOpcode() == TargetOpcode::G_FRAME_INDEX ||
-                   AD->getOpcode() == TargetOpcode::G_GLOBAL_VALUE))
+        if (AD && (AD->getOpcode() == TargetOpcode::G_FRAME_INDEX || AD->getOpcode() == TargetOpcode::G_GLOBAL_VALUE))
           return std::nullopt;
         return std::make_pair(Addr, (int64_t)0);
       };
@@ -2994,8 +2896,7 @@ skip_globalvalue_fold:
       // P3b: returns (base, offset) if V is a foldable INDIRECT load -- `*p`
       // where the pointer p itself lives in memory at [base+const] (double
       // deref), exactly like selectAMIndexedIndirect -- folding into `cmp [n,r]`.
-      auto TryFoldIndirect =
-          [&](Register V) -> std::optional<std::pair<Register, int64_t>> {
+      auto TryFoldIndirect = [&](Register V) -> std::optional<std::pair<Register, int64_t>> {
         MachineInstr *Outer = MRI->getVRegDef(V);
         if (!Outer || Outer->getOpcode() != TargetOpcode::G_LOAD)
           return std::nullopt;
@@ -3005,19 +2906,16 @@ skip_globalvalue_fold:
         MachineInstr *Inner = MRI->getVRegDef(PtrReg);
         if (!Inner || Inner->getOpcode() != TargetOpcode::G_LOAD)
           return std::nullopt;
-        if (!MRI->hasOneNonDBGUse(PtrReg) ||
-            !shouldFoldMemAccess(MI, *Inner, AA))
+        if (!MRI->hasOneNonDBGUse(PtrReg) || !shouldFoldMemAccess(MI, *Inner, AA))
           return std::nullopt;
         MachineInstr *AD = MRI->getVRegDef(Inner->getOperand(1).getReg());
         if (AD && AD->getOpcode() == TargetOpcode::G_PTR_ADD) {
           MachineInstr *OD = MRI->getVRegDef(AD->getOperand(2).getReg());
           if (OD && OD->getOpcode() == TargetOpcode::G_CONSTANT)
-            return std::make_pair(AD->getOperand(1).getReg(),
-                                  OD->getOperand(1).getCImm()->getSExtValue());
+            return std::make_pair(AD->getOperand(1).getReg(), OD->getOperand(1).getCImm()->getSExtValue());
           return std::nullopt;
         }
-        if (AD && (AD->getOpcode() == TargetOpcode::G_FRAME_INDEX ||
-                   AD->getOpcode() == TargetOpcode::G_GLOBAL_VALUE))
+        if (AD && (AD->getOpcode() == TargetOpcode::G_FRAME_INDEX || AD->getOpcode() == TargetOpcode::G_GLOBAL_VALUE))
           return std::nullopt;
         return std::make_pair(Inner->getOperand(1).getReg(), (int64_t)0);
       };
@@ -3060,19 +2958,9 @@ skip_globalvalue_fold:
           UsePred = CmpInst::getSwappedPredicate(Pred);
         }
         auto CCOpt = Fold ? PredToCC(UsePred) : std::nullopt;
-        const RegisterBank *SBank =
-            SrcReg ? RBI.getRegBank(SrcReg, *MRI, TRI) : nullptr;
-        if (Fold && CCOpt && SBank &&
-            SBank->getID() == MC6809::ACCUMRegBankID &&
-            RBI.constrainGenericRegister(SrcReg, *RC, *MRI) &&
-            RBI.constrainGenericRegister(Fold->first, MC6809::INDEX16RegClass,
-                                         *MRI)) {
-          BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(UseOpc))
-              .addImm(*CCOpt)
-              .addReg(SrcReg)
-              .addReg(Fold->first)
-              .addImm(Fold->second)
-              .addMBB(TargetMBB);
+        const RegisterBank *SBank = SrcReg ? RBI.getRegBank(SrcReg, *MRI, TRI) : nullptr;
+        if (Fold && CCOpt && SBank && SBank->getID() == MC6809::ACCUMRegBankID && RBI.constrainGenericRegister(SrcReg, *RC, *MRI) && RBI.constrainGenericRegister(Fold->first, MC6809::INDEX16RegClass, *MRI)) {
+          BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(UseOpc)).addImm(*CCOpt).addReg(SrcReg).addReg(Fold->first).addImm(Fold->second).addMBB(TargetMBB);
           Register ICmpDst = CondDef->getOperand(0).getReg();
           MI.eraseFromParent();
           if (MRI->use_nodbg_empty(ICmpDst))
@@ -3082,9 +2970,7 @@ skip_globalvalue_fold:
       }
     }
 
-    if (CondDef && CondDef->getOpcode() == TargetOpcode::G_ICMP &&
-        CondDef->getParent() == MBB &&
-        ChainAllSingleUse()) {
+    if (CondDef && CondDef->getOpcode() == TargetOpcode::G_ICMP && CondDef->getParent() == MBB && ChainAllSingleUse()) {
       auto Pred = (CmpInst::Predicate)CondDef->getOperand(1).getPredicate();
       Register Lhs = CondDef->getOperand(2).getReg();
       Register Rhs = CondDef->getOperand(3).getReg();
@@ -3092,9 +2978,7 @@ skip_globalvalue_fold:
       auto CCOpt = PredToCC(Pred);
       const RegisterBank *LBank = RBI.getRegBank(Lhs, *MRI, TRI);
       const RegisterBank *RBank = RBI.getRegBank(Rhs, *MRI, TRI);
-      bool BothAccum = LBank && RBank &&
-                       LBank->getID() == MC6809::ACCUMRegBankID &&
-                       RBank->getID() == MC6809::ACCUMRegBankID;
+      bool BothAccum = LBank && RBank && LBank->getID() == MC6809::ACCUMRegBankID && RBank->getID() == MC6809::ACCUMRegBankID;
       unsigned CmpBrRegOpc = 0;
       const TargetRegisterClass *RC = nullptr;
       if (BothAccum && CCOpt) {
@@ -3110,19 +2994,14 @@ skip_globalvalue_fold:
         // Constrain operand classes for the CompareBranch pseudo. G_ICMP
         // operands are bank-selected but may not yet have a register class
         // pinned, so we use constrainGenericRegister.
-        if (RBI.constrainGenericRegister(Lhs, *RC, *MRI) &&
-            RBI.constrainGenericRegister(Rhs, *RC, *MRI)) {
+        if (RBI.constrainGenericRegister(Lhs, *RC, *MRI) && RBI.constrainGenericRegister(Rhs, *RC, *MRI)) {
           // One reg-reg form for both CPUs: expandCompareReg emits CMPR on
           // HD6309 and the atomic PSHS / CMPx 0,S / LEAS fallback on plain
           // 6809. (The former Push + CompareBranch_*_Pull pair left a
           // window between push and pull that the register allocator
           // filled with S-relative spill code — the push-displacement
           // offset bug class.)
-          BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(CmpBrRegOpc))
-              .addImm(*CCOpt)
-              .addReg(Lhs)
-              .addReg(Rhs)
-              .addMBB(TargetMBB);
+          BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(CmpBrRegOpc)).addImm(*CCOpt).addReg(Lhs).addReg(Rhs).addMBB(TargetMBB);
           // Remove G_ICMP first (its only use was this BRCOND) and then BRCOND.
           CondDef->eraseFromParent();
           MI.eraseFromParent();
@@ -3131,13 +3010,11 @@ skip_globalvalue_fold:
       }
     }
 
-    if (CondDef && CondDef->getOpcode() == MC6809::ConditionalImm &&
-        CondDef->getParent() == MBB) {
+    if (CondDef && CondDef->getOpcode() == MC6809::ConditionalImm && CondDef->getParent() == MBB) {
       int64_t CC = CondDef->getOperand(1).getImm();
       int64_t TrueVal = CondDef->getOperand(3).getImm();
       int64_t FalseVal = CondDef->getOperand(4).getImm();
-      if (TrueVal == 1 && FalseVal == 0 &&
-          CCBitsSurvive(CondDef, FlagsReadBy(CC))) {
+      if (TrueVal == 1 && FalseVal == 0 && CCBitsSurvive(CondDef, FlagsReadBy(CC))) {
         // Bug #158 re-fusion: when the ConditionalImm's CCond source is
         // a Compare_i{8,16}_Imm in the same MBB, re-fuse into a
         // CompareBranch_i{8,16}_Imm that post-RA expands to an adjacent
@@ -3169,11 +3046,7 @@ skip_globalvalue_fold:
             // branch actually consumes), not the Compare's CC — they're
             // usually the same but not guaranteed identical.
             (void)CmpCC;
-            auto Fused = BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(FusedOpc))
-                             .addImm(CC)
-                             .addReg(Src)
-                             .addImm(Imm)
-                             .addMBB(TargetMBB);
+            auto Fused = BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(FusedOpc)).addImm(CC).addReg(Src).addImm(Imm).addMBB(TargetMBB);
             // The fused form's source class is narrower than the plain
             // compare's (an 8-bit one takes A, B, E or F, not a direct-page
             // byte): constrain it, or copy into the class if it cannot be.
@@ -3199,9 +3072,7 @@ skip_globalvalue_fold:
           LBlbcOpc = MC6809::LBlbc_OnlyC;
         else
           LBlbcOpc = MC6809::LBlbc;
-        BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(LBlbcOpc))
-            .addImm(CC)
-            .addMBB(TargetMBB);
+        BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(LBlbcOpc)).addImm(CC).addMBB(TargetMBB);
         MI.eraseFromParent();
         // Leave the now-dead ConditionalImm for DCE; it has no other users
         // because we just consumed its only consumer (the BRCOND), but other
@@ -3221,12 +3092,9 @@ skip_globalvalue_fold:
     // still live here (they're consumer-site-specific; the helper is
     // purely "identify the flag a given vreg represents").
     enum { PhantomNone, PhantomCarry, PhantomOverflow } Phantom = PhantomNone;
-    if (CondDef && CondDef->getParent() == MBB &&
-        CondDef->getNumOperands() >= 2 &&
-        CondDef->getOperand(1).isReg() &&
-        CondDef->getOperand(1).getReg() == CondReg) {
+    if (CondDef && CondDef->getParent() == MBB && CondDef->getNumOperands() >= 2 && CondDef->getOperand(1).isReg() && CondDef->getOperand(1).getReg() == CondReg) {
       if (auto Flag = getPhantomCarryFlag(CondReg, *MRI, &CarryFlagOf)) {
-        MCPhysReg CCBit = *Flag;  // MC6809::C or MC6809::V
+        MCPhysReg CCBit = *Flag; // MC6809::C or MC6809::V
         // Only carry (C) may be kept live to a direct BCS branch. Every 6809
         // store clears V but leaves C intact, and the register allocator
         // inserts spill stores between the flag-producing add/sub and this
@@ -3247,8 +3115,7 @@ skip_globalvalue_fold:
       // Bug #206 + #271 cat-1: PhantomCarry → CS, which reads ONLY C
       // (LBlbc_OnlyC); PhantomOverflow → VS, which reads ONLY V and
       // doesn't read C (LBlbc_NoC).
-      unsigned LBlbcOpc = (Phantom == PhantomCarry) ?
-          MC6809::LBlbc_OnlyC : MC6809::LBlbc_NoC;
+      unsigned LBlbcOpc = (Phantom == PhantomCarry) ? MC6809::LBlbc_OnlyC : MC6809::LBlbc_NoC;
       // The branch reads the physical flag, but until selection is over it
       // must also name the producer's carry value: otherwise, when the
       // producer's arithmetic result is unused too -- a subtract done only
@@ -3256,10 +3123,7 @@ skip_globalvalue_fold:
       // deletes it, and the branch tests whatever C happens to hold.
       // MC6809InsertCopies drops this use once the producer is selected
       // (and so defines C, which the branch reads).
-      BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(LBlbcOpc))
-          .addImm(CC)
-          .addMBB(TargetMBB)
-          .addReg(CondReg, RegState::Implicit);
+      BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(LBlbcOpc)).addImm(CC).addMBB(TargetMBB).addReg(CondReg, RegState::Implicit);
       MI.eraseFromParent();
       return true;
     }
@@ -3275,8 +3139,7 @@ skip_globalvalue_fold:
       Register R = CondReg;
       while (true) {
         MachineInstr *Def = MRI->getVRegDef(R);
-        if (!Def || (Def->getOpcode() != TargetOpcode::G_FREEZE &&
-                     Def->getOpcode() != TargetOpcode::COPY))
+        if (!Def || (Def->getOpcode() != TargetOpcode::G_FREEZE && Def->getOpcode() != TargetOpcode::COPY))
           break;
         Register Src = Def->getOperand(1).getReg();
         if (!Src.isVirtual())
@@ -3286,10 +3149,7 @@ skip_globalvalue_fold:
       }
     }
     // Branch if non-zero (NE).
-    BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(MC6809::TestBranch_i8_Reg))
-        .addImm(MC6809CC::NE)
-        .addReg(CondReg)
-        .addMBB(TargetMBB);
+    BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(MC6809::TestBranch_i8_Reg)).addImm(MC6809CC::NE).addReg(CondReg).addMBB(TargetMBB);
     MI.eraseFromParent();
     return true;
   }
@@ -3375,7 +3235,8 @@ skip_globalvalue_fold:
       MachineInstr *Src2Def = MRI->getVRegDef(Src2Origin);
       while (Src2Def && Src2Def->getOpcode() == TargetOpcode::COPY) {
         Src2Origin = Src2Def->getOperand(1).getReg();
-        if (!Src2Origin.isVirtual()) break;
+        if (!Src2Origin.isVirtual())
+          break;
         Src2Def = MRI->getVRegDef(Src2Origin);
       }
       if (Src2Def && Src2Def->getOpcode() == TargetOpcode::G_CONSTANT) {
@@ -3386,10 +3247,7 @@ skip_globalvalue_fold:
           Offset = Src2Def->getOperand(1).getImm();
         if (MI.getOpcode() == TargetOpcode::G_SUB)
           Offset = -Offset;
-        auto LEA = BuildMI(*MI.getParent(), MI, MI.getDebugLoc(),
-                           TII.get(MC6809::LEAPtrAdd_Imm), DstReg)
-                       .addReg(Src1)
-                       .addImm(Offset);
+        auto LEA = BuildMI(*MI.getParent(), MI, MI.getDebugLoc(), TII.get(MC6809::LEAPtrAdd_Imm), DstReg).addReg(Src1).addImm(Offset);
         constrainSelectedInstRegOperands(*LEA, TII, TRI, RBI);
         MI.eraseFromParent();
         return true;
@@ -3415,9 +3273,7 @@ skip_globalvalue_fold:
           Register AccSrc = MRI->createGenericVirtualRegister(S16);
           MRI->setRegClass(AccSrc, &MC6809::ACC16RegClass);
           BuildMI(MBB, MI, DL, TII.get(TargetOpcode::COPY), AccSrc).addReg(Src2);
-          auto LEA = BuildMI(MBB, MI, DL, TII.get(MC6809::LEAPtrAdd_Reg16), DstReg)
-              .addReg(Src1)
-              .addReg(AccSrc);
+          auto LEA = BuildMI(MBB, MI, DL, TII.get(MC6809::LEAPtrAdd_Reg16), DstReg).addReg(Src1).addReg(AccSrc);
           constrainSelectedInstRegOperands(*LEA, TII, TRI, RBI);
         } else {
           // SUB: compute -b as (0 - b), then LEAX D,X.
@@ -3433,19 +3289,19 @@ skip_globalvalue_fold:
           MachineInstr *Src2Load = MRI->getVRegDef(Src2Origin);
           while (Src2Load && Src2Load->getOpcode() == TargetOpcode::COPY) {
             Src2Origin = Src2Load->getOperand(1).getReg();
-            if (!Src2Origin.isVirtual()) break;
+            if (!Src2Origin.isVirtual())
+              break;
             Src2Load = MRI->getVRegDef(Src2Origin);
           }
 
           if (Src2Load && Src2Load->getOpcode() == MC6809::Load_i16_Mem) {
             // D = 0, then SUBD directly from memory.
-            auto Zero = BuildMI(MBB, MI, DL, TII.get(MC6809::Load_i16_Imm), AccZero)
-                .addImm(0);
+            auto Zero = BuildMI(MBB, MI, DL, TII.get(MC6809::Load_i16_Imm), AccZero).addImm(0);
             constrainSelectedInstRegOperands(*Zero, TII, TRI, RBI);
             auto SubMem = BuildMI(MBB, MI, DL, TII.get(MC6809::Sub_i16_Mem), AccNegB)
-                .addReg(AccZero)
-                .add(Src2Load->getOperand(1))  // index register
-                .add(Src2Load->getOperand(2)); // offset
+                              .addReg(AccZero)
+                              .add(Src2Load->getOperand(1))  // index register
+                              .add(Src2Load->getOperand(2)); // offset
             constrainSelectedInstRegOperands(*SubMem, TII, TRI, RBI);
           } else {
             // Reg-reg subtract: 0 - b via Sub_i16_Reg. The expansion emits
@@ -3456,31 +3312,26 @@ skip_globalvalue_fold:
             Register AccSrc2 = MRI->createGenericVirtualRegister(S16);
             MRI->setRegClass(AccSrc2, &MC6809::ACC16RegClass);
             BuildMI(MBB, MI, DL, TII.get(TargetOpcode::COPY), AccSrc2).addReg(Src2);
-            auto Zero = BuildMI(MBB, MI, DL, TII.get(MC6809::Load_i16_Imm), AccZero)
-                .addImm(0);
+            auto Zero = BuildMI(MBB, MI, DL, TII.get(MC6809::Load_i16_Imm), AccZero).addImm(0);
             constrainSelectedInstRegOperands(*Zero, TII, TRI, RBI);
-            auto Sub = BuildMI(MBB, MI, DL, TII.get(MC6809::Sub_i16_Reg), AccNegB)
-                .addReg(AccZero)
-                .addReg(AccSrc2);
+            auto Sub = BuildMI(MBB, MI, DL, TII.get(MC6809::Sub_i16_Reg), AccNegB).addReg(AccZero).addReg(AccSrc2);
             constrainSelectedInstRegOperands(*Sub, TII, TRI, RBI);
           }
 
           // LEA: result = src1 + (-b).
-          auto LEA = BuildMI(MBB, MI, DL, TII.get(MC6809::LEAPtrAdd_Reg16), DstReg)
-              .addReg(Src1)
-              .addReg(AccNegB);
+          auto LEA = BuildMI(MBB, MI, DL, TII.get(MC6809::LEAPtrAdd_Reg16), DstReg).addReg(Src1).addReg(AccNegB);
           constrainSelectedInstRegOperands(*LEA, TII, TRI, RBI);
         }
         MI.eraseFromParent();
         return true;
       }
     }
-    return false;  // Fall through to selectImpl for ACCUM-bank (ADDD/SUBD).
+    return false; // Fall through to selectImpl for ACCUM-bank (ADDD/SUBD).
   }
 
-  // G_ICMP: INDEX-bank CMPX/CMPY selection deferred — requires post-RA
-  // peephole to replace TFR X,D + CMPD with CMPX. The compare opcode
-  // maps (CompareImmediateOpcode) are ready with IX/IY/SU/SS entries.
+    // G_ICMP: INDEX-bank CMPX/CMPY selection deferred — requires post-RA
+    // peephole to replace TFR X,D + CMPD with CMPX. The compare opcode
+    // maps (CompareImmediateOpcode) are ready with IX/IY/SU/SS entries.
 
   case TargetOpcode::G_SADDO:
   case TargetOpcode::G_UADDO:
@@ -3498,8 +3349,8 @@ skip_globalvalue_fold:
   case TargetOpcode::G_SSUBE:
     return selectSubE(MI);
 
-  // G_MUL/G_UMULH i8: handled by TableGen patterns via
-  // REG_SEQUENCE + MUL_D + EXTRACT_SUBREG (no hand-lowering needed).
+    // G_MUL/G_UMULH i8: handled by TableGen patterns via
+    // REG_SEQUENCE + MUL_D + EXTRACT_SUBREG (no hand-lowering needed).
 
   case MC6809::G_SHLE:
   case MC6809::G_LSHRE:
@@ -3519,32 +3370,27 @@ skip_globalvalue_fold:
 
 bool MC6809InstructionSelector::selectFrameIndex(MachineInstr &MI) {
   MachineIRBuilder Builder(MI);
-  auto Instr = Builder.buildInstr(MC6809::LEA_Ptr_Imm).add(MI.getOperand(0))
-                   .add(MI.getOperand(1))
-                   .addImm(0);
+  auto Instr = Builder.buildInstr(MC6809::LEA_Ptr_Imm).add(MI.getOperand(0)).add(MI.getOperand(1)).addImm(0);
   constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
   MI.eraseFromParent();
   return true;
 }
 
-Register MC6809InstructionSelector::bindFlagToByte(Register SrcReg,
-                                                   unsigned Flag) {
+Register MC6809InstructionSelector::bindFlagToByte(Register SrcReg, unsigned Flag) {
   // Walk the COPY / G_FREEZE chain to the root: the first vreg that already
   // has a real byte class (a bound root, or the split copy of the capture
   // byte), or else the phantom the producer defines.
   Register Root = SrcReg;
   MachineInstr *Producer = nullptr;
   while (Root.isVirtual()) {
-    if (const TargetRegisterClass *RC = MRI->getRegClassOrNull(Root);
-        RC && RC != &MC6809::PHANTOM_CARRYRegClass)
+    if (const TargetRegisterClass *RC = MRI->getRegClassOrNull(Root); RC && RC != &MC6809::PHANTOM_CARRYRegClass)
       return Root; // already a value byte
     Producer = MRI->getVRegDef(Root);
     if (!Producer)
       break;
     unsigned Op = Producer->getOpcode();
     if (Op == TargetOpcode::G_FREEZE || Op == TargetOpcode::COPY) {
-      if (!Producer->getOperand(1).isReg() ||
-          !Producer->getOperand(1).getReg().isVirtual())
+      if (!Producer->getOperand(1).isReg() || !Producer->getOperand(1).getReg().isVirtual())
         break;
       Root = Producer->getOperand(1).getReg();
       continue;
@@ -3605,8 +3451,7 @@ bool MC6809InstructionSelector::selectMergeValues(MachineInstr &MI) {
       if (Use->getOpcode() == TargetOpcode::FAKE_USE) {
         // FAKE_USE keeps the value live; reference each input piece
         // so none dies prematurely.
-        auto NewFU = BuildMI(*Use->getParent(), Use, Use->getDebugLoc(),
-                             TII.get(TargetOpcode::FAKE_USE));
+        auto NewFU = BuildMI(*Use->getParent(), Use, Use->getDebugLoc(), TII.get(TargetOpcode::FAKE_USE));
         for (Register R : InRegs)
           NewFU.addUse(R);
         Use->eraseFromParent();
@@ -3620,16 +3465,12 @@ bool MC6809InstructionSelector::selectMergeValues(MachineInstr &MI) {
         SmallVector<uint64_t, 4> Ops;
         if (OldExpr)
           Ops.append(OldExpr->elements_begin(), OldExpr->elements_end());
-        return DIExpression::appendOpsToArg(
-            DIExpression::get(Ctx, Ops),
-            {dwarf::DW_OP_LLVM_fragment, OffsetBits, WidthBits}, 0,
-            /*StackValue=*/false);
+        return DIExpression::appendOpsToArg(DIExpression::get(Ctx, Ops), {dwarf::DW_OP_LLVM_fragment, OffsetBits, WidthBits}, 0,
+                                            /*StackValue=*/false);
       };
       BitOffset = 0;
       for (unsigned I = 0; I < InRegs.size(); ++I) {
-        BuildMI(*Use->getParent(), Use, DL, TII.get(TargetOpcode::DBG_VALUE))
-            .addReg(InRegs[I]).addReg(0).addMetadata(Var)
-            .addMetadata(MakeFragment(BitOffset, InWidths[I]));
+        BuildMI(*Use->getParent(), Use, DL, TII.get(TargetOpcode::DBG_VALUE)).addReg(InRegs[I]).addReg(0).addMetadata(Var).addMetadata(MakeFragment(BitOffset, InWidths[I]));
         BitOffset += InWidths[I];
       }
       Use->eraseFromParent();
@@ -3668,10 +3509,7 @@ bool MC6809InstructionSelector::selectMergeValues(MachineInstr &MI) {
       MRI->setRegClass(Hi, &MC6809::ACC8RegClass);
     // MERGE_LOHI_i16 takes ACC8_AB inputs; no per-half narrowing needed
     // (the expansion stages any half combination, including the EXG swap).
-    auto Merge = Builder.buildInstr(MC6809::MERGE_LOHI_i16)
-                     .addDef(Dst)
-                     .addUse(Lo)
-                     .addUse(Hi);
+    auto Merge = Builder.buildInstr(MC6809::MERGE_LOHI_i16).addDef(Dst).addUse(Lo).addUse(Hi);
     constrainSelectedInstRegOperands(*Merge, TII, TRI, RBI);
   } else {
     // Real i32 consumers (HD6309 ALU ops, Store_i32, etc.): emit
@@ -3706,10 +3544,8 @@ bool MC6809InstructionSelector::selectMergeValues(MachineInstr &MI) {
       // MERGE_LOHI_i16 takes ACC8_AB inputs; no per-half narrowing needed.
       Lo16 = MRI->createVirtualRegister(&MC6809::ACC16RegClass);
       Hi16 = MRI->createVirtualRegister(&MC6809::ACC16RegClass);
-      auto MLo = Builder.buildInstr(MC6809::MERGE_LOHI_i16)
-                     .addDef(Lo16).addUse(B0).addUse(B1);
-      auto MHi = Builder.buildInstr(MC6809::MERGE_LOHI_i16)
-                     .addDef(Hi16).addUse(B2).addUse(B3);
+      auto MLo = Builder.buildInstr(MC6809::MERGE_LOHI_i16).addDef(Lo16).addUse(B0).addUse(B1);
+      auto MHi = Builder.buildInstr(MC6809::MERGE_LOHI_i16).addDef(Hi16).addUse(B2).addUse(B3);
       constrainSelectedInstRegOperands(*MLo, TII, TRI, RBI);
       constrainSelectedInstRegOperands(*MHi, TII, TRI, RBI);
     }
@@ -3730,10 +3566,7 @@ bool MC6809InstructionSelector::selectMergeValues(MachineInstr &MI) {
     // would be unallocatable once the spill pseudo-registers are gone).
     // The producers' output class is already ACC16 or narrower, so no
     // FAKE_USE-blocked constraint-shrink can arise here any more.
-    auto Build = Builder.buildInstr(MC6809::Build32_i16i16)
-                     .addDef(DstAcc32)
-                     .addUse(Lo16)
-                     .addUse(Hi16);
+    auto Build = Builder.buildInstr(MC6809::Build32_i16i16).addDef(DstAcc32).addUse(Lo16).addUse(Hi16);
     constrainSelectedInstRegOperands(*Build, TII, TRI, RBI);
   }
   MI.eraseFromParent();
@@ -3760,18 +3593,20 @@ bool MC6809InstructionSelector::selectAddO(MachineInstr &MI) {
   // signedness in the pseudo opcode by emitting AddSetOverflow_* for
   // signed and AddSetCarry_* for unsigned.
   bool IsSigned = MI.getOpcode() == TargetOpcode::G_SADDO;
-  auto PickOpc = [IsSigned](unsigned CarryOpc, unsigned OverflowOpc) {
-    return IsSigned ? OverflowOpc : CarryOpc;
-  };
+  auto PickOpc = [IsSigned](unsigned CarryOpc, unsigned OverflowOpc) { return IsSigned ? OverflowOpc : CarryOpc; };
   // Bug #311 Phase 2: i32 arm.  HD6309 native ADDW+ADCD chain runs the
   // i32 carry inside the pseudo — the carry-out vreg is still a
   // PHANTOM_CARRY scheduling marker, same as i8/i16.
   auto PickByWidth = [DstSize](unsigned Opc8, unsigned Opc16, unsigned Opc32) {
     switch (DstSize) {
-    case 8:  return Opc8;
-    case 16: return Opc16;
-    case 32: return Opc32;
-    default: llvm_unreachable("Unexpected DstSize for AddO/SubO/AddE/SubE");
+    case 8:
+      return Opc8;
+    case 16:
+      return Opc16;
+    case 32:
+      return Opc32;
+    default:
+      llvm_unreachable("Unexpected DstSize for AddO/SubO/AddE/SubE");
     }
   };
 
@@ -3810,8 +3645,7 @@ bool MC6809InstructionSelector::selectAddO(MachineInstr &MI) {
   // byte right after the arith with the same MaterializeCC pseudo the
   // carry bridge uses, and strip the arith's implicit-def so the vreg
   // keeps a single SSA definition.
-  bool CarryIsValue =
-      MRI->getRegClass(CarryOut) != &MC6809::PHANTOM_CARRYRegClass;
+  bool CarryIsValue = MRI->getRegClass(CarryOut) != &MC6809::PHANTOM_CARRYRegClass;
   auto EmitCarryByteIfValue = [&](MachineInstr &Arith) {
     if (!CarryIsValue)
       return;
@@ -3819,25 +3653,16 @@ bool MC6809InstructionSelector::selectAddO(MachineInstr &MI) {
     // producer's expansion writes, right after the flag-setting instruction.
     // (Bind against Arith directly: the generic MI still defines CarryOut
     // until it is erased below, so a walk to the def would see two.)
-    bindPhantomToByte(CarryOut, Arith, IsSigned ? MC6809::V : MC6809::C,
-                      *MRI, TII, TRI, RBI);
+    bindPhantomToByte(CarryOut, Arith, IsSigned ? MC6809::V : MC6809::C, *MRI, TII, TRI, RBI);
   };
 
   std::optional<ValueAndVReg> ValReg;
   int64_t Value;
-  Success = mi_match(Dst, *MRI, m_GSAddO(m_Reg(Reg), m_GCst(ValReg))) ||
-            mi_match(Dst, *MRI, m_GUAddO(m_Reg(Reg), m_GCst(ValReg)));
+  Success = mi_match(Dst, *MRI, m_GSAddO(m_Reg(Reg), m_GCst(ValReg))) || mi_match(Dst, *MRI, m_GUAddO(m_Reg(Reg), m_GCst(ValReg)));
   if (Success) {
     Value = ValReg->Value.getSExtValue();
-    Opcode = PickByWidth(
-        PickOpc(MC6809::AddSetCarry_i8_Imm,  MC6809::AddSetOverflow_i8_Imm),
-        PickOpc(MC6809::AddSetCarry_i16_Imm, MC6809::AddSetOverflow_i16_Imm),
-        PickOpc(MC6809::AddSetCarry_i32_Imm, MC6809::AddSetOverflow_i32_Imm));
-    Instr = Builder.buildInstr(Opcode)
-                     .addDef(Dst)
-                     .addUse(Reg)
-                     .addImm(Value)
-                     .addDef(CarryOut, RegState::ImplicitDefine);
+    Opcode = PickByWidth(PickOpc(MC6809::AddSetCarry_i8_Imm, MC6809::AddSetOverflow_i8_Imm), PickOpc(MC6809::AddSetCarry_i16_Imm, MC6809::AddSetOverflow_i16_Imm), PickOpc(MC6809::AddSetCarry_i32_Imm, MC6809::AddSetOverflow_i32_Imm));
+    Instr = Builder.buildInstr(Opcode).addDef(Dst).addUse(Reg).addImm(Value).addDef(CarryOut, RegState::ImplicitDefine);
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     EmitCarryByteIfValue(*Instr);
     MI.eraseFromParent();
@@ -3850,18 +3675,10 @@ bool MC6809InstructionSelector::selectAddO(MachineInstr &MI) {
   {
     Register UnmReg;
     int64_t ByteVal;
-    Success = mi_match(Dst, *MRI, m_GSAddO(m_Reg(UnmReg), m_Reg(Reg))) ||
-              mi_match(Dst, *MRI, m_GUAddO(m_Reg(UnmReg), m_Reg(Reg)));
+    Success = mi_match(Dst, *MRI, m_GSAddO(m_Reg(UnmReg), m_Reg(Reg))) || mi_match(Dst, *MRI, m_GUAddO(m_Reg(UnmReg), m_Reg(Reg)));
     if (Success && getUnmergedByteConstant(*MRI, Reg, ByteVal)) {
-      Opcode = PickByWidth(
-          PickOpc(MC6809::AddSetCarry_i8_Imm,  MC6809::AddSetOverflow_i8_Imm),
-          PickOpc(MC6809::AddSetCarry_i16_Imm, MC6809::AddSetOverflow_i16_Imm),
-          PickOpc(MC6809::AddSetCarry_i32_Imm, MC6809::AddSetOverflow_i32_Imm));
-      Instr = Builder.buildInstr(Opcode)
-                       .addDef(Dst)
-                       .addUse(UnmReg)
-                       .addImm(ByteVal)
-                       .addDef(CarryOut, RegState::ImplicitDefine);
+      Opcode = PickByWidth(PickOpc(MC6809::AddSetCarry_i8_Imm, MC6809::AddSetOverflow_i8_Imm), PickOpc(MC6809::AddSetCarry_i16_Imm, MC6809::AddSetOverflow_i16_Imm), PickOpc(MC6809::AddSetCarry_i32_Imm, MC6809::AddSetOverflow_i32_Imm));
+      Instr = Builder.buildInstr(Opcode).addDef(Dst).addUse(UnmReg).addImm(ByteVal).addDef(CarryOut, RegState::ImplicitDefine);
       constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
       EmitCarryByteIfValue(*Instr);
       MI.eraseFromParent();
@@ -3871,20 +3688,10 @@ bool MC6809InstructionSelector::selectAddO(MachineInstr &MI) {
 
   MachineOperand Ptr = MachineOperand::CreateReg(0, false);
   MachineOperand Offset = MachineOperand::CreateReg(0, false);
-  Success = mi_match(Dst, *MRI, m_GSAddO(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)))) ||
-            mi_match(Dst, *MRI, m_GUAddO(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA))));
+  Success = mi_match(Dst, *MRI, m_GSAddO(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)))) || mi_match(Dst, *MRI, m_GUAddO(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA))));
   if (Success) {
-    Opcode = PickByWidth(
-        PickOpc(MC6809::AddSetCarry_i8_Mem,  MC6809::AddSetOverflow_i8_Mem),
-        PickOpc(MC6809::AddSetCarry_i16_Mem, MC6809::AddSetOverflow_i16_Mem),
-        PickOpc(MC6809::AddSetCarry_i32_Mem, MC6809::AddSetOverflow_i32_Mem));
-    Instr = Builder.buildInstr(Opcode)
-                     .addDef(Dst)
-                     .addUse(Reg)
-                     .add(Ptr)
-                     .add(Offset)
-                     .addDef(CarryOut, RegState::ImplicitDefine)
-                     .cloneMemRefs(*Ptr.getParent());
+    Opcode = PickByWidth(PickOpc(MC6809::AddSetCarry_i8_Mem, MC6809::AddSetOverflow_i8_Mem), PickOpc(MC6809::AddSetCarry_i16_Mem, MC6809::AddSetOverflow_i16_Mem), PickOpc(MC6809::AddSetCarry_i32_Mem, MC6809::AddSetOverflow_i32_Mem));
+    Instr = Builder.buildInstr(Opcode).addDef(Dst).addUse(Reg).add(Ptr).add(Offset).addDef(CarryOut, RegState::ImplicitDefine).cloneMemRefs(*Ptr.getParent());
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     EmitCarryByteIfValue(*Instr);
     MI.eraseFromParent();
@@ -3892,8 +3699,7 @@ bool MC6809InstructionSelector::selectAddO(MachineInstr &MI) {
   }
 
   Register LHS, RHS;
-  Success = mi_match(Dst, *MRI, m_GSAddO(m_Reg(LHS), m_Reg(RHS))) ||
-            mi_match(Dst, *MRI, m_GUAddO(m_Reg(LHS), m_Reg(RHS)));
+  Success = mi_match(Dst, *MRI, m_GSAddO(m_Reg(LHS), m_Reg(RHS))) || mi_match(Dst, *MRI, m_GUAddO(m_Reg(LHS), m_Reg(RHS)));
   if (Success) {
     // Bug #319 Stage 2 (2026-05-21): mirror selectAddE — i8 _Reg
     // variant requires ABc operands; FAKE_USE at -Og blocks the
@@ -3902,15 +3708,8 @@ bool MC6809InstructionSelector::selectAddO(MachineInstr &MI) {
       LHS = narrowToClass(Builder, MRI, LHS, &MC6809::ACC8_ABRegClass);
       RHS = narrowToClass(Builder, MRI, RHS, &MC6809::ACC8_ABRegClass);
     }
-    Opcode = PickByWidth(
-        PickOpc(MC6809::AddSetCarry_i8_Reg,  MC6809::AddSetOverflow_i8_Reg),
-        PickOpc(MC6809::AddSetCarry_i16_Reg, MC6809::AddSetOverflow_i16_Reg),
-        PickOpc(MC6809::AddSetCarry_i32_Reg, MC6809::AddSetOverflow_i32_Reg));
-    Instr = Builder.buildInstr(Opcode)
-                .addDef(Dst)
-                .addUse(LHS)
-                .addUse(RHS)
-                .addDef(CarryOut, RegState::ImplicitDefine);
+    Opcode = PickByWidth(PickOpc(MC6809::AddSetCarry_i8_Reg, MC6809::AddSetOverflow_i8_Reg), PickOpc(MC6809::AddSetCarry_i16_Reg, MC6809::AddSetOverflow_i16_Reg), PickOpc(MC6809::AddSetCarry_i32_Reg, MC6809::AddSetOverflow_i32_Reg));
+    Instr = Builder.buildInstr(Opcode).addDef(Dst).addUse(LHS).addUse(RHS).addDef(CarryOut, RegState::ImplicitDefine);
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     EmitCarryByteIfValue(*Instr);
     MI.eraseFromParent();
@@ -3989,16 +3788,18 @@ bool MC6809InstructionSelector::selectSubO(MachineInstr &MI) {
   // signedness. SSUBO's s1 represents V (signed-overflow); USUBO's s1
   // represents C (carry/borrow).
   bool IsSigned = MI.getOpcode() == TargetOpcode::G_SSUBO;
-  auto PickOpc = [IsSigned](unsigned CarryOpc, unsigned OverflowOpc) {
-    return IsSigned ? OverflowOpc : CarryOpc;
-  };
+  auto PickOpc = [IsSigned](unsigned CarryOpc, unsigned OverflowOpc) { return IsSigned ? OverflowOpc : CarryOpc; };
   // Bug #311 Phase 2: i32 arm (HD6309 native SUBW+SBCD).
   auto PickByWidth = [DstSize](unsigned Opc8, unsigned Opc16, unsigned Opc32) {
     switch (DstSize) {
-    case 8:  return Opc8;
-    case 16: return Opc16;
-    case 32: return Opc32;
-    default: llvm_unreachable("Unexpected DstSize for AddO/SubO/AddE/SubE");
+    case 8:
+      return Opc8;
+    case 16:
+      return Opc16;
+    case 32:
+      return Opc32;
+    default:
+      llvm_unreachable("Unexpected DstSize for AddO/SubO/AddE/SubE");
     }
   };
 
@@ -4025,8 +3826,7 @@ bool MC6809InstructionSelector::selectSubO(MachineInstr &MI) {
   // byte right after the arith with the same MaterializeCC pseudo the
   // carry bridge uses, and strip the arith's implicit-def so the vreg
   // keeps a single SSA definition.
-  bool CarryIsValue =
-      MRI->getRegClass(CarryOut) != &MC6809::PHANTOM_CARRYRegClass;
+  bool CarryIsValue = MRI->getRegClass(CarryOut) != &MC6809::PHANTOM_CARRYRegClass;
   auto EmitCarryByteIfValue = [&](MachineInstr &Arith) {
     if (!CarryIsValue)
       return;
@@ -4034,27 +3834,18 @@ bool MC6809InstructionSelector::selectSubO(MachineInstr &MI) {
     // producer's expansion writes, right after the flag-setting instruction.
     // (Bind against Arith directly: the generic MI still defines CarryOut
     // until it is erased below, so a walk to the def would see two.)
-    bindPhantomToByte(CarryOut, Arith, IsSigned ? MC6809::V : MC6809::C,
-                      *MRI, TII, TRI, RBI);
+    bindPhantomToByte(CarryOut, Arith, IsSigned ? MC6809::V : MC6809::C, *MRI, TII, TRI, RBI);
   };
 
   std::optional<ValueAndVReg> ValReg;
   int64_t Value;
   // Match `(reg − const)` only — never `(const − reg)`. See the
   // function-level comment for why.
-  Success = mi_match(Dst, *MRI, m_GSSubO(m_Reg(Reg), m_GCst(ValReg))) ||
-            mi_match(Dst, *MRI, m_GUSubO(m_Reg(Reg), m_GCst(ValReg)));
+  Success = mi_match(Dst, *MRI, m_GSSubO(m_Reg(Reg), m_GCst(ValReg))) || mi_match(Dst, *MRI, m_GUSubO(m_Reg(Reg), m_GCst(ValReg)));
   if (Success) {
     Value = ValReg->Value.getSExtValue();
-    Opcode = PickByWidth(
-        PickOpc(MC6809::SubSetCarry_i8_Imm,  MC6809::SubSetOverflow_i8_Imm),
-        PickOpc(MC6809::SubSetCarry_i16_Imm, MC6809::SubSetOverflow_i16_Imm),
-        PickOpc(MC6809::SubSetCarry_i32_Imm, MC6809::SubSetOverflow_i32_Imm));
-    Instr = Builder.buildInstr(Opcode)
-                     .addDef(Dst)
-                     .addUse(Reg)
-                     .addImm(Value)
-                     .addDef(CarryOut, RegState::ImplicitDefine);
+    Opcode = PickByWidth(PickOpc(MC6809::SubSetCarry_i8_Imm, MC6809::SubSetOverflow_i8_Imm), PickOpc(MC6809::SubSetCarry_i16_Imm, MC6809::SubSetOverflow_i16_Imm), PickOpc(MC6809::SubSetCarry_i32_Imm, MC6809::SubSetOverflow_i32_Imm));
+    Instr = Builder.buildInstr(Opcode).addDef(Dst).addUse(Reg).addImm(Value).addDef(CarryOut, RegState::ImplicitDefine);
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     EmitCarryByteIfValue(*Instr);
     MI.eraseFromParent();
@@ -4067,18 +3858,10 @@ bool MC6809InstructionSelector::selectSubO(MachineInstr &MI) {
   {
     Register UnmReg;
     int64_t ByteVal;
-    Success = mi_match(Dst, *MRI, m_GSSubO(m_Reg(UnmReg), m_Reg(Reg))) ||
-              mi_match(Dst, *MRI, m_GUSubO(m_Reg(UnmReg), m_Reg(Reg)));
+    Success = mi_match(Dst, *MRI, m_GSSubO(m_Reg(UnmReg), m_Reg(Reg))) || mi_match(Dst, *MRI, m_GUSubO(m_Reg(UnmReg), m_Reg(Reg)));
     if (Success && getUnmergedByteConstant(*MRI, Reg, ByteVal)) {
-      Opcode = PickByWidth(
-          PickOpc(MC6809::SubSetCarry_i8_Imm,  MC6809::SubSetOverflow_i8_Imm),
-          PickOpc(MC6809::SubSetCarry_i16_Imm, MC6809::SubSetOverflow_i16_Imm),
-          PickOpc(MC6809::SubSetCarry_i32_Imm, MC6809::SubSetOverflow_i32_Imm));
-      Instr = Builder.buildInstr(Opcode)
-                       .addDef(Dst)
-                       .addUse(UnmReg)
-                       .addImm(ByteVal)
-                       .addDef(CarryOut, RegState::ImplicitDefine);
+      Opcode = PickByWidth(PickOpc(MC6809::SubSetCarry_i8_Imm, MC6809::SubSetOverflow_i8_Imm), PickOpc(MC6809::SubSetCarry_i16_Imm, MC6809::SubSetOverflow_i16_Imm), PickOpc(MC6809::SubSetCarry_i32_Imm, MC6809::SubSetOverflow_i32_Imm));
+      Instr = Builder.buildInstr(Opcode).addDef(Dst).addUse(UnmReg).addImm(ByteVal).addDef(CarryOut, RegState::ImplicitDefine);
       constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
       EmitCarryByteIfValue(*Instr);
       MI.eraseFromParent();
@@ -4092,20 +3875,10 @@ bool MC6809InstructionSelector::selectSubO(MachineInstr &MI) {
   // non-commutative reasoning as for the (reg, const) form above.
   // The (mem, reg) shape would have to materialize the loaded value
   // into a vreg and route through the (reg, reg) match below.
-  Success = mi_match(Dst, *MRI, m_GSSubO(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)))) ||
-            mi_match(Dst, *MRI, m_GUSubO(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA))));
+  Success = mi_match(Dst, *MRI, m_GSSubO(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)))) || mi_match(Dst, *MRI, m_GUSubO(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA))));
   if (Success) {
-    Opcode = PickByWidth(
-        PickOpc(MC6809::SubSetCarry_i8_Mem,  MC6809::SubSetOverflow_i8_Mem),
-        PickOpc(MC6809::SubSetCarry_i16_Mem, MC6809::SubSetOverflow_i16_Mem),
-        PickOpc(MC6809::SubSetCarry_i32_Mem, MC6809::SubSetOverflow_i32_Mem));
-    Instr = Builder.buildInstr(Opcode)
-                     .addDef(Dst)
-                     .addUse(Reg)
-                     .add(Ptr)
-                     .add(Offset)
-                     .addDef(CarryOut, RegState::ImplicitDefine)
-                     .cloneMemRefs(*Ptr.getParent());
+    Opcode = PickByWidth(PickOpc(MC6809::SubSetCarry_i8_Mem, MC6809::SubSetOverflow_i8_Mem), PickOpc(MC6809::SubSetCarry_i16_Mem, MC6809::SubSetOverflow_i16_Mem), PickOpc(MC6809::SubSetCarry_i32_Mem, MC6809::SubSetOverflow_i32_Mem));
+    Instr = Builder.buildInstr(Opcode).addDef(Dst).addUse(Reg).add(Ptr).add(Offset).addDef(CarryOut, RegState::ImplicitDefine).cloneMemRefs(*Ptr.getParent());
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     EmitCarryByteIfValue(*Instr);
     MI.eraseFromParent();
@@ -4113,33 +3886,22 @@ bool MC6809InstructionSelector::selectSubO(MachineInstr &MI) {
   }
 
   Register LHS, RHS;
-  Success = mi_match(Dst, *MRI, m_GSSubO(m_Reg(LHS), m_Reg(RHS))) ||
-            mi_match(Dst, *MRI, m_GUSubO(m_Reg(LHS), m_Reg(RHS)));
+  Success = mi_match(Dst, *MRI, m_GSSubO(m_Reg(LHS), m_Reg(RHS))) || mi_match(Dst, *MRI, m_GUSubO(m_Reg(LHS), m_Reg(RHS)));
   if (Success) {
     // Bug #319 Stage 2 (2026-05-21): mirror selectAddO — see helpers.
     if (DstSize == 8 && hasFakeUse(MI)) {
       LHS = narrowToClass(Builder, MRI, LHS, &MC6809::ACC8_ABRegClass);
       RHS = narrowToClass(Builder, MRI, RHS, &MC6809::ACC8_ABRegClass);
     }
-    Opcode = PickByWidth(
-        PickOpc(MC6809::SubSetCarry_i8_Reg,  MC6809::SubSetOverflow_i8_Reg),
-        PickOpc(MC6809::SubSetCarry_i16_Reg, MC6809::SubSetOverflow_i16_Reg),
-        PickOpc(MC6809::SubSetCarry_i32_Reg, MC6809::SubSetOverflow_i32_Reg));
-    Instr = Builder.buildInstr(Opcode)
-                .addDef(Dst)
-                .addUse(LHS)
-                .addUse(RHS)
-                .addDef(CarryOut, RegState::ImplicitDefine);
+    Opcode = PickByWidth(PickOpc(MC6809::SubSetCarry_i8_Reg, MC6809::SubSetOverflow_i8_Reg), PickOpc(MC6809::SubSetCarry_i16_Reg, MC6809::SubSetOverflow_i16_Reg), PickOpc(MC6809::SubSetCarry_i32_Reg, MC6809::SubSetOverflow_i32_Reg));
+    Instr = Builder.buildInstr(Opcode).addDef(Dst).addUse(LHS).addUse(RHS).addDef(CarryOut, RegState::ImplicitDefine);
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
     EmitCarryByteIfValue(*Instr);
     MI.eraseFromParent();
     return true;
   }
 
-  LLVM_DEBUG(
-      (void)MRI->getVRegDef(MI.getOperand(2).getReg());
-      (void)MRI->getVRegDef(MI.getOperand(3).getReg());
-  );
+  LLVM_DEBUG((void)MRI->getVRegDef(MI.getOperand(2).getReg()); (void)MRI->getVRegDef(MI.getOperand(3).getReg()););
 
   return false;
 }
@@ -4152,8 +3914,7 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
   Register Carry;
   LLT DstTy = MRI->getType(Dst);
   const auto DstSize = DstTy.getSizeInBits();
-  assert((DstSize == 8 || DstSize == 16 || DstSize == 32) &&
-         "Only 8 / 16 / 32-bit add-with-carry exists");
+  assert((DstSize == 8 || DstSize == 16 || DstSize == 32) && "Only 8 / 16 / 32-bit add-with-carry exists");
   bool Success;
   MachineInstrBuilder Instr;
   MachineInstr *Load;
@@ -4162,10 +3923,14 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
   // Bug #311 Phase 2: i32 arm (HD6309 EXG-D,W + ADCB/ADCA + EXG + ADCD).
   auto PickByWidth = [DstSize](unsigned Opc8, unsigned Opc16, unsigned Opc32) {
     switch (DstSize) {
-    case 8:  return Opc8;
-    case 16: return Opc16;
-    case 32: return Opc32;
-    default: llvm_unreachable("Unexpected DstSize for AddO/SubO/AddE/SubE");
+    case 8:
+      return Opc8;
+    case 16:
+      return Opc16;
+    case 32:
+      return Opc32;
+    default:
+      llvm_unreachable("Unexpected DstSize for AddO/SubO/AddE/SubE");
     }
   };
 
@@ -4178,15 +3943,11 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
   // across the bridge and triggers cross-call spill that has no
   // valid lowering.  See ensureCarryChainIntegrity's return-value
   // comment.
-  bool Bridged =
-      ensureCarryChainIntegrity(MI, MI.getOperand(4).getReg(), *MRI, TII,
-                                TRI, RBI, &CarryFlagOf, BridgedByteFor);
+  bool Bridged = ensureCarryChainIntegrity(MI, MI.getOperand(4).getReg(), *MRI, TII, TRI, RBI, &CarryFlagOf, BridgedByteFor);
 
   // Bug #147: G_SADDE's s1 result is V (signed-overflow); G_UADDE's is C.
   bool IsSigned = MI.getOpcode() == TargetOpcode::G_SADDE;
-  auto PickOpc = [IsSigned](unsigned CarryOpc, unsigned OverflowOpc) {
-    return IsSigned ? OverflowOpc : CarryOpc;
-  };
+  auto PickOpc = [IsSigned](unsigned CarryOpc, unsigned OverflowOpc) { return IsSigned ? OverflowOpc : CarryOpc; };
 
   // Bug #186 follow-up Phase 1a (2026-04-28): see selectAddO above.
   CarryFlagOf[CarryOut] = IsSigned ? MC6809::V : MC6809::C;
@@ -4211,8 +3972,7 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
   // byte right after the arith with the same MaterializeCC pseudo the
   // carry bridge uses, and strip the arith's implicit-def so the vreg
   // keeps a single SSA definition.
-  bool CarryIsValue =
-      MRI->getRegClass(CarryOut) != &MC6809::PHANTOM_CARRYRegClass;
+  bool CarryIsValue = MRI->getRegClass(CarryOut) != &MC6809::PHANTOM_CARRYRegClass;
   auto EmitCarryByteIfValue = [&](MachineInstr &Arith) {
     if (!CarryIsValue)
       return;
@@ -4220,14 +3980,12 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
     // producer's expansion writes, right after the flag-setting instruction.
     // (Bind against Arith directly: the generic MI still defines CarryOut
     // until it is erased below, so a walk to the def would see two.)
-    bindPhantomToByte(CarryOut, Arith, IsSigned ? MC6809::V : MC6809::C,
-                      *MRI, TII, TRI, RBI);
+    bindPhantomToByte(CarryOut, Arith, IsSigned ? MC6809::V : MC6809::C, *MRI, TII, TRI, RBI);
   };
 
   std::optional<ValueAndVReg> ValReg;
   int64_t Value;
-  Success = mi_match(Dst, *MRI, m_GSAddE(m_Reg(Reg), m_GCst(ValReg), m_Reg(Carry))) ||
-            mi_match(Dst, *MRI, m_GUAddE(m_Reg(Reg), m_GCst(ValReg), m_Reg(Carry)));
+  Success = mi_match(Dst, *MRI, m_GSAddE(m_Reg(Reg), m_GCst(ValReg), m_Reg(Carry))) || mi_match(Dst, *MRI, m_GUAddE(m_Reg(Reg), m_GCst(ValReg), m_Reg(Carry)));
   if (Success) {
     Value = ValReg->Value.getSExtValue();
     // Constant-carry fold: if the carry-IN is a known constant
@@ -4245,41 +4003,26 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
       CarryVal = *CC & 1;
       CarryIsConst = true;
     } else if (MachineInstr *CarryDef = MRI->getVRegDef(Carry)) {
-      if (CarryDef->getOpcode() == MC6809::Load_i1_Imm &&
-          CarryDef->getOperand(1).isImm()) {
+      if (CarryDef->getOpcode() == MC6809::Load_i1_Imm && CarryDef->getOperand(1).isImm()) {
         CarryVal = CarryDef->getOperand(1).getImm() & 1;
         CarryIsConst = true;
       }
     }
     if (CarryIsConst) {
-      Opcode = PickByWidth(
-          PickOpc(MC6809::AddSetCarry_i8_Imm, MC6809::AddSetOverflow_i8_Imm),
-          PickOpc(MC6809::AddSetCarry_i16_Imm, MC6809::AddSetOverflow_i16_Imm),
-          PickOpc(MC6809::AddSetCarry_i32_Imm, MC6809::AddSetOverflow_i32_Imm));
-      Instr = Builder.buildInstr(Opcode)
-                       .addDef(Dst)
-                       .addUse(Reg)
-                       .addImm(Value + CarryVal)
-                       .addDef(CarryOut, RegState::ImplicitDefine);
+      Opcode = PickByWidth(PickOpc(MC6809::AddSetCarry_i8_Imm, MC6809::AddSetOverflow_i8_Imm), PickOpc(MC6809::AddSetCarry_i16_Imm, MC6809::AddSetOverflow_i16_Imm), PickOpc(MC6809::AddSetCarry_i32_Imm, MC6809::AddSetOverflow_i32_Imm));
+      Instr = Builder.buildInstr(Opcode).addDef(Dst).addUse(Reg).addImm(Value + CarryVal).addDef(CarryOut, RegState::ImplicitDefine);
       constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
       EmitCarryByteIfValue(*Instr);
       MI.eraseFromParent();
       return true;
     }
-    Opcode = PickByWidth(
-        PickOpc(MC6809::AddSetCarryUse_i8_Imm,  MC6809::AddSetOverflowUse_i8_Imm),
-        PickOpc(MC6809::AddSetCarryUse_i16_Imm, MC6809::AddSetOverflowUse_i16_Imm),
-        PickOpc(MC6809::AddSetCarryUse_i32_Imm, MC6809::AddSetOverflowUse_i32_Imm));
+    Opcode = PickByWidth(PickOpc(MC6809::AddSetCarryUse_i8_Imm, MC6809::AddSetOverflowUse_i8_Imm), PickOpc(MC6809::AddSetCarryUse_i16_Imm, MC6809::AddSetOverflowUse_i16_Imm), PickOpc(MC6809::AddSetCarryUse_i32_Imm, MC6809::AddSetOverflowUse_i32_Imm));
     // Keep the carry-IN vreg as an implicit-use so DCE can't remove
     // the upstream SetCarry when its non-carry byte result is dead
     // (e.g. multi-byte multiply chains where only the high half is
     // kept).  Without this, the implicit $c use here dangles (no
     // upstream define) and the verifier rejects the MIR.
-    Instr = Builder.buildInstr(Opcode)
-                     .addDef(Dst)
-                     .addUse(Reg)
-                     .addImm(Value)
-                     .addDef(CarryOut, RegState::ImplicitDefine);
+    Instr = Builder.buildInstr(Opcode).addDef(Dst).addUse(Reg).addImm(Value).addDef(CarryOut, RegState::ImplicitDefine);
     if (!Bridged)
       Instr.addUse(Carry, RegState::Implicit);
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
@@ -4292,18 +4035,10 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
   {
     Register UnmReg;
     int64_t ByteVal;
-    Success = mi_match(Dst, *MRI, m_GSAddE(m_Reg(UnmReg), m_Reg(Reg), m_Reg(Carry))) ||
-              mi_match(Dst, *MRI, m_GUAddE(m_Reg(UnmReg), m_Reg(Reg), m_Reg(Carry)));
+    Success = mi_match(Dst, *MRI, m_GSAddE(m_Reg(UnmReg), m_Reg(Reg), m_Reg(Carry))) || mi_match(Dst, *MRI, m_GUAddE(m_Reg(UnmReg), m_Reg(Reg), m_Reg(Carry)));
     if (Success && getUnmergedByteConstant(*MRI, Reg, ByteVal)) {
-      Opcode = PickByWidth(
-          PickOpc(MC6809::AddSetCarryUse_i8_Imm,  MC6809::AddSetOverflowUse_i8_Imm),
-          PickOpc(MC6809::AddSetCarryUse_i16_Imm, MC6809::AddSetOverflowUse_i16_Imm),
-          PickOpc(MC6809::AddSetCarryUse_i32_Imm, MC6809::AddSetOverflowUse_i32_Imm));
-      Instr = Builder.buildInstr(Opcode)
-                       .addDef(Dst)
-                       .addUse(UnmReg)
-                       .addImm(ByteVal)
-                       .addDef(CarryOut, RegState::ImplicitDefine);
+      Opcode = PickByWidth(PickOpc(MC6809::AddSetCarryUse_i8_Imm, MC6809::AddSetOverflowUse_i8_Imm), PickOpc(MC6809::AddSetCarryUse_i16_Imm, MC6809::AddSetOverflowUse_i16_Imm), PickOpc(MC6809::AddSetCarryUse_i32_Imm, MC6809::AddSetOverflowUse_i32_Imm));
+      Instr = Builder.buildInstr(Opcode).addDef(Dst).addUse(UnmReg).addImm(ByteVal).addDef(CarryOut, RegState::ImplicitDefine);
       if (!Bridged)
         Instr.addUse(Carry, RegState::Implicit);
       constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
@@ -4315,19 +4050,10 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
 
   MachineOperand Ptr = MachineOperand::CreateReg(0, false);
   MachineOperand Offset = MachineOperand::CreateReg(0, false);
-  Success = mi_match(Dst, *MRI, m_GSAddE(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)), m_Reg(Carry))) ||
-            mi_match(Dst, *MRI, m_GUAddE(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)), m_Reg(Carry)));
+  Success = mi_match(Dst, *MRI, m_GSAddE(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)), m_Reg(Carry))) || mi_match(Dst, *MRI, m_GUAddE(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)), m_Reg(Carry)));
   if (Success) {
-    Opcode = PickByWidth(
-        PickOpc(MC6809::AddSetCarryUse_i8_Mem,  MC6809::AddSetOverflowUse_i8_Mem),
-        PickOpc(MC6809::AddSetCarryUse_i16_Mem, MC6809::AddSetOverflowUse_i16_Mem),
-        PickOpc(MC6809::AddSetCarryUse_i32_Mem, MC6809::AddSetOverflowUse_i32_Mem));
-    Instr = Builder.buildInstr(Opcode)
-                     .addDef(Dst)
-                     .addUse(Reg)
-                     .add(Ptr)
-                     .add(Offset)
-                     .addDef(CarryOut, RegState::ImplicitDefine);
+    Opcode = PickByWidth(PickOpc(MC6809::AddSetCarryUse_i8_Mem, MC6809::AddSetOverflowUse_i8_Mem), PickOpc(MC6809::AddSetCarryUse_i16_Mem, MC6809::AddSetOverflowUse_i16_Mem), PickOpc(MC6809::AddSetCarryUse_i32_Mem, MC6809::AddSetOverflowUse_i32_Mem));
+    Instr = Builder.buildInstr(Opcode).addDef(Dst).addUse(Reg).add(Ptr).add(Offset).addDef(CarryOut, RegState::ImplicitDefine);
     if (!Bridged)
       Instr.addUse(Carry, RegState::Implicit);
     Instr.cloneMemRefs(*Ptr.getParent());
@@ -4337,19 +4063,10 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
     return true;
   }
 
-  Success = mi_match(Dst, *MRI, m_GSAddE(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)), m_Reg(Carry))) ||
-            mi_match(Dst, *MRI, m_GUAddE(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)), m_Reg(Carry)));
+  Success = mi_match(Dst, *MRI, m_GSAddE(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)), m_Reg(Carry))) || mi_match(Dst, *MRI, m_GUAddE(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)), m_Reg(Carry)));
   if (Success) {
-    Opcode = PickByWidth(
-        PickOpc(MC6809::AddSetCarryUse_i8_Mem,  MC6809::AddSetOverflowUse_i8_Mem),
-        PickOpc(MC6809::AddSetCarryUse_i16_Mem, MC6809::AddSetOverflowUse_i16_Mem),
-        PickOpc(MC6809::AddSetCarryUse_i32_Mem, MC6809::AddSetOverflowUse_i32_Mem));
-    Instr = Builder.buildInstr(Opcode)
-                     .addDef(Dst)
-                     .addUse(Reg)
-                     .add(Ptr)
-                     .add(Offset)
-                     .addDef(CarryOut, RegState::ImplicitDefine);
+    Opcode = PickByWidth(PickOpc(MC6809::AddSetCarryUse_i8_Mem, MC6809::AddSetOverflowUse_i8_Mem), PickOpc(MC6809::AddSetCarryUse_i16_Mem, MC6809::AddSetOverflowUse_i16_Mem), PickOpc(MC6809::AddSetCarryUse_i32_Mem, MC6809::AddSetOverflowUse_i32_Mem));
+    Instr = Builder.buildInstr(Opcode).addDef(Dst).addUse(Reg).add(Ptr).add(Offset).addDef(CarryOut, RegState::ImplicitDefine);
     if (!Bridged)
       Instr.addUse(Carry, RegState::Implicit);
     Instr.cloneMemRefs(*Ptr.getParent());
@@ -4360,8 +4077,7 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
   }
 
   Register LHS, RHS;
-  Success = mi_match(Dst, *MRI, m_GSAddE(m_Reg(LHS), m_Reg(RHS), m_Reg(Carry))) ||
-            mi_match(Dst, *MRI, m_GUAddE(m_Reg(LHS), m_Reg(RHS), m_Reg(Carry)));
+  Success = mi_match(Dst, *MRI, m_GSAddE(m_Reg(LHS), m_Reg(RHS), m_Reg(Carry))) || mi_match(Dst, *MRI, m_GUAddE(m_Reg(LHS), m_Reg(RHS), m_Reg(Carry)));
   if (Success) {
     // Bug #319 (2026-05-21): i8 _Reg variant requires ABc operands.
     // Producer may be in ACC8 (broader); at -Og with -fextend-
@@ -4371,15 +4087,8 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
       LHS = narrowToClass(Builder, MRI, LHS, &MC6809::ACC8_ABRegClass);
       RHS = narrowToClass(Builder, MRI, RHS, &MC6809::ACC8_ABRegClass);
     }
-    Opcode = PickByWidth(
-        PickOpc(MC6809::AddSetCarryUse_i8_Reg,  MC6809::AddSetOverflowUse_i8_Reg),
-        PickOpc(MC6809::AddSetCarryUse_i16_Reg, MC6809::AddSetOverflowUse_i16_Reg),
-        PickOpc(MC6809::AddSetCarryUse_i32_Reg, MC6809::AddSetOverflowUse_i32_Reg));
-    Instr = Builder.buildInstr(Opcode)
-                .addDef(Dst)
-                .addUse(LHS)
-                .addUse(RHS)
-                .addDef(CarryOut, RegState::ImplicitDefine);
+    Opcode = PickByWidth(PickOpc(MC6809::AddSetCarryUse_i8_Reg, MC6809::AddSetOverflowUse_i8_Reg), PickOpc(MC6809::AddSetCarryUse_i16_Reg, MC6809::AddSetOverflowUse_i16_Reg), PickOpc(MC6809::AddSetCarryUse_i32_Reg, MC6809::AddSetOverflowUse_i32_Reg));
+    Instr = Builder.buildInstr(Opcode).addDef(Dst).addUse(LHS).addUse(RHS).addDef(CarryOut, RegState::ImplicitDefine);
     if (!Bridged)
       Instr.addUse(Carry, RegState::Implicit);
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
@@ -4388,10 +4097,7 @@ bool MC6809InstructionSelector::selectAddE(MachineInstr &MI) {
     return true;
   }
 
-  LLVM_DEBUG(
-      (void)MRI->getVRegDef(MI.getOperand(2).getReg());
-      (void)MRI->getVRegDef(MI.getOperand(3).getReg());
-      );
+  LLVM_DEBUG((void)MRI->getVRegDef(MI.getOperand(2).getReg()); (void)MRI->getVRegDef(MI.getOperand(3).getReg()););
 
   return false;
 }
@@ -4412,8 +4118,7 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
   Register CarryOut, Carry;
   LLT DstTy = MRI->getType(Dst);
   const auto DstSize = DstTy.getSizeInBits();
-  assert((DstSize == 8 || DstSize == 16 || DstSize == 32) &&
-         "Only 8 / 16 / 32-bit sub-with-borrow exists");
+  assert((DstSize == 8 || DstSize == 16 || DstSize == 32) && "Only 8 / 16 / 32-bit sub-with-borrow exists");
   bool Success;
   MachineInstrBuilder Instr;
   MachineInstr *Load;
@@ -4422,10 +4127,14 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
   // Bug #311 Phase 2: i32 arm.
   auto PickByWidth = [DstSize](unsigned Opc8, unsigned Opc16, unsigned Opc32) {
     switch (DstSize) {
-    case 8:  return Opc8;
-    case 16: return Opc16;
-    case 32: return Opc32;
-    default: llvm_unreachable("Unexpected DstSize for AddO/SubO/AddE/SubE");
+    case 8:
+      return Opc8;
+    case 16:
+      return Opc16;
+    case 32:
+      return Opc32;
+    default:
+      llvm_unreachable("Unexpected DstSize for AddO/SubO/AddE/SubE");
     }
   };
 
@@ -4437,15 +4146,11 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
   // Bug #307 round 2 (2026-05-18): when the bridge fires, the new
   // pseudo we build below must NOT carry the phantom_carry implicit-
   // use — same reasoning as selectAddE.
-  bool Bridged =
-      ensureCarryChainIntegrity(MI, MI.getOperand(4).getReg(), *MRI, TII,
-                                TRI, RBI, &CarryFlagOf, BridgedByteFor);
+  bool Bridged = ensureCarryChainIntegrity(MI, MI.getOperand(4).getReg(), *MRI, TII, TRI, RBI, &CarryFlagOf, BridgedByteFor);
 
   // Bug #147: G_SSUBE's s1 is V (signed-overflow); G_USUBE's is C.
   bool IsSigned = MI.getOpcode() == TargetOpcode::G_SSUBE;
-  auto PickOpc = [IsSigned](unsigned CarryOpc, unsigned OverflowOpc) {
-    return IsSigned ? OverflowOpc : CarryOpc;
-  };
+  auto PickOpc = [IsSigned](unsigned CarryOpc, unsigned OverflowOpc) { return IsSigned ? OverflowOpc : CarryOpc; };
 
   // Bug #186 follow-up Phase 1a (2026-04-28): see selectAddO above.
   CarryFlagOf[CarryOut] = IsSigned ? MC6809::V : MC6809::C;
@@ -4470,8 +4175,7 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
   // byte right after the arith with the same MaterializeCC pseudo the
   // carry bridge uses, and strip the arith's implicit-def so the vreg
   // keeps a single SSA definition.
-  bool CarryIsValue =
-      MRI->getRegClass(CarryOut) != &MC6809::PHANTOM_CARRYRegClass;
+  bool CarryIsValue = MRI->getRegClass(CarryOut) != &MC6809::PHANTOM_CARRYRegClass;
   auto EmitCarryByteIfValue = [&](MachineInstr &Arith) {
     if (!CarryIsValue)
       return;
@@ -4479,29 +4183,20 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
     // producer's expansion writes, right after the flag-setting instruction.
     // (Bind against Arith directly: the generic MI still defines CarryOut
     // until it is erased below, so a walk to the def would see two.)
-    bindPhantomToByte(CarryOut, Arith, IsSigned ? MC6809::V : MC6809::C,
-                      *MRI, TII, TRI, RBI);
+    bindPhantomToByte(CarryOut, Arith, IsSigned ? MC6809::V : MC6809::C, *MRI, TII, TRI, RBI);
   };
 
   std::optional<ValueAndVReg> ValReg;
   int64_t Value;
   // Match `(reg − const, carry_in)` only — never `(const − reg, ...)`.
   // See selectSubO for the full bug #61 history.
-  Success = mi_match(Dst, *MRI, m_GSSubE(m_Reg(Reg), m_GCst(ValReg), m_Reg(Carry))) ||
-            mi_match(Dst, *MRI, m_GUSubE(m_Reg(Reg), m_GCst(ValReg), m_Reg(Carry)));
+  Success = mi_match(Dst, *MRI, m_GSSubE(m_Reg(Reg), m_GCst(ValReg), m_Reg(Carry))) || mi_match(Dst, *MRI, m_GUSubE(m_Reg(Reg), m_GCst(ValReg), m_Reg(Carry)));
   if (Success) {
     Value = ValReg->Value.getSExtValue();
-    Opcode = PickByWidth(
-        PickOpc(MC6809::SubSetCarryUse_i8_Imm,  MC6809::SubSetOverflowUse_i8_Imm),
-        PickOpc(MC6809::SubSetCarryUse_i16_Imm, MC6809::SubSetOverflowUse_i16_Imm),
-        PickOpc(MC6809::SubSetCarryUse_i32_Imm, MC6809::SubSetOverflowUse_i32_Imm));
+    Opcode = PickByWidth(PickOpc(MC6809::SubSetCarryUse_i8_Imm, MC6809::SubSetOverflowUse_i8_Imm), PickOpc(MC6809::SubSetCarryUse_i16_Imm, MC6809::SubSetOverflowUse_i16_Imm), PickOpc(MC6809::SubSetCarryUse_i32_Imm, MC6809::SubSetOverflowUse_i32_Imm));
     // Keep the carry-IN vreg as an implicit-use
     // (see selectAddE for the full rationale).
-    Instr = Builder.buildInstr(Opcode)
-                     .addDef(Dst)
-                     .addUse(Reg)
-                     .addImm(Value)
-                     .addDef(CarryOut, RegState::ImplicitDefine);
+    Instr = Builder.buildInstr(Opcode).addDef(Dst).addUse(Reg).addImm(Value).addDef(CarryOut, RegState::ImplicitDefine);
     if (!Bridged)
       Instr.addUse(Carry, RegState::Implicit);
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
@@ -4516,18 +4211,10 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
   {
     Register UnmReg;
     int64_t ByteVal;
-    Success = mi_match(Dst, *MRI, m_GSSubE(m_Reg(UnmReg), m_Reg(Reg), m_Reg(Carry))) ||
-              mi_match(Dst, *MRI, m_GUSubE(m_Reg(UnmReg), m_Reg(Reg), m_Reg(Carry)));
+    Success = mi_match(Dst, *MRI, m_GSSubE(m_Reg(UnmReg), m_Reg(Reg), m_Reg(Carry))) || mi_match(Dst, *MRI, m_GUSubE(m_Reg(UnmReg), m_Reg(Reg), m_Reg(Carry)));
     if (Success && getUnmergedByteConstant(*MRI, Reg, ByteVal)) {
-      Opcode = PickByWidth(
-          PickOpc(MC6809::SubSetCarryUse_i8_Imm,  MC6809::SubSetOverflowUse_i8_Imm),
-          PickOpc(MC6809::SubSetCarryUse_i16_Imm, MC6809::SubSetOverflowUse_i16_Imm),
-          PickOpc(MC6809::SubSetCarryUse_i32_Imm, MC6809::SubSetOverflowUse_i32_Imm));
-      Instr = Builder.buildInstr(Opcode)
-                       .addDef(Dst)
-                       .addUse(UnmReg)
-                       .addImm(ByteVal)
-                       .addDef(CarryOut, RegState::ImplicitDefine);
+      Opcode = PickByWidth(PickOpc(MC6809::SubSetCarryUse_i8_Imm, MC6809::SubSetOverflowUse_i8_Imm), PickOpc(MC6809::SubSetCarryUse_i16_Imm, MC6809::SubSetOverflowUse_i16_Imm), PickOpc(MC6809::SubSetCarryUse_i32_Imm, MC6809::SubSetOverflowUse_i32_Imm));
+      Instr = Builder.buildInstr(Opcode).addDef(Dst).addUse(UnmReg).addImm(ByteVal).addDef(CarryOut, RegState::ImplicitDefine);
       if (!Bridged)
         Instr.addUse(Carry, RegState::Implicit);
       constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
@@ -4539,20 +4226,11 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
 
   MachineOperand Ptr = MachineOperand::CreateReg(0, false);
   MachineOperand Offset = MachineOperand::CreateReg(0, false);
-  Success = mi_match(Dst, *MRI, m_GSSubE(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)), m_Reg(Carry))) ||
-            mi_match(Dst, *MRI, m_GUSubE(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)), m_Reg(Carry)));
+  Success = mi_match(Dst, *MRI, m_GSSubE(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)), m_Reg(Carry))) || mi_match(Dst, *MRI, m_GUSubE(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)), m_Reg(Carry)));
   if (Success) {
-    Opcode = PickByWidth(
-        PickOpc(MC6809::SubSetCarryUse_i8_Mem,  MC6809::SubSetOverflowUse_i8_Mem),
-        PickOpc(MC6809::SubSetCarryUse_i16_Mem, MC6809::SubSetOverflowUse_i16_Mem),
-        PickOpc(MC6809::SubSetCarryUse_i32_Mem, MC6809::SubSetOverflowUse_i32_Mem));
+    Opcode = PickByWidth(PickOpc(MC6809::SubSetCarryUse_i8_Mem, MC6809::SubSetOverflowUse_i8_Mem), PickOpc(MC6809::SubSetCarryUse_i16_Mem, MC6809::SubSetOverflowUse_i16_Mem), PickOpc(MC6809::SubSetCarryUse_i32_Mem, MC6809::SubSetOverflowUse_i32_Mem));
     // Carry-IN implicit-use (see selectAddE).
-    Instr = Builder.buildInstr(Opcode)
-                     .addDef(Dst)
-                     .addUse(Reg)
-                     .add(Ptr)
-                     .add(Offset)
-                     .addDef(CarryOut, RegState::ImplicitDefine);
+    Instr = Builder.buildInstr(Opcode).addDef(Dst).addUse(Reg).add(Ptr).add(Offset).addDef(CarryOut, RegState::ImplicitDefine);
     if (!Bridged)
       Instr.addUse(Carry, RegState::Implicit);
     Instr.cloneMemRefs(*Ptr.getParent());
@@ -4562,22 +4240,12 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
     return true;
   }
 
-  Success = mi_match(Dst, *MRI, m_GSSubE(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)), m_Reg(Carry))) ||
-            mi_match(Dst, *MRI, m_GUSubE(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)), m_Reg(Carry))) ||
-            mi_match(Dst, *MRI, m_GSSubE(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)), m_Reg(Carry))) ||
-            mi_match(Dst, *MRI, m_GUSubE(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)), m_Reg(Carry)));
+  Success = mi_match(Dst, *MRI, m_GSSubE(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)), m_Reg(Carry))) || mi_match(Dst, *MRI, m_GUSubE(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)), m_Reg(Carry))) ||
+            mi_match(Dst, *MRI, m_GSSubE(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)), m_Reg(Carry))) || mi_match(Dst, *MRI, m_GUSubE(m_Reg(Reg), m_all_of(m_MInstr(Load), m_FoldedLdIdx(MI, Ptr, Offset, AA)), m_Reg(Carry)));
   if (Success) {
-    Opcode = PickByWidth(
-        PickOpc(MC6809::SubSetCarryUse_i8_Mem,  MC6809::SubSetOverflowUse_i8_Mem),
-        PickOpc(MC6809::SubSetCarryUse_i16_Mem, MC6809::SubSetOverflowUse_i16_Mem),
-        PickOpc(MC6809::SubSetCarryUse_i32_Mem, MC6809::SubSetOverflowUse_i32_Mem));
+    Opcode = PickByWidth(PickOpc(MC6809::SubSetCarryUse_i8_Mem, MC6809::SubSetOverflowUse_i8_Mem), PickOpc(MC6809::SubSetCarryUse_i16_Mem, MC6809::SubSetOverflowUse_i16_Mem), PickOpc(MC6809::SubSetCarryUse_i32_Mem, MC6809::SubSetOverflowUse_i32_Mem));
     // Carry-IN implicit-use (see selectAddE).
-    Instr = Builder.buildInstr(Opcode)
-                     .addDef(Dst)
-                     .addUse(Reg)
-                     .add(Ptr)
-                     .add(Offset)
-                     .addDef(CarryOut, RegState::ImplicitDefine);
+    Instr = Builder.buildInstr(Opcode).addDef(Dst).addUse(Reg).add(Ptr).add(Offset).addDef(CarryOut, RegState::ImplicitDefine);
     if (!Bridged)
       Instr.addUse(Carry, RegState::Implicit);
     Instr.cloneMemRefs(*Ptr.getParent());
@@ -4588,24 +4256,16 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
   }
 
   Register LHS, RHS;
-  Success = mi_match(Dst, *MRI, m_GSSubE(m_Reg(LHS), m_Reg(RHS), m_Reg(Carry))) ||
-            mi_match(Dst, *MRI, m_GUSubE(m_Reg(LHS), m_Reg(RHS), m_Reg(Carry)));
+  Success = mi_match(Dst, *MRI, m_GSSubE(m_Reg(LHS), m_Reg(RHS), m_Reg(Carry))) || mi_match(Dst, *MRI, m_GUSubE(m_Reg(LHS), m_Reg(RHS), m_Reg(Carry)));
   if (Success) {
     // Bug #319 (2026-05-21): mirror selectAddE — see helper docs.
     if (DstSize == 8 && hasFakeUse(MI)) {
       LHS = narrowToClass(Builder, MRI, LHS, &MC6809::ACC8_ABRegClass);
       RHS = narrowToClass(Builder, MRI, RHS, &MC6809::ACC8_ABRegClass);
     }
-    Opcode = PickByWidth(
-        PickOpc(MC6809::SubSetCarryUse_i8_Reg,  MC6809::SubSetOverflowUse_i8_Reg),
-        PickOpc(MC6809::SubSetCarryUse_i16_Reg, MC6809::SubSetOverflowUse_i16_Reg),
-        PickOpc(MC6809::SubSetCarryUse_i32_Reg, MC6809::SubSetOverflowUse_i32_Reg));
+    Opcode = PickByWidth(PickOpc(MC6809::SubSetCarryUse_i8_Reg, MC6809::SubSetOverflowUse_i8_Reg), PickOpc(MC6809::SubSetCarryUse_i16_Reg, MC6809::SubSetOverflowUse_i16_Reg), PickOpc(MC6809::SubSetCarryUse_i32_Reg, MC6809::SubSetOverflowUse_i32_Reg));
     // Carry-IN implicit-use (see selectAddE).
-    Instr = Builder.buildInstr(Opcode)
-                .addDef(Dst)
-                .addUse(LHS)
-                .addUse(RHS)
-                .addDef(CarryOut, RegState::ImplicitDefine);
+    Instr = Builder.buildInstr(Opcode).addDef(Dst).addUse(LHS).addUse(RHS).addDef(CarryOut, RegState::ImplicitDefine);
     if (!Bridged)
       Instr.addUse(Carry, RegState::Implicit);
     constrainSelectedInstRegOperands(*Instr, TII, TRI, RBI);
@@ -4614,10 +4274,7 @@ bool MC6809InstructionSelector::selectSubE(MachineInstr &MI) {
     return true;
   }
 
-  LLVM_DEBUG(
-      (void)MRI->getVRegDef(MI.getOperand(2).getReg());
-      (void)MRI->getVRegDef(MI.getOperand(3).getReg());
-      );
+  LLVM_DEBUG((void)MRI->getVRegDef(MI.getOperand(2).getReg()); (void)MRI->getVRegDef(MI.getOperand(3).getReg()););
 
   return false;
 }
@@ -4693,12 +4350,8 @@ bool MC6809InstructionSelector::selectUnMergeValues(MachineInstr &MI) {
       MRI->setRegClass(Lo, &MC6809::ACC8RegClass);
     if (!MRI->getRegClassOrNull(Hi))
       MRI->setRegClass(Hi, &MC6809::ACC8RegClass);
-    auto LoExt = Builder.buildInstr(MC6809::EXTRACT_LO_i16)
-                     .addDef(Lo)
-                     .addUse(Src);
-    auto HiExt = Builder.buildInstr(MC6809::EXTRACT_HI_i16)
-                     .addDef(Hi)
-                     .addUse(Src);
+    auto LoExt = Builder.buildInstr(MC6809::EXTRACT_LO_i16).addDef(Lo).addUse(Src);
+    auto HiExt = Builder.buildInstr(MC6809::EXTRACT_HI_i16).addDef(Hi).addUse(Src);
     constrainSelectedInstRegOperands(*LoExt, TII, TRI, RBI);
     constrainSelectedInstRegOperands(*HiExt, TII, TRI, RBI);
   } else {
@@ -4762,35 +4415,28 @@ bool MC6809InstructionSelector::selectShiftExtend(MachineInstr &MI) {
     // does, so the shape checks below see the real producer.
     while (CarrySrc.isVirtual()) {
       MachineInstr *Def = MRI->getVRegDef(CarrySrc);
-      if (!Def || !(Def->getOpcode() == TargetOpcode::COPY ||
-                    Def->getOpcode() == TargetOpcode::G_FREEZE) ||
-          !Def->getOperand(1).isReg())
+      if (!Def || !(Def->getOpcode() == TargetOpcode::COPY || Def->getOpcode() == TargetOpcode::G_FREEZE) || !Def->getOperand(1).isReg())
         break;
       CarrySrc = Def->getOperand(1).getReg();
     }
   }
-  MachineInstr *CarryDef =
-      CarrySrc.isVirtual() ? MRI->getVRegDef(CarrySrc) : nullptr;
+  MachineInstr *CarryDef = CarrySrc.isVirtual() ? MRI->getVRegDef(CarrySrc) : nullptr;
   if (auto C = getIConstantVRegSExtVal(CarryIn, *MRI)) {
     Kind = (*C & 1) ? Byte : None;
-  } else if (CarryDef &&
-             (CarryDef->getOpcode() == TargetOpcode::G_IMPLICIT_DEF ||
-              CarryDef->getOpcode() == TargetOpcode::IMPLICIT_DEF)) {
+  } else if (CarryDef && (CarryDef->getOpcode() == TargetOpcode::G_IMPLICIT_DEF || CarryDef->getOpcode() == TargetOpcode::IMPLICIT_DEF)) {
     // Still generic when this consumer is selected (bottom-up), selected
     // already if the undef came from somewhere earlier.
     Kind = None;
   } else if (getPhantomCarryFlag(CarryIn, *MRI, &CarryFlagOf) == MC6809::C) {
     Kind = Phantom;
-  } else if (!IsLeft && CarryDef &&
-             CarryDef->getOpcode() == TargetOpcode::G_ICMP) {
+  } else if (!IsLeft && CarryDef && CarryDef->getOpcode() == TargetOpcode::G_ICMP) {
     // legalizeShiftRotate spells the sign bit of X as `icmp uge X, 0x80`
     // (or `icmp slt X, 0`); it is the sign of *this* byte only when X is
     // the byte being shifted.
     auto Pred = static_cast<CmpInst::Predicate>(CarryDef->getOperand(1).getPredicate());
     Register X = CarryDef->getOperand(2).getReg();
     auto RHS = getIConstantVRegSExtVal(CarryDef->getOperand(3).getReg(), *MRI);
-    bool IsSignTest = RHS && ((Pred == CmpInst::ICMP_UGE && (*RHS & 0xFF) == 0x80) ||
-                              (Pred == CmpInst::ICMP_SLT && *RHS == 0));
+    bool IsSignTest = RHS && ((Pred == CmpInst::ICMP_UGE && (*RHS & 0xFF) == 0x80) || (Pred == CmpInst::ICMP_SLT && *RHS == 0));
     Kind = (IsSignTest && X == Src) ? SignOfSelf : Byte;
   }
 
@@ -4803,29 +4449,18 @@ bool MC6809InstructionSelector::selectShiftExtend(MachineInstr &MI) {
   // multi-byte add chain. Only when the carry-out is unused: the ADC
   // redefines C (always to 0 here), so it cannot double as the producer of
   // a downstream chain's carry.
-  if (IsLeft && Kind == Byte && !CarryOutUsed && CarryDef &&
-      CarryDef->getOpcode() == TargetOpcode::G_ICMP) {
+  if (IsLeft && Kind == Byte && !CarryOutUsed && CarryDef && CarryDef->getOpcode() == TargetOpcode::G_ICMP) {
     auto Pred = static_cast<CmpInst::Predicate>(CarryDef->getOperand(1).getPredicate());
     Register X = CarryDef->getOperand(2).getReg();
     auto RHS = getIConstantVRegSExtVal(CarryDef->getOperand(3).getReg(), *MRI);
-    bool IsBit7OfSelf = X == Src && RHS &&
-                        ((Pred == CmpInst::ICMP_UGE && (*RHS & 0xFF) == 0x80) ||
-                         (Pred == CmpInst::ICMP_SLT && *RHS == 0));
+    bool IsBit7OfSelf = X == Src && RHS && ((Pred == CmpInst::ICMP_UGE && (*RHS & 0xFF) == 0x80) || (Pred == CmpInst::ICMP_SLT && *RHS == 0));
     if (IsBit7OfSelf) {
       Register Shifted = MRI->createVirtualRegister(&MC6809::ACC8_ABRegClass);
       Register Bit7 = MRI->createVirtualRegister(&MC6809::PHANTOM_CARRYRegClass);
-      auto Shift = Builder.buildInstr(MC6809::LSL_i8_Reg)
-                       .addDef(Shifted)
-                       .addUse(Src)
-                       .addImm(1)
-                       .addDef(Bit7, RegState::ImplicitDefine);
+      auto Shift = Builder.buildInstr(MC6809::LSL_i8_Reg).addDef(Shifted).addUse(Src).addImm(1).addDef(Bit7, RegState::ImplicitDefine);
       constrainSelectedInstRegOperands(*Shift, TII, TRI, RBI);
       CarryFlagOf[Bit7] = MC6809::C;
-      auto Adc = Builder.buildInstr(MC6809::AddSetCarryUse_i8_Imm)
-                     .addDef(Dst)
-                     .addUse(Shifted)
-                     .addImm(0)
-                     .addUse(Bit7, RegState::Implicit);
+      auto Adc = Builder.buildInstr(MC6809::AddSetCarryUse_i8_Imm).addDef(Dst).addUse(Shifted).addImm(0).addUse(Bit7, RegState::Implicit);
       constrainSelectedInstRegOperands(*Adc, TII, TRI, RBI);
       MI.eraseFromParent();
       return true;
@@ -4858,15 +4493,11 @@ bool MC6809InstructionSelector::selectShiftExtend(MachineInstr &MI) {
     // here. Regalloc coalesces the copy away when the classes agree.
     Register CarryByte = MRI->createVirtualRegister(&MC6809::ACC8_ABRegClass);
     Builder.buildCopy(CarryByte, CarryIn);
-    auto Mat = Builder.buildInstr(MC6809::MaterializeByteToCarry_i8)
-                   .addUse(CarryByte);
+    auto Mat = Builder.buildInstr(MC6809::MaterializeByteToCarry_i8).addUse(CarryByte);
     constrainSelectedInstRegOperands(*Mat, TII, TRI, RBI);
   }
 
-  auto Shift = Builder.buildInstr(ShiftOpc)
-      .addDef(Dst)
-      .addUse(Src)
-      .addImm(1);  // shift amount = 1
+  auto Shift = Builder.buildInstr(ShiftOpc).addDef(Dst).addUse(Src).addImm(1); // shift amount = 1
   // Rotate consumers keep the phantom carry-in vreg as an implicit use, so
   // its producer stays alive even when that producer's byte result is dead
   // and so the two are not separated by anything that redefines C.
@@ -4914,10 +4545,17 @@ bool MC6809InstructionSelector::selectShift16(MachineInstr &MI) {
 
   unsigned ShiftOpc;
   switch (MI.getOpcode()) {
-  case TargetOpcode::G_SHL:  ShiftOpc = MC6809::LSL_i16_Reg; break;
-  case TargetOpcode::G_LSHR: ShiftOpc = MC6809::LSR_i16_Reg; break;
-  case TargetOpcode::G_ASHR: ShiftOpc = MC6809::ASR_i16_Reg; break;
-  default: return false;
+  case TargetOpcode::G_SHL:
+    ShiftOpc = MC6809::LSL_i16_Reg;
+    break;
+  case TargetOpcode::G_LSHR:
+    ShiftOpc = MC6809::LSR_i16_Reg;
+    break;
+  case TargetOpcode::G_ASHR:
+    ShiftOpc = MC6809::ASR_i16_Reg;
+    break;
+  default:
+    return false;
   }
 
   MachineBasicBlock &MBB = *MI.getParent();
@@ -4935,9 +4573,7 @@ bool MC6809InstructionSelector::selectShift16(MachineInstr &MI) {
   // accepts ACC16 also accepts the result.
   Register Cur = MRI->createVirtualRegister(&MC6809::ADcRegClass);
   BuildMI(MBB, MI, DL, TII.get(TargetOpcode::COPY), Cur).addReg(SrcReg);
-  auto &Shift = *BuildMI(MBB, MI, DL, TII.get(ShiftOpc), DstReg)
-      .addReg(Cur)
-      .addImm(ShiftAmt);
+  auto &Shift = *BuildMI(MBB, MI, DL, TII.get(ShiftOpc), DstReg).addReg(Cur).addImm(ShiftAmt);
   constrainSelectedInstRegOperands(Shift, TII, TRI, RBI);
   MRI->setRegClass(DstReg, &MC6809::ADcRegClass);
   MI.eraseFromParent();

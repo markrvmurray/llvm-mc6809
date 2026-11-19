@@ -136,8 +136,7 @@ bool MC6809FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB, Mach
     } else if (MC6809::Imag8RegClass.contains(Reg)) {
       Imag8.push_back(Reg);
     } else {
-      assert(MC6809::Imag16RegClass.contains(Reg) &&
-             "callee-saved register with no way to push it");
+      assert(MC6809::Imag16RegClass.contains(Reg) && "callee-saved register with no way to push it");
       Imag16.push_back(Reg);
     }
   }
@@ -149,20 +148,28 @@ bool MC6809FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB, Mach
   // matches how the disassembler will print the fused form.)
   auto PshsMask = [](Register R) -> unsigned {
     switch (R) {
-    case MC6809::SU: case MC6809::SS: return 0x40;  // S/U
-    case MC6809::IY: return 0x20;
-    case MC6809::IX: return 0x10;
-    case MC6809::DP: return 0x08;
-    case MC6809::AB: return 0x04;
-    case MC6809::AA: return 0x02;
-    case MC6809::AD: return 0x06;
-    case MC6809::CC: return 0x01;
-    default: return 0;
+    case MC6809::SU:
+    case MC6809::SS:
+      return 0x40; // S/U
+    case MC6809::IY:
+      return 0x20;
+    case MC6809::IX:
+      return 0x10;
+    case MC6809::DP:
+      return 0x08;
+    case MC6809::AB:
+      return 0x04;
+    case MC6809::AA:
+      return 0x02;
+    case MC6809::AD:
+      return 0x06;
+    case MC6809::CC:
+      return 0x01;
+    default:
+      return 0;
     }
   };
-  llvm::sort(Fusible, [&](Register A, Register B) {
-    return PshsMask(A) > PshsMask(B);
-  });
+  llvm::sort(Fusible, [&](Register A, Register B) { return PshsMask(A) > PshsMask(B); });
 
   if (!Fusible.empty()) {
     auto MIB = Builder.buildInstr(MC6809::PSHSs);
@@ -188,8 +195,7 @@ bool MC6809FrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB, Mach
   // W and the pull below writes it, or the return that reads the restored W
   // reads a register nothing defined.
   if (HaveAW)
-    Builder.buildInstr(MC6809::PSHSWx, {}, {})
-        .addReg(MC6809::AW, RegState::Implicit);
+    Builder.buildInstr(MC6809::PSHSWx, {}, {}).addReg(MC6809::AW, RegState::Implicit);
 
   // Record that the frame pointer is killed by these instructions.
   for (auto &InsertedMI : make_range(MIS.begin(), MI))
@@ -273,16 +279,10 @@ bool MC6809FrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB, Ma
   // Restore order is the inverse of spill: W, then the direct-page registers
   // back through the accumulators, then the fused PULS.
   if (HaveAW)
-    Builder.buildInstr(MC6809::PULSWx, {}, {})
-        .addReg(MC6809::AW, RegState::ImplicitDefine);
+    Builder.buildInstr(MC6809::PULSWx, {}, {}).addReg(MC6809::AW, RegState::ImplicitDefine);
   // The 8-bit direct-page registers were pushed two at a time, with an odd
   // one last and on its own; undo that from the end.
-  auto StoreByte = [&](unsigned Opc, Register Acc, Register Imag) {
-    Builder.buildInstr(Opc)
-        .addReg(Imag, RegState::Undef)
-        .addUse(Acc, RegState::Implicit)
-        .addReg(Imag, RegState::ImplicitDefine);
-  };
+  auto StoreByte = [&](unsigned Opc, Register Acc, Register Imag) { Builder.buildInstr(Opc).addReg(Imag, RegState::Undef).addUse(Acc, RegState::Implicit).addReg(Imag, RegState::ImplicitDefine); };
   for (unsigned I = Imag8.size() & ~1u, E = Imag8.size();; I -= 2) {
     if (I < E) {
       if (I + 1 == E) {
@@ -309,20 +309,28 @@ bool MC6809FrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB, Ma
     // mask-descending sort as the spill side for output consistency.
     auto PshsMask = [](Register R) -> unsigned {
       switch (R) {
-      case MC6809::SU: case MC6809::SS: return 0x40;
-      case MC6809::IY: return 0x20;
-      case MC6809::IX: return 0x10;
-      case MC6809::DP: return 0x08;
-      case MC6809::AB: return 0x04;
-      case MC6809::AA: return 0x02;
-      case MC6809::AD: return 0x06;
-      case MC6809::CC: return 0x01;
-      default: return 0;
+      case MC6809::SU:
+      case MC6809::SS:
+        return 0x40;
+      case MC6809::IY:
+        return 0x20;
+      case MC6809::IX:
+        return 0x10;
+      case MC6809::DP:
+        return 0x08;
+      case MC6809::AB:
+        return 0x04;
+      case MC6809::AA:
+        return 0x02;
+      case MC6809::AD:
+        return 0x06;
+      case MC6809::CC:
+        return 0x01;
+      default:
+        return 0;
       }
     };
-    llvm::sort(Fusible, [&](Register A, Register B) {
-      return PshsMask(A) > PshsMask(B);
-    });
+    llvm::sort(Fusible, [&](Register A, Register B) { return PshsMask(A) > PshsMask(B); });
     auto MIB = Builder.buildInstr(MC6809::PULSs);
     for (Register R : Fusible)
       MIB.addDef(R);
@@ -366,8 +374,7 @@ void MC6809FrameLowering::determineCalleeSaves(MachineFunction &MF, BitVector &S
   // other interrupts the processor has stacked D already.)
   if (isFIRQ(MF)) {
     auto Saved = [&](MCPhysReg Reg) { return SavedRegs.test(Reg); };
-    if (any_of(MC6809::Imag16RegClass, Saved) ||
-        any_of(MC6809::Imag8RegClass, Saved))
+    if (any_of(MC6809::Imag16RegClass, Saved) || any_of(MC6809::Imag8RegClass, Saved))
       SavedRegs.set(MC6809::AD);
   }
 }
@@ -396,8 +403,7 @@ void MC6809FrameLowering::processFunctionBeforeFrameFinalized(MachineFunction &M
   // MC6809StaticStackAlloc later lays these per-function regions out
   // non-overlappingly across the call graph.
   if (usesStaticStack(MF)) {
-    const MC6809InstrInfo &TII =
-        *static_cast<const MC6809InstrInfo *>(MF.getSubtarget().getInstrInfo());
+    const MC6809InstrInfo &TII = *static_cast<const MC6809InstrInfo *>(MF.getSubtarget().getInstrInfo());
     // A local can move to the static frame only if every instruction that
     // reaches it through a frame-index operand has a _Sym (extended-addressing)
     // lowering — otherwise eliminateFrameIndex could not rewrite that access
@@ -419,9 +425,7 @@ void MC6809FrameLowering::processFunctionBeforeFrameFinalized(MachineFunction &M
     FuncInfo.StaticNotLowerable = NotLowerable;
     int64_t Offset = 0;
     for (int Idx : seq(0, MFI.getObjectIndexEnd())) {
-      if (MFI.isDeadObjectIndex(Idx) || MFI.isVariableSizedObjectIndex(Idx) ||
-          MFI.getStackID(Idx) != TargetStackID::Default ||
-          NotLowerable.count(Idx))
+      if (MFI.isDeadObjectIndex(Idx) || MFI.isVariableSizedObjectIndex(Idx) || MFI.getStackID(Idx) != TargetStackID::Default || NotLowerable.count(Idx))
         continue;
       MFI.setStackID(Idx, TargetStackID::Mc6809Static);
       MFI.setObjectOffset(Idx, Offset);
@@ -439,8 +443,7 @@ void MC6809FrameLowering::processFunctionBeforeFrameFinalized(MachineFunction &M
 // function. Mirrors the processFunctionBeforeFrameFinalized marking: static
 // stack ID + a growing static offset. A no-op for ordinary dynamic frames, so
 // the slot then keeps its normal U-relative placement.
-void MC6809FrameLowering::markSpillSlotStatic(MachineFunction &MF,
-                                              int FI) const {
+void MC6809FrameLowering::markSpillSlotStatic(MachineFunction &MF, int FI) const {
   if (!usesStaticStack(MF))
     return;
   auto &FuncInfo = *MF.getInfo<MC6809FunctionInfo>();
@@ -472,15 +475,10 @@ MachineBasicBlock::iterator MC6809FrameLowering::eliminateCallFramePseudoInstr(M
 // carries the index.  The base-class AsmPrinter::emitFunctionBody switch
 // dispatches CFI_INSTRUCTION to AsmPrinter::emitCFIInstruction which
 // calls OutStreamer->emitCFI*(…).
-static void buildCFI(MachineBasicBlock &MBB, MachineBasicBlock::iterator I,
-                     const DebugLoc &DL, const MCCFIInstruction &CFIInst,
-                     MachineInstr::MIFlag Flag = MachineInstr::FrameSetup) {
+static void buildCFI(MachineBasicBlock &MBB, MachineBasicBlock::iterator I, const DebugLoc &DL, const MCCFIInstruction &CFIInst, MachineInstr::MIFlag Flag = MachineInstr::FrameSetup) {
   MachineFunction &MF = *MBB.getParent();
   unsigned CFIIndex = MF.addFrameInst(CFIInst);
-  BuildMI(MBB, I, DL,
-          MF.getSubtarget().getInstrInfo()->get(TargetOpcode::CFI_INSTRUCTION))
-      .addCFIIndex(CFIIndex)
-      .setMIFlag(Flag);
+  BuildMI(MBB, I, DL, MF.getSubtarget().getInstrInfo()->get(TargetOpcode::CFI_INSTRUCTION)).addCFIIndex(CFIIndex).setMIFlag(Flag);
 }
 
 void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) const {
@@ -494,11 +492,9 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &M
   // A local aligned beyond what this frame can provide would silently be
   // misaligned: say so instead. A realigned frame with variable-sized
   // objects would need a base pointer as well as the frame pointer.
-  if (TRI.shouldRealignStack(MF) &&
-      (!realignsStack(MF) || MFI.hasVarSizedObjects()))
-    MF.getFunction().getContext().diagnose(DiagnosticInfoUnsupported(
-        MF.getFunction(), "a local aligned beyond 1 byte in a function with "
-                          "variable-sized objects"));
+  if (TRI.shouldRealignStack(MF) && (!realignsStack(MF) || MFI.hasVarSizedObjects()))
+    MF.getFunction().getContext().diagnose(DiagnosticInfoUnsupported(MF.getFunction(), "a local aligned beyond 1 byte in a function with "
+                                                                                       "variable-sized objects"));
 
   // Bug #164 Tier 2: initial CFI.  At function entry (just after the caller's
   // JSR/BSR has pushed the 2-byte return address) the canonical frame address
@@ -508,10 +504,8 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &M
   unsigned SPDwarf = MRI->getDwarfRegNum(MC6809::SS, /*isEH=*/true);
   unsigned PCDwarf = MRI->getDwarfRegNum(MC6809::PC, /*isEH=*/true);
   auto EntryMBBI = MBB.begin();
-  buildCFI(MBB, EntryMBBI, {},
-           MCCFIInstruction::cfiDefCfa(nullptr, SPDwarf, 2));
-  buildCFI(MBB, EntryMBBI, {},
-           MCCFIInstruction::createOffset(nullptr, PCDwarf, -2));
+  buildCFI(MBB, EntryMBBI, {}, MCCFIInstruction::cfiDefCfa(nullptr, SPDwarf, 2));
+  buildCFI(MBB, EntryMBBI, {}, MCCFIInstruction::createOffset(nullptr, PCDwarf, -2));
 
   if (!hasFP(MF)) {
     // No frame pointer: S addresses everything, and the outgoing-call area is
@@ -527,13 +521,10 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &M
     // the middle of the body moves S for a few instructions without a note.)
     int64_t CSRBytes = getHardStackCalleeSavedSize(MF);
     if (CSRBytes)
-      buildCFI(MBB, Builder.getInsertPt(), {},
-               MCCFIInstruction::cfiDefCfaOffset(nullptr, CSRBytes + 2));
+      buildCFI(MBB, Builder.getInsertPt(), {}, MCCFIInstruction::cfiDefCfaOffset(nullptr, CSRBytes + 2));
     if (StackSize) {
       offsetSP(Builder, -StackSize);
-      buildCFI(MBB, Builder.getInsertPt(), {},
-               MCCFIInstruction::cfiDefCfaOffset(nullptr,
-                                                 CSRBytes + StackSize + 2));
+      buildCFI(MBB, Builder.getInsertPt(), {}, MCCFIInstruction::cfiDefCfaOffset(nullptr, CSRBytes + StackSize + 2));
     }
     return;
   }
@@ -574,8 +565,7 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &M
   // AsmPrinter skip the successor BB label, producing an "Undefined temporary
   // symbol" assembler error (fixed for bug #164 Tier 2 regression).
   auto AfterTFR = Builder.getInsertPt();
-  buildCFI(MBB, AfterTFR, {},
-           MCCFIInstruction::cfiDefCfa(nullptr, FPDwarf, TotalOffset));
+  buildCFI(MBB, AfterTFR, {}, MCCFIInstruction::cfiDefCfa(nullptr, FPDwarf, TotalOffset));
 
   if (Realign) {
     // [arguments][return address][saved registers] U-> [saved D][locals] S->
@@ -585,37 +575,21 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &M
     // saved just below U first and reloaded from there. The epilogue's
     // `tfr u,s` releases all of it.
     Builder.setInsertPt(MBB, AfterTFR);
-    bool SaveD = any_of(MBB.liveins(), [&](const auto &LI) {
-      return TRI.regsOverlap(LI.PhysReg, MC6809::AD);
-    });
+    bool SaveD = any_of(MBB.liveins(), [&](const auto &LI) { return TRI.regsOverlap(LI.PhysReg, MC6809::AD); });
     if (SaveD)
-      Builder.buildInstr(MC6809::PSHSs, {}, {Register(MC6809::AD)})
-          .setMIFlag(MachineInstr::FrameSetup);
+      Builder.buildInstr(MC6809::PSHSs, {}, {Register(MC6809::AD)}).setMIFlag(MachineInstr::FrameSetup);
     if (StackSize)
       offsetSP(Builder, -StackSize);
     uint16_t Mask = -uint16_t(MFI.getMaxAlign().value());
-    Builder.buildInstr(MC6809::TFRp)
-        .addDef(MC6809::AD)
-        .addUse(MC6809::SS)
-        .setMIFlag(MachineInstr::FrameSetup);
-    Builder.buildInstr(MC6809::ANDBi8)
-        .addDef(MC6809::AB, RegState::Implicit)
-        .addImm(Mask & 0xff)
-        .setMIFlag(MachineInstr::FrameSetup);
+    Builder.buildInstr(MC6809::TFRp).addDef(MC6809::AD).addUse(MC6809::SS).setMIFlag(MachineInstr::FrameSetup);
+    Builder.buildInstr(MC6809::ANDBi8).addDef(MC6809::AB, RegState::Implicit).addImm(Mask & 0xff).setMIFlag(MachineInstr::FrameSetup);
     if (Mask >> 8 != 0xff)
-      Builder.buildInstr(MC6809::ANDAi8)
-          .addDef(MC6809::AA, RegState::Implicit)
-          .addImm(Mask >> 8)
-          .setMIFlag(MachineInstr::FrameSetup);
-    Builder.buildInstr(MC6809::TFRp)
-        .addDef(MC6809::SS)
-        .addUse(MC6809::AD)
-        .setMIFlag(MachineInstr::FrameSetup);
+      Builder.buildInstr(MC6809::ANDAi8).addDef(MC6809::AA, RegState::Implicit).addImm(Mask >> 8).setMIFlag(MachineInstr::FrameSetup);
+    Builder.buildInstr(MC6809::TFRp).addDef(MC6809::SS).addUse(MC6809::AD).setMIFlag(MachineInstr::FrameSetup);
     if (SaveD)
       BuildMI(MBB, Builder.getInsertPt(), DebugLoc(),
-              MF.getSubtarget().getInstrInfo()->get(
-                  MC6809InstrInfo::getIdxLoadStoreOpcode(MC6809::AD,
-                                                         /*IsStore=*/false, -2)))
+              MF.getSubtarget().getInstrInfo()->get(MC6809InstrInfo::getIdxLoadStoreOpcode(MC6809::AD,
+                                                                                           /*IsStore=*/false, -2)))
           .addImm(-2)
           .addReg(FPReg)
           .setMIFlag(MachineInstr::FrameSetup);
@@ -637,8 +611,7 @@ void MC6809FrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &M
 // before the pull, while the registers are still on the stack, so it goes.
 static void foldReturnIntoPull(MachineBasicBlock &MBB) {
   auto Ret = MBB.getFirstTerminator();
-  if (Ret == MBB.end() || (Ret->getOpcode() != MC6809::RTSr &&
-                            Ret->getOpcode() != MC6809::ReturnImplicit))
+  if (Ret == MBB.end() || (Ret->getOpcode() != MC6809::RTSr && Ret->getOpcode() != MC6809::ReturnImplicit))
     return;
   MachineBasicBlock::iterator Pull = Ret;
   SmallVector<MachineInstr *, 1> Notes;
@@ -649,8 +622,7 @@ static void foldReturnIntoPull(MachineBasicBlock &MBB) {
     if (Pull->isCFIInstruction())
       Notes.push_back(&*Pull);
   } while (Pull->isCFIInstruction());
-  if (Pull->getOpcode() != MC6809::PULSs ||
-      !Pull->getFlag(MachineInstr::FrameDestroy))
+  if (Pull->getOpcode() != MC6809::PULSs || !Pull->getFlag(MachineInstr::FrameDestroy))
     return;
   for (const MachineOperand &MO : Pull->explicit_operands())
     if (!MO.isReg() || !MO.isDef() || MO.getReg() == MC6809::PC)
@@ -658,8 +630,7 @@ static void foldReturnIntoPull(MachineBasicBlock &MBB) {
 
   MachineFunction &MF = *MBB.getParent();
   const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
-  auto MIB = BuildMI(MBB, Ret, Ret->getDebugLoc(),
-                     MF.getSubtarget().getInstrInfo()->get(MC6809::PULSpc));
+  auto MIB = BuildMI(MBB, Ret, Ret->getDebugLoc(), MF.getSubtarget().getInstrInfo()->get(MC6809::PULSpc));
   SmallVector<Register, 4> Pulled;
   for (const MachineOperand &MO : Pull->explicit_operands()) {
     MIB.add(MO);
@@ -669,9 +640,7 @@ static void foldReturnIntoPull(MachineBasicBlock &MBB) {
   // What the return read (the returned value, the restored registers) it
   // still reads, except what this pull itself puts back.
   for (const MachineOperand &MO : Ret->implicit_operands())
-    if (MO.isReg() && MO.isUse() && none_of(Pulled, [&](Register R) {
-          return TRI.regsOverlap(R, MO.getReg());
-        }))
+    if (MO.isReg() && MO.isUse() && none_of(Pulled, [&](Register R) { return TRI.regsOverlap(R, MO.getReg()); }))
       MIB.add(MO);
   MIB->setFlag(MachineInstr::FrameDestroy);
   for (MachineInstr *Note : Notes)
@@ -714,9 +683,7 @@ void MC6809FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &M
     // say where the CFA is until they are.
     int64_t CSRBytes = getHardStackCalleeSavedSize(MF);
     if (!hasFP(MF) && CSRBytes)
-      buildCFI(MBB, Builder.getInsertPt(), {},
-               MCCFIInstruction::cfiDefCfaOffset(nullptr, CSRBytes + 2),
-               MachineInstr::FrameDestroy);
+      buildCFI(MBB, Builder.getInsertPt(), {}, MCCFIInstruction::cfiDefCfaOffset(nullptr, CSRBytes + 2), MachineInstr::FrameDestroy);
   }
 
   // Bug #164 Tier 2: restore SP-based CFA for the unwinder at the point of
@@ -724,22 +691,18 @@ void MC6809FrameLowering::emitEpilogue(MachineFunction &MF, MachineBasicBlock &M
   // back to SP + 2 (just the return address remains).
   if (hasFP(MF) || StackSize || getHardStackCalleeSavedSize(MF)) {
     unsigned SPDwarf = MRI->getDwarfRegNum(MC6809::SS, /*isEH=*/true);
-    buildCFI(MBB, MBB.getFirstTerminator(), {},
-             MCCFIInstruction::cfiDefCfa(nullptr, SPDwarf, 2),
-             MachineInstr::FrameDestroy);
+    buildCFI(MBB, MBB.getFirstTerminator(), {}, MCCFIInstruction::cfiDefCfa(nullptr, SPDwarf, 2), MachineInstr::FrameDestroy);
   }
 
   foldReturnIntoPull(MBB);
 }
 
-bool MC6809FrameLowering::isFrameBase(const MachineFunction &MF,
-                                      Register Reg) const {
+bool MC6809FrameLowering::isFrameBase(const MachineFunction &MF, Register Reg) const {
   if (Reg == MC6809::SS)
     return true;
   if (Reg == MC6809::SU && MF.getTarget().getTargetTriple().isOSOS9())
     return true;
-  return hasFP(MF) &&
-         Reg == MF.getSubtarget().getRegisterInfo()->getFrameRegister(MF);
+  return hasFP(MF) && Reg == MF.getSubtarget().getRegisterInfo()->getFrameRegister(MF);
 }
 
 bool MC6809FrameLowering::hasFP(const MachineFunction &MF) const {
@@ -756,9 +719,8 @@ bool MC6809FrameLowering::hasFP(const MachineFunction &MF) const {
     // U is the process's data-area base, so OS-9's frame pointer is Y, and
     // only a realigned frame takes one.
     if (Needed)
-      report_fatal_error(
-          "OS-9 MC6809 does not support a taken frame address or "
-          "variable-sized objects");
+      report_fatal_error("OS-9 MC6809 does not support a taken frame address or "
+                         "variable-sized objects");
     return realignsStack(MF);
   }
   // Also when asked for one (-fno-omit-frame-pointer). Not on OS-9, whose U
@@ -766,9 +728,7 @@ bool MC6809FrameLowering::hasFP(const MachineFunction &MF) const {
   return Needed || realignsStack(MF) || MF.disableFramePointerElim();
 }
 
-bool MC6809FrameLowering::realignsStack(const MachineFunction &MF) const {
-  return MF.getSubtarget().getRegisterInfo()->hasStackRealignment(MF);
-}
+bool MC6809FrameLowering::realignsStack(const MachineFunction &MF) const { return MF.getSubtarget().getRegisterInfo()->hasStackRealignment(MF); }
 
 uint64_t MC6809FrameLowering::staticSize(const MachineFrameInfo &MFI) const {
   uint64_t Size = 0;
@@ -809,11 +769,7 @@ bool MC6809FrameLowering::usesStaticStack(const MachineFunction &MF) const {
   if (MF.getTarget().getTargetTriple().isOSOS9())
     return false;
   const MachineFrameInfo &MFI = MF.getFrameInfo();
-  return MF.getSubtarget<MC6809Subtarget>().staticStack() &&
-         !MF.getFunction().hasOptNone() &&
-         MF.getFunction().hasFnAttribute("nonreentrant") && !MFI.hasCalls() &&
-         !MFI.isFrameAddressTaken() && !MFI.hasVarSizedObjects() &&
-         !realignsStack(MF);
+  return MF.getSubtarget<MC6809Subtarget>().staticStack() && !MF.getFunction().hasOptNone() && MF.getFunction().hasFnAttribute("nonreentrant") && !MFI.hasCalls() && !MFI.isFrameAddressTaken() && !MFI.hasVarSizedObjects() && !realignsStack(MF);
 }
 
 bool MC6809FrameLowering::isSupportedStackID(TargetStackID::Value ID) const {
@@ -827,9 +783,7 @@ bool MC6809FrameLowering::isSupportedStackID(TargetStackID::Value ID) const {
   }
 }
 
-bool MC6809FrameLowering::hasFPImpl(const MachineFunction &MF) const {
-  return hasFP(MF);
-}
+bool MC6809FrameLowering::hasFPImpl(const MachineFunction &MF) const { return hasFP(MF); }
 
 void MC6809FrameLowering::offsetSP(MachineIRBuilder &Builder, int64_t Offset) const {
   assert(Offset);
@@ -841,11 +795,7 @@ void MC6809FrameLowering::offsetSP(MachineIRBuilder &Builder, int64_t Offset) co
   Builder.buildInstr(MC6809::LEAPtrAdd_Imm).addDef(MC6809::SS).addUse(MC6809::SS).addImm(Offset);
 }
 
-bool MC6809FrameLowering::isFIRQ(const MachineFunction &MF) const {
-  return isISR(MF) &&
-         MF.getFunction().getFnAttribute("interrupt").getValueAsString() ==
-             "firq";
-}
+bool MC6809FrameLowering::isFIRQ(const MachineFunction &MF) const { return isISR(MF) && MF.getFunction().getFnAttribute("interrupt").getValueAsString() == "firq"; }
 
 bool MC6809FrameLowering::isISR(const MachineFunction &MF) const {
   const Function &F = MF.getFunction();

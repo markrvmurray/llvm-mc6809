@@ -73,16 +73,14 @@ void MC6809InstPrinter::printRegisterList(const MCInst *MI, unsigned OpNo, raw_o
   bool DoneOne = false;
 
   for (unsigned I = 0; I < MI->getNumOperands(); I++) {
-      if (DoneOne)
-        O << ",";
-      printRegName(O, MI->getOperand(I).getReg());
-      DoneOne = true;
+    if (DoneOne)
+      O << ",";
+    printRegName(O, MI->getOperand(I).getReg());
+    DoneOne = true;
   }
 }
 
-void MC6809InstPrinter::printRegName(raw_ostream &O, MCRegister Reg) {
-  O << getRegisterName(Reg);
-}
+void MC6809InstPrinter::printRegName(raw_ostream &O, MCRegister Reg) { O << getRegisterName(Reg); }
 
 void MC6809InstPrinter::printCondCode(const MCInst *MI, unsigned OpNo, raw_ostream &O) {
   const MCOperand &Op = MI->getOperand(OpNo);
@@ -137,15 +135,14 @@ format_object<int64_t> MC6809InstPrinter::formatHex(int64_t Value) const {
   case HexStyle::C:
     if (Value < 0) {
       return format("-$%" PRIx64, -Value);
-    } 
-      return format("$%" PRIx64, Value);
-    
+    }
+    return format("$%" PRIx64, Value);
+
   case HexStyle::Asm:
     if (Value < 0) {
       return format("-$%" PRIx64, -Value);
-    } 
-      return format("$%" PRIx64, Value);
-    
+    }
+    return format("$%" PRIx64, Value);
   }
   llvm_unreachable("unsupported print style");
 }

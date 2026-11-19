@@ -53,23 +53,18 @@
 
 using namespace llvm;
 
-static cl::opt<bool> EnableFoldAddSub16(
-    "mc6809-enable-fold-addsub16", cl::init(true), cl::Hidden,
-    cl::desc("Bug #360: refold byte-decomposed i16 add/sub of an immediate "
-             "back into native ADDD/SUBD"));
+static cl::opt<bool> EnableFoldAddSub16("mc6809-enable-fold-addsub16", cl::init(true), cl::Hidden,
+                                        cl::desc("Bug #360: refold byte-decomposed i16 add/sub of an immediate "
+                                                 "back into native ADDD/SUBD"));
 
 namespace {
 
 class MC6809FoldAddSub16 : public MachineFunctionPass {
 public:
   static char ID;
-  MC6809FoldAddSub16() : MachineFunctionPass(ID) {
-    llvm::initializeMC6809FoldAddSub16Pass(*PassRegistry::getPassRegistry());
-  }
+  MC6809FoldAddSub16() : MachineFunctionPass(ID) { llvm::initializeMC6809FoldAddSub16Pass(*PassRegistry::getPassRegistry()); }
   bool runOnMachineFunction(MachineFunction &MF) override;
-  StringRef getPassName() const override {
-    return "MC6809 fold i16 add/sub byte chains";
-  }
+  StringRef getPassName() const override { return "MC6809 fold i16 add/sub byte chains"; }
 };
 
 } // namespace
@@ -89,12 +84,18 @@ static Register implicitVReg(const MachineInstr &MI, bool WantDef) {
 /// The high-byte opcode that completes a chain whose low byte is Opc, or 0.
 static unsigned chainTailOpcode(unsigned Opc) {
   switch (Opc) {
-  case MC6809::AddSetCarry_i8_Imm: return MC6809::AddSetCarryUse_i8_Imm;
-  case MC6809::AddSetCarry_i8_Mem: return MC6809::AddSetCarryUse_i8_Mem;
-  case MC6809::AddSetCarry_i8_Reg: return MC6809::AddSetCarryUse_i8_Reg;
-  case MC6809::SubSetCarry_i8_Mem: return MC6809::SubSetCarryUse_i8_Mem;
-  case MC6809::SubSetCarry_i8_Reg: return MC6809::SubSetCarryUse_i8_Reg;
-  default: return 0;
+  case MC6809::AddSetCarry_i8_Imm:
+    return MC6809::AddSetCarryUse_i8_Imm;
+  case MC6809::AddSetCarry_i8_Mem:
+    return MC6809::AddSetCarryUse_i8_Mem;
+  case MC6809::AddSetCarry_i8_Reg:
+    return MC6809::AddSetCarryUse_i8_Reg;
+  case MC6809::SubSetCarry_i8_Mem:
+    return MC6809::SubSetCarryUse_i8_Mem;
+  case MC6809::SubSetCarry_i8_Reg:
+    return MC6809::SubSetCarryUse_i8_Reg;
+  default:
+    return 0;
   }
 }
 
@@ -115,24 +116,20 @@ static bool splitChainedChains(MachineFunction &MF) {
         continue;
       Register CarryOut = implicitVReg(LoDef, /*WantDef=*/true);
       Register LoR = LoDef.getOperand(0).getReg();
-      if (!CarryOut || !MRI.hasOneNonDBGUse(CarryOut) ||
-          !MRI.hasOneNonDBGUse(LoR))
+      if (!CarryOut || !MRI.hasOneNonDBGUse(CarryOut) || !MRI.hasOneNonDBGUse(LoR))
         continue;
       MachineInstr &HiDef = *MRI.use_instr_nodbg_begin(CarryOut);
       if (HiDef.getOpcode() != TailOpc || HiDef.getParent() != &MBB)
         continue;
       Register HiCarryOut = implicitVReg(HiDef, /*WantDef=*/true);
       Register HiR = HiDef.getOperand(0).getReg();
-      if ((HiCarryOut && !MRI.use_nodbg_empty(HiCarryOut)) ||
-          !MRI.hasOneNonDBGUse(HiR))
+      if ((HiCarryOut && !MRI.use_nodbg_empty(HiCarryOut)) || !MRI.hasOneNonDBGUse(HiR))
         continue;
       // Both bytes must feed the same operand of the next add's two bytes.
       MachineInstr &LoUse = *MRI.use_instr_nodbg_begin(LoR);
       MachineInstr &HiUse = *MRI.use_instr_nodbg_begin(HiR);
       unsigned NextTail = chainTailOpcode(LoUse.getOpcode());
-      if (!NextTail || HiUse.getOpcode() != NextTail ||
-          LoUse.getParent() != &MBB || HiUse.getParent() != &MBB ||
-          implicitVReg(LoUse, true) != implicitVReg(HiUse, false))
+      if (!NextTail || HiUse.getOpcode() != NextTail || LoUse.getParent() != &MBB || HiUse.getParent() != &MBB || implicitVReg(LoUse, true) != implicitVReg(HiUse, false))
         continue;
       unsigned LoIdx = LoUse.findRegisterUseOperandIdx(LoR, nullptr);
       unsigned HiIdx = HiUse.findRegisterUseOperandIdx(HiR, nullptr);
@@ -157,18 +154,14 @@ static bool splitChainedChains(MachineFunction &MF) {
       MachineInstr &HiUse = *MRI.use_instr_nodbg_begin(HiR);
       const DebugLoc &DL = LoUse.getDebugLoc();
       Register Whole = MRI.createVirtualRegister(&MC6809::ACC16RegClass);
-      BuildMI(MBB, LoUse, DL, TII.get(MC6809::MERGE_LOHI_i16), Whole)
-          .addReg(LoR)
-          .addReg(HiR);
+      BuildMI(MBB, LoUse, DL, TII.get(MC6809::MERGE_LOHI_i16), Whole).addReg(LoR).addReg(HiR);
       // The class the extracts define (A or B), not the one the add's
       // result happened to have: the add may have been given the wider
       // byte class, which includes registers an extract cannot produce.
       Register NewLo = MRI.createVirtualRegister(&MC6809::ACC8_ABRegClass);
       Register NewHi = MRI.createVirtualRegister(&MC6809::ACC8_ABRegClass);
-      BuildMI(MBB, LoUse, DL, TII.get(MC6809::EXTRACT_LO_i16), NewLo)
-          .addReg(Whole);
-      BuildMI(MBB, LoUse, DL, TII.get(MC6809::EXTRACT_HI_i16), NewHi)
-          .addReg(Whole);
+      BuildMI(MBB, LoUse, DL, TII.get(MC6809::EXTRACT_LO_i16), NewLo).addReg(Whole);
+      BuildMI(MBB, LoUse, DL, TII.get(MC6809::EXTRACT_HI_i16), NewHi).addReg(Whole);
       LoUse.substituteRegister(LoR, NewLo, 0, *MRI.getTargetRegisterInfo());
       HiUse.substituteRegister(HiR, NewHi, 0, *MRI.getTargetRegisterInfo());
       Changed = true;
@@ -186,9 +179,7 @@ bool MC6809FoldAddSub16::runOnMachineFunction(MachineFunction &MF) {
   const auto &TRI = *MF.getSubtarget().getRegisterInfo();
   bool Changed = splitChainedChains(MF);
 
-  auto DefOf = [&](Register R) -> MachineInstr * {
-    return R.isVirtual() ? MRI.getVRegDef(R) : nullptr;
-  };
+  auto DefOf = [&](Register R) -> MachineInstr * { return R.isVirtual() ? MRI.getVRegDef(R) : nullptr; };
 
   SmallVector<MachineInstr *, 8> ToErase;
   for (MachineBasicBlock &MBB : MF) {
@@ -213,15 +204,30 @@ bool MC6809FoldAddSub16::runOnMachineFunction(MachineFunction &MF) {
       unsigned HiOpc, ResultOpc;
       switch (LoDef->getOpcode()) {
       case MC6809::AddSetCarry_i8_Imm:
-        HiOpc = MC6809::AddSetCarryUse_i8_Imm; ResultOpc = MC6809::Add_i16_Imm; Kind = Imm; break;
+        HiOpc = MC6809::AddSetCarryUse_i8_Imm;
+        ResultOpc = MC6809::Add_i16_Imm;
+        Kind = Imm;
+        break;
       case MC6809::AddSetCarry_i8_Mem:
-        HiOpc = MC6809::AddSetCarryUse_i8_Mem; ResultOpc = MC6809::Add_i16_Mem; Kind = Mem; break;
+        HiOpc = MC6809::AddSetCarryUse_i8_Mem;
+        ResultOpc = MC6809::Add_i16_Mem;
+        Kind = Mem;
+        break;
       case MC6809::AddSetCarry_i8_Reg:
-        HiOpc = MC6809::AddSetCarryUse_i8_Reg; ResultOpc = MC6809::Add_i16_Reg; Kind = Reg; break;
+        HiOpc = MC6809::AddSetCarryUse_i8_Reg;
+        ResultOpc = MC6809::Add_i16_Reg;
+        Kind = Reg;
+        break;
       case MC6809::SubSetCarry_i8_Mem:
-        HiOpc = MC6809::SubSetCarryUse_i8_Mem; ResultOpc = MC6809::Sub_i16_Mem; Kind = Mem; break;
+        HiOpc = MC6809::SubSetCarryUse_i8_Mem;
+        ResultOpc = MC6809::Sub_i16_Mem;
+        Kind = Mem;
+        break;
       case MC6809::SubSetCarry_i8_Reg:
-        HiOpc = MC6809::SubSetCarryUse_i8_Reg; ResultOpc = MC6809::Sub_i16_Reg; Kind = Reg; break;
+        HiOpc = MC6809::SubSetCarryUse_i8_Reg;
+        ResultOpc = MC6809::Sub_i16_Reg;
+        Kind = Reg;
+        break;
       default:
         continue;
       }
@@ -254,21 +260,16 @@ bool MC6809FoldAddSub16::runOnMachineFunction(MachineFunction &MF) {
       MachineBasicBlock *ChainBB = HiDef->getParent();
       bool FlagsConsumed = false;
       for (auto It = std::next(HiDef->getIterator()); It != ChainBB->end(); ++It) {
-        if (It->readsRegister(MC6809::C, &TRI) ||
-            It->readsRegister(MC6809::NZ, &TRI) ||
-            It->readsRegister(MC6809::V, &TRI)) {
+        if (It->readsRegister(MC6809::C, &TRI) || It->readsRegister(MC6809::NZ, &TRI) || It->readsRegister(MC6809::V, &TRI)) {
           FlagsConsumed = true;
           break;
         }
-        if (It->definesRegister(MC6809::C, &TRI) &&
-            It->definesRegister(MC6809::NZ, &TRI) &&
-            It->definesRegister(MC6809::V, &TRI))
+        if (It->definesRegister(MC6809::C, &TRI) && It->definesRegister(MC6809::NZ, &TRI) && It->definesRegister(MC6809::V, &TRI))
           break; // all CC flags overwritten before any read — safe
       }
       if (!FlagsConsumed)
         for (MachineBasicBlock *Succ : ChainBB->successors())
-          if (Succ->isLiveIn(MC6809::C) || Succ->isLiveIn(MC6809::NZ) ||
-              Succ->isLiveIn(MC6809::V)) {
+          if (Succ->isLiveIn(MC6809::C) || Succ->isLiveIn(MC6809::NZ) || Succ->isLiveIn(MC6809::V)) {
             FlagsConsumed = true;
             break;
           }
@@ -288,27 +289,19 @@ bool MC6809FoldAddSub16::runOnMachineFunction(MachineFunction &MF) {
       MachineInstr *HiSrcDef = DefOf(HiSrc);
       if (!LoSrcDef || !HiSrcDef)
         continue;
-      if (!MRI.hasOneNonDBGUse(LoR) || !MRI.hasOneNonDBGUse(HiR) ||
-          !MRI.hasOneNonDBGUse(CarryOut))
+      if (!MRI.hasOneNonDBGUse(LoR) || !MRI.hasOneNonDBGUse(HiR) || !MRI.hasOneNonDBGUse(CarryOut))
         continue;
 
       Register Src;
       SmallVector<MachineInstr *, 2> SrcDefsToErase;
       bool MaterialiseConst = false;
       int16_t ConstImm = 0;
-      if (LoSrcDef->getOpcode() == MC6809::EXTRACT_LO_i16 &&
-          HiSrcDef->getOpcode() == MC6809::EXTRACT_HI_i16 &&
-          LoSrcDef->getOperand(1).getReg() == HiSrcDef->getOperand(1).getReg() &&
-          MRI.hasOneNonDBGUse(LoSrc) && MRI.hasOneNonDBGUse(HiSrc)) {
+      if (LoSrcDef->getOpcode() == MC6809::EXTRACT_LO_i16 && HiSrcDef->getOpcode() == MC6809::EXTRACT_HI_i16 && LoSrcDef->getOperand(1).getReg() == HiSrcDef->getOperand(1).getReg() && MRI.hasOneNonDBGUse(LoSrc) && MRI.hasOneNonDBGUse(HiSrc)) {
         // Extracted-halves minuend: the common `x +/- y`, `x - 1`, ... shape.
         Src = LoSrcDef->getOperand(1).getReg();
         SrcDefsToErase.push_back(LoSrcDef);
         SrcDefsToErase.push_back(HiSrcDef);
-      } else if ((Kind == Mem || Kind == Reg) &&
-                 LoSrcDef->getOpcode() == MC6809::Load_i8_Imm &&
-                 HiSrcDef->getOpcode() == MC6809::Load_i8_Imm &&
-                 LoSrcDef->getOperand(1).isImm() &&
-                 HiSrcDef->getOperand(1).isImm()) {
+      } else if ((Kind == Mem || Kind == Reg) && LoSrcDef->getOpcode() == MC6809::Load_i8_Imm && HiSrcDef->getOpcode() == MC6809::Load_i8_Imm && LoSrcDef->getOperand(1).isImm() && HiSrcDef->getOperand(1).isImm()) {
         // Constant minuend (`0 - x` negate, `C - x`) against a memory or
         // register subtrahend. The memory form becomes `ldd #imm; subd mem`;
         // the register form becomes the native reg-reg subtract (SUBR on
@@ -316,8 +309,7 @@ bool MC6809FoldAddSub16::runOnMachineFunction(MachineFunction &MF) {
         // Load_i8_Imm covers both halves when the bytes are equal (e.g. 0);
         // otherwise two distinct byte defs. Each must feed only this chain so
         // rematerialising the whole i16 minuend is safe.
-        ConstImm = (int16_t)(((HiSrcDef->getOperand(1).getImm() & 0xFF) << 8) |
-                             (LoSrcDef->getOperand(1).getImm() & 0xFF));
+        ConstImm = (int16_t)(((HiSrcDef->getOperand(1).getImm() & 0xFF) << 8) | (LoSrcDef->getOperand(1).getImm() & 0xFF));
         // The register subtrahend form pays a constant materialisation plus,
         // on plain 6809, a subtrahend spill; that only wins for the true
         // negate (minuend 0 → `subr`/`ldd #0` with no extra load). A non-zero
@@ -349,12 +341,10 @@ bool MC6809FoldAddSub16::runOnMachineFunction(MachineFunction &MF) {
 
       if (MaterialiseConst) {
         Src = MRI.createVirtualRegister(MRI.getRegClass(Dst));
-        BuildMI(MBB, MI, MI.getDebugLoc(), TII.get(MC6809::Load_i16_Imm), Src)
-            .addImm(ConstImm);
+        BuildMI(MBB, MI, MI.getDebugLoc(), TII.get(MC6809::Load_i16_Imm), Src).addImm(ConstImm);
       }
 
-      auto MIB = BuildMI(MBB, MI, MI.getDebugLoc(), TII.get(ResultOpc), Dst)
-                     .addReg(Src);
+      auto MIB = BuildMI(MBB, MI, MI.getDebugLoc(), TII.get(ResultOpc), Dst).addReg(Src);
 
       if (Kind == Imm) {
         if (!LoDef->getOperand(2).isImm() || !HiDef->getOperand(2).isImm()) {
@@ -362,8 +352,7 @@ bool MC6809FoldAddSub16::runOnMachineFunction(MachineFunction &MF) {
           continue;
         }
         // imm16 = hi:lo byte immediates of the original i16 addend.
-        int16_t Imm16 = (int16_t)(((HiDef->getOperand(2).getImm() & 0xFF) << 8) |
-                                  (LoDef->getOperand(2).getImm() & 0xFF));
+        int16_t Imm16 = (int16_t)(((HiDef->getOperand(2).getImm() & 0xFF) << 8) | (LoDef->getOperand(2).getImm() & 0xFF));
         MIB.addImm(Imm16);
       } else if (Kind == Mem) {
         // op2=base (frame index or index reg), op3=byte offset. Big-endian:
@@ -372,12 +361,8 @@ bool MC6809FoldAddSub16::runOnMachineFunction(MachineFunction &MF) {
         // ADDD/SUBD then reads base+offHi.
         const MachineOperand &LoBase = LoDef->getOperand(2);
         const MachineOperand &HiBase = HiDef->getOperand(2);
-        bool SameBase =
-            (LoBase.isFI() && HiBase.isFI() && LoBase.getIndex() == HiBase.getIndex()) ||
-            (LoBase.isReg() && HiBase.isReg() && LoBase.getReg() == HiBase.getReg());
-        if (!SameBase || !LoDef->getOperand(3).isImm() ||
-            !HiDef->getOperand(3).isImm() ||
-            LoDef->getOperand(3).getImm() != HiDef->getOperand(3).getImm() + 1) {
+        bool SameBase = (LoBase.isFI() && HiBase.isFI() && LoBase.getIndex() == HiBase.getIndex()) || (LoBase.isReg() && HiBase.isReg() && LoBase.getReg() == HiBase.getReg());
+        if (!SameBase || !LoDef->getOperand(3).isImm() || !HiDef->getOperand(3).isImm() || LoDef->getOperand(3).getImm() != HiDef->getOperand(3).getImm() + 1) {
           MIB->eraseFromParent();
           continue;
         }
@@ -388,10 +373,8 @@ bool MC6809FoldAddSub16::runOnMachineFunction(MachineFunction &MF) {
         Register HiS2 = HiDef->getOperand(2).getReg();
         MachineInstr *LoS2Def = DefOf(LoS2);
         MachineInstr *HiS2Def = DefOf(HiS2);
-        if (!LoS2Def || LoS2Def->getOpcode() != MC6809::EXTRACT_LO_i16 ||
-            !HiS2Def || HiS2Def->getOpcode() != MC6809::EXTRACT_HI_i16 ||
-            LoS2Def->getOperand(1).getReg() != HiS2Def->getOperand(1).getReg() ||
-            !MRI.hasOneNonDBGUse(LoS2) || !MRI.hasOneNonDBGUse(HiS2)) {
+        if (!LoS2Def || LoS2Def->getOpcode() != MC6809::EXTRACT_LO_i16 || !HiS2Def || HiS2Def->getOpcode() != MC6809::EXTRACT_HI_i16 || LoS2Def->getOperand(1).getReg() != HiS2Def->getOperand(1).getReg() || !MRI.hasOneNonDBGUse(LoS2) ||
+            !MRI.hasOneNonDBGUse(HiS2)) {
           MIB->eraseFromParent();
           continue;
         }
@@ -417,9 +400,6 @@ bool MC6809FoldAddSub16::runOnMachineFunction(MachineFunction &MF) {
 
 char MC6809FoldAddSub16::ID = 0;
 
-INITIALIZE_PASS(MC6809FoldAddSub16, DEBUG_TYPE,
-                "MC6809 fold i16 add/sub byte chains", false, false)
+INITIALIZE_PASS(MC6809FoldAddSub16, DEBUG_TYPE, "MC6809 fold i16 add/sub byte chains", false, false)
 
-MachineFunctionPass *llvm::createMC6809FoldAddSub16Pass() {
-  return new MC6809FoldAddSub16();
-}
+MachineFunctionPass *llvm::createMC6809FoldAddSub16Pass() { return new MC6809FoldAddSub16(); }

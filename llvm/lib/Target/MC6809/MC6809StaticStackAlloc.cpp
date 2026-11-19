@@ -63,11 +63,9 @@ using namespace llvm;
 // activates the direct-page allocator, whose frame-slot handling would claim
 // these slots before the static marking and send them back to a dynamic frame.
 // Set to 0 to keep every static frame in extended addressing.
-static cl::opt<uint64_t> StaticStackDPAvail(
-    "mc6809-static-stack-dp-avail", cl::init(64), cl::Hidden,
-    cl::value_desc("bytes"),
-    cl::desc("page-0 bytes available for non-reentrant static frames; "
-             "when a static frame fits, place it in the direct page"));
+static cl::opt<uint64_t> StaticStackDPAvail("mc6809-static-stack-dp-avail", cl::init(64), cl::Hidden, cl::value_desc("bytes"),
+                                            cl::desc("page-0 bytes available for non-reentrant static frames; "
+                                                     "when a static frame fits, place it in the direct page"));
 
 namespace {
 
@@ -75,9 +73,7 @@ class MC6809StaticStackAlloc : public ModulePass {
 public:
   static char ID;
 
-  MC6809StaticStackAlloc() : ModulePass(ID) {
-    llvm::initializeMC6809StaticStackAllocPass(*PassRegistry::getPassRegistry());
-  }
+  MC6809StaticStackAlloc() : ModulePass(ID) { llvm::initializeMC6809StaticStackAllocPass(*PassRegistry::getPassRegistry()); }
 
   bool runOnModule(Module &M) override;
   void getAnalysisUsage(AnalysisUsage &AU) const override;
@@ -154,10 +150,7 @@ bool MC6809StaticStackAlloc::runOnModule(Module &M) {
 
     // Defer interrupt-norecurse SCCs (and their descendants) until last; they
     // conflict with everything.
-    if (!ToInterruptNorecurse && RootSCC.Nodes.size() == 1 &&
-        RootSCC.Nodes.front()->getFunction() &&
-        RootSCC.Nodes.front()->getFunction()->hasFnAttribute(
-            "interrupt-norecurse")) {
+    if (!ToInterruptNorecurse && RootSCC.Nodes.size() == 1 && RootSCC.Nodes.front()->getFunction() && RootSCC.Nodes.front()->getFunction()->hasFnAttribute("interrupt-norecurse")) {
       InterruptNorecurseSCCs.push_back(&RootSCC);
       continue;
     }
@@ -174,8 +167,7 @@ bool MC6809StaticStackAlloc::runOnModule(Module &M) {
         MachineFunction *MF = MMI.getMachineFunction(*F);
         if (!MF)
           continue;
-        const MC6809FrameLowering &TFL =
-            *MF->getSubtarget<MC6809Subtarget>().getFrameLowering();
+        const MC6809FrameLowering &TFL = *MF->getSubtarget<MC6809Subtarget>().getFrameLowering();
         Size += TFL.staticSize(MF->getFrameInfo());
       }
       return Size;
@@ -190,8 +182,7 @@ bool MC6809StaticStackAlloc::runOnModule(Module &M) {
     for (CallGraphNode *CGN : RootSCC.Nodes) {
       for (const auto &Edge : *CGN) {
         SCC &CalleeSCC = SCCs[SCCID[Edge.second]];
-        if (&CalleeSCC != &RootSCC &&
-            CallerSCCs[&CalleeSCC].contains(&RootSCC)) {
+        if (&CalleeSCC != &RootSCC && CallerSCCs[&CalleeSCC].contains(&RootSCC)) {
           CalleeSCC.Offset = std::max(CalleeSCC.Offset, Offset);
           CallerSCCs[&CalleeSCC].erase(&RootSCC);
           if (CallerSCCs[&CalleeSCC].empty())
@@ -212,8 +203,7 @@ bool MC6809StaticStackAlloc::runOnModule(Module &M) {
   // *whole* global to fit; so this is an all-or-nothing decision against the
   // `-mc6809-static-stack-dp-avail` budget. Gated off under PIC (page-0 is
   // absolute, incompatible with PC-relative code) and when the budget is 0.
-  bool PlaceInDP = StaticStackDPAvail && StackSize <= StaticStackDPAvail &&
-                   !MMI.getTarget().isPositionIndependent();
+  bool PlaceInDP = StaticStackDPAvail && StackSize <= StaticStackDPAvail && !MMI.getTarget().isPositionIndependent();
 
   // One global for the whole static stack. Use a zero initializer (not undef)
   // so it lands in .bss (low RAM, zeroed at startup) rather than .noinit, which
@@ -231,9 +221,7 @@ bool MC6809StaticStackAlloc::runOnModule(Module &M) {
   // reference; the direct-page load/store OPCODE (not the symbol) selects 1-byte
   // addressing.
   Type *Typ = ArrayType::get(Type::getInt8Ty(M.getContext()), StackSize);
-  GlobalVariable *Stack =
-      new GlobalVariable(M, Typ, false, GlobalValue::PrivateLinkage,
-                         ConstantAggregateZero::get(Typ), "static_stack");
+  GlobalVariable *Stack = new GlobalVariable(M, Typ, false, GlobalValue::PrivateLinkage, ConstantAggregateZero::get(Typ), "static_stack");
   if (PlaceInDP)
     Stack->setSection(".dp.bss.static_stack");
   LLVM_DEBUG(dbgs() << *Stack << "\n");
@@ -249,10 +237,8 @@ bool MC6809StaticStackAlloc::runOnModule(Module &M) {
       MachineFunction *MF = MMI.getMachineFunction(*F);
       if (!MF)
         continue;
-      const MC6809FrameLowering &TFL =
-          *MF->getSubtarget<MC6809Subtarget>().getFrameLowering();
-      const MC6809InstrInfo &TII =
-          *MF->getSubtarget<MC6809Subtarget>().getInstrInfo();
+      const MC6809FrameLowering &TFL = *MF->getSubtarget<MC6809Subtarget>().getFrameLowering();
+      const MC6809InstrInfo &TII = *MF->getSubtarget<MC6809Subtarget>().getInstrInfo();
       uint64_t Size = TFL.staticSize(MF->getFrameInfo());
       if (!Size)
         continue;
@@ -261,13 +247,10 @@ bool MC6809StaticStackAlloc::runOnModule(Module &M) {
       Constant *Aliasee = Stack;
       if (Offset) {
         Type *I16 = Type::getInt16Ty(Stack->getContext());
-        Aliasee = ConstantExpr::getPtrAdd(Stack, ConstantInt::get(I16, Offset),
-                                          GEPNoWrapFlags::inBounds());
+        Aliasee = ConstantExpr::getPtrAdd(Stack, ConstantInt::get(I16, Offset), GEPNoWrapFlags::inBounds());
       }
       Offset += Size;
-      auto *Alias = GlobalAlias::create(
-          RegionTyp, Stack->getAddressSpace(), Stack->getLinkage(),
-          Twine(F->getName()) + "_sstk", Aliasee, Stack->getParent());
+      auto *Alias = GlobalAlias::create(RegionTyp, Stack->getAddressSpace(), Stack->getLinkage(), Twine(F->getName()) + "_sstk", Aliasee, Stack->getParent());
       LLVM_DEBUG(dbgs() << *Alias << "\n");
 
       MC6809FunctionInfo &MFI = *MF->getInfo<MC6809FunctionInfo>();
@@ -290,8 +273,7 @@ bool MC6809StaticStackAlloc::runOnModule(Module &M) {
               // form (LEA, and PC-rel under PIC — which PlaceInDP excludes) map
               // to 0 and correctly keep extended addressing of the page-0 symbol.
               if (PlaceInDP)
-                if (unsigned DPOpc =
-                        TII.getStaticStackDirectPageOpcode(MI.getOpcode()))
+                if (unsigned DPOpc = TII.getStaticStackDirectPageOpcode(MI.getOpcode()))
                   MI.setDesc(TII.get(DPOpc));
             }
     }
@@ -299,13 +281,8 @@ bool MC6809StaticStackAlloc::runOnModule(Module &M) {
   return true;
 }
 
-
 char MC6809StaticStackAlloc::ID = 0;
 
-INITIALIZE_PASS(MC6809StaticStackAlloc, DEBUG_TYPE,
-                "Allocate non-reentrant stack frames to static memory", false,
-                false)
+INITIALIZE_PASS(MC6809StaticStackAlloc, DEBUG_TYPE, "Allocate non-reentrant stack frames to static memory", false, false)
 
-ModulePass *llvm::createMC6809StaticStackAllocPass() {
-  return new MC6809StaticStackAlloc();
-}
+ModulePass *llvm::createMC6809StaticStackAllocPass() { return new MC6809StaticStackAlloc(); }

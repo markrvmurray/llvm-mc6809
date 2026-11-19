@@ -52,23 +52,18 @@
 
 using namespace llvm;
 
-static cl::opt<bool> EnableFoldCallThroughMem(
-    "mc6809-enable-fold-call-mem", cl::init(true), cl::Hidden,
-    cl::desc("Fold an invariant function-pointer load into the indirect call "
-             "that uses it (jsr [n,r]), freeing the index register"));
+static cl::opt<bool> EnableFoldCallThroughMem("mc6809-enable-fold-call-mem", cl::init(true), cl::Hidden,
+                                              cl::desc("Fold an invariant function-pointer load into the indirect call "
+                                                       "that uses it (jsr [n,r]), freeing the index register"));
 
 namespace {
 
 class MC6809FoldCallThroughMem : public MachineFunctionPass {
 public:
   static char ID;
-  MC6809FoldCallThroughMem() : MachineFunctionPass(ID) {
-    llvm::initializeMC6809FoldCallThroughMemPass(*PassRegistry::getPassRegistry());
-  }
+  MC6809FoldCallThroughMem() : MachineFunctionPass(ID) { llvm::initializeMC6809FoldCallThroughMemPass(*PassRegistry::getPassRegistry()); }
   bool runOnMachineFunction(MachineFunction &MF) override;
-  StringRef getPassName() const override {
-    return "MC6809 fold indirect call through memory";
-  }
+  StringRef getPassName() const override { return "MC6809 fold indirect call through memory"; }
 };
 
 } // namespace
@@ -88,10 +83,7 @@ bool MC6809FoldCallThroughMem::runOnMachineFunction(MachineFunction &MF) {
       if (MI.getOpcode() != MC6809::Load_iPtr_Mem)
         continue;
       // Re-reading the pointer at each call requires it to be invariant.
-      if (MI.memoperands_empty() ||
-          !llvm::all_of(MI.memoperands(), [](const MachineMemOperand *MMO) {
-            return MMO->isInvariant();
-          }))
+      if (MI.memoperands_empty() || !llvm::all_of(MI.memoperands(), [](const MachineMemOperand *MMO) { return MMO->isInvariant(); }))
         continue;
       // Frame-index base only: the addressing carries no base register whose
       // live range we would have to extend to the call sites.
@@ -112,8 +104,7 @@ bool MC6809FoldCallThroughMem::runOnMachineFunction(MachineFunction &MF) {
     // load is invariant.
     SmallVector<MachineInstr *, 8> Calls;
     for (MachineInstr &Use : MRI.use_nodbg_instructions(PtrReg))
-      if (Use.getOpcode() == MC6809::JSRi_o0 && Use.getNumOperands() > 0 &&
-          Use.getOperand(0).isReg() && Use.getOperand(0).getReg() == PtrReg)
+      if (Use.getOpcode() == MC6809::JSRi_o0 && Use.getNumOperands() > 0 && Use.getOperand(0).isReg() && Use.getOperand(0).getReg() == PtrReg)
         Calls.push_back(&Use);
     if (Calls.empty())
       continue;
@@ -123,9 +114,7 @@ bool MC6809FoldCallThroughMem::runOnMachineFunction(MachineFunction &MF) {
     const MachineOperand Offset = Load->getOperand(2); // sub-slot byte offset
 
     for (MachineInstr *Jsr : Calls) {
-      MachineInstrBuilder MIB =
-          BuildMI(*Jsr->getParent(), *Jsr, Jsr->getDebugLoc(),
-                  TII.get(MC6809::JSR_iPtr_Mem));
+      MachineInstrBuilder MIB = BuildMI(*Jsr->getParent(), *Jsr, Jsr->getDebugLoc(), TII.get(MC6809::JSR_iPtr_Mem));
       MIB.add(Base).add(Offset);
       // The call's register mask and implicit argument/clobber operands follow
       // its target register (operand 0).
@@ -138,8 +127,7 @@ bool MC6809FoldCallThroughMem::runOnMachineFunction(MachineFunction &MF) {
     // The load is dead if only debug values remain; drop them with it so no
     // reference dangles.
     if (MRI.use_nodbg_empty(PtrReg)) {
-      for (MachineInstr &Dbg :
-           llvm::make_early_inc_range(MRI.use_instructions(PtrReg)))
+      for (MachineInstr &Dbg : llvm::make_early_inc_range(MRI.use_instructions(PtrReg)))
         Dbg.eraseFromParent();
       Load->eraseFromParent();
     }
@@ -149,9 +137,6 @@ bool MC6809FoldCallThroughMem::runOnMachineFunction(MachineFunction &MF) {
 
 char MC6809FoldCallThroughMem::ID = 0;
 
-INITIALIZE_PASS(MC6809FoldCallThroughMem, DEBUG_TYPE,
-                "MC6809 fold indirect call through memory", false, false)
+INITIALIZE_PASS(MC6809FoldCallThroughMem, DEBUG_TYPE, "MC6809 fold indirect call through memory", false, false)
 
-MachineFunctionPass *llvm::createMC6809FoldCallThroughMemPass() {
-  return new MC6809FoldCallThroughMem();
-}
+MachineFunctionPass *llvm::createMC6809FoldCallThroughMemPass() { return new MC6809FoldCallThroughMem(); }

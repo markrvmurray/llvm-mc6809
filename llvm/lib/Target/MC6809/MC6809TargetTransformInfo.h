@@ -49,16 +49,11 @@ public:
   /// There are no vector registers. Saying so stops the SLP and loop
   /// vectorizers and VectorCombine from forming vector operations, which the
   /// legalizer does not handle and which could only be scalarized again.
-  unsigned getNumberOfRegisters(unsigned ClassID) const override {
-    return ClassID == 1 ? 0 : BaseT::getNumberOfRegisters(ClassID);
-  }
-  TypeSize
-  getRegisterBitWidth(TargetTransformInfo::RegisterKind K) const override {
+  unsigned getNumberOfRegisters(unsigned ClassID) const override { return ClassID == 1 ? 0 : BaseT::getNumberOfRegisters(ClassID); }
+  TypeSize getRegisterBitWidth(TargetTransformInfo::RegisterKind K) const override {
     if (K == TargetTransformInfo::RGK_Scalar)
       return TypeSize::getFixed(16);
-    return K == TargetTransformInfo::RGK_FixedWidthVector
-               ? TypeSize::getFixed(0)
-               : TypeSize::getScalable(0);
+    return K == TargetTransformInfo::RGK_FixedWidthVector ? TypeSize::getFixed(0) : TypeSize::getScalable(0);
   }
 };
 

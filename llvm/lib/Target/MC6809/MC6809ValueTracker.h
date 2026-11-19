@@ -40,18 +40,16 @@ public:
   struct Key {
     Register Base;
     int Offset;
-    bool operator==(const Key &O) const {
-      return Base == O.Base && Offset == O.Offset;
-    }
+    bool operator==(const Key &O) const { return Base == O.Base && Offset == O.Offset; }
   };
 
   struct Mirror {
-    Register Reg;                     // the holder; invalid once stale
-    bool SourceKilled = false;        // set up by a store that killed Reg
-    int SpillFI = INT_MIN;            // spill slot, or INT_MIN
-    bool IsFrame = false;             // frame location (not a spill slot)
-    bool IsImaginary = false;         // a direct-page imaginary register
-    MachineInstr *Est = nullptr;      // the access that set it up
+    Register Reg;                // the holder; invalid once stale
+    bool SourceKilled = false;   // set up by a store that killed Reg
+    int SpillFI = INT_MIN;       // spill slot, or INT_MIN
+    bool IsFrame = false;        // frame location (not a spill slot)
+    bool IsImaginary = false;    // a direct-page imaginary register
+    MachineInstr *Est = nullptr; // the access that set it up
   };
 
   MC6809ValueTracker(const MachineFunction &MF, const TargetRegisterInfo &TRI);
@@ -67,8 +65,7 @@ public:
 
   /// Record that Reg holds the value at K, set up by the load or store Est
   /// (whose memory operand says what the memory is).
-  void set(const Key &K, Register Reg, MachineInstr &Est,
-           bool SourceKilled = false);
+  void set(const Key &K, Register Reg, MachineInstr &Est, bool SourceKilled = false);
 
   /// A def or kill of R: no mirror is held in R any more.
   void clearHolder(Register R);
@@ -87,15 +84,13 @@ public:
   /// a store that may write the frame; an imaginary-register mirror on a
   /// store naming that register; any other mirror on any store -- except
   /// that stores to a spill slot or an imaginary register drop nothing else.
-  void storeAlias(const MachineInstr &MI, bool IndexedOnOwnBase,
-                  Register OwnBase);
+  void storeAlias(const MachineInstr &MI, bool IndexedOnOwnBase, Register OwnBase);
 
   /// The width in bytes of a mirror held in R.
   static int holderWidth(Register R);
 
   /// True if MI may write the stack frame (unknown footprint counts).
-  static bool mayStoreToStackFrame(const MachineInstr &MI,
-                                   const MachineFrameInfo &MFI);
+  static bool mayStoreToStackFrame(const MachineInstr &MI, const MachineFrameInfo &MFI);
   /// The spill slot every memory operand of MI names, or INT_MIN.
   static int spillSlotOf(const MachineInstr &MI, const MachineFrameInfo &MFI);
 
@@ -103,8 +98,7 @@ public:
   /// from the definition before it: clear every kill of Reg (or a register
   /// overlapping it) between that definition and MI, and the definition's
   /// dead flag. Both only lengthen a live range, so they are always safe.
-  static void clearKillsToPriorDef(MachineInstr &MI, Register Reg,
-                                   const TargetRegisterInfo &TRI);
+  static void clearKillsToPriorDef(MachineInstr &MI, Register Reg, const TargetRegisterInfo &TRI);
 
   // Dead stores. A store stays pending until something may read one of its
   // bytes; a later store that covers all of them makes it dead.
@@ -113,15 +107,13 @@ public:
   void addPendingStore(const Key &K, int Width, MachineInstr &Store);
   /// A store of Width bytes at Base+Off: append to Dead every pending store
   /// on Base whose bytes it covers, and forget them (mirrors included).
-  void takeCoveredStores(Register Base, int Off, int Width,
-                         SmallVectorImpl<MachineInstr *> &Dead);
+  void takeCoveredStores(Register Base, int Off, int Width, SmallVectorImpl<MachineInstr *> &Dead);
   /// A keyed load of Width bytes at Base+Off reads those bytes.
   void readRange(Register Base, int Off, int Width);
   /// Any load MI (keyed on OwnBase or not): it may read every pending store
   /// on another base, except a spill slot or an imaginary register it
   /// provably does not name.
-  void readAlias(const MachineInstr &MI, bool KeyedOnOwnBase,
-                 Register OwnBase);
+  void readAlias(const MachineInstr &MI, bool KeyedOnOwnBase, Register OwnBase);
   /// Something may read any memory: nothing pending is dead.
   void readAll() { Pending.clear(); }
 

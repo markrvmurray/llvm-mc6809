@@ -186,12 +186,18 @@ inline static CondCode getOppositeCondition(CondCode CC) {
 /// `[N, Z, V, C]` per design).
 inline static bool doesNotReadCarry(int64_t CC) {
   switch (CC) {
-  case EQ: case NE:
-  case VC: case VS:
-  case PL: case MI:
-  case GE: case LT:
-  case GT: case LE:
-  case RA: case INVALID: // RN aliases INVALID
+  case EQ:
+  case NE:
+  case VC:
+  case VS:
+  case PL:
+  case MI:
+  case GE:
+  case LT:
+  case GT:
+  case LE:
+  case RA:
+  case INVALID: // RN aliases INVALID
     return true;
   default: // HS/CC, LO/CS, HI, LS — these consume C
     return false;
@@ -207,7 +213,8 @@ inline static bool doesNotReadCarry(int64_t CC) {
 /// from c8rtomb / strftime / xdr at -Og.
 inline static bool doesOnlyReadCarry(int64_t CC) {
   switch (CC) {
-  case HS: case LO: // CC/CS aliases — only C
+  case HS:
+  case LO: // CC/CS aliases — only C
     return true;
   default:
     return false;
@@ -216,9 +223,7 @@ inline static bool doesOnlyReadCarry(int64_t CC) {
 
 /// Condition codes that consume only Z at runtime (EQ, NE): a Z-only
 /// producer such as LEAX/LEAY is a complete flag source for them.
-inline static bool doesOnlyReadZero(int64_t CC) {
-  return CC == EQ || CC == NE;
-}
+inline static bool doesOnlyReadZero(int64_t CC) { return CC == EQ || CC == NE; }
 
 /// getSwappedCondition - assume the flags are set by MI(a,b), return
 /// the condition code if we modify the instructions such that flags are

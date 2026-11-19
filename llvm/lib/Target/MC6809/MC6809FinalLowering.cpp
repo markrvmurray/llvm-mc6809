@@ -36,12 +36,11 @@
 
 using namespace llvm;
 
-STATISTIC(NumOffsetsRelaxed,    "Number of indexed offsets relaxed to a "
-                                "narrower form (_o16->_o8->_o5/_o0)");
-STATISTIC(NumDeadStoresElided,
-          "Stores overwritten before anything could read them, deleted");
-STATISTIC(NumStoreReloadsElided,"Number of redundant reloads of unmodified "
-                                "spill slots elided");
+STATISTIC(NumOffsetsRelaxed, "Number of indexed offsets relaxed to a "
+                             "narrower form (_o16->_o8->_o5/_o0)");
+STATISTIC(NumDeadStoresElided, "Stores overwritten before anything could read them, deleted");
+STATISTIC(NumStoreReloadsElided, "Number of redundant reloads of unmodified "
+                                 "spill slots elided");
 STATISTIC(NumBranchOverBranchFolded, "Number of branch-over-branch pairs "
                                      "(cond + uncond) folded into a single "
                                      "branch (bug #179)");
@@ -54,33 +53,25 @@ namespace {
 // Naming convention: -mc6809-fl-<class>-min-O. The "fl" stands for
 // "final lowering" and the leading "mc6809-" marks the flag as
 // target-specific in `llc -help-hidden` output.
-static cl::opt<int> RelaxOffsetsMinO(
-    "mc6809-fl-offset-relax-min-O", cl::init(2), cl::Hidden,
-    cl::desc("Minimum -O level (0..3) to enable indexed-offset relaxation "
-             "in MC6809FinalLowering. 99 disables. Default: 2."));
-static cl::opt<int> StoreReloadMinO(
-    "mc6809-fl-store-reload-min-O", cl::init(2), cl::Hidden,
-    cl::desc("Minimum -O level (0..3) to enable store+reload elimination "
-             "in MC6809FinalLowering. 99 disables. Default: 2."));
-static cl::opt<int> BranchOverBranchMinO(
-    "mc6809-fl-branch-over-branch-min-O", cl::init(0), cl::Hidden,
-    cl::desc("Minimum -O level (0..3) to enable branch-over-branch folding "
-             "in MC6809FinalLowering (bug #179). 99 disables. Default: 0 "
-             "(always on; transform is purely local and never enlarges code, "
-             "and BranchFolderPass doesn't run at -O0 to do this work for "
-             "us)."));
+static cl::opt<int> RelaxOffsetsMinO("mc6809-fl-offset-relax-min-O", cl::init(2), cl::Hidden,
+                                     cl::desc("Minimum -O level (0..3) to enable indexed-offset relaxation "
+                                              "in MC6809FinalLowering. 99 disables. Default: 2."));
+static cl::opt<int> StoreReloadMinO("mc6809-fl-store-reload-min-O", cl::init(2), cl::Hidden,
+                                    cl::desc("Minimum -O level (0..3) to enable store+reload elimination "
+                                             "in MC6809FinalLowering. 99 disables. Default: 2."));
+static cl::opt<int> BranchOverBranchMinO("mc6809-fl-branch-over-branch-min-O", cl::init(0), cl::Hidden,
+                                         cl::desc("Minimum -O level (0..3) to enable branch-over-branch folding "
+                                                  "in MC6809FinalLowering (bug #179). 99 disables. Default: 0 "
+                                                  "(always on; transform is purely local and never enlarges code, "
+                                                  "and BranchFolderPass doesn't run at -O0 to do this work for "
+                                                  "us)."));
 class MC6809FinalLowering : public MachineFunctionPass {
 public:
   static char ID;
 
-  MC6809FinalLowering() : MachineFunctionPass(ID) {
-    llvm::initializeMC6809FinalLoweringPass(
-        *PassRegistry::getPassRegistry());
-  }
+  MC6809FinalLowering() : MachineFunctionPass(ID) { llvm::initializeMC6809FinalLoweringPass(*PassRegistry::getPassRegistry()); }
 
-  StringRef getPassName() const override {
-    return "MC6809 Final Lowering";
-  }
+  StringRef getPassName() const override { return "MC6809 Final Lowering"; }
 
   bool runOnMachineFunction(MachineFunction &MF) override;
 
@@ -142,8 +133,7 @@ bool MC6809FinalLowering::relaxOffsets(MachineFunction &MF) {
   // immediate operand and treat that as the offset. The opcode-table
   // lookup in getRelaxedIdxOpcode is the source of truth for whether
   // the instruction is actually an indexed-imm form.
-  const auto *TII = static_cast<const MC6809InstrInfo *>(
-      MF.getSubtarget().getInstrInfo());
+  const auto *TII = static_cast<const MC6809InstrInfo *>(MF.getSubtarget().getInstrInfo());
 
   bool Changed = false;
   for (MachineBasicBlock &MBB : MF) {
@@ -160,8 +150,7 @@ bool MC6809FinalLowering::relaxOffsets(MachineFunction &MF) {
         continue;
 
       int64_t Offset = MI.getOperand(OffsetIdx).getImm();
-      auto [NewOpc, NewLen] = TII->getRelaxedIdxOpcode(MI.getOpcode(),
-                                                       Offset);
+      auto [NewOpc, NewLen] = TII->getRelaxedIdxOpcode(MI.getOpcode(), Offset);
       if (NewOpc == 0)
         continue;
 
@@ -189,8 +178,7 @@ bool MC6809FinalLowering::elideStoreReload(MachineFunction &MF) {
   for (MachineBasicBlock &MBB : MF) {
     MC6809ValueTracker T(MF, TRI);
     for (MachineInstr &MI : llvm::make_early_inc_range(MBB)) {
-      if (MI.isCall() || MI.isInlineAsm() || MI.isReturn() ||
-          MI.isBranch() || MI.isTerminator()) {
+      if (MI.isCall() || MI.isInlineAsm() || MI.isReturn() || MI.isBranch() || MI.isTerminator()) {
         T.clear();
         continue;
       }
@@ -201,8 +189,7 @@ bool MC6809FinalLowering::elideStoreReload(MachineFunction &MF) {
       // indexed one, the memory it touches is all there is to it, and that
       // is modelled below. Anything else with side effects, or a volatile
       // access, may observe any memory.
-      if ((!LS && MI.hasUnmodeledSideEffects()) ||
-          MC6809InstrInfo::hasOrderedMemOperand(MI))
+      if ((!LS && MI.hasUnmodeledSideEffects()) || MC6809InstrInfo::hasOrderedMemOperand(MI))
         T.readAll();
       if (LS && MC6809InstrInfo::hasOrderedMemOperand(MI))
         LS.reset();
@@ -239,8 +226,7 @@ bool MC6809FinalLowering::elideStoreReload(MachineFunction &MF) {
         bool SelfBase = TRI.regsOverlap(Base, LS->Value);
         int Width = MC6809InstrInfo::getValueRegBytes(LS->Value);
         if (!SelfBase)
-          if (MC6809ValueTracker::Mirror *M = T.find(K);
-              M && M->Reg == LS->Value) {
+          if (MC6809ValueTracker::Mirror *M = T.find(K); M && M->Reg == LS->Value) {
             MC6809ValueTracker::clearKillsToPriorDef(MI, LS->Value, TRI);
             MI.eraseFromParent();
             ++NumStoreReloadsElided;
@@ -308,18 +294,10 @@ bool MC6809FinalLowering::foldBranchOverBranch(MachineFunction &MF) {
     // Bug #206 + #271 cat-1: Bbc_NoC / Bbc_OnlyC / LBlbc_NoC /
     // LBlbc_OnlyC are encoding-equivalent codegen-only variants that
     // just declare a tighter Uses set; treat identically.
-    return Opc == MC6809::Bbc || Opc == MC6809::Bbc_NoC ||
-           Opc == MC6809::Bbc_OnlyC || Opc == MC6809::Bbc_OnlyZ ||
-           Opc == MC6809::LBlbc || Opc == MC6809::LBlbc_NoC ||
-           Opc == MC6809::LBlbc_OnlyC || Opc == MC6809::LBlbc_OnlyZ ||
-           Opc == MC6809::ConditionalBranchRelative ||
-           Opc == MC6809::ConditionalLongBranchRelative;
+    return Opc == MC6809::Bbc || Opc == MC6809::Bbc_NoC || Opc == MC6809::Bbc_OnlyC || Opc == MC6809::Bbc_OnlyZ || Opc == MC6809::LBlbc || Opc == MC6809::LBlbc_NoC || Opc == MC6809::LBlbc_OnlyC || Opc == MC6809::LBlbc_OnlyZ ||
+           Opc == MC6809::ConditionalBranchRelative || Opc == MC6809::ConditionalLongBranchRelative;
   };
-  auto IsUncondBranch = [](unsigned Opc) {
-    return Opc == MC6809::BRAb || Opc == MC6809::LBRAlb ||
-           Opc == MC6809::BranchRelative ||
-           Opc == MC6809::LongBranchRelative;
-  };
+  auto IsUncondBranch = [](unsigned Opc) { return Opc == MC6809::BRAb || Opc == MC6809::LBRAlb || Opc == MC6809::BranchRelative || Opc == MC6809::LongBranchRelative; };
 
   bool Changed = false;
   for (MachineBasicBlock &MBB : MF) {
@@ -345,14 +323,11 @@ bool MC6809FinalLowering::foldBranchOverBranch(MachineFunction &MF) {
     // Operand layout (verified against analyzeBranch at line 602-613):
     //   Conditional: operand 0 = CC immediate, operand 1 = MBB target.
     //   Unconditional: operand 0 = MBB target.
-    if (CondMI->getNumExplicitOperands() != 2 ||
-        !CondMI->getOperand(0).isImm() || !CondMI->getOperand(1).isMBB() ||
-        UncondMI->getNumExplicitOperands() != 1 ||
-        !UncondMI->getOperand(0).isMBB())
+    if (CondMI->getNumExplicitOperands() != 2 || !CondMI->getOperand(0).isImm() || !CondMI->getOperand(1).isMBB() || UncondMI->getNumExplicitOperands() != 1 || !UncondMI->getOperand(0).isMBB())
       continue;
 
-    MachineBasicBlock *L1 = CondMI->getOperand(1).getMBB();    // cond target
-    MachineBasicBlock *L2 = UncondMI->getOperand(0).getMBB();  // uncond target
+    MachineBasicBlock *L1 = CondMI->getOperand(1).getMBB();   // cond target
+    MachineBasicBlock *L2 = UncondMI->getOperand(0).getMBB(); // uncond target
     MachineBasicBlock *LayoutNext = MBB.getNextNode();
     if (LayoutNext == nullptr)
       continue;
@@ -367,8 +342,7 @@ bool MC6809FinalLowering::foldBranchOverBranch(MachineFunction &MF) {
       // to L2, drop the uncond. Use the existing getOppositeCondition
       // helper (see MC6809.h) which is already tested by analyzeBranch's
       // early-fold path.
-      MC6809CC::CondCode CC =
-          MC6809CC::CondCode(CondMI->getOperand(0).getImm());
+      MC6809CC::CondCode CC = MC6809CC::CondCode(CondMI->getOperand(0).getImm());
       MC6809CC::CondCode Inverted = MC6809CC::getOppositeCondition(CC);
       // INVALID is the bail-out sentinel; if any branch we recognise
       // somehow has it, leave alone rather than miscompiling.
@@ -387,9 +361,6 @@ bool MC6809FinalLowering::foldBranchOverBranch(MachineFunction &MF) {
 
 char MC6809FinalLowering::ID = 0;
 
-INITIALIZE_PASS(MC6809FinalLowering, DEBUG_TYPE,
-                "MC6809 Final Lowering", false, false)
+INITIALIZE_PASS(MC6809FinalLowering, DEBUG_TYPE, "MC6809 Final Lowering", false, false)
 
-MachineFunctionPass *llvm::createMC6809FinalLoweringPass() {
-  return new MC6809FinalLowering();
-}
+MachineFunctionPass *llvm::createMC6809FinalLoweringPass() { return new MC6809FinalLowering(); }

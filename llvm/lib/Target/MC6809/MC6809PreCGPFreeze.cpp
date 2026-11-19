@@ -66,15 +66,11 @@ namespace {
 struct MC6809PreCGPFreeze : public FunctionPass {
   static char ID;
 
-  MC6809PreCGPFreeze() : FunctionPass(ID) {
-    initializeMC6809PreCGPFreezePass(*PassRegistry::getPassRegistry());
-  }
+  MC6809PreCGPFreeze() : FunctionPass(ID) { initializeMC6809PreCGPFreezePass(*PassRegistry::getPassRegistry()); }
 
   bool runOnFunction(Function &F) override;
 
-  StringRef getPassName() const override {
-    return "MC6809 Pre-CodeGenPrepare Freeze Canonicalization";
-  }
+  StringRef getPassName() const override { return "MC6809 Pre-CodeGenPrepare Freeze Canonicalization"; }
 };
 
 } // namespace
@@ -111,16 +107,13 @@ bool MC6809PreCGPFreeze::runOnFunction(Function &F) {
 
     SmallVector<SelectInst *, 4> Selects;
     for (User *U : Cmp->users())
-      if (auto *SI = dyn_cast<SelectInst>(U);
-          SI && SI->getCondition() == Cmp)
+      if (auto *SI = dyn_cast<SelectInst>(U); SI && SI->getCondition() == Cmp)
         Selects.push_back(SI);
 
     for (SelectInst *SI : Selects)
       SI->setCondition(Frozen);
 
-    LLVM_DEBUG(dbgs() << "MC6809PreCGPFreeze: pre-froze " << *Cmp
-                      << " for " << Selects.size() << " select users in @"
-                      << F.getName() << "\n");
+    LLVM_DEBUG(dbgs() << "MC6809PreCGPFreeze: pre-froze " << *Cmp << " for " << Selects.size() << " select users in @" << F.getName() << "\n");
   }
 
   return true;
@@ -133,6 +126,4 @@ INITIALIZE_PASS(MC6809PreCGPFreeze, DEBUG_TYPE,
                 "before CodeGenPrepare",
                 false, false)
 
-FunctionPass *llvm::createMC6809PreCGPFreezePass() {
-  return new MC6809PreCGPFreeze();
-}
+FunctionPass *llvm::createMC6809PreCGPFreezePass() { return new MC6809PreCGPFreeze(); }

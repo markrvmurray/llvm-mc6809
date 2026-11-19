@@ -32,9 +32,7 @@ class MC6809IncDecPhi : public MachineFunctionPass {
 public:
   static char ID;
 
-  MC6809IncDecPhi() : MachineFunctionPass(ID) {
-    llvm::initializeMC6809IncDecPhiPass(*PassRegistry::getPassRegistry());
-  }
+  MC6809IncDecPhi() : MachineFunctionPass(ID) { llvm::initializeMC6809IncDecPhiPass(*PassRegistry::getPassRegistry()); }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequired<MachineDominatorTreeWrapperPass>();
@@ -89,22 +87,16 @@ static MachineInstr *matchFoldableStore(Register Dst, const MachineInstr &ValDef
 
 // Whether \p MI may change memory or do anything else beyond defining its
 // registers.
-static bool hasMemoryEffect(const MachineInstr &MI) {
-  return MI.mayStore() || MI.isCall() || MI.hasUnmodeledSideEffects();
-}
+static bool hasMemoryEffect(const MachineInstr &MI) { return MI.mayStore() || MI.isCall() || MI.hasUnmodeledSideEffects(); }
 
 // Whether \p Store, which writes back the value loaded by \p ValDef and
 // adjusted by \p Add, may move to the end of both predecessors of \p MBB.
 // That takes it above everything ahead of it in the block, so nothing there
 // may read or write memory, or call: only the load and the add it belongs to.
-static bool canHoistStore(const MachineBasicBlock &MBB,
-                          const MachineInstr &Store,
-                          const MachineInstr &ValDef,
-                          const MachineInstr &Add) {
+static bool canHoistStore(const MachineBasicBlock &MBB, const MachineInstr &Store, const MachineInstr &ValDef, const MachineInstr &Add) {
   if (Store.getParent() != &MBB)
     return false;
-  for (const MachineInstr &Prior :
-       make_range(MBB.begin(), MachineBasicBlock::const_iterator(Store))) {
+  for (const MachineInstr &Prior : make_range(MBB.begin(), MachineBasicBlock::const_iterator(Store))) {
     if (&Prior == &ValDef || &Prior == &Add)
       continue;
     if (Prior.mayLoad() || hasMemoryEffect(Prior))
@@ -170,8 +162,7 @@ bool MC6809IncDecPhi::runOnMachineFunction(MachineFunction &MF) {
         // it in this block. A load must not rise above a store or a call that
         // may change what it reads.
         bool SawStore = false;
-        for (const MachineInstr &Prior :
-             make_range(MBB.begin(), MachineBasicBlock::iterator(ValDef)))
+        for (const MachineInstr &Prior : make_range(MBB.begin(), MachineBasicBlock::iterator(ValDef)))
           if (hasMemoryEffect(Prior)) {
             SawStore = true;
             break;
@@ -193,8 +184,7 @@ bool MC6809IncDecPhi::runOnMachineFunction(MachineFunction &MF) {
         // If the value is defined in some other basic block, we don't try to
         // rematerialize it. Instead, just check that it's available in both
         // predecessors.
-        if (!MDT.dominates(ValDefMBB, IncMBB) ||
-            !MDT.dominates(ValDefMBB, DecMBB))
+        if (!MDT.dominates(ValDefMBB, IncMBB) || !MDT.dominates(ValDefMBB, DecMBB))
           continue;
       }
 
@@ -229,12 +219,7 @@ bool MC6809IncDecPhi::runOnMachineFunction(MachineFunction &MF) {
       MIB.setInsertPt(*DecMBB, DecMBB->getFirstTerminator());
       Register Dec = MIB.buildAdd(Ty, DecMBBVal, NegOneReg).getReg(0);
       MIB.setInsertPt(MBB, MBB.begin());
-      MIB.buildInstr(MC6809::G_PHI)
-          .addDef(Dst)
-          .addUse(Inc)
-          .addMBB(IncMBB)
-          .addUse(Dec)
-          .addMBB(DecMBB);
+      MIB.buildInstr(MC6809::G_PHI).addDef(Dst).addUse(Inc).addMBB(IncMBB).addUse(Dec).addMBB(DecMBB);
       --I;
       MI.eraseFromParent();
 
@@ -259,6 +244,4 @@ INITIALIZE_PASS_BEGIN(MC6809IncDecPhi, DEBUG_TYPE, "Optimize MC6809 Increment/De
 INITIALIZE_PASS_DEPENDENCY(MachineDominatorTreeWrapperPass)
 INITIALIZE_PASS_END(MC6809IncDecPhi, DEBUG_TYPE, "Optimize MC6809 Increment/Decrement PHI pattern", false, false)
 
-MachineFunctionPass *llvm::createMC6809IncDecPhiPass() {
-  return new MC6809IncDecPhi();
-}
+MachineFunctionPass *llvm::createMC6809IncDecPhiPass() { return new MC6809IncDecPhi(); }

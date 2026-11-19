@@ -65,9 +65,7 @@ class MC6809SanitiseDebugInfo : public MachineFunctionPass {
 public:
   static char ID;
 
-  MC6809SanitiseDebugInfo() : MachineFunctionPass(ID) {
-    llvm::initializeMC6809SanitiseDebugInfoPass(*PassRegistry::getPassRegistry());
-  }
+  MC6809SanitiseDebugInfo() : MachineFunctionPass(ID) { llvm::initializeMC6809SanitiseDebugInfoPass(*PassRegistry::getPassRegistry()); }
 
   bool runOnMachineFunction(MachineFunction &MF) override;
 };
@@ -122,12 +120,8 @@ bool MC6809SanitiseDebugInfo::runOnMachineFunction(MachineFunction &MF) {
   return Changed;
 }
 
-
 char MC6809SanitiseDebugInfo::ID = 0;
 
-INITIALIZE_PASS(MC6809SanitiseDebugInfo, DEBUG_TYPE,
-                "MC6809 Debug-Info Sanitiser", false, false)
+INITIALIZE_PASS(MC6809SanitiseDebugInfo, DEBUG_TYPE, "MC6809 Debug-Info Sanitiser", false, false)
 
-MachineFunctionPass *llvm::createMC6809SanitiseDebugInfoPass() {
-  return new MC6809SanitiseDebugInfo;
-}
+MachineFunctionPass *llvm::createMC6809SanitiseDebugInfoPass() { return new MC6809SanitiseDebugInfo; }

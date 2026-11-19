@@ -69,8 +69,6 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   auto NotMaxWithOne32 = {S1, S8, S16}, NotMaxWithOne16 = {S1, S8};
   auto NotMaxWithOne = IsHD6309 ? NotMaxWithOne32 : NotMaxWithOne16;
 
-
-
   const auto IsScalarPointer = [](unsigned ScalarTypeIdx, unsigned PointerTypeIdx, auto Predicate) {
     return [=](const LegalityQuery &Query) { return Query.Types[ScalarTypeIdx].isScalar() && Query.Types[PointerTypeIdx].isPointer() && Predicate(Query.Types[ScalarTypeIdx].getSizeInBits(), Query.Types[PointerTypeIdx].getSizeInBits()); };
   };
@@ -85,26 +83,21 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // "unable to legalize instruction: %X:_(s32) = G_IMPLICIT_DEF".
   // s64 is treated the same way — both sit above the per-target
   // `LegalTypesWithOne` ceiling but are required for picolibc compilation.
-  getActionDefinitionsBuilder(G_IMPLICIT_DEF)
-      .legalFor(LegalTypesWithOne)
-      .legalFor({S32, S64});
+  getActionDefinitionsBuilder(G_IMPLICIT_DEF).legalFor(LegalTypesWithOne).legalFor({S32, S64});
 
-  getActionDefinitionsBuilder(G_MERGE_VALUES)
-      .legalForCartesianProduct({S16, S32, S64}, {S8, S16, S32});
+  getActionDefinitionsBuilder(G_MERGE_VALUES).legalForCartesianProduct({S16, S32, S64}, {S8, S16, S32});
   //.clampScalar(0, *NotMin.begin(), *std::prev(NotMin.end()))
   //.clampScalar(1, *NotMax.begin(), *std::prev(NotMax.end()))
   //.lower();
   //.unsupported();
 
-  getActionDefinitionsBuilder(G_UNMERGE_VALUES)
-      .legalForCartesianProduct({S8, S16, S32}, {S16, S32, S64});
+  getActionDefinitionsBuilder(G_UNMERGE_VALUES).legalForCartesianProduct({S8, S16, S32}, {S16, S32, S64});
   //.clampScalar(0, *NotMax.begin(), *std::prev(NotMax.end()))
   //.clampScalar(1, *NotMin.begin(), *std::prev(NotMin.end()))
   //.lower();
   //.unsupported();
 
-  getActionDefinitionsBuilder({G_EXTRACT, G_INSERT})
-      .customForCartesianProduct(LegalTypes, LegalTypes).unsupported();
+  getActionDefinitionsBuilder({G_EXTRACT, G_INSERT}).customForCartesianProduct(LegalTypes, LegalTypes).unsupported();
 
   // G_ZEXT/G_ANYEXT: (s16/s32, s1) has no selection pattern — custom
   // decompose to s1→s8 (AND #1) then merge with zero bytes.
@@ -113,19 +106,10 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // and s16→s32 but not the direct s8→s32 jump. lowerFor must come
   // BEFORE legalForCartesianProduct so the pair-specific rule wins
   // over the generic legal cartesian product.
-  auto &ZExtBuilder = getActionDefinitionsBuilder({G_ZEXT, G_ANYEXT})
-      .customIf([=](const LegalityQuery &Query) {
-        return Query.Types[1] == S1 &&
-               (Query.Types[0] == S16 || Query.Types[0] == S32 ||
-                Query.Types[0] == S64);
-      });
+  auto &ZExtBuilder = getActionDefinitionsBuilder({G_ZEXT, G_ANYEXT}).customIf([=](const LegalityQuery &Query) { return Query.Types[1] == S1 && (Query.Types[0] == S16 || Query.Types[0] == S32 || Query.Types[0] == S64); });
   if (IsHD6309)
     ZExtBuilder.lowerFor({{S32, S8}});
-  ZExtBuilder
-      .legalForCartesianProduct(LegalScalars, NotMaxWithOne)
-      .lowerFor({{S64, S32}})
-      .clampScalar(0, *LegalScalars.begin(), *std::prev(LegalScalars.end()))
-      .clampScalar(1, *NotMaxWithOne.begin(), *std::prev(NotMaxWithOne.end()));
+  ZExtBuilder.legalForCartesianProduct(LegalScalars, NotMaxWithOne).lowerFor({{S64, S32}}).clampScalar(0, *LegalScalars.begin(), *std::prev(LegalScalars.end())).clampScalar(1, *NotMaxWithOne.begin(), *std::prev(NotMaxWithOne.end()));
 
   // G_SEXT: native form is SEX (s8 B → s16 D); SEXW exists only on HD6309.
   // The instruction selector has patterns for three shapes:
@@ -145,16 +129,13 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // (s32, s16) on HD6309 is legal (SEXW replaces the 4-instr diamond);
   // on plain 6809 it still uses upstream lowerEXT.
   {
-    auto &B = getActionDefinitionsBuilder(G_SEXT)
-        .legalFor({{S8, S1}, {S16, S8}});
+    auto &B = getActionDefinitionsBuilder(G_SEXT).legalFor({{S8, S1}, {S16, S8}});
     if (IsHD6309)
-      B.legalFor({{S32, S16}});  // Bug #161 Phase 4: SEXW single instruction
-    B.lowerFor({{S32, S16}, {S32, S8}, {S64, S16}, {S64, S8}})
-        .customFor({{S16, S1}, {S32, S1}, {S64, S1}, {S64, S32}});
+      B.legalFor({{S32, S16}}); // Bug #161 Phase 4: SEXW single instruction
+    B.lowerFor({{S32, S16}, {S32, S8}, {S64, S16}, {S64, S8}}).customFor({{S16, S1}, {S32, S1}, {S64, S1}, {S64, S32}});
   }
 
-  getActionDefinitionsBuilder({G_SEXTLOAD, G_ZEXTLOAD})
-      .custom();
+  getActionDefinitionsBuilder({G_SEXTLOAD, G_ZEXTLOAD}).custom();
 
   // G_TRUNC: the selector has patterns for `(s1, s8)` (AND #1), and
   // for `(s8, s16)` (extract low byte). For `(s1, s16)` there is no
@@ -174,21 +155,15 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // this once it reaches selection — we just have to mark it legal.
   // Legalizer-side: add `(s16, s32)` to the legal set; selector picks
   // the sub-register extract for free.
-  auto &TruncBuilder = getActionDefinitionsBuilder(G_TRUNC)
-      .legalForCartesianProduct({S8}, LegalScalars)
-      .legalFor({{S1, S8}});
+  auto &TruncBuilder = getActionDefinitionsBuilder(G_TRUNC).legalForCartesianProduct({S8}, LegalScalars).legalFor({{S1, S8}});
   if (IsHD6309)
     TruncBuilder.legalFor({{S16, S32}});
   TruncBuilder.customFor({{S1, S16}});
   if (IsHD6309)
-    TruncBuilder.customFor({{S1, S32}});  // Bug #243 Class B
-  TruncBuilder
-      .clampScalar(1, *LegalScalars.begin(), *std::prev(LegalScalars.end()))
-      .clampScalar(0, *NotMaxWithOne.begin(), *std::prev(NotMaxWithOne.end()));
+    TruncBuilder.customFor({{S1, S32}}); // Bug #243 Class B
+  TruncBuilder.clampScalar(1, *LegalScalars.begin(), *std::prev(LegalScalars.end())).clampScalar(0, *NotMaxWithOne.begin(), *std::prev(NotMaxWithOne.end()));
 
-  getActionDefinitionsBuilder({G_FREEZE, G_CONSTANT})
-      .legalFor(LegalTypesWithOne)
-      .clampScalar(0, S8, S16);  // Bug #243 Class B: same rationale as G_PHI
+  getActionDefinitionsBuilder({G_FREEZE, G_CONSTANT}).legalFor(LegalTypesWithOne).clampScalar(0, S8, S16); // Bug #243 Class B: same rationale as G_PHI
 
   // Bug #239 / Bug #317 (2026-05-21): PHI legalisation.
   //
@@ -211,16 +186,11 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // On plain MC6809 the s16-narrowing is kept because there's no
   // ACC32 register class.
   if (IsHD6309)
-    getActionDefinitionsBuilder(G_PHI)
-        .legalFor({P, S1, S8, S16, S32})
-        .clampScalar(0, S8, S32);
+    getActionDefinitionsBuilder(G_PHI).legalFor({P, S1, S8, S16, S32}).clampScalar(0, S8, S32);
   else
-    getActionDefinitionsBuilder(G_PHI)
-        .legalFor({P, S1, S8, S16})
-        .clampScalar(0, S8, S16);
+    getActionDefinitionsBuilder(G_PHI).legalFor({P, S1, S8, S16}).clampScalar(0, S8, S16);
 
-  getActionDefinitionsBuilder(G_FCONSTANT)
-      .customFor({S32, S64});
+  getActionDefinitionsBuilder(G_FCONSTANT).customFor({S32, S64});
 
   getActionDefinitionsBuilder(G_PTRTOINT)
       .legalIf(IsScalarPointer(0, 1, std::equal_to<>{}))
@@ -236,9 +206,7 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // the object's full address (the direct-page base plus the 8-bit in-page
   // offset), which only the selector can express; p0 -> p1 keeps the in-page
   // offset, i.e. the address's low byte.
-  getActionDefinitionsBuilder(G_ADDRSPACE_CAST)
-      .legalFor({{P, P1}})
-      .customFor({{P1, P}});
+  getActionDefinitionsBuilder(G_ADDRSPACE_CAST).legalFor({{P, P1}}).customFor({{P1, P}});
 
   getActionDefinitionsBuilder(G_PTR_ADD)
       .legalFor({{P, S16}, {P, S8}})
@@ -282,15 +250,9 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // exists), and i16 G_ADD/G_SUB still narrows on both subtargets so
   // the cmp_imm_byte_load_phi.ll atoi sentinel codegen is unchanged.
   if (IsHD6309)
-    getActionDefinitionsBuilder({G_ADD, G_SUB})
-        .legalFor({S8, S32})
-        .narrowScalarIf(LegalityPredicates::typeIs(0, S16),
-                        LegalizeMutations::changeTo(0, S8))
-        .clampScalar(0, S8, S32);
+    getActionDefinitionsBuilder({G_ADD, G_SUB}).legalFor({S8, S32}).narrowScalarIf(LegalityPredicates::typeIs(0, S16), LegalizeMutations::changeTo(0, S8)).clampScalar(0, S8, S32);
   else
-    getActionDefinitionsBuilder({G_ADD, G_SUB})
-        .legalFor({S8})
-        .clampScalar(0, S8, S8);
+    getActionDefinitionsBuilder({G_ADD, G_SUB}).legalFor({S8}).clampScalar(0, S8, S8);
 
   // Bug #311 Phase 2: HD6309 has native ADDW+ADCD for i32 carry chains;
   // selector + expander wire those up (see selectAddO/AddE/SubO/SubE and
@@ -304,13 +266,10 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   if (IsHD6309)
     getActionDefinitionsBuilder({G_UADDO, G_UADDE, G_USUBO, G_USUBE, G_SADDO, G_SADDE, G_SSUBO, G_SSUBE})
         .legalForCartesianProduct({S8, S32}, {S1, S16})
-        .narrowScalarIf(LegalityPredicates::typeIs(0, S16),
-                        LegalizeMutations::changeTo(0, S8))
+        .narrowScalarIf(LegalityPredicates::typeIs(0, S16), LegalizeMutations::changeTo(0, S8))
         .clampScalar(0, S1, S32);
   else
-    getActionDefinitionsBuilder({G_UADDO, G_UADDE, G_USUBO, G_USUBE, G_SADDO, G_SADDE, G_SSUBO, G_SSUBE})
-        .legalForCartesianProduct({S8}, {S1, S16})
-        .clampScalar(0, S1, S8);
+    getActionDefinitionsBuilder({G_UADDO, G_UADDE, G_USUBO, G_USUBE, G_SADDO, G_SADDE, G_SSUBO, G_SSUBE}).legalForCartesianProduct({S8}, {S1, S16}).clampScalar(0, S1, S8);
 
   // MUL is 8x8→16 on standard 6809. 16x16 only on HD6309 (MULD).
   // On 6809, i8 mul is native (MUL instruction: A×B→D). Wider multiplies
@@ -356,17 +315,10 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // came from, which does have one. s64 would need an s128 multiply, which
   // this target does not have. MUL is unsigned, so only G_UMULH is native at
   // s8.
-  getActionDefinitionsBuilder(G_UMULH)
-      .legalFor({S8})
-      .lowerFor({S16, S32})
-      .minScalar(0, S8);
-  getActionDefinitionsBuilder(G_SMULH)
-      .lowerFor({S8, S16, S32})
-      .minScalar(0, S8);
+  getActionDefinitionsBuilder(G_UMULH).legalFor({S8}).lowerFor({S16, S32}).minScalar(0, S8);
+  getActionDefinitionsBuilder(G_SMULH).lowerFor({S8, S16, S32}).minScalar(0, S8);
 
-  getActionDefinitionsBuilder({G_SDIV, G_UDIV, G_SREM, G_UREM})
-      .libcallFor(LegalLibcallScalars)
-      .clampScalar(0, S16, S32);
+  getActionDefinitionsBuilder({G_SDIV, G_UDIV, G_SREM, G_UREM}).libcallFor(LegalLibcallScalars).clampScalar(0, S16, S32);
 
   // Bitwise AND/OR/XOR: s8 and s16 legal on all targets.
   // On 6809, i16 pseudos expand post-RA into ANDA+ANDB byte pairs.
@@ -380,10 +332,7 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // s1 G_AND/G_OR/G_XOR must have a clean lowering path. The custom
   // handler widens to s8 via G_ZEXT, performs the bitwise op, and
   // truncates back to s1.
-  getActionDefinitionsBuilder({G_AND, G_OR, G_XOR})
-      .legalFor({S8, S16})
-      .customFor({S1, S32})
-      .clampScalar(0, S8, S16);
+  getActionDefinitionsBuilder({G_AND, G_OR, G_XOR}).legalFor({S8, S16}).customFor({S1, S32}).clampScalar(0, S8, S16);
 
   // Shifts/rotates: shift-by-1 is a native instruction (ASL/LSR/ASR).
   // Constant shifts (s8 amount) are handled in the instruction selector
@@ -422,9 +371,7 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   getActionDefinitionsBuilder({G_ROTR, G_ROTL})
       .legalForCartesianProduct(LegalScalars, {S1})
       .customForCartesianProduct(LegalScalars, {S8, S16, S32})
-      .lowerIf([=](const LegalityQuery &Q) {
-        return Q.Types[0].getSizeInBits() >= 32;
-      })
+      .lowerIf([=](const LegalityQuery &Q) { return Q.Types[0].getSizeInBits() >= 32; })
       .clampScalar(1, S1, S8)
       .clampScalar(0, S8, S32);
 
@@ -433,18 +380,15 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // decompose to compare + negate + select (branch-based).
   // G_ABS: custom legalization decomposes to compare + negate + select,
   // avoiding the default ASHR+XOR pattern that creates massive shift chains.
-  getActionDefinitionsBuilder(G_ABS)
-      .customFor({S8, S16, S32, S64});
+  getActionDefinitionsBuilder(G_ABS).customFor({S8, S16, S32, S64});
 
   // G_FSHL/G_FSHR: decompose to two shifts + OR via legalizeFunnelShift.
   // The custom handler produces G_SHL + G_LSHR + G_OR, all of which
   // bottom out in existing legal/libcall rules. Used by compiler-rt's
   // udivdi3/umoddi3/udivmoddi4 long-division algorithms.
-  getActionDefinitionsBuilder({G_FSHL, G_FSHR})
-      .custom();
+  getActionDefinitionsBuilder({G_FSHL, G_FSHR}).custom();
 
-  getActionDefinitionsBuilder({G_UMULFIX, G_SMULFIX, G_SMULFIXSAT, G_UMULFIXSAT, G_UDIVFIX, G_SDIVFIX, G_SDIVFIXSAT, G_UDIVFIXSAT, G_FCANONICALIZE})
-      .libcall();
+  getActionDefinitionsBuilder({G_UMULFIX, G_SMULFIX, G_SMULFIXSAT, G_UMULFIXSAT, G_UDIVFIX, G_SDIVFIX, G_SDIVFIXSAT, G_UDIVFIXSAT, G_FCANONICALIZE}).libcall();
 
   // G_UMULO uses our custom legalizeMultiplyWithOverflow handler, which
   // implements unsigned-multiply-with-overflow as
@@ -466,29 +410,17 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // vregs, which MC6809RegisterBankInfo can't classify (it only knows up to
   // 32 bits). The s64 path needs the broader i64 plumbing — see the
   // long-long roadmap memory.
-  getActionDefinitionsBuilder(G_UMULO)
-      .customForCartesianProduct({S8, S16, S32, S64}, {S1})
-      .clampScalar(0, S8, S64);
+  getActionDefinitionsBuilder(G_UMULO).customForCartesianProduct({S8, S16, S32, S64}, {S1}).clampScalar(0, S8, S64);
 
-  getActionDefinitionsBuilder({G_MEMCPY, G_MEMCPY_INLINE, G_MEMMOVE, G_MEMSET})
-      .custom();
+  getActionDefinitionsBuilder({G_MEMCPY, G_MEMCPY_INLINE, G_MEMMOVE, G_MEMSET}).custom();
 
   // Bug #241: extended set covering the full <math.h> trig / hyperbolic /
   // inverse-trig / exp / mod family. Picolibc provides every libcall here
   // (sinhf/sinh, atanf/atan, etc.). Without these the legalizer aborts at
   // -Og / -Ofast where less inlining preserves the bare opcode.
   getActionDefinitionsBuilder(
-      {G_INTRINSIC_TRUNC, G_INTRINSIC_ROUND, G_INTRINSIC_ROUNDEVEN,
-       G_FADD, G_FSUB, G_FMUL, G_FMA, G_FMAD, G_FDIV, G_FREM, G_FMODF,
-       G_FPOW,
-       G_FEXP, G_FEXP2,
-       G_FLOG, G_FLOG2, G_FLOG10,
-       G_FMINNUM, G_FMAXNUM, G_FMINIMUMNUM, G_FMAXIMUMNUM,
-       G_FCEIL, G_FFLOOR, G_FRINT, G_FNEARBYINT,
-       G_FSQRT,
-       G_FCOS, G_FSIN, G_FTAN, G_FSINCOS,
-       G_FACOS, G_FASIN, G_FATAN, G_FATAN2,
-       G_FCOSH, G_FSINH, G_FTANH})
+      {G_INTRINSIC_TRUNC, G_INTRINSIC_ROUND, G_INTRINSIC_ROUNDEVEN, G_FADD,  G_FSUB, G_FMUL, G_FMA,  G_FMAD,    G_FDIV,  G_FREM,  G_FMODF, G_FPOW,   G_FEXP,  G_FEXP2, G_FLOG, G_FLOG2, G_FLOG10, G_FMINNUM, G_FMAXNUM, G_FMINIMUMNUM, G_FMAXIMUMNUM, G_FCEIL,
+       G_FFLOOR,          G_FRINT,           G_FNEARBYINT,          G_FSQRT, G_FCOS, G_FSIN, G_FTAN, G_FSINCOS, G_FACOS, G_FASIN, G_FATAN, G_FATAN2, G_FCOSH, G_FSINH, G_FTANH})
       .libcallFor({S32, S64});
 
   // G_FABS / G_FNEG go via the MC6839 ROM dispatchers (Bug #254 follow-up):
@@ -500,41 +432,30 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // C23's fminimum and fmaximum (NaN wins, -0 < +0) as calls of picolibc's
   // functions: the optimizer can form llvm.minimum/maximum, and the generic
   // libcall path has no entry for them.
-  getActionDefinitionsBuilder({G_FMINIMUM, G_FMAXIMUM})
-      .customFor({S32, S64});
+  getActionDefinitionsBuilder({G_FMINIMUM, G_FMAXIMUM}).customFor({S32, S64});
 
-  getActionDefinitionsBuilder(G_FABS)
-      .libcallFor({S32, S64});
-  getActionDefinitionsBuilder(G_FNEG)
-      .libcallFor({S32, S64});
+  getActionDefinitionsBuilder(G_FABS).libcallFor({S32, S64});
+  getActionDefinitionsBuilder(G_FNEG).libcallFor({S32, S64});
   // G_FCOPYSIGN remains on the standard bit-OR lowering — MC6839 has no
   // FCOPYSIGN op exposed.
 
-  getActionDefinitionsBuilder({G_INTRINSIC_LRINT, G_LROUND})
-      .libcallForCartesianProduct({S32}, {S32, S64});
+  getActionDefinitionsBuilder({G_INTRINSIC_LRINT, G_LROUND}).libcallForCartesianProduct({S32}, {S32, S64});
 
-  getActionDefinitionsBuilder({G_LLROUND, G_INTRINSIC_LLRINT})
-      .libcallForCartesianProduct({S64}, {S32, S64});
+  getActionDefinitionsBuilder({G_LLROUND, G_INTRINSIC_LLRINT}).libcallForCartesianProduct({S64}, {S32, S64});
 
-  getActionDefinitionsBuilder(G_FPEXT)
-      .libcallFor({{S64, S32}});
+  getActionDefinitionsBuilder(G_FPEXT).libcallFor({{S64, S32}});
 
-  getActionDefinitionsBuilder(G_FPTRUNC)
-      .libcallFor({{S32, S64}});
+  getActionDefinitionsBuilder(G_FPTRUNC).libcallFor({{S32, S64}});
 
-  getActionDefinitionsBuilder({G_FPTOSI, G_FPTOUI})
-      .libcallForCartesianProduct({S32, S64}, {S32, S64}).clampScalar(0, S32, S64);
+  getActionDefinitionsBuilder({G_FPTOSI, G_FPTOUI}).libcallForCartesianProduct({S32, S64}, {S32, S64}).clampScalar(0, S32, S64);
 
-  getActionDefinitionsBuilder({G_SITOFP, G_UITOFP})
-      .libcallForCartesianProduct({S32, S64}, {S32, S64}).clampScalar(1, S32, S64);
+  getActionDefinitionsBuilder({G_SITOFP, G_UITOFP}).libcallForCartesianProduct({S32, S64}, {S32, S64}).clampScalar(1, S32, S64);
 
-  getActionDefinitionsBuilder(G_FCOPYSIGN)
-      .lowerFor({{S32, S32}, {S64, S64}});
+  getActionDefinitionsBuilder(G_FCOPYSIGN).lowerFor({{S32, S32}, {S64, S64}});
 
   // G_IS_FPCLASS: float classification (isnan, isinf, isfinite, etc.).
   // No MC6839 equivalent; lower to comparisons via LegalizerHelper.
-  getActionDefinitionsBuilder(G_IS_FPCLASS)
-      .lowerFor({{S1, S32}, {S1, S64}});
+  getActionDefinitionsBuilder(G_IS_FPCLASS).lowerFor({{S1, S32}, {S1, S64}});
 
   // On 6809, s32 load/store has no instruction — narrow to s16 pairs.
   // Bug #161 round 10 (2026-04) extended the narrowing to HD6309 too
@@ -607,8 +528,7 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // G_GLOBAL_VALUE may produce a p1 pointer (addrspace(1) global);
   // legalize that too so the address can be materialised before the
   // load/store consumes it.
-  getActionDefinitionsBuilder({G_FRAME_INDEX, G_GLOBAL_VALUE, G_BRINDIRECT, G_JUMP_TABLE})
-      .legalFor({P, P1});
+  getActionDefinitionsBuilder({G_FRAME_INDEX, G_GLOBAL_VALUE, G_BRINDIRECT, G_JUMP_TABLE}).legalFor({P, P1});
 
   getActionDefinitionsBuilder(G_VASTART).customFor({P});
   // G_VAARG: dst type can be anything the va_list might hold. The custom
@@ -620,8 +540,7 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // work is needed here.
   //
   // Closes bug #85 once paired with the matching G_LOAD narrow-scalar path.
-  getActionDefinitionsBuilder(G_VAARG)
-      .customForCartesianProduct({P, S8, S16, S32, S64}, {P});
+  getActionDefinitionsBuilder(G_VAARG).customForCartesianProduct({P, S8, S16, S32, S64}, {P});
 
   // G_ICMP: s8/s16 native; pointer via custom; s32/s64 via libcall to
   // __{u,}cmp{s,d}i2. Inline i32/i64 compare decomposes into a multi-
@@ -630,16 +549,12 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // corrupting the branch at runtime (bug #158). Routing to a libcall
   // replaces that whole sequence with one LBSR, which is a hard barrier
   // against regalloc inserting spills in the compare→branch gap.
-  getActionDefinitionsBuilder(G_ICMP)
-      .legalForCartesianProduct({S1}, {S8, S16})
-      .customForCartesianProduct({S1}, {P, S32, S64})
-      .clampScalar(1, S8, S16);
+  getActionDefinitionsBuilder(G_ICMP).legalForCartesianProduct({S1}, {S8, S16}).customForCartesianProduct({S1}, {P, S32, S64}).clampScalar(1, S8, S16);
 
   // G_FCMP: no native FP compare — lower to GNU comparison libcalls
   // (__cmpsf2/__cmpdf2 and predicate variants). LegalizerHelper::libcall()
   // handles the return-int-then-compare-to-zero pattern.
-  getActionDefinitionsBuilder(G_FCMP)
-      .libcallForCartesianProduct({S1}, {S32, S64});
+  getActionDefinitionsBuilder(G_FCMP).libcallForCartesianProduct({S1}, {S32, S64});
 
   // An unconditional branch carries no type, so it needs no rule beyond
   // being legal. It used to fall through to the legacy legalizer's default;
@@ -653,28 +568,20 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // of G_UBSANTRAP is dropped.
   getActionDefinitionsBuilder({G_TRAP, G_DEBUGTRAP, G_UBSANTRAP}).custom();
 
-  getActionDefinitionsBuilder(G_BRCOND)
-      .legalFor({S1});
+  getActionDefinitionsBuilder(G_BRCOND).legalFor({S1});
 
-  getActionDefinitionsBuilder(G_BRJT)
-      .legalForCartesianProduct({P}, LegalScalars)
-      .clampScalar(1, S8, SMax);
+  getActionDefinitionsBuilder(G_BRJT).legalForCartesianProduct({P}, LegalScalars).clampScalar(1, S8, SMax);
 
   // G_SELECT s32/s64: decompose to pairs of narrower selects to avoid
   // multiple ACC16 values competing for D in the PHI path.
-  getActionDefinitionsBuilder(G_SELECT)
-      .customIf([=](const LegalityQuery &Query) {
-        return Query.Types[0] == S32 || Query.Types[0] == S64;
-      })
-      .legalForCartesianProduct(LegalTypesWithOne, {S1}).clampScalar(0, S8, SMax);
+  getActionDefinitionsBuilder(G_SELECT).customIf([=](const LegalityQuery &Query) { return Query.Types[0] == S32 || Query.Types[0] == S64; }).legalForCartesianProduct(LegalTypesWithOne, {S1}).clampScalar(0, S8, SMax);
 
   // Sign extension in a register of a whole number of bytes keeps the low
   // bytes and fills the rest with the sign of the top one (custom); any
   // other width is a shift left and an arithmetic shift right.
   getActionDefinitionsBuilder(G_SEXT_INREG).custom();
 
-  getActionDefinitionsBuilder({G_SDIVREM, G_UDIVREM, G_DYN_STACKALLOC, G_SMULO, G_SMIN, G_SMAX, G_UMIN, G_UMAX, G_UADDSAT, G_SADDSAT, G_USUBSAT, G_SSUBSAT, G_USHLSAT, G_SSHLSAT, G_FPOWI})
-      .lower();
+  getActionDefinitionsBuilder({G_SDIVREM, G_UDIVREM, G_DYN_STACKALLOC, G_SMULO, G_SMIN, G_SMAX, G_UMIN, G_UMAX, G_UADDSAT, G_SADDSAT, G_USUBSAT, G_SSUBSAT, G_USHLSAT, G_SSHLSAT, G_FPOWI}).lower();
 
   // CTTZ / CTLZ / CTPOP all go to hand-written runtime libcalls
   // (compiler-rt/lib/builtins/mc6809/{ctz,clz,popcount}{qi,hi}2.S for the
@@ -689,34 +596,18 @@ MC6809LegalizerInfo::MC6809LegalizerInfo(const MC6809Subtarget &STI) : Subtarget
   // libcall machinery can't handle.
   // Both type indices are widened, since a source narrower than 16 bits has
   // no libcall of its own.
-  getActionDefinitionsBuilder({G_CTTZ, G_CTTZ_ZERO_POISON})
-      .libcallFor({{S16, S16}, {S32, S32}, {S64, S64}})
-      .widenScalarToNextPow2(0, /*Min=*/16)
-      .clampScalar(0, S16, S64)
-      .widenScalarToNextPow2(1, /*Min=*/16)
-      .clampScalar(1, S16, S64);
+  getActionDefinitionsBuilder({G_CTTZ, G_CTTZ_ZERO_POISON}).libcallFor({{S16, S16}, {S32, S32}, {S64, S64}}).widenScalarToNextPow2(0, /*Min=*/16).clampScalar(0, S16, S64).widenScalarToNextPow2(1, /*Min=*/16).clampScalar(1, S16, S64);
 
-  getActionDefinitionsBuilder({G_CTLZ, G_CTLZ_ZERO_POISON})
-      .libcallFor({{S16, S16}, {S32, S32}, {S64, S64}})
-      .widenScalarToNextPow2(0, /*Min=*/16)
-      .clampScalar(0, S16, S64)
-      .widenScalarToNextPow2(1, /*Min=*/16)
-      .clampScalar(1, S16, S64);
+  getActionDefinitionsBuilder({G_CTLZ, G_CTLZ_ZERO_POISON}).libcallFor({{S16, S16}, {S32, S32}, {S64, S64}}).widenScalarToNextPow2(0, /*Min=*/16).clampScalar(0, S16, S64).widenScalarToNextPow2(1, /*Min=*/16).clampScalar(1, S16, S64);
 
-  getActionDefinitionsBuilder(G_CTPOP)
-      .libcallFor({{S16, S16}, {S32, S32}, {S64, S64}})
-      .widenScalarToNextPow2(0, /*Min=*/16)
-      .clampScalar(0, S16, S64)
-      .widenScalarToNextPow2(1, /*Min=*/16)
-      .clampScalar(1, S16, S64);
+  getActionDefinitionsBuilder(G_CTPOP).libcallFor({{S16, S16}, {S32, S32}, {S64, S64}}).widenScalarToNextPow2(0, /*Min=*/16).clampScalar(0, S16, S64).widenScalarToNextPow2(1, /*Min=*/16).clampScalar(1, S16, S64);
 
   // Swapping the bytes of a 16-bit value has no instruction (EXG A,B is one,
   // but the value is not always in D and the halves of an imaginary register
   // are not addressable as a pair), and marking it legal left nothing to
   // select it: expand it as the shifts and the OR it is.  Wider values are
   // the compiler-rt byte-swap builtins.
-  getActionDefinitionsBuilder(G_BSWAP).lowerFor({S16}).libcallFor({S32, S64})
-      .clampScalar(0, S16, S64);
+  getActionDefinitionsBuilder(G_BSWAP).lowerFor({S16}).libcallFor({S32, S64}).clampScalar(0, S16, S64);
 
   // Reversing the bits of a value has no instruction and no libcall (LLVM
   // has no RTLIB entry for it), so it is always expanded in place -- the
@@ -740,13 +631,8 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
     bool Is64 = MRI.getType(Dst).getSizeInBits() == 64;
     auto &Ctx = MI.getMF()->getFunction().getContext();
     Type *Ty = Is64 ? Type::getDoubleTy(Ctx) : Type::getFloatTy(Ctx);
-    const char *Name =
-        MI.getOpcode() == G_FMINIMUM ? (Is64 ? "fminimum" : "fminimumf")
-                                     : (Is64 ? "fmaximum" : "fmaximumf");
-    if (!Helper.createLibcall(Name, {Dst, Ty, 0},
-                              {{MI.getOperand(1).getReg(), Ty, 0},
-                               {MI.getOperand(2).getReg(), Ty, 1}},
-                              CallingConv::C, LocObserver))
+    const char *Name = MI.getOpcode() == G_FMINIMUM ? (Is64 ? "fminimum" : "fminimumf") : (Is64 ? "fmaximum" : "fmaximumf");
+    if (!Helper.createLibcall(Name, {Dst, Ty, 0}, {{MI.getOperand(1).getReg(), Ty, 0}, {MI.getOperand(2).getReg(), Ty, 1}}, CallingConv::C, LocObserver))
       return false;
     MI.eraseFromParent();
     return true;
@@ -755,8 +641,7 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
   case G_DEBUGTRAP:
   case G_UBSANTRAP: {
     auto &Ctx = MI.getMF()->getFunction().getContext();
-    if (!Helper.createLibcall("abort", {{}, Type::getVoidTy(Ctx), 0}, {},
-                              CallingConv::C, LocObserver))
+    if (!Helper.createLibcall("abort", {{}, Type::getVoidTy(Ctx), 0}, {}, CallingConv::C, LocObserver))
       return false;
     MI.eraseFromParent();
     return true;
@@ -782,8 +667,7 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
     Register Src = MI.getOperand(1).getReg();
     LLT Ty = MRI.getType(Dst);
     int64_t Bits = MI.getOperand(2).getImm();
-    if (Bits % 8 != 0 || Ty.getSizeInBits() % 8 != 0 ||
-        Bits >= static_cast<int64_t>(Ty.getSizeInBits()))
+    if (Bits % 8 != 0 || Ty.getSizeInBits() % 8 != 0 || Bits >= static_cast<int64_t>(Ty.getSizeInBits()))
       return Helper.lower(MI, 0, LLT()) != LegalizerHelper::UnableToLegalize;
     MachineIRBuilder &B = Helper.MIRBuilder;
     // The 6309 sign-extends a byte into D (SEX) and D into Q (SEXW), both
@@ -791,11 +675,9 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
     // value apart in bytes. The low part is taken with an unmerge, not a
     // G_TRUNC: the artifact combiner folds sext(trunc x) straight back into
     // the G_SEXT_INREG being legalized here.
-    if (MI.getMF()->getSubtarget<MC6809Subtarget>().has6309() &&
-        (Ty == LLT::scalar(16) || Ty == LLT::scalar(32))) {
+    if (MI.getMF()->getSubtarget<MC6809Subtarget>().has6309() && (Ty == LLT::scalar(16) || Ty == LLT::scalar(32))) {
       LLT S16 = LLT::scalar(16);
-      Register Narrow =
-          B.buildUnmerge(LLT::scalar(Bits), Src).getReg(0); // low part
+      Register Narrow = B.buildUnmerge(LLT::scalar(Bits), Src).getReg(0); // low part
       if (Bits == 8 && Ty == LLT::scalar(32))
         Narrow = B.buildSExt(S16, Narrow).getReg(0);
       B.buildSExt(Dst, Narrow);
@@ -845,12 +727,8 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
             break;
           unsigned Op = D->getOpcode();
           if (Op == TargetOpcode::G_CONSTANT)
-            return B
-                .buildConstant(
-                    S16, D->getOperand(1).getCImm()->getZExtValue() & 0xffff)
-                .getReg(0);
-          if (Op == TargetOpcode::G_PTRTOINT || Op == TargetOpcode::G_INTTOPTR ||
-              Op == TargetOpcode::COPY) {
+            return B.buildConstant(S16, D->getOperand(1).getCImm()->getZExtValue() & 0xffff).getReg(0);
+          if (Op == TargetOpcode::G_PTRTOINT || Op == TargetOpcode::G_INTTOPTR || Op == TargetOpcode::COPY) {
             Register N = D->getOperand(1).getReg();
             if (!N.isVirtual())
               break;
@@ -895,11 +773,21 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
         bool Invert = false;
         bool IsSignTest = false;
         if (RhsConst->Value == 0) {
-          if (Pred == CmpInst::ICMP_SLT) { IsSignTest = true; Invert = false; }
-          else if (Pred == CmpInst::ICMP_SGE) { IsSignTest = true; Invert = true; }
+          if (Pred == CmpInst::ICMP_SLT) {
+            IsSignTest = true;
+            Invert = false;
+          } else if (Pred == CmpInst::ICMP_SGE) {
+            IsSignTest = true;
+            Invert = true;
+          }
         } else if (RhsConst->Value.isAllOnes()) {
-          if (Pred == CmpInst::ICMP_SLE) { IsSignTest = true; Invert = false; }
-          else if (Pred == CmpInst::ICMP_SGT) { IsSignTest = true; Invert = true; }
+          if (Pred == CmpInst::ICMP_SLE) {
+            IsSignTest = true;
+            Invert = false;
+          } else if (Pred == CmpInst::ICMP_SGT) {
+            IsSignTest = true;
+            Invert = true;
+          }
         }
         if (IsSignTest) {
           // SignTest_i32 outputs an ACC8 with the byte's LSB carrying
@@ -951,9 +839,7 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
             // buildInstr's {dst}/{src} variadic form doesn't accept
             // immediates, so use the explicit operand-by-operand form.
             int64_t KSigned = RhsConst->Value.getSExtValue();
-            B.buildInstr(MC6809::EqConst_i32, {IsEqByte}, {})
-                .addUse(Lhs)
-                .addImm(KSigned);
+            B.buildInstr(MC6809::EqConst_i32, {IsEqByte}, {}).addUse(Lhs).addImm(KSigned);
           }
           // The byte already holds the 0/1 value; the trunc to i1
           // just narrows the LLT.  Dst is ACC8 (MVT::i1's class).
@@ -967,7 +853,8 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
             B.buildTrunc(Dst, IsEqByte);
           }
           MI.eraseFromParent();
-          (void)S1; (void)S32;
+          (void)S1;
+          (void)S32;
           return true;
         }
         // Bug #301 (2026-05-16): non-eq/ne i32 ICMP against constant
@@ -993,20 +880,37 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
         unsigned CCImm = 0;
         bool MappedPred = true;
         switch (Pred) {
-        case CmpInst::ICMP_SLT: CCImm = MC6809CC::LT; break;
-        case CmpInst::ICMP_SLE: CCImm = MC6809CC::LE; break;
-        case CmpInst::ICMP_SGT: CCImm = MC6809CC::GT; break;
-        case CmpInst::ICMP_SGE: CCImm = MC6809CC::GE; break;
-        case CmpInst::ICMP_ULT: CCImm = MC6809CC::LO; break;
-        case CmpInst::ICMP_ULE: CCImm = MC6809CC::LS; break;
-        case CmpInst::ICMP_UGT: CCImm = MC6809CC::HI; break;
-        case CmpInst::ICMP_UGE: CCImm = MC6809CC::HS; break;
-        default: MappedPred = false; break;
+        case CmpInst::ICMP_SLT:
+          CCImm = MC6809CC::LT;
+          break;
+        case CmpInst::ICMP_SLE:
+          CCImm = MC6809CC::LE;
+          break;
+        case CmpInst::ICMP_SGT:
+          CCImm = MC6809CC::GT;
+          break;
+        case CmpInst::ICMP_SGE:
+          CCImm = MC6809CC::GE;
+          break;
+        case CmpInst::ICMP_ULT:
+          CCImm = MC6809CC::LO;
+          break;
+        case CmpInst::ICMP_ULE:
+          CCImm = MC6809CC::LS;
+          break;
+        case CmpInst::ICMP_UGT:
+          CCImm = MC6809CC::HI;
+          break;
+        case CmpInst::ICMP_UGE:
+          CCImm = MC6809CC::HS;
+          break;
+        default:
+          MappedPred = false;
+          break;
         }
         if (MappedPred && MRI.hasOneNonDBGUse(Dst)) {
           MachineInstr &UseMI = *MRI.use_instr_nodbg_begin(Dst);
-          if (UseMI.getOpcode() == TargetOpcode::G_BRCOND &&
-              UseMI.getParent() == MI.getParent()) {
+          if (UseMI.getOpcode() == TargetOpcode::G_BRCOND && UseMI.getParent() == MI.getParent()) {
             // Emit the fused CompareBranch_i32_Imm and erase both
             // G_ICMP and G_BRCOND.
             MachineBasicBlock *TgtMBB = UseMI.getOperand(1).getMBB();
@@ -1014,11 +918,7 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
             MRI.setRegClass(Lhs, &MC6809::ACC32RegClass);
             // Insert before the G_BRCOND (which will be erased).
             B.setInsertPt(*UseMI.getParent(), UseMI);
-            B.buildInstr(MC6809::CompareBranch_i32_Imm)
-                .addImm(CCImm)
-                .addUse(Lhs)
-                .addImm(KSigned)
-                .addMBB(TgtMBB);
+            B.buildInstr(MC6809::CompareBranch_i32_Imm).addImm(CCImm).addUse(Lhs).addImm(KSigned).addMBB(TgtMBB);
             UseMI.eraseFromParent();
             MI.eraseFromParent();
             return true;
@@ -1041,10 +941,7 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
           int64_t KSigned = RhsConst->Value.getSExtValue();
           Register ResultByte = MRI.createGenericVirtualRegister(S8);
           MRI.setRegClass(ResultByte, &MC6809::ACC8RegClass);
-          B.buildInstr(MC6809::CompareSet_i8_i32_Imm, {ResultByte}, {})
-              .addImm(CCImm)
-              .addUse(Lhs)
-              .addImm(KSigned);
+          B.buildInstr(MC6809::CompareSet_i8_i32_Imm, {ResultByte}, {}).addImm(CCImm).addUse(Lhs).addImm(KSigned);
           // The byte already holds the 0/1 value; trunc to i1 just
           // narrows the LLT.  Dst is ACC8 (MVT::i1's class).
           MRI.setRegClass(Dst, &MC6809::ACC8RegClass);
@@ -1115,8 +1012,7 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
     // that clobbered Z): equality as an OR of the XORed halves tested
     // against zero, order as the borrow out of a full 32-bit subtract.
     // A signed order is the unsigned one with both sign bits flipped.
-    if (OpTy == LLT::scalar(32) &&
-        !MI.getMF()->getSubtarget<MC6809Subtarget>().has6309()) {
+    if (OpTy == LLT::scalar(32) && !MI.getMF()->getSubtarget<MC6809Subtarget>().has6309()) {
       LLT S1 = LLT::scalar(1);
       auto LH = B.buildUnmerge(S16, Lhs); // (lo, hi)
       auto RH = B.buildUnmerge(S16, Rhs);
@@ -1143,10 +1039,8 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
         BHi = FlipTop(BHi);
       }
       // a < b (unsigned) is the borrow out of a - b; a > b is that of b - a.
-      bool Swap = Pred == CmpInst::ICMP_UGT || Pred == CmpInst::ICMP_ULE ||
-                  Pred == CmpInst::ICMP_SGT || Pred == CmpInst::ICMP_SLE;
-      bool Invert = Pred == CmpInst::ICMP_UGE || Pred == CmpInst::ICMP_ULE ||
-                    Pred == CmpInst::ICMP_SGE || Pred == CmpInst::ICMP_SLE;
+      bool Swap = Pred == CmpInst::ICMP_UGT || Pred == CmpInst::ICMP_ULE || Pred == CmpInst::ICMP_SGT || Pred == CmpInst::ICMP_SLE;
+      bool Invert = Pred == CmpInst::ICMP_UGE || Pred == CmpInst::ICMP_ULE || Pred == CmpInst::ICMP_SGE || Pred == CmpInst::ICMP_SLE;
       if (Swap) {
         std::swap(ALo, BLo);
         std::swap(AHi, BHi);
@@ -1160,14 +1054,12 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
       LLT S8 = LLT::scalar(8);
       auto Zero = B.buildConstant(S8, 0);
       auto Mask = B.buildUSube(S8, S1, Zero, Zero, SubHi.getReg(1));
-      B.buildICmp(Invert ? CmpInst::ICMP_EQ : CmpInst::ICMP_NE, Dst,
-                  Mask.getReg(0), Zero);
+      B.buildICmp(Invert ? CmpInst::ICMP_EQ : CmpInst::ICMP_NE, Dst, Mask.getReg(0), Zero);
       MI.eraseFromParent();
       return true;
     }
     if (OpTy == LLT::scalar(32) || OpTy == LLT::scalar(64)) {
-      bool IsUnsigned = CmpInst::isUnsigned(Pred) || Pred == CmpInst::ICMP_EQ ||
-                        Pred == CmpInst::ICMP_NE;
+      bool IsUnsigned = CmpInst::isUnsigned(Pred) || Pred == CmpInst::ICMP_EQ || Pred == CmpInst::ICMP_NE;
       const char *Name;
       if (OpTy == LLT::scalar(32))
         Name = IsUnsigned ? "__ucmpsi2" : "__cmpsi2";
@@ -1175,9 +1067,8 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
         Name = IsUnsigned ? "__ucmpdi2" : "__cmpdi2";
 
       auto &Ctx = MI.getMF()->getFunction().getContext();
-      Type *OpC = OpTy == LLT::scalar(32) ? (Type *)Type::getInt32Ty(Ctx)
-                                          : (Type *)Type::getInt64Ty(Ctx);
-      Type *RetC = Type::getInt32Ty(Ctx);  // compiler-rt cmpXi2 returns i32
+      Type *OpC = OpTy == LLT::scalar(32) ? (Type *)Type::getInt32Ty(Ctx) : (Type *)Type::getInt64Ty(Ctx);
+      Type *RetC = Type::getInt32Ty(Ctx); // compiler-rt cmpXi2 returns i32
 
       LLT Ret32 = LLT::scalar(32);
       Register Ret32Reg = MRI.createGenericVirtualRegister(Ret32);
@@ -1185,8 +1076,7 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
       SmallVector<CallLowering::ArgInfo, 2> Args;
       Args.push_back({Lhs, OpC, 0});
       Args.push_back({Rhs, OpC, 1});
-      if (!Helper.createLibcall(Name, {Ret32Reg, RetC, 0}, Args,
-                                CallingConv::C, LocObserver))
+      if (!Helper.createLibcall(Name, {Ret32Reg, RetC, 0}, Args, CallingConv::C, LocObserver))
         return false;
 
       // Post-call comparison on i8: the libcall result is always in
@@ -1205,21 +1095,33 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
       int64_t CmpVal;
       switch (Pred) {
       case CmpInst::ICMP_EQ:
-        NewPred = CmpInst::ICMP_EQ; CmpVal = 1; break;
+        NewPred = CmpInst::ICMP_EQ;
+        CmpVal = 1;
+        break;
       case CmpInst::ICMP_NE:
-        NewPred = CmpInst::ICMP_NE; CmpVal = 1; break;
+        NewPred = CmpInst::ICMP_NE;
+        CmpVal = 1;
+        break;
       case CmpInst::ICMP_SLT:
       case CmpInst::ICMP_ULT:
-        NewPred = CmpInst::ICMP_EQ; CmpVal = 0; break;
+        NewPred = CmpInst::ICMP_EQ;
+        CmpVal = 0;
+        break;
       case CmpInst::ICMP_SLE:
       case CmpInst::ICMP_ULE:
-        NewPred = CmpInst::ICMP_NE; CmpVal = 2; break;
+        NewPred = CmpInst::ICMP_NE;
+        CmpVal = 2;
+        break;
       case CmpInst::ICMP_SGT:
       case CmpInst::ICMP_UGT:
-        NewPred = CmpInst::ICMP_EQ; CmpVal = 2; break;
+        NewPred = CmpInst::ICMP_EQ;
+        CmpVal = 2;
+        break;
       case CmpInst::ICMP_SGE:
       case CmpInst::ICMP_UGE:
-        NewPred = CmpInst::ICMP_NE; CmpVal = 0; break;
+        NewPred = CmpInst::ICMP_NE;
+        CmpVal = 0;
+        break;
       default:
         return false;
       }
@@ -1386,7 +1288,7 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
       if (FrameUp != MBB.end()) {
         for (const MachineInstr &User : MRI.use_instructions(DstReg)) {
           if (User.getParent() != &MBB)
-            continue;  // Cross-MBB uses are naturally after FrameUp.
+            continue; // Cross-MBB uses are naturally after FrameUp.
           for (auto It = std::next(MI.getIterator()); It != FrameUp; ++It) {
             if (&*It == &User) {
               UseBeforeFrameUp = true;
@@ -1435,10 +1337,8 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
     auto FalseParts = B.buildUnmerge(HalfTy, FalseReg);
     auto CondLo = B.buildCopy(S1, CondReg);
     auto CondHi = B.buildCopy(S1, CondReg);
-    auto SelLo = B.buildSelect(HalfTy, CondLo,
-        TrueParts.getReg(0), FalseParts.getReg(0));
-    auto SelHi = B.buildSelect(HalfTy, CondHi,
-        TrueParts.getReg(1), FalseParts.getReg(1));
+    auto SelLo = B.buildSelect(HalfTy, CondLo, TrueParts.getReg(0), FalseParts.getReg(0));
+    auto SelHi = B.buildSelect(HalfTy, CondHi, TrueParts.getReg(1), FalseParts.getReg(1));
     B.buildMergeValues(DstReg, {SelLo.getReg(0), SelHi.getReg(0)});
     MI.eraseFromParent();
     return true;
@@ -1585,29 +1485,23 @@ bool MC6809LegalizerInfo::legalizeCustom(LegalizerHelper &Helper, MachineInstr &
   return false;
 }
 
-
 // A 16-bit multiply of two unsigned bytes -- zero extended, loaded and zero
 // extended, or constants 0..255 -- is one MUL (A x B -> D), not a call to
 // __mulhi3, on both processors. Signed bytes stay a call: correcting MUL's
 // unsigned product (subtract each factor from the high byte when the other
 // is negative) cost about 17 instructions at every site on the 6809, and on
 // the 6309 the call is a single MULD.
-bool MC6809LegalizerInfo::legalizeMul(LegalizerHelper &Helper,
-                                      MachineRegisterInfo &MRI,
-                                      MachineInstr &MI,
-                                      LostDebugLocObserver &LocObserver) const {
+bool MC6809LegalizerInfo::legalizeMul(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const {
   MachineIRBuilder &B = Helper.MIRBuilder;
   LLT S8 = LLT::scalar(8), S16 = LLT::scalar(16);
   Register Dst = MI.getOperand(0).getReg();
   // The unsigned byte a 16-bit factor was widened from, if any.
   auto ByteOf = [&](Register R) -> Register {
     if (MachineInstr *Def = getDefIgnoringCopies(R, MRI)) {
-      if (Def->getOpcode() == TargetOpcode::G_ZEXT &&
-          MRI.getType(Def->getOperand(1).getReg()) == S8)
+      if (Def->getOpcode() == TargetOpcode::G_ZEXT && MRI.getType(Def->getOperand(1).getReg()) == S8)
         return Def->getOperand(1).getReg();
       // A byte loaded and zero extended: its low byte is the byte.
-      if (Def->getOpcode() == TargetOpcode::G_ZEXTLOAD &&
-          cast<GAnyLoad>(Def)->getMemSizeInBits().getValue() == 8)
+      if (Def->getOpcode() == TargetOpcode::G_ZEXTLOAD && cast<GAnyLoad>(Def)->getMemSizeInBits().getValue() == 8)
         return B.buildTrunc(S8, R).getReg(0);
     }
     if (auto C = getIConstantVRegSExtVal(R, MRI))
@@ -1627,10 +1521,7 @@ bool MC6809LegalizerInfo::legalizeMul(LegalizerHelper &Helper,
   return Helper.libcall(MI, LocObserver) != LegalizerHelper::UnableToLegalize;
 }
 
-bool
-MC6809LegalizerInfo::legalizeBitwise(LegalizerHelper &Helper,
-    MachineRegisterInfo &MRI, MachineInstr &MI,
-    LostDebugLocObserver &LocObserver) const {
+bool MC6809LegalizerInfo::legalizeBitwise(LegalizerHelper &Helper, MachineRegisterInfo &MRI, MachineInstr &MI, LostDebugLocObserver &LocObserver) const {
   unsigned Opc = MI.getOpcode();
   assert((Opc == G_AND || Opc == G_OR || Opc == G_XOR) && "Unexpected opcode");
   MachineIRBuilder &B = Helper.MIRBuilder;
@@ -1651,12 +1542,12 @@ MC6809LegalizerInfo::legalizeBitwise(LegalizerHelper &Helper,
   // discards them.
   if (Ty == LLT::scalar(1)) {
     Register Dst = MI.getOperand(0).getReg();
-    Register A   = MI.getOperand(1).getReg();
-    Register B2  = MI.getOperand(2).getReg();
+    Register A = MI.getOperand(1).getReg();
+    Register B2 = MI.getOperand(2).getReg();
     LLT S8 = LLT::scalar(8);
     auto AExt = B.buildAnyExt(S8, A);
     auto BExt = B.buildAnyExt(S8, B2);
-    auto Op8  = B.buildInstr(Opc, {S8}, {AExt, BExt});
+    auto Op8 = B.buildInstr(Opc, {S8}, {AExt, BExt});
     B.buildTrunc(Dst, Op8);
     MI.eraseFromParent();
     return true;
@@ -1670,8 +1561,7 @@ MC6809LegalizerInfo::legalizeBitwise(LegalizerHelper &Helper,
   // both operands for a call. Nothing here builds a 32-bit register back
   // up, which is what starved the 6309 (below).
   if (!MI.getMF()->getSubtarget<MC6809Subtarget>().has6309())
-    return Helper.narrowScalar(MI, 0, LLT::scalar(16)) !=
-           LegalizerHelper::UnableToLegalize;
+    return Helper.narrowScalar(MI, 0, LLT::scalar(16)) != LegalizerHelper::UnableToLegalize;
 
   // Bug #210 round 5 (2026-05-04): route i32 G_AND/G_OR/G_XOR to libcalls
   // (`__andsi3`/`__orsi3`/`__xorsi3` — implemented in compiler-rt).
@@ -1688,14 +1578,11 @@ MC6809LegalizerInfo::legalizeBitwise(LegalizerHelper &Helper,
   Register Rhs = MI.getOperand(2).getReg();
   auto &Ctx = MI.getMF()->getFunction().getContext();
   Type *I32Ty = Type::getInt32Ty(Ctx);
-  const char *Name = (Opc == G_AND) ? "__andsi3"
-                   : (Opc == G_OR)  ? "__orsi3"
-                                    : "__xorsi3";
+  const char *Name = (Opc == G_AND) ? "__andsi3" : (Opc == G_OR) ? "__orsi3" : "__xorsi3";
   SmallVector<CallLowering::ArgInfo, 2> Args;
   Args.push_back({Lhs, I32Ty, 0});
   Args.push_back({Rhs, I32Ty, 1});
-  if (!Helper.createLibcall(Name, {DstReg, I32Ty, 0}, Args,
-                            CallingConv::C, LocObserver))
+  if (!Helper.createLibcall(Name, {DstReg, I32Ty, 0}, Args, CallingConv::C, LocObserver))
     return false;
   MI.eraseFromParent();
   return true;
@@ -1760,7 +1647,8 @@ bool MC6809LegalizerInfo::legalizeVAArg(LegalizerHelper &Helper, MachineRegister
   Register DstReg = MI.getOperand(0).getReg();
   Register APPtr = MI.getOperand(1).getReg();
   unsigned ArgSize = ValTy.getSizeInBytes();
-  if (ArgSize < 2) ArgSize = 2; // 6809 CC: args are at least 16-bit aligned
+  if (ArgSize < 2)
+    ArgSize = 2; // 6809 CC: args are at least 16-bit aligned
 
   // Load current ap value (pointer to next vararg)
   auto APVal = Builder.buildLoad(P, APPtr, MachinePointerInfo(), Align(1));
@@ -1803,10 +1691,8 @@ bool MC6809LegalizerInfo::legalizeFunnelShift(LegalizerHelper &Helper, MachineRe
   // up the G_ROTL/G_ROTR rule LOWERS a rotate to a funnel shift so that the
   // shifts below become libcalls; rewriting that funnel shift back into a
   // rotate would cycle forever.
-  if ((Opc == G_FSHL || Opc == G_FSHR) && FwdReg == RevReg &&
-      Ty.getSizeInBits() < 32) {
-    MIRBuilder.buildInstr(Opc == G_FSHL ? G_ROTL : G_ROTR, {DstReg},
-                          {FwdReg, AmtReg});
+  if ((Opc == G_FSHL || Opc == G_FSHR) && FwdReg == RevReg && Ty.getSizeInBits() < 32) {
+    MIRBuilder.buildInstr(Opc == G_FSHL ? G_ROTL : G_ROTR, {DstReg}, {FwdReg, AmtReg});
     MI.eraseFromParent();
     return LegalizerHelper::Legalized;
   }
@@ -1974,25 +1860,16 @@ bool MC6809LegalizerInfo::legalizeMultiplyWithOverflow(LegalizerHelper &Helper, 
     // size-based alignment would make the function realign its frame.
     Align Alignment(1);
     MachinePointerInfo PtrInfo;
-    Register StackPtrOf =
-        Helper.createStackTemporary(TypeSize::getFixed(MemSize), Alignment,
-                                    PtrInfo).getReg(0);
+    Register StackPtrOf = Helper.createStackTemporary(TypeSize::getFixed(MemSize), Alignment, PtrInfo).getReg(0);
 
     Type *I64Ty = Type::getInt64Ty(Ctx);
-    auto LibcallResult = Helper.createLibcall(
-        "__umulodi4",
-        {MulReg, I64Ty, 0},
-        {{LHSReg, I64Ty, 0},
-         {RHSReg, I64Ty, 1},
-         {StackPtrOf, PointerType::get(Ctx, AddrSpace), 2}},
-        CallingConv::C, LocObserver, &MI);
+    auto LibcallResult = Helper.createLibcall("__umulodi4", {MulReg, I64Ty, 0}, {{LHSReg, I64Ty, 0}, {RHSReg, I64Ty, 1}, {StackPtrOf, PointerType::get(Ctx, AddrSpace), 2}}, CallingConv::C, LocObserver, &MI);
 
     if (LibcallResult != LegalizerHelper::Legalized)
       return false;
 
     // Load the overflow flag back as i16, truncate to s1.
-    MachineMemOperand *LoadMMO = MF.getMachineMemOperand(
-        PtrInfo, MachineMemOperand::MOLoad, MemSize, Alignment);
+    MachineMemOperand *LoadMMO = MF.getMachineMemOperand(PtrInfo, MachineMemOperand::MOLoad, MemSize, Alignment);
     auto LoadedOf16 = MIRBuilder.buildLoad(TempLLT, StackPtrOf, *LoadMMO);
     MIRBuilder.buildTrunc(OverflowReg, LoadedOf16);
 
@@ -2049,12 +1926,9 @@ bool MC6809LegalizerInfo::legalizeMemOp(LegalizerHelper &Helper, MachineRegister
   bool InsideCallFrame = false;
   {
     const MachineBasicBlock *MBB = MI.getParent();
-    int FrameSetupOpc =
-        Builder.getMF().getSubtarget().getInstrInfo()->getCallFrameSetupOpcode();
-    int FrameDestroyOpc =
-        Builder.getMF().getSubtarget().getInstrInfo()->getCallFrameDestroyOpcode();
-    for (auto It = MachineBasicBlock::const_reverse_iterator(MI);
-         It != MBB->rend(); ++It) {
+    int FrameSetupOpc = Builder.getMF().getSubtarget().getInstrInfo()->getCallFrameSetupOpcode();
+    int FrameDestroyOpc = Builder.getMF().getSubtarget().getInstrInfo()->getCallFrameDestroyOpcode();
+    for (auto It = MachineBasicBlock::const_reverse_iterator(MI); It != MBB->rend(); ++It) {
       if ((int)It->getOpcode() == FrameDestroyOpc) {
         // A matched DOWN/UP pair before us — not inside.
         break;
@@ -2072,8 +1946,7 @@ bool MC6809LegalizerInfo::legalizeMemOp(LegalizerHelper &Helper, MachineRegister
     // constant length, so this should always hit.
     Register Dst = MI.getOperand(0).getReg();
     Register Src = IsSet ? Register() : MI.getOperand(1).getReg();
-    Register LenReg = IsSet ? MI.getOperand(2).getReg()
-                            : MI.getOperand(2).getReg();
+    Register LenReg = IsSet ? MI.getOperand(2).getReg() : MI.getOperand(2).getReg();
     auto LenVal = getIConstantVRegValWithLookThrough(LenReg, MRI);
     if (LenVal) {
       uint64_t N = LenVal->Value.getZExtValue();
@@ -2090,7 +1963,7 @@ bool MC6809LegalizerInfo::legalizeMemOp(LegalizerHelper &Helper, MachineRegister
         auto *DstMMO = MF->getMachineMemOperand(DstMMO0, I, I8);
         Register Byte;
         if (IsSet) {
-          Byte = SetVal;  // i8 fill byte (already legal as scalar(8))
+          Byte = SetVal; // i8 fill byte (already legal as scalar(8))
         } else {
           Register CurSrc = Builder.buildPtrAdd(PtrTy, Src, Off).getReg(0);
           auto *SrcMMO = MF->getMachineMemOperand(SrcMMO0, I, I8);
@@ -2247,8 +2120,7 @@ bool MC6809LegalizerInfo::tryTFMBlockCopy(LegalizerHelper &Helper, MachineRegist
   // memmove needs compile-time source/dest locations to choose the copy
   // direction, and memset's fill path needs a constant byte, so those still
   // require absolute addressing.
-  bool IsPlainCopy = MI.getOpcode() == MC6809::G_MEMCPY ||
-                     MI.getOpcode() == MC6809::G_MEMCPY_INLINE;
+  bool IsPlainCopy = MI.getOpcode() == MC6809::G_MEMCPY || MI.getOpcode() == MC6809::G_MEMCPY_INLINE;
   // Track whether either pointer is a register (vs a compile-time absolute
   // address). Register pointers take the BlockCopy_* path below, which hands
   // the pointers to regalloc in the {IX,IY} class so the postbyte records
@@ -2350,8 +2222,7 @@ bool MC6809LegalizerInfo::tryTFMBlockCopy(LegalizerHelper &Helper, MachineRegist
   // REGTFM ({IX,IY}) class the BlockCopy_* pseudo expects.
   LLT P = LLT::pointer(0, 16);
   LLT S16 = LLT::scalar(16);
-  auto MaterializeAddrIntoReg = [&](const MachineOperand &MO,
-                                     int64_t ExtraOffset) -> Register {
+  auto MaterializeAddrIntoReg = [&](const MachineOperand &MO, int64_t ExtraOffset) -> Register {
     Register Vreg = MRI.createGenericVirtualRegister(P);
     if (MO.isReg()) {
       if (ExtraOffset == 0) {
@@ -2367,16 +2238,12 @@ bool MC6809LegalizerInfo::tryTFMBlockCopy(LegalizerHelper &Helper, MachineRegist
       return Vreg;
     }
     if (MO.isGlobal()) {
-      Builder.buildInstr(TargetOpcode::G_GLOBAL_VALUE)
-          .addDef(Vreg)
-          .addGlobalAddress(MO.getGlobal(), MO.getOffset() + ExtraOffset);
+      Builder.buildInstr(TargetOpcode::G_GLOBAL_VALUE).addDef(Vreg).addGlobalAddress(MO.getGlobal(), MO.getOffset() + ExtraOffset);
       return Vreg;
     }
     if (MO.isFI()) {
       Register FIReg = MRI.createGenericVirtualRegister(P);
-      Builder.buildInstr(TargetOpcode::G_FRAME_INDEX)
-          .addDef(FIReg)
-          .addFrameIndex(MO.getIndex());
+      Builder.buildInstr(TargetOpcode::G_FRAME_INDEX).addDef(FIReg).addFrameIndex(MO.getIndex());
       int64_t Total = MO.getOffset() + ExtraOffset;
       if (Total == 0)
         return FIReg;
@@ -2397,10 +2264,7 @@ bool MC6809LegalizerInfo::tryTFMBlockCopy(LegalizerHelper &Helper, MachineRegist
   // a register pointer already in X no longer forces a `tfr x,y` swap. BlockOpc
   // selects the increment mode: Inc_Inc (ascending copy), Dec_Dec (descending
   // memmove), or Stay_Inc (memset fill -- src holds the byte and stays put).
-  auto EmitBlockCopy = [&](const MachineOperand &SrcMO,
-                           const MachineOperand &DstMO, int64_t ExtraOffset,
-                           const MachineOperand &CountMO, unsigned BlockOpc,
-                           MachinePointerInfo SrcPI, MachinePointerInfo DstPI) {
+  auto EmitBlockCopy = [&](const MachineOperand &SrcMO, const MachineOperand &DstMO, int64_t ExtraOffset, const MachineOperand &CountMO, unsigned BlockOpc, MachinePointerInfo SrcPI, MachinePointerInfo DstPI) {
     Register SrcTFM = MRI.createVirtualRegister(&MC6809::REGTFMRegClass);
     Builder.buildCopy(SrcTFM, MaterializeAddrIntoReg(SrcMO, ExtraOffset));
     Register DstTFM = MRI.createVirtualRegister(&MC6809::REGTFMRegClass);
@@ -2411,10 +2275,7 @@ bool MC6809LegalizerInfo::tryTFMBlockCopy(LegalizerHelper &Helper, MachineRegist
     // or the incoming count register, COPYd to AW — the selector lowers the
     // constant load / transfer, the coalescer folds the COPY when the value
     // already lands in W.
-    Register CountV = CountMO.isImm()
-                          ? Builder.buildConstant(LLT::scalar(16), CountMO.getImm())
-                                .getReg(0)
-                          : CountMO.getReg();
+    Register CountV = CountMO.isImm() ? Builder.buildConstant(LLT::scalar(16), CountMO.getImm()).getReg(0) : CountMO.getReg();
     Builder.buildCopy(MC6809::AW, CountV);
     // The pseudo's pointer operands are tied def+use: the TFM post-increments
     // them, so it clobbers the registers. The write-back defs are dead, but the
@@ -2427,34 +2288,27 @@ bool MC6809LegalizerInfo::tryTFMBlockCopy(LegalizerHelper &Helper, MachineRegist
         .addDef(DstWB)
         .addUse(SrcTFM)
         .addUse(DstTFM)
-        .addMemOperand(MF.getMachineMemOperand(SrcPI, MachineMemOperand::MOLoad,
-                                               1, Align(1)))
-        .addMemOperand(MF.getMachineMemOperand(DstPI, MachineMemOperand::MOStore,
-                                               1, Align(1)));
+        .addMemOperand(MF.getMachineMemOperand(SrcPI, MachineMemOperand::MOLoad, 1, Align(1)))
+        .addMemOperand(MF.getMachineMemOperand(DstPI, MachineMemOperand::MOStore, 1, Align(1)));
   };
 
   // Pick the TFM increment mode: a memset fills via Stay_Inc (the byte stays
   // under the source pointer while the destination sweeps the range), a
   // direction-resolved memmove descends via Dec_Dec, everything else is an
   // ascending Inc_Inc copy.
-  unsigned BlockOpc = IsMemSet      ? MC6809::BlockCopy_Stay_Inc
-                      : Descending  ? MC6809::BlockCopy_Dec_Dec
-                                    : MC6809::BlockCopy_Inc_Inc;
+  unsigned BlockOpc = IsMemSet ? MC6809::BlockCopy_Stay_Inc : Descending ? MC6809::BlockCopy_Dec_Dec : MC6809::BlockCopy_Inc_Inc;
 
   // Note that Descending transfers must be done in backwards order.
   if (KnownLen <= BytesPerTransfer) {
     uint64_t AdjOfs = Descending ? (KnownLen - 1) : 0;
-    EmitBlockCopy(Src.value(), Dst.value(), AdjOfs, Len.value(), BlockOpc,
-                  SrcPointerInfo, DstPointerInfo);
+    EmitBlockCopy(Src.value(), Dst.value(), AdjOfs, Len.value(), BlockOpc, SrcPointerInfo, DstPointerInfo);
   } else {
     for (uint64_t TOfs = 0; TOfs < KnownLen; TOfs += BytesPerTransfer) {
       uint64_t TLen = std::min(KnownLen - TOfs, BytesPerTransfer);
       uint64_t AdjTOfs = Descending ? (KnownLen - TOfs - 1) : TOfs;
       uint64_t AdjTOfsMO = Descending ? (KnownLen - TOfs - TLen) : TOfs;
       MachineOperand TLenMO = MachineOperand::CreateImm(TLen);
-      EmitBlockCopy(Src.value(), Dst.value(), AdjTOfs, TLenMO, BlockOpc,
-                    SrcPointerInfo.getWithOffset(AdjTOfsMO),
-                    DstPointerInfo.getWithOffset(AdjTOfsMO));
+      EmitBlockCopy(Src.value(), Dst.value(), AdjTOfs, TLenMO, BlockOpc, SrcPointerInfo.getWithOffset(AdjTOfsMO), DstPointerInfo.getWithOffset(AdjTOfsMO));
     }
   }
 
@@ -2563,9 +2417,7 @@ bool MC6809LegalizerInfo::legalizeShiftRotate(LegalizerHelper &Helper, MachineRe
     // a power of two) is a sign smear. Shifting the whole value one bit at a
     // time cost two instructions a bit.
     if (Ty.getSizeInBits() == 16)
-      if (auto Amt = getIConstantVRegValWithLookThrough(AmtReg, MRI);
-          Amt && Amt->Value.getZExtValue() >= 8 &&
-          Amt->Value.getZExtValue() < 16) {
+      if (auto Amt = getIConstantVRegValWithLookThrough(AmtReg, MRI); Amt && Amt->Value.getZExtValue() >= 8 && Amt->Value.getZExtValue() < 16) {
         unsigned Rest = Amt->Value.getZExtValue() - 8;
         // The two bytes. A byte extended from 8 bits has a high byte that
         // is 0 (zero-extended) or anything at all (any-extended): take 0
@@ -2574,10 +2426,7 @@ bool MC6809LegalizerInfo::legalizeShiftRotate(LegalizerHelper &Helper, MachineRe
         // out of registers.
         Register Lo, Hi;
         MachineInstr *SrcDef = getDefIgnoringCopies(Src, MRI);
-        if (SrcDef &&
-            (SrcDef->getOpcode() == TargetOpcode::G_ANYEXT ||
-             SrcDef->getOpcode() == TargetOpcode::G_ZEXT) &&
-            MRI.getType(SrcDef->getOperand(1).getReg()) == S8) {
+        if (SrcDef && (SrcDef->getOpcode() == TargetOpcode::G_ANYEXT || SrcDef->getOpcode() == TargetOpcode::G_ZEXT) && MRI.getType(SrcDef->getOperand(1).getReg()) == S8) {
           Lo = SrcDef->getOperand(1).getReg();
           Hi = Builder.buildConstant(S8, 0).getReg(0);
         } else {
@@ -2595,10 +2444,8 @@ bool MC6809LegalizerInfo::legalizeShiftRotate(LegalizerHelper &Helper, MachineRe
             MachineInstr *U = getDefIgnoringCopies(V, MRI);
             if (!U || U->getOpcode() != TargetOpcode::G_UNMERGE_VALUES)
               break;
-            MachineInstr *M = getDefIgnoringCopies(
-                U->getOperand(U->getNumOperands() - 1).getReg(), MRI);
-            if (!M || M->getOpcode() != TargetOpcode::G_MERGE_VALUES ||
-                M->getNumOperands() != U->getNumOperands())
+            MachineInstr *M = getDefIgnoringCopies(U->getOperand(U->getNumOperands() - 1).getReg(), MRI);
+            if (!M || M->getOpcode() != TargetOpcode::G_MERGE_VALUES || M->getNumOperands() != U->getNumOperands())
               break;
             unsigned Idx = U->findRegisterDefOperandIdx(V, nullptr);
             V = M->getOperand(Idx + 1).getReg();
@@ -2606,20 +2453,16 @@ bool MC6809LegalizerInfo::legalizeShiftRotate(LegalizerHelper &Helper, MachineRe
           MachineInstr *Def = getDefIgnoringCopies(V, MRI);
           if (!Def || Def->getOpcode() != TargetOpcode::G_UNMERGE_VALUES)
             return false;
-          MachineInstr *Whole = getDefIgnoringCopies(
-              Def->getOperand(Def->getNumOperands() - 1).getReg(), MRI);
+          MachineInstr *Whole = getDefIgnoringCopies(Def->getOperand(Def->getNumOperands() - 1).getReg(), MRI);
           if (!Whole)
             return false;
           // The high byte of a byte sign-extended to 16 bits...
-          if (Whole->getOpcode() == TargetOpcode::G_SEXT &&
-              MRI.getType(Whole->getOperand(1).getReg()) == S8)
+          if (Whole->getOpcode() == TargetOpcode::G_SEXT && MRI.getType(Whole->getOperand(1).getReg()) == S8)
             return Def->getOperand(1).getReg() == V;
           // ...or either byte of a 16-bit value shifted right arithmetically
           // by 15, not yet legalised when this shift is.
-          if (Whole->getOpcode() == TargetOpcode::G_ASHR &&
-              MRI.getType(Whole->getOperand(0).getReg()) == LLT::scalar(16))
-            if (auto A = getIConstantVRegValWithLookThrough(
-                    Whole->getOperand(2).getReg(), MRI))
+          if (Whole->getOpcode() == TargetOpcode::G_ASHR && MRI.getType(Whole->getOperand(0).getReg()) == LLT::scalar(16))
+            if (auto A = getIConstantVRegValWithLookThrough(Whole->getOperand(2).getReg(), MRI))
               return A->Value == 15;
           return false;
         };
@@ -2627,12 +2470,8 @@ bool MC6809LegalizerInfo::legalizeShiftRotate(LegalizerHelper &Helper, MachineRe
           if (!Rest)
             return V;
           if (Opc == G_LSHR && IsSignByte(V))
-            return Builder
-                .buildAnd(S8, V, Builder.buildConstant(S8, 0xFF >> Rest))
-                .getReg(0);
-          return Builder
-              .buildInstr(Opc, {S8}, {V, Builder.buildConstant(S8, Rest)})
-              .getReg(0);
+            return Builder.buildAnd(S8, V, Builder.buildConstant(S8, 0xFF >> Rest)).getReg(0);
+          return Builder.buildInstr(Opc, {S8}, {V, Builder.buildConstant(S8, Rest)}).getReg(0);
         };
         Register NewLo, NewHi;
         switch (MI.getOpcode()) {
@@ -2657,8 +2496,7 @@ bool MC6809LegalizerInfo::legalizeShiftRotate(LegalizerHelper &Helper, MachineRe
         MI.eraseFromParent();
         return true;
       }
-    if (Ty.getSizeInBits() == 16 &&
-        getIConstantVRegValWithLookThrough(AmtReg, MRI))
+    if (Ty.getSizeInBits() == 16 && getIConstantVRegValWithLookThrough(AmtReg, MRI))
       return true; // selectShift16 handles constant i16 shifts
     // A 32-bit shift on the 6809 by a whole number of bytes is only byte
     // moves: it takes the byte path below. Any other amount keeps the call:
@@ -2666,18 +2504,15 @@ bool MC6809LegalizerInfo::legalizeShiftRotate(LegalizerHelper &Helper, MachineRe
     // spilled every byte at every step and came out larger and slower.
     // (The 6309 keeps the call for all of them: its 32-bit values live in Q.)
     bool InlineConst32 = false;
-    if (Ty == LLT::scalar(32) &&
-        !MI.getMF()->getSubtarget<MC6809Subtarget>().has6309())
+    if (Ty == LLT::scalar(32) && !MI.getMF()->getSubtarget<MC6809Subtarget>().has6309())
       if (auto Amt = getIConstantVRegValWithLookThrough(AmtReg, MRI))
-        InlineConst32 = Amt->Value.getZExtValue() % 8 == 0 &&
-                        Amt->Value.getZExtValue() < 32;
+        InlineConst32 = Amt->Value.getZExtValue() % 8 == 0 && Amt->Value.getZExtValue() < 32;
     if (!InlineConst32) {
       // The high half of an i32 needs no shifting loop, only moves. GVN makes this
       // common: on a big-endian target it reads a byte through an earlier wider
       // load as lshr by 24, which a call would make dearer than the load it saved.
       if (Ty == LLT::scalar(32) && MI.getOpcode() == G_LSHR)
-        if (auto Amt = getIConstantVRegValWithLookThrough(AmtReg, MRI);
-            Amt && (Amt->Value == 16 || Amt->Value == 24)) {
+        if (auto Amt = getIConstantVRegValWithLookThrough(AmtReg, MRI); Amt && (Amt->Value == 16 || Amt->Value == 24)) {
           LLT S16 = LLT::scalar(16);
           auto Halves = Builder.buildUnmerge(S16, Src);
           Register Lo = Halves.getReg(1);
@@ -2958,8 +2793,7 @@ bool MC6809LegalizerInfo::legalizeLoad(LegalizerHelper &Helper, MachineRegisterI
       // Defined-zero high bytes are sufficient for all observed
       // shapes (the typical consumer is a G_TRUNC back down to
       // mem-size width, which doesn't read the high bytes anyway).
-      assert(DstType.isScalar() &&
-             "legalizeLoad default branch expects pointer or scalar dst");
+      assert(DstType.isScalar() && "legalizeLoad default branch expects pointer or scalar dst");
       Tmp = MRI.createGenericVirtualRegister(MMO.getType());
       Builder.buildZExt(MI.getDstReg(), Tmp);
     }

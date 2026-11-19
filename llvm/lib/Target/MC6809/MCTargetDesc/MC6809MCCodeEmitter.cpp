@@ -68,10 +68,7 @@ void MC6809MCCodeEmitter::encodeInstruction(const MCInst &MI, SmallVectorImpl<ch
     uint8_t FirstByte = BinaryOpCode & 0xFF;
     if (FirstByte == 0x10 || FirstByte == 0x11) {
       for (unsigned I = FixupsBefore; I < Fixups.size(); ++I)
-        Fixups[I] = MCFixup::create(Fixups[I].getOffset() + 1,
-                                    Fixups[I].getValue(),
-                                    Fixups[I].getKind(),
-                                    Fixups[I].isPCRel());
+        Fixups[I] = MCFixup::create(Fixups[I].getOffset() + 1, Fixups[I].getValue(), Fixups[I].getKind(), Fixups[I].isPCRel());
     }
   }
 
@@ -134,11 +131,16 @@ unsigned MC6809MCCodeEmitter::getMachineOpValue(const MCInst &MI, const MCOperan
     // Map index registers to 2-bit postbyte encoding: X=0, Y=1, U=2, S=3.
     // TFR/EXG instructions use encodeRegOpValue for 4-bit encoding.
     switch (Reg) {
-    case MC6809::IX: return 0;
-    case MC6809::IY: return 1;
-    case MC6809::SU: return 2;
-    case MC6809::SS: return 3;
-    default: return Reg;
+    case MC6809::IX:
+      return 0;
+    case MC6809::IY:
+      return 1;
+    case MC6809::SU:
+      return 2;
+    case MC6809::SS:
+      return 3;
+    default:
+      return Reg;
     }
   }
 
@@ -167,21 +169,36 @@ unsigned MC6809MCCodeEmitter::encodeRegOpValue(const MCInst &MI, unsigned Op, Sm
   unsigned Reg = MI.getOperand(Op).getReg();
   // Map registers to 4-bit TFR/EXG/TFM postbyte encoding.
   switch (Reg) {
-  case MC6809::AD: return 0;   // D
-  case MC6809::IX: return 1;   // X
-  case MC6809::IY: return 2;   // Y
-  case MC6809::SU: return 3;   // U
-  case MC6809::SS: return 4;   // S
-  case MC6809::PC: return 5;   // PC
-  case MC6809::AW: return 6;   // W (6309)
-  case MC6809::AV: return 7;   // V (6309)
-  case MC6809::AA: return 8;   // A
-  case MC6809::AB: return 9;   // B
-  case MC6809::CC: return 10;  // CC
-  case MC6809::DP: return 11;  // DP
-  case MC6809::AE: return 14;  // E (6309)
-  case MC6809::AF: return 15;  // F (6309)
-  default: return Reg;
+  case MC6809::AD:
+    return 0; // D
+  case MC6809::IX:
+    return 1; // X
+  case MC6809::IY:
+    return 2; // Y
+  case MC6809::SU:
+    return 3; // U
+  case MC6809::SS:
+    return 4; // S
+  case MC6809::PC:
+    return 5; // PC
+  case MC6809::AW:
+    return 6; // W (6309)
+  case MC6809::AV:
+    return 7; // V (6309)
+  case MC6809::AA:
+    return 8; // A
+  case MC6809::AB:
+    return 9; // B
+  case MC6809::CC:
+    return 10; // CC
+  case MC6809::DP:
+    return 11; // DP
+  case MC6809::AE:
+    return 14; // E (6309)
+  case MC6809::AF:
+    return 15; // F (6309)
+  default:
+    return Reg;
   }
 }
 
@@ -189,10 +206,14 @@ unsigned MC6809MCCodeEmitter::encodeBIT8RegOpValue(const MCInst &MI, unsigned Op
   // BIT8 register encoding: CC=0, A=1, B=2
   unsigned Reg = MI.getOperand(Op).getReg();
   switch (Reg) {
-  case MC6809::CC: return 0;
-  case MC6809::AA: return 1;
-  case MC6809::AB: return 2;
-  default: llvm_unreachable("Invalid BIT8 register");
+  case MC6809::CC:
+    return 0;
+  case MC6809::AA:
+    return 1;
+  case MC6809::AB:
+    return 2;
+  default:
+    llvm_unreachable("Invalid BIT8 register");
   }
 }
 
@@ -213,7 +234,7 @@ unsigned MC6809MCCodeEmitter::encodeRegListOpValue(const MCInst &MI, unsigned Op
       Res |= 0b00000100;
       break;
     case MC6809::AD:
-      Res |= 0b00000110;  // D = A + B
+      Res |= 0b00000110; // D = A + B
       break;
     case MC6809::DP:
       Res |= 0b00001000;

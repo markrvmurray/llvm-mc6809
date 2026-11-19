@@ -49,52 +49,55 @@ using namespace llvm;
 STATISTIC(NumFolded, "Number of branch-over-long-branch pairs folded");
 STATISTIC(NumShrunk, "Number of long branches shrunk to short ones");
 
-static cl::opt<bool> EnableFoldLongBranch("mc6809-enable-fold-long-branch",
-                                          cl::init(true), cl::Hidden);
+static cl::opt<bool> EnableFoldLongBranch("mc6809-enable-fold-long-branch", cl::init(true), cl::Hidden);
 
 namespace {
 
 class MC6809FoldLongBranch : public MachineFunctionPass {
 public:
   static char ID;
-  MC6809FoldLongBranch() : MachineFunctionPass(ID) {
-    initializeMC6809FoldLongBranchPass(*PassRegistry::getPassRegistry());
-  }
+  MC6809FoldLongBranch() : MachineFunctionPass(ID) { initializeMC6809FoldLongBranchPass(*PassRegistry::getPassRegistry()); }
   bool runOnMachineFunction(MachineFunction &MF) override;
-  StringRef getPassName() const override {
-    return "MC6809 fold long branches";
-  }
+  StringRef getPassName() const override { return "MC6809 fold long branches"; }
 };
 
 } // namespace
 
 char MC6809FoldLongBranch::ID = 0;
 
-INITIALIZE_PASS(MC6809FoldLongBranch, DEBUG_TYPE, "MC6809 fold long branches",
-                false, false)
+INITIALIZE_PASS(MC6809FoldLongBranch, DEBUG_TYPE, "MC6809 fold long branches", false, false)
 
-MachineFunctionPass *llvm::createMC6809FoldLongBranchPass() {
-  return new MC6809FoldLongBranch();
-}
+MachineFunctionPass *llvm::createMC6809FoldLongBranchPass() { return new MC6809FoldLongBranch(); }
 
 // The long sibling of a short conditional branch (or the short of a long).
 static unsigned longOf(unsigned Opc) {
   switch (Opc) {
-  case MC6809::Bbc: return MC6809::LBlbc;
-  case MC6809::Bbc_NoC: return MC6809::LBlbc_NoC;
-  case MC6809::Bbc_OnlyC: return MC6809::LBlbc_OnlyC;
-  case MC6809::Bbc_OnlyZ: return MC6809::LBlbc_OnlyZ;
-  default: return 0;
+  case MC6809::Bbc:
+    return MC6809::LBlbc;
+  case MC6809::Bbc_NoC:
+    return MC6809::LBlbc_NoC;
+  case MC6809::Bbc_OnlyC:
+    return MC6809::LBlbc_OnlyC;
+  case MC6809::Bbc_OnlyZ:
+    return MC6809::LBlbc_OnlyZ;
+  default:
+    return 0;
   }
 }
 static unsigned shortOf(unsigned Opc) {
   switch (Opc) {
-  case MC6809::LBlbc: return MC6809::Bbc;
-  case MC6809::LBlbc_NoC: return MC6809::Bbc_NoC;
-  case MC6809::LBlbc_OnlyC: return MC6809::Bbc_OnlyC;
-  case MC6809::LBlbc_OnlyZ: return MC6809::Bbc_OnlyZ;
-  case MC6809::LBRAlb: return MC6809::BRAb;
-  default: return 0;
+  case MC6809::LBlbc:
+    return MC6809::Bbc;
+  case MC6809::LBlbc_NoC:
+    return MC6809::Bbc_NoC;
+  case MC6809::LBlbc_OnlyC:
+    return MC6809::Bbc_OnlyC;
+  case MC6809::LBlbc_OnlyZ:
+    return MC6809::Bbc_OnlyZ;
+  case MC6809::LBRAlb:
+    return MC6809::BRAb;
+  default:
+    return 0;
   }
 }
 
@@ -102,11 +105,9 @@ static unsigned shortOf(unsigned Opc) {
 // only), X the block after that: fold into `lbcc L` in MBB and drop the
 // middle block. Also the same-block form `b!cc X ; lbra L` with X the next
 // block.
-static bool foldPair(MachineFunction &MF, MachineBasicBlock &MBB,
-                     const MC6809InstrInfo &TII, bool OptSize) {
+static bool foldPair(MachineFunction &MF, MachineBasicBlock &MBB, const MC6809InstrInfo &TII, bool OptSize) {
   auto Term = MBB.getFirstTerminator();
-  if (Term == MBB.end() || !longOf(Term->getOpcode()) ||
-      !Term->getOperand(1).isMBB())
+  if (Term == MBB.end() || !longOf(Term->getOpcode()) || !Term->getOperand(1).isMBB())
     return false;
   MachineInstr &Bcc = *Term;
   MachineBasicBlock *X = Bcc.getOperand(1).getMBB();
@@ -115,16 +116,13 @@ static bool foldPair(MachineFunction &MF, MachineBasicBlock &MBB,
   auto Next = std::next(Term);
   if (Next != MBB.end()) {
     // Same block: b!cc X ; lbra L, X the layout successor.
-    if (Next->getOpcode() != MC6809::LBRAlb || std::next(Next) != MBB.end() ||
-        MBB.getNextNode() != X)
+    if (Next->getOpcode() != MC6809::LBRAlb || std::next(Next) != MBB.end() || MBB.getNextNode() != X)
       return false;
     LBra = &*Next;
   } else {
     // Two blocks: b!cc X ; [Mid: lbra L] ; X.
     Mid = MBB.getNextNode();
-    if (!Mid || Mid->pred_size() != 1 || Mid->getNextNode() != X ||
-        Mid->size() != 1 || Mid->front().getOpcode() != MC6809::LBRAlb ||
-        !MBB.isSuccessor(Mid))
+    if (!Mid || Mid->pred_size() != 1 || Mid->getNextNode() != X || Mid->size() != 1 || Mid->front().getOpcode() != MC6809::LBRAlb || !MBB.isSuccessor(Mid))
       return false;
     LBra = &Mid->front();
   }

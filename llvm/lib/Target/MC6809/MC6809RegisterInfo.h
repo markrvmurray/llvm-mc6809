@@ -34,9 +34,7 @@ public:
   MC6809RegisterInfo();
   explicit MC6809RegisterInfo(const Triple &TT);
 
-  const char *getImag8SymbolName(Register Reg) const {
-    return Imag8SymbolNames[Reg].c_str();
-  }
+  const char *getImag8SymbolName(Register Reg) const { return Imag8SymbolNames[Reg].c_str(); }
 
   // What a register is called in assembly, which is not what it is called in
   // TableGen: `AD` is written `d`, `IX` is written `x`.  The default returns
@@ -51,13 +49,9 @@ public:
 
   const uint32_t *getCallPreservedMask(const MachineFunction &MF, CallingConv::ID) const override;
 
-
   const TargetRegisterClass *getCrossCopyRegClass(const TargetRegisterClass *RC) const override;
 
-  const TargetRegisterClass *
-  getSubClassWithSubReg(const TargetRegisterClass *RC,
-                        unsigned Idx) const override;
-
+  const TargetRegisterClass *getSubClassWithSubReg(const TargetRegisterClass *RC, unsigned Idx) const override;
 
   bool requiresRegisterScavenging(const MachineFunction &MF) const override {
     // Saving/restoring to stack may require temporary registers.
@@ -75,10 +69,7 @@ public:
 
   bool getRegAllocationHints(Register VirtReg, ArrayRef<MCPhysReg> Order, SmallSetVector<MCPhysReg, 16> &Hints, const MachineFunction &MF, const VirtRegMap *VRM = nullptr, const LiveRegMatrix *Matrix = nullptr) const override;
 
-  bool shouldCoalesce(MachineInstr *MI, const TargetRegisterClass *SrcRC,
-                      unsigned SubReg, const TargetRegisterClass *DstRC,
-                      unsigned DstSubReg, const TargetRegisterClass *NewRC,
-                      LiveIntervals &LIS) const override;
+  bool shouldCoalesce(MachineInstr *MI, const TargetRegisterClass *SrcRC, unsigned SubReg, const TargetRegisterClass *DstRC, unsigned DstSubReg, const TargetRegisterClass *NewRC, LiveIntervals &LIS) const override;
 
   BitVector getReservedRegs(const MachineFunction &MF) const override;
 

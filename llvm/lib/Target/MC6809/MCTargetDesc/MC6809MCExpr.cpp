@@ -26,20 +26,13 @@ const struct ModifierEntry {
   bool ImmediateOnly = false;
 } ModifierNames[] = {
     // Define immediate variants of mc68098() and mc680916() first.
-    {"mc6809_8", MC6809MCExpr::VK_IMM8, true},
-    {"mc6809_16", MC6809MCExpr::VK_IMM16, true},
-    {"mc6809_8", MC6809MCExpr::VK_ADDR8},
-    {"mc6809_16", MC6809MCExpr::VK_ADDR16},
-    {"mc6809_os9_data", MC6809MCExpr::VK_OS9_DATA_OFFSET},
-    {"mc6809_os9_data8", MC6809MCExpr::VK_OS9_DATA_OFFSET_8},
+    {"mc6809_8", MC6809MCExpr::VK_IMM8, true}, {"mc6809_16", MC6809MCExpr::VK_IMM16, true},           {"mc6809_8", MC6809MCExpr::VK_ADDR8},
+    {"mc6809_16", MC6809MCExpr::VK_ADDR16},    {"mc6809_os9_data", MC6809MCExpr::VK_OS9_DATA_OFFSET}, {"mc6809_os9_data8", MC6809MCExpr::VK_OS9_DATA_OFFSET_8},
 };
 
 } // end of anonymous namespace
 
-const MC6809MCExpr *MC6809MCExpr::create(VariantKind Kind, const MCExpr *Expr,
-                                   bool Negated, MCContext &Ctx) {
-  return new (Ctx) MC6809MCExpr(Kind, Expr, Negated);
-}
+const MC6809MCExpr *MC6809MCExpr::create(VariantKind Kind, const MCExpr *Expr, bool Negated, MCContext &Ctx) { return new (Ctx) MC6809MCExpr(Kind, Expr, Negated); }
 
 void MC6809MCExpr::printImpl(raw_ostream &OS, const MCAsmInfo *MAI) const {
   assert(Kind != VK_NONE);
@@ -70,8 +63,7 @@ bool MC6809MCExpr::evaluateAsConstant(int64_t &Result) const {
   return false;
 }
 
-bool MC6809MCExpr::evaluateAsRelocatableImpl(MCValue &Result,
-                                          const MCAssembler *Asm) const {
+bool MC6809MCExpr::evaluateAsRelocatableImpl(MCValue &Result, const MCAssembler *Asm) const {
   if (!SubExpr->evaluateAsRelocatable(Result, Asm))
     return false;
   Result.setSpecifier(Kind);
@@ -126,14 +118,10 @@ MC6809::Fixups MC6809MCExpr::getFixupKind() const {
   return Kind;
 }
 
-void MC6809MCExpr::visitUsedExpr(MCStreamer &Streamer) const {
-  Streamer.visitUsedExpr(*getSubExpr());
-}
+void MC6809MCExpr::visitUsedExpr(MCStreamer &Streamer) const { Streamer.visitUsedExpr(*getSubExpr()); }
 
 const char *MC6809MCExpr::getName() const {
-  const auto &Modifier = llvm::find_if(
-      ModifierNames,
-      [this](ModifierEntry const &Mod) { return Mod.VariantKind == Kind; });
+  const auto &Modifier = llvm::find_if(ModifierNames, [this](ModifierEntry const &Mod) { return Mod.VariantKind == Kind; });
 
   if (Modifier != std::end(ModifierNames)) {
     return Modifier->Spelling;
@@ -141,15 +129,12 @@ const char *MC6809MCExpr::getName() const {
   return nullptr;
 }
 
-MC6809MCExpr::VariantKind MC6809MCExpr::getKindByName(StringRef Name,
-                                                bool IsImmediate) {
-  const auto &Modifier =
-      llvm::find_if(ModifierNames,
-                   [&Name, IsImmediate](ModifierEntry const &Mod) {
-                     if (Mod.ImmediateOnly && !IsImmediate)
-                       return false;
-                     return Mod.Spelling == Name;
-                   });
+MC6809MCExpr::VariantKind MC6809MCExpr::getKindByName(StringRef Name, bool IsImmediate) {
+  const auto &Modifier = llvm::find_if(ModifierNames, [&Name, IsImmediate](ModifierEntry const &Mod) {
+    if (Mod.ImmediateOnly && !IsImmediate)
+      return false;
+    return Mod.Spelling == Name;
+  });
 
   if (Modifier != std::end(ModifierNames)) {
     return Modifier->VariantKind;

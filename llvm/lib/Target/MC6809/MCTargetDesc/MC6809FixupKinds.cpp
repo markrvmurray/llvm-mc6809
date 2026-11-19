@@ -21,24 +21,21 @@ MCFixupKindInfo MC6809FixupKinds::getFixupKindInfo(const MC6809::Fixups Kind, co
       // MC6809FixupKinds.h.
       //
       // name, offset, bits, flags
-      {"Imm8", 0, 8, 0},      // An 8 bit immediate value.
-      {"Imm16", 0, 16, 0},    // A 16 bit immediate value.
-      {"Addr8", 0, 8, 0},     // An 8 bit direct page address.
-      {"Addr16", 0, 16, 0},   // A 16-bit address.
-      {"Rel5", 0, 5, 0},      // A 5-bit index relative value.
-      {"Rel8", 0, 8, 0},      // An 8-bit index relative value.
-      {"Rel16", 0, 16, 0},    // A 16-bit index relative value.
-      {"PCRel8", 0, 8, 0},    // An 8-bit PC relative value.
-      {"PCRel16", 0, 16, 0},  // A 16-bit PC relative value.
+      {"Imm8", 0, 8, 0},     // An 8 bit immediate value.
+      {"Imm16", 0, 16, 0},   // A 16 bit immediate value.
+      {"Addr8", 0, 8, 0},    // An 8 bit direct page address.
+      {"Addr16", 0, 16, 0},  // A 16-bit address.
+      {"Rel5", 0, 5, 0},     // A 5-bit index relative value.
+      {"Rel8", 0, 8, 0},     // An 8-bit index relative value.
+      {"Rel16", 0, 16, 0},   // A 16-bit index relative value.
+      {"PCRel8", 0, 8, 0},   // An 8-bit PC relative value.
+      {"PCRel16", 0, 16, 0}, // A 16-bit PC relative value.
   };
   if (Kind < static_cast<MC6809::Fixups>(FirstTargetFixupKind)) {
-    assert(Alternative &&
-           "Alternative MC6809 backend expected, but none was given!");
+    assert(Alternative && "Alternative MC6809 backend expected, but none was given!");
     return Alternative->getFixupKindInfo(static_cast<MCFixupKind>(Kind));
   }
-  assert(unsigned(Kind - FirstTargetFixupKind) <
-             MC6809::Fixups::NumTargetFixupKinds &&
-         "Invalid kind!");
+  assert(unsigned(Kind - FirstTargetFixupKind) < MC6809::Fixups::NumTargetFixupKinds && "Invalid kind!");
   return Infos[Kind - FirstTargetFixupKind];
 }
 

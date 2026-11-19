@@ -43,16 +43,24 @@ using namespace llvm;
 /// Map from RS byte sub-reg to its parent RS register, or 0 if not a sub-reg.
 static unsigned getImag16ParentForSymbol(unsigned Reg) {
   switch (Reg) {
-  case MC6809::RS0HI: case MC6809::RS0LO: return MC6809::RS0;
-  case MC6809::RS1HI: case MC6809::RS1LO: return MC6809::RS1;
-  case MC6809::RS2HI: case MC6809::RS2LO: return MC6809::RS2;
-  case MC6809::RS3HI: case MC6809::RS3LO: return MC6809::RS3;
-  default: return 0;
+  case MC6809::RS0HI:
+  case MC6809::RS0LO:
+    return MC6809::RS0;
+  case MC6809::RS1HI:
+  case MC6809::RS1LO:
+    return MC6809::RS1;
+  case MC6809::RS2HI:
+  case MC6809::RS2LO:
+    return MC6809::RS2;
+  case MC6809::RS3HI:
+  case MC6809::RS3LO:
+    return MC6809::RS3;
+  default:
+    return 0;
   }
 }
 
-static void initImag8SymbolNames(const MC6809RegisterInfo &TRI,
-                                  std::unique_ptr<std::string[]> &Names) {
+static void initImag8SymbolNames(const MC6809RegisterInfo &TRI, std::unique_ptr<std::string[]> &Names) {
   Names.reset(new std::string[TRI.getNumRegs()]);
   for (unsigned Reg : seq(0u, TRI.getNumRegs())) {
     // Generate `__<lowercase_name>` for every imaginary register
@@ -61,9 +69,7 @@ static void initImag8SymbolNames(const MC6809RegisterInfo &TRI,
     // symbol a direct-page address. For the byte sub-regs, the
     // linker defines: __rs0hi = __rs0 (high byte at base address,
     // big-endian) and __rs0lo = __rs0 + 1.
-    if (!MC6809::Imag16RegClass.contains(Reg) &&
-        !MC6809::Imag8RegClass.contains(Reg) &&
-        !getImag16ParentForSymbol(Reg))
+    if (!MC6809::Imag16RegClass.contains(Reg) && !MC6809::Imag8RegClass.contains(Reg) && !getImag16ParentForSymbol(Reg))
       continue;
     std::string &Str = Names[Reg];
     Str = "__";
@@ -155,12 +161,9 @@ StringRef MC6809RegisterInfo::getRegAsmName(MCRegister Reg) const {
 }
 
 const MCPhysReg *MC6809RegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
-  const auto &TFI = *static_cast<const MC6809FrameLowering *>(
-      MF->getSubtarget().getFrameLowering());
+  const auto &TFI = *static_cast<const MC6809FrameLowering *>(MF->getSubtarget().getFrameLowering());
   if (TFI.isFIRQ(*MF))
-    return MF->getSubtarget<MC6809Subtarget>().has6309()
-               ? MC6809_FIRQ_HD6309_CSR_SaveList
-               : MC6809_FIRQ_CSR_SaveList;
+    return MF->getSubtarget<MC6809Subtarget>().has6309() ? MC6809_FIRQ_HD6309_CSR_SaveList : MC6809_FIRQ_CSR_SaveList;
   return TFI.isISR(*MF) ? MC6809_Interrupt_CSR_SaveList : MC6809_CSR_SaveList;
 }
 
@@ -178,9 +181,7 @@ const uint32_t *MC6809RegisterInfo::getCallPreservedMask(const MachineFunction &
   return MC6809_CSR_RegMask;
 }
 
-const TargetRegisterClass *
-MC6809RegisterInfo::getSubClassWithSubReg(const TargetRegisterClass *RC,
-                                           unsigned Idx) const {
+const TargetRegisterClass *MC6809RegisterInfo::getSubClassWithSubReg(const TargetRegisterClass *RC, unsigned Idx) const {
   // Override tablegen's sub-class-with-subreg for ACC16 and ADc.
   // When RS imaginary byte sub-regs are in 8-bit allocatable classes
   // (AAc/ABc), tablegen's lattice algorithm tightens the sub_lo_byte
@@ -216,8 +217,7 @@ bool MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int
   Register BasePtr = getFrameRegister(MF);
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   const bool Realign = TFI->realignsStack(MF);
-  const MC6809InstrInfo &TII =
-      *static_cast<const MC6809InstrInfo *>(MF.getSubtarget().getInstrInfo());
+  const MC6809InstrInfo &TII = *static_cast<const MC6809InstrInfo *>(MF.getSubtarget().getInstrInfo());
 
   // Bug #387 (S2): a spill slot that escaped processFunctionBeforeFrameFinalized's
   // static marking — created later in PEI (a register-scavenging emergency slot,
@@ -231,10 +231,7 @@ bool MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int
   // AND the frame-finalisation scan didn't find a non-lowerable accessor of
   // the same slot (mixed-accessor slots must stay dynamic as a whole — see
   // MC6809FunctionInfo::StaticNotLowerable).
-  if (TFI->usesStaticStack(MF) && MFI.isSpillSlotObjectIndex(FrameIndex) &&
-      MFI.getStackID(FrameIndex) == TargetStackID::Default &&
-      TII.getStaticSymOpcode(MI.getOpcode()) &&
-      !MF.getInfo<MC6809FunctionInfo>()->StaticNotLowerable.count(FrameIndex))
+  if (TFI->usesStaticStack(MF) && MFI.isSpillSlotObjectIndex(FrameIndex) && MFI.getStackID(FrameIndex) == TargetStackID::Default && TII.getStaticSymOpcode(MI.getOpcode()) && !MF.getInfo<MC6809FunctionInfo>()->StaticNotLowerable.count(FrameIndex))
     TFI->markSpillSlotStatic(MF, FrameIndex);
 
   // Bug #387 (S3/S4): a spill slot moved to the static stack is addressed
@@ -244,9 +241,7 @@ bool MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int
   // expander (expandLoadSym/expandStoreSym) emits the extended-mode access,
   // and MC6809StaticStackAlloc turns the target index into the real global.
   if (MFI.getStackID(FrameIndex) == TargetStackID::Mc6809Static) {
-    int64_t StaticOff = MFI.getObjectOffset(FrameIndex) +
-                        MI.getOperand(FIOperandNum).getOffset() +
-                        MI.getOperand(FIOperandNum + 1).getImm();
+    int64_t StaticOff = MFI.getObjectOffset(FrameIndex) + MI.getOperand(FIOperandNum).getOffset() + MI.getOperand(FIOperandNum + 1).getImm();
     unsigned SymOpc = TII.getStaticSymOpcode(MI.getOpcode());
     assert(SymOpc && "static-stack frame index in a non-spill pseudo");
     // Copy every operand before the frame index — the value/dst register for
@@ -260,8 +255,7 @@ bool MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int
     for (unsigned I = 0; I < FIOperandNum; ++I)
       MIB.add(MI.getOperand(I));
     MIB.addTargetIndex(MC6809::TI_STATIC_STACK, StaticOff);
-    for (unsigned I = FIOperandNum + 2, E = MI.getNumExplicitOperands(); I < E;
-         ++I)
+    for (unsigned I = FIOperandNum + 2, E = MI.getNumExplicitOperands(); I < E; ++I)
       MIB.add(MI.getOperand(I));
     // The _Sym descriptor re-adds the CC implicit defs/uses (NZ/V/C), but not
     // the dynamic PHANTOM_CARRY scheduling operands the selector attaches to
@@ -273,12 +267,9 @@ bool MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int
     // into a byte (MC6809InstrInfo::isFlagCaptureTag): dropping it left a
     // static-stack leaf's overflow add without the copy of V it was
     // selected to make.
-    for (unsigned I = MI.getNumExplicitOperands(), E = MI.getNumOperands();
-         I < E; ++I) {
+    for (unsigned I = MI.getNumExplicitOperands(), E = MI.getNumOperands(); I < E; ++I) {
       const MachineOperand &MO = MI.getOperand(I);
-      if (MO.isReg() && MO.getReg().isPhysical() &&
-          (MC6809::PHANTOM_CARRYRegClass.contains(MO.getReg()) ||
-           MC6809InstrInfo::isFlagCaptureTag(MI, MO)))
+      if (MO.isReg() && MO.getReg().isPhysical() && (MC6809::PHANTOM_CARRYRegClass.contains(MO.getReg()) || MC6809InstrInfo::isFlagCaptureTag(MI, MO)))
         MIB.add(MO);
     }
     MIB.cloneMemRefs(MI);
@@ -290,8 +281,7 @@ bool MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int
   // sub-slot byte addressing (e.g. +1 for the low half of a big-endian
   // i16 spill consumed by EXTRACT_LO_i16). Without this term, the +1
   // is silently dropped and the load fetches the high byte instead.
-  int Offset = MFI.getObjectOffset(FrameIndex)
-             + MI.getOperand(FIOperandNum).getOffset();
+  int Offset = MFI.getObjectOffset(FrameIndex) + MI.getOperand(FIOperandNum).getOffset();
 
   // Fixed stack objects (args, positive offset) are above the return
   // address on the stack. Local objects (spills, negative offset) are
@@ -349,15 +339,9 @@ bool MC6809RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II, int
 // register, and two overlapping chains then present unspillable
 // singleton-class ranges that greedy cannot allocate (strtoll's i64
 // accumulation). Keeping the endpoint copy costs one TFR at worst.
-bool MC6809RegisterInfo::shouldCoalesce(
-    MachineInstr *MI, const TargetRegisterClass *SrcRC, unsigned SubReg,
-    const TargetRegisterClass *DstRC, unsigned DstSubReg,
-    const TargetRegisterClass *NewRC, LiveIntervals &LIS) const {
-  auto IsByteSingleton = [](const TargetRegisterClass *RC) {
-    return RC == &MC6809::AAcRegClass || RC == &MC6809::ABcRegClass;
-  };
-  if (IsByteSingleton(NewRC) && !IsByteSingleton(SrcRC) &&
-      !IsByteSingleton(DstRC))
+bool MC6809RegisterInfo::shouldCoalesce(MachineInstr *MI, const TargetRegisterClass *SrcRC, unsigned SubReg, const TargetRegisterClass *DstRC, unsigned DstSubReg, const TargetRegisterClass *NewRC, LiveIntervals &LIS) const {
+  auto IsByteSingleton = [](const TargetRegisterClass *RC) { return RC == &MC6809::AAcRegClass || RC == &MC6809::ABcRegClass; };
+  if (IsByteSingleton(NewRC) && !IsByteSingleton(SrcRC) && !IsByteSingleton(DstRC))
     return false;
   return true;
 }
@@ -478,13 +462,12 @@ MC6809InstrCost MC6809RegisterInfo::copyCost(Register DestReg, Register SrcReg, 
 
   // Spill register costs: load/store to stack via S-indexed addressing.
   auto SpillLoad8Cost = MC6809InstrCost(2, 4);   // LDA/LDB offset,S
-  auto SpillStore8Cost = MC6809InstrCost(2, 4);   // STA/STB offset,S
-  auto SpillLoad16Cost = MC6809InstrCost(2, 5);   // LDD offset,S
-  auto SpillStore16Cost = MC6809InstrCost(2, 5);   // STD offset,S
+  auto SpillStore8Cost = MC6809InstrCost(2, 4);  // STA/STB offset,S
+  auto SpillLoad16Cost = MC6809InstrCost(2, 5);  // LDD offset,S
+  auto SpillStore16Cost = MC6809InstrCost(2, 5); // STD offset,S
 
   // Real ↔ 8-bit spill register
-  if ((MC6809::ACC8RegClass.contains(DestReg) && MC6809::AAcRegClass.contains(SrcReg) && !MC6809::ACC8RegClass.contains(SrcReg)) ||
-      (MC6809::ACC8RegClass.contains(DestReg) && MC6809::ABcRegClass.contains(SrcReg) && !MC6809::ACC8RegClass.contains(SrcReg)))
+  if ((MC6809::ACC8RegClass.contains(DestReg) && MC6809::AAcRegClass.contains(SrcReg) && !MC6809::ACC8RegClass.contains(SrcReg)) || (MC6809::ACC8RegClass.contains(DestReg) && MC6809::ABcRegClass.contains(SrcReg) && !MC6809::ACC8RegClass.contains(SrcReg)))
     return SpillLoad8Cost;
   if ((MC6809::AAcRegClass.contains(DestReg) && !MC6809::ACC8RegClass.contains(DestReg) && MC6809::ACC8RegClass.contains(SrcReg)) ||
       (MC6809::ABcRegClass.contains(DestReg) && !MC6809::ACC8RegClass.contains(DestReg) && MC6809::ACC8RegClass.contains(SrcReg)))
@@ -495,14 +478,11 @@ MC6809InstrCost MC6809RegisterInfo::copyCost(Register DestReg, Register SrcReg, 
   if (MC6809::ADcRegClass.contains(DestReg) && !MC6809::ACC16RegClass.contains(DestReg) && MC6809::ACC16RegClass.contains(SrcReg))
     return SpillStore16Cost;
   // Spill ↔ spill (same size): load + store
-  if (MC6809::AAcRegClass.contains(DestReg) && !MC6809::ACC8RegClass.contains(DestReg) &&
-      MC6809::AAcRegClass.contains(SrcReg) && !MC6809::ACC8RegClass.contains(SrcReg))
+  if (MC6809::AAcRegClass.contains(DestReg) && !MC6809::ACC8RegClass.contains(DestReg) && MC6809::AAcRegClass.contains(SrcReg) && !MC6809::ACC8RegClass.contains(SrcReg))
     return SpillLoad8Cost + SpillStore8Cost;
-  if (MC6809::ABcRegClass.contains(DestReg) && !MC6809::ACC8RegClass.contains(DestReg) &&
-      MC6809::ABcRegClass.contains(SrcReg) && !MC6809::ACC8RegClass.contains(SrcReg))
+  if (MC6809::ABcRegClass.contains(DestReg) && !MC6809::ACC8RegClass.contains(DestReg) && MC6809::ABcRegClass.contains(SrcReg) && !MC6809::ACC8RegClass.contains(SrcReg))
     return SpillLoad8Cost + SpillStore8Cost;
-  if (MC6809::ADcRegClass.contains(DestReg) && !MC6809::ACC16RegClass.contains(DestReg) &&
-      MC6809::ADcRegClass.contains(SrcReg) && !MC6809::ACC16RegClass.contains(SrcReg))
+  if (MC6809::ADcRegClass.contains(DestReg) && !MC6809::ACC16RegClass.contains(DestReg) && MC6809::ADcRegClass.contains(SrcReg) && !MC6809::ACC16RegClass.contains(SrcReg))
     return SpillLoad16Cost + SpillStore16Cost;
 
   if (AreClasses(MC6809::ACC8RegClass, MC6809::ACC8RegClass)) {
@@ -526,8 +506,7 @@ MC6809InstrCost MC6809RegisterInfo::copyCost(Register DestReg, Register SrcReg, 
   if (AreClasses(MC6809::ACC16RegClass, MC6809::Imag16RegClass)) {
     return MC6809InstrCost(2, 4);
   }
-  if (AreClasses(MC6809::Imag16RegClass, MC6809::INDEX16RegClass) ||
-      AreClasses(MC6809::INDEX16RegClass, MC6809::Imag16RegClass)) {
+  if (AreClasses(MC6809::Imag16RegClass, MC6809::INDEX16RegClass) || AreClasses(MC6809::INDEX16RegClass, MC6809::Imag16RegClass)) {
     // INDEX16 → Imag16: TFR IX/IY,D + STD dp  (or reverse: LDD dp + TFR D,IX/IY)
     return TransferCost + MC6809InstrCost(2, 4);
   }

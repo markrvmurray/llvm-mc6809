@@ -96,8 +96,7 @@ int MC6809SchedStrategy::registerClassPressureDiff(const TargetRegisterClass &RC
   for (const MachineOperand &MO : MI->operands()) {
     if (!MO.isReg() || !MO.getReg().isPhysical())
       continue;
-    if (!RC.contains(MO.getReg()) &&
-        !(CountsD && TRI->regsOverlap(MO.getReg(), MC6809::AD)))
+    if (!RC.contains(MO.getReg()) && !(CountsD && TRI->regsOverlap(MO.getReg(), MC6809::AD)))
       continue;
     if (MO.isDef()) {
       PressureDiff += IsTop ? 1 : -1;

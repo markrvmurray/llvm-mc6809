@@ -29,13 +29,13 @@ namespace MC6809 {
 enum Fixups {
   Imm8 = FirstTargetFixupKind,
   Imm16,
-  Addr8,     // An 8 bit direct page address.
-  Addr16,    // A 16-bit address.
-  Rel5,      // A 5-bit index relative value.
-  Rel8,      // An 8-bit index relative value.
-  Rel16,     // A 16-bit index relative value.
-  PCRel8,    // An 8-bit PC relative value.
-  PCRel16,   // An 16-bit PC relative value.
+  Addr8,   // An 8 bit direct page address.
+  Addr16,  // A 16-bit address.
+  Rel5,    // A 5-bit index relative value.
+  Rel8,    // An 8-bit index relative value.
+  Rel16,   // A 16-bit index relative value.
+  PCRel8,  // An 8-bit PC relative value.
+  PCRel16, // An 16-bit PC relative value.
   LastTargetFixupKind,
   NumTargetFixupKinds = LastTargetFixupKind - FirstTargetFixupKind
 };

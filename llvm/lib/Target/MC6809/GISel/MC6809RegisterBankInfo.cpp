@@ -22,10 +22,9 @@
 
 // Bug #359 debug knob: gate the index-domain pointer-compare banking so its
 // effect can be A/B-tested (diff codegen on vs off) without rebuilding.
-static llvm::cl::opt<bool> EnablePtrIndexCmp(
-    "mc6809-ptr-index-cmp", llvm::cl::init(true), llvm::cl::Hidden,
-    llvm::cl::desc("Bug #359: keep pointer compares in the INDEX bank "
-                   "(CMPX/CMPY) instead of moving into D"));
+static llvm::cl::opt<bool> EnablePtrIndexCmp("mc6809-ptr-index-cmp", llvm::cl::init(true), llvm::cl::Hidden,
+                                             llvm::cl::desc("Bug #359: keep pointer compares in the INDEX bank "
+                                                            "(CMPX/CMPY) instead of moving into D"));
 
 #define DEBUG_TYPE "mc6809-registerbank"
 
@@ -54,28 +53,19 @@ MC6809RegisterBankInfo::MC6809RegisterBankInfo(/* const TargetRegisterInfo &TRI 
   const RegisterBank &RBCC = getRegBank(MC6809::FLAGSRegBankID);
   (void)RBCC;
   assert(&MC6809::FLAGSRegBank == &RBCC && "Incorrect FLAGS RegBank initialization.");
-
 }
 
 const RegisterBank &MC6809RegisterBankInfo::getRegBankFromRegClass(const TargetRegisterClass &RC, LLT) const {
-  if (MC6809::ACC8RegClass.hasSubClassEq(&RC) ||
-      MC6809::ACC16RegClass.hasSubClassEq(&RC) ||
-      MC6809::ACC32RegClass.hasSubClassEq(&RC) ||
+  if (MC6809::ACC8RegClass.hasSubClassEq(&RC) || MC6809::ACC16RegClass.hasSubClassEq(&RC) || MC6809::ACC32RegClass.hasSubClassEq(&RC) ||
       // Classes that may not be subclasses of ACC8/ACC16 due to spill
       // registers breaking set containment, but still belong to ACCUM bank.
-      MC6809::AAcRegClass.hasSubClassEq(&RC) ||
-      MC6809::ABcRegClass.hasSubClassEq(&RC) ||
-      MC6809::ADcRegClass.hasSubClassEq(&RC) ||
-      MC6809::ACC8_ABRegClass.hasSubClassEq(&RC)) {
+      MC6809::AAcRegClass.hasSubClassEq(&RC) || MC6809::ABcRegClass.hasSubClassEq(&RC) || MC6809::ADcRegClass.hasSubClassEq(&RC) || MC6809::ACC8_ABRegClass.hasSubClassEq(&RC)) {
     return getRegBank(MC6809::ACCUMRegBankID);
   }
   if (MC6809::INDEX16RegClass.hasSubClassEq(&RC)) {
     return getRegBank(MC6809::INDEXRegBankID);
   }
-  if (MC6809::CCondRegClass.hasSubClassEq(&RC) ||
-      MC6809::AllArithFlagRegClass.hasSubClassEq(&RC) ||
-      MC6809::ArithFlagRegClass.hasSubClassEq(&RC) ||
-      MC6809::CCFlagRegClass.hasSubClassEq(&RC)) {
+  if (MC6809::CCondRegClass.hasSubClassEq(&RC) || MC6809::AllArithFlagRegClass.hasSubClassEq(&RC) || MC6809::ArithFlagRegClass.hasSubClassEq(&RC) || MC6809::CCFlagRegClass.hasSubClassEq(&RC)) {
     return getRegBank(MC6809::FLAGSRegBankID);
   }
   if (MC6809::PHANTOM_CARRYRegClass.hasSubClassEq(&RC)) {
@@ -83,9 +73,7 @@ const RegisterBank &MC6809RegisterBankInfo::getRegBankFromRegClass(const TargetR
     // shares regalloc cost-model state with the real byte-allocation pool.
     return getRegBank(MC6809::PHANTOMRegBankID);
   }
-  if (MC6809::Imag8RegClass.hasSubClassEq(&RC) ||
-      MC6809::Imag16RegClass.hasSubClassEq(&RC) ||
-      MC6809::Imag32RegClass.hasSubClassEq(&RC)) {
+  if (MC6809::Imag8RegClass.hasSubClassEq(&RC) || MC6809::Imag16RegClass.hasSubClassEq(&RC) || MC6809::Imag32RegClass.hasSubClassEq(&RC)) {
     return getRegBank(MC6809::ACCUMRegBankID);
   }
   llvm_unreachable("Unsupported register kind.");
@@ -236,9 +224,7 @@ const RegisterBankInfo::InstructionMapping &MC6809RegisterBankInfo::getInstrMapp
     Register Src = MI.getOperand(1).getReg();
     Register Dst = MI.getOperand(0).getReg();
     const RegisterBank *SrcRB = MRI.getRegBankOrNull(Src);
-    if (EnablePtrIndexCmp && SrcRB &&
-        SrcRB->getID() == MC6809::INDEXRegBankID &&
-        !MRI.use_nodbg_empty(Dst)) {
+    if (EnablePtrIndexCmp && SrcRB && SrcRB->getID() == MC6809::INDEXRegBankID && !MRI.use_nodbg_empty(Dst)) {
       bool OnlyCompares = true;
       for (const MachineInstr &U : MRI.use_nodbg_instructions(Dst)) {
         if (U.getOpcode() != TargetOpcode::G_ICMP) {
@@ -279,8 +265,7 @@ const RegisterBankInfo::InstructionMapping &MC6809RegisterBankInfo::getInstrMapp
       SmallVector<const ValueMapping *, 8> OpdsMapping(NumOperands);
       if (!getInstrValueMapping(MI, OpRegBankIdx, OpdsMapping))
         return getInvalidInstructionMapping();
-      return getInstructionMapping(DefaultMappingID, /* Cost */ 1,
-                                   getOperandsMapping(OpdsMapping), NumOperands);
+      return getInstructionMapping(DefaultMappingID, /* Cost */ 1, getOperandsMapping(OpdsMapping), NumOperands);
     }
     break;
   }
@@ -312,6 +297,4 @@ const RegisterBankInfo::InstructionMapping &MC6809RegisterBankInfo::getInstrMapp
   return getInstructionMapping(DefaultMappingID, /* Cost */ 1, getOperandsMapping(OpdsMapping), NumOperands);
 }
 
-void MC6809RegisterBankInfo::applyMappingImpl(MachineIRBuilder &Builder, const OperandsMapper &OpdMapper) const {
-  return applyDefaultMapping(OpdMapper);
-}
+void MC6809RegisterBankInfo::applyMappingImpl(MachineIRBuilder &Builder, const OperandsMapper &OpdMapper) const { return applyDefaultMapping(OpdMapper); }

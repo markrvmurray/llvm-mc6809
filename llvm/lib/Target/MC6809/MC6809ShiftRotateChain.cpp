@@ -37,9 +37,7 @@ class MC6809ShiftRotateChain : public MachineFunctionPass {
 public:
   static char ID;
 
-  MC6809ShiftRotateChain() : MachineFunctionPass(ID) {
-    llvm::initializeMC6809ShiftRotateChainPass(*PassRegistry::getPassRegistry());
-  }
+  MC6809ShiftRotateChain() : MachineFunctionPass(ID) { llvm::initializeMC6809ShiftRotateChainPass(*PassRegistry::getPassRegistry()); }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     MachineFunctionPass::getAnalysisUsage(AU);
@@ -47,18 +45,14 @@ public:
     AU.addPreserved<MachineDominatorTreeWrapperPass>();
   }
 
-  MachineFunctionProperties getRequiredProperties() const override {
-    return MachineFunctionProperties().set(
-        MachineFunctionProperties::Property::IsSSA);
-  }
+  MachineFunctionProperties getRequiredProperties() const override { return MachineFunctionProperties().set(MachineFunctionProperties::Property::IsSSA); }
 
   bool runOnMachineFunction(MachineFunction &MF) override;
 
 private:
   // Move PrevMI and the values it depends on up the dominance tree until it
   // dominates MI, all the way up to base.
-  void ensureDominates(const MachineInstr &Base, MachineInstr &PrevMI,
-                       MachineInstr &MI) const;
+  void ensureDominates(const MachineInstr &Base, MachineInstr &PrevMI, MachineInstr &MI) const;
 };
 } // namespace
 
@@ -146,8 +140,7 @@ bool MC6809ShiftRotateChain::runOnMachineFunction(MachineFunction &MF) {
       Changed = true;
       MI.getOperand(1).setReg(PrevMI.getOperand(0).getReg());
       MachineIRBuilder B(MI);
-      MI.getOperand(2).setReg(
-          B.buildConstant(MRI.getType(C.R), C.Amount - Prev.Amount).getReg(0));
+      MI.getOperand(2).setReg(B.buildConstant(MRI.getType(C.R), C.Amount - Prev.Amount).getReg(0));
     }
   }
   return Changed;
@@ -181,11 +174,8 @@ void MC6809ShiftRotateChain::ensureDominates(const MachineInstr &Base, MachineIn
     ensureDominates(Base, ImmBase, PrevMI);
 }
 
-
 char MC6809ShiftRotateChain::ID = 0;
 
 INITIALIZE_PASS(MC6809ShiftRotateChain, DEBUG_TYPE, "MC6809 Shift/Rotate Chaining", false, false)
 
-MachineFunctionPass *llvm::createMC6809ShiftRotateChainPass() {
-  return new MC6809ShiftRotateChain();
-}
+MachineFunctionPass *llvm::createMC6809ShiftRotateChainPass() { return new MC6809ShiftRotateChain(); }

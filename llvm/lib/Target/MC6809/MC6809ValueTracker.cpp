@@ -44,8 +44,7 @@ using namespace llvm;
 /// `long_options`/`ap`/`data` keep an `into %ir.NAME` alloca MMO post-LTO and
 /// are NOT lowered to a Stack/FixedStack PSV; classifying those as non-frame
 /// was the Bug #366 miscompile (test-getopt -flto: stale optarg pointer).
-bool MC6809ValueTracker::mayStoreToStackFrame(const MachineInstr &MI,
-                                 const MachineFrameInfo &MFI) {
+bool MC6809ValueTracker::mayStoreToStackFrame(const MachineInstr &MI, const MachineFrameInfo &MFI) {
   if (!MI.mayStore())
     return false;
   if (MI.memoperands_empty())
@@ -54,8 +53,7 @@ bool MC6809ValueTracker::mayStoreToStackFrame(const MachineInstr &MI,
     if (!MMO->isStore())
       continue;
     if (const PseudoSourceValue *PSV = MMO->getPseudoValue()) {
-      if (PSV->isStack() || PSV->kind() == PseudoSourceValue::FixedStack ||
-          PSV->mayAlias(&MFI))
+      if (PSV->isStack() || PSV->kind() == PseudoSourceValue::FixedStack || PSV->mayAlias(&MFI))
         return true; // frame / spill / may-alias-frame PSV
       continue;      // GOT / JumpTable / ConstantPool / GlobalValue / CallEntry
     }
@@ -72,16 +70,13 @@ bool MC6809ValueTracker::mayStoreToStackFrame(const MachineInstr &MI,
 /// names, when that index is a spill slot; INT_MIN otherwise. A spill slot's
 /// address is never taken, so nothing but an access naming its frame index can
 /// read or write it -- and a store to it cannot reach anything else.
-int MC6809ValueTracker::spillSlotOf(const MachineInstr &MI,
-                                     const MachineFrameInfo &MFI) {
+int MC6809ValueTracker::spillSlotOf(const MachineInstr &MI, const MachineFrameInfo &MFI) {
   if (MI.memoperands_empty())
     return INT_MIN;
   int FI = INT_MIN;
   for (const MachineMemOperand *MMO : MI.memoperands()) {
-    const auto *FS =
-        dyn_cast_or_null<FixedStackPseudoSourceValue>(MMO->getPseudoValue());
-    if (!FS || !MFI.isSpillSlotObjectIndex(FS->getFrameIndex()) ||
-        (FI != INT_MIN && FI != FS->getFrameIndex()))
+    const auto *FS = dyn_cast_or_null<FixedStackPseudoSourceValue>(MMO->getPseudoValue());
+    if (!FS || !MFI.isSpillSlotObjectIndex(FS->getFrameIndex()) || (FI != INT_MIN && FI != FS->getFrameIndex()))
       return INT_MIN;
     FI = FS->getFrameIndex();
   }
@@ -92,30 +87,21 @@ int MC6809ValueTracker::spillSlotOf(const MachineInstr &MI,
 /// memory no pointer reaches.
 static bool storesImaginaryReg(const MachineInstr &MI) {
   for (const MachineOperand &MO : MI.operands())
-    if (MO.isReg() && MO.getReg().isPhysical() &&
-        (MC6809::Imag8RegClass.contains(MO.getReg()) ||
-         MC6809::Imag16RegClass.contains(MO.getReg())))
+    if (MO.isReg() && MO.getReg().isPhysical() && (MC6809::Imag8RegClass.contains(MO.getReg()) || MC6809::Imag16RegClass.contains(MO.getReg())))
       return true;
   return false;
 }
 
-MC6809ValueTracker::MC6809ValueTracker(const MachineFunction &MF,
-                                       const TargetRegisterInfo &TRI)
-    : MF(MF), MFI(MF.getFrameInfo()), TRI(TRI) {}
+MC6809ValueTracker::MC6809ValueTracker(const MachineFunction &MF, const TargetRegisterInfo &TRI) : MF(MF), MFI(MF.getFrameInfo()), TRI(TRI) {}
 
-int MC6809ValueTracker::holderWidth(Register R) {
-  return MC6809InstrInfo::getValueRegBytes(R);
-}
+int MC6809ValueTracker::holderWidth(Register R) { return MC6809InstrInfo::getValueRegBytes(R); }
 
 // A location is the frame if its memory operand says so (stack or
 // fixed-stack, or an alloca), or, with no memory operand, if it is addressed
 // from a frame base.
-bool MC6809ValueTracker::isFrameLocation(const MachineInstr &Est,
-                                         Register Base) const {
+bool MC6809ValueTracker::isFrameLocation(const MachineInstr &Est, Register Base) const {
   if (Est.memoperands_empty())
-    return static_cast<const MC6809FrameLowering &>(
-               *MF.getSubtarget().getFrameLowering())
-        .isFrameBase(MF, Base);
+    return static_cast<const MC6809FrameLowering &>(*MF.getSubtarget().getFrameLowering()).isFrameBase(MF, Base);
   for (const MachineMemOperand *MMO : Est.memoperands()) {
     if (const PseudoSourceValue *PSV = MMO->getPseudoValue()) {
       if (!(PSV->isStack() || PSV->kind() == PseudoSourceValue::FixedStack))
@@ -136,15 +122,12 @@ MC6809ValueTracker::Mirror *MC6809ValueTracker::find(const Key &K) {
   return nullptr;
 }
 
-void MC6809ValueTracker::set(const Key &K, Register Reg, MachineInstr &Est,
-                             bool SourceKilled) {
+void MC6809ValueTracker::set(const Key &K, Register Reg, MachineInstr &Est, bool SourceKilled) {
   // An imaginary register is compiler-private direct-page memory: only an
   // access naming it (or an overlapping one) reaches it.
-  bool IsImaginary = MC6809::Imag8RegClass.contains(K.Base) ||
-                     MC6809::Imag16RegClass.contains(K.Base);
+  bool IsImaginary = MC6809::Imag8RegClass.contains(K.Base) || MC6809::Imag16RegClass.contains(K.Base);
   int SpillFI = IsImaginary ? INT_MIN : spillSlotOf(Est, MFI);
-  bool IsFrame =
-      !IsImaginary && SpillFI == INT_MIN && isFrameLocation(Est, K.Base);
+  bool IsFrame = !IsImaginary && SpillFI == INT_MIN && isFrameLocation(Est, K.Base);
   Mirror New{Reg, SourceKilled, SpillFI, IsFrame, IsImaginary, &Est};
   if (Mirror *M = find(K))
     *M = New;
@@ -162,28 +145,19 @@ void MC6809ValueTracker::clearBase(Register R) {
   for (auto &E : Entries)
     if (E.first.Base.isValid() && TRI.regsOverlap(E.first.Base, R))
       E.second.Reg = Register();
-  llvm::erase_if(Pending, [&](const PendingStore &P) {
-    return TRI.regsOverlap(P.K.Base, R);
-  });
+  llvm::erase_if(Pending, [&](const PendingStore &P) { return TRI.regsOverlap(P.K.Base, R); });
 }
 
-static bool isImaginary(Register R) {
-  return MC6809::Imag8RegClass.contains(R) ||
-         MC6809::Imag16RegClass.contains(R);
-}
+static bool isImaginary(Register R) { return MC6809::Imag8RegClass.contains(R) || MC6809::Imag16RegClass.contains(R); }
 
-void MC6809ValueTracker::addPendingStore(const Key &K, int Width,
-                                         MachineInstr &Store) {
+void MC6809ValueTracker::addPendingStore(const Key &K, int Width, MachineInstr &Store) {
   bool Imag = isImaginary(K.Base);
-  Pending.push_back(
-      {K, Width, &Store, Imag ? INT_MIN : spillSlotOf(Store, MFI), Imag});
+  Pending.push_back({K, Width, &Store, Imag ? INT_MIN : spillSlotOf(Store, MFI), Imag});
 }
 
-void MC6809ValueTracker::takeCoveredStores(
-    Register Base, int Off, int Width, SmallVectorImpl<MachineInstr *> &Dead) {
+void MC6809ValueTracker::takeCoveredStores(Register Base, int Off, int Width, SmallVectorImpl<MachineInstr *> &Dead) {
   llvm::erase_if(Pending, [&](const PendingStore &P) {
-    if (P.K.Base != Base || P.K.Offset < Off ||
-        P.K.Offset + P.Width > Off + Width)
+    if (P.K.Base != Base || P.K.Offset < Off || P.K.Offset + P.Width > Off + Width)
       return false;
     Dead.push_back(P.Store);
     for (auto &E : Entries)
@@ -196,32 +170,23 @@ void MC6809ValueTracker::takeCoveredStores(
 }
 
 void MC6809ValueTracker::readRange(Register Base, int Off, int Width) {
-  llvm::erase_if(Pending, [&](const PendingStore &P) {
-    return P.K.Base == Base && P.K.Offset < Off + Width &&
-           Off < P.K.Offset + P.Width;
-  });
+  llvm::erase_if(Pending, [&](const PendingStore &P) { return P.K.Base == Base && P.K.Offset < Off + Width && Off < P.K.Offset + P.Width; });
 }
 
-void MC6809ValueTracker::readAlias(const MachineInstr &MI, bool KeyedOnOwnBase,
-                                   Register OwnBase) {
+void MC6809ValueTracker::readAlias(const MachineInstr &MI, bool KeyedOnOwnBase, Register OwnBase) {
   int LoadFI = spillSlotOf(MI, MFI);
   llvm::erase_if(Pending, [&](const PendingStore &P) {
     if (KeyedOnOwnBase && P.K.Base == OwnBase)
       return false; // readRange decides
     if (P.SpillFI != INT_MIN && LoadFI != INT_MIN)
       return LoadFI == P.SpillFI;
-    if (P.IsImaginary && !MI.memoperands_empty() &&
-        all_of(MI.memoperands(), [](const MachineMemOperand *MMO) {
-          return MMO->getPseudoValue() || MMO->getValue();
-        }) &&
-        !namesOverlapping(MI, P.K.Base))
+    if (P.IsImaginary && !MI.memoperands_empty() && all_of(MI.memoperands(), [](const MachineMemOperand *MMO) { return MMO->getPseudoValue() || MMO->getValue(); }) && !namesOverlapping(MI, P.K.Base))
       return false;
     return true;
   });
 }
 
-void MC6809ValueTracker::storeOverlap(Register Base, int Off, int Width,
-                                      Register StoredReg) {
+void MC6809ValueTracker::storeOverlap(Register Base, int Off, int Width, Register StoredReg) {
   for (auto &E : Entries) {
     if (E.first.Base != Base || !E.second.Reg.isValid())
       continue;
@@ -233,8 +198,7 @@ void MC6809ValueTracker::storeOverlap(Register Base, int Off, int Width,
     // (`std 4,u` over a mirror of A at 4,u): the mirror stays. Only at that
     // exact position -- `stq 2,u` writes W, not D, over 4,u.
     if (StoredReg.isValid()) {
-      int Pos = MC6809InstrInfo::getSubRegByteOffset(TRI, StoredReg,
-                                                     E.second.Reg);
+      int Pos = MC6809InstrInfo::getSubRegByteOffset(TRI, StoredReg, E.second.Reg);
       if (Pos >= 0 && M == Off + Pos)
         continue;
     }
@@ -242,44 +206,34 @@ void MC6809ValueTracker::storeOverlap(Register Base, int Off, int Width,
   }
 }
 
-bool MC6809ValueTracker::namesOverlapping(const MachineInstr &MI,
-                                          Register R) const {
+bool MC6809ValueTracker::namesOverlapping(const MachineInstr &MI, Register R) const {
   for (const MachineOperand &MO : MI.operands())
-    if (MO.isReg() && MO.getReg().isPhysical() &&
-        TRI.regsOverlap(MO.getReg(), R))
+    if (MO.isReg() && MO.getReg().isPhysical() && TRI.regsOverlap(MO.getReg(), R))
       return true;
   return false;
 }
 
-void MC6809ValueTracker::storeAlias(const MachineInstr &MI,
-                                    bool IndexedOnOwnBase, Register OwnBase) {
+void MC6809ValueTracker::storeAlias(const MachineInstr &MI, bool IndexedOnOwnBase, Register OwnBase) {
   int StoreFI = spillSlotOf(MI, MFI);
   bool StorePrivate = StoreFI != INT_MIN || storesImaginaryReg(MI);
   bool StoreMayHitFrame = !StorePrivate && mayStoreToStackFrame(MI, MFI);
   for (auto &E : Entries) {
-    if (!E.second.Reg.isValid() ||
-        (IndexedOnOwnBase && E.first.Base == OwnBase))
+    if (!E.second.Reg.isValid() || (IndexedOnOwnBase && E.first.Base == OwnBase))
       continue;
     // An imaginary register goes on a store naming it (or one overlapping
     // it), or on any store whose footprint is not known to be private.
-    bool Drop = E.second.IsImaginary
-                    ? !StorePrivate || namesOverlapping(MI, E.first.Base)
-                : E.second.SpillFI != INT_MIN ? StoreFI == E.second.SpillFI
-                : E.second.IsFrame            ? StoreMayHitFrame
-                                              : !StorePrivate;
+    bool Drop = E.second.IsImaginary ? !StorePrivate || namesOverlapping(MI, E.first.Base) : E.second.SpillFI != INT_MIN ? StoreFI == E.second.SpillFI : E.second.IsFrame ? StoreMayHitFrame : !StorePrivate;
     if (Drop)
       E.second.Reg = Register();
   }
 }
 
-void MC6809ValueTracker::clearKillsToPriorDef(MachineInstr &MI, Register Reg,
-                                              const TargetRegisterInfo &TRI) {
+void MC6809ValueTracker::clearKillsToPriorDef(MachineInstr &MI, Register Reg, const TargetRegisterInfo &TRI) {
   MachineBasicBlock &MBB = *MI.getParent();
   for (auto It = std::next(MI.getReverseIterator()); It != MBB.rend(); ++It) {
     bool DefsReg = false;
     for (MachineOperand &MO : It->operands()) {
-      if (!MO.isReg() || !MO.getReg().isPhysical() ||
-          !TRI.regsOverlap(MO.getReg(), Reg))
+      if (!MO.isReg() || !MO.getReg().isPhysical() || !TRI.regsOverlap(MO.getReg(), Reg))
         continue;
       if (MO.isUse() && MO.isKill())
         MO.setIsKill(false);

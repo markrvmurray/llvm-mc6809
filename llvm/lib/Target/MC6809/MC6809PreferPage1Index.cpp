@@ -57,26 +57,20 @@ STATISTIC(NumInstrs, "Number of page-2 instructions demoted to page-1");
 // cross-check (see processBlock) on top of the local IX/IY dataflow, so it only
 // fires where IX is *provably* dead -- bailing on the call-argument /
 // control-flow-save cases the dataflow alone under-reported.
-static cl::opt<bool>
-    EnablePreferPage1("mc6809-enable-prefer-page1-index", cl::init(true), cl::Hidden,
-                      cl::desc("Rename call-free IY ranges to IX where IX is "
-                               "free (MC6809 page-1 preference)"));
+static cl::opt<bool> EnablePreferPage1("mc6809-enable-prefer-page1-index", cl::init(true), cl::Hidden,
+                                       cl::desc("Rename call-free IY ranges to IX where IX is "
+                                                "free (MC6809 page-1 preference)"));
 
 namespace {
 
 class MC6809PreferPage1Index : public MachineFunctionPass {
 public:
   static char ID;
-  MC6809PreferPage1Index() : MachineFunctionPass(ID) {
-    initializeMC6809PreferPage1IndexPass(*PassRegistry::getPassRegistry());
-  }
+  MC6809PreferPage1Index() : MachineFunctionPass(ID) { initializeMC6809PreferPage1IndexPass(*PassRegistry::getPassRegistry()); }
 
   bool runOnMachineFunction(MachineFunction &MF) override;
 
-  MachineFunctionProperties getRequiredProperties() const override {
-    return MachineFunctionProperties().set(
-        MachineFunctionProperties::Property::NoVRegs);
-  }
+  MachineFunctionProperties getRequiredProperties() const override { return MachineFunctionProperties().set(MachineFunctionProperties::Property::NoVRegs); }
 
 private:
   const TargetRegisterInfo *TRI = nullptr;
@@ -96,12 +90,9 @@ private:
 
 char MC6809PreferPage1Index::ID = 0;
 
-INITIALIZE_PASS(MC6809PreferPage1Index, DEBUG_TYPE,
-                "MC6809 prefer page-1 index register", false, false)
+INITIALIZE_PASS(MC6809PreferPage1Index, DEBUG_TYPE, "MC6809 prefer page-1 index register", false, false)
 
-MachineFunctionPass *llvm::createMC6809PreferPage1IndexPass() {
-  return new MC6809PreferPage1Index();
-}
+MachineFunctionPass *llvm::createMC6809PreferPage1IndexPass() { return new MC6809PreferPage1Index(); }
 
 // Build IY-form -> IX-form by name: the mnemonics differ only in the index
 // letter right after the LD/ST/LEA/CMP prefix (LDYi_o8 -> LDXi_o8, etc.).
@@ -180,8 +171,7 @@ void MC6809PreferPage1Index::computeLiveOuts(MachineFunction &MF) {
   // same reason as above).
   for (MachineBasicBlock &MBB : MF) {
     auto U = Use[&MBB], D = Def[&MBB], LO = LiveOutXY[&MBB];
-    LiveInXY[&MBB] = {U.first || (LO.first && !D.first),
-                      U.second || (LO.second && !D.second)};
+    LiveInXY[&MBB] = {U.first || (LO.first && !D.first), U.second || (LO.second && !D.second)};
   }
 }
 
@@ -244,10 +234,7 @@ bool MC6809PreferPage1Index::processBlock(MachineBasicBlock &MBB) {
       LiveIY = false;
   }
 
-  auto RefsIY = [&](const MachineInstr *MI) {
-    return MI->readsRegister(MC6809::IY, TRI) ||
-           MI->modifiesRegister(MC6809::IY, TRI);
-  };
+  auto RefsIY = [&](const MachineInstr *MI) { return MI->readsRegister(MC6809::IY, TRI) || MI->modifiesRegister(MC6809::IY, TRI); };
 
   bool Changed = false;
   for (unsigned K = 0; K < NumMI;) {
@@ -315,16 +302,13 @@ bool MC6809PreferPage1Index::processBlock(MachineBasicBlock &MBB) {
     //     not escape to a later use this block's scan missed).
     MachineBasicBlock::const_iterator AtDef(Instrs[K]);
     if (MBB.computeRegisterLiveness(TRI, MC6809::IX, AtDef,
-                                    /*Neighborhood=*/32) !=
-        MachineBasicBlock::LQR_Dead) {
+                                    /*Neighborhood=*/32) != MachineBasicBlock::LQR_Dead) {
       ++K;
       continue;
     }
-    MachineBasicBlock::const_iterator AfterLast =
-        std::next(MachineBasicBlock::const_iterator(Instrs[Last]));
+    MachineBasicBlock::const_iterator AfterLast = std::next(MachineBasicBlock::const_iterator(Instrs[Last]));
     if (MBB.computeRegisterLiveness(TRI, MC6809::IY, AfterLast,
-                                    /*Neighborhood=*/32) !=
-        MachineBasicBlock::LQR_Dead) {
+                                    /*Neighborhood=*/32) != MachineBasicBlock::LQR_Dead) {
       ++K;
       continue;
     }
@@ -340,8 +324,7 @@ bool MC6809PreferPage1Index::processBlock(MachineBasicBlock &MBB) {
           MO.setReg(MC6809::IX);
       ++NumInstrs;
     }
-    LLVM_DEBUG(dbgs() << "  PreferPage1: renamed IY range [" << K << "," << Last
-                      << "] to IX in " << MBB.getName() << "\n");
+    LLVM_DEBUG(dbgs() << "  PreferPage1: renamed IY range [" << K << "," << Last << "] to IX in " << MBB.getName() << "\n");
     ++NumRanges;
     Changed = true;
     K = End + 1;

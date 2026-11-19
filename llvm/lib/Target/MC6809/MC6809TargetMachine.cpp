@@ -62,10 +62,9 @@
 
 using namespace llvm;
 
-static cl::opt<bool> EnableIndexIV(
-    "mc6809-enable-index-iv", cl::init(true), cl::Hidden,
-    cl::desc("Run the 8-bit index induction-variable rewrite in the IR "
-             "loop pipeline"));
+static cl::opt<bool> EnableIndexIV("mc6809-enable-index-iv", cl::init(true), cl::Hidden,
+                                   cl::desc("Run the 8-bit index induction-variable rewrite in the IR "
+                                            "loop pipeline"));
 
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMC6809Target() {
   // Register the target.
@@ -112,8 +111,7 @@ static StringRef getCPU(StringRef CPU) { return (CPU.empty() || CPU == "generic"
 static Reloc::Model getEffectiveRelocModel(std::optional<Reloc::Model> RM) { return RM ? *RM : Reloc::Static; }
 
 MC6809TargetMachine::MC6809TargetMachine(const Target &T, const Triple &TT, StringRef CPU, StringRef FS, const TargetOptions &Options, std::optional<Reloc::Model> RM, std::optional<CodeModel::Model> CM, CodeGenOptLevel OL, bool JIT)
-    : CodeGenTargetMachineImpl(T, TT, getCPU(CPU), FS, Options, getEffectiveRelocModel(RM), getEffectiveCodeModel(CM, CodeModel::Small), OL),
-      SubTarget(TT, getCPU(CPU).str(), FS.str(), *this) {
+    : CodeGenTargetMachineImpl(T, TT, getCPU(CPU), FS, Options, getEffectiveRelocModel(RM), getEffectiveCodeModel(CM, CodeModel::Small), OL), SubTarget(TT, getCPU(CPU).str(), FS.str(), *this) {
   this->TLOF = std::make_unique<MC6809TargetObjectFile>();
 
   initAsmInfo();
@@ -157,10 +155,7 @@ void MC6809TargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
     return false;
   });
 
-  PB.registerFullLinkTimeOptimizationLastEPCallback(
-      [](ModulePassManager &MPM, OptimizationLevel Level) {
-        MPM.addPass(MC6809NonReentrantPass());
-      });
+  PB.registerFullLinkTimeOptimizationLastEPCallback([](ModulePassManager &MPM, OptimizationLevel Level) { MPM.addPass(MC6809NonReentrantPass()); });
 
   PB.registerLateLoopOptimizationsEPCallback([](LoopPassManager &PM, OptimizationLevel Level) {
     if (Level != OptimizationLevel::O0 && EnableIndexIV) {
@@ -187,8 +182,7 @@ namespace {
 /// MC6809 Code Generator Pass Configuration Options.
 class MC6809PassConfig : public TargetPassConfig {
 public:
-  MC6809PassConfig(MC6809TargetMachine &TM, PassManagerBase &PM)
-      : TargetPassConfig(TM, PM) {
+  MC6809PassConfig(MC6809TargetMachine &TM, PassManagerBase &PM) : TargetPassConfig(TM, PM) {
     // Every post-RA pseudo is expanded bottom-up (see MC6809ExpandPseudos),
     // including where the standard pipeline expands them.
     substitutePass(&ExpandPostRAPseudosID, &MC6809ExpandPseudosID);
@@ -462,10 +456,7 @@ void MC6809PassConfig::addPreEmitPass() {
   addPass(createMC6809PhantomCarryGuardPass());
 }
 
-ScheduleDAGInstrs *MC6809TargetMachine::createMachineScheduler(MachineSchedContext *C) const {
-  return new ScheduleDAGMILive(C, std::make_unique<MC6809SchedStrategy>(C));
-}
-
+ScheduleDAGInstrs *MC6809TargetMachine::createMachineScheduler(MachineSchedContext *C) const { return new ScheduleDAGMILive(C, std::make_unique<MC6809SchedStrategy>(C)); }
 
 namespace {
 
@@ -485,7 +476,6 @@ bool MC6809CSEConfigFull::shouldCSEOpc(unsigned Opc) {
     return true;
   }
 }
-
 
 std::unique_ptr<CSEConfigBase> MC6809PassConfig::getCSEConfig() const {
   if (TM->getOptLevel() == CodeGenOptLevel::None)

@@ -39,15 +39,11 @@ class MC6809BundleCC : public MachineFunctionPass {
 public:
   static char ID;
 
-  MC6809BundleCC() : MachineFunctionPass(ID) {
-    initializeMC6809BundleCCPass(*PassRegistry::getPassRegistry());
-  }
+  MC6809BundleCC() : MachineFunctionPass(ID) { initializeMC6809BundleCCPass(*PassRegistry::getPassRegistry()); }
 
   bool runOnMachineFunction(MachineFunction &MF) override;
 
-  StringRef getPassName() const override {
-    return "MC6809 Fix CC Clobber";
-  }
+  StringRef getPassName() const override { return "MC6809 Fix CC Clobber"; }
 };
 } // end anonymous namespace
 
@@ -69,9 +65,6 @@ char MC6809BundleCC::ID = 0;
 
 } // end anonymous namespace
 
-INITIALIZE_PASS(MC6809BundleCC, DEBUG_TYPE,
-                "MC6809 Fix CC Clobber", false, false)
+INITIALIZE_PASS(MC6809BundleCC, DEBUG_TYPE, "MC6809 Fix CC Clobber", false, false)
 
-MachineFunctionPass *llvm::createMC6809BundleCCPass() {
-  return new MC6809BundleCC();
-}
+MachineFunctionPass *llvm::createMC6809BundleCCPass() { return new MC6809BundleCC(); }

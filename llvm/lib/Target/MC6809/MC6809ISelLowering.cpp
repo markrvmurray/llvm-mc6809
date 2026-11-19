@@ -199,8 +199,7 @@ bool MC6809TargetLowering::isLegalAddressingMode(const DataLayout &DL, const Add
 
   const bool HasIndex = AM.Scale == 1;
   if (HasIndex && AM.HasBaseReg)
-    return !AM.BaseGV && !AM.BaseOffs &&
-           (is8BitIndex(AM.BaseType) || is8BitIndex(AM.ScaleType));
+    return !AM.BaseGV && !AM.BaseOffs && (is8BitIndex(AM.BaseType) || is8BitIndex(AM.ScaleType));
   if (HasIndex || AM.HasBaseReg)
     return !AM.BaseGV && isInt<16>(AM.BaseOffs);
   return true;
@@ -259,8 +258,7 @@ static MachineBasicBlock *emitLeaOS9Weak(MachineInstr &MI, MachineBasicBlock *MB
   const MachineOperand SymOp = MI.getOperand(1);
   // The data area or the module body, as the target flags say (set by the
   // selector from the same rule the section selection uses).
-  const bool InDataArea = SymOp.getTargetFlags() == MC6809::MO_OS9_DATA ||
-                          SymOp.getTargetFlags() == MC6809::MO_OS9_BSS;
+  const bool InDataArea = SymOp.getTargetFlags() == MC6809::MO_OS9_DATA || SymOp.getTargetFlags() == MC6809::MO_OS9_BSS;
 
   MachineBasicBlock *HeadMBB = MBB;
   MachineFunction::iterator I = ++MBB->getIterator();
@@ -277,8 +275,7 @@ static MachineBasicBlock *emitLeaOS9Weak(MachineInstr &MI, MachineBasicBlock *MB
       for (unsigned Idx = 1; Idx < Phi.getNumOperands(); Idx += 2)
         if (Phi.getOperand(Idx + 1).getMBB() == HeadMBB)
           Phi.getOperand(Idx + 1).setMBB(TailMBB);
-    BuildMI(*TailMBB, TailMBB->end(), DL, TII.get(MC6809::LongBranchRelative))
-        .addMBB(OrigSucc);
+    BuildMI(*TailMBB, TailMBB->end(), DL, TII.get(MC6809::LongBranchRelative)).addMBB(OrigSucc);
   }
   HeadMBB->removeSuccessor(TailMBB);
 
@@ -293,23 +290,12 @@ static MachineBasicBlock *emitLeaOS9Weak(MachineInstr &MI, MachineBasicBlock *MB
   // Head: the link-time offset, and the test against it.
   Register Off = MRI.createVirtualRegister(&MC6809::INDEX16RegClass);
   BuildMI(*HeadMBB, MI, DL, TII.get(MC6809::Load_iPtr_Imm), Off).add(SymOp);
-  BuildMI(*HeadMBB, MI, DL, TII.get(MC6809::CompareBranch_ptr_Imm))
-      .addImm(MC6809CC::EQ)
-      .addReg(Off)
-      .addImm(0)
-      .addMBB(TailMBB);
+  BuildMI(*HeadMBB, MI, DL, TII.get(MC6809::CompareBranch_ptr_Imm)).addImm(MC6809CC::EQ).addReg(Off).addImm(0).addMBB(TailMBB);
   // Add: the symbol's run-time address, relative to its region's base.
   Register Sum = MRI.createVirtualRegister(&MC6809::INDEX16RegClass);
-  BuildMI(*AddMBB, AddMBB->end(), DL,
-          TII.get(InDataArea ? MC6809::Lea_iPtr_OS9Sym : MC6809::Lea_iPtr_Sym),
-          Sum)
-      .add(SymOp);
+  BuildMI(*AddMBB, AddMBB->end(), DL, TII.get(InDataArea ? MC6809::Lea_iPtr_OS9Sym : MC6809::Lea_iPtr_Sym), Sum).add(SymOp);
   // Tail: the result.
-  BuildMI(*TailMBB, TailMBB->begin(), DL, TII.get(MC6809::PHI), Dst)
-      .addReg(Off)
-      .addMBB(HeadMBB)
-      .addReg(Sum)
-      .addMBB(AddMBB);
+  BuildMI(*TailMBB, TailMBB->begin(), DL, TII.get(MC6809::PHI), Dst).addReg(Off).addMBB(HeadMBB).addReg(Sum).addMBB(AddMBB);
   MI.eraseFromParent();
   return TailMBB;
 }
@@ -434,18 +420,41 @@ static MachineBasicBlock *emitConditionalImm(MachineInstr &MI, MachineBasicBlock
     unsigned Opc = Def->getOpcode();
     unsigned FusedOpc = 0;
     switch (Opc) {
-    case MC6809::Compare_i8_Imm:   FusedOpc = MC6809::CompareBranch_i8_Imm;  break;
-    case MC6809::Compare_i16_Imm:  FusedOpc = MC6809::CompareBranch_i16_Imm; break;
-    case MC6809::Compare_i8_Reg:   FusedOpc = MC6809::CompareBranch_i8_Reg;  break;
-    case MC6809::Compare_i16_Reg:  FusedOpc = MC6809::CompareBranch_i16_Reg; break;
-    case MC6809::Compare_i16_RegIdx: FusedOpc = MC6809::CompareBranch_i16_RegIdx; break;
-    case MC6809::Compare_i8_Mem:   FusedOpc = MC6809::CompareBranch_i8_Mem;  break;
-    case MC6809::Compare_i16_Mem:  FusedOpc = MC6809::CompareBranch_i16_Mem; break;
-    case MC6809::Test_i8_Reg:      FusedOpc = MC6809::TestBranch_i8_Reg;     break;
-    case MC6809::Test_i16_Reg:     FusedOpc = MC6809::TestBranch_i16_Reg;    break;
-    case MC6809::Test_i8_Mem:      FusedOpc = MC6809::TestBranch_i8_Mem;     break;
-    case MC6809::Test_i16_Mem:     FusedOpc = MC6809::TestBranch_i16_Mem;    break;
-    default: return false;
+    case MC6809::Compare_i8_Imm:
+      FusedOpc = MC6809::CompareBranch_i8_Imm;
+      break;
+    case MC6809::Compare_i16_Imm:
+      FusedOpc = MC6809::CompareBranch_i16_Imm;
+      break;
+    case MC6809::Compare_i8_Reg:
+      FusedOpc = MC6809::CompareBranch_i8_Reg;
+      break;
+    case MC6809::Compare_i16_Reg:
+      FusedOpc = MC6809::CompareBranch_i16_Reg;
+      break;
+    case MC6809::Compare_i16_RegIdx:
+      FusedOpc = MC6809::CompareBranch_i16_RegIdx;
+      break;
+    case MC6809::Compare_i8_Mem:
+      FusedOpc = MC6809::CompareBranch_i8_Mem;
+      break;
+    case MC6809::Compare_i16_Mem:
+      FusedOpc = MC6809::CompareBranch_i16_Mem;
+      break;
+    case MC6809::Test_i8_Reg:
+      FusedOpc = MC6809::TestBranch_i8_Reg;
+      break;
+    case MC6809::Test_i16_Reg:
+      FusedOpc = MC6809::TestBranch_i16_Reg;
+      break;
+    case MC6809::Test_i8_Mem:
+      FusedOpc = MC6809::TestBranch_i8_Mem;
+      break;
+    case MC6809::Test_i16_Mem:
+      FusedOpc = MC6809::TestBranch_i16_Mem;
+      break;
+    default:
+      return false;
     }
     // Compare/Test pseudo operand layout is:
     //   (outs CCond:$dst), (ins condcode:$cc, ...src/imm/mem/pull...)
@@ -470,10 +479,7 @@ static MachineBasicBlock *emitConditionalImm(MachineInstr &MI, MachineBasicBlock
     // the only producers that reach it are non-Compare/Test sources
     // (e.g. truly synthesised CCond vregs), where there is no
     // adjacency to preserve.
-    Builder.buildInstr(MC6809::ConditionalLongBranchRelative)
-        .addImm(Condition)
-        .addMBB(IfTrueMBB)
-        .addUse(Flag);
+    Builder.buildInstr(MC6809::ConditionalLongBranchRelative).addImm(Condition).addMBB(IfTrueMBB).addUse(Flag);
   }
   HeadMBB->addSuccessor(IfTrueMBB);
 
@@ -486,12 +492,7 @@ static MachineBasicBlock *emitConditionalImm(MachineInstr &MI, MachineBasicBlock
   Builder.buildInstr(Opcode, {Dst0}, {FalseValue});
 
   Builder.setInsertPt(*TailMBB, TailMBB->begin());
-  Builder.buildInstr(MC6809::PHI)
-      .addDef(Dst)
-      .addReg(Dst0)
-      .addMBB(IfFalseMBB)
-      .addReg(Dst1)
-      .addMBB(IfTrueMBB);
+  Builder.buildInstr(MC6809::PHI).addDef(Dst).addReg(Dst0).addMBB(IfFalseMBB).addReg(Dst1).addMBB(IfTrueMBB);
 
   MI.eraseFromParent();
 

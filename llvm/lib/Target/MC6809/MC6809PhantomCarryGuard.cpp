@@ -83,13 +83,9 @@ namespace {
 class MC6809PhantomCarryGuard : public MachineFunctionPass {
 public:
   static char ID;
-  MC6809PhantomCarryGuard() : MachineFunctionPass(ID) {
-    initializeMC6809PhantomCarryGuardPass(*PassRegistry::getPassRegistry());
-  }
+  MC6809PhantomCarryGuard() : MachineFunctionPass(ID) { initializeMC6809PhantomCarryGuardPass(*PassRegistry::getPassRegistry()); }
 
-  StringRef getPassName() const override {
-    return "MC6809 PHANTOM_CARRY invariant guard";
-  }
+  StringRef getPassName() const override { return "MC6809 PHANTOM_CARRY invariant guard"; }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesAll();
@@ -103,12 +99,9 @@ public:
 
 char MC6809PhantomCarryGuard::ID = 0;
 
-INITIALIZE_PASS(MC6809PhantomCarryGuard, DEBUG_TYPE,
-                "MC6809 PHANTOM_CARRY invariant guard", false, false)
+INITIALIZE_PASS(MC6809PhantomCarryGuard, DEBUG_TYPE, "MC6809 PHANTOM_CARRY invariant guard", false, false)
 
-FunctionPass *llvm::createMC6809PhantomCarryGuardPass() {
-  return new MC6809PhantomCarryGuard();
-}
+FunctionPass *llvm::createMC6809PhantomCarryGuardPass() { return new MC6809PhantomCarryGuard(); }
 
 // True if R is one of PHANTOM_CARRY_0..PHANTOM_CARRY_7.
 static bool isPhantomCarry(Register R) {
@@ -121,8 +114,7 @@ static bool isPhantomCarry(Register R) {
 // Defs that are marked `dead` are not real clobbers from the chain's
 // perspective -- they're conservative annotations that don't actually
 // change CC.C's value.
-static bool definesCarryLive(const MachineInstr &MI,
-                             const TargetRegisterInfo &TRI) {
+static bool definesCarryLive(const MachineInstr &MI, const TargetRegisterInfo &TRI) {
   for (const MachineOperand &MO : MI.operands()) {
     if (!MO.isReg() || !MO.isDef())
       continue;
@@ -138,8 +130,7 @@ static bool definesCarryLive(const MachineInstr &MI,
 }
 
 bool MC6809PhantomCarryGuard::runOnMachineFunction(MachineFunction &MF) {
-  const TargetRegisterInfo &TRI =
-      *MF.getSubtarget().getRegisterInfo();
+  const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
 
   for (MachineBasicBlock &MBB : MF) {
     for (MachineInstr &MI : MBB) {

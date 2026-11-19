@@ -51,13 +51,9 @@ class MC6809CallFrameHoist : public MachineFunctionPass {
 public:
   static char ID;
 
-  MC6809CallFrameHoist() : MachineFunctionPass(ID) {
-    initializeMC6809CallFrameHoistPass(*PassRegistry::getPassRegistry());
-  }
+  MC6809CallFrameHoist() : MachineFunctionPass(ID) { initializeMC6809CallFrameHoistPass(*PassRegistry::getPassRegistry()); }
 
-  StringRef getPassName() const override {
-    return "MC6809 Call Frame Hoist";
-  }
+  StringRef getPassName() const override { return "MC6809 Call Frame Hoist"; }
 
   bool runOnMachineFunction(MachineFunction &MF) override;
 };
@@ -82,9 +78,7 @@ static bool isLeaf(const MachineInstr &MI) {
 // A generic instruction that only computes a value from virtual registers and
 // immediates: no memory access, no side effect, no physical register.
 static bool isPureGeneric(const MachineInstr &MI) {
-  if (!isPreISelGenericOpcode(MI.getOpcode()) || MI.isPHI() ||
-      MI.mayLoadOrStore() || MI.hasUnmodeledSideEffects() || MI.isCall() ||
-      MI.isTerminator())
+  if (!isPreISelGenericOpcode(MI.getOpcode()) || MI.isPHI() || MI.mayLoadOrStore() || MI.hasUnmodeledSideEffects() || MI.isCall() || MI.isTerminator())
     return false;
   for (const MachineOperand &MO : MI.operands())
     if (MO.isReg() && !MO.getReg().isVirtual())
@@ -124,10 +118,7 @@ bool MC6809CallFrameHoist::runOnMachineFunction(MachineFunction &MF) {
         Leaves.insert(MI.getOperand(0).getReg());
         continue;
       }
-      bool Hoist = isPureGeneric(MI) &&
-                   none_of(MI.uses(), [&](const MachineOperand &MO) {
-                     return MO.isReg() && StayingDefs.count(MO.getReg());
-                   });
+      bool Hoist = isPureGeneric(MI) && none_of(MI.uses(), [&](const MachineOperand &MO) { return MO.isReg() && StayingDefs.count(MO.getReg()); });
       if (Hoist) {
         for (const MachineOperand &MO : MI.uses()) {
           if (!MO.isReg() || !Leaves.erase(MO.getReg()))
@@ -151,10 +142,6 @@ bool MC6809CallFrameHoist::runOnMachineFunction(MachineFunction &MF) {
 
 char MC6809CallFrameHoist::ID = 0;
 
-INITIALIZE_PASS(MC6809CallFrameHoist, DEBUG_TYPE,
-                "Move computation out of MC6809 call argument setup", false,
-                false)
+INITIALIZE_PASS(MC6809CallFrameHoist, DEBUG_TYPE, "Move computation out of MC6809 call argument setup", false, false)
 
-MachineFunctionPass *llvm::createMC6809CallFrameHoistPass() {
-  return new MC6809CallFrameHoist();
-}
+MachineFunctionPass *llvm::createMC6809CallFrameHoistPass() { return new MC6809CallFrameHoist(); }

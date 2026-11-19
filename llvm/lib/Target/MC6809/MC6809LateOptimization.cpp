@@ -46,9 +46,7 @@ STATISTIC(NumDiamondHoist, "Diamond false-arm loads hoisted");
 
 using namespace llvm;
 
-static cl::opt<bool> EnableDiamondFalseLoad(
-    "mc6809-enable-diamond-false-load", cl::init(true), cl::Hidden,
-    cl::desc("Load a compare result's false value ahead of the compare"));
+static cl::opt<bool> EnableDiamondFalseLoad("mc6809-enable-diamond-false-load", cl::init(true), cl::Hidden, cl::desc("Load a compare result's false value ahead of the compare"));
 
 namespace {
 
@@ -83,8 +81,6 @@ bool MC6809LateOptimization::runOnMachineFunction(MachineFunction &MF) {
   return Changed;
 }
 
-
-
 // A byte loaded, changed and stored back to the same place, with the
 // accumulator dead after, is one memory operation:
 //     ldb 4,x ; andb #$f0 ; stb 4,x   ->   aim #$f0,4,x     (6309: and/or/eor)
@@ -103,37 +99,40 @@ bool MC6809LateOptimization::foldMemoryRMW(MachineBasicBlock &MBB) const {
   enum class Op { None, And, Or, Eor, Inc, Dec };
   // The access's form: indexed (with its IdxForm), direct page or extended.
   enum class Kind { None, Idx, Dir, Ext };
-  auto Access = [&](const MachineInstr &MI, bool Store, Register &R,
-                    MC6809::IdxForm &F) {
-    if (auto LS = MC6809InstrInfo::getIdxLoadStore(MI.getOpcode());
-        LS && LS->IsStore == Store) {
+  auto Access = [&](const MachineInstr &MI, bool Store, Register &R, MC6809::IdxForm &F) {
+    if (auto LS = MC6809InstrInfo::getIdxLoadStore(MI.getOpcode()); LS && LS->IsStore == Store) {
       R = LS->Value;
       F = *MC6809InstrInfo::getIdxForm(MI.getOpcode());
       return Kind::Idx;
     }
-    if (auto LS = MC6809InstrInfo::getDirLoadStore(MI.getOpcode());
-        LS && LS->IsStore == Store) {
+    if (auto LS = MC6809InstrInfo::getDirLoadStore(MI.getOpcode()); LS && LS->IsStore == Store) {
       R = LS->Value;
       return Kind::Dir;
     }
     switch (MI.getOpcode()) {
-    case MC6809::LDAe: R = MC6809::AA; return Store ? Kind::None : Kind::Ext;
-    case MC6809::LDBe: R = MC6809::AB; return Store ? Kind::None : Kind::Ext;
-    case MC6809::STAe: R = MC6809::AA; return Store ? Kind::Ext : Kind::None;
-    case MC6809::STBe: R = MC6809::AB; return Store ? Kind::Ext : Kind::None;
-    default: return Kind::None;
+    case MC6809::LDAe:
+      R = MC6809::AA;
+      return Store ? Kind::None : Kind::Ext;
+    case MC6809::LDBe:
+      R = MC6809::AB;
+      return Store ? Kind::None : Kind::Ext;
+    case MC6809::STAe:
+      R = MC6809::AA;
+      return Store ? Kind::Ext : Kind::None;
+    case MC6809::STBe:
+      R = MC6809::AB;
+      return Store ? Kind::Ext : Kind::None;
+    default:
+      return Kind::None;
     }
   };
   // The operation on R, its immediate for and/or/eor, and whether the
   // memory form sets C differently (add/sub #1 against inc/dec).
-  auto Operation = [&](const MachineInstr &MI, Register R, int64_t &Imm,
-                       bool &SetsC) {
+  auto Operation = [&](const MachineInstr &MI, Register R, int64_t &Imm, bool &SetsC) {
     bool A = R == MC6809::AA;
     unsigned O = MI.getOpcode();
     SetsC = false;
-    auto ImmIs = [&](int64_t V) {
-      return MI.getOperand(0).isImm() && MI.getOperand(0).getImm() == V;
-    };
+    auto ImmIs = [&](int64_t V) { return MI.getOperand(0).isImm() && MI.getOperand(0).getImm() == V; };
     if (O == (A ? MC6809::INCAa : MC6809::INCBa))
       return Op::Inc;
     if (O == (A ? MC6809::DECAa : MC6809::DECBa))
@@ -176,8 +175,7 @@ bool MC6809LateOptimization::foldMemoryRMW(MachineBasicBlock &MBB) const {
     Register R;
     MC6809::IdxForm LF{}, SF{};
     Kind K = Access(Ld, false, R, LF);
-    if (K == Kind::None || (R != MC6809::AA && R != MC6809::AB) ||
-        MC6809InstrInfo::hasOrderedMemOperand(Ld))
+    if (K == Kind::None || (R != MC6809::AA && R != MC6809::AB) || MC6809InstrInfo::hasOrderedMemOperand(Ld))
       continue;
     auto OIt = NextReal(Ld.getIterator());
     if (OIt == MBB.end())
@@ -192,9 +190,7 @@ bool MC6809LateOptimization::foldMemoryRMW(MachineBasicBlock &MBB) const {
       continue;
     MachineInstr &St = *SIt;
     Register SR;
-    if (Access(St, true, SR, SF) != K || SR != R ||
-        (K == Kind::Idx && SF != LF) ||
-        MC6809InstrInfo::hasOrderedMemOperand(St))
+    if (Access(St, true, SR, SF) != K || SR != R || (K == Kind::Idx && SF != LF) || MC6809InstrInfo::hasOrderedMemOperand(St))
       continue;
     // The same address: the explicit operands of the load and the store
     // name it (for a direct-page register, as a plain and an undef use).
@@ -216,29 +212,16 @@ bool MC6809LateOptimization::foldMemoryRMW(MachineBasicBlock &MBB) const {
       continue;
     unsigned NewOpc = 0;
     bool HasImm = O == Op::And || O == Op::Or || O == Op::Eor;
-    unsigned IdxBase = O == Op::And   ? MC6809::AIMii_o0
-                       : O == Op::Or  ? MC6809::OIMii_o0
-                       : O == Op::Eor ? MC6809::EIMii_o0
-                       : O == Op::Inc ? MC6809::INCi_o0
-                                      : MC6809::DECi_o0;
+    unsigned IdxBase = O == Op::And ? MC6809::AIMii_o0 : O == Op::Or ? MC6809::OIMii_o0 : O == Op::Eor ? MC6809::EIMii_o0 : O == Op::Inc ? MC6809::INCi_o0 : MC6809::DECi_o0;
     if (K == Kind::Idx)
       NewOpc = MC6809InstrInfo::getIdxSibling(IdxBase, LF);
     else if (K == Kind::Dir)
-      NewOpc = O == Op::And   ? MC6809::AIMid
-               : O == Op::Or  ? MC6809::OIMid
-               : O == Op::Eor ? MC6809::EIMid
-               : O == Op::Inc ? MC6809::INCd
-                              : MC6809::DECd;
+      NewOpc = O == Op::And ? MC6809::AIMid : O == Op::Or ? MC6809::OIMid : O == Op::Eor ? MC6809::EIMid : O == Op::Inc ? MC6809::INCd : MC6809::DECd;
     else
-      NewOpc = O == Op::And   ? MC6809::AIMie
-               : O == Op::Or  ? MC6809::OIMie
-               : O == Op::Eor ? MC6809::EIMie
-               : O == Op::Inc ? MC6809::INCe
-                              : MC6809::DECe;
+      NewOpc = O == Op::And ? MC6809::AIMie : O == Op::Or ? MC6809::OIMie : O == Op::Eor ? MC6809::EIMie : O == Op::Inc ? MC6809::INCe : MC6809::DECe;
     if (!NewOpc)
       continue;
-    MachineInstrBuilder New =
-        BuildMI(MBB, St, St.getDebugLoc(), TII.get(NewOpc));
+    MachineInstrBuilder New = BuildMI(MBB, St, St.getDebugLoc(), TII.get(NewOpc));
     // The indexed forms take the immediate first (`aim #v,o,r`); the direct
     // and extended forms take it after the address (`(ins addr, val)`).
     if (HasImm && K == Kind::Idx)
@@ -248,8 +231,7 @@ bool MC6809LateOptimization::foldMemoryRMW(MachineBasicBlock &MBB) const {
     if (HasImm && K != Kind::Idx)
       New.addImm(Imm & 0xFF);
     for (const MachineOperand &MO : St.implicit_operands())
-      if (MO.isReg() && MO.isDef() &&
-          !TRI.regsOverlap(MO.getReg(), MC6809::CC))
+      if (MO.isReg() && MO.isDef() && !TRI.regsOverlap(MO.getReg(), MC6809::CC))
         New.add(MO); // the direct-page register the store writes
     New.cloneMergedMemRefs({&Ld, &St});
     if (It == OIt || It == SIt)
@@ -278,9 +260,7 @@ static Register leaSelfStep(const MachineInstr &MI, int &K) {
   const MachineOperand &Off = MI.getOperand(0);
   if (!(Off.isImm() || Off.isCImm()) || !MI.getOperand(1).isReg())
     return Register();
-  Register Stepped = MI.getOpcode() == MC6809::LEAXi_o5   ? MC6809::IX
-                     : MI.getOpcode() == MC6809::LEAYi_o5 ? MC6809::IY
-                                                          : MC6809::SU;
+  Register Stepped = MI.getOpcode() == MC6809::LEAXi_o5 ? MC6809::IX : MI.getOpcode() == MC6809::LEAYi_o5 ? MC6809::IY : MC6809::SU;
   if (MI.getOperand(1).getReg() != Stepped)
     return Register();
   K = Off.isImm() ? Off.getImm() : Off.getCImm()->getSExtValue();
@@ -289,8 +269,7 @@ static Register leaSelfStep(const MachineInstr &MI, int &K) {
 
 // An indexed access `op off,r` (o0, or o5 with an immediate): its base and
 // offset.
-static bool indexedBaseOffset(const MachineInstr &MI, Register &Base,
-                              int &Off) {
+static bool indexedBaseOffset(const MachineInstr &MI, Register &Base, int &Off) {
   int64_t O;
   bool Found = MC6809InstrInfo::getIdxBaseOffset(MI, Base, O);
   Off = static_cast<int>(O);
@@ -315,14 +294,20 @@ static bool readsAsValue(const MachineInstr &MI, Register R) {
   // The index-register stores and compares read their register whether or
   // not an expander spelled that out.
   switch (MI.getOpcode()) {
-  case MC6809::STXi_o0: case MC6809::STXi_o5:
-  case MC6809::CMPXi_o0: case MC6809::CMPXi_o5:
+  case MC6809::STXi_o0:
+  case MC6809::STXi_o5:
+  case MC6809::CMPXi_o0:
+  case MC6809::CMPXi_o5:
     return R == MC6809::IX;
-  case MC6809::STYi_o0: case MC6809::STYi_o5:
-  case MC6809::CMPYi_o0: case MC6809::CMPYi_o5:
+  case MC6809::STYi_o0:
+  case MC6809::STYi_o5:
+  case MC6809::CMPYi_o0:
+  case MC6809::CMPYi_o5:
     return R == MC6809::IY;
-  case MC6809::STUi_o0: case MC6809::STUi_o5:
-  case MC6809::CMPUi_o0: case MC6809::CMPUi_o5:
+  case MC6809::STUi_o0:
+  case MC6809::STUi_o5:
+  case MC6809::CMPUi_o0:
+  case MC6809::CMPUi_o5:
     return R == MC6809::SU;
   default:
     return false;
@@ -362,8 +347,7 @@ bool MC6809LateOptimization::formWalkingCompareBranch(MachineBasicBlock &MBB) co
     if (LI == MBB.getParent()->end() || !MBB.isSuccessor(&*LI))
       return false;
     Through = &*LI;
-  } else if (Next->isUnconditionalBranch() && Next->getOperand(0).isMBB() &&
-             std::next(Next) == MBB.end()) {
+  } else if (Next->isUnconditionalBranch() && Next->getOperand(0).isMBB() && std::next(Next) == MBB.end()) {
     Through = Next->getOperand(0).getMBB();
   } else {
     return false;
@@ -382,9 +366,7 @@ bool MC6809LateOptimization::formWalkingCompareBranch(MachineBasicBlock &MBB) co
         break;
       continue;
     }
-    if (!indexedBaseOffset(*It, Base, Off) || Off != 0 ||
-        (Base != MC6809::IX && Base != MC6809::IY && Base != MC6809::SU) ||
-        It->modifiesRegister(Base, &TRI) || readsAsValue(*It, Base))
+    if (!indexedBaseOffset(*It, Base, Off) || Off != 0 || (Base != MC6809::IX && Base != MC6809::IY && Base != MC6809::SU) || It->modifiesRegister(Base, &TRI) || readsAsValue(*It, Base))
       break;
     Cands.push_back(&*It);
     if (It == MBB.begin() || Cands.size() == 4)
@@ -442,10 +424,7 @@ bool MC6809LateOptimization::formWalkingCompareBranch(MachineBasicBlock &MBB) co
     if (Touched)
       continue;
     // The step's own Z must be dead where it was.
-    if (Through->computeRegisterLiveness(
-            &TRI, MC6809::Z,
-            MachineBasicBlock::const_iterator(std::next(Step->getIterator()))) !=
-        MachineBasicBlock::LQR_Dead)
+    if (Through->computeRegisterLiveness(&TRI, MC6809::Z, MachineBasicBlock::const_iterator(std::next(Step->getIterator()))) != MachineBasicBlock::LQR_Dead)
       continue;
     // The taken path: the register either dead there, or compensated at
     // its start.
@@ -473,26 +452,30 @@ bool MC6809LateOptimization::formWalkingCompareBranch(MachineBasicBlock &MBB) co
       if (!CompDest) {
         CompDest = Taken;
         if (Taken->pred_size() != 1) {
-          CompDest = MBB.SplitCriticalEdge(
-              Taken, *const_cast<MC6809LateOptimization *>(this));
+          CompDest = MBB.SplitCriticalEdge(Taken, *const_cast<MC6809LateOptimization *>(this));
           if (!CompDest)
             return Changed;
         }
       }
       unsigned LeaOpc;
       switch (Base) {
-      case MC6809::IX: LeaOpc = MC6809::LEAXi_o5; break;
-      case MC6809::IY: LeaOpc = MC6809::LEAYi_o5; break;
-      case MC6809::SU: LeaOpc = MC6809::LEAUi_o5; break;
-      default: llvm_unreachable("walking access through a non-index register");
+      case MC6809::IX:
+        LeaOpc = MC6809::LEAXi_o5;
+        break;
+      case MC6809::IY:
+        LeaOpc = MC6809::LEAYi_o5;
+        break;
+      case MC6809::SU:
+        LeaOpc = MC6809::LEAUi_o5;
+        break;
+      default:
+        llvm_unreachable("walking access through a non-index register");
       }
       auto At = CompDest->begin();
       while (At != CompDest->end() && At->isDebugInstr())
         ++At;
       ++NumWalkingCompensation;
-      BuildMI(*CompDest, At, Bcc.getDebugLoc(), TII.get(LeaOpc))
-          .addImm(-K)
-          .addReg(Base);
+      BuildMI(*CompDest, At, Bcc.getDebugLoc(), TII.get(LeaOpc)).addImm(-K).addReg(Base);
     }
     // Rewrite the access and drop the step.
     for (unsigned I = 0; I < Acc->getNumOperands(); ++I)
@@ -530,18 +513,21 @@ bool MC6809LateOptimization::hoistDiamondFalseLoad(MachineBasicBlock &MBB) const
   const TargetInstrInfo &TII = *MBB.getParent()->getSubtarget().getInstrInfo();
   auto ImmLoadReg = [](const MachineInstr &MI) -> Register {
     switch (MI.getOpcode()) {
-    case MC6809::LDAi8: return MC6809::AA;
-    case MC6809::LDBi8: return MC6809::AB;
-    case MC6809::LDEi8: return MC6809::AE;
-    case MC6809::LDFi8: return MC6809::AF;
-    default: return Register();
+    case MC6809::LDAi8:
+      return MC6809::AA;
+    case MC6809::LDBi8:
+      return MC6809::AB;
+    case MC6809::LDEi8:
+      return MC6809::AE;
+    case MC6809::LDFi8:
+      return MC6809::AF;
+    default:
+      return Register();
     }
   };
   // This block: flag producer, then one conditional branch, no unconditional.
   auto Term = MBB.getFirstTerminator();
-  if (Term == MBB.end() || Term == MBB.begin() ||
-      !Term->isConditionalBranch() || std::next(Term) != MBB.end() ||
-      !Term->getOperand(1).isMBB())
+  if (Term == MBB.end() || Term == MBB.begin() || !Term->isConditionalBranch() || std::next(Term) != MBB.end() || !Term->getOperand(1).isMBB())
     return false;
   MachineInstr &Bcc = *Term;
   MachineInstr &Producer = *std::prev(Term);
@@ -552,17 +538,17 @@ bool MC6809LateOptimization::hoistDiamondFalseLoad(MachineBasicBlock &MBB) const
       return false;
   MachineBasicBlock *T = Bcc.getOperand(1).getMBB();
   MachineBasicBlock *F = MBB.getNextNode();
-  if (!F || F == T || !MBB.isSuccessor(F) || F->pred_size() != 1 ||
-      T->pred_size() != 1 || F->getNextNode() != T)
+  if (!F || F == T || !MBB.isSuccessor(F) || F->pred_size() != 1 || T->pred_size() != 1 || F->getNextNode() != T)
     return false;
   MachineBasicBlock *J = T->getNextNode();
-  if (!J || T->succ_size() != 1 || !T->isSuccessor(J) || F->succ_size() != 1 ||
-      !F->isSuccessor(J))
+  if (!J || T->succ_size() != 1 || !T->isSuccessor(J) || F->succ_size() != 1 || !F->isSuccessor(J))
     return false;
   // F: `ld r #k1 ; bra J`. T: `ld r #k2` (falls through).
   auto FI = F->begin(), TI = T->begin();
-  while (FI != F->end() && FI->isDebugInstr()) ++FI;
-  while (TI != T->end() && TI->isDebugInstr()) ++TI;
+  while (FI != F->end() && FI->isDebugInstr())
+    ++FI;
+  while (TI != T->end() && TI->isDebugInstr())
+    ++TI;
   if (FI == F->end() || TI == T->end())
     return false;
   MachineInstr &FalseLoad = *FI, &TrueLoad = *TI;
@@ -570,13 +556,13 @@ bool MC6809LateOptimization::hoistDiamondFalseLoad(MachineBasicBlock &MBB) const
   if (!R || ImmLoadReg(TrueLoad) != R)
     return false;
   auto FNext = std::next(FI);
-  while (FNext != F->end() && FNext->isDebugInstr()) ++FNext;
-  if (FNext == F->end() || !FNext->isUnconditionalBranch() ||
-      !FNext->getOperand(0).isMBB() || FNext->getOperand(0).getMBB() != J ||
-      std::next(FNext) != F->end())
+  while (FNext != F->end() && FNext->isDebugInstr())
+    ++FNext;
+  if (FNext == F->end() || !FNext->isUnconditionalBranch() || !FNext->getOperand(0).isMBB() || FNext->getOperand(0).getMBB() != J || std::next(FNext) != F->end())
     return false;
   auto TNext = std::next(TI);
-  while (TNext != T->end() && TNext->isDebugInstr()) ++TNext;
+  while (TNext != T->end() && TNext->isDebugInstr())
+    ++TNext;
   if (TNext != T->end())
     return false;
   // R free across the producer: it neither reads nor writes R, and R is not
@@ -584,11 +570,9 @@ bool MC6809LateOptimization::hoistDiamondFalseLoad(MachineBasicBlock &MBB) const
   // loads: T and F both write it first, so only the producer matters).
   if (Producer.readsRegister(R, &TRI) || Producer.modifiesRegister(R, &TRI))
     return false;
-  if (MBB.computeRegisterLiveness(&TRI, R, MachineBasicBlock::const_iterator(Producer.getIterator())) !=
-      MachineBasicBlock::LQR_Dead)
+  if (MBB.computeRegisterLiveness(&TRI, R, MachineBasicBlock::const_iterator(Producer.getIterator())) != MachineBasicBlock::LQR_Dead)
     return false;
-  MC6809CC::CondCode Inv = MC6809CC::getOppositeCondition(
-      MC6809CC::CondCode(Bcc.getOperand(0).getImm()));
+  MC6809CC::CondCode Inv = MC6809CC::getOppositeCondition(MC6809CC::CondCode(Bcc.getOperand(0).getImm()));
   if (Inv == MC6809CC::INVALID)
     return false;
   // Move the false load ahead of the producer (its flags now dead), invert
@@ -596,9 +580,7 @@ bool MC6809LateOptimization::hoistDiamondFalseLoad(MachineBasicBlock &MBB) const
   FalseLoad.removeFromParent();
   MBB.insert(Producer.getIterator(), &FalseLoad);
   for (MachineOperand &MO : FalseLoad.operands())
-    if (MO.isReg() && MO.isDef() && MO.isImplicit() &&
-        (MO.getReg() == MC6809::NZ || MO.getReg() == MC6809::N ||
-         MO.getReg() == MC6809::Z || MO.getReg() == MC6809::V))
+    if (MO.isReg() && MO.isDef() && MO.isImplicit() && (MO.getReg() == MC6809::NZ || MO.getReg() == MC6809::N || MO.getReg() == MC6809::Z || MO.getReg() == MC6809::V))
       MO.setIsDead();
   Bcc.getOperand(0).setImm(Inv);
   Bcc.getOperand(1).setMBB(J);
@@ -652,15 +634,12 @@ bool MC6809LateOptimization::formPostIncrement(MachineBasicBlock &MBB) const {
     if (NIt == MBB.end())
       continue;
     MachineInstr &Lea = *NIt;
-    if (leaSelfStep(Lea, K) != Base || K <= 0 ||
-        MI.modifiesRegister(Base, &TRI) || readsAsValue(MI, Base))
+    if (leaSelfStep(Lea, K) != Base || K <= 0 || MI.modifiesRegister(Base, &TRI) || readsAsValue(MI, Base))
       continue;
     unsigned IncOpc = MC6809InstrInfo::getPostIncrementOpcode(MI.getOpcode(), K);
     if (!IncOpc)
       continue;
-    if (Lea.modifiesRegister(MC6809::Z, &TRI) &&
-        MBB.computeRegisterLiveness(&TRI, MC6809::Z, NextReal(NIt)) !=
-            MachineBasicBlock::LQR_Dead)
+    if (Lea.modifiesRegister(MC6809::Z, &TRI) && MBB.computeRegisterLiveness(&TRI, MC6809::Z, NextReal(NIt)) != MachineBasicBlock::LQR_Dead)
       continue;
     It = NextReal(NIt);
     ++NumPostIncLeaAfter;
@@ -691,29 +670,51 @@ bool MC6809LateOptimization::elideCompareZero(MachineBasicBlock &MBB) const {
     Register CmpReg;
     bool IsTst = false;
     switch (MI.getOpcode()) {
-    case MC6809::CMPDi16: CmpReg = MC6809::AD; break;
-    case MC6809::CMPWi16: CmpReg = MC6809::AW; break;
-    case MC6809::CMPXi16: CmpReg = MC6809::IX; break;
-    case MC6809::CMPYi16: CmpReg = MC6809::IY; break;
-    case MC6809::TSTAa: CmpReg = MC6809::AA; IsTst = true; break;
-    case MC6809::TSTBa: CmpReg = MC6809::AB; IsTst = true; break;
-    case MC6809::TSTDa: CmpReg = MC6809::AD; IsTst = true; break;
-    case MC6809::TSTWa: CmpReg = MC6809::AW; IsTst = true; break;
-    case MC6809::TSTEa: CmpReg = MC6809::AE; IsTst = true; break;
-    case MC6809::TSTFa: CmpReg = MC6809::AF; IsTst = true; break;
-    default: continue;
+    case MC6809::CMPDi16:
+      CmpReg = MC6809::AD;
+      break;
+    case MC6809::CMPWi16:
+      CmpReg = MC6809::AW;
+      break;
+    case MC6809::CMPXi16:
+      CmpReg = MC6809::IX;
+      break;
+    case MC6809::CMPYi16:
+      CmpReg = MC6809::IY;
+      break;
+    case MC6809::TSTAa:
+      CmpReg = MC6809::AA;
+      IsTst = true;
+      break;
+    case MC6809::TSTBa:
+      CmpReg = MC6809::AB;
+      IsTst = true;
+      break;
+    case MC6809::TSTDa:
+      CmpReg = MC6809::AD;
+      IsTst = true;
+      break;
+    case MC6809::TSTWa:
+      CmpReg = MC6809::AW;
+      IsTst = true;
+      break;
+    case MC6809::TSTEa:
+      CmpReg = MC6809::AE;
+      IsTst = true;
+      break;
+    case MC6809::TSTFa:
+      CmpReg = MC6809::AF;
+      IsTst = true;
+      break;
+    default:
+      continue;
     }
-    if (!IsTst &&
-        (!MI.getOperand(0).isImm() || MI.getOperand(0).getImm() != 0))
+    if (!IsTst && (!MI.getOperand(0).isImm() || MI.getOperand(0).getImm() != 0))
       continue;
     if (MI.getIterator() == MBB.begin())
       continue;
 
-    auto ModifiesFlags = [&](const MachineInstr &I) {
-      return I.modifiesRegister(MC6809::N, &TRI) ||
-             I.modifiesRegister(MC6809::Z, &TRI) ||
-             I.modifiesRegister(MC6809::V, &TRI);
-    };
+    auto ModifiesFlags = [&](const MachineInstr &I) { return I.modifiesRegister(MC6809::N, &TRI) || I.modifiesRegister(MC6809::Z, &TRI) || I.modifiesRegister(MC6809::V, &TRI); };
 
     // Producer search: walk back over instructions that leave the flags AND
     // CmpReg untouched, stopping at the first instruction that sets the flags
@@ -784,11 +785,7 @@ bool MC6809LateOptimization::elideCompareZero(MachineBasicBlock &MBB) const {
     // CMPr#0, C) reach past this point instead of the compare's, so a skipped
     // instruction may only be one that consults no flag at all — a reader of V
     // or C, not just N/Z, would see the changed value.
-    while (ConsIt != MBB.end() && !ModifiesFlags(*ConsIt) &&
-           !ConsIt->readsRegister(MC6809::N, &TRI) &&
-           !ConsIt->readsRegister(MC6809::Z, &TRI) &&
-           !ConsIt->readsRegister(MC6809::V, &TRI) &&
-           !ConsIt->readsRegister(MC6809::C, &TRI))
+    while (ConsIt != MBB.end() && !ModifiesFlags(*ConsIt) && !ConsIt->readsRegister(MC6809::N, &TRI) && !ConsIt->readsRegister(MC6809::Z, &TRI) && !ConsIt->readsRegister(MC6809::V, &TRI) && !ConsIt->readsRegister(MC6809::C, &TRI))
       ++ConsIt;
     if (ConsIt == MBB.end() || ModifiesFlags(*ConsIt))
       continue;
@@ -801,8 +798,7 @@ bool MC6809LateOptimization::elideCompareZero(MachineBasicBlock &MBB) const {
     if (Cons.getNumOperands() == 0 || !Cons.getOperand(0).isImm())
       continue;
     int64_t CC = Cons.getOperand(0).getImm();
-    if (CC != MC6809CC::EQ && CC != MC6809CC::NE && CC != MC6809CC::MI &&
-        CC != MC6809CC::PL)
+    if (CC != MC6809CC::EQ && CC != MC6809CC::NE && CC != MC6809CC::MI && CC != MC6809CC::PL)
       continue;
     if (Cons.readsRegister(MC6809::C, &TRI))
       continue;
@@ -825,8 +821,7 @@ bool MC6809LateOptimization::elideCompareZero(MachineBasicBlock &MBB) const {
       Register R = MO.getReg();
       if (R == MC6809::N || R == MC6809::Z)
         ReadsNZ = true;
-      if ((R == MC6809::N || R == MC6809::Z || R == MC6809::V) &&
-          !Producer->definesRegister(R, &TRI)) {
+      if ((R == MC6809::N || R == MC6809::Z || R == MC6809::V) && !Producer->definesRegister(R, &TRI)) {
         ProducerCoversFlags = false;
         break;
       }
@@ -838,9 +833,7 @@ bool MC6809LateOptimization::elideCompareZero(MachineBasicBlock &MBB) const {
     // markers (regalloc may have flagged them when the compare was the only
     // flag consumer).
     for (MachineOperand &MO : Producer->operands())
-      if (MO.isReg() && MO.isDef() &&
-          (MO.getReg() == MC6809::N || MO.getReg() == MC6809::Z ||
-           MO.getReg() == MC6809::NZ || MO.getReg() == MC6809::V))
+      if (MO.isReg() && MO.isDef() && (MO.getReg() == MC6809::N || MO.getReg() == MC6809::Z || MO.getReg() == MC6809::NZ || MO.getReg() == MC6809::V))
         MO.setIsDead(false);
 
     MI.eraseFromParent();
@@ -859,36 +852,56 @@ namespace {
 // deferred _Sym pseudo + its post-RA expander), so no `leax sym,pc; ld ,x` pair
 // survives to here. Indirect (`…I`), auto inc/dec, and LEAS/LEAU are not
 // foldable. Enum values index the LoadTab columns below.
-enum class IdxSuf : int {
-  o5 = 0, o8, o16, oA, oB, oD, oE, oF, oW, None = -1
-};
+enum class IdxSuf : int { o5 = 0, o8, o16, oA, oB, oD, oE, oF, oW, None = -1 };
 } // namespace
 
 static IdxSuf leaIdxSuffix(unsigned LeaOpc) {
   switch (LeaOpc) {
-  case MC6809::LEAXi_o5:    case MC6809::LEAYi_o5:    return IdxSuf::o5;
-  case MC6809::LEAXi_o8:    case MC6809::LEAYi_o8:    return IdxSuf::o8;
-  case MC6809::LEAXi_o16:   case MC6809::LEAYi_o16:   return IdxSuf::o16;
-  case MC6809::LEAXi_oA:    case MC6809::LEAYi_oA:    return IdxSuf::oA;
-  case MC6809::LEAXi_oB:    case MC6809::LEAYi_oB:    return IdxSuf::oB;
-  case MC6809::LEAXi_oD:    case MC6809::LEAYi_oD:    return IdxSuf::oD;
-  case MC6809::LEAXi_oE:    case MC6809::LEAYi_oE:    return IdxSuf::oE;
-  case MC6809::LEAXi_oF:    case MC6809::LEAYi_oF:    return IdxSuf::oF;
-  case MC6809::LEAXi_oW:    case MC6809::LEAYi_oW:    return IdxSuf::oW;
-  default: return IdxSuf::None;
+  case MC6809::LEAXi_o5:
+  case MC6809::LEAYi_o5:
+    return IdxSuf::o5;
+  case MC6809::LEAXi_o8:
+  case MC6809::LEAYi_o8:
+    return IdxSuf::o8;
+  case MC6809::LEAXi_o16:
+  case MC6809::LEAYi_o16:
+    return IdxSuf::o16;
+  case MC6809::LEAXi_oA:
+  case MC6809::LEAYi_oA:
+    return IdxSuf::oA;
+  case MC6809::LEAXi_oB:
+  case MC6809::LEAYi_oB:
+    return IdxSuf::oB;
+  case MC6809::LEAXi_oD:
+  case MC6809::LEAYi_oD:
+    return IdxSuf::oD;
+  case MC6809::LEAXi_oE:
+  case MC6809::LEAYi_oE:
+    return IdxSuf::oE;
+  case MC6809::LEAXi_oF:
+  case MC6809::LEAYi_oF:
+    return IdxSuf::oF;
+  case MC6809::LEAXi_oW:
+  case MC6809::LEAYi_oW:
+    return IdxSuf::oW;
+  default:
+    return IdxSuf::None;
   }
 }
 
 // The value register a zero-offset register-indirect load (`ld ,r`) loads into.
 static Register loadO0ValueReg(unsigned LoadOpc) {
   auto LS = MC6809InstrInfo::getIdxLoadStore(LoadOpc);
-  if (!LS || LS->IsStore ||
-      MC6809InstrInfo::getIdxForm(LoadOpc) != MC6809::IdxForm::O0)
+  if (!LS || LS->IsStore || MC6809InstrInfo::getIdxForm(LoadOpc) != MC6809::IdxForm::O0)
     return MC6809::NoRegister;
   // The registers whose `ld ,r` the LEA fold takes (not E, F, W, Q or S).
   switch (LS->Value) {
-  case MC6809::AA: case MC6809::AB: case MC6809::AD:
-  case MC6809::IX: case MC6809::IY: case MC6809::SU:
+  case MC6809::AA:
+  case MC6809::AB:
+  case MC6809::AD:
+  case MC6809::IX:
+  case MC6809::IY:
+  case MC6809::SU:
     return LS->Value;
   default:
     return MC6809::NoRegister;
@@ -902,22 +915,35 @@ static unsigned indexedLoadOpcode(Register ValueReg, IdxSuf Suf) {
   if (Suf == IdxSuf::None)
     return 0;
   static const unsigned LoadTab[6][9] = {
-    /* AA */ {MC6809::LDAi_o5, MC6809::LDAi_o8, MC6809::LDAi_o16, MC6809::LDAi_oA, MC6809::LDAi_oB, MC6809::LDAi_oD, MC6809::LDAi_oE, MC6809::LDAi_oF, MC6809::LDAi_oW},
-    /* AB */ {MC6809::LDBi_o5, MC6809::LDBi_o8, MC6809::LDBi_o16, MC6809::LDBi_oA, MC6809::LDBi_oB, MC6809::LDBi_oD, MC6809::LDBi_oE, MC6809::LDBi_oF, MC6809::LDBi_oW},
-    /* AD */ {MC6809::LDDi_o5, MC6809::LDDi_o8, MC6809::LDDi_o16, MC6809::LDDi_oA, MC6809::LDDi_oB, MC6809::LDDi_oD, MC6809::LDDi_oE, MC6809::LDDi_oF, MC6809::LDDi_oW},
-    /* IX */ {MC6809::LDXi_o5, MC6809::LDXi_o8, MC6809::LDXi_o16, MC6809::LDXi_oA, MC6809::LDXi_oB, MC6809::LDXi_oD, MC6809::LDXi_oE, MC6809::LDXi_oF, MC6809::LDXi_oW},
-    /* IY */ {MC6809::LDYi_o5, MC6809::LDYi_o8, MC6809::LDYi_o16, MC6809::LDYi_oA, MC6809::LDYi_oB, MC6809::LDYi_oD, MC6809::LDYi_oE, MC6809::LDYi_oF, MC6809::LDYi_oW},
-    /* SU */ {MC6809::LDUi_o5, MC6809::LDUi_o8, MC6809::LDUi_o16, MC6809::LDUi_oA, MC6809::LDUi_oB, MC6809::LDUi_oD, MC6809::LDUi_oE, MC6809::LDUi_oF, MC6809::LDUi_oW},
+      /* AA */ {MC6809::LDAi_o5, MC6809::LDAi_o8, MC6809::LDAi_o16, MC6809::LDAi_oA, MC6809::LDAi_oB, MC6809::LDAi_oD, MC6809::LDAi_oE, MC6809::LDAi_oF, MC6809::LDAi_oW},
+      /* AB */ {MC6809::LDBi_o5, MC6809::LDBi_o8, MC6809::LDBi_o16, MC6809::LDBi_oA, MC6809::LDBi_oB, MC6809::LDBi_oD, MC6809::LDBi_oE, MC6809::LDBi_oF, MC6809::LDBi_oW},
+      /* AD */ {MC6809::LDDi_o5, MC6809::LDDi_o8, MC6809::LDDi_o16, MC6809::LDDi_oA, MC6809::LDDi_oB, MC6809::LDDi_oD, MC6809::LDDi_oE, MC6809::LDDi_oF, MC6809::LDDi_oW},
+      /* IX */ {MC6809::LDXi_o5, MC6809::LDXi_o8, MC6809::LDXi_o16, MC6809::LDXi_oA, MC6809::LDXi_oB, MC6809::LDXi_oD, MC6809::LDXi_oE, MC6809::LDXi_oF, MC6809::LDXi_oW},
+      /* IY */ {MC6809::LDYi_o5, MC6809::LDYi_o8, MC6809::LDYi_o16, MC6809::LDYi_oA, MC6809::LDYi_oB, MC6809::LDYi_oD, MC6809::LDYi_oE, MC6809::LDYi_oF, MC6809::LDYi_oW},
+      /* SU */ {MC6809::LDUi_o5, MC6809::LDUi_o8, MC6809::LDUi_o16, MC6809::LDUi_oA, MC6809::LDUi_oB, MC6809::LDUi_oD, MC6809::LDUi_oE, MC6809::LDUi_oF, MC6809::LDUi_oW},
   };
   int Row;
   switch (ValueReg) {
-  case MC6809::AA: Row = 0; break;
-  case MC6809::AB: Row = 1; break;
-  case MC6809::AD: Row = 2; break;
-  case MC6809::IX: Row = 3; break;
-  case MC6809::IY: Row = 4; break;
-  case MC6809::SU: Row = 5; break;
-  default: return 0;
+  case MC6809::AA:
+    Row = 0;
+    break;
+  case MC6809::AB:
+    Row = 1;
+    break;
+  case MC6809::AD:
+    Row = 2;
+    break;
+  case MC6809::IX:
+    Row = 3;
+    break;
+  case MC6809::IY:
+    Row = 4;
+    break;
+  case MC6809::SU:
+    Row = 5;
+    break;
+  default:
+    return 0;
   }
   return LoadTab[Row][static_cast<int>(Suf)];
 }
@@ -961,16 +987,8 @@ bool MC6809LateOptimization::elideRedundantLoad(MachineBasicBlock &MBB) const {
     return false;
   bool Changed = false;
 
-  auto ModifiesFlags = [&](const MachineInstr &I) {
-    return I.modifiesRegister(MC6809::N, &TRI) ||
-           I.modifiesRegister(MC6809::Z, &TRI) ||
-           I.modifiesRegister(MC6809::V, &TRI);
-  };
-  auto ReadsFlags = [&](const MachineInstr &I) {
-    return I.readsRegister(MC6809::N, &TRI) ||
-           I.readsRegister(MC6809::Z, &TRI) ||
-           I.readsRegister(MC6809::V, &TRI);
-  };
+  auto ModifiesFlags = [&](const MachineInstr &I) { return I.modifiesRegister(MC6809::N, &TRI) || I.modifiesRegister(MC6809::Z, &TRI) || I.modifiesRegister(MC6809::V, &TRI); };
+  auto ReadsFlags = [&](const MachineInstr &I) { return I.readsRegister(MC6809::N, &TRI) || I.readsRegister(MC6809::Z, &TRI) || I.readsRegister(MC6809::V, &TRI); };
   // The flags MI leaves are dead: the first later flag access writes them,
   // or none reads them before the block ends and they are not live out.
   auto FlagsDeadAfter = [&](MachineInstr &MI) {
@@ -982,8 +1000,7 @@ bool MC6809LateOptimization::elideRedundantLoad(MachineBasicBlock &MBB) const {
     }
     LivePhysRegs LiveOut(TRI);
     LiveOut.addLiveOuts(MBB);
-    return !LiveOut.contains(MC6809::N) && !LiveOut.contains(MC6809::Z) &&
-           !LiveOut.contains(MC6809::V) && !LiveOut.contains(MC6809::NZ);
+    return !LiveOut.contains(MC6809::N) && !LiveOut.contains(MC6809::Z) && !LiveOut.contains(MC6809::V) && !LiveOut.contains(MC6809::NZ);
   };
 
   MC6809ValueTracker T(MF, TRI);
@@ -993,14 +1010,12 @@ bool MC6809LateOptimization::elideRedundantLoad(MachineBasicBlock &MBB) const {
     Register LoadReg = dpLoadValueReg(MI.getOpcode());
     Register StoreReg = dpStoreValueReg(MI.getOpcode());
     Register Slot;
-    if ((LoadReg || StoreReg) && MI.getOperand(0).isReg() &&
-        MI.getOperand(0).getReg().isPhysical())
+    if ((LoadReg || StoreReg) && MI.getOperand(0).isReg() && MI.getOperand(0).getReg().isPhysical())
       Slot = MI.getOperand(0).getReg();
     else
       LoadReg = StoreReg = Register();
 
-    if (MI.isCall() || MI.isInlineAsm() ||
-        (!Slot && MI.hasUnmodeledSideEffects())) {
+    if (MI.isCall() || MI.isInlineAsm() || (!Slot && MI.hasUnmodeledSideEffects())) {
       T.clear();
       continue;
     }
@@ -1014,10 +1029,8 @@ bool MC6809LateOptimization::elideRedundantLoad(MachineBasicBlock &MBB) const {
         if (!Ok) {
           // Live, but the same as the prior access left them?
           Ok = true;
-          for (auto BIt = std::next(Prior.getIterator());
-               BIt != MI.getIterator(); ++BIt)
-            if (ModifiesFlags(*BIt) ||
-                BIt->modifiesRegister(MC6809::NZ, &TRI))
+          for (auto BIt = std::next(Prior.getIterator()); BIt != MI.getIterator(); ++BIt)
+            if (ModifiesFlags(*BIt) || BIt->modifiesRegister(MC6809::NZ, &TRI))
               Ok = false;
           if (Ok)
             for (Register F : {MC6809::N, MC6809::Z, MC6809::V, MC6809::NZ})
@@ -1069,8 +1082,7 @@ bool MC6809LateOptimization::foldLEAIntoLoad(MachineBasicBlock &MBB) const {
     // The index register the LEA computes (X or Y) — its single INDEX16 def.
     Register IndexReg;
     for (const MachineOperand &MO : Lea.operands())
-      if (MO.isReg() && MO.isDef() &&
-          MC6809::INDEX16RegClass.contains(MO.getReg())) {
+      if (MO.isReg() && MO.isDef() && MC6809::INDEX16RegClass.contains(MO.getReg())) {
         IndexReg = MO.getReg();
         break;
       }
@@ -1086,19 +1098,14 @@ bool MC6809LateOptimization::foldLEAIntoLoad(MachineBasicBlock &MBB) const {
       continue;
     MachineInstr &Load = *NextIt;
     Register ValueReg = loadO0ValueReg(Load.getOpcode());
-    if (!ValueReg || Load.getNumOperands() == 0 ||
-        !Load.getOperand(0).isReg() || Load.getOperand(0).getReg() != IndexReg)
+    if (!ValueReg || Load.getNumOperands() == 0 || !Load.getOperand(0).isReg() || Load.getOperand(0).getReg() != IndexReg)
       continue;
 
     // Safety. dst == base is always safe. dst != base requires the base (the
     // LEA's output) to be dead after the load: a `killed` flag on the load's
     // base use, or a definite dead liveness result.
     if (ValueReg != IndexReg) {
-      bool BaseDead = Load.getOperand(0).isKill() ||
-                      MBB.computeRegisterLiveness(
-                          &TRI, IndexReg,
-                          std::next(MachineBasicBlock::iterator(Load))) ==
-                          MachineBasicBlock::LQR_Dead;
+      bool BaseDead = Load.getOperand(0).isKill() || MBB.computeRegisterLiveness(&TRI, IndexReg, std::next(MachineBasicBlock::iterator(Load))) == MachineBasicBlock::LQR_Dead;
       if (!BaseDead)
         continue;
     }
@@ -1112,8 +1119,7 @@ bool MC6809LateOptimization::foldLEAIntoLoad(MachineBasicBlock &MBB) const {
     // ((offset imm,) base). The base is the LEA's INPUT base (e.g. U in
     // `leax 4,u`), not the index register. The value-reg def, N/Z/V defs, and
     // any accumulator-offset implicit use come from the new opcode's descriptor.
-    MachineInstrBuilder MIB =
-        BuildMI(MBB, Load, Load.getDebugLoc(), TII.get(FoldedOpc));
+    MachineInstrBuilder MIB = BuildMI(MBB, Load, Load.getDebugLoc(), TII.get(FoldedOpc));
     for (const MachineOperand &MO : Lea.explicit_operands())
       MIB.add(MO);
 
@@ -1125,7 +1131,6 @@ bool MC6809LateOptimization::foldLEAIntoLoad(MachineBasicBlock &MBB) const {
   }
   return Changed;
 }
-
 
 char MC6809LateOptimization::ID = 0;
 

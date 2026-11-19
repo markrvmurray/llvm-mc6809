@@ -50,13 +50,13 @@ class MC6809Operand : public MCParsedAsmOperand {
 public:
   MC6809Operand() = delete;
   /// Create an immediate MC6809Operand.
-  MC6809Operand(const MC6809Subtarget &STI, const MCExpr *Val, SMLoc S, SMLoc E) : Kind(k_Immediate), Imm(Val), Start(S), End(E){};
+  MC6809Operand(const MC6809Subtarget &STI, const MCExpr *Val, SMLoc S, SMLoc E) : Kind(k_Immediate), Imm(Val), Start(S), End(E) {};
   /// Create a register MC6809Operand.
-  MC6809Operand(const MC6809Subtarget &STI, unsigned RegNum, SMLoc S, SMLoc E) : Kind(k_Register), Reg(RegNum), Start(S), End(E){};
+  MC6809Operand(const MC6809Subtarget &STI, unsigned RegNum, SMLoc S, SMLoc E) : Kind(k_Register), Reg(RegNum), Start(S), End(E) {};
   /// Create a token MC6809Operand.
-  MC6809Operand(const MC6809Subtarget &STI, StringRef Str, SMLoc S) : Kind(k_Token), Tok(Str), Start(S){};
+  MC6809Operand(const MC6809Subtarget &STI, StringRef Str, SMLoc S) : Kind(k_Token), Tok(Str), Start(S) {};
   /// Create a register list MC6809Operand.
-  MC6809Operand(const MC6809Subtarget &STI, SmallVector<unsigned, 8> Regs, SMLoc S, SMLoc E) : Kind(k_RegList), RegListRegs(std::move(Regs)), Start(S), End(E){};
+  MC6809Operand(const MC6809Subtarget &STI, SmallVector<unsigned, 8> Regs, SMLoc S, SMLoc E) : Kind(k_RegList), RegListRegs(std::move(Regs)), Start(S), End(E) {};
 
 private:
   enum KindTy {
@@ -282,7 +282,8 @@ public:
     case k_RegList:
       O << "RegList: {";
       for (unsigned I = 0; I < RegListRegs.size(); I++) {
-        if (I > 0) O << ",";
+        if (I > 0)
+          O << ",";
         O << RegListRegs[I];
       }
       O << "}";
@@ -819,13 +820,12 @@ public:
     // First, the mnemonic goes on the stack.
     Operands.push_back(MC6809Operand::createToken(MCSTI, Mnemonic, NameLoc));
 
-parse_operands:
+  parse_operands:
     // MC6809: push/pull instructions take a comma-separated register list.
     // Parse them specially before the main loop consumes registers individually.
     if (getSTI().getFeatureBits()[MC6809::Feature6809]) {
       std::string MnLower = Mnemonic.lower();
-      if (MnLower == "pshs" || MnLower == "puls" ||
-          MnLower == "pshu" || MnLower == "pulu") {
+      if (MnLower == "pshs" || MnLower == "puls" || MnLower == "pshu" || MnLower == "pulu") {
         if (parseRegList(Operands).isSuccess()) {
           Parser.Lex(); // Consume the EndOfStatement
           return false;
@@ -908,8 +908,7 @@ parse_operands:
       // (second char of ++ or --). Also handle pre-decrement (,-x ,--x)
       // where - appears before a register. Must be checked before tryParseExpr
       // which would destructively fail on bare +/- tokens.
-      if (getSTI().getFeatureBits()[MC6809::Feature6809] &&
-          (getLexer().is(AsmToken::Plus) || getLexer().is(AsmToken::Minus))) {
+      if (getSTI().getFeatureBits()[MC6809::Feature6809] && (getLexer().is(AsmToken::Plus) || getLexer().is(AsmToken::Minus))) {
         bool PushAsToken = false;
         if (!Operands.empty()) {
           auto *LastOp = static_cast<MC6809Operand *>(Operands.back().get());
@@ -919,13 +918,11 @@ parse_operands:
           // After a + or - token: merge into ++ or --
           if (!PushAsToken && LastOp->isToken()) {
             StringRef LastTok = LastOp->getToken();
-            if ((LastTok == "+" && getLexer().is(AsmToken::Plus)) ||
-                (LastTok == "-" && getLexer().is(AsmToken::Minus))) {
+            if ((LastTok == "+" && getLexer().is(AsmToken::Plus)) || (LastTok == "-" && getLexer().is(AsmToken::Minus))) {
               // Replace the last "+" with "++" (or "-" with "--")
               Operands.pop_back();
               SMLoc TokLoc = getLexer().getLoc();
-              Operands.push_back(MC6809Operand::createToken(
-                  MCSTI, getLexer().is(AsmToken::Plus) ? "++" : "--", TokLoc));
+              Operands.push_back(MC6809Operand::createToken(MCSTI, getLexer().is(AsmToken::Plus) ? "++" : "--", TokLoc));
               Lex();
               continue;
             }

@@ -52,7 +52,6 @@ bool MC6809PostRAScavenging::runOnMachineFunction(MachineFunction &MF) {
   return true;
 }
 
-
 char MC6809PostRAScavenging::ID = 0;
 
 INITIALIZE_PASS(MC6809PostRAScavenging, DEBUG_TYPE, "Scavenge virtual registers emitted by post-RA pseudos", false, false)

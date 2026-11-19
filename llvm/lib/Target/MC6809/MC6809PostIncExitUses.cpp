@@ -30,23 +30,18 @@
 
 using namespace llvm;
 
-static cl::opt<bool> EnablePostIncExitUses(
-    "mc6809-enable-postinc-exit-uses", cl::init(true), cl::Hidden,
-    cl::desc("Rewrite uses outside a loop of a stepped pointer's pre-step "
-             "value to the stepped value minus the step"));
+static cl::opt<bool> EnablePostIncExitUses("mc6809-enable-postinc-exit-uses", cl::init(true), cl::Hidden,
+                                           cl::desc("Rewrite uses outside a loop of a stepped pointer's pre-step "
+                                                    "value to the stepped value minus the step"));
 
 namespace {
 
 class MC6809PostIncExitUses : public MachineFunctionPass {
 public:
   static char ID;
-  MC6809PostIncExitUses() : MachineFunctionPass(ID) {
-    initializeMC6809PostIncExitUsesPass(*PassRegistry::getPassRegistry());
-  }
+  MC6809PostIncExitUses() : MachineFunctionPass(ID) { initializeMC6809PostIncExitUsesPass(*PassRegistry::getPassRegistry()); }
   bool runOnMachineFunction(MachineFunction &MF) override;
-  StringRef getPassName() const override {
-    return "MC6809 loop exit uses through the stepped pointer";
-  }
+  StringRef getPassName() const override { return "MC6809 loop exit uses through the stepped pointer"; }
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequired<MachineDominatorTreeWrapperPass>();
     AU.addRequired<MachineLoopInfoWrapperPass>();
@@ -58,18 +53,12 @@ public:
 
 char MC6809PostIncExitUses::ID = 0;
 
-INITIALIZE_PASS_BEGIN(MC6809PostIncExitUses, DEBUG_TYPE,
-                      "MC6809 loop exit uses through the stepped pointer",
-                      false, false)
+INITIALIZE_PASS_BEGIN(MC6809PostIncExitUses, DEBUG_TYPE, "MC6809 loop exit uses through the stepped pointer", false, false)
 INITIALIZE_PASS_DEPENDENCY(MachineDominatorTreeWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(MachineLoopInfoWrapperPass)
-INITIALIZE_PASS_END(MC6809PostIncExitUses, DEBUG_TYPE,
-                    "MC6809 loop exit uses through the stepped pointer", false,
-                    false)
+INITIALIZE_PASS_END(MC6809PostIncExitUses, DEBUG_TYPE, "MC6809 loop exit uses through the stepped pointer", false, false)
 
-MachineFunctionPass *llvm::createMC6809PostIncExitUsesPass() {
-  return new MC6809PostIncExitUses();
-}
+MachineFunctionPass *llvm::createMC6809PostIncExitUsesPass() { return new MC6809PostIncExitUses(); }
 
 // Put a new block on the edge MBB -> Succ (generic MIR: the branch is a
 // G_BR). Succ's phis are rewired to the new block.
@@ -77,14 +66,12 @@ MachineFunctionPass *llvm::createMC6809PostIncExitUsesPass() {
 // edge split this way (a jump table names its targets in the table).
 static bool hasSimpleTerminators(const MachineBasicBlock &MBB) {
   for (const MachineInstr &MI : MBB.terminators())
-    if (MI.getOpcode() != TargetOpcode::G_BR &&
-        MI.getOpcode() != TargetOpcode::G_BRCOND)
+    if (MI.getOpcode() != TargetOpcode::G_BR && MI.getOpcode() != TargetOpcode::G_BRCOND)
       return false;
   return true;
 }
 
-static MachineBasicBlock *splitEdge(MachineBasicBlock &MBB,
-                                    MachineBasicBlock &Succ) {
+static MachineBasicBlock *splitEdge(MachineBasicBlock &MBB, MachineBasicBlock &Succ) {
   MachineFunction &MF = *MBB.getParent();
   if (!hasSimpleTerminators(MBB))
     return nullptr;
@@ -108,10 +95,9 @@ static MachineBasicBlock *splitEdge(MachineBasicBlock &MBB,
   return Split;
 }
 
-static cl::opt<bool> EnableSinkExitPhiConstants(
-    "mc6809-enable-sink-exit-phi-constants", cl::init(true), cl::Hidden,
-    cl::desc("Materialise a constant that only feeds a phi across a loop's "
-             "exit edge on that edge instead of inside the loop"));
+static cl::opt<bool> EnableSinkExitPhiConstants("mc6809-enable-sink-exit-phi-constants", cl::init(true), cl::Hidden,
+                                                cl::desc("Materialise a constant that only feeds a phi across a loop's "
+                                                         "exit edge on that edge instead of inside the loop"));
 
 // A phi in a loop's exit block whose input from inside the loop is a
 // constant (`return NULL` after a search loop, say) is fed by a copy at the
@@ -119,8 +105,7 @@ static cl::opt<bool> EnableSinkExitPhiConstants(
 // register the loop could use (an index register for a pointer result,
 // which is exactly what a search loop's counter would want). Give the
 // constant its own block on the exit edge, where it is executed once.
-static bool sinkConstantExitPhiInputs(MachineFunction &MF,
-                                      const MachineLoopInfo &MLI) {
+static bool sinkConstantExitPhiInputs(MachineFunction &MF, const MachineLoopInfo &MLI) {
   if (!EnableSinkExitPhiConstants)
     return false;
   MachineRegisterInfo &MRI = MF.getRegInfo();
@@ -203,19 +188,15 @@ bool MC6809PostIncExitUses::runOnMachineFunction(MachineFunction &MF) {
           Other = true; // a self loop of one block? leave it
           break;
         }
-        if (U.getOpcode() == TargetOpcode::G_PTR_ADD && !Step &&
-            U.getOperand(1).getReg() == P) {
-          auto K = getIConstantVRegValWithLookThrough(U.getOperand(2).getReg(),
-                                                      MRI);
+        if (U.getOpcode() == TargetOpcode::G_PTR_ADD && !Step && U.getOperand(1).getReg() == P) {
+          auto K = getIConstantVRegValWithLookThrough(U.getOperand(2).getReg(), MRI);
           if (K && (K->Value.abs() == 1 || K->Value.abs() == 2)) {
             Step = &U;
             C = K->Value.getSExtValue();
             continue;
           }
         }
-        if ((U.getOpcode() == TargetOpcode::G_LOAD ||
-             U.getOpcode() == TargetOpcode::G_STORE) &&
-            !Access && U.getOperand(1).getReg() == P) {
+        if ((U.getOpcode() == TargetOpcode::G_LOAD || U.getOpcode() == TargetOpcode::G_STORE) && !Access && U.getOperand(1).getReg() == P) {
           Access = &U;
           continue;
         }
@@ -224,8 +205,7 @@ bool MC6809PostIncExitUses::runOnMachineFunction(MachineFunction &MF) {
       }
       if (Other || !Step || !Access)
         continue;
-      if (Access->memoperands_empty() ||
-          !(*Access->memoperands_begin())->getSize().hasValue())
+      if (Access->memoperands_empty() || !(*Access->memoperands_begin())->getSize().hasValue())
         continue;
       // The access must be the step's size and (a post-step access is
       // `*p++`, a pre-step one `*--p`) sit on the right side of the step.
@@ -236,8 +216,7 @@ bool MC6809PostIncExitUses::runOnMachineFunction(MachineFunction &MF) {
       Register Stepped = Step->getOperand(0).getReg();
       bool FeedsPhi = false;
       for (unsigned I = 1; I < Phi.getNumOperands(); I += 2)
-        if (Phi.getOperand(I).getReg() == Stepped &&
-            L->contains(Phi.getOperand(I + 1).getMBB()))
+        if (Phi.getOperand(I).getReg() == Stepped && L->contains(Phi.getOperand(I + 1).getMBB()))
           FeedsPhi = true;
       if (!FeedsPhi)
         continue;
@@ -249,8 +228,7 @@ bool MC6809PostIncExitUses::runOnMachineFunction(MachineFunction &MF) {
       // step already before the access is fused as it stands.)
       bool StepAfterInBlock = false;
       if (Step->getParent() == Access->getParent())
-        for (auto It = std::next(Access->getIterator());
-             It != Access->getParent()->end(); ++It)
+        for (auto It = std::next(Access->getIterator()); It != Access->getParent()->end(); ++It)
           if (&*It == Step) {
             StepAfterInBlock = true;
             break;
@@ -262,36 +240,35 @@ bool MC6809PostIncExitUses::runOnMachineFunction(MachineFunction &MF) {
       // the old and the new pointer live across it. (A compare-and-branch
       // gets its walking form after allocation instead.)
       auto ConsumerFoldsLoad = [&](const MachineInstr &Ld) {
-        if (Ld.getOpcode() != TargetOpcode::G_LOAD ||
-            !MRI.hasOneNonDBGUse(Ld.getOperand(0).getReg()))
+        if (Ld.getOpcode() != TargetOpcode::G_LOAD || !MRI.hasOneNonDBGUse(Ld.getOperand(0).getReg()))
           return false;
         const MachineInstr &U = *MRI.use_instr_nodbg_begin(Ld.getOperand(0).getReg());
         switch (U.getOpcode()) {
         case TargetOpcode::G_ICMP: {
           // A test against zero is the load's own flags (`ldb ,x+ ; bne`);
           // a compare against anything else reads the memory itself.
-          Register Other = U.getOperand(2).getReg() == Ld.getOperand(0).getReg()
-                               ? U.getOperand(3).getReg()
-                               : U.getOperand(2).getReg();
+          Register Other = U.getOperand(2).getReg() == Ld.getOperand(0).getReg() ? U.getOperand(3).getReg() : U.getOperand(2).getReg();
           auto K = getIConstantVRegValWithLookThrough(Other, MRI);
           return !(K && K->Value.isZero());
         }
-        case TargetOpcode::G_ADD: case TargetOpcode::G_SUB:
-        case TargetOpcode::G_AND: case TargetOpcode::G_OR: case TargetOpcode::G_XOR:
-        case TargetOpcode::G_UADDO: case TargetOpcode::G_UADDE:
-        case TargetOpcode::G_USUBO: case TargetOpcode::G_USUBE:
+        case TargetOpcode::G_ADD:
+        case TargetOpcode::G_SUB:
+        case TargetOpcode::G_AND:
+        case TargetOpcode::G_OR:
+        case TargetOpcode::G_XOR:
+        case TargetOpcode::G_UADDO:
+        case TargetOpcode::G_UADDE:
+        case TargetOpcode::G_USUBO:
+        case TargetOpcode::G_USUBE:
           return MRI.getType(Ld.getOperand(0).getReg()) == LLT::scalar(16);
         default:
           return false;
         }
       };
-      if (C > 0 && (Step->getParent() != Access->getParent() ||
-                    (StepAfterInBlock &&
-                     std::next(Access->getIterator()) != Step->getIterator()))) {
+      if (C > 0 && (Step->getParent() != Access->getParent() || (StepAfterInBlock && std::next(Access->getIterator()) != Step->getIterator()))) {
         if (!MDT.dominates(Access, Step) || ConsumerFoldsLoad(*Access))
           continue;
-        MachineIRBuilder B(*Access->getParent(),
-                           std::next(Access->getIterator()));
+        MachineIRBuilder B(*Access->getParent(), std::next(Access->getIterator()));
         B.setDebugLoc(Step->getDebugLoc());
         LLT PtrTy = MRI.getType(P);
         auto Off = B.buildConstant(LLT::scalar(PtrTy.getSizeInBits()), C);
@@ -305,8 +282,7 @@ bool MC6809PostIncExitUses::runOnMachineFunction(MachineFunction &MF) {
       if (Access->getParent() != Step->getParent())
         continue;
       bool AccessFirst = false;
-      for (auto It = Access->getIterator(); It != Access->getParent()->end();
-           ++It)
+      for (auto It = Access->getIterator(); It != Access->getParent()->end(); ++It)
         if (&*It == Step) {
           AccessFirst = true;
           break;
@@ -328,9 +304,7 @@ bool MC6809PostIncExitUses::runOnMachineFunction(MachineFunction &MF) {
           // an exit edge that can take a block of its own.
           unsigned Idx = Use->getOperandNo();
           MachineBasicBlock *PB = U.getOperand(Idx + 1).getMBB();
-          if (!MDT.dominates(Step->getParent(), PB) ||
-              (L->contains(PB) &&
-               (PB->succ_size() < 2 || !hasSimpleTerminators(*PB)))) {
+          if (!MDT.dominates(Step->getParent(), PB) || (L->contains(PB) && (PB->succ_size() < 2 || !hasSimpleTerminators(*PB)))) {
             AllDominated = false;
             break;
           }
@@ -347,8 +321,7 @@ bool MC6809PostIncExitUses::runOnMachineFunction(MachineFunction &MF) {
       LLT PtrTy = MRI.getType(P);
       LLT OffTy = LLT::scalar(PtrTy.getSizeInBits());
       DenseMap<MachineBasicBlock *, Register> PerBlock;
-      auto Materialise = [&](MachineBasicBlock &UB, MachineBasicBlock::iterator At,
-                             const DebugLoc &DL) {
+      auto Materialise = [&](MachineBasicBlock &UB, MachineBasicBlock::iterator At, const DebugLoc &DL) {
         Register &R = PerBlock[&UB];
         if (!R) {
           MachineIRBuilder B(UB, At);
@@ -375,8 +348,7 @@ bool MC6809PostIncExitUses::runOnMachineFunction(MachineFunction &MF) {
         MachineBasicBlock *UB = U.getParent();
         Use->setReg(Materialise(*UB, UB->getFirstNonPHI(), U.getDebugLoc()));
       }
-      LLVM_DEBUG(dbgs() << "Rewrote outside uses of " << Phi
-                        << "  through the stepped " << *Step);
+      LLVM_DEBUG(dbgs() << "Rewrote outside uses of " << Phi << "  through the stepped " << *Step);
       Changed = true;
     }
   }

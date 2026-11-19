@@ -70,14 +70,11 @@ using namespace llvm;
 // itself a spill-slot or imaginary-register store. The knob is retained
 // (default on) as a bisection escape hatch.
 // Master bisection gate for the whole pass.
-static cl::opt<bool>
-    EnableSpillOpt("mc6809-enable-spill-opt", cl::init(true), cl::Hidden,
-                   cl::desc("Enable the post-RA spill load/store peephole"));
+static cl::opt<bool> EnableSpillOpt("mc6809-enable-spill-opt", cl::init(true), cl::Hidden, cl::desc("Enable the post-RA spill load/store peephole"));
 
-static cl::opt<bool>
-    EnableIndexReload("mc6809-index-reload-opt", cl::init(true), cl::Hidden,
-                      cl::desc("Eliminate redundant index-register (X/Y) spill "
-                               "reloads (Bug #363; default on since Bug #366)"));
+static cl::opt<bool> EnableIndexReload("mc6809-index-reload-opt", cl::init(true), cl::Hidden,
+                                       cl::desc("Eliminate redundant index-register (X/Y) spill "
+                                                "reloads (Bug #363; default on since Bug #366)"));
 
 namespace {
 
@@ -85,9 +82,7 @@ namespace {
 struct SlotKey {
   Register BaseReg;
   int Offset;
-  bool operator==(const SlotKey &O) const {
-    return BaseReg == O.BaseReg && Offset == O.Offset;
-  }
+  bool operator==(const SlotKey &O) const { return BaseReg == O.BaseReg && Offset == O.Offset; }
 };
 } // namespace
 
@@ -109,20 +104,13 @@ static Register getAccRegForOpcode(unsigned Opc) {
     return Register();
   Register R = LS->Value;
   if (!LS->IsStore) // loads of the tracked registers
-    return (R == MC6809::AD || R == MC6809::AA || R == MC6809::AB ||
-            R == MC6809::IX || R == MC6809::IY)
-               ? R
-               : Register();
+    return (R == MC6809::AD || R == MC6809::AA || R == MC6809::AB || R == MC6809::IX || R == MC6809::IY) ? R : Register();
   // Stores: the tracked accumulators, and the HD6309 W/E/F stores --
   // invalidate-only (see isIndexedNonAccStore): the register identity is
   // needed so invalidateOverlap knows the overwritten bytes are NOT the
   // mirrored register's own bytes (AW/AE/AF share no bits with the tracked
   // AD/AA/AB/IX/IY).
-  return (R == MC6809::AD || R == MC6809::AA || R == MC6809::AB ||
-          R == MC6809::AW || R == MC6809::AE || R == MC6809::AF ||
-          R == MC6809::AQ || R == MC6809::SS)
-             ? R
-             : Register();
+  return (R == MC6809::AD || R == MC6809::AA || R == MC6809::AB || R == MC6809::AW || R == MC6809::AE || R == MC6809::AF || R == MC6809::AQ || R == MC6809::SS) ? R : Register();
 }
 
 /// Returns true if the opcode is a tracked indexed store — accumulator only
@@ -130,9 +118,7 @@ static Register getAccRegForOpcode(unsigned Opc) {
 /// isIndexedNonAccStore and getAccRegForOpcode.
 static bool isIndexedStore(unsigned Opc) {
   auto LS = MC6809InstrInfo::getIdxLoadStore(Opc);
-  return LS && LS->IsStore &&
-         (LS->Value == MC6809::AD || LS->Value == MC6809::AA ||
-          LS->Value == MC6809::AB);
+  return LS && LS->IsStore && (LS->Value == MC6809::AD || LS->Value == MC6809::AA || LS->Value == MC6809::AB);
 }
 
 /// Returns true if the opcode is an indexed store we do NOT track as a
@@ -147,31 +133,20 @@ static bool isIndexedStore(unsigned Opc) {
 /// (open_memstream's fsize=pos++ miscompile at -Og hd6309).
 static bool isIndexedNonAccStore(unsigned Opc) {
   auto LS = MC6809InstrInfo::getIdxLoadStore(Opc);
-  return LS && LS->IsStore &&
-         (LS->Value == MC6809::IY || LS->Value == MC6809::IX ||
-          LS->Value == MC6809::SU || LS->Value == MC6809::AW ||
-          LS->Value == MC6809::AE || LS->Value == MC6809::AF ||
-          LS->Value == MC6809::AQ || LS->Value == MC6809::SS);
+  return LS && LS->IsStore && (LS->Value == MC6809::IY || LS->Value == MC6809::IX || LS->Value == MC6809::SU || LS->Value == MC6809::AW || LS->Value == MC6809::AE || LS->Value == MC6809::AF || LS->Value == MC6809::AQ || LS->Value == MC6809::SS);
 }
 
 /// Returns true if the opcode is an indexed load (accumulator or index reg).
 static bool isIndexedLoad(unsigned Opc) {
   auto LS = MC6809InstrInfo::getIdxLoadStore(Opc);
-  return LS && !LS->IsStore &&
-         (LS->Value == MC6809::AD || LS->Value == MC6809::AA ||
-          LS->Value == MC6809::AB || LS->Value == MC6809::IX ||
-          LS->Value == MC6809::IY);
+  return LS && !LS->IsStore && (LS->Value == MC6809::AD || LS->Value == MC6809::AA || LS->Value == MC6809::AB || LS->Value == MC6809::IX || LS->Value == MC6809::IY);
 }
 
 /// Extract the slot key (base register + offset) from an indexed load/store.
 /// The _o0 variants have no offset operand (offset=0), the rest have
 /// offset as the first operand and base register as the second.
 /// See MC6809FrameLowering::isFrameBase.
-static bool isFrameBase(const MachineFunction &MF, Register Reg) {
-  return static_cast<const MC6809FrameLowering &>(
-             *MF.getSubtarget().getFrameLowering())
-      .isFrameBase(MF, Reg);
-}
+static bool isFrameBase(const MachineFunction &MF, Register Reg) { return static_cast<const MC6809FrameLowering &>(*MF.getSubtarget().getFrameLowering()).isFrameBase(MF, Reg); }
 
 static SlotKey getSlotKey(const MachineInstr &MI) {
   Register Base;
@@ -188,17 +163,12 @@ static SlotKey getSlotKey(const MachineInstr &MI) {
 /// N/Z/V liveness queries below see a downstream LEAX's Z def; this helper was
 /// already sound either way, since it deletes a load whose flags are unread and
 /// never makes a branch read a producer's flags.)
-static bool deadFrameLoadDest(MachineBasicBlock &MBB, MachineInstr &MI,
-                              Register DestReg,
-                              const TargetRegisterInfo &TRI) {
-  MachineBasicBlock::const_iterator After =
-      std::next(MachineBasicBlock::iterator(MI));
-  if (MBB.computeRegisterLiveness(&TRI, DestReg, After, /*Neighborhood=*/16) !=
-      MachineBasicBlock::LQR_Dead)
+static bool deadFrameLoadDest(MachineBasicBlock &MBB, MachineInstr &MI, Register DestReg, const TargetRegisterInfo &TRI) {
+  MachineBasicBlock::const_iterator After = std::next(MachineBasicBlock::iterator(MI));
+  if (MBB.computeRegisterLiveness(&TRI, DestReg, After, /*Neighborhood=*/16) != MachineBasicBlock::LQR_Dead)
     return false;
   for (Register Flag : {MC6809::N, MC6809::Z, MC6809::V})
-    if (MBB.computeRegisterLiveness(&TRI, Flag, After, /*Neighborhood=*/16) !=
-        MachineBasicBlock::LQR_Dead)
+    if (MBB.computeRegisterLiveness(&TRI, Flag, After, /*Neighborhood=*/16) != MachineBasicBlock::LQR_Dead)
       return false;
   return true;
 }
@@ -207,10 +177,7 @@ static bool deadFrameLoadDest(MachineBasicBlock &MBB, MachineInstr &MI,
 /// INDEX (IX/IY) and STACK (SU/SS) families. These are immune to the
 /// accumulator partial-subregister hazard (#184/#362/#357), so liveness/transfer
 /// reasoning on them is sound. (Mirrors MC6809InstrInfo::isCopyInstrImpl's gate.)
-static bool isAtomic16(Register R) {
-  return R == MC6809::IX || R == MC6809::IY || R == MC6809::SU ||
-         R == MC6809::SS;
-}
+static bool isAtomic16(Register R) { return R == MC6809::IX || R == MC6809::IY || R == MC6809::SU || R == MC6809::SS; }
 
 /// Bug #368: a 16-bit register that can be the source/dest of a same-width
 /// `tfr` reusing a 2-byte spill slot — the D accumulator and the two index
@@ -220,25 +187,19 @@ static bool isAtomic16(Register R) {
 /// `implicit-def $ad` a byte write carries — so it is exact even for the
 /// accumulator (this is the "prove exact liveness" path, not the unsound
 /// computeRegisterLiveness query the partial-subreg hazard forbids).
-static bool is16BitXfer(Register R) {
-  return R == MC6809::AD || R == MC6809::IX || R == MC6809::IY;
-}
+static bool is16BitXfer(Register R) { return R == MC6809::AD || R == MC6809::IX || R == MC6809::IY; }
 
 /// Bug #368: the N/Z/V flags are all dead immediately after MI. A memory reload
 /// sets NZ; the `tfr` that replaces it sets NO flags, so the rewrite is only
 /// sound when no consumer reads the reload's flags. (Flags-only sibling of
 /// deadFrameLoadDest; LQR_Unknown ⇒ treat as live = keep the load.)
-static bool flagsDeadAfter(MachineBasicBlock &MBB, MachineInstr &MI,
-                           const TargetRegisterInfo &TRI) {
-  MachineBasicBlock::const_iterator After =
-      std::next(MachineBasicBlock::iterator(MI));
+static bool flagsDeadAfter(MachineBasicBlock &MBB, MachineInstr &MI, const TargetRegisterInfo &TRI) {
+  MachineBasicBlock::const_iterator After = std::next(MachineBasicBlock::iterator(MI));
   for (Register Flag : {MC6809::N, MC6809::Z, MC6809::V})
-    if (MBB.computeRegisterLiveness(&TRI, Flag, After, /*Neighborhood=*/16) !=
-        MachineBasicBlock::LQR_Dead)
+    if (MBB.computeRegisterLiveness(&TRI, Flag, After, /*Neighborhood=*/16) != MachineBasicBlock::LQR_Dead)
       return false;
   return true;
 }
-
 
 /// Fold `ld R,mem; tfr R,R2 → ld R2,mem` (and `ldd #n; tfr d,R2 → ld R2,#n`).
 /// When a load defines R -- an index register, or D handed to an index
@@ -248,9 +209,7 @@ static bool flagsDeadAfter(MachineBasicBlock &MBB, MachineInstr &MI,
 /// it sets identical N/Z — and it even ENABLES the #360 compare-zero elision
 /// (the load now feeds the consumer's register, so a trailing `cmp #0` dies).
 /// Run before the slot-tracking loop so that loop sees the folded loads.
-static bool foldLoadIntoCopy(MachineBasicBlock &MBB,
-                             const TargetRegisterInfo &TRI,
-                             const TargetInstrInfo &TII) {
+static bool foldLoadIntoCopy(MachineBasicBlock &MBB, const TargetRegisterInfo &TRI, const TargetInstrInfo &TII) {
   bool Changed = false;
   for (MachineInstr &MI : make_early_inc_range(MBB)) {
     if (MI.getOpcode() != MC6809::TFRp)
@@ -260,8 +219,7 @@ static bool foldLoadIntoCopy(MachineBasicBlock &MBB,
     // From an index register to D, X or Y; or from D to an index register --
     // a value loaded into D only to be handed to X (a call's argument, say).
     // D's liveness is asked of its register units, so A and B are covered.
-    bool FromD = R == MC6809::AD &&
-                 (R2 == MC6809::IX || R2 == MC6809::IY || R2 == MC6809::SU);
+    bool FromD = R == MC6809::AD && (R2 == MC6809::IX || R2 == MC6809::IY || R2 == MC6809::SU);
     if (!FromD && (!isAtomic16(R) || !is16BitXfer(R2)))
       continue;
     // The preceding (non-debug) instruction must be an indexed load that
@@ -285,22 +243,16 @@ static bool foldLoadIntoCopy(MachineBasicBlock &MBB,
     bool Imm = FromD && (Prev->getOpcode() == MC6809::LDDi16 || Zero);
     Register PB;
     int64_t PO;
-    if (!Imm && (!isIndexedLoad(Prev->getOpcode()) ||
-                 getAccRegForOpcode(Prev->getOpcode()) != R ||
-                 !MC6809InstrInfo::getIdxBaseOffset(*Prev, PB, PO)))
+    if (!Imm && (!isIndexedLoad(Prev->getOpcode()) || getAccRegForOpcode(Prev->getOpcode()) != R || !MC6809InstrInfo::getIdxBaseOffset(*Prev, PB, PO)))
       continue;
     // R must be dead immediately after the transfer (the tfr was its last use).
     // No flag check is needed — the rewritten load sets identical flags.
-    MachineBasicBlock::const_iterator After =
-        std::next(MachineBasicBlock::iterator(MI));
-    if (MBB.computeRegisterLiveness(&TRI, R, After, /*Neighborhood=*/16) !=
-        MachineBasicBlock::LQR_Dead)
+    MachineBasicBlock::const_iterator After = std::next(MachineBasicBlock::iterator(MI));
+    if (MBB.computeRegisterLiveness(&TRI, R, After, /*Neighborhood=*/16) != MachineBasicBlock::LQR_Dead)
       continue;
     if (Imm) {
       // LDX/LDY/LDU #n set N, Z and V as LDD #n does.
-      unsigned NewOpc = R2 == MC6809::IX   ? MC6809::LDXi16
-                        : R2 == MC6809::IY ? MC6809::LDYi16
-                                           : MC6809::LDUi16;
+      unsigned NewOpc = R2 == MC6809::IX ? MC6809::LDXi16 : R2 == MC6809::IY ? MC6809::LDYi16 : MC6809::LDUi16;
       auto New = BuildMI(MBB, *Prev, Prev->getDebugLoc(), TII.get(NewOpc));
       if (Zero)
         New.addImm(0);
@@ -321,9 +273,7 @@ static bool foldLoadIntoCopy(MachineBasicBlock &MBB,
     // Build the retargeted load via BuildMI so the new opcode's implicit defs
     // (the value reg + N/Z/V, and for LDD the $aa/$ab/$aq sub-regs) are
     // materialised — NOT a bare setDesc, which would drop them (the #365 trap).
-    BuildMI(MBB, *Prev, Prev->getDebugLoc(), TII.get(NewOpc))
-        .addImm(K.Offset)
-        .addReg(K.BaseReg);
+    BuildMI(MBB, *Prev, Prev->getDebugLoc(), TII.get(NewOpc)).addImm(K.Offset).addReg(K.BaseReg);
     Prev->eraseFromParent();
     MI.eraseFromParent();
     ++NumLoadIntoCopy;
@@ -347,19 +297,15 @@ static bool foldLoadIntoCopy(MachineBasicBlock &MBB,
 /// sub-register). Clearing kill flags only ever lengthens a live range, so it is
 /// always conservatively safe; doing it unconditionally here makes the deletion
 /// sound for any surrounding code, not just the cases seen so far.
-static void clearKillsToPriorDef(MachineInstr &ReloadMI, Register Reg,
-                                 const TargetRegisterInfo &TRI) {
-  MC6809ValueTracker::clearKillsToPriorDef(ReloadMI, Reg, TRI);
-}
-
-
-
+static void clearKillsToPriorDef(MachineInstr &ReloadMI, Register Reg, const TargetRegisterInfo &TRI) { MC6809ValueTracker::clearKillsToPriorDef(ReloadMI, Reg, TRI); }
 
 /// Returns true if the opcode is a LEAS indexed instruction.
 static bool isLEAS(unsigned Opc) {
   switch (Opc) {
-  case MC6809::LEASi_o0: case MC6809::LEASi_o5:
-  case MC6809::LEASi_o8: case MC6809::LEASi_o16:
+  case MC6809::LEASi_o0:
+  case MC6809::LEASi_o5:
+  case MC6809::LEASi_o8:
+  case MC6809::LEASi_o16:
     return true;
   default:
     return false;
@@ -369,8 +315,7 @@ static bool isLEAS(unsigned Opc) {
 /// Try to extract (base register, offset) from any indexed instruction.
 /// Returns true if the instruction uses indexed addressing with an
 /// immediate offset and a physical base register.
-static bool getBaseAndOffset(const MachineInstr &MI, Register &BaseReg,
-                             int &Offset) {
+static bool getBaseAndOffset(const MachineInstr &MI, Register &BaseReg, int &Offset) {
   int64_t Off;
   bool Found = MC6809InstrInfo::getIdxBaseOffset(MI, BaseReg, Off);
   Offset = static_cast<int>(Off);
@@ -378,14 +323,10 @@ static bool getBaseAndOffset(const MachineInstr &MI, Register &BaseReg,
 }
 namespace {
 
-
-
 class MC6809PostRASpillOpt : public MachineFunctionPass {
 public:
   static char ID;
-  MC6809PostRASpillOpt() : MachineFunctionPass(ID) {
-    initializeMC6809PostRASpillOptPass(*PassRegistry::getPassRegistry());
-  }
+  MC6809PostRASpillOpt() : MachineFunctionPass(ID) { initializeMC6809PostRASpillOptPass(*PassRegistry::getPassRegistry()); }
 
   bool runOnMachineFunction(MachineFunction &MF) override;
 };
@@ -407,13 +348,8 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
     // are FinalLowering's, on the same tracker.)
     MC6809ValueTracker T(MF, TRI);
     using SlotInfo = MC6809ValueTracker::Mirror;
-    auto FindSlot = [&](const SlotKey &Key) {
-      return T.find({Key.BaseReg, Key.Offset});
-    };
-    auto SetSlot = [&](const SlotKey &Key, Register Reg, MachineInstr &Est,
-                       bool SourceKilled = false) {
-      T.set({Key.BaseReg, Key.Offset}, Reg, Est, SourceKilled);
-    };
+    auto FindSlot = [&](const SlotKey &Key) { return T.find({Key.BaseReg, Key.Offset}); };
+    auto SetSlot = [&](const SlotKey &Key, Register Reg, MachineInstr &Est, bool SourceKilled = false) { T.set({Key.BaseReg, Key.Offset}, Reg, Est, SourceKilled); };
     auto ClearReg = [&](Register Reg) { T.clearHolder(Reg); };
 
     for (MachineInstr &MI : make_early_inc_range(MBB)) {
@@ -423,8 +359,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
       {
         Register KB;
         int64_t KO;
-        if (MC6809InstrInfo::getIdxLoadStore(Opc) &&
-            !MC6809InstrInfo::getIdxBaseOffset(MI, KB, KO))
+        if (MC6809InstrInfo::getIdxLoadStore(Opc) && !MC6809InstrInfo::getIdxBaseOffset(MI, KB, KO))
           Opc = 0;
       }
 
@@ -437,9 +372,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
       if (MI.mayStore()) {
         Register SB;
         int64_t SO;
-        bool SameBaseHandled =
-            (isIndexedStore(Opc) || isIndexedNonAccStore(Opc)) &&
-            MC6809InstrInfo::getIdxBaseOffset(MI, SB, SO);
+        bool SameBaseHandled = (isIndexedStore(Opc) || isIndexedNonAccStore(Opc)) && MC6809InstrInfo::getIdxBaseOffset(MI, SB, SO);
         T.storeAlias(MI, SameBaseHandled, SB);
       }
 
@@ -447,12 +380,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
       if (Ordered && (isIndexedStore(Opc) || isIndexedNonAccStore(Opc))) {
         SlotKey Key = getSlotKey(MI);
         Register Src = getAccRegForOpcode(Opc);
-        int Width = isIndexedStore(Opc)
-                        ? MC6809ValueTracker::holderWidth(Src)
-                        : MC6809InstrInfo::getIdxLoadStore(Opc)
-                              ? MC6809InstrInfo::getValueRegBytes(
-                                    MC6809InstrInfo::getIdxLoadStore(Opc)->Value)
-                              : 2;
+        int Width = isIndexedStore(Opc) ? MC6809ValueTracker::holderWidth(Src) : MC6809InstrInfo::getIdxLoadStore(Opc) ? MC6809InstrInfo::getValueRegBytes(MC6809InstrInfo::getIdxLoadStore(Opc)->Value) : 2;
         T.storeOverlap(Key.BaseReg, Key.Offset, Width, Register());
       }
 
@@ -462,8 +390,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         // Bug #363 follow-up: drop the mirror of any other slot whose bytes
         // this store overwrites with unrelated register bits (see the
         // invalidateOverlap comment) — the getopt/memmem fix.
-        T.storeOverlap(Key.BaseReg, Key.Offset,
-                       MC6809ValueTracker::holderWidth(AccReg), AccReg);
+        T.storeOverlap(Key.BaseReg, Key.Offset, MC6809ValueTracker::holderWidth(AccReg), AccReg);
         // Bug #271 cat-1: capture whether this store also killed its
         // source register. If yes, the slot has the value but the
         // register is dead — see SlotInfo::SourceKilled.
@@ -482,8 +409,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
           for (auto &E : T.entries()) {
             if (E.first == MC6809ValueTracker::Key{Key.BaseReg, Key.Offset})
               continue;
-            if (E.second.Reg.isValid() &&
-                TRI.regsOverlap(E.second.Reg, AccReg))
+            if (E.second.Reg.isValid() && TRI.regsOverlap(E.second.Reg, AccReg))
               E.second.Reg = Register();
           }
         }
@@ -523,15 +449,17 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         // above) clears Info->Reg in OTHER slots whose source register
         // gets killed at a later store, so this same check also
         // covers the tzcalc-style "kill at later store" cases.
-        if (Info && Info->Reg == AccReg && !Info->SourceKilled && !SelfBase &&
-            (!IsIndex || EnableIndexReload)) {
+        if (Info && Info->Reg == AccReg && !Info->SourceKilled && !SelfBase && (!IsIndex || EnableIndexReload)) {
           // The register already holds this slot's value → delete the load.
           // The reload re-defined AccReg, so clear any now-stale kill of AccReg
           // back to its prior definition before removing it (Bug #380).
           LLVM_DEBUG(dbgs() << "  SpillOpt: deleting redundant load: " << MI);
           clearKillsToPriorDef(MI, AccReg, TRI);
           MI.eraseFromParent();
-          if (IsIndex) ++NumIndexReloads; else ++NumAccReloads;
+          if (IsIndex)
+            ++NumIndexReloads;
+          else
+            ++NumAccReloads;
           Changed = true;
           continue;
         }
@@ -546,13 +474,8 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         // (is16BitXfer comment). Requires N/Z/V dead after the load — `tfr` sets
         // no flags, so a consumer of the reload's flags forbids the rewrite.
         // !SourceKilled (Bug #271) ensures the source register is still live.
-        if (Info && Info->Reg.isValid() && Info->Reg != AccReg &&
-            !Info->SourceKilled && !SelfBase &&
-            (!IsIndex || EnableIndexReload) && is16BitXfer(Info->Reg) &&
-            is16BitXfer(AccReg) && flagsDeadAfter(MBB, MI, TRI)) {
-          LLVM_DEBUG(dbgs() << "  SpillOpt #368: reload -> tfr "
-                            << printReg(Info->Reg, &TRI) << " -> "
-                            << printReg(AccReg, &TRI) << ": " << MI);
+        if (Info && Info->Reg.isValid() && Info->Reg != AccReg && !Info->SourceKilled && !SelfBase && (!IsIndex || EnableIndexReload) && is16BitXfer(Info->Reg) && is16BitXfer(AccReg) && flagsDeadAfter(MBB, MI, TRI)) {
+          LLVM_DEBUG(dbgs() << "  SpillOpt #368: reload -> tfr " << printReg(Info->Reg, &TRI) << " -> " << printReg(AccReg, &TRI) << ": " << MI);
           // The source register may carry a stale kill between its defining
           // load and here: an intervening STX/STY that stored it elsewhere
           // marks its last USE killed, and the invalidate-only non-acc store
@@ -561,10 +484,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
           // the live range to this new use -- clearing kill flags is always
           // conservatively safe (see clearKillsToPriorDef).
           clearKillsToPriorDef(MI, Info->Reg, TRI);
-          BuildMI(MBB, MI, MI.getDebugLoc(),
-                  MF.getSubtarget().getInstrInfo()->get(MC6809::TFRp))
-              .addDef(AccReg)
-              .addUse(Info->Reg);
+          BuildMI(MBB, MI, MI.getDebugLoc(), MF.getSubtarget().getInstrInfo()->get(MC6809::TFRp)).addDef(AccReg).addUse(Info->Reg);
           MI.eraseFromParent();
           ++NumCrossRegReloads;
           Changed = true;
@@ -596,9 +516,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         // liveness-based dead-load test is unsound for accumulators. The
         // motivating dead-load family (`ldy N,u` whose Y is overwritten before
         // use) is index-register anyway.
-        if ((AccReg == MC6809::IX || AccReg == MC6809::IY) &&
-            isFrameBase(MF, Key.BaseReg) &&
-            deadFrameLoadDest(MBB, MI, AccReg, TRI)) {
+        if ((AccReg == MC6809::IX || AccReg == MC6809::IY) && isFrameBase(MF, Key.BaseReg) && deadFrameLoadDest(MBB, MI, AccReg, TRI)) {
           LLVM_DEBUG(dbgs() << "  SpillOpt: deleting dead frame load: " << MI);
           MI.eraseFromParent();
           ++NumDeadFrameIndexLoads;
@@ -687,8 +605,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
     // (PSHS/PULS change S, making offset analysis unreliable).
     bool AllocatedAreaUsed = false;
     SmallVector<MachineInstr *, 16> SSRelativeInstrs;
-    for (auto It = std::next(PrologLEAS->getIterator());
-         &*It != EpilogLEAS; ++It) {
+    for (auto It = std::next(PrologLEAS->getIterator()); &*It != EpilogLEAS; ++It) {
       MachineInstr &MI = *It;
       // If any instruction (other than our LEAS pair) defines SS,
       // S moves and our offset analysis is invalid — bail out.
@@ -719,8 +636,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
 
     // The allocated area is unused. Remove both LEAS and adjust all
     // S-relative offsets by -AllocSize.
-    LLVM_DEBUG(dbgs() << "  SpillOpt: removing redundant leas -"
-                      << AllocSize << ",s / leas " << AllocSize << ",s\n");
+    LLVM_DEBUG(dbgs() << "  SpillOpt: removing redundant leas -" << AllocSize << ",s / leas " << AllocSize << ",s\n");
     for (MachineInstr *MI : SSRelativeInstrs) {
       // Find the immediate operand and adjust it.
       for (MachineOperand &MO : MI->explicit_operands()) {
@@ -730,16 +646,14 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
           MO.setImm(NewOffset);
           // Change opcode variant if the offset size category changed.
           // Never use _o0 (would require operand removal); use _o5 for 0.
-          int Size = (NewOffset >= -16 && NewOffset < 16) ? 5
-                   : (NewOffset >= -128 && NewOffset < 128) ? 8 : 16;
+          int Size = (NewOffset >= -16 && NewOffset < 16) ? 5 : (NewOffset >= -128 && NewOffset < 128) ? 8 : 16;
           (void)Size;
           unsigned NewOpc = MC6809InstrInfo::getIdxFormForOffset(MI->getOpcode(), NewOffset);
           // Don't switch to _o0 — keep _o5 with offset 0 instead.
           if (NewOffset == 0)
             NewOpc = MC6809InstrInfo::getIdxFormForOffset(MI->getOpcode(), 1); // force _o5
           if (NewOpc && NewOpc != MI->getOpcode()) {
-            LLVM_DEBUG(dbgs() << "    adjusting " << OldOffset
-                              << " → " << NewOffset << "\n");
+            LLVM_DEBUG(dbgs() << "    adjusting " << OldOffset << " → " << NewOffset << "\n");
             MI->setDesc(MF.getSubtarget().getInstrInfo()->get(NewOpc));
           }
           break;
@@ -770,7 +684,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
   // scan in pathological cases (any PSHS/PULS/LEAS/TFR S/call has
   // implicit-def $ss).
   for (MachineBasicBlock &MBB : MF) {
-    for (auto It = MBB.begin(); It != MBB.end(); ) {
+    for (auto It = MBB.begin(); It != MBB.end();) {
       MachineInstr &MI1 = *It++;
 
       // MI1: PSHS pushing exactly one accumulator (AA, AB, or AD).
@@ -781,7 +695,10 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
       for (const MachineOperand &MO : MI1.explicit_operands()) {
         if (!MO.isReg() || !MO.isUse())
           continue;
-        if (PushedReg.isValid()) { BadMask = true; break; }
+        if (PushedReg.isValid()) {
+          BadMask = true;
+          break;
+        }
         PushedReg = MO.getReg();
       }
       if (BadMask || !PushedReg.isValid())
@@ -807,11 +724,11 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
 
         // Skip debug instructions — they don't generate code and
         // can't modify SS.
-        if (Cand.isDebugInstr()) continue;
+        if (Cand.isDebugInstr())
+          continue;
 
         // Is this the op we're looking for?
-        if (unsigned Opc = MC6809InstrInfo::getPostIncrementOpcode(Cand.getOpcode(),
-                                                     PushWidth)) {
+        if (unsigned Opc = MC6809InstrInfo::getPostIncrementOpcode(Cand.getOpcode(), PushWidth)) {
           SlotKey Slot = getSlotKey(Cand);
           if (Slot.BaseReg == MC6809::SS && Slot.Offset == 0) {
             NewOpc = Opc;
@@ -824,7 +741,8 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         if (Cand.modifiesRegister(MC6809::SS, &TRI))
           break; // safety abort
       }
-      if (!NewOpc) continue;
+      if (!NewOpc)
+        continue;
       MachineInstr &MI2 = *It2;
 
       // MI3: LEAS PushWidth,S, immediately after MI2 (no gap on the
@@ -832,19 +750,21 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
       // emits for ±1/±2; the larger forms are never picked for
       // these tiny values.
       auto It3 = std::next(It2);
-      if (It3 == MBB.end()) continue;
+      if (It3 == MBB.end())
+        continue;
       MachineInstr &MI3 = *It3;
-      if (MI3.getOpcode() != MC6809::LEASi_o5) continue;
+      if (MI3.getOpcode() != MC6809::LEASi_o5)
+        continue;
       Register MI3Base;
       int MI3Imm;
-      if (!getBaseAndOffset(MI3, MI3Base, MI3Imm)) continue;
-      if (MI3Base != MC6809::SS || MI3Imm != PushWidth) continue;
+      if (!getBaseAndOffset(MI3, MI3Base, MI3Imm))
+        continue;
+      if (MI3Base != MC6809::SS || MI3Imm != PushWidth)
+        continue;
 
       LLVM_DEBUG(dbgs() << "  SpillOpt Stage 5: folding PSHS/op/LEAS "
                         << "triplet:\n"
-                        << "    " << MI1
-                        << "    " << MI2
-                        << "    " << MI3);
+                        << "    " << MI1 << "    " << MI2 << "    " << MI3);
 
       // Rewrite MI2 to the post-increment opcode. Both _o0 and
       // _Inc1/_Inc2 take a single $ireg operand; _o5 takes (imm,
@@ -903,7 +823,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
   // rate low across the longer post-MI2 scans the unbounded matcher
   // can reach.
   for (MachineBasicBlock &MBB : MF) {
-    for (auto It = MBB.begin(); It != MBB.end(); ) {
+    for (auto It = MBB.begin(); It != MBB.end();) {
       MachineInstr &MI1 = *It++;
 
       // MI1: LDY/LDX/LDU from a (Offset, BaseReg) memory operand.
@@ -911,26 +831,37 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
       // know which one it is from the opcode family.
       Register LoadedReg;
       switch (MI1.getOpcode()) {
-      case MC6809::LDYi_o0: case MC6809::LDYi_o5:
-      case MC6809::LDYi_o8: case MC6809::LDYi_o16:
-        LoadedReg = MC6809::IY; break;
-      case MC6809::LDXi_o0: case MC6809::LDXi_o5:
-      case MC6809::LDXi_o8: case MC6809::LDXi_o16:
-        LoadedReg = MC6809::IX; break;
-      case MC6809::LDUi_o0: case MC6809::LDUi_o5:
-      case MC6809::LDUi_o8: case MC6809::LDUi_o16:
-        LoadedReg = MC6809::SU; break;
+      case MC6809::LDYi_o0:
+      case MC6809::LDYi_o5:
+      case MC6809::LDYi_o8:
+      case MC6809::LDYi_o16:
+        LoadedReg = MC6809::IY;
+        break;
+      case MC6809::LDXi_o0:
+      case MC6809::LDXi_o5:
+      case MC6809::LDXi_o8:
+      case MC6809::LDXi_o16:
+        LoadedReg = MC6809::IX;
+        break;
+      case MC6809::LDUi_o0:
+      case MC6809::LDUi_o5:
+      case MC6809::LDUi_o8:
+      case MC6809::LDUi_o16:
+        LoadedReg = MC6809::SU;
+        break;
       default:
         continue;
       }
       SlotKey M1Slot = getSlotKey(MI1);
       Register BaseReg = M1Slot.BaseReg;
       int Offset = M1Slot.Offset;
-      if (!BaseReg.isValid()) continue;
+      if (!BaseReg.isValid())
+        continue;
       // Skip if BaseReg is the same as LoadedReg (`LDY ,Y` etc.) —
       // the indirect form would self-reference, and the existing
       // value of Y is what we'd be folding away.
-      if (BaseReg == LoadedReg) continue;
+      if (BaseReg == LoadedReg)
+        continue;
 
       // Forward scan for MI2 (op ,LoadedReg with offset 0). Walk
       // until MI2 is found, an intervening MI touches LoadedReg,
@@ -940,11 +871,11 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
       for (; It2 != MBB.end(); ++It2) {
         MachineInstr &Cand = *It2;
 
-        if (Cand.isDebugInstr()) continue;
+        if (Cand.isDebugInstr())
+          continue;
 
         // Try to match as MI2.
-        if (unsigned Opc = MC6809InstrInfo::getIdxIndirectFormForOffset(Cand.getOpcode(),
-                                                   Offset)) {
+        if (unsigned Opc = MC6809InstrInfo::getIdxIndirectFormForOffset(Cand.getOpcode(), Offset)) {
           SlotKey CandSlot = getSlotKey(Cand);
           if (CandSlot.BaseReg == LoadedReg && CandSlot.Offset == 0) {
             NewOpc = Opc;
@@ -953,8 +884,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         }
 
         // Not MI2 — must not touch LoadedReg.
-        if (Cand.readsRegister(LoadedReg, &TRI) ||
-            Cand.modifiesRegister(LoadedReg, &TRI))
+        if (Cand.readsRegister(LoadedReg, &TRI) || Cand.modifiesRegister(LoadedReg, &TRI))
           break; // safety abort
 
         // Nor may anything move what the offset is measured from.  The
@@ -977,14 +907,13 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
         // the frame, or that lands on this slot, ends the scan.
         if (MC6809ValueTracker::mayStoreToStackFrame(Cand, MFI)) {
           SlotKey CandSlot = getSlotKey(Cand);
-          bool Elsewhere = CandSlot.BaseReg.isValid() &&
-                           CandSlot.BaseReg == BaseReg &&
-                           CandSlot.Offset != Offset;
+          bool Elsewhere = CandSlot.BaseReg.isValid() && CandSlot.BaseReg == BaseReg && CandSlot.Offset != Offset;
           if (!Elsewhere)
             break;
         }
       }
-      if (!NewOpc) continue;
+      if (!NewOpc)
+        continue;
       MachineInstr &MI2 = *It2;
 
       // Bug #190 special case: load-through-self pattern. MI2 is
@@ -996,19 +925,15 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
       // rewritten MI1 (now `LDY [n,u]`) also produces. Mutate MI1 to
       // its indirect variant via setDesc (operand layout invariant
       // for LDY/LDX/LDU `_oN` → `_oNI`); erase MI2.
-      bool IsLoadThroughSelf =
-          (MI2.getOpcode() == MC6809::LDYi_o0 && LoadedReg == MC6809::IY) ||
-          (MI2.getOpcode() == MC6809::LDXi_o0 && LoadedReg == MC6809::IX) ||
-          (MI2.getOpcode() == MC6809::LDUi_o0 && LoadedReg == MC6809::SU);
+      bool IsLoadThroughSelf = (MI2.getOpcode() == MC6809::LDYi_o0 && LoadedReg == MC6809::IY) || (MI2.getOpcode() == MC6809::LDXi_o0 && LoadedReg == MC6809::IX) || (MI2.getOpcode() == MC6809::LDUi_o0 && LoadedReg == MC6809::SU);
       if (IsLoadThroughSelf) {
-        unsigned NewMI1Opc = MC6809InstrInfo::getIdxIndirectFormForOffset(MI1.getOpcode(),
-                                                     Offset);
-        if (!NewMI1Opc) continue; // shouldn't happen for LDY/LDX/LDU
-                                  // but guard.
+        unsigned NewMI1Opc = MC6809InstrInfo::getIdxIndirectFormForOffset(MI1.getOpcode(), Offset);
+        if (!NewMI1Opc)
+          continue; // shouldn't happen for LDY/LDX/LDU
+                    // but guard.
         LLVM_DEBUG(dbgs() << "  SpillOpt Stage 6 (#190): folding "
                           << "LDY/LDY,Y → LDY[n,u]:\n"
-                          << "    " << MI1
-                          << "    " << MI2);
+                          << "    " << MI1 << "    " << MI2);
         MI1.setDesc(TII.get(NewMI1Opc));
         MI2.eraseFromParent();
         // Continue scanning past MI1 (the rewritten indirect load).
@@ -1031,7 +956,8 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
       auto AfterMI2 = std::next(It2);
       auto LR = MBB.computeRegisterLiveness(&TRI, LoadedReg, AfterMI2,
                                             /*Neighborhood=*/32);
-      if (LR == MachineBasicBlock::LQR_Live) continue;
+      if (LR == MachineBasicBlock::LQR_Live)
+        continue;
       if (LR != MachineBasicBlock::LQR_Dead) {
         LivePhysRegs LPR(TRI);
         LPR.addLiveOuts(MBB);
@@ -1045,8 +971,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
 
       LLVM_DEBUG(dbgs() << "  SpillOpt Stage 6: folding LDY/op,Y "
                         << "→ op[n,u]:\n"
-                        << "    " << MI1
-                        << "    " << MI2);
+                        << "    " << MI1 << "    " << MI2);
 
       // Operand surgery on MI2:
       //   1. Save implicit operands.
@@ -1056,8 +981,7 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
       //   5. Re-add the saved implicit operands.
       SmallVector<MachineOperand, 8> Implicits;
       unsigned OldNumExplicit = MI2.getNumExplicitOperands();
-      for (unsigned I = OldNumExplicit, E = MI2.getNumOperands();
-           I < E; ++I)
+      for (unsigned I = OldNumExplicit, E = MI2.getNumOperands(); I < E; ++I)
         Implicits.push_back(MI2.getOperand(I));
       while (MI2.getNumOperands() > 0)
         MI2.removeOperand(0);
@@ -1083,13 +1007,8 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
   return Changed;
 }
 
-
 char MC6809PostRASpillOpt::ID = 0;
 
-INITIALIZE_PASS(MC6809PostRASpillOpt, DEBUG_TYPE,
-                "Eliminate redundant spill loads after post-RA expansion",
-                false, false)
+INITIALIZE_PASS(MC6809PostRASpillOpt, DEBUG_TYPE, "Eliminate redundant spill loads after post-RA expansion", false, false)
 
-MachineFunctionPass *llvm::createMC6809PostRASpillOptPass() {
-  return new MC6809PostRASpillOpt();
-}
+MachineFunctionPass *llvm::createMC6809PostRASpillOptPass() { return new MC6809PostRASpillOpt(); }

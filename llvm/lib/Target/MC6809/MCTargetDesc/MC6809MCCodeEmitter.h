@@ -75,7 +75,6 @@ private:
 
   const MCInstrInfo &MCII;
   // MCContext &Ctx;
-
 };
 
 } // namespace llvm

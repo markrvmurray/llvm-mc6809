@@ -104,8 +104,7 @@ public:
   /// The concrete opcode for an indexed arithmetic/compare family member
   /// whose memory operand is a symbol (static-stack slot or global): direct
   /// page for a direct-page global, PC-relative under PIC, else extended.
-  unsigned getSymArithOpcode(unsigned IdxOpc, const MachineOperand &Sym,
-                             bool IsPIC) const;
+  unsigned getSymArithOpcode(unsigned IdxOpc, const MachineOperand &Sym, bool IsPIC) const;
 
   Register isLoadFromStackSlot(const MachineInstr &MI, int &FrameIndex) const override;
 
@@ -117,7 +116,6 @@ protected:
   bool isReMaterializableImpl(const MachineInstr &MI) const override;
 
 public:
-
   MachineInstr *commuteInstructionImpl(MachineInstr &MI, bool NewMI, unsigned OpIdx1, unsigned OpIdx2) const override;
 
   unsigned getInstSizeInBytes(const MachineInstr &MI) const override;
@@ -127,7 +125,6 @@ public:
   // Bug #196: findCommutedOpIndices not overridden — inherit base
   // TargetInstrInfo behaviour which uses TableGen-generated
   // `isCommutable` flags. Same approach as AArch64.
-
 
   MachineBasicBlock *getBranchDestBlock(const MachineInstr &MI) const override;
 
@@ -171,8 +168,7 @@ public:
   /// it is saved across: just after the pseudo being expanded, when that
   /// still lies at or after P -- the pseudo's own operand reads happen
   /// inside the window, before anything clobbers the register -- else P.
-  MachineBasicBlock::iterator stagingQueryPoint(
-      MachineBasicBlock &MBB, MachineBasicBlock::iterator P) const;
+  MachineBasicBlock::iterator stagingQueryPoint(MachineBasicBlock &MBB, MachineBasicBlock::iterator P) const;
   /// R (or a register overlapping it) is written by the expansion in
   /// progress before P.
   bool writtenInExpansion(MachineBasicBlock::iterator P, Register R) const;
@@ -203,8 +199,7 @@ public:
   /// Emit the sequence that deposits CC flag \p Flag as a 0/1 byte in
   /// \p DstReg (an A/B accumulator or a direct-page imaginary byte register)
   /// at \p Builder's insertion point.
-  void emitFlagCapture(MachineIRBuilder &Builder, MCPhysReg Flag,
-                       Register DstReg) const;
+  void emitFlagCapture(MachineIRBuilder &Builder, MCPhysReg Flag, Register DstReg) const;
 
   /// The _Mem sibling of a two-source _Reg pseudo and the explicit operand
   /// index of the second source that becomes the memory operand, or nothing
@@ -219,23 +214,13 @@ public:
   /// operand can take either position.
   static bool isCommutableTwoSource(unsigned Opc);
 
-  MachineInstr *foldMemoryOperandImpl(MachineFunction &MF, MachineInstr &MI,
-                                      ArrayRef<unsigned> Ops,
-                                      int FrameIndex,
-                                      MachineInstr *&CopyMI,
-                                      LiveIntervals *LIS = nullptr,
-                                      VirtRegMap *VRM = nullptr) const override;
+  MachineInstr *foldMemoryOperandImpl(MachineFunction &MF, MachineInstr &MI, ArrayRef<unsigned> Ops, int FrameIndex, MachineInstr *&CopyMI, LiveIntervals *LIS = nullptr, VirtRegMap *VRM = nullptr) const override;
   /// The LoadMI form: fold a frame-index load directly into a consumer's
   /// memory operand instead of rematerializing it into a register (the
   /// inline spiller's fold-before-remat path). Essential for the AQ-only
   /// i32 class, where a rematerialized clone would be a second unspillable
   /// i32 register value at the consumer.
-  MachineInstr *foldMemoryOperandImpl(MachineFunction &MF, MachineInstr &MI,
-                                      ArrayRef<unsigned> Ops,
-                                      MachineInstr &LoadMI,
-                                      MachineInstr *&CopyMI,
-                                      LiveIntervals *LIS = nullptr,
-                                      VirtRegMap *VRM = nullptr) const override;
+  MachineInstr *foldMemoryOperandImpl(MachineFunction &MF, MachineInstr &MI, ArrayRef<unsigned> Ops, MachineInstr &LoadMI, MachineInstr *&CopyMI, LiveIntervals *LIS = nullptr, VirtRegMap *VRM = nullptr) const override;
 
   bool reverseBranchCondition(SmallVectorImpl<MachineOperand> &Cond) const override;
 
@@ -244,8 +229,7 @@ public:
   /// (degenerate `op X,X` postbytes on HD6309 page-3 reg-reg ops, plus
   /// HD6309 TFR with size-mismatched operands which byte-replicates).
   /// Invoked by MachineVerifier when -verify-machineinstrs is on.
-  bool verifyInstruction(const MachineInstr &MI,
-                         StringRef &ErrInfo) const override;
+  bool verifyInstruction(const MachineInstr &MI, StringRef &ErrInfo) const override;
 
   std::pair<unsigned, unsigned> decomposeMachineOperandsTargetFlags(unsigned TF) const override;
 
@@ -268,8 +252,7 @@ public:
   // The caller (MC6809FinalLowering) is responsible for adjusting the MI's
   // operand list — for size 0 the offset operand is dropped entirely; for
   // 5/8/16 it stays an immediate (just the encoding width changes).
-  std::pair<unsigned, int>
-  getRelaxedIdxOpcode(unsigned CurrentOpcode, int64_t Offset) const;
+  std::pair<unsigned, int> getRelaxedIdxOpcode(unsigned CurrentOpcode, int64_t Offset) const;
 
   /// The offset form of a constant-offset indexed instruction, if Opc is one.
   static std::optional<MC6809::IdxForm> getIdxForm(unsigned Opc);
@@ -302,29 +285,25 @@ public:
   static std::optional<IdxLoadStore> getDirLoadStore(unsigned Opc);
   /// The direct-page load or store of Value, or 0 if there is none.
   static unsigned getDirLoadStoreOpcode(Register Value, bool IsStore);
-  static unsigned getIdxLoadStoreOpcode(Register Value, bool IsStore,
-                                        int64_t Offset);
+  static unsigned getIdxLoadStoreOpcode(Register Value, bool IsStore, int64_t Offset);
 
   /// The base register and constant offset of an indexed access (`op n,r`,
   /// or `op ,r` for offset 0): the explicit index register it uses (the last
   /// one, for a form that also names an index register as its value) and
   /// the first explicit immediate, sign-extended. False if MI names no index
   /// register, or if its offset is not an immediate (a symbol).
-  static bool getIdxBaseOffset(const MachineInstr &MI, Register &Base,
-                               int64_t &Offset);
+  static bool getIdxBaseOffset(const MachineInstr &MI, Register &Base, int64_t &Offset);
   /// Where Sub's bytes sit in memory when Super is stored (the 6809 is
   /// big-endian): their offset from the first byte of Super's store, 0 when
   /// Sub == Super; -1 if Sub is not part of Super.
-  static int getSubRegByteOffset(const TargetRegisterInfo &TRI, Register Super,
-                                 Register Sub);
+  static int getSubRegByteOffset(const TargetRegisterInfo &TRI, Register Super, Register Sub);
   /// The number of bytes a store or load of R moves.
   static unsigned getValueRegBytes(Register R);
 
 protected:
   // Bug #357: report a value-preserving same-width TFRp as a copy so generic
   // MachineCopyPropagation can forward/eliminate it.
-  std::optional<DestSourcePair>
-  isCopyInstrImpl(const MachineInstr &MI) const override;
+  std::optional<DestSourcePair> isCopyInstrImpl(const MachineInstr &MI) const override;
 
 private:
   mutable MachineBasicBlock *ExpansionMBB = nullptr;
@@ -390,26 +369,19 @@ private:
   // Three operand shapes — _Mem (commit 2/6), _Imm and _Reg (commit
   // 2.1/6).  _Pull and the carry-Use variants stay llvm_unreachable
   // (not reachable from any TableGen pattern or selector arm).
-  void expandAddSub_i32_Mem(MachineIRBuilder &Builder, MachineInstr &MI,
-                            bool IsAdd) const;
+  void expandAddSub_i32_Mem(MachineIRBuilder &Builder, MachineInstr &MI, bool IsAdd) const;
   // Static-stack sibling of expandAddSub_i32_Mem: the memory operand is a
   // TI_STATIC_STACK target index addressed by extended (or PC-relative under
   // PIC) mode instead of offset,index-register.
-  void expandAddSub_i32_Sym(MachineIRBuilder &Builder, MachineInstr &MI,
-                            bool IsAdd) const;
-  void expandAddSub_i32_Imm(MachineIRBuilder &Builder, MachineInstr &MI,
-                            bool IsAdd) const;
-  void expandAddSub_i32_Reg(MachineIRBuilder &Builder, MachineInstr &MI,
-                            bool IsAdd) const;
+  void expandAddSub_i32_Sym(MachineIRBuilder &Builder, MachineInstr &MI, bool IsAdd) const;
+  void expandAddSub_i32_Imm(MachineIRBuilder &Builder, MachineInstr &MI, bool IsAdd) const;
+  void expandAddSub_i32_Reg(MachineIRBuilder &Builder, MachineInstr &MI, bool IsAdd) const;
   // Bug #311 Phase 2: i32 add/sub with carry-IN.  Uses EXG-D,W to
   // route W's bytes through ADCB/ADCA (HD6309 lacks ADCW); ADCD
   // handles the D half.
-  void expandAddSubCarryUse_i32_Imm(MachineIRBuilder &Builder,
-                                    MachineInstr &MI, bool IsAdd) const;
-  void expandAddSubCarryUse_i32_Mem(MachineIRBuilder &Builder,
-                                    MachineInstr &MI, bool IsAdd) const;
-  void expandAddSubCarryUse_i32_Reg(MachineIRBuilder &Builder,
-                                    MachineInstr &MI, bool IsAdd) const;
+  void expandAddSubCarryUse_i32_Imm(MachineIRBuilder &Builder, MachineInstr &MI, bool IsAdd) const;
+  void expandAddSubCarryUse_i32_Mem(MachineIRBuilder &Builder, MachineInstr &MI, bool IsAdd) const;
+  void expandAddSubCarryUse_i32_Reg(MachineIRBuilder &Builder, MachineInstr &MI, bool IsAdd) const;
 
   void expandCompareImm(MachineIRBuilder &Builder, MachineInstr &MI) const;
   void expandCompareIdx(MachineIRBuilder &Builder, MachineInstr &MI) const;
@@ -532,10 +504,8 @@ private:
   ContextIndexImmediate XORIdxImm = {&XORIdxImmOpcode};
 
   void expandIdxImm(ContextIndexImmediate Context, MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandBitwiseImm16(ContextImmediate Context, unsigned OpcA, unsigned OpcB,
-                          MachineIRBuilder &Builder, MachineInstr &MI) const;
-  void expandBitwiseMem16(ContextIndexImmediate Context,
-                          MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandBitwiseImm16(ContextImmediate Context, unsigned OpcA, unsigned OpcB, MachineIRBuilder &Builder, MachineInstr &MI) const;
+  void expandBitwiseMem16(ContextIndexImmediate Context, MachineIRBuilder &Builder, MachineInstr &MI) const;
 
   struct ContextIndexRegister {
     DenseMap<RegPlusReg, unsigned> *Opcode;

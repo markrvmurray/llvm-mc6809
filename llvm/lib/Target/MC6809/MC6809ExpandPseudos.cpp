@@ -41,12 +41,8 @@ namespace {
 class MC6809ExpandPseudos : public MachineFunctionPass {
 public:
   static char ID;
-  MC6809ExpandPseudos() : MachineFunctionPass(ID) {
-    initializeMC6809ExpandPseudosPass(*PassRegistry::getPassRegistry());
-  }
-  StringRef getPassName() const override {
-    return "MC6809 Post-RA Pseudo Expansion";
-  }
+  MC6809ExpandPseudos() : MachineFunctionPass(ID) { initializeMC6809ExpandPseudosPass(*PassRegistry::getPassRegistry()); }
+  StringRef getPassName() const override { return "MC6809 Post-RA Pseudo Expansion"; }
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesCFG();
     MachineFunctionPass::getAnalysisUsage(AU);
@@ -56,8 +52,7 @@ public:
 } // namespace
 
 // As ExpandPostRAPseudos lowers it.
-static void lowerSubregToReg(MachineInstr &MI, const TargetInstrInfo &TII,
-                      const TargetRegisterInfo &TRI) {
+static void lowerSubregToReg(MachineInstr &MI, const TargetInstrInfo &TII, const TargetRegisterInfo &TRI) {
   MachineBasicBlock &MBB = *MI.getParent();
   Register DstReg = MI.getOperand(0).getReg();
   Register InsReg = MI.getOperand(1).getReg();
@@ -67,12 +62,10 @@ static void lowerSubregToReg(MachineInstr &MI, const TargetInstrInfo &TII,
     MI.removeOperand(2);
     return;
   }
-  TII.copyPhysReg(MBB, MI, MI.getDebugLoc(), DstSubReg, InsReg,
-                  MI.getOperand(1).isKill());
+  TII.copyPhysReg(MBB, MI, MI.getDebugLoc(), DstSubReg, InsReg, MI.getOperand(1).isKill());
   std::prev(MI.getIterator())->addRegisterDefined(DstReg);
   MBB.erase(MI);
 }
-
 
 bool MC6809ExpandPseudos::runOnMachineFunction(MachineFunction &MF) {
   const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
@@ -116,9 +109,6 @@ bool MC6809ExpandPseudos::runOnMachineFunction(MachineFunction &MF) {
 char MC6809ExpandPseudos::ID = 0;
 char &llvm::MC6809ExpandPseudosID = MC6809ExpandPseudos::ID;
 
-INITIALIZE_PASS(MC6809ExpandPseudos, DEBUG_TYPE,
-                "MC6809 bottom-up post-RA pseudo expansion", false, false)
+INITIALIZE_PASS(MC6809ExpandPseudos, DEBUG_TYPE, "MC6809 bottom-up post-RA pseudo expansion", false, false)
 
-MachineFunctionPass *llvm::createMC6809ExpandPseudosPass() {
-  return new MC6809ExpandPseudos();
-}
+MachineFunctionPass *llvm::createMC6809ExpandPseudosPass() { return new MC6809ExpandPseudos(); }

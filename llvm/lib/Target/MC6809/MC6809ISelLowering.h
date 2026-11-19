@@ -49,9 +49,7 @@ public:
   // entry kind to `EK_BlockAddress` — it's the kind the rest of the
   // backend has always assumed and the actual layout of the emitted
   // bytes is unaffected by the kind label.
-  unsigned getJumpTableEncoding() const override {
-    return MachineJumpTableInfo::EK_BlockAddress;
-  }
+  unsigned getJumpTableEncoding() const override { return MachineJumpTableInfo::EK_BlockAddress; }
 
   unsigned getNumRegistersForInlineAsm(LLVMContext &Context, EVT VT) const override;
 

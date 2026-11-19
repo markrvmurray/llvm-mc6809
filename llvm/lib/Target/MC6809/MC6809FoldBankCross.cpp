@@ -51,23 +51,18 @@
 
 using namespace llvm;
 
-static cl::opt<bool> EnableFoldBankCross(
-    "mc6809-enable-fold-bank-cross", cl::init(true), cl::Hidden,
-    cl::desc("Fold an INDEX->ACCUM copy into the store/compare that uses it so "
-             "the value stays in an index register (stx/cmpx, no tfr x,d)"));
+static cl::opt<bool> EnableFoldBankCross("mc6809-enable-fold-bank-cross", cl::init(true), cl::Hidden,
+                                         cl::desc("Fold an INDEX->ACCUM copy into the store/compare that uses it so "
+                                                  "the value stays in an index register (stx/cmpx, no tfr x,d)"));
 
 namespace {
 
 class MC6809FoldBankCross : public MachineFunctionPass {
 public:
   static char ID;
-  MC6809FoldBankCross() : MachineFunctionPass(ID) {
-    llvm::initializeMC6809FoldBankCrossPass(*PassRegistry::getPassRegistry());
-  }
+  MC6809FoldBankCross() : MachineFunctionPass(ID) { llvm::initializeMC6809FoldBankCrossPass(*PassRegistry::getPassRegistry()); }
   bool runOnMachineFunction(MachineFunction &MF) override;
-  StringRef getPassName() const override {
-    return "MC6809 fold index->accumulator copy into store/compare";
-  }
+  StringRef getPassName() const override { return "MC6809 fold index->accumulator copy into store/compare"; }
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequired<MachineLoopInfoWrapperPass>();
     MachineFunctionPass::getAnalysisUsage(AU);
@@ -84,39 +79,62 @@ struct FoldTarget {
 } // namespace
 static FoldTarget indexConsumer(unsigned Opc) {
   switch (Opc) {
-  case MC6809::Store_i16_Mem:         return {MC6809::Store_iPtr_Mem, 0};
-  case MC6809::Store_i16_Sym:         return {MC6809::Store_iPtr_Sym, 0};
-  case MC6809::Compare_i16_Imm:       return {MC6809::Compare_ptr_Imm, 2};
-  case MC6809::Compare_i16_Mem:       return {MC6809::Compare_ptr_Mem, 2};
-  case MC6809::Compare_i16_Sym:       return {MC6809::Compare_ptr_Sym, 2};
-  case MC6809::CompareBranch_i16_Imm: return {MC6809::CompareBranch_ptr_Imm, 1};
-  case MC6809::CompareBranch_i16_Mem: return {MC6809::CompareBranch_ptr_Mem, 1};
-  case MC6809::CompareBranch_i16_Sym: return {MC6809::CompareBranch_ptr_Sym, 1};
+  case MC6809::Store_i16_Mem:
+    return {MC6809::Store_iPtr_Mem, 0};
+  case MC6809::Store_i16_Sym:
+    return {MC6809::Store_iPtr_Sym, 0};
+  case MC6809::Compare_i16_Imm:
+    return {MC6809::Compare_ptr_Imm, 2};
+  case MC6809::Compare_i16_Mem:
+    return {MC6809::Compare_ptr_Mem, 2};
+  case MC6809::Compare_i16_Sym:
+    return {MC6809::Compare_ptr_Sym, 2};
+  case MC6809::CompareBranch_i16_Imm:
+    return {MC6809::CompareBranch_ptr_Imm, 1};
+  case MC6809::CompareBranch_i16_Mem:
+    return {MC6809::CompareBranch_ptr_Mem, 1};
+  case MC6809::CompareBranch_i16_Sym:
+    return {MC6809::CompareBranch_ptr_Sym, 1};
   // The SECOND source of a 16-bit register-register arithmetic, bitwise or
   // compare pseudo may be an index register (the _RegIdx sibling): the
   // 6809 reads that operand from memory after a push either way, so a
   // value that arrived in X or Y stays there instead of being copied into
   // D and evicting the tied operand into an imaginary register.
-  case MC6809::Add_i16_Reg:               return {MC6809::Add_i16_RegIdx, 2};
-  case MC6809::Sub_i16_Reg:               return {MC6809::Sub_i16_RegIdx, 2};
-  case MC6809::AddSetCarry_i16_Reg:       return {MC6809::AddSetCarry_i16_RegIdx, 2};
-  case MC6809::SubSetCarry_i16_Reg:       return {MC6809::SubSetCarry_i16_RegIdx, 2};
-  case MC6809::AddSetCarryUse_i16_Reg:    return {MC6809::AddSetCarryUse_i16_RegIdx, 2};
-  case MC6809::SubSetCarryUse_i16_Reg:    return {MC6809::SubSetCarryUse_i16_RegIdx, 2};
-  case MC6809::AddSetOverflow_i16_Reg:    return {MC6809::AddSetOverflow_i16_RegIdx, 2};
-  case MC6809::SubSetOverflow_i16_Reg:    return {MC6809::SubSetOverflow_i16_RegIdx, 2};
-  case MC6809::AddSetOverflowUse_i16_Reg: return {MC6809::AddSetOverflowUse_i16_RegIdx, 2};
-  case MC6809::SubSetOverflowUse_i16_Reg: return {MC6809::SubSetOverflowUse_i16_RegIdx, 2};
-  case MC6809::AND_i16_Reg:               return {MC6809::AND_i16_RegIdx, 2};
-  case MC6809::OR_i16_Reg:                return {MC6809::OR_i16_RegIdx, 2};
-  case MC6809::XOR_i16_Reg:               return {MC6809::XOR_i16_RegIdx, 2};
-  case MC6809::Compare_i16_Reg:           return {MC6809::Compare_i16_RegIdx, 3};
-  case MC6809::CompareBranch_i16_Reg:     return {MC6809::CompareBranch_i16_RegIdx, 2};
-  default:                            return {0, -1};
+  case MC6809::Add_i16_Reg:
+    return {MC6809::Add_i16_RegIdx, 2};
+  case MC6809::Sub_i16_Reg:
+    return {MC6809::Sub_i16_RegIdx, 2};
+  case MC6809::AddSetCarry_i16_Reg:
+    return {MC6809::AddSetCarry_i16_RegIdx, 2};
+  case MC6809::SubSetCarry_i16_Reg:
+    return {MC6809::SubSetCarry_i16_RegIdx, 2};
+  case MC6809::AddSetCarryUse_i16_Reg:
+    return {MC6809::AddSetCarryUse_i16_RegIdx, 2};
+  case MC6809::SubSetCarryUse_i16_Reg:
+    return {MC6809::SubSetCarryUse_i16_RegIdx, 2};
+  case MC6809::AddSetOverflow_i16_Reg:
+    return {MC6809::AddSetOverflow_i16_RegIdx, 2};
+  case MC6809::SubSetOverflow_i16_Reg:
+    return {MC6809::SubSetOverflow_i16_RegIdx, 2};
+  case MC6809::AddSetOverflowUse_i16_Reg:
+    return {MC6809::AddSetOverflowUse_i16_RegIdx, 2};
+  case MC6809::SubSetOverflowUse_i16_Reg:
+    return {MC6809::SubSetOverflowUse_i16_RegIdx, 2};
+  case MC6809::AND_i16_Reg:
+    return {MC6809::AND_i16_RegIdx, 2};
+  case MC6809::OR_i16_Reg:
+    return {MC6809::OR_i16_RegIdx, 2};
+  case MC6809::XOR_i16_Reg:
+    return {MC6809::XOR_i16_RegIdx, 2};
+  case MC6809::Compare_i16_Reg:
+    return {MC6809::Compare_i16_RegIdx, 3};
+  case MC6809::CompareBranch_i16_Reg:
+    return {MC6809::CompareBranch_i16_RegIdx, 2};
+  default:
+    return {0, -1};
   }
 }
 namespace {
-
 
 // ---- Whole-value promotion into the index bank --------------------------
 //
@@ -133,10 +151,9 @@ namespace {
 // is re-classed INDEX16 and every instruction on it retargeted to its
 // index-register sibling.
 
-static cl::opt<bool> EnableIndexPromotion(
-    "mc6809-enable-index-promotion", cl::init(true), cl::Hidden,
-    cl::desc("Re-class 16-bit accumulator values whose every use has an "
-             "index-register form into the index bank"));
+static cl::opt<bool> EnableIndexPromotion("mc6809-enable-index-promotion", cl::init(true), cl::Hidden,
+                                          cl::desc("Re-class 16-bit accumulator values whose every use has an "
+                                                   "index-register form into the index bank"));
 
 // The index-bank sibling of an accumulator-bank pseudo for a promoted value
 // in operand OpIdx. Returns 0 when the operand may not be promoted; appends
@@ -146,9 +163,7 @@ static cl::opt<bool> EnableIndexPromotion(
 static constexpr unsigned KeepOpcode = ~0u;
 } // namespace
 
-static unsigned indexSibling(const MachineInstr &MI, unsigned OpIdx,
-                             const MachineRegisterInfo &MRI,
-                             SmallVectorImpl<Register> &Linked, bool &Rebuild) {
+static unsigned indexSibling(const MachineInstr &MI, unsigned OpIdx, const MachineRegisterInfo &MRI, SmallVectorImpl<Register> &Linked, bool &Rebuild) {
   Rebuild = false;
   unsigned Opc = MI.getOpcode();
   switch (Opc) {
@@ -169,16 +184,24 @@ static unsigned indexSibling(const MachineInstr &MI, unsigned OpIdx,
     Linked.push_back(Other);
     return KeepOpcode;
   }
-  case MC6809::Load_i16_Imm:  return OpIdx == 0 ? MC6809::Load_iPtr_Imm : 0;
-  case MC6809::Load_i16_Mem:  return OpIdx == 0 ? MC6809::Load_iPtr_Mem : 0;
+  case MC6809::Load_i16_Imm:
+    return OpIdx == 0 ? MC6809::Load_iPtr_Imm : 0;
+  case MC6809::Load_i16_Mem:
+    return OpIdx == 0 ? MC6809::Load_iPtr_Mem : 0;
   case MC6809::Load_i16_MemIndirect:
     return OpIdx == 0 ? MC6809::Load_iPtr_MemIndirect : 0;
-  case MC6809::Load_i16_Sym:  return OpIdx == 0 ? MC6809::Load_iPtr_Sym : 0;
-  case MC6809::Store_i16_Mem: return OpIdx == 0 ? MC6809::Store_iPtr_Mem : 0;
-  case MC6809::Store_i16_Sym: return OpIdx == 0 ? MC6809::Store_iPtr_Sym : 0;
-  case MC6809::Compare_i16_Imm: return OpIdx == 2 ? MC6809::Compare_ptr_Imm : 0;
-  case MC6809::Compare_i16_Mem: return OpIdx == 2 ? MC6809::Compare_ptr_Mem : 0;
-  case MC6809::Compare_i16_Sym: return OpIdx == 2 ? MC6809::Compare_ptr_Sym : 0;
+  case MC6809::Load_i16_Sym:
+    return OpIdx == 0 ? MC6809::Load_iPtr_Sym : 0;
+  case MC6809::Store_i16_Mem:
+    return OpIdx == 0 ? MC6809::Store_iPtr_Mem : 0;
+  case MC6809::Store_i16_Sym:
+    return OpIdx == 0 ? MC6809::Store_iPtr_Sym : 0;
+  case MC6809::Compare_i16_Imm:
+    return OpIdx == 2 ? MC6809::Compare_ptr_Imm : 0;
+  case MC6809::Compare_i16_Mem:
+    return OpIdx == 2 ? MC6809::Compare_ptr_Mem : 0;
+  case MC6809::Compare_i16_Sym:
+    return OpIdx == 2 ? MC6809::Compare_ptr_Sym : 0;
   case MC6809::CompareBranch_i16_Imm:
     return OpIdx == 1 ? MC6809::CompareBranch_ptr_Imm : 0;
   case MC6809::CompareBranch_i16_Mem:
@@ -203,8 +226,7 @@ static unsigned indexSibling(const MachineInstr &MI, unsigned OpIdx,
     // The second source of a two-source arithmetic/bitwise/compare pseudo
     // (its _RegIdx sibling).
     FoldTarget FT = indexConsumer(Opc);
-    if (FT.Opc && FT.ValueOp == int(OpIdx) && Opc != MC6809::Store_i16_Mem &&
-        Opc != MC6809::Store_i16_Sym)
+    if (FT.Opc && FT.ValueOp == int(OpIdx) && Opc != MC6809::Store_i16_Mem && Opc != MC6809::Store_i16_Sym)
       return FT.Opc;
     return 0;
   }
@@ -300,10 +322,13 @@ static bool promoteToIndexBank(MachineFunction &MF, const MachineLoopInfo &MLI) 
     return Root;
   };
   auto Union = [&](Register A, Register B) {
-    if (!Parent.count(A)) Parent[A] = A;
-    if (!Parent.count(B)) Parent[B] = B;
+    if (!Parent.count(A))
+      Parent[A] = A;
+    if (!Parent.count(B))
+      Parent[B] = B;
     Register RA = Find(A), RB = Find(B);
-    if (RA != RB) Parent[RA] = RB;
+    if (RA != RB)
+      Parent[RA] = RB;
   };
   for (MachineBasicBlock &MBB : MF)
     for (MachineInstr &MI : MBB) {
@@ -327,18 +352,14 @@ static bool promoteToIndexBank(MachineFunction &MF, const MachineLoopInfo &MLI) 
               Union(MI.getOperand(0).getReg(), MI.getOperand(I).getReg());
         continue;
       }
-      if (MI.isCopy() && MI.getOperand(0).getReg().isVirtual() &&
-          MI.getOperand(1).getReg().isVirtual()) {
+      if (MI.isCopy() && MI.getOperand(0).getReg().isVirtual() && MI.getOperand(1).getReg().isVirtual()) {
         Union(MI.getOperand(0).getReg(), MI.getOperand(1).getReg());
         continue;
       }
       for (unsigned I = 0; I < MI.getNumOperands(); ++I) {
         const MachineOperand &MO = MI.getOperand(I);
         unsigned Tied;
-        if (MO.isReg() && MO.isDef() && MO.getReg().isVirtual() &&
-            MI.isRegTiedToUseOperand(I, &Tied) &&
-            MI.getOperand(Tied).getReg().isVirtual() &&
-            MRI.hasOneNonDBGUse(MI.getOperand(Tied).getReg()))
+        if (MO.isReg() && MO.isDef() && MO.getReg().isVirtual() && MI.isRegTiedToUseOperand(I, &Tied) && MI.getOperand(Tied).getReg().isVirtual() && MRI.hasOneNonDBGUse(MI.getOperand(Tied).getReg()))
           Union(MO.getReg(), MI.getOperand(Tied).getReg());
       }
     }
@@ -376,9 +397,7 @@ static bool promoteToIndexBank(MachineFunction &MF, const MachineLoopInfo &MLI) 
       if (!IndexRoots.count(R))
         ++Extra;
     if (IndexRoots.size() + Extra > IndexRegs) {
-      LLVM_DEBUG(dbgs() << "promote: region with " << IndexRoots.size()
-                        << " index values and " << Extra
-                        << " candidate groups -- keeping candidates in the accumulator\n");
+      LLVM_DEBUG(dbgs() << "promote: region with " << IndexRoots.size() << " index values and " << Extra << " candidate groups -- keeping candidates in the accumulator\n");
       for (Register R : InRegion)
         Cand.erase(R);
       Dropped = true;
@@ -458,22 +477,11 @@ static bool promoteToIndexBank(MachineFunction &MF, const MachineLoopInfo &MLI) 
       if (Opc == MC6809::Sub_i16_Imm)
         Imm = -Imm;
       Imm = (int16_t)Imm;
-      BuildMI(MBB, MI, DL, TII.get(MC6809::LEAPtrAdd_Imm),
-              MI.getOperand(0).getReg())
-          .addReg(MI.getOperand(1).getReg())
-          .addImm(Imm);
+      BuildMI(MBB, MI, DL, TII.get(MC6809::LEAPtrAdd_Imm), MI.getOperand(0).getReg()).addReg(MI.getOperand(1).getReg()).addImm(Imm);
     } else if (Opc == MC6809::Test_i16_Reg) {
-      BuildMI(MBB, MI, DL, TII.get(MC6809::Compare_ptr_Imm),
-              MI.getOperand(0).getReg())
-          .add(MI.getOperand(1))
-          .add(MI.getOperand(2))
-          .addImm(0);
+      BuildMI(MBB, MI, DL, TII.get(MC6809::Compare_ptr_Imm), MI.getOperand(0).getReg()).add(MI.getOperand(1)).add(MI.getOperand(2)).addImm(0);
     } else if (Opc == MC6809::TestBranch_i16_Reg) {
-      BuildMI(MBB, MI, DL, TII.get(MC6809::CompareBranch_ptr_Imm))
-          .add(MI.getOperand(0))
-          .add(MI.getOperand(1))
-          .addImm(0)
-          .add(MI.getOperand(2));
+      BuildMI(MBB, MI, DL, TII.get(MC6809::CompareBranch_ptr_Imm)).add(MI.getOperand(0)).add(MI.getOperand(1)).addImm(0).add(MI.getOperand(2));
     } else {
       llvm_unreachable("unexpected rebuild");
     }
@@ -482,15 +490,13 @@ static bool promoteToIndexBank(MachineFunction &MF, const MachineLoopInfo &MLI) 
   return true;
 }
 
-
 bool MC6809FoldBankCross::runOnMachineFunction(MachineFunction &MF) {
   if (!EnableFoldBankCross)
     return false;
 
   MachineRegisterInfo &MRI = MF.getRegInfo();
   const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
-  bool Changed = promoteToIndexBank(
-      MF, getAnalysis<MachineLoopInfoWrapperPass>().getLI());
+  bool Changed = promoteToIndexBank(MF, getAnalysis<MachineLoopInfoWrapperPass>().getLI());
 
   // Collect the INDEX->ACCUM copies first; rewriting erases them.
   SmallVector<MachineInstr *, 8> Copies;
@@ -525,23 +531,19 @@ bool MC6809FoldBankCross::runOnMachineFunction(MachineFunction &MF) {
       bool AnyConsumer = false;
       for (MachineInstr &Use : MRI.use_nodbg_instructions(AccReg)) {
         FoldTarget FT = indexConsumer(Use.getOpcode());
-        if (FT.Opc && Use.getOperand(FT.ValueOp).isReg() &&
-            Use.getOperand(FT.ValueOp).getReg() == AccReg)
+        if (FT.Opc && Use.getOperand(FT.ValueOp).isReg() && Use.getOperand(FT.ValueOp).getReg() == AccReg)
           AnyConsumer = true;
       }
       if (!AnyConsumer)
         continue;
       Register NewIdx = MRI.createVirtualRegister(&MC6809::INDEX16RegClass);
-      BuildMI(*Copy->getParent(), std::next(Copy->getIterator()),
-              Copy->getDebugLoc(), TII.get(TargetOpcode::COPY), NewIdx)
-          .addReg(IdxReg);
+      BuildMI(*Copy->getParent(), std::next(Copy->getIterator()), Copy->getDebugLoc(), TII.get(TargetOpcode::COPY), NewIdx).addReg(IdxReg);
       IdxReg = NewIdx;
     }
 
     // Retarget each store/compare that uses the accumulator value to read the
     // index register directly. Other uses keep the copy alive.
-    for (MachineInstr &Use :
-         llvm::make_early_inc_range(MRI.use_nodbg_instructions(AccReg))) {
+    for (MachineInstr &Use : llvm::make_early_inc_range(MRI.use_nodbg_instructions(AccReg))) {
       FoldTarget FT = indexConsumer(Use.getOpcode());
       if (!FT.Opc)
         continue;
@@ -561,14 +563,8 @@ bool MC6809FoldBankCross::runOnMachineFunction(MachineFunction &MF) {
 
 char MC6809FoldBankCross::ID = 0;
 
-INITIALIZE_PASS_BEGIN(MC6809FoldBankCross, DEBUG_TYPE,
-                      "MC6809 fold index->accumulator copy into store/compare",
-                      false, false)
+INITIALIZE_PASS_BEGIN(MC6809FoldBankCross, DEBUG_TYPE, "MC6809 fold index->accumulator copy into store/compare", false, false)
 INITIALIZE_PASS_DEPENDENCY(MachineLoopInfoWrapperPass)
-INITIALIZE_PASS_END(MC6809FoldBankCross, DEBUG_TYPE,
-                    "MC6809 fold index->accumulator copy into store/compare",
-                    false, false)
+INITIALIZE_PASS_END(MC6809FoldBankCross, DEBUG_TYPE, "MC6809 fold index->accumulator copy into store/compare", false, false)
 
-MachineFunctionPass *llvm::createMC6809FoldBankCrossPass() {
-  return new MC6809FoldBankCross();
-}
+MachineFunctionPass *llvm::createMC6809FoldBankCrossPass() { return new MC6809FoldBankCross(); }

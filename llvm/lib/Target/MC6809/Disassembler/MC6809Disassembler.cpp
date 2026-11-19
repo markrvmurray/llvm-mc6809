@@ -32,8 +32,7 @@ using namespace llvm::MCD;
 
 using DecodeStatus = MCDisassembler::DecodeStatus;
 
-template <int Bits>
-static DecodeStatus DecodeSImm(MCInst &Inst, uint64_t Imm, uint64_t Address, const MCDisassembler *Decoder);
+template <int Bits> static DecodeStatus DecodeSImm(MCInst &Inst, uint64_t Imm, uint64_t Address, const MCDisassembler *Decoder);
 
 static DecodeStatus DecodeCondCodeOperand(MCInst &MI, uint64_t Bits, uint64_t Address, const MCDisassembler *Decoder);
 
@@ -63,34 +62,20 @@ namespace {
 /// the disassembler.
 class MC6809Disassembler : public MCDisassembler {
 public:
-  MC6809Disassembler(std::unique_ptr<const MCSubtargetInfo> OwnedSTI,
-                     MCContext &Ctx)
-      : MCDisassembler(*OwnedSTI, Ctx), OwnedSTI(std::move(OwnedSTI)) {}
+  MC6809Disassembler(std::unique_ptr<const MCSubtargetInfo> OwnedSTI, MCContext &Ctx) : MCDisassembler(*OwnedSTI, Ctx), OwnedSTI(std::move(OwnedSTI)) {}
   DecodeStatus getInstruction(MCInst &Instr, uint64_t &Size, ArrayRef<uint8_t> Bytes, uint64_t Address, raw_ostream &CStream) const override;
 
 private:
   std::unique_ptr<const MCSubtargetInfo> OwnedSTI;
 
 public:
-
   unsigned DecoderTableSize = 13;
   struct DecoderTableList {
     const uint8_t *Table;
     unsigned Size;
   } DecoderTable[13] = {
-    { DecoderTable_Page_1_Size_16, 2 },
-    { DecoderTable_Page_1_Size_24, 3 },
-    { DecoderTable_Page_1_Size_32, 4 },
-    { DecoderTable_Page_1_Size_40, 5 },
-    { DecoderTable_Page_1_Size_8, 1 },
-    { DecoderTable_Page_2_Size_16, 2 },
-    { DecoderTable_Page_2_Size_24, 3 },
-    { DecoderTable_Page_2_Size_32, 4 },
-    { DecoderTable_Page_2_Size_40, 5 },
-    { DecoderTable_Page_3_Size_16, 2 },
-    { DecoderTable_Page_3_Size_24, 3 },
-    { DecoderTable_Page_3_Size_32, 4 },
-    { DecoderTable_Page_3_Size_40, 5 },
+      {DecoderTable_Page_1_Size_16, 2}, {DecoderTable_Page_1_Size_24, 3}, {DecoderTable_Page_1_Size_32, 4}, {DecoderTable_Page_1_Size_40, 5}, {DecoderTable_Page_1_Size_8, 1},  {DecoderTable_Page_2_Size_16, 2}, {DecoderTable_Page_2_Size_24, 3},
+      {DecoderTable_Page_2_Size_32, 4}, {DecoderTable_Page_2_Size_40, 5}, {DecoderTable_Page_3_Size_16, 2}, {DecoderTable_Page_3_Size_24, 3}, {DecoderTable_Page_3_Size_32, 4}, {DecoderTable_Page_3_Size_40, 5},
   };
 };
 } // namespace
@@ -130,8 +115,7 @@ extern "C" void LLVM_EXTERNAL_VISIBILITY LLVMInitializeMC6809Disassembler() {
   TargetRegistry::RegisterMCDisassembler(getTheMC6809Target(), createMC6809Disassembler);
 }
 
-template <int Bits>
-static DecodeStatus DecodeSImm(MCInst &Inst, uint64_t Imm, uint64_t Address, const MCDisassembler *Decoder) {
+template <int Bits> static DecodeStatus DecodeSImm(MCInst &Inst, uint64_t Imm, uint64_t Address, const MCDisassembler *Decoder) {
   if (Imm & ~((1LL << Bits) - 1))
     return MCDisassembler::Fail;
 
@@ -229,8 +213,7 @@ DecodeStatus MC6809Disassembler::getInstruction(MCInst &Instr, uint64_t &Size, A
           // that follows it is the in-line function code, which the kernel
           // skips on return -- so present the pair as the `os9 <code>`
           // construct rather than as SWI2 followed by an unrelated opcode.
-          if (Instr.getOpcode() == MC6809::SWI2x &&
-              STI.hasFeature(MC6809::FeatureOS9) && Bytes.size() > InsnSize) {
+          if (Instr.getOpcode() == MC6809::SWI2x && STI.hasFeature(MC6809::FeatureOS9) && Bytes.size() > InsnSize) {
             Instr.setOpcode(MC6809::OS9x);
             Instr.addOperand(MCOperand::createImm(Bytes[InsnSize]));
             Size = InsnSize + 1;

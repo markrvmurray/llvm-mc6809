@@ -23,13 +23,9 @@
 
 namespace llvm {
 
+MC6809ELFObjectWriter::MC6809ELFObjectWriter(uint8_t OSABI) : MCELFObjectTargetWriter(false, OSABI, ELF::EM_MC6809, true) {}
 
-MC6809ELFObjectWriter::MC6809ELFObjectWriter(uint8_t OSABI)
-    : MCELFObjectTargetWriter(false, OSABI, ELF::EM_MC6809, true) {}
-
-unsigned MC6809ELFObjectWriter::getRelocType(const MCFixup &Fixup,
-                                          const MCValue &Target,
-                                          bool IsPCRel) const {
+unsigned MC6809ELFObjectWriter::getRelocType(const MCFixup &Fixup, const MCValue &Target, bool IsPCRel) const {
   unsigned Kind = Fixup.getKind();
   auto Specifier = static_cast<MC6809MCExpr::VariantKind>(Target.getSpecifier());
   switch (Kind) {
@@ -87,8 +83,6 @@ unsigned MC6809ELFObjectWriter::getRelocType(const MCFixup &Fixup,
   }
 }
 
-std::unique_ptr<MCObjectTargetWriter> createMC6809ELFObjectWriter(uint8_t OSABI) {
-  return std::make_unique<MC6809ELFObjectWriter>(OSABI);
-}
+std::unique_ptr<MCObjectTargetWriter> createMC6809ELFObjectWriter(uint8_t OSABI) { return std::make_unique<MC6809ELFObjectWriter>(OSABI); }
 
 } // end of namespace llvm

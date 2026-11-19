@@ -96,21 +96,15 @@ enum TSFlag {
 };
 
 /// The number of bytes an instruction post-increments its index register by.
-inline unsigned getPostIncrementBytes(uint64_t TSFlags) {
-  return (TSFlags & TSFlagPostIncrementMask) >> TSFlagPostIncrementShift;
-}
+inline unsigned getPostIncrementBytes(uint64_t TSFlags) { return (TSFlags & TSFlagPostIncrementMask) >> TSFlagPostIncrementShift; }
 
 /// The number of bytes an instruction pre-decrements its index register by.
-inline unsigned getPreDecrementBytes(uint64_t TSFlags) {
-  return (TSFlags & TSFlagPreDecrementMask) >> TSFlagPreDecrementShift;
-}
+inline unsigned getPreDecrementBytes(uint64_t TSFlags) { return (TSFlags & TSFlagPreDecrementMask) >> TSFlagPreDecrementShift; }
 
 /// Whether an instruction's indexed operand steps its index register. Such an
 /// instruction defines the index register, but its result and its flags
 /// belong to the value it moves or computes, not to the stepped address.
-inline bool stepsIndexRegister(uint64_t TSFlags) {
-  return getPostIncrementBytes(TSFlags) || getPreDecrementBytes(TSFlags);
-}
+inline bool stepsIndexRegister(uint64_t TSFlags) { return getPostIncrementBytes(TSFlags) || getPreDecrementBytes(TSFlags); }
 
 bool isDirectPageSectionName(StringRef Name);
 } // namespace MC6809

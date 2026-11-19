@@ -68,12 +68,8 @@ protected:
   AAResults *AA;
 
 public:
-  MC6809CombinerImpl(MachineFunction &MF, CombinerInfo &CInfo,
-                  const TargetPassConfig *TPC, bool IsPreLegalize,
-                  GISelValueTracking &VT, GISelCSEInfo *CSEInfo,
-                  const MC6809CombinerImplRuleConfig &RuleConfig,
-                  const MC6809Subtarget &STI, MachineDominatorTree *MDT,
-                  const LegalizerInfo *LI, AAResults *AA);
+  MC6809CombinerImpl(MachineFunction &MF, CombinerInfo &CInfo, const TargetPassConfig *TPC, bool IsPreLegalize, GISelValueTracking &VT, GISelCSEInfo *CSEInfo, const MC6809CombinerImplRuleConfig &RuleConfig, const MC6809Subtarget &STI,
+                     MachineDominatorTree *MDT, const LegalizerInfo *LI, AAResults *AA);
 
   static const char *getName() { return "MC6809Combiner"; }
 
@@ -135,11 +131,8 @@ private:
 #include "MC6809GenGICombiner.inc"
 #undef GET_GICOMBINER_IMPL
 
-MC6809CombinerImpl::MC6809CombinerImpl(
-    MachineFunction &MF, CombinerInfo &CInfo, const TargetPassConfig *TPC,
-    bool IsPreLegalize, GISelValueTracking &VT, GISelCSEInfo *CSEInfo,
-    const MC6809CombinerImplRuleConfig &RuleConfig, const MC6809Subtarget &STI,
-    MachineDominatorTree *MDT, const LegalizerInfo *LI, AAResults *AA)
+MC6809CombinerImpl::MC6809CombinerImpl(MachineFunction &MF, CombinerInfo &CInfo, const TargetPassConfig *TPC, bool IsPreLegalize, GISelValueTracking &VT, GISelCSEInfo *CSEInfo, const MC6809CombinerImplRuleConfig &RuleConfig, const MC6809Subtarget &STI,
+                                       MachineDominatorTree *MDT, const LegalizerInfo *LI, AAResults *AA)
     : Combiner(MF, CInfo, &VT, CSEInfo), Helper(Observer, B, IsPreLegalize, &VT, MDT, LI), RuleConfig(RuleConfig), AA(AA),
 #define GET_GICOMBINER_CONSTRUCTOR_INITS
 #include "MC6809GenGICombiner.inc"
@@ -499,8 +492,7 @@ bool MC6809CombinerImpl::matchShiftUnusedCarryIn(MachineInstr &MI, BuildFnTy &Ma
 //
 // Also matches the simpler `trunc s32 (mul s64 X, K)` shape (no add) for
 // completeness.
-bool MC6809CombinerImpl::matchNarrowMulI64TruncToI32(MachineInstr &MI,
-                                                     BuildFnTy &MatchInfo) const {
+bool MC6809CombinerImpl::matchNarrowMulI64TruncToI32(MachineInstr &MI, BuildFnTy &MatchInfo) const {
   if (!Helper.isPreLegalize())
     return false;
   if (MI.getOpcode() != MC6809::G_TRUNC)
@@ -527,9 +519,11 @@ bool MC6809CombinerImpl::matchNarrowMulI64TruncToI32(MachineInstr &MI,
     MachineInstr *AD = MRI.getVRegDef(A);
     MachineInstr *BD = MRI.getVRegDef(B);
     if (AD && AD->getOpcode() == MC6809::G_MUL && MRI.hasOneNonDBGUse(A)) {
-      MulReg = A; OtherReg = B;
+      MulReg = A;
+      OtherReg = B;
     } else if (BD && BD->getOpcode() == MC6809::G_MUL && MRI.hasOneNonDBGUse(B)) {
-      MulReg = B; OtherReg = A;
+      MulReg = B;
+      OtherReg = A;
     } else {
       return false;
     }

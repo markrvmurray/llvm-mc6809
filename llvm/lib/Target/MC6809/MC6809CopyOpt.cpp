@@ -105,8 +105,7 @@ template <typename AcceptDefT> static bool findReachingDefs(MachineInstr &MI, Sm
 }
 
 bool MC6809CopyOpt::runOnMachineFunction(MachineFunction &MF) {
-  const TargetRegisterInfo &TRI =
-      *MF.getSubtarget().getRegisterInfo();
+  const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
   bool Changed = false;
 
   SmallVector<MachineInstr *, 16> ToDelete;
@@ -132,9 +131,7 @@ bool MC6809CopyOpt::runOnMachineFunction(MachineFunction &MF) {
       //    the two COPYs, short-circuit: $Y = COPY $X; $Z = COPY $Y
       //    (Y dead) → $Z = COPY $X
       SmallVector<MachineInstr *, 4> Defs;
-      bool Found = findReachingDefs(MI, Defs, [](const MachineInstr &DefMI) {
-        return DefMI.isCopy();
-      });
+      bool Found = findReachingDefs(MI, Defs, [](const MachineInstr &DefMI) { return DefMI.isCopy(); });
 
       if (Found && Defs.size() == 1) {
         MachineInstr *DefMI = Defs[0];
@@ -195,25 +192,19 @@ bool MC6809CopyOpt::runOnMachineFunction(MachineFunction &MF) {
           // Not redefined in the block: a successor may read it.
           if (!OrigSrcUsedLater && !Redefined)
             for (const MachineBasicBlock *Succ : MI.getParent()->successors())
-              if (Succ->isLiveIn(OrigSrc) ||
-                  llvm::any_of(Succ->liveins(), [&](const auto &LI) {
-                    return TRI.regsOverlap(LI.PhysReg, OrigSrc);
-                  })) {
+              if (Succ->isLiveIn(OrigSrc) || llvm::any_of(Succ->liveins(), [&](const auto &LI) { return TRI.regsOverlap(LI.PhysReg, OrigSrc); })) {
                 OrigSrcUsedLater = true;
                 break;
               }
 
           if (!Clobbered && !OrigSrcUsedLater) {
-            LLVM_DEBUG(dbgs() << "MC6809CopyOpt: shortening chain: " << MI
-                              << "  original src: " << printReg(OrigSrc, &TRI)
-                              << "\n");
+            LLVM_DEBUG(dbgs() << "MC6809CopyOpt: shortening chain: " << MI << "  original src: " << printReg(OrigSrc, &TRI) << "\n");
             // The source now lives up to MI: an earlier read that was its
             // last -- the defining copy's own, or one between the two
             // copies -- no longer is.
             for (auto K = DefMI->getIterator(); K != MI.getIterator(); ++K)
               for (MachineOperand &MO : K->operands())
-                if (MO.isReg() && MO.isUse() && MO.isKill() && MO.getReg() &&
-                    TRI.regsOverlap(MO.getReg(), OrigSrc))
+                if (MO.isReg() && MO.isUse() && MO.isKill() && MO.getReg() && TRI.regsOverlap(MO.getReg(), OrigSrc))
                   MO.setIsKill(false);
             MI.getOperand(1).setReg(OrigSrc);
             Changed = true;

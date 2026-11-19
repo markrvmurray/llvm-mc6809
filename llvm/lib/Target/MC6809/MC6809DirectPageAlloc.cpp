@@ -245,7 +245,6 @@ void MC6809DirectPageAlloc::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addPreserved<SCEVAAWrapperPass>();
 }
 
-
 static float getFreq(const BlockFrequencyInfo &BFI, MachineBasicBlock &MBB);
 
 bool MC6809DirectPageAlloc::runOnModule(Module &M) {

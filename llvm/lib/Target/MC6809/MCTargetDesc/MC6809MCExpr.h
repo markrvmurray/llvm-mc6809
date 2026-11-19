@@ -33,8 +33,7 @@ public:
   };
 
   /// Creates an MC6809 machine code expression.
-  static const MC6809MCExpr *create(VariantKind Kind, const MCExpr *Expr,
-                                 bool IsNegated, MCContext &Ctx);
+  static const MC6809MCExpr *create(VariantKind Kind, const MCExpr *Expr, bool IsNegated, MCContext &Ctx);
 
   /// Gets the type of the expression.
   VariantKind getKind() const { return Kind; }
@@ -50,18 +49,13 @@ public:
   void setNegated(bool NegatedIn = true) { Negated = NegatedIn; }
 
   void printImpl(raw_ostream &OS, const MCAsmInfo *MAI) const override;
-  bool evaluateAsRelocatableImpl(MCValue &Res,
-                                 const MCAssembler *Asm) const override;
+  bool evaluateAsRelocatableImpl(MCValue &Res, const MCAssembler *Asm) const override;
 
   void visitUsedExpr(MCStreamer &Streamer) const override;
 
-  MCFragment *findAssociatedFragment() const override {
-    return getSubExpr()->findAssociatedFragment();
-  }
+  MCFragment *findAssociatedFragment() const override { return getSubExpr()->findAssociatedFragment(); }
 
-  static bool classof(const MCExpr *E) {
-    return E->getKind() == MCExpr::Target;
-  }
+  static bool classof(const MCExpr *E) { return E->getKind() == MCExpr::Target; }
 
   static VariantKind getKindByName(StringRef Name, bool IsImmediate);
 
@@ -72,8 +66,7 @@ private:
   const MCExpr *SubExpr;
   bool Negated;
 
-  explicit MC6809MCExpr(VariantKind Kind, const MCExpr *Expr, bool Negated)
-      : Kind(Kind), SubExpr(Expr), Negated(Negated) {}
+  explicit MC6809MCExpr(VariantKind Kind, const MCExpr *Expr, bool Negated) : Kind(Kind), SubExpr(Expr), Negated(Negated) {}
 };
 
 } // end namespace llvm

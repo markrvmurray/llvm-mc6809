@@ -33,11 +33,9 @@
 
 #define DEBUG_TYPE "mc6809-insert-copies"
 
-static llvm::cl::opt<bool>
-    PlaceByteExtracts("mc6809-place-byte-extracts", llvm::cl::init(true),
-                      llvm::cl::Hidden,
-                      llvm::cl::desc("Move each byte extract to just before "
-                                     "its user"));
+static llvm::cl::opt<bool> PlaceByteExtracts("mc6809-place-byte-extracts", llvm::cl::init(true), llvm::cl::Hidden,
+                                             llvm::cl::desc("Move each byte extract to just before "
+                                                            "its user"));
 
 using namespace llvm;
 
@@ -82,9 +80,7 @@ bool MC6809InsertCopies::runOnMachineFunction(MachineFunction &MF) {
           break;
         Register DstVReg = DstMO.getReg();
         DstMO.setReg(MC6809::AB);
-        BuildMI(MBB, std::next(MachineBasicBlock::iterator(MI)),
-                MI.getDebugLoc(), TII.get(TargetOpcode::COPY), DstVReg)
-            .addReg(MC6809::AB);
+        BuildMI(MBB, std::next(MachineBasicBlock::iterator(MI)), MI.getDebugLoc(), TII.get(TargetOpcode::COPY), DstVReg).addReg(MC6809::AB);
         Changed = true;
         break;
       }
@@ -100,8 +96,7 @@ bool MC6809InsertCopies::runOnMachineFunction(MachineFunction &MF) {
   // live range to the block's end through PHI elimination.
   for (MachineBasicBlock &MBB : MF)
     for (MachineInstr &Br : MBB.terminators()) {
-      if (Br.getOpcode() != MC6809::LBlbc_OnlyC &&
-          Br.getOpcode() != MC6809::LBlbc_NoC)
+      if (Br.getOpcode() != MC6809::LBlbc_OnlyC && Br.getOpcode() != MC6809::LBlbc_NoC)
         continue;
       for (unsigned I = Br.getNumOperands(); I-- > Br.getNumExplicitOperands();) {
         const MachineOperand &MO = Br.getOperand(I);
@@ -123,10 +118,7 @@ bool MC6809InsertCopies::runOnMachineFunction(MachineFunction &MF) {
   // the extracts set.
   const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
   MachineRegisterInfo &MRI = MF.getRegInfo();
-  auto IsExtract = [](const MachineInstr &I) {
-    return I.getOpcode() == MC6809::EXTRACT_LO_i16 ||
-           I.getOpcode() == MC6809::EXTRACT_HI_i16;
-  };
+  auto IsExtract = [](const MachineInstr &I) { return I.getOpcode() == MC6809::EXTRACT_LO_i16 || I.getOpcode() == MC6809::EXTRACT_HI_i16; };
   for (MachineBasicBlock &MBB : MF) {
     if (!PlaceByteExtracts)
       break;
@@ -161,8 +153,7 @@ bool MC6809InsertCopies::runOnMachineFunction(MachineFunction &MF) {
           break;
         }
         MachineInstr &User = *MRI.use_instr_nodbg_begin(Def);
-        if (User.getParent() != &MBB || User.isPHI() || IsExtract(User) ||
-            Pos[&User] < Pos[&U]) {
+        if (User.getParent() != &MBB || User.isPHI() || IsExtract(User) || Pos[&User] < Pos[&U]) {
           Ok = false;
           break;
         }
@@ -170,14 +161,11 @@ bool MC6809InsertCopies::runOnMachineFunction(MachineFunction &MF) {
         if (!First || Pos[&User] < Pos[First])
           First = &User;
       }
-      if (!Ok || Group.empty() ||
-          llvm::any_of(Group, [&](const MachineInstr *E) {
+      if (!Ok || Group.empty() || llvm::any_of(Group, [&](const MachineInstr *E) {
             return Pos[E] > Pos[First]; // only ever move an extract down
           }))
         continue;
-      llvm::sort(Group, [&](const MachineInstr *L, const MachineInstr *R) {
-        return Pos[L] < Pos[R];
-      });
+      llvm::sort(Group, [&](const MachineInstr *L, const MachineInstr *R) { return Pos[L] < Pos[R]; });
       // Already in place: nothing but extracts between them and the user.
       auto J = std::next(Group.back()->getIterator());
       while (J != First->getIterator() && IsExtract(*J))
@@ -187,12 +175,9 @@ bool MC6809InsertCopies::runOnMachineFunction(MachineFunction &MF) {
       bool Safe = true;
       for (MachineInstr *E : Group) {
         for (const MachineOperand &MO : E->implicit_operands())
-          if (MO.isReg() && MO.isDef() &&
-              (!First->definesRegister(MO.getReg(), &TRI) ||
-               First->readsRegister(MO.getReg(), &TRI)))
+          if (MO.isReg() && MO.isDef() && (!First->definesRegister(MO.getReg(), &TRI) || First->readsRegister(MO.getReg(), &TRI)))
             Safe = false;
-        for (auto I = std::next(E->getIterator());
-             Safe && I != First->getIterator(); ++I) {
+        for (auto I = std::next(E->getIterator()); Safe && I != First->getIterator(); ++I) {
           if (IsExtract(*I))
             continue;
           for (const MachineOperand &MO : E->implicit_operands())
@@ -211,15 +196,11 @@ bool MC6809InsertCopies::runOnMachineFunction(MachineFunction &MF) {
             if (R.isPhysical()) {
               if (TRI.regsOverlap(R, MC6809::AD))
                 Safe = false;
-            } else if (const TargetRegisterClass *RC =
-                           MRI.getRegClassOrNull(R)) {
+            } else if (const TargetRegisterClass *RC = MRI.getRegClassOrNull(R)) {
               // A value that, wherever it is put, holds both A and B (D,
               // or the 6309's Q). A single byte in A or B is ordinary
               // competition, which the allocator can settle.
-              if (llvm::all_of(*RC, [&](MCPhysReg P) {
-                    return TRI.regsOverlap(P, MC6809::AA) &&
-                           TRI.regsOverlap(P, MC6809::AB);
-                  }))
+              if (llvm::all_of(*RC, [&](MCPhysReg P) { return TRI.regsOverlap(P, MC6809::AA) && TRI.regsOverlap(P, MC6809::AB); }))
                 Safe = false;
             }
           }
@@ -235,7 +216,6 @@ bool MC6809InsertCopies::runOnMachineFunction(MachineFunction &MF) {
 
   return Changed;
 }
-
 
 char MC6809InsertCopies::ID = 0;
 

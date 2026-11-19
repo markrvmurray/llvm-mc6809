@@ -73,10 +73,7 @@ void MC6809MCELFStreamer::changeSection(MCSection *Section, uint32_t Subsection)
 // not, and an object it produced would otherwise say nothing at all.
 void MC6809MCELFStreamer::markArchitecture(const MCSubtargetInfo &STI) {
   ELFObjectWriter &W = getWriter();
-  W.setELFHeaderEFlags(W.getELFHeaderEFlags() |
-                       (STI.hasFeature(MC6809::Feature6309)
-                            ? ELF::EF_MC6809_ARCH_6309
-                            : ELF::EF_MC6809_ARCH_6809));
+  W.setELFHeaderEFlags(W.getELFHeaderEFlags() | (STI.hasFeature(MC6809::Feature6309) ? ELF::EF_MC6809_ARCH_6309 : ELF::EF_MC6809_ARCH_6809));
 }
 
 void MC6809MCELFStreamer::emitInstruction(const MCInst &Inst, const MCSubtargetInfo &STI) {
@@ -84,13 +81,10 @@ void MC6809MCELFStreamer::emitInstruction(const MCInst &Inst, const MCSubtargetI
   MCELFStreamer::emitInstruction(Inst, STI);
 }
 
-void MC6809MCELFStreamer::emitValueImpl(const MCExpr *Value, unsigned Size, SMLoc Loc) {
-  MCELFStreamer::emitValueImpl(Value, Size, Loc);
-}
+void MC6809MCELFStreamer::emitValueImpl(const MCExpr *Value, unsigned Size, SMLoc Loc) { MCELFStreamer::emitValueImpl(Value, Size, Loc); }
 
 void MC6809MCELFStreamer::emitMappingSymbol(StringRef Name) {
-  auto *Symbol = static_cast<MCSymbolELF *>(getContext().getOrCreateSymbol(
-      Name + "." + Twine(MappingSymbolCounter++)));
+  auto *Symbol = static_cast<MCSymbolELF *>(getContext().getOrCreateSymbol(Name + "." + Twine(MappingSymbolCounter++)));
   emitLabel(Symbol);
   Symbol->setType(ELF::STT_NOTYPE);
   Symbol->setBinding(ELF::STB_LOCAL);

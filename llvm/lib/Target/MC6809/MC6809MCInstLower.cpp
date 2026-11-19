@@ -44,15 +44,12 @@ void MC6809MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) {
     const MCInstrInfo *MCII = MI->getMF()->getTarget().getMCInstrInfo();
     StringRef OpName = MCII ? MCII->getName(MI->getOpcode()) : StringRef("<unknown>");
     (void)TII;
-    errs() << "MC6809: pseudo instruction was never lowered: "
-           << OpName << " (opcode=" << MI->getOpcode() << ")\n"
-           << "  in function: "
-           << MI->getMF()->getName() << "\n"
+    errs() << "MC6809: pseudo instruction was never lowered: " << OpName << " (opcode=" << MI->getOpcode() << ")\n"
+           << "  in function: " << MI->getMF()->getName() << "\n"
            << "  MI: ";
     MI->print(errs());
     errs() << "\nFix path:\n"
-           << "  1. Add a case for ``" << OpName
-           << "`` to ``MC6809InstrInfo::expandPostRAPseudo``.\n"
+           << "  1. Add a case for ``" << OpName << "`` to ``MC6809InstrInfo::expandPostRAPseudo``.\n"
            << "  2. Or set ``PseudoInstExpansion<(...)>`` on the tablegen\n"
            << "     definition so ``lowerPseudoInstExpansion`` handles it.\n"
            << "  3. See ``memory/project_materialize_spills_liveness.md``\n"
@@ -77,13 +74,11 @@ bool MC6809MCInstLower::lowerOperand(const MachineOperand &MO, MCOperand &MCOp) 
     // index) get here because an earlier pass failed to rewrite them, and the
     // whole diagnostic value is in knowing which instruction still carries one.
     // Mirrors the never-lowered-pseudo report in lower() above.
-    errs() << "MC6809: operand type " << static_cast<unsigned>(MO.getType())
-           << " has no MC lowering\n"
+    errs() << "MC6809: operand type " << static_cast<unsigned>(MO.getType()) << " has no MC lowering\n"
            << "  operand: ";
     MO.print(errs());
     if (const MachineInstr *ParentMI = MO.getParent()) {
-      errs() << "\n  in function: " << ParentMI->getMF()->getName()
-             << "\n  MI: ";
+      errs() << "\n  in function: " << ParentMI->getMF()->getName() << "\n  MI: ";
       ParentMI->print(errs());
     }
     errs() << "\nA target index or frame index reaching here means an earlier\n"
@@ -126,17 +121,14 @@ bool MC6809MCInstLower::lowerOperand(const MachineOperand &MO, MCOperand &MCOp) 
       Truncate = true;
     } else if (MC6809::isDirectPageSectionName(GV->getSection())) {
       const MachineInstr *ParentMI = MO.getParent();
-      Truncate = ParentMI &&
-                 (ParentMI->getDesc().TSFlags & MC6809::TSFlagDirectPageAddr);
+      Truncate = ParentMI && (ParentMI->getDesc().TSFlags & MC6809::TSFlagDirectPageAddr);
     }
     if (Truncate) {
       // On OS-9 the direct page is the first page of the process data area
       // (DP = U >> 8), so the byte is the object's data-area offset, which
       // only the linker knows -- not the low byte of a link address.
       bool IsOS9 = AP.TM.getTargetTriple().isOSOS9();
-      const MC6809MCExpr *Expr = MC6809MCExpr::create(
-          IsOS9 ? MC6809MCExpr::VK_OS9_DATA_OFFSET_8 : MC6809MCExpr::VK_ADDR8,
-          MCOp.getExpr(), /*isNegated=*/false, Ctx);
+      const MC6809MCExpr *Expr = MC6809MCExpr::create(IsOS9 ? MC6809MCExpr::VK_OS9_DATA_OFFSET_8 : MC6809MCExpr::VK_ADDR8, MCOp.getExpr(), /*isNegated=*/false, Ctx);
       MCOp = MCOperand::createExpr(Expr);
     }
     break;
@@ -167,14 +159,11 @@ bool MC6809MCInstLower::lowerOperand(const MachineOperand &MO, MCOperand &MCOp) 
     // neither class but have direct-page symbols of their own, and an
     // allocated RS value accessed bytewise (EXTRACT_LO/HI on an RS-homed
     // i16) reaches here through them.
-    const auto &TRI =
-        *MO.getParent()->getMF()->getSubtarget().getRegisterInfo();
-    const MC6809RegisterInfo &MC6809TRI =
-        static_cast<const MC6809RegisterInfo &>(TRI);
+    const auto &TRI = *MO.getParent()->getMF()->getSubtarget().getRegisterInfo();
+    const MC6809RegisterInfo &MC6809TRI = static_cast<const MC6809RegisterInfo &>(TRI);
     const char *SymName = MC6809TRI.getImag8SymbolName(Reg);
     if (SymName && SymName[0]) {
-      const MCExpr *Expr = MCSymbolRefExpr::create(
-          Ctx.getOrCreateSymbol(SymName), Ctx);
+      const MCExpr *Expr = MCSymbolRefExpr::create(Ctx.getOrCreateSymbol(SymName), Ctx);
       MCOp = MCOperand::createExpr(Expr);
     } else
       MCOp = MCOperand::createReg(Reg);

@@ -15,8 +15,7 @@
 
 namespace llvm {
 
-MC6809MCAsmInfo::MC6809MCAsmInfo(const Triple &TT, const MCTargetOptions &Options)
-    : MCAsmInfoELF(Options) {
+MC6809MCAsmInfo::MC6809MCAsmInfo(const Triple &TT, const MCTargetOptions &Options) : MCAsmInfoELF(Options) {
   IsLittleEndian = false;
   CodePointerSize = 2;
   // MC6809 is byte-addressable; the stack slot unit is 1 byte.

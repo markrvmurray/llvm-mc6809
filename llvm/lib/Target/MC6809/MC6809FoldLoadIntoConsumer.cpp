@@ -49,29 +49,23 @@
 
 using namespace llvm;
 
-static cl::opt<bool> EnableFoldLoadIntoConsumer(
-    "mc6809-enable-fold-load-into-consumer", cl::init(true), cl::Hidden,
-    cl::desc("Fold single-use loads into the arithmetic, bitwise or compare "
-             "pseudo that consumes them"));
+static cl::opt<bool> EnableFoldLoadIntoConsumer("mc6809-enable-fold-load-into-consumer", cl::init(true), cl::Hidden,
+                                                cl::desc("Fold single-use loads into the arithmetic, bitwise or compare "
+                                                         "pseudo that consumes them"));
 
-static cl::opt<unsigned> FoldNearRegLoadDistance(
-    "mc6809-fold-near-reg-load-distance", cl::init(3), cl::Hidden,
-    cl::desc("Also fold a register-based load into a consumer at most this "
-             "many instructions away when its base is not live past the "
-             "consumer (0: only when the base is live past)"));
+static cl::opt<unsigned> FoldNearRegLoadDistance("mc6809-fold-near-reg-load-distance", cl::init(3), cl::Hidden,
+                                                 cl::desc("Also fold a register-based load into a consumer at most this "
+                                                          "many instructions away when its base is not live past the "
+                                                          "consumer (0: only when the base is live past)"));
 
 namespace {
 
 class MC6809FoldLoadIntoConsumer : public MachineFunctionPass {
 public:
   static char ID;
-  MC6809FoldLoadIntoConsumer() : MachineFunctionPass(ID) {
-    initializeMC6809FoldLoadIntoConsumerPass(*PassRegistry::getPassRegistry());
-  }
+  MC6809FoldLoadIntoConsumer() : MachineFunctionPass(ID) { initializeMC6809FoldLoadIntoConsumerPass(*PassRegistry::getPassRegistry()); }
   bool runOnMachineFunction(MachineFunction &MF) override;
-  StringRef getPassName() const override {
-    return "MC6809 fold load into consumer";
-  }
+  StringRef getPassName() const override { return "MC6809 fold load into consumer"; }
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequired<AAResultsWrapperPass>();
     AU.setPreservesCFG();
@@ -83,15 +77,11 @@ public:
 
 char MC6809FoldLoadIntoConsumer::ID = 0;
 
-INITIALIZE_PASS_BEGIN(MC6809FoldLoadIntoConsumer, DEBUG_TYPE,
-                      "MC6809 fold load into consumer", false, false)
+INITIALIZE_PASS_BEGIN(MC6809FoldLoadIntoConsumer, DEBUG_TYPE, "MC6809 fold load into consumer", false, false)
 INITIALIZE_PASS_DEPENDENCY(AAResultsWrapperPass)
-INITIALIZE_PASS_END(MC6809FoldLoadIntoConsumer, DEBUG_TYPE,
-                    "MC6809 fold load into consumer", false, false)
+INITIALIZE_PASS_END(MC6809FoldLoadIntoConsumer, DEBUG_TYPE, "MC6809 fold load into consumer", false, false)
 
-MachineFunctionPass *llvm::createMC6809FoldLoadIntoConsumerPass() {
-  return new MC6809FoldLoadIntoConsumer();
-}
+MachineFunctionPass *llvm::createMC6809FoldLoadIntoConsumerPass() { return new MC6809FoldLoadIntoConsumer(); }
 
 // The loads this pass folds, and whether each is the symbol form.
 static bool isFoldableLoad(unsigned Opc, bool &IsSym) {
@@ -113,14 +103,12 @@ static bool isFoldableLoad(unsigned Opc, bool &IsSym) {
 
 // Nothing between the load and its consumer may disturb the loaded memory
 // (the consumer will read it instead of the load).
-static bool safeToMoveLoad(const MachineInstr &Load, const MachineInstr &User,
-                           AAResults *AA) {
+static bool safeToMoveLoad(const MachineInstr &Load, const MachineInstr &User, AAResults *AA) {
   if (Load.getParent() != User.getParent())
     return false;
   if (Load.hasOrderedMemoryRef())
     return false;
-  for (const MachineInstr &I :
-       make_range(std::next(Load.getIterator()), User.getIterator())) {
+  for (const MachineInstr &I : make_range(std::next(Load.getIterator()), User.getIterator())) {
     if (I.isCall() || I.hasUnmodeledSideEffects())
       return false;
     if (I.mayStore() || I.hasOrderedMemoryRef()) {
@@ -162,47 +150,45 @@ static std::optional<StepForm> stepFormOf(unsigned Opc) {
   const TargetRegisterClass *Word = &MC6809::ADcRegClass;
   switch (Opc) {
   case MC6809::Load_i8_Mem:
-    return StepForm{MC6809::Load_i8_PostInc, 1, 1, false, nullptr,
-                    MC6809::Load_i8_PreDec};
+    return StepForm{MC6809::Load_i8_PostInc, 1, 1, false, nullptr, MC6809::Load_i8_PreDec};
   case MC6809::Load_i16_Mem:
-    return StepForm{MC6809::Load_i16_PostInc, 1, 2, false, nullptr,
-                    MC6809::Load_i16_PreDec};
+    return StepForm{MC6809::Load_i16_PostInc, 1, 2, false, nullptr, MC6809::Load_i16_PreDec};
   case MC6809::Compare_i8_Mem:
     return StepForm{MC6809::Compare_i8_MemStep, 3, 1, false, nullptr};
   case MC6809::Compare_i16_Mem:
     return StepForm{MC6809::Compare_i16_MemStep, 3, 2, false, nullptr};
-  // (Not the fused compare-and-branch forms: a terminator must not define
-  // an allocatable register -- the allocator cannot spill a value after a
-  // terminator. Those walking compares are formed after allocation, in
-  // MC6809LateOptimization.)
-#define ARITH(NAME, SIZE, HD, RC)                                             \
-  case MC6809::NAME##_Mem:                                                    \
+    // (Not the fused compare-and-branch forms: a terminator must not define
+    // an allocatable register -- the allocator cannot spill a value after a
+    // terminator. Those walking compares are formed after allocation, in
+    // MC6809LateOptimization.)
+#define ARITH(NAME, SIZE, HD, RC)                                                                                                                                                                                                                              \
+  case MC6809::NAME##_Mem:                                                                                                                                                                                                                                     \
     return StepForm{MC6809::NAME##_MemStep, 2, SIZE, HD, RC};
-  ARITH(Add_i8, 1, false, Byte)
-  ARITH(Add_i16, 2, false, AnyWord)
-  ARITH(Sub_i8, 1, false, Byte)
-  ARITH(Sub_i16, 2, false, AnyWord)
-  ARITH(AddSetCarry_i8, 1, false, Byte)
-  ARITH(AddSetCarry_i16, 2, false, AnyWord)
-  ARITH(SubSetCarry_i8, 1, false, Byte)
-  ARITH(SubSetCarry_i16, 2, false, AnyWord)
-  ARITH(AddSetOverflow_i8, 1, false, Byte)
-  ARITH(AddSetOverflow_i16, 2, false, AnyWord)
-  ARITH(SubSetOverflow_i8, 1, false, Byte)
-  ARITH(SubSetOverflow_i16, 2, false, AnyWord)
-  ARITH(AddSetCarryUse_i8, 1, false, Byte)
-  ARITH(SubSetCarryUse_i8, 1, false, Byte)
-  ARITH(AddSetOverflowUse_i8, 1, false, Byte)
-  ARITH(SubSetOverflowUse_i8, 1, false, Byte)
-  ARITH(AddZext8_i16, 1, false, Word)
-  ARITH(SubZext8_i16, 1, false, Word)
-  ARITH(AND_i8, 1, false, Byte)
-  ARITH(OR_i8, 1, false, Byte)
-  ARITH(XOR_i8, 1, false, Byte)
-  // The 6809 has no 16-bit bitwise op: ANDD/ORD/EORD are HD6309.
-  ARITH(AND_i16, 2, true, Word)
-  ARITH(OR_i16, 2, true, Word)
-  ARITH(XOR_i16, 2, true, Word)
+    ARITH(Add_i8, 1, false, Byte)
+    ARITH(Add_i16, 2, false, AnyWord)
+    ARITH(Sub_i8, 1, false, Byte)
+    ARITH(Sub_i16, 2, false, AnyWord)
+    ARITH(AddSetCarry_i8, 1, false, Byte)
+    ARITH(AddSetCarry_i16, 2, false, AnyWord)
+    ARITH(SubSetCarry_i8, 1, false, Byte)
+    ARITH(SubSetCarry_i16, 2, false, AnyWord)
+    ARITH(AddSetOverflow_i8, 1, false, Byte)
+    ARITH(AddSetOverflow_i16, 2, false, AnyWord)
+    ARITH(SubSetOverflow_i8, 1, false, Byte)
+    ARITH(SubSetOverflow_i16, 2, false, AnyWord)
+    ARITH(AddSetCarryUse_i8, 1, false, Byte)
+    ARITH(SubSetCarryUse_i8, 1, false, Byte)
+    ARITH(AddSetOverflowUse_i8, 1, false, Byte)
+    ARITH(SubSetOverflowUse_i8, 1, false, Byte)
+    ARITH(AddZext8_i16, 1, false, Word)
+    ARITH(SubZext8_i16, 1, false, Word)
+    ARITH(AND_i8, 1, false, Byte)
+    ARITH(OR_i8, 1, false, Byte)
+    ARITH(XOR_i8, 1, false, Byte)
+    // The 6809 has no 16-bit bitwise op: ANDD/ORD/EORD are HD6309.
+    ARITH(AND_i16, 2, true, Word)
+    ARITH(OR_i16, 2, true, Word)
+    ARITH(XOR_i16, 2, true, Word)
 #undef ARITH
   default:
     return std::nullopt;
@@ -231,8 +217,7 @@ static bool formStepMemOps(MachineFunction &MF) {
       const MachineOperand &OffMO = Op.getOperand(F->PtrIdx + 1);
       if (!PtrMO.isReg() || !PtrMO.getReg().isVirtual())
         continue;
-      int64_t Off = OffMO.isImm() ? OffMO.getImm()
-                    : OffMO.isCImm() ? OffMO.getCImm()->getSExtValue() : 1;
+      int64_t Off = OffMO.isImm() ? OffMO.getImm() : OffMO.isCImm() ? OffMO.getCImm()->getSExtValue() : 1;
       const int64_t Size = F->Size;
       // Reading `0,p` with p stepping forward: `,p+`. Reading `-size,p` with
       // p stepping back: `,-p`. (Reading `0,q` where q is p stepped back is
@@ -243,10 +228,7 @@ static bool formStepMemOps(MachineFunction &MF) {
       MachineInstr *Step = nullptr;   // the LEAPtrAdd_Imm absorbed
       Register PtrIn, PtrOut;         // the walking op's tied pair
       int64_t StepBy = Off == 0 ? Size : -Size;
-      auto IsStep = [&](const MachineInstr &U, int64_t By) {
-        return U.getOpcode() == MC6809::LEAPtrAdd_Imm && U.getParent() == &MBB &&
-               U.getOperand(2).isImm() && U.getOperand(2).getImm() == By;
-      };
+      auto IsStep = [&](const MachineInstr &U, int64_t By) { return U.getOpcode() == MC6809::LEAPtrAdd_Imm && U.getParent() == &MBB && U.getOperand(2).isImm() && U.getOperand(2).getImm() == By; };
       // The read pointer's only other user is its step (before or after
       // the op).
       bool Other = false;
@@ -286,8 +268,7 @@ static bool formStepMemOps(MachineFunction &MF) {
         // use, made in this block, and nothing between the step and the op
         // reads it (the op will define it): `,-p`.
         MachineInstr *Def = MRI.getVRegDef(Read);
-        if (!Def || !IsStep(*Def, -Size) ||
-            !MRI.hasOneNonDBGUse(Def->getOperand(1).getReg()))
+        if (!Def || !IsStep(*Def, -Size) || !MRI.hasOneNonDBGUse(Def->getOperand(1).getReg()))
           continue;
         bool UsedBetween = false;
         for (auto It = std::next(Def->getIterator()); &*It != &Op; ++It)
@@ -307,15 +288,11 @@ static bool formStepMemOps(MachineFunction &MF) {
       // The walking form keeps its accumulator off HD6309 W/E/F.
       if (F->AccRC) {
         Register Dst = Op.getOperand(0).getReg(), Src = Op.getOperand(1).getReg();
-        if (!Dst.isVirtual() || !Src.isVirtual() ||
-            !MRI.constrainRegClass(Dst, F->AccRC) ||
-            !MRI.constrainRegClass(Src, F->AccRC))
+        if (!Dst.isVirtual() || !Src.isVirtual() || !MRI.constrainRegClass(Dst, F->AccRC) || !MRI.constrainRegClass(Src, F->AccRC))
           continue;
       }
       const bool IsLoad = F->DecOpc != 0;
-      MachineInstrBuilder MIB = BuildMI(
-          MBB, Op, Op.getDebugLoc(),
-          TII.get(IsLoad && StepBy < 0 ? F->DecOpc : F->Opc));
+      MachineInstrBuilder MIB = BuildMI(MBB, Op, Op.getDebugLoc(), TII.get(IsLoad && StepBy < 0 ? F->DecOpc : F->Opc));
       MIB.add(Op.getOperand(0)); // CC, accumulator or loaded value def
       MIB.addDef(PtrOut);
       for (unsigned I = 1; I < F->PtrIdx; ++I)
@@ -325,8 +302,7 @@ static bool formStepMemOps(MachineFunction &MF) {
         MIB.addImm(StepBy);
       // Implicit operands the selector appended (flag defs) stay with the
       // descriptor; carry any virtual ones over.
-      for (unsigned I = Op.getNumExplicitOperands(), E = Op.getNumOperands();
-           I != E; ++I)
+      for (unsigned I = Op.getNumExplicitOperands(), E = Op.getNumOperands(); I != E; ++I)
         if (Op.getOperand(I).isReg() && Op.getOperand(I).getReg().isVirtual())
           MIB.add(Op.getOperand(I));
       MIB.setMemRefs(Op.memoperands());
@@ -347,8 +323,7 @@ static bool formStepMemOps(MachineFunction &MF) {
 // imaginary carry the selector threads between the halves of a byte chain.
 static Register implicitVReg(const MachineInstr &MI, bool WantDef) {
   for (const MachineOperand &MO : MI.operands())
-    if (MO.isReg() && MO.isImplicit() && MO.getReg().isVirtual() &&
-        MO.isDef() == WantDef)
+    if (MO.isReg() && MO.isImplicit() && MO.getReg().isVirtual() && MO.isDef() == WantDef)
       return MO.getReg();
   return Register();
 }
@@ -377,39 +352,31 @@ static bool foldZextByteChains(MachineFunction &MF) {
         continue;
       Register LoR = Merge.getOperand(1).getReg();
       Register HiR = Merge.getOperand(2).getReg();
-      if (!LoR.isVirtual() || !HiR.isVirtual() ||
-          !MRI.hasOneNonDBGUse(LoR) || !MRI.hasOneNonDBGUse(HiR))
+      if (!LoR.isVirtual() || !HiR.isVirtual() || !MRI.hasOneNonDBGUse(LoR) || !MRI.hasOneNonDBGUse(HiR))
         continue;
       MachineInstr *LoDef = MRI.getVRegDef(LoR), *HiDef = MRI.getVRegDef(HiR);
-      if (!LoDef || !HiDef || LoDef->getParent() != &MBB ||
-          HiDef->getParent() != &MBB)
+      if (!LoDef || !HiDef || LoDef->getParent() != &MBB || HiDef->getParent() != &MBB)
         continue;
       unsigned NewOpc, HiOpc;
       switch (LoDef->getOpcode()) {
       case MC6809::AddSetCarry_i8_Mem:
       case MC6809::AddSetCarry_i8_Sym:
-        NewOpc = LoDef->getOpcode() == MC6809::AddSetCarry_i8_Mem
-                     ? MC6809::AddZext8_i16_Mem
-                     : MC6809::AddZext8_i16_Sym;
+        NewOpc = LoDef->getOpcode() == MC6809::AddSetCarry_i8_Mem ? MC6809::AddZext8_i16_Mem : MC6809::AddZext8_i16_Sym;
         HiOpc = MC6809::AddSetCarryUse_i8_Imm;
         break;
       case MC6809::SubSetCarry_i8_Mem:
       case MC6809::SubSetCarry_i8_Sym:
-        NewOpc = LoDef->getOpcode() == MC6809::SubSetCarry_i8_Mem
-                     ? MC6809::SubZext8_i16_Mem
-                     : MC6809::SubZext8_i16_Sym;
+        NewOpc = LoDef->getOpcode() == MC6809::SubSetCarry_i8_Mem ? MC6809::SubZext8_i16_Mem : MC6809::SubZext8_i16_Sym;
         HiOpc = MC6809::SubSetCarryUse_i8_Imm;
         break;
       default:
         continue;
       }
-      if (HiDef->getOpcode() != HiOpc || !HiDef->getOperand(2).isImm() ||
-          HiDef->getOperand(2).getImm() != 0)
+      if (HiDef->getOpcode() != HiOpc || !HiDef->getOperand(2).isImm() || HiDef->getOperand(2).getImm() != 0)
         continue;
       // The carry flows lo -> hi and ends there.
       Register CarryOut = implicitVReg(*LoDef, /*WantDef=*/true);
-      if (!CarryOut || CarryOut != implicitVReg(*HiDef, /*WantDef=*/false) ||
-          !MRI.hasOneNonDBGUse(CarryOut))
+      if (!CarryOut || CarryOut != implicitVReg(*HiDef, /*WantDef=*/false) || !MRI.hasOneNonDBGUse(CarryOut))
         continue;
       Register HiCarryOut = implicitVReg(*HiDef, /*WantDef=*/true);
       if (HiCarryOut && !MRI.use_nodbg_empty(HiCarryOut))
@@ -418,29 +385,22 @@ static bool foldZextByteChains(MachineFunction &MF) {
       Register LoSrc = LoDef->getOperand(1).getReg();
       Register HiSrc = HiDef->getOperand(1).getReg();
       MachineInstr *LoX = MRI.getVRegDef(LoSrc), *HiX = MRI.getVRegDef(HiSrc);
-      if (!LoX || !HiX || LoX->getOpcode() != MC6809::EXTRACT_LO_i16 ||
-          HiX->getOpcode() != MC6809::EXTRACT_HI_i16 ||
-          LoX->getOperand(1).getReg() != HiX->getOperand(1).getReg() ||
-          !MRI.hasOneNonDBGUse(LoSrc) || !MRI.hasOneNonDBGUse(HiSrc))
+      if (!LoX || !HiX || LoX->getOpcode() != MC6809::EXTRACT_LO_i16 || HiX->getOpcode() != MC6809::EXTRACT_HI_i16 || LoX->getOperand(1).getReg() != HiX->getOperand(1).getReg() || !MRI.hasOneNonDBGUse(LoSrc) || !MRI.hasOneNonDBGUse(HiSrc))
         continue;
       Register T = LoX->getOperand(1).getReg();
       // The chain must be contiguous (lo op, hi op, merge): the new op reads
       // memory and sets the flags at the low op's place, and nothing may
       // sit between the halves and see them.
-      if (&*std::next(LoDef->getIterator()) != HiDef ||
-          &*std::next(HiDef->getIterator()) != &Merge)
+      if (&*std::next(LoDef->getIterator()) != HiDef || &*std::next(HiDef->getIterator()) != &Merge)
         continue;
       // Anything reading the flags after the chain sees the same values
       // (the new op ends with the same `adca #0`), so only the flag readers
       // inside the chain mattered -- and there are none.
       (void)TRI;
       Register Dst = Merge.getOperand(0).getReg();
-      if (!MRI.constrainRegClass(Dst, &MC6809::ADcRegClass) ||
-          !MRI.constrainRegClass(T, &MC6809::ADcRegClass))
+      if (!MRI.constrainRegClass(Dst, &MC6809::ADcRegClass) || !MRI.constrainRegClass(T, &MC6809::ADcRegClass))
         continue;
-      MachineInstrBuilder MIB =
-          BuildMI(MBB, *LoDef, LoDef->getDebugLoc(), TII.get(NewOpc), Dst)
-              .addReg(T);
+      MachineInstrBuilder MIB = BuildMI(MBB, *LoDef, LoDef->getDebugLoc(), TII.get(NewOpc), Dst).addReg(T);
       for (unsigned I = 2, E = LoDef->getNumExplicitOperands(); I < E; ++I)
         MIB.add(LoDef->getOperand(I)); // idx + offset, or the symbol
       MIB.setMemRefs(LoDef->memoperands());
@@ -494,10 +454,7 @@ bool MC6809FoldLoadIntoConsumer::runOnMachineFunction(MachineFunction &MF) {
       // consumer reads memory the same way whichever bank the value was
       // headed for: fold through the copy and drop it.
       MachineInstr *Copy = nullptr;
-      if (UserPtr->isCopy() && UserPtr->getOperand(0).getReg().isVirtual() &&
-          !UserPtr->getOperand(0).getSubReg() &&
-          !UserPtr->getOperand(1).getSubReg() &&
-          MRI.hasOneNonDBGUse(UserPtr->getOperand(0).getReg())) {
+      if (UserPtr->isCopy() && UserPtr->getOperand(0).getReg().isVirtual() && !UserPtr->getOperand(0).getSubReg() && !UserPtr->getOperand(1).getSubReg() && MRI.hasOneNonDBGUse(UserPtr->getOperand(0).getReg())) {
         Copy = UserPtr;
         Val = Copy->getOperand(0).getReg();
         UserPtr = &*MRI.use_instr_nodbg_begin(Val);
@@ -546,15 +503,9 @@ bool MC6809FoldLoadIntoConsumer::runOnMachineFunction(MachineFunction &MF) {
         // The tied (or first compared) source is the operand right after the
         // condition, or operand 1; the other source must be a plain register.
         unsigned FirstSrc = CCIdx >= 0 ? CCIdx + 1 : 1;
-        if (UseIdx != FirstSrc ||
-            !(CCIdx >= 0 ||
-              MC6809InstrInfo::isCommutableTwoSource(User.getOpcode())) ||
-            !User.getOperand(Fold->FoldIdx).isReg())
+        if (UseIdx != FirstSrc || !(CCIdx >= 0 || MC6809InstrInfo::isCommutableTwoSource(User.getOpcode())) || !User.getOperand(Fold->FoldIdx).isReg())
           continue;
-        if (CCIdx >= 0 &&
-            getSwappedCondition(
-                (MC6809CC::CondCode)User.getOperand(CCIdx).getImm()) ==
-                MC6809CC::RA)
+        if (CCIdx >= 0 && getSwappedCondition((MC6809CC::CondCode)User.getOperand(CCIdx).getImm()) == MC6809CC::RA)
           continue;
         Swap = true;
       }
@@ -571,16 +522,12 @@ bool MC6809FoldLoadIntoConsumer::runOnMachineFunction(MachineFunction &MF) {
       if (!IsSym) {
         const MachineOperand &Base = Load.getOperand(1);
         unsigned Distance = 0;
-        for (auto It = std::next(Load.getIterator());
-             It != MBB.end() && &*It != &User && Distance <= FoldNearRegLoadDistance;
-             ++It)
+        for (auto It = std::next(Load.getIterator()); It != MBB.end() && &*It != &User && Distance <= FoldNearRegLoadDistance; ++It)
           if (!It->isDebugInstr())
             ++Distance;
-        if (Base.isReg() && Base.getReg().isVirtual() &&
-            Distance > FoldNearRegLoadDistance) {
+        if (Base.isReg() && Base.getReg().isVirtual() && Distance > FoldNearRegLoadDistance) {
           bool LivePast = false;
-          for (const MachineInstr &Use :
-               MRI.use_nodbg_instructions(Base.getReg())) {
+          for (const MachineInstr &Use : MRI.use_nodbg_instructions(Base.getReg())) {
             if (&Use == &Load)
               continue;
             if (Use.getParent() != &MBB) {
@@ -624,8 +571,7 @@ bool MC6809FoldLoadIntoConsumer::runOnMachineFunction(MachineFunction &MF) {
         Kept[FirstSrc] = User.getOperand(Fold->FoldIdx);
         Kept[Fold->FoldIdx] = User.getOperand(FirstSrc);
         if (CCIdx >= 0)
-          Kept[CCIdx] = MachineOperand::CreateImm(getSwappedCondition(
-              (MC6809CC::CondCode)User.getOperand(CCIdx).getImm()));
+          Kept[CCIdx] = MachineOperand::CreateImm(getSwappedCondition((MC6809CC::CondCode)User.getOperand(CCIdx).getImm()));
       }
       unsigned NewOpIdx = 0;
       for (unsigned I = 0; I < NumExplicit; ++I) {
@@ -634,13 +580,10 @@ bool MC6809FoldLoadIntoConsumer::runOnMachineFunction(MachineFunction &MF) {
           continue;
         }
         const MachineOperand &MO = Kept[I];
-        if (MO.isReg() && MO.getReg().isVirtual() &&
-            NewOpIdx < MemDesc.getNumOperands()) {
-          if (const TargetRegisterClass *RC =
-                  TII.getRegClass(MemDesc, NewOpIdx)) {
+        if (MO.isReg() && MO.getReg().isVirtual() && NewOpIdx < MemDesc.getNumOperands()) {
+          if (const TargetRegisterClass *RC = TII.getRegClass(MemDesc, NewOpIdx)) {
             const TargetRegisterClass *Cur = MRI.getRegClassOrNull(MO.getReg());
-            if (Has6309 && Cur && Cur->contains(MC6809::AE) &&
-                !RC->contains(MC6809::AE)) {
+            if (Has6309 && Cur && Cur->contains(MC6809::AE) && !RC->contains(MC6809::AE)) {
               CanConstrain = false;
               break;
             }
@@ -655,8 +598,7 @@ bool MC6809FoldLoadIntoConsumer::runOnMachineFunction(MachineFunction &MF) {
       if (!CanConstrain)
         continue;
 
-      MachineInstrBuilder MIB =
-          BuildMI(MBB, User, User.getDebugLoc(), MemDesc);
+      MachineInstrBuilder MIB = BuildMI(MBB, User, User.getDebugLoc(), MemDesc);
       for (unsigned I = 0; I < NumExplicit; ++I) {
         if (I == Fold->FoldIdx) {
           if (IsSym) {
@@ -682,8 +624,7 @@ bool MC6809FoldLoadIntoConsumer::runOnMachineFunction(MachineFunction &MF) {
       }
       MIB.setMemRefs(Load.memoperands());
 
-      LLVM_DEBUG(dbgs() << "Folded " << Load << "  into " << User
-                        << "  giving " << *MIB);
+      LLVM_DEBUG(dbgs() << "Folded " << Load << "  into " << User << "  giving " << *MIB);
       User.eraseFromParent();
       if (Copy)
         Copy->eraseFromParent();
