@@ -94,28 +94,28 @@ int64_t MC6809MCExpr::evaluateAsInt64(int64_t Value) const {
 }
 
 MC6809::Fixups MC6809MCExpr::getFixupKind() const {
-  MC6809::Fixups Kind = MC6809::Fixups::LastTargetFixupKind;
+  MC6809::Fixups FixupKind = MC6809::Fixups::LastTargetFixupKind;
 
   switch (getKind()) {
   case VK_IMM8:
-    Kind = MC6809::Imm8;
+    FixupKind = MC6809::Imm8;
     break;
   case VK_IMM16:
-    Kind = MC6809::Imm16;
+    FixupKind = MC6809::Imm16;
     break;
   case VK_ADDR8:
   case VK_OS9_DATA_OFFSET_8:
-    Kind = MC6809::Addr8;
+    FixupKind = MC6809::Addr8;
     break;
   case VK_ADDR16:
   case VK_OS9_DATA_OFFSET:
-    Kind = MC6809::Addr16;
+    FixupKind = MC6809::Addr16;
     break;
   case VK_NONE:
     llvm_unreachable("Uninitialized expression");
   }
 
-  return Kind;
+  return FixupKind;
 }
 
 void MC6809MCExpr::visitUsedExpr(MCStreamer &Streamer) const { Streamer.visitUsedExpr(*getSubExpr()); }

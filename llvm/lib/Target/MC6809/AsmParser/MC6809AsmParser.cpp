@@ -86,11 +86,11 @@ public:
     // direct-page addresses against 16-bit modifiers.
     const auto *MME = dyn_cast<MC6809MCExpr>(getImm());
     if (MME) {
-      const MC6809::Fixups Kind = MME->getFixupKind();
+      const MC6809::Fixups FixupKind = MME->getFixupKind();
       // Imm16 modifier enforces a lower bound which rejects Imm8.
-      if (Kind == MC6809::Imm16 && High < 0x10000 - 1)
+      if (FixupKind == MC6809::Imm16 && High < 0x10000 - 1)
         return false;
-      const MCFixupKindInfo &Info = MC6809FixupKinds::getFixupKindInfo(Kind, nullptr);
+      const MCFixupKindInfo &Info = MC6809FixupKinds::getFixupKindInfo(FixupKind, nullptr);
       int64_t MaxValue = (1 << Info.TargetSize) - 1;
       bool Evaluated = false;
       int64_t Constant = 0;

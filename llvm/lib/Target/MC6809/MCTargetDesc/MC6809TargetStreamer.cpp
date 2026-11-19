@@ -72,8 +72,8 @@ static bool hasPrefix(StringRef Name, StringRef Prefix) {
   return Name == Prefix || Name.starts_with(PrefixDot);
 }
 
-void MC6809TargetAsmStreamer::changeSection(const MCSection *CurSection, MCSection *Section, uint32_t SubSection, raw_ostream &OS) {
-  MCTargetStreamer::changeSection(CurSection, Section, SubSection, OS);
+void MC6809TargetAsmStreamer::changeSection(const MCSection *CurSection, MCSection *Section, uint32_t SubSection, raw_ostream &Out) {
+  MCTargetStreamer::changeSection(CurSection, Section, SubSection, Out);
   HasBSS |= hasPrefix(Section->getName(), ".bss");
   HasDPBSS |= hasPrefix(Section->getName(), ".dp.bss");
   HasData |= hasPrefix(Section->getName(), ".data");

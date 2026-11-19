@@ -127,7 +127,6 @@ private:
   MachineBasicBlock *MBB = nullptr;
   MachineFunction *MF = nullptr;
   MachineRegisterInfo *MRI = nullptr;
-  MachineIRBuilder MIB;
 
   // Post-tablegen selection functions. If these return false, it is an error.
   bool tryFusePostModify(MachineInstr &MI) const;
@@ -136,7 +135,7 @@ private:
   bool isKnownZeroOrOne(Register R) const;
   bool selectFrameIndex(MachineInstr &MI);
   bool selectAddrSpaceCast(MachineInstr &MI);
-  Register buildDirectPageAddress(MachineBasicBlock &MBB, MachineInstr &Before, const DebugLoc &DL, Register InPageOff);
+  Register buildDirectPageAddress(MachineBasicBlock &BB, MachineInstr &Before, const DebugLoc &DL, Register InPageOff);
   /// Capture the CC flag standing behind phantom-carry vreg \p SrcReg into
   /// the byte \p DstReg. The MaterializeCC pseudo is inserted immediately
   /// after the flag's producer, not at the use, because any arithmetic or
@@ -217,8 +216,8 @@ private:
 };
 } // namespace
 
-void MC6809InstructionSelector::setupMF(MachineFunction &MF, GISelValueTracking *VT, CodeGenCoverage *CovInfo, ProfileSummaryInfo *PSI, BlockFrequencyInfo *BFI, AAResults *AA) {
-  InstructionSelector::setupMF(MF, VT, CovInfo, PSI, BFI, AA);
+void MC6809InstructionSelector::setupMF(MachineFunction &CurMF, GISelValueTracking *VT, CodeGenCoverage *CovInfo, ProfileSummaryInfo *PSI, BlockFrequencyInfo *BFI, AAResults *AA) {
+  InstructionSelector::setupMF(CurMF, VT, CovInfo, PSI, BFI, AA);
 
   // Bug #186 v5: per-function carry/overflow flag tracking.
   CarryFlagOf.clear();
@@ -231,8 +230,8 @@ void MC6809InstructionSelector::setupMF(MachineFunction &MF, GISelValueTracking 
   // as if they were copies. To avoid maintaining separate versions of these, we
   // temporarily lower these to technically-illegal COPY instructions, but only
   // for the duration of this one pass.
-  for (MachineBasicBlock &MBB : MF) {
-    for (MachineInstr &MI : MBB) {
+  for (MachineBasicBlock &BB : CurMF) {
+    for (MachineInstr &MI : BB) {
       switch (MI.getOpcode()) {
       default:
         break;
@@ -761,12 +760,11 @@ static bool canFoldFrameLoad(const MachineInstr &Consumer, const MachineInstr &L
 
 /// Select a "register plus signed immediate offset" address.
 InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectAMImmediate(MachineOperand &Root) const {
-  MachineRegisterInfo &MRI = Root.getParent()->getParent()->getParent()->getRegInfo();
 
   if (!Root.isReg())
     return std::nullopt;
 
-  MachineInstr *RootDef = MRI.getVRegDef(Root.getReg());
+  MachineInstr *RootDef = MRI->getVRegDef(Root.getReg());
   if (RootDef->getOpcode() == TargetOpcode::G_CONSTANT) {
     return {{
         [=](MachineInstrBuilder &MIB) { MIB.add(RootDef->getOperand(1)); },
@@ -778,14 +776,13 @@ InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectAMImmed
 
 /// Select a "frame_index plus offset" address.
 InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectAMIndexedImmOffset(MachineOperand &Root) const {
-  MachineRegisterInfo &MRI = Root.getParent()->getParent()->getParent()->getRegInfo();
 
   if (!Root.isReg())
     return std::nullopt;
 
-  MachineInstr *RootDef = MRI.getVRegDef(Root.getReg());
+  MachineInstr *RootDef = MRI->getVRegDef(Root.getReg());
   if (RootDef->getOpcode() == TargetOpcode::G_LOAD) {
-    MachineInstr *FrameDef = MRI.getVRegDef(RootDef->getOperand(1).getReg());
+    MachineInstr *FrameDef = MRI->getVRegDef(RootDef->getOperand(1).getReg());
     if (FrameDef->getOpcode() == TargetOpcode::G_FRAME_INDEX && canFoldFrameLoad(*Root.getParent(), *RootDef, /*WholeValue=*/true, AA)) {
       return {{
           [=](MachineInstrBuilder &MIB) { MIB.add(FrameDef->getOperand(1)); },
@@ -823,15 +820,15 @@ InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectAMIndex
       Register Op = Cmp->getOperand(I).getReg();
       if (Op == Root.getReg())
         continue;
-      const RegisterBank *B = RBI.getRegBank(Op, MRI, TRI);
+      const RegisterBank *B = RBI.getRegBank(Op, *MRI, TRI);
       if (B && B->getID() == MC6809::INDEXRegBankID)
         IndexDomainCompare = true;
     }
   }
-  if (!IndexDomainCompare && RootDef->getOpcode() == TargetOpcode::G_LOAD && MRI.hasOneNonDBGUse(Root.getReg()) && shouldFoldMemAccess(*Root.getParent(), *RootDef, AA)) {
-    MachineInstr *AddrDef = MRI.getVRegDef(RootDef->getOperand(1).getReg());
+  if (!IndexDomainCompare && RootDef->getOpcode() == TargetOpcode::G_LOAD && MRI->hasOneNonDBGUse(Root.getReg()) && shouldFoldMemAccess(*Root.getParent(), *RootDef, AA)) {
+    MachineInstr *AddrDef = MRI->getVRegDef(RootDef->getOperand(1).getReg());
     if (AddrDef && AddrDef->getOpcode() == TargetOpcode::G_PTR_ADD) {
-      MachineInstr *OffDef = MRI.getVRegDef(AddrDef->getOperand(2).getReg());
+      MachineInstr *OffDef = MRI->getVRegDef(AddrDef->getOperand(2).getReg());
       if (OffDef && OffDef->getOpcode() == TargetOpcode::G_CONSTANT)
         return {{
             [=](MachineInstrBuilder &MIB) { MIB.add(AddrDef->getOperand(1)); },
@@ -858,7 +855,6 @@ InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectAMIndex
 /// (`add [n,r]` = add *(mem[r+n])). The outer (value) load is peeled here, then
 /// the inner (pointer) load is matched exactly as selectLSIndexedIndirect does.
 InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectAMIndexedIndirect(MachineOperand &Root) const {
-  MachineRegisterInfo &MRI = Root.getParent()->getParent()->getParent()->getRegInfo();
   if (!Root.isReg())
     return std::nullopt;
   // Pointer-domain safety gate (same rationale as selectAMIndexedImmOffset, bug
@@ -872,30 +868,30 @@ InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectAMIndex
       Register Op = Cmp->getOperand(I).getReg();
       if (Op == Root.getReg())
         continue;
-      const RegisterBank *B = RBI.getRegBank(Op, MRI, TRI);
+      const RegisterBank *B = RBI.getRegBank(Op, *MRI, TRI);
       if (B && B->getID() == MC6809::INDEXRegBankID)
         return std::nullopt;
     }
   }
   // Peel the outer value load -- the consumer reads it from memory directly.
-  MachineInstr *OuterLoad = MRI.getVRegDef(Root.getReg());
+  MachineInstr *OuterLoad = MRI->getVRegDef(Root.getReg());
   if (!OuterLoad || OuterLoad->getOpcode() != TargetOpcode::G_LOAD)
     return std::nullopt;
-  if (!MRI.hasOneNonDBGUse(Root.getReg()) || !shouldFoldMemAccess(*Root.getParent(), *OuterLoad, AA))
+  if (!MRI->hasOneNonDBGUse(Root.getReg()) || !shouldFoldMemAccess(*Root.getParent(), *OuterLoad, AA))
     return std::nullopt;
   // The outer load's ADDRESS is the pointer, which must itself be a single-use
   // load (the indirect mode reads it from memory), foldable to the consumer.
   Register PtrReg = OuterLoad->getOperand(1).getReg();
-  MachineInstr *InnerLoad = MRI.getVRegDef(PtrReg);
+  MachineInstr *InnerLoad = MRI->getVRegDef(PtrReg);
   if (!InnerLoad || InnerLoad->getOpcode() != TargetOpcode::G_LOAD)
     return std::nullopt;
-  if (!MRI.hasOneNonDBGUse(PtrReg) || !shouldFoldMemAccess(*Root.getParent(), *InnerLoad, AA))
+  if (!MRI->hasOneNonDBGUse(PtrReg) || !shouldFoldMemAccess(*Root.getParent(), *InnerLoad, AA))
     return std::nullopt;
   // Match the inner (pointer) load's address: [base+const], frame-index, or
   // plain [base] -- identical to selectLSIndexedIndirect.
-  MachineInstr *AddrDef = MRI.getVRegDef(InnerLoad->getOperand(1).getReg());
+  MachineInstr *AddrDef = MRI->getVRegDef(InnerLoad->getOperand(1).getReg());
   if (AddrDef && AddrDef->getOpcode() == TargetOpcode::G_PTR_ADD) {
-    MachineInstr *OffDef = MRI.getVRegDef(AddrDef->getOperand(2).getReg());
+    MachineInstr *OffDef = MRI->getVRegDef(AddrDef->getOperand(2).getReg());
     if (OffDef && OffDef->getOpcode() == TargetOpcode::G_CONSTANT)
       return {{
           [=](MachineInstrBuilder &MIB) { MIB.add(AddrDef->getOperand(1)); },
@@ -918,23 +914,22 @@ InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectAMIndex
 
 /// Select a "high word unmerged frame index plus offset" address.
 InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectAMUnmergeIndexedImmOffset(MachineOperand &Root) const {
-  MachineRegisterInfo &MRI = Root.getParent()->getParent()->getParent()->getRegInfo();
 
   if (!Root.isReg())
     return std::nullopt;
 
-  MachineInstr *RootDef = MRI.getVRegDef(Root.getReg());
+  MachineInstr *RootDef = MRI->getVRegDef(Root.getReg());
   if (RootDef->getOpcode() == TargetOpcode::G_UNMERGE_VALUES) {
     // Big-endian: operand 0 = lo part, operand 1 = hi part.
     // Lo part is at the HIGHER address: base + element_size.
     // Hi part is at base + 0.
     // Register SrcReg = RootDef->getOperand(2).getReg();
-    unsigned EltSize = MRI.getType(Root.getReg()).getSizeInBytes();
+    unsigned EltSize = MRI->getType(Root.getReg()).getSizeInBytes();
     bool IsLo = Root.getReg() == RootDef->getOperand(0).getReg();
     unsigned MergeOffset = IsLo ? EltSize : 0;
-    MachineInstr *LoadDef = MRI.getVRegDef(RootDef->getOperand(2).getReg());
+    MachineInstr *LoadDef = MRI->getVRegDef(RootDef->getOperand(2).getReg());
     if (LoadDef->getOpcode() == TargetOpcode::G_LOAD) {
-      MachineInstr *FrameDef = MRI.getVRegDef(LoadDef->getOperand(1).getReg());
+      MachineInstr *FrameDef = MRI->getVRegDef(LoadDef->getOperand(1).getReg());
       if (FrameDef->getOpcode() == TargetOpcode::G_FRAME_INDEX && canFoldFrameLoad(*Root.getParent(), *LoadDef, /*WholeValue=*/false, AA)) {
         return {{
             [=](MachineInstrBuilder &MIB) { MIB.add(FrameDef->getOperand(1)); },
@@ -949,15 +944,14 @@ InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectAMUnmer
 
 /// Select a "register plus signed immediate offset" address for a target load/store instruction
 InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectLSIndexedImmOffset(MachineOperand &Root) const {
-  MachineRegisterInfo &MRI = Root.getParent()->getParent()->getParent()->getRegInfo();
 
   if (!Root.isReg())
     return std::nullopt;
 
-  auto *RootDef = MRI.getVRegDef(Root.getReg());
+  auto *RootDef = MRI->getVRegDef(Root.getReg());
 
   if (RootDef->getOpcode() == TargetOpcode::G_PTR_ADD) {
-    auto *OffsetDef = MRI.getVRegDef(RootDef->getOperand(2).getReg());
+    auto *OffsetDef = MRI->getVRegDef(RootDef->getOperand(2).getReg());
     if (OffsetDef->getOpcode() == TargetOpcode::G_CONSTANT) {
       return {{
           [=](MachineInstrBuilder &MIB) { MIB.add(RootDef->getOperand(1)); },
@@ -980,14 +974,13 @@ InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectLSIndex
 ///    extended unsigned index or a native i16 value -> `ld d,x`).
 /// Constant offsets fall through (handled by selectLSIndexedImmOffset).
 InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectLSIndexedRegOffset(MachineOperand &Root) const {
-  MachineRegisterInfo &MRI = Root.getParent()->getParent()->getParent()->getRegInfo();
   if (!Root.isReg())
     return std::nullopt;
-  MachineInstr *RootDef = MRI.getVRegDef(Root.getReg());
+  MachineInstr *RootDef = MRI->getVRegDef(Root.getReg());
   if (!RootDef || RootDef->getOpcode() != TargetOpcode::G_PTR_ADD)
     return std::nullopt;
   Register OffReg = RootDef->getOperand(2).getReg();
-  MachineInstr *OffDef = MRI.getVRegDef(OffReg);
+  MachineInstr *OffDef = MRI->getVRegDef(OffReg);
   if (!OffDef)
     return std::nullopt;
   // Constants are the imm matcher's job.
@@ -1007,7 +1000,7 @@ InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectLSIndex
   // index dies at the leax), so leave those to it: return nullopt.
   if (OffDef->getOpcode() == TargetOpcode::G_SEXT) {
     Register X = OffDef->getOperand(1).getReg();
-    if (MRI.getType(X) == LLT::scalar(8) && MRI.hasOneNonDBGUse(OffReg) && MRI.hasOneNonDBGUse(X)) {
+    if (MRI->getType(X) == LLT::scalar(8) && MRI->hasOneNonDBGUse(OffReg) && MRI->hasOneNonDBGUse(X)) {
       return {{
           [=](MachineInstrBuilder &MIB) { MIB.add(RootDef->getOperand(1)); },
           [=](MachineInstrBuilder &MIB) { MIB.addReg(X); },
@@ -1019,12 +1012,11 @@ InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectLSIndex
 
 /// Select a "FrameIndex + immediate offset" address for a target load/store instruction
 InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectLSFrameIndex(MachineOperand &Root) const {
-  MachineRegisterInfo &MRI = Root.getParent()->getParent()->getParent()->getRegInfo();
 
   if (!Root.isReg())
     return std::nullopt;
 
-  auto *RootDef = MRI.getVRegDef(Root.getReg());
+  auto *RootDef = MRI->getVRegDef(Root.getReg());
 
   if (RootDef->getOpcode() == TargetOpcode::G_FRAME_INDEX) {
     return {{
@@ -1043,16 +1035,15 @@ InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectLSFrame
 /// register it would occupy -- both vanish. Returns the *inner* load's
 /// (idx, offset) for the indirect _MemIndirect pseudo.
 InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectLSIndexedIndirect(MachineOperand &Root) const {
-  MachineRegisterInfo &MRI = Root.getParent()->getParent()->getParent()->getRegInfo();
   if (!Root.isReg())
     return std::nullopt;
 
   // The address operand must be a pointer that was itself loaded from memory...
-  MachineInstr *InnerLoad = MRI.getVRegDef(Root.getReg());
+  MachineInstr *InnerLoad = MRI->getVRegDef(Root.getReg());
   if (!InnerLoad || InnerLoad->getOpcode() != TargetOpcode::G_LOAD)
     return std::nullopt;
   // ...used only here, so folding the load away is a win, not a duplicate...
-  if (!MRI.hasOneNonDBGUse(Root.getReg()))
+  if (!MRI->hasOneNonDBGUse(Root.getReg()))
     return std::nullopt;
   // ...and safe to re-read at the consumer (no aliasing store, call, or ordered
   // access between the inner load and this access -- same AA test the
@@ -1061,9 +1052,9 @@ InstructionSelector::ComplexRendererFns MC6809InstructionSelector::selectLSIndex
     return std::nullopt;
 
   // Match the inner load's address: [base + const], else plain [base] (off 0).
-  MachineInstr *AddrDef = MRI.getVRegDef(InnerLoad->getOperand(1).getReg());
+  MachineInstr *AddrDef = MRI->getVRegDef(InnerLoad->getOperand(1).getReg());
   if (AddrDef && AddrDef->getOpcode() == TargetOpcode::G_PTR_ADD) {
-    MachineInstr *OffDef = MRI.getVRegDef(AddrDef->getOperand(2).getReg());
+    MachineInstr *OffDef = MRI->getVRegDef(AddrDef->getOperand(2).getReg());
     if (OffDef && OffDef->getOpcode() == TargetOpcode::G_CONSTANT) {
       return {{
           [=](MachineInstrBuilder &MIB) { MIB.add(AddrDef->getOperand(1)); },
@@ -1581,7 +1572,7 @@ static bool matchSSPlusConstant(Register Addr, const MachineRegisterInfo &MRI, i
 // generic pointer): the page base plus the zero-extended 8-bit in-page
 // offset, in an index register. Returns a null register if the p1 value
 // cannot be traced to an 8-bit quantity.
-Register MC6809InstructionSelector::buildDirectPageAddress(MachineBasicBlock &MBB, MachineInstr &Before, const DebugLoc &DL, Register InPageOff) {
+Register MC6809InstructionSelector::buildDirectPageAddress(MachineBasicBlock &BB, MachineInstr &Before, const DebugLoc &DL, Register InPageOff) {
   // Trace the p1 address back to its underlying 8-bit value: the in-page
   // offset integer, or the direct-page global itself (which selects to an
   // 8-bit immediate load). Sourcing from that leaves the p1
@@ -1606,23 +1597,23 @@ Register MC6809InstructionSelector::buildDirectPageAddress(MachineBasicBlock &MB
   // The 8-bit in-page offset zero-extended via physical AD, then copied
   // out (physreg-$ad ZEX16Implicit form): COPY $ab=off; ZEX16Implicit
   // (CLRA -> $ad = 0:off); Off16 = COPY $ad.
-  BuildMI(MBB, Before, DL, TII.get(TargetOpcode::COPY), Register(MC6809::AB)).addReg(InPageOff);
-  BuildMI(MBB, Before, DL, TII.get(MC6809::ZEX16Implicit));
+  BuildMI(BB, Before, DL, TII.get(TargetOpcode::COPY), Register(MC6809::AB)).addReg(InPageOff);
+  BuildMI(BB, Before, DL, TII.get(MC6809::ZEX16Implicit));
   Register Off16 = MRI->createVirtualRegister(&MC6809::ACC16RegClass);
-  BuildMI(MBB, Before, DL, TII.get(TargetOpcode::COPY), Off16).addReg(MC6809::AD);
+  BuildMI(BB, Before, DL, TII.get(TargetOpcode::COPY), Off16).addReg(MC6809::AD);
   // The direct-page base address into an index register. On OS-9 the
   // direct page is the first page of the process data area, whose
   // base is in U; elsewhere the linker provides it as __dp_base_addr.
   Register Base = MRI->createVirtualRegister(&MC6809::INDEX16RegClass);
   if (MF->getTarget().getTargetTriple().isOSOS9()) {
-    BuildMI(MBB, Before, DL, TII.get(TargetOpcode::COPY), Base).addReg(MC6809::SU);
+    BuildMI(BB, Before, DL, TII.get(TargetOpcode::COPY), Base).addReg(MC6809::SU);
   } else {
-    auto BaseMIB = BuildMI(MBB, Before, DL, TII.get(MC6809::Load_iPtr_Imm), Base).addExternalSymbol("__dp_base_addr");
+    auto BaseMIB = BuildMI(BB, Before, DL, TII.get(MC6809::Load_iPtr_Imm), Base).addExternalSymbol("__dp_base_addr");
     constrainSelectedInstRegOperands(*BaseMIB, TII, TRI, RBI);
   }
   // Full address = base + in-page offset (LEAX D,X -- no ABX).
   Register Full = MRI->createVirtualRegister(&MC6809::INDEX16RegClass);
-  auto LeaMIB = BuildMI(MBB, Before, DL, TII.get(MC6809::LEAPtrAdd_Reg16), Full).addReg(Base).addReg(Off16);
+  auto LeaMIB = BuildMI(BB, Before, DL, TII.get(MC6809::LEAPtrAdd_Reg16), Full).addReg(Base).addReg(Off16);
   constrainSelectedInstRegOperands(*LeaMIB, TII, TRI, RBI);
   return Full;
 }
@@ -1634,12 +1625,11 @@ bool MC6809InstructionSelector::selectAddrSpaceCast(MachineInstr &MI) {
   Register SrcReg = MI.getOperand(1).getReg();
   if (MRI->getType(DstReg).getAddressSpace() != 0 || MRI->getType(SrcReg).getAddressSpace() != MC6809::AS_DirectPage)
     return false;
-  MachineBasicBlock &MBB = *MI.getParent();
-  Register Full = buildDirectPageAddress(MBB, MI, MI.getDebugLoc(), SrcReg);
+  Register Full = buildDirectPageAddress(*MBB, MI, MI.getDebugLoc(), SrcReg);
   if (!Full)
     return false;
   MRI->setRegClass(DstReg, &MC6809::INDEX16RegClass);
-  BuildMI(MBB, MI, MI.getDebugLoc(), TII.get(TargetOpcode::COPY), DstReg).addReg(Full);
+  BuildMI(*MBB, MI, MI.getDebugLoc(), TII.get(TargetOpcode::COPY), DstReg).addReg(Full);
   MI.eraseFromParent();
   return true;
 }
@@ -2157,9 +2147,8 @@ bool MC6809InstructionSelector::select(MachineInstr &MI) {
           } else {
             return false; // only byte/word direct-page objects
           }
-          MachineBasicBlock &MBB = *MI.getParent();
           const DebugLoc &DL = MI.getDebugLoc();
-          Register Full = buildDirectPageAddress(MBB, MI, DL, AddrReg);
+          Register Full = buildDirectPageAddress(*MBB, MI, DL, AddrReg);
           if (!Full)
             return false;
           // Rewrite the load/store as a zero-offset indexed access.
@@ -3249,11 +3238,9 @@ skip_globalvalue_fold:
       // The 6809 has no "add two index registers" instruction.
       // Rewrite: COPY src1→D, COPY src2→D2, Push D2, Add/Sub_i16_Pull, COPY D→result.
       {
-        MachineBasicBlock &MBB = *MI.getParent();
         DebugLoc DL = MI.getDebugLoc();
         bool IsSub = (MI.getOpcode() == TargetOpcode::G_SUB);
 
-        LLT S16 = LLT::scalar(16);
 
         // Constrain the original INDEX-bank operands to INDEX16 register class.
         RBI.constrainGenericRegister(Src1, MC6809::INDEX16RegClass, *MRI);
@@ -3264,8 +3251,8 @@ skip_globalvalue_fold:
           // ADD: copy one operand to D, then LEAX D,X (single instruction).
           Register AccSrc = MRI->createGenericVirtualRegister(S16);
           MRI->setRegClass(AccSrc, &MC6809::ACC16RegClass);
-          BuildMI(MBB, MI, DL, TII.get(TargetOpcode::COPY), AccSrc).addReg(Src2);
-          auto LEA = BuildMI(MBB, MI, DL, TII.get(MC6809::LEAPtrAdd_Reg16), DstReg).addReg(Src1).addReg(AccSrc);
+          BuildMI(*MBB, MI, DL, TII.get(TargetOpcode::COPY), AccSrc).addReg(Src2);
+          auto LEA = BuildMI(*MBB, MI, DL, TII.get(MC6809::LEAPtrAdd_Reg16), DstReg).addReg(Src1).addReg(AccSrc);
           constrainSelectedInstRegOperands(*LEA, TII, TRI, RBI);
         } else {
           // SUB: compute -b as (0 - b), then LEAX D,X.
@@ -3288,9 +3275,9 @@ skip_globalvalue_fold:
 
           if (Src2Load && Src2Load->getOpcode() == MC6809::Load_i16_Mem) {
             // D = 0, then SUBD directly from memory.
-            auto Zero = BuildMI(MBB, MI, DL, TII.get(MC6809::Load_i16_Imm), AccZero).addImm(0);
+            auto Zero = BuildMI(*MBB, MI, DL, TII.get(MC6809::Load_i16_Imm), AccZero).addImm(0);
             constrainSelectedInstRegOperands(*Zero, TII, TRI, RBI);
-            auto SubMem = BuildMI(MBB, MI, DL, TII.get(MC6809::Sub_i16_Mem), AccNegB)
+            auto SubMem = BuildMI(*MBB, MI, DL, TII.get(MC6809::Sub_i16_Mem), AccNegB)
                               .addReg(AccZero)
                               .add(Src2Load->getOperand(1))  // index register
                               .add(Src2Load->getOperand(2)); // offset
@@ -3303,15 +3290,15 @@ skip_globalvalue_fold:
             // fill with S-relative spill code) is not needed.
             Register AccSrc2 = MRI->createGenericVirtualRegister(S16);
             MRI->setRegClass(AccSrc2, &MC6809::ACC16RegClass);
-            BuildMI(MBB, MI, DL, TII.get(TargetOpcode::COPY), AccSrc2).addReg(Src2);
-            auto Zero = BuildMI(MBB, MI, DL, TII.get(MC6809::Load_i16_Imm), AccZero).addImm(0);
+            BuildMI(*MBB, MI, DL, TII.get(TargetOpcode::COPY), AccSrc2).addReg(Src2);
+            auto Zero = BuildMI(*MBB, MI, DL, TII.get(MC6809::Load_i16_Imm), AccZero).addImm(0);
             constrainSelectedInstRegOperands(*Zero, TII, TRI, RBI);
-            auto Sub = BuildMI(MBB, MI, DL, TII.get(MC6809::Sub_i16_Reg), AccNegB).addReg(AccZero).addReg(AccSrc2);
+            auto Sub = BuildMI(*MBB, MI, DL, TII.get(MC6809::Sub_i16_Reg), AccNegB).addReg(AccZero).addReg(AccSrc2);
             constrainSelectedInstRegOperands(*Sub, TII, TRI, RBI);
           }
 
           // LEA: result = src1 + (-b).
-          auto LEA = BuildMI(MBB, MI, DL, TII.get(MC6809::LEAPtrAdd_Reg16), DstReg).addReg(Src1).addReg(AccNegB);
+          auto LEA = BuildMI(*MBB, MI, DL, TII.get(MC6809::LEAPtrAdd_Reg16), DstReg).addReg(Src1).addReg(AccNegB);
           constrainSelectedInstRegOperands(*LEA, TII, TRI, RBI);
         }
         MI.eraseFromParent();
@@ -4546,7 +4533,6 @@ bool MC6809InstructionSelector::selectShift16(MachineInstr &MI) {
     return false;
   }
 
-  MachineBasicBlock &MBB = *MI.getParent();
   const DebugLoc &DL = MI.getDebugLoc();
 
   // Copy source into the D register and shift it by ShiftAmt with a SINGLE
@@ -4560,8 +4546,8 @@ bool MC6809InstructionSelector::selectShift16(MachineInstr &MI) {
   // (dst tied to src). ADc is spillable, and ADc ⊆ ACC16 so any consumer that
   // accepts ACC16 also accepts the result.
   Register Cur = MRI->createVirtualRegister(&MC6809::ADcRegClass);
-  BuildMI(MBB, MI, DL, TII.get(TargetOpcode::COPY), Cur).addReg(SrcReg);
-  auto &Shift = *BuildMI(MBB, MI, DL, TII.get(ShiftOpc), DstReg).addReg(Cur).addImm(ShiftAmt);
+  BuildMI(*MBB, MI, DL, TII.get(TargetOpcode::COPY), Cur).addReg(SrcReg);
+  auto &Shift = *BuildMI(*MBB, MI, DL, TII.get(ShiftOpc), DstReg).addReg(Cur).addImm(ShiftAmt);
   constrainSelectedInstRegOperands(Shift, TII, TRI, RBI);
   MRI->setRegClass(DstReg, &MC6809::ADcRegClass);
   MI.eraseFromParent();
@@ -4595,12 +4581,11 @@ bool MC6809InstructionSelector::selectGeneric(MachineInstr &MI) {
 // they never actually receive a register class. Since every virtual register
 // is defined exactly once, making sure definitions are constrained suffices.
 void MC6809InstructionSelector::constrainGenericOp(MachineInstr &MI) {
-  MachineRegisterInfo &MRI = MI.getMF()->getRegInfo();
   for (MachineOperand &Op : MI.all_defs()) {
-    if (Op.getReg().isPhysical() || MRI.getRegClassOrNull(Op.getReg()))
+    if (Op.getReg().isPhysical() || MRI->getRegClassOrNull(Op.getReg()))
       continue;
-    LLT Ty = MRI.getType(Op.getReg());
-    const RegisterBank *RB = MRI.getRegBankOrNull(Op.getReg());
+    LLT Ty = MRI->getType(Op.getReg());
+    const RegisterBank *RB = MRI->getRegBankOrNull(Op.getReg());
     constrainOperandRegClass(Op, getRegClassForTypeOnBank(Ty, RB));
   }
 }
