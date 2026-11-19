@@ -21,11 +21,13 @@
 ;   C=1  : unordered   (CCUN, NaN operand)
 ;   none : a > b       (CCGT)
 ;
-; All six predicate wrappers share one body returning -1/0/+1/+1
-; (less/equal/greater/unordered) per libgcc convention.  LLVM applies
-; the predicate-specific ICMP_<pred>(result, 0) in createFCMPLibcall.
-; Unordered → +1 makes OLT/OLE/OEQ correctly false; OGT/OGE/ONE inherit
-; libgcc's known NaN imprecision.
+; The wrappers return -1/0/+1 for less/equal/greater, and LLVM tests
+; the result against zero per predicate: a > b is __gtXf2(a, b) > 0,
+; a >= b is __geXf2(a, b) >= 0, a < b is __ltXf2(a, b) < 0, and so on.
+; Every ordered predicate must be false on a NaN, so the unordered
+; result depends on the entry, as in libgcc and compiler-rt: +1 from
+; __cmp/__lt/__le/__eq/__ne, -1 from __gt/__ge.  (+1 from __gt/__ge
+; made x > NaN and x >= NaN true.)
 ;
 ; The wrapper saves the caller's U, Y, AND the result-buffer X via
 ; pshs u,y,x — we cannot pass X = result buffer to FPREG because FCMP
@@ -51,8 +53,6 @@
 __cmpsf2:
 __ltsf2:
 __lesf2:
-__gtsf2:
-__gesf2:
 __eqsf2:
 __nesf2:
         pshs    u,y,x               ; save callee-saved U,Y + result buffer X
@@ -63,6 +63,16 @@ __nesf2:
         FP_CALL FPOP_FCMP
         bra     .Lcmp_cleanup       ; (BRA preserves CC)
 
+__gtsf2:
+__gesf2:
+        pshs    u,y,x
+        FP_ENTRY __mc6839_fpcb_f32
+        leau    8+FP_SLOT,s
+        leay    12+FP_SLOT,s
+        ldx     #FCMP_S_S
+        FP_CALL FPOP_FCMP
+        bra     .Lcmp_cleanup_gt    ; (BRA preserves CC)
+
 ; ---- f64 comparison --------------------------------------------------------
 
         .global __cmpdf2
@@ -72,11 +82,19 @@ __nesf2:
         .global __gedf2
         .global __eqdf2
         .global __nedf2
+__gtdf2:
+__gedf2:
+        pshs    u,y,x
+        FP_ENTRY __mc6839_fpcb_f64
+        leau    8+FP_SLOT,s
+        leay    16+FP_SLOT,s
+        ldx     #FCMP_D_D
+        FP_CALL FPOP_FCMP
+        bra     .Lcmp_cleanup_gt    ; (BRA preserves CC)
+
 __cmpdf2:
 __ltdf2:
 __ledf2:
-__gtdf2:
-__gedf2:
 __eqdf2:
 __nedf2:
         pshs    u,y,x
@@ -118,8 +136,15 @@ __nedf2:
         clrb
         std     ,x
         ldd     #1
-        std     2,x                 ; i32 = +1 (libgcc unordered)
+        std     2,x                 ; i32 = +1 (unordered, all but __gt/__ge)
         bra     .Lcmp_ret
+
+; __gtXf2/__geXf2: unordered (C=1) gives -1, so a > b and a >= b are
+; false on a NaN; anything else as above.
+.Lcmp_cleanup_gt:
+        bcc     .Lcmp_cleanup       ; ordered: the common cleanup
+        ldx     ,s                  ; X = saved result buffer
+        bra     .Lcmp_lt            ; i32 = -1
 .Lcmp_eq:
         clra
         clrb
