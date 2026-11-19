@@ -51,6 +51,7 @@ public:
 
   bool runOnMachineFunction(MachineFunction &MF) override;
 };
+} // namespace
 
 bool MC6809InsertCopies::runOnMachineFunction(MachineFunction &MF) {
   // Do not gate on skipFunction: at -O0 clang stamps optnone on every
@@ -235,7 +236,6 @@ bool MC6809InsertCopies::runOnMachineFunction(MachineFunction &MF) {
   return Changed;
 }
 
-} // namespace
 
 char MC6809InsertCopies::ID = 0;
 

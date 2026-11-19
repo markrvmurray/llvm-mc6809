@@ -48,6 +48,7 @@ extern const uint16_t MC6809RegEncodingTable[];
 } // namespace llvm
 
 namespace llvm::MC6809 {
+namespace {
 // One row of TableGen's IndexedForms table.
 struct IndexedForm {
   unsigned Inst;
@@ -56,6 +57,7 @@ struct IndexedForm {
   uint16_t IdxValueEnc; // hardware encoding of the loaded/stored register
   uint8_t IdxAccess;    // 0 neither, 1 load, 2 store
 };
+} // end anonymous namespace
 #define GET_MC6809IndexedForms_DECL
 #define GET_MC6809IndexedForms_IMPL
 #include "MC6809GenSearchableTables.inc"
@@ -2295,10 +2297,12 @@ static cl::opt<bool> DisablePtrFold(
     "mc6809-disable-ptr-fold", cl::Hidden, cl::init(false),
     cl::desc("Disable folding spilled pointer-compare second sources"));
 
+namespace {
 struct MC6809MemFoldInfo {
   unsigned MemOpc;
   unsigned FoldIdx;
 };
+} // end anonymous namespace
 static std::optional<MC6809MemFoldInfo> memFoldSibling(unsigned Opc) {
   switch (Opc) {
   // Byte arithmetic (tied dst/src at 0/1, second source at 2).
@@ -9205,13 +9209,12 @@ void MC6809InstrInfo::expandFusedCompareBranch(MachineIRBuilder &Builder, Machin
 // IsHD6309-only — there is nothing to verify on plain MC6809 codegen.
 //===----------------------------------------------------------------------===//
 
-namespace {
 // The set of physical registers that the HD6309 page-3 reg-reg postbyte can
 // name. If both source operands resolve to the same one of these, the
 // postbyte degenerates to `op X,X`. Mirrors (and consolidates) the inline
 // guards in `emitHD6309RegRegOp` and `expandCompareReg`'s collision
 // fallback.
-bool isHD6309RegRegPostbyteReg(Register R) {
+static bool isHD6309RegRegPostbyteReg(Register R) {
   return R == MC6809::AA || R == MC6809::AB || R == MC6809::AD ||
          R == MC6809::AW || R == MC6809::AE || R == MC6809::AF ||
          R == MC6809::IX || R == MC6809::IY || R == MC6809::SU ||
@@ -9221,7 +9224,7 @@ bool isHD6309RegRegPostbyteReg(Register R) {
 // Byte-size of a physical register named by an HD6309 page-1/2/3 reg-reg
 // postbyte. Used to flag size-mismatched TFRp which on HD6309 byte-replicates
 // (0x002A → 0x2A2A) instead of zero/sign-extending.
-unsigned regByteSize(Register R) {
+static unsigned regByteSize(Register R) {
   switch (R) {
   case MC6809::AA: case MC6809::AB:
   case MC6809::AE: case MC6809::AF:
@@ -9235,7 +9238,6 @@ unsigned regByteSize(Register R) {
     return 0; // unknown — verifier will not flag
   }
 }
-} // end anonymous namespace
 
 bool MC6809InstrInfo::verifyInstruction(const MachineInstr &MI,
                                         StringRef &ErrInfo) const {

@@ -89,6 +89,7 @@ struct SlotKey {
     return BaseReg == O.BaseReg && Offset == O.Offset;
   }
 };
+} // namespace
 
 /// Returns the register loaded/stored for a given tracked indexed load/store
 /// opcode, or Register() otherwise. The tracked register may be an accumulator
@@ -375,6 +376,7 @@ static bool getBaseAndOffset(const MachineInstr &MI, Register &BaseReg,
   Offset = static_cast<int>(Off);
   return Found;
 }
+namespace {
 
 
 
@@ -387,6 +389,7 @@ public:
 
   bool runOnMachineFunction(MachineFunction &MF) override;
 };
+} // namespace
 
 bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
   if (!EnableSpillOpt)
@@ -1080,7 +1083,6 @@ bool MC6809PostRASpillOpt::runOnMachineFunction(MachineFunction &MF) {
   return Changed;
 }
 
-} // namespace
 
 char MC6809PostRASpillOpt::ID = 0;
 

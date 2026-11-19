@@ -49,6 +49,7 @@ public:
     return "MC6809 Fix CC Clobber";
   }
 };
+} // end anonymous namespace
 
 bool MC6809BundleCC::runOnMachineFunction(MachineFunction &MF) {
   // This pass currently serves as a safety net: it verifies that fused
@@ -62,6 +63,7 @@ bool MC6809BundleCC::runOnMachineFunction(MachineFunction &MF) {
   // If dangling MBB issues arise, this is the place to fix them.
   return false;
 }
+namespace {
 
 char MC6809BundleCC::ID = 0;
 

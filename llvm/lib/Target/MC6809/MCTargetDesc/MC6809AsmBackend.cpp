@@ -43,10 +43,12 @@
 
 namespace llvm {
 namespace MC6809 {
+namespace {
 struct InstructionRelaxationEntry {
   unsigned From;
   unsigned To;
 };
+} // end anonymous namespace
 
 #define GET_ZeroPageInstructionRelaxation_DECL
 #define GET_ZeroPageInstructionRelaxation_IMPL
@@ -196,7 +198,7 @@ bool MC6809AsmBackend::shouldForceRelocation(const MCFixup &F,
 }
 
 // Derived from findAssociatedFragment.
-bool isBasedOnDirectPageSymbol(const MCExpr *E) {
+static bool isBasedOnDirectPageSymbol(const MCExpr *E) {
   switch (E->getKind()) {
   case MCExpr::Target:
     return isBasedOnDirectPageSymbol(cast<MC6809MCExpr>(E)->getSubExpr());

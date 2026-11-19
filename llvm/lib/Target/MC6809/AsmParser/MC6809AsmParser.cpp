@@ -45,6 +45,7 @@ namespace llvm {
 #define GET_REGISTER_MATCHER
 #include "MC6809GenAsmMatcher.inc"
 
+namespace {
 class MC6809Operand : public MCParsedAsmOperand {
 public:
   MC6809Operand() = delete;
@@ -290,7 +291,9 @@ public:
     O << "\n";
   };
 };
+} // end anonymous namespace
 
+namespace {
 /// Parses MC6809 assembly from a stream.
 class MC6809AsmParser : public MCTargetAsmParser {
   const MC6809Subtarget &MCSTI;
@@ -963,6 +966,7 @@ parse_operands:
   bool parseRegister(MCRegister &Reg, SMLoc &StartLoc, SMLoc &EndLoc) override { return !tryParseRegister(Reg, StartLoc, EndLoc).isSuccess(); }
 
 }; // class MC6809AsmParser
+} // end anonymous namespace
 
 #define GET_MATCHER_IMPLEMENTATION
 #include "MC6809GenAsmMatcher.inc"

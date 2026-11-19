@@ -129,6 +129,7 @@ private:
 #include "MC6809GenGICombiner.inc"
 #undef GET_GICOMBINER_CLASS_MEMBERS
 };
+} // end anonymous namespace
 
 #define GET_GICOMBINER_IMPL
 #include "MC6809GenGICombiner.inc"
@@ -627,6 +628,7 @@ APInt MC6809CombinerImpl::getDemandedBits(Register R, DenseMap<Register, APInt> 
   Cache.try_emplace(R, DemandedBits);
   return DemandedBits;
 }
+namespace {
 
 #define MC6809COMBINERHELPER_GENCOMBINERHELPER_CPP
 #include "MC6809GenGICombiner.inc"

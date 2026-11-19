@@ -95,7 +95,7 @@ public:
 };
 } // namespace
 
-MCDisassembler *createMC6809Disassembler(const Target &T, const MCSubtargetInfo &STI, MCContext &Ctx) {
+static MCDisassembler *createMC6809Disassembler(const Target &T, const MCSubtargetInfo &STI, MCContext &Ctx) {
   // Bug #314 (2026-05-21): the disassembler is asked to decode bytes
   // whose origin we generally can't determine (`llvm-objdump -d` is
   // the typical caller, and ELF flags don't currently identify the

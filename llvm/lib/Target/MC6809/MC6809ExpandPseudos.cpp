@@ -53,9 +53,10 @@ public:
   }
   bool runOnMachineFunction(MachineFunction &MF) override;
 };
+} // namespace
 
 // As ExpandPostRAPseudos lowers it.
-void lowerSubregToReg(MachineInstr &MI, const TargetInstrInfo &TII,
+static void lowerSubregToReg(MachineInstr &MI, const TargetInstrInfo &TII,
                       const TargetRegisterInfo &TRI) {
   MachineBasicBlock &MBB = *MI.getParent();
   Register DstReg = MI.getOperand(0).getReg();
@@ -72,7 +73,6 @@ void lowerSubregToReg(MachineInstr &MI, const TargetInstrInfo &TII,
   MBB.erase(MI);
 }
 
-} // namespace
 
 bool MC6809ExpandPseudos::runOnMachineFunction(MachineFunction &MF) {
   const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();

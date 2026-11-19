@@ -92,7 +92,7 @@ struct EntryCandidate {
 } // namespace
 
 #ifndef NDEBUG
-raw_ostream &operator<<(raw_ostream &OS, const Candidate &C) {
+static raw_ostream &operator<<(raw_ostream &OS, const Candidate &C) {
   if (C.MF)
     OS << C.MF->getName() << ", ";
   if (C.CSR)
@@ -111,12 +111,12 @@ raw_ostream &operator<<(raw_ostream &OS, const Candidate &C) {
   return OS;
 }
 
-raw_ostream &operator<<(raw_ostream &OS, const LocalCandidate &EC) {
+static raw_ostream &operator<<(raw_ostream &OS, const LocalCandidate &EC) {
   OS << *EC.Cand << ", Benefit " << EC.Benefit;
   return OS;
 }
 
-raw_ostream &operator<<(raw_ostream &OS, const EntryCandidate &EC) {
+static raw_ostream &operator<<(raw_ostream &OS, const EntryCandidate &EC) {
   OS << *EC.LC << ", Global benefit " << EC.Benefit;
   return OS;
 }
@@ -224,6 +224,7 @@ private:
   bool assignDPs(SCCGraph &SCCGraph, std::vector<EntryGraph>::iterator Begin, std::vector<EntryGraph>::iterator End);
   bool assignDP(SCCGraph &SCCGraph, EntryGraph &EG);
 };
+} // namespace
 
 void MC6809DirectPageAlloc::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesCFG();
@@ -244,7 +245,6 @@ void MC6809DirectPageAlloc::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addPreserved<SCEVAAWrapperPass>();
 }
 
-} // namespace
 
 static float getFreq(const BlockFrequencyInfo &BFI, MachineBasicBlock &MBB);
 

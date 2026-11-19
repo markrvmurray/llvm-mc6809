@@ -71,6 +71,7 @@ public:
   const MCExpr *lowerConstant(const Constant *CV, const Constant *BaseCV,
                               uint64_t Offset) override;
 };
+} // namespace
 
 // Simple pseudo-instructions have their lowering (with expansion to real
 // instructions) auto-generated.
@@ -335,7 +336,6 @@ const MCSymbol *MC6809AsmPrinter::getFunctionFrameSymbol(int FI) const {
   return AsmPrinter::getFunctionFrameSymbol(FI);
 }
 
-} // namespace
 
 // Force static initialization.
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeMC6809AsmPrinter() { RegisterAsmPrinter<MC6809AsmPrinter> X(getTheMC6809Target()); }

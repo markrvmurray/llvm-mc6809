@@ -71,6 +71,7 @@ public:
 
   bool runOnMachineFunction(MachineFunction &MF) override;
 };
+} // namespace
 
 bool MC6809SanitiseDebugInfo::runOnMachineFunction(MachineFunction &MF) {
   // Do not gate on skipFunction: -O0 stamps optnone everywhere and we
@@ -121,7 +122,6 @@ bool MC6809SanitiseDebugInfo::runOnMachineFunction(MachineFunction &MF) {
   return Changed;
 }
 
-} // namespace
 
 char MC6809SanitiseDebugInfo::ID = 0;
 

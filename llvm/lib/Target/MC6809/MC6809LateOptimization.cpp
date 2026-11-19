@@ -67,6 +67,7 @@ public:
   bool hoistDiamondFalseLoad(MachineBasicBlock &MBB) const;
   bool foldMemoryRMW(MachineBasicBlock &MBB) const;
 };
+} // namespace
 
 bool MC6809LateOptimization::runOnMachineFunction(MachineFunction &MF) {
   bool Changed = false;
@@ -848,6 +849,7 @@ bool MC6809LateOptimization::elideCompareZero(MachineBasicBlock &MBB) const {
   }
   return Changed;
 }
+namespace {
 
 // The index-LEA addressing suffix we can fold into a load. Constant (o5/o8/o16)
 // carry an explicit (offset, base) operand pair; accumulator (oA/oB/oD and the
@@ -860,6 +862,7 @@ bool MC6809LateOptimization::elideCompareZero(MachineBasicBlock &MBB) const {
 enum class IdxSuf : int {
   o5 = 0, o8, o16, oA, oB, oD, oE, oF, oW, None = -1
 };
+} // namespace
 
 static IdxSuf leaIdxSuffix(unsigned LeaOpc) {
   switch (LeaOpc) {
@@ -1123,7 +1126,6 @@ bool MC6809LateOptimization::foldLEAIntoLoad(MachineBasicBlock &MBB) const {
   return Changed;
 }
 
-} // namespace
 
 char MC6809LateOptimization::ID = 0;
 

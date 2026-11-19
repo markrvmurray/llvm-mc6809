@@ -68,20 +68,24 @@ const RegisterBank &MC6809RegisterBankInfo::getRegBankFromRegClass(const TargetR
       MC6809::ADcRegClass.hasSubClassEq(&RC) ||
       MC6809::ACC8_ABRegClass.hasSubClassEq(&RC)) {
     return getRegBank(MC6809::ACCUMRegBankID);
-  } if (MC6809::INDEX16RegClass.hasSubClassEq(&RC)) {
+  }
+  if (MC6809::INDEX16RegClass.hasSubClassEq(&RC)) {
     return getRegBank(MC6809::INDEXRegBankID);
-  } else if (MC6809::CCondRegClass.hasSubClassEq(&RC) ||
-             MC6809::AllArithFlagRegClass.hasSubClassEq(&RC) ||
-             MC6809::ArithFlagRegClass.hasSubClassEq(&RC) ||
-             MC6809::CCFlagRegClass.hasSubClassEq(&RC)) {
+  }
+  if (MC6809::CCondRegClass.hasSubClassEq(&RC) ||
+      MC6809::AllArithFlagRegClass.hasSubClassEq(&RC) ||
+      MC6809::ArithFlagRegClass.hasSubClassEq(&RC) ||
+      MC6809::CCFlagRegClass.hasSubClassEq(&RC)) {
     return getRegBank(MC6809::FLAGSRegBankID);
-  } else if (MC6809::PHANTOM_CARRYRegClass.hasSubClassEq(&RC)) {
+  }
+  if (MC6809::PHANTOM_CARRYRegClass.hasSubClassEq(&RC)) {
     // Bug #302 follow-up: PHANTOM_CARRY lives in its own bank so it never
     // shares regalloc cost-model state with the real byte-allocation pool.
     return getRegBank(MC6809::PHANTOMRegBankID);
-  } else if (MC6809::Imag8RegClass.hasSubClassEq(&RC) ||
-             MC6809::Imag16RegClass.hasSubClassEq(&RC) ||
-             MC6809::Imag32RegClass.hasSubClassEq(&RC)) {
+  }
+  if (MC6809::Imag8RegClass.hasSubClassEq(&RC) ||
+      MC6809::Imag16RegClass.hasSubClassEq(&RC) ||
+      MC6809::Imag32RegClass.hasSubClassEq(&RC)) {
     return getRegBank(MC6809::ACCUMRegBankID);
   }
   llvm_unreachable("Unsupported register kind.");

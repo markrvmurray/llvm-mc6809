@@ -82,6 +82,7 @@ public:
   bool runOnModule(Module &M) override;
   void getAnalysisUsage(AnalysisUsage &AU) const override;
 };
+} // namespace
 
 void MC6809StaticStackAlloc::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<MachineModuleInfoWrapperPass>();
@@ -298,7 +299,6 @@ bool MC6809StaticStackAlloc::runOnModule(Module &M) {
   return true;
 }
 
-} // namespace
 
 char MC6809StaticStackAlloc::ID = 0;
 

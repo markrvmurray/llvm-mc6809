@@ -344,11 +344,12 @@ struct MC6809IncomingReturnHandler : public MC6809IncomingValueHandler {
 
   void makeLive(Register PhysReg) override { Call.addDef(PhysReg, RegState::Implicit); }
 };
+} // namespace
 
 // Add missing pointer information from the LLT to the argument flags for the
 // corresponding MVT. The MVT doesn't contain pointer information, so this would
 // otherwise be unavailable for use by the calling convention (i.e., CCIfPtr).
-void adjustArgFlags(CallLowering::ArgInfo &Arg, LLT Ty) {
+static void adjustArgFlags(CallLowering::ArgInfo &Arg, LLT Ty) {
   if (!Ty.isPointer())
     return;
 
@@ -365,13 +366,12 @@ void adjustArgFlags(CallLowering::ArgInfo &Arg, LLT Ty) {
 /// (i32, i64, structs, doubles, …) is returned via sret.
 ///
 /// Mirrors gcc6809's `(GET_MODE_SIZE (MODE) > 2)` test in `m6809.h`.
-bool isLargeReturnType(const Type *Ty, const DataLayout &DL) {
+static bool isLargeReturnType(const Type *Ty, const DataLayout &DL) {
   if (Ty->isVoidTy())
     return false;
   return DL.getTypeStoreSize(const_cast<Type *>(Ty)).getKnownMinValue() > 2;
 }
 
-} // namespace
 
 bool MC6809CallLowering::lowerReturn(MachineIRBuilder &MIRBuilder, const Value *Val, ArrayRef<Register> VRegs, FunctionLoweringInfo &FLI) const {
   MachineFunction &MF = MIRBuilder.getMF();

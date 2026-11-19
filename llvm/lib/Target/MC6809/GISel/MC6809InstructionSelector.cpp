@@ -45,7 +45,6 @@ using namespace MIPatternMatch;
 
 #define DEBUG_TYPE "mc6809-isel"
 
-namespace {
 
 // Bug #319 (2026-05-21): narrow a vreg's class to a tighter target
 // class when the producer (e.g. ConditionalImm / SEX8Implicit /
@@ -108,6 +107,7 @@ static Register narrowToClass(MachineIRBuilder &Builder,
   Builder.buildCopy(Copy, R);
   return Copy;
 }
+namespace {
 
 #define GET_GLOBALISEL_PREDICATE_BITSET
 #include "MC6809GenGlobalISel.inc"
@@ -220,6 +220,7 @@ private:
 #include "MC6809GenGlobalISel.inc"
 #undef GET_GLOBALISEL_TEMPORARIES_DECL
 };
+} // namespace
 
 void MC6809InstructionSelector::setupMF(MachineFunction &MF,
                                      GISelValueTracking *VT,
@@ -696,7 +697,6 @@ ensureCarryChainIntegrity(MachineInstr &Consumer, Register CarryIn,
   return CrossBB;
 }
 
-} // namespace
 
 #define GET_GLOBALISEL_IMPL
 #include "MC6809GenGlobalISel.inc"
@@ -1149,6 +1149,7 @@ static bool getUnmergedByteConstant(const MachineRegisterInfo &MRI,
   return true;
 }
 
+namespace {
 struct FoldedLdIdx_match {
   const MachineInstr &Tgt;
   MachineOperand &Ptr;
@@ -1197,8 +1198,9 @@ struct FoldedLdIdx_match {
     return false;
   }
 };
+} // end anonymous namespace
 
-inline FoldedLdIdx_match m_FoldedLdIdx(const MachineInstr &Tgt, MachineOperand &Ptr, MachineOperand &Offset, AAResults *AA) {
+static inline FoldedLdIdx_match m_FoldedLdIdx(const MachineInstr &Tgt, MachineOperand &Ptr, MachineOperand &Offset, AAResults *AA) {
   return {Tgt, Ptr, Offset, AA};
 }
 

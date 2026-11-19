@@ -60,6 +60,7 @@ private:
   void ensureDominates(const MachineInstr &Base, MachineInstr &PrevMI,
                        MachineInstr &MI) const;
 };
+} // namespace
 
 bool MC6809ShiftRotateChain::runOnMachineFunction(MachineFunction &MF) {
   struct ChainEntry {
@@ -180,7 +181,6 @@ void MC6809ShiftRotateChain::ensureDominates(const MachineInstr &Base, MachineIn
     ensureDominates(Base, ImmBase, PrevMI);
 }
 
-} // namespace
 
 char MC6809ShiftRotateChain::ID = 0;
 

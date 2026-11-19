@@ -135,6 +135,7 @@ static bool safeToMoveLoad(const MachineInstr &Load, const MachineInstr &User,
   return true;
 }
 
+namespace {
 // The walking form of an op that reads memory through a pointer: its
 // `,r+` / `,-r` sibling (and the 2-byte forms), where the pointer operand
 // sits, the access size, and the accumulator class the sibling needs (none
@@ -151,6 +152,7 @@ struct StepForm {
   // happen).
   unsigned DecOpc = 0;
 };
+} // end anonymous namespace
 
 static std::optional<StepForm> stepFormOf(unsigned Opc) {
   // ADD/SUB step through the HD6309 W as well; the carry and bitwise word

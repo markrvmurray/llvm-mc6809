@@ -44,6 +44,7 @@ public:
   MachineFunction::reverse_iterator lowerSelect(GSelect &MI);
   void moveAwayFromCalls(MachineFunction &MF);
 };
+} // namespace
 
 bool MC6809LowerSelect::runOnMachineFunction(MachineFunction &MF) {
   LLVM_DEBUG(dbgs() << "\n\nHandling G_SELECTs in: " << MF.getName() << "\n\n");
@@ -64,7 +65,7 @@ bool MC6809LowerSelect::runOnMachineFunction(MachineFunction &MF) {
   return Changed;
 }
 
-Register getPhiValue(const MachineInstr &Phi, const MachineBasicBlock *MBB) {
+static Register getPhiValue(const MachineInstr &Phi, const MachineBasicBlock *MBB) {
   assert(Phi.getOpcode() == MC6809::G_PHI);
   for (unsigned Idx = 1, End = Phi.getNumOperands(); Idx != End; Idx += 2)
     if (Phi.getOperand(Idx + 1).getMBB() == MBB)
@@ -72,7 +73,7 @@ Register getPhiValue(const MachineInstr &Phi, const MachineBasicBlock *MBB) {
   llvm_unreachable("Could not find MBB in G_PHI.");
 }
 
-bool referencesSuccessor(const MachineBasicBlock &MBB, const MachineBasicBlock *Tgt) {
+static bool referencesSuccessor(const MachineBasicBlock &MBB, const MachineBasicBlock *Tgt) {
   for (const MachineInstr &MI : MBB.terminators())
     for (const MachineOperand &MO : MI.operands())
       if (MO.isMBB() && MO.getMBB() == Tgt)
@@ -80,7 +81,7 @@ bool referencesSuccessor(const MachineBasicBlock &MBB, const MachineBasicBlock *
   return false;
 }
 
-void removePredecessorFromPhis(MachineBasicBlock *MBB, const MachineBasicBlock *PredMBB) {
+static void removePredecessorFromPhis(MachineBasicBlock *MBB, const MachineBasicBlock *PredMBB) {
   for (MachineInstr &Phi : MBB->phis())
     for (unsigned Idx = 1; Idx < Phi.getNumOperands();)
       if (Phi.getOperand(Idx + 1).getMBB() == PredMBB) {
@@ -378,7 +379,6 @@ void MC6809LowerSelect::sinkSelectsToBranchUses(MachineFunction &MF) {
   }
 }
 
-} // namespace
 
 char MC6809LowerSelect::ID = 0;
 

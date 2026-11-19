@@ -40,6 +40,7 @@ public:
 
   bool runOnMachineFunction(MachineFunction &MF) override;
 };
+} // namespace
 
 bool MC6809PostRAScavenging::runOnMachineFunction(MachineFunction &MF) {
   if (MF.getProperties().hasProperty(MachineFunctionProperties::Property::NoVRegs))
@@ -51,7 +52,6 @@ bool MC6809PostRAScavenging::runOnMachineFunction(MachineFunction &MF) {
   return true;
 }
 
-} // namespace
 
 char MC6809PostRAScavenging::ID = 0;
 

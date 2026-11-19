@@ -474,6 +474,7 @@ public:
   virtual ~MC6809CSEConfigFull() = default;
   virtual bool shouldCSEOpc(unsigned Opc) override;
 };
+} // namespace
 
 bool MC6809CSEConfigFull::shouldCSEOpc(unsigned Opc) {
   switch (Opc) {
@@ -485,7 +486,6 @@ bool MC6809CSEConfigFull::shouldCSEOpc(unsigned Opc) {
   }
 }
 
-} // namespace
 
 std::unique_ptr<CSEConfigBase> MC6809PassConfig::getCSEConfig() const {
   if (TM->getOptLevel() == CodeGenOptLevel::None)

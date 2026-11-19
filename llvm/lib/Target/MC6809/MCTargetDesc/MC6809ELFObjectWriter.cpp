@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "MCTargetDesc/MC6809ELFObjectWriter.h"
 #include "MCTargetDesc/MC6809FixupKinds.h"
 #include "MCTargetDesc/MC6809MCExpr.h"
 #include "MCTargetDesc/MC6809MCTargetDesc.h"
@@ -22,14 +23,6 @@
 
 namespace llvm {
 
-/// Writes MC6809 machine code into an ELF32 object file.
-class MC6809ELFObjectWriter : public MCELFObjectTargetWriter {
-public:
-  explicit MC6809ELFObjectWriter(uint8_t OSABI);
-
-  unsigned getRelocType(const MCFixup &Fixup, const MCValue &Target,
-                        bool IsPCRel) const override;
-};
 
 MC6809ELFObjectWriter::MC6809ELFObjectWriter(uint8_t OSABI)
     : MCELFObjectTargetWriter(false, OSABI, ELF::EM_MC6809, true) {}

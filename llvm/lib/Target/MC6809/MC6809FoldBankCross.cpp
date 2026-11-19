@@ -81,6 +81,7 @@ struct FoldTarget {
   unsigned Opc;
   int ValueOp;
 };
+} // namespace
 static FoldTarget indexConsumer(unsigned Opc) {
   switch (Opc) {
   case MC6809::Store_i16_Mem:         return {MC6809::Store_iPtr_Mem, 0};
@@ -114,6 +115,7 @@ static FoldTarget indexConsumer(unsigned Opc) {
   default:                            return {0, -1};
   }
 }
+namespace {
 
 
 // ---- Whole-value promotion into the index bank --------------------------
@@ -142,6 +144,7 @@ static cl::opt<bool> EnableIndexPromotion(
 // and result, the other side of a copy, the tied source or result of an
 // add-immediate). Rebuild says the instruction's operands change shape.
 static constexpr unsigned KeepOpcode = ~0u;
+} // namespace
 
 static unsigned indexSibling(const MachineInstr &MI, unsigned OpIdx,
                              const MachineRegisterInfo &MRI,
@@ -479,7 +482,6 @@ static bool promoteToIndexBank(MachineFunction &MF, const MachineLoopInfo &MLI) 
   return true;
 }
 
-} // namespace
 
 bool MC6809FoldBankCross::runOnMachineFunction(MachineFunction &MF) {
   if (!EnableFoldBankCross)
